@@ -1,0 +1,22 @@
+# Chạy riêng service core bằng image đã build.
+# Hạ tầng (postgres/redis) dùng docker-compose.yml ở gốc monorepo.
+services:
+  core:
+    build:
+      context: ../../../..
+      dockerfile: ./suites/chantam.vn/chantam/core/Dockerfile
+    restart: unless-stopped
+    ports:
+      - '${PORT:-3000}:3000'
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      DATABASE_URI: ${DATABASE_URI:-postgres://chantam:chantam@chantam-postgres:5432/chantam}
+      REDIS_URI: ${REDIS_URI:-redis://chantam-redis:6379}
+      GEO_JITTER_RADIUS_METERS: ${GEO_JITTER_RADIUS_METERS:-300}
+    networks:
+      - chantam-net
+
+networks:
+  chantam-net:
+    external: true

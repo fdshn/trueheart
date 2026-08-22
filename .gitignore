@@ -1,0 +1,33 @@
+# compiled output
+dist/
+build/
+node_modules/
+**/*.tgz
+
+# logs
+logs
+*.log
+npm-debug.log*
+lerna-debug.log*
+
+# env — chỉ .env.example được theo dõi.
+# .env sẽ chứa credential thật ở môi trường thực; không bao giờ commit.
+.env
+.env.local
+.env.*.local
+
+# TypeScript incremental build
+*.tsbuildinfo
+
+# tests
+coverage/
+.nyc_output/
+
+# editors
+.idea/
+.vscode/*
+!.vscode/settings.json
+.DS_Store
+
+# claude
+.claude/

@@ -1,0 +1,48 @@
+# Hạ tầng phụ trợ cho môi trường phát triển của Chân Tâm.
+# Dùng: docker compose up -d
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: chantam-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-chantam}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chantam}
+      POSTGRES_DB: ${POSTGRES_DB:-chantam}
+    ports:
+      - '${POSTGRES_PORT:-15432}:5432'
+    volumes:
+      - chantam-postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-chantam}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chantam-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: chantam-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '${REDIS_PORT:-16379}:6379'
+    volumes:
+      - chantam-redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chantam-net
+
+volumes:
+  chantam-postgres-data:
+  chantam-redis-data:
+
+networks:
+  chantam-net:
+    name: chantam-net

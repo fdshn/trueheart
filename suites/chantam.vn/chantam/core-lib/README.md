@@ -1,0 +1,59 @@
+# `@chantam.vn/chantam.core-lib`
+
+Contract dùng chung của nghiệp vụ Chân Tâm: **chỉ interface, enum và value object — không
+có implementation**.
+
+## Vì sao tách riêng
+
+1. **Chia sẻ kiểu với frontend.** Next.js web và Admin CMS import trực tiếp package này,
+   không cần sinh client hay đồng bộ kiểu thủ công.
+2. **Ranh giới thật.** Service không thể vô tình phụ thuộc vào chi tiết implementation.
+3. **Chuẩn bị tách service.** Khi `chat` tách ra thành service riêng, nó vẫn dùng chung
+   contract ở đây.
+
+## Export
+
+| Đường dẫn import | Nội dung |
+| --- | --- |
+| `@chantam.vn/chantam.core-lib` | `CoreService` |
+| `.../consts` | `ErrorCodes`, `ErrorOrigin`, `GiftPostCategories`, `GiftPostConditions`, `GiftPostStatuses` |
+| `.../models` | `IGiftPost` |
+| `.../entities` | `IGiftPostEntity` + token DI |
+| `.../values` | `GiftPostId` |
+| `.../dto` | Interface DTO theo từng resource |
+
+## Quy ước DTO
+
+Mỗi intent một file, chứa đủ bộ interface của intent đó:
+
+```typescript
+ICreateGiftPostDto          // dữ liệu bên trong
+ICreateGiftPostBodyDto      // { giftPost: ICreateGiftPostDto }  ← body thực tế
+ICreateGiftPostResponseDto  // { giftPost: IGiftPostEntity }
+```
+
+Body **luôn bọc dưới khoá resource**. Nhờ vậy về sau thêm trường cấp bao ngoài
+(idempotency key, metadata client) không phá vỡ hợp đồng đã công bố.
+
+## Mã lỗi
+
+Định dạng `0x<ResourceId><ReasonId>`, kèm `ErrorOrigin = 'chantam/core'`. Client bắt lỗi
+theo cặp `(errorOrigin, errorCode)`.
+
+```typescript
+import { ErrorCodes, ErrorOrigin } from '@chantam.vn/chantam.core-lib/consts';
+```
+
+## Vòng đời bài đăng
+
+```
+DRAFT ─▶ PENDING_REVIEW ─▶ PUBLISHED ─▶ RESERVED ─▶ DELIVERING ─▶ COMPLETED
+                 │              │           │            │
+                 ▼              ▼           ▼            ▼
+             REJECTED       EXPIRED     CANCELLED    CANCELLED
+                                │
+                                ▼
+                            ARCHIVED   (Kho Từ Thiện Chung)
+```
+
+`EXPIRED` ứng với quy định "quá một tháng không có người nhận" (đặc tả mục 3.2).
