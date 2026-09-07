@@ -12,13 +12,15 @@
   ],
   "scripts": {
     "build": "lerna run build --concurrency 1",
-    "start": "lerna run start",
-    "dev": "lerna run dev --parallel",
-    "test": "lerna run test --concurrency 1 --no-bail",
-    "format": "prettier --write \"{kernel,system,suites}/**/src/**/*.ts\"",
-    "lint": "eslint \"{kernel,system,suites}/**/src/**/*.ts\" --fix",
     "clean": "lerna run clean --no-bail",
-    "rebuild": "npm run clean && npm run build"
+    "dev": "lerna run dev --parallel",
+    "format": "prettier --write \"{kernel,system,suites}/**/src/**/*.ts\"",
+    "format:check": "prettier --check \"{kernel,system,suites}/**/src/**/*.ts\"",
+    "lint": "eslint \"{kernel,system,suites}/**/src/**/*.ts\" --fix",
+    "lint:check": "eslint \"{kernel,system,suites}/**/src/**/*.ts\"",
+    "rebuild": "npm run clean && npm run build",
+    "start": "lerna run start",
+    "test": "lerna run test --concurrency 1 --no-bail"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

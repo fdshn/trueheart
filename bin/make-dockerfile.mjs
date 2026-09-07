@@ -120,7 +120,10 @@ lines.push(
   'RUN npm prune --omit=dev',
   '',
   '# Bỏ source và test khỏi image cuối',
-  "RUN find . -path ./node_modules -prune -o -type d \\( -name src -o -name test \\) -print0 \\",
+  // `-name node_modules -prune` chứ KHÔNG phải `-path ./node_modules`: dạng sau
+  // chỉ bỏ qua node_modules ở gốc, nên find vẫn chui vào các node_modules lồng
+  // nhau và xoá thư mục src của những package npm có ship kèm source.
+  "RUN find . -name node_modules -prune -o -type d \\( -name src -o -name test \\) -print0 \\",
   '  | xargs -0 rm -rf',
   '',
   `FROM ${RUNNER_IMAGE} AS runner`,

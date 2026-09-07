@@ -1,0 +1,85 @@
+# Cấu hình chạy trên VPS. Không dùng cho môi trường phát triển —
+# docker-compose.yml ở gốc monorepo mới là bản cho máy lập trình viên.
+#
+# Workflow deploy ghi biến IMAGE vào .env rồi chạy:
+#   docker compose pull core && docker compose up -d --wait
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: chantam-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?bắt buộc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?bắt buộc}
+      POSTGRES_DB: ${POSTGRES_DB:?bắt buộc}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # KHÔNG publish cổng ra ngoài. Database chỉ được truy cập trong network nội
+    # bộ của compose. Cần vào bằng tay thì dùng SSH tunnel.
+    networks: [chantam]
+
+  redis:
+    image: redis:7-alpine
+    container_name: chantam-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [chantam]
+
+  core:
+    image: ${IMAGE:?workflow deploy phải ghi biến này vào .env}
+    container_name: chantam-core
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URI: redis://redis:6379
+      GEO_JITTER_RADIUS_METERS: ${GEO_JITTER_RADIUS_METERS:-300}
+    ports:
+      # Chỉ bind loopback. Reverse proxy (Caddy/nginx) đứng trước lo TLS và
+      # rate limit — không phơi thẳng Node ra Internet.
+      - '127.0.0.1:${CORE_PORT:-3000}:3000'
+    healthcheck:
+      # Dùng fetch của Node chứ không dùng curl: image node:22-slim không có
+      # curl, và `docker compose up --wait` phụ thuộc chính healthcheck này.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    logging:
+      driver: json-file
+      options: { max-size: '20m', max-file: '5' }
+    networks: [chantam]
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  chantam:
+    name: chantam

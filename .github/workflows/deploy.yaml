@@ -1,0 +1,149 @@
+name: Deploy
+
+# Workflow dùng lại — release.yaml gọi nó hai lần với hai environment khác nhau.
+# Một định nghĩa duy nhất để staging và production không bao giờ trôi lệch nhau.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'GitHub Environment (staging hoặc production)'
+        required: true
+        type: string
+      image:
+        description: 'Image đầy đủ kèm tag, ví dụ ghcr.io/owner/repo:v1.0.0'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Triển khai ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+
+    # Không bao giờ để hai lượt deploy cùng môi trường chồng lên nhau.
+    # Không huỷ lượt đang chạy: cắt ngang giữa chừng để lại trạng thái nửa vời.
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Kiểm tra môi trường đã bật chưa
+        id: guard
+        # Chưa dựng server thì bỏ qua thay vì đỏ pipeline. Bật bằng cách đặt
+        # biến DEPLOY_ENABLED=true trong Environment tương ứng.
+        run: |
+          if [ "${{ vars.DEPLOY_ENABLED }}" != "true" ]; then
+            echo "::notice::Môi trường '${{ inputs.environment }}' chưa bật deploy (vars.DEPLOY_ENABLED != true). Bỏ qua."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Nạp khoá SSH
+        if: steps.guard.outputs.enabled == 'true'
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # ssh-keyscan thay vì StrictHostKeyChecking=no: vẫn tự động nhưng
+          # khoá host được ghim trong phiên này, không mù quáng chấp nhận mọi host.
+          ssh-keyscan -p "${SSH_PORT:-22}" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Ghi lại image đang chạy để rollback
+        id: previous
+        if: steps.guard.outputs.enabled == 'true'
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          PREVIOUS=$(ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" \
+            "$SSH_USER@$SSH_HOST" \
+            "grep '^IMAGE=' '$DEPLOY_PATH/.env' 2>/dev/null | cut -d= -f2- || true")
+
+          echo "Image trước khi deploy: ${PREVIOUS:-(chưa có)}"
+          echo "image=$PREVIOUS" >> "$GITHUB_OUTPUT"
+
+      - name: Triển khai
+        if: steps.guard.outputs.enabled == 'true'
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          IMAGE: ${{ inputs.image }}
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" "$SSH_USER@$SSH_HOST" \
+            IMAGE="$IMAGE" DEPLOY_PATH="$DEPLOY_PATH" \
+            REGISTRY_USER="$REGISTRY_USER" REGISTRY_TOKEN="$REGISTRY_TOKEN" \
+            'bash -s' <<'REMOTE'
+          set -euo pipefail
+
+          cd "$DEPLOY_PATH"
+
+          echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+
+          # Ghi IMAGE vào .env để docker-compose.yml nội suy — cũng là nơi bước
+          # rollback đọc ra giá trị cũ.
+          if grep -q '^IMAGE=' .env 2>/dev/null; then
+            sed -i "s|^IMAGE=.*|IMAGE=$IMAGE|" .env
+          else
+            echo "IMAGE=$IMAGE" >> .env
+          fi
+
+          docker compose pull core
+          docker compose up -d --wait --wait-timeout 180 --remove-orphans
+
+          docker image prune -f --filter 'until=168h' || true
+          REMOTE
+
+      - name: Cổng kiểm tra sau triển khai
+        if: steps.guard.outputs.enabled == 'true'
+        env:
+          HEALTH_URL: ${{ secrets.HEALTH_URL }}
+        run: |
+          # Chế độ chỉ đọc: tuyệt đối không ghi dữ liệu thử vào production.
+          bash scripts/smoke-test.sh "$HEALTH_URL" --read-only
+
+      - name: Rollback về image trước đó
+        # Không có bước này, một lần deploy hỏng là dịch vụ nằm im tới khi có
+        # người vào sửa tay. Chạy khi bất kỳ bước nào ở trên thất bại, kể cả
+        # cổng kiểm tra sau triển khai.
+        if: failure() && steps.guard.outputs.enabled == 'true' && steps.previous.outputs.image != ''
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          PREVIOUS_IMAGE: ${{ steps.previous.outputs.image }}
+        run: |
+          echo "::warning::Triển khai thất bại — quay về $PREVIOUS_IMAGE"
+
+          ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" "$SSH_USER@$SSH_HOST" \
+            PREVIOUS_IMAGE="$PREVIOUS_IMAGE" DEPLOY_PATH="$DEPLOY_PATH" \
+            'bash -s' <<'REMOTE'
+          set -euo pipefail
+
+          cd "$DEPLOY_PATH"
+          sed -i "s|^IMAGE=.*|IMAGE=$PREVIOUS_IMAGE|" .env
+          docker compose up -d --wait --wait-timeout 180
+          REMOTE
+
+          echo "::error::Đã rollback về $PREVIOUS_IMAGE. Lượt triển khai này coi như thất bại."
+
+      - name: Dọn khoá SSH
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

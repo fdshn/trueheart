@@ -1,0 +1,43 @@
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+  schedule:
+    # Thứ Hai 06:17 UTC (13:17 giờ Việt Nam). Tránh phút :00 vì cả thế giới
+    # đặt lịch ở đó, hàng đợi của GitHub bị dồn.
+    - cron: '17 6 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Phân tích mã nguồn
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      # Không build: TypeScript được CodeQL phân tích trực tiếp từ source.
+      # Thêm bước build chỉ làm chậm mà không tăng độ phủ.
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:javascript-typescript

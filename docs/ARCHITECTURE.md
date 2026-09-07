@@ -119,6 +119,26 @@ resource mới.
 2. **Chưa có xác thực.** Endpoint `gift-post` hiện đang mở — chỉ dùng để kiểm chứng kiến
    trúc. `auth-lib` phải xong trước khi triển khai bất kỳ môi trường nào có người dùng thật.
 3. **Chưa có rate limit.** Cần trước khi mở công khai (mục 4.2 đặc tả yêu cầu chống spam).
-4. **Dockerfile chưa được build thử.** `bin/make-dockerfile.mjs` sinh ra đúng cây phụ thuộc
-   và đúng thứ tự build, nhưng chưa ai chạy `docker build` trên nó. Kiểm chứng trước lần
-   triển khai đầu tiên.
+4. ~~Dockerfile chưa được build thử.~~ **Đã đóng.** Job `docker` của CI build image, chạy
+   nó, và gọi `/health` trên chính container đó mỗi lần có PR.
+
+---
+
+## 9. Pipeline tự động
+
+| Workflow | Khi nào chạy | Làm gì |
+| --- | --- | --- |
+| `ci.yaml` | mọi PR và push nhánh chính | 3 job song song: `verify` (lint/format/build/test), `integration` (PostGIS thật + smoke test), `docker` (chống lệch Dockerfile + build + chạy thử image) |
+| `release.yaml` | push nhánh chính → staging; tag `v*` → production | Build và đẩy image lên GHCR, rồi gọi `deploy.yaml` |
+| `deploy.yaml` | được `release.yaml` gọi | SSH + `docker compose up -d --wait`, cổng kiểm tra sau triển khai, tự rollback khi hỏng |
+| `codeql.yaml` | PR, push nhánh chính, hàng tuần | Phân tích bảo mật mã nguồn |
+| `security-audit.yaml` | PR đụng dependency, hàng tuần | `npm audit --omit=dev --audit-level=high` |
+
+Điểm đáng chú ý về thiết kế: **`scripts/smoke-test.sh` được dùng ở cả hai đầu** — CI chạy
+đầy đủ (có ghi dữ liệu), cổng kiểm tra sau triển khai chạy `--read-only`. Nếu hai bên kiểm
+những thứ khác nhau thì "CI xanh" không nói lên điều gì về production.
+
+Job `integration` là nơi duy nhất chuỗi `ST_DWithin → repository → use case → controller`
+được kiểm tự động — unit test mock repository nên không chạm tới PostGIS.
+
+Hướng dẫn dựng server và khai secret: `deploy/README.md`.

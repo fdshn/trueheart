@@ -1,0 +1,42 @@
+name: Kiểm tra bảo mật dependency
+
+on:
+  pull_request:
+    # Chỉ chạy khi cây dependency thực sự đổi.
+    paths:
+      - '**/package.json'
+      - 'package-lock.json'
+  schedule:
+    # Thứ Hai 07:23 UTC. Lỗ hổng mới được công bố liên tục, nên phải quét theo
+    # lịch chứ không chỉ khi có người sửa dependency.
+    - cron: '23 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Quét dependency production
+        # Chỉ `--omit=dev`: lỗ hổng trong công cụ build không đi vào image chạy
+        # thật. Chặn ở mức `high` — mức thấp hơn sẽ đỏ liên tục vì nhiễu và
+        # người ta sẽ quen với việc bỏ qua CI đỏ.
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Báo cáo dependency dev (không chặn)
+        # Vẫn hiển thị để biết mà xử lý, nhưng không chặn merge.
+        if: always()
+        continue-on-error: true
+        run: npm audit --audit-level=critical

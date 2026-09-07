@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Môi trường triển khai'
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/core
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  build-push:
+    name: Build và đẩy image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    outputs:
+      image: ${{ steps.meta.outputs.primary }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Kiểm tra Dockerfile không lệch
+        # Lặp lại phép kiểm của CI. Release có thể chạy từ đường khác (tag,
+        # workflow_dispatch) mà chưa chắc đã qua CI, nên không được bỏ qua.
+        working-directory: suites/chantam.vn/chantam/core
+        run: |
+          node ../../../../bin/make-dockerfile.mjs > Dockerfile
+          git diff --exit-code -- Dockerfile
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Đăng nhập GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Xác định tag
+        id: meta
+        run: |
+          IMAGE_BASE="${REGISTRY}/${IMAGE_NAME}"
+          # GHCR yêu cầu tên image viết thường; tên repo có thể có chữ hoa.
+          IMAGE_BASE=$(echo "$IMAGE_BASE" | tr '[:upper:]' '[:lower:]')
+          SHORT_SHA="${GITHUB_SHA::7}"
+
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            TAGS="${IMAGE_BASE}:${VERSION},${IMAGE_BASE}:latest,${IMAGE_BASE}:sha-${SHORT_SHA}"
+            PRIMARY="${IMAGE_BASE}:${VERSION}"
+          else
+            TAGS="${IMAGE_BASE}:staging,${IMAGE_BASE}:sha-${SHORT_SHA}"
+            PRIMARY="${IMAGE_BASE}:sha-${SHORT_SHA}"
+          fi
+
+          echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
+          # Deploy dùng tag sha-* chứ không dùng `staging`/`latest`: tag di động
+          # khiến không thể biết chắc server đang chạy đúng commit nào, và
+          # rollback thì vô nghĩa.
+          echo "primary=$PRIMARY" >> "$GITHUB_OUTPUT"
+          echo "Sẽ đẩy: $TAGS"
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+
+      - name: Build và đẩy
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: suites/chantam.vn/chantam/core/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+  # ───────────────────────────────────────────────────────────────────────────
+  staging:
+    name: Staging
+    needs: build-push
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    uses: ./.github/workflows/deploy.yaml
+    with:
+      environment: staging
+      image: ${{ needs.build-push.outputs.image }}
+    secrets: inherit
+
+  # ───────────────────────────────────────────────────────────────────────────
+  production:
+    name: Production
+    needs: build-push
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+    # Duyệt tay cấu hình bằng "Required reviewers" trong GitHub Environment
+    # `production` — không khai được bằng file, xem deploy/README.md.
+    uses: ./.github/workflows/deploy.yaml
+    with:
+      environment: production
+      image: ${{ needs.build-push.outputs.image }}
+    secrets: inherit

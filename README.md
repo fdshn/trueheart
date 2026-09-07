@@ -1,5 +1,8 @@
 # Chân Tâm — True Heart
 
+[![CI](https://github.com/fdshn/trueheart/actions/workflows/ci.yaml/badge.svg)](https://github.com/fdshn/trueheart/actions/workflows/ci.yaml)
+[![CodeQL](https://github.com/fdshn/trueheart/actions/workflows/codeql.yaml/badge.svg)](https://github.com/fdshn/trueheart/actions/workflows/codeql.yaml)
+
 > *"Lánh ác làm lành – Đáp đền tiếp nối"* (Pay it forward)
 
 Monorepo backend của nền tảng cho–tặng & từ thiện cộng đồng **Chân Tâm**.
@@ -93,6 +96,27 @@ Mọi resource mới copy theo mẫu này.
 | Database | PostgreSQL 16 + PostGIS 3.4 |
 | Cache / Queue | Redis 7 (BullMQ — giai đoạn sau) |
 | Monorepo | npm workspaces + Lerna 8 |
+
+---
+
+## CI/CD
+
+Mọi PR đều chạy ba job song song:
+
+| Job | Kiểm gì |
+| --- | --- |
+| `verify` | lint, định dạng, build 8 package, 28 unit test |
+| `integration` | Dựng PostGIS thật, chạy service, gọi `scripts/smoke-test.sh` — 15 phép thử đi qua `ST_DWithin` |
+| `docker` | Dockerfile không lệch cây dependency, image build được **và chạy được** |
+
+Triển khai: push nhánh chính → staging; gắn tag `v*` → production (cần người duyệt).
+Chi tiết và cách khai secret: **[`deploy/README.md`](./deploy/README.md)**.
+
+Chạy bộ smoke test tại máy:
+
+```bash
+bash scripts/smoke-test.sh http://localhost:3000
+```
 
 ---
 

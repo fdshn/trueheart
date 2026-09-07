@@ -1,0 +1,42 @@
+# Không có file này, toàn bộ node_modules (hàng trăm MB) và dist của mọi package
+# bị nạp vào build context. Tệ hơn: chúng ghi đè lên kết quả `npm ci` bên trong
+# image, khiến image chạy bằng dependency của máy dev — sai kiến trúc, sai phiên bản.
+node_modules
+**/node_modules
+
+# Kết quả build — image tự build lại từ source
+dist
+**/dist
+**/*.tsbuildinfo
+coverage
+**/coverage
+
+# Git và công cụ
+.git
+.gitignore
+.github
+.claude
+.vscode
+.idea
+
+# Biến môi trường — không bao giờ đưa vào image
+.env
+**/.env
+**/.env.local
+
+# Tài liệu và hạ tầng cục bộ
+*.md
+docs
+deploy
+docker
+docker-compose.yml
+**/docker-compose.yml
+**/Dockerfile
+.dockerignore
+
+# Log và tạm
+*.log
+tmp
+**/tmp
+.DS_Store
+Thumbs.db

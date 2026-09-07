@@ -1,0 +1,230 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    # Repo hiện ở nhánh `master`; khai cả `main` để không phải sửa workflow
+    # nếu sau này đổi tên nhánh chính.
+    branches: [main, master]
+
+# Push liên tiếp vào cùng một nhánh thì huỷ lượt chạy cũ — không có dòng này,
+# 5 lần push nhanh sẽ chiếm runner cho 5 lượt build đã lỗi thời.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  verify:
+    name: Lint, build, unit test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Cài đặt dependency
+        run: npm ci
+
+      - name: Lint
+        # `lint:check` chứ không phải `lint` — bản `lint` có --fix và sẽ sửa file.
+        run: npm run lint:check
+
+      - name: Kiểm tra định dạng
+        run: npm run format:check
+
+      - name: Build toàn bộ package
+        run: npm run build
+
+      - name: Unit test
+        run: npm test
+
+      - name: Xác nhận build không làm bẩn working tree
+        # Nếu bước nào đó lén sửa file đã commit, phát hiện ở đây chứ không phải
+        # lúc lập trình viên thấy diff lạ trên máy mình.
+        run: git diff --exit-code
+
+  # ───────────────────────────────────────────────────────────────────────────
+  integration:
+    name: Kiểm thử tích hợp (PostGIS thật)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        # Image này tự tạo extension postgis trong POSTGRES_DB lúc initdb.
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: chantam
+          POSTGRES_PASSWORD: chantam
+          POSTGRES_DB: chantam
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U chantam"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # `development` để TypeORM bật synchronize và tự tạo bảng — CI chưa có
+      # migration, xem docs/ARCHITECTURE.md mục 8.
+      NODE_ENV: development
+      LOG_LEVEL: info
+      PORT: '3000'
+      DATABASE_URI: postgres://chantam:chantam@localhost:5432/chantam
+      REDIS_URI: redis://localhost:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Cài đặt dependency
+        run: npm ci
+
+      - name: Bổ sung extension cho tìm kiếm tiếng Việt
+        # postgis do image tự tạo; unaccent và pg_trgm thì không.
+        run: |
+          PGPASSWORD=chantam psql -h localhost -U chantam -d chantam \
+            -c "CREATE EXTENSION IF NOT EXISTS unaccent;" \
+            -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+
+      - name: Xác nhận PostGIS sẵn sàng
+        run: |
+          PGPASSWORD=chantam psql -h localhost -U chantam -d chantam \
+            -tAc "SELECT postgis_version();"
+
+      - name: Build
+        run: npm run build
+
+      - name: Khởi động service
+        working-directory: suites/chantam.vn/chantam/core
+        run: |
+          node dist/main.js > "$RUNNER_TEMP/core.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/core.pid"
+
+      - name: Chờ service sẵn sàng
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf -m 5 http://localhost:3000/health > /dev/null; then
+              echo "Service sẵn sàng sau $((i * 2)) giây"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Service không lên sau 60 giây"
+          exit 1
+
+      - name: Smoke test đầy đủ
+        # Đây là chỗ duy nhất chuỗi ST_DWithin -> repository -> use case ->
+        # controller được kiểm tự động. Unit test mock repository nên không
+        # chạm tới PostGIS.
+        run: bash scripts/smoke-test.sh http://localhost:3000
+
+      - name: In log service khi thất bại
+        if: failure()
+        run: cat "$RUNNER_TEMP/core.log" || true
+
+  # ───────────────────────────────────────────────────────────────────────────
+  docker:
+    name: Dockerfile và image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: chantam
+          POSTGRES_PASSWORD: chantam
+          POSTGRES_DB: chantam
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U chantam"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Kiểm tra Dockerfile không lệch với cây dependency
+        # Thêm một dependency `file:` mà quên chạy `npm run docker:generate` thì
+        # image thiếu package — lỗi chỉ lộ ra lúc deploy. Bộ sinh chỉ dùng
+        # builtin của Node nên không cần npm ci.
+        working-directory: suites/chantam.vn/chantam/core
+        run: |
+          node ../../../../bin/make-dockerfile.mjs > Dockerfile
+          if ! git diff --exit-code -- Dockerfile; then
+            echo "::error::Dockerfile lệch với cây dependency. Chạy 'npm run docker:generate' trong suites/chantam.vn/chantam/core rồi commit lại."
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: suites/chantam.vn/chantam/core/Dockerfile
+          push: false
+          load: true
+          tags: chantam/core:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Chạy thử image
+        # Build thành công không chứng minh image chạy được. Ví dụ có thật:
+        # `npm start` từng gọi cross-env — một devDependency bị `npm prune
+        # --omit=dev` xoá mất — nên container chết ngay khi khởi động.
+        run: |
+          docker run -d --name core-ci --network host \
+            -e NODE_ENV=production \
+            -e PORT=3000 \
+            -e DATABASE_URI=postgres://chantam:chantam@localhost:5432/chantam \
+            -e REDIS_URI=redis://localhost:6379 \
+            chantam/core:ci
+
+          for _ in $(seq 1 30); do
+            if curl -sf -m 5 http://localhost:3000/health > /dev/null; then
+              echo "Image chạy được"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Image không phục vụ được /health sau 60 giây"
+          exit 1
+
+      - name: Smoke test chỉ đọc trên image
+        run: bash scripts/smoke-test.sh http://localhost:3000 --read-only
+
+      - name: In log container khi thất bại
+        if: failure()
+        run: docker logs core-ci || true
+
+      - name: Dọn dẹp
+        if: always()
+        run: docker rm -f core-ci || true

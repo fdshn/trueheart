@@ -1,0 +1,53 @@
+version: 2
+
+updates:
+  # npm workspaces: Dependabot đọc từ thư mục gốc và tự hiểu toàn bộ package
+  # trong workspace, không cần khai từng package một.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+      timezone: Asia/Ho_Chi_Minh
+    open-pull-requests-limit: 5
+    # Gom nhóm để không ngập PR. Không gom thì mỗi tuần có ~15 PR lẻ và team
+    # sẽ ngừng đọc chúng — tệ hơn là không có Dependabot.
+    groups:
+      nestjs:
+        patterns: ['@nestjs/*']
+      typeorm-postgres:
+        patterns: ['typeorm', 'pg', '@nestjs/typeorm']
+      fastify:
+        patterns: ['fastify', '@fastify/*']
+      testing:
+        patterns: ['jest', 'ts-jest', '@types/jest', 'supertest', '@types/supertest']
+      linting:
+        patterns: ['eslint*', 'prettier*', 'typescript-eslint', '@eslint/*', 'globals']
+      types:
+        patterns: ['@types/*']
+        exclude-patterns: ['@types/jest', '@types/supertest']
+    ignore:
+      # Nâng major của những thứ này luôn kéo theo thay đổi kiến trúc — làm có
+      # chủ đích, không để Dependabot mở PR tự động.
+      - dependency-name: typeorm
+        update-types: [version-update:semver-major]
+      - dependency-name: '@nestjs/core'
+        update-types: [version-update:semver-major]
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+      timezone: Asia/Ho_Chi_Minh
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: 'chore(ci)'

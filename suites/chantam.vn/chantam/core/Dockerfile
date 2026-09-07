@@ -35,7 +35,7 @@ RUN npm run build --workspace ./suites/chantam.vn/chantam/core
 RUN npm prune --omit=dev
 
 # Bỏ source và test khỏi image cuối
-RUN find . -path ./node_modules -prune -o -type d \( -name src -o -name test \) -print0 \
+RUN find . -name node_modules -prune -o -type d \( -name src -o -name test \) -print0 \
   | xargs -0 rm -rf
 
 FROM node:22-slim AS runner

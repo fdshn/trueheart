@@ -1,4 +1,17 @@
 {
+  // KHONG bat "incremental" cho library.
+  //
+  // Library emit ra chinh thu muc goc package (outDir "."), nen tsc tinh duong
+  // dan tsconfig.build.tsbuildinfo theo thu muc output CHUNG. Vi cac lib anh em
+  // dong gop file .d.ts nam ngoai package, thu muc chung bi day len mot cap va
+  // file tsbuildinfo roi vao kernel/ hoac suites/<suite>/<product>/ — noi NHIEU
+  // package dung chung mot file, de len trang thai cua nhau.
+  //
+  // Hau qua: sau khi xoa output, tsc doc trang thai cu roi BO QUA EMIT trong im
+  // lang, exit 0, khong sinh file nao. Loi bao ra o package phu thuoc duoi dang
+  // "Cannot find module .../consts" — khong lien quan gi toi nguyen nhan that.
+  //
+  // Build mot lib chi mat 3-5s nen incremental khong dang de danh doi.
   "compilerOptions": {
     "module": "commonjs",
     "declaration": true,
@@ -12,7 +25,6 @@
     "outDir": ".",
     "baseUrl": "./src",
     "rootDir": "./src",
-    "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,

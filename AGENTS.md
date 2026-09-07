@@ -25,6 +25,14 @@ Package nằm ở ba root: `kernel/`, `system/`, `suites/<suite>/<product>/`.
 | `npm run lint` | ESLint + tự sửa |
 | `npm run format` | Prettier |
 | `docker compose up -d` | Khởi động PostgreSQL (PostGIS) + Redis cho môi trường dev |
+| `npm run lint:check` | ESLint **không** tự sửa — đúng bản CI chạy |
+| `npm run format:check` | Prettier chỉ kiểm tra — đúng bản CI chạy |
+| `npm run clean` / `npm run rebuild` | Xoá output build / xoá rồi build lại từ đầu |
+| `bash scripts/smoke-test.sh <url>` | 15 phép thử đầu-cuối, gồm cả truy vấn PostGIS |
+
+> Trước khi mở PR, chạy `npm run lint:check` và `npm run format:check` chứ không phải
+> `lint`/`format` — hai bản sau tự sửa file, còn CI thì không, nên chúng có thể xanh ở máy
+> bạn mà đỏ trên CI.
 
 ### Trong từng package
 
