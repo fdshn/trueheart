@@ -19,6 +19,7 @@ import {
 } from '@/domain/exceptions';
 import {
   IConfirmPasswordResetResponseDto,
+  ICurrentSessionDto,
   IDeleteAccountResponseDto,
   ILoginResponseDto,
   ILogoutResponseDto,
@@ -55,13 +56,13 @@ import {
 import {
   ConfirmPasswordResetBodyDto,
   ConfirmPasswordResetResponseDto,
+  CurrentSessionDto,
   DeleteAccountBodyDto,
   DeleteAccountResponseDto,
   LoginBodyDto,
   LoginResponseDto,
   LogoutBodyDto,
   LogoutResponseDto,
-  OwnUserDto,
   RefreshSessionBodyDto,
   RefreshSessionResponseDto,
   RegisterBodyDto,
@@ -297,14 +298,23 @@ export class AuthController {
     description:
       'Đọc thẳng từ access token, không truy vấn database — dùng để client kiểm tra token còn sống.',
   })
-  @ApiOkResponse({ type: ResponseDto.forApi(OwnUserDto) })
+  @ApiOkResponse({ type: ResponseDto.forApi(CurrentSessionDto) })
   @ApiErrorResponses(...ApiTokenErrors)
   public getCurrentUser(
     @CurrentUser() principal: IAuthPrincipal,
-  ): ResponseDto<IAuthPrincipal> {
-    return ResponseDto.create<IAuthPrincipal>()
+  ): ResponseDto<ICurrentSessionDto> {
+    // Chép từng trường, KHÔNG trải `principal`. Principal còn mang `issuedAt`
+    // — thứ nội bộ để guard đối chiếu danh sách thu hồi, không phải dữ liệu
+    // của API. Trải ra thì mỗi lần thêm trường vào principal là API lặng lẽ
+    // đổi hình dạng.
+    return ResponseDto.create<ICurrentSessionDto>()
       .succeed()
-      .attach(principal)
+      .attach({
+        userId: principal.userId,
+        username: principal.username,
+        rank: principal.rank,
+        status: principal.status,
+      })
       .build();
   }
 }

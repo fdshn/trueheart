@@ -1,5 +1,6 @@
 import { UserRanks, UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  ICurrentSessionDto,
   ILoginBodyDto,
   ILoginDto,
   ILoginResponseDto,
@@ -208,4 +209,18 @@ export class LogoutBodyDto implements ILogoutBodyDto {
 export class LogoutResponseDto implements ILogoutResponseDto {
   @ApiProperty()
   loggedOutAt: Date;
+}
+
+export class CurrentSessionDto implements ICurrentSessionDto {
+  @ApiProperty({ format: 'uuid' })
+  userId: string;
+
+  @ApiProperty()
+  username: string;
+
+  @ApiProperty({ enum: UserRanks })
+  rank: string;
+
+  @ApiProperty({ enum: UserStatuses })
+  status: string;
 }

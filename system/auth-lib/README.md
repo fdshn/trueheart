@@ -95,10 +95,13 @@ Gọi nó ở mọi chỗ làm mất hiệu lực phiên: đổi mật khẩu, x
 
 Guard tra danh sách này sau khi kiểm chữ ký, và ném `TOKEN_REVOKED` nếu trúng.
 
-**Độ phân giải giây.** `iat` của JWT chỉ có đơn vị giây, nên so sánh cũng theo giây. Hệ quả:
-token phát ra trong *cùng giây* với lệnh thu hồi vẫn sống. Khe hở dưới 1 giây đó là chủ ý —
-đổi lấy việc người dùng đổi mật khẩu xong đăng nhập lại ngay **không bị chính lệnh thu hồi
-của mình đá ra**.
+**Mốc phát hành nằm trong claim `ims`, đơn vị mili giây** — không dùng `iat` chuẩn của JWT.
+`iat` chỉ có độ phân giải giây, nên không phân biệt được token phát ra ngay *trước* với ngay
+*sau* một lệnh thu hồi xảy ra trong cùng giây đó; token lẽ ra phải chết sẽ sống thêm. Payload
+là của ta nên cứ đóng dấu chính xác.
+
+Token do bản cũ ký (chưa có `ims`) vẫn được chấp nhận qua `iat` cho tới khi hết hạn, để lúc
+triển khai bản mới không đá hết người đang đăng nhập ra ngoài.
 
 **Không dùng cho đăng xuất.** Đăng xuất chỉ thu hồi một thiết bị, mà danh sách chặn lại theo
 tài khoản — dùng nó sẽ đá người dùng ra khỏi mọi máy. Muốn thu hồi đúng một phiên thì phải

@@ -54,6 +54,26 @@ describe('RedisTokenDenyList', () => {
     ).resolves.toBe(false);
   });
 
+  it('phân biệt được hai token cách nhau ĐÚNG MỘT MILI GIÂY', async () => {
+    // Bản đầu so theo giây nên token phát cùng giây với lệnh thu hồi vẫn sống.
+    // CI bắt được: smoke test đăng nhập rồi xoá tài khoản trong cùng một giây,
+    // token lẽ ra phải chết lại gọi API bình thường. Giờ mốc phát hành nằm
+    // trong chính payload (`ims`, mili giây) nên không còn khe hở nào.
+    const redis = makeRedisMock();
+    const denyList = new RedisTokenDenyList(redis, AccessTtlSeconds);
+
+    await denyList.revokeIssuedBefore(UserId);
+
+    const revokedAt = Number(redis.store.get(`auth:revoked:${UserId}`));
+
+    await expect(
+      denyList.isRevoked(UserId, new Date(revokedAt - 1)),
+    ).resolves.toBe(true);
+    await expect(
+      denyList.isRevoked(UserId, new Date(revokedAt + 1)),
+    ).resolves.toBe(false);
+  });
+
   it('thu hồi của tài khoản này không đụng tài khoản khác', async () => {
     const denyList = new RedisTokenDenyList(makeRedisMock(), AccessTtlSeconds);
 

@@ -32,3 +32,18 @@ export interface IAuthResultDto {
   session: ISessionTokensDto;
   user: IOwnUserDto;
 }
+
+/**
+ * Phản hồi của `GET /api/auth/me` — đọc thẳng từ access token, KHÔNG tra
+ * database.
+ *
+ * Cố ý hẹp hơn `IOwnUserDto`: token chỉ mang bốn trường này. Khai bằng
+ * `IOwnUserDto` thì tài liệu hứa có `email`, `phone`, `fullName`... mà thực tế
+ * không trả về.
+ */
+export interface ICurrentSessionDto {
+  userId: string;
+  username: string;
+  rank: string;
+  status: string;
+}

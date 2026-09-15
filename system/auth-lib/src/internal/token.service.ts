@@ -11,7 +11,15 @@ interface IAccessTokenPayload {
   usr: string;
   rnk: string;
   sts: string;
-  /** Do thư viện JWT tự đóng dấu lúc ký, tính bằng giây. */
+  /**
+   * Thời điểm phát hành, tính bằng **mili giây**.
+   *
+   * Không dùng `iat` chuẩn của JWT vì nó chỉ có độ phân giải giây — không phân
+   * biệt được token phát ra ngay trước với ngay sau một lệnh thu hồi xảy ra
+   * trong cùng giây đó. Payload là của ta nên cứ đóng dấu chính xác.
+   */
+  ims?: number;
+  /** Do thư viện JWT tự đóng dấu lúc ký, tính bằng giây. Chỉ dùng để đỡ lưng. */
   iat?: number;
 }
 
@@ -37,6 +45,7 @@ export class TokenService implements ITokenService {
       usr: principal.username,
       rnk: principal.rank,
       sts: principal.status,
+      ims: Date.now(),
     };
 
     return this.jwtService.signAsync(payload, {
@@ -55,10 +64,15 @@ export class TokenService implements ITokenService {
       throw new TokenInvalidException();
     }
 
-    // `iat` luôn có trong token do ta ký. Thiếu nó nghĩa là token được ký bởi
-    // thứ khác — từ chối thay vì đoán, vì thiếu `iat` thì không đối chiếu được
-    // với danh sách thu hồi.
-    if (!payload?.sub || !payload.usr || !payload.iat)
+    // Phải có mốc phát hành. Thiếu nghĩa là token do thứ khác ký — từ chối thay
+    // vì đoán, vì không có mốc thì không đối chiếu được với danh sách thu hồi.
+    //
+    // Lùi về `iat` khi thiếu `ims`: lúc triển khai bản mới, token cũ vẫn còn
+    // hiệu lực tới 15 phút. Mất độ chính xác xuống mức giây trong quãng đó,
+    // nhưng vẫn hơn là đá tất cả người đang đăng nhập ra ngoài.
+    const issuedAtMs = payload?.ims ?? (payload?.iat ? payload.iat * 1000 : 0);
+
+    if (!payload?.sub || !payload.usr || !issuedAtMs)
       throw new TokenInvalidException();
 
     return {
@@ -66,7 +80,7 @@ export class TokenService implements ITokenService {
       username: payload.usr,
       rank: payload.rnk,
       status: payload.sts,
-      issuedAt: new Date(payload.iat * 1000),
+      issuedAt: new Date(issuedAtMs),
     };
   }
 

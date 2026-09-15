@@ -23,16 +23,14 @@ export class RedisTokenDenyList implements ITokenDenyList {
   }
 
   public async revokeIssuedBefore(userId: string): Promise<void> {
-    // Giây nguyên, vì `iat` của JWT cũng chỉ có độ phân giải giây. Hệ quả: token
-    // phát ra trong cùng giây với lệnh thu hồi vẫn sống. Chấp nhận khe hở dưới
-    // một giây đó, đổi lấy việc người dùng đổi mật khẩu xong đăng nhập lại ngay
-    // KHÔNG bị chính lệnh thu hồi của mình đá ra.
-    const nowSeconds = Math.floor(Date.now() / 1000);
-
-    // Cộng thêm 60 giây phòng lệch đồng hồ giữa các tiến trình.
+    // Mili giây, khớp với mốc `ims` mà TokenService đóng vào token. Dùng giây
+    // thì token phát ra trong cùng giây với lệnh thu hồi vẫn sống — khe hở đó
+    // vừa là lỗ bảo mật vừa làm smoke test chập chờn, vì đăng nhập rồi xoá tài
+    // khoản ngay thường rơi trọn trong một giây.
     await this.redis.set(
       this.key(userId),
-      String(nowSeconds),
+      String(Date.now()),
+      // Cộng thêm 60 giây phòng lệch đồng hồ giữa các tiến trình.
       'EX',
       this.accessTtlSeconds + 60,
     );
@@ -43,6 +41,6 @@ export class RedisTokenDenyList implements ITokenDenyList {
 
     if (!stored) return false;
 
-    return Math.floor(issuedAt.getTime() / 1000) < Number(stored);
+    return issuedAt.getTime() < Number(stored);
   }
 }
