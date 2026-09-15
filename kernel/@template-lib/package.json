@@ -20,18 +20,18 @@
     "clean": "rimraf tsconfig.build.tsbuildinfo consts dto entities exception geo internal models modules persistence utils values index.js index.d.ts index.js.map index.d.ts.map use-case.js use-case.d.ts use-case.js.map use-case.d.ts.map"
   },
   "peerDependencies": {
-    "@nestjs/common": "^11.0.1",
-    "@nestjs/swagger": "^11.2.0",
+    "@nestjs/common": "^12.0.1",
+    "@nestjs/swagger": "^12.0.1",
     "reflect-metadata": "^0.2.2"
   },
   "dependencies": {
     "@chantam/service.common-lib": "file:../common-lib"
   },
   "devDependencies": {
-    "@nestjs/cli": "^11.0.0",
-    "@nestjs/common": "^11.0.1",
-    "@nestjs/schematics": "^11.0.0",
-    "@nestjs/swagger": "^11.2.0",
+    "@nestjs/cli": "^12.0.0",
+    "@nestjs/common": "^12.0.1",
+    "@nestjs/schematics": "^12.0.1",
+    "@nestjs/swagger": "^12.0.1",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.7",
     "jest": "^29.7.0",
