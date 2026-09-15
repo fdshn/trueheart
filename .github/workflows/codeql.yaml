@@ -20,6 +20,19 @@ concurrency:
 jobs:
   analyze:
     name: Phân tích mã nguồn
+    # Code scanning cần GitHub Advanced Security, mà GHAS chỉ miễn phí cho repo
+    # public. Repo này đang private và chưa bật GHAS, nên job chạy là chắc chắn
+    # đỏ với "Advanced Security must be enabled for this repository" — không
+    # liên quan gì tới mã nguồn.
+    #
+    # Để nó đỏ mãi còn hại hơn là tắt: người ta quen nhìn CI đỏ rồi bỏ qua, và
+    # lần CI đỏ thật sẽ không ai để ý.
+    #
+    # Bật lại: Settings > Code security > bật Advanced Security (hoặc chuyển
+    # repo sang public), rồi đặt biến repository CODE_SCANNING_ENABLED = true
+    # (Settings > Secrets and variables > Actions > Variables).
+    # Cùng cơ chế với DEPLOY_ENABLED của workflow deploy.
+    if: vars.CODE_SCANNING_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

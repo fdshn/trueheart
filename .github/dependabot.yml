@@ -13,26 +13,47 @@ updates:
     open-pull-requests-limit: 5
     # Gom nhóm để không ngập PR. Không gom thì mỗi tuần có ~15 PR lẻ và team
     # sẽ ngừng đọc chúng — tệ hơn là không có Dependabot.
+    #
+    # `update-types: [minor, patch]` ở MỌI nhóm là bắt buộc. Thiếu nó thì một
+    # bản major lọt vào giữa nhóm và kéo cả PR xuống đỏ: PR gộp 9 gói @nestjs/*
+    # lên v12 làm vỡ build, trong khi 8 gói kia chỉ là bản vá vô hại. Tách ra
+    # thì phần an toàn merge được ngay, phần rủi ro đứng riêng để người quyết.
     groups:
       nestjs:
         patterns: ['@nestjs/*']
+        update-types: [minor, patch]
       typeorm-postgres:
         patterns: ['typeorm', 'pg', '@nestjs/typeorm']
+        update-types: [minor, patch]
       fastify:
         patterns: ['fastify', '@fastify/*']
+        update-types: [minor, patch]
       testing:
         patterns: ['jest', 'ts-jest', '@types/jest', 'supertest', '@types/supertest']
+        update-types: [minor, patch]
       linting:
         patterns: ['eslint*', 'prettier*', 'typescript-eslint', '@eslint/*', 'globals']
+        update-types: [minor, patch]
       types:
         patterns: ['@types/*']
         exclude-patterns: ['@types/jest', '@types/supertest']
+        update-types: [minor, patch]
     ignore:
       # Nâng major của những thứ này luôn kéo theo thay đổi kiến trúc — làm có
       # chủ đích, không để Dependabot mở PR tự động.
+      #
+      # `@nestjs/*` chứ không chỉ `@nestjs/core`: NestJS 12 đổi kiểu của
+      # @nestjs/config (bỏ `abortEarly`) và của platform-fastify, nên nâng lẻ
+      # một gói trong bộ là vỡ build ngay.
+      #
+      # ĐÁNH ĐỔI: Dependabot security update cũng tuân theo `ignore`, nên lỗ
+      # hổng nào chỉ vá được bằng major sẽ KHÔNG tự mở PR. Lưới đỡ là job
+      # `npm audit` chạy hằng tuần — nó vẫn báo, chỉ là người phải tự nâng.
+      - dependency-name: '@nestjs/*'
+        update-types: [version-update:semver-major]
       - dependency-name: typeorm
         update-types: [version-update:semver-major]
-      - dependency-name: '@nestjs/core'
+      - dependency-name: pg
         update-types: [version-update:semver-major]
     commit-message:
       prefix: 'chore(deps)'
