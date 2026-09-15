@@ -114,8 +114,9 @@ resource mới.
 
 ## 8. Nợ kỹ thuật đã biết
 
-1. **`synchronize: true` ở môi trường dev.** Tiện lúc dựng nền, nhưng phải thay bằng
-   migration TypeORM trước khi có dữ liệu thật. Đây là việc bắt buộc, không phải tuỳ chọn.
+1. ~~`synchronize: true` ở môi trường dev.~~ **Đã đóng.** Toàn bộ schema do migration
+   TypeORM dựng, `synchronize` tắt ở mọi môi trường. Production tự chạy migration còn
+   thiếu lúc khởi động; dev và CI chạy tay bằng `npm run migration:run`.
 2. **Chưa có xác thực.** Endpoint `gift-post` hiện đang mở — chỉ dùng để kiểm chứng kiến
    trúc. `auth-lib` phải xong trước khi triển khai bất kỳ môi trường nào có người dùng thật.
 3. **Chưa có rate limit.** Cần trước khi mở công khai (mục 4.2 đặc tả yêu cầu chống spam).

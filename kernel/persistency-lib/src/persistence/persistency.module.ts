@@ -10,10 +10,23 @@ export interface IPersistencyOptions {
   /** Trả về connection string PostgreSQL. */
   useFactory: (...args: any[]) => string;
   /**
+   * Danh sách class migration — kết quả của `import * as migrations from './migrations'`.
+   *
+   * Cố ý dùng danh sách class chứ không dùng glob: glob phải trỏ `.ts` khi chạy
+   * ts-node và `.js` khi chạy từ `dist`, nên luôn sai ở một trong hai môi trường.
+   */
+  migrations?: Record<string, unknown>;
+
+  /** Tự chạy migration còn thiếu lúc khởi động. Bật ở production. */
+  migrationsRun?: boolean;
+
+  /**
    * Cho TypeORM tự tạo/sửa bảng theo entity.
    *
-   * CHỈ bật ở môi trường development. Production phải dùng migration —
-   * `synchronize` có thể âm thầm xoá cột và mất dữ liệu.
+   * KHÔNG dùng nữa — đã có migration. Giữ lại để tương thích ngược; `synchronize`
+   * có thể âm thầm xoá cột và mất dữ liệu.
+   *
+   * @deprecated dùng `migrations` + `migrationsRun`
    */
   synchronize?: boolean;
 }
@@ -29,6 +42,7 @@ export interface IPersistencyOptions {
 export class PersistencyModule {
   public static forPostgresAsync(options: IPersistencyOptions): DynamicModule {
     const entities = resolveAllEntities(options.entities);
+    const migrations = resolveAllEntities(options.migrations ?? {});
 
     return {
       global: true,
@@ -43,6 +57,9 @@ export class PersistencyModule {
               type: 'postgres' as const,
               url,
               entities,
+              migrations,
+              migrationsRun: options.migrationsRun ?? false,
+              migrationsTransactionMode: 'each' as const,
               synchronize: options.synchronize ?? false,
               autoLoadEntities: true,
               // Pool giữ nhỏ: đây là monolith một tiến trình, không phải cụm service.

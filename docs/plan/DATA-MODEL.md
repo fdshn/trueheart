@@ -1,7 +1,18 @@
 # Mô hình dữ liệu
 
 ~25 bảng, một database PostgreSQL + PostGIS. Đây là bản thiết kế để thống nhất trước khi
-code — DDL thật viết lúc làm từng mốc.
+code — DDL thật nằm trong migration.
+
+**Đổi bảng thì luôn qua migration**, không bao giờ `synchronize`:
+
+```bash
+cd suites/chantam.vn/chantam/core
+npm run migration:generate -- TenKieuPascalCase   # tự cập nhật barrel
+npm run migration:run
+```
+
+Đọc lại file sinh ra trước khi commit — TypeORM sinh `DROP COLUMN` / `ALTER TYPE` mà không
+cảnh báo gì.
 
 ## Sơ đồ quan hệ chính
 

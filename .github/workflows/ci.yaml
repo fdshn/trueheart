@@ -86,8 +86,9 @@ jobs:
           --health-retries 10
 
     env:
-      # `development` để TypeORM bật synchronize và tự tạo bảng — CI chưa có
-      # migration, xem docs/ARCHITECTURE.md mục 8.
+      # `development` nên service KHÔNG tự chạy migration lúc khởi động — bước
+      # `migration:run` ở dưới lo việc đó, để lỗi migration lộ ra ngay tại bước
+      # của nó thay vì lẫn vào log khởi động.
       NODE_ENV: development
       LOG_LEVEL: info
       PORT: '3000'
@@ -105,20 +106,22 @@ jobs:
       - name: Cài đặt dependency
         run: npm ci
 
-      - name: Bổ sung extension cho tìm kiếm tiếng Việt
-        # postgis do image tự tạo; unaccent và pg_trgm thì không.
-        run: |
-          PGPASSWORD=chantam psql -h localhost -U chantam -d chantam \
-            -c "CREATE EXTENSION IF NOT EXISTS unaccent;" \
-            -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
-
-      - name: Xác nhận PostGIS sẵn sàng
-        run: |
-          PGPASSWORD=chantam psql -h localhost -U chantam -d chantam \
-            -tAc "SELECT postgis_version();"
-
       - name: Build
         run: npm run build
+
+      - name: Chạy migration
+        # Cố ý KHÔNG tạo extension bằng tay ở đây: migration đầu tiên phải tự
+        # tạo được postgis/unaccent/pg_trgm. Bỏ bước thủ công đi chính là phép
+        # kiểm chứng migration đủ sức dựng schema trên database trắng.
+        working-directory: suites/chantam.vn/chantam/core
+        run: npm run migration:run
+
+      - name: Xác nhận schema do migration dựng
+        env:
+          PGPASSWORD: chantam
+        run: |
+          psql -h localhost -U chantam -d chantam -tAc "SELECT postgis_version();"
+          test "$(psql -h localhost -U chantam -d chantam -tAc 'SELECT count(*) FROM migrations;')" -gt 0
 
       - name: Khởi động service
         working-directory: suites/chantam.vn/chantam/core
@@ -197,6 +200,9 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Chạy thử image
+        # Image chạy ở NODE_ENV=production nên nó TỰ chạy migration lúc khởi
+        # động — đây đồng thời là phép kiểm đường triển khai thật.
+        #
         # Build thành công không chứng minh image chạy được. Ví dụ có thật:
         # `npm start` từng gọi cross-env — một devDependency bị `npm prune
         # --omit=dev` xoá mất — nên container chết ngay khi khởi động.

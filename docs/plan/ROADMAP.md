@@ -188,8 +188,7 @@ restore thử thành công**.
 
 Không có mã F nhưng không làm thì không lên production được:
 
-- [ ] **Migration TypeORM** thay cho `synchronize` — phải xong **trước M2**, khi bảng còn ít.
-      Đang là nợ kỹ thuật #1 trong [ARCHITECTURE.md](../ARCHITECTURE.md#8-nợ-kỹ-thuật-đã-biết)
+- [x] **Migration TypeORM** thay cho `synchronize` — xong. Nợ kỹ thuật #1 đã đóng
 - [ ] **Rate limit toàn cục** — nợ kỹ thuật #3, cần trước khi mở công khai
 - [ ] **Reverse proxy + TLS** trên VPS — `deploy/README.md` mới hướng dẫn, chưa tự động hoá
 
