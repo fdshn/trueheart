@@ -50,6 +50,11 @@ jobs:
       - name: Unit test
         run: npm test
 
+      - name: Bảng tra mã lỗi còn khớp mã nguồn
+        # docs/API-ERRORS.md sinh từ danh mục lỗi. Thêm lỗi mà quên chạy lại
+        # `npm run docs:errors` thì bảng tra của bên mobile nói sai — chặn ở đây.
+        run: npm run docs:errors:check
+
       - name: Xác nhận build không làm bẩn working tree
         # Nếu bước nào đó lén sửa file đã commit, phát hiện ở đây chứ không phải
         # lúc lập trình viên thấy diff lạ trên máy mình.

@@ -1,11 +1,6 @@
-import { HttpStatus } from '@nestjs/common';
-import { ErrorCodes, ErrorOrigin } from '../consts';
-import { Exception } from './exception';
+import { PlatformErrors } from '../consts/error-catalog';
+import { ExceptionFrom } from './error-catalog';
 
-export class ForbiddenException extends Exception {
-  public static readonly httpStatus = HttpStatus.FORBIDDEN;
-
-  public constructor(message = 'Không đủ quyền thực hiện thao tác này') {
-    super(ErrorCodes.FORBIDDEN, message, undefined, ErrorOrigin);
-  }
-}
+export class ForbiddenException extends ExceptionFrom(
+  PlatformErrors.FORBIDDEN,
+) {}

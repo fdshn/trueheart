@@ -1,11 +1,6 @@
-import { HttpStatus } from '@nestjs/common';
-import { ErrorCodes, ErrorOrigin } from '../consts';
-import { Exception } from './exception';
+import { PlatformErrors } from '../consts/error-catalog';
+import { ExceptionFrom } from './error-catalog';
 
-export class BadRequestException extends Exception {
-  public static readonly httpStatus = HttpStatus.BAD_REQUEST;
-
-  public constructor(message: string, explains?: string[]) {
-    super(ErrorCodes.BAD_REQUEST, message, explains, ErrorOrigin);
-  }
-}
+export class BadRequestException extends ExceptionFrom(
+  PlatformErrors.BAD_REQUEST,
+) {}

@@ -31,6 +31,15 @@ export enum ErrorCodes {
   PROFILE_INCOMPLETE = 0x03_08,
   /** Còn giao dịch dở dang nên chưa xoá tài khoản được (F06). */
   USER_HAS_OPEN_TRANSACTIONS = 0x03_09,
+  /**
+   * Sai mật khẩu quá nhiều lần, tạm khoá đăng nhập (F02).
+   *
+   * Mã riêng chứ KHÔNG dùng lại INVALID_CREDENTIALS: client cần phân biệt "thử
+   * lại đi" với "chờ đã rồi thử". Mã HTTP 429 và thông điệp vốn đã nói rõ đang
+   * bị chặn nên dùng chung mã chẳng giấu được gì, chỉ phá tính duy nhất của
+   * cặp (origin, code).
+   */
+  LOGIN_THROTTLED = 0x03_0a,
 
   // 0x04 — Phiên đăng nhập, OTP, đặt lại mật khẩu
   SESSION_NOT_FOUND = 0x04_01,

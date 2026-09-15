@@ -88,6 +88,8 @@ Mọi resource mới copy theo mẫu này.
 
 ## Kế hoạch & đặc tả
 
+- **[`docs/API-ERRORS.md`](./docs/API-ERRORS.md)** — bảng tra mọi mã lỗi API (sinh tự động
+  từ danh mục lỗi trong mã nguồn; chạy lại bằng `npm run docs:errors`)
 - **[`docs/FEATURES.md`](./docs/FEATURES.md)** — 72 chức năng MVP Phase 1 (F01–F72)
 - **[`docs/plan/`](./docs/plan/)** — kế hoạch triển khai:
 

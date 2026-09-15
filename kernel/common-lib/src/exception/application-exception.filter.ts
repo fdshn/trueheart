@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { ErrorCodes } from '../consts';
+import { ErrorCodes } from '../consts/error-codes';
 import { ResponseDto } from '../dto/response.dto';
 import { Exception } from './exception';
 

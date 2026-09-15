@@ -124,8 +124,19 @@ web/admin import trực tiếp để chia sẻ kiểu dữ liệu với backend.
 - Mã lỗi định dạng `0x<ResourceId><ReasonId>` (2 byte hex). ResourceId đếm lại từ `0x01`
   trong mỗi package sở hữu mã; ReasonId đếm lại từ `0x01` trong mỗi nhóm resource.
 - Mỗi package sở hữu mã khai báo `export const ErrorOrigin = '<layer>/<package>'` cạnh
-  enum `ErrorCodes`, và truyền vào tham số thứ 4 của `super(...)`. Cặp `(origin, code)`
-  là duy nhất trên toàn hệ thống. Consumer **import hằng số**, không hardcode chuỗi.
+  enum `ErrorCodes`. Cặp `(origin, code)` là duy nhất trên toàn hệ thống. Consumer
+  **import hằng số**, không hardcode chuỗi.
+- **Mã, mã HTTP và câu chữ khai trong danh mục lỗi, không viết trong constructor.** Mỗi
+  package sở hữu mã có một `consts/error-catalog.ts` dùng `defineErrorCatalog()`; class
+  exception chỉ còn `extends ExceptionFrom(Catalog.TÊN_LỖI) {}`.
+
+  Ba thứ đổi được nhờ vậy: sửa câu chữ trả cho người dùng chỉ động vào một file;
+  `defineErrorCatalog` **chặn ngay lúc nạp module** nếu hai lỗi lỡ dùng chung mã — thứ
+  không ai phát hiện được khi mã nằm rải trong hai chục constructor; và
+  `docs/API-ERRORS.md` sinh tự động từ danh mục nên không nói sai được.
+
+  Thêm lỗi thì: khai mã trong `ErrorCodes` → khai mục trong danh mục (kèm `sample` nếu
+  thông điệp có tham số) → dựng class exception → `npm run docs:errors`.
 - `common-lib` chỉ giữ mã cấp nền tảng (`VALIDATION_FAILED`, `UNAUTHORIZED`, ...). Không
   thêm mã nghiệp vụ vào đây.
 

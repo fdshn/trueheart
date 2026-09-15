@@ -1,3 +1,4 @@
+export * from './error-catalog';
 export * from './error-codes';
 export * from './gift-post-categories';
 export * from './gift-post-conditions';

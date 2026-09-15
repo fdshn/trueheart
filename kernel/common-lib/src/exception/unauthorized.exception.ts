@@ -1,11 +1,6 @@
-import { HttpStatus } from '@nestjs/common';
-import { ErrorCodes, ErrorOrigin } from '../consts';
-import { Exception } from './exception';
+import { PlatformErrors } from '../consts/error-catalog';
+import { ExceptionFrom } from './error-catalog';
 
-export class UnauthorizedException extends Exception {
-  public static readonly httpStatus = HttpStatus.UNAUTHORIZED;
-
-  public constructor(message = 'Chưa xác thực') {
-    super(ErrorCodes.UNAUTHORIZED, message, undefined, ErrorOrigin);
-  }
-}
+export class UnauthorizedException extends ExceptionFrom(
+  PlatformErrors.UNAUTHORIZED,
+) {}

@@ -1,0 +1,83 @@
+# Bảng tra mã lỗi API
+
+> **Sinh tự động.** Đừng sửa tay — sửa danh mục lỗi trong mã nguồn rồi chạy
+> `npm run docs:errors`. CI kiểm lại bằng `npm run docs:errors:check`.
+
+Mọi response đều cùng một hình dạng, kể cả khi lỗi:
+
+```json
+{
+  "success": false,
+  "errorCode": 772,
+  "errorOrigin": "chantam/core",
+  "message": ["Tên đăng nhập \"an\" đã có người dùng"],
+  "body": null
+}
+```
+
+Client phân biệt lỗi bằng **cặp `(errorOrigin, errorCode)`** — mã trùng nhau
+giữa hai `errorOrigin` khác nhau là bình thường và có chủ đích. Đừng bắt theo
+`message`: câu chữ sẽ đổi.
+
+## `kernel/common-lib`
+
+Nền tảng — lỗi giao thức và vòng đời request
+
+| Mã (hex) | Mã (thập phân) | HTTP | Tên | Thông điệp |
+| --- | --- | --- | --- | --- |
+| `0xff00` | `65280` | 500 Internal Server Error | `UNKNOWN_ERROR` | Đã có lỗi xảy ra, vui lòng thử lại |
+| `0xff01` | `65281` | 400 Bad Request | `BAD_REQUEST` | Thiếu tham số bắt buộc |
+| `0xff02` | `65282` | 401 Unauthorized | `UNAUTHORIZED` | Chưa xác thực |
+| `0xff03` | `65283` | 403 Forbidden | `FORBIDDEN` | Không đủ quyền thực hiện thao tác này |
+| `0xff04` | `65284` | 404 Not Found | `NOT_FOUND` | Không tìm thấy dữ liệu |
+| `0xff05` | `65285` | 409 Conflict | `CONFLICT` | Dữ liệu đã tồn tại |
+| `0xff06` | `65286` | 400 Bad Request | `VALIDATION_FAILED` | registration.password: password must be longer than or equal to 8 characters |
+| `0xff07` | `65287` | 400 Bad Request | `INVALID_PAGINATION` | Tham số phân trang không hợp lệ |
+| `0xff08` | `65288` | 429 Too Many Requests | `RATE_LIMITED` | Bạn thao tác quá nhanh, vui lòng thử lại sau 30 giây |
+| `0xffc0` | `65472` | 501 Not Implemented | `FEATURE_NOT_SUPPORTED` | Chưa hỗ trợ: đăng nhập bằng Google |
+| `0xffc1` | `65473` | 501 Not Implemented | `NOT_IMPLEMENTED` | Tính năng chưa được hiện thực: xuất báo cáo PDF |
+
+## `system/auth-lib`
+
+Xác thực — access token
+
+| Mã (hex) | Mã (thập phân) | HTTP | Tên | Thông điệp |
+| --- | --- | --- | --- | --- |
+| `0x0101` | `257` | 401 Unauthorized | `TOKEN_MISSING` | Thiếu access token |
+| `0x0102` | `258` | 401 Unauthorized | `TOKEN_INVALID` | Access token không hợp lệ |
+| `0x0103` | `259` | 401 Unauthorized | `TOKEN_EXPIRED` | Access token đã hết hạn |
+| `0x0104` | `260` | 401 Unauthorized | `TOKEN_REVOKED` | Phiên đăng nhập đã bị thu hồi. Vui lòng đăng nhập lại |
+
+## `chantam/core`
+
+Nghiệp vụ Chân Tâm
+
+| Mã (hex) | Mã (thập phân) | HTTP | Tên | Thông điệp |
+| --- | --- | --- | --- | --- |
+| `0x0101` | `257` | 404 Not Found | `GIFT_POST_NOT_FOUND` | Không tìm thấy bài đăng 4182a141-a5c5-5c25-92ab-0d4488158e8f |
+| `0x0102` | `258` | 400 Bad Request | `GIFT_POST_INVALID_LOCATION` | Toạ độ bài đăng không hợp lệ |
+| `0x0103` | `259` | 409 Conflict | `GIFT_POST_ALREADY_CLOSED` | Bài đăng 4182a141-a5c5-5c25-92ab-0d4488158e8f đang ở trạng thái COMPLETED, không thể chỉnh sửa |
+| `0x0104` | `260` | 409 Conflict | `GIFT_POST_OUT_OF_STOCK` | Bài đăng đã hết số lượng |
+| `0x0201` | `513` | 404 Not Found | `GIFT_REQUEST_NOT_FOUND` | Không tìm thấy yêu cầu 7c3e0b18-2f44-4a91-9d2e-55b0a1f6c8d3 |
+| `0x0202` | `514` | 409 Conflict | `GIFT_REQUEST_DUPLICATED` | Bạn đã gửi yêu cầu cho bài đăng này rồi |
+| `0x0301` | `769` | 404 Not Found | `USER_NOT_FOUND` | Không tìm thấy tài khoản |
+| `0x0302` | `770` | 403 Forbidden | `USER_SUSPENDED` | Tài khoản đang bị tạm khoá tới 2026-10-01T00:00:00.000Z |
+| `0x0303` | `771` | 403 Forbidden | `USER_BANNED` | Tài khoản đã bị khoá vĩnh viễn |
+| `0x0304` | `772` | 409 Conflict | `USERNAME_TAKEN` | Tên đăng nhập "nguoidung01" đã có người dùng |
+| `0x0305` | `773` | 409 Conflict | `EMAIL_TAKEN` | Email này đã được dùng cho tài khoản khác |
+| `0x0306` | `774` | 409 Conflict | `PHONE_TAKEN` | Số điện thoại này đã được dùng cho tài khoản khác |
+| `0x0307` | `775` | 401 Unauthorized | `INVALID_CREDENTIALS` | Tên đăng nhập hoặc mật khẩu không đúng |
+| `0x0308` | `776` | 403 Forbidden | `PROFILE_INCOMPLETE` | Cần bổ sung Avatar, Số điện thoại trước khi đăng bài |
+| `0x0309` | `777` | 409 Conflict | `USER_HAS_OPEN_TRANSACTIONS` | Còn 2 giao dịch chưa hoàn tất, chưa thể xoá tài khoản |
+| `0x030a` | `778` | 429 Too Many Requests | `LOGIN_THROTTLED` | Sai quá nhiều lần. Thử lại sau 15 phút |
+| `0x0401` | `1025` | 404 Not Found | `SESSION_NOT_FOUND` | Không tìm thấy phiên đăng nhập |
+| `0x0402` | `1026` | 401 Unauthorized | `REFRESH_TOKEN_INVALID` | Phiên đăng nhập không còn hiệu lực, vui lòng đăng nhập lại |
+| `0x0403` | `1027` | 401 Unauthorized | `REFRESH_TOKEN_EXPIRED` | Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại |
+| `0x0404` | `1028` | 400 Bad Request | `OTP_INVALID` | Mã xác minh không đúng hoặc đã hết hạn |
+| `0x0405` | `1029` | 400 Bad Request | `OTP_EXPIRED` | Mã xác minh đã hết hạn |
+| `0x0406` | `1030` | 429 Too Many Requests | `OTP_TOO_SOON` | Vui lòng thử lại sau 42 giây |
+
+---
+
+Tổng cộng **37 mã lỗi** trên 3 tầng.
+Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

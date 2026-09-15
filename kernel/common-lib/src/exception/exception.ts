@@ -1,4 +1,6 @@
-import { ErrorCodes, ErrorOrigin } from '../consts';
+// Nạp thẳng file thay vì barrel: `consts/index.ts` còn export `error-catalog`,
+// mà file đó lại import ngược về `exception/` — đi qua barrel là thành vòng.
+import { ErrorCodes, ErrorOrigin } from '../consts/error-codes';
 
 /**
  * Lớp cơ sở của mọi lỗi nghiệp vụ.
