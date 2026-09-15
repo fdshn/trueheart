@@ -46,7 +46,12 @@ export class RequestPasswordResetUseCase implements IRequestPasswordResetUseCase
     const identifier = command.reset.identifier.trim();
     const user = await this.userRepository.findByIdentifier(identifier);
 
-    const target = user ? this.pickTarget(user) : null;
+    // Chưa cắm được kênh gửi thật thì KHÔNG sinh mã: sinh ra rồi không gửi
+    // được chỉ tạo rác trong Redis và một lời hứa sai với người dùng. Hướng
+    // thẳng sang Admin, đúng nhánh mà F05 đã định cho trường hợp không có kênh
+    // khôi phục.
+    const target =
+      user && this.otpSender.isConfigured ? this.pickTarget(user) : null;
 
     // Tài khoản không tồn tại và tài khoản không có email/SĐT trả về HỆT NHAU.
     // Nếu khác, endpoint này trở thành công cụ dò xem tài khoản nào có thật —

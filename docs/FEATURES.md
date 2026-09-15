@@ -66,7 +66,9 @@ Có email/SĐT thì khôi phục qua OTP. Không có thì hiển thị kênh li�
 > reset.
 >
 > ⛔ **Chưa có nhà cung cấp gửi mã.** Hợp đồng không nêu dịch vụ email/SMS/Zalo ZNS nào.
-> Hiện chạy `LoggingOtpSender` — ghi mã ra log và **từ chối khởi động ở production**.
+> Hiện chạy `LoggingOtpSender`: ở môi trường phát triển thì ghi mã ra log, còn ở production
+> thì **tự tắt chức năng** — mọi yêu cầu đặt lại mật khẩu trả về kênh `ADMIN_SUPPORT` và
+> không mã nào được ghi ra log.
 
 Đã làm: tài khoản không tồn tại và tài khoản không có email/SĐT trả lời **giống hệt nhau**,
 nếu không thì endpoint này thành công cụ dò username có thật. Đổi mật khẩu xong thu hồi

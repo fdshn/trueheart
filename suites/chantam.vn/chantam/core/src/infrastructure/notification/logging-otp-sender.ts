@@ -9,9 +9,14 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
  * Dự án chưa chốt nhà cung cấp email và chưa tích hợp Zalo ZNS / SMS brandname.
  * Lớp này để luồng quên mật khẩu chạy được đầu-cuối ở môi trường phát triển.
  *
- * **Tự từ chối chạy ở production.** Ghi mã xác minh ra log ở môi trường thật
- * nghĩa là bất kỳ ai đọc được log đều chiếm được mọi tài khoản. Thà sập lúc
- * khởi động còn hơn chạy được rồi lặng lẽ rò.
+ * **Ở production nó tự khai `isConfigured = false` và không bao giờ ghi mã.**
+ * Ghi mã xác minh ra log ở môi trường thật nghĩa là bất kỳ ai đọc được log đều
+ * chiếm được mọi tài khoản.
+ *
+ * Bản trước ném lỗi ở `onModuleInit` để chặn production. Sai phạm vi: nó giết
+ * cả tiến trình, nên container không qua nổi health check và mọi lần deploy đều
+ * thất bại rồi rollback — một tính năng chưa xong làm chết toàn bộ API. Giờ chỉ
+ * đúng chức năng quên mật khẩu bị vô hiệu, và người dùng được hướng sang Admin.
  */
 @Injectable()
 export class LoggingOtpSender implements IOtpSender, OnModuleInit {
@@ -22,8 +27,12 @@ export class LoggingOtpSender implements IOtpSender, OnModuleInit {
     private readonly config: IConfig,
   ) {}
 
+  public get isConfigured(): boolean {
+    return this.config.env !== 'production';
+  }
+
   public onModuleInit(): void {
-    if (this.config.env !== 'production') {
+    if (this.isConfigured) {
       this.logger.warn(
         'Đang dùng LoggingOtpSender — mã xác minh ghi ra log, KHÔNG gửi đi đâu cả. ' +
           'Phải cắm nhà cung cấp email/SMS thật trước khi mở cho người dùng.',
@@ -32,9 +41,10 @@ export class LoggingOtpSender implements IOtpSender, OnModuleInit {
       return;
     }
 
-    throw new Error(
-      'LoggingOtpSender không được phép chạy ở production: nó ghi mã xác minh ra log. ' +
-        'Hiện thực IOtpSender bằng nhà cung cấp email hoặc Zalo ZNS thật trước khi triển khai.',
+    this.logger.error(
+      'CHƯA CÓ NHÀ CUNG CẤP OTP THẬT. Chức năng quên mật khẩu đang tắt: mọi yêu cầu ' +
+        'đặt lại mật khẩu sẽ được trả về kênh ADMIN_SUPPORT. Hiện thực IOtpSender ' +
+        'bằng email hoặc Zalo ZNS thật rồi thay LoggingOtpSender.',
     );
   }
 
@@ -43,6 +53,15 @@ export class LoggingOtpSender implements IOtpSender, OnModuleInit {
     target: string,
     code: string,
   ): Promise<void> {
+    // Lớp chặn thứ hai. Nghiệp vụ đã hỏi `isConfigured` trước khi gọi, nhưng mã
+    // xác minh lọt vào log production là hỏng tới mức không được dựa vào đúng
+    // một chỗ kiểm.
+    if (!this.isConfigured)
+      throw new Error(
+        'LoggingOtpSender không được phép gửi ở production. Đây là lỗi lập trình: ' +
+          'phải kiểm IOtpSender.isConfigured trước khi sinh mã.',
+      );
+
     this.logger.warn(
       `[CHỈ DÀNH CHO DEV] OTP cho ${channel} ${target}: ${code}`,
     );
