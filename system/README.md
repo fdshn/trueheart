@@ -7,7 +7,7 @@ Hiện chưa có package nào. Theo lộ trình MVP, các package dự kiến th
 
 | Package | Vai trò |
 | --- | --- |
-| `auth-lib` | Xác thực JWT (access + refresh rotation), guard, decorator `@CurrentUser()` |
+| ~~`auth-lib`~~ | **Đã có.** Xác thực JWT, guard toàn cục, `@Public()`, `@CurrentUser()` — xem [auth-lib/README.md](./auth-lib/README.md) |
 | `ekyc-lib` | Bọc nhà cung cấp eKYC (FPT.AI / VNPT). **Chỉ lưu `verification_id`, không lưu ảnh CCCD** |
 | `otp-lib` | Gửi OTP qua Zalo ZNS (kênh chính) + SMS brandname (dự phòng) |
 | `storage-lib` | Upload/presign Cloudflare R2 |
