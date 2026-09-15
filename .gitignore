@@ -1,33 +1,57 @@
-# compiled output
+# --- Kết quả biên dịch ---
 dist/
 build/
 node_modules/
 **/*.tgz
+*.tsbuildinfo
+.next/
 
-# logs
+# --- Biến môi trường ---
+# `.env.*` bắt mọi biến thể (.env.local, .env.production, .env.staging...),
+# rồi mở lại DUY NHẤT .env.example.
+#
+# Không rút gọn thành `.env.*` trần: nó nuốt luôn .env.example — file khai báo
+# biến môi trường bắt buộc mà README hướng dẫn `cp .env.example .env`. Bản clone
+# mới sẽ không có gì để copy, và lỗi chỉ lộ ra khi người thứ hai vào dự án.
+.env
+.env.*
+!.env.example
+
+# Có thể chứa token registry
+.npmrc
+
+# --- Log ---
 logs
 *.log
 npm-debug.log*
 lerna-debug.log*
 
-# env — chỉ .env.example được theo dõi.
-# .env sẽ chứa credential thật ở môi trường thực; không bao giờ commit.
-.env
-.env.local
-.env.*.local
-
-# TypeScript incremental build
-*.tsbuildinfo
-
-# tests
+# --- Kiểm thử ---
 coverage/
 .nyc_output/
 
-# editors
+# --- Công cụ AI (cục bộ, không thuộc sản phẩm bàn giao) ---
+# Dùng `.claude/*` chứ không phải `.claude/`: git không thể mở lại một file nếu
+# thư mục cha của nó đã bị loại trừ, nên dạng sau làm hỏng các dòng `!` bên dưới.
+.claude/*
+!.claude/settings.json
+
+# Thư viện skill/agent nội bộ — công cụ của lập trình viên, không phải mã nguồn
+# sản phẩm. Giữ ngoài repo bàn giao theo mục 7.2 hợp đồng.
+.agents/
+
+# --- Tài liệu đặc tả do Bên A cung cấp ---
+# Chứa bảng báo giá và đơn giá nội bộ; giữ ngoài repo.
+srs/
+
+# --- IDE và hệ điều hành ---
 .idea/
 .vscode/*
 !.vscode/settings.json
+!.vscode/extensions.json
+*.sublime-workspace
 .DS_Store
+Thumbs.db
 
-# claude
-.claude/
+# --- Git worktree (phục vụ chạy agent song song) ---
+.worktrees/
