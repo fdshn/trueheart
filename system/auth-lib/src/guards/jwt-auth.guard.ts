@@ -8,7 +8,11 @@ import { Reflector } from '@nestjs/core';
 import { FastifyRequest } from 'fastify';
 import { IAuthPrincipal, ITokenDenyList, ITokenService } from '../contracts';
 import { PublicRouteKey } from '../decorators';
-import { TokenMissingException, TokenRevokedException } from '../exceptions';
+import {
+  TokenInvalidException,
+  TokenMissingException,
+  TokenRevokedException,
+} from '../exceptions';
 import { IAuthOptions } from '../internal/auth-options';
 
 /**
@@ -74,10 +78,12 @@ export class JwtAuthGuard implements CanActivate {
   private async resolvePrincipal(token: string): Promise<IAuthPrincipal> {
     const principal = await this.tokenService.verifyAccessToken(token);
 
-    if (
-      principal.issuedAt &&
-      (await this.denyList.isRevoked(principal.userId, principal.issuedAt))
-    )
+    // Thiếu `issuedAt` thì TỪ CHỐI, đừng cho qua. Không đối chiếu được với danh
+    // sách thu hồi nghĩa là không biết token này còn hiệu lực hay không — mà
+    // khi không biết thì câu trả lời an toàn là không.
+    if (!principal.issuedAt) throw new TokenInvalidException();
+
+    if (await this.denyList.isRevoked(principal.userId, principal.issuedAt))
       throw new TokenRevokedException();
 
     return principal;

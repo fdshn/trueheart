@@ -50,21 +50,24 @@ export class ConfirmPasswordResetUseCase implements IConfirmPasswordResetUseCase
 
     const resetAt = new Date();
 
-    // Thu hồi TRƯỚC khi đổi mật khẩu, không phải sau. Nếu Redis chết thì lệnh
-    // này ném lỗi và chưa có gì thay đổi — người dùng xin mã mới rồi làm lại,
-    // an toàn hơn là mật khẩu đã đổi nhưng token của kẻ chiếm vẫn sống.
+    // Thứ tự ở đây quan trọng, và không phải thứ tự trực giác.
+    //
+    // Ba lệnh ghi dưới đây KHÔNG nằm chung transaction (một trên Redis, hai
+    // trên Postgres). Nên phải xếp sao cho tiến trình chết ở bất kỳ điểm nào
+    // giữa chừng cũng không để lại trạng thái nguy hiểm. Đổi mật khẩu đứng
+    // CUỐI: nếu nó chạy trước mà lệnh thu hồi phiên chưa kịp chạy, kẻ đang giữ
+    // refresh token vẫn gọi /refresh lấy được access token mới — mà `refresh`
+    // không có cách nào biết mật khẩu vừa đổi (nó chỉ kiểm `deletedAt` và
+    // `BANNED`). Khi đó việc đặt lại mật khẩu chẳng đuổi được ai.
+    //
+    // Chết giữa chừng theo thứ tự này thì mật khẩu chưa đổi, phiên đã mất —
+    // người dùng xin mã mới làm lại, không ai bị chiếm.
+
+    // 1. Access token (JWT, không tra database nên phải chặn riêng).
     await this.denyList.revokeIssuedBefore(user.globalId);
 
-    await this.userRepository.update(
-      { globalId: user.globalId },
-      { passwordHash: await this.passwordService.hash(reset.newPassword) },
-    );
-
-    // Đổi mật khẩu thì thu hồi TOÀN BỘ phiên. Người dùng đặt lại mật khẩu
-    // thường vì nghi bị chiếm tài khoản — để phiên của kẻ chiếm sống tiếp thì
-    // việc đặt lại mật khẩu chẳng giải quyết được gì.
-    //
-    // Bảng này giữ refresh token; access token đã chặn bằng `denyList` ở trên.
+    // 2. Refresh token. Người dùng đặt lại mật khẩu thường vì nghi bị chiếm
+    //    tài khoản — để phiên của kẻ chiếm sống tiếp thì vô nghĩa.
     const result = await this.sessionRepository
       .createQueryBuilder()
       .update()
@@ -72,6 +75,12 @@ export class ConfirmPasswordResetUseCase implements IConfirmPasswordResetUseCase
       .where('user_id = :userId', { userId: user.globalId })
       .andWhere('revoked_at IS NULL')
       .execute();
+
+    // 3. Mật khẩu mới.
+    await this.userRepository.update(
+      { globalId: user.globalId },
+      { passwordHash: await this.passwordService.hash(reset.newPassword) },
+    );
 
     return { resetAt, revokedSessions: result.affected ?? 0 };
   }

@@ -157,7 +157,7 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
 
 **Admin CMS**
 - [ ] F59 Dashboard KPI
-- [ ] F60 Kiểm duyệt + quản lý người dùng
+- [ ] F60 Kiểm duyệt + quản lý người dùng — **khoá tài khoản phải gọi `ITokenDenyList.revokeIssuedBefore()`**, nếu không người bị khoá vẫn dùng API được 15 phút
 - [ ] F61 Cấu hình Rank/Point/Referral/Affiliate/Accuracy (có version)
 - [ ] F62 Quản lý danh mục + mẫu thông báo
 - [ ] F63 Campaign + Home động
@@ -166,7 +166,7 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
 
 **Kiểm duyệt & thông báo**
 - [ ] F48 Báo cáo kèm bằng chứng
-- [ ] F49 Tín hiệu kiểm duyệt + chế tài
+- [ ] F49 Tín hiệu kiểm duyệt + chế tài — chế tài nào đổi `status` thì cũng phải thu hồi token như F60
 - [ ] F45 Phân loại + mẫu thông báo
 - [ ] F46 Lịch Âm + nhắc ngày lễ
 

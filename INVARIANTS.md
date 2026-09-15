@@ -153,8 +153,15 @@ web/admin import trực tiếp để chia sẻ kiểu dữ liệu với backend.
   khoản thật phải trả lời giống hệt nhau, cả nội dung lẫn thời gian đáp ứng.
 - **Đổi mật khẩu, xoá tài khoản hay khoá tài khoản thì phải thu hồi cả access token**, chứ
   không chỉ refresh token trong database. Access token là JWT nên tự nó còn hiệu lực tới
-  lúc hết hạn — dùng `ITokenDenyList` (`system/auth-lib`). Gọi **trước** khi đổi dữ liệu,
-  để kho thu hồi chết thì dừng lại chứ đừng đổi nửa vời.
+  lúc hết hạn — dùng `ITokenDenyList` (`system/auth-lib`).
+- **Thu hồi access token và thu hồi phiên trong database luôn đi cùng nhau.** Thiếu vế đầu
+  thì token cũ sống tới lúc hết hạn; thiếu vế sau thì nạn nhân gọi `/refresh` là có token
+  mới. Làm cả hai **trước** khi ghi thay đổi, để tiến trình chết giữa chừng thì chưa đổi gì
+  — Redis và Postgres không chung transaction nên thứ tự là thứ duy nhất bảo vệ được.
+- **`rank` và `status` trong access token là ảnh chụp lúc phát hành, không phải sự thật hiện
+  tại.** Không phân quyền dựa trên chúng: hạng có thể đã đổi, tài khoản có thể đã bị khoá,
+  và token vẫn nói điều cũ trong tối đa 15 phút. Cần quyết định theo hạng hay trạng thái thì
+  đọc lại từ database trong use case.
 
 ## 12. Tài liệu
 
