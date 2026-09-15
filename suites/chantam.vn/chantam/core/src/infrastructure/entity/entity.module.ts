@@ -1,6 +1,12 @@
-import { IGiftPostEntity } from '@chantam.vn/chantam.core-lib/entities';
+import {
+  IGiftPostEntity,
+  IUserEntity,
+  IUserSessionEntity,
+} from '@chantam.vn/chantam.core-lib/entities';
 import { Global, Module } from '@nestjs/common';
 import { GiftPostEntity } from './gift-post.entity';
+import { UserSessionEntity } from './user-session.entity';
+import { UserEntity } from './user.entity';
 
 /**
  * Gắn interface entity (khai báo ở `core-lib`) với class TypeORM cụ thể.
@@ -10,7 +16,11 @@ import { GiftPostEntity } from './gift-post.entity';
  */
 @Global()
 @Module({
-  providers: [{ provide: IGiftPostEntity, useValue: GiftPostEntity }],
-  exports: [IGiftPostEntity],
+  providers: [
+    { provide: IGiftPostEntity, useValue: GiftPostEntity },
+    { provide: IUserEntity, useValue: UserEntity },
+    { provide: IUserSessionEntity, useValue: UserSessionEntity },
+  ],
+  exports: [IGiftPostEntity, IUserEntity, IUserSessionEntity],
 })
 export class EntityModule {}

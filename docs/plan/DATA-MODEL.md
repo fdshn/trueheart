@@ -42,7 +42,7 @@ users ──┬──< posts ──< post_media
 
 | Bảng | Cột đáng chú ý |
 | --- | --- |
-| `users` | `global_id` · `username` · `password_hash` · `email?` · `phone?` · `full_name?` · `avatar_url?` · **`default_location` geography** · `rank` · `status` · `phone_verified_at` · `accuracy_percent` · `accuracy_samples` · `deleted_at` |
+| `users` | `global_id` · `username` · `password_hash` · `email?` · `phone?` · `full_name?` · `avatar_url?` · **`default_location` geography** · `rank` · `status` · `phone_verified_at` · `suspended_until` · `deleted_at` |
 | `user_sessions` | `refresh_token_hash` · `device_id` · **`fcm_token`** · `expires_at` · `revoked_at` |
 | `referrals` | `referrer_id` · `referee_id` **UNIQUE** · `code` — bản ghi **bất biến**, không sửa không xoá |
 | `rank_maintenance_cycles` | `user_id` · `rank` · `cycle_start` · `cycle_end` · `gifts_done` · `referrals_done` · `passed` |
@@ -55,6 +55,13 @@ xuất phải xoá token **của đúng thiết bị đó** ([F04](../FEATURES.m
 
 `rank_maintenance_cycles` tồn tại theo [GĐ-3](./ASSUMPTIONS.md#gđ-3--rank-điểm-là-sàn-nhiệm-vụ-là-trần).
 Nếu Bên A chốt "chỉ xét theo điểm" thì xoá bảng này.
+
+`email` và `phone` dùng **index duy nhất một phần** (`WHERE ... IS NOT NULL`). Đăng ký chỉ
+cần username (F01) nên phần lớn tài khoản bỏ trống hai cột này — ràng buộc duy nhất thường
+sẽ chặn tài khoản thứ hai có `NULL`.
+
+`accuracy_percent` và `accuracy_samples` **hoãn sang M4** cùng với Giver Accuracy — thêm cột
+chưa ai dùng chỉ làm migration dài ra.
 
 ---
 

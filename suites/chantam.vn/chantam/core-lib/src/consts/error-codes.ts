@@ -16,10 +16,26 @@ export enum ErrorCodes {
   GIFT_REQUEST_NOT_FOUND = 0x02_01,
   GIFT_REQUEST_DUPLICATED = 0x02_02,
 
-  // 0x03 — Thành viên (dành cho giai đoạn sau)
-  MEMBER_NOT_FOUND = 0x03_01,
-  MEMBER_NOT_VERIFIED = 0x03_02,
-  MEMBER_SUSPENDED = 0x03_03,
+  // 0x03 — Người dùng
+  //
+  // Cố ý đặt tên USER_* chứ không phải MEMBER_*: "Member" đã là tên một bậc
+  // thứ hạng (F12), dùng lại cho tài khoản sẽ gây nhầm ở mọi chỗ đọc mã lỗi.
+  USER_NOT_FOUND = 0x03_01,
+  USER_SUSPENDED = 0x03_02,
+  USER_BANNED = 0x03_03,
+  USERNAME_TAKEN = 0x03_04,
+  EMAIL_TAKEN = 0x03_05,
+  PHONE_TAKEN = 0x03_06,
+  INVALID_CREDENTIALS = 0x03_07,
+  /** Chưa đủ Họ tên / Avatar / SĐT / Email để đăng bài (F07). */
+  PROFILE_INCOMPLETE = 0x03_08,
+  /** Còn giao dịch dở dang nên chưa xoá tài khoản được (F06). */
+  USER_HAS_OPEN_TRANSACTIONS = 0x03_09,
+
+  // 0x04 — Phiên đăng nhập
+  SESSION_NOT_FOUND = 0x04_01,
+  REFRESH_TOKEN_INVALID = 0x04_02,
+  REFRESH_TOKEN_EXPIRED = 0x04_03,
 }
 
 export const ErrorOrigin = 'chantam/core';
