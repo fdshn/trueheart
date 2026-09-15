@@ -86,6 +86,21 @@ Mọi resource mới copy theo mẫu này.
 
 ---
 
+## Kế hoạch & đặc tả
+
+- **[`docs/FEATURES.md`](./docs/FEATURES.md)** — 72 chức năng MVP Phase 1 (F01–F72)
+- **[`docs/plan/`](./docs/plan/)** — kế hoạch triển khai:
+
+| File | Trả lời |
+| --- | --- |
+| [`plan/ASSUMPTIONS.md`](./docs/plan/ASSUMPTIONS.md) | Đặc tả thiếu thì ta giả định gì? **Đọc trước tiên** |
+| [`plan/DATA-MODEL.md`](./docs/plan/DATA-MODEL.md) | Có bảng nào, trạng thái đi thế nào? |
+| [`plan/ROADMAP.md`](./docs/plan/ROADMAP.md) | Làm gì trước, đang ở đâu? |
+
+Xong một chức năng thì **tick vào `ROADMAP.md` trong cùng commit**.
+
+---
+
 ## Công nghệ
 
 | Tầng | Lựa chọn |
