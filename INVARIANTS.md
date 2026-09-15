@@ -148,6 +148,13 @@ web/admin import trực tiếp để chia sẻ kiểu dữ liệu với backend.
   của `logger-lib` là lớp phòng vệ cuối, không phải lý do để log bừa.
 - Không lưu ảnh CCCD trong hệ thống. Chỉ lưu `verification_id` + kết quả trả về từ nhà
   cung cấp eKYC (xem `docs/ARCHITECTURE.md`).
+- **Endpoint nào nhận định danh của người chưa đăng nhập thì không được để lộ định danh đó
+  có thật hay không.** Đăng nhập sai, quên mật khẩu, xác nhận mã — tài khoản lạ và tài
+  khoản thật phải trả lời giống hệt nhau, cả nội dung lẫn thời gian đáp ứng.
+- **Đổi mật khẩu, xoá tài khoản hay khoá tài khoản thì phải thu hồi cả access token**, chứ
+  không chỉ refresh token trong database. Access token là JWT nên tự nó còn hiệu lực tới
+  lúc hết hạn — dùng `ITokenDenyList` (`system/auth-lib`). Gọi **trước** khi đổi dữ liệu,
+  để kho thu hồi chết thì dừng lại chứ đừng đổi nửa vời.
 
 ## 12. Tài liệu
 

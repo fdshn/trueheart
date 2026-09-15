@@ -11,4 +11,12 @@ export interface IAuthPrincipal {
   username: string;
   rank: string;
   status: string;
+
+  /**
+   * Thời điểm token được phát hành. Chỉ có mặt khi principal đến từ
+   * `verifyAccessToken`; lúc ký thì bỏ qua vì JWT tự đóng dấu `iat`.
+   *
+   * Dùng để đối chiếu với `ITokenDenyList`.
+   */
+  issuedAt?: Date;
 }

@@ -24,6 +24,8 @@ export interface IAuthConfig {
   maxLoginAttempts: number;
   /** Thời gian khoá tạm sau khi vượt ngưỡng, tính bằng giây. */
   loginLockSeconds: number;
+  /** Tuổi thọ mã xác minh đặt lại mật khẩu, tính bằng giây. */
+  otpTtlSeconds: number;
 }
 
 export interface IConfig {

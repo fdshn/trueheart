@@ -32,10 +32,14 @@ export enum ErrorCodes {
   /** Còn giao dịch dở dang nên chưa xoá tài khoản được (F06). */
   USER_HAS_OPEN_TRANSACTIONS = 0x03_09,
 
-  // 0x04 — Phiên đăng nhập
+  // 0x04 — Phiên đăng nhập, OTP, đặt lại mật khẩu
   SESSION_NOT_FOUND = 0x04_01,
   REFRESH_TOKEN_INVALID = 0x04_02,
   REFRESH_TOKEN_EXPIRED = 0x04_03,
+  OTP_INVALID = 0x04_04,
+  OTP_EXPIRED = 0x04_05,
+  /** Gửi OTP quá dày — chống dùng endpoint quên mật khẩu để spam tin nhắn. */
+  OTP_TOO_SOON = 0x04_06,
 }
 
 export const ErrorOrigin = 'chantam/core';

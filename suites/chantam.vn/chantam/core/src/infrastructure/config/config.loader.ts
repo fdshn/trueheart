@@ -28,6 +28,7 @@ export function loadConfig(): IConfig {
       bcryptRounds: Number(process.env.BCRYPT_ROUNDS ?? 12),
       maxLoginAttempts: Number(process.env.MAX_LOGIN_ATTEMPTS ?? 5),
       loginLockSeconds: Number(process.env.LOGIN_LOCK_SECONDS ?? 900),
+      otpTtlSeconds: Number(process.env.OTP_TTL_SECONDS ?? 300),
     },
     geo: {
       jitterRadiusMeters: Number(process.env.GEO_JITTER_RADIUS_METERS ?? 300),

@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { FastifyRequest } from 'fastify';
-import { IAuthPrincipal, ITokenService } from '../contracts';
+import { IAuthPrincipal, ITokenDenyList, ITokenService } from '../contracts';
 import { PublicRouteKey } from '../decorators';
-import { TokenMissingException } from '../exceptions';
+import { TokenMissingException, TokenRevokedException } from '../exceptions';
 import { IAuthOptions } from '../internal/auth-options';
 
 /**
@@ -25,6 +25,8 @@ export class JwtAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     @Inject(ITokenService)
     private readonly tokenService: ITokenService,
+    @Inject(ITokenDenyList)
+    private readonly denyList: ITokenDenyList,
     @Inject(IAuthOptions)
     private readonly options: IAuthOptions,
   ) {}
@@ -48,7 +50,7 @@ export class JwtAuthGuard implements CanActivate {
     if (isPublic) {
       if (token) {
         try {
-          request.user = await this.tokenService.verifyAccessToken(token);
+          request.user = await this.resolvePrincipal(token);
         } catch {
           request.user = undefined;
         }
@@ -59,9 +61,26 @@ export class JwtAuthGuard implements CanActivate {
 
     if (!token) throw new TokenMissingException();
 
-    request.user = await this.tokenService.verifyAccessToken(token);
+    request.user = await this.resolvePrincipal(token);
 
     return true;
+  }
+
+  /**
+   * Chữ ký hợp lệ vẫn chưa đủ: đổi mật khẩu hay xoá tài khoản xong, token cũ
+   * còn hạn nhưng phải chết ngay. Thêm một lượt tra danh sách chặn — O(1), và
+   * chỉ tốn một lượt đọc Redis cho mỗi request có token.
+   */
+  private async resolvePrincipal(token: string): Promise<IAuthPrincipal> {
+    const principal = await this.tokenService.verifyAccessToken(token);
+
+    if (
+      principal.issuedAt &&
+      (await this.denyList.isRevoked(principal.userId, principal.issuedAt))
+    )
+      throw new TokenRevokedException();
+
+    return principal;
   }
 
   /** Đối chiếu phần đường dẫn, bỏ query string. */

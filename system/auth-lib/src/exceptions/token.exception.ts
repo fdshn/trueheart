@@ -44,3 +44,18 @@ export class TokenExpiredException extends Exception {
     );
   }
 }
+
+export class TokenRevokedException extends Exception {
+  public static readonly httpStatus = HttpStatus.UNAUTHORIZED;
+
+  public constructor() {
+    // Tách khỏi TOKEN_EXPIRED: token này chưa hết hạn nhưng đã bị thu hồi, nên
+    // refresh cũng vô ích — client phải đưa người dùng về màn đăng nhập.
+    super(
+      ErrorCodes.TOKEN_REVOKED,
+      'Phiên đăng nhập đã bị thu hồi. Vui lòng đăng nhập lại',
+      undefined,
+      ErrorOrigin,
+    );
+  }
+}

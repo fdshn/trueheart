@@ -30,7 +30,23 @@ describe('TokenService — access token', () => {
     const service = makeService();
     const token = await service.signAccessToken(principal);
 
-    await expect(service.verifyAccessToken(token)).resolves.toEqual(principal);
+    await expect(service.verifyAccessToken(token)).resolves.toEqual({
+      ...principal,
+      // JWT tự đóng dấu `iat`; guard cần nó để đối chiếu danh sách thu hồi.
+      issuedAt: expect.any(Date),
+    });
+  });
+
+  it('trả về thời điểm phát hành khớp với `iat` của token', async () => {
+    const service = makeService();
+    const before = Math.floor(Date.now() / 1000);
+    const token = await service.signAccessToken(principal);
+
+    const verified = await service.verifyAccessToken(token);
+    const issuedAtSeconds = Math.floor(verified.issuedAt!.getTime() / 1000);
+
+    expect(issuedAtSeconds).toBeGreaterThanOrEqual(before);
+    expect(issuedAtSeconds).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
   });
 
   it('token hết hạn ném TokenExpiredException', async () => {

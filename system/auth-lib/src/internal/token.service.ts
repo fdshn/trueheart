@@ -11,6 +11,8 @@ interface IAccessTokenPayload {
   usr: string;
   rnk: string;
   sts: string;
+  /** Do thư viện JWT tự đóng dấu lúc ký, tính bằng giây. */
+  iat?: number;
 }
 
 @Injectable()
@@ -53,13 +55,18 @@ export class TokenService implements ITokenService {
       throw new TokenInvalidException();
     }
 
-    if (!payload?.sub || !payload.usr) throw new TokenInvalidException();
+    // `iat` luôn có trong token do ta ký. Thiếu nó nghĩa là token được ký bởi
+    // thứ khác — từ chối thay vì đoán, vì thiếu `iat` thì không đối chiếu được
+    // với danh sách thu hồi.
+    if (!payload?.sub || !payload.usr || !payload.iat)
+      throw new TokenInvalidException();
 
     return {
       userId: payload.sub,
       username: payload.usr,
       rank: payload.rnk,
       status: payload.sts,
+      issuedAt: new Date(payload.iat * 1000),
     };
   }
 

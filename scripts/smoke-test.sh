@@ -76,13 +76,12 @@ call_auth() {
   local method="$1" path="$2" token="$3" data="${4:-}"
   local raw
 
-  raw=$(curl -sS -m 20 -w $'
-%{http_code}' -X "$method" "${BASE_URL}${path}" -H 'Content-Type: application/json' -H "Authorization: Bearer $token" -d "$data" 2>&1)
+  raw=$(curl -sS -m 20 -w $'\n%{http_code}' -X "$method" "${BASE_URL}${path}" \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer $token" -d "$data" 2>&1)
 
-  RESP_CODE="${raw##*$'
-'}"
-  RESP_BODY="${raw%$'
-'*}"
+  RESP_CODE="${raw##*$'\n'}"
+  RESP_BODY="${raw%$'\n'*}"
 }
 
 # Lấy giá trị chuỗi đầu tiên của một khoá JSON mà không cần jq.
@@ -112,7 +111,9 @@ fi
 
 call GET /docs/json
 MISSING=""
-for route in '/api/gift-posts' '/api/gift-posts/nearby' '/api/gift-posts/{giftPostId}' '/api/auth/register' '/api/auth/login' '/api/auth/refresh' '/api/auth/logout'; do
+for route in '/api/gift-posts' '/api/gift-posts/nearby' '/api/gift-posts/{giftPostId}' '/api/auth/register' '/api/auth/login' '/api/auth/refresh' '/api/auth/logout' \
+  '/api/auth/password-reset/request' '/api/auth/password-reset/confirm' \
+  '/api/auth/account'; do
   printf '%s' "$RESP_BODY" | grep -q "\"$route\"" || MISSING="$MISSING $route"
 done
 if [ "$RESP_CODE" = "200" ] && [ -z "$MISSING" ]; then
@@ -217,6 +218,114 @@ if [ "$RESP_CODE" = "401" ]; then
   pass "phiên đã đăng xuất không làm mới được nữa"
 else
   fail "vẫn refresh được sau khi đăng xuất" "HTTP $RESP_CODE"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo
+echo "Quên mật khẩu (F05)"
+
+# Tài khoản smoke chưa gắn email/SĐT, nên nó và một tài khoản không tồn tại
+# phải trả lời HỆT NHAU. Khác nhau một chữ là endpoint này thành công cụ dò
+# xem username nào có thật — đúng lỗ hổng màn đăng nhập đã cẩn thận tránh.
+call POST /api/auth/password-reset/request "{\"reset\":{\"identifier\":\"$SMOKE_USER\"}}"
+NO_CONTACT_BODY="$RESP_BODY"
+NO_CONTACT_CODE="$RESP_CODE"
+call POST /api/auth/password-reset/request "{\"reset\":{\"identifier\":\"khong-ton-tai-$$\"}}"
+
+if [ "$NO_CONTACT_BODY" = "$RESP_BODY" ] && [ "$NO_CONTACT_CODE" = "$RESP_CODE" ]; then
+  pass "tài khoản không có liên hệ và tài khoản lạ trả lời giống hệt nhau"
+else
+  fail "phản hồi khác nhau — dò được tài khoản tồn tại" "$NO_CONTACT_BODY vs $RESP_BODY"
+fi
+
+if printf '%s' "$RESP_BODY" | grep -q '"channel":"ADMIN_SUPPORT"'; then
+  pass "không có kênh khôi phục thì hướng người dùng sang hỗ trợ"
+else
+  fail "kênh khôi phục sai" "$RESP_BODY"
+fi
+
+# Không có đích gửi thì không được lộ email/SĐT nào cả.
+if printf '%s' "$RESP_BODY" | grep -q '"maskedTarget":null'; then
+  pass "không lộ đích gửi khi chưa có kênh khôi phục"
+else
+  fail "maskedTarget đáng lẽ phải null" "$RESP_BODY"
+fi
+
+# Mã sai của tài khoản có thật và của tài khoản lạ cũng phải giống nhau.
+call POST /api/auth/password-reset/confirm "{\"reset\":{\"identifier\":\"$SMOKE_USER\",\"otp\":\"000000\",\"newPassword\":\"MoiHoanToan@9\",\"confirmPassword\":\"MoiHoanToan@9\"}}"
+BAD_OTP_BODY="$RESP_BODY"
+BAD_OTP_CODE="$RESP_CODE"
+call POST /api/auth/password-reset/confirm "{\"reset\":{\"identifier\":\"khong-ton-tai-$$\",\"otp\":\"000000\",\"newPassword\":\"MoiHoanToan@9\",\"confirmPassword\":\"MoiHoanToan@9\"}}"
+
+if [ "$BAD_OTP_CODE" = "400" ] && [ "$BAD_OTP_BODY" = "$RESP_BODY" ]; then
+  pass "mã sai bị từ chối, và không phân biệt tài khoản có thật hay không"
+else
+  fail "xác nhận mã không an toàn" "HTTP $BAD_OTP_CODE — $BAD_OTP_BODY vs $RESP_BODY"
+fi
+
+# Chặng gửi mã thật (OTP -> đổi mật khẩu) không kiểm được ở đây vì mã chỉ nằm
+# trong log dịch vụ, mà smoke test có thể chạy từ máy khác. Chặng đó đã có test
+# thủ công và sẽ có test tích hợp khi cắm nhà cung cấp email/SMS thật.
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo
+echo "Xoá tài khoản (F06)"
+
+call POST /api/auth/login "{\"credentials\":{\"identifier\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"deviceId\":\"smoke-delete\"}}"
+DELETE_TOKEN=$(json_str "$RESP_BODY" accessToken)
+
+call DELETE /api/auth/account "{\"account\":{\"password\":\"$SMOKE_PASS\"}}"
+if [ "$RESP_CODE" = "401" ]; then
+  pass "không có token thì không xoá được tài khoản"
+else
+  fail "xoá tài khoản không cần token" "HTTP $RESP_CODE"
+fi
+
+call_auth DELETE /api/auth/account "$DELETE_TOKEN" '{"account":{"password":"SaiHoanToan@9"}}'
+if [ "$RESP_CODE" = "401" ]; then
+  pass "sai mật khẩu thì không xoá được tài khoản"
+else
+  fail "xoá tài khoản không bắt nhập lại mật khẩu" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+call_auth GET /api/auth/me "$DELETE_TOKEN"
+if [ "$RESP_CODE" = "200" ]; then
+  pass "tài khoản còn nguyên sau lần xoá hụt"
+else
+  fail "tài khoản hỏng sau lần xoá hụt" "HTTP $RESP_CODE"
+fi
+
+call_auth DELETE /api/auth/account "$DELETE_TOKEN" "{\"account\":{\"password\":\"$SMOKE_PASS\"}}"
+if [ "$RESP_CODE" = "200" ]; then
+  pass "xoá tài khoản với mật khẩu đúng"
+else
+  fail "không xoá được tài khoản" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+# Đây là phép thử quan trọng nhất của khối này. Access token là JWT nên tự nó
+# còn hiệu lực tới 15 phút; không có danh sách thu hồi thì token vừa dùng để
+# xoá tài khoản vẫn gọi API được sau đó — tài khoản "đã xoá" mà vẫn thao tác.
+call_auth GET /api/auth/me "$DELETE_TOKEN"
+if [ "$RESP_CODE" = "401" ]; then
+  pass "access token chết NGAY khi tài khoản bị xoá"
+else
+  fail "TOKEN CŨ VẪN DÙNG ĐƯỢC SAU KHI XOÁ TÀI KHOẢN" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+call POST /api/auth/login "{\"credentials\":{\"identifier\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"deviceId\":\"d\"}}"
+if [ "$RESP_CODE" = "401" ]; then
+  pass "tài khoản đã xoá không đăng nhập lại được"
+else
+  fail "vẫn đăng nhập được sau khi xoá" "HTTP $RESP_CODE"
+fi
+
+# Username được giữ lại có chủ đích: xoá nó đi thì người khác đăng ký lại đúng
+# tên đó và mạo danh trong lịch sử giao dịch cũ.
+call POST /api/auth/register "{\"registration\":{\"username\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"confirmPassword\":\"$SMOKE_PASS\",\"deviceId\":\"d\"}}"
+if [ "$RESP_CODE" = "409" ]; then
+  pass "username của tài khoản đã xoá không ai chiếm được"
+else
+  fail "username bị giải phóng — có thể mạo danh" "HTTP $RESP_CODE"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

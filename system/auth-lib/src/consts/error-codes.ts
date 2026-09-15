@@ -4,6 +4,7 @@ export enum ErrorCodes {
   TOKEN_MISSING = 0x01_01,
   TOKEN_INVALID = 0x01_02,
   TOKEN_EXPIRED = 0x01_03,
+  TOKEN_REVOKED = 0x01_04,
 }
 
 export const ErrorOrigin = 'system/auth-lib';

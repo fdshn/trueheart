@@ -1,20 +1,27 @@
 import {
+  IConfirmPasswordResetUseCase,
+  IDeleteAccountUseCase,
   ILoginUserUseCase,
   ILogoutUserUseCase,
   IRefreshSessionUseCase,
   IRegisterUserUseCase,
+  IRequestPasswordResetUseCase,
 } from '@/application/contracts/auth';
 import {
+  IConfirmPasswordResetResponseDto,
+  IDeleteAccountResponseDto,
   ILoginResponseDto,
   ILogoutResponseDto,
   IRefreshSessionResponseDto,
   IRegisterResponseDto,
+  IRequestPasswordResetResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { CurrentUser, IAuthPrincipal, Public } from '@chantam/service.auth-lib';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -28,6 +35,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  ConfirmPasswordResetBodyDto,
+  ConfirmPasswordResetResponseDto,
+  DeleteAccountBodyDto,
+  DeleteAccountResponseDto,
   LoginBodyDto,
   LoginResponseDto,
   LogoutBodyDto,
@@ -37,6 +48,8 @@ import {
   RefreshSessionResponseDto,
   RegisterBodyDto,
   RegisterResponseDto,
+  RequestPasswordResetBodyDto,
+  RequestPasswordResetResponseDto,
 } from '../../dto/auth';
 
 @ApiTags('Xác thực')
@@ -51,6 +64,12 @@ export class AuthController {
     private readonly refreshSessionUseCase: IRefreshSessionUseCase,
     @Inject(ILogoutUserUseCase)
     private readonly logoutUserUseCase: ILogoutUserUseCase,
+    @Inject(IRequestPasswordResetUseCase)
+    private readonly requestPasswordResetUseCase: IRequestPasswordResetUseCase,
+    @Inject(IConfirmPasswordResetUseCase)
+    private readonly confirmPasswordResetUseCase: IConfirmPasswordResetUseCase,
+    @Inject(IDeleteAccountUseCase)
+    private readonly deleteAccountUseCase: IDeleteAccountUseCase,
   ) {}
 
   @Public()
@@ -131,6 +150,69 @@ export class AuthController {
     });
 
     return ResponseDto.create<ILogoutResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Public()
+  @Post('password-reset/request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Xin mã đặt lại mật khẩu',
+    description:
+      'Tài khoản không tồn tại và tài khoản không có email/SĐT trả về HỆT NHAU (channel ADMIN_SUPPORT) — không tiết lộ tài khoản nào có thật.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(RequestPasswordResetResponseDto) })
+  public async requestPasswordReset(
+    @Body() body: RequestPasswordResetBodyDto,
+  ): Promise<ResponseDto<IRequestPasswordResetResponseDto>> {
+    const result = await this.requestPasswordResetUseCase.handle({ ...body });
+
+    return ResponseDto.create<IRequestPasswordResetResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Public()
+  @Post('password-reset/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Xác nhận mã và đặt mật khẩu mới',
+    description: 'Đổi mật khẩu xong thu hồi toàn bộ phiên trên mọi thiết bị.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(ConfirmPasswordResetResponseDto) })
+  public async confirmPasswordReset(
+    @Body() body: ConfirmPasswordResetBodyDto,
+  ): Promise<ResponseDto<IConfirmPasswordResetResponseDto>> {
+    const result = await this.confirmPasswordResetUseCase.handle({ ...body });
+
+    return ResponseDto.create<IConfirmPasswordResetResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Delete('account')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Xoá tài khoản',
+    description:
+      'Xoá mềm và ẩn danh dữ liệu cá nhân. Giữ nguyên username để không ai đăng ký lại tên đó mạo danh. Phải nhập lại mật khẩu.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(DeleteAccountResponseDto) })
+  public async deleteAccount(
+    @Body() body: DeleteAccountBodyDto,
+    @CurrentUser() principal: IAuthPrincipal,
+  ): Promise<ResponseDto<IDeleteAccountResponseDto>> {
+    const result = await this.deleteAccountUseCase.handle({
+      ...body,
+      userId: principal.userId,
+    });
+
+    return ResponseDto.create<IDeleteAccountResponseDto>()
       .succeed()
       .attach(result)
       .build();

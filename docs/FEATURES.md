@@ -64,11 +64,24 @@ Có email/SĐT thì khôi phục qua OTP. Không có thì hiển thị kênh li�
 > ⚠️ **Quy trình Admin hỗ trợ chưa được định nghĩa.** Admin đặt lại mật khẩu theo yêu cầu
 > qua chat là lỗ hổng chiếm tài khoản — cần quy định bằng chứng sở hữu tài khoản trước khi
 > reset.
+>
+> ⛔ **Chưa có nhà cung cấp gửi mã.** Hợp đồng không nêu dịch vụ email/SMS/Zalo ZNS nào.
+> Hiện chạy `LoggingOtpSender` — ghi mã ra log và **từ chối khởi động ở production**.
+
+Đã làm: tài khoản không tồn tại và tài khoản không có email/SĐT trả lời **giống hệt nhau**,
+nếu không thì endpoint này thành công cụ dò username có thật. Đổi mật khẩu xong thu hồi
+toàn bộ phiên, **kể cả access token còn hạn** (xem `docs/plan/M1.md`, lát 3).
 
 ### F06 — Xoá tài khoản & ẩn danh hoá
 - **Chặn xoá** khi còn giao dịch dở dang.
 - Xoá xong thì ẩn danh dữ liệu cá nhân, **giữ nguyên lịch sử giao dịch và ledger**.
 - Nếu người xoá là Owner của một Group → Group giải tán (xem [F55](#f55--owner-xoá-tài-khoản--group-giải-tán)).
+- Bắt **nhập lại mật khẩu**: xoá không hoàn tác được, mà access token có thể đang ở tay
+  người mượn máy.
+- **Giữ nguyên username.** Nó là biệt danh tự chọn, không phải dữ liệu định danh bắt buộc,
+  và giữ lại thì không ai đăng ký đúng tên đó để mạo danh trong lịch sử giao dịch cũ.
+
+> ⚠️ Chặn "còn giao dịch dở dang" chờ bảng `transactions` ở M3.
 
 ---
 

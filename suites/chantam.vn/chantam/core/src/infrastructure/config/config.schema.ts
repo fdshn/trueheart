@@ -30,6 +30,7 @@ export const ConfigSchema = Joi.object({
   BCRYPT_ROUNDS: Joi.number().min(10).max(15).default(12),
   MAX_LOGIN_ATTEMPTS: Joi.number().min(3).max(20).default(5),
   LOGIN_LOCK_SECONDS: Joi.number().min(60).default(900),
+  OTP_TTL_SECONDS: Joi.number().min(120).max(1_800).default(300),
 
   GEO_JITTER_RADIUS_METERS: Joi.number().min(50).max(5_000).default(300),
 });

@@ -58,6 +58,7 @@ export function makeConfigMock(jitterRadiusMeters = 300): IConfig {
       bcryptRounds: 4,
       maxLoginAttempts: 5,
       loginLockSeconds: 900,
+      otpTtlSeconds: 300,
     },
     geo: { jitterRadiusMeters },
   };

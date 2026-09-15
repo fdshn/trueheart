@@ -2,9 +2,10 @@ import { IModuleAsyncOptions } from '@chantam/service.common-lib/modules';
 import { DynamicModule, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule, JwtService } from '@nestjs/jwt';
-import { IPasswordService, ITokenService } from '../contracts';
+import { IPasswordService, ITokenDenyList, ITokenService } from '../contracts';
 import { JwtAuthGuard } from '../guards';
 import { IAuthOptions } from './auth-options';
+import { NoopTokenDenyList } from './noop-token-deny-list';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 
@@ -20,15 +21,36 @@ export interface IAuthModuleOptions {
   publicPathPrefixes?: readonly string[];
 }
 
+/**
+ * Nơi lưu danh sách thu hồi access token. Khai riêng chứ không nhét vào
+ * `IAuthModuleOptions` vì nó cần `imports`/`inject` của chính nó — auth-lib
+ * không được biết service dùng Redis hay thứ gì khác.
+ *
+ * Bỏ trống thì chạy bản rỗng và kêu cảnh báo lúc khởi động.
+ */
+export interface ITokenDenyListProvider {
+  imports?: IModuleAsyncOptions<unknown>['imports'];
+  inject?: IModuleAsyncOptions<unknown>['inject'];
+  useFactory: (...args: any[]) => ITokenDenyList | Promise<ITokenDenyList>;
+}
+
 @Module({})
 export class AuthModule {
   public static forRootAsync(
-    options: IModuleAsyncOptions<IAuthModuleOptions>,
+    options: IModuleAsyncOptions<IAuthModuleOptions> & {
+      denyList?: ITokenDenyListProvider;
+    },
   ): DynamicModule {
+    const { denyList } = options;
+
     return {
       global: true,
       module: AuthModule,
-      imports: [...(options.imports ?? []), JwtModule],
+      imports: [
+        ...(options.imports ?? []),
+        ...(denyList?.imports ?? []),
+        JwtModule,
+      ],
       providers: [
         {
           provide: IAuthOptions,
@@ -58,10 +80,17 @@ export class AuthModule {
         },
         { provide: ITokenService, useClass: TokenService },
         { provide: IPasswordService, useClass: PasswordService },
+        denyList
+          ? {
+              provide: ITokenDenyList,
+              inject: denyList.inject,
+              useFactory: denyList.useFactory,
+            }
+          : { provide: ITokenDenyList, useClass: NoopTokenDenyList },
         // Guard toàn cục: mặc định khoá, mở từng endpoint bằng @Public().
         { provide: APP_GUARD, useClass: JwtAuthGuard },
       ],
-      exports: [ITokenService, IPasswordService, IAuthOptions],
+      exports: [ITokenService, IPasswordService, ITokenDenyList, IAuthOptions],
     };
   }
 }
