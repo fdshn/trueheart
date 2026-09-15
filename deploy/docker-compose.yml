@@ -50,6 +50,7 @@ services:
       NODE_ENV: production
       PORT: '3000'
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      JWT_SECRET: ${JWT_SECRET:?bắt buộc, tối thiểu 32 ký tự}
       DATABASE_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URI: redis://redis:6379
       GEO_JITTER_RADIUS_METERS: ${GEO_JITTER_RADIUS_METERS:-300}

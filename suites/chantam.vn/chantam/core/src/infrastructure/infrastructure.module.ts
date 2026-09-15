@@ -1,4 +1,5 @@
 import { IConfig } from '@/domain/ports/config';
+import { AuthModule } from '@chantam/service.auth-lib';
 import { AppContextModule } from '@chantam/service.common-lib/modules';
 import { HealthModule } from '@chantam/service.health-lib';
 import { LoggerModule } from '@chantam/service.logger-lib';
@@ -9,7 +10,9 @@ import { ConfigModule } from './config/config.module';
 import { ControllerModule } from './controller/controller.module';
 import { EntityModule } from './entity/entity.module';
 import { PersistenceModule } from './persistence/persistence.module';
+import { RedisModule } from './redis/redis.module';
 import { RepositoryModule } from './repository/repository.module';
+import { SecurityModule } from './security/security.module';
 
 @Module({
   imports: [
@@ -19,6 +22,17 @@ import { RepositoryModule } from './repository/repository.module';
     PersistenceModule,
     EntityModule,
     RepositoryModule,
+    RedisModule,
+    SecurityModule,
+    AuthModule.forRootAsync({
+      inject: [IConfig],
+      useFactory: (config: IConfig) => ({
+        jwtSecret: config.auth.jwtSecret,
+        accessTtlSeconds: config.auth.accessTtlSeconds,
+        refreshTtlSeconds: config.auth.refreshTtlSeconds,
+        bcryptRounds: config.auth.bcryptRounds,
+      }),
+    }),
     ControllerModule,
     HealthModule.forRootAsync({
       inject: [IConfig, getDataSourceToken()],

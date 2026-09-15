@@ -19,6 +19,16 @@ export function loadConfig(): IConfig {
     redis: {
       uri: process.env.REDIS_URI!,
     },
+    auth: {
+      jwtSecret: process.env.JWT_SECRET!,
+      accessTtlSeconds: Number(process.env.ACCESS_TOKEN_TTL_SECONDS ?? 900),
+      refreshTtlSeconds: Number(
+        process.env.REFRESH_TOKEN_TTL_SECONDS ?? 2_592_000,
+      ),
+      bcryptRounds: Number(process.env.BCRYPT_ROUNDS ?? 12),
+      maxLoginAttempts: Number(process.env.MAX_LOGIN_ATTEMPTS ?? 5),
+      loginLockSeconds: Number(process.env.LOGIN_LOCK_SECONDS ?? 900),
+    },
     geo: {
       jitterRadiusMeters: Number(process.env.GEO_JITTER_RADIUS_METERS ?? 300),
     },

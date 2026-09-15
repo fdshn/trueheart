@@ -14,12 +14,25 @@ export interface IGeoConfig {
   jitterRadiusMeters: number;
 }
 
+export interface IAuthConfig {
+  /** Khoá ký JWT, tối thiểu 32 ký tự. Sinh bằng: openssl rand -base64 48 */
+  jwtSecret: string;
+  accessTtlSeconds: number;
+  refreshTtlSeconds: number;
+  bcryptRounds: number;
+  /** Số lần đăng nhập sai liên tiếp trước khi khoá tạm (F02). */
+  maxLoginAttempts: number;
+  /** Thời gian khoá tạm sau khi vượt ngưỡng, tính bằng giây. */
+  loginLockSeconds: number;
+}
+
 export interface IConfig {
   port: number;
   env: Env;
   version: string;
   database: IDatabaseConfig;
   redis: { uri: string };
+  auth: IAuthConfig;
   geo: IGeoConfig;
 }
 

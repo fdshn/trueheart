@@ -1,0 +1,16 @@
+import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
+import { Repository } from 'typeorm';
+
+export interface IUserRepository extends Repository<IUserEntity> {
+  /**
+   * Tìm theo username, email hoặc số điện thoại — đăng nhập đa định danh (F02).
+   *
+   * Bỏ qua tài khoản đã xoá mềm.
+   */
+  findByIdentifier(identifier: string): Promise<IUserEntity | null>;
+
+  /** `true` nếu đã có tài khoản dùng username này (không phân biệt hoa thường). */
+  isUsernameTaken(username: string): Promise<boolean>;
+}
+
+export const IUserRepository = Symbol('IUserRepository');

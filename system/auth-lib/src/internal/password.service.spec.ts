@@ -7,6 +7,7 @@ const options: IAuthOptions = {
   accessTtlSeconds: 900,
   refreshTtlSeconds: 2_592_000,
   bcryptRounds: 4,
+  publicPathPrefixes: ['/health'],
 };
 
 describe('PasswordService', () => {

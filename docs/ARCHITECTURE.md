@@ -117,8 +117,9 @@ resource mới.
 1. ~~`synchronize: true` ở môi trường dev.~~ **Đã đóng.** Toàn bộ schema do migration
    TypeORM dựng, `synchronize` tắt ở mọi môi trường. Production tự chạy migration còn
    thiếu lúc khởi động; dev và CI chạy tay bằng `npm run migration:run`.
-2. **Chưa có xác thực.** Endpoint `gift-post` hiện đang mở — chỉ dùng để kiểm chứng kiến
-   trúc. `auth-lib` phải xong trước khi triển khai bất kỳ môi trường nào có người dùng thật.
+2. **`gift-post` vẫn đang mở.** `system/auth-lib` đã xong và guard mặc định khoá mọi
+   endpoint, nhưng resource mẫu `gift-post` được đánh dấu `@Public()` tạm thời vì nó dựng
+   trước khi có xác thực. Bỏ `@Public()` ở các endpoint ghi khi làm M2.
 3. **Chưa có rate limit.** Cần trước khi mở công khai (mục 4.2 đặc tả yêu cầu chống spam).
 4. ~~Dockerfile chưa được build thử.~~ **Đã đóng.** Job `docker` của CI build image, chạy
    nó, và gọi `/health` trên chính container đó mỗi lần có PR.

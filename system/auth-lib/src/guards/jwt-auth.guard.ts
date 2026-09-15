@@ -9,6 +9,7 @@ import { FastifyRequest } from 'fastify';
 import { IAuthPrincipal, ITokenService } from '../contracts';
 import { PublicRouteKey } from '../decorators';
 import { TokenMissingException } from '../exceptions';
+import { IAuthOptions } from '../internal/auth-options';
 
 /**
  * Gắn toàn cục qua `APP_GUARD`, nên **mặc định mọi endpoint đều cần token**.
@@ -24,17 +25,20 @@ export class JwtAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     @Inject(ITokenService)
     private readonly tokenService: ITokenService,
+    @Inject(IAuthOptions)
+    private readonly options: IAuthOptions,
   ) {}
 
   public async canActivate(context: ExecutionContext): Promise<boolean> {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(PublicRouteKey, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
     const request = context
       .switchToHttp()
       .getRequest<FastifyRequest & { user?: IAuthPrincipal }>();
+
+    const isPublic =
+      this.reflector.getAllAndOverride<boolean>(PublicRouteKey, [
+        context.getHandler(),
+        context.getClass(),
+      ]) === true || this.isPublicPath(request.url);
 
     const token = this.extractBearerToken(request);
 
@@ -58,6 +62,15 @@ export class JwtAuthGuard implements CanActivate {
     request.user = await this.tokenService.verifyAccessToken(token);
 
     return true;
+  }
+
+  /** Đối chiếu phần đường dẫn, bỏ query string. */
+  private isPublicPath(url: string): boolean {
+    const path = url.split('?')[0];
+
+    return this.options.publicPathPrefixes.some(
+      (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+    );
   }
 
   private extractBearerToken(request: FastifyRequest): string | undefined {

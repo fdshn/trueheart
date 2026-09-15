@@ -12,6 +12,7 @@ import {
   IGetNearbyGiftPostsResponseDto,
   IUpdateGiftPostResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
+import { Public } from '@chantam/service.auth-lib';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
 import {
   Body,
@@ -43,6 +44,14 @@ import {
  * Controller chỉ làm ba việc: nhận DTO đã validate, gọi `useCase.handle()`, bọc
  * kết quả vào `ResponseDto`. Không có nghiệp vụ nào ở đây.
  */
+/**
+ * TẠM THỜI mở toàn bộ bằng `@Public()`.
+ *
+ * Guard mặc định khoá mọi endpoint, mà `gift-post` là resource mẫu dựng trước
+ * khi có xác thực — khoá lại sẽ làm hỏng smoke test đang chạy. Khi làm M2 thì
+ * bỏ `@Public()` ở các endpoint ghi (tạo/sửa/xoá) và lấy `giverId` từ token.
+ */
+@Public()
 @ApiTags('Bài đăng cho tặng')
 @Controller('api/gift-posts')
 export class GiftPostController {

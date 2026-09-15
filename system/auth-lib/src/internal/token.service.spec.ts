@@ -12,6 +12,7 @@ function makeService(accessTtlSeconds = 900): TokenService {
     accessTtlSeconds,
     refreshTtlSeconds: 2_592_000,
     bcryptRounds: 4,
+    publicPathPrefixes: ['/health'],
   };
 
   return new TokenService(new JwtService({ secret }), options);

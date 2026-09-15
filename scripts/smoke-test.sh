@@ -71,6 +71,20 @@ call() {
   RESP_BODY="${raw%$'\n'*}"
 }
 
+# Như `call` nhưng kèm access token.
+call_auth() {
+  local method="$1" path="$2" token="$3" data="${4:-}"
+  local raw
+
+  raw=$(curl -sS -m 20 -w $'
+%{http_code}' -X "$method" "${BASE_URL}${path}" -H 'Content-Type: application/json' -H "Authorization: Bearer $token" -d "$data" 2>&1)
+
+  RESP_CODE="${raw##*$'
+'}"
+  RESP_BODY="${raw%$'
+'*}"
+}
+
 # Lấy giá trị chuỗi đầu tiên của một khoá JSON mà không cần jq.
 json_str() {
   printf '%s' "$1" | grep -o "\"$2\":\"[^\"]*\"" | head -1 | sed 's/.*:"//; s/"$//'
@@ -98,7 +112,7 @@ fi
 
 call GET /docs/json
 MISSING=""
-for route in '/api/gift-posts' '/api/gift-posts/nearby' '/api/gift-posts/{giftPostId}'; do
+for route in '/api/gift-posts' '/api/gift-posts/nearby' '/api/gift-posts/{giftPostId}' '/api/auth/register' '/api/auth/login' '/api/auth/refresh' '/api/auth/logout'; do
   printf '%s' "$RESP_BODY" | grep -q "\"$route\"" || MISSING="$MISSING $route"
 done
 if [ "$RESP_CODE" = "200" ] && [ -z "$MISSING" ]; then
@@ -114,6 +128,95 @@ if [ $READ_ONLY -eq 1 ]; then
   echo "Kết quả: $PASSED đạt, $FAILED lỗi"
   [ $FAILED -eq 0 ] || exit 1
   exit 0
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo
+echo "Xác thực"
+
+SMOKE_USER="smoke$(date +%s)$$"
+SMOKE_PASS='SmokeTest@123'
+
+call POST /api/auth/register "{\"registration\":{\"username\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"confirmPassword\":\"$SMOKE_PASS\",\"deviceId\":\"smoke-device\"}}"
+ACCESS_TOKEN=$(json_str "$RESP_BODY" accessToken)
+REFRESH_TOKEN=$(json_str "$RESP_BODY" refreshToken)
+
+if [ -n "$ACCESS_TOKEN" ] && [ -n "$REFRESH_TOKEN" ]; then
+  pass "đăng ký và nhận được cặp token"
+else
+  fail "đăng ký không trả về token" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+# Đăng ký xong hồ sơ chưa đủ Họ tên/Avatar/SĐT/Email nên chưa được đăng bài (F07).
+if printf '%s' "$RESP_BODY" | grep -q '"profileComplete":false'; then
+  pass "hồ sơ mới chưa đủ điều kiện đăng bài"
+else
+  fail "profileComplete sai ngay sau khi đăng ký" "$RESP_BODY"
+fi
+
+call POST /api/auth/register "{\"registration\":{\"username\":\"${SMOKE_USER}x\",\"password\":\"$SMOKE_PASS\",\"confirmPassword\":\"KhacHoanToan@9\",\"deviceId\":\"d\"}}"
+if [ "$RESP_CODE" = "400" ]; then
+  pass "mật khẩu xác nhận không khớp bị chặn"
+else
+  fail "confirmPassword không được kiểm" "HTTP $RESP_CODE"
+fi
+
+call GET /api/auth/me
+if [ "$RESP_CODE" = "401" ]; then
+  pass "endpoint cần quyền từ chối khi thiếu token"
+else
+  fail "endpoint cần quyền vẫn cho qua khi không có token" "HTTP $RESP_CODE"
+fi
+
+# Sai mật khẩu và tài khoản không tồn tại phải trả về HỆT NHAU — nếu khác, kẻ
+# tấn công dò được username nào đang tồn tại.
+call POST /api/auth/login "{\"credentials\":{\"identifier\":\"$SMOKE_USER\",\"password\":\"SaiHoanToan@9\",\"deviceId\":\"d\"}}"
+WRONG_PASSWORD_BODY="$RESP_BODY"
+call POST /api/auth/login "{\"credentials\":{\"identifier\":\"khong-ton-tai-$$\",\"password\":\"SaiHoanToan@9\",\"deviceId\":\"d\"}}"
+
+if [ "$WRONG_PASSWORD_BODY" = "$RESP_BODY" ]; then
+  pass "sai mật khẩu và tài khoản lạ trả lời giống hệt nhau"
+else
+  fail "phản hồi khác nhau — dò được tài khoản tồn tại" "$WRONG_PASSWORD_BODY vs $RESP_BODY"
+fi
+
+call POST /api/auth/login "{\"credentials\":{\"identifier\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"deviceId\":\"smoke-device-2\"}}"
+if [ "$RESP_CODE" = "200" ]; then
+  pass "đăng nhập bằng mật khẩu đúng"
+else
+  fail "không đăng nhập được" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+call POST /api/auth/refresh "{\"session\":{\"refreshToken\":\"$REFRESH_TOKEN\"}}"
+ROTATED_TOKEN=$(json_str "$RESP_BODY" refreshToken)
+ROTATED_ACCESS=$(json_str "$RESP_BODY" accessToken)
+
+if [ -n "$ROTATED_TOKEN" ] && [ "$ROTATED_TOKEN" != "$REFRESH_TOKEN" ]; then
+  pass "làm mới phiên trả về refresh token mới"
+else
+  fail "refresh không xoay vòng token" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+# Token cũ phải chết ngay. Không chết nghĩa là token bị đánh cắp dùng được mãi.
+call POST /api/auth/refresh "{\"session\":{\"refreshToken\":\"$REFRESH_TOKEN\"}}"
+if [ "$RESP_CODE" = "401" ]; then
+  pass "refresh token cũ mất hiệu lực sau khi xoay vòng"
+else
+  fail "refresh token cũ VẪN DÙNG ĐƯỢC" "HTTP $RESP_CODE"
+fi
+
+call_auth POST /api/auth/logout "$ROTATED_ACCESS" "{\"session\":{\"refreshToken\":\"$ROTATED_TOKEN\"}}"
+if [ "$RESP_CODE" = "200" ]; then
+  pass "đăng xuất"
+else
+  fail "không đăng xuất được" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+call POST /api/auth/refresh "{\"session\":{\"refreshToken\":\"$ROTATED_TOKEN\"}}"
+if [ "$RESP_CODE" = "401" ]; then
+  pass "phiên đã đăng xuất không làm mới được nữa"
+else
+  fail "vẫn refresh được sau khi đăng xuất" "HTTP $RESP_CODE"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

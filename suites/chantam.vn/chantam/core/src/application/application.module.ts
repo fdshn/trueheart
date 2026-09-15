@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthUseCaseModule } from './implementations/auth/auth.module';
 import { GiftPostModule } from './implementations/gift-post/gift-post.module';
 
 /**
@@ -6,6 +7,6 @@ import { GiftPostModule } from './implementations/gift-post/gift-post.module';
  * (INVARIANTS.md mục 2).
  */
 @Module({
-  imports: [GiftPostModule],
+  imports: [AuthUseCaseModule, GiftPostModule],
 })
 export class ApplicationModule {}

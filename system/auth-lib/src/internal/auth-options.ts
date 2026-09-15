@@ -14,6 +14,16 @@ export interface IAuthOptions {
    * nghẽn lúc đăng nhập.
    */
   bcryptRounds: number;
+
+  /**
+   * Tiền tố đường dẫn luôn công khai, không cần `@Public()`.
+   *
+   * Tồn tại vì các controller ở tầng `kernel/` (ví dụ `/health` của health-lib)
+   * KHÔNG được phép phụ thuộc vào `system/auth-lib` để lấy decorator `@Public()`
+   * — chiều phụ thuộc đó là sai. Guard nhận danh sách này thay vì bắt kernel
+   * biết tới auth.
+   */
+  publicPathPrefixes: readonly string[];
 }
 
 export const IAuthOptions = Symbol('IAuthOptions');

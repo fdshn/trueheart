@@ -22,5 +22,14 @@ export const ConfigSchema = Joi.object({
     .uri({ scheme: ['redis', 'rediss'] })
     .required(),
 
+  // Khoá 32 ký tự là mức tối thiểu để chống dò ngoại tuyến chữ ký HS256.
+  // Ném ngay lúc khởi động còn hơn chạy được với khoá yếu.
+  JWT_SECRET: Joi.string().min(32).required(),
+  ACCESS_TOKEN_TTL_SECONDS: Joi.number().min(60).default(900),
+  REFRESH_TOKEN_TTL_SECONDS: Joi.number().min(3_600).default(2_592_000),
+  BCRYPT_ROUNDS: Joi.number().min(10).max(15).default(12),
+  MAX_LOGIN_ATTEMPTS: Joi.number().min(3).max(20).default(5),
+  LOGIN_LOCK_SECONDS: Joi.number().min(60).default(900),
+
   GEO_JITTER_RADIUS_METERS: Joi.number().min(50).max(5_000).default(300),
 });

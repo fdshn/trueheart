@@ -16,6 +16,8 @@ export interface IAuthModuleOptions {
   refreshTtlSeconds?: number;
   /** Mặc định 12. */
   bcryptRounds?: number;
+  /** Mặc định `['/health']`. */
+  publicPathPrefixes?: readonly string[];
 }
 
 @Module({})
@@ -44,6 +46,7 @@ export class AuthModule {
               accessTtlSeconds: resolved.accessTtlSeconds ?? 900,
               refreshTtlSeconds: resolved.refreshTtlSeconds ?? 2_592_000,
               bcryptRounds: resolved.bcryptRounds ?? 12,
+              publicPathPrefixes: resolved.publicPathPrefixes ?? ['/health'],
             };
           },
         },

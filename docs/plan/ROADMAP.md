@@ -6,7 +6,7 @@ cả 72 đều là P0.
 | Mốc | Nội dung | Số chức năng | Trạng thái |
 | --- | --- | ---: | --- |
 | M0 | Nền tảng monorepo + CI/CD | — | ✅ Xong |
-| [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | ⬜ 0/13 |
+| [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | 🔵 4/13 |
 | [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 14 | ⬜ 0/14 |
 | [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | ⬜ 0/10 |
 | [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 7 | ⬜ 0/7 |
@@ -36,10 +36,10 @@ M1 users ──▶ M2 posts ──▶ M3 transactions ──▶ M4 points ──
 
 **Package:** `system/auth-lib`, `system/otp-lib`, `system/storage-lib` · resource `user`, `category`
 
-- [ ] F01 Đăng ký tối thiểu (username + password)
-- [ ] F02 Đăng nhập đa định danh + chống dò mật khẩu
-- [ ] F03 Vòng đời refresh token
-- [ ] F04 Đăng xuất + xoá FCM token thiết bị
+- [x] F01 Đăng ký tối thiểu (username + password)
+- [x] F02 Đăng nhập đa định danh + chống dò mật khẩu
+- [x] F03 Vòng đời refresh token
+- [x] F04 Đăng xuất + xoá FCM token thiết bị
 - [ ] F05 Quên mật khẩu + kênh Admin ⚠️ *quy trình chưa định nghĩa*
 - [ ] F06 Xoá tài khoản + ẩn danh hoá
 - [ ] F07 Cổng hoàn thiện hồ sơ

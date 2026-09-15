@@ -94,6 +94,7 @@ jobs:
       PORT: '3000'
       DATABASE_URI: postgres://chantam:chantam@localhost:5432/chantam
       REDIS_URI: redis://localhost:6379
+      JWT_SECRET: khoa-chi-dung-trong-ci-khong-phai-bi-mat-that-0123456789
 
     steps:
       - uses: actions/checkout@v4
@@ -212,6 +213,7 @@ jobs:
             -e PORT=3000 \
             -e DATABASE_URI=postgres://chantam:chantam@localhost:5432/chantam \
             -e REDIS_URI=redis://localhost:6379 \
+            -e JWT_SECRET=khoa-chi-dung-trong-ci-khong-phai-bi-mat-that-0123456789 \
             chantam/core:ci
 
           for _ in $(seq 1 30); do

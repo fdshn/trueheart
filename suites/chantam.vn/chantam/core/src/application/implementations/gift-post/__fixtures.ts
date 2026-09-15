@@ -51,6 +51,14 @@ export function makeConfigMock(jitterRadiusMeters = 300): IConfig {
     version: 'test',
     database: { default: 'postgres://localhost/test' },
     redis: { uri: 'redis://localhost:6379' },
+    auth: {
+      jwtSecret: 'khong-dung-toi-trong-bai-kiem-tra-nay-0123456789',
+      accessTtlSeconds: 900,
+      refreshTtlSeconds: 2_592_000,
+      bcryptRounds: 4,
+      maxLoginAttempts: 5,
+      loginLockSeconds: 900,
+    },
     geo: { jitterRadiusMeters },
   };
 }

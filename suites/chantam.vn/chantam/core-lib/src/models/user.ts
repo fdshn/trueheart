@@ -41,3 +41,16 @@ export interface IUser {
   /** Hết hạn treo. `null` khi không bị treo. Chỉ có nghĩa khi status = SUSPENDED. */
   suspendedUntil: Date | null;
 }
+
+/**
+ * Hồ sơ đã đủ để đăng bài chưa (F07).
+ *
+ * Bốn trường này là điều kiện cổng: Họ tên, Avatar, SĐT, Email. Đặt ở `core-lib`
+ * để service, Admin CMS và app di động dùng chung MỘT định nghĩa — nếu mỗi nơi
+ * tự kiểm, sớm muộn chúng sẽ lệch nhau.
+ */
+export function isProfileComplete(
+  user: Pick<IUser, 'fullName' | 'avatarUrl' | 'phone' | 'email'>,
+): boolean {
+  return Boolean(user.fullName && user.avatarUrl && user.phone && user.email);
+}
