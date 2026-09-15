@@ -97,6 +97,15 @@ Mọi path param có DTO riêng với validate cụ thể. Controller dùng
 Mọi response có class cụ thể với `@ApiProperty({ type: () => Entity })` để Swagger sinh
 schema đúng.
 
+### Endpoint phải khai cả lỗi, không chỉ đường thành công
+Cặp `(errorOrigin, errorCode)` chính là thứ client mobile phải code theo. Khai bằng
+`@ApiErrorResponses(...)` — decorator dựng exception lên để đọc mã, thông điệp và HTTP
+status, nên sửa exception là tài liệu đổi theo, không chép tay được nên không trôi được.
+Endpoint cần token thì thêm `...ApiTokenErrors`.
+
+`@Post` **không** đánh `@HttpCode` thì Nest trả **201**, nên dùng `@ApiCreatedResponse`
+chứ đừng `@ApiOkResponse` — client sinh từ đặc tả sẽ coi mã không khai là ngoài dự kiến.
+
 ### Đầy đủ
 Nếu interface DTO tồn tại trong `-lib` thì service BẮT BUỘC có đủ: DTO cụ thể + contract
 use case + implementation + endpoint. Không bỏ sót cái nào.

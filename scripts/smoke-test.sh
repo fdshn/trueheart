@@ -122,6 +122,37 @@ else
   fail "/docs/json thiếu route" "HTTP $RESP_CODE — thiếu:$MISSING"
 fi
 
+# Cặp (errorOrigin, errorCode) là thứ client mobile phải code theo. Tài liệu chỉ
+# khai mã 200 thì client không biết phân biệt "sai mật khẩu" với "tài khoản bị
+# khoá" — nên kiểm luôn rằng đặc tả có khai lỗi, không chỉ đường thành công.
+DOCS_BODY="$RESP_BODY"
+MISSING_ERRORS=""
+
+# Mã lỗi đại diện cho từng tầng, tất cả đều đã đối chiếu với hành vi thật:
+#   65286 kernel/common-lib (validate) · 257 system/auth-lib (thiếu token)
+#   260   system/auth-lib (token bị thu hồi) · 772 chantam/core (trùng username)
+for code in 65286 257 260 772; do
+  printf '%s' "$DOCS_BODY" | grep -q "\"errorCode\":$code" ||
+    MISSING_ERRORS="$MISSING_ERRORS $code"
+done
+
+if [ -z "$MISSING_ERRORS" ]; then
+  pass "/docs/json khai cả mã lỗi, không chỉ đường thành công"
+else
+  fail "/docs/json thiếu mã lỗi" "thiếu:$MISSING_ERRORS"
+fi
+
+# Nest trả 201 cho POST không đánh @HttpCode, nên đặc tả phải khai 201 chứ không
+# phải 200 — client sinh từ đặc tả sẽ coi mã lạ là ngoài dự kiến. Hiện có đúng
+# hai endpoint như vậy: tạo tài khoản và tạo bài đăng.
+CREATED_COUNT=$(printf '%s' "$DOCS_BODY" | grep -o '"201":' | wc -l)
+
+if [ "$CREATED_COUNT" -ge 2 ]; then
+  pass "endpoint tạo mới khai đúng mã 201"
+else
+  fail "đặc tả khai sai mã cho endpoint tạo mới" "tìm thấy $CREATED_COUNT chỗ khai 201, cần ít nhất 2"
+fi
+
 if [ $READ_ONLY -eq 1 ]; then
   echo
   echo "Chế độ chỉ đọc — bỏ qua các phép thử có ghi dữ liệu."

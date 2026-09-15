@@ -37,7 +37,7 @@ Kiểm tra:
 | Địa chỉ | Nội dung |
 | --- | --- |
 | http://localhost:3000/health | Trạng thái service + kết nối database |
-| http://localhost:3000/docs/json | Đặc tả OpenAPI |
+| http://localhost:3000/docs/json | Đặc tả OpenAPI — có cả mã lỗi kèm ví dụ response |
 | http://localhost:3000/api/gift-posts/nearby | Resource mẫu — truy vấn PostGIS theo bán kính |
 
 > Hạ tầng dev cố ý dùng cổng **15432** (PostgreSQL) và **16379** (Redis), không dùng

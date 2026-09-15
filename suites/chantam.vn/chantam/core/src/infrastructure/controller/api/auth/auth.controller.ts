@@ -8,6 +8,16 @@ import {
   IRequestPasswordResetUseCase,
 } from '@/application/contracts/auth';
 import {
+  InvalidCredentialsException,
+  OtpInvalidException,
+  OtpTooSoonException,
+  RefreshTokenInvalidException,
+  TooManyLoginAttemptsException,
+  UserBannedException,
+  UsernameTakenException,
+  UserSuspendedException,
+} from '@/domain/exceptions';
+import {
   IConfirmPasswordResetResponseDto,
   IDeleteAccountResponseDto,
   ILoginResponseDto,
@@ -16,8 +26,15 @@ import {
   IRegisterResponseDto,
   IRequestPasswordResetResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
-import { CurrentUser, IAuthPrincipal, Public } from '@chantam/service.auth-lib';
+import {
+  ApiTokenErrors,
+  CurrentUser,
+  IAuthPrincipal,
+  Public,
+} from '@chantam/service.auth-lib';
+import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
+import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import {
   Body,
   Controller,
@@ -30,6 +47,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -79,7 +97,16 @@ export class AuthController {
     description:
       'Chỉ cần username và mật khẩu. Đăng ký xong tự đăng nhập, trả luôn cặp token.',
   })
-  @ApiOkResponse({ type: ResponseDto.forApi(RegisterResponseDto) })
+  @ApiCreatedResponse({ type: ResponseDto.forApi(RegisterResponseDto) })
+  @ApiErrorResponses(
+    [
+      ValidationFailedException,
+      [
+        'registration.password: password must be longer than or equal to 8 characters',
+      ],
+    ],
+    [UsernameTakenException, 'nguoidung01'],
+  )
   public async registerUser(
     @Body() body: RegisterBodyDto,
   ): Promise<ResponseDto<IRegisterResponseDto>> {
@@ -99,6 +126,16 @@ export class AuthController {
     description: 'Định danh là username, email hoặc số điện thoại đã bổ sung.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(LoginResponseDto) })
+  @ApiErrorResponses(
+    [
+      ValidationFailedException,
+      ['credentials.identifier: identifier should not be empty'],
+    ],
+    InvalidCredentialsException,
+    [UserSuspendedException, new Date('2026-10-01T00:00:00Z')],
+    UserBannedException,
+    [TooManyLoginAttemptsException, 900],
+  )
   public async loginUser(
     @Body() body: LoginBodyDto,
   ): Promise<ResponseDto<ILoginResponseDto>> {
@@ -119,6 +156,14 @@ export class AuthController {
       'Refresh token cũ bị thu hồi ngay, trả về cặp hoàn toàn mới. Endpoint công khai vì access token lúc này đã hết hạn.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(RefreshSessionResponseDto) })
+  @ApiErrorResponses(
+    [
+      ValidationFailedException,
+      ['session.refreshToken: refreshToken should not be empty'],
+    ],
+    RefreshTokenInvalidException,
+    UserBannedException,
+  )
   public async refreshSession(
     @Body() body: RefreshSessionBodyDto,
   ): Promise<ResponseDto<IRefreshSessionResponseDto>> {
@@ -138,6 +183,13 @@ export class AuthController {
     description: 'Thu hồi phiên và xoá FCM token của thiết bị đó.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(LogoutResponseDto) })
+  @ApiErrorResponses(
+    [
+      ValidationFailedException,
+      ['session.refreshToken: refreshToken should not be empty'],
+    ],
+    ...ApiTokenErrors,
+  )
   public async logoutUser(
     @Body() body: LogoutBodyDto,
     @CurrentUser() principal: IAuthPrincipal,
@@ -164,6 +216,13 @@ export class AuthController {
       'Tài khoản không tồn tại và tài khoản không có email/SĐT trả về HỆT NHAU (channel ADMIN_SUPPORT) — không tiết lộ tài khoản nào có thật.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(RequestPasswordResetResponseDto) })
+  @ApiErrorResponses(
+    [
+      ValidationFailedException,
+      ['reset.identifier: identifier should not be empty'],
+    ],
+    [OtpTooSoonException, 42],
+  )
   public async requestPasswordReset(
     @Body() body: RequestPasswordResetBodyDto,
   ): Promise<ResponseDto<IRequestPasswordResetResponseDto>> {
@@ -183,6 +242,10 @@ export class AuthController {
     description: 'Đổi mật khẩu xong thu hồi toàn bộ phiên trên mọi thiết bị.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(ConfirmPasswordResetResponseDto) })
+  @ApiErrorResponses(
+    [ValidationFailedException, ['reset.otp: otp phải là 6 chữ số']],
+    OtpInvalidException,
+  )
   public async confirmPasswordReset(
     @Body() body: ConfirmPasswordResetBodyDto,
   ): Promise<ResponseDto<IConfirmPasswordResetResponseDto>> {
@@ -203,6 +266,15 @@ export class AuthController {
       'Xoá mềm và ẩn danh dữ liệu cá nhân. Giữ nguyên username để không ai đăng ký lại tên đó mạo danh. Phải nhập lại mật khẩu.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(DeleteAccountResponseDto) })
+  @ApiErrorResponses(
+    [
+      ValidationFailedException,
+      ['account.password: password should not be empty'],
+    ],
+    ...ApiTokenErrors,
+    // Mật khẩu nhập lại sai cũng dùng lỗi này.
+    InvalidCredentialsException,
+  )
   public async deleteAccount(
     @Body() body: DeleteAccountBodyDto,
     @CurrentUser() principal: IAuthPrincipal,
@@ -226,6 +298,7 @@ export class AuthController {
       'Đọc thẳng từ access token, không truy vấn database — dùng để client kiểm tra token còn sống.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(OwnUserDto) })
+  @ApiErrorResponses(...ApiTokenErrors)
   public getCurrentUser(
     @CurrentUser() principal: IAuthPrincipal,
   ): ResponseDto<IAuthPrincipal> {

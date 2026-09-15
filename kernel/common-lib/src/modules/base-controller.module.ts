@@ -1,14 +1,15 @@
 import {
   ClassSerializerInterceptor,
   DynamicModule,
-  HttpStatus,
   Module,
   ValidationPipe,
 } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE, Reflector } from '@nestjs/core';
 import { ValidationError } from 'class-validator';
-import { ErrorCodes, ErrorOrigin } from '../consts';
-import { ApplicationExceptionFilter, Exception } from '../exception';
+import {
+  ApplicationExceptionFilter,
+  ValidationFailedException,
+} from '../exception';
 
 /** Trải lỗi validate lồng nhau thành danh sách phẳng "trường: thông báo". */
 function flattenValidationErrors(
@@ -27,19 +28,6 @@ function flattenValidationErrors(
 
     return messages;
   });
-}
-
-class ValidationFailedException extends Exception {
-  public static readonly httpStatus = HttpStatus.BAD_REQUEST;
-
-  public constructor(messages: string[]) {
-    super(
-      ErrorCodes.VALIDATION_FAILED,
-      messages[0] ?? 'Dữ liệu gửi lên không hợp lệ',
-      messages.slice(1),
-      ErrorOrigin,
-    );
-  }
 }
 
 /**

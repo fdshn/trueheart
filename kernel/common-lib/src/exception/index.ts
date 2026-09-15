@@ -4,3 +4,4 @@ export * from './exception';
 export * from './forbidden.exception';
 export * from './not-implemented.exception';
 export * from './unauthorized.exception';
+export * from './validation-failed.exception';

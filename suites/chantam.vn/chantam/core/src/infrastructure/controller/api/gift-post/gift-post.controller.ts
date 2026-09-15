@@ -6,6 +6,10 @@ import {
   IUpdateGiftPostUseCase,
 } from '@/application/contracts/gift-post';
 import {
+  GiftPostAlreadyClosedException,
+  GiftPostNotFoundException,
+} from '@/domain/exceptions';
+import {
   ICreateGiftPostResponseDto,
   IDeleteGiftPostResponseDto,
   IGetGiftPostResponseDto,
@@ -13,7 +17,9 @@ import {
   IUpdateGiftPostResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { Public } from '@chantam/service.auth-lib';
+import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
+import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import {
   Body,
   Controller,
@@ -25,7 +31,12 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   CreateGiftPostBodyDto,
   CreateGiftPostResponseDto,
@@ -70,7 +81,11 @@ export class GiftPostController {
 
   @Post()
   @ApiOperation({ summary: 'Đăng một bài cho tặng mới' })
-  @ApiOkResponse({ type: ResponseDto.forApi(CreateGiftPostResponseDto) })
+  @ApiCreatedResponse({ type: ResponseDto.forApi(CreateGiftPostResponseDto) })
+  @ApiErrorResponses([
+    ValidationFailedException,
+    ['giftPost.title: title should not be empty'],
+  ])
   public async createGiftPost(
     @Body() body: CreateGiftPostBodyDto,
   ): Promise<ResponseDto<ICreateGiftPostResponseDto>> {
@@ -89,6 +104,10 @@ export class GiftPostController {
       'Toạ độ trả về luôn được làm nhiễu vì đây là kênh công khai (đặc tả mục 1.3).',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(GetNearbyGiftPostsResponseDto) })
+  @ApiErrorResponses([
+    ValidationFailedException,
+    ['radiusMeters: radiusMeters must not be greater than 50000'],
+  ])
   public async getNearbyGiftPosts(
     @Query() query: GetNearbyGiftPostsQueryDto,
   ): Promise<ResponseDto<IGetNearbyGiftPostsResponseDto>> {
@@ -103,6 +122,10 @@ export class GiftPostController {
   @Get(':giftPostId')
   @ApiOperation({ summary: 'Chi tiết một bài đăng' })
   @ApiOkResponse({ type: ResponseDto.forApi(GetGiftPostResponseDto) })
+  @ApiErrorResponses(
+    [ValidationFailedException, ['giftPost.title: title should not be empty']],
+    [GiftPostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+  )
   public async getGiftPost(
     @Param() params: GetGiftPostParamsDto,
   ): Promise<ResponseDto<IGetGiftPostResponseDto>> {
@@ -122,6 +145,15 @@ export class GiftPostController {
   @Patch(':giftPostId')
   @ApiOperation({ summary: 'Cập nhật bài đăng' })
   @ApiOkResponse({ type: ResponseDto.forApi(UpdateGiftPostResponseDto) })
+  @ApiErrorResponses(
+    [ValidationFailedException, ['giftPost.title: title should not be empty']],
+    [GiftPostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [
+      GiftPostAlreadyClosedException,
+      '4182a141-a5c5-5c25-92ab-0d4488158e8f',
+      'COMPLETED',
+    ],
+  )
   public async updateGiftPost(
     @Param() params: UpdateGiftPostParamsDto,
     @Body() body: UpdateGiftPostBodyDto,
@@ -140,6 +172,10 @@ export class GiftPostController {
   @Delete(':giftPostId')
   @ApiOperation({ summary: 'Gỡ bài đăng (xoá mềm)' })
   @ApiOkResponse({ type: ResponseDto.forApi(DeleteGiftPostResponseDto) })
+  @ApiErrorResponses(
+    [ValidationFailedException, ['giftPost.title: title should not be empty']],
+    [GiftPostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+  )
   public async deleteGiftPost(
     @Param() params: DeleteGiftPostParamsDto,
   ): Promise<ResponseDto<IDeleteGiftPostResponseDto>> {
