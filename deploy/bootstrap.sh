@@ -171,7 +171,7 @@ NEXT
 
 if [ "$PRINT_KEY" = "1" ]; then
   cat << 'KEYNOTE'
-Dán khoá riêng dưới đây vào secret SSH_KEY (của CẢ HAI môi trường — cùng một
+Dán khoá riêng dưới đây vào secret SSH_PRIVATE_KEY (của CẢ HAI môi trường — cùng một
 máy, cùng một user). Dán nguyên văn, cả dòng BEGIN và END.
 
 Sau khi dán xong, XOÁ khoá riêng khỏi server:
@@ -179,11 +179,11 @@ Sau khi dán xong, XOÁ khoá riêng khỏi server:
   shred -u /root/chantam_deploy
 
 KEYNOTE
-  echo "───────────────────────── SSH_KEY ─────────────────────────"
+  echo "──────────────────────── SSH_PRIVATE_KEY ────────────────────────"
   cat "$KEY_PATH"
-  echo "───────────────────────────────────────────────────────────"
+  echo "─────────────────────────────────────────────────────────────────"
 else
-  echo "Khoá SSH đã cấp ở lần chạy trước — dùng lại đúng giá trị SSH_KEY đó."
+  echo "Khoá SSH đã cấp ở lần chạy trước — dùng lại đúng giá trị SSH_PRIVATE_KEY đó."
 fi
 
 cat << 'PROXY'

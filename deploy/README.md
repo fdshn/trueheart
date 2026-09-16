@@ -124,7 +124,7 @@ ssh-copy-id -i ./chantam_deploy.pub deploy@<địa-chỉ-server>
 ```
 
 Nội dung `chantam_deploy` (khoá riêng, **toàn bộ file kể cả dòng BEGIN/END**) sẽ được dán
-vào secret `SSH_KEY` ở bước sau. Xoá file khỏi máy sau khi dán xong.
+vào secret `SSH_PRIVATE_KEY` ở bước sau. Xoá file khỏi máy sau khi dán xong.
 
 ---
 
@@ -139,11 +139,11 @@ Vào **Settings → Environments**, tạo hai môi trường: `staging` và `pro
 | `SSH_HOST` | `103.x.x.x` | IP hoặc tên miền của server |
 | `SSH_USER` | `deploy` | |
 | `SSH_PORT` | `22` | bỏ trống thì mặc định 22 |
-| `SSH_KEY` | `-----BEGIN OPENSSH...` | khoá riêng sinh ở bước 2 |
+| `SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH...` | khoá riêng sinh ở bước 2 |
 | `DEPLOY_PATH` | `/home/deploy/chantam-staging` | thư mục chứa docker-compose.yml — **khác nhau giữa hai môi trường** |
 | `HEALTH_URL` | `https://api-staging.chantam.vn` | URL công khai — **khác nhau giữa hai môi trường** |
 
-`SSH_HOST`, `SSH_USER`, `SSH_PORT` và `SSH_KEY` giống hệt nhau ở cả hai môi trường vì cùng
+`SSH_HOST`, `SSH_USER`, `SSH_PORT` và `SSH_PRIVATE_KEY` giống hệt nhau ở cả hai môi trường vì cùng
 một máy, cùng một user. Chỉ `DEPLOY_PATH` và `HEALTH_URL` là khác.
 
 ### Variables
