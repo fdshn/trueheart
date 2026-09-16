@@ -16,6 +16,10 @@ on:
 
 permissions:
   contents: read
+  # Token của job deploy được chuyển sang server để `docker login ghcr.io` rồi
+  # kéo image private. Thiếu quyền này login vẫn báo thành công, nhưng daemon bị
+  # GHCR từ chối khi HEAD manifest (403) — một lỗi rất dễ gây hiểu nhầm.
+  packages: read
 
 jobs:
   deploy:
