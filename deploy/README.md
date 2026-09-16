@@ -12,6 +12,22 @@ không cần comment workflow ra hay sửa gì.
 Yêu cầu: Ubuntu 22.04+ (hoặc tương đương), Docker Engine 24+ kèm plugin Compose v2.17+
 (cần cho cờ `--wait-timeout`).
 
+### Cách nhanh: chạy `bootstrap.sh`
+
+```bash
+scp deploy/docker-compose.yml deploy/init.sql deploy/bootstrap.sh root@<server>:/tmp/
+ssh root@<server> 'bash /tmp/bootstrap.sh'
+```
+
+Script cài Docker nếu thiếu, tạo user `deploy`, chép hai file cấu hình, **sinh `.env` với
+mật khẩu database và `JWT_SECRET` ngẫu nhiên**, sinh cặp khoá SSH cho CI rồi in khoá riêng
+ra một lần. Chạy lại nhiều lần được — `.env` đã có thì giữ nguyên.
+
+Sinh bí mật bằng máy thay vì gõ tay là có lý do: mật khẩu người tự nghĩ thường yếu, hoặc
+trùng luôn với mật khẩu môi trường dev.
+
+### Cách thủ công
+
 ```bash
 # Tài khoản riêng cho việc triển khai — không dùng root
 sudo adduser --disabled-password --gecos '' deploy
@@ -137,8 +153,8 @@ docker compose up -d --wait
 | --- | --- |
 | Reverse proxy + TLS (Caddy hoặc nginx) | Làm tay. Trỏ về `127.0.0.1:3000` |
 | Backup database định kỳ | Làm tay. `pg_dump` theo cron, đẩy lên Cloudflare R2 |
-| Migration TypeORM | **Chưa có.** Production đang chạy `synchronize: false` nên bảng sẽ không tự tạo — xem `docs/ARCHITECTURE.md` mục 8 |
 | Giám sát và cảnh báo | Làm tay. Uptime Kuma trỏ vào `/health` là đủ cho giai đoạn đầu |
+| Nhà cung cấp OTP (email/SMS/Zalo ZNS) | **Chưa có trong hợp đồng.** Quên mật khẩu tự tắt ở production, trả về kênh `ADMIN_SUPPORT` |
 
-> **Quan trọng:** mục migration phải giải quyết **trước** lần triển khai production đầu tiên.
-> Hiện chưa có cơ chế nào tạo bảng ở môi trường production.
+Migration TypeORM **đã xong**: `migrationsRun` bật khi `NODE_ENV=production`, nên container
+tự dựng bảng lúc khởi động. Không cần thao tác tay.
