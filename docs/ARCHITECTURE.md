@@ -143,4 +143,6 @@ những thứ khác nhau thì "CI xanh" không nói lên điều gì về produc
 Job `integration` là nơi duy nhất chuỗi `ST_DWithin → repository → use case → controller`
 được kiểm tự động — unit test mock repository nên không chạm tới PostGIS.
 
-Hướng dẫn dựng server và khai secret: `deploy/README.md`.
+Runbook vận hành: [`deploy/STAGING.md`](../deploy/STAGING.md) và
+[`deploy/PRODUCTION.md`](../deploy/PRODUCTION.md). Tổng quan kiến trúc deploy ở
+[`deploy/README.md`](../deploy/README.md).

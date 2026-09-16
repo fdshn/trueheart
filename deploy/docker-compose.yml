@@ -58,8 +58,8 @@ services:
       REDIS_URI: redis://redis:6379
       GEO_JITTER_RADIUS_METERS: ${GEO_JITTER_RADIUS_METERS:-300}
     ports:
-      # Chỉ bind loopback. Reverse proxy (Caddy/nginx) đứng trước lo TLS và
-      # rate limit — không phơi thẳng Node ra Internet.
+      # Chỉ bind loopback. Host Nginx đứng trước lo TLS và không phơi thẳng
+      # Node ra Internet.
       - '127.0.0.1:${CORE_PORT:-3000}:3000'
     healthcheck:
       # Dùng fetch của Node chứ không dùng curl: image node:22-slim không có

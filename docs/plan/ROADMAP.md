@@ -171,7 +171,7 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
 - [ ] F46 Lịch Âm + nhắc ngày lễ
 
 **Hạ tầng & bàn giao**
-- [ ] F66 VPS, Docker, Nginx SSL *(đã có `deploy/`)*
+- [x] F66 VPS, Docker, Nginx SSL — template host Nginx + runbook staging/production đã có; backup, monitoring và rate limit vẫn là phần còn lại
 - [ ] F67 Sao lưu + **kiểm thử restore**
 - [ ] F68 Bảo mật, log, giám sát
 - [ ] F69 Kiểm thử hồi quy + UAT
@@ -190,7 +190,8 @@ Không có mã F nhưng không làm thì không lên production được:
 
 - [x] **Migration TypeORM** thay cho `synchronize` — xong. Nợ kỹ thuật #1 đã đóng
 - [ ] **Rate limit toàn cục** — nợ kỹ thuật #3, cần trước khi mở công khai
-- [ ] **Reverse proxy + TLS** trên VPS — `deploy/README.md` mới hướng dẫn, chưa tự động hoá
+- [x] **Host Nginx + Certbot cho staging** — vhost tách port 8080, HTTPS external health gate xanh; xem `deploy/STAGING.md`
+- [ ] **Production Nginx + TLS** — chuẩn bị theo `deploy/PRODUCTION.md` khi khách cấp server thật
 
 ---
 

@@ -510,7 +510,9 @@ tham chiếu của Rao vặt.
 ## 12. Hạ tầng & Bảo mật
 
 ### F66 — VPS, Docker, PostgreSQL, Redis, Nginx SSL
-Docker Compose, reverse proxy, TLS, tách cấu hình production và staging.
+Docker Compose, host Nginx + Certbot, TLS và staging/production tách path, database, Redis,
+volume, network, secret và GitHub Environment. Runbook: `deploy/STAGING.md`,
+`deploy/PRODUCTION.md`.
 
 ### F67 — Sao lưu & phục hồi
 Sao lưu database định kỳ, lưu trữ theo chính sách, và **kiểm tra quy trình restore** — bản

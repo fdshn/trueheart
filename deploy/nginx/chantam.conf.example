@@ -1,0 +1,143 @@
+# Host Nginx template — Chân Tâm staging + production
+#
+# Không chạy Nginx bằng Docker. VPS đã có Nginx/Certbot giữ cổng 80/443; thêm
+# file này vào /etc/nginx/sites-available/ rồi symlink sang sites-enabled/.
+#
+# CÁCH DÙNG:
+#   1. Thay hai hostname + đường dẫn certificate bằng tên miền thật.
+#   2. Bỏ block production nếu server này chỉ chạy staging.
+#   3. sudo nginx -t && sudo systemctl reload nginx
+#   4. Lần đầu chỉ cài HTTP block, chạy Certbot; Certbot tự thêm block HTTPS.
+#      Hoặc dùng trực tiếp block HTTPS dưới đây nếu certificate đã có.
+#
+# Cổng Core chỉ bind loopback:
+#   staging    -> 127.0.0.1:8080
+#   production -> 127.0.0.1:8085
+# Không đổi upstream thành IP Docker hay publish Core ra Internet.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGING — Swagger mở để mobile/web thử API
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name api-staging.example.com;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name api-staging.example.com;
+
+    # Certbot quản lý hai đường dẫn này. Đổi example.com thành domain thật.
+    ssl_certificate /etc/letsencrypt/live/api-staging.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api-staging.example.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # HSTS chỉ gửi qua HTTPS. Đừng bật includeSubDomains nếu subdomain khác của
+    # organisation chưa hỗ trợ HTTPS — browser sẽ khoá chúng suốt 1 năm.
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "no-referrer" always;
+    server_tokens off;
+
+    gzip on;
+    gzip_types application/json application/javascript text/css text/plain;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        include /etc/nginx/proxy_params;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+
+        # Chân Tâm hiện là REST API. Khi thêm WebSocket/SSE, khai `map
+        # $http_upgrade $connection_upgrade` trong http{} trước rồi mới thêm
+        # proxy_set_header Upgrade/Connection — không dùng biến chưa khai báo.
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 15m;
+    }
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PRODUCTION — Swagger bị chặn để không phơi hình dạng API/mã lỗi cho Internet
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name api.example.com;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name api.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/api.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.example.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "no-referrer" always;
+    server_tokens off;
+
+    gzip on;
+    gzip_types application/json application/javascript text/css text/plain;
+
+    # Swagger UI, asset và OpenAPI JSON đều 404. /health vẫn mở vì GitHub CD
+    # dùng HEALTH_URL/health làm cổng kiểm sau deploy.
+    location = /docs { return 404; }
+    location ^~ /docs/ { return 404; }
+
+    location / {
+        proxy_pass http://127.0.0.1:8085;
+        include /etc/nginx/proxy_params;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        # Chân Tâm hiện là REST API. Khi thêm WebSocket/SSE, khai `map
+        # $http_upgrade $connection_upgrade` trong http{} trước rồi mới thêm
+        # proxy_set_header Upgrade/Connection — không dùng biến chưa khai báo.
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 15m;
+    }
+}
+
+# Rate limit cố ý CHƯA khai ở đây. Ngưỡng đoán mò dễ chặn mobile client hoặc
+# luồng login/refresh. F66 phải định nghĩa và kiểm thử limit_req_zone/limit_req
+# riêng trước khi bật trên host.

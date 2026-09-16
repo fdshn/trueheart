@@ -112,8 +112,8 @@ jobs:
     name: Production
     needs: build-push
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
-    # Duyệt tay cấu hình bằng "Required reviewers" trong GitHub Environment
-    # `production` — không khai được bằng file, xem deploy/README.md.
+    # Nếu GitHub plan hỗ trợ Required reviewers, cấu hình ở Environment
+    # `production`; chi tiết vận hành/tag/rollback: deploy/PRODUCTION.md.
     uses: ./.github/workflows/deploy.yaml
     with:
       environment: production

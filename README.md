@@ -127,7 +127,10 @@ Mọi PR đều chạy ba job song song:
 | `docker` | Dockerfile không lệch cây dependency, image build được **và chạy được** |
 
 Triển khai: push nhánh chính → staging; gắn tag `v*` → production (cần người duyệt).
-Chi tiết và cách khai secret: **[`deploy/README.md`](./deploy/README.md)**.
+
+- [Runbook staging](./deploy/STAGING.md) — server dev, Nginx/Certbot, GitHub Environment, kiểm CD.
+- [Runbook production](./deploy/PRODUCTION.md) — server khách, tag release, rollback.
+- [Tổng quan deploy](./deploy/README.md) — kiến trúc và bất biến vận hành.
 
 Chạy bộ smoke test tại máy:
 

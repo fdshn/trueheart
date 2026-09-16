@@ -18,8 +18,10 @@ set -euo pipefail
 ENVIRONMENT="${1:-}"
 
 case "$ENVIRONMENT" in
-  staging) CORE_PORT=3000 ;;
-  production) CORE_PORT=3001 ;;
+  # 3000 đang có dịch vụ khác trên server dev (EduStack), nên Chân Tâm dùng
+  # cổng nội bộ riêng. Nginx là thứ duy nhất nghe 80/443 từ Internet.
+  staging) CORE_PORT=8080 ;;
+  production) CORE_PORT=8085 ;;
   *)
     echo "Dùng: bash bootstrap.sh <staging|production>" >&2
     exit 2
@@ -115,7 +117,7 @@ IMAGE=ghcr.io/fdshn/trueheart/core:$ENVIRONMENT
 JWT_SECRET=$JWT_SECRET
 
 LOG_LEVEL=info
-# Bind trên 127.0.0.1 thôi; Caddy đứng trước lo TLS.
+# Bind trên 127.0.0.1 thôi; host Nginx đứng trước lo TLS/proxy.
 CORE_PORT=$CORE_PORT
 GEO_JITTER_RADIUS_METERS=300
 OTP_TTL_SECONDS=300
@@ -188,20 +190,19 @@ fi
 
 cat << 'PROXY'
 
-CÒN MỘT BƯỚC NỮA: reverse proxy. Chưa có nó thì API không ra được Internet
-(mỗi stack chỉ bind 127.0.0.1), và cổng kiểm tra sau deploy sẽ luôn thất bại
-vì nó gọi HEALTH_URL từ máy của GitHub.
+CÒN MỘT BƯỚC NỮA: host Nginx + Certbot. Chưa có nó thì API không ra được
+Internet (mỗi stack chỉ bind 127.0.0.1), và cổng kiểm tra sau deploy sẽ luôn
+thất bại vì nó gọi HEALTH_URL từ máy của GitHub.
 
-  scp deploy/caddy/Caddyfile deploy/caddy/docker-compose.yml \
-      deploy/caddy/.env.example root@<server>:/tmp/caddy/
+Dùng template trong repo, nhưng KHÔNG chạy Nginx bằng Docker:
 
-  ssh root@<server>
-  install -d -o deploy -g deploy /home/deploy/caddy
-  cp /tmp/caddy/* /home/deploy/caddy/
-  cd /home/deploy/caddy
-  cp .env.example .env && nano .env      # điền tên miền thật
-  docker compose up -d
+  deploy/nginx/chantam.conf.example
 
-Tên miền phải trỏ A record về máy này TRƯỚC khi chạy — Caddy xin chứng chỉ ngay
-lúc khởi động, và Let's Encrypt giới hạn số lần thất bại.
+Làm theo deploy/STAGING.md hoặc deploy/PRODUCTION.md tương ứng. Thứ tự bắt buộc:
+
+  1. DNS A record trỏ về máy này
+  2. thêm vhost vào /etc/nginx/sites-available/ + symlink sites-enabled/
+  3. sudo nginx -t && sudo systemctl reload nginx
+  4. sudo certbot --nginx -d <domain>
+  5. kiểm https://<domain>/health trước khi đặt DEPLOY_ENABLED=true
 PROXY
