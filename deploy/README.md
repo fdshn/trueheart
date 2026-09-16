@@ -154,6 +154,7 @@ docker compose up -d --wait
 | Reverse proxy + TLS (Caddy hoặc nginx) | Làm tay. Trỏ về `127.0.0.1:3000` |
 | Backup database định kỳ | Làm tay. `pg_dump` theo cron, đẩy lên Cloudflare R2 |
 | Giám sát và cảnh báo | Làm tay. Uptime Kuma trỏ vào `/health` là đủ cho giai đoạn đầu |
+| Cập nhật image Postgres/Redis | Nửa tự động. Dependabot mở PR đổi tag hằng tuần, người duyệt và merge; deploy mới áp dụng |
 | Nhà cung cấp OTP (email/SMS/Zalo ZNS) | **Chưa có trong hợp đồng.** Quên mật khẩu tự tắt ở production, trả về kênh `ADMIN_SUPPORT` |
 
 Migration TypeORM **đã xong**: `migrationsRun` bật khi `NODE_ENV=production`, nên container

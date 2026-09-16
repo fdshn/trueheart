@@ -72,3 +72,56 @@ updates:
         patterns: ['*']
     commit-message:
       prefix: 'chore(ci)'
+
+  # Image nền của chính service. Không có mục này thì `node:22-slim` đứng yên
+  # mãi mãi: `npm audit` chỉ soi gói npm, không thấy CVE của tầng hệ điều hành
+  # bên dưới — mà đó mới là thứ chạy toàn bộ API.
+  - package-ecosystem: docker
+    directory: /suites/chantam.vn/chantam/core
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+      timezone: Asia/Ho_Chi_Minh
+    open-pull-requests-limit: 2
+    groups:
+      base-image:
+        patterns: ['*']
+        update-types: [minor, patch]
+    ignore:
+      # Nâng major Node là quyết định có chủ đích, không để tự mở PR.
+      - dependency-name: node
+        update-types: [version-update:semver-major]
+    commit-message:
+      prefix: 'chore(docker)'
+
+  # Postgres và Redis trên server. Chúng TỰ CHẠY nhưng KHÔNG tự cập nhật: phiên
+  # bản ghim trong compose, còn bước deploy chỉ `pull core`. Không có mục này
+  # thì không gì báo khi có CVE trong chính database.
+  #
+  # Lưu ý: hệ sinh thái docker-compose chỉ hỗ trợ version update, KHÔNG hỗ trợ
+  # security update — nên PR đến theo lịch tuần chứ không đến ngay khi có CVE.
+  - package-ecosystem: docker-compose
+    directories:
+      - /
+      - /deploy
+      - /suites/chantam.vn/chantam/core
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+      timezone: Asia/Ho_Chi_Minh
+    open-pull-requests-limit: 2
+    groups:
+      infra-images:
+        patterns: ['*']
+        update-types: [minor, patch]
+    ignore:
+      # Nâng major Postgres phải làm tay: đổi phiên bản là phải dump/restore,
+      # volume dữ liệu của bản cũ không mount thẳng sang bản mới được.
+      - dependency-name: postgis/postgis
+        update-types: [version-update:semver-major]
+      - dependency-name: redis
+        update-types: [version-update:semver-major]
+    commit-message:
+      prefix: 'chore(docker)'
