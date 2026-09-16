@@ -60,6 +60,7 @@ export function makeConfigMock(jitterRadiusMeters = 300): IConfig {
       loginLockSeconds: 900,
       otpTtlSeconds: 300,
     },
+    docsServers: [],
     geo: { jitterRadiusMeters },
   };
 }

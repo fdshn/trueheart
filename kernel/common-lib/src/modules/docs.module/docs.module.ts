@@ -13,10 +13,27 @@ type AppProvider =
   | (() => INestApplication)
   | (() => Promise<INestApplication>);
 
+/** Một môi trường chọn được trong ô "Servers" của Swagger UI. */
+export interface IDocsServer {
+  url: string;
+  description: string;
+}
+
 export interface IDocsModuleOptions {
   title: string;
   description: string;
   version: string;
+
+  /**
+   * Danh sách môi trường hiện trong ô chọn của Swagger UI.
+   *
+   * Không khai thì Swagger lấy chính host đang mở trang, nên người đọc tài liệu
+   * trên server staging không gọi thử sang máy mình được và ngược lại. Thứ tự
+   * trong mảng là thứ tự hiện ra; đặt môi trường an toàn nhất lên đầu để không
+   * ai lỡ bấm "Try it out" thẳng vào production.
+   */
+  servers?: readonly IDocsServer[];
+
   /** Thường là `() => appContext.waitForApp()`. */
   app: AppProvider;
 }
@@ -54,12 +71,23 @@ export class DocsModule implements OnModuleInit {
         ? await this.options.app()
         : this.options.app;
 
-    const config = new DocumentBuilder()
+    const builder = new DocumentBuilder()
       .setTitle(this.options.title)
       .setDescription(this.options.description)
       .setVersion(this.options.version)
-      .addBearerAuth()
-      .build();
+      .addBearerAuth({
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description:
+          'Dán access token lấy từ POST /api/auth/login hoặc /api/auth/register. ' +
+          'Chỉ dán phần token, KHÔNG kèm chữ "Bearer".',
+      });
+
+    for (const server of this.options.servers ?? [])
+      builder.addServer(server.url, server.description);
+
+    const config = builder.build();
 
     SwaggerModule.setup(
       'docs',

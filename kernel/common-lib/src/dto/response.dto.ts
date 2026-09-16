@@ -20,19 +20,40 @@ export interface IResponseDto<BodyType = any> {
 }
 
 export class ResponseDto<BodyType = any> implements IResponseDto<BodyType> {
-  @ApiProperty()
+  @ApiProperty({
+    description:
+      'Gọi thành công hay không. Client kiểm trường này trước, đừng dựa vào mã HTTP.',
+  })
   success: boolean;
 
-  @ApiProperty()
+  @ApiProperty({
+    example: 0,
+    description:
+      'Mã lỗi. `0` khi thành công. Luôn đọc KÈM `errorOrigin` — hai tầng khác nhau được phép dùng trùng số.',
+  })
   errorCode: number;
 
-  @ApiProperty({ required: false, nullable: true })
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    example: 'chantam/core',
+    description:
+      'Tầng phát sinh lỗi: `kernel/common-lib`, `system/auth-lib` hoặc `chantam/core`. Cặp (errorOrigin, errorCode) là duy nhất toàn hệ thống.',
+  })
   errorOrigin?: string | null;
 
-  @ApiProperty({ type: [String] })
+  @ApiProperty({
+    type: [String],
+    description:
+      'Mô tả lỗi cho người đọc. Rỗng khi thành công. ĐỪNG bắt lỗi theo chuỗi này — câu chữ sẽ đổi; hãy dùng (errorOrigin, errorCode).',
+  })
   message: string[];
 
-  @ApiProperty({ required: false, nullable: true })
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'Dữ liệu trả về. `null` khi có lỗi.',
+  })
   body: BodyType | null | undefined;
 
   public static create<BodyType>(): ResponseBuilder<BodyType> {

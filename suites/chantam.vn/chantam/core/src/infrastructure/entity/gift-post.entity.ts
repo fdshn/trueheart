@@ -27,15 +27,23 @@ export class GiftPostEntity
   )
   implements IGiftPostEntity
 {
-  @ApiProperty()
+  @ApiProperty({
+    example: 'Xe đạp cũ còn dùng tốt',
+    description: 'Tiêu đề hiển thị trên bảng tin.',
+  })
   @Column({ name: 'title', type: 'varchar', length: 200, nullable: false })
   title: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Mô tả chi tiết tình trạng món đồ và cách nhận.',
+  })
   @Column({ name: 'description', type: 'text', nullable: false })
   description: string;
 
-  @ApiProperty({ enum: GiftPostCategories })
+  @ApiProperty({
+    enum: GiftPostCategories,
+    description: 'Danh mục, dùng để lọc trên bảng tin.',
+  })
   @Index()
   @Column({
     name: 'category',
@@ -45,7 +53,10 @@ export class GiftPostEntity
   })
   category: GiftPostCategories;
 
-  @ApiProperty({ enum: GiftPostConditions })
+  @ApiProperty({
+    enum: GiftPostConditions,
+    description: 'Tình trạng món đồ: còn mới, đã dùng, hay cần sửa.',
+  })
   @Column({
     name: 'condition',
     type: 'enum',
@@ -58,7 +69,11 @@ export class GiftPostEntity
    * `bigint` vì giá trị tính bằng VNĐ — một chiếc xe máy đã vượt phạm vi `int`.
    * TypeORM trả `bigint` dưới dạng chuỗi, nên transformer đổi lại về number.
    */
-  @ApiProperty({ description: 'Giá trị ước tính (VNĐ), do người đăng tự khai' })
+  @ApiProperty({
+    example: 1_500_000,
+    description:
+      'Giá trị ước tính (VNĐ), do người đăng tự khai. 100.000đ quy đổi 1 điểm cống hiến.',
+  })
   @Column({
     name: 'estimated_value',
     type: 'bigint',
@@ -78,7 +93,8 @@ export class GiftPostEntity
    * trừ khi người gọi đã được duyệt nhận (đặc tả mục 1.3).
    */
   @ApiProperty({
-    description: 'Toạ độ (đã làm nhiễu với người chưa được duyệt)',
+    description:
+      'Toạ độ. Đã bị làm nhiễu quanh vị trí thật với người chưa được người tặng duyệt cho nhận — xem `isLocationApproximate` ở cấp ngoài để biết chắc.',
     type: 'object',
     properties: { lat: { type: 'number' }, lng: { type: 'number' } },
     required: ['lat', 'lng'],
@@ -86,11 +102,19 @@ export class GiftPostEntity
   @GeoColumn()
   location: IGeoPoint;
 
-  @ApiProperty({ description: 'Nhãn khu vực hiển thị công khai' })
+  @ApiProperty({
+    example: 'Quận 1, TP.HCM',
+    description:
+      'Nhãn khu vực hiển thị công khai, ở mức phường/quận. Không chứa số nhà.',
+  })
   @Column({ name: 'area_label', type: 'varchar', length: 200, nullable: false })
   areaLabel: string;
 
-  @ApiProperty({ enum: GiftPostStatuses })
+  @ApiProperty({
+    enum: GiftPostStatuses,
+    description:
+      'Vòng đời: `PENDING_REVIEW` (chờ kiểm duyệt) → `PUBLISHED` (đang hiện) → `COMPLETED` (đã trao xong), hoặc `CANCELLED` khi người tặng gỡ bài.',
+  })
   @Index()
   @Column({
     name: 'status',
@@ -101,7 +125,10 @@ export class GiftPostEntity
   })
   status: GiftPostStatuses;
 
-  @ApiProperty()
+  @ApiProperty({
+    example: 1,
+    description: 'Tổng số lượng món đồ của bài đăng.',
+  })
   @Column({ name: 'total_quantity', type: 'int', default: 1, nullable: false })
   totalQuantity: number;
 
@@ -112,7 +139,10 @@ export class GiftPostEntity
    * câu lệnh nguyên tử `UPDATE ... WHERE remaining_quantity > 0 RETURNING`,
    * KHÔNG đọc-rồi-ghi ở tầng ứng dụng — 1.000 người xin cùng lúc sẽ phát vượt kho.
    */
-  @ApiProperty()
+  @ApiProperty({
+    example: 1,
+    description: 'Số lượng còn lại chưa trao. Về 0 thì bài coi như hết hàng.',
+  })
   @Column({
     name: 'remaining_quantity',
     type: 'int',
@@ -121,7 +151,7 @@ export class GiftPostEntity
   })
   remainingQuantity: number;
 
-  @ApiProperty({ format: 'uuid' })
+  @ApiProperty({ format: 'uuid', description: 'Định danh người tặng.' })
   @Index()
   @Column({ name: 'giver_id', type: 'uuid', nullable: false })
   giverId: string;

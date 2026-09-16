@@ -26,7 +26,13 @@ export interface IPaginationMetaDto {
  * được trộn (Mixin) vào các query DTO cụ thể.
  */
 export class PaginationQueryDto implements IPaginationQueryDto {
-  @decorate(ApiPropertyOptional({ minimum: 1, default: 1 }))
+  @decorate(
+    ApiPropertyOptional({
+      minimum: 1,
+      default: 1,
+      description: 'Trang muốn lấy, đếm từ 1.',
+    }),
+  )
   @decorate(IsOptional())
   @decorate(Type(() => Number))
   @decorate(IsInt())
@@ -38,6 +44,9 @@ export class PaginationQueryDto implements IPaginationQueryDto {
       minimum: 1,
       maximum: MaxPageSize,
       default: DefaultPageSize,
+      description:
+        `Số bản ghi mỗi trang (tối đa ${MaxPageSize}). Giữ trần nhỏ vì người ` +
+        'dùng chủ yếu chạy máy cấu hình thấp và mạng yếu.',
     }),
   )
   @decorate(IsOptional())
@@ -49,22 +58,25 @@ export class PaginationQueryDto implements IPaginationQueryDto {
 }
 
 export class PaginationMetaDto implements IPaginationMetaDto {
-  @ApiProperty()
+  @ApiProperty({ example: 1, description: 'Trang hiện tại.' })
   page: number;
 
-  @ApiProperty()
+  @ApiProperty({ example: 20, description: 'Số bản ghi mỗi trang.' })
   pageSize: number;
 
-  @ApiProperty()
+  @ApiProperty({
+    example: 137,
+    description: 'Tổng số bản ghi khớp điều kiện lọc.',
+  })
   total: number;
 
-  @ApiProperty()
+  @ApiProperty({ example: 7, description: 'Tổng số trang.' })
   totalPages: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Còn trang sau không.' })
   hasNextPage: boolean;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Còn trang trước không.' })
   hasPreviousPage: boolean;
 
   public constructor(page: number, pageSize: number, total: number) {

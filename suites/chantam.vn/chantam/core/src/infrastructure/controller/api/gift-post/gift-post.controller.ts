@@ -80,7 +80,14 @@ export class GiftPostController {
   ) {}
 
   @Post()
-  @ApiOperation({ summary: 'Đăng một bài cho tặng mới' })
+  @ApiOperation({
+    summary: 'Đăng một bài cho tặng mới',
+    description: [
+      'Bài tạo ra ở trạng thái `PENDING_REVIEW`, chưa hiện trên bảng tin cho tới khi được kiểm duyệt.',
+      '',
+      'Toạ độ gửi lên là toạ độ THẬT và được lưu nguyên vẹn, nhưng mọi kênh công khai chỉ thấy bản đã làm nhiễu trong bán kính 300m. Toạ độ thật chỉ lộ cho người đã được người tặng duyệt cho nhận.',
+    ].join('\n'),
+  })
   @ApiCreatedResponse({ type: ResponseDto.forApi(CreateGiftPostResponseDto) })
   @ApiErrorResponses([
     ValidationFailedException,
@@ -100,8 +107,14 @@ export class GiftPostController {
   @Get('nearby')
   @ApiOperation({
     summary: 'Danh sách bài đăng quanh đây, sắp xếp gần → xa',
-    description:
-      'Toạ độ trả về luôn được làm nhiễu vì đây là kênh công khai (đặc tả mục 1.3).',
+    description: [
+      'Truyền vị trí NGƯỜI XEM (`lat`, `lng`) và bán kính `radiusMeters`; kết quả là các bài đã duyệt nằm trong bán kính đó, gần trước xa sau.',
+      '',
+      'Hai lớp bảo vệ vị trí, cả hai đều cố ý:',
+      '',
+      '- Toạ độ trả về đã bị làm nhiễu quanh vị trí thật (đặc tả mục 1.3)',
+      '- `distanceMeters` làm tròn xuống bội số 100m, vì đo khoảng cách chính xác từ ba điểm là dò ngược ra được vị trí thật',
+    ].join('\n'),
   })
   @ApiOkResponse({ type: ResponseDto.forApi(GetNearbyGiftPostsResponseDto) })
   @ApiErrorResponses([
@@ -120,7 +133,11 @@ export class GiftPostController {
   }
 
   @Get(':giftPostId')
-  @ApiOperation({ summary: 'Chi tiết một bài đăng' })
+  @ApiOperation({
+    summary: 'Chi tiết một bài đăng',
+    description:
+      'Trả về `isLocationApproximate` để client biết toạ độ đang là thật hay đã làm nhiễu. Bài đã gỡ trả 404.',
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(GetGiftPostResponseDto) })
   @ApiErrorResponses(
     [ValidationFailedException, ['giftPost.title: title should not be empty']],
@@ -143,7 +160,14 @@ export class GiftPostController {
   }
 
   @Patch(':giftPostId')
-  @ApiOperation({ summary: 'Cập nhật bài đăng' })
+  @ApiOperation({
+    summary: 'Cập nhật bài đăng',
+    description: [
+      'Chỉ gửi những trường muốn đổi; trường không gửi thì giữ nguyên. Cũng là nơi chuyển trạng thái, ví dụ `PENDING_REVIEW` → `PUBLISHED` sau kiểm duyệt.',
+      '',
+      'Bài đã đóng (`COMPLETED` hoặc `CANCELLED`) không sửa được nữa — trả 409.',
+    ].join('\n'),
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(UpdateGiftPostResponseDto) })
   @ApiErrorResponses(
     [ValidationFailedException, ['giftPost.title: title should not be empty']],
@@ -170,7 +194,11 @@ export class GiftPostController {
   }
 
   @Delete(':giftPostId')
-  @ApiOperation({ summary: 'Gỡ bài đăng (xoá mềm)' })
+  @ApiOperation({
+    summary: 'Gỡ bài đăng (xoá mềm)',
+    description:
+      'Bài biến mất khỏi mọi endpoint đọc nhưng dữ liệu vẫn nằm trong database, để giữ lịch sử giao dịch và điểm cống hiến đã ghi nhận.',
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(DeleteGiftPostResponseDto) })
   @ApiErrorResponses(
     [ValidationFailedException, ['giftPost.title: title should not be empty']],

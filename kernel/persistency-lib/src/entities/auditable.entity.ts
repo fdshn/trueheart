@@ -15,7 +15,14 @@ export interface IAuditableEntity {
 export abstract class PostgresAuditableEntity implements IAuditableEntity {
   // Kiểu phải khai báo tường minh: ts-mixer bọc decorator nên metadata
   // `design:type` không đến được Swagger, và Swagger hiểu nhầm thành phụ thuộc vòng.
-  @decorate(ApiProperty({ type: String, format: 'date-time' }))
+  @decorate(
+    ApiProperty({
+      type: String,
+      format: 'date-time',
+      description:
+        'Thời điểm tạo bản ghi. Do database tự đặt, client không gửi lên.',
+    }),
+  )
   @decorate(Index())
   @decorate(
     CreateDateColumn({
@@ -26,7 +33,13 @@ export abstract class PostgresAuditableEntity implements IAuditableEntity {
   )
   createdAt: Date;
 
-  @decorate(ApiProperty({ type: String, format: 'date-time' }))
+  @decorate(
+    ApiProperty({
+      type: String,
+      format: 'date-time',
+      description: 'Thời điểm sửa gần nhất. Do database tự cập nhật.',
+    }),
+  )
   @decorate(Index())
   @decorate(
     UpdateDateColumn({

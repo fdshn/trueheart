@@ -34,20 +34,31 @@ export class GetNearbyGiftPostsQueryDto
   extends Mixin(PaginationQueryDto)
   implements IGetNearbyGiftPostsQueryDto
 {
-  @ApiProperty({ example: 10.7724 })
+  @ApiProperty({
+    example: 10.7724,
+    description:
+      'Vĩ độ của người tìm (-90 đến 90). Đây là vị trí NGƯỜI XEM đang đứng, ' +
+      'không phải vị trí bài đăng.',
+  })
   @Type(() => Number)
   @IsLatitude()
   lat: number;
 
-  @ApiProperty({ example: 106.698 })
+  @ApiProperty({
+    example: 106.698,
+    description: 'Kinh độ của người tìm (-180 đến 180).',
+  })
   @Type(() => Number)
   @IsLongitude()
   lng: number;
 
   @ApiProperty({
     example: 5_000,
+    minimum: 100,
     maximum: MaxSearchRadiusMeters,
-    description: 'Bán kính tìm kiếm tính bằng mét',
+    description:
+      `Bán kính tìm kiếm, tính bằng mét (100 – ${MaxSearchRadiusMeters}). ` +
+      'Có trần để một truy vấn không quét cả nước rồi làm nghẽn database.',
   })
   @Type(() => Number)
   @IsInt()
@@ -55,32 +66,51 @@ export class GetNearbyGiftPostsQueryDto
   @Max(MaxSearchRadiusMeters)
   radiusMeters: number;
 
-  @ApiPropertyOptional({ enum: GiftPostCategories })
+  @ApiPropertyOptional({
+    enum: GiftPostCategories,
+    description: 'Lọc theo danh mục. Bỏ trống thì lấy mọi danh mục.',
+  })
   @IsOptional()
   @IsEnum(GiftPostCategories)
   category?: GiftPostCategories;
 }
 
 export class NearbyGiftPostDto implements INearbyGiftPostDto {
-  @ApiProperty({ type: () => GiftPostEntity })
+  @ApiProperty({
+    type: () => GiftPostEntity,
+    description: 'Bài đăng. Toạ độ trong đây đã được làm nhiễu.',
+  })
   giftPost: IGiftPostEntity;
 
   @ApiProperty({
-    example: 432,
-    description: 'Khoảng cách tới điểm truy vấn (mét)',
+    example: 400,
+    description:
+      'Khoảng cách tới điểm truy vấn, **làm tròn xuống bội số của 100m**. ' +
+      'Không trả số chính xác là có chủ đích: ba lần đo khoảng cách chính xác ' +
+      'từ ba điểm khác nhau là dò ra được vị trí thật, vô hiệu hoá việc làm ' +
+      'nhiễu toạ độ.',
   })
   distanceMeters: number;
 
   @ApiProperty({
-    description: 'Luôn true — bảng tin công khai không trả toạ độ thật',
+    description:
+      'Luôn `true` ở bảng tin công khai — toạ độ trả về đã bị làm nhiễu quanh ' +
+      'vị trí thật. Toạ độ thật chỉ lộ cho người đã được người tặng duyệt.',
   })
   isLocationApproximate: boolean;
 }
 
 export class GetNearbyGiftPostsResponseDto implements IGetNearbyGiftPostsResponseDto {
-  @ApiProperty({ type: () => [NearbyGiftPostDto] })
+  @ApiProperty({
+    type: () => [NearbyGiftPostDto],
+    description: 'Sắp xếp theo khoảng cách, gần trước xa sau.',
+  })
   giftPosts: INearbyGiftPostDto[];
 
-  @ApiProperty({ type: () => PaginationMetaDto })
+  @ApiProperty({
+    type: () => PaginationMetaDto,
+    description:
+      'Thông tin phân trang: trang hiện tại, tổng số, còn trang sau không.',
+  })
   meta: PaginationMetaDto;
 }

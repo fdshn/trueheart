@@ -28,6 +28,12 @@ export interface IAuthConfig {
   otpTtlSeconds: number;
 }
 
+/** Một môi trường hiện trong ô chọn "Servers" của Swagger UI. */
+export interface IDocsServerConfig {
+  url: string;
+  description: string;
+}
+
 export interface IConfig {
   port: number;
   env: Env;
@@ -36,6 +42,12 @@ export interface IConfig {
   redis: { uri: string };
   auth: IAuthConfig;
   geo: IGeoConfig;
+
+  /**
+   * Môi trường cho ô chọn của Swagger. Mục đầu luôn trỏ về chính instance đang
+   * chạy; phần còn lại khai qua biến `API_SERVERS`.
+   */
+  docsServers: IDocsServerConfig[];
 }
 
 export const IConfig = Symbol('IConfig');

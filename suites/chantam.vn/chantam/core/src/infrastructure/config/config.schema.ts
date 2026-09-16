@@ -33,4 +33,9 @@ export const ConfigSchema = Joi.object({
   OTP_TTL_SECONDS: Joi.number().min(120).max(1_800).default(300),
 
   GEO_JITTER_RADIUS_METERS: Joi.number().min(50).max(5_000).default(300),
+
+  // Môi trường cho ô chọn "Servers" của Swagger. Dạng `Nhãn=url`, ngăn bằng dấu
+  // phẩy. Ví dụ: `Production=https://api.chantam.vn,Staging=https://api-staging.chantam.vn`
+  // Bỏ trống thì Swagger chỉ có mục trỏ về chính instance đang mở.
+  API_SERVERS: Joi.string().allow('').default(''),
 });
