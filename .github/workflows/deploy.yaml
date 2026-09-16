@@ -49,6 +49,46 @@ jobs:
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Kiểm tra credential của môi trường
+        if: steps.guard.outputs.enabled == 'true'
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          HEALTH_URL: ${{ secrets.HEALTH_URL }}
+        run: |
+          # Đừng in giá trị secret ra log. Chỉ nói TÊN cái còn thiếu, để lỗi
+          # cấu hình dừng ở đây thay vì vài bước sau mới SSH bằng chuỗi rỗng.
+          MISSING=""
+          for name in SSH_HOST SSH_USER SSH_KEY DEPLOY_PATH HEALTH_URL; do
+            if [ -z "${!name}" ]; then
+              MISSING="$MISSING $name"
+            fi
+          done
+
+          if [ -n "$MISSING" ]; then
+            echo "::error::Environment '${{ inputs.environment }}' thiếu secret:$MISSING"
+            echo "::error::Khai chúng trong Settings > Environments > ${{ inputs.environment }}, không dùng Repository secrets."
+            exit 1
+          fi
+
+          EXPECTED_PATH="/home/deploy/chantam-${{ inputs.environment }}"
+          if [ "$DEPLOY_PATH" != "$EXPECTED_PATH" ]; then
+            echo "::error::DEPLOY_PATH của '${{ inputs.environment }}' phải là $EXPECTED_PATH, nhận: $DEPLOY_PATH"
+            exit 1
+          fi
+
+          case "$HEALTH_URL" in
+            https://*) ;;
+            *)
+              echo "::error::HEALTH_URL phải bắt đầu bằng https://, nhận: $HEALTH_URL"
+              exit 1
+              ;;
+          esac
+
+          echo "Credential của environment '${{ inputs.environment }}' đầy đủ."
+
       - name: Nạp khoá SSH
         if: steps.guard.outputs.enabled == 'true'
         env:

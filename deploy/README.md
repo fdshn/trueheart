@@ -132,25 +132,35 @@ vào secret `SSH_PRIVATE_KEY` ở bước sau. Xoá file khỏi máy sau khi dá
 
 Vào **Settings → Environments**, tạo hai môi trường: `staging` và `production`.
 
-### Secrets (khai riêng cho từng môi trường)
+### Secrets — **mỗi environment giữ trọn một bộ riêng**
 
-| Tên | Ví dụ | Ghi chú |
+Khai **cùng sáu tên** dưới đây trong cả `staging` lẫn `production`. Workflow không dùng
+Repository secrets làm fallback: mọi credential được lấy từ environment mà job đang deploy.
+Nhờ vậy production không thể SSH nhầm vào server staging khi sau này chuyển sang máy khách.
+
+| Tên | `staging` hiện tại | `production` khi khách cấp server thật |
 | --- | --- | --- |
-| `SSH_HOST` | `103.x.x.x` | IP hoặc tên miền của server |
-| `SSH_USER` | `deploy` | |
-| `SSH_PORT` | `22` | bỏ trống thì mặc định 22 |
-| `SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH...` | khoá riêng sinh ở bước 2 |
-| `DEPLOY_PATH` | `/home/deploy/chantam-staging` | thư mục chứa docker-compose.yml — **khác nhau giữa hai môi trường** |
-| `HEALTH_URL` | `https://api-staging.chantam.vn` | URL công khai — **khác nhau giữa hai môi trường** |
+| `SSH_HOST` | IP / hostname server dev | IP / hostname server khách |
+| `SSH_USER` | `deploy` | `deploy` (hoặc user khách cấp) |
+| `SSH_PORT` | `22` — có thể bỏ trống, workflow tự mặc định 22 | tương tự |
+| `SSH_PRIVATE_KEY` | Khoá private có public key trong `/home/deploy/.ssh/authorized_keys` server dev | Khoá CI riêng của server khách, **không dùng lại** khoá staging |
+| `DEPLOY_PATH` | `/home/deploy/chantam-staging` | `/home/deploy/chantam-production` |
+| `HEALTH_URL` | `https://api-staging.chantam.vn` | `https://api.chantam.vn` |
 
-`SSH_HOST`, `SSH_USER`, `SSH_PORT` và `SSH_PRIVATE_KEY` giống hệt nhau ở cả hai môi trường vì cùng
-một máy, cùng một user. Chỉ `DEPLOY_PATH` và `HEALTH_URL` là khác.
+> **Thứ tự chuyển đổi an toàn:** chép ba SSH secret hiện tại vào environment `staging`, tạo
+> đủ sáu secret placeholder/thật ở `production`, rồi mới xoá `SSH_HOST`, `SSH_USER`,
+> `SSH_PRIVATE_KEY` cấp Repository. Workflow có chốt fail-fast: bật deploy mà thiếu một trong
+> `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `DEPLOY_PATH`, `HEALTH_URL` thì dừng ngay và nêu
+> **tên** secret thiếu, không in giá trị ra log.
 
 ### Variables
 
-| Tên | Giá trị | Ghi chú |
-| --- | --- | --- |
-| `DEPLOY_ENABLED` | `true` | **Công tắc chính.** Chưa đặt thì job deploy bỏ qua |
+| Tên | `staging` | `production` hiện tại | Ghi chú |
+| --- | --- | --- | --- |
+| `DEPLOY_ENABLED` | `true` | `false` | Công tắc chính. Chỉ đúng `true` mới thực sự SSH/deploy. |
+
+Giữ `production` là `false` cho tới khi server khách có bootstrap + nginx/TLS/DNS xanh. Khi
+đó đổi thành `true`; tag `v*` tiếp theo mới deploy production.
 
 ### Bảo vệ môi trường `production`
 
