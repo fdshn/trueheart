@@ -1,26 +1,36 @@
 #!/usr/bin/env bash
 #
-# Dựng server lần đầu cho Chân Tâm Core.
+# Dựng một môi trường Chân Tâm trên server.
 #
-# Chạy bằng root trên một server Ubuntu còn trống:
+# Chạy bằng root:
 #   scp deploy/docker-compose.yml deploy/init.sql deploy/bootstrap.sh root@<server>:/tmp/
-#   ssh root@<server> 'bash /tmp/bootstrap.sh'
+#   ssh root@<server> 'bash /tmp/bootstrap.sh staging'
+#   ssh root@<server> 'bash /tmp/bootstrap.sh production'
 #
-# Script làm những việc sau và KHÔNG làm gì hơn:
-#   - cài Docker Engine + plugin Compose nếu chưa có
-#   - tạo user `deploy` (không mật khẩu, chỉ đăng nhập bằng khoá SSH)
-#   - tạo /home/deploy/chantam và chép docker-compose.yml + init.sql vào đó
-#   - sinh .env với mật khẩu database và JWT_SECRET NGẪU NHIÊN
-#   - sinh cặp khoá SSH riêng cho CI và in khoá riêng ra MỘT LẦN
+# Chạy được nhiều lần. Đã có .env thì GIỮ NGUYÊN, không ghi đè — chạy lại để
+# nâng Docker hay sửa quyền không làm mất bí mật đã sinh.
 #
-# Chạy lại được nhiều lần: đã có .env thì giữ nguyên, không ghi đè.
+# Mỗi môi trường là một stack độc lập: thư mục riêng, database riêng, volume
+# riêng, cổng riêng, và bí mật riêng. Chúng chỉ dùng chung máy và reverse proxy.
 #
 set -euo pipefail
 
+ENVIRONMENT="${1:-}"
+
+case "$ENVIRONMENT" in
+  staging) CORE_PORT=3000 ;;
+  production) CORE_PORT=3001 ;;
+  *)
+    echo "Dùng: bash bootstrap.sh <staging|production>" >&2
+    exit 2
+    ;;
+esac
+
 DEPLOY_USER=deploy
 DEPLOY_HOME=/home/$DEPLOY_USER
-APP_DIR=$DEPLOY_HOME/chantam
+APP_DIR=$DEPLOY_HOME/chantam-$ENVIRONMENT
 SOURCE_DIR=$(dirname "$(readlink -f "$0")")
+KEY_PATH=/root/chantam_deploy
 
 if [ "$(id -u)" != "0" ]; then
   echo "Phải chạy bằng root." >&2
@@ -50,9 +60,8 @@ else
   systemctl enable --now docker
 fi
 
-# Cờ --wait-timeout của compose cần v2.17+; workflow deploy dùng cờ đó.
-COMPOSE_VERSION=$(docker compose version --short 2> /dev/null || echo "0")
-echo "Compose: $COMPOSE_VERSION (cần tối thiểu 2.17)"
+# Cờ --wait-timeout mà workflow deploy dùng cần Compose v2.17 trở lên.
+echo "Compose: $(docker compose version --short 2> /dev/null || echo 'KHÔNG CÓ') (cần tối thiểu 2.17)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 say "2/5 Tài khoản triển khai"
@@ -69,7 +78,7 @@ usermod -aG docker "$DEPLOY_USER"
 install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 755 "$APP_DIR"
 
 # ─────────────────────────────────────────────────────────────────────────────
-say "3/5 File cấu hình"
+say "3/5 File cấu hình cho môi trường $ENVIRONMENT"
 
 for file in docker-compose.yml init.sql; do
   if [ -f "$SOURCE_DIR/$file" ]; then
@@ -85,46 +94,53 @@ done
 if [ -f "$APP_DIR/.env" ]; then
   echo ".env đã có, giữ nguyên (không ghi đè)."
 else
-  # Sinh bí mật ngẫu nhiên tại chỗ. Người ta gõ tay thì hay đặt mật khẩu yếu,
-  # hoặc dùng lại đúng mật khẩu của môi trường dev.
+  # Sinh bí mật RIÊNG cho từng môi trường. Dùng chung JWT_SECRET giữa staging và
+  # production nghĩa là token cấp ở staging gọi được production — staging vốn
+  # lỏng lẻo hơn, ai cũng tạo được tài khoản ở đó.
   POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
   JWT_SECRET=$(openssl rand -base64 48)
 
   cat > "$APP_DIR/.env" << ENVFILE
+# Môi trường: $ENVIRONMENT
 # Sinh tự động bởi bootstrap.sh $(date -u +%Y-%m-%dT%H:%M:%SZ)
-# KHÔNG commit file này.
+# KHÔNG commit file này. Bí mật ở đây KHÁC với môi trường kia, cố ý.
 
 POSTGRES_USER=chantam
 POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 POSTGRES_DB=chantam
 
 # Workflow deploy tự ghi đè dòng này mỗi lần triển khai.
-IMAGE=ghcr.io/fdshn/trueheart/core:staging
+IMAGE=ghcr.io/fdshn/trueheart/core:$ENVIRONMENT
 
 JWT_SECRET=$JWT_SECRET
 
 LOG_LEVEL=info
-CORE_PORT=3000
+# Bind trên 127.0.0.1 thôi; Caddy đứng trước lo TLS.
+CORE_PORT=$CORE_PORT
 GEO_JITTER_RADIUS_METERS=300
 OTP_TTL_SECONDS=300
 
+# Ô chọn "Servers" của Swagger. Để TRỐNG trên server thật: liệt kê môi trường
+# khác ở đây là mời người mở tài liệu bấm "Try it out" nhầm sang môi trường kia.
+API_SERVERS=
+
 # CẢNH BÁO: chưa có nhà cung cấp email/SMS/Zalo ZNS nào được cắm vào.
-# Ở production, chức năng quên mật khẩu TỰ TẮT: mọi yêu cầu đặt lại mật khẩu
-# trả về kênh ADMIN_SUPPORT, không mã nào được ghi ra log.
+# Chức năng quên mật khẩu TỰ TẮT: mọi yêu cầu trả về kênh ADMIN_SUPPORT, không
+# mã nào được ghi ra log. Service vẫn khởi động bình thường.
 ENVFILE
 
   chown "$DEPLOY_USER:$DEPLOY_USER" "$APP_DIR/.env"
   chmod 600 "$APP_DIR/.env"
-  echo "Đã sinh .env với mật khẩu database và JWT_SECRET ngẫu nhiên."
+  echo "Đã sinh .env với mật khẩu database và JWT_SECRET ngẫu nhiên, cổng $CORE_PORT."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 say "4/5 Khoá SSH cho CI"
 
-KEY_PATH=/root/chantam_deploy
-
+# Một khoá dùng chung cho mọi môi trường: cùng một máy, cùng một user.
 if [ -f "$KEY_PATH" ]; then
   echo "Khoá đã có ở $KEY_PATH — không sinh lại."
+  PRINT_KEY=0
 else
   ssh-keygen -t ed25519 -C 'github-actions-chantam' -f "$KEY_PATH" -N '' -q
   install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 700 "$DEPLOY_HOME/.ssh"
@@ -132,33 +148,60 @@ else
   chown "$DEPLOY_USER:$DEPLOY_USER" "$DEPLOY_HOME/.ssh/authorized_keys"
   chmod 600 "$DEPLOY_HOME/.ssh/authorized_keys"
   echo "Đã sinh khoá và cấp quyền cho $DEPLOY_USER."
+  PRINT_KEY=1
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-say "5/5 Xong. Việc còn lại phải làm bằng tay"
+say "5/5 Xong môi trường $ENVIRONMENT"
 
-cat << 'NEXT'
-Khai secret trong GitHub: Settings > Environments > staging (và production).
+cat << NEXT
+Khai secret trong GitHub: Settings > Environments > $ENVIRONMENT
 
-  SSH_HOST      địa chỉ server này
-  SSH_USER      deploy
+  SSH_HOST      IP máy này
+  SSH_USER      $DEPLOY_USER
   SSH_PORT      22
-  DEPLOY_PATH   /home/deploy/chantam
-  HEALTH_URL    URL công khai, ví dụ https://api.chantam.vn
-  SSH_KEY       nội dung khoá riêng in ra dưới đây
+  DEPLOY_PATH   $APP_DIR
+  HEALTH_URL    https://<tên miền của $ENVIRONMENT>
 
-Biến (Variables, không phải Secrets):
+Biến (Variables, KHÔNG phải Secrets):
 
   DEPLOY_ENABLED = true
 
-Sau khi dán SSH_KEY vào GitHub, XOÁ khoá riêng khỏi server:
+NEXT
+
+if [ "$PRINT_KEY" = "1" ]; then
+  cat << 'KEYNOTE'
+Dán khoá riêng dưới đây vào secret SSH_KEY (của CẢ HAI môi trường — cùng một
+máy, cùng một user). Dán nguyên văn, cả dòng BEGIN và END.
+
+Sau khi dán xong, XOÁ khoá riêng khỏi server:
 
   shred -u /root/chantam_deploy
 
-Chưa làm: reverse proxy + TLS, backup database, giám sát. Xem README.md mục 7.
-NEXT
+KEYNOTE
+  echo "───────────────────────── SSH_KEY ─────────────────────────"
+  cat "$KEY_PATH"
+  echo "───────────────────────────────────────────────────────────"
+else
+  echo "Khoá SSH đã cấp ở lần chạy trước — dùng lại đúng giá trị SSH_KEY đó."
+fi
 
-echo
-echo "───────── SSH_KEY (dán NGUYÊN VĂN, cả dòng BEGIN và END) ─────────"
-cat "$KEY_PATH"
-echo "──────────────────────────────────────────────────────────────────"
+cat << 'PROXY'
+
+CÒN MỘT BƯỚC NỮA: reverse proxy. Chưa có nó thì API không ra được Internet
+(mỗi stack chỉ bind 127.0.0.1), và cổng kiểm tra sau deploy sẽ luôn thất bại
+vì nó gọi HEALTH_URL từ máy của GitHub.
+
+  scp deploy/caddy/Caddyfile deploy/caddy/docker-compose.yml \
+      deploy/caddy/.env.example root@<server>:/tmp/caddy/
+
+  ssh root@<server>
+  install -d -o deploy -g deploy /home/deploy/caddy
+  cp /tmp/caddy/* /home/deploy/caddy/
+  cd /home/deploy/caddy
+  cp .env.example .env && nano .env      # điền tên miền thật
+  docker compose up -d
+
+Tên miền phải trỏ A record về máy này TRƯỚC khi chạy — Caddy xin chứng chỉ ngay
+lúc khởi động, và Let's Encrypt giới hạn số lần thất bại.
+PROXY

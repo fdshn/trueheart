@@ -3,10 +3,15 @@
 #
 # Workflow deploy ghi biến IMAGE vào .env rồi chạy:
 #   docker compose pull core && docker compose up -d --wait
+# Cố ý KHÔNG đặt `container_name`: tên container là duy nhất trên toàn máy, nên
+# đặt cứng thì hai môi trường (staging + production) không cùng tồn tại được.
+# Compose tự đặt tên theo project, mà project lấy theo tên thư mục —
+# /home/deploy/chantam-staging và .../chantam-production tách nhau sạch, kể cả
+# volume lẫn network.
+
 services:
   postgres:
     image: postgis/postgis:16-3.4
-    container_name: chantam-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?bắt buộc}
@@ -27,7 +32,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: chantam-redis
     restart: unless-stopped
     command: ['redis-server', '--appendonly', 'yes']
     volumes:
@@ -41,7 +45,6 @@ services:
 
   core:
     image: ${IMAGE:?workflow deploy phải ghi biến này vào .env}
-    container_name: chantam-core
     restart: unless-stopped
     depends_on:
       postgres: { condition: service_healthy }
@@ -82,5 +85,11 @@ volumes:
   redis-data:
 
 networks:
+  # KHÔNG đặt `name:` cố định. Đặt cứng thì staging và production cùng gắn vào
+  # một network, mà cả hai đều có service tên `postgres` — DNS của Docker sẽ trả
+  # về một trong hai không xác định, và `postgres://...@postgres:5432` của
+  # staging có thể trỏ thẳng vào database production.
+  #
+  # Để trống thì Compose tự thêm tiền tố tên project: chantam-staging_chantam và
+  # chantam-production_chantam, tách bạch hoàn toàn.
   chantam:
-    name: chantam

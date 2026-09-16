@@ -1,0 +1,59 @@
+# Reverse proxy cho cả máy. TLS tự động bằng Let's Encrypt.
+#
+# Tên miền lấy từ biến môi trường (xem .env cạnh file này) để không phải hardcode
+# vào mã nguồn — repo này bàn giao cho Bên A, tên miền có thể đổi.
+#
+# Caddy chạy ở `network_mode: host` nên nó với thẳng vào 127.0.0.1:<cổng> mà mỗi
+# stack đang bind. Nhờ vậy staging và production giữ được mạng Docker riêng biệt,
+# không phải nối chung một network chỉ để proxy đi qua.
+
+{$STAGING_DOMAIN} {
+	reverse_proxy 127.0.0.1:{$STAGING_PORT:3000}
+
+	# Nén phản hồi: đối tượng người dùng chủ yếu ở mạng di động.
+	encode zstd gzip
+
+	header {
+		# Bắt trình duyệt chỉ nói chuyện qua HTTPS trong 1 năm.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		# Đừng khoe đang chạy gì.
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/staging.log {
+			roll_size 50MiB
+			roll_keep 5
+		}
+	}
+}
+
+{$PRODUCTION_DOMAIN} {
+	reverse_proxy 127.0.0.1:{$PRODUCTION_PORT:3001}
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# Chặn tài liệu API ở production. `/docs` phơi toàn bộ hình dạng endpoint và
+	# mã lỗi; ở staging thì tiện, ở production thì chỉ giúp người dò.
+	# Bỏ khối này nếu Bên A muốn mở tài liệu công khai.
+	@docs path /docs /docs/*
+	respond @docs 404
+
+	log {
+		output file /var/log/caddy/production.log {
+			roll_size 50MiB
+			roll_keep 5
+		}
+	}
+}

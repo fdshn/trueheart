@@ -12,31 +12,85 @@ không cần comment workflow ra hay sửa gì.
 Yêu cầu: Ubuntu 22.04+ (hoặc tương đương), Docker Engine 24+ kèm plugin Compose v2.17+
 (cần cho cờ `--wait-timeout`).
 
-### Cách nhanh: chạy `bootstrap.sh`
+### Bố cục trên máy
+
+Staging và production chạy trên cùng một máy nhưng là **hai stack hoàn toàn tách nhau**:
+
+```
+/home/deploy/chantam-staging      cổng 127.0.0.1:3000
+/home/deploy/chantam-production   cổng 127.0.0.1:3001
+/home/deploy/caddy                reverse proxy dùng chung, cổng 80/443
+```
+
+Mỗi stack có database, Redis, volume, network và bí mật riêng. Tên project của Compose lấy
+theo tên thư mục nên Docker tự tách mọi thứ.
+
+> **Đánh đổi đã biết:** chung CPU, RAM và ổ đĩa. Một lần kiểm thử tải ở staging có thể làm
+> chậm production. Chấp nhận được ở giai đoạn đầu; tách máy khi có người dùng thật.
+
+### Chạy `bootstrap.sh` — mỗi môi trường một lần
 
 ```bash
 scp deploy/docker-compose.yml deploy/init.sql deploy/bootstrap.sh root@<server>:/tmp/
-ssh root@<server> 'bash /tmp/bootstrap.sh'
+
+ssh root@<server> 'bash /tmp/bootstrap.sh staging'
+ssh root@<server> 'bash /tmp/bootstrap.sh production'
 ```
 
-Script cài Docker nếu thiếu, tạo user `deploy`, chép hai file cấu hình, **sinh `.env` với
-mật khẩu database và `JWT_SECRET` ngẫu nhiên**, sinh cặp khoá SSH cho CI rồi in khoá riêng
-ra một lần. Chạy lại nhiều lần được — `.env` đã có thì giữ nguyên.
+Script cài Docker nếu thiếu, tạo user `deploy`, chép file cấu hình, **sinh `.env` với mật
+khẩu database và `JWT_SECRET` ngẫu nhiên RIÊNG cho từng môi trường**, sinh cặp khoá SSH cho
+CI (một lần, dùng chung) rồi in khoá riêng ra. Chạy lại nhiều lần được — `.env` đã có thì
+giữ nguyên.
 
 Sinh bí mật bằng máy thay vì gõ tay là có lý do: mật khẩu người tự nghĩ thường yếu, hoặc
-trùng luôn với mật khẩu môi trường dev.
+trùng luôn với môi trường khác. Và **`JWT_SECRET` của hai môi trường bắt buộc phải khác
+nhau** — dùng chung thì token cấp ở staging gọi được production, mà staging thì ai cũng tự
+đăng ký tài khoản được.
+
+### Reverse proxy — bắt buộc, làm sau bootstrap
+
+Mỗi stack chỉ bind `127.0.0.1`, nên chưa có proxy thì API không ra được Internet. Quan
+trọng hơn: **cổng kiểm tra sau deploy chạy trên máy của GitHub** và gọi vào `HEALTH_URL`,
+nên thiếu proxy là mọi lần deploy đều đỏ ở bước cuối.
+
+Tên miền phải **đã trỏ A record** về máy này trước khi chạy — Caddy xin chứng chỉ ngay lúc
+khởi động, và Let's Encrypt giới hạn số lần thất bại.
+
+```bash
+ssh root@<server> 'install -d -o deploy -g deploy /home/deploy/caddy'
+scp deploy/caddy/* root@<server>:/home/deploy/caddy/
+
+ssh root@<server>
+cd /home/deploy/caddy
+cp .env.example .env && nano .env      # điền tên miền thật
+docker compose up -d
+docker compose logs -f caddy           # xem nó xin chứng chỉ
+```
+
+Caddy tự xin và tự gia hạn chứng chỉ Let's Encrypt, tự bật chuyển hướng HTTP→HTTPS. Nó chạy
+`network_mode: host` để với được tới `127.0.0.1:3000` và `:3001` — nhờ vậy hai môi trường
+giữ được mạng Docker riêng thay vì phải nối chung một network chỉ để proxy đi qua.
+
+Cấu hình sẵn **chặn `/docs` ở production**: tài liệu API phơi toàn bộ hình dạng endpoint và
+mã lỗi, ở staging thì tiện còn ở production thì chỉ giúp người dò. Bỏ khối `@docs` trong
+`Caddyfile` nếu Bên A muốn mở công khai.
+
+> Volume `caddy-data` giữ chứng chỉ. **Mất nó là mất chứng chỉ**, mà Let's Encrypt giới hạn
+> 5 lần cấp lại mỗi tuần cho cùng một tên miền.
 
 ### Cách thủ công
+
+Làm hai lần, thay `<env>` bằng `staging` rồi `production`.
 
 ```bash
 # Tài khoản riêng cho việc triển khai — không dùng root
 sudo adduser --disabled-password --gecos '' deploy
 sudo usermod -aG docker deploy
 
-sudo -u deploy mkdir -p /home/deploy/chantam
+sudo -u deploy mkdir -p /home/deploy/chantam-<env>
 ```
 
-Chép ba file vào `/home/deploy/chantam/`:
+Chép ba file vào `/home/deploy/chantam-<env>/`:
 
 | File | Nguồn |
 | --- | --- |
@@ -45,9 +99,11 @@ Chép ba file vào `/home/deploy/chantam/`:
 | `.env` | chép từ `deploy/.env.example` rồi điền giá trị thật |
 
 ```bash
-sudo -u deploy nano /home/deploy/chantam/.env
-sudo -u deploy chmod 600 /home/deploy/chantam/.env
+sudo -u deploy nano /home/deploy/chantam-<env>/.env
+sudo -u deploy chmod 600 /home/deploy/chantam-<env>/.env
 ```
+
+Đặt `CORE_PORT=3000` cho staging và `3001` cho production, và **`JWT_SECRET` khác nhau**.
 
 > `init.sql` chỉ chạy **một lần duy nhất** khi volume dữ liệu còn trống. Nếu bạn khởi động
 > Postgres trước rồi mới thêm file, extension sẽ không được tạo và service sẽ chết khi
@@ -84,8 +140,11 @@ Vào **Settings → Environments**, tạo hai môi trường: `staging` và `pro
 | `SSH_USER` | `deploy` | |
 | `SSH_PORT` | `22` | bỏ trống thì mặc định 22 |
 | `SSH_KEY` | `-----BEGIN OPENSSH...` | khoá riêng sinh ở bước 2 |
-| `DEPLOY_PATH` | `/home/deploy/chantam` | thư mục chứa docker-compose.yml |
-| `HEALTH_URL` | `https://api.chantam.vn` | URL công khai để kiểm tra sau triển khai |
+| `DEPLOY_PATH` | `/home/deploy/chantam-staging` | thư mục chứa docker-compose.yml — **khác nhau giữa hai môi trường** |
+| `HEALTH_URL` | `https://api-staging.chantam.vn` | URL công khai — **khác nhau giữa hai môi trường** |
+
+`SSH_HOST`, `SSH_USER`, `SSH_PORT` và `SSH_KEY` giống hệt nhau ở cả hai môi trường vì cùng
+một máy, cùng một user. Chỉ `DEPLOY_PATH` và `HEALTH_URL` là khác.
 
 ### Variables
 
@@ -151,8 +210,9 @@ docker compose up -d --wait
 
 | Việc | Trạng thái |
 | --- | --- |
-| Reverse proxy + TLS (Caddy hoặc nginx) | Làm tay. Trỏ về `127.0.0.1:3000` |
-| Backup database định kỳ | Làm tay. `pg_dump` theo cron, đẩy lên Cloudflare R2 |
+| Reverse proxy + TLS | **Đã có.** `deploy/caddy/` — Caddy tự xin và gia hạn Let's Encrypt |
+| Backup database định kỳ | Làm tay. `pg_dump` theo cron, đẩy lên Cloudflare R2. **Càng cần hơn khi hai môi trường chung một ổ đĩa** |
+| Tách staging khỏi production | Chưa. Chung máy nên chung CPU/RAM/ổ đĩa — tách máy khi có người dùng thật |
 | Giám sát và cảnh báo | Làm tay. Uptime Kuma trỏ vào `/health` là đủ cho giai đoạn đầu |
 | Cập nhật image Postgres/Redis | Nửa tự động. Dependabot mở PR đổi tag hằng tuần, người duyệt và merge; deploy mới áp dụng |
 | Nhà cung cấp OTP (email/SMS/Zalo ZNS) | **Chưa có trong hợp đồng.** Quên mật khẩu tự tắt ở production, trả về kênh `ADMIN_SUPPORT` |
