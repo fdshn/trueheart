@@ -1,9 +1,11 @@
 import {
+  ICategoryRepository,
   IGiftPostRepository,
   IUserRepository,
   IUserSessionRepository,
 } from '@/domain/ports/repository';
 import { Global, Module } from '@nestjs/common';
+import { CategoryRepository } from './category.repository';
 import { GiftPostRepository } from './gift-post.repository';
 import { UserSessionRepository } from './user-session.repository';
 import { UserRepository } from './user.repository';
@@ -16,10 +18,16 @@ import { UserRepository } from './user.repository';
 @Global()
 @Module({
   providers: [
+    { provide: ICategoryRepository, useClass: CategoryRepository },
     { provide: IGiftPostRepository, useClass: GiftPostRepository },
     { provide: IUserRepository, useClass: UserRepository },
     { provide: IUserSessionRepository, useClass: UserSessionRepository },
   ],
-  exports: [IGiftPostRepository, IUserRepository, IUserSessionRepository],
+  exports: [
+    ICategoryRepository,
+    IGiftPostRepository,
+    IUserRepository,
+    IUserSessionRepository,
+  ],
 })
 export class RepositoryModule {}

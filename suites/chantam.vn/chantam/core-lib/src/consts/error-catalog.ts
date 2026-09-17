@@ -131,6 +131,20 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: [900],
   },
 
+  // ── 0x05 Danh mục ─────────────────────────────────────────────────────────
+  CATEGORY_NOT_FOUND: {
+    code: ErrorCodes.CATEGORY_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy danh mục',
+  },
+
+  CATEGORY_SLUG_TAKEN: {
+    code: ErrorCodes.CATEGORY_SLUG_TAKEN,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (slug: string) => `Slug danh mục "${slug}" đã tồn tại`,
+    sample: ['sach'],
+  },
+
   // ── 0x04 Phiên đăng nhập, OTP ─────────────────────────────────────────────
   SESSION_NOT_FOUND: {
     code: ErrorCodes.SESSION_NOT_FOUND,

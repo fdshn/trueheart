@@ -76,8 +76,10 @@ Nghiệp vụ Chân Tâm
 | `0x0404` | `1028` | 400 Bad Request | `OTP_INVALID` | Mã xác minh không đúng hoặc đã hết hạn |
 | `0x0405` | `1029` | 400 Bad Request | `OTP_EXPIRED` | Mã xác minh đã hết hạn |
 | `0x0406` | `1030` | 429 Too Many Requests | `OTP_TOO_SOON` | Vui lòng thử lại sau 42 giây |
+| `0x0501` | `1281` | 404 Not Found | `CATEGORY_NOT_FOUND` | Không tìm thấy danh mục |
+| `0x0502` | `1282` | 409 Conflict | `CATEGORY_SLUG_TAKEN` | Slug danh mục "sach" đã tồn tại |
 
 ---
 
-Tổng cộng **37 mã lỗi** trên 3 tầng.
+Tổng cộng **39 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

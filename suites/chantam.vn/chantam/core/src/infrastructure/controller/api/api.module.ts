@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthControllerModule } from './auth/auth.module';
+import { CategoryControllerModule } from './category/category.module';
 import { GiftPostControllerModule } from './gift-post/gift-post.module';
 import { ProfileControllerModule } from './profile/profile.module';
 
@@ -7,6 +8,7 @@ import { ProfileControllerModule } from './profile/profile.module';
 @Module({
   imports: [
     AuthControllerModule,
+    CategoryControllerModule,
     GiftPostControllerModule,
     ProfileControllerModule,
   ],

@@ -41,6 +41,10 @@ export enum ErrorCodes {
    */
   LOGIN_THROTTLED = 0x03_0a,
 
+  // 0x05 — Danh mục
+  CATEGORY_NOT_FOUND = 0x05_01,
+  CATEGORY_SLUG_TAKEN = 0x05_02,
+
   // 0x04 — Phiên đăng nhập, OTP, đặt lại mật khẩu
   SESSION_NOT_FOUND = 0x04_01,
   REFRESH_TOKEN_INVALID = 0x04_02,
