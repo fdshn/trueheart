@@ -145,6 +145,28 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['sach'],
   },
 
+  // ── 0x06 Canonical bài đăng M2 ─────────────────────────────────────────────
+  POST_NOT_FOUND: {
+    code: ErrorCodes.POST_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: (postId: string) => `Không tìm thấy bài đăng ${postId}`,
+    sample: ['4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+  },
+
+  POST_QUOTA_EXCEEDED: {
+    code: ErrorCodes.POST_QUOTA_EXCEEDED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (quota: number) =>
+      `Bạn đã đạt giới hạn ${quota} bài đăng đang hoạt động`,
+    sample: [3],
+  },
+
+  POST_INVALID_STATE: {
+    code: ErrorCodes.POST_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Trạng thái bài đăng không cho phép thao tác này',
+  },
+
   // ── 0x04 Phiên đăng nhập, OTP ─────────────────────────────────────────────
   SESSION_NOT_FOUND: {
     code: ErrorCodes.SESSION_NOT_FOUND,

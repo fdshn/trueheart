@@ -78,8 +78,11 @@ Nghiệp vụ Chân Tâm
 | `0x0406` | `1030` | 429 Too Many Requests | `OTP_TOO_SOON` | Vui lòng thử lại sau 42 giây |
 | `0x0501` | `1281` | 404 Not Found | `CATEGORY_NOT_FOUND` | Không tìm thấy danh mục |
 | `0x0502` | `1282` | 409 Conflict | `CATEGORY_SLUG_TAKEN` | Slug danh mục "sach" đã tồn tại |
+| `0x0601` | `1537` | 404 Not Found | `POST_NOT_FOUND` | Không tìm thấy bài đăng 4182a141-a5c5-5c25-92ab-0d4488158e8f |
+| `0x0602` | `1538` | 409 Conflict | `POST_QUOTA_EXCEEDED` | Bạn đã đạt giới hạn 3 bài đăng đang hoạt động |
+| `0x0603` | `1539` | 409 Conflict | `POST_INVALID_STATE` | Trạng thái bài đăng không cho phép thao tác này |
 
 ---
 
-Tổng cộng **39 mã lỗi** trên 3 tầng.
+Tổng cộng **42 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

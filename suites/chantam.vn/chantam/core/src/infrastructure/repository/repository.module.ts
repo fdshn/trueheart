@@ -1,12 +1,14 @@
 import {
   ICategoryRepository,
   IGiftPostRepository,
+  IPostRepository,
   IUserRepository,
   IUserSessionRepository,
 } from '@/domain/ports/repository';
 import { Global, Module } from '@nestjs/common';
 import { CategoryRepository } from './category.repository';
 import { GiftPostRepository } from './gift-post.repository';
+import { PostRepository } from './post.repository';
 import { UserSessionRepository } from './user-session.repository';
 import { UserRepository } from './user.repository';
 
@@ -20,12 +22,14 @@ import { UserRepository } from './user.repository';
   providers: [
     { provide: ICategoryRepository, useClass: CategoryRepository },
     { provide: IGiftPostRepository, useClass: GiftPostRepository },
+    { provide: IPostRepository, useClass: PostRepository },
     { provide: IUserRepository, useClass: UserRepository },
     { provide: IUserSessionRepository, useClass: UserSessionRepository },
   ],
   exports: [
     ICategoryRepository,
     IGiftPostRepository,
+    IPostRepository,
     IUserRepository,
     IUserSessionRepository,
   ],

@@ -1,12 +1,14 @@
 import {
   ICategoryEntity,
   IGiftPostEntity,
+  IPostEntity,
   IUserEntity,
   IUserSessionEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
 import { Global, Module } from '@nestjs/common';
 import { CategoryEntity } from './category.entity';
 import { GiftPostEntity } from './gift-post.entity';
+import { PostEntity } from './post.entity';
 import { UserSessionEntity } from './user-session.entity';
 import { UserEntity } from './user.entity';
 
@@ -21,9 +23,16 @@ import { UserEntity } from './user.entity';
   providers: [
     { provide: ICategoryEntity, useValue: CategoryEntity },
     { provide: IGiftPostEntity, useValue: GiftPostEntity },
+    { provide: IPostEntity, useValue: PostEntity },
     { provide: IUserEntity, useValue: UserEntity },
     { provide: IUserSessionEntity, useValue: UserSessionEntity },
   ],
-  exports: [ICategoryEntity, IGiftPostEntity, IUserEntity, IUserSessionEntity],
+  exports: [
+    ICategoryEntity,
+    IGiftPostEntity,
+    IPostEntity,
+    IUserEntity,
+    IUserSessionEntity,
+  ],
 })
 export class EntityModule {}

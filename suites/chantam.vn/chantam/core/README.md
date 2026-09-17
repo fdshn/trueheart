@@ -27,6 +27,9 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 | `GET` | `/api/gift-posts/:giftPostId` | `GetGiftPostUseCase` |
 | `PATCH` | `/api/gift-posts/:giftPostId` | `UpdateGiftPostUseCase` |
 | `DELETE` | `/api/gift-posts/:giftPostId` | `DeleteGiftPostUseCase` — xoá mềm |
+| `POST` | `/api/posts` | `CreatePostUseCase` — canonical OFFER, JWT/profile/category/quota gate |
+| `PATCH` | `/api/posts/:postId/moderation` | `ModeratePostUseCase` — allowlist `POST_OPERATOR_USERNAMES` tạm thời |
+| `GET` | `/api/posts/:postId` | `GetPostUseCase` — chỉ PUBLISHED/RESERVED, toạ độ đã jitter |
 
 > Thứ tự khai báo route quan trọng: `@Get('nearby')` phải đứng **trước**
 > `@Get(':giftPostId')`, nếu không Fastify sẽ khớp `nearby` thành một UUID và trả lỗi validate.
@@ -52,6 +55,16 @@ curl "http://localhost:3000/api/gift-posts/nearby?lat=10.7724&lng=106.698&radius
 
 > `giverId` phải là UUID hợp lệ theo chuẩn RFC (nibble variant là `8`/`9`/`a`/`b`).
 > Chuỗi kiểu `22222222-2222-...` bị `@IsUUID()` từ chối.
+
+## Canonical posts M2.1
+
+`/api/posts` là API canonical mới. Trong compatibility window, `/api/gift-posts` vẫn tồn tại cho
+client cũ, nhưng không được mở rộng thành source ghi thứ hai. `POST /api/posts` chỉ tạo `OFFER` ở
+`PENDING_REVIEW`; author/type/status do server quyết định. Operator tạm thời cấu hình bằng
+`POST_OPERATOR_USERNAMES` mới được gọi moderation sang `PUBLISHED` hoặc `REJECTED`.
+
+Public detail chỉ nhìn thấy `PUBLISHED`/`RESERVED` và luôn nhận toạ độ đã jitter. Không dùng route
+public để lấy location thật.
 
 Bài đăng mới tạo ở trạng thái `PENDING_REVIEW` (đặc tả mục 3.2: mọi bài phải qua kiểm
 duyệt), nên **chưa xuất hiện trong `/nearby`**. Chuyển sang `PUBLISHED` để kiểm thử:

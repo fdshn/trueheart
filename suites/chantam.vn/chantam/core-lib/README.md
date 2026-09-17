@@ -16,9 +16,9 @@ có implementation**.
 | Đường dẫn import | Nội dung |
 | --- | --- |
 | `@chantam.vn/chantam.core-lib` | `CoreService` |
-| `.../consts` | `ErrorCodes`, `ErrorOrigin`, `GiftPostCategories`, `GiftPostConditions`, `GiftPostStatuses` |
-| `.../models` | `IGiftPost` |
-| `.../entities` | `IGiftPostEntity` + token DI |
+| `.../consts` | `ErrorCodes`, `ErrorOrigin`, `GiftPostCategories`, `GiftPostConditions`, `GiftPostStatuses`, `PostTypes` |
+| `.../models` | `IGiftPost`, `IPost` |
+| `.../entities` | `IGiftPostEntity` + token DI, `IPostEntity` + token DI |
 | `.../values` | `GiftPostId` |
 | `.../dto` | Interface DTO theo từng resource |
 

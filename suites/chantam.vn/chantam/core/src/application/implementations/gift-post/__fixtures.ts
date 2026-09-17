@@ -63,6 +63,7 @@ export function makeConfigMock(jitterRadiusMeters = 300): IConfig {
     docsServers: [],
     otpEmail: { fromAddress: '', fromName: 'Chân Tâm' },
     categoryAdmin: { usernames: [] },
+    postOperator: { usernames: [] },
     storage: {
       endpoint: 'http://localhost:9000',
       region: 'us-east-1',

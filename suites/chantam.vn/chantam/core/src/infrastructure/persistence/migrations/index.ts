@@ -12,3 +12,5 @@ export * from './1789463943036-CreateUsers';
 export * from './1789700000000-NormalizeUserIdentityIndexes';
 export * from './1789800000000-CreateCategories';
 export * from './1789800000001-SeedBaseCategories';
+export * from './1789900000000-CreateCanonicalPosts';
+export * from './1789900000001-ConstrainCanonicalPostQuantity';
