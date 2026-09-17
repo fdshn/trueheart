@@ -6,7 +6,9 @@ import {
 import { IUseCase } from '@chantam/service.common-lib';
 
 export interface IUpdateGiftPostCommand
-  extends IUpdateGiftPostBodyDto, IUpdateGiftPostParamsDto {}
+  extends IUpdateGiftPostBodyDto, IUpdateGiftPostParamsDto {
+  userId: string;
+}
 
 export interface IUpdateGiftPostResult extends IUpdateGiftPostResponseDto {}
 

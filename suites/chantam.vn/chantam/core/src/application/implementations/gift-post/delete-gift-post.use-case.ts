@@ -6,6 +6,7 @@ import {
 import { GiftPostNotFoundException } from '@/domain/exceptions';
 import { IGiftPostRepository } from '@/domain/ports/repository';
 import { GiftPostStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
 
 @Injectable()
@@ -24,6 +25,8 @@ export class DeleteGiftPostUseCase implements IDeleteGiftPostUseCase {
 
     if (!existing || existing.deletedAt)
       throw new GiftPostNotFoundException(command.giftPostId);
+
+    if (existing.giverId !== command.userId) throw new ForbiddenException();
 
     // Xoá mềm, không xoá thật: lịch sử giao dịch và đơn xin đồ vẫn phải resolve
     // được về bài đăng này (xem PostgresSoftDeletableEntity).

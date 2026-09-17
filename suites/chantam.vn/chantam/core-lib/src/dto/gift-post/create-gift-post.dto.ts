@@ -12,15 +12,6 @@ export interface ICreateGiftPostDto {
   areaLabel: string;
   /** Mặc định 1. Lớn hơn 1 kích hoạt kịch bản phân bổ M-to-N. */
   totalQuantity?: number;
-
-  /**
-   * `globalId` của thành viên đăng bài.
-   *
-   * TẠM THỜI nằm trong body vì hệ thống chưa có xác thực. Khi `system/auth-lib`
-   * hoàn thành, chuyển trường này ra khỏi DTO và lấy từ access token — client
-   * không bao giờ được tự khai mình là ai.
-   */
-  giverId: string;
 }
 
 /**

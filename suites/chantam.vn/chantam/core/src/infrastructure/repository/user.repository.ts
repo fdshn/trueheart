@@ -35,6 +35,42 @@ export class UserRepository
       .getOne();
   }
 
+  public async findActiveByUsername(
+    username: string,
+  ): Promise<IUserEntity | null> {
+    return this.createQueryBuilder('user')
+      .where('user.deletedAt IS NULL')
+      .andWhere('user.status = :status', { status: 'ACTIVE' })
+      .andWhere('LOWER(user.username) = :username', {
+        username: username.trim().toLowerCase(),
+      })
+      .getOne();
+  }
+
+  public async isEmailTaken(
+    email: string,
+    exceptUserId: string,
+  ): Promise<boolean> {
+    return (
+      (await this.createQueryBuilder('user')
+        .where('LOWER(user.email) = :email', { email })
+        .andWhere('user.globalId != :exceptUserId', { exceptUserId })
+        .getCount()) > 0
+    );
+  }
+
+  public async isPhoneTaken(
+    phone: string,
+    exceptUserId: string,
+  ): Promise<boolean> {
+    return (
+      (await this.createQueryBuilder('user')
+        .where('user.phone = :phone', { phone })
+        .andWhere('user.globalId != :exceptUserId', { exceptUserId })
+        .getCount()) > 0
+    );
+  }
+
   public async isUsernameTaken(username: string): Promise<boolean> {
     // Tính cả tài khoản đã xoá mềm: username không được tái sử dụng, nếu không
     // người mới sẽ thừa hưởng danh tiếng (hoặc tai tiếng) của người cũ.

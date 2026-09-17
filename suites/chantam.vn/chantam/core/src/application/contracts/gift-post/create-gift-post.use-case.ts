@@ -4,7 +4,9 @@ import {
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IUseCase } from '@chantam/service.common-lib';
 
-export interface ICreateGiftPostCommand extends ICreateGiftPostBodyDto {}
+export interface ICreateGiftPostCommand extends ICreateGiftPostBodyDto {
+  userId: string;
+}
 
 export interface ICreateGiftPostResult extends ICreateGiftPostResponseDto {}
 

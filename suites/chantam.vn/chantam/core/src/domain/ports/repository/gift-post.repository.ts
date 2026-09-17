@@ -30,6 +30,9 @@ export interface IFindNearbyResult {
 export interface IGiftPostRepository extends Repository<IGiftPostEntity> {
   /** Tìm bài đăng trong bán kính, sắp xếp gần → xa. */
   findNearby(params: IFindNearbyParams): Promise<IFindNearbyResult>;
+
+  /** Số bài đã publish của một người, dùng cho hồ sơ công khai. */
+  countPublishedByGiver(userId: string): Promise<number>;
 }
 
 export const IGiftPostRepository = Symbol('IGiftPostRepository');

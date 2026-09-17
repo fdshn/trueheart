@@ -32,6 +32,14 @@ export class GiftPostRepository
    * `ST_DWithin` dùng được index GiST nên chỉ chạm vào các bản ghi thực sự nằm
    * trong bán kính, thay vì nạp cả bảng lên rồi lọc bằng Haversine ở tầng ứng dụng.
    */
+  public async countPublishedByGiver(userId: string): Promise<number> {
+    return this.createQueryBuilder('post')
+      .where('post.deletedAt IS NULL')
+      .andWhere('post.giverId = :userId', { userId })
+      .andWhere('post.status = :status', { status: 'PUBLISHED' })
+      .getCount();
+  }
+
   public async findNearby(
     params: IFindNearbyParams,
   ): Promise<IFindNearbyResult> {

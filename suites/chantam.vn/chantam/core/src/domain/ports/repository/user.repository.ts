@@ -11,6 +11,12 @@ export interface IUserRepository extends Repository<IUserEntity> {
 
   /** `true` nếu đã có tài khoản dùng username này (không phân biệt hoa thường). */
   isUsernameTaken(username: string): Promise<boolean>;
+
+  /** Hồ sơ công khai: chỉ tài khoản còn hoạt động, không bị xoá. */
+  findActiveByUsername(username: string): Promise<IUserEntity | null>;
+
+  isEmailTaken(email: string, exceptUserId: string): Promise<boolean>;
+  isPhoneTaken(phone: string, exceptUserId: string): Promise<boolean>;
 }
 
 export const IUserRepository = Symbol('IUserRepository');

@@ -7,8 +7,24 @@ import { ExceptionFrom } from '@chantam/service.common-lib/exception';
  * vụ `throw` cho dễ đọc và để `instanceof` dùng được.
  */
 
+export class UserNotFoundException extends ExceptionFrom(
+  CoreErrors.USER_NOT_FOUND,
+) {}
+
 export class UsernameTakenException extends ExceptionFrom(
   CoreErrors.USERNAME_TAKEN,
+) {}
+
+export class EmailTakenException extends ExceptionFrom(
+  CoreErrors.EMAIL_TAKEN,
+) {}
+
+export class PhoneTakenException extends ExceptionFrom(
+  CoreErrors.PHONE_TAKEN,
+) {}
+
+export class ProfileIncompleteException extends ExceptionFrom(
+  CoreErrors.PROFILE_INCOMPLETE,
 ) {}
 
 export class InvalidCredentialsException extends ExceptionFrom(

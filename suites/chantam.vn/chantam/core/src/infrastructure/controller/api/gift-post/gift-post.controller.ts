@@ -16,7 +16,7 @@ import {
   IGetNearbyGiftPostsResponseDto,
   IUpdateGiftPostResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
-import { Public } from '@chantam/service.auth-lib';
+import { CurrentUser, IAuthPrincipal, Public } from '@chantam/service.auth-lib';
 import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
@@ -32,6 +32,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -56,13 +57,9 @@ import {
  * kết quả vào `ResponseDto`. Không có nghiệp vụ nào ở đây.
  */
 /**
- * TẠM THỜI mở toàn bộ bằng `@Public()`.
- *
- * Guard mặc định khoá mọi endpoint, mà `gift-post` là resource mẫu dựng trước
- * khi có xác thực — khoá lại sẽ làm hỏng smoke test đang chạy. Khi làm M2 thì
- * bỏ `@Public()` ở các endpoint ghi (tạo/sửa/xoá) và lấy `giverId` từ token.
+ * Bài đọc vẫn công khai. Đường ghi lấy danh tính từ JWT — client không được
+ * khai giverId trong body, và F07 profile gate áp dụng ở use case.
  */
-@Public()
 @ApiTags('Bài đăng cho tặng')
 @Controller('api/gift-posts')
 export class GiftPostController {
@@ -80,6 +77,7 @@ export class GiftPostController {
   ) {}
 
   @Post()
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Đăng một bài cho tặng mới',
     description: [
@@ -94,9 +92,13 @@ export class GiftPostController {
     ['giftPost.title: title should not be empty'],
   ])
   public async createGiftPost(
+    @CurrentUser() principal: IAuthPrincipal,
     @Body() body: CreateGiftPostBodyDto,
   ): Promise<ResponseDto<ICreateGiftPostResponseDto>> {
-    const result = await this.createGiftPostUseCase.handle({ ...body });
+    const result = await this.createGiftPostUseCase.handle({
+      ...body,
+      userId: principal.userId,
+    });
 
     return ResponseDto.create<ICreateGiftPostResponseDto>()
       .succeed()
@@ -104,6 +106,7 @@ export class GiftPostController {
       .build();
   }
 
+  @Public()
   @Get('nearby')
   @ApiOperation({
     summary: 'Danh sách bài đăng quanh đây, sắp xếp gần → xa',
@@ -132,6 +135,7 @@ export class GiftPostController {
       .build();
   }
 
+  @Public()
   @Get(':giftPostId')
   @ApiOperation({
     summary: 'Chi tiết một bài đăng',
@@ -160,6 +164,7 @@ export class GiftPostController {
   }
 
   @Patch(':giftPostId')
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Cập nhật bài đăng',
     description: [
@@ -179,12 +184,14 @@ export class GiftPostController {
     ],
   )
   public async updateGiftPost(
+    @CurrentUser() principal: IAuthPrincipal,
     @Param() params: UpdateGiftPostParamsDto,
     @Body() body: UpdateGiftPostBodyDto,
   ): Promise<ResponseDto<IUpdateGiftPostResponseDto>> {
     const result = await this.updateGiftPostUseCase.handle({
       ...params,
       ...body,
+      userId: principal.userId,
     });
 
     return ResponseDto.create<IUpdateGiftPostResponseDto>()
@@ -194,6 +201,7 @@ export class GiftPostController {
   }
 
   @Delete(':giftPostId')
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Gỡ bài đăng (xoá mềm)',
     description:
@@ -205,9 +213,13 @@ export class GiftPostController {
     [GiftPostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
   )
   public async deleteGiftPost(
+    @CurrentUser() principal: IAuthPrincipal,
     @Param() params: DeleteGiftPostParamsDto,
   ): Promise<ResponseDto<IDeleteGiftPostResponseDto>> {
-    const result = await this.deleteGiftPostUseCase.handle({ ...params });
+    const result = await this.deleteGiftPostUseCase.handle({
+      ...params,
+      userId: principal.userId,
+    });
 
     return ResponseDto.create<IDeleteGiftPostResponseDto>()
       .succeed()

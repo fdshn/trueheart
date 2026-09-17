@@ -9,6 +9,7 @@ import {
   GiftPostNotFoundException,
 } from '@/domain/exceptions';
 import { IGiftPostRepository } from '@/domain/ports/repository';
+import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { definedProps } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -30,6 +31,8 @@ export class UpdateGiftPostUseCase implements IUpdateGiftPostUseCase {
 
     if (!existing || existing.deletedAt)
       throw new GiftPostNotFoundException(giftPostId);
+
+    if (existing.giverId !== command.userId) throw new ForbiddenException();
 
     if (
       ClosedGiftPostStatuses.includes(

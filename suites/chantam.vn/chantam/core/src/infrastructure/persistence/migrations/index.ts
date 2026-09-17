@@ -9,3 +9,4 @@
 
 export * from './1789462778931-InitGiftPost';
 export * from './1789463943036-CreateUsers';
+export * from './1789700000000-NormalizeUserIdentityIndexes';

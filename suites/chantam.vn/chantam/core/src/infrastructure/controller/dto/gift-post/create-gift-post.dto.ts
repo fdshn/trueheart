@@ -15,7 +15,6 @@ import {
   IsInt,
   IsOptional,
   IsString,
-  IsUUID,
   Length,
   Max,
   Min,
@@ -111,13 +110,6 @@ export class CreateGiftPostDto implements ICreateGiftPostDto {
   @Min(1)
   @Max(MaxTotalQuantity)
   totalQuantity?: number;
-
-  @ApiProperty({
-    format: 'uuid',
-    description: 'TẠM THỜI: sẽ lấy từ access token khi có auth-lib',
-  })
-  @IsUUID()
-  giverId: string;
 }
 
 export class CreateGiftPostBodyDto implements ICreateGiftPostBodyDto {
