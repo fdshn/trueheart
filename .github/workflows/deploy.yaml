@@ -158,9 +158,23 @@ jobs:
         if: steps.guard.outputs.enabled == 'true'
         env:
           HEALTH_URL: ${{ secrets.HEALTH_URL }}
+          SWAGGER_DOCS_USERNAME: ${{ secrets.SWAGGER_DOCS_USERNAME }}
+          SWAGGER_DOCS_PASSWORD: ${{ secrets.SWAGGER_DOCS_PASSWORD }}
         run: |
           # Chế độ chỉ đọc: tuyệt đối không ghi dữ liệu thử vào production.
-          bash scripts/smoke-test.sh "$HEALTH_URL" --read-only
+          # Staging khoá docs bằng Basic Auth; production ẩn docs hoàn toàn.
+          # Credential chỉ tồn tại trong process này, không echo/log.
+          if [ "${{ inputs.environment }}" = "staging" ]; then
+            if [ -z "$SWAGGER_DOCS_USERNAME" ] || [ -z "$SWAGGER_DOCS_PASSWORD" ]; then
+              echo "::error::Environment staging thiếu SWAGGER_DOCS_USERNAME hoặc SWAGGER_DOCS_PASSWORD."
+              exit 1
+            fi
+            SMOKE_DOCS_POLICY=basic \
+              bash scripts/smoke-test.sh "$HEALTH_URL" --read-only
+          else
+            SMOKE_DOCS_POLICY=hidden \
+              bash scripts/smoke-test.sh "$HEALTH_URL" --read-only
+          fi
 
       - name: Rollback về image trước đó
         # Không có bước này, một lần deploy hỏng là dịch vụ nằm im tới khi có

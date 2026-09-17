@@ -114,9 +114,70 @@ curl -sI https://api-staging.<domain>/health
 ```
 
 Trước deploy Core đầu tiên có thể trả 502 — Nginx/TLS đã đúng nhưng upstream chưa chạy. Sau
-deploy phải trả 200. Swagger staging được mở tại `/docs`.
+deploy phải trả 200.
 
-## 4. GitHub Environment `staging`
+## 4. Khoá Swagger bằng HTTP Basic Auth
+
+Swagger là tài liệu nội bộ nhưng staging cần mở để mobile/web thử API. Nginx khoá **cả** `/docs`,
+`/docs/json` và asset dưới `/docs/`; chỉ khoá UI mà để JSON mở thì vẫn lộ toàn bộ hình dạng API.
+
+Tạo password file trên **server staging**, không commit file/hash vào repo. Nếu host chưa có lệnh
+`htpasswd`, cài một lần:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y apache2-utils
+```
+
+Tạo hash bcrypt. Lệnh hỏi password tương tác nên password không đi vào history shell:
+
+```bash
+sudo htpasswd -Bc /etc/nginx/chantam-docs-staging.htpasswd <swagger-username>
+sudo chown root:www-data /etc/nginx/chantam-docs-staging.htpasswd
+sudo chmod 640 /etc/nginx/chantam-docs-staging.htpasswd
+```
+
+Trong HTTPS staging vhost, thêm **trước** `location /` hai block từ
+`deploy/nginx/chantam.conf.example`. Rút gọn cấu trúc:
+
+```nginx
+location = /docs {
+    auth_basic "Chân Tâm API documentation";
+    auth_basic_user_file /etc/nginx/chantam-docs-staging.htpasswd;
+    proxy_pass http://127.0.0.1:8080;
+    include /etc/nginx/proxy_params;
+}
+
+location ^~ /docs/ {
+    auth_basic "Chân Tâm API documentation";
+    auth_basic_user_file /etc/nginx/chantam-docs-staging.htpasswd;
+    proxy_pass http://127.0.0.1:8080;
+    include /etc/nginx/proxy_params;
+}
+```
+
+Giữ các `proxy_set_header`/timeout đầy đủ của template khi chép block. Áp dụng an toàn:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+curl -sI https://api-staging.<domain>/docs
+curl -u <swagger-username> https://api-staging.<domain>/docs/json | head
+```
+
+Kỳ vọng request không credential trả `401` kèm `WWW-Authenticate`; request có credential trả JSON.
+`/health` và `/api/...` không yêu cầu Swagger credential.
+
+Thêm hai **Environment secrets** staging để GitHub authenticated check `/docs/json` sau deploy:
+
+```text
+SWAGGER_DOCS_USERNAME
+SWAGGER_DOCS_PASSWORD
+```
+
+Chúng phải khớp password file ở Nginx. Workflow không in secret ra log; nếu thiếu, deploy staging
+dừng rõ ràng thay vì rollback vì docs trả 401.
+
+## 5. GitHub Environment `staging`
 
 **Settings → Environments → staging**. Khai Environment secrets, không dùng Repository secrets:
 

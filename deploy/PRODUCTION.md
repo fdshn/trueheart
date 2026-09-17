@@ -143,6 +143,10 @@ Trong file Nginx:
    location ^~ /docs/ { return 404; }
    ```
 
+   Production cố ý **không** dùng Basic Auth cho Swagger: `404` mạnh hơn password
+   protection khi không có nhu cầu mở tài liệu API ra Internet. Vì vậy không cần
+   `SWAGGER_DOCS_USERNAME`/`SWAGGER_DOCS_PASSWORD` ở Environment production.
+
 5. Nếu certificate chưa tồn tại, xoá **toàn bộ block `listen 443`** lần đầu, chỉ giữ HTTP block
    cho Certbot ACME challenge.
 

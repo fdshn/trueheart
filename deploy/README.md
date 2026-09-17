@@ -24,7 +24,7 @@ có người dùng thật, production nên chuyển sang server khách riêng.
 | `docker-compose.yml` | Stack ứng dụng; Core chỉ bind 127.0.0.1 |
 | `init.sql` | Tạo PostGIS, unaccent và pg_trgm lúc Postgres init volume trống |
 | `bootstrap.sh` | Cài Docker (nếu thiếu), tạo stack `.env` và SSH key CI theo từng môi trường |
-| `nginx/chantam.conf.example` | Template hai vhost để host admin cài vào Nginx hiện hữu |
+| `nginx/chantam.conf.example` | Template hai vhost để host admin cài vào Nginx hiện hữu; staging Basic Auth Swagger, production 404 docs |
 | `STAGING.md` | Runbook dựng, deploy và kiểm staging |
 | `PRODUCTION.md` | Runbook server khách, release tag và rollback production |
 
@@ -34,6 +34,7 @@ có người dùng thật, production nên chuyển sang server khách riêng.
 - Luôn chạy `sudo nginx -t` **trước** `sudo systemctl reload nginx`.
 - DNS + TLS phải xanh trước khi `DEPLOY_ENABLED=true`: GitHub gọi `HEALTH_URL` từ Internet sau
   mỗi deploy; không gọi được thì workflow rollback.
+- Swagger staging dùng HTTP Basic Auth tại host Nginx; password hash nằm ngoài repo. Production ẩn `/docs*` bằng 404.
 - Không tự sửa `.env` server ngoài `IMAGE=` do workflow quản lý. Bootstrap giữ nguyên `.env`
   có sẵn để chạy lại không làm mất bí mật.
 - Không chạy `docker compose down -v` trên môi trường có dữ liệu: lệnh xoá database/Redis volume.

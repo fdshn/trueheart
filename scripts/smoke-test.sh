@@ -31,6 +31,29 @@ BASE_URL="${BASE_URL%/}"
 READ_ONLY=0
 [ "$MODE" = "--read-only" ] && READ_ONLY=1
 
+# Chính sách docs do môi trường reverse proxy quyết định:
+#   public — local/dev, Swagger không khoá
+#   basic  — staging, phải có Basic Auth
+#   hidden — production, Nginx trả 404 cho cả /docs và /docs/json
+DOCS_POLICY="${SMOKE_DOCS_POLICY:-public}"
+SWAGGER_DOCS_USERNAME="${SWAGGER_DOCS_USERNAME:-}"
+SWAGGER_DOCS_PASSWORD="${SWAGGER_DOCS_PASSWORD:-}"
+
+case "$DOCS_POLICY" in
+  public|basic|hidden) ;;
+  *)
+    echo "SMOKE_DOCS_POLICY phải là public, basic hoặc hidden." >&2
+    exit 2
+    ;;
+esac
+
+if [ "$DOCS_POLICY" = "basic" ] && {
+  [ -z "$SWAGGER_DOCS_USERNAME" ] || [ -z "$SWAGGER_DOCS_PASSWORD" ];
+}; then
+  echo "Swagger Basic Auth bật nhưng thiếu SWAGGER_DOCS_USERNAME hoặc SWAGGER_DOCS_PASSWORD." >&2
+  exit 2
+fi
+
 # UUID hợp lệ theo RFC (nibble variant là 8/9/a/b) — @IsUUID() từ chối các chuỗi
 # kiểu 2222-2222-... dù trông giống UUID.
 GIVER_ID='9f1a2b3c-4d5e-4f60-8a7b-1c2d3e4f5a6b'
@@ -56,15 +79,21 @@ fail() {
 }
 
 # Gọi API, trả về body ở $RESP_BODY và mã HTTP ở $RESP_CODE.
+# Tham số thứ tư là tuỳ chọn `user:password` cho Swagger Basic Auth.
 call() {
-  local method="$1" path="$2" data="${3:-}"
-  local raw
+  local method="$1" path="$2" data="${3:-}" basic_auth="${4:-}"
+  local raw auth_args=()
+
+  if [ -n "$basic_auth" ]; then
+    auth_args=(-u "$basic_auth")
+  fi
 
   if [ -n "$data" ]; then
     raw=$(curl -sS -m 20 -w $'\n%{http_code}' -X "$method" "${BASE_URL}${path}" \
-      -H 'Content-Type: application/json' -d "$data" 2>&1)
+      "${auth_args[@]}" -H 'Content-Type: application/json' -d "$data" 2>&1)
   else
-    raw=$(curl -sS -m 20 -w $'\n%{http_code}' -X "$method" "${BASE_URL}${path}" 2>&1)
+    raw=$(curl -sS -m 20 -w $'\n%{http_code}' -X "$method" "${BASE_URL}${path}" \
+      "${auth_args[@]}" 2>&1)
   fi
 
   RESP_CODE="${raw##*$'\n'}"
@@ -109,48 +138,76 @@ else
   fail "database không phản hồi" "$RESP_BODY"
 fi
 
-call GET /docs/json
-MISSING=""
-for route in '/api/gift-posts' '/api/gift-posts/nearby' '/api/gift-posts/{giftPostId}' '/api/auth/register' '/api/auth/login' '/api/auth/refresh' '/api/auth/logout' \
-  '/api/auth/password-reset/request' '/api/auth/password-reset/confirm' \
-  '/api/auth/account'; do
-  printf '%s' "$RESP_BODY" | grep -q "\"$route\"" || MISSING="$MISSING $route"
-done
-if [ "$RESP_CODE" = "200" ] && [ -z "$MISSING" ]; then
-  pass "/docs/json có đủ route"
+if [ "$DOCS_POLICY" = "hidden" ]; then
+  call GET /docs
+  DOCS_UI_CODE="$RESP_CODE"
+  call GET /docs/json
+
+  if [ "$DOCS_UI_CODE" = "404" ] && [ "$RESP_CODE" = "404" ]; then
+    pass "/docs và /docs/json bị ẩn ở production"
+  else
+    fail "Swagger production đáng lẽ phải 404" "/docs=$DOCS_UI_CODE, /docs/json=$RESP_CODE"
+  fi
 else
-  fail "/docs/json thiếu route" "HTTP $RESP_CODE — thiếu:$MISSING"
+  DOCS_AUTH=""
+  [ "$DOCS_POLICY" = "basic" ] && DOCS_AUTH="${SWAGGER_DOCS_USERNAME}:${SWAGGER_DOCS_PASSWORD}"
+
+  # Khi docs Basic Auth, xác nhận trước rằng Nginx thật sự từ chối anonymous
+  # request. Không làm bước này thì password file hỏng/mất vẫn có thể bị bỏ qua.
+  if [ "$DOCS_POLICY" = "basic" ]; then
+    call GET /docs/json
+    if [ "$RESP_CODE" = "401" ]; then
+      pass "/docs/json từ chối khi thiếu Swagger credential"
+    else
+      fail "Swagger Basic Auth không chặn anonymous request" "HTTP $RESP_CODE"
+    fi
+  fi
+
+  call GET /docs/json "" "$DOCS_AUTH"
+  MISSING=""
+  for route in '/api/gift-posts' '/api/gift-posts/nearby' '/api/gift-posts/{giftPostId}' '/api/auth/register' '/api/auth/login' '/api/auth/refresh' '/api/auth/logout' \
+    '/api/auth/password-reset/request' '/api/auth/password-reset/confirm' \
+    '/api/auth/account'; do
+    printf '%s' "$RESP_BODY" | grep -q "\"$route\"" || MISSING="$MISSING $route"
+  done
+  if [ "$RESP_CODE" = "200" ] && [ -z "$MISSING" ]; then
+    pass "/docs/json có đủ route"
+  else
+    fail "/docs/json thiếu route" "HTTP $RESP_CODE — thiếu:$MISSING"
+  fi
 fi
 
-# Cặp (errorOrigin, errorCode) là thứ client mobile phải code theo. Tài liệu chỉ
-# khai mã 200 thì client không biết phân biệt "sai mật khẩu" với "tài khoản bị
-# khoá" — nên kiểm luôn rằng đặc tả có khai lỗi, không chỉ đường thành công.
-DOCS_BODY="$RESP_BODY"
-MISSING_ERRORS=""
+if [ "$DOCS_POLICY" != "hidden" ]; then
+  # Cặp (errorOrigin, errorCode) là thứ client mobile phải code theo. Tài liệu chỉ
+  # khai mã 200 thì client không biết phân biệt "sai mật khẩu" với "tài khoản bị
+  # khoá" — nên kiểm luôn rằng đặc tả có khai lỗi, không chỉ đường thành công.
+  DOCS_BODY="$RESP_BODY"
+  MISSING_ERRORS=""
 
-# Mã lỗi đại diện cho từng tầng, tất cả đều đã đối chiếu với hành vi thật:
-#   65286 kernel/common-lib (validate) · 257 system/auth-lib (thiếu token)
-#   260   system/auth-lib (token bị thu hồi) · 772 chantam/core (trùng username)
-for code in 65286 257 260 772; do
-  printf '%s' "$DOCS_BODY" | grep -q "\"errorCode\":$code" ||
-    MISSING_ERRORS="$MISSING_ERRORS $code"
-done
+  # Mã lỗi đại diện cho từng tầng, tất cả đều đã đối chiếu với hành vi thật:
+  #   65286 kernel/common-lib (validate) · 257 system/auth-lib (thiếu token)
+  #   260   system/auth-lib (token bị thu hồi) · 772 chantam/core (trùng username)
+  for code in 65286 257 260 772; do
+    printf '%s' "$DOCS_BODY" | grep -q "\"errorCode\":$code" ||
+      MISSING_ERRORS="$MISSING_ERRORS $code"
+  done
 
-if [ -z "$MISSING_ERRORS" ]; then
-  pass "/docs/json khai cả mã lỗi, không chỉ đường thành công"
-else
-  fail "/docs/json thiếu mã lỗi" "thiếu:$MISSING_ERRORS"
-fi
+  if [ -z "$MISSING_ERRORS" ]; then
+    pass "/docs/json khai cả mã lỗi, không chỉ đường thành công"
+  else
+    fail "/docs/json thiếu mã lỗi" "thiếu:$MISSING_ERRORS"
+  fi
 
-# Nest trả 201 cho POST không đánh @HttpCode, nên đặc tả phải khai 201 chứ không
-# phải 200 — client sinh từ đặc tả sẽ coi mã lạ là ngoài dự kiến. Hiện có đúng
-# hai endpoint như vậy: tạo tài khoản và tạo bài đăng.
-CREATED_COUNT=$(printf '%s' "$DOCS_BODY" | grep -o '"201":' | wc -l)
+  # Nest trả 201 cho POST không đánh @HttpCode, nên đặc tả phải khai 201 chứ không
+  # phải 200 — client sinh từ đặc tả sẽ coi mã lạ là ngoài dự kiến. Hiện có đúng
+  # hai endpoint như vậy: tạo tài khoản và tạo bài đăng.
+  CREATED_COUNT=$(printf '%s' "$DOCS_BODY" | grep -o '"201":' | wc -l)
 
-if [ "$CREATED_COUNT" -ge 2 ]; then
-  pass "endpoint tạo mới khai đúng mã 201"
-else
-  fail "đặc tả khai sai mã cho endpoint tạo mới" "tìm thấy $CREATED_COUNT chỗ khai 201, cần ít nhất 2"
+  if [ "$CREATED_COUNT" -ge 2 ]; then
+    pass "endpoint tạo mới khai đúng mã 201"
+  else
+    fail "đặc tả khai sai mã cho endpoint tạo mới" "tìm thấy $CREATED_COUNT chỗ khai 201, cần ít nhất 2"
+  fi
 fi
 
 if [ $READ_ONLY -eq 1 ]; then
