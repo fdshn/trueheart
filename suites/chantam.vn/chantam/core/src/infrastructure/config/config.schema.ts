@@ -32,6 +32,11 @@ export const ConfigSchema = Joi.object({
   LOGIN_LOCK_SECONDS: Joi.number().min(60).default(900),
   OTP_TTL_SECONDS: Joi.number().min(120).max(1_800).default(300),
 
+  // Config-only cho EmailOtpSender tương lai. Có From address KHÔNG có nghĩa
+  // sender đã gửi được: vẫn cần vendor adapter, credential và domain verify.
+  OTP_EMAIL_FROM_ADDRESS: Joi.string().email().allow('').default(''),
+  OTP_EMAIL_FROM_NAME: Joi.string().max(100).default('Chân Tâm'),
+
   GEO_JITTER_RADIUS_METERS: Joi.number().min(50).max(5_000).default(300),
 
   // Môi trường cho ô chọn "Servers" của Swagger. Dạng `Nhãn=url`, ngăn bằng dấu

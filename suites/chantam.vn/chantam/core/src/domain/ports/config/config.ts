@@ -34,6 +34,12 @@ export interface IDocsServerConfig {
   description: string;
 }
 
+export interface IOtpEmailConfig {
+  /** Sender identity reserved for future EmailOtpSender; does not enable delivery. */
+  fromAddress: string;
+  fromName: string;
+}
+
 export interface IStorageConfig {
   endpoint: string;
   region: string;
@@ -57,6 +63,7 @@ export interface IConfig {
   auth: IAuthConfig;
   geo: IGeoConfig;
   storage: IStorageConfig;
+  otpEmail: IOtpEmailConfig;
   categoryAdmin: ICategoryAdminConfig;
 
   /**

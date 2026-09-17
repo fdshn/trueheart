@@ -65,6 +65,8 @@ Có email/SĐT thì khôi phục qua OTP. Không có thì hiển thị kênh li�
 > qua chat là lỗ hổng chiếm tài khoản — cần quy định bằng chứng sở hữu tài khoản trước khi
 > reset.
 >
+> 🟡 **Đã chốt email là kênh OTP đầu tiên, nhưng chưa có adapter/vendor credential gửi thật.**
+>
 > ⛔ **Chưa có nhà cung cấp gửi mã.** Hợp đồng không nêu dịch vụ email/SMS/Zalo ZNS nào.
 > Hiện chạy `LoggingOtpSender`: ở môi trường phát triển thì ghi mã ra log, còn ở production
 > thì **tự tắt chức năng** — mọi yêu cầu đặt lại mật khẩu trả về kênh `ADMIN_SUPPORT` và

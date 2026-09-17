@@ -63,6 +63,9 @@ services:
       DATABASE_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URI: redis://redis:6379
       GEO_JITTER_RADIUS_METERS: ${GEO_JITTER_RADIUS_METERS:-300}
+      # From identity cho EmailOtpSender tương lai. Không tự bật delivery.
+      OTP_EMAIL_FROM_ADDRESS: ${OTP_EMAIL_FROM_ADDRESS:-}
+      OTP_EMAIL_FROM_NAME: ${OTP_EMAIL_FROM_NAME:-Chân Tâm}
       # R2/S3 credential chỉ tồn tại trong .env server/environment secret, không
       # commit. Thiếu config thì Storage endpoint fail closed, Core vẫn healthy.
       STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}

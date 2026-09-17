@@ -9,7 +9,7 @@ Hiện chưa có package nào. Theo lộ trình MVP, các package dự kiến th
 | --- | --- |
 | ~~`auth-lib`~~ | **Đã có.** Xác thực JWT, guard toàn cục, `@Public()`, `@CurrentUser()` — xem [auth-lib/README.md](./auth-lib/README.md) |
 | `ekyc-lib` | Bọc nhà cung cấp eKYC (FPT.AI / VNPT). **Chỉ lưu `verification_id`, không lưu ảnh CCCD** |
-| `otp-lib` | Gửi OTP qua Zalo ZNS (kênh chính) + SMS brandname (dự phòng) |
+| `otp-lib` | Email-first OTP adapter (deferred); SMS/Zalo là work riêng cho F09 |
 | `storage-lib` | **Đã có.** Upload/presign S3-compatible (R2 production, MinIO local) — xem [storage-lib/README.md](./storage-lib/README.md) |
 | `notification-lib` | Firebase Cloud Messaging + thông báo trong ứng dụng |
 | `background-job-lib` | Lớp bọc BullMQ: worker cơ sở, retry, dead-letter |

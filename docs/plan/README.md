@@ -35,3 +35,8 @@ Chi tiết từng mốc: [`ROADMAP.md`](./ROADMAP.md).
 4 câu hỏi ở [`ASSUMPTIONS.md`](./ASSUMPTIONS.md#4-giả-định-cần-bên-a-xác-nhận). Chưa có trả
 lời thì vẫn code được — ta dùng giả định. Nhưng **giả định #2 và #3 đụng tới cấu trúc bảng**,
 nên càng trả lời sớm càng rẻ.
+
+
+## Deferred / release blocker
+
+Xem [`DEFERRED.md`](./DEFERRED.md) để biết state đã có nhưng provider/vận hành/M3–M6 còn thiếu trước production-ready.

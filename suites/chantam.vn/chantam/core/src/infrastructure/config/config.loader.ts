@@ -75,6 +75,11 @@ export function loadConfig(): IConfig {
       ...parseDocsServers(process.env.API_SERVERS),
     ],
 
+    otpEmail: {
+      fromAddress: process.env.OTP_EMAIL_FROM_ADDRESS ?? '',
+      fromName: process.env.OTP_EMAIL_FROM_NAME ?? 'Chân Tâm',
+    },
+
     categoryAdmin: {
       usernames: (process.env.CATEGORY_ADMIN_USERNAMES ?? '')
         .split(',')
