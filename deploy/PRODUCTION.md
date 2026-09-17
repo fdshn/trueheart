@@ -272,7 +272,13 @@ production — `-v` xoá cả database/Redis volume.
 
 ---
 
-## 6. Kiểm sau deploy
+## 6. Cloudflare R2 production
+
+Production dùng bucket/key riêng, ví dụ `chantam-media`; staging key không được đọc/ghi bucket
+này. Thêm sáu `STORAGE_*` vào `.env` production giống staging guide, nhưng dùng R2 production và
+public domain `https://media.<domain>`. CORS chỉ whitelist origin frontend production.
+
+## 7. Kiểm sau deploy
 
 Trên server:
 
@@ -304,7 +310,7 @@ Database không publish Internet. Nếu DBA cần DBeaver, dùng SSH tunnel như
 
 ---
 
-## 7. Rollback tay
+## 8. Rollback tay
 
 Workflow tự rollback khi deploy/health gate lỗi. Chỉ dùng rollback tay khi cần quay lại bản cũ
 có chủ đích:

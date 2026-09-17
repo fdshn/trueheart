@@ -63,6 +63,14 @@ services:
       DATABASE_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URI: redis://redis:6379
       GEO_JITTER_RADIUS_METERS: ${GEO_JITTER_RADIUS_METERS:-300}
+      # R2/S3 credential chỉ tồn tại trong .env server/environment secret, không
+      # commit. Thiếu config thì Storage endpoint fail closed, Core vẫn healthy.
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
+      STORAGE_REGION: ${STORAGE_REGION:-auto}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:-}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:-}
+      STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-}
     ports:
       # Chỉ bind loopback. Host Nginx đứng trước lo TLS và không phơi thẳng
       # Node ra Internet.

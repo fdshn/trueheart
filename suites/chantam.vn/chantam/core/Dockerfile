@@ -12,6 +12,7 @@ COPY ./suites/chantam.vn/chantam/core-lib/package.json ./suites/chantam.vn/chant
 COPY ./system/auth-lib/package.json ./system/auth-lib/package.json
 COPY ./kernel/health-lib/package.json ./kernel/health-lib/package.json
 COPY ./kernel/logger-lib/package.json ./kernel/logger-lib/package.json
+COPY ./system/storage-lib/package.json ./system/storage-lib/package.json
 COPY ./suites/chantam.vn/chantam/core/package.json ./suites/chantam.vn/chantam/core/package.json
 COPY ./package.json ./package-lock.json ./lerna.json ./
 
@@ -24,6 +25,7 @@ COPY ./suites/chantam.vn/chantam/core-lib/ ./suites/chantam.vn/chantam/core-lib/
 COPY ./system/auth-lib/ ./system/auth-lib/
 COPY ./kernel/health-lib/ ./kernel/health-lib/
 COPY ./kernel/logger-lib/ ./kernel/logger-lib/
+COPY ./system/storage-lib/ ./system/storage-lib/
 COPY ./suites/chantam.vn/chantam/core/ ./suites/chantam.vn/chantam/core/
 
 # Build thư viện phụ thuộc trước, rồi tới package đích
@@ -33,6 +35,7 @@ RUN npm run build --workspace ./suites/chantam.vn/chantam/core-lib
 RUN npm run build --workspace ./system/auth-lib
 RUN npm run build --workspace ./kernel/health-lib
 RUN npm run build --workspace ./kernel/logger-lib
+RUN npm run build --workspace ./system/storage-lib
 RUN npm run build --workspace ./suites/chantam.vn/chantam/core
 
 RUN npm prune --omit=dev

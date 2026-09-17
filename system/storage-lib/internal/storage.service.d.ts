@@ -6,6 +6,7 @@ export declare class StorageService implements IObjectStorage {
     private readonly client;
     private readonly options;
     constructor(client: S3Client, options: IStorageModuleOptions);
+    confirmAvatarUpload(userId: string, key: string): Promise<string>;
     createAvatarUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
 }
 //# sourceMappingURL=storage.service.d.ts.map

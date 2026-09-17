@@ -8,6 +8,7 @@ import {
   UserNotFoundException,
 } from '@/domain/exceptions';
 import { IUserRepository } from '@/domain/ports/repository';
+import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { toOwnProfileDto } from './profile.mapper';
 
@@ -16,6 +17,8 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
   public constructor(
     @Inject(IUserRepository)
     private readonly userRepository: IUserRepository,
+    @Inject(IObjectStorage)
+    private readonly storage: IObjectStorage,
   ) {}
 
   public async handle(command: IUpdateOwnProfileCommand) {
@@ -30,8 +33,11 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
 
     if (profileUpdate.fullName !== undefined)
       update.fullName = profileUpdate.fullName;
-    if (profileUpdate.avatarUrl !== undefined)
-      update.avatarUrl = profileUpdate.avatarUrl;
+    if (profileUpdate.avatarKey !== undefined)
+      update.avatarUrl = await this.storage.confirmAvatarUpload(
+        user.globalId,
+        profileUpdate.avatarKey,
+      );
     if (profileUpdate.email !== undefined) {
       const email = profileUpdate.email.trim().toLowerCase();
       if (

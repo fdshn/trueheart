@@ -1,4 +1,8 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -29,6 +33,24 @@ export class StorageService implements IObjectStorage {
     @Inject(IS3Client) private readonly client: S3Client,
     @Inject(IStorageOptions) private readonly options: IStorageModuleOptions,
   ) {}
+
+  public async confirmAvatarUpload(
+    userId: string,
+    key: string,
+  ): Promise<string> {
+    if (!key.startsWith(`users/${userId}/avatars/`))
+      throw new Error('Avatar key không thuộc tài khoản hiện tại.');
+
+    const object = await this.client.send(
+      new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }),
+    );
+    if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
+      throw new Error('Object avatar không có content type ảnh hợp lệ.');
+    if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
+      throw new Error('Object avatar không có kích thước hợp lệ.');
+
+    return `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`;
+  }
 
   public async createAvatarUpload(
     request: IStorageUploadRequest,

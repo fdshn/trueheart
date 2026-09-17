@@ -441,11 +441,23 @@ else
   fail "cổng hoàn thiện hồ sơ không hoạt động" "HTTP $RESP_CODE — $RESP_BODY"
 fi
 
-call_auth PATCH /api/profile/me "$PROFILE_ACCESS_TOKEN" "{\"profile\":{\"fullName\":\"Smoke User\",\"avatarUrl\":\"https://cdn.example.com/smoke.png\",\"email\":\"$PROFILE_EMAIL\",\"phone\":\"$PROFILE_PHONE\",\"defaultLocation\":{\"lat\":21.028,\"lng\":105.835}}}"
-if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"profileComplete":true'; then
-  pass "cập nhật hồ sơ + vị trí mặc định (F08/F11)"
+# F24: xin presign, PUT ảnh trực tiếp rồi chỉ gửi avatarKey. Không nhận URL tuỳ
+# ý: server HeadObject xác nhận key/MIME/kích thước thuộc đúng user trước attach.
+call_auth PATCH /api/profile/me/avatar-upload "$PROFILE_ACCESS_TOKEN" '{"contentType":"image/webp","contentLength":20}'
+AVATAR_UPLOAD_URL=$(json_str "$RESP_BODY" uploadUrl)
+AVATAR_KEY=$(json_str "$RESP_BODY" key)
+if [ -n "$AVATAR_UPLOAD_URL" ] && [ -n "$AVATAR_KEY" ]; then
+  # Tiny WebP-shaped payload đủ cho object-storage; content type/length đã ký.
+  AVATAR_PUT=$(printf 'RIFF....WEBPVP8 ........' | curl -sS -m 20 -o /dev/null -w '%{http_code}'     -X PUT -H 'Content-Type: image/webp' -H 'Content-Length: 20' --data-binary @- "$AVATAR_UPLOAD_URL" 2>&1)
 else
-  fail "không hoàn thiện được hồ sơ" "HTTP $RESP_CODE — $RESP_BODY"
+  AVATAR_PUT=000
+fi
+
+call_auth PATCH /api/profile/me "$PROFILE_ACCESS_TOKEN" "{\"profile\":{\"fullName\":\"Smoke User\",\"avatarKey\":\"$AVATAR_KEY\",\"email\":\"$PROFILE_EMAIL\",\"phone\":\"$PROFILE_PHONE\",\"defaultLocation\":{\"lat\":21.028,\"lng\":105.835}}}"
+if [ "$AVATAR_PUT" = "200" ] && [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"profileComplete":true'; then
+  pass "upload avatar trực tiếp + cập nhật hồ sơ/vị trí (F08/F11/F24)"
+else
+  fail "không hoàn thiện được hồ sơ sau upload avatar" "PUT=$AVATAR_PUT, HTTP $RESP_CODE — $RESP_BODY"
 fi
 
 # Email/phone/default location chỉ owner thấy; public profile tuyệt đối không lộ.

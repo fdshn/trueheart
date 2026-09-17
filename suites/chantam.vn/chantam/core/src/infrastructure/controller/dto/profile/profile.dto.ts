@@ -37,15 +37,14 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
   fullName?: string;
 
   @ApiPropertyOptional({
-    format: 'uri',
     maxLength: 500,
     description:
-      'URL avatar đã được upload/confirm bởi storage service. Bỏ trống thì giữ nguyên.',
+      'Key trả về từ `PATCH /api/profile/me/avatar-upload` sau khi client PUT thành công. Server xác minh object thuộc đúng tài khoản rồi mới tạo URL avatar; không nhận URL tuỳ ý.',
   })
   @IsOptional()
   @IsString()
   @Length(1, 500)
-  avatarUrl?: string;
+  avatarKey?: string;
 
   @ApiPropertyOptional({
     format: 'email',

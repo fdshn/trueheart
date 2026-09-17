@@ -17,6 +17,8 @@ export interface IObjectStorage {
   createAvatarUpload(
     request: IStorageUploadRequest,
   ): Promise<IStorageUploadResult>;
+  /** HeadObject + owner-prefix check before a profile can attach the avatar. */
+  confirmAvatarUpload(userId: string, key: string): Promise<string>;
 }
 
 export const IObjectStorage = Symbol('IObjectStorage');

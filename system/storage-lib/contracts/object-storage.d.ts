@@ -11,6 +11,7 @@ export interface IStorageUploadResult {
 }
 export interface IObjectStorage {
     createAvatarUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
+    confirmAvatarUpload(userId: string, key: string): Promise<string>;
 }
 export declare const IObjectStorage: unique symbol;
 //# sourceMappingURL=object-storage.d.ts.map

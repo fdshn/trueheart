@@ -285,3 +285,28 @@ sed -i 's|^IMAGE=.*|IMAGE=ghcr.io/fdshn/trueheart/core:sha-<commit-cu>|' .env
 docker compose pull core
 docker compose up -d --wait --wait-timeout 180
 ```
+
+
+## 8. Cloudflare R2 media
+
+Staging dùng R2 thật, không dùng MinIO server. Tạo bucket riêng, ví dụ
+`chantam-media-staging`, và Access Key chỉ có Object Read/Write cho bucket này.
+
+Trong `/home/deploy/chantam-staging/.env` đặt:
+
+```env
+STORAGE_ENDPOINT=https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com
+STORAGE_REGION=auto
+STORAGE_BUCKET=chantam-media-staging
+STORAGE_ACCESS_KEY_ID=<staging-key>
+STORAGE_SECRET_ACCESS_KEY=<staging-secret>
+STORAGE_PUBLIC_BASE_URL=https://media-staging.<domain>
+```
+
+Không commit hoặc gửi access key/secret qua chat. CORS bucket tối thiểu cho frontend staging:
+`PUT`, `GET`, `HEAD`; headers `Content-Type`, `Content-Length`; expose `ETag`; origin đúng
+frontend staging. Không dùng `*` khi đã biết origin.
+
+Core presign upload, client PUT trực tiếp R2, rồi `PATCH /api/profile/me` gửi `avatarKey`.
+Server `HeadObject` xác nhận key thuộc `users/<userId>/avatars/`, MIME ảnh hợp lệ và <=5 MB
+trước khi gắn avatar.

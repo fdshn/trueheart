@@ -3,7 +3,8 @@ import { UserRanks, UserStatuses } from '../../consts';
 
 export interface IUpdateOwnProfileDto {
   fullName?: string;
-  avatarUrl?: string;
+  /** Key do endpoint presign trả về sau upload, không nhận URL tuỳ ý. */
+  avatarKey?: string;
   email?: string;
   phone?: string;
   defaultLocation?: IGeoPoint;

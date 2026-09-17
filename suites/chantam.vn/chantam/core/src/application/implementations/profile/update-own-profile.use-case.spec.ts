@@ -10,7 +10,7 @@ function makeUser(overrides: Record<string, unknown> = {}) {
     email: 'old@example.com',
     phone: '0900000000',
     fullName: 'Người Cũ',
-    avatarUrl: 'https://cdn.example.com/old.png',
+    avatarUrl: null,
     defaultLocation: { lat: 21.028, lng: 105.835 },
     rank: 'MEMBER',
     status: 'ACTIVE',
@@ -31,28 +31,36 @@ function makeRepository(user = makeUser()) {
   };
 }
 
+function makeStorage() {
+  return {
+    confirmAvatarUpload: jest.fn(
+      async () => 'https://cdn.example.com/avatar.webp',
+    ),
+  };
+}
+
 describe('UpdateOwnProfileUseCase', () => {
   it('đổi SĐT thì huỷ xác minh cũ, nhưng giữ field không gửi lên', async () => {
     const repository = makeRepository();
-    const useCase = new UpdateOwnProfileUseCase(repository as never);
+    const useCase = new UpdateOwnProfileUseCase(
+      repository as never,
+      makeStorage() as never,
+    );
 
-    await useCase.handle({
-      userId: UserId,
-      profile: { phone: '0912345678' },
-    });
+    await useCase.handle({ userId: UserId, profile: { phone: '0912345678' } });
 
     expect(repository.update).toHaveBeenCalledWith(
       { globalId: UserId },
-      {
-        phone: '0912345678',
-        phoneVerifiedAt: null,
-      },
+      { phone: '0912345678', phoneVerifiedAt: null },
     );
   });
 
   it('không huỷ xác minh khi phone không đổi', async () => {
     const repository = makeRepository();
-    const useCase = new UpdateOwnProfileUseCase(repository as never);
+    const useCase = new UpdateOwnProfileUseCase(
+      repository as never,
+      makeStorage() as never,
+    );
 
     await useCase.handle({
       userId: UserId,
@@ -68,7 +76,10 @@ describe('UpdateOwnProfileUseCase', () => {
   it('chuẩn hoá email rồi từ chối khi đã thuộc về tài khoản khác', async () => {
     const repository = makeRepository();
     repository.isEmailTaken.mockResolvedValue(true);
-    const useCase = new UpdateOwnProfileUseCase(repository as never);
+    const useCase = new UpdateOwnProfileUseCase(
+      repository as never,
+      makeStorage() as never,
+    );
 
     await expect(
       useCase.handle({
@@ -76,7 +87,6 @@ describe('UpdateOwnProfileUseCase', () => {
         profile: { email: '  OTHER@EXAMPLE.COM  ' },
       }),
     ).rejects.toThrow();
-
     expect(repository.isEmailTaken).toHaveBeenCalledWith(
       'other@example.com',
       UserId,
@@ -84,9 +94,35 @@ describe('UpdateOwnProfileUseCase', () => {
     expect(repository.update).not.toHaveBeenCalled();
   });
 
+  it('chỉ gắn avatar sau khi storage xác nhận key thuộc namespace user', async () => {
+    const repository = makeRepository();
+    const storage = makeStorage();
+    const useCase = new UpdateOwnProfileUseCase(
+      repository as never,
+      storage as never,
+    );
+
+    await useCase.handle({
+      userId: UserId,
+      profile: { avatarKey: `users/${UserId}/avatars/a.webp` },
+    });
+
+    expect(storage.confirmAvatarUpload).toHaveBeenCalledWith(
+      UserId,
+      `users/${UserId}/avatars/a.webp`,
+    );
+    expect(repository.update).toHaveBeenCalledWith(
+      { globalId: UserId },
+      { avatarUrl: 'https://cdn.example.com/avatar.webp' },
+    );
+  });
+
   it('từ chối update khi tài khoản đã bị xoá', async () => {
     const repository = makeRepository(makeUser({ deletedAt: new Date() }));
-    const useCase = new UpdateOwnProfileUseCase(repository as never);
+    const useCase = new UpdateOwnProfileUseCase(
+      repository as never,
+      makeStorage() as never,
+    );
 
     await expect(
       useCase.handle({ userId: UserId, profile: { fullName: 'Người Mới' } }),

@@ -34,6 +34,16 @@ let StorageService = class StorageService {
         this.client = client;
         this.options = options;
     }
+    async confirmAvatarUpload(userId, key) {
+        if (!key.startsWith(`users/${userId}/avatars/`))
+            throw new Error('Avatar key không thuộc tài khoản hiện tại.');
+        const object = await this.client.send(new client_s3_1.HeadObjectCommand({ Bucket: this.options.bucket, Key: key }));
+        if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
+            throw new Error('Object avatar không có content type ảnh hợp lệ.');
+        if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
+            throw new Error('Object avatar không có kích thước hợp lệ.');
+        return `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`;
+    }
     async createAvatarUpload(request) {
         assertAvatarUploadPolicy(request);
         const extension = request.contentType.split('/')[1];
