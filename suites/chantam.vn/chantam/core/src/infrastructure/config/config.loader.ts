@@ -75,6 +75,15 @@ export function loadConfig(): IConfig {
       ...parseDocsServers(process.env.API_SERVERS),
     ],
 
+    storage: {
+      endpoint: process.env.STORAGE_ENDPOINT ?? '',
+      region: process.env.STORAGE_REGION ?? 'auto',
+      bucket: process.env.STORAGE_BUCKET ?? '',
+      accessKeyId: process.env.STORAGE_ACCESS_KEY_ID ?? '',
+      secretAccessKey: process.env.STORAGE_SECRET_ACCESS_KEY ?? '',
+      publicBaseUrl: process.env.STORAGE_PUBLIC_BASE_URL ?? '',
+    },
+
     geo: {
       jitterRadiusMeters: Number(process.env.GEO_JITTER_RADIUS_METERS ?? 300),
     },

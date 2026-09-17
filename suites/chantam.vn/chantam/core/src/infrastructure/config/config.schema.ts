@@ -38,4 +38,11 @@ export const ConfigSchema = Joi.object({
   // phẩy. Ví dụ: `Production=https://api.chantam.vn,Staging=https://api-staging.chantam.vn`
   // Bỏ trống thì Swagger chỉ có mục trỏ về chính instance đang mở.
   API_SERVERS: Joi.string().allow('').default(''),
+
+  STORAGE_ENDPOINT: Joi.string().uri().optional(),
+  STORAGE_REGION: Joi.string().default('auto'),
+  STORAGE_BUCKET: Joi.string().optional(),
+  STORAGE_ACCESS_KEY_ID: Joi.string().optional(),
+  STORAGE_SECRET_ACCESS_KEY: Joi.string().optional(),
+  STORAGE_PUBLIC_BASE_URL: Joi.string().uri().optional(),
 });

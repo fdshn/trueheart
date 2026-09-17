@@ -3,6 +3,7 @@ import { AuthModule } from '@chantam/service.auth-lib';
 import { AppContextModule } from '@chantam/service.common-lib/modules';
 import { HealthModule } from '@chantam/service.health-lib';
 import { LoggerModule } from '@chantam/service.logger-lib';
+import { StorageModule } from '@chantam/service.storage-lib';
 import { Module } from '@nestjs/common';
 import { getDataSourceToken } from '@nestjs/typeorm';
 import Redis from 'ioredis';
@@ -28,6 +29,10 @@ import { RedisTokenDenyList } from './security/token-deny-list';
     RedisModule,
     SecurityModule,
     NotificationModule,
+    StorageModule.forRootAsync({
+      inject: [IConfig],
+      useFactory: (config: IConfig) => config.storage,
+    }),
     AuthModule.forRootAsync({
       inject: [IConfig],
       useFactory: (config: IConfig) => ({

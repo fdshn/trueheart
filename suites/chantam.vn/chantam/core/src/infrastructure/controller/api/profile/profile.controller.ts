@@ -3,6 +3,7 @@ import {
   IConfirmPhoneVerificationUseCase,
   IGetOwnProfileUseCase,
   IGetPublicProfileUseCase,
+  IRequestAvatarUploadUseCase,
   IRequestPhoneVerificationResult,
   IRequestPhoneVerificationUseCase,
   IUpdateOwnProfileUseCase,
@@ -14,6 +15,7 @@ import {
 } from '@chantam.vn/chantam.core-lib/dto';
 import { CurrentUser, IAuthPrincipal, Public } from '@chantam/service.auth-lib';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
+import { IStorageUploadResult } from '@chantam/service.storage-lib';
 import { Body, Controller, Get, Inject, Param, Patch } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -27,6 +29,8 @@ import {
   GetOwnProfileResponseDto,
   GetPublicProfileParamsDto,
   GetPublicProfileResponseDto,
+  RequestAvatarUploadDto,
+  RequestAvatarUploadResponseDto,
   RequestPhoneVerificationResponseDto,
   UpdateOwnProfileBodyDto,
   UpdateOwnProfileResponseDto,
@@ -37,6 +41,8 @@ import {
 @Controller('api/profile')
 export class ProfileController {
   public constructor(
+    @Inject(IRequestAvatarUploadUseCase)
+    private readonly requestAvatarUploadUseCase: IRequestAvatarUploadUseCase,
     @Inject(IRequestPhoneVerificationUseCase)
     private readonly requestPhoneVerificationUseCase: IRequestPhoneVerificationUseCase,
     @Inject(IConfirmPhoneVerificationUseCase)
@@ -59,6 +65,25 @@ export class ProfileController {
       userId: principal.userId,
     });
     return ResponseDto.create<IGetOwnProfileResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Patch('me/avatar-upload')
+  @ApiOperation({
+    summary: 'Xin presigned URL upload avatar trực tiếp lên storage',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(RequestAvatarUploadResponseDto) })
+  public async requestAvatarUpload(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: RequestAvatarUploadDto,
+  ): Promise<ResponseDto<IStorageUploadResult>> {
+    const result = await this.requestAvatarUploadUseCase.handle({
+      userId: principal.userId,
+      ...body,
+    });
+    return ResponseDto.create<IStorageUploadResult>()
       .succeed()
       .attach(result)
       .build();

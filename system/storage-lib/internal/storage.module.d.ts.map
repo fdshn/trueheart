@@ -1,0 +1,1 @@
+{"version":3,"file":"storage.module.d.ts","sourceRoot":"","sources":["../src/internal/storage.module.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,mBAAmB,EAAE,MAAM,qCAAqC,CAAC;AAC1E,OAAO,EAAE,aAAa,EAAU,MAAM,gBAAgB,CAAC;AAEvD,OAAO,EAEL,qBAAqB,EAEtB,MAAM,mBAAmB,CAAC;AAG3B,qBACa,aAAa;WACV,YAAY,CACxB,OAAO,EAAE,mBAAmB,CAAC,qBAAqB,CAAC,GAClD,aAAa;CA8BjB"}

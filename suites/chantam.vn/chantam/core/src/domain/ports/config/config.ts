@@ -34,6 +34,15 @@ export interface IDocsServerConfig {
   description: string;
 }
 
+export interface IStorageConfig {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  publicBaseUrl: string;
+}
+
 export interface IConfig {
   port: number;
   env: Env;
@@ -42,6 +51,7 @@ export interface IConfig {
   redis: { uri: string };
   auth: IAuthConfig;
   geo: IGeoConfig;
+  storage: IStorageConfig;
 
   /**
    * Môi trường cho ô chọn của Swagger. Mục đầu luôn trỏ về chính instance đang

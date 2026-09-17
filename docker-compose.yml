@@ -39,9 +39,49 @@ services:
     networks:
       - chantam-net
 
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: chantam-minio
+    restart: unless-stopped
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-chantam-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-chantam-minio-secret}
+    ports:
+      - '${MINIO_PORT:-19000}:9000'
+      - '${MINIO_CONSOLE_PORT:-19001}:9001'
+    volumes:
+      - chantam-minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - chantam-net
+
+
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio: { condition: service_healthy }
+    restart: 'no'
+    entrypoint: >-
+      /bin/sh -c "mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/$${MINIO_BUCKET} &&
+      mc anonymous set download local/$${MINIO_BUCKET}"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-chantam-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-chantam-minio-secret}
+      MINIO_BUCKET: ${STORAGE_BUCKET:-chantam-media}
+    networks:
+      - chantam-net
+
 volumes:
   chantam-postgres-data:
   chantam-redis-data:
+  chantam-minio-data:
 
 networks:
   chantam-net:

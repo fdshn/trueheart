@@ -14,6 +14,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsEmail,
+  IsInt,
   IsOptional,
   IsString,
   Length,
@@ -174,4 +175,39 @@ export class ConfirmPhoneVerificationResponseDto implements IConfirmPhoneVerific
     description: 'Thời điểm SĐT được xác minh.',
   })
   verifiedAt: Date;
+}
+
+export class RequestAvatarUploadDto {
+  @ApiProperty({
+    example: 'image/webp',
+    description: 'MIME ảnh: JPEG, PNG hoặc WebP.',
+  })
+  @IsString()
+  contentType: string;
+
+  @ApiProperty({
+    example: 123456,
+    description: 'Kích thước file byte, tối đa 5 MB.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  contentLength: number;
+}
+
+export class RequestAvatarUploadResponseDto {
+  @ApiProperty({
+    description: 'Object key owner-scoped, lưu khi cần audit/confirm.',
+  })
+  key: string;
+  @ApiProperty({
+    format: 'uri',
+    description: 'Presigned PUT URL, hết hạn sau expiresInSeconds.',
+  })
+  uploadUrl: string;
+  @ApiProperty() expiresInSeconds: number;
+  @ApiProperty({
+    format: 'uri',
+    description: 'URL CDN/public gán vào avatarUrl sau khi upload thành công.',
+  })
+  publicUrl: string;
 }

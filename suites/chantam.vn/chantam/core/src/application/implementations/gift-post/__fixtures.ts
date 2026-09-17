@@ -61,6 +61,14 @@ export function makeConfigMock(jitterRadiusMeters = 300): IConfig {
       otpTtlSeconds: 300,
     },
     docsServers: [],
+    storage: {
+      endpoint: 'http://localhost:9000',
+      region: 'us-east-1',
+      bucket: 'chantam-test',
+      accessKeyId: 'test',
+      secretAccessKey: 'test-secret',
+      publicBaseUrl: 'http://localhost:9000/chantam-test',
+    },
     geo: { jitterRadiusMeters },
   };
 }
