@@ -6,7 +6,7 @@ cả 72 đều là P0.
 | Mốc | Nội dung | Số chức năng | Trạng thái |
 | --- | --- | ---: | --- |
 | M0 | Nền tảng monorepo + CI/CD | — | ✅ Xong |
-| [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | 🔵 6/13 |
+| [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | 🔵 10/13 |
 | [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 14 | ⬜ 0/14 |
 | [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | ⬜ 0/10 |
 | [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 7 | ⬜ 0/7 |
@@ -42,11 +42,11 @@ M1 users ──▶ M2 posts ──▶ M3 transactions ──▶ M4 points ──
 - [x] F04 Đăng xuất + xoá FCM token thiết bị
 - [x] F05 Quên mật khẩu ⚠️ *phần Admin chưa định nghĩa* ⛔ *chưa có nhà cung cấp email/SMS*
 - [x] F06 Xoá tài khoản + ẩn danh hoá ⚠️ *chặn giao dịch dở dang chờ M3*
-- [ ] F07 Cổng hoàn thiện hồ sơ
-- [ ] F08 Hồ sơ cá nhân & thống kê
-- [ ] F09 Xác minh SĐT + thưởng lần đầu
-- [ ] F10 Hồ sơ công khai + deep link
-- [ ] F11 Vị trí mặc định
+- [x] F07 Cổng hoàn thiện hồ sơ
+- [x] F08 Hồ sơ cá nhân & thống kê có backing thật
+- [ ] F09 Xác minh SĐT — OTP state xong, SMS provider + điểm M4 còn treo
+- [x] F10 Hồ sơ công khai + deep link
+- [x] F11 Vị trí mặc định
 - [ ] F14 Danh mục động dạng cây
 - [ ] F24 Media R2 qua presigned URL
 

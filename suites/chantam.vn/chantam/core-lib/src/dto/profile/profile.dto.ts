@@ -49,3 +49,16 @@ export interface IGetPublicProfileParamsDto {
 export interface IGetPublicProfileResponseDto {
   profile: IPublicProfileDto;
 }
+
+export interface IRequestPhoneVerificationResponseDto {
+  expiresInSeconds: number;
+}
+export interface IConfirmPhoneVerificationDto {
+  otp: string;
+}
+export interface IConfirmPhoneVerificationBodyDto {
+  verification: IConfirmPhoneVerificationDto;
+}
+export interface IConfirmPhoneVerificationResponseDto {
+  verifiedAt: Date;
+}

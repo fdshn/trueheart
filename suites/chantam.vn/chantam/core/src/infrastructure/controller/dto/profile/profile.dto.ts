@@ -1,7 +1,11 @@
 import { UserRanks, UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  IConfirmPhoneVerificationBodyDto,
+  IConfirmPhoneVerificationDto,
+  IConfirmPhoneVerificationResponseDto,
   IGetOwnProfileResponseDto,
   IOwnProfileDto,
+  IRequestPhoneVerificationResponseDto,
   IUpdateOwnProfileBodyDto,
   IUpdateOwnProfileDto,
   IUpdateOwnProfileResponseDto,
@@ -139,4 +143,35 @@ export class GetOwnProfileResponseDto implements IGetOwnProfileResponseDto {
 export class UpdateOwnProfileResponseDto implements IUpdateOwnProfileResponseDto {
   @ApiProperty({ type: () => OwnProfileDto })
   profile: IOwnProfileDto;
+}
+
+export class ConfirmPhoneVerificationDto implements IConfirmPhoneVerificationDto {
+  @ApiProperty({
+    example: '048213',
+    description: 'OTP SMS 6 chữ số gửi tới SĐT hiện tại.',
+  })
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'otp phải là 6 chữ số' })
+  otp: string;
+}
+
+export class ConfirmPhoneVerificationBodyDto implements IConfirmPhoneVerificationBodyDto {
+  @ApiProperty({ type: () => ConfirmPhoneVerificationDto })
+  @ValidateNested()
+  @Type(() => ConfirmPhoneVerificationDto)
+  verification: ConfirmPhoneVerificationDto;
+}
+
+export class RequestPhoneVerificationResponseDto implements IRequestPhoneVerificationResponseDto {
+  @ApiProperty({ example: 300, description: 'Số giây OTP còn hiệu lực.' })
+  expiresInSeconds: number;
+}
+
+export class ConfirmPhoneVerificationResponseDto implements IConfirmPhoneVerificationResponseDto {
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    description: 'Thời điểm SĐT được xác minh.',
+  })
+  verifiedAt: Date;
 }

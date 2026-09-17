@@ -105,9 +105,14 @@ call_auth() {
   local method="$1" path="$2" token="$3" data="${4:-}"
   local raw
 
-  raw=$(curl -sS -m 20 -w $'\n%{http_code}' -X "$method" "${BASE_URL}${path}" \
-    -H 'Content-Type: application/json' \
-    -H "Authorization: Bearer $token" -d "$data" 2>&1)
+  if [ -n "$data" ]; then
+    raw=$(curl -sS -m 20 -w $'\n%{http_code}' -X "$method" "${BASE_URL}${path}" \
+      -H 'Content-Type: application/json' \
+      -H "Authorization: Bearer $token" -d "$data" 2>&1)
+  else
+    raw=$(curl -sS -m 20 -w $'\n%{http_code}' -X "$method" "${BASE_URL}${path}" \
+      -H "Authorization: Bearer $token" 2>&1)
+  fi
 
   RESP_CODE="${raw##*$'\n'}"
   RESP_BODY="${raw%$'\n'*}"
@@ -418,9 +423,51 @@ fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 echo
+echo "Hồ sơ và cổng đăng bài"
+
+# F06 đã xoá SMOKE_USER ở phần auth phía trên, nên tạo tài khoản RIÊNG cho
+# profile/post flow. Nếu dùng lại token/user vừa xoá thì smoke vô tình kiểm sai.
+PROFILE_USER="profile$(date +%s)$$"
+PROFILE_PHONE="+${PROFILE_USER#profile}"
+PROFILE_EMAIL="${PROFILE_USER}@example.com"
+call POST /api/auth/register "{\"registration\":{\"username\":\"$PROFILE_USER\",\"password\":\"$SMOKE_PASS\",\"confirmPassword\":\"$SMOKE_PASS\",\"deviceId\":\"profile-device\"}}"
+PROFILE_ACCESS_TOKEN=$(json_str "$RESP_BODY" accessToken)
+
+# F07: account mới thiếu 4 field profile thì phải bị chặn trước khi tạo bài.
+call_auth POST /api/gift-posts "$PROFILE_ACCESS_TOKEN" '{"giftPost":{"title":"Xe dap cu con dung tot","description":"Xe dap con dung tot, tang nguoi can di hoc hoac di lam.","category":"VEHICLE","condition":"USED","estimatedValue":100000,"location":{"lat":21.028,"lng":105.835},"areaLabel":"Hoan Kiem, Ha Noi"}}'
+if [ "$RESP_CODE" = "403" ] && printf '%s' "$RESP_BODY" | grep -q '"errorCode":776'; then
+  pass "hồ sơ chưa đủ bị chặn đăng bài (F07)"
+else
+  fail "cổng hoàn thiện hồ sơ không hoạt động" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+call_auth PATCH /api/profile/me "$PROFILE_ACCESS_TOKEN" "{\"profile\":{\"fullName\":\"Smoke User\",\"avatarUrl\":\"https://cdn.example.com/smoke.png\",\"email\":\"$PROFILE_EMAIL\",\"phone\":\"$PROFILE_PHONE\",\"defaultLocation\":{\"lat\":21.028,\"lng\":105.835}}}"
+if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"profileComplete":true'; then
+  pass "cập nhật hồ sơ + vị trí mặc định (F08/F11)"
+else
+  fail "không hoàn thiện được hồ sơ" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+# Email/phone/default location chỉ owner thấy; public profile tuyệt đối không lộ.
+call_auth GET /api/profile/me "$PROFILE_ACCESS_TOKEN"
+if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"defaultLocation"'; then
+  pass "hồ sơ owner có vị trí mặc định"
+else
+  fail "hồ sơ owner thiếu vị trí mặc định" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+call GET "/api/profile/$PROFILE_USER"
+if [ "$RESP_CODE" = "200" ] && ! printf '%s' "$RESP_BODY" | grep -qE '"(email|phone|defaultLocation)"'; then
+  pass "hồ sơ công khai không lộ contact/vị trí"
+else
+  fail "hồ sơ công khai làm lộ dữ liệu riêng" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo
 echo "Kiểm tra dữ liệu đầu vào"
 
-call POST /api/gift-posts '{"giftPost":{}}'
+call_auth POST /api/gift-posts "$PROFILE_ACCESS_TOKEN" '{"giftPost":{}}'
 if [ "$RESP_CODE" = "400" ] && printf '%s' "$RESP_BODY" | grep -q '"errorOrigin":"kernel/common-lib"'; then
   pass "dữ liệu sai trả 400 kèm errorOrigin của nền tảng"
 else
@@ -437,11 +484,11 @@ PAYLOAD=$(cat <<JSON
   "description":"Ban ghi do smoke-test.sh tao ra, co the xoa an toan.",
   "category":"BOOKS","condition":"USED","estimatedValue":100000,
   "location":{"lat":${TEST_LAT},"lng":${TEST_LNG}},
-  "areaLabel":"Smoke test","giverId":"${GIVER_ID}"}}
+  "areaLabel":"Smoke test"}}
 JSON
 )
 
-call POST /api/gift-posts "$PAYLOAD"
+call_auth POST /api/gift-posts "$PROFILE_ACCESS_TOKEN" "$PAYLOAD"
 CREATED_ID=$(json_str "$RESP_BODY" globalId)
 
 if [ "$RESP_CODE" = "201" ] || [ "$RESP_CODE" = "200" ]; then
@@ -475,7 +522,7 @@ else
   pass "bài chưa duyệt không xuất hiện ở bảng tin"
 fi
 
-call PATCH "/api/gift-posts/${CREATED_ID}" '{"giftPost":{"status":"PUBLISHED"}}'
+call_auth PATCH "/api/gift-posts/${CREATED_ID}" "$PROFILE_ACCESS_TOKEN" '{"giftPost":{"status":"PUBLISHED"}}'
 if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"status":"PUBLISHED"'; then
   pass "duyệt bài sang PUBLISHED"
 else
@@ -524,7 +571,7 @@ else
   fail "chi tiết bài sai" "HTTP $RESP_CODE — $RESP_BODY"
 fi
 
-call DELETE "/api/gift-posts/${CREATED_ID}"
+call_auth DELETE "/api/gift-posts/${CREATED_ID}" "$PROFILE_ACCESS_TOKEN"
 if [ "$RESP_CODE" = "200" ]; then
   pass "xoá mềm bài đăng"
 else

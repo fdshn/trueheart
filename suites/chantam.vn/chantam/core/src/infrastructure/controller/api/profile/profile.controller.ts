@@ -1,6 +1,10 @@
 import {
+  IConfirmPhoneVerificationResult,
+  IConfirmPhoneVerificationUseCase,
   IGetOwnProfileUseCase,
   IGetPublicProfileUseCase,
+  IRequestPhoneVerificationResult,
+  IRequestPhoneVerificationUseCase,
   IUpdateOwnProfileUseCase,
 } from '@/application/contracts/profile';
 import {
@@ -18,9 +22,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  ConfirmPhoneVerificationBodyDto,
+  ConfirmPhoneVerificationResponseDto,
   GetOwnProfileResponseDto,
   GetPublicProfileParamsDto,
   GetPublicProfileResponseDto,
+  RequestPhoneVerificationResponseDto,
   UpdateOwnProfileBodyDto,
   UpdateOwnProfileResponseDto,
 } from '../../dto/profile';
@@ -30,6 +37,10 @@ import {
 @Controller('api/profile')
 export class ProfileController {
   public constructor(
+    @Inject(IRequestPhoneVerificationUseCase)
+    private readonly requestPhoneVerificationUseCase: IRequestPhoneVerificationUseCase,
+    @Inject(IConfirmPhoneVerificationUseCase)
+    private readonly confirmPhoneVerificationUseCase: IConfirmPhoneVerificationUseCase,
     @Inject(IGetOwnProfileUseCase)
     private readonly getOwnProfileUseCase: IGetOwnProfileUseCase,
     @Inject(IGetPublicProfileUseCase)
@@ -53,6 +64,42 @@ export class ProfileController {
       .build();
   }
 
+  @Patch('me/phone-verification/request')
+  @ApiOperation({ summary: 'Gửi OTP xác minh SĐT hiện tại' })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(RequestPhoneVerificationResponseDto),
+  })
+  public async requestPhoneVerification(
+    @CurrentUser() principal: IAuthPrincipal,
+  ): Promise<ResponseDto<IRequestPhoneVerificationResult>> {
+    const result = await this.requestPhoneVerificationUseCase.handle({
+      userId: principal.userId,
+    });
+    return ResponseDto.create<IRequestPhoneVerificationResult>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Patch('me/phone-verification/confirm')
+  @ApiOperation({ summary: 'Xác nhận OTP, đánh dấu SĐT đã xác minh' })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(ConfirmPhoneVerificationResponseDto),
+  })
+  public async confirmPhoneVerification(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: ConfirmPhoneVerificationBodyDto,
+  ): Promise<ResponseDto<IConfirmPhoneVerificationResult>> {
+    const result = await this.confirmPhoneVerificationUseCase.handle({
+      userId: principal.userId,
+      ...body,
+    });
+    return ResponseDto.create<IConfirmPhoneVerificationResult>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
   @Patch('me')
   @ApiOperation({ summary: 'Cập nhật hồ sơ và vị trí mặc định' })
   @ApiOkResponse({ type: ResponseDto.forApi(UpdateOwnProfileResponseDto) })
@@ -70,8 +117,7 @@ export class ProfileController {
       .build();
   }
 
-  // Static /me phải đứng TRƯỚC :username; Fastify/Nest match theo thứ tự,
-  // đặt ngược sẽ biến GET /me thành profile công khai username="me".
+  // Static /me phải đứng TRƯỚC :username; Fastify/Nest match theo thứ tự.
   @Public()
   @Get(':username')
   @ApiOperation({ summary: 'Hồ sơ công khai tối thiểu' })
