@@ -151,7 +151,15 @@ curl -sI https://api.<domain>/docs/json
 
 Kỳ vọng: health 200, `/docs` 404, `/docs/json` 404.
 
-## 6. Rollback tay
+## 6. Truy cập database production
+
+Chỉ cấp SSH tunnel cho DBA/operator được uỷ quyền. Không publish Postgres ra Internet: Compose
+bind `127.0.0.1:15432` và DBeaver/DataGrip đi qua SSH `deploy` bằng key cá nhân riêng. Cấu hình
+DBeaver giống [runbook staging](./STAGING.md#6-kết-nối-database-staging-bằng-dbeaver), nhưng
+`SSH_HOST`, key và `POSTGRES_PASSWORD` phải là **bản production**. Không tái sử dụng key DBeaver
+staging khi server khách là máy khác.
+
+## 7. Rollback tay
 
 Tìm SHA image trước trong Actions log hoặc `.env`, rồi trên server:
 

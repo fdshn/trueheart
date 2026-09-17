@@ -158,7 +158,54 @@ curl -sI https://api-staging.<domain>/docs
 
 Kỳ vọng: Postgres, Redis, Core `healthy`; health 200; docs 200.
 
-## 6. Khi deploy đỏ
+## 6. Kết nối database staging bằng DBeaver
+
+Postgres chỉ bind `127.0.0.1:15432` trên VPS, nên không phơi database ra Internet. DBeaver tự
+mở SSH tunnel bằng user `deploy`, rồi đi từ loopback VPS vào container:
+
+```text
+DBeaver → SSH deploy@server → 127.0.0.1:15432 (VPS) → postgres:5432 (Docker)
+```
+
+Không dùng port `5433`: đó là database EduStack khác trên VPS.
+
+Nếu DBeaver báo `EOFException` với key Ed25519/OpenSSH mà Windows `ssh` vẫn vào được, tạo key
+RSA PEM **riêng cho DBeaver** trên máy local:
+
+```powershell
+ssh-keygen -t rsa -b 4096 -m PEM `
+  -f "$env:USERPROFILE\.ssh\dbeaver_chantam_rsa" `
+  -C "dbeaver-chantam"
+
+Get-Content "$env:USERPROFILE\.ssh\dbeaver_chantam_rsa.pub" |
+  ssh deploy@<staging-server> `
+  'umask 077; cat >> ~/.ssh/authorized_keys'
+```
+
+DBeaver **Main** tab:
+
+```text
+Host:       127.0.0.1
+Port:       15432
+Database:   chantam
+Username:   chantam
+Password:   giá trị POSTGRES_PASSWORD trong /home/deploy/chantam-staging/.env
+```
+
+DBeaver **SSH** tab:
+
+```text
+Use SSH Tunnel:         ✓
+Host/IP:                <staging-server>
+Port:                   22
+User Name:              deploy
+Authentication Method:  Public Key
+Private Key:            C:\Users\<user>\.ssh\dbeaver_chantam_rsa
+```
+
+Chọn private key, **không** chọn file `.pub`. Không dùng SSH key GitHub Actions cho DBeaver.
+
+## 7. Khi deploy đỏ
 
 Workflow tự trả lại image SHA trước đó. Xem job Staging trên GitHub trước; không chạy `docker
 compose down -v` vì sẽ xoá volume dữ liệu. Để xem log server:

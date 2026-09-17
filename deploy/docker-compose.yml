@@ -26,8 +26,14 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    # KHÔNG publish cổng ra ngoài. Database chỉ được truy cập trong network nội
-    # bộ của compose. Cần vào bằng tay thì dùng SSH tunnel.
+    # KHÔNG publish database ra Internet. Cổng này chỉ nghe loopback của VPS để
+    # DBeaver/DataGrip đi qua SSH tunnel: local client → SSH deploy@VPS →
+    # 127.0.0.1:15432 → postgres container:5432.
+    #
+    # 15432 cố ý khác 5433 (database EduStack đang có trên VPS) và khác cổng
+    # public; firewall không cần mở thêm gì.
+    ports:
+      - '127.0.0.1:15432:5432'
     networks: [chantam]
 
   redis:
