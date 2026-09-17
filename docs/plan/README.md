@@ -7,6 +7,7 @@ Bốn tài liệu, mỗi cái trả lời một câu hỏi:
 | [`ASSUMPTIONS.md`](./ASSUMPTIONS.md) | Chỗ đặc tả thiếu thì ta giả định gì? | **Đọc trước tiên.** Có 4 giả định cần Bên A xác nhận |
 | [`DATA-MODEL.md`](./DATA-MODEL.md) | Có bảng nào, quan hệ ra sao, trạng thái đi thế nào? | Trước khi viết entity |
 | [`ROADMAP.md`](./ROADMAP.md) | Làm gì trước, làm gì sau, đang ở đâu? | Đầu mỗi tuần |
+| [`../SPRINT-PLAN.md`](../SPRINT-PLAN.md) | Sprint nào có chức năng nào, điều kiện kết thúc là gì? | Lập kế hoạch/kiểm soát sprint |
 | [`../FEATURES.md`](../FEATURES.md) | Chức năng F01–F72 làm gì? | Khi code một chức năng cụ thể |
 
 ## Đang ở đâu
@@ -14,8 +15,8 @@ Bốn tài liệu, mỗi cái trả lời một câu hỏi:
 | Mốc | Nội dung | Trạng thái |
 | --- | --- | --- |
 | M0 | Nền tảng monorepo + CI/CD | ✅ Xong |
-| M1 | Người dùng, hồ sơ, danh mục, media | ⬜ Chưa bắt đầu |
-| M2 | Nội dung & bản đồ | ⬜ |
+| M1 | Người dùng, hồ sơ, danh mục, media | 🟡 Nền code xong; provider/acceptance xem `DEFERRED.md` |
+| M2 | Nội dung & bản đồ | 🟡 M2.1 canonical OFFER/map đang triển khai |
 | M3 | Giao dịch & chat | ⬜ |
 | M4 | Điểm & thứ hạng | ⬜ |
 | M5 | Group & affiliate | ⬜ |
