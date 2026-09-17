@@ -13,8 +13,10 @@ with Cloudflare R2, AWS S3, Backblaze B2 S3 API, Wasabi and MinIO by configurati
 ## Security policy
 
 - Avatar key is owner-scoped: `users/<userId>/avatars/<uuid>.<ext>`.
+- Post-media key is owner-and-post-scoped: `users/<userId>/posts/<postId>/media/<uuid>.<ext>`.
 - Only JPEG, PNG and WebP, max 5 MB.
 - `confirmAvatarUpload()` checks prefix plus `HeadObject` before an avatar URL is attached.
+- `confirmPostMediaUpload()` checks user/post prefix plus `HeadObject` before media is attached.
 - Credentials live only in environment variables; never commit R2 keys.
 
 ## Config

@@ -167,6 +167,18 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Trạng thái bài đăng không cho phép thao tác này',
   },
 
+  POST_MEDIA_LIMIT_EXCEEDED: {
+    code: ErrorCodes.POST_MEDIA_LIMIT_EXCEEDED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Một bài đăng chỉ được có tối đa 10 ảnh',
+  },
+
+  POST_MEDIA_ORDER_INVALID: {
+    code: ErrorCodes.POST_MEDIA_ORDER_INVALID,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: () => 'Danh sách thứ tự ảnh bài đăng không hợp lệ',
+  },
+
   // ── 0x04 Phiên đăng nhập, OTP ─────────────────────────────────────────────
   SESSION_NOT_FOUND: {
     code: ErrorCodes.SESSION_NOT_FOUND,

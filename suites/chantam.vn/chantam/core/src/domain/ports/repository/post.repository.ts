@@ -22,6 +22,24 @@ export interface IPostMapMarker {
   distanceMeters?: number;
 }
 
+export interface IFindNearbyOffersParams {
+  origin: IGeoPoint;
+  radiusMeters: number;
+  categoryId?: string;
+  skip: number;
+  take: number;
+}
+
+export interface INearbyOffer {
+  post: IPostEntity;
+  distanceMeters: number;
+}
+
+export interface IFindNearbyOffersResult {
+  items: INearbyOffer[];
+  total: number;
+}
+
 export interface IPostRepository extends Repository<IPostEntity> {
   createOfferWithinQuota(
     authorId: string,
@@ -34,6 +52,9 @@ export interface IPostRepository extends Repository<IPostEntity> {
     expiresAt: Date | null,
   ): Promise<IPostEntity | null>;
   findMapMarkers(params: IFindPostMapMarkersParams): Promise<IPostMapMarker[]>;
+  findNearbyOffers(
+    params: IFindNearbyOffersParams,
+  ): Promise<IFindNearbyOffersResult>;
   findPublicByGlobalId(globalId: string): Promise<IPostEntity | null>;
 }
 

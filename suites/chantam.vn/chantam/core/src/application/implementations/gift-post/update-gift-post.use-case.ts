@@ -3,55 +3,62 @@ import {
   IUpdateGiftPostResult,
   IUpdateGiftPostUseCase,
 } from '@/application/contracts/gift-post';
-import { ClosedGiftPostStatuses } from '@/domain/consts';
 import {
-  GiftPostAlreadyClosedException,
-  GiftPostNotFoundException,
+  PostInvalidStateException,
+  PostNotFoundException,
 } from '@/domain/exceptions';
-import { IGiftPostRepository } from '@/domain/ports/repository';
+import { IPostRepository } from '@/domain/ports/repository';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { definedProps } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
+import { toLegacyGiftPost } from './gift-post-compat.mapper';
 
 @Injectable()
 export class UpdateGiftPostUseCase implements IUpdateGiftPostUseCase {
   public constructor(
-    @Inject(IGiftPostRepository)
-    private readonly giftPostRepository: IGiftPostRepository,
+    @Inject(IPostRepository)
+    private readonly postRepository: IPostRepository,
   ) {}
 
   public async handle(
     command: IUpdateGiftPostCommand,
   ): Promise<IUpdateGiftPostResult> {
-    const { giftPostId, giftPost } = command;
+    const existing = await this.postRepository.findOneBy({
+      globalId: command.giftPostId,
+    });
+    if (!existing || existing.deletedAt)
+      throw new PostNotFoundException(command.giftPostId);
+    if (existing.authorId !== command.userId) throw new ForbiddenException();
+    if (command.giftPost.status !== undefined)
+      throw new PostInvalidStateException();
 
-    const existing = await this.giftPostRepository.findOneBy({
-      globalId: giftPostId,
+    const update = definedProps({
+      title: command.giftPost.title,
+      description: command.giftPost.description,
+      areaLabel: command.giftPost.areaLabel,
+      details:
+        command.giftPost.condition === undefined &&
+        command.giftPost.estimatedValue === undefined
+          ? undefined
+          : {
+              ...existing.details,
+              ...(command.giftPost.condition === undefined
+                ? {}
+                : { condition: command.giftPost.condition }),
+              ...(command.giftPost.estimatedValue === undefined
+                ? {}
+                : { estimatedValue: command.giftPost.estimatedValue }),
+            },
     });
 
-    if (!existing || existing.deletedAt)
-      throw new GiftPostNotFoundException(giftPostId);
-
-    if (existing.giverId !== command.userId) throw new ForbiddenException();
-
-    if (
-      ClosedGiftPostStatuses.includes(
-        existing.status as (typeof ClosedGiftPostStatuses)[number],
-      )
-    )
-      throw new GiftPostAlreadyClosedException(giftPostId, existing.status);
-
-    // `definedProps` loại các khoá `undefined` — nếu không, trải object sẽ ghi
-    // đè giá trị đang có bằng `undefined` ở một số đường dẫn của TypeORM.
-    await this.giftPostRepository.update(
-      { globalId: giftPostId },
-      definedProps(giftPost),
-    );
+    await this.postRepository.update({ globalId: command.giftPostId }, update);
 
     return {
-      giftPost: await this.giftPostRepository.findOneByOrFail({
-        globalId: giftPostId,
-      }),
+      giftPost: toLegacyGiftPost(
+        await this.postRepository.findOneByOrFail({
+          globalId: command.giftPostId,
+        }),
+      ),
     };
   }
 }

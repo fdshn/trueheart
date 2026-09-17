@@ -1,77 +1,110 @@
 import {
-  GiftPostAlreadyClosedException,
-  GiftPostNotFoundException,
+  PostInvalidStateException,
+  PostNotFoundException,
 } from '@/domain/exceptions';
-import { GiftPostStatuses } from '@chantam.vn/chantam.core-lib/consts';
-import { makeGiftPost, makeRepositoryMock } from './__fixtures';
+import { IPostRepository } from '@/domain/ports/repository';
+import {
+  GiftPostConditions,
+  GiftPostStatuses,
+  PostTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
+import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
+import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { UpdateGiftPostUseCase } from './update-gift-post.use-case';
 
 const UserId = '22222222-2222-2222-2222-222222222222';
+const GiftPostId = '11111111-1111-1111-1111-111111111111';
 
-describe('UpdateGiftPostUseCase', () => {
-  const giftPostId = '11111111-1111-1111-1111-111111111111';
+function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
+  return {
+    id: 1,
+    globalId: GiftPostId,
+    postType: PostTypes.OFFER,
+    authorId: UserId,
+    categoryId: '30000000-0000-4000-8000-000000000006',
+    title: 'Xe đạp cũ',
+    description: 'Còn dùng tốt',
+    location: { lat: 10.7724, lng: 106.698 },
+    areaLabel: 'Quận 1, TP.HCM',
+    status: GiftPostStatuses.PENDING_REVIEW,
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    details: { condition: GiftPostConditions.USED, estimatedValue: 1_500_000 },
+    expiresAt: null,
+    renewedCount: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
+    ...overrides,
+  };
+}
 
-  it('chỉ ghi những trường thực sự được gửi lên', async () => {
-    const repository = makeRepositoryMock();
-    repository.findOneBy.mockResolvedValue(makeGiftPost({ giverId: UserId }));
-    repository.findOneByOrFail.mockResolvedValue(makeGiftPost());
+describe('UpdateGiftPostUseCase compatibility', () => {
+  it('chỉ update canonical content/details, không ghi gift_posts', async () => {
+    const posts = {
+      findOneBy: jest.fn().mockResolvedValue(makePost()),
+      update: jest.fn(),
+      findOneByOrFail: jest
+        .fn()
+        .mockResolvedValue(makePost({ title: 'Tiêu đề mới' })),
+    } as unknown as jest.Mocked<IPostRepository>;
 
-    await new UpdateGiftPostUseCase(repository).handle({
+    await new UpdateGiftPostUseCase(posts).handle({
       userId: UserId,
-      giftPostId,
-      giftPost: { title: 'Tiêu đề mới', description: undefined },
+      giftPostId: GiftPostId,
+      giftPost: {
+        title: 'Tiêu đề mới',
+        condition: GiftPostConditions.LIKE_NEW,
+      },
     });
 
-    expect(repository.update).toHaveBeenCalledWith(
-      { globalId: giftPostId },
-      { title: 'Tiêu đề mới' },
+    expect(posts.update).toHaveBeenCalledWith(
+      { globalId: GiftPostId },
+      {
+        title: 'Tiêu đề mới',
+        details: {
+          condition: GiftPostConditions.LIKE_NEW,
+          estimatedValue: 1_500_000,
+        },
+      },
     );
   });
 
-  it('từ chối người không phải chủ bài', async () => {
-    const repository = makeRepositoryMock();
-    repository.findOneBy.mockResolvedValue(
-      makeGiftPost({ giverId: 'nguoi-khac' }),
-    );
+  it('từ chối non-owner và legacy status patch', async () => {
+    const posts = {
+      findOneBy: jest.fn().mockResolvedValue(makePost({ authorId: 'other' })),
+      update: jest.fn(),
+    } as unknown as jest.Mocked<IPostRepository>;
 
     await expect(
-      new UpdateGiftPostUseCase(repository).handle({
+      new UpdateGiftPostUseCase(posts).handle({
         userId: UserId,
-        giftPostId,
+        giftPostId: GiftPostId,
         giftPost: { title: 'Tiêu đề mới' },
       }),
-    ).rejects.toThrow();
+    ).rejects.toBeInstanceOf(ForbiddenException);
 
-    expect(repository.update).not.toHaveBeenCalled();
+    posts.findOneBy.mockResolvedValue(makePost());
+    await expect(
+      new UpdateGiftPostUseCase(posts).handle({
+        userId: UserId,
+        giftPostId: GiftPostId,
+        giftPost: { status: GiftPostStatuses.PUBLISHED },
+      }),
+    ).rejects.toBeInstanceOf(PostInvalidStateException);
   });
 
-  it('từ chối chỉnh sửa bài đã đóng', async () => {
-    const repository = makeRepositoryMock();
-    repository.findOneBy.mockResolvedValue(
-      makeGiftPost({ giverId: UserId, status: GiftPostStatuses.COMPLETED }),
-    );
+  it('ném canonical not found khi post không tồn tại', async () => {
+    const posts = {
+      findOneBy: jest.fn().mockResolvedValue(null),
+    } as unknown as jest.Mocked<IPostRepository>;
 
     await expect(
-      new UpdateGiftPostUseCase(repository).handle({
+      new UpdateGiftPostUseCase(posts).handle({
         userId: UserId,
-        giftPostId,
+        giftPostId: GiftPostId,
         giftPost: { title: 'Tiêu đề mới' },
       }),
-    ).rejects.toBeInstanceOf(GiftPostAlreadyClosedException);
-
-    expect(repository.update).not.toHaveBeenCalled();
-  });
-
-  it('ném GiftPostNotFoundException khi không có bản ghi', async () => {
-    const repository = makeRepositoryMock();
-    repository.findOneBy.mockResolvedValue(null);
-
-    await expect(
-      new UpdateGiftPostUseCase(repository).handle({
-        userId: UserId,
-        giftPostId,
-        giftPost: { title: 'Tiêu đề mới' },
-      }),
-    ).rejects.toBeInstanceOf(GiftPostNotFoundException);
+    ).rejects.toBeInstanceOf(PostNotFoundException);
   });
 });

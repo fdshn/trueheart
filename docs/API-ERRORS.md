@@ -81,8 +81,10 @@ Nghiệp vụ Chân Tâm
 | `0x0601` | `1537` | 404 Not Found | `POST_NOT_FOUND` | Không tìm thấy bài đăng 4182a141-a5c5-5c25-92ab-0d4488158e8f |
 | `0x0602` | `1538` | 409 Conflict | `POST_QUOTA_EXCEEDED` | Bạn đã đạt giới hạn 3 bài đăng đang hoạt động |
 | `0x0603` | `1539` | 409 Conflict | `POST_INVALID_STATE` | Trạng thái bài đăng không cho phép thao tác này |
+| `0x0604` | `1540` | 409 Conflict | `POST_MEDIA_LIMIT_EXCEEDED` | Một bài đăng chỉ được có tối đa 10 ảnh |
+| `0x0605` | `1541` | 400 Bad Request | `POST_MEDIA_ORDER_INVALID` | Danh sách thứ tự ảnh bài đăng không hợp lệ |
 
 ---
 
-Tổng cộng **42 mã lỗi** trên 3 tầng.
+Tổng cộng **44 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

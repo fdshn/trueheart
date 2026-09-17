@@ -1,5 +1,11 @@
-import { UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
-import { makeGiftPost, makeRepositoryMock } from './__fixtures';
+import { ICreatePostUseCase } from '@/application/contracts/post';
+import {
+  GiftPostCategories,
+  GiftPostConditions,
+  GiftPostStatuses,
+  PostTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
+import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { CreateGiftPostUseCase } from './create-gift-post.use-case';
 
 const UserId = '22222222-2222-2222-2222-222222222222';
@@ -9,62 +15,50 @@ const Command = {
     title: 'Xe đạp cũ còn dùng tốt',
     description:
       'Xe còn dùng tốt, tặng người cần di chuyển đi học hoặc đi làm.',
-    category: 'VEHICLE' as never,
-    condition: 'USED' as never,
+    category: GiftPostCategories.VEHICLE,
+    condition: GiftPostConditions.USED,
     estimatedValue: 1_500_000,
     location: { lat: 10.7724, lng: 106.698 },
     areaLabel: 'Quận 1, TP.HCM',
   },
 };
 
-function makeUser(overrides: Record<string, unknown> = {}) {
+function makePost(): IPostEntity {
   return {
-    globalId: UserId,
-    username: 'nguoi-tang',
-    passwordHash: 'hash',
-    fullName: null,
-    avatarUrl: null,
-    email: null,
-    phone: null,
-    defaultLocation: null,
-    rank: 'VIEWER',
-    status: UserStatuses.ACTIVE,
-    phoneVerifiedAt: null,
-    suspendedUntil: null,
+    id: 1,
+    globalId: '11111111-1111-1111-1111-111111111111',
+    postType: PostTypes.OFFER,
+    authorId: UserId,
+    categoryId: '30000000-0000-4000-8000-000000000006',
+    title: Command.giftPost.title,
+    description: Command.giftPost.description,
+    location: Command.giftPost.location,
+    areaLabel: Command.giftPost.areaLabel,
+    status: GiftPostStatuses.PENDING_REVIEW,
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    details: {
+      condition: GiftPostConditions.USED,
+      estimatedValue: 1_500_000,
+    },
+    expiresAt: null,
+    renewedCount: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
     deletedAt: null,
-    ...overrides,
   };
 }
 
-describe('CreateGiftPostUseCase — F07 profile gate', () => {
-  it('chặn tạo bài khi thiếu bốn trường hồ sơ bắt buộc', async () => {
-    const posts = makeRepositoryMock();
-    const users = { findOneBy: jest.fn(async () => makeUser()) };
-    const useCase = new CreateGiftPostUseCase(posts, users as never);
+describe('CreateGiftPostUseCase compatibility profile gate', () => {
+  it('chuyển userId đã xác thực vào canonical create use case', async () => {
+    const createPost = {
+      handle: jest.fn().mockResolvedValue({ post: makePost() }),
+    } as unknown as jest.Mocked<ICreatePostUseCase>;
 
-    await expect(useCase.handle(Command)).rejects.toThrow();
-    expect(posts.insert).not.toHaveBeenCalled();
-  });
+    await new CreateGiftPostUseCase(createPost).handle(Command);
 
-  it('lấy giverId từ userId đã xác thực, không tin request body', async () => {
-    const posts = makeRepositoryMock();
-    posts.findOneByOrFail.mockResolvedValue(makeGiftPost());
-    const users = {
-      findOneBy: jest.fn(async () =>
-        makeUser({
-          fullName: 'Người Tặng',
-          avatarUrl: 'https://cdn.example.com/a.png',
-          email: 'giver@example.com',
-          phone: '0912345678',
-        }),
-      ),
-    };
-    const useCase = new CreateGiftPostUseCase(posts, users as never);
-
-    await useCase.handle(Command);
-
-    expect(posts.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ giverId: UserId }),
+    expect(createPost.handle).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: UserId }),
     );
   });
 });

@@ -1,61 +1,99 @@
 import { GiftPostNotFoundException } from '@/domain/exceptions';
+import { IConfig } from '@/domain/ports/config';
+import { IPostRepository } from '@/domain/ports/repository';
 import {
-  BenThanhMarket,
-  makeConfigMock,
-  makeGiftPost,
-  makeRepositoryMock,
-} from './__fixtures';
+  GiftPostConditions,
+  GiftPostStatuses,
+  PostTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
+import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { GetGiftPostUseCase } from './get-gift-post.use-case';
 
-describe('GetGiftPostUseCase', () => {
-  const giftPostId = '11111111-1111-1111-1111-111111111111';
+const GiftPostId = '11111111-1111-1111-1111-111111111111';
+const ExactLocation = { lat: 10.7724, lng: 106.698 };
 
-  it('làm nhiễu toạ độ khi người gọi chưa được duyệt nhận', async () => {
-    const repository = makeRepositoryMock();
-    repository.findOneBy.mockResolvedValue(makeGiftPost());
+function makePost(): IPostEntity {
+  return {
+    id: 1,
+    globalId: GiftPostId,
+    postType: PostTypes.OFFER,
+    authorId: '22222222-2222-2222-2222-222222222222',
+    categoryId: '30000000-0000-4000-8000-000000000006',
+    title: 'Xe đạp cũ',
+    description: 'Còn dùng tốt',
+    location: ExactLocation,
+    areaLabel: 'Quận 1, TP.HCM',
+    status: GiftPostStatuses.PUBLISHED,
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    details: { condition: GiftPostConditions.USED, estimatedValue: 1_500_000 },
+    expiresAt: null,
+    renewedCount: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
+  };
+}
 
-    const result = await new GetGiftPostUseCase(
-      repository,
-      makeConfigMock(),
-    ).handle({ giftPostId });
+function makeConfig(): IConfig {
+  return {
+    port: 3000,
+    env: 'development',
+    version: 'test',
+    database: { default: 'postgres://localhost/test' },
+    redis: { uri: 'redis://localhost:6379' },
+    auth: {
+      jwtSecret: 'khong-dung-toi-trong-bai-kiem-tra-nay-0123456789',
+      accessTtlSeconds: 900,
+      refreshTtlSeconds: 2_592_000,
+      bcryptRounds: 4,
+      maxLoginAttempts: 5,
+      loginLockSeconds: 900,
+      otpTtlSeconds: 300,
+    },
+    docsServers: [],
+    otpEmail: { fromAddress: '', fromName: 'Chân Tâm' },
+    categoryAdmin: { usernames: [] },
+    postOperator: { usernames: [] },
+    storage: {
+      endpoint: '',
+      region: '',
+      bucket: '',
+      accessKeyId: '',
+      secretAccessKey: '',
+      publicBaseUrl: '',
+    },
+    geo: { jitterRadiusMeters: 300 },
+  };
+}
 
-    expect(result.isLocationApproximate).toBe(true);
-    expect(result.giftPost.location).not.toEqual(BenThanhMarket);
-  });
+describe('GetGiftPostUseCase compatibility', () => {
+  it('đọc canonical OFFER rồi project đúng legacy envelope với location jitter', async () => {
+    const posts = {
+      findPublicByGlobalId: jest.fn().mockResolvedValue(makePost()),
+    } as unknown as jest.Mocked<IPostRepository>;
 
-  it('trả toạ độ chính xác khi người gọi đã được duyệt nhận', async () => {
-    const repository = makeRepositoryMock();
-    repository.findOneBy.mockResolvedValue(makeGiftPost());
+    const result = await new GetGiftPostUseCase(posts, makeConfig()).handle({
+      giftPostId: GiftPostId,
+    });
 
-    const result = await new GetGiftPostUseCase(
-      repository,
-      makeConfigMock(),
-    ).handle({ giftPostId, canViewExactLocation: true });
-
-    expect(result.isLocationApproximate).toBe(false);
-    expect(result.giftPost.location).toEqual(BenThanhMarket);
-  });
-
-  it('ném GiftPostNotFoundException khi không có bản ghi', async () => {
-    const repository = makeRepositoryMock();
-    repository.findOneBy.mockResolvedValue(null);
-
-    await expect(
-      new GetGiftPostUseCase(repository, makeConfigMock()).handle({
-        giftPostId,
-      }),
-    ).rejects.toBeInstanceOf(GiftPostNotFoundException);
-  });
-
-  it('coi bản ghi đã xoá mềm như không tồn tại', async () => {
-    const repository = makeRepositoryMock();
-    repository.findOneBy.mockResolvedValue(
-      makeGiftPost({ deletedAt: new Date() }),
+    expect(posts.findPublicByGlobalId).toHaveBeenCalledWith(GiftPostId);
+    expect(result.giftPost.giverId).toBe(
+      '22222222-2222-2222-2222-222222222222',
     );
+    expect(result.giftPost.category).toBe('VEHICLE');
+    expect(result.giftPost.location).not.toEqual(ExactLocation);
+    expect(result.isLocationApproximate).toBe(true);
+  });
+
+  it('ẩn canonical post không public như legacy not found', async () => {
+    const posts = {
+      findPublicByGlobalId: jest.fn().mockResolvedValue(null),
+    } as unknown as jest.Mocked<IPostRepository>;
 
     await expect(
-      new GetGiftPostUseCase(repository, makeConfigMock()).handle({
-        giftPostId,
+      new GetGiftPostUseCase(posts, makeConfig()).handle({
+        giftPostId: GiftPostId,
       }),
     ).rejects.toBeInstanceOf(GiftPostNotFoundException);
   });

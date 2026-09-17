@@ -2,12 +2,14 @@ import {
   ICategoryEntity,
   IGiftPostEntity,
   IPostEntity,
+  IPostMediaEntity,
   IUserEntity,
   IUserSessionEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
 import { Global, Module } from '@nestjs/common';
 import { CategoryEntity } from './category.entity';
 import { GiftPostEntity } from './gift-post.entity';
+import { PostMediaEntity } from './post-media.entity';
 import { PostEntity } from './post.entity';
 import { UserSessionEntity } from './user-session.entity';
 import { UserEntity } from './user.entity';
@@ -24,6 +26,7 @@ import { UserEntity } from './user.entity';
     { provide: ICategoryEntity, useValue: CategoryEntity },
     { provide: IGiftPostEntity, useValue: GiftPostEntity },
     { provide: IPostEntity, useValue: PostEntity },
+    { provide: IPostMediaEntity, useValue: PostMediaEntity },
     { provide: IUserEntity, useValue: UserEntity },
     { provide: IUserSessionEntity, useValue: UserSessionEntity },
   ],
@@ -31,6 +34,7 @@ import { UserEntity } from './user.entity';
     ICategoryEntity,
     IGiftPostEntity,
     IPostEntity,
+    IPostMediaEntity,
     IUserEntity,
     IUserSessionEntity,
   ],

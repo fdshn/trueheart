@@ -49,6 +49,8 @@ export enum ErrorCodes {
   POST_NOT_FOUND = 0x06_01,
   POST_QUOTA_EXCEEDED = 0x06_02,
   POST_INVALID_STATE = 0x06_03,
+  POST_MEDIA_LIMIT_EXCEEDED = 0x06_04,
+  POST_MEDIA_ORDER_INVALID = 0x06_05,
 
   // 0x04 — Phiên đăng nhập, OTP, đặt lại mật khẩu
   SESSION_NOT_FOUND = 0x04_01,

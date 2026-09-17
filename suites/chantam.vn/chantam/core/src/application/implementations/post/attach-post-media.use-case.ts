@@ -1,0 +1,53 @@
+import {
+  IAttachPostMediaCommand,
+  IAttachPostMediaResult,
+  IAttachPostMediaUseCase,
+} from '@/application/contracts/post';
+import {
+  PostMediaLimitExceededException,
+  PostNotFoundException,
+} from '@/domain/exceptions';
+import {
+  IPostMediaRepository,
+  IPostRepository,
+} from '@/domain/ports/repository';
+import { ForbiddenException } from '@chantam/service.common-lib/exception';
+import { IObjectStorage } from '@chantam/service.storage-lib';
+import { Inject, Injectable } from '@nestjs/common';
+
+@Injectable()
+export class AttachPostMediaUseCase implements IAttachPostMediaUseCase {
+  public constructor(
+    @Inject(IPostRepository)
+    private readonly postRepository: IPostRepository,
+    @Inject(IPostMediaRepository)
+    private readonly postMediaRepository: IPostMediaRepository,
+    @Inject(IObjectStorage)
+    private readonly storage: IObjectStorage,
+  ) {}
+
+  public async handle(
+    command: IAttachPostMediaCommand,
+  ): Promise<IAttachPostMediaResult> {
+    const post = await this.postRepository.findOneBy({
+      globalId: command.postId,
+    });
+    if (!post || post.deletedAt)
+      throw new PostNotFoundException(command.postId);
+    if (post.authorId !== command.userId) throw new ForbiddenException();
+
+    await this.storage.confirmPostMediaUpload(
+      command.userId,
+      command.postId,
+      command.media.key,
+    );
+
+    const media = await this.postMediaRepository.attach(
+      command.postId,
+      command.media.key,
+    );
+    if (!media) throw new PostMediaLimitExceededException();
+
+    return { media };
+  }
+}

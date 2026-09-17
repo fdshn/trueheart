@@ -5,7 +5,10 @@ import {
 } from '@/application/contracts/post';
 import { PostNotFoundException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
-import { IPostRepository } from '@/domain/ports/repository';
+import {
+  IPostMediaRepository,
+  IPostRepository,
+} from '@/domain/ports/repository';
 import { applyGeoJitter } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -14,6 +17,8 @@ export class GetPostUseCase implements IGetPostUseCase {
   public constructor(
     @Inject(IPostRepository)
     private readonly postRepository: IPostRepository,
+    @Inject(IPostMediaRepository)
+    private readonly postMediaRepository: IPostMediaRepository,
     @Inject(IConfig)
     private readonly config: IConfig,
   ) {}
@@ -29,6 +34,18 @@ export class GetPostUseCase implements IGetPostUseCase {
       this.config.geo.jitterRadiusMeters,
     );
 
-    return { post, isLocationApproximate: true };
+    const media = await this.postMediaRepository.listByPostId(post.globalId);
+
+    return {
+      post,
+      media: media
+        .sort((first, second) => first.sortOrder - second.sortOrder)
+        .map((item) => ({
+          id: item.id,
+          url: `${this.config.storage.publicBaseUrl.replace(/\/$/, '')}/${item.r2Key}`,
+          sortOrder: item.sortOrder,
+        })),
+      isLocationApproximate: true,
+    };
   }
 }

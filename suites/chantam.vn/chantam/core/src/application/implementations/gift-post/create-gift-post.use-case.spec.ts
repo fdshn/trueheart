@@ -1,95 +1,78 @@
+import { ICreatePostUseCase } from '@/application/contracts/post';
 import {
+  GiftPostCategories,
+  GiftPostConditions,
   GiftPostStatuses,
-  UserStatuses,
+  PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { BenThanhMarket, makeGiftPost, makeRepositoryMock } from './__fixtures';
+import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { CreateGiftPostUseCase } from './create-gift-post.use-case';
 
 const UserId = '22222222-2222-2222-2222-222222222222';
-const CompleteUser = {
-  globalId: UserId,
-  username: 'nguoi-tang',
-  passwordHash: 'hash',
-  fullName: 'Người Tặng',
-  avatarUrl: 'https://cdn.example.com/a.png',
-  email: 'giver@example.com',
-  phone: '0912345678',
-  defaultLocation: null,
-  rank: 'VIEWER',
-  status: UserStatuses.ACTIVE,
-  phoneVerifiedAt: null,
-  suspendedUntil: null,
-  deletedAt: null,
+const GiftPost = {
+  title: 'Xe đạp cũ',
+  description: 'Còn dùng tốt',
+  category: GiftPostCategories.VEHICLE,
+  condition: GiftPostConditions.USED,
+  estimatedValue: 1_500_000,
+  location: { lat: 10.7724, lng: 106.698 },
+  areaLabel: 'Quận 1, TP.HCM',
 };
 
-function makeUseCase(repository = makeRepositoryMock()) {
-  const users = { findOneBy: jest.fn(async () => CompleteUser) };
+function makeCanonicalPost(): IPostEntity {
   return {
-    repository,
-    useCase: new CreateGiftPostUseCase(repository, users as never),
+    id: 1,
+    globalId: '11111111-1111-1111-1111-111111111111',
+    postType: PostTypes.OFFER,
+    authorId: UserId,
+    categoryId: '30000000-0000-4000-8000-000000000006',
+    title: GiftPost.title,
+    description: GiftPost.description,
+    location: GiftPost.location,
+    areaLabel: GiftPost.areaLabel,
+    status: GiftPostStatuses.PENDING_REVIEW,
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    details: {
+      condition: GiftPost.condition,
+      estimatedValue: GiftPost.estimatedValue,
+    },
+    expiresAt: null,
+    renewedCount: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
   };
 }
 
-describe('CreateGiftPostUseCase', () => {
-  const command = {
-    userId: UserId,
-    giftPost: {
-      title: 'Xe đạp cũ',
-      description: 'Còn dùng tốt',
-      category: 'VEHICLE' as never,
-      condition: 'USED' as never,
-      estimatedValue: 1_500_000,
-      location: BenThanhMarket,
-      areaLabel: 'Quận 1, TP.HCM',
-    },
-  };
+describe('CreateGiftPostUseCase compatibility', () => {
+  it('delegates legacy create to canonical OFFER use case without gift_posts write', async () => {
+    const createPost = {
+      handle: jest.fn().mockResolvedValue({ post: makeCanonicalPost() }),
+    } as unknown as jest.Mocked<ICreatePostUseCase>;
 
-  it('tạo bài đăng ở trạng thái chờ kiểm duyệt', async () => {
-    const { repository, useCase } = makeUseCase();
-    repository.findOneByOrFail.mockResolvedValue(makeGiftPost());
-
-    await useCase.handle(command);
-
-    expect(repository.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ status: GiftPostStatuses.PENDING_REVIEW }),
-    );
-  });
-
-  it('mặc định số lượng là 1 và tồn kho bằng tổng số lượng', async () => {
-    const { repository, useCase } = makeUseCase();
-    repository.findOneByOrFail.mockResolvedValue(makeGiftPost());
-
-    await useCase.handle(command);
-
-    expect(repository.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ totalQuantity: 1, remainingQuantity: 1 }),
-    );
-  });
-
-  it('khởi tạo tồn kho bằng tổng số lượng khi đăng nhiều món', async () => {
-    const { repository, useCase } = makeUseCase();
-    repository.findOneByOrFail.mockResolvedValue(makeGiftPost());
-
-    await useCase.handle({
-      ...command,
-      giftPost: { ...command.giftPost, totalQuantity: 100 },
+    const result = await new CreateGiftPostUseCase(createPost).handle({
+      userId: UserId,
+      giftPost: GiftPost,
     });
 
-    expect(repository.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ totalQuantity: 100, remainingQuantity: 100 }),
-    );
-  });
-
-  it('sinh globalId dạng uuid', async () => {
-    const { repository, useCase } = makeUseCase();
-    repository.findOneByOrFail.mockResolvedValue(makeGiftPost());
-
-    await useCase.handle(command);
-
-    const inserted = repository.insert.mock.calls[0][0] as { globalId: string };
-
-    expect(inserted.globalId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    );
+    expect(createPost.handle).toHaveBeenCalledWith({
+      userId: UserId,
+      post: {
+        title: GiftPost.title,
+        description: GiftPost.description,
+        categoryId: '30000000-0000-4000-8000-000000000006',
+        condition: GiftPost.condition,
+        estimatedValue: GiftPost.estimatedValue,
+        location: GiftPost.location,
+        areaLabel: GiftPost.areaLabel,
+        totalQuantity: undefined,
+      },
+    });
+    expect(result.giftPost).toMatchObject({
+      giverId: UserId,
+      category: GiftPostCategories.VEHICLE,
+      condition: GiftPostConditions.USED,
+    });
   });
 });

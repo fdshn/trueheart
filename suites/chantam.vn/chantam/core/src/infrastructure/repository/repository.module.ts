@@ -1,6 +1,7 @@
 import {
   ICategoryRepository,
   IGiftPostRepository,
+  IPostMediaRepository,
   IPostRepository,
   IUserRepository,
   IUserSessionRepository,
@@ -8,6 +9,7 @@ import {
 import { Global, Module } from '@nestjs/common';
 import { CategoryRepository } from './category.repository';
 import { GiftPostRepository } from './gift-post.repository';
+import { PostMediaRepository } from './post-media.repository';
 import { PostRepository } from './post.repository';
 import { UserSessionRepository } from './user-session.repository';
 import { UserRepository } from './user.repository';
@@ -23,6 +25,7 @@ import { UserRepository } from './user.repository';
     { provide: ICategoryRepository, useClass: CategoryRepository },
     { provide: IGiftPostRepository, useClass: GiftPostRepository },
     { provide: IPostRepository, useClass: PostRepository },
+    { provide: IPostMediaRepository, useClass: PostMediaRepository },
     { provide: IUserRepository, useClass: UserRepository },
     { provide: IUserSessionRepository, useClass: UserSessionRepository },
   ],
@@ -30,6 +33,7 @@ import { UserRepository } from './user.repository';
     ICategoryRepository,
     IGiftPostRepository,
     IPostRepository,
+    IPostMediaRepository,
     IUserRepository,
     IUserSessionRepository,
   ],

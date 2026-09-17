@@ -28,6 +28,12 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 | `PATCH` | `/api/gift-posts/:giftPostId` | `UpdateGiftPostUseCase` |
 | `DELETE` | `/api/gift-posts/:giftPostId` | `DeleteGiftPostUseCase` — xoá mềm |
 | `POST` | `/api/posts` | `CreatePostUseCase` — canonical OFFER, JWT/profile/category/quota gate |
+| `POST` | `/api/posts/wanted` | `CreateWantedPostUseCase` — canonical WANTED, chờ moderation |
+| `POST` | `/api/posts/:postId/media/upload` | Presign upload ảnh owner/post scoped |
+| `POST` | `/api/posts/:postId/media` | `HeadObject` xác minh rồi gắn media |
+| `PATCH` | `/api/posts/:postId/media/order` | Owner thay toàn bộ thứ tự media |
+| `DELETE` | `/api/posts/:postId/media/:mediaId` | Owner gỡ media, compact thứ tự |
+| `DELETE` | `/api/posts/:postId` | Owner xoá mềm canonical post |
 | `PATCH` | `/api/posts/:postId/moderation` | `ModeratePostUseCase` — allowlist `POST_OPERATOR_USERNAMES` tạm thời |
 | `GET` | `/api/posts/map` | `GetPostMapUseCase` — marker bbox public, location jitter, client-side cluster |
 | `GET` | `/api/posts/:postId` | `GetPostUseCase` — chỉ PUBLISHED/RESERVED, toạ độ đã jitter |
@@ -60,7 +66,7 @@ curl "http://localhost:3000/api/gift-posts/nearby?lat=10.7724&lng=106.698&radius
 ## Canonical posts M2.1
 
 `/api/posts` là API canonical mới. Trong compatibility window, `/api/gift-posts` vẫn tồn tại cho
-client cũ, nhưng không được mở rộng thành source ghi thứ hai. `POST /api/posts` chỉ tạo `OFFER` ở
+client cũ và đã map vào canonical `posts`; không ghi hai bảng song song. `POST /api/posts` chỉ tạo `OFFER` ở
 `PENDING_REVIEW`; author/type/status do server quyết định. Operator tạm thời cấu hình bằng
 `POST_OPERATOR_USERNAMES` mới được gọi moderation sang `PUBLISHED` hoặc `REJECTED`.
 

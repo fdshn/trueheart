@@ -1,6 +1,8 @@
-import { PostNotFoundException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
-import { IPostRepository } from '@/domain/ports/repository';
+import {
+  IPostMediaRepository,
+  IPostRepository,
+} from '@/domain/ports/repository';
 import {
   GiftPostStatuses,
   PostTypes,
@@ -72,9 +74,13 @@ describe('GetPostUseCase', () => {
     const postRepository = {
       findPublicByGlobalId: jest.fn().mockResolvedValue(makePost()),
     } as unknown as jest.Mocked<IPostRepository>;
+    const postMediaRepository = {
+      listByPostId: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<IPostMediaRepository>;
 
     const result = await new GetPostUseCase(
       postRepository,
+      postMediaRepository,
       makeConfig(),
     ).handle({
       postId: PostId,
@@ -85,15 +91,68 @@ describe('GetPostUseCase', () => {
     expect(result.post.location).not.toEqual(ExactLocation);
   });
 
+  it('trả media đã xếp thứ tự với public URL', async () => {
+    const postRepository = {
+      findPublicByGlobalId: jest.fn().mockResolvedValue(makePost()),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const postMediaRepository = {
+      listByPostId: jest.fn().mockResolvedValue([
+        {
+          id: 2,
+          postId: PostId,
+          r2Key: 'users/u/posts/p/media/second.webp',
+          sortOrder: 1,
+          createdAt: new Date(),
+        },
+        {
+          id: 1,
+          postId: PostId,
+          r2Key: 'users/u/posts/p/media/first.webp',
+          sortOrder: 0,
+          createdAt: new Date(),
+        },
+      ]),
+    } as unknown as jest.Mocked<IPostMediaRepository>;
+
+    const result = await new GetPostUseCase(
+      postRepository,
+      postMediaRepository,
+      makeConfig(),
+    ).handle({ postId: PostId });
+
+    expect(result.media).toEqual([
+      {
+        id: 1,
+        url: 'http://localhost:9000/chantam-test/users/u/posts/p/media/first.webp',
+        sortOrder: 0,
+      },
+      {
+        id: 2,
+        url: 'http://localhost:9000/chantam-test/users/u/posts/p/media/second.webp',
+        sortOrder: 1,
+      },
+    ]);
+  });
+
   it('coi pending, rejected hoặc deleted là không tồn tại khi repository không trả kết quả', async () => {
     const postRepository = {
       findPublicByGlobalId: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<IPostRepository>;
+    const postMediaRepository = {
+      listByPostId: jest.fn(),
+    } as unknown as jest.Mocked<IPostMediaRepository>;
 
     await expect(
-      new GetPostUseCase(postRepository, makeConfig()).handle({
+      new GetPostUseCase(
+        postRepository,
+        postMediaRepository,
+        makeConfig(),
+      ).handle({
         postId: PostId,
       }),
-    ).rejects.toBeInstanceOf(PostNotFoundException);
+    ).rejects.toBeInstanceOf(
+      (await import('@/domain/exceptions')).PostNotFoundException,
+    );
+    expect(postMediaRepository.listByPostId).not.toHaveBeenCalled();
   });
 });

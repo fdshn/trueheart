@@ -8,6 +8,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
   IObjectStorage,
+  IPostMediaUploadRequest,
   IStorageUploadRequest,
   IStorageUploadResult,
 } from '../contracts';
@@ -25,6 +26,17 @@ export function assertAvatarUploadPolicy(request: IStorageUploadRequest): void {
     throw new Error('Avatar chỉ nhận image/jpeg, image/png hoặc image/webp.');
   if (request.contentLength < 1 || request.contentLength > MaxAvatarBytes)
     throw new Error('Avatar phải lớn hơn 0 và không quá 5 MB.');
+}
+
+export function assertPostMediaUploadPolicy(
+  request: IPostMediaUploadRequest,
+): void {
+  if (!AllowedContentTypes.has(request.contentType))
+    throw new Error(
+      'Media bài đăng chỉ nhận image/jpeg, image/png hoặc image/webp.',
+    );
+  if (request.contentLength < 1 || request.contentLength > MaxAvatarBytes)
+    throw new Error('Media bài đăng phải lớn hơn 0 và không quá 5 MB.');
 }
 
 @Injectable()
@@ -50,6 +62,50 @@ export class StorageService implements IObjectStorage {
       throw new Error('Object avatar không có kích thước hợp lệ.');
 
     return `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`;
+  }
+
+  public async confirmPostMediaUpload(
+    userId: string,
+    postId: string,
+    key: string,
+  ): Promise<void> {
+    if (!key.startsWith(`users/${userId}/posts/${postId}/media/`))
+      throw new Error('Media key không thuộc bài đăng hiện tại.');
+
+    const object = await this.client.send(
+      new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }),
+    );
+    if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
+      throw new Error('Object media không có content type ảnh hợp lệ.');
+    if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
+      throw new Error('Object media không có kích thước hợp lệ.');
+  }
+
+  public async createPostMediaUpload(
+    request: IPostMediaUploadRequest,
+  ): Promise<IStorageUploadResult> {
+    assertPostMediaUploadPolicy(request);
+
+    const extension = request.contentType.split('/')[1];
+    const key = `users/${request.userId}/posts/${request.postId}/media/${randomUUID()}.${extension}`;
+    const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
+    const uploadUrl = await getSignedUrl(
+      this.client,
+      new PutObjectCommand({
+        Bucket: this.options.bucket,
+        Key: key,
+        ContentType: request.contentType,
+        ContentLength: request.contentLength,
+      }),
+      { expiresIn: expiresInSeconds },
+    );
+
+    return {
+      key,
+      uploadUrl,
+      expiresInSeconds,
+      publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+    };
   }
 
   public async createAvatarUpload(

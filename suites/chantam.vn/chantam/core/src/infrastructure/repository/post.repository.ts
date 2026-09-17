@@ -1,4 +1,6 @@
 import {
+  IFindNearbyOffersParams,
+  IFindNearbyOffersResult,
   IFindPostMapMarkersParams,
   IPostMapMarker,
   IPostRepository,
@@ -74,6 +76,51 @@ export class PostRepository
     if (result.affected !== 1) return null;
 
     return this.findOneBy({ globalId: postId });
+  }
+
+  public async findNearbyOffers(
+    params: IFindNearbyOffersParams,
+  ): Promise<IFindNearbyOffersResult> {
+    const baseQuery = this.createQueryBuilder('post')
+      .where('post.deletedAt IS NULL')
+      .andWhere('post.postType = :postType', { postType: PostTypes.OFFER })
+      .andWhere('post.status IN (:...statuses)', {
+        statuses: [...PubliclyVisibleGiftPostStatuses],
+      });
+
+    if (params.categoryId)
+      baseQuery.andWhere('post.categoryId = :categoryId', {
+        categoryId: params.categoryId,
+      });
+
+    GeoQueryHelper.applyRadiusFilter(baseQuery, 'post', {
+      ...params.origin,
+      radiusMeters: params.radiusMeters,
+    });
+
+    const total = await baseQuery.getCount();
+    if (total === 0) return { items: [], total };
+
+    const listQuery = baseQuery.clone();
+    GeoQueryHelper.selectDistance(
+      listQuery,
+      'post',
+      params.origin,
+      'distance_meters',
+    );
+    GeoQueryHelper.orderByDistance(listQuery, 'post', params.origin);
+    listQuery.offset(params.skip).limit(params.take);
+
+    const { entities, raw } =
+      await listQuery.getRawAndEntities<Record<string, unknown>>();
+
+    return {
+      items: entities.map((post, index) => ({
+        post,
+        distanceMeters: Number(raw[index]?.distance_meters ?? 0),
+      })),
+      total,
+    };
   }
 
   public async findMapMarkers(

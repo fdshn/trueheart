@@ -6,8 +6,8 @@ import {
   IUpdateGiftPostUseCase,
 } from '@/application/contracts/gift-post';
 import {
-  GiftPostAlreadyClosedException,
-  GiftPostNotFoundException,
+  PostInvalidStateException,
+  PostNotFoundException,
 } from '@/domain/exceptions';
 import {
   ICreateGiftPostResponseDto,
@@ -145,7 +145,7 @@ export class GiftPostController {
   @ApiOkResponse({ type: ResponseDto.forApi(GetGiftPostResponseDto) })
   @ApiErrorResponses(
     [ValidationFailedException, ['giftPost.title: title should not be empty']],
-    [GiftPostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
   )
   public async getGiftPost(
     @Param() params: GetGiftPostParamsDto,
@@ -168,7 +168,7 @@ export class GiftPostController {
   @ApiOperation({
     summary: 'Cập nhật bài đăng',
     description: [
-      'Chỉ gửi những trường muốn đổi; trường không gửi thì giữ nguyên. Cũng là nơi chuyển trạng thái, ví dụ `PENDING_REVIEW` → `PUBLISHED` sau kiểm duyệt.',
+      'Chỉ gửi những trường muốn đổi; trường không gửi thì giữ nguyên. Legacy route chỉ sửa content; status do canonical moderation route quản lý.',
       '',
       'Bài đã đóng (`COMPLETED` hoặc `CANCELLED`) không sửa được nữa — trả 409.',
     ].join('\n'),
@@ -176,12 +176,8 @@ export class GiftPostController {
   @ApiOkResponse({ type: ResponseDto.forApi(UpdateGiftPostResponseDto) })
   @ApiErrorResponses(
     [ValidationFailedException, ['giftPost.title: title should not be empty']],
-    [GiftPostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
-    [
-      GiftPostAlreadyClosedException,
-      '4182a141-a5c5-5c25-92ab-0d4488158e8f',
-      'COMPLETED',
-    ],
+    [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [PostInvalidStateException],
   )
   public async updateGiftPost(
     @CurrentUser() principal: IAuthPrincipal,
@@ -210,7 +206,7 @@ export class GiftPostController {
   @ApiOkResponse({ type: ResponseDto.forApi(DeleteGiftPostResponseDto) })
   @ApiErrorResponses(
     [ValidationFailedException, ['giftPost.title: title should not be empty']],
-    [GiftPostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
   )
   public async deleteGiftPost(
     @CurrentUser() principal: IAuthPrincipal,

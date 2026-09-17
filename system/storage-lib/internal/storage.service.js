@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.StorageService = void 0;
 exports.assertAvatarUploadPolicy = assertAvatarUploadPolicy;
+exports.assertPostMediaUploadPolicy = assertPostMediaUploadPolicy;
 const client_s3_1 = require("@aws-sdk/client-s3");
 const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const common_1 = require("@nestjs/common");
@@ -26,6 +27,12 @@ function assertAvatarUploadPolicy(request) {
         throw new Error('Avatar chỉ nhận image/jpeg, image/png hoặc image/webp.');
     if (request.contentLength < 1 || request.contentLength > MaxAvatarBytes)
         throw new Error('Avatar phải lớn hơn 0 và không quá 5 MB.');
+}
+function assertPostMediaUploadPolicy(request) {
+    if (!AllowedContentTypes.has(request.contentType))
+        throw new Error('Media bài đăng chỉ nhận image/jpeg, image/png hoặc image/webp.');
+    if (request.contentLength < 1 || request.contentLength > MaxAvatarBytes)
+        throw new Error('Media bài đăng phải lớn hơn 0 và không quá 5 MB.');
 }
 let StorageService = class StorageService {
     client;
@@ -43,6 +50,33 @@ let StorageService = class StorageService {
         if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
             throw new Error('Object avatar không có kích thước hợp lệ.');
         return `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`;
+    }
+    async confirmPostMediaUpload(userId, postId, key) {
+        if (!key.startsWith(`users/${userId}/posts/${postId}/media/`))
+            throw new Error('Media key không thuộc bài đăng hiện tại.');
+        const object = await this.client.send(new client_s3_1.HeadObjectCommand({ Bucket: this.options.bucket, Key: key }));
+        if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
+            throw new Error('Object media không có content type ảnh hợp lệ.');
+        if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
+            throw new Error('Object media không có kích thước hợp lệ.');
+    }
+    async createPostMediaUpload(request) {
+        assertPostMediaUploadPolicy(request);
+        const extension = request.contentType.split('/')[1];
+        const key = `users/${request.userId}/posts/${request.postId}/media/${(0, node_crypto_1.randomUUID)()}.${extension}`;
+        const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
+        const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.client, new client_s3_1.PutObjectCommand({
+            Bucket: this.options.bucket,
+            Key: key,
+            ContentType: request.contentType,
+            ContentLength: request.contentLength,
+        }), { expiresIn: expiresInSeconds });
+        return {
+            key,
+            uploadUrl,
+            expiresInSeconds,
+            publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+        };
     }
     async createAvatarUpload(request) {
         assertAvatarUploadPolicy(request);

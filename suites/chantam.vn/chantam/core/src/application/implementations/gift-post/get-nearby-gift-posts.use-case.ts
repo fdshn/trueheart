@@ -4,19 +4,23 @@ import {
   IGetNearbyGiftPostsUseCase,
 } from '@/application/contracts/gift-post';
 import { IConfig } from '@/domain/ports/config';
-import { IGiftPostRepository } from '@/domain/ports/repository';
+import { IPostRepository } from '@/domain/ports/repository';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import {
   applyGeoJitter,
   bucketDistance,
 } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
+import {
+  toCanonicalCategoryId,
+  toLegacyGiftPost,
+} from './gift-post-compat.mapper';
 
 @Injectable()
 export class GetNearbyGiftPostsUseCase implements IGetNearbyGiftPostsUseCase {
   public constructor(
-    @Inject(IGiftPostRepository)
-    private readonly giftPostRepository: IGiftPostRepository,
+    @Inject(IPostRepository)
+    private readonly postRepository: IPostRepository,
     @Inject(IConfig)
     private readonly config: IConfig,
   ) {}
@@ -26,29 +30,32 @@ export class GetNearbyGiftPostsUseCase implements IGetNearbyGiftPostsUseCase {
   ): Promise<IGetNearbyGiftPostsResult> {
     const { skip, take } = toSkipTake(command);
 
-    const { items, total } = await this.giftPostRepository.findNearby({
+    const { items, total } = await this.postRepository.findNearbyOffers({
       origin: { lat: command.lat, lng: command.lng },
       radiusMeters: command.radiusMeters,
-      category: command.category,
+      categoryId: command.category
+        ? toCanonicalCategoryId(command.category)
+        : undefined,
       skip,
       take,
     });
 
     // Danh sách quanh đây luôn là kênh công khai — không bao giờ trả toạ độ thật.
-    const giftPosts = items.map(({ giftPost, distanceMeters }) => ({
-      giftPost: {
-        ...giftPost,
-        location: applyGeoJitter(
-          giftPost.location,
-          giftPost.globalId,
-          this.config.geo.jitterRadiusMeters,
-        ),
-      },
-      // Làm tròn thô: khoảng cách chính xác tới mét cho phép giải tam giác từ
-      // ba lần truy vấn để tìm ra vị trí thật, phá vỡ tác dụng của geo-jitter.
-      distanceMeters: bucketDistance(distanceMeters),
-      isLocationApproximate: true,
-    }));
+    const giftPosts = items.map(({ post, distanceMeters }) => {
+      const giftPost = toLegacyGiftPost(post);
+      return {
+        giftPost: {
+          ...giftPost,
+          location: applyGeoJitter(
+            giftPost.location,
+            giftPost.globalId,
+            this.config.geo.jitterRadiusMeters,
+          ),
+        },
+        distanceMeters: bucketDistance(distanceMeters),
+        isLocationApproximate: true,
+      };
+    });
 
     return {
       giftPosts,

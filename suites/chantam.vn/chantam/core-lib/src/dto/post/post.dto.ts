@@ -1,6 +1,6 @@
 import { IGeoPoint } from '@chantam/service.persistency-lib/geo';
 import { GiftPostConditions, GiftPostStatuses, PostTypes } from '../../consts';
-import { IPostEntity } from '../../entities';
+import { IPostEntity, IPostMediaEntity } from '../../entities';
 
 export interface ICreatePostDto {
   title: string;
@@ -21,12 +21,35 @@ export interface ICreatePostResponseDto {
   post: IPostEntity;
 }
 
+export interface ICreateWantedPostDto {
+  title: string;
+  description: string;
+  categoryId: string;
+  location: IGeoPoint;
+  areaLabel: string;
+}
+
+export interface ICreateWantedPostBodyDto {
+  post: ICreateWantedPostDto;
+}
+
+export interface ICreateWantedPostResponseDto {
+  post: IPostEntity;
+}
+
 export interface IGetPostParamsDto {
   postId: string;
 }
 
+export interface IPublicPostMediaDto {
+  id: number;
+  url: string;
+  sortOrder: number;
+}
+
 export interface IGetPostResponseDto {
   post: IPostEntity;
+  media: IPublicPostMediaDto[];
   isLocationApproximate: boolean;
 }
 
@@ -71,6 +94,30 @@ export interface IUpdatePostBodyDto {
 
 export interface IUpdatePostResponseDto {
   post: IPostEntity;
+}
+
+export interface IAttachPostMediaDto {
+  key: string;
+}
+
+export interface IAttachPostMediaBodyDto {
+  media: IAttachPostMediaDto;
+}
+
+export interface IAttachPostMediaResponseDto {
+  media: IPostMediaEntity;
+}
+
+export interface IReorderPostMediaDto {
+  mediaIds: number[];
+}
+
+export interface IReorderPostMediaBodyDto {
+  media: IReorderPostMediaDto;
+}
+
+export interface IReorderPostMediaResponseDto {
+  media: IPostMediaEntity[];
 }
 
 export interface IModeratePostParamsDto {

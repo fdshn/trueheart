@@ -20,7 +20,7 @@ Tổng effort nguồn: **60 man-days / 50 ngày / 4 sprint**.
 | Phạm vi | Trạng thái thực tế | Ghi chú |
 | --- | --- | --- |
 | Sprint 1 – hạ tầng, auth, profile, category, avatar storage | ✅ Đã có nền code | Email/SMS provider, R2 staging/prod acceptance và point ledger còn deferred |
-| Sprint 1 – canonical OFFER foundation | 🟡 Đang làm trong M2.1 | `posts` migration/backfill, create/detail/moderation/quota đã có |
+| Sprint 1 – canonical OFFER foundation | 🟡 Đang làm trong M2.1 | `posts` migration/backfill, OFFER/WANTED create, detail/map/moderation/quota, owner update/delete và post-media ownership đã có; legacy adapter còn thiếu |
 | Sprint 2 – map discovery | 🟡 Đang làm | `GET /api/posts/map` marker bbox, jitter và client-side clustering đã có local/commit chờ push |
 | Sprint 2–4 còn lại | ⬜ Chưa triển khai | Không đánh dấu xong khi chỉ có contract/mock |
 
@@ -39,7 +39,7 @@ Có môi trường chạy được, account an toàn, profile đủ điều ki�
 | 3 | Xác thực & tài khoản | Password recovery, Admin Support fallback, account deletion | F05–F06 | 🟡 Logic có; provider/quy trình vận hành deferred |
 | 4 | Hồ sơ | Profile completion, xác minh SĐT, public profile, default location | F07–F11 | 🟡 Profile có; SMS/Zalo và point reward deferred |
 | 5 | Rank & referral | Current balance, duy trì rank, referral cá nhân | F12–F13 | ⬜ Chờ M4 ledger/rule |
-| 6 | Đăng tin & nội dung | Category, OFFER/WANTED, media, post location | F14–F17, F24 | 🟡 Category/OFFER/location nền có; WANTED và post media còn thiếu |
+| 6 | Đăng tin & nội dung | Category + OFFER/WANTED + Media/Post Location | F14–F17, F24 | 🟡 Category/OFFER/location/post-media ownership có; WANTED và legacy compatibility adapter còn thiếu |
 | 7 | QA | Smoke/integration Sprint 1 |  | 🟡 Unit/build/smoke nền có; acceptance provider còn thiếu |
 
 ### Điều kiện kết thúc Sprint 1

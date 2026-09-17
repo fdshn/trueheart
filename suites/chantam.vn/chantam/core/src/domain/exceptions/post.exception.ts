@@ -12,3 +12,11 @@ export class PostQuotaExceededException extends ExceptionFrom(
 export class PostInvalidStateException extends ExceptionFrom(
   CoreErrors.POST_INVALID_STATE,
 ) {}
+
+export class PostMediaLimitExceededException extends ExceptionFrom(
+  CoreErrors.POST_MEDIA_LIMIT_EXCEEDED,
+) {}
+
+export class PostMediaOrderInvalidException extends ExceptionFrom(
+  CoreErrors.POST_MEDIA_ORDER_INVALID,
+) {}

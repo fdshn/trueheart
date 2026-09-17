@@ -14,3 +14,4 @@ export * from './1789800000000-CreateCategories';
 export * from './1789800000001-SeedBaseCategories';
 export * from './1789900000000-CreateCanonicalPosts';
 export * from './1789900000001-ConstrainCanonicalPostQuantity';
+export * from './1789900000002-MakeCanonicalPostMediaIdempotent';

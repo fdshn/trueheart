@@ -13,12 +13,25 @@ export interface IStorageUploadResult {
   publicUrl: string;
 }
 
+export interface IPostMediaUploadRequest extends IStorageUploadRequest {
+  postId: string;
+}
+
 export interface IObjectStorage {
   createAvatarUpload(
     request: IStorageUploadRequest,
   ): Promise<IStorageUploadResult>;
+  createPostMediaUpload(
+    request: IPostMediaUploadRequest,
+  ): Promise<IStorageUploadResult>;
   /** HeadObject + owner-prefix check before a profile can attach the avatar. */
   confirmAvatarUpload(userId: string, key: string): Promise<string>;
+  /** HeadObject verifies both owner and canonical post before media attachment. */
+  confirmPostMediaUpload(
+    userId: string,
+    postId: string,
+    key: string,
+  ): Promise<void>;
 }
 
 export const IObjectStorage = Symbol('IObjectStorage');
