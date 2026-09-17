@@ -43,6 +43,11 @@ export interface IStorageConfig {
   publicBaseUrl: string;
 }
 
+export interface ICategoryAdminConfig {
+  /** Temporary M1 allowlist. Replaced by M6 Admin CMS roles. */
+  usernames: string[];
+}
+
 export interface IConfig {
   port: number;
   env: Env;
@@ -52,6 +57,7 @@ export interface IConfig {
   auth: IAuthConfig;
   geo: IGeoConfig;
   storage: IStorageConfig;
+  categoryAdmin: ICategoryAdminConfig;
 
   /**
    * Môi trường cho ô chọn của Swagger. Mục đầu luôn trỏ về chính instance đang

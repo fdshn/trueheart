@@ -4,10 +4,14 @@ import {
   ICreateCategoryDto,
   ICreateCategoryResponseDto,
   IGetCategoryTreeResponseDto,
+  IUpdateCategoryBodyDto,
+  IUpdateCategoryDto,
+  IUpdateCategoryResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsInt,
   IsOptional,
   IsString,
@@ -58,6 +62,43 @@ export class CreateCategoryBodyDto implements ICreateCategoryBodyDto {
   @Type(() => CreateCategoryDto)
   category: ICreateCategoryDto;
 }
+export class UpdateCategoryDto implements IUpdateCategoryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  name?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  slug?: string;
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  icon?: string | null;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  parentId?: string | null;
+}
+export class UpdateCategoryBodyDto implements IUpdateCategoryBodyDto {
+  @ApiProperty({ type: () => UpdateCategoryDto })
+  @ValidateNested()
+  @Type(() => UpdateCategoryDto)
+  category: IUpdateCategoryDto;
+}
+export class UpdateCategoryParamsDto {
+  @ApiProperty({ format: 'uuid' }) @IsUUID() categoryId: string;
+}
 export class CategoryDto implements ICategoryDto {
   @ApiProperty({ format: 'uuid' }) categoryId: string;
   @ApiProperty() name: string;
@@ -70,5 +111,8 @@ export class GetCategoryTreeResponseDto implements IGetCategoryTreeResponseDto {
   @ApiProperty({ type: () => [CategoryDto] }) categories: ICategoryDto[];
 }
 export class CreateCategoryResponseDto implements ICreateCategoryResponseDto {
+  @ApiProperty({ type: () => CategoryDto }) category: ICategoryDto;
+}
+export class UpdateCategoryResponseDto implements IUpdateCategoryResponseDto {
   @ApiProperty({ type: () => CategoryDto }) category: ICategoryDto;
 }

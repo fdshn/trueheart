@@ -75,6 +75,13 @@ export function loadConfig(): IConfig {
       ...parseDocsServers(process.env.API_SERVERS),
     ],
 
+    categoryAdmin: {
+      usernames: (process.env.CATEGORY_ADMIN_USERNAMES ?? '')
+        .split(',')
+        .map((username) => username.trim().toLowerCase())
+        .filter(Boolean),
+    },
+
     storage: {
       endpoint: process.env.STORAGE_ENDPOINT ?? '',
       region: process.env.STORAGE_REGION ?? 'auto',

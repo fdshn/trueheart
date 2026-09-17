@@ -45,4 +45,7 @@ export const ConfigSchema = Joi.object({
   STORAGE_ACCESS_KEY_ID: Joi.string().optional(),
   STORAGE_SECRET_ACCESS_KEY: Joi.string().optional(),
   STORAGE_PUBLIC_BASE_URL: Joi.string().uri().optional(),
+
+  // M1 temporary category manager allowlist. M6 replaces it with real admin roles.
+  CATEGORY_ADMIN_USERNAMES: Joi.string().allow('').default(''),
 });

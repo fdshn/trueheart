@@ -61,6 +61,7 @@ export function makeConfigMock(jitterRadiusMeters = 300): IConfig {
       otpTtlSeconds: 300,
     },
     docsServers: [],
+    categoryAdmin: { usernames: [] },
     storage: {
       endpoint: 'http://localhost:9000',
       region: 'us-east-1',

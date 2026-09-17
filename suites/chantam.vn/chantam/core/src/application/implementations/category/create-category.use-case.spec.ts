@@ -1,5 +1,6 @@
 import { CreateCategoryUseCase } from './create-category.use-case';
 
+const AdminConfig = { categoryAdmin: { usernames: ['demo-admin'] } };
 function makeRepository() {
   return {
     findOneBy: jest.fn(async () => null),
@@ -18,16 +19,19 @@ function makeRepository() {
     })),
   };
 }
+const command = { userId: 'u', username: 'demo-admin' };
 
 describe('CreateCategoryUseCase', () => {
   it('tạo slug URL-safe từ name khi admin không truyền slug', async () => {
     const repository = makeRepository();
-    const useCase = new CreateCategoryUseCase(repository as never);
-
+    const useCase = new CreateCategoryUseCase(
+      repository as never,
+      AdminConfig as never,
+    );
     await useCase.handle({
+      ...command,
       category: { name: 'Sách Giáo Khoa', icon: 'book', sortOrder: 10 },
     });
-
     expect(repository.insert).toHaveBeenCalledWith(
       expect.objectContaining({ slug: 'sach-giao-khoa', isActive: true }),
     );
@@ -38,10 +42,15 @@ describe('CreateCategoryUseCase', () => {
     repository.findOneBy.mockResolvedValue({
       globalId: 'already-exists',
     } as never);
-    const useCase = new CreateCategoryUseCase(repository as never);
-
+    const useCase = new CreateCategoryUseCase(
+      repository as never,
+      AdminConfig as never,
+    );
     await expect(
-      useCase.handle({ category: { name: 'Sách', slug: '  SACH  ' } }),
+      useCase.handle({
+        ...command,
+        category: { name: 'Sách', slug: '  SACH  ' },
+      }),
     ).rejects.toThrow();
     expect(repository.insert).not.toHaveBeenCalled();
   });
@@ -52,10 +61,13 @@ describe('CreateCategoryUseCase', () => {
       globalId: 'parent-id',
       isActive: false,
     } as never);
-    const useCase = new CreateCategoryUseCase(repository as never);
-
+    const useCase = new CreateCategoryUseCase(
+      repository as never,
+      AdminConfig as never,
+    );
     await expect(
       useCase.handle({
+        ...command,
         category: { name: 'Sách thiếu nhi', parentId: 'parent-id' },
       }),
     ).rejects.toThrow();

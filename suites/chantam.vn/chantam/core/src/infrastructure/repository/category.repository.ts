@@ -14,6 +14,17 @@ export class CategoryRepository
   ) {
     super(target, manager);
   }
+  async isSlugTaken(slug: string, exceptCategoryId: string): Promise<boolean> {
+    return (
+      (await this.createQueryBuilder('category')
+        .where('category.slug = :slug', { slug })
+        .andWhere('category.globalId != :exceptCategoryId', {
+          exceptCategoryId,
+        })
+        .getCount()) > 0
+    );
+  }
+
   async findActiveTree() {
     return this.createQueryBuilder('category')
       .where('category.isActive = true')

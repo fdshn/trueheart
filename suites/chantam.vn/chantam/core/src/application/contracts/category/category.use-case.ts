@@ -4,7 +4,10 @@ import {
   IGetCategoryTreeResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IUseCase } from '@chantam/service.common-lib';
-export interface ICreateCategoryCommand extends ICreateCategoryBodyDto {}
+export interface ICreateCategoryCommand extends ICreateCategoryBodyDto {
+  userId: string;
+  username: string;
+}
 export interface ICreateCategoryUseCase extends IUseCase<
   ICreateCategoryCommand,
   ICreateCategoryResponseDto
