@@ -1,7 +1,15 @@
-import { IPostRepository } from '@/domain/ports/repository';
+import {
+  IFindPostMapMarkersParams,
+  IPostMapMarker,
+  IPostRepository,
+} from '@/domain/ports/repository';
 import { PostEntity } from '@/infrastructure/entity';
-import { PubliclyVisibleGiftPostStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  PostTypes,
+  PubliclyVisibleGiftPostStatuses,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
+import { GeoQueryHelper } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager, EntitySchema, Repository } from 'typeorm';
@@ -66,6 +74,63 @@ export class PostRepository
     if (result.affected !== 1) return null;
 
     return this.findOneBy({ globalId: postId });
+  }
+
+  public async findMapMarkers(
+    params: IFindPostMapMarkersParams,
+  ): Promise<IPostMapMarker[]> {
+    const query = this.createQueryBuilder('post')
+      .select('post.globalId', 'global_id')
+      .addSelect('post.postType', 'post_type')
+      .addSelect('post.categoryId', 'category_id')
+      .addSelect('post.areaLabel', 'area_label')
+      .addSelect('ST_Y(post.location::geometry)', 'lat')
+      .addSelect('ST_X(post.location::geometry)', 'lng')
+      .where('post.deletedAt IS NULL')
+      .andWhere('post.status IN (:...statuses)', {
+        statuses: [...PubliclyVisibleGiftPostStatuses],
+      })
+      .limit(200);
+
+    if (params.postType)
+      query.andWhere('post.postType = :postType', {
+        postType: params.postType,
+      });
+    if (params.categoryId)
+      query.andWhere('post.categoryId = :categoryId', {
+        categoryId: params.categoryId,
+      });
+
+    GeoQueryHelper.applyBoundingBox(query, 'post', params);
+
+    if (params.origin)
+      GeoQueryHelper.selectDistance(
+        query,
+        'post',
+        params.origin,
+        'distance_meters',
+      );
+
+    const rows = await query.getRawMany<{
+      global_id: string;
+      post_type: PostTypes;
+      category_id: string;
+      area_label: string;
+      lat: string;
+      lng: string;
+      distance_meters?: string;
+    }>();
+
+    return rows.map((row) => ({
+      globalId: row.global_id,
+      postType: row.post_type,
+      categoryId: row.category_id,
+      areaLabel: row.area_label,
+      location: { lat: Number(row.lat), lng: Number(row.lng) },
+      ...(row.distance_meters === undefined
+        ? {}
+        : { distanceMeters: Number(row.distance_meters) }),
+    }));
   }
 
   public async findPublicByGlobalId(

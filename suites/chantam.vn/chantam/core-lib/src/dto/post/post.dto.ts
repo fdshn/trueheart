@@ -1,5 +1,5 @@
 import { IGeoPoint } from '@chantam/service.persistency-lib/geo';
-import { GiftPostConditions, GiftPostStatuses } from '../../consts';
+import { GiftPostConditions, GiftPostStatuses, PostTypes } from '../../consts';
 import { IPostEntity } from '../../entities';
 
 export interface ICreatePostDto {
@@ -28,6 +28,49 @@ export interface IGetPostParamsDto {
 export interface IGetPostResponseDto {
   post: IPostEntity;
   isLocationApproximate: boolean;
+}
+
+export interface IGetPostMapQueryDto {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+  originLat?: number;
+  originLng?: number;
+  postType?: PostTypes;
+  categoryId?: string;
+}
+
+export interface IPostMapMarkerDto {
+  postId: string;
+  postType: PostTypes;
+  categoryId: string;
+  areaLabel: string;
+  location: IGeoPoint;
+  distanceMeters?: number;
+  isLocationApproximate: true;
+}
+
+export interface IGetPostMapResponseDto {
+  markers: IPostMapMarkerDto[];
+}
+
+export interface IUpdatePostDto {
+  title?: string;
+  description?: string;
+  areaLabel?: string;
+}
+
+export interface IUpdatePostParamsDto {
+  postId: string;
+}
+
+export interface IUpdatePostBodyDto {
+  post: IUpdatePostDto;
+}
+
+export interface IUpdatePostResponseDto {
+  post: IPostEntity;
 }
 
 export interface IModeratePostParamsDto {

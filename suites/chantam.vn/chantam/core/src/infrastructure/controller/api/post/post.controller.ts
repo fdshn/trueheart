@@ -1,7 +1,9 @@
 import {
   ICreatePostUseCase,
+  IGetPostMapUseCase,
   IGetPostUseCase,
   IModeratePostUseCase,
+  IUpdatePostUseCase,
 } from '@/application/contracts/post';
 import {
   CategoryNotFoundException,
@@ -11,8 +13,10 @@ import {
 } from '@/domain/exceptions';
 import {
   ICreatePostResponseDto,
+  IGetPostMapResponseDto,
   IGetPostResponseDto,
   IModeratePostResponseDto,
+  IUpdatePostResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { CurrentUser, IAuthPrincipal, Public } from '@chantam/service.auth-lib';
 import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
@@ -26,6 +30,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -37,11 +42,16 @@ import {
 import {
   CreatePostBodyDto,
   CreatePostResponseDto,
+  GetPostMapQueryDto,
+  GetPostMapResponseDto,
   GetPostParamsDto,
   GetPostResponseDto,
   ModeratePostBodyDto,
   ModeratePostParamsDto,
   ModeratePostResponseDto,
+  UpdatePostBodyDto,
+  UpdatePostParamsDto,
+  UpdatePostResponseDto,
 } from '../../dto/post';
 
 @ApiTags('Bài đăng')
@@ -50,10 +60,14 @@ export class PostController {
   public constructor(
     @Inject(ICreatePostUseCase)
     private readonly createPostUseCase: ICreatePostUseCase,
+    @Inject(IGetPostMapUseCase)
+    private readonly getPostMapUseCase: IGetPostMapUseCase,
     @Inject(IGetPostUseCase)
     private readonly getPostUseCase: IGetPostUseCase,
     @Inject(IModeratePostUseCase)
     private readonly moderatePostUseCase: IModeratePostUseCase,
+    @Inject(IUpdatePostUseCase)
+    private readonly updatePostUseCase: IUpdatePostUseCase,
   ) {}
 
   @Post()
@@ -85,6 +99,35 @@ export class PostController {
       .build();
   }
 
+  @Patch(':postId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Cập nhật nội dung canonical post',
+    description:
+      'Chỉ owner sửa title, description hoặc areaLabel. Status/type/author do route riêng của server quản lý.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(UpdatePostResponseDto) })
+  @ApiErrorResponses([
+    ValidationFailedException,
+    ['post.title: title must be longer than or equal to 5 characters'],
+  ])
+  public async updatePost(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: UpdatePostParamsDto,
+    @Body() body: UpdatePostBodyDto,
+  ): Promise<ResponseDto<IUpdatePostResponseDto>> {
+    const result = await this.updatePostUseCase.handle({
+      ...params,
+      ...body,
+      userId: principal.userId,
+    });
+
+    return ResponseDto.create<IUpdatePostResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
   @Patch(':postId/moderation')
   @ApiBearerAuth()
   @ApiOperation({
@@ -111,6 +154,29 @@ export class PostController {
     });
 
     return ResponseDto.create<IModeratePostResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Public()
+  @Get('map')
+  @ApiOperation({
+    summary: 'Marker canonical post trong khung bản đồ',
+    description:
+      'Chỉ trả tối đa 200 marker PUBLISHED/RESERVED, vị trí luôn jitter. Client tự cluster marker.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(GetPostMapResponseDto) })
+  @ApiErrorResponses([
+    ValidationFailedException,
+    ['minLat: minLat must be a latitude'],
+  ])
+  public async getPostMap(
+    @Query() query: GetPostMapQueryDto,
+  ): Promise<ResponseDto<IGetPostMapResponseDto>> {
+    const result = await this.getPostMapUseCase.handle(query);
+
+    return ResponseDto.create<IGetPostMapResponseDto>()
       .succeed()
       .attach(result)
       .build();
