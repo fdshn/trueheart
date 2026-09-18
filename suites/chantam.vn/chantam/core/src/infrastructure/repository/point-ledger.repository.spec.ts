@@ -5,7 +5,8 @@ const Command = {
   ruleCode: 'PHONE_VERIFIED_FIRST_TIME',
   referenceType: 'PHONE_VERIFICATION',
   referenceId: '10000000-0000-4000-8000-000000000001',
-  idempotencyKey: 'PHONE_VERIFIED_FIRST_TIME:10000000-0000-4000-8000-000000000001',
+  idempotencyKey:
+    'PHONE_VERIFIED_FIRST_TIME:10000000-0000-4000-8000-000000000001',
   actor: 'SYSTEM',
   source: 'PROFILE',
 };
@@ -24,9 +25,7 @@ describe('PointLedgerRepository', () => {
         },
       ])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { balance: 0, lifetime: 0 },
-      ])
+      .mockResolvedValueOnce([{ balance: 0, lifetime: 0 }])
       .mockResolvedValueOnce([{ id: '1' }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);

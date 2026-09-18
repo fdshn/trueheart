@@ -26,7 +26,9 @@ describe('CreateRankReferralFoundation1790000000000', () => {
     expect(sql).toContain('prevent_point_ledger_mutation');
     expect(sql).toContain('enforce_referral_qualification_transition');
     expect(sql).toContain('OLD."qualified_at" IS NOT NULL');
-    expect(sql).toContain('NEW."referrer_id" IS DISTINCT FROM OLD."referrer_id"');
+    expect(sql).toContain(
+      'NEW."referrer_id" IS DISTINCT FROM OLD."referrer_id"',
+    );
     expect(sql).toContain('PHONE_VERIFIED_FIRST_TIME');
     expect(sql).toContain('REFERRAL_QUALIFIED');
   });

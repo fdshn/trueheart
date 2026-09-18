@@ -1,4 +1,7 @@
-import { IAppendPointEntryCommand, IAppendPointEntryResult } from '@/application/contracts/point';
+import {
+  IAppendPointEntryCommand,
+  IAppendPointEntryResult,
+} from '@/application/contracts/point';
 
 export interface IPointLedgerRepository {
   appendByRule(

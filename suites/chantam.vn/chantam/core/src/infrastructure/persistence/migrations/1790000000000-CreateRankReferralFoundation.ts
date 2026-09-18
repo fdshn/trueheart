@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateRankReferralFoundation1790000000000
-  implements MigrationInterface
-{
+export class CreateRankReferralFoundation1790000000000 implements MigrationInterface {
   name = 'CreateRankReferralFoundation1790000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -180,7 +178,9 @@ export class CreateRankReferralFoundation1790000000000
         END IF;
 
         IF OLD."qualified_at" IS NOT NULL
-          OR NEW."qualified_at" IS NULL THEN
+          OR OLD."reward_entry_id" IS NOT NULL
+          OR NEW."qualified_at" IS NULL
+          OR NEW."reward_entry_id" IS NULL THEN
           RAISE EXCEPTION 'referral qualification can occur exactly once';
         END IF;
 
@@ -216,8 +216,12 @@ export class CreateRankReferralFoundation1790000000000
     await queryRunner.query(
       `DROP TRIGGER enforce_referral_qualification_transition ON referrals`,
     );
-    await queryRunner.query(`DROP FUNCTION enforce_referral_qualification_transition`);
-    await queryRunner.query(`DROP TRIGGER prevent_point_ledger_mutation ON point_ledger`);
+    await queryRunner.query(
+      `DROP FUNCTION enforce_referral_qualification_transition`,
+    );
+    await queryRunner.query(
+      `DROP TRIGGER prevent_point_ledger_mutation ON point_ledger`,
+    );
     await queryRunner.query(`DROP FUNCTION prevent_point_ledger_mutation`);
     await queryRunner.query(`DROP TABLE referrals`);
     await queryRunner.query(`DROP TABLE rank_maintenance_cycles`);
