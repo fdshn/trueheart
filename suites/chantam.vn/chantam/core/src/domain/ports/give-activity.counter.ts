@@ -7,6 +7,11 @@ export interface ICompletedGiftCountCommand {
   readonly rank: UserRanks;
 }
 
+export interface ILifetimeCompletedGiftCountCommand {
+  readonly userId: string;
+  readonly rank: UserRanks;
+}
+
 export interface IUnavailableGiftCountResult {
   readonly available: false;
 }
@@ -22,6 +27,9 @@ export type IGiveActivityCountResult =
 export interface IGiveActivityCounter {
   countCompletedGifts(
     command: ICompletedGiftCountCommand,
+  ): Promise<IGiveActivityCountResult>;
+  countLifetimeCompletedGifts(
+    command: ILifetimeCompletedGiftCountCommand,
   ): Promise<IGiveActivityCountResult>;
 }
 

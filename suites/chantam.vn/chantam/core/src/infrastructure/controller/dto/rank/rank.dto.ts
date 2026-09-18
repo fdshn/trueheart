@@ -65,6 +65,11 @@ export class RankSummaryDto implements IRankSummaryDto {
   maintenanceCycle: IRankMaintenanceCycleDto | null;
 }
 
+export class EvaluateDueRankMaintenanceResponseDto {
+  @ApiProperty({ example: 4 })
+  processedCycles: number;
+}
+
 export class GetOwnRankSummaryResponseDto implements IGetOwnRankSummaryResponseDto {
   @ApiProperty({ type: () => RankSummaryDto })
   rank: IRankSummaryDto;

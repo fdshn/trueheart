@@ -1,4 +1,7 @@
-import { IReferralRepository } from '@/domain/ports/repository';
+import {
+  IReferralQualificationResult,
+  IReferralRepository,
+} from '@/domain/ports/repository';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
@@ -44,7 +47,7 @@ export class ReferralRepository implements IReferralRepository {
 
   public async qualifyAndAward(params: {
     refereeId: string;
-  }): Promise<boolean> {
+  }): Promise<IReferralQualificationResult> {
     return this.manager.transaction(async (manager) => {
       const [referral] = await manager.query<{ referrer_id: string }[]>(
         `
@@ -56,7 +59,7 @@ export class ReferralRepository implements IReferralRepository {
         `,
         [params.refereeId],
       );
-      if (!referral) return false;
+      if (!referral) return { qualified: false };
 
       const award = await this.ledger.appendByRuleWithinTransaction(manager, {
         userId: referral.referrer_id,
@@ -78,9 +81,9 @@ export class ReferralRepository implements IReferralRepository {
         `,
         [params.refereeId, award.entryId],
       );
-      if (!id) return false;
+      if (!id) return { qualified: false };
 
-      return true;
+      return { qualified: true, referrerId: referral.referrer_id };
     });
   }
 }

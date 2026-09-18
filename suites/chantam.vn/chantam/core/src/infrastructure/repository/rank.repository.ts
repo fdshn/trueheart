@@ -52,6 +52,20 @@ interface IRawMaintenanceEvaluationRow {
   qualified_referrals: string;
 }
 
+interface IRawNormalRankEvaluationRow {
+  rank: UserRanks;
+  lifetime_points: string | null;
+  promotion_locked_until: Date | null;
+  qualified_referrals: string;
+}
+
+interface IRawNormalRankTierRow {
+  rank: UserRanks;
+  threshold_points: string;
+  required_gifts: string;
+  required_referrals: string;
+}
+
 interface IRawDueMaintenanceCycle {
   id: string;
   user_id: string;
@@ -67,6 +81,109 @@ export class RankRepository implements IRankRepository {
     @Inject(IGiveActivityCounter)
     private readonly giveActivityCounter?: IGiveActivityCounter,
   ) {}
+
+  public async reconcileNormalRank(userId: string): Promise<boolean> {
+    return this.manager.transaction('SERIALIZABLE', async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        userId,
+      ]);
+
+      const [user] = await manager.query<IRawNormalRankEvaluationRow[]>(
+        `
+          SELECT
+            user.rank,
+            balance.lifetime AS lifetime_points,
+            user.promotion_locked_until,
+            qualified_referrals.qualified_referrals
+          FROM users user
+          LEFT JOIN user_point_balances balance ON balance.user_id = user.global_id
+          CROSS JOIN LATERAL (
+            SELECT COUNT(*)::text AS qualified_referrals
+            FROM referrals referral
+            WHERE referral.referrer_id = user.global_id
+              AND referral.qualified_at IS NOT NULL
+          ) qualified_referrals
+          WHERE user.global_id = $1
+          FOR UPDATE OF user
+        `,
+        [userId],
+      );
+      if (!user) throw new UserNotFoundException();
+      if (user.rank === UserRanks.VIEWER) return false;
+
+      const tiers = await manager.query<IRawNormalRankTierRow[]>(`
+        SELECT rank, threshold_points, required_gifts, required_referrals
+        FROM rank_tiers
+        ORDER BY threshold_points ASC
+      `);
+      const activity =
+        await this.giveActivityCounter!.countLifetimeCompletedGifts({
+          userId,
+          rank: user.rank,
+        });
+      if (!activity.available) return false;
+
+      const evaluation = evaluateRank({
+        mode: 'NORMAL',
+        currentRank: user.rank,
+        isMember: true,
+        lifetimePoints: Number(user.lifetime_points ?? 0),
+        completedGifts: activity.completedGifts,
+        qualifiedReferrals: Number(user.qualified_referrals),
+        promotionLockedUntil: user.promotion_locked_until,
+        now: new Date(),
+        tiers: tiers.map((tier) => ({
+          rank: tier.rank,
+          thresholdPoints: Number(tier.threshold_points),
+          requiredGifts: Number(tier.required_gifts),
+          requiredReferrals: Number(tier.required_referrals),
+        })),
+      });
+      if (RankOrder.indexOf(evaluation.rank) <= RankOrder.indexOf(user.rank))
+        return false;
+
+      const promoted = await manager.query<{ global_id: string }[]>(
+        `
+          UPDATE users
+          SET rank = $2, rank_attained_at = now()
+          WHERE global_id = $1
+            AND rank = $3
+          RETURNING global_id
+        `,
+        [userId, evaluation.rank, user.rank],
+      );
+      if (promoted.length === 0) return false;
+
+      await manager.query(
+        `
+          INSERT INTO rank_transitions
+            (user_id, from_rank, to_rank, reason, lifetime_points, actor)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `,
+        [
+          userId,
+          user.rank,
+          evaluation.rank,
+          'NORMAL_QUALIFICATION',
+          Number(user.lifetime_points ?? 0),
+          'SYSTEM',
+        ],
+      );
+      if (this.isMaintenanceRank(evaluation.rank)) {
+        await manager.query(
+          `
+            INSERT INTO rank_maintenance_cycles
+              (user_id, rank, cycle_start, cycle_end)
+            VALUES ($1, $2, now(), now() + interval '3 months')
+            ON CONFLICT DO NOTHING
+          `,
+          [userId, evaluation.rank],
+        );
+      }
+
+      return true;
+    });
+  }
 
   public async evaluateDueMaintenanceCycles(): Promise<number> {
     return this.manager.transaction(async (manager) => {
@@ -101,12 +218,13 @@ export class RankRepository implements IRankRepository {
               SELECT COUNT(*)::text AS qualified_referrals
               FROM referrals referral
               WHERE referral.referrer_id = user.global_id
-                AND referral.qualified_at IS NOT NULL
+                AND referral.qualified_at >= $2
+                AND referral.qualified_at < $3
             ) qualified_referrals
             WHERE user.global_id = $1
             FOR UPDATE OF user
           `,
-          [cycle.user_id],
+          [cycle.user_id, cycle.cycle_start, cycle.cycle_end],
         );
 
         if (!user) continue;

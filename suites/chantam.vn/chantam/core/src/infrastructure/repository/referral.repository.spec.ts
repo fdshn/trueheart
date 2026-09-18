@@ -28,7 +28,10 @@ describe('ReferralRepository', () => {
 
     const qualified = await referrals.qualifyAndAward({ refereeId: RefereeId });
 
-    expect(qualified).toBe(true);
+    expect(qualified).toEqual({
+      qualified: true,
+      referrerId: '20000000-0000-4000-8000-000000000002',
+    });
     expect(rootManager.transaction).toHaveBeenCalledTimes(1);
     const sql = query.mock.calls.map(([statement]) => statement).join('\n');
     expect(sql).toContain('UPDATE referrals');

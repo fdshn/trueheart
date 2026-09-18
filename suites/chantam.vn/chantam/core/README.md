@@ -42,7 +42,10 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 | `GET` | `/api/v1/points/me` | `GetOwnPointSummaryUseCase` — số dư projection của chính chủ |
 | `GET` | `/api/v1/points/me/ledger?page=&pageSize=` | `GetOwnPointLedgerUseCase` — lịch sử ledger phân trang của chính chủ |
 | `GET` | `/api/v1/ranks/me` | `GetOwnRankSummaryUseCase` — điểm lifetime, tier hiện tại/tiếp theo và maintenance cycle của chính chủ |
-| `POST` | `/api/v1/ranks/maintenance/evaluate` | `EvaluateDueRankMaintenanceUseCase` — protected by `RANK_OPERATOR_USERNAMES`, scheduler trigger only |
+
+## Rank lifecycle operations
+
+Normal rank reconciliation runs after a committed point-rule append and after a newly committed referral qualification. It serializes by user advisory lock, preserves the onboarding-only `VIEWER → MEMBER` writer, and creates the first three-month maintenance cycle only for a real normal promotion to `SILVER` or above. Until a completed-gift source exists, unavailable activity leaves ranks and cycles unchanged.
 
 > Thứ tự khai báo route quan trọng: `@Get('nearby')` và `@Get('map')` phải đứng **trước**
 > `@Get(':postId')`, nếu không Fastify sẽ khớp static path thành một UUID và trả lỗi validate.

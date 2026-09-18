@@ -32,6 +32,7 @@ export interface IRankSummary {
 export interface IRankRepository {
   getOwnSummary(userId: string): Promise<IRankSummary>;
   promoteMemberOnboarding(userId: string): Promise<boolean>;
+  reconcileNormalRank(userId: string): Promise<boolean>;
   evaluateDueMaintenanceCycles(): Promise<number>;
 }
 

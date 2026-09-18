@@ -213,4 +213,176 @@ describe('RankRepository', () => {
       repository.promoteMemberOnboarding(UserId),
     ).rejects.toBeInstanceOf(UserNotFoundException);
   });
+
+  it('keeps the current rank and creates neither audit nor cycle when normal gift activity is unavailable', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          rank: UserRanks.MEMBER,
+          lifetime_points: '700',
+          promotion_locked_until: null,
+          qualified_referrals: '1',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          rank: UserRanks.MEMBER,
+          threshold_points: '224',
+          required_gifts: '0',
+          required_referrals: '0',
+        },
+        {
+          rank: UserRanks.SILVER,
+          threshold_points: '672',
+          required_gifts: '1',
+          required_referrals: '1',
+        },
+      ]);
+    const activity = {
+      countLifetimeCompletedGifts: jest
+        .fn()
+        .mockResolvedValue({ available: false }),
+    };
+    const repository = new RankRepository(
+      {
+        transaction: async (isolationOrCallback, callback?) =>
+          (typeof isolationOrCallback === 'function'
+            ? isolationOrCallback
+            : callback)!({ query }),
+      } as never,
+      activity as never,
+    );
+
+    await expect(repository.reconcileNormalRank(UserId)).resolves.toBe(false);
+
+    expect(query.mock.calls[0]).toEqual([
+      'SELECT pg_advisory_xact_lock(hashtext($1))',
+      [UserId],
+    ]);
+    expect(activity.countLifetimeCompletedGifts).toHaveBeenCalledWith({
+      userId: UserId,
+      rank: UserRanks.MEMBER,
+    });
+    expect(query.mock.calls.flatMap((call) => call).join('\n')).not.toMatch(
+      /UPDATE users|rank_transitions|rank_maintenance_cycles/i,
+    );
+  });
+
+  it('promotes Member to Silver with an immutable normal audit and initial three-month cycle when activity becomes available', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          rank: UserRanks.MEMBER,
+          lifetime_points: '700',
+          promotion_locked_until: null,
+          qualified_referrals: '1',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          rank: UserRanks.MEMBER,
+          threshold_points: '224',
+          required_gifts: '0',
+          required_referrals: '0',
+        },
+        {
+          rank: UserRanks.SILVER,
+          threshold_points: '672',
+          required_gifts: '1',
+          required_referrals: '1',
+        },
+      ])
+      .mockResolvedValueOnce([{ global_id: UserId }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const activity = {
+      countLifetimeCompletedGifts: jest
+        .fn()
+        .mockResolvedValue({ available: true, completedGifts: 1 }),
+    };
+    const repository = new RankRepository(
+      {
+        transaction: async (isolationOrCallback, callback?) =>
+          (typeof isolationOrCallback === 'function'
+            ? isolationOrCallback
+            : callback)!({ query }),
+      } as never,
+      activity as never,
+    );
+
+    await expect(repository.reconcileNormalRank(UserId)).resolves.toBe(true);
+
+    expect(query.mock.calls[3]).toEqual([
+      expect.stringContaining('UPDATE users'),
+      [UserId, UserRanks.SILVER, UserRanks.MEMBER],
+    ]);
+    expect(query.mock.calls[4]).toEqual([
+      expect.stringContaining('INSERT INTO rank_transitions'),
+      [
+        UserId,
+        UserRanks.MEMBER,
+        UserRanks.SILVER,
+        'NORMAL_QUALIFICATION',
+        700,
+        'SYSTEM',
+      ],
+    ]);
+    expect(query.mock.calls[5][0]).toMatch(
+      /INSERT INTO rank_maintenance_cycles[\s\S]*interval '3 months'[\s\S]*ON CONFLICT DO NOTHING/i,
+    );
+    expect(query.mock.calls[5][1]).toEqual([UserId, UserRanks.SILVER]);
+  });
+
+  it('is idempotent after a normal promotion retry and writes no duplicate transition or cycle', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          rank: UserRanks.SILVER,
+          lifetime_points: '700',
+          promotion_locked_until: null,
+          qualified_referrals: '1',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          rank: UserRanks.MEMBER,
+          threshold_points: '224',
+          required_gifts: '0',
+          required_referrals: '0',
+        },
+        {
+          rank: UserRanks.SILVER,
+          threshold_points: '672',
+          required_gifts: '1',
+          required_referrals: '1',
+        },
+      ]);
+    const activity = {
+      countLifetimeCompletedGifts: jest
+        .fn()
+        .mockResolvedValue({ available: true, completedGifts: 1 }),
+    };
+    const repository = new RankRepository(
+      {
+        transaction: async (isolationOrCallback, callback?) =>
+          (typeof isolationOrCallback === 'function'
+            ? isolationOrCallback
+            : callback)!({ query }),
+      } as never,
+      activity as never,
+    );
+
+    await expect(repository.reconcileNormalRank(UserId)).resolves.toBe(false);
+
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(query.mock.calls.flatMap((call) => call).join('\n')).not.toMatch(
+      /UPDATE users|rank_transitions|rank_maintenance_cycles/i,
+    );
+  });
 });

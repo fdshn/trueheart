@@ -2,6 +2,7 @@ import {
   ICompletedGiftCountCommand,
   IGiveActivityCounter,
   IGiveActivityCountResult,
+  ILifetimeCompletedGiftCountCommand,
 } from '@/domain/ports/give-activity.counter';
 import { Injectable } from '@nestjs/common';
 
@@ -13,6 +14,12 @@ import { Injectable } from '@nestjs/common';
 export class UnavailableGiveActivityCounter implements IGiveActivityCounter {
   public async countCompletedGifts(
     _command: ICompletedGiftCountCommand,
+  ): Promise<IGiveActivityCountResult> {
+    return { available: false };
+  }
+
+  public async countLifetimeCompletedGifts(
+    _command: ILifetimeCompletedGiftCountCommand,
   ): Promise<IGiveActivityCountResult> {
     return { available: false };
   }

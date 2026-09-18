@@ -20,11 +20,30 @@ describe('AppendPointEntryUseCase', () => {
         lifetime: 28,
       })),
     };
-    const useCase = new AppendPointEntryUseCase(ledger as never);
+    const useCase = new AppendPointEntryUseCase(
+      ledger as never,
+      { reconcileNormalRank: jest.fn() } as never,
+    );
 
     const result = await useCase.handle(Command);
 
     expect(ledger.appendByRule).toHaveBeenCalledWith(Command);
     expect(result).toEqual({ entryId: 1, balance: 28, lifetime: 28 });
+  });
+
+  it('reconciles the committed point recipient in a separate post-append rank operation', async () => {
+    const ledger = {
+      appendByRule: jest.fn(async () => ({
+        entryId: 1,
+        balance: 28,
+        lifetime: 28,
+      })),
+    };
+    const rank = { reconcileNormalRank: jest.fn().mockResolvedValue(false) };
+    const useCase = new AppendPointEntryUseCase(ledger as never, rank as never);
+
+    await useCase.handle(Command);
+
+    expect(rank.reconcileNormalRank).toHaveBeenCalledWith(Command.userId);
   });
 });

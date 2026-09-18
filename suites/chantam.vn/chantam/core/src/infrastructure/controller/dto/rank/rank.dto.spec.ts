@@ -1,5 +1,6 @@
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  EvaluateDueRankMaintenanceResponseDto,
   GetOwnRankSummaryResponseDto,
   RankMaintenanceCycleDto,
   RankNextProgressDto,
@@ -67,5 +68,15 @@ describe('GetOwnRankSummaryResponseDto', () => {
         'status',
       ),
     ).toMatchObject({ enum: ['OPEN', 'UNEVALUATED', 'SATISFIED', 'FAILED'] });
+  });
+
+  it('describes the concrete maintenance evaluation response', () => {
+    expect(
+      Reflect.getMetadata(
+        ApiModelProperties,
+        EvaluateDueRankMaintenanceResponseDto.prototype,
+        'processedCycles',
+      ),
+    ).toMatchObject({ type: Number });
   });
 });

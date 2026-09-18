@@ -19,7 +19,10 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { GetOwnRankSummaryResponseDto } from '../../dto/rank';
+import {
+  EvaluateDueRankMaintenanceResponseDto,
+  GetOwnRankSummaryResponseDto,
+} from '../../dto/rank';
 
 @ApiTags('Thứ hạng')
 @ApiBearerAuth()
@@ -39,7 +42,9 @@ export class RankController {
     description:
       'Chỉ username trong RANK_OPERATOR_USERNAMES. Trigger này phải do scheduler bên ngoài gọi; M3 chưa có completed-gift source nên activity unavailable được ghi UNEVALUATED, không bị giáng hạng.',
   })
-  @ApiOkResponse({ type: ResponseDto.forApi(Object) })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(EvaluateDueRankMaintenanceResponseDto),
+  })
   @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
   public async evaluateDueRankMaintenance(
     @CurrentUser() principal: IAuthPrincipal,
