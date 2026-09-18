@@ -10,36 +10,36 @@ const ApiModelProperties = 'swagger/apiModelProperties';
 
 describe('GetOwnRankSummaryResponseDto', () => {
   it('describes the nested owner rank summary response', () => {
-    expect(
-      Reflect.getMetadata(
-        ApiModelProperties,
-        GetOwnRankSummaryResponseDto.prototype,
-        'rank',
-      ),
-    ).toMatchObject({ type: expect.any(Function) });
+    const responseMetadata = Reflect.getMetadata(
+      ApiModelProperties,
+      GetOwnRankSummaryResponseDto.prototype,
+      'rank',
+    );
+    const nextRankMetadata = Reflect.getMetadata(
+      ApiModelProperties,
+      RankSummaryDto.prototype,
+      'nextRank',
+    );
+    const maintenanceCycleMetadata = Reflect.getMetadata(
+      ApiModelProperties,
+      RankSummaryDto.prototype,
+      'maintenanceCycle',
+    );
 
-    expect(
-      Reflect.getMetadata(
-        ApiModelProperties,
-        RankSummaryDto.prototype,
-        'nextRank',
-      ),
-    ).toMatchObject({
+    expect(responseMetadata).toMatchObject({ type: expect.any(Function) });
+    expect(responseMetadata.type()).toBe(RankSummaryDto);
+    expect(nextRankMetadata).toMatchObject({
       nullable: true,
       required: false,
       type: expect.any(Function),
     });
-    expect(
-      Reflect.getMetadata(
-        ApiModelProperties,
-        RankSummaryDto.prototype,
-        'maintenanceCycle',
-      ),
-    ).toMatchObject({
+    expect(nextRankMetadata.type()).toBe(RankNextProgressDto);
+    expect(maintenanceCycleMetadata).toMatchObject({
       nullable: true,
       required: false,
       type: expect.any(Function),
     });
+    expect(maintenanceCycleMetadata.type()).toBe(RankMaintenanceCycleDto);
   });
 
   it('describes persisted rank, tier progress, and maintenance values', () => {
