@@ -68,7 +68,11 @@ export class UserEntity
    * toạ độ khác.
    */
   @Exclude()
-  @GeoColumn({ name: 'default_location', nullable: true })
+  @GeoColumn({
+    name: 'default_location',
+    nullable: true,
+    precision: 15,
+  })
   defaultLocation: IGeoPoint | null;
 
   @ApiProperty({ enum: UserRanks })

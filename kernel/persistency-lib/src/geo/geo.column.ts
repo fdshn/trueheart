@@ -7,6 +7,8 @@ export interface IGeoColumnOptions {
   /** Tên cột trong database. Mặc định `location`. */
   name?: string;
   nullable?: boolean;
+  /** Số chữ số thập phân tối đa khi TypeORM đọc GeoJSON từ PostgreSQL. */
+  precision?: number;
   /** Tạo index GiST. Mặc định `true` — không có index thì ST_DWithin quét toàn bảng. */
   index?: boolean;
 }
@@ -24,7 +26,12 @@ export interface IGeoColumnOptions {
  * ```
  */
 export function GeoColumn(options: IGeoColumnOptions = {}): PropertyDecorator {
-  const { name = 'location', nullable = false, index = true } = options;
+  const {
+    name = 'location',
+    nullable = false,
+    precision,
+    index = true,
+  } = options;
 
   const decorators: PropertyDecorator[] = [
     Column({
@@ -33,6 +40,7 @@ export function GeoColumn(options: IGeoColumnOptions = {}): PropertyDecorator {
       srid: Srid,
       name,
       nullable,
+      precision,
       transformer: GeoPointTransformer,
     }),
   ];
