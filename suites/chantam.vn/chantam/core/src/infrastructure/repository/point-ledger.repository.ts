@@ -3,7 +3,12 @@ import {
   IAppendPointEntryResult,
 } from '@/application/contracts/point';
 import { PointRuleUnavailableException } from '@/domain/exceptions';
-import { IPointLedgerRepository } from '@/domain/ports/repository';
+import {
+  IPointLedgerHistoryQuery,
+  IPointLedgerPage,
+  IPointLedgerRepository,
+  IPointLedgerSummary,
+} from '@/domain/ports/repository';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
@@ -13,6 +18,76 @@ export class PointLedgerRepository implements IPointLedgerRepository {
   public constructor(
     @InjectEntityManager() private readonly manager: EntityManager,
   ) {}
+
+  public async getSummary(userId: string): Promise<IPointLedgerSummary> {
+    const [balance] = await this.manager.query<
+      { balance: number | string; lifetime: number | string }[]
+    >(
+      `
+        SELECT balance, lifetime
+        FROM user_point_balances
+        WHERE user_id = $1
+      `,
+      [userId],
+    );
+
+    return {
+      balance: Number(balance?.balance ?? 0),
+      lifetime: Number(balance?.lifetime ?? 0),
+    };
+  }
+
+  public async getHistory(
+    userId: string,
+    query: IPointLedgerHistoryQuery,
+  ): Promise<IPointLedgerPage> {
+    const entries = await this.manager.query<
+      {
+        id: number | string;
+        rule_code: string;
+        rule_version: number | string;
+        delta: number | string;
+        balance_after: number | string;
+        lifetime_after: number | string;
+        source: string;
+        reason: string | null;
+        created_at: Date;
+      }[]
+    >(
+      `
+        SELECT id, rule_code, rule_version, delta, balance_after, lifetime_after,
+               source, reason, created_at
+        FROM point_ledger
+        WHERE user_id = $1
+        ORDER BY created_at DESC, id DESC
+        LIMIT $2 OFFSET $3
+      `,
+      [userId, query.take, query.skip],
+    );
+    const [{ total }] = await this.manager.query<{ total: number | string }[]>(
+      `
+        SELECT COUNT(*) AS total
+        FROM point_ledger
+        WHERE user_id = $1
+      `,
+      [userId],
+    );
+
+    return {
+      entries: entries.map((entry) => ({
+        entryId: Number(entry.id),
+        ruleCode: entry.rule_code,
+        ruleVersion: Number(entry.rule_version),
+        delta: Number(entry.delta),
+        balanceAfter: Number(entry.balance_after),
+        lifetimeAfter: Number(entry.lifetime_after),
+        source: entry.source,
+        reason: entry.reason,
+        createdAt: entry.created_at,
+      })),
+      total: Number(total),
+    };
+  }
 
   public async appendByRule(
     command: IAppendPointEntryCommand,

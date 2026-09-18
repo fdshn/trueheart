@@ -3,6 +3,7 @@ import { AuthControllerModule } from './auth/auth.module';
 import { CategoryControllerModule } from './category/category.module';
 import { DiscoveryControllerModule } from './discovery/discovery.module';
 import { GiftPostControllerModule } from './gift-post/gift-post.module';
+import { PointControllerModule } from './point/point.module';
 import { PostControllerModule } from './post/post.module';
 import { ProfileControllerModule } from './profile/profile.module';
 import { ReferralControllerModule } from './referral/referral.module';
@@ -14,6 +15,7 @@ import { ReferralControllerModule } from './referral/referral.module';
     CategoryControllerModule,
     DiscoveryControllerModule,
     GiftPostControllerModule,
+    PointControllerModule,
     PostControllerModule,
     ProfileControllerModule,
     ReferralControllerModule,

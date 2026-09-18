@@ -20,7 +20,7 @@ có implementation**.
 | `.../models` | `IGiftPost`, `IPost`, `IPostMedia` |
 | `.../entities` | `IGiftPostEntity` + token DI, `IPostEntity` + token DI, `IPostMediaEntity` + token DI |
 | `.../values` | `GiftPostId` |
-| `.../dto` | Interface DTO theo từng resource |
+| `.../dto` | Interface DTO theo từng resource, gồm owner point summary và ledger history |
 
 ## Quy ước DTO
 
