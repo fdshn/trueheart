@@ -213,18 +213,18 @@ export class RankRepository implements IRankRepository {
               qualified_referrals.qualified_referrals
             FROM users user
             LEFT JOIN user_point_balances balance ON balance.user_id = user.global_id
-            INNER JOIN rank_tiers tier ON tier.rank = user.rank
+            INNER JOIN rank_tiers tier ON tier.rank = $2
             CROSS JOIN LATERAL (
               SELECT COUNT(*)::text AS qualified_referrals
               FROM referrals referral
               WHERE referral.referrer_id = user.global_id
-                AND referral.qualified_at >= $2
-                AND referral.qualified_at < $3
+                AND referral.qualified_at >= $3
+                AND referral.qualified_at < $4
             ) qualified_referrals
             WHERE user.global_id = $1
             FOR UPDATE OF user
           `,
-          [cycle.user_id, cycle.cycle_start, cycle.cycle_end],
+          [cycle.user_id, cycle.rank, cycle.cycle_start, cycle.cycle_end],
         );
 
         if (!user) continue;

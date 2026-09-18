@@ -70,9 +70,17 @@ describe('RankRepository due maintenance evaluation', () => {
     });
     expect(query.mock.calls[3][1]).toEqual(['51', 0, 2, 'UNEVALUATED']);
     expect(query.mock.calls[2][0]).toMatch(
-      /referral\.qualified_at >= \$2[\s\S]*referral\.qualified_at < \$3/i,
+      /INNER JOIN rank_tiers tier ON tier\.rank = \$2/i,
     );
-    expect(query.mock.calls[2][1]).toEqual([UserId, CycleStart, CycleEnd]);
+    expect(query.mock.calls[2][0]).toMatch(
+      /referral\.qualified_at >= \$3[\s\S]*referral\.qualified_at < \$4/i,
+    );
+    expect(query.mock.calls[2][1]).toEqual([
+      UserId,
+      UserRanks.SILVER,
+      CycleStart,
+      CycleEnd,
+    ]);
     expect(query.mock.calls[3][0]).not.toMatch(/rank_transitions/i);
     expect(query.mock.calls[4][0]).toMatch(
       /INSERT INTO rank_maintenance_cycles[\s\S]*ON CONFLICT DO NOTHING/i,
