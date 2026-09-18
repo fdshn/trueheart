@@ -6,7 +6,12 @@ import {
   IGetOwnPointLedgerResponseDto,
   IGetOwnPointSummaryResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
-import { CurrentUser, IAuthPrincipal } from '@chantam/service.auth-lib';
+import {
+  ApiTokenErrors,
+  CurrentUser,
+  IAuthPrincipal,
+} from '@chantam/service.auth-lib';
+import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
 import { Controller, Get, Inject, Query } from '@nestjs/common';
 import {
@@ -35,6 +40,7 @@ export class PointController {
   @Get('me')
   @ApiOperation({ summary: 'Số dư điểm của chính chủ' })
   @ApiOkResponse({ type: ResponseDto.forApi(GetOwnPointSummaryResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors)
   public async getOwnPointSummary(
     @CurrentUser() principal: IAuthPrincipal,
   ): Promise<ResponseDto<IGetOwnPointSummaryResponseDto>> {
@@ -50,6 +56,7 @@ export class PointController {
   @Get('me/ledger')
   @ApiOperation({ summary: 'Lịch sử điểm của chính chủ' })
   @ApiOkResponse({ type: ResponseDto.forApi(GetOwnPointLedgerResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors)
   public async getOwnPointLedger(
     @CurrentUser() principal: IAuthPrincipal,
     @Query() query: GetOwnPointLedgerQueryDto,
