@@ -193,6 +193,13 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['PHONE_VERIFIED_FIRST_TIME'],
   },
 
+  RANK_TIER_UNAVAILABLE: {
+    code: ErrorCodes.RANK_TIER_UNAVAILABLE,
+    httpStatus: HttpStatus.INTERNAL_SERVER_ERROR,
+    message: (rank: string) => `Không tìm thấy cấu hình tier cho rank ${rank}`,
+    sample: ['SILVER'],
+  },
+
   // ── 0x04 Phiên đăng nhập, OTP ─────────────────────────────────────────────
   SESSION_NOT_FOUND: {
     code: ErrorCodes.SESSION_NOT_FOUND,

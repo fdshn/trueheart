@@ -1,0 +1,171 @@
+import {
+  RankTierUnavailableException,
+  UserNotFoundException,
+} from '@/domain/exceptions';
+import {
+  IRankMaintenanceCycleSummary,
+  IRankRepository,
+  IRankSummary,
+  IRankTierSummary,
+} from '@/domain/ports/repository';
+import { RankOrder, UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+import { Injectable } from '@nestjs/common';
+import { InjectEntityManager } from '@nestjs/typeorm';
+import { EntityManager } from 'typeorm';
+
+interface IRawRankSummaryRow {
+  rank: UserRanks;
+  lifetime_points: string | null;
+  threshold_points: string | null;
+  required_gifts: string | null;
+  required_referrals: string | null;
+  post_quota: string | null;
+  qualified_referrals: string;
+  maintenance_rank: UserRanks | null;
+  cycle_start: Date | null;
+  cycle_end: Date | null;
+  gifts_done: string | null;
+  referrals_done: string | null;
+  maintenance_status: 'OPEN' | 'UNEVALUATED' | 'SATISFIED' | 'FAILED' | null;
+}
+
+interface IRawRankTierRow {
+  rank: UserRanks;
+  threshold_points: string;
+  required_gifts: string;
+  required_referrals: string;
+  post_quota: string;
+}
+
+@Injectable()
+export class RankRepository implements IRankRepository {
+  public constructor(
+    @InjectEntityManager() private readonly manager: EntityManager,
+  ) {}
+
+  public async getOwnSummary(userId: string): Promise<IRankSummary> {
+    const [summary] = await this.manager.query<IRawRankSummaryRow[]>(
+      `
+        SELECT
+          user.rank,
+          balance.lifetime AS lifetime_points,
+          current_tier.threshold_points,
+          current_tier.required_gifts,
+          current_tier.required_referrals,
+          current_tier.post_quota,
+          qualified_referrals.qualified_referrals,
+          maintenance.rank AS maintenance_rank,
+          maintenance.cycle_start,
+          maintenance.cycle_end,
+          maintenance.gifts_done,
+          maintenance.referrals_done,
+          maintenance.status AS maintenance_status
+        FROM users user
+        LEFT JOIN user_point_balances balance ON balance.user_id = user.global_id
+        LEFT JOIN rank_tiers current_tier ON current_tier.rank = user.rank
+        CROSS JOIN LATERAL (
+          SELECT COUNT(*)::text AS qualified_referrals
+          FROM referrals referral
+          WHERE referral.referrer_id = user.global_id
+            AND referral.qualified_at IS NOT NULL
+        ) qualified_referrals
+        LEFT JOIN LATERAL (
+          SELECT rank, cycle_start, cycle_end, gifts_done, referrals_done, status
+          FROM rank_maintenance_cycles
+          WHERE user_id = user.global_id
+            AND status IN ('OPEN', 'UNEVALUATED')
+          ORDER BY cycle_start DESC
+          LIMIT 1
+        ) maintenance ON user.rank IN ('SILVER', 'GOLD', 'DIAMOND')
+        WHERE user.global_id = $1
+      `,
+      [userId],
+    );
+
+    if (!summary) throw new UserNotFoundException();
+
+    const currentTier = this.mapRequiredTier(summary);
+    const nextRank = this.getNextRank(summary.rank);
+    const nextTier = nextRank ? await this.getTier(nextRank) : null;
+
+    return {
+      rank: summary.rank,
+      lifetimePoints: Number(summary.lifetime_points ?? 0),
+      currentTier,
+      nextTier,
+      qualifiedReferrals: Number(summary.qualified_referrals),
+      maintenanceCycle: this.mapMaintenanceCycle(summary),
+    };
+  }
+
+  private async getTier(rank: UserRanks): Promise<IRankTierSummary> {
+    const [tier] = await this.manager.query<IRawRankTierRow[]>(
+      `
+        SELECT rank, threshold_points, required_gifts, required_referrals, post_quota
+        FROM rank_tiers
+        WHERE rank = $1
+      `,
+      [rank],
+    );
+
+    if (!tier) throw new RankTierUnavailableException(rank);
+    return this.mapTier(tier);
+  }
+
+  private mapRequiredTier(summary: IRawRankSummaryRow): IRankTierSummary {
+    if (
+      summary.threshold_points === null ||
+      summary.required_gifts === null ||
+      summary.required_referrals === null ||
+      summary.post_quota === null
+    ) {
+      throw new RankTierUnavailableException(summary.rank);
+    }
+
+    return {
+      rank: summary.rank,
+      thresholdPoints: Number(summary.threshold_points),
+      requiredGifts: Number(summary.required_gifts),
+      requiredReferrals: Number(summary.required_referrals),
+      postQuota: Number(summary.post_quota),
+    };
+  }
+
+  private mapTier(tier: IRawRankTierRow): IRankTierSummary {
+    return {
+      rank: tier.rank,
+      thresholdPoints: Number(tier.threshold_points),
+      requiredGifts: Number(tier.required_gifts),
+      requiredReferrals: Number(tier.required_referrals),
+      postQuota: Number(tier.post_quota),
+    };
+  }
+
+  private mapMaintenanceCycle(
+    summary: IRawRankSummaryRow,
+  ): IRankMaintenanceCycleSummary | null {
+    if (
+      summary.maintenance_rank === null ||
+      summary.cycle_start === null ||
+      summary.cycle_end === null ||
+      summary.gifts_done === null ||
+      summary.referrals_done === null ||
+      summary.maintenance_status === null
+    ) {
+      return null;
+    }
+
+    return {
+      rank: summary.maintenance_rank,
+      cycleStart: summary.cycle_start,
+      cycleEnd: summary.cycle_end,
+      giftsDone: Number(summary.gifts_done),
+      referralsDone: Number(summary.referrals_done),
+      status: summary.maintenance_status,
+    };
+  }
+
+  private getNextRank(rank: UserRanks): UserRanks | null {
+    return RankOrder[RankOrder.indexOf(rank) + 1] ?? null;
+  }
+}

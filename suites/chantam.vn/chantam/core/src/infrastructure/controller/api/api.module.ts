@@ -6,6 +6,7 @@ import { GiftPostControllerModule } from './gift-post/gift-post.module';
 import { PointControllerModule } from './point/point.module';
 import { PostControllerModule } from './post/post.module';
 import { ProfileControllerModule } from './profile/profile.module';
+import { RankControllerModule } from './rank/rank.module';
 import { ReferralControllerModule } from './referral/referral.module';
 
 /** Gom mọi controller module theo resource. */
@@ -19,6 +20,7 @@ import { ReferralControllerModule } from './referral/referral.module';
     PostControllerModule,
     ProfileControllerModule,
     ReferralControllerModule,
+    RankControllerModule,
   ],
 })
 export class ApiModule {}

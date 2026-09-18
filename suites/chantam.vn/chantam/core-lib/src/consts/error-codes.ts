@@ -56,6 +56,7 @@ export enum ErrorCodes {
 
   // 0x07 — Point / Rank / Referral M4
   POINT_RULE_UNAVAILABLE = 0x07_01,
+  RANK_TIER_UNAVAILABLE = 0x07_02,
 
   // 0x04 — Phiên đăng nhập, OTP, đặt lại mật khẩu
   SESSION_NOT_FOUND = 0x04_01,

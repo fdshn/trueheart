@@ -7,6 +7,7 @@ import { OnboardingModule } from './implementations/onboarding/onboarding.module
 import { PointModule } from './implementations/point/point.module';
 import { PostModule } from './implementations/post/post.module';
 import { ProfileModule } from './implementations/profile/profile.module';
+import { RankModule } from './implementations/rank/rank.module';
 import { ReferralModule } from './implementations/referral/referral.module';
 
 /**
@@ -21,6 +22,7 @@ import { ReferralModule } from './implementations/referral/referral.module';
     OnboardingModule,
     PointModule,
     ReferralModule,
+    RankModule,
     PostModule,
     ProfileModule,
     CategoryModule,

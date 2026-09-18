@@ -5,6 +5,7 @@ import {
   IPointLedgerRepository,
   IPostMediaRepository,
   IPostRepository,
+  IRankRepository,
   IReferralRepository,
   IUserOnboardingTaskCompletionRepository,
   IUserRepository,
@@ -17,6 +18,7 @@ import { OnboardingTaskRepository } from './onboarding-task.repository';
 import { PointLedgerRepository } from './point-ledger.repository';
 import { PostMediaRepository } from './post-media.repository';
 import { PostRepository } from './post.repository';
+import { RankRepository } from './rank.repository';
 import { ReferralRepository } from './referral.repository';
 import { UserOnboardingTaskCompletionRepository } from './user-onboarding-task-completion.repository';
 import { UserSessionRepository } from './user-session.repository';
@@ -35,6 +37,7 @@ import { UserRepository } from './user.repository';
     { provide: IOnboardingTaskRepository, useClass: OnboardingTaskRepository },
     { provide: IPointLedgerRepository, useClass: PointLedgerRepository },
     { provide: IReferralRepository, useClass: ReferralRepository },
+    { provide: IRankRepository, useClass: RankRepository },
     { provide: IPostRepository, useClass: PostRepository },
     { provide: IPostMediaRepository, useClass: PostMediaRepository },
     { provide: IUserRepository, useClass: UserRepository },
@@ -50,6 +53,7 @@ import { UserRepository } from './user.repository';
     IOnboardingTaskRepository,
     IPointLedgerRepository,
     IReferralRepository,
+    IRankRepository,
     IPostRepository,
     IPostMediaRepository,
     IUserRepository,

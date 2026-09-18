@@ -41,6 +41,7 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 | `GET` | `/api/v1/discovery/config` | `GetDiscoveryConfigUseCase` — giới hạn radius/pagination và loại post public cho guest |
 | `GET` | `/api/v1/points/me` | `GetOwnPointSummaryUseCase` — số dư projection của chính chủ |
 | `GET` | `/api/v1/points/me/ledger?page=&pageSize=` | `GetOwnPointLedgerUseCase` — lịch sử ledger phân trang của chính chủ |
+| `GET` | `/api/v1/ranks/me` | `GetOwnRankSummaryUseCase` — điểm lifetime, tier hiện tại/tiếp theo và maintenance cycle của chính chủ |
 
 > Thứ tự khai báo route quan trọng: `@Get('nearby')` và `@Get('map')` phải đứng **trước**
 > `@Get(':postId')`, nếu không Fastify sẽ khớp static path thành một UUID và trả lỗi validate.
