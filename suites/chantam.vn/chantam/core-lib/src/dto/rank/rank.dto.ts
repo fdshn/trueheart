@@ -1,4 +1,4 @@
-import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+import { UserRanks } from '../../consts';
 
 export type RankMaintenanceCycleStatuses =
   'OPEN' | 'UNEVALUATED' | 'SATISFIED' | 'FAILED';
