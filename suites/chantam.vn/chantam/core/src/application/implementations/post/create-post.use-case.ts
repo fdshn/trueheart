@@ -21,6 +21,7 @@ import {
   UserRanks,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { isProfileComplete } from '@chantam.vn/chantam.core-lib/models';
+import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { makeGlobalId, slugify } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -72,14 +73,23 @@ export class CreatePostUseCase implements ICreatePostUseCase {
     const globalId = makeGlobalId(
       `/posts/${command.userId}/${slugify(post.title)}/${createdAt.toISOString()}`,
     );
-    const totalQuantity = post.totalQuantity ?? 1;
+    if (
+      post.postType !== PostTypes.OFFER &&
+      (post.condition !== undefined || post.estimatedValue !== undefined)
+    )
+      throw new ValidationFailedException([
+        'condition và estimatedValue chỉ áp dụng cho bài OFFER',
+      ]);
+
+    const totalQuantity =
+      post.postType === PostTypes.OFFER ? (post.totalQuantity ?? 1) : 1;
     const quota = PostQuotaByRank[user.rank];
-    const created = await this.postRepository.createOfferWithinQuota(
+    const created = await this.postRepository.createPostWithinQuota(
       command.userId,
       quota,
       {
         globalId,
-        postType: PostTypes.OFFER,
+        postType: post.postType,
         authorId: command.userId,
         categoryId: category.globalId,
         title: post.title,
@@ -89,10 +99,13 @@ export class CreatePostUseCase implements ICreatePostUseCase {
         status: GiftPostStatuses.PENDING_REVIEW,
         totalQuantity,
         remainingQuantity: totalQuantity,
-        details: {
-          condition: post.condition,
-          estimatedValue: post.estimatedValue,
-        },
+        details:
+          post.postType === PostTypes.OFFER
+            ? {
+                condition: post.condition,
+                estimatedValue: post.estimatedValue,
+              }
+            : {},
         expiresAt: null,
         renewedCount: 0,
         deletedAt: null,

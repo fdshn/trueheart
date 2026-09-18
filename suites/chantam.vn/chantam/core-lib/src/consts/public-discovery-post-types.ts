@@ -1,8 +1,5 @@
-import { PostTypes } from './post-types';
+import { GenericMvpPostTypes } from './generic-mvp-post-types';
 
-export const PublicDiscoveryPostTypes = [
-  PostTypes.OFFER,
-  PostTypes.WANTED,
-] as const;
+export const PublicDiscoveryPostTypes = GenericMvpPostTypes;
 
 export type PublicDiscoveryPostType = (typeof PublicDiscoveryPostTypes)[number];

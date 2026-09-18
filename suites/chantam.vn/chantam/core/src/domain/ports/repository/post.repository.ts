@@ -1,4 +1,7 @@
-import { PostTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  PostTypes,
+  PublicDiscoveryPostType,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { IGeoPoint } from '@chantam/service.persistency-lib/geo';
 import { Repository } from 'typeorm';
@@ -25,7 +28,7 @@ export interface IPostMapMarker {
 export interface IFindNearbyPostsParams {
   origin: IGeoPoint;
   radiusMeters: number;
-  postType: PostTypes.OFFER | PostTypes.WANTED;
+  postType: PublicDiscoveryPostType;
   categoryId?: string;
   skip: number;
   take: number;
@@ -42,7 +45,7 @@ export interface IFindNearbyPostsResult {
 }
 
 export interface IPostRepository extends Repository<IPostEntity> {
-  createOfferWithinQuota(
+  createPostWithinQuota(
     authorId: string,
     quota: number,
     post: Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt'>,
@@ -57,6 +60,7 @@ export interface IPostRepository extends Repository<IPostEntity> {
     params: IFindNearbyPostsParams,
   ): Promise<IFindNearbyPostsResult>;
   findPublicByGlobalId(globalId: string): Promise<IPostEntity | null>;
+  countPublishedByAuthor(authorId: string): Promise<number>;
 }
 
 export const IPostRepository = Symbol('IPostRepository');

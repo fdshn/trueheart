@@ -1,4 +1,8 @@
-import { GiftPostConditions } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  GenericMvpPostTypes,
+  GiftPostConditions,
+  PostTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   ICreatePostBodyDto,
   ICreatePostDto,
@@ -16,6 +20,7 @@ import {
   Length,
   Max,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { PostEntity } from '../../../entity/post.entity';
@@ -25,6 +30,10 @@ const MaxTotalQuantity = 10_000;
 const MaxEstimatedValue = 1_000_000_000;
 
 export class CreatePostDto implements ICreatePostDto {
+  @ApiProperty({ enum: GenericMvpPostTypes })
+  @IsEnum(GenericMvpPostTypes)
+  postType: PostTypes;
+
   @ApiProperty({ minLength: 5, maxLength: 200 })
   @IsString()
   @Length(5, 200)
@@ -39,16 +48,18 @@ export class CreatePostDto implements ICreatePostDto {
   @IsUUID()
   categoryId: string;
 
-  @ApiProperty({ enum: GiftPostConditions })
+  @ApiPropertyOptional({ enum: GiftPostConditions })
+  @ValidateIf((post) => post.postType === PostTypes.OFFER)
   @IsEnum(GiftPostConditions)
-  condition: GiftPostConditions;
+  condition?: GiftPostConditions;
 
-  @ApiProperty({ minimum: 0, maximum: MaxEstimatedValue })
+  @ApiPropertyOptional({ minimum: 0, maximum: MaxEstimatedValue })
+  @ValidateIf((post) => post.postType === PostTypes.OFFER)
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(MaxEstimatedValue)
-  estimatedValue: number;
+  estimatedValue?: number;
 
   @ApiProperty({ type: () => GeoPointDto })
   @ValidateNested()

@@ -1,7 +1,4 @@
-import {
-  PostTypes,
-  PublicDiscoveryPostTypes,
-} from '@chantam.vn/chantam.core-lib/consts';
+import { PublicDiscoveryPostTypes } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IGetNearbyPostsQueryDto,
   IGetNearbyPostsResponseDto,
@@ -58,7 +55,7 @@ export class GetNearbyPostsQueryDto
 
   @ApiProperty({ enum: PublicDiscoveryPostTypes })
   @IsIn(PublicDiscoveryPostTypes)
-  postType: PostTypes.OFFER | PostTypes.WANTED;
+  postType: (typeof PublicDiscoveryPostTypes)[number];
 
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()

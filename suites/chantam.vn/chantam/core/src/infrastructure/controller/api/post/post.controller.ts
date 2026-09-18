@@ -1,7 +1,6 @@
 import {
   IAttachPostMediaUseCase,
   ICreatePostUseCase,
-  ICreateWantedPostUseCase,
   IDeletePostUseCase,
   IGetNearbyPostsUseCase,
   IGetPostMapUseCase,
@@ -21,7 +20,6 @@ import {
 import {
   IAttachPostMediaResponseDto,
   ICreatePostResponseDto,
-  ICreateWantedPostResponseDto,
   IGetNearbyPostsResponseDto,
   IGetPostMapResponseDto,
   IGetPostResponseDto,
@@ -57,8 +55,6 @@ import {
   AttachPostMediaResponseDto,
   CreatePostBodyDto,
   CreatePostResponseDto,
-  CreateWantedPostBodyDto,
-  CreateWantedPostResponseDto,
   GetNearbyPostsQueryDto,
   GetNearbyPostsResponseDto,
   GetPostMapQueryDto,
@@ -84,8 +80,6 @@ export class PostController {
   public constructor(
     @Inject(ICreatePostUseCase)
     private readonly createPostUseCase: ICreatePostUseCase,
-    @Inject(ICreateWantedPostUseCase)
-    private readonly createWantedPostUseCase: ICreateWantedPostUseCase,
     @Inject(IDeletePostUseCase)
     private readonly deletePostUseCase: IDeletePostUseCase,
     @Inject(IAttachPostMediaUseCase)
@@ -111,9 +105,9 @@ export class PostController {
   @Post()
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Tạo canonical OFFER',
+    summary: 'Tạo canonical post Generic MVP',
     description:
-      'Bài tạo ở PENDING_REVIEW; tác giả, type và trạng thái do server quyết định.',
+      'Type được validate từ Generic MVP; tác giả và trạng thái do server quyết định, bài luôn tạo ở PENDING_REVIEW.',
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(CreatePostResponseDto) })
   @ApiErrorResponses(
@@ -132,35 +126,6 @@ export class PostController {
     });
 
     return ResponseDto.create<ICreatePostResponseDto>()
-      .succeed()
-      .attach(result)
-      .build();
-  }
-
-  @Post('wanted')
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Tạo canonical WANTED',
-    description:
-      'Bài cần nhận tạo ở PENDING_REVIEW; Smart Match và SOS là phase M2 riêng.',
-  })
-  @ApiCreatedResponse({ type: ResponseDto.forApi(CreateWantedPostResponseDto) })
-  @ApiErrorResponses(
-    [ValidationFailedException, ['post.categoryId: categoryId must be a UUID']],
-    [ProfileIncompleteException, ['Avatar', 'SĐT']],
-    [CategoryNotFoundException],
-    [PostQuotaExceededException, 3],
-  )
-  public async createWantedPost(
-    @CurrentUser() principal: IAuthPrincipal,
-    @Body() body: CreateWantedPostBodyDto,
-  ): Promise<ResponseDto<ICreateWantedPostResponseDto>> {
-    const result = await this.createWantedPostUseCase.handle({
-      ...body,
-      userId: principal.userId,
-    });
-
-    return ResponseDto.create<ICreateWantedPostResponseDto>()
       .succeed()
       .attach(result)
       .build();
@@ -378,7 +343,9 @@ export class PostController {
   @ApiOkResponse({ type: ResponseDto.forApi(GetNearbyPostsResponseDto) })
   @ApiErrorResponses([
     ValidationFailedException,
-    ['postType: postType must be one of the following values: OFFER, WANTED'],
+    [
+      'postType: postType must be one of the following values: OFFER, WANTED, CHARITY, CLASSIFIED, MERIT',
+    ],
   ])
   public async getNearbyPosts(
     @Query() query: GetNearbyPostsQueryDto,

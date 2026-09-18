@@ -10,7 +10,7 @@ const validQuery = {
 };
 
 describe('GetNearbyPostsQueryDto', () => {
-  it.each(['OFFER', 'WANTED'])(
+  it.each(['OFFER', 'WANTED', 'CHARITY', 'CLASSIFIED', 'MERIT'])(
     'accepts public post type %s',
     async (postType) => {
       const errors = await validate(
@@ -25,20 +25,18 @@ describe('GetNearbyPostsQueryDto', () => {
     const errors = await validate(
       plainToInstance(GetNearbyPostsQueryDto, {
         ...validQuery,
-        postType: 'CHARITY',
+        postType: 'ADS',
       }),
     );
 
     expect(errors[0].constraints?.isIn).toBe(
-      'postType must be one of the following values: OFFER, WANTED',
+      'postType must be one of the following values: OFFER, WANTED, CHARITY, CLASSIFIED, MERIT',
     );
   });
 
   it.each([
     { postType: undefined },
-    { postType: 'CHARITY' },
-    { postType: 'CLASSIFIED' },
-    { postType: 'MERIT' },
+    { postType: 'ADS' },
     { categoryId: 'not-a-uuid' },
     { radiusMeters: 99 },
     { radiusMeters: 50_001 },

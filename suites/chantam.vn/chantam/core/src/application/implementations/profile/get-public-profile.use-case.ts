@@ -3,18 +3,15 @@ import {
   IGetPublicProfileUseCase,
 } from '@/application/contracts/profile';
 import { UserNotFoundException } from '@/domain/exceptions';
-import {
-  IGiftPostRepository,
-  IUserRepository,
-} from '@/domain/ports/repository';
+import { IPostRepository, IUserRepository } from '@/domain/ports/repository';
 import { Inject, Injectable } from '@nestjs/common';
 
 @Injectable()
 export class GetPublicProfileUseCase implements IGetPublicProfileUseCase {
   public constructor(
     @Inject(IUserRepository) private readonly userRepository: IUserRepository,
-    @Inject(IGiftPostRepository)
-    private readonly giftPostRepository: IGiftPostRepository,
+    @Inject(IPostRepository)
+    private readonly postRepository: IPostRepository,
   ) {}
 
   public async handle(command: IGetPublicProfileCommand) {
@@ -30,7 +27,7 @@ export class GetPublicProfileUseCase implements IGetPublicProfileUseCase {
         avatarUrl: user.avatarUrl,
         rank: user.rank,
         publishedGiftPostCount:
-          await this.giftPostRepository.countPublishedByGiver(user.globalId),
+          await this.postRepository.countPublishedByAuthor(user.globalId),
       },
     };
   }

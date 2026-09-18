@@ -3,17 +3,42 @@ import {
   IPaginationQueryDto,
 } from '@chantam/service.common-lib/dto';
 import { IGeoPoint } from '@chantam/service.persistency-lib/geo';
-import { GiftPostConditions, GiftPostStatuses, PostTypes } from '../../consts';
+import {
+  GenericMvpPostType,
+  GiftPostConditions,
+  GiftPostStatuses,
+  PostTypes,
+  PublicDiscoveryPostType,
+} from '../../consts';
 import { IPostEntity, IPostMediaEntity } from '../../entities';
 
-export interface ICreatePostDto {
+export interface ICreatePostCommonDto {
+  postType: GenericMvpPostType;
   title: string;
   description: string;
   categoryId: string;
-  condition: GiftPostConditions;
-  estimatedValue: number;
   location: IGeoPoint;
   areaLabel: string;
+}
+
+export interface ICreateOfferPostDto extends ICreatePostCommonDto {
+  postType: PostTypes.OFFER;
+  condition: GiftPostConditions;
+  estimatedValue: number;
+  totalQuantity?: number;
+}
+
+export interface ICreateGenericMvpPostDto extends ICreatePostCommonDto {
+  postType:
+    | PostTypes.WANTED
+    | PostTypes.CHARITY
+    | PostTypes.CLASSIFIED
+    | PostTypes.MERIT;
+}
+
+export interface ICreatePostDto extends ICreatePostCommonDto {
+  condition?: GiftPostConditions;
+  estimatedValue?: number;
   totalQuantity?: number;
 }
 
@@ -25,27 +50,11 @@ export interface ICreatePostResponseDto {
   post: IPostEntity;
 }
 
-export interface ICreateWantedPostDto {
-  title: string;
-  description: string;
-  categoryId: string;
-  location: IGeoPoint;
-  areaLabel: string;
-}
-
-export interface ICreateWantedPostBodyDto {
-  post: ICreateWantedPostDto;
-}
-
-export interface ICreateWantedPostResponseDto {
-  post: IPostEntity;
-}
-
 export interface IGetNearbyPostsQueryDto extends IPaginationQueryDto {
   lat: number;
   lng: number;
   radiusMeters: number;
-  postType: PostTypes.OFFER | PostTypes.WANTED;
+  postType: PublicDiscoveryPostType;
   categoryId?: string;
 }
 
@@ -105,6 +114,8 @@ export interface IUpdatePostDto {
   title?: string;
   description?: string;
   areaLabel?: string;
+  condition?: GiftPostConditions;
+  estimatedValue?: number;
 }
 
 export interface IUpdatePostParamsDto {

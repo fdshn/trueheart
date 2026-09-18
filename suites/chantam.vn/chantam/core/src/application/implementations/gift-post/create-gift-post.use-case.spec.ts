@@ -59,6 +59,7 @@ describe('CreateGiftPostUseCase compatibility', () => {
     expect(createPost.handle).toHaveBeenCalledWith({
       userId: UserId,
       post: {
+        postType: PostTypes.OFFER,
         title: GiftPost.title,
         description: GiftPost.description,
         categoryId: '30000000-0000-4000-8000-000000000006',

@@ -1,3 +1,4 @@
+import { GiftPostConditions } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IUpdatePostBodyDto,
   IUpdatePostDto,
@@ -8,10 +9,14 @@ import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Length,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { PostEntity } from '../../../entity/post.entity';
@@ -34,6 +39,26 @@ export class UpdatePostDto implements IUpdatePostDto {
   @IsString()
   @Length(2, 200)
   areaLabel?: string;
+
+  @ApiPropertyOptional({
+    enum: GiftPostConditions,
+    description: 'Chỉ áp dụng cho bài OFFER.',
+  })
+  @IsOptional()
+  @IsEnum(GiftPostConditions)
+  condition?: GiftPostConditions;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: 1_000_000_000,
+    description: 'Chỉ áp dụng cho bài OFFER.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000_000)
+  estimatedValue?: number;
 }
 
 export class UpdatePostParamsDto implements IUpdatePostParamsDto {

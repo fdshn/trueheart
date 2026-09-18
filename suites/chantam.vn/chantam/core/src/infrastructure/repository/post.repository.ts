@@ -32,7 +32,7 @@ export class PostRepository
     super(target, manager);
   }
 
-  public async createOfferWithinQuota(
+  public async createPostWithinQuota(
     authorId: string,
     quota: number,
     post: Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt'>,
@@ -178,6 +178,15 @@ export class PostRepository
         ? {}
         : { distanceMeters: Number(row.distance_meters) }),
     }));
+  }
+
+  public async countPublishedByAuthor(authorId: string): Promise<number> {
+    return this.createQueryBuilder('post')
+      .where('post.authorId = :authorId', { authorId })
+      .andWhere('post.postType = :postType', { postType: PostTypes.OFFER })
+      .andWhere('post.deletedAt IS NULL')
+      .andWhere('post.status = :status', { status: 'PUBLISHED' })
+      .getCount();
   }
 
   public async findPublicByGlobalId(

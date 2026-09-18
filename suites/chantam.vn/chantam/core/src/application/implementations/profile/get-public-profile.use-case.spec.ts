@@ -23,12 +23,12 @@ describe('GetPublicProfileUseCase', () => {
     const userRepository = {
       findActiveByUsername: jest.fn(async () => makeUser()),
     };
-    const giftPostRepository = {
-      countPublishedByGiver: jest.fn(async () => 2),
+    const postRepository = {
+      countPublishedByAuthor: jest.fn(async () => 2),
     };
     const useCase = new GetPublicProfileUseCase(
       userRepository as never,
-      giftPostRepository as never,
+      postRepository as never,
     );
 
     const result = await useCase.handle({ username: 'nguoi-demo' });
@@ -47,13 +47,13 @@ describe('GetPublicProfileUseCase', () => {
 
   it('không cho xem hồ sơ tài khoản bị xoá hoặc không active', async () => {
     const userRepository = { findActiveByUsername: jest.fn(async () => null) };
-    const giftPostRepository = { countPublishedByGiver: jest.fn() };
+    const postRepository = { countPublishedByAuthor: jest.fn() };
     const useCase = new GetPublicProfileUseCase(
       userRepository as never,
-      giftPostRepository as never,
+      postRepository as never,
     );
 
     await expect(useCase.handle({ username: 'khong-co' })).rejects.toThrow();
-    expect(giftPostRepository.countPublishedByGiver).not.toHaveBeenCalled();
+    expect(postRepository.countPublishedByAuthor).not.toHaveBeenCalled();
   });
 });

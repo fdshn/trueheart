@@ -14,7 +14,7 @@ describe('GetDiscoveryConfigUseCase', () => {
       maxRadiusMeters: MaxSearchRadiusMeters,
       defaultPageSize: DefaultPageSize,
       maxPageSize: MaxPageSize,
-      supportedPostTypes: ['OFFER', 'WANTED'],
+      supportedPostTypes: ['OFFER', 'WANTED', 'CHARITY', 'CLASSIFIED', 'MERIT'],
     });
     expect(result).not.toHaveProperty('database');
     expect(result).not.toHaveProperty('auth');

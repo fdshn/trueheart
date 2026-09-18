@@ -70,6 +70,7 @@ function command() {
   return {
     userId: UserId,
     post: {
+      postType: PostTypes.OFFER,
       title: 'Xe đạp cũ còn dùng tốt',
       description: 'Xe còn dùng tốt, cần thay yên.',
       categoryId: CategoryId,
@@ -88,7 +89,7 @@ describe('CreatePostUseCase', () => {
     created = true,
   ) {
     const posts = {
-      createOfferWithinQuota: jest.fn().mockResolvedValue(created),
+      createPostWithinQuota: jest.fn().mockResolvedValue(created),
       findOneByOrFail: jest
         .fn()
         .mockResolvedValue({ globalId: 'created-post' }),
@@ -109,7 +110,7 @@ describe('CreatePostUseCase', () => {
 
     await useCase.handle(command());
 
-    expect(posts.createOfferWithinQuota).toHaveBeenCalledWith(
+    expect(posts.createPostWithinQuota).toHaveBeenCalledWith(
       UserId,
       3,
       expect.objectContaining({
@@ -136,7 +137,7 @@ describe('CreatePostUseCase', () => {
       new CreatePostUseCase(posts, categories, users).handle(command()),
     ).rejects.toBeInstanceOf(ProfileIncompleteException);
     expect(categories.findOneBy).not.toHaveBeenCalled();
-    expect(posts.createOfferWithinQuota).not.toHaveBeenCalled();
+    expect(posts.createPostWithinQuota).not.toHaveBeenCalled();
   });
 
   it('từ chối category inactive hoặc deleted', async () => {
@@ -148,7 +149,7 @@ describe('CreatePostUseCase', () => {
     await expect(
       new CreatePostUseCase(posts, categories, users).handle(command()),
     ).rejects.toBeInstanceOf(CategoryNotFoundException);
-    expect(posts.createOfferWithinQuota).not.toHaveBeenCalled();
+    expect(posts.createPostWithinQuota).not.toHaveBeenCalled();
   });
 
   it('chặn Viewer có hồ sơ đầy đủ bằng onboarding exception trước category hoặc quota', async () => {
@@ -160,7 +161,7 @@ describe('CreatePostUseCase', () => {
       new CreatePostUseCase(posts, categories, users).handle(command()),
     ).rejects.toBeInstanceOf(OnboardingIncompleteException);
     expect(categories.findOneBy).not.toHaveBeenCalled();
-    expect(posts.createOfferWithinQuota).not.toHaveBeenCalled();
+    expect(posts.createPostWithinQuota).not.toHaveBeenCalled();
   });
 
   it('trả quota exception khi transaction lock từ chối request vượt trần', async () => {
@@ -173,7 +174,7 @@ describe('CreatePostUseCase', () => {
     await expect(
       new CreatePostUseCase(posts, categories, users).handle(command()),
     ).rejects.toBeInstanceOf(PostQuotaExceededException);
-    expect(posts.createOfferWithinQuota).toHaveBeenCalledWith(
+    expect(posts.createPostWithinQuota).toHaveBeenCalledWith(
       UserId,
       3,
       expect.any(Object),
