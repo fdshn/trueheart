@@ -5,6 +5,7 @@ import {
   IConfirmPhoneVerificationResponseDto,
   IGetOwnProfileResponseDto,
   IOwnProfileDto,
+  IProfileReferrerDto,
   IRequestPhoneVerificationResponseDto,
   IUpdateOwnProfileBodyDto,
   IUpdateOwnProfileDto,
@@ -21,6 +22,7 @@ import {
   Matches,
   ValidateNested,
 } from 'class-validator';
+import { ReferralSummaryDto } from '../referral';
 import { GeoPointDto } from '../geo-point.dto';
 
 const PhonePattern = /^\+?[0-9]{8,15}$/;
@@ -133,6 +135,34 @@ export class OwnProfileDto implements IOwnProfileDto {
     description: 'Đủ Họ tên, avatar, SĐT và email để đăng bài chưa.',
   })
   profileComplete: boolean;
+
+  @ApiProperty({
+    type: () => ReferralSummaryDto,
+    nullable: true,
+    description: 'Thông tin mã giới thiệu và thống kê của chính chủ.',
+  })
+  referral?: ReferralSummaryDto | null;
+
+  @ApiProperty({
+    type: () => ReferrerProfileDto,
+    nullable: true,
+    description: 'Thông tin người đã giới thiệu tài khoản này.',
+  })
+  referrer?: IProfileReferrerDto | null;
+}
+
+export class ReferrerProfileDto implements IProfileReferrerDto {
+  @ApiProperty({ format: 'uuid', description: 'Định danh người đã giới thiệu.' })
+  userId: string;
+
+  @ApiProperty({ description: 'Username của người đã giới thiệu.' })
+  username: string;
+
+  @ApiProperty({ nullable: true, description: 'Họ tên người đã giới thiệu.' })
+  fullName: string | null;
+
+  @ApiProperty({ nullable: true, description: 'Avatar của người đã giới thiệu.' })
+  avatarUrl: string | null;
 }
 
 export class GetOwnProfileResponseDto implements IGetOwnProfileResponseDto {

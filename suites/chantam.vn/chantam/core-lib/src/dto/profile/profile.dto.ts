@@ -1,5 +1,13 @@
 import { IGeoPoint } from '@chantam/service.persistency-lib/geo';
 import { UserRanks, UserStatuses } from '../../consts';
+import { IReferralSummaryDto } from '../referral';
+
+export interface IProfileReferrerDto {
+  userId: string;
+  username: string;
+  fullName: string | null;
+  avatarUrl: string | null;
+}
 
 export interface IUpdateOwnProfileDto {
   fullName?: string;
@@ -27,6 +35,8 @@ export interface IOwnProfileDto {
   status: UserStatuses;
   phoneVerified: boolean;
   profileComplete: boolean;
+  referral?: IReferralSummaryDto | null;
+  referrer?: IProfileReferrerDto | null;
 }
 
 export interface IGetOwnProfileResponseDto {
