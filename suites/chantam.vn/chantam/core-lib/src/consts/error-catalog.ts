@@ -185,6 +185,14 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Danh sách thứ tự ảnh bài đăng không hợp lệ',
   },
 
+  // ── 0x07 Point / Rank / Referral M4 ────────────────────────────────────────
+  POINT_RULE_UNAVAILABLE: {
+    code: ErrorCodes.POINT_RULE_UNAVAILABLE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (ruleCode: string) => `Point rule ${ruleCode} không khả dụng`,
+    sample: ['PHONE_VERIFIED_FIRST_TIME'],
+  },
+
   // ── 0x04 Phiên đăng nhập, OTP ─────────────────────────────────────────────
   SESSION_NOT_FOUND: {
     code: ErrorCodes.SESSION_NOT_FOUND,

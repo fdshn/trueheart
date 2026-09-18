@@ -4,6 +4,7 @@ import { CategoryModule } from './implementations/category/category.module';
 import { DiscoveryModule } from './implementations/discovery/discovery.module';
 import { GiftPostModule } from './implementations/gift-post/gift-post.module';
 import { OnboardingModule } from './implementations/onboarding/onboarding.module';
+import { PointModule } from './implementations/point/point.module';
 import { PostModule } from './implementations/post/post.module';
 import { ProfileModule } from './implementations/profile/profile.module';
 
@@ -17,6 +18,7 @@ import { ProfileModule } from './implementations/profile/profile.module';
     DiscoveryModule,
     GiftPostModule,
     OnboardingModule,
+    PointModule,
     PostModule,
     ProfileModule,
     CategoryModule,

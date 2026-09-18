@@ -54,6 +54,9 @@ export enum ErrorCodes {
   POST_MEDIA_LIMIT_EXCEEDED = 0x06_04,
   POST_MEDIA_ORDER_INVALID = 0x06_05,
 
+  // 0x07 — Point / Rank / Referral M4
+  POINT_RULE_UNAVAILABLE = 0x07_01,
+
   // 0x04 — Phiên đăng nhập, OTP, đặt lại mật khẩu
   SESSION_NOT_FOUND = 0x04_01,
   REFRESH_TOKEN_INVALID = 0x04_02,

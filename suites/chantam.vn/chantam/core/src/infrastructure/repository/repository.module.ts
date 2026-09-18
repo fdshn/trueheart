@@ -2,6 +2,7 @@ import {
   ICategoryRepository,
   IGiftPostRepository,
   IOnboardingTaskRepository,
+  IPointLedgerRepository,
   IPostMediaRepository,
   IPostRepository,
   IUserOnboardingTaskCompletionRepository,
@@ -12,6 +13,7 @@ import { Global, Module } from '@nestjs/common';
 import { CategoryRepository } from './category.repository';
 import { GiftPostRepository } from './gift-post.repository';
 import { OnboardingTaskRepository } from './onboarding-task.repository';
+import { PointLedgerRepository } from './point-ledger.repository';
 import { PostMediaRepository } from './post-media.repository';
 import { PostRepository } from './post.repository';
 import { UserOnboardingTaskCompletionRepository } from './user-onboarding-task-completion.repository';
@@ -29,6 +31,7 @@ import { UserRepository } from './user.repository';
     { provide: ICategoryRepository, useClass: CategoryRepository },
     { provide: IGiftPostRepository, useClass: GiftPostRepository },
     { provide: IOnboardingTaskRepository, useClass: OnboardingTaskRepository },
+    { provide: IPointLedgerRepository, useClass: PointLedgerRepository },
     { provide: IPostRepository, useClass: PostRepository },
     { provide: IPostMediaRepository, useClass: PostMediaRepository },
     { provide: IUserRepository, useClass: UserRepository },
@@ -42,6 +45,7 @@ import { UserRepository } from './user.repository';
     ICategoryRepository,
     IGiftPostRepository,
     IOnboardingTaskRepository,
+    IPointLedgerRepository,
     IPostRepository,
     IPostMediaRepository,
     IUserRepository,
