@@ -127,6 +127,7 @@ describe('RankRepository', () => {
   it('transactionally promotes a locked Viewer and records its immutable audit row', async () => {
     const query = jest
       .fn()
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         { rank: UserRanks.VIEWER, lifetime_points: '224' },
       ])
@@ -140,13 +141,17 @@ describe('RankRepository', () => {
     );
 
     expect(transaction).toHaveBeenCalledTimes(1);
-    expect(query.mock.calls[0][0]).toContain('FOR UPDATE');
-    expect(query.mock.calls[0][0]).toContain('user_point_balances');
-    expect(query.mock.calls[1]).toEqual([
+    expect(query.mock.calls[0]).toEqual([
+      'SELECT pg_advisory_xact_lock(hashtext($1))',
+      [UserId],
+    ]);
+    expect(query.mock.calls[1][0]).toContain('FOR UPDATE');
+    expect(query.mock.calls[1][0]).toContain('user_point_balances');
+    expect(query.mock.calls[2]).toEqual([
       expect.stringContaining('UPDATE users'),
       [UserId, UserRanks.MEMBER, UserRanks.VIEWER],
     ]);
-    expect(query.mock.calls[2]).toEqual([
+    expect(query.mock.calls[3]).toEqual([
       expect.stringContaining('INSERT INTO rank_transitions'),
       [
         UserId,
@@ -157,7 +162,7 @@ describe('RankRepository', () => {
         'SYSTEM',
       ],
     ]);
-    expect(query.mock.calls[2][0]).not.toMatch(
+    expect(query.mock.calls[3][0]).not.toMatch(
       /rank_maintenance_cycles|point_ledger/i,
     );
   });
@@ -165,6 +170,7 @@ describe('RankRepository', () => {
   it('uses zero lifetime points when the user has no balance row', async () => {
     const query = jest
       .fn()
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         { rank: UserRanks.VIEWER, lifetime_points: null },
       ])
@@ -177,12 +183,13 @@ describe('RankRepository', () => {
     await expect(repository.promoteMemberOnboarding(UserId)).resolves.toBe(
       true,
     );
-    expect(query.mock.calls[2][1]).toContain(0);
+    expect(query.mock.calls[3][1]).toContain(0);
   });
 
   it('does nothing for Member or higher without rank update or transition insert', async () => {
     const query = jest
       .fn()
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         { rank: UserRanks.MEMBER, lifetime_points: '224' },
       ]);
@@ -193,11 +200,11 @@ describe('RankRepository', () => {
     await expect(repository.promoteMemberOnboarding(UserId)).resolves.toBe(
       false,
     );
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledTimes(2);
   });
 
   it('throws UserNotFoundException for a missing user', async () => {
-    const query = jest.fn().mockResolvedValueOnce([]);
+    const query = jest.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const repository = new RankRepository({
       transaction: async (callback) => callback({ query }),
     } as never);

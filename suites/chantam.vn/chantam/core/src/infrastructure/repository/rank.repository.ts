@@ -50,6 +50,10 @@ export class RankRepository implements IRankRepository {
 
   public async promoteMemberOnboarding(userId: string): Promise<boolean> {
     return this.manager.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        userId,
+      ]);
+
       const [user] = await manager.query<IRawOnboardingPromotionRow[]>(
         `
           SELECT user.rank, balance.lifetime AS lifetime_points
