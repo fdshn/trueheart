@@ -39,17 +39,21 @@ describe('Phone verification', () => {
     expect(result.expiresInSeconds).toBe(300);
   });
 
-  it('OTP đúng đặt phone_verified_at, nhưng không tạo điểm khi chưa có ledger', async () => {
+  it('qualifies referral only when phone evidence promotes the user to Member', async () => {
     const users = {
       findOneBy: jest.fn(async () => makeUser()),
       update: jest.fn(async () => undefined),
     };
     const otpStore = { verify: jest.fn(async () => true) };
-    const evidence = { handle: jest.fn(async () => undefined) };
+    const evidence = { handle: jest.fn(async () => ({ promoted: true })) };
+    const referrals = { handle: jest.fn(async () => undefined) };
+    const points = { handle: jest.fn(async () => undefined) };
     const useCase = new ConfirmPhoneVerificationUseCase(
       users as never,
       otpStore as never,
       evidence as never,
+      referrals as never,
+      points as never,
     );
 
     await useCase.handle({ userId: UserId, verification: { otp: '123456' } });
@@ -62,6 +66,59 @@ describe('Phone verification', () => {
       userId: UserId,
       evidenceType: OnboardingTaskEvidenceTypes.PHONE_VERIFIED,
     });
+    expect(referrals.handle).toHaveBeenCalledWith({ refereeId: UserId });
+  });
+
+  it('does not re-qualify referral when phone evidence does not promote', async () => {
+    const users = {
+      findOneBy: jest.fn(async () => makeUser()),
+      update: jest.fn(async () => undefined),
+    };
+    const otpStore = { verify: jest.fn(async () => true) };
+    const evidence = { handle: jest.fn(async () => ({ promoted: false })) };
+    const referrals = { handle: jest.fn() };
+    const points = { handle: jest.fn(async () => undefined) };
+    const useCase = new ConfirmPhoneVerificationUseCase(
+      users as never,
+      otpStore as never,
+      evidence as never,
+      referrals as never,
+      points as never,
+    );
+
+    await useCase.handle({ userId: UserId, verification: { otp: '123456' } });
+
+    expect(referrals.handle).not.toHaveBeenCalled();
+  });
+
+  it('appends the first phone reward with a user-scoped idempotency key', async () => {
+    const users = {
+      findOneBy: jest.fn(async () => makeUser()),
+      update: jest.fn(async () => undefined),
+    };
+    const otpStore = { verify: jest.fn(async () => true) };
+    const evidence = { handle: jest.fn(async () => ({ promoted: false })) };
+    const referrals = { handle: jest.fn() };
+    const points = { handle: jest.fn(async () => undefined) };
+    const useCase = new ConfirmPhoneVerificationUseCase(
+      users as never,
+      otpStore as never,
+      evidence as never,
+      referrals as never,
+      points as never,
+    );
+
+    await useCase.handle({ userId: UserId, verification: { otp: '123456' } });
+
+    expect(points.handle).toHaveBeenCalledWith({
+      userId: UserId,
+      ruleCode: 'PHONE_VERIFIED_FIRST_TIME',
+      referenceType: 'PHONE_VERIFICATION',
+      referenceId: UserId,
+      idempotencyKey: `PHONE_VERIFIED_FIRST_TIME:${UserId}`,
+      actor: 'SYSTEM',
+      source: 'PROFILE',
+    });
   });
 
   it('OTP của SĐT cũ không xác minh được SĐT mới', async () => {
@@ -70,16 +127,21 @@ describe('Phone verification', () => {
       update: jest.fn(),
     };
     const otpStore = { verify: jest.fn(async () => false) };
-    const evidence = { handle: jest.fn(async () => undefined) };
+    const evidence = { handle: jest.fn(async () => ({ promoted: false })) };
+    const referrals = { handle: jest.fn() };
+    const points = { handle: jest.fn(async () => undefined) };
     const useCase = new ConfirmPhoneVerificationUseCase(
       users as never,
       otpStore as never,
       evidence as never,
+      referrals as never,
+      points as never,
     );
 
     await expect(
       useCase.handle({ userId: UserId, verification: { otp: '123456' } }),
     ).rejects.toThrow();
     expect(users.update).not.toHaveBeenCalled();
+    expect(referrals.handle).not.toHaveBeenCalled();
   });
 });

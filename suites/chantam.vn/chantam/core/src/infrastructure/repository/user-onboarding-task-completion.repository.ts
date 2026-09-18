@@ -1,5 +1,6 @@
 import {
   IRecordOnboardingEvidenceParams,
+  IRecordOnboardingEvidenceResult,
   IUserOnboardingTaskCompletionRepository,
 } from '@/domain/ports/repository';
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
@@ -22,8 +23,8 @@ export class UserOnboardingTaskCompletionRepository
 
   public async recordEvidenceAndPromoteMember(
     params: IRecordOnboardingEvidenceParams,
-  ): Promise<void> {
-    await this.manager.transaction(async (manager) => {
+  ): Promise<IRecordOnboardingEvidenceResult> {
+    return this.manager.transaction(async (manager) => {
       const tasks: Array<{ global_id: string }> = await manager.query(
         `
           SELECT global_id
@@ -66,17 +67,21 @@ export class UserOnboardingTaskCompletionRepository
           [params.userId],
         );
 
-      if (Number(requiredCount) !== Number(completedCount)) return;
+      if (Number(requiredCount) !== Number(completedCount))
+        return { promoted: false };
 
-      await manager.query(
+      const promoted = await manager.query<{ global_id: string }[]>(
         `
           UPDATE users
           SET rank = $2
           WHERE global_id = $1
             AND rank = $3
+          RETURNING global_id
         `,
         [params.userId, UserRanks.MEMBER, UserRanks.VIEWER],
       );
+
+      return { promoted: promoted.length === 1 };
     });
   }
 }

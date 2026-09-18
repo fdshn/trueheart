@@ -7,6 +7,7 @@ import { OnboardingModule } from './implementations/onboarding/onboarding.module
 import { PointModule } from './implementations/point/point.module';
 import { PostModule } from './implementations/post/post.module';
 import { ProfileModule } from './implementations/profile/profile.module';
+import { ReferralModule } from './implementations/referral/referral.module';
 
 /**
  * Chỉ import feature module cấp resource. Không import module hạ tầng
@@ -19,6 +20,7 @@ import { ProfileModule } from './implementations/profile/profile.module';
     GiftPostModule,
     OnboardingModule,
     PointModule,
+    ReferralModule,
     PostModule,
     ProfileModule,
     CategoryModule,

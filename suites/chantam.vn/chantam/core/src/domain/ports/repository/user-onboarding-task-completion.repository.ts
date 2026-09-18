@@ -8,10 +8,14 @@ export interface IRecordOnboardingEvidenceParams {
   evidenceRef?: string;
 }
 
+export interface IRecordOnboardingEvidenceResult {
+  promoted: boolean;
+}
+
 export interface IUserOnboardingTaskCompletionRepository extends Repository<IUserOnboardingTaskCompletionEntity> {
   recordEvidenceAndPromoteMember(
     params: IRecordOnboardingEvidenceParams,
-  ): Promise<void>;
+  ): Promise<IRecordOnboardingEvidenceResult>;
 }
 
 export const IUserOnboardingTaskCompletionRepository = Symbol(

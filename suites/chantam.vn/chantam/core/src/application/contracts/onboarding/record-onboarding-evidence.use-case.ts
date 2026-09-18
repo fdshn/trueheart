@@ -7,9 +7,13 @@ export interface IRecordOnboardingEvidenceCommand {
   evidenceRef?: string;
 }
 
+export interface IRecordOnboardingEvidenceResult {
+  promoted: boolean;
+}
+
 export interface IRecordOnboardingEvidenceUseCase extends IUseCase<
   IRecordOnboardingEvidenceCommand,
-  void
+  IRecordOnboardingEvidenceResult
 > {}
 
 export const IRecordOnboardingEvidenceUseCase = Symbol(

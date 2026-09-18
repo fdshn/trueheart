@@ -1,5 +1,6 @@
 import {
   IRecordOnboardingEvidenceCommand,
+  IRecordOnboardingEvidenceResult,
   IRecordOnboardingEvidenceUseCase,
 } from '@/application/contracts/onboarding';
 import { IUserOnboardingTaskCompletionRepository } from '@/domain/ports/repository';
@@ -14,7 +15,7 @@ export class RecordOnboardingEvidenceUseCase implements IRecordOnboardingEvidenc
 
   public async handle(
     command: IRecordOnboardingEvidenceCommand,
-  ): Promise<void> {
-    await this.completions.recordEvidenceAndPromoteMember(command);
+  ): Promise<IRecordOnboardingEvidenceResult> {
+    return this.completions.recordEvidenceAndPromoteMember(command);
   }
 }

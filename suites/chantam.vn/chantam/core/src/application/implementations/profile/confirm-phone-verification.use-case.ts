@@ -1,8 +1,10 @@
 import { IRecordOnboardingEvidenceUseCase } from '@/application/contracts/onboarding';
+import { IAppendPointEntryUseCase } from '@/application/contracts/point';
 import {
   IConfirmPhoneVerificationCommand,
   IConfirmPhoneVerificationUseCase,
 } from '@/application/contracts/profile';
+import { IQualifyReferralUseCase } from '@/application/contracts/referral';
 import {
   OtpInvalidException,
   UserNotFoundException,
@@ -19,6 +21,10 @@ export class ConfirmPhoneVerificationUseCase implements IConfirmPhoneVerificatio
     @Inject(IOtpStore) private readonly otp: IOtpStore,
     @Inject(IRecordOnboardingEvidenceUseCase)
     private readonly recordOnboardingEvidenceUseCase: IRecordOnboardingEvidenceUseCase,
+    @Inject(IQualifyReferralUseCase)
+    private readonly qualifyReferralUseCase: IQualifyReferralUseCase,
+    @Inject(IAppendPointEntryUseCase)
+    private readonly appendPointEntryUseCase: IAppendPointEntryUseCase,
   ) {}
   async handle(command: IConfirmPhoneVerificationCommand) {
     const user = await this.users.findOneBy({ globalId: command.userId });
@@ -37,9 +43,20 @@ export class ConfirmPhoneVerificationUseCase implements IConfirmPhoneVerificatio
       { globalId: user.globalId },
       { phoneVerifiedAt: verifiedAt },
     );
-    await this.recordOnboardingEvidenceUseCase.handle({
+    const onboarding = await this.recordOnboardingEvidenceUseCase.handle({
       userId: user.globalId,
       evidenceType: OnboardingTaskEvidenceTypes.PHONE_VERIFIED,
+    });
+    if (onboarding.promoted)
+      await this.qualifyReferralUseCase.handle({ refereeId: user.globalId });
+    await this.appendPointEntryUseCase.handle({
+      userId: user.globalId,
+      ruleCode: 'PHONE_VERIFIED_FIRST_TIME',
+      referenceType: 'PHONE_VERIFICATION',
+      referenceId: user.globalId,
+      idempotencyKey: `PHONE_VERIFIED_FIRST_TIME:${user.globalId}`,
+      actor: 'SYSTEM',
+      source: 'PROFILE',
     });
     return { verifiedAt };
   }
