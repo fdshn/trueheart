@@ -18,7 +18,7 @@
 - Post creation must re-read database rank, never rely on JWT rank.
 - Task admin policy is temporary `ONBOARDING_TASK_ADMIN_USERNAMES`, normalized like category/post operator allowlists.
 - Canonical nearby requires `postType` exactly `OFFER` or `WANTED`; public results retain status, jitter, and bucket-distance rules.
-- Legacy `/api/gift-posts/nearby` remains canonical OFFER-only.
+- Legacy `/api/v1/gift-posts/nearby` remains canonical OFFER-only.
 - Do not implement audit logging, points, referral, recurring tasks, Smart Match, SOS, or transaction logic in this plan.
 
 ---
@@ -39,7 +39,7 @@
 | `core/src/infrastructure/persistence/migrations/*Onboarding*.ts` | Additive tables/default task seed/backfill |
 | `core/src/application/implementations/post/create-*.use-case.ts` | Member gate before category/quota persistence |
 | `core/src/application/contracts/post/get-nearby-posts.use-case.ts` | Canonical nearby query contract |
-| `core/src/infrastructure/controller/api/post/post.controller.ts` | `GET /api/posts/nearby` before `:postId` |
+| `core/src/infrastructure/controller/api/post/post.controller.ts` | `GET /api/v1/posts/nearby` before `:postId` |
 
 ---
 
@@ -238,7 +238,7 @@ git commit -m "feat(onboarding): yêu cầu Member trước khi đăng bài"
 - Modify: API module, application module, config interface/schema/loader/env example/tests
 
 **Interfaces:**
-- `GET /api/onboarding/tasks` returns `{ tasks, completedRequiredCount, requiredCount, isComplete }` for authenticated user.
+- `GET /api/v1/onboarding/tasks` returns `{ tasks, completedRequiredCount, requiredCount, isComplete }` for authenticated user.
 - Admin endpoints use `ONBOARDING_TASK_ADMIN_USERNAMES` and receive `principal.username` server-side.
 
 - [ ] **Step 1: Write failing tests**
@@ -289,9 +289,9 @@ git commit -m "feat(onboarding): thêm quản lý nhiệm vụ và tiến độ 
 - Modify: legacy nearby compatibility tests
 
 **Interfaces:**
-- `GET /api/posts/nearby?lat&lng&radiusMeters&postType=OFFER|WANTED&categoryId?&page&pageSize`
+- `GET /api/v1/posts/nearby?lat&lng&radiusMeters&postType=OFFER|WANTED&categoryId?&page&pageSize`
 - Public response contains canonical posts with jittered location and bucketed distance.
-- Legacy `/api/gift-posts/nearby` calls canonical nearby with `PostTypes.OFFER` only.
+- Legacy `/api/v1/gift-posts/nearby` calls canonical nearby with `PostTypes.OFFER` only.
 
 - [ ] **Step 1: Write failing tests**
 

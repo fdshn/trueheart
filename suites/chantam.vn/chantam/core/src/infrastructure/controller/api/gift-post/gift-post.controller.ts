@@ -61,7 +61,7 @@ import {
  * khai giverId trong body, và F07 profile gate áp dụng ở use case.
  */
 @ApiTags('Bài đăng cho tặng')
-@Controller('api/gift-posts')
+@Controller('gift-posts')
 export class GiftPostController {
   public constructor(
     @Inject(ICreateGiftPostUseCase)

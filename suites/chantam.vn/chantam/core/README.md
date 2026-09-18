@@ -22,23 +22,23 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 
 | Method | Đường dẫn | Use case |
 | --- | --- | --- |
-| `POST` | `/api/gift-posts` | `CreateGiftPostUseCase` |
-| `GET` | `/api/gift-posts/nearby` | `GetNearbyGiftPostsUseCase` — truy vấn PostGIS |
-| `GET` | `/api/gift-posts/:giftPostId` | `GetGiftPostUseCase` |
-| `PATCH` | `/api/gift-posts/:giftPostId` | `UpdateGiftPostUseCase` |
-| `DELETE` | `/api/gift-posts/:giftPostId` | `DeleteGiftPostUseCase` — xoá mềm |
-| `POST` | `/api/posts` | `CreatePostUseCase` — canonical OFFER, JWT/profile/category/quota gate |
-| `POST` | `/api/posts/wanted` | `CreateWantedPostUseCase` — canonical WANTED, chờ moderation |
-| `POST` | `/api/posts/:postId/media/upload` | Presign upload ảnh owner/post scoped |
-| `POST` | `/api/posts/:postId/media` | `HeadObject` xác minh rồi gắn media |
-| `PATCH` | `/api/posts/:postId/media/order` | Owner thay toàn bộ thứ tự media |
-| `DELETE` | `/api/posts/:postId/media/:mediaId` | Owner gỡ media, compact thứ tự |
-| `DELETE` | `/api/posts/:postId` | Owner xoá mềm canonical post |
-| `PATCH` | `/api/posts/:postId/moderation` | `ModeratePostUseCase` — allowlist `POST_OPERATOR_USERNAMES` tạm thời |
-| `GET` | `/api/posts/nearby` | `GetNearbyPostsUseCase` — guest radius scan canonical, required OFFER/WANTED filter, location jitter + bucketed distance |
-| `GET` | `/api/posts/map` | `GetPostMapUseCase` — marker bbox public, location jitter, client-side cluster |
-| `GET` | `/api/posts/:postId` | `GetPostUseCase` — chỉ PUBLISHED/RESERVED, toạ độ đã jitter |
-| `GET` | `/api/discovery/config` | `GetDiscoveryConfigUseCase` — giới hạn radius/pagination và loại post public cho guest |
+| `POST` | `/api/v1/gift-posts` | `CreateGiftPostUseCase` |
+| `GET` | `/api/v1/gift-posts/nearby` | `GetNearbyGiftPostsUseCase` — truy vấn PostGIS |
+| `GET` | `/api/v1/gift-posts/:giftPostId` | `GetGiftPostUseCase` |
+| `PATCH` | `/api/v1/gift-posts/:giftPostId` | `UpdateGiftPostUseCase` |
+| `DELETE` | `/api/v1/gift-posts/:giftPostId` | `DeleteGiftPostUseCase` — xoá mềm |
+| `POST` | `/api/v1/posts` | `CreatePostUseCase` — canonical OFFER, JWT/profile/category/quota gate |
+| `POST` | `/api/v1/posts/wanted` | `CreateWantedPostUseCase` — canonical WANTED, chờ moderation |
+| `POST` | `/api/v1/posts/:postId/media/upload` | Presign upload ảnh owner/post scoped |
+| `POST` | `/api/v1/posts/:postId/media` | `HeadObject` xác minh rồi gắn media |
+| `PATCH` | `/api/v1/posts/:postId/media/order` | Owner thay toàn bộ thứ tự media |
+| `DELETE` | `/api/v1/posts/:postId/media/:mediaId` | Owner gỡ media, compact thứ tự |
+| `DELETE` | `/api/v1/posts/:postId` | Owner xoá mềm canonical post |
+| `PATCH` | `/api/v1/posts/:postId/moderation` | `ModeratePostUseCase` — allowlist `POST_OPERATOR_USERNAMES` tạm thời |
+| `GET` | `/api/v1/posts/nearby` | `GetNearbyPostsUseCase` — guest radius scan canonical, required OFFER/WANTED filter, location jitter + bucketed distance |
+| `GET` | `/api/v1/posts/map` | `GetPostMapUseCase` — marker bbox public, location jitter, client-side cluster |
+| `GET` | `/api/v1/posts/:postId` | `GetPostUseCase` — chỉ PUBLISHED/RESERVED, toạ độ đã jitter |
+| `GET` | `/api/v1/discovery/config` | `GetDiscoveryConfigUseCase` — giới hạn radius/pagination và loại post public cho guest |
 
 > Thứ tự khai báo route quan trọng: `@Get('nearby')` và `@Get('map')` phải đứng **trước**
 > `@Get(':postId')`, nếu không Fastify sẽ khớp static path thành một UUID và trả lỗi validate.
@@ -47,7 +47,7 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 
 ```bash
 # Đăng bài
-curl -X POST http://localhost:3000/api/gift-posts \
+curl -X POST http://localhost:3000/api/v1/gift-posts \
   -H 'Content-Type: application/json' \
   -d '{ "giftPost": {
         "title": "Xe đạp cũ còn dùng tốt",
@@ -59,7 +59,7 @@ curl -X POST http://localhost:3000/api/gift-posts \
         "giverId": "9f1a2b3c-4d5e-4f60-8a7b-1c2d3e4f5a6b" } }'
 
 # Quanh đây — sắp xếp gần → xa
-curl "http://localhost:3000/api/gift-posts/nearby?lat=10.7724&lng=106.698&radiusMeters=5000"
+curl "http://localhost:3000/api/v1/gift-posts/nearby?lat=10.7724&lng=106.698&radiusMeters=5000"
 ```
 
 > `giverId` phải là UUID hợp lệ theo chuẩn RFC (nibble variant là `8`/`9`/`a`/`b`).
@@ -71,24 +71,24 @@ Không cần JWT để guest khám phá dữ liệu public. Gói API dùng chung
 
 | Capability | Endpoint | Quy tắc |
 | --- | --- | --- |
-| Quét theo bán kính | `GET /api/posts/nearby` | Bắt buộc `lat`, `lng`, `radiusMeters`, `postType=OFFER\|WANTED`; optional `categoryId`, `page`, `pageSize`. |
-| Marker bản đồ | `GET /api/posts/map` | Bbox bắt buộc; optional origin/type/category; tối đa 200 marker tối thiểu để client cluster. |
-| Chi tiết vật phẩm | `GET /api/posts/:postId` | Chỉ `PUBLISHED`/`RESERVED`, media public và location jitter. |
-| Bộ lọc danh mục | `GET /api/categories` | Chỉ cây danh mục active. |
-| Policy client | `GET /api/discovery/config` | Radius 100–50,000m, page mặc định 20/tối đa 50, type guest OFFER/WANTED. |
+| Quét theo bán kính | `GET /api/v1/posts/nearby` | Bắt buộc `lat`, `lng`, `radiusMeters`, `postType=OFFER\|WANTED`; optional `categoryId`, `page`, `pageSize`. |
+| Marker bản đồ | `GET /api/v1/posts/map` | Bbox bắt buộc; optional origin/type/category; tối đa 200 marker tối thiểu để client cluster. |
+| Chi tiết vật phẩm | `GET /api/v1/posts/:postId` | Chỉ `PUBLISHED`/`RESERVED`, media public và location jitter. |
+| Bộ lọc danh mục | `GET /api/v1/categories` | Chỉ cây danh mục active. |
+| Policy client | `GET /api/v1/discovery/config` | Radius 100–50,000m, page mặc định 20/tối đa 50, type guest OFFER/WANTED. |
 
 Ví dụ quét item WANTED quanh vị trí hiện tại:
 
 ```bash
-curl "http://localhost:3000/api/posts/nearby?lat=10.7724&lng=106.698&radiusMeters=5000&postType=WANTED&page=1&pageSize=20"
+curl "http://localhost:3000/api/v1/posts/nearby?lat=10.7724&lng=106.698&radiusMeters=5000&postType=WANTED&page=1&pageSize=20"
 ```
 
-Mọi public response có location đều jitter ổn định theo post ID. `distanceMeters` bị bucket, không phải khoảng cách chính xác; guest không nhận được địa chỉ thật, contact hay cấu hình hạ tầng. Legacy `GET /api/gift-posts/nearby` vẫn tương thích client cũ và **luôn** chỉ tìm `OFFER`.
+Mọi public response có location đều jitter ổn định theo post ID. `distanceMeters` bị bucket, không phải khoảng cách chính xác; guest không nhận được địa chỉ thật, contact hay cấu hình hạ tầng. Legacy `GET /api/v1/gift-posts/nearby` vẫn tương thích client cũ và **luôn** chỉ tìm `OFFER`.
 
 ## Canonical posts M2.1
 
-`/api/posts` là API canonical mới. Trong compatibility window, `/api/gift-posts` vẫn tồn tại cho
-client cũ và đã map vào canonical `posts`; không ghi hai bảng song song. `POST /api/posts` chỉ tạo `OFFER` ở
+`/api/v1/posts` là API canonical mới. Trong compatibility window, `/api/v1/gift-posts` vẫn tồn tại cho
+client cũ và đã map vào canonical `posts`; không ghi hai bảng song song. `POST /api/v1/posts` chỉ tạo `OFFER` ở
 `PENDING_REVIEW`; author/type/status do server quyết định. Operator tạm thời cấu hình bằng
 `POST_OPERATOR_USERNAMES` mới được gọi moderation sang `PUBLISHED` hoặc `REJECTED`.
 
@@ -99,7 +99,7 @@ Bài đăng mới tạo ở trạng thái `PENDING_REVIEW` (đặc tả mục 3.
 duyệt), nên **chưa xuất hiện trong `/nearby`**. Chuyển sang `PUBLISHED` để kiểm thử:
 
 ```bash
-curl -X PATCH http://localhost:3000/api/gift-posts/<globalId> \
+curl -X PATCH http://localhost:3000/api/v1/gift-posts/<globalId> \
   -H 'Content-Type: application/json' \
   -d '{ "giftPost": { "status": "PUBLISHED" } }'
 ```

@@ -80,7 +80,7 @@ export class DocsModule implements OnModuleInit {
         scheme: 'bearer',
         bearerFormat: 'JWT',
         description:
-          'Dán access token lấy từ POST /api/auth/login hoặc /api/auth/register. ' +
+          'Dán access token lấy từ POST /api/v1/auth/login hoặc /api/v1/auth/register. ' +
           'Chỉ dán phần token, KHÔNG kèm chữ "Bearer".',
       });
 

@@ -165,7 +165,7 @@ curl -u <swagger-username> https://api-staging.<domain>/docs/json | head
 ```
 
 Kỳ vọng request không credential trả `401` kèm `WWW-Authenticate`; request có credential trả JSON.
-`/health` và `/api/...` không yêu cầu Swagger credential.
+`/health` và `/api/v1/...` không yêu cầu Swagger credential.
 
 Thêm hai **Environment secrets** staging để GitHub authenticated check `/docs/json` sau deploy:
 
@@ -307,6 +307,6 @@ Không commit hoặc gửi access key/secret qua chat. CORS bucket tối thiểu
 `PUT`, `GET`, `HEAD`; headers `Content-Type`, `Content-Length`; expose `ETag`; origin đúng
 frontend staging. Không dùng `*` khi đã biết origin.
 
-Core presign upload, client PUT trực tiếp R2, rồi `PATCH /api/profile/me` gửi `avatarKey`.
+Core presign upload, client PUT trực tiếp R2, rồi `PATCH /api/v1/profile/me` gửi `avatarKey`.
 Server `HeadObject` xác nhận key thuộc `users/<userId>/avatars/`, MIME ảnh hợp lệ và <=5 MB
 trước khi gắn avatar.

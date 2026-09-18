@@ -30,7 +30,7 @@ elif [[ "$path" = */docs* ]]; then
   elif [ "${MOCK_DOCS_POLICY:-public}" = "basic" ] && [ "$has_auth" = 0 ]; then
     printf '%s\n401\n' '{"success":false}'
   else
-    printf '%s\n200\n' '{"paths":{"/api/gift-posts":{},"/api/gift-posts/nearby":{},"/api/gift-posts/{giftPostId}":{},"/api/auth/register":{},"/api/auth/login":{},"/api/auth/refresh":{},"/api/auth/logout":{},"/api/auth/password-reset/request":{},"/api/auth/password-reset/confirm":{},"/api/auth/account":{},"x":{"errorCode":65286},"y":{"errorCode":257},"z":{"errorCode":260},"a":{"errorCode":772},"201":{},"b":{"201":{}}}}'
+    printf '%s\n200\n' '{"paths":{"/api/v1/gift-posts":{},"/api/v1/gift-posts/nearby":{},"/api/v1/gift-posts/{giftPostId}":{},"/api/v1/auth/register":{},"/api/v1/auth/login":{},"/api/v1/auth/refresh":{},"/api/v1/auth/logout":{},"/api/v1/auth/password-reset/request":{},"/api/v1/auth/password-reset/confirm":{},"/api/v1/auth/account":{},"x":{"errorCode":65286},"y":{"errorCode":257},"z":{"errorCode":260},"a":{"errorCode":772},"201":{},"b":{"201":{}}}}'
   fi
 fi
 MOCK
@@ -53,6 +53,6 @@ HIDDEN_OUTPUT=$(run_policy hidden)
 printf '%s' "$HIDDEN_OUTPUT" | grep -q '/docs và /docs/json bị ẩn ở production'
 
 PUBLIC_OUTPUT=$(run_policy public)
-printf '%s' "$PUBLIC_OUTPUT" | grep -q '/docs/json có đủ route'
+printf '%s' "$PUBLIC_OUTPUT" | grep -q '/docs/json có đủ route versioned'
 
 echo 'Smoke docs policies: basic, hidden, public — OK'

@@ -36,7 +36,7 @@ import {
 } from '../../dto/category';
 
 @ApiTags('Danh mục')
-@Controller('api/categories')
+@Controller('categories')
 export class CategoryController {
   public constructor(
     @Inject(IGetCategoryTreeUseCase)

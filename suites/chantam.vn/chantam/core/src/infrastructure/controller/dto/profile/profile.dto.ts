@@ -39,7 +39,7 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
   @ApiPropertyOptional({
     maxLength: 500,
     description:
-      'Key trả về từ `PATCH /api/profile/me/avatar-upload` sau khi client PUT thành công. Server xác minh object thuộc đúng tài khoản rồi mới tạo URL avatar; không nhận URL tuỳ ý.',
+      'Key trả về từ `PATCH /api/v1/profile/me/avatar-upload` sau khi client PUT thành công. Server xác minh object thuộc đúng tài khoản rồi mới tạo URL avatar; không nhận URL tuỳ ý.',
   })
   @IsOptional()
   @IsString()

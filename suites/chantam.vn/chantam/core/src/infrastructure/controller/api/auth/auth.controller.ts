@@ -72,7 +72,7 @@ import {
 } from '../../dto/auth';
 
 @ApiTags('Xác thực')
-@Controller('api/auth')
+@Controller('auth')
 export class AuthController {
   public constructor(
     @Inject(IRegisterUserUseCase)

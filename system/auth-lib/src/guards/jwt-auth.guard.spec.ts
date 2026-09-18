@@ -77,7 +77,7 @@ function makeGuard(overrides: {
 describe('JwtAuthGuard', () => {
   it('thiếu token thì chặn', async () => {
     const { guard } = makeGuard({});
-    const { context } = makeContext('/api/auth/me');
+    const { context } = makeContext('/api/v1/auth/me');
 
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
       TokenMissingException,
@@ -86,7 +86,7 @@ describe('JwtAuthGuard', () => {
 
   it('token hợp lệ thì cho qua và gắn danh tính vào request', async () => {
     const { guard } = makeGuard({});
-    const { context, request } = makeContext('/api/auth/me', 'Bearer abc');
+    const { context, request } = makeContext('/api/v1/auth/me', 'Bearer abc');
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(request.user).toEqual(Principal);
@@ -94,7 +94,7 @@ describe('JwtAuthGuard', () => {
 
   it('token đã bị thu hồi thì chặn, dù chữ ký còn hợp lệ', async () => {
     const { guard } = makeGuard({ revoked: true });
-    const { context } = makeContext('/api/auth/me', 'Bearer abc');
+    const { context } = makeContext('/api/v1/auth/me', 'Bearer abc');
 
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
       TokenRevokedException,
@@ -107,7 +107,7 @@ describe('JwtAuthGuard', () => {
     const { guard, denyList } = makeGuard({
       principal: { ...Principal, issuedAt: undefined },
     });
-    const { context } = makeContext('/api/auth/me', 'Bearer abc');
+    const { context } = makeContext('/api/v1/auth/me', 'Bearer abc');
 
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
       TokenInvalidException,
@@ -125,7 +125,10 @@ describe('JwtAuthGuard', () => {
 
   it('route đánh dấu @Public vẫn đọc được danh tính khi token còn tốt', async () => {
     const { guard } = makeGuard({ isPublicRoute: true });
-    const { context, request } = makeContext('/api/gift-posts', 'Bearer abc');
+    const { context, request } = makeContext(
+      '/api/v1/gift-posts',
+      'Bearer abc',
+    );
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(request.user).toEqual(Principal);

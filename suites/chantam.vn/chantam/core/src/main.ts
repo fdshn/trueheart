@@ -17,6 +17,7 @@ async function bootstrap(): Promise<void> {
   );
 
   app.useLogger(app.get(Logger));
+  app.setGlobalPrefix('api/v1', { exclude: ['health'] });
 
   // Trao instance ứng dụng cho DI container TRƯỚC khi listen — đây là cửa sổ
   // duy nhất mà SwaggerModule.setup() còn kịp gắn route.

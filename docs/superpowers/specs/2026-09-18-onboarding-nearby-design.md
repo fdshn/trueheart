@@ -4,7 +4,7 @@
 
 1. Người mới là `VIEWER`; chỉ được tạo OFFER/WANTED sau khi là `MEMBER` và hoàn thành onboarding một lần.
 2. Admin quản lý danh sách nhiệm vụ onboarding; client chỉ đọc tiến độ, **không** tự đánh dấu hoàn thành.
-3. API nearby/map phân biệt rõ `OFFER` và `WANTED`; legacy `/api/gift-posts/nearby` luôn chỉ OFFER.
+3. API nearby/map phân biệt rõ `OFFER` và `WANTED`; legacy `/api/v1/gift-posts/nearby` luôn chỉ OFFER.
 4. Audit log toàn hệ thống để deferred cuối, không làm trong scope này.
 
 ## Quyết định
@@ -45,9 +45,9 @@ Không dùng `FIRST_OFFER_CREATED`: Viewer quota hiện là 0 nên không thể 
 Temporary admin policy: `ONBOARDING_TASK_ADMIN_USERNAMES`, parse/normalize giống category/post operator allowlist.
 
 ```text
-GET    /api/onboarding/tasks                  # JWT: active tasks + completion progress của chính chủ
-POST   /api/onboarding/tasks                  # allowlist admin
-PATCH  /api/onboarding/tasks/:taskId          # allowlist admin, deactivate thay vì xoá cứng
+GET    /api/v1/onboarding/tasks                  # JWT: active tasks + completion progress của chính chủ
+POST   /api/v1/onboarding/tasks                  # allowlist admin
+PATCH  /api/v1/onboarding/tasks/:taskId          # allowlist admin, deactivate thay vì xoá cứng
 ```
 
 Task key/evidence type là immutable sau khi seed để không đổi nghĩa completion lịch sử. CRUD chỉ thay title/description/order/required/active.
@@ -55,11 +55,11 @@ Task key/evidence type là immutable sau khi seed để không đổi nghĩa com
 ### Type filter nearby
 
 ```text
-GET /api/posts/nearby?lat&lng&radiusMeters&postType=OFFER|WANTED&categoryId?
+GET /api/v1/posts/nearby?lat&lng&radiusMeters&postType=OFFER|WANTED&categoryId?
 ```
 
 - Canonical nearby bắt buộc `postType`; query canonical `posts`, status public, PostGIS radius, pagination, jitter/bucket distance.
-- Legacy `/api/gift-posts/nearby` giữ tương thích và server luôn query `OFFER`.
+- Legacy `/api/v1/gift-posts/nearby` giữ tương thích và server luôn query `OFFER`.
 - Map endpoint hiện đã có optional `postType`; không cần thay contract.
 
 ## Thay đổi chính

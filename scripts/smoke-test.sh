@@ -170,15 +170,17 @@ else
 
   call GET /docs/json "" "$DOCS_AUTH"
   MISSING=""
-  for route in '/api/gift-posts' '/api/gift-posts/nearby' '/api/gift-posts/{giftPostId}' '/api/auth/register' '/api/auth/login' '/api/auth/refresh' '/api/auth/logout' \
-    '/api/auth/password-reset/request' '/api/auth/password-reset/confirm' \
-    '/api/auth/account'; do
+  for route in '/api/v1/gift-posts' '/api/v1/gift-posts/nearby' '/api/v1/gift-posts/{giftPostId}' '/api/v1/auth/register' '/api/v1/auth/login' '/api/v1/auth/refresh' '/api/v1/auth/logout' \
+    '/api/v1/auth/password-reset/request' '/api/v1/auth/password-reset/confirm' \
+    '/api/v1/auth/account'; do
     printf '%s' "$RESP_BODY" | grep -q "\"$route\"" || MISSING="$MISSING $route"
   done
-  if [ "$RESP_CODE" = "200" ] && [ -z "$MISSING" ]; then
-    pass "/docs/json có đủ route"
+  LEGACY_ROUTES=$(printf '%s' "$RESP_BODY" | grep -oE '"/api/[^"]*"' | grep -v '^"/api/v1/' || true)
+
+  if [ "$RESP_CODE" = "200" ] && [ -z "$MISSING" ] && [ -z "$LEGACY_ROUTES" ]; then
+    pass "/docs/json có đủ route versioned"
   else
-    fail "/docs/json thiếu route" "HTTP $RESP_CODE — thiếu:$MISSING"
+    fail "/docs/json sai contract versioned" "HTTP $RESP_CODE — thiếu:$MISSING cũ:$LEGACY_ROUTES"
   fi
 fi
 
@@ -231,7 +233,7 @@ echo "Xác thực"
 SMOKE_USER="smoke$(date +%s)$$"
 SMOKE_PASS='SmokeTest@123'
 
-call POST /api/auth/register "{\"registration\":{\"username\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"confirmPassword\":\"$SMOKE_PASS\",\"deviceId\":\"smoke-device\"}}"
+call POST /api/v1/auth/register "{\"registration\":{\"username\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"confirmPassword\":\"$SMOKE_PASS\",\"deviceId\":\"smoke-device\"}}"
 ACCESS_TOKEN=$(json_str "$RESP_BODY" accessToken)
 REFRESH_TOKEN=$(json_str "$RESP_BODY" refreshToken)
 
@@ -248,14 +250,14 @@ else
   fail "profileComplete sai ngay sau khi đăng ký" "$RESP_BODY"
 fi
 
-call POST /api/auth/register "{\"registration\":{\"username\":\"${SMOKE_USER}x\",\"password\":\"$SMOKE_PASS\",\"confirmPassword\":\"KhacHoanToan@9\",\"deviceId\":\"d\"}}"
+call POST /api/v1/auth/register "{\"registration\":{\"username\":\"${SMOKE_USER}x\",\"password\":\"$SMOKE_PASS\",\"confirmPassword\":\"KhacHoanToan@9\",\"deviceId\":\"d\"}}"
 if [ "$RESP_CODE" = "400" ]; then
   pass "mật khẩu xác nhận không khớp bị chặn"
 else
   fail "confirmPassword không được kiểm" "HTTP $RESP_CODE"
 fi
 
-call GET /api/auth/me
+call GET /api/v1/auth/me
 if [ "$RESP_CODE" = "401" ]; then
   pass "endpoint cần quyền từ chối khi thiếu token"
 else
@@ -264,9 +266,9 @@ fi
 
 # Sai mật khẩu và tài khoản không tồn tại phải trả về HỆT NHAU — nếu khác, kẻ
 # tấn công dò được username nào đang tồn tại.
-call POST /api/auth/login "{\"credentials\":{\"identifier\":\"$SMOKE_USER\",\"password\":\"SaiHoanToan@9\",\"deviceId\":\"d\"}}"
+call POST /api/v1/auth/login "{\"credentials\":{\"identifier\":\"$SMOKE_USER\",\"password\":\"SaiHoanToan@9\",\"deviceId\":\"d\"}}"
 WRONG_PASSWORD_BODY="$RESP_BODY"
-call POST /api/auth/login "{\"credentials\":{\"identifier\":\"khong-ton-tai-$$\",\"password\":\"SaiHoanToan@9\",\"deviceId\":\"d\"}}"
+call POST /api/v1/auth/login "{\"credentials\":{\"identifier\":\"khong-ton-tai-$$\",\"password\":\"SaiHoanToan@9\",\"deviceId\":\"d\"}}"
 
 if [ "$WRONG_PASSWORD_BODY" = "$RESP_BODY" ]; then
   pass "sai mật khẩu và tài khoản lạ trả lời giống hệt nhau"
@@ -274,14 +276,14 @@ else
   fail "phản hồi khác nhau — dò được tài khoản tồn tại" "$WRONG_PASSWORD_BODY vs $RESP_BODY"
 fi
 
-call POST /api/auth/login "{\"credentials\":{\"identifier\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"deviceId\":\"smoke-device-2\"}}"
+call POST /api/v1/auth/login "{\"credentials\":{\"identifier\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"deviceId\":\"smoke-device-2\"}}"
 if [ "$RESP_CODE" = "200" ]; then
   pass "đăng nhập bằng mật khẩu đúng"
 else
   fail "không đăng nhập được" "HTTP $RESP_CODE — $RESP_BODY"
 fi
 
-call POST /api/auth/refresh "{\"session\":{\"refreshToken\":\"$REFRESH_TOKEN\"}}"
+call POST /api/v1/auth/refresh "{\"session\":{\"refreshToken\":\"$REFRESH_TOKEN\"}}"
 ROTATED_TOKEN=$(json_str "$RESP_BODY" refreshToken)
 ROTATED_ACCESS=$(json_str "$RESP_BODY" accessToken)
 
@@ -292,21 +294,21 @@ else
 fi
 
 # Token cũ phải chết ngay. Không chết nghĩa là token bị đánh cắp dùng được mãi.
-call POST /api/auth/refresh "{\"session\":{\"refreshToken\":\"$REFRESH_TOKEN\"}}"
+call POST /api/v1/auth/refresh "{\"session\":{\"refreshToken\":\"$REFRESH_TOKEN\"}}"
 if [ "$RESP_CODE" = "401" ]; then
   pass "refresh token cũ mất hiệu lực sau khi xoay vòng"
 else
   fail "refresh token cũ VẪN DÙNG ĐƯỢC" "HTTP $RESP_CODE"
 fi
 
-call_auth POST /api/auth/logout "$ROTATED_ACCESS" "{\"session\":{\"refreshToken\":\"$ROTATED_TOKEN\"}}"
+call_auth POST /api/v1/auth/logout "$ROTATED_ACCESS" "{\"session\":{\"refreshToken\":\"$ROTATED_TOKEN\"}}"
 if [ "$RESP_CODE" = "200" ]; then
   pass "đăng xuất"
 else
   fail "không đăng xuất được" "HTTP $RESP_CODE — $RESP_BODY"
 fi
 
-call POST /api/auth/refresh "{\"session\":{\"refreshToken\":\"$ROTATED_TOKEN\"}}"
+call POST /api/v1/auth/refresh "{\"session\":{\"refreshToken\":\"$ROTATED_TOKEN\"}}"
 if [ "$RESP_CODE" = "401" ]; then
   pass "phiên đã đăng xuất không làm mới được nữa"
 else
@@ -320,10 +322,10 @@ echo "Quên mật khẩu (F05)"
 # Tài khoản smoke chưa gắn email/SĐT, nên nó và một tài khoản không tồn tại
 # phải trả lời HỆT NHAU. Khác nhau một chữ là endpoint này thành công cụ dò
 # xem username nào có thật — đúng lỗ hổng màn đăng nhập đã cẩn thận tránh.
-call POST /api/auth/password-reset/request "{\"reset\":{\"identifier\":\"$SMOKE_USER\"}}"
+call POST /api/v1/auth/password-reset/request "{\"reset\":{\"identifier\":\"$SMOKE_USER\"}}"
 NO_CONTACT_BODY="$RESP_BODY"
 NO_CONTACT_CODE="$RESP_CODE"
-call POST /api/auth/password-reset/request "{\"reset\":{\"identifier\":\"khong-ton-tai-$$\"}}"
+call POST /api/v1/auth/password-reset/request "{\"reset\":{\"identifier\":\"khong-ton-tai-$$\"}}"
 
 if [ "$NO_CONTACT_BODY" = "$RESP_BODY" ] && [ "$NO_CONTACT_CODE" = "$RESP_CODE" ]; then
   pass "tài khoản không có liên hệ và tài khoản lạ trả lời giống hệt nhau"
@@ -345,10 +347,10 @@ else
 fi
 
 # Mã sai của tài khoản có thật và của tài khoản lạ cũng phải giống nhau.
-call POST /api/auth/password-reset/confirm "{\"reset\":{\"identifier\":\"$SMOKE_USER\",\"otp\":\"000000\",\"newPassword\":\"MoiHoanToan@9\",\"confirmPassword\":\"MoiHoanToan@9\"}}"
+call POST /api/v1/auth/password-reset/confirm "{\"reset\":{\"identifier\":\"$SMOKE_USER\",\"otp\":\"000000\",\"newPassword\":\"MoiHoanToan@9\",\"confirmPassword\":\"MoiHoanToan@9\"}}"
 BAD_OTP_BODY="$RESP_BODY"
 BAD_OTP_CODE="$RESP_CODE"
-call POST /api/auth/password-reset/confirm "{\"reset\":{\"identifier\":\"khong-ton-tai-$$\",\"otp\":\"000000\",\"newPassword\":\"MoiHoanToan@9\",\"confirmPassword\":\"MoiHoanToan@9\"}}"
+call POST /api/v1/auth/password-reset/confirm "{\"reset\":{\"identifier\":\"khong-ton-tai-$$\",\"otp\":\"000000\",\"newPassword\":\"MoiHoanToan@9\",\"confirmPassword\":\"MoiHoanToan@9\"}}"
 
 if [ "$BAD_OTP_CODE" = "400" ] && [ "$BAD_OTP_BODY" = "$RESP_BODY" ]; then
   pass "mã sai bị từ chối, và không phân biệt tài khoản có thật hay không"
@@ -364,31 +366,31 @@ fi
 echo
 echo "Xoá tài khoản (F06)"
 
-call POST /api/auth/login "{\"credentials\":{\"identifier\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"deviceId\":\"smoke-delete\"}}"
+call POST /api/v1/auth/login "{\"credentials\":{\"identifier\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"deviceId\":\"smoke-delete\"}}"
 DELETE_TOKEN=$(json_str "$RESP_BODY" accessToken)
 
-call DELETE /api/auth/account "{\"account\":{\"password\":\"$SMOKE_PASS\"}}"
+call DELETE /api/v1/auth/account "{\"account\":{\"password\":\"$SMOKE_PASS\"}}"
 if [ "$RESP_CODE" = "401" ]; then
   pass "không có token thì không xoá được tài khoản"
 else
   fail "xoá tài khoản không cần token" "HTTP $RESP_CODE"
 fi
 
-call_auth DELETE /api/auth/account "$DELETE_TOKEN" '{"account":{"password":"SaiHoanToan@9"}}'
+call_auth DELETE /api/v1/auth/account "$DELETE_TOKEN" '{"account":{"password":"SaiHoanToan@9"}}'
 if [ "$RESP_CODE" = "401" ]; then
   pass "sai mật khẩu thì không xoá được tài khoản"
 else
   fail "xoá tài khoản không bắt nhập lại mật khẩu" "HTTP $RESP_CODE — $RESP_BODY"
 fi
 
-call_auth GET /api/auth/me "$DELETE_TOKEN"
+call_auth GET /api/v1/auth/me "$DELETE_TOKEN"
 if [ "$RESP_CODE" = "200" ]; then
   pass "tài khoản còn nguyên sau lần xoá hụt"
 else
   fail "tài khoản hỏng sau lần xoá hụt" "HTTP $RESP_CODE"
 fi
 
-call_auth DELETE /api/auth/account "$DELETE_TOKEN" "{\"account\":{\"password\":\"$SMOKE_PASS\"}}"
+call_auth DELETE /api/v1/auth/account "$DELETE_TOKEN" "{\"account\":{\"password\":\"$SMOKE_PASS\"}}"
 if [ "$RESP_CODE" = "200" ]; then
   pass "xoá tài khoản với mật khẩu đúng"
 else
@@ -398,14 +400,14 @@ fi
 # Đây là phép thử quan trọng nhất của khối này. Access token là JWT nên tự nó
 # còn hiệu lực tới 15 phút; không có danh sách thu hồi thì token vừa dùng để
 # xoá tài khoản vẫn gọi API được sau đó — tài khoản "đã xoá" mà vẫn thao tác.
-call_auth GET /api/auth/me "$DELETE_TOKEN"
+call_auth GET /api/v1/auth/me "$DELETE_TOKEN"
 if [ "$RESP_CODE" = "401" ]; then
   pass "access token chết NGAY khi tài khoản bị xoá"
 else
   fail "TOKEN CŨ VẪN DÙNG ĐƯỢC SAU KHI XOÁ TÀI KHOẢN" "HTTP $RESP_CODE — $RESP_BODY"
 fi
 
-call POST /api/auth/login "{\"credentials\":{\"identifier\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"deviceId\":\"d\"}}"
+call POST /api/v1/auth/login "{\"credentials\":{\"identifier\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"deviceId\":\"d\"}}"
 if [ "$RESP_CODE" = "401" ]; then
   pass "tài khoản đã xoá không đăng nhập lại được"
 else
@@ -414,7 +416,7 @@ fi
 
 # Username được giữ lại có chủ đích: xoá nó đi thì người khác đăng ký lại đúng
 # tên đó và mạo danh trong lịch sử giao dịch cũ.
-call POST /api/auth/register "{\"registration\":{\"username\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"confirmPassword\":\"$SMOKE_PASS\",\"deviceId\":\"d\"}}"
+call POST /api/v1/auth/register "{\"registration\":{\"username\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASS\",\"confirmPassword\":\"$SMOKE_PASS\",\"deviceId\":\"d\"}}"
 if [ "$RESP_CODE" = "409" ]; then
   pass "username của tài khoản đã xoá không ai chiếm được"
 else
@@ -430,11 +432,11 @@ echo "Hồ sơ và cổng đăng bài"
 PROFILE_USER="profile$(date +%s)$$"
 PROFILE_PHONE="+${PROFILE_USER#profile}"
 PROFILE_EMAIL="${PROFILE_USER}@example.com"
-call POST /api/auth/register "{\"registration\":{\"username\":\"$PROFILE_USER\",\"password\":\"$SMOKE_PASS\",\"confirmPassword\":\"$SMOKE_PASS\",\"deviceId\":\"profile-device\"}}"
+call POST /api/v1/auth/register "{\"registration\":{\"username\":\"$PROFILE_USER\",\"password\":\"$SMOKE_PASS\",\"confirmPassword\":\"$SMOKE_PASS\",\"deviceId\":\"profile-device\"}}"
 PROFILE_ACCESS_TOKEN=$(json_str "$RESP_BODY" accessToken)
 
 # F07: account mới thiếu 4 field profile thì phải bị chặn trước khi tạo bài.
-call_auth POST /api/gift-posts "$PROFILE_ACCESS_TOKEN" '{"giftPost":{"title":"Xe dap cu con dung tot","description":"Xe dap con dung tot, tang nguoi can di hoc hoac di lam.","category":"VEHICLE","condition":"USED","estimatedValue":100000,"location":{"lat":21.028,"lng":105.835},"areaLabel":"Hoan Kiem, Ha Noi"}}'
+call_auth POST /api/v1/gift-posts "$PROFILE_ACCESS_TOKEN" '{"giftPost":{"title":"Xe dap cu con dung tot","description":"Xe dap con dung tot, tang nguoi can di hoc hoac di lam.","category":"VEHICLE","condition":"USED","estimatedValue":100000,"location":{"lat":21.028,"lng":105.835},"areaLabel":"Hoan Kiem, Ha Noi"}}'
 if [ "$RESP_CODE" = "403" ] && printf '%s' "$RESP_BODY" | grep -q '"errorCode":776'; then
   pass "hồ sơ chưa đủ bị chặn đăng bài (F07)"
 else
@@ -443,7 +445,7 @@ fi
 
 # F24: xin presign, PUT ảnh trực tiếp rồi chỉ gửi avatarKey. Không nhận URL tuỳ
 # ý: server HeadObject xác nhận key/MIME/kích thước thuộc đúng user trước attach.
-call_auth PATCH /api/profile/me/avatar-upload "$PROFILE_ACCESS_TOKEN" '{"contentType":"image/webp","contentLength":20}'
+call_auth PATCH /api/v1/profile/me/avatar-upload "$PROFILE_ACCESS_TOKEN" '{"contentType":"image/webp","contentLength":20}'
 AVATAR_UPLOAD_URL=$(json_str "$RESP_BODY" uploadUrl)
 AVATAR_KEY=$(json_str "$RESP_BODY" key)
 if [ -n "$AVATAR_UPLOAD_URL" ] && [ -n "$AVATAR_KEY" ]; then
@@ -453,7 +455,7 @@ else
   AVATAR_PUT=000
 fi
 
-call_auth PATCH /api/profile/me "$PROFILE_ACCESS_TOKEN" "{\"profile\":{\"fullName\":\"Smoke User\",\"avatarKey\":\"$AVATAR_KEY\",\"email\":\"$PROFILE_EMAIL\",\"phone\":\"$PROFILE_PHONE\",\"defaultLocation\":{\"lat\":21.028,\"lng\":105.835}}}"
+call_auth PATCH /api/v1/profile/me "$PROFILE_ACCESS_TOKEN" "{\"profile\":{\"fullName\":\"Smoke User\",\"avatarKey\":\"$AVATAR_KEY\",\"email\":\"$PROFILE_EMAIL\",\"phone\":\"$PROFILE_PHONE\",\"defaultLocation\":{\"lat\":21.028,\"lng\":105.835}}}"
 if [ "$AVATAR_PUT" = "200" ] && [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"profileComplete":true'; then
   pass "upload avatar trực tiếp + cập nhật hồ sơ/vị trí (F08/F11/F24)"
 else
@@ -461,14 +463,14 @@ else
 fi
 
 # Email/phone/default location chỉ owner thấy; public profile tuyệt đối không lộ.
-call_auth GET /api/profile/me "$PROFILE_ACCESS_TOKEN"
+call_auth GET /api/v1/profile/me "$PROFILE_ACCESS_TOKEN"
 if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"defaultLocation"'; then
   pass "hồ sơ owner có vị trí mặc định"
 else
   fail "hồ sơ owner thiếu vị trí mặc định" "HTTP $RESP_CODE — $RESP_BODY"
 fi
 
-call GET "/api/profile/$PROFILE_USER"
+call GET "/api/v1/profile/$PROFILE_USER"
 if [ "$RESP_CODE" = "200" ] && ! printf '%s' "$RESP_BODY" | grep -qE '"(email|phone|defaultLocation)"'; then
   pass "hồ sơ công khai không lộ contact/vị trí"
 else
@@ -479,7 +481,7 @@ fi
 echo
 echo "Kiểm tra dữ liệu đầu vào"
 
-call_auth POST /api/gift-posts "$PROFILE_ACCESS_TOKEN" '{"giftPost":{}}'
+call_auth POST /api/v1/gift-posts "$PROFILE_ACCESS_TOKEN" '{"giftPost":{}}'
 if [ "$RESP_CODE" = "400" ] && printf '%s' "$RESP_BODY" | grep -q '"errorOrigin":"kernel/common-lib"'; then
   pass "dữ liệu sai trả 400 kèm errorOrigin của nền tảng"
 else
@@ -500,7 +502,7 @@ PAYLOAD=$(cat <<JSON
 JSON
 )
 
-call_auth POST /api/gift-posts "$PROFILE_ACCESS_TOKEN" "$PAYLOAD"
+call_auth POST /api/v1/gift-posts "$PROFILE_ACCESS_TOKEN" "$PAYLOAD"
 CREATED_ID=$(json_str "$RESP_BODY" globalId)
 
 if [ "$RESP_CODE" = "201" ] || [ "$RESP_CODE" = "200" ]; then
@@ -527,14 +529,14 @@ if [ -z "$CREATED_ID" ]; then
 fi
 
 # Cổng kiểm duyệt: bài chưa duyệt tuyệt đối không được lộ ra bảng tin công khai.
-call GET "/api/gift-posts/nearby?lat=${TEST_LAT}&lng=${TEST_LNG}&radiusMeters=2000"
+call GET "/api/v1/gift-posts/nearby?lat=${TEST_LAT}&lng=${TEST_LNG}&radiusMeters=2000"
 if printf '%s' "$RESP_BODY" | grep -q "$CREATED_ID"; then
   fail "bài CHƯA duyệt đã lộ ra bảng tin công khai" "$CREATED_ID"
 else
   pass "bài chưa duyệt không xuất hiện ở bảng tin"
 fi
 
-call_auth PATCH "/api/gift-posts/${CREATED_ID}" "$PROFILE_ACCESS_TOKEN" '{"giftPost":{"status":"PUBLISHED"}}'
+call_auth PATCH "/api/v1/gift-posts/${CREATED_ID}" "$PROFILE_ACCESS_TOKEN" '{"giftPost":{"status":"PUBLISHED"}}'
 if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"status":"PUBLISHED"'; then
   pass "duyệt bài sang PUBLISHED"
 else
@@ -545,7 +547,7 @@ fi
 echo
 echo "Truy vấn không gian PostGIS"
 
-call GET "/api/gift-posts/nearby?lat=${TEST_LAT}&lng=${TEST_LNG}&radiusMeters=2000"
+call GET "/api/v1/gift-posts/nearby?lat=${TEST_LAT}&lng=${TEST_LNG}&radiusMeters=2000"
 if printf '%s' "$RESP_BODY" | grep -q "$CREATED_ID"; then
   pass "bài đã duyệt xuất hiện trong bán kính (ST_DWithin)"
 else
@@ -565,7 +567,7 @@ else
 fi
 
 # Bài ở Hà Nội, truy vấn từ TP.HCM bán kính 1km — nếu lọt ra thì ST_DWithin sai.
-call GET "/api/gift-posts/nearby?lat=${FAR_LAT}&lng=${FAR_LNG}&radiusMeters=1000"
+call GET "/api/v1/gift-posts/nearby?lat=${FAR_LAT}&lng=${FAR_LNG}&radiusMeters=1000"
 if printf '%s' "$RESP_BODY" | grep -q "$CREATED_ID"; then
   fail "bài cách 1.100km vẫn lọt vào bán kính 1km" "bộ lọc không gian hỏng"
 else
@@ -576,21 +578,21 @@ fi
 echo
 echo "Chi tiết và xoá"
 
-call GET "/api/gift-posts/${CREATED_ID}"
+call GET "/api/v1/gift-posts/${CREATED_ID}"
 if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"isLocationApproximate":true'; then
   pass "chi tiết bài trả toạ độ đã làm nhiễu"
 else
   fail "chi tiết bài sai" "HTTP $RESP_CODE — $RESP_BODY"
 fi
 
-call_auth DELETE "/api/gift-posts/${CREATED_ID}" "$PROFILE_ACCESS_TOKEN"
+call_auth DELETE "/api/v1/gift-posts/${CREATED_ID}" "$PROFILE_ACCESS_TOKEN"
 if [ "$RESP_CODE" = "200" ]; then
   pass "xoá mềm bài đăng"
 else
   fail "không xoá được" "HTTP $RESP_CODE — $RESP_BODY"
 fi
 
-call GET "/api/gift-posts/${CREATED_ID}"
+call GET "/api/v1/gift-posts/${CREATED_ID}"
 if [ "$RESP_CODE" = "404" ] && printf '%s' "$RESP_BODY" | grep -q '"errorOrigin":"chantam/core"'; then
   pass "bài đã xoá trả 404 kèm errorOrigin nghiệp vụ"
 else

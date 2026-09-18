@@ -21,7 +21,7 @@ Tổng effort nguồn: **60 man-days / 50 ngày / 4 sprint**.
 | --- | --- | --- |
 | Sprint 1 – hạ tầng, auth, profile, category, avatar storage | ✅ Đã có nền code | Email/SMS provider, R2 staging/prod acceptance và point ledger còn deferred |
 | Sprint 1 – canonical OFFER foundation | 🟡 Đang làm trong M2.1 | `posts` migration/backfill, OFFER/WANTED create, detail/map/moderation/quota, owner update/delete và post-media ownership đã có; legacy adapter còn thiếu |
-| Sprint 2 – map discovery | 🟡 Đang làm | `GET /api/posts/map` marker bbox, jitter và client-side clustering đã có local/commit chờ push |
+| Sprint 2 – map discovery | 🟡 Đang làm | `GET /api/v1/posts/map` marker bbox, jitter và client-side clustering đã có local/commit chờ push |
 | Sprint 2–4 còn lại | ⬜ Chưa triển khai | Không đánh dấu xong khi chỉ có contract/mock |
 
 ---
@@ -67,7 +67,7 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 
 ### Thứ tự bắt buộc trong Sprint 2
 
-1. Hoàn thành M2.1: post media ownership, owner delete, legacy `/api/gift-posts` compatibility adapter,
+1. Hoàn thành M2.1: post media ownership, owner delete, legacy `/api/v1/gift-posts` compatibility adapter,
    migration fixture/CI assertion.
 2. Hoàn thành M2 map/discovery + WANTED/Smart Match/SOS theo roadmap.
 3. Chỉ mở transaction khi post lifecycle/public visibility đã ổn định.

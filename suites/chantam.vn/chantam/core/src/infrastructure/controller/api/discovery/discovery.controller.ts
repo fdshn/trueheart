@@ -8,7 +8,7 @@ import { DiscoveryConfigResponseDto } from '../../dto/discovery';
 
 @Public()
 @ApiTags('Khám phá')
-@Controller('api/discovery')
+@Controller('discovery')
 export class DiscoveryController {
   public constructor(
     @Inject(IGetDiscoveryConfigUseCase)

@@ -79,7 +79,7 @@ import {
 } from '../../dto/post';
 
 @ApiTags('Bài đăng')
-@Controller('api/posts')
+@Controller('posts')
 export class PostController {
   public constructor(
     @Inject(ICreatePostUseCase)

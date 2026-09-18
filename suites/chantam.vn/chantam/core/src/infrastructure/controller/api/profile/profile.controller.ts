@@ -38,7 +38,7 @@ import {
 
 @ApiTags('Hồ sơ')
 @ApiBearerAuth()
-@Controller('api/profile')
+@Controller('profile')
 export class ProfileController {
   public constructor(
     @Inject(IRequestAvatarUploadUseCase)

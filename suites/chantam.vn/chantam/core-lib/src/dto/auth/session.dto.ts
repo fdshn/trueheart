@@ -34,7 +34,7 @@ export interface IAuthResultDto {
 }
 
 /**
- * Phản hồi của `GET /api/auth/me` — đọc thẳng từ access token, KHÔNG tra
+ * Phản hồi của `GET /api/v1/auth/me` — đọc thẳng từ access token, KHÔNG tra
  * database.
  *
  * Cố ý hẹp hơn `IOwnUserDto`: token chỉ mang bốn trường này. Khai bằng
