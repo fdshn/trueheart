@@ -2,12 +2,15 @@ import {
   IUpdateOwnProfileCommand,
   IUpdateOwnProfileUseCase,
 } from '@/application/contracts/profile';
+import { IRecordOnboardingEvidenceUseCase } from '@/application/contracts/onboarding';
 import {
   EmailTakenException,
   PhoneTakenException,
   UserNotFoundException,
 } from '@/domain/exceptions';
 import { IUserRepository } from '@/domain/ports/repository';
+import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
+import { isProfileComplete } from '@chantam.vn/chantam.core-lib/models';
 import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { toOwnProfileDto } from './profile.mapper';
@@ -19,6 +22,8 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
     private readonly userRepository: IUserRepository,
     @Inject(IObjectStorage)
     private readonly storage: IObjectStorage,
+    @Inject(IRecordOnboardingEvidenceUseCase)
+    private readonly recordOnboardingEvidenceUseCase: IRecordOnboardingEvidenceUseCase,
   ) {}
 
   public async handle(command: IUpdateOwnProfileCommand) {
@@ -68,6 +73,12 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
     const profile = await this.userRepository.findOneByOrFail({
       globalId: command.userId,
     });
+    if (isProfileComplete(profile)) {
+      await this.recordOnboardingEvidenceUseCase.handle({
+        userId: command.userId,
+        evidenceType: OnboardingTaskEvidenceTypes.PROFILE_COMPLETE,
+      });
+    }
 
     return { profile: toOwnProfileDto(profile) };
   }

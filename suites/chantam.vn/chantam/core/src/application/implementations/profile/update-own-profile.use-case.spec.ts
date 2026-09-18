@@ -1,3 +1,4 @@
+import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { UpdateOwnProfileUseCase } from './update-own-profile.use-case';
 
 const UserId = '10000000-0000-4000-8000-000000000001';
@@ -31,6 +32,10 @@ function makeRepository(user = makeUser()) {
   };
 }
 
+function makeEvidence() {
+  return { handle: jest.fn(async () => undefined) };
+}
+
 function makeStorage() {
   return {
     confirmAvatarUpload: jest.fn(
@@ -45,6 +50,7 @@ describe('UpdateOwnProfileUseCase', () => {
     const useCase = new UpdateOwnProfileUseCase(
       repository as never,
       makeStorage() as never,
+      makeEvidence() as never,
     );
 
     await useCase.handle({ userId: UserId, profile: { phone: '0912345678' } });
@@ -60,6 +66,7 @@ describe('UpdateOwnProfileUseCase', () => {
     const useCase = new UpdateOwnProfileUseCase(
       repository as never,
       makeStorage() as never,
+      makeEvidence() as never,
     );
 
     await useCase.handle({
@@ -79,6 +86,7 @@ describe('UpdateOwnProfileUseCase', () => {
     const useCase = new UpdateOwnProfileUseCase(
       repository as never,
       makeStorage() as never,
+      makeEvidence() as never,
     );
 
     await expect(
@@ -100,6 +108,7 @@ describe('UpdateOwnProfileUseCase', () => {
     const useCase = new UpdateOwnProfileUseCase(
       repository as never,
       storage as never,
+      makeEvidence() as never,
     );
 
     await useCase.handle({
@@ -117,11 +126,36 @@ describe('UpdateOwnProfileUseCase', () => {
     );
   });
 
+  it('records profile evidence only after the persisted profile is complete', async () => {
+    const completedUser = makeUser({
+      fullName: 'Người Mới',
+      avatarUrl: 'https://cdn.example.com/avatar.webp',
+    });
+    const repository = makeRepository(completedUser);
+    const evidence = { handle: jest.fn(async () => undefined) };
+    const useCase = new UpdateOwnProfileUseCase(
+      repository as never,
+      makeStorage() as never,
+      evidence as never,
+    );
+
+    await useCase.handle({
+      userId: UserId,
+      profile: { fullName: 'Người Mới' },
+    });
+
+    expect(evidence.handle).toHaveBeenCalledWith({
+      userId: UserId,
+      evidenceType: OnboardingTaskEvidenceTypes.PROFILE_COMPLETE,
+    });
+  });
+
   it('từ chối update khi tài khoản đã bị xoá', async () => {
     const repository = makeRepository(makeUser({ deletedAt: new Date() }));
     const useCase = new UpdateOwnProfileUseCase(
       repository as never,
       makeStorage() as never,
+      makeEvidence() as never,
     );
 
     await expect(

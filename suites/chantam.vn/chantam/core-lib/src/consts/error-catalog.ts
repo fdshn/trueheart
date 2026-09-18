@@ -131,6 +131,12 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: [900],
   },
 
+  ONBOARDING_INCOMPLETE: {
+    code: ErrorCodes.ONBOARDING_INCOMPLETE,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () => 'Cần hoàn tất onboarding trước khi đăng bài',
+  },
+
   // ── 0x05 Danh mục ─────────────────────────────────────────────────────────
   CATEGORY_NOT_FOUND: {
     code: ErrorCodes.CATEGORY_NOT_FOUND,

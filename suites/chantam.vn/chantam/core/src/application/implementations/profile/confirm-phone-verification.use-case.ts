@@ -1,3 +1,4 @@
+import { IRecordOnboardingEvidenceUseCase } from '@/application/contracts/onboarding';
 import {
   IConfirmPhoneVerificationCommand,
   IConfirmPhoneVerificationUseCase,
@@ -7,6 +8,7 @@ import {
   UserNotFoundException,
 } from '@/domain/exceptions';
 import { IUserRepository } from '@/domain/ports/repository';
+import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { IOtpStore } from '@/domain/ports/security';
 import { Inject, Injectable } from '@nestjs/common';
 import { PhoneVerificationPurpose } from './request-phone-verification.use-case';
@@ -15,6 +17,8 @@ export class ConfirmPhoneVerificationUseCase implements IConfirmPhoneVerificatio
   constructor(
     @Inject(IUserRepository) private readonly users: IUserRepository,
     @Inject(IOtpStore) private readonly otp: IOtpStore,
+    @Inject(IRecordOnboardingEvidenceUseCase)
+    private readonly recordOnboardingEvidenceUseCase: IRecordOnboardingEvidenceUseCase,
   ) {}
   async handle(command: IConfirmPhoneVerificationCommand) {
     const user = await this.users.findOneBy({ globalId: command.userId });
@@ -33,6 +37,10 @@ export class ConfirmPhoneVerificationUseCase implements IConfirmPhoneVerificatio
       { globalId: user.globalId },
       { phoneVerifiedAt: verifiedAt },
     );
+    await this.recordOnboardingEvidenceUseCase.handle({
+      userId: user.globalId,
+      evidenceType: OnboardingTaskEvidenceTypes.PHONE_VERIFIED,
+    });
     return { verifiedAt };
   }
 }

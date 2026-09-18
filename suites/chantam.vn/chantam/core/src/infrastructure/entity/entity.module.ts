@@ -1,17 +1,21 @@
 import {
   ICategoryEntity,
   IGiftPostEntity,
+  IOnboardingTaskEntity,
   IPostEntity,
   IPostMediaEntity,
   IUserEntity,
+  IUserOnboardingTaskCompletionEntity,
   IUserSessionEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
 import { Global, Module } from '@nestjs/common';
 import { CategoryEntity } from './category.entity';
 import { GiftPostEntity } from './gift-post.entity';
+import { OnboardingTaskEntity } from './onboarding-task.entity';
 import { PostMediaEntity } from './post-media.entity';
 import { PostEntity } from './post.entity';
 import { UserSessionEntity } from './user-session.entity';
+import { UserOnboardingTaskCompletionEntity } from './user-onboarding-task-completion.entity';
 import { UserEntity } from './user.entity';
 
 /**
@@ -25,17 +29,24 @@ import { UserEntity } from './user.entity';
   providers: [
     { provide: ICategoryEntity, useValue: CategoryEntity },
     { provide: IGiftPostEntity, useValue: GiftPostEntity },
+    { provide: IOnboardingTaskEntity, useValue: OnboardingTaskEntity },
     { provide: IPostEntity, useValue: PostEntity },
     { provide: IPostMediaEntity, useValue: PostMediaEntity },
     { provide: IUserEntity, useValue: UserEntity },
+    {
+      provide: IUserOnboardingTaskCompletionEntity,
+      useValue: UserOnboardingTaskCompletionEntity,
+    },
     { provide: IUserSessionEntity, useValue: UserSessionEntity },
   ],
   exports: [
     ICategoryEntity,
     IGiftPostEntity,
+    IOnboardingTaskEntity,
     IPostEntity,
     IPostMediaEntity,
     IUserEntity,
+    IUserOnboardingTaskCompletionEntity,
     IUserSessionEntity,
   ],
 })

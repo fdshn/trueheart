@@ -1,3 +1,4 @@
+import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { ConfirmPhoneVerificationUseCase } from './confirm-phone-verification.use-case';
 import { RequestPhoneVerificationUseCase } from './request-phone-verification.use-case';
 
@@ -44,9 +45,11 @@ describe('Phone verification', () => {
       update: jest.fn(async () => undefined),
     };
     const otpStore = { verify: jest.fn(async () => true) };
+    const evidence = { handle: jest.fn(async () => undefined) };
     const useCase = new ConfirmPhoneVerificationUseCase(
       users as never,
       otpStore as never,
+      evidence as never,
     );
 
     await useCase.handle({ userId: UserId, verification: { otp: '123456' } });
@@ -55,6 +58,10 @@ describe('Phone verification', () => {
       { globalId: UserId },
       { phoneVerifiedAt: expect.any(Date) },
     );
+    expect(evidence.handle).toHaveBeenCalledWith({
+      userId: UserId,
+      evidenceType: OnboardingTaskEvidenceTypes.PHONE_VERIFIED,
+    });
   });
 
   it('OTP của SĐT cũ không xác minh được SĐT mới', async () => {
@@ -63,9 +70,11 @@ describe('Phone verification', () => {
       update: jest.fn(),
     };
     const otpStore = { verify: jest.fn(async () => false) };
+    const evidence = { handle: jest.fn(async () => undefined) };
     const useCase = new ConfirmPhoneVerificationUseCase(
       users as never,
       otpStore as never,
+      evidence as never,
     );
 
     await expect(

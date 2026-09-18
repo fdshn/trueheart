@@ -5,6 +5,7 @@ import {
 } from '@/application/contracts/post';
 import {
   CategoryNotFoundException,
+  OnboardingIncompleteException,
   PostQuotaExceededException,
   ProfileIncompleteException,
   UserNotFoundException,
@@ -59,6 +60,8 @@ export class CreateWantedPostUseCase implements ICreateWantedPostUseCase {
       ].filter(Boolean) as string[];
       throw new ProfileIncompleteException(missing);
     }
+    if (user.rank === UserRanks.VIEWER)
+      throw new OnboardingIncompleteException();
 
     const { post } = command;
     const category = await this.categoryRepository.findOneBy({

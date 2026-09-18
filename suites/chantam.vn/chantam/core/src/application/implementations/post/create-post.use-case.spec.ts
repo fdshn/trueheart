@@ -1,5 +1,6 @@
 import {
   CategoryNotFoundException,
+  OnboardingIncompleteException,
   PostQuotaExceededException,
   ProfileIncompleteException,
 } from '@/domain/exceptions';
@@ -150,9 +151,21 @@ describe('CreatePostUseCase', () => {
     expect(posts.createOfferWithinQuota).not.toHaveBeenCalled();
   });
 
-  it('trả quota exception khi transaction lock từ chối request vượt trần', async () => {
+  it('chặn Viewer có hồ sơ đầy đủ bằng onboarding exception trước category hoặc quota', async () => {
     const { posts, categories, users } = makeRepositories(
       makeUser({ rank: UserRanks.VIEWER }),
+    );
+
+    await expect(
+      new CreatePostUseCase(posts, categories, users).handle(command()),
+    ).rejects.toBeInstanceOf(OnboardingIncompleteException);
+    expect(categories.findOneBy).not.toHaveBeenCalled();
+    expect(posts.createOfferWithinQuota).not.toHaveBeenCalled();
+  });
+
+  it('trả quota exception khi transaction lock từ chối request vượt trần', async () => {
+    const { posts, categories, users } = makeRepositories(
+      makeUser({ rank: UserRanks.MEMBER }),
       makeCategory(),
       false,
     );
@@ -162,7 +175,7 @@ describe('CreatePostUseCase', () => {
     ).rejects.toBeInstanceOf(PostQuotaExceededException);
     expect(posts.createOfferWithinQuota).toHaveBeenCalledWith(
       UserId,
-      0,
+      3,
       expect.any(Object),
     );
   });

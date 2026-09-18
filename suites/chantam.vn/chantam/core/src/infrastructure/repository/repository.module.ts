@@ -1,17 +1,21 @@
 import {
   ICategoryRepository,
   IGiftPostRepository,
+  IOnboardingTaskRepository,
   IPostMediaRepository,
   IPostRepository,
+  IUserOnboardingTaskCompletionRepository,
   IUserRepository,
   IUserSessionRepository,
 } from '@/domain/ports/repository';
 import { Global, Module } from '@nestjs/common';
 import { CategoryRepository } from './category.repository';
 import { GiftPostRepository } from './gift-post.repository';
+import { OnboardingTaskRepository } from './onboarding-task.repository';
 import { PostMediaRepository } from './post-media.repository';
 import { PostRepository } from './post.repository';
 import { UserSessionRepository } from './user-session.repository';
+import { UserOnboardingTaskCompletionRepository } from './user-onboarding-task-completion.repository';
 import { UserRepository } from './user.repository';
 
 /**
@@ -24,17 +28,24 @@ import { UserRepository } from './user.repository';
   providers: [
     { provide: ICategoryRepository, useClass: CategoryRepository },
     { provide: IGiftPostRepository, useClass: GiftPostRepository },
+    { provide: IOnboardingTaskRepository, useClass: OnboardingTaskRepository },
     { provide: IPostRepository, useClass: PostRepository },
     { provide: IPostMediaRepository, useClass: PostMediaRepository },
     { provide: IUserRepository, useClass: UserRepository },
+    {
+      provide: IUserOnboardingTaskCompletionRepository,
+      useClass: UserOnboardingTaskCompletionRepository,
+    },
     { provide: IUserSessionRepository, useClass: UserSessionRepository },
   ],
   exports: [
     ICategoryRepository,
     IGiftPostRepository,
+    IOnboardingTaskRepository,
     IPostRepository,
     IPostMediaRepository,
     IUserRepository,
+    IUserOnboardingTaskCompletionRepository,
     IUserSessionRepository,
   ],
 })

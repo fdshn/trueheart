@@ -40,6 +40,8 @@ export enum ErrorCodes {
    * cặp (origin, code).
    */
   LOGIN_THROTTLED = 0x03_0a,
+  /** Chưa hoàn tất các nhiệm vụ onboarding bắt buộc. */
+  ONBOARDING_INCOMPLETE = 0x03_0b,
 
   // 0x05 — Danh mục
   CATEGORY_NOT_FOUND = 0x05_01,

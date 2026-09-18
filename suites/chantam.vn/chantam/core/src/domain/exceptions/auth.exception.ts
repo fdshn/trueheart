@@ -27,6 +27,10 @@ export class ProfileIncompleteException extends ExceptionFrom(
   CoreErrors.PROFILE_INCOMPLETE,
 ) {}
 
+export class OnboardingIncompleteException extends ExceptionFrom(
+  CoreErrors.ONBOARDING_INCOMPLETE,
+) {}
+
 export class InvalidCredentialsException extends ExceptionFrom(
   CoreErrors.INVALID_CREDENTIALS,
 ) {}
