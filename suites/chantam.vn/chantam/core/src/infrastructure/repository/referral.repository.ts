@@ -1,17 +1,18 @@
 import {
+  IPointLedgerRepository,
   IReferralQualificationResult,
   IReferralRepository,
 } from '@/domain/ports/repository';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
-import { PointLedgerRepository } from './point-ledger.repository';
 
 @Injectable()
 export class ReferralRepository implements IReferralRepository {
   public constructor(
     @InjectEntityManager() private readonly manager: EntityManager,
-    private readonly ledger: PointLedgerRepository,
+    @Inject(IPointLedgerRepository)
+    private readonly ledger: IPointLedgerRepository,
   ) {}
 
   public async getOwnSummary(userId: string) {
