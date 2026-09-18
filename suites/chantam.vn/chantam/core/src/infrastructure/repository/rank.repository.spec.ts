@@ -1,3 +1,4 @@
+import { UserNotFoundException } from '@/domain/exceptions';
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import { RankRepository } from './rank.repository';
 
@@ -121,5 +122,88 @@ describe('RankRepository', () => {
       nextTier: null,
     });
     expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('transactionally promotes a locked Viewer and records its immutable audit row', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([
+        { rank: UserRanks.VIEWER, lifetime_points: '224' },
+      ])
+      .mockResolvedValueOnce([{ global_id: UserId }])
+      .mockResolvedValueOnce([]);
+    const transaction = jest.fn(async (callback) => callback({ query }));
+    const repository = new RankRepository({ transaction } as never);
+
+    await expect(repository.promoteMemberOnboarding(UserId)).resolves.toBe(
+      true,
+    );
+
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0][0]).toContain('FOR UPDATE');
+    expect(query.mock.calls[0][0]).toContain('user_point_balances');
+    expect(query.mock.calls[1]).toEqual([
+      expect.stringContaining('UPDATE users'),
+      [UserId, UserRanks.MEMBER, UserRanks.VIEWER],
+    ]);
+    expect(query.mock.calls[2]).toEqual([
+      expect.stringContaining('INSERT INTO rank_transitions'),
+      [
+        UserId,
+        UserRanks.VIEWER,
+        UserRanks.MEMBER,
+        'ONBOARDING_COMPLETE',
+        224,
+        'SYSTEM',
+      ],
+    ]);
+    expect(query.mock.calls[2][0]).not.toMatch(
+      /rank_maintenance_cycles|point_ledger/i,
+    );
+  });
+
+  it('uses zero lifetime points when the user has no balance row', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([
+        { rank: UserRanks.VIEWER, lifetime_points: null },
+      ])
+      .mockResolvedValueOnce([{ global_id: UserId }])
+      .mockResolvedValueOnce([]);
+    const repository = new RankRepository({
+      transaction: async (callback) => callback({ query }),
+    } as never);
+
+    await expect(repository.promoteMemberOnboarding(UserId)).resolves.toBe(
+      true,
+    );
+    expect(query.mock.calls[2][1]).toContain(0);
+  });
+
+  it('does nothing for Member or higher without rank update or transition insert', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([
+        { rank: UserRanks.MEMBER, lifetime_points: '224' },
+      ]);
+    const repository = new RankRepository({
+      transaction: async (callback) => callback({ query }),
+    } as never);
+
+    await expect(repository.promoteMemberOnboarding(UserId)).resolves.toBe(
+      false,
+    );
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws UserNotFoundException for a missing user', async () => {
+    const query = jest.fn().mockResolvedValueOnce([]);
+    const repository = new RankRepository({
+      transaction: async (callback) => callback({ query }),
+    } as never);
+
+    await expect(
+      repository.promoteMemberOnboarding(UserId),
+    ).rejects.toBeInstanceOf(UserNotFoundException);
   });
 });

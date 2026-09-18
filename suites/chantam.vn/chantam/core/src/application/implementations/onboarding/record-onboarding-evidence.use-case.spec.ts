@@ -8,26 +8,68 @@ const Command = {
 };
 
 describe('RecordOnboardingEvidenceUseCase', () => {
-  it('returns promotion when trusted evidence completes onboarding', async () => {
+  it('does not promote or qualify referrals when evidence leaves onboarding incomplete', async () => {
     const completions = {
-      recordEvidenceAndPromoteMember: jest.fn(async () => ({ promoted: true })),
-    };
-    const useCase = new RecordOnboardingEvidenceUseCase(completions as never);
-
-    await expect(useCase.handle(Command)).resolves.toEqual({ promoted: true });
-    expect(completions.recordEvidenceAndPromoteMember).toHaveBeenCalledWith(
-      Command,
-    );
-  });
-
-  it('returns no promotion on idempotent evidence replay', async () => {
-    const completions = {
-      recordEvidenceAndPromoteMember: jest.fn(async () => ({
-        promoted: false,
+      recordEvidenceAndDetermineCompletion: jest.fn(async () => ({
+        onboardingComplete: false,
       })),
     };
-    const useCase = new RecordOnboardingEvidenceUseCase(completions as never);
+    const ranks = { handle: jest.fn() };
+    const referrals = { handle: jest.fn() };
+    const useCase = new RecordOnboardingEvidenceUseCase(
+      completions as never,
+      ranks as never,
+      referrals as never,
+    );
 
     await expect(useCase.handle(Command)).resolves.toEqual({ promoted: false });
+    expect(
+      completions.recordEvidenceAndDetermineCompletion,
+    ).toHaveBeenCalledWith(Command);
+    expect(ranks.handle).not.toHaveBeenCalled();
+    expect(referrals.handle).not.toHaveBeenCalled();
+  });
+
+  it('promotes and qualifies referral when evidence completes onboarding', async () => {
+    const completions = {
+      recordEvidenceAndDetermineCompletion: jest.fn(async () => ({
+        onboardingComplete: true,
+      })),
+    };
+    const ranks = { handle: jest.fn(async () => true) };
+    const referrals = { handle: jest.fn(async () => undefined) };
+    const useCase = new RecordOnboardingEvidenceUseCase(
+      completions as never,
+      ranks as never,
+      referrals as never,
+    );
+
+    await expect(useCase.handle(Command)).resolves.toEqual({ promoted: true });
+    expect(ranks.handle).toHaveBeenCalledWith({
+      userId: Command.userId,
+    });
+    expect(referrals.handle).toHaveBeenCalledWith({
+      refereeId: Command.userId,
+    });
+  });
+
+  it('retries idempotent referral qualification for complete-onboarding evidence replay', async () => {
+    const completions = {
+      recordEvidenceAndDetermineCompletion: jest.fn(async () => ({
+        onboardingComplete: true,
+      })),
+    };
+    const ranks = { handle: jest.fn(async () => false) };
+    const referrals = { handle: jest.fn(async () => undefined) };
+    const useCase = new RecordOnboardingEvidenceUseCase(
+      completions as never,
+      ranks as never,
+      referrals as never,
+    );
+
+    await expect(useCase.handle(Command)).resolves.toEqual({ promoted: false });
+    expect(referrals.handle).toHaveBeenCalledWith({
+      refereeId: Command.userId,
+    });
   });
 });
