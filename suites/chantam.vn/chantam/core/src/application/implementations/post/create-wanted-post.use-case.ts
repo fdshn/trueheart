@@ -74,7 +74,7 @@ export class CreateWantedPostUseCase implements ICreateWantedPostUseCase {
     const globalId = makeGlobalId(
       `/posts/${command.userId}/${slugify(post.title)}/${createdAt.toISOString()}`,
     );
-    const created = await this.postRepository.createOfferWithinQuota(
+    const created = await this.postRepository.createPostWithinQuota(
       command.userId,
       PostQuotaByRank[user.rank],
       {

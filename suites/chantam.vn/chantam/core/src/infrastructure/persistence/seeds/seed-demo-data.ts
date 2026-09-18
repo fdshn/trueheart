@@ -34,9 +34,9 @@ const DemoPosts = [
     title: 'Xe đạp cũ còn dùng tốt',
     description:
       'Xe đạp địa hình đã dùng ba năm, phanh và líp còn tốt. Tặng người cần đi học hoặc đi làm gần.',
-    category: 'VEHICLE',
-    condition: 'USED',
-    estimatedValue: 1_500_000,
+    categoryId: '30000000-0000-4000-8000-000000000006',
+    postType: 'OFFER',
+    details: { condition: 'USED', estimatedValue: 1_500_000 },
     lng: 105.8342,
     lat: 21.0285,
     areaLabel: 'Hoàn Kiếm, Hà Nội',
@@ -50,9 +50,9 @@ const DemoPosts = [
     title: 'Sách giáo khoa lớp 10',
     description:
       'Bộ sách giáo khoa lớp 10 còn sạch, đủ các môn cơ bản. Ưu tiên học sinh cần dùng trong năm học mới.',
-    category: 'BOOKS',
-    condition: 'LIKE_NEW',
-    estimatedValue: 300_000,
+    categoryId: '30000000-0000-4000-8000-000000000003',
+    postType: 'OFFER',
+    details: { condition: 'LIKE_NEW', estimatedValue: 300_000 },
     lng: 105.8374,
     lat: 21.0259,
     areaLabel: 'Hai Bà Trưng, Hà Nội',
@@ -66,9 +66,9 @@ const DemoPosts = [
     title: 'Bàn học gỗ nhỏ',
     description:
       'Bàn học gỗ kích thước 100 x 50 cm, có vài vết xước nhẹ nhưng chắc chắn. Cần người tự vận chuyển.',
-    category: 'FURNITURE',
-    condition: 'USED',
-    estimatedValue: 800_000,
+    categoryId: '30000000-0000-4000-8000-000000000005',
+    postType: 'WANTED',
+    details: {},
     lng: 105.8301,
     lat: 21.0304,
     areaLabel: 'Ba Đình, Hà Nội',
@@ -82,15 +82,47 @@ const DemoPosts = [
     title: 'Áo khoác mùa đông',
     description:
       'Áo khoác nam cỡ M đã giặt sạch, giữ ấm tốt. Bài đã hoàn thành để minh hoạ các trạng thái đóng.',
-    category: 'CLOTHING',
-    condition: 'USED',
-    estimatedValue: 250_000,
+    categoryId: '30000000-0000-4000-8000-000000000002',
+    postType: 'CHARITY',
+    details: {},
     lng: 105.8412,
     lat: 21.0237,
     areaLabel: 'Đống Đa, Hà Nội',
     status: 'COMPLETED',
     totalQuantity: 1,
     remainingQuantity: 0,
+    giverId: DemoUsers[0].globalId,
+  },
+  {
+    globalId: '20000000-0000-4000-8000-000000000005',
+    title: 'Máy tính cũ giá hỗ trợ',
+    description:
+      'Máy tính còn hoạt động, đăng bán giá hỗ trợ để có kinh phí đổi thiết bị mới.',
+    categoryId: '30000000-0000-4000-8000-000000000004',
+    postType: 'CLASSIFIED',
+    details: {},
+    lng: 105.842,
+    lat: 21.026,
+    areaLabel: 'Đống Đa, Hà Nội',
+    status: 'PUBLISHED',
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    giverId: DemoUsers[0].globalId,
+  },
+  {
+    globalId: '20000000-0000-4000-8000-000000000006',
+    title: 'Ghi nhận đơn vị thiện nguyện',
+    description:
+      'Bài ghi nhận đóng góp cộng đồng trong Generic MVP, chưa có thông tin xác minh chuyên biệt.',
+    categoryId: '30000000-0000-4000-8000-000000000010',
+    postType: 'MERIT',
+    details: {},
+    lng: 105.836,
+    lat: 21.029,
+    areaLabel: 'Hoàn Kiếm, Hà Nội',
+    status: 'PUBLISHED',
+    totalQuantity: 1,
+    remainingQuantity: 1,
     giverId: DemoUsers[0].globalId,
   },
 ] as const;
@@ -117,7 +149,7 @@ export function ensureDemoSeedAllowed(value: string | undefined): void {
 /**
  * Upsert dữ liệu minh hoạ vào toàn bộ bảng nghiệp vụ hiện có.
  *
- * Đúng ba bảng `public` hiện tại: users, gift_posts, user_sessions. Không đụng
+ * Đúng ba bảng `public` hiện tại: users, posts, user_sessions. Không đụng
  * tiger/topology/spatial_ref_sys — đó là bảng PostGIS tự quản lý, không phải
  * dữ liệu ứng dụng. Chạy lại chỉ cập nhật cùng globalId, không nhân đôi row.
  */
@@ -161,45 +193,48 @@ export async function seedDemoData(executor: ISqlExecutor): Promise<void> {
   for (const post of DemoPosts) {
     await executor.query(
       `
-        INSERT INTO gift_posts (
-          global_id, title, description, category, condition, estimated_value,
-          location, area_label, status, total_quantity, remaining_quantity, giver_id
+        INSERT INTO posts (
+          global_id, post_type, author_id, category_id, title, description,
+          location, area_label, status, total_quantity, remaining_quantity, details,
+          expires_at, renewed_count
         )
         VALUES (
-          $1, $2, $3, $4::gift_posts_category_enum,
-          $5::gift_posts_condition_enum, $6,
+          $1, $2::posts_type_enum, $3, $4, $5, $6,
           ST_SetSRID(ST_MakePoint($7, $8), 4326)::geography,
-          $9, $10::gift_posts_status_enum, $11, $12, $13
+          $9, $10::gift_posts_status_enum, $11, $12, $13::jsonb,
+          NULL, 0
         )
         ON CONFLICT (global_id) DO UPDATE SET
+          post_type = EXCLUDED.post_type,
+          author_id = EXCLUDED.author_id,
+          category_id = EXCLUDED.category_id,
           title = EXCLUDED.title,
           description = EXCLUDED.description,
-          category = EXCLUDED.category,
-          condition = EXCLUDED.condition,
-          estimated_value = EXCLUDED.estimated_value,
           location = EXCLUDED.location,
           area_label = EXCLUDED.area_label,
           status = EXCLUDED.status,
           total_quantity = EXCLUDED.total_quantity,
           remaining_quantity = EXCLUDED.remaining_quantity,
-          giver_id = EXCLUDED.giver_id,
+          details = EXCLUDED.details,
+          expires_at = EXCLUDED.expires_at,
+          renewed_count = EXCLUDED.renewed_count,
           deleted_at = NULL,
           updated_at = now()
       `,
       [
         post.globalId,
+        post.postType,
+        post.giverId,
+        post.categoryId,
         post.title,
         post.description,
-        post.category,
-        post.condition,
-        post.estimatedValue,
         post.lng,
         post.lat,
         post.areaLabel,
         post.status,
         post.totalQuantity,
         post.remainingQuantity,
-        post.giverId,
+        JSON.stringify(post.details),
       ],
     );
   }

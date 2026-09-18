@@ -84,7 +84,7 @@ describe('CreateWantedPostUseCase', () => {
     created = true,
   ) {
     const posts = {
-      createOfferWithinQuota: jest.fn().mockResolvedValue(created),
+      createPostWithinQuota: jest.fn().mockResolvedValue(created),
       findOneByOrFail: jest.fn().mockResolvedValue({ globalId: 'wanted-post' }),
     } as unknown as jest.Mocked<IPostRepository>;
     const categories = {
@@ -104,7 +104,7 @@ describe('CreateWantedPostUseCase', () => {
       command(),
     );
 
-    expect(posts.createOfferWithinQuota).toHaveBeenCalledWith(
+    expect(posts.createPostWithinQuota).toHaveBeenCalledWith(
       UserId,
       3,
       expect.objectContaining({

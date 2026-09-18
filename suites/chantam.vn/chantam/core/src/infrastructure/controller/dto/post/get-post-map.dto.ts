@@ -1,4 +1,7 @@
-import { PostTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  PostTypes,
+  PublicDiscoveryPostTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   IGetPostMapQueryDto,
   IGetPostMapResponseDto,
@@ -7,7 +10,7 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  IsEnum,
+  IsIn,
   IsLatitude,
   IsLongitude,
   IsOptional,
@@ -48,10 +51,10 @@ export class GetPostMapQueryDto implements IGetPostMapQueryDto {
   @IsLongitude()
   originLng?: number;
 
-  @ApiPropertyOptional({ enum: PostTypes })
+  @ApiPropertyOptional({ enum: PublicDiscoveryPostTypes })
   @IsOptional()
-  @IsEnum(PostTypes)
-  postType?: PostTypes;
+  @IsIn(PublicDiscoveryPostTypes)
+  postType?: (typeof PublicDiscoveryPostTypes)[number];
 
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
