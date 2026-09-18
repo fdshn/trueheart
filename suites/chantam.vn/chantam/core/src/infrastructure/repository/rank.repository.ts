@@ -37,11 +37,64 @@ interface IRawRankTierRow {
   post_quota: string;
 }
 
+interface IRawOnboardingPromotionRow {
+  rank: UserRanks;
+  lifetime_points: string | null;
+}
+
 @Injectable()
 export class RankRepository implements IRankRepository {
   public constructor(
     @InjectEntityManager() private readonly manager: EntityManager,
   ) {}
+
+  public async promoteMemberOnboarding(userId: string): Promise<boolean> {
+    return this.manager.transaction(async (manager) => {
+      const [user] = await manager.query<IRawOnboardingPromotionRow[]>(
+        `
+          SELECT user.rank, balance.lifetime AS lifetime_points
+          FROM users user
+          LEFT JOIN user_point_balances balance ON balance.user_id = user.global_id
+          WHERE user.global_id = $1
+          FOR UPDATE OF user
+        `,
+        [userId],
+      );
+
+      if (!user) throw new UserNotFoundException();
+      if (user.rank !== UserRanks.VIEWER) return false;
+
+      const promoted = await manager.query<{ global_id: string }[]>(
+        `
+          UPDATE users
+          SET rank = $2, rank_attained_at = now()
+          WHERE global_id = $1
+            AND rank = $3
+          RETURNING global_id
+        `,
+        [userId, UserRanks.MEMBER, UserRanks.VIEWER],
+      );
+      if (promoted.length === 0) return false;
+
+      await manager.query(
+        `
+          INSERT INTO rank_transitions
+            (user_id, from_rank, to_rank, reason, lifetime_points, actor)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `,
+        [
+          userId,
+          UserRanks.VIEWER,
+          UserRanks.MEMBER,
+          'ONBOARDING_COMPLETE',
+          Number(user.lifetime_points ?? 0),
+          'SYSTEM',
+        ],
+      );
+
+      return true;
+    });
+  }
 
   public async getOwnSummary(userId: string): Promise<IRankSummary> {
     const [summary] = await this.manager.query<IRawRankSummaryRow[]>(

@@ -3,7 +3,6 @@ import {
   IRecordOnboardingEvidenceResult,
   IUserOnboardingTaskCompletionRepository,
 } from '@/domain/ports/repository';
-import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import { IUserOnboardingTaskCompletionEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
@@ -21,7 +20,7 @@ export class UserOnboardingTaskCompletionRepository
     super(target, manager);
   }
 
-  public async recordEvidenceAndPromoteMember(
+  public async recordEvidenceAndDetermineCompletion(
     params: IRecordOnboardingEvidenceParams,
   ): Promise<IRecordOnboardingEvidenceResult> {
     return this.manager.transaction(async (manager) => {
@@ -67,21 +66,9 @@ export class UserOnboardingTaskCompletionRepository
           [params.userId],
         );
 
-      if (Number(requiredCount) !== Number(completedCount))
-        return { promoted: false };
-
-      const promoted = await manager.query<{ global_id: string }[]>(
-        `
-          UPDATE users
-          SET rank = $2
-          WHERE global_id = $1
-            AND rank = $3
-          RETURNING global_id
-        `,
-        [params.userId, UserRanks.MEMBER, UserRanks.VIEWER],
-      );
-
-      return { promoted: promoted.length === 1 };
+      return {
+        onboardingComplete: Number(requiredCount) === Number(completedCount),
+      };
     });
   }
 }

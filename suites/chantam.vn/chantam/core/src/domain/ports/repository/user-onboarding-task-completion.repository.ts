@@ -9,11 +9,11 @@ export interface IRecordOnboardingEvidenceParams {
 }
 
 export interface IRecordOnboardingEvidenceResult {
-  promoted: boolean;
+  onboardingComplete: boolean;
 }
 
 export interface IUserOnboardingTaskCompletionRepository extends Repository<IUserOnboardingTaskCompletionEntity> {
-  recordEvidenceAndPromoteMember(
+  recordEvidenceAndDetermineCompletion(
     params: IRecordOnboardingEvidenceParams,
   ): Promise<IRecordOnboardingEvidenceResult>;
 }
