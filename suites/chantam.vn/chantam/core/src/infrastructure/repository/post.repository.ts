@@ -1,6 +1,6 @@
 import {
-  IFindNearbyOffersParams,
-  IFindNearbyOffersResult,
+  IFindNearbyPostsParams,
+  IFindNearbyPostsResult,
   IFindPostMapMarkersParams,
   IPostMapMarker,
   IPostRepository,
@@ -78,12 +78,12 @@ export class PostRepository
     return this.findOneBy({ globalId: postId });
   }
 
-  public async findNearbyOffers(
-    params: IFindNearbyOffersParams,
-  ): Promise<IFindNearbyOffersResult> {
+  public async findNearbyPosts(
+    params: IFindNearbyPostsParams,
+  ): Promise<IFindNearbyPostsResult> {
     const baseQuery = this.createQueryBuilder('post')
       .where('post.deletedAt IS NULL')
-      .andWhere('post.postType = :postType', { postType: PostTypes.OFFER })
+      .andWhere('post.postType = :postType', { postType: params.postType })
       .andWhere('post.status IN (:...statuses)', {
         statuses: [...PubliclyVisibleGiftPostStatuses],
       });

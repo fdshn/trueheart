@@ -35,11 +35,13 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 | `DELETE` | `/api/posts/:postId/media/:mediaId` | Owner gỡ media, compact thứ tự |
 | `DELETE` | `/api/posts/:postId` | Owner xoá mềm canonical post |
 | `PATCH` | `/api/posts/:postId/moderation` | `ModeratePostUseCase` — allowlist `POST_OPERATOR_USERNAMES` tạm thời |
+| `GET` | `/api/posts/nearby` | `GetNearbyPostsUseCase` — guest radius scan canonical, required OFFER/WANTED filter, location jitter + bucketed distance |
 | `GET` | `/api/posts/map` | `GetPostMapUseCase` — marker bbox public, location jitter, client-side cluster |
 | `GET` | `/api/posts/:postId` | `GetPostUseCase` — chỉ PUBLISHED/RESERVED, toạ độ đã jitter |
+| `GET` | `/api/discovery/config` | `GetDiscoveryConfigUseCase` — giới hạn radius/pagination và loại post public cho guest |
 
-> Thứ tự khai báo route quan trọng: `@Get('nearby')` phải đứng **trước**
-> `@Get(':giftPostId')`, nếu không Fastify sẽ khớp `nearby` thành một UUID và trả lỗi validate.
+> Thứ tự khai báo route quan trọng: `@Get('nearby')` và `@Get('map')` phải đứng **trước**
+> `@Get(':postId')`, nếu không Fastify sẽ khớp static path thành một UUID và trả lỗi validate.
 
 ## Ví dụ
 
@@ -62,6 +64,26 @@ curl "http://localhost:3000/api/gift-posts/nearby?lat=10.7724&lng=106.698&radius
 
 > `giverId` phải là UUID hợp lệ theo chuẩn RFC (nibble variant là `8`/`9`/`a`/`b`).
 > Chuỗi kiểu `22222222-2222-...` bị `@IsUUID()` từ chối.
+
+## Guest discovery
+
+Không cần JWT để guest khám phá dữ liệu public. Gói API dùng chung gồm:
+
+| Capability | Endpoint | Quy tắc |
+| --- | --- | --- |
+| Quét theo bán kính | `GET /api/posts/nearby` | Bắt buộc `lat`, `lng`, `radiusMeters`, `postType=OFFER\|WANTED`; optional `categoryId`, `page`, `pageSize`. |
+| Marker bản đồ | `GET /api/posts/map` | Bbox bắt buộc; optional origin/type/category; tối đa 200 marker tối thiểu để client cluster. |
+| Chi tiết vật phẩm | `GET /api/posts/:postId` | Chỉ `PUBLISHED`/`RESERVED`, media public và location jitter. |
+| Bộ lọc danh mục | `GET /api/categories` | Chỉ cây danh mục active. |
+| Policy client | `GET /api/discovery/config` | Radius 100–50,000m, page mặc định 20/tối đa 50, type guest OFFER/WANTED. |
+
+Ví dụ quét item WANTED quanh vị trí hiện tại:
+
+```bash
+curl "http://localhost:3000/api/posts/nearby?lat=10.7724&lng=106.698&radiusMeters=5000&postType=WANTED&page=1&pageSize=20"
+```
+
+Mọi public response có location đều jitter ổn định theo post ID. `distanceMeters` bị bucket, không phải khoảng cách chính xác; guest không nhận được địa chỉ thật, contact hay cấu hình hạ tầng. Legacy `GET /api/gift-posts/nearby` vẫn tương thích client cũ và **luôn** chỉ tìm `OFFER`.
 
 ## Canonical posts M2.1
 

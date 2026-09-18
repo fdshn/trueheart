@@ -14,8 +14,8 @@ import { GiftPostEntity } from './gift-post.entity';
 import { OnboardingTaskEntity } from './onboarding-task.entity';
 import { PostMediaEntity } from './post-media.entity';
 import { PostEntity } from './post.entity';
-import { UserSessionEntity } from './user-session.entity';
 import { UserOnboardingTaskCompletionEntity } from './user-onboarding-task-completion.entity';
+import { UserSessionEntity } from './user-session.entity';
 import { UserEntity } from './user.entity';
 
 /**

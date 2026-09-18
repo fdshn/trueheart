@@ -3,6 +3,7 @@ import {
   ICreatePostUseCase,
   ICreateWantedPostUseCase,
   IDeletePostUseCase,
+  IGetNearbyPostsUseCase,
   IGetPostMapUseCase,
   IGetPostUseCase,
   IModeratePostUseCase,
@@ -21,6 +22,7 @@ import {
   IAttachPostMediaResponseDto,
   ICreatePostResponseDto,
   ICreateWantedPostResponseDto,
+  IGetNearbyPostsResponseDto,
   IGetPostMapResponseDto,
   IGetPostResponseDto,
   IModeratePostResponseDto,
@@ -57,6 +59,8 @@ import {
   CreatePostResponseDto,
   CreateWantedPostBodyDto,
   CreateWantedPostResponseDto,
+  GetNearbyPostsQueryDto,
+  GetNearbyPostsResponseDto,
   GetPostMapQueryDto,
   GetPostMapResponseDto,
   GetPostParamsDto,
@@ -94,6 +98,8 @@ export class PostController {
     private readonly removePostMediaUseCase: IRemovePostMediaUseCase,
     @Inject(IGetPostMapUseCase)
     private readonly getPostMapUseCase: IGetPostMapUseCase,
+    @Inject(IGetNearbyPostsUseCase)
+    private readonly getNearbyPostsUseCase: IGetNearbyPostsUseCase,
     @Inject(IGetPostUseCase)
     private readonly getPostUseCase: IGetPostUseCase,
     @Inject(IModeratePostUseCase)
@@ -357,6 +363,29 @@ export class PostController {
     const result = await this.getPostMapUseCase.handle(query);
 
     return ResponseDto.create<IGetPostMapResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Public()
+  @Get('nearby')
+  @ApiOperation({
+    summary: 'Quét canonical post quanh đây theo loại bài',
+    description:
+      'Chỉ trả bài public; toạ độ luôn jitter và khoảng cách được bucket để bảo vệ vị trí chính xác.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(GetNearbyPostsResponseDto) })
+  @ApiErrorResponses([
+    ValidationFailedException,
+    ['postType: postType must be one of the following values: OFFER, WANTED'],
+  ])
+  public async getNearbyPosts(
+    @Query() query: GetNearbyPostsQueryDto,
+  ): Promise<ResponseDto<IGetNearbyPostsResponseDto>> {
+    const result = await this.getNearbyPostsUseCase.handle(query);
+
+    return ResponseDto.create<IGetNearbyPostsResponseDto>()
       .succeed()
       .attach(result)
       .build();

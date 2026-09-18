@@ -3,6 +3,7 @@ import {
   ICreatePostUseCase,
   ICreateWantedPostUseCase,
   IDeletePostUseCase,
+  IGetNearbyPostsUseCase,
   IGetPostMapUseCase,
   IGetPostUseCase,
   IModeratePostUseCase,
@@ -16,6 +17,7 @@ import { AttachPostMediaUseCase } from './attach-post-media.use-case';
 import { CreatePostUseCase } from './create-post.use-case';
 import { CreateWantedPostUseCase } from './create-wanted-post.use-case';
 import { DeletePostUseCase } from './delete-post.use-case';
+import { GetNearbyPostsUseCase } from './get-nearby-posts.use-case';
 import { GetPostMapUseCase } from './get-post-map.use-case';
 import { GetPostUseCase } from './get-post.use-case';
 import { ModeratePostUseCase } from './moderate-post.use-case';
@@ -31,6 +33,7 @@ import { UpdatePostUseCase } from './update-post.use-case';
     { provide: ICreatePostUseCase, useClass: CreatePostUseCase },
     { provide: ICreateWantedPostUseCase, useClass: CreateWantedPostUseCase },
     { provide: IDeletePostUseCase, useClass: DeletePostUseCase },
+    { provide: IGetNearbyPostsUseCase, useClass: GetNearbyPostsUseCase },
     { provide: IGetPostMapUseCase, useClass: GetPostMapUseCase },
     { provide: IGetPostUseCase, useClass: GetPostUseCase },
     { provide: IModeratePostUseCase, useClass: ModeratePostUseCase },
@@ -47,6 +50,7 @@ import { UpdatePostUseCase } from './update-post.use-case';
     ICreatePostUseCase,
     ICreateWantedPostUseCase,
     IDeletePostUseCase,
+    IGetNearbyPostsUseCase,
     IGetPostMapUseCase,
     IGetPostUseCase,
     IModeratePostUseCase,

@@ -8,8 +8,8 @@ import {
   UserNotFoundException,
 } from '@/domain/exceptions';
 import { IUserRepository } from '@/domain/ports/repository';
-import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { IOtpStore } from '@/domain/ports/security';
+import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { Inject, Injectable } from '@nestjs/common';
 import { PhoneVerificationPurpose } from './request-phone-verification.use-case';
 @Injectable()

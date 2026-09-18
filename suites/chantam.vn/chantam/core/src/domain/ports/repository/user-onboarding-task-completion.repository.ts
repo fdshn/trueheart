@@ -8,9 +8,7 @@ export interface IRecordOnboardingEvidenceParams {
   evidenceRef?: string;
 }
 
-export interface IUserOnboardingTaskCompletionRepository
-  extends Repository<IUserOnboardingTaskCompletionEntity>
-{
+export interface IUserOnboardingTaskCompletionRepository extends Repository<IUserOnboardingTaskCompletionEntity> {
   recordEvidenceAndPromoteMember(
     params: IRecordOnboardingEvidenceParams,
   ): Promise<void>;

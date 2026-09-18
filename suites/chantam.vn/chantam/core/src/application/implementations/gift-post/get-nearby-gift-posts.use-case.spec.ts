@@ -78,7 +78,7 @@ describe('GetNearbyGiftPostsUseCase compatibility', () => {
 
   it('chuyển page/category legacy thành canonical skip/take/categoryId', async () => {
     const posts = {
-      findNearbyOffers: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+      findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
     } as unknown as jest.Mocked<IPostRepository>;
 
     await new GetNearbyGiftPostsUseCase(posts, makeConfig()).handle({
@@ -88,9 +88,10 @@ describe('GetNearbyGiftPostsUseCase compatibility', () => {
       category: GiftPostCategories.VEHICLE,
     });
 
-    expect(posts.findNearbyOffers).toHaveBeenCalledWith({
+    expect(posts.findNearbyPosts).toHaveBeenCalledWith({
       origin: BenThanhMarket,
       radiusMeters: 5_000,
+      postType: PostTypes.OFFER,
       categoryId: '30000000-0000-4000-8000-000000000006',
       skip: 20,
       take: 10,
@@ -99,7 +100,7 @@ describe('GetNearbyGiftPostsUseCase compatibility', () => {
 
   it('trả legacy envelope với toạ độ jitter và distance bucket', async () => {
     const posts = {
-      findNearbyOffers: jest.fn().mockResolvedValue({
+      findNearbyPosts: jest.fn().mockResolvedValue({
         items: [{ post: makePost(), distanceMeters: 431.7 }],
         total: 1,
       }),
@@ -120,7 +121,7 @@ describe('GetNearbyGiftPostsUseCase compatibility', () => {
 
   it('tính đúng pagination legacy', async () => {
     const posts = {
-      findNearbyOffers: jest.fn().mockResolvedValue({ items: [], total: 45 }),
+      findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 45 }),
     } as unknown as jest.Mocked<IPostRepository>;
 
     const result = await new GetNearbyGiftPostsUseCase(

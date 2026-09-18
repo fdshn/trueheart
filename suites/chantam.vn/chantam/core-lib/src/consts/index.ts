@@ -5,5 +5,6 @@ export * from './gift-post-conditions';
 export * from './gift-post-statuses';
 export * from './onboarding-task-evidence';
 export * from './post-types';
+export * from './public-discovery-post-types';
 export * from './user-ranks';
 export * from './user-statuses';

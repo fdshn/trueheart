@@ -1,8 +1,8 @@
+import { IRecordOnboardingEvidenceUseCase } from '@/application/contracts/onboarding';
 import {
   IUpdateOwnProfileCommand,
   IUpdateOwnProfileUseCase,
 } from '@/application/contracts/profile';
-import { IRecordOnboardingEvidenceUseCase } from '@/application/contracts/onboarding';
 import {
   EmailTakenException,
   PhoneTakenException,

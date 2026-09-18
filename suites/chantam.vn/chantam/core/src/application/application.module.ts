@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthUseCaseModule } from './implementations/auth/auth.module';
 import { CategoryModule } from './implementations/category/category.module';
+import { DiscoveryModule } from './implementations/discovery/discovery.module';
 import { GiftPostModule } from './implementations/gift-post/gift-post.module';
 import { OnboardingModule } from './implementations/onboarding/onboarding.module';
 import { PostModule } from './implementations/post/post.module';
@@ -13,6 +14,7 @@ import { ProfileModule } from './implementations/profile/profile.module';
 @Module({
   imports: [
     AuthUseCaseModule,
+    DiscoveryModule,
     GiftPostModule,
     OnboardingModule,
     PostModule,

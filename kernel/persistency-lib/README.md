@@ -51,7 +51,7 @@ domain và GeoJSON `[lng, lat]` của PostGIS. **Không tự viết `@Column({ t
 const queryBuilder = this.createQueryBuilder('post');
 
 GeoQueryHelper.applyRadiusFilter(queryBuilder, 'post', {
-  lat, lng, radiusMeters,             // tự chặn trần MaxSearchRadiusMeters = 50km
+  lat, lng, radiusMeters,             // giới hạn 100m–MaxSearchRadiusMeters = 50km
 });
 GeoQueryHelper.selectDistance(queryBuilder, 'post', { lat, lng }, 'distance_meters');
 GeoQueryHelper.orderByDistance(queryBuilder, 'post', { lat, lng });

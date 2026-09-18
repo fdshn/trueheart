@@ -12,6 +12,9 @@ export interface IBoundingBox {
   maxLng: number;
 }
 
+/** Bán kính tìm kiếm tối thiểu để tránh truy vấn vị trí quá chi tiết. */
+export const MinSearchRadiusMeters = 100;
+
 /** Bán kính tìm kiếm tối đa. Chặn truy vấn quét cả nước làm sập database. */
 export const MaxSearchRadiusMeters = 50_000;
 

@@ -1,7 +1,4 @@
-import {
-  OnboardingTaskEvidenceTypes,
-  UserRanks,
-} from '@chantam.vn/chantam.core-lib/consts';
+import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { IOnboardingTaskEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
   PostgresAuditableEntity,
@@ -26,7 +23,12 @@ export class OnboardingTaskEntity
   @Column({ type: 'varchar', length: 100, nullable: false })
   key: OnboardingTaskEvidenceTypes;
 
-  @Column({ name: 'evidence_type', type: 'varchar', length: 100, nullable: false })
+  @Column({
+    name: 'evidence_type',
+    type: 'varchar',
+    length: 100,
+    nullable: false,
+  })
   evidenceType: OnboardingTaskEvidenceTypes;
 
   @Column({ type: 'varchar', length: 200, nullable: false })

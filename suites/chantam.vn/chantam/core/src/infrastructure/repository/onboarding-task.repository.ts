@@ -1,6 +1,4 @@
-import {
-  IOnboardingTaskRepository,
-} from '@/domain/ports/repository';
+import { IOnboardingTaskRepository } from '@/domain/ports/repository';
 import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { IOnboardingTaskEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { Inject, Injectable } from '@nestjs/common';

@@ -14,8 +14,8 @@ import { GiftPostRepository } from './gift-post.repository';
 import { OnboardingTaskRepository } from './onboarding-task.repository';
 import { PostMediaRepository } from './post-media.repository';
 import { PostRepository } from './post.repository';
-import { UserSessionRepository } from './user-session.repository';
 import { UserOnboardingTaskCompletionRepository } from './user-onboarding-task-completion.repository';
+import { UserSessionRepository } from './user-session.repository';
 import { UserRepository } from './user.repository';
 
 /**

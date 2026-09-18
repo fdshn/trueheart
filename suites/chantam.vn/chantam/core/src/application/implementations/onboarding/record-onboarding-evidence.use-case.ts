@@ -6,15 +6,15 @@ import { IUserOnboardingTaskCompletionRepository } from '@/domain/ports/reposito
 import { Inject, Injectable } from '@nestjs/common';
 
 @Injectable()
-export class RecordOnboardingEvidenceUseCase
-  implements IRecordOnboardingEvidenceUseCase
-{
+export class RecordOnboardingEvidenceUseCase implements IRecordOnboardingEvidenceUseCase {
   public constructor(
     @Inject(IUserOnboardingTaskCompletionRepository)
     private readonly completions: IUserOnboardingTaskCompletionRepository,
   ) {}
 
-  public async handle(command: IRecordOnboardingEvidenceCommand): Promise<void> {
+  public async handle(
+    command: IRecordOnboardingEvidenceCommand,
+  ): Promise<void> {
     await this.completions.recordEvidenceAndPromoteMember(command);
   }
 }

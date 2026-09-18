@@ -19,11 +19,9 @@ describe('CreateOnboardingTasks1789900000003', () => {
       query.includes('CREATE TABLE "user_onboarding_task_completions"'),
     );
     const taskKeys = [
-      ...(
-        seedQuery?.matchAll(
-          /40000000-0000-4000-8000-00000000000[12]', '([A-Z_]+)'/g,
-        ) ?? []
-      ),
+      ...(seedQuery?.matchAll(
+        /40000000-0000-4000-8000-00000000000[12]', '([A-Z_]+)'/g,
+      ) ?? []),
     ]
       .map((match) => match[1])
       .sort();

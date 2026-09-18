@@ -19,6 +19,11 @@ export class UserOnboardingTaskCompletionEntity
   @Column({ name: 'completed_at', type: 'timestamptz', nullable: false })
   completedAt: Date;
 
-  @Column({ name: 'evidence_ref', type: 'varchar', length: 500, nullable: true })
+  @Column({
+    name: 'evidence_ref',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
   evidenceRef: string | null;
 }

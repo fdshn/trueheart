@@ -70,6 +70,7 @@ Nghiệp vụ Chân Tâm
 | `0x0308` | `776` | 403 Forbidden | `PROFILE_INCOMPLETE` | Cần bổ sung Avatar, Số điện thoại trước khi đăng bài |
 | `0x0309` | `777` | 409 Conflict | `USER_HAS_OPEN_TRANSACTIONS` | Còn 2 giao dịch chưa hoàn tất, chưa thể xoá tài khoản |
 | `0x030a` | `778` | 429 Too Many Requests | `LOGIN_THROTTLED` | Sai quá nhiều lần. Thử lại sau 15 phút |
+| `0x030b` | `779` | 403 Forbidden | `ONBOARDING_INCOMPLETE` | Cần hoàn tất onboarding trước khi đăng bài |
 | `0x0401` | `1025` | 404 Not Found | `SESSION_NOT_FOUND` | Không tìm thấy phiên đăng nhập |
 | `0x0402` | `1026` | 401 Unauthorized | `REFRESH_TOKEN_INVALID` | Phiên đăng nhập không còn hiệu lực, vui lòng đăng nhập lại |
 | `0x0403` | `1027` | 401 Unauthorized | `REFRESH_TOKEN_EXPIRED` | Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại |
@@ -86,5 +87,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **44 mã lỗi** trên 3 tầng.
+Tổng cộng **45 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

@@ -1,5 +1,6 @@
 export * from './create-post.dto';
 export * from './create-wanted-post.dto';
+export * from './get-nearby-posts.dto';
 export * from './get-post-map.dto';
 export * from './moderate-post.dto';
 export * from './post-media.dto';

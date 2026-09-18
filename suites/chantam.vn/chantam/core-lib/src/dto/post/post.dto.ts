@@ -1,3 +1,7 @@
+import {
+  IPaginationMetaDto,
+  IPaginationQueryDto,
+} from '@chantam/service.common-lib/dto';
 import { IGeoPoint } from '@chantam/service.persistency-lib/geo';
 import { GiftPostConditions, GiftPostStatuses, PostTypes } from '../../consts';
 import { IPostEntity, IPostMediaEntity } from '../../entities';
@@ -35,6 +39,25 @@ export interface ICreateWantedPostBodyDto {
 
 export interface ICreateWantedPostResponseDto {
   post: IPostEntity;
+}
+
+export interface IGetNearbyPostsQueryDto extends IPaginationQueryDto {
+  lat: number;
+  lng: number;
+  radiusMeters: number;
+  postType: PostTypes.OFFER | PostTypes.WANTED;
+  categoryId?: string;
+}
+
+export interface INearbyPostDto {
+  post: IPostEntity;
+  distanceMeters: number;
+  isLocationApproximate: true;
+}
+
+export interface IGetNearbyPostsResponseDto {
+  posts: INearbyPostDto[];
+  meta: IPaginationMetaDto;
 }
 
 export interface IGetPostParamsDto {
