@@ -2,6 +2,7 @@ import {
   IAppendPointEntryCommand,
   IAppendPointEntryResult,
 } from '@/application/contracts/point';
+import { EntityManager } from 'typeorm';
 
 export interface IPointLedgerSummary {
   balance: number;
@@ -32,6 +33,10 @@ export interface IPointLedgerHistoryQuery {
 
 export interface IPointLedgerRepository {
   appendByRule(
+    command: IAppendPointEntryCommand,
+  ): Promise<IAppendPointEntryResult>;
+  appendByRuleWithinTransaction(
+    manager: EntityManager,
     command: IAppendPointEntryCommand,
   ): Promise<IAppendPointEntryResult>;
   getSummary(userId: string): Promise<IPointLedgerSummary>;
