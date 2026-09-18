@@ -1,6 +1,18 @@
 import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { Repository } from 'typeorm';
 
+export interface ICreateUserWithReferralParams {
+  globalId: string;
+  username: string;
+  passwordHash: string;
+  referralCode?: string;
+}
+
+export interface ICreateUserWithReferralResult {
+  user: IUserEntity | null;
+  referralApplied: boolean;
+}
+
 export interface IUserRepository extends Repository<IUserEntity> {
   /**
    * Tìm theo username, email hoặc số điện thoại — đăng nhập đa định danh (F02).
@@ -8,6 +20,10 @@ export interface IUserRepository extends Repository<IUserEntity> {
    * Bỏ qua tài khoản đã xoá mềm.
    */
   findByIdentifier(identifier: string): Promise<IUserEntity | null>;
+
+  createWithReferral(
+    params: ICreateUserWithReferralParams,
+  ): Promise<ICreateUserWithReferralResult>;
 
   /** `true` nếu đã có tài khoản dùng username này (không phân biệt hoa thường). */
   isUsernameTaken(username: string): Promise<boolean>;

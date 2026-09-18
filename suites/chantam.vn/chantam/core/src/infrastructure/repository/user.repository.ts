@@ -1,8 +1,17 @@
-import { IUserRepository } from '@/domain/ports/repository';
+import {
+  ICreateUserWithReferralParams,
+  ICreateUserWithReferralResult,
+  IUserRepository,
+} from '@/domain/ports/repository';
+import { UserRanks, UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager, EntitySchema, Repository } from 'typeorm';
+
+function makeReferralCode(globalId: string): string {
+  return globalId.replaceAll('-', '').slice(0, 12).toUpperCase();
+}
 
 @Injectable()
 export class UserRepository
@@ -16,6 +25,66 @@ export class UserRepository
     manager: EntityManager,
   ) {
     super(target, manager);
+  }
+
+  public async createWithReferral(
+    params: ICreateUserWithReferralParams,
+  ): Promise<ICreateUserWithReferralResult> {
+    return this.manager.transaction(async (manager) => {
+      const referralCode = makeReferralCode(params.globalId);
+      const inserted = await manager.query<{ global_id: string }[]>(
+        `
+          INSERT INTO users (
+            global_id, username, password_hash, email, phone, full_name, avatar_url,
+            rank, status, phone_verified_at, suspended_until, deleted_at, referral_code
+          ) VALUES ($1, $2, $3, NULL, NULL, NULL, NULL, $4, $5, NULL, NULL, NULL, $6)
+          ON CONFLICT DO NOTHING
+          RETURNING global_id
+        `,
+        [
+          params.globalId,
+          params.username,
+          params.passwordHash,
+          UserRanks.VIEWER,
+          UserStatuses.ACTIVE,
+          referralCode,
+        ],
+      );
+      if (inserted.length === 0) return { user: null, referralApplied: false };
+
+      let referralApplied = false;
+      if (params.referralCode) {
+        const [referrer] = await manager.query<{ global_id: string }[]>(
+          `
+            SELECT global_id
+            FROM users
+            WHERE referral_code = $1
+              AND status = 'ACTIVE'
+              AND deleted_at IS NULL
+          `,
+          [params.referralCode],
+        );
+        if (referrer && referrer.global_id !== params.globalId) {
+          const linked = await manager.query<{ id: string }[]>(
+            `
+              INSERT INTO referrals (referrer_id, referee_id, code)
+              VALUES ($1, $2, $3)
+              ON CONFLICT (referee_id) DO NOTHING
+              RETURNING id
+            `,
+            [referrer.global_id, params.globalId, params.referralCode],
+          );
+          referralApplied = linked.length === 1;
+        }
+      }
+
+      const [user] = await manager.query<IUserEntity[]>(
+        `SELECT * FROM users WHERE global_id = $1`,
+        [params.globalId],
+      );
+
+      return { user, referralApplied };
+    });
   }
 
   public async findByIdentifier(

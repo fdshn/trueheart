@@ -11,6 +11,37 @@ export class ReferralRepository implements IReferralRepository {
     private readonly ledger: PointLedgerRepository,
   ) {}
 
+  public async getOwnSummary(userId: string) {
+    const [summary] = await this.manager.query<
+      {
+        code: string;
+        total_count: string;
+        qualified_count: string;
+        rewarded_count: string;
+      }[]
+    >(
+      `
+        SELECT
+          user.referral_code AS code,
+          COUNT(referral.id)::text AS total_count,
+          COUNT(referral.qualified_at)::text AS qualified_count,
+          COUNT(referral.reward_entry_id)::text AS rewarded_count
+        FROM users user
+        LEFT JOIN referrals referral ON referral.referrer_id = user.global_id
+        WHERE user.global_id = $1
+        GROUP BY user.referral_code
+      `,
+      [userId],
+    );
+
+    return {
+      code: summary.code,
+      totalCount: Number(summary.total_count),
+      qualifiedCount: Number(summary.qualified_count),
+      rewardedCount: Number(summary.rewarded_count),
+    };
+  }
+
   public async qualifyAndAward(params: {
     refereeId: string;
   }): Promise<boolean> {

@@ -192,6 +192,17 @@ export class RegisterDto implements IRegisterDto {
   @IsString()
   @Length(1, 255)
   fcmToken?: string;
+
+  @ApiPropertyOptional({
+    example: 'AB12CD34EF',
+    minLength: 10,
+    maxLength: 12,
+    description: 'Mã giới thiệu cá nhân; chỉ áp dụng lúc tạo tài khoản mới.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Z0-9]{10,12}$/)
+  referralCode?: string;
 }
 
 export class RegisterBodyDto implements IRegisterBodyDto {
