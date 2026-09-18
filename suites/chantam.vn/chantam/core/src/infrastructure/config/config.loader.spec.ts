@@ -17,6 +17,7 @@ describe('loadConfig', () => {
     process.env.OTP_EMAIL_FROM_ADDRESS = 'otp@chantam.vn';
     process.env.OTP_EMAIL_FROM_NAME = 'Chân Tâm OTP';
     process.env.POST_OPERATOR_USERNAMES = 'Demo-Operator, second-operator, ';
+    process.env.RANK_OPERATOR_USERNAMES = 'Rank-Operator, second-rank-operator, ';
 
     const config = loadConfig();
 
@@ -33,6 +34,10 @@ describe('loadConfig', () => {
     expect(config.postOperator.usernames).toEqual([
       'demo-operator',
       'second-operator',
+    ]);
+    expect(config.rankOperator.usernames).toEqual([
+      'rank-operator',
+      'second-rank-operator',
     ]);
   });
 

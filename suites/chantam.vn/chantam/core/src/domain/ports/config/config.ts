@@ -59,6 +59,11 @@ export interface IPostOperatorConfig {
   usernames: string[];
 }
 
+export interface IRankOperatorConfig {
+  /** Temporary Sprint 1 allowlist. Replaced by M6 Admin CMS roles. */
+  usernames: string[];
+}
+
 export interface IConfig {
   port: number;
   env: Env;
@@ -71,6 +76,7 @@ export interface IConfig {
   otpEmail: IOtpEmailConfig;
   categoryAdmin: ICategoryAdminConfig;
   postOperator: IPostOperatorConfig;
+  rankOperator: IRankOperatorConfig;
 
   /**
    * Môi trường cho ô chọn của Swagger. Mục đầu luôn trỏ về chính instance đang

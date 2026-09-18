@@ -42,9 +42,24 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 | `GET` | `/api/v1/points/me` | `GetOwnPointSummaryUseCase` — số dư projection của chính chủ |
 | `GET` | `/api/v1/points/me/ledger?page=&pageSize=` | `GetOwnPointLedgerUseCase` — lịch sử ledger phân trang của chính chủ |
 | `GET` | `/api/v1/ranks/me` | `GetOwnRankSummaryUseCase` — điểm lifetime, tier hiện tại/tiếp theo và maintenance cycle của chính chủ |
+| `POST` | `/api/v1/ranks/maintenance/evaluate` | `EvaluateDueRankMaintenanceUseCase` — protected by `RANK_OPERATOR_USERNAMES`, scheduler trigger only |
 
 > Thứ tự khai báo route quan trọng: `@Get('nearby')` và `@Get('map')` phải đứng **trước**
 > `@Get(':postId')`, nếu không Fastify sẽ khớp static path thành một UUID và trả lỗi validate.
+
+## Rank maintenance
+
+`POST /api/v1/ranks/maintenance/evaluate` requires a valid bearer token whose username is in the temporary comma-separated `RANK_OPERATOR_USERNAMES` allowlist. Token failures and a non-operator forbidden response are documented in Swagger.
+
+Use an external scheduler to invoke either that protected trigger or the one-shot CLI; Core intentionally starts no in-process maintenance scheduler:
+
+```bash
+npm run rank:evaluate
+# after build
+npm run rank:evaluate:built
+```
+
+The CLI loads `.env.local`, bootstraps the Nest application context without an HTTP listener, evaluates once, and closes it. In Sprint 1/M3 the completed-gift source is deliberately unavailable, so an otherwise due cycle is persisted as `UNEVALUATED` and never demotes the user. A later activity adapter may return concrete counts to enable normal maintenance evaluation.
 
 ## Ví dụ
 

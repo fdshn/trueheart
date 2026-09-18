@@ -55,4 +55,6 @@ export const ConfigSchema = Joi.object({
   CATEGORY_ADMIN_USERNAMES: Joi.string().allow('').default(''),
   // M2 temporary moderation allowlist. M6 replaces it with real admin roles.
   POST_OPERATOR_USERNAMES: Joi.string().allow('').default(''),
+  // Sprint 1 temporary rank maintenance operator allowlist. M6 replaces it with real admin roles.
+  RANK_OPERATOR_USERNAMES: Joi.string().allow('').default(''),
 });

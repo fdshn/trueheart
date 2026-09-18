@@ -56,6 +56,7 @@ function makeConfig(): IConfig {
     otpEmail: { fromAddress: '', fromName: 'Chân Tâm' },
     categoryAdmin: { usernames: [] },
     postOperator: { usernames: [] },
+    rankOperator: { usernames: [] },
     storage: {
       endpoint: '',
       region: '',

@@ -54,6 +54,7 @@ function makeConfig(usernames = ['demo-operator']): IConfig {
     otpEmail: { fromAddress: '', fromName: 'Chân Tâm' },
     categoryAdmin: { usernames: [] },
     postOperator: { usernames },
+    rankOperator: { usernames: [] },
     storage: {
       endpoint: 'http://localhost:9000',
       region: 'us-east-1',

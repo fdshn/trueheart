@@ -11,6 +11,7 @@ import { DataSource } from 'typeorm';
 import { ConfigModule } from './config/config.module';
 import { ControllerModule } from './controller/controller.module';
 import { EntityModule } from './entity/entity.module';
+import { GiveActivityModule } from './give-activity/give-activity.module';
 import { NotificationModule } from './notification/notification.module';
 import { PersistenceModule } from './persistence/persistence.module';
 import { IRedisClient, RedisModule } from './redis/redis.module';
@@ -26,6 +27,7 @@ import { RedisTokenDenyList } from './security/token-deny-list';
     PersistenceModule,
     EntityModule,
     RepositoryModule,
+    GiveActivityModule,
     RedisModule,
     SecurityModule,
     NotificationModule,

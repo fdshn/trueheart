@@ -94,6 +94,13 @@ export function loadConfig(): IConfig {
         .filter(Boolean),
     },
 
+    rankOperator: {
+      usernames: (process.env.RANK_OPERATOR_USERNAMES ?? '')
+        .split(',')
+        .map((username) => username.trim().toLowerCase())
+        .filter(Boolean),
+    },
+
     storage: {
       endpoint: process.env.STORAGE_ENDPOINT ?? '',
       region: process.env.STORAGE_REGION ?? 'auto',

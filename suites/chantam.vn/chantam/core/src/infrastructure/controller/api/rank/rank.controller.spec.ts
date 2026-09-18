@@ -16,7 +16,11 @@ describe('RankController', () => {
         },
       })),
     };
-    const controller = new RankController(useCase as never);
+    const controller = new RankController(
+      useCase as never,
+      { handle: jest.fn() } as never,
+      { rankOperator: { usernames: [] } } as never,
+    );
 
     const response = await controller.getOwnRankSummary({
       userId: UserId,

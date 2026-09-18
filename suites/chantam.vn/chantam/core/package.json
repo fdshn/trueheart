@@ -20,6 +20,8 @@
     "migration:revert": "npm run typeorm -- migration:revert",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:show": "npm run typeorm -- migration:show",
+    "rank:evaluate": "ts-node -r tsconfig-paths/register src/infrastructure/cli/rank-evaluate.cli.ts",
+    "rank:evaluate:built": "node dist/infrastructure/cli/rank-evaluate.cli.js",
     "seed:demo": "cross-env SEED_DEMO_DATA=true ts-node -r tsconfig-paths/register src/infrastructure/persistence/seeds/seed-demo-data.cli.ts",
     "seed:demo:built": "cross-env SEED_DEMO_DATA=true node dist/infrastructure/persistence/seeds/seed-demo-data.cli.js",
     "prebuild": "rimraf dist",
