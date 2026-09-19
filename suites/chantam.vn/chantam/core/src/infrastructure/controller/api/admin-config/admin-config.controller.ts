@@ -10,6 +10,10 @@ import {
 } from '@chantam/service.auth-lib';
 import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
+import {
+  ForbiddenException,
+  ValidationFailedException,
+} from '@chantam/service.common-lib/exception';
 import { Body, Controller, Get, Inject, Post, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -20,7 +24,10 @@ import {
 } from '@nestjs/swagger';
 import {
   GetAdminAuditLogsQueryDto,
+  GetAdminAuditLogsResponseDto,
+  GetAdminConfigsResponseDto,
   PublishSystemConfigBodyDto,
+  PublishSystemConfigResponseDto,
 } from '../../dto/admin-config/admin-config.dto';
 
 @ApiTags('Admin - System Config')
@@ -38,8 +45,8 @@ export class AdminConfigController {
 
   @Get('system-configs')
   @ApiOperation({ summary: 'Danh sách system config đang hiệu lực' })
-  @ApiOkResponse()
-  @ApiErrorResponses(...ApiTokenErrors)
+  @ApiOkResponse({ type: ResponseDto.forApi(GetAdminConfigsResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
   public async getConfigs(@CurrentUser() principal: IAuthPrincipal) {
     return ResponseDto.create()
       .succeed()
@@ -53,8 +60,14 @@ export class AdminConfigController {
 
   @Post('system-configs')
   @ApiOperation({ summary: 'Publish system config revision mới' })
-  @ApiCreatedResponse()
-  @ApiErrorResponses(...ApiTokenErrors)
+  @ApiCreatedResponse({
+    type: ResponseDto.forApi(PublishSystemConfigResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    [ValidationFailedException],
+  )
   public async publishConfig(
     @CurrentUser() principal: IAuthPrincipal,
     @Body() body: PublishSystemConfigBodyDto,
@@ -72,8 +85,8 @@ export class AdminConfigController {
 
   @Get('audit-logs')
   @ApiOperation({ summary: 'Xem audit log Admin' })
-  @ApiOkResponse()
-  @ApiErrorResponses(...ApiTokenErrors)
+  @ApiOkResponse({ type: ResponseDto.forApi(GetAdminAuditLogsResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
   public async getAuditLogs(
     @CurrentUser() principal: IAuthPrincipal,
     @Query() query: GetAdminAuditLogsQueryDto,

@@ -11,7 +11,10 @@ import {
   SupportedSystemConfigKeys,
 } from '@/application/contracts/admin-config';
 import { IAdminConfigRepository } from '@/domain/ports/repository';
-import { ForbiddenException } from '@chantam/service.common-lib/exception';
+import {
+  ForbiddenException,
+  ValidationFailedException,
+} from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
 
 @Injectable()
@@ -49,14 +52,21 @@ export class PublishAdminConfigUseCase implements IPublishAdminConfigUseCase {
       ))
     )
       throw new ForbiddenException();
-    if (!SupportedSystemConfigKeys.includes(command.systemConfig.key as never))
-      throw new ForbiddenException();
-    if (
-      command.systemConfig.valueType !== 'INTEGER' ||
-      !Number.isInteger(command.systemConfig.value) ||
-      Number(command.systemConfig.value) < 0
-    )
-      throw new ForbiddenException();
+
+    // Payload hỏng là lỗi của dữ liệu gửi lên, không phải thiếu quyền. Trả 403
+    // ở đây khiến admin đi tìm quyền bị thiếu trong khi thứ cần sửa là body.
+    const { key, value, valueType } = command.systemConfig;
+    const problems = [
+      !SupportedSystemConfigKeys.includes(key as never) &&
+        `key không nằm trong danh sách cấu hình được phép: ${key}`,
+      valueType !== 'INTEGER' && 'valueType hiện chỉ hỗ trợ INTEGER',
+      !Number.isInteger(value) && 'value phải là số nguyên',
+      Number.isInteger(value) &&
+        Number(value) < 0 &&
+        'value không được nhỏ hơn 0',
+    ].filter(Boolean) as string[];
+    if (problems.length > 0) throw new ValidationFailedException(problems);
+
     return {
       config: await this.repository.publishSystemConfig({
         actorUserId: command.actorUserId,
