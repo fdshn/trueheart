@@ -1,5 +1,8 @@
 import { IGeoPoint } from '@chantam/service.persistency-lib/geo';
 import { UserRanks, UserStatuses } from '../../consts';
+import { IEntitlementsSummaryDto } from '../entitlement';
+import { IPointSummaryDto } from '../point';
+import { IRankSummaryDto } from '../rank';
 import { IReferralSummaryDto } from '../referral';
 
 export interface IProfileReferrerDto {
@@ -15,7 +18,8 @@ export interface IUpdateOwnProfileDto {
   avatarKey?: string;
   email?: string;
   phone?: string;
-  defaultLocation?: IGeoPoint;
+  /** Bỏ trống = giữ nguyên, `null` = xoá hẳn vị trí mặc định đang lưu. */
+  defaultLocation?: IGeoPoint | null;
 }
 
 export interface IUpdateOwnProfileBodyDto {
@@ -37,6 +41,12 @@ export interface IOwnProfileDto {
   profileComplete: boolean;
   referral?: IReferralSummaryDto | null;
   referrer?: IProfileReferrerDto | null;
+  /** Số dư tiêu được và điểm tích luỹ, lấy từ projection của ledger. */
+  point?: IPointSummaryDto | null;
+  /** Tiến độ tới hạng kế tiếp và chu kỳ duy trì đang mở. */
+  rankProgress?: IRankSummaryDto | null;
+  /** Quyền và hạn mức theo hạng hiện tại. */
+  entitlements?: IEntitlementsSummaryDto | null;
 }
 
 export interface IGetOwnProfileResponseDto {

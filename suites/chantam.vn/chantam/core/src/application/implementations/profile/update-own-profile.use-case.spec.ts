@@ -45,6 +45,46 @@ function makeStorage() {
 }
 
 describe('UpdateOwnProfileUseCase', () => {
+  it('gửi defaultLocation null thì xoá hẳn vị trí mặc định', async () => {
+    // undefined = giữ nguyên, null = xoá. Thiếu vế null thì người dùng không có
+    // cách nào gỡ vị trí đã lưu.
+    const repository = makeRepository();
+    const useCase = new UpdateOwnProfileUseCase(
+      repository as never,
+      makeStorage() as never,
+      makeEvidence() as never,
+    );
+
+    await useCase.handle({
+      userId: UserId,
+      profile: { defaultLocation: null },
+    });
+
+    expect(repository.update).toHaveBeenCalledWith(
+      { globalId: UserId },
+      { defaultLocation: null },
+    );
+  });
+
+  it('không gửi defaultLocation thì giữ nguyên vị trí đang có', async () => {
+    const repository = makeRepository();
+    const useCase = new UpdateOwnProfileUseCase(
+      repository as never,
+      makeStorage() as never,
+      makeEvidence() as never,
+    );
+
+    await useCase.handle({
+      userId: UserId,
+      profile: { fullName: 'Người Mới' },
+    });
+
+    expect(repository.update).toHaveBeenCalledWith(
+      { globalId: UserId },
+      { fullName: 'Người Mới' },
+    );
+  });
+
   it('đổi SĐT thì huỷ xác minh cũ, nhưng giữ field không gửi lên', async () => {
     const repository = makeRepository();
     const useCase = new UpdateOwnProfileUseCase(

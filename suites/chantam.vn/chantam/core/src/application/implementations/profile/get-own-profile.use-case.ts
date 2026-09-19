@@ -1,7 +1,10 @@
+import { IGetOwnEntitlementsUseCase } from '@/application/contracts/entitlement';
+import { IGetOwnPointSummaryUseCase } from '@/application/contracts/point';
 import {
   IGetOwnProfileCommand,
   IGetOwnProfileUseCase,
 } from '@/application/contracts/profile';
+import { IGetOwnRankSummaryUseCase } from '@/application/contracts/rank';
 import { UserNotFoundException } from '@/domain/exceptions';
 import {
   IReferralRepository,
@@ -17,6 +20,12 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
     private readonly userRepository: IUserRepository,
     @Inject(IReferralRepository)
     private readonly referralRepository: IReferralRepository,
+    @Inject(IGetOwnPointSummaryUseCase)
+    private readonly getOwnPointSummaryUseCase: IGetOwnPointSummaryUseCase,
+    @Inject(IGetOwnRankSummaryUseCase)
+    private readonly getOwnRankSummaryUseCase: IGetOwnRankSummaryUseCase,
+    @Inject(IGetOwnEntitlementsUseCase)
+    private readonly getOwnEntitlementsUseCase: IGetOwnEntitlementsUseCase,
   ) {}
 
   public async handle(command: IGetOwnProfileCommand) {
@@ -38,9 +47,15 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
         })
       : null;
 
-    const referral = await this.referralRepository.getOwnSummary(
-      command.userId,
-    );
+    // Gọi lại chính use case đang phục vụ ba endpoint riêng, không đọc thẳng
+    // repository: mọi con số ở đây phải trùng khít với /points/me, /ranks/me và
+    // /me/entitlements, kể cả khi cách tính đổi về sau.
+    const [referral, point, rank, entitlements] = await Promise.all([
+      this.referralRepository.getOwnSummary(command.userId),
+      this.getOwnPointSummaryUseCase.handle({ userId: command.userId }),
+      this.getOwnRankSummaryUseCase.handle({ userId: command.userId }),
+      this.getOwnEntitlementsUseCase.handle({ userId: command.userId }),
+    ]);
 
     return {
       profile: {
@@ -54,6 +69,9 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
               avatarUrl: referrer.avatarUrl,
             }
           : null,
+        point: point.point,
+        rankProgress: rank.rank,
+        entitlements: entitlements.entitlements,
       },
     };
   }

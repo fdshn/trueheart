@@ -3,9 +3,12 @@ import {
   IConfirmPhoneVerificationBodyDto,
   IConfirmPhoneVerificationDto,
   IConfirmPhoneVerificationResponseDto,
+  IEntitlementsSummaryDto,
   IGetOwnProfileResponseDto,
   IOwnProfileDto,
+  IPointSummaryDto,
   IProfileReferrerDto,
+  IRankSummaryDto,
   IRequestPhoneVerificationResponseDto,
   IUpdateOwnProfileBodyDto,
   IUpdateOwnProfileDto,
@@ -22,7 +25,10 @@ import {
   Matches,
   ValidateNested,
 } from 'class-validator';
+import { EntitlementsSummaryDto } from '../entitlement';
 import { GeoPointDto } from '../geo-point.dto';
+import { PointSummaryDto } from '../point';
+import { RankSummaryDto } from '../rank';
 import { ReferralSummaryDto } from '../referral';
 
 const PhonePattern = /^\+?[0-9]{8,15}$/;
@@ -71,13 +77,15 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
 
   @ApiPropertyOptional({
     type: () => GeoPointDto,
+    nullable: true,
     description:
-      'Vị trí mặc định của CHÍNH CHỦ khi tạo bài. Khác Current GPS; không bao giờ lộ qua profile công khai.',
+      'Vị trí mặc định của CHÍNH CHỦ khi tạo bài. Khác Current GPS; không bao giờ lộ qua profile công khai. ' +
+      'Bỏ trống để giữ nguyên, gửi null để xoá hẳn.',
   })
   @IsOptional()
   @ValidateNested()
   @Type(() => GeoPointDto)
-  defaultLocation?: GeoPointDto;
+  defaultLocation?: GeoPointDto | null;
 }
 
 export class UpdateOwnProfileBodyDto implements IUpdateOwnProfileBodyDto {
@@ -149,6 +157,27 @@ export class OwnProfileDto implements IOwnProfileDto {
     description: 'Thông tin người đã giới thiệu tài khoản này.',
   })
   referrer?: IProfileReferrerDto | null;
+
+  @ApiProperty({
+    type: () => PointSummaryDto,
+    nullable: true,
+    description: 'Số dư tiêu được và điểm tích luỹ, trùng với /points/me.',
+  })
+  point?: IPointSummaryDto | null;
+
+  @ApiProperty({
+    type: () => RankSummaryDto,
+    nullable: true,
+    description: 'Tiến độ hạng và chu kỳ duy trì, trùng với /ranks/me.',
+  })
+  rankProgress?: IRankSummaryDto | null;
+
+  @ApiProperty({
+    type: () => EntitlementsSummaryDto,
+    nullable: true,
+    description: 'Quyền và hạn mức theo hạng, trùng với /me/entitlements.',
+  })
+  entitlements?: IEntitlementsSummaryDto | null;
 }
 
 export class ReferrerProfileDto implements IProfileReferrerDto {
