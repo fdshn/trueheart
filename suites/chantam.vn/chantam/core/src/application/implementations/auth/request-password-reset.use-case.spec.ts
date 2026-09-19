@@ -10,7 +10,17 @@ const User = {
   status: 'ACTIVE',
 };
 
-function makeDeps(options: { user?: unknown; senderConfigured?: boolean }) {
+function makeDeps(options: {
+  user?: unknown;
+  senderConfigured?: boolean;
+  sendableChannels?: PasswordResetChannels[];
+}) {
+  const sendable =
+    options.sendableChannels ??
+    ((options.senderConfigured ?? true)
+      ? [PasswordResetChannels.EMAIL, PasswordResetChannels.SMS]
+      : []);
+
   return {
     userRepository: {
       findByIdentifier: jest.fn(async () => options.user ?? null),
@@ -20,7 +30,9 @@ function makeDeps(options: { user?: unknown; senderConfigured?: boolean }) {
       verify: jest.fn(),
     },
     otpSender: {
-      isConfigured: options.senderConfigured ?? true,
+      canSend: jest.fn((channel: PasswordResetChannels) =>
+        sendable.includes(channel),
+      ),
       send: jest.fn(async () => undefined),
     },
   };
@@ -64,6 +76,24 @@ describe('RequestPasswordResetUseCase', () => {
     const result = await makeUseCase(deps).handle(Command);
 
     expect(result.channel).toBe(PasswordResetChannels.ADMIN_SUPPORT);
+    expect(deps.otpStore.issue).not.toHaveBeenCalled();
+    expect(deps.otpSender.send).not.toHaveBeenCalled();
+  });
+
+  it('chỉ có SĐT mà kênh SMS chưa sẵn sàng thì chuyển Admin, KHÔNG sinh mã', async () => {
+    // Cắm được email KHÔNG có nghĩa là gửi được SMS. Người chỉ có SĐT phải rơi
+    // về Admin thay vì nhận một lời hứa gửi tin nhắn mà hệ thống không giữ được.
+    const deps = makeDeps({
+      user: { ...User, email: null, phone: '0912345678' },
+      sendableChannels: [PasswordResetChannels.EMAIL],
+    });
+
+    const result = await makeUseCase(deps).handle(Command);
+
+    expect(result.channel).toBe(PasswordResetChannels.ADMIN_SUPPORT);
+    expect(deps.otpSender.canSend).toHaveBeenCalledWith(
+      PasswordResetChannels.SMS,
+    );
     expect(deps.otpStore.issue).not.toHaveBeenCalled();
     expect(deps.otpSender.send).not.toHaveBeenCalled();
   });

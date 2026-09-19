@@ -1,4 +1,5 @@
 import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
+import { PasswordResetChannels } from '@chantam.vn/chantam.core-lib/dto';
 import { ConfirmPhoneVerificationUseCase } from './confirm-phone-verification.use-case';
 import { RequestPhoneVerificationUseCase } from './request-phone-verification.use-case';
 
@@ -22,7 +23,10 @@ describe('Phone verification', () => {
       issue: jest.fn(async () => ({ code: '123456', expiresInSeconds: 300 })),
       verify: jest.fn(),
     };
-    const sender = { isConfigured: true, send: jest.fn(async () => undefined) };
+    const sender = {
+      canSend: jest.fn(() => true),
+      send: jest.fn(async () => undefined),
+    };
     const useCase = new RequestPhoneVerificationUseCase(
       users as never,
       otpStore as never,
@@ -37,6 +41,33 @@ describe('Phone verification', () => {
     );
     expect(sender.send).toHaveBeenCalledWith('SMS', Phone, '123456');
     expect(result.expiresInSeconds).toBe(300);
+  });
+
+  it('không phát mã khi sender chỉ gửi được EMAIL chứ không gửi được SMS', async () => {
+    // Một nhà cung cấp email đã cắm KHÔNG được vô tình mở đường xác minh SĐT.
+    const users = { findOneBy: jest.fn(async () => makeUser()) };
+    const otpStore = {
+      issue: jest.fn(async () => ({ code: '123456', expiresInSeconds: 300 })),
+      verify: jest.fn(),
+    };
+    const sender = {
+      canSend: jest.fn(
+        (channel: PasswordResetChannels) =>
+          channel === PasswordResetChannels.EMAIL,
+      ),
+      send: jest.fn(async () => undefined),
+    };
+    const useCase = new RequestPhoneVerificationUseCase(
+      users as never,
+      otpStore as never,
+      sender as never,
+    );
+
+    await expect(useCase.handle({ userId: UserId })).rejects.toThrow();
+
+    expect(sender.canSend).toHaveBeenCalledWith(PasswordResetChannels.SMS);
+    expect(otpStore.issue).not.toHaveBeenCalled();
+    expect(sender.send).not.toHaveBeenCalled();
   });
 
   it('records phone evidence and leaves referral qualification centralized in onboarding', async () => {

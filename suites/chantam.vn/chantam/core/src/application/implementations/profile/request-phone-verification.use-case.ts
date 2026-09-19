@@ -21,7 +21,7 @@ export class RequestPhoneVerificationUseCase implements IRequestPhoneVerificatio
     const user = await this.users.findOneBy({ globalId: command.userId });
     if (!user || user.deletedAt || !user.phone)
       throw new UserNotFoundException();
-    if (!this.sender.isConfigured)
+    if (!this.sender.canSend(PasswordResetChannels.SMS))
       throw new NotImplementedException('SMS provider chưa được cấu hình');
     const result = await this.otp.issue(
       PhoneVerificationPurpose,
