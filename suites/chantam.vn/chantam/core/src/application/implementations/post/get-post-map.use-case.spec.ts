@@ -27,6 +27,7 @@ function makeConfig(): IConfig {
     postOperator: { usernames: [] },
     rankOperator: { usernames: [] },
     adminBootstrap: { usernames: [] },
+    web: { publicBaseUrl: '' },
     storage: {
       endpoint: 'http://localhost:9000',
       region: 'us-east-1',

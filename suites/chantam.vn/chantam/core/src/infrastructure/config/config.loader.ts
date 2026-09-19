@@ -108,6 +108,13 @@ export function loadConfig(): IConfig {
         .filter(Boolean),
     },
 
+    web: {
+      publicBaseUrl: (process.env.WEB_PUBLIC_BASE_URL ?? '').replace(
+        /\/+$/,
+        '',
+      ),
+    },
+
     storage: {
       endpoint: process.env.STORAGE_ENDPOINT ?? '',
       region: process.env.STORAGE_REGION ?? 'auto',

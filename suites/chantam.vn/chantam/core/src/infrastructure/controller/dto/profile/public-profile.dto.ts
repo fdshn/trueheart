@@ -24,6 +24,20 @@ export class PublicProfileDto implements IPublicProfileDto {
   @ApiProperty({ enum: UserRanks }) rank: UserRanks;
   @ApiProperty({ description: 'Số bài PUBLISHED đang hiển thị công khai.' })
   publishedGiftPostCount: number;
+
+  @ApiProperty({
+    example: 1792,
+    description:
+      'Điểm tích luỹ quyết định hạng. Không phải số dư tiêu được của chủ tài khoản.',
+  })
+  lifetimePoints: number;
+
+  @ApiProperty({
+    nullable: true,
+    example: 'https://chantam.vn/u/nguoi-demo',
+    description: 'Link chia sẻ hồ sơ; null khi chưa cấu hình web công khai.',
+  })
+  shareUrl: string | null;
 }
 
 export class GetPublicProfileResponseDto implements IGetPublicProfileResponseDto {

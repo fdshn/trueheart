@@ -18,20 +18,36 @@ function makeUser() {
   };
 }
 
-describe('GetPublicProfileUseCase', () => {
-  it('chỉ trả trường được phép công khai', async () => {
-    const userRepository = {
+function makeDeps(publicBaseUrl: string) {
+  return {
+    userRepository: {
       findActiveByUsername: jest.fn(async () => makeUser()),
-    };
-    const postRepository = {
+    },
+    postRepository: {
       countPublishedByAuthor: jest.fn(async () => 2),
-    };
-    const useCase = new GetPublicProfileUseCase(
-      userRepository as never,
-      postRepository as never,
-    );
+    },
+    pointLedgerRepository: {
+      // balance là điểm tiêu được — KHÔNG được ra kênh công khai.
+      getSummary: jest.fn(async () => ({ balance: 96, lifetime: 1792 })),
+    },
+    config: { web: { publicBaseUrl } },
+  };
+}
 
-    const result = await useCase.handle({ username: 'nguoi-demo' });
+function makeUseCase(deps: ReturnType<typeof makeDeps>) {
+  return new GetPublicProfileUseCase(
+    deps.userRepository as never,
+    deps.postRepository as never,
+    deps.pointLedgerRepository as never,
+    deps.config as never,
+  );
+}
+
+describe('GetPublicProfileUseCase', () => {
+  it('chỉ trả trường được phép công khai, kèm điểm tích luỹ và link chia sẻ', async () => {
+    const deps = makeDeps('https://chantam.vn');
+
+    const result = await makeUseCase(deps).handle({ username: 'nguoi-demo' });
 
     expect(result.profile).toEqual({
       username: 'nguoi-demo',
@@ -39,21 +55,35 @@ describe('GetPublicProfileUseCase', () => {
       avatarUrl: 'https://cdn.example.com/avatar.png',
       rank: 'GOLD',
       publishedGiftPostCount: 2,
+      lifetimePoints: 1792,
+      shareUrl: 'https://chantam.vn/u/nguoi-demo',
     });
-    expect(result.profile).not.toHaveProperty('email');
-    expect(result.profile).not.toHaveProperty('phone');
-    expect(result.profile).not.toHaveProperty('defaultLocation');
+    for (const secret of [
+      'email',
+      'phone',
+      'defaultLocation',
+      'balance',
+      'userId',
+    ])
+      expect(result.profile).not.toHaveProperty(secret);
+  });
+
+  it('chưa cấu hình web công khai thì shareUrl là null, không bịa domain', async () => {
+    const deps = makeDeps('');
+
+    const result = await makeUseCase(deps).handle({ username: 'nguoi-demo' });
+
+    expect(result.profile.shareUrl).toBeNull();
   });
 
   it('không cho xem hồ sơ tài khoản bị xoá hoặc không active', async () => {
-    const userRepository = { findActiveByUsername: jest.fn(async () => null) };
-    const postRepository = { countPublishedByAuthor: jest.fn() };
-    const useCase = new GetPublicProfileUseCase(
-      userRepository as never,
-      postRepository as never,
-    );
+    const deps = makeDeps('https://chantam.vn');
+    deps.userRepository.findActiveByUsername.mockResolvedValue(null as never);
 
-    await expect(useCase.handle({ username: 'khong-co' })).rejects.toThrow();
-    expect(postRepository.countPublishedByAuthor).not.toHaveBeenCalled();
+    await expect(
+      makeUseCase(deps).handle({ username: 'khong-co' }),
+    ).rejects.toThrow();
+    expect(deps.postRepository.countPublishedByAuthor).not.toHaveBeenCalled();
+    expect(deps.pointLedgerRepository.getSummary).not.toHaveBeenCalled();
   });
 });

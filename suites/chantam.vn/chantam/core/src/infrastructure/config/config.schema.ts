@@ -51,6 +51,10 @@ export const ConfigSchema = Joi.object({
   STORAGE_SECRET_ACCESS_KEY: Joi.string().optional(),
   STORAGE_PUBLIC_BASE_URL: Joi.string().uri().optional(),
 
+  // Gốc web công khai cho link chia sẻ hồ sơ. Bỏ trống thì API trả shareUrl
+  // null thay vì đoán một domain không tồn tại.
+  WEB_PUBLIC_BASE_URL: Joi.string().uri().allow('').default(''),
+
   // M1 temporary category manager allowlist. M6 replaces it with real admin roles.
   CATEGORY_ADMIN_USERNAMES: Joi.string().allow('').default(''),
   // M2 temporary moderation allowlist. M6 replaces it with real admin roles.

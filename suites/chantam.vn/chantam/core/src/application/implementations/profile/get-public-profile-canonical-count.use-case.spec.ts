@@ -1,4 +1,8 @@
-import { IPostRepository, IUserRepository } from '@/domain/ports/repository';
+import {
+  IPointLedgerRepository,
+  IPostRepository,
+  IUserRepository,
+} from '@/domain/ports/repository';
 import { GetPublicProfileUseCase } from './get-public-profile.use-case';
 
 const User = {
@@ -17,8 +21,13 @@ describe('GetPublicProfileUseCase canonical post count', () => {
     const posts = {
       countPublishedByAuthor: jest.fn(async () => 3),
     } as unknown as jest.Mocked<IPostRepository>;
+    const ledger = {
+      getSummary: jest.fn(async () => ({ balance: 0, lifetime: 224 })),
+    } as unknown as jest.Mocked<IPointLedgerRepository>;
 
-    const result = await new GetPublicProfileUseCase(users, posts).handle({
+    const result = await new GetPublicProfileUseCase(users, posts, ledger, {
+      web: { publicBaseUrl: '' },
+    } as never).handle({
       username: User.username,
     });
 

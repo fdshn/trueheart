@@ -64,6 +64,16 @@ export interface IRankOperatorConfig {
   usernames: string[];
 }
 
+export interface IWebConfig {
+  /**
+   * Gốc URL của web công khai, dùng dựng link chia sẻ hồ sơ.
+   *
+   * Để rỗng khi chưa có web thật. Khi rỗng thì API trả `shareUrl: null` chứ
+   * KHÔNG bịa ra một domain — link hỏng còn tệ hơn là không có link.
+   */
+  publicBaseUrl: string;
+}
+
 export interface IAdminBootstrapConfig {
   /** Chỉ dùng để gán SUPER_ADMIN lúc khởi tạo; quyền vận hành nằm trong DB. */
   usernames: string[];
@@ -83,6 +93,7 @@ export interface IConfig {
   postOperator: IPostOperatorConfig;
   rankOperator: IRankOperatorConfig;
   adminBootstrap: IAdminBootstrapConfig;
+  web: IWebConfig;
 
   /**
    * Môi trường cho ô chọn của Swagger. Mục đầu luôn trỏ về chính instance đang

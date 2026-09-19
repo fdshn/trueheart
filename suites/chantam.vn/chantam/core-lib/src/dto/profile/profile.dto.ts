@@ -56,13 +56,17 @@ export interface IUpdateOwnProfileResponseDto {
   profile: IOwnProfileDto;
 }
 
-/** Bản tối thiểu, tuyệt đối không có email/SĐT/vị trí mặc định. */
+/** Bản tối thiểu, tuyệt đối không có email/SĐT/vị trí mặc định/số dư tiêu được. */
 export interface IPublicProfileDto {
   username: string;
   fullName: string | null;
   avatarUrl: string | null;
   rank: UserRanks;
   publishedGiftPostCount: number;
+  /** Điểm tích luỹ quyết định hạng. KHÔNG phải số dư tiêu được. */
+  lifetimePoints: number;
+  /** `null` khi chưa cấu hình web công khai. */
+  shareUrl: string | null;
 }
 export interface IGetPublicProfileParamsDto {
   username: string;

@@ -56,6 +56,7 @@ function makeConfig(usernames = ['demo-operator']): IConfig {
     postOperator: { usernames },
     rankOperator: { usernames: [] },
     adminBootstrap: { usernames: [] },
+    web: { publicBaseUrl: '' },
     storage: {
       endpoint: 'http://localhost:9000',
       region: 'us-east-1',
