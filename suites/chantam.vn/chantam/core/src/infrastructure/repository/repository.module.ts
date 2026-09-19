@@ -1,5 +1,6 @@
 import {
   ICategoryRepository,
+  IEntitlementRepository,
   IGiftPostRepository,
   IOnboardingTaskRepository,
   IPointLedgerRepository,
@@ -13,6 +14,7 @@ import {
 } from '@/domain/ports/repository';
 import { Global, Module } from '@nestjs/common';
 import { CategoryRepository } from './category.repository';
+import { EntitlementRepository } from './entitlement.repository';
 import { GiftPostRepository } from './gift-post.repository';
 import { OnboardingTaskRepository } from './onboarding-task.repository';
 import { PointLedgerRepository } from './point-ledger.repository';
@@ -33,6 +35,7 @@ import { UserRepository } from './user.repository';
 @Module({
   providers: [
     { provide: ICategoryRepository, useClass: CategoryRepository },
+    { provide: IEntitlementRepository, useClass: EntitlementRepository },
     { provide: IGiftPostRepository, useClass: GiftPostRepository },
     { provide: IOnboardingTaskRepository, useClass: OnboardingTaskRepository },
     { provide: IPointLedgerRepository, useClass: PointLedgerRepository },
@@ -49,6 +52,7 @@ import { UserRepository } from './user.repository';
   ],
   exports: [
     ICategoryRepository,
+    IEntitlementRepository,
     IGiftPostRepository,
     IOnboardingTaskRepository,
     IPointLedgerRepository,

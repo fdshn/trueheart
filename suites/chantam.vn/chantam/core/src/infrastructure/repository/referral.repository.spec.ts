@@ -15,8 +15,10 @@ describe('ReferralRepository', () => {
         { points: 56, affects_lifetime: true, version: 1, daily_cap: 3 },
       ])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ count: '0' }])
       .mockResolvedValueOnce([{ balance: 0, lifetime: 0 }])
       .mockResolvedValueOnce([{ id: '2' }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: '1' }]);
     const manager = { query };

@@ -200,6 +200,14 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['SILVER'],
   },
 
+  POINT_DAILY_CAP_REACHED: {
+    code: ErrorCodes.POINT_DAILY_CAP_REACHED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (ruleCode: string, dailyCap: number) =>
+      `Đã đạt giới hạn ${dailyCap} lần/ngày cho point rule ${ruleCode}`,
+    sample: ['REFERRAL_QUALIFIED', 3],
+  },
+
   // ── 0x04 Phiên đăng nhập, OTP ─────────────────────────────────────────────
   SESSION_NOT_FOUND: {
     code: ErrorCodes.SESSION_NOT_FOUND,

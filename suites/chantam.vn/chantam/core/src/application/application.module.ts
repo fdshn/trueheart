@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthUseCaseModule } from './implementations/auth/auth.module';
 import { CategoryModule } from './implementations/category/category.module';
 import { DiscoveryModule } from './implementations/discovery/discovery.module';
+import { EntitlementModule } from './implementations/entitlement/entitlement.module';
 import { GiftPostModule } from './implementations/gift-post/gift-post.module';
 import { OnboardingModule } from './implementations/onboarding/onboarding.module';
 import { PointModule } from './implementations/point/point.module';
@@ -18,6 +19,7 @@ import { ReferralModule } from './implementations/referral/referral.module';
   imports: [
     AuthUseCaseModule,
     DiscoveryModule,
+    EntitlementModule,
     GiftPostModule,
     OnboardingModule,
     PointModule,

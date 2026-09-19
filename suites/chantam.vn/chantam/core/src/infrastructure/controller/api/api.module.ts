@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthControllerModule } from './auth/auth.module';
 import { CategoryControllerModule } from './category/category.module';
 import { DiscoveryControllerModule } from './discovery/discovery.module';
+import { EntitlementControllerModule } from './entitlement/entitlement.module';
 import { GiftPostControllerModule } from './gift-post/gift-post.module';
 import { PointControllerModule } from './point/point.module';
 import { PostControllerModule } from './post/post.module';
@@ -15,6 +16,7 @@ import { ReferralControllerModule } from './referral/referral.module';
     AuthControllerModule,
     CategoryControllerModule,
     DiscoveryControllerModule,
+    EntitlementControllerModule,
     GiftPostControllerModule,
     PointControllerModule,
     PostControllerModule,

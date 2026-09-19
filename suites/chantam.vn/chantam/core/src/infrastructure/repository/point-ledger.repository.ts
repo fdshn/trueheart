@@ -2,7 +2,10 @@ import {
   IAppendPointEntryCommand,
   IAppendPointEntryResult,
 } from '@/application/contracts/point';
-import { PointRuleUnavailableException } from '@/domain/exceptions';
+import {
+  PointDailyCapReachedException,
+  PointRuleUnavailableException,
+} from '@/domain/exceptions';
 import {
   IPointLedgerHistoryQuery,
   IPointLedgerPage,
@@ -142,6 +145,35 @@ export class PointLedgerRepository implements IPointLedgerRepository {
       };
     }
 
+    if (rule.daily_cap !== null) {
+      const [{ count }] = await manager.query<{ count: string }[]>(
+        `
+          SELECT COUNT(*)::text AS count
+          FROM point_ledger
+          WHERE user_id = $1
+            AND rule_code = $2
+            AND created_at >= date_trunc('day', timezone('UTC', now())) AT TIME ZONE 'UTC'
+            AND created_at < (date_trunc('day', timezone('UTC', now())) + INTERVAL '1 day') AT TIME ZONE 'UTC'
+        `,
+        [command.userId, command.ruleCode],
+      );
+      if (Number(count) >= rule.daily_cap) {
+        await manager.query(
+          `
+            INSERT INTO point_cap_decisions
+              (user_id, rule_code, policy_date, decision, idempotency_key)
+            VALUES ($1, $2, (timezone('UTC', now()))::date, 'REJECTED', $3)
+            ON CONFLICT (idempotency_key) DO NOTHING
+          `,
+          [command.userId, command.ruleCode, command.idempotencyKey],
+        );
+        throw new PointDailyCapReachedException(
+          command.ruleCode,
+          rule.daily_cap,
+        );
+      }
+    }
+
     const [balance] = await manager.query<
       { balance: number; lifetime: number }[]
     >(
@@ -194,6 +226,18 @@ export class PointLedgerRepository implements IPointLedgerRepository {
         `,
       [command.userId, nextBalance, nextLifetime, id],
     );
+
+    if (rule.daily_cap !== null) {
+      await manager.query(
+        `
+          INSERT INTO point_cap_decisions
+            (user_id, rule_code, policy_date, decision, idempotency_key)
+          VALUES ($1, $2, (timezone('UTC', now()))::date, 'APPLIED', $3)
+          ON CONFLICT (idempotency_key) DO NOTHING
+        `,
+        [command.userId, command.ruleCode, command.idempotencyKey],
+      );
+    }
 
     return {
       entryId: Number(id),

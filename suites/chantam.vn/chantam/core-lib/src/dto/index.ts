@@ -1,6 +1,7 @@
 export * from './auth';
 export * from './category';
 export * from './discovery';
+export * from './entitlement';
 export * from './gift-post';
 export * from './onboarding';
 export * from './point';
