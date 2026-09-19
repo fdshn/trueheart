@@ -16,7 +16,19 @@ import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager, EntitySchema, Repository } from 'typeorm';
 
-const QuotaStatuses = ['PENDING_REVIEW', 'PUBLISHED', 'RESERVED', 'DELIVERING'];
+/**
+ * Những trạng thái tính vào hạn mức đăng bài.
+ *
+ * Export vì `EntitlementRepository` phải báo "đã dùng bao nhiêu" theo ĐÚNG định
+ * nghĩa mà chỗ này chặn. Hai bên lệch nhau thì API nói một đằng, lúc đăng bài
+ * chặn một nẻo.
+ */
+export const QuotaStatuses = [
+  'PENDING_REVIEW',
+  'PUBLISHED',
+  'RESERVED',
+  'DELIVERING',
+];
 
 @Injectable()
 export class PostRepository

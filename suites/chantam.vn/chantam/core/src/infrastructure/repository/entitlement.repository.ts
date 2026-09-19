@@ -7,6 +7,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { QuotaStatuses } from './post.repository';
 
 interface IEntitlementRow {
   rank: UserRanks;
@@ -14,6 +15,11 @@ interface IEntitlementRow {
   code: string;
   allowed: boolean;
   limit_value: string | null;
+}
+
+/** Chỉ quyền đăng bài mới rút từ rổ hạn mức bài đang mở. */
+function isPostCapability(code: string): boolean {
+  return code === 'POST_OFFER' || code === 'POST_WANTED';
 }
 
 @Injectable()
@@ -51,21 +57,43 @@ export class EntitlementRepository implements IEntitlementRepository {
     );
 
     const firstRow = rows[0];
+    const openPosts = await this.countOpenPosts(userId);
+
     return {
       rank: firstRow?.rank ?? UserRanks.VIEWER,
       policyRevisionId: Number(firstRow?.revision_id ?? 0),
       capabilities: rows.map((row) => {
         const limit = row.limit_value === null ? null : Number(row.limit_value);
+        // Hạn mức đăng bài dùng CHUNG một rổ bài đang mở: `createPostWithinQuota`
+        // đếm mọi loại bài, không tách OFFER với WANTED. Các quyền khác chưa có
+        // khái niệm "đã dùng" nên để 0 thay vì bịa ra một con số.
+        const used = isPostCapability(row.code) ? openPosts : 0;
+
         return {
           code: row.code,
           allowed: row.allowed,
           limit,
-          used: 0,
-          remaining: limit,
+          used,
+          remaining: limit === null ? null : Math.max(0, limit - used),
           reasonCode: row.allowed ? null : 'RANK_REQUIREMENT_NOT_MET',
         };
       }),
     };
+  }
+
+  private async countOpenPosts(userId: string): Promise<number> {
+    const [row] = await this.manager.query<{ open_posts: string }[]>(
+      `
+        SELECT COUNT(*)::text AS open_posts
+        FROM posts
+        WHERE author_id = $1
+          AND deleted_at IS NULL
+          AND status IN (${QuotaStatuses.map((status) => `'${status}'`).join(', ')})
+      `,
+      [userId],
+    );
+
+    return Number(row?.open_posts ?? 0);
   }
 
   public async getCapability(
