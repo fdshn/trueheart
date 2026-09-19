@@ -17,7 +17,8 @@ describe('loadConfig', () => {
     process.env.OTP_EMAIL_FROM_ADDRESS = 'otp@chantam.vn';
     process.env.OTP_EMAIL_FROM_NAME = 'Chân Tâm OTP';
     process.env.POST_OPERATOR_USERNAMES = 'Demo-Operator, second-operator, ';
-    process.env.RANK_OPERATOR_USERNAMES = 'Rank-Operator, second-rank-operator, ';
+    process.env.RANK_OPERATOR_USERNAMES =
+      'Rank-Operator, second-rank-operator, ';
 
     const config = loadConfig();
 

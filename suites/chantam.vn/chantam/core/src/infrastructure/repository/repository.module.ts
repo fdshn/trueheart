@@ -1,4 +1,5 @@
 import {
+  IAdminConfigRepository,
   ICategoryRepository,
   IEntitlementRepository,
   IGiftPostRepository,
@@ -13,6 +14,8 @@ import {
   IUserSessionRepository,
 } from '@/domain/ports/repository';
 import { Global, Module } from '@nestjs/common';
+import { AdminBootstrapService } from './admin-bootstrap.service';
+import { AdminConfigRepository } from './admin-config.repository';
 import { CategoryRepository } from './category.repository';
 import { EntitlementRepository } from './entitlement.repository';
 import { GiftPostRepository } from './gift-post.repository';
@@ -34,7 +37,9 @@ import { UserRepository } from './user.repository';
 @Global()
 @Module({
   providers: [
+    AdminBootstrapService,
     { provide: ICategoryRepository, useClass: CategoryRepository },
+    { provide: IAdminConfigRepository, useClass: AdminConfigRepository },
     { provide: IEntitlementRepository, useClass: EntitlementRepository },
     { provide: IGiftPostRepository, useClass: GiftPostRepository },
     { provide: IOnboardingTaskRepository, useClass: OnboardingTaskRepository },
@@ -52,6 +57,7 @@ import { UserRepository } from './user.repository';
   ],
   exports: [
     ICategoryRepository,
+    IAdminConfigRepository,
     IEntitlementRepository,
     IGiftPostRepository,
     IOnboardingTaskRepository,

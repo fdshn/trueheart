@@ -57,4 +57,6 @@ export const ConfigSchema = Joi.object({
   POST_OPERATOR_USERNAMES: Joi.string().allow('').default(''),
   // Sprint 1 temporary rank maintenance operator allowlist. M6 replaces it with real admin roles.
   RANK_OPERATOR_USERNAMES: Joi.string().allow('').default(''),
+  // Chỉ bootstrap SUPER_ADMIN; sau đó quản trị bằng admin_user_roles.
+  ADMIN_BOOTSTRAP_USERNAMES: Joi.string().allow('').default(''),
 });

@@ -64,6 +64,11 @@ export interface IRankOperatorConfig {
   usernames: string[];
 }
 
+export interface IAdminBootstrapConfig {
+  /** Chỉ dùng để gán SUPER_ADMIN lúc khởi tạo; quyền vận hành nằm trong DB. */
+  usernames: string[];
+}
+
 export interface IConfig {
   port: number;
   env: Env;
@@ -77,6 +82,7 @@ export interface IConfig {
   categoryAdmin: ICategoryAdminConfig;
   postOperator: IPostOperatorConfig;
   rankOperator: IRankOperatorConfig;
+  adminBootstrap: IAdminBootstrapConfig;
 
   /**
    * Môi trường cho ô chọn của Swagger. Mục đầu luôn trỏ về chính instance đang

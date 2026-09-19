@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AdminConfigControllerModule } from './admin-config/admin-config.module';
 import { AuthControllerModule } from './auth/auth.module';
 import { CategoryControllerModule } from './category/category.module';
 import { DiscoveryControllerModule } from './discovery/discovery.module';
@@ -13,6 +14,7 @@ import { ReferralControllerModule } from './referral/referral.module';
 /** Gom mọi controller module theo resource. */
 @Module({
   imports: [
+    AdminConfigControllerModule,
     AuthControllerModule,
     CategoryControllerModule,
     DiscoveryControllerModule,

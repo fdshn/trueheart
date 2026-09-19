@@ -1,5 +1,6 @@
 import {
   ICategoryRepository,
+  IEntitlementRepository,
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
@@ -119,10 +120,23 @@ describe('CreatePostUseCase Generic MVP', () => {
       const users = {
         findOneBy: jest.fn(async () => makeUser()),
       } as unknown as jest.Mocked<IUserRepository>;
+      const entitlements = {
+        getCapability: jest.fn(async () => ({
+          code: 'POST_OFFER',
+          allowed: true,
+          limit: 3,
+          used: 0,
+          remaining: 3,
+          reasonCode: null,
+        })),
+      } as unknown as jest.Mocked<IEntitlementRepository>;
 
-      await new CreatePostUseCase(posts, categories, users).handle(
-        makeCommand(postType),
-      );
+      await new CreatePostUseCase(
+        posts,
+        categories,
+        users,
+        entitlements,
+      ).handle(makeCommand(postType));
 
       expect(posts.createPostWithinQuota).toHaveBeenCalledWith(
         UserId,
@@ -156,10 +170,20 @@ describe('CreatePostUseCase Generic MVP', () => {
     const users = {
       findOneBy: jest.fn(async () => makeUser()),
     } as unknown as jest.Mocked<IUserRepository>;
+    const entitlements = {
+      getCapability: jest.fn(async () => ({
+        code: 'POST_OFFER',
+        allowed: true,
+        limit: 3,
+        used: 0,
+        remaining: 3,
+        reasonCode: null,
+      })),
+    } as unknown as jest.Mocked<IEntitlementRepository>;
     const charity = makeCommand(PostTypes.CHARITY);
 
     await expect(
-      new CreatePostUseCase(posts, categories, users).handle({
+      new CreatePostUseCase(posts, categories, users, entitlements).handle({
         ...charity,
         post: {
           ...charity.post,

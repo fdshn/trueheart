@@ -54,6 +54,7 @@ function makeConfig(): IConfig {
     categoryAdmin: { usernames: [] },
     postOperator: { usernames: [] },
     rankOperator: { usernames: [] },
+    adminBootstrap: { usernames: [] },
     storage: {
       endpoint: '',
       region: '',

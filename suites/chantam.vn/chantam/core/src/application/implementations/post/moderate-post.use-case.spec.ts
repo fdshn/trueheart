@@ -55,6 +55,7 @@ function makeConfig(usernames = ['demo-operator']): IConfig {
     categoryAdmin: { usernames: [] },
     postOperator: { usernames },
     rankOperator: { usernames: [] },
+    adminBootstrap: { usernames: [] },
     storage: {
       endpoint: 'http://localhost:9000',
       region: 'us-east-1',

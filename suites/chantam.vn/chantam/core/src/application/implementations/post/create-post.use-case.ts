@@ -12,6 +12,7 @@ import {
 } from '@/domain/exceptions';
 import {
   ICategoryRepository,
+  IEntitlementRepository,
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
@@ -25,14 +26,6 @@ import { ValidationFailedException } from '@chantam/service.common-lib/exception
 import { makeGlobalId, slugify } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
 
-const PostQuotaByRank: Readonly<Record<UserRanks, number>> = {
-  [UserRanks.VIEWER]: 0,
-  [UserRanks.MEMBER]: 3,
-  [UserRanks.SILVER]: 10,
-  [UserRanks.GOLD]: 20,
-  [UserRanks.DIAMOND]: 50,
-};
-
 @Injectable()
 export class CreatePostUseCase implements ICreatePostUseCase {
   public constructor(
@@ -42,6 +35,8 @@ export class CreatePostUseCase implements ICreatePostUseCase {
     private readonly categoryRepository: ICategoryRepository,
     @Inject(IUserRepository)
     private readonly userRepository: IUserRepository,
+    @Inject(IEntitlementRepository)
+    private readonly entitlementRepository: IEntitlementRepository,
   ) {}
 
   public async handle(command: ICreatePostCommand): Promise<ICreatePostResult> {
@@ -83,7 +78,12 @@ export class CreatePostUseCase implements ICreatePostUseCase {
 
     const totalQuantity =
       post.postType === PostTypes.OFFER ? (post.totalQuantity ?? 1) : 1;
-    const quota = PostQuotaByRank[user.rank];
+    const capability = await this.entitlementRepository.getCapability(
+      command.userId,
+      post.postType === PostTypes.WANTED ? 'POST_WANTED' : 'POST_OFFER',
+    );
+    const quota = capability?.limit ?? 0;
+    if (!capability?.allowed) throw new PostQuotaExceededException(quota);
     const created = await this.postRepository.createPostWithinQuota(
       command.userId,
       quota,

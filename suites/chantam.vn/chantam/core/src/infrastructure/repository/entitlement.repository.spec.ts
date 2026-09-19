@@ -46,4 +46,28 @@ describe('EntitlementRepository', () => {
       ],
     });
   });
+
+  it('resolves one capability from the published policy', async () => {
+    const query = jest.fn().mockResolvedValue([
+      {
+        rank: UserRanks.MEMBER,
+        revision_id: '8',
+        code: 'POST_OFFER',
+        allowed: true,
+        limit_value: '3',
+      },
+    ]);
+    const repository = new EntitlementRepository({ query } as never);
+
+    await expect(
+      repository.getCapability('user-1', 'POST_OFFER'),
+    ).resolves.toEqual({
+      code: 'POST_OFFER',
+      allowed: true,
+      limit: 3,
+      used: 0,
+      remaining: 3,
+      reasonCode: null,
+    });
+  });
 });

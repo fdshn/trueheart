@@ -3,7 +3,10 @@ import {
   IGetOwnProfileUseCase,
 } from '@/application/contracts/profile';
 import { UserNotFoundException } from '@/domain/exceptions';
-import { IReferralRepository, IUserRepository } from '@/domain/ports/repository';
+import {
+  IReferralRepository,
+  IUserRepository,
+} from '@/domain/ports/repository';
 import { Inject, Injectable } from '@nestjs/common';
 import { toOwnProfileDto } from './profile.mapper';
 
@@ -25,10 +28,9 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
 
     const [referralRecord] = await this.userRepository.query<
       { referrer_id: string }[]
-    >(
-      `SELECT referrer_id FROM referrals WHERE referee_id = $1 LIMIT 1`,
-      [command.userId],
-    );
+    >(`SELECT referrer_id FROM referrals WHERE referee_id = $1 LIMIT 1`, [
+      command.userId,
+    ]);
 
     const referrer = referralRecord
       ? await this.userRepository.findOneBy({
@@ -36,7 +38,9 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
         })
       : null;
 
-    const referral = await this.referralRepository.getOwnSummary(command.userId);
+    const referral = await this.referralRepository.getOwnSummary(
+      command.userId,
+    );
 
     return {
       profile: {

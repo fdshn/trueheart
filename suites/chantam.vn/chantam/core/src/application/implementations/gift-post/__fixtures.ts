@@ -65,6 +65,7 @@ export function makeConfigMock(jitterRadiusMeters = 300): IConfig {
     categoryAdmin: { usernames: [] },
     postOperator: { usernames: [] },
     rankOperator: { usernames: [] },
+    adminBootstrap: { usernames: [] },
     storage: {
       endpoint: 'http://localhost:9000',
       region: 'us-east-1',

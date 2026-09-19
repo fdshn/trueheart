@@ -101,6 +101,13 @@ export function loadConfig(): IConfig {
         .filter(Boolean),
     },
 
+    adminBootstrap: {
+      usernames: (process.env.ADMIN_BOOTSTRAP_USERNAMES ?? '')
+        .split(',')
+        .map((username) => username.trim().toLowerCase())
+        .filter(Boolean),
+    },
+
     storage: {
       endpoint: process.env.STORAGE_ENDPOINT ?? '',
       region: process.env.STORAGE_REGION ?? 'auto',

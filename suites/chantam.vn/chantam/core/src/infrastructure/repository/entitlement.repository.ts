@@ -1,6 +1,9 @@
 import { IEntitlementRepository } from '@/domain/ports/repository';
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
-import { IEntitlementsSummaryDto } from '@chantam.vn/chantam.core-lib/dto';
+import {
+  IEntitlementDto,
+  IEntitlementsSummaryDto,
+} from '@chantam.vn/chantam.core-lib/dto';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
@@ -63,5 +66,16 @@ export class EntitlementRepository implements IEntitlementRepository {
         };
       }),
     };
+  }
+
+  public async getCapability(
+    userId: string,
+    code: string,
+  ): Promise<IEntitlementDto | null> {
+    const summary = await this.getOwnEntitlements(userId);
+    return (
+      summary.capabilities.find((capability) => capability.code === code) ??
+      null
+    );
   }
 }

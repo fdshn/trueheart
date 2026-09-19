@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AdminConfigModule } from './implementations/admin-config/admin-config.module';
 import { AuthUseCaseModule } from './implementations/auth/auth.module';
 import { CategoryModule } from './implementations/category/category.module';
 import { DiscoveryModule } from './implementations/discovery/discovery.module';
@@ -17,6 +18,7 @@ import { ReferralModule } from './implementations/referral/referral.module';
  */
 @Module({
   imports: [
+    AdminConfigModule,
     AuthUseCaseModule,
     DiscoveryModule,
     EntitlementModule,

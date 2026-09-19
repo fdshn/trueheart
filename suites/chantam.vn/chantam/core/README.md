@@ -42,6 +42,10 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 | `GET` | `/api/v1/points/me` | `GetOwnPointSummaryUseCase` — số dư projection của chính chủ |
 | `GET` | `/api/v1/points/me/ledger?page=&pageSize=` | `GetOwnPointLedgerUseCase` — lịch sử ledger phân trang của chính chủ |
 | `GET` | `/api/v1/ranks/me` | `GetOwnRankSummaryUseCase` — điểm lifetime, tier hiện tại/tiếp theo và maintenance cycle của chính chủ |
+| `GET` | `/api/v1/me/entitlements` | Quyền và quota theo rank hiện tại |
+| `GET` | `/api/v1/admin/system-configs` | System config đang hiệu lực, yêu cầu RBAC |
+| `POST` | `/api/v1/admin/system-configs` | Publish config revision mới, yêu cầu RBAC + audit |
+| `GET` | `/api/v1/admin/audit-logs` | Audit log Admin, yêu cầu RBAC |
 
 ## Rank lifecycle operations
 

@@ -6,6 +6,7 @@ import {
 } from '@/domain/exceptions';
 import {
   ICategoryRepository,
+  IEntitlementRepository,
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
@@ -100,13 +101,28 @@ describe('CreatePostUseCase', () => {
     const users = {
       findOneBy: jest.fn().mockResolvedValue(user),
     } as unknown as jest.Mocked<IUserRepository>;
+    const entitlements = {
+      getCapability: jest.fn().mockResolvedValue({
+        code: 'POST_OFFER',
+        allowed: true,
+        limit: user?.rank === UserRanks.MEMBER ? 3 : 10,
+        used: 0,
+        remaining: user?.rank === UserRanks.MEMBER ? 3 : 10,
+        reasonCode: null,
+      }),
+    } as unknown as jest.Mocked<IEntitlementRepository>;
 
-    return { posts, categories, users };
+    return { posts, categories, users, entitlements };
   }
 
   it('lấy author từ userId và khởi tạo canonical OFFER pending review', async () => {
-    const { posts, categories, users } = makeRepositories();
-    const useCase = new CreatePostUseCase(posts, categories, users);
+    const { posts, categories, users, entitlements } = makeRepositories();
+    const useCase = new CreatePostUseCase(
+      posts,
+      categories,
+      users,
+      entitlements,
+    );
 
     await useCase.handle(command());
 
@@ -129,50 +145,58 @@ describe('CreatePostUseCase', () => {
   });
 
   it('chặn user có hồ sơ chưa hoàn tất trước khi kiểm tra category hoặc quota', async () => {
-    const { posts, categories, users } = makeRepositories(
+    const { posts, categories, users, entitlements } = makeRepositories(
       makeUser({ avatarUrl: null }),
     );
 
     await expect(
-      new CreatePostUseCase(posts, categories, users).handle(command()),
+      new CreatePostUseCase(posts, categories, users, entitlements).handle(
+        command(),
+      ),
     ).rejects.toBeInstanceOf(ProfileIncompleteException);
     expect(categories.findOneBy).not.toHaveBeenCalled();
     expect(posts.createPostWithinQuota).not.toHaveBeenCalled();
   });
 
   it('từ chối category inactive hoặc deleted', async () => {
-    const { posts, categories, users } = makeRepositories(
+    const { posts, categories, users, entitlements } = makeRepositories(
       makeUser(),
       makeCategory({ isActive: false }),
     );
 
     await expect(
-      new CreatePostUseCase(posts, categories, users).handle(command()),
+      new CreatePostUseCase(posts, categories, users, entitlements).handle(
+        command(),
+      ),
     ).rejects.toBeInstanceOf(CategoryNotFoundException);
     expect(posts.createPostWithinQuota).not.toHaveBeenCalled();
   });
 
   it('chặn Viewer có hồ sơ đầy đủ bằng onboarding exception trước category hoặc quota', async () => {
-    const { posts, categories, users } = makeRepositories(
+    const { posts, categories, users, entitlements } = makeRepositories(
       makeUser({ rank: UserRanks.VIEWER }),
     );
 
     await expect(
-      new CreatePostUseCase(posts, categories, users).handle(command()),
+      new CreatePostUseCase(posts, categories, users, entitlements).handle(
+        command(),
+      ),
     ).rejects.toBeInstanceOf(OnboardingIncompleteException);
     expect(categories.findOneBy).not.toHaveBeenCalled();
     expect(posts.createPostWithinQuota).not.toHaveBeenCalled();
   });
 
   it('trả quota exception khi transaction lock từ chối request vượt trần', async () => {
-    const { posts, categories, users } = makeRepositories(
+    const { posts, categories, users, entitlements } = makeRepositories(
       makeUser({ rank: UserRanks.MEMBER }),
       makeCategory(),
       false,
     );
 
     await expect(
-      new CreatePostUseCase(posts, categories, users).handle(command()),
+      new CreatePostUseCase(posts, categories, users, entitlements).handle(
+        command(),
+      ),
     ).rejects.toBeInstanceOf(PostQuotaExceededException);
     expect(posts.createPostWithinQuota).toHaveBeenCalledWith(
       UserId,

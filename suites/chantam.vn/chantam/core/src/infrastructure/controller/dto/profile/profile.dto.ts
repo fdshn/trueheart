@@ -22,8 +22,8 @@ import {
   Matches,
   ValidateNested,
 } from 'class-validator';
-import { ReferralSummaryDto } from '../referral';
 import { GeoPointDto } from '../geo-point.dto';
+import { ReferralSummaryDto } from '../referral';
 
 const PhonePattern = /^\+?[0-9]{8,15}$/;
 
@@ -152,7 +152,10 @@ export class OwnProfileDto implements IOwnProfileDto {
 }
 
 export class ReferrerProfileDto implements IProfileReferrerDto {
-  @ApiProperty({ format: 'uuid', description: 'Định danh người đã giới thiệu.' })
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Định danh người đã giới thiệu.',
+  })
   userId: string;
 
   @ApiProperty({ description: 'Username của người đã giới thiệu.' })
@@ -161,7 +164,10 @@ export class ReferrerProfileDto implements IProfileReferrerDto {
   @ApiProperty({ nullable: true, description: 'Họ tên người đã giới thiệu.' })
   fullName: string | null;
 
-  @ApiProperty({ nullable: true, description: 'Avatar của người đã giới thiệu.' })
+  @ApiProperty({
+    nullable: true,
+    description: 'Avatar của người đã giới thiệu.',
+  })
   avatarUrl: string | null;
 }
 
