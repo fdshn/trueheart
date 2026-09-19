@@ -66,7 +66,10 @@ export class AdminConfigController {
   @ApiErrorResponses(
     ...ApiTokenErrors,
     [ForbiddenException],
-    [ValidationFailedException],
+    [
+      ValidationFailedException,
+      ['key không nằm trong danh sách cấu hình được phép: point.secret'],
+    ],
   )
   public async publishConfig(
     @CurrentUser() principal: IAuthPrincipal,
