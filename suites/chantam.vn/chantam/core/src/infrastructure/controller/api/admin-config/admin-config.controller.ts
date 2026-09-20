@@ -1,6 +1,7 @@
 import {
   IGetAdminAuditLogsUseCase,
   IGetAdminConfigsUseCase,
+  IGetSystemLogsUseCase,
   IPublishAdminConfigUseCase,
 } from '@/application/contracts/admin-config';
 import {
@@ -29,6 +30,10 @@ import {
   PublishSystemConfigBodyDto,
   PublishSystemConfigResponseDto,
 } from '../../dto/admin-config/admin-config.dto';
+import {
+  GetSystemLogsQueryDto,
+  GetSystemLogsResponseDto,
+} from '../../dto/admin-config/system-log.dto';
 
 @ApiTags('Admin - System Config')
 @ApiBearerAuth()
@@ -41,6 +46,8 @@ export class AdminConfigController {
     private readonly publishAdminConfigUseCase: IPublishAdminConfigUseCase,
     @Inject(IGetAdminAuditLogsUseCase)
     private readonly getAdminAuditLogsUseCase: IGetAdminAuditLogsUseCase,
+    @Inject(IGetSystemLogsUseCase)
+    private readonly getSystemLogsUseCase: IGetSystemLogsUseCase,
   ) {}
 
   @Get('system-configs')
@@ -106,6 +113,36 @@ export class AdminConfigController {
           actorFilter: query.actorFilter,
           action: query.action,
           resourceType: query.resourceType,
+          from: query.from,
+          to: query.to,
+          page: query.page,
+          pageSize: query.pageSize,
+        }),
+      )
+      .build();
+  }
+
+  @Get('system-logs')
+  @ApiOperation({
+    summary: 'Nhật ký hệ thống theo từng loại',
+    description:
+      'Đọc thẳng từ nguồn thật của mỗi loại: thao tác quản trị, biến động điểm, đổi hạng và vòng đời giao dịch. ' +
+      'Lọc được theo người liên quan, hành động và khoảng thời gian; bỏ trống một bộ lọc nghĩa là không lọc theo nó.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(GetSystemLogsResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
+  public async getSystemLogs(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Query() query: GetSystemLogsQueryDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.getSystemLogsUseCase.handle({
+          actorUserId: principal.userId,
+          logType: query.logType,
+          userId: query.userId,
+          action: query.action,
           from: query.from,
           to: query.to,
           page: query.page,

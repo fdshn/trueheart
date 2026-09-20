@@ -92,6 +92,29 @@ export class PointLedgerRepository implements IPointLedgerRepository {
     };
   }
 
+  public async findPhoneVerifiedUsersMissingReward(
+    limit: number,
+  ): Promise<string[]> {
+    const rows = await this.manager.query<{ global_id: string }[]>(
+      `
+        SELECT user_account.global_id
+        FROM users user_account
+        WHERE user_account.phone_verified_at IS NOT NULL
+          AND user_account.deleted_at IS NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM point_ledger entry
+            WHERE entry.idempotency_key = 'PHONE_VERIFIED_FIRST_TIME:' || user_account.global_id
+          )
+        ORDER BY user_account.phone_verified_at ASC
+        LIMIT $1
+      `,
+      [limit],
+    );
+
+    return rows.map((row) => row.global_id);
+  }
+
   public async appendByRule(
     command: IAppendPointEntryCommand,
   ): Promise<IAppendPointEntryResult> {

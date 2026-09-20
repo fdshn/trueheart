@@ -2,6 +2,7 @@ import {
   IGetAdminAuditLogsUseCase,
   IGetAdminConfigsUseCase,
   IGetNotificationChannelsUseCase,
+  IGetSystemLogsUseCase,
   IPublishAdminConfigUseCase,
   IUpdateNotificationChannelUseCase,
 } from '@/application/contracts/admin-config';
@@ -11,6 +12,7 @@ import {
   GetAdminConfigsUseCase,
   PublishAdminConfigUseCase,
 } from './admin-config.use-cases';
+import { GetSystemLogsUseCase } from './get-system-logs.use-case';
 import {
   GetNotificationChannelsUseCase,
   UpdateNotificationChannelUseCase,
@@ -25,6 +27,7 @@ import {
       useClass: PublishAdminConfigUseCase,
     },
     { provide: IGetAdminAuditLogsUseCase, useClass: GetAdminAuditLogsUseCase },
+    { provide: IGetSystemLogsUseCase, useClass: GetSystemLogsUseCase },
     {
       provide: IGetNotificationChannelsUseCase,
       useClass: GetNotificationChannelsUseCase,
@@ -38,6 +41,7 @@ import {
     IGetAdminConfigsUseCase,
     IPublishAdminConfigUseCase,
     IGetAdminAuditLogsUseCase,
+    IGetSystemLogsUseCase,
     IGetNotificationChannelsUseCase,
     IUpdateNotificationChannelUseCase,
   ],
