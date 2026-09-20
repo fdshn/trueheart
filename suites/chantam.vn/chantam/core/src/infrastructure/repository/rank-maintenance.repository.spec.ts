@@ -19,17 +19,21 @@ function dueCycle(overrides = {}) {
 function lockedUser(overrides = {}) {
   return {
     rank: UserRanks.SILVER,
-    lifetime_points: '700',
+    balance_points: '700',
     maintenance_gifts: '2',
     maintenance_referrals: '2',
     qualified_referrals: '2',
+    total_qualified_referrals: '2',
     ...overrides,
   };
 }
 
 function makeRepository(
   query: jest.Mock,
-  activity: { countCompletedGifts: jest.Mock },
+  activity: {
+    countCompletedGifts: jest.Mock;
+    countLifetimeCompletedGifts?: jest.Mock;
+  },
 ): RankRepository {
   return new RankRepository(
     {
@@ -116,7 +120,7 @@ describe('RankRepository due maintenance evaluation', () => {
     );
   });
 
-  it('demotes failed available activity exactly one rank, writes the immutable transition linked to the cycle, and opens the next cycle', async () => {
+  it('recalculates multiple tiers after failed maintenance without opening a Member cycle', async () => {
     const query = jest
       .fn()
       .mockResolvedValueOnce([dueCycle({ rank: UserRanks.GOLD })])
@@ -127,7 +131,22 @@ describe('RankRepository due maintenance evaluation', () => {
           maintenance_gifts: '3',
           maintenance_referrals: '3',
           qualified_referrals: '0',
+          total_qualified_referrals: '0',
         }),
+      ])
+      .mockResolvedValueOnce([
+        {
+          rank: UserRanks.MEMBER,
+          threshold_points: '224',
+          required_gifts: '0',
+          required_referrals: '0',
+        },
+        {
+          rank: UserRanks.SILVER,
+          threshold_points: '672',
+          required_gifts: '1',
+          required_referrals: '1',
+        },
       ])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
@@ -137,30 +156,31 @@ describe('RankRepository due maintenance evaluation', () => {
       countCompletedGifts: jest
         .fn()
         .mockResolvedValue({ available: true, completedGifts: 0 }),
+      countLifetimeCompletedGifts: jest
+        .fn()
+        .mockResolvedValue({ available: true, completedGifts: 0 }),
     };
     const repository = makeRepository(query, activity);
 
     await expect(repository.evaluateDueMaintenanceCycles()).resolves.toBe(1);
 
-    expect(query.mock.calls[3][1]).toEqual(['51', 0, 0, 'FAILED']);
-    expect(query.mock.calls[4]).toEqual([
-      expect.stringContaining('UPDATE users'),
-      [UserId, UserRanks.SILVER, UserRanks.GOLD],
-    ]);
+    expect(query.mock.calls[4][1]).toEqual(['51', 0, 0, 'FAILED']);
     expect(query.mock.calls[5]).toEqual([
+      expect.stringContaining('UPDATE users'),
+      [UserId, UserRanks.MEMBER, UserRanks.GOLD],
+    ]);
+    expect(query.mock.calls[6]).toEqual([
       expect.stringContaining('INSERT INTO rank_transitions'),
       [
         UserId,
         UserRanks.GOLD,
-        UserRanks.SILVER,
+        UserRanks.MEMBER,
         'MAINTENANCE_FAILED',
         700,
         '51',
         'SYSTEM',
       ],
     ]);
-    expect(query.mock.calls[6][0]).toContain(
-      'INSERT INTO rank_maintenance_cycles',
-    );
+    expect(query.mock.calls).toHaveLength(7);
   });
 });

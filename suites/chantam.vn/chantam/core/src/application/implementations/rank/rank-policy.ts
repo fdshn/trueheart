@@ -32,6 +32,7 @@ export interface IUnavailableRankMaintenanceInput extends IRankMaintenanceInput 
 export interface IAvailableRankMaintenanceInput extends IRankMaintenanceInput {
   readonly activityAvailable: true;
   readonly maintenanceSatisfied: boolean;
+  readonly fallbackRank: UserRanks;
 }
 
 export type IRankEvaluationInput =
@@ -86,7 +87,7 @@ function evaluateMaintenanceRank(
   }
 
   return {
-    rank: getRankBelow(input.currentRank, input.isMember),
+    rank: input.fallbackRank,
     maintenanceStatus: 'FAILED',
   };
 }
@@ -109,14 +110,6 @@ function getHighestEligibleRank(input: INormalRankEvaluationInput): UserRanks {
   }
 
   return highestEligibleRank;
-}
-
-function getRankBelow(currentRank: UserRanks, isMember: boolean): UserRanks {
-  const floor = isMember ? UserRanks.MEMBER : UserRanks.VIEWER;
-  const currentPosition = getRankPosition(currentRank);
-  const floorPosition = getRankPosition(floor);
-
-  return RankOrder[Math.max(currentPosition - 1, floorPosition)];
 }
 
 function getRankPosition(rank: UserRanks): number {

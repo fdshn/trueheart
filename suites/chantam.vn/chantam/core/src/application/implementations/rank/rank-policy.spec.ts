@@ -153,8 +153,9 @@ describe('evaluateRank', () => {
         isMember: true,
         activityAvailable: true,
         maintenanceSatisfied: false,
+        fallbackRank: UserRanks.SILVER,
       }),
-    ).toEqual({ rank: UserRanks.GOLD, maintenanceStatus: 'FAILED' });
+    ).toEqual({ rank: UserRanks.SILVER, maintenanceStatus: 'FAILED' });
   });
 
   it('does not demote Member below Member after failed maintenance', () => {
@@ -165,6 +166,7 @@ describe('evaluateRank', () => {
         isMember: true,
         activityAvailable: true,
         maintenanceSatisfied: false,
+        fallbackRank: UserRanks.MEMBER,
       }),
     ).toEqual({ rank: UserRanks.MEMBER, maintenanceStatus: 'FAILED' });
   });
@@ -177,6 +179,7 @@ describe('evaluateRank', () => {
         isMember: true,
         activityAvailable: true,
         maintenanceSatisfied: true,
+        fallbackRank: UserRanks.MEMBER,
       }),
     ).toEqual({ rank: UserRanks.SILVER, maintenanceStatus: 'SATISFIED' });
   });

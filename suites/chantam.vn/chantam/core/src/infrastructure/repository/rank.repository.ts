@@ -47,10 +47,11 @@ interface IRawOnboardingPromotionRow {
 
 interface IRawMaintenanceEvaluationRow {
   rank: UserRanks;
-  lifetime_points: string | null;
+  balance_points: string | null;
   maintenance_gifts: string;
   maintenance_referrals: string;
   qualified_referrals: string;
+  total_qualified_referrals: string;
 }
 
 interface IRawNormalRankEvaluationRow {
@@ -214,10 +215,11 @@ export class RankRepository implements IRankRepository {
           `
             SELECT
               user_account.rank,
-              balance.lifetime AS lifetime_points,
+              balance.balance AS balance_points,
               tier.maintenance_gifts,
               tier.maintenance_referrals,
               qualified_referrals.qualified_referrals
+              , total_referrals.total_qualified_referrals
             FROM users user_account
             LEFT JOIN user_point_balances balance ON balance.user_id = user_account.global_id
             INNER JOIN rank_tiers tier ON tier.rank = $2
@@ -228,6 +230,12 @@ export class RankRepository implements IRankRepository {
                 AND referral.qualified_at >= $3
                 AND referral.qualified_at < $4
             ) qualified_referrals
+            CROSS JOIN LATERAL (
+              SELECT COUNT(*)::text AS total_qualified_referrals
+              FROM referrals referral
+              WHERE referral.referrer_id = user_account.global_id
+                AND referral.qualified_at IS NOT NULL
+            ) total_referrals
             WHERE user_account.global_id = $1
             FOR UPDATE OF user_account
           `,
@@ -244,16 +252,59 @@ export class RankRepository implements IRankRepository {
         });
         const giftsDone = activity.available ? activity.completedGifts : 0;
         const referralsDone = Number(user.qualified_referrals);
+        const maintenanceSatisfied =
+          activity.available &&
+          giftsDone >= Number(user.maintenance_gifts) &&
+          referralsDone >= Number(user.maintenance_referrals);
+        const lifetimeActivity =
+          activity.available && !maintenanceSatisfied
+            ? await this.giveActivityCounter!.countLifetimeCompletedGifts({
+                userId: cycle.user_id,
+                rank: user.rank,
+              })
+            : { available: activity.available, completedGifts: 0 };
+        const activityAvailable =
+          activity.available && lifetimeActivity.available;
+        const lowerTiers =
+          activityAvailable && !maintenanceSatisfied
+            ? await manager.query<IRawNormalRankTierRow[]>(
+                `SELECT rank, threshold_points, required_gifts, required_referrals
+               FROM rank_tiers
+               WHERE threshold_points < (
+                 SELECT threshold_points FROM rank_tiers WHERE rank = $1
+               )
+               ORDER BY threshold_points ASC`,
+                [user.rank],
+              )
+            : [];
+        const fallbackRank =
+          activityAvailable && !maintenanceSatisfied
+            ? evaluateRank({
+                mode: 'NORMAL',
+                currentRank: user.rank,
+                isMember: user.rank !== UserRanks.VIEWER,
+                balancePoints: Number(user.balance_points ?? 0),
+                completedGifts: lifetimeActivity.completedGifts,
+                qualifiedReferrals: Number(user.total_qualified_referrals),
+                promotionLockedUntil: null,
+                now: new Date(),
+                tiers: lowerTiers.map((tier) => ({
+                  rank: tier.rank,
+                  thresholdPoints: Number(tier.threshold_points),
+                  requiredGifts: Number(tier.required_gifts),
+                  requiredReferrals: Number(tier.required_referrals),
+                })),
+              }).rank
+            : user.rank;
         const evaluation = evaluateRank(
-          activity.available
+          activityAvailable
             ? {
                 mode: 'MAINTENANCE',
                 currentRank: user.rank,
                 isMember: user.rank !== UserRanks.VIEWER,
                 activityAvailable: true,
-                maintenanceSatisfied:
-                  giftsDone >= Number(user.maintenance_gifts) &&
-                  referralsDone >= Number(user.maintenance_referrals),
+                maintenanceSatisfied,
+                fallbackRank,
               }
             : {
                 mode: 'MAINTENANCE',
@@ -298,7 +349,7 @@ export class RankRepository implements IRankRepository {
               user.rank,
               evaluation.rank,
               'MAINTENANCE_FAILED',
-              Number(user.lifetime_points ?? 0),
+              Number(user.balance_points ?? 0),
               cycle.id,
               'SYSTEM',
             ],
