@@ -69,6 +69,25 @@ export interface IGetNearbyPostsResponseDto {
   meta: IPaginationMetaDto;
 }
 
+/** Vì sao một bài được gợi ý. Giao diện dịch các mã này ra tiếng Việt. */
+export type SmartMatchReason = 'SAME_CATEGORY' | 'KEYWORD_MATCH' | 'NEARBY';
+
+export interface ISmartMatchDto {
+  post: IPostEntity;
+  distanceMeters: number;
+  isLocationApproximate: true;
+  /** Độ khớp trong [0, 1], đọc được như phần trăm. */
+  score: number;
+  reasons: SmartMatchReason[];
+}
+
+export interface IGetSmartMatchesResponseDto {
+  /** Bài được đem đi ghép. */
+  sourcePostId: string;
+  radiusMeters: number;
+  matches: ISmartMatchDto[];
+}
+
 export interface IGetPostParamsDto {
   postId: string;
 }

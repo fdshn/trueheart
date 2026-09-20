@@ -5,6 +5,7 @@ import {
   IGetNearbyPostsUseCase,
   IGetPostMapUseCase,
   IGetPostUseCase,
+  IGetSmartMatchesUseCase,
   IModeratePostUseCase,
   IRemovePostMediaUseCase,
   IReorderPostMediaUseCase,
@@ -23,14 +24,23 @@ import {
   IGetNearbyPostsResponseDto,
   IGetPostMapResponseDto,
   IGetPostResponseDto,
+  IGetSmartMatchesResponseDto,
   IModeratePostResponseDto,
   IReorderPostMediaResponseDto,
   IUpdatePostResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
-import { CurrentUser, IAuthPrincipal, Public } from '@chantam/service.auth-lib';
+import {
+  ApiTokenErrors,
+  CurrentUser,
+  IAuthPrincipal,
+  Public,
+} from '@chantam/service.auth-lib';
 import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
-import { ValidationFailedException } from '@chantam/service.common-lib/exception';
+import {
+  ForbiddenException,
+  ValidationFailedException,
+} from '@chantam/service.common-lib/exception';
 import { IStorageUploadResult } from '@chantam/service.storage-lib';
 import {
   Body,
@@ -61,6 +71,8 @@ import {
   GetPostMapResponseDto,
   GetPostParamsDto,
   GetPostResponseDto,
+  GetSmartMatchesQueryDto,
+  GetSmartMatchesResponseDto,
   ModeratePostBodyDto,
   ModeratePostParamsDto,
   ModeratePostResponseDto,
@@ -96,6 +108,8 @@ export class PostController {
     private readonly getNearbyPostsUseCase: IGetNearbyPostsUseCase,
     @Inject(IGetPostUseCase)
     private readonly getPostUseCase: IGetPostUseCase,
+    @Inject(IGetSmartMatchesUseCase)
+    private readonly getSmartMatchesUseCase: IGetSmartMatchesUseCase,
     @Inject(IModeratePostUseCase)
     private readonly moderatePostUseCase: IModeratePostUseCase,
     @Inject(IUpdatePostUseCase)
@@ -353,6 +367,43 @@ export class PostController {
     const result = await this.getNearbyPostsUseCase.handle(query);
 
     return ResponseDto.create<IGetNearbyPostsResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  // Đặt TRƯỚC `:postId` cho dễ đọc, dù Nest khớp theo số đoạn nên không đụng
+  // nhau. Người sau thêm route `:postId/...` khác sẽ theo đúng chỗ này.
+  @Get(':postId/matches')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Gợi ý bài ghép đôi cho bài của chính mình (Smart Match)',
+    description:
+      'Bài Muốn Nhận được ghép với Muốn Tặng và ngược lại, theo danh mục + từ khoá + khoảng cách. ' +
+      'Chỉ GỢI Ý — không tạo giao dịch, quyết định cuối thuộc về người dùng. ' +
+      'Chỉ tác giả bài nguồn gọi được, vì vị trí thật của bài được dùng làm tâm tìm kiếm. ' +
+      'Toạ độ bài gợi ý vẫn bị làm nhiễu và khoảng cách làm tròn theo bậc.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(GetSmartMatchesResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['postId: postId must be a UUID']],
+    [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [ForbiddenException],
+  )
+  public async getSmartMatches(
+    @Param() params: GetPostParamsDto,
+    @Query() query: GetSmartMatchesQueryDto,
+    @CurrentUser() principal: IAuthPrincipal,
+  ): Promise<ResponseDto<IGetSmartMatchesResponseDto>> {
+    const result = await this.getSmartMatchesUseCase.handle({
+      postId: params.postId,
+      userId: principal.userId,
+      radiusMeters: query.radiusMeters,
+      take: query.take,
+    });
+
+    return ResponseDto.create<IGetSmartMatchesResponseDto>()
       .succeed()
       .attach(result)
       .build();

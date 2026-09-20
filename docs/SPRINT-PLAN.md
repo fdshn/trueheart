@@ -42,7 +42,7 @@ Có môi trường chạy được, account an toàn, profile đủ điều ki�
 | 3 | Xác thực & tài khoản | Password recovery, Admin Support fallback, account deletion | F05–F06 | 🟡 Logic có; provider/quy trình vận hành deferred |
 | 4 | Hồ sơ | Profile completion, xác minh SĐT, public profile, default location | F07–F11 | 🟡 Profile, thưởng SĐT qua ledger, public profile kèm điểm/share URL đã có; nhà cung cấp SMS/Zalo còn thiếu |
 | 5 | Rank & referral | Current balance, duy trì rank, referral cá nhân | F12–F13 | ✅ Ledger, tier, promotion, maintenance cycle và referral bất biến đã có |
-| 6 | Đăng tin & nội dung | Category + OFFER/WANTED + Media/Post Location | F14–F17, F24 | 🟡 Category (F14), đăng Muốn Tặng/Muốn Nhận kèm quota theo rank (F15/F16), location, post-media ownership (F24) và legacy compatibility adapter đã có; Smart Match & SOS (F17) còn thiếu |
+| 6 | Đăng tin & nội dung | Category + OFFER/WANTED + Media/Post Location | F14–F17, F24 | 🟡 Category (F14), đăng Muốn Tặng/Muốn Nhận kèm quota theo rank (F15/F16), location, post-media ownership (F24), legacy compatibility adapter và Smart Match rule-based (F17) đã có; còn phần đăng bài SOS |
 | 7 | QA | Smoke/integration Sprint 1 |  | 🟡 Unit/build/smoke có, đã phủ point/rank/referral/entitlement/transaction; acceptance provider còn thiếu |
 
 ### Điều kiện kết thúc Sprint 1
@@ -79,7 +79,7 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 
 1. Hoàn thành M2.1: post media ownership, owner delete và legacy `/api/v1/gift-posts`
    compatibility adapter đã xong; còn lại migration fixture/CI assertion.
-2. Hoàn thành M2 map/discovery + Smart Match/SOS theo roadmap.
+2. Hoàn thành M2 map/discovery + SOS theo roadmap; Smart Match rule-based đã xong.
 3. Chỉ mở transaction khi post lifecycle/public visibility đã ổn định.
 4. Chat không được tự tạo transaction state; chỉ phản ánh transaction lifecycle từ server.
 

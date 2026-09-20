@@ -4,6 +4,7 @@ export * from './delete-post.use-case';
 export * from './get-nearby-posts.use-case';
 export * from './get-post-map.use-case';
 export * from './get-post.use-case';
+export * from './get-smart-matches.use-case';
 export * from './moderate-post.use-case';
 export * from './remove-post-media.use-case';
 export * from './reorder-post-media.use-case';

@@ -207,6 +207,12 @@ Gợi ý theo **danh mục + khoảng cách + từ khoá**. Phase 1 chỉ dùng 
 **Smart Match chỉ gợi ý — tuyệt đối không tự tạo giao dịch.** Quyết định cuối luôn thuộc về
 con người.
 
+Đã có: `GET /api/v1/posts/:postId/matches` ghép Muốn Nhận ↔ Muốn Tặng. Điểm khớp trong
+[0, 1] gồm cùng danh mục 0.5, trùng từ khoá 0.3, khoảng cách 0.2; mỗi gợi ý kèm `reasons`
+để giao diện nói được vì sao bài đó hiện ra. Chỉ tác giả bài nguồn gọi được, vì vị trí thật
+của bài được dùng làm tâm tìm kiếm — toạ độ bài gợi ý vẫn bị làm nhiễu và khoảng cách làm
+tròn theo bậc như mọi kênh công khai khác.
+
 SOS / Cần gấp mở theo quyền Rank. Quyền này là capability `POST_SOS` trong
 `capability_rank_values`, Admin bật/tắt theo từng Rank lúc chạy qua
 `POST /api/v1/admin/entitlements` — mặc định Bạc trở lên được dùng, Viewer và Thành viên
