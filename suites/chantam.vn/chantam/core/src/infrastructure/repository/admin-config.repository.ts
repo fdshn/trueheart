@@ -119,6 +119,31 @@ export class AdminConfigRepository implements IAdminConfigRepository {
     };
   }
 
+  public async appendAudit(command: {
+    actorUserId: string;
+    action: string;
+    resourceType: string;
+    resourceId: string;
+    before: unknown;
+    after: unknown;
+    reason?: string;
+  }): Promise<void> {
+    await this.manager.query(
+      `INSERT INTO admin_audit_logs
+        (actor_user_id, action, resource_type, resource_id, before_json, after_json, reason)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7)`,
+      [
+        command.actorUserId,
+        command.action,
+        command.resourceType,
+        command.resourceId,
+        JSON.stringify(command.before),
+        JSON.stringify(command.after),
+        command.reason ?? null,
+      ],
+    );
+  }
+
   public async getPublishedConfigs(): Promise<ISystemConfigSummary[]> {
     const rows = await this.manager.query<IConfigRow[]>(
       `

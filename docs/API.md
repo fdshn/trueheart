@@ -823,6 +823,9 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 | `GET` | `/admin/reports` | `report.read` | Hàng đợi report, ưu tiên target có nhiều tín hiệu mở |
 | `GET` | `/admin/reports/:reportId` | `report.read` | Chi tiết report và URL bằng chứng |
 | `PATCH` | `/admin/reports/:reportId/review` | `report.resolve` | Kết luận hoặc bác bỏ, ghi chú bắt buộc, ghi audit |
+| `GET` | `/admin/categories` | `category.read` | Cây danh mục quản trị, gồm cả mục đã tắt |
+| `POST` | `/categories` | `category.manage` | Tạo danh mục và ghi audit |
+| `PATCH` | `/categories/:categoryId` | `category.manage` | Sửa, sắp thứ tự hoặc bật/tắt danh mục và ghi audit |
 
 **Điều cần biết**
 

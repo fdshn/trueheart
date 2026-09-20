@@ -1,7 +1,10 @@
 import { UpdateCategoryUseCase } from './update-category.use-case';
 
 const CategoryId = '30000000-0000-4000-8000-000000000003';
-const AdminConfig = { categoryAdmin: { usernames: ['demo-admin'] } };
+const AdminConfig = {
+  hasPermission: jest.fn(async () => true),
+  appendAudit: jest.fn(async () => undefined),
+};
 
 describe('UpdateCategoryUseCase', () => {
   it('deactivate category thay vì xoá cứng', async () => {
@@ -18,6 +21,7 @@ describe('UpdateCategoryUseCase', () => {
         icon: 'book',
         sortOrder: 30,
         isActive: false,
+        postTypes: [],
         parentId: null,
       })),
       isSlugTaken: jest.fn(async () => false),
@@ -62,15 +66,16 @@ describe('UpdateCategoryUseCase', () => {
     expect(categories.update).not.toHaveBeenCalled();
   });
 
-  it('từ chối user không nằm trong allowlist tạm thời', async () => {
+  it('từ chối user thiếu quyền category.manage', async () => {
     const categories = {
       findOneBy: jest.fn(),
       update: jest.fn(),
       isSlugTaken: jest.fn(),
     };
+    const denied = { hasPermission: jest.fn(async () => false) };
     const useCase = new UpdateCategoryUseCase(
       categories as never,
-      AdminConfig as never,
+      denied as never,
     );
     await expect(
       useCase.handle({

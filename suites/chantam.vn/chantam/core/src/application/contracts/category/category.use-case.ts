@@ -16,6 +16,8 @@ export interface ICreateCategoryUseCase extends IUseCase<
 export interface IGetCategoryTreeCommand {
   /** Bỏ trống thì trả cả cây, giữ nguyên hành vi cũ của client hiện tại. */
   postType?: PostTypes;
+  includeInactive?: boolean;
+  actorUserId?: string;
 }
 export interface IGetCategoryTreeUseCase extends IUseCase<
   IGetCategoryTreeCommand,

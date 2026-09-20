@@ -1,6 +1,9 @@
 import { CreateCategoryUseCase } from './create-category.use-case';
 
-const AdminConfig = { categoryAdmin: { usernames: ['demo-admin'] } };
+const AdminConfig = {
+  hasPermission: jest.fn(async () => true),
+  appendAudit: jest.fn(async () => undefined),
+};
 function makeRepository() {
   return {
     findOneBy: jest.fn(async () => null),
@@ -12,6 +15,7 @@ function makeRepository() {
       icon: 'book',
       sortOrder: 10,
       isActive: true,
+      postTypes: [],
       parentId: null,
       createdAt: new Date(),
       updatedAt: new Date(),

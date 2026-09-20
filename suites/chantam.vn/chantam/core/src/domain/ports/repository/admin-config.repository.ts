@@ -67,6 +67,15 @@ export interface IAdminRoleAssignment {
 export interface IAdminConfigRepository {
   hasPermission(userId: string, permission: string): Promise<boolean>;
   getAccess(userId: string): Promise<IAdminAccessSummary>;
+  appendAudit(command: {
+    actorUserId: string;
+    action: string;
+    resourceType: string;
+    resourceId: string;
+    before: unknown;
+    after: unknown;
+    reason?: string;
+  }): Promise<void>;
   getPublishedConfigs(): Promise<ISystemConfigSummary[]>;
   /**
    * Giá trị JSON của bản đang hiệu lực cho một khoá, hoặc `null` khi chưa có.
