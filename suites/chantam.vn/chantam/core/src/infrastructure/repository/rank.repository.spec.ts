@@ -221,7 +221,7 @@ describe('RankRepository', () => {
       .mockResolvedValueOnce([
         {
           rank: UserRanks.MEMBER,
-          lifetime_points: '700',
+          balance_points: '700',
           promotion_locked_until: null,
           qualified_referrals: '1',
         },
@@ -277,7 +277,7 @@ describe('RankRepository', () => {
       .mockResolvedValueOnce([
         {
           rank: UserRanks.MEMBER,
-          lifetime_points: '700',
+          balance_points: '700',
           promotion_locked_until: null,
           qualified_referrals: '1',
         },
@@ -344,7 +344,7 @@ describe('RankRepository', () => {
       .mockResolvedValueOnce([
         {
           rank: UserRanks.SILVER,
-          lifetime_points: '700',
+          balance_points: '700',
           promotion_locked_until: null,
           qualified_referrals: '1',
         },

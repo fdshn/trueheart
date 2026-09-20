@@ -41,7 +41,7 @@ function evaluateNormalRank(overrides = {}) {
     mode: 'NORMAL',
     currentRank: UserRanks.MEMBER,
     isMember: true,
-    lifetimePoints: 0,
+    balancePoints: 0,
     completedGifts: 0,
     qualifiedReferrals: 0,
     promotionLockedUntil: null,
@@ -57,7 +57,7 @@ describe('evaluateRank', () => {
       evaluateNormalRank({
         currentRank: UserRanks.VIEWER,
         isMember: false,
-        lifetimePoints: 10_000,
+        balancePoints: 10_000,
         completedGifts: 10,
         qualifiedReferrals: 10,
       }),
@@ -71,7 +71,7 @@ describe('evaluateRank', () => {
   it('keeps a Member below Silver without its gift and referral qualifications', () => {
     expect(
       evaluateNormalRank({
-        lifetimePoints: 800,
+        balancePoints: 800,
         completedGifts: 0,
         qualifiedReferrals: 0,
       }),
@@ -81,7 +81,7 @@ describe('evaluateRank', () => {
   it('promotes a qualified Member to Silver', () => {
     expect(
       evaluateNormalRank({
-        lifetimePoints: 700,
+        balancePoints: 700,
         completedGifts: 1,
         qualifiedReferrals: 1,
       }),
@@ -91,7 +91,7 @@ describe('evaluateRank', () => {
   it('selects the highest eligible tier', () => {
     expect(
       evaluateNormalRank({
-        lifetimePoints: 1_800,
+        balancePoints: 1_800,
         completedGifts: 1,
         qualifiedReferrals: 1,
       }),
@@ -102,7 +102,7 @@ describe('evaluateRank', () => {
     expect(
       evaluateNormalRank({
         currentRank: UserRanks.SILVER,
-        lifetimePoints: 1_800,
+        balancePoints: 1_800,
         completedGifts: 1,
         qualifiedReferrals: 1,
         promotionLockedUntil: new Date('2026-09-18T00:00:00.001Z'),
@@ -113,7 +113,7 @@ describe('evaluateRank', () => {
   it('permits promotion after a lock has expired', () => {
     expect(
       evaluateNormalRank({
-        lifetimePoints: 1_800,
+        balancePoints: 1_800,
         completedGifts: 1,
         qualifiedReferrals: 1,
         promotionLockedUntil: Now,
@@ -125,7 +125,7 @@ describe('evaluateRank', () => {
     expect(
       evaluateNormalRank({
         currentRank: UserRanks.GOLD,
-        lifetimePoints: 224,
+        balancePoints: 224,
         promotionLockedUntil: new Date('2026-09-18T00:00:00.001Z'),
       }),
     ).toEqual({ rank: UserRanks.MEMBER });

@@ -55,7 +55,7 @@ interface IRawMaintenanceEvaluationRow {
 
 interface IRawNormalRankEvaluationRow {
   rank: UserRanks;
-  lifetime_points: string | null;
+  balance_points: string | null;
   promotion_locked_until: Date | null;
   qualified_referrals: string;
 }
@@ -93,7 +93,7 @@ export class RankRepository implements IRankRepository {
         `
           SELECT
             user_account.rank,
-            balance.lifetime AS lifetime_points,
+            balance.balance AS balance_points,
             user_account.promotion_locked_until,
             qualified_referrals.qualified_referrals
           FROM users user_account
@@ -128,7 +128,7 @@ export class RankRepository implements IRankRepository {
         mode: 'NORMAL',
         currentRank: user.rank,
         isMember: true,
-        lifetimePoints: Number(user.lifetime_points ?? 0),
+        balancePoints: Number(user.balance_points ?? 0),
         completedGifts: activity.completedGifts,
         qualifiedReferrals: Number(user.qualified_referrals),
         promotionLockedUntil: user.promotion_locked_until,
@@ -140,8 +140,7 @@ export class RankRepository implements IRankRepository {
           requiredReferrals: Number(tier.required_referrals),
         })),
       });
-      if (RankOrder.indexOf(evaluation.rank) <= RankOrder.indexOf(user.rank))
-        return false;
+      if (evaluation.rank === user.rank) return false;
 
       // `AND rank = $3` là một phép so-rồi-đổi: nếu ai đó vừa đổi hạng xen
       // vào giữa thì câu này không khớp dòng nào và KHÔNG được ghi
@@ -170,8 +169,10 @@ export class RankRepository implements IRankRepository {
           userId,
           user.rank,
           evaluation.rank,
-          'NORMAL_QUALIFICATION',
-          Number(user.lifetime_points ?? 0),
+          RankOrder.indexOf(evaluation.rank) > RankOrder.indexOf(user.rank)
+            ? 'NORMAL_QUALIFICATION'
+            : 'BALANCE_REEVALUATION',
+          Number(user.balance_points ?? 0),
           'SYSTEM',
         ],
       );

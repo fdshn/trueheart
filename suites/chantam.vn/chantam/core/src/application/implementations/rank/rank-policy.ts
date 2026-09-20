@@ -11,7 +11,7 @@ export interface INormalRankEvaluationInput {
   readonly mode: 'NORMAL';
   readonly currentRank: UserRanks;
   readonly isMember: boolean;
-  readonly lifetimePoints: number;
+  readonly balancePoints: number;
   readonly completedGifts: number;
   readonly qualifiedReferrals: number;
   readonly promotionLockedUntil: Date | null;
@@ -100,7 +100,7 @@ function getHighestEligibleRank(input: INormalRankEvaluationInput): UserRanks {
     const tier = input.tiers.find((candidate) => candidate.rank === rank);
     if (
       tier &&
-      input.lifetimePoints >= tier.thresholdPoints &&
+      input.balancePoints >= tier.thresholdPoints &&
       input.completedGifts >= tier.requiredGifts &&
       input.qualifiedReferrals >= tier.requiredReferrals
     ) {
