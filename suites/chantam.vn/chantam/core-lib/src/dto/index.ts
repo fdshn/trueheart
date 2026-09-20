@@ -3,6 +3,7 @@ export * from './category';
 export * from './discovery';
 export * from './entitlement';
 export * from './gift-post';
+export * from './gift-request';
 export * from './onboarding';
 export * from './point';
 export * from './post';

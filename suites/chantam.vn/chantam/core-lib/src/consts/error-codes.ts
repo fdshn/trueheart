@@ -12,9 +12,11 @@ export enum ErrorCodes {
   GIFT_POST_ALREADY_CLOSED = 0x01_03,
   GIFT_POST_OUT_OF_STOCK = 0x01_04,
 
-  // 0x02 — Yêu cầu xin đồ (dành cho giai đoạn sau)
+  // 0x02 — Yêu cầu xin đồ (FSM Module 5)
   GIFT_REQUEST_NOT_FOUND = 0x02_01,
   GIFT_REQUEST_DUPLICATED = 0x02_02,
+  CANNOT_REQUEST_OWN_POST = 0x02_03,
+  POST_NOT_ACCEPTING_REQUESTS = 0x02_04,
 
   // 0x03 — Người dùng
   //

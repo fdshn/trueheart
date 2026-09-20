@@ -7,6 +7,7 @@ import {
   GenericMvpPostType,
   GiftPostConditions,
   GiftPostStatuses,
+  GiftRequestStatuses,
   PostTypes,
   PublicDiscoveryPostType,
 } from '../../consts';
@@ -62,6 +63,9 @@ export interface INearbyPostDto {
   post: IPostEntity;
   distanceMeters: number;
   isLocationApproximate: true;
+  requestCount?: number;
+  myRequestStatus?: GiftRequestStatuses | null;
+  hasRequested?: boolean;
 }
 
 export interface IGetNearbyPostsResponseDto {
@@ -83,6 +87,9 @@ export interface IGetPostResponseDto {
   post: IPostEntity;
   media: IPublicPostMediaDto[];
   isLocationApproximate: boolean;
+  requestCount?: number;
+  myRequestStatus?: GiftRequestStatuses | null;
+  hasRequested?: boolean;
 }
 
 export interface IGetPostMapQueryDto {

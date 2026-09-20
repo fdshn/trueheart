@@ -22,7 +22,7 @@ async function main(): Promise<void> {
   try {
     await seedDemoData(client);
     console.log(
-      'Đã seed 3 user demo, 4 bài đăng demo và 3 phiên demo đã thu hồi.',
+      'Đã seed 3 user demo, 16 bài đăng demo và 3 phiên demo đã thu hồi.',
     );
     console.log(
       'Tài khoản: demo-nguoi-tang / demo-nguoi-nhan / demo-kiem-duyet',

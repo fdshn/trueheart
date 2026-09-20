@@ -4,7 +4,11 @@ import {
   IGetNearbyPostsUseCase,
 } from '@/application/contracts/post';
 import { IConfig } from '@/domain/ports/config';
-import { IPostRepository } from '@/domain/ports/repository';
+import {
+  IGiftRequestRepository,
+  IPostRepository,
+} from '@/domain/ports/repository';
+import { GiftRequestStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import {
   applyGeoJitter,
@@ -17,6 +21,8 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
   public constructor(
     @Inject(IPostRepository)
     private readonly postRepository: IPostRepository,
+    @Inject(IGiftRequestRepository)
+    private readonly giftRequestRepository: IGiftRequestRepository,
     @Inject(IConfig) private readonly config: IConfig,
   ) {}
 
@@ -33,19 +39,38 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
       take,
     });
 
+    const postIds = items.map(({ post }) => post.globalId);
+    const requestCounts =
+      postIds.length > 0
+        ? await this.giftRequestRepository.countActiveByPostIds(postIds)
+        : new Map<string, number>();
+    const myStatuses =
+      postIds.length > 0 && command.currentUserId
+        ? await this.giftRequestRepository.findStatusesByPostIdsAndRequester(
+            postIds,
+            command.currentUserId,
+          )
+        : new Map<string, GiftRequestStatuses>();
+
     return {
-      posts: items.map(({ post, distanceMeters }) => ({
-        post: {
-          ...post,
-          location: applyGeoJitter(
-            post.location,
-            post.globalId,
-            this.config.geo.jitterRadiusMeters,
-          ),
-        },
-        distanceMeters: bucketDistance(distanceMeters),
-        isLocationApproximate: true,
-      })),
+      posts: items.map(({ post, distanceMeters }) => {
+        const myRequestStatus = myStatuses.get(post.globalId) ?? null;
+        return {
+          post: {
+            ...post,
+            location: applyGeoJitter(
+              post.location,
+              post.globalId,
+              this.config.geo.jitterRadiusMeters,
+            ),
+          },
+          distanceMeters: bucketDistance(distanceMeters),
+          isLocationApproximate: true,
+          requestCount: requestCounts.get(post.globalId) ?? 0,
+          myRequestStatus,
+          hasRequested: Boolean(myRequestStatus),
+        };
+      }),
       meta: new PaginationMetaDto(Math.floor(skip / take) + 1, take, total),
     };
   }

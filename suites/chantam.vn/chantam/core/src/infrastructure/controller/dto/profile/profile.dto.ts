@@ -37,43 +37,57 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
   @ApiPropertyOptional({
     minLength: 1,
     maxLength: 100,
+    nullable: true,
     description: 'Họ tên hiển thị. Bỏ trống thì giữ nguyên.',
   })
   @IsOptional()
   @IsString()
   @Length(1, 100)
-  fullName?: string;
+  fullName?: string | null;
 
   @ApiPropertyOptional({
     maxLength: 500,
+    nullable: true,
     description:
       'Key trả về từ `PATCH /api/v1/profile/me/avatar-upload` sau khi client PUT thành công. Server xác minh object thuộc đúng tài khoản rồi mới tạo URL avatar; không nhận URL tuỳ ý.',
   })
   @IsOptional()
   @IsString()
   @Length(1, 500)
-  avatarKey?: string;
+  avatarKey?: string | null;
+
+  @ApiPropertyOptional({
+    maxLength: 500,
+    nullable: true,
+    description: 'URL avatar trực tiếp hoặc null để xoá.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 500)
+  avatarUrl?: string | null;
 
   @ApiPropertyOptional({
     format: 'email',
     maxLength: 255,
+    nullable: true,
     description:
       'Email dùng để đăng nhập và nhận mã khôi phục. Không phân biệt hoa thường.',
   })
   @IsOptional()
   @IsEmail()
   @Length(1, 255)
-  email?: string;
+  email?: string | null;
 
   @ApiPropertyOptional({
     example: '+84912345678',
+    nullable: true,
     description:
       'Số điện thoại E.164 hoặc chữ số 8–15 ký tự. Đổi số sẽ huỷ trạng thái xác minh cũ.',
   })
   @IsOptional()
   @IsString()
   @Matches(PhonePattern, { message: 'phone phải là số điện thoại hợp lệ' })
-  phone?: string;
+  phone?: string | null;
 
   @ApiPropertyOptional({
     type: () => GeoPointDto,

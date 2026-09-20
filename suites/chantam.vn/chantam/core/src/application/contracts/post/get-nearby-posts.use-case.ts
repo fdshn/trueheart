@@ -4,7 +4,9 @@ import {
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IUseCase } from '@chantam/service.common-lib';
 
-export interface IGetNearbyPostsCommand extends IGetNearbyPostsQueryDto {}
+export interface IGetNearbyPostsCommand extends IGetNearbyPostsQueryDto {
+  currentUserId?: string;
+}
 
 export interface IGetNearbyPostsResult extends IGetNearbyPostsResponseDto {}
 

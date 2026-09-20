@@ -55,6 +55,19 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Bạn đã gửi yêu cầu cho bài đăng này rồi',
   },
 
+  CANNOT_REQUEST_OWN_POST: {
+    code: ErrorCodes.CANNOT_REQUEST_OWN_POST,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () =>
+      'Bạn không thể tự gửi yêu cầu xin đồ cho bài đăng của chính mình',
+  },
+
+  POST_NOT_ACCEPTING_REQUESTS: {
+    code: ErrorCodes.POST_NOT_ACCEPTING_REQUESTS,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: () => 'Bài đăng hiện không ở trạng thái mở nhận yêu cầu',
+  },
+
   // ── 0x03 Người dùng ───────────────────────────────────────────────────────
   USER_NOT_FOUND: {
     code: ErrorCodes.USER_NOT_FOUND,

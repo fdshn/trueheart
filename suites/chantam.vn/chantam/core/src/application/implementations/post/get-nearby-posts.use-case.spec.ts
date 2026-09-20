@@ -1,7 +1,11 @@
 import { IConfig } from '@/domain/ports/config';
-import { IPostRepository } from '@/domain/ports/repository';
+import {
+  IGiftRequestRepository,
+  IPostRepository,
+} from '@/domain/ports/repository';
 import {
   GiftPostStatuses,
+  GiftRequestStatuses,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
@@ -69,15 +73,31 @@ function makeConfig(): IConfig {
 }
 
 describe('GetNearbyPostsUseCase', () => {
-  it('forwards requested type and pagination then returns privacy-safe nearby posts', async () => {
+  it('forwards requested type and pagination then returns privacy-safe nearby posts with request counts and status', async () => {
+    const post = makePost();
     const posts = {
       findNearbyPosts: jest.fn().mockResolvedValue({
-        items: [{ post: makePost(), distanceMeters: 463 }],
+        items: [{ post, distanceMeters: 463 }],
         total: 41,
       }),
     } as unknown as jest.Mocked<IPostRepository>;
 
-    const result = await new GetNearbyPostsUseCase(posts, makeConfig()).handle({
+    const giftRequests = {
+      countActiveByPostIds: jest
+        .fn()
+        .mockResolvedValue(new Map([[post.globalId, 3]])),
+      findStatusesByPostIdsAndRequester: jest
+        .fn()
+        .mockResolvedValue(
+          new Map([[post.globalId, GiftRequestStatuses.PENDING]]),
+        ),
+    } as unknown as jest.Mocked<IGiftRequestRepository>;
+
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      giftRequests,
+      makeConfig(),
+    ).handle({
       lat: ExactLocation.lat,
       lng: ExactLocation.lng,
       radiusMeters: 5_000,
@@ -85,6 +105,7 @@ describe('GetNearbyPostsUseCase', () => {
       categoryId: '30000000-0000-4000-8000-000000000001',
       page: 2,
       pageSize: 20,
+      currentUserId: '99999999-9999-9999-9999-999999999999',
     });
 
     expect(posts.findNearbyPosts).toHaveBeenCalledWith({
@@ -95,12 +116,22 @@ describe('GetNearbyPostsUseCase', () => {
       skip: 20,
       take: 20,
     });
+    expect(giftRequests.countActiveByPostIds).toHaveBeenCalledWith([
+      post.globalId,
+    ]);
+    expect(giftRequests.findStatusesByPostIdsAndRequester).toHaveBeenCalledWith(
+      [post.globalId],
+      '99999999-9999-9999-9999-999999999999',
+    );
     expect(result).toMatchObject({
       posts: [
         {
           distanceMeters: 500,
           isLocationApproximate: true,
           post: { postType: PostTypes.WANTED },
+          requestCount: 3,
+          myRequestStatus: GiftRequestStatuses.PENDING,
+          hasRequested: true,
         },
       ],
       meta: { page: 2, pageSize: 20, total: 41 },
