@@ -27,8 +27,7 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 | `GET` | `/api/v1/gift-posts/:giftPostId` | `GetGiftPostUseCase` |
 | `PATCH` | `/api/v1/gift-posts/:giftPostId` | `UpdateGiftPostUseCase` |
 | `DELETE` | `/api/v1/gift-posts/:giftPostId` | `DeleteGiftPostUseCase` — xoá mềm |
-| `POST` | `/api/v1/posts` | `CreatePostUseCase` — canonical OFFER, JWT/profile/category/quota gate |
-| `POST` | `/api/v1/posts/wanted` | `CreateWantedPostUseCase` — canonical WANTED, chờ moderation |
+| `POST` | `/api/v1/posts` | `CreatePostUseCase` — một endpoint cho cả năm loại (`postType`), JWT/profile/category/quota gate, tạo ở `PENDING_REVIEW` |
 | `POST` | `/api/v1/posts/:postId/media/upload` | Presign upload ảnh owner/post scoped |
 | `POST` | `/api/v1/posts/:postId/media` | `HeadObject` xác minh rồi gắn media |
 | `PATCH` | `/api/v1/posts/:postId/media/order` | Owner thay toàn bộ thứ tự media |
