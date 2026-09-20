@@ -39,8 +39,16 @@ File chép từ Windows có thể là CRLF. Trên server root:
 
 ```bash
 sed -i 's/\r$//' /tmp/docker-compose.yml /tmp/init.sql /tmp/bootstrap.sh
-bash /tmp/bootstrap.sh staging
+bash /tmp/bootstrap.sh staging api-staging.<domain>
 ```
+
+Tham số thứ hai là hostname công khai. Nó trở thành mục **Servers** của Swagger
+trên chính server này, nên `Try it out` gọi đúng API đang đọc. Bỏ trống thì
+Swagger chỉ còn `localhost` — trong trình duyệt người đọc, đó là máy của họ chứ
+không phải server này, nên nút đó vô dụng.
+
+Cố ý **chỉ khai môi trường này**, không liệt kê production: có cả hai trong một
+danh sách là mời người ta bấm `Try it out` nhầm sang dữ liệu thật.
 
 Script cài Docker nếu thiếu, tạo user `deploy`, thêm họ vào group Docker, tạo
 `/home/deploy/chantam-staging`, chép file Compose/SQL, sinh `.env` với password database và
