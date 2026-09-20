@@ -60,7 +60,11 @@ export class TransactionController {
   ) {}
 
   @Get('me')
-  @ApiOperation({ summary: 'Các lượt tặng/nhận của chính mình' })
+  @ApiOperation({
+    summary: 'Các lượt tặng/nhận của chính mình',
+    description:
+      'Gồm CẢ HAI vai: lượt mình đem tặng và lượt mình xin nhận. Sắp xếp theo thời điểm yêu cầu, mới nhất trước. Đọc `giverId`/`receiverId` để biết mình đang ở vai nào trong từng lượt.',
+  })
   @ApiOkResponse({
     type: ResponseDto.forApi(ListGiftTransactionsResponseDto),
   })

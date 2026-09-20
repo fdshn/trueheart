@@ -14,6 +14,10 @@ Ba file bổ trợ nhau, đừng nhầm:
 Swagger là nguồn sự thật về **hình dạng dữ liệu**. File này giải thích **vì sao** endpoint
 hành xử như vậy — thứ không nhét vừa vào một dòng `@ApiOperation`.
 
+> **Mọi route đều khai lỗi có thể xảy ra**, không chỉ đường thành công. Client mobile phân
+> biệt "không đủ quyền" với "không tìm thấy" bằng cặp `(errorOrigin, errorCode)` trong đặc
+> tả, nên endpoint chỉ khai mã 200 là đẩy việc đoán mò sang client.
+
 ---
 
 ## 1. Quy ước chung

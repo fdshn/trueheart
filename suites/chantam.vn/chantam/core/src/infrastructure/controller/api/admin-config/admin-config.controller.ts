@@ -53,7 +53,11 @@ export class AdminConfigController {
 
   @Get('system-configs')
   @RequiresPermission('config.read')
-  @ApiOperation({ summary: 'Danh sách system config đang hiệu lực' })
+  @ApiOperation({
+    summary: 'Danh sách system config đang hiệu lực',
+    description:
+      'Chỉ trả bản đang hiệu lực của mỗi khoá, không trả lịch sử. Giá trị của khoá được đánh dấu nhạy cảm KHÔNG bao giờ đọc ra được qua API — chỉ báo là đã cấu hình hay chưa.',
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(GetAdminConfigsResponseDto) })
   @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
   public async getConfigs(@CurrentUser() principal: IAuthPrincipal) {
@@ -69,7 +73,11 @@ export class AdminConfigController {
 
   @Post('system-configs')
   @RequiresPermission('config.write')
-  @ApiOperation({ summary: 'Publish system config revision mới' })
+  @ApiOperation({
+    summary: 'Publish system config revision mới',
+    description:
+      'Copy-on-write, không sửa tại chỗ: bản đang hiệu lực được đóng lại và bản mới tăng version, nên luôn trả lời được ai đổi giá trị nào, lúc nào, vì lý do gì. Lý do là bắt buộc và đi thẳng vào audit log.',
+  })
   @ApiCreatedResponse({
     type: ResponseDto.forApi(PublishSystemConfigResponseDto),
   })

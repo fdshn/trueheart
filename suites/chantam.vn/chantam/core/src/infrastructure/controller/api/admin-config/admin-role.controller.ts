@@ -52,7 +52,11 @@ export class AdminRoleController {
 
   @Get('roles')
   @RequiresPermission('admin.manage')
-  @ApiOperation({ summary: 'Danh sách role và quyền kèm theo' })
+  @ApiOperation({
+    summary: 'Danh sách role và quyền kèm theo',
+    description:
+      'Trả ma trận role × permission để giao diện dựng bảng phân quyền mà không phải hardcode mã quyền. Chỉ liệt kê role đang bật.',
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(ListAdminRolesResponseDto) })
   @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
   public async listRoles(@CurrentUser() principal: IAuthPrincipal) {

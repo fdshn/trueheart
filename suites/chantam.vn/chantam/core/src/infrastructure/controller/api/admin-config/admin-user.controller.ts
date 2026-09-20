@@ -99,7 +99,11 @@ export class AdminUserController {
 
   @Get(':userId')
   @RequiresPermission('admin.manage')
-  @ApiOperation({ summary: 'Chi tiết một người dùng' })
+  @ApiOperation({
+    summary: 'Chi tiết một người dùng',
+    description:
+      'KHÔNG bao giờ trả `password_hash` — trường này bị loại ngay ở danh sách cột được chọn, không phải lọc lại sau khi đã đọc lên. Người đã xoá mềm vẫn tra được để phục vụ đối chiếu lịch sử, nhưng dữ liệu cá nhân đã bị ẩn danh.',
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(AdminUserResponseDto) })
   @ApiErrorResponses(
     ...ApiTokenErrors,
