@@ -19,8 +19,11 @@ Tổng effort nguồn: **60 man-days / 50 ngày / 4 sprint**.
 
 | Phạm vi | Trạng thái thực tế | Ghi chú |
 | --- | --- | --- |
-| Sprint 1 – hạ tầng, auth, profile, category, avatar storage | ✅ Đã có nền code | Email/SMS provider, R2 staging/prod acceptance và point ledger còn deferred |
-| Sprint 1 – canonical OFFER foundation | 🟡 Đang làm trong M2.1 | `posts` migration/backfill, OFFER/WANTED create, detail/map/moderation/quota, owner update/delete và post-media ownership đã có; legacy adapter còn thiếu |
+| Sprint 1 – hạ tầng, auth, profile, category, avatar storage | ✅ Đã có nền code | Point ledger đã xong. Còn deferred: nhà cung cấp SMS/Zalo và R2 staging/prod acceptance |
+| Sprint 1 – point, rank, referral (F12–F13) | ✅ Code hoàn chỉnh | Ledger, tier, promotion, maintenance cycle, referral bất biến và các endpoint chính chủ đều đã có |
+| Sprint 1 – canonical OFFER foundation | 🟡 Đang làm trong M2.1 | `posts` migration/backfill, Generic MVP create (OFFER/WANTED/CHARITY/CLASSIFIED/MERIT) kèm quota riêng từng loại, detail/map/moderation, owner update/delete, post-media ownership và legacy adapter `/api/v1/gift-posts` đã có; còn migration fixture/CI assertion |
+| M3 – giao dịch tặng/nhận | 🟡 Nền đã có | Vòng đời request→accept→complete, trừ tồn kho nguyên tử, tự hoàn tất 5 ngày qua CLI. Chat và Smart Match chưa có |
+| M6 – Admin CMS nền | 🟡 Nền đã có | RBAC, system config động, cấu hình kênh gửi, nhật ký hệ thống và quản lý user đã có; giao diện CMS chưa có |
 | Sprint 2 – map discovery | 🟡 Đang làm | `GET /api/v1/posts/map` marker bbox, jitter và client-side clustering đã có local/commit chờ push |
 | Sprint 2–4 còn lại | ⬜ Chưa triển khai | Không đánh dấu xong khi chỉ có contract/mock |
 
@@ -37,16 +40,23 @@ Có môi trường chạy được, account an toàn, profile đủ điều ki�
 | 1 | Hạ tầng & bảo mật | VPS, Docker, PostgreSQL/PostGIS, Redis, Nginx SSL; dev/staging | M0 | ✅ Nền CI/CD/staging đã có |
 | 2 | Xác thực & tài khoản | Register, login, refresh/logout, chống brute-force | F01–F04 | ✅ |
 | 3 | Xác thực & tài khoản | Password recovery, Admin Support fallback, account deletion | F05–F06 | 🟡 Logic có; provider/quy trình vận hành deferred |
-| 4 | Hồ sơ | Profile completion, xác minh SĐT, public profile, default location | F07–F11 | 🟡 Profile có; SMS/Zalo và point reward deferred |
-| 5 | Rank & referral | Current balance (CHỐT-01), chu kỳ duy trì 3 tháng (2+2/3+3/4+4), referral cá nhân | F12–F13 | ⬜ Chờ M4 ledger/rule |
-| 6 | Đăng tin & nội dung | Category + OFFER/WANTED + Media/Post Location | F14–F17, F24 | 🟡 Category/OFFER/location/post-media ownership có; WANTED và legacy compatibility adapter còn thiếu |
-| 7 | QA | Smoke/integration Sprint 1 |  | 🟡 Unit/build/smoke nền có; acceptance provider còn thiếu |
+| 4 | Hồ sơ | Profile completion, xác minh SĐT, public profile, default location | F07–F11 | 🟡 Profile, thưởng SĐT qua ledger, public profile kèm điểm/share URL đã có; nhà cung cấp SMS/Zalo còn thiếu |
+| 5 | Rank & referral | Current balance, duy trì rank, referral cá nhân | F12–F13 | ✅ Ledger, tier, promotion, maintenance cycle và referral bất biến đã có |
+| 6 | Đăng tin & nội dung | Category + OFFER/WANTED + Media/Post Location | F14–F17, F24 | 🟡 Category (F14), đăng Muốn Tặng/Muốn Nhận kèm quota theo rank (F15/F16), location, post-media ownership (F24), legacy compatibility adapter và Smart Match rule-based (F17) đã có; còn phần đăng bài SOS |
+| 7 | QA | Smoke/integration Sprint 1 |  | 🟡 Unit/build/smoke có, đã phủ point/rank/referral/entitlement/transaction; acceptance provider còn thiếu |
 
 ### Điều kiện kết thúc Sprint 1
 
 - Auth/profile/category/post nền qua unit/build/lint/format.
 - Canonical post không lộ toạ độ chính xác trên API public.
 - Không gọi Sprint 1 production-ready khi thiếu email/SMS provider, R2 acceptance, backup restore.
+
+> **Lưu ý về F12.** Toàn bộ chính sách rank đã chạy được từ khi M3 cung cấp
+> nguồn "lượt tặng hoàn tất". Trước đó bộ đếm hoạt động luôn báo *không khả
+> dụng*, nên không ai lên được Bạc và không chu kỳ duy trì nào được mở — code
+> có đủ nhưng nằm im. Hai con số nghiệp vụ trong
+> [`FEATURES.md`](./FEATURES.md) vẫn chờ Bên A xác nhận trước khi seed
+> production.
 
 ---
 
@@ -67,9 +77,9 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 
 ### Thứ tự bắt buộc trong Sprint 2
 
-1. Hoàn thành M2.1: post media ownership, owner delete, legacy `/api/v1/gift-posts` compatibility adapter,
-   migration fixture/CI assertion.
-2. Hoàn thành M2 map/discovery + WANTED/Smart Match/SOS theo roadmap.
+1. Hoàn thành M2.1: post media ownership, owner delete và legacy `/api/v1/gift-posts`
+   compatibility adapter đã xong; còn lại migration fixture/CI assertion.
+2. Hoàn thành M2 map/discovery + SOS theo roadmap; Smart Match rule-based đã xong.
 3. Chỉ mở transaction khi post lifecycle/public visibility đã ổn định.
 4. Chat không được tự tạo transaction state; chỉ phản ánh transaction lifecycle từ server.
 

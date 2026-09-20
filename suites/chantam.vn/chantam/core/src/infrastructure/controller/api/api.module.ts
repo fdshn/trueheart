@@ -11,6 +11,7 @@ import { PostControllerModule } from './post/post.module';
 import { ProfileControllerModule } from './profile/profile.module';
 import { RankControllerModule } from './rank/rank.module';
 import { ReferralControllerModule } from './referral/referral.module';
+import { TransactionControllerModule } from './transaction/transaction.module';
 
 /** Gom mọi controller module theo resource. */
 @Module({
@@ -27,6 +28,7 @@ import { ReferralControllerModule } from './referral/referral.module';
     ProfileControllerModule,
     ReferralControllerModule,
     RankControllerModule,
+    TransactionControllerModule,
   ],
 })
 export class ApiModule {}

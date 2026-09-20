@@ -1,88 +1,136 @@
-import { IConfig } from '@/domain/ports/config';
-import {
-  IGiftRequestRepository,
-  IPostMediaRepository,
-  IPostRepository,
-} from '@/domain/ports/repository';
 import {
   GiftPostStatuses,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { GetMyPostsUseCase } from './get-my-posts.use-case';
 
-const UserId = '22222222-2222-2222-2222-222222222222';
+const UserId = '10000000-0000-4000-8000-000000000001';
+const OtherUserId = '20000000-0000-4000-8000-000000000002';
 
-function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
+function makeDeps(items: unknown[] = [], total = 0) {
   return {
-    id: 1,
-    globalId: '11111111-1111-1111-1111-111111111111',
-    postType: PostTypes.OFFER,
-    authorId: UserId,
-    categoryId: '30000000-0000-4000-8000-000000000001',
-    title: 'Đồ tặng của tôi',
-    description: 'Mô tả',
-    location: { lat: 21.0, lng: 105.8 },
-    areaLabel: 'Hà Nội',
-    status: GiftPostStatuses.PUBLISHED,
-    totalQuantity: 1,
-    remainingQuantity: 1,
-    details: {},
-    expiresAt: null,
-    renewedCount: 0,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    deletedAt: null,
-    ...overrides,
+    posts: {
+      findMyPosts: jest.fn(
+        async (_params: {
+          authorId: string;
+          postType?: PostTypes;
+          status?: string;
+          categoryId?: string;
+          skip: number;
+          take: number;
+        }) => ({ items, total }),
+      ),
+    },
+    postMedia: {
+      listByPostId: jest.fn().mockResolvedValue([]),
+    },
+    giftRequests: {
+      countActiveByPostIds: jest
+        .fn()
+        .mockResolvedValue(new Map<string, number>()),
+    },
+    config: {
+      storage: {
+        publicBaseUrl: 'https://cdn.chantam.vn',
+      },
+    },
   };
 }
 
-function makeConfig(): IConfig {
-  return {
-    storage: {
-      publicBaseUrl: 'https://cdn.chantam.vn',
-    },
-  } as unknown as IConfig;
+function run(deps: ReturnType<typeof makeDeps>, command: unknown) {
+  return new GetMyPostsUseCase(
+    deps.posts as never,
+    deps.postMedia as never,
+    deps.giftRequests as never,
+    deps.config as never,
+  ).handle(command as never);
 }
 
 describe('GetMyPostsUseCase', () => {
+  it('lấy tác giả từ token, không tin authorId gửi lên', async () => {
+    // Tin vào query là ai cũng đọc được bài chờ duyệt và bài bị từ chối của
+    // người khác chỉ bằng cách đổi một tham số.
+    const deps = makeDeps();
+
+    await run(deps, { userId: UserId, authorId: OtherUserId });
+
+    expect(deps.posts.findMyPosts.mock.calls[0][0].authorId).toBe(UserId);
+  });
+
+  it('truyền đủ bộ lọc loại bài, trạng thái và danh mục', async () => {
+    const deps = makeDeps();
+
+    await run(deps, {
+      userId: UserId,
+      postType: PostTypes.CLASSIFIED,
+      status: GiftPostStatuses.PENDING_REVIEW,
+      categoryId: 'cat-1',
+    });
+
+    const params = deps.posts.findMyPosts.mock.calls[0][0];
+    expect(params.postType).toBe(PostTypes.CLASSIFIED);
+    expect(params.status).toBe(GiftPostStatuses.PENDING_REVIEW);
+    expect(params.categoryId).toBe('cat-1');
+  });
+
+  it('không tự lọc trạng thái khi người gọi không nêu', async () => {
+    // Mặc định phải thấy cả bài chờ duyệt lẫn bài bị từ chối — đó là lý do
+    // endpoint này tồn tại tách khỏi discovery công khai.
+    const deps = makeDeps();
+
+    await run(deps, { userId: UserId });
+
+    expect(deps.posts.findMyPosts.mock.calls[0][0].status).toBeUndefined();
+  });
+
+  it('trả toạ độ thật, không làm nhiễu', async () => {
+    // Bài của chính mình: chủ bài cần thấy đúng chỗ đã ghim để sửa cho khớp.
+    const location = { lat: 10.7724, lng: 106.698 };
+    const deps = makeDeps([{ globalId: 'p1', location }], 1);
+
+    const result = await run(deps, { userId: UserId });
+
+    expect(result.posts[0].post.location).toEqual(location);
+  });
+
+  it('phân trang theo meta', async () => {
+    const deps = makeDeps([], 42);
+
+    const result = await run(deps, { userId: UserId, page: 2, pageSize: 20 });
+
+    const params = deps.posts.findMyPosts.mock.calls[0][0];
+    expect(params.skip).toBe(20);
+    expect(params.take).toBe(20);
+    expect(result.meta.total).toBe(42);
+  });
+
+  it('tôn trọng pageSize thay vì rơi về mặc định', async () => {
+    // Tham số của repo tên là `pageSize`. Đặt nhầm thành `limit` thì nó bị bỏ
+    // qua âm thầm và mọi trang đều trả về đúng 20 bản ghi mặc định.
+    const deps = makeDeps([], 42);
+
+    await run(deps, { userId: UserId, page: 3, pageSize: 5 });
+
+    const params = deps.posts.findMyPosts.mock.calls[0][0];
+    expect(params.take).toBe(5);
+    expect(params.skip).toBe(10);
+  });
+
   it('lấy danh sách bài của user thành công kèm số lượng request và media', async () => {
-    const post = makePost();
-    const queryBuilder = {
-      leftJoinAndSelect: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      orderBy: jest.fn().mockReturnThis(),
-      skip: jest.fn().mockReturnThis(),
-      take: jest.fn().mockReturnThis(),
-      getManyAndCount: jest.fn().mockResolvedValue([[post], 1]),
+    const post = {
+      globalId: '11111111-1111-1111-1111-111111111111',
+      title: 'Đồ tặng của tôi',
+      location: { lat: 21.0, lng: 105.8 },
     };
-
-    const postRepo = {
-      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
-    } as unknown as jest.Mocked<IPostRepository>;
-
-    const postMediaRepo = {
-      listByPostId: jest.fn().mockResolvedValue([
-        { id: 10, r2Key: 'posts/1/image.webp', sortOrder: 0 },
-      ]),
-    } as unknown as jest.Mocked<IPostMediaRepository>;
-
+    const deps = makeDeps([post], 1);
+    deps.postMedia.listByPostId.mockResolvedValue([
+      { id: 10, r2Key: 'posts/1/image.webp', sortOrder: 0 },
+    ]);
     const requestMap = new Map<string, number>();
     requestMap.set(post.globalId, 4);
+    deps.giftRequests.countActiveByPostIds.mockResolvedValue(requestMap);
 
-    const giftRequestRepo = {
-      countActiveByPostIds: jest.fn().mockResolvedValue(requestMap),
-    } as unknown as jest.Mocked<IGiftRequestRepository>;
-
-    const useCase = new GetMyPostsUseCase(
-      postRepo,
-      postMediaRepo,
-      giftRequestRepo,
-      makeConfig(),
-    );
-
-    const result = await useCase.handle({
+    const result = await run(deps, {
       userId: UserId,
       page: 1,
       pageSize: 10,
@@ -92,7 +140,9 @@ describe('GetMyPostsUseCase', () => {
     expect(result.posts[0].post.globalId).toBe(post.globalId);
     expect(result.posts[0].requestCount).toBe(4);
     expect(result.posts[0].media).toHaveLength(1);
-    expect(result.posts[0].media[0].url).toBe('https://cdn.chantam.vn/posts/1/image.webp');
+    expect(result.posts[0].media[0].url).toBe(
+      'https://cdn.chantam.vn/posts/1/image.webp',
+    );
     expect(result.meta.total).toBe(1);
   });
 });

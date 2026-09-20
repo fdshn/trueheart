@@ -11,6 +11,7 @@ import {
   SupportedSystemConfigKeys,
 } from '@/application/contracts/admin-config';
 import { IAdminConfigRepository } from '@/domain/ports/repository';
+import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import {
   ForbiddenException,
   ValidationFailedException,
@@ -90,6 +91,21 @@ export class GetAdminAuditLogsUseCase implements IGetAdminAuditLogsUseCase {
       !(await this.repository.hasPermission(command.actorUserId, 'audit.read'))
     )
       throw new ForbiddenException();
-    return { logs: await this.repository.getAuditLogs(command.limit) };
+
+    const { skip, take } = toSkipTake(command);
+    const { entries, total } = await this.repository.getAuditLogs({
+      actorUserId: command.actorFilter,
+      action: command.action,
+      resourceType: command.resourceType,
+      from: command.from,
+      to: command.to,
+      skip,
+      take,
+    });
+
+    return {
+      logs: entries,
+      meta: new PaginationMetaDto(Math.floor(skip / take) + 1, take, total),
+    };
   }
 }

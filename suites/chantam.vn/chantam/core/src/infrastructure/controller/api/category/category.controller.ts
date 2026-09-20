@@ -4,12 +4,26 @@ import {
   IUpdateCategoryUseCase,
 } from '@/application/contracts/category';
 import {
+  CategoryNotFoundException,
+  CategorySlugTakenException,
+} from '@/domain/exceptions';
+import {
   ICreateCategoryResponseDto,
   IGetCategoryTreeResponseDto,
   IUpdateCategoryResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
-import { CurrentUser, IAuthPrincipal, Public } from '@chantam/service.auth-lib';
+import {
+  ApiTokenErrors,
+  CurrentUser,
+  IAuthPrincipal,
+  Public,
+} from '@chantam/service.auth-lib';
+import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
+import {
+  ForbiddenException,
+  ValidationFailedException,
+} from '@chantam/service.common-lib/exception';
 import {
   Body,
   Controller,
@@ -18,6 +32,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -29,6 +44,7 @@ import {
 import {
   CreateCategoryBodyDto,
   CreateCategoryResponseDto,
+  GetCategoryTreeQueryDto,
   GetCategoryTreeResponseDto,
   UpdateCategoryBodyDto,
   UpdateCategoryParamsDto,
@@ -49,12 +65,20 @@ export class CategoryController {
 
   @Public()
   @Get()
-  @ApiOperation({ summary: 'Cây danh mục đang hoạt động' })
+  @ApiOperation({
+    summary: 'Cây danh mục đang hoạt động',
+    description:
+      'Lọc theo phân hệ bằng `?postType=` để lấy đúng danh mục cho form đăng tin hoặc bộ lọc. Bỏ trống trả cả cây.',
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(GetCategoryTreeResponseDto) })
-  public async getCategoryTree(): Promise<
-    ResponseDto<IGetCategoryTreeResponseDto>
-  > {
-    const result = await this.getTree.handle({});
+  @ApiErrorResponses([
+    ValidationFailedException,
+    ['postType: postType must be a valid enum value'],
+  ])
+  public async getCategoryTree(
+    @Query() query: GetCategoryTreeQueryDto,
+  ): Promise<ResponseDto<IGetCategoryTreeResponseDto>> {
+    const result = await this.getTree.handle({ postType: query.postType });
     return ResponseDto.create<IGetCategoryTreeResponseDto>()
       .succeed()
       .attach(result)
@@ -64,9 +88,18 @@ export class CategoryController {
   @Post()
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Tạo danh mục (allowlist tạm thời, M6 thay bằng Admin CMS)',
+    summary: 'Tạo danh mục',
+    description:
+      'Chỉ username nằm trong allowlist `CATEGORY_ADMIN_USERNAMES` gọi được — đây là giải pháp TẠM của M2, M6 sẽ thay bằng RBAC như khu /admin. Slug bỏ trống thì tự sinh từ tên. `postTypes` bỏ trống thì danh mục dùng được cho mọi loại bài.',
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(CreateCategoryResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['category.name: name should not be empty']],
+    [ForbiddenException],
+    [CategorySlugTakenException, 'sach'],
+    CategoryNotFoundException,
+  )
   public async create(
     @CurrentUser() principal: IAuthPrincipal,
     @Body() body: CreateCategoryBodyDto,
@@ -84,8 +117,19 @@ export class CategoryController {
 
   @Patch(':categoryId')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Sửa/tắt danh mục, không xoá cứng' })
+  @ApiOperation({
+    summary: 'Sửa hoặc tắt danh mục',
+    description:
+      'KHÔNG xoá cứng: danh mục đang có bài dùng mà xoá thì những bài đó mất danh mục. Muốn ẩn thì đặt `isActive: false` — bài cũ giữ nguyên liên kết, form đăng mới không còn thấy nó nữa.',
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(UpdateCategoryResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['categoryId: categoryId must be a UUID']],
+    [ForbiddenException],
+    CategoryNotFoundException,
+    [CategorySlugTakenException, 'sach'],
+  )
   public async update(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: UpdateCategoryParamsDto,

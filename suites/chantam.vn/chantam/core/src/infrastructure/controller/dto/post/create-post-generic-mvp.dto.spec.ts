@@ -22,6 +22,10 @@ describe('CreatePostBodyDto Generic MVP', () => {
             ...(postType === 'OFFER'
               ? { condition: 'USED', estimatedValue: 1_500_000 }
               : {}),
+            // Tin rao vặt bắt buộc có giá và tình trạng món đồ.
+            ...(postType === 'CLASSIFIED'
+              ? { price: 5_200_000, condition: 'USED' }
+              : {}),
           },
         }),
       );

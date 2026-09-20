@@ -14,6 +14,7 @@ import {
   RefreshTokenInvalidException,
   TooManyLoginAttemptsException,
   UserBannedException,
+  UserHasOpenTransactionsException,
   UsernameTakenException,
   UserSuspendedException,
 } from '@/domain/exceptions';
@@ -275,6 +276,7 @@ export class AuthController {
     ...ApiTokenErrors,
     // Mật khẩu nhập lại sai cũng dùng lỗi này.
     InvalidCredentialsException,
+    [UserHasOpenTransactionsException, 2],
   )
   public async deleteAccount(
     @Body() body: DeleteAccountBodyDto,

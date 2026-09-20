@@ -16,7 +16,7 @@ Ký hiệu:
 | Hạng mục | Đã có | Còn deferred / blocker |
 | --- | --- | --- |
 | F05 Quên mật khẩu | OTP Redis, chống enumeration, reset/revoke token, Admin fallback | 🟡 Email delivery adapter/vendor credential/domain verify/template/delivery test; ⛔ quy trình Admin chứng minh sở hữu tài khoản |
-| F09 Xác minh SĐT | OTP purpose riêng + `phone_verified_at` | 🟡 SMS/Zalo provider; email provider **không** giải quyết SMS verification; point award chờ M4 ledger |
+| F09 Xác minh SĐT | OTP purpose riêng + `phone_verified_at`; thưởng lần đầu đã đi qua ledger với khoá idempotency, kèm job đối soát `point:reconcile` vá lại khi tiến trình chết giữa hai bước | 🟡 SMS/Zalo provider; email provider **không** giải quyết SMS verification |
 | F14 Danh mục | Tree, baseline seed, read/create/update/deactivate | 🟡 `CATEGORY_ADMIN_USERNAMES` allowlist tạm thời; M6 thay bằng Admin CMS role |
 | F24 Media | S3 presign, object ownership verify, MinIO local/CI | 🟡 R2 bucket/key/CORS/public domain riêng staging/prod; delivery acceptance test |
 
@@ -36,16 +36,29 @@ policy, monitoring và staging delivery acceptance.
 Trước khi thêm `EmailOtpSender`, `IOtpSender.isConfigured` phải thay thành capability theo channel
 (`canSend(EMAIL|SMS)`): email availability không được vô tình mở F09 SMS verification.
 
+> ✅ **Đã làm.** `IOtpSender.canSend(channel)` đã thay cờ chung, và năng lực gửi
+> nay đọc từ cấu hình Admin trong `notification_channels` chứ không phải biến
+> môi trường. Adapter SMTP thật đã có, nên đổi SMTP từ CMS là có hiệu lực ngay.
+> SMS và Zalo bật được trong CMS nhưng `canSend` vẫn trả `false` ở production vì
+> **chưa có adapter nào gửi nổi hai kênh đó** — danh sách kênh đã hiện thực là
+> nơi duy nhất quyết định, nên bật nhầm trong CMS không biến thành lời hứa gửi.
+
 ## M3 · Giao dịch, chat, thông báo
 
+- [x] Vòng đời giao dịch tặng/nhận: request → accept → confirm, huỷ trả lại tồn
+      kho, tự hoàn tất sau 5 ngày qua CLI `transaction:autocomplete`.
+- [x] Nguồn "lượt tặng hoàn tất" cho rank — đây là thứ mở khoá F12.
 - [ ] F44 push FCM + notification in-app tối thiểu cho giao dịch.
 - [ ] Queue/retry/dead-letter thực tế cho delivery notification.
-- [ ] Gắn F06 check “còn giao dịch dở dang” khi `transactions` đã tồn tại.
+- [ ] Chat và Smart Match.
+- [ ] Gắn F06 check “còn giao dịch dở dang” khi xoá tài khoản (bảng đã có, phép
+      kiểm chưa gắn).
 
 ## M4 · Điểm và thứ hạng
 
-- [ ] Point ledger idempotent là prerequisite cho mọi award/penalty.
-- [ ] Gắn `PHONE_VERIFIED_FIRST_TIME` vào ledger, không cộng cột users trực tiếp.
+- [x] Point ledger idempotent, append-only kèm trigger chặn sửa/xoá.
+- [x] Gắn `PHONE_VERIFIED_FIRST_TIME` vào ledger, không cộng cột users trực tiếp.
+- [x] Tách `lifetime` (quyết định hạng) khỏi `balance` (tiêu được).
 - [ ] Xác nhận 4 giả định point/rank/referral trong `ASSUMPTIONS.md` trước migration dữ liệu thật.
 
 ## M5 · Group, affiliate, chống gian lận

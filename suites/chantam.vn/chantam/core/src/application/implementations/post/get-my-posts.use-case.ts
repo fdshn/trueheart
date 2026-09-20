@@ -27,19 +27,16 @@ export class GetMyPostsUseCase implements IGetMyPostsUseCase {
 
   public async handle(command: IGetMyPostsCommand): Promise<IGetMyPostsResult> {
     const { skip, take } = toSkipTake(command);
-
-    const qb = this.postRepository
-      .createQueryBuilder('post')
-      .where('post.authorId = :authorId', { authorId: command.userId })
-      .andWhere('post.deletedAt IS NULL');
-
-    if (command.status) {
-      qb.andWhere('post.status = :status', { status: command.status });
-    }
-
-    qb.orderBy('post.createdAt', 'DESC').skip(skip).take(take);
-
-    const [posts, total] = await qb.getManyAndCount();
+    const { items: posts, total } = await this.postRepository.findMyPosts({
+      // Tác giả lấy từ access token, KHÔNG nhận từ query: tin vào query là ai
+      // cũng đọc được bài nháp và bài bị từ chối của người khác.
+      authorId: command.userId,
+      postType: command.postType,
+      status: command.status,
+      categoryId: command.categoryId,
+      skip,
+      take,
+    });
 
     const postIds = posts.map((p) => p.globalId);
     const requestCounts =
@@ -68,6 +65,8 @@ export class GetMyPostsUseCase implements IGetMyPostsUseCase {
       }),
     );
 
+    // Trả toạ độ THẬT, không làm nhiễu: đây là bài của chính người gọi, và họ
+    // cần thấy đúng chỗ mình đã ghim để sửa cho khớp.
     return {
       posts: items,
       meta: new PaginationMetaDto(Math.floor(skip / take) + 1, take, total),

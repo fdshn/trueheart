@@ -1,9 +1,13 @@
 import {
+  IFindMyPostsParams,
+  IFindMyPostsResult,
   IFindNearbyPostsParams,
   IFindNearbyPostsResult,
   IFindPostMapMarkersParams,
+  IFindSmartMatchesParams,
   IPostMapMarker,
   IPostRepository,
+  ISmartMatchCandidate,
 } from '@/domain/ports/repository';
 import { PostEntity } from '@/infrastructure/entity';
 import {
@@ -29,6 +33,15 @@ export const QuotaStatuses = [
   'RESERVED',
   'DELIVERING',
 ];
+
+/**
+ * Số ứng viên lấy về trước khi chấm điểm.
+ *
+ * Lấy dư theo khoảng cách rồi mới xếp hạng ở tầng ứng dụng, để trọng số chỉ
+ * tồn tại một nơi. Chặn trần để một danh mục đông bài trong thành phố lớn
+ * không kéo cả nghìn dòng về chấm.
+ */
+export const SmartMatchCandidateLimit = 100;
 
 @Injectable()
 export class PostRepository
@@ -133,6 +146,100 @@ export class PostRepository
       })),
       total,
     };
+  }
+
+  public async findSmartMatches(
+    params: IFindSmartMatchesParams,
+  ): Promise<ISmartMatchCandidate[]> {
+    const query = this.createQueryBuilder('post')
+      .where('post.deletedAt IS NULL')
+      // Loại bù: bài Muốn Nhận thì đi tìm Muốn Tặng, và ngược lại.
+      .andWhere('post.postType = :postType', { postType: params.postType })
+      .andWhere('post.status IN (:...statuses)', {
+        statuses: [...PubliclyVisibleGiftPostStatuses],
+      })
+      .andWhere('post.globalId != :sourcePostId', {
+        sourcePostId: params.sourcePostId,
+      })
+      // Gợi ý bài của chính người đăng là ghép họ với chính họ.
+      .andWhere('post.authorId != :excludeAuthorId', {
+        excludeAuthorId: params.excludeAuthorId,
+      });
+
+    GeoQueryHelper.applyRadiusFilter(query, 'post', {
+      ...params.origin,
+      radiusMeters: params.radiusMeters,
+    });
+    GeoQueryHelper.selectDistance(
+      query,
+      'post',
+      params.origin,
+      'distance_meters',
+    );
+
+    // `simple` chứ không phải `english`: bộ từ điển tiếng Anh cắt đuôi từ theo
+    // luật tiếng Anh, áp lên tiếng Việt thì token biến dạng vô nghĩa.
+    const tsQuery = params.keywords.join(' | ');
+    const keywordMatch = `to_tsvector('simple', coalesce(post.title, '') || ' ' || coalesce(post.description, '')) @@ to_tsquery('simple', :tsQuery)`;
+
+    query.addSelect(tsQuery ? keywordMatch : 'false', 'keyword_matched');
+
+    // Chỉ gần thôi thì chưa phải gợi ý: phải cùng danh mục hoặc trùng từ khoá,
+    // nếu không danh sách đầy những bài chẳng liên quan gì.
+    if (tsQuery)
+      query.andWhere(`(post.category_id = :categoryId OR ${keywordMatch})`, {
+        categoryId: params.categoryId,
+        tsQuery,
+      });
+    else
+      query.andWhere('post.category_id = :categoryId', {
+        categoryId: params.categoryId,
+      });
+
+    // Lấy dư rồi chấm điểm ở tầng ứng dụng: trọng số chỉ được định nghĩa một
+    // lần trong `smart-match.policy`, không chép sang SQL để rồi hai bên lệch.
+    GeoQueryHelper.orderByDistance(query, 'post', params.origin);
+    query.limit(SmartMatchCandidateLimit);
+
+    const { entities, raw } =
+      await query.getRawAndEntities<Record<string, unknown>>();
+
+    return entities.map((post, index) => ({
+      post,
+      distanceMeters: Number(raw[index]?.distance_meters ?? 0),
+      sameCategory: post.categoryId === params.categoryId,
+      keywordMatched: raw[index]?.keyword_matched === true,
+    }));
+  }
+
+  public async findMyPosts(
+    params: IFindMyPostsParams,
+  ): Promise<IFindMyPostsResult> {
+    const query = this.createQueryBuilder('post')
+      .where('post.authorId = :authorId', { authorId: params.authorId })
+      // Bài đã xoá mềm thì chủ bài cũng không cần thấy nữa.
+      .andWhere('post.deletedAt IS NULL');
+
+    if (params.postType)
+      query.andWhere('post.postType = :postType', {
+        postType: params.postType,
+      });
+    // KHÔNG mặc định lọc về trạng thái công khai: chủ bài phải thấy được bài
+    // đang chờ duyệt và bài bị từ chối của mình.
+    if (params.status)
+      query.andWhere('post.status = :status', { status: params.status });
+    if (params.categoryId)
+      query.andWhere('post.categoryId = :categoryId', {
+        categoryId: params.categoryId,
+      });
+
+    const [items, total] = await query
+      .orderBy('post.createdAt', 'DESC')
+      .skip(params.skip)
+      .take(params.take)
+      .getManyAndCount();
+
+    return { items, total };
   }
 
   public async findMapMarkers(

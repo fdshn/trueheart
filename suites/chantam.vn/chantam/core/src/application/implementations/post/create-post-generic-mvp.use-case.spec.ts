@@ -5,6 +5,7 @@ import {
   IUserRepository,
 } from '@/domain/ports/repository';
 import {
+  GenericMvpPostTypes,
   GiftPostConditions,
   GiftPostStatuses,
   PostTypes,
@@ -50,6 +51,7 @@ function makeCategory(): ICategoryEntity {
     slug: 'do-dung-gia-dinh',
     icon: null,
     sortOrder: 0,
+    postTypes: [...GenericMvpPostTypes],
     isActive: true,
     parentId: null,
     createdAt: new Date(),
@@ -83,6 +85,18 @@ function makeCommand(postType: PostTypes) {
       },
     };
 
+  // Tin rao vặt bắt buộc có giá và tình trạng món đồ.
+  if (postType === PostTypes.CLASSIFIED)
+    return {
+      ...common,
+      post: {
+        ...common.post,
+        postType: PostTypes.CLASSIFIED,
+        price: 5_200_000,
+        condition: GiftPostConditions.USED,
+      },
+    } as never;
+
   return common as {
     userId: string;
     post: {
@@ -98,6 +112,24 @@ function makeCommand(postType: PostTypes) {
       areaLabel: string;
     };
   };
+}
+
+/** Mỗi loại bài chỉ mang đúng phần nội dung riêng của nó trong `details`. */
+function expectedDetails(postType: PostTypes): Record<string, unknown> {
+  if (postType === PostTypes.OFFER)
+    return {
+      condition: GiftPostConditions.USED,
+      estimatedValue: 1_500_000,
+    };
+
+  if (postType === PostTypes.CLASSIFIED)
+    return {
+      price: 5_200_000,
+      condition: GiftPostConditions.USED,
+      negotiable: false,
+    };
+
+  return {};
 }
 
 describe('CreatePostUseCase Generic MVP', () => {
@@ -145,13 +177,7 @@ describe('CreatePostUseCase Generic MVP', () => {
           authorId: UserId,
           postType,
           status: GiftPostStatuses.PENDING_REVIEW,
-          details:
-            postType === PostTypes.OFFER
-              ? {
-                  condition: GiftPostConditions.USED,
-                  estimatedValue: 1_500_000,
-                }
-              : {},
+          details: expectedDetails(postType),
           totalQuantity: postType === PostTypes.OFFER ? 2 : 1,
           remainingQuantity: postType === PostTypes.OFFER ? 2 : 1,
         }),

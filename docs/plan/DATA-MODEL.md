@@ -3,6 +3,9 @@
 ~25 bảng, một database PostgreSQL + PostGIS. Đây là bản thiết kế để thống nhất trước khi
 code — DDL thật nằm trong migration.
 
+> Muốn biết **thật sự đang có bảng gì** sau khi migrate, xem
+> [`../DATABASE.md`](../DATABASE.md). File này là thiết kế, file kia là schema đang chạy.
+
 **Đổi bảng thì luôn qua migration**, không bao giờ `synchronize`:
 
 ```bash

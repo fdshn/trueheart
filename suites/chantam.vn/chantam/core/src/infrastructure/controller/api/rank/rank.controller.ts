@@ -64,7 +64,11 @@ export class RankController {
   }
 
   @Get('me')
-  @ApiOperation({ summary: 'Tóm tắt thứ hạng của chính chủ' })
+  @ApiOperation({
+    summary: 'Tóm tắt thứ hạng của chính chủ',
+    description:
+      'Gồm hạng hiện tại, ngưỡng hạng kế tiếp và chu kỳ duy trì đang mở. Điểm là SÀN, nhiệm vụ duy trì là TRẦN: điểm tích luỹ quyết định hạng cao nhất có thể đạt, còn trượt nhiệm vụ thì tụt đúng MỘT bậc bất kể còn bao nhiêu điểm, và không bao giờ tụt dưới sàn Thành viên. Chu kỳ đã mở giữ ngưỡng của chính nó nên admin đổi số giữa chừng không làm đổi kết quả chu kỳ đang chạy.',
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(GetOwnRankSummaryResponseDto) })
   @ApiErrorResponses(...ApiTokenErrors)
   public async getOwnRankSummary(

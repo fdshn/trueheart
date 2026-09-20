@@ -6,8 +6,11 @@ import {
   IUpdateGiftPostUseCase,
 } from '@/application/contracts/gift-post';
 import {
+  CategoryNotFoundException,
   PostInvalidStateException,
   PostNotFoundException,
+  PostQuotaExceededException,
+  ProfileIncompleteException,
 } from '@/domain/exceptions';
 import {
   ICreateGiftPostResponseDto,
@@ -16,10 +19,18 @@ import {
   IGetNearbyGiftPostsResponseDto,
   IUpdateGiftPostResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
-import { CurrentUser, IAuthPrincipal, Public } from '@chantam/service.auth-lib';
+import {
+  ApiTokenErrors,
+  CurrentUser,
+  IAuthPrincipal,
+  Public,
+} from '@chantam/service.auth-lib';
 import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
-import { ValidationFailedException } from '@chantam/service.common-lib/exception';
+import {
+  ForbiddenException,
+  ValidationFailedException,
+} from '@chantam/service.common-lib/exception';
 import {
   Body,
   Controller,
@@ -87,10 +98,15 @@ export class GiftPostController {
     ].join('\n'),
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(CreateGiftPostResponseDto) })
-  @ApiErrorResponses([
-    ValidationFailedException,
-    ['giftPost.title: title should not be empty'],
-  ])
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['giftPost.title: title should not be empty']],
+    // Endpoint này uỷ quyền sang CreatePostUseCase nên thừa hưởng nguyên chuỗi
+    // cổng của bài canonical, kể cả cổng hồ sơ F07.
+    [ProfileIncompleteException, ['Avatar', 'SĐT']],
+    [CategoryNotFoundException],
+    [PostQuotaExceededException, 3],
+  )
   public async createGiftPost(
     @CurrentUser() principal: IAuthPrincipal,
     @Body() body: CreateGiftPostBodyDto,
@@ -175,8 +191,10 @@ export class GiftPostController {
   })
   @ApiOkResponse({ type: ResponseDto.forApi(UpdateGiftPostResponseDto) })
   @ApiErrorResponses(
+    ...ApiTokenErrors,
     [ValidationFailedException, ['giftPost.title: title should not be empty']],
     [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [ForbiddenException],
     [PostInvalidStateException],
   )
   public async updateGiftPost(
@@ -205,8 +223,10 @@ export class GiftPostController {
   })
   @ApiOkResponse({ type: ResponseDto.forApi(DeleteGiftPostResponseDto) })
   @ApiErrorResponses(
-    [ValidationFailedException, ['giftPost.title: title should not be empty']],
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['giftPostId: giftPostId must be a UUID']],
     [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [ForbiddenException],
   )
   public async deleteGiftPost(
     @CurrentUser() principal: IAuthPrincipal,

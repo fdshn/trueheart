@@ -44,6 +44,14 @@ export interface IPointLedgerRepository {
     userId: string,
     query: IPointLedgerHistoryQuery,
   ): Promise<IPointLedgerPage>;
+  /**
+   * Những người đã xác minh SĐT nhưng chưa có bút toán thưởng.
+   *
+   * Xác minh SĐT và ghi thưởng là hai bước riêng, nên tiến trình chết giữa
+   * chừng là mất thưởng vĩnh viễn — người dùng không có cách nào xác minh lại
+   * để được thưởng. Đây là đầu vào cho job đối soát chạy từ scheduler ngoài.
+   */
+  findPhoneVerifiedUsersMissingReward(limit: number): Promise<string[]>;
 }
 
 export const IPointLedgerRepository = Symbol('IPointLedgerRepository');

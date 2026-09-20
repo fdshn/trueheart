@@ -206,23 +206,23 @@ export class RankRepository implements IRankRepository {
         const [user] = await manager.query<IRawMaintenanceEvaluationRow[]>(
           `
             SELECT
-              user.rank,
+              user_account.rank,
               balance.lifetime AS lifetime_points,
               tier.maintenance_gifts,
               tier.maintenance_referrals,
               qualified_referrals.qualified_referrals
-            FROM users user
-            LEFT JOIN user_point_balances balance ON balance.user_id = user.global_id
+            FROM users user_account
+            LEFT JOIN user_point_balances balance ON balance.user_id = user_account.global_id
             INNER JOIN rank_tiers tier ON tier.rank = $2
             CROSS JOIN LATERAL (
               SELECT COUNT(*)::text AS qualified_referrals
               FROM referrals referral
-              WHERE referral.referrer_id = user.global_id
+              WHERE referral.referrer_id = user_account.global_id
                 AND referral.qualified_at >= $3
                 AND referral.qualified_at < $4
             ) qualified_referrals
-            WHERE user.global_id = $1
-            FOR UPDATE OF user
+            WHERE user_account.global_id = $1
+            FOR UPDATE OF user_account
           `,
           [cycle.user_id, cycle.rank, cycle.cycle_start, cycle.cycle_end],
         );
@@ -323,10 +323,7 @@ export class RankRepository implements IRankRepository {
 
       const [user] = await manager.query<IRawOnboardingPromotionRow[]>(
         `
-          SELECT
-            user_account.global_id,
-            user_account.rank,
-            balance.lifetime AS lifetime_points
+          SELECT user_account.rank, balance.lifetime AS lifetime_points
           FROM users user_account
           LEFT JOIN user_point_balances balance ON balance.user_id = user_account.global_id
           WHERE user_account.global_id = $1

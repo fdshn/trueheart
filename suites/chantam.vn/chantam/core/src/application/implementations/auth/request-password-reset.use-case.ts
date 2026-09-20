@@ -53,7 +53,7 @@ export class RequestPasswordResetUseCase implements IRequestPasswordResetUseCase
     // kênh khôi phục.
     const picked = user ? this.pickTarget(user) : null;
     const target =
-      picked && this.otpSender.canSend(picked.channel) ? picked : null;
+      picked && (await this.otpSender.canSend(picked.channel)) ? picked : null;
 
     // Tài khoản không tồn tại và tài khoản không có email/SĐT trả về HỆT NHAU.
     // Nếu khác, endpoint này trở thành công cụ dò xem tài khoản nào có thật —

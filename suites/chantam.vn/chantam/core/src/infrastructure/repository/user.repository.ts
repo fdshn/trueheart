@@ -78,25 +78,13 @@ export class UserRepository
         }
       }
 
-      const [rawUser] = await manager.query<
-        (IUserEntity & {
-          global_id?: string;
-          phone_verified_at?: Date | null;
-          full_name?: string | null;
-          avatar_url?: string | null;
-        })[]
-      >(`SELECT * FROM users WHERE global_id = $1`, [params.globalId]);
-
-      const user: IUserEntity | null = rawUser
-        ? ({
-            ...rawUser,
-            globalId: rawUser.globalId ?? rawUser.global_id!,
-            fullName: rawUser.fullName ?? rawUser.full_name ?? null,
-            avatarUrl: rawUser.avatarUrl ?? rawUser.avatar_url ?? null,
-            phoneVerifiedAt:
-              rawUser.phoneVerifiedAt ?? rawUser.phone_verified_at ?? null,
-          } as IUserEntity)
-        : null;
+      // Đọc lại qua TypeORM chứ KHÔNG `SELECT *`: hàng thô trả về tên cột
+      // snake_case, nên `user.globalId` là undefined và phiên đăng nhập phát
+      // ngay sau đây insert `user_id` NULL. Để TypeORM ánh xạ thì bảng `users`
+      // thêm cột về sau cũng không phải sửa tay chỗ này.
+      const user = await manager.findOneBy<IUserEntity>(this.target, {
+        globalId: params.globalId,
+      } as never);
 
       return { user, referralApplied };
     });

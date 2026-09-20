@@ -146,6 +146,20 @@ cho bản đồ tại thời điểm xem.
 > 2. Khi số điểm hiện tại giảm xuống dưới ngưỡng của Rank đang có, hệ thống **tự xác định lại Rank theo ngưỡng điểm hiện tại** (ví dụ: Vàng 600, Bạc 400; đang Vàng mà điểm giảm còn 450 thì tự xuống Bạc).
 > 3. Khi Bạc/Vàng/Kim Cương không đạt nhiệm vụ duy trì chu kỳ 3 tháng hoặc điểm giảm, hệ thống xác định lại Rank theo số điểm hiện tại và điều kiện Rank tương ứng; **không bắt buộc chỉ tụt đúng một bậc**.
 > 4. **Phase 1 không dùng một `lifetime rank point` riêng** để giữ hạng. Mọi biến động tăng/giảm balance đều trigger đánh giá lại Rank. Owner Group vẫn giữ quyền quản lý Group nếu chỉ tụt Rank (Group chỉ giải tán khi Owner xoá tài khoản).
+>
+> ℹ️ Code hiện đọc các con số này từ bảng `rank_tiers`, không hardcode. Chu kỳ đã mở giữ **ngưỡng của chính nó** (`policy` theo hạng ghi trên cycle), nên đổi số giữa chừng không làm thay đổi kết quả một chu kỳ đang chạy.
+
+**Điểm dư:** không tự trừ khi lên hạng. Chỉ trừ khi có chương trình đổi điểm cụ thể **và người dùng xác nhận**. Mặc định **không quy đổi ra tiền mặt**.
+
+> ⛔ **Điểm vừa là thước đo Rank vừa là tiền tiêu được** ⟹ tiêu điểm là tụt hạng.
+> Cách xử lý chuẩn, rất rẻ nếu làm ngay: tách `lifetime_points` (chỉ tăng, quyết định Rank)
+> khỏi `spendable_balance` (tiêu được). Ledger đã có `balance_after`, chỉ cần thêm
+> `lifetime_after`. Làm sau khi có dữ liệu thật thì phải migrate và tính lại toàn bộ lịch sử.
+>
+> ✅ **Đã tách.** `point_ledger` ghi cả `balance_after` lẫn `lifetime_after`, và
+> `user_point_balances` giữ hai cột riêng. Hạng đọc `lifetime`; tiêu điểm chỉ giảm
+> `balance` nên không kéo hạng xuống. Kênh công khai chỉ thấy `lifetime`.
+>>>>>>> origin/main
 
 ### F13 — Referral cá nhân, thưởng một lần
 Mã/link cá nhân **chỉ áp dụng cho tài khoản mới**. Thưởng đúng một lần khi người mới đăng ký
@@ -162,9 +176,15 @@ Năm loại nội dung dùng chung khung đăng bài: **Muốn Tặng**, **Muố
 Mỗi bài có `category_id`. Admin quản lý `name / slug / icon / order / active / parent`.
 **Không xoá cứng** danh mục đang có bài dùng — chỉ được tắt.
 
+Mỗi danh mục khai báo `postTypes` — dùng được cho những loại bài nào. `GET /api/v1/categories?postType=CLASSIFIED`
+trả đúng cây cho form đăng tin rao vặt; bỏ trống trả cả cây. Nhánh cha không khớp vẫn
+được giữ nếu có con khớp, để cây không đứt.
+
 ### F15 — Đăng Muốn Tặng
 Ảnh, thông tin vật phẩm, tình trạng, mô tả, vị trí. Kiểm tra **quota theo Rank** trước khi
-cho đăng. ⚠️ *Số bài tối đa của từng Rank chưa có.*
+cho đăng. Quota nằm trong `capability_rank_values` và Admin sửa được lúc chạy qua
+`POST /api/v1/admin/entitlements` — mặc định Viewer 0, Thành viên 3, Bạc 10, Vàng 20,
+Kim Cương 50. ⚠️ *Các con số này là giả định, chờ Bên A xác nhận.*
 
 ### F16 — Đăng Muốn Nhận
 Nhu cầu nhận vật phẩm hoặc hỗ trợ, kèm danh mục và vị trí/phạm vi. Cũng có quota theo Rank.
@@ -176,7 +196,16 @@ Gợi ý theo **danh mục + khoảng cách + từ khoá**. Phase 1 chỉ dùng 
 **Smart Match chỉ gợi ý — tuyệt đối không tự tạo giao dịch.** Quyết định cuối luôn thuộc về
 con người.
 
-SOS / Cần gấp mở theo quyền Rank. ⚠️ *Rank nào được dùng SOS thì chưa nêu.*
+Đã có: `GET /api/v1/posts/:postId/matches` ghép Muốn Nhận ↔ Muốn Tặng. Điểm khớp trong
+[0, 1] gồm cùng danh mục 0.5, trùng từ khoá 0.3, khoảng cách 0.2; mỗi gợi ý kèm `reasons`
+để giao diện nói được vì sao bài đó hiện ra. Chỉ tác giả bài nguồn gọi được, vì vị trí thật
+của bài được dùng làm tâm tìm kiếm — toạ độ bài gợi ý vẫn bị làm nhiễu và khoảng cách làm
+tròn theo bậc như mọi kênh công khai khác.
+
+SOS / Cần gấp mở theo quyền Rank. Quyền này là capability `POST_SOS` trong
+`capability_rank_values`, Admin bật/tắt theo từng Rank lúc chạy qua
+`POST /api/v1/admin/entitlements` — mặc định Bạc trở lên được dùng, Viewer và Thành viên
+không. ⚠️ *Ngưỡng này là giả định, chờ Bên A xác nhận.*
 
 ### F18 — Từ thiện / Hoạt động
 Admin tạo trực tiếp. **Thành viên Kim Cương** được tạo đề xuất, chờ Admin duyệt. Người dùng

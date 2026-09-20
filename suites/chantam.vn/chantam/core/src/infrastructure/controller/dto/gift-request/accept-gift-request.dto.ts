@@ -19,9 +19,7 @@ export class AcceptGiftRequestParamDto {
   requestId: string;
 }
 
-export class AcceptGiftRequestResponseDto
-  implements IAcceptGiftRequestResponseDto
-{
+export class AcceptGiftRequestResponseDto implements IAcceptGiftRequestResponseDto {
   @ApiProperty({ format: 'uuid', description: 'ID yêu cầu được duyệt' })
   requestId: string;
 

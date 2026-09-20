@@ -1,15 +1,18 @@
 import {
   IAdminConfigRepository,
+  IAdminUserRepository,
   ICategoryRepository,
   IEntitlementRepository,
-  IGiftPostRepository,
   IGiftRequestRepository,
+  IGiftTransactionRepository,
+  INotificationChannelRepository,
   IOnboardingTaskRepository,
   IPointLedgerRepository,
   IPostMediaRepository,
   IPostRepository,
   IRankRepository,
   IReferralRepository,
+  ISystemLogRepository,
   IUserOnboardingTaskCompletionRepository,
   IUserRepository,
   IUserSessionRepository,
@@ -17,16 +20,19 @@ import {
 import { Global, Module } from '@nestjs/common';
 import { AdminBootstrapService } from './admin-bootstrap.service';
 import { AdminConfigRepository } from './admin-config.repository';
+import { AdminUserRepository } from './admin-user.repository';
 import { CategoryRepository } from './category.repository';
 import { EntitlementRepository } from './entitlement.repository';
-import { GiftPostRepository } from './gift-post.repository';
 import { GiftRequestRepository } from './gift-request.repository';
+import { GiftTransactionRepository } from './gift-transaction.repository';
+import { NotificationChannelRepository } from './notification-channel.repository';
 import { OnboardingTaskRepository } from './onboarding-task.repository';
 import { PointLedgerRepository } from './point-ledger.repository';
 import { PostMediaRepository } from './post-media.repository';
 import { PostRepository } from './post.repository';
 import { RankRepository } from './rank.repository';
 import { ReferralRepository } from './referral.repository';
+import { SystemLogRepository } from './system-log.repository';
 import { UserOnboardingTaskCompletionRepository } from './user-onboarding-task-completion.repository';
 import { UserSessionRepository } from './user-session.repository';
 import { UserRepository } from './user.repository';
@@ -42,12 +48,21 @@ import { UserRepository } from './user.repository';
     AdminBootstrapService,
     { provide: ICategoryRepository, useClass: CategoryRepository },
     { provide: IAdminConfigRepository, useClass: AdminConfigRepository },
+    { provide: IAdminUserRepository, useClass: AdminUserRepository },
     { provide: IEntitlementRepository, useClass: EntitlementRepository },
-    { provide: IGiftPostRepository, useClass: GiftPostRepository },
     { provide: IGiftRequestRepository, useClass: GiftRequestRepository },
+    {
+      provide: IGiftTransactionRepository,
+      useClass: GiftTransactionRepository,
+    },
+    {
+      provide: INotificationChannelRepository,
+      useClass: NotificationChannelRepository,
+    },
     { provide: IOnboardingTaskRepository, useClass: OnboardingTaskRepository },
     { provide: IPointLedgerRepository, useClass: PointLedgerRepository },
     { provide: IReferralRepository, useClass: ReferralRepository },
+    { provide: ISystemLogRepository, useClass: SystemLogRepository },
     { provide: IRankRepository, useClass: RankRepository },
     { provide: IPostRepository, useClass: PostRepository },
     { provide: IPostMediaRepository, useClass: PostMediaRepository },
@@ -61,12 +76,15 @@ import { UserRepository } from './user.repository';
   exports: [
     ICategoryRepository,
     IAdminConfigRepository,
+    IAdminUserRepository,
     IEntitlementRepository,
-    IGiftPostRepository,
     IGiftRequestRepository,
+    IGiftTransactionRepository,
+    INotificationChannelRepository,
     IOnboardingTaskRepository,
     IPointLedgerRepository,
     IReferralRepository,
+    ISystemLogRepository,
     IRankRepository,
     IPostRepository,
     IPostMediaRepository,

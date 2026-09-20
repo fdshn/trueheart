@@ -64,6 +64,17 @@ export interface IRankOperatorConfig {
   usernames: string[];
 }
 
+export interface ISecurityConfig {
+  /**
+   * Khoá 32 byte dạng base64 để mã hoá secret Admin cấu hình được (mật khẩu
+   * SMTP, API key Zalo...). Sinh bằng: openssl rand -base64 32
+   *
+   * Cố ý KHÔNG có giá trị mặc định: thiếu khoá thì không lưu được secret nào,
+   * còn hơn lưu bản rõ xuống database.
+   */
+  secretEncryptionKey: string;
+}
+
 export interface IWebConfig {
   /**
    * Gốc URL của web công khai, dùng dựng link chia sẻ hồ sơ.
@@ -94,6 +105,7 @@ export interface IConfig {
   rankOperator: IRankOperatorConfig;
   adminBootstrap: IAdminBootstrapConfig;
   web: IWebConfig;
+  security: ISecurityConfig;
 
   /**
    * Môi trường cho ô chọn của Swagger. Mục đầu luôn trỏ về chính instance đang

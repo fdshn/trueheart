@@ -41,6 +41,10 @@ export interface ICreatePostDto extends ICreatePostCommonDto {
   condition?: GiftPostConditions;
   estimatedValue?: number;
   totalQuantity?: number;
+  /** Giá bán, chỉ dùng cho bài CLASSIFIED. Đơn vị VND, số nguyên. */
+  price?: number;
+  /** Có thương lượng giá hay không. Chỉ dùng cho bài CLASSIFIED. */
+  negotiable?: boolean;
 }
 
 export interface ICreatePostBodyDto {
@@ -59,6 +63,23 @@ export interface IGetNearbyPostsQueryDto extends IPaginationQueryDto {
   categoryId?: string;
 }
 
+export interface IGetMyPostsQueryDto extends IPaginationQueryDto {
+  postType?: PostTypes;
+  status?: GiftPostStatuses;
+  categoryId?: string;
+}
+
+export interface IMyPostItemDto {
+  post: IPostEntity;
+  requestCount: number;
+  media: IPublicPostMediaDto[];
+}
+
+export interface IGetMyPostsResponseDto {
+  posts: IMyPostItemDto[];
+  meta: IPaginationMetaDto;
+}
+
 export interface INearbyPostDto {
   post: IPostEntity;
   distanceMeters: number;
@@ -71,6 +92,25 @@ export interface INearbyPostDto {
 export interface IGetNearbyPostsResponseDto {
   posts: INearbyPostDto[];
   meta: IPaginationMetaDto;
+}
+
+/** Vì sao một bài được gợi ý. Giao diện dịch các mã này ra tiếng Việt. */
+export type SmartMatchReason = 'SAME_CATEGORY' | 'KEYWORD_MATCH' | 'NEARBY';
+
+export interface ISmartMatchDto {
+  post: IPostEntity;
+  distanceMeters: number;
+  isLocationApproximate: true;
+  /** Độ khớp trong [0, 1], đọc được như phần trăm. */
+  score: number;
+  reasons: SmartMatchReason[];
+}
+
+export interface IGetSmartMatchesResponseDto {
+  /** Bài được đem đi ghép. */
+  sourcePostId: string;
+  radiusMeters: number;
+  matches: ISmartMatchDto[];
 }
 
 export interface IGetPostParamsDto {
@@ -175,19 +215,4 @@ export interface IModeratePostBodyDto {
 
 export interface IModeratePostResponseDto {
   post: IPostEntity;
-}
-
-export interface IMyPostItemDto {
-  post: IPostEntity;
-  requestCount: number;
-  media: IPublicPostMediaDto[];
-}
-
-export interface IGetMyPostsQueryDto extends IPaginationQueryDto {
-  status?: string;
-}
-
-export interface IGetMyPostsResponseDto {
-  posts: IMyPostItemDto[];
-  meta: IPaginationMetaDto;
 }

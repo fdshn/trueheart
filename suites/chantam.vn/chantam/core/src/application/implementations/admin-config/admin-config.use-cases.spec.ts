@@ -72,7 +72,7 @@ describe('Admin config authorization', () => {
     const useCase = new GetAdminAuditLogsUseCase(repository as never);
 
     await expect(
-      useCase.handle({ actorUserId: ActorId, limit: 50 }),
+      useCase.handle({ actorUserId: ActorId, page: 1, pageSize: 20 }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(repository.getAuditLogs).not.toHaveBeenCalled();
   });

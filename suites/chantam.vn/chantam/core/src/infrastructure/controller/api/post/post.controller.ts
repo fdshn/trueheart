@@ -6,6 +6,7 @@ import {
   IGetNearbyPostsUseCase,
   IGetPostMapUseCase,
   IGetPostUseCase,
+  IGetSmartMatchesUseCase,
   IModeratePostUseCase,
   IRemovePostMediaUseCase,
   IReorderPostMediaUseCase,
@@ -14,6 +15,9 @@ import {
 } from '@/application/contracts/post';
 import {
   CategoryNotFoundException,
+  PostInvalidStateException,
+  PostMediaLimitExceededException,
+  PostMediaOrderInvalidException,
   PostNotFoundException,
   PostQuotaExceededException,
   ProfileIncompleteException,
@@ -25,14 +29,23 @@ import {
   IGetNearbyPostsResponseDto,
   IGetPostMapResponseDto,
   IGetPostResponseDto,
+  IGetSmartMatchesResponseDto,
   IModeratePostResponseDto,
   IReorderPostMediaResponseDto,
   IUpdatePostResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
-import { CurrentUser, IAuthPrincipal, Public } from '@chantam/service.auth-lib';
+import {
+  ApiTokenErrors,
+  CurrentUser,
+  IAuthPrincipal,
+  Public,
+} from '@chantam/service.auth-lib';
 import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
-import { ValidationFailedException } from '@chantam/service.common-lib/exception';
+import {
+  ForbiddenException,
+  ValidationFailedException,
+} from '@chantam/service.common-lib/exception';
 import { IStorageUploadResult } from '@chantam/service.storage-lib';
 import {
   Body,
@@ -65,6 +78,8 @@ import {
   GetPostMapResponseDto,
   GetPostParamsDto,
   GetPostResponseDto,
+  GetSmartMatchesQueryDto,
+  GetSmartMatchesResponseDto,
   ModeratePostBodyDto,
   ModeratePostParamsDto,
   ModeratePostResponseDto,
@@ -102,6 +117,8 @@ export class PostController {
     private readonly getMyPostsUseCase: IGetMyPostsUseCase,
     @Inject(IGetPostUseCase)
     private readonly getPostUseCase: IGetPostUseCase,
+    @Inject(IGetSmartMatchesUseCase)
+    private readonly getSmartMatchesUseCase: IGetSmartMatchesUseCase,
     @Inject(IModeratePostUseCase)
     private readonly moderatePostUseCase: IModeratePostUseCase,
     @Inject(IUpdatePostUseCase)
@@ -145,10 +162,16 @@ export class PostController {
       'Chỉ owner. Key bind cả user và post; client phải PUT rồi submit key qua endpoint attach.',
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(PostMediaUploadResponseDto) })
-  @ApiErrorResponses([
-    ValidationFailedException,
-    ['contentType: contentType should not be empty'],
-  ])
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [
+      ValidationFailedException,
+      ['contentType: contentType should not be empty'],
+    ],
+    [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [ForbiddenException],
+    PostMediaLimitExceededException,
+  )
   public async requestPostMediaUpload(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: PostMediaParamsDto,
@@ -174,6 +197,13 @@ export class PostController {
       'Chỉ owner. Server HeadObject xác minh key, MIME, size và đúng namespace user/post trước khi lưu.',
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(AttachPostMediaResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['storageKey: storageKey should not be empty']],
+    [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [ForbiddenException],
+    PostMediaLimitExceededException,
+  )
   public async attachPostMedia(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: PostMediaParamsDto,
@@ -199,6 +229,13 @@ export class PostController {
       'Chỉ owner. Gửi đầy đủ mediaIds không trùng của đúng post; server cập nhật atomically.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(AttachPostMediaResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['mediaIds: mediaIds should not be empty']],
+    [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [ForbiddenException],
+    PostMediaOrderInvalidException,
+  )
   public async reorderPostMedia(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: PostMediaParamsDto,
@@ -224,6 +261,12 @@ export class PostController {
       'Chỉ owner. Chỉ xoá bản ghi media của đúng post; object storage cleanup theo lifecycle riêng.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(Object) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['mediaId: mediaId must be an integer number']],
+    [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [ForbiddenException],
+  )
   public async removePostMedia(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: PostMediaItemParamsDto,
@@ -244,6 +287,12 @@ export class PostController {
       'Chỉ owner. Xoá mềm và chuyển CANCELLED; transaction guard sẽ bổ sung khi M3 có giao dịch.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(Object) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['postId: postId must be a UUID']],
+    [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [ForbiddenException],
+  )
   public async deletePost(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: UpdatePostParamsDto,
@@ -264,10 +313,15 @@ export class PostController {
       'Chỉ owner sửa title, description hoặc areaLabel. Status/type/author do route riêng của server quản lý.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(UpdatePostResponseDto) })
-  @ApiErrorResponses([
-    ValidationFailedException,
-    ['post.title: title must be longer than or equal to 5 characters'],
-  ])
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [
+      ValidationFailedException,
+      ['post.title: title must be longer than or equal to 5 characters'],
+    ],
+    [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [ForbiddenException],
+  )
   public async updatePost(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: UpdatePostParamsDto,
@@ -293,12 +347,19 @@ export class PostController {
       'Tạm thời chỉ username nằm trong POST_OPERATOR_USERNAMES được thực hiện. Owner không thể tự publish/reject.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(ModeratePostResponseDto) })
-  @ApiErrorResponses([
-    ValidationFailedException,
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
     [
-      'post.status: status must be one of the following values: PUBLISHED, REJECTED',
+      ValidationFailedException,
+      [
+        'post.status: status must be one of the following values: PUBLISHED, REJECTED',
+      ],
     ],
-  ])
+    // Allowlist POST_OPERATOR_USERNAMES kiểm trong use case, không phải ở guard,
+    // nên đây là chỗ duy nhất nó lộ ra tài liệu.
+    [ForbiddenException],
+    PostInvalidStateException,
+  )
   public async moderatePost(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: ModeratePostParamsDto,
@@ -368,17 +429,26 @@ export class PostController {
       .build();
   }
 
+  // PHẢI đứng trước `:postId`, nếu không "me" bị nuốt thành một postId và
+  // route này không bao giờ chạy.
   @Get('me')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Danh sách bài đăng của chính tôi',
+    summary: 'Bài đăng của chính mình',
     description:
-      'Chỉ trả về các bài đăng do chính user tạo, đính kèm số lượng yêu cầu xin đồ và media.',
+      'Lọc theo loại bài, trạng thái duyệt/hiển thị và danh mục, có phân trang. ' +
+      'Dùng `?postType=CLASSIFIED` để lấy danh sách tin rao vặt của bạn. ' +
+      'Khác discovery công khai ở hai điểm: trả cả bài PENDING_REVIEW/REJECTED, ' +
+      'và toạ độ là toạ độ THẬT vì đây là bài của chính bạn.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(GetMyPostsResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, [
+    ValidationFailedException,
+    ['postType: postType must be a valid enum value'],
+  ])
   public async getMyPosts(
-    @CurrentUser() principal: IAuthPrincipal,
     @Query() query: GetMyPostsQueryDto,
+    @CurrentUser() principal: IAuthPrincipal,
   ): Promise<ResponseDto<IGetMyPostsResponseDto>> {
     const result = await this.getMyPostsUseCase.handle({
       ...query,
@@ -391,6 +461,42 @@ export class PostController {
       .build();
   }
 
+  // Đặt TRƯỚC `:postId` cho dễ đọc, dù Nest khớp theo số đoạn nên không đụng
+  // nhau. Người sau thêm route `:postId/...` khác sẽ theo đúng chỗ này.
+  @Get(':postId/matches')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Gợi ý bài ghép đôi cho bài của chính mình (Smart Match)',
+    description:
+      'Bài Muốn Nhận được ghép với Muốn Tặng và ngược lại, theo danh mục + từ khoá + khoảng cách. ' +
+      'Chỉ GỢI Ý — không tạo giao dịch, quyết định cuối thuộc về người dùng. ' +
+      'Chỉ tác giả bài nguồn gọi được, vì vị trí thật của bài được dùng làm tâm tìm kiếm. ' +
+      'Toạ độ bài gợi ý vẫn bị làm nhiễu và khoảng cách làm tròn theo bậc.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(GetSmartMatchesResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['postId: postId must be a UUID']],
+    [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+    [ForbiddenException],
+  )
+  public async getSmartMatches(
+    @Param() params: GetPostParamsDto,
+    @Query() query: GetSmartMatchesQueryDto,
+    @CurrentUser() principal: IAuthPrincipal,
+  ): Promise<ResponseDto<IGetSmartMatchesResponseDto>> {
+    const result = await this.getSmartMatchesUseCase.handle({
+      postId: params.postId,
+      userId: principal.userId,
+      radiusMeters: query.radiusMeters,
+      take: query.take,
+    });
+
+    return ResponseDto.create<IGetSmartMatchesResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
   @Public()
   @Get(':postId')
   @ApiOperation({

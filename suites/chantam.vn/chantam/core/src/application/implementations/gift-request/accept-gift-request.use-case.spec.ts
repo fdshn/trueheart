@@ -118,7 +118,8 @@ describe('AcceptGiftRequestUseCase', () => {
       findOneBy: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<IPostRepository>;
 
-    const giftRequestRepo = {} as unknown as jest.Mocked<IGiftRequestRepository>;
+    const giftRequestRepo =
+      {} as unknown as jest.Mocked<IGiftRequestRepository>;
 
     const useCase = new AcceptGiftRequestUseCase(postRepo, giftRequestRepo);
     await expect(
@@ -136,7 +137,8 @@ describe('AcceptGiftRequestUseCase', () => {
       findOneBy: jest.fn().mockResolvedValue(post),
     } as unknown as jest.Mocked<IPostRepository>;
 
-    const giftRequestRepo = {} as unknown as jest.Mocked<IGiftRequestRepository>;
+    const giftRequestRepo =
+      {} as unknown as jest.Mocked<IGiftRequestRepository>;
 
     const useCase = new AcceptGiftRequestUseCase(postRepo, giftRequestRepo);
     await expect(
@@ -154,7 +156,8 @@ describe('AcceptGiftRequestUseCase', () => {
       findOneBy: jest.fn().mockResolvedValue(post),
     } as unknown as jest.Mocked<IPostRepository>;
 
-    const giftRequestRepo = {} as unknown as jest.Mocked<IGiftRequestRepository>;
+    const giftRequestRepo =
+      {} as unknown as jest.Mocked<IGiftRequestRepository>;
 
     const useCase = new AcceptGiftRequestUseCase(postRepo, giftRequestRepo);
     await expect(

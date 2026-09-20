@@ -1,4 +1,9 @@
 import {
+  GenericMvpPostTypes,
+  GiftPostStatuses,
+  PostTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
+import {
   IGetMyPostsQueryDto,
   IGetMyPostsResponseDto,
   IMyPostItemDto,
@@ -10,7 +15,7 @@ import {
   PaginationQueryDto,
 } from '@chantam/service.common-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsUUID } from 'class-validator';
 import { Mixin } from 'ts-mixer';
 import { PostEntity } from '../../../entity/post.entity';
 import { PublicPostMediaDto } from './post.dto';
@@ -20,17 +25,31 @@ export class GetMyPostsQueryDto
   implements IGetMyPostsQueryDto
 {
   @ApiPropertyOptional({
-    description:
-      'Lọc theo trạng thái bài đăng (PUBLISHED, PENDING_REVIEW, DELIVERING, COMPLETED,...)',
-    example: 'PUBLISHED',
+    enum: GenericMvpPostTypes,
+    description: 'Lọc theo loại bài, ví dụ CLASSIFIED cho tin rao vặt.',
   })
   @IsOptional()
-  @IsString()
-  status?: string;
+  @IsEnum(PostTypes)
+  postType?: PostTypes;
+
+  @ApiPropertyOptional({
+    enum: GiftPostStatuses,
+    description:
+      'Lọc theo trạng thái duyệt/hiển thị. Bỏ trống trả mọi trạng thái, ' +
+      'kể cả PENDING_REVIEW và REJECTED — đây là bài của chính bạn.',
+  })
+  @IsOptional()
+  @IsEnum(GiftPostStatuses)
+  status?: GiftPostStatuses;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
 }
 
 export class MyPostItemDto implements IMyPostItemDto {
-  @ApiProperty({ type: PostEntity })
+  @ApiProperty({ type: () => PostEntity })
   post: IPostEntity;
 
   @ApiProperty({ example: 3, description: 'Số lượng yêu cầu xin đồ đang có' })
@@ -41,9 +60,9 @@ export class MyPostItemDto implements IMyPostItemDto {
 }
 
 export class GetMyPostsResponseDto implements IGetMyPostsResponseDto {
-  @ApiProperty({ type: [MyPostItemDto] })
+  @ApiProperty({ type: () => [MyPostItemDto] })
   posts: IMyPostItemDto[];
 
-  @ApiProperty({ type: PaginationMetaDto })
+  @ApiProperty({ type: () => PaginationMetaDto })
   meta: PaginationMetaDto;
 }

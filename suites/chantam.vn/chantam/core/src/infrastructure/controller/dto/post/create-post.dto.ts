@@ -12,6 +12,7 @@ import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
@@ -28,6 +29,9 @@ import { GeoPointDto } from '../geo-point.dto';
 
 const MaxTotalQuantity = 10_000;
 const MaxEstimatedValue = 1_000_000_000;
+
+/** Trần giá rao bán. Cùng bậc với trần giá trị ước tính để hai bên không lệch. */
+const MaxPrice = 1_000_000_000;
 
 export class CreatePostDto implements ICreatePostDto {
   @ApiProperty({ enum: GenericMvpPostTypes })
@@ -48,8 +52,15 @@ export class CreatePostDto implements ICreatePostDto {
   @IsUUID()
   categoryId: string;
 
-  @ApiPropertyOptional({ enum: GiftPostConditions })
-  @ValidateIf((post) => post.postType === PostTypes.OFFER)
+  @ApiPropertyOptional({
+    enum: GiftPostConditions,
+    description: 'Bắt buộc với bài CLASSIFIED, tuỳ chọn với OFFER.',
+  })
+  @ValidateIf(
+    (post) =>
+      post.postType === PostTypes.OFFER ||
+      post.postType === PostTypes.CLASSIFIED,
+  )
   @IsEnum(GiftPostConditions)
   condition?: GiftPostConditions;
 
@@ -60,6 +71,27 @@ export class CreatePostDto implements ICreatePostDto {
   @Min(0)
   @Max(MaxEstimatedValue)
   estimatedValue?: number;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: MaxPrice,
+    example: 5_200_000,
+    description: 'Giá bán tính bằng VND. Bắt buộc với bài CLASSIFIED.',
+  })
+  @ValidateIf((post) => post.postType === PostTypes.CLASSIFIED)
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(MaxPrice)
+  price?: number;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Có thương lượng giá hay không. Chỉ dùng cho bài CLASSIFIED.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  negotiable?: boolean;
 
   @ApiProperty({ type: () => GeoPointDto })
   @ValidateNested()

@@ -7,8 +7,7 @@ export interface IAcceptGiftRequestCommand {
   userId: string;
 }
 
-export interface IAcceptGiftRequestResult
-  extends IAcceptGiftRequestResponseDto {}
+export interface IAcceptGiftRequestResult extends IAcceptGiftRequestResponseDto {}
 
 export type IAcceptGiftRequestUseCase = IUseCase<
   IAcceptGiftRequestCommand,

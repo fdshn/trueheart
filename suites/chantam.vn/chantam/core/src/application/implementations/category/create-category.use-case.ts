@@ -8,6 +8,7 @@ import {
 } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import { ICategoryRepository } from '@/domain/ports/repository';
+import { GenericMvpPostTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { makeGlobalId, slugify } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
@@ -46,6 +47,9 @@ export class CreateCategoryUseCase implements ICreateCategoryUseCase {
       slug,
       icon: input.icon ?? null,
       sortOrder: input.sortOrder ?? 0,
+      // Bỏ trống là dùng được cho mọi loại bài: giữ nguyên hành vi trước khi
+      // có cột này, để API cũ không đột nhiên tạo ra danh mục không chọn được.
+      postTypes: input.postTypes ?? [...GenericMvpPostTypes],
       isActive: true,
       parentId: input.parentId ?? null,
       deletedAt: null,

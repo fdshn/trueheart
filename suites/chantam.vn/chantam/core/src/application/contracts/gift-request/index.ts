@@ -1,4 +1,4 @@
+export * from './accept-gift-request.contract';
 export * from './create-gift-request.contract';
 export * from './list-post-requests.contract';
 export * from './withdraw-gift-request.contract';
-export * from './accept-gift-request.contract';

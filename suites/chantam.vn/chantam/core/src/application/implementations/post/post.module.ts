@@ -6,6 +6,7 @@ import {
   IGetNearbyPostsUseCase,
   IGetPostMapUseCase,
   IGetPostUseCase,
+  IGetSmartMatchesUseCase,
   IModeratePostUseCase,
   IRemovePostMediaUseCase,
   IReorderPostMediaUseCase,
@@ -13,6 +14,7 @@ import {
   IUpdatePostUseCase,
 } from '@/application/contracts/post';
 import { Global, Module } from '@nestjs/common';
+import { GetSmartMatchesUseCase } from '../smart-match/get-smart-matches.use-case';
 import { AttachPostMediaUseCase } from './attach-post-media.use-case';
 import { CreatePostUseCase } from './create-post.use-case';
 import { DeletePostUseCase } from './delete-post.use-case';
@@ -34,6 +36,7 @@ import { UpdatePostUseCase } from './update-post.use-case';
     { provide: IDeletePostUseCase, useClass: DeletePostUseCase },
     { provide: IGetMyPostsUseCase, useClass: GetMyPostsUseCase },
     { provide: IGetNearbyPostsUseCase, useClass: GetNearbyPostsUseCase },
+    { provide: IGetSmartMatchesUseCase, useClass: GetSmartMatchesUseCase },
     { provide: IGetPostMapUseCase, useClass: GetPostMapUseCase },
     { provide: IGetPostUseCase, useClass: GetPostUseCase },
     { provide: IModeratePostUseCase, useClass: ModeratePostUseCase },
@@ -51,6 +54,7 @@ import { UpdatePostUseCase } from './update-post.use-case';
     IDeletePostUseCase,
     IGetMyPostsUseCase,
     IGetNearbyPostsUseCase,
+    IGetSmartMatchesUseCase,
     IGetPostMapUseCase,
     IGetPostUseCase,
     IModeratePostUseCase,
