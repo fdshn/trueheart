@@ -4,6 +4,7 @@ import { AdminPermissionGuard } from '../../guards';
 import { AdminConfigController } from './admin-config.controller';
 import { AdminRoleController } from './admin-role.controller';
 import { AdminUserController } from './admin-user.controller';
+import { EntitlementPolicyController } from './entitlement-policy.controller';
 import { NotificationChannelController } from './notification-channel.controller';
 
 @Module({
@@ -11,6 +12,7 @@ import { NotificationChannelController } from './notification-channel.controller
     AdminConfigController,
     AdminRoleController,
     AdminUserController,
+    EntitlementPolicyController,
     NotificationChannelController,
   ],
   providers: [{ provide: APP_GUARD, useClass: AdminPermissionGuard }],

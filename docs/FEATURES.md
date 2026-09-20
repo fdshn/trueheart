@@ -193,7 +193,9 @@ Mỗi bài có `category_id`. Admin quản lý `name / slug / icon / order / act
 
 ### F15 — Đăng Muốn Tặng
 Ảnh, thông tin vật phẩm, tình trạng, mô tả, vị trí. Kiểm tra **quota theo Rank** trước khi
-cho đăng. ⚠️ *Số bài tối đa của từng Rank chưa có.*
+cho đăng. Quota nằm trong `capability_rank_values` và Admin sửa được lúc chạy qua
+`POST /api/v1/admin/entitlements` — mặc định Viewer 0, Thành viên 3, Bạc 10, Vàng 20,
+Kim Cương 50. ⚠️ *Các con số này là giả định, chờ Bên A xác nhận.*
 
 ### F16 — Đăng Muốn Nhận
 Nhu cầu nhận vật phẩm hoặc hỗ trợ, kèm danh mục và vị trí/phạm vi. Cũng có quota theo Rank.
@@ -205,7 +207,10 @@ Gợi ý theo **danh mục + khoảng cách + từ khoá**. Phase 1 chỉ dùng 
 **Smart Match chỉ gợi ý — tuyệt đối không tự tạo giao dịch.** Quyết định cuối luôn thuộc về
 con người.
 
-SOS / Cần gấp mở theo quyền Rank. ⚠️ *Rank nào được dùng SOS thì chưa nêu.*
+SOS / Cần gấp mở theo quyền Rank. Quyền này là capability `POST_SOS` trong
+`capability_rank_values`, Admin bật/tắt theo từng Rank lúc chạy qua
+`POST /api/v1/admin/entitlements` — mặc định Bạc trở lên được dùng, Viewer và Thành viên
+không. ⚠️ *Ngưỡng này là giả định, chờ Bên A xác nhận.*
 
 ### F18 — Từ thiện / Hoạt động
 Admin tạo trực tiếp. **Thành viên Kim Cương** được tạo đề xuất, chờ Admin duyệt. Người dùng
@@ -575,8 +580,8 @@ Mười mục dưới đây **chưa có trong bất kỳ tài liệu nào** và 
 | 2 | **Định nghĩa "Active Member"** | 🔴 [F56](#f56--affiliate-event-engine) — ai được nhận thưởng |
 | 3 | **Rank quyết bởi balance hay bởi nhiệm vụ duy trì** | 🔴 [F12](#f12--rank-5-tầng--chu-kỳ-duy-trì-3-tháng) — máy trạng thái Rank |
 | 4 | Xác nhận **"2+2 / 3+3 / 4+4"** = *N giao dịch Cho + N referral* | 🔴 [F12](#f12--rank-5-tầng--chu-kỳ-duy-trì-3-tháng) |
-| 5 | Quota đăng bài của từng Rank | [F15](#f15--đăng-muốn-tặng), [F16](#f16--đăng-muốn-nhận) |
-| 6 | Rank nào được dùng SOS | [F17](#f17--smart-match--sos) |
+| 5 | Quota đăng bài của từng Rank | [F15](#f15--đăng-muốn-tặng), [F16](#f16--đăng-muốn-nhận) — không chặn phát hành: đã có mặc định và Admin sửa được lúc chạy |
+| 6 | Rank nào được dùng SOS | [F17](#f17--smart-match--sos) — không chặn phát hành: đã có mặc định và Admin sửa được lúc chạy |
 | 7 | Bán kính Group lấy từ đâu | [F52](#f52--tạo-group-từ-default-location) |
 | 8 | Sub-team sâu mấy tầng, có quyền gì | [F53](#f53--quản-lý-group--sub-team) |
 | 9 | Giá trị cap theo ngày | [F61](#f61--cấu-hình-rank--point--referral--affiliate--accuracy) |

@@ -54,6 +54,8 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 | `GET` | `/api/v1/admin/system-logs?logType=` | Nhật ký ADMIN / POINT / RANK / TRANSACTION, đọc thẳng từ nguồn thật, cần `audit.read` |
 | `GET` | `/api/v1/admin/notification-channels` | Cấu hình kênh gửi; secret chỉ báo đã cấu hình hay chưa, cần `notification.manage` |
 | `PUT` | `/api/v1/admin/notification-channels/:channel` | Đổi cấu hình kênh; secret ghi vào được, không đọc ra được |
+| `GET` | `/api/v1/admin/entitlements` | Bảng quyền/quota theo rank đang hiệu lực, cần `entitlement.read` |
+| `POST` | `/api/v1/admin/entitlements` | Publish bản chính sách mới; chỉ gửi ô cần đổi, hiệu lực ngay, cần `entitlement.write` + audit |
 | `GET` | `/api/v1/admin/roles` | Role và quyền kèm theo, cần `admin.manage` |
 | `POST\|DELETE` | `/api/v1/admin/users/:userId/roles` | Cấp/thu hồi role; không tự sửa mình, không thu hồi SUPER_ADMIN cuối cùng |
 | `GET` | `/api/v1/admin/users` | Tìm user, lọc theo username/email/SĐT/hạng/trạng thái/role/xác minh/thời gian đăng ký |

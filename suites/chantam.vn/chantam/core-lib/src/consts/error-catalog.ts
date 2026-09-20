@@ -257,6 +257,23 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Không thể tự thay đổi quyền của chính mình',
   },
 
+  // ── 0x0A Chính sách quyền/quota theo rank ─────────────────────────────────
+  ENTITLEMENT_POLICY_UNAVAILABLE: {
+    code: ErrorCodes.ENTITLEMENT_POLICY_UNAVAILABLE,
+    httpStatus: HttpStatus.SERVICE_UNAVAILABLE,
+    // Không có revision nào đang hiệu lực nghĩa là cả hệ thống quota mất đáy
+    // tham chiếu. Fail rõ ràng, đừng đoán bừa một giá trị mặc định.
+    message: () => 'Chưa có bản chính sách quyền nào đang hiệu lực',
+  },
+
+  ENTITLEMENT_CAPABILITY_UNKNOWN: {
+    code: ErrorCodes.ENTITLEMENT_CAPABILITY_UNKNOWN,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (code: string) =>
+      `Không có capability nào mang mã ${code} trong bản chính sách hiện hành`,
+    sample: ['POST_TELEPATHY'],
+  },
+
   // ── 0x04 Phiên đăng nhập, OTP ─────────────────────────────────────────────
   SESSION_NOT_FOUND: {
     code: ErrorCodes.SESSION_NOT_FOUND,

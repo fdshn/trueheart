@@ -1,6 +1,7 @@
 export * from './admin-role.exception';
 export * from './auth.exception';
 export * from './category.exception';
+export * from './entitlement.exception';
 export * from './gift-post-already-closed.exception';
 export * from './gift-post-not-found.exception';
 export * from './gift-transaction.exception';

@@ -21,3 +21,4 @@ export * from './1790100000000-CreateEntitlementPolicies';
 export * from './1790200000000-CreateSystemConfigAdminAudit';
 export * from './1790300000000-CreateNotificationChannels';
 export * from './1790400000000-CreateGiftTransactions';
+export * from './1790500000000-AddEntitlementAdminPermissions';

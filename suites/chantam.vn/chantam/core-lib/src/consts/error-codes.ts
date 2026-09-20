@@ -70,6 +70,10 @@ export enum ErrorCodes {
   ADMIN_LAST_SUPER_ADMIN = 0x09_01,
   ADMIN_SELF_ROLE_CHANGE = 0x09_02,
 
+  // 0x0A — Chính sách quyền/quota theo rank
+  ENTITLEMENT_POLICY_UNAVAILABLE = 0x0a_01,
+  ENTITLEMENT_CAPABILITY_UNKNOWN = 0x0a_02,
+
   // 0x04 — Phiên đăng nhập, OTP, đặt lại mật khẩu
   SESSION_NOT_FOUND = 0x04_01,
   REFRESH_TOKEN_INVALID = 0x04_02,
