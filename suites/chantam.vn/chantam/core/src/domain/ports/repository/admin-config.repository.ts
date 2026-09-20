@@ -18,6 +18,25 @@ export interface IAdminAuditSummary {
   createdAt: Date;
 }
 
+/**
+ * Bộ lọc audit. Mọi trường đều không bắt buộc — bỏ trống thì không lọc theo
+ * trường đó, chứ không phải lọc theo chuỗi rỗng.
+ */
+export interface IAdminAuditQuery {
+  readonly actorUserId?: string;
+  readonly action?: string;
+  readonly resourceType?: string;
+  readonly from?: Date;
+  readonly to?: Date;
+  readonly skip: number;
+  readonly take: number;
+}
+
+export interface IAdminAuditPage {
+  readonly entries: IAdminAuditSummary[];
+  readonly total: number;
+}
+
 export interface IPublishSystemConfigCommand {
   actorUserId: string;
   key: string;
@@ -32,7 +51,7 @@ export interface IAdminConfigRepository {
   publishSystemConfig(
     command: IPublishSystemConfigCommand,
   ): Promise<ISystemConfigSummary>;
-  getAuditLogs(limit: number): Promise<IAdminAuditSummary[]>;
+  getAuditLogs(query: IAdminAuditQuery): Promise<IAdminAuditPage>;
 }
 
 export const IAdminConfigRepository = Symbol('IAdminConfigRepository');

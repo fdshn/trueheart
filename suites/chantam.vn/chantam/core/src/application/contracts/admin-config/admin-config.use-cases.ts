@@ -3,6 +3,7 @@ import {
   ISystemConfigSummary,
 } from '@/domain/ports/repository';
 import { IUseCase } from '@chantam/service.common-lib';
+import { IPaginationMetaDto } from '@chantam/service.common-lib/dto';
 
 export interface IGetAdminConfigsCommand {
   actorUserId: string;
@@ -51,10 +52,17 @@ export const IPublishAdminConfigUseCase = Symbol('IPublishAdminConfigUseCase');
 
 export interface IGetAdminAuditLogsCommand {
   actorUserId: string;
-  limit: number;
+  actorFilter?: string;
+  action?: string;
+  resourceType?: string;
+  from?: Date;
+  to?: Date;
+  page: number;
+  pageSize: number;
 }
 export interface IGetAdminAuditLogsResult {
   logs: IAdminAuditSummary[];
+  meta: IPaginationMetaDto;
 }
 export interface IGetAdminAuditLogsUseCase extends IUseCase<
   IGetAdminAuditLogsCommand,

@@ -1,5 +1,6 @@
 import {
-  IAdminAuditSummary,
+  IAdminAuditPage,
+  IAdminAuditQuery,
   IAdminConfigRepository,
   IPublishSystemConfigCommand,
   ISystemConfigSummary,
@@ -141,7 +142,27 @@ export class AdminConfigRepository implements IAdminConfigRepository {
     });
   }
 
-  public async getAuditLogs(limit: number): Promise<IAdminAuditSummary[]> {
+  public async getAuditLogs(query: IAdminAuditQuery): Promise<IAdminAuditPage> {
+    // Dựng điều kiện theo đúng những trường được truyền. Ghép sẵn `= ''` cho
+    // trường bỏ trống thì danh sách trả về rỗng trong khi audit vẫn có dữ liệu.
+    const conditions: string[] = [];
+    const filters: unknown[] = [];
+    const add = (sql: string, value: unknown): void => {
+      if (value === undefined) return;
+
+      filters.push(value);
+      conditions.push(sql.replace('$?', `$${filters.length}`));
+    };
+
+    add('actor_user_id = $?', query.actorUserId);
+    add('action = $?', query.action);
+    add('resource_type = $?', query.resourceType);
+    add('created_at >= $?', query.from);
+    add('created_at <= $?', query.to);
+
+    const where =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
     const rows = await this.manager.query<
       {
         id: string;
@@ -156,19 +177,30 @@ export class AdminConfigRepository implements IAdminConfigRepository {
       `
         SELECT id, actor_user_id, action, resource_type, resource_id, reason, created_at
         FROM admin_audit_logs
+        ${where}
         ORDER BY created_at DESC, id DESC
-        LIMIT $1
+        LIMIT $${filters.length + 1} OFFSET $${filters.length + 2}
       `,
-      [limit],
+      [...filters, query.take, query.skip],
     );
-    return rows.map((row) => ({
-      id: Number(row.id),
-      actorUserId: row.actor_user_id,
-      action: row.action,
-      resourceType: row.resource_type,
-      resourceId: row.resource_id,
-      reason: row.reason,
-      createdAt: row.created_at,
-    }));
+
+    // Đếm bằng CHÍNH bộ lọc đó. Lệch điều kiện là số trang sai.
+    const [{ total }] = await this.manager.query<{ total: string }[]>(
+      `SELECT COUNT(*) AS total FROM admin_audit_logs ${where}`,
+      filters,
+    );
+
+    return {
+      entries: rows.map((row) => ({
+        id: Number(row.id),
+        actorUserId: row.actor_user_id,
+        action: row.action,
+        resourceType: row.resource_type,
+        resourceId: row.resource_id,
+        reason: row.reason,
+        createdAt: row.created_at,
+      })),
+      total: Number(total),
+    };
   }
 }

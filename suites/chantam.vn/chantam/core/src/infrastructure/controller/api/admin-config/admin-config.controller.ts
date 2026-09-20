@@ -87,7 +87,11 @@ export class AdminConfigController {
   }
 
   @Get('audit-logs')
-  @ApiOperation({ summary: 'Xem audit log Admin' })
+  @ApiOperation({
+    summary: 'Xem audit log Admin',
+    description:
+      'Lọc được theo người thực hiện, hành động, loại tài nguyên và khoảng thời gian. Bỏ trống một bộ lọc nghĩa là không lọc theo trường đó.',
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(GetAdminAuditLogsResponseDto) })
   @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
   public async getAuditLogs(
@@ -99,7 +103,13 @@ export class AdminConfigController {
       .attach(
         await this.getAdminAuditLogsUseCase.handle({
           actorUserId: principal.userId,
-          limit: query.limit,
+          actorFilter: query.actorFilter,
+          action: query.action,
+          resourceType: query.resourceType,
+          from: query.from,
+          to: query.to,
+          page: query.page,
+          pageSize: query.pageSize,
         }),
       )
       .build();
