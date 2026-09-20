@@ -1,10 +1,14 @@
 import {
   IAssignAdminRoleUseCase,
+  IChangeAdminUserStatusUseCase,
+  IDeleteAdminUserUseCase,
   IGetAdminAuditLogsUseCase,
   IGetAdminConfigsUseCase,
+  IGetAdminUserUseCase,
   IGetNotificationChannelsUseCase,
   IGetSystemLogsUseCase,
   IListAdminRolesUseCase,
+  IListAdminUsersUseCase,
   IPublishAdminConfigUseCase,
   IUpdateNotificationChannelUseCase,
 } from '@/application/contracts/admin-config';
@@ -18,6 +22,12 @@ import {
   AssignAdminRoleUseCase,
   ListAdminRolesUseCase,
 } from './admin-role.use-cases';
+import {
+  ChangeAdminUserStatusUseCase,
+  DeleteAdminUserUseCase,
+  GetAdminUserUseCase,
+  ListAdminUsersUseCase,
+} from './admin-user.use-cases';
 import { GetSystemLogsUseCase } from './get-system-logs.use-case';
 import {
   GetNotificationChannelsUseCase,
@@ -36,6 +46,13 @@ import {
     { provide: IGetSystemLogsUseCase, useClass: GetSystemLogsUseCase },
     { provide: IListAdminRolesUseCase, useClass: ListAdminRolesUseCase },
     { provide: IAssignAdminRoleUseCase, useClass: AssignAdminRoleUseCase },
+    { provide: IListAdminUsersUseCase, useClass: ListAdminUsersUseCase },
+    { provide: IGetAdminUserUseCase, useClass: GetAdminUserUseCase },
+    {
+      provide: IChangeAdminUserStatusUseCase,
+      useClass: ChangeAdminUserStatusUseCase,
+    },
+    { provide: IDeleteAdminUserUseCase, useClass: DeleteAdminUserUseCase },
     {
       provide: IGetNotificationChannelsUseCase,
       useClass: GetNotificationChannelsUseCase,
@@ -52,6 +69,10 @@ import {
     IGetSystemLogsUseCase,
     IListAdminRolesUseCase,
     IAssignAdminRoleUseCase,
+    IListAdminUsersUseCase,
+    IGetAdminUserUseCase,
+    IChangeAdminUserStatusUseCase,
+    IDeleteAdminUserUseCase,
     IGetNotificationChannelsUseCase,
     IUpdateNotificationChannelUseCase,
   ],

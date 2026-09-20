@@ -1,4 +1,5 @@
 export * from './admin-config.repository';
+export * from './admin-user.repository';
 export * from './category.repository';
 export * from './entitlement.repository';
 export * from './gift-post.repository';
