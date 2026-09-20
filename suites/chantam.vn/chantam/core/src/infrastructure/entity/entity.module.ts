@@ -9,6 +9,7 @@ import {
   IPostEntity,
   IPostLikeEntity,
   IPostMediaEntity,
+  IReportEntity,
   IUserEntity,
   IUserOnboardingTaskCompletionEntity,
   IUserSessionEntity,
@@ -24,6 +25,7 @@ import { OnboardingTaskEntity } from './onboarding-task.entity';
 import { PostLikeEntity } from './post-like.entity';
 import { PostMediaEntity } from './post-media.entity';
 import { PostEntity } from './post.entity';
+import { ReportEntity } from './report.entity';
 import { UserOnboardingTaskCompletionEntity } from './user-onboarding-task-completion.entity';
 import { UserSessionEntity } from './user-session.entity';
 import { UserEntity } from './user.entity';
@@ -47,6 +49,7 @@ import { UserEntity } from './user.entity';
     { provide: IPostEntity, useValue: PostEntity },
     { provide: IPostLikeEntity, useValue: PostLikeEntity },
     { provide: IPostMediaEntity, useValue: PostMediaEntity },
+    { provide: IReportEntity, useValue: ReportEntity },
     { provide: IUserEntity, useValue: UserEntity },
     {
       provide: IUserOnboardingTaskCompletionEntity,
@@ -62,6 +65,7 @@ import { UserEntity } from './user.entity';
     IPostEntity,
     IPostLikeEntity,
     IPostMediaEntity,
+    IReportEntity,
     IUserEntity,
     IUserOnboardingTaskCompletionEntity,
     IUserSessionEntity,

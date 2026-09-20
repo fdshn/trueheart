@@ -13,5 +13,6 @@ export * from './point-log';
 export * from './post';
 export * from './post-lifecycle';
 export * from './post-media';
+export * from './report';
 export * from './user';
 export * from './user-session';

@@ -398,6 +398,25 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['POST_TELEPATHY'],
   },
 
+  // ── 0x0B Báo cáo vi phạm ─────────────────────────────────────────────────
+  REPORT_NOT_FOUND: {
+    code: ErrorCodes.REPORT_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy báo cáo vi phạm',
+  },
+
+  REPORT_DUPLICATED: {
+    code: ErrorCodes.REPORT_DUPLICATED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Bạn đã có một báo cáo đang chờ xử lý cho đối tượng này',
+  },
+
+  REPORT_INVALID_STATE: {
+    code: ErrorCodes.REPORT_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Báo cáo đã được xử lý và không thể thay đổi quyết định',
+  },
+
   // ── 0x04 Phiên đăng nhập, OTP ─────────────────────────────────────────────
   SESSION_NOT_FOUND: {
     code: ErrorCodes.SESSION_NOT_FOUND,

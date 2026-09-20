@@ -15,6 +15,7 @@ import { PostModule } from './implementations/post/post.module';
 import { ProfileModule } from './implementations/profile/profile.module';
 import { RankModule } from './implementations/rank/rank.module';
 import { ReferralModule } from './implementations/referral/referral.module';
+import { ReportModule } from './implementations/report/report.module';
 import { TransactionModule } from './implementations/transaction/transaction.module';
 
 /**
@@ -35,6 +36,7 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
     OnboardingModule,
     PointModule,
     ReferralModule,
+    ReportModule,
     RankModule,
     PostModule,
     TransactionModule,

@@ -115,8 +115,11 @@ Nghiệp vụ Chân Tâm
 | `0x0e01` | `3585` | 422 | `CONTENT_BLOCKED_TERMS` | Nội dung có từ ngữ không được phép. Vui lòng viết lại |
 | `0x0e02` | `3586` | 404 Not Found | `CONTENT_COMMENT_NOT_FOUND` | Không tìm thấy bình luận |
 | `0x0e03` | `3587` | 409 Conflict | `CONTENT_EDIT_WINDOW_CLOSED` | Chỉ sửa được bình luận trong 15 phút đầu |
+| `0x0f01` | `3841` | 404 Not Found | `REPORT_NOT_FOUND` | Không tìm thấy báo cáo vi phạm |
+| `0x0f02` | `3842` | 409 Conflict | `REPORT_DUPLICATED` | Bạn đã có một báo cáo đang chờ xử lý cho đối tượng này |
+| `0x0f03` | `3843` | 409 Conflict | `REPORT_INVALID_STATE` | Báo cáo đã được xử lý và không thể thay đổi quyết định |
 
 ---
 
-Tổng cộng **76 mã lỗi** trên 3 tầng.
+Tổng cộng **79 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

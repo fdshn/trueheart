@@ -101,6 +101,11 @@ export enum ErrorCodes {
   CHAT_ROOM_READ_ONLY = 0x0b_02,
   NOTIFICATION_NOT_FOUND = 0x0b_03,
 
+  // 0x0F — Báo cáo vi phạm
+  REPORT_NOT_FOUND = 0x0f_01,
+  REPORT_DUPLICATED = 0x0f_02,
+  REPORT_INVALID_STATE = 0x0f_03,
+
   // 0x04 — Phiên đăng nhập, OTP, đặt lại mật khẩu
   SESSION_NOT_FOUND = 0x04_01,
   REFRESH_TOKEN_INVALID = 0x04_02,

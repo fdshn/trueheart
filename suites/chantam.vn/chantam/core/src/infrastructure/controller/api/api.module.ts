@@ -16,6 +16,7 @@ import { PostControllerModule } from './post/post.module';
 import { ProfileControllerModule } from './profile/profile.module';
 import { RankControllerModule } from './rank/rank.module';
 import { ReferralControllerModule } from './referral/referral.module';
+import { ReportControllerModule } from './report/report.module';
 import { TransactionControllerModule } from './transaction/transaction.module';
 
 /** Gom mọi controller module theo resource. */
@@ -37,6 +38,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
     PostControllerModule,
     ProfileControllerModule,
     ReferralControllerModule,
+    ReportControllerModule,
     RankControllerModule,
     TransactionControllerModule,
   ],

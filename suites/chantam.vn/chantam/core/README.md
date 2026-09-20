@@ -81,6 +81,10 @@ buộc riêng tư, thứ tự kiểm tra — xem [`docs/API.md`](../../../../doc
 | `GET` | `/api/v1/admin/posts` | Hàng đợi bài đăng, mặc định `PENDING_REVIEW`, cần `post.read` |
 | `GET` | `/api/v1/admin/posts/:postId` | Chi tiết và media cho moderator, cần `post.read` |
 | `PATCH` | `/api/v1/admin/posts/:postId/moderation` | Duyệt/từ chối có lý do và audit nguyên tử, cần `post.moderate` |
+| `POST` | `/api/v1/reports` | Thành viên báo cáo bài hoặc người dùng, kèm tối đa 5 URL bằng chứng |
+| `GET` | `/api/v1/admin/reports` | Hàng đợi report, ưu tiên target có nhiều tín hiệu mở, cần `report.read` |
+| `GET` | `/api/v1/admin/reports/:reportId` | Chi tiết report và bằng chứng, cần `report.read` |
+| `PATCH` | `/api/v1/admin/reports/:reportId/review` | Kết luận/bác bỏ kèm ghi chú và audit nguyên tử, cần `report.resolve` |
 
 > **Quyền Admin là fail-closed.** `AdminPermissionGuard` chặn MỌI route dưới
 > `/admin` không khai `@RequiresPermission(...)`. Thêm endpoint quản trị mà quên
