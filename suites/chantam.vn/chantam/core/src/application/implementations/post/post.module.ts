@@ -3,11 +3,14 @@ import {
   ICreatePostUseCase,
   IDeletePostUseCase,
   IExpireDuePostsUseCase,
+  IGetAdminPostUseCase,
   IGetMyPostsUseCase,
   IGetNearbyPostsUseCase,
   IGetPostMapUseCase,
   IGetPostUseCase,
   IGetSmartMatchesUseCase,
+  IListAdminPostsUseCase,
+  IModerateAdminPostUseCase,
   IModeratePostUseCase,
   IRemovePostMediaUseCase,
   IRenewPostUseCase,
@@ -20,6 +23,11 @@ import {
 } from '@/application/contracts/post';
 import { Global, Module } from '@nestjs/common';
 import { GetSmartMatchesUseCase } from '../smart-match/get-smart-matches.use-case';
+import {
+  GetAdminPostUseCase,
+  ListAdminPostsUseCase,
+  ModerateAdminPostUseCase,
+} from './admin-post.use-cases';
 import { AttachPostMediaUseCase } from './attach-post-media.use-case';
 import {
   RequestCharityTransferUseCase,
@@ -44,6 +52,9 @@ import { UpdatePostUseCase } from './update-post.use-case';
 @Module({
   providers: [
     { provide: IAttachPostMediaUseCase, useClass: AttachPostMediaUseCase },
+    { provide: IGetAdminPostUseCase, useClass: GetAdminPostUseCase },
+    { provide: IListAdminPostsUseCase, useClass: ListAdminPostsUseCase },
+    { provide: IModerateAdminPostUseCase, useClass: ModerateAdminPostUseCase },
     { provide: ICreatePostUseCase, useClass: CreatePostUseCase },
     {
       provide: IRequestCharityTransferUseCase,
@@ -73,6 +84,9 @@ import { UpdatePostUseCase } from './update-post.use-case';
   ],
   exports: [
     IAttachPostMediaUseCase,
+    IGetAdminPostUseCase,
+    IListAdminPostsUseCase,
+    IModerateAdminPostUseCase,
     ICreatePostUseCase,
     IDeletePostUseCase,
     IRequestCharityTransferUseCase,

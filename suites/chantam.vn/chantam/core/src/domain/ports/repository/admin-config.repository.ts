@@ -52,6 +52,11 @@ export interface IAdminRoleSummary {
   readonly permissions: string[];
 }
 
+export interface IAdminAccessSummary {
+  readonly roles: string[];
+  readonly permissions: string[];
+}
+
 export interface IAdminRoleAssignment {
   readonly actorUserId: string;
   readonly targetUserId: string;
@@ -61,6 +66,7 @@ export interface IAdminRoleAssignment {
 
 export interface IAdminConfigRepository {
   hasPermission(userId: string, permission: string): Promise<boolean>;
+  getAccess(userId: string): Promise<IAdminAccessSummary>;
   getPublishedConfigs(): Promise<ISystemConfigSummary[]>;
   /**
    * Giá trị JSON của bản đang hiệu lực cho một khoá, hoặc `null` khi chưa có.

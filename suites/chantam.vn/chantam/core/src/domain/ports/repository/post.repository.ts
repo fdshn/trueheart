@@ -80,6 +80,49 @@ export interface IFindMyPostsResult {
   total: number;
 }
 
+export interface IAdminPostSummary {
+  readonly globalId: string;
+  readonly postType: PostTypes;
+  readonly authorId: string;
+  readonly authorUsername: string;
+  readonly authorFullName: string | null;
+  readonly categoryId: string;
+  readonly title: string;
+  readonly description: string;
+  readonly areaLabel: string;
+  readonly status: string;
+  readonly totalQuantity: number;
+  readonly remainingQuantity: number;
+  readonly details: Record<string, unknown>;
+  readonly expiresAt: Date | null;
+  readonly mediaCount: number;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+export interface IFindAdminPostsParams {
+  readonly status?: string;
+  readonly postType?: PostTypes;
+  readonly categoryId?: string;
+  readonly authorId?: string;
+  readonly keyword?: string;
+  readonly skip: number;
+  readonly take: number;
+}
+
+export interface IFindAdminPostsResult {
+  readonly items: IAdminPostSummary[];
+  readonly total: number;
+}
+
+export interface IModeratePostByAdminCommand {
+  readonly actorUserId: string;
+  readonly postId: string;
+  readonly status: 'PUBLISHED' | 'REJECTED';
+  readonly expiresAt: Date | null;
+  readonly reason: string;
+}
+
 export interface ISmartMatchCandidate {
   post: IPostEntity;
   distanceMeters: number;
@@ -155,6 +198,11 @@ export interface IPostRepository extends Repository<IPostEntity> {
    * đó là toàn bộ lý do endpoint này tồn tại tách khỏi discovery.
    */
   findMyPosts(params: IFindMyPostsParams): Promise<IFindMyPostsResult>;
+  findAdminPosts(params: IFindAdminPostsParams): Promise<IFindAdminPostsResult>;
+  findAdminByGlobalId(globalId: string): Promise<IAdminPostSummary | null>;
+  moderatePendingReviewByAdmin(
+    command: IModeratePostByAdminCommand,
+  ): Promise<IPostEntity | null>;
   findPublicByGlobalId(
     globalId: string,
     currentUserId?: string,

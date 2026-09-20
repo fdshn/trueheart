@@ -1,5 +1,6 @@
 import {
   IAssignAdminRoleUseCase,
+  IGetOwnAdminAccessUseCase,
   IListAdminRolesUseCase,
 } from '@/application/contracts/admin-config';
 import {
@@ -32,6 +33,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { AdminAccessResponseDto } from '../../dto/admin-config/admin-access.dto';
 import {
   AdminRoleUserParamsDto,
   AssignAdminRoleBodyDto,
@@ -48,7 +50,30 @@ export class AdminRoleController {
     private readonly listAdminRolesUseCase: IListAdminRolesUseCase,
     @Inject(IAssignAdminRoleUseCase)
     private readonly assignAdminRoleUseCase: IAssignAdminRoleUseCase,
+    @Inject(IGetOwnAdminAccessUseCase)
+    private readonly getOwnAdminAccessUseCase: IGetOwnAdminAccessUseCase,
   ) {}
+
+  @Get('me')
+  @RequiresPermission('admin.access')
+  @ApiOperation({
+    summary: 'Role và permission của phiên Admin hiện tại',
+    description:
+      'Đọc lại từ database ở mỗi request; CMS không phân quyền theo snapshot trong JWT.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(AdminAccessResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
+  public async getOwnAccess(@CurrentUser() principal: IAuthPrincipal) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.getOwnAdminAccessUseCase.handle({
+          actorUserId: principal.userId,
+          username: principal.username,
+        }),
+      )
+      .build();
+  }
 
   @Get('roles')
   @RequiresPermission('admin.manage')

@@ -72,11 +72,15 @@ buộc riêng tư, thứ tự kiểm tra — xem [`docs/API.md`](../../../../doc
 | `GET` | `/api/v1/admin/entitlements` | Bảng quyền/quota theo rank đang hiệu lực, cần `entitlement.read` |
 | `POST` | `/api/v1/admin/entitlements` | Publish bản chính sách mới; chỉ gửi ô cần đổi, hiệu lực ngay, cần `entitlement.write` + audit |
 | `GET` | `/api/v1/admin/roles` | Role và quyền kèm theo, cần `admin.manage` |
+| `GET` | `/api/v1/admin/me` | Role và permission hiện tại của phiên CMS, cần `admin.access` |
 | `POST\|DELETE` | `/api/v1/admin/users/:userId/roles` | Cấp/thu hồi role; không tự sửa mình, không thu hồi SUPER_ADMIN cuối cùng |
 | `GET` | `/api/v1/admin/users` | Tìm user, lọc theo username/email/SĐT/hạng/trạng thái/role/xác minh/thời gian đăng ký |
 | `GET` | `/api/v1/admin/users/:userId` | Chi tiết một user |
 | `PATCH` | `/api/v1/admin/users/:userId/status` | Đổi trạng thái; khoá/cấm sẽ thu hồi token và phiên ngay |
 | `DELETE` | `/api/v1/admin/users/:userId` | Xoá mềm kèm ẩn danh, giữ username để chống mạo danh |
+| `GET` | `/api/v1/admin/posts` | Hàng đợi bài đăng, mặc định `PENDING_REVIEW`, cần `post.read` |
+| `GET` | `/api/v1/admin/posts/:postId` | Chi tiết và media cho moderator, cần `post.read` |
+| `PATCH` | `/api/v1/admin/posts/:postId/moderation` | Duyệt/từ chối có lý do và audit nguyên tử, cần `post.moderate` |
 
 > **Quyền Admin là fail-closed.** `AdminPermissionGuard` chặn MỌI route dưới
 > `/admin` không khai `@RequiresPermission(...)`. Thêm endpoint quản trị mà quên

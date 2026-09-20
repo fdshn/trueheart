@@ -7,6 +7,7 @@ import {
   IGetAdminUserUseCase,
   IGetCandidateSelectionUseCase,
   IGetNotificationChannelsUseCase,
+  IGetOwnAdminAccessUseCase,
   IGetSystemLogsUseCase,
   IListAdminRolesUseCase,
   IListAdminUsersUseCase,
@@ -34,6 +35,7 @@ import {
   GetCandidateSelectionUseCase,
   SetCandidateSelectionUseCase,
 } from './candidate-selection.use-cases';
+import { GetOwnAdminAccessUseCase } from './get-own-admin-access.use-case';
 import { GetSystemLogsUseCase } from './get-system-logs.use-case';
 import {
   GetNotificationChannelsUseCase,
@@ -58,6 +60,10 @@ import {
     },
     { provide: IGetAdminAuditLogsUseCase, useClass: GetAdminAuditLogsUseCase },
     { provide: IGetSystemLogsUseCase, useClass: GetSystemLogsUseCase },
+    {
+      provide: IGetOwnAdminAccessUseCase,
+      useClass: GetOwnAdminAccessUseCase,
+    },
     { provide: IListAdminRolesUseCase, useClass: ListAdminRolesUseCase },
     { provide: IAssignAdminRoleUseCase, useClass: AssignAdminRoleUseCase },
     { provide: IListAdminUsersUseCase, useClass: ListAdminUsersUseCase },
@@ -83,6 +89,7 @@ import {
     IPublishAdminConfigUseCase,
     IGetAdminAuditLogsUseCase,
     IGetSystemLogsUseCase,
+    IGetOwnAdminAccessUseCase,
     IListAdminRolesUseCase,
     IAssignAdminRoleUseCase,
     IListAdminUsersUseCase,

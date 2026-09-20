@@ -34,3 +34,4 @@ export * from './1791400000000-AddChatRetention';
 export * from './1791500000000-CreateFeedInteractions';
 export * from './1791600000000-AddSelectionModeAndLikes';
 export * from './1791700000000-SeedOnboardingCompletedPointRule';
+export * from './1791800000000-AddAdminPostPermissions';

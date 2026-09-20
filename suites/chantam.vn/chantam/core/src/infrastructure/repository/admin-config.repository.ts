@@ -1,5 +1,6 @@
 import { LastSuperAdminException } from '@/domain/exceptions';
 import {
+  IAdminAccessSummary,
   IAdminAuditPage,
   IAdminAuditQuery,
   IAdminConfigRepository,
@@ -85,6 +86,37 @@ export class AdminConfigRepository implements IAdminConfigRepository {
     );
 
     return row?.value_json ?? null;
+  }
+
+  public async getAccess(userId: string): Promise<IAdminAccessSummary> {
+    const [row] = await this.manager.query<
+      { roles: string[] | null; permissions: string[] | null }[]
+    >(
+      `
+        SELECT
+          ARRAY_REMOVE(ARRAY_AGG(DISTINCT role.code), NULL) AS roles,
+          ARRAY_REMOVE(ARRAY_AGG(DISTINCT permission.code), NULL) AS permissions
+        FROM users user_account
+        LEFT JOIN admin_user_roles user_role
+          ON user_role.user_id = user_account.global_id
+        LEFT JOIN admin_roles role
+          ON role.id = user_role.role_id AND role.is_active = true
+        LEFT JOIN admin_role_permissions role_permission
+          ON role_permission.role_id = role.id
+        LEFT JOIN admin_permissions permission
+          ON permission.id = role_permission.permission_id
+        WHERE user_account.global_id = $1
+          AND user_account.status = 'ACTIVE'
+          AND user_account.deleted_at IS NULL
+        GROUP BY user_account.global_id
+      `,
+      [userId],
+    );
+
+    return {
+      roles: row?.roles ?? [],
+      permissions: row?.permissions ?? [],
+    };
   }
 
   public async getPublishedConfigs(): Promise<ISystemConfigSummary[]> {
