@@ -9,3 +9,4 @@ export * from './post';
 export * from './profile';
 export * from './rank';
 export * from './referral';
+export * from './transaction';

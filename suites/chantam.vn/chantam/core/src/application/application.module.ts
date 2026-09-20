@@ -11,6 +11,7 @@ import { PostModule } from './implementations/post/post.module';
 import { ProfileModule } from './implementations/profile/profile.module';
 import { RankModule } from './implementations/rank/rank.module';
 import { ReferralModule } from './implementations/referral/referral.module';
+import { TransactionModule } from './implementations/transaction/transaction.module';
 
 /**
  * Chỉ import feature module cấp resource. Không import module hạ tầng
@@ -28,6 +29,7 @@ import { ReferralModule } from './implementations/referral/referral.module';
     ReferralModule,
     RankModule,
     PostModule,
+    TransactionModule,
     ProfileModule,
     CategoryModule,
   ],
