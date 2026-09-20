@@ -289,6 +289,22 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     return Number(row?.total ?? 0);
   }
 
+  public async countOpenForUser(userId: string): Promise<number> {
+    // Bắt cả hai vai: người đang chờ nhận hàng cũng đang dở dang như người
+    // đang phải trao.
+    const [row] = await this.manager.query<{ total: string }[]>(
+      `
+        SELECT COUNT(*) AS total
+        FROM gift_transactions
+        WHERE (giver_id = $1 OR receiver_id = $1)
+          AND status IN ('REQUESTED', 'ACCEPTED', 'DELIVERING')
+      `,
+      [userId],
+    );
+
+    return Number(row?.total ?? 0);
+  }
+
   private async lockTransaction(
     manager: EntityManager,
     transactionId: string,

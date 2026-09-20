@@ -68,6 +68,13 @@ export interface IGiftTransactionRepository {
     giverId: string,
     window?: { from: Date; to: Date },
   ): Promise<number>;
+  /**
+   * Số lượt còn dở dang mà người này đang tham gia, ở CẢ hai vai.
+   *
+   * Dùng để chặn xoá tài khoản (F06): xoá giữa chừng là bỏ phía bên kia treo
+   * với một lượt trao không bao giờ kết thúc.
+   */
+  countOpenForUser(userId: string): Promise<number>;
 }
 
 export const IGiftTransactionRepository = Symbol('IGiftTransactionRepository');

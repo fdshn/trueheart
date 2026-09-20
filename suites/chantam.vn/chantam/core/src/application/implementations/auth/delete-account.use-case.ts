@@ -3,8 +3,12 @@ import {
   IDeleteAccountResult,
   IDeleteAccountUseCase,
 } from '@/application/contracts/auth';
-import { InvalidCredentialsException } from '@/domain/exceptions';
 import {
+  InvalidCredentialsException,
+  UserHasOpenTransactionsException,
+} from '@/domain/exceptions';
+import {
+  IGiftTransactionRepository,
   IUserRepository,
   IUserSessionRepository,
 } from '@/domain/ports/repository';
@@ -23,6 +27,8 @@ export class DeleteAccountUseCase implements IDeleteAccountUseCase {
     private readonly passwordService: IPasswordService,
     @Inject(ITokenDenyList)
     private readonly denyList: ITokenDenyList,
+    @Inject(IGiftTransactionRepository)
+    private readonly transactionRepository: IGiftTransactionRepository,
   ) {}
 
   public async handle(
@@ -43,8 +49,17 @@ export class DeleteAccountUseCase implements IDeleteAccountUseCase {
 
     if (!matches) throw new InvalidCredentialsException();
 
-    // TODO(M3): chặn xoá khi còn giao dịch dở dang (F06). Bảng `transactions`
-    // chưa tồn tại, nên phép kiểm này chưa gắn được.
+    // Chặn TRƯỚC khi thu hồi token: thu hồi rồi mới phát hiện không xoá được
+    // là đá người dùng ra khỏi phiên đang đăng nhập dù tài khoản vẫn còn nguyên.
+    // Xoá khi còn lượt trao dở dang thì phía bên kia bị treo với một giao dịch
+    // không bao giờ kết thúc.
+    const openTransactions = await this.transactionRepository.countOpenForUser(
+      user.globalId,
+    );
+
+    if (openTransactions > 0)
+      throw new UserHasOpenTransactionsException(openTransactions);
+
     // TODO(M5): Owner xoá tài khoản thì Group phải giải tán (F55).
 
     const deletedAt = new Date();

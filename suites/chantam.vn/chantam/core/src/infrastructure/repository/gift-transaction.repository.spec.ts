@@ -166,3 +166,32 @@ describe('GiftTransactionRepository activity counting', () => {
     expect(params).toEqual([GiverId, from, to]);
   });
 });
+
+describe('GiftTransactionRepository open transaction count', () => {
+  it('đếm lượt dở dang ở CẢ hai vai của người dùng', async () => {
+    // Chỉ đếm một vai thì người đang chờ nhận hàng vẫn xoá được tài khoản.
+    const query = jest.fn().mockResolvedValue([{ total: '2' }]);
+    const repository = makeRepository(query);
+
+    await expect(repository.countOpenForUser(GiverId)).resolves.toBe(2);
+
+    const [sql, params] = query.mock.calls[0];
+    expect(String(sql)).toContain('giver_id = $1');
+    expect(String(sql)).toContain('receiver_id = $1');
+    expect(params).toEqual([GiverId]);
+  });
+
+  it('chỉ tính những trạng thái còn dở dang', async () => {
+    const query = jest.fn().mockResolvedValue([{ total: '0' }]);
+    const repository = makeRepository(query);
+
+    await repository.countOpenForUser(GiverId);
+
+    const sql = String(query.mock.calls[0][0]);
+    for (const status of ['REQUESTED', 'ACCEPTED', 'DELIVERING'])
+      expect(sql).toContain(status);
+    // Đã xong hoặc đã đóng thì không chặn xoá tài khoản nữa.
+    for (const status of ['COMPLETED', 'CANCELLED', 'REJECTED'])
+      expect(sql).not.toContain(status);
+  });
+});
