@@ -60,6 +60,8 @@ Nghiệp vụ Chân Tâm
 | `0x0104` | `260` | 409 Conflict | `GIFT_POST_OUT_OF_STOCK` | Bài đăng đã hết số lượng |
 | `0x0201` | `513` | 404 Not Found | `GIFT_REQUEST_NOT_FOUND` | Không tìm thấy yêu cầu 7c3e0b18-2f44-4a91-9d2e-55b0a1f6c8d3 |
 | `0x0202` | `514` | 409 Conflict | `GIFT_REQUEST_DUPLICATED` | Bạn đã gửi yêu cầu cho bài đăng này rồi |
+| `0x0203` | `515` | 403 Forbidden | `CANNOT_REQUEST_OWN_POST` | Bạn không thể tự gửi yêu cầu xin đồ cho bài đăng của chính mình |
+| `0x0204` | `516` | 400 Bad Request | `POST_NOT_ACCEPTING_REQUESTS` | Bài đăng hiện không ở trạng thái mở nhận yêu cầu |
 | `0x0301` | `769` | 404 Not Found | `USER_NOT_FOUND` | Không tìm thấy tài khoản |
 | `0x0302` | `770` | 403 Forbidden | `USER_SUSPENDED` | Tài khoản đang bị tạm khoá tới 2026-10-01T00:00:00.000Z |
 | `0x0303` | `771` | 403 Forbidden | `USER_BANNED` | Tài khoản đã bị khoá vĩnh viễn |
@@ -94,8 +96,10 @@ Nghiệp vụ Chân Tâm
 | `0x0805` | `2053` | 409 Conflict | `GIFT_TRANSACTION_DUPLICATE_REQUEST` | Bạn đã có một yêu cầu đang mở trên bài đăng này |
 | `0x0901` | `2305` | 409 Conflict | `ADMIN_LAST_SUPER_ADMIN` | Không thể thu hồi SUPER_ADMIN cuối cùng: sẽ không còn ai cấp lại quyền được |
 | `0x0902` | `2306` | 403 Forbidden | `ADMIN_SELF_ROLE_CHANGE` | Không thể tự thay đổi quyền của chính mình |
+| `0x0a01` | `2561` | 503 | `ENTITLEMENT_POLICY_UNAVAILABLE` | Chưa có bản chính sách quyền nào đang hiệu lực |
+| `0x0a02` | `2562` | 400 Bad Request | `ENTITLEMENT_CAPABILITY_UNKNOWN` | Không có capability nào mang mã POST_TELEPATHY trong bản chính sách hiện hành |
 
 ---
 
-Tổng cộng **55 mã lỗi** trên 3 tầng.
+Tổng cộng **59 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.
