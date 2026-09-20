@@ -56,6 +56,7 @@ function makeConfig(): IConfig {
     rankOperator: { usernames: [] },
     adminBootstrap: { usernames: [] },
     web: { publicBaseUrl: '' },
+    security: { secretEncryptionKey: '' },
     storage: {
       endpoint: '',
       region: '',

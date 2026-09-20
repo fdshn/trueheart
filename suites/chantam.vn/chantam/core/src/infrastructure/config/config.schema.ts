@@ -55,6 +55,11 @@ export const ConfigSchema = Joi.object({
   // null thay vì đoán một domain không tồn tại.
   WEB_PUBLIC_BASE_URL: Joi.string().uri().allow('').default(''),
 
+  // Khoá 32 byte base64 mã hoá secret Admin cấu hình (SMTP, Zalo...).
+  // Sinh bằng: openssl rand -base64 32
+  // Bỏ trống thì không lưu được secret nào — fail closed, không lưu bản rõ.
+  CONFIG_ENCRYPTION_KEY: Joi.string().allow('').default(''),
+
   // M1 temporary category manager allowlist. M6 replaces it with real admin roles.
   CATEGORY_ADMIN_USERNAMES: Joi.string().allow('').default(''),
   // M2 temporary moderation allowlist. M6 replaces it with real admin roles.

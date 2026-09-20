@@ -115,6 +115,10 @@ export function loadConfig(): IConfig {
       ),
     },
 
+    security: {
+      secretEncryptionKey: process.env.CONFIG_ENCRYPTION_KEY ?? '',
+    },
+
     storage: {
       endpoint: process.env.STORAGE_ENDPOINT ?? '',
       region: process.env.STORAGE_REGION ?? 'auto',
