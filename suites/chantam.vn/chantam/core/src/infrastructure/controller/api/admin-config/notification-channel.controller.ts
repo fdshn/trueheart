@@ -26,6 +26,7 @@ import {
   UpdateNotificationChannelBodyDto,
   UpdateNotificationChannelResponseDto,
 } from '../../dto/admin-config/notification-channel.dto';
+import { RequiresPermission } from '../../guards';
 
 @ApiTags('Admin - Kênh gửi')
 @ApiBearerAuth()
@@ -39,6 +40,7 @@ export class NotificationChannelController {
   ) {}
 
   @Get()
+  @RequiresPermission('notification.manage')
   @ApiOperation({
     summary: 'Cấu hình các kênh gửi email/SMS/Zalo',
     description:
@@ -62,6 +64,7 @@ export class NotificationChannelController {
   }
 
   @Put(':channel')
+  @RequiresPermission('notification.manage')
   @ApiOperation({
     summary: 'Đổi cấu hình một kênh gửi',
     description:

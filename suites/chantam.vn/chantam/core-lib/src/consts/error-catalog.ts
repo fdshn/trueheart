@@ -243,6 +243,20 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Bạn đã có một yêu cầu đang mở trên bài đăng này',
   },
 
+  // ── 0x09 Quản trị RBAC ────────────────────────────────────────────────────
+  ADMIN_LAST_SUPER_ADMIN: {
+    code: ErrorCodes.ADMIN_LAST_SUPER_ADMIN,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Không thể thu hồi SUPER_ADMIN cuối cùng: sẽ không còn ai cấp lại quyền được',
+  },
+
+  ADMIN_SELF_ROLE_CHANGE: {
+    code: ErrorCodes.ADMIN_SELF_ROLE_CHANGE,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () => 'Không thể tự thay đổi quyền của chính mình',
+  },
+
   // ── 0x04 Phiên đăng nhập, OTP ─────────────────────────────────────────────
   SESSION_NOT_FOUND: {
     code: ErrorCodes.SESSION_NOT_FOUND,

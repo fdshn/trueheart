@@ -34,6 +34,7 @@ import {
   GetSystemLogsQueryDto,
   GetSystemLogsResponseDto,
 } from '../../dto/admin-config/system-log.dto';
+import { RequiresPermission } from '../../guards';
 
 @ApiTags('Admin - System Config')
 @ApiBearerAuth()
@@ -51,6 +52,7 @@ export class AdminConfigController {
   ) {}
 
   @Get('system-configs')
+  @RequiresPermission('config.read')
   @ApiOperation({ summary: 'Danh sách system config đang hiệu lực' })
   @ApiOkResponse({ type: ResponseDto.forApi(GetAdminConfigsResponseDto) })
   @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
@@ -66,6 +68,7 @@ export class AdminConfigController {
   }
 
   @Post('system-configs')
+  @RequiresPermission('config.write')
   @ApiOperation({ summary: 'Publish system config revision mới' })
   @ApiCreatedResponse({
     type: ResponseDto.forApi(PublishSystemConfigResponseDto),
@@ -94,6 +97,7 @@ export class AdminConfigController {
   }
 
   @Get('audit-logs')
+  @RequiresPermission('audit.read')
   @ApiOperation({
     summary: 'Xem audit log Admin',
     description:
@@ -123,6 +127,7 @@ export class AdminConfigController {
   }
 
   @Get('system-logs')
+  @RequiresPermission('audit.read')
   @ApiOperation({
     summary: 'Nhật ký hệ thống theo từng loại',
     description:

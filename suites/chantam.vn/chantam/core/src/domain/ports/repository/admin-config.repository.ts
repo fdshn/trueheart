@@ -45,6 +45,20 @@ export interface IPublishSystemConfigCommand {
   reason: string;
 }
 
+export interface IAdminRoleSummary {
+  readonly code: string;
+  readonly name: string;
+  readonly isActive: boolean;
+  readonly permissions: string[];
+}
+
+export interface IAdminRoleAssignment {
+  readonly actorUserId: string;
+  readonly targetUserId: string;
+  readonly roleCode: string;
+  readonly reason: string;
+}
+
 export interface IAdminConfigRepository {
   hasPermission(userId: string, permission: string): Promise<boolean>;
   getPublishedConfigs(): Promise<ISystemConfigSummary[]>;
@@ -52,6 +66,13 @@ export interface IAdminConfigRepository {
     command: IPublishSystemConfigCommand,
   ): Promise<ISystemConfigSummary>;
   getAuditLogs(query: IAdminAuditQuery): Promise<IAdminAuditPage>;
+  listRoles(): Promise<IAdminRoleSummary[]>;
+  grantRole(assignment: IAdminRoleAssignment): Promise<void>;
+  /**
+   * Thu hồi role. Phải từ chối khi đó là SUPER_ADMIN cuối cùng — mất người cuối
+   * cùng là không còn ai cấp lại quyền cho bất kỳ ai, kể cả chính mình.
+   */
+  revokeRole(assignment: IAdminRoleAssignment): Promise<void>;
 }
 
 export const IAdminConfigRepository = Symbol('IAdminConfigRepository');

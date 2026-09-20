@@ -1,7 +1,10 @@
+import { LastSuperAdminException } from '@/domain/exceptions';
 import {
   IAdminAuditPage,
   IAdminAuditQuery,
   IAdminConfigRepository,
+  IAdminRoleAssignment,
+  IAdminRoleSummary,
   IPublishSystemConfigCommand,
   ISystemConfigSummary,
 } from '@/domain/ports/repository';
@@ -140,6 +143,121 @@ export class AdminConfigRepository implements IAdminConfigRepository {
       );
       return mapConfig(inserted);
     });
+  }
+
+  public async listRoles(): Promise<IAdminRoleSummary[]> {
+    const rows = await this.manager.query<
+      {
+        code: string;
+        name: string;
+        is_active: boolean;
+        permissions: string[] | null;
+      }[]
+    >(
+      `
+        SELECT role.code, role.name, role.is_active,
+               ARRAY_REMOVE(ARRAY_AGG(permission.code), NULL) AS permissions
+        FROM admin_roles role
+        LEFT JOIN admin_role_permissions role_permission
+          ON role_permission.role_id = role.id
+        LEFT JOIN admin_permissions permission
+          ON permission.id = role_permission.permission_id
+        GROUP BY role.code, role.name, role.is_active
+        ORDER BY role.code ASC
+      `,
+    );
+
+    return rows.map((row) => ({
+      code: row.code,
+      name: row.name,
+      isActive: row.is_active,
+      permissions: row.permissions ?? [],
+    }));
+  }
+
+  public async grantRole(assignment: IAdminRoleAssignment): Promise<void> {
+    await this.manager.transaction(async (manager) => {
+      const granted = await manager.query<{ user_id: string }[]>(
+        `
+          INSERT INTO admin_user_roles (user_id, role_id, assigned_by)
+          SELECT $1, role.id, $3
+          FROM admin_roles role
+          INNER JOIN users user_account ON user_account.global_id = $1
+          WHERE role.code = $2
+            AND role.is_active = true
+            AND user_account.deleted_at IS NULL
+          ON CONFLICT (user_id, role_id) DO NOTHING
+          RETURNING user_id
+        `,
+        [assignment.targetUserId, assignment.roleCode, assignment.actorUserId],
+      );
+
+      // Không có dòng nào: role không tồn tại, tài khoản không hợp lệ, hoặc đã
+      // có sẵn. Cả ba đều không phải lỗi hệ thống, nhưng cũng không ghi audit
+      // một thay đổi đã không xảy ra.
+      if (granted.length === 0) return;
+
+      await this.writeRoleAudit(manager, 'GRANT_ROLE', assignment);
+    });
+  }
+
+  public async revokeRole(assignment: IAdminRoleAssignment): Promise<void> {
+    await this.manager.transaction(async (manager) => {
+      // Khoá bảng gán role trong transaction: hai lượt thu hồi song song có thể
+      // cùng thấy "còn 2 người" rồi cùng xoá, và hệ thống mất sạch SUPER_ADMIN.
+      const [remaining] = await manager.query<{ total: string }[]>(
+        `
+          SELECT COUNT(*) AS total
+          FROM admin_user_roles user_role
+          INNER JOIN admin_roles role ON role.id = user_role.role_id
+          WHERE role.code = 'SUPER_ADMIN'
+          FOR UPDATE OF user_role
+        `,
+      );
+
+      if (
+        assignment.roleCode === 'SUPER_ADMIN' &&
+        Number(remaining?.total ?? 0) <= 1
+      )
+        throw new LastSuperAdminException();
+
+      const revoked = await manager.query<{ user_id: string }[]>(
+        `
+          DELETE FROM admin_user_roles
+          USING admin_roles role
+          WHERE admin_user_roles.role_id = role.id
+            AND admin_user_roles.user_id = $1
+            AND role.code = $2
+          RETURNING admin_user_roles.user_id
+        `,
+        [assignment.targetUserId, assignment.roleCode],
+      );
+
+      if (revoked.length === 0) return;
+
+      await this.writeRoleAudit(manager, 'REVOKE_ROLE', assignment);
+    });
+  }
+
+  private async writeRoleAudit(
+    manager: EntityManager,
+    action: 'GRANT_ROLE' | 'REVOKE_ROLE',
+    assignment: IAdminRoleAssignment,
+  ): Promise<void> {
+    await manager.query(
+      `
+        INSERT INTO admin_audit_logs
+          (actor_user_id, action, resource_type, resource_id, after_json, reason)
+        VALUES ($1, $2, 'ADMIN_ROLE', $3, $4::jsonb, $5)
+      `,
+      [
+        assignment.actorUserId,
+        action,
+        assignment.targetUserId,
+        JSON.stringify({ roleCode: assignment.roleCode }),
+        assignment.reason,
+      ],
+    );
   }
 
   public async getAuditLogs(query: IAdminAuditQuery): Promise<IAdminAuditPage> {

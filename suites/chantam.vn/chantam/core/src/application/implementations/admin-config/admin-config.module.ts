@@ -1,8 +1,10 @@
 import {
+  IAssignAdminRoleUseCase,
   IGetAdminAuditLogsUseCase,
   IGetAdminConfigsUseCase,
   IGetNotificationChannelsUseCase,
   IGetSystemLogsUseCase,
+  IListAdminRolesUseCase,
   IPublishAdminConfigUseCase,
   IUpdateNotificationChannelUseCase,
 } from '@/application/contracts/admin-config';
@@ -12,6 +14,10 @@ import {
   GetAdminConfigsUseCase,
   PublishAdminConfigUseCase,
 } from './admin-config.use-cases';
+import {
+  AssignAdminRoleUseCase,
+  ListAdminRolesUseCase,
+} from './admin-role.use-cases';
 import { GetSystemLogsUseCase } from './get-system-logs.use-case';
 import {
   GetNotificationChannelsUseCase,
@@ -28,6 +34,8 @@ import {
     },
     { provide: IGetAdminAuditLogsUseCase, useClass: GetAdminAuditLogsUseCase },
     { provide: IGetSystemLogsUseCase, useClass: GetSystemLogsUseCase },
+    { provide: IListAdminRolesUseCase, useClass: ListAdminRolesUseCase },
+    { provide: IAssignAdminRoleUseCase, useClass: AssignAdminRoleUseCase },
     {
       provide: IGetNotificationChannelsUseCase,
       useClass: GetNotificationChannelsUseCase,
@@ -42,6 +50,8 @@ import {
     IPublishAdminConfigUseCase,
     IGetAdminAuditLogsUseCase,
     IGetSystemLogsUseCase,
+    IListAdminRolesUseCase,
+    IAssignAdminRoleUseCase,
     IGetNotificationChannelsUseCase,
     IUpdateNotificationChannelUseCase,
   ],
