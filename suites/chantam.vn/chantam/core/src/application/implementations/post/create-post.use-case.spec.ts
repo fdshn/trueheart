@@ -22,6 +22,7 @@ import {
   ICategoryEntity,
   IUserEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
+import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { CreatePostUseCase } from './create-post.use-case';
 
 const UserId = '22222222-2222-2222-2222-222222222222';
@@ -205,5 +206,140 @@ describe('CreatePostUseCase', () => {
       3,
       expect.any(Object),
     );
+  });
+});
+
+describe('CreatePostUseCase — tin rao vặt CLASSIFIED', () => {
+  function classified(overrides: Record<string, unknown> = {}) {
+    return {
+      userId: UserId,
+      post: {
+        postType: PostTypes.CLASSIFIED,
+        title: 'iPhone 12 64GB',
+        description: 'Máy còn bảo hành tới tháng 12.',
+        categoryId: CategoryId,
+        price: 5_200_000,
+        condition: GiftPostConditions.USED,
+        location: { lat: 10.7724, lng: 106.698 },
+        areaLabel: 'Quận 1, TP.HCM',
+        ...overrides,
+      },
+    };
+  }
+
+  function makeDeps() {
+    const posts = {
+      // Khai báo tham số để `mock.calls` có kiểu; thiếu nó thì TypeScript coi
+      // đây là tuple rỗng và không đọc được đối số nào.
+      createPostWithinQuota: jest.fn(
+        async (
+          _authorId: string,
+          _quota: number,
+          _post: { details: Record<string, unknown> },
+        ) => true,
+      ),
+      findOneByOrFail: jest.fn(async () => ({ globalId: 'post' })),
+    };
+    const categories = { findOneBy: jest.fn(async () => makeCategory()) };
+    const users = {
+      findOneBy: jest.fn(async () => makeUser({ rank: UserRanks.MEMBER })),
+    };
+    const entitlements = {
+      getCapability: jest.fn(async () => ({ allowed: true, limit: 3 })),
+    };
+
+    return { posts, categories, users, entitlements };
+  }
+
+  function run(deps: ReturnType<typeof makeDeps>, cmd: unknown) {
+    return new CreatePostUseCase(
+      deps.posts as never,
+      deps.categories as never,
+      deps.users as never,
+      deps.entitlements as never,
+    ).handle(cmd as never);
+  }
+
+  it('lưu giá, tình trạng và cờ thương lượng vào details', async () => {
+    const deps = makeDeps();
+
+    await run(deps, classified({ negotiable: true }));
+
+    const saved = deps.posts.createPostWithinQuota.mock.calls[0][2];
+    expect(saved.details).toEqual({
+      price: 5_200_000,
+      condition: GiftPostConditions.USED,
+      negotiable: true,
+    });
+  });
+
+  it('mặc định không thương lượng khi không nói gì', async () => {
+    // Im lặng mà hiểu thành "có thương lượng" là hứa hộ người bán một điều họ
+    // không hề nói.
+    const deps = makeDeps();
+
+    await run(deps, classified());
+
+    const saved = deps.posts.createPostWithinQuota.mock.calls[0][2];
+    expect(saved.details.negotiable).toBe(false);
+  });
+
+  it('từ chối tin rao vặt thiếu giá', async () => {
+    // Thiếu giá thì không sắp xếp được, không lọc khoảng giá được, và người mua
+    // phải hỏi mới biết.
+    const deps = makeDeps();
+
+    await expect(
+      run(deps, classified({ price: undefined })),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+    expect(deps.posts.createPostWithinQuota).not.toHaveBeenCalled();
+  });
+
+  it('từ chối tin rao vặt thiếu tình trạng món đồ', async () => {
+    const deps = makeDeps();
+
+    await expect(
+      run(deps, classified({ condition: undefined })),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+  });
+
+  it('không cho gắn giá vào bài đem tặng', async () => {
+    // Lọt sang bài tặng là biến món quà thành món hàng ngay trên giao diện.
+    const deps = makeDeps();
+
+    await expect(
+      run(deps, {
+        userId: UserId,
+        post: {
+          ...classified().post,
+          postType: PostTypes.OFFER,
+          price: 5_000_000,
+        },
+      }),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+    expect(deps.posts.createPostWithinQuota).not.toHaveBeenCalled();
+  });
+
+  it('không cho gắn estimatedValue vào tin rao vặt', async () => {
+    const deps = makeDeps();
+
+    await expect(
+      run(deps, classified({ estimatedValue: 1_000_000 })),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+  });
+
+  it('bài WANTED vẫn không được mang condition', async () => {
+    const deps = makeDeps();
+
+    await expect(
+      run(deps, {
+        userId: UserId,
+        post: {
+          ...classified().post,
+          postType: PostTypes.WANTED,
+          price: undefined,
+        },
+      }),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
   });
 });

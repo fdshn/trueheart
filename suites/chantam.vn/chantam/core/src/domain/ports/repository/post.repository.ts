@@ -62,6 +62,20 @@ export interface IFindSmartMatchesParams {
   take: number;
 }
 
+export interface IFindMyPostsParams {
+  authorId: string;
+  postType?: PostTypes;
+  status?: string;
+  categoryId?: string;
+  skip: number;
+  take: number;
+}
+
+export interface IFindMyPostsResult {
+  items: IPostEntity[];
+  total: number;
+}
+
 export interface ISmartMatchCandidate {
   post: IPostEntity;
   distanceMeters: number;
@@ -92,6 +106,13 @@ export interface IPostRepository extends Repository<IPostEntity> {
   findSmartMatches(
     params: IFindSmartMatchesParams,
   ): Promise<ISmartMatchCandidate[]>;
+  /**
+   * Bài của chính tác giả, KHÔNG lọc theo trạng thái công khai.
+   *
+   * Chủ bài phải thấy được bài đang chờ duyệt và bài bị từ chối của mình —
+   * đó là toàn bộ lý do endpoint này tồn tại tách khỏi discovery.
+   */
+  findMyPosts(params: IFindMyPostsParams): Promise<IFindMyPostsResult>;
   findPublicByGlobalId(globalId: string): Promise<IPostEntity | null>;
   countPublishedByAuthor(authorId: string): Promise<number>;
 }

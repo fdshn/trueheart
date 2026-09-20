@@ -2,6 +2,7 @@ import {
   IAttachPostMediaUseCase,
   ICreatePostUseCase,
   IDeletePostUseCase,
+  IGetMyPostsUseCase,
   IGetNearbyPostsUseCase,
   IGetPostMapUseCase,
   IGetPostUseCase,
@@ -21,6 +22,7 @@ import {
 import {
   IAttachPostMediaResponseDto,
   ICreatePostResponseDto,
+  IGetMyPostsResponseDto,
   IGetNearbyPostsResponseDto,
   IGetPostMapResponseDto,
   IGetPostResponseDto,
@@ -65,6 +67,8 @@ import {
   AttachPostMediaResponseDto,
   CreatePostBodyDto,
   CreatePostResponseDto,
+  GetMyPostsQueryDto,
+  GetMyPostsResponseDto,
   GetNearbyPostsQueryDto,
   GetNearbyPostsResponseDto,
   GetPostMapQueryDto,
@@ -106,6 +110,8 @@ export class PostController {
     private readonly getPostMapUseCase: IGetPostMapUseCase,
     @Inject(IGetNearbyPostsUseCase)
     private readonly getNearbyPostsUseCase: IGetNearbyPostsUseCase,
+    @Inject(IGetMyPostsUseCase)
+    private readonly getMyPostsUseCase: IGetMyPostsUseCase,
     @Inject(IGetPostUseCase)
     private readonly getPostUseCase: IGetPostUseCase,
     @Inject(IGetSmartMatchesUseCase)
@@ -367,6 +373,38 @@ export class PostController {
     const result = await this.getNearbyPostsUseCase.handle(query);
 
     return ResponseDto.create<IGetNearbyPostsResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  // PHẢI đứng trước `:postId`, nếu không "me" bị nuốt thành một postId và
+  // route này không bao giờ chạy.
+  @Get('me')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Bài đăng của chính mình',
+    description:
+      'Lọc theo loại bài, trạng thái duyệt/hiển thị và danh mục, có phân trang. ' +
+      'Dùng `?postType=CLASSIFIED` để lấy danh sách tin rao vặt của bạn. ' +
+      'Khác discovery công khai ở hai điểm: trả cả bài PENDING_REVIEW/REJECTED, ' +
+      'và toạ độ là toạ độ THẬT vì đây là bài của chính bạn.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(GetMyPostsResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, [
+    ValidationFailedException,
+    ['postType: postType must be a valid enum value'],
+  ])
+  public async getMyPosts(
+    @Query() query: GetMyPostsQueryDto,
+    @CurrentUser() principal: IAuthPrincipal,
+  ): Promise<ResponseDto<IGetMyPostsResponseDto>> {
+    const result = await this.getMyPostsUseCase.handle({
+      ...query,
+      userId: principal.userId,
+    });
+
+    return ResponseDto.create<IGetMyPostsResponseDto>()
       .succeed()
       .attach(result)
       .build();

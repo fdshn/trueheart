@@ -1,4 +1,5 @@
 export * from './create-post.dto';
+export * from './get-my-posts.dto';
 export * from './get-nearby-posts.dto';
 export * from './get-post-map.dto';
 export * from './get-smart-matches.dto';

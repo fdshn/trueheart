@@ -26,6 +26,31 @@ import { ValidationFailedException } from '@chantam/service.common-lib/exception
 import { makeGlobalId, slugify } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
 
+/**
+ * Phần nội dung riêng của từng loại bài, lưu vào `details` JSONB.
+ *
+ * Mỗi loại chỉ ghi đúng trường của mình. Gom hết vào một cục là sau này đọc
+ * `details.price` của bài tặng ra `undefined` mà không biết là do loại bài
+ * không có giá hay do dữ liệu hỏng.
+ */
+function buildPostDetails(
+  post: ICreatePostCommand['post'],
+): Record<string, unknown> {
+  if (post.postType === PostTypes.OFFER)
+    return { condition: post.condition, estimatedValue: post.estimatedValue };
+
+  if (post.postType === PostTypes.CLASSIFIED)
+    return {
+      price: post.price,
+      condition: post.condition,
+      // Mặc định là không thương lượng: im lặng mà hiểu thành "có thương lượng"
+      // là hứa hộ người bán một điều họ không nói.
+      negotiable: post.negotiable ?? false,
+    };
+
+  return {};
+}
+
 @Injectable()
 export class CreatePostUseCase implements ICreatePostUseCase {
   public constructor(
@@ -70,11 +95,38 @@ export class CreatePostUseCase implements ICreatePostUseCase {
     );
     if (
       post.postType !== PostTypes.OFFER &&
-      (post.condition !== undefined || post.estimatedValue !== undefined)
+      post.postType !== PostTypes.CLASSIFIED &&
+      post.condition !== undefined
     )
       throw new ValidationFailedException([
-        'condition và estimatedValue chỉ áp dụng cho bài OFFER',
+        'condition chỉ áp dụng cho bài OFFER và CLASSIFIED',
       ]);
+
+    if (post.postType !== PostTypes.OFFER && post.estimatedValue !== undefined)
+      throw new ValidationFailedException([
+        'estimatedValue chỉ áp dụng cho bài OFFER',
+      ]);
+
+    // Giá và cờ thương lượng chỉ có nghĩa với tin rao bán. Lọt sang bài tặng
+    // là biến món quà thành món hàng ngay trên giao diện.
+    if (
+      post.postType !== PostTypes.CLASSIFIED &&
+      (post.price !== undefined || post.negotiable !== undefined)
+    )
+      throw new ValidationFailedException([
+        'price và negotiable chỉ áp dụng cho bài CLASSIFIED',
+      ]);
+
+    // Bắt buộc ở tầng use case chứ không chỉ ở DTO: tin rao bán thiếu giá thì
+    // không sắp xếp, không lọc khoảng giá, và người mua phải hỏi mới biết.
+    if (post.postType === PostTypes.CLASSIFIED) {
+      if (post.price === undefined)
+        throw new ValidationFailedException(['bài CLASSIFIED phải có price']);
+      if (post.condition === undefined)
+        throw new ValidationFailedException([
+          'bài CLASSIFIED phải có condition',
+        ]);
+    }
 
     const totalQuantity =
       post.postType === PostTypes.OFFER ? (post.totalQuantity ?? 1) : 1;
@@ -99,13 +151,7 @@ export class CreatePostUseCase implements ICreatePostUseCase {
         status: GiftPostStatuses.PENDING_REVIEW,
         totalQuantity,
         remainingQuantity: totalQuantity,
-        details:
-          post.postType === PostTypes.OFFER
-            ? {
-                condition: post.condition,
-                estimatedValue: post.estimatedValue,
-              }
-            : {},
+        details: buildPostDetails(post),
         expiresAt: null,
         renewedCount: 0,
         deletedAt: null,

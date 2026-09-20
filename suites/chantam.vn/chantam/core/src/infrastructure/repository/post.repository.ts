@@ -1,4 +1,6 @@
 import {
+  IFindMyPostsParams,
+  IFindMyPostsResult,
   IFindNearbyPostsParams,
   IFindNearbyPostsResult,
   IFindPostMapMarkersParams,
@@ -208,6 +210,36 @@ export class PostRepository
       sameCategory: post.categoryId === params.categoryId,
       keywordMatched: raw[index]?.keyword_matched === true,
     }));
+  }
+
+  public async findMyPosts(
+    params: IFindMyPostsParams,
+  ): Promise<IFindMyPostsResult> {
+    const query = this.createQueryBuilder('post')
+      .where('post.authorId = :authorId', { authorId: params.authorId })
+      // Bài đã xoá mềm thì chủ bài cũng không cần thấy nữa.
+      .andWhere('post.deletedAt IS NULL');
+
+    if (params.postType)
+      query.andWhere('post.postType = :postType', {
+        postType: params.postType,
+      });
+    // KHÔNG mặc định lọc về trạng thái công khai: chủ bài phải thấy được bài
+    // đang chờ duyệt và bài bị từ chối của mình.
+    if (params.status)
+      query.andWhere('post.status = :status', { status: params.status });
+    if (params.categoryId)
+      query.andWhere('post.categoryId = :categoryId', {
+        categoryId: params.categoryId,
+      });
+
+    const [items, total] = await query
+      .orderBy('post.createdAt', 'DESC')
+      .skip(params.skip)
+      .take(params.take)
+      .getManyAndCount();
+
+    return { items, total };
   }
 
   public async findMapMarkers(

@@ -40,6 +40,10 @@ export interface ICreatePostDto extends ICreatePostCommonDto {
   condition?: GiftPostConditions;
   estimatedValue?: number;
   totalQuantity?: number;
+  /** Giá bán, chỉ dùng cho bài CLASSIFIED. Đơn vị VND, số nguyên. */
+  price?: number;
+  /** Có thương lượng giá hay không. Chỉ dùng cho bài CLASSIFIED. */
+  negotiable?: boolean;
 }
 
 export interface ICreatePostBodyDto {
@@ -56,6 +60,17 @@ export interface IGetNearbyPostsQueryDto extends IPaginationQueryDto {
   radiusMeters: number;
   postType: PublicDiscoveryPostType;
   categoryId?: string;
+}
+
+export interface IGetMyPostsQueryDto extends IPaginationQueryDto {
+  postType?: PostTypes;
+  status?: GiftPostStatuses;
+  categoryId?: string;
+}
+
+export interface IGetMyPostsResponseDto {
+  posts: IPostEntity[];
+  meta: IPaginationMetaDto;
 }
 
 export interface INearbyPostDto {

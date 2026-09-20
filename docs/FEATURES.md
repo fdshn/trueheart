@@ -191,6 +191,10 @@ Năm loại nội dung dùng chung khung đăng bài: **Muốn Tặng**, **Muố
 Mỗi bài có `category_id`. Admin quản lý `name / slug / icon / order / active / parent`.
 **Không xoá cứng** danh mục đang có bài dùng — chỉ được tắt.
 
+Mỗi danh mục khai báo `postTypes` — dùng được cho những loại bài nào. `GET /api/v1/categories?postType=CLASSIFIED`
+trả đúng cây cho form đăng tin rao vặt; bỏ trống trả cả cây. Nhánh cha không khớp vẫn
+được giữ nếu có con khớp, để cây không đứt.
+
 ### F15 — Đăng Muốn Tặng
 Ảnh, thông tin vật phẩm, tình trạng, mô tả, vị trí. Kiểm tra **quota theo Rank** trước khi
 cho đăng. Quota nằm trong `capability_rank_values` và Admin sửa được lúc chạy qua
