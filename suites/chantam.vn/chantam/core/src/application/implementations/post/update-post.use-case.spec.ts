@@ -56,11 +56,15 @@ describe('UpdatePostUseCase', () => {
 
   it('bài REJECTED khi được author cập nhật thì tự động chuyển về PENDING_REVIEW để duyệt lại', async () => {
     const postRepository = {
-      findOneBy: jest.fn().mockResolvedValue(makePost({ status: 'REJECTED' as never })),
+      findOneBy: jest
+        .fn()
+        .mockResolvedValue(makePost({ status: 'REJECTED' as never })),
       update: jest.fn(),
       findOneByOrFail: jest
         .fn()
-        .mockResolvedValue(makePost({ title: 'Xe sửa lại', status: 'PENDING_REVIEW' as never })),
+        .mockResolvedValue(
+          makePost({ title: 'Xe sửa lại', status: 'PENDING_REVIEW' as never }),
+        ),
     } as unknown as jest.Mocked<IPostRepository>;
 
     const result = await new UpdatePostUseCase(postRepository).handle({

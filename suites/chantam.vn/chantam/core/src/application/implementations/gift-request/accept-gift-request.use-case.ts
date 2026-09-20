@@ -105,7 +105,12 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
                 (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at)
               VALUES ($1, $2, $3, $4, 1, 'ACCEPTED', now())
             `,
-            [transactionId, command.postId, command.userId, targetRequest.requesterId],
+            [
+              transactionId,
+              command.postId,
+              command.userId,
+              targetRequest.requesterId,
+            ],
           );
         }
       }
