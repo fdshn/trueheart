@@ -11,9 +11,7 @@ import {
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
-import {
-  GiftRequestStatuses,
-} from '@chantam.vn/chantam.core-lib/consts';
+import { GiftRequestStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostAuthorDto } from '@chantam.vn/chantam.core-lib/dto';
 import { applyGeoJitter } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
