@@ -9,8 +9,12 @@ import {
   IGiftRequestRepository,
   IPostMediaRepository,
   IPostRepository,
+  IUserRepository,
 } from '@/domain/ports/repository';
-import { GiftRequestStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  GiftRequestStatuses,
+} from '@chantam.vn/chantam.core-lib/consts';
+import { IPostAuthorDto } from '@chantam.vn/chantam.core-lib/dto';
 import { applyGeoJitter } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -23,6 +27,8 @@ export class GetPostUseCase implements IGetPostUseCase {
     private readonly postMediaRepository: IPostMediaRepository,
     @Inject(IGiftRequestRepository)
     private readonly giftRequestRepository: IGiftRequestRepository,
+    @Inject(IUserRepository)
+    private readonly userRepository: IUserRepository,
     @Inject(IConfig)
     private readonly config: IConfig,
   ) {}
@@ -54,8 +60,25 @@ export class GetPostUseCase implements IGetPostUseCase {
       : new Map<string, GiftRequestStatuses>();
     const myRequestStatus = myStatuses.get(post.globalId) ?? null;
 
+    let author: IPostAuthorDto | null = null;
+    if (post.authorId) {
+      const user = await this.userRepository.findOne({
+        where: { globalId: post.authorId },
+      });
+      if (user) {
+        author = {
+          id: user.globalId,
+          username: user.username,
+          fullName: user.fullName,
+          avatarUrl: user.avatarUrl,
+          rank: user.rank,
+        };
+      }
+    }
+
     return {
       post,
+      author,
       media: media
         .sort((first, second) => first.sortOrder - second.sortOrder)
         .map((item) => ({

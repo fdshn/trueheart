@@ -123,8 +123,17 @@ export interface IPublicPostMediaDto {
   sortOrder: number;
 }
 
+export interface IPostAuthorDto {
+  id: string;
+  username: string;
+  fullName?: string | null;
+  avatarUrl?: string | null;
+  rank?: string;
+}
+
 export interface IGetPostResponseDto {
   post: IPostEntity;
+  author?: IPostAuthorDto | null;
   media: IPublicPostMediaDto[];
   isLocationApproximate: boolean;
   requestCount?: number;

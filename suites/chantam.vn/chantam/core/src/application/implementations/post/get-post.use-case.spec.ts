@@ -3,6 +3,7 @@ import {
   IGiftRequestRepository,
   IPostMediaRepository,
   IPostRepository,
+  IUserRepository,
 } from '@/domain/ports/repository';
 import {
   GiftPostStatuses,
@@ -83,6 +84,17 @@ const makeGiftRequestRepo = () =>
       .mockResolvedValue(new Map([[PostId, GiftRequestStatuses.PENDING]])),
   }) as unknown as jest.Mocked<IGiftRequestRepository>;
 
+const makeUserRepo = () =>
+  ({
+    findOne: jest.fn().mockResolvedValue({
+      globalId: '22222222-2222-2222-2222-222222222222',
+      username: 'cu_si_minh_tue',
+      fullName: 'Cư sĩ Minh Tuệ',
+      avatarUrl: null,
+      rank: 'SILVER',
+    }),
+  }) as unknown as jest.Mocked<IUserRepository>;
+
 describe('GetPostUseCase', () => {
   it('áp dụng geo jitter cho toạ độ trả ra qua kênh public và trả kèm số lượng yêu cầu', async () => {
     const postRepository = {
@@ -92,11 +104,13 @@ describe('GetPostUseCase', () => {
       listByPostId: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<IPostMediaRepository>;
     const giftRequestRepository = makeGiftRequestRepo();
+    const userRepository = makeUserRepo();
 
     const result = await new GetPostUseCase(
       postRepository,
       postMediaRepository,
       giftRequestRepository,
+      userRepository,
       makeConfig(),
     ).handle({
       postId: PostId,
@@ -112,6 +126,7 @@ describe('GetPostUseCase', () => {
     expect(result.requestCount).toBe(2);
     expect(result.myRequestStatus).toBe(GiftRequestStatuses.PENDING);
     expect(result.hasRequested).toBe(true);
+    expect(result.author?.fullName).toBe('Cư sĩ Minh Tuệ');
   });
 
   it('trả media đã xếp thứ tự với public URL', async () => {
@@ -137,11 +152,13 @@ describe('GetPostUseCase', () => {
       ]),
     } as unknown as jest.Mocked<IPostMediaRepository>;
     const giftRequestRepository = makeGiftRequestRepo();
+    const userRepository = makeUserRepo();
 
     const result = await new GetPostUseCase(
       postRepository,
       postMediaRepository,
       giftRequestRepository,
+      userRepository,
       makeConfig(),
     ).handle({ postId: PostId });
 
@@ -170,12 +187,14 @@ describe('GetPostUseCase', () => {
       listByPostId: jest.fn(),
     } as unknown as jest.Mocked<IPostMediaRepository>;
     const giftRequestRepository = makeGiftRequestRepo();
+    const userRepository = makeUserRepo();
 
     await expect(
       new GetPostUseCase(
         postRepository,
         postMediaRepository,
         giftRequestRepository,
+        userRepository,
         makeConfig(),
       ).handle({
         postId: PostId,
