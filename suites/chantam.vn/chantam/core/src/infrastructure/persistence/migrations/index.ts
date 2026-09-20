@@ -19,3 +19,4 @@ export * from './1789900000003-CreateOnboardingTasks';
 export * from './1790000000000-CreateRankReferralFoundation';
 export * from './1790100000000-CreateEntitlementPolicies';
 export * from './1790200000000-CreateSystemConfigAdminAudit';
+export * from './1790300000000-CreateNotificationChannels';

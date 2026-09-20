@@ -3,6 +3,7 @@ import {
   ICategoryRepository,
   IEntitlementRepository,
   IGiftPostRepository,
+  INotificationChannelRepository,
   IOnboardingTaskRepository,
   IPointLedgerRepository,
   IPostMediaRepository,
@@ -19,6 +20,7 @@ import { AdminConfigRepository } from './admin-config.repository';
 import { CategoryRepository } from './category.repository';
 import { EntitlementRepository } from './entitlement.repository';
 import { GiftPostRepository } from './gift-post.repository';
+import { NotificationChannelRepository } from './notification-channel.repository';
 import { OnboardingTaskRepository } from './onboarding-task.repository';
 import { PointLedgerRepository } from './point-ledger.repository';
 import { PostMediaRepository } from './post-media.repository';
@@ -42,6 +44,10 @@ import { UserRepository } from './user.repository';
     { provide: IAdminConfigRepository, useClass: AdminConfigRepository },
     { provide: IEntitlementRepository, useClass: EntitlementRepository },
     { provide: IGiftPostRepository, useClass: GiftPostRepository },
+    {
+      provide: INotificationChannelRepository,
+      useClass: NotificationChannelRepository,
+    },
     { provide: IOnboardingTaskRepository, useClass: OnboardingTaskRepository },
     { provide: IPointLedgerRepository, useClass: PointLedgerRepository },
     { provide: IReferralRepository, useClass: ReferralRepository },
@@ -60,6 +66,7 @@ import { UserRepository } from './user.repository';
     IAdminConfigRepository,
     IEntitlementRepository,
     IGiftPostRepository,
+    INotificationChannelRepository,
     IOnboardingTaskRepository,
     IPointLedgerRepository,
     IReferralRepository,
