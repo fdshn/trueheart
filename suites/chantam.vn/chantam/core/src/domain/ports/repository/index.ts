@@ -2,6 +2,7 @@ export * from './admin-config.repository';
 export * from './category.repository';
 export * from './entitlement.repository';
 export * from './gift-post.repository';
+export * from './gift-transaction.repository';
 export * from './notification-channel.repository';
 export * from './onboarding-task.repository';
 export * from './point-ledger.repository';

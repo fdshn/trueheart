@@ -208,6 +208,41 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['REFERRAL_QUALIFIED', 3],
   },
 
+  // ── 0x08 Giao dịch tặng/nhận M3 ───────────────────────────────────────────
+  GIFT_TRANSACTION_NOT_FOUND: {
+    code: ErrorCodes.GIFT_TRANSACTION_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy lượt tặng/nhận',
+  },
+
+  GIFT_TRANSACTION_INVALID_STATE: {
+    code: ErrorCodes.GIFT_TRANSACTION_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (status: string) =>
+      `Lượt tặng/nhận đang ở trạng thái ${status} nên không thực hiện được thao tác này`,
+    sample: ['COMPLETED'],
+  },
+
+  GIFT_TRANSACTION_NOT_PARTICIPANT: {
+    code: ErrorCodes.GIFT_TRANSACTION_NOT_PARTICIPANT,
+    httpStatus: HttpStatus.FORBIDDEN,
+    // Không nói rõ "bạn không phải người tặng" hay "không phải người nhận":
+    // cả hai đều dẫn tới cùng một hành động, và tách ra là lộ vai trò người khác.
+    message: () => 'Bạn không có quyền thao tác trên lượt tặng/nhận này',
+  },
+
+  GIFT_TRANSACTION_OUT_OF_STOCK: {
+    code: ErrorCodes.GIFT_TRANSACTION_OUT_OF_STOCK,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Bài đăng đã hết số lượng để trao',
+  },
+
+  GIFT_TRANSACTION_DUPLICATE_REQUEST: {
+    code: ErrorCodes.GIFT_TRANSACTION_DUPLICATE_REQUEST,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Bạn đã có một yêu cầu đang mở trên bài đăng này',
+  },
+
   // ── 0x04 Phiên đăng nhập, OTP ─────────────────────────────────────────────
   SESSION_NOT_FOUND: {
     code: ErrorCodes.SESSION_NOT_FOUND,

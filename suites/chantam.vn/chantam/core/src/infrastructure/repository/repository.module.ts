@@ -3,6 +3,7 @@ import {
   ICategoryRepository,
   IEntitlementRepository,
   IGiftPostRepository,
+  IGiftTransactionRepository,
   INotificationChannelRepository,
   IOnboardingTaskRepository,
   IPointLedgerRepository,
@@ -20,6 +21,7 @@ import { AdminConfigRepository } from './admin-config.repository';
 import { CategoryRepository } from './category.repository';
 import { EntitlementRepository } from './entitlement.repository';
 import { GiftPostRepository } from './gift-post.repository';
+import { GiftTransactionRepository } from './gift-transaction.repository';
 import { NotificationChannelRepository } from './notification-channel.repository';
 import { OnboardingTaskRepository } from './onboarding-task.repository';
 import { PointLedgerRepository } from './point-ledger.repository';
@@ -45,6 +47,10 @@ import { UserRepository } from './user.repository';
     { provide: IEntitlementRepository, useClass: EntitlementRepository },
     { provide: IGiftPostRepository, useClass: GiftPostRepository },
     {
+      provide: IGiftTransactionRepository,
+      useClass: GiftTransactionRepository,
+    },
+    {
       provide: INotificationChannelRepository,
       useClass: NotificationChannelRepository,
     },
@@ -66,6 +72,7 @@ import { UserRepository } from './user.repository';
     IAdminConfigRepository,
     IEntitlementRepository,
     IGiftPostRepository,
+    IGiftTransactionRepository,
     INotificationChannelRepository,
     IOnboardingTaskRepository,
     IPointLedgerRepository,

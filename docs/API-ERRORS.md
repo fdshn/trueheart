@@ -87,8 +87,13 @@ Nghiệp vụ Chân Tâm
 | `0x0701` | `1793` | 409 Conflict | `POINT_RULE_UNAVAILABLE` | Point rule PHONE_VERIFIED_FIRST_TIME không khả dụng |
 | `0x0702` | `1794` | 500 Internal Server Error | `RANK_TIER_UNAVAILABLE` | Không tìm thấy cấu hình tier cho rank SILVER |
 | `0x0703` | `1795` | 409 Conflict | `POINT_DAILY_CAP_REACHED` | Đã đạt giới hạn 3 lần/ngày cho point rule REFERRAL_QUALIFIED |
+| `0x0801` | `2049` | 404 Not Found | `GIFT_TRANSACTION_NOT_FOUND` | Không tìm thấy lượt tặng/nhận |
+| `0x0802` | `2050` | 409 Conflict | `GIFT_TRANSACTION_INVALID_STATE` | Lượt tặng/nhận đang ở trạng thái COMPLETED nên không thực hiện được thao tác này |
+| `0x0803` | `2051` | 403 Forbidden | `GIFT_TRANSACTION_NOT_PARTICIPANT` | Bạn không có quyền thao tác trên lượt tặng/nhận này |
+| `0x0804` | `2052` | 409 Conflict | `GIFT_TRANSACTION_OUT_OF_STOCK` | Bài đăng đã hết số lượng để trao |
+| `0x0805` | `2053` | 409 Conflict | `GIFT_TRANSACTION_DUPLICATE_REQUEST` | Bạn đã có một yêu cầu đang mở trên bài đăng này |
 
 ---
 
-Tổng cộng **48 mã lỗi** trên 3 tầng.
+Tổng cộng **53 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.
