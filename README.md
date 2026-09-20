@@ -88,6 +88,8 @@ Mọi resource mới copy theo mẫu này.
 
 ## Kế hoạch & đặc tả
 
+- **[`docs/API.md`](./docs/API.md)** — tham chiếu 62 endpoint đang chạy: hành vi, quyền truy
+  cập, ràng buộc riêng tư và những quyết định không nhìn ra từ chữ ký hàm
 - **[`docs/API-ERRORS.md`](./docs/API-ERRORS.md)** — bảng tra mọi mã lỗi API (sinh tự động
   từ danh mục lỗi trong mã nguồn; chạy lại bằng `npm run docs:errors`)
 - **[`docs/DATABASE.md`](./docs/DATABASE.md)** — lược đồ **thật đang chạy**: 28 bảng, cột,

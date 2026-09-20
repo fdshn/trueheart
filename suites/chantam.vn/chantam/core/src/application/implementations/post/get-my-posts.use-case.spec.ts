@@ -78,11 +78,23 @@ describe('GetMyPostsUseCase', () => {
   it('phân trang theo meta', async () => {
     const deps = makeDeps([], 42);
 
-    const result = await run(deps, { userId: UserId, page: 2, limit: 20 });
+    const result = await run(deps, { userId: UserId, page: 2, pageSize: 20 });
 
     const params = deps.posts.findMyPosts.mock.calls[0][0];
     expect(params.skip).toBe(20);
     expect(params.take).toBe(20);
     expect(result.meta.total).toBe(42);
+  });
+
+  it('tôn trọng pageSize thay vì rơi về mặc định', async () => {
+    // Tham số của repo tên là `pageSize`. Đặt nhầm thành `limit` thì nó bị bỏ
+    // qua âm thầm và mọi trang đều trả về đúng 20 bản ghi mặc định.
+    const deps = makeDeps([], 42);
+
+    await run(deps, { userId: UserId, page: 3, pageSize: 5 });
+
+    const params = deps.posts.findMyPosts.mock.calls[0][0];
+    expect(params.take).toBe(5);
+    expect(params.skip).toBe(10);
   });
 });

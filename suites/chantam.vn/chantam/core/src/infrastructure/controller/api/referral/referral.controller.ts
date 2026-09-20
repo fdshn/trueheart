@@ -21,7 +21,11 @@ export class ReferralController {
   ) {}
 
   @Get('me')
-  @ApiOperation({ summary: 'Mã và thống kê giới thiệu của chính chủ' })
+  @ApiOperation({
+    summary: 'Mã và thống kê giới thiệu của chính chủ',
+    description:
+      'Ba con số khác nhau có chủ đích: `totalCount` là số người đã đăng ký bằng mã, `qualifiedCount` là số người trong đó đã lên Thành viên (mới tính là đủ điều kiện), `rewardedCount` là số lượt thật sự được thưởng sau khi áp trần theo ngày. Mã giới thiệu là BẤT BIẾN, gắn lúc đăng ký — không có endpoint gắn sau hay chuyển nhượng, vì cả hai đều là đường farm thưởng.',
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(GetOwnReferralResponseDto) })
   public async getOwnReferral(
     @CurrentUser() principal: IAuthPrincipal,

@@ -20,6 +20,9 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 
 ## Endpoint
 
+Bảng dưới là danh mục tra nhanh. Hành vi đầy đủ của từng endpoint — quyền truy cập, ràng
+buộc riêng tư, thứ tự kiểm tra — xem [`docs/API.md`](../../../../docs/API.md).
+
 | Method | Đường dẫn | Use case |
 | --- | --- | --- |
 | `POST` | `/api/v1/gift-posts` | `CreateGiftPostUseCase` |

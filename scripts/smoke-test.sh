@@ -176,8 +176,12 @@ else
     '/api/v1/points/me' '/api/v1/points/me/ledger' '/api/v1/ranks/me' \
     '/api/v1/referrals/me' '/api/v1/me/entitlements' \
     '/api/v1/transactions' '/api/v1/transactions/me' \
+    '/api/v1/categories' \
+    '/api/v1/posts' '/api/v1/posts/me' '/api/v1/posts/nearby' \
+    '/api/v1/posts/{postId}' '/api/v1/posts/{postId}/matches' \
     '/api/v1/admin/system-configs' '/api/v1/admin/audit-logs' \
-    '/api/v1/admin/system-logs' '/api/v1/admin/users'; do
+    '/api/v1/admin/system-logs' '/api/v1/admin/users' \
+    '/api/v1/admin/entitlements'; do
     printf '%s' "$RESP_BODY" | grep -q "\"$route\"" || MISSING="$MISSING $route"
   done
   LEGACY_ROUTES=$(printf '%s' "$RESP_BODY" | grep -oE '"/api/[^"]*"' | grep -v '^"/api/v1/' || true)

@@ -9,12 +9,25 @@ import {
   IUpdateOwnProfileUseCase,
 } from '@/application/contracts/profile';
 import {
+  EmailTakenException,
+  OtpInvalidException,
+  PhoneTakenException,
+  UserNotFoundException,
+} from '@/domain/exceptions';
+import {
   IGetOwnProfileResponseDto,
   IGetPublicProfileResponseDto,
   IUpdateOwnProfileResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
-import { CurrentUser, IAuthPrincipal, Public } from '@chantam/service.auth-lib';
+import {
+  ApiTokenErrors,
+  CurrentUser,
+  IAuthPrincipal,
+  Public,
+} from '@chantam/service.auth-lib';
+import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
+import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { IStorageUploadResult } from '@chantam/service.storage-lib';
 import { Body, Controller, Get, Inject, Param, Patch } from '@nestjs/common';
 import {
@@ -56,7 +69,12 @@ export class ProfileController {
   ) {}
 
   @Get('me')
-  @ApiOperation({ summary: 'Hồ sơ đầy đủ của chính chủ' })
+  @ApiOperation({
+    summary: 'Hồ sơ đầy đủ của chính chủ',
+    description:
+      'Gồm cả dữ liệu riêng tư mà hồ sơ công khai không trả: email, SĐT, trạng thái xác minh và vị trí mặc định. Vị trí ở đây là toạ độ THẬT, không làm nhiễu, vì đây là dữ liệu của chính người gọi.',
+  })
+  @ApiErrorResponses(...ApiTokenErrors, UserNotFoundException)
   @ApiOkResponse({ type: ResponseDto.forApi(GetOwnProfileResponseDto) })
   public async getOwnProfile(
     @CurrentUser() principal: IAuthPrincipal,
@@ -73,6 +91,8 @@ export class ProfileController {
   @Patch('me/avatar-upload')
   @ApiOperation({
     summary: 'Xin presigned URL upload avatar trực tiếp lên storage',
+    description:
+      'Ảnh đi thẳng từ máy người dùng lên storage, không qua server. Key được bind theo user nên không ghi đè được ảnh của người khác. URL có hạn ngắn; hết hạn thì xin lại.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(RequestAvatarUploadResponseDto) })
   public async requestAvatarUpload(
@@ -90,7 +110,12 @@ export class ProfileController {
   }
 
   @Patch('me/phone-verification/request')
-  @ApiOperation({ summary: 'Gửi OTP xác minh SĐT hiện tại' })
+  @ApiOperation({
+    summary: 'Gửi OTP xác minh SĐT hiện tại',
+    description:
+      'Gửi tới SĐT đã lưu trong hồ sơ, không nhận số từ body. Chưa cấu hình nhà cung cấp SMS thì trả 501 chứ KHÔNG âm thầm coi như đã gửi.',
+  })
+  @ApiErrorResponses(...ApiTokenErrors, UserNotFoundException)
   @ApiOkResponse({
     type: ResponseDto.forApi(RequestPhoneVerificationResponseDto),
   })
@@ -107,7 +132,17 @@ export class ProfileController {
   }
 
   @Patch('me/phone-verification/confirm')
-  @ApiOperation({ summary: 'Xác nhận OTP, đánh dấu SĐT đã xác minh' })
+  @ApiOperation({
+    summary: 'Xác nhận OTP, đánh dấu SĐT đã xác minh',
+    description:
+      'Xác minh lần đầu thưởng điểm đúng MỘT lần qua Point Ledger với khoá idempotency. Đổi số rồi xác minh lại không thưởng lại — khoá nằm ở ledger chứ không ở cột `phone_verified_at` vốn reset được.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['otp: otp phải là 6 chữ số']],
+    OtpInvalidException,
+    UserNotFoundException,
+  )
   @ApiOkResponse({
     type: ResponseDto.forApi(ConfirmPhoneVerificationResponseDto),
   })
@@ -126,7 +161,18 @@ export class ProfileController {
   }
 
   @Patch('me')
-  @ApiOperation({ summary: 'Cập nhật hồ sơ và vị trí mặc định' })
+  @ApiOperation({
+    summary: 'Cập nhật hồ sơ và vị trí mặc định',
+    description:
+      'Email và SĐT phải chưa có người khác dùng. Vị trí mặc định KHÁC GPS hiện tại: nó là giá trị dùng khi đăng bài và là điều kiện bắt buộc để tạo Group, nên server không bao giờ tự ghi đè nó từ GPS.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['profile.email: email không hợp lệ']],
+    EmailTakenException,
+    PhoneTakenException,
+    UserNotFoundException,
+  )
   @ApiOkResponse({ type: ResponseDto.forApi(UpdateOwnProfileResponseDto) })
   public async updateOwnProfile(
     @CurrentUser() principal: IAuthPrincipal,
@@ -145,7 +191,12 @@ export class ProfileController {
   // Static /me phải đứng TRƯỚC :username; Fastify/Nest match theo thứ tự.
   @Public()
   @Get(':username')
-  @ApiOperation({ summary: 'Hồ sơ công khai tối thiểu' })
+  @ApiOperation({
+    summary: 'Hồ sơ công khai tối thiểu',
+    description:
+      'Chạy theo danh sách CHO PHÉP tường minh: username, họ tên, avatar, hạng, số bài đã đăng, điểm tích luỹ và link chia sẻ. Cố ý không trả điểm khả dụng — đó là sức mua của người ta; cũng không trả email, SĐT hay vị trí.',
+  })
+  @ApiErrorResponses(UserNotFoundException)
   @ApiOkResponse({ type: ResponseDto.forApi(GetPublicProfileResponseDto) })
   public async getPublicProfile(
     @Param() params: GetPublicProfileParamsDto,

@@ -16,7 +16,11 @@ export class DiscoveryController {
   ) {}
 
   @Get('config')
-  @ApiOperation({ summary: 'Chính sách truy vấn public cho ứng dụng guest' })
+  @ApiOperation({
+    summary: 'Chính sách truy vấn public cho ứng dụng guest',
+    description:
+      'Trả trần/sàn bán kính tìm kiếm, cỡ trang mặc định và tối đa, cùng danh sách loại bài mà khách chưa đăng nhập xem được. Client gọi endpoint này thay vì hardcode các giới hạn đó — đổi trần ở server là mọi client tự theo, không phải phát hành lại app.',
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(DiscoveryConfigResponseDto) })
   public async getDiscoveryConfig(): Promise<
     ResponseDto<IDiscoveryConfigResponseDto>

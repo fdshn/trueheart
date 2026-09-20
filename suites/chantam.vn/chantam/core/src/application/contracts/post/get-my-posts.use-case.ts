@@ -11,7 +11,8 @@ export interface IGetMyPostsCommand {
   status?: GiftPostStatuses;
   categoryId?: string;
   page?: number;
-  limit?: number;
+  /** Tên tham số phân trang của repo là `pageSize`, không phải `limit`. */
+  pageSize?: number;
 }
 
 export interface IGetMyPostsUseCase extends IUseCase<
