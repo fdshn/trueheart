@@ -18,6 +18,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -29,6 +30,7 @@ import {
 import {
   CreateCategoryBodyDto,
   CreateCategoryResponseDto,
+  GetCategoryTreeQueryDto,
   GetCategoryTreeResponseDto,
   UpdateCategoryBodyDto,
   UpdateCategoryParamsDto,
@@ -49,12 +51,16 @@ export class CategoryController {
 
   @Public()
   @Get()
-  @ApiOperation({ summary: 'Cây danh mục đang hoạt động' })
+  @ApiOperation({
+    summary: 'Cây danh mục đang hoạt động',
+    description:
+      'Lọc theo phân hệ bằng `?postType=` để lấy đúng danh mục cho form đăng tin hoặc bộ lọc. Bỏ trống trả cả cây.',
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(GetCategoryTreeResponseDto) })
-  public async getCategoryTree(): Promise<
-    ResponseDto<IGetCategoryTreeResponseDto>
-  > {
-    const result = await this.getTree.handle({});
+  public async getCategoryTree(
+    @Query() query: GetCategoryTreeQueryDto,
+  ): Promise<ResponseDto<IGetCategoryTreeResponseDto>> {
+    const result = await this.getTree.handle({ postType: query.postType });
     return ResponseDto.create<IGetCategoryTreeResponseDto>()
       .succeed()
       .attach(result)

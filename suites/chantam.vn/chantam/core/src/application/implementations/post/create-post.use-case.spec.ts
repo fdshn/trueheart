@@ -11,6 +11,7 @@ import {
   IUserRepository,
 } from '@/domain/ports/repository';
 import {
+  GenericMvpPostTypes,
   GiftPostConditions,
   GiftPostStatuses,
   PostTypes,
@@ -58,6 +59,7 @@ function makeCategory(
     slug: 'do-dung-gia-dinh',
     icon: null,
     sortOrder: 0,
+    postTypes: [...GenericMvpPostTypes],
     isActive: true,
     parentId: null,
     createdAt: new Date(),

@@ -10,6 +10,7 @@ export function toCategoryDto(
     slug: category.slug,
     icon: category.icon,
     sortOrder: category.sortOrder,
+    postTypes: category.postTypes,
     children,
   };
 }

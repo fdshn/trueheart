@@ -1,4 +1,8 @@
 import {
+  GenericMvpPostTypes,
+  PostTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
+import {
   ICategoryDto,
   ICreateCategoryBodyDto,
   ICreateCategoryDto,
@@ -11,7 +15,10 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayNotEmpty,
+  IsArray,
   IsBoolean,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -48,6 +55,17 @@ export class CreateCategoryDto implements ICreateCategoryDto {
   @IsInt()
   @Min(0)
   sortOrder?: number;
+  @ApiPropertyOptional({
+    isArray: true,
+    enum: GenericMvpPostTypes,
+    description:
+      'Loại bài dùng được danh mục này. Bỏ trống là dùng cho mọi loại.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsEnum(PostTypes, { each: true })
+  postTypes?: PostTypes[];
   @ApiPropertyOptional({
     format: 'uuid',
     description: 'Danh mục cha. Bỏ trống là node gốc.',
@@ -105,7 +123,22 @@ export class CategoryDto implements ICategoryDto {
   @ApiProperty() slug: string;
   @ApiProperty({ nullable: true }) icon: string | null;
   @ApiProperty() sortOrder: number;
+  @ApiProperty({ isArray: true, enum: GenericMvpPostTypes })
+  postTypes: PostTypes[];
   @ApiProperty({ type: () => [CategoryDto] }) children: ICategoryDto[];
+}
+
+export class GetCategoryTreeQueryDto {
+  @ApiPropertyOptional({
+    enum: GenericMvpPostTypes,
+    description:
+      'Chỉ lấy danh mục dùng được cho loại bài này. Bỏ trống trả cả cây. ' +
+      'Nhánh cha không khớp vẫn được giữ nếu có con khớp, để cây không đứt — ' +
+      'đọc postTypes của từng node để biết node nào thật sự chọn được.',
+  })
+  @IsOptional()
+  @IsEnum(PostTypes)
+  postType?: PostTypes;
 }
 export class GetCategoryTreeResponseDto implements IGetCategoryTreeResponseDto {
   @ApiProperty({ type: () => [CategoryDto] }) categories: ICategoryDto[];

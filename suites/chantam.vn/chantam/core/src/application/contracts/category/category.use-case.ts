@@ -1,3 +1,4 @@
+import { PostTypes } from '@chantam.vn/chantam.core-lib/consts';
 import {
   ICreateCategoryBodyDto,
   ICreateCategoryResponseDto,
@@ -12,8 +13,12 @@ export interface ICreateCategoryUseCase extends IUseCase<
   ICreateCategoryCommand,
   ICreateCategoryResponseDto
 > {}
+export interface IGetCategoryTreeCommand {
+  /** Bỏ trống thì trả cả cây, giữ nguyên hành vi cũ của client hiện tại. */
+  postType?: PostTypes;
+}
 export interface IGetCategoryTreeUseCase extends IUseCase<
-  Record<string, never>,
+  IGetCategoryTreeCommand,
   IGetCategoryTreeResponseDto
 > {}
 export const ICreateCategoryUseCase = Symbol('ICreateCategoryUseCase');

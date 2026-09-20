@@ -1,3 +1,4 @@
+import { PostTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { ICategoryEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
   PostgresAuditableEntity,
@@ -27,6 +28,14 @@ export class CategoryEntity
   @Index()
   @Column({ name: 'parent_id', type: 'uuid', nullable: true })
   parentId: string | null;
+  @Column({
+    name: 'post_types',
+    type: 'text',
+    array: true,
+    default: () =>
+      `ARRAY['OFFER', 'WANTED', 'CHARITY', 'CLASSIFIED', 'MERIT']::text[]`,
+  })
+  postTypes: PostTypes[];
   @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
   deletedAt: Date | null;
 }
