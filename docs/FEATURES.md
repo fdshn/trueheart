@@ -146,12 +146,23 @@ cho bản đồ tại thời điểm xem.
 
 > ⚠️ Ký hiệu "2+2 / 3+3 / 4+4" đang được suy ra là *N giao dịch Cho + N referral*, dựa theo
 > điều kiện lên Bạc. Cần Bên A xác nhận.
+>
+> ℹ️ Code hiện đọc các con số này từ bảng `rank_tiers`, không hardcode. Chu kỳ đã mở giữ
+> **ngưỡng của chính nó** (`policy` theo hạng ghi trên cycle), nên đổi số giữa chừng không
+> làm thay đổi kết quả một chu kỳ đang chạy.
 
 > ⛔ **Rank có hai cơ chế quyết định mâu thuẫn nhau.** Một mặt "xét theo số dư điểm hiện
 > tại, tự nâng/hạ theo balance"; mặt khác "không đạt nhiệm vụ duy trì → xét lại Rank theo
 > balance/rule". Nếu user có 1792 điểm nhưng trượt nhiệm vụ 4+4, xét lại theo balance thì
 > vẫn đủ Kim Cương → nhiệm vụ duy trì **không có tác dụng gì**. Phải chọn một trong hai làm
 > cơ chế chính.
+>
+> ✅ **Code đã chốt: điểm là SÀN, nhiệm vụ duy trì là TRẦN.** Điểm tích luỹ quyết định
+> hạng cao nhất *có thể* đạt; trượt nhiệm vụ duy trì thì tụt đúng **một bậc** bất kể còn
+> bao nhiêu điểm, và không bao giờ tụt dưới sàn Member của onboarding. Nhờ vậy nhiệm vụ
+> duy trì có tác dụng thật. Xem [GĐ-3](./plan/ASSUMPTIONS.md#gđ-3--rank-điểm-là-sàn-nhiệm-vụ-là-trần).
+> **Các con số** (ngưỡng và 2+2/3+3/4+4) vẫn chờ Bên A xác nhận — đổi số là đổi dữ liệu
+> trong `rank_tiers`, không phải sửa code.
 
 **Điểm dư:** không tự trừ khi lên hạng. Chỉ trừ khi có chương trình đổi điểm cụ thể **và
 người dùng xác nhận**. Mặc định **không quy đổi ra tiền mặt**.
@@ -160,6 +171,10 @@ người dùng xác nhận**. Mặc định **không quy đổi ra tiền mặt*
 > Cách xử lý chuẩn, rất rẻ nếu làm ngay: tách `lifetime_points` (chỉ tăng, quyết định Rank)
 > khỏi `spendable_balance` (tiêu được). Ledger đã có `balance_after`, chỉ cần thêm
 > `lifetime_after`. Làm sau khi có dữ liệu thật thì phải migrate và tính lại toàn bộ lịch sử.
+>
+> ✅ **Đã tách.** `point_ledger` ghi cả `balance_after` lẫn `lifetime_after`, và
+> `user_point_balances` giữ hai cột riêng. Hạng đọc `lifetime`; tiêu điểm chỉ giảm
+> `balance` nên không kéo hạng xuống. Kênh công khai chỉ thấy `lifetime`.
 
 ### F13 — Referral cá nhân, thưởng một lần
 Mã/link cá nhân **chỉ áp dụng cho tài khoản mới**. Thưởng đúng một lần khi người mới đăng ký

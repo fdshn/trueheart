@@ -20,7 +20,7 @@ có implementation**.
 | `.../models` | `IGiftPost`, `IPost`, `IPostMedia` |
 | `.../entities` | `IGiftPostEntity` + token DI, `IPostEntity` + token DI, `IPostMediaEntity` + token DI |
 | `.../values` | `GiftPostId` |
-| `.../dto` | Interface DTO theo từng resource, gồm owner point summary/ledger history và tóm tắt thứ hạng owner (`IGetOwnRankSummaryResponseDto`) |
+| `.../dto` | Interface DTO theo từng resource: owner point summary/ledger, tóm tắt thứ hạng owner (`IGetOwnRankSummaryResponseDto`), referral (`IReferralSummaryDto`), quyền theo hạng (`IEntitlementsSummaryDto`) và vòng đời giao dịch (`IGiftTransactionDto`) |
 
 ## Quy ước DTO
 

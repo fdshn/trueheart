@@ -7,11 +7,11 @@ cả 72 đều là P0.
 | --- | --- | ---: | --- |
 | M0 | Nền tảng monorepo + CI/CD | — | ✅ Xong |
 | [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | ✅ Xong (provider/ledger rollout deferred) |
-| [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 14 | ⬜ 0/14 |
-| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | ⬜ 0/10 |
-| [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 7 | ⬜ 0/7 |
+| [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 14 | 🟡 Nền canonical post đã có |
+| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 Vòng đời giao dịch xong; chat/thông báo chưa |
+| [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 7 | 🟡 Ledger/rank/referral xong; đánh giá & accuracy chưa |
 | [M5](#m5--group--affiliate) | Group, affiliate, chống gian lận | 10 | ⬜ 0/10 |
-| [M6](#m6--quản-trị--bàn-giao) | Admin CMS, kiểm duyệt, bàn giao | 18 | ⬜ 0/18 |
+| [M6](#m6--quản-trị--bàn-giao) | Admin CMS, kiểm duyệt, bàn giao | 18 | 🟡 RBAC/config/log/quản lý user đã có; giao diện CMS chưa |
 
 ## Vì sao thứ tự này
 
@@ -44,8 +44,8 @@ M1 users ──▶ M2 posts ──▶ M3 transactions ──▶ M4 points ──
 - [x] F06 Xoá tài khoản + ẩn danh hoá ⚠️ *chặn giao dịch dở dang chờ M3*
 - [x] F07 Cổng hoàn thiện hồ sơ
 - [x] F08 Hồ sơ cá nhân & thống kê có backing thật
-- [x] F09 Xác minh SĐT — OTP state xong; SMS provider rollout + điểm M4 còn treo
-- [x] F10 Hồ sơ công khai + deep link
+- [x] F09 Xác minh SĐT — OTP state và thưởng lần đầu qua ledger đã xong; SMS provider rollout còn treo
+- [x] F10 Hồ sơ công khai — điểm tích luỹ và share URL đã có; deep link là phần của client
 - [x] F11 Vị trí mặc định
 - [x] F14 Danh mục động dạng cây — tree/public seed + `CATEGORY_ADMIN_USERNAMES` allowlist tạm thời; M6 thay role thật
 - [x] F24 Media R2 qua presigned URL — MinIO local/CI, R2 staging/production qua env
@@ -88,13 +88,13 @@ resource `gift-post` làm mẫu.
 
 **Package:** resource `gift-request`, `transaction`, `chat` · Socket.io
 
-- [ ] F30 Gửi yêu cầu xin nhận (UNIQUE ở tầng DB)
+- [x] F30 Gửi yêu cầu xin nhận — unique một yêu cầu đang mở mỗi người/bài ở tầng DB
 - [ ] F31 Danh sách ứng viên + quyền chọn theo Rank
-- [ ] F32 **Trừ tồn kho nguyên tử**
+- [x] F32 **Trừ tồn kho nguyên tử** — UPDATE có điều kiện, huỷ thì trả lại
 - [ ] F33 Hàng đợi dự phòng
 - [ ] F34 Chấp nhận giao dịch + mở chat (cùng một DB transaction)
-- [ ] F35 Huỷ giao dịch + mở lại hàng đợi
-- [ ] F36 Xác nhận nhận + tự hoàn tất sau 5 ngày
+- [ ] F35 Huỷ giao dịch + mở lại hàng đợi — huỷ đã trả tồn kho; hàng đợi chưa có
+- [x] F36 Xác nhận nhận + tự hoàn tất sau 5 ngày qua CLI `transaction:autocomplete`
 - [ ] F37 Chat text 1-1 theo giao dịch
 - [ ] F38 Lưu bền vững + khoá chỉ đọc khi xong
 - [ ] F44 Push FCM + thông báo trong app *(bản tối thiểu, đủ cho giao dịch)*
@@ -111,13 +111,13 @@ và mở chat phải nằm trong cùng transaction với việc duyệt.
 
 **Package:** resource `point`, `review`, `rank`, `referral`
 
-- [ ] F39 Point Rule Engine + Ledger (`lifetime_after` tách khỏi `balance_after`)
+- [x] F39 Point Rule Engine + Ledger (`lifetime_after` tách khỏi `balance_after`)
 - [ ] F40 Điểm theo giá trị vật phẩm — dùng [GĐ-1](./ASSUMPTIONS.md#gđ-1--một-giao-dịch-100-giá-trị--56-điểm)
 - [ ] F41 Điểm Like/Comment/Report *(mặc định tắt)*
 - [ ] F42 Đánh giá chất lượng hai chiều
 - [ ] F43 Giver Accuracy (đủ 5 mẫu mới tính)
-- [ ] F12 Rank 5 tầng + chu kỳ duy trì — dùng [GĐ-3](./ASSUMPTIONS.md#gđ-3--rank-điểm-là-sàn-nhiệm-vụ-là-trần), [GĐ-4](./ASSUMPTIONS.md#gđ-4--22--33--44--n-giao-dịch-cho-hoàn-tất--n-referral)
-- [ ] F13 Referral cá nhân, thưởng một lần
+- [x] F12 Rank 5 tầng + chu kỳ duy trì — dùng [GĐ-3](./ASSUMPTIONS.md#gđ-3--rank-điểm-là-sàn-nhiệm-vụ-là-trần), [GĐ-4](./ASSUMPTIONS.md#gđ-4--22--33--44--n-giao-dịch-cho-hoàn-tất--n-referral)
+- [x] F13 Referral cá nhân, thưởng một lần
 
 **Xong khi:** hoàn tất một giao dịch → điểm vào ledger có idempotency → đủ 224 điểm thì lên
 Member. Ghi cùng một `idempotency_key` hai lần chỉ cộng một lần.
@@ -157,8 +157,8 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
 
 **Admin CMS**
 - [ ] F59 Dashboard KPI
-- [ ] F60 Kiểm duyệt + quản lý người dùng — **khoá tài khoản phải gọi `ITokenDenyList.revokeIssuedBefore()`**, nếu không người bị khoá vẫn dùng API được 15 phút
-- [ ] F61 Cấu hình Rank/Point/Referral/Affiliate/Accuracy (có version)
+- [ ] F60 Kiểm duyệt + quản lý người dùng — API đã có (tìm/lọc, đổi trạng thái, xoá mềm) và **đã gọi `ITokenDenyList.revokeIssuedBefore()`** trước khi thu hồi phiên; giao diện CMS chưa có
+- [ ] F61 Cấu hình Rank/Point/Referral/Affiliate/Accuracy (có version) — `system_configs` có revision bất biến cho một tập khoá; chưa phủ hết Rank/Accuracy
 - [ ] F62 Quản lý danh mục + mẫu thông báo
 - [ ] F63 Campaign + Home động
 - [ ] F64 Blog / Tin tức

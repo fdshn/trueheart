@@ -172,7 +172,12 @@ else
   MISSING=""
   for route in '/api/v1/gift-posts' '/api/v1/gift-posts/nearby' '/api/v1/gift-posts/{giftPostId}' '/api/v1/auth/register' '/api/v1/auth/login' '/api/v1/auth/refresh' '/api/v1/auth/logout' \
     '/api/v1/auth/password-reset/request' '/api/v1/auth/password-reset/confirm' \
-    '/api/v1/auth/account'; do
+    '/api/v1/auth/account' \
+    '/api/v1/points/me' '/api/v1/points/me/ledger' '/api/v1/ranks/me' \
+    '/api/v1/referrals/me' '/api/v1/me/entitlements' \
+    '/api/v1/transactions' '/api/v1/transactions/me' \
+    '/api/v1/admin/system-configs' '/api/v1/admin/audit-logs' \
+    '/api/v1/admin/system-logs' '/api/v1/admin/users'; do
     printf '%s' "$RESP_BODY" | grep -q "\"$route\"" || MISSING="$MISSING $route"
   done
   LEGACY_ROUTES=$(printf '%s' "$RESP_BODY" | grep -oE '"/api/[^"]*"' | grep -v '^"/api/v1/' || true)
@@ -476,6 +481,81 @@ if [ "$RESP_CODE" = "200" ] && ! printf '%s' "$RESP_BODY" | grep -qE '"(email|ph
 else
   fail "hồ sơ công khai làm lộ dữ liệu riêng" "HTTP $RESP_CODE — $RESP_BODY"
 fi
+
+# Public profile được phép khoe điểm TÍCH LUỸ, nhưng số dư tiêu được là của
+# riêng chủ tài khoản — lộ ra là lộ sức mua của người ta.
+if printf '%s' "$RESP_BODY" | grep -q '"lifetimePoints"' &&
+  ! printf '%s' "$RESP_BODY" | grep -q '"balance"'; then
+  pass "hồ sơ công khai có điểm tích luỹ nhưng không lộ số dư tiêu được"
+else
+  fail "hồ sơ công khai sai về điểm" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo
+echo "Điểm, thứ hạng, giới thiệu và quyền"
+
+call_auth GET /api/v1/points/me "$PROFILE_ACCESS_TOKEN"
+if [ "$RESP_CODE" = "200" ] &&
+  printf '%s' "$RESP_BODY" | grep -q '"balance"' &&
+  printf '%s' "$RESP_BODY" | grep -q '"lifetime"'; then
+  pass "số dư điểm chính chủ tách lifetime và balance"
+else
+  fail "không đọc được số dư điểm chính chủ" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+call_auth GET "/api/v1/points/me/ledger?page=1&pageSize=5" "$PROFILE_ACCESS_TOKEN"
+if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"meta"'; then
+  pass "lịch sử ledger chính chủ có phân trang"
+else
+  fail "không đọc được lịch sử ledger" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+# Ledger là dữ liệu nội bộ: khoá idempotency và actor không được ra ngoài.
+if ! printf '%s' "$RESP_BODY" | grep -qE '"(idempotencyKey|actor|referenceId)"'; then
+  pass "ledger không lộ khoá idempotency/actor ra ngoài"
+else
+  fail "ledger lộ dữ liệu nội bộ" "$RESP_BODY"
+fi
+
+call_auth GET /api/v1/ranks/me "$PROFILE_ACCESS_TOKEN"
+if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"rank"'; then
+  pass "tóm tắt thứ hạng chính chủ đọc được"
+else
+  fail "không đọc được thứ hạng chính chủ" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+call_auth GET /api/v1/referrals/me "$PROFILE_ACCESS_TOKEN"
+if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"code"'; then
+  pass "mã giới thiệu chính chủ đọc được"
+else
+  fail "không đọc được mã giới thiệu" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+call_auth GET /api/v1/me/entitlements "$PROFILE_ACCESS_TOKEN"
+if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"capabilities"'; then
+  pass "quyền theo hạng đọc được"
+else
+  fail "không đọc được quyền theo hạng" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+call_auth GET /api/v1/transactions/me "$PROFILE_ACCESS_TOKEN"
+if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"transactions"'; then
+  pass "danh sách giao dịch của chính mình đọc được"
+else
+  fail "không đọc được danh sách giao dịch" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+# Người thường không được chạm vào khu quản trị. Guard là fail-closed nên đây
+# cũng là phép kiểm rằng nó thật sự đang gắn.
+for admin_path in /api/v1/admin/system-configs /api/v1/admin/audit-logs /api/v1/admin/users; do
+  call_auth GET "$admin_path" "$PROFILE_ACCESS_TOKEN"
+  if [ "$RESP_CODE" = "403" ]; then
+    pass "người thường bị chặn khỏi $admin_path"
+  else
+    fail "khu quản trị không chặn người thường" "$admin_path — HTTP $RESP_CODE"
+  fi
+done
 
 # ─────────────────────────────────────────────────────────────────────────────
 echo

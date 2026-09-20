@@ -42,10 +42,29 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 | `GET` | `/api/v1/points/me` | `GetOwnPointSummaryUseCase` — số dư projection của chính chủ |
 | `GET` | `/api/v1/points/me/ledger?page=&pageSize=` | `GetOwnPointLedgerUseCase` — lịch sử ledger phân trang của chính chủ |
 | `GET` | `/api/v1/ranks/me` | `GetOwnRankSummaryUseCase` — điểm lifetime, tier hiện tại/tiếp theo và maintenance cycle của chính chủ |
-| `GET` | `/api/v1/me/entitlements` | Quyền và quota theo rank hiện tại |
-| `GET` | `/api/v1/admin/system-configs` | System config đang hiệu lực, yêu cầu RBAC |
-| `POST` | `/api/v1/admin/system-configs` | Publish config revision mới, yêu cầu RBAC + audit |
-| `GET` | `/api/v1/admin/audit-logs` | Audit log Admin, yêu cầu RBAC |
+| `GET` | `/api/v1/me/entitlements` | Quyền và quota theo rank hiện tại; `used`/`remaining` đếm đúng số bài đang mở mà quota thật sự chặn |
+| `GET` | `/api/v1/referrals/me` | Mã giới thiệu, link chia sẻ và thống kê của chính chủ |
+| `GET` | `/api/v1/transactions/me` | Các lượt tặng/nhận của chính mình |
+| `POST` | `/api/v1/transactions` | Xin một suất từ bài đăng; người nhận lấy từ token |
+| `POST` | `/api/v1/transactions/:transactionId/accept` | Người tặng duyệt — trừ tồn kho nguyên tử |
+| `POST` | `/api/v1/transactions/:transactionId/confirm` | Người nhận xác nhận — mốc tính hoạt động cho rank |
+| `POST` | `/api/v1/transactions/:transactionId/cancel` | Huỷ và trả lại tồn kho nếu đã duyệt |
+| `GET` | `/api/v1/admin/system-configs` | System config đang hiệu lực, cần `config.read` |
+| `POST` | `/api/v1/admin/system-configs` | Publish config revision mới, cần `config.write` + audit |
+| `GET` | `/api/v1/admin/audit-logs` | Audit log Admin có filter actor/action/resource/thời gian, cần `audit.read` |
+| `GET` | `/api/v1/admin/system-logs?logType=` | Nhật ký ADMIN / POINT / RANK / TRANSACTION, đọc thẳng từ nguồn thật, cần `audit.read` |
+| `GET` | `/api/v1/admin/notification-channels` | Cấu hình kênh gửi; secret chỉ báo đã cấu hình hay chưa, cần `notification.manage` |
+| `PUT` | `/api/v1/admin/notification-channels/:channel` | Đổi cấu hình kênh; secret ghi vào được, không đọc ra được |
+| `GET` | `/api/v1/admin/roles` | Role và quyền kèm theo, cần `admin.manage` |
+| `POST\|DELETE` | `/api/v1/admin/users/:userId/roles` | Cấp/thu hồi role; không tự sửa mình, không thu hồi SUPER_ADMIN cuối cùng |
+| `GET` | `/api/v1/admin/users` | Tìm user, lọc theo username/email/SĐT/hạng/trạng thái/role/xác minh/thời gian đăng ký |
+| `GET` | `/api/v1/admin/users/:userId` | Chi tiết một user |
+| `PATCH` | `/api/v1/admin/users/:userId/status` | Đổi trạng thái; khoá/cấm sẽ thu hồi token và phiên ngay |
+| `DELETE` | `/api/v1/admin/users/:userId` | Xoá mềm kèm ẩn danh, giữ username để chống mạo danh |
+
+> **Quyền Admin là fail-closed.** `AdminPermissionGuard` chặn MỌI route dưới
+> `/admin` không khai `@RequiresPermission(...)`. Thêm endpoint quản trị mà quên
+> decorator thì nó khoá ngay lần gọi đầu, thay vì lặng lẽ mở một cửa quản trị.
 
 ## Rank lifecycle operations
 
