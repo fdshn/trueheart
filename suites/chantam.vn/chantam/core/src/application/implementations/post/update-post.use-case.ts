@@ -5,7 +5,7 @@ import {
 } from '@/application/contracts/post';
 import { PostNotFoundException } from '@/domain/exceptions';
 import { IPostRepository } from '@/domain/ports/repository';
-import { PostTypes } from '@chantam.vn/chantam.core-lib/consts';
+import { GiftPostStatuses, PostTypes } from '@chantam.vn/chantam.core-lib/consts';
 import {
   ForbiddenException,
   ValidationFailedException,
@@ -36,12 +36,15 @@ export class UpdatePostUseCase implements IUpdatePostUseCase {
         'condition và estimatedValue chỉ áp dụng cho bài OFFER',
       ]);
 
+    const isRejected = (post.status as string) === GiftPostStatuses.REJECTED;
+
     await this.postRepository.update(
       { globalId: command.postId },
       definedProps({
         title: command.post.title,
         description: command.post.description,
         areaLabel: command.post.areaLabel,
+        status: isRejected ? GiftPostStatuses.PENDING_REVIEW : undefined,
         details: !hasOfferDetails
           ? undefined
           : {

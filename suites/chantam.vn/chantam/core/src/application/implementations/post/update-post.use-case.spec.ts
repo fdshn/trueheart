@@ -54,6 +54,28 @@ describe('UpdatePostUseCase', () => {
     expect(result.post.title).toBe('Xe mới');
   });
 
+  it('bài REJECTED khi được author cập nhật thì tự động chuyển về PENDING_REVIEW để duyệt lại', async () => {
+    const postRepository = {
+      findOneBy: jest.fn().mockResolvedValue(makePost({ status: 'REJECTED' as never })),
+      update: jest.fn(),
+      findOneByOrFail: jest
+        .fn()
+        .mockResolvedValue(makePost({ title: 'Xe sửa lại', status: 'PENDING_REVIEW' as never })),
+    } as unknown as jest.Mocked<IPostRepository>;
+
+    const result = await new UpdatePostUseCase(postRepository).handle({
+      postId: PostId,
+      userId: AuthorId,
+      post: { title: 'Xe sửa lại' },
+    });
+
+    expect(postRepository.update).toHaveBeenCalledWith(
+      { globalId: PostId },
+      { title: 'Xe sửa lại', status: 'PENDING_REVIEW' },
+    );
+    expect(result.post.status).toBe('PENDING_REVIEW');
+  });
+
   it('từ chối người không phải owner trước khi update', async () => {
     const postRepository = {
       findOneBy: jest.fn().mockResolvedValue(makePost()),
