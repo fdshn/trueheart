@@ -176,3 +176,18 @@ export interface IModeratePostBodyDto {
 export interface IModeratePostResponseDto {
   post: IPostEntity;
 }
+
+export interface IMyPostItemDto {
+  post: IPostEntity;
+  requestCount: number;
+  media: IPublicPostMediaDto[];
+}
+
+export interface IGetMyPostsQueryDto extends IPaginationQueryDto {
+  status?: string;
+}
+
+export interface IGetMyPostsResponseDto {
+  posts: IMyPostItemDto[];
+  meta: IPaginationMetaDto;
+}

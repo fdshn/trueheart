@@ -2,6 +2,7 @@ import {
   IAttachPostMediaUseCase,
   ICreatePostUseCase,
   IDeletePostUseCase,
+  IGetMyPostsUseCase,
   IGetNearbyPostsUseCase,
   IGetPostMapUseCase,
   IGetPostUseCase,
@@ -20,6 +21,7 @@ import {
 import {
   IAttachPostMediaResponseDto,
   ICreatePostResponseDto,
+  IGetMyPostsResponseDto,
   IGetNearbyPostsResponseDto,
   IGetPostMapResponseDto,
   IGetPostResponseDto,
@@ -55,6 +57,8 @@ import {
   AttachPostMediaResponseDto,
   CreatePostBodyDto,
   CreatePostResponseDto,
+  GetMyPostsQueryDto,
+  GetMyPostsResponseDto,
   GetNearbyPostsQueryDto,
   GetNearbyPostsResponseDto,
   GetPostMapQueryDto,
@@ -94,6 +98,8 @@ export class PostController {
     private readonly getPostMapUseCase: IGetPostMapUseCase,
     @Inject(IGetNearbyPostsUseCase)
     private readonly getNearbyPostsUseCase: IGetNearbyPostsUseCase,
+    @Inject(IGetMyPostsUseCase)
+    private readonly getMyPostsUseCase: IGetMyPostsUseCase,
     @Inject(IGetPostUseCase)
     private readonly getPostUseCase: IGetPostUseCase,
     @Inject(IModeratePostUseCase)
@@ -357,6 +363,29 @@ export class PostController {
     });
 
     return ResponseDto.create<IGetNearbyPostsResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Get('me')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Danh sách bài đăng của chính tôi',
+    description:
+      'Chỉ trả về các bài đăng do chính user tạo, đính kèm số lượng yêu cầu xin đồ và media.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(GetMyPostsResponseDto) })
+  public async getMyPosts(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Query() query: GetMyPostsQueryDto,
+  ): Promise<ResponseDto<IGetMyPostsResponseDto>> {
+    const result = await this.getMyPostsUseCase.handle({
+      ...query,
+      userId: principal.userId,
+    });
+
+    return ResponseDto.create<IGetMyPostsResponseDto>()
       .succeed()
       .attach(result)
       .build();

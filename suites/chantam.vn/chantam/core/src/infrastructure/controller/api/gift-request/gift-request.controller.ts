@@ -1,4 +1,5 @@
 import {
+  IAcceptGiftRequestUseCase,
   ICreateGiftRequestUseCase,
   IListPostRequestsUseCase,
   IWithdrawGiftRequestUseCase,
@@ -12,6 +13,7 @@ import {
   PostNotFoundException,
 } from '@/domain/exceptions';
 import {
+  IAcceptGiftRequestResponseDto,
   ICreateGiftRequestResponseDto,
   IGetPostRequestsResponseDto,
   IWithdrawGiftRequestResponseDto,
@@ -29,6 +31,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  AcceptGiftRequestParamDto,
+  AcceptGiftRequestResponseDto,
   CreateGiftRequestBodyDto,
   CreateGiftRequestParamDto,
   CreateGiftRequestResponseDto,
@@ -48,6 +52,8 @@ export class GiftRequestController {
     private readonly withdrawGiftRequestUseCase: IWithdrawGiftRequestUseCase,
     @Inject(IListPostRequestsUseCase)
     private readonly listPostRequestsUseCase: IListPostRequestsUseCase,
+    @Inject(IAcceptGiftRequestUseCase)
+    private readonly acceptGiftRequestUseCase: IAcceptGiftRequestUseCase,
   ) {}
 
   @Post(':postId/requests')
@@ -141,6 +147,35 @@ export class GiftRequestController {
     });
 
     return ResponseDto.create<IGetPostRequestsResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Post(':postId/requests/:requestId/accept')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Duyệt người xin nhận đồ (Chọn ứng viên)',
+    description:
+      'Chỉ tác giả của bài đăng mới có thể duyệt người xin nhận. Khi duyệt, yêu cầu của người này chuyển sang ACCEPTED, các yêu cầu PENDING khác chuyển sang REJECTED, bài đăng chuyển sang DELIVERING, và mã giao dịch mới được tạo ra.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(AcceptGiftRequestResponseDto) })
+  @ApiErrorResponses(
+    [PostNotFoundException, 'Post không tồn tại'],
+    [GiftRequestNotFoundException, 'Không tìm thấy yêu cầu nhận quà'],
+    [PostInvalidStateException, 'Bài đăng không ở trạng thái hợp lệ để duyệt'],
+  )
+  public async acceptGiftRequest(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: AcceptGiftRequestParamDto,
+  ): Promise<ResponseDto<IAcceptGiftRequestResponseDto>> {
+    const result = await this.acceptGiftRequestUseCase.handle({
+      postId: params.postId,
+      requestId: params.requestId,
+      userId: principal.userId,
+    });
+
+    return ResponseDto.create<IAcceptGiftRequestResponseDto>()
       .succeed()
       .attach(result)
       .build();

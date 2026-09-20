@@ -5,3 +5,4 @@ export * from './moderate-post.dto';
 export * from './post-media.dto';
 export * from './post.dto';
 export * from './update-post.dto';
+export * from './get-my-posts.dto';

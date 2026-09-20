@@ -47,3 +47,10 @@ export interface IGetPostRequestsResponseDto {
   requests: IPostRequestItemDto[];
   total: number;
 }
+
+export interface IAcceptGiftRequestResponseDto {
+  requestId: string;
+  postId: string;
+  status: GiftRequestStatuses;
+  transactionId?: string;
+}
