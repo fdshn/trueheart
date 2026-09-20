@@ -30,7 +30,6 @@ export class GetMyPostsUseCase implements IGetMyPostsUseCase {
 
     const qb = this.postRepository
       .createQueryBuilder('post')
-      .leftJoinAndSelect('post.category', 'category')
       .where('post.authorId = :authorId', { authorId: command.userId })
       .andWhere('post.deletedAt IS NULL');
 
