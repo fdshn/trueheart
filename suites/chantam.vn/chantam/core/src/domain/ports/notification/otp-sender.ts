@@ -3,9 +3,10 @@ import { PasswordResetChannels } from '@chantam.vn/chantam.core-lib/dto';
 /**
  * Gửi mã xác minh tới người dùng.
  *
- * ⚠️ **Chưa có bản hiện thực thật.** Dự án chưa chốt nhà cung cấp email và
- * chưa tích hợp Zalo ZNS / SMS brandname. Hiện chỉ có `LoggingOtpSender` ghi mã
- * ra log, và nó tự tắt toàn bộ kênh ở production.
+ * Năng lực gửi đến từ cấu hình Admin trong database (xem
+ * `notification_channels`), không phải biến môi trường. Hiện mới có adapter
+ * EMAIL qua SMTP; SMS và Zalo ZNS chưa có, nên dù Admin bật kênh trong CMS thì
+ * `canSend` vẫn trả `false` ở production.
  */
 export interface IOtpSender {
   /**
@@ -16,11 +17,10 @@ export interface IOtpSender {
    * hỏi đúng kênh nó sắp dùng trước khi sinh mã, rồi chuyển sang hướng dẫn liên
    * hệ Admin nếu kênh đó chưa sẵn sàng.
    *
-   * Tồn tại thay cho cách làm cũ là ném lỗi lúc khởi động: chặn cả tiến trình
-   * thì một tính năng chưa xong làm chết toàn bộ API, kể cả deploy cũng không
-   * qua nổi cổng health check.
+   * Bất đồng bộ vì năng lực gửi nằm ở cấu hình Admin trong database, không phải
+   * ở biến môi trường lúc khởi động.
    */
-  canSend(channel: PasswordResetChannels): boolean;
+  canSend(channel: PasswordResetChannels): Promise<boolean>;
 
   send(
     channel: PasswordResetChannels,

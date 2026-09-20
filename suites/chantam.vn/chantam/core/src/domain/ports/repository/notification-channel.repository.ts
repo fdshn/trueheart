@@ -45,6 +45,14 @@ export interface INotificationChannelRepository {
   update(
     command: IUpdateNotificationChannelCommand,
   ): Promise<INotificationChannelSummary>;
+  /**
+   * Giải mã secret để ĐI GỬI THẬT.
+   *
+   * Chỉ adapter gửi được gọi. Không use case nào của Admin được dùng, và không
+   * response nào được mang giá trị này ra ngoài — đó là lý do nó tách khỏi
+   * `list()` thay vì thêm một trường vào summary.
+   */
+  readSecret(channel: NotificationChannelCodes): Promise<string | null>;
 }
 
 export const INotificationChannelRepository = Symbol(

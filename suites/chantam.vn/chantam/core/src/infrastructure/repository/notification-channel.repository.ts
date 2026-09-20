@@ -90,6 +90,26 @@ export class NotificationChannelRepository implements INotificationChannelReposi
     return row?.enabled === true && row.secret_encrypted !== null;
   }
 
+  public async readSecret(
+    channel: NotificationChannelCodes,
+  ): Promise<string | null> {
+    const [row] = await this.manager.query<
+      { secret_encrypted: string | null }[]
+    >(
+      `
+        SELECT secret_encrypted
+        FROM notification_channels
+        WHERE channel = $1
+      `,
+      [channel],
+    );
+
+    if (!row?.secret_encrypted) return null;
+
+    this.assertCipherReady();
+    return this.cipher.decrypt(row.secret_encrypted);
+  }
+
   public async update(
     command: IUpdateNotificationChannelCommand,
   ): Promise<INotificationChannelSummary> {

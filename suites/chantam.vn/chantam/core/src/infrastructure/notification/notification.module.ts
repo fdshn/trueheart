@@ -1,14 +1,22 @@
 import { IOtpSender } from '@/domain/ports/notification';
 import { Global, Module } from '@nestjs/common';
-import { LoggingOtpSender } from './logging-otp-sender';
+import { ConfiguredOtpSender } from './configured-otp-sender';
+import { IMailTransport } from './mail-transport';
+import { NodemailerTransport } from './nodemailer-transport';
 
 /**
- * ⚠️ Mới chỉ có bản ghi log. Xem `logging-otp-sender.ts` — nó tự từ chối chạy ở
- * production. Khi tích hợp email hoặc Zalo ZNS thì đổi `useClass` ở đây.
+ * Năng lực gửi đến từ cấu hình Admin trong database, không phải biến môi
+ * trường: đổi SMTP từ CMS là có hiệu lực ngay, không cần deploy lại.
+ *
+ * Hiện mới có adapter cho EMAIL. SMS và Zalo bật được trong CMS nhưng
+ * `ConfiguredOtpSender` vẫn báo không gửi được, cho tới khi có adapter thật.
  */
 @Global()
 @Module({
-  providers: [{ provide: IOtpSender, useClass: LoggingOtpSender }],
+  providers: [
+    { provide: IMailTransport, useClass: NodemailerTransport },
+    { provide: IOtpSender, useClass: ConfiguredOtpSender },
+  ],
   exports: [IOtpSender],
 })
 export class NotificationModule {}
