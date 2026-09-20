@@ -20,19 +20,20 @@ Flutter (Android + iOS) · NestJS + PostgreSQL 16 + PostGIS · Redis · Socket.i
 | # | Phân hệ | Mã | Ghi chú |
 |---|---|---|---|
 | 1 | [Xác thực & Tài khoản](#1-xác-thực--tài-khoản) | F01–F06 | Không có eKYC/CCCD |
-| 2 | [Hồ sơ, Rank & Referral](#2-hồ-sơ-rank--referral) | F07–F13 | ⛔ Rank có 2 cơ chế xung đột |
-| 3 | [Đăng tin & Nội dung](#3-đăng-tin--nội-dung) | F14–F24 | 5 loại bài khác nhau |
-| 4 | [Quanh Đây & Bản đồ GIS](#4-quanh-đây--bản-đồ-gis) | F25–F29 | Chỉ bản đồ, không có feed |
+| 2 | [Hồ sơ, Rank & Referral](#2-hồ-sơ-rank--referral) | F07–F13 | Rank xét theo current balance (CHỐT-01) |
+| 3 | [Đăng tin & Nội dung](#3-đăng-tin--nội-dung) | F14–F24 | 5 loại bài khác nhau; vòng đời 3 tháng |
+| 4 | [Quanh Đây & Bản đồ GIS](#4-quanh-đây--bản-đồ-gis) | F25–F29 | Chỉ bản đồ toàn màn hình, không có feed |
 | 5 | [Giao dịch & FSM](#5-giao-dịch--fsm) | F30–F36 | Lõi nghiệp vụ |
 | 6 | [Chat Realtime 1-1](#6-chat-realtime-1-1) | F37–F38 | Chỉ text |
-| 7 | [Điểm, Review & Accuracy](#7-điểm-review--accuracy) | F39–F43 | Point Ledger là nguồn sự thật |
+| 7 | [Điểm, Review & Accuracy](#7-điểm-review--accuracy) | F39–F43 | Accuracy dùng % (CHỐT-03) |
 | 8 | [Thông báo & Lịch Âm](#8-thông-báo--lịch-âm) | F44–F47 | |
 | 9 | [Báo cáo & Chống gian lận](#9-báo-cáo--chống-gian-lận) | F48–F50 | |
-| 10 | [Group, Affiliate & Geo](#10-group-affiliate--geo) | F51–F58 | Phần phức tạp nhất |
-| 11 | [Admin CMS](#11-admin-cms-campaign--blog) | F59–F65 | |
-| 12 | [Hạ tầng & Bảo mật](#12-hạ-tầng--bảo-mật) | F66–F68 | |
-| 13 | [QA & UAT](#13-qa--uat) | F69–F70 | |
-| 14 | [Triển khai & Bàn giao](#14-triển-khai--bàn-giao) | F71–F72 | |
+| 10 | [Group, Affiliate & Geo](#10-group-affiliate--geo) | F51–F58 | Toàn bộ event cần Geo Group (CHỐT-06) |
+| 11 | [Phật Pháp – Dharma Hub](#11-phật-pháp--dharma-hub) | F73 | Main Tab 3 trong Bottom Navigation |
+| 12 | [Admin CMS](#12-admin-cms-campaign--blog) | F59–F65 | |
+| 13 | [Hạ tầng & Bảo mật](#13-hạ-tầng--bảo-mật) | F66–F68 | |
+| 14 | [QA & UAT](#14-qa--uat) | F69–F70 | |
+| 15 | [Triển khai & Bàn giao](#15-triển-khai--bàn-giao) | F71–F72 | |
 
 ---
 
@@ -61,9 +62,7 @@ xuất không còn nhận push.
 ### F05 — Quên mật khẩu & kênh Admin dự phòng
 Có email/SĐT thì khôi phục qua OTP. Không có thì hiển thị kênh liên hệ Admin.
 
-> ⚠️ **Quy trình Admin hỗ trợ chưa được định nghĩa.** Admin đặt lại mật khẩu theo yêu cầu
-> qua chat là lỗ hổng chiếm tài khoản — cần quy định bằng chứng sở hữu tài khoản trước khi
-> reset.
+> ✅ **Đã chốt theo SRS v1.15.0 (CHỐT-04):** Khi không có Email/SĐT, user tự liên hệ Admin support để được hỗ trợ. Ứng dụng chỉ hiển thị hướng dẫn và kênh liên hệ support; quy trình xác minh hỗ trợ thực hiện theo vận hành ngoài của Admin.
 >
 > 🟡 **Đã chốt email là kênh OTP đầu tiên, nhưng chưa có adapter/vendor credential gửi thật.**
 >
@@ -130,36 +129,23 @@ cho bản đồ tại thời điểm xem.
 | Vàng | 896 | **+224** | 627 |
 | Kim Cương | 1792 | +896 | 1254 |
 
-> ⛔ **Đường cong thăng hạng bị gãy.** Bước Bạc → Vàng (224) chỉ bằng **một nửa** bước
-> Member → Bạc (448) — tức leo lên Vàng dễ hơn leo lên Bạc. Mọi ngưỡng đều là bội của 224
-> (×1, ×3, ×4, ×8) nên trông có chủ đích, nhưng ×4 nằm sai chỗ. Cần xác nhận trước khi code.
+> ✅ **Đã chốt chính thức theo SRS v1.15.0 (BR-PROF-RANK-02):** Ngưỡng tham chiếu: Member 224, Bạc 672, Vàng 896, Kim Cương 1792. Ngưỡng được lưu dạng cấu hình để Admin có thể điều chỉnh qua CMS.
 
-**Điều kiện lên Bạc:** 1 giao dịch Cho hoàn tất + 1 referral (áp dụng cho Member).
+**Điều kiện lên Bạc:** 1 giao dịch Cho hoàn tất + 1 Personal Referral hợp lệ (áp dụng cho Member).
 
-**Nhiệm vụ duy trì mỗi 3 tháng** — chỉ Bạc/Vàng/Kim Cương, nhắc trước 1 tháng:
+**Nhiệm vụ duy trì mỗi 3 tháng** — áp dụng cho Bạc, Vàng và Kim Cương, nhắc trước 1 tháng (SRS v1.15.0 - BR-PROF-RANK-03):
 
-| Rank | Mỗi quý | Quy ra một năm |
-|---|---|---:|
-| Bạc | 2 Cho hoàn tất + 2 referral | 8 referral |
-| Vàng | 3 + 3 | 12 referral |
-| Kim Cương | 4 + 4 | 16 referral |
+| Rank | Mỗi quý (chu kỳ 3 tháng) | Ghi chú |
+|---|---|---|
+| Bạc | 2 Cho hoàn tất + 2 referral hợp lệ | Viewer/Member không có cơ chế tụt theo chu kỳ |
+| Vàng | 3 Cho hoàn tất + 3 referral hợp lệ | Nhắc cảnh báo trước 1 tháng |
+| Kim Cương | 4 Cho hoàn tất + 4 referral hợp lệ | Nhắc cảnh báo trước 1 tháng |
 
-> ⚠️ Ký hiệu "2+2 / 3+3 / 4+4" đang được suy ra là *N giao dịch Cho + N referral*, dựa theo
-> điều kiện lên Bạc. Cần Bên A xác nhận.
-
-> ⛔ **Rank có hai cơ chế quyết định mâu thuẫn nhau.** Một mặt "xét theo số dư điểm hiện
-> tại, tự nâng/hạ theo balance"; mặt khác "không đạt nhiệm vụ duy trì → xét lại Rank theo
-> balance/rule". Nếu user có 1792 điểm nhưng trượt nhiệm vụ 4+4, xét lại theo balance thì
-> vẫn đủ Kim Cương → nhiệm vụ duy trì **không có tác dụng gì**. Phải chọn một trong hai làm
-> cơ chế chính.
-
-**Điểm dư:** không tự trừ khi lên hạng. Chỉ trừ khi có chương trình đổi điểm cụ thể **và
-người dùng xác nhận**. Mặc định **không quy đổi ra tiền mặt**.
-
-> ⛔ **Điểm vừa là thước đo Rank vừa là tiền tiêu được** ⟹ tiêu điểm là tụt hạng.
-> Cách xử lý chuẩn, rất rẻ nếu làm ngay: tách `lifetime_points` (chỉ tăng, quyết định Rank)
-> khỏi `spendable_balance` (tiêu được). Ledger đã có `balance_after`, chỉ cần thêm
-> `lifetime_after`. Làm sau khi có dữ liệu thật thì phải migrate và tính lại toàn bộ lịch sử.
+> ✅ **Cơ chế Rank đã chốt chính thức (SRS v1.15.0 - CHỐT-01, BR-PROF-RANK-04/06):**
+> 1. **Rank được xác định theo số Điểm Cống hiến hiện tại (current point balance)** của user.
+> 2. Khi số điểm hiện tại giảm xuống dưới ngưỡng của Rank đang có, hệ thống **tự xác định lại Rank theo ngưỡng điểm hiện tại** (ví dụ: Vàng 600, Bạc 400; đang Vàng mà điểm giảm còn 450 thì tự xuống Bạc).
+> 3. Khi Bạc/Vàng/Kim Cương không đạt nhiệm vụ duy trì chu kỳ 3 tháng hoặc điểm giảm, hệ thống xác định lại Rank theo số điểm hiện tại và điều kiện Rank tương ứng; **không bắt buộc chỉ tụt đúng một bậc**.
+> 4. **Phase 1 không dùng một `lifetime rank point` riêng** để giữ hạng. Mọi biến động tăng/giảm balance đều trigger đánh giá lại Rank. Owner Group vẫn giữ quyền quản lý Group nếu chỉ tụt Rank (Group chỉ giải tán khi Owner xoá tài khoản).
 
 ### F13 — Referral cá nhân, thưởng một lần
 Mã/link cá nhân **chỉ áp dụng cho tài khoản mới**. Thưởng đúng một lần khi người mới đăng ký
@@ -202,8 +188,7 @@ Người bán tự khai **giá tham khảo** và **giá bán**. Hệ thống ch�
 
 Hết 3 tháng → **tự chuyển thành bài Muốn Tặng** kèm thông báo.
 
-> ⚠️ Người bán bị chuyển món hàng đang rao bán thành cho không. Cần xác nhận đây là chủ ý và
-> người dùng được cảnh báo trước lúc đăng.
+> ✅ **Đã chốt chính thức (SRS v1.15.0 - CHỐT-05 & Mục 3.3.6):** Hệ thống không xác minh giá trị thực và không ép mức giảm tối thiểu; UI chỉ hiển thị giá tham khảo, giá bán và % chênh lệch. Nếu hết 3 tháng người dùng không huỷ/đóng bài, hệ thống **tự động chuyển sang Muốn Tặng** và gửi notification (không đòi hỏi xác nhận lại tại thời điểm chuyển). Thời hạn có thể được Admin cấu hình theo Rank.
 
 ### F20 — Giới thiệu / Quảng cáo (Phase 1)
 **Chỉ Admin tạo từ CMS** — người dùng không tự đăng quảng cáo. Gồm banner, nội dung, CTA và
@@ -472,7 +457,24 @@ chấp về sau không có cách nào tra lại.
 
 ---
 
-## 11. Admin CMS, Campaign & Blog
+## 11. Phật Pháp – Dharma Hub & Community
+
+### F73 — Phật Pháp (Dharma Hub)
+Main Tab thứ 3 trong Bottom Navigation Bar (5 entry points: Khám phá, Quanh đây, Phật Pháp, Hoạt động, Cá nhân).
+
+Layer 1 là Dharma Hub, hiển thị các lối vào:
+- **Kinh sách**: Đọc và tra cứu kinh sách Phật giáo theo chuyên mục.
+- **Tụng kinh**: Nghi thức và nội dung tụng kinh hằng ngày/ngày lễ.
+- **Hồi hướng**: Nhập lời hồi hướng (mặc định public, có tuỳ chọn ẩn danh), kết nối công đức.
+- **Cúng / Công đức**: Thông tin cúng dường các đơn vị/chùa đã được Admin xác minh qua VietQR/ngân hàng.
+- **Diễn đàn Phật Pháp**: Thảo luận, chia sẻ Phật pháp cộng đồng (dùng chung Post/Comment/Moderation).
+- **Thông tin & Giới thiệu chùa**: Dữ liệu và hình ảnh giới thiệu các ngôi chùa, tự viện (dùng chung CMS Content Engine).
+
+Tận dụng hạ tầng hiện có: CMS Content Engine, Post/Comment, Media R2, Moderation và In-App Notification.
+
+---
+
+## 12. Admin CMS, Campaign & Blog
 
 ### F59 — Dashboard KPI
 Người dùng mới, bài theo danh mục và loại, giao dịch hoàn tất, dung lượng lưu trữ, phân bổ
@@ -509,7 +511,7 @@ tham chiếu của Rao vặt.
 
 ---
 
-## 12. Hạ tầng & Bảo mật
+## 13. Hạ tầng & Bảo mật
 
 ### F66 — VPS, Docker, PostgreSQL, Redis, Nginx SSL
 Docker Compose, host Nginx + Certbot, TLS và staging/production tách path, database, Redis,
@@ -525,7 +527,7 @@ Rate limit, validation, quản lý secret, audit log, health check và log phụ
 
 ---
 
-## 13. QA & UAT
+## 14. QA & UAT
 
 ### F69 — Kiểm thử hồi quy & UAT
 Kiểm thử đầu-cuối trên Mobile, Backend và Admin. Bao phủ: Auth, Profile, Post, Map,
@@ -537,7 +539,7 @@ Sửa lỗi thuộc phạm vi, kiểm thử lại, lập danh sách hạng mục
 
 ---
 
-## 14. Triển khai & Bàn giao
+## 15. Triển khai & Bàn giao
 
 ### F71 — Build & phát hành Store
 Build Android APK/AAB, cấu hình TestFlight cho iOS, hỗ trợ submit. **Thời gian xét duyệt của
@@ -549,31 +551,32 @@ liệu vận hành. Chuyển quyền quản trị và **thu hồi mọi quyền 
 
 ---
 
-## 15. Giá trị cấu hình còn thiếu
+## 16. Đối chiếu giá trị cấu hình & Quyết định chính thức từ SRS v1.15.0
 
-Mười mục dưới đây **chưa có trong bất kỳ tài liệu nào** và cần Bên A trả lời. Bốn mục đầu là
-**blocker cứng** — thiếu chúng thì không viết được bảng dữ liệu lẫn tiêu chí nghiệm thu.
+Toàn bộ các điểm blocker trước đây đã được Bên A làm rõ và quy định chính thức trong [`../../SRS_Chan_Tam_v1.15.0.md`](../../SRS_Chan_Tam_v1.15.0.md) (Mục 1.7 - CHỐT-01 đến CHỐT-07):
 
-| # | Thiếu | Chặn |
+| # | Hạng mục | Trạng thái / Quyết định chính thức trong SRS v1.15.0 |
 |---|---|---|
-| 1 | **X điểm cho mức 100% giá trị**, và bảng mapping các mức % khác | 🔴 Toàn bộ phân hệ 7 và mọi thứ phụ thuộc Rank |
-| 2 | **Định nghĩa "Active Member"** | 🔴 [F56](#f56--affiliate-event-engine) — ai được nhận thưởng |
-| 3 | **Rank quyết bởi balance hay bởi nhiệm vụ duy trì** | 🔴 [F12](#f12--rank-5-tầng--chu-kỳ-duy-trì-3-tháng) — máy trạng thái Rank |
-| 4 | Xác nhận **"2+2 / 3+3 / 4+4"** = *N giao dịch Cho + N referral* | 🔴 [F12](#f12--rank-5-tầng--chu-kỳ-duy-trì-3-tháng) |
-| 5 | Quota đăng bài của từng Rank | [F15](#f15--đăng-muốn-tặng), [F16](#f16--đăng-muốn-nhận) |
-| 6 | Rank nào được dùng SOS | [F17](#f17--smart-match--sos) |
-| 7 | Bán kính Group lấy từ đâu | [F52](#f52--tạo-group-từ-default-location) |
-| 8 | Sub-team sâu mấy tầng, có quyền gì | [F53](#f53--quản-lý-group--sub-team) |
-| 9 | Giá trị cap theo ngày | [F61](#f61--cấu-hình-rank--point--referral--affiliate--accuracy) |
-| 10 | Cap số lần report — tài liệu **tự nhận chưa chốt** | [F41](#f41--điểm-cho-like--comment--report), [F49](#f49--tín-hiệu-kiểm-duyệt--chế-tài) |
+| 1 | **Giver Accuracy & Đánh giá** | ✅ **CHỐT-03**: Dùng tỷ lệ % (0–100%), chỉ tính tổng hợp sau ≥ 5 giao dịch. Ngưỡng cảnh báo < 75% đưa vào `REVIEW_REQUIRED`, không tự động phạt. |
+| 2 | **Định nghĩa "Active Member"** | ✅ **CHỐT-06**: Toàn bộ Group Affiliate Event bắt buộc nằm trong bán kính Group (Geo Eligibility). Phân bổ cho toàn bộ Active Member của Group. |
+| 3 | **Cơ chế Rank & Tụt hạng** | ✅ **CHỐT-01 & BR-PROF-RANK-04/06**: Quyết định bởi số dư Điểm Cống hiến hiện tại (`current point balance`). Khi điểm giảm dưới ngưỡng thì tự xác định lại theo điểm hiện tại (không ép chỉ tụt 1 bậc). Phase 1 không dùng `lifetime rank point` riêng. |
+| 4 | **Nhiệm vụ "2+2 / 3+3 / 4+4"** | ✅ **BR-PROF-RANK-03**: Xác nhận chính thức là N giao dịch Cho hoàn tất + N Personal Referral hợp lệ trong chu kỳ 3 tháng. |
+| 5 | Quota bài đăng theo Rank | ✅ Baseline: Viewer 0, Member 3, Bạc 10, Vàng 20, Kim Cương 50 (Admin chỉnh qua CMS). |
+| 6 | Rank được dùng SOS | ✅ Từ hạng **Bạc** trở lên (UI-WANTED-01). |
+| 7 | Bán kính Group | ✅ Lấy theo Group config lúc tạo (mặc định 10km, giới hạn 1–50km). |
+| 8 | Độ sâu Sub-team | ✅ 1 tầng (Group → Sub-team) trong Phase 1. |
+| 9 | Cap theo ngày | ✅ Baseline: 5 giao dịch tính điểm, 3 referral/ngày (Admin cấu hình). |
+| 10 | Cap report | ✅ Baseline: 10 report/người/ngày; chỉ report đã xác minh mới được tính điểm. |
 
-## 16. Mâu thuẫn cần quyết trước khi code
+---
 
-| Mục | Mâu thuẫn |
-|---|---|
-| [F12](#f12--rank-5-tầng--chu-kỳ-duy-trì-3-tháng) | Đường cong thăng hạng gãy: bước Bạc→Vàng (224) bằng nửa bước Member→Bạc (448) |
-| [F12](#f12--rank-5-tầng--chu-kỳ-duy-trì-3-tháng) | Rank có hai cơ chế quyết định loại trừ nhau (balance vs nhiệm vụ duy trì) |
-| [F12](#f12--rank-5-tầng--chu-kỳ-duy-trì-3-tháng) | Điểm vừa là thước đo Rank vừa là tiền tiêu được ⟹ tiêu điểm là tụt hạng |
-| [F19](#f19--rao-vặt-giá-rẻ) | Hàng đang rao bán tự chuyển thành cho không sau 3 tháng |
-| [F54](#f54--link-mời--chỉ-dành-cho-tài-khoản-mới) | Vào nhầm Group là kẹt vĩnh viễn |
-| [F05](#f05--quên-mật-khẩu--kênh-admin-dự-phòng) | Quy trình Admin đặt lại mật khẩu chưa định nghĩa — nguy cơ chiếm tài khoản |
+## 17. Các mâu thuẫn trước đây đã được giải quyết
+
+| Mục | Mâu thuẫn cũ | Quyết định chính thức từ SRS v1.15.0 |
+|---|---|---|
+| [F12](#f12--rank-5-tầng--chu-kỳ-duy-trì-3-tháng) | Đường cong thăng hạng & 2 cơ chế xung đột | **CHỐT-01 & BR-PROF-RANK-02/04/06**: Bảng ngưỡng điểm là chuẩn tham chiếu cấu hình được. Rank căn cứ theo current balance; khi điểm giảm hoặc trượt nhiệm vụ quý thì tự động tính lại rank theo ngưỡng điểm hiện tại. |
+| [F12](#f12--rank-5-tầng--chu-kỳ-duy-trì-3-tháng) | Tiêu điểm là tụt hạng | **CHỐT-01 & BR-PROF-RANK-06**: Hệ thống chấp nhận re-evaluate rank theo current point balance khi điểm giảm. Phase 1 không dùng `lifetime rank point` riêng. |
+| [F19](#f19--rao-vặt-giá-rẻ) | Rao bán tự chuyển thành cho không sau 3 tháng | **CHỐT-05 & Mục 3.3.6**: Xác nhận chính thức: bài Rao vặt tối đa 3 tháng, hết hạn tự chuyển thành Muốn Tặng và thông báo cho người bán. Không ép mức giảm giá tối thiểu. |
+| [F06](#f06--xoá-tài-khoản--ẩn-danh-hoá) / [F55](#f55--owner-xoá-tài-khoản--group-giải-tán) | Owner xoá tài khoản | **CHỐT-02**: Group giải tán, invite link hết hiệu lực, dừng affiliate và thành viên mới; dữ liệu giữ nguyên để audit. |
+| [F05](#f05--quên-mật-khẩu--kênh-admin-dự-phòng) | Quên mật khẩu không có email/SĐT | **CHỐT-04**: User tự liên hệ Admin support, app hiển thị hướng dẫn/liên hệ; quy trình xác minh thực hiện theo vận hành ngoài. |
+| [F22](#f22--vòng-đời-bài-muốn-tặng--gia-hạn) | Thời hạn và gia hạn bài | **CHỐT-07**: Bài tồn tại 3 tháng, được gia hạn tối đa 01 lần (+3 tháng) và tính quota như bài mới. |

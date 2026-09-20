@@ -65,10 +65,11 @@ và `scripts/smoke-test.sh` phủ được luồng này.
 - [ ] F16 Đăng Muốn Nhận
 - [ ] F17 Smart Match + SOS (SOS từ Bạc — [MĐ-2](./ASSUMPTIONS.md#6-mặc-định-mềm))
 - [ ] F18 Từ thiện / Hoạt động
-- [ ] F19 Rao vặt giá rẻ ⚠️ *tự chuyển thành cho không sau 3 tháng*
+- [ ] F19 Rao vặt giá rẻ *(tự chuyển thành Muốn Tặng sau 3 tháng — CHỐT-05)*
 - [ ] F20 Giới thiệu / Quảng cáo (chỉ Admin tạo)
 - [ ] F21 Công đức / Hồi hướng
-- [ ] F22 Vòng đời bài + gia hạn 1 lần
+- [ ] F73 Phật Pháp – Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng/Công đức, Diễn đàn, Giới thiệu chùa)
+- [ ] F22 Vòng đời bài + gia hạn 1 lần (reset thêm 3 tháng — CHỐT-07)
 - [ ] F23 Chuyển vật phẩm về điểm từ thiện
 - [ ] F25 Bản đồ toàn màn hình
 - [ ] F26 GPS + dự phòng Default Location
@@ -76,7 +77,7 @@ và `scripts/smoke-test.sh` phủ được luồng này.
 - [ ] F28 Gom cụm marker + bộ lọc
 - [ ] F29 Thẻ xem nhanh + deep link
 
-**Xong khi:** đăng đủ 5 loại bài, bài hiện trên bản đồ với toạ độ **đã làm nhiễu**, cron hết
+**Xong khi:** đăng đủ 5 loại bài + bài viết Dharma Hub, bài hiện trên bản đồ với toạ độ **đã làm nhiễu**, cron hết
 hạn 3 tháng chạy đúng.
 
 **Đã có sẵn:** `@GeoColumn`, `applyGeoJitter`, `bucketDistance`, `GeoQueryHelper`, và khung
@@ -111,19 +112,18 @@ và mở chat phải nằm trong cùng transaction với việc duyệt.
 
 **Package:** resource `point`, `review`, `rank`, `referral`
 
-- [ ] F39 Point Rule Engine + Ledger (`lifetime_after` tách khỏi `balance_after`)
-- [ ] F40 Điểm theo giá trị vật phẩm — dùng [GĐ-1](./ASSUMPTIONS.md#gđ-1--một-giao-dịch-100-giá-trị--56-điểm)
+- [ ] F39 Point Rule Engine + Ledger (xét Rank theo `balance_after`, `lifetime_after` dùng để thống kê/audit — CHỐT-01)
+- [ ] F40 Điểm theo giá trị vật phẩm — Admin cấu hình rule
 - [ ] F41 Điểm Like/Comment/Report *(mặc định tắt)*
 - [ ] F42 Đánh giá chất lượng hai chiều
-- [ ] F43 Giver Accuracy (đủ 5 mẫu mới tính)
-- [ ] F12 Rank 5 tầng + chu kỳ duy trì — dùng [GĐ-3](./ASSUMPTIONS.md#gđ-3--rank-điểm-là-sàn-nhiệm-vụ-là-trần), [GĐ-4](./ASSUMPTIONS.md#gđ-4--22--33--44--n-giao-dịch-cho-hoàn-tất--n-referral)
+- [ ] F43 Giver Accuracy (dùng %, đủ 5 mẫu mới tính, warning < 75% — CHỐT-03)
+- [ ] F12 Rank 5 tầng + chu kỳ duy trì (xét theo current balance, không giới hạn chỉ tụt 1 bậc — CHỐT-01; chu kỳ 3 tháng 2+2/3+3/4+4 — BR-PROF-RANK-03)
 - [ ] F13 Referral cá nhân, thưởng một lần
 
 **Xong khi:** hoàn tất một giao dịch → điểm vào ledger có idempotency → đủ 224 điểm thì lên
 Member. Ghi cùng một `idempotency_key` hai lần chỉ cộng một lần.
 
-> 🔴 **Mốc này dùng cả 4 giả định.** Nếu Bên A trả lời trước khi M4 bắt đầu thì không phải
-> sửa gì. Trả lời sau khi M4 xong thì phải migrate dữ liệu.
+> ✅ **Toàn bộ 4 câu hỏi/giả định của mốc này đã được chốt chính thức trong SRS v1.15.0** (Mục 1.7). Không còn rủi ro đụng cấu trúc bảng do thiếu yêu cầu.
 
 ---
 

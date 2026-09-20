@@ -38,7 +38,7 @@ Có môi trường chạy được, account an toàn, profile đủ điều ki�
 | 2 | Xác thực & tài khoản | Register, login, refresh/logout, chống brute-force | F01–F04 | ✅ |
 | 3 | Xác thực & tài khoản | Password recovery, Admin Support fallback, account deletion | F05–F06 | 🟡 Logic có; provider/quy trình vận hành deferred |
 | 4 | Hồ sơ | Profile completion, xác minh SĐT, public profile, default location | F07–F11 | 🟡 Profile có; SMS/Zalo và point reward deferred |
-| 5 | Rank & referral | Current balance, duy trì rank, referral cá nhân | F12–F13 | ⬜ Chờ M4 ledger/rule |
+| 5 | Rank & referral | Current balance (CHỐT-01), chu kỳ duy trì 3 tháng (2+2/3+3/4+4), referral cá nhân | F12–F13 | ⬜ Chờ M4 ledger/rule |
 | 6 | Đăng tin & nội dung | Category + OFFER/WANTED + Media/Post Location | F14–F17, F24 | 🟡 Category/OFFER/location/post-media ownership có; WANTED và legacy compatibility adapter còn thiếu |
 | 7 | QA | Smoke/integration Sprint 1 |  | 🟡 Unit/build/smoke nền có; acceptance provider còn thiếu |
 
@@ -84,7 +84,7 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 | 16 | Group & affiliate | Affiliate recurring, reward active member, idempotency/reversal | M5 | ⬜ |
 | 17 | Group & affiliate | Geo eligibility và audit mọi event | M5 | ⬜ |
 | 18 | Point & review | Point rule/ledger, review quality, giver accuracy | M4 | ⬜ Ledger là prerequisite |
-| 19 | Nội dung đặc thù | Charity/Event, Classified, ads, Merit | M2 extension | ⬜ |
+| 19 | Nội dung đặc thù & Phật Pháp | Charity/Event, Classified, ads, Merit, Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng dường, Diễn đàn, Chùa) | M2 extension + F73 | ⬜ |
 | 20 | Admin CMS | Rule config, moderation cơ bản | M6 | ⬜ |
 | 21 | QA | Integration/UAT Sprint 3 |  | ⬜ |
 

@@ -12,7 +12,7 @@ Tài liệu này giải thích **vì sao** hệ thống được dựng như hi�
 | 1 | Chạy mượt trên điện thoại Android đời cũ | Mục 1.4 đặc tả | Payload API phải nhỏ; ảnh resize phía server; phân trang mọi danh sách |
 | 2 | Truy vấn theo bán kính GPS là nghiệp vụ lõi | Mục 1.1, 3.4, 5.5 | **Bắt buộc PostGIS.** Không dùng document DB làm store chính |
 | 3 | Bàn giao toàn bộ mã nguồn, Bên A đăng ký bản quyền | Mục 7.2 | Không phụ thuộc backend độc quyền (Firebase, Sendbird). Mọi thứ tự chủ, tự host được |
-| 4 | Thu thập dữ liệu định danh người Việt (CCCD, SĐT, vị trí) | Mục 2.1 | Nghị định 53/2022 → máy chủ đặt tại Việt Nam. Không lưu ảnh CCCD |
+| 4 | Dữ liệu cá nhân & vị trí người dùng Việt Nam | SRS v1.15.0 | Nghị định 53/2022 → máy chủ đặt tại Việt Nam. Phase 1 loại bỏ hoàn toàn eKYC/CCCD |
 | 5 | Nhóm nhỏ, ngân sách hữu hạn | Bối cảnh dự án | Monolith có module rõ ràng, KHÔNG microservices. Một database |
 
 ---
@@ -78,9 +78,8 @@ Nếu nhiễu ngẫu nhiên mỗi lần gọi, kẻ tấn công chỉ cần gọ
 
 | Dữ liệu | Cách xử lý |
 | --- | --- |
-| Ảnh CCCD | **Không lưu.** Ảnh đi thẳng từ app lên SDK của nhà cung cấp eKYC; backend chỉ nhận `{verification_id, status}` |
-| Số CCCD | Chỉ lưu `HMAC-SHA256(số CCCD + pepper)` để chặn tái đăng ký sau khi bị khoá vĩnh viễn (mục 4.2 đặc tả) |
-| Số điện thoại | Lưu đầy đủ (cần để liên lạc sau khi duyệt), nhưng che khi trả ra API công khai và không bao giờ ghi log |
+| CCCD / eKYC | **Không sử dụng.** SRS v1.15.0 loại bỏ hoàn toàn eKYC/CCCD trong Phase 1 |
+| Số điện thoại | Lưu đầy đủ (cần để liên lạc sau khi duyệt và xác minh), nhưng che khi trả ra API công khai và không bao giờ ghi log |
 | Toạ độ | Lưu chính xác; chỉ trả chính xác cho bên đã được duyệt. Xem geo-jitter ở trên |
 
 Bộ redact của `logger-lib` là lớp phòng vệ cuối cùng, không phải giấy phép để log bừa.

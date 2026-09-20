@@ -53,8 +53,7 @@ thêm một join cho mọi truy vấn mà không đổi được gì.
 `fcm_token` nằm ở `user_sessions` chứ không ở `users`: một người có nhiều thiết bị, và đăng
 xuất phải xoá token **của đúng thiết bị đó** ([F04](../FEATURES.md#f04--đăng-xuất--thu-hồi-phiên)).
 
-`rank_maintenance_cycles` tồn tại theo [GĐ-3](./ASSUMPTIONS.md#gđ-3--rank-điểm-là-sàn-nhiệm-vụ-là-trần).
-Nếu Bên A chốt "chỉ xét theo điểm" thì xoá bảng này.
+`rank_maintenance_cycles` theo dõi tiến độ nhiệm vụ chu kỳ 3 tháng (Bạc 2+2, Vàng 3+3, Kim Cương 4+4) theo BR-PROF-RANK-03. Theo CHỐT-01, khi không đạt nhiệm vụ hoặc balance giảm dưới ngưỡng, hệ thống tự đánh giá lại theo current balance (không bắt buộc chỉ tụt 1 bậc).
 
 `email` và `phone` dùng **index duy nhất một phần** (`WHERE ... IS NOT NULL`). Đăng ký chỉ
 cần username (F01) nên phần lớn tài khoản bỏ trống hai cột này — ràng buộc duy nhất thường
@@ -127,22 +126,14 @@ Phòng chat gắn 1-1 với giao dịch, **chỉ tạo khi giao dịch đạt `A
 | `point_ledger` | `user_id` · `rule_code` · `delta` · `balance_after` · **`lifetime_after`** · `reference_type` · `reference_id` · **`idempotency_key` UNIQUE** · `actor` · `source` |
 | `reviews` | `transaction_id` · `reviewer_id` · `reviewee_id` · `quality_rating` · `value_percent` · `accuracy_percent` |
 
-**`lifetime_after` tách khỏi `balance_after`** — đây là cách xử lý xung đột "tiêu điểm là tụt
-hạng" ([FEATURES.md F12](../FEATURES.md#f12--rank-5-tầng--chu-kỳ-duy-trì-3-tháng)):
-
-| Cột | Tính chất | Dùng để |
-| --- | --- | --- |
-| `lifetime_after` | Chỉ tăng | Xét Rank |
-| `balance_after` | Tăng và giảm | Đổi quà, tiêu dùng |
-
-Thêm một cột lúc dựng bảng: gần như miễn phí. Thêm sau khi có dữ liệu thật: phải tính lại
-toàn bộ lịch sử ledger.
+**Quy tắc xét Rank theo điểm (SRS v1.15.0 - CHỐT-01 & BR-PROF-RANK-06):**
+- Điểm dùng để xét Rank là **số dư Điểm Cống hiến hiện tại (`balance_after`)**. Phase 1 không dùng một `lifetime rank point` riêng để giữ hạng; khi balance giảm thì hệ thống tự động xác định lại Rank.
+- Cột `lifetime_after` (tổng điểm luỹ kế đã tích luỹ) vẫn được lưu trong ledger để phục vụ thống kê, báo cáo và audit, nhưng không dùng để khóa cố định rank khi người dùng đã giảm điểm.
 
 `version` trên `point_rules` là bắt buộc: khi Admin đổi rule, bút toán cũ phải tra được nó ra
 đời dưới phiên bản nào.
 
-Giver Accuracy không có bảng riêng — tính tổng hợp rồi lưu vào `users.accuracy_percent` và
-`users.accuracy_samples`. Chỉ hiển thị khi `accuracy_samples >= 5`.
+Giver Accuracy: Người nhận chấm theo % (0–100%). Lưu vào bảng `reviews.accuracy_percent` và tính tổng hợp vào `users.accuracy_percent` (kèm `users.accuracy_samples`). Chỉ hiển thị và xét cảnh báo khi `accuracy_samples >= 5`; dưới 75% đưa vào `REVIEW_REQUIRED` (CHỐT-03).
 
 ---
 

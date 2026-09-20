@@ -31,11 +31,9 @@ Chi tiết từng mốc: [`ROADMAP.md`](./ROADMAP.md).
 3. **Đổi cấu trúc bảng → sửa DATA-MODEL.md** trong cùng commit với migration.
 4. Quy tắc code nằm ở [`../../INVARIANTS.md`](../../INVARIANTS.md), không lặp lại ở đây.
 
-## Việc cần Bên A trả lời
+## Nghiệp vụ đã chốt từ Bên A
 
-4 câu hỏi ở [`ASSUMPTIONS.md`](./ASSUMPTIONS.md#4-giả-định-cần-bên-a-xác-nhận). Chưa có trả
-lời thì vẫn code được — ta dùng giả định. Nhưng **giả định #2 và #3 đụng tới cấu trúc bảng**,
-nên càng trả lời sớm càng rẻ.
+4 câu hỏi lớn trước đây ở [`ASSUMPTIONS.md`](./ASSUMPTIONS.md) đã được Bên A làm rõ và chốt chính thức trong [`../../SRS_Chan_Tam_v1.15.0.md`](../../SRS_Chan_Tam_v1.15.0.md) (Mục 1.7 - CHỐT-01 đến CHỐT-07). Các quyết định này chi phối trực tiếp cấu trúc Rank, Point, Group Affiliate và vòng đời bài đăng.
 
 
 ## Deferred / release blocker
