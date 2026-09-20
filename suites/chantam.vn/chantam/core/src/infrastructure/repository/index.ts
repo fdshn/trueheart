@@ -1,5 +1,4 @@
 export * from './category.repository';
-export * from './gift-post.repository';
 export * from './onboarding-task.repository';
 export * from './point-ledger.repository';
 export * from './post-media.repository';
