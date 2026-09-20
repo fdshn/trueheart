@@ -87,6 +87,7 @@ describe('AcceptGiftRequestUseCase', () => {
     const mockManager = {
       save: jest.fn().mockResolvedValue({}),
       createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+      query: jest.fn().mockResolvedValue([]),
     };
 
     const giftRequestRepo = {

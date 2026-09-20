@@ -63,8 +63,9 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
     }
 
     const transactionId = makeGlobalId(
-      `/posts/${command.postId}/transactions/${command.requestId}/${Date.now()}`,
+      `/transactions/${command.postId}/${targetRequest.requesterId}/${Date.now()}`,
     );
+    let finalTransactionId = transactionId;
 
     await this.giftRequestRepository.manager.transaction(async (manager) => {
       targetRequest.status = GiftRequestStatuses.ACCEPTED;
@@ -80,14 +81,41 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
         .execute();
 
       post.status = 'DELIVERING' as never;
+      if (Number(post.remainingQuantity) > 0) {
+        post.remainingQuantity = Number(post.remainingQuantity) - 1;
+      }
       await manager.save(post);
+
+      if (typeof manager.query === 'function') {
+        const existingTx = await manager.query<{ global_id: string }[]>(
+          `SELECT global_id FROM gift_transactions WHERE post_id = $1 AND receiver_id = $2 AND status IN ('REQUESTED', 'ACCEPTED', 'DELIVERING')`,
+          [command.postId, targetRequest.requesterId],
+        );
+
+        if (existingTx && existingTx.length > 0) {
+          finalTransactionId = existingTx[0].global_id;
+          await manager.query(
+            `UPDATE gift_transactions SET status = 'ACCEPTED', accepted_at = now() WHERE global_id = $1`,
+            [finalTransactionId],
+          );
+        } else {
+          await manager.query(
+            `
+              INSERT INTO gift_transactions
+                (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at)
+              VALUES ($1, $2, $3, $4, 1, 'ACCEPTED', now())
+            `,
+            [transactionId, command.postId, command.userId, targetRequest.requesterId],
+          );
+        }
+      }
     });
 
     return {
       requestId: command.requestId,
       postId: command.postId,
       status: GiftRequestStatuses.ACCEPTED,
-      transactionId,
+      transactionId: finalTransactionId,
     };
   }
 }
