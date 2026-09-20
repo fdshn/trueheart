@@ -163,6 +163,7 @@ export interface IUpdatePostDto {
   areaLabel?: string;
   condition?: GiftPostConditions;
   estimatedValue?: number;
+  location?: IGeoPoint;
 }
 
 export interface IUpdatePostParamsDto {

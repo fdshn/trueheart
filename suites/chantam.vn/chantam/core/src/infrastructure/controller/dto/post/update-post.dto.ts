@@ -20,6 +20,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { PostEntity } from '../../../entity/post.entity';
+import { GeoPointDto } from '../geo-point.dto';
 
 export class UpdatePostDto implements IUpdatePostDto {
   @ApiPropertyOptional({ minLength: 5, maxLength: 200 })
@@ -59,6 +60,12 @@ export class UpdatePostDto implements IUpdatePostDto {
   @Min(0)
   @Max(1_000_000_000)
   estimatedValue?: number;
+
+  @ApiPropertyOptional({ type: () => GeoPointDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => GeoPointDto)
+  location?: GeoPointDto;
 }
 
 export class UpdatePostParamsDto implements IUpdatePostParamsDto {

@@ -44,6 +44,12 @@ export class UpdatePostUseCase implements IUpdatePostUseCase {
         title: command.post.title,
         description: command.post.description,
         areaLabel: command.post.areaLabel,
+        location: command.post.location
+          ? {
+              lat: command.post.location.lat,
+              lng: command.post.location.lng,
+            }
+          : undefined,
         status: isRejected ? GiftPostStatuses.PENDING_REVIEW : undefined,
         details: !hasOfferDetails
           ? undefined
