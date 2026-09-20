@@ -26,14 +26,14 @@ export class ReferralRepository implements IReferralRepository {
     >(
       `
         SELECT
-          user.referral_code AS code,
+          user_account.referral_code AS code,
           COUNT(referral.id)::text AS total_count,
           COUNT(referral.qualified_at)::text AS qualified_count,
           COUNT(referral.reward_entry_id)::text AS rewarded_count
-        FROM users user
-        LEFT JOIN referrals referral ON referral.referrer_id = user.global_id
-        WHERE user.global_id = $1
-        GROUP BY user.referral_code
+        FROM users user_account
+        LEFT JOIN referrals referral ON referral.referrer_id = user_account.global_id
+        WHERE user_account.global_id = $1
+        GROUP BY user_account.referral_code
       `,
       [userId],
     );
