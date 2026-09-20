@@ -103,7 +103,10 @@ describe('GetPostUseCase', () => {
       currentUserId: '99999999-9999-9999-9999-999999999999',
     });
 
-    expect(postRepository.findPublicByGlobalId).toHaveBeenCalledWith(PostId);
+    expect(postRepository.findPublicByGlobalId).toHaveBeenCalledWith(
+      PostId,
+      '99999999-9999-9999-9999-999999999999',
+    );
     expect(result.isLocationApproximate).toBe(true);
     expect(result.post.location).not.toEqual(ExactLocation);
     expect(result.requestCount).toBe(2);

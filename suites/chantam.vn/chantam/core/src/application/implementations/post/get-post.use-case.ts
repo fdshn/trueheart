@@ -28,7 +28,10 @@ export class GetPostUseCase implements IGetPostUseCase {
   ) {}
 
   public async handle(command: IGetPostCommand): Promise<IGetPostResult> {
-    const post = await this.postRepository.findPublicByGlobalId(command.postId);
+    const post = await this.postRepository.findPublicByGlobalId(
+      command.postId,
+      command.currentUserId,
+    );
 
     if (!post) throw new PostNotFoundException(command.postId);
 

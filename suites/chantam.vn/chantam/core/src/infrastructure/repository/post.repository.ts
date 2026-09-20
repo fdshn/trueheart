@@ -310,13 +310,31 @@ export class PostRepository
 
   public async findPublicByGlobalId(
     globalId: string,
+    currentUserId?: string,
   ): Promise<IPostEntity | null> {
-    return this.createQueryBuilder('post')
+    const qb = this.createQueryBuilder('post')
       .where('post.globalId = :globalId', { globalId })
-      .andWhere('post.deletedAt IS NULL')
-      .andWhere('post.status IN (:...statuses)', {
-        statuses: [...PubliclyVisibleGiftPostStatuses],
-      })
-      .getOne();
+      .andWhere('post.deletedAt IS NULL');
+
+    if (currentUserId) {
+      qb.andWhere(
+        '(post.status IN (:...statuses) OR post.authorId = :currentUserId OR post.status = :delivering)',
+        {
+          statuses: [...PubliclyVisibleGiftPostStatuses],
+          currentUserId,
+          delivering: 'DELIVERING',
+        },
+      );
+    } else {
+      qb.andWhere(
+        '(post.status IN (:...statuses) OR post.status = :delivering)',
+        {
+          statuses: [...PubliclyVisibleGiftPostStatuses],
+          delivering: 'DELIVERING',
+        },
+      );
+    }
+
+    return qb.getOne();
   }
 }
