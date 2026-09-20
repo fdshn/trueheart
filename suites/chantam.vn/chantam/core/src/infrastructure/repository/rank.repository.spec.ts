@@ -68,7 +68,7 @@ describe('RankRepository', () => {
         status: 'UNEVALUATED',
       },
     });
-    expect(query.mock.calls[0][0]).toContain('FROM users user');
+    expect(query.mock.calls[0][0]).toContain('FROM users user_account');
     expect(query.mock.calls[0][0]).not.toMatch(/\b(?:UPDATE|DELETE|INSERT)\b/i);
   });
 
