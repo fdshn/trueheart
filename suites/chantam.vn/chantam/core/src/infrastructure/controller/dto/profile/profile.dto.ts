@@ -17,6 +17,7 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDefined,
   IsEmail,
   IsInt,
   IsOptional,
@@ -97,6 +98,7 @@ export class UpdateOwnProfileBodyDto implements IUpdateOwnProfileBodyDto {
     type: () => UpdateOwnProfileDto,
     description: 'Chỉ gửi trường muốn đổi; trường không gửi giữ nguyên.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => UpdateOwnProfileDto)
   profile: IUpdateOwnProfileDto;
@@ -226,6 +228,7 @@ export class ConfirmPhoneVerificationDto implements IConfirmPhoneVerificationDto
 
 export class ConfirmPhoneVerificationBodyDto implements IConfirmPhoneVerificationBodyDto {
   @ApiProperty({ type: () => ConfirmPhoneVerificationDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ConfirmPhoneVerificationDto)
   verification: ConfirmPhoneVerificationDto;

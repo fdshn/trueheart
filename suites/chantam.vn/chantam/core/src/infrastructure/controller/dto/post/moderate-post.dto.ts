@@ -8,7 +8,7 @@ import {
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsUUID, ValidateNested } from 'class-validator';
+import { IsDefined, IsEnum, IsUUID, ValidateNested } from 'class-validator';
 import { PostEntity } from '../../../entity/post.entity';
 
 export class ModeratePostDto implements IModeratePostDto {
@@ -27,6 +27,7 @@ export class ModeratePostParamsDto implements IModeratePostParamsDto {
 
 export class ModeratePostBodyDto implements IModeratePostBodyDto {
   @ApiProperty({ type: () => ModeratePostDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ModeratePostDto)
   post: IModeratePostDto;

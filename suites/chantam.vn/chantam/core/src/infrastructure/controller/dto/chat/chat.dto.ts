@@ -20,7 +20,13 @@ import {
 } from '@chantam/service.common-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsString, IsUUID, Length, ValidateNested } from 'class-validator';
+import {
+  IsDefined,
+  IsString,
+  IsUUID,
+  Length,
+  ValidateNested,
+} from 'class-validator';
 import { Mixin } from 'ts-mixer';
 
 export class ChatRoomSummaryDto implements IChatRoomSummaryDto {
@@ -129,6 +135,7 @@ export class SendChatMessageDto implements ISendChatMessageDto {
 
 export class SendChatMessageBodyDto implements ISendChatMessageBodyDto {
   @ApiProperty({ type: () => SendChatMessageDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => SendChatMessageDto)
   message: ISendChatMessageDto;

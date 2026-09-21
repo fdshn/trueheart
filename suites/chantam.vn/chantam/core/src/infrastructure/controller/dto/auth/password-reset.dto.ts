@@ -14,6 +14,7 @@ import { MatchesProperty } from '@chantam/service.common-lib/decorators';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDefined,
   IsInt,
   IsNotEmpty,
   IsString,
@@ -41,6 +42,7 @@ export class RequestPasswordResetBodyDto implements IRequestPasswordResetBodyDto
       'Luôn trả 200 dù tài khoản có thật hay không — khác nhau một chữ là ' +
       'endpoint này thành công cụ dò username. Xem `channel` để biết phải làm gì tiếp.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => RequestPasswordResetDto)
   reset: IRequestPasswordResetDto;
@@ -116,6 +118,7 @@ export class ConfirmPasswordResetBodyDto implements IConfirmPasswordResetBodyDto
       'Đổi xong sẽ thu hồi TOÀN BỘ phiên trên mọi thiết bị, kể cả access token ' +
       'còn hạn. Người dùng đặt lại mật khẩu thường vì nghi bị chiếm tài khoản.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ConfirmPasswordResetDto)
   reset: IConfirmPasswordResetDto;
@@ -158,6 +161,7 @@ export class DeleteAccountBodyDto implements IDeleteAccountBodyDto {
       'ĐƯỢC GIỮ LẠI để không ai đăng ký đúng tên đó rồi mạo danh trong lịch sử ' +
       'giao dịch cũ. Lịch sử giao dịch và điểm cống hiến vẫn nguyên.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => DeleteAccountDto)
   account: IDeleteAccountDto;

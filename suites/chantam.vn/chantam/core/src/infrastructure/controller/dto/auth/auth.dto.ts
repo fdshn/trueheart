@@ -20,6 +20,7 @@ import { MatchesProperty } from '@chantam/service.common-lib/decorators';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDefined,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -211,6 +212,7 @@ export class RegisterBodyDto implements IRegisterBodyDto {
     description:
       'Đăng ký chỉ cần username + mật khẩu; email và SĐT bổ sung sau.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => RegisterDto)
   registration: IRegisterDto;
@@ -270,6 +272,7 @@ export class LoginBodyDto implements ILoginBodyDto {
       'Sai mật khẩu và tài khoản không tồn tại trả lời GIỐNG HỆT nhau — cố ý, ' +
       'để không ai dùng endpoint này dò xem username nào có thật.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => LoginDto)
   credentials: ILoginDto;
@@ -299,6 +302,7 @@ export class RefreshSessionBodyDto implements IRefreshSessionBodyDto {
     description:
       'Endpoint này công khai vì lúc gọi thì access token đã hết hạn rồi.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => RefreshSessionDto)
   session: IRefreshSessionDto;
@@ -329,6 +333,7 @@ export class LogoutBodyDto implements ILogoutBodyDto {
       'Cần kèm access token ở header: `userId` lấy từ token chứ không tin body, ' +
       'nếu không ai cũng đăng xuất hộ người khác được.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => LogoutDto)
   session: ILogoutDto;

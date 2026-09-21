@@ -12,6 +12,7 @@ import { IGiftPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDefined,
   IsEnum,
   IsInt,
   IsOptional,
@@ -101,6 +102,7 @@ export class UpdateGiftPostBodyDto implements IUpdateGiftPostBodyDto {
     description:
       'Chỉ gửi những trường muốn đổi; trường không gửi thì giữ nguyên.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => UpdateGiftPostDto)
   giftPost: IUpdateGiftPostDto;

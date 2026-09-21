@@ -27,6 +27,27 @@ hành xử như vậy — thứ không nhét vừa vào một dòng `@ApiOperati
 Mọi endpoint nằm dưới `/api/v1`. Ngoại lệ duy nhất là `GET /health` — cố ý để ngoài
 versioning vì load balancer gọi nó trước khi biết API version nào đang chạy.
 
+### Body luôn đi trong một khoá bọc
+
+Mọi endpoint có body đều nhận `{ <tên tài nguyên>: { ... } }`, ví dụ
+`{ "registration": { "username": "...", "password": "..." } }`.
+
+**Thiếu khoá bọc là 400, không phải 500.** Trước đây gửi `{}` cho `/auth/register` trả
+`500`: `@ValidateNested()` của class-validator bỏ qua giá trị `undefined`, nên validation cho
+qua rồi use case nổ khi đọc trường bên trong. Nay mọi khoá bọc bắt buộc đều có `@IsDefined()`:
+
+| Gửi gì | Trả về |
+| --- | --- |
+| `{}` | `400` — *registration should not be null or undefined* |
+| `{"registration": null}` | `400` |
+| `{"registration": "abc"}` | `400` — *nested property must be either object or array* |
+| `{"registration": {}}` | `400` kèm lỗi từng trường bên trong |
+
+**Body rỗng với `Content-Type: application/json` là hợp lệ.** Các endpoint không có body —
+xác nhận nhận hàng, gia hạn bài, đánh dấu đã đọc, chạy đánh giá chu kỳ — nhận được cả khi
+client đặt content-type JSON mà không gửi gì. Fastify mặc định trả 400 trong trường hợp đó;
+server coi body rỗng là `{}`. JSON **hỏng** thì vẫn 400.
+
 ### Hình dạng response
 
 Mọi response dùng chung một vỏ, **kể cả khi lỗi**:

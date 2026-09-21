@@ -18,6 +18,7 @@ import {
   ArrayNotEmpty,
   IsArray,
   IsBoolean,
+  IsDefined,
   IsEnum,
   IsInt,
   IsOptional,
@@ -76,6 +77,7 @@ export class CreateCategoryDto implements ICreateCategoryDto {
 }
 export class CreateCategoryBodyDto implements ICreateCategoryBodyDto {
   @ApiProperty({ type: () => CreateCategoryDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => CreateCategoryDto)
   category: ICreateCategoryDto;
@@ -110,6 +112,7 @@ export class UpdateCategoryDto implements IUpdateCategoryDto {
 }
 export class UpdateCategoryBodyDto implements IUpdateCategoryBodyDto {
   @ApiProperty({ type: () => UpdateCategoryDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => UpdateCategoryDto)
   category: IUpdateCategoryDto;

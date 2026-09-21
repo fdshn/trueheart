@@ -10,6 +10,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
+  IsDefined,
   IsInt,
   IsString,
   IsUUID,
@@ -41,6 +42,7 @@ export class AttachPostMediaDto implements IAttachPostMediaDto {
 
 export class AttachPostMediaBodyDto implements IAttachPostMediaBodyDto {
   @ApiProperty({ type: () => AttachPostMediaDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => AttachPostMediaDto)
   media: IAttachPostMediaDto;
@@ -56,6 +58,7 @@ export class ReorderPostMediaDto implements IReorderPostMediaDto {
 
 export class ReorderPostMediaBodyDto implements IReorderPostMediaBodyDto {
   @ApiProperty({ type: () => ReorderPostMediaDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ReorderPostMediaDto)
   media: IReorderPostMediaDto;

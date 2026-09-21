@@ -17,6 +17,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsDefined,
   IsOptional,
   IsUUID,
   ValidateNested,
@@ -92,6 +93,7 @@ export class MarkNotificationsReadDto implements IMarkNotificationsReadDto {
 
 export class MarkNotificationsReadBodyDto implements IMarkNotificationsReadBodyDto {
   @ApiProperty({ type: () => MarkNotificationsReadDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => MarkNotificationsReadDto)
   notifications: IMarkNotificationsReadDto;

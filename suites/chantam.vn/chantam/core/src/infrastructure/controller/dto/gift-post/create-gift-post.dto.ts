@@ -11,6 +11,7 @@ import { IGiftPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDefined,
   IsEnum,
   IsInt,
   IsOptional,
@@ -81,6 +82,7 @@ export class CreateGiftPostDto implements ICreateGiftPostDto {
       'Toạ độ THẬT nơi giao đồ. Hệ thống lưu nguyên vẹn nhưng KHÔNG bao giờ ' +
       'trả nguyên vẹn ra kênh công khai — bảng tin chỉ thấy toạ độ đã làm nhiễu.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => GeoPointDto)
   location: GeoPointDto;
@@ -117,6 +119,7 @@ export class CreateGiftPostBodyDto implements ICreateGiftPostBodyDto {
     type: () => CreateGiftPostDto,
     description: 'Nội dung bài đăng, bọc dưới khoá `giftPost`.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => CreateGiftPostDto)
   giftPost: ICreateGiftPostDto;

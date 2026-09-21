@@ -13,6 +13,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsDefined,
   IsEnum,
   IsInt,
   IsOptional,
@@ -94,6 +95,7 @@ export class CreatePostDto implements ICreatePostDto {
   negotiable?: boolean;
 
   @ApiProperty({ type: () => GeoPointDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => GeoPointDto)
   location: GeoPointDto;
@@ -123,6 +125,7 @@ export class CreatePostDto implements ICreatePostDto {
 
 export class CreatePostBodyDto implements ICreatePostBodyDto {
   @ApiProperty({ type: () => CreatePostDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => CreatePostDto)
   post: ICreatePostDto;

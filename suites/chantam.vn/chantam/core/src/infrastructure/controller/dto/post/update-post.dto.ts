@@ -9,6 +9,7 @@ import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDefined,
   IsEnum,
   IsInt,
   IsOptional,
@@ -76,6 +77,7 @@ export class UpdatePostParamsDto implements IUpdatePostParamsDto {
 
 export class UpdatePostBodyDto implements IUpdatePostBodyDto {
   @ApiProperty({ type: () => UpdatePostDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => UpdatePostDto)
   post: IUpdatePostDto;
