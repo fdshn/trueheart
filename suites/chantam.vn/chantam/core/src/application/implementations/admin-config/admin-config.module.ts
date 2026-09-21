@@ -4,6 +4,7 @@ import {
   IDeleteAdminUserUseCase,
   IGetAdminAuditLogsUseCase,
   IGetAdminConfigsUseCase,
+  IGetAdminRankPolicyUseCase,
   IGetAdminUserUseCase,
   IGetCandidateSelectionUseCase,
   IGetNotificationChannelsUseCase,
@@ -13,6 +14,7 @@ import {
   IListAdminUsersUseCase,
   IPublishAdminConfigUseCase,
   ISetCandidateSelectionUseCase,
+  IPublishAdminRankPolicyUseCase,
   IUpdateNotificationChannelUseCase,
 } from '@/application/contracts/admin-config';
 import { Global, Module } from '@nestjs/common';
@@ -21,6 +23,10 @@ import {
   GetAdminConfigsUseCase,
   PublishAdminConfigUseCase,
 } from './admin-config.use-cases';
+import {
+  GetAdminRankPolicyUseCase,
+  PublishAdminRankPolicyUseCase,
+} from './admin-rank-policy.use-cases';
 import {
   AssignAdminRoleUseCase,
   ListAdminRolesUseCase,
@@ -59,6 +65,14 @@ import {
       useClass: PublishAdminConfigUseCase,
     },
     { provide: IGetAdminAuditLogsUseCase, useClass: GetAdminAuditLogsUseCase },
+    {
+      provide: IGetAdminRankPolicyUseCase,
+      useClass: GetAdminRankPolicyUseCase,
+    },
+    {
+      provide: IPublishAdminRankPolicyUseCase,
+      useClass: PublishAdminRankPolicyUseCase,
+    },
     { provide: IGetSystemLogsUseCase, useClass: GetSystemLogsUseCase },
     {
       provide: IGetOwnAdminAccessUseCase,
@@ -88,6 +102,8 @@ import {
     ISetCandidateSelectionUseCase,
     IPublishAdminConfigUseCase,
     IGetAdminAuditLogsUseCase,
+    IGetAdminRankPolicyUseCase,
+    IPublishAdminRankPolicyUseCase,
     IGetSystemLogsUseCase,
     IGetOwnAdminAccessUseCase,
     IListAdminRolesUseCase,

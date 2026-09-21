@@ -1,3 +1,5 @@
+import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+
 export interface ISystemConfigSummary {
   id: number;
   key: string;
@@ -64,6 +66,32 @@ export interface IAdminRoleAssignment {
   readonly reason: string;
 }
 
+export interface IAdminRankTierPolicy {
+  readonly rank: UserRanks;
+  readonly thresholdPoints: number;
+  readonly warningPoints: number;
+  readonly requiredGifts: number;
+  readonly requiredReferrals: number;
+  readonly maintenanceGifts: number;
+  readonly maintenanceReferrals: number;
+  readonly version: number;
+}
+
+export interface IPublishAdminRankPolicyCommand {
+  readonly actorUserId: string;
+  readonly changeReason: string;
+  readonly tiers: ReadonlyArray<
+    Pick<
+      IAdminRankTierPolicy,
+      | 'rank'
+      | 'thresholdPoints'
+      | 'warningPoints'
+      | 'requiredGifts'
+      | 'requiredReferrals'
+    >
+  >;
+}
+
 export interface IAdminConfigRepository {
   hasPermission(userId: string, permission: string): Promise<boolean>;
   getAccess(userId: string): Promise<IAdminAccessSummary>;
@@ -96,6 +124,10 @@ export interface IAdminConfigRepository {
    * cùng là không còn ai cấp lại quyền cho bất kỳ ai, kể cả chính mình.
    */
   revokeRole(assignment: IAdminRoleAssignment): Promise<void>;
+  getRankPolicy(): Promise<IAdminRankTierPolicy[]>;
+  publishRankPolicy(
+    command: IPublishAdminRankPolicyCommand,
+  ): Promise<IAdminRankTierPolicy[]>;
 }
 
 export const IAdminConfigRepository = Symbol('IAdminConfigRepository');
