@@ -65,8 +65,12 @@ Trên server, bằng `root`:
 # File chép từ Windows có thể dùng CRLF; chuẩn hoá trước khi Bash đọc.
 sed -i 's/\r$//' /tmp/docker-compose.yml /tmp/init.sql /tmp/bootstrap.sh
 
-bash /tmp/bootstrap.sh production
+bash /tmp/bootstrap.sh production api.<domain>
 ```
+
+Tham số thứ hai là hostname công khai, dùng làm mục **Servers** của Swagger trên
+chính server này. Chỉ khai production, tuyệt đối không kèm staging vào danh sách
+— hai môi trường cùng xuất hiện là mời người ta bấm `Try it out` nhầm bên.
 
 Bootstrap tự làm:
 

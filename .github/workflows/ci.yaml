@@ -141,6 +141,16 @@ jobs:
           psql -h localhost -U chantam -d chantam -tAc "SELECT postgis_version();"
           test "$(psql -h localhost -U chantam -d chantam -tAc 'SELECT count(*) FROM migrations;')" -gt 0
 
+      - name: Kiểm chứng backfill M2.1 với dữ liệu thật
+        # Bước trên chạy migration trên database TRẮNG, nên câu backfill
+        # `INSERT INTO posts ... FROM gift_posts` chèn đúng 0 dòng — xanh mà
+        # không chứng minh được gì. Script này dựng một database nháp riêng,
+        # chạy migration làm hai pha và seed bài đăng cũ vào giữa, để backfill
+        # thật sự gặp dữ liệu. Nếu không có bước này thì lần chạy thật đầu tiên
+        # sẽ là lúc nâng cấp production.
+        working-directory: suites/chantam.vn/chantam/core
+        run: npm run migration:backfill-check
+
       - name: Khởi tạo dữ liệu demo
         working-directory: suites/chantam.vn/chantam/core
         run: npm run seed:demo:built
