@@ -75,8 +75,8 @@ describe('CreateGiftRequestUseCase', () => {
     const created = makeRequest();
     const giftRequestRepo = {
       findByPostAndRequester: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockReturnValue(created),
-      save: jest.fn().mockResolvedValue(created),
+      insert: jest.fn().mockResolvedValue({ identifiers: [] }),
+      findOneByOrFail: jest.fn().mockResolvedValue(created),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 
     const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
@@ -86,7 +86,9 @@ describe('CreateGiftRequestUseCase', () => {
       message: 'Em xin món này ạ',
     });
 
-    expect(giftRequestRepo.create).toHaveBeenCalledWith({
+    // `insert()` chứ không phải `save()`: đường này biết chắc là tạo mới nên
+    // không cần câu SELECT mà `save()` phát sinh để đoán insert hay update.
+    expect(giftRequestRepo.insert).toHaveBeenCalledWith({
       globalId: expect.any(String),
       postId: PostId,
       requesterId: RequesterId,
@@ -94,7 +96,6 @@ describe('CreateGiftRequestUseCase', () => {
       status: GiftRequestStatuses.PENDING,
       queueJoinedAt: expect.any(Date),
     });
-    expect(giftRequestRepo.save).toHaveBeenCalledWith(created);
     expect(result.request.id).toBe(created.globalId);
     expect(result.request.status).toBe(GiftRequestStatuses.PENDING);
   });
@@ -216,8 +217,8 @@ describe('CreateGiftRequestUseCase', () => {
     });
     const giftRequestRepo = {
       findByPostAndRequester: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockReturnValue(created),
-      save: jest.fn().mockRejectedValue(dbError),
+      insert: jest.fn().mockRejectedValue(dbError),
+      findOneByOrFail: jest.fn(),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 
     const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);

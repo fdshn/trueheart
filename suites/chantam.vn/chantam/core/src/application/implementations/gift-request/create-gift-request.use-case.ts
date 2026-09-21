@@ -82,25 +82,38 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
       return { request: toGiftRequestDto(existing) };
     }
 
-    const created = this.giftRequestRepository.create({
-      globalId: makeGlobalId(
-        `/gift-requests/${command.postId}/${command.requesterId}`,
-      ),
-      postId: command.postId,
-      requesterId: command.requesterId,
-      message: command.message,
-      status: GiftRequestStatuses.PENDING,
-      queueJoinedAt: new Date(),
-    });
+    const globalId = makeGlobalId(
+      `/gift-requests/${command.postId}/${command.requesterId}`,
+    );
 
+    // `insert()` chứ không phải `save()`: `save()` phải tự đoán tạo mới hay cập
+    // nhật nên phát sinh thêm một câu SELECT, và đường này đã biết chắc là tạo
+    // mới.
     try {
-      await this.giftRequestRepository.save(created);
+      await this.giftRequestRepository.insert({
+        globalId,
+        postId: command.postId,
+        requesterId: command.requesterId,
+        message: command.message,
+        status: GiftRequestStatuses.PENDING,
+        queueJoinedAt: new Date(),
+      } as never);
     } catch (error) {
+      // Hai người xin cùng lúc thì cả hai đều không thấy bản ghi cũ và cùng
+      // insert; ràng buộc duy nhất ở database là nơi quyết định, không phải
+      // lần đọc phía trên.
       if (isUniqueViolation(error)) {
         throw new GiftRequestDuplicatedException();
       }
       throw error;
     }
-    return { request: toGiftRequestDto(created) };
+
+    return {
+      request: toGiftRequestDto(
+        await this.giftRequestRepository.findOneByOrFail({
+          globalId,
+        } as never),
+      ),
+    };
   }
 }
