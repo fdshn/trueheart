@@ -9,8 +9,10 @@ import {
   GiftTransactionStatuses,
   IChatRepository,
   ICloseGiftTransactionParams,
+  ICloseGiftTransactionResult,
   IGiftTransactionRepository,
   IGiftTransactionSummary,
+  IReopenedQueue,
   IRequestGiftParams,
 } from '@/domain/ports/repository';
 import { Inject, Injectable } from '@nestjs/common';
@@ -239,7 +241,7 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
 
   public async close(
     params: ICloseGiftTransactionParams,
-  ): Promise<IGiftTransactionSummary> {
+  ): Promise<ICloseGiftTransactionResult> {
     return this.manager.transaction(async (manager) => {
       const current = await this.lockTransaction(manager, params.transactionId);
 
@@ -266,11 +268,16 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         manager,
         `
           UPDATE gift_transactions
-          SET status = $2, closed_at = now(), close_reason = $3
+          SET status = $2, closed_at = now(), close_reason = $3, closed_by = $4
           WHERE global_id = $1
           RETURNING ${SelectColumns}
         `,
-        [params.transactionId, params.status, params.reason],
+        [
+          params.transactionId,
+          params.status,
+          params.reason,
+          params.actorUserId,
+        ],
       );
 
       if (!updated) {
@@ -279,8 +286,83 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
 
       await this.chat.lockRoomWithinTransaction(manager, params.transactionId);
 
-      return toSummary(updated);
+      const queue = await this.reopenStandbyQueue(manager, {
+        postId: current.post_id,
+        cancelledReceiverId: current.receiver_id,
+      });
+
+      return { transaction: toSummary(updated), queue };
     });
+  }
+
+  /**
+   * Đưa ứng viên `STANDBY` trở lại `PENDING` sau khi một lượt trao bị đóng
+   * (F33, F35).
+   *
+   * Yêu cầu của người vừa bị huỷ sang `CANCELLED` và KHÔNG quay lại hàng đợi:
+   * họ đã được chọn một lần và lượt đó đổ. Để họ về `PENDING` là đẩy họ lên đầu
+   * hàng lần nữa, vì thứ tự tính theo `queue_joined_at` cũ.
+   *
+   * Hàm này KHÔNG gửi thông báo và KHÔNG tự trao cho ai. Nó chỉ trả về đề xuất
+   * để use case quyết định sau khi transaction commit.
+   */
+  private async reopenStandbyQueue(
+    manager: EntityManager,
+    params: { postId: string; cancelledReceiverId: string },
+  ): Promise<IReopenedQueue> {
+    await manager.query(
+      `
+        UPDATE gift_requests
+        SET status = 'CANCELLED', updated_at = now()
+        WHERE post_id = $1 AND requester_id = $2 AND status = 'ACCEPTED'
+      `,
+      [params.postId, params.cancelledReceiverId],
+    );
+
+    const reopened = await updateReturning<{ requester_id: string }>(
+      manager,
+      `
+        UPDATE gift_requests
+        SET status = 'PENDING', updated_at = now()
+        WHERE post_id = $1 AND status = 'STANDBY' AND deleted_at IS NULL
+        RETURNING requester_id
+      `,
+      [params.postId],
+    );
+
+    // Đọc lại theo `queue_joined_at` thay vì lấy phần tử đầu của `RETURNING`:
+    // thứ tự dòng trả về của UPDATE là không xác định, nên "người kế tiếp" lấy
+    // từ đó sẽ thay đổi giữa hai lần chạy giống nhau.
+    const [next] = await manager.query<{ requester_id: string }[]>(
+      `
+        SELECT requester_id
+        FROM gift_requests
+        WHERE post_id = $1 AND status = 'PENDING' AND deleted_at IS NULL
+        ORDER BY queue_joined_at ASC, id ASC
+        LIMIT 1
+      `,
+      [params.postId],
+    );
+
+    return {
+      reopenedCount: reopened.length,
+      nextCandidateId: next?.requester_id ?? null,
+    };
+  }
+
+  public async countClosedBy(
+    userId: string,
+    status: Extract<GiftTransactionStatuses, 'CANCELLED' | 'REJECTED'>,
+  ): Promise<number> {
+    const [row] = await this.manager.query<{ total: string }[]>(
+      `
+        SELECT COUNT(*) AS total
+        FROM gift_transactions
+        WHERE closed_by = $1 AND status = $2
+      `,
+      [userId, status],
+    );
+    return Number(row.total);
   }
 
   public async completeDueDeliveries(olderThanDays: number): Promise<number> {

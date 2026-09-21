@@ -359,6 +359,119 @@ async function main(): Promise<void> {
       withdrawnAgain === null,
       withdrawnAgain === null ? '' : 'trả về một bản ghi',
     );
+
+    // ── 4. Hàng đợi dự phòng (F33, F35) ─────────────────────────────────────
+    // Mock không chạy câu SQL nào, nên toàn bộ phép biến đổi trạng thái hàng
+    // đợi chỉ lộ ra ở đây.
+    console.log('\nHàng đợi dự phòng:\n');
+
+    await seedRound(dataSource, 800, 1, 3);
+
+    const accepted = await giftRequests.acceptRequest({
+      requestId: requestId(800, 0),
+      postId: PostId,
+      giverId: GiverId,
+      transactionId: `55555555-5555-4555-8555-${suffix('58', 800, 0)}`,
+    });
+
+    check(
+      'hết hàng thì hai người còn lại vào STANDBY, không bị REJECTED',
+      (await countBy(
+        dataSource,
+        `SELECT COUNT(*) AS count FROM gift_requests
+         WHERE post_id = $1 AND status = 'STANDBY'`,
+      )) === 2 &&
+        (await countBy(
+          dataSource,
+          `SELECT COUNT(*) AS count FROM gift_requests
+           WHERE post_id = $1 AND status = 'REJECTED'`,
+        )) === 0,
+    );
+
+    check(
+      'người trong hàng đợi VẪN được đếm là ứng viên đang sống',
+      (await giftRequests.countActiveByPostIds([PostId])).get(PostId) === 3,
+      String((await giftRequests.countActiveByPostIds([PostId])).get(PostId)),
+    );
+
+    // Người STANDBY rút được — phải có đường ra khỏi hàng đợi.
+    const withdrewFromQueue = await giftRequests.withdrawIfPending(
+      PostId,
+      requesterId(2),
+    );
+    check(
+      'người đang STANDBY rút được yêu cầu',
+      withdrewFromQueue?.requesterId === requesterId(2),
+      String(withdrewFromQueue?.status),
+    );
+
+    // Huỷ lượt trao: hàng đợi mở lại.
+    const closed = await giftTransactions.close({
+      transactionId: accepted.transactionId,
+      actorUserId: GiverId,
+      status: 'CANCELLED',
+      reason: 'Kiểm tra hàng đợi dự phòng',
+    });
+
+    check(
+      'huỷ xong thì đếm đúng số người được mở lại',
+      closed.queue.reopenedCount === 1,
+      `reopened=${closed.queue.reopenedCount}`,
+    );
+    check(
+      'người kế tiếp là người vào hàng đợi SỚM NHẤT còn lại',
+      closed.queue.nextCandidateId === requesterId(1),
+      String(closed.queue.nextCandidateId),
+    );
+    check(
+      'người vừa bị huỷ KHÔNG quay lại hàng đợi',
+      (await countBy(
+        dataSource,
+        `SELECT COUNT(*) AS count FROM gift_requests
+         WHERE post_id = $1 AND requester_id = '${requesterId(0)}'
+           AND status = 'CANCELLED'`,
+      )) === 1,
+    );
+    check(
+      'người đã rút KHÔNG bị kéo trở lại hàng đợi',
+      (await countBy(
+        dataSource,
+        `SELECT COUNT(*) AS count FROM gift_requests
+         WHERE post_id = $1 AND requester_id = '${requesterId(2)}'
+           AND status = 'WITHDRAWN'`,
+      )) === 1,
+    );
+    check(
+      'tồn kho được trả lại sau khi huỷ',
+      (await remainingQuantity(dataSource)) === 1,
+      String(await remainingQuantity(dataSource)),
+    );
+    check(
+      'ghi lại ai đã huỷ, để đếm được số lần huỷ (F35)',
+      (await giftTransactions.countClosedBy(GiverId, 'CANCELLED')) >= 1,
+      String(await giftTransactions.countClosedBy(GiverId, 'CANCELLED')),
+    );
+
+    // Hàng đợi rỗng thì không có đề xuất nào.
+    await seedRound(dataSource, 801, 1, 1);
+    const soloAccepted = await giftRequests.acceptRequest({
+      requestId: requestId(801, 0),
+      postId: PostId,
+      giverId: GiverId,
+      transactionId: `55555555-5555-4555-8555-${suffix('59', 801, 0)}`,
+    });
+    const soloClosed = await giftTransactions.close({
+      transactionId: soloAccepted.transactionId,
+      actorUserId: GiverId,
+      status: 'CANCELLED',
+      reason: 'Không còn ai trong hàng đợi',
+    });
+    check(
+      'không còn ai thì không đề xuất người kế tiếp',
+      soloClosed.queue.nextCandidateId === null &&
+        soloClosed.queue.reopenedCount === 0,
+      JSON.stringify(soloClosed.queue),
+    );
   } finally {
     await dataSource.destroy();
     const cleanup = new DataSource({ type: 'postgres', url: adminUri });

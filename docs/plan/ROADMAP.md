@@ -8,7 +8,7 @@ cả 72 đều là P0.
 | M0 | Nền tảng monorepo + CI/CD | — | ✅ Xong |
 | [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | ✅ Xong (provider/ledger rollout deferred) |
 | [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 15 | 🟡 13/15 — chỉ còn 2 loại bài mới: Quảng cáo (F20) và Dharma Hub (F73) |
-| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 7/10 — giao dịch và chat xong; còn hàng đợi dự phòng (F33/F35) và đẩy FCM (F44) |
+| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 9/10 — chỉ còn đẩy FCM (F44) chờ khoá dự án Firebase |
 | [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 7 | 🟡 3/7 — ledger/rank/referral xong; đánh giá & accuracy chưa |
 | [M5](#m5--group--affiliate) | Group, affiliate, chống gian lận | 10 | ⬜ 0/10 |
 | [M6](#m6--quản-trị--bàn-giao) | Admin CMS, kiểm duyệt, bàn giao | 18 | 🟡 1/18 — RBAC/config động/nhật ký/quản lý user đã có; giao diện CMS chưa |
@@ -101,10 +101,12 @@ resource `gift-post` làm mẫu.
       rút yêu cầu qua `POST /posts/:postId/requests/withdraw`
 - [x] F31 Danh sách ứng viên + quyền chọn theo Rank — `GET /posts/:postId/requests`
 - [x] F32 **Trừ tồn kho nguyên tử** — UPDATE có điều kiện, huỷ thì trả lại
-- [ ] F33 Hàng đợi dự phòng
+- [x] F33 Hàng đợi dự phòng — người chưa được chọn vào `STANDBY`; huỷ thì họ quay về
+      `PENDING` và hệ thống **đề xuất** người vào sớm nhất, KHÔNG tự trao
 - [x] F34 Chấp nhận giao dịch + mở chat — duyệt nguyên tử, khoá theo thứ tự cố định, và
       mở phòng chat trong CÙNG transaction ở cả hai đường duyệt
-- [ ] F35 Huỷ giao dịch + mở lại hàng đợi — huỷ đã trả tồn kho; hàng đợi chưa có
+- [x] F35 Huỷ giao dịch + mở lại hàng đợi — trả tồn kho, mở lại hàng đợi, ghi `closed_by`
+      để đếm được số lần huỷ, và báo cho người cho cùng ứng viên kế tiếp
 - [x] F36 Xác nhận nhận + tự hoàn tất sau 5 ngày qua CLI `transaction:autocomplete`
 - [x] F37 Chat text 1-1 theo giao dịch — REST để gửi/đọc, Socket.io namespace `/chat` để
       nhận tức thì; xác thực ngay lúc bắt tay kèm tra danh sách thu hồi token

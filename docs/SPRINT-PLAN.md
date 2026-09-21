@@ -77,10 +77,10 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 | ---: | --- | --- | --- | --- |
 | 8 | Đăng tin & nội dung | Smart Match, SOS, lifecycle OFFER, gia hạn, chuyển Admin | F15–F19, F23 | ✅ Smart Match, SOS theo capability, moderation/quota, vòng đời hết hạn + gia hạn, và chuyển về điểm từ thiện |
 | 9 | Quanh đây & bản đồ | Map discovery, GPS fallback, viewport, clustering, preview/deep-link | F25–F29 | ✅ Map bbox, jitter, clustering, viewport, dự phòng Default Location, và thẻ xem nhanh kèm `deepLinkPath`. Điều hướng deep-link là phần của client |
-| 10 | Giao dịch & FSM | Gift request, candidate selection, batch allocation, queue | M3 transaction | 🟡 Gửi yêu cầu, rút yêu cầu, danh sách ứng viên, duyệt, trừ tồn kho nguyên tử ✅. **Hàng đợi dự phòng (F33) chưa có** |
+| 10 | Giao dịch & FSM | Gift request, candidate selection, batch allocation, queue | M3 transaction | ✅ Gửi/rút yêu cầu, danh sách ứng viên, duyệt, trừ tồn kho nguyên tử, và hàng đợi dự phòng mở lại khi huỷ |
 | 11 | Giao dịch & FSM | Accepted/cancel/receiver confirm/auto-complete 5 ngày | M3 transaction | ✅ Đủ cả bốn, kèm CLI `transaction:autocomplete` |
 | 12 | Chat | Chat text WSS, persistence, lifecycle read-only | M3 chat | ✅ Socket.io namespace `/chat`, lịch sử chỉ ghi thêm, khoá chỉ đọc ở cả ba đường kết thúc |
-| 13 | QA | Regression/UAT Sprint 2 |  | 🟡 441 unit test xanh, thêm 2 script chạy database thật (`test:concurrency`, `migration:backfill-check`). UAT chưa chạy |
+| 13 | QA | Regression/UAT Sprint 2 |  | 🟡 480 unit test, 5 script chạy database/service thật (`test:concurrency`, `test:lifecycle`, `test:returning`, `test:chat-e2e`, `migration:backfill-check`), smoke 53/53. UAT chưa chạy |
 
 ### Thứ tự bắt buộc trong Sprint 2
 

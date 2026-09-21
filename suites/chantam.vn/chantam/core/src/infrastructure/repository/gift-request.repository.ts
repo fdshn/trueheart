@@ -55,7 +55,7 @@ export class GiftRequestRepository
   }
 
   /**
-   * Rút yêu cầu bằng MỘT câu có điều kiện `status = 'PENDING'`.
+   * Rút yêu cầu bằng MỘT câu có điều kiện trên trạng thái.
    *
    * Đọc-rồi-ghi ở đây đè mất một lượt duyệt vừa commit xen vào giữa: bên rút
    * đọc thấy PENDING, bên duyệt commit (trừ tồn kho, tạo giao dịch), rồi câu
@@ -76,13 +76,16 @@ export class GiftRequestRepository
       `UPDATE gift_requests
        SET status = $1, withdrawn_at = now(), updated_at = now()
        WHERE post_id = $2 AND requester_id = $3
-         AND status = $4 AND deleted_at IS NULL
+         AND status::text = ANY($4::text[]) AND deleted_at IS NULL
        RETURNING global_id`,
       [
         GiftRequestStatuses.WITHDRAWN,
         postId,
         requesterId,
-        GiftRequestStatuses.PENDING,
+        // Rút được cả khi đang STANDBY: người trong hàng đợi phải có đường ra.
+        // Chỉ cho rút lúc PENDING nghĩa là hết hàng một lần là họ bị giữ trong
+        // hàng đợi cho tới khi bài đóng.
+        [GiftRequestStatuses.PENDING, GiftRequestStatuses.STANDBY],
       ],
     );
 
@@ -102,9 +105,11 @@ export class GiftRequestRepository
       .addSelect('COUNT(*)', 'cnt')
       .where('gr.post_id IN (:...postIds)', { postIds })
       .andWhere('gr.deleted_at IS NULL')
-      // REJECTED cũng không còn hoạt động: sau khi tác giả duyệt một người,
-      // các yêu cầu còn lại bị từ chối hàng loạt — đếm chúng vào `requestCount`
-      // hiển thị công khai là báo một con số đã chết.
+      // REJECTED không còn hoạt động: đó là lúc người cho chủ động từ chối.
+      //
+      // STANDBY thì VẪN đếm: người đó còn trong hàng đợi và được xét tiếp nếu
+      // lượt trao hiện tại bị huỷ (F33). Loại họ khỏi `requestCount` là nói với
+      // người xem rằng bài hết người quan tâm, trong khi hàng đợi còn nguyên.
       .andWhere('gr.status NOT IN (:...inactive)', {
         inactive: [
           GiftRequestStatuses.WITHDRAWN,
@@ -312,10 +317,15 @@ export class GiftRequestRepository
       );
 
       if (newRemaining === 0) {
+        // STANDBY, KHÔNG phải REJECTED: hết hàng thì những người còn lại vẫn
+        // đang trong hàng đợi, và nếu lượt trao này bị huỷ thì họ được xét tiếp
+        // (F33). `REJECTED` để dành cho lúc người cho chủ động từ chối ai đó —
+        // dùng chung một trạng thái cho hai việc thì không phân biệt được
+        // "chưa tới lượt" với "đã bị loại".
         await manager.query(
           `UPDATE gift_requests SET status = $1, updated_at = now() WHERE post_id = $2 AND global_id != $3 AND status = $4`,
           [
-            GiftRequestStatuses.REJECTED,
+            GiftRequestStatuses.STANDBY,
             params.postId,
             params.requestId,
             GiftRequestStatuses.PENDING,

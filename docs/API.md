@@ -389,6 +389,31 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 | `GET` | `/posts/:postId/requests` | Bearer (chỉ tác giả) | Danh sách người xin, có phân trang |
 | `POST` | `/posts/:postId/requests/:requestId/accept` | Bearer (chỉ tác giả) | Duyệt một người xin |
 
+#### Hàng đợi dự phòng
+
+Duyệt một người mà bài hết hàng thì những người còn lại chuyển sang **`STANDBY`**, không phải
+`REJECTED` ([F33](./FEATURES.md#f33--hàng-đợi-dự-phòng)). Hai trạng thái nói hai chuyện khác
+nhau: `STANDBY` là *chưa tới lượt*, `REJECTED` là *người cho đã từ chối*.
+
+Khi lượt trao bị huỷ:
+
+| Ai | Chuyện gì |
+| --- | --- |
+| Người đang `STANDBY` | Quay về `PENDING`, giữ nguyên `queueJoinedAt` nên **không mất chỗ** |
+| Người vừa bị huỷ | Sang `CANCELLED`, **không** quay lại hàng đợi |
+| Người đã tự rút | Giữ `WITHDRAWN`, không bị kéo trở lại |
+
+**Hệ thống chỉ đề xuất, không tự trao.** Người cho nhận thông báo kèm số người còn trong
+hàng đợi; ứng viên vào sớm nhất nhận thông báo *"đang được xét tiếp"* — cố ý **không** nói
+"đã được chọn", vì chưa ai chọn họ. Không có giao dịch nào được tạo tự động.
+
+Người đang `STANDBY` **rút được** yêu cầu, và **không** gửi lại được yêu cầu mới (trả
+`GIFT_REQUEST_DUPLICATED`): họ vẫn đang có một yêu cầu mở, và gửi lại sẽ reset thứ tự hàng
+đợi, tức tự đẩy mình xuống cuối.
+
+`requestCount` công khai **có** đếm người `STANDBY` — họ còn trong hàng đợi. Chỉ `REJECTED`,
+`CANCELLED`, `WITHDRAWN` bị loại khỏi con số đó.
+
 **Điều cần biết**
 
 - **Mỗi người một yêu cầu đang mở trên mỗi bài.** Xin trùng bị từ chối bằng mã lỗi riêng,

@@ -66,8 +66,13 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     );
 
     if (existing) {
+      // STANDBY cũng là yêu cầu ĐANG MỞ: người đó vẫn trong hàng đợi và được
+      // xét tiếp nếu lượt trao hiện tại bị huỷ (F33). Cho gửi lại sẽ đi vào
+      // nhánh dưới và reset `queueJoinedAt`, tức đẩy họ xuống cuối hàng — mất
+      // chỗ vì gửi thêm một lần là một hình phạt không ai nói trước.
       if (
         existing.status === GiftRequestStatuses.PENDING ||
+        existing.status === GiftRequestStatuses.STANDBY ||
         existing.status === GiftRequestStatuses.ACCEPTED
       ) {
         throw new GiftRequestDuplicatedException();

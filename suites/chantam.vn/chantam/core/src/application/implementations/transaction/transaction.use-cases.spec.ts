@@ -1,4 +1,5 @@
 import { AutoCompleteAfterDays } from '@/application/contracts/transaction';
+import { IGiftTransactionSummary } from '@/domain/ports/repository';
 import {
   AcceptGiftRequestUseCase,
   CancelGiftTransactionUseCase,
@@ -9,6 +10,7 @@ import {
 } from './transaction.use-cases';
 
 const UserId = '10000000-0000-4000-8000-000000000001';
+const NextCandidateId = '10000000-0000-4000-8000-000000000009';
 const PostId = '30000000-0000-4000-8000-000000000001';
 const TransactionId = '40000000-0000-4000-8000-000000000003';
 
@@ -23,6 +25,19 @@ const Summary = {
   acceptedAt: null,
   completedAt: null,
 };
+
+/**
+ * Use case huỷ gửi thông báo, nên mock luôn để kiểm nội dung — nhất là việc nói
+ * với ứng viên kế tiếp rằng "đang được xét tiếp", KHÔNG phải "đã được chọn".
+ */
+function makeNotifier() {
+  return {
+    handle: jest.fn(async (_command: unknown) => ({
+      created: true,
+      pushedDevices: 0,
+    })),
+  };
+}
 
 function makeRepository() {
   return {
@@ -45,10 +60,20 @@ function makeRepository() {
         completedAt: new Date(),
       }),
     ),
-    close: jest.fn(async (_params: unknown) => ({
-      ...Summary,
-      status: 'CANCELLED' as const,
-    })),
+    close: jest.fn(
+      async (
+        _params: unknown,
+      ): Promise<{
+        transaction: IGiftTransactionSummary;
+        // Khai `string | null` thay vì để TypeScript suy ra `string`: test phủ
+        // nhánh hàng đợi rỗng cần gán `null`, và kiểu suy ra sẽ chặn nó.
+        queue: { reopenedCount: number; nextCandidateId: string | null };
+      }> => ({
+        transaction: { ...Summary, status: 'CANCELLED' as const },
+        // Một người còn trong hàng đợi, để kiểm nhánh có đề xuất (F33).
+        queue: { reopenedCount: 1, nextCandidateId: NextCandidateId },
+      }),
+    ),
     listForUser: jest.fn(async (_userId: string) => [Summary]),
     completeDueDeliveries: jest.fn(async (_days: number) => 3),
     findByGlobalId: jest.fn(),
@@ -116,9 +141,74 @@ describe('Gift transaction use cases', () => {
     expect(result.transaction.status).toBe('COMPLETED');
   });
 
+  it('huỷ xong thì báo cho NGƯỜI CHO và ứng viên kế tiếp (F33)', async () => {
+    const repository = makeRepository();
+    const notifier = makeNotifier();
+
+    await new CancelGiftTransactionUseCase(
+      repository as never,
+      notifier as never,
+    ).handle({
+      userId: UserId,
+      transactionId: TransactionId,
+      cancellation: { reason: 'Không sắp xếp được' },
+    });
+
+    const targets = notifier.handle.mock.calls.map(
+      ([command]) => (command as { userId: string }).userId,
+    );
+    expect(targets).toEqual([Summary.giverId, NextCandidateId]);
+  });
+
+  it('KHÔNG nói với ứng viên kế tiếp rằng đã được chọn', async () => {
+    // F33: hệ thống chỉ đề xuất, tuyệt đối không tự trao. Thông báo hứa hộ một
+    // điều chưa xảy ra là thứ người dùng nhớ rất lâu.
+    const repository = makeRepository();
+    const notifier = makeNotifier();
+
+    await new CancelGiftTransactionUseCase(
+      repository as never,
+      notifier as never,
+    ).handle({
+      userId: UserId,
+      transactionId: TransactionId,
+      cancellation: { reason: 'Không sắp xếp được' },
+    });
+
+    const toCandidate = notifier.handle.mock.calls
+      .map(([command]) => command as { userId: string; body: string })
+      .find((command) => command.userId === NextCandidateId);
+
+    expect(toCandidate?.body).toContain('chưa phải là đã được chọn');
+    expect(toCandidate?.body).not.toContain('đã được chọn nhận');
+  });
+
+  it('không còn ai trong hàng đợi thì không gửi thông báo nào', async () => {
+    const repository = makeRepository();
+    repository.close = jest.fn(async (_params: unknown) => ({
+      transaction: { ...Summary, status: 'CANCELLED' as const },
+      queue: { reopenedCount: 0, nextCandidateId: null },
+    }));
+    const notifier = makeNotifier();
+
+    await new CancelGiftTransactionUseCase(
+      repository as never,
+      notifier as never,
+    ).handle({
+      userId: UserId,
+      transactionId: TransactionId,
+      cancellation: { reason: 'Không sắp xếp được' },
+    });
+
+    expect(notifier.handle).not.toHaveBeenCalled();
+  });
+
   it('huỷ kèm lý do và đánh dấu CANCELLED', async () => {
     const repository = makeRepository();
-    const useCase = new CancelGiftTransactionUseCase(repository as never);
+    const useCase = new CancelGiftTransactionUseCase(
+      repository as never,
+      makeNotifier() as never,
+    );
 
     await useCase.handle({
       userId: UserId,

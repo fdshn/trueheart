@@ -181,17 +181,30 @@ describe('GiftRequestRepository.acceptRequest — trạng thái bài', () => {
     expect(postUpdate(query)?.[1]).toBe('PUBLISHED');
   });
 
-  it('hết hàng thì chuyển DELIVERING và từ chối các yêu cầu còn lại', async () => {
+  it('hết hàng thì chuyển DELIVERING và đưa người còn lại vào hàng đợi', async () => {
+    // STANDBY, KHÔNG phải REJECTED. Hết hàng nghĩa là chưa tới lượt, không phải
+    // đã bị loại: nếu lượt trao này huỷ thì họ được xét tiếp (F33). Dùng
+    // REJECTED cho cả hai việc thì không phân biệt được "đang chờ" với "đã bị
+    // người cho từ chối", và hàng đợi dự phòng không còn nguồn để mở lại.
     const query = makeQuery({ post: postRow(1) });
 
     await makeRepository(query).acceptRequest(Params);
 
     expect(postUpdate(query)?.[1]).toBe('DELIVERING');
+
+    const queueOthers = query.mock.calls.find(
+      ([sql, params]) =>
+        String(sql).includes('UPDATE gift_requests') &&
+        (params as unknown[])?.[0] === GiftRequestStatuses.STANDBY,
+    );
+    expect(queueOthers).toBeDefined();
+
+    // Và tuyệt đối không còn chỗ nào đánh REJECTED hàng loạt.
     const rejectOthers = query.mock.calls.find(
       ([sql, params]) =>
         String(sql).includes('UPDATE gift_requests') &&
         (params as unknown[])?.[0] === GiftRequestStatuses.REJECTED,
     );
-    expect(rejectOthers).toBeDefined();
+    expect(rejectOthers).toBeUndefined();
   });
 });
