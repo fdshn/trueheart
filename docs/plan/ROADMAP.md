@@ -7,11 +7,11 @@ cả 72 đều là P0.
 | --- | --- | ---: | --- |
 | M0 | Nền tảng monorepo + CI/CD | — | ✅ Xong |
 | [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | ✅ Xong (provider/ledger rollout deferred) |
-| [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 14 | 🟡 10/14 — bản đồ và vòng đời xong; SOS/2 loại bài chưa |
-| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 6/10 — vòng đời giao dịch xong; chat/thông báo/hàng đợi chưa |
-| [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 7 | 🟡 Ledger/rank/referral xong; đánh giá & accuracy chưa |
+| [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 15 | 🟡 9/15 — bản đồ và vòng đời xong; SOS, 2 loại bài, GPS fallback chưa |
+| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 4/10 — xin/duyệt/xác nhận/tự hoàn tất xong; chat, hàng đợi, thông báo chưa |
+| [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 7 | 🟡 3/7 — ledger/rank/referral xong; đánh giá & accuracy chưa |
 | [M5](#m5--group--affiliate) | Group, affiliate, chống gian lận | 10 | ⬜ 0/10 |
-| [M6](#m6--quản-trị--bàn-giao) | Admin CMS, kiểm duyệt, bàn giao | 18 | 🟡 RBAC/config/log/quản lý user đã có; giao diện CMS chưa |
+| [M6](#m6--quản-trị--bàn-giao) | Admin CMS, kiểm duyệt, bàn giao | 18 | 🟡 1/18 — RBAC/config động/nhật ký/quản lý user đã có; giao diện CMS chưa |
 
 ## Vì sao thứ tự này
 
