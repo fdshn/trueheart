@@ -21,7 +21,7 @@ Tổng effort nguồn: **60 man-days / 50 ngày / 4 sprint**.
 | --- | --- | --- |
 | Sprint 1 – hạ tầng, auth, profile, category, avatar storage | ✅ Đã có nền code | Point ledger đã xong. Còn deferred: nhà cung cấp SMS/Zalo và R2 staging/prod acceptance |
 | Sprint 1 – point, rank, referral (F12–F13) | ✅ Code hoàn chỉnh | Ledger, tier, promotion, maintenance cycle, referral bất biến và các endpoint chính chủ đều đã có |
-| Sprint 1 – canonical OFFER foundation | 🟡 Đang làm trong M2.1 | `posts` migration/backfill, Generic MVP create (OFFER/WANTED/CHARITY/CLASSIFIED/MERIT) kèm quota riêng từng loại, detail/map/moderation, owner update/delete, post-media ownership và legacy adapter `/api/v1/gift-posts` đã có; còn migration fixture/CI assertion |
+| Sprint 1 – canonical OFFER foundation | ✅ M2.1 đã xong | `posts` migration/backfill, Generic MVP create (OFFER/WANTED/CHARITY/CLASSIFIED/MERIT) kèm quota riêng từng loại, detail/map/moderation, owner update/delete, post-media ownership, legacy adapter `/api/v1/gift-posts`, và CI chạy backfill với dữ liệu thật |
 | M3 – giao dịch tặng/nhận | 🟡 Nền đã có | Vòng đời request→accept→complete, trừ tồn kho nguyên tử, tự hoàn tất 5 ngày qua CLI. Chat và Smart Match chưa có |
 | M6 – Admin CMS nền | 🟡 Nền đã có | RBAC, system config động, cấu hình kênh gửi, nhật ký hệ thống và quản lý user đã có; giao diện CMS chưa có |
 | Sprint 2 – map discovery | 🟡 Đang làm | `GET /api/v1/posts/map` marker bbox, jitter và client-side clustering đã có local/commit chờ push |
@@ -77,8 +77,10 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 
 ### Thứ tự bắt buộc trong Sprint 2
 
-1. Hoàn thành M2.1: post media ownership, owner delete và legacy `/api/v1/gift-posts`
-   compatibility adapter đã xong; còn lại migration fixture/CI assertion.
+1. **M2.1 đã xong**: post media ownership, owner delete, legacy `/api/v1/gift-posts`
+   compatibility adapter, fixture kiểm bất biến backfill, và CI chạy backfill với dữ
+   liệu thật (`npm run migration:backfill-check` — dựng database nháp, chạy migration
+   hai pha, seed bài đăng cũ vào giữa).
 2. Hoàn thành M2 map/discovery + SOS theo roadmap; Smart Match rule-based đã xong.
 3. Chỉ mở transaction khi post lifecycle/public visibility đã ổn định.
 4. Chat không được tự tạo transaction state; chỉ phản ánh transaction lifecycle từ server.
