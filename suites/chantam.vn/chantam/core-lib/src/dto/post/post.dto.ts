@@ -4,6 +4,7 @@ import {
 } from '@chantam/service.common-lib/dto';
 import { IGeoPoint } from '@chantam/service.persistency-lib/geo';
 import {
+  CharityTransferStatuses,
   GenericMvpPostType,
   GiftPostConditions,
   GiftPostStatuses,
@@ -20,6 +21,14 @@ export interface ICreatePostCommonDto {
   categoryId: string;
   location: IGeoPoint;
   areaLabel: string;
+  /**
+   * Đánh dấu bài Cần gấp / SOS (F17).
+   *
+   * Mở theo capability `POST_SOS` của Rank, Admin bật/tắt lúc chạy. Không gửi
+   * thì mặc định `false` — im lặng mà hiểu thành "cần gấp" là cho mọi bài
+   * chen lên đầu.
+   */
+  isSos?: boolean;
 }
 
 export interface ICreateOfferPostDto extends ICreatePostCommonDto {
@@ -56,8 +65,12 @@ export interface ICreatePostResponseDto {
 }
 
 export interface IGetNearbyPostsQueryDto extends IPaginationQueryDto {
-  lat: number;
-  lng: number;
+  /**
+   * Toạ độ quét. Bỏ trống thì server lùi về Vị trí mặc định của người đang
+   * đăng nhập (F26). Khách chưa đăng nhập bỏ trống thì không quét được.
+   */
+  lat?: number;
+  lng?: number;
   radiusMeters: number;
   postType: PublicDiscoveryPostType;
   categoryId?: string;
@@ -92,6 +105,14 @@ export interface INearbyPostDto {
 export interface IGetNearbyPostsResponseDto {
   posts: INearbyPostDto[];
   meta: IPaginationMetaDto;
+  /**
+   * Gốc toạ độ đã dùng để quét (F26).
+   *
+   * `REQUEST` là toạ độ client gửi lên, `DEFAULT_LOCATION` là Vị trí mặc định
+   * trong hồ sơ. Giao diện cần phân biệt để nói cho người dùng biết kết quả
+   * đang tính từ đâu — im lặng lùi về vị trí khác là đổi kết quả sau lưng họ.
+   */
+  originSource: 'REQUEST' | 'DEFAULT_LOCATION';
 }
 
 /** Vì sao một bài được gợi ý. Giao diện dịch các mã này ra tiếng Việt. */
@@ -152,6 +173,15 @@ export interface IGetPostMapQueryDto {
   categoryId?: string;
 }
 
+/**
+ * Marker trên bản đồ, mang đủ dữ liệu để dựng **thẻ xem nhanh** (F29) mà không
+ * cần gọi thêm một vòng cho mỗi marker người dùng chạm vào.
+ *
+ * Cố ý KHÔNG mang `description`: thẻ xem nhanh chỉ cần đủ để quyết định có mở
+ * chi tiết hay không, và nhồi cả mô tả vào 200 marker là tự làm nặng bản đồ.
+ * Xem đầy đủ thì điều hướng sang màn Detail của module nguồn — dùng
+ * `deepLinkPath`.
+ */
 export interface IPostMapMarkerDto {
   postId: string;
   postType: PostTypes;
@@ -160,6 +190,19 @@ export interface IPostMapMarkerDto {
   location: IGeoPoint;
   distanceMeters?: number;
   isLocationApproximate: true;
+  /** Tiêu đề bài, để thẻ xem nhanh có gì đọc. */
+  title: string;
+  /** Ảnh đầu tiên của bài, `null` khi bài không có ảnh. */
+  thumbnailUrl: string | null;
+  /** Bài Cần gấp — thẻ xem nhanh cần làm nổi bật (F17). */
+  isSos: boolean;
+  /**
+   * Đường dẫn tương đối tới màn chi tiết của module nguồn.
+   *
+   * Server chỉ trả đường dẫn, KHÔNG ghép tên miền: tên miền là việc của client
+   * và của cấu hình triển khai, đoán hộ là sinh ra link chết.
+   */
+  deepLinkPath: string;
 }
 
 export interface IGetPostMapResponseDto {
@@ -232,5 +275,38 @@ export interface IRenewPostParamsDto {
 }
 
 export interface IRenewPostResponseDto {
+  post: IPostEntity;
+}
+
+export interface IRequestCharityTransferParamsDto {
+  postId: string;
+}
+
+export interface IRequestCharityTransferDto {
+  /** Lời nhắn cho Admin, tối đa 500 ký tự. */
+  note?: string;
+}
+
+export interface IRequestCharityTransferBodyDto {
+  transfer: IRequestCharityTransferDto;
+}
+
+export interface IRequestCharityTransferResponseDto {
+  post: IPostEntity;
+}
+
+export interface IReviewCharityTransferParamsDto {
+  postId: string;
+}
+
+export interface IReviewCharityTransferDto {
+  status: CharityTransferStatuses.APPROVED | CharityTransferStatuses.REJECTED;
+}
+
+export interface IReviewCharityTransferBodyDto {
+  transfer: IReviewCharityTransferDto;
+}
+
+export interface IReviewCharityTransferResponseDto {
   post: IPostEntity;
 }

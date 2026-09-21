@@ -7,6 +7,7 @@ import {
   CategoryNotFoundException,
   OnboardingIncompleteException,
   PostQuotaExceededException,
+  PostSosNotAllowedException,
   ProfileIncompleteException,
   UserNotFoundException,
 } from '@/domain/exceptions';
@@ -128,6 +129,18 @@ export class CreatePostUseCase implements ICreatePostUseCase {
         ]);
     }
 
+    // SOS là quyền theo Rank, không phải một ô tuỳ ý trên form. Chỉ kiểm khi
+    // người dùng thật sự bật nó — bài thường không nên tốn một truy vấn
+    // entitlement chỉ để biết mình không cần quyền gì.
+    const isSos = post.isSos ?? false;
+    if (isSos) {
+      const sosCapability = await this.entitlementRepository.getCapability(
+        command.userId,
+        'POST_SOS',
+      );
+      if (!sosCapability?.allowed) throw new PostSosNotAllowedException();
+    }
+
     const totalQuantity =
       post.postType === PostTypes.OFFER ? (post.totalQuantity ?? 1) : 1;
     const capability = await this.entitlementRepository.getCapability(
@@ -154,6 +167,10 @@ export class CreatePostUseCase implements ICreatePostUseCase {
         details: buildPostDetails(post),
         expiresAt: null,
         renewedCount: 0,
+        isSos,
+        charityTransferStatus: null,
+        charityTransferRequestedAt: null,
+        charityTransferNote: null,
         deletedAt: null,
       },
     );

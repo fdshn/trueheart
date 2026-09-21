@@ -1,4 +1,5 @@
 import {
+  CharityTransferStatuses,
   GiftPostStatuses,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -83,4 +84,34 @@ export class PostEntity
   @ApiProperty()
   @Column({ name: 'renewed_count', type: 'int', default: 0 })
   renewedCount: number;
+
+  @ApiProperty({ description: 'Bài Cần gấp / SOS (F17)' })
+  @Column({ name: 'is_sos', type: 'boolean', default: false })
+  isSos: boolean;
+
+  @ApiProperty({ enum: CharityTransferStatuses, nullable: true })
+  @Column({
+    name: 'charity_transfer_status',
+    type: 'enum',
+    enum: CharityTransferStatuses,
+    nullable: true,
+  })
+  charityTransferStatus: CharityTransferStatuses | null;
+
+  @ApiProperty({ nullable: true })
+  @Column({
+    name: 'charity_transfer_requested_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  charityTransferRequestedAt: Date | null;
+
+  @ApiProperty({ nullable: true })
+  @Column({
+    name: 'charity_transfer_note',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  charityTransferNote: string | null;
 }

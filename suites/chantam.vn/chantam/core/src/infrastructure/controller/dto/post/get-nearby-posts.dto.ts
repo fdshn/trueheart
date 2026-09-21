@@ -35,15 +35,24 @@ export class GetNearbyPostsQueryDto
   extends Mixin(PaginationQueryDto)
   implements IGetNearbyPostsQueryDto
 {
-  @ApiProperty({ example: 10.7724 })
+  @ApiPropertyOptional({
+    example: 10.7724,
+    description:
+      'Bỏ trống thì lùi về Vị trí mặc định của người đang đăng nhập (F26). Phải gửi cùng lng.',
+  })
+  @IsOptional()
   @Type(() => Number)
   @IsLatitude()
-  lat: number;
+  lat?: number;
 
-  @ApiProperty({ example: 106.698 })
+  @ApiPropertyOptional({
+    example: 106.698,
+    description: 'Bỏ trống thì lùi về Vị trí mặc định. Phải gửi cùng lat.',
+  })
+  @IsOptional()
   @Type(() => Number)
   @IsLongitude()
-  lng: number;
+  lng?: number;
 
   @ApiProperty({
     minimum: MinSearchRadiusMeters,
@@ -102,4 +111,11 @@ export class GetNearbyPostsResponseDto implements IGetNearbyPostsResponseDto {
 
   @ApiProperty({ type: () => PaginationMetaDto })
   meta: PaginationMetaDto;
+
+  @ApiProperty({
+    enum: ['REQUEST', 'DEFAULT_LOCATION'],
+    description:
+      'Gốc toạ độ đã dùng. DEFAULT_LOCATION nghĩa là client không gửi toạ độ và server đã lùi về Vị trí mặc định trong hồ sơ.',
+  })
+  originSource: 'REQUEST' | 'DEFAULT_LOCATION';
 }

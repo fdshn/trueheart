@@ -8,6 +8,8 @@
  *
  *   npm run test:lifecycle
  */
+import { CharityTransferOutcome } from '../src/domain/ports/repository';
+import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
@@ -50,6 +52,8 @@ interface SeedPost {
 }
 
 async function seed(dataSource: DataSource, posts: SeedPost[]): Promise<void> {
+  // post_media có FK sang posts; xoá ảnh trước để không vướng ràng buộc.
+  await dataSource.query('DELETE FROM post_media');
   await dataSource.query('DELETE FROM posts');
 
   for (const post of posts)
@@ -86,6 +90,21 @@ interface PostRow {
   details: Record<string, unknown>;
   renewed_count: number;
   expires_at: Date | null;
+  charity_transfer_status: string | null;
+  charity_transfer_note: string | null;
+}
+
+/**
+ * Lấy bài ra khỏi kết quả union mà không cần hẹp kiểu ở từng chỗ gọi.
+ *
+ * `CharityTransferOutcome` là union có phân biệt, nên nhánh `NOT_FOUND` không
+ * có thuộc tính `post` — optional chaining không cứu được, TypeScript từ chối
+ * ngay lúc biên dịch.
+ */
+function outcomePost(
+  outcome: CharityTransferOutcome,
+): IPostEntity | undefined {
+  return outcome.status === 'RECORDED' ? outcome.post : undefined;
 }
 
 async function readPost(
@@ -93,7 +112,8 @@ async function readPost(
   index: number,
 ): Promise<PostRow> {
   const [row] = await dataSource.query<PostRow[]>(
-    `SELECT status, post_type, details, renewed_count, expires_at
+    `SELECT status, post_type, details, renewed_count, expires_at,
+            charity_transfer_status, charity_transfer_note
      FROM posts WHERE global_id = $1`,
     [postId(index)],
   );
@@ -364,6 +384,178 @@ async function main(): Promise<void> {
           expiresAt: future,
         })
       ).status === 'QUOTA_EXCEEDED',
+    );
+
+    // ── 3. Xin chuyển về điểm từ thiện (F23) ────────────────────────────────
+    console.log('\nChuyển về điểm từ thiện:\n');
+
+    await seed(dataSource, [
+      { index: 40, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 5 },
+    ]);
+
+    const requestedTransfer = await posts.requestCharityTransfer({
+      postId: postId(40),
+      authorId: AuthorId,
+      note: 'Em không dùng nữa, nhờ bên mình chuyển giúp',
+    });
+    check(
+      'chủ bài gửi được yêu cầu chuyển',
+      requestedTransfer.status === 'RECORDED' &&
+        requestedTransfer.post.charityTransferStatus === 'REQUESTED',
+      requestedTransfer.status,
+    );
+    check(
+      'lời nhắn được lưu lại cho Admin đọc',
+      (await readPost(dataSource, 40)).charity_transfer_note ===
+        'Em không dùng nữa, nhờ bên mình chuyển giúp',
+    );
+    check(
+      'gửi lần hai khi đang chờ duyệt thì bị chặn',
+      (
+        await posts.requestCharityTransfer({
+          postId: postId(40),
+          authorId: AuthorId,
+          note: null,
+        })
+      ).status === 'INVALID_STATE',
+    );
+    check(
+      'bài của người khác trả NOT_FOUND',
+      (
+        await posts.requestCharityTransfer({
+          postId: postId(40),
+          authorId: OtherId,
+          note: null,
+        })
+      ).status === 'NOT_FOUND',
+    );
+
+    // Từ chối: bài phải GIỮ NGUYÊN trạng thái cũ.
+    const rejected = await posts.reviewCharityTransfer({
+      postId: postId(40),
+      approve: false,
+    });
+    check(
+      'từ chối thì bài giữ nguyên PUBLISHED, không mất bài',
+      rejected.status === 'RECORDED' &&
+        rejected.post.status === 'PUBLISHED' &&
+        rejected.post.charityTransferStatus === 'REJECTED',
+      `${rejected.status}/${outcomePost(rejected)?.status ?? '-'}`,
+    );
+    check(
+      'duyệt khi không còn yêu cầu nào đang chờ thì bị chặn',
+      (
+        await posts.reviewCharityTransfer({
+          postId: postId(40),
+          approve: true,
+        })
+      ).status === 'INVALID_STATE',
+    );
+
+    // Bị từ chối rồi vẫn gửi lại được — người dùng không bị khoá vĩnh viễn.
+    check(
+      'bị từ chối rồi vẫn gửi lại được',
+      (
+        await posts.requestCharityTransfer({
+          postId: postId(40),
+          authorId: AuthorId,
+          note: null,
+        })
+      ).status === 'RECORDED',
+    );
+
+    const approved = await posts.reviewCharityTransfer({
+      postId: postId(40),
+      approve: true,
+    });
+    check(
+      'duyệt thì bài vào Kho Từ Thiện Chung (ARCHIVED)',
+      approved.status === 'RECORDED' &&
+        approved.post.status === 'ARCHIVED' &&
+        approved.post.charityTransferStatus === 'APPROVED',
+      `${approved.status}/${outcomePost(approved)?.status ?? '-'}`,
+    );
+
+    await seed(dataSource, [
+      {
+        index: 41,
+        postType: 'OFFER',
+        status: 'PENDING_REVIEW',
+        expiresInDays: null,
+      },
+    ]);
+    check(
+      'bài chưa được duyệt thì chưa xin chuyển được',
+      (
+        await posts.requestCharityTransfer({
+          postId: postId(41),
+          authorId: AuthorId,
+          note: null,
+        })
+      ).status === 'INVALID_STATE',
+    );
+
+    // ── 4. Marker bản đồ mang dữ liệu thẻ xem nhanh (F29) ───────────────────
+    console.log('\nThẻ xem nhanh trên bản đồ:\n');
+
+    await seed(dataSource, [
+      { index: 50, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 30 },
+    ]);
+    await dataSource.query(
+      `UPDATE posts SET is_sos = true, title = 'Cần gấp áo ấm' WHERE global_id = $1`,
+      [postId(50)],
+    );
+    // Ba ảnh, chèn lệch thứ tự để chứng minh truy vấn lấy ĐÚNG ảnh sort_order
+    // nhỏ nhất chứ không phải ảnh chèn trước.
+    for (const [order, key] of [
+      [2, 'posts/p50/c.jpg'],
+      [0, 'posts/p50/a.jpg'],
+      [1, 'posts/p50/b.jpg'],
+    ] as [number, string][])
+      await dataSource.query(
+        `INSERT INTO post_media (post_id, r2_key, sort_order) VALUES ($1, $2, $3)`,
+        [postId(50), key, order],
+      );
+
+    const markers = await posts.findMapMarkers({
+      minLat: 10.0,
+      maxLat: 11.5,
+      minLng: 106.0,
+      maxLng: 107.5,
+    });
+    const marker = markers.find((row) => row.globalId === postId(50));
+    check(
+      'marker mang tiêu đề bài',
+      marker?.title === 'Cần gấp áo ấm',
+      String(marker?.title),
+    );
+    check('marker mang cờ SOS', marker?.isSos === true, String(marker?.isSos));
+    check(
+      'ảnh thumbnail là ảnh có sort_order nhỏ nhất',
+      marker?.thumbnailKey === 'posts/p50/a.jpg',
+      String(marker?.thumbnailKey),
+    );
+    check(
+      'bài 3 ảnh vẫn chỉ ra MỘT marker, không nhân bản pin',
+      markers.filter((row) => row.globalId === postId(50)).length === 1,
+      `${markers.filter((row) => row.globalId === postId(50)).length} marker`,
+    );
+
+    await seed(dataSource, [
+      { index: 51, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 30 },
+    ]);
+    const noPhoto = (
+      await posts.findMapMarkers({
+        minLat: 10.0,
+        maxLat: 11.5,
+        minLng: 106.0,
+        maxLng: 107.5,
+      })
+    ).find((row) => row.globalId === postId(51));
+    check(
+      'bài không ảnh thì thumbnailKey là null',
+      noPhoto?.thumbnailKey === null,
+      String(noPhoto?.thumbnailKey),
     );
   } finally {
     for (const source of opened)

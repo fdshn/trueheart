@@ -12,12 +12,18 @@ import {
   IRemovePostMediaUseCase,
   IRenewPostUseCase,
   IReorderPostMediaUseCase,
+  IRequestCharityTransferUseCase,
   IRequestPostMediaUploadUseCase,
+  IReviewCharityTransferUseCase,
   IUpdatePostUseCase,
 } from '@/application/contracts/post';
 import { Global, Module } from '@nestjs/common';
 import { GetSmartMatchesUseCase } from '../smart-match/get-smart-matches.use-case';
 import { AttachPostMediaUseCase } from './attach-post-media.use-case';
+import {
+  RequestCharityTransferUseCase,
+  ReviewCharityTransferUseCase,
+} from './charity-transfer.use-cases';
 import { CreatePostUseCase } from './create-post.use-case';
 import { DeletePostUseCase } from './delete-post.use-case';
 import { ExpireDuePostsUseCase } from './expire-due-posts.use-case';
@@ -37,6 +43,14 @@ import { UpdatePostUseCase } from './update-post.use-case';
   providers: [
     { provide: IAttachPostMediaUseCase, useClass: AttachPostMediaUseCase },
     { provide: ICreatePostUseCase, useClass: CreatePostUseCase },
+    {
+      provide: IRequestCharityTransferUseCase,
+      useClass: RequestCharityTransferUseCase,
+    },
+    {
+      provide: IReviewCharityTransferUseCase,
+      useClass: ReviewCharityTransferUseCase,
+    },
     { provide: IDeletePostUseCase, useClass: DeletePostUseCase },
     { provide: IExpireDuePostsUseCase, useClass: ExpireDuePostsUseCase },
     { provide: IGetMyPostsUseCase, useClass: GetMyPostsUseCase },
@@ -58,6 +72,8 @@ import { UpdatePostUseCase } from './update-post.use-case';
     IAttachPostMediaUseCase,
     ICreatePostUseCase,
     IDeletePostUseCase,
+    IRequestCharityTransferUseCase,
+    IReviewCharityTransferUseCase,
     IExpireDuePostsUseCase,
     IGetMyPostsUseCase,
     IGetNearbyPostsUseCase,

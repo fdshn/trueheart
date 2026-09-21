@@ -2,6 +2,7 @@ import {
   CategoryNotFoundException,
   OnboardingIncompleteException,
   PostQuotaExceededException,
+  PostSosNotAllowedException,
   ProfileIncompleteException,
 } from '@/domain/exceptions';
 import {
@@ -145,6 +146,62 @@ describe('CreatePostUseCase', () => {
         },
       }),
     );
+  });
+
+  it('bài thường KHÔNG tốn một truy vấn entitlement cho POST_SOS', async () => {
+    const { posts, categories, users, entitlements } = makeRepositories();
+
+    await new CreatePostUseCase(posts, categories, users, entitlements).handle(
+      command(),
+    );
+
+    expect(entitlements.getCapability).not.toHaveBeenCalledWith(
+      UserId,
+      'POST_SOS',
+    );
+    expect(posts.createPostWithinQuota).toHaveBeenCalledWith(
+      UserId,
+      3,
+      expect.objectContaining({ isSos: false }),
+    );
+  });
+
+  it('bật SOS khi Rank được phép thì ghi cờ vào bài', async () => {
+    const { posts, categories, users, entitlements } = makeRepositories();
+
+    await new CreatePostUseCase(posts, categories, users, entitlements).handle({
+      ...command(),
+      post: { ...command().post, isSos: true },
+    });
+
+    expect(entitlements.getCapability).toHaveBeenCalledWith(UserId, 'POST_SOS');
+    expect(posts.createPostWithinQuota).toHaveBeenCalledWith(
+      UserId,
+      3,
+      expect.objectContaining({ isSos: true }),
+    );
+  });
+
+  it('bật SOS khi Rank chưa được phép thì bị chặn', async () => {
+    // Capability tồn tại nhưng `allowed: false` — đúng hình dạng mà Admin tắt
+    // SOS cho một Rank tạo ra.
+    const { posts, categories, users } = makeRepositories();
+    const entitlements = {
+      getCapability: jest.fn(async (_userId: string, code: string) =>
+        code === 'POST_SOS'
+          ? { code, allowed: false, limit: 0, used: 0, remaining: 0 }
+          : { code, allowed: true, limit: 3, used: 0, remaining: 3 },
+      ),
+    } as unknown as jest.Mocked<IEntitlementRepository>;
+
+    await expect(
+      new CreatePostUseCase(posts, categories, users, entitlements).handle({
+        ...command(),
+        post: { ...command().post, isSos: true },
+      }),
+    ).rejects.toBeInstanceOf(PostSosNotAllowedException);
+
+    expect(posts.createPostWithinQuota).not.toHaveBeenCalled();
   });
 
   it('chặn user có hồ sơ chưa hoàn tất trước khi kiểm tra category hoặc quota', async () => {

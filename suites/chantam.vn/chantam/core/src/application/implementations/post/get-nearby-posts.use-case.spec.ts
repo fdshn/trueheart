@@ -1,7 +1,9 @@
+import { DiscoveryOriginUnavailableException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
   IGiftRequestRepository,
   IPostRepository,
+  IUserRepository,
 } from '@/domain/ports/repository';
 import {
   GiftPostStatuses,
@@ -30,6 +32,10 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     details: {},
     expiresAt: null,
     renewedCount: 0,
+    isSos: false,
+    charityTransferStatus: null,
+    charityTransferRequestedAt: null,
+    charityTransferNote: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -73,6 +79,19 @@ function makeConfig(): IConfig {
   };
 }
 
+/**
+ * Người dùng CÓ Vị trí mặc định, để phân biệt hai nhánh của F26: khi client
+ * gửi toạ độ thì tuyệt đối không được đọc tới hồ sơ.
+ */
+function makeUsers() {
+  return {
+    findOneBy: jest.fn().mockResolvedValue({
+      globalId: '99999999-9999-9999-9999-999999999999',
+      defaultLocation: { lat: 21.0278, lng: 105.8342 },
+    }),
+  } as unknown as jest.Mocked<IUserRepository>;
+}
+
 describe('GetNearbyPostsUseCase', () => {
   it('forwards requested type and pagination then returns privacy-safe nearby posts with request counts and status', async () => {
     const post = makePost();
@@ -97,6 +116,7 @@ describe('GetNearbyPostsUseCase', () => {
     const result = await new GetNearbyPostsUseCase(
       posts,
       giftRequests,
+      makeUsers(),
       makeConfig(),
     ).handle({
       lat: ExactLocation.lat,
@@ -138,5 +158,132 @@ describe('GetNearbyPostsUseCase', () => {
       meta: { page: 2, pageSize: 20, total: 41 },
     });
     expect(result.posts[0].post.location).not.toEqual(ExactLocation);
+  });
+
+  it('thiếu toạ độ thì lùi về Vị trí mặc định và nói rõ đã lùi', async () => {
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequests = {} as unknown as jest.Mocked<IGiftRequestRepository>;
+    const users = makeUsers();
+
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      giftRequests,
+      users,
+      makeConfig(),
+    ).handle({
+      radiusMeters: 5_000,
+      postType: PostTypes.OFFER,
+      page: 1,
+      pageSize: 20,
+      currentUserId: '99999999-9999-9999-9999-999999999999',
+    });
+
+    expect(posts.findNearbyPosts).toHaveBeenCalledWith(
+      expect.objectContaining({ origin: { lat: 21.0278, lng: 105.8342 } }),
+    );
+    // Im lặng đổi gốc toạ độ là đổi kết quả sau lưng người dùng.
+    expect(result.originSource).toBe('DEFAULT_LOCATION');
+  });
+
+  it('có toạ độ thì KHÔNG đọc tới hồ sơ', async () => {
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequests = {} as unknown as jest.Mocked<IGiftRequestRepository>;
+    const users = makeUsers();
+
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      giftRequests,
+      users,
+      makeConfig(),
+    ).handle({
+      lat: 10.7724,
+      lng: 106.698,
+      radiusMeters: 5_000,
+      postType: PostTypes.OFFER,
+      page: 1,
+      pageSize: 20,
+      currentUserId: '99999999-9999-9999-9999-999999999999',
+    });
+
+    expect(users.findOneBy).not.toHaveBeenCalled();
+    expect(result.originSource).toBe('REQUEST');
+  });
+
+  it('khách chưa đăng nhập không gửi toạ độ thì báo lỗi rõ ràng', async () => {
+    const posts = {
+      findNearbyPosts: jest.fn(),
+    } as unknown as jest.Mocked<IPostRepository>;
+
+    await expect(
+      new GetNearbyPostsUseCase(
+        posts,
+        {} as unknown as jest.Mocked<IGiftRequestRepository>,
+        makeUsers(),
+        makeConfig(),
+      ).handle({
+        radiusMeters: 5_000,
+        postType: PostTypes.OFFER,
+        page: 1,
+        pageSize: 20,
+      }),
+    ).rejects.toBeInstanceOf(DiscoveryOriginUnavailableException);
+
+    expect(posts.findNearbyPosts).not.toHaveBeenCalled();
+  });
+
+  it('người dùng chưa đặt Vị trí mặc định cũng báo lỗi, không quét bừa', async () => {
+    const users = {
+      findOneBy: jest.fn().mockResolvedValue({
+        globalId: '99999999-9999-9999-9999-999999999999',
+        defaultLocation: null,
+      }),
+    } as unknown as jest.Mocked<IUserRepository>;
+
+    await expect(
+      new GetNearbyPostsUseCase(
+        {
+          findNearbyPosts: jest.fn(),
+        } as unknown as jest.Mocked<IPostRepository>,
+        {} as unknown as jest.Mocked<IGiftRequestRepository>,
+        users,
+        makeConfig(),
+      ).handle({
+        radiusMeters: 5_000,
+        postType: PostTypes.OFFER,
+        page: 1,
+        pageSize: 20,
+        currentUserId: '99999999-9999-9999-9999-999999999999',
+      }),
+    ).rejects.toBeInstanceOf(DiscoveryOriginUnavailableException);
+  });
+
+  it('gửi một nửa toạ độ là lỗi client, không phải ý muốn lùi vị trí', async () => {
+    // Bỏ qua nửa kia rồi lùi về vị trí mặc định sẽ quét quanh một chỗ khác
+    // hẳn với chỗ client đang chỉ tới.
+    const users = makeUsers();
+
+    await expect(
+      new GetNearbyPostsUseCase(
+        {
+          findNearbyPosts: jest.fn(),
+        } as unknown as jest.Mocked<IPostRepository>,
+        {} as unknown as jest.Mocked<IGiftRequestRepository>,
+        users,
+        makeConfig(),
+      ).handle({
+        lat: 10.7724,
+        radiusMeters: 5_000,
+        postType: PostTypes.OFFER,
+        page: 1,
+        pageSize: 20,
+        currentUserId: '99999999-9999-9999-9999-999999999999',
+      }),
+    ).rejects.toBeInstanceOf(DiscoveryOriginUnavailableException);
+
+    expect(users.findOneBy).not.toHaveBeenCalled();
   });
 });

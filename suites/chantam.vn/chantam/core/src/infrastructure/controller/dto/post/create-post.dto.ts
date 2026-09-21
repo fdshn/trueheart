@@ -110,6 +110,15 @@ export class CreatePostDto implements ICreatePostDto {
   @Min(1)
   @Max(MaxTotalQuantity)
   totalQuantity?: number;
+
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      'Bài Cần gấp / SOS. Mở theo capability POST_SOS của Rank; thiếu quyền thì trả POST_SOS_NOT_ALLOWED.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isSos?: boolean;
 }
 
 export class CreatePostBodyDto implements ICreatePostBodyDto {

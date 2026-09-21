@@ -205,6 +205,26 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Mỗi bài đăng chỉ được gia hạn một lần',
   },
 
+  DISCOVERY_ORIGIN_UNAVAILABLE: {
+    code: ErrorCodes.DISCOVERY_ORIGIN_UNAVAILABLE,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: () =>
+      'Không xác định được vị trí để quét: hãy gửi toạ độ, hoặc đặt Vị trí mặc định trong hồ sơ',
+  },
+
+  POST_SOS_NOT_ALLOWED: {
+    code: ErrorCodes.POST_SOS_NOT_ALLOWED,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () => 'Thứ hạng hiện tại của bạn chưa được dùng bài Cần gấp (SOS)',
+  },
+
+  POST_CHARITY_TRANSFER_INVALID_STATE: {
+    code: ErrorCodes.POST_CHARITY_TRANSFER_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Bài đăng này không gửi được yêu cầu chuyển về điểm từ thiện: chỉ bài đang hiển thị hoặc đã hết hạn, còn vật phẩm và chưa có yêu cầu nào đang chờ duyệt',
+  },
+
   POST_MEDIA_ORDER_INVALID: {
     code: ErrorCodes.POST_MEDIA_ORDER_INVALID,
     httpStatus: HttpStatus.BAD_REQUEST,

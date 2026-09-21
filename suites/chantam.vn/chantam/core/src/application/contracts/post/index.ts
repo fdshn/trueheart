@@ -1,4 +1,5 @@
 export * from './attach-post-media.use-case';
+export * from './charity-transfer.use-case';
 export * from './create-post.use-case';
 export * from './delete-post.use-case';
 export * from './expire-due-posts.use-case';

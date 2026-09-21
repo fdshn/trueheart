@@ -1,4 +1,5 @@
 import {
+  CharityTransferOutcome,
   IExpireDuePostsResult,
   IFindMyPostsParams,
   IFindMyPostsResult,
@@ -9,11 +10,15 @@ import {
   IPostMapMarker,
   IPostRepository,
   IRenewPostParams,
+  IRequestCharityTransferParams,
+  IReviewCharityTransferParams,
   ISmartMatchCandidate,
   RenewPostOutcome,
 } from '@/domain/ports/repository';
 import { PostEntity } from '@/infrastructure/entity';
 import {
+  CharityTransferStatuses,
+  GiftPostStatuses,
   PostTypes,
   PubliclyVisibleGiftPostStatuses,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -258,8 +263,20 @@ export class PostRepository
       .addSelect('post.postType', 'post_type')
       .addSelect('post.categoryId', 'category_id')
       .addSelect('post.areaLabel', 'area_label')
+      .addSelect('post.title', 'title')
+      .addSelect('post.isSos', 'is_sos')
       .addSelect('ST_Y(post.location::geometry)', 'lat')
       .addSelect('ST_X(post.location::geometry)', 'lng')
+      // Ảnh đầu tiên cho thẻ xem nhanh (F29). LATERAL + LIMIT 1 để mỗi bài
+      // vẫn ra đúng một dòng — JOIN thẳng vào post_media sẽ nhân bản marker
+      // theo số ảnh, và bản đồ hiện 5 pin trùng chỗ cho một bài 5 ảnh.
+      .addSelect(
+        `(SELECT m.r2_key FROM post_media m
+           WHERE m.post_id = post.global_id
+           ORDER BY m.sort_order ASC, m.id ASC
+           LIMIT 1)`,
+        'thumbnail_key',
+      )
       .where('post.deletedAt IS NULL')
       .andWhere('post.status IN (:...statuses)', {
         statuses: [...PubliclyVisibleGiftPostStatuses],
@@ -290,6 +307,9 @@ export class PostRepository
       post_type: PostTypes;
       category_id: string;
       area_label: string;
+      title: string;
+      is_sos: boolean;
+      thumbnail_key: string | null;
       lat: string;
       lng: string;
       distance_meters?: string;
@@ -300,6 +320,9 @@ export class PostRepository
       postType: row.post_type,
       categoryId: row.category_id,
       areaLabel: row.area_label,
+      title: row.title,
+      isSos: Boolean(row.is_sos),
+      thumbnailKey: row.thumbnail_key,
       location: { lat: Number(row.lat), lng: Number(row.lng) },
       ...(row.distance_meters === undefined
         ? {}
@@ -452,6 +475,111 @@ export class PostRepository
 
       return renewed
         ? { status: 'RENEWED', post: renewed }
+        : { status: 'NOT_FOUND' };
+    });
+  }
+
+  public async requestCharityTransfer(
+    params: IRequestCharityTransferParams,
+  ): Promise<CharityTransferOutcome> {
+    return this.manager.transaction(async (manager) => {
+      const [post] = await manager.query<
+        {
+          status: string;
+          remaining_quantity: number;
+          charity_transfer_status: string | null;
+        }[]
+      >(
+        `
+          SELECT status, remaining_quantity, charity_transfer_status
+          FROM posts
+          WHERE global_id = $1 AND author_id = $2 AND deleted_at IS NULL
+          FOR UPDATE
+        `,
+        [params.postId, params.authorId],
+      );
+
+      if (!post) return { status: 'NOT_FOUND' };
+
+      // Đã có yêu cầu đang chờ thì không gửi tiếp — chủ bài bấm hai lần không
+      // được biến thành hai việc cho Admin.
+      const alreadyOpen =
+        post.charity_transfer_status === CharityTransferStatuses.REQUESTED;
+      const transferable =
+        post.status === GiftPostStatuses.PUBLISHED ||
+        post.status === GiftPostStatuses.EXPIRED;
+
+      if (alreadyOpen || !transferable || Number(post.remaining_quantity) <= 0)
+        return { status: 'INVALID_STATE' };
+
+      await manager.query(
+        `
+          UPDATE posts
+          SET charity_transfer_status = $2,
+              charity_transfer_requested_at = now(),
+              charity_transfer_note = $3,
+              updated_at = now()
+          WHERE global_id = $1
+        `,
+        [params.postId, CharityTransferStatuses.REQUESTED, params.note],
+      );
+
+      const updated = await manager.findOne(PostEntity, {
+        where: { globalId: params.postId },
+      });
+
+      return updated
+        ? { status: 'RECORDED', post: updated }
+        : { status: 'NOT_FOUND' };
+    });
+  }
+
+  public async reviewCharityTransfer(
+    params: IReviewCharityTransferParams,
+  ): Promise<CharityTransferOutcome> {
+    return this.manager.transaction(async (manager) => {
+      const [post] = await manager.query<
+        { charity_transfer_status: string | null }[]
+      >(
+        `
+          SELECT charity_transfer_status
+          FROM posts
+          WHERE global_id = $1 AND deleted_at IS NULL
+          FOR UPDATE
+        `,
+        [params.postId],
+      );
+
+      if (!post) return { status: 'NOT_FOUND' };
+      if (post.charity_transfer_status !== CharityTransferStatuses.REQUESTED)
+        return { status: 'INVALID_STATE' };
+
+      // Duyệt thì bài vào Kho Từ Thiện Chung; từ chối thì GIỮ NGUYÊN trạng
+      // thái cũ — người dùng không mất bài vì Admin nói không.
+      await manager.query(
+        `
+          UPDATE posts
+          SET charity_transfer_status = $2,
+              status = CASE WHEN $3::boolean THEN $4 ELSE status END,
+              updated_at = now()
+          WHERE global_id = $1
+        `,
+        [
+          params.postId,
+          params.approve
+            ? CharityTransferStatuses.APPROVED
+            : CharityTransferStatuses.REJECTED,
+          params.approve,
+          GiftPostStatuses.ARCHIVED,
+        ],
+      );
+
+      const updated = await manager.findOne(PostEntity, {
+        where: { globalId: params.postId },
+      });
+
+      return updated
+        ? { status: 'RECORDED', post: updated }
         : { status: 'NOT_FOUND' };
     });
   }

@@ -28,3 +28,15 @@ export class PostNotRenewableException extends ExceptionFrom(
 export class PostRenewalLimitReachedException extends ExceptionFrom(
   CoreErrors.POST_RENEWAL_LIMIT_REACHED,
 ) {}
+
+export class DiscoveryOriginUnavailableException extends ExceptionFrom(
+  CoreErrors.DISCOVERY_ORIGIN_UNAVAILABLE,
+) {}
+
+export class PostSosNotAllowedException extends ExceptionFrom(
+  CoreErrors.POST_SOS_NOT_ALLOWED,
+) {}
+
+export class PostCharityTransferInvalidStateException extends ExceptionFrom(
+  CoreErrors.POST_CHARITY_TRANSFER_INVALID_STATE,
+) {}

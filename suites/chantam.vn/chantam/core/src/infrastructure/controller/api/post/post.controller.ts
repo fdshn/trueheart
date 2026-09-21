@@ -11,11 +11,14 @@ import {
   IRemovePostMediaUseCase,
   IRenewPostUseCase,
   IReorderPostMediaUseCase,
+  IRequestCharityTransferUseCase,
   IRequestPostMediaUploadUseCase,
+  IReviewCharityTransferUseCase,
   IUpdatePostUseCase,
 } from '@/application/contracts/post';
 import {
   CategoryNotFoundException,
+  PostCharityTransferInvalidStateException,
   PostInvalidStateException,
   PostMediaLimitExceededException,
   PostMediaOrderInvalidException,
@@ -36,6 +39,8 @@ import {
   IModeratePostResponseDto,
   IRenewPostResponseDto,
   IReorderPostMediaResponseDto,
+  IRequestCharityTransferResponseDto,
+  IReviewCharityTransferResponseDto,
   IUpdatePostResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import {
@@ -93,7 +98,13 @@ import {
   RenewPostParamsDto,
   RenewPostResponseDto,
   ReorderPostMediaBodyDto,
+  RequestCharityTransferBodyDto,
+  RequestCharityTransferParamsDto,
+  RequestCharityTransferResponseDto,
   RequestPostMediaUploadDto,
+  ReviewCharityTransferBodyDto,
+  ReviewCharityTransferParamsDto,
+  ReviewCharityTransferResponseDto,
   UpdatePostBodyDto,
   UpdatePostParamsDto,
   UpdatePostResponseDto,
@@ -117,6 +128,10 @@ export class PostController {
     private readonly removePostMediaUseCase: IRemovePostMediaUseCase,
     @Inject(IRenewPostUseCase)
     private readonly renewPostUseCase: IRenewPostUseCase,
+    @Inject(IRequestCharityTransferUseCase)
+    private readonly requestCharityTransferUseCase: IRequestCharityTransferUseCase,
+    @Inject(IReviewCharityTransferUseCase)
+    private readonly reviewCharityTransferUseCase: IReviewCharityTransferUseCase,
     @Inject(IGetPostMapUseCase)
     private readonly getPostMapUseCase: IGetPostMapUseCase,
     @Inject(IGetNearbyPostsUseCase)
@@ -374,6 +389,71 @@ export class PostController {
     });
 
     return ResponseDto.create<IRenewPostResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Post(':postId/charity-transfer')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Xin chuyển vật phẩm về điểm từ thiện',
+    description:
+      'Chỉ chủ bài. Gửi được khi bài đang hiển thị hoặc đã hết hạn và vẫn còn vật phẩm. Mỗi bài chỉ có một yêu cầu đang chờ duyệt — ràng buộc đặt ở database. Admin duyệt qua PATCH cùng đường dẫn (F23).',
+  })
+  @ApiCreatedResponse({
+    type: ResponseDto.forApi(RequestCharityTransferResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [PostNotFoundException, 'a3f1c0de-0000-4000-8000-000000000000'],
+    PostCharityTransferInvalidStateException,
+  )
+  public async requestCharityTransfer(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: RequestCharityTransferParamsDto,
+    @Body() body: RequestCharityTransferBodyDto,
+  ): Promise<ResponseDto<IRequestCharityTransferResponseDto>> {
+    const result = await this.requestCharityTransferUseCase.handle({
+      ...params,
+      ...body,
+      userId: principal.userId,
+    });
+
+    return ResponseDto.create<IRequestCharityTransferResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Patch(':postId/charity-transfer')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Duyệt hoặc từ chối yêu cầu chuyển về điểm từ thiện',
+    description:
+      'Tạm thời chỉ username trong POST_OPERATOR_USERNAMES. Duyệt thì bài sang ARCHIVED (Kho Từ Thiện Chung); từ chối thì bài GIỮ NGUYÊN trạng thái cũ và chủ bài vẫn dùng bình thường (F23).',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(ReviewCharityTransferResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    [PostNotFoundException, 'a3f1c0de-0000-4000-8000-000000000000'],
+    PostCharityTransferInvalidStateException,
+  )
+  public async reviewCharityTransfer(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: ReviewCharityTransferParamsDto,
+    @Body() body: ReviewCharityTransferBodyDto,
+  ): Promise<ResponseDto<IReviewCharityTransferResponseDto>> {
+    const result = await this.reviewCharityTransferUseCase.handle({
+      ...params,
+      ...body,
+      username: principal.username,
+    });
+
+    return ResponseDto.create<IReviewCharityTransferResponseDto>()
       .succeed()
       .attach(result)
       .build();

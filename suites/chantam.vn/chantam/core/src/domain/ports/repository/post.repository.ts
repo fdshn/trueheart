@@ -23,6 +23,10 @@ export interface IPostMapMarker {
   areaLabel: string;
   location: IGeoPoint;
   distanceMeters?: number;
+  /** Tiêu đề và ảnh đầu tiên — dữ liệu cho thẻ xem nhanh (F29). */
+  title: string;
+  thumbnailKey: string | null;
+  isSos: boolean;
 }
 
 export interface IFindNearbyPostsParams {
@@ -105,6 +109,22 @@ export type RenewPostOutcome =
   | { status: 'LIMIT_REACHED' }
   | { status: 'QUOTA_EXCEEDED' };
 
+export interface IRequestCharityTransferParams {
+  postId: string;
+  authorId: string;
+  note: string | null;
+}
+
+export type CharityTransferOutcome =
+  | { status: 'RECORDED'; post: IPostEntity }
+  | { status: 'NOT_FOUND' }
+  | { status: 'INVALID_STATE' };
+
+export interface IReviewCharityTransferParams {
+  postId: string;
+  approve: boolean;
+}
+
 export interface IPostRepository extends Repository<IPostEntity> {
   createPostWithinQuota(
     authorId: string,
@@ -153,6 +173,24 @@ export interface IPostRepository extends Repository<IPostEntity> {
    * thấy `renewed_count = 0` và cùng gia hạn.
    */
   renewPost(params: IRenewPostParams): Promise<RenewPostOutcome>;
+  /**
+   * Chủ bài xin chuyển vật phẩm về điểm từ thiện (F23).
+   *
+   * Chỉ một yêu cầu đang chờ duyệt mỗi bài — ràng buộc đặt ở database, vì hai
+   * lần bấm gửi song song đều lọt qua mọi phép kiểm ở tầng ứng dụng.
+   */
+  requestCharityTransfer(
+    params: IRequestCharityTransferParams,
+  ): Promise<CharityTransferOutcome>;
+  /**
+   * Admin duyệt hoặc từ chối yêu cầu chuyển.
+   *
+   * Duyệt thì bài sang `ARCHIVED` — Kho Từ Thiện Chung. Từ chối thì bài giữ
+   * nguyên trạng thái cũ, chỉ ghi lại là đã bị từ chối.
+   */
+  reviewCharityTransfer(
+    params: IReviewCharityTransferParams,
+  ): Promise<CharityTransferOutcome>;
 }
 
 export const IPostRepository = Symbol('IPostRepository');

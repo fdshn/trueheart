@@ -7,7 +7,7 @@ cả 72 đều là P0.
 | --- | --- | ---: | --- |
 | M0 | Nền tảng monorepo + CI/CD | — | ✅ Xong |
 | [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | ✅ Xong (provider/ledger rollout deferred) |
-| [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 15 | 🟡 9/15 — bản đồ và vòng đời xong; SOS, 2 loại bài, GPS fallback chưa |
+| [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 15 | 🟡 13/15 — chỉ còn 2 loại bài mới: Quảng cáo (F20) và Dharma Hub (F73) |
 | [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 4/10 — xin/duyệt/xác nhận/tự hoàn tất xong; chat, hàng đợi, thông báo chưa |
 | [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 7 | 🟡 3/7 — ledger/rank/referral xong; đánh giá & accuracy chưa |
 | [M5](#m5--group--affiliate) | Group, affiliate, chống gian lận | 10 | ⬜ 0/10 |
@@ -63,9 +63,8 @@ và `scripts/smoke-test.sh` phủ được luồng này.
 
 - [x] F15 Đăng Muốn Tặng (+ quota theo Rank — dùng [MĐ-1](./ASSUMPTIONS.md#6-mặc-định-mềm))
 - [x] F16 Đăng Muốn Nhận
-- [ ] F17 Smart Match + SOS — Smart Match rule-based đã có (`GET /posts/:postId/matches`);
-      ⛔ **SOS chưa có hiệu lực**: capability `POST_SOS` đã seed và admin bật/tắt được,
-      nhưng không code nào đọc nó lúc đăng bài
+- [x] F17 Smart Match + SOS — Smart Match rule-based (`GET /posts/:postId/matches`) và
+      cờ `isSos` lúc đăng bài, chặn theo capability `POST_SOS` mà admin bật/tắt lúc chạy
 - [x] F18 Từ thiện / Hoạt động — ⚠️ tạo được qua `CHARITY`, chưa có trường riêng theo loại
 - [x] F19 Rao vặt giá rẻ — `CLASSIFIED` kèm `price`/`condition`/`negotiable`, và vòng quét
       `post:expire` chuyển bài quá hạn thành `OFFER` kèm hạn mới (CHỐT-05)
@@ -75,13 +74,16 @@ và `scripts/smoke-test.sh` phủ được luồng này.
 - [x] F22 Vòng đời bài + gia hạn 1 lần (CHỐT-07) — CLI `post:expire` đóng bài quá hạn,
       `POST /posts/:postId/renew` gia hạn một lần kèm kiểm quota; kiểm chứng trên database
       thật bằng `npm run test:lifecycle`
-- [ ] F23 Chuyển vật phẩm về điểm từ thiện
+- [x] F23 Chuyển vật phẩm về điểm từ thiện — chủ bài gửi `POST /posts/:postId/charity-transfer`,
+      Admin duyệt bằng `PATCH` cùng đường dẫn; duyệt thì bài sang `ARCHIVED`, từ chối thì bài
+      giữ nguyên
 - [x] F25 Bản đồ toàn màn hình — `GET /posts/map` trả marker đã làm nhiễu toạ độ
-- [ ] F26 GPS + dự phòng Default Location — chưa có đường lùi về vị trí mặc định khi
-      thiếu GPS
+- [x] F26 GPS + dự phòng Default Location — `/posts/nearby` cho phép bỏ trống toạ độ và
+      lùi về Vị trí mặc định, response trả `originSource` để giao diện nói rõ đang tính từ đâu
 - [x] F27 Nạp theo khung nhìn — `applyBoundingBox()`
 - [x] F28 Gom cụm marker + bộ lọc
-- [ ] F29 Thẻ xem nhanh + deep link — *deep link là phần của client*
+- [x] F29 Thẻ xem nhanh + deep link — marker bản đồ mang `title`, `thumbnailUrl`, `isSos`
+      và `deepLinkPath` tương đối; *ghép tên miền và điều hướng là phần của client*
 
 **Xong khi:** đăng đủ 5 loại bài + bài viết Dharma Hub, bài hiện trên bản đồ với toạ độ **đã làm nhiễu**, cron hết
 hạn 3 tháng chạy đúng.

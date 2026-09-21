@@ -201,6 +201,8 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 | `PATCH` | `/posts/:postId` | Bearer (chủ bài) | Sửa nội dung |
 | `DELETE` | `/posts/:postId` | Bearer (chủ bài) | Xoá mềm |
 | `POST` | `/posts/:postId/renew` | Bearer (chủ bài) | Gia hạn thêm 3 tháng, tối đa một lần |
+| `POST` | `/posts/:postId/charity-transfer` | Bearer (chủ bài) | Xin chuyển vật phẩm về điểm từ thiện |
+| `PATCH` | `/posts/:postId/charity-transfer` | Bearer + allowlist | Duyệt hoặc từ chối yêu cầu chuyển |
 | `PATCH` | `/posts/:postId/moderation` | Bearer + allowlist | Duyệt hoặc từ chối |
 | `POST` | `/posts/:postId/media/upload` | Bearer (chủ bài) | Xin presigned URL upload ảnh |
 | `POST` | `/posts/:postId/media` | Bearer (chủ bài) | Gắn ảnh đã upload |
@@ -228,6 +230,11 @@ Lưu trong `details` (JSONB). Mỗi loại chỉ mang đúng trường của mì
 | `CLASSIFIED` | `price` (VND), `condition` | **Có** |
 | `CLASSIFIED` | `negotiable` | Không — mặc định `false` |
 | Còn lại | — | — |
+
+`isSos` nằm ở **thân bài**, không trong `details`, vì nó tham gia lọc và sắp xếp trên bảng
+tin. Gửi `isSos: true` mà Rank chưa được phép thì trả `POST_SOS_NOT_ALLOWED` (403) — quyền
+này là capability `POST_SOS`, Admin bật/tắt theo từng Rank lúc chạy, **không phải** một ô
+tuỳ ý trên form.
 
 Ranh giới giữ chặt **cả hai chiều**: `price`/`negotiable` không lọt sang bài đem tặng (biến
 món quà thành món hàng ngay trên giao diện), và `estimatedValue` không lọt sang tin rao bán.
@@ -278,6 +285,27 @@ Một lượt quét hết hạn (`npm run post:expire`, chạy từ lịch bên 
   của nó theo hướng khác.
 - Yêu cầu xin nhận bị từ chối ngay khi bài quá `expires_at`, **kể cả khi trạng thái vẫn còn
   là `PUBLISHED`** vì vòng quét chưa chạy. Không có cửa sổ xin nhận trên bài đã chết.
+
+### Chuyển vật phẩm về điểm từ thiện
+
+Trước khi bài hết hạn, chủ bài xin chuyển vật phẩm cho điểm tập kết từ thiện; Admin duyệt
+([F23](./FEATURES.md#f23--chuyển-vật-phẩm-về-điểm-từ-thiện)).
+
+| Bước | Ai | Kết quả |
+| --- | --- | --- |
+| `POST /posts/:postId/charity-transfer` | Chủ bài | `charityTransferStatus = REQUESTED` |
+| `PATCH` … `{ "transfer": { "status": "APPROVED" } }` | Operator | Bài sang **`ARCHIVED`** — Kho Từ Thiện Chung |
+| `PATCH` … `{ "transfer": { "status": "REJECTED" } }` | Operator | Bài **giữ nguyên** trạng thái cũ |
+
+**Những điều dễ hiểu nhầm**
+
+- Từ chối **không lấy bài đi**. Bài về lại đúng trạng thái trước đó và chủ bài dùng bình
+  thường; chỉ còn dấu `REJECTED` để họ biết đã bị từ chối chứ không tưởng là chưa gửi.
+- Bị từ chối rồi **vẫn gửi lại được** — không có khoá vĩnh viễn.
+- Mỗi bài chỉ có **một** yêu cầu đang chờ duyệt, ràng buộc bằng unique index có điều kiện ở
+  database. Bấm gửi hai lần không thành hai việc cho Admin.
+- Chỉ bài `PUBLISHED` hoặc `EXPIRED` và **còn vật phẩm** mới xin chuyển được. Bài đang chờ
+  duyệt thì chưa, vì chưa ai thấy nó.
 
 ### `GET /posts/me` — khác discovery ở hai điểm
 
@@ -373,6 +401,39 @@ giới hạn — đổi trần bán kính ở server là client tự theo.
 
 `/posts/nearby` bắt buộc có `postType`; `/posts/map` nhận khung bbox và trả tối đa 200 marker,
 gom cụm để client tự vẽ. Cả hai đều áp quy tắc làm nhiễu toạ độ ở §1.
+
+### Gốc toạ độ: GPS, rồi mới tới Vị trí mặc định
+
+`lat`/`lng` của `/posts/nearby` là **tuỳ chọn** ([F26](./FEATURES.md#f26--gps-hiện-tại--dự-phòng-default-location)):
+
+| Gửi gì | Server làm gì | `originSource` |
+| --- | --- | --- |
+| Cả `lat` và `lng` | Dùng đúng toạ độ đó | `REQUEST` |
+| Không gửi, đã đăng nhập, có Vị trí mặc định | Lùi về Vị trí mặc định | `DEFAULT_LOCATION` |
+| Không gửi, chưa đăng nhập | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
+| Không gửi, đã đăng nhập, **chưa** đặt Vị trí mặc định | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
+| Chỉ một trong hai | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
+
+Response **luôn** trả `originSource`. Giao diện cần nó để nói "đang tìm quanh vị trí mặc định
+của bạn" — lùi về một toạ độ khác mà im lặng là đổi kết quả sau lưng người dùng.
+
+Gửi **một nửa** toạ độ là lỗi của client, không phải ý muốn lùi vị trí: bỏ qua nửa kia sẽ
+quét quanh một chỗ khác hẳn chỗ client đang chỉ tới. Và khi không có gốc nào, server **không**
+tự chọn một toạ độ mặc định — trả kết quả quanh một điểm người dùng không chọn là nói sai về
+thứ họ đang xem.
+
+### Marker bản đồ đủ cho thẻ xem nhanh
+
+Mỗi marker của `/posts/map` mang `title`, `thumbnailUrl`, `isSos` và `deepLinkPath`
+([F29](./FEATURES.md#f29--thẻ-xem-nhanh--deep-link)), để chạm vào là dựng được thẻ xem nhanh
+mà **không cần một vòng gọi nữa cho mỗi marker**.
+
+- `deepLinkPath` là đường dẫn **tương đối** (`/posts/<id>`). Server không ghép tên miền —
+  đoán hộ client là sinh ra link chết khi đổi môi trường triển khai.
+- `thumbnailUrl` là ảnh có `sortOrder` nhỏ nhất, `null` khi bài không có ảnh. Bài nhiều ảnh
+  vẫn ra **đúng một** marker; nhân bản theo số ảnh sẽ thành nhiều pin trùng chỗ.
+- Marker **không** mang `authorId` hay `description`: `title` đã công khai ở mọi kênh khác,
+  còn định danh người đăng thì không.
 
 ---
 

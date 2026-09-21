@@ -53,10 +53,10 @@ Có môi trường chạy được, account an toàn, profile đủ điều ki�
 - Canonical post không lộ toạ độ chính xác trên API public.
 - Không gọi Sprint 1 production-ready khi thiếu email/SMS provider, R2 acceptance, backup restore.
 
-> **SOS: cấu hình có, hiệu lực không.** Capability `POST_SOS` đã được seed vào bảng
-> entitlement và admin bật/tắt được qua `/admin/entitlements`, **nhưng không code nào đọc
-> nó khi đăng bài**. Nghĩa là bật SOS cho một rank không làm thay đổi bất cứ điều gì.
-> Đây là kiểu sai nguy hiểm hơn thiếu hẳn: nhìn vào CMS tưởng đã có.
+> **SOS đã có hiệu lực.** Capability `POST_SOS` từng chỉ là một hàng trong bảng
+> entitlement mà không code nào đọc — bật cho một rank không làm thay đổi gì, kiểu sai
+> nguy hiểm hơn thiếu hẳn vì nhìn CMS tưởng đã có. Nay `POST /posts` nhận `isSos` và chặn
+> theo đúng capability đó.
 
 > **Lưu ý về F12.** Toàn bộ chính sách rank đã chạy được từ khi M3 cung cấp
 > nguồn "lượt tặng hoàn tất". Trước đó bộ đếm hoạt động luôn báo *không khả
@@ -75,8 +75,8 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 
 | # | Epic | Hạng mục | Mapping roadmap | Trạng thái |
 | ---: | --- | --- | --- | --- |
-| 8 | Đăng tin & nội dung | Smart Match, SOS, lifecycle OFFER, gia hạn, chuyển Admin | F15–F19, F23 | 🟡 Smart Match (F17) ✅, moderation/quota ✅, vòng đời hết hạn + gia hạn (F19/F22) ✅. **SOS chưa có hiệu lực**; F23 chuyển về điểm từ thiện chưa có |
-| 9 | Quanh đây & bản đồ | Map discovery, GPS fallback, viewport, clustering, preview/deep-link | F25–F29 | 🟡 Map bbox, jitter, clustering, viewport ✅. GPS fallback về Default Location (F26) chưa có; deep-link là phần của client |
+| 8 | Đăng tin & nội dung | Smart Match, SOS, lifecycle OFFER, gia hạn, chuyển Admin | F15–F19, F23 | ✅ Smart Match, SOS theo capability, moderation/quota, vòng đời hết hạn + gia hạn, và chuyển về điểm từ thiện |
+| 9 | Quanh đây & bản đồ | Map discovery, GPS fallback, viewport, clustering, preview/deep-link | F25–F29 | ✅ Map bbox, jitter, clustering, viewport, dự phòng Default Location, và thẻ xem nhanh kèm `deepLinkPath`. Điều hướng deep-link là phần của client |
 | 10 | Giao dịch & FSM | Gift request, candidate selection, batch allocation, queue | M3 transaction | 🟡 Gửi yêu cầu, rút yêu cầu, danh sách ứng viên, duyệt, trừ tồn kho nguyên tử ✅. **Hàng đợi dự phòng (F33) chưa có** |
 | 11 | Giao dịch & FSM | Accepted/cancel/receiver confirm/auto-complete 5 ngày | M3 transaction | ✅ Đủ cả bốn, kèm CLI `transaction:autocomplete` |
 | 12 | Chat | Chat text WSS, persistence, lifecycle read-only | M3 chat | ⬜ Chưa có dòng nào |

@@ -25,6 +25,7 @@ export class GetPostMapUseCase implements IGetPostMapUseCase {
     if (command.minLat >= command.maxLat || command.minLng >= command.maxLng)
       throw new ValidationFailedException(['bbox phải có min nhỏ hơn max']);
 
+    const publicBase = this.config.storage.publicBaseUrl.replace(/\/$/, '');
     const markers = await this.postRepository.findMapMarkers({
       minLat: command.minLat,
       maxLat: command.maxLat,
@@ -53,6 +54,14 @@ export class GetPostMapUseCase implements IGetPostMapUseCase {
           ? {}
           : { distanceMeters: bucketDistance(marker.distanceMeters) }),
         isLocationApproximate: true,
+        title: marker.title,
+        isSos: marker.isSos,
+        thumbnailUrl: marker.thumbnailKey
+          ? `${publicBase}/${marker.thumbnailKey}`
+          : null,
+        // Chỉ đường dẫn tương đối: ghép tên miền hộ client là sinh ra link
+        // chết khi đổi môi trường triển khai (F29).
+        deepLinkPath: `/posts/${marker.globalId}`,
       })),
     };
   }

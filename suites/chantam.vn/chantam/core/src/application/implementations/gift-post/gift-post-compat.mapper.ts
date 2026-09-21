@@ -101,6 +101,10 @@ export function toCanonicalOffer(input: {
     },
     expiresAt: null,
     renewedCount: 0,
+    isSos: false,
+    charityTransferStatus: null,
+    charityTransferRequestedAt: null,
+    charityTransferNote: null,
     deletedAt: null,
   };
 }

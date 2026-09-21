@@ -37,6 +37,8 @@ buộc riêng tư, thứ tự kiểm tra — xem [`docs/API.md`](../../../../doc
 | `DELETE` | `/api/v1/posts/:postId/media/:mediaId` | Owner gỡ media, compact thứ tự |
 | `DELETE` | `/api/v1/posts/:postId` | Owner xoá mềm canonical post |
 | `POST` | `/api/v1/posts/:postId/renew` | `RenewPostUseCase` — gia hạn 3 tháng, tối đa một lần, tính quota như bài mới |
+| `POST` | `/api/v1/posts/:postId/charity-transfer` | `RequestCharityTransferUseCase` — chủ bài xin chuyển về điểm từ thiện |
+| `PATCH` | `/api/v1/posts/:postId/charity-transfer` | `ReviewCharityTransferUseCase` — Admin duyệt/từ chối; duyệt thì bài sang `ARCHIVED` |
 | `PATCH` | `/api/v1/posts/:postId/moderation` | `ModeratePostUseCase` — allowlist `POST_OPERATOR_USERNAMES` tạm thời |
 | `GET` | `/api/v1/posts/nearby` | `GetNearbyPostsUseCase` — guest radius scan canonical, required OFFER/WANTED filter, location jitter + bucketed distance |
 | `GET` | `/api/v1/posts/map` | `GetPostMapUseCase` — marker bbox public, location jitter, client-side cluster |
@@ -187,6 +189,23 @@ chưa kịp chạy — nếu không, khoảng trễ giữa hai lần quét sẽ 
 trên bài đã chết.
 
 Kiểm chứng trên database thật: `npm run test:lifecycle`.
+
+## SOS, dự phòng vị trí và thẻ xem nhanh
+
+**SOS (F17).** `POST /api/v1/posts` nhận `isSos`. Quyền là capability `POST_SOS`, Admin
+bật/tắt theo từng Rank lúc chạy — không phải một ô tuỳ ý trên form. Bài thường **không**
+tốn truy vấn entitlement nào cho SOS: chỉ kiểm khi người dùng thật sự bật nó.
+
+**Dự phòng vị trí (F26).** `lat`/`lng` của `/api/v1/posts/nearby` là tuỳ chọn. Bỏ trống thì
+server lùi về Vị trí mặc định của người đang đăng nhập và trả `originSource:
+'DEFAULT_LOCATION'`. Không có gốc nào thì trả `DISCOVERY_ORIGIN_UNAVAILABLE` chứ **không**
+tự chọn một toạ độ mặc định — kết quả quanh một điểm người dùng không chọn là nói sai về
+thứ họ đang xem. Gửi một nửa toạ độ cũng là lỗi, không phải ý muốn lùi vị trí.
+
+**Thẻ xem nhanh (F29).** Marker của `/api/v1/posts/map` mang `title`, `thumbnailUrl`,
+`isSos`, `deepLinkPath`. Ảnh lấy bằng truy vấn con `LIMIT 1` theo `sort_order` — JOIN thẳng
+vào `post_media` sẽ nhân bản marker theo số ảnh và bản đồ hiện nhiều pin trùng chỗ cho một
+bài. `deepLinkPath` là đường dẫn tương đối; server không ghép tên miền.
 
 ## Bẫy: `UPDATE ... RETURNING` bị bọc
 

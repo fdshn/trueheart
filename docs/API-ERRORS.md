@@ -88,6 +88,9 @@ Nghiệp vụ Chân Tâm
 | `0x0605` | `1541` | 400 Bad Request | `POST_MEDIA_ORDER_INVALID` | Danh sách thứ tự ảnh bài đăng không hợp lệ |
 | `0x0606` | `1542` | 409 Conflict | `POST_NOT_RENEWABLE` | Bài đăng này không gia hạn được: chỉ bài đang hiển thị hoặc đã hết hạn và vẫn còn vật phẩm mới được gia hạn |
 | `0x0607` | `1543` | 409 Conflict | `POST_RENEWAL_LIMIT_REACHED` | Mỗi bài đăng chỉ được gia hạn một lần |
+| `0x0608` | `1544` | 403 Forbidden | `POST_SOS_NOT_ALLOWED` | Thứ hạng hiện tại của bạn chưa được dùng bài Cần gấp (SOS) |
+| `0x0609` | `1545` | 409 Conflict | `POST_CHARITY_TRANSFER_INVALID_STATE` | Bài đăng này không gửi được yêu cầu chuyển về điểm từ thiện: chỉ bài đang hiển thị hoặc đã hết hạn, còn vật phẩm và chưa có yêu cầu nào đang chờ duyệt |
+| `0x060a` | `1546` | 400 Bad Request | `DISCOVERY_ORIGIN_UNAVAILABLE` | Không xác định được vị trí để quét: hãy gửi toạ độ, hoặc đặt Vị trí mặc định trong hồ sơ |
 | `0x0701` | `1793` | 409 Conflict | `POINT_RULE_UNAVAILABLE` | Point rule PHONE_VERIFIED_FIRST_TIME không khả dụng |
 | `0x0702` | `1794` | 500 Internal Server Error | `RANK_TIER_UNAVAILABLE` | Không tìm thấy cấu hình tier cho rank SILVER |
 | `0x0703` | `1795` | 409 Conflict | `POINT_DAILY_CAP_REACHED` | Đã đạt giới hạn 3 lần/ngày cho point rule REFERRAL_QUALIFIED |
@@ -103,5 +106,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **61 mã lỗi** trên 3 tầng.
+Tổng cộng **64 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.
