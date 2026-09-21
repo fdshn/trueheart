@@ -239,6 +239,13 @@ một điều họ không nói.
 > bộ đếm quota đếm **mọi** bài đang mở bất kể loại. Muốn tách thì thêm capability
 > `POST_CLASSIFIED` — sau đó admin tự chỉnh số, không cần deploy.
 
+> ⛔ **Chưa có trường cho cơ chế đổi điểm.** `srs/new-req.txt` yêu cầu bài đem tặng mang thêm
+> **giá trị tham khảo (VNĐ)** và **hình thức nhận hàng** (tự đến lấy / người cho gửi). Hiện
+> `OFFER` mới có `estimatedValue` — một con số hiển thị, **không** phải cơ sở tính điểm quy
+> đổi, và cũng chưa có trường hình thức nhận hàng.
+> Xem [F74](./FEATURES.md#f74--giá-trị-tham-khảo--tỷ-lệ-quy-đổi-điểm),
+> [F78](./FEATURES.md#f78--hình-thức-vận-chuyển).
+
 ### `GET /posts/me` — khác discovery ở hai điểm
 
 Đây là lý do nó tồn tại tách khỏi `/posts/nearby`:
@@ -354,6 +361,14 @@ gom cụm để client tự vẽ. Cả hai đều áp quy tắc làm nhiễu to�
   - `lifetime` — điểm **tích luỹ**, chỉ tăng. Đây là thứ quyết định hạng.
 
   Tiêu điểm không làm tụt hạng, vì hạng đọc `lifetime`.
+
+  > ⚠️ **Đây là hành vi hiện tại của code, và nó sắp đổi.** SRS chốt hạng đọc **balance**,
+  > còn `srs/new-req.txt` chốt cách bảo vệ hạng: phần điểm cần để giữ hạng bị **chặn không
+  > cho tiêu** (`điểm khả dụng = balance − ngưỡng hạng hiện tại`) thay vì tách ra một loại
+  > điểm riêng. Khi làm xong, `/points/me` sẽ phải trả thêm **điểm khả dụng** — con số mà
+  > người dùng thực sự tiêu được, luôn nhỏ hơn `balance`.
+  > Xem [F76](./FEATURES.md#f76--điểm-khả-dụng--bảo-vệ-rank) và
+  > [GĐ-3](./plan/ASSUMPTIONS.md#gđ-3--cơ-chế-rank--tụt-hạng).
 - Ledger là **append-only**. Không có UPDATE, không có DELETE; đảo một bút toán là ghi thêm
   bút toán âm. Trigger ở database chặn sửa/xoá.
 - `/ranks/me` trả cả chu kỳ duy trì đang mở. **Điểm là sàn, nhiệm vụ duy trì là trần**: điểm
@@ -371,6 +386,11 @@ gom cụm để client tự vẽ. Cả hai đều áp quy tắc làm nhiễu to�
 - `POST /ranks/maintenance/evaluate` dành cho **lịch chạy ngoài** (cron/CI). Core cố ý
   **không** chạy scheduler trong tiến trình vì deploy nhiều replica sẽ chạy trùng. Có CLI
   tương đương: `npm run rank:evaluate`.
+- ⛔ **Chưa có đường nào tiêu điểm.** Cơ chế đổi vật phẩm bằng điểm
+  ([F75](./FEATURES.md#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm),
+  [F77](./FEATURES.md#f77--ledger-cho-giao-dịch-đổi-điểm)) chưa có endpoint. Khi làm, bút toán
+  trừ điểm phải đi qua chính ledger này với `rule_code = 'ITEM_REDEMPTION'` và
+  `idempotency_key` bắt buộc — không mở một đường ghi điểm thứ hai.
 
 ---
 

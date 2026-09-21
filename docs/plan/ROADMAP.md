@@ -113,7 +113,7 @@ và mở chat phải nằm trong cùng transaction với việc duyệt.
 **Package:** resource `point`, `review`, `rank`, `referral`
 
 - [x] F39 Point Rule Engine + Ledger (xét Rank theo `balance_after`, `lifetime_after` dùng để thống kê/audit — CHỐT-01)
-- [ ] F40 Điểm theo giá trị vật phẩm — dùng [GĐ-1](./ASSUMPTIONS.md#gđ-1--một-giao-dịch-100-giá-trị--56-điểm)
+- [ ] F40 Điểm theo giá trị vật phẩm — dùng [GĐ-1](./ASSUMPTIONS.md#gđ-1--đánh-giá--giver-accuracy)
 - [ ] F41 Điểm Like/Comment/Report *(mặc định tắt)*
 - [ ] F42 Đánh giá chất lượng hai chiều
 - [ ] F43 Giver Accuracy (dùng %, đủ 5 mẫu mới tính, warning < 75% — CHỐT-03)

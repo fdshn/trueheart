@@ -34,15 +34,34 @@ Tài liệu này ghi nhận hiện trạng các giả định ban đầu và **�
   - Khi số điểm hiện tại giảm xuống dưới ngưỡng của Rank đang có, hệ thống **tự xác định lại Rank theo ngưỡng hiện tại** (ví dụ: Vàng 600, Bạc 400; đang Vàng mà tụt còn 450 thì xuống Bạc).
   - Khi trượt nhiệm vụ chu kỳ 3 tháng hoặc điểm giảm, hệ thống đánh giá lại theo điểm hiện tại, **không bắt buộc chỉ tụt đúng 1 bậc**.
   - **Phase 1 không dùng một `lifetime rank point` riêng** để giữ hạng. Mọi biến động balance sẽ trigger re-evaluation.
-- **⛔ CHƯA HIỆN THỰC.** Code hiện tại vẫn chạy theo *giả định ban đầu*, không theo quyết
-  định này: `rank-policy.ts` đọc `lifetimePoints`, `user_point_balances` vẫn tách
-  `lifetime` khỏi `balance`, và bảng `rank_maintenance_cycles` vẫn quyết việc tụt đúng một
-  bậc. Tiêu điểm hiện **không** làm tụt hạng.
+- **Bổ sung quan trọng (`srs/new-req.txt`) — cơ chế bảo vệ Rank đã rõ:** Rank không tụt vì
+  tiêu điểm, bởi vì **phần điểm cần để giữ Rank bị chặn không cho tiêu**:
 
-  Đổi sang mô hình theo balance là đụng `rank-policy`, `rank.repository`,
-  `rank_maintenance_cycles` và `user_point_balances` — một khối việc riêng, chưa nằm trong
-  nhánh nào. Cho tới khi làm xong, đây là **mâu thuẫn đã biết giữa tài liệu và code**, ghi
-  ra đây để không ai đọc mục trên rồi tưởng hệ thống đang hành xử như vậy.
+  ```
+  Điểm khả dụng = Current Point Balance − Minimum Point của Rank hiện tại
+  ```
+
+  Người Bạc có 1.500 điểm (ngưỡng 672) chỉ tiêu được 828 — không đổi nổi vật phẩm giá
+  1.000 điểm, dù tổng balance lớn hơn. Nhờ vậy **không cần tạo thêm một loại Rank Point
+  riêng**: vẫn một loại Điểm Cống Hiến, chỉ chia thành *protected* và *spendable*.
+
+  Xem [FEATURES.md F76](../FEATURES.md#f76--điểm-khả-dụng--bảo-vệ-rank).
+
+- **⛔ CHƯA HIỆN THỰC.** Code hiện tại vẫn chạy theo *giả định ban đầu*: `rank-policy.ts`
+  đọc `lifetimePoints`, `user_point_balances` vẫn tách `lifetime` khỏi `balance`, và
+  `rank_maintenance_cycles` vẫn quyết việc tụt đúng một bậc. Chưa có khái niệm *điểm khả
+  dụng*, cũng chưa có đường nào tiêu điểm.
+
+  Khối việc còn lại, giờ đã đủ dữ kiện để làm:
+
+  | Việc | Đụng vào |
+  | --- | --- |
+  | Rank đọc `balance` thay vì `lifetime` | `rank-policy`, `rank.repository` |
+  | Tính *điểm khả dụng* và chặn tiêu dưới ngưỡng | `point-ledger.repository`, use case đổi điểm |
+  | Quyết số phận `rank_maintenance_cycles` | Migration + `rank.repository` |
+
+  Cho tới khi làm xong, đây là **mâu thuẫn đã biết giữa tài liệu và code** — ghi ra đây để
+  không ai đọc mục trên rồi tưởng hệ thống đang hành xử như vậy.
 
 ---
 
@@ -81,9 +100,26 @@ Admin chỉnh được qua CMS. Sai chỉ tốn một dòng cấu hình.
 
 ---
 
+## Câu hỏi mới, chưa có câu trả lời (từ `srs/new-req.txt`)
+
+Yêu cầu đổi vật phẩm bằng điểm giải quyết được cơ chế bảo vệ Rank ([GĐ-3](#gđ-3--cơ-chế-rank--tụt-hạng)),
+nhưng mở ra hai chỗ **chưa đủ dữ kiện để code**. Ghi ra đây để không ai tự suy diễn rồi cài cứng:
+
+| # | Câu hỏi | Vì sao không đoán được | Chặn việc gì |
+| --- | --- | --- | --- |
+| CH-1 | Hết countdown 7 ngày mà không ai đổi điểm, hệ thống chọn người nhận **theo tiêu chí nào**? | Yêu cầu chỉ nói "tự động chọn". Ai đến trước? Ai gần nhất? Ai hạng cao nhất? Mỗi lựa chọn là một chính sách công bằng khác nhau, chọn sai thì người dùng thấy ngay. | [F75](../FEATURES.md#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm) |
+| CH-2 | Chọn "người cho gửi hàng" thì **ai trả phí vận chuyển**? | Người cho đang cho không món đồ; bắt họ trả thêm phí ship là một khoản chi phí không ai nói đến. Nhưng bắt người nhận trả thì cần đường thanh toán — thứ Phase 1 chưa có. | [F78](../FEATURES.md#f78--hình-thức-vận-chuyển) |
+
+Đề xuất tạm cho CH-1: **ai xin trước người đó nhận** — `gift_requests` đã có `queue_joined_at`,
+không cần thêm dữ liệu, và là tiêu chí duy nhất người dùng tự kiểm chứng được. Nhưng đây là
+**đề xuất**, chưa phải quyết định; chưa cài cho tới khi Bên A xác nhận.
+
+---
+
 ## Lịch sử thay đổi
 
 | Ngày | Thay đổi |
 | --- | --- |
 | 2026-09-15 | Lập lần đầu — 4 giả định + 6 mặc định |
 | 2026-09-20 | Cập nhật toàn diện theo đặc tả chính thức `SRS_Chan_Tam_v1.15.0.md` (Mục 1.7 - CHỐT-01 đến CHỐT-07) |
+| 2026-09-21 | Bổ sung `srs/new-req.txt`: cơ chế bảo vệ Rank bằng *điểm khả dụng* (GĐ-3), thêm 2 câu hỏi chưa chốt |

@@ -101,6 +101,19 @@ Phần riêng của từng loại để trong `details` jsonb:
 | `gift_requests` | `post_id` · `requester_id` · `message` · `status` — **UNIQUE(post_id, requester_id)** |
 | `transactions` | `global_id` · `post_id` · `giver_id` · `receiver_id` · `request_id` · `status` · `accepted_at` · **`auto_complete_at`** · `cancel_reason` |
 
+**Chờ bổ sung cho cơ chế đổi điểm** ([F75](../FEATURES.md#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm)):
+
+| Cột dự kiến | Ở đâu | Vì sao |
+| --- | --- | --- |
+| `selection_deadline_at` | `posts` | Mốc hết countdown 7 ngày; cron quét `WHERE selection_deadline_at < now()` thay vì tính lại |
+| `reference_value_vnd` | `posts` | Giá trị tham khảo người cho khai, cơ sở tính số điểm cần |
+| `delivery_method` | `posts` | `SELF_PICKUP` hoặc `GIVER_SHIPS` |
+| `redeemed_by` · `redeemed_at` | `posts` hoặc `transactions` | Đánh dấu bài đã bị chốt bằng điểm, để auto-select **không** chạy nữa |
+
+> Dừng countdown phải là **trạng thái ghi xuống database**, không phải việc huỷ một timer
+> trong tiến trình. Deploy nhiều replica thì timer trong bộ nhớ chết theo tiến trình, còn
+> cron của replica khác vẫn chạy auto-select trên bài đã có người đổi điểm.
+
 Ràng buộc UNIQUE đặt ở **tầng database**, không chỉ kiểm trong code — hai request gửi cùng
 lúc sẽ lọt qua mọi phép kiểm ở tầng ứng dụng ([F30](../FEATURES.md#f30--gửi-yêu-cầu-xin-nhận)).
 
@@ -128,6 +141,18 @@ Phòng chat gắn 1-1 với giao dịch, **chỉ tạo khi giao dịch đạt `A
 | `point_rules` | `code` · `points` · `is_enabled` · `daily_cap` · **`version`** · `updated_by` |
 | `point_ledger` | `user_id` · `rule_code` · `delta` · `balance_after` · **`lifetime_after`** · `reference_type` · `reference_id` · **`idempotency_key` UNIQUE** · `actor` · `source` |
 | `reviews` | `transaction_id` · `reviewer_id` · `reviewee_id` · `quality_rating` · `value_percent` · `accuracy_percent` |
+
+**Đổi vật phẩm bằng điểm** ([F76](../FEATURES.md#f76--điểm-khả-dụng--bảo-vệ-rank),
+[F77](../FEATURES.md#f77--ledger-cho-giao-dịch-đổi-điểm)):
+
+- Giao dịch đổi điểm là một bút toán `point_ledger` với `rule_code = 'ITEM_REDEMPTION'`,
+  `delta` âm, `reference_type/reference_id` trỏ về bài đăng.
+- `idempotency_key` **bắt buộc** — bấm hai lần, retry mạng hay job chạy lại đều không được
+  trừ điểm hai lần.
+- **Điểm khả dụng là giá trị dẫn xuất, không phải cột mới**:
+  `balance − minimum_point(rank hiện tại)`. Ngưỡng lấy từ `rank_tiers`, nên Admin đổi ngưỡng
+  là điểm khả dụng đổi theo, không cần backfill.
+- Tỷ lệ quy đổi điểm ↔ VNĐ nằm trong cấu hình động của Admin, **không hard-code**.
 
 **Quy tắc xét Rank theo điểm (SRS v1.15.0 - CHỐT-01 & BR-PROF-RANK-06):**
 - Điểm dùng để xét Rank là **số dư Điểm Cống hiến hiện tại (`balance_after`)**. Phase 1 không dùng một `lifetime rank point` riêng để giữ hạng; khi balance giảm thì hệ thống tự động xác định lại Rank.
@@ -160,7 +185,7 @@ Giver Accuracy: Người nhận chấm theo % (0–100%). Lưu vào bảng `revi
 `affiliate_events` lưu cả `distance_meters` lẫn `radius_meters` tại thời điểm xét. Không lưu
 thì tranh chấp về sau không có cách nào tra lại ([F58](../FEATURES.md#f58--thứ-tự-ưu-tiên-vị-trí--audit)).
 
-`last_activity_at` phục vụ [GĐ-2](./ASSUMPTIONS.md#gđ-2--active-member--chưa-bị-khoá-và-có-hoạt-động-trong-90-ngày).
+`last_activity_at` phục vụ [GĐ-2](./ASSUMPTIONS.md#gđ-2--active-member--group-affiliate-geo).
 
 ---
 
@@ -213,7 +238,7 @@ ACCEPTED ──┬──▶ COMPLETED   (người nhận xác nhận, HOẶC t�
            └──▶ CANCELLED   (người cho huỷ → mở lại hàng đợi)
 ```
 
-### Thứ hạng — theo [GĐ-3](./ASSUMPTIONS.md#gđ-3--rank-điểm-là-sàn-nhiệm-vụ-là-trần)
+### Thứ hạng — theo [GĐ-3](./ASSUMPTIONS.md#gđ-3--cơ-chế-rank--tụt-hạng)
 
 ```
 đủ điểm mốc kế tiếp ────────▶ lên hạng

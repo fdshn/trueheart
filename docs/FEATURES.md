@@ -6,7 +6,7 @@ ngưỡng điểm/cống hiến. **72 chức năng, toàn bộ P0, toàn bộ th
 ## Cách đọc
 
 - Mã **F01–F72** khớp cột `STT` của bảng gốc — dùng để đối chiếu hợp đồng khi nghiệm thu.
-- **⚠️** đánh dấu chỗ **chưa chốt và đang chặn implement**. Tổng hợp ở [§15](#15-giá-trị-cấu-hình-còn-thiếu).
+- **⚠️** đánh dấu chỗ **chưa chốt và đang chặn implement**. Tổng hợp ở [§17](#17-đối-chiếu-giá-trị-cấu-hình--quyết-định-chính-thức-từ-srs-v1150).
 - **⛔** đánh dấu **mâu thuẫn nội tại** cần Bên A quyết trước khi code.
 - Mỗi mục chỉ ghi thứ làm thay đổi cách hiện thực. Phần hiển nhiên (form, nút bấm) lược bỏ.
 
@@ -29,11 +29,12 @@ Flutter (Android + iOS) · NestJS + PostgreSQL 16 + PostGIS · Redis · Socket.i
 | 8 | [Thông báo & Lịch Âm](#8-thông-báo--lịch-âm) | F44–F47 | |
 | 9 | [Báo cáo & Chống gian lận](#9-báo-cáo--chống-gian-lận) | F48–F50 | |
 | 10 | [Group, Affiliate & Geo](#10-group-affiliate--geo) | F51–F58 | Toàn bộ event cần Geo Group (CHỐT-06) |
-| 11 | [Phật Pháp – Dharma Hub](#11-phật-pháp--dharma-hub) | F73 | Main Tab 3 trong Bottom Navigation |
-| 12 | [Admin CMS](#12-admin-cms-campaign--blog) | F59–F65 | |
-| 13 | [Hạ tầng & Bảo mật](#13-hạ-tầng--bảo-mật) | F66–F68 | |
-| 14 | [QA & UAT](#14-qa--uat) | F69–F70 | |
-| 15 | [Triển khai & Bàn giao](#15-triển-khai--bàn-giao) | F71–F72 | |
+| 11 | [Phật Pháp – Dharma Hub](#11-phật-pháp--dharma-hub--community) | F73 | Main Tab 3 trong Bottom Navigation |
+| 12 | [Đổi vật phẩm bằng điểm & Vận chuyển](#12-đổi-vật-phẩm-bằng-điểm--vận-chuyển) | F74–F78 | Điểm khả dụng ≠ toàn bộ balance |
+| 13 | [Admin CMS](#13-admin-cms-campaign--blog) | F59–F65 | |
+| 14 | [Hạ tầng & Bảo mật](#14-hạ-tầng--bảo-mật) | F66–F68 | |
+| 15 | [QA & UAT](#15-qa--uat) | F69–F70 | |
+| 16 | [Triển khai & Bàn giao](#16-triển-khai--bàn-giao) | F71–F72 | |
 
 ---
 
@@ -186,6 +187,11 @@ cho đăng. Quota nằm trong `capability_rank_values` và Admin sửa được 
 `POST /api/v1/admin/entitlements` — mặc định Viewer 0, Thành viên 3, Bạc 10, Vàng 20,
 Kim Cương 50. ⚠️ *Các con số này là giả định, chờ Bên A xác nhận.*
 
+Form đăng bài còn có thêm hai trường:
+
+- **Giá trị tham khảo (VNĐ)** — cơ sở tính số điểm cần để đổi vật phẩm, xem [F74](#f74--giá-trị-tham-khảo--tỷ-lệ-quy-đổi-điểm).
+- **Hình thức nhận đồ** — tự đến lấy hoặc người cho hỗ trợ ship, xem [F78](#f78--hình-thức-vận-chuyển).
+
 ### F16 — Đăng Muốn Nhận
 Nhu cầu nhận vật phẩm hoặc hỗ trợ, kèm danh mục và vị trí/phạm vi. Cũng có quota theo Rank.
 Được ghép với bài Muốn Tặng qua Smart Match.
@@ -300,6 +306,9 @@ không chỉ kiểm ở tầng ứng dụng). Kèm lời nhắn và metadata. C�
 ### F31 — Danh sách ứng viên & quyền chọn
 Người cho xem và duyệt ứng viên, phạm vi quyền theo Rank. Gợi ý xếp hạng và duyệt hàng loạt
 **chỉ là gợi ý** — quyết định cuối thuộc về người cho hoặc Admin.
+
+Việc xét người nhận chạy trong **countdown 7 ngày**, và có thể bị cắt ngắn nếu một ứng viên
+dùng điểm đổi thẳng vật phẩm — xem [F75](#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm).
 
 ### F32 — Phân bổ số lượng lớn & khoá tồn kho
 Bài có nhiều vật phẩm thì `remaining_quantity` phải **giảm nguyên tử**.
@@ -503,7 +512,105 @@ Tận dụng hạ tầng hiện có: CMS Content Engine, Post/Comment, Media R2,
 
 ---
 
-## 12. Admin CMS, Campaign & Blog
+## 12. Đổi vật phẩm bằng điểm & Vận chuyển
+
+> Nguồn: yêu cầu bổ sung của Bên A (`srs/new-req.txt`). Cơ chế này **chốt luôn** cách
+> Điểm Cống Hiến được tiêu, và qua đó chốt cả cách bảo vệ Rank — xem [F12](#f12--rank-5-tầng--chu-kỳ-duy-trì-3-tháng).
+
+### F74 — Giá trị tham khảo & tỷ lệ quy đổi điểm
+
+Khi đăng bài Muốn Tặng, người cho khai **giá trị tham khảo** của vật phẩm bằng VNĐ. Hệ thống
+lấy giá trị đó chia cho tỷ lệ quy đổi để ra số điểm cần có nếu muốn đổi thẳng vật phẩm.
+
+**Tỷ lệ quy đổi do Admin cấu hình, tuyệt đối không hard-code.** Ví dụ Admin đặt
+`1 điểm = 1.000 VNĐ`, thì vật phẩm khai 1.000.000 VNĐ cần 1.000 điểm. Admin đổi tỷ lệ thì hệ
+thống áp theo cấu hình mới.
+
+> Tỷ lệ này thuộc nhóm cấu hình động, đi cùng đường với quota theo rank: sửa được lúc chạy,
+> có phiên bản, có audit. Xem [ADMIN-CONFIG-DESIGN.md](./plan/ADMIN-CONFIG-DESIGN.md).
+
+> ⚠️ **Không nhầm với [F40](#f40--điểm-theo-giá-trị-vật-phẩm).** F40 là *người nhận chấm điểm*
+> sau giao dịch để **sinh** điểm cho người cho — giá người cho khai ở đó chỉ mang tính tham
+> khảo và cố ý không được tin. F74 là chiều ngược lại: giá khai dùng để **định giá** vật phẩm
+> cho người muốn tiêu điểm. Khai khống ở F74 chỉ làm vật phẩm đắt hơn, không tự sinh ra điểm.
+
+### F75 — Countdown 7 ngày & đổi vật phẩm bằng điểm
+
+Khi một bài có người gửi yêu cầu xin nhận, hệ thống mở **countdown tối đa 7 ngày** để xác
+định người được nhận. Trong 7 ngày đó, người xin có hai đường:
+
+1. Chờ hệ thống xét theo quy trình thường.
+2. Nếu đủ **điểm khả dụng**, xác nhận dùng điểm để đổi thẳng vật phẩm.
+
+**Có người dùng điểm thì chốt ngay.** Giao dịch đổi điểm thành công phải làm trọn vẹn trong
+một lần, không được nửa vời:
+
+- Trừ điểm của người xin
+- Ghi biến động vào Point Ledger (xem [F77](#f77--ledger-cho-giao-dịch-đổi-điểm))
+- **Dừng countdown**
+- Chọn người đó làm người nhận chính thức
+- **Không** chạy auto-select cho các ứng viên còn lại
+
+Hết 7 ngày mà không ai dùng điểm thì hệ thống tự chọn người nhận theo bộ tiêu chí.
+
+> ⚠️ **Bộ tiêu chí auto-select chưa có.** Khoảng cách, thời điểm gửi yêu cầu, lịch sử nhận,
+> quota, đánh giá… mới là phương án, chưa phải rule Bên A đã chốt. Không có nó thì không
+> implement được nhánh "hết 7 ngày", cũng không viết được test.
+
+**Ví dụ.** Vật phẩm khai 1.000.000 VNĐ, tỷ lệ 1 điểm = 1.000 VNĐ → cần 1.000 điểm. 10 người
+xin, countdown bắt đầu. Ngày thứ 3, User A dùng đủ 1.000 điểm → A được chọn ngay, countdown
+kết thúc ở ngày 3, 9 người còn lại không được xét cho vật phẩm đó nữa.
+
+### F76 — Điểm khả dụng & bảo vệ Rank
+
+**Người dùng không được tiêu toàn bộ balance.** Phần điểm cần để giữ Rank hiện tại là
+**protected / non-spendable**; chỉ phần dư mới tiêu được.
+
+```
+Điểm khả dụng = Current Point Balance − Minimum Point của Rank hiện tại
+```
+
+| Tình huống | Balance | Ngưỡng giữ Bạc | Khả dụng | Đổi vật phẩm 1.000 điểm? |
+| --- | ---: | ---: | ---: | --- |
+| Đủ dư | 1.800 | 672 | 1.128 | ✅ Được — còn 800, vẫn giữ Bạc |
+| Thiếu dư | 1.500 | 672 | 828 | ❌ Không — dù balance > 1.000, tiêu sẽ tụt dưới ngưỡng |
+
+**Hệ quả quan trọng: không cần tạo thêm một loại Rank Point riêng.** Hệ thống vẫn chỉ có một
+loại Điểm Cống Hiến; việc giữ Rank được bảo đảm bằng cách **chặn tiêu**, chứ không bằng cách
+tách sổ. Đây chính là lời giải cho mâu thuẫn `lifetime` với `balance` ghi ở
+[GĐ-3 trong ASSUMPTIONS.md](./plan/ASSUMPTIONS.md).
+
+### F77 — Ledger cho giao dịch đổi điểm
+
+Mọi lần đổi vật phẩm bằng điểm **phải** được ghi vào Point Ledger. Ledger vẫn là nguồn sự
+thật cho mọi biến động cộng/trừ. Tối thiểu phải lưu:
+
+| Trường | Vì sao cần |
+| --- | --- |
+| Người tiêu điểm | Biết ai trừ |
+| Số điểm bị trừ | Số tiền thật của giao dịch |
+| Vật phẩm liên quan | Truy ngược về bài đăng |
+| Loại transaction | `ITEM_REDEMPTION` |
+| Thời gian | Dựng lại dòng thời gian |
+| **Reference chống trùng** | Bấm hai lần, retry mạng, hoặc job chạy lại **không được trừ hai lần** |
+
+> Ledger là append-only: đảo một giao dịch là ghi thêm bút toán âm, không sửa và không xoá
+> bút toán cũ. Xem [F39](#f39--rule-engine--point-ledger).
+
+### F78 — Hình thức vận chuyển
+
+Luồng tạo bài Muốn Tặng bổ sung trường **hình thức nhận đồ**, người cho chọn ít nhất một
+trong hai:
+
+- Người nhận **tự đến lấy**
+- Người cho **hỗ trợ ship / gửi vận chuyển**
+
+> ⚠️ **Ai chịu phí vận chuyển thì yêu cầu chưa nói.** Không tự bịa rule — cần Bên A chốt
+> trước khi implement phần phí.
+
+---
+
+## 13. Admin CMS, Campaign & Blog
 
 ### F59 — Dashboard KPI
 Người dùng mới, bài theo danh mục và loại, giao dịch hoàn tất, dung lượng lưu trữ, phân bổ
@@ -540,7 +647,7 @@ tham chiếu của Rao vặt.
 
 ---
 
-## 13. Hạ tầng & Bảo mật
+## 14. Hạ tầng & Bảo mật
 
 ### F66 — VPS, Docker, PostgreSQL, Redis, Nginx SSL
 Docker Compose, host Nginx + Certbot, TLS và staging/production tách path, database, Redis,
@@ -556,7 +663,7 @@ Rate limit, validation, quản lý secret, audit log, health check và log phụ
 
 ---
 
-## 14. QA & UAT
+## 15. QA & UAT
 
 ### F69 — Kiểm thử hồi quy & UAT
 Kiểm thử đầu-cuối trên Mobile, Backend và Admin. Bao phủ: Auth, Profile, Post, Map,
@@ -568,7 +675,7 @@ Sửa lỗi thuộc phạm vi, kiểm thử lại, lập danh sách hạng mục
 
 ---
 
-## 15. Triển khai & Bàn giao
+## 16. Triển khai & Bàn giao
 
 ### F71 — Build & phát hành Store
 Build Android APK/AAB, cấu hình TestFlight cho iOS, hỗ trợ submit. **Thời gian xét duyệt của
@@ -580,9 +687,9 @@ liệu vận hành. Chuyển quyền quản trị và **thu hồi mọi quyền 
 
 ---
 
-## 16. Đối chiếu giá trị cấu hình & Quyết định chính thức từ SRS v1.15.0
+## 17. Đối chiếu giá trị cấu hình & Quyết định chính thức từ SRS v1.15.0
 
-Toàn bộ các điểm blocker trước đây đã được Bên A làm rõ và quy định chính thức trong [`../../SRS_Chan_Tam_v1.15.0.md`](../../SRS_Chan_Tam_v1.15.0.md) (Mục 1.7 - CHỐT-01 đến CHỐT-07):
+Toàn bộ các điểm blocker trước đây đã được Bên A làm rõ và quy định chính thức trong [`../../SRS_Chan_Tam_v1.15.0.md`](../SRS_Chan_Tam_v1.15.0.md) (Mục 1.7 - CHỐT-01 đến CHỐT-07):
 
 | # | Hạng mục | Trạng thái / Quyết định chính thức trong SRS v1.15.0 |
 |---|---|---|
@@ -599,7 +706,7 @@ Toàn bộ các điểm blocker trước đây đã được Bên A làm rõ và
 
 ---
 
-## 17. Các mâu thuẫn trước đây đã được giải quyết
+## 18. Các mâu thuẫn trước đây đã được giải quyết
 
 | Mục | Mâu thuẫn cũ | Quyết định chính thức từ SRS v1.15.0 |
 |---|---|---|
