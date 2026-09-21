@@ -60,6 +60,8 @@ Nghiệp vụ Chân Tâm
 | `0x0104` | `260` | 409 Conflict | `GIFT_POST_OUT_OF_STOCK` | Bài đăng đã hết số lượng |
 | `0x0201` | `513` | 404 Not Found | `GIFT_REQUEST_NOT_FOUND` | Không tìm thấy yêu cầu 7c3e0b18-2f44-4a91-9d2e-55b0a1f6c8d3 |
 | `0x0202` | `514` | 409 Conflict | `GIFT_REQUEST_DUPLICATED` | Bạn đã gửi yêu cầu cho bài đăng này rồi |
+| `0x0203` | `515` | 403 Forbidden | `CANNOT_REQUEST_OWN_POST` | Bạn không thể tự gửi yêu cầu xin đồ cho bài đăng của chính mình |
+| `0x0204` | `516` | 400 Bad Request | `POST_NOT_ACCEPTING_REQUESTS` | Bài đăng hiện không ở trạng thái mở nhận yêu cầu |
 | `0x0301` | `769` | 404 Not Found | `USER_NOT_FOUND` | Không tìm thấy tài khoản |
 | `0x0302` | `770` | 403 Forbidden | `USER_SUSPENDED` | Tài khoản đang bị tạm khoá tới 2026-10-01T00:00:00.000Z |
 | `0x0303` | `771` | 403 Forbidden | `USER_BANNED` | Tài khoản đã bị khoá vĩnh viễn |
@@ -99,5 +101,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **57 mã lỗi** trên 3 tầng.
+Tổng cộng **59 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

@@ -6,10 +6,12 @@ import {
 import { PostNotFoundException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
+  IGiftRequestRepository,
   IPostMediaRepository,
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
+import { GiftRequestStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostAuthorDto } from '@chantam.vn/chantam.core-lib/dto';
 import { applyGeoJitter } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
@@ -21,6 +23,8 @@ export class GetPostUseCase implements IGetPostUseCase {
     private readonly postRepository: IPostRepository,
     @Inject(IPostMediaRepository)
     private readonly postMediaRepository: IPostMediaRepository,
+    @Inject(IGiftRequestRepository)
+    private readonly giftRequestRepository: IGiftRequestRepository,
     @Inject(IUserRepository)
     private readonly userRepository: IUserRepository,
     @Inject(IConfig)
@@ -42,6 +46,17 @@ export class GetPostUseCase implements IGetPostUseCase {
     );
 
     const media = await this.postMediaRepository.listByPostId(post.globalId);
+
+    const requestCounts = await this.giftRequestRepository.countActiveByPostIds(
+      [post.globalId],
+    );
+    const myStatuses = command.currentUserId
+      ? await this.giftRequestRepository.findStatusesByPostIdsAndRequester(
+          [post.globalId],
+          command.currentUserId,
+        )
+      : new Map<string, GiftRequestStatuses>();
+    const myRequestStatus = myStatuses.get(post.globalId) ?? null;
 
     let author: IPostAuthorDto | null = null;
     if (post.authorId) {
@@ -70,6 +85,9 @@ export class GetPostUseCase implements IGetPostUseCase {
           sortOrder: item.sortOrder,
         })),
       isLocationApproximate: true,
+      requestCount: requestCounts.get(post.globalId) ?? 0,
+      myRequestStatus,
+      hasRequested: Boolean(myRequestStatus),
     };
   }
 }

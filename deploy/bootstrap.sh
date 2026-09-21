@@ -4,12 +4,8 @@
 #
 # Chạy bằng root:
 #   scp deploy/docker-compose.yml deploy/init.sql deploy/bootstrap.sh root@<server>:/tmp/
-#   ssh root@<server> 'bash /tmp/bootstrap.sh staging api-staging.example.com'
-#   ssh root@<server> 'bash /tmp/bootstrap.sh production api.example.com'
-#
-# Hostname công khai là TUỲ CHỌN nhưng nên khai: nó trở thành mục "Servers" của
-# Swagger trên chính server đó. Bỏ trống thì Swagger chỉ còn localhost, mà
-# localhost trong trình duyệt người đọc là máy của họ, không phải API này.
+#   ssh root@<server> 'bash /tmp/bootstrap.sh staging'
+#   ssh root@<server> 'bash /tmp/bootstrap.sh production'
 #
 # Chạy được nhiều lần. Đã có .env thì GIỮ NGUYÊN, không ghi đè — chạy lại để
 # nâng Docker hay sửa quyền không làm mất bí mật đã sinh.
@@ -20,7 +16,6 @@
 set -euo pipefail
 
 ENVIRONMENT="${1:-}"
-PUBLIC_HOST="${2:-}"
 
 case "$ENVIRONMENT" in
   # 3000 đang có dịch vụ khác trên server dev (EduStack), nên Chân Tâm dùng
@@ -28,23 +23,10 @@ case "$ENVIRONMENT" in
   staging) CORE_PORT=8080 ;;
   production) CORE_PORT=8085 ;;
   *)
-    echo "Dùng: bash bootstrap.sh <staging|production> [hostname-công-khai]" >&2
+    echo "Dùng: bash bootstrap.sh <staging|production>" >&2
     exit 2
     ;;
 esac
-
-# Mỗi server chỉ khai CHÍNH NÓ. Liệt kê môi trường khác ở đây là mời người mở
-# tài liệu production bấm "Try it out" nhầm sang staging và ngược lại.
-case "$ENVIRONMENT" in
-  staging) SERVER_LABEL=Staging ;;
-  production) SERVER_LABEL=Production ;;
-esac
-
-if [ -n "$PUBLIC_HOST" ]; then
-  API_SERVERS_VALUE="$SERVER_LABEL=https://$PUBLIC_HOST"
-else
-  API_SERVERS_VALUE=""
-fi
 
 DEPLOY_USER=deploy
 DEPLOY_HOME=/home/$DEPLOY_USER
@@ -140,9 +122,9 @@ CORE_PORT=$CORE_PORT
 GEO_JITTER_RADIUS_METERS=300
 OTP_TTL_SECONDS=300
 
-# Ô chọn "Servers" của Swagger — CHỈ môi trường này. Không liệt kê môi trường
-# khác, để không ai bấm "Try it out" nhầm sang bên kia.
-API_SERVERS=$API_SERVERS_VALUE
+# Ô chọn "Servers" của Swagger. Để TRỐNG trên server thật: liệt kê môi trường
+# khác ở đây là mời người mở tài liệu bấm "Try it out" nhầm sang môi trường kia.
+API_SERVERS=
 
 # CẢNH BÁO: chưa có nhà cung cấp email/SMS/Zalo ZNS nào được cắm vào.
 # Chức năng quên mật khẩu TỰ TẮT: mọi yêu cầu trả về kênh ADMIN_SUPPORT, không

@@ -1,11 +1,13 @@
 import { IConfig } from '@/domain/ports/config';
 import {
+  IGiftRequestRepository,
   IPostMediaRepository,
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
 import {
   GiftPostStatuses,
+  GiftRequestStatuses,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
@@ -74,6 +76,14 @@ function makeConfig(): IConfig {
   };
 }
 
+const makeGiftRequestRepo = () =>
+  ({
+    countActiveByPostIds: jest.fn().mockResolvedValue(new Map([[PostId, 2]])),
+    findStatusesByPostIdsAndRequester: jest
+      .fn()
+      .mockResolvedValue(new Map([[PostId, GiftRequestStatuses.PENDING]])),
+  }) as unknown as jest.Mocked<IGiftRequestRepository>;
+
 const makeUserRepo = () =>
   ({
     findOne: jest.fn().mockResolvedValue({
@@ -86,18 +96,20 @@ const makeUserRepo = () =>
   }) as unknown as jest.Mocked<IUserRepository>;
 
 describe('GetPostUseCase', () => {
-  it('áp dụng geo jitter cho toạ độ trả ra qua kênh public và trả kèm tác giả', async () => {
+  it('áp dụng geo jitter cho toạ độ trả ra qua kênh public và trả kèm số lượng yêu cầu', async () => {
     const postRepository = {
       findPublicByGlobalId: jest.fn().mockResolvedValue(makePost()),
     } as unknown as jest.Mocked<IPostRepository>;
     const postMediaRepository = {
       listByPostId: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<IPostMediaRepository>;
+    const giftRequestRepository = makeGiftRequestRepo();
     const userRepository = makeUserRepo();
 
     const result = await new GetPostUseCase(
       postRepository,
       postMediaRepository,
+      giftRequestRepository,
       userRepository,
       makeConfig(),
     ).handle({
@@ -111,6 +123,9 @@ describe('GetPostUseCase', () => {
     );
     expect(result.isLocationApproximate).toBe(true);
     expect(result.post.location).not.toEqual(ExactLocation);
+    expect(result.requestCount).toBe(2);
+    expect(result.myRequestStatus).toBe(GiftRequestStatuses.PENDING);
+    expect(result.hasRequested).toBe(true);
     expect(result.author?.fullName).toBe('Cư sĩ Minh Tuệ');
   });
 
@@ -136,11 +151,13 @@ describe('GetPostUseCase', () => {
         },
       ]),
     } as unknown as jest.Mocked<IPostMediaRepository>;
+    const giftRequestRepository = makeGiftRequestRepo();
     const userRepository = makeUserRepo();
 
     const result = await new GetPostUseCase(
       postRepository,
       postMediaRepository,
+      giftRequestRepository,
       userRepository,
       makeConfig(),
     ).handle({ postId: PostId });
@@ -157,6 +174,9 @@ describe('GetPostUseCase', () => {
         sortOrder: 1,
       },
     ]);
+    expect(result.requestCount).toBe(2);
+    expect(result.myRequestStatus).toBeNull();
+    expect(result.hasRequested).toBe(false);
   });
 
   it('coi pending, rejected hoặc deleted là không tồn tại khi repository không trả kết quả', async () => {
@@ -166,12 +186,14 @@ describe('GetPostUseCase', () => {
     const postMediaRepository = {
       listByPostId: jest.fn(),
     } as unknown as jest.Mocked<IPostMediaRepository>;
+    const giftRequestRepository = makeGiftRequestRepo();
     const userRepository = makeUserRepo();
 
     await expect(
       new GetPostUseCase(
         postRepository,
         postMediaRepository,
+        giftRequestRepository,
         userRepository,
         makeConfig(),
       ).handle({

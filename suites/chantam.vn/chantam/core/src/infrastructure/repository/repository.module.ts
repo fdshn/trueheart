@@ -3,6 +3,7 @@ import {
   IAdminUserRepository,
   ICategoryRepository,
   IEntitlementRepository,
+  IGiftRequestRepository,
   IGiftTransactionRepository,
   INotificationChannelRepository,
   IOnboardingTaskRepository,
@@ -22,6 +23,7 @@ import { AdminConfigRepository } from './admin-config.repository';
 import { AdminUserRepository } from './admin-user.repository';
 import { CategoryRepository } from './category.repository';
 import { EntitlementRepository } from './entitlement.repository';
+import { GiftRequestRepository } from './gift-request.repository';
 import { GiftTransactionRepository } from './gift-transaction.repository';
 import { NotificationChannelRepository } from './notification-channel.repository';
 import { OnboardingTaskRepository } from './onboarding-task.repository';
@@ -48,6 +50,7 @@ import { UserRepository } from './user.repository';
     { provide: IAdminConfigRepository, useClass: AdminConfigRepository },
     { provide: IAdminUserRepository, useClass: AdminUserRepository },
     { provide: IEntitlementRepository, useClass: EntitlementRepository },
+    { provide: IGiftRequestRepository, useClass: GiftRequestRepository },
     {
       provide: IGiftTransactionRepository,
       useClass: GiftTransactionRepository,
@@ -75,6 +78,7 @@ import { UserRepository } from './user.repository';
     IAdminConfigRepository,
     IAdminUserRepository,
     IEntitlementRepository,
+    IGiftRequestRepository,
     IGiftTransactionRepository,
     INotificationChannelRepository,
     IOnboardingTaskRepository,

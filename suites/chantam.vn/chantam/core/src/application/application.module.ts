@@ -5,6 +5,7 @@ import { CategoryModule } from './implementations/category/category.module';
 import { DiscoveryModule } from './implementations/discovery/discovery.module';
 import { EntitlementModule } from './implementations/entitlement/entitlement.module';
 import { GiftPostModule } from './implementations/gift-post/gift-post.module';
+import { GiftRequestModule } from './implementations/gift-request/gift-request.module';
 import { OnboardingModule } from './implementations/onboarding/onboarding.module';
 import { PointModule } from './implementations/point/point.module';
 import { PostModule } from './implementations/post/post.module';
@@ -24,6 +25,7 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
     DiscoveryModule,
     EntitlementModule,
     GiftPostModule,
+    GiftRequestModule,
     OnboardingModule,
     PointModule,
     ReferralModule,

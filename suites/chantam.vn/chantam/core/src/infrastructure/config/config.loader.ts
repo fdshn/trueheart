@@ -14,19 +14,14 @@ function resolveEnv(value: string | undefined): Env {
  * Mục sai định dạng thì ném ngay lúc khởi động chứ không bỏ qua im lặng: bỏ qua
  * nghĩa là người ta mở Swagger, không thấy môi trường mình vừa khai, rồi đi tìm
  * lỗi ở chỗ khác.
- *
- * Trả `undefined` khi không khai gì — khác hẳn với mảng rỗng, vì bên gọi cần
- * phân biệt "không khai" (rơi về localhost) với "khai rồi" (dùng đúng danh sách).
  */
-function parseDocsServers(raw: string | undefined):
-  | {
-      url: string;
-      description: string;
-    }[]
-  | undefined {
-  if (!raw?.trim()) return undefined;
+function parseDocsServers(raw: string | undefined): {
+  url: string;
+  description: string;
+}[] {
+  if (!raw?.trim()) return [];
 
-  const servers = raw
+  return raw
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean)
@@ -47,9 +42,6 @@ function parseDocsServers(raw: string | undefined):
 
       return { url, description };
     });
-
-  // Chuỗi chỉ toàn dấu phẩy cũng coi như không khai.
-  return servers.length > 0 ? servers : undefined;
 }
 
 export function loadConfig(): IConfig {
@@ -75,18 +67,12 @@ export function loadConfig(): IConfig {
       loginLockSeconds: Number(process.env.LOGIN_LOCK_SECONDS ?? 900),
       otpTtlSeconds: Number(process.env.OTP_TTL_SECONDS ?? 300),
     },
-    // Khai `API_SERVERS` thì DÙNG ĐÚNG danh sách đó, không chèn localhost.
-    //
-    // Swagger UI lấy mục đầu tiên làm mặc định. Trên server thật, chèn
-    // localhost lên đầu khiến người mở tài liệu bấm "Try it out" vào
-    // `http://localhost:8080` — tức máy của chính họ, không phải API đang đọc —
-    // nên nút đó vô dụng. Ngược lại, máy dev không khai gì thì vẫn chỉ có
-    // localhost như trước.
-    //
-    // Rủi ro cũ (bấm nhầm sang môi trường khác) được chặn ở chỗ khác: mỗi
-    // server chỉ khai CHÍNH NÓ, xem `deploy/bootstrap.sh`.
-    docsServers: parseDocsServers(process.env.API_SERVERS) ?? [
+    // Mục "máy đang chạy" luôn đứng ĐẦU. Swagger UI chọn mục đầu tiên làm mặc
+    // định, nên đặt production lên trước là mời người ta bấm "Try it out"
+    // thẳng vào dữ liệu thật.
+    docsServers: [
       { url: `http://localhost:${port}`, description: 'Máy đang chạy (local)' },
+      ...parseDocsServers(process.env.API_SERVERS),
     ],
 
     otpEmail: {
