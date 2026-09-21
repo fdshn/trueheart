@@ -196,6 +196,16 @@ jobs:
           echo "Service không lên sau 60 giây"
           exit 1
 
+      - name: Kiểm chat end-to-end trên service thật
+        # PHẢI sau khi service sẵn sàng: bước này gọi HTTP và mở WebSocket thật.
+        #
+        # Gateway Socket.io không có test nào dựng nổi — unit test mock
+        # repository, và không spec nào dựng DI container cùng gateway. Lần chạy
+        # đầu nó đã bắt được một tham số SQL không dùng và một 400 do Fastify từ
+        # chối body rỗng; cả hai đều xanh trong 473 unit test.
+        working-directory: suites/chantam.vn/chantam/core
+        run: npm run test:chat-e2e
+
       - name: Smoke test đầy đủ
         # Đây là chỗ duy nhất chuỗi ST_DWithin -> repository -> use case ->
         # controller được kiểm tự động. Unit test mock repository nên không

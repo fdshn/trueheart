@@ -26,7 +26,7 @@ Tổng effort nguồn: **60 man-days / 50 ngày / 4 sprint**.
 | M6 – Admin CMS nền | 🟡 Nền đã có | RBAC, system config động, cấu hình kênh gửi, nhật ký hệ thống và quản lý user đã có; giao diện CMS chưa có |
 | Sprint 2 – map discovery | ✅ Đã có | `GET /api/v1/posts/map` marker bbox, jitter, clustering |
 | Sprint 2 – vòng đời bài đăng | ✅ Đã có | CLI `post:expire` đóng bài quá hạn và chuyển rao vặt thành Muốn Tặng; `POST /posts/:postId/renew` gia hạn một lần; `npm run test:lifecycle` kiểm 21 bất biến trên database thật |
-| Sprint 2 – chat | ⬜ Chưa triển khai | Chưa có dòng code nào |
+| Sprint 2 – chat | ✅ Đã có | REST + Socket.io, khoá chỉ đọc khi giao dịch xong, thông báo trong app. `npm run test:chat-e2e` kiểm 20 bất biến trên service thật |
 | Sprint 3–4 | ⬜ Chưa triển khai | Không đánh dấu xong khi chỉ có contract/mock |
 
 ---
@@ -79,7 +79,7 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 | 9 | Quanh đây & bản đồ | Map discovery, GPS fallback, viewport, clustering, preview/deep-link | F25–F29 | ✅ Map bbox, jitter, clustering, viewport, dự phòng Default Location, và thẻ xem nhanh kèm `deepLinkPath`. Điều hướng deep-link là phần của client |
 | 10 | Giao dịch & FSM | Gift request, candidate selection, batch allocation, queue | M3 transaction | 🟡 Gửi yêu cầu, rút yêu cầu, danh sách ứng viên, duyệt, trừ tồn kho nguyên tử ✅. **Hàng đợi dự phòng (F33) chưa có** |
 | 11 | Giao dịch & FSM | Accepted/cancel/receiver confirm/auto-complete 5 ngày | M3 transaction | ✅ Đủ cả bốn, kèm CLI `transaction:autocomplete` |
-| 12 | Chat | Chat text WSS, persistence, lifecycle read-only | M3 chat | ⬜ Chưa có dòng nào |
+| 12 | Chat | Chat text WSS, persistence, lifecycle read-only | M3 chat | ✅ Socket.io namespace `/chat`, lịch sử chỉ ghi thêm, khoá chỉ đọc ở cả ba đường kết thúc |
 | 13 | QA | Regression/UAT Sprint 2 |  | 🟡 441 unit test xanh, thêm 2 script chạy database thật (`test:concurrency`, `migration:backfill-check`). UAT chưa chạy |
 
 ### Thứ tự bắt buộc trong Sprint 2

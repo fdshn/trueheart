@@ -73,6 +73,13 @@ async function seedRound(
     `UPDATE posts SET remaining_quantity = $1, total_quantity = $1, status = 'PUBLISHED' WHERE global_id = $2`,
     [stock, PostId],
   );
+  // Phòng chat trước giao dịch: khoá ngoại KHÔNG cascade (cascade sẽ đụng
+  // trigger chỉ-ghi-thêm của chat_messages), nên thứ tự xoá là bắt buộc.
+  await dataSource.query(
+    `DELETE FROM chat_rooms WHERE transaction_id IN
+       (SELECT global_id FROM gift_transactions WHERE post_id = $1)`,
+    [PostId],
+  );
   await dataSource.query(`DELETE FROM gift_transactions WHERE post_id = $1`, [
     PostId,
   ]);

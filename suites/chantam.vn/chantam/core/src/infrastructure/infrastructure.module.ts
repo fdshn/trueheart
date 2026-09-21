@@ -14,6 +14,7 @@ import { EntityModule } from './entity/entity.module';
 import { GiveActivityModule } from './give-activity/give-activity.module';
 import { NotificationModule } from './notification/notification.module';
 import { PersistenceModule } from './persistence/persistence.module';
+import { RealtimeModule } from './realtime/realtime.module';
 import { IRedisClient, RedisModule } from './redis/redis.module';
 import { RepositoryModule } from './repository/repository.module';
 import { SecurityModule } from './security/security.module';
@@ -52,6 +53,9 @@ import { RedisTokenDenyList } from './security/token-deny-list';
       },
     }),
     ControllerModule,
+    // Sau AuthModule: gateway cần ITokenService và ITokenDenyList để xác thực
+    // ngay lúc bắt tay, đúng hai bước mà JwtAuthGuard làm cho HTTP.
+    RealtimeModule,
     HealthModule.forRootAsync({
       inject: [IConfig, getDataSourceToken()],
       useFactory: (config: IConfig, dataSource: DataSource) => ({

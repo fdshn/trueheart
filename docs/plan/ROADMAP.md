@@ -8,7 +8,7 @@ cả 72 đều là P0.
 | M0 | Nền tảng monorepo + CI/CD | — | ✅ Xong |
 | [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | ✅ Xong (provider/ledger rollout deferred) |
 | [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 15 | 🟡 13/15 — chỉ còn 2 loại bài mới: Quảng cáo (F20) và Dharma Hub (F73) |
-| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 4/10 — xin/duyệt/xác nhận/tự hoàn tất xong; chat, hàng đợi, thông báo chưa |
+| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 7/10 — giao dịch và chat xong; còn hàng đợi dự phòng (F33/F35) và đẩy FCM (F44) |
 | [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 7 | 🟡 3/7 — ledger/rank/referral xong; đánh giá & accuracy chưa |
 | [M5](#m5--group--affiliate) | Group, affiliate, chống gian lận | 10 | ⬜ 0/10 |
 | [M6](#m6--quản-trị--bàn-giao) | Admin CMS, kiểm duyệt, bàn giao | 18 | 🟡 1/18 — RBAC/config động/nhật ký/quản lý user đã có; giao diện CMS chưa |
@@ -102,13 +102,17 @@ resource `gift-post` làm mẫu.
 - [x] F31 Danh sách ứng viên + quyền chọn theo Rank — `GET /posts/:postId/requests`
 - [x] F32 **Trừ tồn kho nguyên tử** — UPDATE có điều kiện, huỷ thì trả lại
 - [ ] F33 Hàng đợi dự phòng
-- [ ] F34 Chấp nhận giao dịch + mở chat — duyệt đã nguyên tử và khoá theo thứ tự cố
-      định; ⛔ phần **mở chat** chưa có vì chat chưa tồn tại
+- [x] F34 Chấp nhận giao dịch + mở chat — duyệt nguyên tử, khoá theo thứ tự cố định, và
+      mở phòng chat trong CÙNG transaction ở cả hai đường duyệt
 - [ ] F35 Huỷ giao dịch + mở lại hàng đợi — huỷ đã trả tồn kho; hàng đợi chưa có
 - [x] F36 Xác nhận nhận + tự hoàn tất sau 5 ngày qua CLI `transaction:autocomplete`
-- [ ] F37 Chat text 1-1 theo giao dịch
-- [ ] F38 Lưu bền vững + khoá chỉ đọc khi xong
-- [ ] F44 Push FCM + thông báo trong app *(bản tối thiểu, đủ cho giao dịch)*
+- [x] F37 Chat text 1-1 theo giao dịch — REST để gửi/đọc, Socket.io namespace `/chat` để
+      nhận tức thì; xác thực ngay lúc bắt tay kèm tra danh sách thu hồi token
+- [x] F38 Lưu bền vững + khoá chỉ đọc khi xong — `chat_messages` chỉ ghi thêm (trigger
+      chặn UPDATE/DELETE), phòng sang `READ_ONLY` ở cả ba đường kết thúc giao dịch
+- [ ] F44 Push FCM + thông báo trong app — thông báo trong app và hộp thư đã chạy thật,
+      có chống trùng; ⛔ **đường đẩy FCM chưa dùng được** vì chưa có khoá dự án Firebase,
+      `LoggingPushSender` fail-closed ở production
 
 **Xong khi:** chạy trọn vòng xin → duyệt → chat → xác nhận → hoàn tất, và kiểm được **race
 condition**: 50 request đồng thời trên bài có 10 món phải ra đúng 10 giao dịch.

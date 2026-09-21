@@ -488,7 +488,74 @@ mà **không cần một vòng gọi nữa cho mỗi marker**.
 
 ---
 
-## 8. Giao dịch tặng/nhận — `/transactions`
+## 8. Chat — `/chat` và Socket.io
+
+Mỗi giao dịch đã duyệt có **đúng một** phòng chat, mở ngay trong transaction duyệt
+([F34](./FEATURES.md#f34--chấp-nhận-giao-dịch--mở-chat)).
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/chat/rooms` | Bearer | Danh sách hội thoại của chính mình, phân trang |
+| `GET` | `/chat/rooms/:roomId/messages` | Bearer (trong phòng) | Lịch sử, mới nhất trước |
+| `POST` | `/chat/rooms/:roomId/messages` | Bearer (trong phòng) | Gửi tin, tối đa 2000 ký tự |
+| `PATCH` | `/chat/rooms/:roomId/read` | Bearer (trong phòng) | Đánh dấu đã đọc tới hiện tại |
+
+### Gửi bằng REST, nhận bằng socket
+
+Socket **chỉ đọc và nhận**, không ghi. Gửi tin đi qua `POST` như mọi thao tác ghi khác.
+
+Một đường ghi duy nhất nghĩa là chỉ một chỗ kiểm quyền, kiểm trạng thái phòng và sinh mã
+lỗi. Mở đường ghi thứ hai qua socket là nhân đôi toàn bộ những phép kiểm đó, và bản thứ hai
+sẽ lệch dần theo thời gian. Người gửi vẫn có phản hồi tức thì — chính response của `POST`;
+socket lo việc đẩy tin sang máy người còn lại.
+
+| Chiều | Sự kiện | Ghi chú |
+| --- | --- | --- |
+| Client → server | `room:join` `{ roomId }` | Ack `{ joined: boolean }` |
+| Client → server | `room:leave` `{ roomId }` | Ack `{ left: boolean }` |
+| Server → client | `message:new` | Payload **không** có `isMine` |
+| Server → client | `connection:rejected` | Kèm lý do chung, rồi ngắt kết nối |
+
+Kết nối tới namespace **`/chat`** (không có tiền tố `/api/v1` — `setGlobalPrefix` không áp
+cho WebSocket). Token gửi qua `auth.token` lúc bắt tay, hoặc header `Authorization`.
+Socket.io gắn vào chính HTTP server hiện có nên **không mở cổng thứ hai**; hạ tầng chỉ cần
+cho phép nâng cấp WebSocket trên cổng đang dùng.
+
+**Những điều dễ hiểu nhầm**
+
+- Xác thực lúc bắt tay làm **đủ hai bước** như HTTP: verify chữ ký *và* tra danh sách thu
+  hồi. Đổi mật khẩu hay xoá tài khoản xong thì token cũ còn hạn nhưng phải chết ngay.
+- `message:new` **không** mang `isMine` — cờ đó phụ thuộc người nhận. Client tự so `senderId`
+  với chính mình; gửi `isMine: true` cho tất cả là nói sai với người còn lại.
+- Người ngoài phòng nhận `{ joined: false }` và `CHAT_ROOM_NOT_FOUND` (404), **không phải**
+  403 — phân biệt là để lộ ai đang trao đổi với ai.
+- `unreadCount` tính theo mốc đã đọc của **chính người gọi** và **không đếm tin họ tự gửi**.
+- Giao dịch kết thúc thì phòng sang `READ_ONLY`: gửi tiếp trả `CHAT_ROOM_READ_ONLY` (409),
+  nhưng **đọc lại lịch sử vẫn được** và đánh dấu đã đọc vẫn được
+  ([F38](./FEATURES.md#f38--lưu-trữ--khoá-chỉ-đọc)). Lịch sử không bị xoá:
+  `chat_messages` chỉ ghi thêm, trigger ở database chặn cả UPDATE lẫn DELETE.
+
+---
+
+## 9. Thông báo — `/notifications`
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/notifications/me` | Bearer | Hộp thư của chính mình, lọc `unreadOnly` |
+| `PATCH` | `/notifications/me/read` | Bearer | Đánh dấu đã đọc; bỏ trống id thì đánh dấu tất cả |
+
+- `unreadCount` là **tổng** số chưa đọc, không phụ thuộc trang hay bộ lọc đang xem — mở
+  trang 2 không được làm badge tụt xuống.
+- Id không thuộc người gọi đơn giản không khớp dòng nào; **không báo lỗi**, vì báo lỗi là
+  nói cho họ biết id đó có thật.
+- Mỗi sự kiện có `idempotencyKey` UNIQUE, nên retry không làm rung điện thoại hai lần.
+- ⛔ **Đẩy FCM chưa dùng được**: chưa có khoá dự án Firebase, `LoggingPushSender`
+  fail-closed ở production. Thông báo **trong app** không phụ thuộc vào nó — mất đường đẩy
+  không làm mất thông báo.
+
+---
+
+## 10. Giao dịch tặng/nhận — `/transactions`
 
 Máy trạng thái: `REQUESTED → ACCEPTED → COMPLETED`, và có thể đóng sớm sang `CANCELLED` /
 `REJECTED`.
@@ -516,7 +583,7 @@ Máy trạng thái: `REQUESTED → ACCEPTED → COMPLETED`, và có thể đóng
 
 ---
 
-## 9. Quản trị — `/admin`
+## 11. Quản trị — `/admin`
 
 Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit kèm lý do bắt buộc.
 
@@ -569,7 +636,7 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 
 ---
 
-## 10. Tương thích cũ — `/gift-posts`
+## 12. Tương thích cũ — `/gift-posts`
 
 Năm endpoint legacy giữ nguyên hợp đồng cũ nhưng **đọc/ghi canonical `posts`**: `create` uỷ
 quyền sang `CreatePostUseCase`, phần còn lại đọc `IPostRepository`, và một mapper dựng lại
@@ -591,7 +658,7 @@ niệm chủ sở hữu xem bài của mình.
 
 ---
 
-## 11. Vận hành
+## 13. Vận hành
 
 | Đường dẫn | Nội dung |
 | --- | --- |

@@ -16,8 +16,15 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * hai người — một bảng participants chỉ thêm join mà không thêm khả năng nào.
  *
  * **`chat_messages` chỉ ghi thêm.** Không có `updated_at`, không có
- * `deleted_at`: F38 khoá chỉ đọc khi giao dịch xong, và lịch sử chat là bằng
- * chứng khi có tranh chấp hoặc report. Sửa/xoá tin nhắn không nằm trong phạm vi.
+ * `deleted_at`, và trigger chặn cả UPDATE lẫn DELETE — cùng quy ước với
+ * `point_ledger` và `referrals`. F38 khoá chỉ đọc khi giao dịch xong, và lịch sử
+ * chat là bằng chứng khi có tranh chấp hoặc report.
+ *
+ * Vì thế **không khoá ngoại nào ở đây dùng `ON DELETE CASCADE`**. Cascade và
+ * chỉ-ghi-thêm loại trừ nhau: cascade sẽ cố xoá tin nhắn, trigger chặn lại, và
+ * câu lệnh xoá vỡ giữa đường với một thông báo chẳng nói lên nguyên nhân. Hệ quả
+ * là một lượt trao đã có lịch sử chat thì không xoá cứng được — đó chính là điều
+ * đang muốn.
  */
 export class CreateChatAndNotifications1790900000000 implements MigrationInterface {
   name = 'CreateChatAndNotifications1790900000000';
@@ -46,9 +53,13 @@ export class CreateChatAndNotifications1790900000000 implements MigrationInterfa
         CONSTRAINT "PK_chat_rooms" PRIMARY KEY ("id"),
         CONSTRAINT "UQ_chat_rooms_global_id" UNIQUE ("global_id"),
         CONSTRAINT "UQ_chat_rooms_transaction" UNIQUE ("transaction_id"),
+        -- KHÔNG có ON DELETE CASCADE, dù giao dịch là cha. Cascade tới phòng
+        -- rồi cascade tiếp tới tin nhắn sẽ đụng trigger chỉ-ghi-thêm và câu lệnh
+        -- xoá vỡ giữa đường với một thông báo chẳng liên quan gì. Chặn ngay ở
+        -- đây thì lỗi nói đúng chuyện: lượt trao có lịch sử chat không xoá được.
         CONSTRAINT "FK_chat_rooms_transaction"
           FOREIGN KEY ("transaction_id")
-          REFERENCES "gift_transactions"("global_id") ON DELETE CASCADE,
+          REFERENCES "gift_transactions"("global_id"),
         CONSTRAINT "FK_chat_rooms_giver"
           FOREIGN KEY ("giver_id") REFERENCES "users"("global_id"),
         CONSTRAINT "FK_chat_rooms_receiver"
@@ -82,9 +93,11 @@ export class CreateChatAndNotifications1790900000000 implements MigrationInterfa
         "created_at" timestamptz NOT NULL DEFAULT now(),
         CONSTRAINT "PK_chat_messages" PRIMARY KEY ("id"),
         CONSTRAINT "UQ_chat_messages_global_id" UNIQUE ("global_id"),
+        -- Cũng không cascade: "chỉ ghi thêm" mà xoá được cả cụm theo phòng thì
+        -- không còn là chỉ ghi thêm nữa.
         CONSTRAINT "FK_chat_messages_room"
           FOREIGN KEY ("room_id")
-          REFERENCES "chat_rooms"("global_id") ON DELETE CASCADE,
+          REFERENCES "chat_rooms"("global_id"),
         CONSTRAINT "FK_chat_messages_sender"
           FOREIGN KEY ("sender_id") REFERENCES "users"("global_id"),
         CONSTRAINT "CHK_chat_messages_body_not_blank"

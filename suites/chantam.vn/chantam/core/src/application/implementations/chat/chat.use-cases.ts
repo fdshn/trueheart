@@ -17,6 +17,7 @@ import {
   ChatRoomNotFoundException,
   ChatRoomReadOnlyException,
 } from '@/domain/exceptions';
+import { IChatRealtimePublisher } from '@/domain/ports/realtime';
 import { IChatRepository, IChatRoomListItem } from '@/domain/ports/repository';
 import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
 import {
@@ -108,6 +109,8 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
     @Inject(IChatRepository) private readonly chat: IChatRepository,
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatchNotification: IDispatchNotificationUseCase,
+    @Inject(IChatRealtimePublisher)
+    private readonly realtime: IChatRealtimePublisher,
   ) {}
 
   public async handle(
@@ -153,6 +156,11 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
       sentAt: outcome.message.createdAt,
       isMine: true,
     };
+
+    // Phát SAU khi `appendMessage` đã commit. Phát từ trong transaction rồi
+    // rollback là nói với client về một tin nhắn không tồn tại, và không có
+    // cách nào rút lại lời đó.
+    await this.realtime.publishMessage(command.roomId, message);
 
     return { message };
   }

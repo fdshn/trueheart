@@ -109,6 +109,13 @@ export class ChatRepository implements IChatRepository {
       .getOne();
   }
 
+  /**
+   * Phần SELECT dùng chung cho danh sách và chi tiết phòng.
+   *
+   * Quy ước tham số: **`$2` luôn là người đang xem** — `UnreadCountSql` tham
+   * chiếu nó. Nơi gọi phải truyền id người xem ở vị trí đó, và cũng phải bảo đảm
+   * mọi tham số mình truyền đều được tham chiếu ở đâu đó trong câu lệnh.
+   */
   private roomListQuery(where: string): string {
     return `
       SELECT room.id, room.global_id, room.transaction_id, room.post_id,
@@ -166,7 +173,11 @@ export class ChatRepository implements IChatRepository {
     take: number;
   }): Promise<{ items: IChatRoomListItem[]; total: number }> {
     const rows = await this.manager.query<Record<string, unknown>[]>(
-      `${this.roomListQuery('room.giver_id = $2 OR room.receiver_id = $2')}
+      // Lọc theo `$1`, KHÔNG phải `$2`, dù hai tham số mang cùng một giá trị.
+      // `UnreadCountSql` dùng `$2`, còn Postgres từ chối câu lệnh có tham số
+      // được truyền mà không chỗ nào tham chiếu: "could not determine data type
+      // of parameter $1". Nên `$1` phải xuất hiện thật ở đây.
+      `${this.roomListQuery('room.giver_id = $1 OR room.receiver_id = $1')}
        -- Phòng chưa ai nói nằm sau phòng có tin, nhưng KHÔNG bị mất: người
        -- dùng phải thấy phòng vừa mở để bắt đầu trao đổi.
        ORDER BY room.last_message_at DESC NULLS LAST, room.id DESC

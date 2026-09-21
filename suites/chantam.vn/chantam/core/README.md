@@ -38,6 +38,12 @@ buộc riêng tư, thứ tự kiểm tra — xem [`docs/API.md`](../../../../doc
 | `DELETE` | `/api/v1/posts/:postId` | Owner xoá mềm canonical post |
 | `POST` | `/api/v1/posts/:postId/renew` | `RenewPostUseCase` — gia hạn 3 tháng, tối đa một lần, tính quota như bài mới |
 | `POST` | `/api/v1/posts/:postId/charity-transfer` | `RequestCharityTransferUseCase` — chủ bài xin chuyển về điểm từ thiện |
+| `GET` | `/api/v1/chat/rooms` | `ListChatRoomsUseCase` — hội thoại của chính mình |
+| `GET` | `/api/v1/chat/rooms/:roomId/messages` | `ListChatMessagesUseCase` — lịch sử, mới nhất trước |
+| `POST` | `/api/v1/chat/rooms/:roomId/messages` | `SendChatMessageUseCase` — gửi tin, phát qua socket sau khi commit |
+| `PATCH` | `/api/v1/chat/rooms/:roomId/read` | `MarkChatRoomReadUseCase` — mốc đã đọc của chính người gọi |
+| `GET` | `/api/v1/notifications/me` | `ListNotificationsUseCase` — hộp thư trong app |
+| `PATCH` | `/api/v1/notifications/me/read` | `MarkNotificationsReadUseCase` |
 | `PATCH` | `/api/v1/posts/:postId/charity-transfer` | `ReviewCharityTransferUseCase` — Admin duyệt/từ chối; duyệt thì bài sang `ARCHIVED` |
 | `PATCH` | `/api/v1/posts/:postId/moderation` | `ModeratePostUseCase` — allowlist `POST_OPERATOR_USERNAMES` tạm thời |
 | `GET` | `/api/v1/posts/nearby` | `GetNearbyPostsUseCase` — guest radius scan canonical, required OFFER/WANTED filter, location jitter + bucketed distance |
@@ -206,6 +212,48 @@ thứ họ đang xem. Gửi một nửa toạ độ cũng là lỗi, không ph�
 `isSos`, `deepLinkPath`. Ảnh lấy bằng truy vấn con `LIMIT 1` theo `sort_order` — JOIN thẳng
 vào `post_media` sẽ nhân bản marker theo số ảnh và bản đồ hiện nhiều pin trùng chỗ cho một
 bài. `deepLinkPath` là đường dẫn tương đối; server không ghép tên miền.
+
+## Chat và thông báo
+
+**Gửi bằng REST, nhận bằng socket.** Gateway (`infrastructure/realtime`) chỉ đọc và
+phát, không ghi. Một đường ghi duy nhất nghĩa là chỉ một chỗ kiểm quyền, kiểm trạng
+thái phòng và sinh mã lỗi.
+
+Socket.io ở namespace **`/chat`** — không có tiền tố `/api/v1` vì `setGlobalPrefix`
+không áp cho WebSocket. Gắn vào chính HTTP server của Fastify nên không mở cổng thứ
+hai. Xác thực lúc bắt tay làm **đủ hai bước** như `JwtAuthGuard`: verify chữ ký *và*
+tra `ITokenDenyList`.
+
+**Phát tin chỉ sau khi commit.** `IChatRealtimePublisher` được gọi từ use case, không
+từ repository: phát từ trong transaction rồi rollback là nói với client về một tin
+nhắn không tồn tại.
+
+**Chat mở/khoá trong cùng transaction với giao dịch.** Mở ở cả hai đường duyệt
+(`gift-request` và `gift-transaction`), khoá ở cả **ba** đường kết thúc — xác nhận
+nhận, huỷ/từ chối, và tự hoàn tất sau 5 ngày. Thiếu đường thứ ba thì những lượt do
+cron đóng để lại phòng vẫn gửi được tin.
+
+**`chat_messages` chỉ ghi thêm**, trigger chặn UPDATE và DELETE. Vì vậy không khoá
+ngoại nào cascade: cascade và chỉ-ghi-thêm loại trừ nhau. Hệ quả là một lượt trao đã
+có lịch sử chat thì không xoá cứng được — đó chính là điều đang muốn.
+
+**Đẩy FCM chưa dùng được.** `LoggingPushSender` ghi log ở dev và fail-closed ở
+production cho tới khi có khoá dự án Firebase. Thông báo trong app không phụ thuộc
+vào nó.
+
+Kiểm trên service thật: `npm run test:chat-e2e` (cần service đang chạy).
+
+## Bẫy: body rỗng với `Content-Type: application/json`
+
+Fastify mặc định trả **400 "Body cannot be empty"** khi client đặt content-type JSON
+mà không gửi body. Mọi endpoint không có body đều vướng: xác nhận nhận hàng, gia hạn
+bài, đánh dấu đã đọc, chạy đánh giá chu kỳ. Client mobile thường đặt content-type đó
+cho mọi request, nên đó là một 400 mà người dùng không gửi sai gì cả.
+
+`main.ts` thay bộ phân tích JSON **sau `app.init()`** để coi body rỗng là `{}`. Phải
+sau `init()`: Nest tự đăng ký một bộ trong đó, nên thêm trước là đụng
+`FST_ERR_CTP_ALREADY_PRESENT` và tiến trình chết lúc khởi động. JSON hỏng vẫn bị từ
+chối như cũ.
 
 ## Bẫy: `UPDATE ... RETURNING` bị bọc
 
