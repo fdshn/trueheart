@@ -21,11 +21,30 @@ function makeDeps(items: unknown[] = [], total = 0) {
         }) => ({ items, total }),
       ),
     },
+    postMedia: {
+      listByPostId: jest.fn().mockResolvedValue([]),
+      listByPostIds: jest.fn().mockResolvedValue([]),
+    },
+    giftRequests: {
+      countActiveByPostIds: jest
+        .fn()
+        .mockResolvedValue(new Map<string, number>()),
+    },
+    config: {
+      storage: {
+        publicBaseUrl: 'https://cdn.chantam.vn',
+      },
+    },
   };
 }
 
 function run(deps: ReturnType<typeof makeDeps>, command: unknown) {
-  return new GetMyPostsUseCase(deps.posts as never).handle(command as never);
+  return new GetMyPostsUseCase(
+    deps.posts as never,
+    deps.postMedia as never,
+    deps.giftRequests as never,
+    deps.config as never,
+  ).handle(command as never);
 }
 
 describe('GetMyPostsUseCase', () => {
@@ -72,7 +91,7 @@ describe('GetMyPostsUseCase', () => {
 
     const result = await run(deps, { userId: UserId });
 
-    expect(result.posts[0].location).toEqual(location);
+    expect(result.posts[0].post.location).toEqual(location);
   });
 
   it('phân trang theo meta', async () => {
@@ -96,5 +115,40 @@ describe('GetMyPostsUseCase', () => {
     const params = deps.posts.findMyPosts.mock.calls[0][0];
     expect(params.take).toBe(5);
     expect(params.skip).toBe(10);
+  });
+
+  it('lấy danh sách bài của user thành công kèm số lượng request và media', async () => {
+    const post = {
+      globalId: '11111111-1111-1111-1111-111111111111',
+      title: 'Đồ tặng của tôi',
+      location: { lat: 21.0, lng: 105.8 },
+    };
+    const deps = makeDeps([post], 1);
+    deps.postMedia.listByPostIds.mockResolvedValue([
+      {
+        id: 10,
+        postId: post.globalId,
+        r2Key: 'posts/1/image.webp',
+        sortOrder: 0,
+      } as never,
+    ]);
+    const requestMap = new Map<string, number>();
+    requestMap.set(post.globalId, 4);
+    deps.giftRequests.countActiveByPostIds.mockResolvedValue(requestMap);
+
+    const result = await run(deps, {
+      userId: UserId,
+      page: 1,
+      pageSize: 10,
+    });
+
+    expect(result.posts).toHaveLength(1);
+    expect(result.posts[0].post.globalId).toBe(post.globalId);
+    expect(result.posts[0].requestCount).toBe(4);
+    expect(result.posts[0].media).toHaveLength(1);
+    expect(result.posts[0].media[0].url).toBe(
+      'https://cdn.chantam.vn/posts/1/image.webp',
+    );
+    expect(result.meta.total).toBe(1);
   });
 });

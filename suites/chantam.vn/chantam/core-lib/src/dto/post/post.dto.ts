@@ -7,6 +7,7 @@ import {
   GenericMvpPostType,
   GiftPostConditions,
   GiftPostStatuses,
+  GiftRequestStatuses,
   PostTypes,
   PublicDiscoveryPostType,
 } from '../../consts';
@@ -68,8 +69,14 @@ export interface IGetMyPostsQueryDto extends IPaginationQueryDto {
   categoryId?: string;
 }
 
+export interface IMyPostItemDto {
+  post: IPostEntity;
+  requestCount: number;
+  media: IPublicPostMediaDto[];
+}
+
 export interface IGetMyPostsResponseDto {
-  posts: IPostEntity[];
+  posts: IMyPostItemDto[];
   meta: IPaginationMetaDto;
 }
 
@@ -77,6 +84,9 @@ export interface INearbyPostDto {
   post: IPostEntity;
   distanceMeters: number;
   isLocationApproximate: true;
+  requestCount?: number;
+  myRequestStatus?: GiftRequestStatuses | null;
+  hasRequested?: boolean;
 }
 
 export interface IGetNearbyPostsResponseDto {
@@ -113,10 +123,22 @@ export interface IPublicPostMediaDto {
   sortOrder: number;
 }
 
+export interface IPostAuthorDto {
+  id: string;
+  username: string;
+  fullName?: string | null;
+  avatarUrl?: string | null;
+  rank?: string;
+}
+
 export interface IGetPostResponseDto {
   post: IPostEntity;
+  author?: IPostAuthorDto | null;
   media: IPublicPostMediaDto[];
   isLocationApproximate: boolean;
+  requestCount?: number;
+  myRequestStatus?: GiftRequestStatuses | null;
+  hasRequested?: boolean;
 }
 
 export interface IGetPostMapQueryDto {
@@ -150,6 +172,7 @@ export interface IUpdatePostDto {
   areaLabel?: string;
   condition?: GiftPostConditions;
   estimatedValue?: number;
+  location?: IGeoPoint;
 }
 
 export interface IUpdatePostParamsDto {

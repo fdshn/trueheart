@@ -51,7 +51,7 @@ export class CreateOnboardingTasks1789900000003 implements MigrationInterface {
         "global_id", "key", "title", "description", "evidence_type", "required", "active", "sort_order"
       ) VALUES
         ('40000000-0000-4000-8000-000000000001', 'PROFILE_COMPLETE', 'Hoàn thiện hồ sơ', 'Cập nhật họ tên, ảnh đại diện, email và số điện thoại.', 'PROFILE_COMPLETE', true, true, 1),
-        ('40000000-0000-4000-8000-000000000002', 'PHONE_VERIFIED', 'Xác thực số điện thoại', 'Xác nhận số điện thoại bằng mã OTP.', 'PHONE_VERIFIED', true, true, 2)
+        ('40000000-0000-4000-8000-000000000002', 'PHONE_VERIFIED', 'Xác thực số điện thoại', 'Xác nhận số điện thoại bằng mã OTP.', 'PHONE_VERIFIED', false, true, 2)
       ON CONFLICT ("key") DO NOTHING
     `);
   }

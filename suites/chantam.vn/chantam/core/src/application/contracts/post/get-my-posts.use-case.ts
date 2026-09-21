@@ -15,9 +15,11 @@ export interface IGetMyPostsCommand {
   pageSize?: number;
 }
 
+export interface IGetMyPostsResult extends IGetMyPostsResponseDto {}
+
 export interface IGetMyPostsUseCase extends IUseCase<
   IGetMyPostsCommand,
-  IGetMyPostsResponseDto
+  IGetMyPostsResult
 > {}
 
 export const IGetMyPostsUseCase = Symbol('IGetMyPostsUseCase');

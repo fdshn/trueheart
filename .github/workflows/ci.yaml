@@ -100,6 +100,13 @@ jobs:
       DATABASE_URI: postgres://chantam:chantam@localhost:5432/chantam
       REDIS_URI: redis://localhost:6379
       JWT_SECRET: khoa-chi-dung-trong-ci-khong-phai-bi-mat-that-0123456789
+      POST_OPERATOR_USERNAMES: demo-kiem-duyet
+      STORAGE_ENDPOINT: http://localhost:19000
+      STORAGE_REGION: us-east-1
+      STORAGE_BUCKET: chantam-media
+      STORAGE_ACCESS_KEY_ID: chantam-minio
+      STORAGE_SECRET_ACCESS_KEY: chantam-minio-secret
+      STORAGE_PUBLIC_BASE_URL: http://localhost:19000/chantam-media
 
     steps:
       - uses: actions/checkout@v4
@@ -114,6 +121,11 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Khởi động MinIO (object storage)
+        run: |
+          docker compose up -d minio
+          docker compose up minio-init
 
       - name: Chạy migration
         # Cố ý KHÔNG tạo extension bằng tay ở đây: migration đầu tiên phải tự
@@ -138,6 +150,10 @@ jobs:
         # sẽ là lúc nâng cấp production.
         working-directory: suites/chantam.vn/chantam/core
         run: npm run migration:backfill-check
+
+      - name: Khởi tạo dữ liệu demo
+        working-directory: suites/chantam.vn/chantam/core
+        run: npm run seed:demo:built
 
       - name: Khởi động service
         working-directory: suites/chantam.vn/chantam/core

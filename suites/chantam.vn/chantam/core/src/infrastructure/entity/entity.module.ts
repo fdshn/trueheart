@@ -1,6 +1,7 @@
 import {
   ICategoryEntity,
   IGiftPostEntity,
+  IGiftRequestEntity,
   IOnboardingTaskEntity,
   IPostEntity,
   IPostMediaEntity,
@@ -11,6 +12,7 @@ import {
 import { Global, Module } from '@nestjs/common';
 import { CategoryEntity } from './category.entity';
 import { GiftPostEntity } from './gift-post.entity';
+import { GiftRequestEntity } from './gift-request.entity';
 import { OnboardingTaskEntity } from './onboarding-task.entity';
 import { PostMediaEntity } from './post-media.entity';
 import { PostEntity } from './post.entity';
@@ -29,6 +31,7 @@ import { UserEntity } from './user.entity';
   providers: [
     { provide: ICategoryEntity, useValue: CategoryEntity },
     { provide: IGiftPostEntity, useValue: GiftPostEntity },
+    { provide: IGiftRequestEntity, useValue: GiftRequestEntity },
     { provide: IOnboardingTaskEntity, useValue: OnboardingTaskEntity },
     { provide: IPostEntity, useValue: PostEntity },
     { provide: IPostMediaEntity, useValue: PostMediaEntity },
@@ -42,6 +45,7 @@ import { UserEntity } from './user.entity';
   exports: [
     ICategoryEntity,
     IGiftPostEntity,
+    IGiftRequestEntity,
     IOnboardingTaskEntity,
     IPostEntity,
     IPostMediaEntity,

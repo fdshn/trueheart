@@ -416,8 +416,12 @@ export class PostController {
   ])
   public async getNearbyPosts(
     @Query() query: GetNearbyPostsQueryDto,
+    @CurrentUser() principal?: IAuthPrincipal,
   ): Promise<ResponseDto<IGetNearbyPostsResponseDto>> {
-    const result = await this.getNearbyPostsUseCase.handle(query);
+    const result = await this.getNearbyPostsUseCase.handle({
+      ...query,
+      currentUserId: principal?.userId,
+    });
 
     return ResponseDto.create<IGetNearbyPostsResponseDto>()
       .succeed()
@@ -493,7 +497,6 @@ export class PostController {
       .attach(result)
       .build();
   }
-
   @Public()
   @Get(':postId')
   @ApiOperation({
@@ -508,8 +511,12 @@ export class PostController {
   )
   public async getPost(
     @Param() params: GetPostParamsDto,
+    @CurrentUser() principal?: IAuthPrincipal,
   ): Promise<ResponseDto<IGetPostResponseDto>> {
-    const result = await this.getPostUseCase.handle(params);
+    const result = await this.getPostUseCase.handle({
+      postId: params.postId,
+      currentUserId: principal?.userId,
+    });
 
     return ResponseDto.create<IGetPostResponseDto>()
       .succeed()

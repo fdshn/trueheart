@@ -90,10 +90,10 @@ call() {
 
   if [ -n "$data" ]; then
     raw=$(curl -sS -m 20 -w $'\n%{http_code}' -X "$method" "${BASE_URL}${path}" \
-      "${auth_args[@]}" -H 'Content-Type: application/json' -d "$data" 2>&1)
+      ${auth_args:+"${auth_args[@]}"} -H 'Content-Type: application/json' -d "$data" 2>&1)
   else
     raw=$(curl -sS -m 20 -w $'\n%{http_code}' -X "$method" "${BASE_URL}${path}" \
-      "${auth_args[@]}" 2>&1)
+      ${auth_args:+"${auth_args[@]}"} 2>&1)
   fi
 
   RESP_CODE="${raw##*$'\n'}"
@@ -620,7 +620,11 @@ else
   pass "bài chưa duyệt không xuất hiện ở bảng tin"
 fi
 
-call_auth PATCH "/api/v1/gift-posts/${CREATED_ID}" "$PROFILE_ACCESS_TOKEN" '{"giftPost":{"status":"PUBLISHED"}}'
+# Duyệt bài qua canonical moderation endpoint (bài M2+ chỉ moderator duyệt được)
+call POST /api/v1/auth/login '{"credentials":{"identifier":"demo-kiem-duyet","password":"Demo@12345","deviceId":"smoke-moderator"}}'
+MOD_ACCESS_TOKEN=$(json_str "$RESP_BODY" accessToken)
+
+call_auth PATCH "/api/v1/posts/${CREATED_ID}/moderation" "$MOD_ACCESS_TOKEN" '{"post":{"status":"PUBLISHED"}}'
 if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"status":"PUBLISHED"'; then
   pass "duyệt bài sang PUBLISHED"
 else

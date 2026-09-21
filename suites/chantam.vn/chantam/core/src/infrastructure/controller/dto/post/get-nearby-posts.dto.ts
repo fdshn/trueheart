@@ -1,4 +1,7 @@
-import { PublicDiscoveryPostTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  GiftRequestStatuses,
+  PublicDiscoveryPostTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   IGetNearbyPostsQueryDto,
   IGetNearbyPostsResponseDto,
@@ -72,6 +75,25 @@ export class NearbyPostDto implements INearbyPostDto {
 
   @ApiProperty({ example: true })
   isLocationApproximate: true;
+
+  @ApiPropertyOptional({
+    example: 3,
+    description: 'Số lượng yêu cầu đang hoạt động',
+  })
+  requestCount?: number;
+
+  @ApiPropertyOptional({
+    enum: GiftRequestStatuses,
+    nullable: true,
+    description: 'Trạng thái yêu cầu của người dùng hiện tại',
+  })
+  myRequestStatus?: GiftRequestStatuses | null;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Người dùng hiện tại đã gửi yêu cầu chưa',
+  })
+  hasRequested?: boolean;
 }
 
 export class GetNearbyPostsResponseDto implements IGetNearbyPostsResponseDto {

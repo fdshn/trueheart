@@ -5,6 +5,7 @@ import { CategoryControllerModule } from './category/category.module';
 import { DiscoveryControllerModule } from './discovery/discovery.module';
 import { EntitlementControllerModule } from './entitlement/entitlement.module';
 import { GiftPostControllerModule } from './gift-post/gift-post.module';
+import { GiftRequestApiModule } from './gift-request/gift-request-api.module';
 import { PointControllerModule } from './point/point.module';
 import { PostControllerModule } from './post/post.module';
 import { ProfileControllerModule } from './profile/profile.module';
@@ -21,6 +22,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
     DiscoveryControllerModule,
     EntitlementControllerModule,
     GiftPostControllerModule,
+    GiftRequestApiModule,
     PointControllerModule,
     PostControllerModule,
     ProfileControllerModule,

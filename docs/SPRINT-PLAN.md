@@ -96,7 +96,7 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 | 16 | Group & affiliate | Affiliate recurring, reward active member, idempotency/reversal | M5 | ⬜ |
 | 17 | Group & affiliate | Geo eligibility và audit mọi event | M5 | ⬜ |
 | 18 | Point & review | Point rule/ledger, review quality, giver accuracy | M4 | ⬜ Ledger là prerequisite |
-| 19 | Nội dung đặc thù | Charity/Event, Classified, ads, Merit | M2 extension | ⬜ |
+| 19 | Nội dung đặc thù & Phật Pháp | Charity/Event, Classified, ads, Merit, Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng dường, Diễn đàn, Chùa) | M2 extension + F73 | ⬜ |
 | 20 | Admin CMS | Rule config, moderation cơ bản | M6 | ⬜ |
 | 21 | QA | Integration/UAT Sprint 3 |  | ⬜ |
 

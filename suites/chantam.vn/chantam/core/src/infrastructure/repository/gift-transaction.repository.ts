@@ -168,6 +168,10 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         [transactionId],
       );
 
+      if (!updated) {
+        throw new GiftTransactionInvalidStateException(current.status);
+      }
+
       return toSummary(updated);
     });
   }
@@ -196,6 +200,10 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         `,
         [transactionId],
       );
+
+      if (!updated) {
+        throw new GiftTransactionInvalidStateException(current.status);
+      }
 
       return toSummary(updated);
     });
@@ -235,6 +243,10 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         `,
         [params.transactionId, params.status, params.reason],
       );
+
+      if (!updated) {
+        throw new GiftTransactionInvalidStateException(current.status);
+      }
 
       return toSummary(updated);
     });
