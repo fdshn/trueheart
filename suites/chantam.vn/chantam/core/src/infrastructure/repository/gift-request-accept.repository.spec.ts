@@ -30,6 +30,7 @@ function makeQuery(options: {
   return jest.fn(async (sql: string, _params?: unknown[]) => {
     const text = String(sql);
 
+    // Khoá TOÀN BỘ yêu cầu PENDING của bài, không chỉ hàng của mình.
     if (text.includes('FROM gift_requests') && text.includes('FOR UPDATE'))
       return [PendingRequest];
     if (text.includes('FROM gift_transactions') && text.includes('FOR UPDATE'))
@@ -87,6 +88,26 @@ describe('GiftRequestRepository.acceptRequest — thứ tự khoá', () => {
     const order = lockOrder(query);
 
     expect(order).toEqual(['gift_requests', 'gift_transactions', 'posts']);
+  });
+
+  it('khoá TOÀN BỘ yêu cầu PENDING của bài, không chỉ hàng của mình', async () => {
+    // Câu từ chối hàng loạt ở cuối hàm đụng vào các hàng KHÁC. Chỉ khoá hàng
+    // của mình thì hai người tặng bấm duyệt cùng lúc sẽ khoá chéo: A giữ reqA
+    // và posts rồi chờ reqB, còn B giữ reqB rồi chờ posts.
+    const query = makeQuery({});
+    await makeRepository(query).acceptRequest(Params);
+
+    const lockRequests = query.mock.calls.find(
+      ([sql]) =>
+        String(sql).includes('FROM gift_requests') &&
+        String(sql).includes('FOR UPDATE'),
+    );
+    const sql = String(lockRequests?.[0]);
+
+    expect(sql).toContain('post_id = $1');
+    expect(sql).not.toContain('global_id = $1');
+    // Thứ tự cố định là thứ khiến người thứ hai xếp hàng thay vì khoá chéo.
+    expect(sql).toMatch(/ORDER BY global_id/);
   });
 });
 

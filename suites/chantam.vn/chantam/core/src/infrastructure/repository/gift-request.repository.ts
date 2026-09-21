@@ -185,13 +185,17 @@ export class GiftRequestRepository
    *
    * THỨ TỰ KHOÁ là `gift_requests` → `gift_transactions` → `posts`, và phải
    * giữ nguyên. `GiftTransactionRepository` khoá `gift_transactions` rồi mới
-   * `UPDATE posts`; nếu ở đây khoá `posts` trước thì hai luồng duyệt chạy đồng
-   * thời trên cùng một bài tạo thành chờ vòng tròn, Postgres huỷ một bên với
-   * `40P01` và người dùng nhận 500 không rõ nguyên nhân.
+   * `UPDATE posts`; nếu ở đây khoá `posts` trước thì hai luồng duyệt khác nhau
+   * chạy đồng thời trên cùng một bài tạo thành chờ vòng tròn.
    *
-   * `gift_requests` đứng đầu vì chỉ luồng này chạm tới nó, nên nó nằm ngoài
-   * vòng phụ thuộc — và khoá nó trước mới biết được `requester_id` để tìm
-   * giao dịch đang mở.
+   * Quan trọng không kém: khoá TẤT CẢ yêu cầu PENDING của bài ngay từ đầu, theo
+   * `ORDER BY global_id`. Khoá mỗi hàng của chính mình là chưa đủ — cuối hàm có
+   * câu từ chối hàng loạt đụng vào các hàng KHÁC, nên hai người tặng bấm duyệt
+   * cùng lúc sẽ thành: A giữ reqA và `posts`, chờ reqB; B giữ reqB, chờ `posts`.
+   * Lấy trọn bộ theo một thứ tự cố định thì người thứ hai chỉ việc xếp hàng.
+   *
+   * Đã đo bằng `npm run test:concurrency`: chỉ khoá một hàng thì 24/25 vòng dính
+   * `40P01`.
    */
   public async acceptRequest(params: {
     requestId: string;
@@ -200,7 +204,7 @@ export class GiftRequestRepository
     transactionId: string;
   }): Promise<{ transactionId: string }> {
     return this.manager.transaction(async (manager) => {
-      const requestRows = await manager.query<
+      const pendingRows = await manager.query<
         {
           global_id: string;
           post_id: string;
@@ -208,19 +212,20 @@ export class GiftRequestRepository
           status: string;
         }[]
       >(
-        `SELECT global_id, post_id, requester_id, status FROM gift_requests WHERE global_id = $1 AND deleted_at IS NULL FOR UPDATE`,
-        [params.requestId],
+        `SELECT global_id, post_id, requester_id, status
+         FROM gift_requests
+         WHERE post_id = $1 AND status = $2 AND deleted_at IS NULL
+         ORDER BY global_id
+         FOR UPDATE`,
+        [params.postId, GiftRequestStatuses.PENDING],
       );
 
-      if (
-        !requestRows ||
-        requestRows.length === 0 ||
-        requestRows[0].post_id !== params.postId ||
-        requestRows[0].status !== GiftRequestStatuses.PENDING
-      ) {
+      const targetRequest = pendingRows?.find(
+        (row) => row.global_id === params.requestId,
+      );
+
+      if (!targetRequest)
         throw new GiftRequestNotFoundException(params.requestId);
-      }
-      const targetRequest = requestRows[0];
 
       // Luồng `/transactions` cũ có thể đã tạo sẵn một lượt cho đúng cặp
       // bài–người nhận này. Khoá nó TRƯỚC `posts`.
