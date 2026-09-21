@@ -24,6 +24,19 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
     giverId: string;
     transactionId: string;
   }): Promise<{ transactionId: string }>;
+
+  /**
+   * Rút yêu cầu bằng MỘT câu lệnh có điều kiện.
+   *
+   * Đọc rồi ghi sẽ đè mất một lượt duyệt vừa commit xen vào giữa: người dùng
+   * rút, người tặng duyệt, rồi câu ghi của bên rút đáp xuống và biến yêu cầu
+   * đã ACCEPTED thành WITHDRAWN — trong khi tồn kho đã trừ và giao dịch đã
+   * tạo. Trả về bản ghi sau khi rút, hoặc `null` nếu nó không còn PENDING.
+   */
+  withdrawIfPending(
+    postId: string,
+    requesterId: string,
+  ): Promise<IGiftRequestEntity | null>;
 }
 
 export const IGiftRequestRepository = Symbol('IGiftRequestRepository');

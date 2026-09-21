@@ -1,5 +1,6 @@
 import {
   GiftRequestNotFoundException,
+  GiftTransactionInvalidStateException,
   GiftTransactionOutOfStockException,
   PostInvalidStateException,
   PostNotFoundException,
@@ -41,6 +42,37 @@ export class GiftRequestRepository
         requesterId,
       } as never,
     });
+  }
+
+  /**
+   * Rút yêu cầu bằng MỘT câu có điều kiện `status = 'PENDING'`.
+   *
+   * Đọc-rồi-ghi ở đây đè mất một lượt duyệt vừa commit xen vào giữa: bên rút
+   * đọc thấy PENDING, bên duyệt commit (trừ tồn kho, tạo giao dịch), rồi câu
+   * ghi của bên rút đáp xuống và biến yêu cầu ACCEPTED thành WITHDRAWN. Để
+   * database tự quyết bằng mệnh đề WHERE thì cửa sổ đó biến mất.
+   */
+  public async withdrawIfPending(
+    postId: string,
+    requesterId: string,
+  ): Promise<IGiftRequestEntity | null> {
+    const rows = await this.manager.query<{ global_id: string }[]>(
+      `UPDATE gift_requests
+       SET status = $1, withdrawn_at = now(), updated_at = now()
+       WHERE post_id = $2 AND requester_id = $3
+         AND status = $4 AND deleted_at IS NULL
+       RETURNING global_id`,
+      [
+        GiftRequestStatuses.WITHDRAWN,
+        postId,
+        requesterId,
+        GiftRequestStatuses.PENDING,
+      ],
+    );
+
+    if (!rows || rows.length === 0) return null;
+
+    return this.findOne({ where: { globalId: rows[0].global_id } as never });
   }
 
   public async countActiveByPostIds(
@@ -125,6 +157,19 @@ export class GiftRequestRepository
     }));
   }
 
+  /**
+   * Duyệt một yêu cầu xin nhận.
+   *
+   * THỨ TỰ KHOÁ là `gift_requests` → `gift_transactions` → `posts`, và phải
+   * giữ nguyên. `GiftTransactionRepository` khoá `gift_transactions` rồi mới
+   * `UPDATE posts`; nếu ở đây khoá `posts` trước thì hai luồng duyệt chạy đồng
+   * thời trên cùng một bài tạo thành chờ vòng tròn, Postgres huỷ một bên với
+   * `40P01` và người dùng nhận 500 không rõ nguyên nhân.
+   *
+   * `gift_requests` đứng đầu vì chỉ luồng này chạm tới nó, nên nó nằm ngoài
+   * vòng phụ thuộc — và khoá nó trước mới biết được `requester_id` để tìm
+   * giao dịch đang mở.
+   */
   public async acceptRequest(params: {
     requestId: string;
     postId: string;
@@ -132,37 +177,6 @@ export class GiftRequestRepository
     transactionId: string;
   }): Promise<{ transactionId: string }> {
     return this.manager.transaction(async (manager) => {
-      const postRows = await manager.query<
-        {
-          global_id: string;
-          author_id: string;
-          status: string;
-          remaining_quantity: number;
-        }[]
-      >(
-        `SELECT global_id, author_id, status, remaining_quantity FROM posts WHERE global_id = $1 AND deleted_at IS NULL FOR UPDATE`,
-        [params.postId],
-      );
-
-      if (!postRows || postRows.length === 0) {
-        throw new PostNotFoundException(params.postId);
-      }
-      const post = postRows[0];
-
-      if (post.author_id !== params.giverId) {
-        throw new ForbiddenException(
-          'Chỉ người đăng bài mới có quyền duyệt người xin nhận',
-        );
-      }
-
-      if (post.status !== GiftPostStatuses.PUBLISHED) {
-        throw new PostInvalidStateException();
-      }
-
-      if (Number(post.remaining_quantity) < 1) {
-        throw new GiftTransactionOutOfStockException();
-      }
-
       const requestRows = await manager.query<
         {
           global_id: string;
@@ -185,22 +199,77 @@ export class GiftRequestRepository
       }
       const targetRequest = requestRows[0];
 
-      const newRemaining = Number(post.remaining_quantity) - 1;
+      // Luồng `/transactions` cũ có thể đã tạo sẵn một lượt cho đúng cặp
+      // bài–người nhận này. Khoá nó TRƯỚC `posts`.
+      const transactionRows = await manager.query<
+        { global_id: string; status: string; quantity: string }[]
+      >(
+        `SELECT global_id, status, quantity FROM gift_transactions
+         WHERE post_id = $1 AND receiver_id = $2
+           AND status IN ('REQUESTED', 'ACCEPTED', 'DELIVERING')
+         FOR UPDATE`,
+        [params.postId, targetRequest.requester_id],
+      );
+      const existingTransaction = transactionRows?.[0];
+
+      // Đã duyệt rồi thì tồn kho đã bị trừ ở luồng kia. Duyệt tiếp là trừ hai
+      // lần cho MỘT lượt bàn giao.
+      if (existingTransaction && existingTransaction.status !== 'REQUESTED')
+        throw new GiftTransactionInvalidStateException(
+          existingTransaction.status,
+        );
+
+      // Nhận nuôi lượt cũ thì phải trừ đúng số lượng của nó: `close()` hoàn lại
+      // theo `quantity` đã ghi, trừ 1 mà hoàn N là tồn kho tự nở ra.
+      const quantity = existingTransaction
+        ? Number(existingTransaction.quantity)
+        : 1;
+
+      const postRows = await manager.query<
+        {
+          global_id: string;
+          author_id: string;
+          status: string;
+          remaining_quantity: number;
+        }[]
+      >(
+        `SELECT global_id, author_id, status, remaining_quantity FROM posts WHERE global_id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [params.postId],
+      );
+
+      if (!postRows || postRows.length === 0) {
+        throw new PostNotFoundException(params.postId);
+      }
+      const post = postRows[0];
+
+      if (post.author_id !== params.giverId) {
+        throw new ForbiddenException();
+      }
+
+      if (post.status !== GiftPostStatuses.PUBLISHED) {
+        throw new PostInvalidStateException();
+      }
+
+      if (Number(post.remaining_quantity) < quantity) {
+        throw new GiftTransactionOutOfStockException();
+      }
+
+      const newRemaining = Number(post.remaining_quantity) - quantity;
       const newPostStatus = newRemaining === 0 ? 'DELIVERING' : 'PUBLISHED';
 
       await manager.query(
-        `UPDATE posts SET remaining_quantity = $1, status = $2 WHERE global_id = $3`,
+        `UPDATE posts SET remaining_quantity = $1, status = $2, updated_at = now() WHERE global_id = $3`,
         [newRemaining, newPostStatus, params.postId],
       );
 
       await manager.query(
-        `UPDATE gift_requests SET status = $1 WHERE global_id = $2`,
+        `UPDATE gift_requests SET status = $1, updated_at = now() WHERE global_id = $2`,
         [GiftRequestStatuses.ACCEPTED, params.requestId],
       );
 
       if (newRemaining === 0) {
         await manager.query(
-          `UPDATE gift_requests SET status = $1 WHERE post_id = $2 AND global_id != $3 AND status = $4`,
+          `UPDATE gift_requests SET status = $1, updated_at = now() WHERE post_id = $2 AND global_id != $3 AND status = $4`,
           [
             GiftRequestStatuses.REJECTED,
             params.postId,
@@ -210,31 +279,26 @@ export class GiftRequestRepository
         );
       }
 
-      let finalTransactionId = params.transactionId;
-      const existingTx = await manager.query<{ global_id: string }[]>(
-        `SELECT global_id FROM gift_transactions WHERE post_id = $1 AND receiver_id = $2 AND status IN ('REQUESTED', 'ACCEPTED', 'DELIVERING')`,
-        [params.postId, targetRequest.requester_id],
-      );
-
-      if (existingTx && existingTx.length > 0) {
-        finalTransactionId = existingTx[0].global_id;
+      if (existingTransaction) {
         await manager.query(
           `UPDATE gift_transactions SET status = 'ACCEPTED', accepted_at = now() WHERE global_id = $1`,
-          [finalTransactionId],
+          [existingTransaction.global_id],
         );
-      } else {
-        await manager.query(
-          `INSERT INTO gift_transactions (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at) VALUES ($1, $2, $3, $4, 1, 'ACCEPTED', now())`,
-          [
-            finalTransactionId,
-            params.postId,
-            params.giverId,
-            targetRequest.requester_id,
-          ],
-        );
+        return { transactionId: existingTransaction.global_id };
       }
 
-      return { transactionId: finalTransactionId };
+      await manager.query(
+        `INSERT INTO gift_transactions (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at) VALUES ($1, $2, $3, $4, $5, 'ACCEPTED', now())`,
+        [
+          params.transactionId,
+          params.postId,
+          params.giverId,
+          targetRequest.requester_id,
+          quantity,
+        ],
+      );
+
+      return { transactionId: params.transactionId };
     });
   }
 }

@@ -16,9 +16,9 @@ function makeRequest(
     postId: PostId,
     requesterId: RequesterId,
     message: 'Em xin món này ạ',
-    status: GiftRequestStatuses.PENDING,
+    status: GiftRequestStatuses.WITHDRAWN,
     queueJoinedAt: new Date(),
-    withdrawnAt: null,
+    withdrawnAt: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -26,50 +26,55 @@ function makeRequest(
   };
 }
 
+function makeRepository(withdrawn: IGiftRequestEntity | null) {
+  return {
+    withdrawIfPending: jest.fn(
+      async (_postId: string, _requesterId: string) => withdrawn,
+    ),
+    findByPostAndRequester: jest.fn(),
+    save: jest.fn(),
+  } as unknown as jest.Mocked<IGiftRequestRepository>;
+}
+
 describe('WithdrawGiftRequestUseCase', () => {
-  it('rút yêu cầu thành công khi request đang ở trạng thái PENDING', async () => {
-    const existing = makeRequest();
+  it('rút được yêu cầu đang PENDING', async () => {
+    const repository = makeRepository(makeRequest());
 
-    const giftRequestRepo = {
-      findByPostAndRequester: jest.fn().mockResolvedValue(existing),
-      save: jest.fn().mockResolvedValue(existing),
-    } as unknown as jest.Mocked<IGiftRequestRepository>;
-
-    const useCase = new WithdrawGiftRequestUseCase(giftRequestRepo);
-    const result = await useCase.handle({
+    const result = await new WithdrawGiftRequestUseCase(repository).handle({
       postId: PostId,
       requesterId: RequesterId,
     });
 
-    expect(existing.status).toBe(GiftRequestStatuses.WITHDRAWN);
-    expect(existing.withdrawnAt).toBeInstanceOf(Date);
-    expect(giftRequestRepo.save).toHaveBeenCalledWith(existing);
+    expect(repository.withdrawIfPending).toHaveBeenCalledWith(
+      PostId,
+      RequesterId,
+    );
     expect(result.request.status).toBe(GiftRequestStatuses.WITHDRAWN);
   });
 
-  it('ném GiftRequestNotFoundException nếu không tìm thấy yêu cầu', async () => {
-    const giftRequestRepo = {
-      findByPostAndRequester: jest.fn().mockResolvedValue(null),
-    } as unknown as jest.Mocked<IGiftRequestRepository>;
+  it('để DATABASE quyết, không đọc rồi ghi', async () => {
+    // Đọc-rồi-ghi mở ra một cửa sổ: bên rút đọc thấy PENDING, bên duyệt commit
+    // (trừ tồn kho, tạo giao dịch), rồi câu ghi của bên rút đáp xuống và biến
+    // yêu cầu ACCEPTED thành WITHDRAWN — để lại một giao dịch đang sống gắn
+    // với yêu cầu mà hệ thống nói đã rút.
+    const repository = makeRepository(makeRequest());
 
-    const useCase = new WithdrawGiftRequestUseCase(giftRequestRepo);
-    await expect(
-      useCase.handle({
-        postId: PostId,
-        requesterId: RequesterId,
-      }),
-    ).rejects.toBeInstanceOf(GiftRequestNotFoundException);
+    await new WithdrawGiftRequestUseCase(repository).handle({
+      postId: PostId,
+      requesterId: RequesterId,
+    });
+
+    expect(repository.findByPostAndRequester).not.toHaveBeenCalled();
+    expect(repository.save).not.toHaveBeenCalled();
   });
 
-  it('ném GiftRequestNotFoundException nếu request không phải PENDING', async () => {
-    const existing = makeRequest({ status: GiftRequestStatuses.ACCEPTED });
-    const giftRequestRepo = {
-      findByPostAndRequester: jest.fn().mockResolvedValue(existing),
-    } as unknown as jest.Mocked<IGiftRequestRepository>;
+  it('không rút được thì báo không tìm thấy', async () => {
+    // `null` gộp cả hai trường hợp: yêu cầu không tồn tại, và yêu cầu không
+    // còn PENDING. Cả hai đều do mệnh đề WHERE của câu UPDATE quyết định.
+    const repository = makeRepository(null);
 
-    const useCase = new WithdrawGiftRequestUseCase(giftRequestRepo);
     await expect(
-      useCase.handle({
+      new WithdrawGiftRequestUseCase(repository).handle({
         postId: PostId,
         requesterId: RequesterId,
       }),
