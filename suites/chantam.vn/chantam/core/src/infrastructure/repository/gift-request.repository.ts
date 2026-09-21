@@ -56,7 +56,13 @@ export class GiftRequestRepository
     postId: string,
     requesterId: string,
   ): Promise<IGiftRequestEntity | null> {
-    const rows = await this.manager.query<{ global_id: string }[]>(
+    // `query()` của TypeORM bọc kết quả UPDATE thành `[rows, affected]` chứ
+    // KHÔNG phải `rows` (INSERT và SELECT thì không bọc). Đọc thẳng `.length`
+    // hay `[0].cột` ở đây từng cho ra: `length` luôn bằng 2 nên nhánh "không
+    // còn PENDING" không bao giờ chạy, và `rows[0].global_id` là `undefined`
+    // nên `findOne` bỏ qua điều kiện và trả về một yêu cầu BẤT KỲ — tức là
+    // yêu cầu của người khác.
+    const [rows] = (await this.manager.query(
       `UPDATE gift_requests
        SET status = $1, withdrawn_at = now(), updated_at = now()
        WHERE post_id = $2 AND requester_id = $3
@@ -68,7 +74,7 @@ export class GiftRequestRepository
         requesterId,
         GiftRequestStatuses.PENDING,
       ],
-    );
+    )) as [{ global_id: string }[], number];
 
     if (!rows || rows.length === 0) return null;
 

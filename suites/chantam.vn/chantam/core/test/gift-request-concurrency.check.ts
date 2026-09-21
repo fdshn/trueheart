@@ -301,6 +301,48 @@ async function main(): Promise<void> {
       deadlocks === 0,
       `${deadlocks} lần gặp 40P01`,
     );
+
+    // ── 3. Giá trị TRẢ VỀ của rút yêu cầu ───────────────────────────────────
+    // Không phải chuyện đồng thời, nhưng chỉ database thật mới lộ ra: `query()`
+    // bọc kết quả UPDATE thành `[rows, affected]`. Đọc sai hình dạng đó từng
+    // khiến hàm trả về yêu cầu của NGƯỜI KHÁC, vì `findOne` nhận `undefined`
+    // rồi bỏ qua luôn điều kiện lọc.
+    console.log('\nGiá trị trả về của rút yêu cầu:\n');
+
+    await seedRound(dataSource, 900, 1, 2);
+
+    const withdrawn = await giftRequests.withdrawIfPending(
+      PostId,
+      requesterId(0),
+    );
+    check(
+      'rút yêu cầu trả về ĐÚNG yêu cầu của người gọi',
+      withdrawn?.requesterId === requesterId(0),
+      `trả về của ${withdrawn?.requesterId ?? 'null'}`,
+    );
+    check(
+      'yêu cầu trả về mang trạng thái WITHDRAWN',
+      withdrawn?.status === 'WITHDRAWN',
+      String(withdrawn?.status),
+    );
+    check(
+      'yêu cầu của người khác không bị đụng tới',
+      (await countBy(
+        dataSource,
+        `SELECT COUNT(*) AS count FROM gift_requests
+         WHERE post_id = $1 AND status = 'PENDING'`,
+      )) === 1,
+    );
+
+    const withdrawnAgain = await giftRequests.withdrawIfPending(
+      PostId,
+      requesterId(0),
+    );
+    check(
+      'rút lần hai trả về null, không phải một yêu cầu bất kỳ',
+      withdrawnAgain === null,
+      withdrawnAgain === null ? '' : 'trả về một bản ghi',
+    );
   } finally {
     await dataSource.destroy();
     const cleanup = new DataSource({ type: 'postgres', url: adminUri });
