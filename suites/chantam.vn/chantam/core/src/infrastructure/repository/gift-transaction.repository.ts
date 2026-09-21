@@ -15,6 +15,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { updateReturning } from './update-returning';
 
 interface ITransactionRow {
   global_id: string;
@@ -143,7 +144,8 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
       // Trừ tồn kho NGUYÊN TỬ. Đọc remaining rồi mới ghi thì hai người duyệt
       // cùng lúc sẽ phát vượt số lượng thật — README của repo cảnh báo đúng chỗ
       // này.
-      const decremented = await manager.query<{ global_id: string }[]>(
+      const decremented = await updateReturning<{ global_id: string }>(
+        manager,
         `
           UPDATE posts
           SET remaining_quantity = remaining_quantity - $2
@@ -155,10 +157,13 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         [current.post_id, Number(current.quantity)],
       );
 
+      // Mệnh đề `remaining_quantity >= $2` là thứ duy nhất chặn phát vượt kho,
+      // nên đọc đúng số dòng nó khớp mới biết được là hết hàng.
       if (decremented.length === 0)
         throw new GiftTransactionOutOfStockException();
 
-      const [updated] = await manager.query<ITransactionRow[]>(
+      const [updated] = await updateReturning<ITransactionRow>(
+        manager,
         `
           UPDATE gift_transactions
           SET status = 'ACCEPTED', accepted_at = now()
@@ -190,7 +195,8 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
 
       // `completed_at` là mốc mà bộ đếm hoạt động của rank đọc. Thiếu nó thì
       // lượt tặng này vô hình với rank.
-      const [updated] = await manager.query<ITransactionRow[]>(
+      const [updated] = await updateReturning<ITransactionRow>(
+        manager,
         `
           UPDATE gift_transactions
           SET status = 'COMPLETED', completed_at = now()
@@ -234,7 +240,8 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
           [current.post_id, Number(current.quantity)],
         );
 
-      const [updated] = await manager.query<ITransactionRow[]>(
+      const [updated] = await updateReturning<ITransactionRow>(
+        manager,
         `
           UPDATE gift_transactions
           SET status = $2, closed_at = now(), close_reason = $3

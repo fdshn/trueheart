@@ -6,6 +6,7 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { updateReturning } from './update-returning';
 
 @Injectable()
 export class ReferralRepository implements IReferralRepository {
@@ -81,7 +82,11 @@ export class ReferralRepository implements IReferralRepository {
         source: 'REFERRAL',
       });
 
-      const [{ id }] = await manager.query<{ id: string }[]>(
+      // `AND qualified_at IS NULL` cho phép gọi lại mà không thưởng hai lần.
+      // Đọc đúng số dòng khớp mới phân biệt được "vừa đủ điều kiện" với "đã
+      // đủ điều kiện từ trước" — trả nhầm là bộ đếm giới thiệu sai theo.
+      const qualified = await updateReturning<{ id: string }>(
+        manager,
         `
           UPDATE referrals
           SET qualified_at = now(), reward_entry_id = $2
@@ -91,7 +96,7 @@ export class ReferralRepository implements IReferralRepository {
         `,
         [params.refereeId, award.entryId],
       );
-      if (!id) return { qualified: false };
+      if (qualified.length === 0) return { qualified: false };
 
       return { qualified: true, referrerId: referral.referrer_id };
     });

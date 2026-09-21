@@ -17,6 +17,7 @@ import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager, EntitySchema, In, Repository } from 'typeorm';
+import { updateReturning } from './update-returning';
 
 @Injectable()
 export class GiftRequestRepository
@@ -56,13 +57,13 @@ export class GiftRequestRepository
     postId: string,
     requesterId: string,
   ): Promise<IGiftRequestEntity | null> {
-    // `query()` của TypeORM bọc kết quả UPDATE thành `[rows, affected]` chứ
-    // KHÔNG phải `rows` (INSERT và SELECT thì không bọc). Đọc thẳng `.length`
-    // hay `[0].cột` ở đây từng cho ra: `length` luôn bằng 2 nên nhánh "không
-    // còn PENDING" không bao giờ chạy, và `rows[0].global_id` là `undefined`
-    // nên `findOne` bỏ qua điều kiện và trả về một yêu cầu BẤT KỲ — tức là
-    // yêu cầu của người khác.
-    const [rows] = (await this.manager.query(
+    // Phải đi qua `updateReturning`: `query()` bọc kết quả UPDATE thành
+    // `[rows, affected]`. Đọc thẳng `.length` hay `[0].cột` ở đây từng cho ra
+    // `length` luôn bằng 2 nên nhánh "không còn PENDING" không bao giờ chạy,
+    // và `rows[0].global_id` là `undefined` nên `findOne` bỏ qua điều kiện rồi
+    // trả về một yêu cầu BẤT KỲ — tức là yêu cầu của người khác.
+    const rows = await updateReturning<{ global_id: string }>(
+      this.manager,
       `UPDATE gift_requests
        SET status = $1, withdrawn_at = now(), updated_at = now()
        WHERE post_id = $2 AND requester_id = $3
@@ -74,9 +75,9 @@ export class GiftRequestRepository
         requesterId,
         GiftRequestStatuses.PENDING,
       ],
-    )) as [{ global_id: string }[], number];
+    );
 
-    if (!rows || rows.length === 0) return null;
+    if (rows.length === 0) return null;
 
     return this.findOne({ where: { globalId: rows[0].global_id } as never });
   }

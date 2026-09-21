@@ -11,6 +11,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { updateReturning } from './update-returning';
 
 interface IConfigRow {
   id: string;
@@ -221,7 +222,8 @@ export class AdminConfigRepository implements IAdminConfigRepository {
       )
         throw new LastSuperAdminException();
 
-      const revoked = await manager.query<{ user_id: string }[]>(
+      const revoked = await updateReturning<{ user_id: string }>(
+        manager,
         `
           DELETE FROM admin_user_roles
           USING admin_roles role

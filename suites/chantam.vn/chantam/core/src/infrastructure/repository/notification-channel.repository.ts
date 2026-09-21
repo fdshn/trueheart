@@ -8,6 +8,7 @@ import { ISecretCipher } from '@/domain/ports/security';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { updateReturning } from './update-returning';
 
 interface IChannelRow {
   channel: NotificationChannelCodes;
@@ -141,7 +142,8 @@ export class NotificationChannelRepository implements INotificationChannelReposi
       assignments.push(`"updated_by" = $${params.length}`);
       assignments.push(`"updated_at" = now()`);
 
-      const [updated] = await manager.query<IChannelRow[]>(
+      const [updated] = await updateReturning<IChannelRow>(
+        manager,
         `
           UPDATE notification_channels
           SET ${assignments.join(', ')}

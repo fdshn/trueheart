@@ -188,6 +188,30 @@ trên bài đã chết.
 
 Kiểm chứng trên database thật: `npm run test:lifecycle`.
 
+## Bẫy: `UPDATE ... RETURNING` bị bọc
+
+`query()` của TypeORM trả về hai hình dạng khác nhau tuỳ loại câu lệnh:
+
+| Câu lệnh | Trả về |
+| --- | --- |
+| `UPDATE ... RETURNING` | `[rows, affectedCount]` |
+| `DELETE ... RETURNING` | `[rows, affectedCount]` |
+| `INSERT ... RETURNING` | `rows` |
+| `SELECT` | `rows` |
+
+Hai câu nằm cạnh nhau cho hai hình dạng khác nhau, nên chỗ sai trông y hệt chỗ
+đúng. Và nó hỏng **im lặng**: `rows.length === 0` không bao giờ đúng vì độ dài
+luôn là 2; `rows[0].cot` ra `undefined`; rồi `findOne({ where: { id: undefined } })`
+không ném lỗi mà **bỏ qua điều kiện lọc** và trả về hàng đầu bảng — bản ghi của
+người dùng khác.
+
+Dùng `updateReturning()` trong `infrastructure/repository/` cho mọi
+`UPDATE`/`DELETE ... RETURNING`. `INSERT` gọi `manager.query` như thường.
+`update-returning-guard.spec.ts` quét toàn bộ repository và fail nếu mẫu cũ
+quay lại.
+
+Kiểm trên database thật: `npm run test:returning`.
+
 ## Cấu trúc
 
 ```

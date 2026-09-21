@@ -151,6 +151,14 @@ jobs:
         working-directory: suites/chantam.vn/chantam/core
         run: npm run migration:backfill-check
 
+      - name: Kiểm hợp đồng UPDATE ... RETURNING
+        # `query()` bọc kết quả UPDATE/DELETE thành [rows, affected] nhưng
+        # INSERT/SELECT thì không. Unit test mock `query` nên xanh cả khi đọc
+        # sai — 463 test từng xanh trong lúc duyệt giao dịch không phát hiện
+        # hết hàng và ghi nhận giới thiệu luôn báo chưa đủ điều kiện.
+        working-directory: suites/chantam.vn/chantam/core
+        run: npm run test:returning
+
       - name: Kiểm chứng vòng đời bài đăng trên database thật
         # Unit test của hai use case vòng đời mock cả repository, nên không câu
         # SQL nào được chạy. Bước này bắt được đúng loại lỗi mà chúng bỏ sót:

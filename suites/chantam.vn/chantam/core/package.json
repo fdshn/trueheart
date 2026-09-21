@@ -20,6 +20,7 @@
     "migration:revert": "npm run typeorm -- migration:revert",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:backfill-check": "ts-node -r tsconfig-paths/register test/posts-backfill.check.ts",
+    "test:returning": "ts-node -r tsconfig-paths/register test/returning-contract.check.ts",
     "test:lifecycle": "ts-node -r tsconfig-paths/register test/post-lifecycle.check.ts",
     "test:concurrency": "ts-node -r tsconfig-paths/register test/gift-request-concurrency.check.ts",
     "migration:show": "npm run typeorm -- migration:show",

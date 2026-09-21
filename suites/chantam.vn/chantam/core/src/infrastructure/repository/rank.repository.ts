@@ -14,6 +14,7 @@ import { RankOrder, UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { updateReturning } from './update-returning';
 
 interface IRawRankSummaryRow {
   rank: UserRanks;
@@ -142,7 +143,12 @@ export class RankRepository implements IRankRepository {
       if (RankOrder.indexOf(evaluation.rank) <= RankOrder.indexOf(user.rank))
         return false;
 
-      const promoted = await manager.query<{ global_id: string }[]>(
+      // `AND rank = $3` là một phép so-rồi-đổi: nếu ai đó vừa đổi hạng xen
+      // vào giữa thì câu này không khớp dòng nào và KHÔNG được ghi
+      // `rank_transitions`, nếu không lịch sử hạng sẽ có bản ghi cho một lần
+      // thăng hạng chưa từng xảy ra.
+      const promoted = await updateReturning<{ global_id: string }>(
+        manager,
         `
           UPDATE users
           SET rank = $2, rank_attained_at = now()
@@ -335,7 +341,12 @@ export class RankRepository implements IRankRepository {
       if (!user) throw new UserNotFoundException();
       if (user.rank !== UserRanks.VIEWER) return false;
 
-      const promoted = await manager.query<{ global_id: string }[]>(
+      // `AND rank = $3` là một phép so-rồi-đổi: nếu ai đó vừa đổi hạng xen
+      // vào giữa thì câu này không khớp dòng nào và KHÔNG được ghi
+      // `rank_transitions`, nếu không lịch sử hạng sẽ có bản ghi cho một lần
+      // thăng hạng chưa từng xảy ra.
+      const promoted = await updateReturning<{ global_id: string }>(
+        manager,
         `
           UPDATE users
           SET rank = $2, rank_attained_at = now()

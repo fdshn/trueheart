@@ -10,6 +10,7 @@ import { UserRanks, UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { updateReturning } from './update-returning';
 
 interface IUserRow {
   global_id: string;
@@ -169,7 +170,8 @@ export class AdminUserRepository implements IAdminUserRepository {
     return this.manager.transaction(async (manager) => {
       // Chỉ đụng trạng thái. Hạng đi qua rank writer, điểm đi qua ledger —
       // sửa thẳng ở đây là phá đường kiểm toán của cả hai.
-      const [updated] = await manager.query<IUserRow[]>(
+      const updated = await updateReturning<IUserRow>(
+        manager,
         `
           UPDATE users
           SET status = $2, suspended_until = $3, updated_at = now()
@@ -179,7 +181,11 @@ export class AdminUserRepository implements IAdminUserRepository {
         [change.targetUserId, change.status, change.suspendedUntil],
       );
 
-      if (!updated) return this.requireUser(manager, change.targetUserId);
+      // Không khớp dòng nào thì KHÔNG ghi audit: một bản ghi "đã đổi trạng
+      // thái" cho lần đổi chưa từng xảy ra làm hỏng chính thứ mà audit dùng để
+      // trả lời — ai đã làm gì.
+      if (updated.length === 0)
+        return this.requireUser(manager, change.targetUserId);
 
       await this.writeAudit(manager, 'CHANGE_STATUS', {
         actorUserId: change.actorUserId,
@@ -201,7 +207,8 @@ export class AdminUserRepository implements IAdminUserRepository {
     return this.manager.transaction(async (manager) => {
       // Ẩn danh dữ liệu cá nhân nhưng GIỮ username: thả tên ra là người khác
       // đăng ký lại đúng tên đó để mạo danh.
-      const [deleted] = await manager.query<IUserRow[]>(
+      const deleted = await updateReturning<IUserRow>(
+        manager,
         `
           UPDATE users
           SET deleted_at = now(),
@@ -219,7 +226,10 @@ export class AdminUserRepository implements IAdminUserRepository {
         [deletion.targetUserId],
       );
 
-      if (deleted)
+      // Chỉ ghi audit khi thực sự có dòng bị xoá mềm. Gọi lại trên tài khoản
+      // đã xoá sẽ không khớp dòng nào, và một bản ghi DELETE_USER thứ hai làm
+      // audit kể sai số lần.
+      if (deleted.length > 0)
         await this.writeAudit(manager, 'DELETE_USER', {
           actorUserId: deletion.actorUserId,
           targetUserId: deletion.targetUserId,
