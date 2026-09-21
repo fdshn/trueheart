@@ -1,4 +1,5 @@
 export * from './admin-config.use-cases';
+export * from './admin-point-rule.use-cases';
 export * from './admin-rank-policy.use-cases';
 export * from './admin-role.use-cases';
 export * from './admin-user.use-cases';

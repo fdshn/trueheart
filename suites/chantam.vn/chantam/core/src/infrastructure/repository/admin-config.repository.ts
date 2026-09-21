@@ -4,9 +4,11 @@ import {
   IAdminAuditPage,
   IAdminAuditQuery,
   IAdminConfigRepository,
+  IAdminPointRule,
   IAdminRankTierPolicy,
   IAdminRoleAssignment,
   IAdminRoleSummary,
+  IPublishAdminPointRuleCommand,
   IPublishAdminRankPolicyCommand,
   IPublishSystemConfigCommand,
   ISystemConfigSummary,
@@ -47,6 +49,28 @@ function mapRankPolicy(row: IRankPolicyRow): IAdminRankTierPolicy {
     maintenanceGifts: Number(row.maintenance_gifts),
     maintenanceReferrals: Number(row.maintenance_referrals),
     version: Number(row.version),
+  };
+}
+
+interface IPointRuleRow {
+  code: string;
+  points: number;
+  is_enabled: boolean;
+  affects_lifetime: boolean;
+  daily_cap: number | null;
+  version: number;
+  updated_at: Date;
+}
+
+function mapPointRule(row: IPointRuleRow): IAdminPointRule {
+  return {
+    code: row.code,
+    points: Number(row.points),
+    enabled: row.is_enabled,
+    affectsLifetime: row.affects_lifetime,
+    dailyCap: row.daily_cap === null ? null : Number(row.daily_cap),
+    version: Number(row.version),
+    updatedAt: row.updated_at,
   };
 }
 
@@ -245,6 +269,57 @@ export class AdminConfigRepository implements IAdminConfigRepository {
         [
           command.actorUserId,
           JSON.stringify(before),
+          JSON.stringify(after),
+          command.changeReason,
+        ],
+      );
+      return after;
+    });
+  }
+
+  public async getPointRules(): Promise<IAdminPointRule[]> {
+    const rows = await this.manager.query<IPointRuleRow[]>(`
+      SELECT DISTINCT ON (code)
+        code, points, is_enabled, affects_lifetime, daily_cap, version, updated_at
+      FROM point_rules
+      ORDER BY code ASC, version DESC
+    `);
+    return rows.map(mapPointRule);
+  }
+
+  public async publishPointRule(
+    command: IPublishAdminPointRuleCommand,
+  ): Promise<IAdminPointRule> {
+    return this.manager.transaction(async (manager) => {
+      const [current] = await manager.query<IPointRuleRow[]>(
+        `SELECT code, points, is_enabled, affects_lifetime, daily_cap, version, updated_at
+         FROM point_rules WHERE code = $1 ORDER BY version DESC LIMIT 1 FOR UPDATE`,
+        [command.rule.code],
+      );
+      const [inserted] = await manager.query<IPointRuleRow[]>(
+        `INSERT INTO point_rules
+          (code, points, is_enabled, affects_lifetime, daily_cap, version, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING code, points, is_enabled, affects_lifetime, daily_cap, version, updated_at`,
+        [
+          command.rule.code,
+          command.rule.points,
+          command.rule.enabled,
+          command.rule.affectsLifetime,
+          command.rule.dailyCap,
+          Number(current.version) + 1,
+          command.actorUserId,
+        ],
+      );
+      const after = mapPointRule(inserted);
+      await manager.query(
+        `INSERT INTO admin_audit_logs
+          (actor_user_id, action, resource_type, resource_id, before_json, after_json, reason)
+         VALUES ($1, 'PUBLISH_POINT_RULE', 'POINT_RULE', $2, $3::jsonb, $4::jsonb, $5)`,
+        [
+          command.actorUserId,
+          command.rule.code,
+          JSON.stringify(mapPointRule(current)),
           JSON.stringify(after),
           command.changeReason,
         ],

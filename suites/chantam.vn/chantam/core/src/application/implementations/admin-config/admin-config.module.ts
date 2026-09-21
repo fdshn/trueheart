@@ -4,6 +4,7 @@ import {
   IDeleteAdminUserUseCase,
   IGetAdminAuditLogsUseCase,
   IGetAdminConfigsUseCase,
+  IGetAdminPointRulesUseCase,
   IGetAdminRankPolicyUseCase,
   IGetAdminUserUseCase,
   IGetCandidateSelectionUseCase,
@@ -14,6 +15,7 @@ import {
   IListAdminUsersUseCase,
   IPublishAdminConfigUseCase,
   ISetCandidateSelectionUseCase,
+  IPublishAdminPointRuleUseCase,
   IPublishAdminRankPolicyUseCase,
   IUpdateNotificationChannelUseCase,
 } from '@/application/contracts/admin-config';
@@ -23,6 +25,10 @@ import {
   GetAdminConfigsUseCase,
   PublishAdminConfigUseCase,
 } from './admin-config.use-cases';
+import {
+  GetAdminPointRulesUseCase,
+  PublishAdminPointRuleUseCase,
+} from './admin-point-rule.use-cases';
 import {
   GetAdminRankPolicyUseCase,
   PublishAdminRankPolicyUseCase,
@@ -73,6 +79,14 @@ import {
       provide: IPublishAdminRankPolicyUseCase,
       useClass: PublishAdminRankPolicyUseCase,
     },
+    {
+      provide: IGetAdminPointRulesUseCase,
+      useClass: GetAdminPointRulesUseCase,
+    },
+    {
+      provide: IPublishAdminPointRuleUseCase,
+      useClass: PublishAdminPointRuleUseCase,
+    },
     { provide: IGetSystemLogsUseCase, useClass: GetSystemLogsUseCase },
     {
       provide: IGetOwnAdminAccessUseCase,
@@ -104,6 +118,8 @@ import {
     IGetAdminAuditLogsUseCase,
     IGetAdminRankPolicyUseCase,
     IPublishAdminRankPolicyUseCase,
+    IGetAdminPointRulesUseCase,
+    IPublishAdminPointRuleUseCase,
     IGetSystemLogsUseCase,
     IGetOwnAdminAccessUseCase,
     IListAdminRolesUseCase,

@@ -73,6 +73,8 @@ buộc riêng tư, thứ tự kiểm tra — xem [`docs/API.md`](../../../../doc
 | `POST` | `/api/v1/admin/entitlements` | Publish bản chính sách mới; chỉ gửi ô cần đổi, hiệu lực ngay, cần `entitlement.write` + audit |
 | `GET` | `/api/v1/admin/ranks/policy` | Chính sách thăng hạng và chỉ tiêu duy trì hiện tại, cần `config.read` |
 | `POST` | `/api/v1/admin/ranks/policy` | Cập nhật nguyên tử điều kiện thăng hạng của đủ 5 bậc, cần `config.write` + audit |
+| `GET` | `/api/v1/admin/points/rules` | Point rule đang hiệu lực theo version mới nhất, cần `config.read` |
+| `POST` | `/api/v1/admin/points/rules` | Publish version mới cho một point rule, cần `config.write` + audit |
 | `GET` | `/api/v1/admin/roles` | Role và quyền kèm theo, cần `admin.manage` |
 | `GET` | `/api/v1/admin/me` | Role và permission hiện tại của phiên CMS, cần `admin.access` |
 | `POST\|DELETE` | `/api/v1/admin/users/:userId/roles` | Cấp/thu hồi role; không tự sửa mình, không thu hồi SUPER_ADMIN cuối cùng |

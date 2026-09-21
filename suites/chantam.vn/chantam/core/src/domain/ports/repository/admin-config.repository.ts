@@ -92,6 +92,22 @@ export interface IPublishAdminRankPolicyCommand {
   >;
 }
 
+export interface IAdminPointRule {
+  readonly code: string;
+  readonly points: number;
+  readonly enabled: boolean;
+  readonly affectsLifetime: boolean;
+  readonly dailyCap: number | null;
+  readonly version: number;
+  readonly updatedAt: Date;
+}
+
+export interface IPublishAdminPointRuleCommand {
+  readonly actorUserId: string;
+  readonly changeReason: string;
+  readonly rule: Omit<IAdminPointRule, 'version' | 'updatedAt'>;
+}
+
 export interface IAdminConfigRepository {
   hasPermission(userId: string, permission: string): Promise<boolean>;
   getAccess(userId: string): Promise<IAdminAccessSummary>;
@@ -128,6 +144,10 @@ export interface IAdminConfigRepository {
   publishRankPolicy(
     command: IPublishAdminRankPolicyCommand,
   ): Promise<IAdminRankTierPolicy[]>;
+  getPointRules(): Promise<IAdminPointRule[]>;
+  publishPointRule(
+    command: IPublishAdminPointRuleCommand,
+  ): Promise<IAdminPointRule>;
 }
 
 export const IAdminConfigRepository = Symbol('IAdminConfigRepository');
