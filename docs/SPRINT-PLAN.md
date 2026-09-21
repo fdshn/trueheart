@@ -77,8 +77,11 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 
 ### Thứ tự bắt buộc trong Sprint 2
 
-1. Hoàn thành M2.1: post media ownership, owner delete và legacy `/api/v1/gift-posts`
-   compatibility adapter đã xong; còn lại migration fixture/CI assertion.
+1. Hoàn thành M2.1: post media ownership, owner delete, legacy `/api/v1/gift-posts`
+   compatibility adapter và fixture kiểm bất biến backfill đã xong; còn lại **CI chạy
+   backfill với dữ liệu thật**. CI hiện dựng schema trên database trắng nên câu
+   `INSERT INTO posts ... FROM gift_posts` chèn 0 dòng — lần chạy thật đầu tiên sẽ là
+   lúc nâng cấp production.
 2. Hoàn thành M2 map/discovery + SOS theo roadmap; Smart Match rule-based đã xong.
 3. Chỉ mở transaction khi post lifecycle/public visibility đã ổn định.
 4. Chat không được tự tạo transaction state; chỉ phản ánh transaction lifecycle từ server.
