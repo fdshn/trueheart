@@ -7,8 +7,8 @@ cả 72 đều là P0.
 | --- | --- | ---: | --- |
 | M0 | Nền tảng monorepo + CI/CD | — | ✅ Xong |
 | [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | ✅ Xong (provider/ledger rollout deferred) |
-| [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 14 | 🟡 Nền canonical post đã có |
-| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 Vòng đời giao dịch xong; chat/thông báo chưa |
+| [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 14 | 🟡 8/14 — bản đồ xong; vòng đời/SOS/2 loại bài chưa |
+| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 6/10 — vòng đời giao dịch xong; chat/thông báo/hàng đợi chưa |
 | [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 7 | 🟡 Ledger/rank/referral xong; đánh giá & accuracy chưa |
 | [M5](#m5--group--affiliate) | Group, affiliate, chống gian lận | 10 | ⬜ 0/10 |
 | [M6](#m6--quản-trị--bàn-giao) | Admin CMS, kiểm duyệt, bàn giao | 18 | 🟡 RBAC/config/log/quản lý user đã có; giao diện CMS chưa |
@@ -61,21 +61,26 @@ và `scripts/smoke-test.sh` phủ được luồng này.
 
 **Package:** resource `post` trong `chantam.core`
 
-- [ ] F15 Đăng Muốn Tặng (+ quota theo Rank — dùng [MĐ-1](./ASSUMPTIONS.md#6-mặc-định-mềm))
-- [ ] F16 Đăng Muốn Nhận
-- [ ] F17 Smart Match + SOS (SOS từ Bạc — [MĐ-2](./ASSUMPTIONS.md#6-mặc-định-mềm))
-- [ ] F18 Từ thiện / Hoạt động
-- [ ] F19 Rao vặt giá rẻ *(tự chuyển thành Muốn Tặng sau 3 tháng — CHỐT-05)*
-- [ ] F20 Giới thiệu / Quảng cáo (chỉ Admin tạo)
-- [ ] F21 Công đức / Hồi hướng
+- [x] F15 Đăng Muốn Tặng (+ quota theo Rank — dùng [MĐ-1](./ASSUMPTIONS.md#6-mặc-định-mềm))
+- [x] F16 Đăng Muốn Nhận
+- [ ] F17 Smart Match + SOS — Smart Match rule-based đã có (`GET /posts/:postId/matches`);
+      ⛔ **SOS chưa có hiệu lực**: capability `POST_SOS` đã seed và admin bật/tắt được,
+      nhưng không code nào đọc nó lúc đăng bài
+- [x] F18 Từ thiện / Hoạt động — ⚠️ tạo được qua `CHARITY`, chưa có trường riêng theo loại
+- [ ] F19 Rao vặt giá rẻ — `CLASSIFIED` kèm `price`/`condition`/`negotiable` đã có;
+      ⛔ **chưa tự chuyển thành Muốn Tặng sau 3 tháng** (CHỐT-05)
+- [ ] F20 Giới thiệu / Quảng cáo (chỉ Admin tạo) — chưa có loại bài `PROMOTION`
+- [x] F21 Công đức / Hồi hướng — ⚠️ tạo được qua `MERIT`, chưa có trường riêng theo loại
 - [ ] F73 Phật Pháp – Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng/Công đức, Diễn đàn, Giới thiệu chùa)
-- [ ] F22 Vòng đời bài + gia hạn 1 lần (reset thêm 3 tháng — CHỐT-07)
+- [ ] F22 Vòng đời bài + gia hạn 1 lần (reset thêm 3 tháng — CHỐT-07) — cột `expires_at`
+      và `renewed_count` đã có; tiến trình hết hạn và endpoint gia hạn chưa
 - [ ] F23 Chuyển vật phẩm về điểm từ thiện
-- [ ] F25 Bản đồ toàn màn hình
-- [ ] F26 GPS + dự phòng Default Location
-- [ ] F27 Nạp theo khung nhìn *(đã có `applyBoundingBox()`)*
-- [ ] F28 Gom cụm marker + bộ lọc
-- [ ] F29 Thẻ xem nhanh + deep link
+- [x] F25 Bản đồ toàn màn hình — `GET /posts/map` trả marker đã làm nhiễu toạ độ
+- [ ] F26 GPS + dự phòng Default Location — chưa có đường lùi về vị trí mặc định khi
+      thiếu GPS
+- [x] F27 Nạp theo khung nhìn — `applyBoundingBox()`
+- [x] F28 Gom cụm marker + bộ lọc
+- [ ] F29 Thẻ xem nhanh + deep link — *deep link là phần của client*
 
 **Xong khi:** đăng đủ 5 loại bài + bài viết Dharma Hub, bài hiện trên bản đồ với toạ độ **đã làm nhiễu**, cron hết
 hạn 3 tháng chạy đúng.
@@ -89,11 +94,13 @@ resource `gift-post` làm mẫu.
 
 **Package:** resource `gift-request`, `transaction`, `chat` · Socket.io
 
-- [x] F30 Gửi yêu cầu xin nhận — unique một yêu cầu đang mở mỗi người/bài ở tầng DB
-- [ ] F31 Danh sách ứng viên + quyền chọn theo Rank
+- [x] F30 Gửi yêu cầu xin nhận — unique một yêu cầu đang mở mỗi người/bài ở tầng DB;
+      rút yêu cầu qua `POST /posts/:postId/requests/withdraw`
+- [x] F31 Danh sách ứng viên + quyền chọn theo Rank — `GET /posts/:postId/requests`
 - [x] F32 **Trừ tồn kho nguyên tử** — UPDATE có điều kiện, huỷ thì trả lại
 - [ ] F33 Hàng đợi dự phòng
-- [ ] F34 Chấp nhận giao dịch + mở chat (cùng một DB transaction)
+- [ ] F34 Chấp nhận giao dịch + mở chat — duyệt đã nguyên tử và khoá theo thứ tự cố
+      định; ⛔ phần **mở chat** chưa có vì chat chưa tồn tại
 - [ ] F35 Huỷ giao dịch + mở lại hàng đợi — huỷ đã trả tồn kho; hàng đợi chưa có
 - [x] F36 Xác nhận nhận + tự hoàn tất sau 5 ngày qua CLI `transaction:autocomplete`
 - [ ] F37 Chat text 1-1 theo giao dịch

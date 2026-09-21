@@ -22,10 +22,12 @@ Tổng effort nguồn: **60 man-days / 50 ngày / 4 sprint**.
 | Sprint 1 – hạ tầng, auth, profile, category, avatar storage | ✅ Đã có nền code | Point ledger đã xong. Còn deferred: nhà cung cấp SMS/Zalo và R2 staging/prod acceptance |
 | Sprint 1 – point, rank, referral (F12–F13) | ✅ Code hoàn chỉnh | Ledger, tier, promotion, maintenance cycle, referral bất biến và các endpoint chính chủ đều đã có |
 | Sprint 1 – canonical OFFER foundation | ✅ M2.1 đã xong | `posts` migration/backfill, Generic MVP create (OFFER/WANTED/CHARITY/CLASSIFIED/MERIT) kèm quota riêng từng loại, detail/map/moderation, owner update/delete, post-media ownership, legacy adapter `/api/v1/gift-posts`, và CI chạy backfill với dữ liệu thật |
-| M3 – giao dịch tặng/nhận | 🟡 Nền đã có | Vòng đời request→accept→complete, trừ tồn kho nguyên tử, tự hoàn tất 5 ngày qua CLI. Chat và Smart Match chưa có |
+| M3 – giao dịch tặng/nhận | ✅ Vòng đời xong | Request → chọn ứng viên → duyệt → xác nhận → hoàn tất, huỷ trả tồn kho, trừ tồn kho nguyên tử, tự hoàn tất 5 ngày qua CLI, và `npm run test:concurrency` kiểm 6 bất biến trên database thật. **Chat chưa có** |
 | M6 – Admin CMS nền | 🟡 Nền đã có | RBAC, system config động, cấu hình kênh gửi, nhật ký hệ thống và quản lý user đã có; giao diện CMS chưa có |
-| Sprint 2 – map discovery | 🟡 Đang làm | `GET /api/v1/posts/map` marker bbox, jitter và client-side clustering đã có local/commit chờ push |
-| Sprint 2–4 còn lại | ⬜ Chưa triển khai | Không đánh dấu xong khi chỉ có contract/mock |
+| Sprint 2 – map discovery | ✅ Đã có | `GET /api/v1/posts/map` marker bbox, jitter, clustering |
+| Sprint 2 – vòng đời bài đăng | 🟡 Đang làm | Cột `expires_at`/`renewed_count` đã có; cron hết hạn và endpoint gia hạn đang làm |
+| Sprint 2 – chat | ⬜ Chưa triển khai | Chưa có dòng code nào |
+| Sprint 3–4 | ⬜ Chưa triển khai | Không đánh dấu xong khi chỉ có contract/mock |
 
 ---
 
@@ -42,7 +44,7 @@ Có môi trường chạy được, account an toàn, profile đủ điều ki�
 | 3 | Xác thực & tài khoản | Password recovery, Admin Support fallback, account deletion | F05–F06 | 🟡 Logic có; provider/quy trình vận hành deferred |
 | 4 | Hồ sơ | Profile completion, xác minh SĐT, public profile, default location | F07–F11 | 🟡 Profile, thưởng SĐT qua ledger, public profile kèm điểm/share URL đã có; nhà cung cấp SMS/Zalo còn thiếu |
 | 5 | Rank & referral | Current balance, duy trì rank, referral cá nhân | F12–F13 | ✅ Ledger, tier, promotion, maintenance cycle và referral bất biến đã có |
-| 6 | Đăng tin & nội dung | Category + OFFER/WANTED + Media/Post Location | F14–F17, F24 | 🟡 Category (F14), đăng Muốn Tặng/Muốn Nhận kèm quota theo rank (F15/F16), location, post-media ownership (F24), legacy compatibility adapter và Smart Match rule-based (F17) đã có; còn phần đăng bài SOS |
+| 6 | Đăng tin & nội dung | Category + OFFER/WANTED + Media/Post Location | F14–F17, F24 | 🟡 Category (F14), đăng Muốn Tặng/Muốn Nhận kèm quota theo rank (F15/F16), location, post-media ownership (F24), legacy adapter và Smart Match rule-based (F17) đã có. **SOS chưa chạy được** — xem ghi chú dưới |
 | 7 | QA | Smoke/integration Sprint 1 |  | 🟡 Unit/build/smoke có, đã phủ point/rank/referral/entitlement/transaction; acceptance provider còn thiếu |
 
 ### Điều kiện kết thúc Sprint 1
@@ -50,6 +52,11 @@ Có môi trường chạy được, account an toàn, profile đủ điều ki�
 - Auth/profile/category/post nền qua unit/build/lint/format.
 - Canonical post không lộ toạ độ chính xác trên API public.
 - Không gọi Sprint 1 production-ready khi thiếu email/SMS provider, R2 acceptance, backup restore.
+
+> **SOS: cấu hình có, hiệu lực không.** Capability `POST_SOS` đã được seed vào bảng
+> entitlement và admin bật/tắt được qua `/admin/entitlements`, **nhưng không code nào đọc
+> nó khi đăng bài**. Nghĩa là bật SOS cho một rank không làm thay đổi bất cứ điều gì.
+> Đây là kiểu sai nguy hiểm hơn thiếu hẳn: nhìn vào CMS tưởng đã có.
 
 > **Lưu ý về F12.** Toàn bộ chính sách rank đã chạy được từ khi M3 cung cấp
 > nguồn "lượt tặng hoàn tất". Trước đó bộ đếm hoạt động luôn báo *không khả
@@ -68,12 +75,12 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 
 | # | Epic | Hạng mục | Mapping roadmap | Trạng thái |
 | ---: | --- | --- | --- | --- |
-| 8 | Đăng tin & nội dung | Smart Match, SOS, lifecycle OFFER, gia hạn, chuyển Admin | F15–F19, F23 | 🟡 OFFER moderation/quota đã có; Smart Match/SOS/renewal/transfer chưa có |
-| 9 | Quanh đây & bản đồ | Map discovery, GPS fallback, viewport, clustering, preview/deep-link | F25–F29 | 🟡 Map bbox marker có; GPS fallback/client preview/deep-link chưa có |
-| 10 | Giao dịch & FSM | Gift request, candidate selection, batch allocation, queue | M3 transaction | ⬜ |
-| 11 | Giao dịch & FSM | Accepted/cancel/receiver confirm/auto-complete 5 ngày | M3 transaction | ⬜ |
-| 12 | Chat | Chat text WSS, persistence, lifecycle read-only | M3 chat | ⬜ |
-| 13 | QA | Regression/UAT Sprint 2 |  | ⬜ |
+| 8 | Đăng tin & nội dung | Smart Match, SOS, lifecycle OFFER, gia hạn, chuyển Admin | F15–F19, F23 | 🟡 Smart Match (F17) ✅, moderation/quota ✅. **SOS chưa có hiệu lực**; vòng đời hết hạn + gia hạn đang làm; F23 chuyển về điểm từ thiện chưa có |
+| 9 | Quanh đây & bản đồ | Map discovery, GPS fallback, viewport, clustering, preview/deep-link | F25–F29 | 🟡 Map bbox, jitter, clustering, viewport ✅. GPS fallback về Default Location (F26) chưa có; deep-link là phần của client |
+| 10 | Giao dịch & FSM | Gift request, candidate selection, batch allocation, queue | M3 transaction | 🟡 Gửi yêu cầu, rút yêu cầu, danh sách ứng viên, duyệt, trừ tồn kho nguyên tử ✅. **Hàng đợi dự phòng (F33) chưa có** |
+| 11 | Giao dịch & FSM | Accepted/cancel/receiver confirm/auto-complete 5 ngày | M3 transaction | ✅ Đủ cả bốn, kèm CLI `transaction:autocomplete` |
+| 12 | Chat | Chat text WSS, persistence, lifecycle read-only | M3 chat | ⬜ Chưa có dòng nào |
+| 13 | QA | Regression/UAT Sprint 2 |  | 🟡 441 unit test xanh, thêm 2 script chạy database thật (`test:concurrency`, `migration:backfill-check`). UAT chưa chạy |
 
 ### Thứ tự bắt buộc trong Sprint 2
 
@@ -82,7 +89,12 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
    liệu thật (`npm run migration:backfill-check` — dựng database nháp, chạy migration
    hai pha, seed bài đăng cũ vào giữa).
 2. Hoàn thành M2 map/discovery + SOS theo roadmap; Smart Match rule-based đã xong.
-3. Chỉ mở transaction khi post lifecycle/public visibility đã ổn định.
+3. ~~Chỉ mở transaction khi post lifecycle/public visibility đã ổn định.~~
+   ⚠️ **Luật này đã bị vượt.** Giao dịch được xây xong trước khi vòng đời bài đăng có
+   hiệu lực: `expires_at` mới là một cột, chưa có tiến trình nào cho bài hết hạn và chưa
+   có endpoint gia hạn. Hậu quả đang chạy trong production: bài rao vặt **không** tự
+   chuyển thành Muốn Tặng sau 3 tháng (CHỐT-05), và bài quá hạn vẫn nhận yêu cầu xin nhận.
+   Đây là lý do vòng đời được ưu tiên làm trước chat, dù chat là khối việc lớn hơn.
 4. Chat không được tự tạo transaction state; chỉ phản ánh transaction lifecycle từ server.
 
 ---
