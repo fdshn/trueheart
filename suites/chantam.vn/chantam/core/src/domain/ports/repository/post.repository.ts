@@ -113,7 +113,10 @@ export interface IPostRepository extends Repository<IPostEntity> {
    * đó là toàn bộ lý do endpoint này tồn tại tách khỏi discovery.
    */
   findMyPosts(params: IFindMyPostsParams): Promise<IFindMyPostsResult>;
-  findPublicByGlobalId(globalId: string): Promise<IPostEntity | null>;
+  findPublicByGlobalId(
+    globalId: string,
+    currentUserId?: string,
+  ): Promise<IPostEntity | null>;
   countPublishedByAuthor(authorId: string): Promise<number>;
 }
 

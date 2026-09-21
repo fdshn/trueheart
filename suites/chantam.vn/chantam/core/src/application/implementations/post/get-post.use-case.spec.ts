@@ -2,6 +2,7 @@ import { IConfig } from '@/domain/ports/config';
 import {
   IPostMediaRepository,
   IPostRepository,
+  IUserRepository,
 } from '@/domain/ports/repository';
 import {
   GiftPostStatuses,
@@ -62,37 +63,55 @@ function makeConfig(): IConfig {
     web: { publicBaseUrl: '' },
     security: { secretEncryptionKey: '' },
     storage: {
-      endpoint: 'http://localhost:9000',
-      region: 'us-east-1',
-      bucket: 'chantam-test',
-      accessKeyId: 'test',
-      secretAccessKey: 'test-secret',
+      endpoint: '',
+      region: '',
+      bucket: '',
+      accessKeyId: '',
+      secretAccessKey: '',
       publicBaseUrl: 'http://localhost:9000/chantam-test',
     },
     geo: { jitterRadiusMeters: 300 },
   };
 }
 
+const makeUserRepo = () =>
+  ({
+    findOne: jest.fn().mockResolvedValue({
+      globalId: '22222222-2222-2222-2222-222222222222',
+      username: 'cu_si_minh_tue',
+      fullName: 'Cư sĩ Minh Tuệ',
+      avatarUrl: null,
+      rank: 'SILVER',
+    }),
+  }) as unknown as jest.Mocked<IUserRepository>;
+
 describe('GetPostUseCase', () => {
-  it('đọc qua public-scoped repository và làm nhiễu toạ độ', async () => {
+  it('áp dụng geo jitter cho toạ độ trả ra qua kênh public và trả kèm tác giả', async () => {
     const postRepository = {
       findPublicByGlobalId: jest.fn().mockResolvedValue(makePost()),
     } as unknown as jest.Mocked<IPostRepository>;
     const postMediaRepository = {
       listByPostId: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<IPostMediaRepository>;
+    const userRepository = makeUserRepo();
 
     const result = await new GetPostUseCase(
       postRepository,
       postMediaRepository,
+      userRepository,
       makeConfig(),
     ).handle({
       postId: PostId,
+      currentUserId: '99999999-9999-9999-9999-999999999999',
     });
 
-    expect(postRepository.findPublicByGlobalId).toHaveBeenCalledWith(PostId);
+    expect(postRepository.findPublicByGlobalId).toHaveBeenCalledWith(
+      PostId,
+      '99999999-9999-9999-9999-999999999999',
+    );
     expect(result.isLocationApproximate).toBe(true);
     expect(result.post.location).not.toEqual(ExactLocation);
+    expect(result.author?.fullName).toBe('Cư sĩ Minh Tuệ');
   });
 
   it('trả media đã xếp thứ tự với public URL', async () => {
@@ -117,10 +136,12 @@ describe('GetPostUseCase', () => {
         },
       ]),
     } as unknown as jest.Mocked<IPostMediaRepository>;
+    const userRepository = makeUserRepo();
 
     const result = await new GetPostUseCase(
       postRepository,
       postMediaRepository,
+      userRepository,
       makeConfig(),
     ).handle({ postId: PostId });
 
@@ -145,11 +166,13 @@ describe('GetPostUseCase', () => {
     const postMediaRepository = {
       listByPostId: jest.fn(),
     } as unknown as jest.Mocked<IPostMediaRepository>;
+    const userRepository = makeUserRepo();
 
     await expect(
       new GetPostUseCase(
         postRepository,
         postMediaRepository,
+        userRepository,
         makeConfig(),
       ).handle({
         postId: PostId,

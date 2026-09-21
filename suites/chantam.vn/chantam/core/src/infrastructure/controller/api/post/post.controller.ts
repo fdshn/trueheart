@@ -508,8 +508,12 @@ export class PostController {
   )
   public async getPost(
     @Param() params: GetPostParamsDto,
+    @CurrentUser() principal?: IAuthPrincipal,
   ): Promise<ResponseDto<IGetPostResponseDto>> {
-    const result = await this.getPostUseCase.handle(params);
+    const result = await this.getPostUseCase.handle({
+      ...params,
+      currentUserId: principal?.userId,
+    });
 
     return ResponseDto.create<IGetPostResponseDto>()
       .succeed()

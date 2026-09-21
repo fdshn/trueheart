@@ -4,7 +4,9 @@ import {
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IUseCase } from '@chantam/service.common-lib';
 
-export interface IGetPostCommand extends IGetPostParamsDto {}
+export interface IGetPostCommand extends IGetPostParamsDto {
+  currentUserId?: string;
+}
 
 export interface IGetPostResult extends IGetPostResponseDto {}
 

@@ -37,15 +37,25 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
     const { profile: profileUpdate } = command;
 
     if (profileUpdate.fullName !== undefined)
-      update.fullName = profileUpdate.fullName;
-    if (profileUpdate.avatarKey !== undefined)
-      update.avatarUrl = await this.storage.confirmAvatarUpload(
-        user.globalId,
-        profileUpdate.avatarKey,
-      );
+      update.fullName = profileUpdate.fullName
+        ? profileUpdate.fullName.trim()
+        : null;
+
+    if (profileUpdate.avatarKey !== undefined) {
+      update.avatarUrl = profileUpdate.avatarKey
+        ? await this.storage.confirmAvatarUpload(
+            user.globalId,
+            profileUpdate.avatarKey,
+          )
+        : null;
+    }
+
     if (profileUpdate.email !== undefined) {
-      const email = profileUpdate.email.trim().toLowerCase();
+      const email = profileUpdate.email
+        ? profileUpdate.email.trim().toLowerCase()
+        : null;
       if (
+        email &&
         email !== user.email &&
         (await this.userRepository.isEmailTaken(email, user.globalId))
       )
@@ -56,8 +66,9 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
       update.defaultLocation = profileUpdate.defaultLocation;
 
     if (profileUpdate.phone !== undefined) {
-      const phone = profileUpdate.phone.trim();
+      const phone = profileUpdate.phone ? profileUpdate.phone.trim() : null;
       if (
+        phone &&
         phone !== user.phone &&
         (await this.userRepository.isPhoneTaken(phone, user.globalId))
       )
@@ -65,7 +76,7 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
       update.phone = phone;
 
       // Đổi SĐT đồng nghĩa bằng chứng sở hữu SĐT cũ không còn giá trị.
-      if (profileUpdate.phone !== user.phone) update.phoneVerifiedAt = null;
+      if (phone !== user.phone) update.phoneVerifiedAt = null;
     }
 
     await this.userRepository.update({ globalId: command.userId }, update);

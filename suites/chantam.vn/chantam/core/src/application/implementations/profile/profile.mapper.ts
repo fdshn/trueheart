@@ -14,7 +14,7 @@ export function toOwnProfileDto(user: IUserEntity): IOwnProfileDto {
     defaultLocation: user.defaultLocation,
     rank: user.rank,
     status: user.status,
-    phoneVerified: user.phoneVerifiedAt !== null,
+    phoneVerified: Boolean(user.phoneVerifiedAt),
     profileComplete: isProfileComplete(user),
   };
 }

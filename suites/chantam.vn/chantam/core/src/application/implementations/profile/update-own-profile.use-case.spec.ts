@@ -202,4 +202,42 @@ describe('UpdateOwnProfileUseCase', () => {
       useCase.handle({ userId: UserId, profile: { fullName: 'Người Mới' } }),
     ).rejects.toThrow();
   });
+
+  it('gửi phone null thì xoá SĐT và huỷ verifiedAt nếu trước đó có SĐT', async () => {
+    const repository = makeRepository(makeUser({ phone: '0900000000' }));
+    const useCase = new UpdateOwnProfileUseCase(
+      repository as never,
+      makeStorage() as never,
+      makeEvidence() as never,
+    );
+
+    await useCase.handle({
+      userId: UserId,
+      profile: { phone: null },
+    });
+
+    expect(repository.update).toHaveBeenCalledWith(
+      { globalId: UserId },
+      { phone: null, phoneVerifiedAt: null },
+    );
+  });
+
+  it('gửi email null và avatarKey null thì gán null an toàn', async () => {
+    const repository = makeRepository();
+    const useCase = new UpdateOwnProfileUseCase(
+      repository as never,
+      makeStorage() as never,
+      makeEvidence() as never,
+    );
+
+    await useCase.handle({
+      userId: UserId,
+      profile: { email: null, avatarKey: null },
+    });
+
+    expect(repository.update).toHaveBeenCalledWith(
+      { globalId: UserId },
+      { email: null, avatarUrl: null },
+    );
+  });
 });
