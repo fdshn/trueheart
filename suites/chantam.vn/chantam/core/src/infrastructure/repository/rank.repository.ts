@@ -48,8 +48,6 @@ interface IRawOnboardingPromotionRow {
 interface IRawMaintenanceEvaluationRow {
   rank: UserRanks;
   balance_points: string | null;
-  maintenance_gifts: string;
-  maintenance_referrals: string;
   qualified_referrals: string;
   total_qualified_referrals: string;
 }
@@ -74,6 +72,9 @@ interface IRawDueMaintenanceCycle {
   rank: UserRanks;
   cycle_start: Date;
   cycle_end: Date;
+  required_gifts: string;
+  required_referrals: string;
+  policy_version: string;
 }
 
 @Injectable()
@@ -181,8 +182,10 @@ export class RankRepository implements IRankRepository {
         await manager.query(
           `
             INSERT INTO rank_maintenance_cycles
-              (user_id, rank, cycle_start, cycle_end)
-            VALUES ($1, $2, now(), now() + interval '3 months')
+              (user_id, rank, cycle_start, cycle_end, required_gifts, required_referrals, policy_version)
+            SELECT $1, $2, now(), now() + interval '3 months',
+                   maintenance_gifts, maintenance_referrals, version
+            FROM rank_tiers WHERE rank = $2
             ON CONFLICT DO NOTHING
           `,
           [userId, evaluation.rank],
@@ -197,7 +200,8 @@ export class RankRepository implements IRankRepository {
     return this.manager.transaction(async (manager) => {
       const cycles = await manager.query<IRawDueMaintenanceCycle[]>(
         `
-          SELECT id, user_id, rank, cycle_start, cycle_end
+          SELECT id, user_id, rank, cycle_start, cycle_end,
+                 required_gifts, required_referrals, policy_version
           FROM rank_maintenance_cycles
           WHERE status = 'OPEN'
             AND cycle_end <= now()
@@ -216,13 +220,10 @@ export class RankRepository implements IRankRepository {
             SELECT
               user_account.rank,
               balance.balance AS balance_points,
-              tier.maintenance_gifts,
-              tier.maintenance_referrals,
               qualified_referrals.qualified_referrals
               , total_referrals.total_qualified_referrals
             FROM users user_account
             LEFT JOIN user_point_balances balance ON balance.user_id = user_account.global_id
-            INNER JOIN rank_tiers tier ON tier.rank = $2
             CROSS JOIN LATERAL (
               SELECT COUNT(*)::text AS qualified_referrals
               FROM referrals referral
@@ -254,8 +255,8 @@ export class RankRepository implements IRankRepository {
         const referralsDone = Number(user.qualified_referrals);
         const maintenanceSatisfied =
           activity.available &&
-          giftsDone >= Number(user.maintenance_gifts) &&
-          referralsDone >= Number(user.maintenance_referrals);
+          giftsDone >= Number(cycle.required_gifts) &&
+          referralsDone >= Number(cycle.required_referrals);
         const lifetimeActivity =
           activity.available && !maintenanceSatisfied
             ? await this.giveActivityCounter!.countLifetimeCompletedGifts({
@@ -360,8 +361,10 @@ export class RankRepository implements IRankRepository {
           await manager.query(
             `
               INSERT INTO rank_maintenance_cycles
-                (user_id, rank, cycle_start, cycle_end)
-              VALUES ($1, $2, $3, $3 + interval '3 months')
+                (user_id, rank, cycle_start, cycle_end, required_gifts, required_referrals, policy_version)
+              SELECT $1, $2, $3, $3 + interval '3 months',
+                     maintenance_gifts, maintenance_referrals, version
+              FROM rank_tiers WHERE rank = $2
               ON CONFLICT DO NOTHING
             `,
             [cycle.user_id, evaluation.rank, cycle.cycle_end],

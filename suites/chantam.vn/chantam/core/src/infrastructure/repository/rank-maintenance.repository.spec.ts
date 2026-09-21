@@ -12,6 +12,9 @@ function dueCycle(overrides = {}) {
     rank: UserRanks.SILVER,
     cycle_start: CycleStart,
     cycle_end: CycleEnd,
+    required_gifts: '2',
+    required_referrals: '2',
+    policy_version: '1',
     ...overrides,
   };
 }
@@ -20,8 +23,6 @@ function lockedUser(overrides = {}) {
   return {
     rank: UserRanks.SILVER,
     balance_points: '700',
-    maintenance_gifts: '2',
-    maintenance_referrals: '2',
     qualified_referrals: '2',
     total_qualified_referrals: '2',
     ...overrides,
@@ -73,9 +74,10 @@ describe('RankRepository due maintenance evaluation', () => {
       rank: UserRanks.SILVER,
     });
     expect(query.mock.calls[3][1]).toEqual(['51', 0, 2, 'UNEVALUATED']);
-    expect(query.mock.calls[2][0]).toMatch(
-      /INNER JOIN rank_tiers tier ON tier\.rank = \$2/i,
+    expect(query.mock.calls[0][0]).toMatch(
+      /required_gifts, required_referrals, policy_version/i,
     );
+    expect(query.mock.calls[2][0]).not.toMatch(/JOIN rank_tiers/i);
     expect(query.mock.calls[2][0]).toMatch(
       /referral\.qualified_at >= \$3[\s\S]*referral\.qualified_at < \$4/i,
     );

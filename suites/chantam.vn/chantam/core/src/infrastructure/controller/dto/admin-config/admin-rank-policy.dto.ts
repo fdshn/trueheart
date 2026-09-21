@@ -1,8 +1,12 @@
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  IAdminMaintenanceTierInputDto,
   IAdminRankTierPolicyDto,
   IAdminRankTierPolicyInputDto,
   IGetAdminRankPolicyResponseDto,
+  IPublishAdminMaintenancePolicyBodyDto,
+  IPublishAdminMaintenancePolicyDto,
+  IPublishAdminMaintenancePolicyResponseDto,
   IPublishAdminRankPolicyBodyDto,
   IPublishAdminRankPolicyDto,
   IPublishAdminRankPolicyResponseDto,
@@ -107,3 +111,47 @@ export class GetAdminRankPolicyResponseDto implements IGetAdminRankPolicyRespons
 export class PublishAdminRankPolicyResponseDto
   extends GetAdminRankPolicyResponseDto
   implements IPublishAdminRankPolicyResponseDto {}
+
+export class AdminMaintenanceTierInputDto implements IAdminMaintenanceTierInputDto {
+  @ApiProperty({ enum: UserRanks })
+  @IsEnum(UserRanks)
+  rank: UserRanks;
+
+  @ApiProperty({ example: 2 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maintenanceGifts: number;
+
+  @ApiProperty({ example: 2 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maintenanceReferrals: number;
+}
+
+export class PublishAdminMaintenancePolicyDto implements IPublishAdminMaintenancePolicyDto {
+  @ApiProperty({ example: 'Điều chỉnh chỉ tiêu duy trì quý IV' })
+  @IsString()
+  @Length(1, 500)
+  changeReason: string;
+
+  @ApiProperty({ type: () => [AdminMaintenanceTierInputDto] })
+  @IsArray()
+  @ArrayMinSize(5)
+  @ArrayMaxSize(5)
+  @ValidateNested({ each: true })
+  @Type(() => AdminMaintenanceTierInputDto)
+  tiers: AdminMaintenanceTierInputDto[];
+}
+
+export class PublishAdminMaintenancePolicyBodyDto implements IPublishAdminMaintenancePolicyBodyDto {
+  @ApiProperty({ type: () => PublishAdminMaintenancePolicyDto })
+  @ValidateNested()
+  @Type(() => PublishAdminMaintenancePolicyDto)
+  maintenancePolicy: PublishAdminMaintenancePolicyDto;
+}
+
+export class PublishAdminMaintenancePolicyResponseDto
+  extends GetAdminRankPolicyResponseDto
+  implements IPublishAdminMaintenancePolicyResponseDto {}

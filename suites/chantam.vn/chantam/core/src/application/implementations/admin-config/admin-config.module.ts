@@ -15,6 +15,7 @@ import {
   IListAdminUsersUseCase,
   IPublishAdminConfigUseCase,
   ISetCandidateSelectionUseCase,
+  IPublishAdminMaintenancePolicyUseCase,
   IPublishAdminPointRuleUseCase,
   IPublishAdminRankPolicyUseCase,
   IUpdateNotificationChannelUseCase,
@@ -25,6 +26,7 @@ import {
   GetAdminConfigsUseCase,
   PublishAdminConfigUseCase,
 } from './admin-config.use-cases';
+import { PublishAdminMaintenancePolicyUseCase } from './admin-maintenance-policy.use-cases';
 import {
   GetAdminPointRulesUseCase,
   PublishAdminPointRuleUseCase,
@@ -87,6 +89,10 @@ import {
       provide: IPublishAdminPointRuleUseCase,
       useClass: PublishAdminPointRuleUseCase,
     },
+    {
+      provide: IPublishAdminMaintenancePolicyUseCase,
+      useClass: PublishAdminMaintenancePolicyUseCase,
+    },
     { provide: IGetSystemLogsUseCase, useClass: GetSystemLogsUseCase },
     {
       provide: IGetOwnAdminAccessUseCase,
@@ -120,6 +126,7 @@ import {
     IPublishAdminRankPolicyUseCase,
     IGetAdminPointRulesUseCase,
     IPublishAdminPointRuleUseCase,
+    IPublishAdminMaintenancePolicyUseCase,
     IGetSystemLogsUseCase,
     IGetOwnAdminAccessUseCase,
     IListAdminRolesUseCase,

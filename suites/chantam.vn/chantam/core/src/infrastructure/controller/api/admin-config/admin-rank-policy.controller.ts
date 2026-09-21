@@ -1,5 +1,6 @@
 import {
   IGetAdminRankPolicyUseCase,
+  IPublishAdminMaintenancePolicyUseCase,
   IPublishAdminRankPolicyUseCase,
 } from '@/application/contracts/admin-config';
 import {
@@ -22,6 +23,8 @@ import {
 } from '@nestjs/swagger';
 import {
   GetAdminRankPolicyResponseDto,
+  PublishAdminMaintenancePolicyBodyDto,
+  PublishAdminMaintenancePolicyResponseDto,
   PublishAdminRankPolicyBodyDto,
   PublishAdminRankPolicyResponseDto,
 } from '../../dto/admin-config/admin-rank-policy.dto';
@@ -36,6 +39,8 @@ export class AdminRankPolicyController {
     private readonly getAdminRankPolicyUseCase: IGetAdminRankPolicyUseCase,
     @Inject(IPublishAdminRankPolicyUseCase)
     private readonly publishAdminRankPolicyUseCase: IPublishAdminRankPolicyUseCase,
+    @Inject(IPublishAdminMaintenancePolicyUseCase)
+    private readonly publishAdminMaintenancePolicyUseCase: IPublishAdminMaintenancePolicyUseCase,
   ) {}
 
   @Get()
@@ -79,6 +84,36 @@ export class AdminRankPolicyController {
         await this.publishAdminRankPolicyUseCase.handle({
           actorUserId: principal.userId,
           rankPolicy: body.rankPolicy,
+        }),
+      )
+      .build();
+  }
+
+  @Post('maintenance')
+  @RequiresPermission('config.write')
+  @ApiOperation({
+    summary: 'Cập nhật chỉ tiêu duy trì hạng',
+    description:
+      'Chỉ áp dụng cho chu kỳ mở sau thời điểm publish. Chu kỳ đang tồn tại giữ snapshot cũ.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(PublishAdminMaintenancePolicyResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    [ValidationFailedException, ['MEMBER không áp dụng chu kỳ duy trì']],
+  )
+  public async publishAdminMaintenancePolicy(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: PublishAdminMaintenancePolicyBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.publishAdminMaintenancePolicyUseCase.handle({
+          actorUserId: principal.userId,
+          maintenancePolicy: body.maintenancePolicy,
         }),
       )
       .build();

@@ -63,6 +63,23 @@ export interface IGetAdminRankPolicyResponseDto {
 
 export interface IPublishAdminRankPolicyResponseDto extends IGetAdminRankPolicyResponseDto {}
 
+export interface IAdminMaintenanceTierInputDto {
+  rank: UserRanks;
+  maintenanceGifts: number;
+  maintenanceReferrals: number;
+}
+
+export interface IPublishAdminMaintenancePolicyDto {
+  changeReason: string;
+  tiers: IAdminMaintenanceTierInputDto[];
+}
+
+export interface IPublishAdminMaintenancePolicyBodyDto {
+  maintenancePolicy: IPublishAdminMaintenancePolicyDto;
+}
+
+export interface IPublishAdminMaintenancePolicyResponseDto extends IGetAdminRankPolicyResponseDto {}
+
 export interface IGetOwnRankSummaryResponseDto {
   rank: IRankSummaryDto;
 }

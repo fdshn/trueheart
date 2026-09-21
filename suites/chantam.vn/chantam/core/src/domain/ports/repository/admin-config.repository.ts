@@ -108,6 +108,17 @@ export interface IPublishAdminPointRuleCommand {
   readonly rule: Omit<IAdminPointRule, 'version' | 'updatedAt'>;
 }
 
+export interface IPublishAdminMaintenancePolicyCommand {
+  readonly actorUserId: string;
+  readonly changeReason: string;
+  readonly tiers: ReadonlyArray<
+    Pick<
+      IAdminRankTierPolicy,
+      'rank' | 'maintenanceGifts' | 'maintenanceReferrals'
+    >
+  >;
+}
+
 export interface IAdminConfigRepository {
   hasPermission(userId: string, permission: string): Promise<boolean>;
   getAccess(userId: string): Promise<IAdminAccessSummary>;
@@ -148,6 +159,9 @@ export interface IAdminConfigRepository {
   publishPointRule(
     command: IPublishAdminPointRuleCommand,
   ): Promise<IAdminPointRule>;
+  publishMaintenancePolicy(
+    command: IPublishAdminMaintenancePolicyCommand,
+  ): Promise<IAdminRankTierPolicy[]>;
 }
 
 export const IAdminConfigRepository = Symbol('IAdminConfigRepository');

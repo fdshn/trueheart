@@ -8,6 +8,7 @@ import {
   IAdminRankTierPolicy,
   IAdminRoleAssignment,
   IAdminRoleSummary,
+  IPublishAdminMaintenancePolicyCommand,
   IPublishAdminPointRuleCommand,
   IPublishAdminRankPolicyCommand,
   IPublishSystemConfigCommand,
@@ -320,6 +321,53 @@ export class AdminConfigRepository implements IAdminConfigRepository {
           command.actorUserId,
           command.rule.code,
           JSON.stringify(mapPointRule(current)),
+          JSON.stringify(after),
+          command.changeReason,
+        ],
+      );
+      return after;
+    });
+  }
+
+  public async publishMaintenancePolicy(
+    command: IPublishAdminMaintenancePolicyCommand,
+  ): Promise<IAdminRankTierPolicy[]> {
+    return this.manager.transaction(async (manager) => {
+      const beforeRows = await manager.query<IRankPolicyRow[]>(`
+        SELECT rank, threshold_points, warning_points, required_gifts,
+               required_referrals, maintenance_gifts, maintenance_referrals, version
+        FROM rank_tiers
+        ORDER BY CASE rank
+          WHEN 'VIEWER' THEN 1 WHEN 'MEMBER' THEN 2 WHEN 'SILVER' THEN 3
+          WHEN 'GOLD' THEN 4 WHEN 'DIAMOND' THEN 5 END
+        FOR UPDATE
+      `);
+      const before = beforeRows.map(mapRankPolicy);
+      for (const tier of command.tiers) {
+        await manager.query(
+          `UPDATE rank_tiers
+           SET maintenance_gifts = $2, maintenance_referrals = $3, version = version + 1
+           WHERE rank = $1`,
+          [tier.rank, tier.maintenanceGifts, tier.maintenanceReferrals],
+        );
+      }
+      const afterRows = await manager.query<IRankPolicyRow[]>(`
+        SELECT rank, threshold_points, warning_points, required_gifts,
+               required_referrals, maintenance_gifts, maintenance_referrals, version
+        FROM rank_tiers
+        ORDER BY CASE rank
+          WHEN 'VIEWER' THEN 1 WHEN 'MEMBER' THEN 2 WHEN 'SILVER' THEN 3
+          WHEN 'GOLD' THEN 4 WHEN 'DIAMOND' THEN 5 END
+      `);
+      const after = afterRows.map(mapRankPolicy);
+      await manager.query(
+        `INSERT INTO admin_audit_logs
+          (actor_user_id, action, resource_type, resource_id, before_json, after_json, reason)
+         VALUES ($1, 'PUBLISH_MAINTENANCE_POLICY', 'RANK_MAINTENANCE_POLICY',
+                 'rank-tiers', $2::jsonb, $3::jsonb, $4)`,
+        [
+          command.actorUserId,
+          JSON.stringify(before),
           JSON.stringify(after),
           command.changeReason,
         ],

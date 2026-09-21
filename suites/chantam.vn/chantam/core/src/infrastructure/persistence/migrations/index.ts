@@ -37,3 +37,4 @@ export * from './1791700000000-SeedOnboardingCompletedPointRule';
 export * from './1791800000000-AddAdminPostPermissions';
 export * from './1791900000000-CreateReports';
 export * from './1792000000000-AddAdminCategoryPermissions';
+export * from './1792100000000-SnapshotRankMaintenancePolicy';
