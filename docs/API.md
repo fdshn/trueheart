@@ -200,6 +200,7 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 | `GET` | `/posts/:postId/matches` | Bearer (chỉ tác giả) | Smart Match — gợi ý bài ghép đôi |
 | `PATCH` | `/posts/:postId` | Bearer (chủ bài) | Sửa nội dung |
 | `DELETE` | `/posts/:postId` | Bearer (chủ bài) | Xoá mềm |
+| `POST` | `/posts/:postId/renew` | Bearer (chủ bài) | Gia hạn thêm 3 tháng, tối đa một lần |
 | `PATCH` | `/posts/:postId/moderation` | Bearer + allowlist | Duyệt hoặc từ chối |
 | `POST` | `/posts/:postId/media/upload` | Bearer (chủ bài) | Xin presigned URL upload ảnh |
 | `POST` | `/posts/:postId/media` | Bearer (chủ bài) | Gắn ảnh đã upload |
@@ -245,6 +246,38 @@ một điều họ không nói.
 > đổi, và cũng chưa có trường hình thức nhận hàng.
 > Xem [F74](./FEATURES.md#f74--giá-trị-tham-khảo--tỷ-lệ-quy-đổi-điểm),
 > [F78](./FEATURES.md#f78--hình-thức-vận-chuyển).
+
+### Vòng đời bài — hết hạn và gia hạn
+
+Hạn 3 tháng đặt lúc **duyệt bài**, không phải lúc tạo: bài nằm chờ duyệt bao lâu cũng không
+ăn vào tuổi thọ.
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `POST` | `/posts/:postId/renew` | Bearer, chủ bài | Gia hạn thêm 3 tháng, **tối đa một lần** |
+
+Một lượt quét hết hạn (`npm run post:expire`, chạy từ lịch bên ngoài) làm hai việc khác nhau:
+
+| Loại bài | Khi quá hạn |
+| --- | --- |
+| `CLASSIFIED` | **Thành `OFFER`** kèm hạn mới (CHỐT-05). `price` chuyển thành `estimatedValue`, bỏ `negotiable` |
+| Còn lại | Sang `EXPIRED` |
+
+**Những điều dễ hiểu nhầm**
+
+- Rao vặt hết hạn **không biến mất** — nó thành bài đem tặng. Client đang mở danh sách rao
+  vặt sẽ thấy bài "rơi khỏi" danh sách và xuất hiện ở tab Muốn Tặng; đó là đúng ý định.
+- Vòng quét **không đụng** bài `RESERVED`/`DELIVERING`. Hết hạn ngang là cắt ngang một lượt
+  trao đang diễn ra.
+- `POST /posts/:postId/renew` trả **`404`** khi bài thuộc người khác, không phải `403` —
+  phân biệt hai trường hợp là cho người lạ dò được id nào có thật.
+- Gia hạn **tính quota như bài mới** (CHỐT-07). Bài đang hiển thị thì không tự chặn mình,
+  nhưng bài đã `EXPIRED` phải giành lại chỗ trong hạn mức, nên gia hạn có thể bị từ chối
+  bằng `POST_QUOTA_EXCEEDED` dù trước đó bài vẫn sống.
+- Tin rao vặt **không gia hạn được** (`POST_NOT_RENEWABLE`): quy định đã định đoạt số phận
+  của nó theo hướng khác.
+- Yêu cầu xin nhận bị từ chối ngay khi bài quá `expires_at`, **kể cả khi trạng thái vẫn còn
+  là `PUBLISHED`** vì vòng quét chưa chạy. Không có cửa sổ xin nhận trên bài đã chết.
 
 ### `GET /posts/me` — khác discovery ở hai điểm
 

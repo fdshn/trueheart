@@ -25,7 +25,7 @@ Tổng effort nguồn: **60 man-days / 50 ngày / 4 sprint**.
 | M3 – giao dịch tặng/nhận | ✅ Vòng đời xong | Request → chọn ứng viên → duyệt → xác nhận → hoàn tất, huỷ trả tồn kho, trừ tồn kho nguyên tử, tự hoàn tất 5 ngày qua CLI, và `npm run test:concurrency` kiểm 6 bất biến trên database thật. **Chat chưa có** |
 | M6 – Admin CMS nền | 🟡 Nền đã có | RBAC, system config động, cấu hình kênh gửi, nhật ký hệ thống và quản lý user đã có; giao diện CMS chưa có |
 | Sprint 2 – map discovery | ✅ Đã có | `GET /api/v1/posts/map` marker bbox, jitter, clustering |
-| Sprint 2 – vòng đời bài đăng | 🟡 Đang làm | Cột `expires_at`/`renewed_count` đã có; cron hết hạn và endpoint gia hạn đang làm |
+| Sprint 2 – vòng đời bài đăng | ✅ Đã có | CLI `post:expire` đóng bài quá hạn và chuyển rao vặt thành Muốn Tặng; `POST /posts/:postId/renew` gia hạn một lần; `npm run test:lifecycle` kiểm 21 bất biến trên database thật |
 | Sprint 2 – chat | ⬜ Chưa triển khai | Chưa có dòng code nào |
 | Sprint 3–4 | ⬜ Chưa triển khai | Không đánh dấu xong khi chỉ có contract/mock |
 
@@ -75,7 +75,7 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 
 | # | Epic | Hạng mục | Mapping roadmap | Trạng thái |
 | ---: | --- | --- | --- | --- |
-| 8 | Đăng tin & nội dung | Smart Match, SOS, lifecycle OFFER, gia hạn, chuyển Admin | F15–F19, F23 | 🟡 Smart Match (F17) ✅, moderation/quota ✅. **SOS chưa có hiệu lực**; vòng đời hết hạn + gia hạn đang làm; F23 chuyển về điểm từ thiện chưa có |
+| 8 | Đăng tin & nội dung | Smart Match, SOS, lifecycle OFFER, gia hạn, chuyển Admin | F15–F19, F23 | 🟡 Smart Match (F17) ✅, moderation/quota ✅, vòng đời hết hạn + gia hạn (F19/F22) ✅. **SOS chưa có hiệu lực**; F23 chuyển về điểm từ thiện chưa có |
 | 9 | Quanh đây & bản đồ | Map discovery, GPS fallback, viewport, clustering, preview/deep-link | F25–F29 | 🟡 Map bbox, jitter, clustering, viewport ✅. GPS fallback về Default Location (F26) chưa có; deep-link là phần của client |
 | 10 | Giao dịch & FSM | Gift request, candidate selection, batch allocation, queue | M3 transaction | 🟡 Gửi yêu cầu, rút yêu cầu, danh sách ứng viên, duyệt, trừ tồn kho nguyên tử ✅. **Hàng đợi dự phòng (F33) chưa có** |
 | 11 | Giao dịch & FSM | Accepted/cancel/receiver confirm/auto-complete 5 ngày | M3 transaction | ✅ Đủ cả bốn, kèm CLI `transaction:autocomplete` |
@@ -90,11 +90,10 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
    hai pha, seed bài đăng cũ vào giữa).
 2. Hoàn thành M2 map/discovery + SOS theo roadmap; Smart Match rule-based đã xong.
 3. ~~Chỉ mở transaction khi post lifecycle/public visibility đã ổn định.~~
-   ⚠️ **Luật này đã bị vượt.** Giao dịch được xây xong trước khi vòng đời bài đăng có
-   hiệu lực: `expires_at` mới là một cột, chưa có tiến trình nào cho bài hết hạn và chưa
-   có endpoint gia hạn. Hậu quả đang chạy trong production: bài rao vặt **không** tự
-   chuyển thành Muốn Tặng sau 3 tháng (CHỐT-05), và bài quá hạn vẫn nhận yêu cầu xin nhận.
-   Đây là lý do vòng đời được ưu tiên làm trước chat, dù chat là khối việc lớn hơn.
+   ⚠️ **Luật này đã bị vượt, và món nợ đã được trả.** Giao dịch từng được xây xong trước
+   khi vòng đời bài đăng có hiệu lực, nên bài rao vặt không tự chuyển loại và bài quá hạn
+   vẫn nhận yêu cầu xin nhận. Cả hai đã xử lý xong; giữ mục này lại để lần sau không lặp
+   lại việc đảo thứ tự.
 4. Chat không được tự tạo transaction state; chỉ phản ánh transaction lifecycle từ server.
 
 ---

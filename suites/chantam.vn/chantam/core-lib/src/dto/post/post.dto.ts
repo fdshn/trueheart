@@ -226,3 +226,11 @@ export interface IModeratePostBodyDto {
 export interface IModeratePostResponseDto {
   post: IPostEntity;
 }
+
+export interface IRenewPostParamsDto {
+  postId: string;
+}
+
+export interface IRenewPostResponseDto {
+  post: IPostEntity;
+}

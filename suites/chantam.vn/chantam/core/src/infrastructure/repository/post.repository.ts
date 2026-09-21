@@ -1,4 +1,5 @@
 import {
+  IExpireDuePostsResult,
   IFindMyPostsParams,
   IFindMyPostsResult,
   IFindNearbyPostsParams,
@@ -7,7 +8,9 @@ import {
   IFindSmartMatchesParams,
   IPostMapMarker,
   IPostRepository,
+  IRenewPostParams,
   ISmartMatchCandidate,
+  RenewPostOutcome,
 } from '@/domain/ports/repository';
 import { PostEntity } from '@/infrastructure/entity';
 import {
@@ -15,6 +18,11 @@ import {
   PubliclyVisibleGiftPostStatuses,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
+import {
+  PostLifetimeMonths,
+  PostMaxRenewals,
+  expiryConvertsToOffer,
+} from '@chantam.vn/chantam.core-lib/models';
 import { GeoQueryHelper } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
@@ -297,6 +305,155 @@ export class PostRepository
         ? {}
         : { distanceMeters: Number(row.distance_meters) }),
     }));
+  }
+
+  public async expireDuePosts(now: Date): Promise<IExpireDuePostsResult> {
+    return this.manager.transaction(async (manager) => {
+      // SKIP LOCKED để hai lần chạy song song không tranh cùng một bài. Chỉ
+      // lấy PUBLISHED: bài RESERVED/DELIVERING đang có giao dịch sống.
+      const due = await manager.query<
+        { global_id: string; post_type: string }[]
+      >(
+        `
+          SELECT global_id, post_type
+          FROM posts
+          WHERE status = 'PUBLISHED'
+            AND deleted_at IS NULL
+            AND expires_at IS NOT NULL
+            AND expires_at <= $1
+          ORDER BY expires_at ASC
+          FOR UPDATE SKIP LOCKED
+        `,
+        [now],
+      );
+
+      if (due.length === 0) return { expired: 0, convertedToOffer: 0 };
+
+      const toOffer = due
+        .filter((row) => expiryConvertsToOffer(row.post_type as PostTypes))
+        .map((row) => row.global_id);
+      const toExpired = due
+        .filter((row) => !expiryConvertsToOffer(row.post_type as PostTypes))
+        .map((row) => row.global_id);
+
+      if (toExpired.length > 0)
+        await manager.query(
+          `
+            UPDATE posts
+            SET status = 'EXPIRED', updated_at = now()
+            WHERE global_id = ANY($1::uuid[]) AND status = 'PUBLISHED'
+          `,
+          [toExpired],
+        );
+
+      if (toOffer.length > 0)
+        // Rao vặt hết hạn thì THÀNH bài Muốn Tặng, không biến mất (CHỐT-05).
+        // Giá đã khai chuyển thành giá trị tham khảo; cờ thương lượng bỏ đi
+        // vì món đồ không còn được bán nữa.
+        await manager.query(
+          `
+            UPDATE posts
+            SET post_type = 'OFFER',
+                expires_at = $2::timestamptz + make_interval(months => $3),
+                details = CASE
+                  WHEN jsonb_exists(details, 'price')
+                    THEN (details - 'price' - 'negotiable')
+                         || jsonb_build_object('estimatedValue', details -> 'price')
+                  ELSE details - 'negotiable'
+                END,
+                updated_at = now()
+            WHERE global_id = ANY($1::uuid[]) AND status = 'PUBLISHED'
+          `,
+          [toOffer, now, PostLifetimeMonths],
+        );
+
+      return { expired: toExpired.length, convertedToOffer: toOffer.length };
+    });
+  }
+
+  public async renewPost(params: IRenewPostParams): Promise<RenewPostOutcome> {
+    return this.manager.transaction(async (manager) => {
+      // Cùng khoá mà `createPostWithinQuota` dùng: gia hạn làm bài quay lại
+      // rổ quota, nên hai đường ghi phải xếp hàng sau cùng một khoá.
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        params.authorId,
+      ]);
+
+      const [post] = await manager.query<
+        {
+          status: string;
+          post_type: string;
+          renewed_count: number;
+          remaining_quantity: number;
+        }[]
+      >(
+        `
+          SELECT status, post_type, renewed_count, remaining_quantity
+          FROM posts
+          WHERE global_id = $1 AND author_id = $2 AND deleted_at IS NULL
+          FOR UPDATE
+        `,
+        [params.postId, params.authorId],
+      );
+
+      if (!post) return { status: 'NOT_FOUND' };
+
+      // Rao vặt không gia hạn: nó tự chuyển thành Muốn Tặng khi hết hạn, nên
+      // gia hạn sẽ kéo dài một trạng thái mà quy định đã định đoạt khác đi.
+      if (
+        expiryConvertsToOffer(post.post_type as PostTypes) ||
+        (post.status !== 'PUBLISHED' && post.status !== 'EXPIRED') ||
+        Number(post.remaining_quantity) <= 0
+      )
+        return { status: 'NOT_RENEWABLE' };
+
+      if (Number(post.renewed_count) >= PostMaxRenewals)
+        return { status: 'LIMIT_REACHED' };
+
+      // Bài EXPIRED đang nằm ngoài rổ quota, gia hạn là đưa nó trở lại — nên
+      // phải đếm lại. Bài PUBLISHED thì đã nằm trong rổ, loại chính nó ra để
+      // không tự chặn mình.
+      const [{ open_posts: openPosts }] = await manager.query<
+        { open_posts: string }[]
+      >(
+        `
+          SELECT COUNT(*) AS open_posts
+          FROM posts
+          WHERE author_id = $1
+            AND deleted_at IS NULL
+            AND global_id <> $2
+            AND status::text = ANY($3::text[])
+        `,
+        [params.authorId, params.postId, QuotaStatuses],
+      );
+
+      if (Number(openPosts) >= params.quota)
+        return { status: 'QUOTA_EXCEEDED' };
+
+      // Cố ý KHÔNG dùng `RETURNING`: với UPDATE, `query()` của TypeORM trả
+      // `[rows, affected]` chứ không phải `rows`, nên mọi phép đọc `.length`
+      // hay `[0].cột` trên kết quả đều lặng lẽ sai. Hàng đã bị khoá và trạng
+      // thái đã kiểm ở trên, nên đọc lại là đủ và không có cửa sổ tranh chấp.
+      await manager.query(
+        `
+          UPDATE posts
+          SET status = 'PUBLISHED',
+              expires_at = $2,
+              renewed_count = renewed_count + 1,
+              updated_at = now()
+          WHERE global_id = $1
+        `,
+        [params.postId, params.expiresAt],
+      );
+
+      const renewed = await manager.findOne(PostEntity, {
+        where: { globalId: params.postId },
+      });
+
+      return renewed
+        ? { status: 'RENEWED', post: renewed }
+        : { status: 'NOT_FOUND' };
+    });
   }
 
   public async countPublishedByAuthor(authorId: string): Promise<number> {

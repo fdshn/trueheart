@@ -151,6 +151,21 @@ jobs:
         working-directory: suites/chantam.vn/chantam/core
         run: npm run migration:backfill-check
 
+      - name: Kiểm chứng vòng đời bài đăng trên database thật
+        # Unit test của hai use case vòng đời mock cả repository, nên không câu
+        # SQL nào được chạy. Bước này bắt được đúng loại lỗi mà chúng bỏ sót:
+        # lần chạy đầu tiên đã lộ một phép so enum với text[] và một chỗ đọc
+        # sai kết quả `UPDATE ... RETURNING`.
+        working-directory: suites/chantam.vn/chantam/core
+        run: npm run test:lifecycle
+
+      - name: Kiểm chứng duyệt yêu cầu khi có tranh chấp
+        # CI chạy tuần tự nên hai lượt duyệt không bao giờ gặp nhau; script này
+        # ép chúng chạy song song trên các kết nối riêng để khoá thật sự tranh
+        # nhau. Lần đầu chạy nó tìm ra 24/25 vòng bị deadlock.
+        working-directory: suites/chantam.vn/chantam/core
+        run: npm run test:concurrency
+
       - name: Khởi tạo dữ liệu demo
         working-directory: suites/chantam.vn/chantam/core
         run: npm run seed:demo:built

@@ -53,6 +53,13 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
       throw new PostNotAcceptingRequestsException();
     }
 
+    // Vòng quét hết hạn chạy theo lịch, nên giữa lúc bài quá hạn và lúc nó
+    // được đánh EXPIRED có một khoảng bài vẫn mang trạng thái PUBLISHED. Đọc
+    // thẳng `expiresAt` ở đây để khoảng đó không thành cửa sổ xin nhận.
+    if (post.expiresAt && post.expiresAt.getTime() <= Date.now()) {
+      throw new PostNotAcceptingRequestsException();
+    }
+
     const existing = await this.giftRequestRepository.findByPostAndRequester(
       command.postId,
       command.requesterId,

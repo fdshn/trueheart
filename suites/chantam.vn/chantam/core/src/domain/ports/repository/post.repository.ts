@@ -83,6 +83,28 @@ export interface ISmartMatchCandidate {
   keywordMatched: boolean;
 }
 
+export interface IExpireDuePostsResult {
+  /** Bài đã chuyển sang EXPIRED. */
+  expired: number;
+  /** Bài rao vặt đã chuyển thành Muốn Tặng thay vì hết hạn (CHỐT-05). */
+  convertedToOffer: number;
+}
+
+export interface IRenewPostParams {
+  postId: string;
+  authorId: string;
+  /** Trần bài đang mở của tác giả — bài được gia hạn tính như bài mới (CHỐT-07). */
+  quota: number;
+  expiresAt: Date;
+}
+
+export type RenewPostOutcome =
+  | { status: 'RENEWED'; post: IPostEntity }
+  | { status: 'NOT_FOUND' }
+  | { status: 'NOT_RENEWABLE' }
+  | { status: 'LIMIT_REACHED' }
+  | { status: 'QUOTA_EXCEEDED' };
+
 export interface IPostRepository extends Repository<IPostEntity> {
   createPostWithinQuota(
     authorId: string,
@@ -118,6 +140,19 @@ export interface IPostRepository extends Repository<IPostEntity> {
     currentUserId?: string,
   ): Promise<IPostEntity | null>;
   countPublishedByAuthor(authorId: string): Promise<number>;
+  /**
+   * Đóng vòng đời các bài đã quá hạn.
+   *
+   * Chỉ đụng vào bài `PUBLISHED`: bài đang `RESERVED`/`DELIVERING` là đang có
+   * giao dịch sống, hết hạn ngang là cắt ngang một lượt trao đang diễn ra.
+   */
+  expireDuePosts(now: Date): Promise<IExpireDuePostsResult>;
+  /**
+   * Gia hạn một bài, kiểm tra trần quota và số lần gia hạn trong cùng một
+   * transaction — đọc trước rồi ghi sau sẽ cho hai request song song cùng
+   * thấy `renewed_count = 0` và cùng gia hạn.
+   */
+  renewPost(params: IRenewPostParams): Promise<RenewPostOutcome>;
 }
 
 export const IPostRepository = Symbol('IPostRepository');

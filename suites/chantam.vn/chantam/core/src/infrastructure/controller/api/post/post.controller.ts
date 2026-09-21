@@ -9,6 +9,7 @@ import {
   IGetSmartMatchesUseCase,
   IModeratePostUseCase,
   IRemovePostMediaUseCase,
+  IRenewPostUseCase,
   IReorderPostMediaUseCase,
   IRequestPostMediaUploadUseCase,
   IUpdatePostUseCase,
@@ -19,7 +20,9 @@ import {
   PostMediaLimitExceededException,
   PostMediaOrderInvalidException,
   PostNotFoundException,
+  PostNotRenewableException,
   PostQuotaExceededException,
+  PostRenewalLimitReachedException,
   ProfileIncompleteException,
 } from '@/domain/exceptions';
 import {
@@ -31,6 +34,7 @@ import {
   IGetPostResponseDto,
   IGetSmartMatchesResponseDto,
   IModeratePostResponseDto,
+  IRenewPostResponseDto,
   IReorderPostMediaResponseDto,
   IUpdatePostResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
@@ -86,6 +90,8 @@ import {
   PostMediaItemParamsDto,
   PostMediaParamsDto,
   PostMediaUploadResponseDto,
+  RenewPostParamsDto,
+  RenewPostResponseDto,
   ReorderPostMediaBodyDto,
   RequestPostMediaUploadDto,
   UpdatePostBodyDto,
@@ -109,6 +115,8 @@ export class PostController {
     private readonly reorderPostMediaUseCase: IReorderPostMediaUseCase,
     @Inject(IRemovePostMediaUseCase)
     private readonly removePostMediaUseCase: IRemovePostMediaUseCase,
+    @Inject(IRenewPostUseCase)
+    private readonly renewPostUseCase: IRenewPostUseCase,
     @Inject(IGetPostMapUseCase)
     private readonly getPostMapUseCase: IGetPostMapUseCase,
     @Inject(IGetNearbyPostsUseCase)
@@ -334,6 +342,38 @@ export class PostController {
     });
 
     return ResponseDto.create<IUpdatePostResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Post(':postId/renew')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Gia hạn bài đăng thêm 3 tháng',
+    description:
+      'Chỉ chủ bài, tối đa một lần cho mỗi bài (CHỐT-07). Bài đã hết hạn cũng gia hạn được và sẽ hiển thị lại. Tin rao vặt KHÔNG gia hạn được vì khi hết hạn nó tự chuyển thành bài Muốn Tặng (CHỐT-05). Lượt gia hạn tính quota như một bài mới, nên hết hạn mức thì bị từ chối.',
+  })
+  @ApiCreatedResponse({ type: ResponseDto.forApi(RenewPostResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    // Bài của người khác cũng trả NOT_FOUND: phân biệt là cho người lạ dò
+    // được id nào có thật.
+    [PostNotFoundException, 'a3f1c0de-0000-4000-8000-000000000000'],
+    PostNotRenewableException,
+    PostRenewalLimitReachedException,
+    [PostQuotaExceededException, 3],
+  )
+  public async renewPost(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: RenewPostParamsDto,
+  ): Promise<ResponseDto<IRenewPostResponseDto>> {
+    const result = await this.renewPostUseCase.handle({
+      ...params,
+      userId: principal.userId,
+    });
+
+    return ResponseDto.create<IRenewPostResponseDto>()
       .succeed()
       .attach(result)
       .build();

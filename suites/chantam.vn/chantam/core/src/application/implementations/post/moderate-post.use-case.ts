@@ -7,14 +7,9 @@ import { PostInvalidStateException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import { IPostRepository } from '@/domain/ports/repository';
 import { GiftPostStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import { postExpiryDate } from '@chantam.vn/chantam.core-lib/models';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
-
-function publishedExpiryDate(publishedAt: Date): Date {
-  const expiresAt = new Date(publishedAt);
-  expiresAt.setMonth(expiresAt.getMonth() + 3);
-  return expiresAt;
-}
 
 @Injectable()
 export class ModeratePostUseCase implements IModeratePostUseCase {
@@ -41,7 +36,7 @@ export class ModeratePostUseCase implements IModeratePostUseCase {
     const post = await this.postRepository.transitionPendingReview(
       command.postId,
       status,
-      publishedAt ? publishedExpiryDate(publishedAt) : null,
+      publishedAt ? postExpiryDate(publishedAt) : null,
     );
 
     if (!post) throw new PostInvalidStateException();

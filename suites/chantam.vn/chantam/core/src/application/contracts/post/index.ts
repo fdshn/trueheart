@@ -1,6 +1,7 @@
 export * from './attach-post-media.use-case';
 export * from './create-post.use-case';
 export * from './delete-post.use-case';
+export * from './expire-due-posts.use-case';
 export * from './get-my-posts.use-case';
 export * from './get-nearby-posts.use-case';
 export * from './get-post-map.use-case';
@@ -8,6 +9,7 @@ export * from './get-post.use-case';
 export * from './get-smart-matches.use-case';
 export * from './moderate-post.use-case';
 export * from './remove-post-media.use-case';
+export * from './renew-post.use-case';
 export * from './reorder-post-media.use-case';
 export * from './request-post-media-upload.use-case';
 export * from './update-post.use-case';

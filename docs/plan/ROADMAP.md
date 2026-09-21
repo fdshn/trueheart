@@ -7,7 +7,7 @@ cả 72 đều là P0.
 | --- | --- | ---: | --- |
 | M0 | Nền tảng monorepo + CI/CD | — | ✅ Xong |
 | [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | ✅ Xong (provider/ledger rollout deferred) |
-| [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 14 | 🟡 8/14 — bản đồ xong; vòng đời/SOS/2 loại bài chưa |
+| [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 14 | 🟡 10/14 — bản đồ và vòng đời xong; SOS/2 loại bài chưa |
 | [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 6/10 — vòng đời giao dịch xong; chat/thông báo/hàng đợi chưa |
 | [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 7 | 🟡 Ledger/rank/referral xong; đánh giá & accuracy chưa |
 | [M5](#m5--group--affiliate) | Group, affiliate, chống gian lận | 10 | ⬜ 0/10 |
@@ -67,13 +67,14 @@ và `scripts/smoke-test.sh` phủ được luồng này.
       ⛔ **SOS chưa có hiệu lực**: capability `POST_SOS` đã seed và admin bật/tắt được,
       nhưng không code nào đọc nó lúc đăng bài
 - [x] F18 Từ thiện / Hoạt động — ⚠️ tạo được qua `CHARITY`, chưa có trường riêng theo loại
-- [ ] F19 Rao vặt giá rẻ — `CLASSIFIED` kèm `price`/`condition`/`negotiable` đã có;
-      ⛔ **chưa tự chuyển thành Muốn Tặng sau 3 tháng** (CHỐT-05)
+- [x] F19 Rao vặt giá rẻ — `CLASSIFIED` kèm `price`/`condition`/`negotiable`, và vòng quét
+      `post:expire` chuyển bài quá hạn thành `OFFER` kèm hạn mới (CHỐT-05)
 - [ ] F20 Giới thiệu / Quảng cáo (chỉ Admin tạo) — chưa có loại bài `PROMOTION`
 - [x] F21 Công đức / Hồi hướng — ⚠️ tạo được qua `MERIT`, chưa có trường riêng theo loại
 - [ ] F73 Phật Pháp – Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng/Công đức, Diễn đàn, Giới thiệu chùa)
-- [ ] F22 Vòng đời bài + gia hạn 1 lần (reset thêm 3 tháng — CHỐT-07) — cột `expires_at`
-      và `renewed_count` đã có; tiến trình hết hạn và endpoint gia hạn chưa
+- [x] F22 Vòng đời bài + gia hạn 1 lần (CHỐT-07) — CLI `post:expire` đóng bài quá hạn,
+      `POST /posts/:postId/renew` gia hạn một lần kèm kiểm quota; kiểm chứng trên database
+      thật bằng `npm run test:lifecycle`
 - [ ] F23 Chuyển vật phẩm về điểm từ thiện
 - [x] F25 Bản đồ toàn màn hình — `GET /posts/map` trả marker đã làm nhiễu toạ độ
 - [ ] F26 GPS + dự phòng Default Location — chưa có đường lùi về vị trí mặc định khi

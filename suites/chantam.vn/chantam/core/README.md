@@ -36,6 +36,7 @@ buộc riêng tư, thứ tự kiểm tra — xem [`docs/API.md`](../../../../doc
 | `PATCH` | `/api/v1/posts/:postId/media/order` | Owner thay toàn bộ thứ tự media |
 | `DELETE` | `/api/v1/posts/:postId/media/:mediaId` | Owner gỡ media, compact thứ tự |
 | `DELETE` | `/api/v1/posts/:postId` | Owner xoá mềm canonical post |
+| `POST` | `/api/v1/posts/:postId/renew` | `RenewPostUseCase` — gia hạn 3 tháng, tối đa một lần, tính quota như bài mới |
 | `PATCH` | `/api/v1/posts/:postId/moderation` | `ModeratePostUseCase` — allowlist `POST_OPERATOR_USERNAMES` tạm thời |
 | `GET` | `/api/v1/posts/nearby` | `GetNearbyPostsUseCase` — guest radius scan canonical, required OFFER/WANTED filter, location jitter + bucketed distance |
 | `GET` | `/api/v1/posts/map` | `GetPostMapUseCase` — marker bbox public, location jitter, client-side cluster |
@@ -153,6 +154,39 @@ curl -X PATCH http://localhost:3000/api/v1/gift-posts/<globalId> \
   -H 'Content-Type: application/json' \
   -d '{ "giftPost": { "status": "PUBLISHED" } }'
 ```
+
+## Vòng đời bài đăng
+
+Hạn 3 tháng được đặt lúc **duyệt bài**, không phải lúc tạo — bài nằm trong
+`PENDING_REVIEW` bao lâu cũng không ăn vào tuổi thọ của nó.
+
+Đóng vòng đời chạy từ lịch bên ngoài, Core cố ý **không** dựng scheduler trong
+tiến trình vì deploy nhiều replica sẽ chạy trùng:
+
+```bash
+npm run post:expire
+```
+
+Một lượt quét làm hai việc khác nhau, tuỳ loại bài:
+
+| Loại | Khi quá hạn |
+| --- | --- |
+| `CLASSIFIED` | **Chuyển thành `OFFER`** và được cấp hạn mới (CHỐT-05). Giá đã khai thành `estimatedValue`, bỏ `price`/`negotiable` |
+| Các loại khác | Chuyển sang `EXPIRED` |
+
+Vòng quét chỉ đụng vào bài `PUBLISHED`. Bài `RESERVED`/`DELIVERING` đang có giao
+dịch sống nên hết hạn ngang là cắt ngang một lượt trao đang diễn ra.
+
+Chủ bài gia hạn được **một lần** qua `POST /api/v1/posts/:postId/renew`: thêm 3
+tháng, bài `EXPIRED` quay lại `PUBLISHED`. Lượt gia hạn tính quota như một bài
+mới (CHỐT-07), nên bài đã hết hạn phải giành lại chỗ trong hạn mức. Tin rao vặt
+không gia hạn được vì nó đã có đường riêng ở trên.
+
+Yêu cầu xin nhận bị từ chối ngay khi bài quá `expires_at`, kể cả lúc vòng quét
+chưa kịp chạy — nếu không, khoảng trễ giữa hai lần quét sẽ thành cửa sổ xin nhận
+trên bài đã chết.
+
+Kiểm chứng trên database thật: `npm run test:lifecycle`.
 
 ## Cấu trúc
 

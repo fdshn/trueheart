@@ -192,6 +192,19 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Một bài đăng chỉ được có tối đa 10 ảnh',
   },
 
+  POST_NOT_RENEWABLE: {
+    code: ErrorCodes.POST_NOT_RENEWABLE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Bài đăng này không gia hạn được: chỉ bài đang hiển thị hoặc đã hết hạn và vẫn còn vật phẩm mới được gia hạn',
+  },
+
+  POST_RENEWAL_LIMIT_REACHED: {
+    code: ErrorCodes.POST_RENEWAL_LIMIT_REACHED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Mỗi bài đăng chỉ được gia hạn một lần',
+  },
+
   POST_MEDIA_ORDER_INVALID: {
     code: ErrorCodes.POST_MEDIA_ORDER_INVALID,
     httpStatus: HttpStatus.BAD_REQUEST,

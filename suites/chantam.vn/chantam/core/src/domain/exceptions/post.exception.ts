@@ -20,3 +20,11 @@ export class PostMediaLimitExceededException extends ExceptionFrom(
 export class PostMediaOrderInvalidException extends ExceptionFrom(
   CoreErrors.POST_MEDIA_ORDER_INVALID,
 ) {}
+
+export class PostNotRenewableException extends ExceptionFrom(
+  CoreErrors.POST_NOT_RENEWABLE,
+) {}
+
+export class PostRenewalLimitReachedException extends ExceptionFrom(
+  CoreErrors.POST_RENEWAL_LIMIT_REACHED,
+) {}

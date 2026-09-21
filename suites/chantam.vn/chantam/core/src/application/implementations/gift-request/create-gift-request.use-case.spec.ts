@@ -184,6 +184,56 @@ describe('CreateGiftRequestUseCase', () => {
     ).rejects.toBeInstanceOf(PostNotAcceptingRequestsException);
   });
 
+  it('từ chối bài đã quá hạn dù trạng thái vẫn còn là PUBLISHED', async () => {
+    // Vòng quét hết hạn chạy theo lịch, nên có một khoảng bài đã quá hạn mà
+    // chưa kịp mang trạng thái EXPIRED. Khoảng đó không được thành cửa sổ
+    // xin nhận.
+    const postRepo = {
+      findOneBy: jest.fn().mockResolvedValue(
+        makePost({
+          status: GiftPostStatuses.PUBLISHED,
+          expiresAt: new Date(Date.now() - 1000),
+        }),
+      ),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequestRepo =
+      {} as unknown as jest.Mocked<IGiftRequestRepository>;
+
+    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    await expect(
+      useCase.handle({
+        postId: PostId,
+        requesterId: RequesterId,
+        message: 'xin do',
+      }),
+    ).rejects.toBeInstanceOf(PostNotAcceptingRequestsException);
+  });
+
+  it('bài còn hạn thì vẫn xin được bình thường', async () => {
+    const postRepo = {
+      findOneBy: jest
+        .fn()
+        .mockResolvedValue(
+          makePost({ expiresAt: new Date(Date.now() + 60_000) }),
+        ),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequestRepo = {
+      findByPostAndRequester: jest.fn().mockResolvedValue(null),
+      insert: jest.fn().mockResolvedValue({ identifiers: [] }),
+      findOneByOrFail: jest.fn().mockResolvedValue(makeRequest()),
+    } as unknown as jest.Mocked<IGiftRequestRepository>;
+
+    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+
+    await expect(
+      useCase.handle({
+        postId: PostId,
+        requesterId: RequesterId,
+        message: 'xin do',
+      }),
+    ).resolves.toBeDefined();
+  });
+
   it('ném GiftRequestDuplicatedException nếu đã có yêu cầu PENDING', async () => {
     const postRepo = {
       findOneBy: jest.fn().mockResolvedValue(makePost()),

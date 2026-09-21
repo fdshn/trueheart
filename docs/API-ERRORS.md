@@ -86,6 +86,8 @@ Nghiệp vụ Chân Tâm
 | `0x0603` | `1539` | 409 Conflict | `POST_INVALID_STATE` | Trạng thái bài đăng không cho phép thao tác này |
 | `0x0604` | `1540` | 409 Conflict | `POST_MEDIA_LIMIT_EXCEEDED` | Một bài đăng chỉ được có tối đa 10 ảnh |
 | `0x0605` | `1541` | 400 Bad Request | `POST_MEDIA_ORDER_INVALID` | Danh sách thứ tự ảnh bài đăng không hợp lệ |
+| `0x0606` | `1542` | 409 Conflict | `POST_NOT_RENEWABLE` | Bài đăng này không gia hạn được: chỉ bài đang hiển thị hoặc đã hết hạn và vẫn còn vật phẩm mới được gia hạn |
+| `0x0607` | `1543` | 409 Conflict | `POST_RENEWAL_LIMIT_REACHED` | Mỗi bài đăng chỉ được gia hạn một lần |
 | `0x0701` | `1793` | 409 Conflict | `POINT_RULE_UNAVAILABLE` | Point rule PHONE_VERIFIED_FIRST_TIME không khả dụng |
 | `0x0702` | `1794` | 500 Internal Server Error | `RANK_TIER_UNAVAILABLE` | Không tìm thấy cấu hình tier cho rank SILVER |
 | `0x0703` | `1795` | 409 Conflict | `POINT_DAILY_CAP_REACHED` | Đã đạt giới hạn 3 lần/ngày cho point rule REFERRAL_QUALIFIED |
@@ -101,5 +103,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **59 mã lỗi** trên 3 tầng.
+Tổng cộng **61 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.
