@@ -94,8 +94,10 @@ Nghiệp vụ Chân Tâm
 | `0x0805` | `2053` | 409 Conflict | `GIFT_TRANSACTION_DUPLICATE_REQUEST` | Bạn đã có một yêu cầu đang mở trên bài đăng này |
 | `0x0901` | `2305` | 409 Conflict | `ADMIN_LAST_SUPER_ADMIN` | Không thể thu hồi SUPER_ADMIN cuối cùng: sẽ không còn ai cấp lại quyền được |
 | `0x0902` | `2306` | 403 Forbidden | `ADMIN_SELF_ROLE_CHANGE` | Không thể tự thay đổi quyền của chính mình |
+| `0x0a01` | `2561` | 503 | `ENTITLEMENT_POLICY_UNAVAILABLE` | Chưa có bản chính sách quyền nào đang hiệu lực |
+| `0x0a02` | `2562` | 400 Bad Request | `ENTITLEMENT_CAPABILITY_UNKNOWN` | Không có capability nào mang mã POST_TELEPATHY trong bản chính sách hiện hành |
 
 ---
 
-Tổng cộng **55 mã lỗi** trên 3 tầng.
+Tổng cộng **57 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

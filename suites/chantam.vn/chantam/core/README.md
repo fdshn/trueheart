@@ -145,7 +145,7 @@ client cũ và đã map vào canonical `posts`; không ghi hai bảng song song.
 Public detail chỉ nhìn thấy `PUBLISHED`/`RESERVED` và luôn nhận toạ độ đã jitter. Không dùng route
 public để lấy location thật.
 
-Bài đăng mới tạo ở trạng thái `PENDING_REVIEW` (đặc tả mục 3.2: mọi bài phải qua kiểm
+Bài đăng mới tạo ở trạng thái `PENDING_REVIEW` (SRS v1.15.0 - UC-POST-01: mọi bài phải qua kiểm
 duyệt), nên **chưa xuất hiện trong `/nearby`**. Chuyển sang `PUBLISHED` để kiểm thử:
 
 ```bash
@@ -178,7 +178,6 @@ src/
    được tự khai mình là ai.
 2. **`synchronize` bật ở development.** Phải thay bằng migration TypeORM trước khi có dữ
    liệu thật.
-3. **Trừ tồn kho phải nguyên tử.** Khi hiện thực duyệt đơn (kịch bản M-to-N, đặc tả mục
-   3.3), dùng `UPDATE ... WHERE remaining_quantity > 0 RETURNING`, không đọc-rồi-ghi.
+3. **Trừ tồn kho phải nguyên tử.** Khi hiện thực duyệt đơn (kịch bản M-to-N, SRS v1.15.0 - UC-TXN-01 / Chương 3), dùng `UPDATE ... WHERE remaining_quantity > 0 RETURNING`, không đọc-rồi-ghi.
 4. **Toạ độ.** Mọi đường ra công khai phải đi qua `applyGeoJitter()`. Xem `INVARIANTS.md`
    mục 10.

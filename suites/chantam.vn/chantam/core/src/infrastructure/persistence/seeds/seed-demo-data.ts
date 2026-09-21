@@ -125,6 +125,193 @@ const DemoPosts = [
     remainingQuantity: 1,
     giverId: DemoUsers[0].globalId,
   },
+  {
+    globalId: '20000000-0000-4000-8000-000000000011',
+    title: 'Bàn phím cơ không dây Keychron K2',
+    description:
+      'Bàn phím cơ Keychron K2 switch Brown, kết nối Bluetooth/Type-C, gõ rất êm. Tặng kèm keycap puller và cáp.',
+    categoryId: '30000000-0000-4000-8000-000000000004',
+    postType: 'OFFER',
+    details: { condition: 'LIKE_NEW', estimatedValue: 1_200_000 },
+    lng: -122.4072,
+    lat: 37.7865,
+    areaLabel: 'Union Square, San Francisco',
+    status: 'PUBLISHED',
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    giverId: DemoUsers[0].globalId,
+  },
+  {
+    globalId: '20000000-0000-4000-8000-000000000012',
+    title: 'Bộ sách ôn thi IELTS Cambridge 15-18',
+    description:
+      'Bộ sách ôn luyện IELTS còn mới 95%, chỉ có vài trang ghi chú bằng bút chì, tặng bạn nào sắp thi.',
+    categoryId: '30000000-0000-4000-8000-000000000003',
+    postType: 'OFFER',
+    details: { condition: 'LIKE_NEW', estimatedValue: 250_000 },
+    lng: -122.405,
+    lat: 37.7842,
+    areaLabel: 'Market St / 4th St, San Francisco',
+    status: 'PUBLISHED',
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    giverId: DemoUsers[0].globalId,
+  },
+  {
+    globalId: '20000000-0000-4000-8000-000000000013',
+    title: 'Áo khoác gió thể thao Nike size L',
+    description:
+      'Áo khoác gió thể thao nam chống thấm nhẹ, giữ ấm tốt, mới mặc 2-3 lần còn rất mới.',
+    categoryId: '30000000-0000-4000-8000-000000000002',
+    postType: 'OFFER',
+    details: { condition: 'LIKE_NEW', estimatedValue: 500_000 },
+    lng: -122.4032,
+    lat: 37.7882,
+    areaLabel: 'Financial District, San Francisco',
+    status: 'PUBLISHED',
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    giverId: DemoUsers[0].globalId,
+  },
+  {
+    globalId: '20000000-0000-4000-8000-000000000014',
+    title: 'Nồi chiên không dầu Philips 4.5L',
+    description:
+      'Nồi chiên không dầu dùng tốt, khay chống dính còn đẹp, thích hợp cho sinh viên hoặc gia đình nhỏ.',
+    categoryId: '30000000-0000-4000-8000-000000000001',
+    postType: 'OFFER',
+    details: { condition: 'USED', estimatedValue: 800_000 },
+    lng: -122.4105,
+    lat: 37.7825,
+    areaLabel: 'Mission St / SOMA, San Francisco',
+    status: 'PUBLISHED',
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    giverId: DemoUsers[0].globalId,
+  },
+  {
+    globalId: '20000000-0000-4000-8000-000000000015',
+    title: 'Ghế xoay văn phòng lưới công thái học',
+    description:
+      'Ghế xoay văn phòng có tựa đầu và đệm lưới êm ái, nâng hạ bình thường. Cần tự vận chuyển.',
+    categoryId: '30000000-0000-4000-8000-000000000005',
+    postType: 'OFFER',
+    details: { condition: 'USED', estimatedValue: 700_000 },
+    lng: -122.4118,
+    lat: 37.7898,
+    areaLabel: 'Geary St / Nob Hill, San Francisco',
+    status: 'PUBLISHED',
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    giverId: DemoUsers[0].globalId,
+  },
+  {
+    globalId: '20000000-0000-4000-8000-000000000016',
+    title: 'Xe trượt scooter cho trẻ em',
+    description:
+      'Xe scooter 3 bánh có đèn led bánh xe, điều chỉnh được chiều cao tay lái, phù hợp bé 3-7 tuổi.',
+    categoryId: '30000000-0000-4000-8000-000000000006',
+    postType: 'OFFER',
+    details: { condition: 'USED', estimatedValue: 350_000 },
+    lng: -122.3985,
+    lat: 37.7802,
+    areaLabel: 'Yerba Buena, San Francisco',
+    status: 'PUBLISHED',
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    giverId: DemoUsers[0].globalId,
+  },
+  {
+    globalId: '20000000-0000-4000-8000-000000000017',
+    title: 'Thùng sữa hạt dinh dưỡng óc chó hạnh nhân',
+    description:
+      'Thùng nguyên hộp 24 hộp sữa hạt dinh dưỡng hạn dùng đến cuối năm 2026, tặng bạn nào cần bồi bổ.',
+    categoryId: '30000000-0000-4000-8000-000000000008',
+    postType: 'OFFER',
+    details: { condition: 'NEW', estimatedValue: 320_000 },
+    lng: -122.4085,
+    lat: 37.7925,
+    areaLabel: 'Chinatown, San Francisco',
+    status: 'PUBLISHED',
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    giverId: DemoUsers[0].globalId,
+  },
+  {
+    globalId: '20000000-0000-4000-8000-000000000018',
+    title: 'Máy đo huyết áp bắp tay Omron',
+    description:
+      'Máy đo huyết áp điện tử bắp tay màn hình lớn rõ nét, tặng gia đình có người lớn tuổi theo dõi sức khoẻ.',
+    categoryId: '30000000-0000-4000-8000-000000000007',
+    postType: 'OFFER',
+    details: { condition: 'LIKE_NEW', estimatedValue: 600_000 },
+    lng: -122.4155,
+    lat: 37.7785,
+    areaLabel: 'Civic Center, San Francisco',
+    status: 'PUBLISHED',
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    giverId: DemoUsers[0].globalId,
+  },
+  {
+    globalId: '20000000-0000-4000-8000-000000000019',
+    title: 'Đàn guitar acoustic dáng D kèm bao da',
+    description:
+      'Đàn guitar gỗ thịt âm vang sáng, đã căn chỉnh action thấp dễ bấm, tặng kèm bao da và phím gảy.',
+    categoryId: '30000000-0000-4000-8000-000000000009',
+    postType: 'OFFER',
+    details: { condition: 'USED', estimatedValue: 1_000_000 },
+    lng: -122.418,
+    lat: 37.781,
+    areaLabel: 'Tenderloin / Larkin St, San Francisco',
+    status: 'PUBLISHED',
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    giverId: DemoUsers[0].globalId,
+  },
+  {
+    globalId: '20000000-0000-4000-8000-000000000020',
+    title: 'Màn hình máy tính Dell 24 inch IPS',
+    description:
+      'Màn hình viền mỏng IPS Full HD sắc nét, màu sắc chuẩn, đầy đủ cổng HDMI và cáp nguồn.',
+    categoryId: '30000000-0000-4000-8000-000000000004',
+    postType: 'OFFER',
+    details: { condition: 'LIKE_NEW', estimatedValue: 1_800_000 },
+    lng: -122.3995,
+    lat: 37.794,
+    areaLabel: 'Embarcadero, San Francisco',
+    status: 'PUBLISHED',
+    totalQuantity: 1,
+    remainingQuantity: 1,
+    giverId: DemoUsers[0].globalId,
+  },
+] as const;
+
+const DemoGiftRequests = [
+  {
+    globalId: '40000000-0000-4000-8000-000000000001',
+    postId: '20000000-0000-4000-8000-000000000011',
+    requesterId: DemoUsers[1].globalId,
+    message:
+      'Chào bạn, mình đang học lập trình rất cần một chiếc bàn phím cơ để luyện gõ, mong bạn tặng cho mình!',
+    status: 'PENDING',
+  },
+  {
+    globalId: '40000000-0000-4000-8000-000000000002',
+    postId: '20000000-0000-4000-8000-000000000011',
+    requesterId: DemoUsers[2].globalId,
+    message:
+      'Mình xin đăng ký nhận dự phòng nếu bạn phía trước không nhận nhé.',
+    status: 'PENDING',
+  },
+  {
+    globalId: '40000000-0000-4000-8000-000000000003',
+    postId: '20000000-0000-4000-8000-000000000012',
+    requesterId: DemoUsers[1].globalId,
+    message:
+      'Em chuẩn bị thi IELTS vào tháng tới, mong được anh chị tặng lại bộ sách này ạ.',
+    status: 'PENDING',
+  },
 ] as const;
 
 /** Bề mặt tối thiểu của `QueryRunner`/`DataSource` dùng trong seed. */
@@ -260,10 +447,27 @@ export async function seedDemoData(executor: ISqlExecutor): Promise<void> {
       [user.globalId, refreshTokenHash],
     );
   }
+
+  for (const req of DemoGiftRequests) {
+    await executor.query(
+      `
+        INSERT INTO gift_requests (
+          global_id, post_id, requester_id, message, status, queue_joined_at, created_at, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5::gift_requests_status_enum, now(), now(), now())
+        ON CONFLICT (post_id, requester_id) WHERE deleted_at IS NULL DO UPDATE SET
+          message = EXCLUDED.message,
+          status = EXCLUDED.status,
+          updated_at = now()
+      `,
+      [req.globalId, req.postId, req.requesterId, req.message, req.status],
+    );
+  }
 }
 
 /** Dữ liệu dùng cho lệnh dọn, giữ tách để không rủi ro xoá dữ liệu người thật. */
 export const DemoSeedIds = {
   users: DemoUsers.map((user) => user.globalId),
   posts: DemoPosts.map((post) => post.globalId),
+  giftRequests: DemoGiftRequests.map((req) => req.globalId),
 };

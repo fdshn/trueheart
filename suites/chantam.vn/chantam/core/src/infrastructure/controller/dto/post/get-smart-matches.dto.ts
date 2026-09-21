@@ -35,8 +35,10 @@ export class GetSmartMatchesQueryDto {
   take?: number;
 }
 
+import { PostEntity } from '../../../entity/post.entity';
+
 export class SmartMatchDto implements ISmartMatchDto {
-  @ApiProperty()
+  @ApiProperty({ type: () => PostEntity })
   post: IPostEntity;
 
   @ApiProperty({

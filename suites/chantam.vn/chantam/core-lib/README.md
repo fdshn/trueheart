@@ -56,4 +56,4 @@ DRAFT ─▶ PENDING_REVIEW ─▶ PUBLISHED ─▶ RESERVED ─▶ DELIVERING �
                             ARCHIVED   (Kho Từ Thiện Chung)
 ```
 
-`EXPIRED` ứng với quy định "quá một tháng không có người nhận" (đặc tả mục 3.2).
+`EXPIRED` ứng với quy định bài quá 3 tháng chưa có người nhận (được gia hạn tối đa 01 lần thêm 3 tháng theo SRS v1.15.0 - CHỐT-07).

@@ -20,7 +20,7 @@ Hệ thống cần cho phép Admin thay đổi chính sách nghiệp vụ mà kh
 1. **Admin CMS là control plane**, còn `point`, `rank`, `referral`, `otp` và `notification` là domain modules. Admin gọi use case của từng resource, không ghi thẳng bảng nghiệp vụ.
 2. **Cấu hình nghiệp vụ dùng phiên bản bất biến.** Không update đè rule đang được dùng. Publish tạo revision mới với `effective_from`; deactivate chỉ ngăn phát sinh mới.
 3. **Ledger là nguồn sự thật.** `user_point_balances` là projection để đọc nhanh; reconcile chỉ phát hiện/sửa projection, không sửa lịch sử.
-4. **Điểm rank và điểm tiêu dùng tách biệt.** `lifetime` chỉ tăng và quyết định rank; `balance` là số dư có thể tiêu.
+4. **Xét Rank theo current balance (SRS v1.15.0 - CHỐT-01).** Phase 1 xét Rank theo số dư Điểm Cống hiến hiện tại (`balance`); khi balance giảm dưới ngưỡng thì tự động đánh giá lại Rank. Cột `lifetime` vẫn được lưu ở ledger để theo dõi tổng tích luỹ và audit.
 5. **SMTP là adapter hạ tầng.** DB lưu policy, sender identity, template và `secret_ref`; mật khẩu SMTP chỉ nằm ở secret manager hoặc environment secret.
 6. **Không có scheduler trong process chính.** Job publish, delivery và maintenance chạy qua CLI/worker hoặc scheduler bên ngoài, giống rank evaluation hiện tại.
 

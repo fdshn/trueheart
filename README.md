@@ -7,7 +7,7 @@
 
 Monorepo backend của nền tảng cho–tặng & từ thiện cộng đồng **Chân Tâm**.
 
-Đặc tả nghiệp vụ: [`Dinh_Huong_Va_Yeu_Cau_Phan_Mem_Chan_Tam.md`](./Dinh_Huong_Va_Yeu_Cau_Phan_Mem_Chan_Tam.md)
+Đặc tả nghiệp vụ chính thức: [`SRS_Chan_Tam_v1.15.0.md`](./SRS_Chan_Tam_v1.15.0.md) *(bản định hướng cũ: [`Dinh_Huong_Va_Yeu_Cau_Phan_Mem_Chan_Tam.md`](./Dinh_Huong_Va_Yeu_Cau_Phan_Mem_Chan_Tam.md))*
 
 ---
 

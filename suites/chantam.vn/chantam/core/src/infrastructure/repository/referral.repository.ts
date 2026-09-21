@@ -38,8 +38,17 @@ export class ReferralRepository implements IReferralRepository {
       [userId],
     );
 
+    if (!summary) {
+      return {
+        code: '',
+        totalCount: 0,
+        qualifiedCount: 0,
+        rewardedCount: 0,
+      };
+    }
+
     return {
-      code: summary.code,
+      code: summary.code ?? '',
       totalCount: Number(summary.total_count),
       qualifiedCount: Number(summary.qualified_count),
       rewardedCount: Number(summary.rewarded_count),

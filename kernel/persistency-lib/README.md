@@ -73,7 +73,7 @@ Chế độ xem bản đồ dùng `applyBoundingBox()` (khung nhìn là hình ch
 const publicLocation = applyGeoJitter(post.location, post.globalId);
 ```
 
-Mục 1.3 đặc tả yêu cầu chỉ người được duyệt nhận mới biết địa chỉ chính xác. Nhiễu **tất
+Đặc tả SRS v1.15.0 (Mục 1.3 & UI-ITEM-DETAIL-01) yêu cầu chỉ người được duyệt nhận mới biết địa chỉ chính xác. Nhiễu **tất
 định theo `globalId`**: nếu nhiễu ngẫu nhiên mỗi lần gọi, kẻ tấn công gọi API nhiều lần rồi
 lấy tâm cụm điểm là suy ra vị trí thật.
 

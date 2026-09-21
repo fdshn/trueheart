@@ -2,6 +2,10 @@
 ## ỨNG DỤNG CHO - TẶNG & TỪ THIỆN CỘNG ĐỒNG "CHÂN TÂM" (TRUE HEART)
 ### Khẩu hiệu: "Lánh Ác Làm Lành – Đáp Đền Tiếp Nối (Pay It Forward)"
 
+> ⚠️ **LƯU Ý:** Tài liệu này là bản định hướng ban đầu và **ĐÃ ĐƯỢC THAY THẾ TOÀN BỘ** bởi đặc tả nghiệp vụ chính thức tại:
+> 👉 [`SRS_Chan_Tam_v1.15.0.md`](./SRS_Chan_Tam_v1.15.0.md).
+> Mọi yêu cầu kiến trúc, chức năng, quy định nghiệp vụ và API hiện tại đều tuân thủ theo `SRS_Chan_Tam_v1.15.0.md`.
+
 ---
 
 | Thông Tin Tổng Quan | Chi Tiết |
