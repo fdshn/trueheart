@@ -41,13 +41,29 @@ function makeQuery(options: {
   });
 }
 
-function makeRepository(query: jest.Mock) {
+/**
+ * Phòng chat được mở trong CÙNG transaction với lượt duyệt (F34), nên mock trả
+ * về đủ để kiểm rằng nó ĐƯỢC gọi — và gọi với cùng `manager`.
+ */
+function makeChatRepository() {
+  return {
+    openRoomWithinTransaction: jest.fn(
+      async (_manager: unknown, params: { transactionId: string }) => ({
+        globalId: 'cafe0000-0000-4000-8000-000000000001',
+        transactionId: params.transactionId,
+      }),
+    ),
+  } as never;
+}
+
+function makeRepository(query: jest.Mock, chat: never = makeChatRepository()) {
   return new GiftRequestRepository(
     {} as never,
     {
       query,
       transaction: async (cb: (m: unknown) => unknown) => cb({ query }),
     } as never,
+    chat,
   );
 }
 

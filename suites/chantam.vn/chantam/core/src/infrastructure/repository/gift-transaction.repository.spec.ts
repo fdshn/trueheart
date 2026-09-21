@@ -20,11 +20,35 @@ function transactionRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeRepository(query: jest.Mock) {
-  return new GiftTransactionRepository({
-    query,
-    transaction: async (cb: (m: unknown) => unknown) => cb({ query }),
-  } as never);
+/**
+ * Chat được mở khi duyệt và khoá khi kết thúc, trong CÙNG transaction (F34,
+ * F38). Mock để kiểm rằng hai việc đó ĐƯỢC gọi với cùng `manager`.
+ */
+function makeChatRepository() {
+  return {
+    openRoomWithinTransaction: jest.fn(
+      async (_manager: unknown, params: { transactionId: string }) => ({
+        globalId: 'cafe0000-0000-4000-8000-000000000002',
+        transactionId: params.transactionId,
+      }),
+    ),
+    lockRoomWithinTransaction: jest.fn(
+      async (_manager: unknown, _transactionId: string) => undefined,
+    ),
+  };
+}
+
+function makeRepository(
+  query: jest.Mock,
+  chat: ReturnType<typeof makeChatRepository> = makeChatRepository(),
+) {
+  return new GiftTransactionRepository(
+    {
+      query,
+      transaction: async (cb: (m: unknown) => unknown) => cb({ query }),
+    } as never,
+    chat as never,
+  );
 }
 
 describe('GiftTransactionRepository accept', () => {

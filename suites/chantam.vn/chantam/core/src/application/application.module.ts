@@ -2,10 +2,12 @@ import { Module } from '@nestjs/common';
 import { AdminConfigModule } from './implementations/admin-config/admin-config.module';
 import { AuthUseCaseModule } from './implementations/auth/auth.module';
 import { CategoryModule } from './implementations/category/category.module';
+import { ChatModule } from './implementations/chat/chat.module';
 import { DiscoveryModule } from './implementations/discovery/discovery.module';
 import { EntitlementModule } from './implementations/entitlement/entitlement.module';
 import { GiftPostModule } from './implementations/gift-post/gift-post.module';
 import { GiftRequestModule } from './implementations/gift-request/gift-request.module';
+import { NotificationUseCaseModule } from './implementations/notification/notification.module';
 import { OnboardingModule } from './implementations/onboarding/onboarding.module';
 import { PointModule } from './implementations/point/point.module';
 import { PostModule } from './implementations/post/post.module';
@@ -22,6 +24,8 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
   imports: [
     AdminConfigModule,
     AuthUseCaseModule,
+    ChatModule,
+    NotificationUseCaseModule,
     DiscoveryModule,
     EntitlementModule,
     GiftPostModule,

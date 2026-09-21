@@ -5,7 +5,10 @@ import {
   PostInvalidStateException,
   PostNotFoundException,
 } from '@/domain/exceptions';
-import { IGiftRequestRepository } from '@/domain/ports/repository';
+import {
+  IChatRepository,
+  IGiftRequestRepository,
+} from '@/domain/ports/repository';
 import { GiftRequestEntity, UserEntity } from '@/infrastructure/entity';
 import {
   GiftPostStatuses,
@@ -16,6 +19,7 @@ import { IGiftRequestEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
+import { randomUUID } from 'node:crypto';
 import { EntityManager, EntitySchema, In, Repository } from 'typeorm';
 import { updateReturning } from './update-returning';
 
@@ -29,6 +33,11 @@ export class GiftRequestRepository
     target: EntitySchema,
     @InjectEntityManager()
     manager: EntityManager,
+    // Repository gọi repository trong cùng tầng hạ tầng là chấp nhận được, và
+    // là cách duy nhất giữ "mở chat" nằm trong transaction của "duyệt" —
+    // transaction đó được mở ở đây, không ở use case.
+    @Inject(IChatRepository)
+    private readonly chat: IChatRepository,
   ) {
     super(target, manager);
   }
@@ -319,6 +328,12 @@ export class GiftRequestRepository
           `UPDATE gift_transactions SET status = 'ACCEPTED', accepted_at = now() WHERE global_id = $1`,
           [existingTransaction.global_id],
         );
+        await this.openChatRoom(manager, {
+          transactionId: existingTransaction.global_id,
+          postId: params.postId,
+          giverId: params.giverId,
+          receiverId: targetRequest.requester_id,
+        });
         return { transactionId: existingTransaction.global_id };
       }
 
@@ -333,7 +348,39 @@ export class GiftRequestRepository
         ],
       );
 
+      await this.openChatRoom(manager, {
+        transactionId: params.transactionId,
+        postId: params.postId,
+        giverId: params.giverId,
+        receiverId: targetRequest.requester_id,
+      });
+
       return { transactionId: params.transactionId };
+    });
+  }
+
+  /**
+   * Mở phòng chat trong CÙNG transaction với lượt duyệt (F34).
+   *
+   * Nằm trong transaction chứ không gọi sau: duyệt xong mà chat chưa mở thì hai
+   * bên không có đường liên lạc để hẹn trao đồ, và không có ai đi dọn những
+   * lượt duyệt thiếu phòng.
+   */
+  private async openChatRoom(
+    manager: EntityManager,
+    params: {
+      transactionId: string;
+      postId: string;
+      giverId: string;
+      receiverId: string;
+    },
+  ): Promise<void> {
+    await this.chat.openRoomWithinTransaction(manager, {
+      globalId: randomUUID(),
+      transactionId: params.transactionId,
+      postId: params.postId,
+      giverId: params.giverId,
+      receiverId: params.receiverId,
     });
   }
 }

@@ -1,7 +1,10 @@
 import {
   ICategoryEntity,
+  IChatMessageEntity,
+  IChatRoomEntity,
   IGiftPostEntity,
   IGiftRequestEntity,
+  INotificationEntity,
   IOnboardingTaskEntity,
   IPostEntity,
   IPostMediaEntity,
@@ -11,8 +14,11 @@ import {
 } from '@chantam.vn/chantam.core-lib/entities';
 import { Global, Module } from '@nestjs/common';
 import { CategoryEntity } from './category.entity';
+import { ChatMessageEntity } from './chat-message.entity';
+import { ChatRoomEntity } from './chat-room.entity';
 import { GiftPostEntity } from './gift-post.entity';
 import { GiftRequestEntity } from './gift-request.entity';
+import { NotificationEntity } from './notification.entity';
 import { OnboardingTaskEntity } from './onboarding-task.entity';
 import { PostMediaEntity } from './post-media.entity';
 import { PostEntity } from './post.entity';
@@ -30,6 +36,9 @@ import { UserEntity } from './user.entity';
 @Module({
   providers: [
     { provide: ICategoryEntity, useValue: CategoryEntity },
+    { provide: IChatRoomEntity, useValue: ChatRoomEntity },
+    { provide: IChatMessageEntity, useValue: ChatMessageEntity },
+    { provide: INotificationEntity, useValue: NotificationEntity },
     { provide: IGiftPostEntity, useValue: GiftPostEntity },
     { provide: IGiftRequestEntity, useValue: GiftRequestEntity },
     { provide: IOnboardingTaskEntity, useValue: OnboardingTaskEntity },

@@ -25,3 +25,4 @@ export * from './1790500000000-AddEntitlementAdminPermissions';
 export * from './1790600000000-AddCategoryPostTypes';
 export * from './1790700000000-CreateGiftRequests';
 export * from './1790800000000-AddPostSosAndCharityTransfer';
+export * from './1790900000000-CreateChatAndNotifications';

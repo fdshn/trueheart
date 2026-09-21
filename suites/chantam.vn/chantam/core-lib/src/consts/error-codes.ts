@@ -81,6 +81,11 @@ export enum ErrorCodes {
   ENTITLEMENT_POLICY_UNAVAILABLE = 0x0a_01,
   ENTITLEMENT_CAPABILITY_UNKNOWN = 0x0a_02,
 
+  // Chat & thông báo
+  CHAT_ROOM_NOT_FOUND = 0x0b_01,
+  CHAT_ROOM_READ_ONLY = 0x0b_02,
+  NOTIFICATION_NOT_FOUND = 0x0b_03,
+
   // 0x04 — Phiên đăng nhập, OTP, đặt lại mật khẩu
   SESSION_NOT_FOUND = 0x04_01,
   REFRESH_TOKEN_INVALID = 0x04_02,

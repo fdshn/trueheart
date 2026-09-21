@@ -205,6 +205,25 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Mỗi bài đăng chỉ được gia hạn một lần',
   },
 
+  CHAT_ROOM_NOT_FOUND: {
+    code: ErrorCodes.CHAT_ROOM_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy phòng chat',
+  },
+
+  CHAT_ROOM_READ_ONLY: {
+    code: ErrorCodes.CHAT_ROOM_READ_ONLY,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Giao dịch đã kết thúc nên phòng chat chỉ còn đọc được, không gửi thêm tin nhắn',
+  },
+
+  NOTIFICATION_NOT_FOUND: {
+    code: ErrorCodes.NOTIFICATION_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy thông báo',
+  },
+
   DISCOVERY_ORIGIN_UNAVAILABLE: {
     code: ErrorCodes.DISCOVERY_ORIGIN_UNAVAILABLE,
     httpStatus: HttpStatus.BAD_REQUEST,

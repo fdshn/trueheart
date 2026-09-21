@@ -7,13 +7,15 @@ import {
 } from '@/domain/exceptions';
 import {
   GiftTransactionStatuses,
+  IChatRepository,
   ICloseGiftTransactionParams,
   IGiftTransactionRepository,
   IGiftTransactionSummary,
   IRequestGiftParams,
 } from '@/domain/ports/repository';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
+import { randomUUID } from 'node:crypto';
 import { EntityManager } from 'typeorm';
 import { updateReturning } from './update-returning';
 
@@ -52,6 +54,11 @@ function toSummary(row: ITransactionRow): IGiftTransactionSummary {
 export class GiftTransactionRepository implements IGiftTransactionRepository {
   public constructor(
     @InjectEntityManager() private readonly manager: EntityManager,
+    // Repository gọi repository trong cùng tầng hạ tầng: đây là cách duy nhất
+    // giữ "mở/khoá chat" nằm trong transaction của "duyệt/kết thúc" —
+    // transaction đó được mở ở đây, không ở use case.
+    @Inject(IChatRepository)
+    private readonly chat: IChatRepository,
   ) {}
 
   public async findByGlobalId(
@@ -177,6 +184,16 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         throw new GiftTransactionInvalidStateException(current.status);
       }
 
+      // Mở phòng chat trong CÙNG transaction (F34): duyệt xong mà chat chưa mở
+      // thì hai bên không có đường liên lạc để hẹn trao đồ.
+      await this.chat.openRoomWithinTransaction(manager, {
+        globalId: randomUUID(),
+        transactionId,
+        postId: current.post_id,
+        giverId: current.giver_id,
+        receiverId: current.receiver_id,
+      });
+
       return toSummary(updated);
     });
   }
@@ -210,6 +227,11 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
       if (!updated) {
         throw new GiftTransactionInvalidStateException(current.status);
       }
+
+      // Giao dịch xong thì phòng chuyển sang chỉ đọc (F38). KHÔNG xoá gì: hai
+      // bên vẫn xem lại được địa chỉ và giờ hẹn, và lịch sử là bằng chứng khi
+      // có tranh chấp hoặc report.
+      await this.chat.lockRoomWithinTransaction(manager, transactionId);
 
       return toSummary(updated);
     });
@@ -255,6 +277,8 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         throw new GiftTransactionInvalidStateException(current.status);
       }
 
+      await this.chat.lockRoomWithinTransaction(manager, params.transactionId);
+
       return toSummary(updated);
     });
   }
@@ -285,6 +309,12 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         `,
         [due.map((row) => row.global_id)],
       );
+
+      // Tự hoàn tất cũng là hoàn tất, nên phòng chat cũng phải chuyển sang chỉ
+      // đọc (F38). Thiếu chỗ này thì những lượt trao do cron đóng sẽ để lại
+      // phòng vẫn gửi được tin — một cửa hậu chỉ lộ ra sau 5 ngày.
+      for (const row of due)
+        await this.chat.lockRoomWithinTransaction(manager, row.global_id);
 
       return due.length;
     });

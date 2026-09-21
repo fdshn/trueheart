@@ -18,6 +18,7 @@ import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
+import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { RankRepository } from '../src/infrastructure/repository/rank.repository';
@@ -98,7 +99,10 @@ async function main(): Promise<void> {
         [id, username, rank],
       );
 
-    const transactions = new GiftTransactionRepository(dataSource.manager);
+    const transactions = new GiftTransactionRepository(
+      dataSource.manager,
+      new ChatRepository(dataSource.manager),
+    );
 
     // ── 1. Duyệt giao dịch khi kho đã cạn ───────────────────────────────────
     console.log('Duyệt giao dịch:\n');

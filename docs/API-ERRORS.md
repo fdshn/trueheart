@@ -103,8 +103,11 @@ Nghiệp vụ Chân Tâm
 | `0x0902` | `2306` | 403 Forbidden | `ADMIN_SELF_ROLE_CHANGE` | Không thể tự thay đổi quyền của chính mình |
 | `0x0a01` | `2561` | 503 | `ENTITLEMENT_POLICY_UNAVAILABLE` | Chưa có bản chính sách quyền nào đang hiệu lực |
 | `0x0a02` | `2562` | 400 Bad Request | `ENTITLEMENT_CAPABILITY_UNKNOWN` | Không có capability nào mang mã POST_TELEPATHY trong bản chính sách hiện hành |
+| `0x0b01` | `2817` | 404 Not Found | `CHAT_ROOM_NOT_FOUND` | Không tìm thấy phòng chat |
+| `0x0b02` | `2818` | 409 Conflict | `CHAT_ROOM_READ_ONLY` | Giao dịch đã kết thúc nên phòng chat chỉ còn đọc được, không gửi thêm tin nhắn |
+| `0x0b03` | `2819` | 404 Not Found | `NOTIFICATION_NOT_FOUND` | Không tìm thấy thông báo |
 
 ---
 
-Tổng cộng **64 mã lỗi** trên 3 tầng.
+Tổng cộng **67 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

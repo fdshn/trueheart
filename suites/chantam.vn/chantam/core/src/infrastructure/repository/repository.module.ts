@@ -2,10 +2,12 @@ import {
   IAdminConfigRepository,
   IAdminUserRepository,
   ICategoryRepository,
+  IChatRepository,
   IEntitlementRepository,
   IGiftRequestRepository,
   IGiftTransactionRepository,
   INotificationChannelRepository,
+  INotificationRepository,
   IOnboardingTaskRepository,
   IPointLedgerRepository,
   IPostMediaRepository,
@@ -22,10 +24,12 @@ import { AdminBootstrapService } from './admin-bootstrap.service';
 import { AdminConfigRepository } from './admin-config.repository';
 import { AdminUserRepository } from './admin-user.repository';
 import { CategoryRepository } from './category.repository';
+import { ChatRepository } from './chat.repository';
 import { EntitlementRepository } from './entitlement.repository';
 import { GiftRequestRepository } from './gift-request.repository';
 import { GiftTransactionRepository } from './gift-transaction.repository';
 import { NotificationChannelRepository } from './notification-channel.repository';
+import { NotificationRepository } from './notification.repository';
 import { OnboardingTaskRepository } from './onboarding-task.repository';
 import { PointLedgerRepository } from './point-ledger.repository';
 import { PostMediaRepository } from './post-media.repository';
@@ -47,6 +51,8 @@ import { UserRepository } from './user.repository';
   providers: [
     AdminBootstrapService,
     { provide: ICategoryRepository, useClass: CategoryRepository },
+    { provide: IChatRepository, useClass: ChatRepository },
+    { provide: INotificationRepository, useClass: NotificationRepository },
     { provide: IAdminConfigRepository, useClass: AdminConfigRepository },
     { provide: IAdminUserRepository, useClass: AdminUserRepository },
     { provide: IEntitlementRepository, useClass: EntitlementRepository },
@@ -75,6 +81,8 @@ import { UserRepository } from './user.repository';
   ],
   exports: [
     ICategoryRepository,
+    IChatRepository,
+    INotificationRepository,
     IAdminConfigRepository,
     IAdminUserRepository,
     IEntitlementRepository,

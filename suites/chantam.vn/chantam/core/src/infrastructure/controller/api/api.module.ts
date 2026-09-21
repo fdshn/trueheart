@@ -2,10 +2,12 @@ import { Module } from '@nestjs/common';
 import { AdminConfigControllerModule } from './admin-config/admin-config.module';
 import { AuthControllerModule } from './auth/auth.module';
 import { CategoryControllerModule } from './category/category.module';
+import { ChatControllerModule } from './chat/chat.module';
 import { DiscoveryControllerModule } from './discovery/discovery.module';
 import { EntitlementControllerModule } from './entitlement/entitlement.module';
 import { GiftPostControllerModule } from './gift-post/gift-post.module';
 import { GiftRequestApiModule } from './gift-request/gift-request-api.module';
+import { NotificationControllerModule } from './notification/notification.module';
 import { PointControllerModule } from './point/point.module';
 import { PostControllerModule } from './post/post.module';
 import { ProfileControllerModule } from './profile/profile.module';
@@ -19,10 +21,12 @@ import { TransactionControllerModule } from './transaction/transaction.module';
     AdminConfigControllerModule,
     AuthControllerModule,
     CategoryControllerModule,
+    ChatControllerModule,
     DiscoveryControllerModule,
     EntitlementControllerModule,
     GiftPostControllerModule,
     GiftRequestApiModule,
+    NotificationControllerModule,
     PointControllerModule,
     PostControllerModule,
     ProfileControllerModule,
