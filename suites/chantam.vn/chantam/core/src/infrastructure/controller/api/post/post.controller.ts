@@ -400,8 +400,8 @@ export class PostController {
       .build();
   }
 
+  @Public()
   @Get('nearby')
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Quét canonical post quanh đây theo loại bài',
     description:
@@ -415,12 +415,12 @@ export class PostController {
     ],
   ])
   public async getNearbyPosts(
-    @CurrentUser() principal: IAuthPrincipal,
     @Query() query: GetNearbyPostsQueryDto,
+    @CurrentUser() principal?: IAuthPrincipal,
   ): Promise<ResponseDto<IGetNearbyPostsResponseDto>> {
     const result = await this.getNearbyPostsUseCase.handle({
       ...query,
-      currentUserId: principal.userId,
+      currentUserId: principal?.userId,
     });
 
     return ResponseDto.create<IGetNearbyPostsResponseDto>()

@@ -16,7 +16,6 @@ export interface IUpdateOwnProfileDto {
   fullName?: string | null;
   /** Key do endpoint presign trả về sau upload, không nhận URL tuỳ ý. */
   avatarKey?: string | null;
-  avatarUrl?: string | null;
   email?: string | null;
   phone?: string | null;
   /** Bỏ trống = giữ nguyên, `null` = xoá hẳn vị trí mặc định đang lưu. */

@@ -33,20 +33,17 @@ const SelectColumns = `
   requested_at, accepted_at, completed_at
 `;
 
-function toSummary(
-  row: ITransactionRow | ITransactionRow[],
-): IGiftTransactionSummary {
-  const r: ITransactionRow = Array.isArray(row) ? row[0] : row;
+function toSummary(row: ITransactionRow): IGiftTransactionSummary {
   return {
-    globalId: r?.global_id,
-    postId: r?.post_id,
-    giverId: r?.giver_id,
-    receiverId: r?.receiver_id,
-    quantity: Number(r?.quantity),
-    status: r?.status,
-    requestedAt: r?.requested_at,
-    acceptedAt: r?.accepted_at,
-    completedAt: r?.completed_at,
+    globalId: row.global_id,
+    postId: row.post_id,
+    giverId: row.giver_id,
+    receiverId: row.receiver_id,
+    quantity: Number(row.quantity),
+    status: row.status,
+    requestedAt: row.requested_at,
+    acceptedAt: row.accepted_at,
+    completedAt: row.completed_at,
   };
 }
 
@@ -171,6 +168,10 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         [transactionId],
       );
 
+      if (!updated) {
+        throw new GiftTransactionInvalidStateException(current.status);
+      }
+
       return toSummary(updated);
     });
   }
@@ -199,6 +200,10 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         `,
         [transactionId],
       );
+
+      if (!updated) {
+        throw new GiftTransactionInvalidStateException(current.status);
+      }
 
       return toSummary(updated);
     });
@@ -238,6 +243,10 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         `,
         [params.transactionId, params.status, params.reason],
       );
+
+      if (!updated) {
+        throw new GiftTransactionInvalidStateException(current.status);
+      }
 
       return toSummary(updated);
     });

@@ -48,10 +48,6 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
             profileUpdate.avatarKey,
           )
         : null;
-    } else if (profileUpdate.avatarUrl !== undefined) {
-      update.avatarUrl = profileUpdate.avatarUrl
-        ? profileUpdate.avatarUrl.trim()
-        : null;
     }
 
     if (profileUpdate.email !== undefined) {

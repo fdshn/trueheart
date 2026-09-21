@@ -44,26 +44,37 @@ export class GetMyPostsUseCase implements IGetMyPostsUseCase {
         ? await this.giftRequestRepository.countActiveByPostIds(postIds)
         : new Map<string, number>();
 
-    const items = await Promise.all(
-      posts.map(async (post) => {
-        const rawMedia = await this.postMediaRepository.listByPostId(
-          post.globalId,
-        );
-        const media = rawMedia
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((item) => ({
-            id: item.id,
-            url: `${this.config.storage.publicBaseUrl.replace(/\/$/, '')}/${item.r2Key}`,
-            sortOrder: item.sortOrder,
-          }));
+    const allMedia =
+      postIds.length > 0
+        ? await this.postMediaRepository.listByPostIds(postIds)
+        : [];
 
-        return {
-          post,
-          requestCount: requestCounts.get(post.globalId) ?? 0,
-          media,
-        };
-      }),
-    );
+    const mediaMap = new Map<
+      string,
+      Array<{ id: number; url: string; sortOrder: number }>
+    >();
+    for (const item of allMedia) {
+      const url = `${this.config.storage.publicBaseUrl.replace(/\/$/, '')}/${item.r2Key}`;
+      const entry = { id: item.id, url, sortOrder: item.sortOrder };
+      const list = mediaMap.get(item.postId);
+      if (list) {
+        list.push(entry);
+      } else {
+        mediaMap.set(item.postId, [entry]);
+      }
+    }
+
+    const items = posts.map((post) => {
+      const media = (mediaMap.get(post.globalId) ?? []).sort(
+        (a, b) => a.sortOrder - b.sortOrder,
+      );
+
+      return {
+        post,
+        requestCount: requestCounts.get(post.globalId) ?? 0,
+        media,
+      };
+    });
 
     // Trả toạ độ THẬT, không làm nhiễu: đây là bài của chính người gọi, và họ
     // cần thấy đúng chỗ mình đã ghim để sửa cho khớp.

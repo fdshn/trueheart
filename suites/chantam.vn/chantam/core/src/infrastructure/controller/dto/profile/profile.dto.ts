@@ -57,16 +57,6 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
   avatarKey?: string | null;
 
   @ApiPropertyOptional({
-    maxLength: 500,
-    nullable: true,
-    description: 'URL avatar trực tiếp hoặc null để xoá.',
-  })
-  @IsOptional()
-  @IsString()
-  @Length(1, 500)
-  avatarUrl?: string | null;
-
-  @ApiPropertyOptional({
     format: 'email',
     maxLength: 255,
     nullable: true,

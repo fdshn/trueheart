@@ -222,7 +222,7 @@ describe('UpdateOwnProfileUseCase', () => {
     );
   });
 
-  it('gửi email null và avatarUrl null thì gán null an toàn', async () => {
+  it('gửi email null và avatarKey null thì gán null an toàn', async () => {
     const repository = makeRepository();
     const useCase = new UpdateOwnProfileUseCase(
       repository as never,
@@ -232,7 +232,7 @@ describe('UpdateOwnProfileUseCase', () => {
 
     await useCase.handle({
       userId: UserId,
-      profile: { email: null, avatarUrl: null },
+      profile: { email: null, avatarKey: null },
     });
 
     expect(repository.update).toHaveBeenCalledWith(

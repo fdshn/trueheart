@@ -23,6 +23,7 @@ function makeDeps(items: unknown[] = [], total = 0) {
     },
     postMedia: {
       listByPostId: jest.fn().mockResolvedValue([]),
+      listByPostIds: jest.fn().mockResolvedValue([]),
     },
     giftRequests: {
       countActiveByPostIds: jest
@@ -123,8 +124,13 @@ describe('GetMyPostsUseCase', () => {
       location: { lat: 21.0, lng: 105.8 },
     };
     const deps = makeDeps([post], 1);
-    deps.postMedia.listByPostId.mockResolvedValue([
-      { id: 10, r2Key: 'posts/1/image.webp', sortOrder: 0 },
+    deps.postMedia.listByPostIds.mockResolvedValue([
+      {
+        id: 10,
+        postId: post.globalId,
+        r2Key: 'posts/1/image.webp',
+        sortOrder: 0,
+      } as never,
     ]);
     const requestMap = new Map<string, number>();
     requestMap.set(post.globalId, 4);

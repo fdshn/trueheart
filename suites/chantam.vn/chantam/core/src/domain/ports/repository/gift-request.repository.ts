@@ -17,6 +17,13 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
   ): Promise<Map<string, GiftRequestStatuses>>;
 
   listByPostId(postId: string): Promise<IPostRequestItemDto[]>;
+
+  acceptRequest(params: {
+    requestId: string;
+    postId: string;
+    giverId: string;
+    transactionId: string;
+  }): Promise<{ transactionId: string }>;
 }
 
 export const IGiftRequestRepository = Symbol('IGiftRequestRepository');

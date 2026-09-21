@@ -318,21 +318,16 @@ export class PostRepository
 
     if (currentUserId) {
       qb.andWhere(
-        '(post.status IN (:...statuses) OR post.authorId = :currentUserId OR post.status = :delivering)',
+        '(post.status IN (:...statuses) OR post.authorId = :currentUserId)',
         {
           statuses: [...PubliclyVisibleGiftPostStatuses],
           currentUserId,
-          delivering: 'DELIVERING',
         },
       );
     } else {
-      qb.andWhere(
-        '(post.status IN (:...statuses) OR post.status = :delivering)',
-        {
-          statuses: [...PubliclyVisibleGiftPostStatuses],
-          delivering: 'DELIVERING',
-        },
-      );
+      qb.andWhere('post.status IN (:...statuses)', {
+        statuses: [...PubliclyVisibleGiftPostStatuses],
+      });
     }
 
     return qb.getOne();

@@ -3,7 +3,7 @@ import { PostMediaEntity } from '@/infrastructure/entity';
 import { IPostMediaEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
-import { EntityManager, EntitySchema, Repository } from 'typeorm';
+import { EntityManager, EntitySchema, In, Repository } from 'typeorm';
 
 const MaxPostMedia = 10;
 
@@ -23,6 +23,14 @@ export class PostMediaRepository
 
   public async listByPostId(postId: string): Promise<IPostMediaEntity[]> {
     return this.find({ where: { postId }, order: { sortOrder: 'ASC' } });
+  }
+
+  public async listByPostIds(postIds: string[]): Promise<IPostMediaEntity[]> {
+    if (postIds.length === 0) return [];
+    return this.find({
+      where: { postId: In(postIds) },
+      order: { postId: 'ASC', sortOrder: 'ASC' },
+    });
   }
 
   public async countByPostId(postId: string): Promise<number> {

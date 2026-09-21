@@ -204,4 +204,29 @@ describe('CreateGiftRequestUseCase', () => {
       }),
     ).rejects.toBeInstanceOf(GiftRequestDuplicatedException);
   });
+
+  it('ném GiftRequestDuplicatedException khi DB gặp race condition trùng khoá (code 23505)', async () => {
+    const postRepo = {
+      findOneBy: jest.fn().mockResolvedValue(makePost()),
+    } as unknown as jest.Mocked<IPostRepository>;
+
+    const created = makeRequest();
+    const dbError = Object.assign(new Error('duplicate key value'), {
+      code: '23505',
+    });
+    const giftRequestRepo = {
+      findByPostAndRequester: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockReturnValue(created),
+      save: jest.fn().mockRejectedValue(dbError),
+    } as unknown as jest.Mocked<IGiftRequestRepository>;
+
+    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    await expect(
+      useCase.handle({
+        postId: PostId,
+        requesterId: RequesterId,
+        message: 'Em xin món này ạ',
+      }),
+    ).rejects.toBeInstanceOf(GiftRequestDuplicatedException);
+  });
 });

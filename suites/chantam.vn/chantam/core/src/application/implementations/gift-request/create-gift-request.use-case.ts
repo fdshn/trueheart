@@ -21,6 +21,11 @@ import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
 import { toGiftRequestDto } from './gift-request.mapper';
 
+function isUniqueViolation(error: unknown): boolean {
+  const err = error as { code?: string; driverError?: { code?: string } };
+  return err?.code === '23505' || err?.driverError?.code === '23505';
+}
+
 @Injectable()
 export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
   public constructor(
@@ -66,7 +71,14 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
       existing.queueJoinedAt = new Date();
       existing.withdrawnAt = null;
 
-      await this.giftRequestRepository.save(existing);
+      try {
+        await this.giftRequestRepository.save(existing);
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          throw new GiftRequestDuplicatedException();
+        }
+        throw error;
+      }
       return { request: toGiftRequestDto(existing) };
     }
 
@@ -81,7 +93,14 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
       queueJoinedAt: new Date(),
     });
 
-    await this.giftRequestRepository.save(created);
+    try {
+      await this.giftRequestRepository.save(created);
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new GiftRequestDuplicatedException();
+      }
+      throw error;
+    }
     return { request: toGiftRequestDto(created) };
   }
 }

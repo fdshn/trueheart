@@ -15,7 +15,7 @@ import {
   IGiftRequestEntity,
   IPostEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { AcceptGiftRequestUseCase } from './accept-gift-request.use-case';
 
 const PostId = '11111111-1111-1111-1111-111111111111';
@@ -67,7 +67,7 @@ function makeRequest(
 }
 
 describe('AcceptGiftRequestUseCase', () => {
-  it('duyệt thành công: chuyển request sang ACCEPTED, post sang DELIVERING, và trả transactionId', async () => {
+  it('duyệt thành công: gọi acceptRequest trên repo và trả về kết quả', async () => {
     const post = makePost();
     const request = makeRequest();
 
@@ -75,26 +75,11 @@ describe('AcceptGiftRequestUseCase', () => {
       findOneBy: jest.fn().mockResolvedValue(post),
     } as unknown as jest.Mocked<IPostRepository>;
 
-    const executeUpdate = jest.fn().mockResolvedValue({ affected: 2 });
-    const queryBuilder = {
-      update: jest.fn().mockReturnThis(),
-      set: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      execute: executeUpdate,
-    };
-
-    const mockManager = {
-      save: jest.fn().mockResolvedValue({}),
-      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
-      query: jest.fn().mockResolvedValue([]),
-    };
-
     const giftRequestRepo = {
       findOneBy: jest.fn().mockResolvedValue(request),
-      manager: {
-        transaction: jest.fn(async (callback) => callback(mockManager)),
-      },
+      acceptRequest: jest
+        .fn()
+        .mockResolvedValue({ transactionId: 'trans-123' }),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 
     const useCase = new AcceptGiftRequestUseCase(postRepo, giftRequestRepo);
@@ -107,11 +92,13 @@ describe('AcceptGiftRequestUseCase', () => {
     expect(result.status).toBe(GiftRequestStatuses.ACCEPTED);
     expect(result.requestId).toBe(RequestId);
     expect(result.postId).toBe(PostId);
-    expect(result.transactionId).toBeDefined();
-    expect(request.status).toBe(GiftRequestStatuses.ACCEPTED);
-    expect(post.status).toBe('DELIVERING');
-    expect(mockManager.save).toHaveBeenCalledWith(request);
-    expect(mockManager.save).toHaveBeenCalledWith(post);
+    expect(result.transactionId).toBe('trans-123');
+    expect(giftRequestRepo.acceptRequest).toHaveBeenCalledWith({
+      requestId: RequestId,
+      postId: PostId,
+      giverId: AuthorId,
+      transactionId: expect.any(String),
+    });
   });
 
   it('ném PostNotFoundException nếu không tìm thấy post', async () => {
