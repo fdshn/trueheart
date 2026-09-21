@@ -71,7 +71,12 @@ describe('ListPostRequestsUseCase', () => {
 
     const request = makeRequestItem();
     const giftRequestRepo = {
-      listByPostId: jest.fn().mockResolvedValue([request]),
+      listByPostId: jest.fn(
+        async (_postId: string, _skip: number, _take: number) => ({
+          items: [request],
+          total: 1,
+        }),
+      ),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 
     const useCase = new ListPostRequestsUseCase(postRepo, giftRequestRepo);
@@ -129,5 +134,34 @@ describe('ListPostRequestsUseCase', () => {
         currentUserId: AuthorId,
       }),
     ).rejects.toBeInstanceOf(PostNotFoundException);
+  });
+
+  it('truyền phân trang xuống repository và trả TỔNG thật', async () => {
+    // `total` phải là tổng trong database, không phải số phần tử của trang
+    // hiện tại — bài lan truyền có thể nhận hàng nghìn lượt xin.
+    const postRepo = {
+      findOneBy: jest.fn().mockResolvedValue(makePost()),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequestRepo = {
+      listByPostId: jest.fn(
+        async (_postId: string, _skip: number, _take: number) => ({
+          items: [],
+          total: 250,
+        }),
+      ),
+    } as unknown as jest.Mocked<IGiftRequestRepository>;
+
+    const result = await new ListPostRequestsUseCase(
+      postRepo,
+      giftRequestRepo,
+    ).handle({
+      postId: PostId,
+      currentUserId: AuthorId,
+      page: 3,
+      pageSize: 20,
+    });
+
+    expect(giftRequestRepo.listByPostId).toHaveBeenCalledWith(PostId, 40, 20);
+    expect(result.total).toBe(250);
   });
 });

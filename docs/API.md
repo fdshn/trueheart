@@ -291,6 +291,35 @@ lifecycle riêng.
 `@Get('me')`, `@Get('nearby')`, `@Get('map')` phải đứng **trước** `@Get(':postId')`. Nếu
 không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ chạy.
 
+### Xin nhận đồ — `/posts/:postId/requests`
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `POST` | `/posts/:postId/requests` | Bearer | Gửi yêu cầu xin nhận, kèm lời nhắn tối đa 500 ký tự |
+| `POST` | `/posts/:postId/requests/withdraw` | Bearer | Rút yêu cầu của chính mình |
+| `GET` | `/posts/:postId/requests` | Bearer (chỉ tác giả) | Danh sách người xin, có phân trang |
+| `POST` | `/posts/:postId/requests/:requestId/accept` | Bearer (chỉ tác giả) | Duyệt một người xin |
+
+**Điều cần biết**
+
+- **Mỗi người một yêu cầu đang mở trên mỗi bài.** Xin trùng bị từ chối bằng mã lỗi riêng,
+  không phải 500 — ràng buộc unique một phần ở database là nơi quyết định cuối, và lỗi
+  `23505` được map lại thành lỗi nghiệp vụ.
+- **Rút rồi xin lại được**: bản ghi cũ được tái dùng thay vì tạo dòng mới, nên vừa hợp
+  unique index vừa giữ lịch sử.
+- **Không xin được bài của chính mình.**
+- `GET` chỉ **tác giả bài** gọi được. Danh sách trả `username`, họ tên, avatar và hạng của
+  người xin — **không** email, SĐT hay điểm.
+- **Duyệt là thao tác có khoá.** Toàn bộ nằm trong một transaction, khoá theo thứ tự
+  `gift_requests` → `gift_transactions` → `posts`. Thứ tự này phải khớp với
+  `GiftTransactionRepository`, nếu không hai luồng duyệt chạy đồng thời sẽ khoá chéo nhau
+  và Postgres huỷ một bên.
+- **Bài chỉ chuyển `DELIVERING` khi hết số lượng.** Còn hàng thì vẫn `PUBLISHED` để người
+  khác tiếp tục xin; chỉ khi hết hàng mới từ chối hàng loạt các yêu cầu còn lại.
+- **Một lượt bàn giao chỉ trừ kho một lần.** Nếu người nhận đã có giao dịch được duyệt qua
+  `/transactions`, duyệt tiếp ở đây bị từ chối thay vì trừ kho lần nữa.
+- `requestCount` hiển thị công khai **không đếm** yêu cầu đã rút, huỷ hoặc bị từ chối.
+
 ---
 
 ## 6. Khám phá — `/discovery`, `/posts/nearby`, `/posts/map`

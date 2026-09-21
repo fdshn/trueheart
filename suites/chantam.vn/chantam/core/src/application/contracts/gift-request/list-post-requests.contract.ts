@@ -4,7 +4,8 @@ import { IUseCase } from '@chantam/service.common-lib';
 export interface IListPostRequestsCommand {
   postId: string;
   currentUserId: string;
-  currentUserRole?: string;
+  page?: number;
+  pageSize?: number;
 }
 
 export type IListPostRequestsResult = IGetPostRequestsResponseDto;

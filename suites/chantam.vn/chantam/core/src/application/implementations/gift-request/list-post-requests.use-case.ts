@@ -8,6 +8,7 @@ import {
   IGiftRequestRepository,
   IPostRepository,
 } from '@/domain/ports/repository';
+import { toSkipTake } from '@chantam/service.common-lib/dto';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -30,20 +31,20 @@ export class ListPostRequestsUseCase implements IListPostRequestsUseCase {
     if (!post || post.deletedAt)
       throw new PostNotFoundException(command.postId);
 
-    if (
-      post.authorId !== command.currentUserId &&
-      command.currentUserRole !== 'admin' &&
-      command.currentUserRole !== 'moderator'
-    ) {
-      throw new ForbiddenException();
-    }
+    // Chỉ tác giả. Trước đây có thêm nhánh admin/moderator đọc từ
+    // `currentUserRole`, nhưng controller không bao giờ truyền trường đó nên nó
+    // là code chết — và role trong token là ảnh chụp cũ, muốn mở cho admin thì
+    // phải đọc lại quyền từ database chứ không tin token.
+    if (post.authorId !== command.currentUserId) throw new ForbiddenException();
 
-    const requests = await this.giftRequestRepository.listByPostId(
+    const { skip, take } = toSkipTake(command);
+    const { items, total } = await this.giftRequestRepository.listByPostId(
       command.postId,
+      skip,
+      take,
     );
-    return {
-      requests,
-      total: requests.length,
-    };
+
+    // `total` là tổng thật trong database, không phải số phần tử của trang này.
+    return { requests: items, total };
   }
 }

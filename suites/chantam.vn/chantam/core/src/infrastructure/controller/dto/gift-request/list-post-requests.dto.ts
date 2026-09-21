@@ -4,8 +4,10 @@ import {
   IPostApplicantProfileDto,
   IPostRequestItemDto,
 } from '@chantam.vn/chantam.core-lib/dto';
+import { PaginationQueryDto } from '@chantam/service.common-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsUUID } from 'class-validator';
+import { Mixin } from 'ts-mixer';
 
 export class ListPostRequestsParamDto {
   @ApiProperty({
@@ -15,6 +17,9 @@ export class ListPostRequestsParamDto {
   @IsUUID()
   postId: string;
 }
+
+/** Phân trang chuẩn của repo: `page` và `pageSize`, KHÔNG phải `limit`. */
+export class ListPostRequestsQueryDto extends Mixin(PaginationQueryDto) {}
 
 export class PostApplicantProfileDto implements IPostApplicantProfileDto {
   @ApiProperty()

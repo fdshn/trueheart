@@ -16,7 +16,17 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
     requesterId: string,
   ): Promise<Map<string, GiftRequestStatuses>>;
 
-  listByPostId(postId: string): Promise<IPostRequestItemDto[]>;
+  /**
+   * Danh sách người xin của một bài, CÓ phân trang.
+   *
+   * Bài lan truyền có thể nhận hàng nghìn lượt xin; trả hết về một response là
+   * kéo sập cả client lẫn connection pool.
+   */
+  listByPostId(
+    postId: string,
+    skip: number,
+    take: number,
+  ): Promise<{ items: IPostRequestItemDto[]; total: number }>;
 
   acceptRequest(params: {
     requestId: string;

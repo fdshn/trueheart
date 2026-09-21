@@ -34,6 +34,15 @@ Tài liệu này ghi nhận hiện trạng các giả định ban đầu và **�
   - Khi số điểm hiện tại giảm xuống dưới ngưỡng của Rank đang có, hệ thống **tự xác định lại Rank theo ngưỡng hiện tại** (ví dụ: Vàng 600, Bạc 400; đang Vàng mà tụt còn 450 thì xuống Bạc).
   - Khi trượt nhiệm vụ chu kỳ 3 tháng hoặc điểm giảm, hệ thống đánh giá lại theo điểm hiện tại, **không bắt buộc chỉ tụt đúng 1 bậc**.
   - **Phase 1 không dùng một `lifetime rank point` riêng** để giữ hạng. Mọi biến động balance sẽ trigger re-evaluation.
+- **⛔ CHƯA HIỆN THỰC.** Code hiện tại vẫn chạy theo *giả định ban đầu*, không theo quyết
+  định này: `rank-policy.ts` đọc `lifetimePoints`, `user_point_balances` vẫn tách
+  `lifetime` khỏi `balance`, và bảng `rank_maintenance_cycles` vẫn quyết việc tụt đúng một
+  bậc. Tiêu điểm hiện **không** làm tụt hạng.
+
+  Đổi sang mô hình theo balance là đụng `rank-policy`, `rank.repository`,
+  `rank_maintenance_cycles` và `user_point_balances` — một khối việc riêng, chưa nằm trong
+  nhánh nào. Cho tới khi làm xong, đây là **mâu thuẫn đã biết giữa tài liệu và code**, ghi
+  ra đây để không ai đọc mục trên rồi tưởng hệ thống đang hành xử như vậy.
 
 ---
 

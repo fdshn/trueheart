@@ -86,7 +86,16 @@ export class GiftRequestRepository
       .addSelect('COUNT(*)', 'cnt')
       .where('gr.post_id IN (:...postIds)', { postIds })
       .andWhere('gr.deleted_at IS NULL')
-      .andWhere("gr.status NOT IN ('WITHDRAWN', 'CANCELLED')")
+      // REJECTED cũng không còn hoạt động: sau khi tác giả duyệt một người,
+      // các yêu cầu còn lại bị từ chối hàng loạt — đếm chúng vào `requestCount`
+      // hiển thị công khai là báo một con số đã chết.
+      .andWhere('gr.status NOT IN (:...inactive)', {
+        inactive: [
+          GiftRequestStatuses.WITHDRAWN,
+          GiftRequestStatuses.CANCELLED,
+          GiftRequestStatuses.REJECTED,
+        ],
+      })
       .groupBy('gr.post_id')
       .getRawMany();
 
@@ -116,7 +125,17 @@ export class GiftRequestRepository
     return map;
   }
 
-  public async listByPostId(postId: string): Promise<IPostRequestItemDto[]> {
+  public async listByPostId(
+    postId: string,
+    skip: number,
+    take: number,
+  ): Promise<{ items: IPostRequestItemDto[]; total: number }> {
+    const total = await this.manager
+      .createQueryBuilder(GiftRequestEntity, 'gr')
+      .where('gr.post_id = :postId', { postId })
+      .andWhere('gr.deleted_at IS NULL')
+      .getCount();
+
     const rawRows = await this.manager
       .createQueryBuilder(GiftRequestEntity, 'gr')
       .leftJoin(UserEntity, 'u', 'u.global_id = gr.requester_id')
@@ -135,9 +154,11 @@ export class GiftRequestRepository
       .where('gr.post_id = :postId', { postId })
       .andWhere('gr.deleted_at IS NULL')
       .orderBy('gr.queue_joined_at', 'ASC')
+      .offset(skip)
+      .limit(take)
       .getRawMany();
 
-    return rawRows.map((row) => ({
+    const items = rawRows.map((row) => ({
       id: row.id,
       postId: row.postId,
       requesterId: row.requesterId,
@@ -155,6 +176,8 @@ export class GiftRequestRepository
           }
         : undefined,
     }));
+
+    return { items, total };
   }
 
   /**

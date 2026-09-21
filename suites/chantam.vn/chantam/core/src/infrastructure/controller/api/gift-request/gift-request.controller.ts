@@ -8,6 +8,8 @@ import {
   CannotRequestOwnPostException,
   GiftRequestDuplicatedException,
   GiftRequestNotFoundException,
+  GiftTransactionInvalidStateException,
+  GiftTransactionOutOfStockException,
   PostInvalidStateException,
   PostNotAcceptingRequestsException,
   PostNotFoundException,
@@ -18,11 +20,26 @@ import {
   IGetPostRequestsResponseDto,
   IWithdrawGiftRequestResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
-import { CurrentUser, IAuthPrincipal } from '@chantam/service.auth-lib';
+import {
+  ApiTokenErrors,
+  CurrentUser,
+  IAuthPrincipal,
+} from '@chantam/service.auth-lib';
 import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
-import { ValidationFailedException } from '@chantam/service.common-lib/exception';
-import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
+import {
+  ForbiddenException,
+  ValidationFailedException,
+} from '@chantam/service.common-lib/exception';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -38,6 +55,7 @@ import {
   CreateGiftRequestResponseDto,
   GetPostRequestsResponseDto,
   ListPostRequestsParamDto,
+  ListPostRequestsQueryDto,
   WithdrawGiftRequestParamDto,
   WithdrawGiftRequestResponseDto,
 } from '../../dto/gift-request';
@@ -67,6 +85,7 @@ export class GiftRequestController {
     type: ResponseDto.forApi(CreateGiftRequestResponseDto),
   })
   @ApiErrorResponses(
+    ...ApiTokenErrors,
     [
       ValidationFailedException,
       ['message: message must be longer than or equal to 1 characters'],
@@ -109,10 +128,12 @@ export class GiftRequestController {
   @ApiOkResponse({
     type: ResponseDto.forApi(WithdrawGiftRequestResponseDto),
   })
-  @ApiErrorResponses(
-    [GiftRequestNotFoundException, 'Không tìm thấy yêu cầu nhận quà'],
-    [PostInvalidStateException, 'Yêu cầu không ở trạng thái PENDING'],
-  )
+  // Không còn PENDING, hoặc không tồn tại, đều trả về cùng một lỗi: câu UPDATE
+  // có điều kiện không phân biệt được hai trường hợp, và cũng không cần.
+  @ApiErrorResponses(...ApiTokenErrors, [
+    GiftRequestNotFoundException,
+    'Không tìm thấy yêu cầu nhận quà',
+  ])
   public async withdrawGiftRequest(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: WithdrawGiftRequestParamDto,
@@ -136,12 +157,18 @@ export class GiftRequestController {
       'Chỉ tác giả của bài đăng mới có thể xem danh sách các yêu cầu nhận đồ.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(GetPostRequestsResponseDto) })
-  @ApiErrorResponses([PostNotFoundException, 'Post không tồn tại'])
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [PostNotFoundException, 'Post không tồn tại'],
+    [ForbiddenException],
+  )
   public async listPostRequests(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: ListPostRequestsParamDto,
+    @Query() query: ListPostRequestsQueryDto,
   ): Promise<ResponseDto<IGetPostRequestsResponseDto>> {
     const result = await this.listPostRequestsUseCase.handle({
+      ...query,
       postId: params.postId,
       currentUserId: principal.userId,
     });
@@ -157,13 +184,18 @@ export class GiftRequestController {
   @ApiOperation({
     summary: 'Duyệt người xin nhận đồ (Chọn ứng viên)',
     description:
-      'Chỉ tác giả của bài đăng mới có thể duyệt người xin nhận. Khi duyệt, yêu cầu của người này chuyển sang ACCEPTED, các yêu cầu PENDING khác chuyển sang REJECTED, bài đăng chuyển sang DELIVERING, và mã giao dịch mới được tạo ra.',
+      'Chỉ tác giả của bài đăng mới có thể duyệt người xin nhận. Yêu cầu được duyệt chuyển sang ACCEPTED và một lượt giao dịch được tạo. Bài đăng CHỈ chuyển sang DELIVERING khi đã hết số lượng — còn hàng thì vẫn PUBLISHED để người khác tiếp tục xin, và chỉ khi hết hàng mới từ chối hàng loạt các yêu cầu PENDING còn lại.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(AcceptGiftRequestResponseDto) })
   @ApiErrorResponses(
+    ...ApiTokenErrors,
     [PostNotFoundException, 'Post không tồn tại'],
     [GiftRequestNotFoundException, 'Không tìm thấy yêu cầu nhận quà'],
     [PostInvalidStateException, 'Bài đăng không ở trạng thái hợp lệ để duyệt'],
+    [ForbiddenException],
+    [GiftTransactionOutOfStockException],
+    // Lượt bàn giao đã được duyệt ở luồng /transactions rồi.
+    [GiftTransactionInvalidStateException, 'ACCEPTED'],
   )
   public async acceptGiftRequest(
     @CurrentUser() principal: IAuthPrincipal,
