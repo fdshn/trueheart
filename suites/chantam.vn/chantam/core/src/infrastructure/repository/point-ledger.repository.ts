@@ -12,6 +12,7 @@ import {
   IPointLedgerRepository,
   IPointLedgerSummary,
 } from '@/domain/ports/repository';
+import { formatPointLogNote } from '@chantam.vn/chantam.core-lib/models';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
@@ -24,11 +25,31 @@ export class PointLedgerRepository implements IPointLedgerRepository {
 
   public async getSummary(userId: string): Promise<IPointLedgerSummary> {
     const [balance] = await this.manager.query<
-      { balance: number | string; lifetime: number | string }[]
+      {
+        balance: number | string;
+        raw_balance: number | string;
+        lifetime: number | string;
+      }[]
     >(
       `
-        SELECT balance, lifetime
+        SELECT balance, raw_balance, lifetime
         FROM user_point_balances
+        WHERE user_id = $1
+      `,
+      [userId],
+    );
+
+    // Đếm từ chính ledger chứ không thêm hai cột đếm trên projection: ledger đã
+    // là bản ghi đầy đủ, và một bộ đếm riêng là con số thứ hai nói về cùng một
+    // sự thật — sớm muộn lệch nhau.
+    const [counts] = await this.manager.query<
+      { credits: string; debits: string }[]
+    >(
+      `
+        SELECT
+          COUNT(*) FILTER (WHERE delta > 0) AS credits,
+          COUNT(*) FILTER (WHERE delta < 0) AS debits
+        FROM point_ledger
         WHERE user_id = $1
       `,
       [userId],
@@ -36,7 +57,10 @@ export class PointLedgerRepository implements IPointLedgerRepository {
 
     return {
       balance: Number(balance?.balance ?? 0),
+      rawBalance: Number(balance?.raw_balance ?? 0),
       lifetime: Number(balance?.lifetime ?? 0),
+      creditCount: Number(counts?.credits ?? 0),
+      debitCount: Number(counts?.debits ?? 0),
     };
   }
 
@@ -51,6 +75,7 @@ export class PointLedgerRepository implements IPointLedgerRepository {
         rule_version: number | string;
         delta: number | string;
         balance_after: number | string;
+        raw_balance_after: number | string;
         lifetime_after: number | string;
         source: string;
         reason: string | null;
@@ -58,7 +83,8 @@ export class PointLedgerRepository implements IPointLedgerRepository {
       }[]
     >(
       `
-        SELECT id, rule_code, rule_version, delta, balance_after, lifetime_after,
+        SELECT id, rule_code, rule_version, delta, balance_after,
+               raw_balance_after, lifetime_after,
                source, reason, created_at
         FROM point_ledger
         WHERE user_id = $1
@@ -83,6 +109,11 @@ export class PointLedgerRepository implements IPointLedgerRepository {
         ruleVersion: Number(entry.rule_version),
         delta: Number(entry.delta),
         balanceAfter: Number(entry.balance_after),
+        rawBalanceAfter: Number(entry.raw_balance_after),
+        note: formatPointLogNote(
+          Number(entry.delta),
+          Number(entry.raw_balance_after),
+        ),
         lifetimeAfter: Number(entry.lifetime_after),
         source: entry.source,
         reason: entry.reason,
@@ -151,10 +182,16 @@ export class PointLedgerRepository implements IPointLedgerRepository {
     if (!rule) throw new PointRuleUnavailableException(command.ruleCode);
 
     const existing = await manager.query<
-      { id: string; balance_after: number; lifetime_after: number }[]
+      {
+        id: string;
+        delta: number;
+        balance_after: number;
+        raw_balance_after: number;
+        lifetime_after: number;
+      }[]
     >(
       `
-          SELECT id, balance_after, lifetime_after
+          SELECT id, delta, balance_after, raw_balance_after, lifetime_after
           FROM point_ledger
           WHERE idempotency_key = $1
         `,
@@ -163,8 +200,12 @@ export class PointLedgerRepository implements IPointLedgerRepository {
     if (existing.length > 0) {
       return {
         entryId: Number(existing[0].id),
-        balance: existing[0].balance_after,
-        lifetime: existing[0].lifetime_after,
+        delta: Number(existing[0].delta),
+        balance: Number(existing[0].balance_after),
+        rawBalance: Number(existing[0].raw_balance_after),
+        lifetime: Number(existing[0].lifetime_after),
+        // Đã ghi từ trước: lần gọi này không đổi gì.
+        applied: false,
       };
     }
 
@@ -198,28 +239,40 @@ export class PointLedgerRepository implements IPointLedgerRepository {
     }
 
     const [balance] = await manager.query<
-      { balance: number; lifetime: number }[]
+      { balance: number; raw_balance: number; lifetime: number }[]
     >(
       `
-          SELECT balance, lifetime
+          SELECT balance, raw_balance, lifetime
           FROM user_point_balances
           WHERE user_id = $1
           FOR UPDATE
         `,
       [command.userId],
     );
-    const currentBalance = balance?.balance ?? 0;
+    const currentRawBalance = balance?.raw_balance ?? 0;
     const currentLifetime = balance?.lifetime ?? 0;
-    const nextBalance = currentBalance + rule.points;
+
+    // Giá trị THẬT cộng dồn, có thể âm. Đây là sự thật số học — "trừ 50 khi
+    // đang có 20" phải đọc ra được là đang âm 30, chứ không phải "về 0".
+    const nextRawBalance = currentRawBalance + rule.points;
+
+    // Số tiêu được thì kẹp ở 0. Ràng buộc `balance_after >= 0` ở database là
+    // lớp chặn cuối; kẹp ở đây để không bao giờ chạm tới nó bằng một lỗi 500.
+    const nextBalance = Math.max(0, nextRawBalance);
+
+    // `lifetime` chỉ tăng theo quy ước ledger, nên khoản phạt KHÔNG được trừ
+    // vào nó — trừ lifetime là viết lại lịch sử đóng góp, và cột đó có ràng
+    // buộc `>= 0` riêng.
     const nextLifetime =
-      currentLifetime + (rule.affects_lifetime ? rule.points : 0);
+      currentLifetime + (rule.affects_lifetime ? Math.max(0, rule.points) : 0);
 
     const [{ id }] = await manager.query<{ id: string }[]>(
       `
           INSERT INTO point_ledger (
-            user_id, rule_code, rule_version, delta, balance_after, lifetime_after,
-            reference_type, reference_id, idempotency_key, actor, source
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            user_id, rule_code, rule_version, delta, balance_after,
+            raw_balance_after, lifetime_after,
+            reference_type, reference_id, idempotency_key, actor, source, reason
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
           RETURNING id
         `,
       [
@@ -228,26 +281,30 @@ export class PointLedgerRepository implements IPointLedgerRepository {
         rule.version,
         rule.points,
         nextBalance,
+        nextRawBalance,
         nextLifetime,
         command.referenceType,
         command.referenceId,
         command.idempotencyKey,
         command.actor,
         command.source,
+        command.reason ?? null,
       ],
     );
 
     await manager.query(
       `
-          INSERT INTO user_point_balances (user_id, balance, lifetime, last_entry_id)
-          VALUES ($1, $2, $3, $4)
+          INSERT INTO user_point_balances
+            (user_id, balance, raw_balance, lifetime, last_entry_id)
+          VALUES ($1, $2, $3, $4, $5)
           ON CONFLICT (user_id) DO UPDATE SET
             balance = EXCLUDED.balance,
+            raw_balance = EXCLUDED.raw_balance,
             lifetime = EXCLUDED.lifetime,
             last_entry_id = EXCLUDED.last_entry_id,
             updated_at = now()
         `,
-      [command.userId, nextBalance, nextLifetime, id],
+      [command.userId, nextBalance, nextRawBalance, nextLifetime, id],
     );
 
     if (rule.daily_cap !== null) {
@@ -264,8 +321,11 @@ export class PointLedgerRepository implements IPointLedgerRepository {
 
     return {
       entryId: Number(id),
+      delta: rule.points,
       balance: nextBalance,
+      rawBalance: nextRawBalance,
       lifetime: nextLifetime,
+      applied: true,
     };
   }
 }

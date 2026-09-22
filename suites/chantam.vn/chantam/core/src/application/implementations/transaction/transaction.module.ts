@@ -4,9 +4,11 @@ import {
   ICompleteDueGiftDeliveriesUseCase,
   IConfirmGiftReceiptUseCase,
   IListOwnGiftTransactionsUseCase,
+  IReportShipUnpaidUseCase,
   IRequestGiftUseCase,
 } from '@/application/contracts/transaction';
 import { Global, Module } from '@nestjs/common';
+import { ReportShipUnpaidUseCase } from './report-ship-unpaid.use-case';
 import {
   AcceptGiftRequestUseCase,
   CancelGiftTransactionUseCase,
@@ -19,6 +21,8 @@ import {
 @Global()
 @Module({
   providers: [
+    { provide: IReportShipUnpaidUseCase, useClass: ReportShipUnpaidUseCase },
+
     { provide: IRequestGiftUseCase, useClass: RequestGiftUseCase },
     { provide: IAcceptGiftRequestUseCase, useClass: AcceptGiftRequestUseCase },
     {
@@ -39,6 +43,8 @@ import {
     },
   ],
   exports: [
+    IReportShipUnpaidUseCase,
+
     IRequestGiftUseCase,
     IAcceptGiftRequestUseCase,
     IConfirmGiftReceiptUseCase,

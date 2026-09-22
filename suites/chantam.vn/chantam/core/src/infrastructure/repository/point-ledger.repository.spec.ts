@@ -44,6 +44,13 @@ describe('PointLedgerRepository', () => {
     expect(query.mock.calls.map(([sql]) => sql).join('\n')).toContain(
       'INSERT INTO point_ledger',
     );
-    expect(result).toEqual({ entryId: 1, balance: 28, lifetime: 28 });
+    expect(result).toEqual({
+      entryId: 1,
+      delta: 28,
+      balance: 28,
+      rawBalance: 28,
+      lifetime: 28,
+      applied: true,
+    });
   });
 });

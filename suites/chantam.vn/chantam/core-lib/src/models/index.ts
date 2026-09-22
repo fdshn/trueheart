@@ -5,6 +5,7 @@ export * from './gift-post';
 export * from './gift-request';
 export * from './notification';
 export * from './onboarding-task';
+export * from './point-log';
 export * from './post';
 export * from './post-lifecycle';
 export * from './post-media';

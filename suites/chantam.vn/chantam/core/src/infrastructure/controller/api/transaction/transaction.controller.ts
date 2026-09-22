@@ -3,6 +3,7 @@ import {
   ICancelGiftTransactionUseCase,
   IConfirmGiftReceiptUseCase,
   IListOwnGiftTransactionsUseCase,
+  IReportShipUnpaidUseCase,
   IRequestGiftUseCase,
 } from '@/application/contracts/transaction';
 import {
@@ -11,6 +12,7 @@ import {
   GiftTransactionNotFoundException,
   GiftTransactionNotParticipantException,
   GiftTransactionOutOfStockException,
+  ShipPayerNotReceiverException,
 } from '@/domain/exceptions';
 import {
   ApiTokenErrors,
@@ -33,6 +35,9 @@ import {
   GiftTransactionParamsDto,
   GiftTransactionResponseDto,
   ListGiftTransactionsResponseDto,
+  ReportShipUnpaidBodyDto,
+  ReportShipUnpaidParamsDto,
+  ReportShipUnpaidResponseDto,
   RequestGiftBodyDto,
 } from '../../dto/transaction';
 
@@ -53,6 +58,8 @@ export class TransactionController {
     private readonly acceptGiftRequestUseCase: IAcceptGiftRequestUseCase,
     @Inject(IConfirmGiftReceiptUseCase)
     private readonly confirmGiftReceiptUseCase: IConfirmGiftReceiptUseCase,
+    @Inject(IReportShipUnpaidUseCase)
+    private readonly reportShipUnpaidUseCase: IReportShipUnpaidUseCase,
     @Inject(ICancelGiftTransactionUseCase)
     private readonly cancelGiftTransactionUseCase: ICancelGiftTransactionUseCase,
     @Inject(IListOwnGiftTransactionsUseCase)
@@ -155,6 +162,39 @@ export class TransactionController {
         await this.confirmGiftReceiptUseCase.handle({
           userId: principal.userId,
           transactionId: params.transactionId,
+        }),
+      )
+      .build();
+  }
+
+  @Post(':transactionId/reports/ship-unpaid')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Báo người nhận không thanh toán phí ship',
+    description:
+      'Chỉ NGƯỜI GỬI báo được — chỉ họ mới thấy hàng bị hoàn về; cho người nhận báo là cho chính người bị phạt quyết định có bị phạt hay không. Chỉ áp dụng khi bài khai `shipPayer = RECEIVER`. Khoản trừ đi qua point ledger với khoá chống trùng theo lượt trao, nên báo hai lần chỉ trừ một lần (`penaltyApplied: false` ở lần sau). Số điểm lấy từ point rule SHIP_UNPAID_PENALTY nên Admin chỉnh được.',
+  })
+  @ApiCreatedResponse({
+    type: ResponseDto.forApi(ReportShipUnpaidResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    GiftTransactionNotFoundException,
+    [GiftTransactionNotParticipantException],
+    ShipPayerNotReceiverException,
+  )
+  public async reportShipUnpaid(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: ReportShipUnpaidParamsDto,
+    @Body() body: ReportShipUnpaidBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.reportShipUnpaidUseCase.handle({
+          transactionId: params.transactionId,
+          userId: principal.userId,
+          reason: body.report.reason,
         }),
       )
       .build();

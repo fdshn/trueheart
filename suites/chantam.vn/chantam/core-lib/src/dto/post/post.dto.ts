@@ -5,12 +5,14 @@ import {
 import { IGeoPoint } from '@chantam/service.persistency-lib/geo';
 import {
   CharityTransferStatuses,
+  DeliveryMethods,
   GenericMvpPostType,
   GiftPostConditions,
   GiftPostStatuses,
   GiftRequestStatuses,
   PostTypes,
   PublicDiscoveryPostType,
+  ShipPayers,
 } from '../../consts';
 import { IPostEntity, IPostMediaEntity } from '../../entities';
 
@@ -29,6 +31,13 @@ export interface ICreatePostCommonDto {
    * chen lên đầu.
    */
   isSos?: boolean;
+  /** Hình thức nhận hàng (F78). */
+  deliveryMethod?: DeliveryMethods;
+  /**
+   * Bên chịu phí ship (CH-2). Chỉ khai được khi `deliveryMethod` là
+   * `GIVER_SHIPS` — tự đến lấy thì không có phí để mà trả.
+   */
+  shipPayer?: ShipPayers;
 }
 
 export interface ICreateOfferPostDto extends ICreatePostCommonDto {

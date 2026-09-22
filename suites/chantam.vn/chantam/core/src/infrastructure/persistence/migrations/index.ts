@@ -27,3 +27,4 @@ export * from './1790700000000-CreateGiftRequests';
 export * from './1790800000000-AddPostSosAndCharityTransfer';
 export * from './1790900000000-CreateChatAndNotifications';
 export * from './1791000000000-AddGiftTransactionClosedBy';
+export * from './1791100000000-AddNegativePointsAndShipping';

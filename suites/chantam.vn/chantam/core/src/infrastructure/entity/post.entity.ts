@@ -1,7 +1,9 @@
 import {
   CharityTransferStatuses,
+  DeliveryMethods,
   GiftPostStatuses,
   PostTypes,
+  ShipPayers,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
@@ -88,6 +90,24 @@ export class PostEntity
   @ApiProperty({ description: 'Bài Cần gấp / SOS (F17)' })
   @Column({ name: 'is_sos', type: 'boolean', default: false })
   isSos: boolean;
+
+  @ApiProperty({ enum: DeliveryMethods, nullable: true })
+  @Column({
+    name: 'delivery_method',
+    type: 'enum',
+    enum: DeliveryMethods,
+    nullable: true,
+  })
+  deliveryMethod: DeliveryMethods | null;
+
+  @ApiProperty({ enum: ShipPayers, nullable: true })
+  @Column({
+    name: 'ship_payer',
+    type: 'enum',
+    enum: ShipPayers,
+    nullable: true,
+  })
+  shipPayer: ShipPayers | null;
 
   @ApiProperty({ enum: CharityTransferStatuses, nullable: true })
   @Column({

@@ -18,6 +18,7 @@ import {
   IUserRepository,
 } from '@/domain/ports/repository';
 import {
+  DeliveryMethods,
   GiftPostStatuses,
   PostTypes,
   UserRanks,
@@ -141,6 +142,16 @@ export class CreatePostUseCase implements ICreatePostUseCase {
       if (!sosCapability?.allowed) throw new PostSosNotAllowedException();
     }
 
+    // Tự đến lấy thì không có phí ship để mà trả. Ràng buộc này cũng có ở
+    // database; chặn ở đây để trả 400 nói đúng chuyện thay vì 500 từ Postgres.
+    if (
+      post.shipPayer !== undefined &&
+      post.deliveryMethod !== DeliveryMethods.GIVER_SHIPS
+    )
+      throw new ValidationFailedException([
+        'shipPayer chỉ khai được khi deliveryMethod là GIVER_SHIPS',
+      ]);
+
     const totalQuantity =
       post.postType === PostTypes.OFFER ? (post.totalQuantity ?? 1) : 1;
     const capability = await this.entitlementRepository.getCapability(
@@ -168,6 +179,8 @@ export class CreatePostUseCase implements ICreatePostUseCase {
         expiresAt: null,
         renewedCount: 0,
         isSos,
+        deliveryMethod: post.deliveryMethod ?? null,
+        shipPayer: post.shipPayer ?? null,
         charityTransferStatus: null,
         charityTransferRequestedAt: null,
         charityTransferNote: null,

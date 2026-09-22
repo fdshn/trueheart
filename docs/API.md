@@ -268,12 +268,20 @@ một điều họ không nói.
 > bộ đếm quota đếm **mọi** bài đang mở bất kể loại. Muốn tách thì thêm capability
 > `POST_CLASSIFIED` — sau đó admin tự chỉnh số, không cần deploy.
 
-> ⛔ **Chưa có trường cho cơ chế đổi điểm.** `srs/new-req.txt` yêu cầu bài đem tặng mang thêm
-> **giá trị tham khảo (VNĐ)** và **hình thức nhận hàng** (tự đến lấy / người cho gửi). Hiện
-> `OFFER` mới có `estimatedValue` — một con số hiển thị, **không** phải cơ sở tính điểm quy
-> đổi, và cũng chưa có trường hình thức nhận hàng.
-> Xem [F74](./FEATURES.md#f74--giá-trị-tham-khảo--tỷ-lệ-quy-đổi-điểm),
-> [F78](./FEATURES.md#f78--hình-thức-vận-chuyển).
+**Hình thức nhận hàng** ([F78](./FEATURES.md#f78--hình-thức-vận-chuyển), CH-2):
+
+| Trường | Kiểu | Ghi chú |
+| --- | --- | --- |
+| `deliveryMethod` | `SELF_PICKUP` \| `GIVER_SHIPS` | Tùy chọn |
+| `shipPayer` | `GIVER` \| `RECEIVER` | Chỉ hợp lệ khi `deliveryMethod = GIVER_SHIPS`, khác đi thì `400` |
+
+Chỉ là **dấu hiệu** ghi ai lẽ ra trả phí — hệ thống không xử lý tiền ship (COD bên ngoài).
+Nó là căn cứ cho `POST /transactions/:id/reports/ship-unpaid` ở §10.
+
+> ⛔ **Chưa có trường cho cơ chế đổi điểm.** `srs/new-req.txt` còn yêu cầu bài đem tặng mang
+> **giá trị tham khảo (VNĐ)** làm cơ sở quy đổi điểm. Hiện `OFFER` mới có `estimatedValue`
+> — một con số hiển thị, **không** phải cơ sở tính điểm quy đổi.
+> Xem [F74](./FEATURES.md#f74--giá-trị-tham-khảo--tỷ-lệ-quy-đổi-điểm).
 
 ### Vòng đời bài — hết hạn và gia hạn
 
@@ -514,6 +522,23 @@ mà **không cần một vòng gọi nữa cho mỗi marker**.
   > [GĐ-3](./plan/ASSUMPTIONS.md#gđ-3--cơ-chế-rank--tụt-hạng).
 - Ledger là **append-only**. Không có UPDATE, không có DELETE; đảo một bút toán là ghi thêm
   bút toán âm. Trigger ở database chặn sửa/xoá.
+- **Điểm có thể âm, và cột điểm không nói điều đó.** Khoản phạt (CH-2) lớn hơn số dư thì số
+  tiêu được kẹp ở 0, nhưng giá trị thật vẫn được ghi. Đang có 20 mà bị phạt 50:
+
+  | Trường | `/points/me` | Mỗi dòng `/points/me/ledger` |
+  | --- | --- | --- |
+  | Số tiêu được | `balance: 0` | `balanceAfter: 0` |
+  | Giá trị thật | `rawBalance: -30` | `rawBalanceAfter: -30` |
+  | Mức thay đổi | — | `delta: -50` |
+  | Câu cho cột log | — | `note: "-50 điểm, đang âm 30 điểm"` |
+
+  `note` dựng ở **máy chủ** để web và app không diễn đạt "đang âm" khác nhau. Client nào
+  muốn tự trình bày vẫn có `delta` và `rawBalanceAfter` thô.
+- `/points/me` còn trả `creditCount` và `debitCount` — đếm **từ chính ledger**, không từ một cột
+  đếm riêng. Một bộ đếm riêng là con số thứ hai nói về cùng một sự thật, sớm muộn lệch.
+- **Khoản phạt không trừ `lifetime`.** Lifetime là sàn của Rank; cho phạt kéo nó xuống là
+  biến một lần không trả ship thành một lần tụt hạng. Cộng điểm sau đó **trả nợ trước**:
+  đang âm 30 được cộng 50 thì tiêu được 20, không phải 50.
 - `/ranks/me` trả cả chu kỳ duy trì đang mở. **Điểm là sàn, nhiệm vụ duy trì là trần**: điểm
   tích luỹ quyết định hạng cao nhất *có thể* đạt; trượt nhiệm vụ thì tụt đúng **một bậc** bất
   kể còn bao nhiêu điểm, và không bao giờ tụt dưới sàn `MEMBER` của onboarding.
@@ -616,6 +641,7 @@ Máy trạng thái: `REQUESTED → ACCEPTED → COMPLETED`, và có thể đóng
 | `POST` | `/transactions/:id/accept` | Bearer (người tặng) | Duyệt |
 | `POST` | `/transactions/:id/confirm` | Bearer (người nhận) | Xác nhận đã nhận |
 | `POST` | `/transactions/:id/cancel` | Bearer (cả hai vai) | Huỷ |
+| `POST` | `/transactions/:id/reports/ship-unpaid` | Bearer (**chỉ người gửi**) | Báo người nhận không thanh toán phí ship (CH-2) |
 
 **Điều cần biết**
 
@@ -629,6 +655,14 @@ Máy trạng thái: `REQUESTED → ACCEPTED → COMPLETED`, và có thể đóng
   mà không ai nhận được.
 - `confirm` đặt `completed_at` — đây là **mốc mà bộ đếm hoạt động của rank đọc**. Thiếu nó
   thì lượt tặng này vô hình với hệ thống hạng.
+- `reports/ship-unpaid` **chỉ người gửi gọi được**: chỉ họ mới thấy hàng bị hoàn về. Cho người
+  nhận báo là cho chính người bị phạt quyết định có bị phạt hay không. Chỉ áp dụng khi bài
+  khai `shipPayer = RECEIVER`; khác đi thì `409 SHIP_PAYER_NOT_RECEIVER`.
+- Khoản phạt đi qua chính point ledger với khoá chống trùng **theo lượt trao**, nên bấm hai
+  lần hay mạng retry đều chỉ trừ một lần — lần sau trả `penaltyApplied: false` thay vì báo
+  đã trừ thêm. Số điểm lấy từ point rule `SHIP_UNPAID_PENALTY` nên Admin chỉnh được.
+- Hệ thống **không xử lý tiền ship** — đó là COD ngoài hệ thống. Nó chỉ đối chiếu dấu hiệu
+  đã khai trên bài rồi ghi một khoản phạt.
 
 ---
 

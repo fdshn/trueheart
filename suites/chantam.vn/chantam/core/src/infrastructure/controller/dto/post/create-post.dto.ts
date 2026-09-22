@@ -1,7 +1,9 @@
 import {
+  DeliveryMethods,
   GenericMvpPostTypes,
   GiftPostConditions,
   PostTypes,
+  ShipPayers,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
   ICreatePostBodyDto,
@@ -121,6 +123,23 @@ export class CreatePostDto implements ICreatePostDto {
   @IsOptional()
   @IsBoolean()
   isSos?: boolean;
+
+  @ApiPropertyOptional({
+    enum: DeliveryMethods,
+    description: 'Hình thức nhận hàng (F78).',
+  })
+  @IsOptional()
+  @IsEnum(DeliveryMethods)
+  deliveryMethod?: DeliveryMethods;
+
+  @ApiPropertyOptional({
+    enum: ShipPayers,
+    description:
+      'Bên chịu phí ship. Chỉ khai được khi deliveryMethod là GIVER_SHIPS — tự đến lấy thì không có phí để mà trả. Đây chỉ là DẤU HIỆU ghi bên nào chịu; hệ thống không xử lý thanh toán.',
+  })
+  @IsOptional()
+  @IsEnum(ShipPayers)
+  shipPayer?: ShipPayers;
 }
 
 export class CreatePostBodyDto implements ICreatePostBodyDto {

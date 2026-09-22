@@ -29,6 +29,8 @@ function makePost(): IPostEntity {
     expiresAt: new Date('2026-12-31T12:00:00.000Z'),
     renewedCount: 0,
     isSos: false,
+    deliveryMethod: null,
+    shipPayer: null,
     charityTransferStatus: null,
     charityTransferRequestedAt: null,
     charityTransferNote: null,

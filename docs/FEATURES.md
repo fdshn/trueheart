@@ -610,8 +610,24 @@ trong hai:
 - Người nhận **tự đến lấy**
 - Người cho **hỗ trợ ship / gửi vận chuyển**
 
-> ⚠️ **Ai chịu phí vận chuyển thì yêu cầu chưa nói.** Không tự bịa rule — cần Bên A chốt
-> trước khi implement phần phí.
+Bên A đã chốt phần phí (CH-2): bài mang thêm trường **bên trả ship**.
+
+| Trường | Giá trị | Ghi chú |
+| --- | --- | --- |
+| `deliveryMethod` | `SELF_PICKUP` \| `GIVER_SHIPS` | Hình thức nhận đồ |
+| `shipPayer` | `GIVER` \| `RECEIVER` | Chỉ khai được khi `deliveryMethod = GIVER_SHIPS` |
+
+Tự đến lấy thì không có phí nào để mà trả, nên khai bên trả trong trường hợp đó là mở
+đường cho một khoản phạt vô nghĩa — chặn ở cả DTO lẫn ràng buộc database.
+
+**Hệ thống không xử lý tiền ship.** Đây là ship COD bên ngoài; trường này chỉ là **dấu
+hiệu** ghi ai lẽ ra phải trả. Khi hàng bị hoàn mà người nhận không thanh toán, người gửi
+báo qua `POST /transactions/:id/reports/ship-unpaid` và khoản trừ điểm đi qua chính
+[point ledger](#f39--rule-engine--point-ledger) với rule `SHIP_UNPAID_PENALTY`.
+
+> Điểm có thể âm. Cột điểm kẹp ở 0 (số **tiêu được**), cột log giữ giá trị **thật** kèm câu
+> `-50 điểm, đang âm 30 điểm`. Xem
+> [ASSUMPTIONS · CH-2](./plan/ASSUMPTIONS.md#ch-2--phí-vận-chuyển-đánh-dấu-bên-trả-trừ-điểm-khi-không-thanh-toán).
 
 ---
 

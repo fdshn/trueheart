@@ -29,6 +29,8 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     expiresAt: null,
     renewedCount: 0,
     isSos: false,
+    deliveryMethod: null,
+    shipPayer: null,
     charityTransferStatus: null,
     charityTransferRequestedAt: null,
     charityTransferNote: null,

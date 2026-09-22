@@ -139,8 +139,40 @@ thanh toán trong hệ thống (đây là ship COD bên ngoài). Người nhận
 trừ điểm**, thực hiện qua **API report**: người gửi thấy hàng bị hoàn và không được thanh
 toán thì báo, và khoản trừ đi qua chính `point_ledger`.
 
-⚠️ **Chưa hiện thực.** Phụ thuộc [F78](../FEATURES.md#f78--hình-thức-vận-chuyển) và đường ghi
-điểm âm; xem mục còn lại trong [ROADMAP](./ROADMAP.md).
+**Đã hiện thực.** Bài mang hai trường `deliveryMethod` (`SELF_PICKUP` | `GIVER_SHIPS`) và
+`shipPayer` (`GIVER` | `RECEIVER`). Chỉ khai được bên trả khi có ship — tự đến lấy thì không
+có phí nào để mà trả, và ràng buộc `CHK_posts_ship_payer_needs_shipping` chặn ở tầng
+database chứ không chỉ kiểm ở tầng ứng dụng.
+
+Báo qua `POST /transactions/:transactionId/reports/ship-unpaid`, **chỉ người gửi báo
+được**: chỉ họ mới thấy hàng bị hoàn về, và cho người nhận báo là cho chính người bị
+phạt quyết định có bị phạt hay không. Khoá chống trùng theo lượt trao nên báo hai lần
+chỉ trừ một lần (lần sau trả `penaltyApplied: false`). Số điểm lấy từ point rule
+`SHIP_UNPAID_PENALTY` (khởi tạo −50) nên Admin chỉnh được, không hard-code.
+
+#### Điểm âm: cột điểm và cột log nói hai chuyện khác nhau
+
+Phạt 50 một người đang có 20 không được làm vỡ ràng buộc `balance >= 0`, nhưng cũng
+không được âm thầm lặng thành "về 0" — lúc đó không ai biết người đó hụt 30 hay hụt 300.
+Nên ghi cả hai:
+
+| Cột | Giá trị | Ý nghĩa |
+| --- | --- | --- |
+| `balance` / `balanceAfter` | `0` | Số **tiêu được**. Kẹp ở 0, không bao giờ âm |
+| `rawBalance` / `rawBalanceAfter` | `-30` | Giá trị **thật**, dùng để hiển thị và đối soát |
+| `note` | `-50 điểm, đang âm 30 điểm` | Câu dựng sẵn ở máy chủ cho cột log |
+
+Ràng buộc `CHK_point_ledger_balance_is_clamped_raw` giữ `balance_after = GREATEST(0,
+raw_balance_after)`, nên hai cột không trôi khỏi nhau dù chỗ nào đó quên cập nhật một trong
+hai. `note` dựng ở máy chủ để web và app không diễn đạt "đang âm" khác nhau; client nào
+muốn tự trình bày vẫn có `delta` và `rawBalanceAfter` thô bên cạnh.
+
+Hai hệ quả có chủ ý:
+
+- **`lifetime` không bị khoản phạt trừ.** Lifetime là sàn của Rank; cho phạt kéo nó xuống
+  là biến một lần không trả ship thành một lần tụt hạng.
+- **Cộng điểm sau đó trả nợ trước.** Đang âm 30 mà được cộng 50 thì giá trị thật về 20 và
+  tiêu được 20 — không phải 50. Khoản phạt là một món nợ, không phải một lần xóa sạch.
 
 ---
 
@@ -151,4 +183,5 @@ toán thì báo, và khoản trừ đi qua chính `point_ledger`.
 | 2026-09-15 | Lập lần đầu — 4 giả định + 6 mặc định |
 | 2026-09-20 | Cập nhật toàn diện theo đặc tả chính thức `SRS_Chan_Tam_v1.15.0.md` (Mục 1.7 - CHỐT-01 đến CHỐT-07) |
 | 2026-09-21 | Bổ sung `srs/new-req.txt`: cơ chế bảo vệ Rank bằng *điểm khả dụng* (GĐ-3), thêm 2 câu hỏi chưa chốt |
-| 2026-09-22 | Bên A chốt CH-1 (thứ tự ưu tiên do Admin cấu hình — đã hiện thực) và CH-2 (đánh dấu bên trả ship, trừ điểm qua report — chưa hiện thực) |
+| 2026-09-22 | Bên A chốt CH-1 (thứ tự ưu tiên do Admin cấu hình) và CH-2 (đánh dấu bên trả ship, trừ điểm qua report) — **cả hai đã hiện thực** |
+| 2026-09-22 | CH-2 bổ sung: điểm âm ghi được — cột điểm kẹp ở 0, cột log giữ giá trị thật kèm câu "−50 điểm, đang âm 30 điểm" |

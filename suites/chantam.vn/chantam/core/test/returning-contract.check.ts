@@ -265,6 +265,131 @@ async function main(): Promise<void> {
         [ViewerId],
       )) === 1,
     );
+
+    // ── 4. Điểm âm: kẹp số dư ở 0, ghi giá trị thật (CH-2) ──────────────────
+    console.log('\nPhạt điểm không thanh toán ship:\n');
+
+    const ledger = new PointLedgerRepository(dataSource.manager);
+
+    // Cho người nhận 20 điểm trước, để khoản phạt 50 vượt quá số dư.
+    await dataSource.query(
+      `INSERT INTO point_rules (code, points, daily_cap, version)
+       VALUES ('TEST_CREDIT_20', 20, NULL, 1) ON CONFLICT DO NOTHING`,
+    );
+    await ledger.appendByRule({
+      userId: ReceiverId,
+      ruleCode: 'TEST_CREDIT_20',
+      referenceType: 'TEST',
+      referenceId: PostId,
+      idempotencyKey: `TEST_CREDIT:${ReceiverId}`,
+      actor: 'SYSTEM',
+      source: 'TEST',
+    });
+
+    const penalty = await ledger.appendByRule({
+      userId: ReceiverId,
+      ruleCode: 'SHIP_UNPAID_PENALTY',
+      referenceType: 'GIFT_TRANSACTION',
+      referenceId: TransactionId,
+      idempotencyKey: `SHIP_UNPAID_PENALTY:${TransactionId}`,
+      actor: GiverId,
+      source: 'SHIP_REPORT',
+      reason: 'Hàng bị hoàn, người nhận không thanh toán phí ship',
+    });
+
+    check(
+      'phạt 50 khi đang có 20: số tiêu được kẹp ở 0',
+      penalty.balance === 0,
+      `balance=${penalty.balance}`,
+    );
+    check(
+      'giá trị THẬT ghi lại là -30, không phải 0',
+      penalty.rawBalance === -30,
+      `rawBalance=${penalty.rawBalance}`,
+    );
+    check(
+      'khoản phạt là bút toán ÂM',
+      penalty.delta === -50,
+      `delta=${penalty.delta}`,
+    );
+
+    const afterPenalty = await ledger.getSummary(ReceiverId);
+    check(
+      'projection cũng kẹp ở 0 và giữ giá trị thật',
+      afterPenalty.balance === 0 && afterPenalty.rawBalance === -30,
+      JSON.stringify(afterPenalty),
+    );
+    check(
+      'đếm đúng số lần cộng và số lần trừ',
+      afterPenalty.creditCount === 1 && afterPenalty.debitCount === 1,
+      `+${afterPenalty.creditCount} / -${afterPenalty.debitCount}`,
+    );
+    check(
+      'lifetime KHÔNG bị khoản phạt trừ đi',
+      afterPenalty.lifetime === 20,
+      `lifetime=${afterPenalty.lifetime}`,
+    );
+
+    // Báo lần hai không trừ thêm.
+    const again = await ledger.appendByRule({
+      userId: ReceiverId,
+      ruleCode: 'SHIP_UNPAID_PENALTY',
+      referenceType: 'GIFT_TRANSACTION',
+      referenceId: TransactionId,
+      idempotencyKey: `SHIP_UNPAID_PENALTY:${TransactionId}`,
+      actor: GiverId,
+      source: 'SHIP_REPORT',
+      reason: 'Báo lại lần hai',
+    });
+    check(
+      'báo lần hai KHÔNG trừ thêm, và nói rõ là không áp dụng',
+      again.applied === false && again.rawBalance === -30,
+      `applied=${again.applied} raw=${again.rawBalance}`,
+    );
+    check(
+      'ledger chỉ có MỘT bút toán phạt',
+      (await countRows(
+        dataSource,
+        `SELECT COUNT(*) AS count FROM point_ledger
+         WHERE user_id = $1 AND rule_code = 'SHIP_UNPAID_PENALTY'`,
+        [ReceiverId],
+      )) === 1,
+    );
+    check(
+      'lý do được ghi vào ledger, không để trống',
+      (await countRows(
+        dataSource,
+        `SELECT COUNT(*) AS count FROM point_ledger
+         WHERE user_id = $1 AND rule_code = 'SHIP_UNPAID_PENALTY'
+           AND reason IS NOT NULL`,
+        [ReceiverId],
+      )) === 1,
+    );
+
+    // Cộng tiếp 50: nợ được trả dần, số dư hiện lại đúng phần dương.
+    await dataSource.query(
+      `INSERT INTO point_rules (code, points, daily_cap, version)
+       VALUES ('TEST_CREDIT_50', 50, NULL, 1) ON CONFLICT DO NOTHING`,
+    );
+    const recovered = await ledger.appendByRule({
+      userId: ReceiverId,
+      ruleCode: 'TEST_CREDIT_50',
+      referenceType: 'TEST',
+      referenceId: PostId,
+      idempotencyKey: `TEST_CREDIT_50:${ReceiverId}`,
+      actor: 'SYSTEM',
+      source: 'TEST',
+    });
+    check(
+      'cộng 50 khi đang âm 30: giá trị thật về 20',
+      recovered.rawBalance === 20,
+      `rawBalance=${recovered.rawBalance}`,
+    );
+    check(
+      'số tiêu được bằng đúng phần dương của giá trị thật',
+      recovered.balance === 20,
+      `balance=${recovered.balance}`,
+    );
   } finally {
     for (const source of opened)
       if (source.isInitialized) await source.destroy();

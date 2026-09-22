@@ -20,3 +20,7 @@ export class GiftTransactionOutOfStockException extends ExceptionFrom(
 export class GiftTransactionDuplicateRequestException extends ExceptionFrom(
   CoreErrors.GIFT_TRANSACTION_DUPLICATE_REQUEST,
 ) {}
+
+export class ShipPayerNotReceiverException extends ExceptionFrom(
+  CoreErrors.SHIP_PAYER_NOT_RECEIVER,
+) {}

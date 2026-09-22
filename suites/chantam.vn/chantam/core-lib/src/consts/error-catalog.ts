@@ -302,6 +302,13 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Bài đăng đã hết số lượng để trao',
   },
 
+  SHIP_PAYER_NOT_RECEIVER: {
+    code: ErrorCodes.SHIP_PAYER_NOT_RECEIVER,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Bài đăng này không khai người nhận trả phí ship, nên không có khoản nào để báo chưa thanh toán',
+  },
+
   GIFT_TRANSACTION_DUPLICATE_REQUEST: {
     code: ErrorCodes.GIFT_TRANSACTION_DUPLICATE_REQUEST,
     httpStatus: HttpStatus.CONFLICT,

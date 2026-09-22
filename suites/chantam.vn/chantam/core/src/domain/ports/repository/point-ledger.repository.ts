@@ -5,8 +5,22 @@ import {
 import { EntityManager } from 'typeorm';
 
 export interface IPointLedgerSummary {
+  /** Số điểm TIÊU ĐƯỢC. Kẹp ở 0, không bao giờ âm. */
   balance: number;
+  /**
+   * Giá trị THẬT sau mọi lần cộng/trừ. Âm nghĩa là đang hụt.
+   *
+   * Tách khỏi `balance` vì hai con số trả lời hai câu khác nhau: `balance` là
+   * "tiêu được bao nhiêu", `rawBalance` là "đang đứng ở đâu". Gộp làm một thì
+   * phạt 50 điểm người đang có 20 sẽ chỉ hiện ra là "về 0", và không ai biết họ
+   * hụt 30 hay hụt 300.
+   */
+  rawBalance: number;
   lifetime: number;
+  /** Số lần được cộng điểm. */
+  creditCount: number;
+  /** Số lần bị trừ điểm. */
+  debitCount: number;
 }
 
 export interface IPointLedgerEntry {
@@ -15,6 +29,9 @@ export interface IPointLedgerEntry {
   ruleVersion: number;
   delta: number;
   balanceAfter: number;
+  /** Giá trị thật ngay sau bút toán này. Âm nghĩa là lúc đó đang hụt. */
+  rawBalanceAfter: number;
+  note: string;
   lifetimeAfter: number;
   source: string;
   reason: string | null;

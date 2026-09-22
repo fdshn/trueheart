@@ -41,6 +41,8 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     expiresAt: null,
     renewedCount: 0,
     isSos: false,
+    deliveryMethod: null,
+    shipPayer: null,
     charityTransferStatus: null,
     charityTransferRequestedAt: null,
     charityTransferNote: null,
@@ -265,7 +267,6 @@ describe('CreateGiftRequestUseCase', () => {
       findOneBy: jest.fn().mockResolvedValue(makePost()),
     } as unknown as jest.Mocked<IPostRepository>;
 
-    const created = makeRequest();
     const dbError = Object.assign(new Error('duplicate key value'), {
       code: '23505',
     });
