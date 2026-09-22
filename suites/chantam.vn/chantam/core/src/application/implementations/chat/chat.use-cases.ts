@@ -30,8 +30,8 @@ import {
 } from '@chantam.vn/chantam.core-lib/dto';
 import {
   clampChatMessageLimit,
-  decodeChatCursor,
-  encodeChatCursor,
+  decodeKeysetCursor,
+  encodeKeysetCursor,
 } from '@chantam.vn/chantam.core-lib/models';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { Inject, Injectable } from '@nestjs/common';
@@ -95,8 +95,8 @@ export class ListChatMessagesUseCase implements IListChatMessagesUseCase {
     const limit = clampChatMessageLimit(command.limit);
     // Con trỏ hỏng được coi như không có con trỏ, tức trả về cửa sổ mới nhất —
     // thứ người dùng luôn xem được. Ném 400 vì một bookmark cũ thì không.
-    const before = decodeChatCursor(command.before);
-    const after = decodeChatCursor(command.after);
+    const before = decodeKeysetCursor(command.before);
+    const after = decodeKeysetCursor(command.after);
 
     const { items, hasMoreBefore, hasMoreAfter } = await this.chat.listMessages(
       {
@@ -126,13 +126,13 @@ export class ListChatMessagesUseCase implements IListChatMessagesUseCase {
       window: {
         limit,
         oldestCursor: oldest
-          ? encodeChatCursor({
+          ? encodeKeysetCursor({
               createdAt: oldest.message.createdAt,
               id: oldest.message.id,
             })
           : null,
         newestCursor: newest
-          ? encodeChatCursor({
+          ? encodeKeysetCursor({
               createdAt: newest.message.createdAt,
               id: newest.message.id,
             })
