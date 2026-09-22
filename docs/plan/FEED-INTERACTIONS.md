@@ -375,7 +375,7 @@ Tối đa **3 ảnh** mỗi tin nhắn, khoá `users/{userId}/chat/{roomId}/{uui
 | # | Lát | Trạng thái |
 | --- | --- | --- |
 | 0 | **Bộ lọc từ ngữ** (model thuần + 34 test) | ✅ đã làm |
-| 1 | Nền: migration 4 bảng + cột đếm + capability | |
+| 1 | Nền: migration 5 bảng + cột đếm + capability + rule F41 | ✅ `test:feed-foundation`, 25 kiểm |
 | 2 | Cảm xúc | |
 | 3 | Bình luận (nối bộ lọc vào đường ghi) | |
 | 4 | Ảnh trong bình luận | |

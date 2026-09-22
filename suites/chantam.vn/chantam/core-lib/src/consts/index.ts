@@ -4,6 +4,7 @@ export * from './chat-room-statuses';
 export * from './delivery';
 export * from './error-catalog';
 export * from './error-codes';
+export * from './feed-interaction';
 export * from './generic-mvp-post-types';
 export * from './gift-post-categories';
 export * from './gift-post-conditions';
