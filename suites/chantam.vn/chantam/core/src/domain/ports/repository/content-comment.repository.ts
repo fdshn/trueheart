@@ -17,6 +17,8 @@ export interface IContentComment {
   readonly parentId: string | null;
   readonly replyCount: number;
   readonly reactionCount: number;
+  /** Key ảnh đính kèm, xếp theo slot. Rỗng khi bình luận chỉ có chữ. */
+  readonly mediaKeys: string[];
   readonly editedAt: Date | null;
   readonly createdAt: Date;
   /** Có dùng để dựng con trỏ, không lộ ra API. */
@@ -33,6 +35,14 @@ export interface ICreateCommentParams {
   /** Mục cấm đã khớp, để Admin biết vì sao bình luận này bị giữ lại. */
   readonly flaggedTerms: string | null;
   readonly parentId: string | null;
+  /**
+   * Ảnh đính kèm, tối đa 3.
+   *
+   * Ghi trong CÙNG transaction với bình luận: `media_count` nằm trên chính dòng
+   * bình luận và phục vụ ràng buộc "không được vừa rỗng chữ vừa không ảnh", nên
+   * nó phải đúng ngay từ lúc chèn.
+   */
+  readonly mediaKeys: readonly string[];
 }
 
 export interface ICommentPage {

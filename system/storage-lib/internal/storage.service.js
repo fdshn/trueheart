@@ -76,6 +76,39 @@ let StorageService = class StorageService {
         if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
             throw new Error('Object bằng chứng không có kích thước hợp lệ.');
     }
+    async confirmCommentMediaUpload(userId, subjectType, subjectId, key) {
+        const prefix = `users/${userId}/comment-media/${subjectType}/${subjectId}/`;
+        if (!key.startsWith(prefix))
+            throw new Error('Key ảnh bình luận không thuộc chủ thể hiện tại.');
+        const object = await this.client.send(new client_s3_1.HeadObjectCommand({ Bucket: this.options.bucket, Key: key }));
+        if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
+            throw new Error('Object ảnh bình luận không có content type hợp lệ.');
+        if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
+            throw new Error('Object ảnh bình luận không có kích thước hợp lệ.');
+    }
+    async createCommentMediaUpload(request) {
+        assertTransactionEvidenceUploadPolicy({
+            userId: request.userId,
+            transactionId: request.subjectId,
+            contentType: request.contentType,
+            contentLength: request.contentLength,
+        });
+        const extension = request.contentType.split('/')[1];
+        const key = `users/${request.userId}/comment-media/${request.subjectType}/${request.subjectId}/${(0, node_crypto_1.randomUUID)()}.${extension}`;
+        const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
+        const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.client, new client_s3_1.PutObjectCommand({
+            Bucket: this.options.bucket,
+            Key: key,
+            ContentType: request.contentType,
+            ContentLength: request.contentLength,
+        }), { expiresIn: expiresInSeconds });
+        return {
+            key,
+            uploadUrl,
+            expiresInSeconds,
+            publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+        };
+    }
     async createTransactionEvidenceUpload(request) {
         assertTransactionEvidenceUploadPolicy(request);
         const extension = request.contentType.split('/')[1];

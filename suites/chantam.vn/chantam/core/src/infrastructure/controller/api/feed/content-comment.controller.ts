@@ -4,6 +4,7 @@ import {
   IListCommentRepliesUseCase,
   IListCommentsUseCase,
   IRemoveCommentUseCase,
+  IRequestCommentMediaUploadUseCase,
 } from '@/application/contracts/feed';
 import {
   ContentBlockedTermsException,
@@ -50,6 +51,8 @@ import {
   ListCommentsQueryDto,
   ListCommentsResponseDto,
   ListRepliesQueryDto,
+  RequestCommentMediaUploadBodyDto,
+  RequestCommentMediaUploadResponseDto,
 } from '../../dto/feed';
 
 @ApiTags('Tương tác bảng tin')
@@ -66,7 +69,40 @@ export class ContentCommentController {
     private readonly listCommentsUseCase: IListCommentsUseCase,
     @Inject(IListCommentRepliesUseCase)
     private readonly listRepliesUseCase: IListCommentRepliesUseCase,
+    @Inject(IRequestCommentMediaUploadUseCase)
+    private readonly requestMediaUploadUseCase: IRequestCommentMediaUploadUseCase,
   ) {}
+
+  @Post('posts/:subjectId/comment-media/upload-url')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Đường tải ảnh cho bình luận',
+    description:
+      'Cấp presigned PUT — máy chủ không nhận file. Khoá theo CHỦ THỂ chứ không theo bình luận, vì bình luận chưa tồn tại lúc này — nó được tạo cùng lúc với ảnh. ' +
+      'PUT xong thì gửi `key` trong `comment.mediaKeys` lúc tạo bình luận. Tối đa 3 ảnh, trần do database giữ.',
+  })
+  @ApiCreatedResponse({
+    type: ResponseDto.forApi(RequestCommentMediaUploadResponseDto),
+  })
+  @ApiErrorResponses(...ApiTokenErrors)
+  public async requestCommentMediaUpload(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CommentSubjectParamsDto,
+    @Body() body: RequestCommentMediaUploadBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.requestMediaUploadUseCase.handle({
+          userId: principal.userId,
+          subjectType: ContentSubjectTypes.POST,
+          subjectId: params.subjectId,
+          contentType: body.upload.contentType,
+          contentLength: body.upload.contentLength,
+        }),
+      )
+      .build();
+  }
 
   @Post('posts/:subjectId/comments')
   @ApiBearerAuth()
@@ -98,6 +134,7 @@ export class ContentCommentController {
           subjectId: params.subjectId,
           body: body.comment.body,
           parentId: body.comment.parentId,
+          mediaKeys: body.comment.mediaKeys,
         }),
       )
       .build();

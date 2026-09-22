@@ -7,6 +7,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
+  ICommentMediaUploadRequest,
   IObjectStorage,
   IPostMediaUploadRequest,
   IStorageUploadRequest,
@@ -110,6 +111,57 @@ export class StorageService implements IObjectStorage {
       throw new Error('Object bằng chứng không có content type ảnh hợp lệ.');
     if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
       throw new Error('Object bằng chứng không có kích thước hợp lệ.');
+  }
+
+  public async confirmCommentMediaUpload(
+    userId: string,
+    subjectType: string,
+    subjectId: string,
+    key: string,
+  ): Promise<void> {
+    const prefix = `users/${userId}/comment-media/${subjectType}/${subjectId}/`;
+    if (!key.startsWith(prefix))
+      throw new Error('Key ảnh bình luận không thuộc chủ thể hiện tại.');
+
+    const object = await this.client.send(
+      new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }),
+    );
+    if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
+      throw new Error('Object ảnh bình luận không có content type hợp lệ.');
+    if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
+      throw new Error('Object ảnh bình luận không có kích thước hợp lệ.');
+  }
+
+  public async createCommentMediaUpload(
+    request: ICommentMediaUploadRequest,
+  ): Promise<IStorageUploadResult> {
+    assertTransactionEvidenceUploadPolicy({
+      userId: request.userId,
+      transactionId: request.subjectId,
+      contentType: request.contentType,
+      contentLength: request.contentLength,
+    });
+
+    const extension = request.contentType.split('/')[1];
+    const key = `users/${request.userId}/comment-media/${request.subjectType}/${request.subjectId}/${randomUUID()}.${extension}`;
+    const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
+    const uploadUrl = await getSignedUrl(
+      this.client,
+      new PutObjectCommand({
+        Bucket: this.options.bucket,
+        Key: key,
+        ContentType: request.contentType,
+        ContentLength: request.contentLength,
+      }),
+      { expiresIn: expiresInSeconds },
+    );
+
+    return {
+      key,
+      uploadUrl,
+      expiresInSeconds,
+      publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+    };
   }
 
   public async createTransactionEvidenceUpload(

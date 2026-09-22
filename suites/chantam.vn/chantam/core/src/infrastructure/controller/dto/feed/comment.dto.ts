@@ -1,6 +1,7 @@
 import {
   CommentStatuses,
   MaxCommentLength,
+  MaxContentMediaPerItem,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
   ICommentResponseDto,
@@ -12,7 +13,10 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsDefined,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -38,10 +42,27 @@ export class CommentIdParamsDto {
 }
 
 export class CreateCommentDto {
-  @ApiProperty({ minLength: 1, maxLength: MaxCommentLength })
+  @ApiProperty({
+    minLength: 0,
+    maxLength: MaxCommentLength,
+    description:
+      'Có thể để rỗng khi gửi kèm ảnh — một bình luận chỉ có ảnh là hợp lệ. Nhưng rỗng cả hai thì bị từ chối.',
+  })
   @IsString()
-  @Length(1, MaxCommentLength)
+  @Length(0, MaxCommentLength)
   body: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    maxItems: MaxContentMediaPerItem,
+    description: 'Key ảnh đã tải lên qua `comment-media/upload-url`, tối đa 3.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MaxContentMediaPerItem)
+  @IsString({ each: true })
+  @Length(1, 500, { each: true })
+  mediaKeys?: string[];
 
   @ApiPropertyOptional({
     format: 'uuid',
@@ -99,6 +120,13 @@ export class ContentCommentDto implements IContentCommentDto {
   @ApiProperty() reactionCount: number;
   @ApiProperty({ description: 'Bình luận của chính người gọi.' })
   isMine: boolean;
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'Key ảnh đính kèm. Rỗng khi bình luận chỉ có chữ, hoặc khi đã bị gỡ — để ảnh vẫn mở được sau khi gỡ là gỡ nửa vời.',
+  })
+  mediaKeys: string[];
 
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
   editedAt: Date | null;
@@ -167,4 +195,40 @@ export class ListRepliesQueryDto {
   @IsString()
   @Length(1, 128)
   after?: string;
+}
+
+const AllowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+const MaxMediaBytes = 5 * 1024 * 1024;
+
+export class RequestCommentMediaUploadDto {
+  @ApiProperty({ enum: AllowedImageTypes, example: 'image/webp' })
+  @IsIn(AllowedImageTypes)
+  contentType: string;
+
+  @ApiProperty({ minimum: 1, maximum: MaxMediaBytes, example: 512_000 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MaxMediaBytes)
+  contentLength: number;
+}
+
+export class RequestCommentMediaUploadBodyDto {
+  @ApiProperty({ type: () => RequestCommentMediaUploadDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => RequestCommentMediaUploadDto)
+  upload: RequestCommentMediaUploadDto;
+}
+
+export class CommentMediaUploadDto {
+  @ApiProperty() key: string;
+  @ApiProperty() uploadUrl: string;
+  @ApiProperty({ example: 300 }) expiresInSeconds: number;
+  @ApiProperty() publicUrl: string;
+}
+
+export class RequestCommentMediaUploadResponseDto {
+  @ApiProperty({ type: () => CommentMediaUploadDto })
+  upload: CommentMediaUploadDto;
 }

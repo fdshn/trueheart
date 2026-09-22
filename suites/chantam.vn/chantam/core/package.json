@@ -30,6 +30,7 @@
     "test:feed-foundation": "ts-node -r tsconfig-paths/register test/feed-foundation.check.ts",
     "test:feed-reactions": "ts-node -r tsconfig-paths/register test/feed-reactions.check.ts",
     "test:feed-comments": "ts-node -r tsconfig-paths/register test/feed-comments.check.ts",
+    "test:feed-media": "ts-node -r tsconfig-paths/register test/feed-media.check.ts",
     "test:returning": "ts-node -r tsconfig-paths/register test/returning-contract.check.ts",
     "test:lifecycle": "ts-node -r tsconfig-paths/register test/post-lifecycle.check.ts",
     "test:concurrency": "ts-node -r tsconfig-paths/register test/gift-request-concurrency.check.ts",

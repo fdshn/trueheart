@@ -378,7 +378,7 @@ Tối đa **3 ảnh** mỗi tin nhắn, khoá `users/{userId}/chat/{roomId}/{uui
 | 1 | Nền: migration 5 bảng + cột đếm + capability + rule F41 | ✅ `test:feed-foundation`, 25 kiểm |
 | 2 | Cảm xúc | ✅ `test:feed-reactions`, 26 kiểm |
 | 3 | Bình luận (nối bộ lọc vào đường ghi) | ✅ `test:feed-comments`, 24 kiểm |
-| 4 | Ảnh trong bình luận | |
+| 4 | Ảnh trong bình luận | ⚠️ code xong, `test:feed-media` **chưa chạy** — Docker chưa bật |
 | 5 | Đọc kèm số đếm + `myReaction` | |
 | 6 | Chia sẻ | |
 | 7 | Thông báo | |

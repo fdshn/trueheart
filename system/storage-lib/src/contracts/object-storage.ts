@@ -21,6 +21,15 @@ export interface ITransactionEvidenceUploadRequest extends IStorageUploadRequest
   transactionId: string;
 }
 
+export interface ICommentMediaUploadRequest extends IStorageUploadRequest {
+  /**
+   * Khoá theo CHỦ THỂ chứ không theo bình luận: bình luận chưa tồn tại lúc xin
+   * đường tải — nó được tạo cùng lúc với ảnh.
+   */
+  subjectType: string;
+  subjectId: string;
+}
+
 export interface IObjectStorage {
   createAvatarUpload(
     request: IStorageUploadRequest,
@@ -50,6 +59,21 @@ export interface IObjectStorage {
   confirmTransactionEvidenceUpload(
     userId: string,
     transactionId: string,
+    key: string,
+  ): Promise<void>;
+  /**
+   * Anh dinh kem mot binh luan.
+   *
+   * Tach khoi media bai dang vi vong doi khac: media bai dang chet cung bai, con
+   * anh binh luan chet cung binh luan.
+   */
+  createCommentMediaUpload(
+    request: ICommentMediaUploadRequest,
+  ): Promise<IStorageUploadResult>;
+  confirmCommentMediaUpload(
+    userId: string,
+    subjectType: string,
+    subjectId: string,
     key: string,
   ): Promise<void>;
 }

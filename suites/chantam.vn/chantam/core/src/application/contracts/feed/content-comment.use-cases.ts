@@ -9,8 +9,11 @@ export interface ICreateCommentCommand {
   userId: string;
   subjectType: ContentSubjectTypes;
   subjectId: string;
+  /** Có thể rỗng khi có ảnh — một bình luận chỉ có ảnh là hợp lệ. */
   body: string;
   parentId?: string;
+  /** Key ảnh đã tải lên, tối đa 3. */
+  mediaKeys?: string[];
 }
 
 export type ICreateCommentResult = ICommentResponseDto;
@@ -84,3 +87,29 @@ export interface IListCommentRepliesUseCase extends IUseCase<
 > {}
 
 export const IListCommentRepliesUseCase = Symbol('IListCommentRepliesUseCase');
+
+export interface IRequestCommentMediaUploadCommand {
+  userId: string;
+  subjectType: ContentSubjectTypes;
+  subjectId: string;
+  contentType: string;
+  contentLength: number;
+}
+
+export interface IRequestCommentMediaUploadResult {
+  upload: {
+    key: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+    publicUrl: string;
+  };
+}
+
+export interface IRequestCommentMediaUploadUseCase extends IUseCase<
+  IRequestCommentMediaUploadCommand,
+  IRequestCommentMediaUploadResult
+> {}
+
+export const IRequestCommentMediaUploadUseCase = Symbol(
+  'IRequestCommentMediaUploadUseCase',
+);

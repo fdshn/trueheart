@@ -30,13 +30,21 @@ interface ICommentRow {
   reaction_count: number | string;
   edited_at: Date | null;
   created_at: Date;
+  media_keys: string[] | null;
 }
 
 const SelectColumns = `
   comment.id, comment.global_id, comment.subject_type, comment.subject_id,
   comment.author_id, author.username, author.full_name, comment.body,
   comment.status, comment.depth, comment.parent_id, comment.reply_count,
-  comment.reaction_count, comment.edited_at, comment.created_at
+  comment.reaction_count, comment.edited_at, comment.created_at,
+  -- Gom ảnh ngay trong câu chính: một truy vấn phụ cho từng bình luận là N+1
+  -- đúng nghĩa khi một bài có 30 bình luận.
+  (
+    SELECT array_agg(media.storage_key ORDER BY media.slot)
+    FROM content_comment_media media
+    WHERE media.comment_id = comment.global_id
+  ) AS media_keys
 `;
 
 function toComment(row: ICommentRow): IContentComment {
@@ -54,6 +62,7 @@ function toComment(row: ICommentRow): IContentComment {
     parentId: row.parent_id,
     replyCount: Number(row.reply_count),
     reactionCount: Number(row.reaction_count),
+    mediaKeys: row.media_keys ?? [],
     editedAt: row.edited_at,
     createdAt: row.created_at,
   };
@@ -110,13 +119,14 @@ export class ContentCommentRepository implements IContentCommentRepository {
   public async create(params: ICreateCommentParams): Promise<IContentComment> {
     return this.manager.transaction(async (manager) => {
       const depth = params.parentId ? 2 : 1;
+      const mediaKeys = params.mediaKeys.slice(0, 3);
 
       await manager.query(
         `
           INSERT INTO content_comments
             (global_id, subject_type, subject_id, author_id, body, status,
-             depth, parent_id, parent_depth, flagged_terms)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             depth, parent_id, parent_depth, flagged_terms, media_count)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         `,
         [
           params.globalId,
@@ -129,8 +139,20 @@ export class ContentCommentRepository implements IContentCommentRepository {
           params.parentId,
           params.parentId ? 1 : null,
           params.flaggedTerms,
+          mediaKeys.length,
         ],
       );
+
+      // Slot 1..3 theo thứ tự người dùng gửi lên. Trần do database giữ, nên gửi
+      // quá thì phần thừa đã bị cắt ở trên chứ không để câu INSERT vỡ.
+      for (const [index, storageKey] of mediaKeys.entries())
+        await manager.query(
+          `
+            INSERT INTO content_comment_media (comment_id, slot, storage_key)
+            VALUES ($1, $2, $3)
+          `,
+          [params.globalId, index + 1, storageKey],
+        );
 
       if (params.status === CommentStatuses.VISIBLE) {
         await this.bumpSubjectCounter(

@@ -14,6 +14,9 @@ import {
   IRemoveCommentCommand,
   IRemoveCommentResult,
   IRemoveCommentUseCase,
+  IRequestCommentMediaUploadCommand,
+  IRequestCommentMediaUploadResult,
+  IRequestCommentMediaUploadUseCase,
 } from '@/application/contracts/feed';
 import {
   ContentBlockedTermsException,
@@ -33,6 +36,7 @@ import {
   CommentEditWindowMinutes,
   CommentStatuses,
   ContentSubjectTypes,
+  MaxContentMediaPerItem,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IContentCommentDto } from '@chantam.vn/chantam.core-lib/dto';
 import {
@@ -44,7 +48,11 @@ import {
   normalizeBlockedTerms,
   screenText,
 } from '@chantam.vn/chantam.core-lib/models';
-import { ForbiddenException } from '@chantam/service.common-lib/exception';
+import {
+  ForbiddenException,
+  ValidationFailedException,
+} from '@chantam/service.common-lib/exception';
+import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
@@ -69,6 +77,9 @@ function toDto(
     replyCount: comment.replyCount,
     reactionCount: comment.reactionCount,
     isMine: comment.authorId === viewerId,
+    // Bình luận đã gỡ không trả ảnh nữa — giữ chỗ trong cây là một chuyện, còn
+    // để ảnh vẫn mở được bằng đường dẫn công khai là chuyện khác hẳn.
+    mediaKeys: removed ? [] : comment.mediaKeys,
     editedAt: comment.editedAt,
     createdAt: comment.createdAt,
   };
@@ -118,6 +129,7 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
     @Inject(IPostRepository) private readonly posts: IPostRepository,
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
   ) {}
 
   public async handle(
@@ -150,6 +162,29 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
         throw new ContentCommentNotFoundException();
     }
 
+    const mediaKeys = (command.mediaKeys ?? []).slice(
+      0,
+      MaxContentMediaPerItem,
+    );
+
+    // Bình luận phải có CHỮ hoẶC ẢNH. Database cũng chặn, nhưng chặn ở đây cho ra
+    // thông báo đọc được thay vì một lỗi ràng buộc 500.
+    if (!command.body.trim() && mediaKeys.length === 0)
+      throw new ValidationFailedException([
+        'comment.body: phải có nội dung hoặc ít nhất một ảnh',
+      ]);
+
+    // Object phải CÓ THẬT trên storage trước khi ghi vào database: một chuỗi key
+    // bịa ra sẽ thành bình luận mang ảnh trỏ vào hư không, và điều đó chỉ lộ ra lúc
+    // người khác mở bài.
+    for (const key of mediaKeys)
+      await this.storage.confirmCommentMediaUpload(
+        command.userId,
+        command.subjectType,
+        command.subjectId,
+        key,
+      );
+
     const screening = await new CommentScreening(this.adminConfig).screen(
       command.body,
     );
@@ -163,6 +198,7 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
       status: screening.status,
       flaggedTerms: screening.flaggedTerms,
       parentId: command.parentId ?? null,
+      mediaKeys,
     });
 
     return { comment: toDto(created, command.userId) };
@@ -321,6 +357,42 @@ export class ListCommentRepliesUseCase implements IListCommentRepliesUseCase {
         hasMoreBefore: false,
         hasMoreAfter: page.hasMoreAfter,
       },
+    };
+  }
+}
+
+/**
+ * Xin đường tải ảnh cho bình luận.
+ *
+ * Khoá theo CHỦ THỂ chứ không theo bình luận, vì bình luận chưa tồn tại lúc này —
+ * nó được tạo cùng lúc với ảnh. Kiểm tiền tố vẫn chặt: không ai tải được vào
+ * không gian người khác hay chủ thể khác.
+ */
+@Injectable()
+export class RequestCommentMediaUploadUseCase implements IRequestCommentMediaUploadUseCase {
+  public constructor(
+    @Inject(IEntitlementRepository)
+    private readonly entitlements: IEntitlementRepository,
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+  ) {}
+
+  public async handle(
+    command: IRequestCommentMediaUploadCommand,
+  ): Promise<IRequestCommentMediaUploadResult> {
+    const capability = await this.entitlements.getCapability(
+      command.userId,
+      CommentContentCapability,
+    );
+    if (!capability?.allowed) throw new ForbiddenException();
+
+    return {
+      upload: await this.storage.createCommentMediaUpload({
+        userId: command.userId,
+        subjectType: command.subjectType,
+        subjectId: command.subjectId,
+        contentType: command.contentType,
+        contentLength: command.contentLength,
+      }),
     };
   }
 }

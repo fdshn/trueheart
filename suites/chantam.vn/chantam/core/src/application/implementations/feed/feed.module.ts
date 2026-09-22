@@ -6,6 +6,7 @@ import {
   IListContentReactionsUseCase,
   IRemoveCommentUseCase,
   IRemoveContentReactionUseCase,
+  IRequestCommentMediaUploadUseCase,
   ISetContentReactionUseCase,
 } from '@/application/contracts/feed';
 import { Global, Module } from '@nestjs/common';
@@ -15,6 +16,7 @@ import {
   ListCommentRepliesUseCase,
   ListCommentsUseCase,
   RemoveCommentUseCase,
+  RequestCommentMediaUploadUseCase,
 } from './content-comment.use-cases';
 import {
   ListContentReactionsUseCase,
@@ -26,6 +28,10 @@ import {
 @Module({
   providers: [
     { provide: ICreateCommentUseCase, useClass: CreateCommentUseCase },
+    {
+      provide: IRequestCommentMediaUploadUseCase,
+      useClass: RequestCommentMediaUploadUseCase,
+    },
     { provide: IEditCommentUseCase, useClass: EditCommentUseCase },
     { provide: IRemoveCommentUseCase, useClass: RemoveCommentUseCase },
     { provide: IListCommentsUseCase, useClass: ListCommentsUseCase },
@@ -48,6 +54,7 @@ import {
   ],
   exports: [
     ICreateCommentUseCase,
+    IRequestCommentMediaUploadUseCase,
     IEditCommentUseCase,
     IRemoveCommentUseCase,
     IListCommentsUseCase,
