@@ -570,9 +570,60 @@ Mỗi giao dịch đã duyệt có **đúng một** phòng chat, mở ngay trong
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
 | `GET` | `/chat/rooms` | Bearer | Danh sách hội thoại của chính mình, phân trang |
-| `GET` | `/chat/rooms/:roomId/messages` | Bearer (trong phòng) | Lịch sử, mới nhất trước |
+| `GET` | `/chat/rooms/:roomId/messages` | Bearer (trong phòng) | Lịch sử, mới nhất trước, **phân trang bằng con trỏ** |
 | `POST` | `/chat/rooms/:roomId/messages` | Bearer (trong phòng) | Gửi tin, tối đa 2000 ký tự |
 | `PATCH` | `/chat/rooms/:roomId/read` | Bearer (trong phòng) | Đánh dấu đã đọc tới hiện tại |
+
+### Lazy loading tin nhắn — con trỏ, không phải `page`
+
+`GET /chat/rooms/:roomId/messages` là **endpoint duy nhất trong toàn bộ API không dùng
+`page`/`pageSize`**. Có lý do.
+
+Chat là danh sách được thêm vào **ĐẦU**. Người dùng cuộn lên xem lịch sử trong khi tin mới
+vẫn đến; mỗi tin mới đẩy cửa sổ `OFFSET` xuống một dòng. Lấy 25 tin, 10 tin mới đến, rồi
+lấy `OFFSET 25` → **10 tin vừa xem hiện lại lần hai**. Đây không phải lo xa: `test:chat-paging`
+chạy lại đúng câu OFFSET cũ trên database thật và đếm đúng 10 tin bị lặp.
+
+Con trỏ trỏ vào một tin **cụ thể**, nên cửa sổ không trôi.
+
+| Tham số | Ý nghĩa |
+| --- | --- |
+| *(không truyền gì)* | Cửa sổ **mới nhất** — màn hình mở đầu |
+| `before=<cursor>` | Tin **cũ hơn** — hướng cuộn lên xem lịch sử |
+| `after=<cursor>` | Tin **mới hơn** — bắt kịp sau khi mất kết nối |
+| `limit` | Mặc định 30, **trần 50** |
+
+Phản hồi mang khối `window` thay cho `meta`:
+
+```jsonc
+{
+  "messages": [ /* luôn mới-nhất-trước, bất kể lấy theo chiều nào */ ],
+  "window": {
+    "limit": 30,
+    "oldestCursor": "...",   // truyền vào `before` để cuộn tiếp lên
+    "newestCursor": "...",   // truyền vào `after` để bắt kịp
+    "hasMoreBefore": true,
+    "hasMoreAfter": false
+  }
+}
+```
+
+**Những điều dễ hiểu nhầm**
+
+- **Không có `total`.** Đếm toàn bộ tin của một phòng là một `COUNT(*)` quét cả bảng **mỗi
+  lần cuộn**, và không giao diện nào dùng đến con số đó. `hasMoreBefore` lấy được bằng cách
+  hỏi dư **một dòng**.
+- **Con trỏ hỏng không phải lỗi.** Chuỗi rác, bookmark cũ, client đời trước — tất cả
+  được coi như không truyền con trỏ, tức trả về cửa sổ mới nhất. Ném `400` vì một link
+  dán tay là chặn người dùng khỏi thứ họ luôn xem được.
+- **Truyền cả `before` lẫn `after` thì `before` thắng** — cuộn lên là việc người dùng chủ
+  động làm, bắt kịp chỉ là việc chạy ngầm.
+- **Không có cách nào xin cả phòng.** `?limit=999999` bị chặn ở 50 tại DTO, và cũng bị
+  kẹp lại lần nữa trong use case.
+- Khoá sắp xếp là cặp `(created_at, id)` chứ không chỉ thời gian: hai tin cùng một
+  millisecond thì thiếu `id` sẽ không phân định được bên nào trước. Truy vấn dùng row-value
+  `(created_at, id) < ($2, $3)` nên vẫn đi index `IDX_chat_messages_room_created` —
+  `test:chat-paging` đọc `EXPLAIN` để canh điều này, không phải tin lời.
 
 ### Gửi bằng REST, nhận bằng socket
 

@@ -46,12 +46,55 @@ export interface IListChatMessagesParamsDto {
   roomId: string;
 }
 
-export interface IListChatMessagesQueryDto extends IPaginationQueryDto {}
+/**
+ * Cua so tin nhan can lay.
+ *
+ * Khong dung `page`/`pageSize` nhu cac danh sach khac: xem
+ * `models/chat-cursor.ts`. Tom tat: chat duoc them vao DAU, nen OFFSET troi
+ * theo moi tin moi den va trang sau se lap hoac bo sot tin.
+ */
+export interface IListChatMessagesQueryDto {
+  /** So tin toi da. Mac dinh 30, tran 50. */
+  limit?: number;
+  /**
+   * Lay cac tin CU HON con tro nay — huong cuon len xem lich su.
+   *
+   * Khong truyen gi ca thi tra ve cua so MOI NHAT, tuc man hinh mo dau.
+   */
+  before?: string;
+  /**
+   * Lay cac tin MOI HON con tro nay — huong bat kip sau khi mat ket noi.
+   *
+   * Dung `after` thay vi tai lai tu dau: client giu con tro cuoi cung no da
+   * thay, ket noi lai thi chi keo ve phan con thieu.
+   */
+  after?: string;
+}
+
+/**
+ * Hai dau cua cua so vua tra ve, de goi tiep ma khong phai tu doc `messages`.
+ *
+ * Khong co `total` va khong co `totalPages`: dem toan bo tin cua mot phong la
+ * mot `COUNT(*)` quet ca bang moi lan cuon, va khong giao dien nao dung den con
+ * so do.
+ */
+export interface IChatMessageWindowDto {
+  limit: number;
+  /** Con tro cua tin CU NHAT trong cua so — truyen vao `before` de cuon tiep len. */
+  oldestCursor: string | null;
+  /** Con tro cua tin MOI NHAT trong cua so — truyen vao `after` de bat kip. */
+  newestCursor: string | null;
+  /** Con tin cu hon nua khong. `false` la da cham day hoi thoai. */
+  hasMoreBefore: boolean;
+  /** Con tin moi hon khong. */
+  hasMoreAfter: boolean;
+}
 
 export interface IListChatMessagesResponseDto {
   room: IChatRoomSummaryDto;
+  /** Moi nhat truoc, giong thu tu ma giao dien chat dung. */
   messages: IChatMessageDto[];
-  meta: IPaginationMetaDto;
+  window: IChatMessageWindowDto;
 }
 
 export interface ISendChatMessageParamsDto {

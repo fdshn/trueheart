@@ -2,6 +2,7 @@ import {
   IChatMessageEntity,
   IChatRoomEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
+import { IChatCursor } from '@chantam.vn/chantam.core-lib/models';
 import { EntityManager } from 'typeorm';
 
 export interface IOpenChatRoomParams {
@@ -98,11 +99,27 @@ export interface IChatRepository {
     params: IAppendChatMessageParams,
   ): Promise<AppendChatMessageOutcome>;
 
+  /**
+   * Mot cua so tin nhan theo KHOA SAP XEP, khong phai theo OFFSET.
+   *
+   * `before`/`after` la cap `(createdAt, id)` cua mot tin co that. Postgres so
+   * sanh ca cap bang row-value `(created_at, id) < ($2, $3)` nen van di duoc
+   * index `IDX_chat_messages_room_created` — khong quet qua cac tin bi bo.
+   *
+   * Khong tra `total`: dem toan bo tin cua mot phong la mot `COUNT(*)` quet ca
+   * bang moi lan cuon, va khong giao dien nao dung den con so do. Thay vao do
+   * tra `hasMore*`, lay duoc bang cach hoi du MOT dong.
+   */
   listMessages(params: {
     roomId: string;
-    skip: number;
-    take: number;
-  }): Promise<{ items: IChatMessageListItem[]; total: number }>;
+    limit: number;
+    before?: IChatCursor | null;
+    after?: IChatCursor | null;
+  }): Promise<{
+    items: IChatMessageListItem[];
+    hasMoreBefore: boolean;
+    hasMoreAfter: boolean;
+  }>;
 
   /** Đánh dấu đã đọc tới thời điểm hiện tại, trả về số còn lại chưa đọc. */
   markRead(

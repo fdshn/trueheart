@@ -1,6 +1,7 @@
 import { ChatRoomStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IChatMessageDto,
+  IChatMessageWindowDto,
   IChatRoomSummaryDto,
   IListChatMessagesParamsDto,
   IListChatMessagesQueryDto,
@@ -15,6 +16,10 @@ import {
   ISendChatMessageResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import {
+  DefaultChatMessageLimit,
+  MaxChatMessageLimit,
+} from '@chantam.vn/chantam.core-lib/models';
+import {
   PaginationMetaDto,
   PaginationQueryDto,
 } from '@chantam/service.common-lib/dto';
@@ -22,9 +27,13 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsDefined,
+  IsInt,
+  IsOptional,
   IsString,
   IsUUID,
   Length,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { Mixin } from 'ts-mixer';
@@ -105,19 +114,76 @@ export class ListChatMessagesParamsDto implements IListChatMessagesParamsDto {
   roomId: string;
 }
 
-export class ListChatMessagesQueryDto
-  extends Mixin(PaginationQueryDto)
-  implements IListChatMessagesQueryDto {}
+export class ListChatMessagesQueryDto implements IListChatMessagesQueryDto {
+  @ApiPropertyOptional({
+    minimum: 1,
+    maximum: MaxChatMessageLimit,
+    default: DefaultChatMessageLimit,
+    description: `Số tin tối đa một lần lấy (trần ${MaxChatMessageLimit}).`,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MaxChatMessageLimit)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Lấy các tin CŨ HƠN con trỏ này — hướng cuộn lên xem lịch sử. Không truyền gì thì trả về cửa sổ mới nhất. Con trỏ hỏng được coi như không truyền, không phải lỗi.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 128)
+  before?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Lấy các tin MỚI HƠN con trỏ này — hướng bắt kịp sau khi mất kết nối. Truyền cùng `before` thì `before` thắng.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 128)
+  after?: string;
+}
+
+export class ChatMessageWindowDto implements IChatMessageWindowDto {
+  @ApiProperty({ example: 30 })
+  limit: number;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Truyền vào `before` để cuộn tiếp lên. `null` khi cửa sổ rỗng.',
+  })
+  oldestCursor: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Truyền vào `after` để bắt kịp tin mới. `null` khi cửa sổ rỗng.',
+  })
+  newestCursor: string | null;
+
+  @ApiProperty({ description: 'Còn tin cũ hơn nữa không.' })
+  hasMoreBefore: boolean;
+
+  @ApiProperty({ description: 'Còn tin mới hơn không.' })
+  hasMoreAfter: boolean;
+}
 
 export class ListChatMessagesResponseDto implements IListChatMessagesResponseDto {
   @ApiProperty({ type: () => ChatRoomSummaryDto })
   room: IChatRoomSummaryDto;
 
-  @ApiProperty({ type: () => [ChatMessageDto] })
+  @ApiProperty({
+    type: () => [ChatMessageDto],
+    description: 'Mới nhất trước, bất kể lấy theo `before` hay `after`.',
+  })
   messages: IChatMessageDto[];
 
-  @ApiProperty({ type: () => PaginationMetaDto })
-  meta: PaginationMetaDto;
+  @ApiProperty({ type: () => ChatMessageWindowDto })
+  window: IChatMessageWindowDto;
 }
 
 export class SendChatMessageParamsDto implements ISendChatMessageParamsDto {

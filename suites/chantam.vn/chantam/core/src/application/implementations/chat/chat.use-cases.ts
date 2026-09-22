@@ -24,6 +24,11 @@ import {
   IChatMessageDto,
   IChatRoomSummaryDto,
 } from '@chantam.vn/chantam.core-lib/dto';
+import {
+  clampChatMessageLimit,
+  decodeChatCursor,
+  encodeChatCursor,
+} from '@chantam.vn/chantam.core-lib/models';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -80,12 +85,25 @@ export class ListChatMessagesUseCase implements IListChatMessagesUseCase {
     const room = await this.chat.describeRoom(command.roomId, command.userId);
     if (!room) throw new ChatRoomNotFoundException();
 
-    const { skip, take } = toSkipTake(command);
-    const { items, total } = await this.chat.listMessages({
-      roomId: command.roomId,
-      skip,
-      take,
-    });
+    const limit = clampChatMessageLimit(command.limit);
+    // Con trỏ hỏng được coi như không có con trỏ, tức trả về cửa sổ mới nhất —
+    // thứ người dùng luôn xem được. Ném 400 vì một bookmark cũ thì không.
+    const before = decodeChatCursor(command.before);
+    const after = decodeChatCursor(command.after);
+
+    const { items, hasMoreBefore, hasMoreAfter } = await this.chat.listMessages(
+      {
+        roomId: command.roomId,
+        limit,
+        before,
+        // Truyền cả hai thì `before` thắng: đó là hướng cuộn lên, việc mà người dùng
+        // chủ động làm, còn `after` chỉ là việc bắt kịp chạy ngầm.
+        after: before ? null : after,
+      },
+    );
+
+    const oldest = items.at(-1);
+    const newest = items.at(0);
 
     return {
       room: toRoomSummary(room),
@@ -98,7 +116,23 @@ export class ListChatMessagesUseCase implements IListChatMessagesUseCase {
         sentAt: message.createdAt,
         isMine: message.senderId === command.userId,
       })),
-      meta: new PaginationMetaDto(Math.floor(skip / take) + 1, take, total),
+      window: {
+        limit,
+        oldestCursor: oldest
+          ? encodeChatCursor({
+              createdAt: oldest.message.createdAt,
+              id: oldest.message.id,
+            })
+          : null,
+        newestCursor: newest
+          ? encodeChatCursor({
+              createdAt: newest.message.createdAt,
+              id: newest.message.id,
+            })
+          : null,
+        hasMoreBefore,
+        hasMoreAfter,
+      },
     };
   }
 }

@@ -97,7 +97,10 @@ export class ChatController {
   @ApiOperation({
     summary: 'Lịch sử tin nhắn của một phòng',
     description:
-      'Mới nhất trước. Chỉ hai bên của giao dịch đọc được; người ngoài nhận CHAT_ROOM_NOT_FOUND giống như phòng không tồn tại, để không lộ ai đang trao đổi với ai.',
+      'Mới nhất trước. Chỉ hai bên của giao dịch đọc được; người ngoài nhận CHAT_ROOM_NOT_FOUND giống như phòng không tồn tại, để không lộ ai đang trao đổi với ai. ' +
+      'Phân trang bằng CON TRỎ, không phải `page`/`pageSize`: chat được thêm vào ĐẦU, nên mỗi tin mới đến làm cửa sổ OFFSET trôi xuống một dòng và trang sau sẽ lặp lại tin người dùng vừa xem. ' +
+      'Không truyền gì thì trả về cửa sổ mới nhất; cuộn lên thì truyền `before` = `window.oldestCursor`; bắt kịp sau khi mất kết nối thì truyền `after` = `window.newestCursor`. ' +
+      'Trần `limit` là 50 — không có cách nào xin cả phòng trong một lần gọi.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(ListChatMessagesResponseDto) })
   @ApiErrorResponses(...ApiTokenErrors, ChatRoomNotFoundException)

@@ -1,6 +1,7 @@
 export * from './candidate-selection';
 export * from './category';
 export * from './chat';
+export * from './chat-cursor';
 export * from './gift-post';
 export * from './gift-request';
 export * from './notification';

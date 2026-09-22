@@ -12,6 +12,7 @@ import {
   IChatMessageEntity,
   IChatRoomEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
+import { IChatCursor } from '@chantam.vn/chantam.core-lib/models';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
@@ -285,9 +286,38 @@ export class ChatRepository implements IChatRepository {
 
   public async listMessages(params: {
     roomId: string;
-    skip: number;
-    take: number;
-  }): Promise<{ items: IChatMessageListItem[]; total: number }> {
+    limit: number;
+    before?: IChatCursor | null;
+    after?: IChatCursor | null;
+  }): Promise<{
+    items: IChatMessageListItem[];
+    hasMoreBefore: boolean;
+    hasMoreAfter: boolean;
+  }> {
+    // Hỏi thừa MỘT dòng để biết còn tin nữa hay không. Cách này rẻ hơn hẳn một
+    // câu `COUNT(*)` riêng, vốn quét cả bảng mỗi lần cuộn.
+    const probe = params.limit + 1;
+
+    // `after` đọc XUÔI chiều thời gian rồi đảo lại sau: lấy 30 tin mới hơn một
+    // mốc mà sắp DESC sẽ ra 30 tin MỚI NHẤT của phòng, bỏ qua đúng khoảng giữa
+    // mà người gọi đang cần.
+    const forward = !!params.after && !params.before;
+    const anchor = forward ? params.after : params.before;
+
+    // Row-value comparison: Postgres so sánh cả cặp theo thứ tự từ điển, nên
+    // `(created_at, id) < ($2, $3)` vẫn đi được index (room_id, created_at DESC,
+    // id DESC). Tách thành `created_at < $2 OR (created_at = $2 AND id < $3)` cho
+    // cùng kết quả nhưng planner hay bỏ index.
+    const predicate = anchor
+      ? `AND (m.created_at, m.id) ${forward ? '>' : '<'} ($2::timestamptz, $3::bigint)`
+      : '';
+    const direction = forward ? 'ASC' : 'DESC';
+
+    const parameters: unknown[] = anchor
+      ? [params.roomId, anchor.createdAt, anchor.id, probe]
+      : [params.roomId, probe];
+    const limitPlaceholder = anchor ? '$4' : '$2';
+
     const rows = await this.manager.query<Record<string, unknown>[]>(
       `
         SELECT m.id, m.global_id, m.room_id, m.sender_id, m.body, m.created_at,
@@ -295,21 +325,23 @@ export class ChatRepository implements IChatRepository {
         FROM chat_messages m
         JOIN users sender ON sender.global_id = m.sender_id
         WHERE m.room_id = $1
-        -- Cột id phá thế hoà khi hai tin cùng mốc thời gian, nếu không trang 2
-        -- có thể lặp hoặc bỏ sót dòng.
-        ORDER BY m.created_at DESC, m.id DESC
-        LIMIT $2 OFFSET $3
+        ${predicate}
+        -- Cột id phá thế hoà khi hai tin cùng mốc thời gian, nếu không cửa sổ
+        -- sau có thể lặp hoặc bỏ sót dòng.
+        ORDER BY m.created_at ${direction}, m.id ${direction}
+        LIMIT ${limitPlaceholder}
       `,
-      [params.roomId, params.take, params.skip],
+      parameters,
     );
 
-    const [{ total }] = await this.manager.query<{ total: string }[]>(
-      `SELECT COUNT(*) AS total FROM chat_messages WHERE room_id = $1`,
-      [params.roomId],
-    );
+    const hasExtra = rows.length > params.limit;
+    const page = hasExtra ? rows.slice(0, params.limit) : rows;
+    // Luôn trả về mới-nhất-trước, bất kể đọc theo chiều nào: giao diện chat chỉ
+    // biết một thứ tự, và để nó tự đảo tuỳ tham số là mời gọi lỗi hiển thị.
+    const ordered = forward ? [...page].reverse() : page;
 
     return {
-      items: rows.map((row) => ({
+      items: ordered.map((row) => ({
         message: {
           id: Number(row.id),
           globalId: String(row.global_id),
@@ -320,7 +352,10 @@ export class ChatRepository implements IChatRepository {
         } as IChatMessageEntity,
         senderUsername: String(row.sender_username),
       })),
-      total: Number(total),
+      // Đọc xuôi thì dòng thừa nằm ở phía MỚI hơn; đọc ngược thì ở phía cũ hơn.
+      hasMoreBefore: forward ? true : hasExtra,
+      // Cửa sổ mới nhất (không con trỏ) theo định nghĩa là đã chạm đáy phía mới.
+      hasMoreAfter: forward ? hasExtra : !!params.before,
     };
   }
 
