@@ -6,11 +6,16 @@ import {
 import { DiscoveryOriginUnavailableException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
+  IContentReactionRepository,
   IGiftRequestRepository,
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
-import { GiftRequestStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  ContentSubjectTypes,
+  GiftRequestStatuses,
+  ReactionKinds,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import {
   applyGeoJitter,
@@ -27,6 +32,8 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
     private readonly giftRequestRepository: IGiftRequestRepository,
     @Inject(IUserRepository)
     private readonly userRepository: IUserRepository,
+    @Inject(IContentReactionRepository)
+    private readonly reactions: IContentReactionRepository,
     @Inject(IConfig) private readonly config: IConfig,
   ) {}
 
@@ -93,6 +100,16 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
           )
         : new Map<string, GiftRequestStatuses>();
 
+    // Một truy vấn cho cả trang — hỏi từng bài là 20 lần đi database mỗi lần cuộn.
+    const myReactions =
+      postIds.length > 0 && command.currentUserId
+        ? await this.reactions.findMyReactions(
+            ContentSubjectTypes.POST,
+            postIds,
+            command.currentUserId,
+          )
+        : new Map<string, ReactionKinds>();
+
     return {
       posts: items.map(({ post, distanceMeters }) => {
         const myRequestStatus = myStatuses.get(post.globalId) ?? null;
@@ -110,6 +127,10 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
           requestCount: requestCounts.get(post.globalId) ?? 0,
           myRequestStatus,
           hasRequested: Boolean(myRequestStatus),
+          reactionCount: post.reactionCount,
+          commentCount: post.commentCount,
+          shareCount: post.shareCount,
+          myReaction: myReactions.get(post.globalId) ?? null,
         };
       }),
       meta: new PaginationMetaDto(Math.floor(skip / take) + 1, take, total),

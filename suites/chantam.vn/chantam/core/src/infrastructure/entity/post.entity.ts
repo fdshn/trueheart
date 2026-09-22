@@ -87,6 +87,22 @@ export class PostEntity
   @Column({ name: 'renewed_count', type: 'int', default: 0 })
   renewedCount: number;
 
+  /**
+   * Ba cột đếm tương tác, cập nhật trong cùng transaction với lần ghi cảm xúc/
+   * bình luận/chia sẻ. Đọc từ đây chứ không COUNT(*) mỗi lần cuộn bảng tin.
+   */
+  @ApiProperty({ description: 'Số người đã bày tỏ cảm xúc' })
+  @Column({ name: 'reaction_count', type: 'int', default: 0 })
+  reactionCount: number;
+
+  @ApiProperty({ description: 'Số bình luận gốc còn hiện' })
+  @Column({ name: 'comment_count', type: 'int', default: 0 })
+  commentCount: number;
+
+  @ApiProperty({ description: 'Số lần chia sẻ đã ghi nhận' })
+  @Column({ name: 'share_count', type: 'int', default: 0 })
+  shareCount: number;
+
   @ApiProperty({ description: 'Bài Cần gấp / SOS (F17)' })
   @Column({ name: 'is_sos', type: 'boolean', default: false })
   isSos: boolean;

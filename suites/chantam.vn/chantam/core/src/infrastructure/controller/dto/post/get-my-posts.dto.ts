@@ -2,6 +2,7 @@ import {
   GenericMvpPostTypes,
   GiftPostStatuses,
   PostTypes,
+  ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IGetMyPostsQueryDto,
@@ -57,6 +58,18 @@ export class MyPostItemDto implements IMyPostItemDto {
 
   @ApiProperty({ type: [PublicPostMediaDto], description: 'Danh sách ảnh' })
   media: IPublicPostMediaDto[];
+
+  @ApiProperty({ example: 12 }) reactionCount: number;
+  @ApiProperty({ example: 3 }) commentCount: number;
+  @ApiProperty({ example: 1 }) shareCount: number;
+
+  @ApiPropertyOptional({
+    enum: ReactionKinds,
+    nullable: true,
+    description:
+      'Cảm xúc của người gọi. `null` khi chưa bày tỏ hoặc chưa đăng nhập.',
+  })
+  myReaction: ReactionKinds | null;
 }
 
 export class GetMyPostsResponseDto implements IGetMyPostsResponseDto {

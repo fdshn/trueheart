@@ -5,10 +5,15 @@ import {
 } from '@/application/contracts/post';
 import { IConfig } from '@/domain/ports/config';
 import {
+  IContentReactionRepository,
   IGiftRequestRepository,
   IPostMediaRepository,
   IPostRepository,
 } from '@/domain/ports/repository';
+import {
+  ContentSubjectTypes,
+  ReactionKinds,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -21,6 +26,8 @@ export class GetMyPostsUseCase implements IGetMyPostsUseCase {
     private readonly postMediaRepository: IPostMediaRepository,
     @Inject(IGiftRequestRepository)
     private readonly giftRequestRepository: IGiftRequestRepository,
+    @Inject(IContentReactionRepository)
+    private readonly reactions: IContentReactionRepository,
     @Inject(IConfig)
     private readonly config: IConfig,
   ) {}
@@ -64,6 +71,17 @@ export class GetMyPostsUseCase implements IGetMyPostsUseCase {
       }
     }
 
+    // Chủ bài cũng có thể đã bày tỏ cảm xúc trên bài của mình — lấy một lần
+    // cho cả trang, cùng hình dạng với nearby để client không phải nhánh.
+    const myReactions =
+      postIds.length > 0
+        ? await this.reactions.findMyReactions(
+            ContentSubjectTypes.POST,
+            postIds,
+            command.userId,
+          )
+        : new Map<string, ReactionKinds>();
+
     const items = posts.map((post) => {
       const media = (mediaMap.get(post.globalId) ?? []).sort(
         (a, b) => a.sortOrder - b.sortOrder,
@@ -73,6 +91,10 @@ export class GetMyPostsUseCase implements IGetMyPostsUseCase {
         post,
         requestCount: requestCounts.get(post.globalId) ?? 0,
         media,
+        reactionCount: post.reactionCount,
+        commentCount: post.commentCount,
+        shareCount: post.shareCount,
+        myReaction: myReactions.get(post.globalId) ?? null,
       };
     });
 

@@ -1,5 +1,6 @@
 import { IConfig } from '@/domain/ports/config';
 import {
+  IContentReactionRepository,
   IGiftRequestRepository,
   IPostMediaRepository,
   IPostRepository,
@@ -9,6 +10,7 @@ import {
   GiftPostStatuses,
   GiftRequestStatuses,
   PostTypes,
+  ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { GetPostUseCase } from './get-post.use-case';
@@ -33,6 +35,9 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     details: {},
     expiresAt: null,
     renewedCount: 0,
+    reactionCount: 12,
+    commentCount: 3,
+    shareCount: 1,
     isSos: false,
     deliveryMethod: null,
     shipPayer: null,
@@ -101,6 +106,16 @@ const makeUserRepo = () =>
     }),
   }) as unknown as jest.Mocked<IUserRepository>;
 
+const makeReactions = () =>
+  ({
+    summarize: jest.fn().mockResolvedValue({
+      total: 12,
+      breakdown: { LIKE: 8, LOVE: 4 },
+      myReaction: ReactionKinds.LOVE,
+    }),
+    findMyReactions: jest.fn(),
+  }) as unknown as jest.Mocked<IContentReactionRepository>;
+
 describe('GetPostUseCase', () => {
   it('áp dụng geo jitter cho toạ độ trả ra qua kênh public và trả kèm số lượng yêu cầu', async () => {
     const postRepository = {
@@ -111,12 +126,14 @@ describe('GetPostUseCase', () => {
     } as unknown as jest.Mocked<IPostMediaRepository>;
     const giftRequestRepository = makeGiftRequestRepo();
     const userRepository = makeUserRepo();
+    const reactions = makeReactions();
 
     const result = await new GetPostUseCase(
       postRepository,
       postMediaRepository,
       giftRequestRepository,
       userRepository,
+      reactions,
       makeConfig(),
     ).handle({
       postId: PostId,
@@ -133,6 +150,11 @@ describe('GetPostUseCase', () => {
     expect(result.myRequestStatus).toBe(GiftRequestStatuses.PENDING);
     expect(result.hasRequested).toBe(true);
     expect(result.author?.fullName).toBe('Cư sĩ Minh Tuệ');
+    expect(result.reactionCount).toBe(12);
+    expect(result.commentCount).toBe(3);
+    expect(result.shareCount).toBe(1);
+    expect(result.myReaction).toBe(ReactionKinds.LOVE);
+    expect(result.reactionBreakdown).toEqual({ LIKE: 8, LOVE: 4 });
   });
 
   it('trả media đã xếp thứ tự với public URL', async () => {
@@ -159,12 +181,19 @@ describe('GetPostUseCase', () => {
     } as unknown as jest.Mocked<IPostMediaRepository>;
     const giftRequestRepository = makeGiftRequestRepo();
     const userRepository = makeUserRepo();
+    const reactions = makeReactions();
+    reactions.summarize.mockResolvedValue({
+      total: 12,
+      breakdown: { LIKE: 8, LOVE: 4 },
+      myReaction: null,
+    });
 
     const result = await new GetPostUseCase(
       postRepository,
       postMediaRepository,
       giftRequestRepository,
       userRepository,
+      reactions,
       makeConfig(),
     ).handle({ postId: PostId });
 
@@ -183,6 +212,7 @@ describe('GetPostUseCase', () => {
     expect(result.requestCount).toBe(2);
     expect(result.myRequestStatus).toBeNull();
     expect(result.hasRequested).toBe(false);
+    expect(result.myReaction).toBeNull();
   });
 
   it('coi pending, rejected hoặc deleted là không tồn tại khi repository không trả kết quả', async () => {
@@ -194,6 +224,7 @@ describe('GetPostUseCase', () => {
     } as unknown as jest.Mocked<IPostMediaRepository>;
     const giftRequestRepository = makeGiftRequestRepo();
     const userRepository = makeUserRepo();
+    const reactions = makeReactions();
 
     await expect(
       new GetPostUseCase(
@@ -201,6 +232,7 @@ describe('GetPostUseCase', () => {
         postMediaRepository,
         giftRequestRepository,
         userRepository,
+        reactions,
         makeConfig(),
       ).handle({
         postId: PostId,
@@ -209,5 +241,6 @@ describe('GetPostUseCase', () => {
       (await import('@/domain/exceptions')).PostNotFoundException,
     );
     expect(postMediaRepository.listByPostId).not.toHaveBeenCalled();
+    expect(reactions.summarize).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,7 @@
-import { GiftRequestStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  GiftRequestStatuses,
+  ReactionKinds,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   IGetPostParamsDto,
   IGetPostResponseDto,
@@ -66,4 +69,30 @@ export class GetPostResponseDto implements IGetPostResponseDto {
     description: 'Người dùng hiện tại đã gửi yêu cầu chưa',
   })
   hasRequested?: boolean;
+
+  @ApiProperty({ example: 12, description: 'Số người đã bày tỏ cảm xúc' })
+  reactionCount: number;
+
+  @ApiProperty({ example: 3, description: 'Số bình luận gốc còn hiện' })
+  commentCount: number;
+
+  @ApiProperty({ example: 1, description: 'Số lần chia sẻ đã ghi nhận' })
+  shareCount: number;
+
+  @ApiPropertyOptional({
+    enum: ReactionKinds,
+    nullable: true,
+    description:
+      'Cảm xúc của người gọi. `null` khi chưa bày tỏ hoặc chưa đăng nhập.',
+  })
+  myReaction: ReactionKinds | null;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'number' },
+    description:
+      'Phân bổ theo loại cảm xúc. Chỉ có trên màn chi tiết — bảng tin chỉ cần tổng số.',
+    example: { LIKE: 8, LOVE: 4 },
+  })
+  reactionBreakdown: Partial<Record<ReactionKinds, number>>;
 }

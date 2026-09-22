@@ -6,12 +6,16 @@ import {
 import { PostNotFoundException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
+  IContentReactionRepository,
   IGiftRequestRepository,
   IPostMediaRepository,
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
-import { GiftRequestStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  ContentSubjectTypes,
+  GiftRequestStatuses,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { IPostAuthorDto } from '@chantam.vn/chantam.core-lib/dto';
 import { applyGeoJitter } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
@@ -27,6 +31,8 @@ export class GetPostUseCase implements IGetPostUseCase {
     private readonly giftRequestRepository: IGiftRequestRepository,
     @Inject(IUserRepository)
     private readonly userRepository: IUserRepository,
+    @Inject(IContentReactionRepository)
+    private readonly reactions: IContentReactionRepository,
     @Inject(IConfig)
     private readonly config: IConfig,
   ) {}
@@ -58,6 +64,16 @@ export class GetPostUseCase implements IGetPostUseCase {
       : new Map<string, GiftRequestStatuses>();
     const myRequestStatus = myStatuses.get(post.globalId) ?? null;
 
+    // Chi tiết một bài: hỏi breakdown một lần là chấp nhận được. Bảng tin thì
+    // không — đó là lý do nearby/me chỉ trả tổng số đếm.
+    const summary = await this.reactions.summarize(
+      {
+        subjectType: ContentSubjectTypes.POST,
+        subjectId: post.globalId,
+      },
+      command.currentUserId ?? null,
+    );
+
     let author: IPostAuthorDto | null = null;
     if (post.authorId) {
       const user = await this.userRepository.findOne({
@@ -88,6 +104,11 @@ export class GetPostUseCase implements IGetPostUseCase {
       requestCount: requestCounts.get(post.globalId) ?? 0,
       myRequestStatus,
       hasRequested: Boolean(myRequestStatus),
+      reactionCount: post.reactionCount,
+      commentCount: post.commentCount,
+      shareCount: post.shareCount,
+      myReaction: summary.myReaction,
+      reactionBreakdown: summary.breakdown,
     };
   }
 }

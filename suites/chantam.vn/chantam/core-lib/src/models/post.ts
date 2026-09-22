@@ -20,6 +20,13 @@ export interface IPost {
   details: Record<string, unknown>;
   expiresAt: Date | null;
   renewedCount: number;
+  /**
+   * Ba cột đếm tương tác, cập nhật trong cùng transaction với lần ghi cảm xúc/
+   * bình luận/chia sẻ. Đọc từ đây chứ không COUNT(*) mỗi lần cuộn bảng tin.
+   */
+  reactionCount: number;
+  commentCount: number;
+  shareCount: number;
   /** Bài Cần gấp / SOS — mở theo capability `POST_SOS` của Rank (F17). */
   isSos: boolean;
   /** Hình thức nhận hàng (F78). `null` khi người đăng chưa chọn. */
