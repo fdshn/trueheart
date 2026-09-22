@@ -30,7 +30,7 @@ Flutter (Android + iOS) · NestJS + PostgreSQL 16 + PostGIS · Redis · Socket.i
 | 9 | [Báo cáo & Chống gian lận](#9-báo-cáo--chống-gian-lận) | F48–F50 | |
 | 10 | [Group, Affiliate & Geo](#10-group-affiliate--geo) | F51–F58 | Toàn bộ event cần Geo Group (CHỐT-06) |
 | 11 | [Phật Pháp – Dharma Hub](#11-phật-pháp--dharma-hub--community) | F73 | Main Tab 3 trong Bottom Navigation |
-| 12 | [Đổi vật phẩm bằng điểm & Vận chuyển](#12-đổi-vật-phẩm-bằng-điểm--vận-chuyển) | F74–F78 | Điểm khả dụng ≠ toàn bộ balance |
+| 12 | [Đổi vật phẩm bằng điểm, Vận chuyển & Tương tác](#12-đổi-vật-phẩm-bằng-điểm--vận-chuyển) | F74–F81 | Điểm khả dụng, chế độ chọn, like, bảo vệ thông tin |
 | 13 | [Admin CMS](#13-admin-cms-campaign--blog) | F59–F65 | |
 | 14 | [Hạ tầng & Bảo mật](#14-hạ-tầng--bảo-mật) | F66–F68 | |
 | 15 | [QA & UAT](#15-qa--uat) | F69–F70 | |
@@ -628,6 +628,30 @@ báo qua `POST /transactions/:id/reports/ship-unpaid` và khoản trừ điểm 
 > Điểm có thể âm. Cột điểm kẹp ở 0 (số **tiêu được**), cột log giữ giá trị **thật** kèm câu
 > `-50 điểm, đang âm 30 điểm`. Xem
 > [ASSUMPTIONS · CH-2](./plan/ASSUMPTIONS.md#ch-2--phí-vận-chuyển-đánh-dấu-bên-trả-trừ-điểm-khi-không-thanh-toán).
+
+### F79 — Chế độ tìm người nhận bài Muốn Tặng (Selection Modes)
+
+Khi người cho tạo bài đăng Muốn Tặng (`OFFER`), hệ thống hỗ trợ 03 chế độ lựa chọn người nhận (CHỐT-10):
+
+1. **`INSTANT` (Trao ngay lập tức):** Khi người đầu tiên gửi yêu cầu xin nhận hợp lệ, hệ thống tự động chấp nhận (atomic accept) ngay lập tức, chuyển bài sang trạng thái `DELIVERING`, tạo giao dịch và mở phòng chat trực tiếp. Không áp dụng countdown 7 ngày.
+2. **`OPTIMAL` (Tìm người nhận tối ưu — Mặc định):** Khi có yêu cầu hợp lệ đầu tiên, hệ thống kích hoạt đồng hồ đếm ngược (countdown) tối đa 7 ngày (`selection_deadline = NOW() + 7 days`). Trong thời gian này, các ứng viên khác có thể tiếp tục gửi yêu cầu hoặc dùng Điểm Cống Hiến để đổi trực tiếp vật phẩm (theo [F75](#f75--dùng-điểm-chốt-ngay-vật-phẩm)). Hết 7 ngày, hệ thống auto-select theo cấu hình của Admin.
+3. **`EXTENDED` (Thời gian mở rộng):** Kích hoạt thời gian chờ tối đa 30 ngày (`selection_deadline = NOW() + 30 days`) kể từ yêu cầu đầu tiên. Phù hợp cho các vật phẩm có giá trị cao, cần thêm thời gian xem xét hoặc thẩm định người nhận phù hợp nhất.
+
+### F80 — Quyền riêng tư & Bảo vệ thông tin người cho
+
+Để bảo vệ an toàn thông tin cá nhân và tránh bị làm phiền (CHỐT-11):
+
+- **Kênh đọc công khai:** (Feed danh sách, Quanh đây, Marker bản đồ, Chi tiết bài đăng public) thông tin tác giả bài đăng (`author`) chỉ hiển thị: `id`, `username`, `avatar_url`, `rank`, `joined_at`. Tuyệt đối không trả ra `full_name`, `phone`, và địa chỉ chi tiết (`address`).
+- **Gating thông tin liên lạc nhạy cảm (`contact_info`):** Số điện thoại (`phone`) và địa chỉ chi tiết (`address`) **chỉ được phép** trả về khi người gọi (caller) là chính người đăng bài (Giver) hoặc là người nhận (Receiver) **đã được duyệt chọn chính thức** trong giao dịch ở trạng thái `DELIVERING` hoặc `COMPLETED`. Khách vãng lai, người xem thông thường, hoặc người gửi yêu cầu ở trạng thái `PENDING`/`REJECTED`/`STANDBY` đều nhận `null`.
+
+### F81 — Tương tác Yêu thích bài đăng (Post Like / Unlike)
+
+Người dùng đã đăng nhập có quyền Thích hoặc Bỏ thích bài đăng (CHỐT-12):
+
+- **Endpoint toggle:** `POST /api/v1/posts/:postId/like`. Nếu chưa thích thì thêm lượt thích; nếu đã thích thì huỷ thích.
+- **Ràng buộc duy nhất:** Lưu trữ tại bảng `post_likes` với cặp khoá `(user_id, post_id)` kèm UNIQUE constraint chống trùng lặp.
+- **Denormalized counter:** Cột `like_count` trên bảng `posts` được cập nhật nguyên tử (+1 khi like, -1 khi unlike) trong cùng transaction với `post_likes`.
+- **Response chi tiết bài đăng:** Bổ sung `like_count` (tổng lượt thích) và `is_liked` (true nếu caller đã thích, false nếu chưa, null nếu chưa đăng nhập).
 
 ---
 

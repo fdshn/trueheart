@@ -16,7 +16,10 @@ import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import { GiftRequestEntity } from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
-import { pickNextCandidate } from '@chantam.vn/chantam.core-lib/models';
+import {
+  ICandidateMetrics,
+  pickNextCandidate,
+} from '@chantam.vn/chantam.core-lib/models';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
@@ -94,8 +97,8 @@ async function seedRound(
     await dataSource.query(
       `INSERT INTO gift_requests
          (global_id, post_id, requester_id, message, status, queue_joined_at)
-       VALUES ($1, $2, $3, 'Em xin món này ạ', 'PENDING', now())`,
-      [requestId(round, index), PostId, requesterId(index)],
+       VALUES ($1, $2, $3, 'Em xin món này ạ', 'PENDING', now() + ($4 * interval '1 second'))`,
+      [requestId(round, index), PostId, requesterId(index), index * 10],
     );
 }
 
@@ -388,11 +391,11 @@ async function main(): Promise<void> {
         `SELECT COUNT(*) AS count FROM gift_requests
          WHERE post_id = $1 AND status = 'STANDBY'`,
       )) === 2 &&
-        (await countBy(
-          dataSource,
-          `SELECT COUNT(*) AS count FROM gift_requests
+      (await countBy(
+        dataSource,
+        `SELECT COUNT(*) AS count FROM gift_requests
            WHERE post_id = $1 AND status = 'REJECTED'`,
-        )) === 0,
+      )) === 0,
     );
 
     check(
@@ -431,13 +434,13 @@ async function main(): Promise<void> {
     check(
       'mặc định: người vào hàng đợi SỚM NHẤT được đề xuất',
       pickNextCandidate(closed.queue.candidates, null)?.requesterId ===
-        requesterId(1),
+      requesterId(1),
       String(pickNextCandidate(closed.queue.candidates, null)?.requesterId),
     );
     check(
       'số đo lấy được đủ để xếp theo mọi tiêu chí',
       closed.queue.candidates.every(
-        (entry) =>
+        (entry: ICandidateMetrics) =>
           typeof entry.receivedCount === 'number' &&
           typeof entry.cancellationCount === 'number' &&
           entry.queueJoinedAt instanceof Date &&
@@ -491,7 +494,7 @@ async function main(): Promise<void> {
     check(
       'không còn ai thì không đề xuất người kế tiếp',
       soloClosed.queue.candidates.length === 0 &&
-        soloClosed.queue.reopenedCount === 0,
+      soloClosed.queue.reopenedCount === 0,
       JSON.stringify(soloClosed.queue),
     );
 
@@ -576,13 +579,15 @@ async function main(): Promise<void> {
     });
 
     const withDistance = nearClosed.queue.candidates.filter(
-      (entry) => entry.distanceMeters !== null,
+      (entry: ICandidateMetrics) => entry.distanceMeters !== null,
     );
     check(
       'ST_Distance trả về số thật cho người đã đặt Vị trí mặc định',
       withDistance.length === 2 &&
-        withDistance.every((entry) => Number(entry.distanceMeters) > 0),
-      JSON.stringify(withDistance.map((entry) => entry.distanceMeters)),
+      withDistance.every(
+        (entry: ICandidateMetrics) => Number(entry.distanceMeters) > 0,
+      ),
+      JSON.stringify(withDistance.map((entry: ICandidateMetrics) => entry.distanceMeters)),
     );
     check(
       'ưu tiên gần nhất thì chọn người ở Quận 1, không phải người ở Đà Nẵng',
