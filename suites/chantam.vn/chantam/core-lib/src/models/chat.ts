@@ -18,6 +18,10 @@ export interface IChatRoom {
   giverReadAt: Date | null;
   receiverReadAt: Date | null;
   lockedAt: Date | null;
+  /** Hạn xoá tin nhắn, chốt lúc khoá. `null` nghĩa là không xoá. */
+  purgeAfter: Date | null;
+  purgedAt: Date | null;
+  purgedMessageCount: number | null;
 }
 
 /**

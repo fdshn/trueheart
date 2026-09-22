@@ -127,6 +127,33 @@ export interface IChatRepository {
     userId: string,
   ): Promise<{ readAt: Date; unreadCount: number } | null>;
 
+  /**
+   * Xoá tin nhắn của những phòng đã quá hạn lưu trữ (F38).
+   *
+   * **Xoá tin nhắn, GIỮ phòng.** Xoá cả phòng thì mở lại lượt trao cũ ra `404`,
+   * trông y như lỗi. Giữ phòng kèm `purged_at` và số tin đã xoá thì giao diện nói
+   * được "tin nhắn đã xoá theo chính sách lưu trữ".
+   *
+   * Phòng có `purge_after IS NULL` **không bao giờ bị xoá** — đó là cách Admin giữ
+   * lại chứng cứ một vụ tranh chấp.
+   *
+   * Gọi từ scheduler NGOÀI tiến trình, giống `post:expire` và `rank:evaluate`;
+   * repo cấm `@nestjs/schedule` vì nhiều replica sẽ chạy trùng.
+   */
+  purgeExpiredRooms(limit: number): Promise<{
+    purgedRooms: number;
+    purgedMessages: number;
+  }>;
+  /**
+   * Hạn xoá đã chốt cho phòng của một lượt trao.
+   *
+   * Đọc SAU khi transaction khoá phòng đã commit, để gửi thông báo. Gửi thông báo
+   * bên trong transaction là báo cho người dùng về một việc còn có thể bị rollback.
+   */
+  findPurgeSchedule(transactionId: string): Promise<{
+    roomId: string;
+    purgeAfter: Date;
+  } | null>;
   /** Chi tiết một phòng để dựng phần đầu màn hội thoại. */
   describeRoom(
     roomId: string,

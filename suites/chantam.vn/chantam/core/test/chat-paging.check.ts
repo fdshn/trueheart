@@ -23,6 +23,7 @@ import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
+import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
 
 loadEnvFile({ path: '.env.local' });
@@ -140,7 +141,10 @@ async function main(): Promise<void> {
     await seedMessages(0, TotalMessages);
     console.log(`Đã ghi ${TotalMessages} tin, mốc trùng theo cụm 4\n`);
 
-    const chat = new ChatRepository(dataSource.manager);
+    const chat = new ChatRepository(
+      dataSource.manager,
+      new AdminConfigRepository(dataSource.manager),
+    );
 
     // ── 1. Cuộn hết lịch sử: không lặp, không sót ───────────────────────────
     console.log('Cuộn ngược hết lịch sử:\n');

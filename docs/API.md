@@ -625,6 +625,44 @@ Phản hồi mang khối `window` thay cho `meta`:
   `(created_at, id) < ($2, $3)` nên vẫn đi index `IDX_chat_messages_room_created` —
   `test:chat-paging` đọc `EXPLAIN` để canh điều này, không phải tin lời.
 
+### Hạn lưu trữ — tin nhắn bị xoá sau một thời gian
+
+Khi lượt trao kết thúc, phòng chuyển sang chỉ đọc **và** được đặt một **hạn xoá**.
+
+| Trường trong `room` | Ý nghĩa |
+| --- | --- |
+| `purgeAfter` | Ngày tin nhắn sẽ bị xoá. `null` khi phòng còn mở, hoặc khi đã gỡ hạn để giữ chứng cứ |
+| `purgedAt` | Đã xoá lúc nào. Khác `null` thì lịch sử đã trống |
+| `purgedMessageCount` | Đã xoá bao nhiêu tin |
+
+**Những điều dễ hiểu nhầm**
+
+- **Mốc đếm ngược là lúc KHOÁ phòng, không phải lúc hoàn tất.** Một lượt trao kết
+  thúc theo **ba** đường: người nhận xác nhận, một trong hai bên huỷ, hoặc cron tự
+  hoàn tất. Chỉ đường đầu có `completedAt` — tính theo nó thì phòng của lượt **huỷ**
+  không bao giờ bị xoá, mà huỷ lại là chỗ người ta cãi nhau nhiều nhất.
+- **`purgeAfter` là ảnh chụp, không phải phép tính.** Nó được chốt một lần lúc khoá
+  phòng. Admin đổi cấu hình sau đó **không dịch** ngày của những phòng đã khoá —
+  nếu không thì báo với người dùng "xoá sau 1 tuần" rồi đổi thành 3 tuần là lời hứa
+  và thực tế lệch nhau.
+- **Xoá tin nhắn, GIỮ phòng.** Mở lại lượt trao cũ không ra `404`; giao diện đọc
+  `purgedAt` để nói "tin nhắn đã xoá theo chính sách lưu trữ".
+- **Ảnh bằng chứng không bị xoá cùng.** Chúng nằm ở bảng riêng (§10), nên report và
+  đối chất vẫn có căn cứ sau khi chat đã trống.
+- **Gỡ hạn là cách giữ lại.** `purgeAfter = NULL` thì không bao giờ bị xoá — dùng khi
+  cần giữ chứng cứ một vụ tranh chấp. Một cột làm cả hai việc, không cần cờ thứ hai.
+- Hai bên được **báo một lần lúc khoá phòng**, kèm ngày cụ thể — không phải "sau 1
+  tuần" chung chung.
+
+Cấu hình ở `system_configs` khoá `chat.retention`, dạng
+`{ "value": 2, "unit": "WEEK" }` — `unit` là `DAY` hoặc `WEEK`. Cấu hình hỏng thì rơi
+về mặc định **1 tuần**: khoá phòng là hệ quả của một lượt trao vừa xong, không được
+chết vì một dòng JSON gõ nhầm.
+
+Vòng xoá chạy từ lịch **ngoài tiến trình**: `npm run chat:purge`, giống `post:expire`
+và `rank:evaluate`. Core cố ý không chạy scheduler trong tiến trình vì nhiều replica sẽ
+chạy trùng.
+
 ### Gửi bằng REST, nhận bằng socket
 
 Socket **chỉ đọc và nhận**, không ghi. Gửi tin đi qua `POST` như mọi thao tác ghi khác.

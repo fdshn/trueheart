@@ -1,5 +1,6 @@
 import {
   AppendChatMessageOutcome,
+  IAdminConfigRepository,
   IAppendChatMessageParams,
   IChatMessageListItem,
   IChatRepository,
@@ -12,8 +13,13 @@ import {
   IChatMessageEntity,
   IChatRoomEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
-import { IChatCursor } from '@chantam.vn/chantam.core-lib/models';
-import { Injectable } from '@nestjs/common';
+import {
+  ChatRetentionConfigKey,
+  chatRetentionDays,
+  IChatCursor,
+  normalizeChatRetention,
+} from '@chantam.vn/chantam.core-lib/models';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
 import { updateReturning } from './update-returning';
@@ -42,6 +48,11 @@ const UnreadCountSql = `
 export class ChatRepository implements IChatRepository {
   public constructor(
     @InjectEntityManager() private readonly manager: EntityManager,
+    // Đọc hạn lưu trữ lúc khoá phòng. Repository gọi repository trong cùng tầng hạ
+    // tầng — cùng lý do với việc giao dịch gọi chat: việc này phải nằm trong
+    // transaction được mở ở tầng dưới, không phải ở use case.
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig: IAdminConfigRepository,
   ) {}
 
   public async openRoomWithinTransaction(
@@ -85,15 +96,34 @@ export class ChatRepository implements IChatRepository {
     manager: EntityManager,
     transactionId: string,
   ): Promise<void> {
-    // Có điều kiện `status = 'OPEN'`: khoá hai lần không được dịch `locked_at`
-    // về mốc muộn hơn, vì đó là mốc giao dịch kết thúc.
+    // Hạn lưu trữ được CHỐT ngay tại đây, không tính lại mỗi lần đọc. Tiếp tục
+    // tính từ config thì báo với người dùng "xoá sau 1 tuần" rồi Admin đổi thành 3
+    // tuần là lời hứa và thực tế lệch nhau — và người dùng là bên chịu.
+    //
+    // Config hỏng thì `normalizeChatRetention` rơi về mặc định. Khoá phòng là hệ quả
+    // của một lượt trao vừa xong; hạn lưu trữ chỉ là chính sách dọn dẹp, không được
+    // đánh đổ nó.
+    const retention = normalizeChatRetention(
+      await this.adminConfig.getConfigValue(ChatRetentionConfigKey),
+    );
+
+    // Điều kiện `status = 'OPEN'`: khoá hai lần không được dịch `locked_at` về mốc
+    // muộn hơn, vì đó là mốc giao dịch kết thúc — và giờ nó cũng là mốc đếm ngược.
     await manager.query(
       `
         UPDATE chat_rooms
-        SET status = $2, locked_at = now(), updated_at = now()
+        SET status = $2,
+            locked_at = now(),
+            purge_after = now() + ($4 || ' days')::interval,
+            updated_at = now()
         WHERE transaction_id = $1 AND status = $3
       `,
-      [transactionId, ChatRoomStatuses.READ_ONLY, ChatRoomStatuses.OPEN],
+      [
+        transactionId,
+        ChatRoomStatuses.READ_ONLY,
+        ChatRoomStatuses.OPEN,
+        String(chatRetentionDays(retention)),
+      ],
     );
   }
 
@@ -196,6 +226,93 @@ export class ChatRepository implements IChatRepository {
       items: rows.map((row) => this.toListItem(row)),
       total: Number(total),
     };
+  }
+
+  public async findPurgeSchedule(
+    transactionId: string,
+  ): Promise<{ roomId: string; purgeAfter: Date } | null> {
+    const [row] = await this.manager.query<
+      { global_id: string; purge_after: Date | null }[]
+    >(
+      `
+        SELECT global_id, purge_after
+        FROM chat_rooms
+        WHERE transaction_id = $1
+      `,
+      [transactionId],
+    );
+    if (!row?.purge_after) return null;
+    return { roomId: row.global_id, purgeAfter: row.purge_after };
+  }
+
+  public async purgeExpiredRooms(limit: number): Promise<{
+    purgedRooms: number;
+    purgedMessages: number;
+  }> {
+    return this.manager.transaction(async (manager) => {
+      // SKIP LOCKED de hai lan chay song song khong tranh cung mot phong.
+      const due = await manager.query<{ global_id: string }[]>(
+        `
+          SELECT global_id
+          FROM chat_rooms
+          WHERE purge_after IS NOT NULL
+            AND purged_at IS NULL
+            AND purge_after <= now()
+          ORDER BY purge_after ASC
+          LIMIT $1
+          FOR UPDATE SKIP LOCKED
+        `,
+        [limit],
+      );
+      if (due.length === 0) return { purgedRooms: 0, purgedMessages: 0 };
+
+      const roomIds = due.map((row) => row.global_id);
+
+      // Cua ra cho trigger chi-ghi-them. SET LOCAL nen co chet theo transaction,
+      // khong ro sang ket noi khac trong pool. Trigger chi nhan DELETE khi thay
+      // co nay; UPDATE van bi chan tuyet doi.
+      await manager.query(`SET LOCAL "chantam.chat_purge" = 'on'`);
+
+      // Qua updateReturning: TypeORM boc DELETE ... RETURNING thanh
+      // [rows, affected], khong phai rows. Tu go bang tay o day la lap lai dung
+      // cai bay ma helper sinh ra de bit.
+      const deleted = await updateReturning<{ room_id: string }>(
+        manager,
+        `
+          DELETE FROM chat_messages
+          WHERE room_id = ANY($1::uuid[])
+          RETURNING room_id
+        `,
+        [roomIds],
+      );
+
+      const perRoom = new Map<string, number>();
+      for (const row of deleted)
+        perRoom.set(row.room_id, (perRoom.get(row.room_id) ?? 0) + 1);
+
+      // Ghi lai da xoa bao nhieu: khong co con so nay thi khong ai tra loi duoc
+      // "phong do mat bao nhieu tin" khi co nguoi hoi.
+      for (const roomId of roomIds)
+        await manager.query(
+          `
+            UPDATE chat_rooms
+            SET purged_at = now(),
+                purged_message_count = $2,
+                last_message_at = NULL,
+                updated_at = now()
+            WHERE global_id = $1
+          `,
+          [roomId, perRoom.get(roomId) ?? 0],
+        );
+
+      return {
+        purgedRooms: roomIds.length,
+        purgedMessages: [...perRoom.values()].reduce(
+          (total, count) => total + count,
+          0,
+        ),
+      };
+    });
   }
 
   public async describeRoom(

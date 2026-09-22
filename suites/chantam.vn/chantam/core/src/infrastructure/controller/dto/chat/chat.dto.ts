@@ -71,6 +71,24 @@ export class ChatRoomSummaryDto implements IChatRoomSummaryDto {
       'Số tin chưa đọc của CHÍNH người gọi. Không đếm tin do họ gửi.',
   })
   unreadCount: number;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Ngày tin nhắn của phòng này sẽ bị xoá, ĐÃ CHỐT lúc khoá phòng. Admin đổi cấu hình sau đó không dịch ngày này. `null` khi phòng còn mở, hoặc khi đã gỡ hạn để giữ chứng cứ.',
+  })
+  purgeAfter: Date | null;
+
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  purgedAt: Date | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Đã xoá bao nhiêu tin — để trả lời được khi có người hỏi.',
+  })
+  purgedMessageCount: number | null;
 }
 
 export class ChatMessageDto implements IChatMessageDto {

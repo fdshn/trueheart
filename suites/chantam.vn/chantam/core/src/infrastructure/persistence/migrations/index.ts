@@ -30,3 +30,4 @@ export * from './1791000000000-AddGiftTransactionClosedBy';
 export * from './1791100000000-AddNegativePointsAndShipping';
 export * from './1791200000000-SeedGiftCompletionPointRules';
 export * from './1791300000000-AddHandoverAndEvidence';
+export * from './1791400000000-AddChatRetention';

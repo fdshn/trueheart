@@ -22,6 +22,7 @@ import {
 } from '@/application/contracts/transaction';
 import {
   IAdminConfigRepository,
+  IChatRepository,
   IGiftTransactionRepository,
   IGiftTransactionSummary,
   IReopenedQueue,
@@ -34,6 +35,39 @@ import { IGiftTransactionDto } from '@chantam.vn/chantam.core-lib/dto';
 import { pickNextCandidate } from '@chantam.vn/chantam.core-lib/models';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
+
+/**
+ * Báo cho cả hai bên ngày phòng chat sẽ bị xoá.
+ *
+ * Gọi SAU khi transaction đóng lượt trao đã commit — báo bên trong transaction là
+ * báo về một việc còn có thể bị rollback.
+ *
+ * Gửi ngày ĐÃ CHỐT chứ không phải "sau 1 tuần": Admin đổi cấu hình sau đó cũng
+ * không dịch ngày của phòng này, nên câu chữ phải khớp với điều thực sự sẽ xảy ra.
+ *
+ * Thất bại ở đây KHÔNG được làm hỏng lượt trao đã xong: món đồ đã đến tay là một
+ * sự thật, còn thông báo chỉ là tiện ích.
+ */
+async function notifyChatPurgeSchedule(
+  chat: IChatRepository,
+  dispatch: IDispatchNotificationUseCase,
+  transaction: IGiftTransactionSummary,
+): Promise<void> {
+  const schedule = await chat.findPurgeSchedule(transaction.globalId);
+  if (!schedule) return;
+
+  const day = schedule.purgeAfter.toISOString().slice(0, 10);
+  for (const userId of [transaction.giverId, transaction.receiverId])
+    await dispatch.handle({
+      userId,
+      type: NotificationTypes.CHAT_ROOM_SCHEDULED_FOR_PURGE,
+      title: 'Cuộc trò chuyện sẽ được xoá',
+      body: `Lượt trao đã kết thúc. Tin nhắn trong cuộc trò chuyện này sẽ được xoá vào ngày ${day}. Lưu lại thông tin cần giữ trước ngày đó.`,
+      referenceType: 'CHAT_ROOM',
+      referenceId: schedule.roomId,
+      idempotencyKey: `CHAT_PURGE_SCHEDULED:${schedule.roomId}:${userId}`,
+    });
+}
 
 function toDto(summary: IGiftTransactionSummary): IGiftTransactionDto {
   return {
@@ -101,20 +135,29 @@ export class ConfirmGiftReceiptUseCase implements IConfirmGiftReceiptUseCase {
   public constructor(
     @Inject(IGiftTransactionRepository)
     private readonly transactions: IGiftTransactionRepository,
+    @Inject(IChatRepository) private readonly chat: IChatRepository,
+    @Inject(IDispatchNotificationUseCase)
+    private readonly dispatchNotification: IDispatchNotificationUseCase,
   ) {}
 
   public async handle(
     command: IConfirmGiftReceiptCommand,
   ): Promise<IConfirmGiftReceiptResult> {
-    return {
-      transaction: toDto(
-        await this.transactions.confirmReceipt(
-          command.transactionId,
-          command.userId,
-          command.evidenceKeys ?? [],
-        ),
-      ),
-    };
+    const transaction = await this.transactions.confirmReceipt(
+      command.transactionId,
+      command.userId,
+      command.evidenceKeys ?? [],
+    );
+
+    // Sau khi commit. Xác nhận xong là phòng chat khoá và đồng hồ xoá bắt đầu chạy
+    // — hai bên cần biết để còn lưu lại địa chỉ hay số điện thoại đã hẹn.
+    await notifyChatPurgeSchedule(
+      this.chat,
+      this.dispatchNotification,
+      transaction,
+    );
+
+    return { transaction: toDto(transaction) };
   }
 }
 
@@ -123,6 +166,7 @@ export class CancelGiftTransactionUseCase implements ICancelGiftTransactionUseCa
   public constructor(
     @Inject(IGiftTransactionRepository)
     private readonly transactions: IGiftTransactionRepository,
+    @Inject(IChatRepository) private readonly chat: IChatRepository,
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatchNotification: IDispatchNotificationUseCase,
     @Inject(IAdminConfigRepository)
@@ -140,6 +184,13 @@ export class CancelGiftTransactionUseCase implements ICancelGiftTransactionUseCa
     });
 
     await this.announceQueue(transaction, queue);
+    // Huỷ cũng khoá phòng, nên đồng hồ xoá cũng bắt đầu chạy. Báo ở một đường mà
+    // không báo ở đường kia là để một nửa người dùng bất ngờ khi lịch sử biến mất.
+    await notifyChatPurgeSchedule(
+      this.chat,
+      this.dispatchNotification,
+      transaction,
+    );
 
     return { transaction: toDto(transaction) };
   }

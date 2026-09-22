@@ -1,4 +1,5 @@
 import {
+  ChatPurgeBatchSize,
   IListChatMessagesCommand,
   IListChatMessagesResult,
   IListChatMessagesUseCase,
@@ -8,6 +9,9 @@ import {
   IMarkChatRoomReadCommand,
   IMarkChatRoomReadResult,
   IMarkChatRoomReadUseCase,
+  IPurgeExpiredChatsCommand,
+  IPurgeExpiredChatsResult,
+  IPurgeExpiredChatsUseCase,
   ISendChatMessageCommand,
   ISendChatMessageResult,
   ISendChatMessageUseCase,
@@ -45,6 +49,9 @@ function toRoomSummary(item: IChatRoomListItem): IChatRoomSummaryDto {
     lastMessageAt: item.room.lastMessageAt,
     lastMessageBody: item.lastMessageBody,
     unreadCount: item.unreadCount,
+    purgeAfter: item.room.purgeAfter,
+    purgedAt: item.room.purgedAt,
+    purgedMessageCount: item.room.purgedMessageCount,
   };
 }
 
@@ -217,5 +224,28 @@ export class MarkChatRoomReadUseCase implements IMarkChatRoomReadUseCase {
       readAt: marked.readAt,
       unreadCount: marked.unreadCount,
     };
+  }
+}
+
+/**
+ * Xoá tin nhắn của những phòng đã quá hạn lưu trữ (F38).
+ *
+ * Chạy từ lịch NGOÀI tiến trình (`npm run chat:purge`), giống `post:expire` và
+ * `rank:evaluate` — repo cố ý không dùng `@nestjs/schedule` vì triển khai nhiều
+ * replica sẽ chạy trùng.
+ *
+ * Làm theo lô có trần thay vì quét sạch một lượt: một `DELETE` ôm hàng trăm nghìn
+ * dòng sẽ giữ khoá lâu và chặn đường ghi tin nhắn của những phòng đang mở.
+ */
+@Injectable()
+export class PurgeExpiredChatsUseCase implements IPurgeExpiredChatsUseCase {
+  public constructor(
+    @Inject(IChatRepository) private readonly chat: IChatRepository,
+  ) {}
+
+  public async handle(
+    command: IPurgeExpiredChatsCommand,
+  ): Promise<IPurgeExpiredChatsResult> {
+    return this.chat.purgeExpiredRooms(command.limit ?? ChatPurgeBatchSize);
   }
 }

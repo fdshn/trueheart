@@ -17,6 +17,7 @@ import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
+import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
@@ -121,7 +122,10 @@ async function main(): Promise<void> {
 
     const transactions = new GiftTransactionRepository(
       dataSource.manager,
-      new ChatRepository(dataSource.manager),
+      new ChatRepository(
+      dataSource.manager,
+      new AdminConfigRepository(dataSource.manager),
+    ),
       new PointLedgerRepository(dataSource.manager),
     );
 

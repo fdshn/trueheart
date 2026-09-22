@@ -291,5 +291,7 @@ không làm mất bằng chứng. Đây là lý lẽ mạnh nhất cho việc xo
 - **Tranh chấp có Admin xử** — [F60](../FEATURES.md#f60--kiểm-duyệt--quản-lý-người-dùng)
   dự kiến. Hiện chỉ có report ship-unpaid, tự động, không ai duyệt.
 - **Nối API đơn vị vận chuyển** — ngoài phạm vi; ship là COD bên ngoài hệ thống.
-- **Xoá chat theo hạn lưu trữ** — thiết kế riêng, chờ flow này chốt xong vì mốc
-  đếm ngược phụ thuộc vào lúc khoá phòng.
+- ~~**Xoá chat theo hạn lưu trữ**~~ — đã làm. Mốc đếm ngược là `locked_at` (phủ cả ba
+  đường kết thúc), hạn chốt một lần lúc khoá, cấu hình `chat.retention` theo ngày
+  hoặc tuần. Xem [API §8](../API.md#8-chat--chat-và-socketio) và `npm run
+  test:chat-purge`.

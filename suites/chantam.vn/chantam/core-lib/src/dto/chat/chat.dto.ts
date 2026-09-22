@@ -22,6 +22,18 @@ export interface IChatRoomSummaryDto {
    * số vô nghĩa trên giao diện.
    */
   unreadCount: number;
+  /**
+   * Ngày tin nhắn của phòng này sẽ bị xoá. `null` khi phòng còn mở, hoặc khi
+   * Admin đã gỡ hạn để giữ chứng cứ.
+   *
+   * Giao diện đọc trường này để hiện banner. Đây là ngày ĐÃ CHỐT lúc khoá phòng
+   * — Admin đổi cấu hình sau đó không dịch ngày này.
+   */
+  purgeAfter: Date | null;
+  /** Đã xoá lúc nào. Khác `null` thì lịch sử đã trống. */
+  purgedAt: Date | null;
+  /** Đã xoá bao nhiêu tin — để trả lời được khi có người hỏi. */
+  purgedMessageCount: number | null;
 }
 
 export interface IListChatRoomsQueryDto extends IPaginationQueryDto {}

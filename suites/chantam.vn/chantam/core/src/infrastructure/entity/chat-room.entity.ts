@@ -61,4 +61,14 @@ export class ChatRoomEntity
   @ApiProperty({ nullable: true })
   @Column({ name: 'locked_at', type: 'timestamptz', nullable: true })
   lockedAt: Date | null;
+
+  /** Hạn xoá đã chốt lúc khoá phòng. `null` nghĩa là không xoá. */
+  @Column({ name: 'purge_after', type: 'timestamptz', nullable: true })
+  purgeAfter: Date | null;
+
+  @Column({ name: 'purged_at', type: 'timestamptz', nullable: true })
+  purgedAt: Date | null;
+
+  @Column({ name: 'purged_message_count', type: 'int', nullable: true })
+  purgedMessageCount: number | null;
 }

@@ -66,6 +66,20 @@ const Summary = {
  * Use case huỷ gửi thông báo, nên mock luôn để kiểm nội dung — nhất là việc nói
  * với ứng viên kế tiếp rằng "đang được xét tiếp", KHÔNG phải "đã được chọn".
  */
+/**
+ * Phòng chat giả.
+ *
+ * `findPurgeSchedule` trả `null` ở mặc định: không có hạn xoá thì không báo gì, và
+ * các phép kiểm cũ về hàng đợi không bị thêm nhiễu.
+ */
+function makeChat(purgeAfter: Date | null = null) {
+  return {
+    findPurgeSchedule: jest.fn(async () =>
+      purgeAfter ? { roomId: 'phong-1', purgeAfter } : null,
+    ),
+  };
+}
+
 function makeNotifier() {
   return {
     handle: jest.fn(async (_command: unknown) => ({
@@ -165,7 +179,11 @@ describe('Gift transaction use cases', () => {
 
   it('xác nhận đã nhận bằng danh tính người nhận từ token', async () => {
     const repository = makeRepository();
-    const useCase = new ConfirmGiftReceiptUseCase(repository as never);
+    const useCase = new ConfirmGiftReceiptUseCase(
+      repository as never,
+      makeChat() as never,
+      makeNotifier() as never,
+    );
 
     const result = await useCase.handle({
       userId: UserId,
@@ -186,6 +204,7 @@ describe('Gift transaction use cases', () => {
 
     await new CancelGiftTransactionUseCase(
       repository as never,
+      makeChat() as never,
       notifier as never,
       makeAdminConfig() as never,
     ).handle({
@@ -209,6 +228,7 @@ describe('Gift transaction use cases', () => {
 
     await new CancelGiftTransactionUseCase(
       repository as never,
+      makeChat() as never,
       notifier as never,
       makeAdminConfig(['HIGHEST_RANK']) as never,
     ).handle({
@@ -229,6 +249,7 @@ describe('Gift transaction use cases', () => {
 
     await new CancelGiftTransactionUseCase(
       repository as never,
+      makeChat() as never,
       notifier as never,
       makeAdminConfig(['KHONG_TON_TAI']) as never,
     ).handle({
@@ -251,6 +272,7 @@ describe('Gift transaction use cases', () => {
 
     await new CancelGiftTransactionUseCase(
       repository as never,
+      makeChat() as never,
       notifier as never,
       makeAdminConfig() as never,
     ).handle({
@@ -277,6 +299,7 @@ describe('Gift transaction use cases', () => {
 
     await new CancelGiftTransactionUseCase(
       repository as never,
+      makeChat() as never,
       notifier as never,
       makeAdminConfig() as never,
     ).handle({
@@ -292,6 +315,7 @@ describe('Gift transaction use cases', () => {
     const repository = makeRepository();
     const useCase = new CancelGiftTransactionUseCase(
       repository as never,
+      makeChat() as never,
       makeNotifier() as never,
       makeAdminConfig() as never,
     );

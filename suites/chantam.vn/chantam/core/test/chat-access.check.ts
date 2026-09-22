@@ -17,6 +17,7 @@ import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
+import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
 
 loadEnvFile({ path: '.env.local' });
@@ -138,7 +139,10 @@ async function main(): Promise<void> {
       'Bài của người ngoài',
     );
 
-    const chat = new ChatRepository(dataSource.manager);
+    const chat = new ChatRepository(
+      dataSource.manager,
+      new AdminConfigRepository(dataSource.manager),
+    );
 
     await chat.appendMessage({
       globalId: '77777777-7777-4777-8777-77777777b001',

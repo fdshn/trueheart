@@ -13,4 +13,11 @@ export enum NotificationTypes {
   GIFT_TRANSACTION_CLOSED = 'GIFT_TRANSACTION_CLOSED',
   /** Người nhận đã xác nhận nhận được vật phẩm. */
   GIFT_TRANSACTION_COMPLETED = 'GIFT_TRANSACTION_COMPLETED',
+  /**
+   * Phòng chat vừa khoá và sẽ bị xoá vào một ngày cụ thể.
+   *
+   * Báo một lần lúc khoá, kèm ngày ĐÃ CHỐT — không phải "sau 1 tuần" chung
+   * chung, vì Admin đổi cấu hình sau đó cũng không đổi ngày của phòng này.
+   */
+  CHAT_ROOM_SCHEDULED_FOR_PURGE = 'CHAT_ROOM_SCHEDULED_FOR_PURGE',
 }
