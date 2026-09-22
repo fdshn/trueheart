@@ -4,6 +4,8 @@ import {
   GiftTransactionNotFoundException,
   GiftTransactionNotParticipantException,
   GiftTransactionOutOfStockException,
+  PointDailyCapReachedException,
+  PointRuleUnavailableException,
 } from '@/domain/exceptions';
 import {
   GiftTransactionStatuses,
@@ -12,11 +14,16 @@ import {
   ICloseGiftTransactionResult,
   IGiftTransactionRepository,
   IGiftTransactionSummary,
+  IPointLedgerRepository,
   IReopenedQueue,
   IRequestGiftParams,
   StockHoldingGiftTransactionStatuses,
 } from '@/domain/ports/repository';
-import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  GiftCompletedGiverRuleCode,
+  GiftCompletedReceiverRuleCode,
+  UserRanks,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
@@ -64,7 +71,54 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     // transaction đó được mở ở đây, không ở use case.
     @Inject(IChatRepository)
     private readonly chat: IChatRepository,
+    @Inject(IPointLedgerRepository)
+    private readonly ledger: IPointLedgerRepository,
   ) {}
+
+  /**
+   * Cộng điểm cho cả hai bên khi một lượt trao hoàn tất (H4).
+   *
+   * **Điểm không được làm hỏng việc xác nhận.** Việc món đồ đã đến tay người nhận
+   * là một SỰ THẬT; thưởng bao nhiêu là một CHÍNH SÁCH. Để chính sách đánh đổ sự thật
+   * thì người dùng sẽ không bấm xác nhận được chỉ vì họ đạt trần điểm trong ngày,
+   * hoặc vì Admin lỡ tắt một rule.
+   *
+   * Nên hai ngoại lệ CHÍNH SÁCH bị nuốt: đạt trần theo ngày, và rule không còn bật.
+   * Cả hai đều do tầng JS ném ra sau một câu SELECT thành công, nên transaction vẫn
+   * còn dùng được. Mọi lỗi khác — tức lỗi database thật — vẫn nổi lên và cuốn cả
+   * transaction, đúng như mong muốn.
+   *
+   * Khoá chống trùng theo lượt trao và theo vai, nên xác nhận tay và cron tự hoàn
+   * tất có chạy chồng lên nhau cũng chỉ thưởng một lần.
+   */
+  private async awardCompletionPoints(
+    manager: EntityManager,
+    transaction: { global_id: string; giver_id: string; receiver_id: string },
+  ): Promise<void> {
+    const awards: [string, string][] = [
+      [transaction.giver_id, GiftCompletedGiverRuleCode],
+      [transaction.receiver_id, GiftCompletedReceiverRuleCode],
+    ];
+
+    for (const [userId, ruleCode] of awards) {
+      try {
+        await this.ledger.appendByRuleWithinTransaction(manager, {
+          userId,
+          ruleCode,
+          referenceType: 'GIFT_TRANSACTION',
+          referenceId: transaction.global_id,
+          idempotencyKey: `${ruleCode}:${transaction.global_id}`,
+          actor: 'SYSTEM',
+          source: 'GIFT_TRANSACTION',
+        });
+      } catch (error) {
+        const isPolicy =
+          error instanceof PointDailyCapReachedException ||
+          error instanceof PointRuleUnavailableException;
+        if (!isPolicy) throw error;
+      }
+    }
+  }
 
   public async findByGlobalId(
     globalId: string,
@@ -282,6 +336,8 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         throw new GiftTransactionInvalidStateException(current.status);
       }
 
+      await this.awardCompletionPoints(manager, current);
+
       // Lượt cuối cùng xong thì bài mới thực sự xong, và quota của tác giả được
       // trả lại. Thiếu dòng này thì bài đã tặng hết vẫn chiếm chỗ đăng bài mãi mãi.
       await this.syncPostStatus(manager, current.post_id);
@@ -483,9 +539,16 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
   public async completeDueDeliveries(olderThanDays: number): Promise<number> {
     return this.manager.transaction(async (manager) => {
       // SKIP LOCKED để hai lần chạy song song không tranh cùng một lượt.
-      const due = await manager.query<{ global_id: string; post_id: string }[]>(
+      const due = await manager.query<
+        {
+          global_id: string;
+          post_id: string;
+          giver_id: string;
+          receiver_id: string;
+        }[]
+      >(
         `
-          SELECT global_id, post_id
+          SELECT global_id, post_id, giver_id, receiver_id
           FROM gift_transactions
           WHERE status IN ('ACCEPTED', 'DELIVERING')
             AND accepted_at <= now() - ($1 || ' days')::interval
@@ -513,6 +576,9 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
       for (const row of due) {
         await this.chat.lockRoomWithinTransaction(manager, row.global_id);
         await this.syncPostStatus(manager, row.post_id);
+        // Tự hoàn tất cũng là hoàn tất: không thưởng ở đây thì ai chờ cron đóng hộ
+        // sẽ mất điểm so với người bấm xác nhận, dù hai lượt trao giống hệt nhau.
+        await this.awardCompletionPoints(manager, row);
       }
 
       return due.length;

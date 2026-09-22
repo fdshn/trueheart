@@ -28,3 +28,4 @@ export * from './1790800000000-AddPostSosAndCharityTransfer';
 export * from './1790900000000-CreateChatAndNotifications';
 export * from './1791000000000-AddGiftTransactionClosedBy';
 export * from './1791100000000-AddNegativePointsAndShipping';
+export * from './1791200000000-SeedGiftCompletionPointRules';

@@ -35,6 +35,15 @@ const ReceiverId = '99999999-9999-4999-8999-999999999002';
 const ReferrerId = '99999999-9999-4999-8999-999999999003';
 const RefereeId = '99999999-9999-4999-8999-999999999004';
 const ViewerId = '99999999-9999-4999-8999-999999999005';
+/**
+ * Người riêng cho phần điểm âm.
+ *
+ * KHÔNG dùng lại người nhận ở trên: từ khi hoàn tất một lượt trao có thưởng
+ * điểm, họ đã mang sẵn 28 điểm trước khi phần này chạy, nên các con số trong ví dụ
+ * ("đang có 20, phạt 50, âm 30") không còn đúng. Gắn phép kiểm vào một con số do
+ * phần khác của hệ thống quyết định là tự buộc mình sửa test mỗi lần rule đổi.
+ */
+const PenaltyUserId = '99999999-9999-4999-8999-999999999006';
 
 const PostId = '88888888-8888-4888-8888-888888888001';
 const TransactionId = '55555555-5555-4555-8555-555555555001';
@@ -91,6 +100,7 @@ async function main(): Promise<void> {
       [ReferrerId, 'nguoigioithieu', 'MEMBER'],
       [RefereeId, 'nguoiduocgioithieu', 'MEMBER'],
       [ViewerId, 'nguoixem', 'VIEWER'],
+      [PenaltyUserId, 'nguoibiphat', 'MEMBER'],
     ];
     for (const [id, username, rank] of users)
       await dataSource.query(
@@ -102,6 +112,7 @@ async function main(): Promise<void> {
     const transactions = new GiftTransactionRepository(
       dataSource.manager,
       new ChatRepository(dataSource.manager),
+      new PointLedgerRepository(dataSource.manager),
     );
 
     // ── 1. Duyệt giao dịch khi kho đã cạn ───────────────────────────────────
@@ -277,17 +288,17 @@ async function main(): Promise<void> {
        VALUES ('TEST_CREDIT_20', 20, NULL, 1) ON CONFLICT DO NOTHING`,
     );
     await ledger.appendByRule({
-      userId: ReceiverId,
+      userId: PenaltyUserId,
       ruleCode: 'TEST_CREDIT_20',
       referenceType: 'TEST',
       referenceId: PostId,
-      idempotencyKey: `TEST_CREDIT:${ReceiverId}`,
+      idempotencyKey: `TEST_CREDIT:${PenaltyUserId}`,
       actor: 'SYSTEM',
       source: 'TEST',
     });
 
     const penalty = await ledger.appendByRule({
-      userId: ReceiverId,
+      userId: PenaltyUserId,
       ruleCode: 'SHIP_UNPAID_PENALTY',
       referenceType: 'GIFT_TRANSACTION',
       referenceId: TransactionId,
@@ -313,7 +324,7 @@ async function main(): Promise<void> {
       `delta=${penalty.delta}`,
     );
 
-    const afterPenalty = await ledger.getSummary(ReceiverId);
+    const afterPenalty = await ledger.getSummary(PenaltyUserId);
     check(
       'projection cũng kẹp ở 0 và giữ giá trị thật',
       afterPenalty.balance === 0 && afterPenalty.rawBalance === -30,
@@ -332,7 +343,7 @@ async function main(): Promise<void> {
 
     // Báo lần hai không trừ thêm.
     const again = await ledger.appendByRule({
-      userId: ReceiverId,
+      userId: PenaltyUserId,
       ruleCode: 'SHIP_UNPAID_PENALTY',
       referenceType: 'GIFT_TRANSACTION',
       referenceId: TransactionId,
@@ -352,7 +363,7 @@ async function main(): Promise<void> {
         dataSource,
         `SELECT COUNT(*) AS count FROM point_ledger
          WHERE user_id = $1 AND rule_code = 'SHIP_UNPAID_PENALTY'`,
-        [ReceiverId],
+        [PenaltyUserId],
       )) === 1,
     );
     check(
@@ -362,7 +373,7 @@ async function main(): Promise<void> {
         `SELECT COUNT(*) AS count FROM point_ledger
          WHERE user_id = $1 AND rule_code = 'SHIP_UNPAID_PENALTY'
            AND reason IS NOT NULL`,
-        [ReceiverId],
+        [PenaltyUserId],
       )) === 1,
     );
 
@@ -372,11 +383,11 @@ async function main(): Promise<void> {
        VALUES ('TEST_CREDIT_50', 50, NULL, 1) ON CONFLICT DO NOTHING`,
     );
     const recovered = await ledger.appendByRule({
-      userId: ReceiverId,
+      userId: PenaltyUserId,
       ruleCode: 'TEST_CREDIT_50',
       referenceType: 'TEST',
       referenceId: PostId,
-      idempotencyKey: `TEST_CREDIT_50:${ReceiverId}`,
+      idempotencyKey: `TEST_CREDIT_50:${PenaltyUserId}`,
       actor: 'SYSTEM',
       source: 'TEST',
     });

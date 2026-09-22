@@ -173,21 +173,33 @@ mở được quyền đăng bài. Hai rule tách biệt để Admin chỉnh đ�
 
 Hiện tại là phương án đầu. Giữ hay đổi?
 
-### Q2 — Tặng và nhận được bao nhiêu điểm?
+### Q2 — Đã chốt: số điểm do Admin cấu hình
 
-[ADMIN-CONFIG-DESIGN](./ADMIN-CONFIG-DESIGN.md) đặt `GIFT_COMPLETED_*` theo
-**phần trăm đánh giá** (100% → 56 điểm, 75% → 42, 50% → 28, 25% → 14). Nhưng
-tính năng đánh giá **chưa có**, nên chưa tính được phần trăm.
+Hai rule, code chỉ biết **mã**, không biết con số:
 
-Hai hướng:
+| Rule | Khởi tạo | Đẩy `lifetime`? | Trần/ngày |
+| --- | --- | --- | --- |
+| `GIFT_COMPLETED_GIVER` | 56 | **Có** | 10 |
+| `GIFT_COMPLETED_RECEIVER` | 28 | **Không** | 5 |
 
-- **Một mức cố định trước**, đánh giá làm sau và chỉ điều chỉnh mức. Vòng lặp
-  tặng → điểm → hạng chạy được ngay.
-- **Chờ đánh giá xong** rồi mới cộng điểm. Đúng thiết kế cuối, nhưng đến lúc đó
-  hệ thống hạng vẫn đứng yên.
+Con số chỉ là giá trị khởi tạo. Rule có đánh phiên bản, nên khi đánh giá
+(Accuracy) làm xong thì thêm phiên bản mới, không sửa dữ liệu cũ.
 
-Tôi nghiêng về hướng đầu: rule có đánh phiên bản, nên khi đánh giá xong thì thêm
-phiên bản mới, không phải sửa dữ liệu cũ.
+**Người tặng nhiều điểm hơn** vì họ bỏ ra một món đồ thật, còn người nhận đến lấy
+và bấm xác nhận. Cho hai bên bằng nhau là xoá mất chêch lệch khuyến khích về phía
+việc mà nền tảng tồn tại để làm.
+
+**Nhận không đẩy `lifetime`** — đây là lớp chặn cày hạng. `lifetime` là sàn của Rank;
+nếu nhận cũng đẩy thì hai người chuyền qua chuyền lại một món đồ là cùng lên hạng.
+Nhận vẫn có điểm tiêu được — đủ để họ có lý do bấm xác nhận — nhưng **hạng chỉ đo
+thứ mình cho đi**.
+
+> ⚠️ Trần theo ngày làm chậm việc cày điểm chứ **không chặn được**. Hai người thông
+> đồng vẫn gồn được điểm tiêu. Chống gian lận thật thuộc F50/M5.
+
+**Điểm không được làm hỏng việc xác nhận.** Món đồ đã đến tay là một **sự thật**;
+thưởng bao nhiêu là một **chính sách**. Đạt trần trong ngày, hoặc Admin tắt rule, thì
+người nhận vẫn bấm xác nhận được — chỉ là không ai được điểm.
 
 ### Q3 — Report "không trả ship" có đóng giao dịch không?
 

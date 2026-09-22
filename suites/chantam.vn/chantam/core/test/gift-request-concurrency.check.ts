@@ -18,6 +18,7 @@ import { GiftRequestEntity } from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { pickNextCandidate } from '@chantam.vn/chantam.core-lib/models';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
+import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { GiftRequestRepository } from '../src/infrastructure/repository/gift-request.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
 
@@ -177,6 +178,7 @@ async function main(): Promise<void> {
     const giftTransactions = new GiftTransactionRepository(
       dataSource.manager,
       chat,
+      new PointLedgerRepository(dataSource.manager),
     );
 
     console.log(`Kiểm chứng (${Rounds} vòng mỗi kịch bản):\n`);

@@ -38,9 +38,23 @@ function makeChatRepository() {
   };
 }
 
+function makeLedgerRepository() {
+  return {
+    appendByRuleWithinTransaction: jest.fn(async () => ({
+      entryId: 1,
+      delta: 56,
+      balance: 56,
+      rawBalance: 56,
+      lifetime: 56,
+      applied: true,
+    })),
+  };
+}
+
 function makeRepository(
   query: jest.Mock,
   chat: ReturnType<typeof makeChatRepository> = makeChatRepository(),
+  ledger: ReturnType<typeof makeLedgerRepository> = makeLedgerRepository(),
 ) {
   return new GiftTransactionRepository(
     {
@@ -48,6 +62,7 @@ function makeRepository(
       transaction: async (cb: (m: unknown) => unknown) => cb({ query }),
     } as never,
     chat as never,
+    ledger as never,
   );
 }
 

@@ -18,6 +18,7 @@ import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
+import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
 import { QuotaStatuses } from '../src/infrastructure/repository/post.repository';
 
@@ -121,6 +122,7 @@ async function main(): Promise<void> {
     const transactions = new GiftTransactionRepository(
       dataSource.manager,
       new ChatRepository(dataSource.manager),
+      new PointLedgerRepository(dataSource.manager),
     );
 
     console.log('Bài hai món, tặng dần:\n');

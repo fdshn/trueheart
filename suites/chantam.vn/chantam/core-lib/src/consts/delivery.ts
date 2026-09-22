@@ -25,3 +25,12 @@ export enum ShipPayers {
 
 /** Mã rule điểm cho khoản phạt không thanh toán phí ship. */
 export const ShipUnpaidPenaltyRuleCode = 'SHIP_UNPAID_PENALTY';
+
+/**
+ * Mã rule điểm khi một lượt trao hoàn tất.
+ *
+ * Hai mã tách biệt để Admin chỉnh độc lập: cho và nhận không đáng giá như nhau,
+ * và chỉ một trong hai được tính vào `lifetime` (tức vào Rank).
+ */
+export const GiftCompletedGiverRuleCode = 'GIFT_COMPLETED_GIVER';
+export const GiftCompletedReceiverRuleCode = 'GIFT_COMPLETED_RECEIVER';
