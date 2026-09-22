@@ -1,0 +1,223 @@
+# Flow cho–nhận: hiện trạng, lỗ hổng, và thiết kế trọn vẹn
+
+> Tài liệu này đối chiếu **code đang chạy** với [F30–F38](../FEATURES.md#5-giao-dịch--hàng-đợi)
+> và đề xuất một flow khép kín. Mọi khẳng định về hiện trạng đều dẫn file và dòng —
+> không suy luận từ tài liệu, vì tài liệu và code đã lệch nhau ở đúng chỗ này.
+
+---
+
+## 1. Flow đang chạy
+
+```
+B xin          POST /transactions               ─▶ REQUESTED
+A duyệt        POST /transactions/:id/accept    ─▶ ACCEPTED    trừ kho, mở chat
+B xác nhận     POST /transactions/:id/confirm   ─▶ COMPLETED   khoá chat
+hai bên huỷ    POST /transactions/:id/cancel    ─▶ CANCELLED   trả kho, khoá chat, mở lại hàng đợi
+cron 5 ngày    npm run transaction:autocomplete ─▶ COMPLETED   khoá chat
+```
+
+Bốn đường này chạy đúng và đã có kiểm chứng trên database thật. Vấn đề nằm ở
+những gì **không** có.
+
+---
+
+## 2. Sáu lỗ hổng
+
+### H1 — `DELIVERING` là trạng thái chết
+
+`DELIVERING` nằm trong enum, trong `OpenGiftTransactionStatuses`, và được chấp
+nhận ở cả `confirmReceipt` lẫn `close`. Nhưng **không một câu lệnh nào chuyển
+giao dịch sang nó**.
+
+Nghĩa là hệ thống không có bước "đã gửi hàng". Với `GIVER_SHIPS` (CH-2) đây là
+lỗ thật: A đã gửi, hàng đang trên đường, nhưng dữ liệu vẫn nói `ACCEPTED` —
+không phân biệt được với lượt mà A còn chưa làm gì.
+
+### H2 — Trạng thái bài không bao giờ đổi
+
+[F34](../FEATURES.md#f34--chấp-nhận-giao-dịch--mở-chat) ghi: "*cập nhật trạng
+thái bài và số lượng còn lại*". `accept()` chỉ làm vế sau — nó `UPDATE posts SET
+remaining_quantity = remaining_quantity - $2` và không đụng `status`.
+
+Bài đứng mãi ở `PUBLISHED`. `RESERVED`, `DELIVERING`, `COMPLETED` trong
+`GiftPostStatuses` chưa bao giờ được dùng ở luồng bài generic.
+
+### H3 — Bài đã cho hết vẫn chiếm quota đăng bài, vĩnh viễn
+
+Hệ quả trực tiếp của H2, và là lỗi nặng nhất trong sáu cái.
+
+`QuotaStatuses` gồm `PENDING_REVIEW`, `PUBLISHED`, `RESERVED`, `DELIVERING`
+(`post.repository.ts`). Bài không bao giờ rời `PUBLISHED`, nên **mỗi bài đã tặng
+xong vẫn ăn một suất quota của tác giả mãi mãi**.
+
+Người càng tặng nhiều càng sớm hết chỗ đăng bài mới — ngược hoàn toàn với ý đồ
+của hệ thống hạng.
+
+### H4 — Hoàn tất một lượt trao không cộng điểm nào
+
+Các rule đã seed: `PHONE_VERIFIED_FIRST_TIME` (28), `REFERRAL_QUALIFIED` (56),
+`SHIP_UNPAID_PENALTY` (−50). **Không có rule nào cho việc tặng hoặc nhận.**
+Không chỗ nào gọi `appendByRule` khi giao dịch `COMPLETED`.
+
+[ROADMAP](./ROADMAP.md) ghi "*Xong khi: hoàn tất một giao dịch → điểm vào
+ledger*" — chưa xong. `GIFT_COMPLETED_*` mới nằm ở
+[ADMIN-CONFIG-DESIGN](./ADMIN-CONFIG-DESIGN.md), chưa seed, chưa gọi.
+
+Hệ quả số học: ngưỡng `SILVER` là 672 điểm, mà đường kiếm điểm duy nhất còn lại
+là giới thiệu (56/lượt). Tức **phải mời 12 người mới lên nổi Bạc**, và tặng đồ —
+việc chính của nền tảng — không đóng góp gì.
+
+### H5 — Đồng hồ 5 ngày đếm từ sai mốc
+
+`completeDueDeliveries` quét `accepted_at <= now() - 5 days`.
+
+Với ship liên tỉnh 4–5 ngày, hoặc hai bên hẹn gặp cuối tuần sau, cron đóng lượt
+trao **trước khi hàng tới nơi**. Đồng hồ nên đếm từ lần cuối có chuyện xảy ra,
+không phải từ lúc duyệt.
+
+### H6 — Tự hoàn tất không kiểm tranh chấp, nên lượt trao đổ vẫn thành "thành công"
+
+[F36](../FEATURES.md#f36--người-nhận-xác-nhận--tự-động-hoàn-tất-sau-5-ngày) yêu
+cầu tự hoàn tất chỉ khi "*không có huỷ, **không có tranh chấp** và chưa ai xác
+nhận*". Vế giữa chưa hiện thực — không có khái niệm tranh chấp.
+
+Kịch bản CH-2 cho thấy hậu quả: B từ chối nhận, hàng về lại A, A report. Không
+ai xác nhận gì, nên ngày thứ 5 cron đánh dấu `COMPLETED`. Kết quả:
+
+- A được cộng một lượt trao hoàn tất vào bộ đếm duy trì hạng
+- B được ghi là **đã nhận** món họ từ chối
+- Món đồ đang nằm ở nhà A
+
+B vừa bị trừ 50 điểm vì không trả ship, vừa được ghi công đã nhận quà. Hai bản
+ghi nói ngược nhau về cùng một sự việc.
+
+---
+
+## 3. Flow trọn vẹn đề xuất
+
+```
+                bài PUBLISHED, còn hàng
+                          │
+                          │ B xin
+                          ▼
+                     REQUESTED ─────── B rút, hoặc A từ chối ──▶ CANCELLED
+                          │
+                          │ A duyệt
+                          ▼
+                     ACCEPTED ──────────────────────────────┐
+                          │         trừ kho                 │
+                          │         mở chat                 │
+                          │         bài → RESERVED nếu hết  │
+                          │                                 │
+            ┌─────────────┴─────────────┐                   │
+      tự đến lấy                   A gửi hàng               │
+            │                           │ A bấm "đã gửi"    │ huỷ
+            │                           ▼                   │
+            │                      DELIVERING ──────────────┤
+            │                    (ghi shipped_at)           │
+            │                           │                   │
+            └─────────────┬─────────────┘                   │
+                          │ B xác nhận, hoặc cron quá hạn   │
+                          ▼                                 ▼
+                     COMPLETED                          CANCELLED
+              cộng điểm cả hai bên               trả kho, khoá chat
+              khoá chat                          mở lại hàng đợi
+              bài → COMPLETED nếu hết            bài → PUBLISHED nếu còn hàng
+```
+
+### Mỗi bước tác động tới cái gì
+
+| Bước | Giao dịch | Bài đăng | Chat | Điểm | Hàng đợi |
+| --- | --- | --- | --- | --- | --- |
+| **Xin** | `REQUESTED` | — | — | — | vào `STANDBY` |
+| **Duyệt** | `ACCEPTED` | kho −n; `RESERVED` khi kho về 0 | **mở** | — | — |
+| **Đã gửi** *(mới)* | `DELIVERING` + `shipped_at` | — | — | — | — |
+| **Xác nhận** | `COMPLETED` + `completed_at` | `COMPLETED` khi kho = 0 và không còn lượt dở | **khoá** | **cộng cả hai bên** | — |
+| **Tự hoàn tất** | `COMPLETED` | như trên | **khoá** | như trên | — |
+| **Huỷ** | `CANCELLED` + `closed_by` | kho +n; về `PUBLISHED` nếu còn hàng | **khoá** | — | `STANDBY` → `PENDING` |
+| **Report ship** | `CANCELLED` (xem Q3) | kho +n | **khoá** | **−50 cho B** | `STANDBY` → `PENDING` |
+
+### Những chỗ sửa, theo thứ tự nên làm
+
+| # | Sửa | Vá lỗ | Ghi chú |
+| --- | --- | --- | --- |
+| 1 | Bài đổi trạng thái theo tồn kho và lượt trao | H2, H3 | Phải làm **trong cùng transaction** với `accept`/`confirm`/`close`, không phải job dọn sau |
+| 2 | `POST /transactions/:id/ship` → `DELIVERING` | H1 | Chỉ người tặng, chỉ khi `deliveryMethod = GIVER_SHIPS` |
+| 3 | Tự hoàn tất đếm từ `COALESCE(shipped_at, accepted_at)` | H5 | Một dòng SQL, nhưng phải có bước 2 trước |
+| 4 | Rule điểm khi `COMPLETED`, idempotent theo `transaction_id` | H4 | Xem Q2 — cần Bên A chốt con số |
+| 5 | Report ship-unpaid đóng giao dịch | H6 | Xem Q3 |
+
+**Về bước 1 — trạng thái bài suy ra từ đâu.** Không thêm cột đếm mới. Bài
+`COMPLETED` khi `remaining_quantity = 0` **và** không còn lượt trao nào đang mở
+trên bài đó. Hai điều kiện đều đọc được từ dữ liệu sẵn có, nên không có con số
+thứ hai để lệch với sự thật — cùng nguyên tắc đã dùng cho `creditCount`/
+`debitCount` của ledger.
+
+**Về bước 4 — cộng cho ai.** Cả hai bên, hai rule khác nhau. Người tặng là bên
+bỏ ra vật phẩm; người nhận hoàn tất một lượt trao tử tế thì cũng nên được ghi
+nhận, nếu không thì người chỉ đi nhận sẽ không bao giờ lên hạng và không bao giờ
+mở được quyền đăng bài. Hai rule tách biệt để Admin chỉnh độc lập.
+
+---
+
+## 4. Những chỗ cần Bên A chốt
+
+### Q1 — Bài đã có người nhận còn hiện trên bản đồ không?
+
+`PubliclyVisibleGiftPostStatuses` hiện gồm `PUBLISHED` và `RESERVED`, tức bài đã
+được giữ chỗ **vẫn hiện**. Hai hướng:
+
+- **Vẫn hiện** — người xem biết món đó đã có chủ, không hụt hẫng khi bài tự biến
+  mất. Nhưng bản đồ đông hơn và có bài không xin được.
+- **Ẩn đi** — bảng tin chỉ còn thứ xin được. Nhưng bài "rơi khỏi" danh sách
+  trong lúc người ta đang xem.
+
+Hiện tại là phương án đầu. Giữ hay đổi?
+
+### Q2 — Tặng và nhận được bao nhiêu điểm?
+
+[ADMIN-CONFIG-DESIGN](./ADMIN-CONFIG-DESIGN.md) đặt `GIFT_COMPLETED_*` theo
+**phần trăm đánh giá** (100% → 56 điểm, 75% → 42, 50% → 28, 25% → 14). Nhưng
+tính năng đánh giá **chưa có**, nên chưa tính được phần trăm.
+
+Hai hướng:
+
+- **Một mức cố định trước**, đánh giá làm sau và chỉ điều chỉnh mức. Vòng lặp
+  tặng → điểm → hạng chạy được ngay.
+- **Chờ đánh giá xong** rồi mới cộng điểm. Đúng thiết kế cuối, nhưng đến lúc đó
+  hệ thống hạng vẫn đứng yên.
+
+Tôi nghiêng về hướng đầu: rule có đánh phiên bản, nên khi đánh giá xong thì thêm
+phiên bản mới, không phải sửa dữ liệu cũ.
+
+### Q3 — Report "không trả ship" có đóng giao dịch không?
+
+Nếu **có**: hết cảnh lượt trao đổ tự thành `COMPLETED` (H6), chat khoá ngay,
+đồng hồ lưu trữ bắt đầu ở mốc có nghĩa, và lượt huỷ tính cho B — chảy thẳng vào
+tiêu chí `FEWEST_CANCELLATIONS` của CH-1.
+
+Cần biết trước khi gật: **đây là lời một phía**. A bấm report là B mất 50 điểm và
+mang một lượt huỷ, không ai đối chứng. Khoản trừ điểm vốn đã một phía, nên đóng
+giao dịch không làm cán cân lệch thêm — nhưng nếu muốn A phải nêu lý do bắt buộc,
+hoặc muốn Admin duyệt trước khi trừ, thì đây là lúc nói.
+
+### Q4 — Ai được bấm "đã gửi hàng", và bấm sai thì sao?
+
+Đề xuất: chỉ người tặng, chỉ khi bài khai `GIVER_SHIPS`. Mốc `shipped_at` là thứ
+đẩy lùi đồng hồ tự hoàn tất thêm 5 ngày.
+
+Rủi ro: A bấm "đã gửi" mà chưa gửi để câu thêm thời gian. Chưa có cách nào kiểm —
+hệ thống không nối với đơn vị vận chuyển. Chấp nhận, hay cần thêm ràng buộc (ví
+dụ chỉ lùi được một lần)?
+
+---
+
+## 5. Cái này KHÔNG bao gồm
+
+- **Đánh giá / Accuracy** — cần cho công thức điểm cuối cùng, nhưng flow chạy
+  được mà không có nó.
+- **Tranh chấp có Admin xử** — [F60](../FEATURES.md#f60--kiểm-duyệt--quản-lý-người-dùng)
+  dự kiến. Hiện chỉ có report ship-unpaid, tự động, không ai duyệt.
+- **Nối API đơn vị vận chuyển** — ngoài phạm vi; ship là COD bên ngoài hệ thống.
+- **Xoá chat theo hạn lưu trữ** — thiết kế riêng, chờ flow này chốt xong vì mốc
+  đếm ngược phụ thuộc vào lúc khoá phòng.
