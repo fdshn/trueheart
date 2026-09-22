@@ -5,6 +5,7 @@ import { CategoryControllerModule } from './category/category.module';
 import { ChatControllerModule } from './chat/chat.module';
 import { DiscoveryControllerModule } from './discovery/discovery.module';
 import { EntitlementControllerModule } from './entitlement/entitlement.module';
+import { FeedControllerModule } from './feed/feed.module';
 import { GiftPostControllerModule } from './gift-post/gift-post.module';
 import { GiftRequestApiModule } from './gift-request/gift-request-api.module';
 import { NotificationControllerModule } from './notification/notification.module';
@@ -22,6 +23,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
     AuthControllerModule,
     CategoryControllerModule,
     ChatControllerModule,
+    FeedControllerModule,
     DiscoveryControllerModule,
     EntitlementControllerModule,
     GiftPostControllerModule,

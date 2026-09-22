@@ -3,6 +3,7 @@ import {
   IAdminUserRepository,
   ICategoryRepository,
   IChatRepository,
+  IContentReactionRepository,
   IEntitlementRepository,
   IGiftRequestRepository,
   IGiftTransactionRepository,
@@ -25,6 +26,7 @@ import { AdminConfigRepository } from './admin-config.repository';
 import { AdminUserRepository } from './admin-user.repository';
 import { CategoryRepository } from './category.repository';
 import { ChatRepository } from './chat.repository';
+import { ContentReactionRepository } from './content-reaction.repository';
 import { EntitlementRepository } from './entitlement.repository';
 import { GiftRequestRepository } from './gift-request.repository';
 import { GiftTransactionRepository } from './gift-transaction.repository';
@@ -56,6 +58,10 @@ import { UserRepository } from './user.repository';
     { provide: IAdminConfigRepository, useClass: AdminConfigRepository },
     { provide: IAdminUserRepository, useClass: AdminUserRepository },
     { provide: IEntitlementRepository, useClass: EntitlementRepository },
+    {
+      provide: IContentReactionRepository,
+      useClass: ContentReactionRepository,
+    },
     { provide: IGiftRequestRepository, useClass: GiftRequestRepository },
     {
       provide: IGiftTransactionRepository,
@@ -86,6 +92,7 @@ import { UserRepository } from './user.repository';
     IAdminConfigRepository,
     IAdminUserRepository,
     IEntitlementRepository,
+    IContentReactionRepository,
     IGiftRequestRepository,
     IGiftTransactionRepository,
     INotificationChannelRepository,

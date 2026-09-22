@@ -2,6 +2,7 @@ export * from './admin-config.repository';
 export * from './admin-user.repository';
 export * from './category.repository';
 export * from './chat.repository';
+export * from './content-reaction.repository';
 export * from './entitlement.repository';
 export * from './gift-request.repository';
 export * from './gift-transaction.repository';
