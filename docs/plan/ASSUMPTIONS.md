@@ -100,19 +100,47 @@ Admin chỉnh được qua CMS. Sai chỉ tốn một dòng cấu hình.
 
 ---
 
-## Câu hỏi mới, chưa có câu trả lời (từ `srs/new-req.txt`)
+## Hai quyết định bổ sung từ Bên A (CH-1, CH-2)
 
-Yêu cầu đổi vật phẩm bằng điểm giải quyết được cơ chế bảo vệ Rank ([GĐ-3](#gđ-3--cơ-chế-rank--tụt-hạng)),
-nhưng mở ra hai chỗ **chưa đủ dữ kiện để code**. Ghi ra đây để không ai tự suy diễn rồi cài cứng:
+Yêu cầu đổi vật phẩm bằng điểm ([GĐ-3](#gđ-3--cơ-chế-rank--tụt-hạng)) mở ra hai chỗ thiếu dữ
+kiện. Bên A đã chốt cả hai:
 
-| # | Câu hỏi | Vì sao không đoán được | Chặn việc gì |
-| --- | --- | --- | --- |
-| CH-1 | Hết countdown 7 ngày mà không ai đổi điểm, hệ thống chọn người nhận **theo tiêu chí nào**? | Yêu cầu chỉ nói "tự động chọn". Ai đến trước? Ai gần nhất? Ai hạng cao nhất? Mỗi lựa chọn là một chính sách công bằng khác nhau, chọn sai thì người dùng thấy ngay. | [F75](../FEATURES.md#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm) |
-| CH-2 | Chọn "người cho gửi hàng" thì **ai trả phí vận chuyển**? | Người cho đang cho không món đồ; bắt họ trả thêm phí ship là một khoản chi phí không ai nói đến. Nhưng bắt người nhận trả thì cần đường thanh toán — thứ Phase 1 chưa có. | [F78](../FEATURES.md#f78--hình-thức-vận-chuyển) |
+**Cả hai đã được Bên A chốt.**
 
-Đề xuất tạm cho CH-1: **ai xin trước người đó nhận** — `gift_requests` đã có `queue_joined_at`,
-không cần thêm dữ liệu, và là tiêu chí duy nhất người dùng tự kiểm chứng được. Nhưng đây là
-**đề xuất**, chưa phải quyết định; chưa cài cho tới khi Bên A xác nhận.
+### CH-1 — Thứ tự ưu tiên chọn người nhận: Admin cấu hình
+
+Không hard-code một tiêu chí nào. Hệ thống cung cấp một bộ tiêu chí; **Admin xếp cái nào số
+1, cái nào số 2**, đổi lúc chạy không cần deploy.
+
+| Mã | Ý nghĩa | Lấy từ đâu |
+| --- | --- | --- |
+| `QUEUE_JOINED_EARLIEST` | Ai gửi yêu cầu sớm nhất | `gift_requests.queue_joined_at` |
+| `HIGHEST_RANK` | Thứ hạng cao hơn | `users.rank` |
+| `NEAREST` | Gần điểm hẹn hơn | `ST_Distance(users.default_location, posts.location)` |
+| `FEWEST_RECEIVED` | Đã nhận ít quà hơn | Đếm `gift_transactions` COMPLETED làm người nhận |
+| `FEWEST_CANCELLATIONS` | Ít huỷ lượt trao hơn | Đếm `gift_transactions.closed_by` |
+
+Cấu hình nằm ở `system_configs` khoá `selection.candidate_priority`, đọc/ghi qua
+`GET|PUT /api/v1/admin/candidate-selection`. Ghi theo copy-on-write như mọi system config nên
+luôn trả lời được ai đổi, lúc nào, vì sao.
+
+**Mặc định khi chưa cấu hình:** ai xin trước. Đây là tiêu chí *duy nhất người dùng tự kiểm
+chứng được* — họ biết mình bấm lúc nào; mọi tiêu chí còn lại dựa vào dữ liệu họ không thấy.
+
+Dùng CHUNG cho cả [F33](../FEATURES.md#f33--hàng-đợi-dự-phòng) (gợi ý người kế tiếp khi huỷ)
+và [F75](../FEATURES.md#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm) (tự chọn khi hết
+countdown). Hai chỗ mà xếp hai kiểu thì cùng một bài sẽ đề xuất hai người khác nhau tuỳ đường
+nào chạy trước.
+
+### CH-2 — Phí vận chuyển: đánh dấu bên trả, trừ điểm khi không thanh toán
+
+Có một trường đánh dấu **"người nhận trả ship"** — chỉ để ghi bên nào chịu phí, không xử lý
+thanh toán trong hệ thống (đây là ship COD bên ngoài). Người nhận không thanh toán thì **bị
+trừ điểm**, thực hiện qua **API report**: người gửi thấy hàng bị hoàn và không được thanh
+toán thì báo, và khoản trừ đi qua chính `point_ledger`.
+
+⚠️ **Chưa hiện thực.** Phụ thuộc [F78](../FEATURES.md#f78--hình-thức-vận-chuyển) và đường ghi
+điểm âm; xem mục còn lại trong [ROADMAP](./ROADMAP.md).
 
 ---
 
@@ -123,3 +151,4 @@ không cần thêm dữ liệu, và là tiêu chí duy nhất người dùng t�
 | 2026-09-15 | Lập lần đầu — 4 giả định + 6 mặc định |
 | 2026-09-20 | Cập nhật toàn diện theo đặc tả chính thức `SRS_Chan_Tam_v1.15.0.md` (Mục 1.7 - CHỐT-01 đến CHỐT-07) |
 | 2026-09-21 | Bổ sung `srs/new-req.txt`: cơ chế bảo vệ Rank bằng *điểm khả dụng* (GĐ-3), thêm 2 câu hỏi chưa chốt |
+| 2026-09-22 | Bên A chốt CH-1 (thứ tự ưu tiên do Admin cấu hình — đã hiện thực) và CH-2 (đánh dấu bên trả ship, trừ điểm qua report — chưa hiện thực) |

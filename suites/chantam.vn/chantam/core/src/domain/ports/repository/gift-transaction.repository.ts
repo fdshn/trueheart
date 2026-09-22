@@ -1,3 +1,5 @@
+import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
+
 export type GiftTransactionStatuses =
   | 'REQUESTED'
   | 'ACCEPTED'
@@ -42,20 +44,25 @@ export interface ICloseGiftTransactionParams {
 /**
  * Hàng đợi dự phòng sau khi một lượt trao bị đóng (F33, F35).
  *
- * Trả về để **use case** gửi thông báo, không phải repository: thông báo phải
- * đi SAU khi transaction commit, nếu không sẽ báo cho người dùng về một lượt
- * huỷ có thể còn bị rollback.
+ * Trả **số đo thô** của từng ứng viên, KHÔNG tự chọn ai. Thứ tự ưu tiên do Admin
+ * cấu hình (CH-1), nên việc xếp hạng là chính sách nghiệp vụ và thuộc tầng
+ * application — repository chỉ cấp dữ liệu.
+ *
+ * Trả về để **use case** xếp hạng rồi gửi thông báo, không phải repository:
+ * thông báo phải đi SAU khi transaction commit, nếu không sẽ báo cho người dùng
+ * về một lượt huỷ có thể còn bị rollback.
  */
 export interface IReopenedQueue {
   /** Số ứng viên vừa được đưa trở lại hàng chờ xét. */
   readonly reopenedCount: number;
   /**
-   * Ứng viên kế tiếp theo thứ tự vào hàng đợi, hoặc `null` khi không còn ai.
+   * Số đo của mọi ứng viên còn đang chờ xét, chưa xếp thứ tự.
    *
-   * Đây là **đề xuất**, không phải quyết định: hệ thống tuyệt đối không tự trao
-   * cho người này (F33). Người cho vẫn phải bấm duyệt.
+   * Người được đề xuất tính bằng `pickNextCandidate()` với thứ tự Admin đã cấu
+   * hình. Đây là **đề xuất**, không phải quyết định: hệ thống tuyệt đối không tự
+   * trao (F33) — người cho vẫn phải bấm duyệt.
    */
-  readonly nextCandidateId: string | null;
+  readonly candidates: readonly ICandidateMetrics[];
 }
 
 export interface ICloseGiftTransactionResult {

@@ -21,12 +21,17 @@ import {
   IRequestGiftUseCase,
 } from '@/application/contracts/transaction';
 import {
+  IAdminConfigRepository,
   IGiftTransactionRepository,
   IGiftTransactionSummary,
   IReopenedQueue,
 } from '@/domain/ports/repository';
-import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  CandidateSelectionConfigKey,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { IGiftTransactionDto } from '@chantam.vn/chantam.core-lib/dto';
+import { pickNextCandidate } from '@chantam.vn/chantam.core-lib/models';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -118,6 +123,8 @@ export class CancelGiftTransactionUseCase implements ICancelGiftTransactionUseCa
     private readonly transactions: IGiftTransactionRepository,
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatchNotification: IDispatchNotificationUseCase,
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig: IAdminConfigRepository,
   ) {}
 
   public async handle(
@@ -149,7 +156,21 @@ export class CancelGiftTransactionUseCase implements ICancelGiftTransactionUseCa
     transaction: IGiftTransactionSummary,
     queue: IReopenedQueue,
   ): Promise<void> {
-    if (queue.nextCandidateId === null) return;
+    if (queue.candidates.length === 0) return;
+
+    // Thứ tự ưu tiên do Admin cấu hình (CH-1). Đọc ở đây chứ không cache: đổi
+    // cấu hình phải có hiệu lực ngay, không đợi restart.
+    //
+    // Cấu hình rỗng hay rác thì `pickNextCandidate` tự rơi về thứ tự mặc định —
+    // một dòng config sai không được làm chết đường gợi ý người nhận.
+    const configuredOrder = await this.adminConfig.getConfigValue(
+      CandidateSelectionConfigKey,
+    );
+    const next = pickNextCandidate(
+      queue.candidates,
+      Array.isArray(configuredOrder) ? configuredOrder : null,
+    );
+    if (!next) return;
 
     await this.dispatchNotification.handle({
       userId: transaction.giverId,
@@ -162,7 +183,7 @@ export class CancelGiftTransactionUseCase implements ICancelGiftTransactionUseCa
     });
 
     await this.dispatchNotification.handle({
-      userId: queue.nextCandidateId,
+      userId: next.requesterId,
       type: NotificationTypes.GIFT_TRANSACTION_CLOSED,
       title: 'Yêu cầu của bạn đang được xét tiếp',
       body: 'Lượt trao trước đã huỷ. Người cho sẽ xem lại danh sách; đây chưa phải là đã được chọn.',

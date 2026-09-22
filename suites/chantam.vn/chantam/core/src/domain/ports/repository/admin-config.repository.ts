@@ -62,6 +62,14 @@ export interface IAdminRoleAssignment {
 export interface IAdminConfigRepository {
   hasPermission(userId: string, permission: string): Promise<boolean>;
   getPublishedConfigs(): Promise<ISystemConfigSummary[]>;
+  /**
+   * Giá trị JSON của bản đang hiệu lực cho một khoá, hoặc `null` khi chưa có.
+   *
+   * Trả `unknown` chứ không kiểu cụ thể: nội dung do Admin nhập, nên nơi dùng
+   * phải tự chuẩn hoá và tự chịu trường hợp rác. Tin vào hình dạng ở đây là mở
+   * đường cho một dòng config sai làm chết nghiệp vụ.
+   */
+  getConfigValue(key: string): Promise<unknown>;
   publishSystemConfig(
     command: IPublishSystemConfigCommand,
   ): Promise<ISystemConfigSummary>;

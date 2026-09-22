@@ -1,8 +1,10 @@
 import {
   IGetAdminAuditLogsUseCase,
   IGetAdminConfigsUseCase,
+  IGetCandidateSelectionUseCase,
   IGetSystemLogsUseCase,
   IPublishAdminConfigUseCase,
+  ISetCandidateSelectionUseCase,
 } from '@/application/contracts/admin-config';
 import {
   ApiTokenErrors,
@@ -15,7 +17,15 @@ import {
   ForbiddenException,
   ValidationFailedException,
 } from '@chantam/service.common-lib/exception';
-import { Body, Controller, Get, Inject, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -30,6 +40,11 @@ import {
   PublishSystemConfigBodyDto,
   PublishSystemConfigResponseDto,
 } from '../../dto/admin-config/admin-config.dto';
+import {
+  GetCandidateSelectionResponseDto,
+  SetCandidateSelectionBodyDto,
+  SetCandidateSelectionResponseDto,
+} from '../../dto/admin-config/candidate-selection.dto';
 import {
   GetSystemLogsQueryDto,
   GetSystemLogsResponseDto,
@@ -47,6 +62,10 @@ export class AdminConfigController {
     private readonly publishAdminConfigUseCase: IPublishAdminConfigUseCase,
     @Inject(IGetAdminAuditLogsUseCase)
     private readonly getAdminAuditLogsUseCase: IGetAdminAuditLogsUseCase,
+    @Inject(IGetCandidateSelectionUseCase)
+    private readonly getCandidateSelectionUseCase: IGetCandidateSelectionUseCase,
+    @Inject(ISetCandidateSelectionUseCase)
+    private readonly setCandidateSelectionUseCase: ISetCandidateSelectionUseCase,
     @Inject(IGetSystemLogsUseCase)
     private readonly getSystemLogsUseCase: IGetSystemLogsUseCase,
   ) {}
@@ -99,6 +118,64 @@ export class AdminConfigController {
         await this.publishAdminConfigUseCase.handle({
           actorUserId: principal.userId,
           systemConfig: body.systemConfig,
+        }),
+      )
+      .build();
+  }
+
+  @Get('candidate-selection')
+  @RequiresPermission('config.read')
+  @ApiOperation({
+    summary: 'Thứ tự ưu tiên chọn người nhận',
+    description:
+      'Dùng cho cả gợi ý người kế tiếp khi huỷ lượt trao (F33) và tự chọn khi hết countdown (F75) — một chính sách duy nhất, nếu không cùng một bài sẽ đề xuất hai người khác nhau tuỳ đường nào chạy trước. Trả về thứ tự ĐÃ CHUẨN HOÁ, tức thứ tự hệ thống thật sự dùng.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(GetCandidateSelectionResponseDto),
+  })
+  @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
+  public async getCandidateSelection(@CurrentUser() principal: IAuthPrincipal) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.getCandidateSelectionUseCase.handle({
+          actorUserId: principal.userId,
+        }),
+      )
+      .build();
+  }
+
+  @Put('candidate-selection')
+  @RequiresPermission('config.write')
+  @ApiOperation({
+    summary: 'Đặt thứ tự ưu tiên chọn người nhận',
+    description:
+      'Phần tử đầu là tiêu chí số 1. Không cần khai đủ — tiêu chí thiếu tự xuống cuối theo thứ tự mặc định, vì thiếu tiêu chí nghĩa là tới đoạn đó không còn gì phá thế hoà. Ghi theo copy-on-write như mọi system config: bản cũ đóng lại, `reason` đi thẳng vào audit log.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(SetCandidateSelectionResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    [
+      ValidationFailedException,
+      [
+        'selection.order: each value in order must be one of the following values: QUEUE_JOINED_EARLIEST, HIGHEST_RANK, NEAREST, FEWEST_RECEIVED, FEWEST_CANCELLATIONS',
+      ],
+    ],
+  )
+  public async setCandidateSelection(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: SetCandidateSelectionBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.setCandidateSelectionUseCase.handle({
+          actorUserId: principal.userId,
+          order: body.selection.order,
+          reason: body.selection.reason,
         }),
       )
       .build();

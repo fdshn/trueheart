@@ -66,6 +66,27 @@ export class AdminConfigRepository implements IAdminConfigRepository {
     return rows[0]?.allowed === true;
   }
 
+  public async getConfigValue(key: string): Promise<unknown> {
+    // Cùng bộ điều kiện với `getPublishedConfigs`: bản đang hiệu lực NGAY BÂY
+    // GIỜ. Thiếu `effective_from <= now()` là đọc trúng bản hẹn giờ chưa tới
+    // hạn, tức áp chính sách trước ngày Admin đã chọn.
+    const [row] = await this.manager.query<{ value_json: unknown }[]>(
+      `
+        SELECT value_json
+        FROM system_configs
+        WHERE config_key = $1
+          AND status = 'PUBLISHED'
+          AND effective_from <= now()
+          AND (effective_to IS NULL OR effective_to > now())
+        ORDER BY version DESC
+        LIMIT 1
+      `,
+      [key],
+    );
+
+    return row?.value_json ?? null;
+  }
+
   public async getPublishedConfigs(): Promise<ISystemConfigSummary[]> {
     const rows = await this.manager.query<IConfigRow[]>(
       `

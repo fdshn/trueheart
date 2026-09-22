@@ -16,6 +16,7 @@ import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import { GiftRequestEntity } from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
+import { pickNextCandidate } from '@chantam.vn/chantam.core-lib/models';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
 import { GiftRequestRepository } from '../src/infrastructure/repository/gift-request.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
@@ -418,10 +419,25 @@ async function main(): Promise<void> {
       closed.queue.reopenedCount === 1,
       `reopened=${closed.queue.reopenedCount}`,
     );
+    // Repository chỉ cấp SỐ ĐO; xếp hạng là chính sách và Admin cấu hình được
+    // (CH-1). Ở đây áp cả hai thứ tự trên CÙNG một tập ứng viên để chứng minh
+    // đổi cấu hình là đổi người được đề xuất — trên database thật, không mock.
     check(
-      'người kế tiếp là người vào hàng đợi SỚM NHẤT còn lại',
-      closed.queue.nextCandidateId === requesterId(1),
-      String(closed.queue.nextCandidateId),
+      'mặc định: người vào hàng đợi SỚM NHẤT được đề xuất',
+      pickNextCandidate(closed.queue.candidates, null)?.requesterId ===
+        requesterId(1),
+      String(pickNextCandidate(closed.queue.candidates, null)?.requesterId),
+    );
+    check(
+      'số đo lấy được đủ để xếp theo mọi tiêu chí',
+      closed.queue.candidates.every(
+        (entry) =>
+          typeof entry.receivedCount === 'number' &&
+          typeof entry.cancellationCount === 'number' &&
+          entry.queueJoinedAt instanceof Date &&
+          Number.isInteger(entry.requestId),
+      ),
+      JSON.stringify(closed.queue.candidates[0]),
     );
     check(
       'người vừa bị huỷ KHÔNG quay lại hàng đợi',
@@ -468,9 +484,108 @@ async function main(): Promise<void> {
     });
     check(
       'không còn ai thì không đề xuất người kế tiếp',
-      soloClosed.queue.nextCandidateId === null &&
+      soloClosed.queue.candidates.length === 0 &&
         soloClosed.queue.reopenedCount === 0,
       JSON.stringify(soloClosed.queue),
+    );
+
+    // ── 5. Thứ tự ưu tiên do Admin cấu hình (CH-1) ──────────────────────────
+    console.log('\nThứ tự ưu tiên chọn người nhận:\n');
+
+    // Ba người xin: người xin SỚM NHẤT có hạng thấp nhất, để hai chính sách cho
+    // hai kết quả khác nhau rõ rệt.
+    await seedRound(dataSource, 802, 1, 3);
+    await dataSource.query(
+      `UPDATE users SET rank = 'DIAMOND' WHERE global_id = $1`,
+      [requesterId(2)],
+    );
+
+    const rankAccepted = await giftRequests.acceptRequest({
+      requestId: requestId(802, 0),
+      postId: PostId,
+      giverId: GiverId,
+      transactionId: `55555555-5555-4555-8555-${suffix('5a', 802, 0)}`,
+    });
+    const rankClosed = await giftTransactions.close({
+      transactionId: rankAccepted.transactionId,
+      actorUserId: GiverId,
+      status: 'CANCELLED',
+      reason: 'Kiểm tra thứ tự ưu tiên',
+    });
+
+    check(
+      'ưu tiên ai xin trước thì chọn người xin sớm hơn',
+      pickNextCandidate(rankClosed.queue.candidates, [
+        'QUEUE_JOINED_EARLIEST',
+      ])?.requesterId === requesterId(1),
+      String(
+        pickNextCandidate(rankClosed.queue.candidates, [
+          'QUEUE_JOINED_EARLIEST',
+        ])?.requesterId,
+      ),
+    );
+    check(
+      'ưu tiên hạng cao thì chọn người Kim Cương, dù họ xin sau',
+      pickNextCandidate(rankClosed.queue.candidates, ['HIGHEST_RANK'])
+        ?.requesterId === requesterId(2),
+      String(
+        pickNextCandidate(rankClosed.queue.candidates, ['HIGHEST_RANK'])
+          ?.requesterId,
+      ),
+    );
+    check(
+      'cấu hình rác vẫn chạy, rơi về mặc định',
+      pickNextCandidate(rankClosed.queue.candidates, ['KHONG_TON_TAI'])
+        ?.requesterId === requesterId(1),
+    );
+
+    // Nhánh ST_Distance: người xin ở xa VÀ người ở gần, để câu SQL tính khoảng
+    // cách thật sự chạy. Không đặt Vị trí mặc định thì `distance_meters` luôn
+    // NULL và tiêu chí NEAREST chưa từng được kiểm.
+    await seedRound(dataSource, 803, 1, 3);
+    await dataSource.query(
+      `UPDATE users SET default_location =
+         ST_SetSRID(ST_MakePoint(106.700, 10.7730), 4326)::geography
+       WHERE global_id = $1`,
+      [requesterId(2)],
+    );
+    await dataSource.query(
+      `UPDATE users SET default_location =
+         ST_SetSRID(ST_MakePoint(108.200, 16.0500), 4326)::geography
+       WHERE global_id = $1`,
+      [requesterId(1)],
+    );
+
+    const nearAccepted = await giftRequests.acceptRequest({
+      requestId: requestId(803, 0),
+      postId: PostId,
+      giverId: GiverId,
+      transactionId: `55555555-5555-4555-8555-${suffix('5b', 803, 0)}`,
+    });
+    const nearClosed = await giftTransactions.close({
+      transactionId: nearAccepted.transactionId,
+      actorUserId: GiverId,
+      status: 'CANCELLED',
+      reason: 'Kiểm tra tiêu chí khoảng cách',
+    });
+
+    const withDistance = nearClosed.queue.candidates.filter(
+      (entry) => entry.distanceMeters !== null,
+    );
+    check(
+      'ST_Distance trả về số thật cho người đã đặt Vị trí mặc định',
+      withDistance.length === 2 &&
+        withDistance.every((entry) => Number(entry.distanceMeters) > 0),
+      JSON.stringify(withDistance.map((entry) => entry.distanceMeters)),
+    );
+    check(
+      'ưu tiên gần nhất thì chọn người ở Quận 1, không phải người ở Đà Nẵng',
+      pickNextCandidate(nearClosed.queue.candidates, ['NEAREST'])
+        ?.requesterId === requesterId(2),
+      String(
+        pickNextCandidate(nearClosed.queue.candidates, ['NEAREST'])
+          ?.requesterId,
+      ),
     );
   } finally {
     await dataSource.destroy();

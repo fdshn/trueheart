@@ -404,8 +404,11 @@ Khi lượt trao bị huỷ:
 | Người đã tự rút | Giữ `WITHDRAWN`, không bị kéo trở lại |
 
 **Hệ thống chỉ đề xuất, không tự trao.** Người cho nhận thông báo kèm số người còn trong
-hàng đợi; ứng viên vào sớm nhất nhận thông báo *"đang được xét tiếp"* — cố ý **không** nói
+hàng đợi; ứng viên được đề xuất nhận thông báo *"đang được xét tiếp"* — cố ý **không** nói
 "đã được chọn", vì chưa ai chọn họ. Không có giao dịch nào được tạo tự động.
+
+**Ai được đề xuất là do Admin cấu hình** (CH-1), không cố định "ai xin trước". Xem
+[§11 Quản trị](#11-quản-trị--admin) cho endpoint đổi thứ tự ưu tiên.
 
 Người đang `STANDBY` **rút được** yêu cầu, và **không** gửi lại được yêu cầu mới (trả
 `GIFT_REQUEST_DUPLICATED`): họ vẫn đang có một yêu cầu mở, và gửi lại sẽ reset thứ tự hàng
@@ -680,6 +683,27 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 - `/admin/system-logs` gom bốn nguồn thật (`admin_audit_logs`, `point_ledger`,
   `rank_transitions`, `gift_transactions`) về một hình dạng chung, lọc bằng `logType`.
 
+
+### Thứ tự ưu tiên chọn người nhận (CH-1)
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/admin/candidate-selection` | `config.read` | Thứ tự đang có hiệu lực |
+| `PUT` | `/admin/candidate-selection` | `config.write` | Đặt thứ tự mới, kèm `reason` |
+
+Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_RECEIVED`,
+`FEWEST_CANCELLATIONS`. Phần tử đầu là tiêu chí số 1; hoà thì xét tiêu chí sau.
+
+- **Không cần khai đủ.** Tiêu chí thiếu tự xuống cuối theo thứ tự mặc định — thiếu tiêu chí
+  nghĩa là tới đoạn đó không còn gì phá thế hoà, và hai ứng viên sẽ xếp theo thứ tự ngẫu
+  nhiên của database.
+- **`GET` trả thứ tự ĐÃ CHUẨN HOÁ**, tức thứ tự hệ thống thật sự dùng — không phải chuỗi thô
+  Admin gõ vào. `isConfigured: false` nghĩa là chưa ai đặt và đang chạy mặc định.
+- **Cấu hình rác không làm chết tính năng**: mã lạ bị bỏ, và nếu không còn gì hợp lệ thì rơi
+  về mặc định. Quyết định "ai được nhận quà" không được phép dừng vì một dòng config sai.
+- Ai chưa đặt Vị trí mặc định thì xếp **sau cùng** ở tiêu chí `NEAREST`, không phải coi như
+  0 mét — coi là 0 sẽ thưởng cho việc không khai thông tin.
+- Ghi theo copy-on-write như mọi system config: `reason` bắt buộc và đi thẳng vào audit log.
 ---
 
 ## 12. Tương thích cũ — `/gift-posts`

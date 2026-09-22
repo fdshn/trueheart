@@ -1,5 +1,7 @@
 import { AutoCompleteAfterDays } from '@/application/contracts/transaction';
 import { IGiftTransactionSummary } from '@/domain/ports/repository';
+import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
 import {
   AcceptGiftRequestUseCase,
   CancelGiftTransactionUseCase,
@@ -11,6 +13,39 @@ import {
 
 const UserId = '10000000-0000-4000-8000-000000000001';
 const NextCandidateId = '10000000-0000-4000-8000-000000000009';
+const SeniorCandidateId = '10000000-0000-4000-8000-000000000008';
+
+/** Xin trước nhưng hạng thấp. */
+const EarlyCandidate: ICandidateMetrics = {
+  requesterId: NextCandidateId,
+  queueJoinedAt: new Date('2026-09-01T08:00:00.000Z'),
+  requestId: 1,
+  rank: UserRanks.MEMBER,
+  distanceMeters: 5_000,
+  receivedCount: 0,
+  cancellationCount: 0,
+};
+
+/** Xin sau nhưng hạng cao. */
+const SeniorCandidate: ICandidateMetrics = {
+  requesterId: SeniorCandidateId,
+  queueJoinedAt: new Date('2026-09-01T09:00:00.000Z'),
+  requestId: 2,
+  rank: UserRanks.DIAMOND,
+  distanceMeters: 1_000,
+  receivedCount: 0,
+  cancellationCount: 0,
+};
+
+/**
+ * Cấu hình động của Admin. `null` nghĩa là chưa cấu hình gì — use case phải rơi
+ * về thứ tự mặc định chứ không ném lỗi.
+ */
+function makeAdminConfig(order: string[] | null = null) {
+  return {
+    getConfigValue: jest.fn(async (_key: string): Promise<unknown> => order),
+  };
+}
 const PostId = '30000000-0000-4000-8000-000000000001';
 const TransactionId = '40000000-0000-4000-8000-000000000003';
 
@@ -65,13 +100,15 @@ function makeRepository() {
         _params: unknown,
       ): Promise<{
         transaction: IGiftTransactionSummary;
-        // Khai `string | null` thay vì để TypeScript suy ra `string`: test phủ
-        // nhánh hàng đợi rỗng cần gán `null`, và kiểu suy ra sẽ chặn nó.
-        queue: { reopenedCount: number; nextCandidateId: string | null };
+        queue: { reopenedCount: number; candidates: ICandidateMetrics[] };
       }> => ({
         transaction: { ...Summary, status: 'CANCELLED' as const },
-        // Một người còn trong hàng đợi, để kiểm nhánh có đề xuất (F33).
-        queue: { reopenedCount: 1, nextCandidateId: NextCandidateId },
+        // Hai ứng viên khác nhau ở HẠNG và ở THỜI ĐIỂM vào hàng đợi, để đổi
+        // thứ tự ưu tiên là đổi người được đề xuất.
+        queue: {
+          reopenedCount: 2,
+          candidates: [EarlyCandidate, SeniorCandidate],
+        },
       }),
     ),
     listForUser: jest.fn(async (_userId: string) => [Summary]),
@@ -148,6 +185,50 @@ describe('Gift transaction use cases', () => {
     await new CancelGiftTransactionUseCase(
       repository as never,
       notifier as never,
+      makeAdminConfig() as never,
+    ).handle({
+      userId: UserId,
+      transactionId: TransactionId,
+      cancellation: { reason: 'Không sắp xếp được' },
+    });
+
+    const targets = notifier.handle.mock.calls.map(
+      ([command]) => (command as { userId: string }).userId,
+    );
+    // Chưa cấu hình gì thì mặc định ưu tiên ai xin trước.
+    expect(targets).toEqual([Summary.giverId, NextCandidateId]);
+  });
+
+  it('Admin đổi thứ tự ưu tiên thì đổi người được đề xuất (CH-1)', async () => {
+    // Toàn bộ lý do tồn tại của cấu hình động: cùng dữ liệu, hai chính sách,
+    // hai người khác nhau được đề xuất.
+    const repository = makeRepository();
+    const notifier = makeNotifier();
+
+    await new CancelGiftTransactionUseCase(
+      repository as never,
+      notifier as never,
+      makeAdminConfig(['HIGHEST_RANK']) as never,
+    ).handle({
+      userId: UserId,
+      transactionId: TransactionId,
+      cancellation: { reason: 'Không sắp xếp được' },
+    });
+
+    const targets = notifier.handle.mock.calls.map(
+      ([command]) => (command as { userId: string }).userId,
+    );
+    expect(targets).toEqual([Summary.giverId, SeniorCandidateId]);
+  });
+
+  it('cấu hình rác thì rơi về mặc định, không ném lỗi', async () => {
+    const repository = makeRepository();
+    const notifier = makeNotifier();
+
+    await new CancelGiftTransactionUseCase(
+      repository as never,
+      notifier as never,
+      makeAdminConfig(['KHONG_TON_TAI']) as never,
     ).handle({
       userId: UserId,
       transactionId: TransactionId,
@@ -169,6 +250,7 @@ describe('Gift transaction use cases', () => {
     await new CancelGiftTransactionUseCase(
       repository as never,
       notifier as never,
+      makeAdminConfig() as never,
     ).handle({
       userId: UserId,
       transactionId: TransactionId,
@@ -187,13 +269,14 @@ describe('Gift transaction use cases', () => {
     const repository = makeRepository();
     repository.close = jest.fn(async (_params: unknown) => ({
       transaction: { ...Summary, status: 'CANCELLED' as const },
-      queue: { reopenedCount: 0, nextCandidateId: null },
+      queue: { reopenedCount: 0, candidates: [] },
     }));
     const notifier = makeNotifier();
 
     await new CancelGiftTransactionUseCase(
       repository as never,
       notifier as never,
+      makeAdminConfig() as never,
     ).handle({
       userId: UserId,
       transactionId: TransactionId,
@@ -208,6 +291,7 @@ describe('Gift transaction use cases', () => {
     const useCase = new CancelGiftTransactionUseCase(
       repository as never,
       makeNotifier() as never,
+      makeAdminConfig() as never,
     );
 
     await useCase.handle({

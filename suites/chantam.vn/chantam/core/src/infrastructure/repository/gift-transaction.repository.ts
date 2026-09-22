@@ -15,6 +15,8 @@ import {
   IReopenedQueue,
   IRequestGiftParams,
 } from '@/domain/ports/repository';
+import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
@@ -330,24 +332,79 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
       [params.postId],
     );
 
-    // Đọc lại theo `queue_joined_at` thay vì lấy phần tử đầu của `RETURNING`:
-    // thứ tự dòng trả về của UPDATE là không xác định, nên "người kế tiếp" lấy
-    // từ đó sẽ thay đổi giữa hai lần chạy giống nhau.
-    const [next] = await manager.query<{ requester_id: string }[]>(
-      `
-        SELECT requester_id
-        FROM gift_requests
-        WHERE post_id = $1 AND status = 'PENDING' AND deleted_at IS NULL
-        ORDER BY queue_joined_at ASC, id ASC
-        LIMIT 1
-      `,
-      [params.postId],
-    );
-
     return {
       reopenedCount: reopened.length,
-      nextCandidateId: next?.requester_id ?? null,
+      candidates: await this.findCandidateMetrics(manager, params.postId),
     };
+  }
+
+  /**
+   * Số đo của mọi ứng viên còn chờ xét trên một bài, trong MỘT truy vấn.
+   *
+   * Không xếp thứ tự ở đây: thứ tự ưu tiên do Admin cấu hình (CH-1), nên xếp
+   * hạng là chính sách nghiệp vụ và nằm ở tầng application. Repository chỉ cấp
+   * số liệu.
+   *
+   * `ORDER BY` chỉ để kết quả tất định giữa hai lần chạy giống nhau, không mang
+   * ý nghĩa ưu tiên.
+   */
+  private async findCandidateMetrics(
+    manager: EntityManager,
+    postId: string,
+  ): Promise<ICandidateMetrics[]> {
+    const rows = await manager.query<
+      {
+        requester_id: string;
+        queue_joined_at: Date;
+        request_id: string;
+        rank: string;
+        distance_meters: string | null;
+        received_count: string;
+        cancellation_count: string;
+      }[]
+    >(
+      `
+        SELECT
+          request.requester_id,
+          request.queue_joined_at,
+          request.id AS request_id,
+          requester.rank,
+          -- Khoảng cách từ Vị trí mặc định của người xin tới vị trí bài.
+          -- NULL khi họ chưa đặt vị trí; tầng application xếp họ xuống cuối chứ
+          -- KHÔNG coi như 0 mét.
+          CASE
+            WHEN requester.default_location IS NULL THEN NULL
+            ELSE ST_Distance(requester.default_location, post.location)
+          END AS distance_meters,
+          (SELECT COUNT(*) FROM gift_transactions completed
+            WHERE completed.receiver_id = request.requester_id
+              AND completed.status = 'COMPLETED') AS received_count,
+          (SELECT COUNT(*) FROM gift_transactions cancelled
+            WHERE cancelled.closed_by = request.requester_id
+              AND cancelled.status = 'CANCELLED') AS cancellation_count
+        FROM gift_requests request
+        -- Alias requester chứ không phải user: user là từ khoá reserved của
+        -- Postgres, kể cả dạng AS user cũng là lỗi cú pháp.
+        JOIN users requester ON requester.global_id = request.requester_id
+        JOIN posts post ON post.global_id = request.post_id
+        WHERE request.post_id = $1
+          AND request.status = 'PENDING'
+          AND request.deleted_at IS NULL
+        ORDER BY request.queue_joined_at ASC, request.id ASC
+      `,
+      [postId],
+    );
+
+    return rows.map((row) => ({
+      requesterId: row.requester_id,
+      queueJoinedAt: row.queue_joined_at,
+      requestId: Number(row.request_id),
+      rank: row.rank as UserRanks,
+      distanceMeters:
+        row.distance_meters === null ? null : Number(row.distance_meters),
+      receivedCount: Number(row.received_count),
+      cancellationCount: Number(row.cancellation_count),
+    }));
   }
 
   public async countClosedBy(

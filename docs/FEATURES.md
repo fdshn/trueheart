@@ -317,8 +317,13 @@ Bài có nhiều vật phẩm thì `remaining_quantity` phải **giảm nguyên 
 > đọc-rồi-ghi ở tầng ứng dụng**. Một nghìn người xin cùng lúc sẽ phát vượt kho.
 
 ### F33 — Hàng đợi dự phòng
-Ứng viên chưa được chọn nằm trong hàng đợi. Khi giao dịch bị huỷ, hệ thống **đề xuất và
-thông báo** người kế tiếp — **không tự trao** khi chưa có xác nhận của người cho.
+Ứng viên chưa được chọn nằm trong hàng đợi (`STANDBY`). Khi giao dịch bị huỷ, hệ thống **đề
+xuất và thông báo** người kế tiếp — **không tự trao** khi chưa có xác nhận của người cho.
+
+Thứ tự đề xuất theo **thứ tự ưu tiên Admin cấu hình** (CH-1), không cố định: `QUEUE_JOINED_EARLIEST`,
+`HIGHEST_RANK`, `NEAREST`, `FEWEST_RECEIVED`, `FEWEST_CANCELLATIONS`. Cùng một chính sách
+dùng cho [F75](#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm). Xem
+[ASSUMPTIONS · CH-1](./plan/ASSUMPTIONS.md#ch-1--thứ-tự-ưu-tiên-chọn-người-nhận-admin-cấu-hình).
 
 ### F34 — Chấp nhận giao dịch & mở chat
 Khi duyệt người nhận, **trong cùng một transaction database**: tạo Transaction trạng thái
