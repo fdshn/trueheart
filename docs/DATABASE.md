@@ -56,6 +56,7 @@ Ba hệ quả cần nhớ:
 | `gift_posts_status_enum` | `DRAFT` · `PENDING_REVIEW` · `REJECTED` · `PUBLISHED` · `RESERVED` · `DELIVERING` · `COMPLETED` · `CANCELLED` · `EXPIRED` · `ARCHIVED` |
 | `gift_posts_category_enum` | `HOUSEHOLD` · `CLOTHING` · `BOOKS` · `ELECTRONICS` · `FURNITURE` · `VEHICLE` · `MEDICAL` · `FOOD` · `NON_MATERIAL` · `OTHER` |
 | `gift_posts_condition_enum` | `NEW` · `LIKE_NEW` · `USED` · `NOT_APPLICABLE` |
+| `posts_selection_mode_enum` | `INSTANT` · `OPTIMAL` · `EXTENDED` |
 
 `posts.status` **dùng lại** `gift_posts_status_enum` chứ không có enum riêng — tên enum
 mang tiền tố lịch sử, đừng đọc nó thành "chỉ áp dụng cho `gift_posts`".
@@ -189,6 +190,9 @@ phần dữ liệu riêng của từng loại nằm trong `details` (jsonb).
 | `details` | `jsonb` mặc định `'{}'` | Trường riêng theo loại bài |
 | `expires_at` | `timestamptz` NULL | |
 | `renewed_count` | `integer` mặc định `0` | Số lần gia hạn |
+| `selection_mode` | `posts_selection_mode_enum` NOT NULL | Mặc định `OPTIMAL` (`INSTANT` · `OPTIMAL` · `EXTENDED`) |
+| `selection_deadline` | `timestamptz` NULL | Set khi có request đầu tiên |
+| `like_count` | `integer` mặc định `0` | Denormalized đếm từ `post_likes` |
 
 Bốn index, mỗi cái phục vụ một truy vấn cụ thể:
 
@@ -218,6 +222,21 @@ hình chung.
 
 Hai ràng buộc duy nhất: `(post_id, sort_order)` giữ thứ tự ảnh không đụng nhau, và
 `(post_id, r2_key)` làm việc gắn ảnh **idempotent** — gọi lại API upload không sinh bản ghi trùng.
+
+### `post_likes`
+
+Bảng lưu lượt thích bài đăng (toggle like/unlike).
+
+| Cột | Kiểu | Ghi chú |
+| --- | --- | --- |
+| `id` | `BIGSERIAL` PK | Không có `global_id` |
+| `user_id` | `uuid` NOT NULL | FK → `users(global_id)` |
+| `post_id` | `uuid` NOT NULL | FK → `posts(global_id)` |
+| `created_at` | `timestamptz` | |
+
+- Ràng buộc `UNIQUE ("user_id", "post_id")` ngăn chặn việc một người dùng thích một bài đăng nhiều lần.
+- Chỉ mục `INDEX ("post_id")` hỗ trợ tra cứu nhanh danh sách người thích một bài.
+- Thao tác unlike thực hiện xoá cứng bản ghi khỏi bảng và giảm `posts.like_count` trong cùng transaction.
 
 ### `gift_posts` — bảng nguyên mẫu, không dùng cho code mới
 

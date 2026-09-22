@@ -229,6 +229,7 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 | `POST` | `/posts/:postId/media` | Bearer (chủ bài) | Gắn ảnh đã upload |
 | `PATCH` | `/posts/:postId/media/order` | Bearer (chủ bài) | Thay toàn bộ thứ tự ảnh |
 | `DELETE` | `/posts/:postId/media/:mediaId` | Bearer (chủ bài) | Gỡ một ảnh |
+| `POST` | `/posts/:postId/like` | Bearer | Thích hoặc bỏ thích bài đăng (toggle like) |
 
 ### Tạo bài — cổng kiểm tra theo thứ tự
 
@@ -263,6 +264,8 @@ Mặc định `negotiable = false` vì hiểu im lặng thành "có thương lư
 một điều họ không nói.
 
 `totalQuantity` chỉ có nghĩa với `OFFER`; các loại khác bị ép về 1.
+
+`selectionMode` ([F79](./FEATURES.md#f79--chế-độ-tìm-người-nhận-selection-modes)) chỉ áp dụng cho bài `OFFER`: `INSTANT` (chọn ngay người đầu tiên), `OPTIMAL` (mặc định, chờ tối đa 7 ngày), `EXTENDED` (chờ tối đa 30 ngày cho vật phẩm giá trị cao). Loại bài khác truyền lên sẽ bị từ chối.
 
 > **Quota hiện dùng chung một rổ.** `CLASSIFIED` đang tính vào capability `POST_OFFER`, và
 > bộ đếm quota đếm **mọi** bài đang mở bất kể loại. Muốn tách thì thêm capability
@@ -387,6 +390,19 @@ lifecycle riêng.
 
 `@Get('me')`, `@Get('nearby')`, `@Get('map')` phải đứng **trước** `@Get(':postId')`. Nếu
 không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ chạy.
+
+### `GET /posts/:postId` — Chi tiết bài đăng & Quyền riêng tư tác giả
+
+- **Bảo mật tác giả ([F80](./FEATURES.md#f80--bảo-vệ-thông-tin-người-cho--contact-info-gating))**: `author` chỉ mang `id`, `username`, `avatarUrl`, `rank`, `joinedAt`. Tuyệt đối không trả `fullName`, `phone`, hay địa chỉ cụ thể ra kênh công khai.
+- **Thông tin liên lạc (`contactInfo`)**: Chứa `phone` và `address`. CHỈ hiển thị khi caller là chính tác giả (`authorId == currentUserId`) hoặc là người nhận (receiver) đã được duyệt chính thức trong giao dịch đang ở trạng thái `DELIVERING` hoặc `COMPLETED`. Mọi đối tượng khác nhận `contactInfo: null`.
+- **Thống kê tương tác**: Trả về `likeCount` (tổng lượt thích) và `isLiked` (caller đã thích chưa; `null` nếu khách chưa đăng nhập).
+
+### `POST /posts/:postId/like` — Thích hoặc bỏ thích bài đăng ([F81](./FEATURES.md#f81--tương-tác-yêu-thích-bài-đăng))
+
+- Yêu cầu đăng nhập (`Bearer`).
+- Cơ chế **toggle**: nếu chưa thích thì thêm vào `post_likes` và `likeCount++`; nếu đã thích rồi thì xoá khỏi `post_likes` và `likeCount--`.
+- Trả về `{ liked: boolean, likeCount: number }`.
+- Cập nhật số đếm nguyên tử trong database, loại bỏ nhu cầu `COUNT(*)` khi hiển thị chi tiết bài.
 
 ### Xin nhận đồ — `/posts/:postId/requests`
 
