@@ -2,6 +2,7 @@ import {
   CharityTransferStatuses,
   DeliveryMethods,
   GiftPostStatuses,
+  PostSelectionModes,
   PostTypes,
   ShipPayers,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -134,4 +135,31 @@ export class PostEntity
     nullable: true,
   })
   charityTransferNote: string | null;
+
+  @ApiProperty({
+    enum: PostSelectionModes,
+    description:
+      'Chế độ tìm người nhận. Chỉ có ý nghĩa với bài OFFER. ' +
+      'INSTANT=chọn ngay, OPTIMAL=7 ngày, EXTENDED=30 ngày.',
+    default: PostSelectionModes.OPTIMAL,
+  })
+  @Column({
+    name: 'selection_mode',
+    type: 'enum',
+    enum: PostSelectionModes,
+    default: PostSelectionModes.OPTIMAL,
+  })
+  selectionMode: PostSelectionModes;
+
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Deadline tự động chọn người nhận. null cho đến khi có request đầu tiên.',
+  })
+  @Column({ name: 'selection_deadline', type: 'timestamptz', nullable: true })
+  selectionDeadline: Date | null;
+
+  @ApiProperty({ description: 'Tổng số lượt thích bài đăng.', default: 0 })
+  @Column({ name: 'like_count', type: 'int', default: 0 })
+  likeCount: number;
 }

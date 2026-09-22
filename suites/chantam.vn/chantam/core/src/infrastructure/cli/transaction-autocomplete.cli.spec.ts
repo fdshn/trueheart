@@ -1,3 +1,7 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const nodeCrypto = require('node:crypto');
+(globalThis as any).crypto = nodeCrypto.webcrypto ?? nodeCrypto;
+
 // ConfigModule validate biến môi trường ngay lúc nạp, mà jest chạy với
 // NODE_ENV=test — không nằm trong danh sách hợp lệ của service.
 jest.mock('../config/config.module', () => ({

@@ -20,6 +20,7 @@ import {
 import {
   DeliveryMethods,
   GiftPostStatuses,
+  PostSelectionModes,
   PostTypes,
   UserRanks,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -152,6 +153,18 @@ export class CreatePostUseCase implements ICreatePostUseCase {
         'shipPayer chỉ khai được khi deliveryMethod là GIVER_SHIPS',
       ]);
 
+    // selectionMode chỉ có ý nghĩa với bài OFFER. Bài khác truyền lên thì báo
+    // lỗi ngay tại use case — DTO optional không che được sai ngữ nghĩa.
+    if (post.selectionMode !== undefined && post.postType !== PostTypes.OFFER) {
+      throw new ValidationFailedException([
+        'selectionMode chỉ áp dụng cho bài OFFER',
+      ]);
+    }
+    const selectionMode =
+      post.postType === PostTypes.OFFER
+        ? (post.selectionMode ?? PostSelectionModes.OPTIMAL)
+        : PostSelectionModes.OPTIMAL;
+
     const totalQuantity =
       post.postType === PostTypes.OFFER ? (post.totalQuantity ?? 1) : 1;
     const capability = await this.entitlementRepository.getCapability(
@@ -184,6 +197,9 @@ export class CreatePostUseCase implements ICreatePostUseCase {
         charityTransferStatus: null,
         charityTransferRequestedAt: null,
         charityTransferNote: null,
+        selectionMode,
+        selectionDeadline: null,
+        likeCount: 0,
         deletedAt: null,
       },
     );

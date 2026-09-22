@@ -5,6 +5,7 @@ export * from './gift-post.entity';
 export * from './gift-request.entity';
 export * from './notification.entity';
 export * from './onboarding-task.entity';
+export * from './post-like.entity';
 export * from './post-media.entity';
 export * from './post.entity';
 export * from './user-onboarding-task-completion.entity';

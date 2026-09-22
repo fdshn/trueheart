@@ -777,6 +777,24 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     return Number(row?.total ?? 0);
   }
 
+  public async isReceiverOfPost(
+    postId: string,
+    receiverId: string,
+  ): Promise<boolean> {
+    const [row] = await this.manager.query<{ count: string }[]>(
+      `
+        SELECT COUNT(*) AS count
+        FROM gift_transactions
+        WHERE post_id = $1
+          AND receiver_id = $2
+          AND status IN ('ACCEPTED', 'DELIVERING', 'COMPLETED')
+      `,
+      [postId, receiverId],
+    );
+
+    return Number(row?.count ?? 0) > 0;
+  }
+
   private async lockTransaction(
     manager: EntityManager,
     transactionId: string,

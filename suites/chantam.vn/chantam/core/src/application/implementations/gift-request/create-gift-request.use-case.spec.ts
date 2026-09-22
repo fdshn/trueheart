@@ -11,6 +11,7 @@ import {
 import {
   GiftPostStatuses,
   GiftRequestStatuses,
+  PostSelectionModes,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
@@ -35,6 +36,9 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     location: { lat: 10.7724, lng: 106.698 },
     areaLabel: 'Quận 1, TP.HCM',
     status: GiftPostStatuses.PUBLISHED,
+    selectionMode: PostSelectionModes.OPTIMAL,
+    selectionDeadline: null,
+    likeCount: 0,
     totalQuantity: 1,
     remainingQuantity: 1,
     details: {},
@@ -72,18 +76,39 @@ function makeRequest(
   };
 }
 
+function makeGiftRequestRepo(
+  overrides: Partial<jest.Mocked<IGiftRequestRepository>> = {},
+): jest.Mocked<IGiftRequestRepository> {
+  return {
+    countActiveByPostIds: jest.fn().mockResolvedValue(new Map([[PostId, 1]])),
+    findByPostAndRequester: jest.fn().mockResolvedValue(null),
+    insert: jest.fn().mockResolvedValue({ identifiers: [] }),
+    findOneByOrFail: jest.fn().mockResolvedValue(makeRequest()),
+    save: jest.fn().mockResolvedValue(makeRequest()),
+    acceptRequest: jest.fn().mockResolvedValue(undefined),
+    ...overrides,
+  } as unknown as jest.Mocked<IGiftRequestRepository>;
+}
+
+function makePostRepo(
+  overrides: Partial<jest.Mocked<IPostRepository>> = {},
+): jest.Mocked<IPostRepository> {
+  return {
+    findOneBy: jest.fn().mockResolvedValue(makePost()),
+    save: jest
+      .fn()
+      .mockImplementation((post: IPostEntity) => Promise.resolve(post)),
+    ...overrides,
+  } as unknown as jest.Mocked<IPostRepository>;
+}
+
 describe('CreateGiftRequestUseCase', () => {
   it('tạo yêu cầu thành công khi bài viết hợp lệ và chưa từng yêu cầu', async () => {
-    const postRepo = {
-      findOneBy: jest.fn().mockResolvedValue(makePost()),
-    } as unknown as jest.Mocked<IPostRepository>;
-
+    const postRepo = makePostRepo();
     const created = makeRequest();
-    const giftRequestRepo = {
-      findByPostAndRequester: jest.fn().mockResolvedValue(null),
-      insert: jest.fn().mockResolvedValue({ identifiers: [] }),
+    const giftRequestRepo = makeGiftRequestRepo({
       findOneByOrFail: jest.fn().mockResolvedValue(created),
-    } as unknown as jest.Mocked<IGiftRequestRepository>;
+    });
 
     const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
     const result = await useCase.handle({
@@ -107,19 +132,17 @@ describe('CreateGiftRequestUseCase', () => {
   });
 
   it('cho phép nộp lại nếu trước đó đã rút (WITHDRAWN)', async () => {
-    const postRepo = {
-      findOneBy: jest.fn().mockResolvedValue(makePost()),
-    } as unknown as jest.Mocked<IPostRepository>;
+    const postRepo = makePostRepo();
 
     const existingWithdrawn = makeRequest({
       status: GiftRequestStatuses.WITHDRAWN,
       withdrawnAt: new Date(),
     });
 
-    const giftRequestRepo = {
+    const giftRequestRepo = makeGiftRequestRepo({
       findByPostAndRequester: jest.fn().mockResolvedValue(existingWithdrawn),
       save: jest.fn().mockResolvedValue(existingWithdrawn),
-    } as unknown as jest.Mocked<IGiftRequestRepository>;
+    });
 
     const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
     const result = await useCase.handle({
@@ -133,6 +156,94 @@ describe('CreateGiftRequestUseCase', () => {
     expect(existingWithdrawn.withdrawnAt).toBeNull();
     expect(giftRequestRepo.save).toHaveBeenCalledWith(existingWithdrawn);
     expect(result.request.status).toBe(GiftRequestStatuses.PENDING);
+  });
+
+  it('tính deadline 7 ngày khi nhận request đầu tiên cho bài OPTIMAL', async () => {
+    const post = makePost({
+      selectionMode: PostSelectionModes.OPTIMAL,
+      selectionDeadline: null,
+    });
+    const postRepo = makePostRepo({
+      findOneBy: jest.fn().mockResolvedValue(post),
+    });
+    const giftRequestRepo = makeGiftRequestRepo({
+      countActiveByPostIds: jest.fn().mockResolvedValue(new Map([[PostId, 0]])),
+    });
+
+    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    await useCase.handle({
+      postId: PostId,
+      requesterId: RequesterId,
+      message: 'Em xin món này ạ',
+    });
+
+    expect(postRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selectionDeadline: expect.any(Date),
+      }),
+    );
+    expect(post.selectionDeadline).toBeDefined();
+    const diffDays = Math.round(
+      (post.selectionDeadline!.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
+    );
+    expect(diffDays).toBe(7);
+  });
+
+  it('tính deadline 30 ngày khi nhận request đầu tiên cho bài EXTENDED', async () => {
+    const post = makePost({
+      selectionMode: PostSelectionModes.EXTENDED,
+      selectionDeadline: null,
+    });
+    const postRepo = makePostRepo({
+      findOneBy: jest.fn().mockResolvedValue(post),
+    });
+    const giftRequestRepo = makeGiftRequestRepo({
+      countActiveByPostIds: jest.fn().mockResolvedValue(new Map([[PostId, 0]])),
+    });
+
+    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    await useCase.handle({
+      postId: PostId,
+      requesterId: RequesterId,
+      message: 'Em xin món này ạ',
+    });
+
+    expect(postRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selectionDeadline: expect.any(Date),
+      }),
+    );
+    const diffDays = Math.round(
+      (post.selectionDeadline!.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
+    );
+    expect(diffDays).toBe(30);
+  });
+
+  it('tự động chấp nhận ngay lập tức khi nhận request đầu tiên cho bài INSTANT', async () => {
+    const post = makePost({
+      selectionMode: PostSelectionModes.INSTANT,
+      selectionDeadline: null,
+    });
+    const postRepo = makePostRepo({
+      findOneBy: jest.fn().mockResolvedValue(post),
+    });
+    const giftRequestRepo = makeGiftRequestRepo({
+      countActiveByPostIds: jest.fn().mockResolvedValue(new Map([[PostId, 0]])),
+    });
+
+    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    await useCase.handle({
+      postId: PostId,
+      requesterId: RequesterId,
+      message: 'Em xin món này ạ',
+    });
+
+    expect(giftRequestRepo.acceptRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        postId: PostId,
+        giverId: post.authorId,
+      }),
+    );
   });
 
   it('ném PostNotFoundException nếu bài viết không tồn tại', async () => {
@@ -216,18 +327,14 @@ describe('CreateGiftRequestUseCase', () => {
   });
 
   it('bài còn hạn thì vẫn xin được bình thường', async () => {
-    const postRepo = {
+    const postRepo = makePostRepo({
       findOneBy: jest
         .fn()
         .mockResolvedValue(
           makePost({ expiresAt: new Date(Date.now() + 60_000) }),
         ),
-    } as unknown as jest.Mocked<IPostRepository>;
-    const giftRequestRepo = {
-      findByPostAndRequester: jest.fn().mockResolvedValue(null),
-      insert: jest.fn().mockResolvedValue({ identifiers: [] }),
-      findOneByOrFail: jest.fn().mockResolvedValue(makeRequest()),
-    } as unknown as jest.Mocked<IGiftRequestRepository>;
+    });
+    const giftRequestRepo = makeGiftRequestRepo();
 
     const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
 
@@ -241,16 +348,13 @@ describe('CreateGiftRequestUseCase', () => {
   });
 
   it('ném GiftRequestDuplicatedException nếu đã có yêu cầu PENDING', async () => {
-    const postRepo = {
-      findOneBy: jest.fn().mockResolvedValue(makePost()),
-    } as unknown as jest.Mocked<IPostRepository>;
-
+    const postRepo = makePostRepo();
     const existingPending = makeRequest({
       status: GiftRequestStatuses.PENDING,
     });
-    const giftRequestRepo = {
+    const giftRequestRepo = makeGiftRequestRepo({
       findByPostAndRequester: jest.fn().mockResolvedValue(existingPending),
-    } as unknown as jest.Mocked<IGiftRequestRepository>;
+    });
 
     const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
     await expect(
@@ -263,18 +367,14 @@ describe('CreateGiftRequestUseCase', () => {
   });
 
   it('ném GiftRequestDuplicatedException khi DB gặp race condition trùng khoá (code 23505)', async () => {
-    const postRepo = {
-      findOneBy: jest.fn().mockResolvedValue(makePost()),
-    } as unknown as jest.Mocked<IPostRepository>;
-
+    const postRepo = makePostRepo();
     const dbError = Object.assign(new Error('duplicate key value'), {
       code: '23505',
     });
-    const giftRequestRepo = {
+    const giftRequestRepo = makeGiftRequestRepo({
       findByPostAndRequester: jest.fn().mockResolvedValue(null),
       insert: jest.fn().mockRejectedValue(dbError),
-      findOneByOrFail: jest.fn(),
-    } as unknown as jest.Mocked<IGiftRequestRepository>;
+    });
 
     const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
     await expect(

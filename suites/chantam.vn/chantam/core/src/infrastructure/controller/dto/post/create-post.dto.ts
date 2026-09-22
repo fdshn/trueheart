@@ -2,6 +2,7 @@ import {
   DeliveryMethods,
   GenericMvpPostTypes,
   GiftPostConditions,
+  PostSelectionModes,
   PostTypes,
   ShipPayers,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -140,6 +141,17 @@ export class CreatePostDto implements ICreatePostDto {
   @IsOptional()
   @IsEnum(ShipPayers)
   shipPayer?: ShipPayers;
+
+  @ApiPropertyOptional({
+    enum: PostSelectionModes,
+    default: PostSelectionModes.OPTIMAL,
+    description:
+      'Chế độ chọn người nhận. Chỉ áp dụng cho bài tặng (OFFER). Mặc định là OPTIMAL.',
+  })
+  @ValidateIf((post) => post.postType === PostTypes.OFFER)
+  @IsOptional()
+  @IsEnum(PostSelectionModes)
+  selectionMode?: PostSelectionModes;
 }
 
 export class CreatePostBodyDto implements ICreatePostBodyDto {

@@ -6,6 +6,7 @@ import { IPostRepository } from '@/domain/ports/repository';
 import {
   GiftPostConditions,
   GiftPostStatuses,
+  PostSelectionModes,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
@@ -38,6 +39,9 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     charityTransferStatus: null,
     charityTransferRequestedAt: null,
     charityTransferNote: null,
+    selectionMode: PostSelectionModes.OPTIMAL,
+    selectionDeadline: null,
+    likeCount: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,

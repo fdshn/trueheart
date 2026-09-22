@@ -1,6 +1,8 @@
 import { IConfig } from '@/domain/ports/config';
 import {
   IGiftRequestRepository,
+  IGiftTransactionRepository,
+  IPostLikeRepository,
   IPostMediaRepository,
   IPostRepository,
   IUserRepository,
@@ -8,6 +10,7 @@ import {
 import {
   GiftPostStatuses,
   GiftRequestStatuses,
+  PostSelectionModes,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
@@ -28,6 +31,9 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     location: { ...ExactLocation },
     areaLabel: 'Quận 1, TP.HCM',
     status: GiftPostStatuses.PUBLISHED,
+    selectionMode: PostSelectionModes.OPTIMAL,
+    selectionDeadline: null,
+    likeCount: 0,
     totalQuantity: 1,
     remainingQuantity: 1,
     details: {},
@@ -96,13 +102,25 @@ const makeUserRepo = () =>
       globalId: '22222222-2222-2222-2222-222222222222',
       username: 'cu_si_minh_tue',
       fullName: 'Cư sĩ Minh Tuệ',
+      phone: '0901234567',
       avatarUrl: null,
       rank: 'SILVER',
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
     }),
   }) as unknown as jest.Mocked<IUserRepository>;
 
+const makeGiftTransactionRepo = () =>
+  ({
+    isReceiverOfPost: jest.fn().mockResolvedValue(false),
+  }) as unknown as jest.Mocked<IGiftTransactionRepository>;
+
+const makePostLikeRepo = () =>
+  ({
+    hasLiked: jest.fn().mockResolvedValue(false),
+  }) as unknown as jest.Mocked<IPostLikeRepository>;
+
 describe('GetPostUseCase', () => {
-  it('áp dụng geo jitter cho toạ độ trả ra qua kênh public và trả kèm số lượng yêu cầu', async () => {
+  it('áp dụng geo jitter cho toạ độ trả ra qua kênh public và bảo vệ quyền riêng tư (không trả fullName)', async () => {
     const postRepository = {
       findPublicByGlobalId: jest.fn().mockResolvedValue(makePost()),
     } as unknown as jest.Mocked<IPostRepository>;
@@ -110,12 +128,16 @@ describe('GetPostUseCase', () => {
       listByPostId: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<IPostMediaRepository>;
     const giftRequestRepository = makeGiftRequestRepo();
+    const giftTransactionRepository = makeGiftTransactionRepo();
+    const postLikeRepository = makePostLikeRepo();
     const userRepository = makeUserRepo();
 
     const result = await new GetPostUseCase(
       postRepository,
       postMediaRepository,
       giftRequestRepository,
+      giftTransactionRepository,
+      postLikeRepository,
       userRepository,
       makeConfig(),
     ).handle({
@@ -132,7 +154,58 @@ describe('GetPostUseCase', () => {
     expect(result.requestCount).toBe(2);
     expect(result.myRequestStatus).toBe(GiftRequestStatuses.PENDING);
     expect(result.hasRequested).toBe(true);
-    expect(result.author?.fullName).toBe('Cư sĩ Minh Tuệ');
+    // Privacy: author KHÔNG có fullName
+    expect(result.author?.username).toBe('cu_si_minh_tue');
+    expect(
+      (result.author as unknown as Record<string, unknown>).fullName,
+    ).toBeUndefined();
+    expect(result.author?.joinedAt).toEqual(
+      new Date('2026-01-01T00:00:00.000Z'),
+    );
+    // Người lạ xem bài: contactInfo = null
+    expect(result.contactInfo).toBeNull();
+    expect(result.isLiked).toBe(false);
+  });
+
+  it('tiết lộ contactInfo khi người xem là receiver đã được chọn', async () => {
+    const postRepository = {
+      findPublicByGlobalId: jest.fn().mockResolvedValue(makePost()),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const postMediaRepository = {
+      listByPostId: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<IPostMediaRepository>;
+    const giftRequestRepository = makeGiftRequestRepo();
+    const giftTransactionRepository = {
+      isReceiverOfPost: jest.fn().mockResolvedValue(true),
+    } as unknown as jest.Mocked<IGiftTransactionRepository>;
+    const postLikeRepository = {
+      hasLiked: jest.fn().mockResolvedValue(true),
+    } as unknown as jest.Mocked<IPostLikeRepository>;
+    const userRepository = makeUserRepo();
+
+    const receiverId = '88888888-8888-8888-8888-888888888888';
+    const result = await new GetPostUseCase(
+      postRepository,
+      postMediaRepository,
+      giftRequestRepository,
+      giftTransactionRepository,
+      postLikeRepository,
+      userRepository,
+      makeConfig(),
+    ).handle({
+      postId: PostId,
+      currentUserId: receiverId,
+    });
+
+    expect(giftTransactionRepository.isReceiverOfPost).toHaveBeenCalledWith(
+      PostId,
+      receiverId,
+    );
+    expect(result.contactInfo).toEqual({
+      phone: '0901234567',
+      address: 'Quận 1, TP.HCM',
+    });
+    expect(result.isLiked).toBe(true);
   });
 
   it('trả media đã xếp thứ tự với public URL', async () => {
@@ -158,12 +231,16 @@ describe('GetPostUseCase', () => {
       ]),
     } as unknown as jest.Mocked<IPostMediaRepository>;
     const giftRequestRepository = makeGiftRequestRepo();
+    const giftTransactionRepository = makeGiftTransactionRepo();
+    const postLikeRepository = makePostLikeRepo();
     const userRepository = makeUserRepo();
 
     const result = await new GetPostUseCase(
       postRepository,
       postMediaRepository,
       giftRequestRepository,
+      giftTransactionRepository,
+      postLikeRepository,
       userRepository,
       makeConfig(),
     ).handle({ postId: PostId });
@@ -183,6 +260,7 @@ describe('GetPostUseCase', () => {
     expect(result.requestCount).toBe(2);
     expect(result.myRequestStatus).toBeNull();
     expect(result.hasRequested).toBe(false);
+    expect(result.isLiked).toBeNull();
   });
 
   it('coi pending, rejected hoặc deleted là không tồn tại khi repository không trả kết quả', async () => {
@@ -193,6 +271,8 @@ describe('GetPostUseCase', () => {
       listByPostId: jest.fn(),
     } as unknown as jest.Mocked<IPostMediaRepository>;
     const giftRequestRepository = makeGiftRequestRepo();
+    const giftTransactionRepository = makeGiftTransactionRepo();
+    const postLikeRepository = makePostLikeRepo();
     const userRepository = makeUserRepo();
 
     await expect(
@@ -200,6 +280,8 @@ describe('GetPostUseCase', () => {
         postRepository,
         postMediaRepository,
         giftRequestRepository,
+        giftTransactionRepository,
+        postLikeRepository,
         userRepository,
         makeConfig(),
       ).handle({

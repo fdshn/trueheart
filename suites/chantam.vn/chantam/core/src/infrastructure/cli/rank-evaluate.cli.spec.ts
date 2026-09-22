@@ -1,3 +1,7 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const nodeCrypto = require('node:crypto');
+(globalThis as any).crypto = nodeCrypto.webcrypto ?? nodeCrypto;
+
 jest.mock('../config/config.module', () => ({
   ConfigModule: class ConfigModule {},
 }));

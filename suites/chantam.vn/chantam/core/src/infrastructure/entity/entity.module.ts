@@ -7,6 +7,7 @@ import {
   INotificationEntity,
   IOnboardingTaskEntity,
   IPostEntity,
+  IPostLikeEntity,
   IPostMediaEntity,
   IUserEntity,
   IUserOnboardingTaskCompletionEntity,
@@ -20,6 +21,7 @@ import { GiftPostEntity } from './gift-post.entity';
 import { GiftRequestEntity } from './gift-request.entity';
 import { NotificationEntity } from './notification.entity';
 import { OnboardingTaskEntity } from './onboarding-task.entity';
+import { PostLikeEntity } from './post-like.entity';
 import { PostMediaEntity } from './post-media.entity';
 import { PostEntity } from './post.entity';
 import { UserOnboardingTaskCompletionEntity } from './user-onboarding-task-completion.entity';
@@ -43,6 +45,7 @@ import { UserEntity } from './user.entity';
     { provide: IGiftRequestEntity, useValue: GiftRequestEntity },
     { provide: IOnboardingTaskEntity, useValue: OnboardingTaskEntity },
     { provide: IPostEntity, useValue: PostEntity },
+    { provide: IPostLikeEntity, useValue: PostLikeEntity },
     { provide: IPostMediaEntity, useValue: PostMediaEntity },
     { provide: IUserEntity, useValue: UserEntity },
     {
@@ -57,6 +60,7 @@ import { UserEntity } from './user.entity';
     IGiftRequestEntity,
     IOnboardingTaskEntity,
     IPostEntity,
+    IPostLikeEntity,
     IPostMediaEntity,
     IUserEntity,
     IUserOnboardingTaskCompletionEntity,

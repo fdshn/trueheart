@@ -48,7 +48,8 @@ buộc riêng tư, thứ tự kiểm tra — xem [`docs/API.md`](../../../../doc
 | `PATCH` | `/api/v1/posts/:postId/moderation` | `ModeratePostUseCase` — allowlist `POST_OPERATOR_USERNAMES` tạm thời |
 | `GET` | `/api/v1/posts/nearby` | `GetNearbyPostsUseCase` — guest radius scan canonical, required OFFER/WANTED filter, location jitter + bucketed distance |
 | `GET` | `/api/v1/posts/map` | `GetPostMapUseCase` — marker bbox public, location jitter, client-side cluster |
-| `GET` | `/api/v1/posts/:postId` | `GetPostUseCase` — chỉ PUBLISHED/RESERVED, toạ độ đã jitter |
+| `GET` | `/api/v1/posts/:postId` | `GetPostUseCase` — chỉ PUBLISHED/RESERVED, toạ độ đã jitter, gating contactInfo |
+| `POST` | `/api/v1/posts/:postId/like` | `TogglePostLikeUseCase` — thích / bỏ thích bài đăng (atomic counter, idempotent) |
 | `GET` | `/api/v1/posts/me` | `GetMyPostsUseCase` — bài của chính mình, lọc postType/status/categoryId, phân trang, toạ độ thật |
 | `GET` | `/api/v1/posts/:postId/matches` | `GetSmartMatchesUseCase` — Smart Match rule-based, chỉ tác giả bài nguồn, chỉ gợi ý không tạo giao dịch |
 | `GET` | `/api/v1/discovery/config` | `GetDiscoveryConfigUseCase` — giới hạn radius/pagination và loại post public cho guest |
