@@ -380,7 +380,7 @@ Tối đa **3 ảnh** mỗi tin nhắn, khoá `users/{userId}/chat/{roomId}/{uui
 | 3 | Bình luận (nối bộ lọc vào đường ghi) | ✅ `test:feed-comments`, 24 kiểm |
 | 4 | Ảnh trong bình luận | ⚠️ code xong, `test:feed-media` **chưa chạy** — Docker chưa bật |
 | 5 | Đọc kèm số đếm + `myReaction` | ✅ nhúng vào get/nearby/me; unit test canh một truy vấn cho cả trang |
-| 6 | Chia sẻ | |
+| 6 | Chia sẻ | ✅ `POST /posts/:id/shares` — append-only, không nhân bản; unit + `test:feed-shares` |
 | 7 | Thông báo | |
 | 8 | Báo xấu + hàng đợi Admin | |
 | 9 | Điểm F41 (seed TẮT sẵn) | |

@@ -4,6 +4,7 @@ import {
   IListCommentRepliesUseCase,
   IListCommentsUseCase,
   IListContentReactionsUseCase,
+  IRecordContentShareUseCase,
   IRemoveCommentUseCase,
   IRemoveContentReactionUseCase,
   IRequestCommentMediaUploadUseCase,
@@ -23,6 +24,7 @@ import {
   RemoveContentReactionUseCase,
   SetContentReactionUseCase,
 } from './content-reaction.use-cases';
+import { RecordContentShareUseCase } from './content-share.use-cases';
 
 @Global()
 @Module({
@@ -51,6 +53,10 @@ import {
       provide: IListContentReactionsUseCase,
       useClass: ListContentReactionsUseCase,
     },
+    {
+      provide: IRecordContentShareUseCase,
+      useClass: RecordContentShareUseCase,
+    },
   ],
   exports: [
     ICreateCommentUseCase,
@@ -62,6 +68,7 @@ import {
     ISetContentReactionUseCase,
     IRemoveContentReactionUseCase,
     IListContentReactionsUseCase,
+    IRecordContentShareUseCase,
   ],
 })
 export class FeedModule {}

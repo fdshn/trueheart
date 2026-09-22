@@ -5,6 +5,7 @@ import {
   IChatRepository,
   IContentCommentRepository,
   IContentReactionRepository,
+  IContentShareRepository,
   IEntitlementRepository,
   IGiftRequestRepository,
   IGiftTransactionRepository,
@@ -29,6 +30,7 @@ import { CategoryRepository } from './category.repository';
 import { ChatRepository } from './chat.repository';
 import { ContentCommentRepository } from './content-comment.repository';
 import { ContentReactionRepository } from './content-reaction.repository';
+import { ContentShareRepository } from './content-share.repository';
 import { EntitlementRepository } from './entitlement.repository';
 import { GiftRequestRepository } from './gift-request.repository';
 import { GiftTransactionRepository } from './gift-transaction.repository';
@@ -68,6 +70,10 @@ import { UserRepository } from './user.repository';
       provide: IContentReactionRepository,
       useClass: ContentReactionRepository,
     },
+    {
+      provide: IContentShareRepository,
+      useClass: ContentShareRepository,
+    },
     { provide: IGiftRequestRepository, useClass: GiftRequestRepository },
     {
       provide: IGiftTransactionRepository,
@@ -100,6 +106,7 @@ import { UserRepository } from './user.repository';
     IEntitlementRepository,
     IContentCommentRepository,
     IContentReactionRepository,
+    IContentShareRepository,
     IGiftRequestRepository,
     IGiftTransactionRepository,
     INotificationChannelRepository,
