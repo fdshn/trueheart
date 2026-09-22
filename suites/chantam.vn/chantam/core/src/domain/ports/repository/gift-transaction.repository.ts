@@ -8,9 +8,16 @@ export type GiftTransactionStatuses =
   | 'CANCELLED'
   | 'REJECTED';
 
-/** Những trạng thái còn giữ chỗ trên bài đăng. */
-export const OpenGiftTransactionStatuses: GiftTransactionStatuses[] = [
-  'REQUESTED',
+/**
+ * Những trạng thái ĐANG GIỮ TỒN KHO của bài đăng.
+ *
+ * `REQUESTED` KHÔNG nằm trong đây: xin một suất chưa trừ kho, chỉ lúc duyệt mới
+ * trừ. Đếm nó vào đây thì một yêu cầu bỏ quên trên bài đã hết hàng sẽ giữ bài ở
+ * `RESERVED` mãi mãi — chính là lỗi quota kẹt, chỉ đổi chỗ.
+ *
+ * Cùng một tập với điều kiện trả kho trong `close()`, và phải luôn như vậy.
+ */
+export const StockHoldingGiftTransactionStatuses: GiftTransactionStatuses[] = [
   'ACCEPTED',
   'DELIVERING',
 ];

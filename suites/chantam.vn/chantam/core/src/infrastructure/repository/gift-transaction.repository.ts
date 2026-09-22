@@ -14,6 +14,7 @@ import {
   IGiftTransactionSummary,
   IReopenedQueue,
   IRequestGiftParams,
+  StockHoldingGiftTransactionStatuses,
 } from '@/domain/ports/repository';
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
@@ -140,6 +141,51 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     });
   }
 
+  /**
+   * Đồng bộ trạng thái bài đăng theo tồn kho và các lượt trao đang mở (F34).
+   *
+   * **Vì sao tính lại thay vì đặt thẳng.** Mỗi nơi gọi đặt một giá trị riêng thì sớm
+   * muộn có đường quên đặt — và đó đúng là chuyện đã xảy ra: `accept()` trừ kho
+   * nhưng không đổi trạng thái, nên bài đứng mãi ở `PUBLISHED` và **ăn một suất quota
+   * của tác giả vĩnh viễn**. Một câu suy ra từ dữ liệu thì không có đường nào quên.
+   *
+   * ```
+   * còn hàng                          → PUBLISHED
+   * hết hàng, còn lượt trao đang mở → RESERVED
+   * hết hàng, không còn lượt nào   → COMPLETED
+   * ```
+   *
+   * Chỉ đụng ba trạng thái do lượt trao điều khiển. Bài `PENDING_REVIEW`, `EXPIRED`,
+   * `ARCHIVED`, `CANCELLED` không được một lượt huỷ kéo ngược về `PUBLISHED` — làm vậy
+   * là hồi sinh một bài đã hết hạn hoặc đã chuyển kho từ thiện.
+   */
+  private async syncPostStatus(
+    manager: EntityManager,
+    postId: string,
+  ): Promise<void> {
+    await manager.query(
+      `
+        UPDATE posts p
+        SET status = CASE
+              WHEN p.remaining_quantity > 0 THEN 'PUBLISHED'
+              WHEN EXISTS (
+                SELECT 1 FROM gift_transactions t
+                WHERE t.post_id = p.global_id
+                  AND t.status::text = ANY($2::text[])
+              ) THEN 'RESERVED'
+              ELSE 'COMPLETED'
+            -- Ep kieu la bat buoc: CASE voi cac nhanh la chuoi tra ve text, ma
+            -- cot status la enum. Postgres tu choi gan thang, loi 42804.
+            END::gift_posts_status_enum,
+            updated_at = now()
+        WHERE p.global_id = $1
+          AND p.deleted_at IS NULL
+          AND p.status::text IN ('PUBLISHED', 'RESERVED', 'COMPLETED')
+      `,
+      [postId, StockHoldingGiftTransactionStatuses],
+    );
+  }
+
   public async accept(
     transactionId: string,
     giverId: string,
@@ -188,6 +234,10 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         throw new GiftTransactionInvalidStateException(current.status);
       }
 
+      // Trừ kho xong thì trạng thái bài có thể đã khác — F34 đòi cập nhật CẢ hai,
+      // trong cùng transaction.
+      await this.syncPostStatus(manager, current.post_id);
+
       // Mở phòng chat trong CÙNG transaction (F34): duyệt xong mà chat chưa mở
       // thì hai bên không có đường liên lạc để hẹn trao đồ.
       await this.chat.openRoomWithinTransaction(manager, {
@@ -231,6 +281,10 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
       if (!updated) {
         throw new GiftTransactionInvalidStateException(current.status);
       }
+
+      // Lượt cuối cùng xong thì bài mới thực sự xong, và quota của tác giả được
+      // trả lại. Thiếu dòng này thì bài đã tặng hết vẫn chiếm chỗ đăng bài mãi mãi.
+      await this.syncPostStatus(manager, current.post_id);
 
       // Giao dịch xong thì phòng chuyển sang chỉ đọc (F38). KHÔNG xoá gì: hai
       // bên vẫn xem lại được địa chỉ và giờ hẹn, và lịch sử là bằng chứng khi
@@ -285,6 +339,10 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
       if (!updated) {
         throw new GiftTransactionInvalidStateException(current.status);
       }
+
+      // Trả kho xong thì bài phải hiện lại để người khác xin được. Để nguyên
+      // `RESERVED` là món đồ còn đó nhưng không ai chạm tới được.
+      await this.syncPostStatus(manager, current.post_id);
 
       await this.chat.lockRoomWithinTransaction(manager, params.transactionId);
 
@@ -425,9 +483,9 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
   public async completeDueDeliveries(olderThanDays: number): Promise<number> {
     return this.manager.transaction(async (manager) => {
       // SKIP LOCKED để hai lần chạy song song không tranh cùng một lượt.
-      const due = await manager.query<{ global_id: string }[]>(
+      const due = await manager.query<{ global_id: string; post_id: string }[]>(
         `
-          SELECT global_id
+          SELECT global_id, post_id
           FROM gift_transactions
           WHERE status IN ('ACCEPTED', 'DELIVERING')
             AND accepted_at <= now() - ($1 || ' days')::interval
@@ -452,8 +510,10 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
       // Tự hoàn tất cũng là hoàn tất, nên phòng chat cũng phải chuyển sang chỉ
       // đọc (F38). Thiếu chỗ này thì những lượt trao do cron đóng sẽ để lại
       // phòng vẫn gửi được tin — một cửa hậu chỉ lộ ra sau 5 ngày.
-      for (const row of due)
+      for (const row of due) {
         await this.chat.lockRoomWithinTransaction(manager, row.global_id);
+        await this.syncPostStatus(manager, row.post_id);
+      }
 
       return due.length;
     });

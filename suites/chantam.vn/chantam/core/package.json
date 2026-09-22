@@ -23,6 +23,7 @@
     "test:chat-e2e": "ts-node -r tsconfig-paths/register test/chat-e2e.check.ts",
     "test:chat-paging": "ts-node -r tsconfig-paths/register test/chat-paging.check.ts",
     "test:chat-access": "ts-node -r tsconfig-paths/register test/chat-access.check.ts",
+    "test:post-status": "ts-node -r tsconfig-paths/register test/post-status.check.ts",
     "test:returning": "ts-node -r tsconfig-paths/register test/returning-contract.check.ts",
     "test:lifecycle": "ts-node -r tsconfig-paths/register test/post-lifecycle.check.ts",
     "test:concurrency": "ts-node -r tsconfig-paths/register test/gift-request-concurrency.check.ts",
