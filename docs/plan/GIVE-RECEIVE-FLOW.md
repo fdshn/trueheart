@@ -109,14 +109,13 @@ ghi nói ngược nhau về cùng một sự việc.
                           │         mở chat                 │
                           │         bài → RESERVED nếu hết  │
                           │                                 │
-            ┌─────────────┴─────────────┐                   │
-      tự đến lấy                   A gửi hàng               │
-            │                           │ A bấm "đã gửi"    │ huỷ
-            │                           ▼                   │
-            │                      DELIVERING ──────────────┤
-            │                    (ghi shipped_at)           │
-            │                           │                   │
-            └─────────────┬─────────────┘                   │
+                          │                                 │
+                          │ A bấm "đã trao" + ảnh           │ huỷ
+                          │   (ship, hoặc trao tay)          │
+                          ▼                                 │
+                     DELIVERING ───────────────────────┤
+                  (ghi handed_over_at)                  │
+                          │                                 │
                           │ B xác nhận, hoặc cron quá hạn   │
                           ▼                                 ▼
                      COMPLETED                          CANCELLED
@@ -131,7 +130,7 @@ ghi nói ngược nhau về cùng một sự việc.
 | --- | --- | --- | --- | --- | --- |
 | **Xin** | `REQUESTED` | — | — | — | vào `STANDBY` |
 | **Duyệt** | `ACCEPTED` | kho −n; `RESERVED` khi kho về 0 | **mở** | — | — |
-| **Đã gửi** *(mới)* | `DELIVERING` + `shipped_at` | — | — | — | — |
+| **Đã trao** *(mới)* | `DELIVERING` + `handed_over_at` | — | — | — | — |
 | **Xác nhận** | `COMPLETED` + `completed_at` | `COMPLETED` khi kho = 0 và không còn lượt dở | **khoá** | **cộng cả hai bên** | — |
 | **Tự hoàn tất** | `COMPLETED` | như trên | **khoá** | như trên | — |
 | **Huỷ** | `CANCELLED` + `closed_by` | kho +n; về `PUBLISHED` nếu còn hàng | **khoá** | — | `STANDBY` → `PENDING` |
@@ -142,8 +141,8 @@ ghi nói ngược nhau về cùng một sự việc.
 | # | Sửa | Vá lỗ | Ghi chú |
 | --- | --- | --- | --- |
 | 1 | Bài đổi trạng thái theo tồn kho và lượt trao | H2, H3 | Phải làm **trong cùng transaction** với `accept`/`confirm`/`close`, không phải job dọn sau |
-| 2 | `POST /transactions/:id/ship` → `DELIVERING` | H1 | Chỉ người tặng, chỉ khi `deliveryMethod = GIVER_SHIPS` |
-| 3 | Tự hoàn tất đếm từ `COALESCE(shipped_at, accepted_at)` | H5 | Một dòng SQL, nhưng phải có bước 2 trước |
+| 2 | `POST /transactions/:id/handover` → `DELIVERING` | H1 | Chỉ người tặng. Cả hai hình thức nhận đều có bước này |
+| 3 | Tự hoàn tất đếm từ `COALESCE(handed_over_at, accepted_at)` | H5 | Một dòng SQL, nhưng phải có bước 2 trước |
 | 4 | Rule điểm khi `COMPLETED`, idempotent theo `transaction_id` | H4 | Xem Q2 — cần Bên A chốt con số |
 | 5 | Report ship-unpaid đóng giao dịch | H6 | Xem Q3 |
 
@@ -201,14 +200,69 @@ mang một lượt huỷ, không ai đối chứng. Khoản trừ điểm vốn 
 giao dịch không làm cán cân lệch thêm — nhưng nếu muốn A phải nêu lý do bắt buộc,
 hoặc muốn Admin duyệt trước khi trừ, thì đây là lúc nói.
 
-### Q4 — Ai được bấm "đã gửi hàng", và bấm sai thì sao?
+### Q4 — Đã chốt: bước trao đồ có ảnh làm bằng chứng
 
-Đề xuất: chỉ người tặng, chỉ khi bài khai `GIVER_SHIPS`. Mốc `shipped_at` là thứ
-đẩy lùi đồng hồ tự hoàn tất thêm 5 ngày.
+Xem [§6](#6-bằng-chứng-bằng-ảnh).
 
-Rủi ro: A bấm "đã gửi" mà chưa gửi để câu thêm thời gian. Chưa có cách nào kiểm —
-hệ thống không nối với đơn vị vận chuyển. Chấp nhận, hay cần thêm ràng buộc (ví
-dụ chỉ lùi được một lần)?
+---
+
+## 6. Bằng chứng bằng ảnh
+
+Report "không trả ship" (CH-2) hiện là **lời một phía**: A bấm là B mất 50 điểm, không
+ai đối chứng. Ảnh vá đúng chỗ đó.
+
+### Ảnh chứng minh được gì
+
+Nói thẳng để không kỳ vọng nhầm: ảnh gói hàng **không** chứng minh đã gửi đi, không
+chứng minh bên trong là gì, không chứng minh gửi tới địa chỉ của B. Ảnh có thể chụp
+lại, dựng, hoặc lấy trên mạng.
+
+Cái ảnh thực sự làm được là tạo ra **thế bất đối xứng**: A có ảnh trao thì câu chuyện
+của A nhất quán; A không có ảnh nào thì report của A không dựa trên gì cả. Từ đó ra
+một luật sạch:
+
+> **Không có ảnh trao đồ → không report được.**
+
+Muốn trừ điểm người khác thì phải để lại dấu vết trước, từ lúc chưa biết sẽ có
+tranh chấp.
+
+### Ba mốc
+
+| Mốc | Ai | Ảnh gì | Bắt buộc? |
+| --- | --- | --- | --- |
+| **Đã trao** (`DELIVERING`) | người tặng | gói hàng + phiếu gửi, hoặc món đồ lúc trao tay | Không — nhưng thiếu thì mất quyền report |
+| **Đã nhận** (`COMPLETED`) | người nhận | món đồ nhận được | Tuỳ chọn |
+| **Report hoàn hàng** | người tặng | gói hàng quay về | **Bắt buộc** |
+
+**Tối đa 3 ảnh mỗi mốc.** Đủ chụp gói hàng, phiếu gửi và một góc nữa; nhiều hơn chỉ
+tốn dung lượng. (Bài đăng đang giới hạn 10 ảnh, nhưng đó là ảnh để người ta chọn đồ,
+khác mục đích.)
+
+### Tự đến lấy cũng có bước trao
+
+Bước `DELIVERING` **không phải riêng cho ship**. Tự đến lấy cũng có lúc trao đồ, và cũng
+cần ảnh — vì tranh chấp "tôi chưa hề nhận được đồ" vẫn xảy ra được khi không có ship.
+
+Khác biệt duy nhất: **không report ship được** khi tự đến lấy, vì không có phí ship để
+mà quọt. Ràng buộc này đã có sẵn: `ReportShipUnpaidUseCase` đòi
+`post.shipPayer = RECEIVER`, mà `shipPayer` chỉ khai được khi `GIVER_SHIPS`.
+
+### Không chụp ảnh thì sao
+
+Lượt trao **vẫn đi tiếp bình thường**, chỉ mất quyền report. Chặn không cho chuyển
+`DELIVERING` khi thiếu ảnh là phạt người tặng vì một việc họ không bắt buộc phải làm,
+và đẩy lượt trao vào tự-hoàn-tất sau 5 ngày — tệ hơn.
+
+### Lưu ở đâu
+
+Dùng lại `IObjectStorage` đã có: presigned PUT + `confirm*Upload` kiểm `HeadObject`
+và tiền tố chủ sở hữu. Thêm một đường `createTransactionEvidenceUpload` theo đúng
+khuôn, key `users/{userId}/transactions/{id}/evidence/{uuid}.ext`. **Không dựng đường
+tải lên thứ hai.**
+
+Một hệ quả đáng giá: **ảnh bằng chứng nằm NGOÀI chat**, nên xoá chat theo hạn lưu trữ
+không làm mất bằng chứng. Đây là lý lẽ mạnh nhất cho việc xoá chat — trước khi có
+ảnh thì xoá chat đồng nghĩa với xoá chứng cứ.
 
 ---
 
