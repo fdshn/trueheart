@@ -34,3 +34,21 @@ export const ShipUnpaidPenaltyRuleCode = 'SHIP_UNPAID_PENALTY';
  */
 export const GiftCompletedGiverRuleCode = 'GIFT_COMPLETED_GIVER';
 export const GiftCompletedReceiverRuleCode = 'GIFT_COMPLETED_RECEIVER';
+
+/**
+ * Ba mốc có ảnh làm bằng chứng cho một lượt trao (CH-2).
+ *
+ * `HANDOVER` không phải riêng cho ship: tự đến lấy cũng có lúc trao đồ, và
+ * tranh chấp "tôi chưa hề nhận được" vẫn xảy ra khi không có ship.
+ *
+ * `RETURNED` là thứ thật sự chứng minh lượt trao đổ. Ảnh lúc trao chỉ chứng
+ * minh người tặng có trao; ảnh hàng quay về mới chứng minh nó không tới đích.
+ */
+export enum GiftEvidenceKinds {
+  HANDOVER = 'HANDOVER',
+  RECEIPT = 'RECEIPT',
+  RETURNED = 'RETURNED',
+}
+
+/** Số ảnh tối đa cho mỗi mốc. Database chặn bằng slot 1–3, đây chỉ là bản sao để hiển thị. */
+export const MaxEvidencePerKind = 3;

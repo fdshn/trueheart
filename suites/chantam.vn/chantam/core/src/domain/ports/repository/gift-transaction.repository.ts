@@ -1,4 +1,6 @@
+import { GiftEvidenceKinds } from '@chantam.vn/chantam.core-lib/consts';
 import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
+import { EntityManager } from 'typeorm';
 
 export type GiftTransactionStatuses =
   | 'REQUESTED'
@@ -31,7 +33,24 @@ export interface IGiftTransactionSummary {
   readonly status: GiftTransactionStatuses;
   readonly requestedAt: Date;
   readonly acceptedAt: Date | null;
+  /** Mốc người tặng báo đã trao đồ — gửi đi, hoặc trao tận tay. */
+  readonly handedOverAt: Date | null;
   readonly completedAt: Date | null;
+}
+
+export interface IGiftEvidenceRef {
+  readonly kind: GiftEvidenceKinds;
+  readonly slot: number;
+  readonly storageKey: string;
+  readonly uploadedBy: string;
+  readonly createdAt: Date;
+}
+
+export interface IAttachGiftEvidenceParams {
+  readonly transactionId: string;
+  readonly kind: GiftEvidenceKinds;
+  readonly uploadedBy: string;
+  readonly storageKeys: readonly string[];
 }
 
 export interface IRequestGiftParams {
@@ -46,6 +65,26 @@ export interface ICloseGiftTransactionParams {
   readonly actorUserId: string;
   readonly status: Extract<GiftTransactionStatuses, 'CANCELLED' | 'REJECTED'>;
   readonly reason: string;
+  /**
+   * Ai bị tính lượt huỷ này. Mặc định là chính người bấm.
+   *
+   * Tách ra vì có một trường hợp hai thứ này khác nhau: người tặng báo hàng bị
+   * hoàn vì người nhận không trả ship (CH-2). Người bấm là người tặng, nhưng
+   * người làm đổ lượt trao là người nhận — và `closed_by` là thứ chảy vào tiêu chí
+   * `FEWEST_CANCELLATIONS` của CH-1.
+   */
+  readonly closedByUserId?: string;
+  /**
+   * Ảnh đính kèm ngay trong transaction đóng lượt trao.
+   *
+   * Ghi ảnh ở một lần gọi khác thì có một khoảnh khắc lượt trao đã đóng mà bằng
+   * chứng chưa tới — tiến trình chết giữa hai lần gọi là mất bằng chứng vĩnh viễn.
+   */
+  readonly evidence?: {
+    readonly kind: GiftEvidenceKinds;
+    readonly uploadedBy: string;
+    readonly storageKeys: readonly string[];
+  };
 }
 
 /**
@@ -90,10 +129,36 @@ export interface IGiftTransactionRepository {
     transactionId: string,
     giverId: string,
   ): Promise<IGiftTransactionSummary>;
+  /**
+   * Người tặng báo đã trao đồ — `ACCEPTED` → `DELIVERING` (H1).
+   *
+   * Mốc `handed_over_at` đẩy lùi đồng hồ tự hoàn tất: đếm từ lúc duyệt thì ship
+   * liên tỉnh 4–5 ngày sẽ bị cron đóng trước khi hàng tới nơi.
+   */
+  markHandedOver(params: {
+    transactionId: string;
+    giverId: string;
+    evidenceKeys: readonly string[];
+  }): Promise<IGiftTransactionSummary>;
+  /**
+   * Đính ảnh bằng chứng. Tối đa ba tấm mỗi loại, do **database** chặn.
+   *
+   * Trả về số tấm thực sự đính được: gửi quá trần thì phần thừa bị bỏ, không
+   * ném lỗi — người dùng chụp bốn tấm không phải là một lỗi cần chặn cả thao tác.
+   */
+  attachEvidenceWithinTransaction(
+    manager: EntityManager,
+    params: IAttachGiftEvidenceParams,
+  ): Promise<number>;
+  /** Ảnh bằng chứng của một lượt trao, xếp theo mốc rồi theo thứ tự tải lên. */
+  listEvidence(transactionId: string): Promise<IGiftEvidenceRef[]>;
+  /** Người này đã để lại ảnh lúc trao đồ chưa — điều kiện để được report. */
+  hasEvidence(transactionId: string, kind: GiftEvidenceKinds): Promise<boolean>;
   /** Người nhận xác nhận đã nhận. Đây là mốc tính hoạt động cho rank. */
   confirmReceipt(
     transactionId: string,
     receiverId: string,
+    evidenceKeys?: readonly string[],
   ): Promise<IGiftTransactionSummary>;
   /**
    * Đóng một lượt trao, trả tồn kho, và **mở lại hàng đợi** (F35).

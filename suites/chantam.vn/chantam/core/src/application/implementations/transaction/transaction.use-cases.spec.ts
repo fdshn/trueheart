@@ -58,6 +58,7 @@ const Summary = {
   status: 'REQUESTED' as const,
   requestedAt: new Date('2026-09-20T00:00:00.000Z'),
   acceptedAt: null,
+  handedOverAt: null,
   completedAt: null,
 };
 
@@ -174,6 +175,7 @@ describe('Gift transaction use cases', () => {
     expect(repository.confirmReceipt).toHaveBeenCalledWith(
       TransactionId,
       UserId,
+      [],
     );
     expect(result.transaction.status).toBe('COMPLETED');
   });

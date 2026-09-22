@@ -5,6 +5,13 @@ export interface IReportShipUnpaidCommand {
   /** Người gửi — chỉ họ mới báo được, vì chỉ họ thấy hàng bị hoàn. */
   userId: string;
   reason: string;
+  /**
+   * Ảnh gói hàng quay về, **bắt buộc**, tối đa 3 tấm.
+   *
+   * Ảnh lúc trao chỉ chứng minh người tặng có trao; ảnh hàng quay về mới chứng minh
+   * nó không tới đích. Thiếu tấm này thì report không dựa trên gì cả.
+   */
+  evidenceKeys: string[];
 }
 
 export interface IReportShipUnpaidResult {
@@ -19,6 +26,8 @@ export interface IReportShipUnpaidResult {
   rawBalanceAfter: number;
   /** `false` khi lượt trao này đã bị báo trước đó — không trừ điểm lần hai. */
   penaltyApplied: boolean;
+  /** Trạng thái lượt trao sau khi báo. Luôn là `CANCELLED`. */
+  transactionStatus: string;
 }
 
 /**

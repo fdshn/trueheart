@@ -15,6 +15,8 @@ export interface IGiftTransactionDto {
   status: GiftTransactionStatusDto;
   requestedAt: Date;
   acceptedAt: Date | null;
+  /** Mốc người tặng báo đã trao đồ — gửi đi, hoặc trao tận tay. */
+  handedOverAt: Date | null;
   completedAt: Date | null;
 }
 

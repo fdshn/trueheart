@@ -309,6 +309,13 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Bài đăng này không khai người nhận trả phí ship, nên không có khoản nào để báo chưa thanh toán',
   },
 
+  GIFT_HANDOVER_EVIDENCE_REQUIRED: {
+    code: ErrorCodes.GIFT_HANDOVER_EVIDENCE_REQUIRED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Cần ảnh lúc trao đồ và ảnh hàng quay về thì mới báo được — trừ điểm người khác phải dựa trên dấu vết để lại từ trước',
+  },
+
   GIFT_TRANSACTION_DUPLICATE_REQUEST: {
     code: ErrorCodes.GIFT_TRANSACTION_DUPLICATE_REQUEST,
     httpStatus: HttpStatus.CONFLICT,

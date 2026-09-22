@@ -45,6 +45,7 @@ function toDto(summary: IGiftTransactionSummary): IGiftTransactionDto {
     status: summary.status,
     requestedAt: summary.requestedAt,
     acceptedAt: summary.acceptedAt,
+    handedOverAt: summary.handedOverAt,
     completedAt: summary.completedAt,
   };
 }
@@ -110,6 +111,7 @@ export class ConfirmGiftReceiptUseCase implements IConfirmGiftReceiptUseCase {
         await this.transactions.confirmReceipt(
           command.transactionId,
           command.userId,
+          command.evidenceKeys ?? [],
         ),
       ),
     };

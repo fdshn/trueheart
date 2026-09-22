@@ -104,6 +104,15 @@ export class GiftTransactionDto implements IGiftTransactionDto {
     type: String,
     format: 'date-time',
     nullable: true,
+    description:
+      'Mốc người tặng báo đã trao đồ — gửi đi, hoặc trao tận tay. Đồng hồ tự hoàn tất đếm từ mốc này nếu có, không thì đếm từ `acceptedAt`.',
+  })
+  handedOverAt: Date | null;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
     description: 'Mốc hoàn tất; đây là thứ bộ đếm hoạt động của rank đọc.',
   })
   completedAt: Date | null;

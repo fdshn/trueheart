@@ -9,9 +9,11 @@ import {
 } from '@/domain/exceptions';
 import {
   GiftTransactionStatuses,
+  IAttachGiftEvidenceParams,
   IChatRepository,
   ICloseGiftTransactionParams,
   ICloseGiftTransactionResult,
+  IGiftEvidenceRef,
   IGiftTransactionRepository,
   IGiftTransactionSummary,
   IPointLedgerRepository,
@@ -22,6 +24,8 @@ import {
 import {
   GiftCompletedGiverRuleCode,
   GiftCompletedReceiverRuleCode,
+  GiftEvidenceKinds,
+  MaxEvidencePerKind,
   UserRanks,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
@@ -40,12 +44,13 @@ interface ITransactionRow {
   status: GiftTransactionStatuses;
   requested_at: Date;
   accepted_at: Date | null;
+  handed_over_at: Date | null;
   completed_at: Date | null;
 }
 
 const SelectColumns = `
   global_id, post_id, giver_id, receiver_id, quantity, status,
-  requested_at, accepted_at, completed_at
+  requested_at, accepted_at, handed_over_at, completed_at
 `;
 
 function toSummary(row: ITransactionRow): IGiftTransactionSummary {
@@ -58,6 +63,7 @@ function toSummary(row: ITransactionRow): IGiftTransactionSummary {
     status: row.status,
     requestedAt: row.requested_at,
     acceptedAt: row.accepted_at,
+    handedOverAt: row.handed_over_at,
     completedAt: row.completed_at,
   };
 }
@@ -306,9 +312,141 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     });
   }
 
+  public async markHandedOver(params: {
+    transactionId: string;
+    giverId: string;
+    evidenceKeys: readonly string[];
+  }): Promise<IGiftTransactionSummary> {
+    return this.manager.transaction(async (manager) => {
+      const current = await this.lockTransaction(manager, params.transactionId);
+
+      // Chi nguoi tang bao duoc: chi ho biet mon do da roi tay minh chua.
+      if (current.giver_id !== params.giverId)
+        throw new GiftTransactionNotParticipantException();
+      if (current.status !== 'ACCEPTED')
+        throw new GiftTransactionInvalidStateException(current.status);
+
+      const [updated] = await updateReturning<ITransactionRow>(
+        manager,
+        `
+          UPDATE gift_transactions
+          SET status = 'DELIVERING', handed_over_at = now()
+          WHERE global_id = $1 AND status = 'ACCEPTED'
+          RETURNING ${SelectColumns}
+        `,
+        [params.transactionId],
+      );
+      if (!updated)
+        throw new GiftTransactionInvalidStateException(current.status);
+
+      // Anh la TUY CHON. Thieu anh thi luot trao van di tiep, chi mat quyen
+      // report ve sau. Chan o day la phat nguoi tang vi mot viec ho khong bat
+      // buoc phai lam, va day luot trao vao tu-hoan-tat sau 5 ngay.
+      if (params.evidenceKeys.length > 0)
+        await this.attachEvidenceWithinTransaction(manager, {
+          transactionId: params.transactionId,
+          kind: GiftEvidenceKinds.HANDOVER,
+          uploadedBy: params.giverId,
+          storageKeys: params.evidenceKeys,
+        });
+
+      return toSummary(updated);
+    });
+  }
+
+  public async attachEvidenceWithinTransaction(
+    manager: EntityManager,
+    params: IAttachGiftEvidenceParams,
+  ): Promise<number> {
+    const [taken] = await manager.query<{ used: string }[]>(
+      `
+        SELECT COUNT(*) AS used
+        FROM gift_transaction_evidence
+        WHERE transaction_id = $1 AND kind = $2
+      `,
+      [params.transactionId, params.kind],
+    );
+
+    let slot = Number(taken.used);
+    let attached = 0;
+
+    for (const storageKey of params.storageKeys) {
+      // Qua tran thi BO phan thua, khong nem loi: nguoi dung chup bon tam khong
+      // phai mot loi can chan ca thao tac trao do.
+      if (slot >= MaxEvidencePerKind) break;
+      slot += 1;
+
+      await manager.query(
+        `
+          INSERT INTO gift_transaction_evidence
+            (global_id, transaction_id, kind, slot, uploaded_by, storage_key)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          ON CONFLICT DO NOTHING
+        `,
+        [
+          randomUUID(),
+          params.transactionId,
+          params.kind,
+          slot,
+          params.uploadedBy,
+          storageKey,
+        ],
+      );
+      attached += 1;
+    }
+
+    return attached;
+  }
+
+  public async listEvidence(
+    transactionId: string,
+  ): Promise<IGiftEvidenceRef[]> {
+    const rows = await this.manager.query<
+      {
+        kind: GiftEvidenceKinds;
+        slot: number | string;
+        storage_key: string;
+        uploaded_by: string;
+        created_at: Date;
+      }[]
+    >(
+      `
+        SELECT kind, slot, storage_key, uploaded_by, created_at
+        FROM gift_transaction_evidence
+        WHERE transaction_id = $1
+        ORDER BY kind, slot
+      `,
+      [transactionId],
+    );
+
+    return rows.map((row) => ({
+      kind: row.kind,
+      slot: Number(row.slot),
+      storageKey: row.storage_key,
+      uploadedBy: row.uploaded_by,
+      createdAt: row.created_at,
+    }));
+  }
+
+  public async hasEvidence(
+    transactionId: string,
+    kind: GiftEvidenceKinds,
+  ): Promise<boolean> {
+    const [row] = await this.manager.query<{ count: string }[]>(
+      `
+        SELECT COUNT(*) AS count
+        FROM gift_transaction_evidence
+        WHERE transaction_id = $1 AND kind = $2
+      `,
+      [transactionId, kind],
+    );
+    return Number(row.count) > 0;
+  }
+
   public async confirmReceipt(
     transactionId: string,
     receiverId: string,
+    evidenceKeys: readonly string[] = [],
   ): Promise<IGiftTransactionSummary> {
     return this.manager.transaction(async (manager) => {
       const current = await this.lockTransaction(manager, transactionId);
@@ -335,6 +473,14 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
       if (!updated) {
         throw new GiftTransactionInvalidStateException(current.status);
       }
+
+      if (evidenceKeys.length > 0)
+        await this.attachEvidenceWithinTransaction(manager, {
+          transactionId,
+          kind: GiftEvidenceKinds.RECEIPT,
+          uploadedBy: receiverId,
+          storageKeys: evidenceKeys,
+        });
 
       await this.awardCompletionPoints(manager, current);
 
@@ -388,13 +534,21 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
           params.transactionId,
           params.status,
           params.reason,
-          params.actorUserId,
+          params.closedByUserId ?? params.actorUserId,
         ],
       );
 
       if (!updated) {
         throw new GiftTransactionInvalidStateException(current.status);
       }
+
+      if (params.evidence && params.evidence.storageKeys.length > 0)
+        await this.attachEvidenceWithinTransaction(manager, {
+          transactionId: params.transactionId,
+          kind: params.evidence.kind,
+          uploadedBy: params.evidence.uploadedBy,
+          storageKeys: params.evidence.storageKeys,
+        });
 
       // Trả kho xong thì bài phải hiện lại để người khác xin được. Để nguyên
       // `RESERVED` là món đồ còn đó nhưng không ai chạm tới được.
@@ -551,7 +705,11 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
           SELECT global_id, post_id, giver_id, receiver_id
           FROM gift_transactions
           WHERE status IN ('ACCEPTED', 'DELIVERING')
-            AND accepted_at <= now() - ($1 || ' days')::interval
+            -- Dem tu lan cuoi CO CHUYEN XAY RA, khong phai tu luc duyet: ship
+            -- lien tinh 4-5 ngay thi dem tu accepted_at se dong luot trao
+            -- truoc khi hang toi noi.
+            AND COALESCE(handed_over_at, accepted_at)
+                  <= now() - ($1 || ' days')::interval
           ORDER BY accepted_at ASC
           FOR UPDATE SKIP LOCKED
         `,

@@ -1,6 +1,10 @@
+import { MaxEvidencePerKind } from '@chantam.vn/chantam.core-lib/consts';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsDefined,
   IsString,
   IsUUID,
@@ -23,6 +27,20 @@ export class ReportShipUnpaidDto {
   @IsString()
   @Length(10, 500)
   reason: string;
+
+  @ApiProperty({
+    type: [String],
+    minItems: 1,
+    maxItems: MaxEvidencePerKind,
+    description:
+      'Ảnh gói hàng QUAY VỀ, bắt buộc. Ảnh lúc trao chỉ chứng minh người tặng có trao; ảnh hàng quay về mới chứng minh nó không tới đích.',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MaxEvidencePerKind)
+  @IsString({ each: true })
+  @Length(1, 500, { each: true })
+  evidenceKeys: string[];
 }
 
 export class ReportShipUnpaidBodyDto {
@@ -63,4 +81,11 @@ export class ReportShipUnpaidResponseDto {
       'false khi lượt trao này đã bị báo trước đó — không trừ điểm lần hai.',
   })
   penaltyApplied: boolean;
+
+  @ApiProperty({
+    example: 'CANCELLED',
+    description:
+      'Báo thì đóng luôn lượt trao. Không đóng thì cron tự hoàn tất sẽ đánh dấu COMPLETED sau 5 ngày — người nhận vừa bị trừ điểm, vừa được ghi công đã nhận quà.',
+  })
+  transactionStatus: string;
 }

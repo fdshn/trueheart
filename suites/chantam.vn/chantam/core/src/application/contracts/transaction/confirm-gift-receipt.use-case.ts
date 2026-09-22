@@ -5,6 +5,8 @@ export interface IConfirmGiftReceiptCommand {
   /** Người nhận, luôn lấy từ token đã xác thực. */
   userId: string;
   transactionId: string;
+  /** Ảnh món đồ nhận được, tối đa 3 tấm. Tuỳ chọn. */
+  evidenceKeys?: string[];
 }
 
 export type IConfirmGiftReceiptResult = IGiftTransactionResponseDto;

@@ -24,3 +24,7 @@ export class GiftTransactionDuplicateRequestException extends ExceptionFrom(
 export class ShipPayerNotReceiverException extends ExceptionFrom(
   CoreErrors.SHIP_PAYER_NOT_RECEIVER,
 ) {}
+
+export class GiftHandoverEvidenceRequiredException extends ExceptionFrom(
+  CoreErrors.GIFT_HANDOVER_EVIDENCE_REQUIRED,
+) {}

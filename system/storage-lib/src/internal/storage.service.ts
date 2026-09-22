@@ -11,6 +11,7 @@ import {
   IPostMediaUploadRequest,
   IStorageUploadRequest,
   IStorageUploadResult,
+  ITransactionEvidenceUploadRequest,
 } from '../contracts';
 import {
   IS3Client,
@@ -37,6 +38,17 @@ export function assertPostMediaUploadPolicy(
     );
   if (request.contentLength < 1 || request.contentLength > MaxAvatarBytes)
     throw new Error('Media bài đăng phải lớn hơn 0 và không quá 5 MB.');
+}
+
+export function assertTransactionEvidenceUploadPolicy(
+  request: ITransactionEvidenceUploadRequest,
+): void {
+  if (!AllowedContentTypes.has(request.contentType))
+    throw new Error(
+      'Ảnh bằng chứng chỉ nhận image/jpeg, image/png hoặc image/webp.',
+    );
+  if (request.contentLength < 1 || request.contentLength > MaxAvatarBytes)
+    throw new Error('Ảnh bằng chứng phải lớn hơn 0 và không quá 5 MB.');
 }
 
 @Injectable()
@@ -79,6 +91,52 @@ export class StorageService implements IObjectStorage {
       throw new Error('Object media không có content type ảnh hợp lệ.');
     if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
       throw new Error('Object media không có kích thước hợp lệ.');
+  }
+
+  public async confirmTransactionEvidenceUpload(
+    userId: string,
+    transactionId: string,
+    key: string,
+  ): Promise<void> {
+    if (
+      !key.startsWith(`users/${userId}/transactions/${transactionId}/evidence/`)
+    )
+      throw new Error('Key ảnh bằng chứng không thuộc lượt trao hiện tại.');
+
+    const object = await this.client.send(
+      new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }),
+    );
+    if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
+      throw new Error('Object bằng chứng không có content type ảnh hợp lệ.');
+    if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
+      throw new Error('Object bằng chứng không có kích thước hợp lệ.');
+  }
+
+  public async createTransactionEvidenceUpload(
+    request: ITransactionEvidenceUploadRequest,
+  ): Promise<IStorageUploadResult> {
+    assertTransactionEvidenceUploadPolicy(request);
+
+    const extension = request.contentType.split('/')[1];
+    const key = `users/${request.userId}/transactions/${request.transactionId}/evidence/${randomUUID()}.${extension}`;
+    const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
+    const uploadUrl = await getSignedUrl(
+      this.client,
+      new PutObjectCommand({
+        Bucket: this.options.bucket,
+        Key: key,
+        ContentType: request.contentType,
+        ContentLength: request.contentLength,
+      }),
+      { expiresIn: expiresInSeconds },
+    );
+
+    return {
+      key,
+      uploadUrl,
+      expiresInSeconds,
+      publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+    };
   }
 
   public async createPostMediaUpload(

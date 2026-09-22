@@ -140,11 +140,14 @@ ghi nói ngược nhau về cùng một sự việc.
 
 | # | Sửa | Vá lỗ | Ghi chú |
 | --- | --- | --- | --- |
-| 1 | Bài đổi trạng thái theo tồn kho và lượt trao | H2, H3 | Phải làm **trong cùng transaction** với `accept`/`confirm`/`close`, không phải job dọn sau |
-| 2 | `POST /transactions/:id/handover` → `DELIVERING` | H1 | Chỉ người tặng. Cả hai hình thức nhận đều có bước này |
-| 3 | Tự hoàn tất đếm từ `COALESCE(handed_over_at, accepted_at)` | H5 | Một dòng SQL, nhưng phải có bước 2 trước |
-| 4 | Rule điểm khi `COMPLETED`, idempotent theo `transaction_id` | H4 | Xem Q2 — cần Bên A chốt con số |
-| 5 | Report ship-unpaid đóng giao dịch | H6 | Xem Q3 |
+| 1 | Bài đổi trạng thái theo tồn kho và lượt trao | H2, H3 | ✅ `38e4537` — `test:post-status` |
+| 2 | `POST /transactions/:id/handover` → `DELIVERING` | H1 | ✅ kèm ảnh bằng chứng — `test:handover` |
+| 3 | Tự hoàn tất đếm từ `COALESCE(handed_over_at, accepted_at)` | H5 | ✅ |
+| 4 | Rule điểm khi `COMPLETED`, idempotent theo `transaction_id` | H4 | ✅ `fafdb88` — `test:gift-points` |
+| 5 | Report ship-unpaid đóng giao dịch | H6 | ✅ kèm đòi ảnh — `test:handover` |
+
+**Sáu lỗ hổng ở §2 đều đã vá.** Tài liệu này giữ lại phần hiện trạng làm lịch sử —
+nó giải thích vì sao thiết kế bây giờ trông như thế.
 
 **Về bước 1 — trạng thái bài suy ra từ đâu.** Không thêm cột đếm mới. Bài
 `COMPLETED` khi `remaining_quantity = 0` **và** không còn lượt trao nào đang mở
@@ -201,16 +204,19 @@ thứ mình cho đi**.
 thưởng bao nhiêu là một **chính sách**. Đạt trần trong ngày, hoặc Admin tắt rule, thì
 người nhận vẫn bấm xác nhận được — chỉ là không ai được điểm.
 
-### Q3 — Report "không trả ship" có đóng giao dịch không?
+### Q3 — Đã chốt: có, và phải có ảnh mới báo được
 
 Nếu **có**: hết cảnh lượt trao đổ tự thành `COMPLETED` (H6), chat khoá ngay,
 đồng hồ lưu trữ bắt đầu ở mốc có nghĩa, và lượt huỷ tính cho B — chảy thẳng vào
 tiêu chí `FEWEST_CANCELLATIONS` của CH-1.
 
-Cần biết trước khi gật: **đây là lời một phía**. A bấm report là B mất 50 điểm và
-mang một lượt huỷ, không ai đối chứng. Khoản trừ điểm vốn đã một phía, nên đóng
-giao dịch không làm cán cân lệch thêm — nhưng nếu muốn A phải nêu lý do bắt buộc,
-hoặc muốn Admin duyệt trước khi trừ, thì đây là lúc nói.
+"Lời một phía" được vá bằng ảnh: phải có `HANDOVER` (để lại từ bước trao đồ) **và**
+`RETURNED` (gửi kèm chính lần báo) thì mới báo được; thiếu một trong hai thì
+`409 GIFT_HANDOVER_EVIDENCE_REQUIRED`. Muốn trừ điểm người khác thì phải để lại dấu
+vết trước, từ lúc chưa biết sẽ có tranh chấp.
+
+Lượt huỷ tính cho **người nhận** chứ không phải người bấm báo — họ là bên làm đổ
+lượt trao, và `closed_by` chảy thẳng vào tiêu chí `FEWEST_CANCELLATIONS` của CH-1.
 
 ### Q4 — Đã chốt: bước trao đồ có ảnh làm bằng chứng
 

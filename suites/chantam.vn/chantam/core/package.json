@@ -25,6 +25,7 @@
     "test:chat-access": "ts-node -r tsconfig-paths/register test/chat-access.check.ts",
     "test:post-status": "ts-node -r tsconfig-paths/register test/post-status.check.ts",
     "test:gift-points": "ts-node -r tsconfig-paths/register test/gift-points.check.ts",
+    "test:handover": "ts-node -r tsconfig-paths/register test/handover.check.ts",
     "test:returning": "ts-node -r tsconfig-paths/register test/returning-contract.check.ts",
     "test:lifecycle": "ts-node -r tsconfig-paths/register test/post-lifecycle.check.ts",
     "test:concurrency": "ts-node -r tsconfig-paths/register test/gift-request-concurrency.check.ts",

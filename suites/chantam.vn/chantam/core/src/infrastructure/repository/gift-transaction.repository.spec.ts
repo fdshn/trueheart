@@ -173,7 +173,13 @@ describe('GiftTransactionRepository auto-complete', () => {
 
     const [sql, params] = query.mock.calls[0];
     expect(String(sql)).toContain('FOR UPDATE SKIP LOCKED');
-    expect(String(sql)).toMatch(/accepted_at\s*<=/);
+    // Đếm từ lần cuối CÓ CHUYỆN XẢY RA, không phải từ lúc duyệt: ship liên
+    // tỉnh 4–5 ngày thì đếm từ `accepted_at` sẽ đóng lượt trao trước khi hàng
+    // tới nơi. Một `accepted_at <=` trần ở đây là dấu hiệu lỗi đó quay lại.
+    expect(String(sql)).toMatch(
+      /COALESCE\(\s*handed_over_at\s*,\s*accepted_at\s*\)\s*<=/,
+    );
+    expect(String(sql)).not.toMatch(/AND\s+accepted_at\s*<=/);
     expect(params).toEqual([5]);
   });
 });

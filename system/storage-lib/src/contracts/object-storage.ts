@@ -17,6 +17,10 @@ export interface IPostMediaUploadRequest extends IStorageUploadRequest {
   postId: string;
 }
 
+export interface ITransactionEvidenceUploadRequest extends IStorageUploadRequest {
+  transactionId: string;
+}
+
 export interface IObjectStorage {
   createAvatarUpload(
     request: IStorageUploadRequest,
@@ -30,6 +34,22 @@ export interface IObjectStorage {
   confirmPostMediaUpload(
     userId: string,
     postId: string,
+    key: string,
+  ): Promise<void>;
+  /**
+   * Anh bang chung cua mot luot trao: luc trao do, luc nhan, luc hang bi hoan.
+   *
+   * Tach khoi media bai dang vi vong doi khac han. Media bai dang chet cung bai;
+   * anh bang chung phai song lau hon ca phong chat, vi chat bi xoa theo han luu
+   * tru con bang chung thi khong.
+   */
+  createTransactionEvidenceUpload(
+    request: ITransactionEvidenceUploadRequest,
+  ): Promise<IStorageUploadResult>;
+  /** HeadObject kiem ca chu so huu lan dung luot trao truoc khi gan. */
+  confirmTransactionEvidenceUpload(
+    userId: string,
+    transactionId: string,
     key: string,
   ): Promise<void>;
 }

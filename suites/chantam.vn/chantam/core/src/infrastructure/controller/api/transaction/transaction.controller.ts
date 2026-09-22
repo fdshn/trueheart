@@ -3,10 +3,13 @@ import {
   ICancelGiftTransactionUseCase,
   IConfirmGiftReceiptUseCase,
   IListOwnGiftTransactionsUseCase,
+  IMarkGiftHandedOverUseCase,
   IReportShipUnpaidUseCase,
+  IRequestGiftEvidenceUploadUseCase,
   IRequestGiftUseCase,
 } from '@/application/contracts/transaction';
 import {
+  GiftHandoverEvidenceRequiredException,
   GiftTransactionDuplicateRequestException,
   GiftTransactionInvalidStateException,
   GiftTransactionNotFoundException,
@@ -32,13 +35,17 @@ import {
 } from '@nestjs/swagger';
 import {
   CancelGiftTransactionBodyDto,
+  GiftEvidenceParamsDto,
   GiftTransactionParamsDto,
   GiftTransactionResponseDto,
   ListGiftTransactionsResponseDto,
+  MarkGiftHandedOverBodyDto,
   ReportShipUnpaidBodyDto,
   ReportShipUnpaidParamsDto,
   ReportShipUnpaidResponseDto,
   RequestGiftBodyDto,
+  RequestGiftEvidenceUploadBodyDto,
+  RequestGiftEvidenceUploadResponseDto,
 } from '../../dto/transaction';
 
 const ParticipantErrors: ApiErrorSpec[] = [
@@ -60,6 +67,10 @@ export class TransactionController {
     private readonly confirmGiftReceiptUseCase: IConfirmGiftReceiptUseCase,
     @Inject(IReportShipUnpaidUseCase)
     private readonly reportShipUnpaidUseCase: IReportShipUnpaidUseCase,
+    @Inject(IMarkGiftHandedOverUseCase)
+    private readonly markGiftHandedOverUseCase: IMarkGiftHandedOverUseCase,
+    @Inject(IRequestGiftEvidenceUploadUseCase)
+    private readonly requestGiftEvidenceUploadUseCase: IRequestGiftEvidenceUploadUseCase,
     @Inject(ICancelGiftTransactionUseCase)
     private readonly cancelGiftTransactionUseCase: ICancelGiftTransactionUseCase,
     @Inject(IListOwnGiftTransactionsUseCase)
@@ -144,6 +155,63 @@ export class TransactionController {
       .build();
   }
 
+  @Post(':transactionId/evidence/upload-url')
+  @ApiOperation({
+    summary: 'Đường tải ảnh bằng chứng',
+    description:
+      'Cấp presigned PUT — máy chủ không nhận file, chỉ cấp quyền ghi vào đúng một khoá. Khoá mang cả `userId` lẫn `transactionId`, nên không ai tải được vào không gian của người khác hay của lượt trao khác. ' +
+      'Cả hai bên đều xin được: người tặng chụp lúc trao và lúc hàng hoàn, người nhận chụp lúc nhận. ' +
+      'PUT xong thì gửi lại `key` ở bước trao đồ, xác nhận, hoặc báo hoàn hàng.',
+  })
+  @ApiCreatedResponse({
+    type: ResponseDto.forApi(RequestGiftEvidenceUploadResponseDto),
+  })
+  @ApiErrorResponses(...ApiTokenErrors, ...ParticipantErrors)
+  public async requestEvidenceUpload(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: GiftEvidenceParamsDto,
+    @Body() body: RequestGiftEvidenceUploadBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.requestGiftEvidenceUploadUseCase.handle({
+          userId: principal.userId,
+          transactionId: params.transactionId,
+          contentType: body.upload.contentType,
+          contentLength: body.upload.contentLength,
+        }),
+      )
+      .build();
+  }
+
+  @Post(':transactionId/handover')
+  @ApiOperation({
+    summary: 'Người tặng báo đã trao đồ',
+    description:
+      'Chuyển lượt trao sang `DELIVERING` và ghi mốc `handedOverAt`. **Không phải riêng cho ship** — tự đến lấy cũng có lúc trao đồ, và tranh chấp "tôi chưa hề nhận được" vẫn xảy ra khi không có ship. ' +
+      'Mốc này đẩy lùi đồng hồ tự hoàn tất: đếm từ lúc duyệt thì ship liên tỉnh 4–5 ngày sẽ bị cron đóng trước khi hàng tới nơi. ' +
+      'Ảnh là **tuỳ chọn** (tối đa 3): thiếu ảnh thì lượt trao vẫn đi tiếp, chỉ mất quyền báo "người nhận không thanh toán phí ship" về sau.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(GiftTransactionResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, ...ParticipantErrors)
+  public async markHandedOver(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: GiftEvidenceParamsDto,
+    @Body() body: MarkGiftHandedOverBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.markGiftHandedOverUseCase.handle({
+          userId: principal.userId,
+          transactionId: params.transactionId,
+          evidenceKeys: body.handover.evidenceKeys,
+        }),
+      )
+      .build();
+  }
+
   @Post(':transactionId/confirm')
   @ApiOperation({
     summary: 'Người nhận xác nhận đã nhận',
@@ -182,6 +250,7 @@ export class TransactionController {
     GiftTransactionNotFoundException,
     [GiftTransactionNotParticipantException],
     ShipPayerNotReceiverException,
+    GiftHandoverEvidenceRequiredException,
   )
   public async reportShipUnpaid(
     @CurrentUser() principal: IAuthPrincipal,
@@ -195,6 +264,7 @@ export class TransactionController {
           transactionId: params.transactionId,
           userId: principal.userId,
           reason: body.report.reason,
+          evidenceKeys: body.report.evidenceKeys,
         }),
       )
       .build();

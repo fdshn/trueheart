@@ -692,6 +692,8 @@ Máy trạng thái: `REQUESTED → ACCEPTED → COMPLETED`, và có thể đóng
 | `POST` | `/transactions/:id/accept` | Bearer (người tặng) | Duyệt |
 | `POST` | `/transactions/:id/confirm` | Bearer (người nhận) | Xác nhận đã nhận |
 | `POST` | `/transactions/:id/cancel` | Bearer (cả hai vai) | Huỷ |
+| `POST` | `/transactions/:id/evidence/upload-url` | Bearer (cả hai bên) | Xin đường tải ảnh bằng chứng |
+| `POST` | `/transactions/:id/handover` | Bearer (**chỉ người tặng**) | Báo đã trao đồ → `DELIVERING` |
 | `POST` | `/transactions/:id/reports/ship-unpaid` | Bearer (**chỉ người gửi**) | Báo người nhận không thanh toán phí ship (CH-2) |
 
 **Điều cần biết**
@@ -706,9 +708,32 @@ Máy trạng thái: `REQUESTED → ACCEPTED → COMPLETED`, và có thể đóng
   mà không ai nhận được.
 - `confirm` đặt `completed_at` — đây là **mốc mà bộ đếm hoạt động của rank đọc**. Thiếu nó
   thì lượt tặng này vô hình với hệ thống hạng.
+- **`handover` không phải riêng cho ship.** Tự đến lấy cũng có lúc trao đồ, và tranh
+  chấp "tôi chưa hề nhận được" vẫn xảy ra khi không có ship. Mốc `handedOverAt` **đẩy
+  lùi đồng hồ tự hoàn tất**: trước đây đếm từ `acceptedAt`, nên ship liên tỉnh 4–5 ngày
+  bị cron đóng trước khi hàng tới nơi.
+- **Ảnh bằng chứng** đi qua presigned PUT như ảnh bài đăng — máy chủ không nhận file.
+  Tối đa **3 tấm mỗi mốc**, và trần đó do **database** giữ (`slot` 1–3 + UNIQUE), không
+  phải một phép đếm ở tầng ứng dụng vốn thua cuộc khi hai request vào cùng lúc. Gửi
+  quá trần thì phần thừa bị bỏ, không báo lỗi.
+
+  | Mốc | Ai | Bắt buộc? |
+  | --- | --- | --- |
+  | `HANDOVER` | người tặng | Không — nhưng thiếu thì **mất quyền report** |
+  | `RECEIPT` | người nhận | Không |
+  | `RETURNED` | người tặng | **Có**, gửi kèm lúc báo |
+
+  Ảnh **không** chứng minh được nội dung gói hàng hay việc nó thật sự được gửi đi. Cái
+  nó làm được là tạo thế bất đối xứng: ai có ảnh thì câu chuyện nhất quán, ai không
+  có gì thì report không dựa trên gì cả.
+- **Ảnh nằm ngoài chat**, nên xoá chat theo hạn lưu trữ không làm mất bằng chứng.
 - `reports/ship-unpaid` **chỉ người gửi gọi được**: chỉ họ mới thấy hàng bị hoàn về. Cho người
   nhận báo là cho chính người bị phạt quyết định có bị phạt hay không. Chỉ áp dụng khi bài
   khai `shipPayer = RECEIVER`; khác đi thì `409 SHIP_PAYER_NOT_RECEIVER`.
+- **Báo thì đóng luôn lượt trao** (`CANCELLED`). Không đóng thì cron tự hoàn tất đánh
+  dấu `COMPLETED` sau 5 ngày — người nhận vừa bị trừ 50 điểm vì không trả ship, vừa
+  được ghi công đã nhận quà, trong khi món đồ đang nằm ở nhà người tặng. Lượt huỷ tính
+  cho **người nhận**, không phải người bấm báo.
 - Khoản phạt đi qua chính point ledger với khoá chống trùng **theo lượt trao**, nên bấm hai
   lần hay mạng retry đều chỉ trừ một lần — lần sau trả `penaltyApplied: false` thay vì báo
   đã trừ thêm. Số điểm lấy từ point rule `SHIP_UNPAID_PENALTY` nên Admin chỉnh được.
