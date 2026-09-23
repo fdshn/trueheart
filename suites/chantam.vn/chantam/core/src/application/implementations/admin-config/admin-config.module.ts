@@ -14,10 +14,10 @@ import {
   IListAdminRolesUseCase,
   IListAdminUsersUseCase,
   IPublishAdminConfigUseCase,
-  ISetCandidateSelectionUseCase,
   IPublishAdminMaintenancePolicyUseCase,
   IPublishAdminPointRuleUseCase,
   IPublishAdminRankPolicyUseCase,
+  ISetCandidateSelectionUseCase,
   IUpdateNotificationChannelUseCase,
 } from '@/application/contracts/admin-config';
 import { Global, Module } from '@nestjs/common';
