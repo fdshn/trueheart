@@ -44,7 +44,8 @@ export class PostLikeRepository
         return null;
       }
 
-      const [updated] = await manager.query<{ like_count: string }[]>(
+      const [updated] = await updateReturning<{ like_count: string }>(
+        manager,
         `
           UPDATE posts
           SET like_count = like_count + 1
@@ -86,7 +87,8 @@ export class PostLikeRepository
         return null;
       }
 
-      const [updated] = await manager.query<{ like_count: string }[]>(
+      const [updated] = await updateReturning<{ like_count: string }>(
+        manager,
         `
           UPDATE posts
           SET like_count = GREATEST(like_count - 1, 0)
