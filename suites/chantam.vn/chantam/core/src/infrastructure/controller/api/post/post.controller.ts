@@ -14,6 +14,7 @@ import {
   IRequestCharityTransferUseCase,
   IRequestPostMediaUploadUseCase,
   IReviewCharityTransferUseCase,
+  ITogglePostLikeUseCase,
   IUpdatePostUseCase,
 } from '@/application/contracts/post';
 import {
@@ -41,6 +42,7 @@ import {
   IReorderPostMediaResponseDto,
   IRequestCharityTransferResponseDto,
   IReviewCharityTransferResponseDto,
+  ITogglePostLikeResponseDto,
   IUpdatePostResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import {
@@ -105,6 +107,7 @@ import {
   ReviewCharityTransferBodyDto,
   ReviewCharityTransferParamsDto,
   ReviewCharityTransferResponseDto,
+  TogglePostLikeResponseDto,
   UpdatePostBodyDto,
   UpdatePostParamsDto,
   UpdatePostResponseDto,
@@ -146,6 +149,8 @@ export class PostController {
     private readonly moderatePostUseCase: IModeratePostUseCase,
     @Inject(IUpdatePostUseCase)
     private readonly updatePostUseCase: IUpdatePostUseCase,
+    @Inject(ITogglePostLikeUseCase)
+    private readonly togglePostLikeUseCase: ITogglePostLikeUseCase,
   ) {}
 
   @Post()
@@ -639,6 +644,34 @@ export class PostController {
     });
 
     return ResponseDto.create<IGetPostResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Post(':postId/like')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Thích hoặc bỏ thích một bài đăng',
+    description:
+      'Chuyển đổi trạng thái thích (toggle like) của người dùng hiện tại đối với bài đăng.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(TogglePostLikeResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['postId: postId must be a UUID']],
+    [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
+  )
+  public async toggleLike(
+    @Param() params: GetPostParamsDto,
+    @CurrentUser() principal: IAuthPrincipal,
+  ): Promise<ResponseDto<ITogglePostLikeResponseDto>> {
+    const result = await this.togglePostLikeUseCase.handle({
+      postId: params.postId,
+      userId: principal.userId,
+    });
+
+    return ResponseDto.create<ITogglePostLikeResponseDto>()
       .succeed()
       .attach(result)
       .build();

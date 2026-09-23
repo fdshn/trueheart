@@ -15,6 +15,7 @@ import {
   IRequestCharityTransferUseCase,
   IRequestPostMediaUploadUseCase,
   IReviewCharityTransferUseCase,
+  ITogglePostLikeUseCase,
   IUpdatePostUseCase,
 } from '@/application/contracts/post';
 import { Global, Module } from '@nestjs/common';
@@ -36,6 +37,7 @@ import { RemovePostMediaUseCase } from './remove-post-media.use-case';
 import { RenewPostUseCase } from './renew-post.use-case';
 import { ReorderPostMediaUseCase } from './reorder-post-media.use-case';
 import { RequestPostMediaUploadUseCase } from './request-post-media-upload.use-case';
+import { TogglePostLikeUseCase } from './toggle-post-like.use-case';
 import { UpdatePostUseCase } from './update-post.use-case';
 
 @Global()
@@ -66,6 +68,7 @@ import { UpdatePostUseCase } from './update-post.use-case';
     { provide: IReorderPostMediaUseCase, useClass: ReorderPostMediaUseCase },
     { provide: IRemovePostMediaUseCase, useClass: RemovePostMediaUseCase },
     { provide: IRenewPostUseCase, useClass: RenewPostUseCase },
+    { provide: ITogglePostLikeUseCase, useClass: TogglePostLikeUseCase },
     { provide: IUpdatePostUseCase, useClass: UpdatePostUseCase },
   ],
   exports: [
@@ -85,6 +88,7 @@ import { UpdatePostUseCase } from './update-post.use-case';
     IReorderPostMediaUseCase,
     IRemovePostMediaUseCase,
     IRenewPostUseCase,
+    ITogglePostLikeUseCase,
     IUpdatePostUseCase,
   ],
 })

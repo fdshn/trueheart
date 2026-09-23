@@ -32,3 +32,4 @@ export * from './1791200000000-SeedGiftCompletionPointRules';
 export * from './1791300000000-AddHandoverAndEvidence';
 export * from './1791400000000-AddChatRetention';
 export * from './1791500000000-CreateFeedInteractions';
+export * from './1791600000000-AddSelectionModeAndLikes';

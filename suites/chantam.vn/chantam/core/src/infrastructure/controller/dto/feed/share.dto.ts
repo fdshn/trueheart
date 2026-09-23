@@ -56,7 +56,10 @@ export class ShareResultDto {
   })
   shareUrl: string | null;
 
-  @ApiProperty({ example: 4, description: 'Tổng lượt chia sẻ sau lần ghi này.' })
+  @ApiProperty({
+    example: 4,
+    description: 'Tổng lượt chia sẻ sau lần ghi này.',
+  })
   shareCount: number;
 }
 

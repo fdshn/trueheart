@@ -7,6 +7,7 @@ import { ContentSubjectTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { updateReturning } from './update-returning';
 
 /**
  * Bảng và cột đếm tương ứng với từng loại chủ thể.
@@ -43,18 +44,14 @@ export class ContentShareRepository implements IContentShareRepository {
             (subject_type, subject_id, user_id, channel)
           VALUES ($1, $2, $3, $4)
         `,
-        [
-          params.subjectType,
-          params.subjectId,
-          params.userId,
-          params.channel,
-        ],
+        [params.subjectType, params.subjectId, params.userId, params.channel],
       );
 
       const target = CounterTargets[params.subjectType];
       if (!target) return { shareCount: 0 };
 
-      const [row] = await manager.query<{ share_count: string }[]>(
+      const [row] = await updateReturning<{ share_count: string | number }>(
+        manager,
         `
           UPDATE ${target.table}
           SET ${target.countColumn} = ${target.countColumn} + 1

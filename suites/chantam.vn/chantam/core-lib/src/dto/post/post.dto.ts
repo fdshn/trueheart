@@ -10,6 +10,7 @@ import {
   GiftPostConditions,
   GiftPostStatuses,
   GiftRequestStatuses,
+  PostSelectionModes,
   PostTypes,
   PublicDiscoveryPostType,
   ReactionKinds,
@@ -60,6 +61,13 @@ export interface ICreateOfferPostDto extends ICreatePostCommonDto {
   condition: GiftPostConditions;
   estimatedValue: number;
   totalQuantity?: number;
+  /**
+   * Chế độ tìm người nhận (mặc định OPTIMAL).
+   * - INSTANT  — chọn ngay người đầu tiên.
+   * - OPTIMAL  — chờ tối đa 7 ngày.
+   * - EXTENDED — chờ tối đa 30 ngày.
+   */
+  selectionMode?: PostSelectionModes;
 }
 
 export interface ICreateGenericMvpPostDto extends ICreatePostCommonDto {
@@ -78,6 +86,8 @@ export interface ICreatePostDto extends ICreatePostCommonDto {
   price?: number;
   /** Có thương lượng giá hay không. Chỉ dùng cho bài CLASSIFIED. */
   negotiable?: boolean;
+  /** Chế độ tìm người nhận — chỉ áp dụng cho bài OFFER, mặc định OPTIMAL. */
+  selectionMode?: PostSelectionModes;
 }
 
 export interface ICreatePostBodyDto {
@@ -168,12 +178,31 @@ export interface IPublicPostMediaDto {
   sortOrder: number;
 }
 
+/**
+ * Thông tin tác giả hiển thị công khai.
+ *
+ * **Privacy**: Không được trả `fullName`, `phone`, `address` ở đây.
+ * Thông tin liên lạc chỉ tiết lộ qua `IPostContactInfoDto` và duy nhất
+ * cho receiver đã được chọn (transaction DELIVERING/COMPLETED).
+ */
 export interface IPostAuthorDto {
   id: string;
   username: string;
-  fullName?: string | null;
   avatarUrl?: string | null;
   rank?: string;
+  /** Thời điểm tạo tài khoản — hiển thị "Tham gia tháng X năm Y". */
+  joinedAt?: Date | string | null;
+}
+
+/**
+ * Thông tin liên lạc — CHỈ trả khi caller là receiver đã được chọn.
+ *
+ * Transaction phải ở trạng thái DELIVERING hoặc COMPLETED và
+ * `receiver_id = callerId`. Mọi trường hợp khác trả `null`.
+ */
+export interface IPostContactInfoDto {
+  phone?: string | null;
+  address?: string | null;
 }
 
 export interface IGetPostResponseDto extends IPostFeedInteractionDto {
@@ -184,6 +213,15 @@ export interface IGetPostResponseDto extends IPostFeedInteractionDto {
   requestCount?: number;
   myRequestStatus?: GiftRequestStatuses | null;
   hasRequested?: boolean;
+  /** Số lượt thích tổng cộng. */
+  likeCount?: number;
+  /** Caller đã like bài này chưa (null nếu chưa đăng nhập). */
+  isLiked?: boolean | null;
+  /**
+   * Thông tin liên lạc của người cho.
+   * Chỉ có khi caller là receiver đã được chọn ở giao dịch DELIVERING/COMPLETED.
+   */
+  contactInfo?: IPostContactInfoDto | null;
   /**
    * Phân bổ theo loại cảm xúc. Chỉ có trên màn chi tiết — bảng tin chỉ cần
    * tổng số, hỏi breakdown cho 20 bài mỗi lần cuộn là tự làm nặng.
@@ -338,4 +376,9 @@ export interface IReviewCharityTransferBodyDto {
 
 export interface IReviewCharityTransferResponseDto {
   post: IPostEntity;
+}
+
+export interface ITogglePostLikeResponseDto {
+  liked: boolean;
+  likeCount: number;
 }

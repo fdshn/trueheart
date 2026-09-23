@@ -197,6 +197,12 @@ export interface IGiftTransactionRepository {
    * với một lượt trao không bao giờ kết thúc.
    */
   countOpenForUser(userId: string): Promise<number>;
+  /**
+   * Kiểm tra xem một người dùng có phải là người nhận đã được chọn cho bài đăng này
+   * trong một giao dịch đang giao hoặc hoàn tất (ACCEPTED, DELIVERING, COMPLETED) hay không.
+   * Dùng cho kiểm soát quyền riêng tư (Privacy): chỉ người nhận mới thấy thông tin liên lạc.
+   */
+  isReceiverOfPost(postId: string, receiverId: string): Promise<boolean>;
 }
 
 export const IGiftTransactionRepository = Symbol('IGiftTransactionRepository');

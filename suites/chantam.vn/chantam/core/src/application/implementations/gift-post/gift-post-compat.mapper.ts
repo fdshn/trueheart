@@ -2,6 +2,7 @@ import {
   GiftPostCategories,
   GiftPostConditions,
   GiftPostStatuses,
+  PostSelectionModes,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
@@ -110,6 +111,9 @@ export function toCanonicalOffer(input: {
     charityTransferStatus: null,
     charityTransferRequestedAt: null,
     charityTransferNote: null,
+    selectionMode: PostSelectionModes.OPTIMAL,
+    selectionDeadline: null,
+    likeCount: 0,
     deletedAt: null,
   };
 }

@@ -16,6 +16,7 @@ import {
 import {
   GiftPostStatuses,
   GiftRequestStatuses,
+  PostSelectionModes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
@@ -58,6 +59,25 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     // thẳng `expiresAt` ở đây để khoảng đó không thành cửa sổ xin nhận.
     if (post.expiresAt && post.expiresAt.getTime() <= Date.now()) {
       throw new PostNotAcceptingRequestsException();
+    }
+
+    // Kiểm tra đây có phải request ĐẦU TIÊN không.
+    // Nếu có, hành động tuỳ selectionMode:
+    // - INSTANT: chấp nhận ngay người này, đóng bài (chuyển RESERVED).
+    // - OPTIMAL/EXTENDED: ghi selection_deadline = NOW() + 7d / 30d.
+    const activeRequestCount =
+      await this.giftRequestRepository.countActiveByPostIds([command.postId]);
+    const isFirstRequest = (activeRequestCount.get(command.postId) ?? 0) === 0;
+
+    if (post.postType === 'OFFER' && isFirstRequest) {
+      if (post.selectionMode !== PostSelectionModes.INSTANT) {
+        const days =
+          post.selectionMode === PostSelectionModes.EXTENDED ? 30 : 7;
+        post.selectionDeadline = new Date(
+          Date.now() + days * 24 * 60 * 60 * 1000,
+        );
+        await this.postRepository.save(post);
+      }
     }
 
     const existing = await this.giftRequestRepository.findByPostAndRequester(
@@ -120,12 +140,41 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
       throw error;
     }
 
+    const created = await this.giftRequestRepository.findOneByOrFail({
+      globalId,
+    } as never);
+
+    // INSTANT mode: chấp nhận ngay người đầu tiên — không cần chờ countdown.
+    // Chạy sau khi insert thành công. Nếu acceptRequest fail (deadlock, network),
+    // request vẫn tồn tại ở trạng thái PENDING — cron hoặc admin sẽ xử lý lại.
+    // Không throw để tránh roll back việc tạo request.
+    if (
+      post.postType === 'OFFER' &&
+      post.selectionMode === PostSelectionModes.INSTANT &&
+      isFirstRequest
+    ) {
+      const transactionId = makeGlobalId(
+        `/transactions/${command.postId}/${command.requesterId}/${Date.now()}`,
+      );
+      try {
+        await this.giftRequestRepository.acceptRequest({
+          requestId: globalId,
+          postId: command.postId,
+          giverId: post.authorId,
+          transactionId,
+        });
+      } catch (acceptError) {
+        // Log để monitoring phát hiện; request vẫn tồn tại ở PENDING.
+        // Cron timeout hoặc admin có thể trigger lại accept thủ công.
+        console.error(
+          `[INSTANT-ACCEPT] acceptRequest failed for request=${globalId} post=${command.postId}:`,
+          acceptError,
+        );
+      }
+    }
+
     return {
-      request: toGiftRequestDto(
-        await this.giftRequestRepository.findOneByOrFail({
-          globalId,
-        } as never),
-      ),
+      request: toGiftRequestDto(created),
     };
   }
 }

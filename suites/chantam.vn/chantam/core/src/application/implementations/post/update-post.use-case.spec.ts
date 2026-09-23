@@ -1,5 +1,8 @@
 import { IPostRepository } from '@/domain/ports/repository';
-import { PostTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  PostSelectionModes,
+  PostTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { UpdatePostUseCase } from './update-post.use-case';
@@ -33,6 +36,9 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     charityTransferStatus: null,
     charityTransferRequestedAt: null,
     charityTransferNote: null,
+    selectionMode: PostSelectionModes.OPTIMAL,
+    selectionDeadline: null,
+    likeCount: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,

@@ -60,6 +60,14 @@ export enum ErrorCodes {
   POST_SOS_NOT_ALLOWED = 0x06_08,
   POST_CHARITY_TRANSFER_INVALID_STATE = 0x06_09,
   DISCOVERY_ORIGIN_UNAVAILABLE = 0x06_0a,
+  /** selectionMode không phải INSTANT/OPTIMAL/EXTENDED hoặc áp dụng sai loại bài. */
+  POST_SELECTION_MODE_INVALID = 0x06_0b,
+  /** User đã like bài này rồi, không thể like thêm. */
+  POST_ALREADY_LIKED = 0x06_0c,
+  /** User chưa like bài này, không thể unlike. */
+  POST_NOT_LIKED = 0x06_0d,
+  /** Thông tin liên lạc chỉ tiết lộ cho receiver đã được chọn. */
+  POST_CONTACT_INFO_RESTRICTED = 0x06_0e,
 
   // 0x07 — Point / Rank / Referral M4
   POINT_RULE_UNAVAILABLE = 0x07_01,

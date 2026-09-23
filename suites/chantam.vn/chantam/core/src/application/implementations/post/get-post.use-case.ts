@@ -8,6 +8,8 @@ import { IConfig } from '@/domain/ports/config';
 import {
   IContentReactionRepository,
   IGiftRequestRepository,
+  IGiftTransactionRepository,
+  IPostLikeRepository,
   IPostMediaRepository,
   IPostRepository,
   IUserRepository,
@@ -16,7 +18,11 @@ import {
   ContentSubjectTypes,
   GiftRequestStatuses,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { IPostAuthorDto } from '@chantam.vn/chantam.core-lib/dto';
+import {
+  IPostAuthorDto,
+  IPostContactInfoDto,
+} from '@chantam.vn/chantam.core-lib/dto';
+import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { applyGeoJitter } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -29,6 +35,10 @@ export class GetPostUseCase implements IGetPostUseCase {
     private readonly postMediaRepository: IPostMediaRepository,
     @Inject(IGiftRequestRepository)
     private readonly giftRequestRepository: IGiftRequestRepository,
+    @Inject(IGiftTransactionRepository)
+    private readonly giftTransactionRepository: IGiftTransactionRepository,
+    @Inject(IPostLikeRepository)
+    private readonly postLikeRepository: IPostLikeRepository,
     @Inject(IUserRepository)
     private readonly userRepository: IUserRepository,
     @Inject(IContentReactionRepository)
@@ -75,19 +85,46 @@ export class GetPostUseCase implements IGetPostUseCase {
     );
 
     let author: IPostAuthorDto | null = null;
+    let authorUser: IUserEntity | null = null;
     if (post.authorId) {
-      const user = await this.userRepository.findOne({
+      authorUser = await this.userRepository.findOne({
         where: { globalId: post.authorId },
       });
-      if (user) {
+      if (authorUser) {
         author = {
-          id: user.globalId,
-          username: user.username,
-          fullName: user.fullName,
-          avatarUrl: user.avatarUrl,
-          rank: user.rank,
+          id: authorUser.globalId,
+          username: authorUser.username,
+          avatarUrl: authorUser.avatarUrl,
+          rank: authorUser.rank,
+          joinedAt: authorUser.createdAt,
         };
       }
+    }
+
+    // Privacy: Thông tin liên lạc chỉ tiết lộ cho chính người tặng hoặc receiver
+    // đã được chọn trong giao dịch DELIVERING/COMPLETED.
+    let contactInfo: IPostContactInfoDto | null = null;
+    if (command.currentUserId && authorUser) {
+      const isAuthor = command.currentUserId === post.authorId;
+      const isReceiver = await this.giftTransactionRepository.isReceiverOfPost(
+        post.globalId,
+        command.currentUserId,
+      );
+
+      if (isAuthor || isReceiver) {
+        contactInfo = {
+          phone: authorUser.phone ?? null,
+          address: (post.details?.address as string) || post.areaLabel || null,
+        };
+      }
+    }
+
+    let isLiked: boolean | null = null;
+    if (command.currentUserId) {
+      isLiked = await this.postLikeRepository.hasLiked(
+        command.currentUserId,
+        post.globalId,
+      );
     }
 
     return {
@@ -104,6 +141,9 @@ export class GetPostUseCase implements IGetPostUseCase {
       requestCount: requestCounts.get(post.globalId) ?? 0,
       myRequestStatus,
       hasRequested: Boolean(myRequestStatus),
+      likeCount: post.likeCount ?? 0,
+      isLiked,
+      contactInfo,
       reactionCount: post.reactionCount,
       commentCount: post.commentCount,
       shareCount: post.shareCount,

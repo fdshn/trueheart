@@ -40,3 +40,15 @@ export class PostSosNotAllowedException extends ExceptionFrom(
 export class PostCharityTransferInvalidStateException extends ExceptionFrom(
   CoreErrors.POST_CHARITY_TRANSFER_INVALID_STATE,
 ) {}
+
+export class PostSelectionModeInvalidException extends ExceptionFrom(
+  CoreErrors.POST_SELECTION_MODE_INVALID,
+) {}
+
+export class PostAlreadyLikedException extends ExceptionFrom(
+  CoreErrors.POST_ALREADY_LIKED,
+) {}
+
+export class PostNotLikedException extends ExceptionFrom(
+  CoreErrors.POST_NOT_LIKED,
+) {}

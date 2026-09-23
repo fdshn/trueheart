@@ -16,9 +16,9 @@ có implementation**.
 | Đường dẫn import | Nội dung |
 | --- | --- |
 | `@chantam.vn/chantam.core-lib` | `CoreService` |
-| `.../consts` | `ErrorCodes`, `ErrorOrigin`, `GiftPostCategories`, `GiftPostConditions`, `GiftPostStatuses`, `PostTypes` |
+| `.../consts` | `ErrorCodes`, `ErrorOrigin`, `GiftPostCategories`, `GiftPostConditions`, `GiftPostStatuses`, `PostTypes`, `PostSelectionModes` |
 | `.../models` | `IGiftPost`, `IPost`, `IPostMedia` |
-| `.../entities` | `IGiftPostEntity` + token DI, `IPostEntity` + token DI, `IPostMediaEntity` + token DI |
+| `.../entities` | `IGiftPostEntity` + token DI, `IPostEntity` + token DI, `IPostMediaEntity` + token DI, `IPostLikeEntity` + token DI |
 | `.../values` | `GiftPostId` |
 | `.../dto` | Interface DTO theo từng resource: owner point summary/ledger, tóm tắt thứ hạng owner (`IGetOwnRankSummaryResponseDto`), referral (`IReferralSummaryDto`), quyền theo hạng (`IEntitlementsSummaryDto`) và vòng đời giao dịch (`IGiftTransactionDto`) |
 

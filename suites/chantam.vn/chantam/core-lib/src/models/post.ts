@@ -3,6 +3,7 @@ import {
   CharityTransferStatuses,
   DeliveryMethods,
   GiftPostStatuses,
+  PostSelectionModes,
   PostTypes,
   ShipPayers,
 } from '../consts';
@@ -40,4 +41,19 @@ export interface IPost {
   charityTransferStatus: CharityTransferStatuses | null;
   charityTransferRequestedAt: Date | null;
   charityTransferNote: string | null;
+  /**
+   * Chế độ tìm người nhận. Chỉ có ý nghĩa với bài OFFER.
+   * - INSTANT  — chọn ngay người đầu tiên gửi yêu cầu hợp lệ.
+   * - OPTIMAL  — chờ tối đa 7 ngày kể từ request đầu tiên.
+   * - EXTENDED — chờ tối đa 30 ngày kể từ request đầu tiên.
+   */
+  selectionMode: PostSelectionModes;
+  /**
+   * Thời điểm kết thúc giai đoạn chờ chọn người nhận.
+   * - null cho đến khi có request đầu tiên (hoặc INSTANT mode).
+   * - Được set = NOW() + 7d / 30d khi request đầu tiên xuất hiện.
+   */
+  selectionDeadline: Date | null;
+  /** Tổng số lượt thích bài đăng. */
+  likeCount: number;
 }
