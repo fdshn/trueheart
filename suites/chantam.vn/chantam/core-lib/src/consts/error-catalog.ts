@@ -334,6 +334,26 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Bài đăng này không khai người nhận trả phí ship, nên không có khoản nào để báo chưa thanh toán',
   },
 
+  CONTENT_BLOCKED_TERMS: {
+    code: ErrorCodes.CONTENT_BLOCKED_TERMS,
+    httpStatus: HttpStatus.UNPROCESSABLE_ENTITY,
+    message: () => 'Nội dung có từ ngữ không được phép. Vui lòng viết lại',
+  },
+
+  CONTENT_COMMENT_NOT_FOUND: {
+    code: ErrorCodes.CONTENT_COMMENT_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy bình luận',
+  },
+
+  CONTENT_EDIT_WINDOW_CLOSED: {
+    code: ErrorCodes.CONTENT_EDIT_WINDOW_CLOSED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (minutes: number) =>
+      `Chỉ sửa được bình luận trong ${minutes} phút đầu`,
+    sample: [15],
+  },
+
   GIFT_HANDOVER_EVIDENCE_REQUIRED: {
     code: ErrorCodes.GIFT_HANDOVER_EVIDENCE_REQUIRED,
     httpStatus: HttpStatus.CONFLICT,

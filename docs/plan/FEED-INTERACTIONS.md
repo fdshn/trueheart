@@ -233,34 +233,156 @@ họ mất luôn thông báo về lượt xin nhận — thứ thật sự quan 
 
 ---
 
-## 6. Cần Bên A chốt
+## 6. Bên A đã chốt
 
-### C-1 — Bộ cảm xúc gồm những gì?
+| Câu | Chốt |
+| --- | --- |
+| Bộ cảm xúc | **5 loại**: `LIKE` 👍 `LOVE` ❤️ `CARE` 🤗 `WOW` 😮 `SAD` 😢. Không có `ANGRY` |
+| Ai được tương tác | **MEMBER trở lên**. VIEWER chỉ đọc |
+| Duyệt trước | **Không**, nhưng có **bộ lọc từ ngữ** chặn ngay lúc gửi — xem §7 |
+| Ảnh trong bình luận | **Có** — xem §8 |
+| Ảnh trong chat | **Có**, bổ sung ngoài phạm vi ban đầu — xem §9 |
 
-Đề xuất **5**: `LIKE` 👍, `LOVE` ❤️, `CARE` 🤗, `WOW` 😮, `SAD` 😢.
+---
 
-Cố ý **không có** `ANGRY` 😡. Đây là nền tảng cho–nhận đồ; một nút phẫn nộ trên
-bài của người đang cần giúp là thứ không phục vụ ai. Thêm sau thì dễ, gỡ đi khi
-người dùng đã quen thì khó.
+## 7. Bộ lọc từ ngữ
 
-### C-2 — VIEWER được bình luận không?
+Đã hiện thực: `core-lib/src/models/content-moderation.ts`, **34 unit test**.
 
-Capability đã có sẵn cơ chế, chỉ cần chốt giá trị mặc định. Đề xuất: **VIEWER chỉ
-đọc**, MEMBER trở lên mới bình luận và bày tỏ cảm xúc — cùng logic với việc VIEWER
-chưa đăng bài được.
+> ⚠️ **Nói trước cho rõ: đây không phải kiểm duyệt.** Một danh sách từ cấm bắt được
+> những trường hợp lười — người gõ thẳng từ bậy. Nó không bắt được mỉa mai, đe doạ
+> lịch sự, hay lừa đảo; và nó luôn vừa bỏ sót vừa bắt nhầm. Giá trị thật là giảm
+> tải cho người kiểm duyệt, không phải thay thế họ.
 
-### C-3 — Bình luận có cần duyệt trước không?
+### Hai mức, không phải một
 
-Đề xuất **không** — duyệt trước thì cuộc trò chuyện chết, và không đủ người trực.
-Thay vào đó là báo xấu + Admin xử sau (lát 7).
+| Mức | Hành vi |
+| --- | --- |
+| `BLOCK` | Từ chối luôn, `422` kèm mã lỗi riêng. Nội dung không được tạo |
+| `REVIEW` | Tạo nhưng `status = PENDING_REVIEW`: tác giả thấy, người khác không, và vào hàng đợi Admin |
 
-Nhưng cần biết trước: **đây là chi phí vận hành thật.** Bình luận mở trên một nền
-tảng từ thiện sẽ có nội dung cần gỡ, và hiện **chưa có công cụ kiểm duyệt nào**
-ngoài `POST_OPERATOR_USERNAMES` cho bài đăng. Lát 7 dựng phần tối thiểu; một hàng
-đợi kiểm duyệt đầy đủ vẫn thuộc [F60](../FEATURES.md#f60--kiểm-duyệt--quản-lý-người-dùng).
+Một mức duy nhất thì phải chọn giữa chặn oan người vô tội, hay thả nổi thứ đáng
+ngờ. `REVIEW` là chỗ cho những từ "có thể có vấn đề" — như `lừa đảo` — không chặn
+oan người đang cảnh báo cho cộng đồng.
 
-### C-4 — Bình luận có ảnh không?
+### Chống lách
 
-Đề xuất **Phase 1 chỉ chữ**, giống chat (F37 cũng chốt chỉ text ở phase 1). Ảnh
-kéo theo kiểm duyệt ảnh, dung lượng lưu trữ, và presigned upload cho mỗi bình
-luận. Hạ tầng đã có nên thêm sau rẻ.
+So chuỗi thô thì `đm`, `Đ.M`, `đ m`, `đmmmm`, `dm` là năm thứ khác nhau, trong khi
+người đọc thấy cùng một từ. Nên chuẩn hoá trước: bỏ dấu, map `đ` → `d` **bằng tay**
+(nó là một ký tự riêng chứ không phải `d` cộng dấu, nên tách dấu Unicode bỏ sót),
+bỏ ký tự vô hình, đổi `1→i 3→e 4→a @→a`, rút chữ kéo dài về một.
+
+Rồi so trên **ba dạng**, mỗi dạng bịt một kiểu:
+
+| Dạng | Bắt được |
+| --- | --- |
+| có dấu cách | gõ thẳng, và cụm nhiều từ |
+| gộp chữ cái đứng lẻ | `đ m`, `đ.m`, `đ-m` |
+| bỏ hết dấu cách | `đ ụ  m á` |
+
+Dạng thứ ba **chỉ áp cho mục từ 4 ký tự trở lên**. Từ hai ký tự mà tìm chuỗi con
+trong văn bản đã bỏ hết dấu cách là bắt nhầm hàng loạt — có test riêng cho `admin`,
+`adminh`, `âm thầm`.
+
+Rút chữ kéo dài phải về **một** chứ không phải hai: về hai thì `dmm` và `dm` vẫn
+khác nhau, tức chỉ cần gõ thêm một chữ là luồn qua. An toàn vì mục cấm đi qua đúng
+phép chuẩn hoá đó, nên hai bên luôn gặp nhau ở cùng một dạng.
+
+### Cấu hình
+
+`system_configs` khoá `moderation.blocked_terms`:
+
+```jsonc
+[
+  "đm",
+  { "term": "lừa đảo", "severity": "REVIEW" }
+]
+```
+
+Cấu hình hỏng trả danh sách **rỗng**, tức không chặn gì. Cố ý, và ngược với phản xạ
+"an toàn là chặn hết": một dòng JSON gõ nhầm không được biến thành chặn mọi bình
+luận, vì người dùng không hiểu chuyện gì đang xảy ra và không ai nối được lỗi đó
+với ô cấu hình.
+
+Áp cho **bình luận và tiêu đề/mô tả bài đăng**. **Không áp cho chat**: chat là riêng
+tư giữa hai người đã đồng ý trao đồ cho nhau, và chặn từ ngữ trong tin nhắn riêng là
+đọc trộm theo một nghĩa khác.
+
+---
+
+## 8. Ảnh trong bình luận
+
+Tối đa **3 ảnh** mỗi bình luận, dùng lại `IObjectStorage` presigned PUT.
+
+**Khoá theo chủ thể, không theo bình luận.** Bình luận chưa tồn tại lúc xin đường
+tải — nó được tạo cùng lúc với ảnh. Nên:
+
+```
+users/{userId}/comment-media/{subjectType}/{subjectId}/{uuid}.webp
+```
+
+Kiểm tiền tố vẫn chặt: không ai tải được vào không gian người khác hay chủ thể khác.
+
+> ⚠️ **Ảnh tải lên rồi bỏ dở sẽ thành rác.** Người dùng chọn ảnh, đổi ý, đóng app —
+> object đã nằm trên storage mà không bình luận nào trỏ tới. Cần **lifecycle rule của
+> bucket** xoá object dưới tiền tố `comment-media/` quá 7 ngày mà chưa được gắn. Đây
+> là việc cấu hình hạ tầng, không phải code — phải làm, nếu không dung lượng tăng mãi.
+
+---
+
+## 9. Ảnh trong chat
+
+**Đây là đảo một quyết định đã ghi.**
+[F37](../FEATURES.md#f37--chat-text-theo-giao-dịch) hiện ghi "Phase 1 **chỉ tin nhắn
+text**: không file đính kèm, không ảnh". Tài liệu phải được sửa cùng lúc với code.
+
+Ba hệ quả kỹ thuật, không cái nào hiển nhiên:
+
+**1. Ràng buộc "nội dung không được rỗng" phải đổi.** `chat_messages` hiện có
+`CHK_chat_messages_body_not_blank`. Một tin chỉ có ảnh thì không có chữ. Không thể
+viết điều kiện "hoặc có ảnh" vì ảnh ở bảng khác — `CHECK` không nhìn sang bảng khác
+được. Nên thêm cột `media_count` trên chính tin nhắn:
+
+```sql
+CHECK (length(btrim(body)) > 0 OR media_count > 0)
+```
+
+Cột này cũng cho client biết "tin này có ảnh" mà không phải join.
+
+**2. Chat chỉ-ghi-thêm, nên ảnh phải đính trong CÙNG lần ghi.** Trigger chặn
+`UPDATE`, nên không có chuyện tạo tin rồi gắn ảnh sau. API gửi tin nhận luôn danh
+sách key.
+
+**3. Xoá chat theo hạn phải xoá cả ảnh.** Không thì lời hứa "tin nhắn sẽ được xoá"
+chỉ đúng một nửa — chữ biến mất nhưng ảnh vẫn nằm nguyên trên storage và vẫn mở được
+bằng đường dẫn công khai.
+
+> Xoá object **không nằm trong transaction database được**. Nên: xoá dòng trước, trả
+> danh sách key ra ngoài, xoá object **sau khi commit** theo kiểu cố-gắng. Object còn
+> sót khi tiến trình chết giữa chừng được lifecycle rule của bucket dọn. Làm ngược
+> lại — xoá object trước — thì tiến trình chết sẽ để lại dòng database trỏ vào ảnh
+> không còn tồn tại, tức chat vỡ giao diện cho người đang xem.
+
+**Ảnh bằng chứng lượt trao KHÔNG bị đụng tới** — chúng ở bảng
+`gift_transaction_evidence` riêng, và đó chính là lý do tách bảng ngay từ đầu.
+
+Tối đa **3 ảnh** mỗi tin nhắn, khoá `users/{userId}/chat/{roomId}/{uuid}.webp`.
+
+---
+
+## 10. Kế hoạch cập nhật
+
+| # | Lát | Trạng thái |
+| --- | --- | --- |
+| 0 | **Bộ lọc từ ngữ** (model thuần + 34 test) | ✅ đã làm |
+| 1 | Nền: migration 5 bảng + cột đếm + capability + rule F41 | ✅ `test:feed-foundation`, 25 kiểm |
+| 2 | Cảm xúc | ✅ `test:feed-reactions`, 26 kiểm |
+| 3 | Bình luận (nối bộ lọc vào đường ghi) | ✅ `test:feed-comments`, 24 kiểm |
+| 4 | Ảnh trong bình luận | ⚠️ code xong, `test:feed-media` **chưa chạy** — Docker chưa bật |
+| 5 | Đọc kèm số đếm + `myReaction` | ✅ nhúng vào get/nearby/me; unit test canh một truy vấn cho cả trang |
+| 6 | Chia sẻ | ✅ `POST /posts/:id/shares` — append-only, không nhân bản; unit + `test:feed-shares` |
+| 7 | Thông báo | |
+| 8 | Báo xấu + hàng đợi Admin | |
+| 9 | Điểm F41 (seed TẮT sẵn) | |
+| 10 | Đối soát số đếm | |
+| 11 | **Ảnh trong chat** + sửa F37 + xoá ảnh theo hạn | |

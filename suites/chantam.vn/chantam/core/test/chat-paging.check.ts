@@ -14,8 +14,8 @@
  */
 import {
   clampChatMessageLimit,
-  decodeChatCursor,
-  encodeChatCursor,
+  decodeKeysetCursor,
+  encodeKeysetCursor,
   MaxChatMessageLimit,
 } from '@chantam.vn/chantam.core-lib/models';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
@@ -297,11 +297,11 @@ async function main(): Promise<void> {
 
     check(
       'con trỏ hỏng bị bỏ qua, không làm vỡ truy vấn',
-      decodeChatCursor('khong-phai-con-tro') === null,
+      decodeKeysetCursor('khong-phai-con-tro') === null,
     );
 
-    const roundTrip = decodeChatCursor(
-      encodeChatCursor({
+    const roundTrip = decodeKeysetCursor(
+      encodeKeysetCursor({
         createdAt: anchor.message.createdAt,
         id: anchor.message.id,
       }),

@@ -1,6 +1,7 @@
 import { DiscoveryOriginUnavailableException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
+  IContentReactionRepository,
   IGiftRequestRepository,
   IPostRepository,
   IUserRepository,
@@ -10,6 +11,7 @@ import {
   GiftRequestStatuses,
   PostSelectionModes,
   PostTypes,
+  ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { GetNearbyPostsUseCase } from './get-nearby-posts.use-case';
@@ -33,6 +35,9 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     details: {},
     expiresAt: null,
     renewedCount: 0,
+    reactionCount: 5,
+    commentCount: 2,
+    shareCount: 0,
     isSos: false,
     deliveryMethod: null,
     shipPayer: null,
@@ -98,6 +103,15 @@ function makeUsers() {
   } as unknown as jest.Mocked<IUserRepository>;
 }
 
+function makeReactions(
+  mine: Map<string, ReactionKinds> = new Map(),
+): jest.Mocked<IContentReactionRepository> {
+  return {
+    findMyReactions: jest.fn().mockResolvedValue(mine),
+    summarize: jest.fn(),
+  } as unknown as jest.Mocked<IContentReactionRepository>;
+}
+
 describe('GetNearbyPostsUseCase', () => {
   it('forwards requested type and pagination then returns privacy-safe nearby posts with request counts and status', async () => {
     const post = makePost();
@@ -119,10 +133,15 @@ describe('GetNearbyPostsUseCase', () => {
         ),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 
+    const reactions = makeReactions(
+      new Map([[post.globalId, ReactionKinds.CARE]]),
+    );
+
     const result = await new GetNearbyPostsUseCase(
       posts,
       giftRequests,
       makeUsers(),
+      reactions,
       makeConfig(),
     ).handle({
       lat: ExactLocation.lat,
@@ -150,6 +169,12 @@ describe('GetNearbyPostsUseCase', () => {
       [post.globalId],
       '99999999-9999-9999-9999-999999999999',
     );
+    // Một truy vấn cho cả trang, không phải từng bài.
+    expect(reactions.findMyReactions).toHaveBeenCalledWith(
+      'POST',
+      [post.globalId],
+      '99999999-9999-9999-9999-999999999999',
+    );
     expect(result).toMatchObject({
       posts: [
         {
@@ -159,6 +184,10 @@ describe('GetNearbyPostsUseCase', () => {
           requestCount: 3,
           myRequestStatus: GiftRequestStatuses.PENDING,
           hasRequested: true,
+          reactionCount: 5,
+          commentCount: 2,
+          shareCount: 0,
+          myReaction: ReactionKinds.CARE,
         },
       ],
       meta: { page: 2, pageSize: 20, total: 41 },
@@ -177,6 +206,7 @@ describe('GetNearbyPostsUseCase', () => {
       posts,
       giftRequests,
       users,
+      makeReactions(),
       makeConfig(),
     ).handle({
       radiusMeters: 5_000,
@@ -204,6 +234,7 @@ describe('GetNearbyPostsUseCase', () => {
       posts,
       giftRequests,
       users,
+      makeReactions(),
       makeConfig(),
     ).handle({
       lat: 10.7724,
@@ -229,6 +260,7 @@ describe('GetNearbyPostsUseCase', () => {
         posts,
         {} as unknown as jest.Mocked<IGiftRequestRepository>,
         makeUsers(),
+        makeReactions(),
         makeConfig(),
       ).handle({
         radiusMeters: 5_000,
@@ -256,6 +288,7 @@ describe('GetNearbyPostsUseCase', () => {
         } as unknown as jest.Mocked<IPostRepository>,
         {} as unknown as jest.Mocked<IGiftRequestRepository>,
         users,
+        makeReactions(),
         makeConfig(),
       ).handle({
         radiusMeters: 5_000,
@@ -279,6 +312,7 @@ describe('GetNearbyPostsUseCase', () => {
         } as unknown as jest.Mocked<IPostRepository>,
         {} as unknown as jest.Mocked<IGiftRequestRepository>,
         users,
+        makeReactions(),
         makeConfig(),
       ).handle({
         lat: 10.7724,
@@ -291,5 +325,38 @@ describe('GetNearbyPostsUseCase', () => {
     ).rejects.toBeInstanceOf(DiscoveryOriginUnavailableException);
 
     expect(users.findOneBy).not.toHaveBeenCalled();
+  });
+
+  it('khách chưa đăng nhập thì myReaction là null và không hỏi database', async () => {
+    const post = makePost();
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({
+        items: [{ post, distanceMeters: 100 }],
+        total: 1,
+      }),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequests = {
+      countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      findStatusesByPostIdsAndRequester: jest.fn(),
+    } as unknown as jest.Mocked<IGiftRequestRepository>;
+    const reactions = makeReactions();
+
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      giftRequests,
+      makeUsers(),
+      reactions,
+      makeConfig(),
+    ).handle({
+      lat: ExactLocation.lat,
+      lng: ExactLocation.lng,
+      radiusMeters: 5_000,
+      postType: PostTypes.WANTED,
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(reactions.findMyReactions).not.toHaveBeenCalled();
+    expect(result.posts[0].myReaction).toBeNull();
   });
 });

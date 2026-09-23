@@ -1,5 +1,6 @@
 import { IConfig } from '@/domain/ports/config';
 import {
+  IContentReactionRepository,
   IGiftRequestRepository,
   IGiftTransactionRepository,
   IPostLikeRepository,
@@ -12,6 +13,7 @@ import {
   GiftRequestStatuses,
   PostSelectionModes,
   PostTypes,
+  ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { GetPostUseCase } from './get-post.use-case';
@@ -39,6 +41,9 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     details: {},
     expiresAt: null,
     renewedCount: 0,
+    reactionCount: 12,
+    commentCount: 3,
+    shareCount: 1,
     isSos: false,
     deliveryMethod: null,
     shipPayer: null,
@@ -119,6 +124,16 @@ const makePostLikeRepo = () =>
     hasLiked: jest.fn().mockResolvedValue(false),
   }) as unknown as jest.Mocked<IPostLikeRepository>;
 
+const makeReactions = () =>
+  ({
+    summarize: jest.fn().mockResolvedValue({
+      total: 12,
+      breakdown: { LIKE: 8, LOVE: 4 },
+      myReaction: ReactionKinds.LOVE,
+    }),
+    findMyReactions: jest.fn(),
+  }) as unknown as jest.Mocked<IContentReactionRepository>;
+
 describe('GetPostUseCase', () => {
   it('áp dụng geo jitter cho toạ độ trả ra qua kênh public và bảo vệ quyền riêng tư (không trả fullName)', async () => {
     const postRepository = {
@@ -131,6 +146,7 @@ describe('GetPostUseCase', () => {
     const giftTransactionRepository = makeGiftTransactionRepo();
     const postLikeRepository = makePostLikeRepo();
     const userRepository = makeUserRepo();
+    const reactions = makeReactions();
 
     const result = await new GetPostUseCase(
       postRepository,
@@ -139,6 +155,7 @@ describe('GetPostUseCase', () => {
       giftTransactionRepository,
       postLikeRepository,
       userRepository,
+      reactions,
       makeConfig(),
     ).handle({
       postId: PostId,
@@ -165,6 +182,11 @@ describe('GetPostUseCase', () => {
     // Người lạ xem bài: contactInfo = null
     expect(result.contactInfo).toBeNull();
     expect(result.isLiked).toBe(false);
+    expect(result.reactionCount).toBe(12);
+    expect(result.commentCount).toBe(3);
+    expect(result.shareCount).toBe(1);
+    expect(result.myReaction).toBe(ReactionKinds.LOVE);
+    expect(result.reactionBreakdown).toEqual({ LIKE: 8, LOVE: 4 });
   });
 
   it('tiết lộ contactInfo khi người xem là receiver đã được chọn', async () => {
@@ -182,6 +204,7 @@ describe('GetPostUseCase', () => {
       hasLiked: jest.fn().mockResolvedValue(true),
     } as unknown as jest.Mocked<IPostLikeRepository>;
     const userRepository = makeUserRepo();
+    const reactions = makeReactions();
 
     const receiverId = '88888888-8888-8888-8888-888888888888';
     const result = await new GetPostUseCase(
@@ -191,6 +214,7 @@ describe('GetPostUseCase', () => {
       giftTransactionRepository,
       postLikeRepository,
       userRepository,
+      reactions,
       makeConfig(),
     ).handle({
       postId: PostId,
@@ -234,6 +258,12 @@ describe('GetPostUseCase', () => {
     const giftTransactionRepository = makeGiftTransactionRepo();
     const postLikeRepository = makePostLikeRepo();
     const userRepository = makeUserRepo();
+    const reactions = makeReactions();
+    reactions.summarize.mockResolvedValue({
+      total: 12,
+      breakdown: { LIKE: 8, LOVE: 4 },
+      myReaction: null,
+    });
 
     const result = await new GetPostUseCase(
       postRepository,
@@ -242,6 +272,7 @@ describe('GetPostUseCase', () => {
       giftTransactionRepository,
       postLikeRepository,
       userRepository,
+      reactions,
       makeConfig(),
     ).handle({ postId: PostId });
 
@@ -261,6 +292,7 @@ describe('GetPostUseCase', () => {
     expect(result.myRequestStatus).toBeNull();
     expect(result.hasRequested).toBe(false);
     expect(result.isLiked).toBeNull();
+    expect(result.myReaction).toBeNull();
   });
 
   it('coi pending, rejected hoặc deleted là không tồn tại khi repository không trả kết quả', async () => {
@@ -274,6 +306,7 @@ describe('GetPostUseCase', () => {
     const giftTransactionRepository = makeGiftTransactionRepo();
     const postLikeRepository = makePostLikeRepo();
     const userRepository = makeUserRepo();
+    const reactions = makeReactions();
 
     await expect(
       new GetPostUseCase(
@@ -283,6 +316,7 @@ describe('GetPostUseCase', () => {
         giftTransactionRepository,
         postLikeRepository,
         userRepository,
+        reactions,
         makeConfig(),
       ).handle({
         postId: PostId,
@@ -291,5 +325,6 @@ describe('GetPostUseCase', () => {
       (await import('@/domain/exceptions')).PostNotFoundException,
     );
     expect(postMediaRepository.listByPostId).not.toHaveBeenCalled();
+    expect(reactions.summarize).not.toHaveBeenCalled();
   });
 });

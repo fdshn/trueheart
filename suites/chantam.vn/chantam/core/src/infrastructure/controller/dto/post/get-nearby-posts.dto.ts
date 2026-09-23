@@ -1,6 +1,7 @@
 import {
   GiftRequestStatuses,
   PublicDiscoveryPostTypes,
+  ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IGetNearbyPostsQueryDto,
@@ -103,6 +104,18 @@ export class NearbyPostDto implements INearbyPostDto {
     description: 'Người dùng hiện tại đã gửi yêu cầu chưa',
   })
   hasRequested?: boolean;
+
+  @ApiProperty({ example: 12 }) reactionCount: number;
+  @ApiProperty({ example: 3 }) commentCount: number;
+  @ApiProperty({ example: 1 }) shareCount: number;
+
+  @ApiPropertyOptional({
+    enum: ReactionKinds,
+    nullable: true,
+    description:
+      'Cảm xúc của người gọi. `null` khi chưa bày tỏ hoặc chưa đăng nhập.',
+  })
+  myReaction: ReactionKinds | null;
 }
 
 export class GetNearbyPostsResponseDto implements IGetNearbyPostsResponseDto {

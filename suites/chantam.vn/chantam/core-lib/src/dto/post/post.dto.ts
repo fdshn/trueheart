@@ -13,9 +13,24 @@ import {
   PostSelectionModes,
   PostTypes,
   PublicDiscoveryPostType,
+  ReactionKinds,
   ShipPayers,
 } from '../../consts';
 import { IPostEntity, IPostMediaEntity } from '../../entities';
+
+/**
+ * Trường tương tác nhúng vào các endpoint đọc bài.
+ *
+ * Số đếm lấy từ cột trên chính dòng bài — không COUNT(*) mỗi lần cuộn.
+ * `myReaction` lấy bằng MỘT truy vấn cho cả trang; hỏi từng bài là N+1.
+ */
+export interface IPostFeedInteractionDto {
+  reactionCount: number;
+  commentCount: number;
+  shareCount: number;
+  /** Cảm xúc của người gọi. `null` khi chưa bày tỏ hoặc chưa đăng nhập. */
+  myReaction: ReactionKinds | null;
+}
 
 export interface ICreatePostCommonDto {
   postType: GenericMvpPostType;
@@ -101,7 +116,7 @@ export interface IGetMyPostsQueryDto extends IPaginationQueryDto {
   categoryId?: string;
 }
 
-export interface IMyPostItemDto {
+export interface IMyPostItemDto extends IPostFeedInteractionDto {
   post: IPostEntity;
   requestCount: number;
   media: IPublicPostMediaDto[];
@@ -112,7 +127,7 @@ export interface IGetMyPostsResponseDto {
   meta: IPaginationMetaDto;
 }
 
-export interface INearbyPostDto {
+export interface INearbyPostDto extends IPostFeedInteractionDto {
   post: IPostEntity;
   distanceMeters: number;
   isLocationApproximate: true;
@@ -190,7 +205,7 @@ export interface IPostContactInfoDto {
   address?: string | null;
 }
 
-export interface IGetPostResponseDto {
+export interface IGetPostResponseDto extends IPostFeedInteractionDto {
   post: IPostEntity;
   author?: IPostAuthorDto | null;
   media: IPublicPostMediaDto[];
@@ -207,6 +222,11 @@ export interface IGetPostResponseDto {
    * Chỉ có khi caller là receiver đã được chọn ở giao dịch DELIVERING/COMPLETED.
    */
   contactInfo?: IPostContactInfoDto | null;
+  /**
+   * Phân bổ theo loại cảm xúc. Chỉ có trên màn chi tiết — bảng tin chỉ cần
+   * tổng số, hỏi breakdown cho 20 bài mỗi lần cuộn là tự làm nặng.
+   */
+  reactionBreakdown: Partial<Record<ReactionKinds, number>>;
 }
 
 export interface IGetPostMapQueryDto {

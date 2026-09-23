@@ -5,6 +5,7 @@ import { CategoryModule } from './implementations/category/category.module';
 import { ChatModule } from './implementations/chat/chat.module';
 import { DiscoveryModule } from './implementations/discovery/discovery.module';
 import { EntitlementModule } from './implementations/entitlement/entitlement.module';
+import { FeedModule } from './implementations/feed/feed.module';
 import { GiftPostModule } from './implementations/gift-post/gift-post.module';
 import { GiftRequestModule } from './implementations/gift-request/gift-request.module';
 import { NotificationUseCaseModule } from './implementations/notification/notification.module';
@@ -25,6 +26,7 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
     AdminConfigModule,
     AuthUseCaseModule,
     ChatModule,
+    FeedModule,
     NotificationUseCaseModule,
     DiscoveryModule,
     EntitlementModule,

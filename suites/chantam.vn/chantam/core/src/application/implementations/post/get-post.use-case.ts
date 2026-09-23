@@ -6,6 +6,7 @@ import {
 import { PostNotFoundException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
+  IContentReactionRepository,
   IGiftRequestRepository,
   IGiftTransactionRepository,
   IPostLikeRepository,
@@ -13,7 +14,10 @@ import {
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
-import { GiftRequestStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  ContentSubjectTypes,
+  GiftRequestStatuses,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   IPostAuthorDto,
   IPostContactInfoDto,
@@ -37,6 +41,8 @@ export class GetPostUseCase implements IGetPostUseCase {
     private readonly postLikeRepository: IPostLikeRepository,
     @Inject(IUserRepository)
     private readonly userRepository: IUserRepository,
+    @Inject(IContentReactionRepository)
+    private readonly reactions: IContentReactionRepository,
     @Inject(IConfig)
     private readonly config: IConfig,
   ) {}
@@ -67,6 +73,16 @@ export class GetPostUseCase implements IGetPostUseCase {
         )
       : new Map<string, GiftRequestStatuses>();
     const myRequestStatus = myStatuses.get(post.globalId) ?? null;
+
+    // Chi tiết một bài: hỏi breakdown một lần là chấp nhận được. Bảng tin thì
+    // không — đó là lý do nearby/me chỉ trả tổng số đếm.
+    const summary = await this.reactions.summarize(
+      {
+        subjectType: ContentSubjectTypes.POST,
+        subjectId: post.globalId,
+      },
+      command.currentUserId ?? null,
+    );
 
     let author: IPostAuthorDto | null = null;
     let authorUser: IUserEntity | null = null;
@@ -128,6 +144,11 @@ export class GetPostUseCase implements IGetPostUseCase {
       likeCount: post.likeCount ?? 0,
       isLiked,
       contactInfo,
+      reactionCount: post.reactionCount,
+      commentCount: post.commentCount,
+      shareCount: post.shareCount,
+      myReaction: summary.myReaction,
+      reactionBreakdown: summary.breakdown,
     };
   }
 }

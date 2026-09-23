@@ -3,6 +3,7 @@ export * from './category';
 export * from './chat';
 export * from './discovery';
 export * from './entitlement';
+export * from './feed';
 export * from './gift-post';
 export * from './gift-request';
 export * from './notification';

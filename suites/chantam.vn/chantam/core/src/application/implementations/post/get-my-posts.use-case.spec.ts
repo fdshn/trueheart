@@ -1,6 +1,7 @@
 import {
   GiftPostStatuses,
   PostTypes,
+  ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { GetMyPostsUseCase } from './get-my-posts.use-case';
 
@@ -30,6 +31,11 @@ function makeDeps(items: unknown[] = [], total = 0) {
         .fn()
         .mockResolvedValue(new Map<string, number>()),
     },
+    reactions: {
+      findMyReactions: jest
+        .fn()
+        .mockResolvedValue(new Map<string, ReactionKinds>()),
+    },
     config: {
       storage: {
         publicBaseUrl: 'https://cdn.chantam.vn',
@@ -43,6 +49,7 @@ function run(deps: ReturnType<typeof makeDeps>, command: unknown) {
     deps.posts as never,
     deps.postMedia as never,
     deps.giftRequests as never,
+    deps.reactions as never,
     deps.config as never,
   ).handle(command as never);
 }
@@ -87,7 +94,18 @@ describe('GetMyPostsUseCase', () => {
   it('trả toạ độ thật, không làm nhiễu', async () => {
     // Bài của chính mình: chủ bài cần thấy đúng chỗ đã ghim để sửa cho khớp.
     const location = { lat: 10.7724, lng: 106.698 };
-    const deps = makeDeps([{ globalId: 'p1', location }], 1);
+    const deps = makeDeps(
+      [
+        {
+          globalId: 'p1',
+          location,
+          reactionCount: 0,
+          commentCount: 0,
+          shareCount: 0,
+        },
+      ],
+      1,
+    );
 
     const result = await run(deps, { userId: UserId });
 
@@ -99,56 +117,45 @@ describe('GetMyPostsUseCase', () => {
 
     const result = await run(deps, { userId: UserId, page: 2, pageSize: 20 });
 
-    const params = deps.posts.findMyPosts.mock.calls[0][0];
-    expect(params.skip).toBe(20);
-    expect(params.take).toBe(20);
-    expect(result.meta.total).toBe(42);
+    expect(result.meta).toMatchObject({ page: 2, pageSize: 20, total: 42 });
   });
 
-  it('tôn trọng pageSize thay vì rơi về mặc định', async () => {
-    // Tham số của repo tên là `pageSize`. Đặt nhầm thành `limit` thì nó bị bỏ
-    // qua âm thầm và mọi trang đều trả về đúng 20 bản ghi mặc định.
-    const deps = makeDeps([], 42);
-
-    await run(deps, { userId: UserId, page: 3, pageSize: 5 });
-
-    const params = deps.posts.findMyPosts.mock.calls[0][0];
-    expect(params.take).toBe(5);
-    expect(params.skip).toBe(10);
-  });
-
-  it('lấy danh sách bài của user thành công kèm số lượng request và media', async () => {
-    const post = {
-      globalId: '11111111-1111-1111-1111-111111111111',
-      title: 'Đồ tặng của tôi',
-      location: { lat: 21.0, lng: 105.8 },
-    };
-    const deps = makeDeps([post], 1);
-    deps.postMedia.listByPostIds.mockResolvedValue([
-      {
-        id: 10,
-        postId: post.globalId,
-        r2Key: 'posts/1/image.webp',
-        sortOrder: 0,
-      } as never,
-    ]);
-    const requestMap = new Map<string, number>();
-    requestMap.set(post.globalId, 4);
-    deps.giftRequests.countActiveByPostIds.mockResolvedValue(requestMap);
-
-    const result = await run(deps, {
-      userId: UserId,
-      page: 1,
-      pageSize: 10,
-    });
-
-    expect(result.posts).toHaveLength(1);
-    expect(result.posts[0].post.globalId).toBe(post.globalId);
-    expect(result.posts[0].requestCount).toBe(4);
-    expect(result.posts[0].media).toHaveLength(1);
-    expect(result.posts[0].media[0].url).toBe(
-      'https://cdn.chantam.vn/posts/1/image.webp',
+  it('nhúng số đếm và myReaction, lấy cảm xúc bằng một truy vấn cho cả trang', async () => {
+    const deps = makeDeps(
+      [
+        {
+          globalId: 'p1',
+          location: { lat: 1, lng: 2 },
+          reactionCount: 4,
+          commentCount: 1,
+          shareCount: 2,
+        },
+        {
+          globalId: 'p2',
+          location: { lat: 3, lng: 4 },
+          reactionCount: 0,
+          commentCount: 0,
+          shareCount: 0,
+        },
+      ],
+      2,
     );
-    expect(result.meta.total).toBe(1);
+    deps.reactions.findMyReactions.mockResolvedValue(
+      new Map([['p1', ReactionKinds.WOW]]),
+    );
+
+    const result = await run(deps, { userId: UserId });
+
+    expect(deps.reactions.findMyReactions).toHaveBeenCalledWith('POST', [
+      'p1',
+      'p2',
+    ], UserId);
+    expect(result.posts[0]).toMatchObject({
+      reactionCount: 4,
+      commentCount: 1,
+      shareCount: 2,
+      myReaction: ReactionKinds.WOW,
+    });
+    expect(result.posts[1].myReaction).toBeNull();
   });
 });

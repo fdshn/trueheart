@@ -18,8 +18,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * **`post_likes`** — bảng join `(user_id, post_id)`, UNIQUE để chặn like 2
  * lần. Không có `deleted_at`; unlike = DELETE row + like_count-- trong cùng tx.
  */
-export class AddSelectionModeAndLikes1791500000000 implements MigrationInterface {
-  name = 'AddSelectionModeAndLikes1791500000000';
+export class AddSelectionModeAndLikes1791600000000 implements MigrationInterface {
+  name = 'AddSelectionModeAndLikes1791600000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 1. Enum mới cho selection_mode
