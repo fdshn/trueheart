@@ -15,12 +15,18 @@ describe('EvaluateOnboardingTasksUseCase', () => {
     const onboardingTasksRepo = { findUserTaskProgress: jest.fn() };
     const completionsRepo = { hasCompletedEvidence: jest.fn() };
     const recordUseCase = { handle: jest.fn() };
+    const points = { handle: jest.fn() };
+    const ranks = { handle: jest.fn() };
+    const referrals = { handle: jest.fn() };
 
     const useCase = new EvaluateOnboardingTasksUseCase(
       usersRepo as never,
       onboardingTasksRepo as never,
       completionsRepo as never,
       recordUseCase as never,
+      points as never,
+      ranks as never,
+      referrals as never,
     );
 
     await expect(useCase.handle({ userId: UserId })).rejects.toThrow(
@@ -28,7 +34,7 @@ describe('EvaluateOnboardingTasksUseCase', () => {
     );
   });
 
-  it('evaluates profile and phone, records newly completed tasks, and detects member promotion', async () => {
+  it('evaluates profile and phone, records newly completed tasks, awards points, and detects member promotion', async () => {
     const mockTasks = [
       {
         id: '40000000-0000-4000-8000-000000000001',
@@ -76,11 +82,18 @@ describe('EvaluateOnboardingTasksUseCase', () => {
         .mockResolvedValueOnce({ promoted: true }),
     };
 
+    const points = { handle: jest.fn(async () => ({})) };
+    const ranks = { handle: jest.fn(async () => true) };
+    const referrals = { handle: jest.fn(async () => undefined) };
+
     const useCase = new EvaluateOnboardingTasksUseCase(
       usersRepo as never,
       onboardingTasksRepo as never,
       completionsRepo as never,
       recordUseCase as never,
+      points as never,
+      ranks as never,
+      referrals as never,
     );
 
     const result = await useCase.handle({ userId: UserId });
@@ -92,6 +105,15 @@ describe('EvaluateOnboardingTasksUseCase', () => {
     expect(recordUseCase.handle).toHaveBeenCalledWith({
       userId: UserId,
       evidenceType: OnboardingTaskEvidenceTypes.PHONE_VERIFIED,
+    });
+    expect(points.handle).toHaveBeenCalledWith({
+      userId: UserId,
+      ruleCode: 'ONBOARDING_COMPLETED',
+      referenceType: 'ONBOARDING',
+      referenceId: UserId,
+      idempotencyKey: `ONBOARDING_COMPLETED:${UserId}`,
+      actor: 'SYSTEM',
+      source: 'ONBOARDING',
     });
     expect(result.newlyCompletedKeys).toEqual([
       'PROFILE_COMPLETE',

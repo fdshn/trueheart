@@ -3,6 +3,7 @@ import {
   IRecordOnboardingEvidenceResult,
   IRecordOnboardingEvidenceUseCase,
 } from '@/application/contracts/onboarding';
+import { IAppendPointEntryUseCase } from '@/application/contracts/point';
 import { IPromoteOnboardingMemberUseCase } from '@/application/contracts/rank';
 import { IQualifyReferralUseCase } from '@/application/contracts/referral';
 import { IUserOnboardingTaskCompletionRepository } from '@/domain/ports/repository';
@@ -13,6 +14,8 @@ export class RecordOnboardingEvidenceUseCase implements IRecordOnboardingEvidenc
   public constructor(
     @Inject(IUserOnboardingTaskCompletionRepository)
     private readonly completions: IUserOnboardingTaskCompletionRepository,
+    @Inject(IAppendPointEntryUseCase)
+    private readonly appendPointEntryUseCase: IAppendPointEntryUseCase,
     @Inject(IPromoteOnboardingMemberUseCase)
     private readonly promoteOnboardingMemberUseCase: IPromoteOnboardingMemberUseCase,
     @Inject(IQualifyReferralUseCase)
@@ -25,6 +28,16 @@ export class RecordOnboardingEvidenceUseCase implements IRecordOnboardingEvidenc
     const completion =
       await this.completions.recordEvidenceAndDetermineCompletion(command);
     if (!completion.onboardingComplete) return { promoted: false };
+
+    await this.appendPointEntryUseCase.handle({
+      userId: command.userId,
+      ruleCode: 'ONBOARDING_COMPLETED',
+      referenceType: 'ONBOARDING',
+      referenceId: command.userId,
+      idempotencyKey: `ONBOARDING_COMPLETED:${command.userId}`,
+      actor: 'SYSTEM',
+      source: 'ONBOARDING',
+    });
 
     const promoted = await this.promoteOnboardingMemberUseCase.handle({
       userId: command.userId,

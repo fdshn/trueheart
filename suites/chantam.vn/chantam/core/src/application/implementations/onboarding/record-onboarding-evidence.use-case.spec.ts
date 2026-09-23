@@ -8,16 +8,18 @@ const Command = {
 };
 
 describe('RecordOnboardingEvidenceUseCase', () => {
-  it('does not promote or qualify referrals when evidence leaves onboarding incomplete', async () => {
+  it('does not promote, award points, or qualify referrals when evidence leaves onboarding incomplete', async () => {
     const completions = {
       recordEvidenceAndDetermineCompletion: jest.fn(async () => ({
         onboardingComplete: false,
       })),
     };
+    const points = { handle: jest.fn() };
     const ranks = { handle: jest.fn() };
     const referrals = { handle: jest.fn() };
     const useCase = new RecordOnboardingEvidenceUseCase(
       completions as never,
+      points as never,
       ranks as never,
       referrals as never,
     );
@@ -26,25 +28,37 @@ describe('RecordOnboardingEvidenceUseCase', () => {
     expect(
       completions.recordEvidenceAndDetermineCompletion,
     ).toHaveBeenCalledWith(Command);
+    expect(points.handle).not.toHaveBeenCalled();
     expect(ranks.handle).not.toHaveBeenCalled();
     expect(referrals.handle).not.toHaveBeenCalled();
   });
 
-  it('promotes and qualifies referral when evidence completes onboarding', async () => {
+  it('promotes, awards points, and qualifies referral when evidence completes onboarding', async () => {
     const completions = {
       recordEvidenceAndDetermineCompletion: jest.fn(async () => ({
         onboardingComplete: true,
       })),
     };
+    const points = { handle: jest.fn(async () => ({})) };
     const ranks = { handle: jest.fn(async () => true) };
     const referrals = { handle: jest.fn(async () => undefined) };
     const useCase = new RecordOnboardingEvidenceUseCase(
       completions as never,
+      points as never,
       ranks as never,
       referrals as never,
     );
 
     await expect(useCase.handle(Command)).resolves.toEqual({ promoted: true });
+    expect(points.handle).toHaveBeenCalledWith({
+      userId: Command.userId,
+      ruleCode: 'ONBOARDING_COMPLETED',
+      referenceType: 'ONBOARDING',
+      referenceId: Command.userId,
+      idempotencyKey: `ONBOARDING_COMPLETED:${Command.userId}`,
+      actor: 'SYSTEM',
+      source: 'ONBOARDING',
+    });
     expect(ranks.handle).toHaveBeenCalledWith({
       userId: Command.userId,
     });
@@ -53,21 +67,32 @@ describe('RecordOnboardingEvidenceUseCase', () => {
     });
   });
 
-  it('retries idempotent referral qualification for complete-onboarding evidence replay', async () => {
+  it('retries idempotent referral qualification and point award for complete-onboarding evidence replay', async () => {
     const completions = {
       recordEvidenceAndDetermineCompletion: jest.fn(async () => ({
         onboardingComplete: true,
       })),
     };
+    const points = { handle: jest.fn(async () => ({})) };
     const ranks = { handle: jest.fn(async () => false) };
     const referrals = { handle: jest.fn(async () => undefined) };
     const useCase = new RecordOnboardingEvidenceUseCase(
       completions as never,
+      points as never,
       ranks as never,
       referrals as never,
     );
 
     await expect(useCase.handle(Command)).resolves.toEqual({ promoted: false });
+    expect(points.handle).toHaveBeenCalledWith({
+      userId: Command.userId,
+      ruleCode: 'ONBOARDING_COMPLETED',
+      referenceType: 'ONBOARDING',
+      referenceId: Command.userId,
+      idempotencyKey: `ONBOARDING_COMPLETED:${Command.userId}`,
+      actor: 'SYSTEM',
+      source: 'ONBOARDING',
+    });
     expect(referrals.handle).toHaveBeenCalledWith({
       refereeId: Command.userId,
     });

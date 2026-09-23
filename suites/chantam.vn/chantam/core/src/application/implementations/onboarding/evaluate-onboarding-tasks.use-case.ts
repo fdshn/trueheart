@@ -4,6 +4,9 @@ import {
   IEvaluateOnboardingTasksUseCase,
   IRecordOnboardingEvidenceUseCase,
 } from '@/application/contracts/onboarding';
+import { IAppendPointEntryUseCase } from '@/application/contracts/point';
+import { IPromoteOnboardingMemberUseCase } from '@/application/contracts/rank';
+import { IQualifyReferralUseCase } from '@/application/contracts/referral';
 import { UserNotFoundException } from '@/domain/exceptions';
 import {
   IOnboardingTaskRepository,
@@ -28,6 +31,12 @@ export class EvaluateOnboardingTasksUseCase implements IEvaluateOnboardingTasksU
     private readonly completions: IUserOnboardingTaskCompletionRepository,
     @Inject(IRecordOnboardingEvidenceUseCase)
     private readonly recordOnboardingEvidenceUseCase: IRecordOnboardingEvidenceUseCase,
+    @Inject(IAppendPointEntryUseCase)
+    private readonly appendPointEntryUseCase: IAppendPointEntryUseCase,
+    @Inject(IPromoteOnboardingMemberUseCase)
+    private readonly promoteOnboardingMemberUseCase: IPromoteOnboardingMemberUseCase,
+    @Inject(IQualifyReferralUseCase)
+    private readonly qualifyReferralUseCase: IQualifyReferralUseCase,
   ) {}
 
   public async handle(
@@ -81,6 +90,23 @@ export class EvaluateOnboardingTasksUseCase implements IEvaluateOnboardingTasksU
     const completedRequired = requiredTasks.filter((t) => t.completed).length;
     const isAllCompleted =
       requiredTasks.length > 0 && completedRequired === requiredTasks.length;
+
+    if (isAllCompleted) {
+      await this.appendPointEntryUseCase.handle({
+        userId: user.globalId,
+        ruleCode: 'ONBOARDING_COMPLETED',
+        referenceType: 'ONBOARDING',
+        referenceId: user.globalId,
+        idempotencyKey: `ONBOARDING_COMPLETED:${user.globalId}`,
+        actor: 'SYSTEM',
+        source: 'ONBOARDING',
+      });
+      const promoted = await this.promoteOnboardingMemberUseCase.handle({
+        userId: user.globalId,
+      });
+      if (promoted) promotedToMember = true;
+      await this.qualifyReferralUseCase.handle({ refereeId: user.globalId });
+    }
 
     const updatedUser = await this.users.findOneBy({
       globalId: user.globalId,
