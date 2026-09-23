@@ -151,7 +151,6 @@ export class StorageService implements IObjectStorage {
         Bucket: this.options.bucket,
         Key: key,
         ContentType: request.contentType,
-        ContentLength: request.contentLength,
       }),
       { expiresIn: expiresInSeconds },
     );
@@ -178,7 +177,6 @@ export class StorageService implements IObjectStorage {
         Bucket: this.options.bucket,
         Key: key,
         ContentType: request.contentType,
-        ContentLength: request.contentLength,
       }),
       { expiresIn: expiresInSeconds },
     );
@@ -205,7 +203,6 @@ export class StorageService implements IObjectStorage {
         Bucket: this.options.bucket,
         Key: key,
         ContentType: request.contentType,
-        ContentLength: request.contentLength,
       }),
       { expiresIn: expiresInSeconds },
     );
@@ -232,7 +229,6 @@ export class StorageService implements IObjectStorage {
         Bucket: this.options.bucket,
         Key: key,
         ContentType: request.contentType,
-        ContentLength: request.contentLength,
       }),
       { expiresIn: expiresInSeconds },
     );

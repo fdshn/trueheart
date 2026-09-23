@@ -100,7 +100,6 @@ let StorageService = class StorageService {
             Bucket: this.options.bucket,
             Key: key,
             ContentType: request.contentType,
-            ContentLength: request.contentLength,
         }), { expiresIn: expiresInSeconds });
         return {
             key,
@@ -118,7 +117,6 @@ let StorageService = class StorageService {
             Bucket: this.options.bucket,
             Key: key,
             ContentType: request.contentType,
-            ContentLength: request.contentLength,
         }), { expiresIn: expiresInSeconds });
         return {
             key,
@@ -136,7 +134,6 @@ let StorageService = class StorageService {
             Bucket: this.options.bucket,
             Key: key,
             ContentType: request.contentType,
-            ContentLength: request.contentLength,
         }), { expiresIn: expiresInSeconds });
         return {
             key,
@@ -154,7 +151,6 @@ let StorageService = class StorageService {
             Bucket: this.options.bucket,
             Key: key,
             ContentType: request.contentType,
-            ContentLength: request.contentLength,
         }), { expiresIn: expiresInSeconds });
         return {
             key,
