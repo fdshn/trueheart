@@ -91,6 +91,10 @@ Nghiệp vụ Chân Tâm
 | `0x0608` | `1544` | 403 Forbidden | `POST_SOS_NOT_ALLOWED` | Thứ hạng hiện tại của bạn chưa được dùng bài Cần gấp (SOS) |
 | `0x0609` | `1545` | 409 Conflict | `POST_CHARITY_TRANSFER_INVALID_STATE` | Bài đăng này không gửi được yêu cầu chuyển về điểm từ thiện: chỉ bài đang hiển thị hoặc đã hết hạn, còn vật phẩm và chưa có yêu cầu nào đang chờ duyệt |
 | `0x060a` | `1546` | 400 Bad Request | `DISCOVERY_ORIGIN_UNAVAILABLE` | Không xác định được vị trí để quét: hãy gửi toạ độ, hoặc đặt Vị trí mặc định trong hồ sơ |
+| `0x060b` | `1547` | 400 Bad Request | `POST_SELECTION_MODE_INVALID` | Chế độ chọn người nhận không hợp lệ |
+| `0x060c` | `1548` | 409 Conflict | `POST_ALREADY_LIKED` | Bạn đã thích bài đăng này rồi |
+| `0x060d` | `1549` | 409 Conflict | `POST_NOT_LIKED` | Bạn chưa thích bài đăng này |
+| `0x060e` | `1550` | 403 Forbidden | `POST_CONTACT_INFO_RESTRICTED` | Thông tin liên hệ chỉ hiển thị với người nhận được chọn trong giai đoạn giao nhận |
 | `0x0701` | `1793` | 409 Conflict | `POINT_RULE_UNAVAILABLE` | Point rule PHONE_VERIFIED_FIRST_TIME không khả dụng |
 | `0x0702` | `1794` | 500 Internal Server Error | `RANK_TIER_UNAVAILABLE` | Không tìm thấy cấu hình tier cho rank SILVER |
 | `0x0703` | `1795` | 409 Conflict | `POINT_DAILY_CAP_REACHED` | Đã đạt giới hạn 3 lần/ngày cho point rule REFERRAL_QUALIFIED |
@@ -114,5 +118,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **72 mã lỗi** trên 3 tầng.
+Tổng cộng **76 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.
