@@ -145,7 +145,9 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     } as never);
 
     // INSTANT mode: chấp nhận ngay người đầu tiên — không cần chờ countdown.
-    // AcceptGiftRequestUseCase được tái dùng để giữ nguyên logic atomic.
+    // Chạy sau khi insert thành công. Nếu acceptRequest fail (deadlock, network),
+    // request vẫn tồn tại ở trạng thái PENDING — cron hoặc admin sẽ xử lý lại.
+    // Không throw để tránh roll back việc tạo request.
     if (
       post.postType === 'OFFER' &&
       post.selectionMode === PostSelectionModes.INSTANT &&
@@ -154,12 +156,21 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
       const transactionId = makeGlobalId(
         `/transactions/${command.postId}/${command.requesterId}/${Date.now()}`,
       );
-      await this.giftRequestRepository.acceptRequest({
-        requestId: globalId,
-        postId: command.postId,
-        giverId: post.authorId,
-        transactionId,
-      });
+      try {
+        await this.giftRequestRepository.acceptRequest({
+          requestId: globalId,
+          postId: command.postId,
+          giverId: post.authorId,
+          transactionId,
+        });
+      } catch (acceptError) {
+        // Log để monitoring phát hiện; request vẫn tồn tại ở PENDING.
+        // Cron timeout hoặc admin có thể trigger lại accept thủ công.
+        console.error(
+          `[INSTANT-ACCEPT] acceptRequest failed for request=${globalId} post=${command.postId}:`,
+          acceptError,
+        );
+      }
     }
 
     return {

@@ -1,4 +1,8 @@
-import { IPostLikeRepository } from '@/domain/ports/repository';
+import {
+  ILikeResult,
+  IPostLikeRepository,
+  IUnlikeResult,
+} from '@/domain/ports/repository';
 import { IPostLikeEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
@@ -22,7 +26,7 @@ export class PostLikeRepository
   public async like(
     userId: string,
     postId: string,
-  ): Promise<IPostLikeEntity | null> {
+  ): Promise<ILikeResult | null> {
     return this.manager.transaction(async (manager) => {
       const inserted = await manager.query<
         { id: string; user_id: string; post_id: string; created_at: Date }[]
@@ -40,26 +44,33 @@ export class PostLikeRepository
         return null;
       }
 
-      await manager.query(
+      const [updated] = await manager.query<{ like_count: string }[]>(
         `
           UPDATE posts
           SET like_count = like_count + 1
           WHERE global_id = $1 AND deleted_at IS NULL
+          RETURNING like_count
         `,
         [postId],
       );
 
       const row = inserted[0];
       return {
-        id: Number(row.id),
-        userId: row.user_id,
-        postId: row.post_id,
-        createdAt: row.created_at,
+        entity: {
+          id: Number(row.id),
+          userId: row.user_id,
+          postId: row.post_id,
+          createdAt: row.created_at,
+        },
+        likeCount: Number(updated?.like_count ?? 0),
       };
     });
   }
 
-  public async unlike(userId: string, postId: string): Promise<boolean> {
+  public async unlike(
+    userId: string,
+    postId: string,
+  ): Promise<IUnlikeResult | null> {
     return this.manager.transaction(async (manager) => {
       const deleted = await updateReturning<{ id: string }>(
         manager,
@@ -72,19 +83,20 @@ export class PostLikeRepository
       );
 
       if (!deleted || deleted.length === 0) {
-        return false;
+        return null;
       }
 
-      await manager.query(
+      const [updated] = await manager.query<{ like_count: string }[]>(
         `
           UPDATE posts
           SET like_count = GREATEST(like_count - 1, 0)
           WHERE global_id = $1 AND deleted_at IS NULL
+          RETURNING like_count
         `,
         [postId],
       );
 
-      return true;
+      return { likeCount: Number(updated?.like_count ?? 0) };
     });
   }
 

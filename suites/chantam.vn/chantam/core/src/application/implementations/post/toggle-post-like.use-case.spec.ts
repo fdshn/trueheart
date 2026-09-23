@@ -58,19 +58,19 @@ describe('TogglePostLikeUseCase', () => {
   it('like thành công khi người dùng chưa like', async () => {
     const post = makePost({ likeCount: 0 });
     const postRepository = {
-      findOneBy: jest
-        .fn()
-        .mockResolvedValueOnce(post)
-        .mockResolvedValueOnce({ ...post, likeCount: 1 }),
+      findOneBy: jest.fn().mockResolvedValueOnce(post),
     } as unknown as jest.Mocked<IPostRepository>;
 
     const postLikeRepository = {
       hasLiked: jest.fn().mockResolvedValue(false),
       like: jest.fn().mockResolvedValue({
-        id: 1,
-        userId: UserId,
-        postId: PostId,
-        createdAt: new Date(),
+        entity: {
+          id: 1,
+          userId: UserId,
+          postId: PostId,
+          createdAt: new Date(),
+        },
+        likeCount: 1,
       }),
       unlike: jest.fn(),
     } as unknown as jest.Mocked<IPostLikeRepository>;
@@ -94,16 +94,13 @@ describe('TogglePostLikeUseCase', () => {
   it('unlike thành công khi người dùng đã like trước đó', async () => {
     const post = makePost({ likeCount: 1 });
     const postRepository = {
-      findOneBy: jest
-        .fn()
-        .mockResolvedValueOnce(post)
-        .mockResolvedValueOnce({ ...post, likeCount: 0 }),
+      findOneBy: jest.fn().mockResolvedValueOnce(post),
     } as unknown as jest.Mocked<IPostRepository>;
 
     const postLikeRepository = {
       hasLiked: jest.fn().mockResolvedValue(true),
       like: jest.fn(),
-      unlike: jest.fn().mockResolvedValue(true),
+      unlike: jest.fn().mockResolvedValue({ likeCount: 0 }),
     } as unknown as jest.Mocked<IPostLikeRepository>;
 
     const useCase = new TogglePostLikeUseCase(
@@ -164,7 +161,7 @@ describe('TogglePostLikeUseCase', () => {
     ).rejects.toBeInstanceOf(PostAlreadyLikedException);
   });
 
-  it('ném PostNotLikedException nếu repo trả false khi unlike', async () => {
+  it('ném PostNotLikedException nếu repo trả null khi unlike', async () => {
     const post = makePost({ likeCount: 1 });
     const postRepository = {
       findOneBy: jest.fn().mockResolvedValue(post),
@@ -173,7 +170,7 @@ describe('TogglePostLikeUseCase', () => {
     const postLikeRepository = {
       hasLiked: jest.fn().mockResolvedValue(true),
       like: jest.fn(),
-      unlike: jest.fn().mockResolvedValue(false),
+      unlike: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<IPostLikeRepository>;
 
     const useCase = new TogglePostLikeUseCase(

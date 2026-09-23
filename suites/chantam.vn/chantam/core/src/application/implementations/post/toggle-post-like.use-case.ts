@@ -39,36 +39,21 @@ export class TogglePostLikeUseCase implements ITogglePostLikeUseCase {
     );
 
     if (alreadyLiked) {
-      // Unlike: xoá row + like_count--
-      const removed = await this.postLikeRepository.unlike(
+      // Unlike: xoá row + like_count-- (atomic trong transaction, trả về count mới)
+      const result = await this.postLikeRepository.unlike(
         command.userId,
         command.postId,
       );
-      if (!removed) throw new PostNotLikedException();
-
-      // Đọc lại likeCount sau khi unlike
-      const updated = await this.postRepository.findOneBy({
-        globalId: command.postId,
-      });
-      return {
-        liked: false,
-        likeCount: updated?.likeCount ?? post.likeCount - 1,
-      };
+      if (!result) throw new PostNotLikedException();
+      return { liked: false, likeCount: result.likeCount };
     } else {
-      // Like: insert row + like_count++
-      const created = await this.postLikeRepository.like(
+      // Like: insert row + like_count++ (atomic trong transaction, trả về count mới)
+      const result = await this.postLikeRepository.like(
         command.userId,
         command.postId,
       );
-      if (!created) throw new PostAlreadyLikedException();
-
-      const updated = await this.postRepository.findOneBy({
-        globalId: command.postId,
-      });
-      return {
-        liked: true,
-        likeCount: updated?.likeCount ?? post.likeCount + 1,
-      };
+      if (!result) throw new PostAlreadyLikedException();
+      return { liked: true, likeCount: result.likeCount };
     }
   }
 }
