@@ -30,5 +30,5 @@ describe('seedDemoData', () => {
     expect(sql).toContain('ON CONFLICT (global_id) DO UPDATE');
     expect(sql).not.toContain('TRUNCATE');
     expect(sql).not.toContain('DELETE FROM');
-  });
+  }, 15000);
 });

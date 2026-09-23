@@ -9,6 +9,7 @@ import { FeedControllerModule } from './feed/feed.module';
 import { GiftPostControllerModule } from './gift-post/gift-post.module';
 import { GiftRequestApiModule } from './gift-request/gift-request-api.module';
 import { NotificationControllerModule } from './notification/notification.module';
+import { OnboardingControllerModule } from './onboarding/onboarding.module';
 import { PointControllerModule } from './point/point.module';
 import { PostControllerModule } from './post/post.module';
 import { ProfileControllerModule } from './profile/profile.module';
@@ -29,6 +30,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
     GiftPostControllerModule,
     GiftRequestApiModule,
     NotificationControllerModule,
+    OnboardingControllerModule,
     PointControllerModule,
     PostControllerModule,
     ProfileControllerModule,

@@ -44,9 +44,30 @@ export interface IUpdateOnboardingTaskResponseDto {
   onboardingTask: IOnboardingTaskDto;
 }
 
+export interface IOnboardingTaskProgressDto {
+  id: string;
+  key: string;
+  evidenceType: string;
+  title: string;
+  description: string;
+  required: boolean;
+  sortOrder: number;
+  completed: boolean;
+  completedAt: Date | string | null;
+}
+
 export interface IGetOnboardingTasksResponseDto {
-  tasks: IOnboardingTaskDto[];
-  completedRequiredCount: number;
-  requiredCount: number;
-  isComplete: boolean;
+  tasks: IOnboardingTaskProgressDto[];
+  totalRequired: number;
+  completedRequired: number;
+  isAllCompleted: boolean;
+  currentRank: string;
+}
+
+export interface IEvaluateOnboardingTasksResponseDto {
+  tasks: IOnboardingTaskProgressDto[];
+  newlyCompletedKeys: string[];
+  isAllCompleted: boolean;
+  promotedToMember: boolean;
+  currentRank: string;
 }

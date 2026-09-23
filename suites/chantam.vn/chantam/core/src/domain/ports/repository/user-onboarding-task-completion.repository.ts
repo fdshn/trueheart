@@ -16,6 +16,10 @@ export interface IUserOnboardingTaskCompletionRepository extends Repository<IUse
   recordEvidenceAndDetermineCompletion(
     params: IRecordOnboardingEvidenceParams,
   ): Promise<IRecordOnboardingEvidenceResult>;
+  hasCompletedEvidence(
+    userId: string,
+    evidenceType: OnboardingTaskEvidenceTypes,
+  ): Promise<boolean>;
 }
 
 export const IUserOnboardingTaskCompletionRepository = Symbol(

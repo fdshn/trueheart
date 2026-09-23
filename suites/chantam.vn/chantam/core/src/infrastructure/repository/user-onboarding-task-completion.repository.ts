@@ -3,6 +3,7 @@ import {
   IRecordOnboardingEvidenceResult,
   IUserOnboardingTaskCompletionRepository,
 } from '@/domain/ports/repository';
+import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { IUserOnboardingTaskCompletionEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
@@ -70,5 +71,22 @@ export class UserOnboardingTaskCompletionRepository
         onboardingComplete: Number(requiredCount) === Number(completedCount),
       };
     });
+  }
+
+  public async hasCompletedEvidence(
+    userId: string,
+    evidenceType: OnboardingTaskEvidenceTypes,
+  ): Promise<boolean> {
+    const rows = await this.manager.query<Array<{ exists: boolean }>>(
+      `
+        SELECT 1 AS exists
+        FROM user_onboarding_task_completions c
+        JOIN onboarding_tasks t ON t.global_id = c.task_id
+        WHERE c.user_id = $1 AND t.evidence_type = $2
+        LIMIT 1
+      `,
+      [userId, evidenceType],
+    );
+    return rows.length > 0;
   }
 }
