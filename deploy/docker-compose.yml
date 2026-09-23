@@ -66,6 +66,7 @@ services:
       # From identity cho EmailOtpSender tương lai. Không tự bật delivery.
       OTP_EMAIL_FROM_ADDRESS: ${OTP_EMAIL_FROM_ADDRESS:-}
       OTP_EMAIL_FROM_NAME: ${OTP_EMAIL_FROM_NAME:-Chân Tâm}
+      CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:-}
       # R2/S3 credential chỉ tồn tại trong .env server/environment secret, không
       # commit. Thiếu config thì Storage endpoint fail closed, Core vẫn healthy.
       STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
