@@ -2,9 +2,13 @@ import {
   IGetCategoryTreeCommand,
   IGetCategoryTreeUseCase,
 } from '@/application/contracts/category';
-import { ICategoryRepository } from '@/domain/ports/repository';
+import {
+  IAdminConfigRepository,
+  ICategoryRepository,
+} from '@/domain/ports/repository';
 import { PostTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { ICategoryDto } from '@chantam.vn/chantam.core-lib/dto';
+import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { toCategoryDto } from './category.mapper';
 
@@ -39,12 +43,22 @@ export class GetCategoryTreeUseCase implements IGetCategoryTreeUseCase {
   public constructor(
     @Inject(ICategoryRepository)
     private readonly categories: ICategoryRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
   ) {}
 
   public async handle(
     command: IGetCategoryTreeCommand = {},
   ): Promise<{ categories: ICategoryDto[] }> {
-    const rows = await this.categories.findActiveTree();
+    if (
+      command.includeInactive &&
+      (!command.actorUserId ||
+        !(await this.admin.hasPermission(command.actorUserId, 'category.read')))
+    )
+      throw new ForbiddenException();
+    const rows = command.includeInactive
+      ? await this.categories.findAdminTree()
+      : await this.categories.findActiveTree();
     const byParent = new Map<string | null, ICategoryDto[]>();
 
     for (const row of rows) {

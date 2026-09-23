@@ -152,16 +152,6 @@ cho bản đồ tại thời điểm xem.
 
 **Điểm dư:** không tự trừ khi lên hạng. Chỉ trừ khi có chương trình đổi điểm cụ thể **và người dùng xác nhận**. Mặc định **không quy đổi ra tiền mặt**.
 
-> ⛔ **Điểm vừa là thước đo Rank vừa là tiền tiêu được** ⟹ tiêu điểm là tụt hạng.
-> Cách xử lý chuẩn, rất rẻ nếu làm ngay: tách `lifetime_points` (chỉ tăng, quyết định Rank)
-> khỏi `spendable_balance` (tiêu được). Ledger đã có `balance_after`, chỉ cần thêm
-> `lifetime_after`. Làm sau khi có dữ liệu thật thì phải migrate và tính lại toàn bộ lịch sử.
->
-> ✅ **Đã tách.** `point_ledger` ghi cả `balance_after` lẫn `lifetime_after`, và
-> `user_point_balances` giữ hai cột riêng. Hạng đọc `lifetime`; tiêu điểm chỉ giảm
-> `balance` nên không kéo hạng xuống. Kênh công khai chỉ thấy `lifetime`.
->>>>>>> origin/main
-
 ### F13 — Referral cá nhân, thưởng một lần
 Mã/link cá nhân **chỉ áp dụng cho tài khoản mới**. Thưởng đúng một lần khi người mới đăng ký
 thành công. Quan hệ referral là **bất biến** sau khi tạo — không sửa, không chuyển.

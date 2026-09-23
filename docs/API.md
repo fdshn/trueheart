@@ -811,11 +811,21 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 | `GET` | `/admin/audit-logs` | `audit.read` | Nhật ký thao tác quản trị |
 | `GET` | `/admin/system-logs` | `audit.read` | Nhật ký hệ thống theo `logType` |
 | `GET` | `/admin/roles` | `admin.manage` | Role và quyền kèm theo |
+| `GET` | `/admin/me` | `admin.access` | Role và permission đọc lại từ database cho phiên CMS |
 | `POST` \| `DELETE` | `/admin/users/:userId/roles` | `admin.manage` | Cấp / thu hồi role |
 | `GET` | `/admin/users` | `admin.manage` | Tìm user với bộ lọc đầy đủ |
 | `GET` | `/admin/users/:userId` | `admin.manage` | Chi tiết một user |
 | `PATCH` | `/admin/users/:userId/status` | `admin.manage` | Đổi trạng thái |
 | `DELETE` | `/admin/users/:userId` | `admin.manage` | Xoá mềm kèm ẩn danh |
+| `GET` | `/admin/posts` | `post.read` | Queue bài đăng, mặc định lọc `PENDING_REVIEW` |
+| `GET` | `/admin/posts/:postId` | `post.read` | Chi tiết bài và media dành cho moderator |
+| `PATCH` | `/admin/posts/:postId/moderation` | `post.moderate` | Duyệt/từ chối, reason bắt buộc, ghi audit |
+| `GET` | `/admin/reports` | `report.read` | Hàng đợi report, ưu tiên target có nhiều tín hiệu mở |
+| `GET` | `/admin/reports/:reportId` | `report.read` | Chi tiết report và URL bằng chứng |
+| `PATCH` | `/admin/reports/:reportId/review` | `report.resolve` | Kết luận hoặc bác bỏ, ghi chú bắt buộc, ghi audit |
+| `GET` | `/admin/categories` | `category.read` | Cây danh mục quản trị, gồm cả mục đã tắt |
+| `POST` | `/categories` | `category.manage` | Tạo danh mục và ghi audit |
+| `PATCH` | `/categories/:categoryId` | `category.manage` | Sửa, sắp thứ tự hoặc bật/tắt danh mục và ghi audit |
 
 **Điều cần biết**
 
@@ -846,6 +856,12 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
   nuốt body, dùng `fetch` hoặc `curl -X DELETE -d`.
 - `/admin/system-logs` gom bốn nguồn thật (`admin_audit_logs`, `point_ledger`,
   `rank_transitions`, `gift_transactions`) về một hình dạng chung, lọc bằng `logType`.
+- CMS lấy capability từ `/admin/me`, không suy ra quyền từ `rank`, `status` hoặc JWT.
+- Queue `/admin/posts` không trả tọa độ chính xác. Moderation chỉ chuyển bài còn ở
+  `PENDING_REVIEW`; update trạng thái và audit `MODERATE_POST` nằm chung một transaction.
+- `POST /reports` nhận target `POST` hoặc `USER`, mô tả và tối đa 5 URL bằng chứng. Nhiều
+  report chỉ tăng độ ưu tiên; không report nào tự động phạt. Quyết định Admin và audit
+  `REVIEW_REPORT` được ghi chung transaction.
 
 
 ### Thứ tự ưu tiên chọn người nhận (CH-1)

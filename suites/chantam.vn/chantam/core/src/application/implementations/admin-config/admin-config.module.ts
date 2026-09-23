@@ -4,13 +4,19 @@ import {
   IDeleteAdminUserUseCase,
   IGetAdminAuditLogsUseCase,
   IGetAdminConfigsUseCase,
+  IGetAdminPointRulesUseCase,
+  IGetAdminRankPolicyUseCase,
   IGetAdminUserUseCase,
   IGetCandidateSelectionUseCase,
   IGetNotificationChannelsUseCase,
+  IGetOwnAdminAccessUseCase,
   IGetSystemLogsUseCase,
   IListAdminRolesUseCase,
   IListAdminUsersUseCase,
   IPublishAdminConfigUseCase,
+  IPublishAdminMaintenancePolicyUseCase,
+  IPublishAdminPointRuleUseCase,
+  IPublishAdminRankPolicyUseCase,
   ISetCandidateSelectionUseCase,
   IUpdateNotificationChannelUseCase,
 } from '@/application/contracts/admin-config';
@@ -20,6 +26,15 @@ import {
   GetAdminConfigsUseCase,
   PublishAdminConfigUseCase,
 } from './admin-config.use-cases';
+import { PublishAdminMaintenancePolicyUseCase } from './admin-maintenance-policy.use-cases';
+import {
+  GetAdminPointRulesUseCase,
+  PublishAdminPointRuleUseCase,
+} from './admin-point-rule.use-cases';
+import {
+  GetAdminRankPolicyUseCase,
+  PublishAdminRankPolicyUseCase,
+} from './admin-rank-policy.use-cases';
 import {
   AssignAdminRoleUseCase,
   ListAdminRolesUseCase,
@@ -34,6 +49,7 @@ import {
   GetCandidateSelectionUseCase,
   SetCandidateSelectionUseCase,
 } from './candidate-selection.use-cases';
+import { GetOwnAdminAccessUseCase } from './get-own-admin-access.use-case';
 import { GetSystemLogsUseCase } from './get-system-logs.use-case';
 import {
   GetNotificationChannelsUseCase,
@@ -57,7 +73,31 @@ import {
       useClass: PublishAdminConfigUseCase,
     },
     { provide: IGetAdminAuditLogsUseCase, useClass: GetAdminAuditLogsUseCase },
+    {
+      provide: IGetAdminRankPolicyUseCase,
+      useClass: GetAdminRankPolicyUseCase,
+    },
+    {
+      provide: IPublishAdminRankPolicyUseCase,
+      useClass: PublishAdminRankPolicyUseCase,
+    },
+    {
+      provide: IGetAdminPointRulesUseCase,
+      useClass: GetAdminPointRulesUseCase,
+    },
+    {
+      provide: IPublishAdminPointRuleUseCase,
+      useClass: PublishAdminPointRuleUseCase,
+    },
+    {
+      provide: IPublishAdminMaintenancePolicyUseCase,
+      useClass: PublishAdminMaintenancePolicyUseCase,
+    },
     { provide: IGetSystemLogsUseCase, useClass: GetSystemLogsUseCase },
+    {
+      provide: IGetOwnAdminAccessUseCase,
+      useClass: GetOwnAdminAccessUseCase,
+    },
     { provide: IListAdminRolesUseCase, useClass: ListAdminRolesUseCase },
     { provide: IAssignAdminRoleUseCase, useClass: AssignAdminRoleUseCase },
     { provide: IListAdminUsersUseCase, useClass: ListAdminUsersUseCase },
@@ -82,7 +122,13 @@ import {
     ISetCandidateSelectionUseCase,
     IPublishAdminConfigUseCase,
     IGetAdminAuditLogsUseCase,
+    IGetAdminRankPolicyUseCase,
+    IPublishAdminRankPolicyUseCase,
+    IGetAdminPointRulesUseCase,
+    IPublishAdminPointRuleUseCase,
+    IPublishAdminMaintenancePolicyUseCase,
     IGetSystemLogsUseCase,
+    IGetOwnAdminAccessUseCase,
     IListAdminRolesUseCase,
     IAssignAdminRoleUseCase,
     IListAdminUsersUseCase,

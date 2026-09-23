@@ -126,6 +126,7 @@ export class CategoryDto implements ICategoryDto {
   @ApiProperty() slug: string;
   @ApiProperty({ nullable: true }) icon: string | null;
   @ApiProperty() sortOrder: number;
+  @ApiProperty() isActive: boolean;
   @ApiProperty({ isArray: true, enum: GenericMvpPostTypes })
   postTypes: PostTypes[];
   @ApiProperty({ type: () => [CategoryDto] }) children: ICategoryDto[];

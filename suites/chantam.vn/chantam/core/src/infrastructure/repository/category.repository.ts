@@ -32,4 +32,11 @@ export class CategoryRepository
       .addOrderBy('category.name', 'ASC')
       .getMany();
   }
+
+  async findAdminTree() {
+    return this.createQueryBuilder('category')
+      .orderBy('category.sortOrder', 'ASC')
+      .addOrderBy('category.name', 'ASC')
+      .getMany();
+  }
 }

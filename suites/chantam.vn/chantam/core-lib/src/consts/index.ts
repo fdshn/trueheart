@@ -15,5 +15,6 @@ export * from './onboarding-task-evidence';
 export * from './post-selection-modes';
 export * from './post-types';
 export * from './public-discovery-post-types';
+export * from './report-types';
 export * from './user-ranks';
 export * from './user-statuses';

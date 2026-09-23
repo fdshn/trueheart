@@ -58,3 +58,34 @@ export interface IGetOwnPointLedgerResponseDto {
   entries: IPointLedgerEntryDto[];
   meta: IPaginationMetaDto;
 }
+
+export interface IAdminPointRuleDto {
+  code: string;
+  points: number;
+  enabled: boolean;
+  affectsLifetime: boolean;
+  dailyCap: number | null;
+  version: number;
+  updatedAt: Date;
+}
+
+export interface IGetAdminPointRulesResponseDto {
+  pointRules: IAdminPointRuleDto[];
+}
+
+export interface IPublishAdminPointRuleDto {
+  code: string;
+  points: number;
+  enabled: boolean;
+  affectsLifetime: boolean;
+  dailyCap: number | null;
+  changeReason: string;
+}
+
+export interface IPublishAdminPointRuleBodyDto {
+  pointRule: IPublishAdminPointRuleDto;
+}
+
+export interface IPublishAdminPointRuleResponseDto {
+  pointRule: IAdminPointRuleDto;
+}

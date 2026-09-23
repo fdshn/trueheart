@@ -20,15 +20,19 @@ function node(
     slug: globalId,
     icon: null,
     sortOrder: 1,
+    isActive: true,
     parentId,
     postTypes,
   };
 }
 
 function makeUseCase(rows: ReturnType<typeof node>[]) {
-  return new GetCategoryTreeUseCase({
-    findActiveTree: jest.fn(async () => rows),
-  } as never);
+  return new GetCategoryTreeUseCase(
+    {
+      findActiveTree: jest.fn(async () => rows),
+    } as never,
+    { hasPermission: jest.fn(async () => true) } as never,
+  );
 }
 
 describe('GetCategoryTreeUseCase', () => {

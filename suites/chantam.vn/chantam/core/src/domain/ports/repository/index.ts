@@ -17,6 +17,7 @@ export * from './post-media.repository';
 export * from './post.repository';
 export * from './rank.repository';
 export * from './referral.repository';
+export * from './report.repository';
 export * from './system-log.repository';
 export * from './user-onboarding-task-completion.repository';
 export * from './user-session.repository';

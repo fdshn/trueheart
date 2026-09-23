@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminConfigControllerModule } from './admin-config/admin-config.module';
+import { AdminPostControllerModule } from './admin-post/admin-post.module';
 import { AuthControllerModule } from './auth/auth.module';
 import { CategoryControllerModule } from './category/category.module';
 import { ChatControllerModule } from './chat/chat.module';
@@ -15,12 +16,14 @@ import { PostControllerModule } from './post/post.module';
 import { ProfileControllerModule } from './profile/profile.module';
 import { RankControllerModule } from './rank/rank.module';
 import { ReferralControllerModule } from './referral/referral.module';
+import { ReportControllerModule } from './report/report.module';
 import { TransactionControllerModule } from './transaction/transaction.module';
 
 /** Gom mọi controller module theo resource. */
 @Module({
   imports: [
     AdminConfigControllerModule,
+    AdminPostControllerModule,
     AuthControllerModule,
     CategoryControllerModule,
     ChatControllerModule,
@@ -35,6 +38,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
     PostControllerModule,
     ProfileControllerModule,
     ReferralControllerModule,
+    ReportControllerModule,
     RankControllerModule,
     TransactionControllerModule,
   ],

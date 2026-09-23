@@ -6,6 +6,7 @@ export interface ICategoryDto {
   slug: string;
   icon: string | null;
   sortOrder: number;
+  isActive: boolean;
   /**
    * Loại bài dùng được danh mục này.
    *

@@ -6,8 +6,10 @@ import {
   CategoryNotFoundException,
   CategorySlugTakenException,
 } from '@/domain/exceptions';
-import { IConfig } from '@/domain/ports/config';
-import { ICategoryRepository } from '@/domain/ports/repository';
+import {
+  IAdminConfigRepository,
+  ICategoryRepository,
+} from '@/domain/ports/repository';
 import { GenericMvpPostTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { makeGlobalId, slugify } from '@chantam/service.common-lib/utils';
@@ -19,15 +21,12 @@ export class CreateCategoryUseCase implements ICreateCategoryUseCase {
   public constructor(
     @Inject(ICategoryRepository)
     private readonly categories: ICategoryRepository,
-    @Inject(IConfig) private readonly config: IConfig,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
   ) {}
 
   public async handle(command: ICreateCategoryCommand) {
-    if (
-      !this.config.categoryAdmin.usernames.includes(
-        command.username.toLowerCase(),
-      )
-    )
+    if (!(await this.admin.hasPermission(command.userId, 'category.manage')))
       throw new ForbiddenException();
 
     const input = command.category;
@@ -54,10 +53,17 @@ export class CreateCategoryUseCase implements ICreateCategoryUseCase {
       parentId: input.parentId ?? null,
       deletedAt: null,
     });
-    return {
-      category: toCategoryDto(
-        await this.categories.findOneByOrFail({ globalId }),
-      ),
-    };
+    const category = toCategoryDto(
+      await this.categories.findOneByOrFail({ globalId }),
+    );
+    await this.admin.appendAudit({
+      actorUserId: command.userId,
+      action: 'CREATE_CATEGORY',
+      resourceType: 'CATEGORY',
+      resourceId: globalId,
+      before: null,
+      after: category,
+    });
+    return { category };
   }
 }

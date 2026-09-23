@@ -29,6 +29,57 @@ export interface IRankSummaryDto {
   maintenanceCycle: IRankMaintenanceCycleDto | null;
 }
 
+export interface IAdminRankTierPolicyDto {
+  rank: UserRanks;
+  thresholdPoints: number;
+  warningPoints: number;
+  requiredGifts: number;
+  requiredReferrals: number;
+  maintenanceGifts: number;
+  maintenanceReferrals: number;
+  version: number;
+}
+
+export interface IAdminRankTierPolicyInputDto {
+  rank: UserRanks;
+  thresholdPoints: number;
+  warningPoints: number;
+  requiredGifts: number;
+  requiredReferrals: number;
+}
+
+export interface IPublishAdminRankPolicyDto {
+  changeReason: string;
+  tiers: IAdminRankTierPolicyInputDto[];
+}
+
+export interface IPublishAdminRankPolicyBodyDto {
+  rankPolicy: IPublishAdminRankPolicyDto;
+}
+
+export interface IGetAdminRankPolicyResponseDto {
+  rankPolicy: IAdminRankTierPolicyDto[];
+}
+
+export interface IPublishAdminRankPolicyResponseDto extends IGetAdminRankPolicyResponseDto {}
+
+export interface IAdminMaintenanceTierInputDto {
+  rank: UserRanks;
+  maintenanceGifts: number;
+  maintenanceReferrals: number;
+}
+
+export interface IPublishAdminMaintenancePolicyDto {
+  changeReason: string;
+  tiers: IAdminMaintenanceTierInputDto[];
+}
+
+export interface IPublishAdminMaintenancePolicyBodyDto {
+  maintenancePolicy: IPublishAdminMaintenancePolicyDto;
+}
+
+export interface IPublishAdminMaintenancePolicyResponseDto extends IGetAdminRankPolicyResponseDto {}
+
 export interface IGetOwnRankSummaryResponseDto {
   rank: IRankSummaryDto;
 }

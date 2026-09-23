@@ -6,8 +6,10 @@ import {
   CategoryNotFoundException,
   CategorySlugTakenException,
 } from '@/domain/exceptions';
-import { IConfig } from '@/domain/ports/config';
-import { ICategoryRepository } from '@/domain/ports/repository';
+import {
+  IAdminConfigRepository,
+  ICategoryRepository,
+} from '@/domain/ports/repository';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { definedProps, slugify } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
@@ -18,15 +20,12 @@ export class UpdateCategoryUseCase implements IUpdateCategoryUseCase {
   public constructor(
     @Inject(ICategoryRepository)
     private readonly categories: ICategoryRepository,
-    @Inject(IConfig) private readonly config: IConfig,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
   ) {}
 
   public async handle(command: IUpdateCategoryCommand) {
-    if (
-      !this.config.categoryAdmin.usernames.includes(
-        command.username.toLowerCase(),
-      )
-    )
+    if (!(await this.admin.hasPermission(command.userId, 'category.manage')))
       throw new ForbiddenException();
 
     const existing = await this.categories.findOneBy({
@@ -49,10 +48,17 @@ export class UpdateCategoryUseCase implements IUpdateCategoryUseCase {
       if (!parent || !parent.isActive) throw new CategoryNotFoundException();
     }
     await this.categories.update({ globalId: existing.globalId }, update);
-    return {
-      category: toCategoryDto(
-        await this.categories.findOneByOrFail({ globalId: existing.globalId }),
-      ),
-    };
+    const category = toCategoryDto(
+      await this.categories.findOneByOrFail({ globalId: existing.globalId }),
+    );
+    await this.admin.appendAudit({
+      actorUserId: command.userId,
+      action: 'UPDATE_CATEGORY',
+      resourceType: 'CATEGORY',
+      resourceId: existing.globalId,
+      before: toCategoryDto(existing),
+      after: category,
+    });
+    return { category };
   }
 }

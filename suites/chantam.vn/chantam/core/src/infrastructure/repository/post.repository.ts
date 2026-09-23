@@ -1,12 +1,16 @@
 import {
   CharityTransferOutcome,
+  IAdminPostSummary,
   IExpireDuePostsResult,
+  IFindAdminPostsParams,
+  IFindAdminPostsResult,
   IFindMyPostsParams,
   IFindMyPostsResult,
   IFindNearbyPostsParams,
   IFindNearbyPostsResult,
   IFindPostMapMarkersParams,
   IFindSmartMatchesParams,
+  IModeratePostByAdminCommand,
   IPostMapMarker,
   IPostRepository,
   IRenewPostParams,
@@ -55,6 +59,26 @@ export const QuotaStatuses = [
  * không kéo cả nghìn dòng về chấm.
  */
 export const SmartMatchCandidateLimit = 100;
+
+interface IAdminPostRow {
+  global_id: string;
+  post_type: PostTypes;
+  author_id: string;
+  author_username: string;
+  author_full_name: string | null;
+  category_id: string;
+  title: string;
+  description: string;
+  area_label: string;
+  status: string;
+  total_quantity: number;
+  remaining_quantity: number;
+  details: Record<string, unknown>;
+  expires_at: Date | null;
+  media_count: string;
+  created_at: Date;
+  updated_at: Date;
+}
 
 @Injectable()
 export class PostRepository
@@ -253,6 +277,154 @@ export class PostRepository
       .getManyAndCount();
 
     return { items, total };
+  }
+
+  public async findAdminPosts(
+    params: IFindAdminPostsParams,
+  ): Promise<IFindAdminPostsResult> {
+    const conditions = ['post.deleted_at IS NULL'];
+    const values: unknown[] = [];
+    const add = (sql: string, value: unknown): void => {
+      if (value === undefined) return;
+      values.push(value);
+      conditions.push(sql.replace('$?', `$${values.length}`));
+    };
+
+    add('post.status = $?', params.status);
+    add('post.post_type = $?', params.postType);
+    add('post.category_id = $?', params.categoryId);
+    add('post.author_id = $?', params.authorId);
+    if (params.keyword) {
+      values.push(params.keyword);
+      const keyword = `$${values.length}`;
+      conditions.push(
+        `(post.title ILIKE '%' || ${keyword} || '%' OR post.description ILIKE '%' || ${keyword} || '%' OR author.username ILIKE '%' || ${keyword} || '%')`,
+      );
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`;
+
+    const rows = await this.manager.query<IAdminPostRow[]>(
+      `
+        SELECT post.global_id, post.post_type, post.author_id,
+               author.username AS author_username,
+               author.full_name AS author_full_name,
+               post.category_id, post.title, post.description, post.area_label,
+               post.status, post.total_quantity, post.remaining_quantity,
+               post.details, post.expires_at, post.created_at, post.updated_at,
+               COUNT(media.id)::text AS media_count
+        FROM posts post
+        INNER JOIN users author ON author.global_id = post.author_id
+        LEFT JOIN post_media media ON media.post_id = post.global_id
+        ${where}
+        GROUP BY post.id, author.username, author.full_name
+        ORDER BY post.created_at DESC, post.global_id DESC
+        LIMIT $${values.length + 1} OFFSET $${values.length + 2}
+      `,
+      [...values, params.take, params.skip],
+    );
+    const [{ total }] = await this.manager.query<{ total: string }[]>(
+      `
+        SELECT COUNT(*) AS total
+        FROM posts post
+        INNER JOIN users author ON author.global_id = post.author_id
+        ${where}
+      `,
+      values,
+    );
+
+    return {
+      items: rows.map((row) => this.mapAdminPost(row)),
+      total: Number(total),
+    };
+  }
+
+  public async findAdminByGlobalId(
+    globalId: string,
+  ): Promise<IAdminPostSummary | null> {
+    // Detail cần lọc chính xác theo ID; dùng query riêng để không biến UUID
+    // thành keyword và không phụ thuộc trạng thái public.
+    const [row] = await this.manager.query<IAdminPostRow[]>(
+      `
+        SELECT post.global_id, post.post_type, post.author_id,
+               author.username AS author_username,
+               author.full_name AS author_full_name,
+               post.category_id, post.title, post.description, post.area_label,
+               post.status, post.total_quantity, post.remaining_quantity,
+               post.details, post.expires_at, post.created_at, post.updated_at,
+               COUNT(media.id)::text AS media_count
+        FROM posts post
+        INNER JOIN users author ON author.global_id = post.author_id
+        LEFT JOIN post_media media ON media.post_id = post.global_id
+        WHERE post.global_id = $1 AND post.deleted_at IS NULL
+        GROUP BY post.id, author.username, author.full_name
+      `,
+      [globalId],
+    );
+    return row ? this.mapAdminPost(row) : null;
+  }
+
+  public async moderatePendingReviewByAdmin(
+    command: IModeratePostByAdminCommand,
+  ): Promise<IPostEntity | null> {
+    return this.manager.transaction(async (manager) => {
+      const [current] = await manager.query<{ status: string }[]>(
+        `
+          SELECT status FROM posts
+          WHERE global_id = $1 AND deleted_at IS NULL
+          FOR UPDATE
+        `,
+        [command.postId],
+      );
+      if (current?.status !== 'PENDING_REVIEW') return null;
+
+      await manager.query(
+        `
+          UPDATE posts
+          SET status = $2, expires_at = $3, updated_at = now()
+          WHERE global_id = $1
+        `,
+        [command.postId, command.status, command.expiresAt],
+      );
+      await manager.query(
+        `
+          INSERT INTO admin_audit_logs
+            (actor_user_id, action, resource_type, resource_id, before_json, after_json, reason)
+          VALUES ($1, 'MODERATE_POST', 'POST', $2, $3::jsonb, $4::jsonb, $5)
+        `,
+        [
+          command.actorUserId,
+          command.postId,
+          JSON.stringify({ status: current.status }),
+          JSON.stringify({ status: command.status }),
+          command.reason,
+        ],
+      );
+
+      return manager.findOneBy(PostEntity, { globalId: command.postId });
+    });
+  }
+
+  private mapAdminPost(row: IAdminPostRow): IAdminPostSummary {
+    return {
+      globalId: row.global_id,
+      postType: row.post_type,
+      authorId: row.author_id,
+      authorUsername: row.author_username,
+      authorFullName: row.author_full_name,
+      categoryId: row.category_id,
+      title: row.title,
+      description: row.description,
+      areaLabel: row.area_label,
+      status: row.status,
+      totalQuantity: Number(row.total_quantity),
+      remainingQuantity: Number(row.remaining_quantity),
+      details: row.details ?? {},
+      expiresAt: row.expires_at,
+      mediaCount: Number(row.media_count),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
   }
 
   public async findMapMarkers(

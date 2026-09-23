@@ -11,3 +11,4 @@ export * from './gift-transaction.exception';
 export * from './point.exception';
 export * from './post.exception';
 export * from './rank.exception';
+export * from './report.exception';

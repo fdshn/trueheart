@@ -1,3 +1,5 @@
+import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+
 export interface ISystemConfigSummary {
   id: number;
   key: string;
@@ -52,6 +54,11 @@ export interface IAdminRoleSummary {
   readonly permissions: string[];
 }
 
+export interface IAdminAccessSummary {
+  readonly roles: string[];
+  readonly permissions: string[];
+}
+
 export interface IAdminRoleAssignment {
   readonly actorUserId: string;
   readonly targetUserId: string;
@@ -59,8 +66,71 @@ export interface IAdminRoleAssignment {
   readonly reason: string;
 }
 
+export interface IAdminRankTierPolicy {
+  readonly rank: UserRanks;
+  readonly thresholdPoints: number;
+  readonly warningPoints: number;
+  readonly requiredGifts: number;
+  readonly requiredReferrals: number;
+  readonly maintenanceGifts: number;
+  readonly maintenanceReferrals: number;
+  readonly version: number;
+}
+
+export interface IPublishAdminRankPolicyCommand {
+  readonly actorUserId: string;
+  readonly changeReason: string;
+  readonly tiers: ReadonlyArray<
+    Pick<
+      IAdminRankTierPolicy,
+      | 'rank'
+      | 'thresholdPoints'
+      | 'warningPoints'
+      | 'requiredGifts'
+      | 'requiredReferrals'
+    >
+  >;
+}
+
+export interface IAdminPointRule {
+  readonly code: string;
+  readonly points: number;
+  readonly enabled: boolean;
+  readonly affectsLifetime: boolean;
+  readonly dailyCap: number | null;
+  readonly version: number;
+  readonly updatedAt: Date;
+}
+
+export interface IPublishAdminPointRuleCommand {
+  readonly actorUserId: string;
+  readonly changeReason: string;
+  readonly rule: Omit<IAdminPointRule, 'version' | 'updatedAt'>;
+}
+
+export interface IPublishAdminMaintenancePolicyCommand {
+  readonly actorUserId: string;
+  readonly changeReason: string;
+  readonly tiers: ReadonlyArray<
+    Pick<
+      IAdminRankTierPolicy,
+      'rank' | 'maintenanceGifts' | 'maintenanceReferrals'
+    >
+  >;
+}
+
 export interface IAdminConfigRepository {
   hasPermission(userId: string, permission: string): Promise<boolean>;
+  getAccess(userId: string): Promise<IAdminAccessSummary>;
+  appendAudit(command: {
+    actorUserId: string;
+    action: string;
+    resourceType: string;
+    resourceId: string;
+    before: unknown;
+    after: unknown;
+    reason?: string;
+  }): Promise<void>;
   getPublishedConfigs(): Promise<ISystemConfigSummary[]>;
   /**
    * Giá trị JSON của bản đang hiệu lực cho một khoá, hoặc `null` khi chưa có.
@@ -81,6 +151,17 @@ export interface IAdminConfigRepository {
    * cùng là không còn ai cấp lại quyền cho bất kỳ ai, kể cả chính mình.
    */
   revokeRole(assignment: IAdminRoleAssignment): Promise<void>;
+  getRankPolicy(): Promise<IAdminRankTierPolicy[]>;
+  publishRankPolicy(
+    command: IPublishAdminRankPolicyCommand,
+  ): Promise<IAdminRankTierPolicy[]>;
+  getPointRules(): Promise<IAdminPointRule[]>;
+  publishPointRule(
+    command: IPublishAdminPointRuleCommand,
+  ): Promise<IAdminPointRule>;
+  publishMaintenancePolicy(
+    command: IPublishAdminMaintenancePolicyCommand,
+  ): Promise<IAdminRankTierPolicy[]>;
 }
 
 export const IAdminConfigRepository = Symbol('IAdminConfigRepository');
