@@ -17,6 +17,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsDefined,
   IsEnum,
   IsInt,
   IsString,
@@ -72,6 +73,7 @@ export class PublishAdminRankPolicyDto implements IPublishAdminRankPolicyDto {
 
 export class PublishAdminRankPolicyBodyDto implements IPublishAdminRankPolicyBodyDto {
   @ApiProperty({ type: () => PublishAdminRankPolicyDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => PublishAdminRankPolicyDto)
   rankPolicy: PublishAdminRankPolicyDto;
@@ -147,6 +149,7 @@ export class PublishAdminMaintenancePolicyDto implements IPublishAdminMaintenanc
 
 export class PublishAdminMaintenancePolicyBodyDto implements IPublishAdminMaintenancePolicyBodyDto {
   @ApiProperty({ type: () => PublishAdminMaintenancePolicyDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => PublishAdminMaintenancePolicyDto)
   maintenancePolicy: PublishAdminMaintenancePolicyDto;

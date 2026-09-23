@@ -9,6 +9,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsDefined,
   IsInt,
   IsOptional,
   IsString,
@@ -52,6 +53,7 @@ export class PublishAdminPointRuleDto implements IPublishAdminPointRuleDto {
 
 export class PublishAdminPointRuleBodyDto implements IPublishAdminPointRuleBodyDto {
   @ApiProperty({ type: () => PublishAdminPointRuleDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => PublishAdminPointRuleDto)
   pointRule: PublishAdminPointRuleDto;
