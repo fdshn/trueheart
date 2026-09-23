@@ -43,12 +43,7 @@ export class ContentShareRepository implements IContentShareRepository {
             (subject_type, subject_id, user_id, channel)
           VALUES ($1, $2, $3, $4)
         `,
-        [
-          params.subjectType,
-          params.subjectId,
-          params.userId,
-          params.channel,
-        ],
+        [params.subjectType, params.subjectId, params.userId, params.channel],
       );
 
       const target = CounterTargets[params.subjectType];

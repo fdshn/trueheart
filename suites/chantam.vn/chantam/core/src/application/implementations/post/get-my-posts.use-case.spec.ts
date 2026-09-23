@@ -146,10 +146,11 @@ describe('GetMyPostsUseCase', () => {
 
     const result = await run(deps, { userId: UserId });
 
-    expect(deps.reactions.findMyReactions).toHaveBeenCalledWith('POST', [
-      'p1',
-      'p2',
-    ], UserId);
+    expect(deps.reactions.findMyReactions).toHaveBeenCalledWith(
+      'POST',
+      ['p1', 'p2'],
+      UserId,
+    );
     expect(result.posts[0]).toMatchObject({
       reactionCount: 4,
       commentCount: 1,
