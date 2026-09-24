@@ -1,8 +1,10 @@
 import {
   IGetTransactionReviewsUseCase,
+  IReconcileGiverAccuracyUseCase,
   ISubmitReviewUseCase,
 } from '@/application/contracts/review';
 import { Global, Module } from '@nestjs/common';
+import { ReconcileGiverAccuracyUseCase } from './reconcile-giver-accuracy.use-case';
 import {
   GetTransactionReviewsUseCase,
   SubmitReviewUseCase,
@@ -16,7 +18,15 @@ import {
       provide: IGetTransactionReviewsUseCase,
       useClass: GetTransactionReviewsUseCase,
     },
+    {
+      provide: IReconcileGiverAccuracyUseCase,
+      useClass: ReconcileGiverAccuracyUseCase,
+    },
   ],
-  exports: [ISubmitReviewUseCase, IGetTransactionReviewsUseCase],
+  exports: [
+    ISubmitReviewUseCase,
+    IGetTransactionReviewsUseCase,
+    IReconcileGiverAccuracyUseCase,
+  ],
 })
 export class ReviewModule {}

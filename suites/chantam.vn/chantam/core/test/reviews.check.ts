@@ -382,6 +382,61 @@ async function main(): Promise<void> {
       `percent=${afterBroken.accuracy.percent}`,
     );
 
+    // ── 6c. Đối soát sau khi đổi ngưỡng (F61) ───────────────────────────────
+    console.log('\nĐối soát sau khi đổi ngưỡng:\n');
+
+    // Người tặng đang MANG CỜ (đặt ở bước trên, ngưỡng 90 với chỉ số 80%).
+    // Trả ngưỡng về 75 — cờ vẫn còn vì nó chỉ đổi khi có đánh giá mới. Đó
+    // chính là lý do CLI này tồn tại.
+    await dataSource.query(
+      `UPDATE system_configs SET value_json = $1
+       WHERE config_key = 'accuracy.giver'`,
+      ['{"minSamples": 5, "reviewThresholdPercent": 90}'],
+    );
+    await dataSource.query(
+      `UPDATE users SET accuracy_review_required = true WHERE global_id = $1`,
+      [GiverId],
+    );
+
+    await dataSource.query(
+      `UPDATE system_configs SET value_json = $1
+       WHERE config_key = 'accuracy.giver'`,
+      ['{"minSamples": 5, "reviewThresholdPercent": 75}'],
+    );
+    check(
+      'hạ ngưỡng xong, cờ CŨ vẫn còn — cờ chỉ đổi khi có đánh giá mới',
+      (await accuracyOf(GiverId)).accuracy_review_required === true,
+    );
+
+    const preview = await reviews.reconcileAccuracy({ dryRun: true });
+    check(
+      'dry-run phát hiện lệch nhưng KHÔNG sửa',
+      preview.drifts.length > 0 && preview.repaired === 0,
+      `${preview.drifts.length} lệch, sửa ${preview.repaired}`,
+    );
+    check(
+      'và cờ vẫn nguyên sau dry-run',
+      (await accuracyOf(GiverId)).accuracy_review_required === true,
+    );
+
+    const fixed = await reviews.reconcileAccuracy({ dryRun: false });
+    check(
+      'chạy thật thì sửa đúng số hồ sơ đã báo',
+      fixed.repaired === fixed.drifts.length && fixed.repaired > 0,
+      `sửa ${fixed.repaired}/${fixed.drifts.length}`,
+    );
+    check(
+      'cờ được GỠ vì chỉ số nay trên ngưỡng',
+      (await accuracyOf(GiverId)).accuracy_review_required === false,
+    );
+
+    const again = await reviews.reconcileAccuracy({ dryRun: false });
+    check(
+      'chạy lần hai không còn gì để sửa — bình thái',
+      again.drifts.length === 0 && again.repaired === 0,
+      `${again.drifts.length} lệch`,
+    );
+
     // ── 7. Hoàn bút toán điểm (F39) ─────────────────────────────────────────
     console.log('\nHoàn bút toán điểm:\n');
 

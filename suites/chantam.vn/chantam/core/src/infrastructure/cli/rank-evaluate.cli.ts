@@ -5,7 +5,9 @@ import { config as loadEnvFile } from 'dotenv';
 import { RankEvaluationCliModule } from './rank-evaluation-cli.module';
 
 export async function runRankEvaluation(
-  createApplicationContext: typeof NestFactory.createApplicationContext = NestFactory.createApplicationContext,
+  createApplicationContext: typeof NestFactory.createApplicationContext = NestFactory.createApplicationContext.bind(
+    NestFactory,
+  ),
   appModule: unknown = RankEvaluationCliModule,
 ): Promise<{ processedCycles: number }> {
   const app: INestApplicationContext = await createApplicationContext(

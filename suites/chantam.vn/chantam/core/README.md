@@ -292,6 +292,45 @@ quay lại.
 
 Kiểm trên database thật: `npm run test:returning`.
 
+## CLI chạy một lần
+
+Bảy lệnh, tất cả cùng một khuôn: nạp `.env.local`, dựng application context
+KHÔNG mở cổng HTTP, chạy một lượt rồi đóng. Gọi từ cron bên ngoài; Core cố ý
+không tự dựng scheduler nào trong tiến trình.
+
+```bash
+npm run chat:purge                 # xoá tin nhắn quá hạn lưu trữ
+npm run point:reconcile            # vá thưởng xác minh SĐT bị thiếu
+npm run post:expire                # đóng bài quá hạn
+npm run rank:evaluate              # đánh giá chu kỳ duy trì rank
+npm run transaction:autocomplete   # tự hoàn tất lượt trao quá hạn
+npm run feed:reconcile-counts      # đối soát số đếm feed
+npm run accuracy:reconcile         # tính lại Giver Accuracy theo ngưỡng hiện hành
+```
+
+Lệnh có số liệu lệch nhận thêm `--dry-run`: in ra chỗ lệch, không sửa, và
+thoát khác 0 để cron coi đó là chuyện cần biết.
+
+### Hai cái bẫy đã làm cả bảy CLI chết
+
+Cả hai chỉ lộ ra khi chạy thật, vì unit test tiêm sẵn hàm giả vào đúng chỗ
+hỏng và do đó không bao giờ chạm tới.
+
+**1. `NestFactory.createApplicationContext` phải `.bind(NestFactory)`.**
+`NestFactory` là một instance, nên truyền tham chiếu method trần làm mất
+`this` và CLI chết ngay dòng đầu với `Cannot read properties of undefined`.
+
+**2. Module CLI phải import `CliInfrastructureModule`, không liệt kê tay.**
+`@Global()` chỉ có hiệu lực SAU KHI module được import ở đâu đó — không import
+thì nó không tồn tại. Trước đây mỗi `*-cli.module.ts` tự đoán bốn module nó
+cần và cả bảy đều thiếu. Thêm một phụ thuộc vào bất kỳ repository nào là mọi
+CLI cùng chết trong im lặng.
+
+`RealtimeModule` là ngoại lệ có chủ ý: CLI dùng `NoopRealtimeModule` thay thế,
+vì dựng máy chủ websocket cho một tiến trình sống vài giây là giữ cổng đủ lâu
+để hai lượt cron chồng nhau đụng nhau. Bản không-làm-gì ghi log cảnh báo nếu
+thật sự bị gọi, chứ không nuốt lặng lẽ.
+
 ## Cấu trúc
 
 ```

@@ -1,4 +1,4 @@
-import { PointModule } from '@/application/implementations/point/point.module';
+import { ReviewModule } from '@/application/implementations/review/review.module';
 import { Module } from '@nestjs/common';
 import { CliInfrastructureModule } from './cli-infrastructure.module';
 
@@ -7,6 +7,6 @@ import { CliInfrastructureModule } from './cli-infrastructure.module';
  * sao không liệt kê tay từng module.
  */
 @Module({
-  imports: [CliInfrastructureModule, PointModule],
+  imports: [CliInfrastructureModule, ReviewModule],
 })
-export class PointCliModule {}
+export class ReviewCliModule {}

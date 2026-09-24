@@ -29,7 +29,35 @@ export interface IGiverAccuracyState {
   readonly reviewRequired: boolean;
 }
 
+export interface IAccuracyDrift {
+  readonly userId: string;
+  readonly storedPercent: number | null;
+  readonly actualPercent: number | null;
+  readonly storedSamples: number;
+  readonly actualSamples: number;
+  readonly storedReviewRequired: boolean;
+  readonly actualReviewRequired: boolean;
+}
+
+export interface IAccuracyReconcileResult {
+  /** Số người có mẫu, hoặc đang mang chỉ số đã lưu. */
+  readonly scanned: number;
+  readonly drifts: IAccuracyDrift[];
+  /** Số người đã sửa. Luôn `0` khi `dryRun`. */
+  readonly repaired: number;
+}
+
 export interface ITransactionReviewRepository {
+  /**
+   * Tính lại chỉ số accuracy của MỌI người theo ngưỡng đang cấu hình.
+   *
+   * Cần vì cờ chỉ được cập nhật khi người đó nhận đánh giá mới: Admin hạ ngưỡng
+   * từ 75 xuống 60 thì những người đang bị gắn cờ ở 65 vẫn mang cờ cho tới lần
+   * đánh giá kế tiếp, có khi không bao giờ tới.
+   */
+  reconcileAccuracy(params: {
+    dryRun: boolean;
+  }): Promise<IAccuracyReconcileResult>;
   /**
    * Bối cảnh để quyết người này được đánh giá lượt trao đó hay không.
    *

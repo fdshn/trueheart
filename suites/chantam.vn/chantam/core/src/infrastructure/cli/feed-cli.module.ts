@@ -1,21 +1,12 @@
 import { FeedModule } from '@/application/implementations/feed/feed.module';
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '../config/config.module';
-import { EntityModule } from '../entity/entity.module';
-import { PersistenceModule } from '../persistence/persistence.module';
-import { RepositoryModule } from '../repository/repository.module';
+import { CliInfrastructureModule } from './cli-infrastructure.module';
 
 /**
- * Cố ý KHÔNG import ControllerModule: `DocsModule` chờ một HTTP app mà CLI
- * không bao giờ dựng, nên nạp cả cây controller là treo tiến trình.
+ * Hạ tầng lấy trọn từ `CliInfrastructureModule` — xem ghi chú ở đó về việc vì
+ * sao không liệt kê tay từng module.
  */
 @Module({
-  imports: [
-    ConfigModule,
-    PersistenceModule,
-    EntityModule,
-    RepositoryModule,
-    FeedModule,
-  ],
+  imports: [CliInfrastructureModule, FeedModule],
 })
 export class FeedCliModule {}

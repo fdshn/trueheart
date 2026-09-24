@@ -5,7 +5,9 @@ import { config as loadEnvFile } from 'dotenv';
 import { TransactionCliModule } from './transaction-cli.module';
 
 export async function runGiftAutoCompletion(
-  createApplicationContext: typeof NestFactory.createApplicationContext = NestFactory.createApplicationContext,
+  createApplicationContext: typeof NestFactory.createApplicationContext = NestFactory.createApplicationContext.bind(
+    NestFactory,
+  ),
   appModule: unknown = TransactionCliModule,
 ): Promise<{ completedTransactions: number }> {
   const app: INestApplicationContext = await createApplicationContext(

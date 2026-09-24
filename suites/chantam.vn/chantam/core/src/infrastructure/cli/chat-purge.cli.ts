@@ -5,7 +5,9 @@ import { config as loadEnvFile } from 'dotenv';
 import { ChatCliModule } from './chat-cli.module';
 
 export async function runChatPurge(
-  createApplicationContext: typeof NestFactory.createApplicationContext = NestFactory.createApplicationContext,
+  createApplicationContext: typeof NestFactory.createApplicationContext = NestFactory.createApplicationContext.bind(
+    NestFactory,
+  ),
   appModule: unknown = ChatCliModule,
 ): Promise<{ purgedRooms: number; purgedMessages: number }> {
   const app: INestApplicationContext = await createApplicationContext(

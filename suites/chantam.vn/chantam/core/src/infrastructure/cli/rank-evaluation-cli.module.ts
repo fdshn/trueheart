@@ -1,19 +1,12 @@
 import { RankModule } from '@/application/implementations/rank/rank.module';
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '../config/config.module';
-import { EntityModule } from '../entity/entity.module';
-import { GiveActivityModule } from '../give-activity/give-activity.module';
-import { PersistenceModule } from '../persistence/persistence.module';
-import { RepositoryModule } from '../repository/repository.module';
+import { CliInfrastructureModule } from './cli-infrastructure.module';
 
+/**
+ * Hạ tầng lấy trọn từ `CliInfrastructureModule` — xem ghi chú ở đó về việc vì
+ * sao không liệt kê tay từng module.
+ */
 @Module({
-  imports: [
-    ConfigModule,
-    PersistenceModule,
-    EntityModule,
-    RepositoryModule,
-    GiveActivityModule,
-    RankModule,
-  ],
+  imports: [CliInfrastructureModule, RankModule],
 })
 export class RankEvaluationCliModule {}

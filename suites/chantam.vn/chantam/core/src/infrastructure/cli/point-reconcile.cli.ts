@@ -5,7 +5,9 @@ import { config as loadEnvFile } from 'dotenv';
 import { PointCliModule } from './point-cli.module';
 
 export async function runPhoneRewardReconciliation(
-  createApplicationContext: typeof NestFactory.createApplicationContext = NestFactory.createApplicationContext,
+  createApplicationContext: typeof NestFactory.createApplicationContext = NestFactory.createApplicationContext.bind(
+    NestFactory,
+  ),
   appModule: unknown = PointCliModule,
 ): Promise<{ repairedRewards: number }> {
   const app: INestApplicationContext = await createApplicationContext(

@@ -9,7 +9,9 @@ import { FeedCliModule } from './feed-cli.module';
 
 export async function runFeedReconcileCounts(
   dryRun: boolean,
-  createApplicationContext: typeof NestFactory.createApplicationContext = NestFactory.createApplicationContext,
+  createApplicationContext: typeof NestFactory.createApplicationContext = NestFactory.createApplicationContext.bind(
+    NestFactory,
+  ),
   appModule: unknown = FeedCliModule,
 ): Promise<IReconcileFeedCountsResult> {
   const app: INestApplicationContext = await createApplicationContext(

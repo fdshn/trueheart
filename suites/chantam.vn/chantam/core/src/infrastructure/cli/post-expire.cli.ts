@@ -5,7 +5,9 @@ import { config as loadEnvFile } from 'dotenv';
 import { PostCliModule } from './post-cli.module';
 
 export async function runPostExpiry(
-  createApplicationContext: typeof NestFactory.createApplicationContext = NestFactory.createApplicationContext,
+  createApplicationContext: typeof NestFactory.createApplicationContext = NestFactory.createApplicationContext.bind(
+    NestFactory,
+  ),
   appModule: unknown = PostCliModule,
 ): Promise<{ expired: number; convertedToOffer: number }> {
   const app: INestApplicationContext = await createApplicationContext(

@@ -1,4 +1,6 @@
 import {
+  IAccuracyDrift,
+  IAccuracyReconcileResult,
   IAdminConfigRepository,
   IGiverAccuracyState,
   IReviewableTransaction,
@@ -58,6 +60,104 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
     private readonly adminConfig: IAdminConfigRepository,
   ) {}
 
+  /**
+   * Đọc ngưỡng đang cấu hình. Gom một chỗ vì cả đường ghi lẫn đường đối soát
+   * đều phải dùng CÙNG một bộ ngưỡng, nếu không đối soát sẽ báo lệch giả.
+   */
+  private async readConfig() {
+    return normalizeGiverAccuracyConfig(
+      await this.adminConfig.getConfigValue(GiverAccuracyConfigKey),
+    );
+  }
+
+  public async reconcileAccuracy(params: {
+    dryRun: boolean;
+  }): Promise<IAccuracyReconcileResult> {
+    const config = await this.readConfig();
+
+    // Lấy cả người ĐANG mang chỉ số đã lưu nhưng nay không còn mẫu nào: nâng
+    // `minSamples` có thể khiến một chỉ số từng công bố phải rút lại.
+    const rows = await this.manager.query<
+      {
+        user_id: string;
+        stored_percent: number | null;
+        stored_samples: number;
+        stored_flag: boolean;
+        percents: number[] | null;
+      }[]
+    >(`
+      SELECT person.global_id AS user_id,
+             person.giver_accuracy_percent AS stored_percent,
+             person.giver_accuracy_samples AS stored_samples,
+             person.accuracy_review_required AS stored_flag,
+             sample.percents
+      FROM users person
+      LEFT JOIN (
+        SELECT reviewee_id,
+               array_agg(accuracy_percent) AS percents
+        FROM transaction_reviews
+        WHERE accuracy_percent IS NOT NULL
+        GROUP BY reviewee_id
+      ) sample ON sample.reviewee_id = person.global_id
+      WHERE sample.reviewee_id IS NOT NULL
+         OR person.giver_accuracy_samples > 0
+         OR person.accuracy_review_required = true
+    `);
+
+    const drifts: IAccuracyDrift[] = [];
+    for (const row of rows) {
+      const snapshot = computeGiverAccuracy(
+        (row.percents ?? []).map(Number),
+        config,
+      );
+      const storedPercent =
+        row.stored_percent === null ? null : Number(row.stored_percent);
+
+      const same =
+        storedPercent === snapshot.percent &&
+        Number(row.stored_samples) === snapshot.samples &&
+        row.stored_flag === snapshot.reviewRequired;
+      if (same) continue;
+
+      drifts.push({
+        userId: row.user_id,
+        storedPercent,
+        actualPercent: snapshot.percent,
+        storedSamples: Number(row.stored_samples),
+        actualSamples: snapshot.samples,
+        storedReviewRequired: row.stored_flag,
+        actualReviewRequired: snapshot.reviewRequired,
+      });
+    }
+
+    if (params.dryRun || drifts.length === 0)
+      return { scanned: rows.length, drifts, repaired: 0 };
+
+    // Sửa trong MỘT transaction: nửa chừng mà chết thì một nửa theo ngưỡng mới
+    // còn một nửa theo ngưỡng cũ, và không ai biết nửa nào.
+    await this.manager.transaction(async (manager) => {
+      for (const drift of drifts)
+        await manager.query(
+          `
+            UPDATE users
+            SET giver_accuracy_percent = $2,
+                giver_accuracy_samples = $3,
+                accuracy_review_required = $4,
+                updated_at = now()
+            WHERE global_id = $1
+          `,
+          [
+            drift.userId,
+            drift.actualPercent,
+            drift.actualSamples,
+            drift.actualReviewRequired,
+          ],
+        );
+    });
+
+    return { scanned: rows.length, drifts, repaired: drifts.length };
+  }
+
   public async findReviewable(
     transactionId: string,
     userId: string,
@@ -115,9 +215,7 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
 
     // Ngưỡng do Admin cấu hình (F61). Cấu hình hỏng thì `normalize` rơi về
     // mặc định — một dòng JSON gõ nhầm không được biến thành "gắn cờ tất cả".
-    const config = normalizeGiverAccuracyConfig(
-      await this.adminConfig.getConfigValue(GiverAccuracyConfigKey),
-    );
+    const config = await this.readConfig();
 
     const snapshot = computeGiverAccuracy(
       rows.map((row) => Number(row.accuracy_percent)),
