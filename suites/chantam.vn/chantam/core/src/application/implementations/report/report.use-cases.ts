@@ -1,3 +1,4 @@
+import { IAppendPointEntryUseCase } from '@/application/contracts/point';
 import {
   ICreateReportCommand,
   ICreateReportResult,
@@ -14,6 +15,8 @@ import {
 } from '@/application/contracts/report';
 import {
   ContentCommentNotFoundException,
+  PointDailyCapReachedException,
+  PointRuleUnavailableException,
   PostNotFoundException,
   ReportDuplicatedException,
   ReportInvalidStateException,
@@ -27,6 +30,7 @@ import {
 import {
   ReportStatuses,
   ReportTargetTypes,
+  ReportUpheldRuleCode,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import {
@@ -152,6 +156,8 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
     @Inject(IReportRepository) private readonly reports: IReportRepository,
     @Inject(IAdminConfigRepository)
     private readonly admin: IAdminConfigRepository,
+    @Inject(IAppendPointEntryUseCase)
+    private readonly points: IAppendPointEntryUseCase,
   ) {}
 
   public async handle(
@@ -170,8 +176,44 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
       note,
     });
     if (!changed) throw new ReportInvalidStateException();
+
+    // Thưởng SAU khi Admin xác minh, không phải lúc gửi (F41): thưởng ngay là
+    // trả tiền cho việc bấm nút, và hàng đợi sẽ ngập báo xấu vu vơ. Chỉ
+    // RESOLVED mới là "đúng"; DISMISSED là Admin đã bác.
+    if (command.review.status === ReportStatuses.RESOLVED)
+      await this.awardReporter(existing.reporterUserId, command.reportId);
+
     const report = await this.reports.findAdminByGlobalId(command.reportId);
     if (!report) throw new ReportNotFoundException();
     return { report };
+  }
+
+  /**
+   * Điểm không được làm hỏng việc kết luận báo xấu.
+   *
+   * Admin đã xem xét và quyết định là một SỰ THẬT; thưởng bao nhiêu là CHÍNH
+   * SÁCH. Rule này seed TẮT sẵn nên đây là đường chạy mặc định cho tới khi
+   * Admin bật — ném ra ngoài là Admin không kết luận được báo xấu nào.
+   */
+  private async awardReporter(
+    reporterUserId: string,
+    reportId: string,
+  ): Promise<void> {
+    try {
+      await this.points.handle({
+        userId: reporterUserId,
+        ruleCode: ReportUpheldRuleCode,
+        referenceType: 'REPORT',
+        referenceId: reportId,
+        idempotencyKey: `${ReportUpheldRuleCode}:${reportId}`,
+        actor: 'SYSTEM',
+        source: 'REPORT',
+      });
+    } catch (error) {
+      const isPolicy =
+        error instanceof PointDailyCapReachedException ||
+        error instanceof PointRuleUnavailableException;
+      if (!isPolicy) throw error;
+    }
   }
 }

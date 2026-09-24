@@ -1,4 +1,6 @@
+import { IAppendPointEntryUseCase } from '@/application/contracts/point';
 import {
+  PointRuleUnavailableException,
   ReportDuplicatedException,
   ReportInvalidStateException,
 } from '@/domain/exceptions';
@@ -49,6 +51,12 @@ function reportDto(status = ReportStatuses.PENDING): IReportDto {
 
 function admin(allowed = true): jest.Mocked<IAdminConfigRepository> {
   return { hasPermission: jest.fn().mockResolvedValue(allowed) } as never;
+}
+
+function points(): jest.Mocked<IAppendPointEntryUseCase> {
+  return {
+    handle: jest.fn().mockResolvedValue({ applied: true }),
+  } as never;
 }
 
 describe('CreateReportUseCase', () => {
@@ -209,7 +217,11 @@ describe('ReviewReportUseCase', () => {
         .mockResolvedValueOnce(reportDto(ReportStatuses.RESOLVED)),
       reviewByAdmin: jest.fn().mockResolvedValue(true),
     } as unknown as jest.Mocked<IReportRepository>;
-    const result = await new ReviewReportUseCase(reports, admin()).handle({
+    const result = await new ReviewReportUseCase(
+      reports,
+      admin(),
+      points(),
+    ).handle({
       actorUserId: ActorId,
       reportId: ReportId,
       review: { status: ReportStatuses.RESOLVED, note: '  Đã xác minh  ' },
@@ -229,7 +241,7 @@ describe('ReviewReportUseCase', () => {
       reviewByAdmin: jest.fn().mockResolvedValue(false),
     } as unknown as jest.Mocked<IReportRepository>;
     await expect(
-      new ReviewReportUseCase(reports, admin()).handle({
+      new ReviewReportUseCase(reports, admin(), points()).handle({
         actorUserId: ActorId,
         reportId: ReportId,
         review: { status: ReportStatuses.DISMISSED, note: 'Không có vi phạm' },
@@ -237,10 +249,106 @@ describe('ReviewReportUseCase', () => {
     ).rejects.toBeInstanceOf(ReportInvalidStateException);
   });
 
+  it('RESOLVED thì thưởng người báo, khoá chống trùng theo báo cáo', async () => {
+    // Thưởng SAU khi Admin xác minh, không phải lúc gửi: thưởng ngay là trả
+    // tiền cho việc bấm nút.
+    const reports = {
+      findAdminByGlobalId: jest
+        .fn()
+        .mockResolvedValueOnce(reportDto())
+        .mockResolvedValueOnce(reportDto(ReportStatuses.RESOLVED)),
+      reviewByAdmin: jest.fn().mockResolvedValue(true),
+    } as unknown as jest.Mocked<IReportRepository>;
+    const award = points();
+
+    await new ReviewReportUseCase(reports, admin(), award).handle({
+      actorUserId: ActorId,
+      reportId: ReportId,
+      review: { status: ReportStatuses.RESOLVED, note: 'Đã xác minh' },
+    });
+
+    expect(award.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: ActorId,
+        ruleCode: 'REPORT_UPHELD',
+        referenceType: 'REPORT',
+        referenceId: ReportId,
+        idempotencyKey: `REPORT_UPHELD:${ReportId}`,
+      }),
+    );
+  });
+
+  it('DISMISSED thì KHÔNG thưởng — Admin đã bác', async () => {
+    const reports = {
+      findAdminByGlobalId: jest
+        .fn()
+        .mockResolvedValueOnce(reportDto())
+        .mockResolvedValueOnce(reportDto(ReportStatuses.DISMISSED)),
+      reviewByAdmin: jest.fn().mockResolvedValue(true),
+    } as unknown as jest.Mocked<IReportRepository>;
+    const award = points();
+
+    await new ReviewReportUseCase(reports, admin(), award).handle({
+      actorUserId: ActorId,
+      reportId: ReportId,
+      review: { status: ReportStatuses.DISMISSED, note: 'Không có vi phạm' },
+    });
+
+    expect(award.handle).not.toHaveBeenCalled();
+  });
+
+  it('rule đang TẮT thì nuốt lỗi, Admin vẫn kết luận được', async () => {
+    // Hai rule F41 seed tắt sẵn nên đây là đường chạy MẶC ĐỊNH. Ném ra là
+    // Admin không xử được báo xấu nào.
+    const reports = {
+      findAdminByGlobalId: jest
+        .fn()
+        .mockResolvedValueOnce(reportDto())
+        .mockResolvedValueOnce(reportDto(ReportStatuses.RESOLVED)),
+      reviewByAdmin: jest.fn().mockResolvedValue(true),
+    } as unknown as jest.Mocked<IReportRepository>;
+    const award = points();
+    award.handle.mockRejectedValue(
+      new PointRuleUnavailableException('REPORT_UPHELD'),
+    );
+
+    const result = await new ReviewReportUseCase(
+      reports,
+      admin(),
+      award,
+    ).handle({
+      actorUserId: ActorId,
+      reportId: ReportId,
+      review: { status: ReportStatuses.RESOLVED, note: 'Đã xác minh' },
+    });
+
+    expect(result.report.status).toBe(ReportStatuses.RESOLVED);
+  });
+
+  it('nhưng lỗi database thật thì NỔI LÊN', async () => {
+    const reports = {
+      findAdminByGlobalId: jest
+        .fn()
+        .mockResolvedValueOnce(reportDto())
+        .mockResolvedValueOnce(reportDto(ReportStatuses.RESOLVED)),
+      reviewByAdmin: jest.fn().mockResolvedValue(true),
+    } as unknown as jest.Mocked<IReportRepository>;
+    const award = points();
+    award.handle.mockRejectedValue(new Error('connection terminated'));
+
+    await expect(
+      new ReviewReportUseCase(reports, admin(), award).handle({
+        actorUserId: ActorId,
+        reportId: ReportId,
+        review: { status: ReportStatuses.RESOLVED, note: 'Đã xác minh' },
+      }),
+    ).rejects.toThrow('connection terminated');
+  });
+
   it('chặn ghi chú xử lý chỉ có khoảng trắng', async () => {
     const reports = {} as jest.Mocked<IReportRepository>;
     await expect(
-      new ReviewReportUseCase(reports, admin()).handle({
+      new ReviewReportUseCase(reports, admin(), points()).handle({
         actorUserId: ActorId,
         reportId: ReportId,
         review: { status: ReportStatuses.RESOLVED, note: '   ' },
