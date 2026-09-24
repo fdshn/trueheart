@@ -11,7 +11,6 @@ export * from './get-post.use-case';
 export * from './get-smart-matches.use-case';
 export * from './list-admin-posts.use-case';
 export * from './moderate-admin-post.use-case';
-export * from './moderate-post.use-case';
 export * from './remove-post-media.use-case';
 export * from './renew-post.use-case';
 export * from './reorder-post-media.use-case';

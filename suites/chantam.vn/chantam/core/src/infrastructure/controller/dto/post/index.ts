@@ -4,7 +4,6 @@ export * from './get-my-posts.dto';
 export * from './get-nearby-posts.dto';
 export * from './get-post-map.dto';
 export * from './get-smart-matches.dto';
-export * from './moderate-post.dto';
 export * from './post-media.dto';
 export * from './post.dto';
 export * from './renew-post.dto';

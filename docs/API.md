@@ -224,7 +224,6 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 | `POST` | `/posts/:postId/renew` | Bearer (chủ bài) | Gia hạn thêm 3 tháng, tối đa một lần |
 | `POST` | `/posts/:postId/charity-transfer` | Bearer (chủ bài) | Xin chuyển vật phẩm về điểm từ thiện |
 | `PATCH` | `/posts/:postId/charity-transfer` | Bearer + allowlist | Duyệt hoặc từ chối yêu cầu chuyển |
-| `PATCH` | `/posts/:postId/moderation` | Bearer + allowlist | Duyệt hoặc từ chối |
 | `POST` | `/posts/:postId/media/upload` | Bearer (chủ bài) | Xin presigned URL upload ảnh |
 | `POST` | `/posts/:postId/media` | Bearer (chủ bài) | Gắn ảnh đã upload |
 | `PATCH` | `/posts/:postId/media/order` | Bearer (chủ bài) | Thay toàn bộ thứ tự ảnh |

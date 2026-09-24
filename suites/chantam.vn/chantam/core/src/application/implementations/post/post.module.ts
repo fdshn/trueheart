@@ -11,7 +11,6 @@ import {
   IGetSmartMatchesUseCase,
   IListAdminPostsUseCase,
   IModerateAdminPostUseCase,
-  IModeratePostUseCase,
   IRemovePostMediaUseCase,
   IRenewPostUseCase,
   IReorderPostMediaUseCase,
@@ -40,7 +39,6 @@ import { GetMyPostsUseCase } from './get-my-posts.use-case';
 import { GetNearbyPostsUseCase } from './get-nearby-posts.use-case';
 import { GetPostMapUseCase } from './get-post-map.use-case';
 import { GetPostUseCase } from './get-post.use-case';
-import { ModeratePostUseCase } from './moderate-post.use-case';
 import { RemovePostMediaUseCase } from './remove-post-media.use-case';
 import { RenewPostUseCase } from './renew-post.use-case';
 import { ReorderPostMediaUseCase } from './reorder-post-media.use-case';
@@ -71,7 +69,6 @@ import { UpdatePostUseCase } from './update-post.use-case';
     { provide: IGetSmartMatchesUseCase, useClass: GetSmartMatchesUseCase },
     { provide: IGetPostMapUseCase, useClass: GetPostMapUseCase },
     { provide: IGetPostUseCase, useClass: GetPostUseCase },
-    { provide: IModeratePostUseCase, useClass: ModeratePostUseCase },
     {
       provide: IRequestPostMediaUploadUseCase,
       useClass: RequestPostMediaUploadUseCase,
@@ -97,7 +94,6 @@ import { UpdatePostUseCase } from './update-post.use-case';
     IGetSmartMatchesUseCase,
     IGetPostMapUseCase,
     IGetPostUseCase,
-    IModeratePostUseCase,
     IRequestPostMediaUploadUseCase,
     IReorderPostMediaUseCase,
     IRemovePostMediaUseCase,

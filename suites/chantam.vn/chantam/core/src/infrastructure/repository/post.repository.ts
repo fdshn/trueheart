@@ -120,26 +120,6 @@ export class PostRepository
     });
   }
 
-  public async transitionPendingReview(
-    postId: string,
-    status: 'PUBLISHED' | 'REJECTED',
-    expiresAt: Date | null,
-  ): Promise<IPostEntity | null> {
-    const result = await this.createQueryBuilder()
-      .update(PostEntity)
-      .set({ status: status as never, expiresAt })
-      .where('global_id = :postId', { postId })
-      .andWhere('deleted_at IS NULL')
-      .andWhere('status = :pendingReview', {
-        pendingReview: 'PENDING_REVIEW',
-      })
-      .execute();
-
-    if (result.affected !== 1) return null;
-
-    return this.findOneBy({ globalId: postId });
-  }
-
   public async findNearbyPosts(
     params: IFindNearbyPostsParams,
   ): Promise<IFindNearbyPostsResult> {

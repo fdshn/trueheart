@@ -7,7 +7,6 @@ import {
   IGetPostMapUseCase,
   IGetPostUseCase,
   IGetSmartMatchesUseCase,
-  IModeratePostUseCase,
   IRemovePostMediaUseCase,
   IRenewPostUseCase,
   IReorderPostMediaUseCase,
@@ -20,7 +19,6 @@ import {
 import {
   CategoryNotFoundException,
   PostCharityTransferInvalidStateException,
-  PostInvalidStateException,
   PostMediaLimitExceededException,
   PostMediaOrderInvalidException,
   PostNotFoundException,
@@ -37,7 +35,6 @@ import {
   IGetPostMapResponseDto,
   IGetPostResponseDto,
   IGetSmartMatchesResponseDto,
-  IModeratePostResponseDto,
   IRenewPostResponseDto,
   IReorderPostMediaResponseDto,
   IRequestCharityTransferResponseDto,
@@ -91,9 +88,6 @@ import {
   GetPostResponseDto,
   GetSmartMatchesQueryDto,
   GetSmartMatchesResponseDto,
-  ModeratePostBodyDto,
-  ModeratePostParamsDto,
-  ModeratePostResponseDto,
   PostMediaItemParamsDto,
   PostMediaParamsDto,
   PostMediaUploadResponseDto,
@@ -145,8 +139,6 @@ export class PostController {
     private readonly getPostUseCase: IGetPostUseCase,
     @Inject(IGetSmartMatchesUseCase)
     private readonly getSmartMatchesUseCase: IGetSmartMatchesUseCase,
-    @Inject(IModeratePostUseCase)
-    private readonly moderatePostUseCase: IModeratePostUseCase,
     @Inject(IUpdatePostUseCase)
     private readonly updatePostUseCase: IUpdatePostUseCase,
     @Inject(ITogglePostLikeUseCase)
@@ -459,45 +451,6 @@ export class PostController {
     });
 
     return ResponseDto.create<IReviewCharityTransferResponseDto>()
-      .succeed()
-      .attach(result)
-      .build();
-  }
-
-  @Patch(':postId/moderation')
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Duyệt hoặc từ chối canonical post',
-    description:
-      'Cần quyền `post.moderate` trong Admin CMS. Owner không thể tự publish/reject. ' +
-      'Đường `PATCH /admin/posts/:postId/moderation` làm cùng việc nhưng BẮT BUỘC kèm lý do và ghi nhật ký kiểm duyệt — dùng đường đó khi cần vết audit.',
-  })
-  @ApiOkResponse({ type: ResponseDto.forApi(ModeratePostResponseDto) })
-  @ApiErrorResponses(
-    ...ApiTokenErrors,
-    [
-      ValidationFailedException,
-      [
-        'post.status: status must be one of the following values: PUBLISHED, REJECTED',
-      ],
-    ],
-    // Quyền kiểm trong use case chứ không ở guard (guard chỉ gác tiền tố
-    // /admin), nên đây là chỗ duy nhất nó lộ ra tài liệu.
-    [ForbiddenException],
-    PostInvalidStateException,
-  )
-  public async moderatePost(
-    @CurrentUser() principal: IAuthPrincipal,
-    @Param() params: ModeratePostParamsDto,
-    @Body() body: ModeratePostBodyDto,
-  ): Promise<ResponseDto<IModeratePostResponseDto>> {
-    const result = await this.moderatePostUseCase.handle({
-      ...params,
-      ...body,
-      userId: principal.userId,
-    });
-
-    return ResponseDto.create<IModeratePostResponseDto>()
       .succeed()
       .attach(result)
       .build();

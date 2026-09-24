@@ -620,15 +620,26 @@ else
   pass "bài chưa duyệt không xuất hiện ở bảng tin"
 fi
 
-# Duyệt bài qua canonical moderation endpoint (bài M2+ chỉ moderator duyệt được)
+# Duyệt bài qua hàng đợi Admin. Đây là ĐƯỜNG DUY NHẤT: `reason` bắt buộc và mọi
+# quyết định đi vào nhật ký kiểm duyệt. Tài khoản demo-kiem-duyet được
+# `npm run seed:demo` gán vai trò MODERATOR, nên quyền đọc từ database chứ
+# không từ biến môi trường.
 call POST /api/v1/auth/login '{"credentials":{"identifier":"demo-kiem-duyet","password":"Demo@12345","deviceId":"smoke-moderator"}}'
 MOD_ACCESS_TOKEN=$(json_str "$RESP_BODY" accessToken)
 
-call_auth PATCH "/api/v1/posts/${CREATED_ID}/moderation" "$MOD_ACCESS_TOKEN" '{"post":{"status":"PUBLISHED"}}'
+call_auth PATCH "/api/v1/admin/posts/${CREATED_ID}/moderation" "$MOD_ACCESS_TOKEN" '{"moderation":{"decision":"PUBLISHED","reason":"Smoke test duyệt tự động"}}'
 if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"status":"PUBLISHED"'; then
   pass "duyệt bài sang PUBLISHED"
 else
   fail "không duyệt được bài" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+# Thiếu lý do thì phải bị từ chối — vết audit không được để trống.
+call_auth PATCH "/api/v1/admin/posts/${CREATED_ID}/moderation" "$MOD_ACCESS_TOKEN" '{"moderation":{"decision":"REJECTED","reason":"   "}}'
+if [ "$RESP_CODE" = "400" ] || [ "$RESP_CODE" = "422" ]; then
+  pass "duyệt bài KHÔNG kèm lý do bị từ chối"
+else
+  fail "duyệt bài thiếu lý do vẫn lọt" "HTTP $RESP_CODE — $RESP_BODY"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

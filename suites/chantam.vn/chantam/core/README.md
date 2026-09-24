@@ -45,7 +45,6 @@ buộc riêng tư, thứ tự kiểm tra — xem [`docs/API.md`](../../../../doc
 | `GET` | `/api/v1/notifications/me` | `ListNotificationsUseCase` — hộp thư trong app |
 | `PATCH` | `/api/v1/notifications/me/read` | `MarkNotificationsReadUseCase` |
 | `PATCH` | `/api/v1/posts/:postId/charity-transfer` | `ReviewCharityTransferUseCase` — Admin duyệt/từ chối; duyệt thì bài sang `ARCHIVED` |
-| `PATCH` | `/api/v1/posts/:postId/moderation` | `ModeratePostUseCase` — cần quyền `post.moderate` |
 | `GET` | `/api/v1/posts/nearby` | `GetNearbyPostsUseCase` — guest radius scan canonical, required OFFER/WANTED filter, location jitter + bucketed distance |
 | `GET` | `/api/v1/posts/map` | `GetPostMapUseCase` — marker bbox public, location jitter, client-side cluster |
 | `GET` | `/api/v1/posts/:postId` | `GetPostUseCase` — chỉ PUBLISHED/RESERVED, toạ độ đã jitter, gating contactInfo |

@@ -174,11 +174,6 @@ export interface IPostRepository extends Repository<IPostEntity> {
     quota: number,
     post: Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<boolean>;
-  transitionPendingReview(
-    postId: string,
-    status: 'PUBLISHED' | 'REJECTED',
-    expiresAt: Date | null,
-  ): Promise<IPostEntity | null>;
   findMapMarkers(params: IFindPostMapMarkersParams): Promise<IPostMapMarker[]>;
   findNearbyPosts(
     params: IFindNearbyPostsParams,
