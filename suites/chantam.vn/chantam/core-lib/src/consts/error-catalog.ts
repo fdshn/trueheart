@@ -349,6 +349,18 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Cần ảnh lúc trao đồ và ảnh hàng quay về thì mới báo được — trừ điểm người khác phải dựa trên dấu vết để lại từ trước',
   },
 
+  REVIEW_TRANSACTION_NOT_COMPLETED: {
+    code: ErrorCodes.REVIEW_TRANSACTION_NOT_COMPLETED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Lượt trao chưa hoàn tất nên chưa đánh giá được',
+  },
+
+  REVIEW_ALREADY_SUBMITTED: {
+    code: ErrorCodes.REVIEW_ALREADY_SUBMITTED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Bạn đã đánh giá lượt trao này rồi',
+  },
+
   GIFT_TRANSACTION_DUPLICATE_REQUEST: {
     code: ErrorCodes.GIFT_TRANSACTION_DUPLICATE_REQUEST,
     httpStatus: HttpStatus.CONFLICT,

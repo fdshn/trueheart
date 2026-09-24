@@ -19,6 +19,7 @@ import {
   IReferralRepository,
   IReportRepository,
   ISystemLogRepository,
+  ITransactionReviewRepository,
   IUserOnboardingTaskCompletionRepository,
   IUserRepository,
   IUserSessionRepository,
@@ -45,6 +46,7 @@ import { RankRepository } from './rank.repository';
 import { ReferralRepository } from './referral.repository';
 import { ReportRepository } from './report.repository';
 import { SystemLogRepository } from './system-log.repository';
+import { TransactionReviewRepository } from './transaction-review.repository';
 import { UserOnboardingTaskCompletionRepository } from './user-onboarding-task-completion.repository';
 import { UserSessionRepository } from './user-session.repository';
 import { UserRepository } from './user.repository';
@@ -90,6 +92,10 @@ import { UserRepository } from './user.repository';
     { provide: IReferralRepository, useClass: ReferralRepository },
     { provide: IReportRepository, useClass: ReportRepository },
     { provide: ISystemLogRepository, useClass: SystemLogRepository },
+    {
+      provide: ITransactionReviewRepository,
+      useClass: TransactionReviewRepository,
+    },
     { provide: IRankRepository, useClass: RankRepository },
     { provide: IPostRepository, useClass: PostRepository },
     { provide: IPostMediaRepository, useClass: PostMediaRepository },
@@ -118,6 +124,7 @@ import { UserRepository } from './user.repository';
     IReferralRepository,
     IReportRepository,
     ISystemLogRepository,
+    ITransactionReviewRepository,
     IRankRepository,
     IPostRepository,
     IPostMediaRepository,

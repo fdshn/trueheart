@@ -14,5 +14,6 @@ export * from './post';
 export * from './post-lifecycle';
 export * from './post-media';
 export * from './report';
+export * from './transaction-review';
 export * from './user';
 export * from './user-session';

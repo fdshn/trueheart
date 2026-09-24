@@ -80,6 +80,10 @@ export enum ErrorCodes {
   GIFT_TRANSACTION_DUPLICATE_REQUEST = 0x08_05,
   SHIP_PAYER_NOT_RECEIVER = 0x08_06,
   GIFT_HANDOVER_EVIDENCE_REQUIRED = 0x08_07,
+  /** Lượt trao chưa hoàn tất thì chưa đánh giá được (F42). */
+  REVIEW_TRANSACTION_NOT_COMPLETED = 0x08_08,
+  /** Mỗi người đánh giá một lượt trao đúng một lần. */
+  REVIEW_ALREADY_SUBMITTED = 0x08_09,
 
   // 0x0E — Tuong tac bang tin
   CONTENT_BLOCKED_TERMS = 0x0e_01,

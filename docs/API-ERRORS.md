@@ -103,6 +103,8 @@ Nghiệp vụ Chân Tâm
 | `0x0805` | `2053` | 409 Conflict | `GIFT_TRANSACTION_DUPLICATE_REQUEST` | Bạn đã có một yêu cầu đang mở trên bài đăng này |
 | `0x0806` | `2054` | 409 Conflict | `SHIP_PAYER_NOT_RECEIVER` | Bài đăng này không khai người nhận trả phí ship, nên không có khoản nào để báo chưa thanh toán |
 | `0x0807` | `2055` | 409 Conflict | `GIFT_HANDOVER_EVIDENCE_REQUIRED` | Cần ảnh lúc trao đồ và ảnh hàng quay về thì mới báo được — trừ điểm người khác phải dựa trên dấu vết để lại từ trước |
+| `0x0808` | `2056` | 409 Conflict | `REVIEW_TRANSACTION_NOT_COMPLETED` | Lượt trao chưa hoàn tất nên chưa đánh giá được |
+| `0x0809` | `2057` | 409 Conflict | `REVIEW_ALREADY_SUBMITTED` | Bạn đã đánh giá lượt trao này rồi |
 | `0x0901` | `2305` | 409 Conflict | `ADMIN_LAST_SUPER_ADMIN` | Không thể thu hồi SUPER_ADMIN cuối cùng: sẽ không còn ai cấp lại quyền được |
 | `0x0902` | `2306` | 403 Forbidden | `ADMIN_SELF_ROLE_CHANGE` | Không thể tự thay đổi quyền của chính mình |
 | `0x0a01` | `2561` | 503 | `ENTITLEMENT_POLICY_UNAVAILABLE` | Chưa có bản chính sách quyền nào đang hiệu lực |
@@ -119,5 +121,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **77 mã lỗi** trên 3 tầng.
+Tổng cộng **79 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

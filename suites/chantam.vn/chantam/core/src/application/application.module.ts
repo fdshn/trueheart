@@ -16,6 +16,7 @@ import { ProfileModule } from './implementations/profile/profile.module';
 import { RankModule } from './implementations/rank/rank.module';
 import { ReferralModule } from './implementations/referral/referral.module';
 import { ReportModule } from './implementations/report/report.module';
+import { ReviewModule } from './implementations/review/review.module';
 import { TransactionModule } from './implementations/transaction/transaction.module';
 
 /**
@@ -28,6 +29,7 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
     AuthUseCaseModule,
     ChatModule,
     FeedModule,
+    ReviewModule,
     NotificationUseCaseModule,
     DiscoveryModule,
     EntitlementModule,
