@@ -61,11 +61,8 @@ export const ConfigSchema = Joi.object({
   CONFIG_ENCRYPTION_KEY: Joi.string().allow('').default(''),
 
   // M1 temporary category manager allowlist. M6 replaces it with real admin roles.
-  CATEGORY_ADMIN_USERNAMES: Joi.string().allow('').default(''),
   // M2 temporary moderation allowlist. M6 replaces it with real admin roles.
-  POST_OPERATOR_USERNAMES: Joi.string().allow('').default(''),
   // Sprint 1 temporary rank maintenance operator allowlist. M6 replaces it with real admin roles.
-  RANK_OPERATOR_USERNAMES: Joi.string().allow('').default(''),
   // Chỉ bootstrap SUPER_ADMIN; sau đó quản trị bằng admin_user_roles.
   ADMIN_BOOTSTRAP_USERNAMES: Joi.string().allow('').default(''),
 });

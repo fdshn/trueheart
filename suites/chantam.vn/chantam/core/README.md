@@ -45,7 +45,7 @@ buộc riêng tư, thứ tự kiểm tra — xem [`docs/API.md`](../../../../doc
 | `GET` | `/api/v1/notifications/me` | `ListNotificationsUseCase` — hộp thư trong app |
 | `PATCH` | `/api/v1/notifications/me/read` | `MarkNotificationsReadUseCase` |
 | `PATCH` | `/api/v1/posts/:postId/charity-transfer` | `ReviewCharityTransferUseCase` — Admin duyệt/từ chối; duyệt thì bài sang `ARCHIVED` |
-| `PATCH` | `/api/v1/posts/:postId/moderation` | `ModeratePostUseCase` — allowlist `POST_OPERATOR_USERNAMES` tạm thời |
+| `PATCH` | `/api/v1/posts/:postId/moderation` | `ModeratePostUseCase` — cần quyền `post.moderate` |
 | `GET` | `/api/v1/posts/nearby` | `GetNearbyPostsUseCase` — guest radius scan canonical, required OFFER/WANTED filter, location jitter + bucketed distance |
 | `GET` | `/api/v1/posts/map` | `GetPostMapUseCase` — marker bbox public, location jitter, client-side cluster |
 | `GET` | `/api/v1/posts/:postId` | `GetPostUseCase` — chỉ PUBLISHED/RESERVED, toạ độ đã jitter, gating contactInfo |
@@ -104,7 +104,7 @@ Normal rank reconciliation runs after a committed point-rule append and after a 
 
 ## Rank maintenance
 
-`POST /api/v1/ranks/maintenance/evaluate` requires a valid bearer token whose username is in the temporary comma-separated `RANK_OPERATOR_USERNAMES` allowlist. Token failures and a non-operator forbidden response are documented in Swagger.
+`POST /api/v1/ranks/maintenance/evaluate` requires a valid bearer token whose user holds the `rank.operate` permission in Admin CMS. Token failures and a forbidden response are documented in Swagger.
 
 Use an external scheduler to invoke either that protected trigger or the one-shot CLI; Core intentionally starts no in-process maintenance scheduler:
 
@@ -163,7 +163,7 @@ Mọi public response có location đều jitter ổn định theo post ID. `dis
 `/api/v1/posts` là API canonical mới. Trong compatibility window, `/api/v1/gift-posts` vẫn tồn tại cho
 client cũ và đã map vào canonical `posts`; không ghi hai bảng song song. `POST /api/v1/posts` chỉ tạo `OFFER` ở
 `PENDING_REVIEW`; author/type/status do server quyết định. Operator tạm thời cấu hình bằng
-`POST_OPERATOR_USERNAMES` mới được gọi moderation sang `PUBLISHED` hoặc `REJECTED`.
+quyền `post.moderate` mới được gọi moderation sang `PUBLISHED` hoặc `REJECTED`.
 
 Public detail chỉ nhìn thấy `PUBLISHED`/`RESERVED` và luôn nhận toạ độ đã jitter. Không dùng route
 public để lấy location thật.

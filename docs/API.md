@@ -93,7 +93,7 @@ Bearer token ở header `Authorization`. Access token ngắn hạn, refresh toke
 | Cơ chế | Khai ở đâu | Dùng cho | Thấy được trong Swagger? |
 | --- | --- | --- | --- |
 | `@RequiresPermission('code')` | Decorator trên route | Toàn bộ `/admin/**` | ✅ |
-| Allowlist username qua biến môi trường | Kiểm trong controller hoặc use case | `POST_OPERATOR_USERNAMES`, `RANK_OPERATOR_USERNAMES`, allowlist danh mục | ❌ |
+| ~~Allowlist username qua biến môi trường~~ | Đã gỡ — mọi đường quản trị nay đọc `admin_permissions` | — | ✅ |
 | Chỉ chủ sở hữu | Kiểm trong use case | Sửa/xoá bài, media, hồ sơ | ❌ |
 
 Hai cơ chế dưới **không lộ ra ở tầng decorator**, nên Swagger không phản ánh điều kiện truy

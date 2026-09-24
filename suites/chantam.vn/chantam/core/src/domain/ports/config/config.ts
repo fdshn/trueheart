@@ -49,21 +49,6 @@ export interface IStorageConfig {
   publicBaseUrl: string;
 }
 
-export interface ICategoryAdminConfig {
-  /** Temporary M1 allowlist. Replaced by M6 Admin CMS roles. */
-  usernames: string[];
-}
-
-export interface IPostOperatorConfig {
-  /** Temporary M2 allowlist. Replaced by M6 Admin CMS roles. */
-  usernames: string[];
-}
-
-export interface IRankOperatorConfig {
-  /** Temporary Sprint 1 allowlist. Replaced by M6 Admin CMS roles. */
-  usernames: string[];
-}
-
 export interface ISecurityConfig {
   /**
    * Khoá 32 byte dạng base64 để mã hoá secret Admin cấu hình được (mật khẩu
@@ -100,9 +85,6 @@ export interface IConfig {
   geo: IGeoConfig;
   storage: IStorageConfig;
   otpEmail: IOtpEmailConfig;
-  categoryAdmin: ICategoryAdminConfig;
-  postOperator: IPostOperatorConfig;
-  rankOperator: IRankOperatorConfig;
   adminBootstrap: IAdminBootstrapConfig;
   web: IWebConfig;
   security: ISecurityConfig;

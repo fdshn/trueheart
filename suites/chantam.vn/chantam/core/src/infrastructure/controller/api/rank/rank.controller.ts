@@ -2,7 +2,7 @@ import {
   IEvaluateDueRankMaintenanceUseCase,
   IGetOwnRankSummaryUseCase,
 } from '@/application/contracts/rank';
-import { IConfig } from '@/domain/ports/config';
+import { IAdminConfigRepository } from '@/domain/ports/repository';
 import { IGetOwnRankSummaryResponseDto } from '@chantam.vn/chantam.core-lib/dto';
 import {
   ApiTokenErrors,
@@ -33,14 +33,15 @@ export class RankController {
     private readonly getOwnRankSummaryUseCase: IGetOwnRankSummaryUseCase,
     @Inject(IEvaluateDueRankMaintenanceUseCase)
     private readonly evaluateDueRankMaintenanceUseCase: IEvaluateDueRankMaintenanceUseCase,
-    @Inject(IConfig) private readonly config: IConfig,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
   ) {}
 
   @Post('maintenance/evaluate')
   @ApiOperation({
     summary: 'Đánh giá các chu kỳ duy trì rank đến hạn',
     description:
-      'Chỉ username trong RANK_OPERATOR_USERNAMES. Trigger này phải do scheduler bên ngoài gọi; M3 chưa có completed-gift source nên activity unavailable được ghi UNEVALUATED, không bị giáng hạng.',
+      'Cần quyền `rank.operate` trong Admin CMS. Trigger này phải do scheduler bên ngoài gọi; M3 chưa có completed-gift source nên activity unavailable được ghi UNEVALUATED, không bị giáng hạng.',
   })
   @ApiOkResponse({
     type: ResponseDto.forApi(EvaluateDueRankMaintenanceResponseDto),
@@ -49,11 +50,10 @@ export class RankController {
   public async evaluateDueRankMaintenance(
     @CurrentUser() principal: IAuthPrincipal,
   ): Promise<ResponseDto<{ processedCycles: number }>> {
-    if (
-      !this.config.rankOperator.usernames.includes(
-        principal.username.toLowerCase(),
-      )
-    )
+    // Quyền đọc từ RBAC chứ không phải biến môi trường. Tách khỏi
+    // `config.write`: đặt chính sách hạng và chạy một vòng đánh giá là hai
+    // việc khác nhau, người vận hành scheduler không cần quyền sửa chính sách.
+    if (!(await this.admin.hasPermission(principal.userId, 'rank.operate')))
       throw new ForbiddenException();
 
     const result = await this.evaluateDueRankMaintenanceUseCase.handle({});

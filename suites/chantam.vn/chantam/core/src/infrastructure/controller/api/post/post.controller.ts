@@ -436,7 +436,7 @@ export class PostController {
   @ApiOperation({
     summary: 'Duyệt hoặc từ chối yêu cầu chuyển về điểm từ thiện',
     description:
-      'Tạm thời chỉ username trong POST_OPERATOR_USERNAMES. Duyệt thì bài sang ARCHIVED (Kho Từ Thiện Chung); từ chối thì bài GIỮ NGUYÊN trạng thái cũ và chủ bài vẫn dùng bình thường (F23).',
+      'Cần quyền `post.moderate` trong Admin CMS. Duyệt thì bài sang ARCHIVED (Kho Từ Thiện Chung); từ chối thì bài GIỮ NGUYÊN trạng thái cũ và chủ bài vẫn dùng bình thường (F23).',
   })
   @ApiOkResponse({
     type: ResponseDto.forApi(ReviewCharityTransferResponseDto),
@@ -455,7 +455,7 @@ export class PostController {
     const result = await this.reviewCharityTransferUseCase.handle({
       ...params,
       ...body,
-      username: principal.username,
+      userId: principal.userId,
     });
 
     return ResponseDto.create<IReviewCharityTransferResponseDto>()
@@ -469,7 +469,8 @@ export class PostController {
   @ApiOperation({
     summary: 'Duyệt hoặc từ chối canonical post',
     description:
-      'Tạm thời chỉ username nằm trong POST_OPERATOR_USERNAMES được thực hiện. Owner không thể tự publish/reject.',
+      'Cần quyền `post.moderate` trong Admin CMS. Owner không thể tự publish/reject. ' +
+      'Đường `PATCH /admin/posts/:postId/moderation` làm cùng việc nhưng BẮT BUỘC kèm lý do và ghi nhật ký kiểm duyệt — dùng đường đó khi cần vết audit.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(ModeratePostResponseDto) })
   @ApiErrorResponses(
@@ -480,8 +481,8 @@ export class PostController {
         'post.status: status must be one of the following values: PUBLISHED, REJECTED',
       ],
     ],
-    // Allowlist POST_OPERATOR_USERNAMES kiểm trong use case, không phải ở guard,
-    // nên đây là chỗ duy nhất nó lộ ra tài liệu.
+    // Quyền kiểm trong use case chứ không ở guard (guard chỉ gác tiền tố
+    // /admin), nên đây là chỗ duy nhất nó lộ ra tài liệu.
     [ForbiddenException],
     PostInvalidStateException,
   )
@@ -493,7 +494,7 @@ export class PostController {
     const result = await this.moderatePostUseCase.handle({
       ...params,
       ...body,
-      username: principal.username,
+      userId: principal.userId,
     });
 
     return ResponseDto.create<IModeratePostResponseDto>()

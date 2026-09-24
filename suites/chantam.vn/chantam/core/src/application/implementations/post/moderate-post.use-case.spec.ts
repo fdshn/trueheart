@@ -1,6 +1,8 @@
 import { PostInvalidStateException } from '@/domain/exceptions';
-import { IConfig } from '@/domain/ports/config';
-import { IPostRepository } from '@/domain/ports/repository';
+import {
+  IAdminConfigRepository,
+  IPostRepository,
+} from '@/domain/ports/repository';
 import {
   GiftPostStatuses,
   PostSelectionModes,
@@ -10,6 +12,7 @@ import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { ModeratePostUseCase } from './moderate-post.use-case';
 
+const ActorId = '99999999-9999-4999-8999-999999999001';
 const PostId = '11111111-1111-1111-1111-111111111111';
 
 function makePost(): IPostEntity {
@@ -47,55 +50,25 @@ function makePost(): IPostEntity {
   };
 }
 
-function makeConfig(usernames = ['demo-operator']): IConfig {
-  return {
-    port: 3000,
-    env: 'development',
-    version: 'test',
-    database: { default: 'postgres://localhost/test' },
-    redis: { uri: 'redis://localhost:6379' },
-    auth: {
-      jwtSecret: 'khong-dung-toi-trong-bai-kiem-tra-nay-0123456789',
-      accessTtlSeconds: 900,
-      refreshTtlSeconds: 2_592_000,
-      bcryptRounds: 4,
-      maxLoginAttempts: 5,
-      loginLockSeconds: 900,
-      otpTtlSeconds: 300,
-    },
-    docsServers: [],
-    otpEmail: { fromAddress: '', fromName: 'Chân Tâm' },
-    categoryAdmin: { usernames: [] },
-    postOperator: { usernames },
-    rankOperator: { usernames: [] },
-    adminBootstrap: { usernames: [] },
-    web: { publicBaseUrl: '' },
-    security: { secretEncryptionKey: '' },
-    storage: {
-      endpoint: 'http://localhost:9000',
-      region: 'us-east-1',
-      bucket: 'chantam-test',
-      accessKeyId: 'test',
-      secretAccessKey: 'test-secret',
-      publicBaseUrl: 'http://localhost:9000/chantam-test',
-    },
-    geo: { jitterRadiusMeters: 300 },
-  };
-}
-
 describe('ModeratePostUseCase', () => {
-  it('chỉ allowlist tạm thời được publish và expiry đúng ba tháng lịch', async () => {
+  const makeAdmin = (allowed: boolean) =>
+    ({
+      hasPermission: jest.fn().mockResolvedValue(allowed),
+    }) as unknown as jest.Mocked<IAdminConfigRepository>;
+
+  it('có quyền post.moderate thì publish được, hạn đúng ba tháng lịch', async () => {
     const posts = {
       transitionPendingReview: jest.fn().mockResolvedValue(makePost()),
     } as unknown as jest.Mocked<IPostRepository>;
-    const useCase = new ModeratePostUseCase(posts, makeConfig());
+    const admin = makeAdmin(true);
 
-    await useCase.handle({
+    await new ModeratePostUseCase(posts, admin).handle({
       postId: PostId,
-      username: 'DEMO-OPERATOR',
+      userId: ActorId,
       post: { status: GiftPostStatuses.PUBLISHED },
     });
 
+    expect(admin.hasPermission).toHaveBeenCalledWith(ActorId, 'post.moderate');
     expect(posts.transitionPendingReview).toHaveBeenCalledWith(
       PostId,
       GiftPostStatuses.PUBLISHED,
@@ -105,15 +78,17 @@ describe('ModeratePostUseCase', () => {
     expect(expiresAt?.getMonth()).toBe((new Date().getMonth() + 3) % 12);
   });
 
-  it('từ chối username không nằm trong allowlist trước khi query post', async () => {
+  it('thiếu quyền thì chặn TRƯỚC khi đụng tới bài', async () => {
+    // Quyền đọc từ RBAC chứ không phải biến môi trường: gỡ quyền trong CMS
+    // phải có tác dụng ngay, không cần deploy lại.
     const posts = {
       transitionPendingReview: jest.fn(),
     } as unknown as jest.Mocked<IPostRepository>;
 
     await expect(
-      new ModeratePostUseCase(posts, makeConfig()).handle({
+      new ModeratePostUseCase(posts, makeAdmin(false)).handle({
         postId: PostId,
-        username: 'member',
+        userId: ActorId,
         post: { status: GiftPostStatuses.REJECTED },
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -126,9 +101,9 @@ describe('ModeratePostUseCase', () => {
     } as unknown as jest.Mocked<IPostRepository>;
 
     await expect(
-      new ModeratePostUseCase(posts, makeConfig()).handle({
+      new ModeratePostUseCase(posts, makeAdmin(true)).handle({
         postId: PostId,
-        username: 'demo-operator',
+        userId: ActorId,
         post: { status: GiftPostStatuses.REJECTED },
       }),
     ).rejects.toBeInstanceOf(PostInvalidStateException);

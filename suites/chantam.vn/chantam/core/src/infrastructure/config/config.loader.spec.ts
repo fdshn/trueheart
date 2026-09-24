@@ -16,10 +16,6 @@ describe('loadConfig', () => {
     process.env.GEO_JITTER_RADIUS_METERS = '500';
     process.env.OTP_EMAIL_FROM_ADDRESS = 'otp@chantam.vn';
     process.env.OTP_EMAIL_FROM_NAME = 'Chân Tâm OTP';
-    process.env.POST_OPERATOR_USERNAMES = 'Demo-Operator, second-operator, ';
-    process.env.RANK_OPERATOR_USERNAMES =
-      'Rank-Operator, second-rank-operator, ';
-
     const config = loadConfig();
 
     expect(config.port).toBe(4000);
@@ -32,14 +28,6 @@ describe('loadConfig', () => {
       fromAddress: 'otp@chantam.vn',
       fromName: 'Chân Tâm OTP',
     });
-    expect(config.postOperator.usernames).toEqual([
-      'demo-operator',
-      'second-operator',
-    ]);
-    expect(config.rankOperator.usernames).toEqual([
-      'rank-operator',
-      'second-rank-operator',
-    ]);
   });
 
   it('email From trống vẫn là config hợp lệ, không tự bật delivery', () => {

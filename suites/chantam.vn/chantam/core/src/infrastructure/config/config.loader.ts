@@ -94,27 +94,6 @@ export function loadConfig(): IConfig {
       fromName: process.env.OTP_EMAIL_FROM_NAME ?? 'Chân Tâm',
     },
 
-    categoryAdmin: {
-      usernames: (process.env.CATEGORY_ADMIN_USERNAMES ?? '')
-        .split(',')
-        .map((username) => username.trim().toLowerCase())
-        .filter(Boolean),
-    },
-
-    postOperator: {
-      usernames: (process.env.POST_OPERATOR_USERNAMES ?? '')
-        .split(',')
-        .map((username) => username.trim().toLowerCase())
-        .filter(Boolean),
-    },
-
-    rankOperator: {
-      usernames: (process.env.RANK_OPERATOR_USERNAMES ?? '')
-        .split(',')
-        .map((username) => username.trim().toLowerCase())
-        .filter(Boolean),
-    },
-
     adminBootstrap: {
       usernames: (process.env.ADMIN_BOOTSTRAP_USERNAMES ?? '')
         .split(',')

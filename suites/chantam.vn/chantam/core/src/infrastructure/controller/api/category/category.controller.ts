@@ -90,7 +90,7 @@ export class CategoryController {
   @ApiOperation({
     summary: 'Tạo danh mục',
     description:
-      'Chỉ username nằm trong allowlist `CATEGORY_ADMIN_USERNAMES` gọi được — đây là giải pháp TẠM của M2, M6 sẽ thay bằng RBAC như khu /admin. Slug bỏ trống thì tự sinh từ tên. `postTypes` bỏ trống thì danh mục dùng được cho mọi loại bài.',
+      'Cần quyền `category.manage` trong Admin CMS. Slug bỏ trống thì tự sinh từ tên. `postTypes` bỏ trống thì danh mục dùng được cho mọi loại bài.',
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(CreateCategoryResponseDto) })
   @ApiErrorResponses(

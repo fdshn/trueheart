@@ -17,7 +17,7 @@ Ký hiệu:
 | --- | --- | --- |
 | F05 Quên mật khẩu | OTP Redis, chống enumeration, reset/revoke token, Admin fallback | 🟡 Email delivery adapter/vendor credential/domain verify/template/delivery test; ⛔ quy trình Admin chứng minh sở hữu tài khoản |
 | F09 Xác minh SĐT | OTP purpose riêng + `phone_verified_at`; thưởng lần đầu đã đi qua ledger với khoá idempotency, kèm job đối soát `point:reconcile` vá lại khi tiến trình chết giữa hai bước | 🟡 SMS/Zalo provider; email provider **không** giải quyết SMS verification |
-| F14 Danh mục | Tree, baseline seed, read/create/update/deactivate | 🟡 `CATEGORY_ADMIN_USERNAMES` allowlist tạm thời; M6 thay bằng Admin CMS role |
+| F14 Danh mục | Tree, baseline seed, read/create/update/deactivate | ✅ đã chuyển sang RBAC quyền `category.manage` |
 | F24 Media | S3 presign, object ownership verify, MinIO local/CI | 🟡 R2 bucket/key/CORS/public domain riêng staging/prod; delivery acceptance test |
 
 ### Quyết định email đã chốt

@@ -426,6 +426,18 @@ export async function seedDemoData(executor: ISqlExecutor): Promise<void> {
     );
   }
 
+  // Tài khoản kiểm duyệt demo phải có VAI TRÒ thật, không phải một dòng tên
+  // trong biến môi trường: quyền duyệt bài nay đọc từ RBAC, nên seed mà quên
+  // gán role thì smoke test đỏ mà không ai hiểu vì sao.
+  await executor.query(
+    `
+      INSERT INTO admin_user_roles (user_id, role_id)
+      SELECT $1, role.id FROM admin_roles role WHERE role.code = 'MODERATOR'
+      ON CONFLICT DO NOTHING
+    `,
+    [DemoUsers[2].globalId],
+  );
+
   for (const user of DemoUsers) {
     const refreshTokenHash = createHash('sha256')
       .update(`seed-session:${user.globalId}`)

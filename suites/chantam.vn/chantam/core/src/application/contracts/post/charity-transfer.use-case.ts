@@ -26,7 +26,8 @@ export const IRequestCharityTransferUseCase = Symbol(
 
 export interface IReviewCharityTransferCommand
   extends IReviewCharityTransferParamsDto, IReviewCharityTransferBodyDto {
-  username: string;
+  /** Người bấm duyệt. Quyền đọc từ RBAC, không phải allowlist username. */
+  userId: string;
 }
 
 export interface IReviewCharityTransferResult extends IReviewCharityTransferResponseDto {}

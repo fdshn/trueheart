@@ -4,8 +4,10 @@ import {
   IModeratePostUseCase,
 } from '@/application/contracts/post';
 import { PostInvalidStateException } from '@/domain/exceptions';
-import { IConfig } from '@/domain/ports/config';
-import { IPostRepository } from '@/domain/ports/repository';
+import {
+  IAdminConfigRepository,
+  IPostRepository,
+} from '@/domain/ports/repository';
 import { GiftPostStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import { postExpiryDate } from '@chantam.vn/chantam.core-lib/models';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
@@ -16,18 +18,16 @@ export class ModeratePostUseCase implements IModeratePostUseCase {
   public constructor(
     @Inject(IPostRepository)
     private readonly postRepository: IPostRepository,
-    @Inject(IConfig)
-    private readonly config: IConfig,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
   ) {}
 
   public async handle(
     command: IModeratePostCommand,
   ): Promise<IModeratePostResult> {
-    if (
-      !this.config.postOperator.usernames.includes(
-        command.username.toLowerCase(),
-      )
-    )
+    // Quyền đọc từ RBAC chứ không phải biến môi trường: gỡ quyền trong CMS
+    // phải có tác dụng ngay, không cần deploy lại để đổi một danh sách tên.
+    if (!(await this.admin.hasPermission(command.userId, 'post.moderate')))
       throw new ForbiddenException();
 
     const status = command.post.status;

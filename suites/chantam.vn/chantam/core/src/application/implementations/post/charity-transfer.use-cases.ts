@@ -10,9 +10,9 @@ import {
   PostCharityTransferInvalidStateException,
   PostNotFoundException,
 } from '@/domain/exceptions';
-import { IConfig } from '@/domain/ports/config';
 import {
   CharityTransferOutcome,
+  IAdminConfigRepository,
   IPostRepository,
 } from '@/domain/ports/repository';
 import { CharityTransferStatuses } from '@chantam.vn/chantam.core-lib/consts';
@@ -64,20 +64,17 @@ export class ReviewCharityTransferUseCase implements IReviewCharityTransferUseCa
   public constructor(
     @Inject(IPostRepository)
     private readonly postRepository: IPostRepository,
-    @Inject(IConfig)
-    private readonly config: IConfig,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
   ) {}
 
   public async handle(
     command: IReviewCharityTransferCommand,
   ): Promise<IReviewCharityTransferResult> {
-    // Cùng allowlist với duyệt bài: quyền vận hành thật sẽ thay ở M6, và để
-    // hai đường dùng hai nguồn quyền khác nhau là mời một lỗ hổng.
-    if (
-      !this.config.postOperator.usernames.includes(
-        command.username.toLowerCase(),
-      )
-    )
+    // Dùng chung `post.moderate` với duyệt bài: đây cũng là một quyết định
+    // kiểm duyệt trên bài. Hai đường dùng hai nguồn quyền khác nhau là mời một
+    // lỗ hổng — gỡ quyền ở một chỗ mà chỗ kia vẫn mở.
+    if (!(await this.admin.hasPermission(command.userId, 'post.moderate')))
       throw new ForbiddenException();
 
     return unwrap(

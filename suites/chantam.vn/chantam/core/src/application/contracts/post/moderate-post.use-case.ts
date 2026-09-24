@@ -7,7 +7,8 @@ import { IUseCase } from '@chantam/service.common-lib';
 
 export interface IModeratePostCommand
   extends IModeratePostParamsDto, IModeratePostBodyDto {
-  username: string;
+  /** Người bấm duyệt. Quyền đọc từ RBAC, không phải allowlist username. */
+  userId: string;
 }
 
 export interface IModeratePostResult extends IModeratePostResponseDto {}
