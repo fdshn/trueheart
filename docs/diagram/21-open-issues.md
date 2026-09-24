@@ -28,12 +28,13 @@ hình động:
 
 ## 21.3 Chức năng đã chốt nhưng chưa gắn
 
-| # | Nội dung | Chốt ngày | Sơ đồ |
-| --- | --- | --- | --- |
-| 1 | Cổng hồ sơ F07 chặn **xin nhận, chat, tạo Group** (hiện chỉ chặn đăng bài) | 2026-09-24 | [02](./02-profile.md) |
-| 2 | Cột `users.last_login_at` + cập nhật mỗi lần refresh token | 2026-09-24 | [01](./01-auth.md) |
-| 3 | Rule `GIFT_COMPLETED` = 56 điểm | 2026-09-24 | [11](./11-point.md) |
-| 4 | Chặn xoá tài khoản khi còn lượt trao dở dang | từ lâu | [01](./01-auth.md) |
+| # | Nội dung | Chốt ngày | Trạng thái | Sơ đồ |
+| --- | --- | --- | --- | --- |
+| 1 | Cổng hồ sơ F07 chặn xin nhận + chat | 2026-09-24 | ✅ đã gắn 25/09 | [02](./02-profile.md) |
+| 2 | Mốc hoạt động, cập nhật mỗi lần cấp phiên | 2026-09-24 | ✅ `users.last_active_at` 25/09 | [01](./01-auth.md) |
+| 3 | Rule `GIFT_COMPLETED` = 56 điểm | 2026-09-25 | ✅ đã seed · ⛔ chưa ai gọi | [11](./11-point.md) |
+| 4 | Chặn xoá tài khoản khi còn lượt trao dở dang | từ lâu | ⛔ chưa gắn | [01](./01-auth.md) |
+| 5 | Cổng hồ sơ cho tạo Group | 2026-09-24 | ⛔ chờ phân hệ Group | [18](./18-group.md) |
 
 ## 21.4 Lỗ hổng nghiệp vụ đã phát hiện
 

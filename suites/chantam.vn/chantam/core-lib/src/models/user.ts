@@ -40,6 +40,15 @@ export interface IUser {
 
   /** Hết hạn treo. `null` khi không bị treo. Chỉ có nghĩa khi status = SUSPENDED. */
   suspendedUntil: Date | null;
+
+  /**
+   * Lần cuối tài khoản còn sống — nền cho định nghĩa "Active Member" (F56).
+   *
+   * Ghi ở MỌI lần cấp phiên, gồm cả làm mới token, không chỉ lúc nhập mật khẩu.
+   * App mobile giữ refresh token nên người mở app hằng ngày vẫn có thể không
+   * "đăng nhập" lần nào suốt 90 ngày.
+   */
+  lastActiveAt: Date;
 }
 
 /**
@@ -52,5 +61,25 @@ export interface IUser {
 export function isProfileComplete(
   user: Pick<IUser, 'fullName' | 'avatarUrl' | 'phone' | 'email'>,
 ): boolean {
-  return Boolean(user.fullName && user.avatarUrl && user.phone && user.email);
+  return missingProfileFields(user).length === 0;
+}
+
+/**
+ * Những trường còn thiếu, theo đúng tên người dùng nhìn thấy trên form.
+ *
+ * Trả danh sách chứ không chỉ true/false vì thông báo "hồ sơ chưa đủ" bắt người
+ * dùng tự đoán mình thiếu gì, và mỗi lần đoán sai là một lần họ bỏ cuộc.
+ *
+ * Thứ tự cố định theo thứ tự trường trên form, để hai màn hình khác nhau không
+ * đọc ra hai thứ tự khác nhau cho cùng một hồ sơ.
+ */
+export function missingProfileFields(
+  user: Pick<IUser, 'fullName' | 'avatarUrl' | 'phone' | 'email'>,
+): string[] {
+  return [
+    !user.fullName && 'Họ tên',
+    !user.avatarUrl && 'Avatar',
+    !user.phone && 'SĐT',
+    !user.email && 'Email',
+  ].filter((label): label is string => typeof label === 'string');
 }

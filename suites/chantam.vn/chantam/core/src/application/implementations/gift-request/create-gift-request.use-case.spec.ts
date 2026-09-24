@@ -18,6 +18,7 @@ import {
   IGiftRequestEntity,
   IPostEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
+import { ProfileGate } from '../profile/profile-gate';
 import { CreateGiftRequestUseCase } from './create-gift-request.use-case';
 
 const PostId = '11111111-1111-1111-1111-111111111111';
@@ -105,6 +106,23 @@ function makePostRepo(
   } as unknown as jest.Mocked<IPostRepository>;
 }
 
+/**
+ * Hồ sơ đủ điều kiện, để cổng F07 không phải là chủ đề của từng ca kiểm ở đây.
+ * Ca "hồ sơ chưa đủ thì chặn" nằm ở `profile-gate.spec.ts`.
+ */
+function makeProfileGate() {
+  return new ProfileGate({
+    findOneBy: jest.fn().mockResolvedValue({
+      globalId: RequesterId,
+      deletedAt: null,
+      fullName: 'Người Xin',
+      avatarUrl: 'https://cdn/avatar.png',
+      phone: '+84900000000',
+      email: 'nguoixin@chantam.test',
+    }),
+  } as never);
+}
+
 describe('CreateGiftRequestUseCase', () => {
   it('tạo yêu cầu thành công khi bài viết hợp lệ và chưa từng yêu cầu', async () => {
     const postRepo = makePostRepo();
@@ -113,7 +131,11 @@ describe('CreateGiftRequestUseCase', () => {
       findOneByOrFail: jest.fn().mockResolvedValue(created),
     });
 
-    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new CreateGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      makeProfileGate(),
+    );
     const result = await useCase.handle({
       postId: PostId,
       requesterId: RequesterId,
@@ -147,7 +169,11 @@ describe('CreateGiftRequestUseCase', () => {
       save: jest.fn().mockResolvedValue(existingWithdrawn),
     });
 
-    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new CreateGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      makeProfileGate(),
+    );
     const result = await useCase.handle({
       postId: PostId,
       requesterId: RequesterId,
@@ -173,7 +199,11 @@ describe('CreateGiftRequestUseCase', () => {
       countActiveByPostIds: jest.fn().mockResolvedValue(new Map([[PostId, 0]])),
     });
 
-    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new CreateGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      makeProfileGate(),
+    );
     await useCase.handle({
       postId: PostId,
       requesterId: RequesterId,
@@ -204,7 +234,11 @@ describe('CreateGiftRequestUseCase', () => {
       countActiveByPostIds: jest.fn().mockResolvedValue(new Map([[PostId, 0]])),
     });
 
-    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new CreateGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      makeProfileGate(),
+    );
     await useCase.handle({
       postId: PostId,
       requesterId: RequesterId,
@@ -234,7 +268,11 @@ describe('CreateGiftRequestUseCase', () => {
       countActiveByPostIds: jest.fn().mockResolvedValue(new Map([[PostId, 0]])),
     });
 
-    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new CreateGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      makeProfileGate(),
+    );
     await useCase.handle({
       postId: PostId,
       requesterId: RequesterId,
@@ -256,7 +294,11 @@ describe('CreateGiftRequestUseCase', () => {
     const giftRequestRepo =
       {} as unknown as jest.Mocked<IGiftRequestRepository>;
 
-    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new CreateGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      makeProfileGate(),
+    );
     await expect(
       useCase.handle({
         postId: PostId,
@@ -275,7 +317,11 @@ describe('CreateGiftRequestUseCase', () => {
     const giftRequestRepo =
       {} as unknown as jest.Mocked<IGiftRequestRepository>;
 
-    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new CreateGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      makeProfileGate(),
+    );
     await expect(
       useCase.handle({
         postId: PostId,
@@ -294,7 +340,11 @@ describe('CreateGiftRequestUseCase', () => {
     const giftRequestRepo =
       {} as unknown as jest.Mocked<IGiftRequestRepository>;
 
-    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new CreateGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      makeProfileGate(),
+    );
     await expect(
       useCase.handle({
         postId: PostId,
@@ -319,7 +369,11 @@ describe('CreateGiftRequestUseCase', () => {
     const giftRequestRepo =
       {} as unknown as jest.Mocked<IGiftRequestRepository>;
 
-    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new CreateGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      makeProfileGate(),
+    );
     await expect(
       useCase.handle({
         postId: PostId,
@@ -339,7 +393,11 @@ describe('CreateGiftRequestUseCase', () => {
     });
     const giftRequestRepo = makeGiftRequestRepo();
 
-    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new CreateGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      makeProfileGate(),
+    );
 
     await expect(
       useCase.handle({
@@ -359,7 +417,11 @@ describe('CreateGiftRequestUseCase', () => {
       findByPostAndRequester: jest.fn().mockResolvedValue(existingPending),
     });
 
-    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new CreateGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      makeProfileGate(),
+    );
     await expect(
       useCase.handle({
         postId: PostId,
@@ -379,7 +441,11 @@ describe('CreateGiftRequestUseCase', () => {
       insert: jest.fn().mockRejectedValue(dbError),
     });
 
-    const useCase = new CreateGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new CreateGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      makeProfileGate(),
+    );
     await expect(
       useCase.handle({
         postId: PostId,

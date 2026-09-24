@@ -1,5 +1,8 @@
 import { IConfig } from '@/domain/ports/config';
-import { IUserSessionRepository } from '@/domain/ports/repository';
+import {
+  IUserRepository,
+  IUserSessionRepository,
+} from '@/domain/ports/repository';
 import { IAuthResultDto, IOwnUserDto } from '@chantam.vn/chantam.core-lib/dto';
 import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { isProfileComplete } from '@chantam.vn/chantam.core-lib/models';
@@ -18,6 +21,8 @@ export class SessionIssuer {
   public constructor(
     @Inject(IUserSessionRepository)
     private readonly sessionRepository: IUserSessionRepository,
+    @Inject(IUserRepository)
+    private readonly userRepository: IUserRepository,
     @Inject(ITokenService)
     private readonly tokenService: ITokenService,
     @Inject(IConfig)
@@ -45,6 +50,13 @@ export class SessionIssuer {
       ),
       revokedAt: null,
     });
+
+    // Mốc hoạt động đặt ở ĐÂY chứ không ở riêng nhánh đăng nhập, vì đây là chỗ
+    // chung của cả đăng ký, đăng nhập và làm mới token. App mobile giữ refresh
+    // token nên người mở app hằng ngày vẫn có thể không nhập mật khẩu lần nào
+    // suốt 90 ngày — ghi ở nhánh hẹp sẽ đánh nhầm họ thành không hoạt động và
+    // họ mất phần chia affiliate (F56).
+    await this.userRepository.touchActivity(user.globalId);
 
     const accessToken = await this.tokenService.signAccessToken({
       userId: user.globalId,

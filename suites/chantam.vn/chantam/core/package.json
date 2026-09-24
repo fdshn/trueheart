@@ -34,6 +34,7 @@
     "test:feed-shares": "ts-node -r tsconfig-paths/register test/feed-shares.check.ts",
     "test:reviews": "ts-node -r tsconfig-paths/register test/reviews.check.ts",
     "test:point-economy": "ts-node -r tsconfig-paths/register test/point-economy.check.ts",
+    "test:user-activity": "ts-node -r tsconfig-paths/register test/user-activity.check.ts",
     "test:feed-merge": "ts-node -r tsconfig-paths/register test/feed-merge.check.ts",
     "test:returning": "ts-node -r tsconfig-paths/register test/returning-contract.check.ts",
     "test:lifecycle": "ts-node -r tsconfig-paths/register test/post-lifecycle.check.ts",

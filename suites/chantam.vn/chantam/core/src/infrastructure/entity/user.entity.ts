@@ -108,4 +108,16 @@ export class UserEntity
   @Exclude()
   @Column({ name: 'suspended_until', type: 'timestamptz', nullable: true })
   suspendedUntil: Date | null;
+
+  /**
+   * `@Exclude()` vì đây là dữ liệu vận hành, không phải thông tin hồ sơ: lộ ra
+   * công khai là cho bất kỳ ai biết một người có đang dùng app hay không.
+   */
+  @Exclude()
+  @Column({
+    name: 'last_active_at',
+    type: 'timestamptz',
+    default: () => 'now()',
+  })
+  lastActiveAt: Date;
 }

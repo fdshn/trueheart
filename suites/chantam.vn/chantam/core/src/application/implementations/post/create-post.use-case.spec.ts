@@ -24,6 +24,7 @@ import {
   IUserEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
+import { ProfileGate } from '../profile/profile-gate';
 import { CreatePostUseCase } from './create-post.use-case';
 
 const UserId = '22222222-2222-2222-2222-222222222222';
@@ -44,6 +45,7 @@ function makeUser(overrides: Partial<IUserEntity> = {}): IUserEntity {
     status: UserStatuses.ACTIVE,
     phoneVerifiedAt: null,
     suspendedUntil: null,
+    lastActiveAt: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -124,8 +126,8 @@ describe('CreatePostUseCase', () => {
     const useCase = new CreatePostUseCase(
       posts,
       categories,
-      users,
       entitlements,
+      new ProfileGate(users),
     );
 
     await useCase.handle(command());
@@ -151,9 +153,12 @@ describe('CreatePostUseCase', () => {
   it('bài thường KHÔNG tốn một truy vấn entitlement cho POST_SOS', async () => {
     const { posts, categories, users, entitlements } = makeRepositories();
 
-    await new CreatePostUseCase(posts, categories, users, entitlements).handle(
-      command(),
-    );
+    await new CreatePostUseCase(
+      posts,
+      categories,
+      entitlements,
+      new ProfileGate(users),
+    ).handle(command());
 
     expect(entitlements.getCapability).not.toHaveBeenCalledWith(
       UserId,
@@ -169,7 +174,12 @@ describe('CreatePostUseCase', () => {
   it('bật SOS khi Rank được phép thì ghi cờ vào bài', async () => {
     const { posts, categories, users, entitlements } = makeRepositories();
 
-    await new CreatePostUseCase(posts, categories, users, entitlements).handle({
+    await new CreatePostUseCase(
+      posts,
+      categories,
+      entitlements,
+      new ProfileGate(users),
+    ).handle({
       ...command(),
       post: { ...command().post, isSos: true },
     });
@@ -195,7 +205,12 @@ describe('CreatePostUseCase', () => {
     } as unknown as jest.Mocked<IEntitlementRepository>;
 
     await expect(
-      new CreatePostUseCase(posts, categories, users, entitlements).handle({
+      new CreatePostUseCase(
+        posts,
+        categories,
+        entitlements,
+        new ProfileGate(users),
+      ).handle({
         ...command(),
         post: { ...command().post, isSos: true },
       }),
@@ -210,9 +225,12 @@ describe('CreatePostUseCase', () => {
     );
 
     await expect(
-      new CreatePostUseCase(posts, categories, users, entitlements).handle(
-        command(),
-      ),
+      new CreatePostUseCase(
+        posts,
+        categories,
+        entitlements,
+        new ProfileGate(users),
+      ).handle(command()),
     ).rejects.toBeInstanceOf(ProfileIncompleteException);
     expect(categories.findOneBy).not.toHaveBeenCalled();
     expect(posts.createPostWithinQuota).not.toHaveBeenCalled();
@@ -225,9 +243,12 @@ describe('CreatePostUseCase', () => {
     );
 
     await expect(
-      new CreatePostUseCase(posts, categories, users, entitlements).handle(
-        command(),
-      ),
+      new CreatePostUseCase(
+        posts,
+        categories,
+        entitlements,
+        new ProfileGate(users),
+      ).handle(command()),
     ).rejects.toBeInstanceOf(CategoryNotFoundException);
     expect(posts.createPostWithinQuota).not.toHaveBeenCalled();
   });
@@ -238,9 +259,12 @@ describe('CreatePostUseCase', () => {
     );
 
     await expect(
-      new CreatePostUseCase(posts, categories, users, entitlements).handle(
-        command(),
-      ),
+      new CreatePostUseCase(
+        posts,
+        categories,
+        entitlements,
+        new ProfileGate(users),
+      ).handle(command()),
     ).rejects.toBeInstanceOf(OnboardingIncompleteException);
     expect(categories.findOneBy).not.toHaveBeenCalled();
     expect(posts.createPostWithinQuota).not.toHaveBeenCalled();
@@ -254,9 +278,12 @@ describe('CreatePostUseCase', () => {
     );
 
     await expect(
-      new CreatePostUseCase(posts, categories, users, entitlements).handle(
-        command(),
-      ),
+      new CreatePostUseCase(
+        posts,
+        categories,
+        entitlements,
+        new ProfileGate(users),
+      ).handle(command()),
     ).rejects.toBeInstanceOf(PostQuotaExceededException);
     expect(posts.createPostWithinQuota).toHaveBeenCalledWith(
       UserId,
@@ -312,8 +339,8 @@ describe('CreatePostUseCase — tin rao vặt CLASSIFIED', () => {
     return new CreatePostUseCase(
       deps.posts as never,
       deps.categories as never,
-      deps.users as never,
       deps.entitlements as never,
+      new ProfileGate(deps.users as never),
     ).handle(cmd as never);
   }
 

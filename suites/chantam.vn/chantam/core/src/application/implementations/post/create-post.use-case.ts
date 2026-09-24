@@ -5,29 +5,24 @@ import {
 } from '@/application/contracts/post';
 import {
   CategoryNotFoundException,
-  OnboardingIncompleteException,
   PostQuotaExceededException,
   PostSosNotAllowedException,
-  ProfileIncompleteException,
-  UserNotFoundException,
 } from '@/domain/exceptions';
 import {
   ICategoryRepository,
   IEntitlementRepository,
   IPostRepository,
-  IUserRepository,
 } from '@/domain/ports/repository';
 import {
   DeliveryMethods,
   GiftPostStatuses,
   PostSelectionModes,
   PostTypes,
-  UserRanks,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { isProfileComplete } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { makeGlobalId, slugify } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
+import { ProfileGate } from '../profile/profile-gate';
 
 /**
  * Phần nội dung riêng của từng loại bài, lưu vào `details` JSONB.
@@ -61,29 +56,13 @@ export class CreatePostUseCase implements ICreatePostUseCase {
     private readonly postRepository: IPostRepository,
     @Inject(ICategoryRepository)
     private readonly categoryRepository: ICategoryRepository,
-    @Inject(IUserRepository)
-    private readonly userRepository: IUserRepository,
     @Inject(IEntitlementRepository)
     private readonly entitlementRepository: IEntitlementRepository,
+    private readonly profileGate: ProfileGate,
   ) {}
 
   public async handle(command: ICreatePostCommand): Promise<ICreatePostResult> {
-    const user = await this.userRepository.findOneBy({
-      globalId: command.userId,
-    });
-    if (!user || user.deletedAt) throw new UserNotFoundException();
-
-    if (!isProfileComplete(user)) {
-      const missing = [
-        !user.fullName && 'Họ tên',
-        !user.avatarUrl && 'Avatar',
-        !user.phone && 'SĐT',
-        !user.email && 'Email',
-      ].filter(Boolean) as string[];
-      throw new ProfileIncompleteException(missing);
-    }
-    if (user.rank === UserRanks.VIEWER)
-      throw new OnboardingIncompleteException();
+    await this.profileGate.assertOnboarded(command.userId);
 
     const { post } = command;
     const category = await this.categoryRepository.findOneBy({

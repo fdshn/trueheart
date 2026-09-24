@@ -20,6 +20,7 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
+import { ProfileGate } from '../profile/profile-gate';
 import { toGiftRequestDto } from './gift-request.mapper';
 
 function isUniqueViolation(error: unknown): boolean {
@@ -34,11 +35,17 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     private readonly postRepository: IPostRepository,
     @Inject(IGiftRequestRepository)
     private readonly giftRequestRepository: IGiftRequestRepository,
+    private readonly profileGate: ProfileGate,
   ) {}
 
   public async handle(
     command: ICreateGiftRequestCommand,
   ): Promise<ICreateGiftRequestResult> {
+    // Cổng hồ sơ (F07) — chốt 2026-09-24 áp cho cả xin nhận, không chỉ đăng bài.
+    // Người tặng phải liên hệ được với người xin; hồ sơ thiếu SĐT hoặc họ tên
+    // biến mỗi lượt trao thành một cuộc hẹn với người vô danh.
+    await this.profileGate.assertComplete(command.requesterId);
+
     const post = await this.postRepository.findOneBy({
       globalId: command.postId,
     });

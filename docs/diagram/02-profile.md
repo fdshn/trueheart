@@ -29,10 +29,19 @@ flowchart LR
 
 | Hành vi | Trạng thái chặn |
 | --- | --- |
-| Đăng bài | ✅ đã chặn |
-| Xin nhận | ⚠️ **chốt 2026-09-24, chưa gắn** |
-| Chat | ⚠️ **chốt 2026-09-24, chưa gắn** |
+| Đăng bài | ✅ `assertOnboarded` — cổng hồ sơ **cộng** điều kiện đã qua Viewer |
+| Xin nhận | ✅ `assertComplete` |
+| Chat (đường **gửi**) | ✅ `assertComplete` |
 | Tạo Group | ⛔ chưa có Group |
+
+Gom về một `ProfileGate` thay vì viết lại ở từng use case — bốn nơi tự kiểm là bốn danh sách
+trường bắt buộc có thể trôi khỏi nhau, và chỗ nào quên một trường thì chỗ đó lặng lẽ mở cửa.
+
+> **Cổng đặt ở đường GỬI tin nhắn, không ở đường đọc.** Người hồ sơ chưa đủ vẫn phải đọc được
+> tin nhắn gửi cho mình, nếu không họ mất luôn lời nhắn đang chờ.
+>
+> **Hồ sơ kiểm TRƯỚC rank.** Viewer thiếu SĐT phải nghe "thiếu SĐT" chứ không phải "chưa
+> onboard" — điền SĐT chính là việc đưa họ ra khỏi Viewer.
 
 ## 2.2 Xác minh số điện thoại
 
@@ -120,8 +129,7 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. **Cổng F07 mới chặn đăng bài.** Ba hành vi còn lại (xin nhận, chat, tạo Group) đã chốt
-   ngày 2026-09-24 nhưng chưa gắn.
+1. ✅ **Cổng F07 đã chặn đủ ba hành vi đang có.** Còn tạo Group thì chờ phân hệ Group.
 2. **Onboarding cho 224đ = lên thẳng Thành viên** mà không cần giao dịch nào. Đúng ý chưa?
 3. SMS/Zalo chưa có adapter nên **luồng xác minh SĐT không chạy được thật ở production**,
    kéo theo phần thưởng 28đ không phát sinh.

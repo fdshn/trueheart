@@ -44,6 +44,7 @@ import { ValidationFailedException } from '@chantam/service.common-lib/exception
 import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { ProfileGate } from '../profile/profile-gate';
 
 function toRoomSummary(item: IChatRoomListItem): IChatRoomSummaryDto {
   return {
@@ -175,11 +176,17 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
     @Inject(IChatRealtimePublisher)
     private readonly realtime: IChatRealtimePublisher,
     @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+    private readonly profileGate: ProfileGate,
   ) {}
 
   public async handle(
     command: ISendChatMessageCommand,
   ): Promise<ISendChatMessageResult> {
+    // Cổng hồ sơ (F07) — chốt 2026-09-24 áp cho cả chat. Đặt ở đường GỬI chứ
+    // không ở đường đọc: người hồ sơ chưa đủ vẫn phải đọc được tin nhắn gửi
+    // cho mình, nếu không họ mất luôn lời nhắn đang chờ.
+    await this.profileGate.assertComplete(command.userId);
+
     const body = command.message.body.trim();
     const mediaKeys = (command.message.mediaKeys ?? []).slice(
       0,

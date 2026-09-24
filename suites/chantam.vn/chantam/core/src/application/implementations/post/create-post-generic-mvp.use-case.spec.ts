@@ -16,6 +16,7 @@ import {
   ICategoryEntity,
   IUserEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
+import { ProfileGate } from '../profile/profile-gate';
 import { CreatePostUseCase } from './create-post.use-case';
 
 const UserId = '22222222-2222-2222-2222-222222222222';
@@ -36,6 +37,7 @@ function makeUser(overrides: Partial<IUserEntity> = {}): IUserEntity {
     status: UserStatuses.ACTIVE,
     phoneVerifiedAt: null,
     suspendedUntil: null,
+    lastActiveAt: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -166,8 +168,8 @@ describe('CreatePostUseCase Generic MVP', () => {
       await new CreatePostUseCase(
         posts,
         categories,
-        users,
         entitlements,
+        new ProfileGate(users),
       ).handle(makeCommand(postType));
 
       expect(posts.createPostWithinQuota).toHaveBeenCalledWith(
@@ -209,7 +211,12 @@ describe('CreatePostUseCase Generic MVP', () => {
     const charity = makeCommand(PostTypes.CHARITY);
 
     await expect(
-      new CreatePostUseCase(posts, categories, users, entitlements).handle({
+      new CreatePostUseCase(
+        posts,
+        categories,
+        entitlements,
+        new ProfileGate(users),
+      ).handle({
         ...charity,
         post: {
           ...charity.post,

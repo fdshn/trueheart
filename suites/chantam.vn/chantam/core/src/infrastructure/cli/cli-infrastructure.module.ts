@@ -1,5 +1,6 @@
 import { NotificationUseCaseModule } from '@/application/implementations/notification/notification.module';
 import { PointModule } from '@/application/implementations/point/point.module';
+import { ProfileGateModule } from '@/application/implementations/profile/profile-gate.module';
 import { RankModule } from '@/application/implementations/rank/rank.module';
 import { IConfig } from '@/domain/ports/config';
 import { AppContextModule } from '@chantam/service.common-lib/modules';
@@ -33,8 +34,8 @@ import { NoopRealtimeModule } from './noop-realtime.module';
  * - `RealtimeModule` / `AuthModule` / `HealthModule` — gateway websocket, guard
  *   và endpoint sức khoẻ đều không có người gọi trong một lần chạy CLI.
  *
- * Kèm ba module TẦNG ỨNG DỤNG mà gần như mọi use case khác đều gọi tới:
- * thông báo, điểm và hạng. Chúng là `@Global()`, nhưng `@Global()` chỉ có hiệu
+ * Kèm bốn module TẦNG ỨNG DỤNG mà gần như mọi use case khác đều gọi tới:
+ * thông báo, điểm, hạng và cổng hồ sơ. Chúng là `@Global()`, nhưng `@Global()` chỉ có hiệu
  * lực sau khi module được import ở đâu đó — không import thì nó không tồn tại,
  * và đó đúng là cái bẫy đã làm bảy CLI cùng chết.
  */
@@ -57,6 +58,7 @@ import { NoopRealtimeModule } from './noop-realtime.module';
     NotificationUseCaseModule,
     PointModule,
     RankModule,
+    ProfileGateModule,
     NoopRealtimeModule,
   ],
   exports: [
@@ -73,6 +75,7 @@ import { NoopRealtimeModule } from './noop-realtime.module';
     NotificationUseCaseModule,
     PointModule,
     RankModule,
+    ProfileGateModule,
     NoopRealtimeModule,
   ],
 })

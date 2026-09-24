@@ -52,8 +52,7 @@ sequenceDiagram
     alt Sai, hoặc user SUSPENDED/BANNED
         API-->>U: 401 — thông báo chung
     else Đúng
-        API->>DB: Cập nhật last_login_at
-        Note right of DB: ⛔ Cột chưa tồn tại —<br/>cần cho Active Member (F56)
+        API->>DB: SessionIssuer đặt mốc last_active_at ✅
         API->>R: Lưu refresh token (có TTL)
         API-->>U: accessToken (ngắn) + refreshToken (dài)
     end
@@ -67,14 +66,14 @@ sequenceDiagram
         API-->>U: 401
     else Còn
         API->>R: Thu hồi token cũ, cấp token mới
-        API->>DB: Cập nhật last_login_at
-        Note right of DB: ⛔ Chốt 2026-09-24 — mốc hoạt động<br/>đếm ở ĐÂY, không chỉ lúc nhập mật khẩu
+        API->>DB: SessionIssuer đặt mốc last_active_at ✅
+        Note right of DB: Mốc đếm ở ĐÂY nữa, không chỉ lúc<br/>nhập mật khẩu — xem ghi chú dưới
         API-->>U: cặp token mới
     end
     end
 ```
 
-> **Vì sao mốc hoạt động phải cập nhật ở nhánh refresh.** App mobile giữ refresh token nên
+> **Vì sao tên là `last_active_at` chứ không `last_login_at`, và vì sao ghi ở nhánh refresh.** App mobile giữ refresh token nên
 > người mở app hằng ngày vẫn có thể không "đăng nhập" lần nào suốt 90 ngày. Chỉ ghi ở nhánh
 > login sẽ đánh nhầm người đang dùng đều thành không hoạt động, và họ mất phần chia affiliate.
 
@@ -150,7 +149,9 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. **`last_login_at` chưa tồn tại** — cần migration, và phải ghi ở cả nhánh login lẫn refresh.
+1. ✅ **`users.last_active_at` đã có** (không đặt tên `last_login_at` vì nó không chỉ ghi lúc
+   đăng nhập). `SessionIssuer` là chỗ chung của đăng ký, đăng nhập và làm mới token nên chỉ
+   có MỘT chỗ ghi mốc. Cột `NOT NULL DEFAULT now()`, có index cho job quét Active Member.
 2. **Chặn xoá tài khoản khi còn lượt trao dở dang chưa gắn.** Hiện xoá được giữa chừng, để
    lại lượt trao trỏ vào một hồ sơ đã ẩn danh.
 3. Đăng ký hiện **không bắt buộc** SĐT. Cổng hoàn thiện hồ sơ (F07) mới là chỗ chặn — xem

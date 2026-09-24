@@ -33,6 +33,15 @@ export interface IUserRepository extends Repository<IUserEntity> {
 
   isEmailTaken(email: string, exceptUserId: string): Promise<boolean>;
   isPhoneTaken(phone: string, exceptUserId: string): Promise<boolean>;
+
+  /**
+   * Đánh dấu tài khoản còn sống — nền cho "Active Member" (F56).
+   *
+   * Gọi ở MỌI lần cấp phiên, gồm cả làm mới token: app mobile giữ refresh token
+   * nên người mở app hằng ngày vẫn có thể không nhập mật khẩu lần nào suốt 90
+   * ngày, và chỉ ghi ở nhánh đăng nhập sẽ đánh nhầm họ thành không hoạt động.
+   */
+  touchActivity(userId: string): Promise<void>;
 }
 
 export const IUserRepository = Symbol('IUserRepository');

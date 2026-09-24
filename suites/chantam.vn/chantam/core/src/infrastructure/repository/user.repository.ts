@@ -143,6 +143,17 @@ export class UserRepository
     );
   }
 
+  public async touchActivity(userId: string): Promise<void> {
+    // UPDATE trần, không đọc trước: mốc này ghi ở mọi lần cấp phiên nên nó là
+    // đường đi nóng nhất của hệ thống. Đọc rồi mới ghi là gấp đôi số lượt đi
+    // database cho một cột không ai đọc lại trong cùng request.
+    await this.createQueryBuilder()
+      .update()
+      .set({ lastActiveAt: () => 'now()' })
+      .where('global_id = :userId', { userId })
+      .execute();
+  }
+
   public async isUsernameTaken(username: string): Promise<boolean> {
     // Tính cả tài khoản đã xoá mềm: username không được tái sử dụng, nếu không
     // người mới sẽ thừa hưởng danh tiếng (hoặc tai tiếng) của người cũ.
