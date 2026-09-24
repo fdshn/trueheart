@@ -395,7 +395,7 @@ Tối đa **3 ảnh** mỗi tin nhắn, khoá `users/{userId}/chat/{roomId}/{uui
 | 4 | Ảnh trong bình luận | ⚠️ code xong, `test:feed-media` **chưa chạy** — Docker chưa bật |
 | 5 | Đọc kèm số đếm + `myReaction` | ✅ nhúng vào get/nearby/me; unit test canh một truy vấn cho cả trang |
 | 6 | Chia sẻ | ✅ `POST /posts/:id/shares` — append-only, không nhân bản; unit + `test:feed-shares` |
-| 7 | Thông báo | |
+| 7 | Thông báo | ✅ bình luận/trả lời báo từng cái; cảm xúc gộp lần đầu trong ngày (giờ VN) — 14 unit test |
 | 8 | Báo xấu + hàng đợi Admin | ✅ gộp vào `reports` của Admin CMS, thêm đích `COMMENT`; `POST /reports` + `GET/PATCH /admin/reports` |
 | 9 | Điểm F41 (seed TẮT sẵn) | |
 | 10 | Đối soát số đếm | |

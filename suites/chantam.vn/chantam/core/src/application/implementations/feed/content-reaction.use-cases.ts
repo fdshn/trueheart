@@ -9,6 +9,7 @@ import {
   ISetContentReactionResult,
   ISetContentReactionUseCase,
 } from '@/application/contracts/feed';
+import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import { PostNotFoundException } from '@/domain/exceptions';
 import {
   IContentReactionRepository,
@@ -22,6 +23,7 @@ import {
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
+import { notifyFirstReactionOfDay } from './feed-notifications';
 
 /**
  * Chủ thể phải CÓ THẬT trước khi nhận cảm xúc.
@@ -37,14 +39,16 @@ class SubjectGuard {
     @Inject(IPostRepository) private readonly posts: IPostRepository,
   ) {}
 
+  /** Trả chủ bài để bên gọi khỏi nạp lại bài lần nữa chỉ để gửi thông báo. */
   public async assertExists(
     subjectType: ContentSubjectTypes,
     subjectId: string,
-  ): Promise<void> {
-    if (subjectType !== ContentSubjectTypes.POST) return;
+  ): Promise<{ authorId: string | null }> {
+    if (subjectType !== ContentSubjectTypes.POST) return { authorId: null };
 
     const post = await this.posts.findOneBy({ globalId: subjectId });
     if (!post || post.deletedAt) throw new PostNotFoundException(subjectId);
+    return { authorId: post.authorId ?? null };
   }
 }
 
@@ -56,6 +60,8 @@ export class SetContentReactionUseCase implements ISetContentReactionUseCase {
     @Inject(IEntitlementRepository)
     private readonly entitlements: IEntitlementRepository,
     @Inject(IPostRepository) private readonly posts: IPostRepository,
+    @Inject(IDispatchNotificationUseCase)
+    private readonly dispatchNotification: IDispatchNotificationUseCase,
   ) {}
 
   public async handle(
@@ -69,17 +75,27 @@ export class SetContentReactionUseCase implements ISetContentReactionUseCase {
     );
     if (!capability?.allowed) throw new ForbiddenException();
 
-    await new SubjectGuard(this.posts).assertExists(
+    const { authorId } = await new SubjectGuard(this.posts).assertExists(
       command.subjectType,
       command.subjectId,
     );
 
-    await this.reactions.setReaction({
+    // `created` chỉ đúng khi đây là lượt bày tỏ MỚI. Đổi LIKE sang LOVE không
+    // đáng một thông báo — vẫn là người đó, vẫn là sự quan tâm đó.
+    const { created } = await this.reactions.setReaction({
       subjectType: command.subjectType,
       subjectId: command.subjectId,
       userId: command.userId,
       kind: command.kind,
     });
+
+    if (command.subjectType === ContentSubjectTypes.POST)
+      await notifyFirstReactionOfDay(this.dispatchNotification, {
+        postId: command.subjectId,
+        postAuthorId: authorId,
+        actorId: command.userId,
+        isNewReaction: created,
+      });
 
     return {
       reaction: await this.reactions.summarize(

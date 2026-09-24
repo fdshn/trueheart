@@ -18,6 +18,7 @@ import {
   IRequestCommentMediaUploadResult,
   IRequestCommentMediaUploadUseCase,
 } from '@/application/contracts/feed';
+import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import {
   ContentBlockedTermsException,
   ContentCommentNotFoundException,
@@ -55,6 +56,7 @@ import {
 import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { notifyComment } from './feed-notifications';
 
 function toDto(
   comment: IContentComment,
@@ -130,6 +132,8 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
     @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+    @Inject(IDispatchNotificationUseCase)
+    private readonly dispatchNotification: IDispatchNotificationUseCase,
   ) {}
 
   public async handle(
@@ -141,17 +145,22 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
     );
     if (!capability?.allowed) throw new ForbiddenException();
 
+    // Giữ lại chủ bài: đằng nào cũng phải nạp bài để kiểm tra nó có thật, và
+    // thông báo cần đúng người này. Hỏi lại lần nữa là thừa một vòng.
+    let postAuthorId: string | null = null;
     if (command.subjectType === ContentSubjectTypes.POST) {
       const post = await this.posts.findOneBy({
         globalId: command.subjectId,
       });
       if (!post || post.deletedAt)
         throw new PostNotFoundException(command.subjectId);
+      postAuthorId = post.authorId ?? null;
     }
 
     // Trả lời phải trỏ vào một bình luận CÓ THẬT của ĐÚNG chủ thể này. Thiếu
     // phép kiểm thứ hai thì trả lời được xuyên bài: bình luận hiện dưới bài A
     // trong khi cha nó nằm ở bài B.
+    let parentAuthorId: string | null = null;
     if (command.parentId) {
       const parent = await this.comments.findByGlobalId(command.parentId);
       if (
@@ -160,6 +169,7 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
         parent.subjectType !== command.subjectType
       )
         throw new ContentCommentNotFoundException();
+      parentAuthorId = parent.authorId;
     }
 
     const mediaKeys = (command.mediaKeys ?? []).slice(
@@ -199,6 +209,17 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
       flaggedTerms: screening.flaggedTerms,
       parentId: command.parentId ?? null,
       mediaKeys,
+    });
+
+    // Sau khi đã ghi xong. Thông báo hỏng thì bình luận vẫn còn nguyên.
+    await notifyComment(this.dispatchNotification, {
+      commentId: created.globalId,
+      postId: command.subjectId,
+      body: created.body,
+      status: created.status,
+      authorId: command.userId,
+      postAuthorId,
+      parentAuthorId,
     });
 
     return { comment: toDto(created, command.userId) };

@@ -20,4 +20,16 @@ export enum NotificationTypes {
    * chung, vì Admin đổi cấu hình sau đó cũng không đổi ngày của phòng này.
    */
   CHAT_ROOM_SCHEDULED_FOR_PURGE = 'CHAT_ROOM_SCHEDULED_FOR_PURGE',
+  /** Có người bình luận vào bài của mình. Báo từng cái. */
+  CONTENT_COMMENT_CREATED = 'CONTENT_COMMENT_CREATED',
+  /** Có người trả lời bình luận của mình. Báo từng cái. */
+  CONTENT_COMMENT_REPLIED = 'CONTENT_COMMENT_REPLIED',
+  /**
+   * Hôm nay có người bày tỏ cảm xúc với bài của mình.
+   *
+   * Chỉ báo LẦN ĐẦU trong ngày cho mỗi bài. Một bài 200 lượt mà báo 200 lần
+   * thì tác giả tắt thông báo, và từ đó mất luôn thông báo về lượt xin nhận —
+   * thứ thật sự quan trọng.
+   */
+  CONTENT_REACTION_FIRST_OF_DAY = 'CONTENT_REACTION_FIRST_OF_DAY',
 }
