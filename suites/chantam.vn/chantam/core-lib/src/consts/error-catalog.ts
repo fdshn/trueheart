@@ -256,18 +256,6 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Chế độ chọn người nhận không hợp lệ',
   },
 
-  POST_ALREADY_LIKED: {
-    code: ErrorCodes.POST_ALREADY_LIKED,
-    httpStatus: HttpStatus.CONFLICT,
-    message: () => 'Bạn đã thích bài đăng này rồi',
-  },
-
-  POST_NOT_LIKED: {
-    code: ErrorCodes.POST_NOT_LIKED,
-    httpStatus: HttpStatus.CONFLICT,
-    message: () => 'Bạn chưa thích bài đăng này',
-  },
-
   POST_CONTACT_INFO_RESTRICTED: {
     code: ErrorCodes.POST_CONTACT_INFO_RESTRICTED,
     httpStatus: HttpStatus.FORBIDDEN,

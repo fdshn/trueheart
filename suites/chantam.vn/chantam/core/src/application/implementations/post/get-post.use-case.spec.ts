@@ -3,7 +3,6 @@ import {
   IContentReactionRepository,
   IGiftRequestRepository,
   IGiftTransactionRepository,
-  IPostLikeRepository,
   IPostMediaRepository,
   IPostRepository,
   IUserRepository,
@@ -119,11 +118,6 @@ const makeGiftTransactionRepo = () =>
     isReceiverOfPost: jest.fn().mockResolvedValue(false),
   }) as unknown as jest.Mocked<IGiftTransactionRepository>;
 
-const makePostLikeRepo = () =>
-  ({
-    hasLiked: jest.fn().mockResolvedValue(false),
-  }) as unknown as jest.Mocked<IPostLikeRepository>;
-
 const makeReactions = () =>
   ({
     summarize: jest.fn().mockResolvedValue({
@@ -144,7 +138,6 @@ describe('GetPostUseCase', () => {
     } as unknown as jest.Mocked<IPostMediaRepository>;
     const giftRequestRepository = makeGiftRequestRepo();
     const giftTransactionRepository = makeGiftTransactionRepo();
-    const postLikeRepository = makePostLikeRepo();
     const userRepository = makeUserRepo();
     const reactions = makeReactions();
 
@@ -153,7 +146,6 @@ describe('GetPostUseCase', () => {
       postMediaRepository,
       giftRequestRepository,
       giftTransactionRepository,
-      postLikeRepository,
       userRepository,
       reactions,
       makeConfig(),
@@ -200,9 +192,6 @@ describe('GetPostUseCase', () => {
     const giftTransactionRepository = {
       isReceiverOfPost: jest.fn().mockResolvedValue(true),
     } as unknown as jest.Mocked<IGiftTransactionRepository>;
-    const postLikeRepository = {
-      hasLiked: jest.fn().mockResolvedValue(true),
-    } as unknown as jest.Mocked<IPostLikeRepository>;
     const userRepository = makeUserRepo();
     const reactions = makeReactions();
 
@@ -212,7 +201,6 @@ describe('GetPostUseCase', () => {
       postMediaRepository,
       giftRequestRepository,
       giftTransactionRepository,
-      postLikeRepository,
       userRepository,
       reactions,
       makeConfig(),
@@ -229,7 +217,57 @@ describe('GetPostUseCase', () => {
       phone: '0901234567',
       address: 'Quận 1, TP.HCM',
     });
-    expect(result.isLiked).toBe(true);
+  });
+
+  it('isLiked suy từ myReaction, không hỏi thêm bảng nào', async () => {
+    // Thích là cảm xúc LIKE chứ không phải hệ đếm riêng. Người đang để LOVE
+    // thì CHƯA thích — hai con số khác nhau và đều đúng.
+    const postRepository = {
+      findPublicByGlobalId: jest.fn().mockResolvedValue(makePost()),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const postMediaRepository = {
+      listByPostId: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<IPostMediaRepository>;
+    const reactions = makeReactions();
+
+    const build = () =>
+      new GetPostUseCase(
+        postRepository,
+        postMediaRepository,
+        makeGiftRequestRepo(),
+        makeGiftTransactionRepo(),
+        makeUserRepo(),
+        reactions,
+        makeConfig(),
+      );
+
+    const loving = await build().handle({
+      postId: PostId,
+      currentUserId: '99999999-9999-9999-9999-999999999999',
+    });
+    expect(loving.myReaction).toBe(ReactionKinds.LOVE);
+    expect(loving.isLiked).toBe(false);
+
+    reactions.summarize.mockResolvedValue({
+      total: 12,
+      breakdown: { LIKE: 9, LOVE: 3 },
+      myReaction: ReactionKinds.LIKE,
+    });
+    const liking = await build().handle({
+      postId: PostId,
+      currentUserId: '99999999-9999-9999-9999-999999999999',
+    });
+    expect(liking.isLiked).toBe(true);
+
+    // Khách chưa đăng nhập: `null` chứ không phải `false` — "chưa thích" và
+    // "không biết có thích hay không" là hai chuyện khác nhau.
+    reactions.summarize.mockResolvedValue({
+      total: 12,
+      breakdown: { LIKE: 9, LOVE: 3 },
+      myReaction: null,
+    });
+    const anonymous = await build().handle({ postId: PostId });
+    expect(anonymous.isLiked).toBeNull();
   });
 
   it('trả media đã xếp thứ tự với public URL', async () => {
@@ -256,7 +294,6 @@ describe('GetPostUseCase', () => {
     } as unknown as jest.Mocked<IPostMediaRepository>;
     const giftRequestRepository = makeGiftRequestRepo();
     const giftTransactionRepository = makeGiftTransactionRepo();
-    const postLikeRepository = makePostLikeRepo();
     const userRepository = makeUserRepo();
     const reactions = makeReactions();
     reactions.summarize.mockResolvedValue({
@@ -270,7 +307,6 @@ describe('GetPostUseCase', () => {
       postMediaRepository,
       giftRequestRepository,
       giftTransactionRepository,
-      postLikeRepository,
       userRepository,
       reactions,
       makeConfig(),
@@ -304,7 +340,6 @@ describe('GetPostUseCase', () => {
     } as unknown as jest.Mocked<IPostMediaRepository>;
     const giftRequestRepository = makeGiftRequestRepo();
     const giftTransactionRepository = makeGiftTransactionRepo();
-    const postLikeRepository = makePostLikeRepo();
     const userRepository = makeUserRepo();
     const reactions = makeReactions();
 
@@ -314,7 +349,6 @@ describe('GetPostUseCase', () => {
         postMediaRepository,
         giftRequestRepository,
         giftTransactionRepository,
-        postLikeRepository,
         userRepository,
         reactions,
         makeConfig(),

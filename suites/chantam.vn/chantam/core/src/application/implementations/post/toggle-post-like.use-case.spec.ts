@@ -1,10 +1,6 @@
+import { PostNotFoundException } from '@/domain/exceptions';
 import {
-  PostAlreadyLikedException,
-  PostNotFoundException,
-  PostNotLikedException,
-} from '@/domain/exceptions';
-import {
-  IPostLikeRepository,
+  IContentReactionRepository,
   IPostRepository,
 } from '@/domain/ports/repository';
 import {
@@ -54,132 +50,91 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
   };
 }
 
+function makeDeps(
+  post: IPostEntity | null,
+  toggleResult = { liked: true, likeCount: 1 },
+) {
+  return {
+    posts: {
+      findOneBy: jest.fn().mockResolvedValue(post),
+    } as unknown as jest.Mocked<IPostRepository>,
+    reactions: {
+      toggleLike: jest.fn().mockResolvedValue(toggleResult),
+    } as unknown as jest.Mocked<IContentReactionRepository>,
+  };
+}
+
 describe('TogglePostLikeUseCase', () => {
-  it('like thành công khi người dùng chưa like', async () => {
-    const post = makePost({ likeCount: 0 });
-    const postRepository = {
-      findOneBy: jest.fn().mockResolvedValueOnce(post),
-    } as unknown as jest.Mocked<IPostRepository>;
+  it('thích thì uỷ thác cho bảng cảm xúc, không có bảng like riêng', async () => {
+    // Nút thích chỉ là lối tắt cho cảm xúc LIKE. Hai bảng song song thì
+    // GET /posts/:id trả hai con số thích khác nhau cho cùng một bài.
+    const deps = makeDeps(makePost(), { liked: true, likeCount: 1 });
 
-    const postLikeRepository = {
-      hasLiked: jest.fn().mockResolvedValue(false),
-      like: jest.fn().mockResolvedValue({
-        entity: {
-          id: 1,
-          userId: UserId,
-          postId: PostId,
-          createdAt: new Date(),
-        },
-        likeCount: 1,
-      }),
-      unlike: jest.fn(),
-    } as unknown as jest.Mocked<IPostLikeRepository>;
+    const result = await new TogglePostLikeUseCase(
+      deps.posts,
+      deps.reactions,
+    ).handle({ postId: PostId, userId: UserId });
 
-    const useCase = new TogglePostLikeUseCase(
-      postRepository,
-      postLikeRepository,
-    );
-
-    const result = await useCase.handle({
-      postId: PostId,
-      userId: UserId,
-    });
-
-    expect(postLikeRepository.hasLiked).toHaveBeenCalledWith(UserId, PostId);
-    expect(postLikeRepository.like).toHaveBeenCalledWith(UserId, PostId);
-    expect(postLikeRepository.unlike).not.toHaveBeenCalled();
+    expect(deps.reactions.toggleLike).toHaveBeenCalledWith(PostId, UserId);
     expect(result).toEqual({ liked: true, likeCount: 1 });
   });
 
-  it('unlike thành công khi người dùng đã like trước đó', async () => {
-    const post = makePost({ likeCount: 1 });
-    const postRepository = {
-      findOneBy: jest.fn().mockResolvedValueOnce(post),
-    } as unknown as jest.Mocked<IPostRepository>;
-
-    const postLikeRepository = {
-      hasLiked: jest.fn().mockResolvedValue(true),
-      like: jest.fn(),
-      unlike: jest.fn().mockResolvedValue({ likeCount: 0 }),
-    } as unknown as jest.Mocked<IPostLikeRepository>;
-
-    const useCase = new TogglePostLikeUseCase(
-      postRepository,
-      postLikeRepository,
-    );
-
-    const result = await useCase.handle({
-      postId: PostId,
-      userId: UserId,
+  it('bỏ thích trả trạng thái và số đếm mới', async () => {
+    const deps = makeDeps(makePost({ likeCount: 1 }), {
+      liked: false,
+      likeCount: 0,
     });
 
-    expect(postLikeRepository.hasLiked).toHaveBeenCalledWith(UserId, PostId);
-    expect(postLikeRepository.unlike).toHaveBeenCalledWith(UserId, PostId);
-    expect(postLikeRepository.like).not.toHaveBeenCalled();
+    const result = await new TogglePostLikeUseCase(
+      deps.posts,
+      deps.reactions,
+    ).handle({ postId: PostId, userId: UserId });
+
     expect(result).toEqual({ liked: false, likeCount: 0 });
   });
 
-  it('ném PostNotFoundException khi bài không tồn tại hoặc đã bị xoá', async () => {
-    const postRepository = {
-      findOneBy: jest.fn().mockResolvedValue(null),
-    } as unknown as jest.Mocked<IPostRepository>;
-    const postLikeRepository = {
-      hasLiked: jest.fn(),
-      like: jest.fn(),
-      unlike: jest.fn(),
-    } as unknown as jest.Mocked<IPostLikeRepository>;
+  it('bấm hai lần liên tiếp không ném lỗi — thao tác là bình thái', async () => {
+    // Bản cũ đọc trạng thái rồi mới ghi nên hai request song song lọt qua
+    // được và ném "đã thích rồi" vào mặt người dùng. Nay trạng thái được đọc
+    // và ghi trong cùng một transaction dưới repository.
+    const deps = makeDeps(makePost());
+    deps.reactions.toggleLike
+      .mockResolvedValueOnce({ liked: true, likeCount: 1 })
+      .mockResolvedValueOnce({ liked: false, likeCount: 0 });
 
-    const useCase = new TogglePostLikeUseCase(
-      postRepository,
-      postLikeRepository,
-    );
+    const useCase = new TogglePostLikeUseCase(deps.posts, deps.reactions);
+    const first = await useCase.handle({ postId: PostId, userId: UserId });
+    const second = await useCase.handle({ postId: PostId, userId: UserId });
+
+    expect(first.liked).toBe(true);
+    expect(second.liked).toBe(false);
+  });
+
+  it('bài không tồn tại thì báo lỗi, không đụng tới cảm xúc', async () => {
+    const deps = makeDeps(null);
 
     await expect(
-      useCase.handle({ postId: PostId, userId: UserId }),
+      new TogglePostLikeUseCase(deps.posts, deps.reactions).handle({
+        postId: PostId,
+        userId: UserId,
+      }),
     ).rejects.toBeInstanceOf(PostNotFoundException);
+
+    expect(deps.reactions.toggleLike).not.toHaveBeenCalled();
   });
 
-  it('ném PostAlreadyLikedException nếu repo trả null khi like', async () => {
-    const post = makePost({ likeCount: 1 });
-    const postRepository = {
-      findOneBy: jest.fn().mockResolvedValue(post),
-    } as unknown as jest.Mocked<IPostRepository>;
-
-    const postLikeRepository = {
-      hasLiked: jest.fn().mockResolvedValue(false),
-      like: jest.fn().mockResolvedValue(null),
-      unlike: jest.fn(),
-    } as unknown as jest.Mocked<IPostLikeRepository>;
-
-    const useCase = new TogglePostLikeUseCase(
-      postRepository,
-      postLikeRepository,
-    );
+  it('bài đã xoá mềm cũng coi như không tồn tại', async () => {
+    // Khoá ngoại đa hình không tồn tại nên database không chặn được một cảm
+    // xúc trỏ vào bài đã xoá — phép kiểm này là thứ duy nhất giữ chỗ đó.
+    const deps = makeDeps(makePost({ deletedAt: new Date() }));
 
     await expect(
-      useCase.handle({ postId: PostId, userId: UserId }),
-    ).rejects.toBeInstanceOf(PostAlreadyLikedException);
-  });
+      new TogglePostLikeUseCase(deps.posts, deps.reactions).handle({
+        postId: PostId,
+        userId: UserId,
+      }),
+    ).rejects.toBeInstanceOf(PostNotFoundException);
 
-  it('ném PostNotLikedException nếu repo trả null khi unlike', async () => {
-    const post = makePost({ likeCount: 1 });
-    const postRepository = {
-      findOneBy: jest.fn().mockResolvedValue(post),
-    } as unknown as jest.Mocked<IPostRepository>;
-
-    const postLikeRepository = {
-      hasLiked: jest.fn().mockResolvedValue(true),
-      like: jest.fn(),
-      unlike: jest.fn().mockResolvedValue(null),
-    } as unknown as jest.Mocked<IPostLikeRepository>;
-
-    const useCase = new TogglePostLikeUseCase(
-      postRepository,
-      postLikeRepository,
-    );
-
-    await expect(
-      useCase.handle({ postId: PostId, userId: UserId }),
-    ).rejects.toBeInstanceOf(PostNotLikedException);
+    expect(deps.reactions.toggleLike).not.toHaveBeenCalled();
   });
 });

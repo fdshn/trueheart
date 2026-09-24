@@ -3,29 +3,35 @@ import {
   ITogglePostLikeResult,
   ITogglePostLikeUseCase,
 } from '@/application/contracts/post';
+import { PostNotFoundException } from '@/domain/exceptions';
 import {
-  PostAlreadyLikedException,
-  PostNotFoundException,
-  PostNotLikedException,
-} from '@/domain/exceptions';
-import {
-  IPostLikeRepository,
+  IContentReactionRepository,
   IPostRepository,
 } from '@/domain/ports/repository';
 import { Inject, Injectable } from '@nestjs/common';
 
+/**
+ * Nút thích của bài đăng.
+ *
+ * Đây là **lối tắt** cho cảm xúc `LIKE` chứ không phải một hệ đếm riêng: mọi
+ * lượt thích nằm chung bảng `content_reactions` với bốn cảm xúc còn lại. Hai
+ * bảng song song thì `GET /posts/:id` sẽ trả hai con số thích khác nhau cho
+ * cùng một bài, và không con số nào đúng.
+ */
 @Injectable()
 export class TogglePostLikeUseCase implements ITogglePostLikeUseCase {
   public constructor(
     @Inject(IPostRepository)
     private readonly postRepository: IPostRepository,
-    @Inject(IPostLikeRepository)
-    private readonly postLikeRepository: IPostLikeRepository,
+    @Inject(IContentReactionRepository)
+    private readonly reactions: IContentReactionRepository,
   ) {}
 
   public async handle(
     command: ITogglePostLikeCommand,
   ): Promise<ITogglePostLikeResult> {
+    // Khoá ngoại đa hình không tồn tại nên database không chặn được một cảm
+    // xúc trỏ vào bài không có. Phép kiểm này là thứ duy nhất giữ chỗ đó.
     const post = await this.postRepository.findOneBy({
       globalId: command.postId,
     });
@@ -33,27 +39,8 @@ export class TogglePostLikeUseCase implements ITogglePostLikeUseCase {
       throw new PostNotFoundException(command.postId);
     }
 
-    const alreadyLiked = await this.postLikeRepository.hasLiked(
-      command.userId,
-      command.postId,
-    );
-
-    if (alreadyLiked) {
-      // Unlike: xoá row + like_count-- (atomic trong transaction, trả về count mới)
-      const result = await this.postLikeRepository.unlike(
-        command.userId,
-        command.postId,
-      );
-      if (!result) throw new PostNotLikedException();
-      return { liked: false, likeCount: result.likeCount };
-    } else {
-      // Like: insert row + like_count++ (atomic trong transaction, trả về count mới)
-      const result = await this.postLikeRepository.like(
-        command.userId,
-        command.postId,
-      );
-      if (!result) throw new PostAlreadyLikedException();
-      return { liked: true, likeCount: result.likeCount };
-    }
+    // Bình thái theo kết quả: bấm hai lần nhanh không ném lỗi "đã thích rồi"
+    // vào mặt người dùng, vì trạng thái được đọc và ghi trong cùng transaction.
+    return this.reactions.toggleLike(command.postId, command.userId);
   }
 }

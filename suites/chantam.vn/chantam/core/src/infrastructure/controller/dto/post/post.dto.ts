@@ -78,11 +78,11 @@ export class GetPostResponseDto implements IGetPostResponseDto {
   })
   hasRequested?: boolean;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 5,
-    description: 'Số lượt thích của bài đăng',
+    description: 'Số lượt thích, tức số cảm xúc LIKE.',
   })
-  likeCount?: number;
+  likeCount: number;
 
   @ApiPropertyOptional({
     example: false,
@@ -90,7 +90,7 @@ export class GetPostResponseDto implements IGetPostResponseDto {
     description:
       'Người dùng hiện tại đã thích bài đăng chưa (null nếu chưa đăng nhập)',
   })
-  isLiked?: boolean | null;
+  isLiked: boolean | null;
 
   @ApiPropertyOptional({
     type: () => PostContactInfoDto,

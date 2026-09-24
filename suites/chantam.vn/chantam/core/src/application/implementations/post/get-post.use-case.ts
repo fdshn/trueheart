@@ -9,7 +9,6 @@ import {
   IContentReactionRepository,
   IGiftRequestRepository,
   IGiftTransactionRepository,
-  IPostLikeRepository,
   IPostMediaRepository,
   IPostRepository,
   IUserRepository,
@@ -17,6 +16,7 @@ import {
 import {
   ContentSubjectTypes,
   GiftRequestStatuses,
+  ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IPostAuthorDto,
@@ -37,8 +37,6 @@ export class GetPostUseCase implements IGetPostUseCase {
     private readonly giftRequestRepository: IGiftRequestRepository,
     @Inject(IGiftTransactionRepository)
     private readonly giftTransactionRepository: IGiftTransactionRepository,
-    @Inject(IPostLikeRepository)
-    private readonly postLikeRepository: IPostLikeRepository,
     @Inject(IUserRepository)
     private readonly userRepository: IUserRepository,
     @Inject(IContentReactionRepository)
@@ -119,13 +117,11 @@ export class GetPostUseCase implements IGetPostUseCase {
       }
     }
 
-    let isLiked: boolean | null = null;
-    if (command.currentUserId) {
-      isLiked = await this.postLikeRepository.hasLiked(
-        command.currentUserId,
-        post.globalId,
-      );
-    }
+    // Thích là cảm xúc `LIKE` chứ không phải một hệ đếm riêng, nên suy thẳng
+    // từ `summarize()` đã gọi ở trên — bớt hẳn một vòng đi database.
+    const isLiked = command.currentUserId
+      ? summary.myReaction === ReactionKinds.LIKE
+      : null;
 
     return {
       post,

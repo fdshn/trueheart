@@ -4,6 +4,7 @@ import {
   IReactionActor,
   IReactionSummary,
   ISetReactionParams,
+  IToggleLikeResult,
 } from '@/domain/ports/repository';
 import {
   ContentSubjectTypes,
@@ -20,25 +21,41 @@ import { updateReturning } from './update-returning';
  * Gom vào một chỗ vì đây là phần duy nhất của tính năng cảm xúc còn biết chủ
  * thể là cái gì. Rải `if subjectType === POST` khắp nơi thì thêm Dharma Hub sẽ
  * phải sửa từng chỗ, và chỗ bị quên sẽ im lặng đếm sai.
+ *
+ * `likeColumn` chỉ bài đăng mới có: `posts.like_count` đếm RIÊNG `kind = LIKE`
+ * để `POST /posts/:id/like` trả đúng con số nó vẫn hứa, trong khi
+ * `reaction_count` đếm mọi người đã bày tỏ bất kể loại nào. Bình luận không có
+ * nút thích riêng nên không cần cột thứ hai.
  */
 const CounterTargets: Record<
   ContentSubjectTypes,
-  { table: string; keyColumn: string; countColumn: string } | null
+  {
+    table: string;
+    keyColumn: string;
+    countColumn: string;
+    likeColumn: string | null;
+  } | null
 > = {
   [ContentSubjectTypes.POST]: {
     table: 'posts',
     keyColumn: 'global_id',
     countColumn: 'reaction_count',
+    likeColumn: 'like_count',
   },
   [ContentSubjectTypes.COMMENT]: {
     table: 'content_comments',
     keyColumn: 'global_id',
     countColumn: 'reaction_count',
+    likeColumn: null,
   },
   // Chưa có bảng — chỗ dành sẵn, và `null` ở đây khiến việc quên nối số đếm
   // trở thành một dòng đọc được thay vì một lỗi âm thầm.
   [ContentSubjectTypes.DHARMA_THREAD]: null,
 };
+
+function isLike(kind: ReactionKinds | null): number {
+  return kind === ReactionKinds.LIKE ? 1 : 0;
+}
 
 @Injectable()
 export class ContentReactionRepository implements IContentReactionRepository {
@@ -50,66 +67,215 @@ export class ContentReactionRepository implements IContentReactionRepository {
     manager: EntityManager,
     subject: IContentSubjectRef,
     delta: number,
+    likeDelta: number,
+  ): Promise<void> {
+    const target = CounterTargets[subject.subjectType];
+    if (!target) return;
+    if (delta === 0 && likeDelta === 0) return;
+
+    // GREATEST(0, ...) là lưới an toàn cho ràng buộc `>= 0`: nếu có đường nào
+    // đó làm lệch, ta muốn số đếm dừng ở 0 chứ không muốn một câu DELETE hợp lệ
+    // vỡ vì một con số sai từ trước. `syncCounters` mới là chỗ sửa cho đúng.
+    const assignments = [
+      `${target.countColumn} = GREATEST(0, ${target.countColumn} + $2)`,
+    ];
+    const parameters: unknown[] = [subject.subjectId, delta];
+
+    if (target.likeColumn) {
+      assignments.push(
+        `${target.likeColumn} = GREATEST(0, ${target.likeColumn} + $3)`,
+      );
+      parameters.push(likeDelta);
+    }
+
+    await manager.query(
+      `
+        UPDATE ${target.table}
+        SET ${assignments.join(', ')}
+        WHERE ${target.keyColumn} = $1
+      `,
+      parameters,
+    );
+  }
+
+  /**
+   * Tính lại cả hai cột đếm từ chính bảng cảm xúc.
+   *
+   * Đắt hơn cộng trừ nên chỉ dùng khi đường cộng trừ không biết chắc loại cũ —
+   * xem ghi chú về đua trong `setReaction`. Cũng là phép toán mà CLI đối soát
+   * sẽ gọi lại.
+   */
+  private async syncCounters(
+    manager: EntityManager,
+    subject: IContentSubjectRef,
   ): Promise<void> {
     const target = CounterTargets[subject.subjectType];
     if (!target) return;
 
-    // GREATEST(0, ...) là lưới an toàn cho ràng buộc `>= 0`: nếu có đường nào
-    // đó làm lệch, ta muốn số đếm dừng ở 0 chứ không muốn một câu DELETE hợp lệ
-    // vỡ vì một con số sai từ trước. CLI đối soát mới là chỗ sửa cho đúng.
+    const assignments = [
+      `${target.countColumn} = (
+        SELECT COUNT(*) FROM content_reactions
+        WHERE subject_type = $2 AND subject_id = $1
+      )`,
+    ];
+    if (target.likeColumn) {
+      assignments.push(
+        `${target.likeColumn} = (
+          SELECT COUNT(*) FROM content_reactions
+          WHERE subject_type = $2 AND subject_id = $1 AND kind = 'LIKE'
+        )`,
+      );
+    }
+
     await manager.query(
       `
         UPDATE ${target.table}
-        SET ${target.countColumn} = GREATEST(0, ${target.countColumn} + $2)
+        SET ${assignments.join(', ')}
         WHERE ${target.keyColumn} = $1
       `,
-      [subject.subjectId, delta],
+      [subject.subjectId, subject.subjectType],
     );
   }
 
-  public async setReaction(
+  /**
+   * Đặt hoặc đổi cảm xúc, trong transaction do bên gọi mở.
+   *
+   * `prev` đọc loại cũ TRƯỚC khi upsert chạy — cùng một ảnh chụp, nên nó thấy
+   * đúng trạng thái mà câu lệnh này sắp ghi đè.
+   */
+  private async applySet(
+    manager: EntityManager,
     params: ISetReactionParams,
-  ): Promise<{ created: boolean; kind: ReactionKinds }> {
-    return this.manager.transaction(async (manager) => {
-      // `xmax = 0` phân biệt INSERT thật với UPDATE do ON CONFLICT: Postgres để
-      // xmax bằng 0 trên dòng vừa chèn. Thiếu phép phân biệt này thì đổi cảm
-      // xúc từ LIKE sang LOVE sẽ cộng thêm một vào tổng — cùng một người mà
-      // thành hai lượt.
-      const [row] = await manager.query<{ inserted: boolean }[]>(
-        `
+  ): Promise<{ created: boolean; previousKind: ReactionKinds | null }> {
+    // `xmax = 0` phân biệt INSERT thật với UPDATE do ON CONFLICT: Postgres để
+    // xmax bằng 0 trên dòng vừa chèn. Thiếu phép phân biệt này thì đổi cảm
+    // xúc từ LIKE sang LOVE sẽ cộng thêm một vào tổng — cùng một người mà
+    // thành hai lượt.
+    const [row] = await manager.query<
+      { inserted: boolean; old_kind: ReactionKinds | null }[]
+    >(
+      `
+        WITH prev AS (
+          SELECT kind FROM content_reactions
+          WHERE subject_type = $1 AND subject_id = $2 AND user_id = $3
+          FOR UPDATE
+        ), upserted AS (
           INSERT INTO content_reactions
             (subject_type, subject_id, user_id, kind)
           VALUES ($1, $2, $3, $4)
           ON CONFLICT (subject_type, subject_id, user_id)
           DO UPDATE SET kind = EXCLUDED.kind, updated_at = now()
           RETURNING (xmax = 0) AS inserted
-        `,
-        [params.subjectType, params.subjectId, params.userId, params.kind],
-      );
+        )
+        SELECT upserted.inserted, prev.kind AS old_kind
+        FROM upserted LEFT JOIN prev ON true
+      `,
+      [params.subjectType, params.subjectId, params.userId, params.kind],
+    );
 
-      if (row.inserted) await this.bumpCounter(manager, params, 1);
+    if (row.inserted) {
+      await this.bumpCounter(manager, params, 1, isLike(params.kind));
+      return { created: true, previousKind: null };
+    }
 
-      return { created: row.inserted, kind: params.kind };
+    // Không chèn mới nhưng `prev` rỗng nghĩa là có request song song của CHÍNH
+    // người này vừa chèn xong sau khi ảnh chụp được lấy. Cộng trừ lúc này sẽ
+    // đoán sai loại cũ, nên tính lại cho chắc — hiếm, và rẻ hơn một số đếm sai.
+    if (row.old_kind === null) {
+      await this.syncCounters(manager, params);
+      return { created: false, previousKind: null };
+    }
+
+    await this.bumpCounter(
+      manager,
+      params,
+      0,
+      isLike(params.kind) - isLike(row.old_kind),
+    );
+    return { created: false, previousKind: row.old_kind };
+  }
+
+  private async applyRemove(
+    manager: EntityManager,
+    params: IContentSubjectRef & { userId: string },
+  ): Promise<ReactionKinds | null> {
+    const deleted = await updateReturning<{
+      id: string;
+      kind: ReactionKinds;
+    }>(
+      manager,
+      `
+        DELETE FROM content_reactions
+        WHERE subject_type = $1 AND subject_id = $2 AND user_id = $3
+        RETURNING id, kind
+      `,
+      [params.subjectType, params.subjectId, params.userId],
+    );
+    if (deleted.length === 0) return null;
+
+    await this.bumpCounter(manager, params, -1, -isLike(deleted[0].kind));
+    return deleted[0].kind;
+  }
+
+  public async setReaction(
+    params: ISetReactionParams,
+  ): Promise<{ created: boolean; kind: ReactionKinds }> {
+    return this.manager.transaction(async (manager) => {
+      const { created } = await this.applySet(manager, params);
+      return { created, kind: params.kind };
     });
   }
 
   public async removeReaction(
     params: IContentSubjectRef & { userId: string },
   ): Promise<boolean> {
-    return this.manager.transaction(async (manager) => {
-      const deleted = await updateReturning<{ id: string }>(
-        manager,
-        `
-          DELETE FROM content_reactions
-          WHERE subject_type = $1 AND subject_id = $2 AND user_id = $3
-          RETURNING id
-        `,
-        [params.subjectType, params.subjectId, params.userId],
-      );
-      if (deleted.length === 0) return false;
+    return this.manager.transaction(
+      async (manager) => (await this.applyRemove(manager, params)) !== null,
+    );
+  }
 
-      await this.bumpCounter(manager, params, -1);
-      return true;
+  public async toggleLike(
+    subjectId: string,
+    userId: string,
+  ): Promise<IToggleLikeResult> {
+    const subject = {
+      subjectType: ContentSubjectTypes.POST,
+      subjectId,
+    } as const;
+
+    return this.manager.transaction(async (manager) => {
+      // Đọc và khoá trong cùng transaction với lần ghi, nên hai lần bấm song
+      // song xếp hàng thay vì cùng thấy "chưa thích" rồi cùng cộng.
+      const [current] = await manager.query<{ kind: ReactionKinds }[]>(
+        `
+          SELECT kind FROM content_reactions
+          WHERE subject_type = $1 AND subject_id = $2 AND user_id = $3
+          FOR UPDATE
+        `,
+        [subject.subjectType, subjectId, userId],
+      );
+
+      let liked: boolean;
+      if (current?.kind === ReactionKinds.LIKE) {
+        await this.applyRemove(manager, { ...subject, userId });
+        liked = false;
+      } else {
+        // Đang để LOVE mà bấm thích thì thành LIKE: vẫn một người bày tỏ, nên
+        // `reaction_count` đứng yên còn `like_count` tăng.
+        await this.applySet(manager, {
+          ...subject,
+          userId,
+          kind: ReactionKinds.LIKE,
+        });
+        liked = true;
+      }
+
+      const [row] = await manager.query<{ like_count: string | number }[]>(
+        `SELECT like_count FROM posts WHERE global_id = $1`,
+        [subjectId],
+      );
+
+      return { liked, likeCount: Number(row?.like_count ?? 0) };
     });
   }
 

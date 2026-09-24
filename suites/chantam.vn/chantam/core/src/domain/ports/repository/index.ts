@@ -12,7 +12,6 @@ export * from './notification-channel.repository';
 export * from './notification.repository';
 export * from './onboarding-task.repository';
 export * from './point-ledger.repository';
-export * from './post-like.repository';
 export * from './post-media.repository';
 export * from './post.repository';
 export * from './rank.repository';

@@ -13,7 +13,6 @@ import {
   INotificationRepository,
   IOnboardingTaskRepository,
   IPointLedgerRepository,
-  IPostLikeRepository,
   IPostMediaRepository,
   IPostRepository,
   IRankRepository,
@@ -40,7 +39,6 @@ import { NotificationChannelRepository } from './notification-channel.repository
 import { NotificationRepository } from './notification.repository';
 import { OnboardingTaskRepository } from './onboarding-task.repository';
 import { PointLedgerRepository } from './point-ledger.repository';
-import { PostLikeRepository } from './post-like.repository';
 import { PostMediaRepository } from './post-media.repository';
 import { PostRepository } from './post.repository';
 import { RankRepository } from './rank.repository';
@@ -94,7 +92,6 @@ import { UserRepository } from './user.repository';
     { provide: ISystemLogRepository, useClass: SystemLogRepository },
     { provide: IRankRepository, useClass: RankRepository },
     { provide: IPostRepository, useClass: PostRepository },
-    { provide: IPostLikeRepository, useClass: PostLikeRepository },
     { provide: IPostMediaRepository, useClass: PostMediaRepository },
     { provide: IUserRepository, useClass: UserRepository },
     {
@@ -123,7 +120,6 @@ import { UserRepository } from './user.repository';
     ISystemLogRepository,
     IRankRepository,
     IPostRepository,
-    IPostLikeRepository,
     IPostMediaRepository,
     IUserRepository,
     IUserOnboardingTaskCompletionRepository,
