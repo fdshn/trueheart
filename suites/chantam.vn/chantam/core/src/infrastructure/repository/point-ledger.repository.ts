@@ -11,6 +11,8 @@ import {
   IPointLedgerPage,
   IPointLedgerRepository,
   IPointLedgerSummary,
+  IReversePointEntryParams,
+  ReversePointEntryOutcome,
 } from '@/domain/ports/repository';
 import { formatPointLogNote } from '@chantam.vn/chantam.core-lib/models';
 import { Injectable } from '@nestjs/common';
@@ -144,6 +146,125 @@ export class PointLedgerRepository implements IPointLedgerRepository {
     );
 
     return rows.map((row) => row.global_id);
+  }
+
+  /** Mã rule cho bút toán hoàn. */
+  private static readonly ReversalRuleCode = 'REVERSAL';
+
+  public async reverseEntry(
+    params: IReversePointEntryParams,
+  ): Promise<ReversePointEntryOutcome> {
+    return this.manager.transaction(async (manager) => {
+      const [original] = await manager.query<
+        {
+          user_id: string;
+          rule_code: string;
+          delta: number;
+          lifetime_delta: number;
+        }[]
+      >(
+        `
+          SELECT entry.user_id, entry.rule_code, entry.delta,
+                 -- Bút toán này có đẩy lifetime hay không: so với dòng liền
+                 -- trước của cùng người. Đọc từ chính ledger chứ không tra lại
+                 -- point_rules, vì rule có thể đã đổi hoặc bị tắt từ lúc ghi.
+                 entry.lifetime_after - COALESCE((
+                   SELECT prev.lifetime_after FROM point_ledger prev
+                   WHERE prev.user_id = entry.user_id AND prev.id < entry.id
+                   ORDER BY prev.id DESC LIMIT 1
+                 ), 0) AS lifetime_delta
+          FROM point_ledger entry
+          WHERE entry.id = $1
+          FOR UPDATE
+        `,
+        [params.entryId],
+      );
+      if (!original) return { status: 'NOT_FOUND' as const };
+
+      // Hoàn một bút toán hoàn là mở đường cho vòng lặp vô nghĩa.
+      if (original.rule_code === PointLedgerRepository.ReversalRuleCode)
+        return { status: 'NOT_REVERSIBLE' as const };
+
+      const idempotencyKey = `REVERSAL:${params.entryId}`;
+      const [existing] = await manager.query<{ id: string }[]>(
+        `SELECT id FROM point_ledger WHERE idempotency_key = $1`,
+        [idempotencyKey],
+      );
+      if (existing) return { status: 'NOT_REVERSIBLE' as const };
+
+      const [balance] = await manager.query<
+        { balance: number; raw_balance: number; lifetime: number }[]
+      >(
+        `
+          SELECT balance, raw_balance, lifetime
+          FROM user_point_balances WHERE user_id = $1 FOR UPDATE
+        `,
+        [original.user_id],
+      );
+
+      const delta = -Number(original.delta);
+      const nextRawBalance = Number(balance?.raw_balance ?? 0) + delta;
+      const nextBalance = Math.max(0, nextRawBalance);
+
+      // Hoàn KHÁC phạt. Phạt không được trừ lifetime — đó là viết lại lịch sử
+      // đóng góp. Nhưng hoàn một khoản thưởng ghi nhầm thì PHẢI trừ, nếu không
+      // sàn hạng của người đó bị thổi lên vĩnh viễn bởi một lỗi nhập liệu.
+      const nextLifetime = Math.max(
+        0,
+        Number(balance?.lifetime ?? 0) - Number(original.lifetime_delta),
+      );
+
+      const [{ id }] = await manager.query<{ id: string }[]>(
+        `
+          INSERT INTO point_ledger (
+            user_id, rule_code, rule_version, delta, balance_after,
+            raw_balance_after, lifetime_after,
+            reference_type, reference_id, idempotency_key, actor, source, reason
+          ) VALUES ($1, $2, 0, $3, $4, $5, $6, 'POINT_LEDGER', $7, $8, $9, 'ADMIN', $10)
+          RETURNING id
+        `,
+        [
+          original.user_id,
+          PointLedgerRepository.ReversalRuleCode,
+          delta,
+          nextBalance,
+          nextRawBalance,
+          nextLifetime,
+          String(params.entryId),
+          idempotencyKey,
+          params.actorUserId,
+          params.reason,
+        ],
+      );
+
+      await manager.query(
+        `
+          INSERT INTO user_point_balances
+            (user_id, balance, raw_balance, lifetime, last_entry_id)
+          VALUES ($1, $2, $3, $4, $5)
+          ON CONFLICT (user_id) DO UPDATE SET
+            balance = EXCLUDED.balance,
+            raw_balance = EXCLUDED.raw_balance,
+            lifetime = EXCLUDED.lifetime,
+            last_entry_id = EXCLUDED.last_entry_id,
+            updated_at = now()
+        `,
+        [original.user_id, nextBalance, nextRawBalance, nextLifetime, id],
+      );
+
+      return {
+        status: 'REVERSED' as const,
+        userId: original.user_id,
+        result: {
+          entryId: Number(id),
+          delta,
+          balance: nextBalance,
+          rawBalance: nextRawBalance,
+          lifetime: nextLifetime,
+          applied: true,
+        },
+      };
+    });
   }
 
   public async appendByRule(

@@ -107,7 +107,7 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 | 15 | Group & affiliate | Invite account mới, dissolve group khi owner xoá | M5 + F06 | ⬜ |
 | 16 | Group & affiliate | Affiliate recurring, reward active member, idempotency/reversal | M5 | ⬜ |
 | 17 | Group & affiliate | Geo eligibility và audit mọi event | M5 | ⬜ |
-| 18 | Point & review | Point rule/ledger, review quality, giver accuracy | M4 | ⬜ Ledger là prerequisite |
+| 18 | Point & review | Point rule/ledger, review quality, giver accuracy | M4 | 🟡 F39 (kèm đường hoàn bút toán), F41, F42, F43 đã xong. **F40 chờ Bên A cho con số "X điểm = 100% giá trị"** |
 | 19 | Nội dung đặc thù & Phật Pháp | Charity/Event, Classified, ads, Merit, Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng dường, Diễn đàn, Chùa) | M2 extension + F73 | ⬜ |
 | 20 | Admin CMS | Rule config, moderation cơ bản | M6 | ⬜ |
 | 21 | QA | Integration/UAT Sprint 3 |  | ⬜ |

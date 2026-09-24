@@ -71,6 +71,8 @@ export enum ErrorCodes {
   POINT_RULE_UNAVAILABLE = 0x07_01,
   RANK_TIER_UNAVAILABLE = 0x07_02,
   POINT_DAILY_CAP_REACHED = 0x07_03,
+  /** Bút toán không tồn tại, đã hoàn rồi, hoặc chính nó là bút toán hoàn. */
+  POINT_ENTRY_NOT_REVERSIBLE = 0x07_04,
 
   // 0x08 — Giao dịch tặng/nhận M3
   GIFT_TRANSACTION_NOT_FOUND = 0x08_01,

@@ -48,7 +48,37 @@ export interface IPointLedgerHistoryQuery {
   take: number;
 }
 
+export interface IReversePointEntryParams {
+  readonly entryId: number;
+  readonly actorUserId: string;
+  readonly reason: string;
+}
+
+export type ReversePointEntryOutcome =
+  | {
+      status: 'REVERSED';
+      /** Chủ tài khoản bị ảnh hưởng — nơi gọi cần để tính lại hạng. */
+      userId: string;
+      result: IAppendPointEntryResult;
+    }
+  /** Bút toán không tồn tại. */
+  | { status: 'NOT_FOUND' }
+  /** Đã hoàn rồi, hoặc chính nó là một bút toán hoàn. */
+  | { status: 'NOT_REVERSIBLE' };
+
 export interface IPointLedgerRepository {
+  /**
+   * Đảo một bút toán đã ghi bằng cách ghi THÊM một bút toán ngược.
+   *
+   * Không sửa dòng cũ: ledger chỉ ghi thêm, và một trigger ở database chặn mọi
+   * UPDATE. Lịch sử phải đọc ra được cả cái sai lẫn cái sửa.
+   *
+   * Khoá chống trùng theo bút toán gốc, nên hai Admin bấm cùng lúc chỉ hoàn
+   * một lần.
+   */
+  reverseEntry(
+    params: IReversePointEntryParams,
+  ): Promise<ReversePointEntryOutcome>;
   appendByRule(
     command: IAppendPointEntryCommand,
   ): Promise<IAppendPointEntryResult>;

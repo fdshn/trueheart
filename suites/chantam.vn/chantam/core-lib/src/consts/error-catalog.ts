@@ -286,6 +286,13 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['REFERRAL_QUALIFIED', 3],
   },
 
+  POINT_ENTRY_NOT_REVERSIBLE: {
+    code: ErrorCodes.POINT_ENTRY_NOT_REVERSIBLE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Bút toán này không hoàn được: không tồn tại, đã hoàn rồi, hoặc chính nó là một bút toán hoàn',
+  },
+
   // ── 0x08 Giao dịch tặng/nhận M3 ───────────────────────────────────────────
   GIFT_TRANSACTION_NOT_FOUND: {
     code: ErrorCodes.GIFT_TRANSACTION_NOT_FOUND,

@@ -96,6 +96,7 @@ Nghiệp vụ Chân Tâm
 | `0x0701` | `1793` | 409 Conflict | `POINT_RULE_UNAVAILABLE` | Point rule PHONE_VERIFIED_FIRST_TIME không khả dụng |
 | `0x0702` | `1794` | 500 Internal Server Error | `RANK_TIER_UNAVAILABLE` | Không tìm thấy cấu hình tier cho rank SILVER |
 | `0x0703` | `1795` | 409 Conflict | `POINT_DAILY_CAP_REACHED` | Đã đạt giới hạn 3 lần/ngày cho point rule REFERRAL_QUALIFIED |
+| `0x0704` | `1796` | 409 Conflict | `POINT_ENTRY_NOT_REVERSIBLE` | Bút toán này không hoàn được: không tồn tại, đã hoàn rồi, hoặc chính nó là một bút toán hoàn |
 | `0x0801` | `2049` | 404 Not Found | `GIFT_TRANSACTION_NOT_FOUND` | Không tìm thấy lượt tặng/nhận |
 | `0x0802` | `2050` | 409 Conflict | `GIFT_TRANSACTION_INVALID_STATE` | Lượt tặng/nhận đang ở trạng thái COMPLETED nên không thực hiện được thao tác này |
 | `0x0803` | `2051` | 403 Forbidden | `GIFT_TRANSACTION_NOT_PARTICIPANT` | Bạn không có quyền thao tác trên lượt tặng/nhận này |
@@ -121,5 +122,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **79 mã lỗi** trên 3 tầng.
+Tổng cộng **80 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

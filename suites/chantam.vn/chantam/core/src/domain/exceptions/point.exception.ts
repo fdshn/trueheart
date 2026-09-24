@@ -8,3 +8,7 @@ export class PointRuleUnavailableException extends ExceptionFrom(
 export class PointDailyCapReachedException extends ExceptionFrom(
   CoreErrors.POINT_DAILY_CAP_REACHED,
 ) {}
+
+export class PointEntryNotReversibleException extends ExceptionFrom(
+  CoreErrors.POINT_ENTRY_NOT_REVERSIBLE,
+) {}

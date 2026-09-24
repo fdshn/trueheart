@@ -19,6 +19,7 @@ import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
+import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { TransactionReviewRepository } from '../src/infrastructure/repository/transaction-review.repository';
 
 loadEnvFile({ path: '.env.local' });
@@ -325,6 +326,93 @@ async function main(): Promise<void> {
       Number(samples.count) === Number(after.giver_accuracy_samples) + 0 ||
         Number(samples.count) === 10,
       `${total.count} đánh giá / ${samples.count} có accuracy`,
+    );
+
+    // ── 7. Hoàn bút toán điểm (F39) ─────────────────────────────────────────
+    console.log('\nHoàn bút toán điểm:\n');
+
+    const ledger = new PointLedgerRepository(dataSource.manager);
+
+    // Bật tạm một rule có đẩy lifetime để dựng đúng tình huống "thưởng nhầm".
+    await dataSource.query(
+      `UPDATE point_rules SET is_enabled = true
+       WHERE code = 'GIFT_COMPLETED_GIVER'`,
+    );
+    const awarded = await ledger.appendByRule({
+      userId: ReceiverId,
+      ruleCode: 'GIFT_COMPLETED_GIVER',
+      referenceType: 'GIFT_TRANSACTION',
+      referenceId: randomUUID(),
+      idempotencyKey: `KIEM_HOAN:${randomUUID()}`,
+      actor: 'SYSTEM',
+      source: 'TEST',
+    });
+    check(
+      'thưởng xong thì lifetime tăng',
+      awarded.lifetime > 0,
+      `lifetime=${awarded.lifetime}`,
+    );
+
+    const reversed = await ledger.reverseEntry({
+      entryId: awarded.entryId,
+      actorUserId: GiverId,
+      reason: 'Ghi nhầm trong lúc kiểm thử',
+    });
+    check('hoàn được', reversed.status === 'REVERSED', reversed.status);
+
+    if (reversed.status === 'REVERSED') {
+      check(
+        'bút toán hoàn mang delta NGƯỢC DẤU',
+        reversed.result.delta === -awarded.delta,
+        `${reversed.result.delta} vs ${awarded.delta}`,
+      );
+      check(
+        'lifetime bị TRỪ lại — hoàn khác phạt, để nguyên là thổi sàn hạng vĩnh viễn',
+        reversed.result.lifetime ===
+          awarded.lifetime - awarded.delta * 0 - awarded.delta,
+        `${reversed.result.lifetime} (trước khi thưởng phải bằng ${awarded.lifetime - awarded.delta})`,
+      );
+    }
+
+    check(
+      'hoàn lần hai bị từ chối',
+      (
+        await ledger.reverseEntry({
+          entryId: awarded.entryId,
+          actorUserId: GiverId,
+          reason: 'Thử hoàn lại',
+        })
+      ).status === 'NOT_REVERSIBLE',
+    );
+
+    if (reversed.status === 'REVERSED')
+      check(
+        'hoàn chính bút toán hoàn cũng bị từ chối — không có vòng lặp',
+        (
+          await ledger.reverseEntry({
+            entryId: reversed.result.entryId,
+            actorUserId: GiverId,
+            reason: 'Thử hoàn bút toán hoàn',
+          })
+        ).status === 'NOT_REVERSIBLE',
+      );
+
+    check(
+      'bút toán không tồn tại trả NOT_FOUND',
+      (
+        await ledger.reverseEntry({
+          entryId: 999_999,
+          actorUserId: GiverId,
+          reason: 'Không có thật',
+        })
+      ).status === 'NOT_FOUND',
+    );
+
+    check(
+      'dòng gốc KHÔNG bị sửa — sổ chỉ ghi thêm',
+      await rejected(`UPDATE point_ledger SET delta = 0 WHERE id = $1`, [
+        awarded.entryId,
+      ]),
     );
   } finally {
     for (const source of opened.reverse())

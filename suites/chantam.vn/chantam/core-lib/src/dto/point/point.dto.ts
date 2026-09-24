@@ -89,3 +89,23 @@ export interface IPublishAdminPointRuleBodyDto {
 export interface IPublishAdminPointRuleResponseDto {
   pointRule: IAdminPointRuleDto;
 }
+
+export interface IReversePointEntryDto {
+  /** Vì sao hoàn. Bắt buộc — một bút toán đảo mà không có lý do là không giải thích được. */
+  reason: string;
+}
+
+export interface IReversePointEntryBodyDto {
+  reversal: IReversePointEntryDto;
+}
+
+export interface IReversePointEntryResponseDto {
+  reversal: {
+    /** Bút toán HOÀN vừa ghi, không phải bút toán gốc. */
+    entryId: number;
+    delta: number;
+    balance: number;
+    rawBalance: number;
+    lifetime: number;
+  };
+}
