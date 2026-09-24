@@ -4,6 +4,7 @@ import {
   IListCommentRepliesUseCase,
   IListCommentsUseCase,
   IListContentReactionsUseCase,
+  IReconcileFeedCountsUseCase,
   IRecordContentShareUseCase,
   IRemoveCommentUseCase,
   IRemoveContentReactionUseCase,
@@ -25,6 +26,7 @@ import {
   SetContentReactionUseCase,
 } from './content-reaction.use-cases';
 import { RecordContentShareUseCase } from './content-share.use-cases';
+import { ReconcileFeedCountsUseCase } from './reconcile-feed-counts.use-case';
 
 @Global()
 @Module({
@@ -57,6 +59,10 @@ import { RecordContentShareUseCase } from './content-share.use-cases';
       provide: IRecordContentShareUseCase,
       useClass: RecordContentShareUseCase,
     },
+    {
+      provide: IReconcileFeedCountsUseCase,
+      useClass: ReconcileFeedCountsUseCase,
+    },
   ],
   exports: [
     ICreateCommentUseCase,
@@ -69,6 +75,7 @@ import { RecordContentShareUseCase } from './content-share.use-cases';
     IRemoveContentReactionUseCase,
     IListContentReactionsUseCase,
     IRecordContentShareUseCase,
+    IReconcileFeedCountsUseCase,
   ],
 })
 export class FeedModule {}

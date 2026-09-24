@@ -10,6 +10,7 @@ import {
   ISetContentReactionUseCase,
 } from '@/application/contracts/feed';
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
+import { IAppendPointEntryUseCase } from '@/application/contracts/point';
 import { PostNotFoundException } from '@/domain/exceptions';
 import {
   IContentReactionRepository,
@@ -24,6 +25,7 @@ import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { notifyFirstReactionOfDay } from './feed-notifications';
+import { awardReactionPoint } from './feed-points';
 
 /**
  * Chủ thể phải CÓ THẬT trước khi nhận cảm xúc.
@@ -62,6 +64,8 @@ export class SetContentReactionUseCase implements ISetContentReactionUseCase {
     @Inject(IPostRepository) private readonly posts: IPostRepository,
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatchNotification: IDispatchNotificationUseCase,
+    @Inject(IAppendPointEntryUseCase)
+    private readonly points: IAppendPointEntryUseCase,
   ) {}
 
   public async handle(
@@ -89,13 +93,21 @@ export class SetContentReactionUseCase implements ISetContentReactionUseCase {
       kind: command.kind,
     });
 
-    if (command.subjectType === ContentSubjectTypes.POST)
+    if (command.subjectType === ContentSubjectTypes.POST) {
       await notifyFirstReactionOfDay(this.dispatchNotification, {
         postId: command.subjectId,
         postAuthorId: authorId,
         actorId: command.userId,
         isNewReaction: created,
       });
+
+      await awardReactionPoint(this.points, {
+        postId: command.subjectId,
+        postAuthorId: authorId,
+        actorId: command.userId,
+        isNewReaction: created,
+      });
+    }
 
     return {
       reaction: await this.reactions.summarize(

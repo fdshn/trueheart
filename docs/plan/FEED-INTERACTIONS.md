@@ -397,6 +397,6 @@ Tối đa **3 ảnh** mỗi tin nhắn, khoá `users/{userId}/chat/{roomId}/{uui
 | 6 | Chia sẻ | ✅ `POST /posts/:id/shares` — append-only, không nhân bản; unit + `test:feed-shares` |
 | 7 | Thông báo | ✅ bình luận/trả lời báo từng cái; cảm xúc gộp lần đầu trong ngày (giờ VN) — 14 unit test |
 | 8 | Báo xấu + hàng đợi Admin | ✅ gộp vào `reports` của Admin CMS, thêm đích `COMMENT`; `POST /reports` + `GET/PATCH /admin/reports` |
-| 9 | Điểm F41 (seed TẮT sẵn) | |
-| 10 | Đối soát số đếm | |
+| 9 | Điểm F41 (seed TẮT sẵn) | ✅ nối vào bình luận/cảm xúc, nuốt ngoại lệ chính sách nên rule tắt không chặn thao tác |
+| 10 | Đối soát số đếm | ✅ `npm run feed:reconcile-counts` (thêm `--dry-run` để chỉ xem) |
 | 11 | **Ảnh trong chat** + sửa F37 + xoá ảnh theo hạn | |

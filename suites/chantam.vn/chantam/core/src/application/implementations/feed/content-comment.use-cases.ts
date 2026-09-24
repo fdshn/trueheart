@@ -19,6 +19,7 @@ import {
   IRequestCommentMediaUploadUseCase,
 } from '@/application/contracts/feed';
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
+import { IAppendPointEntryUseCase } from '@/application/contracts/point';
 import {
   ContentBlockedTermsException,
   ContentCommentNotFoundException,
@@ -57,6 +58,7 @@ import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { notifyComment } from './feed-notifications';
+import { awardCommentPoint } from './feed-points';
 
 function toDto(
   comment: IContentComment,
@@ -134,6 +136,8 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
     @Inject(IObjectStorage) private readonly storage: IObjectStorage,
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatchNotification: IDispatchNotificationUseCase,
+    @Inject(IAppendPointEntryUseCase)
+    private readonly points: IAppendPointEntryUseCase,
   ) {}
 
   public async handle(
@@ -220,6 +224,14 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
       authorId: command.userId,
       postAuthorId,
       parentAuthorId,
+    });
+
+    await awardCommentPoint(this.points, {
+      commentId: created.globalId,
+      postId: command.subjectId,
+      authorId: command.userId,
+      postAuthorId,
+      isVisible: created.status === CommentStatuses.VISIBLE,
     });
 
     return { comment: toDto(created, command.userId) };
