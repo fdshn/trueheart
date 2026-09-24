@@ -100,6 +100,8 @@ async function main(): Promise<void> {
       status,
       flaggedTerms: null,
       parentId,
+      // Kịch bản này chỉ kiểm phần chữ; ảnh có script riêng (`test:feed-media`).
+      mediaKeys: [],
     });
   }
 

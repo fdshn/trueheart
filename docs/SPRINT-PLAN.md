@@ -22,12 +22,13 @@ Tổng effort nguồn: **60 man-days / 50 ngày / 4 sprint**.
 | Sprint 1 – hạ tầng, auth, profile, category, avatar storage | ✅ Đã có nền code | Point ledger đã xong. Còn deferred: nhà cung cấp SMS/Zalo và R2 staging/prod acceptance |
 | Sprint 1 – point, rank, referral (F12–F13) | ✅ Code hoàn chỉnh | Ledger, tier, promotion, maintenance cycle, referral bất biến và các endpoint chính chủ đều đã có |
 | Sprint 1 – canonical OFFER foundation | ✅ M2.1 đã xong | `posts` migration/backfill, Generic MVP create (OFFER/WANTED/CHARITY/CLASSIFIED/MERIT) kèm quota riêng từng loại, detail/map/moderation, owner update/delete, post-media ownership, legacy adapter `/api/v1/gift-posts`, và CI chạy backfill với dữ liệu thật |
-| M3 – giao dịch tặng/nhận | ✅ Vòng đời xong | Request → chọn ứng viên → duyệt → xác nhận → hoàn tất, huỷ trả tồn kho, trừ tồn kho nguyên tử, tự hoàn tất 5 ngày qua CLI, và `npm run test:concurrency` kiểm 6 bất biến trên database thật. **Chat chưa có** |
+| M3 – giao dịch tặng/nhận | ✅ Vòng đời xong | Request → chọn ứng viên → duyệt → xác nhận → hoàn tất, huỷ trả tồn kho, trừ tồn kho nguyên tử, tự hoàn tất 5 ngày qua CLI, và `npm run test:concurrency` kiểm 6 bất biến trên database thật. Chat đã có — xem hàng dưới |
 | M6 – Admin CMS nền | 🟡 Nền đã có | RBAC, system config động, cấu hình kênh gửi, nhật ký hệ thống và quản lý user đã có; giao diện CMS chưa có |
 | Sprint 2 – map discovery | ✅ Đã có | `GET /api/v1/posts/map` marker bbox, jitter, clustering |
 | Sprint 2 – vòng đời bài đăng | ✅ Đã có | CLI `post:expire` đóng bài quá hạn và chuyển rao vặt thành Muốn Tặng; `POST /posts/:postId/renew` gia hạn một lần; `npm run test:lifecycle` kiểm 21 bất biến trên database thật |
-| Sprint 2 – chat | ✅ Đã có | REST + Socket.io, khoá chỉ đọc khi giao dịch xong, thông báo trong app. `npm run test:chat-e2e` kiểm 20 bất biến trên service thật |
-| Sprint 3–4 | ⬜ Chưa triển khai | Không đánh dấu xong khi chỉ có contract/mock |
+| Sprint 2 – chat | ✅ Đã có | REST + Socket.io, khoá chỉ đọc khi giao dịch xong, thông báo trong app, **ảnh trong tin nhắn** (tối đa 3, xoá theo hạn cuốn cả object). `npm run test:chat-e2e` kiểm trên service thật |
+| Sprint 3 – bảng tin, báo xấu, điểm tương tác | 🟡 Có code, chưa nằm trong bảng epic | Cảm xúc/bình luận/ảnh/chia sẻ/thông báo, báo xấu chung hàng đợi Admin, rule điểm F41 (seed TẮT), CLI đối soát số đếm. Xem `docs/plan/FEED-INTERACTIONS.md` |
+| Sprint 3–4 (phần còn lại) | ⬜ Chưa triển khai | Không đánh dấu xong khi chỉ có contract/mock |
 
 ---
 
@@ -80,7 +81,7 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 | 10 | Giao dịch & FSM | Gift request, candidate selection, batch allocation, queue | M3 transaction | ✅ Gửi/rút yêu cầu, danh sách ứng viên, duyệt, trừ tồn kho nguyên tử, và hàng đợi dự phòng mở lại khi huỷ |
 | 11 | Giao dịch & FSM | Accepted/cancel/receiver confirm/auto-complete 5 ngày | M3 transaction | ✅ Đủ cả bốn, kèm CLI `transaction:autocomplete` |
 | 12 | Chat | Chat text WSS, persistence, lifecycle read-only | M3 chat | ✅ Socket.io namespace `/chat`, lịch sử chỉ ghi thêm, khoá chỉ đọc ở cả ba đường kết thúc |
-| 13 | QA | Regression/UAT Sprint 2 |  | 🟡 480 unit test, 5 script chạy database/service thật (`test:concurrency`, `test:lifecycle`, `test:returning`, `test:chat-e2e`, `migration:backfill-check`), smoke 53/53. UAT chưa chạy |
+| 13 | QA | Regression/UAT Sprint 2 |  | 🟡 **554 unit test** và **16 script chạy database/service thật** đều xanh (xem `core/package.json`, tiền tố `test:`), smoke 53/53. Kịch bản nghiệm thu đã soạn: [`UAT-SPRINT-2.md`](./UAT-SPRINT-2.md). **Buổi UAT với Bên A chưa chạy** — cần người thật, không tự động hoá được |
 
 ### Thứ tự bắt buộc trong Sprint 2
 
