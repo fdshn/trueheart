@@ -96,6 +96,8 @@ Mọi resource mới copy theo mẫu này.
   ràng buộc, trigger và dữ liệu seed (khác `plan/DATA-MODEL.md` là bản thiết kế)
 - **[`docs/seed/DEMO-DATA.md`](./docs/seed/DEMO-DATA.md)** — dữ liệu demo staging, cách seed và dọn an toàn
 - **[`docs/FEATURES.md`](./docs/FEATURES.md)** — 72 chức năng MVP Phase 1 (F01–F72)
+- **[`docs/diagram/`](./docs/diagram/)** — 30 sơ đồ luồng Mermaid (134 khối), xếp từ đơn giản tới phức tạp;
+  mỗi sơ đồ ghi rõ phần nào đã chạy được, phần nào mới là thiết kế
 - **[`docs/plan/`](./docs/plan/)** — kế hoạch triển khai:
 
 | File | Trả lời |
