@@ -101,6 +101,9 @@ export class AdminRankTierPolicyDto implements IAdminRankTierPolicyDto {
   @ApiProperty()
   maintenanceReferrals: number;
 
+  @ApiProperty({ description: 'Điểm bị trừ khi trượt chu kỳ duy trì' })
+  maintenancePenaltyPoints: number;
+
   @ApiProperty()
   version: number;
 }
@@ -130,6 +133,16 @@ export class AdminMaintenanceTierInputDto implements IAdminMaintenanceTierInputD
   @IsInt()
   @Min(0)
   maintenanceReferrals: number;
+
+  @ApiProperty({
+    example: 224,
+    description:
+      'Điểm bị trừ khi trượt chu kỳ. Rank do balance quyết nên nhiệm vụ tác động tới hạng gián tiếp qua điểm.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maintenancePenaltyPoints: number;
 }
 
 export class PublishAdminMaintenancePolicyDto implements IPublishAdminMaintenancePolicyDto {

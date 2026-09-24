@@ -37,6 +37,7 @@ export interface IAdminRankTierPolicyDto {
   requiredReferrals: number;
   maintenanceGifts: number;
   maintenanceReferrals: number;
+  maintenancePenaltyPoints: number;
   version: number;
 }
 
@@ -67,6 +68,8 @@ export interface IAdminMaintenanceTierInputDto {
   rank: UserRanks;
   maintenanceGifts: number;
   maintenanceReferrals: number;
+  /** Điểm bị trừ khi trượt chu kỳ. `0` với bậc không có chu kỳ duy trì. */
+  maintenancePenaltyPoints: number;
 }
 
 export interface IPublishAdminMaintenancePolicyDto {

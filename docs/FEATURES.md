@@ -395,13 +395,14 @@ Không đánh giá → sau N ngày áp mức mặc định (Admin cấu hình c�
 Mức áp mặc định **không tính vào mẫu Giver Accuracy** — nó là giá trị hệ thống tự điền, không
 phải ý kiến người thật.
 
-> ⚠️ **X vẫn chưa có** — đây là thứ duy nhất còn chặn cứng. Không có X thì không biết 224 điểm
-> (mốc Thành viên) tương đương 2 giao dịch hay 22 — chênh nhau mười lần. Không seed được bảng
-> rule, "× x%" không nhân vào đâu, không viết được test, không nghiệm thu được.
+> ✅ **Chốt 2026-09-25: X = 56** (`point_rules.GIFT_COMPLETED`, cap 5/ngày, Admin sửa lúc chạy).
+> Suy ra từ chính các con số đã chốt — toàn bộ hệ điểm là bội số của 56: giới thiệu 56, xác minh
+> SĐT 28, onboarding 224, ngưỡng rank 224/672/896/1792 = 56 × 4/12/16/32.
 >
-> Kèm câu dẫn xuất: X (*sinh* điểm) phải ăn khớp với tỷ lệ quy đổi
-> [F74](#f74--giá-trị-tham-khảo--tỷ-lệ-quy-đổi-điểm) (*tiêu* điểm), nếu không thì cho–nhận hoà
-> vốn và không ai tích luỹ lên hạng được.
+> Mức mặc định khi người nhận không đánh giá: **80% sau 7 ngày**
+> (`system_configs.review.grace`).
+>
+> ⛔ **Chưa có đường nào gọi tới rule này** — hoàn tất lượt trao vẫn chưa cộng điểm.
 
 ### F41 — Điểm cho Like / Comment / Report
 Chỉ phát sinh điểm **khi Admin bật rule**. Có cap, idempotency và chống spam.
@@ -572,6 +573,12 @@ thống áp theo cấu hình mới.
 
 > Tỷ lệ này thuộc nhóm cấu hình động, đi cùng đường với quota theo rank: sửa được lúc chạy,
 > có phiên bản, có audit. Xem [ADMIN-CONFIG-DESIGN.md](./plan/ADMIN-CONFIG-DESIGN.md).
+
+> ✅ **Chốt 2026-09-25: 2.000 VNĐ/điểm** (`system_configs.point.redemption`). Món khai
+> 1.000.000 VNĐ cần **500 điểm** — khoảng 9 lượt trao ở mức 100%. Chọn theo câu trả lời được
+> — *"tặng bao nhiêu món thì đổi được một món tương đương"* — chứ không theo cảm giác về giá
+> trị một điểm. Ví dụ `1 điểm = 1.000 VNĐ` ở trên chỉ minh hoạ cú pháp; nó ngụ ý phải tặng 18
+> món, nhiều khả năng không ai chủ ý vậy.
 
 > ⚠️ **Không nhầm với [F40](#f40--điểm-theo-giá-trị-vật-phẩm).** F40 là *người nhận chấm điểm*
 > sau giao dịch để **sinh** điểm cho người cho — giá người cho khai ở đó chỉ mang tính tham

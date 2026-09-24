@@ -37,6 +37,7 @@ interface IRankPolicyRow {
   required_referrals: string;
   maintenance_gifts: string;
   maintenance_referrals: string;
+  maintenance_penalty_points: string;
   version: string;
 }
 
@@ -49,6 +50,7 @@ function mapRankPolicy(row: IRankPolicyRow): IAdminRankTierPolicy {
     requiredReferrals: Number(row.required_referrals),
     maintenanceGifts: Number(row.maintenance_gifts),
     maintenanceReferrals: Number(row.maintenance_referrals),
+    maintenancePenaltyPoints: Number(row.maintenance_penalty_points),
     version: Number(row.version),
   };
 }
@@ -214,7 +216,8 @@ export class AdminConfigRepository implements IAdminConfigRepository {
   public async getRankPolicy(): Promise<IAdminRankTierPolicy[]> {
     const rows = await this.manager.query<IRankPolicyRow[]>(`
       SELECT rank, threshold_points, warning_points, required_gifts,
-             required_referrals, maintenance_gifts, maintenance_referrals, version
+             required_referrals, maintenance_gifts, maintenance_referrals,
+               maintenance_penalty_points, version
       FROM rank_tiers
       ORDER BY CASE rank
         WHEN 'VIEWER' THEN 1 WHEN 'MEMBER' THEN 2 WHEN 'SILVER' THEN 3
@@ -229,7 +232,8 @@ export class AdminConfigRepository implements IAdminConfigRepository {
     return this.manager.transaction(async (manager) => {
       const beforeRows = await manager.query<IRankPolicyRow[]>(`
         SELECT rank, threshold_points, warning_points, required_gifts,
-               required_referrals, maintenance_gifts, maintenance_referrals, version
+               required_referrals, maintenance_gifts, maintenance_referrals,
+               maintenance_penalty_points, version
         FROM rank_tiers
         ORDER BY CASE rank
           WHEN 'VIEWER' THEN 1 WHEN 'MEMBER' THEN 2 WHEN 'SILVER' THEN 3
@@ -256,7 +260,8 @@ export class AdminConfigRepository implements IAdminConfigRepository {
 
       const afterRows = await manager.query<IRankPolicyRow[]>(`
         SELECT rank, threshold_points, warning_points, required_gifts,
-               required_referrals, maintenance_gifts, maintenance_referrals, version
+               required_referrals, maintenance_gifts, maintenance_referrals,
+               maintenance_penalty_points, version
         FROM rank_tiers
         ORDER BY CASE rank
           WHEN 'VIEWER' THEN 1 WHEN 'MEMBER' THEN 2 WHEN 'SILVER' THEN 3
@@ -335,7 +340,8 @@ export class AdminConfigRepository implements IAdminConfigRepository {
     return this.manager.transaction(async (manager) => {
       const beforeRows = await manager.query<IRankPolicyRow[]>(`
         SELECT rank, threshold_points, warning_points, required_gifts,
-               required_referrals, maintenance_gifts, maintenance_referrals, version
+               required_referrals, maintenance_gifts, maintenance_referrals,
+               maintenance_penalty_points, version
         FROM rank_tiers
         ORDER BY CASE rank
           WHEN 'VIEWER' THEN 1 WHEN 'MEMBER' THEN 2 WHEN 'SILVER' THEN 3
@@ -346,14 +352,21 @@ export class AdminConfigRepository implements IAdminConfigRepository {
       for (const tier of command.tiers) {
         await manager.query(
           `UPDATE rank_tiers
-           SET maintenance_gifts = $2, maintenance_referrals = $3, version = version + 1
+           SET maintenance_gifts = $2, maintenance_referrals = $3,
+               maintenance_penalty_points = $4, version = version + 1
            WHERE rank = $1`,
-          [tier.rank, tier.maintenanceGifts, tier.maintenanceReferrals],
+          [
+            tier.rank,
+            tier.maintenanceGifts,
+            tier.maintenanceReferrals,
+            tier.maintenancePenaltyPoints,
+          ],
         );
       }
       const afterRows = await manager.query<IRankPolicyRow[]>(`
         SELECT rank, threshold_points, warning_points, required_gifts,
-               required_referrals, maintenance_gifts, maintenance_referrals, version
+               required_referrals, maintenance_gifts, maintenance_referrals,
+               maintenance_penalty_points, version
         FROM rank_tiers
         ORDER BY CASE rank
           WHEN 'VIEWER' THEN 1 WHEN 'MEMBER' THEN 2 WHEN 'SILVER' THEN 3

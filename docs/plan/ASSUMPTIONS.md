@@ -289,17 +289,46 @@ hạn cho hai bên.
 Và tự hoàn tất **phải kiểm tranh chấp trước** — đang có báo xấu hoặc yêu cầu mở
 lại thì không được đóng thành "thành công".
 
-### Còn đúng một thứ chặn cứng
+### X = 56, và các con số còn lại đều vào cấu hình động
 
-**X — số điểm ứng với 100% giá trị vật phẩm (F40).**
+**Chốt 2026-09-25.** Toàn bộ hệ điểm đã chốt vốn là bội số của 56 — giới thiệu
+56, xác minh SĐT 28 (= 56/2), onboarding 224 (= 56×4), và các ngưỡng rank
+224 / 672 / 896 / 1792 lần lượt là 56 × 4 / 12 / 16 / 32. Không một con số nào
+lệch. Nên **một lượt trao hoàn tất đánh giá 100% đáng bằng một lượt giới thiệu
+hợp lệ: 56 điểm.**
 
-Không có X thì không seed được bảng point rule, "× x%" không nhân vào đâu, và
-không biết 224 điểm (mốc Thành viên) là 2 giao dịch hay 22 — chênh mười lần.
+Bốn con số, tất cả **Admin sửa được lúc chạy**, có audit và có phiên bản:
 
-Kèm một câu dẫn xuất chưa ai trả lời: X (*sinh* điểm) phải ăn khớp với tỷ lệ quy
-đổi F74 (*tiêu* điểm). Nếu cho một món 1 triệu được đúng số điểm cần để đổi một
-món 1 triệu thì cho–nhận hoà vốn và không ai tích luỹ lên hạng được. Hai tỷ lệ
-lệch nhau bao nhiêu là chủ ý thiết kế.
+| Con số | Giá trị khởi tạo | Ở đâu |
+| --- | --- | --- |
+| Điểm cho lượt trao hoàn tất | **56**, cap 5/ngày | `point_rules.GIFT_COMPLETED` |
+| Tỷ lệ quy đổi khi đổi vật phẩm (F74) | **2.000 VNĐ/điểm** | `system_configs.point.redemption` |
+| Chờ rồi áp mức mặc định khi không đánh giá | **7 ngày, 80%** | `system_configs.review.grace` |
+| Phạt trượt nhiệm vụ duy trì | **Bạc 224 · Vàng 336 · KC 448** | `rank_tiers.maintenance_penalty_points` |
+
+**Vì sao 2.000 VNĐ/điểm.** Câu "1 điểm bằng bao nhiêu VNĐ" không ai có trực giác
+để trả lời; câu tương đương trả lời được là *"tặng bao nhiêu món thì đổi được
+một món giá trị tương đương"*. Với 2.000, một món khai 1.000.000 VNĐ cần 500
+điểm — khoảng **9 lượt trao ở mức 100%**.
+
+> Ví dụ `1 điểm = 1.000 VNĐ` từng nằm trong `FEATURES.md` chỉ minh hoạ cú pháp,
+> nhưng nó ngụ ý phải tặng **18 món** mới đổi được một món tương đương.
+
+**Vì sao 7 ngày / 80%.** 7 ngày khớp nhịp countdown chọn người nhận đã có trong
+sản phẩm, nên người dùng chỉ phải nhớ một khoảng thời gian. 80% nằm giữa hai
+cực: thấp hơn 100 nên không thưởng cho việc im lặng, và **cao hơn ngưỡng gắn cờ
+75** nên một lượt không được đánh giá không bao giờ tự nó kéo ai vào diện Admin
+xem xét.
+
+**Vì sao phạt theo từng bậc chứ không một mức chung.** Nhiệm vụ vốn đã khác nhau
+theo bậc (2+2 / 3+3 / 4+4), nên một mức phạt chung sẽ hoặc quá nhẹ với Kim Cương
+hoặc quá nặng với Bạc. Giá trị đặt đúng bằng **số điểm đáng lẽ kiếm được nếu làm
+đủ nhiệm vụ quý đó** — trượt thì mất đúng phần mình không làm, không hơn.
+
+> **Còn nợ:** các con số đã nằm trong cấu hình, nhưng **chưa có đường nào gọi
+> tới chúng**. `GIFT_COMPLETED` chưa được cộng khi lượt trao hoàn tất, chưa có
+> job áp mức mặc định sau 7 ngày, chưa có đường trừ điểm khi trượt nhiệm vụ, và
+> chưa có gì tiêu điểm. Đó là khối M4 còn lại.
 
 ---
 
@@ -313,3 +342,4 @@ lệch nhau bao nhiêu là chủ ý thiết kế.
 | 2026-09-22 | Bên A chốt CH-1 (thứ tự ưu tiên do Admin cấu hình) và CH-2 (đánh dấu bên trả ship, trừ điểm qua report) — **cả hai đã hiện thực** |
 | 2026-09-22 | CH-2 bổ sung: điểm âm ghi được — cột điểm kẹp ở 0, cột log giữ giá trị thật kèm câu "−50 điểm, đang âm 30 điểm" |
 | 2026-09-24 | Bên A chốt gom: mô hình Rank theo balance (**huỷ F76**), trượt nhiệm vụ trừ điểm, điểm trao nhận × x% kèm mức mặc định khi không đánh giá, Active Member = `last_login_at` 90 ngày, cổng hồ sơ mở rộng, không rời Group, RBAC `GROUP_ADMIN`/`SUBTEAM_ADMIN` có phạm vi |
+| 2026-09-25 | Chốt **X = 56** cho một lượt trao hoàn tất, và đưa nốt bốn con số vòng đời điểm vào cấu hình động: tỷ lệ quy đổi 2.000 VNĐ/điểm, chờ 7 ngày áp mặc định 80%, phạt trượt nhiệm vụ 224/336/448 theo bậc |

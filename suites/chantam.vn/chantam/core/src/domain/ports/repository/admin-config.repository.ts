@@ -74,6 +74,12 @@ export interface IAdminRankTierPolicy {
   readonly requiredReferrals: number;
   readonly maintenanceGifts: number;
   readonly maintenanceReferrals: number;
+  /**
+   * Điểm bị trừ khi trượt nhiệm vụ chu kỳ. `0` với bậc không có chu kỳ.
+   *
+   * Rank do balance quyết, nên nhiệm vụ tác động tới hạng GIÁN TIẾP qua điểm.
+   */
+  readonly maintenancePenaltyPoints: number;
   readonly version: number;
 }
 
@@ -114,7 +120,10 @@ export interface IPublishAdminMaintenancePolicyCommand {
   readonly tiers: ReadonlyArray<
     Pick<
       IAdminRankTierPolicy,
-      'rank' | 'maintenanceGifts' | 'maintenanceReferrals'
+      | 'rank'
+      | 'maintenanceGifts'
+      | 'maintenanceReferrals'
+      | 'maintenancePenaltyPoints'
     >
   >;
 }

@@ -56,10 +56,28 @@ export class PublishAdminMaintenancePolicyUseCase implements IPublishAdminMainte
           `${tier.rank}.maintenanceReferrals phải là số nguyên không âm`,
         );
       if (
+        !Number.isInteger(tier.maintenancePenaltyPoints) ||
+        tier.maintenancePenaltyPoints < 0
+      )
+        problems.push(
+          `${tier.rank}.maintenancePenaltyPoints phải là số nguyên không âm`,
+        );
+      if (
         [UserRanks.VIEWER, UserRanks.MEMBER].includes(tier.rank) &&
-        (tier.maintenanceGifts !== 0 || tier.maintenanceReferrals !== 0)
+        (tier.maintenanceGifts !== 0 ||
+          tier.maintenanceReferrals !== 0 ||
+          tier.maintenancePenaltyPoints !== 0)
       )
         problems.push(`${tier.rank} không áp dụng chu kỳ duy trì`);
+      // Có chỉ tiêu mà không có mức phạt là một chu kỳ không có hậu quả: trượt
+      // hay không trượt đều như nhau, và cả cơ chế duy trì thành trang trí.
+      if (
+        (tier.maintenanceGifts > 0 || tier.maintenanceReferrals > 0) &&
+        tier.maintenancePenaltyPoints === 0
+      )
+        problems.push(
+          `${tier.rank} có chỉ tiêu duy trì thì maintenancePenaltyPoints phải lớn hơn 0`,
+        );
     }
     if (problems.length > 0)
       throw new ValidationFailedException([...new Set(problems)]);
