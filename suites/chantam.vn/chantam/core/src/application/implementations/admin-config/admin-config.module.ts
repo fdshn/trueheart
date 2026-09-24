@@ -13,12 +13,14 @@ import {
   IGetSystemLogsUseCase,
   IListAdminRolesUseCase,
   IListAdminUsersUseCase,
+  IListNotificationTemplatesUseCase,
   IPublishAdminConfigUseCase,
   IPublishAdminMaintenancePolicyUseCase,
   IPublishAdminPointRuleUseCase,
   IPublishAdminRankPolicyUseCase,
   ISetCandidateSelectionUseCase,
   IUpdateNotificationChannelUseCase,
+  IUpdateNotificationTemplateUseCase,
 } from '@/application/contracts/admin-config';
 import { Global, Module } from '@nestjs/common';
 import {
@@ -56,9 +58,22 @@ import {
   UpdateNotificationChannelUseCase,
 } from './notification-channel.use-cases';
 
+import {
+  ListNotificationTemplatesUseCase,
+  UpdateNotificationTemplateUseCase,
+} from './notification-template.use-cases';
+
 @Global()
 @Module({
   providers: [
+    {
+      provide: IListNotificationTemplatesUseCase,
+      useClass: ListNotificationTemplatesUseCase,
+    },
+    {
+      provide: IUpdateNotificationTemplateUseCase,
+      useClass: UpdateNotificationTemplateUseCase,
+    },
     { provide: IGetAdminConfigsUseCase, useClass: GetAdminConfigsUseCase },
     {
       provide: IGetCandidateSelectionUseCase,
@@ -117,6 +132,8 @@ import {
     },
   ],
   exports: [
+    IListNotificationTemplatesUseCase,
+    IUpdateNotificationTemplateUseCase,
     IGetAdminConfigsUseCase,
     IGetCandidateSelectionUseCase,
     ISetCandidateSelectionUseCase,

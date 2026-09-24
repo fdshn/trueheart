@@ -95,6 +95,8 @@ export enum ErrorCodes {
   // 0x09 — Quản trị RBAC
   ADMIN_LAST_SUPER_ADMIN = 0x09_01,
   ADMIN_SELF_ROLE_CHANGE = 0x09_02,
+  /** Không có mẫu thông báo cho loại này. */
+  NOTIFICATION_TEMPLATE_NOT_FOUND = 0x09_03,
 
   // 0x0A — Chính sách quyền/quota theo rank
   ENTITLEMENT_POLICY_UNAVAILABLE = 0x0a_01,

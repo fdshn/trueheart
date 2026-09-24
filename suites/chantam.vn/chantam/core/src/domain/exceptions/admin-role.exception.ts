@@ -8,3 +8,7 @@ export class LastSuperAdminException extends ExceptionFrom(
 export class SelfRoleChangeException extends ExceptionFrom(
   CoreErrors.ADMIN_SELF_ROLE_CHANGE,
 ) {}
+
+export class NotificationTemplateNotFoundException extends ExceptionFrom(
+  CoreErrors.NOTIFICATION_TEMPLATE_NOT_FOUND,
+) {}

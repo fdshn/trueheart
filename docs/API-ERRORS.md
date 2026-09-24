@@ -108,6 +108,7 @@ Nghiệp vụ Chân Tâm
 | `0x0809` | `2057` | 409 Conflict | `REVIEW_ALREADY_SUBMITTED` | Bạn đã đánh giá lượt trao này rồi |
 | `0x0901` | `2305` | 409 Conflict | `ADMIN_LAST_SUPER_ADMIN` | Không thể thu hồi SUPER_ADMIN cuối cùng: sẽ không còn ai cấp lại quyền được |
 | `0x0902` | `2306` | 403 Forbidden | `ADMIN_SELF_ROLE_CHANGE` | Không thể tự thay đổi quyền của chính mình |
+| `0x0903` | `2307` | 404 Not Found | `NOTIFICATION_TEMPLATE_NOT_FOUND` | Không có mẫu thông báo cho loại này |
 | `0x0a01` | `2561` | 503 | `ENTITLEMENT_POLICY_UNAVAILABLE` | Chưa có bản chính sách quyền nào đang hiệu lực |
 | `0x0a02` | `2562` | 400 Bad Request | `ENTITLEMENT_CAPABILITY_UNKNOWN` | Không có capability nào mang mã POST_TELEPATHY trong bản chính sách hiện hành |
 | `0x0b01` | `2817` | 404 Not Found | `CHAT_ROOM_NOT_FOUND` | Không tìm thấy phòng chat |
@@ -122,5 +123,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **80 mã lỗi** trên 3 tầng.
+Tổng cộng **81 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

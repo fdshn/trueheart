@@ -9,6 +9,7 @@ export * from './entitlement.repository';
 export * from './gift-request.repository';
 export * from './gift-transaction.repository';
 export * from './notification-channel.repository';
+export * from './notification-template.repository';
 export * from './notification.repository';
 export * from './onboarding-task.repository';
 export * from './point-ledger.repository';

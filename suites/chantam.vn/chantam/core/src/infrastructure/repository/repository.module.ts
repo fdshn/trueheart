@@ -11,6 +11,7 @@ import {
   IGiftTransactionRepository,
   INotificationChannelRepository,
   INotificationRepository,
+  INotificationTemplateRepository,
   IOnboardingTaskRepository,
   IPointLedgerRepository,
   IPostMediaRepository,
@@ -37,6 +38,7 @@ import { EntitlementRepository } from './entitlement.repository';
 import { GiftRequestRepository } from './gift-request.repository';
 import { GiftTransactionRepository } from './gift-transaction.repository';
 import { NotificationChannelRepository } from './notification-channel.repository';
+import { NotificationTemplateRepository } from './notification-template.repository';
 import { NotificationRepository } from './notification.repository';
 import { OnboardingTaskRepository } from './onboarding-task.repository';
 import { PointLedgerRepository } from './point-ledger.repository';
@@ -63,6 +65,10 @@ import { UserRepository } from './user.repository';
     { provide: ICategoryRepository, useClass: CategoryRepository },
     { provide: IChatRepository, useClass: ChatRepository },
     { provide: INotificationRepository, useClass: NotificationRepository },
+    {
+      provide: INotificationTemplateRepository,
+      useClass: NotificationTemplateRepository,
+    },
     { provide: IAdminConfigRepository, useClass: AdminConfigRepository },
     { provide: IAdminUserRepository, useClass: AdminUserRepository },
     { provide: IEntitlementRepository, useClass: EntitlementRepository },
@@ -110,6 +116,7 @@ import { UserRepository } from './user.repository';
     ICategoryRepository,
     IChatRepository,
     INotificationRepository,
+    INotificationTemplateRepository,
     IAdminConfigRepository,
     IAdminUserRepository,
     IEntitlementRepository,

@@ -8,6 +8,7 @@ export * from './gift-post';
 export * from './gift-request';
 export * from './keyset-cursor';
 export * from './notification';
+export * from './notification-template';
 export * from './onboarding-task';
 export * from './point-log';
 export * from './post';

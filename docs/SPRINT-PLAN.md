@@ -109,7 +109,7 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 | 17 | Group & affiliate | Geo eligibility và audit mọi event | M5 | ⬜ |
 | 18 | Point & review | Point rule/ledger, review quality, giver accuracy | M4 | 🟡 F39 (kèm đường hoàn bút toán), F41, F42, F43 đã xong. **F40 chờ Bên A cho con số "X điểm = 100% giá trị"** |
 | 19 | Nội dung đặc thù & Phật Pháp | Charity/Event, Classified, ads, Merit, Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng dường, Diễn đàn, Chùa) | M2 extension + F73 | ⬜ |
-| 20 | Admin CMS | Rule config, moderation cơ bản | M6 | ⬜ |
+| 20 | Admin CMS | Rule config, moderation cơ bản | M6 | 🟡 Kiểm duyệt bài/báo xấu, RBAC, cấu hình rule điểm/hạng/entitlement, hoàn bút toán, danh mục và **mẫu thông báo** đã có. Còn KPI dashboard (F59), campaign/home động (F63), blog (F64), quản lý từ thiện/quảng cáo (F65) |
 | 21 | QA | Integration/UAT Sprint 3 |  | ⬜ |
 
 ### Điều kiện mở Sprint 3

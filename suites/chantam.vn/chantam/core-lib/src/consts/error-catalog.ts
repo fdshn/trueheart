@@ -382,6 +382,12 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Không thể thu hồi SUPER_ADMIN cuối cùng: sẽ không còn ai cấp lại quyền được',
   },
 
+  NOTIFICATION_TEMPLATE_NOT_FOUND: {
+    code: ErrorCodes.NOTIFICATION_TEMPLATE_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không có mẫu thông báo cho loại này',
+  },
+
   ADMIN_SELF_ROLE_CHANGE: {
     code: ErrorCodes.ADMIN_SELF_ROLE_CHANGE,
     httpStatus: HttpStatus.FORBIDDEN,

@@ -8,3 +8,4 @@ export * from './candidate-selection.use-cases';
 export * from './get-own-admin-access.use-case';
 export * from './get-system-logs.use-case';
 export * from './notification-channel.use-cases';
+export * from './notification-template.use-cases';

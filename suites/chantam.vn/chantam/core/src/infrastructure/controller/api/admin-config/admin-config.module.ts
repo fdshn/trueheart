@@ -9,12 +9,14 @@ import { AdminRoleController } from './admin-role.controller';
 import { AdminUserController } from './admin-user.controller';
 import { EntitlementPolicyController } from './entitlement-policy.controller';
 import { NotificationChannelController } from './notification-channel.controller';
+import { NotificationTemplateController } from './notification-template.controller';
 
 @Module({
   controllers: [
     AdminConfigController,
     AdminRankPolicyController,
     AdminPointLedgerController,
+    NotificationTemplateController,
     AdminPointRuleController,
     AdminRoleController,
     AdminUserController,

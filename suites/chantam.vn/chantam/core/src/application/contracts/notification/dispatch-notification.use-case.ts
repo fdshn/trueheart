@@ -10,6 +10,13 @@ export interface IDispatchNotificationCommand {
   referenceId?: string | null;
   /** Bỏ trống thì thông báo có thể trùng khi retry — hầu như luôn nên truyền. */
   idempotencyKey?: string | null;
+  /**
+   * Giá trị cho chỗ trống `{tên}` của mẫu Admin cấu hình (F62).
+   *
+   * Chỉ dùng khi loại này CÓ mẫu đang bật. Không có mẫu thì `title`/`body`
+   * truyền vào được dùng nguyên văn, y như trước.
+   */
+  variables?: Readonly<Record<string, string>>;
 }
 
 export interface IDispatchNotificationResult {

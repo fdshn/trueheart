@@ -32,6 +32,7 @@ import { ReversePointEntryUseCase } from './reverse-point-entry.use-case';
   ],
   exports: [
     IAppendPointEntryUseCase,
+    IReversePointEntryUseCase,
     IGetOwnPointLedgerUseCase,
     IGetOwnPointSummaryUseCase,
     IReconcilePhoneRewardsUseCase,

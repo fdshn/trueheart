@@ -4,7 +4,11 @@ import {
   IDispatchNotificationUseCase,
 } from '@/application/contracts/notification';
 import { IPushSender } from '@/domain/ports/notification';
-import { INotificationRepository } from '@/domain/ports/repository';
+import {
+  INotificationRepository,
+  INotificationTemplateRepository,
+} from '@/domain/ports/repository';
+import { renderNotificationTemplate } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
@@ -17,11 +21,15 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
     private readonly notifications: INotificationRepository,
     @Inject(IPushSender)
     private readonly pushSender: IPushSender,
+    @Inject(INotificationTemplateRepository)
+    private readonly templates: INotificationTemplateRepository,
   ) {}
 
   public async handle(
     command: IDispatchNotificationCommand,
   ): Promise<IDispatchNotificationResult> {
+    const { title, body } = await this.resolveContent(command);
+
     const created = await this.notifications.create({
       // Chống trùng là việc của `idempotencyKey` (UNIQUE ở database), không
       // phải của id. Nếu id cũng tiền định thì hai thông báo hợp lệ khác nhau
@@ -29,8 +37,8 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
       globalId: randomUUID(),
       userId: command.userId,
       type: command.type,
-      title: command.title,
-      body: command.body,
+      title,
+      body,
       referenceType: command.referenceType ?? null,
       referenceId: command.referenceId ?? null,
       idempotencyKey: command.idempotencyKey ?? null,
@@ -42,6 +50,35 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
 
     const pushedDevices = await this.push(created.globalId, command);
     return { created: true, pushedDevices };
+  }
+
+  /**
+   * Chữ hiện ra: ưu tiên mẫu Admin đang bật, không có thì dùng chữ nơi gọi dựng.
+   *
+   * Đọc mẫu KHÔNG được làm hỏng việc gửi: mẫu là tiện nghi vận hành, còn thông
+   * báo là thứ người dùng đang chờ. Database mẫu hỏng thì gửi bản mặc định chứ
+   * không nuốt luôn thông báo.
+   */
+  private async resolveContent(
+    command: IDispatchNotificationCommand,
+  ): Promise<{ title: string; body: string }> {
+    try {
+      const template = await this.templates.findEnabled(command.type);
+      if (!template) return { title: command.title, body: command.body };
+
+      const variables = command.variables ?? {};
+      return {
+        title: renderNotificationTemplate(template.title, variables),
+        body: renderNotificationTemplate(template.body, variables),
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Không đọc được mẫu thông báo ${command.type}, dùng bản mặc định: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return { title: command.title, body: command.body };
+    }
   }
 
   /**
