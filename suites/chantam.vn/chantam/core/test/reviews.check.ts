@@ -19,6 +19,7 @@ import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
+import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { TransactionReviewRepository } from '../src/infrastructure/repository/transaction-review.repository';
 
@@ -67,7 +68,11 @@ async function main(): Promise<void> {
   await dataSource.runMigrations();
   console.log('Đã dựng schema trên database nháp\n');
 
-  const reviews = new TransactionReviewRepository(dataSource.manager);
+  const adminConfig = new AdminConfigRepository(dataSource.manager);
+  const reviews = new TransactionReviewRepository(
+    dataSource.manager,
+    adminConfig as never,
+  );
 
   async function rejected(sql: string, params: unknown[]): Promise<boolean> {
     try {
@@ -326,6 +331,55 @@ async function main(): Promise<void> {
       Number(samples.count) === Number(after.giver_accuracy_samples) + 0 ||
         Number(samples.count) === 10,
       `${total.count} đánh giá / ${samples.count} có accuracy`,
+    );
+
+    // ── 6b. Ngưỡng do Admin cấu hình (F61) ──────────────────────────────────
+    console.log('\nNgưỡng do Admin cấu hình:\n');
+
+    // Người tặng đang ở 80% với 10 mẫu, chưa bị gắn cờ. Nâng ngưỡng lên 90 thì
+    // lần tính lại kế tiếp phải gắn cờ — cùng một bộ dữ liệu, khác kết luận.
+    await dataSource.query(
+      `UPDATE system_configs SET value_json = $1
+       WHERE config_key = 'accuracy.giver'`,
+      ['{"minSamples": 5, "reviewThresholdPercent": 90}'],
+    );
+
+    const afterRaise = await reviews.submitReview({
+      globalId: randomUUID(),
+      transactionId: await completedTransaction(),
+      reviewerId: ReceiverId,
+      revieweeId: GiverId,
+      reviewerRole: TransactionReviewRoles.RECEIVER,
+      rating: 4,
+      accuracyPercent: 80,
+      comment: null,
+    });
+    check(
+      'nâng ngưỡng lên 90 thì người 80% bị gắn cờ, không cần deploy',
+      afterRaise.accuracy.reviewRequired === true,
+      `percent=${afterRaise.accuracy.percent}`,
+    );
+
+    // Cấu hình hỏng KHÔNG được biến thành gắn cờ tất cả mọi người.
+    await dataSource.query(
+      `UPDATE system_configs SET value_json = $1
+       WHERE config_key = 'accuracy.giver'`,
+      ['"hong hoan toan"'],
+    );
+    const afterBroken = await reviews.submitReview({
+      globalId: randomUUID(),
+      transactionId: await completedTransaction(),
+      reviewerId: ReceiverId,
+      revieweeId: GiverId,
+      reviewerRole: TransactionReviewRoles.RECEIVER,
+      rating: 4,
+      accuracyPercent: 80,
+      comment: null,
+    });
+    check(
+      'cấu hình hỏng thì rơi về mặc định 75, không gắn cờ bừa',
+      afterBroken.accuracy.reviewRequired === false,
+      `percent=${afterBroken.accuracy.percent}`,
     );
 
     // ── 7. Hoàn bút toán điểm (F39) ─────────────────────────────────────────

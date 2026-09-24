@@ -46,3 +46,4 @@ export * from './1792600000000-CreateTransactionReviews';
 export * from './1792700000000-SeedReportUpheldPointRule';
 export * from './1792800000000-AddPointAdjustPermission';
 export * from './1792900000000-CreateNotificationTemplates';
+export * from './1793000000000-SeedGiverAccuracyConfig';

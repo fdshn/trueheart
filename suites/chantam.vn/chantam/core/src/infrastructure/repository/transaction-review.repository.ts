@@ -1,4 +1,5 @@
 import {
+  IAdminConfigRepository,
   IGiverAccuracyState,
   IReviewableTransaction,
   ISubmitTransactionReviewParams,
@@ -7,9 +8,11 @@ import {
 import { ITransactionReviewEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
   computeGiverAccuracy,
+  GiverAccuracyConfigKey,
+  normalizeGiverAccuracyConfig,
   TransactionReviewRoles,
 } from '@chantam.vn/chantam.core-lib/models';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
 
@@ -51,6 +54,8 @@ const SelectColumns = `
 export class TransactionReviewRepository implements ITransactionReviewRepository {
   public constructor(
     @InjectEntityManager() private readonly manager: EntityManager,
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig: IAdminConfigRepository,
   ) {}
 
   public async findReviewable(
@@ -108,8 +113,15 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
       [userId],
     );
 
+    // Ngưỡng do Admin cấu hình (F61). Cấu hình hỏng thì `normalize` rơi về
+    // mặc định — một dòng JSON gõ nhầm không được biến thành "gắn cờ tất cả".
+    const config = normalizeGiverAccuracyConfig(
+      await this.adminConfig.getConfigValue(GiverAccuracyConfigKey),
+    );
+
     const snapshot = computeGiverAccuracy(
       rows.map((row) => Number(row.accuracy_percent)),
+      config,
     );
 
     await manager.query(

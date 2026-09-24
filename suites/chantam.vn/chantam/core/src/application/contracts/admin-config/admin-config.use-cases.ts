@@ -35,6 +35,7 @@ export const SupportedSystemConfigKeys = [
   'rank.maintenance_period_months',
   'point.referral_daily_cap',
   'point.transaction_daily_cap',
+  'accuracy.giver',
 ] as const;
 
 export interface IPublishAdminConfigCommand {

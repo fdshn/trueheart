@@ -1,8 +1,12 @@
 import {
   computeGiverAccuracy,
-  GiverAccuracyReviewThreshold,
-  MinGiverAccuracySamples,
+  DefaultGiverAccuracyConfig,
+  normalizeGiverAccuracyConfig,
 } from './transaction-review';
+
+const MinGiverAccuracySamples = DefaultGiverAccuracyConfig.minSamples;
+const GiverAccuracyReviewThreshold =
+  DefaultGiverAccuracyConfig.reviewThresholdPercent;
 
 describe('computeGiverAccuracy', () => {
   it('chưa đủ mẫu thì KHÔNG công bố chỉ số', () => {
@@ -71,5 +75,90 @@ describe('computeGiverAccuracy', () => {
 
     const after = computeGiverAccuracy([60, 60, 60, 60, 60, 100, 100, 100]);
     expect(after.reviewRequired).toBe(false);
+  });
+});
+
+describe('ngưỡng do Admin cấu hình', () => {
+  it('hạ số mẫu tối thiểu thì công bố sớm hơn', () => {
+    const percents = [90, 80];
+
+    expect(computeGiverAccuracy(percents).percent).toBeNull();
+    expect(
+      computeGiverAccuracy(percents, {
+        minSamples: 2,
+        reviewThresholdPercent: 75,
+      }).percent,
+    ).toBe(85);
+  });
+
+  it('nâng ngưỡng xem xét thì người trước đó an toàn nay bị gắn cờ', () => {
+    const percents = [80, 80, 80, 80, 80];
+
+    expect(computeGiverAccuracy(percents).reviewRequired).toBe(false);
+    expect(
+      computeGiverAccuracy(percents, {
+        minSamples: 5,
+        reviewThresholdPercent: 90,
+      }).reviewRequired,
+    ).toBe(true);
+  });
+});
+
+describe('normalizeGiverAccuracyConfig', () => {
+  it('đọc được cấu hình hợp lệ', () => {
+    expect(
+      normalizeGiverAccuracyConfig({
+        minSamples: 3,
+        reviewThresholdPercent: 60,
+      }),
+    ).toEqual({ minSamples: 3, reviewThresholdPercent: 60 });
+  });
+
+  it('cấu hình hỏng thì về MẶC ĐỊNH, không gắn cờ tất cả mọi người', () => {
+    // Một dòng JSON gõ nhầm không được biến thành sự cố mà không ai nối được
+    // với ô nhập liệu.
+    for (const raw of [null, undefined, 'x', 42, {}, { minSamples: 'ba' }])
+      expect(normalizeGiverAccuracyConfig(raw)).toEqual(
+        DefaultGiverAccuracyConfig,
+      );
+  });
+
+  it('số mẫu tối thiểu luôn ít nhất 1 — 0 là công bố từ hư không', () => {
+    expect(
+      normalizeGiverAccuracyConfig({
+        minSamples: 0,
+        reviewThresholdPercent: 75,
+      }).minSamples,
+    ).toBe(1);
+    expect(
+      normalizeGiverAccuracyConfig({
+        minSamples: -5,
+        reviewThresholdPercent: 75,
+      }).minSamples,
+    ).toBe(1);
+  });
+
+  it('kẹp ngưỡng vào khoảng phần trăm', () => {
+    expect(
+      normalizeGiverAccuracyConfig({
+        minSamples: 5,
+        reviewThresholdPercent: 150,
+      }).reviewThresholdPercent,
+    ).toBe(100);
+    expect(
+      normalizeGiverAccuracyConfig({
+        minSamples: 5,
+        reviewThresholdPercent: -10,
+      }).reviewThresholdPercent,
+    ).toBe(0);
+  });
+
+  it('cắt phần thập phân thay vì làm tròn', () => {
+    expect(
+      normalizeGiverAccuracyConfig({
+        minSamples: 5.9,
+        reviewThresholdPercent: 74.9,
+      }),
+    ).toEqual({ minSamples: 5, reviewThresholdPercent: 74 });
   });
 });
