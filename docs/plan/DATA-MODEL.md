@@ -142,7 +142,7 @@ Phòng chat gắn 1-1 với giao dịch, **chỉ tạo khi giao dịch đạt `A
 | `point_ledger` | `user_id` · `rule_code` · `delta` · `balance_after` · **`lifetime_after`** · `reference_type` · `reference_id` · **`idempotency_key` UNIQUE** · `actor` · `source` |
 | `reviews` | `transaction_id` · `reviewer_id` · `reviewee_id` · `quality_rating` · `value_percent` · `accuracy_percent` |
 
-**Đổi vật phẩm bằng điểm** ([F76](../FEATURES.md#f76--điểm-khả-dụng--bảo-vệ-rank),
+**Đổi vật phẩm bằng điểm** ([F75](../FEATURES.md#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm),
 [F77](../FEATURES.md#f77--ledger-cho-giao-dịch-đổi-điểm)):
 
 - Giao dịch đổi điểm là một bút toán `point_ledger` với `rule_code = 'ITEM_REDEMPTION'`,

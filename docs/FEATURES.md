@@ -95,8 +95,8 @@ toàn bộ phiên, **kể cả access token còn hạn** (xem `docs/plan/M1.md`,
 Trước khi **đăng bài**, hồ sơ phải đủ: Họ tên, Avatar, SĐT, Email. Kiểm tra định dạng và
 trùng lặp khi bổ sung.
 
-> ⚠️ Cổng này chặn chính xác những hành vi nào? Chỉ đăng bài, hay cả xin nhận / chat / tạo
-> group? Tài liệu chỉ nói "trước khi đăng bài".
+> ✅ **Chốt 2026-09-24:** cổng chặn **đăng bài, xin nhận, chat và tạo Group** — không chỉ
+> riêng đăng bài.
 
 ### F08 — Hồ sơ cá nhân & thống kê
 Avatar, Rank, điểm hiện tại, tiến độ tới mốc kế tiếp, hoạt động Cho/Nhận, quyền đang có,
@@ -131,6 +131,15 @@ cho bản đồ tại thời điểm xem.
 | Kim Cương | 1792 | +896 | 1254 |
 
 > ✅ **Đã chốt chính thức theo SRS v1.15.0 (BR-PROF-RANK-02):** Ngưỡng tham chiếu: Member 224, Bạc 672, Vàng 896, Kim Cương 1792. Ngưỡng được lưu dạng cấu hình để Admin có thể điều chỉnh qua CMS.
+
+> ✅ **Chốt 2026-09-24 — căn cứ xét hạng:** **point balance hiện tại**, một cơ chế duy nhất.
+> Tiêu điểm thì tụt hạng; mức tụt xét lại theo ngưỡng hiện tại, **không ép đúng một bậc**.
+> Trượt nhiệm vụ duy trì **bị trừ N điểm** (Admin cấu hình) rồi rank tự xét lại theo balance
+> mới — nhiệm vụ tác động gián tiếp qua điểm để không có hai cơ chế cùng quyết một thứ.
+> [F76](#f76--điểm-khả-dụng--bảo-vệ-rank-đã-huỷ) đã huỷ.
+>
+> ⚠️ **Chưa hiện thực.** Code hiện xét hạng theo `lifetime` (`rank.repository.ts:387`), và cột
+> *Cảnh báo tại 70%* chưa có đường nào gửi. Đây là mâu thuẫn đã biết giữa tài liệu và code.
 
 **Điều kiện lên Bạc:** 1 giao dịch Cho hoàn tất + 1 Personal Referral hợp lệ (áp dụng cho Member).
 
@@ -376,9 +385,23 @@ do Admin cấu hình; các mức khác theo bảng mapping.
 **Giá do người tặng khai chỉ mang tính tham khảo** — đây là điểm then chốt chặn việc khai
 khống để cày điểm.
 
-> ⚠️ **X chưa có, và mọi giá trị điểm khác cũng chưa có.** Không có X thì không biết 224 điểm
-> (mốc Member) tương đương 2 giao dịch hay 22 giao dịch — chênh nhau mười lần. Không seed được
-> bảng rule, không viết được test, không nghiệm thu được.
+**Chốt 2026-09-24 — cách tính:**
+
+```
+Có đánh giá    → điểm cấu hình × x%   (x do người nhận chấm, 0–100)
+Không đánh giá → sau N ngày áp mức mặc định (Admin cấu hình cả N lẫn mức %)
+```
+
+Mức áp mặc định **không tính vào mẫu Giver Accuracy** — nó là giá trị hệ thống tự điền, không
+phải ý kiến người thật.
+
+> ⚠️ **X vẫn chưa có** — đây là thứ duy nhất còn chặn cứng. Không có X thì không biết 224 điểm
+> (mốc Thành viên) tương đương 2 giao dịch hay 22 — chênh nhau mười lần. Không seed được bảng
+> rule, "× x%" không nhân vào đâu, không viết được test, không nghiệm thu được.
+>
+> Kèm câu dẫn xuất: X (*sinh* điểm) phải ăn khớp với tỷ lệ quy đổi
+> [F74](#f74--giá-trị-tham-khảo--tỷ-lệ-quy-đổi-điểm) (*tiêu* điểm), nếu không thì cho–nhận hoà
+> vốn và không ai tích luỹ lên hạng được.
 
 ### F41 — Điểm cho Like / Comment / Report
 Chỉ phát sinh điểm **khi Admin bật rule**. Có cap, idempotency và chống spam.
@@ -457,19 +480,31 @@ Mặc định chỉ **Kim Cương** được tạo Group; Admin có thể đổi
 Tâm và bán kính được **chụp lại (snapshot) tại thời điểm tạo**, và **Owner không tự đổi được
 về sau** — nếu không, người ta sẽ dời vùng theo nơi có nhiều sự kiện để gom điểm.
 
-> ⚠️ Bán kính lấy từ đâu: cố định, Admin cấu hình, hay theo Rank?
+> ✅ Bán kính snapshot từ **Rank Config** lúc tạo (BR-GRP-03) — mặc định 10km, Admin chỉnh
+> trong khoảng 1–50km.
 
 ### F53 — Quản lý Group & Sub-team
 Owner quản lý: tổng quan, thành viên, sub-team, link mời, hoạt động, affiliate/điểm, cài đặt.
 **Thành viên thường không có dashboard của Owner.**
 
-> ⚠️ Sub-team sâu mấy tầng và có quyền gì thì chưa nêu.
+> ✅ **Chốt 2026-09-24:** sâu **1 tầng** (Group → Sub-team). Sub-team **có trưởng nhóm**, vai
+> `SUBTEAM_ADMIN`, quyền do Admin hệ thống cấu hình lúc chạy.
+>
+> Quyền nhóm đi **bảng riêng, không dùng chung `admin_permissions`**: RBAC Admin là toàn cục
+> nên gán `group.member.remove` cho một trưởng nhóm là cho họ quyền trên *mọi* nhóm. Phép kiểm
+> luôn mang phạm vi — `hasGroupPermission(userId, groupId, permission)`. Xem
+> [ASSUMPTIONS.md](./plan/ASSUMPTIONS.md#rbac-cho-group-và-sub-team).
+>
+> ⚠️ SRS không có khái niệm trưởng nhóm (BR-GRP-05 chỉ chia Owner/Member) — đây là **mở rộng
+> SRS**, không phải làm rõ.
 
 ### F54 — Link mời — chỉ dành cho tài khoản mới
 Membership và quan hệ affiliate **chỉ tạo cho tài khoản đăng ký mới qua link mời**. Tài khoản
 cũ không join được. Phase 1 người dùng **không rời và không chuyển Group**.
 
-> ⚠️ Vào nhầm Group là kẹt vĩnh viễn, không có đường thoát. Cần xác nhận chủ ý.
+> ✅ **Chốt 2026-09-24: đúng là chủ ý.** Không rời, không chuyển (BR-GRP-06). Muốn sang nhóm
+> khác thì tạo tài khoản mới và vào bằng link mời. Chính ràng buộc "link chỉ dành cho tài khoản
+> mới" là hàng rào chặn việc nhảy vòng quanh các nhóm để gom affiliate.
 
 ### F55 — Owner xoá tài khoản → Group giải tán
 Group chuyển `DISSOLVED/CLOSED`, link mời vô hiệu, dừng nhận thành viên/sự kiện/affiliate
@@ -482,7 +517,10 @@ mới. **Lịch sử membership, ledger và audit giữ nguyên.**
 - Mỗi sự kiện nguồn sinh bản ghi thưởng cho **toàn bộ Active Member** của Group.
 - Có chống cộng lặp và có cơ chế thu hồi.
 
-> ⚠️ **Định nghĩa "Active Member" chưa có** — mà nó quyết định ai được nhận thưởng.
+> ✅ **Chốt 2026-09-24:** `users.last_login_at` quá **90 ngày** thì coi như không hoạt động,
+> kiểm bằng job nền. Mốc này cập nhật **mỗi lần refresh token**, không chỉ lúc nhập mật khẩu —
+> app mobile giữ refresh token nên hiểu theo nghĩa đen sẽ đánh nhầm người đang dùng đều thành
+> không hoạt động.
 
 ### F57 — Điều kiện địa lý bắt buộc
 
@@ -559,32 +597,30 @@ một lần, không được nửa vời:
 
 Hết 7 ngày mà không ai dùng điểm thì hệ thống tự chọn người nhận theo bộ tiêu chí.
 
-> ⚠️ **Bộ tiêu chí auto-select chưa có.** Khoảng cách, thời điểm gửi yêu cầu, lịch sử nhận,
-> quota, đánh giá… mới là phương án, chưa phải rule Bên A đã chốt. Không có nó thì không
-> implement được nhánh "hết 7 ngày", cũng không viết được test.
+> ✅ **Đã chốt ở [CH-1](./plan/ASSUMPTIONS.md#ch-1--thứ-tự-ưu-tiên-chọn-người-nhận-admin-cấu-hình)
+> và đã hiện thực.** Admin xếp thứ tự bộ tiêu chí qua `GET|PUT /api/v1/admin/candidate-selection`;
+> mặc định khi chưa cấu hình là **ai xin trước**. Dùng chung với [F33](#f33--hàng-đợi-dự-phòng).
 
 **Ví dụ.** Vật phẩm khai 1.000.000 VNĐ, tỷ lệ 1 điểm = 1.000 VNĐ → cần 1.000 điểm. 10 người
 xin, countdown bắt đầu. Ngày thứ 3, User A dùng đủ 1.000 điểm → A được chọn ngay, countdown
 kết thúc ở ngày 3, 9 người còn lại không được xét cho vật phẩm đó nữa.
 
-### F76 — Điểm khả dụng & bảo vệ Rank
+### F76 — ~~Điểm khả dụng & bảo vệ Rank~~ (ĐÃ HUỶ)
 
-**Người dùng không được tiêu toàn bộ balance.** Phần điểm cần để giữ Rank hiện tại là
-**protected / non-spendable**; chỉ phần dư mới tiêu được.
+> ❌ **Huỷ ngày 2026-09-24 theo quyết định của Bên A.** Giữ mục này để người đọc tài liệu cũ
+> không tưởng hệ thống đang hành xử như vậy.
 
-```
-Điểm khả dụng = Current Point Balance − Minimum Point của Rank hiện tại
-```
+Cơ chế cũ chặn không cho tiêu phần điểm cần để giữ Rank (`Điểm khả dụng = Balance − Ngưỡng
+Rank hiện tại`), nên Rank không bao giờ tụt vì tiêu điểm.
 
-| Tình huống | Balance | Ngưỡng giữ Bạc | Khả dụng | Đổi vật phẩm 1.000 điểm? |
-| --- | ---: | ---: | ---: | --- |
-| Đủ dư | 1.800 | 672 | 1.128 | ✅ Được — còn 800, vẫn giữ Bạc |
-| Thiếu dư | 1.500 | 672 | 828 | ❌ Không — dù balance > 1.000, tiêu sẽ tụt dưới ngưỡng |
+**Quyết định mới đi hướng ngược lại:** Rank xét theo **point balance hiện tại**, tiêu điểm tự
+do, và **tụt hạng nếu balance rơi dưới ngưỡng**. Không có điểm nào được bảo vệ.
 
-**Hệ quả quan trọng: không cần tạo thêm một loại Rank Point riêng.** Hệ thống vẫn chỉ có một
-loại Điểm Cống Hiến; việc giữ Rank được bảo đảm bằng cách **chặn tiêu**, chứ không bằng cách
-tách sổ. Đây chính là lời giải cho mâu thuẫn `lifetime` với `balance` ghi ở
-[GĐ-3 trong ASSUMPTIONS.md](./plan/ASSUMPTIONS.md).
+Đổi lại, người dùng phải được **cảnh báo trước khi tụt** — xem cột *Cảnh báo tại 70%* ở
+[bảng Rank](#f10--hệ-thống-rank-5-bậc). Không có cảnh báo thì người ta đổi một vật phẩm rồi
+sáng hôm sau phát hiện mình đã xuống Bạc mà không ai báo.
+
+Chi tiết và hệ quả: [Mô hình Rank chốt ngày 2026-09-24](./plan/ASSUMPTIONS.md#mô-hình-rank--chốt-ngày-2026-09-24).
 
 ### F77 — Ledger cho giao dịch đổi điểm
 
@@ -740,8 +776,8 @@ Toàn bộ các điểm blocker trước đây đã được Bên A làm rõ và
 | # | Hạng mục | Trạng thái / Quyết định chính thức trong SRS v1.15.0 |
 |---|---|---|
 | 1 | **Giver Accuracy & Đánh giá** | ✅ **CHỐT-03**: Dùng tỷ lệ % (0–100%), chỉ tính tổng hợp sau ≥ 5 giao dịch. Ngưỡng cảnh báo < 75% đưa vào `REVIEW_REQUIRED`, không tự động phạt. |
-| 2 | **Định nghĩa "Active Member"** | ✅ **CHỐT-06**: Toàn bộ Group Affiliate Event bắt buộc nằm trong bán kính Group (Geo Eligibility). Phân bổ cho toàn bộ Active Member của Group. |
-| 3 | **Cơ chế Rank & Tụt hạng** | ✅ **CHỐT-01 & BR-PROF-RANK-04/06**: Quyết định bởi số dư Điểm Cống hiến hiện tại (`current point balance`). Khi điểm giảm dưới ngưỡng thì tự xác định lại theo điểm hiện tại (không ép chỉ tụt 1 bậc). Phase 1 không dùng `lifetime rank point` riêng. |
+| 2 | **Định nghĩa "Active Member"** | ✅ **CHỐT-06** + **chốt 2026-09-24**: `users.last_login_at` quá **90 ngày** thì coi như không hoạt động (mốc cập nhật mỗi lần refresh token). Toàn bộ Group Affiliate Event bắt buộc nằm trong bán kính Group; phân bổ cho toàn bộ Active Member. |
+| 3 | **Cơ chế Rank & Tụt hạng** | ✅ **CHỐT-01 & BR-PROF-RANK-04/06** + **chốt 2026-09-24**: quyết định bởi `current point balance`, tiêu điểm thì tụt, xét lại theo ngưỡng hiện tại (không ép 1 bậc). Trượt nhiệm vụ duy trì **bị trừ N điểm** rồi xét lại. Không dùng `lifetime rank point` riêng; **F76 đã huỷ**. |
 | 4 | **Nhiệm vụ "2+2 / 3+3 / 4+4"** | ✅ **BR-PROF-RANK-03**: Xác nhận chính thức là N giao dịch Cho hoàn tất + N Personal Referral hợp lệ trong chu kỳ 3 tháng. |
 | 5 | Quota bài đăng theo Rank | ✅ Baseline: Viewer 0, Member 3, Bạc 10, Vàng 20, Kim Cương 50 (Admin chỉnh qua CMS). |
 | 6 | Rank được dùng SOS | ✅ Từ hạng **Bạc** trở lên (UI-WANTED-01). |

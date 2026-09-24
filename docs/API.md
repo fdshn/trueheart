@@ -528,13 +528,12 @@ mà **không cần một vòng gọi nữa cho mỗi marker**.
 
   Tiêu điểm không làm tụt hạng, vì hạng đọc `lifetime`.
 
-  > ⚠️ **Đây là hành vi hiện tại của code, và nó sắp đổi.** SRS chốt hạng đọc **balance**,
-  > còn `srs/new-req.txt` chốt cách bảo vệ hạng: phần điểm cần để giữ hạng bị **chặn không
-  > cho tiêu** (`điểm khả dụng = balance − ngưỡng hạng hiện tại`) thay vì tách ra một loại
-  > điểm riêng. Khi làm xong, `/points/me` sẽ phải trả thêm **điểm khả dụng** — con số mà
-  > người dùng thực sự tiêu được, luôn nhỏ hơn `balance`.
-  > Xem [F76](./FEATURES.md#f76--điểm-khả-dụng--bảo-vệ-rank) và
-  > [GĐ-3](./plan/ASSUMPTIONS.md#gđ-3--cơ-chế-rank--tụt-hạng).
+  > ⚠️ **Đây là hành vi hiện tại của code, và nó sắp đổi.** Bên A chốt ngày 2026-09-24:
+  > hạng đọc **balance hiện tại**, tiêu điểm thì **tụt hạng** — không có phần điểm nào được
+  > bảo vệ, và **F76 (điểm khả dụng) đã huỷ**. Khi làm xong, `/points/me` không cần trả thêm
+  > "điểm khả dụng": toàn bộ `balance` đều tiêu được. Đổi lại phải có **cảnh báo sắp tụt
+  > hạng** khi balance rơi xuống 70% ngưỡng đang giữ.
+  > Xem [Mô hình Rank chốt 2026-09-24](./plan/ASSUMPTIONS.md#mô-hình-rank--chốt-ngày-2026-09-24).
 - Ledger là **append-only**. Không có UPDATE, không có DELETE; đảo một bút toán là ghi thêm
   bút toán âm. Trigger ở database chặn sửa/xoá.
 - **Điểm có thể âm, và cột điểm không nói điều đó.** Khoản phạt (CH-2) lớn hơn số dư thì số

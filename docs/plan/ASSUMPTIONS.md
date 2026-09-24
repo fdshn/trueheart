@@ -45,23 +45,11 @@ Tài liệu này ghi nhận hiện trạng các giả định ban đầu và **�
   1.000 điểm, dù tổng balance lớn hơn. Nhờ vậy **không cần tạo thêm một loại Rank Point
   riêng**: vẫn một loại Điểm Cống Hiến, chỉ chia thành *protected* và *spendable*.
 
-  Xem [FEATURES.md F76](../FEATURES.md#f76--điểm-khả-dụng--bảo-vệ-rank).
+  Xem [FEATURES.md F76 — đã huỷ](../FEATURES.md#f76--điểm-khả-dụng--bảo-vệ-rank-đã-huỷ).
 
-- **⛔ CHƯA HIỆN THỰC.** Code hiện tại vẫn chạy theo *giả định ban đầu*: `rank-policy.ts`
-  đọc `lifetimePoints`, `user_point_balances` vẫn tách `lifetime` khỏi `balance`, và
-  `rank_maintenance_cycles` vẫn quyết việc tụt đúng một bậc. Chưa có khái niệm *điểm khả
-  dụng*, cũng chưa có đường nào tiêu điểm.
-
-  Khối việc còn lại, giờ đã đủ dữ kiện để làm:
-
-  | Việc | Đụng vào |
-  | --- | --- |
-  | Rank đọc `balance` thay vì `lifetime` | `rank-policy`, `rank.repository` |
-  | Tính *điểm khả dụng* và chặn tiêu dưới ngưỡng | `point-ledger.repository`, use case đổi điểm |
-  | Quyết số phận `rank_maintenance_cycles` | Migration + `rank.repository` |
-
-  Cho tới khi làm xong, đây là **mâu thuẫn đã biết giữa tài liệu và code** — ghi ra đây để
-  không ai đọc mục trên rồi tưởng hệ thống đang hành xử như vậy.
+- **⚠️ ĐÃ ĐƯỢC THAY THẾ ngày 2026-09-24.** Cơ chế *điểm khả dụng* (F76) và mọi
+  cách hiểu cũ về `lifetime` không còn hiệu lực. Xem
+  [Mô hình Rank chốt ngày 2026-09-24](#mô-hình-rank--chốt-ngày-2026-09-24) bên dưới.
 
 ---
 
@@ -176,6 +164,145 @@ Hai hệ quả có chủ ý:
 
 ---
 
+## Quyết định Bên A chốt ngày 2026-09-24
+
+Một đợt chốt gom, giải quyết gần hết các điểm còn treo. Ghi theo đúng thứ tự đã
+trao đổi, kèm hệ quả kỹ thuật để không ai phải suy lại.
+
+### Mô hình Rank — chốt ngày 2026-09-24
+
+Năm bậc: **Viewer → Thành viên → Bạc → Vàng → Kim Cương**.
+
+| Quy tắc | Nội dung |
+| --- | --- |
+| Căn cứ xét hạng | **Point balance hiện tại**. Một cơ chế duy nhất, không có con số thứ hai |
+| Tiêu điểm | **Tụt hạng nếu balance rơi dưới ngưỡng.** Không có điểm nào được bảo vệ |
+| Mức tụt | Xét lại theo ngưỡng hiện tại, **không ép đúng một bậc** |
+| Chu kỳ duy trì | Bạc / Vàng / Kim Cương có chu kỳ **3 tháng** với nhiệm vụ 2+2 / 3+3 / 4+4 |
+| Trượt nhiệm vụ | **Bị trừ N điểm** (Admin cấu hình), rồi rank tự xét lại theo balance mới |
+
+**Vì sao trượt nhiệm vụ lại đi đường trừ điểm.** Nếu nhiệm vụ trực tiếp hạ hạng
+trong khi hạng do balance quyết, hai cơ chế sẽ đá nhau: hệ thống tụt người ta
+xuống Bạc, rồi lần xét kế tiếp thấy balance vẫn ở mức Vàng và đẩy ngược lên.
+Cho nhiệm vụ tác động **gián tiếp qua điểm** giữ được đúng một nguồn sự thật, mà
+vẫn khiến việc trượt có hậu quả thật.
+
+**F76 (điểm khả dụng / bảo vệ Rank) bị huỷ.** Cơ chế đó chặn không cho tiêu phần
+điểm cần để giữ hạng. Quyết định mới đi hướng ngược lại: tiêu tự do, tụt thì
+tụt. Hai cái không cùng tồn tại được.
+
+**Hệ quả kèm theo, đã xác nhận:**
+
+- **Điểm phạt cũng làm tụt hạng.** `SHIP_UNPAID_PENALTY` (−50) trước đây cố ý
+  không đụng tới `lifetime` để một lần không trả ship không biến thành một lần
+  tụt hạng. Nay hạng do balance quyết nên khoản phạt có hiệu lực đầy đủ.
+- **`lifetime` mất vai trò quyết định hạng**, chỉ còn là số thống kê "tổng điểm
+  từng kiếm được" để hiển thị trên hồ sơ.
+- **Cần cảnh báo trước khi tụt.** Balance rơi xuống một tỷ lệ nhất định của
+  ngưỡng đang giữ thì báo cho người dùng. Không có nó, người ta đổi một vật phẩm
+  rồi sáng hôm sau phát hiện mình đã xuống Bạc mà không ai báo. Tỷ lệ cảnh báo
+  là cấu hình động.
+
+> **Còn nợ:** code hiện xét hạng theo `balance.lifetime`
+> (`rank.repository.ts:387`). Đây là **mâu thuẫn đã biết giữa tài liệu và code**
+> cho tới khi khối việc Rank được làm.
+
+### Điểm cho một lượt trao hoàn tất
+
+```
+Có đánh giá    → điểm cấu hình × x%   (x do người nhận chấm, 0–100)
+Không đánh giá → sau N ngày áp mức mặc định (Admin cấu hình cả N lẫn mức %)
+```
+
+Toàn bộ bốn con số — điểm gốc, `N` ngày, mức mặc định, và ngưỡng accuracy — đều
+là cấu hình Admin, không hard-code.
+
+**Mức áp mặc định không tính vào mẫu Giver Accuracy.** Nó là giá trị hệ thống tự
+điền, không phải ý kiến của người thật; trộn vào thì chỉ số accuracy chỉ còn
+phản ánh có bao nhiêu người lười đánh giá.
+
+**Vì sao cần nhánh "không đánh giá".** Phần lớn người nhận sẽ nhận đồ rồi biến
+mất. Cho 0 điểm là phạt người tặng vì việc của người khác; cho thẳng 100% thì
+người nhận có động cơ *không* đánh giá để giúp người tặng, và chỉ số accuracy
+mất nghĩa. Một mức mặc định áp sau thời hạn tránh được cả hai.
+
+### Định nghĩa "Active Member"
+
+`users.last_login_at` **quá 90 ngày** thì coi như không hoạt động, kiểm bằng job
+nền. Dùng cho việc chia thưởng Group Affiliate (F56).
+
+Mốc này **cập nhật mỗi lần refresh token**, không chỉ lúc nhập mật khẩu: app
+mobile giữ refresh token nên người mở app hằng ngày vẫn có thể không "đăng nhập"
+lần nào suốt 90 ngày, và hiểu `last_login_at` theo nghĩa đen sẽ đánh nhầm người
+đang dùng đều thành không hoạt động.
+
+### Cổng hoàn thiện hồ sơ (F07)
+
+Chặn **đăng bài, xin nhận, chat và tạo Group** — không chỉ riêng đăng bài như
+tài liệu cũ ghi.
+
+### Rời Group
+
+**Không rời, không chuyển** — giữ nguyên BR-GRP-06. Muốn sang nhóm khác thì tạo
+tài khoản mới và vào bằng link mời như thường.
+
+Đây là **chủ ý**, không phải sót: membership chỉ sinh ra từ link mời dành cho
+tài khoản mới đăng ký, và chính ràng buộc đó là hàng rào chặn việc một người
+nhảy vòng quanh các nhóm để gom affiliate.
+
+### RBAC cho Group và Sub-team
+
+Sub-team **có trưởng nhóm**. Quyền của cả hai vai do Admin hệ thống cấu hình lúc
+chạy, không hard-code.
+
+| Vai | Phạm vi | Ai gán |
+| --- | --- | --- |
+| `GROUP_ADMIN` | Một Group | Owner của Group đó |
+| `SUBTEAM_ADMIN` | Một sub-team | Owner của Group |
+
+**Phải tách khỏi `admin_permissions`.** RBAC Admin hiện tại là **toàn cục**:
+`admin_user_roles(user_id, role_id)` không có cột nào chỉ phạm vi, và
+`hasPermission(userId, 'x')` trả lời "người này có quyền X không" chứ không trả
+lời được "có quyền X **trên nhóm nào**". Nhét `group.member.remove` vào đó rồi
+gán cho một trưởng nhóm là cho họ quyền trên **mọi nhóm trong hệ thống**.
+
+Nên quyền nhóm đi bảng riêng, và phép kiểm luôn mang theo phạm vi:
+
+```
+group_memberships      (group_id, user_id, sub_team_id, role, status, joined_at)
+group_role_permissions (role, permission)     ← Admin cấu hình, có audit + phiên bản
+
+hasGroupPermission(userId, groupId, permission)
+```
+
+> **Lưu ý với Bên A:** SRS không có khái niệm trưởng nhóm — BR-GRP-05 chỉ chia
+> Owner với Member và nói sub-team *"chỉ để tổ chức"*. Thêm vai này là **mở rộng
+> SRS**, không phải làm rõ.
+
+### Tự hoàn tất lượt trao
+
+Đồng hồ 5 ngày hiện đếm từ `accepted_at`, nên ship liên tỉnh 4–5 ngày là cron
+đóng lượt trao **trước khi hàng tới nơi**. Hướng xử lý: tìm API tính thời gian
+vận chuyển thật, hoặc đổi mốc đếm sang **lần cuối có chuyện xảy ra** kèm nút gia
+hạn cho hai bên.
+
+Và tự hoàn tất **phải kiểm tranh chấp trước** — đang có báo xấu hoặc yêu cầu mở
+lại thì không được đóng thành "thành công".
+
+### Còn đúng một thứ chặn cứng
+
+**X — số điểm ứng với 100% giá trị vật phẩm (F40).**
+
+Không có X thì không seed được bảng point rule, "× x%" không nhân vào đâu, và
+không biết 224 điểm (mốc Thành viên) là 2 giao dịch hay 22 — chênh mười lần.
+
+Kèm một câu dẫn xuất chưa ai trả lời: X (*sinh* điểm) phải ăn khớp với tỷ lệ quy
+đổi F74 (*tiêu* điểm). Nếu cho một món 1 triệu được đúng số điểm cần để đổi một
+món 1 triệu thì cho–nhận hoà vốn và không ai tích luỹ lên hạng được. Hai tỷ lệ
+lệch nhau bao nhiêu là chủ ý thiết kế.
+
+---
+
 ## Lịch sử thay đổi
 
 | Ngày | Thay đổi |
@@ -185,3 +312,4 @@ Hai hệ quả có chủ ý:
 | 2026-09-21 | Bổ sung `srs/new-req.txt`: cơ chế bảo vệ Rank bằng *điểm khả dụng* (GĐ-3), thêm 2 câu hỏi chưa chốt |
 | 2026-09-22 | Bên A chốt CH-1 (thứ tự ưu tiên do Admin cấu hình) và CH-2 (đánh dấu bên trả ship, trừ điểm qua report) — **cả hai đã hiện thực** |
 | 2026-09-22 | CH-2 bổ sung: điểm âm ghi được — cột điểm kẹp ở 0, cột log giữ giá trị thật kèm câu "−50 điểm, đang âm 30 điểm" |
+| 2026-09-24 | Bên A chốt gom: mô hình Rank theo balance (**huỷ F76**), trượt nhiệm vụ trừ điểm, điểm trao nhận × x% kèm mức mặc định khi không đánh giá, Active Member = `last_login_at` 90 ngày, cổng hồ sơ mở rộng, không rời Group, RBAC `GROUP_ADMIN`/`SUBTEAM_ADMIN` có phạm vi |
