@@ -48,7 +48,10 @@ export interface IChatMessageDto {
   roomId: string;
   senderId: string;
   senderUsername: string;
+  /** Rỗng khi tin chỉ có ảnh. */
   body: string;
+  /** Key ảnh đính kèm, xếp theo slot. Rỗng khi tin chỉ có chữ. */
+  mediaKeys: string[];
   sentAt: Date;
   /** Tin do chính người gọi gửi — giao diện xếp sang phải. */
   isMine: boolean;
@@ -114,7 +117,23 @@ export interface ISendChatMessageParamsDto {
 }
 
 export interface ISendChatMessageDto {
+  /** Có thể rỗng khi gửi kèm ảnh. Rỗng cả hai thì bị từ chối. */
   body: string;
+  /** Key ảnh đã tải lên qua `message-media/upload-url`, tối đa 3. */
+  mediaKeys?: string[];
+}
+
+export interface IRequestChatMediaUploadBodyDto {
+  upload: { contentType: string; contentLength: number };
+}
+
+export interface IRequestChatMediaUploadResponseDto {
+  upload: {
+    key: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+    publicUrl: string;
+  };
 }
 
 export interface ISendChatMessageBodyDto {

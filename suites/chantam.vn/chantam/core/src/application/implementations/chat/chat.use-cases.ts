@@ -12,6 +12,9 @@ import {
   IPurgeExpiredChatsCommand,
   IPurgeExpiredChatsResult,
   IPurgeExpiredChatsUseCase,
+  IRequestChatMediaUploadCommand,
+  IRequestChatMediaUploadResult,
+  IRequestChatMediaUploadUseCase,
   ISendChatMessageCommand,
   ISendChatMessageResult,
   ISendChatMessageUseCase,
@@ -23,7 +26,10 @@ import {
 } from '@/domain/exceptions';
 import { IChatRealtimePublisher } from '@/domain/ports/realtime';
 import { IChatRepository, IChatRoomListItem } from '@/domain/ports/repository';
-import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  MaxContentMediaPerItem,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   IChatMessageDto,
   IChatRoomSummaryDto,
@@ -34,6 +40,8 @@ import {
   encodeKeysetCursor,
 } from '@chantam.vn/chantam.core-lib/models';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
+import { ValidationFailedException } from '@chantam/service.common-lib/exception';
+import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
@@ -114,12 +122,13 @@ export class ListChatMessagesUseCase implements IListChatMessagesUseCase {
 
     return {
       room: toRoomSummary(room),
-      messages: items.map(({ message, senderUsername }) => ({
+      messages: items.map(({ message, senderUsername, mediaKeys }) => ({
         messageId: message.globalId,
         roomId: message.roomId,
         senderId: message.senderId,
         senderUsername,
         body: message.body,
+        mediaKeys,
         sentAt: message.createdAt,
         isMine: message.senderId === command.userId,
       })),
@@ -144,6 +153,19 @@ export class ListChatMessagesUseCase implements IListChatMessagesUseCase {
   }
 }
 
+/**
+ * Xem trước cho thông báo đẩy.
+ *
+ * Cắt bớt để thông báo không thành một bản sao cả đoạn chat trên màn khoá, và
+ * nói rõ khi tin chỉ có ảnh — một thông báo rỗng trông như lỗi.
+ */
+function notificationPreview(body: string, mediaCount: number): string {
+  if (!body)
+    return mediaCount > 1 ? `Đã gửi ${mediaCount} ảnh` : 'Đã gửi một ảnh';
+  const preview = body.length > 120 ? `${body.slice(0, 117)}...` : body;
+  return mediaCount > 0 ? `${preview} (kèm ảnh)` : preview;
+}
+
 @Injectable()
 export class SendChatMessageUseCase implements ISendChatMessageUseCase {
   public constructor(
@@ -152,12 +174,34 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
     private readonly dispatchNotification: IDispatchNotificationUseCase,
     @Inject(IChatRealtimePublisher)
     private readonly realtime: IChatRealtimePublisher,
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
   ) {}
 
   public async handle(
     command: ISendChatMessageCommand,
   ): Promise<ISendChatMessageResult> {
     const body = command.message.body.trim();
+    const mediaKeys = (command.message.mediaKeys ?? []).slice(
+      0,
+      MaxContentMediaPerItem,
+    );
+
+    // Tin phải có CHỮ hoặc ẢNH. Database cũng chặn, nhưng chặn ở đây cho ra
+    // thông báo đọc được thay vì một lỗi ràng buộc 500.
+    if (!body && mediaKeys.length === 0)
+      throw new ValidationFailedException([
+        'message.body: phải có nội dung hoặc ít nhất một ảnh',
+      ]);
+
+    // Object phải CÓ THẬT trên storage trước khi ghi: một chuỗi key bịa ra sẽ
+    // thành tin nhắn mang ảnh trỏ vào hư không, và chat chỉ ghi thêm nên không
+    // sửa lại được.
+    for (const key of mediaKeys)
+      await this.storage.confirmChatMediaUpload(
+        command.userId,
+        command.roomId,
+        key,
+      );
 
     const outcome = await this.chat.appendMessage({
       // Id NGẪU NHIÊN, không phải `makeGlobalId`: hàm đó là UUID v5 tiền định,
@@ -169,6 +213,7 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
       roomId: command.roomId,
       senderId: command.userId,
       body,
+      mediaKeys,
     });
 
     if (outcome.status === 'READ_ONLY') throw new ChatRoomReadOnlyException();
@@ -182,7 +227,7 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
       type: NotificationTypes.NEW_CHAT_MESSAGE,
       title: 'Bạn có tin nhắn mới',
       // Cắt bớt để thông báo không thành một bản sao cả đoạn chat trên màn khoá.
-      body: body.length > 120 ? `${body.slice(0, 117)}...` : body,
+      body: notificationPreview(body, mediaKeys.length),
       referenceType: 'CHAT_ROOM',
       referenceId: command.roomId,
       idempotencyKey: `NEW_CHAT_MESSAGE:${outcome.message.globalId}`,
@@ -194,6 +239,7 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
       senderId: outcome.message.senderId,
       senderUsername: command.username,
       body: outcome.message.body,
+      mediaKeys,
       sentAt: outcome.message.createdAt,
       isMine: true,
     };
@@ -237,15 +283,59 @@ export class MarkChatRoomReadUseCase implements IMarkChatRoomReadUseCase {
  * Làm theo lô có trần thay vì quét sạch một lượt: một `DELETE` ôm hàng trăm nghìn
  * dòng sẽ giữ khoá lâu và chặn đường ghi tin nhắn của những phòng đang mở.
  */
+/**
+ * Cấp đường tải ảnh cho một tin nhắn chưa tồn tại.
+ *
+ * Khoá theo PHÒNG chứ không theo tin nhắn: chat chỉ ghi thêm nên tin được tạo
+ * cùng lúc với ảnh, lúc xin đường tải nó chưa có.
+ *
+ * Kiểm tư cách thành viên TRƯỚC khi ký: thiếu phép kiểm này thì bất kỳ ai cũng
+ * xin được đường ghi vào không gian của một phòng họ không thuộc về.
+ */
+@Injectable()
+export class RequestChatMediaUploadUseCase implements IRequestChatMediaUploadUseCase {
+  public constructor(
+    @Inject(IChatRepository) private readonly chat: IChatRepository,
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+  ) {}
+
+  public async handle(
+    command: IRequestChatMediaUploadCommand,
+  ): Promise<IRequestChatMediaUploadResult> {
+    const room = await this.chat.findRoomForParticipant(
+      command.roomId,
+      command.userId,
+    );
+    if (!room) throw new ChatRoomNotFoundException();
+
+    const upload = await this.storage.createChatMediaUpload({
+      userId: command.userId,
+      roomId: command.roomId,
+      contentType: command.contentType,
+      contentLength: command.contentLength,
+    });
+
+    return { upload };
+  }
+}
+
 @Injectable()
 export class PurgeExpiredChatsUseCase implements IPurgeExpiredChatsUseCase {
   public constructor(
     @Inject(IChatRepository) private readonly chat: IChatRepository,
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
   ) {}
 
   public async handle(
     command: IPurgeExpiredChatsCommand,
   ): Promise<IPurgeExpiredChatsResult> {
-    return this.chat.purgeExpiredRooms(command.limit ?? ChatPurgeBatchSize);
+    const { purgedRooms, purgedMessages, mediaKeys } =
+      await this.chat.purgeExpiredRooms(command.limit ?? ChatPurgeBatchSize);
+
+    // SAU khi transaction đã commit. Lời hứa "tin nhắn sẽ được xoá" chỉ đúng
+    // một nửa nếu chữ biến mất còn ảnh vẫn mở được bằng đường dẫn công khai.
+    const purgedMedia = await this.storage.deleteObjects(mediaKeys);
+
+    return { purgedRooms, purgedMessages, purgedMedia };
   }
 }

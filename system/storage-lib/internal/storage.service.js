@@ -159,6 +159,56 @@ let StorageService = class StorageService {
             publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
         };
     }
+    async createChatMediaUpload(request) {
+        assertTransactionEvidenceUploadPolicy({
+            userId: request.userId,
+            transactionId: request.roomId,
+            contentType: request.contentType,
+            contentLength: request.contentLength,
+        });
+        const extension = request.contentType.split('/')[1];
+        const key = `users/${request.userId}/chat/${request.roomId}/${(0, node_crypto_1.randomUUID)()}.${extension}`;
+        const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
+        const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.client, new client_s3_1.PutObjectCommand({
+            Bucket: this.options.bucket,
+            Key: key,
+            ContentType: request.contentType,
+        }), { expiresIn: expiresInSeconds });
+        return {
+            key,
+            uploadUrl,
+            expiresInSeconds,
+            publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+        };
+    }
+    async confirmChatMediaUpload(userId, roomId, key) {
+        const prefix = `users/${userId}/chat/${roomId}/`;
+        if (!key.startsWith(prefix))
+            throw new Error('Key ảnh chat không thuộc phòng hiện tại.');
+        const object = await this.client.send(new client_s3_1.HeadObjectCommand({ Bucket: this.options.bucket, Key: key }));
+        if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
+            throw new Error('Object ảnh chat không có content type hợp lệ.');
+        if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
+            throw new Error('Object ảnh chat không có kích thước hợp lệ.');
+    }
+    async deleteObjects(keys) {
+        if (keys.length === 0)
+            return 0;
+        let deleted = 0;
+        for (let index = 0; index < keys.length; index += 1000) {
+            const batch = keys.slice(index, index + 1000);
+            try {
+                const result = await this.client.send(new client_s3_1.DeleteObjectsCommand({
+                    Bucket: this.options.bucket,
+                    Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
+                }));
+                deleted += batch.length - (result.Errors?.length ?? 0);
+            }
+            catch {
+            }
+        }
+        return deleted;
+    }
 };
 exports.StorageService = StorageService;
 exports.StorageService = StorageService = __decorate([

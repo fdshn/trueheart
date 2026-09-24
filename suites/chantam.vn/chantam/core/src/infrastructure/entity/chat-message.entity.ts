@@ -25,6 +25,10 @@ export class ChatMessageEntity
   @Column({ type: 'varchar', length: 2000 })
   body: string;
 
+  @ApiProperty({ description: 'Số ảnh đính kèm, tối đa 3.' })
+  @Column({ name: 'media_count', type: 'int', default: 0 })
+  mediaCount: number;
+
   // Chỉ `createdAt`: trigger ở database chặn UPDATE và DELETE, nên `updatedAt`
   // sẽ là một cột không bao giờ đổi giá trị.
   @ApiProperty()

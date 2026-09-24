@@ -1,5 +1,5 @@
 import { S3Client } from '@aws-sdk/client-s3';
-import { ICommentMediaUploadRequest, IObjectStorage, IPostMediaUploadRequest, IStorageUploadRequest, IStorageUploadResult, ITransactionEvidenceUploadRequest } from '../contracts';
+import { IChatMediaUploadRequest, ICommentMediaUploadRequest, IObjectStorage, IPostMediaUploadRequest, IStorageUploadRequest, IStorageUploadResult, ITransactionEvidenceUploadRequest } from '../contracts';
 import { IStorageModuleOptions } from './storage-options';
 export declare function assertAvatarUploadPolicy(request: IStorageUploadRequest): void;
 export declare function assertPostMediaUploadPolicy(request: IPostMediaUploadRequest): void;
@@ -16,5 +16,8 @@ export declare class StorageService implements IObjectStorage {
     createTransactionEvidenceUpload(request: ITransactionEvidenceUploadRequest): Promise<IStorageUploadResult>;
     createPostMediaUpload(request: IPostMediaUploadRequest): Promise<IStorageUploadResult>;
     createAvatarUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
+    createChatMediaUpload(request: IChatMediaUploadRequest): Promise<IStorageUploadResult>;
+    confirmChatMediaUpload(userId: string, roomId: string, key: string): Promise<void>;
+    deleteObjects(keys: readonly string[]): Promise<number>;
 }
 //# sourceMappingURL=storage.service.d.ts.map

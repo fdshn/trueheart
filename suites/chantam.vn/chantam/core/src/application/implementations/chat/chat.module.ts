@@ -3,6 +3,7 @@ import {
   IListChatRoomsUseCase,
   IMarkChatRoomReadUseCase,
   IPurgeExpiredChatsUseCase,
+  IRequestChatMediaUploadUseCase,
   ISendChatMessageUseCase,
 } from '@/application/contracts/chat';
 import { Global, Module } from '@nestjs/common';
@@ -11,6 +12,7 @@ import {
   ListChatRoomsUseCase,
   MarkChatRoomReadUseCase,
   PurgeExpiredChatsUseCase,
+  RequestChatMediaUploadUseCase,
   SendChatMessageUseCase,
 } from './chat.use-cases';
 
@@ -22,6 +24,10 @@ import {
     { provide: ISendChatMessageUseCase, useClass: SendChatMessageUseCase },
     { provide: IMarkChatRoomReadUseCase, useClass: MarkChatRoomReadUseCase },
     { provide: IPurgeExpiredChatsUseCase, useClass: PurgeExpiredChatsUseCase },
+    {
+      provide: IRequestChatMediaUploadUseCase,
+      useClass: RequestChatMediaUploadUseCase,
+    },
   ],
   exports: [
     IListChatRoomsUseCase,
@@ -29,6 +35,7 @@ import {
     ISendChatMessageUseCase,
     IMarkChatRoomReadUseCase,
     IPurgeExpiredChatsUseCase,
+    IRequestChatMediaUploadUseCase,
   ],
 })
 export class ChatModule {}

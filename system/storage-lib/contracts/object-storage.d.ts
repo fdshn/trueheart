@@ -19,6 +19,9 @@ export interface ICommentMediaUploadRequest extends IStorageUploadRequest {
     subjectType: string;
     subjectId: string;
 }
+export interface IChatMediaUploadRequest extends IStorageUploadRequest {
+    roomId: string;
+}
 export interface IObjectStorage {
     createAvatarUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
     createPostMediaUpload(request: IPostMediaUploadRequest): Promise<IStorageUploadResult>;
@@ -28,6 +31,9 @@ export interface IObjectStorage {
     confirmTransactionEvidenceUpload(userId: string, transactionId: string, key: string): Promise<void>;
     createCommentMediaUpload(request: ICommentMediaUploadRequest): Promise<IStorageUploadResult>;
     confirmCommentMediaUpload(userId: string, subjectType: string, subjectId: string, key: string): Promise<void>;
+    createChatMediaUpload(request: IChatMediaUploadRequest): Promise<IStorageUploadResult>;
+    confirmChatMediaUpload(userId: string, roomId: string, key: string): Promise<void>;
+    deleteObjects(keys: readonly string[]): Promise<number>;
 }
 export declare const IObjectStorage: unique symbol;
 //# sourceMappingURL=object-storage.d.ts.map

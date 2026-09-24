@@ -8,7 +8,10 @@ import {
   IOpenChatRoomParams,
 } from '@/domain/ports/repository';
 import { ChatMessageEntity, ChatRoomEntity } from '@/infrastructure/entity';
-import { ChatRoomStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  ChatRoomStatuses,
+  MaxContentMediaPerItem,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   IChatMessageEntity,
   IChatRoomEntity,
@@ -248,6 +251,7 @@ export class ChatRepository implements IChatRepository {
   public async purgeExpiredRooms(limit: number): Promise<{
     purgedRooms: number;
     purgedMessages: number;
+    mediaKeys: string[];
   }> {
     return this.manager.transaction(async (manager) => {
       // SKIP LOCKED de hai lan chay song song khong tranh cung mot phong.
@@ -264,9 +268,20 @@ export class ChatRepository implements IChatRepository {
         `,
         [limit],
       );
-      if (due.length === 0) return { purgedRooms: 0, purgedMessages: 0 };
+      if (due.length === 0)
+        return { purgedRooms: 0, purgedMessages: 0, mediaKeys: [] };
 
       const roomIds = due.map((row) => row.global_id);
+
+      // Thu key ảnh TRƯỚC khi xoá: `ON DELETE CASCADE` sẽ cuốn mất dòng ảnh
+      // cùng tin nhắn, và lúc đó không còn gì để biết object nào cần dọn.
+      const media = await manager.query<{ storage_key: string }[]>(
+        `
+          SELECT storage_key FROM chat_message_media
+          WHERE room_id = ANY($1::uuid[])
+        `,
+        [roomIds],
+      );
 
       // Cua ra cho trigger chi-ghi-them. SET LOCAL nen co chet theo transaction,
       // khong ro sang ket noi khac trong pool. Trigger chi nhan DELETE khi thay
@@ -311,6 +326,10 @@ export class ChatRepository implements IChatRepository {
           (total, count) => total + count,
           0,
         ),
+        // Trả ra ngoài để xoá object SAU khi commit: xoá object không nằm trong
+        // transaction database được. Làm ngược lại — xoá object trước — thì
+        // tiến trình chết giữa chừng sẽ để lại dòng trỏ vào ảnh không còn.
+        mediaKeys: media.map((row) => row.storage_key),
       };
     });
   }
@@ -357,13 +376,38 @@ export class ChatRepository implements IChatRepository {
 
       if (room.status !== ChatRoomStatuses.OPEN) return { status: 'READ_ONLY' };
 
+      // Chat chỉ ghi thêm — trigger chặn mọi UPDATE — nên ảnh phải đính trong
+      // CÙNG lần ghi này, và `media_count` phải đúng ngay lúc INSERT vì ràng
+      // buộc "có chữ HOẶC có ảnh" đọc chính cột đó.
+      const mediaKeys = (params.mediaKeys ?? []).slice(
+        0,
+        MaxContentMediaPerItem,
+      );
+
       await manager.query(
         `
-          INSERT INTO chat_messages (global_id, room_id, sender_id, body)
-          VALUES ($1, $2, $3, $4)
+          INSERT INTO chat_messages
+            (global_id, room_id, sender_id, body, media_count)
+          VALUES ($1, $2, $3, $4, $5)
         `,
-        [params.globalId, params.roomId, params.senderId, params.body],
+        [
+          params.globalId,
+          params.roomId,
+          params.senderId,
+          params.body,
+          mediaKeys.length,
+        ],
       );
+
+      for (const [index, storageKey] of mediaKeys.entries())
+        await manager.query(
+          `
+            INSERT INTO chat_message_media
+              (message_id, room_id, slot, storage_key)
+            VALUES ($1, $2, $3, $4)
+          `,
+          [params.globalId, params.roomId, index + 1, storageKey],
+        );
 
       // `last_message_at` lấy đúng mốc của tin vừa ghi, không phải `now()` gọi
       // lần hai — hai giá trị lệch nhau vài micro giây là đủ để phép lọc "tin
@@ -438,7 +482,14 @@ export class ChatRepository implements IChatRepository {
     const rows = await this.manager.query<Record<string, unknown>[]>(
       `
         SELECT m.id, m.global_id, m.room_id, m.sender_id, m.body, m.created_at,
-               sender.username AS sender_username
+               m.media_count,
+               sender.username AS sender_username,
+               -- Gom ảnh ngay trong câu này: một truy vấn phụ cho mỗi tin là 30
+               -- lần đi database mỗi lần cuộn. Nằm ở SELECT list nên không đụng
+               -- tới kế hoạch quét index của mệnh đề WHERE.
+               (SELECT array_agg(media.storage_key ORDER BY media.slot)
+                FROM chat_message_media media
+                WHERE media.message_id = m.global_id) AS media_keys
         FROM chat_messages m
         JOIN users sender ON sender.global_id = m.sender_id
         WHERE m.room_id = $1
@@ -465,9 +516,12 @@ export class ChatRepository implements IChatRepository {
           roomId: String(row.room_id),
           senderId: String(row.sender_id),
           body: String(row.body),
+          mediaCount: Number(row.media_count ?? 0),
           createdAt: row.created_at as Date,
         } as IChatMessageEntity,
         senderUsername: String(row.sender_username),
+        // `array_agg` trả NULL khi không có dòng nào, không phải mảng rỗng.
+        mediaKeys: (row.media_keys as string[] | null) ?? [],
       })),
       // Đọc xuôi thì dòng thừa nằm ở phía MỚI hơn; đọc ngược thì ở phía cũ hơn.
       hasMoreBefore: forward ? true : hasExtra,

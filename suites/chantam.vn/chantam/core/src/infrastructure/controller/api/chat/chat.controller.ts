@@ -2,6 +2,7 @@ import {
   IListChatMessagesUseCase,
   IListChatRoomsUseCase,
   IMarkChatRoomReadUseCase,
+  IRequestChatMediaUploadUseCase,
   ISendChatMessageUseCase,
 } from '@/application/contracts/chat';
 import {
@@ -12,6 +13,7 @@ import {
   IListChatMessagesResponseDto,
   IListChatRoomsResponseDto,
   IMarkChatRoomReadResponseDto,
+  IRequestChatMediaUploadResponseDto,
   ISendChatMessageResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import {
@@ -47,6 +49,8 @@ import {
   ListChatRoomsResponseDto,
   MarkChatRoomReadParamsDto,
   MarkChatRoomReadResponseDto,
+  RequestChatMediaUploadBodyDto,
+  RequestChatMediaUploadResponseDto,
   SendChatMessageBodyDto,
   SendChatMessageParamsDto,
   SendChatMessageResponseDto,
@@ -60,6 +64,8 @@ export class ChatController {
     private readonly listChatRoomsUseCase: IListChatRoomsUseCase,
     @Inject(IListChatMessagesUseCase)
     private readonly listChatMessagesUseCase: IListChatMessagesUseCase,
+    @Inject(IRequestChatMediaUploadUseCase)
+    private readonly requestChatMediaUploadUseCase: IRequestChatMediaUploadUseCase,
     @Inject(ISendChatMessageUseCase)
     private readonly sendChatMessageUseCase: ISendChatMessageUseCase,
     @Inject(IMarkChatRoomReadUseCase)
@@ -151,6 +157,37 @@ export class ChatController {
     });
 
     return ResponseDto.create<ISendChatMessageResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Post('rooms/:roomId/message-media/upload-url')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Đường tải ảnh cho tin nhắn chat',
+    description:
+      'Cấp presigned PUT — máy chủ không nhận file. Khoá theo PHÒNG chứ không theo tin nhắn, vì chat chỉ ghi thêm: tin được tạo cùng lúc với ảnh nên lúc này nó chưa tồn tại. ' +
+      'PUT xong thì gửi `key` trong `message.mediaKeys` lúc gửi tin. Tối đa 3 ảnh, trần do database giữ. ' +
+      'Chỉ người trong phòng xin được đường tải.',
+  })
+  @ApiCreatedResponse({
+    type: ResponseDto.forApi(RequestChatMediaUploadResponseDto),
+  })
+  @ApiErrorResponses(...ApiTokenErrors, ChatRoomNotFoundException)
+  public async requestMessageMediaUpload(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: SendChatMessageParamsDto,
+    @Body() body: RequestChatMediaUploadBodyDto,
+  ): Promise<ResponseDto<IRequestChatMediaUploadResponseDto>> {
+    const result = await this.requestChatMediaUploadUseCase.handle({
+      userId: principal.userId,
+      roomId: params.roomId,
+      contentType: body.upload.contentType,
+      contentLength: body.upload.contentLength,
+    });
+
+    return ResponseDto.create<IRequestChatMediaUploadResponseDto>()
       .succeed()
       .attach(result)
       .build();

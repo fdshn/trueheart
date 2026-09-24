@@ -40,3 +40,4 @@ export * from './1792000000000-AddAdminCategoryPermissions';
 export * from './1792100000000-SnapshotRankMaintenancePolicy';
 export * from './1792200000000-MergePostLikesIntoReactions';
 export * from './1792300000000-AddCommentReportTarget';
+export * from './1792400000000-AddChatMessageMedia';

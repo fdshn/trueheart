@@ -1,4 +1,7 @@
-import { ChatRoomStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  ChatRoomStatuses,
+  MaxContentMediaPerItem,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   IChatMessageDto,
   IChatMessageWindowDto,
@@ -10,6 +13,8 @@ import {
   IListChatRoomsResponseDto,
   IMarkChatRoomReadParamsDto,
   IMarkChatRoomReadResponseDto,
+  IRequestChatMediaUploadBodyDto,
+  IRequestChatMediaUploadResponseDto,
   ISendChatMessageBodyDto,
   ISendChatMessageDto,
   ISendChatMessageParamsDto,
@@ -26,7 +31,10 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsDefined,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -106,6 +114,12 @@ export class ChatMessageDto implements IChatMessageDto {
 
   @ApiProperty({ maxLength: 2000 })
   body: string;
+
+  @ApiProperty({
+    type: [String],
+    description: 'Key ảnh đính kèm. Rỗng khi tin chỉ có chữ.',
+  })
+  mediaKeys: string[];
 
   @ApiProperty()
   sentAt: Date;
@@ -211,10 +225,28 @@ export class SendChatMessageParamsDto implements ISendChatMessageParamsDto {
 }
 
 export class SendChatMessageDto implements ISendChatMessageDto {
-  @ApiProperty({ minLength: 1, maxLength: 2000 })
+  @ApiProperty({
+    minLength: 0,
+    maxLength: 2000,
+    description:
+      'Có thể để rỗng khi gửi kèm ảnh — một tin chỉ có ảnh là hợp lệ. Nhưng rỗng cả hai thì bị từ chối.',
+  })
   @IsString()
-  @Length(1, 2000)
+  @Length(0, 2000)
   body: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    maxItems: MaxContentMediaPerItem,
+    description:
+      'Key ảnh đã tải lên qua `message-media/upload-url`, tối đa 3. Chat chỉ ghi thêm nên ảnh phải đi cùng lần gửi này.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MaxContentMediaPerItem)
+  @IsString({ each: true })
+  @Length(1, 500, { each: true })
+  mediaKeys?: string[];
 }
 
 export class SendChatMessageBodyDto implements ISendChatMessageBodyDto {
@@ -245,4 +277,40 @@ export class MarkChatRoomReadResponseDto implements IMarkChatRoomReadResponseDto
 
   @ApiProperty()
   unreadCount: number;
+}
+
+const AllowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+const MaxMediaBytes = 5 * 1024 * 1024;
+
+export class RequestChatMediaUploadDto {
+  @ApiProperty({ enum: AllowedImageTypes, example: 'image/webp' })
+  @IsIn(AllowedImageTypes)
+  contentType: string;
+
+  @ApiProperty({ minimum: 1, maximum: MaxMediaBytes, example: 512_000 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MaxMediaBytes)
+  contentLength: number;
+}
+
+export class RequestChatMediaUploadBodyDto implements IRequestChatMediaUploadBodyDto {
+  @ApiProperty({ type: () => RequestChatMediaUploadDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => RequestChatMediaUploadDto)
+  upload: RequestChatMediaUploadDto;
+}
+
+export class ChatMediaUploadDto {
+  @ApiProperty() key: string;
+  @ApiProperty() uploadUrl: string;
+  @ApiProperty({ example: 300 }) expiresInSeconds: number;
+  @ApiProperty() publicUrl: string;
+}
+
+export class RequestChatMediaUploadResponseDto implements IRequestChatMediaUploadResponseDto {
+  @ApiProperty({ type: () => ChatMediaUploadDto })
+  upload: ChatMediaUploadDto;
 }

@@ -1,4 +1,5 @@
 import {
+  DeleteObjectsCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -7,6 +8,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
+  IChatMediaUploadRequest,
   ICommentMediaUploadRequest,
   IObjectStorage,
   IPostMediaUploadRequest,
@@ -239,5 +241,82 @@ export class StorageService implements IObjectStorage {
       expiresInSeconds,
       publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
     };
+  }
+
+  public async createChatMediaUpload(
+    request: IChatMediaUploadRequest,
+  ): Promise<IStorageUploadResult> {
+    assertTransactionEvidenceUploadPolicy({
+      userId: request.userId,
+      transactionId: request.roomId,
+      contentType: request.contentType,
+      contentLength: request.contentLength,
+    });
+
+    const extension = request.contentType.split('/')[1];
+    const key = `users/${request.userId}/chat/${request.roomId}/${randomUUID()}.${extension}`;
+    const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
+    const uploadUrl = await getSignedUrl(
+      this.client,
+      new PutObjectCommand({
+        Bucket: this.options.bucket,
+        Key: key,
+        ContentType: request.contentType,
+      }),
+      { expiresIn: expiresInSeconds },
+    );
+
+    return {
+      key,
+      uploadUrl,
+      expiresInSeconds,
+      publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+    };
+  }
+
+  public async confirmChatMediaUpload(
+    userId: string,
+    roomId: string,
+    key: string,
+  ): Promise<void> {
+    const prefix = `users/${userId}/chat/${roomId}/`;
+    if (!key.startsWith(prefix))
+      throw new Error('Key ảnh chat không thuộc phòng hiện tại.');
+
+    const object = await this.client.send(
+      new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }),
+    );
+    if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
+      throw new Error('Object ảnh chat không có content type hợp lệ.');
+    if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
+      throw new Error('Object ảnh chat không có kích thước hợp lệ.');
+  }
+
+  /**
+   * Xoá theo lô 1000 key một lần — trần của DeleteObjects.
+   *
+   * Không ném khi một key hỏng: đây là bước dọn sau khi dữ liệu đã xoá xong, và
+   * một object sót lại không được chặn việc dọn nốt những object còn lại.
+   * Lifecycle rule của bucket là lưới cuối.
+   */
+  public async deleteObjects(keys: readonly string[]): Promise<number> {
+    if (keys.length === 0) return 0;
+
+    let deleted = 0;
+    for (let index = 0; index < keys.length; index += 1000) {
+      const batch = keys.slice(index, index + 1000);
+      try {
+        const result = await this.client.send(
+          new DeleteObjectsCommand({
+            Bucket: this.options.bucket,
+            Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
+          }),
+        );
+        deleted += batch.length - (result.Errors?.length ?? 0);
+      } catch {
+        // Nuốt có chủ ý — xem ghi chú trên.
+      }
+    }
+    return deleted;
   }
 }

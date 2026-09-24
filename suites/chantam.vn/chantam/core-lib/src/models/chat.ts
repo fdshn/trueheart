@@ -31,8 +31,17 @@ export interface IChatRoom {
 export interface IChatMessage {
   globalId: string;
   roomId: string;
-  senderId: string;
+  /** Có thể rỗng khi tin chỉ có ảnh. */
   body: string;
+  senderId: string;
+  /**
+   * Số ảnh đính kèm, nằm trên chính dòng tin nhắn.
+   *
+   * Ở đây chứ không suy từ bảng ảnh vì ràng buộc "có chữ HOẶC có ảnh" đọc cột
+   * này — `CHECK` không nhìn sang bảng khác được. Cũng cho client biết "tin này
+   * có ảnh" mà không phải join.
+   */
+  mediaCount: number;
 }
 
 /** Vai của người đang gọi trong một phòng. */

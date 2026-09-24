@@ -25,13 +25,18 @@ export interface IChatRoomListItem {
 export interface IChatMessageListItem {
   message: IChatMessageEntity;
   senderUsername: string;
+  /** Key ảnh đính kèm, xếp theo slot. Rỗng khi tin chỉ có chữ. */
+  mediaKeys: string[];
 }
 
 export interface IAppendChatMessageParams {
   globalId: string;
   roomId: string;
   senderId: string;
+  /** Có thể rỗng khi có ảnh — một tin chỉ có ảnh là hợp lệ. */
   body: string;
+  /** Key ảnh đã tải lên, tối đa 3. Đính trong cùng lần ghi vì chat chỉ ghi thêm. */
+  mediaKeys?: string[];
 }
 
 export type AppendChatMessageOutcome =
@@ -143,6 +148,11 @@ export interface IChatRepository {
   purgeExpiredRooms(limit: number): Promise<{
     purgedRooms: number;
     purgedMessages: number;
+    /**
+     * Key ảnh của những tin vừa xoá, thu TRƯỚC khi `ON DELETE CASCADE` cuốn mất
+     * dòng ảnh. Nơi gọi xoá object sau khi transaction commit.
+     */
+    mediaKeys: string[];
   }>;
   /**
    * Hạn xoá đã chốt cho phòng của một lượt trao.

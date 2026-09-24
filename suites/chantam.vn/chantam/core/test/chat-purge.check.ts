@@ -127,6 +127,12 @@ async function main(): Promise<void> {
         roomId: room.global_id,
         senderId: sender,
         body,
+        // Tin thứ hai kèm ảnh: vòng xoá phải cuốn cả dòng ảnh lẫn key gửi ra
+        // ngoài, không thì chữ biến mất mà ảnh vẫn mở được.
+        mediaKeys:
+          sender === ReceiverId
+            ? [`users/${sender}/chat/${room.global_id}/anh-dia-chi.webp`]
+            : [],
       });
 
     return { transactionId, roomId: room.global_id };
@@ -209,7 +215,8 @@ async function main(): Promise<void> {
     );
 
     const daysAway = Math.round(
-      (new Date(locked.purge_after as Date).getTime() - Date.now()) / 86_400_000,
+      (new Date(locked.purge_after as Date).getTime() - Date.now()) /
+        86_400_000,
     );
     check(
       'mặc định là 1 tuần khi chưa cấu hình gì',
@@ -301,6 +308,22 @@ async function main(): Promise<void> {
       `${purged.purgedMessages} tin`,
     );
     check('tin nhắn thật sự biến mất', (await messageCount(open.roomId)) === 0);
+    check(
+      'key ảnh được trả ra ngoài để xoá object — xoá object không nằm trong transaction được',
+      purged.mediaKeys.length === 1 &&
+        purged.mediaKeys[0].includes('anh-dia-chi.webp'),
+      purged.mediaKeys.join(','),
+    );
+
+    const [mediaLeft] = await dataSource.query<{ count: string }[]>(
+      `SELECT COUNT(*) AS count FROM chat_message_media WHERE room_id = $1`,
+      [open.roomId],
+    );
+    check(
+      'dòng ảnh cũng đi theo tin nhắn qua ON DELETE CASCADE',
+      mediaLeft.count === '0',
+      mediaLeft.count,
+    );
 
     const purgedRoom = await roomRow(open.roomId);
     check(
@@ -371,10 +394,7 @@ async function main(): Promise<void> {
     } catch {
       updateBlocked = true;
     }
-    check(
-      'UPDATE bị chặn TUYỆT ĐỐI, kể cả khi bật cờ xoá',
-      updateBlocked,
-    );
+    check('UPDATE bị chặn TUYỆT ĐỐI, kể cả khi bật cờ xoá', updateBlocked);
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();
@@ -392,7 +412,9 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  console.log('\nHạn lưu trữ được chốt đúng lúc, và vòng xoá chỉ đụng thứ nên đụng.');
+  console.log(
+    '\nHạn lưu trữ được chốt đúng lúc, và vòng xoá chỉ đụng thứ nên đụng.',
+  );
 }
 
 main().catch((error) => {

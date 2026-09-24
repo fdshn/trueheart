@@ -24,7 +24,7 @@ Flutter (Android + iOS) · NestJS + PostgreSQL 16 + PostGIS · Redis · Socket.i
 | 3 | [Đăng tin & Nội dung](#3-đăng-tin--nội-dung) | F14–F24 | 5 loại bài khác nhau; vòng đời 3 tháng |
 | 4 | [Quanh Đây & Bản đồ GIS](#4-quanh-đây--bản-đồ-gis) | F25–F29 | Chỉ bản đồ toàn màn hình, không có feed |
 | 5 | [Giao dịch & FSM](#5-giao-dịch--fsm) | F30–F36 | Lõi nghiệp vụ |
-| 6 | [Chat Realtime 1-1](#6-chat-realtime-1-1) | F37–F38 | Chỉ text |
+| 6 | [Chat Realtime 1-1](#6-chat-realtime-1-1) | F37–F38 | Text + ảnh (tối đa 3/tin) |
 | 7 | [Điểm, Review & Accuracy](#7-điểm-review--accuracy) | F39–F43 | Accuracy dùng % (CHỐT-03) |
 | 8 | [Thông báo & Lịch Âm](#8-thông-báo--lịch-âm) | F44–F47 | |
 | 9 | [Báo cáo & Chống gian lận](#9-báo-cáo--chống-gian-lận) | F48–F50 | |
@@ -337,8 +337,19 @@ Nếu **5 ngày** sau `ACCEPTED` mà không có huỷ, không có tranh chấp v
 **Chỉ tạo phòng chat khi giao dịch đạt `ACCEPTED`** — không có chat trước đó, kể cả với ứng
 viên trong hàng đợi.
 
-Phase 1 **chỉ tin nhắn text**: không file đính kèm, không ảnh, không chia sẻ vị trí. Màn chat
-hiển thị bối cảnh giao dịch và các hành động hợp lệ theo trạng thái.
+Phase 1 là **text và ảnh**: tối đa 3 ảnh mỗi tin nhắn, không file đính kèm khác, không chia
+sẻ vị trí. Màn chat hiển thị bối cảnh giao dịch và các hành động hợp lệ theo trạng thái.
+
+> **Đảo quyết định cũ.** Mục này trước ghi "chỉ tin nhắn text: không file đính kèm, không
+> ảnh". Bên A chốt bổ sung ảnh — xem §9 của `docs/plan/FEED-INTERACTIONS.md`.
+>
+> Ba hệ quả đã hiện thực: ràng buộc "nội dung không rỗng" đổi thành *có chữ HOẶC có ảnh* dựa
+> trên cột `media_count` ngay trên tin nhắn; ảnh đính trong **cùng lần ghi** vì chat chỉ ghi
+> thêm và trigger chặn `UPDATE`; và **xoá chat theo hạn xoá cả ảnh** trên storage — nếu không
+> thì lời hứa "tin nhắn sẽ được xoá" chỉ đúng một nửa.
+>
+> Ảnh bằng chứng lượt trao **không** bị đụng tới: chúng ở bảng riêng và phải sống lâu hơn
+> phòng chat.
 
 ### F38 — Lưu trữ & khoá chỉ đọc
 Tin nhắn **lưu bền vững trước hoặc đồng thời** với lúc phát realtime — không được phát đi rồi

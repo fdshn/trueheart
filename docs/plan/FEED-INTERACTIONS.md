@@ -399,4 +399,4 @@ Tối đa **3 ảnh** mỗi tin nhắn, khoá `users/{userId}/chat/{roomId}/{uui
 | 8 | Báo xấu + hàng đợi Admin | ✅ gộp vào `reports` của Admin CMS, thêm đích `COMMENT`; `POST /reports` + `GET/PATCH /admin/reports` |
 | 9 | Điểm F41 (seed TẮT sẵn) | ✅ nối vào bình luận/cảm xúc, nuốt ngoại lệ chính sách nên rule tắt không chặn thao tác |
 | 10 | Đối soát số đếm | ✅ `npm run feed:reconcile-counts` (thêm `--dry-run` để chỉ xem) |
-| 11 | **Ảnh trong chat** + sửa F37 + xoá ảnh theo hạn | |
+| 11 | **Ảnh trong chat** + sửa F37 + xoá ảnh theo hạn | ✅ tối đa 3 ảnh/tin, đính cùng lần ghi; purge xoá cả object; F37 đã sửa |

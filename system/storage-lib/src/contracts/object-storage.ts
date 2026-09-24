@@ -30,6 +30,14 @@ export interface ICommentMediaUploadRequest extends IStorageUploadRequest {
   subjectId: string;
 }
 
+export interface IChatMediaUploadRequest extends IStorageUploadRequest {
+  /**
+   * Khoá theo PHÒNG chứ không theo tin nhắn: chat chỉ ghi thêm, tin nhắn được
+   * tạo cùng lúc với ảnh nên lúc xin đường tải nó chưa tồn tại.
+   */
+  roomId: string;
+}
+
 export interface IObjectStorage {
   createAvatarUpload(
     request: IStorageUploadRequest,
@@ -76,6 +84,34 @@ export interface IObjectStorage {
     subjectId: string,
     key: string,
   ): Promise<void>;
+  /**
+   * Anh dinh kem mot tin nhan chat.
+   *
+   * Tach khoi anh bang chung luot trao: chat bi xoa theo han luu tru, con bang
+   * chung thi khong — do chinh la ly do hai thu nam o hai tien to khac nhau.
+   */
+  createChatMediaUpload(
+    request: IChatMediaUploadRequest,
+  ): Promise<IStorageUploadResult>;
+  confirmChatMediaUpload(
+    userId: string,
+    roomId: string,
+    key: string,
+  ): Promise<void>;
+  /**
+   * Xoa object theo lo, kieu co-gang.
+   *
+   * Dung khi xoa chat theo han: loi hua "tin nhan se duoc xoa" chi dung mot nua
+   * neu chu bien mat ma anh van mo duoc bang duong dan cong khai.
+   *
+   * KHONG nam trong transaction database duoc, nen goi SAU khi commit. Object
+   * con sot khi tien trinh chet giua chung duoc lifecycle rule cua bucket don;
+   * lam nguoc lai thi dong database se tro vao anh khong con ton tai.
+   *
+   * Tra ve so object da xoa duoc. Khong nem khi mot key hong — mot anh sot lai
+   * khong duoc chan viec don not nhung anh con lai.
+   */
+  deleteObjects(keys: readonly string[]): Promise<number>;
 }
 
 export const IObjectStorage = Symbol('IObjectStorage');
