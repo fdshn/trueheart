@@ -13,6 +13,7 @@ import {
   IReviewReportUseCase,
 } from '@/application/contracts/report';
 import {
+  ContentCommentNotFoundException,
   PostNotFoundException,
   ReportDuplicatedException,
   ReportInvalidStateException,
@@ -62,6 +63,8 @@ export class CreateReportUseCase implements ICreateReportUseCase {
     if (!(await this.reports.targetExists(input.targetType, input.targetId))) {
       if (input.targetType === ReportTargetTypes.POST)
         throw new PostNotFoundException(input.targetId);
+      if (input.targetType === ReportTargetTypes.COMMENT)
+        throw new ContentCommentNotFoundException();
       throw new UserNotFoundException();
     }
     if (

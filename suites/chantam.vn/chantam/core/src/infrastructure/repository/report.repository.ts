@@ -38,6 +38,24 @@ export class ReportRepository
   extends Repository<IReportEntity>
   implements IReportRepository
 {
+  /**
+   * Nối tới cả ba loại đích. Một hằng dùng chung cho câu đọc và câu đếm —
+   * hai bản sao sẽ lệch nhau khi một bên được sửa, và bộ lọc sẽ đếm khác
+   * với thứ hiện ra trên màn hình.
+   */
+  private static readonly TargetJoins = `
+    INNER JOIN users reporter ON reporter.global_id = report.reporter_user_id
+    LEFT JOIN posts post
+      ON report.target_type = 'POST' AND post.global_id = report.target_id
+    LEFT JOIN users target_user
+      ON report.target_type = 'USER' AND target_user.global_id = report.target_id
+    LEFT JOIN content_comments target_comment
+      ON report.target_type = 'COMMENT'
+      AND target_comment.global_id = report.target_id
+    LEFT JOIN users comment_author
+      ON comment_author.global_id = target_comment.author_id
+  `;
+
   public constructor(
     @Inject(IReportEntity) target: EntitySchema,
     @InjectEntityManager() manager: EntityManager,
@@ -49,6 +67,19 @@ export class ReportRepository
     targetType: ReportTargetTypes,
     targetId: string,
   ): Promise<boolean> {
+    // Bình luận không xoá cứng mà đổi trạng thái, nên loại `REMOVED` ở đây:
+    // báo xấu một câu đã bị gỡ thì Admin không còn gì để xử.
+    if (targetType === ReportTargetTypes.COMMENT) {
+      const [row] = await this.manager.query<{ exists: boolean }[]>(
+        `SELECT EXISTS(
+           SELECT 1 FROM content_comments
+           WHERE global_id = $1 AND status <> 'REMOVED'
+         ) AS "exists"`,
+        [targetId],
+      );
+      return row?.exists === true;
+    }
+
     const table = targetType === ReportTargetTypes.POST ? 'posts' : 'users';
     const [row] = await this.manager.query<{ exists: boolean }[]>(
       `SELECT EXISTS(SELECT 1 FROM ${table} WHERE global_id = $1 AND deleted_at IS NULL) AS "exists"`,
@@ -94,6 +125,7 @@ export class ReportRepository
         OR post.title ILIKE '%' || ${keyword} || '%'
         OR target_user.username ILIKE '%' || ${keyword} || '%'
         OR target_user.full_name ILIKE '%' || ${keyword} || '%'
+        OR target_comment.body ILIKE '%' || ${keyword} || '%'
       )`);
     }
     const where =
@@ -109,9 +141,7 @@ export class ReportRepository
     const [{ total }] = await this.manager.query<{ total: string }[]>(
       `SELECT COUNT(*)::text AS total
        FROM reports report
-       INNER JOIN users reporter ON reporter.global_id = report.reporter_user_id
-       LEFT JOIN posts post ON report.target_type = 'POST' AND post.global_id = report.target_id
-       LEFT JOIN users target_user ON report.target_type = 'USER' AND target_user.global_id = report.target_id
+       ${ReportRepository.TargetJoins}
        ${where}`,
       values,
     );
@@ -175,6 +205,15 @@ export class ReportRepository
              CASE report.target_type
                WHEN 'POST' THEN COALESCE(post.title, 'Bài đăng đã gỡ')
                WHEN 'USER' THEN COALESCE(target_user.full_name, '@' || target_user.username, 'Tài khoản đã xoá')
+               WHEN 'COMMENT' THEN COALESCE(
+                 '@' || comment_author.username || ': ' ||
+                 CASE
+                   WHEN length(target_comment.body) > 80
+                     THEN left(target_comment.body, 77) || '...'
+                   ELSE target_comment.body
+                 END,
+                 'Bình luận đã gỡ'
+               )
              END AS target_label,
              report.reason, report.description, report.evidence_urls, report.status,
              (SELECT COUNT(*) FROM reports related
@@ -184,9 +223,7 @@ export class ReportRepository
              report.reviewed_by_user_id, report.review_note, report.reviewed_at,
              report.created_at, report.updated_at
       FROM reports report
-      INNER JOIN users reporter ON reporter.global_id = report.reporter_user_id
-      LEFT JOIN posts post ON report.target_type = 'POST' AND post.global_id = report.target_id
-      LEFT JOIN users target_user ON report.target_type = 'USER' AND target_user.global_id = report.target_id
+      ${ReportRepository.TargetJoins}
     `;
   }
 

@@ -275,26 +275,37 @@ async function main(): Promise<void> {
     // ── 5. Báo xấu ──────────────────────────────────────────────────────────
     console.log('\nBáo xấu:\n');
 
+    // `content_reports` đã được gộp vào `reports` — một hàng đợi Admin cho cả
+    // bài, người dùng lẫn bình luận. Còn hai bảng thì Admin phải mở hai chỗ,
+    // và đường kiểm duyệt bình luận sẽ phải dựng song song từ đầu.
+    const [{ exists: legacyReports }] = await dataSource.query<
+      { exists: boolean }[]
+    >(`SELECT to_regclass('public.content_reports') IS NOT NULL AS exists`);
+    check('bảng content_reports đã được gộp, không còn tồn tại', !legacyReports);
+
     await dataSource.query(
-      `INSERT INTO content_reports
-         (global_id, subject_type, subject_id, reporter_id, reason)
-       VALUES ($1, 'COMMENT', $2, $3, 'Nội dung xúc phạm')`,
-      [randomUUID(), rootId, AuthorId],
+      `INSERT INTO reports
+         (global_id, reporter_user_id, target_type, target_id, reason, description)
+       VALUES ($1, $2, 'COMMENT', $3, 'INAPPROPRIATE_CONTENT', 'Nội dung xúc phạm')`,
+      [randomUUID(), AuthorId, rootId],
     );
     check(
-      'một người báo một chủ thể ĐÚNG một lần',
-      await rejected(
-        `INSERT INTO content_reports
-           (global_id, subject_type, subject_id, reporter_id, reason)
-         VALUES ($1, 'COMMENT', $2, $3, 'Báo lại lần hai')`,
-        [randomUUID(), rootId, AuthorId],
-      ),
+      'báo xấu BÌNH LUẬN vào thẳng hàng đợi Admin sẵn có',
+      (
+        await dataSource.query<{ count: string }[]>(
+          `SELECT COUNT(*) AS count FROM reports
+           WHERE target_type = 'COMMENT' AND target_id = $1`,
+          [rootId],
+        )
+      )[0].count === '1',
     );
     check(
-      'đã xử thì phải có mốc xử — không để trạng thái nói một đằng dữ liệu một nẻo',
+      'một người báo một đích ĐÚNG một lần khi báo cũ còn mở',
       await rejected(
-        `UPDATE content_reports SET status = 'UPHELD' WHERE subject_id = $1`,
-        [rootId],
+        `INSERT INTO reports
+           (global_id, reporter_user_id, target_type, target_id, reason, description)
+         VALUES ($1, $2, 'COMMENT', $3, 'HARASSMENT', 'Báo lại lần hai')`,
+        [randomUUID(), AuthorId, rootId],
       ),
     );
 

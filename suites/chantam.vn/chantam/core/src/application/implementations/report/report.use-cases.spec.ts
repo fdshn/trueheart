@@ -78,6 +78,63 @@ describe('CreateReportUseCase', () => {
     expect(result.report.reportId).toBe(ReportId);
   });
 
+  it('nhận đích BÌNH LUẬN, dùng chung hàng đợi Admin với bài và người dùng', async () => {
+    // Trước khi gộp, báo xấu bình luận nằm ở bảng riêng mà không đường code
+    // nào đọc — tức là báo xong không ai xử.
+    const reports = {
+      targetExists: jest.fn().mockResolvedValue(true),
+      findOpenByReporterAndTarget: jest.fn().mockResolvedValue(null),
+      create: jest.fn((value) => value),
+      save: jest.fn().mockResolvedValue(undefined),
+      findAdminByGlobalId: jest.fn().mockResolvedValue(reportDto()),
+    } as unknown as jest.Mocked<IReportRepository>;
+
+    await new CreateReportUseCase(reports).handle({
+      reporterUserId: ActorId,
+      report: {
+        targetType: ReportTargetTypes.COMMENT,
+        targetId: TargetId,
+        reason: ReportReasons.HARASSMENT,
+        description: 'Bình luận xúc phạm người nhận',
+      },
+    });
+
+    expect(reports.targetExists).toHaveBeenCalledWith(
+      ReportTargetTypes.COMMENT,
+      TargetId,
+    );
+    expect(reports.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetType: ReportTargetTypes.COMMENT,
+        status: ReportStatuses.PENDING,
+      }),
+    );
+  });
+
+  it('bình luận đã gỡ thì không báo xấu được', async () => {
+    const reports = {
+      targetExists: jest.fn().mockResolvedValue(false),
+      findOpenByReporterAndTarget: jest.fn().mockResolvedValue(null),
+      create: jest.fn(),
+      save: jest.fn(),
+    } as unknown as jest.Mocked<IReportRepository>;
+
+    await expect(
+      new CreateReportUseCase(reports).handle({
+        reporterUserId: ActorId,
+        report: {
+          targetType: ReportTargetTypes.COMMENT,
+          targetId: TargetId,
+          reason: ReportReasons.HARASSMENT,
+          description: 'Bình luận xúc phạm người nhận',
+        },
+      }),
+    ).rejects.toBeInstanceOf(
+      (await import('@/domain/exceptions')).ContentCommentNotFoundException,
+    );
+    expect(reports.create).not.toHaveBeenCalled();
+  });
+
   it('chặn report trùng đang mở', async () => {
     const reports = {
       targetExists: jest.fn().mockResolvedValue(true),

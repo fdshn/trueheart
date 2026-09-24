@@ -50,14 +50,6 @@ export const PubliclyVisibleCommentStatuses: readonly CommentStatuses[] = [
   CommentStatuses.VISIBLE,
 ];
 
-export enum ContentReportStatuses {
-  PENDING = 'PENDING',
-  /** Admin đồng ý là vi phạm. */
-  UPHELD = 'UPHELD',
-  /** Admin bác. */
-  DISMISSED = 'DISMISSED',
-}
-
 /** Bình luận chỉ hai cấp. Lồng vô hạn làm phân trang và giao diện không giải được. */
 export const MaxCommentDepth = 2;
 

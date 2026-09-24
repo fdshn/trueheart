@@ -112,15 +112,29 @@ content_reactions                      content_comments
                                          CHECK: parent_id IS NULL
                                                 OR cấp cha là cấp 1
 
-content_shares                         content_reports
-  subject_type, subject_id               subject_type, subject_id
-  user_id, channel                       reporter_id, reason
-  ── chỉ ghi thêm                        status  PENDING|UPHELD|DISMISSED
-                                         UNIQUE(subject, reporter_id)
+content_shares                         reports  (dùng chung Admin CMS)
+  subject_type, subject_id               target_type  POST|USER|COMMENT
+  user_id, channel                       target_id, reporter_user_id
+  ── chỉ ghi thêm                        reason, description, evidence_urls
+                                         status PENDING|IN_REVIEW
+                                                |RESOLVED|DISMISSED
+                                         UNIQUE(reporter, target) khi còn mở
 
-posts  (+3 cột đếm)
-  reaction_count, comment_count, share_count
+posts  (+4 cột đếm)
+  reaction_count  ← mọi người bày tỏ, bất kể loại
+  like_count      ← riêng kind = LIKE
+  comment_count, share_count
 ```
+
+**Một nguồn sự thật cho nút thích.** `posts.like_count` và `posts.reaction_count`
+đều nuôi từ `content_reactions`: cái đầu đếm riêng `kind = 'LIKE'`, cái sau đếm
+mọi người đã bày tỏ. `POST /posts/:id/like` là **lối tắt** ghi `kind = 'LIKE'`,
+không phải một bảng riêng — hai bảng song song thì `GET /posts/:id` sẽ trả hai
+con số thích khác nhau cho cùng một bài.
+
+**Một hàng đợi báo xấu.** Bảng `content_reports` đã được gộp vào `reports` của
+Admin CMS, thêm đích `COMMENT`. Hai bảng thì Admin phải mở hai chỗ, và đường
+kiểm duyệt bình luận sẽ phải dựng song song từ đầu.
 
 **Bình luận hai cấp, không lồng vô hạn.** Ràng buộc ở database: cha của một trả
 lời phải là bình luận cấp 1. Lồng vô hạn làm phân trang và giao diện không giải
@@ -382,7 +396,7 @@ Tối đa **3 ảnh** mỗi tin nhắn, khoá `users/{userId}/chat/{roomId}/{uui
 | 5 | Đọc kèm số đếm + `myReaction` | ✅ nhúng vào get/nearby/me; unit test canh một truy vấn cho cả trang |
 | 6 | Chia sẻ | ✅ `POST /posts/:id/shares` — append-only, không nhân bản; unit + `test:feed-shares` |
 | 7 | Thông báo | |
-| 8 | Báo xấu + hàng đợi Admin | |
+| 8 | Báo xấu + hàng đợi Admin | ✅ gộp vào `reports` của Admin CMS, thêm đích `COMMENT`; `POST /reports` + `GET/PATCH /admin/reports` |
 | 9 | Điểm F41 (seed TẮT sẵn) | |
 | 10 | Đối soát số đếm | |
 | 11 | **Ảnh trong chat** + sửa F37 + xoá ảnh theo hạn | |

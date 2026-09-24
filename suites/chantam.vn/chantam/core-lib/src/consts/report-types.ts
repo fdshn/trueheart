@@ -1,6 +1,8 @@
 export enum ReportTargetTypes {
   POST = 'POST',
   USER = 'USER',
+  /** Bình luận trên bảng tin — chung hàng đợi Admin với bài và người dùng. */
+  COMMENT = 'COMMENT',
 }
 
 export enum ReportReasons {
