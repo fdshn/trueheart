@@ -6,6 +6,7 @@ import {
 import {
   RefreshTokenInvalidException,
   UserBannedException,
+  UserSuspendedException,
 } from '@/domain/exceptions';
 import {
   IUserRepository,
@@ -49,6 +50,19 @@ export class RefreshSessionUseCase implements IRefreshSessionUseCase {
     // khoá sau khi token được cấp. Không kiểm thì tài khoản bị ban vẫn tự gia
     // hạn phiên vô thời hạn.
     if (user.status === UserStatuses.BANNED) throw new UserBannedException();
+
+    // Treo cũng chặn, không chỉ khoá vĩnh viễn. Hiện đường treo duy nhất là
+    // Admin, mà Admin thì thu hồi sạch phiên — nhưng đó là một giả định ngầm:
+    // ngày nào có chế tài tự động đặt SUSPENDED mà quên thu hồi, người bị treo
+    // vẫn tự gia hạn phiên thêm 30 ngày. Kiểm ở đây thì không phụ thuộc vào nó.
+    //
+    // Treo có thời hạn đã qua thì cho đi tiếp, giống hệt lúc đăng nhập: đưa
+    // trạng thái về ACTIVE là việc của cron, người dùng không phải chờ cron.
+    if (
+      user.status === UserStatuses.SUSPENDED &&
+      !(user.suspendedUntil && user.suspendedUntil <= new Date())
+    )
+      throw new UserSuspendedException(user.suspendedUntil);
 
     // Xoay vòng token: `issue` tự thu hồi mọi phiên cũ của thiết bị này, nên
     // token vừa dùng lập tức mất hiệu lực. Token bị đánh cắp chỉ dùng được một

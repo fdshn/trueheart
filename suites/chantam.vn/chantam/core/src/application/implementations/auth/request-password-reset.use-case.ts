@@ -88,14 +88,20 @@ export class RequestPasswordResetUseCase implements IRequestPasswordResetUseCase
     // Tài khoản bị khoá vĩnh viễn thì không cho đặt lại mật khẩu.
     if (user.status === UserStatuses.BANNED) return null;
 
-    if (user.email)
+    // CHỈ email đã xác minh. Địa chỉ mới gõ vào hồ sơ thì chưa ai chứng minh là
+    // của mình — gõ nhầm một ký tự là gửi mã đặt lại mật khẩu cho người lạ, và
+    // họ đổi mật khẩu xong là chủ thật mất luôn tài khoản.
+    if (user.email && user.emailVerifiedAt)
       return {
         channel: PasswordResetChannels.EMAIL,
         value: user.email,
         masked: maskEmail(user.email),
       };
 
-    if (user.phone)
+    // SĐT thì không cần kiểm thêm: `phone_verified_at` là điều kiện của cổng
+    // hồ sơ, nhưng ở đây vẫn phải tự kiểm vì người dùng đổi SĐT là mốc đó về
+    // null mà tài khoản vẫn còn số cũ trong cột.
+    if (user.phone && user.phoneVerifiedAt)
       return {
         channel: PasswordResetChannels.SMS,
         value: user.phone,

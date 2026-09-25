@@ -112,6 +112,7 @@ describe('GetOwnProfileUseCase', () => {
           rank: 'MEMBER',
           status: 'ACTIVE',
           phoneVerified: true,
+          emailVerified: false,
           profileComplete: true,
           referral: {
             code: 'AB12CD34EF',

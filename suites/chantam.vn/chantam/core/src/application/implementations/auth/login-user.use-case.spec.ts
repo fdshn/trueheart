@@ -7,6 +7,7 @@ const Command = {
     password: 'MatKhau@123',
     deviceId: 'thiet-bi-1',
   },
+  clientIp: '203.0.113.7',
 };
 
 function makeDeps(user: unknown) {
@@ -19,6 +20,13 @@ function makeDeps(user: unknown) {
       reset: jest.fn(async () => undefined),
     },
     sessionIssuer: { issue: jest.fn() },
+    requestThrottle: {
+      assertWithinLimit: jest.fn(async () => undefined),
+      registerHit: jest.fn(async () => undefined),
+    },
+    config: {
+      auth: { maxLoginAttemptsPerIp: 30, loginLockSeconds: 900 },
+    },
   };
 }
 
@@ -27,6 +35,8 @@ function makeUseCase(deps: ReturnType<typeof makeDeps>) {
     deps.userRepository as never,
     deps.passwordService as never,
     deps.throttle as never,
+    deps.requestThrottle as never,
+    deps.config as never,
     deps.sessionIssuer as never,
   );
 }
@@ -76,10 +86,45 @@ describe('LoginUserUseCase — chống dò tài khoản', () => {
     await expect(
       makeUseCase(deps).handle({
         credentials: { ...Command.credentials, identifier: '  nguoidung01  ' },
+        clientIp: Command.clientIp,
       }),
     ).rejects.toThrow();
 
     // Không cắt thì thêm một dấu cách là vượt được bộ đếm.
     expect(deps.throttle.registerFailure).toHaveBeenCalledWith('nguoidung01');
+  });
+
+  it('có trần thứ hai theo NGUỒN GỌI, và chỉ đếm khi sai', async () => {
+    // Trần theo tài khoản không chặn được người rải một mật khẩu phổ biến qua
+    // hàng nghìn username: mỗi tài khoản chỉ sai một lần.
+    const deps = makeDeps(null);
+
+    await expect(makeUseCase(deps).handle(Command)).rejects.toThrow();
+
+    expect(deps.requestThrottle.assertWithinLimit).toHaveBeenCalledWith({
+      bucket: 'login-ip',
+      key: '203.0.113.7',
+      limit: 30,
+    });
+    expect(deps.requestThrottle.registerHit).toHaveBeenCalledWith({
+      bucket: 'login-ip',
+      key: '203.0.113.7',
+      windowSeconds: 900,
+    });
+  });
+
+  it('đăng nhập ĐÚNG thì không đếm vào trần theo IP', async () => {
+    // Đếm cả lần đúng thì một văn phòng chung IP tự khoá nhau chỉ vì dùng app
+    // bình thường.
+    const deps = makeDeps({
+      globalId: 'u1',
+      status: 'ACTIVE',
+      passwordHash: 'x',
+    });
+    deps.passwordService.verify.mockResolvedValue(true);
+
+    await makeUseCase(deps).handle(Command);
+
+    expect(deps.requestThrottle.registerHit).not.toHaveBeenCalled();
   });
 });

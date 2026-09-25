@@ -92,6 +92,7 @@ export class SessionIssuer {
       rank: user.rank,
       status: user.status,
       phoneVerified: user.phoneVerifiedAt !== null,
+      emailVerified: user.emailVerifiedAt !== null,
       profileComplete: isProfileComplete(user),
     };
   }

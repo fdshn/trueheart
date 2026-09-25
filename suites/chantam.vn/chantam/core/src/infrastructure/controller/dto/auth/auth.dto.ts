@@ -1,5 +1,6 @@
 import { UserRanks, UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  IChangePasswordResponseDto,
   ICurrentSessionDto,
   ILoginBodyDto,
   ILoginDto,
@@ -117,6 +118,13 @@ export class OwnUserDto implements IOwnUserDto {
 
   @ApiProperty({
     description:
+      'Đã xác minh email chưa. CHỈ email đã xác minh mới nhận được mã đặt lại ' +
+      'mật khẩu — chưa xác minh thì luồng quên mật khẩu rơi về kênh ADMIN_SUPPORT.',
+  })
+  emailVerified: boolean;
+
+  @ApiProperty({
+    description:
       'Đã đủ Họ tên + Avatar + SĐT + Email chưa. `false` thì **chưa đăng bài được** ' +
       '— cổng hoàn thiện hồ sơ sẽ chặn.',
   })
@@ -229,6 +237,16 @@ export class RegisterBodyDto implements IRegisterBodyDto {
   @Type(() => RegisterDto)
   registration: IRegisterDto;
 }
+
+/**
+ * Trả về khi đổi mật khẩu thành công.
+ *
+ * Cùng hình dạng với đăng nhập: đổi mật khẩu thu hồi sạch mọi phiên, gồm cả
+ * phiên vừa gọi endpoint, nên phải cấp lại ngay cặp token mới cho thiết bị đó.
+ */
+export class ChangePasswordResponseDto
+  extends AuthResultDto
+  implements IChangePasswordResponseDto {}
 
 /** Trả về khi đăng ký thành công — đăng ký xong tự đăng nhập luôn. */
 export class RegisterResponseDto

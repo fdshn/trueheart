@@ -1,6 +1,8 @@
 import { IPasswordService } from '@chantam/service.auth-lib';
 import { RegisterUserUseCase } from './register-user.use-case';
 
+const ClientIp = '203.0.113.7';
+
 const Registration = {
   username: 'new-member',
   password: 'Password123',
@@ -38,6 +40,13 @@ function buildUseCase(
       user: { userId: 'session-user' },
     })),
   };
+  const requestThrottle = {
+    assertWithinLimit: jest.fn(async () => undefined),
+    registerHit: jest.fn(async () => undefined),
+  };
+  const config = {
+    auth: { maxRegistrationsPerIp: 5, registrationWindowSeconds: 3600 },
+  };
   const groups = {
     findActiveByInviteCode: jest.fn().mockResolvedValue(null),
     addMember: jest.fn().mockResolvedValue(undefined),
@@ -48,11 +57,14 @@ function buildUseCase(
     users,
     sessions,
     groups,
+    requestThrottle,
     useCase: new RegisterUserUseCase(
       users as never,
       password,
       sessions as never,
       groups as never,
+      requestThrottle as never,
+      config as never,
     ),
   };
 }
@@ -61,7 +73,7 @@ describe('RegisterUserUseCase referral binding', () => {
   it('creates account even when referral code is unknown without exposing code existence', async () => {
     const { useCase, users, sessions } = buildUseCase();
 
-    await useCase.handle({ registration: Registration });
+    await useCase.handle({ registration: Registration, clientIp: ClientIp });
 
     expect(users.createWithReferral).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -88,6 +100,7 @@ describe('RegisterUserUseCase group invite', () => {
 
     await useCase.handle({
       registration: { ...Registration, inviteCode: ' abcd2345efgh6789 ' },
+      clientIp: ClientIp,
     });
 
     // Mã đi qua trim + hoa hết: người dùng dán link kèm khoảng trắng là chuyện
@@ -108,6 +121,7 @@ describe('RegisterUserUseCase group invite', () => {
 
     const result = await useCase.handle({
       registration: { ...Registration, inviteCode: 'ZZZZ2345EFGH6789' },
+      clientIp: ClientIp,
     });
 
     expect(groups.addMember).not.toHaveBeenCalled();
@@ -118,9 +132,31 @@ describe('RegisterUserUseCase group invite', () => {
   it('does not look up a group at all when no code was given', async () => {
     const { useCase, groups } = buildUseCase();
 
-    await useCase.handle({ registration: Registration });
+    await useCase.handle({ registration: Registration, clientIp: ClientIp });
 
     expect(groups.findActiveByInviteCode).not.toHaveBeenCalled();
     expect(groups.addMember).not.toHaveBeenCalled();
+  });
+});
+
+describe('RegisterUserUseCase — trần theo nguồn gọi', () => {
+  it('kiểm trần TRƯỚC khi tạo, và chỉ đếm khi TẠO ĐƯỢC', async () => {
+    // Tài khoản mới đẻ ra điểm qua referral và affiliate, nên tạo hàng loạt là
+    // một đường gian lận chứ không chỉ là rác. Đếm lần gõ hỏng form thì lại
+    // phạt người dùng thật cho lỗi đánh máy của họ.
+    const { useCase, requestThrottle } = buildUseCase();
+
+    await useCase.handle({ registration: Registration, clientIp: ClientIp });
+
+    expect(requestThrottle.assertWithinLimit).toHaveBeenCalledWith({
+      bucket: 'register-ip',
+      key: ClientIp,
+      limit: 5,
+    });
+    expect(requestThrottle.registerHit).toHaveBeenCalledWith({
+      bucket: 'register-ip',
+      key: ClientIp,
+      windowSeconds: 3600,
+    });
   });
 });

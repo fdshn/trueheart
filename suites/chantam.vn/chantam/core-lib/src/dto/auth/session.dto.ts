@@ -24,6 +24,8 @@ export interface IOwnUserDto {
   rank: UserRanks;
   status: UserStatuses;
   phoneVerified: boolean;
+  /** Email đã qua OTP chưa — chỉ email đã xác minh mới khôi phục mật khẩu được. */
+  emailVerified: boolean;
   /** Đủ Họ tên + Avatar + SĐT + Email để đăng bài chưa (F07). */
   profileComplete: boolean;
 }

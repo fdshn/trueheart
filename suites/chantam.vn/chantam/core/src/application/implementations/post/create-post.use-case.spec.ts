@@ -44,6 +44,7 @@ function makeUser(overrides: Partial<IUserEntity> = {}): IUserEntity {
     rank: UserRanks.MEMBER,
     status: UserStatuses.ACTIVE,
     phoneVerifiedAt: null,
+    emailVerifiedAt: null,
     suspendedUntil: null,
     lastActiveAt: new Date(),
     createdAt: new Date(),

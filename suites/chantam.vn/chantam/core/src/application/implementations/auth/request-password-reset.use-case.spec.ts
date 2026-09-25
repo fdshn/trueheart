@@ -6,7 +6,9 @@ const Command = { reset: { identifier: 'nguoidung01' } };
 const User = {
   globalId: '11111111-1111-1111-1111-111111111111',
   email: 'nguoidung01@example.com',
+  emailVerifiedAt: new Date('2026-09-01T00:00:00Z'),
   phone: null,
+  phoneVerifiedAt: null,
   status: 'ACTIVE',
 };
 
@@ -84,7 +86,13 @@ describe('RequestPasswordResetUseCase', () => {
     // Cắm được email KHÔNG có nghĩa là gửi được SMS. Người chỉ có SĐT phải rơi
     // về Admin thay vì nhận một lời hứa gửi tin nhắn mà hệ thống không giữ được.
     const deps = makeDeps({
-      user: { ...User, email: null, phone: '0912345678' },
+      user: {
+        ...User,
+        email: null,
+        emailVerifiedAt: null,
+        phone: '0912345678',
+        phoneVerifiedAt: new Date('2026-09-01T00:00:00Z'),
+      },
       sendableChannels: [PasswordResetChannels.EMAIL],
     });
 
@@ -100,6 +108,35 @@ describe('RequestPasswordResetUseCase', () => {
 
   it('tài khoản bị khoá vĩnh viễn không đặt lại mật khẩu được', async () => {
     const deps = makeDeps({ user: { ...User, status: 'BANNED' } });
+
+    const result = await makeUseCase(deps).handle(Command);
+
+    expect(result.channel).toBe(PasswordResetChannels.ADMIN_SUPPORT);
+    expect(deps.otpStore.issue).not.toHaveBeenCalled();
+  });
+
+  it('email CHƯA xác minh thì rơi về Admin — không gửi mã đi đâu cả', async () => {
+    // Địa chỉ mới gõ vào hồ sơ thì chưa ai chứng minh là của mình. Gõ nhầm một
+    // ký tự mà vẫn gửi mã là trao đường chiếm tài khoản cho người lạ.
+    const deps = makeDeps({ user: { ...User, emailVerifiedAt: null } });
+
+    const result = await makeUseCase(deps).handle(Command);
+
+    expect(result.channel).toBe(PasswordResetChannels.ADMIN_SUPPORT);
+    expect(deps.otpStore.issue).not.toHaveBeenCalled();
+    expect(deps.otpSender.send).not.toHaveBeenCalled();
+  });
+
+  it('SĐT chưa xác minh cũng vậy', async () => {
+    const deps = makeDeps({
+      user: {
+        ...User,
+        email: null,
+        emailVerifiedAt: null,
+        phone: '0912345678',
+        phoneVerifiedAt: null,
+      },
+    });
 
     const result = await makeUseCase(deps).handle(Command);
 

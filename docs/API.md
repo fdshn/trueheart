@@ -1,6 +1,6 @@
 # Tham chiếu API
 
-Mô tả **123 endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
+Mô tả **126 endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
 buộc mà chữ ký hàm không nói ra.
 
 Ba file bổ trợ nhau, đừng nhầm:
@@ -129,6 +129,7 @@ trong hồ sơ riêng.
 | `POST` | `/auth/logout` | Bearer | Thu hồi phiên và xoá FCM token của thiết bị đó |
 | `POST` | `/auth/password-reset/request` | Công khai | Xin mã đặt lại mật khẩu |
 | `POST` | `/auth/password-reset/confirm` | Công khai | Xác nhận mã và đặt mật khẩu mới |
+| `PATCH` | `/auth/password` | Bearer | **Đổi mật khẩu khi đang đăng nhập** |
 | `DELETE` | `/auth/account` | Bearer | Xoá mềm và ẩn danh dữ liệu cá nhân |
 | `GET` | `/auth/me` | Bearer | Danh tính phiên hiện tại, đọc thẳng từ token |
 
@@ -137,10 +138,31 @@ trong hồ sơ riêng.
 - `POST /auth/refresh` là **công khai** có chủ đích: lúc gọi nó thì access token đã hết hạn
   rồi, đòi bearer token là bế tắc.
 - `POST /auth/logout` lấy `userId` từ **access token chứ không từ body**. Tin body thì ai
-  cũng đăng xuất hộ người khác được.
-- `POST /auth/password-reset/request`: tài khoản **không tồn tại** và tài khoản **không có
-  email/SĐT** trả về **giống hệt nhau** (kênh `ADMIN_SUPPORT`). Phân biệt hai trường hợp là
-  biến endpoint này thành công cụ dò username có thật.
+  cũng đăng xuất hộ người khác được. Nó thu hồi phiên **và** ghi mốc vô hiệu access token —
+  thiếu vế sau thì bấm "Đăng xuất" xong token cũ vẫn gọi API được tới 15 phút. Mốc ghi theo
+  **tài khoản** chứ không theo thiết bị, nên máy khác của cùng người nhận một lần 401 rồi tự
+  lấy token mới bằng refresh token của nó — phiên của họ không mất.
+- `POST /auth/login` và `POST /auth/register` có **trần theo địa chỉ IP**, bù cho trần theo
+  tài khoản. Trần tài khoản (5 lần sai / 15 phút) không chặn được người rải một mật khẩu phổ
+  biến qua hàng nghìn username. Xem `MAX_LOGIN_ATTEMPTS_PER_IP` và `MAX_REGISTRATIONS_PER_IP`
+  trong [CONFIG-INVENTORY](./CONFIG-INVENTORY.md). Trần đăng nhập **chỉ đếm khi sai**; trần
+  đăng ký **chỉ đếm khi tạo được tài khoản**.
+- `POST /auth/login` trả **401** cho sai mật khẩu và **403** cho tài khoản bị treo/khoá —
+  nhưng chỉ sau khi đã so khớp mật khẩu. Trả trạng thái trước đó là biến màn đăng nhập thành
+  công cụ dò xem username nào có thật và đang ở trạng thái gì.
+- `POST /auth/refresh` chặn cả tài khoản **đang bị treo**, không chỉ bị khoá vĩnh viễn.
+- `PATCH /auth/password` cần mật khẩu hiện tại, **không** cần OTP. Thu hồi toàn bộ phiên trên
+  mọi thiết bị rồi **trả về cặp token mới** cho thiết bị đang gọi — không trả lại thì người
+  dùng vừa làm đúng một việc nên làm đã bị đá ra khỏi app. Đặt lại đúng mật khẩu cũ bị từ
+  chối. Đây là đường **duy nhất** đổi mật khẩu cho tài khoản chưa có kênh khôi phục đã xác
+  minh.
+- `POST /auth/password-reset/request`: bốn trường hợp trả về **giống hệt nhau** (kênh
+  `ADMIN_SUPPORT`) — không có tài khoản, không có email/SĐT, **kênh chưa xác minh**, và tài
+  khoản đã bị khoá vĩnh viễn. Phân biệt là biến endpoint này thành công cụ dò username có
+  thật.
+- **Chỉ kênh ĐÃ XÁC MINH mới nhận được mã.** Email vào hồ sơ chỉ bằng cách gõ vào; gõ nhầm
+  một ký tự mà vẫn gửi mã tới đó là trao đường chiếm tài khoản cho người lạ. Muốn dùng email
+  để khôi phục thì phải qua `PATCH /profile/me/email-verification/*` trước.
 - `POST /auth/password-reset/confirm` thu hồi **toàn bộ phiên trên mọi thiết bị**, kể cả
   access token còn hạn.
 - `DELETE /auth/account` **bắt nhập lại mật khẩu** (xoá không hoàn tác được, mà access token
@@ -164,6 +186,8 @@ trong hồ sơ riêng.
 | `PATCH` | `/profile/me/avatar-upload` | Bearer | Xin presigned URL upload avatar thẳng lên storage |
 | `PATCH` | `/profile/me/phone-verification/request` | Bearer | Gửi OTP xác minh SĐT hiện tại |
 | `PATCH` | `/profile/me/phone-verification/confirm` | Bearer | Xác nhận OTP, đánh dấu SĐT đã xác minh |
+| `PATCH` | `/profile/me/email-verification/request` | Bearer | **Gửi OTP xác minh email hiện tại** |
+| `PATCH` | `/profile/me/email-verification/confirm` | Bearer | **Xác nhận OTP, đánh dấu email đã xác minh** |
 | `GET` | `/profile/:username` | Công khai | Hồ sơ công khai tối thiểu |
 
 **Điều cần biết**
@@ -181,6 +205,14 @@ trong hồ sơ riêng.
   ghi đè** vị trí mặc định từ GPS.
 - Xác minh SĐT lần đầu thưởng điểm **đúng một lần**, đi qua Point Ledger với khoá idempotency
   `PHONE_VERIFIED_FIRST_TIME:<userId>`. Đổi SĐT rồi xác minh lại **không thưởng lại**.
+- Xác minh **email** thì **không thưởng điểm** — nó không nằm trong danh sách onboarding đã
+  chốt. Nó chỉ quyết định một việc: email đó có dùng làm kênh khôi phục mật khẩu được không.
+- Cả hai luồng xác minh đều gửi tới giá trị **đang có trong hồ sơ**, không nhận địa chỉ hay số
+  từ body. Khoá OTP của email gắn cả địa chỉ, nên đổi email giữa chừng thì mã cũ vô hiệu.
+- **Đổi email hoặc SĐT thì mất dấu xác minh tương ứng.** Giữ lại là để dấu của giá trị cũ
+  chứng thực cho giá trị mới — mà đó chính là cửa mở đường đặt lại mật khẩu.
+- `emailVerified` và `phoneVerified` có trong `GET /profile/me` và trong `user` của mọi phản
+  hồi đăng nhập/đăng ký.
 
 ---
 

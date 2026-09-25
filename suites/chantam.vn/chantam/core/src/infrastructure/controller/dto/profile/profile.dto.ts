@@ -1,5 +1,8 @@
 import { UserRanks, UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  IConfirmEmailVerificationBodyDto,
+  IConfirmEmailVerificationDto,
+  IConfirmEmailVerificationResponseDto,
   IConfirmPhoneVerificationBodyDto,
   IConfirmPhoneVerificationDto,
   IConfirmPhoneVerificationResponseDto,
@@ -9,6 +12,7 @@ import {
   IPointSummaryDto,
   IProfileReferrerDto,
   IRankSummaryDto,
+  IRequestEmailVerificationResponseDto,
   IRequestPhoneVerificationResponseDto,
   IUpdateOwnProfileBodyDto,
   IUpdateOwnProfileDto,
@@ -146,6 +150,12 @@ export class OwnProfileDto implements IOwnProfileDto {
   phoneVerified: boolean;
 
   @ApiProperty({
+    description:
+      'Email hiện tại đã xác minh chưa. Chỉ email đã xác minh mới dùng để khôi phục mật khẩu được.',
+  })
+  emailVerified: boolean;
+
+  @ApiProperty({
     description: 'Đủ Họ tên, avatar, SĐT và email để đăng bài chưa.',
   })
   profileComplete: boolean;
@@ -244,6 +254,45 @@ export class ConfirmPhoneVerificationResponseDto implements IConfirmPhoneVerific
     type: String,
     format: 'date-time',
     description: 'Thời điểm SĐT được xác minh.',
+  })
+  verifiedAt: Date;
+}
+
+export class ConfirmEmailVerificationDto implements IConfirmEmailVerificationDto {
+  @ApiProperty({
+    example: '048213',
+    description: 'OTP 6 chữ số gửi tới địa chỉ email hiện tại trong hồ sơ.',
+  })
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'otp phải là 6 chữ số' })
+  otp: string;
+}
+
+export class ConfirmEmailVerificationBodyDto implements IConfirmEmailVerificationBodyDto {
+  @ApiProperty({ type: () => ConfirmEmailVerificationDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => ConfirmEmailVerificationDto)
+  verification: ConfirmEmailVerificationDto;
+}
+
+export class RequestEmailVerificationResponseDto implements IRequestEmailVerificationResponseDto {
+  @ApiProperty({
+    example: 'ngu***@gmail.com',
+    description:
+      'Địa chỉ đã che bớt, đủ để chủ tài khoản nhận ra mình gõ đúng chưa.',
+  })
+  maskedEmail: string;
+
+  @ApiProperty({ example: 300, description: 'Số giây OTP còn hiệu lực.' })
+  expiresInSeconds: number;
+}
+
+export class ConfirmEmailVerificationResponseDto implements IConfirmEmailVerificationResponseDto {
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    description: 'Thời điểm email được xác minh.',
   })
   verifiedAt: Date;
 }

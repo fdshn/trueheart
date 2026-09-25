@@ -38,6 +38,15 @@ export interface IUser {
    */
   phoneVerifiedAt: Date | null;
 
+  /**
+   * Thời điểm xác minh email.
+   *
+   * `null` nghĩa là địa chỉ mới chỉ được gõ vào hồ sơ, chưa ai chứng minh là
+   * của mình — và email chưa xác minh KHÔNG được làm kênh đặt lại mật khẩu.
+   * Đổi email thì mốc này về `null`.
+   */
+  emailVerifiedAt: Date | null;
+
   /** Hết hạn treo. `null` khi không bị treo. Chỉ có nghĩa khi status = SUSPENDED. */
   suspendedUntil: Date | null;
 

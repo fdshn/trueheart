@@ -8,8 +8,9 @@ import {
   UserBannedException,
   UserSuspendedException,
 } from '@/domain/exceptions';
+import { IConfig } from '@/domain/ports/config';
 import { IUserRepository } from '@/domain/ports/repository';
-import { ILoginThrottle } from '@/domain/ports/security';
+import { ILoginThrottle, IRequestThrottle } from '@/domain/ports/security';
 import { UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { IPasswordService } from '@chantam/service.auth-lib';
@@ -35,6 +36,10 @@ export class LoginUserUseCase implements ILoginUserUseCase {
     private readonly passwordService: IPasswordService,
     @Inject(ILoginThrottle)
     private readonly loginThrottle: ILoginThrottle,
+    @Inject(IRequestThrottle)
+    private readonly requestThrottle: IRequestThrottle,
+    @Inject(IConfig)
+    private readonly config: IConfig,
     private readonly sessionIssuer: SessionIssuer,
   ) {}
 
@@ -43,6 +48,15 @@ export class LoginUserUseCase implements ILoginUserUseCase {
     const identifier = credentials.identifier.trim();
 
     await this.loginThrottle.assertNotLocked(identifier);
+
+    // Trần thứ hai, đếm theo NGUỒN GỌI. Trần theo tài khoản ở trên không chặn
+    // được người rải một mật khẩu phổ biến qua hàng nghìn username: mỗi tài
+    // khoản chỉ sai một lần nên không cái nào chạm trần của riêng nó.
+    await this.requestThrottle.assertWithinLimit({
+      bucket: 'login-ip',
+      key: command.clientIp,
+      limit: this.config.auth.maxLoginAttemptsPerIp,
+    });
 
     const user = await this.userRepository.findByIdentifier(identifier);
 
@@ -54,6 +68,13 @@ export class LoginUserUseCase implements ILoginUserUseCase {
 
     if (!user || !passwordMatches) {
       await this.loginThrottle.registerFailure(identifier);
+      // Chỉ đếm khi SAI. Đếm cả lần đúng thì một quán cà phê hay một văn phòng
+      // chung IP sẽ tự khoá nhau chỉ vì đăng nhập bình thường.
+      await this.requestThrottle.registerHit({
+        bucket: 'login-ip',
+        key: command.clientIp,
+        windowSeconds: this.config.auth.loginLockSeconds,
+      });
 
       throw new InvalidCredentialsException();
     }

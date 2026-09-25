@@ -235,9 +235,11 @@ describe('UpdateOwnProfileUseCase', () => {
       profile: { email: null, avatarKey: null },
     });
 
+    // Gỡ email cũng gỡ dấu xác minh: giữ lại là để một tài khoản không còn
+    // email nào vẫn mang cờ "email đã xác minh".
     expect(repository.update).toHaveBeenCalledWith(
       { globalId: UserId },
-      { email: null, avatarUrl: null },
+      { email: null, avatarUrl: null, emailVerifiedAt: null },
     );
   });
 });

@@ -32,6 +32,15 @@ export const ConfigSchema = Joi.object({
   LOGIN_LOCK_SECONDS: Joi.number().min(60).default(900),
   OTP_TTL_SECONDS: Joi.number().min(120).max(1_800).default(300),
 
+  // Trần theo NGUỒN GỌI, bù cho hai cái trần theo tài khoản ở trên: rải một mật
+  // khẩu phổ biến qua mười nghìn username thì mỗi tài khoản chỉ sai một lần.
+  // Để rộng tay vì nhiều người dùng thật chung một IP sau NAT.
+  MAX_LOGIN_ATTEMPTS_PER_IP: Joi.number().min(5).max(500).default(30),
+  // Tài khoản mới đẻ ra điểm qua referral và affiliate, nên tạo hàng loạt là
+  // một đường gian lận chứ không chỉ là rác.
+  MAX_REGISTRATIONS_PER_IP: Joi.number().min(1).max(100).default(5),
+  REGISTRATION_WINDOW_SECONDS: Joi.number().min(60).default(3_600),
+
   // Config-only cho EmailOtpSender tương lai. Có From address KHÔNG có nghĩa
   // sender đã gửi được: vẫn cần vendor adapter, credential và domain verify.
   OTP_EMAIL_FROM_ADDRESS: Joi.string().email().allow('').default(''),

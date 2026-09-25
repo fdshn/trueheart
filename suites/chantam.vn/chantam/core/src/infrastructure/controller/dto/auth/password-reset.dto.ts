@@ -1,4 +1,6 @@
 import {
+  IChangePasswordBodyDto,
+  IChangePasswordDto,
   IConfirmPasswordResetBodyDto,
   IConfirmPasswordResetDto,
   IConfirmPasswordResetResponseDto,
@@ -11,12 +13,13 @@ import {
   PasswordResetChannels,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { MatchesProperty } from '@chantam/service.common-lib/decorators';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsDefined,
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Length,
   Matches,
@@ -139,6 +142,66 @@ export class ConfirmPasswordResetResponseDto implements IConfirmPasswordResetRes
   })
   @IsInt()
   revokedSessions: number;
+}
+
+export class ChangePasswordDto implements IChangePasswordDto {
+  @ApiProperty({
+    description:
+      'Mật khẩu đang dùng. Bắt nhập lại vì access token có thể đang nằm trong ' +
+      'tay người mượn máy.',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, 128)
+  currentPassword: string;
+
+  @ApiProperty({
+    minLength: 8,
+    maxLength: 128,
+    description:
+      'Mật khẩu mới, tối thiểu 8 ký tự, phải KHÁC mật khẩu hiện tại.',
+  })
+  @IsString()
+  @Length(8, 128)
+  newPassword: string;
+
+  @ApiProperty({ description: 'Nhập lại đúng `newPassword`.' })
+  @IsString()
+  @MatchesProperty('newPassword', { message: 'Mật khẩu xác nhận không khớp' })
+  confirmPassword: string;
+
+  @ApiProperty({
+    example: 'android-8f3a1c',
+    description:
+      'Thiết bị đang gọi. Đổi mật khẩu thu hồi sạch mọi phiên, rồi cấp lại ' +
+      'phiên mới cho ĐÚNG thiết bị này — nên phải gửi đúng giá trị đang dùng.',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, 100)
+  deviceId: string;
+
+  @ApiPropertyOptional({
+    description: 'Token FCM của thiết bị này, để nhận lại thông báo đẩy.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 255)
+  fcmToken?: string;
+}
+
+export class ChangePasswordBodyDto implements IChangePasswordBodyDto {
+  @ApiProperty({
+    type: () => ChangePasswordDto,
+    description:
+      'Thu hồi TOÀN BỘ phiên trên mọi thiết bị rồi trả về cặp token MỚI cho ' +
+      'thiết bị đang gọi. Đây là đường DUY NHẤT để tài khoản chưa gắn email ' +
+      'hoặc SĐT đã xác minh đổi được mật khẩu.',
+  })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => ChangePasswordDto)
+  password: IChangePasswordDto;
 }
 
 export class DeleteAccountDto implements IDeleteAccountDto {

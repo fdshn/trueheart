@@ -506,6 +506,14 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: [42],
   },
 
+  TOO_MANY_REQUESTS: {
+    code: ErrorCodes.TOO_MANY_REQUESTS,
+    httpStatus: HttpStatus.TOO_MANY_REQUESTS,
+    message: (retryAfterSeconds: number) =>
+      `Bạn thao tác quá nhanh. Thử lại sau ${retryAfterSeconds} giây`,
+    sample: [60],
+  },
+
   // ── 0x10 Group ────────────────────────────────────────────────────────────
   GROUP_DEFAULT_LOCATION_REQUIRED: {
     code: ErrorCodes.GROUP_DEFAULT_LOCATION_REQUIRED,

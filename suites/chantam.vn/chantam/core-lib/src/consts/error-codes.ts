@@ -133,6 +133,14 @@ export enum ErrorCodes {
   OTP_EXPIRED = 0x04_05,
   /** Gửi OTP quá dày — chống dùng endpoint quên mật khẩu để spam tin nhắn. */
   OTP_TOO_SOON = 0x04_06,
+  /**
+   * Gọi quá dày từ một địa chỉ IP.
+   *
+   * Khác `LOGIN_THROTTLED` ở chỗ đếm theo NGUỒN GỌI chứ không theo tài khoản:
+   * rải một mật khẩu phổ biến qua mười nghìn username thì mỗi tài khoản chỉ sai
+   * một lần, không tài khoản nào chạm trần của riêng nó.
+   */
+  TOO_MANY_REQUESTS = 0x04_07,
 
   // 0x10 — Group, Sub-team và Affiliate (M5)
   /** Chưa đặt Vị trí mặc định — tâm nhóm chụp từ đó (BR-GRP-03). */

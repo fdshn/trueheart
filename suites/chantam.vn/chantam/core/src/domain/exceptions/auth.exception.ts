@@ -62,3 +62,13 @@ export class OtpTooSoonException extends ExceptionFrom(
 export class UserHasOpenTransactionsException extends ExceptionFrom(
   CoreErrors.USER_HAS_OPEN_TRANSACTIONS,
 ) {}
+
+/**
+ * Gọi quá dày từ một nguồn.
+ *
+ * Khác `TooManyLoginAttemptsException` ở chỗ đếm theo địa chỉ IP chứ không theo
+ * tài khoản — hai cái trần đó chặn hai kiểu lạm dụng khác nhau.
+ */
+export class TooManyRequestsException extends ExceptionFrom(
+  CoreErrors.TOO_MANY_REQUESTS,
+) {}

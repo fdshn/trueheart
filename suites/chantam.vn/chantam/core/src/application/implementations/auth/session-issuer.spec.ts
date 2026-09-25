@@ -92,6 +92,7 @@ describe('SessionIssuer', () => {
     expect(Object.keys(dto).sort()).toEqual([
       'avatarUrl',
       'email',
+      'emailVerified',
       'fullName',
       'phone',
       'phoneVerified',

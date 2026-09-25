@@ -4,7 +4,7 @@ import {
   ILogoutUserUseCase,
 } from '@/application/contracts/auth';
 import { IUserSessionRepository } from '@/domain/ports/repository';
-import { ITokenService } from '@chantam/service.auth-lib';
+import { ITokenDenyList, ITokenService } from '@chantam/service.auth-lib';
 import { Inject, Injectable } from '@nestjs/common';
 
 @Injectable()
@@ -14,6 +14,8 @@ export class LogoutUserUseCase implements ILogoutUserUseCase {
     private readonly sessionRepository: IUserSessionRepository,
     @Inject(ITokenService)
     private readonly tokenService: ITokenService,
+    @Inject(ITokenDenyList)
+    private readonly denyList: ITokenDenyList,
   ) {}
 
   public async handle(command: ILogoutUserCommand): Promise<ILogoutUserResult> {
@@ -38,6 +40,15 @@ export class LogoutUserUseCase implements ILogoutUserUseCase {
       // Xoá luôn FCM token (F04): máy đã đăng xuất không được nhận thông báo nữa.
       { revokedAt: loggedOutAt, fcmToken: null },
     );
+
+    // Giết luôn access token. Thiếu bước này thì bấm "Đăng xuất" xong, token cũ
+    // vẫn gọi API được tới 15 phút — trên máy mượn hay máy công cộng thì đó là
+    // đúng khoảng thời gian người ta sợ.
+    //
+    // Danh sách chặn ghi theo TÀI KHOẢN chứ không theo thiết bị, nên thiết bị
+    // khác của cùng người sẽ nhận một lần 401 rồi tự lấy token mới bằng refresh
+    // token của nó — phiên của họ KHÔNG mất, chỉ tốn thêm một vòng gọi.
+    await this.denyList.revokeIssuedBefore(command.userId);
 
     return { loggedOutAt };
   }

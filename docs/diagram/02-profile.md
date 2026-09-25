@@ -79,6 +79,52 @@ sequenceDiagram
 > là mất điểm vĩnh viễn — lần sau vào sẽ thấy "đã xác minh rồi" và không cộng nữa. CLI
 > `point:reconcile` là lưới an toàn thứ hai cho đúng ca này.
 
+## 2.2b Xác minh email — ✅ 26/09
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Người dùng
+    participant API as Core API
+    participant R as Redis
+    participant M as Kênh email
+
+    U->>API: PATCH /profile/me/email-verification/request
+    Note over API: Gửi tới địa chỉ ĐANG CÓ trong hồ sơ,<br/>không nhận địa chỉ từ body
+    API->>M: canSend(EMAIL)?
+    alt Chưa cấu hình
+        API-->>U: 501 — báo thẳng, KHÔNG âm thầm coi như đã gửi
+    else Gửi được
+        API->>R: Lưu OTP, khoá = purpose + userId + ĐỊA CHỈ
+        M-->>U: Email chứa mã 6 số
+        API-->>U: maskedEmail + expiresInSeconds
+    end
+
+    U->>API: PATCH /profile/me/email-verification/confirm { otp }
+    alt Đúng
+        API->>API: SET users.email_verified_at = now()
+        API-->>U: 200
+    else Sai
+        API-->>U: 400
+    end
+```
+
+> **Vì sao khoá OTP gắn cả ĐỊA CHỈ chứ không chỉ `userId`.** Chỉ khoá theo `userId` thì người
+> ta xin mã cho địa chỉ mình đọc được, đổi hồ sơ sang địa chỉ người khác, rồi xác nhận bằng mã
+> cũ — và địa chỉ của người khác thành "đã xác minh".
+
+> **Vì sao KHÔNG thưởng điểm như xác minh SĐT.** Phần thưởng 28đ của SĐT là một mục trong danh
+> sách onboarding đã chốt. Thêm một khoản thưởng mới ở đây là tự đặt ra luật kinh tế mà chưa ai
+> duyệt.
+
+> **Đổi email thì mất dấu xác minh.** `email_verified_at` về `null`. Giữ lại là để dấu "đã xác
+> minh" của địa chỉ CŨ chứng thực cho địa chỉ MỚI — mà đó chính là cửa mở đường đặt lại mật
+> khẩu. Đổi SĐT cũng cùng luật.
+
+> ⚠️ **Xác minh email KHÔNG phải điều kiện của cổng F07.** Cổng chỉ đòi có đủ trường. Xác minh
+> chỉ quyết định một việc: địa chỉ đó có dùng làm kênh khôi phục mật khẩu được không
+> ([01-auth §1.5](./01-auth.md)).
+
 ## 2.3 Onboarding
 
 ```mermaid
@@ -133,4 +179,9 @@ flowchart TD
 2. **Onboarding cho 224đ = lên thẳng Thành viên** mà không cần giao dịch nào. Đúng ý chưa?
 3. SMS/Zalo chưa có adapter nên **luồng xác minh SĐT không chạy được thật ở production**,
    kéo theo phần thưởng 28đ không phát sinh.
-4. `last_login_at` sẽ đặt ở `users` — xem [01-auth](./01-auth.md).
+4. ✅ `users.last_active_at` đã có (không đặt tên `last_login_at` vì nó ghi ở cả nhánh làm mới
+   token) — xem [01-auth](./01-auth.md).
+5. ⚠️ **Hồ sơ đủ trường KHÔNG có nghĩa là liên hệ được.** Cổng F07 chỉ đòi có email và SĐT;
+   cả hai đều chưa cần xác minh. Nếu Bên A muốn "đăng bài được" đồng nghĩa "liên hệ được thật"
+   thì phải đưa `phone_verified_at` (và có thể cả `email_verified_at`) vào điều kiện cổng —
+   đổi vậy sẽ chặn thêm một lượng người đang đăng bài được, nên cần chốt trước.

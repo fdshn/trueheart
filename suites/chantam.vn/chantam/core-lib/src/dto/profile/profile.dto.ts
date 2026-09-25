@@ -38,6 +38,8 @@ export interface IOwnProfileDto {
   rank: UserRanks;
   status: UserStatuses;
   phoneVerified: boolean;
+  /** Email đã qua OTP chưa — chỉ email đã xác minh mới khôi phục mật khẩu được. */
+  emailVerified: boolean;
   profileComplete: boolean;
   referral?: IReferralSummaryDto | null;
   referrer?: IProfileReferrerDto | null;
@@ -85,5 +87,20 @@ export interface IConfirmPhoneVerificationBodyDto {
   verification: IConfirmPhoneVerificationDto;
 }
 export interface IConfirmPhoneVerificationResponseDto {
+  verifiedAt: Date;
+}
+
+export interface IRequestEmailVerificationResponseDto {
+  /** Địa chỉ đã che bớt, đủ để chủ nhận ra mình gõ đúng chưa. */
+  maskedEmail: string;
+  expiresInSeconds: number;
+}
+export interface IConfirmEmailVerificationDto {
+  otp: string;
+}
+export interface IConfirmEmailVerificationBodyDto {
+  verification: IConfirmEmailVerificationDto;
+}
+export interface IConfirmEmailVerificationResponseDto {
   verifiedAt: Date;
 }

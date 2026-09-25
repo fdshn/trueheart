@@ -105,6 +105,18 @@ export class UserEntity
   @Column({ name: 'phone_verified_at', type: 'timestamptz', nullable: true })
   phoneVerifiedAt: Date | null;
 
+  /**
+   * Mốc xác minh email.
+   *
+   * `null` nghĩa là địa chỉ mới chỉ được GÕ VÀO, chưa ai chứng minh là của
+   * mình — và email chưa xác minh KHÔNG được làm kênh đặt lại mật khẩu: gõ
+   * nhầm một ký tự là trao đường chiếm tài khoản cho người lạ. Đổi email thì
+   * cột này về `null`.
+   */
+  @ApiPropertyOptional({ type: String, format: 'date-time' })
+  @Column({ name: 'email_verified_at', type: 'timestamptz', nullable: true })
+  emailVerifiedAt: Date | null;
+
   @Exclude()
   @Column({ name: 'suspended_until', type: 'timestamptz', nullable: true })
   suspendedUntil: Date | null;

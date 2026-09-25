@@ -26,6 +26,19 @@ export interface IAuthConfig {
   loginLockSeconds: number;
   /** Tuổi thọ mã xác minh đặt lại mật khẩu, tính bằng giây. */
   otpTtlSeconds: number;
+  /**
+   * Số lần đăng nhập sai tối đa từ MỘT địa chỉ IP trong cùng cửa sổ khoá.
+   *
+   * Khác `maxLoginAttempts` — cái đó đếm theo tài khoản, nên kẻ rải một mật
+   * khẩu phổ biến qua mười nghìn username chỉ sai một lần trên mỗi tài khoản và
+   * không bao giờ chạm trần. Đặt cao hơn hẳn ngưỡng theo tài khoản vì nhiều
+   * người dùng thật có thể chung một IP sau NAT.
+   */
+  maxLoginAttemptsPerIp: number;
+  /** Số tài khoản tối đa tạo được từ một địa chỉ IP trong một cửa sổ. */
+  maxRegistrationsPerIp: number;
+  /** Độ dài cửa sổ đếm đăng ký, tính bằng giây. */
+  registrationWindowSeconds: number;
 }
 
 /** Một môi trường hiện trong ô chọn "Servers" của Swagger UI. */

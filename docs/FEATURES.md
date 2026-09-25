@@ -60,8 +60,24 @@ và chạy lại request đã hỏng. Token hết hạn thì thu hồi.
 Thu hồi token và refresh session, **đồng thời xoá FCM token của thiết bị** để máy đã đăng
 xuất không còn nhận push.
 
+> ✅ **Sửa 26/09:** đăng xuất nay giết luôn **access token**, không chỉ thu hồi phiên. Trước
+> đó bấm "Đăng xuất" xong token cũ vẫn gọi API được tới 15 phút — trên máy mượn thì đó đúng là
+> khoảng thời gian người ta sợ.
+
 ### F05 — Quên mật khẩu & kênh Admin dự phòng
-Có email/SĐT thì khôi phục qua OTP. Không có thì hiển thị kênh liên hệ Admin.
+Có email/SĐT **đã xác minh** thì khôi phục qua OTP. Không có thì hiển thị kênh liên hệ Admin.
+
+> ✅ **Siết 26/09: chỉ kênh ĐÃ XÁC MINH mới nhận được mã.** Trước đó email chỉ cần gõ vào hồ
+> sơ là dùng được, mà lại được ưu tiên hơn SĐT — thứ đã có xác minh OTP đàng hoàng. Gõ nhầm
+> một ký tự là trao đường chiếm tài khoản cho người lạ: họ bấm quên mật khẩu, nhận mã, đổi mật
+> khẩu, và mọi phiên của chủ thật bị thu hồi. Xem [F09b](#f09b--xác-minh-email).
+>
+> ✅ **Thêm 26/09: `PATCH /auth/password`** — đổi mật khẩu khi đang đăng nhập, cần mật khẩu cũ
+> chứ không cần OTP. Đây là đường **duy nhất** để tài khoản chưa có kênh đã xác minh đổi được
+> mật khẩu.
+>
+> ⛔ **Nhánh `ADMIN_SUPPORT` vẫn chưa đi tới đâu trong hệ thống.** Không có endpoint nào cho
+> Admin đặt lại mật khẩu hộ — cần Bên A chốt có làm không và ràng buộc thế nào.
 
 > ✅ **Đã chốt theo SRS v1.15.0 (CHỐT-04):** Khi không có Email/SĐT, user tự liên hệ Admin support để được hỗ trợ. Ứng dụng chỉ hiển thị hướng dẫn và kênh liên hệ support; quy trình xác minh hỗ trợ thực hiện theo vận hành ngoài của Admin.
 >
@@ -105,6 +121,21 @@ lịch sử liên quan.
 ### F09 — Xác minh SĐT & thưởng lần đầu
 Sự kiện `PHONE_VERIFIED_FIRST_TIME` **chỉ thưởng đúng một lần**, đi qua Point Ledger với
 khoá idempotency. Đổi SĐT về sau không thưởng lại.
+
+### F09b — Xác minh email
+`PATCH /profile/me/email-verification/request` · `/confirm`. Gửi OTP tới địa chỉ **đang có
+trong hồ sơ**, không nhận địa chỉ từ body.
+
+**KHÔNG thưởng điểm** — khác F09, vì nó không nằm trong danh sách onboarding đã chốt. Nó
+quyết định đúng một việc: email đó có dùng làm kênh khôi phục mật khẩu được không ([F05](#f05--quên-mật-khẩu--kênh-admin-dự-phòng)).
+
+Đổi email thì `email_verified_at` về `null`, phải xác minh lại. Khoá OTP gắn cả địa chỉ, nên
+đổi email giữa lúc xin mã và lúc xác nhận thì mã cũ vô hiệu.
+
+> ⚠️ **Không phải điều kiện của cổng F07.** Cổng chỉ đòi có đủ trường; cả email lẫn SĐT đều
+> chưa cần xác minh để đăng bài được. Nếu Bên A muốn "đăng bài được" đồng nghĩa "liên hệ được
+> thật" thì phải đưa mốc xác minh vào điều kiện cổng — cần chốt trước vì nó chặn thêm một
+> lượng người đang đăng bài được.
 
 ### F10 — Hồ sơ công khai & chia sẻ
 Trang công khai hiển thị rank, điểm, thành tích, các mục đang Cho / Muốn nhận. Có deep link

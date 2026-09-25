@@ -158,6 +158,44 @@ async function main(): Promise<void> {
       Number(other?.days) >= 99,
       `${other?.days} ngày`,
     );
+
+    console.log('\n5. Kênh khôi phục mật khẩu phải là kênh ĐÃ XÁC MINH');
+    const [freshRow] = await dataSource.query<
+      { email_verified_at: Date | null }[]
+    >(`SELECT email_verified_at FROM users WHERE global_id = $1`, [UserId]);
+    check(
+      'tài khoản mới có email_verified_at = NULL',
+      freshRow?.email_verified_at === null,
+      String(freshRow?.email_verified_at),
+    );
+
+    // Đọc qua ENTITY chứ không qua SQL thô: cột thiếu khai báo trong entity thì
+    // `user.emailVerifiedAt` ra `undefined`, và luồng quên mật khẩu lặng lẽ coi
+    // MỌI email là chưa xác minh — không ai khôi phục được nữa.
+    const loadedUser = await repository.findOneBy({ globalId: UserId });
+    check(
+      'entity ánh xạ được cột, không ra undefined',
+      loadedUser !== null && loadedUser.emailVerifiedAt === null,
+      `${String(loadedUser?.emailVerifiedAt)}`,
+    );
+
+    await dataSource.query(
+      `UPDATE users SET email_verified_at = now() WHERE global_id = $1`,
+      [UserId],
+    );
+    const verifiedUser = await repository.findOneBy({ globalId: UserId });
+    check(
+      'đánh dấu xác minh rồi thì entity đọc ra Date',
+      verifiedUser?.emailVerifiedAt instanceof Date,
+      typeof verifiedUser?.emailVerifiedAt,
+    );
+
+    const byIdentifier = await repository.findByIdentifier('nguoi-khac');
+    check(
+      'findByIdentifier — đường mà luồng quên mật khẩu dùng — cũng mang cột này',
+      byIdentifier !== null && byIdentifier.emailVerifiedAt === null,
+      `${String(byIdentifier?.emailVerifiedAt)}`,
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();
@@ -166,7 +204,7 @@ async function main(): Promise<void> {
   console.log(
     `\n${
       failures.length === 0
-        ? 'Mốc hoạt động: ghi được, đúng cột, đúng người'
+        ? 'Mốc hoạt động và mốc xác minh email: ghi được, đúng cột, đúng người'
         : `${failures.length} phép kiểm thất bại`
     }`,
   );

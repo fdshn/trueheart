@@ -74,6 +74,13 @@ export function loadConfig(): IConfig {
       maxLoginAttempts: Number(process.env.MAX_LOGIN_ATTEMPTS ?? 5),
       loginLockSeconds: Number(process.env.LOGIN_LOCK_SECONDS ?? 900),
       otpTtlSeconds: Number(process.env.OTP_TTL_SECONDS ?? 300),
+      maxLoginAttemptsPerIp: Number(
+        process.env.MAX_LOGIN_ATTEMPTS_PER_IP ?? 30,
+      ),
+      maxRegistrationsPerIp: Number(process.env.MAX_REGISTRATIONS_PER_IP ?? 5),
+      registrationWindowSeconds: Number(
+        process.env.REGISTRATION_WINDOW_SECONDS ?? 3_600,
+      ),
     },
     // Khai `API_SERVERS` thì DÙNG ĐÚNG danh sách đó, không chèn localhost.
     //

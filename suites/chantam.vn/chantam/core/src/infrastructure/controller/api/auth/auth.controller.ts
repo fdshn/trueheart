@@ -1,4 +1,5 @@
 import {
+  IChangePasswordUseCase,
   IConfirmPasswordResetUseCase,
   IDeleteAccountUseCase,
   ILoginUserUseCase,
@@ -13,12 +14,14 @@ import {
   OtpTooSoonException,
   RefreshTokenInvalidException,
   TooManyLoginAttemptsException,
+  TooManyRequestsException,
   UserBannedException,
   UserHasOpenTransactionsException,
   UsernameTakenException,
   UserSuspendedException,
 } from '@/domain/exceptions';
 import {
+  IChangePasswordResponseDto,
   IConfirmPasswordResetResponseDto,
   ICurrentSessionDto,
   IDeleteAccountResponseDto,
@@ -45,6 +48,8 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  Ip,
+  Patch,
   Post,
 } from '@nestjs/common';
 import {
@@ -55,6 +60,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  ChangePasswordBodyDto,
+  ChangePasswordResponseDto,
   ConfirmPasswordResetBodyDto,
   ConfirmPasswordResetResponseDto,
   CurrentSessionDto,
@@ -88,6 +95,8 @@ export class AuthController {
     private readonly requestPasswordResetUseCase: IRequestPasswordResetUseCase,
     @Inject(IConfirmPasswordResetUseCase)
     private readonly confirmPasswordResetUseCase: IConfirmPasswordResetUseCase,
+    @Inject(IChangePasswordUseCase)
+    private readonly changePasswordUseCase: IChangePasswordUseCase,
     @Inject(IDeleteAccountUseCase)
     private readonly deleteAccountUseCase: IDeleteAccountUseCase,
   ) {}
@@ -108,11 +117,18 @@ export class AuthController {
       ],
     ],
     [UsernameTakenException, 'nguoidung01'],
+    [TooManyRequestsException, 60],
   )
   public async registerUser(
     @Body() body: RegisterBodyDto,
+    // IP lấy từ request, KHÔNG từ body: tin body thì ai cũng tự khai một địa
+    // chỉ khác mỗi lần gọi và cái trần theo nguồn gọi thành vô nghĩa.
+    @Ip() clientIp: string,
   ): Promise<ResponseDto<IRegisterResponseDto>> {
-    const result = await this.registerUserUseCase.handle({ ...body });
+    const result = await this.registerUserUseCase.handle({
+      ...body,
+      clientIp,
+    });
 
     return ResponseDto.create<IRegisterResponseDto>()
       .succeed()
@@ -137,11 +153,13 @@ export class AuthController {
     [UserSuspendedException, new Date('2026-10-01T00:00:00Z')],
     UserBannedException,
     [TooManyLoginAttemptsException, 900],
+    [TooManyRequestsException, 60],
   )
   public async loginUser(
     @Body() body: LoginBodyDto,
+    @Ip() clientIp: string,
   ): Promise<ResponseDto<ILoginResponseDto>> {
-    const result = await this.loginUserUseCase.handle({ ...body });
+    const result = await this.loginUserUseCase.handle({ ...body, clientIp });
 
     return ResponseDto.create<ILoginResponseDto>()
       .succeed()
@@ -254,6 +272,39 @@ export class AuthController {
     const result = await this.confirmPasswordResetUseCase.handle({ ...body });
 
     return ResponseDto.create<IConfirmPasswordResetResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Patch('password')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Đổi mật khẩu khi đang đăng nhập',
+    description:
+      'Cần mật khẩu hiện tại, không cần OTP. Thu hồi TOÀN BỘ phiên trên mọi thiết bị rồi cấp lại cặp token mới cho thiết bị đang gọi. Đây là đường DUY NHẤT đổi mật khẩu cho tài khoản chưa có email/SĐT đã xác minh — luồng quên mật khẩu của những tài khoản đó rơi về ADMIN_SUPPORT.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(ChangePasswordResponseDto) })
+  @ApiErrorResponses(
+    [
+      ValidationFailedException,
+      ['password.newPassword: mật khẩu mới phải khác mật khẩu hiện tại'],
+    ],
+    ...ApiTokenErrors,
+    // Sai mật khẩu hiện tại cũng dùng lỗi này.
+    InvalidCredentialsException,
+  )
+  public async changePassword(
+    @Body() body: ChangePasswordBodyDto,
+    @CurrentUser() principal: IAuthPrincipal,
+  ): Promise<ResponseDto<IChangePasswordResponseDto>> {
+    const result = await this.changePasswordUseCase.handle({
+      ...body,
+      userId: principal.userId,
+    });
+
+    return ResponseDto.create<IChangePasswordResponseDto>()
       .succeed()
       .attach(result)
       .build();

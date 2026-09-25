@@ -1,4 +1,5 @@
 import {
+  IChangePasswordUseCase,
   IConfirmPasswordResetUseCase,
   IDeleteAccountUseCase,
   ILoginUserUseCase,
@@ -8,6 +9,7 @@ import {
   IRequestPasswordResetUseCase,
 } from '@/application/contracts/auth';
 import { Global, Module } from '@nestjs/common';
+import { ChangePasswordUseCase } from './change-password.use-case';
 import { ConfirmPasswordResetUseCase } from './confirm-password-reset.use-case';
 import { DeleteAccountUseCase } from './delete-account.use-case';
 import { LoginUserUseCase } from './login-user.use-case';
@@ -37,6 +39,7 @@ import { SessionIssuer } from './session-issuer';
       provide: IConfirmPasswordResetUseCase,
       useClass: ConfirmPasswordResetUseCase,
     },
+    { provide: IChangePasswordUseCase, useClass: ChangePasswordUseCase },
     { provide: IDeleteAccountUseCase, useClass: DeleteAccountUseCase },
   ],
   exports: [
@@ -46,6 +49,7 @@ import { SessionIssuer } from './session-issuer';
     ILogoutUserUseCase,
     IRequestPasswordResetUseCase,
     IConfirmPasswordResetUseCase,
+    IChangePasswordUseCase,
     IDeleteAccountUseCase,
   ],
 })

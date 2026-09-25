@@ -1,9 +1,13 @@
 import {
+  IConfirmEmailVerificationResult,
+  IConfirmEmailVerificationUseCase,
   IConfirmPhoneVerificationResult,
   IConfirmPhoneVerificationUseCase,
   IGetOwnProfileUseCase,
   IGetPublicProfileUseCase,
   IRequestAvatarUploadUseCase,
+  IRequestEmailVerificationResult,
+  IRequestEmailVerificationUseCase,
   IRequestPhoneVerificationResult,
   IRequestPhoneVerificationUseCase,
   IUpdateOwnProfileUseCase,
@@ -37,6 +41,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  ConfirmEmailVerificationBodyDto,
+  ConfirmEmailVerificationResponseDto,
   ConfirmPhoneVerificationBodyDto,
   ConfirmPhoneVerificationResponseDto,
   GetOwnProfileResponseDto,
@@ -44,6 +50,7 @@ import {
   GetPublicProfileResponseDto,
   RequestAvatarUploadDto,
   RequestAvatarUploadResponseDto,
+  RequestEmailVerificationResponseDto,
   RequestPhoneVerificationResponseDto,
   UpdateOwnProfileBodyDto,
   UpdateOwnProfileResponseDto,
@@ -60,6 +67,10 @@ export class ProfileController {
     private readonly requestPhoneVerificationUseCase: IRequestPhoneVerificationUseCase,
     @Inject(IConfirmPhoneVerificationUseCase)
     private readonly confirmPhoneVerificationUseCase: IConfirmPhoneVerificationUseCase,
+    @Inject(IRequestEmailVerificationUseCase)
+    private readonly requestEmailVerificationUseCase: IRequestEmailVerificationUseCase,
+    @Inject(IConfirmEmailVerificationUseCase)
+    private readonly confirmEmailVerificationUseCase: IConfirmEmailVerificationUseCase,
     @Inject(IGetOwnProfileUseCase)
     private readonly getOwnProfileUseCase: IGetOwnProfileUseCase,
     @Inject(IGetPublicProfileUseCase)
@@ -155,6 +166,59 @@ export class ProfileController {
       ...body,
     });
     return ResponseDto.create<IConfirmPhoneVerificationResult>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Patch('me/email-verification/request')
+  @ApiOperation({
+    summary: 'Gửi OTP xác minh email hiện tại',
+    description:
+      'Gửi tới địa chỉ đã lưu trong hồ sơ, không nhận địa chỉ từ body. Cần xác minh thì email mới dùng được làm kênh khôi phục mật khẩu — email chưa xác minh khiến luồng quên mật khẩu rơi về ADMIN_SUPPORT. Chưa cấu hình kênh email thì trả 501 chứ KHÔNG âm thầm coi như đã gửi.',
+  })
+  @ApiErrorResponses(...ApiTokenErrors, UserNotFoundException)
+  @ApiOkResponse({
+    type: ResponseDto.forApi(RequestEmailVerificationResponseDto),
+  })
+  public async requestEmailVerification(
+    @CurrentUser() principal: IAuthPrincipal,
+  ): Promise<ResponseDto<IRequestEmailVerificationResult>> {
+    const result = await this.requestEmailVerificationUseCase.handle({
+      userId: principal.userId,
+    });
+
+    return ResponseDto.create<IRequestEmailVerificationResult>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Patch('me/email-verification/confirm')
+  @ApiOperation({
+    summary: 'Xác nhận OTP, đánh dấu email đã xác minh',
+    description:
+      'KHÔNG thưởng điểm — khác xác minh SĐT, vì đây không nằm trong danh sách onboarding đã chốt. Đổi email về sau thì dấu xác minh mất, phải làm lại.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ValidationFailedException, ['otp: otp phải là 6 chữ số']],
+    OtpInvalidException,
+    UserNotFoundException,
+  )
+  @ApiOkResponse({
+    type: ResponseDto.forApi(ConfirmEmailVerificationResponseDto),
+  })
+  public async confirmEmailVerification(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: ConfirmEmailVerificationBodyDto,
+  ): Promise<ResponseDto<IConfirmEmailVerificationResult>> {
+    const result = await this.confirmEmailVerificationUseCase.handle({
+      userId: principal.userId,
+      ...body,
+    });
+
+    return ResponseDto.create<IConfirmEmailVerificationResult>()
       .succeed()
       .attach(result)
       .build();

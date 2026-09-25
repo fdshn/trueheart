@@ -4,7 +4,9 @@ import {
   IRegisterUserUseCase,
 } from '@/application/contracts/auth';
 import { UsernameTakenException } from '@/domain/exceptions';
+import { IConfig } from '@/domain/ports/config';
 import { IGroupRepository, IUserRepository } from '@/domain/ports/repository';
+import { IRequestThrottle } from '@/domain/ports/security';
 import { UserId } from '@chantam.vn/chantam.core-lib/values';
 import { IPasswordService } from '@chantam/service.auth-lib';
 import { Inject, Injectable } from '@nestjs/common';
@@ -21,6 +23,10 @@ export class RegisterUserUseCase implements IRegisterUserUseCase {
     private readonly sessionIssuer: SessionIssuer,
     @Inject(IGroupRepository)
     private readonly groups: IGroupRepository,
+    @Inject(IRequestThrottle)
+    private readonly requestThrottle: IRequestThrottle,
+    @Inject(IConfig)
+    private readonly config: IConfig,
   ) {}
 
   public async handle(
@@ -28,6 +34,14 @@ export class RegisterUserUseCase implements IRegisterUserUseCase {
   ): Promise<IRegisterUserResult> {
     const { registration } = command;
     const username = registration.username.trim();
+
+    // Trần theo nguồn gọi. Tài khoản mới ĐẺ RA ĐIỂM qua referral và affiliate,
+    // nên tạo hàng loạt không chỉ là rác mà là một đường gian lận.
+    await this.requestThrottle.assertWithinLimit({
+      bucket: 'register-ip',
+      key: command.clientIp,
+      limit: this.config.auth.maxRegistrationsPerIp,
+    });
 
     if (await this.userRepository.isUsernameTaken(username))
       throw new UsernameTakenException(username);
@@ -41,6 +55,14 @@ export class RegisterUserUseCase implements IRegisterUserUseCase {
       referralCode: registration.referralCode,
     });
     if (!created.user) throw new UsernameTakenException(username);
+
+    // Đếm khi TẠO ĐƯỢC, không đếm lần gõ hỏng form: thứ cần giới hạn là số tài
+    // khoản sinh ra, không phải số lần người ta gõ sai mật khẩu xác nhận.
+    await this.requestThrottle.registerHit({
+      bucket: 'register-ip',
+      key: command.clientIp,
+      windowSeconds: this.config.auth.registrationWindowSeconds,
+    });
 
     // Vào nhóm qua link mời (F54/BR-GRP-04). CHỈ ở đây, chỉ cho tài khoản vừa
     // tạo: membership không sinh ra từ đường nào khác, và chính ràng buộc đó là

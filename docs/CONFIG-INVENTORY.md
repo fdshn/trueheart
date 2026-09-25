@@ -52,6 +52,9 @@ không client upload trực tiếp sẽ bị chặn ở trình duyệt.
 | --- | --- | --- |
 | `ACCESS_TOKEN_TTL_SECONDS` | 900 | 15 phút |
 | `REFRESH_TOKEN_TTL_SECONDS` | 2592000 | 30 ngày |
+| `MAX_LOGIN_ATTEMPTS_PER_IP` | 30 | Trần đăng nhập sai theo **địa chỉ IP**, bù cho trần theo tài khoản. Chỉ đếm khi sai |
+| `MAX_REGISTRATIONS_PER_IP` | 5 | Số tài khoản tạo được từ một IP trong một cửa sổ. Chỉ đếm khi tạo được |
+| `REGISTRATION_WINDOW_SECONDS` | 3600 | Độ dài cửa sổ đếm đăng ký |
 | `OTP_TTL_SECONDS` | 300 | 5 phút |
 | `BCRYPT_ROUNDS` | 12 | Tăng là chậm đăng nhập, giảm là dễ dò mật khẩu |
 | `MAX_LOGIN_ATTEMPTS` · `LOGIN_LOCK_SECONDS` | 5 · 900 | Chống dò mật khẩu |
@@ -237,7 +240,7 @@ quyền trên *mọi* nhóm. Phép kiểm luôn mang `groupId`.
 | ⛔ **Adapter + credential Zalo ZNS** | Kênh thông báo thứ hai | ⬆ |
 | ⛔ **FCM credential** (F44) | Đẩy thông báo tới máy. Hiện thông báo vẫn ghi đủ trong app nhưng **không có gì rung máy ai** | Bên A |
 | ⛔ **R2 bucket + key + CORS + CDN domain** | Upload ảnh ở staging/prod | Bên A / hạ tầng |
-| ⛔ **Xác thực domain người gửi email** | Thư không vào spam | Bên A |
+| ⛔ **Xác thực domain người gửi email** | Thư không vào spam, và **xác minh email** — thứ quyết định một tài khoản có khôi phục được mật khẩu hay không | Bên A |
 | ⛔ **`JWT_SECRET` + `CONFIG_ENCRYPTION_KEY` riêng cho staging/prod** | Bảo mật | Hạ tầng |
 
 ### 3.2 Con số chờ Bên A xác nhận
@@ -264,7 +267,7 @@ quyền trên *mọi* nhóm. Phép kiểm luôn mang `groupId`.
 | ~~Lịch cron cho 10 CLI~~ | ✅ Đã có ở [`deploy/cron/`](../deploy/cron/README.md). ⛔ Còn thiếu: **alert vào kênh người thật đọc** |
 | Sửa `group_role_permissions` qua API | Chỉ đổi được bằng migration (xem §2.9) |
 | Xoá sub-team | Cột `deleted_at` đã có, chưa có endpoint; xoá tổ còn người thì xử lý ra sao cũng chưa ai nói |
-| Giới hạn tốc độ toàn hệ thống | Không có |
+| Giới hạn tốc độ toàn hệ thống | Mới có cho `/auth/login` và `/auth/register` (theo IP). Các endpoint còn lại **chưa có** |
 
 ---
 

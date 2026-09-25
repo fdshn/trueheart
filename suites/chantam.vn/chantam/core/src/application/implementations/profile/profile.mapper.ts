@@ -15,6 +15,7 @@ export function toOwnProfileDto(user: IUserEntity): IOwnProfileDto {
     rank: user.rank,
     status: user.status,
     phoneVerified: Boolean(user.phoneVerifiedAt),
+    emailVerified: Boolean(user.emailVerifiedAt),
     profileComplete: isProfileComplete(user),
   };
 }

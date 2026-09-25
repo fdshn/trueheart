@@ -55,3 +55,4 @@ export * from './1793500000000-SeedReminderNotificationTemplates';
 export * from './1793600000000-SeedOpenRequestQuota';
 export * from './1793700000000-CreateGroups';
 export * from './1793800000000-PublishPendingPosts';
+export * from './1793900000000-AddUserEmailVerifiedAt';

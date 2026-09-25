@@ -61,6 +61,12 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
       )
         throw new EmailTakenException();
       update.email = email;
+
+      // Đổi email đồng nghĩa bằng chứng sở hữu địa chỉ cũ không còn giá trị.
+      // Thiếu dòng này thì xác minh một địa chỉ của mình rồi đổi sang địa chỉ
+      // người khác là giữ nguyên dấu "đã xác minh" — và dấu đó chính là thứ mở
+      // đường đặt lại mật khẩu.
+      if (email !== user.email) update.emailVerifiedAt = null;
     }
     if (profileUpdate.defaultLocation !== undefined)
       update.defaultLocation = profileUpdate.defaultLocation;
