@@ -6,6 +6,7 @@ import {
   PostNotFoundException,
 } from '@/domain/exceptions';
 import {
+  ICandidateMetricsWithId,
   IChatRepository,
   IGiftRequestRepository,
 } from '@/domain/ports/repository';
@@ -13,6 +14,7 @@ import { GiftRequestEntity, UserEntity } from '@/infrastructure/entity';
 import {
   GiftPostStatuses,
   GiftRequestStatuses,
+  UserRanks,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostRequestItemDto } from '@chantam.vn/chantam.core-lib/dto';
 import { IGiftRequestEntity } from '@chantam.vn/chantam.core-lib/entities';
@@ -218,6 +220,102 @@ export class GiftRequestRepository
    * Đã đo bằng `npm run test:concurrency`: chỉ khoá một hàng thì 24/25 vòng dính
    * `40P01`.
    */
+  public async findPostsDueForSelection(
+    limit: number,
+  ): Promise<{ postId: string; giverId: string }[]> {
+    const rows = await this.manager.query<
+      { post_id: string; giver_id: string }[]
+    >(
+      `
+        SELECT post.global_id AS post_id, post.author_id AS giver_id
+        FROM posts post
+        WHERE post.selection_deadline IS NOT NULL
+          AND post.selection_deadline <= now()
+          AND post.status = $1
+          AND post.deleted_at IS NULL
+          AND EXISTS (
+            SELECT 1 FROM gift_requests candidate
+            WHERE candidate.post_id = post.global_id
+              AND candidate.status = $2
+              AND candidate.deleted_at IS NULL
+          )
+        ORDER BY post.selection_deadline ASC
+        LIMIT $3
+      `,
+      [GiftPostStatuses.PUBLISHED, GiftRequestStatuses.PENDING, limit],
+    );
+
+    return rows.map((row) => ({
+      postId: row.post_id,
+      giverId: row.giver_id,
+    }));
+  }
+
+  public async listCandidateMetrics(
+    postId: string,
+  ): Promise<ICandidateMetricsWithId[]> {
+    // Khoảng cách đo từ Vị trí mặc định của ứng viên tới vị trí BÀI. `NULL` khi
+    // họ chưa đặt vị trí — hàm xếp coi đó là "không biết" và đẩy xuống cuối tiêu
+    // chí NEAREST, chứ không coi là 0 mét.
+    const rows = await this.manager.query<
+      {
+        request_global_id: string;
+        requester_id: string;
+        queue_joined_at: Date;
+        request_id: string;
+        rank: UserRanks;
+        distance_meters: string | null;
+        received_count: string;
+        cancellation_count: string;
+      }[]
+    >(
+      `
+        SELECT candidate.global_id AS request_global_id,
+               candidate.requester_id,
+               candidate.queue_joined_at,
+               candidate.id AS request_id,
+               person.rank,
+               CASE
+                 WHEN person.default_location IS NULL THEN NULL
+                 ELSE ST_Distance(person.default_location, post.location)
+               END AS distance_meters,
+               received.total AS received_count,
+               cancelled.total AS cancellation_count
+        FROM gift_requests candidate
+        INNER JOIN posts post ON post.global_id = candidate.post_id
+        INNER JOIN users person ON person.global_id = candidate.requester_id
+        CROSS JOIN LATERAL (
+          SELECT COUNT(*)::text AS total
+          FROM gift_transactions done
+          WHERE done.receiver_id = candidate.requester_id
+            AND done.status = 'COMPLETED'
+        ) received
+        CROSS JOIN LATERAL (
+          SELECT COUNT(*)::text AS total
+          FROM gift_transactions dropped
+          WHERE dropped.closed_by = candidate.requester_id
+            AND dropped.status = 'CANCELLED'
+        ) cancelled
+        WHERE candidate.post_id = $1
+          AND candidate.status = $2
+          AND candidate.deleted_at IS NULL
+      `,
+      [postId, GiftRequestStatuses.PENDING],
+    );
+
+    return rows.map((row) => ({
+      requestGlobalId: row.request_global_id,
+      requesterId: row.requester_id,
+      queueJoinedAt: row.queue_joined_at,
+      requestId: Number(row.request_id),
+      rank: row.rank,
+      distanceMeters:
+        row.distance_meters === null ? null : Number(row.distance_meters),
+      receivedCount: Number(row.received_count),
+      cancellationCount: Number(row.cancellation_count),
+    }));
+  }
+
   public async acceptRequest(params: {
     requestId: string;
     postId: string;
@@ -307,7 +405,13 @@ export class GiftRequestRepository
       const newPostStatus = newRemaining === 0 ? 'DELIVERING' : 'PUBLISHED';
 
       await manager.query(
-        `UPDATE posts SET remaining_quantity = $1, status = $2, updated_at = now() WHERE global_id = $3`,
+        // `selection_deadline = NULL`: đồng hồ chọn người nhận đã hết việc. Để
+        // lại mốc cũ thì job tự chọn sẽ nhặt đúng bài này lên mỗi lần chạy và
+        // cố chọn thêm một người nữa cho một bài đã có chủ.
+        `UPDATE posts
+         SET remaining_quantity = $1, status = $2,
+             selection_deadline = NULL, updated_at = now()
+         WHERE global_id = $3`,
         [newRemaining, newPostStatus, params.postId],
       );
 

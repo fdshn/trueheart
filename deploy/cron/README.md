@@ -33,6 +33,7 @@ người dùng lúc 3 giờ chiều, và `post:expire` cắt ngày lệch 7 ti�
 | Giờ | Lệnh | Tần suất |
 | --- | --- | --- |
 | `:19` mỗi giờ | `point:reconcile` | hằng giờ |
+| `:37` mỗi giờ | `selection:auto-select` | hằng giờ |
 | 00:11 | `post:expire` | hằng ngày |
 | 02:07 | `transaction:autocomplete` | hằng ngày |
 | 02:23 | `gift:settle-rewards` | hằng ngày |
@@ -47,6 +48,10 @@ người dùng lúc 3 giờ chiều, và `post:expire` cắt ngày lệch 7 ti�
 **`point:reconcile` mỗi giờ.** Nó vá phần thưởng xác minh SĐT bị thiếu khi tiến
 trình chết giữa hai bước. Người vừa xác minh xong mà không thấy điểm sẽ nghĩ hệ
 thống hỏng, và họ **không có cách nào xác minh lại** để được thưởng.
+
+**`selection:auto-select` mỗi giờ.** Đồng hồ hết lúc 14 giờ mà tới 2 giờ sáng hôm
+sau mới chốt là để người xin chờ thêm 12 tiếng **sau khi** đã hết hạn — họ nhìn
+thấy đồng hồ về 0 và không có gì xảy ra.
 
 **`post:expire` ngay sau nửa đêm.** Hạn của bài tính theo ngày, nên chạy đầu ngày
 là đúng ranh giới.

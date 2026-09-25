@@ -87,9 +87,15 @@ function lockOrder(query: jest.Mock): string[] {
     .filter(Boolean) as string[];
 }
 
+function postUpdateSql(query: jest.Mock): string | undefined {
+  return query.mock.calls
+    .map(([sql]) => String(sql))
+    .find((sql) => /UPDATE posts\s+SET remaining_quantity/.test(sql));
+}
+
 function postUpdate(query: jest.Mock): unknown[] | undefined {
   return query.mock.calls.find(([sql]) =>
-    String(sql).includes('UPDATE posts SET remaining_quantity'),
+    /UPDATE posts\s+SET remaining_quantity/.test(String(sql)),
   )?.[1] as unknown[] | undefined;
 }
 
@@ -206,5 +212,16 @@ describe('GiftRequestRepository.acceptRequest — trạng thái bài', () => {
         (params as unknown[])?.[0] === GiftRequestStatuses.REJECTED,
     );
     expect(rejectOthers).toBeUndefined();
+  });
+});
+
+describe('GiftRequestRepository.acceptRequest — đồng hồ chọn người nhận', () => {
+  it('xoá selection_deadline khi đã chốt người nhận', async () => {
+    // Để lại mốc cũ thì job tự chọn (F75) nhặt đúng bài này lên mỗi lần chạy và
+    // cố chọn thêm một người nữa cho một bài đã có chủ.
+    const query = makeQuery({});
+    await makeRepository(query).acceptRequest(Params);
+
+    expect(postUpdateSql(query)).toMatch(/selection_deadline = NULL/);
   });
 });

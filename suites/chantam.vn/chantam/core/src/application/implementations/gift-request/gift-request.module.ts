@@ -1,11 +1,13 @@
 import {
   IAcceptGiftRequestUseCase,
+  IAutoSelectDueRecipientsUseCase,
   ICreateGiftRequestUseCase,
   IListPostRequestsUseCase,
   IWithdrawGiftRequestUseCase,
 } from '@/application/contracts/gift-request';
 import { Global, Module } from '@nestjs/common';
 import { AcceptGiftRequestUseCase } from './accept-gift-request.use-case';
+import { AutoSelectDueRecipientsUseCase } from './auto-select-due-recipients.use-case';
 import { CreateGiftRequestUseCase } from './create-gift-request.use-case';
 import { ListPostRequestsUseCase } from './list-post-requests.use-case';
 import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
@@ -14,6 +16,10 @@ import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
 @Module({
   providers: [
     { provide: ICreateGiftRequestUseCase, useClass: CreateGiftRequestUseCase },
+    {
+      provide: IAutoSelectDueRecipientsUseCase,
+      useClass: AutoSelectDueRecipientsUseCase,
+    },
     {
       provide: IWithdrawGiftRequestUseCase,
       useClass: WithdrawGiftRequestUseCase,
@@ -29,6 +35,7 @@ import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
     IWithdrawGiftRequestUseCase,
     IListPostRequestsUseCase,
     IAcceptGiftRequestUseCase,
+    IAutoSelectDueRecipientsUseCase,
   ],
 })
 export class GiftRequestModule {}

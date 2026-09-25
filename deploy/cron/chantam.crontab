@@ -41,6 +41,12 @@ RUN=/home/deploy/chantam/deploy/cron/run-cli.sh
 # Thoát khác 0 khi có lượt bị giữ vì báo xấu chưa xử — cron sẽ báo, và đó là chủ ý.
 7 2 * * * deploy $RUN $CHANTAM_DIR transaction-autocomplete
 
+# Chốt người nhận cho bài đã hết đồng hồ 7 ngày (F75). Chạy MỖI GIỜ chứ không mỗi
+# ngày: đồng hồ hết lúc 14 giờ mà tới 2 giờ sáng hôm sau mới chốt là để người xin
+# chờ thêm 12 tiếng sau khi đã hết hạn — họ nhìn thấy đồng hồ về 0 và không có gì
+# xảy ra.
+37 * * * * deploy $RUN $CHANTAM_DIR selection-auto-select
+
 # Trả thưởng cho lượt trao người nhận không bao giờ đánh giá. KHÔNG CHẠY LÀ ĐIỂM
 # CỦA NGƯỜI TẶNG TREO VÔ HẠN — đây là job cấp bách nhất trong file này.
 23 2 * * * deploy $RUN $CHANTAM_DIR gift-settle-rewards

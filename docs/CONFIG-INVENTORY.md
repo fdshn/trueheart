@@ -94,7 +94,7 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | `accuracy.giver` | `minSamples: 5`, `reviewThresholdPercent: 75` | Ngưỡng Giver Accuracy (F43) | `GET\|POST /admin/system-configs` |
 | `point.redemption` | `vndPerPoint: 2000` | Tỷ lệ quy đổi khi đổi vật phẩm (F74) | ⬆ |
 | `review.grace` | `graceDays: 7`, `defaultAccuracyPercent: 80` | Chờ rồi áp mức mặc định khi người nhận không đánh giá (F40). Đọc bởi CLI `gift:settle-rewards` | ⬆ |
-| `selection.candidate_priority` | *(chưa đặt → mặc định "ai xin trước")* | Thứ tự tiêu chí chọn người nhận (CH-1) | `GET\|PUT /admin/candidate-selection` |
+| `selection.candidate_priority` | *(chưa đặt → mặc định "ai xin trước")* | Thứ tự tiêu chí chọn người nhận (CH-1). **Đã nối vào auto-select** 25/09 | `GET\|PUT /admin/candidate-selection` |
 
 **Vì sao các con số này có giá trị đó:**
 

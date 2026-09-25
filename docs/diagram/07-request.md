@@ -1,7 +1,7 @@
 # 07 · Xin nhận & chọn người nhận
 
-Trạng thái: ✅ hàng đợi và chế độ `INSTANT` đã chạy. ⛔ **Countdown 7 ngày và auto-select
-chưa có code.**
+Trạng thái: ✅ **hàng đợi, countdown và auto-select đã chạy** (25/09). Có script kiểm trên
+Postgres thật: `npm run test:selection`.
 
 ## 7.1 Ba chế độ chọn người nhận
 
@@ -9,12 +9,12 @@ chưa có code.**
 flowchart TD
     P[Bài Muốn Tặng] --> M{selectionMode}
     M --> I["INSTANT ✅<br/>Ai xin trước được luôn"]
-    M --> O["OPTIMAL ⛔<br/>Countdown 7 ngày rồi auto-select"]
-    M --> E["EXTENDED ⛔<br/>Chủ bài tự chọn, không giới hạn thời gian"]
+    M --> O["OPTIMAL ✅ (mặc định)<br/>Countdown 7 ngày rồi auto-select"]
+    M --> E["EXTENDED ✅<br/>Countdown 30 ngày"]
 
     style I fill:#e6ffe6
-    style O fill:#ffe6e6
-    style E fill:#ffe6e6
+    style O fill:#e6ffe6
+    style E fill:#e6ffe6
 ```
 
 ## 7.2 Hàng đợi xin nhận
@@ -52,7 +52,7 @@ sequenceDiagram
 > là chuyện thường. `REJECTED` là đóng cửa với họ và buộc chủ bài phải đăng lại từ đầu;
 > `STANDBY` giữ nguyên hàng đợi để chọn người kế tiếp ngay.
 
-## 7.3 Countdown 7 ngày (F75) — ⛔ chưa có code
+## 7.3 Countdown 7 ngày (F75) — ✅ đã hiện thực
 
 ```mermaid
 stateDiagram-v2
@@ -64,9 +64,9 @@ stateDiagram-v2
         ChờThêmỨngViên --> ChờThêmỨngViên: Người khác xin
     }
 
-    ĐangĐếm --> ChốtNgay: Có người dùng ĐIỂM đổi thẳng
-    ĐangĐếm --> TựChọn: Hết 7 ngày
-    ĐangĐếm --> ChủBàiChọn: Chủ bài chọn tay
+    ĐangĐếm --> ChốtNgay: Có người dùng ĐIỂM đổi thẳng ⛔
+    ĐangĐếm --> TựChọn: Hết 7 ngày ✅
+    ĐangĐếm --> ChủBàiChọn: Chủ bài chọn tay ✅ (chốt sớm được)
 
     ChốtNgay --> ĐãChọn: Dừng đếm, KHÔNG auto-select
     TựChọn --> ĐãChọn: Xếp theo bộ tiêu chí Admin
@@ -81,7 +81,33 @@ stateDiagram-v2
     end note
 ```
 
-## 7.4 Bộ tiêu chí auto-select (CH-1) — ✅ đã chốt và đã hiện thực
+## 7.4 Bộ tiêu chí auto-select (CH-1) — ✅ đã chốt và đã nối
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CLI as selection:auto-select (mỗi giờ)
+    participant DB as Postgres
+    participant M as rankCandidates (hàm thuần)
+
+    CLI->>DB: Bài nào selection_deadline <= now(),<br/>còn PUBLISHED, còn ứng viên?
+    CLI->>DB: Đọc thứ tự ưu tiên MỘT lần cho cả vòng
+    Note over CLI: Đọc lại mỗi bài thì hai bài cùng lượt chạy<br/>xếp theo hai thứ tự khác nhau nếu Admin<br/>đổi cấu hình giữa chừng
+    loop Mỗi bài
+        CLI->>DB: listCandidateMetrics — MỘT truy vấn, đủ 5 tiêu chí
+        DB-->>M: số đo thô
+        M-->>CLI: người thắng
+        CLI->>DB: acceptRequest — đi qua CHÍNH đường duyệt của chủ bài
+        Note over DB: Nó đã lo khoá hàng, trừ tồn kho, chuyển<br/>ứng viên còn lại sang STANDBY, mở phòng chat,<br/>và xoá selection_deadline
+    end
+```
+
+> **Một bài hỏng không làm dừng cả vòng** — những bài còn lại cũng đang để người xin chờ một
+> đồng hồ đã reo. CLI thoát khác 0 và in từng bài hỏng.
+>
+> **Người chưa đặt vị trí ra `distanceMeters = null`, không phải 0 mét.** Coi là 0 thì người
+> lười đặt vị trí luôn thắng tiêu chí NEAREST.
+
 
 ```mermaid
 flowchart TD
@@ -130,9 +156,12 @@ sequenceDiagram
 
 ## Chỗ cần soát
 
-1. **`OPTIMAL` và `EXTENDED` chưa có code.** Hiện chỉ `INSTANT` chạy được, nghĩa là mọi bài
-   đều theo kiểu ai xin trước được luôn.
-2. **Countdown 7 ngày chưa có** — kéo theo F75 (đổi vật phẩm bằng điểm) không có chỗ bám.
-3. Cổng hồ sơ F07 **chưa gắn vào luồng xin nhận** dù đã chốt ngày 2026-09-24.
-4. Chưa có giới hạn **số yêu cầu đang mở** của một người. Một người xin 100 bài cùng lúc rồi
-   bỏ hết là chuyện làm được.
+1. ✅ **Cả ba chế độ đã chạy.** `OPTIMAL` 7 ngày, `EXTENDED` 30 ngày, `INSTANT` chốt ngay.
+   Chủ bài vẫn duyệt tay được bất cứ lúc nào trong lúc đếm.
+2. ⛔ **Nhánh "dùng điểm chốt ngay" chưa có** — xem [14-redemption](./14-redemption.md).
+   `appendAdjustment` đã mở đường ghi sổ, còn thiếu định giá và đường gọi.
+3. ✅ Cổng hồ sơ F07 **đã gắn** vào luồng xin nhận (25/09).
+4. ⚠️ Chưa có giới hạn **số yêu cầu đang mở** của một người. Một người xin 100 bài cùng lúc rồi
+   bỏ hết là chuyện làm được — và nay mỗi bài đó đều mở một đồng hồ 7 ngày.
+5. ⚠️ **Không báo cho người thắng auto-select.** Họ chỉ biết khi mở app. Cần một thông báo
+   `GIFT_REQUEST_ACCEPTED` như đường duyệt tay.

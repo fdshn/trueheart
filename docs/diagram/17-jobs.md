@@ -1,8 +1,8 @@
 # 17 · Job nền & CLI
 
-Trạng thái: ✅ **cả chín CLI đã chạy được** sau khi sửa hai lỗi từng làm chúng chết.
+Trạng thái: ✅ **cả mười CLI đã chạy được** sau khi sửa hai lỗi từng làm chúng chết.
 
-## 17.1 Chín lệnh
+## 17.1 Mười lệnh
 
 ```mermaid
 flowchart TD
@@ -15,6 +15,7 @@ flowchart TD
     C --> H["accuracy:reconcile<br/>tính lại Giver Accuracy theo ngưỡng"]
     C --> I["gift:settle-rewards<br/>trả thưởng lượt trao người nhận không đánh giá"]
     C --> J["notify:reminders<br/>nhắc đánh giá và nhắc nhiệm vụ duy trì"]
+    C --> K["selection:auto-select<br/>chốt người nhận khi hết đồng hồ 7 ngày"]
 
     style C fill:#e7f3ff
     style F fill:#fff3cd
@@ -127,6 +128,7 @@ gantt
     notify-reminders       :08:17, 10m
     section Mỗi giờ
     point-reconcile        :01:19, 3m
+    selection-auto-select  :01:37, 4m
 ```
 
 **Thứ tự trong chuỗi đêm là có lý do:**

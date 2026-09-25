@@ -41,5 +41,5 @@ có người dùng thật, production nên chuyển sang server khách riêng.
 
 ## Lịch job nền
 
-Xem [`cron/README.md`](./cron/README.md) — crontab, wrapper, logrotate và runbook cho chín
+Xem [`cron/README.md`](./cron/README.md) — crontab, wrapper, logrotate và runbook cho mười
 CLI chạy một lần. Core cố ý không dựng scheduler nào trong tiến trình.

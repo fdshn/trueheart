@@ -1,0 +1,79 @@
+import {
+  IAutoSelectDueRecipientsResult,
+  IAutoSelectDueRecipientsUseCase,
+} from '@/application/contracts/gift-request';
+import { INestApplicationContext } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { config as loadEnvFile } from 'dotenv';
+import { GiftRequestCliModule } from './gift-request-cli.module';
+
+export async function runAutoSelectDueRecipients(
+  dryRun: boolean,
+  // `.bind` là BẮT BUỘC, không phải trang trí: `NestFactory` là một instance,
+  // nên truyền tham chiếu method trần làm mất `this` và mọi CLI chết ngay ở
+  // dòng đầu với "Cannot read properties of undefined". Unit test không thấy
+  // vì chúng tiêm sẵn một hàm giả vào đúng tham số này.
+  createApplicationContext: typeof NestFactory.createApplicationContext = NestFactory.createApplicationContext.bind(
+    NestFactory,
+  ),
+  appModule: unknown = GiftRequestCliModule,
+): Promise<IAutoSelectDueRecipientsResult> {
+  const app: INestApplicationContext = await createApplicationContext(
+    appModule as never,
+  );
+
+  try {
+    const useCase = app.get<IAutoSelectDueRecipientsUseCase>(
+      IAutoSelectDueRecipientsUseCase,
+    );
+    return await useCase.handle({ dryRun });
+  } finally {
+    await app.close();
+  }
+}
+
+async function main(): Promise<void> {
+  loadEnvFile({ path: '.env.local' });
+  loadEnvFile();
+
+  const dryRun = process.argv.includes('--dry-run');
+  const result = await runAutoSelectDueRecipients(dryRun);
+
+  if (result.due === 0) {
+    console.log('Không bài nào hết đồng hồ chọn người nhận.');
+    return;
+  }
+
+  console.log(`${result.due} bài hết đồng hồ chọn người nhận.`);
+
+  // In TỪNG bài chứ không chỉ tổng số: đây là lúc hệ thống quyết hộ người dùng
+  // ai được nhận món đồ, và quyết định đó phải tra lại được.
+  for (const pick of result.selected)
+    console.log(
+      `  ${pick.postId} → ${pick.requesterId} ` +
+        `(chọn 1 trong ${pick.candidates})` +
+        (pick.transactionId ? ` · lượt trao ${pick.transactionId}` : ''),
+    );
+
+  if (dryRun) {
+    console.log('\n--dry-run: chưa chốt ai. Bỏ cờ này để chọn thật.');
+    return;
+  }
+
+  console.log(`\nĐã chốt ${result.selected.length} người nhận.`);
+
+  if (result.failed.length > 0) {
+    console.error(`\n${result.failed.length} bài KHÔNG chốt được:`);
+    for (const failure of result.failed)
+      console.error(`  ${failure.postId}: ${failure.reason}`);
+    // Thoát khác 0: người xin trên những bài này đang chờ một đồng hồ đã reo.
+    process.exitCode = 1;
+  }
+}
+
+if (require.main === module) {
+  void main().catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

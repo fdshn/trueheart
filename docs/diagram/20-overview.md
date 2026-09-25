@@ -21,7 +21,7 @@ flowchart TB
 
     subgraph T3["③ Giao dịch"]
         REQ["Xin nhận & hàng đợi ✅"]
-        SEL["Countdown 7 ngày ⛔"]
+        SEL["Countdown 7 ngày ✅"]
         TX["Vòng đời lượt trao ✅"]
         CHAT["Chat ✅"]
     end
@@ -132,15 +132,15 @@ flowchart LR
 ```mermaid
 pie showData
     title Phân hệ theo trạng thái
-    "Đã chạy được (✅)" : 14
+    "Đã chạy được (✅)" : 15
     "Có code, chưa dùng thật (🟡)" : 2
     "Mâu thuẫn tài liệu/code (⚠️)" : 1
-    "Chưa có dòng nào (⛔)" : 5
+    "Chưa có dòng nào (⛔)" : 4
 ```
 
 | Trạng thái | Phân hệ |
 | --- | --- |
-| ✅ | Xác thực · Hồ sơ · Media · Bài đăng · Feed · Tương tác · Xin nhận · Lượt trao · Chat · Đánh giá · Báo xấu · Admin CMS · CLI · **Thứ hạng** |
+| ✅ | Xác thực · Hồ sơ · Media · Bài đăng · Feed · Tương tác · Xin nhận · Lượt trao · Chat · Đánh giá · Báo xấu · Admin CMS · CLI · Thứ hạng · **Countdown chọn người nhận** |
 | 🟡 | Thông báo (chưa có FCM) · Xác minh SĐT (chưa có adapter SMS) |
 | ⚠️ | Tự hoàn tất (sai mốc đếm, không kiểm tranh chấp) |
-| ⛔ | Countdown 7 ngày · Đổi vật phẩm bằng điểm · Group · Affiliate · Dashboard KPI · Campaign/Blog |
+| ⛔ | Đổi vật phẩm bằng điểm · Group · Affiliate · Dashboard KPI · Campaign/Blog |

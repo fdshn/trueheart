@@ -96,8 +96,9 @@ Mỗi lần đổi **bắt buộc** vào `point_ledger`:
 
 ## Chỗ cần soát
 
-1. ⛔ **Toàn bộ phân hệ chưa có code**, và nó phụ thuộc countdown 7 ngày cũng chưa có
-   ([07-request](./07-request.md)).
+1. ⛔ **Toàn bộ phân hệ chưa có code.** Nhưng hai thứ nó cần đã sẵn: countdown 7 ngày đã chạy
+   ([07-request](./07-request.md)) và `appendAdjustment` đã mở đường ghi sổ với số điểm truyền
+   vào. Còn thiếu: định giá từ `point.redemption`, và đường dừng countdown khi có người đổi.
 2. ⛔ **`ITEM_REDEMPTION` không vừa khuôn `point_rules`** — số điểm thay đổi theo món, cần
    một đường ghi ledger nhận số điểm làm tham số thay vì `appendByRule`.
 3. ⛔ **Chưa có cảnh báo "đổi món này sẽ làm bạn tụt hạng"** trước khi người dùng bấm.
