@@ -52,7 +52,7 @@ hình động:
 | 8 | Cap report: tài liệu 10/ngày, rule đang 5 | Hai con số khác nhau | [15](./15-report.md) |
 | 8b | **Từng cộng điểm HAI LẦN cho người tặng** vì tin `GIVE-RECEIVE-FLOW.md` §H4 ghi sai rằng chưa có rule. Đã sửa ở migration `1793400000000`, và `test:point-economy` nay canh "chỉ một mã thưởng người tặng" | — | [11](./11-point.md) |
 | 9 | ✅ **Bên A xác nhận 25/09:** cap 10 lượt/ngày, chạm trần là mất thưởng, KHÔNG có hàng đợi trả bù. Đúng chủ ý | — | [11](./11-point.md) |
-| 10 | **Chưa có lịch cron cho 9 CLI** — cấp bách nhất là `gift:settle-rewards` và `notify:reminders` | Điểm treo vô hạn; không ai đánh giá | [17](./17-jobs.md) |
+| 10 | ✅ **Đã có 25/09** — `deploy/cron/`: crontab + wrapper + logrotate + runbook. ⛔ Nhưng **alert chưa nối vào kênh người thật đọc** | Job đỏ lúc 2 giờ sáng không ai biết | [17](./17-jobs.md) |
 
 ## 21.4b Phát hiện thêm từ đợt soát thứ hai
 
@@ -116,6 +116,6 @@ flowchart LR
 [ ] Backup database VÀ restore test
 [ ] Global rate limit
 [ ] Monitoring / alerting
-[ ] Lịch cron thật cho 7 CLI
+[x] Lịch cron thật cho 9 CLI
 [ ] Queue / retry / dead-letter cho thông báo
 ```

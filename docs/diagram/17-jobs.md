@@ -104,7 +104,63 @@ flowchart LR
 2. ⛔ **Chưa có job kiểm Active Member** (`last_login_at` quá 90 ngày).
 3. ⛔ **Chưa có job dọn object mồ côi** trong bucket.
 4. ✅ **Nhắc nhiệm vụ duy trì trước 30 ngày đã có** — `notify:reminders`.
-5. **Chưa có lịch cron thật nào được cấu hình** — chín lệnh chạy tay được, nhưng không có tài
-   liệu nói cái nào chạy lúc mấy giờ. Hai cái cấp bách nhất: `gift:settle-rewards` (không chạy
-   thì điểm người tặng treo vô hạn) và `notify:reminders` (không chạy thì phần lớn người nhận
-   không đánh giá, và chỉ số Giver Accuracy chỉ còn mẫu của người chịu khó chấm).
+5. ✅ **Lịch cron đã có** — [`deploy/cron/`](../../deploy/cron/README.md): crontab, wrapper,
+   logrotate và runbook. Xem §17.5.
+6. ⛔ **Chưa nối alert vào kênh người thật đọc.** Cron gửi mail cho user `deploy` theo mặc định
+   hệ thống, nên một job đỏ lúc 2 giờ sáng không ai biết.
+
+## 17.5 Lịch chạy trên VPS
+
+```mermaid
+gantt
+    title Chuỗi job một ngày (giờ Việt Nam)
+    dateFormat HH:mm
+    axisFormat %H:%M
+    section Đầu ngày
+    post-expire            :00:11, 5m
+    section Chuỗi đêm
+    transaction-autocomplete :02:07, 8m
+    gift-settle-rewards      :02:23, 10m
+    rank-evaluate            :03:31, 8m
+    chat-purge               :03:47, 15m
+    section Buổi sáng
+    notify-reminders       :08:17, 10m
+    section Mỗi giờ
+    point-reconcile        :01:19, 3m
+```
+
+**Thứ tự trong chuỗi đêm là có lý do:**
+
+```mermaid
+flowchart LR
+    A["transaction-autocomplete<br/>02:07"] -->|"lượt vừa đóng<br/>vào tầm ngắm"| B["gift-settle-rewards<br/>02:23"]
+    B -->|"điểm vừa cộng<br/>được tính"| C["rank-evaluate<br/>03:31"]
+    C --> D["chat-purge<br/>03:47<br/>nặng I/O nhất, cuối chuỗi"]
+
+    style B fill:#fff3cd
+```
+
+> **`gift-settle-rewards` là job cấp bách nhất.** Không chạy là điểm của người tặng treo vô
+> hạn mỗi khi người nhận không đánh giá — mà đó là phần lớn trường hợp. Nếu chỉ canh alert cho
+> một job, canh cái này.
+>
+> **Phút lẻ, không phải `:00`.** Mọi job đặt ở `:00` sẽ cùng đánh vào database một lúc, và hai
+> job không bao giờ được trùng phút.
+>
+> **`CRON_TZ=Asia/Ho_Chi_Minh`.** Hiểu theo UTC thì lời nhắc tới máy người dùng lúc 3 giờ
+> chiều, và `post-expire` cắt ngày lệch 7 tiếng.
+
+### Vì sao `docker compose exec` chứ không `run --rm`
+
+```mermaid
+flowchart TD
+    A{Core đang chết} --> B["exec → THẤT BẠI<br/>cron báo lỗi ✅"]
+    A --> C["run --rm → dựng container mới,<br/>job VẪN XANH ❌"]
+    C --> D["Service chết mà không ai biết"]
+
+    style B fill:#e6ffe6
+    style D fill:#ffe6e6
+```
+
+`exec` cũng dùng lại container đang chạy nên không phải nạp lại toàn bộ cây DI mỗi lượt.
+

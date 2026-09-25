@@ -243,7 +243,7 @@ Tắt chứ không xoá, và **chặn tắt danh mục đang có bài dùng**.
 | Giới hạn dung lượng lưu trữ theo bậc | Không có |
 | Vùng mặc định cho khách chưa đăng nhập | Chưa chốt là vùng nào |
 | Hạn chót gỡ `/gift-posts` | Chưa ai đặt |
-| Lịch cron cho 9 CLI | **Chưa cấu hình lịch nào.** `gift:settle-rewards` cấp bách nhất — không chạy thì điểm người tặng treo vô hạn |
+| ~~Lịch cron cho 9 CLI~~ | ✅ Đã có ở [`deploy/cron/`](../deploy/cron/README.md). ⛔ Còn thiếu: **alert vào kênh người thật đọc** |
 | Giới hạn tốc độ toàn hệ thống | Không có |
 
 ---

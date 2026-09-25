@@ -1,0 +1,71 @@
+# Lịch chạy các CLI của Chân Tâm Core.
+#
+# Cài:  sudo cp chantam.crontab /etc/cron.d/chantam && sudo chmod 644 /etc/cron.d/chantam
+# Xem:  sudo tail -f /var/log/chantam/*.log
+#
+# MỖI MÔI TRƯỜNG MỘT FILE. Staging và production nằm ở hai thư mục project khác
+# nhau, và chạy cùng một lịch trên cả hai là chuyện bình thường — nhưng phải là
+# hai file, vì `CHANTAM_DIR` khác nhau.
+#
+# CHỈ CÀI TRÊN MỘT MÁY. Nếu sau này Core chạy nhiều bản sao, cron vẫn chỉ được
+# nằm ở một chỗ: `gift:settle-rewards` có khoá chống trùng nên chạy hai lần không
+# cộng điểm hai lần, nhưng `notify:reminders` chạy song song hai máy vẫn có thể
+# đẻ hai lần đọc và hai lượt ghi vô ích.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Giờ Việt Nam, không phải UTC. "Chạy lúc 8 giờ sáng" mà hiểu theo UTC thì lời
+# nhắc tới máy người dùng lúc 3 giờ chiều — và `post:expire` cắt ngày sai 7 tiếng.
+CRON_TZ=Asia/Ho_Chi_Minh
+
+CHANTAM_DIR=/home/deploy/chantam-production
+RUN=/home/deploy/chantam/deploy/cron/run-cli.sh
+
+# ── Mỗi giờ ────────────────────────────────────────────────────────────────────
+#
+# Vá phần thưởng xác minh SĐT bị thiếu khi tiến trình chết giữa hai bước. Chạy mỗi
+# giờ chứ không mỗi ngày: người dùng vừa xác minh xong mà không thấy điểm sẽ nghĩ
+# hệ thống hỏng, và họ không có cách nào xác minh lại để được thưởng.
+19 * * * * deploy $RUN $CHANTAM_DIR point-reconcile
+
+# ── Hằng ngày, ban đêm ─────────────────────────────────────────────────────────
+#
+# Đóng bài quá hạn và chuyển rao vặt thành bài tặng. Ngay sau nửa đêm giờ VN vì
+# hạn của bài tính theo NGÀY.
+11 0 * * * deploy $RUN $CHANTAM_DIR post-expire
+
+# Tự hoàn tất lượt trao quá hạn. Chạy TRƯỚC settle-rewards để lượt vừa đóng cũng
+# vào tầm ngắm của vòng trả thưởng cùng đêm.
+#
+# Thoát khác 0 khi có lượt bị giữ vì báo xấu chưa xử — cron sẽ báo, và đó là chủ ý.
+7 2 * * * deploy $RUN $CHANTAM_DIR transaction-autocomplete
+
+# Trả thưởng cho lượt trao người nhận không bao giờ đánh giá. KHÔNG CHẠY LÀ ĐIỂM
+# CỦA NGƯỜI TẶNG TREO VÔ HẠN — đây là job cấp bách nhất trong file này.
+23 2 * * * deploy $RUN $CHANTAM_DIR gift-settle-rewards
+
+# Đánh giá chu kỳ duy trì rank và áp khoản trừ khi trượt. Sau settle-rewards để
+# điểm vừa cộng được tính vào lần xét hạng.
+31 3 * * * deploy $RUN $CHANTAM_DIR rank-evaluate
+
+# Xoá tin nhắn quá hạn lưu trữ. Cuối chuỗi đêm vì nó là job nặng I/O nhất và
+# không ai chờ kết quả.
+47 3 * * * deploy $RUN $CHANTAM_DIR chat-purge
+
+# ── Hằng ngày, buổi sáng ───────────────────────────────────────────────────────
+#
+# Nhắc đánh giá và nhắc nhiệm vụ duy trì. Gửi lúc SÁNG chứ không lúc 3 giờ đêm:
+# một lời nhắc tới lúc người ta đang ngủ sẽ nằm dưới hàng chục thông báo khác khi
+# họ mở máy.
+17 8 * * * deploy $RUN $CHANTAM_DIR notify-reminders
+
+# ── Hằng tuần ──────────────────────────────────────────────────────────────────
+#
+# Đối soát số đếm feed. Hằng tuần là đủ: số đếm lệch chỉ xảy ra khi có lỗi ghi, và
+# lệch một tuần không làm ai mất gì.
+41 4 * * 0 deploy $RUN $CHANTAM_DIR feed-reconcile-counts
+
+# Tính lại Giver Accuracy theo ngưỡng đang cấu hình. Chỉ có việc để làm sau khi
+# Admin đổi ngưỡng, nên hằng tuần; chạy tay ngay sau mỗi lần đổi thì tốt hơn.
+13 4 * * 1 deploy $RUN $CHANTAM_DIR accuracy-reconcile

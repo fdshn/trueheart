@@ -38,3 +38,8 @@ có người dùng thật, production nên chuyển sang server khách riêng.
 - Không tự sửa `.env` server ngoài `IMAGE=` do workflow quản lý. Bootstrap giữ nguyên `.env`
   có sẵn để chạy lại không làm mất bí mật.
 - Không chạy `docker compose down -v` trên môi trường có dữ liệu: lệnh xoá database/Redis volume.
+
+## Lịch job nền
+
+Xem [`cron/README.md`](./cron/README.md) — crontab, wrapper, logrotate và runbook cho chín
+CLI chạy một lần. Core cố ý không dựng scheduler nào trong tiến trình.

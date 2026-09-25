@@ -1,0 +1,18 @@
+# Xoay log cron của Chân Tâm.
+#
+# Cài: sudo cp chantam-cron.logrotate /etc/logrotate.d/chantam-cron
+#
+# Không có file này thì log chỉ tăng. `point-reconcile` chạy mỗi giờ nên riêng nó
+# đã là 8.760 khối log mỗi năm, và ổ đĩa VPS hết chỗ là Postgres dừng ghi.
+/var/log/chantam/*.log {
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    # `copytruncate` vì wrapper mở file bằng `>>` mỗi lượt chạy và không giữ
+    # handle lâu. Không cần signal tiến trình nào.
+    copytruncate
+    create 0640 deploy deploy
+}

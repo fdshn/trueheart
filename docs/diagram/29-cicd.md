@@ -97,7 +97,7 @@ flowchart TD
     A --> I["⛔ Monitoring / alerting"]
     A --> J["⛔ Chặn xoá tài khoản khi còn lượt trao"]
     A --> K["⛔ Ledger cho MỌI đường cộng điểm"]
-    A --> L["⛔ Lịch cron cho 7 CLI"]
+    A --> L["✅ Lịch cron cho 9 CLI"]
 
     style E fill:#ffe6e6
     style F fill:#ffe6e6
@@ -106,7 +106,6 @@ flowchart TD
     style I fill:#ffe6e6
     style J fill:#ffe6e6
     style K fill:#ffe6e6
-    style L fill:#ffe6e6
 ```
 
 > **`backup` không có `restore test` thì không phải backup**, nó chỉ là một thư mục file nén
@@ -114,7 +113,7 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. ⛔ **Chưa có lịch cron nào cho 7 CLI** — chúng chạy được nhưng không ai gọi tự động.
+1. ✅ **Lịch cron đã có** — [`deploy/cron/`](../../deploy/cron/README.md). ⛔ Nhưng alert chưa nối vào kênh người thật đọc.
 2. ⛔ **Chưa có monitoring/alerting.** Service chết lúc 2 giờ sáng thì sáng ra mới biết.
 3. ⛔ **Restore test chưa từng chạy.**
 4. **Cổng kiểm tra sau triển khai kiểm gì?** Cần soát xem nó có đủ sâu để bắt được lỗi DI
