@@ -109,9 +109,11 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. **Chưa có thông báo cho người báo** khi báo của họ được xử lý. Họ không biết mình báo
-   đúng hay sai, và cũng không biết vì sao được cộng 5 điểm.
-2. **Chưa có thông báo cho người bị xử lý.** Bài biến mất mà không ai nói vì sao.
+1. ✅ **Đã có 25/09.** Người báo luôn nhận `REPORT_REVIEWED` kèm kết luận — cả khi bị bác, vì
+   không báo thì lần sau họ báo lại y như vậy.
+2. ✅ Người bị xử lý nhận `CONTENT_MODERATED` kèm lý do, **chỉ khi báo xấu được XÁC MINH**. Báo
+   xấu bị bác thì không báo: họ chưa làm gì sai, và nói "có người báo bạn" là mời một cuộc cãi
+   vã. Thông báo lỗi không bao giờ làm hỏng kết luận của Admin — kết luận đã ghi rồi.
 3. **Cap 10 report/người/ngày** là baseline trong tài liệu nhưng rule `REPORT_UPHELD` đang
    cap ở 5 — hai con số khác nhau, cần soát.
 4. Chưa có cơ chế **chống báo xấu ác ý**: một người báo sai 50 lần không bị gì.

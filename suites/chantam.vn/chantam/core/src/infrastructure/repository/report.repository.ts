@@ -63,6 +63,26 @@ export class ReportRepository
     super(target, manager);
   }
 
+  public async findTargetOwner(
+    targetType: ReportTargetTypes,
+    targetId: string,
+  ): Promise<string | null> {
+    // Đích là NGƯỜI thì chính người đó là chủ — không tra bảng nào.
+    if (targetType === ReportTargetTypes.USER) return targetId;
+
+    const source =
+      targetType === ReportTargetTypes.POST
+        ? { table: 'posts', column: 'author_id' }
+        : { table: 'content_comments', column: 'author_id' };
+
+    const [row] = await this.manager.query<{ owner_id: string }[]>(
+      `SELECT ${source.column} AS owner_id FROM ${source.table} WHERE global_id = $1`,
+      [targetId],
+    );
+
+    return row?.owner_id ?? null;
+  }
+
   public async targetExists(
     targetType: ReportTargetTypes,
     targetId: string,

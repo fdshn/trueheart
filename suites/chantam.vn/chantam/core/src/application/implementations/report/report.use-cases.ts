@@ -1,3 +1,4 @@
+import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import { IAppendPointEntryUseCase } from '@/application/contracts/point';
 import {
   ICreateReportCommand,
@@ -28,6 +29,7 @@ import {
   IReportRepository,
 } from '@/domain/ports/repository';
 import {
+  NotificationTypes,
   ReportStatuses,
   ReportTargetTypes,
   ReportUpheldRuleCode,
@@ -158,6 +160,8 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
     private readonly admin: IAdminConfigRepository,
     @Inject(IAppendPointEntryUseCase)
     private readonly points: IAppendPointEntryUseCase,
+    @Inject(IDispatchNotificationUseCase)
+    private readonly dispatchNotification: IDispatchNotificationUseCase,
   ) {}
 
   public async handle(
@@ -183,9 +187,72 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
     if (command.review.status === ReportStatuses.RESOLVED)
       await this.awardReporter(existing.reporterUserId, command.reportId);
 
+    await this.announceOutcome(existing, command.review.status, note);
+
     const report = await this.reports.findAdminByGlobalId(command.reportId);
     if (!report) throw new ReportNotFoundException();
     return { report };
+  }
+
+  /**
+   * Báo cho hai bên sau khi Admin kết luận.
+   *
+   * Không báo thì người gửi không biết mình đúng hay sai — và không hiểu vì sao
+   * tự nhiên được cộng 5 điểm; còn người bị xử lý thấy bài mình biến mất mà
+   * không ai nói vì sao, nên họ sẽ tái phạm hoặc nghĩ là lỗi hệ thống.
+   *
+   * KHÔNG ném: Admin đã kết luận và kết luận đó đã ghi. Một thông báo gửi lỗi
+   * không được làm hỏng việc đó.
+   */
+  private async announceOutcome(
+    report: {
+      reporterUserId: string;
+      targetType: ReportTargetTypes;
+      targetId: string;
+    },
+    status: ReportStatuses,
+    note: string,
+  ): Promise<void> {
+    const upheld = status === ReportStatuses.RESOLVED;
+
+    try {
+      await this.dispatchNotification.handle({
+        userId: report.reporterUserId,
+        type: NotificationTypes.REPORT_REVIEWED,
+        title: 'Báo xấu của bạn đã được xem xét',
+        body: `Kết luận: ${upheld ? 'đã xác minh và xử lý' : 'không vi phạm'}. Cảm ơn bạn đã báo.`,
+        referenceType: 'REPORT',
+        referenceId: report.targetId,
+        idempotencyKey: `REPORT_REVIEWED:${report.targetId}:${report.reporterUserId}:${status}`,
+        variables: {
+          outcome: upheld ? 'đã xác minh và xử lý' : 'không vi phạm',
+        },
+      });
+
+      // Chỉ báo cho người bị xử lý khi báo xấu được XÁC MINH. Báo xấu bị bác thì
+      // họ chưa làm gì sai, và nói "có người báo bạn" là mời một cuộc cãi vã.
+      if (!upheld) return;
+
+      const ownerId = await this.reports.findTargetOwner(
+        report.targetType,
+        report.targetId,
+      );
+      // Không tự báo chính mình, và bỏ qua nếu nội dung đã biến mất.
+      if (!ownerId || ownerId === report.reporterUserId) return;
+
+      await this.dispatchNotification.handle({
+        userId: ownerId,
+        type: NotificationTypes.CONTENT_MODERATED,
+        title: 'Nội dung của bạn đã bị xử lý',
+        body: `Một nội dung của bạn bị xử lý sau khi được xem xét. Lý do: ${note}`,
+        referenceType: report.targetType,
+        referenceId: report.targetId,
+        idempotencyKey: `CONTENT_MODERATED:${report.targetType}:${report.targetId}`,
+        variables: { action: 'xử lý', reason: note },
+      });
+    } catch {
+      // Cố ý im lặng — xem ghi chú trên.
+    }
   }
 
   /**

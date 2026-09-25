@@ -29,6 +29,17 @@ export interface IReviewReportByAdminCommand {
 }
 
 export interface IReportRepository extends Repository<IReportEntity> {
+  /**
+   * Chủ của nội dung bị báo, để gửi thông báo khi Admin xử lý.
+   *
+   * `null` khi đích không còn tồn tại — nội dung có thể đã bị gỡ trước đó, và
+   * không tìm được chủ thì bỏ qua thông báo chứ không làm hỏng việc kết luận.
+   */
+  findTargetOwner(
+    targetType: ReportTargetTypes,
+    targetId: string,
+  ): Promise<string | null>;
+
   targetExists(
     targetType: ReportTargetTypes,
     targetId: string,

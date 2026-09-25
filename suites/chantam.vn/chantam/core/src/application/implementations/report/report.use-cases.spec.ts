@@ -9,6 +9,7 @@ import {
   IReportRepository,
 } from '@/domain/ports/repository';
 import {
+  NotificationTypes,
   ReportReasons,
   ReportStatuses,
   ReportTargetTypes,
@@ -27,6 +28,7 @@ import {
 const ActorId = '11111111-1111-4111-8111-111111111111';
 const TargetId = '22222222-2222-4222-8222-222222222222';
 const ReportId = '33333333-3333-4333-8333-333333333333';
+const ReporterId = '44444444-4444-4444-8444-444444444444';
 
 function reportDto(status = ReportStatuses.PENDING): IReportDto {
   return {
@@ -56,6 +58,16 @@ function admin(allowed = true): jest.Mocked<IAdminConfigRepository> {
 function points(): jest.Mocked<IAppendPointEntryUseCase> {
   return {
     handle: jest.fn().mockResolvedValue({ applied: true }),
+  } as never;
+}
+
+/**
+ * Đường thông báo giả. Ca "có báo đúng hai bên không" nằm ngay dưới, ở nhóm
+ * `ReviewReportUseCase — thông báo`.
+ */
+function notifier() {
+  return {
+    handle: jest.fn().mockResolvedValue({ created: true, pushedDevices: 0 }),
   } as never;
 }
 
@@ -221,6 +233,7 @@ describe('ReviewReportUseCase', () => {
       reports,
       admin(),
       points(),
+      notifier(),
     ).handle({
       actorUserId: ActorId,
       reportId: ReportId,
@@ -241,7 +254,7 @@ describe('ReviewReportUseCase', () => {
       reviewByAdmin: jest.fn().mockResolvedValue(false),
     } as unknown as jest.Mocked<IReportRepository>;
     await expect(
-      new ReviewReportUseCase(reports, admin(), points()).handle({
+      new ReviewReportUseCase(reports, admin(), points(), notifier()).handle({
         actorUserId: ActorId,
         reportId: ReportId,
         review: { status: ReportStatuses.DISMISSED, note: 'Không có vi phạm' },
@@ -261,7 +274,7 @@ describe('ReviewReportUseCase', () => {
     } as unknown as jest.Mocked<IReportRepository>;
     const award = points();
 
-    await new ReviewReportUseCase(reports, admin(), award).handle({
+    await new ReviewReportUseCase(reports, admin(), award, notifier()).handle({
       actorUserId: ActorId,
       reportId: ReportId,
       review: { status: ReportStatuses.RESOLVED, note: 'Đã xác minh' },
@@ -288,7 +301,7 @@ describe('ReviewReportUseCase', () => {
     } as unknown as jest.Mocked<IReportRepository>;
     const award = points();
 
-    await new ReviewReportUseCase(reports, admin(), award).handle({
+    await new ReviewReportUseCase(reports, admin(), award, notifier()).handle({
       actorUserId: ActorId,
       reportId: ReportId,
       review: { status: ReportStatuses.DISMISSED, note: 'Không có vi phạm' },
@@ -316,6 +329,7 @@ describe('ReviewReportUseCase', () => {
       reports,
       admin(),
       award,
+      notifier(),
     ).handle({
       actorUserId: ActorId,
       reportId: ReportId,
@@ -337,7 +351,7 @@ describe('ReviewReportUseCase', () => {
     award.handle.mockRejectedValue(new Error('connection terminated'));
 
     await expect(
-      new ReviewReportUseCase(reports, admin(), award).handle({
+      new ReviewReportUseCase(reports, admin(), award, notifier()).handle({
         actorUserId: ActorId,
         reportId: ReportId,
         review: { status: ReportStatuses.RESOLVED, note: 'Đã xác minh' },
@@ -348,11 +362,153 @@ describe('ReviewReportUseCase', () => {
   it('chặn ghi chú xử lý chỉ có khoảng trắng', async () => {
     const reports = {} as jest.Mocked<IReportRepository>;
     await expect(
-      new ReviewReportUseCase(reports, admin(), points()).handle({
+      new ReviewReportUseCase(reports, admin(), points(), notifier()).handle({
         actorUserId: ActorId,
         reportId: ReportId,
         review: { status: ReportStatuses.RESOLVED, note: '   ' },
       }),
     ).rejects.toBeInstanceOf(ValidationFailedException);
+  });
+});
+
+describe('ReviewReportUseCase — thông báo', () => {
+  function setup(
+    options: { status?: ReportStatuses; owner?: string | null } = {},
+  ) {
+    const reports = {
+      findAdminByGlobalId: jest.fn().mockResolvedValue({
+        reportId: ReportId,
+        reporterUserId: ReporterId,
+        targetType: ReportTargetTypes.POST,
+        targetId: TargetId,
+      }),
+      reviewByAdmin: jest.fn().mockResolvedValue(true),
+      findTargetOwner: jest
+        .fn()
+        .mockResolvedValue(
+          options.owner === undefined ? 'owner-1' : options.owner,
+        ),
+    };
+    const dispatch = {
+      handle: jest.fn().mockResolvedValue({ created: true, pushedDevices: 0 }),
+    };
+    const useCase = new ReviewReportUseCase(
+      reports as never,
+      admin(),
+      points(),
+      dispatch as never,
+    );
+
+    return { useCase, reports, dispatch };
+  }
+
+  it('báo cho người gửi khi báo xấu được xác minh', async () => {
+    const { useCase, dispatch } = setup();
+
+    await useCase.handle({
+      actorUserId: ActorId,
+      reportId: ReportId,
+      review: { status: ReportStatuses.RESOLVED, note: 'Đúng là lừa đảo' },
+    });
+
+    expect(dispatch.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: ReporterId,
+        type: NotificationTypes.REPORT_REVIEWED,
+      }),
+    );
+  });
+
+  it('cũng báo cho người gửi khi báo xấu bị bác', async () => {
+    // Không báo thì họ không biết mình sai, và sẽ báo lại y như vậy lần sau.
+    const { useCase, dispatch } = setup();
+
+    await useCase.handle({
+      actorUserId: ActorId,
+      reportId: ReportId,
+      review: { status: ReportStatuses.DISMISSED, note: 'Không vi phạm' },
+    });
+
+    const reporterCall = dispatch.handle.mock.calls.find(
+      (call) => call[0].userId === ReporterId,
+    );
+    expect(reporterCall?.[0].body).toContain('không vi phạm');
+  });
+
+  it('báo cho người bị xử lý CHỈ khi báo xấu được xác minh', async () => {
+    const { useCase, dispatch } = setup();
+
+    await useCase.handle({
+      actorUserId: ActorId,
+      reportId: ReportId,
+      review: { status: ReportStatuses.RESOLVED, note: 'Hàng cấm' },
+    });
+
+    expect(dispatch.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'owner-1',
+        type: NotificationTypes.CONTENT_MODERATED,
+      }),
+    );
+  });
+
+  it('báo xấu bị bác thì KHÔNG báo cho người bị nhắm tới', async () => {
+    // Họ chưa làm gì sai, và nói "có người báo bạn" là mời một cuộc cãi vã.
+    const { useCase, dispatch } = setup();
+
+    await useCase.handle({
+      actorUserId: ActorId,
+      reportId: ReportId,
+      review: { status: ReportStatuses.DISMISSED, note: 'Không vi phạm' },
+    });
+
+    expect(
+      dispatch.handle.mock.calls.some(
+        (call) => call[0].type === NotificationTypes.CONTENT_MODERATED,
+      ),
+    ).toBe(false);
+  });
+
+  it('không tự báo chính mình khi người báo cũng là chủ nội dung', async () => {
+    const { useCase, dispatch } = setup({ owner: ReporterId });
+
+    await useCase.handle({
+      actorUserId: ActorId,
+      reportId: ReportId,
+      review: { status: ReportStatuses.RESOLVED, note: 'Tự báo bài mình' },
+    });
+
+    expect(
+      dispatch.handle.mock.calls.some(
+        (call) => call[0].type === NotificationTypes.CONTENT_MODERATED,
+      ),
+    ).toBe(false);
+  });
+
+  it('nội dung đã biến mất thì bỏ qua, không ném', async () => {
+    const { useCase } = setup({ owner: null });
+
+    await expect(
+      useCase.handle({
+        actorUserId: ActorId,
+        reportId: ReportId,
+        review: { status: ReportStatuses.RESOLVED, note: 'Đã gỡ trước đó' },
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it('thông báo lỗi KHÔNG làm hỏng kết luận của Admin', async () => {
+    // Admin đã xem xét và quyết định là một SỰ THẬT đã ghi; ném ở đây khiến họ
+    // không kết luận được báo xấu nào.
+    const { useCase, dispatch } = setup();
+    dispatch.handle.mockRejectedValue(new Error('kênh đẩy chết'));
+
+    await expect(
+      useCase.handle({
+        actorUserId: ActorId,
+        reportId: ReportId,
+        review: { status: ReportStatuses.RESOLVED, note: 'Đúng là lừa đảo' },
+      }),
+    ).resolves.toBeDefined();
   });
 });

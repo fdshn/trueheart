@@ -3,6 +3,7 @@ import {
   IAccuracyReconcileResult,
   IAdminConfigRepository,
   IGiverAccuracyState,
+  IPendingReviewReminder,
   IReviewableTransaction,
   ISubmitTransactionReviewParams,
   ITransactionReviewRepository,
@@ -157,6 +158,50 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
     });
 
     return { scanned: rows.length, drifts, repaired: drifts.length };
+  }
+
+  public async findPendingReviewReminders(params: {
+    graceDays: number;
+    remindAfterDays: number;
+    limit: number;
+  }): Promise<IPendingReviewReminder[]> {
+    // Cửa sổ HAI đầu: đã qua `remindAfterDays` (nhắc ngay hôm hoàn tất là làm
+    // phiền người còn chưa mở hộp), nhưng chưa quá `graceDays` (quá rồi thì hệ
+    // thống đã áp mức mặc định, nhắc là nhắc một việc vô ích).
+    const rows = await this.manager.query<
+      { transaction_id: string; receiver_id: string; days_left: string }[]
+    >(
+      `
+        SELECT deal.global_id AS transaction_id,
+               deal.receiver_id,
+               GREATEST(
+                 0,
+                 CEIL(
+                   EXTRACT(EPOCH FROM (
+                     deal.completed_at + ($1 || ' days')::interval - now()
+                   )) / 86400
+                 )
+               ) AS days_left
+        FROM gift_transactions deal
+        WHERE deal.status = 'COMPLETED'
+          AND deal.completed_at <= now() - ($2 || ' days')::interval
+          AND deal.completed_at > now() - ($1 || ' days')::interval
+          AND NOT EXISTS (
+            SELECT 1 FROM transaction_reviews rated
+            WHERE rated.transaction_id = deal.global_id
+              AND rated.reviewer_role = 'RECEIVER'
+          )
+        ORDER BY deal.completed_at
+        LIMIT $3
+      `,
+      [String(params.graceDays), String(params.remindAfterDays), params.limit],
+    );
+
+    return rows.map((row) => ({
+      transactionId: row.transaction_id,
+      receiverId: row.receiver_id,
+      daysLeft: Number(row.days_left),
+    }));
   }
 
   public async findUnreviewedCompletions(params: {

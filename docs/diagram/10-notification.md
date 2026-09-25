@@ -11,10 +11,12 @@ flowchart TD
         B[Giao dịch: chấp nhận / đóng / hoàn tất]
         C[Feed: bình luận / trả lời / cảm xúc]
         E2[Hạng: sắp tụt / đã tụt]
+        E3[Lời nhắc theo lịch: đánh giá, nhiệm vụ duy trì]
+        E4[Báo xấu: kết luận cho hai bên]
         D[Chat: sắp bị dọn]
     end
 
-    A & B & C & D & E2 --> E["IDispatchNotificationUseCase"]
+    A & B & C & D & E2 & E3 & E4 --> E["IDispatchNotificationUseCase"]
     E --> F{Có idempotency_key?}
     F -->|Trùng| G[ON CONFLICT DO NOTHING<br/>trả created = false]
     F -->|Mới| H[INSERT notifications]
@@ -27,7 +29,7 @@ flowchart TD
     style M fill:#fff3cd
 ```
 
-## 10.2 Mười loại thông báo hiện có
+## 10.2 Mười bốn loại thông báo hiện có
 
 | Mã | Khi nào | Khoá chống trùng |
 | --- | --- | --- |
@@ -41,6 +43,10 @@ flowchart TD
 | `CONTENT_REACTION_FIRST_OF_DAY` | Lần đầu trong ngày có cảm xúc | `CONTENT_REACTION_FIRST:<postId>:<ngày VN>` |
 | `RANK_DEMOTION_WARNING` | Điểm xuống dưới mốc cảnh báo của bậc | `RANK_DEMOTION_WARNING:<userId>:<rank>:<ngày VN>` |
 | `RANK_DEMOTED` | Đã tụt hạng | `RANK_DEMOTED:<userId>:<từ>:<sang>:<ngày VN>` |
+| `REVIEW_REMINDER` | Nhắc người nhận đánh giá | `REVIEW_REMINDER:<transactionId>` |
+| `RANK_MAINTENANCE_REMINDER` | Nhắc nhiệm vụ duy trì, trước 30 ngày | `RANK_MAINTENANCE_REMINDER:<cycleId>` |
+| `REPORT_REVIEWED` | Báo xấu của bạn đã được xử lý | `REPORT_REVIEWED:<targetId>:<reporterId>:<status>` |
+| `CONTENT_MODERATED` | Nội dung của bạn bị xử lý | `CONTENT_MODERATED:<targetType>:<targetId>` |
 
 > `notifications.idempotency_key` có UNIQUE. Cùng một sự kiện chạy lại bao nhiêu lần cũng chỉ
 > ra một thông báo — quan trọng vì job nền và retry mạng đều có thể gọi lại.
@@ -95,5 +101,5 @@ flowchart LR
    `canSend()` trả `false`. Thông báo trong app vẫn ghi đủ, nhưng **không có gì rung máy ai**.
 2. **Chưa có queue / retry / dead-letter.** Đẩy lỗi là mất, không thử lại.
 3. Chưa có **tuỳ chọn tắt từng loại thông báo** cho người dùng. Hiện là tất-cả-hoặc-không.
-4. ✅ **Thông báo sắp tụt hạng và đã tụt hạng đã có** (25/09). Còn thiếu: sắp hết hạn bài,
-   nhắc nhiệm vụ duy trì trước 1 tháng (SRS yêu cầu), và nhắc người nhận đánh giá.
+4. ✅ **Đã có 25/09:** sắp tụt hạng, đã tụt hạng, nhắc đánh giá, nhắc nhiệm vụ duy trì, và báo
+   kết luận báo xấu cho cả hai bên. Còn thiếu: **nhắc bài sắp hết hạn**.

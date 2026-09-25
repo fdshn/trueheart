@@ -5,6 +5,7 @@ import {
 } from '@/domain/exceptions';
 import { IGiveActivityCounter } from '@/domain/ports/give-activity.counter';
 import {
+  IMaintenanceReminder,
   IRankChange,
   IRankMaintenanceCycleSummary,
   IRankRepository,
@@ -205,6 +206,76 @@ export class RankRepository implements IRankRepository {
           RankOrder.indexOf(evaluation.rank) < RankOrder.indexOf(user.rank),
       };
     });
+  }
+
+  public async findCyclesNeedingReminder(params: {
+    remindBeforeDays: number;
+    limit: number;
+  }): Promise<IMaintenanceReminder[]> {
+    // `gifts_done` / `referrals_done` đọc từ chính bản ghi chu kỳ: chúng được
+    // ghi lúc đánh giá, nên với chu kỳ còn OPEN chúng là 0. Đó là đúng — lời
+    // nhắc nói "bạn đã làm 0/2", và người dùng cần biết con số đó chứ không phải
+    // một câu chung chung.
+    const rows = await this.manager.query<
+      {
+        cycle_id: string;
+        user_id: string;
+        rank: string;
+        days_left: string;
+        gifts_done: string;
+        required_gifts: string;
+        referrals_done: string;
+        required_referrals: string;
+        penalty_points: string;
+      }[]
+    >(
+      `
+        SELECT cycle.id AS cycle_id,
+               cycle.user_id,
+               cycle.rank,
+               GREATEST(
+                 0,
+                 CEIL(EXTRACT(EPOCH FROM (cycle.cycle_end - now())) / 86400)
+               ) AS days_left,
+               cycle.gifts_done,
+               cycle.required_gifts,
+               cycle.referrals_done,
+               cycle.required_referrals,
+               tier.maintenance_penalty_points AS penalty_points
+        FROM rank_maintenance_cycles cycle
+        INNER JOIN rank_tiers tier ON tier.rank = cycle.rank
+        WHERE cycle.status = 'OPEN'
+          AND cycle.reminded_at IS NULL
+          AND cycle.cycle_end > now()
+          AND cycle.cycle_end <= now() + ($1 || ' days')::interval
+        ORDER BY cycle.cycle_end ASC
+        LIMIT $2
+      `,
+      [String(params.remindBeforeDays), params.limit],
+    );
+
+    return rows.map((row) => ({
+      cycleId: row.cycle_id,
+      userId: row.user_id,
+      rank: row.rank,
+      daysLeft: Number(row.days_left),
+      giftsDone: Number(row.gifts_done),
+      requiredGifts: Number(row.required_gifts),
+      referralsDone: Number(row.referrals_done),
+      requiredReferrals: Number(row.required_referrals),
+      penaltyPoints: Number(row.penalty_points),
+    }));
+  }
+
+  public async markCyclesReminded(cycleIds: string[]): Promise<void> {
+    if (cycleIds.length === 0) return;
+
+    await this.manager.query(
+      `UPDATE rank_maintenance_cycles
+       SET reminded_at = now()
+       WHERE id = ANY($1::bigint[]) AND reminded_at IS NULL`,
+      [cycleIds],
+    );
   }
 
   public async findUnpenalizedFailedCycles(limit: number): Promise<

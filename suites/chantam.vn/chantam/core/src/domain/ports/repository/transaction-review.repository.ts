@@ -53,7 +53,26 @@ export interface IUnreviewedCompletion {
   readonly completedAt: Date;
 }
 
+export interface IPendingReviewReminder {
+  readonly transactionId: string;
+  readonly receiverId: string;
+  /** Số ngày còn lại trước khi hệ thống áp mức mặc định. */
+  readonly daysLeft: number;
+}
+
 export interface ITransactionReviewRepository {
+  /**
+   * Lượt trao đã hoàn tất, NGƯỜI NHẬN chưa đánh giá, và còn trong thời hạn chờ.
+   *
+   * Cố ý loại lượt đã quá hạn: nhắc một người đánh giá khi hệ thống đã áp mức
+   * mặc định là nhắc một việc không còn tác dụng gì.
+   */
+  findPendingReviewReminders(params: {
+    graceDays: number;
+    remindAfterDays: number;
+    limit: number;
+  }): Promise<IPendingReviewReminder[]>;
+
   /**
    * Lượt trao đã hoàn tất quá `graceDays` mà NGƯỜI NHẬN chưa đánh giá, và người
    * tặng chưa được trả thưởng.

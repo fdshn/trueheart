@@ -51,3 +51,4 @@ export * from './1793100000000-SeedPointEconomyConfig';
 export * from './1793200000000-AddUserLastActiveAt';
 export * from './1793300000000-SeedRankNotificationTemplates';
 export * from './1793400000000-DropDuplicateGiftCompletedRule';
+export * from './1793500000000-SeedReminderNotificationTemplates';

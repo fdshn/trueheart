@@ -46,13 +46,13 @@ hình động:
 | 2 | ✅ **Vốn đã đếm từ `COALESCE(handed_over_at, accepted_at)`** — tôi ghi sai trạng thái | — | [08](./08-transaction.md) |
 | 3 | ✅ **Đã sửa 25/09.** Lượt có báo xấu đang mở bị giữ lại; CLI in ra và thoát khác 0 | — | [08](./08-transaction.md) |
 | 4 | Object mồ côi không ai dọn | Bucket phình mãi | [03](./03-media.md) |
-| 5 | Không nhắc người nhận đánh giá | Nhánh "mặc định sau N ngày" thành đường chạy chính | [13](./13-review.md) |
+| 5 | ✅ **Đã sửa 25/09** — `notify:reminders`, nhắc sau 2 ngày, một lời nhắc cho mỗi lượt trao | — | [13](./13-review.md) |
 | 6 | Không có hàng đợi Admin cho hồ sơ bị gắn cờ accuracy và bình luận `PENDING_REVIEW` | Cờ gắn xong không ai thấy | [13](./13-review.md) · [16](./16-admin.md) |
-| 7 | Không thông báo cho người báo xấu / người bị xử lý | Cả hai bên không biết chuyện gì xảy ra | [15](./15-report.md) |
+| 7 | ✅ **Đã sửa 25/09.** Người báo luôn được biết kết luận; người bị xử lý chỉ được báo khi báo xấu được XÁC MINH — bị bác thì họ chưa làm gì sai | — | [15](./15-report.md) |
 | 8 | Cap report: tài liệu 10/ngày, rule đang 5 | Hai con số khác nhau | [15](./15-report.md) |
 | 8b | **Từng cộng điểm HAI LẦN cho người tặng** vì tin `GIVE-RECEIVE-FLOW.md` §H4 ghi sai rằng chưa có rule. Đã sửa ở migration `1793400000000`, và `test:point-economy` nay canh "chỉ một mã thưởng người tặng" | — | [11](./11-point.md) |
 | 9 | ✅ **Bên A xác nhận 25/09:** cap 10 lượt/ngày, chạm trần là mất thưởng, KHÔNG có hàng đợi trả bù. Đúng chủ ý | — | [11](./11-point.md) |
-| 10 | **Chưa có lịch cron cho `gift:settle-rewards`** — không chạy thì điểm treo vô hạn khi người nhận không đánh giá | Điểm không bao giờ tới tay người tặng | [17](./17-jobs.md) |
+| 10 | **Chưa có lịch cron cho 9 CLI** — cấp bách nhất là `gift:settle-rewards` và `notify:reminders` | Điểm treo vô hạn; không ai đánh giá | [17](./17-jobs.md) |
 
 ## 21.4b Phát hiện thêm từ đợt soát thứ hai
 

@@ -43,4 +43,24 @@ export enum NotificationTypes {
   RANK_DEMOTION_WARNING = 'RANK_DEMOTION_WARNING',
   /** Đã tụt hạng. */
   RANK_DEMOTED = 'RANK_DEMOTED',
+
+  /**
+   * Nhắc người nhận đánh giá lượt trao đã hoàn tất.
+   *
+   * Không nhắc thì phần lớn không đánh giá, và nhánh "áp mức mặc định sau 7
+   * ngày" thành đường chạy chính chứ không phải ngoại lệ — tức chỉ số Giver
+   * Accuracy chỉ còn mẫu của người chịu khó chấm.
+   */
+  REVIEW_REMINDER = 'REVIEW_REMINDER',
+  /**
+   * Nhắc nhiệm vụ duy trì hạng, trước khi chu kỳ hết (SRS BR-PROF-RANK-03).
+   *
+   * Trượt chu kỳ nay bị trừ điểm và có thể tụt hạng, nên báo muộn hơn thời điểm
+   * còn kịp làm là báo vô nghĩa.
+   */
+  RANK_MAINTENANCE_REMINDER = 'RANK_MAINTENANCE_REMINDER',
+  /** Báo xấu của bạn đã được Admin xử lý. */
+  REPORT_REVIEWED = 'REPORT_REVIEWED',
+  /** Nội dung của bạn bị Admin xử lý sau khi có báo xấu. */
+  CONTENT_MODERATED = 'CONTENT_MODERATED',
 }

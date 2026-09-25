@@ -191,7 +191,7 @@ API: `GET|POST /admin/ranks/policy` (ngưỡng, cảnh báo) và
 
 ### 2.6 `notification_templates` — nội dung thông báo
 
-`GET|PUT /admin/notification-templates/:type`. Tám loại hiện có; biến trong mẫu được **kiểm
+`GET|PUT /admin/notification-templates/:type`. Mười bốn loại hiện có; biến trong mẫu được **kiểm
 lúc lưu**, không phải lúc gửi — sai một tên biến mà chỉ phát hiện lúc gửi thì người đầu tiên
 nhận được thông báo hỏng.
 
@@ -243,7 +243,7 @@ Tắt chứ không xoá, và **chặn tắt danh mục đang có bài dùng**.
 | Giới hạn dung lượng lưu trữ theo bậc | Không có |
 | Vùng mặc định cho khách chưa đăng nhập | Chưa chốt là vùng nào |
 | Hạn chót gỡ `/gift-posts` | Chưa ai đặt |
-| Lịch cron cho 8 CLI | **Chưa cấu hình lịch nào.** `gift:settle-rewards` cấp bách nhất — không chạy thì điểm người tặng treo vô hạn |
+| Lịch cron cho 9 CLI | **Chưa cấu hình lịch nào.** `gift:settle-rewards` cấp bách nhất — không chạy thì điểm người tặng treo vô hạn |
 | Giới hạn tốc độ toàn hệ thống | Không có |
 
 ---

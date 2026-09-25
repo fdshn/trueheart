@@ -22,6 +22,18 @@ export interface IRankMaintenanceCycleSummary {
   readonly status: RankMaintenanceCycleStatuses;
 }
 
+export interface IMaintenanceReminder {
+  readonly cycleId: string;
+  readonly userId: string;
+  readonly rank: string;
+  readonly daysLeft: number;
+  readonly giftsDone: number;
+  readonly requiredGifts: number;
+  readonly referralsDone: number;
+  readonly requiredReferrals: number;
+  readonly penaltyPoints: number;
+}
+
 export interface IRankChange {
   readonly fromRank: UserRanks;
   readonly toRank: UserRanks;
@@ -70,6 +82,20 @@ export interface IRankRepository {
       penaltyPoints: number;
     }[]
   >;
+
+  /**
+   * Chu kỳ duy trì sắp hết hạn mà chưa nhắc.
+   *
+   * Trượt chu kỳ nay bị TRỪ ĐIỂM và có thể tụt hạng, nên nhắc muộn hơn thời
+   * điểm còn kịp làm nhiệm vụ là nhắc một việc không còn cứu được.
+   */
+  findCyclesNeedingReminder(params: {
+    remindBeforeDays: number;
+    limit: number;
+  }): Promise<IMaintenanceReminder[]>;
+
+  /** Đánh dấu đã nhắc, để vòng quét sau bỏ qua ngay ở tầng SQL. */
+  markCyclesReminded(cycleIds: string[]): Promise<void>;
 
   evaluateDueMaintenanceCycles(): Promise<number>;
 }

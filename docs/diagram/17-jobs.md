@@ -1,8 +1,8 @@
 # 17 · Job nền & CLI
 
-Trạng thái: ✅ **cả tám CLI đã chạy được** sau khi sửa hai lỗi từng làm chúng chết.
+Trạng thái: ✅ **cả chín CLI đã chạy được** sau khi sửa hai lỗi từng làm chúng chết.
 
-## 17.1 Tám lệnh
+## 17.1 Chín lệnh
 
 ```mermaid
 flowchart TD
@@ -14,6 +14,7 @@ flowchart TD
     C --> G["feed:reconcile-counts<br/>đối soát số đếm feed"]
     C --> H["accuracy:reconcile<br/>tính lại Giver Accuracy theo ngưỡng"]
     C --> I["gift:settle-rewards<br/>trả thưởng lượt trao người nhận không đánh giá"]
+    C --> J["notify:reminders<br/>nhắc đánh giá và nhắc nhiệm vụ duy trì"]
 
     style C fill:#e7f3ff
     style F fill:#fff3cd
@@ -102,7 +103,8 @@ flowchart LR
    tới nơi, và **không kiểm tranh chấp** — xem [08-transaction](./08-transaction.md).
 2. ⛔ **Chưa có job kiểm Active Member** (`last_login_at` quá 90 ngày).
 3. ⛔ **Chưa có job dọn object mồ côi** trong bucket.
-4. ⛔ **Chưa có job nhắc nhiệm vụ duy trì trước 1 tháng.**
-5. **Chưa có lịch cron thật nào được cấu hình** — tám lệnh chạy tay được, nhưng không có tài
-   liệu nói cái nào chạy lúc mấy giờ. `gift:settle-rewards` là cái cấp bách nhất: không chạy
-   thì điểm của người tặng treo vô hạn khi người nhận không đánh giá.
+4. ✅ **Nhắc nhiệm vụ duy trì trước 30 ngày đã có** — `notify:reminders`.
+5. **Chưa có lịch cron thật nào được cấu hình** — chín lệnh chạy tay được, nhưng không có tài
+   liệu nói cái nào chạy lúc mấy giờ. Hai cái cấp bách nhất: `gift:settle-rewards` (không chạy
+   thì điểm người tặng treo vô hạn) và `notify:reminders` (không chạy thì phần lớn người nhận
+   không đánh giá, và chỉ số Giver Accuracy chỉ còn mẫu của người chịu khó chấm).
