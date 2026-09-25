@@ -144,14 +144,21 @@ async function main(): Promise<void> {
       `${await commentCount()}`,
     );
 
-    const reply = await addComment('Còn bạn nhé', CommentStatuses.VISIBLE, root.globalId);
+    const reply = await addComment(
+      'Còn bạn nhé',
+      CommentStatuses.VISIBLE,
+      root.globalId,
+    );
     check('trả lời cũng tính vào tổng bình luận', (await commentCount()) === 2);
 
     const [parent] = await dataSource.query<{ reply_count: string }[]>(
       `SELECT reply_count FROM content_comments WHERE global_id = $1`,
       [root.globalId],
     );
-    check('và cộng vào reply_count của bình luận cha', Number(parent.reply_count) === 1);
+    check(
+      'và cộng vào reply_count của bình luận cha',
+      Number(parent.reply_count) === 1,
+    );
 
     // ── 2. Gỡ ──────────────────────────────────────────────────────────────
     console.log('\nGỡ bình luận:\n');
@@ -225,9 +232,7 @@ async function main(): Promise<void> {
     });
     check(
       'gọi ẩn danh chỉ thấy bình luận công khai',
-      anonymous.items.every(
-        (item) => item.status === CommentStatuses.VISIBLE,
-      ),
+      anonymous.items.every((item) => item.status === CommentStatuses.VISIBLE),
     );
 
     // ── 4. Con trỏ ─────────────────────────────────────────────────────────
@@ -287,8 +292,8 @@ async function main(): Promise<void> {
 
     check(
       'con trỏ hỏng không làm vỡ — mã hoá lại rồi giải ra vẫn khớp',
-      encodeKeysetCursor({ createdAt: anchor.createdAt, id: anchor.id }).length >
-        0,
+      encodeKeysetCursor({ createdAt: anchor.createdAt, id: anchor.id })
+        .length > 0,
     );
 
     // ── 5. Trả lời đọc CŨ nhất trước ───────────────────────────────────────
@@ -297,8 +302,13 @@ async function main(): Promise<void> {
     const replyIds: string[] = [];
     for (let index = 0; index < 5; index += 1)
       replyIds.push(
-        (await addComment(`Trả lời ${index}`, CommentStatuses.VISIBLE, root.globalId))
-          .globalId,
+        (
+          await addComment(
+            `Trả lời ${index}`,
+            CommentStatuses.VISIBLE,
+            root.globalId,
+          )
+        ).globalId,
       );
 
     const replies = await comments.listReplies({

@@ -198,7 +198,9 @@ async function main(): Promise<void> {
     });
 
     const firstIds = new Set(first.items.map((item) => item.message.id));
-    const overlap = second.items.filter((item) => firstIds.has(item.message.id));
+    const overlap = second.items.filter((item) =>
+      firstIds.has(item.message.id),
+    );
     check(
       'cửa sổ sau KHÔNG lặp lại tin của cửa sổ trước',
       overlap.length === 0,

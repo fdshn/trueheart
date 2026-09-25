@@ -8,11 +8,11 @@
  *
  *   npm run test:lifecycle
  */
-import { CharityTransferOutcome } from '../src/domain/ports/repository';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { CharityTransferOutcome } from '../src/domain/ports/repository';
 import * as entities from '../src/infrastructure/entity';
 import { PostEntity } from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
@@ -101,9 +101,7 @@ interface PostRow {
  * có thuộc tính `post` — optional chaining không cứu được, TypeScript từ chối
  * ngay lúc biên dịch.
  */
-function outcomePost(
-  outcome: CharityTransferOutcome,
-): IPostEntity | undefined {
+function outcomePost(outcome: CharityTransferOutcome): IPostEntity | undefined {
   return outcome.status === 'RECORDED' ? outcome.post : undefined;
 }
 

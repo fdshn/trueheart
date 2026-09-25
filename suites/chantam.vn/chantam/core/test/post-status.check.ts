@@ -19,8 +19,8 @@ import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
-import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
+import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { QuotaStatuses } from '../src/infrastructure/repository/post.repository';
 
 loadEnvFile({ path: '.env.local' });
@@ -123,9 +123,9 @@ async function main(): Promise<void> {
     const transactions = new GiftTransactionRepository(
       dataSource.manager,
       new ChatRepository(
-      dataSource.manager,
-      new AdminConfigRepository(dataSource.manager),
-    ),
+        dataSource.manager,
+        new AdminConfigRepository(dataSource.manager),
+      ),
       new PointLedgerRepository(dataSource.manager),
     );
 
@@ -209,7 +209,10 @@ async function main(): Promise<void> {
       quantity: 1,
     });
     await transactions.accept(cancelId, GiverId);
-    check('duyệt xong, hết hàng → RESERVED', (await postStatus()) === 'RESERVED');
+    check(
+      'duyệt xong, hết hàng → RESERVED',
+      (await postStatus()) === 'RESERVED',
+    );
 
     await transactions.close({
       transactionId: cancelId,

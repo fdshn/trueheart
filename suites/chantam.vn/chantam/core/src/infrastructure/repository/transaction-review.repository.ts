@@ -187,7 +187,7 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
           )
           AND NOT EXISTS (
             SELECT 1 FROM point_ledger paid
-            WHERE paid.idempotency_key = 'GIFT_COMPLETED:' || deal.global_id
+            WHERE paid.idempotency_key = 'GIFT_COMPLETED_GIVER:' || deal.global_id
           )
         ORDER BY deal.completed_at
         LIMIT $2

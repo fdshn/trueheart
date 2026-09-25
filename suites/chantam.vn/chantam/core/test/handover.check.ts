@@ -217,10 +217,7 @@ async function main(): Promise<void> {
     } catch {
       slotRejected = true;
     }
-    check(
-      'DATABASE chặn tấm thứ tư, không chỉ tầng ứng dụng',
-      slotRejected,
-    );
+    check('DATABASE chặn tấm thứ tư, không chỉ tầng ứng dụng', slotRejected);
 
     let evidenceDeleteBlocked = false;
     try {
@@ -372,7 +369,9 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  console.log('\nBước trao đồ, ảnh bằng chứng và report đều bám đúng thiết kế.');
+  console.log(
+    '\nBước trao đồ, ảnh bằng chứng và report đều bám đúng thiết kế.',
+  );
 }
 
 main().catch((error) => {

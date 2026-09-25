@@ -53,19 +53,31 @@ xong vẫn ăn một suất quota của tác giả mãi mãi**.
 Người càng tặng nhiều càng sớm hết chỗ đăng bài mới — ngược hoàn toàn với ý đồ
 của hệ thống hạng.
 
-### H4 — Hoàn tất một lượt trao không cộng điểm nào
+### H4 — ~~Hoàn tất một lượt trao không cộng điểm nào~~ (MỤC NÀY ĐÃ SAI)
 
-Các rule đã seed: `PHONE_VERIFIED_FIRST_TIME` (28), `REFERRAL_QUALIFIED` (56),
-`SHIP_UNPAID_PENALTY` (−50). **Không có rule nào cho việc tặng hoặc nhận.**
-Không chỗ nào gọi `appendByRule` khi giao dịch `COMPLETED`.
+> ❌ **Mục này từng SAI và đã gây hậu quả thật.** Nó ghi "không có rule nào cho
+> việc tặng hoặc nhận, không chỗ nào gọi `appendByRule` khi `COMPLETED`". Thực
+> tế migration `1791200000000` đã seed `GIFT_COMPLETED_GIVER` (56) và
+> `GIFT_COMPLETED_RECEIVER` (28) từ lâu, và `awardCompletionPoints` gọi cả hai.
+>
+> Ngày 2026-09-25, tin mục này mà không đọc code, một migration seed thêm mã thứ
+> ba là `GIFT_COMPLETED` và gắn đường thưởng theo % chính xác vào mã mới đó.
+> **Người tặng được cộng hai lần** cho một lượt trao — 56 phẳng lúc hoàn tất, rồi
+> 56 × x% lúc đánh giá. Hai khoá chống trùng khác nhau nên không cái nào chặn
+> được cái nào. Đã sửa ở migration `1793400000000`.
+>
+> Bài học: tài liệu lạc hậu tệ hơn không có tài liệu.
 
-[ROADMAP](./ROADMAP.md) ghi "*Xong khi: hoàn tất một giao dịch → điểm vào
-ledger*" — chưa xong. `GIFT_COMPLETED_*` mới nằm ở
-[ADMIN-CONFIG-DESIGN](./ADMIN-CONFIG-DESIGN.md), chưa seed, chưa gọi.
+**Hiện trạng đúng (2026-09-25):**
 
-Hệ quả số học: ngưỡng `SILVER` là 672 điểm, mà đường kiếm điểm duy nhất còn lại
-là giới thiệu (56/lượt). Tức **phải mời 12 người mới lên nổi Bạc**, và tặng đồ —
-việc chính của nền tảng — không đóng góp gì.
+| Ai | Khi nào | Bao nhiêu |
+| --- | --- | --- |
+| Người NHẬN | ngay lúc `COMPLETED` | `GIFT_COMPLETED_RECEIVER` = 28, không đẩy `lifetime` |
+| Người TẶNG | khi người nhận đánh giá, hoặc sau 7 ngày | `GIFT_COMPLETED_GIVER` (56) **× % chính xác** |
+
+Người tặng không được cộng lúc hoàn tất vì số điểm của họ phụ thuộc mức chính xác
+người nhận chấm (F40), và lúc đó chưa ai chấm. Xem
+[diagram/11-point.md](../diagram/11-point.md) §11.4.
 
 ### H5 — Đồng hồ 5 ngày đếm từ sai mốc
 

@@ -22,7 +22,6 @@ import {
   StockHoldingGiftTransactionStatuses,
 } from '@/domain/ports/repository';
 import {
-  GiftCompletedGiverRuleCode,
   GiftCompletedReceiverRuleCode,
   GiftEvidenceKinds,
   MaxEvidencePerKind,
@@ -101,8 +100,16 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     manager: EntityManager,
     transaction: { global_id: string; giver_id: string; receiver_id: string },
   ): Promise<void> {
+    // CHỈ người nhận được thưởng ở đây.
+    //
+    // Phần thưởng của người TẶNG không còn cộng lúc hoàn tất, vì số điểm của họ
+    // phụ thuộc mức chính xác mà người nhận chấm (F40) — và lúc này chưa ai
+    // chấm. Nó đi qua `AwardGiftCompletionUseCase`: hoặc khi người nhận đánh
+    // giá, hoặc khi hết hạn chờ thì áp mức mặc định.
+    //
+    // Cộng phẳng ở đây rồi cộng theo % ở đó là trả thưởng HAI LẦN cho một lượt
+    // trao, và sổ append-only không sửa lại được.
     const awards: [string, string][] = [
-      [transaction.giver_id, GiftCompletedGiverRuleCode],
       [transaction.receiver_id, GiftCompletedReceiverRuleCode],
     ];
 

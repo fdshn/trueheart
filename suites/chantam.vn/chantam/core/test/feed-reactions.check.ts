@@ -305,8 +305,13 @@ async function main(): Promise<void> {
     );
     check(
       'danh sách rỗng không đi database',
-      (await reactions.findMyReactions(ContentSubjectTypes.POST, [], Readers[0]))
-        .size === 0,
+      (
+        await reactions.findMyReactions(
+          ContentSubjectTypes.POST,
+          [],
+          Readers[0],
+        )
+      ).size === 0,
     );
 
     // ── 6. Cảm xúc cho bình luận đếm vào ĐÚNG chỗ ───────────────────────────
@@ -368,7 +373,9 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  console.log('\nSố đếm cảm xúc bám đúng số dòng thật, kể cả khi thả song song.');
+  console.log(
+    '\nSố đếm cảm xúc bám đúng số dòng thật, kể cả khi thả song song.',
+  );
 }
 
 main().catch((error) => {

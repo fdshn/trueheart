@@ -93,7 +93,11 @@ async function main(): Promise<void> {
       userId: SharerId,
       channel: 'zalo',
     });
-    check('lượt đầu trả shareCount = 1', first.shareCount === 1, String(first.shareCount));
+    check(
+      'lượt đầu trả shareCount = 1',
+      first.shareCount === 1,
+      String(first.shareCount),
+    );
 
     const second = await shares.recordShare({
       subjectType: ContentSubjectTypes.POST,

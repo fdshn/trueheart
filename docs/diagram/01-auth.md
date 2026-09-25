@@ -141,7 +141,7 @@ flowchart TD
 | Bước | Trạng thái |
 | --- | --- |
 | Ẩn danh hoá, thu hồi token, giữ ledger | ✅ đã có |
-| Chặn "còn lượt trao dở dang" | ⛔ **bảng đã có, phép kiểm chưa gắn** |
+| Chặn "còn lượt trao dở dang" | ✅ `countOpenForUser` + `UserHasOpenTransactionsException`, có test |
 | Owner xoá → Group giải tán | ⛔ chưa có Group |
 
 > **Vì sao giữ ledger thay vì xoá.** Bút toán điểm của người này là đối ứng của bút toán
@@ -152,8 +152,8 @@ flowchart TD
 1. ✅ **`users.last_active_at` đã có** (không đặt tên `last_login_at` vì nó không chỉ ghi lúc
    đăng nhập). `SessionIssuer` là chỗ chung của đăng ký, đăng nhập và làm mới token nên chỉ
    có MỘT chỗ ghi mốc. Cột `NOT NULL DEFAULT now()`, có index cho job quét Active Member.
-2. **Chặn xoá tài khoản khi còn lượt trao dở dang chưa gắn.** Hiện xoá được giữa chừng, để
-   lại lượt trao trỏ vào một hồ sơ đã ẩn danh.
+2. ✅ **Chặn xoá khi còn lượt trao dở dang đã có** — và chặn TRƯỚC khi thu hồi token, vì thu
+   hồi rồi mới phát hiện không xoá được là đá người dùng ra khỏi phiên dù tài khoản vẫn nguyên.
 3. Đăng ký hiện **không bắt buộc** SĐT. Cổng hoàn thiện hồ sơ (F07) mới là chỗ chặn — xem
    [02-profile](./02-profile.md).
 4. Kênh gửi OTP: email ✅ đã chạy thật; SMS/Zalo bật được trong CMS nhưng `canSend` trả

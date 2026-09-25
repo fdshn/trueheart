@@ -63,7 +63,7 @@ describe('AwardGiftCompletionUseCase', () => {
     expect(append.handle).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: GiverId,
-        ruleCode: 'GIFT_COMPLETED',
+        ruleCode: 'GIFT_COMPLETED_GIVER',
         multiplierPercent: 90,
       }),
     );
@@ -198,8 +198,14 @@ describe('AwardGiftCompletionUseCase', () => {
   });
 
   it.each([
-    ['rule bị Admin tắt', new PointRuleUnavailableException('GIFT_COMPLETED')],
-    ['chạm cap ngày', new PointDailyCapReachedException('GIFT_COMPLETED', 5)],
+    [
+      'rule bị Admin tắt',
+      new PointRuleUnavailableException('GIFT_COMPLETED_GIVER'),
+    ],
+    [
+      'chạm cap ngày',
+      new PointDailyCapReachedException('GIFT_COMPLETED_GIVER', 10),
+    ],
   ])('nuốt ngoại lệ vận hành: %s', async (_label, error) => {
     // Hai thứ này là quyết định vận hành bình thường. Ném tiếp sẽ làm việc đánh
     // giá thất bại, hoặc làm job đối soát dừng giữa danh sách.

@@ -21,20 +21,15 @@ export class SeedPointEconomyConfig1793100000000 implements MigrationInterface {
   name = 'SeedPointEconomyConfig1793100000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // 1. Điểm cho một lượt trao hoàn tất.
+    // 1. Điểm cho một lượt trao hoàn tất — KHÔNG seed mã mới.
     //
-    // `daily_cap = 5` bám theo baseline "5 giao dịch tính điểm mỗi ngày".
-    // Không có cap thì hai tài khoản trao qua trao lại cả ngày là một cỗ máy
-    // in điểm, và ràng buộc `giver_id <> receiver_id` không chặn được vòng ba
-    // người.
+    // `GIFT_COMPLETED_GIVER` (56) đã tồn tại từ migration `1791200000000`. Bản
+    // đầu của migration này seed thêm một mã `GIFT_COMPLETED`, và đó là lỗi:
+    // hai mã nghĩa là hai khoá chống trùng, nên người tặng được cộng hai lần
+    // cho một lượt trao. Migration `1793400000000` gỡ mã trùng đó.
     //
-    // Số điểm thực nhận = `points` × phần trăm chính xác do NGƯỜI NHẬN chấm
-    // (F40), nên 56 là mức trần của một lượt chứ không phải mức cố định.
-    await queryRunner.query(`
-      INSERT INTO point_rules (code, points, daily_cap, version)
-      VALUES ('GIFT_COMPLETED', 56, 5, 1)
-      ON CONFLICT (code, version) DO NOTHING
-    `);
+    // Số điểm thực nhận = `points` của `GIFT_COMPLETED_GIVER` × phần trăm chính
+    // xác do NGƯỜI NHẬN chấm (F40), nên 56 là mức TRẦN của một lượt.
 
     // 2. Tỷ lệ quy đổi điểm sang VNĐ khi ĐỔI vật phẩm (F74).
     //
@@ -122,9 +117,6 @@ export class SeedPointEconomyConfig1793100000000 implements MigrationInterface {
     `);
     await queryRunner.query(
       `DELETE FROM "system_configs" WHERE "config_key" IN ('point.redemption', 'review.grace')`,
-    );
-    await queryRunner.query(
-      `DELETE FROM point_rules WHERE code = 'GIFT_COMPLETED'`,
     );
   }
 }

@@ -81,10 +81,10 @@ async function main(): Promise<void> {
     lifetime: number,
     rank: string,
   ): Promise<void> {
-    await dataSource.query(
-      `UPDATE users SET rank = $2 WHERE global_id = $1`,
-      [UserId, rank],
-    );
+    await dataSource.query(`UPDATE users SET rank = $2 WHERE global_id = $1`, [
+      UserId,
+      rank,
+    ]);
     await dataSource.query(
       `INSERT INTO user_point_balances (user_id, balance, raw_balance, lifetime)
        VALUES ($1, $2, $2, $3)

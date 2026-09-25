@@ -71,7 +71,10 @@ async function main(): Promise<void> {
   console.log('Đã dựng schema trên database nháp\n');
 
   /** Chạy một câu lệnh và cho biết database có TỪ CHỐI hay không. */
-  async function rejected(sql: string, params: unknown[] = []): Promise<boolean> {
+  async function rejected(
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<boolean> {
     try {
       await dataSource.query(sql, params);
       return false;
@@ -91,15 +94,7 @@ async function main(): Promise<void> {
          (global_id, subject_type, subject_id, author_id, body,
           depth, parent_id, parent_depth)
        VALUES ($1, 'POST', $2, $3, $4, $5, $6, $7)`,
-      [
-        globalId,
-        PostId,
-        ReaderId,
-        body,
-        depth,
-        parentId,
-        parentId ? 1 : null,
-      ],
+      [globalId, PostId, ReaderId, body, depth, parentId, parentId ? 1 : null],
     );
   }
 
@@ -281,7 +276,10 @@ async function main(): Promise<void> {
     const [{ exists: legacyReports }] = await dataSource.query<
       { exists: boolean }[]
     >(`SELECT to_regclass('public.content_reports') IS NOT NULL AS exists`);
-    check('bảng content_reports đã được gộp, không còn tồn tại', !legacyReports);
+    check(
+      'bảng content_reports đã được gộp, không còn tồn tại',
+      !legacyReports,
+    );
 
     await dataSource.query(
       `INSERT INTO reports

@@ -16,9 +16,9 @@ import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
+import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { TransactionReviewRepository } from '../src/infrastructure/repository/transaction-review.repository';
-import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -123,10 +123,10 @@ async function main(): Promise<void> {
     const dealA = await seedDeal('77777777-7777-4777-8777-7777777a0001', 0);
     const awardA = await ledger.appendByRule({
       userId: GiverId,
-      ruleCode: 'GIFT_COMPLETED',
+      ruleCode: 'GIFT_COMPLETED_GIVER',
       referenceType: 'GIFT_TRANSACTION',
       referenceId: dealA,
-      idempotencyKey: `GIFT_COMPLETED:${dealA}`,
+      idempotencyKey: `GIFT_COMPLETED_GIVER:${dealA}`,
       actor: ReceiverId,
       source: 'REVIEW',
       multiplierPercent: 90,
@@ -144,7 +144,7 @@ async function main(): Promise<void> {
     >(
       `SELECT delta, lifetime_after, rule_version FROM point_ledger
        WHERE idempotency_key = $1`,
-      [`GIFT_COMPLETED:${dealA}`],
+      [`GIFT_COMPLETED_GIVER:${dealA}`],
     );
     check(
       'ledger lưu delta đã nhân, không lưu mức trần 56',
@@ -176,10 +176,10 @@ async function main(): Promise<void> {
       );
       const result = await ledger.appendByRule({
         userId: RoundingGiverId,
-        ruleCode: 'GIFT_COMPLETED',
+        ruleCode: 'GIFT_COMPLETED_GIVER',
         referenceType: 'GIFT_TRANSACTION',
         referenceId: deal,
-        idempotencyKey: `GIFT_COMPLETED:${deal}`,
+        idempotencyKey: `GIFT_COMPLETED_GIVER:${deal}`,
         actor: ReceiverId,
         source: 'REVIEW',
         multiplierPercent: percent,
@@ -195,10 +195,10 @@ async function main(): Promise<void> {
     const dealZero = await seedDeal('77777777-7777-4777-8777-7777777a0002', 30);
     const awardZero = await ledger.appendByRule({
       userId: GiverId,
-      ruleCode: 'GIFT_COMPLETED',
+      ruleCode: 'GIFT_COMPLETED_GIVER',
       referenceType: 'GIFT_TRANSACTION',
       referenceId: dealZero,
-      idempotencyKey: `GIFT_COMPLETED:${dealZero}`,
+      idempotencyKey: `GIFT_COMPLETED_GIVER:${dealZero}`,
       actor: ReceiverId,
       source: 'REVIEW',
       multiplierPercent: 0,
@@ -209,10 +209,10 @@ async function main(): Promise<void> {
     console.log('\n4. Khoá chống trùng chặn cả hai đường');
     const again = await ledger.appendByRule({
       userId: GiverId,
-      ruleCode: 'GIFT_COMPLETED',
+      ruleCode: 'GIFT_COMPLETED_GIVER',
       referenceType: 'GIFT_TRANSACTION',
       referenceId: dealA,
-      idempotencyKey: `GIFT_COMPLETED:${dealA}`,
+      idempotencyKey: `GIFT_COMPLETED_GIVER:${dealA}`,
       actor: 'SYSTEM',
       source: 'GRACE_EXPIRED',
       multiplierPercent: 80,
@@ -229,7 +229,7 @@ async function main(): Promise<void> {
     );
     const [{ count: entryCount }] = await dataSource.query<{ count: string }[]>(
       `SELECT count(*) FROM point_ledger WHERE idempotency_key = $1`,
-      [`GIFT_COMPLETED:${dealA}`],
+      [`GIFT_COMPLETED_GIVER:${dealA}`],
     );
     check('chỉ MỘT bút toán trong sổ', Number(entryCount) === 1);
 
@@ -289,7 +289,30 @@ async function main(): Promise<void> {
       due.map((row) => row.giverId).join(', '),
     );
 
-    console.log('\n6. Khoản phạt không nhận hệ số nhân');
+    console.log('\n6. Hoàn tất lượt trao KHÔNG cộng phẳng cho người tặng');
+    // Phép kiểm quan trọng nhất của file: cộng phẳng lúc hoàn tất RỒI cộng theo
+    // % lúc đánh giá là trả thưởng hai lần cho một lượt trao, và sổ append-only
+    // không sửa lại được. Đã xảy ra thật — xem migration 1793400000000.
+    const giverEntries = await dataSource.query<
+      { idempotency_key: string; delta: string }[]
+    >(
+      `SELECT idempotency_key, delta FROM point_ledger
+       WHERE user_id = $1 AND rule_code = 'GIFT_COMPLETED_GIVER'
+         AND reference_id = $2`,
+      [GiverId, dealA],
+    );
+    check(
+      'một lượt trao ra ĐÚNG MỘT bút toán cho người tặng',
+      giverEntries.length === 1,
+      `${giverEntries.length} bút toán`,
+    );
+    check(
+      'và số điểm là bản đã nhân (50), không phải mức trần phẳng (56)',
+      Number(giverEntries[0]?.delta) === 50,
+      `delta=${giverEntries[0]?.delta}`,
+    );
+
+    console.log('\n7. Khoản phạt không nhận hệ số nhân');
     let rejectedPenaltyScaling = false;
     try {
       await ledger.appendByRule({

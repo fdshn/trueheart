@@ -114,7 +114,8 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | `POST_COMMENTED` | 2 | — | ✅ đang gọi |
 | `REPORT_UPHELD` | 5 | 5 | ✅ đang gọi |
 | `SHIP_UNPAID_PENALTY` | −50 | — | ✅ đang gọi |
-| `GIFT_COMPLETED` | 56 | 5 | ✅ đang gọi — mức **TRẦN**, nhân với % người nhận chấm |
+| `GIFT_COMPLETED_GIVER` | 56 | 10 | ✅ đang gọi — mức **TRẦN**, nhân với % người nhận chấm |
+| `GIFT_COMPLETED_RECEIVER` | 28 | 5 | ✅ đang gọi ngay lúc hoàn tất |
 | `ITEM_REDEMPTION` | *theo giá món* | — | ⛔ chưa nối, nhưng **đường ghi đã có**: `appendAdjustment` nhận số điểm truyền vào |
 | `MAINTENANCE_FAILED` | *theo bậc, xem `rank_tiers`* | — | ✅ đang gọi qua `appendAdjustment` |
 

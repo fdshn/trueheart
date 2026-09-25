@@ -74,15 +74,13 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[CLI transaction:autocomplete<br/>chạy hằng ngày] --> B["Quét: accepted_at <= now() − 5 ngày"]
-    B --> C{⚠️ Đếm từ accepted_at}
-    C --> D["Ship liên tỉnh 4–5 ngày<br/>→ cron đóng TRƯỚC KHI hàng tới"]
+    A[CLI transaction:autocomplete<br/>chạy hằng ngày] --> B["Quét: COALESCE(handed_over_at, accepted_at)<br/><= now() − 5 ngày"]
+    B --> C["✅ Đếm từ lần cuối CÓ CHUYỆN XẢY RA,<br/>không phải từ lúc duyệt"]
     B --> E{⚠️ Không kiểm tranh chấp}
     E --> F["Lượt trao đang có báo xấu<br/>vẫn bị đánh là 'thành công'"]
 
-    style C fill:#f8d7da
+    style C fill:#e6ffe6
     style E fill:#f8d7da
-    style D fill:#f8d7da
     style F fill:#f8d7da
 ```
 
@@ -165,7 +163,9 @@ Ràng buộc `CHK_point_ledger_balance_is_clamped_raw` giữ `balance_after = GR
 1. ✅ **Hoàn tất lượt trao nay sinh điểm** — nhưng **không ở bước `confirm`**: điểm chờ người
    nhận chấm % chính xác, hoặc chờ hết 7 ngày rồi áp mức mặc định. Xem
    [11-point §11.4](./11-point.md).
-2. ⚠️ **Đồng hồ 5 ngày đếm từ sai mốc** và **không kiểm tranh chấp** — mục 8.3.
+2. ✅ **Đồng hồ đã đếm từ `COALESCE(handed_over_at, accepted_at)`** — bàn giao rồi thì đếm từ
+   lúc bàn giao. ⚠️ Nhưng **vẫn không kiểm tranh chấp**: lượt trao đang có báo xấu vẫn bị đánh
+   là "thành công".
 3. Khoản phạt ship giờ **cũng làm tụt hạng** (do rank đọc `balance` theo quyết định
    2026-09-24). Trước đây cố ý không đụng `lifetime` để tránh đúng chuyện này.
 4. Chưa có cơ chế **mở lại** một lượt trao đã đóng nhầm.

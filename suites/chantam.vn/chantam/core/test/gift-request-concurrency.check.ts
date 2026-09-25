@@ -10,21 +10,21 @@
  *
  *   npm run test:concurrency
  */
+import {
+  ICandidateMetrics,
+  pickNextCandidate,
+} from '@chantam.vn/chantam.core-lib/models';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import { GiftRequestEntity } from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
-import {
-  ICandidateMetrics,
-  pickNextCandidate,
-} from '@chantam.vn/chantam.core-lib/models';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
-import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { GiftRequestRepository } from '../src/infrastructure/repository/gift-request.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
+import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -391,11 +391,11 @@ async function main(): Promise<void> {
         `SELECT COUNT(*) AS count FROM gift_requests
          WHERE post_id = $1 AND status = 'STANDBY'`,
       )) === 2 &&
-      (await countBy(
-        dataSource,
-        `SELECT COUNT(*) AS count FROM gift_requests
+        (await countBy(
+          dataSource,
+          `SELECT COUNT(*) AS count FROM gift_requests
            WHERE post_id = $1 AND status = 'REJECTED'`,
-      )) === 0,
+        )) === 0,
     );
 
     check(
@@ -434,7 +434,7 @@ async function main(): Promise<void> {
     check(
       'mặc định: người vào hàng đợi SỚM NHẤT được đề xuất',
       pickNextCandidate(closed.queue.candidates, null)?.requesterId ===
-      requesterId(1),
+        requesterId(1),
       String(pickNextCandidate(closed.queue.candidates, null)?.requesterId),
     );
     check(
@@ -494,7 +494,7 @@ async function main(): Promise<void> {
     check(
       'không còn ai thì không đề xuất người kế tiếp',
       soloClosed.queue.candidates.length === 0 &&
-      soloClosed.queue.reopenedCount === 0,
+        soloClosed.queue.reopenedCount === 0,
       JSON.stringify(soloClosed.queue),
     );
 
@@ -524,9 +524,8 @@ async function main(): Promise<void> {
 
     check(
       'ưu tiên ai xin trước thì chọn người xin sớm hơn',
-      pickNextCandidate(rankClosed.queue.candidates, [
-        'QUEUE_JOINED_EARLIEST',
-      ])?.requesterId === requesterId(1),
+      pickNextCandidate(rankClosed.queue.candidates, ['QUEUE_JOINED_EARLIEST'])
+        ?.requesterId === requesterId(1),
       String(
         pickNextCandidate(rankClosed.queue.candidates, [
           'QUEUE_JOINED_EARLIEST',
@@ -584,10 +583,12 @@ async function main(): Promise<void> {
     check(
       'ST_Distance trả về số thật cho người đã đặt Vị trí mặc định',
       withDistance.length === 2 &&
-      withDistance.every(
-        (entry: ICandidateMetrics) => Number(entry.distanceMeters) > 0,
+        withDistance.every(
+          (entry: ICandidateMetrics) => Number(entry.distanceMeters) > 0,
+        ),
+      JSON.stringify(
+        withDistance.map((entry: ICandidateMetrics) => entry.distanceMeters),
       ),
-      JSON.stringify(withDistance.map((entry: ICandidateMetrics) => entry.distanceMeters)),
     );
     check(
       'ưu tiên gần nhất thì chọn người ở Quận 1, không phải người ở Đà Nẵng',

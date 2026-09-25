@@ -113,9 +113,9 @@ async function main(): Promise<void> {
     const transactions = new GiftTransactionRepository(
       dataSource.manager,
       new ChatRepository(
-      dataSource.manager,
-      new AdminConfigRepository(dataSource.manager),
-    ),
+        dataSource.manager,
+        new AdminConfigRepository(dataSource.manager),
+      ),
       new PointLedgerRepository(dataSource.manager),
     );
 

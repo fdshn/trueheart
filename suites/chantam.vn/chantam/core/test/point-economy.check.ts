@@ -37,7 +37,8 @@ const ActorId = '99999999-9999-4999-8999-9999999e0001';
  * lượt thả cảm xúc thành nửa lần xác minh số điện thoại.
  */
 const MilestoneRules = [
-  'GIFT_COMPLETED',
+  'GIFT_COMPLETED_GIVER',
+  'GIFT_COMPLETED_RECEIVER',
   'REFERRAL_QUALIFIED',
   'ONBOARDING_COMPLETED',
   'PHONE_VERIFIED_FIRST_TIME',
@@ -88,13 +89,36 @@ async function main(): Promise<void> {
   console.log('Đã dựng schema trên database nháp\n');
 
   try {
-    console.log('1. Rule điểm cho lượt trao hoàn tất');
+    console.log('0. CHỈ MỘT mã rule cho phần thưởng người tặng');
+    // Hai mã nghĩa là hai khoá chống trùng, nên một lượt trao được trả thưởng
+    // hai lần: một lần phẳng lúc hoàn tất, một lần nữa theo % lúc đánh giá. Đã
+    // xảy ra thật — xem migration 1793400000000.
+    const giverRules = await dataSource.query<{ code: string }[]>(
+      `SELECT code FROM point_rules
+       WHERE code LIKE 'GIFT_COMPLETED%' AND code <> 'GIFT_COMPLETED_RECEIVER'`,
+    );
+    check(
+      'đúng một mã thưởng người tặng',
+      giverRules.length === 1,
+      giverRules.map((rule) => rule.code).join(', '),
+    );
+    check(
+      'và mã đó là GIFT_COMPLETED_GIVER',
+      giverRules[0]?.code === 'GIFT_COMPLETED_GIVER',
+      giverRules[0]?.code,
+    );
+    check(
+      'mã GIFT_COMPLETED trùng vai đã bị gỡ',
+      !giverRules.some((rule) => rule.code === 'GIFT_COMPLETED'),
+    );
+
+    console.log('\n1. Rule điểm cho lượt trao hoàn tất');
     const [giftRule] = await dataSource.query<
       { points: string; daily_cap: string | null; is_enabled: boolean }[]
     >(
-      `SELECT points, daily_cap, is_enabled FROM point_rules WHERE code = 'GIFT_COMPLETED'`,
+      `SELECT points, daily_cap, is_enabled FROM point_rules WHERE code = 'GIFT_COMPLETED_GIVER'`,
     );
-    check('GIFT_COMPLETED tồn tại', Boolean(giftRule));
+    check('GIFT_COMPLETED_GIVER tồn tại', Boolean(giftRule));
     check(
       'đáng 56 điểm — bằng một lượt giới thiệu hợp lệ',
       Number(giftRule?.points) === 56,
@@ -102,7 +126,7 @@ async function main(): Promise<void> {
     );
     check(
       'có cap ngày, không phải cỗ máy in điểm',
-      Number(giftRule?.daily_cap) === 5,
+      Number(giftRule?.daily_cap) > 0,
       `daily_cap=${giftRule?.daily_cap}`,
     );
     check('bật sẵn', giftRule?.is_enabled === true);

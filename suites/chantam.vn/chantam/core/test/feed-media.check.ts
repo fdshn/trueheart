@@ -111,10 +111,7 @@ async function main(): Promise<void> {
     // ── 1. Đính ảnh ─────────────────────────────────────────────────────────
     console.log('Đính ảnh:\n');
 
-    const withMedia = await addComment('Món này đây ạ', [
-      key('a'),
-      key('b'),
-    ]);
+    const withMedia = await addComment('Món này đây ạ', [key('a'), key('b')]);
     check(
       'trả về đúng hai ảnh, xếp theo slot',
       withMedia.mediaKeys.length === 2 && withMedia.mediaKeys[0] === key('a'),
@@ -132,7 +129,10 @@ async function main(): Promise<void> {
     );
 
     const textOnly = await addComment('Chỉ có chữ thôi');
-    check('bình luận chỉ có chữ thì mảng ảnh rỗng', textOnly.mediaKeys.length === 0);
+    check(
+      'bình luận chỉ có chữ thì mảng ảnh rỗng',
+      textOnly.mediaKeys.length === 0,
+    );
 
     // ── 2. Bình luận chỉ có ảnh ─────────────────────────────────────────────
     console.log('\nBình luận chỉ có ảnh:\n');
@@ -149,10 +149,7 @@ async function main(): Promise<void> {
     } catch {
       emptyRejected = true;
     }
-    check(
-      'rỗng cả chữ lẫn ảnh thì DATABASE từ chối',
-      emptyRejected,
-    );
+    check('rỗng cả chữ lẫn ảnh thì DATABASE từ chối', emptyRejected);
 
     // ── 3. Trần ba ảnh ──────────────────────────────────────────────────────
     console.log('\nTrần ba ảnh:\n');
@@ -234,7 +231,9 @@ async function main(): Promise<void> {
     // ── 6. Ảnh gắn đúng bình luận ───────────────────────────────────────────
     console.log('\nKhông lẫn ảnh giữa các bình luận:\n');
 
-    const mine = page.items.find((item) => item.globalId === imageOnly.globalId);
+    const mine = page.items.find(
+      (item) => item.globalId === imageOnly.globalId,
+    );
     check(
       'ảnh không lẫn sang bình luận khác',
       mine?.mediaKeys.length === 1 && mine.mediaKeys[0] === key('c'),

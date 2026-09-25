@@ -61,7 +61,8 @@ sequenceDiagram
 | `SHIP_UNPAID_PENALTY` | −50 | — | ✅ đã gọi |
 | `POST_REACTED` | 1 | — | ✅ đã gọi |
 | `POST_COMMENTED` | 2 | — | ✅ đã gọi |
-| **`GIFT_COMPLETED`** | **56** | **5** | ✅ đã seed · ⛔ **chưa ai gọi** |
+| **`GIFT_COMPLETED_GIVER`** | **56** (mức TRẦN) | 10 | ✅ đang gọi — **× % người nhận chấm** |
+| `GIFT_COMPLETED_RECEIVER` | 28 | 5 | ✅ đang gọi ngay lúc hoàn tất |
 | `MAINTENANCE_FAILED` | −224/−336/−448 theo bậc | — | ✅ đã seed ở `rank_tiers` · ⛔ chưa gọi |
 | `ITEM_REDEMPTION` | âm, theo giá món | — | ⛔ chưa có |
 
@@ -84,7 +85,13 @@ flowchart LR
 ```
 
 **Chốt 2026-09-25: X = 56** — một lượt trao hoàn tất đánh giá 100% đáng bằng một lượt giới
-thiệu hợp lệ. Đã seed vào `point_rules` mã `GIFT_COMPLETED` với cap 5/ngày, Admin sửa lúc chạy.
+thiệu hợp lệ. Dùng mã `GIFT_COMPLETED_GIVER` **đã seed từ migration `1791200000000`**.
+
+> ⚠️ **Đã từng tạo mã thứ hai và gây cộng hai lần.** Ngày 25/09 một migration seed thêm mã
+> `GIFT_COMPLETED` vì `GIVE-RECEIVE-FLOW.md` §H4 ghi sai rằng chưa có rule nào. Hai mã nghĩa
+> là hai khoá chống trùng, nên người tặng được cộng 56 phẳng lúc hoàn tất **cộng thêm** 56 × x%
+> lúc đánh giá. Đã gỡ ở migration `1793400000000`, và `test:point-economy` nay canh "chỉ một mã
+> thưởng người tặng".
 
 > Cap ngày không phải trang trí: hai tài khoản trao qua trao lại cả ngày là một cỗ máy in
 > điểm, và ràng buộc `giver_id <> receiver_id` không chặn được vòng ba người.
@@ -100,7 +107,7 @@ flowchart TD
 
     C --> H["AwardGiftCompletionUseCase<br/>multiplierPercent"]
     F --> H
-    H --> I["appendByRule GIFT_COMPLETED<br/>khoá: GIFT_COMPLETED:&lt;transactionId&gt;"]
+    H --> I["appendByRule GIFT_COMPLETED_GIVER<br/>khoá: GIFT_COMPLETED_GIVER:&lt;transactionId&gt;"]
 
     J["Đường nào tới TRƯỚC thì đường kia<br/>thành không làm gì — applied = false"] -.-> I
 
@@ -124,7 +131,7 @@ sequenceDiagram
     R->>S: POST /transactions/:id/reviews (accuracyPercent = 90)
     S->>S: Ghi đánh giá + tính lại accuracy (một transaction)
     S->>A: SAU commit — accuracyPercent = 90
-    A->>L: 56 × 90% = 50đ, khoá GIFT_COMPLETED:&lt;id&gt;
+    A->>L: 56 × 90% = 50đ, khoá GIFT_COMPLETED_GIVER:&lt;id&gt;
     end
 
     rect rgb(255, 250, 240)
@@ -199,6 +206,7 @@ flowchart LR
 ## Chỗ cần soát
 
 1. ✅ **Cộng điểm khi lượt trao hoàn tất đã chạy** — hai đường, một khoá chống trùng.
+   Người nhận được cộng ngay; người tặng chờ mức chính xác.
 2. ✅ **CLI `gift:settle-rewards`** áp mức mặc định sau 7 ngày.
 3. ⛔ **Chưa có đường trừ điểm khi trượt nhiệm vụ duy trì.**
 4. ⚠️ **Cap 5/ngày chạm là mất thưởng vĩnh viễn.** Người tặng 6 món trong một ngày không được

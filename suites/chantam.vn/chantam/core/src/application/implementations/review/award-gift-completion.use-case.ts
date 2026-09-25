@@ -15,8 +15,17 @@ import {
 } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-/** Rule giữ mức TRẦN của một lượt trao. Số thực nhận là trần × phần trăm. */
-export const GiftCompletedRuleCode = 'GIFT_COMPLETED';
+/**
+ * Mã rule cho phần thưởng của NGƯỜI TẶNG khi lượt trao hoàn tất.
+ *
+ * Dùng lại đúng mã đã seed từ migration `1791200000000`, KHÔNG tạo mã mới. Mã
+ * mới nghĩa là khoá chống trùng mới, và một lượt trao sẽ được trả thưởng hai
+ * lần: một lần phẳng lúc hoàn tất, một lần nữa theo % lúc đánh giá.
+ *
+ * Giá trị trong rule là mức TRẦN; số thực nhận là trần × phần trăm chính xác
+ * người nhận chấm (F40).
+ */
+export const GiftCompletedRuleCode = 'GIFT_COMPLETED_GIVER';
 
 /**
  * Khoá chống trùng theo LƯỢT TRAO, không theo đường kích hoạt.

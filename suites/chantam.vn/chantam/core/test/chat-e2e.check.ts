@@ -416,17 +416,14 @@ async function main(): Promise<void> {
       `HTTP ${jsonStillWorks.status}`,
     );
 
-    const brokenJson = await fetch(
-      `${ApiUrl}/chat/rooms/${roomId}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${receiver.token}`,
-        },
-        body: '{khong-phai-json',
+    const brokenJson = await fetch(`${ApiUrl}/chat/rooms/${roomId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${receiver.token}`,
       },
-    );
+      body: '{khong-phai-json',
+    });
     check(
       'JSON hỏng vẫn bị từ chối, không bị coi là rỗng',
       brokenJson.status === 400,
