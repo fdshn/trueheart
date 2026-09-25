@@ -76,15 +76,31 @@ sequenceDiagram
 flowchart TD
     A[CLI transaction:autocomplete<br/>chạy hằng ngày] --> B["Quét: COALESCE(handed_over_at, accepted_at)<br/><= now() − 5 ngày"]
     B --> C["✅ Đếm từ lần cuối CÓ CHUYỆN XẢY RA,<br/>không phải từ lúc duyệt"]
-    B --> E{⚠️ Không kiểm tranh chấp}
-    E --> F["Lượt trao đang có báo xấu<br/>vẫn bị đánh là 'thành công'"]
+    B --> E{✅ Có báo xấu ĐANG MỞ?}
+    E -->|Có| F["GIỮ LẠI, không đóng<br/>đếm vào heldForDispute"]
+    E -->|Không| G["Đóng thành COMPLETED"]
+    F --> H["Admin đóng báo xấu →<br/>lần chạy sau tự xử lý"]
 
     style C fill:#e6ffe6
-    style E fill:#f8d7da
-    style F fill:#f8d7da
+    style E fill:#e6ffe6
+    style H fill:#e7f3ff
 ```
 
-**Hướng xử lý đã ghi nhận (2026-09-24):**
+**Hai kênh tranh chấp, và cố ý chỉ hai kênh:**
+
+| Kênh | Vì sao |
+| --- | --- |
+| Báo xấu vào **chính bài** của lượt trao | Nội dung bài là thứ đang bị nghi |
+| Báo xấu vào **người tặng, do chính người nhận của lượt này gửi** | Giới hạn ở người nhận là có chủ ý — một báo xấu bất kỳ nhắm vào người tặng sẽ khoá **mọi** lượt trao của họ, và đó là một đường phá hoại rẻ tiền |
+
+> `ship-unpaid` không cần nằm trong danh sách: nó **tự đóng lượt trao** thành `CANCELLED`, nên
+> cron không còn chạm tới.
+>
+> **Lượt bị giữ tự khỏi** ở lần chạy sau khi Admin đóng báo xấu — không cần hàng đợi riêng.
+> Nhưng CLI in ra và **thoát khác 0**: một lượt trao treo vô thời hạn vì báo xấu không ai xử là
+> chuyện người vận hành cần thấy.
+
+**Hướng xử lý còn lại (2026-09-24):**
 
 ```mermaid
 flowchart LR
@@ -163,9 +179,8 @@ Ràng buộc `CHK_point_ledger_balance_is_clamped_raw` giữ `balance_after = GR
 1. ✅ **Hoàn tất lượt trao nay sinh điểm** — nhưng **không ở bước `confirm`**: điểm chờ người
    nhận chấm % chính xác, hoặc chờ hết 7 ngày rồi áp mức mặc định. Xem
    [11-point §11.4](./11-point.md).
-2. ✅ **Đồng hồ đã đếm từ `COALESCE(handed_over_at, accepted_at)`** — bàn giao rồi thì đếm từ
-   lúc bàn giao. ⚠️ Nhưng **vẫn không kiểm tranh chấp**: lượt trao đang có báo xấu vẫn bị đánh
-   là "thành công".
+2. ✅ **Đồng hồ đếm từ `COALESCE(handed_over_at, accepted_at)`** và ✅ **đã kiểm tranh chấp**
+   (25/09). Còn lại: tìm API tính thời gian vận chuyển thật để khỏi dùng con số 5 ngày cố định.
 3. Khoản phạt ship giờ **cũng làm tụt hạng** (do rank đọc `balance` theo quyết định
    2026-09-24). Trước đây cố ý không đụng `lifetime` để tránh đúng chuyện này.
 4. Chưa có cơ chế **mở lại** một lượt trao đã đóng nhầm.

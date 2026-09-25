@@ -169,7 +169,10 @@ describe('GiftTransactionRepository auto-complete', () => {
       .mockResolvedValueOnce([]);
     const repository = makeRepository(query);
 
-    await expect(repository.completeDueDeliveries(5)).resolves.toBe(1);
+    await expect(repository.completeDueDeliveries(5)).resolves.toEqual({
+      completed: 1,
+      heldForDispute: 0,
+    });
 
     const [sql, params] = query.mock.calls[0];
     expect(String(sql)).toContain('FOR UPDATE SKIP LOCKED');
@@ -181,6 +184,37 @@ describe('GiftTransactionRepository auto-complete', () => {
     );
     expect(String(sql)).not.toMatch(/AND\s+accepted_at\s*<=/);
     expect(params).toEqual([5]);
+
+    // Lượt đang có báo xấu chưa xử phải bị GIỮ LẠI. Đánh một lượt trao đang bị
+    // nghi là "thành công" vừa cộng điểm cho người có thể gian lận, vừa ghi công
+    // người nhận đã nhận món đồ mà họ chưa nhận.
+    const disputeQuery = String(query.mock.calls[1][0]);
+    expect(disputeQuery).toMatch(/status IN \('PENDING', 'IN_REVIEW'\)/);
+    expect(disputeQuery).toMatch(/target_type = 'POST'/);
+    // Báo xấu vào người tặng CHỈ tính khi do chính người nhận của lượt này gửi:
+    // một báo xấu bất kỳ nhắm vào người tặng sẽ khoá mọi lượt trao của họ, và đó
+    // là một đường phá hoại rẻ tiền.
+    expect(disputeQuery).toMatch(/reporter_user_id = deal\.receiver_id/);
+  });
+
+  it('giữ lại lượt đang tranh chấp và KHÔNG cộng điểm cho nó', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([{ global_id: TransactionId }])
+      .mockResolvedValueOnce([{ global_id: TransactionId }]);
+    const repository = makeRepository(query);
+
+    await expect(repository.completeDueDeliveries(5)).resolves.toEqual({
+      completed: 0,
+      heldForDispute: 1,
+    });
+
+    // Không có câu UPDATE nào chạy: lượt duy nhất đủ hạn đang bị giữ.
+    expect(
+      query.mock.calls
+        .map((call) => String(call[0]))
+        .some((sql) => sql.includes('UPDATE gift_transactions')),
+    ).toBe(false);
   });
 });
 

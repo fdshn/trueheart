@@ -250,8 +250,8 @@ async function main(): Promise<void> {
     const closedByCron = await transactions.completeDueDeliveries(5);
     check(
       'duyệt 10 ngày trước nhưng mới trao hôm nay thì KHÔNG bị đóng',
-      closedByCron === 0,
-      `${closedByCron} lượt bị đóng`,
+      closedByCron.completed === 0,
+      `${closedByCron.completed} lượt bị đóng`,
     );
 
     await dataSource.query(
@@ -260,9 +260,36 @@ async function main(): Promise<void> {
        WHERE global_id = $1`,
       [shipped],
     );
+    // Báo xấu ĐANG MỞ vào bài thì giữ lại, không đóng: đánh một lượt trao đang
+    // bị nghi là "thành công" vừa cộng điểm cho người có thể gian lận, vừa ghi
+    // công người nhận đã nhận món đồ mà họ chưa nhận.
+    await dataSource.query(
+      `INSERT INTO reports
+         (global_id, reporter_user_id, target_type, target_id, reason, description, status)
+       SELECT gen_random_uuid(), $1, 'POST', deal.post_id, 'SCAM', 'Nghi lừa đảo', 'PENDING'
+       FROM gift_transactions deal WHERE deal.global_id = $2`,
+      [ReceiverId, shipped],
+    );
+    const held = await transactions.completeDueDeliveries(5);
     check(
-      'trao 6 ngày trước thì bị đóng',
-      (await transactions.completeDueDeliveries(5)) === 1,
+      'đang có báo xấu chưa xử thì GIỮ LẠI, không đóng',
+      held.completed === 0 && held.heldForDispute === 1,
+      `completed=${held.completed} held=${held.heldForDispute}`,
+    );
+
+    // Admin đóng báo xấu → lần chạy sau tự xử lý, không cần hàng đợi riêng.
+    await dataSource.query(
+      `UPDATE reports SET status = 'DISMISSED'
+       WHERE target_id = (
+         SELECT post_id FROM gift_transactions WHERE global_id = $1
+       )`,
+      [shipped],
+    );
+    const afterResolved = await transactions.completeDueDeliveries(5);
+    check(
+      'báo xấu đã xử xong thì lần chạy sau đóng bình thường',
+      afterResolved.completed === 1 && afterResolved.heldForDispute === 0,
+      `completed=${afterResolved.completed} held=${afterResolved.heldForDispute}`,
     );
 
     // ── 4. Báo hoàn hàng đóng lượt trao ─────────────────────────────────────

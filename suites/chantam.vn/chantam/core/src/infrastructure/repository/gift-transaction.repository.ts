@@ -697,7 +697,9 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     return Number(row.total);
   }
 
-  public async completeDueDeliveries(olderThanDays: number): Promise<number> {
+  public async completeDueDeliveries(
+    olderThanDays: number,
+  ): Promise<{ completed: number; heldForDispute: number }> {
     return this.manager.transaction(async (manager) => {
       // SKIP LOCKED để hai lần chạy song song không tranh cùng một lượt.
       const due = await manager.query<
@@ -723,7 +725,39 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         [olderThanDays],
       );
 
-      if (due.length === 0) return 0;
+      if (due.length === 0) return { completed: 0, heldForDispute: 0 };
+
+      // Giữ lại lượt đang có tranh chấp. Hai kênh, và cố ý CHỈ hai kênh này:
+      //
+      // - Báo xấu vào chính BÀI của lượt trao — nội dung bài là thứ đang bị
+      //   nghi, nên không thể coi lượt trao là thành công.
+      // - Báo xấu vào NGƯỜI TẶNG, do chính NGƯỜI NHẬN của lượt này gửi. Giới hạn
+      //   ở người nhận là có chủ ý: một báo xấu bất kỳ nhắm vào người tặng sẽ
+      //   khoá mọi lượt trao của họ, và đó là một đường phá hoại rẻ tiền.
+      const disputed = await manager.query<{ global_id: string }[]>(
+        `
+          SELECT deal.global_id
+          FROM gift_transactions deal
+          WHERE deal.global_id = ANY($1::uuid[])
+            AND EXISTS (
+              SELECT 1 FROM reports open_report
+              WHERE open_report.status IN ('PENDING', 'IN_REVIEW')
+                AND (
+                  (open_report.target_type = 'POST'
+                   AND open_report.target_id = deal.post_id)
+                  OR (open_report.target_type = 'USER'
+                      AND open_report.target_id = deal.giver_id
+                      AND open_report.reporter_user_id = deal.receiver_id)
+                )
+            )
+        `,
+        [due.map((row) => row.global_id)],
+      );
+      const heldIds = new Set(disputed.map((row) => row.global_id));
+      const closable = due.filter((row) => !heldIds.has(row.global_id));
+
+      if (closable.length === 0)
+        return { completed: 0, heldForDispute: heldIds.size };
 
       await manager.query(
         `
@@ -732,13 +766,13 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
           WHERE global_id = ANY($1::uuid[])
             AND status IN ('ACCEPTED', 'DELIVERING')
         `,
-        [due.map((row) => row.global_id)],
+        [closable.map((row) => row.global_id)],
       );
 
       // Tự hoàn tất cũng là hoàn tất, nên phòng chat cũng phải chuyển sang chỉ
       // đọc (F38). Thiếu chỗ này thì những lượt trao do cron đóng sẽ để lại
       // phòng vẫn gửi được tin — một cửa hậu chỉ lộ ra sau 5 ngày.
-      for (const row of due) {
+      for (const row of closable) {
         await this.chat.lockRoomWithinTransaction(manager, row.global_id);
         await this.syncPostStatus(manager, row.post_id);
         // Tự hoàn tất cũng là hoàn tất: không thưởng ở đây thì ai chờ cron đóng hộ
@@ -746,7 +780,7 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         await this.awardCompletionPoints(manager, row);
       }
 
-      return due.length;
+      return { completed: closable.length, heldForDispute: heldIds.size };
     });
   }
 

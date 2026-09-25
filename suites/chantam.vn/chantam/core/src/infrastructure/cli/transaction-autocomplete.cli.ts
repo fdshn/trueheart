@@ -9,7 +9,7 @@ export async function runGiftAutoCompletion(
     NestFactory,
   ),
   appModule: unknown = TransactionCliModule,
-): Promise<{ completedTransactions: number }> {
+): Promise<{ completedTransactions: number; heldForDispute: number }> {
   const app: INestApplicationContext = await createApplicationContext(
     appModule as never,
   );
@@ -32,6 +32,17 @@ async function main(): Promise<void> {
   console.log(
     `Đã tự hoàn tất ${result.completedTransactions} lượt trao quá hạn.`,
   );
+
+  // In ra chứ không im lặng: lượt bị giữ tự khỏi khi Admin đóng báo xấu, nhưng
+  // nếu không ai xử thì nó treo vô thời hạn và người vận hành cần thấy con số đó.
+  if (result.heldForDispute > 0) {
+    console.log(
+      `Giữ lại ${result.heldForDispute} lượt vì đang có báo xấu chưa xử.`,
+    );
+    // Thoát khác 0 để cron coi đây là chuyện cần biết, không phải một lần chạy
+    // bình thường.
+    process.exitCode = 1;
+  }
 }
 
 if (require.main === module) {

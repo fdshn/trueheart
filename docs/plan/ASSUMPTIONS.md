@@ -226,6 +226,18 @@ mất. Cho 0 điểm là phạt người tặng vì việc của người khác;
 người nhận có động cơ *không* đánh giá để giúp người tặng, và chỉ số accuracy
 mất nghĩa. Một mức mặc định áp sau thời hạn tránh được cả hai.
 
+### Cap theo ngày cho phần thưởng trao tặng
+
+**Chốt 2026-09-25:** `GIFT_COMPLETED_GIVER` cap **10 lượt/ngày**. Chạm trần là
+**mất thưởng vĩnh viễn** — không có hàng đợi trả bù hôm sau.
+
+Cap không phải trang trí: hai tài khoản trao qua trao lại cả ngày là một cỗ máy
+in điểm, và ràng buộc `giver_id <> receiver_id` không chặn được vòng ba người.
+
+Đánh đổi đã biết và đã chấp nhận: người tặng 11 món trong một ngày không được
+điểm cho món thứ mười một. Chống gian lận được ưu tiên hơn công bằng ở đuôi phân
+phối.
+
 ### Định nghĩa "Active Member"
 
 `users.last_login_at` **quá 90 ngày** thì coi như không hoạt động, kiểm bằng job

@@ -127,7 +127,10 @@ function makeRepository() {
       }),
     ),
     listForUser: jest.fn(async (_userId: string) => [Summary]),
-    completeDueDeliveries: jest.fn(async (_days: number) => 3),
+    completeDueDeliveries: jest.fn(async (_days: number) => ({
+      completed: 3,
+      heldForDispute: 0,
+    })),
     findByGlobalId: jest.fn(),
     countCompletedByGiver: jest.fn(),
   };

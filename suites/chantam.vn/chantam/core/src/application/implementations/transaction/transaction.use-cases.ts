@@ -273,10 +273,13 @@ export class CompleteDueGiftDeliveriesUseCase implements ICompleteDueGiftDeliver
   public async handle(
     command: ICompleteDueGiftDeliveriesCommand,
   ): Promise<ICompleteDueGiftDeliveriesResult> {
+    const outcome = await this.transactions.completeDueDeliveries(
+      command.olderThanDays ?? AutoCompleteAfterDays,
+    );
+
     return {
-      completedTransactions: await this.transactions.completeDueDeliveries(
-        command.olderThanDays ?? AutoCompleteAfterDays,
-      ),
+      completedTransactions: outcome.completed,
+      heldForDispute: outcome.heldForDispute,
     };
   }
 }

@@ -183,8 +183,19 @@ export interface IGiftTransactionRepository {
   /**
    * Tự hoàn tất những lượt đã duyệt quá hạn. Gọi từ scheduler NGOÀI tiến trình,
    * giống rank maintenance; repo cấm `@nestjs/schedule`.
+   *
+   * **Lượt đang có tranh chấp bị giữ lại, không đóng.** Đánh một lượt trao đang
+   * bị báo xấu là "thành công" vừa cộng điểm cho người có thể đang gian lận, vừa
+   * ghi công người nhận đã nhận món đồ mà họ chưa nhận — và sổ điểm append-only
+   * nên khoản cộng đó chỉ đảo được bằng một bút toán ngược thủ công.
+   *
+   * Lượt bị giữ tự được xử lý ở lần chạy sau khi Admin đóng báo xấu, nên không
+   * cần hàng đợi riêng. Nhưng con số `heldForDispute` PHẢI lộ ra: một lượt trao
+   * treo vô thời hạn vì báo xấu không ai xử là chuyện người vận hành cần thấy.
    */
-  completeDueDeliveries(olderThanDays: number): Promise<number>;
+  completeDueDeliveries(
+    olderThanDays: number,
+  ): Promise<{ completed: number; heldForDispute: number }>;
   /** Số lượt tặng đã hoàn tất của một người tặng, dùng cho rank. */
   countCompletedByGiver(
     giverId: string,
