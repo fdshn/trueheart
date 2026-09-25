@@ -8,6 +8,7 @@ import { EntitlementModule } from './implementations/entitlement/entitlement.mod
 import { FeedModule } from './implementations/feed/feed.module';
 import { GiftPostModule } from './implementations/gift-post/gift-post.module';
 import { GiftRequestModule } from './implementations/gift-request/gift-request.module';
+import { GroupModule } from './implementations/group/group.module';
 import { NotificationUseCaseModule } from './implementations/notification/notification.module';
 import { OnboardingModule } from './implementations/onboarding/onboarding.module';
 import { PointModule } from './implementations/point/point.module';
@@ -43,6 +44,7 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
     RankModule,
     PostModule,
     TransactionModule,
+    GroupModule,
     ProfileGateModule,
     ProfileModule,
     CategoryModule,

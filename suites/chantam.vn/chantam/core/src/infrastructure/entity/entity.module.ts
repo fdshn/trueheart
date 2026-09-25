@@ -4,11 +4,14 @@ import {
   IChatRoomEntity,
   IGiftPostEntity,
   IGiftRequestEntity,
+  IGroupEntity,
+  IGroupMembershipEntity,
   INotificationEntity,
   IOnboardingTaskEntity,
   IPostEntity,
   IPostMediaEntity,
   IReportEntity,
+  ISubTeamEntity,
   ITransactionReviewEntity,
   IUserEntity,
   IUserOnboardingTaskCompletionEntity,
@@ -20,6 +23,11 @@ import { ChatMessageEntity } from './chat-message.entity';
 import { ChatRoomEntity } from './chat-room.entity';
 import { GiftPostEntity } from './gift-post.entity';
 import { GiftRequestEntity } from './gift-request.entity';
+import {
+  GroupEntity,
+  GroupMembershipEntity,
+  SubTeamEntity,
+} from './group.entity';
 import { NotificationEntity } from './notification.entity';
 import { OnboardingTaskEntity } from './onboarding-task.entity';
 import { PostMediaEntity } from './post-media.entity';
@@ -48,6 +56,9 @@ import { UserEntity } from './user.entity';
     { provide: IOnboardingTaskEntity, useValue: OnboardingTaskEntity },
     { provide: IPostEntity, useValue: PostEntity },
     { provide: IPostMediaEntity, useValue: PostMediaEntity },
+    { provide: IGroupEntity, useValue: GroupEntity },
+    { provide: ISubTeamEntity, useValue: SubTeamEntity },
+    { provide: IGroupMembershipEntity, useValue: GroupMembershipEntity },
     { provide: IReportEntity, useValue: ReportEntity },
     {
       provide: ITransactionReviewEntity,
@@ -72,6 +83,9 @@ import { UserEntity } from './user.entity';
     IUserEntity,
     IUserOnboardingTaskCompletionEntity,
     IUserSessionEntity,
+    IGroupEntity,
+    ISubTeamEntity,
+    IGroupMembershipEntity,
   ],
 })
 export class EntityModule {}

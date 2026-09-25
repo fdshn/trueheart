@@ -9,6 +9,7 @@ import {
 } from '@/domain/exceptions';
 import {
   IGiftTransactionRepository,
+  IGroupRepository,
   IUserRepository,
   IUserSessionRepository,
 } from '@/domain/ports/repository';
@@ -29,6 +30,8 @@ export class DeleteAccountUseCase implements IDeleteAccountUseCase {
     private readonly denyList: ITokenDenyList,
     @Inject(IGiftTransactionRepository)
     private readonly transactionRepository: IGiftTransactionRepository,
+    @Inject(IGroupRepository)
+    private readonly groups: IGroupRepository,
   ) {}
 
   public async handle(
@@ -60,7 +63,14 @@ export class DeleteAccountUseCase implements IDeleteAccountUseCase {
     if (openTransactions > 0)
       throw new UserHasOpenTransactionsException(openTransactions);
 
-    // TODO(M5): Owner xoá tài khoản thì Group phải giải tán (F55).
+    // Owner xoá tài khoản thì Group giải tán (CHỐT-02, BR-GRP-07).
+    //
+    // Giữ nguyên membership, ledger và audit — chỉ đổi trạng thái. Xoá đi thì
+    // mọi bút toán affiliate đã phát sinh trỏ vào một nhóm không còn tồn tại.
+    //
+    // Làm SAU phép kiểm lượt trao dở dang và TRƯỚC khi thu hồi token: nếu chặn
+    // ở trên thì nhóm không được đụng tới.
+    await this.groups.dissolveOwnedBy(user.globalId);
 
     const deletedAt = new Date();
 

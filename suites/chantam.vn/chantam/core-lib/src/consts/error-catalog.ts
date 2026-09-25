@@ -505,4 +505,39 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       `Vui lòng thử lại sau ${retryAfterSeconds} giây`,
     sample: [42],
   },
+
+  // ── 0x10 Group ────────────────────────────────────────────────────────────
+  GROUP_DEFAULT_LOCATION_REQUIRED: {
+    code: ErrorCodes.GROUP_DEFAULT_LOCATION_REQUIRED,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: () =>
+      'Hãy đặt Vị trí mặc định trước khi tạo nhóm — tâm vùng của nhóm chụp từ đó và không đổi được về sau.',
+  },
+
+  GROUP_ALREADY_MEMBER: {
+    code: ErrorCodes.GROUP_ALREADY_MEMBER,
+    httpStatus: HttpStatus.CONFLICT,
+    // Nói luôn hệ quả: Phase 1 không rời và không chuyển nhóm, nên người dùng
+    // cần biết đây không phải thứ họ tự gỡ được.
+    message: () =>
+      'Bạn đã thuộc một nhóm. Mỗi người chỉ thuộc tối đa một nhóm, và không chuyển nhóm được.',
+  },
+
+  GROUP_CREATE_NOT_ALLOWED: {
+    code: ErrorCodes.GROUP_CREATE_NOT_ALLOWED,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () => 'Thứ hạng của bạn chưa đủ điều kiện tạo nhóm.',
+  },
+
+  GROUP_INVITE_INVALID: {
+    code: ErrorCodes.GROUP_INVITE_INVALID,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: () => 'Link mời không dùng được.',
+  },
+
+  GROUP_NOT_FOUND: {
+    code: ErrorCodes.GROUP_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy nhóm',
+  },
 });

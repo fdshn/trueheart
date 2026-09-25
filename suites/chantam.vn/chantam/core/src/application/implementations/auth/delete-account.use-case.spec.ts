@@ -28,6 +28,7 @@ function makeDeps(openTransactions: number) {
     transactions: {
       countOpenForUser: jest.fn(async () => openTransactions),
     },
+    groups: { dissolveOwnedBy: jest.fn(async () => 0) },
   };
 }
 
@@ -38,6 +39,7 @@ function makeUseCase(deps: ReturnType<typeof makeDeps>) {
     deps.passwords as never,
     deps.denyList as never,
     deps.transactions as never,
+    deps.groups as never,
   );
 }
 
@@ -83,5 +85,31 @@ describe('DeleteAccountUseCase', () => {
     await expect(makeUseCase(deps).handle(Command)).rejects.toThrow();
     expect(deps.transactions.countOpenForUser).not.toHaveBeenCalled();
     expect(deps.users.update).not.toHaveBeenCalled();
+  });
+
+  it('Owner xoá tài khoản thì nhóm giải tán', async () => {
+    // CHỐT-02: giữ nguyên membership, ledger và audit — chỉ đổi trạng thái.
+    const deps = makeDeps(0);
+
+    await makeUseCase(deps).handle({
+      userId: UserId,
+      account: { password: 'mat-khau-dung' },
+    });
+
+    expect(deps.groups.dissolveOwnedBy).toHaveBeenCalledWith(UserId);
+  });
+
+  it('còn lượt trao dở dang thì KHÔNG đụng tới nhóm', async () => {
+    // Chặn ở bước trên thì tài khoản vẫn nguyên, nên nhóm cũng phải nguyên.
+    const deps = makeDeps(2);
+
+    await expect(
+      makeUseCase(deps).handle({
+        userId: UserId,
+        account: { password: 'mat-khau-dung' },
+      }),
+    ).rejects.toBeDefined();
+
+    expect(deps.groups.dissolveOwnedBy).not.toHaveBeenCalled();
   });
 });

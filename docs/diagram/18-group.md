@@ -1,9 +1,12 @@
 # 18 · Group & Sub-team
 
-Trạng thái: ⛔ **chưa có dòng code nào** — không entity, không bảng, không endpoint. Toàn bộ
-sơ đồ này là thiết kế theo SRS §3.7A cộng các quyết định chốt ngày 2026-09-24.
+Trạng thái: 🟡 **nền đã có** (26/09) — bảng, RBAC có phạm vi, tạo nhóm, xem nhóm của tôi, và
+giải tán khi Owner xoá tài khoản. Có script kiểm trên Postgres thật: `npm run test:group`.
 
-## 18.1 Tạo Group
+⛔ **Còn thiếu:** vào nhóm qua link mời (đăng ký kèm `inviteCode`), quản lý sub-team, xếp
+thành viên vào tổ, và danh sách thành viên qua API.
+
+## 18.1 Tạo Group — ✅
 
 ```mermaid
 sequenceDiagram
@@ -35,7 +38,7 @@ sequenceDiagram
 > người ta dời vùng theo nơi đang có nhiều sự kiện để gom điểm. Snapshot cũng không đổi theo
 > khi Owner đổi Default Location hoặc tụt rank (BR-GRP-03).
 
-## 18.2 Vào nhóm — chỉ tài khoản mới
+## 18.2 Vào nhóm — chỉ tài khoản mới ⛔
 
 ```mermaid
 flowchart TD
@@ -58,7 +61,7 @@ flowchart TD
 > để gom affiliate. Cho rời tự do mà vẫn giữ hàng rào thì rời xong là kẹt ở ngoài vĩnh viễn —
 > tệ hơn là không cho rời.
 
-## 18.3 RBAC nhóm — TÁCH khỏi RBAC Admin
+## 18.3 RBAC nhóm — TÁCH khỏi RBAC Admin ✅
 
 ```mermaid
 flowchart TD
@@ -108,7 +111,7 @@ Bộ quyền của `SUBTEAM_ADMIN` là **cấu hình Admin hệ thống**, khôn
 > ⚠️ **SRS không có khái niệm trưởng nhóm.** BR-GRP-05 chỉ chia Owner và Member, và §3255
 > nói sub-team *"chỉ để tổ chức"*. Thêm vai này là **mở rộng SRS**, không phải làm rõ.
 
-## 18.5 Owner xoá tài khoản → Group giải tán (CHỐT-02)
+## 18.5 Owner xoá tài khoản → Group giải tán (CHỐT-02) — ✅
 
 ```mermaid
 stateDiagram-v2
@@ -150,9 +153,12 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. ⛔ **Toàn bộ phân hệ chưa có code.** Đây là khối lớn nhất còn lại.
-2. ⚠️ **Trưởng nhóm là mở rộng ngoài SRS** — cần Bên A biết.
-3. **Bộ quyền khởi tạo cho `SUBTEAM_ADMIN`** mới là đề xuất, chưa ai duyệt.
-4. Bán kính lấy theo **Rank Config lúc tạo** — mặc định 10km, Admin chỉnh 1–50km. Cần xác
-   nhận bán kính khác nhau theo rank hay chung một con số.
-5. Người bị `BANNED` thì membership của họ xử lý thế nào? Chưa ai nói.
+1. ⛔ **Vào nhóm qua link mời chưa có.** Bảng và câu tra mã đã sẵn; còn thiếu đường nối vào
+   `POST /auth/register` để tạo membership cho tài khoản mới.
+2. ⛔ **Sub-team chưa có endpoint nào** — bảng đã có, `SUBTEAM_ADMIN` đã có bộ quyền.
+3. ⚠️ **Trưởng nhóm là mở rộng ngoài SRS** — cần Bên A biết.
+4. **Bộ quyền khởi tạo cho `SUBTEAM_ADMIN`** mới là đề xuất, chưa ai duyệt.
+5. Bán kính lấy theo **Rank Config lúc tạo** — hiện đọc `limit` của capability `CREATE_GROUP`,
+   nhưng capability đó seed là BOOLEAN (`allowed`) nên `limit` đang rỗng và rơi về 10km mặc
+   định. Cần chốt bán kính khác nhau theo rank hay chung một con số, rồi seed cho đúng.
+6. Người bị `BANNED` thì membership của họ xử lý thế nào? Chưa ai nói.

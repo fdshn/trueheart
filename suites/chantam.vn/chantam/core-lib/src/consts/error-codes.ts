@@ -133,6 +133,17 @@ export enum ErrorCodes {
   OTP_EXPIRED = 0x04_05,
   /** Gửi OTP quá dày — chống dùng endpoint quên mật khẩu để spam tin nhắn. */
   OTP_TOO_SOON = 0x04_06,
+
+  // 0x10 — Group, Sub-team và Affiliate (M5)
+  /** Chưa đặt Vị trí mặc định — tâm nhóm chụp từ đó (BR-GRP-03). */
+  GROUP_DEFAULT_LOCATION_REQUIRED = 0x10_01,
+  /** Mỗi người sở hữu tối đa một nhóm, và thuộc tối đa một nhóm (BR-GRP-01). */
+  GROUP_ALREADY_MEMBER = 0x10_02,
+  /** Rank chưa đủ để tạo nhóm. */
+  GROUP_CREATE_NOT_ALLOWED = 0x10_03,
+  /** Mã mời sai, hoặc nhóm đã giải tán. Cố ý KHÔNG phân biệt hai ca. */
+  GROUP_INVITE_INVALID = 0x10_04,
+  GROUP_NOT_FOUND = 0x10_05,
 }
 
 export const ErrorOrigin = 'chantam/core';

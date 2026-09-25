@@ -9,6 +9,7 @@ import {
   IEntitlementRepository,
   IGiftRequestRepository,
   IGiftTransactionRepository,
+  IGroupRepository,
   INotificationChannelRepository,
   INotificationRepository,
   INotificationTemplateRepository,
@@ -37,6 +38,7 @@ import { ContentShareRepository } from './content-share.repository';
 import { EntitlementRepository } from './entitlement.repository';
 import { GiftRequestRepository } from './gift-request.repository';
 import { GiftTransactionRepository } from './gift-transaction.repository';
+import { GroupRepository } from './group.repository';
 import { NotificationChannelRepository } from './notification-channel.repository';
 import { NotificationTemplateRepository } from './notification-template.repository';
 import { NotificationRepository } from './notification.repository';
@@ -96,6 +98,7 @@ import { UserRepository } from './user.repository';
     { provide: IOnboardingTaskRepository, useClass: OnboardingTaskRepository },
     { provide: IPointLedgerRepository, useClass: PointLedgerRepository },
     { provide: IReferralRepository, useClass: ReferralRepository },
+    { provide: IGroupRepository, useClass: GroupRepository },
     { provide: IReportRepository, useClass: ReportRepository },
     { provide: ISystemLogRepository, useClass: SystemLogRepository },
     {
@@ -138,6 +141,7 @@ import { UserRepository } from './user.repository';
     IUserRepository,
     IUserOnboardingTaskCompletionRepository,
     IUserSessionRepository,
+    IGroupRepository,
   ],
 })
 export class RepositoryModule {}

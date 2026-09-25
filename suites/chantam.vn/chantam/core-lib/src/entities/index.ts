@@ -3,6 +3,7 @@ export * from './chat-message.entity';
 export * from './chat-room.entity';
 export * from './gift-post.entity';
 export * from './gift-request.entity';
+export * from './group.entity';
 export * from './notification.entity';
 export * from './onboarding-task.entity';
 export * from './post-media.entity';

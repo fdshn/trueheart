@@ -142,7 +142,7 @@ flowchart TD
 | --- | --- |
 | Ẩn danh hoá, thu hồi token, giữ ledger | ✅ đã có |
 | Chặn "còn lượt trao dở dang" | ✅ `countOpenForUser` + `UserHasOpenTransactionsException`, có test |
-| Owner xoá → Group giải tán | ⛔ chưa có Group |
+| Owner xoá → Group giải tán | ✅ `dissolveOwnedBy`, giữ nguyên membership/ledger/audit |
 
 > **Vì sao giữ ledger thay vì xoá.** Bút toán điểm của người này là đối ứng của bút toán
 > người khác. Xoá đi thì sổ của người ở lại không còn khớp, và không ai dựng lại được.
