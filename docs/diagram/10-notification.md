@@ -10,10 +10,11 @@ flowchart TD
         A[Chat: tin nhắn mới]
         B[Giao dịch: chấp nhận / đóng / hoàn tất]
         C[Feed: bình luận / trả lời / cảm xúc]
+        E2[Hạng: sắp tụt / đã tụt]
         D[Chat: sắp bị dọn]
     end
 
-    A & B & C & D --> E["IDispatchNotificationUseCase"]
+    A & B & C & D & E2 --> E["IDispatchNotificationUseCase"]
     E --> F{Có idempotency_key?}
     F -->|Trùng| G[ON CONFLICT DO NOTHING<br/>trả created = false]
     F -->|Mới| H[INSERT notifications]
@@ -26,7 +27,7 @@ flowchart TD
     style M fill:#fff3cd
 ```
 
-## 10.2 Tám loại thông báo hiện có
+## 10.2 Mười loại thông báo hiện có
 
 | Mã | Khi nào | Khoá chống trùng |
 | --- | --- | --- |
@@ -38,6 +39,8 @@ flowchart TD
 | `CONTENT_COMMENT_CREATED` | Có người bình luận bài mình | `CONTENT_COMMENT:<commentId>` |
 | `CONTENT_COMMENT_REPLIED` | Có người trả lời bình luận mình | `CONTENT_COMMENT_REPLY:<commentId>` |
 | `CONTENT_REACTION_FIRST_OF_DAY` | Lần đầu trong ngày có cảm xúc | `CONTENT_REACTION_FIRST:<postId>:<ngày VN>` |
+| `RANK_DEMOTION_WARNING` | Điểm xuống dưới mốc cảnh báo của bậc | `RANK_DEMOTION_WARNING:<userId>:<rank>:<ngày VN>` |
+| `RANK_DEMOTED` | Đã tụt hạng | `RANK_DEMOTED:<userId>:<từ>:<sang>:<ngày VN>` |
 
 > `notifications.idempotency_key` có UNIQUE. Cùng một sự kiện chạy lại bao nhiêu lần cũng chỉ
 > ra một thông báo — quan trọng vì job nền và retry mạng đều có thể gọi lại.
@@ -92,5 +95,5 @@ flowchart LR
    `canSend()` trả `false`. Thông báo trong app vẫn ghi đủ, nhưng **không có gì rung máy ai**.
 2. **Chưa có queue / retry / dead-letter.** Đẩy lỗi là mất, không thử lại.
 3. Chưa có **tuỳ chọn tắt từng loại thông báo** cho người dùng. Hiện là tất-cả-hoặc-không.
-4. Chưa có thông báo cho: sắp tụt hạng (chốt 2026-09-24), sắp hết hạn bài, nhắc nhiệm vụ duy
-   trì trước 1 tháng (SRS yêu cầu).
+4. ✅ **Thông báo sắp tụt hạng và đã tụt hạng đã có** (25/09). Còn thiếu: sắp hết hạn bài,
+   nhắc nhiệm vụ duy trì trước 1 tháng (SRS yêu cầu), và nhắc người nhận đánh giá.

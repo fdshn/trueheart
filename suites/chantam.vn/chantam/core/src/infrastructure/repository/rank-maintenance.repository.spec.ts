@@ -79,14 +79,12 @@ describe('RankRepository due maintenance evaluation', () => {
     );
     expect(query.mock.calls[2][0]).not.toMatch(/JOIN rank_tiers/i);
     expect(query.mock.calls[2][0]).toMatch(
-      /referral\.qualified_at >= \$3[\s\S]*referral\.qualified_at < \$4/i,
+      /referral\.qualified_at >= \$2[\s\S]*referral\.qualified_at < \$3/i,
     );
-    expect(query.mock.calls[2][1]).toEqual([
-      UserId,
-      UserRanks.SILVER,
-      CycleStart,
-      CycleEnd,
-    ]);
+    // `cycle.rank` KHÔNG nằm trong tham số: câu này không dùng tới nó, và một
+    // tham số không xuất hiện trong câu lệnh làm Postgres không suy được kiểu
+    // (42P18). Lỗi đó nằm im từ đầu vì đoạn này chưa từng chạy thật.
+    expect(query.mock.calls[2][1]).toEqual([UserId, CycleStart, CycleEnd]);
     expect(query.mock.calls[3][0]).not.toMatch(/rank_transitions/i);
     expect(query.mock.calls[4][0]).toMatch(
       /INSERT INTO rank_maintenance_cycles[\s\S]*ON CONFLICT DO NOTHING/i,
@@ -122,7 +120,11 @@ describe('RankRepository due maintenance evaluation', () => {
     );
   });
 
-  it('recalculates multiple tiers after failed maintenance without opening a Member cycle', async () => {
+  it('trượt nhiệm vụ chỉ đánh FAILED, KHÔNG tự đổi hạng', async () => {
+    // Chốt 2026-09-24: hạng do balance quyết, nên nhiệm vụ tác động gián tiếp
+    // qua điểm. Khoản trừ do tầng ứng dụng áp sau đó rồi gọi
+    // `reconcileNormalRank`. Ép tụt hạng ở đây là tạo hai cơ chế cùng quyết một
+    // thứ, rồi lần xét kế tiếp đẩy người ta ngược lên.
     const query = jest
       .fn()
       .mockResolvedValueOnce([dueCycle({ rank: UserRanks.GOLD })])
@@ -136,24 +138,7 @@ describe('RankRepository due maintenance evaluation', () => {
           total_qualified_referrals: '0',
         }),
       ])
-      .mockResolvedValueOnce([
-        {
-          rank: UserRanks.MEMBER,
-          threshold_points: '224',
-          required_gifts: '0',
-          required_referrals: '0',
-        },
-        {
-          rank: UserRanks.SILVER,
-          threshold_points: '672',
-          required_gifts: '1',
-          required_referrals: '1',
-        },
-      ])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValue([]);
     const activity = {
       countCompletedGifts: jest
         .fn()
@@ -166,23 +151,51 @@ describe('RankRepository due maintenance evaluation', () => {
 
     await expect(repository.evaluateDueMaintenanceCycles()).resolves.toBe(1);
 
-    expect(query.mock.calls[4][1]).toEqual(['51', 0, 0, 'FAILED']);
-    expect(query.mock.calls[5]).toEqual([
-      expect.stringContaining('UPDATE users'),
-      [UserId, UserRanks.MEMBER, UserRanks.GOLD],
-    ]);
-    expect(query.mock.calls[6]).toEqual([
-      expect.stringContaining('INSERT INTO rank_transitions'),
-      [
-        UserId,
-        UserRanks.GOLD,
-        UserRanks.MEMBER,
-        'MAINTENANCE_FAILED',
-        700,
-        '51',
-        'SYSTEM',
-      ],
-    ]);
-    expect(query.mock.calls).toHaveLength(7);
+    const statements = query.mock.calls.map((call) => String(call[0]));
+    expect(
+      statements.some((sql) => sql.includes('UPDATE rank_maintenance_cycles')),
+    ).toBe(true);
+    expect(query.mock.calls[3][1]).toEqual(['51', 0, 0, 'FAILED']);
+
+    // Hai thứ KHÔNG được xảy ra ở đây nữa.
+    expect(statements.some((sql) => sql.includes('UPDATE users'))).toBe(false);
+    expect(
+      statements.some((sql) => sql.includes('INSERT INTO rank_transitions')),
+    ).toBe(false);
+  });
+
+  it('KHÔNG còn truy vấn các bậc thấp hơn để ép tụt', async () => {
+    // Câu `threshold_points < (...)` là dấu vết của cơ chế cũ. Còn nó nghĩa là
+    // ai đó đã đưa việc ép tụt hạng trở lại.
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([dueCycle({ rank: UserRanks.GOLD })])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        lockedUser({
+          rank: UserRanks.GOLD,
+          maintenance_gifts: '3',
+          maintenance_referrals: '3',
+          qualified_referrals: '0',
+          total_qualified_referrals: '0',
+        }),
+      ])
+      .mockResolvedValue([]);
+    const repository = makeRepository(query, {
+      countCompletedGifts: jest
+        .fn()
+        .mockResolvedValue({ available: true, completedGifts: 0 }),
+      countLifetimeCompletedGifts: jest
+        .fn()
+        .mockResolvedValue({ available: true, completedGifts: 0 }),
+    });
+
+    await repository.evaluateDueMaintenanceCycles();
+
+    expect(
+      query.mock.calls
+        .map((call) => String(call[0]))
+        .some((sql) => sql.includes('threshold_points <')),
+    ).toBe(false);
   });
 });

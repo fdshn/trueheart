@@ -1,0 +1,121 @@
+import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
+import { IRankChange, IRankRepository } from '@/domain/ports/repository';
+import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+
+/**
+ * Cắt ngày theo giờ Việt Nam.
+ *
+ * Cắt theo UTC thì "một lần mỗi ngày" rơi vào 7 giờ sáng, và người dùng nhận hai
+ * lời nhắc trong cùng một buổi sáng.
+ */
+function vietnamDateKey(now: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
+/**
+ * Xét lại hạng sau một biến động điểm, rồi báo cho người dùng nếu cần.
+ *
+ * **Vì sao phải có từ 2026-09-24.** Hạng nay do balance quyết, nên tiêu điểm làm
+ * tụt hạng. Không báo thì người dùng đổi một vật phẩm rồi sáng hôm sau phát hiện
+ * mình đã xuống Bạc mà không ai nói trước — và mất luôn quota bài, quyền SOS.
+ *
+ * Gom vào một chỗ vì có bốn đường làm đổi balance: cộng theo rule, hoàn bút
+ * toán, khoản trừ số truyền vào, và đổi vật phẩm. Bốn chỗ tự báo là bốn chỗ có
+ * thể quên.
+ */
+@Injectable()
+export class RankChangeNotifier {
+  private readonly logger = new Logger(RankChangeNotifier.name);
+
+  public constructor(
+    @Inject(IRankRepository)
+    private readonly ranks: IRankRepository,
+    @Inject(IDispatchNotificationUseCase)
+    private readonly dispatchNotification: IDispatchNotificationUseCase,
+  ) {}
+
+  /**
+   * Gọi SAU khi bút toán đã commit.
+   *
+   * Không bao giờ ném: một thông báo không gửi được không được làm hỏng việc
+   * cộng hay trừ điểm — sổ đã ghi rồi, và ném ở đây chỉ khiến chỗ gọi tưởng bút
+   * toán thất bại.
+   */
+  public async afterBalanceChange(userId: string): Promise<IRankChange | null> {
+    let change: IRankChange | null = null;
+    try {
+      change = await this.ranks.reconcileNormalRank(userId);
+    } catch (error) {
+      this.logger.error(
+        `Không xét lại được hạng cho ${userId}: ${String(error)}`,
+      );
+      return null;
+    }
+
+    try {
+      if (change?.demoted) await this.notifyDemoted(userId, change);
+      else await this.notifyWarningIfNeeded(userId);
+    } catch (error) {
+      this.logger.warn(
+        `Không gửi được thông báo hạng cho ${userId}: ${String(error)}`,
+      );
+    }
+
+    return change;
+  }
+
+  private async notifyDemoted(
+    userId: string,
+    change: IRankChange,
+  ): Promise<void> {
+    await this.dispatchNotification.handle({
+      userId,
+      type: NotificationTypes.RANK_DEMOTED,
+      title: 'Thứ hạng của bạn đã thay đổi',
+      body: `Bạn đã chuyển từ hạng ${change.fromRank} xuống ${change.toRank} vì số điểm hiện tại đã giảm dưới ngưỡng.`,
+      referenceType: 'USER_RANK',
+      referenceId: userId,
+      // Khoá theo CẶP bậc: tụt Vàng→Bạc rồi sau đó Bạc→Thành viên là hai sự
+      // kiện khác nhau, và người dùng cần biết cả hai.
+      idempotencyKey: `RANK_DEMOTED:${userId}:${change.fromRank}:${change.toRank}:${vietnamDateKey(new Date())}`,
+      variables: {
+        fromRank: change.fromRank,
+        toRank: change.toRank,
+      },
+    });
+  }
+
+  private async notifyWarningIfNeeded(userId: string): Promise<void> {
+    const summary = await this.ranks.getOwnSummary(userId);
+    const threshold = summary.currentTier.warningPoints;
+
+    // `0` nghĩa là bậc này không có mốc cảnh báo (Viewer). So sánh trần cũng ra
+    // false, nhưng chặn tường minh để ý đồ đọc được.
+    if (threshold <= 0) return;
+    if (summary.balancePoints >= threshold) return;
+
+    await this.dispatchNotification.handle({
+      userId,
+      type: NotificationTypes.RANK_DEMOTION_WARNING,
+      title: 'Bạn sắp tụt hạng',
+      body: `Bạn còn ${summary.balancePoints} điểm, gần mốc ${summary.currentTier.thresholdPoints} điểm để giữ hạng ${summary.rank}. Tiêu thêm có thể làm bạn tụt hạng.`,
+      referenceType: 'USER_RANK',
+      referenceId: userId,
+      // MỘT lần mỗi ngày cho mỗi bậc. Không có mốc ngày thì mỗi lượt thả cảm
+      // xúc kiếm 1 điểm rồi tiêu đi cũng đẻ một lời nhắc, và người dùng tắt
+      // thông báo — từ đó mất luôn thông báo về lượt xin nhận.
+      idempotencyKey: `RANK_DEMOTION_WARNING:${userId}:${summary.rank}:${vietnamDateKey(new Date())}`,
+      variables: {
+        rank: summary.rank,
+        balancePoints: String(summary.balancePoints),
+        thresholdPoints: String(summary.currentTier.thresholdPoints),
+      },
+    });
+  }
+}

@@ -22,14 +22,25 @@ export class GetOwnRankSummaryUseCase implements IGetOwnRankSummaryUseCase {
       rank: {
         rank: summary.rank,
         lifetimePoints: summary.lifetimePoints,
+        balancePoints: summary.balancePoints,
+        thresholdPoints: summary.currentTier.thresholdPoints,
+        warningPoints: summary.currentTier.warningPoints,
+        // Cảnh báo tính ở máy chủ để web và app không đặt hai mốc khác nhau cho
+        // cùng một hồ sơ.
+        demotionWarning:
+          summary.currentTier.warningPoints > 0 &&
+          summary.balancePoints < summary.currentTier.warningPoints,
         postQuota: summary.currentTier.postQuota,
         nextRank: summary.nextTier
           ? {
               rank: summary.nextTier.rank,
               requiredPoints: summary.nextTier.thresholdPoints,
+              // Trừ theo BALANCE, không theo lifetime: lên hạng xét trên số
+              // điểm đang có. Dùng lifetime sẽ nói với người đã tiêu 500 điểm
+              // rằng họ gần bậc kế tiếp hơn 500 điểm so với thực tế.
               remainingPoints: Math.max(
                 0,
-                summary.nextTier.thresholdPoints - summary.lifetimePoints,
+                summary.nextTier.thresholdPoints - summary.balancePoints,
               ),
               requiredGifts: summary.nextTier.requiredGifts,
               requiredReferrals: summary.nextTier.requiredReferrals,

@@ -5,6 +5,7 @@ import {
 } from '@/domain/exceptions';
 import { IGiveActivityCounter } from '@/domain/ports/give-activity.counter';
 import {
+  IRankChange,
   IRankMaintenanceCycleSummary,
   IRankRepository,
   IRankSummary,
@@ -19,7 +20,9 @@ import { updateReturning } from './update-returning';
 interface IRawRankSummaryRow {
   rank: UserRanks;
   lifetime_points: string | null;
+  balance_points: string | null;
   threshold_points: string | null;
+  warning_points: string | null;
   required_gifts: string | null;
   required_referrals: string | null;
   post_quota: string | null;
@@ -35,6 +38,7 @@ interface IRawRankSummaryRow {
 interface IRawRankTierRow {
   rank: UserRanks;
   threshold_points: string;
+  warning_points: string;
   required_gifts: string;
   required_referrals: string;
   post_quota: string;
@@ -85,7 +89,9 @@ export class RankRepository implements IRankRepository {
     private readonly giveActivityCounter?: IGiveActivityCounter,
   ) {}
 
-  public async reconcileNormalRank(userId: string): Promise<boolean> {
+  public async reconcileNormalRank(
+    userId: string,
+  ): Promise<IRankChange | null> {
     return this.manager.transaction('SERIALIZABLE', async (manager) => {
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         userId,
@@ -112,7 +118,7 @@ export class RankRepository implements IRankRepository {
         [userId],
       );
       if (!user) throw new UserNotFoundException();
-      if (user.rank === UserRanks.VIEWER) return false;
+      if (user.rank === UserRanks.VIEWER) return null;
 
       const tiers = await manager.query<IRawNormalRankTierRow[]>(`
         SELECT rank, threshold_points, required_gifts, required_referrals
@@ -124,7 +130,7 @@ export class RankRepository implements IRankRepository {
           userId,
           rank: user.rank,
         });
-      if (!activity.available) return false;
+      if (!activity.available) return null;
 
       const evaluation = evaluateRank({
         mode: 'NORMAL',
@@ -142,7 +148,7 @@ export class RankRepository implements IRankRepository {
           requiredReferrals: Number(tier.required_referrals),
         })),
       });
-      if (evaluation.rank === user.rank) return false;
+      if (evaluation.rank === user.rank) return null;
 
       // `AND rank = $3` là một phép so-rồi-đổi: nếu ai đó vừa đổi hạng xen
       // vào giữa thì câu này không khớp dòng nào và KHÔNG được ghi
@@ -159,12 +165,12 @@ export class RankRepository implements IRankRepository {
         `,
         [userId, evaluation.rank, user.rank],
       );
-      if (promoted.length === 0) return false;
+      if (promoted.length === 0) return null;
 
       await manager.query(
         `
           INSERT INTO rank_transitions
-            (user_id, from_rank, to_rank, reason, lifetime_points, actor)
+            (user_id, from_rank, to_rank, reason, points_at_transition, actor)
           VALUES ($1, $2, $3, $4, $5, $6)
         `,
         [
@@ -192,8 +198,58 @@ export class RankRepository implements IRankRepository {
         );
       }
 
-      return true;
+      return {
+        fromRank: user.rank,
+        toRank: evaluation.rank,
+        demoted:
+          RankOrder.indexOf(evaluation.rank) < RankOrder.indexOf(user.rank),
+      };
     });
+  }
+
+  public async findUnpenalizedFailedCycles(limit: number): Promise<
+    {
+      cycleId: string;
+      userId: string;
+      rank: string;
+      penaltyPoints: number;
+    }[]
+  > {
+    // `penalty > 0`: bậc không có chỉ tiêu duy trì thì không có gì để trừ, và
+    // một khoản trừ 0 điểm chỉ làm bẩn sổ.
+    const rows = await this.manager.query<
+      {
+        cycle_id: string;
+        user_id: string;
+        rank: string;
+        penalty_points: string;
+      }[]
+    >(
+      `
+        SELECT cycle.id AS cycle_id,
+               cycle.user_id,
+               cycle.rank,
+               tier.maintenance_penalty_points AS penalty_points
+        FROM rank_maintenance_cycles cycle
+        INNER JOIN rank_tiers tier ON tier.rank = cycle.rank
+        WHERE cycle.status = 'FAILED'
+          AND tier.maintenance_penalty_points > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM point_ledger paid
+            WHERE paid.idempotency_key = 'MAINTENANCE_FAILED:' || cycle.id
+          )
+        ORDER BY cycle.evaluated_at ASC NULLS FIRST, cycle.id ASC
+        LIMIT $1
+      `,
+      [limit],
+    );
+
+    return rows.map((row) => ({
+      cycleId: row.cycle_id,
+      userId: row.user_id,
+      rank: row.rank,
+      penaltyPoints: Number(row.penalty_points),
+    }));
   }
 
   public async evaluateDueMaintenanceCycles(): Promise<number> {
@@ -228,8 +284,8 @@ export class RankRepository implements IRankRepository {
               SELECT COUNT(*)::text AS qualified_referrals
               FROM referrals referral
               WHERE referral.referrer_id = user_account.global_id
-                AND referral.qualified_at >= $3
-                AND referral.qualified_at < $4
+                AND referral.qualified_at >= $2
+                AND referral.qualified_at < $3
             ) qualified_referrals
             CROSS JOIN LATERAL (
               SELECT COUNT(*)::text AS total_qualified_referrals
@@ -240,7 +296,11 @@ export class RankRepository implements IRankRepository {
             WHERE user_account.global_id = $1
             FOR UPDATE OF user_account
           `,
-          [cycle.user_id, cycle.rank, cycle.cycle_start, cycle.cycle_end],
+          // `cycle.rank` KHÔNG truyền vào: câu này không dùng tới nó, và một
+          // tham số không xuất hiện trong câu lệnh làm Postgres không suy được
+          // kiểu — lỗi 42P18 ngay lần đầu có chu kỳ tới hạn thật. Unit test
+          // mock `query` nên không bao giờ thấy.
+          [cycle.user_id, cycle.cycle_start, cycle.cycle_end],
         );
 
         if (!user) continue;
@@ -257,63 +317,26 @@ export class RankRepository implements IRankRepository {
           activity.available &&
           giftsDone >= Number(cycle.required_gifts) &&
           referralsDone >= Number(cycle.required_referrals);
-        const lifetimeActivity =
-          activity.available && !maintenanceSatisfied
-            ? await this.giveActivityCounter!.countLifetimeCompletedGifts({
-                userId: cycle.user_id,
-                rank: user.rank,
-              })
-            : { available: activity.available, completedGifts: 0 };
-        const activityAvailable =
-          activity.available && lifetimeActivity.available;
-        const lowerTiers =
-          activityAvailable && !maintenanceSatisfied
-            ? await manager.query<IRawNormalRankTierRow[]>(
-                `SELECT rank, threshold_points, required_gifts, required_referrals
-               FROM rank_tiers
-               WHERE threshold_points < (
-                 SELECT threshold_points FROM rank_tiers WHERE rank = $1
-               )
-               ORDER BY threshold_points ASC`,
-                [user.rank],
-              )
-            : [];
-        const fallbackRank =
-          activityAvailable && !maintenanceSatisfied
-            ? evaluateRank({
-                mode: 'NORMAL',
-                currentRank: user.rank,
-                isMember: user.rank !== UserRanks.VIEWER,
-                balancePoints: Number(user.balance_points ?? 0),
-                completedGifts: lifetimeActivity.completedGifts,
-                qualifiedReferrals: Number(user.total_qualified_referrals),
-                promotionLockedUntil: null,
-                now: new Date(),
-                tiers: lowerTiers.map((tier) => ({
-                  rank: tier.rank,
-                  thresholdPoints: Number(tier.threshold_points),
-                  requiredGifts: Number(tier.required_gifts),
-                  requiredReferrals: Number(tier.required_referrals),
-                })),
-              }).rank
-            : user.rank;
-        const evaluation = evaluateRank(
-          activityAvailable
+        // Trượt nhiệm vụ KHÔNG còn ép tụt hạng (chốt 2026-09-24). Hạng do
+        // balance quyết, nên nhiệm vụ tác động GIÁN TIẾP qua điểm: chu kỳ chỉ
+        // được đánh FAILED ở đây, còn khoản trừ do tầng ứng dụng áp sau đó rồi
+        // gọi `reconcileNormalRank` để xét lại theo balance mới.
+        //
+        // Hai cơ chế cùng trực tiếp quyết một thứ thì luôn có lúc nói ngược
+        // nhau: hệ thống hạ người ta xuống Bạc, rồi lần xét kế tiếp thấy balance
+        // vẫn ở mức Vàng và đẩy ngược lên.
+        const evaluation = evaluateRank({
+          mode: 'MAINTENANCE',
+          currentRank: user.rank,
+          isMember: user.rank !== UserRanks.VIEWER,
+          ...(activity.available
             ? {
-                mode: 'MAINTENANCE',
-                currentRank: user.rank,
-                isMember: user.rank !== UserRanks.VIEWER,
                 activityAvailable: true,
                 maintenanceSatisfied,
-                fallbackRank,
+                fallbackRank: user.rank,
               }
-            : {
-                mode: 'MAINTENANCE',
-                currentRank: user.rank,
-                isMember: user.rank !== UserRanks.VIEWER,
-                activityAvailable: false,
-              },
-        );
+            : { activityAvailable: false }),
+        } as never);
         const status = evaluation.maintenanceStatus!;
 
         await manager.query(
@@ -329,40 +352,15 @@ export class RankRepository implements IRankRepository {
           [cycle.id, giftsDone, referralsDone, status],
         );
 
-        if (status === 'FAILED' && evaluation.rank !== user.rank) {
-          await manager.query(
-            `
-              UPDATE users
-              SET rank = $2, rank_attained_at = now()
-              WHERE global_id = $1
-                AND rank = $3
-            `,
-            [cycle.user_id, evaluation.rank, user.rank],
-          );
-          await manager.query(
-            `
-              INSERT INTO rank_transitions
-                (user_id, from_rank, to_rank, reason, lifetime_points, cycle_id, actor)
-              VALUES ($1, $2, $3, $4, $5, $6, $7)
-            `,
-            [
-              cycle.user_id,
-              user.rank,
-              evaluation.rank,
-              'MAINTENANCE_FAILED',
-              Number(user.balance_points ?? 0),
-              cycle.id,
-              'SYSTEM',
-            ],
-          );
-        }
-
         if (this.isMaintenanceRank(evaluation.rank)) {
           await manager.query(
             `
               INSERT INTO rank_maintenance_cycles
                 (user_id, rank, cycle_start, cycle_end, required_gifts, required_referrals, policy_version)
-              SELECT $1, $2, $3, $3 + interval '3 months',
+              -- Ép kiểu timestamptz là BẮT BUỘC: cùng một tham số vừa làm giá trị cột
+              -- vừa làm toán hạng cộng interval thì Postgres không suy được kiểu
+              -- (42P08). Đoạn này chưa từng chạy thật nên lỗi nằm im từ đầu.
+              SELECT $1, $2, $3::timestamptz, $3::timestamptz + interval '3 months',
                      maintenance_gifts, maintenance_referrals, version
               FROM rank_tiers WHERE rank = $2
               ON CONFLICT DO NOTHING
@@ -416,7 +414,7 @@ export class RankRepository implements IRankRepository {
       await manager.query(
         `
           INSERT INTO rank_transitions
-            (user_id, from_rank, to_rank, reason, lifetime_points, actor)
+            (user_id, from_rank, to_rank, reason, points_at_transition, actor)
           VALUES ($1, $2, $3, $4, $5, $6)
         `,
         [
@@ -439,7 +437,9 @@ export class RankRepository implements IRankRepository {
         SELECT
           user_account.rank,
           balance.lifetime AS lifetime_points,
+          balance.balance AS balance_points,
           current_tier.threshold_points,
+          current_tier.warning_points,
           current_tier.required_gifts,
           current_tier.required_referrals,
           current_tier.post_quota,
@@ -481,6 +481,7 @@ export class RankRepository implements IRankRepository {
     return {
       rank: summary.rank,
       lifetimePoints: Number(summary.lifetime_points ?? 0),
+      balancePoints: Number(summary.balance_points ?? 0),
       currentTier,
       nextTier,
       qualifiedReferrals: Number(summary.qualified_referrals),
@@ -491,7 +492,8 @@ export class RankRepository implements IRankRepository {
   private async getTier(rank: UserRanks): Promise<IRankTierSummary> {
     const [tier] = await this.manager.query<IRawRankTierRow[]>(
       `
-        SELECT rank, threshold_points, required_gifts, required_referrals, post_quota
+        SELECT rank, threshold_points, warning_points, required_gifts,
+               required_referrals, post_quota
         FROM rank_tiers
         WHERE rank = $1
       `,
@@ -515,6 +517,7 @@ export class RankRepository implements IRankRepository {
     return {
       rank: summary.rank,
       thresholdPoints: Number(summary.threshold_points),
+      warningPoints: Number(summary.warning_points ?? 0),
       requiredGifts: Number(summary.required_gifts),
       requiredReferrals: Number(summary.required_referrals),
       postQuota: Number(summary.post_quota),
@@ -525,6 +528,7 @@ export class RankRepository implements IRankRepository {
     return {
       rank: tier.rank,
       thresholdPoints: Number(tier.threshold_points),
+      warningPoints: Number(tier.warning_points),
       requiredGifts: Number(tier.required_gifts),
       requiredReferrals: Number(tier.required_referrals),
       postQuota: Number(tier.post_quota),

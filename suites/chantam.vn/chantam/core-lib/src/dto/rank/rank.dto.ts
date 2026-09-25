@@ -23,7 +23,25 @@ export interface IRankMaintenanceCycleDto {
 
 export interface IRankSummaryDto {
   rank: UserRanks;
+  /**
+   * Tổng điểm từng kiếm được. Chỉ là số thống kê để hiển thị.
+   *
+   * **KHÔNG phải căn cứ xét hạng** — xem `balancePoints`.
+   */
   lifetimePoints: number;
+  /** Điểm đang có. Đây là con số QUYẾT ĐỊNH hạng (chốt 2026-09-24). */
+  balancePoints: number;
+  /** Ngưỡng của bậc đang giữ. Rơi dưới mốc này là tụt hạng. */
+  thresholdPoints: number;
+  /**
+   * Mốc cảnh báo của bậc đang giữ.
+   *
+   * `balancePoints` xuống dưới mốc này thì người dùng cần được nhắc trước khi
+   * họ tiêu thêm và mất hạng mà không hiểu vì sao.
+   */
+  warningPoints: number;
+  /** `true` khi `balancePoints` đã xuống dưới mốc cảnh báo. */
+  demotionWarning: boolean;
   postQuota: number;
   nextRank: IRankNextProgressDto | null;
   maintenanceCycle: IRankMaintenanceCycleDto | null;

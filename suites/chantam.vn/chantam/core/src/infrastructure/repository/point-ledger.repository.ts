@@ -301,6 +301,118 @@ export class PointLedgerRepository implements IPointLedgerRepository {
     );
   }
 
+  public async appendAdjustment(command: {
+    userId: string;
+    ruleCode: string;
+    delta: number;
+    referenceType: string;
+    referenceId: string;
+    idempotencyKey: string;
+    actor: string;
+    source: string;
+    reason: string;
+  }): Promise<IAppendPointEntryResult> {
+    if (command.delta === 0)
+      throw new Error('appendAdjustment: delta phải khác 0');
+    if (command.reason.trim().length === 0)
+      throw new Error('appendAdjustment: reason không được để trống');
+
+    return this.manager.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        command.userId,
+      ]);
+
+      const [existing] = await manager.query<
+        {
+          id: string;
+          delta: number;
+          balance_after: number;
+          raw_balance_after: number;
+          lifetime_after: number;
+        }[]
+      >(
+        `SELECT id, delta, balance_after, raw_balance_after, lifetime_after
+         FROM point_ledger WHERE idempotency_key = $1`,
+        [command.idempotencyKey],
+      );
+      if (existing)
+        return {
+          entryId: Number(existing.id),
+          delta: Number(existing.delta),
+          balance: Number(existing.balance_after),
+          rawBalance: Number(existing.raw_balance_after),
+          lifetime: Number(existing.lifetime_after),
+          applied: false,
+        };
+
+      const [balance] = await manager.query<
+        { balance: number; raw_balance: number; lifetime: number }[]
+      >(
+        `SELECT balance, raw_balance, lifetime
+         FROM user_point_balances WHERE user_id = $1 FOR UPDATE`,
+        [command.userId],
+      );
+
+      const nextRawBalance = Number(balance?.raw_balance ?? 0) + command.delta;
+      const nextBalance = Math.max(0, nextRawBalance);
+      // Khoản trừ KHÔNG hạ lifetime: đó là một sự kiện có thật, không phải lời
+      // phủ nhận một khoản cộng trước đó.
+      const nextLifetime =
+        Number(balance?.lifetime ?? 0) + Math.max(0, command.delta);
+
+      const [{ id }] = await manager.query<{ id: string }[]>(
+        `
+          INSERT INTO point_ledger (
+            user_id, rule_code, rule_version, delta, balance_after,
+            raw_balance_after, lifetime_after,
+            reference_type, reference_id, idempotency_key, actor, source, reason
+          ) VALUES ($1, $2, 0, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          RETURNING id
+        `,
+        [
+          command.userId,
+          command.ruleCode,
+          command.delta,
+          nextBalance,
+          nextRawBalance,
+          nextLifetime,
+          command.referenceType,
+          command.referenceId,
+          command.idempotencyKey,
+          command.actor,
+          command.source,
+          // Lý do nghiệp vụ TRƯỚC, rồi tới câu số học dựng ở máy chủ. Người bị
+          // trừ điểm cần biết vì sao, không chỉ biết còn bao nhiêu.
+          `${command.reason} — ${formatPointLogNote(command.delta, nextRawBalance)}`,
+        ],
+      );
+
+      await manager.query(
+        `
+          INSERT INTO user_point_balances
+            (user_id, balance, raw_balance, lifetime, last_entry_id)
+          VALUES ($1, $2, $3, $4, $5)
+          ON CONFLICT (user_id) DO UPDATE SET
+            balance = EXCLUDED.balance,
+            raw_balance = EXCLUDED.raw_balance,
+            lifetime = EXCLUDED.lifetime,
+            last_entry_id = EXCLUDED.last_entry_id,
+            updated_at = now()
+        `,
+        [command.userId, nextBalance, nextRawBalance, nextLifetime, id],
+      );
+
+      return {
+        entryId: Number(id),
+        delta: command.delta,
+        balance: nextBalance,
+        rawBalance: nextRawBalance,
+        lifetime: nextLifetime,
+        applied: true,
+      };
+    });
+  }
+
   public async appendByRuleWithinTransaction(
     manager: EntityManager,
     command: IAppendPointEntryCommand,

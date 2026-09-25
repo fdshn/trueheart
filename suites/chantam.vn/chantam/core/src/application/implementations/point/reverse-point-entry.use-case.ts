@@ -7,13 +7,13 @@ import { PointEntryNotReversibleException } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
   IPointLedgerRepository,
-  IRankRepository,
 } from '@/domain/ports/repository';
 import {
   ForbiddenException,
   ValidationFailedException,
 } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
+import { RankChangeNotifier } from '../rank/rank-change.notifier';
 
 /**
  * Hoàn một bút toán điểm đã ghi (F39).
@@ -31,7 +31,7 @@ export class ReversePointEntryUseCase implements IReversePointEntryUseCase {
     private readonly ledger: IPointLedgerRepository,
     @Inject(IAdminConfigRepository)
     private readonly admin: IAdminConfigRepository,
-    @Inject(IRankRepository) private readonly ranks: IRankRepository,
+    private readonly rankChange: RankChangeNotifier,
   ) {}
 
   public async handle(
@@ -57,7 +57,9 @@ export class ReversePointEntryUseCase implements IReversePointEntryUseCase {
     if (outcome.status !== 'REVERSED')
       throw new PointEntryNotReversibleException();
 
-    await this.ranks.reconcileNormalRank(outcome.userId);
+    // Hoàn một khoản CỘNG có thể kéo balance xuống dưới ngưỡng, nên phải xét
+    // lại hạng và báo cho người dùng y như mọi biến động điểm khác.
+    await this.rankChange.afterBalanceChange(outcome.userId);
 
     return {
       reversal: {

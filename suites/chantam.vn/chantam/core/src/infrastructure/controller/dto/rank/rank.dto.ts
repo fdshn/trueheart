@@ -52,8 +52,36 @@ export class RankSummaryDto implements IRankSummaryDto {
   @ApiProperty({ enum: UserRanks })
   rank: UserRanks;
 
-  @ApiProperty({ example: 448 })
+  @ApiProperty({
+    example: 448,
+    description:
+      'Tổng điểm từng kiếm được. Số thống kê, KHÔNG phải căn cứ xét hạng.',
+  })
   lifetimePoints: number;
+
+  @ApiProperty({
+    example: 700,
+    description: 'Điểm đang có — con số QUYẾT ĐỊNH hạng.',
+  })
+  balancePoints: number;
+
+  @ApiProperty({
+    example: 672,
+    description: 'Ngưỡng bậc đang giữ. Rơi dưới mốc này là tụt hạng.',
+  })
+  thresholdPoints: number;
+
+  @ApiProperty({
+    example: 470,
+    description: 'Mốc cảnh báo sắp tụt hạng của bậc đang giữ.',
+  })
+  warningPoints: number;
+
+  @ApiProperty({
+    example: false,
+    description: 'true khi điểm đang có đã xuống dưới mốc cảnh báo.',
+  })
+  demotionWarning: boolean;
 
   @ApiProperty({ example: 3 })
   postQuota: number;

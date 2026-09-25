@@ -35,6 +35,7 @@
     "test:reviews": "ts-node -r tsconfig-paths/register test/reviews.check.ts",
     "test:point-economy": "ts-node -r tsconfig-paths/register test/point-economy.check.ts",
     "test:gift-rewards": "ts-node -r tsconfig-paths/register test/gift-rewards.check.ts",
+    "test:rank-balance": "ts-node -r tsconfig-paths/register test/rank-balance.check.ts",
     "test:user-activity": "ts-node -r tsconfig-paths/register test/user-activity.check.ts",
     "test:feed-merge": "ts-node -r tsconfig-paths/register test/feed-merge.check.ts",
     "test:returning": "ts-node -r tsconfig-paths/register test/returning-contract.check.ts",

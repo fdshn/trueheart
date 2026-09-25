@@ -10,7 +10,9 @@ function populatedRow(overrides = {}) {
   return {
     rank: UserRanks.SILVER,
     lifetime_points: '700',
+    balance_points: '640',
     threshold_points: '672',
+    warning_points: '470',
     required_gifts: '1',
     required_referrals: '1',
     post_quota: '10',
@@ -34,6 +36,7 @@ describe('RankRepository', () => {
         {
           rank: UserRanks.GOLD,
           threshold_points: '896',
+          warning_points: '627',
           required_gifts: '0',
           required_referrals: '0',
           post_quota: '20',
@@ -44,9 +47,11 @@ describe('RankRepository', () => {
     await expect(repository.getOwnSummary(UserId)).resolves.toEqual({
       rank: UserRanks.SILVER,
       lifetimePoints: 700,
+      balancePoints: 640,
       currentTier: {
         rank: UserRanks.SILVER,
         thresholdPoints: 672,
+        warningPoints: 470,
         requiredGifts: 1,
         requiredReferrals: 1,
         postQuota: 10,
@@ -54,6 +59,7 @@ describe('RankRepository', () => {
       nextTier: {
         rank: UserRanks.GOLD,
         thresholdPoints: 896,
+        warningPoints: 627,
         requiredGifts: 0,
         requiredReferrals: 0,
         postQuota: 20,
@@ -78,6 +84,7 @@ describe('RankRepository', () => {
       .mockResolvedValueOnce([
         populatedRow({
           lifetime_points: null,
+          balance_points: null,
           maintenance_rank: null,
           cycle_start: null,
           cycle_end: null,
@@ -90,6 +97,7 @@ describe('RankRepository', () => {
         {
           rank: UserRanks.GOLD,
           threshold_points: '896',
+          warning_points: '627',
           required_gifts: '0',
           required_referrals: '0',
           post_quota: '20',
@@ -255,7 +263,7 @@ describe('RankRepository', () => {
       activity as never,
     );
 
-    await expect(repository.reconcileNormalRank(UserId)).resolves.toBe(false);
+    await expect(repository.reconcileNormalRank(UserId)).resolves.toBeNull();
 
     expect(query.mock.calls[0]).toEqual([
       'SELECT pg_advisory_xact_lock(hashtext($1))',
@@ -314,7 +322,11 @@ describe('RankRepository', () => {
       activity as never,
     );
 
-    await expect(repository.reconcileNormalRank(UserId)).resolves.toBe(true);
+    await expect(repository.reconcileNormalRank(UserId)).resolves.toEqual({
+      fromRank: UserRanks.MEMBER,
+      toRank: UserRanks.SILVER,
+      demoted: false,
+    });
 
     expect(query.mock.calls[3]).toEqual([
       expect.stringContaining('UPDATE users'),
@@ -378,7 +390,7 @@ describe('RankRepository', () => {
       activity as never,
     );
 
-    await expect(repository.reconcileNormalRank(UserId)).resolves.toBe(false);
+    await expect(repository.reconcileNormalRank(UserId)).resolves.toBeNull();
 
     expect(query).toHaveBeenCalledTimes(3);
     expect(query.mock.calls.flatMap((call) => call).join('\n')).not.toMatch(

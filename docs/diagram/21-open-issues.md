@@ -21,10 +21,11 @@ hình động:
 
 | # | Nội dung | Ở đâu | Sơ đồ |
 | --- | --- | --- | --- |
-| 1 | Rank đọc `lifetime`, tài liệu nói `balance` | `rank.repository.ts:387` | [12](./12-rank.md) |
-| 2 | `rank_maintenance_cycles` vẫn ép tụt đúng một bậc | `rank.repository.ts` | [12](./12-rank.md) |
-| 3 | Tiêu điểm hiện **không** làm tụt hạng | toàn bộ đường điểm | [12](./12-rank.md) · [20](./20-overview.md) |
-| 4 | Cột *Cảnh báo tại 70%* có trong bảng rank nhưng chưa có đường gửi | — | [12](./12-rank.md) |
+| 1 | ✅ **Đã đúng từ trước.** Nhánh xét hạng vốn đọc `balance`; `lifetime_points` chỉ là ảnh chụp trong audit, nay đổi tên thành `points_at_transition` | — | [12](./12-rank.md) |
+| 2 | ✅ **Đã sửa 25/09.** Trượt nhiệm vụ chỉ đánh FAILED, rồi trừ điểm và xét lại theo balance | — | [12](./12-rank.md) |
+| 3 | ✅ **Đã đúng từ trước, nay có script chứng minh** — `npm run test:rank-balance` | — | [12](./12-rank.md) |
+| 4 | ✅ **Đã có đường gửi 25/09** — `RankChangeNotifier`, một lời nhắc mỗi ngày cho mỗi bậc | — | [12](./12-rank.md) |
+| 5 | **Hai lỗi SQL có sẵn chưa từng chạy** trong `evaluateDueMaintenanceCycles` (42P18, 42P08) — đã sửa 25/09 | — | [12](./12-rank.md) |
 
 ## 21.3 Chức năng đã chốt nhưng chưa gắn
 
@@ -34,6 +35,7 @@ hình động:
 | 2 | Mốc hoạt động, cập nhật mỗi lần cấp phiên | 2026-09-24 | ✅ `users.last_active_at` 25/09 | [01](./01-auth.md) |
 | 3 | Rule `GIFT_COMPLETED` = 56 điểm | 2026-09-25 | ✅ đã nối 25/09 — hai đường, một khoá | [11](./11-point.md) |
 | 4 | Chặn xoá tài khoản khi còn lượt trao dở dang | từ lâu | ⛔ chưa gắn | [01](./01-auth.md) |
+| 6 | Trừ điểm khi trượt nhiệm vụ duy trì | 2026-09-24 | ✅ đã nối 25/09 | [12](./12-rank.md) |
 | 5 | Cổng hồ sơ cho tạo Group | 2026-09-24 | ⛔ chờ phân hệ Group | [18](./18-group.md) |
 
 ## 21.4 Lỗ hổng nghiệp vụ đã phát hiện

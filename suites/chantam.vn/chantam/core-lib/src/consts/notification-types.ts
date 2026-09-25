@@ -32,4 +32,15 @@ export enum NotificationTypes {
    * thứ thật sự quan trọng.
    */
   CONTENT_REACTION_FIRST_OF_DAY = 'CONTENT_REACTION_FIRST_OF_DAY',
+
+  /**
+   * Điểm đang có đã xuống dưới mốc cảnh báo của bậc hiện tại.
+   *
+   * Bắt buộc phải có từ khi hạng do balance quyết (chốt 2026-09-24): không báo
+   * thì người dùng đổi một vật phẩm rồi sáng hôm sau phát hiện mình đã xuống
+   * Bạc mà không ai nói trước.
+   */
+  RANK_DEMOTION_WARNING = 'RANK_DEMOTION_WARNING',
+  /** Đã tụt hạng. */
+  RANK_DEMOTED = 'RANK_DEMOTED',
 }

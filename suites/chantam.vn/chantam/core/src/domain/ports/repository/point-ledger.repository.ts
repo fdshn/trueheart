@@ -82,6 +82,35 @@ export interface IPointLedgerRepository {
   appendByRule(
     command: IAppendPointEntryCommand,
   ): Promise<IAppendPointEntryResult>;
+  /**
+   * Ghi một bút toán với số điểm TRUYỀN VÀO, không lấy từ `point_rules`.
+   *
+   * Cần cho những khoản mà số điểm thay đổi theo từng lần: phạt trượt nhiệm vụ
+   * duy trì (mức nằm ở `rank_tiers` theo từng bậc) và đổi vật phẩm bằng điểm
+   * (tính từ giá món chia tỷ lệ quy đổi). Cả hai không vừa khuôn `point_rules`
+   * vì bảng đó giữ MỘT con số cố định cho mỗi mã.
+   *
+   * Vẫn append-only, vẫn idempotent, và **bắt buộc có `reason`**: người bị trừ
+   * điểm sẽ hỏi vì sao, và một mã rule không phải câu trả lời.
+   *
+   * `lifetime` không bao giờ giảm theo đường này — khoản trừ là một sự kiện có
+   * thật, không phải lời phủ nhận một khoản cộng trước đó. Muốn phủ nhận thì
+   * dùng `reversePointEntry`.
+   */
+  appendAdjustment(command: {
+    userId: string;
+    /** Mã phân loại, ghi vào `rule_code`. Không cần tồn tại trong `point_rules`. */
+    ruleCode: string;
+    /** Khác 0. Âm là khoản trừ. */
+    delta: number;
+    referenceType: string;
+    referenceId: string;
+    idempotencyKey: string;
+    actor: string;
+    source: string;
+    reason: string;
+  }): Promise<IAppendPointEntryResult>;
+
   appendByRuleWithinTransaction(
     manager: EntityManager,
     command: IAppendPointEntryCommand,

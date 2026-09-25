@@ -115,7 +115,8 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | `REPORT_UPHELD` | 5 | 5 | ✅ đang gọi |
 | `SHIP_UNPAID_PENALTY` | −50 | — | ✅ đang gọi |
 | `GIFT_COMPLETED` | 56 | 5 | ✅ đang gọi — mức **TRẦN**, nhân với % người nhận chấm |
-| `ITEM_REDEMPTION` | *theo giá món* | — | ⛔ **chưa có, và không vừa khuôn bảng này** |
+| `ITEM_REDEMPTION` | *theo giá món* | — | ⛔ chưa nối, nhưng **đường ghi đã có**: `appendAdjustment` nhận số điểm truyền vào |
+| `MAINTENANCE_FAILED` | *theo bậc, xem `rank_tiers`* | — | ✅ đang gọi qua `appendAdjustment` |
 
 API: `GET|POST /admin/points/rules`.
 
@@ -124,8 +125,9 @@ API: `GET|POST /admin/points/rules`.
 > `REPORT_UPHELD` cố ý nằm ngoài lưới: chúng là tiền lẻ khuyến khích hoạt động, không phải
 > bậc thang thứ hạng.
 >
-> **`ITEM_REDEMPTION` không vừa khuôn `point_rules`.** Mọi rule khác có số điểm cố định; đổi
-> vật phẩm thì số điểm tính từ giá món chia tỷ lệ quy đổi, khác nhau mỗi lần.
+> **Hai khoản không vừa khuôn `point_rules`** vì số điểm thay đổi theo từng lần: phạt trượt
+> nhiệm vụ (mức nằm ở `rank_tiers` theo bậc) và đổi vật phẩm (tính từ giá món). Cả hai đi qua
+> `appendAdjustment` — vẫn append-only, vẫn idempotent, và **bắt buộc có lý do đọc được**.
 
 ### 2.3 `rank_tiers` — ngưỡng và nhiệm vụ theo bậc
 
@@ -143,7 +145,9 @@ API: `GET|POST /admin/ranks/policy` (ngưỡng, cảnh báo) và
 > **Phạt = đúng số điểm đáng lẽ kiếm được nếu làm đủ nhiệm vụ quý đó** (2×56 + 2×56 = 224).
 > Trượt thì mất đúng phần mình không làm, không hơn.
 >
-> ⛔ **Cột cảnh báo đã có giá trị nhưng chưa có đường nào gửi** thông báo.
+> ✅ **Cột cảnh báo đã có đường gửi** (25/09): `RankChangeNotifier` báo sau mọi biến động
+> điểm, một lời nhắc mỗi ngày cho mỗi bậc. `GET /ranks/me` cũng trả `warningPoints` +
+> `demotionWarning` để client tự dựng lời nhắc.
 
 ### 2.4 Kênh gửi thông báo
 

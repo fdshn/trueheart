@@ -2,12 +2,12 @@ import { PointEntryNotReversibleException } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
   IPointLedgerRepository,
-  IRankRepository,
 } from '@/domain/ports/repository';
 import {
   ForbiddenException,
   ValidationFailedException,
 } from '@chantam/service.common-lib/exception';
+import { RankChangeNotifier } from '../rank/rank-change.notifier';
 import { ReversePointEntryUseCase } from './reverse-point-entry.use-case';
 
 const ActorId = '11111111-1111-4111-8111-111111111111';
@@ -36,14 +36,16 @@ function makeDeps(
     admin: {
       hasPermission: jest.fn().mockResolvedValue(allowed),
     } as unknown as jest.Mocked<IAdminConfigRepository>,
-    ranks: {
-      reconcileNormalRank: jest.fn().mockResolvedValue(true),
-    } as unknown as jest.Mocked<IRankRepository>,
+    // Xét hạng + báo tụt hạng nay đi qua RankChangeNotifier; ca "có báo đúng
+    // không" nằm ở rank-change.notifier.spec.ts.
+    rankChange: {
+      afterBalanceChange: jest.fn().mockResolvedValue(null),
+    } as unknown as jest.Mocked<RankChangeNotifier>,
   };
 }
 
 const build = (deps: ReturnType<typeof makeDeps>) =>
-  new ReversePointEntryUseCase(deps.ledger, deps.admin, deps.ranks);
+  new ReversePointEntryUseCase(deps.ledger, deps.admin, deps.rankChange);
 
 describe('ReversePointEntryUseCase', () => {
   it('hoàn được và tính lại hạng cho CHỦ tài khoản, không phải Admin', async () => {
@@ -66,7 +68,7 @@ describe('ReversePointEntryUseCase', () => {
       actorUserId: ActorId,
       reason: 'Ghi nhầm hai lần',
     });
-    expect(deps.ranks.reconcileNormalRank).toHaveBeenCalledWith(OwnerId);
+    expect(deps.rankChange.afterBalanceChange).toHaveBeenCalledWith(OwnerId);
     expect(result.reversal.entryId).toBe(99);
     expect(result.reversal.delta).toBe(-56);
   });
@@ -137,6 +139,6 @@ describe('ReversePointEntryUseCase', () => {
         reversal: { reason: 'Ghi nhầm' },
       }),
     ).rejects.toBeInstanceOf(PointEntryNotReversibleException);
-    expect(deps.ranks.reconcileNormalRank).not.toHaveBeenCalled();
+    expect(deps.rankChange.afterBalanceChange).not.toHaveBeenCalled();
   });
 });

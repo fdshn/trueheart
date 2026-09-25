@@ -22,7 +22,7 @@ describe('AppendPointEntryUseCase', () => {
     };
     const useCase = new AppendPointEntryUseCase(
       ledger as never,
-      { reconcileNormalRank: jest.fn() } as never,
+      { afterBalanceChange: jest.fn() } as never,
     );
 
     const result = await useCase.handle(Command);
@@ -39,11 +39,11 @@ describe('AppendPointEntryUseCase', () => {
         lifetime: 28,
       })),
     };
-    const rank = { reconcileNormalRank: jest.fn().mockResolvedValue(false) };
+    const rank = { afterBalanceChange: jest.fn().mockResolvedValue(null) };
     const useCase = new AppendPointEntryUseCase(ledger as never, rank as never);
 
     await useCase.handle(Command);
 
-    expect(rank.reconcileNormalRank).toHaveBeenCalledWith(Command.userId);
+    expect(rank.afterBalanceChange).toHaveBeenCalledWith(Command.userId);
   });
 });

@@ -1,7 +1,7 @@
 # 12 · Thứ hạng
 
-Trạng thái: ⚠️ **Tài liệu và code đang mâu thuẫn.** Sơ đồ này vẽ **mô hình đã chốt ngày
-2026-09-24**, và ghi rõ chỗ code còn làm khác.
+Trạng thái: ✅ **đã hiện thực** đúng mô hình chốt ngày 2026-09-24, có script kiểm trên
+Postgres thật (`npm run test:rank-balance`).
 
 ## 12.1 Năm bậc
 
@@ -52,7 +52,7 @@ stateDiagram-v2
     Đánh giá --> Trượt: Thiếu
 
     Đạt --> ChuKỳMới: Giữ hạng, mở chu kỳ mới
-    Trượt --> TrừĐiểm: ⛔ TRỪ N ĐIỂM<br/>(Admin cấu hình)
+    Trượt --> TrừĐiểm: ✅ TRỪ điểm theo bậc<br/>Bạc 224 · Vàng 336 · KC 448
     TrừĐiểm --> XétLại: Rank tự xét theo balance mới
     XétLại --> ChuKỳMới
 
@@ -72,7 +72,7 @@ stateDiagram-v2
 | Vàng | 3 lượt Cho + 3 referral | **336** |
 | Kim Cương | 4 lượt Cho + 4 referral | **448** |
 
-## 12.4 Cảnh báo sắp tụt hạng — ⛔ chưa có
+## 12.4 Cảnh báo sắp tụt hạng — ✅ đã có
 
 ```mermaid
 flowchart TD
@@ -93,8 +93,16 @@ flowchart TD
 ```
 
 > **Vì sao bắt buộc phải có.** Khi tiêu điểm làm tụt hạng, người dùng đổi một vật phẩm rồi
-> sáng hôm sau phát hiện mình đã xuống Bạc mà không ai báo trước. Bảng ngưỡng trong
-> `FEATURES.md` đã có sẵn cột này, nhưng **chưa có đường nào gửi**.
+> sáng hôm sau phát hiện mình đã xuống Bạc — mất quota bài, mất quyền SOS — mà không ai báo.
+>
+> Gửi qua `RankChangeNotifier`, gọi sau MỌI biến động điểm. Khoá chống trùng theo
+> `userId:rank:ngày VN` nên **một lời nhắc mỗi ngày cho mỗi bậc**: không có mốc ngày thì mỗi
+> lượt kiếm 1 điểm rồi tiêu đi cũng đẻ một thông báo, người dùng tắt hết, và từ đó mất luôn
+> thông báo về lượt xin nhận.
+>
+> Đã tụt rồi thì gửi `RANK_DEMOTED` thay vì cảnh báo — người đã mất hạng không cần nghe "bạn
+> sắp mất hạng". `GET /ranks/me` cũng trả `warningPoints` + `demotionWarning` để client tự
+> dựng được lời nhắc mà không đặt lại mốc riêng.
 
 ## 12.5 Hệ quả: càng lên cao càng khó tiêu
 
@@ -109,30 +117,48 @@ flowchart LR
 
 Đây là hệ quả tự nhiên của mô hình đã chọn, không phải lỗi — nhưng cần biết trước.
 
-## 12.6 ⚠️ Code hiện đang làm khác
+## 12.6 Đường trừ điểm khi trượt nhiệm vụ
 
 ```mermaid
-flowchart LR
-    subgraph Code["Code hiện tại"]
-        A1["rank.repository.ts:387<br/>đọc balance.lifetime"]
-        A2["rank_maintenance_cycles<br/>quyết tụt đúng một bậc"]
-        A3["Tiêu điểm KHÔNG tụt hạng"]
-    end
-    subgraph Doc["Tài liệu chốt 2026-09-24"]
-        B1["đọc balance hiện tại"]
-        B2["trượt nhiệm vụ → trừ điểm"]
-        B3["Tiêu điểm TỤT hạng"]
-    end
-    Code -.cần sửa thành.-> Doc
+sequenceDiagram
+    autonumber
+    participant CLI as npm run rank:evaluate
+    participant R as rank_maintenance_cycles
+    participant L as point_ledger
+    participant U as users
 
-    style Code fill:#ffe6e6
-    style Doc fill:#e6ffe6
+    CLI->>R: Quét chu kỳ OPEN đã quá hạn
+    R-->>CLI: Thiếu chỉ tiêu → đánh FAILED
+    Note over R: KHÔNG tự đổi hạng ở đây
+
+    CLI->>R: Quét RIÊNG chu kỳ FAILED chưa bị trừ
+    Note over CLI,R: Quét riêng vì chu kỳ đã FAILED thì vòng<br/>đánh giá không nhìn tới nó nữa. Tiến trình<br/>chết giữa hai bước là mất khoản trừ vĩnh viễn.
+    CLI->>L: appendAdjustment −224, khoá MAINTENANCE_FAILED:&lt;cycleId&gt;
+    Note over L: lifetime KHÔNG giảm — khoản trừ là sự kiện<br/>có thật, không phải phủ nhận khoản cộng cũ
+    CLI->>U: reconcileNormalRank → xét lại theo balance mới
+    U-->>CLI: Tụt hạng nếu rơi dưới ngưỡng
+```
+
+## 12.7 Hai lỗi có sẵn chưa từng chạy, đã sửa
+
+```mermaid
+flowchart TD
+    A["evaluateDueMaintenanceCycles<br/>luôn báo 0 chu kỳ nên thân vòng lặp<br/>CHƯA TỪNG thực thi"] --> B["42P18 — tham số $2 không dùng<br/>trong câu lệnh, Postgres không suy được kiểu"]
+    A --> C["42P08 — cùng tham số vừa là timestamp<br/>vừa là toán hạng cộng interval"]
+    B & C --> D["Cả hai nổ ngay lần đầu có chu kỳ tới hạn thật"]
+    E["Unit test mock query nên không thấy.<br/>test/rank-balance.check.ts là thứ đầu tiên<br/>chạy đoạn này trên Postgres thật."] -.-> D
+
+    style D fill:#ffe6e6
+    style E fill:#fff3cd
 ```
 
 ## Chỗ cần soát
 
-1. ⚠️ **Code đọc `lifetime`, tài liệu nói `balance`.** Mâu thuẫn đã biết, chưa sửa.
-2. ⛔ **Trừ N điểm khi trượt nhiệm vụ chưa có code**, và **N chưa có con số**.
-3. ⛔ **Cảnh báo sắp tụt hạng chưa có đường gửi.**
-4. ⛔ **Nhắc trước 1 tháng** (SRS BR-PROF-RANK-03 yêu cầu) chưa có.
-5. Quota và ngưỡng SOS theo rank vẫn là **giả định chờ Bên A xác nhận**.
+1. ⛔ **Nhắc trước 1 tháng** (SRS BR-PROF-RANK-03 yêu cầu) chưa có.
+2. ⚠️ **Cột `rank_transitions.points_at_transition`** (trước tên là `lifetime_points`) giữ
+   ảnh chụp số điểm lúc đổi hạng. Đã đổi tên vì giá trị ghi vào đó chính là balance.
+3. ⚠️ **`reconcileNormalRank` gọi sau MỌI bút toán.** Một người nhận 50 thông báo/ngày sẽ kéo
+   50 lượt xét hạng — chưa đo tải, cần theo dõi khi có dữ liệu thật.
+4. Quota và ngưỡng SOS theo rank vẫn là **giả định chờ Bên A xác nhận**.
+5. **Nhiệm vụ duy trì vẫn dùng `countLifetimeCompletedGifts`** cho điều kiện nâng hạng — cần
+   soát xem "N lượt Cho hoàn tất" là đếm trọn đời hay đếm trong chu kỳ.

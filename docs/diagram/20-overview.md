@@ -28,7 +28,7 @@ flowchart TB
 
     subgraph T4["④ Điểm & hạng"]
         PT["Point Ledger ✅"]
-        RANK["Thứ hạng ⚠️"]
+        RANK["Thứ hạng ✅"]
         REV["Đánh giá & Accuracy ✅"]
         RED["Đổi vật phẩm bằng điểm ⛔"]
     end
@@ -116,17 +116,15 @@ flowchart LR
     subgraph Ra["Điểm RA"]
         O1["SHIP_UNPAID_PENALTY −50 ✅"]
         O2["ITEM_REDEMPTION âm ⛔"]
-        O3["Trượt nhiệm vụ −N ⛔"]
+        O3["Trượt nhiệm vụ −224/336/448 ✅"]
         O4["Đảo bút toán (Admin) ✅"]
     end
 
     Vào --> L --> Ra
     L --> B["user_point_balances<br/>balance · raw_balance · lifetime"]
-    B --> R["Xét lại RANK<br/>⚠️ code đọc lifetime,<br/>tài liệu nói balance"]
+    B --> R["Xét lại RANK theo balance ✅<br/>+ báo sắp tụt / đã tụt"]
 
     style O2 fill:#ffe6e6
-    style O3 fill:#ffe6e6
-    style R fill:#fff3cd
 ```
 
 ## 20.4 Mức độ hoàn thiện theo phân hệ
@@ -134,15 +132,15 @@ flowchart LR
 ```mermaid
 pie showData
     title Phân hệ theo trạng thái
-    "Đã chạy được (✅)" : 13
+    "Đã chạy được (✅)" : 14
     "Có code, chưa dùng thật (🟡)" : 2
-    "Mâu thuẫn tài liệu/code (⚠️)" : 2
+    "Mâu thuẫn tài liệu/code (⚠️)" : 1
     "Chưa có dòng nào (⛔)" : 5
 ```
 
 | Trạng thái | Phân hệ |
 | --- | --- |
-| ✅ | Xác thực · Hồ sơ · Media · Bài đăng · Feed · Tương tác · Xin nhận · Lượt trao · Chat · Đánh giá · Báo xấu · Admin CMS · CLI |
+| ✅ | Xác thực · Hồ sơ · Media · Bài đăng · Feed · Tương tác · Xin nhận · Lượt trao · Chat · Đánh giá · Báo xấu · Admin CMS · CLI · **Thứ hạng** |
 | 🟡 | Thông báo (chưa có FCM) · Xác minh SĐT (chưa có adapter SMS) |
-| ⚠️ | Thứ hạng (code khác tài liệu) · Tự hoàn tất (sai mốc đếm, không kiểm tranh chấp) |
+| ⚠️ | Tự hoàn tất (sai mốc đếm, không kiểm tranh chấp) |
 | ⛔ | Countdown 7 ngày · Đổi vật phẩm bằng điểm · Group · Affiliate · Dashboard KPI · Campaign/Blog |
