@@ -54,3 +54,12 @@ export interface IAcceptGiftRequestResponseDto {
   status: GiftRequestStatuses;
   transactionId?: string;
 }
+
+export interface IRedeemPostWithPointsResponseDto {
+  postId: string;
+  transactionId: string;
+  /** Số điểm đã trừ. */
+  pointsSpent: number;
+  /** Điểm còn lại sau khi trừ. */
+  balanceAfter: number;
+}

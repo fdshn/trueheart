@@ -2,6 +2,7 @@ import {
   IAcceptGiftRequestUseCase,
   ICreateGiftRequestUseCase,
   IListPostRequestsUseCase,
+  IRedeemPostWithPointsUseCase,
   IWithdrawGiftRequestUseCase,
 } from '@/application/contracts/gift-request';
 import {
@@ -13,11 +14,15 @@ import {
   PostInvalidStateException,
   PostNotAcceptingRequestsException,
   PostNotFoundException,
+  RedemptionInsufficientPointsException,
+  RedemptionNotAvailableException,
+  RedemptionPriceUnavailableException,
 } from '@/domain/exceptions';
 import {
   IAcceptGiftRequestResponseDto,
   ICreateGiftRequestResponseDto,
   IGetPostRequestsResponseDto,
+  IRedeemPostWithPointsResponseDto,
   IWithdrawGiftRequestResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import {
@@ -56,6 +61,8 @@ import {
   GetPostRequestsResponseDto,
   ListPostRequestsParamDto,
   ListPostRequestsQueryDto,
+  RedeemPostWithPointsParamDto,
+  RedeemPostWithPointsResponseDto,
   WithdrawGiftRequestParamDto,
   WithdrawGiftRequestResponseDto,
 } from '../../dto/gift-request';
@@ -72,6 +79,8 @@ export class GiftRequestController {
     private readonly listPostRequestsUseCase: IListPostRequestsUseCase,
     @Inject(IAcceptGiftRequestUseCase)
     private readonly acceptGiftRequestUseCase: IAcceptGiftRequestUseCase,
+    @Inject(IRedeemPostWithPointsUseCase)
+    private readonly redeemPostWithPointsUseCase: IRedeemPostWithPointsUseCase,
   ) {}
 
   @Post(':postId/requests')
@@ -208,6 +217,40 @@ export class GiftRequestController {
     });
 
     return ResponseDto.create<IAcceptGiftRequestResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Post(':postId/redeem')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Dùng điểm đổi thẳng vật phẩm (F75)',
+    description:
+      'Chốt ngay người nhận mà không chờ hết đồng hồ 7 ngày. Ba điều kiện: đồng hồ đang chạy, người gọi ĐÃ gửi yêu cầu xin nhận, và bài có khai giá trị tham khảo. Số điểm = giá trị tham khảo chia tỷ lệ quy đổi (Admin cấu hình), làm tròn LÊN. Điểm bị trừ trước khi duyệt và được hoàn lại nếu không chốt được.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(RedeemPostWithPointsResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [
+      RedemptionNotAvailableException,
+      'Đồng hồ chưa mở, đã hết, bài đã có chủ, hoặc bạn chưa gửi yêu cầu xin nhận',
+    ],
+    [RedemptionPriceUnavailableException, 'Bài chưa khai giá trị tham khảo'],
+    [RedemptionInsufficientPointsException, 'Không đủ điểm'],
+    [GiftTransactionOutOfStockException],
+    [GiftTransactionInvalidStateException, 'ACCEPTED'],
+  )
+  public async redeemPostWithPoints(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: RedeemPostWithPointsParamDto,
+  ): Promise<ResponseDto<IRedeemPostWithPointsResponseDto>> {
+    const result = await this.redeemPostWithPointsUseCase.handle({
+      postId: params.postId,
+      requesterId: principal.userId,
+    });
+
+    return ResponseDto.create<IRedeemPostWithPointsResponseDto>()
       .succeed()
       .attach(result)
       .build();

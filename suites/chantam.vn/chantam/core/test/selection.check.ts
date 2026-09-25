@@ -12,7 +12,10 @@
  * 5. Thứ tự Admin cấu hình thật sự đổi được người thắng.
  */
 import { CandidateSelectionCriteria } from '@chantam.vn/chantam.core-lib/consts';
-import { pickNextCandidate } from '@chantam.vn/chantam.core-lib/models';
+import {
+  pickNextCandidate,
+  quoteRedemption,
+} from '@chantam.vn/chantam.core-lib/models';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
@@ -293,6 +296,68 @@ async function main(): Promise<void> {
       'hai người còn lại thành STANDBY, không phải REJECTED',
       Number(standby?.total) === 2,
       `${standby?.total} người`,
+    );
+    console.log('\n7. Bối cảnh đổi vật phẩm bằng điểm');
+    // Dựng bài thứ hai còn đồng hồ, để không đụng bài vừa chốt ở mục 4.
+    const RedeemPostId = '88888888-8888-4888-8888-8888888e2001';
+    await dataSource.query(
+      `INSERT INTO posts
+         (global_id, post_type, author_id, category_id, title, description,
+          location, area_label, status, total_quantity, remaining_quantity,
+          details, renewed_count, selection_mode, selection_deadline)
+       VALUES ($1, 'OFFER', $2, $3, 'Bai co gia tham khao',
+               'Mo ta du dai cho bai kiem doi diem',
+               ST_SetSRID(ST_MakePoint(106.698, 10.7724), 4326)::geography,
+               'Quan 1', 'PUBLISHED', 1, 1,
+               '{"estimatedValue": 1000000}'::jsonb, 0, 'OPTIMAL',
+               now() + interval '3 days')`,
+      [RedeemPostId, GiverId, CategoryId],
+    );
+    await dataSource.query(
+      `INSERT INTO gift_requests
+         (global_id, post_id, requester_id, message, status, queue_joined_at)
+       VALUES ($1, $2, $3, 'Em xin a', 'PENDING', now())`,
+      ['77777777-7777-4777-8777-777777700010', RedeemPostId, Nearby],
+    );
+
+    const ctx = await requests.findRedemptionContext({
+      postId: RedeemPostId,
+      requesterId: Nearby,
+    });
+    check('doc duoc boi canh doi diem', Boolean(ctx));
+    check(
+      'lay gia tri tham khao tu details JSONB',
+      ctx?.estimatedValueVnd === 1_000_000,
+      `${ctx?.estimatedValueVnd}`,
+    );
+    check('kem giverId de duyet thay chu bai', ctx?.giverId === GiverId);
+    check(
+      'kem dong ho con chay',
+      (ctx?.selectionDeadline?.getTime() ?? 0) > Date.now(),
+    );
+
+    const noRequest = await requests.findRedemptionContext({
+      postId: RedeemPostId,
+      requesterId: HighRank,
+    });
+    check('nguoi CHUA xin thi khong co boi canh', noRequest === null);
+
+    // Bai khong khai gia -> estimatedValueVnd null, va quoteRedemption chan.
+    await dataSource.query(
+      `UPDATE posts SET details = '{}'::jsonb WHERE global_id = $1`,
+      [RedeemPostId],
+    );
+    const noPrice = await requests.findRedemptionContext({
+      postId: RedeemPostId,
+      requesterId: Nearby,
+    });
+    check(
+      'khong khai gia -> null, KHONG phai 0',
+      noPrice?.estimatedValueVnd === null,
+    );
+    check(
+      'va quoteRedemption tu choi, khong coi la cho khong',
+      quoteRedemption(noPrice?.estimatedValueVnd).redeemable === false,
     );
   } finally {
     for (const source of opened.reverse())

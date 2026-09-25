@@ -95,7 +95,7 @@ hình động:
 
 ```mermaid
 flowchart LR
-    A["✅ Countdown 7 ngày + auto-select<br/>đã xong 25/09"] --> B["⛔ Đổi vật phẩm bằng điểm<br/>F74, F75, F77"]
+    A["✅ Countdown 7 ngày + auto-select<br/>đã xong 25/09"] --> B["✅ Đổi vật phẩm bằng điểm<br/>đã xong 26/09"]
     C["⛔ Group & Sub-team<br/>F51–F55"] --> D["⛔ Affiliate & Geo<br/>F56–F58"]
     E["⛔ Dashboard KPI — F59"]
     F["⛔ Campaign & Home động — F63"]
@@ -104,6 +104,7 @@ flowchart LR
     I["⛔ FCM push — F44"]
 
     style A fill:#e6ffe6
+    style B fill:#e6ffe6
     style C fill:#ffe6e6
 ```
 

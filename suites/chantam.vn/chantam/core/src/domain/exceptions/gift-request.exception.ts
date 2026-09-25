@@ -20,3 +20,15 @@ export class PostNotAcceptingRequestsException extends ExceptionFrom(
 export class OpenRequestQuotaExceededException extends ExceptionFrom(
   CoreErrors.OPEN_REQUEST_QUOTA_EXCEEDED,
 ) {}
+
+export class RedemptionNotAvailableException extends ExceptionFrom(
+  CoreErrors.REDEMPTION_NOT_AVAILABLE,
+) {}
+
+export class RedemptionPriceUnavailableException extends ExceptionFrom(
+  CoreErrors.REDEMPTION_PRICE_UNAVAILABLE,
+) {}
+
+export class RedemptionInsufficientPointsException extends ExceptionFrom(
+  CoreErrors.REDEMPTION_INSUFFICIENT_POINTS,
+) {}

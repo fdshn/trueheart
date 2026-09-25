@@ -68,6 +68,29 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Bài đăng hiện không ở trạng thái mở nhận yêu cầu',
   },
 
+  REDEMPTION_NOT_AVAILABLE: {
+    code: ErrorCodes.REDEMPTION_NOT_AVAILABLE,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: () =>
+      'Vật phẩm này hiện không đổi được bằng điểm. Đồng hồ chọn người nhận đã kết thúc hoặc bài đã có chủ.',
+  },
+
+  REDEMPTION_PRICE_UNAVAILABLE: {
+    code: ErrorCodes.REDEMPTION_PRICE_UNAVAILABLE,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    // Nói rõ lý do thuộc về BÀI chứ không phải về người đổi: họ không làm gì sai
+    // và cũng không sửa được, nên câu chung chung sẽ khiến họ thử lại vô ích.
+    message: () =>
+      'Người tặng chưa khai giá trị tham khảo cho vật phẩm này, nên không quy ra điểm được.',
+  },
+
+  REDEMPTION_INSUFFICIENT_POINTS: {
+    code: ErrorCodes.REDEMPTION_INSUFFICIENT_POINTS,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (required?: number, available?: number) =>
+      `Vật phẩm này cần ${required ?? 0} điểm, bạn đang có ${available ?? 0}.`,
+  },
+
   OPEN_REQUEST_QUOTA_EXCEEDED: {
     code: ErrorCodes.OPEN_REQUEST_QUOTA_EXCEEDED,
     httpStatus: HttpStatus.FORBIDDEN,

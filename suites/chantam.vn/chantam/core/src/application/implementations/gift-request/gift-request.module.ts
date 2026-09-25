@@ -3,6 +3,7 @@ import {
   IAutoSelectDueRecipientsUseCase,
   ICreateGiftRequestUseCase,
   IListPostRequestsUseCase,
+  IRedeemPostWithPointsUseCase,
   IWithdrawGiftRequestUseCase,
 } from '@/application/contracts/gift-request';
 import { Global, Module } from '@nestjs/common';
@@ -11,6 +12,7 @@ import { AcceptedRequestNotifier } from './accepted-request.notifier';
 import { AutoSelectDueRecipientsUseCase } from './auto-select-due-recipients.use-case';
 import { CreateGiftRequestUseCase } from './create-gift-request.use-case';
 import { ListPostRequestsUseCase } from './list-post-requests.use-case';
+import { RedeemPostWithPointsUseCase } from './redeem-post-with-points.use-case';
 import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
 
 @Global()
@@ -21,6 +23,10 @@ import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
     {
       provide: IAutoSelectDueRecipientsUseCase,
       useClass: AutoSelectDueRecipientsUseCase,
+    },
+    {
+      provide: IRedeemPostWithPointsUseCase,
+      useClass: RedeemPostWithPointsUseCase,
     },
     {
       provide: IWithdrawGiftRequestUseCase,
@@ -38,6 +44,7 @@ import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
     IListPostRequestsUseCase,
     IAcceptGiftRequestUseCase,
     IAutoSelectDueRecipientsUseCase,
+    IRedeemPostWithPointsUseCase,
   ],
 })
 export class GiftRequestModule {}

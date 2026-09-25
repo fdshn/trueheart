@@ -9,6 +9,7 @@ import {
   ICandidateMetricsWithId,
   IChatRepository,
   IGiftRequestRepository,
+  IRedemptionContext,
 } from '@/domain/ports/repository';
 import { GiftRequestEntity, UserEntity } from '@/infrastructure/entity';
 import {
@@ -231,6 +232,51 @@ export class GiftRequestRepository
     );
 
     return Number(row?.total ?? 0);
+  }
+
+  public async findRedemptionContext(params: {
+    postId: string;
+    requesterId: string;
+  }): Promise<IRedemptionContext | null> {
+    // `INNER JOIN` trên yêu cầu: người chưa xin thì không có gì để đổi. F75 nói
+    // "người xin có hai đường — chờ, hoặc dùng điểm", nên dùng điểm là một nhánh
+    // CỦA việc xin, không phải một lối tắt vòng qua nó.
+    const [row] = await this.manager.query<
+      {
+        request_global_id: string;
+        giver_id: string;
+        post_status: string;
+        selection_deadline: Date | null;
+        estimated_value: string | null;
+      }[]
+    >(
+      `
+        SELECT candidate.global_id AS request_global_id,
+               post.author_id AS giver_id,
+               post.status AS post_status,
+               post.selection_deadline,
+               post.details ->> 'estimatedValue' AS estimated_value
+        FROM gift_requests candidate
+        INNER JOIN posts post ON post.global_id = candidate.post_id
+        WHERE candidate.post_id = $1
+          AND candidate.requester_id = $2
+          AND candidate.status = $3
+          AND candidate.deleted_at IS NULL
+          AND post.deleted_at IS NULL
+      `,
+      [params.postId, params.requesterId, GiftRequestStatuses.PENDING],
+    );
+
+    if (!row) return null;
+
+    return {
+      requestGlobalId: row.request_global_id,
+      giverId: row.giver_id,
+      postStatus: row.post_status,
+      selectionDeadline: row.selection_deadline,
+      estimatedValueVnd:
+        row.estimated_value === null ? null : Number(row.estimated_value),
+    };
   }
 
   public async findPostsDueForSelection(

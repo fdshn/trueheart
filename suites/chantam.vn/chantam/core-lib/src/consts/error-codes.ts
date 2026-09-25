@@ -24,6 +24,12 @@ export enum ErrorCodes {
    * hàng loạt bài — kể cả khi người xin không bao giờ quay lại.
    */
   OPEN_REQUEST_QUOTA_EXCEEDED = 0x02_05,
+  /** Bài không ở trạng thái cho đổi bằng điểm — hết đồng hồ, hoặc đã có chủ. */
+  REDEMPTION_NOT_AVAILABLE = 0x02_06,
+  /** Bài không khai giá trị tham khảo, nên không quy ra điểm được. */
+  REDEMPTION_PRICE_UNAVAILABLE = 0x02_07,
+  /** Điểm đang có không đủ để đổi. */
+  REDEMPTION_INSUFFICIENT_POINTS = 0x02_08,
 
   // 0x03 — Người dùng
   //

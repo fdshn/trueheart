@@ -106,3 +106,50 @@ export function normalizeReviewGraceConfig(raw: unknown): IReviewGraceConfig {
     defaultAccuracyPercent: Math.min(100, Math.max(0, Math.trunc(percent))),
   };
 }
+
+/** Vì sao một vật phẩm KHÔNG đổi được bằng điểm. */
+export type RedemptionBlockedReason =
+  /** Bài không khai giá trị tham khảo, nên không có gì để quy ra điểm. */
+  | 'NO_ESTIMATED_VALUE'
+  /** Giá khai quá nhỏ so với tỷ lệ — quy ra 0 điểm. */
+  | 'PRICE_BELOW_ONE_POINT';
+
+export interface IRedemptionQuote {
+  readonly redeemable: boolean;
+  /** Số điểm cần có. `0` khi không đổi được. */
+  readonly points: number;
+  readonly reason: RedemptionBlockedReason | null;
+}
+
+/**
+ * Quy giá trị tham khảo (VNĐ) ra số điểm cần để đổi thẳng vật phẩm (F74).
+ *
+ * Hàm thuần: cùng một giá với cùng một tỷ lệ luôn ra cùng một số điểm, và mọi
+ * ranh giới kiểm được bằng bảng đầu vào/đầu ra. Tỷ lệ truyền vào chứ không đọc
+ * từ đâu cả — nó là cấu hình động và sẽ còn đổi.
+ *
+ * **Làm tròn LÊN.** 1.500 VNĐ với tỷ lệ 1.000 ra 2 điểm chứ không phải 1: làm
+ * tròn xuống là bán món đồ rẻ hơn giá người tặng khai, và chênh lệch đó nhân với
+ * số lượt đổi là một khoản thất thoát không ai theo dõi.
+ */
+export function quoteRedemption(
+  estimatedValueVnd: number | null | undefined,
+  config: IPointRedemptionConfig = DefaultPointRedemptionConfig,
+): IRedemptionQuote {
+  const value = Number(estimatedValueVnd);
+
+  // Không khai giá thì KHÔNG đổi được, chứ không phải đổi miễn phí. Giá trị là
+  // thứ người tặng tự điền, và bỏ trống không có nghĩa là cho không.
+  if (!Number.isFinite(value) || value <= 0)
+    return { redeemable: false, points: 0, reason: 'NO_ESTIMATED_VALUE' };
+
+  const points = Math.ceil(value / config.vndPerPoint);
+
+  // Món rẻ tới mức quy ra 0 điểm: đổi được mà không mất gì là một lỗ hổng, không
+  // phải một ưu đãi. `Math.ceil` đã chặn hầu hết, nhưng giữ nhánh này để ý đồ
+  // đọc được và để một tỷ lệ tương lai lớn bất thường không lọt qua.
+  if (points <= 0)
+    return { redeemable: false, points: 0, reason: 'PRICE_BELOW_ONE_POINT' };
+
+  return { redeemable: true, points, reason: null };
+}

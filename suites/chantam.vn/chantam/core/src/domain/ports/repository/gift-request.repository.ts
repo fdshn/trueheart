@@ -11,6 +11,16 @@ import { Repository } from 'typeorm';
  * biết gì về khoá database. Nhưng chỗ gọi cần `global_id` để duyệt đúng yêu cầu
  * đó — `requesterId` là id NGƯỜI, không phải id yêu cầu.
  */
+export interface IRedemptionContext {
+  readonly requestGlobalId: string;
+  readonly giverId: string;
+  readonly postStatus: string;
+  /** `null` khi chưa ai xin — tức đồng hồ chưa mở. */
+  readonly selectionDeadline: Date | null;
+  /** Giá trị tham khảo người tặng khai, `null` khi bỏ trống. */
+  readonly estimatedValueVnd: number | null;
+}
+
 export interface ICandidateMetricsWithId extends ICandidateMetrics {
   readonly requestGlobalId: string;
 }
@@ -55,6 +65,20 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
    * cửa mà giới hạn này sinh ra để đóng.
    */
   countOpenByRequester(requesterId: string): Promise<number>;
+
+  /**
+   * Bối cảnh đủ để quyết một người có đổi vật phẩm bằng điểm được không (F75).
+   *
+   * Lấy trong MỘT truy vấn vì ba điều kiện đan vào nhau — bài còn mở, đồng hồ
+   * đang chạy, và người này đã xin. Ba lượt đi database cho ra ba ảnh chụp ở ba
+   * thời điểm, và giữa chúng đồng hồ có thể đã hết.
+   *
+   * `null` khi bài không tồn tại hoặc người này chưa xin.
+   */
+  findRedemptionContext(params: {
+    postId: string;
+    requesterId: string;
+  }): Promise<IRedemptionContext | null>;
 
   findPostsDueForSelection(
     limit: number,

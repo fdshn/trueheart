@@ -64,7 +64,7 @@ stateDiagram-v2
         ChờThêmỨngViên --> ChờThêmỨngViên: Người khác xin
     }
 
-    ĐangĐếm --> ChốtNgay: Có người dùng ĐIỂM đổi thẳng ⛔
+    ĐangĐếm --> ChốtNgay: Có người dùng ĐIỂM đổi thẳng ✅
     ĐangĐếm --> TựChọn: Hết 7 ngày ✅
     ĐangĐếm --> ChủBàiChọn: Chủ bài chọn tay ✅ (chốt sớm được)
 
@@ -161,8 +161,8 @@ sequenceDiagram
 
 1. ✅ **Cả ba chế độ đã chạy.** `OPTIMAL` 7 ngày, `EXTENDED` 30 ngày, `INSTANT` chốt ngay.
    Chủ bài vẫn duyệt tay được bất cứ lúc nào trong lúc đếm.
-2. ⛔ **Nhánh "dùng điểm chốt ngay" chưa có** — xem [14-redemption](./14-redemption.md).
-   `appendAdjustment` đã mở đường ghi sổ, còn thiếu định giá và đường gọi.
+2. ✅ **Nhánh "dùng điểm chốt ngay" đã có** (26/09) — `POST /posts/:postId/redeem`, xem
+   [14-redemption](./14-redemption.md).
 3. ✅ Cổng hồ sơ F07 **đã gắn** vào luồng xin nhận (25/09).
 4. ✅ **Đã có giới hạn số yêu cầu đang mở** (25/09) — capability `OPEN_REQUEST_QUOTA`, theo bậc:
    Thành viên 5 · Bạc 10 · Vàng 20 · Kim Cương 30. Đếm cả `STANDBY` vì đó vẫn là yêu cầu đang

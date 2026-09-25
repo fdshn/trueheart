@@ -5,6 +5,7 @@ import {
   MaxVndPerPoint,
   normalizePointRedemptionConfig,
   normalizeReviewGraceConfig,
+  quoteRedemption,
 } from './point-economy';
 
 describe('normalizePointRedemptionConfig', () => {
@@ -97,5 +98,44 @@ describe('normalizeReviewGraceConfig', () => {
     expect(
       DefaultReviewGraceConfig.defaultAccuracyPercent,
     ).toBeGreaterThanOrEqual(75);
+  });
+});
+
+describe('quoteRedemption', () => {
+  it('quy giá ra điểm theo tỷ lệ', () => {
+    expect(quoteRedemption(1_000_000, { vndPerPoint: 2000 })).toEqual({
+      redeemable: true,
+      points: 500,
+      reason: null,
+    });
+  });
+
+  it('làm tròn LÊN, không xuống', () => {
+    // Làm tròn xuống là bán món đồ rẻ hơn giá người tặng khai, và chênh lệch đó
+    // nhân với số lượt đổi là một khoản thất thoát không ai theo dõi.
+    expect(quoteRedemption(1500, { vndPerPoint: 1000 }).points).toBe(2);
+    expect(quoteRedemption(1001, { vndPerPoint: 1000 }).points).toBe(2);
+    expect(quoteRedemption(1000, { vndPerPoint: 1000 }).points).toBe(1);
+  });
+
+  it.each([null, undefined, 0, -5, Number.NaN, 'rác'])(
+    'không khai giá thì KHÔNG đổi được: %p',
+    (value) => {
+      expect(quoteRedemption(value as never)).toEqual({
+        redeemable: false,
+        points: 0,
+        reason: 'NO_ESTIMATED_VALUE',
+      });
+    },
+  );
+
+  it('giá trị rỗng KHÔNG có nghĩa là cho không', () => {
+    // Đây là chỗ dễ sai nhất: coi "không khai giá" là 0 điểm thì mọi bài không
+    // điền giá trở thành đổi miễn phí.
+    expect(quoteRedemption(null).redeemable).toBe(false);
+  });
+
+  it('dùng tỷ lệ mặc định khi không truyền', () => {
+    expect(quoteRedemption(1_000_000).points).toBe(500);
   });
 });

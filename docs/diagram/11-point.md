@@ -64,7 +64,7 @@ sequenceDiagram
 | **`GIFT_COMPLETED_GIVER`** | **56** (mức TRẦN) | 10 | ✅ đang gọi — **× % người nhận chấm** |
 | `GIFT_COMPLETED_RECEIVER` | 28 | 5 | ✅ đang gọi ngay lúc hoàn tất |
 | `MAINTENANCE_FAILED` | −224/−336/−448 theo bậc | — | ✅ đã seed ở `rank_tiers` · ⛔ chưa gọi |
-| `ITEM_REDEMPTION` | âm, theo giá món | — | ⛔ chưa có |
+| `ITEM_REDEMPTION` | âm, theo giá món | — | ✅ đang gọi qua `appendAdjustment` |
 
 > **`ITEM_REDEMPTION` không vừa khuôn `point_rules`.** Mọi rule khác có một số điểm cố định;
 > đổi vật phẩm thì số điểm tính từ giá trị món chia tỷ lệ quy đổi, khác nhau mỗi lần. Nó cần
@@ -211,5 +211,5 @@ flowchart LR
 3. ⛔ **Chưa có đường trừ điểm khi trượt nhiệm vụ duy trì.**
 4. ⚠️ **Cap 5/ngày chạm là mất thưởng vĩnh viễn.** Người tặng 6 món trong một ngày không được
    điểm cho món thứ sáu, và không có hàng đợi trả bù hôm sau. Cần xác nhận đúng ý.
-4. ⛔ **`ITEM_REDEMPTION` cần một khuôn khác `appendByRule`** — số điểm thay đổi theo món.
+4. ✅ **`ITEM_REDEMPTION` đã nối** qua `appendAdjustment` (26/09).
 5. Phân biệt `lifetime` / `balance` cần soát lại sau khi rank chuyển sang đọc `balance`.

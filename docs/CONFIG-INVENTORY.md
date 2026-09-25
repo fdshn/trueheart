@@ -92,7 +92,7 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | Khoá | Giá trị hiện tại | Ý nghĩa | API |
 | --- | --- | --- | --- |
 | `accuracy.giver` | `minSamples: 5`, `reviewThresholdPercent: 75` | Ngưỡng Giver Accuracy (F43) | `GET\|POST /admin/system-configs` |
-| `point.redemption` | `vndPerPoint: 2000` | Tỷ lệ quy đổi khi đổi vật phẩm (F74) | ⬆ |
+| `point.redemption` | `vndPerPoint: 2000` | Tỷ lệ quy đổi khi đổi vật phẩm (F74). **Đã nối** vào `POST /posts/:id/redeem` | ⬆ |
 | `review.grace` | `graceDays: 7`, `defaultAccuracyPercent: 80` | Chờ rồi áp mức mặc định khi người nhận không đánh giá (F40). Đọc bởi CLI `gift:settle-rewards` | ⬆ |
 | `selection.candidate_priority` | *(chưa đặt → mặc định "ai xin trước")* | Thứ tự tiêu chí chọn người nhận (CH-1). **Đã nối vào auto-select** 25/09 | `GET\|PUT /admin/candidate-selection` |
 
@@ -116,7 +116,7 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | `SHIP_UNPAID_PENALTY` | −50 | — | ✅ đang gọi |
 | `GIFT_COMPLETED_GIVER` | 56 | 10 | ✅ đang gọi — mức **TRẦN**, nhân với % người nhận chấm |
 | `GIFT_COMPLETED_RECEIVER` | 28 | 5 | ✅ đang gọi ngay lúc hoàn tất |
-| `ITEM_REDEMPTION` | *theo giá món* | — | ⛔ chưa nối, nhưng **đường ghi đã có**: `appendAdjustment` nhận số điểm truyền vào |
+| `ITEM_REDEMPTION` | *theo giá món* | — | ✅ đang gọi qua `appendAdjustment` |
 | `MAINTENANCE_FAILED` | *theo bậc, xem `rank_tiers`* | — | ✅ đang gọi qua `appendAdjustment` |
 
 API: `GET|POST /admin/points/rules`.
