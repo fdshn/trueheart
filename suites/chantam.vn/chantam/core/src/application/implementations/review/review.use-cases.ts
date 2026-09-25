@@ -1,4 +1,5 @@
 import {
+  IAwardGiftCompletionUseCase,
   IGetTransactionReviewsCommand,
   IGetTransactionReviewsResult,
   IGetTransactionReviewsUseCase,
@@ -38,6 +39,8 @@ export class SubmitReviewUseCase implements ISubmitReviewUseCase {
   public constructor(
     @Inject(ITransactionReviewRepository)
     private readonly reviews: ITransactionReviewRepository,
+    @Inject(IAwardGiftCompletionUseCase)
+    private readonly awardGiftCompletion: IAwardGiftCompletionUseCase,
   ) {}
 
   public async handle(
@@ -87,6 +90,20 @@ export class SubmitReviewUseCase implements ISubmitReviewUseCase {
       accuracyPercent: isReceiver ? (accuracyPercent as number) : null,
       comment: comment ? comment : null,
     });
+
+    // Cộng điểm cho người tặng SAU khi đánh giá đã commit (F40). Chỉ đường của
+    // người NHẬN mới sinh điểm: mức chính xác là thứ họ chấm, và đánh giá của
+    // người tặng về người nhận không nói gì về chất lượng món quà.
+    //
+    // Khoá chống trùng theo lượt trao nên nếu job hết hạn chờ đã trả thưởng
+    // trước đó, lần này không cộng thêm.
+    if (isReceiver)
+      await this.awardGiftCompletion.handle({
+        transactionId: command.transactionId,
+        giverId: context.giverId,
+        accuracyPercent: accuracyPercent as number,
+        source: 'REVIEW',
+      });
 
     return { review: toDto(review) };
   }

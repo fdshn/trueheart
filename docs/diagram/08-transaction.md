@@ -64,10 +64,10 @@ sequenceDiagram
     API->>API: Mở transaction
     API->>DB: → COMPLETED, completed_at = now()
     API->>DB: Bài → COMPLETED, trừ tồn kho
-    API->>DB: ⛔ CỘNG ĐIỂM — CHƯA CÓ
     API->>API: Commit
     API->>N: Báo hai bên (GIFT_TRANSACTION_COMPLETED)
     API->>API: Mở quyền đánh giá cho cả hai
+    Note over API: Điểm KHÔNG cộng ở đây — chờ người nhận<br/>chấm % chính xác, hoặc chờ hết 7 ngày.<br/>Xem 11-point §11.4
 ```
 
 ## 8.3 Tự hoàn tất sau 5 ngày — ⚠️ hai vấn đề
@@ -162,9 +162,9 @@ Ràng buộc `CHK_point_ledger_balance_is_clamped_raw` giữ `balance_after = GR
 
 ## Chỗ cần soát
 
-1. ⛔ **Hoàn tất lượt trao KHÔNG cộng điểm nào.** Không có rule `GIFT_COMPLETED` nào được
-   seed hay gọi. Đây là lỗ hổng lớn nhất hiện tại: việc chính của nền tảng không sinh điểm,
-   nên đường duy nhất lên Bạc là mời 12 người. Chờ X = 56 vào cấu hình.
+1. ✅ **Hoàn tất lượt trao nay sinh điểm** — nhưng **không ở bước `confirm`**: điểm chờ người
+   nhận chấm % chính xác, hoặc chờ hết 7 ngày rồi áp mức mặc định. Xem
+   [11-point §11.4](./11-point.md).
 2. ⚠️ **Đồng hồ 5 ngày đếm từ sai mốc** và **không kiểm tranh chấp** — mục 8.3.
 3. Khoản phạt ship giờ **cũng làm tụt hạng** (do rank đọc `balance` theo quyết định
    2026-09-24). Trước đây cố ý không đụng `lifetime` để tránh đúng chuyện này.

@@ -47,7 +47,26 @@ export interface IAccuracyReconcileResult {
   readonly repaired: number;
 }
 
+export interface IUnreviewedCompletion {
+  readonly transactionId: string;
+  readonly giverId: string;
+  readonly completedAt: Date;
+}
+
 export interface ITransactionReviewRepository {
+  /**
+   * Lượt trao đã hoàn tất quá `graceDays` mà NGƯỜI NHẬN chưa đánh giá, và người
+   * tặng chưa được trả thưởng.
+   *
+   * Lọc luôn theo `point_ledger` chứ không để tầng trên tự kiểm: danh sách này
+   * chạy mỗi ngày, và trả về cả nghìn lượt đã trả thưởng rồi để tầng trên bỏ đi
+   * là nghìn lượt đi database vô ích.
+   */
+  findUnreviewedCompletions(params: {
+    graceDays: number;
+    limit: number;
+  }): Promise<IUnreviewedCompletion[]>;
+
   /**
    * Tính lại chỉ số accuracy của MỌI người theo ngưỡng đang cấu hình.
    *

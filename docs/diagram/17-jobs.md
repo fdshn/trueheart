@@ -1,8 +1,8 @@
 # 17 · Job nền & CLI
 
-Trạng thái: ✅ **cả bảy CLI đã chạy được** sau khi sửa hai lỗi làm chúng chết từ trước.
+Trạng thái: ✅ **cả tám CLI đã chạy được** sau khi sửa hai lỗi từng làm chúng chết.
 
-## 17.1 Bảy lệnh
+## 17.1 Tám lệnh
 
 ```mermaid
 flowchart TD
@@ -13,6 +13,7 @@ flowchart TD
     C --> F["transaction:autocomplete<br/>tự hoàn tất lượt trao quá hạn ⚠️"]
     C --> G["feed:reconcile-counts<br/>đối soát số đếm feed"]
     C --> H["accuracy:reconcile<br/>tính lại Giver Accuracy theo ngưỡng"]
+    C --> I["gift:settle-rewards<br/>trả thưởng lượt trao người nhận không đánh giá"]
 
     style C fill:#e7f3ff
     style F fill:#fff3cd
@@ -102,5 +103,6 @@ flowchart LR
 2. ⛔ **Chưa có job kiểm Active Member** (`last_login_at` quá 90 ngày).
 3. ⛔ **Chưa có job dọn object mồ côi** trong bucket.
 4. ⛔ **Chưa có job nhắc nhiệm vụ duy trì trước 1 tháng.**
-5. **Chưa có lịch cron thật nào được cấu hình** — bảy lệnh chạy tay được, nhưng không có tài
-   liệu nói cái nào chạy lúc mấy giờ.
+5. **Chưa có lịch cron thật nào được cấu hình** — tám lệnh chạy tay được, nhưng không có tài
+   liệu nói cái nào chạy lúc mấy giờ. `gift:settle-rewards` là cái cấp bách nhất: không chạy
+   thì điểm của người tặng treo vô hạn khi người nhận không đánh giá.

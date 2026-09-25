@@ -19,6 +19,32 @@ import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
 
+/**
+ * Nhân điểm của rule với phần trăm, cho F40.
+ *
+ * Tách thành hàm thuần để mọi phép làm tròn và mọi ranh giới nằm ở đúng một
+ * chỗ kiểm được, thay vì rải trong một câu lệnh dài giữa hai lần đi database.
+ */
+function scaleRulePoints(
+  rulePoints: number,
+  multiplierPercent: number | undefined,
+): number {
+  if (multiplierPercent === undefined) return rulePoints;
+
+  // Khoản phạt không nhân. "Phạt 60% của −50" không có nghĩa nghiệp vụ nào, và
+  // cho phép nó là mở đường giảm nhẹ hình phạt bằng một tham số không ai thấy.
+  if (rulePoints < 0)
+    throw new Error(
+      'multiplierPercent chỉ áp cho khoản cộng, không áp cho khoản phạt',
+    );
+
+  // Kẹp thay vì ném: giá trị ngoài khoảng đến từ dữ liệu người dùng chấm, và
+  // một con số 140 do client hỏng gửi lên không nên làm đổ cả lượt trao.
+  const percent = Math.min(100, Math.max(0, multiplierPercent));
+
+  return Math.round((rulePoints * percent) / 100);
+}
+
 @Injectable()
 export class PointLedgerRepository implements IPointLedgerRepository {
   public constructor(
@@ -373,9 +399,11 @@ export class PointLedgerRepository implements IPointLedgerRepository {
     const currentRawBalance = balance?.raw_balance ?? 0;
     const currentLifetime = balance?.lifetime ?? 0;
 
+    const delta = scaleRulePoints(rule.points, command.multiplierPercent);
+
     // Giá trị THẬT cộng dồn, có thể âm. Đây là sự thật số học — "trừ 50 khi
     // đang có 20" phải đọc ra được là đang âm 30, chứ không phải "về 0".
-    const nextRawBalance = currentRawBalance + rule.points;
+    const nextRawBalance = currentRawBalance + delta;
 
     // Số tiêu được thì kẹp ở 0. Ràng buộc `balance_after >= 0` ở database là
     // lớp chặn cuối; kẹp ở đây để không bao giờ chạm tới nó bằng một lỗi 500.
@@ -385,7 +413,7 @@ export class PointLedgerRepository implements IPointLedgerRepository {
     // vào nó — trừ lifetime là viết lại lịch sử đóng góp, và cột đó có ràng
     // buộc `>= 0` riêng.
     const nextLifetime =
-      currentLifetime + (rule.affects_lifetime ? Math.max(0, rule.points) : 0);
+      currentLifetime + (rule.affects_lifetime ? Math.max(0, delta) : 0);
 
     const [{ id }] = await manager.query<{ id: string }[]>(
       `
@@ -400,7 +428,7 @@ export class PointLedgerRepository implements IPointLedgerRepository {
         command.userId,
         command.ruleCode,
         rule.version,
-        rule.points,
+        delta,
         nextBalance,
         nextRawBalance,
         nextLifetime,
@@ -441,8 +469,12 @@ export class PointLedgerRepository implements IPointLedgerRepository {
     }
 
     return {
+      // `delta`, không `rule.points`: khi có hệ số nhân, hai giá trị này khác
+      // nhau, và trả về mức trần của rule là nói sai với chỗ gọi về số điểm
+      // vừa cộng — cả `settled` trong job đối soát lẫn màn hình người dùng đều
+      // đọc con số này.
       entryId: Number(id),
-      delta: rule.points,
+      delta,
       balance: nextBalance,
       rawBalance: nextRawBalance,
       lifetime: nextLifetime,

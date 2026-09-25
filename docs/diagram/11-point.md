@@ -93,19 +93,63 @@ thiệu hợp lệ. Đã seed vào `point_rules` mã `GIFT_COMPLETED` với cap 
 
 ```mermaid
 flowchart TD
-    A[Lượt trao COMPLETED] --> B{Người nhận đã đánh giá?}
+    A[Lượt trao COMPLETED] --> B{Người NHẬN đánh giá?}
     B -->|Rồi| C["điểm = 56 × x%<br/>x do người nhận chấm"]
-    B -->|Chưa| D[Chờ N ngày]
-    D --> E{Vẫn chưa đánh giá?}
-    E -->|Đã đánh giá| C
-    E -->|Vẫn chưa| F["điểm = 56 × mức mặc định<br/>(Admin cấu hình, ~70–80%)"]
+    B -->|Chưa, sau 7 ngày| F["điểm = 56 × 80%<br/>(review.grace, Admin cấu hình)"]
     F --> G["⚠️ KHÔNG tính vào mẫu Giver Accuracy"]
 
-    C --> H[appendByRule GIFT_COMPLETED]
+    C --> H["AwardGiftCompletionUseCase<br/>multiplierPercent"]
     F --> H
+    H --> I["appendByRule GIFT_COMPLETED<br/>khoá: GIFT_COMPLETED:&lt;transactionId&gt;"]
+
+    J["Đường nào tới TRƯỚC thì đường kia<br/>thành không làm gì — applied = false"] -.-> I
 
     style G fill:#fff3cd
+    style J fill:#e7f3ff
 ```
+
+### Hai đường, một khoá chống trùng
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor R as Người nhận
+    participant S as SubmitReviewUseCase
+    participant A as AwardGiftCompletion
+    participant L as point_ledger
+    participant J as CLI gift:settle-rewards
+
+    rect rgb(240, 248, 255)
+    Note over R,L: Đường 1 — người nhận đánh giá
+    R->>S: POST /transactions/:id/reviews (accuracyPercent = 90)
+    S->>S: Ghi đánh giá + tính lại accuracy (một transaction)
+    S->>A: SAU commit — accuracyPercent = 90
+    A->>L: 56 × 90% = 50đ, khoá GIFT_COMPLETED:&lt;id&gt;
+    end
+
+    rect rgb(255, 250, 240)
+    Note over J,L: Đường 2 — hết hạn chờ
+    J->>J: Quét lượt COMPLETED quá 7 ngày,<br/>người NHẬN chưa đánh giá, chưa có bút toán
+    J->>A: accuracyPercent = null
+    A->>A: Đọc review.grace → 80%
+    A->>L: 56 × 80% = 45đ, CÙNG khoá
+    L-->>A: applied = false nếu đường 1 đã ghi
+    end
+```
+
+> **Vì sao khoá theo lượt trao, không theo đường kích hoạt.** Đây là điểm tựa của cả cơ chế.
+> Khoá riêng cho mỗi đường là trả thưởng hai lần cho một lượt trao, và ledger append-only
+> không sửa lại được.
+>
+> **Chấm 0% vẫn GHI bút toán delta = 0.** Bút toán đó là bằng chứng "đã chấm, và chấm 0" — nó
+> chiếm khoá nên job sau này không trả mức mặc định 80% cho một lượt bị chấm 0. Bỏ qua thì
+> chấm 0 lại thành có lợi hơn không chấm gì.
+>
+> **Làm tròn về số nguyên**: 56 × 43% = 24,08 → 24. Điểm là số nguyên ở mọi nơi khác, giữ
+> phần thập phân ở đúng một chỗ sẽ làm mọi phép đối soát lệch.
+>
+> **Hệ số nhân chỉ áp cho khoản CỘNG.** "Phạt 60% của −50" không có nghĩa nghiệp vụ nào, và
+> cho phép nó là mở đường giảm nhẹ hình phạt bằng một tham số không ai nhìn thấy.
 
 > **Vì sao cần nhánh "không đánh giá".** Phần lớn người nhận sẽ nhận đồ rồi biến mất. Cho 0
 > điểm là phạt người tặng vì việc của người khác; cho thẳng 100% thì người nhận có động cơ
@@ -154,9 +198,10 @@ flowchart LR
 
 ## Chỗ cần soát
 
-1. ⛔ **Con số đã có, đường gọi thì chưa.** `GIFT_COMPLETED` nằm trong `point_rules` nhưng
-   không use case nào gọi nó khi lượt trao `COMPLETED`. Đây là việc chặn nặng nhất còn lại.
-2. ⛔ **Chưa có job áp mức mặc định 80% sau 7 ngày** cho lượt trao người nhận không đánh giá.
+1. ✅ **Cộng điểm khi lượt trao hoàn tất đã chạy** — hai đường, một khoá chống trùng.
+2. ✅ **CLI `gift:settle-rewards`** áp mức mặc định sau 7 ngày.
 3. ⛔ **Chưa có đường trừ điểm khi trượt nhiệm vụ duy trì.**
+4. ⚠️ **Cap 5/ngày chạm là mất thưởng vĩnh viễn.** Người tặng 6 món trong một ngày không được
+   điểm cho món thứ sáu, và không có hàng đợi trả bù hôm sau. Cần xác nhận đúng ý.
 4. ⛔ **`ITEM_REDEMPTION` cần một khuôn khác `appendByRule`** — số điểm thay đổi theo món.
 5. Phân biệt `lifetime` / `balance` cần soát lại sau khi rank chuyển sang đọc `balance`.

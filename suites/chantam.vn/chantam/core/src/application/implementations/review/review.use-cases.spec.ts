@@ -46,11 +46,26 @@ function makeReviews(overrides: Partial<Record<string, unknown>> = {}) {
   } as unknown as jest.Mocked<ITransactionReviewRepository>;
 }
 
+/**
+ * Đường cộng điểm giả. Ca "cộng đúng bao nhiêu điểm" nằm ở
+ * `award-gift-completion.use-case.spec.ts`; ở đây chỉ cần nó tồn tại.
+ */
+function makeAward() {
+  return {
+    handle: jest.fn().mockResolvedValue({
+      awarded: true,
+      points: 50,
+      appliedPercent: 90,
+      usedDefault: false,
+    }),
+  } as never;
+}
+
 describe('SubmitReviewUseCase', () => {
   it('bên NHẬN gửi được, và người được đánh giá là bên TẶNG', async () => {
     const reviews = makeReviews();
 
-    await new SubmitReviewUseCase(reviews).handle({
+    await new SubmitReviewUseCase(reviews, makeAward()).handle({
       userId: ReceiverId,
       transactionId: TransactionId,
       review: { rating: 5, accuracyPercent: 90 },
@@ -77,7 +92,7 @@ describe('SubmitReviewUseCase', () => {
       }),
     });
 
-    await new SubmitReviewUseCase(reviews).handle({
+    await new SubmitReviewUseCase(reviews, makeAward()).handle({
       userId: GiverId,
       transactionId: TransactionId,
       review: { rating: 4 },
@@ -96,7 +111,7 @@ describe('SubmitReviewUseCase', () => {
     const reviews = makeReviews();
 
     await expect(
-      new SubmitReviewUseCase(reviews).handle({
+      new SubmitReviewUseCase(reviews, makeAward()).handle({
         userId: ReceiverId,
         transactionId: TransactionId,
         review: { rating: 5 },
@@ -118,7 +133,7 @@ describe('SubmitReviewUseCase', () => {
     });
 
     await expect(
-      new SubmitReviewUseCase(reviews).handle({
+      new SubmitReviewUseCase(reviews, makeAward()).handle({
         userId: GiverId,
         transactionId: TransactionId,
         review: { rating: 4, accuracyPercent: 100 },
@@ -139,7 +154,7 @@ describe('SubmitReviewUseCase', () => {
     });
 
     await expect(
-      new SubmitReviewUseCase(reviews).handle({
+      new SubmitReviewUseCase(reviews, makeAward()).handle({
         userId: ReceiverId,
         transactionId: TransactionId,
         review: { rating: 5, accuracyPercent: 90 },
@@ -153,7 +168,7 @@ describe('SubmitReviewUseCase', () => {
     });
 
     await expect(
-      new SubmitReviewUseCase(reviews).handle({
+      new SubmitReviewUseCase(reviews, makeAward()).handle({
         userId: ReceiverId,
         transactionId: TransactionId,
         review: { rating: 5, accuracyPercent: 90 },
@@ -179,14 +194,14 @@ describe('SubmitReviewUseCase', () => {
 
     const body = { rating: 5, accuracyPercent: 90 };
     await expect(
-      new SubmitReviewUseCase(outsider).handle({
+      new SubmitReviewUseCase(outsider, makeAward()).handle({
         userId: OutsiderId,
         transactionId: TransactionId,
         review: body,
       }),
     ).rejects.toBeInstanceOf(GiftTransactionNotFoundException);
     await expect(
-      new SubmitReviewUseCase(missing).handle({
+      new SubmitReviewUseCase(missing, makeAward()).handle({
         userId: OutsiderId,
         transactionId: TransactionId,
         review: body,
@@ -197,7 +212,7 @@ describe('SubmitReviewUseCase', () => {
   it('nhận xét chỉ có khoảng trắng thì lưu null', async () => {
     const reviews = makeReviews();
 
-    await new SubmitReviewUseCase(reviews).handle({
+    await new SubmitReviewUseCase(reviews, makeAward()).handle({
       userId: ReceiverId,
       transactionId: TransactionId,
       review: { rating: 5, accuracyPercent: 90, comment: '   ' },

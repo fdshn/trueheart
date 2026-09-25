@@ -46,6 +46,7 @@ sequenceDiagram
         API->>DB: INSERT transaction_reviews
         API->>DB: Tính lại accuracy của người ĐƯỢC đánh giá TỪ TOÀN BỘ MẪU
         API->>API: Commit
+        Note over API: SAU commit, và CHỈ khi vai là NGƯỜI NHẬN:<br/>cộng 56 × accuracyPercent cho người tặng (F40)
         API-->>U: review + accuracy
     end
 ```
@@ -120,8 +121,8 @@ sequenceDiagram
 ## Chỗ cần soát
 
 1. **Chưa có nhắc người nhận đánh giá.** Không nhắc thì phần lớn sẽ không đánh giá, và nhánh
-   "áp mức mặc định sau N ngày" ([11-point](./11-point.md)) sẽ là đường chạy chính chứ không
-   phải ngoại lệ.
+   "áp mức mặc định 80% sau 7 ngày" ([11-point](./11-point.md)) sẽ là đường chạy chính chứ
+   không phải ngoại lệ — tức chỉ số Giver Accuracy chỉ có mẫu của người chịu khó chấm.
 2. **Chưa có hàng đợi Admin riêng cho hồ sơ bị gắn cờ.** Cờ được gắn nhưng không có màn hình
    nào liệt kê chúng — Admin phải tự biết mà đi tìm.
 3. **Đánh giá không sửa được, không xoá được.** Chấm nhầm là chịu. Cần xác nhận đúng ý.

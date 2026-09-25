@@ -54,8 +54,7 @@ flowchart TB
     POST --> REQ --> SEL --> TX
     TX --> CHAT
     TX --> REV
-    TX -.->|"⛔ chưa nối"| PT
-    REV --> PT
+    REV -->|"✅ 56 × x%"| PT
     PT --> RANK
     RANK --> POST
     PT --> RED
@@ -90,7 +89,7 @@ journey
       Xong onboarding (+224đ → Thành viên): 5: Người dùng
     section Hoạt động
       Đăng bài (quota 3): 4: Người dùng
-      Trao thành công (+56đ mỗi lượt ⛔): 5: Người dùng
+      Trao thành công (+56 × x% mỗi lượt ✅): 5: Người dùng
       Mời bạn (+56đ, cap 3/ngày): 4: Người dùng
     section Lên hạng
       Đủ 672đ → Bạc: 5: Người dùng
@@ -108,7 +107,7 @@ flowchart LR
         I2["ONBOARDING_COMPLETED +224 ✅"]
         I3["REFERRAL_QUALIFIED +56 ✅"]
         I4["REPORT_UPHELD +5 ✅"]
-        I5["GIFT_COMPLETED +56 × x% ⛔"]
+        I5["GIFT_COMPLETED +56 × x% ✅"]
         I6["Affiliate event ⛔"]
     end
 
@@ -125,7 +124,6 @@ flowchart LR
     L --> B["user_point_balances<br/>balance · raw_balance · lifetime"]
     B --> R["Xét lại RANK<br/>⚠️ code đọc lifetime,<br/>tài liệu nói balance"]
 
-    style I5 fill:#ffe6e6
     style O2 fill:#ffe6e6
     style O3 fill:#ffe6e6
     style R fill:#fff3cd
@@ -136,10 +134,10 @@ flowchart LR
 ```mermaid
 pie showData
     title Phân hệ theo trạng thái
-    "Đã chạy được (✅)" : 12
+    "Đã chạy được (✅)" : 13
     "Có code, chưa dùng thật (🟡)" : 2
     "Mâu thuẫn tài liệu/code (⚠️)" : 2
-    "Chưa có dòng nào (⛔)" : 6
+    "Chưa có dòng nào (⛔)" : 5
 ```
 
 | Trạng thái | Phân hệ |

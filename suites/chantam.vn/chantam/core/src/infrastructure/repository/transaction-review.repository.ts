@@ -6,6 +6,7 @@ import {
   IReviewableTransaction,
   ISubmitTransactionReviewParams,
   ITransactionReviewRepository,
+  IUnreviewedCompletion,
 } from '@/domain/ports/repository';
 import { ITransactionReviewEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
@@ -156,6 +157,49 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
     });
 
     return { scanned: rows.length, drifts, repaired: drifts.length };
+  }
+
+  public async findUnreviewedCompletions(params: {
+    graceDays: number;
+    limit: number;
+  }): Promise<IUnreviewedCompletion[]> {
+    // `NOT EXISTS` trên đánh giá của NGƯỜI NHẬN: người tặng đánh giá người nhận
+    // không nói gì về chất lượng món quà, nên sự tồn tại của nó không được coi
+    // là "đã có đánh giá".
+    //
+    // `NOT EXISTS` trên ledger theo đúng khoá chống trùng mà đường đánh giá
+    // dùng. Nhờ vậy job và đường đánh giá không bao giờ trả thưởng hai lần cho
+    // cùng một lượt trao, dù chạy song song.
+    const rows = await this.manager.query<
+      { transaction_id: string; giver_id: string; completed_at: Date }[]
+    >(
+      `
+        SELECT deal.global_id AS transaction_id,
+               deal.giver_id,
+               deal.completed_at
+        FROM gift_transactions deal
+        WHERE deal.status = 'COMPLETED'
+          AND deal.completed_at <= now() - ($1 || ' days')::interval
+          AND NOT EXISTS (
+            SELECT 1 FROM transaction_reviews rated
+            WHERE rated.transaction_id = deal.global_id
+              AND rated.reviewer_role = 'RECEIVER'
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM point_ledger paid
+            WHERE paid.idempotency_key = 'GIFT_COMPLETED:' || deal.global_id
+          )
+        ORDER BY deal.completed_at
+        LIMIT $2
+      `,
+      [String(params.graceDays), params.limit],
+    );
+
+    return rows.map((row) => ({
+      transactionId: row.transaction_id,
+      giverId: row.giver_id,
+      completedAt: row.completed_at,
+    }));
   }
 
   public async findReviewable(

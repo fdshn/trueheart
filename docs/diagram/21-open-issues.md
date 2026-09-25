@@ -32,7 +32,7 @@ hình động:
 | --- | --- | --- | --- | --- |
 | 1 | Cổng hồ sơ F07 chặn xin nhận + chat | 2026-09-24 | ✅ đã gắn 25/09 | [02](./02-profile.md) |
 | 2 | Mốc hoạt động, cập nhật mỗi lần cấp phiên | 2026-09-24 | ✅ `users.last_active_at` 25/09 | [01](./01-auth.md) |
-| 3 | Rule `GIFT_COMPLETED` = 56 điểm | 2026-09-25 | ✅ đã seed · ⛔ chưa ai gọi | [11](./11-point.md) |
+| 3 | Rule `GIFT_COMPLETED` = 56 điểm | 2026-09-25 | ✅ đã nối 25/09 — hai đường, một khoá | [11](./11-point.md) |
 | 4 | Chặn xoá tài khoản khi còn lượt trao dở dang | từ lâu | ⛔ chưa gắn | [01](./01-auth.md) |
 | 5 | Cổng hồ sơ cho tạo Group | 2026-09-24 | ⛔ chờ phân hệ Group | [18](./18-group.md) |
 
@@ -40,7 +40,7 @@ hình động:
 
 | # | Vấn đề | Hậu quả | Sơ đồ |
 | --- | --- | --- | --- |
-| 1 | **Hoàn tất lượt trao không cộng điểm nào.** Rule `GIFT_COMPLETED` đã seed 56đ nhưng **chưa use case nào gọi** | Việc chính của nền tảng không sinh điểm; đường duy nhất lên Bạc là mời 12 người | [08](./08-transaction.md) · [11](./11-point.md) |
+| 1 | ✅ **Đã sửa 25/09.** Hoàn tất lượt trao nay sinh điểm qua đánh giá, hoặc qua `gift:settle-rewards` sau 7 ngày | — | [11](./11-point.md) |
 | 2 | Đồng hồ 5 ngày đếm từ `accepted_at` | Ship liên tỉnh 4–5 ngày → cron đóng trước khi hàng tới | [08](./08-transaction.md) |
 | 3 | Tự hoàn tất không kiểm tranh chấp | Lượt trao đang có báo xấu vẫn thành "thành công" | [08](./08-transaction.md) |
 | 4 | Object mồ côi không ai dọn | Bucket phình mãi | [03](./03-media.md) |
@@ -48,6 +48,8 @@ hình động:
 | 6 | Không có hàng đợi Admin cho hồ sơ bị gắn cờ accuracy và bình luận `PENDING_REVIEW` | Cờ gắn xong không ai thấy | [13](./13-review.md) · [16](./16-admin.md) |
 | 7 | Không thông báo cho người báo xấu / người bị xử lý | Cả hai bên không biết chuyện gì xảy ra | [15](./15-report.md) |
 | 8 | Cap report: tài liệu 10/ngày, rule đang 5 | Hai con số khác nhau | [15](./15-report.md) |
+| 9 | **Cap 5 lượt trao/ngày chạm là mất thưởng vĩnh viễn** — người tặng 6 món trong một ngày không được điểm món thứ sáu, không có hàng đợi trả bù | Người tặng nhiều bị phạt vì tặng nhiều | [11](./11-point.md) |
+| 10 | **Chưa có lịch cron cho `gift:settle-rewards`** — không chạy thì điểm treo vô hạn khi người nhận không đánh giá | Điểm không bao giờ tới tay người tặng | [17](./17-jobs.md) |
 
 ## 21.4b Phát hiện thêm từ đợt soát thứ hai
 
