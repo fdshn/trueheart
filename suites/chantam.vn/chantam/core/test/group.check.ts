@@ -105,7 +105,11 @@ async function main(): Promise<void> {
     const mine = await groups.findMine(OwnerId);
     check('Owner thấy nhóm của mình', mine?.groupId === GroupId);
     check('vai là OWNER', mine?.myRole === 'OWNER', mine?.myRole ?? '');
-    check('đếm đúng 1 thành viên', mine?.memberCount === 1, `${mine?.memberCount}`);
+    check(
+      'đếm đúng 1 thành viên',
+      mine?.memberCount === 1,
+      `${mine?.memberCount}`,
+    );
     check(
       'Owner NHẬN được link mời',
       mine?.inviteCode === 'ABCD2345EFGH6789',
@@ -241,13 +245,135 @@ async function main(): Promise<void> {
       }),
     );
 
+    console.log('\n5b. Sub-team — bảng riêng, phép gán mang phạm vi');
+    const SubTeamId = '44444444-4444-4444-8444-4444444f1001';
+    await groups.createSubTeam({
+      globalId: SubTeamId,
+      groupId: GroupId,
+      name: 'To Dich Vong',
+    });
+    const teams = await groups.listSubTeams(GroupId);
+    check('tạo được tổ', teams.length === 1, `${teams.length} tổ`);
+    check('tổ mới chưa có ai', teams[0]?.memberCount === 0);
+
+    check(
+      'xếp thành viên vào tổ và đặt vai trưởng tổ',
+      await groups.assignMember({
+        groupId: GroupId,
+        userId: MemberId,
+        subTeamId: SubTeamId,
+        role: 'SUBTEAM_ADMIN' as never,
+      }),
+    );
+    check(
+      'tổ đếm được đầu người',
+      (await groups.listSubTeams(GroupId))[0]?.memberCount === 1,
+    );
+
+    const roster = await groups.listMembers({
+      groupId: GroupId,
+      skip: 0,
+      take: 50,
+    });
+    check('danh sách trả đủ hai người', roster.total === 2, `${roster.total}`);
+    const assigned = roster.items.find((row) => row.userId === MemberId);
+    check('kèm TÊN tổ, không chỉ id', assigned?.subTeamName === 'To Dich Vong');
+    check('và vai mới', assigned?.role === 'SUBTEAM_ADMIN', assigned?.role);
+    const ownerRow = roster.items.find((row) => row.userId === OwnerId);
+    check(
+      'Owner chưa vào tổ nào thì tên tổ là null',
+      ownerRow?.subTeamName === null,
+    );
+
+    check(
+      'trưởng tổ xem được thành viên tổ mình',
+      await groups.hasGroupPermission({
+        userId: MemberId,
+        groupId: GroupId,
+        permission: 'group.subteam.member.view',
+      }),
+    );
+    check(
+      'nhưng KHÔNG tạo được tổ — BR-GRP-05',
+      !(await groups.hasGroupPermission({
+        userId: MemberId,
+        groupId: GroupId,
+        permission: 'group.subteam.manage',
+      })),
+    );
+    check(
+      'và KHÔNG xem được affiliate toàn nhóm',
+      !(await groups.hasGroupPermission({
+        userId: MemberId,
+        groupId: GroupId,
+        permission: 'group.affiliate.view',
+      })),
+    );
+
+    // Tổ của nhóm KHÁC: thiếu vế kiểm trong câu UPDATE thì Owner nhóm này xếp
+    // được người của mình vào cơ cấu nhóm người ta.
+    const OtherSubTeamId = '44444444-4444-4444-8444-4444444f1002';
+    await groups.createSubTeam({
+      globalId: OtherSubTeamId,
+      groupId: OtherGroupId,
+      name: 'To cua nhom khac',
+    });
+    check(
+      'KHÔNG xếp được vào tổ của nhóm KHÁC',
+      !(await groups.assignMember({
+        groupId: GroupId,
+        userId: MemberId,
+        subTeamId: OtherSubTeamId,
+        role: null,
+      })),
+    );
+    check(
+      'và lần từ chối đó không đụng gì tới bản ghi cũ',
+      (
+        await groups.listMembers({ groupId: GroupId, skip: 0, take: 50 })
+      ).items.find((row) => row.userId === MemberId)?.subTeamId === SubTeamId,
+    );
+    check(
+      'KHÔNG hạ được vai OWNER',
+      !(await groups.assignMember({
+        groupId: GroupId,
+        userId: OwnerId,
+        subTeamId: null,
+        role: 'MEMBER' as never,
+      })),
+    );
+    check(
+      'người ngoài nhóm thì không gán được',
+      !(await groups.assignMember({
+        groupId: GroupId,
+        userId: OutsiderId,
+        subTeamId: SubTeamId,
+        role: null,
+      })),
+    );
+    check(
+      'gỡ khỏi tổ được',
+      await groups.assignMember({
+        groupId: GroupId,
+        userId: MemberId,
+        subTeamId: null,
+        role: null,
+      }),
+    );
+    check(
+      'gỡ xong thì tổ hết người, vai GIỮ NGUYÊN',
+      (await groups.listSubTeams(GroupId))[0]?.memberCount === 0,
+    );
+
     console.log('\n6. Owner xoá tài khoản → nhóm giải tán');
     const dissolved = await groups.dissolveOwnedBy(OwnerId);
     check('giải tán đúng một nhóm', dissolved === 1, `${dissolved}`);
 
     const [after] = await dataSource.query<
       { status: string; dissolved_at: Date | null }[]
-    >(`SELECT status, dissolved_at FROM groups WHERE global_id = $1`, [GroupId]);
+    >(`SELECT status, dissolved_at FROM groups WHERE global_id = $1`, [
+      GroupId,
+    ]);
     check('trạng thái DISSOLVED', after?.status === 'DISSOLVED');
     check('có mốc giải tán', after?.dissolved_at !== null);
 

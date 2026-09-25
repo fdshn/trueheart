@@ -3,7 +3,18 @@ import {
   GroupStatuses,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUrl, Length } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUrl,
+  IsUUID,
+  Length,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class CreateGroupDto {
   @ApiProperty({ example: 'Chân Tâm Quận Cầu Giấy' })
@@ -87,4 +98,118 @@ export class GetOwnGroupResponseDto {
     description: 'null khi chưa thuộc nhóm nào — client hiện nút Tạo nhóm',
   })
   group: GroupSummaryDto | null;
+}
+
+export class GroupIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  groupId: string;
+}
+
+export class ListGroupMembersQueryDto {
+  @ApiPropertyOptional({ example: 1, minimum: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ example: 50, minimum: 1, maximum: 100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+}
+
+export class GroupMemberItemDto {
+  @ApiProperty({ format: 'uuid' })
+  userId: string;
+
+  @ApiProperty()
+  username: string;
+
+  @ApiProperty({ enum: GroupMemberRoles })
+  role: GroupMemberRoles;
+
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  subTeamId: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  subTeamName: string | null;
+
+  @ApiProperty()
+  joinedAt: Date;
+}
+
+export class ListGroupMembersResponseDto {
+  @ApiProperty({ type: () => [GroupMemberItemDto] })
+  members: GroupMemberItemDto[];
+
+  @ApiProperty({ example: 12 })
+  total: number;
+}
+
+export class SubTeamItemDto {
+  @ApiProperty({ format: 'uuid' })
+  subTeamId: string;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty({ example: 4 })
+  memberCount: number;
+}
+
+export class ListSubTeamsResponseDto {
+  @ApiProperty({ type: () => [SubTeamItemDto] })
+  subTeams: SubTeamItemDto[];
+}
+
+export class CreateSubTeamDto {
+  @ApiProperty({ example: 'Tổ Dịch Vọng' })
+  @IsString()
+  @Length(2, 150)
+  name: string;
+}
+
+export class CreateSubTeamBodyDto {
+  @ApiProperty({ type: () => CreateSubTeamDto })
+  subTeam: CreateSubTeamDto;
+}
+
+export class AssignGroupMemberParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  groupId: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  memberId: string;
+}
+
+export class AssignGroupMemberDto {
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'null để gỡ khỏi tổ. Tổ phải thuộc chính nhóm này.',
+  })
+  @IsOptional()
+  @IsUUID()
+  subTeamId?: string | null;
+
+  @ApiPropertyOptional({
+    enum: GroupMemberRoles,
+    description: 'Bỏ trống để giữ nguyên vai. OWNER không gán được.',
+  })
+  @IsOptional()
+  @IsEnum(GroupMemberRoles)
+  role?: GroupMemberRoles;
+}
+
+export class AssignGroupMemberBodyDto {
+  @ApiProperty({ type: () => AssignGroupMemberDto })
+  membership: AssignGroupMemberDto;
 }

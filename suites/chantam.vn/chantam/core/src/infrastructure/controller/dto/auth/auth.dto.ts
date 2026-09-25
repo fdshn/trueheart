@@ -204,6 +204,18 @@ export class RegisterDto implements IRegisterDto {
   @IsString()
   @Matches(/^[A-Z0-9]{10,12}$/)
   referralCode?: string;
+
+  @ApiPropertyOptional({
+    example: 'ABCD2345EFGH6789',
+    minLength: 16,
+    maxLength: 16,
+    description:
+      'Mã mời nhóm. CHỈ dùng được lúc tạo tài khoản mới — tài khoản cũ không vào nhóm được. Mã sai hoặc nhóm đã giải tán thì đăng ký vẫn thành công, chỉ là không vào nhóm nào.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Z0-9]{16}$/)
+  inviteCode?: string;
 }
 
 export class RegisterBodyDto implements IRegisterBodyDto {

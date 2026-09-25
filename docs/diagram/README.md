@@ -61,13 +61,13 @@ hệ thống đã làm xong những việc chưa ai viết một dòng code.
 | --- | --- | --- | --- |
 | 15 | [Báo xấu & kiểm duyệt](./15-report.md) | Báo bài/người/bình luận, hàng đợi Admin, thưởng người báo đúng | ✅ |
 | 16 | [Admin CMS & RBAC](./16-admin.md) | Quyền, cấu hình động copy-on-write, audit, mẫu thông báo | ✅ |
-| 17 | [Job nền & CLI](./17-jobs.md) | Bảy CLI chạy một lần, lịch gọi, đối soát | ✅ |
+| 17 | [Job nền & CLI](./17-jobs.md) | Mười CLI chạy một lần, lịch cron, đối soát | ✅ |
 
-### Tầng 6 — Chưa có code
+### Tầng 6 — Nhóm
 
 | # | Sơ đồ | Nội dung | Trạng thái |
 | --- | --- | --- | --- |
-| 18 | [Group & Sub-team](./18-group.md) | Tạo nhóm, snapshot vùng, link mời, RBAC nhóm | ⛔ |
+| 18 | [Group & Sub-team](./18-group.md) | Tạo nhóm, snapshot vùng, link mời, RBAC nhóm, sub-team | ✅ |
 | 19 | [Group Affiliate](./19-affiliate.md) | Sự kiện affiliate, điều kiện địa lý, chia thưởng | ⛔ |
 
 ### Tổng hợp

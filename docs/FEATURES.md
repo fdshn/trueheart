@@ -488,6 +488,10 @@ về sau** — nếu không, người ta sẽ dời vùng theo nơi có nhiều 
 Owner quản lý: tổng quan, thành viên, sub-team, link mời, hoạt động, affiliate/điểm, cài đặt.
 **Thành viên thường không có dashboard của Owner.**
 
+> ✅ **Đã chạy 26/09:** `GET /groups/:groupId/members`, `GET|POST /groups/:groupId/sub-teams`,
+> `PATCH /groups/:groupId/members/:memberId` (xếp vào tổ / đổi vai). Phép kiểm quyền mang
+> `groupId`, tổ phải thuộc chính nhóm đó, và **không gán được vai `OWNER`**.
+
 > ✅ **Chốt 2026-09-24:** sâu **1 tầng** (Group → Sub-team). Sub-team **có trưởng nhóm**, vai
 > `SUBTEAM_ADMIN`, quyền do Admin hệ thống cấu hình lúc chạy.
 >
@@ -506,6 +510,11 @@ cũ không join được. Phase 1 người dùng **không rời và không chuy�
 > ✅ **Chốt 2026-09-24: đúng là chủ ý.** Không rời, không chuyển (BR-GRP-06). Muốn sang nhóm
 > khác thì tạo tài khoản mới và vào bằng link mời. Chính ràng buộc "link chỉ dành cho tài khoản
 > mới" là hàng rào chặn việc nhảy vòng quanh các nhóm để gom affiliate.
+>
+> ✅ **Đã chạy 26/09:** `POST /auth/register` nhận thêm `inviteCode` — đường **duy nhất** sinh
+> membership. Mã sai hoặc nhóm đã giải tán thì **đăng ký vẫn thành công**, chỉ là không vào
+> nhóm nào. `UQ_group_memberships_user` ràng trên `user_id` một mình nên database chặn luôn
+> việc thuộc hai nhóm, không chỉ tầng ứng dụng.
 
 ### F55 — Owner xoá tài khoản → Group giải tán
 Group chuyển `DISSOLVED/CLOSED`, link mời vô hiệu, dừng nhận thành viên/sự kiện/affiliate

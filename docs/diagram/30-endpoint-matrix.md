@@ -118,26 +118,43 @@ flowchart LR
 | `PATCH /admin/reports/:id/review` | `report.resolve` | ✅ |
 | `GET /admin/categories` | `category.read` | ✅ |
 
-## 30.8 Endpoint CHƯA có
+## 30.7b Nhóm — `/groups`
+
+| Endpoint | Cổng | Có |
+| --- | --- | --- |
+| `POST /groups` | token + hồ sơ + onboarding + rank + có Default Location | ✅ |
+| `GET /groups/me` | token | ✅ |
+| `GET /groups/:groupId/members` | `group.member.view` **trên nhóm đó** | ✅ |
+| `GET /groups/:groupId/sub-teams` | `group.member.view` **trên nhóm đó** | ✅ |
+| `POST /groups/:groupId/sub-teams` | `group.subteam.manage` — chỉ Owner | ✅ |
+| `PATCH /groups/:groupId/members/:memberId` | `group.member.assign_role` | ✅ |
+
+Vào nhóm KHÔNG có endpoint riêng: `POST /auth/register` kèm `inviteCode` là đường duy nhất
+(F54/BR-GRP-04). Rời nhóm và chuyển nhóm cũng không có, và đó là chủ ý (BR-GRP-06).
+
+## 30.8 Còn thiếu gì
 
 ```mermaid
 flowchart TD
-    A["⛔ Group"] --> A1["POST /groups · GET /groups/:id<br/>GET /groups/:id/members<br/>POST /groups/:id/sub-teams<br/>GET /groups/:id/invite-link"]
     B["⛔ Affiliate"] --> B1["GET /groups/:id/affiliate<br/>GET /groups/:id/events"]
-    C["⛔ Đổi điểm"] --> C1["POST /posts/:id/redeem"]
     D["⛔ Dashboard"] --> D1["GET /admin/kpi/*"]
     E["⛔ Campaign & Blog"] --> E1["/admin/campaigns · /admin/posts-blog<br/>/blog"]
+    F["⛔ Dharma Hub"] --> F1["/dharma/* — sáu tiểu mục, chưa có đặc tả API"]
 
-    style A fill:#ffe6e6
+    A["✅ Group đã xong"] --> A1["sáu endpoint, xem §30.7b"]
+    C["✅ Đổi điểm đã xong"] --> C1["POST /posts/:postId/redeem"]
+
+    style A fill:#e6ffe6
+    style C fill:#e6ffe6
     style B fill:#ffe6e6
-    style C fill:#ffe6e6
     style D fill:#ffe6e6
     style E fill:#ffe6e6
+    style F fill:#ffe6e6
 ```
 
 ## Chỗ cần soát
 
-1. **Ba endpoint cần gắn cổng hồ sơ F07** (xin nhận, chat, và tạo Group khi có).
+1. **Ba endpoint cần gắn cổng hồ sơ F07** (xin nhận, chat, tạo Group) — cả ba đã gắn.
 2. **`POST /transactions/:id/confirm` chưa cộng điểm** — lỗ hổng lớn nhất.
 3. **`GET /points/me` và `/ranks/me` chưa phản ánh mô hình rank chốt 2026-09-24.**
 4. `POST /reports` nhận `COMMENT` nhưng **`targetLabel` cho bình luận** cần soát xem Admin có

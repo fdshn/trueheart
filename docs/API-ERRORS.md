@@ -62,6 +62,10 @@ Nghiệp vụ Chân Tâm
 | `0x0202` | `514` | 409 Conflict | `GIFT_REQUEST_DUPLICATED` | Bạn đã gửi yêu cầu cho bài đăng này rồi |
 | `0x0203` | `515` | 403 Forbidden | `CANNOT_REQUEST_OWN_POST` | Bạn không thể tự gửi yêu cầu xin đồ cho bài đăng của chính mình |
 | `0x0204` | `516` | 400 Bad Request | `POST_NOT_ACCEPTING_REQUESTS` | Bài đăng hiện không ở trạng thái mở nhận yêu cầu |
+| `0x0205` | `517` | 403 Forbidden | `OPEN_REQUEST_QUOTA_EXCEEDED` | Bạn đang có 0/0 yêu cầu chưa ngã ngũ. Hãy rút bớt hoặc chờ người tặng trả lời trước khi xin thêm. |
+| `0x0206` | `518` | 400 Bad Request | `REDEMPTION_NOT_AVAILABLE` | Vật phẩm này hiện không đổi được bằng điểm. Đồng hồ chọn người nhận đã kết thúc hoặc bài đã có chủ. |
+| `0x0207` | `519` | 400 Bad Request | `REDEMPTION_PRICE_UNAVAILABLE` | Người tặng chưa khai giá trị tham khảo cho vật phẩm này, nên không quy ra điểm được. |
+| `0x0208` | `520` | 400 Bad Request | `REDEMPTION_INSUFFICIENT_POINTS` | Vật phẩm này cần 0 điểm, bạn đang có 0. |
 | `0x0301` | `769` | 404 Not Found | `USER_NOT_FOUND` | Không tìm thấy tài khoản |
 | `0x0302` | `770` | 403 Forbidden | `USER_SUSPENDED` | Tài khoản đang bị tạm khoá tới 2026-10-01T00:00:00.000Z |
 | `0x0303` | `771` | 403 Forbidden | `USER_BANNED` | Tài khoản đã bị khoá vĩnh viễn |
@@ -120,8 +124,13 @@ Nghiệp vụ Chân Tâm
 | `0x0f01` | `3841` | 404 Not Found | `REPORT_NOT_FOUND` | Không tìm thấy báo cáo vi phạm |
 | `0x0f02` | `3842` | 409 Conflict | `REPORT_DUPLICATED` | Bạn đã có một báo cáo đang chờ xử lý cho đối tượng này |
 | `0x0f03` | `3843` | 409 Conflict | `REPORT_INVALID_STATE` | Báo cáo đã được xử lý và không thể thay đổi quyết định |
+| `0x1001` | `4097` | 400 Bad Request | `GROUP_DEFAULT_LOCATION_REQUIRED` | Hãy đặt Vị trí mặc định trước khi tạo nhóm — tâm vùng của nhóm chụp từ đó và không đổi được về sau. |
+| `0x1002` | `4098` | 409 Conflict | `GROUP_ALREADY_MEMBER` | Bạn đã thuộc một nhóm. Mỗi người chỉ thuộc tối đa một nhóm, và không chuyển nhóm được. |
+| `0x1003` | `4099` | 403 Forbidden | `GROUP_CREATE_NOT_ALLOWED` | Thứ hạng của bạn chưa đủ điều kiện tạo nhóm. |
+| `0x1004` | `4100` | 400 Bad Request | `GROUP_INVITE_INVALID` | Link mời không dùng được. |
+| `0x1005` | `4101` | 404 Not Found | `GROUP_NOT_FOUND` | Không tìm thấy nhóm |
 
 ---
 
-Tổng cộng **81 mã lỗi** trên 3 tầng.
+Tổng cộng **90 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

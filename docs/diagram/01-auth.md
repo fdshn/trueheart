@@ -12,7 +12,7 @@ sequenceDiagram
     participant DB as Postgres
     participant R as Redis
 
-    U->>API: username, email, password, referralCode?
+    U->>API: username, email, password, referralCode?, inviteCode?
     API->>API: Kiểm định dạng, độ mạnh mật khẩu
     API->>DB: Username/email đã tồn tại?
     alt Đã tồn tại
@@ -25,10 +25,23 @@ sequenceDiagram
             API->>DB: INSERT referrals (PENDING)
             Note over DB: Chỉ tính điểm khi referee<br/>hoàn tất onboarding
         end
+        opt Có inviteCode
+            API->>DB: Nhóm nào còn ACTIVE mang mã này?
+            alt Có
+                API->>DB: INSERT group_memberships (MEMBER)
+            else Không — mã sai hoặc nhóm đã giải tán
+                Note over API: BỎ QUA, không ném.<br/>Tài khoản đã tạo xong rồi.
+            end
+        end
         API->>R: Lưu refresh token
         API-->>U: accessToken + refreshToken
     end
 ```
+
+> **Vì sao `inviteCode` nằm ở đây chứ không phải một endpoint "vào nhóm" riêng.** Membership
+> chỉ sinh ra cho tài khoản MỚI (F54/BR-GRP-04), và chính ràng buộc đó là hàng rào chặn việc
+> một người nhảy vòng quanh các nhóm để gom affiliate. Có endpoint join riêng là phá hàng rào.
+> Xem [`18-group.md §18.2`](./18-group.md).
 
 > **Vì sao 409 không nói trùng cái nào.** Trả "email này đã tồn tại" biến form đăng ký thành
 > công cụ dò xem một địa chỉ có tài khoản hay không. Thông báo chung làm người dùng hợp lệ

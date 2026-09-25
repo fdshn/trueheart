@@ -166,6 +166,85 @@ export class GroupRepository
     );
   }
 
+  public async createSubTeam(params: {
+    globalId: string;
+    groupId: string;
+    name: string;
+  }): Promise<void> {
+    await this.entityManager.query(
+      `INSERT INTO sub_teams (global_id, group_id, name) VALUES ($1, $2, $3)`,
+      [params.globalId, params.groupId, params.name],
+    );
+  }
+
+  public async listSubTeams(
+    groupId: string,
+  ): Promise<{ subTeamId: string; name: string; memberCount: number }[]> {
+    const rows = await this.entityManager.query<
+      { global_id: string; name: string; member_count: string }[]
+    >(
+      `
+        SELECT team.global_id, team.name, headcount.total AS member_count
+        FROM sub_teams team
+        CROSS JOIN LATERAL (
+          SELECT COUNT(*)::text AS total
+          FROM group_memberships membership
+          WHERE membership.sub_team_id = team.global_id
+        ) headcount
+        WHERE team.group_id = $1 AND team.deleted_at IS NULL
+        ORDER BY team.name ASC
+      `,
+      [groupId],
+    );
+
+    return rows.map((row) => ({
+      subTeamId: row.global_id,
+      name: row.name,
+      memberCount: Number(row.member_count),
+    }));
+  }
+
+  public async assignMember(params: {
+    groupId: string;
+    userId: string;
+    subTeamId: string | null;
+    role: GroupMemberRoles | null;
+  }): Promise<boolean> {
+    const result = await this.entityManager.query<unknown>(
+      `
+        UPDATE group_memberships membership
+        SET sub_team_id = $3,
+            role = COALESCE($4, membership.role),
+            updated_at = now()
+        WHERE membership.group_id = $1
+          AND membership.user_id = $2
+          -- KHÔNG đụng tới OWNER: hạ vai chủ nhóm bằng endpoint quản lý thành
+          -- viên là để lại một nhóm không ai quản trị được.
+          AND membership.role <> $5
+          -- Tổ phải thuộc CHÍNH nhóm này. Thiếu vế dưới thì Owner nhóm A xếp
+          -- được người của mình vào tổ của nhóm B.
+          AND (
+            $3::uuid IS NULL
+            OR EXISTS (
+              SELECT 1 FROM sub_teams team
+              WHERE team.global_id = $3::uuid
+                AND team.group_id = $1
+                AND team.deleted_at IS NULL
+            )
+          )
+      `,
+      [
+        params.groupId,
+        params.userId,
+        params.subTeamId,
+        params.role,
+        GroupMemberRoles.OWNER,
+      ],
+    );
+
+    return Number((result as [unknown[], number])[1] ?? 0) > 0;
+  }
+
   public async listMembers(params: {
     groupId: string;
     skip: number;

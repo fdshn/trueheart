@@ -1,10 +1,15 @@
 # 18 · Group & Sub-team
 
-Trạng thái: 🟡 **nền đã có** (26/09) — bảng, RBAC có phạm vi, tạo nhóm, xem nhóm của tôi, và
-giải tán khi Owner xoá tài khoản. Có script kiểm trên Postgres thật: `npm run test:group`.
+Trạng thái: ✅ **xong Phase 1** (26/09) — bảng, RBAC có phạm vi, tạo nhóm, xem nhóm của tôi,
+vào nhóm qua link mời, danh sách thành viên, sub-team và phép xếp người vào tổ, giải tán khi
+Owner xoá tài khoản. Script kiểm trên Postgres thật: `npm run test:group` (39 phép kiểm).
 
-⛔ **Còn thiếu:** vào nhóm qua link mời (đăng ký kèm `inviteCode`), quản lý sub-team, xếp
-thành viên vào tổ, và danh sách thành viên qua API.
+Sáu endpoint: `POST /groups`, `GET /groups/me`, `GET /groups/:groupId/members`,
+`GET|POST /groups/:groupId/sub-teams`, `PATCH /groups/:groupId/members/:memberId` — chi tiết
+ở [API.md §11](../API.md#11-nhóm--groups).
+
+⛔ **Còn thiếu (Sprint 3, cần Bên A chốt):** affiliate event engine (F56) và điều kiện địa lý
+bắt buộc (F57) — xem [`19-affiliate.md`](./19-affiliate.md).
 
 ## 18.1 Tạo Group — ✅
 
@@ -38,23 +43,31 @@ sequenceDiagram
 > người ta dời vùng theo nơi đang có nhiều sự kiện để gom điểm. Snapshot cũng không đổi theo
 > khi Owner đổi Default Location hoặc tụt rank (BR-GRP-03).
 
-## 18.2 Vào nhóm — chỉ tài khoản mới ⛔
+## 18.2 Vào nhóm — chỉ tài khoản mới ✅
 
 ```mermaid
 flowchart TD
     A[Nhận link mời] --> B{Đã có tài khoản chưa?}
     B -->|Đã có| C["❌ KHÔNG vào được<br/>link chỉ dành cho tài khoản MỚI"]
-    B -->|Chưa| D[Đăng ký qua link]
-    D --> E{Group còn ACTIVE?}
-    E -->|Không| F[❌ Link vô hiệu]
-    E -->|Có| G[✅ Tạo membership + quan hệ affiliate]
+    B -->|Chưa| D["POST /auth/register<br/>kèm inviteCode"]
+    D --> D2[Tạo tài khoản trước]
+    D2 --> E{"findActiveByInviteCode<br/>Group còn ACTIVE?"}
+    E -->|Không| F["⚠️ BỎ QUA — đăng ký VẪN thành công,<br/>chỉ là không vào nhóm nào"]
+    E -->|Có| G[✅ Tạo membership MEMBER]
+    F --> H2[Trả session, tự đăng nhập]
+    G --> H2
 
     H["Link KHÔNG tự hết hạn<br/>KHÔNG giới hạn số lượt"] -.-> A
 
     style C fill:#f8d7da
+    style F fill:#fff3cd
 ```
 
 **Chốt 2026-09-24: KHÔNG rời, KHÔNG chuyển nhóm.** Muốn sang nhóm khác thì tạo tài khoản mới.
+
+> **Vì sao mã hỏng không làm hỏng việc đăng ký.** Tài khoản đã tạo xong trước khi đọc mã. Ném
+> lỗi ở đây là bắt người ta đăng ký lại — phạt người dùng cho lỗi của người gửi link. Mã cũng
+> đi qua `trim()` + viết hoa: dán link kèm khoảng trắng là chuyện thường.
 
 > **Vì sao đây là chủ ý chứ không phải sót.** Membership chỉ sinh ra từ link mời dành cho tài
 > khoản mới, và chính ràng buộc đó là hàng rào chặn việc một người nhảy vòng quanh các nhóm
@@ -134,7 +147,7 @@ stateDiagram-v2
     end note
 ```
 
-## 18.6 Sub-team
+## 18.6 Sub-team — ✅
 
 ```mermaid
 flowchart TD
@@ -145,19 +158,28 @@ flowchart TD
     S1 --> M1[Thành viên]
     S2 --> M2[Thành viên]
 
+    Z["Xếp người vào tổ:<br/>PATCH /groups/:id/members/:memberId<br/>subTeamId=null để gỡ ra"] -.-> S1
+
     Y["Affiliate depth = 1:<br/>một sự kiện hợp lệ chia cho<br/>TOÀN BỘ Active Member của GROUP,<br/>KHÔNG phân tầng theo sub-team"] -.-> G
 
     style X fill:#ffe6e6
     style Y fill:#fff3cd
 ```
 
+> **Tổ phải thuộc CHÍNH nhóm đó.** Câu `UPDATE` trong `assignMember` mang thêm một vế
+> `EXISTS (… AND team.group_id = $1)`. Thiếu nó thì Owner nhóm A xếp được người của mình vào
+> tổ của nhóm B — chỉ cần đoán đúng một id. `test:group` canh đúng ca này.
+
 ## Chỗ cần soát
 
-1. ⛔ **Vào nhóm qua link mời chưa có.** Bảng và câu tra mã đã sẵn; còn thiếu đường nối vào
-   `POST /auth/register` để tạo membership cho tài khoản mới.
-2. ⛔ **Sub-team chưa có endpoint nào** — bảng đã có, `SUBTEAM_ADMIN` đã có bộ quyền.
-3. ⚠️ **Trưởng nhóm là mở rộng ngoài SRS** — cần Bên A biết.
-4. **Bộ quyền khởi tạo cho `SUBTEAM_ADMIN`** mới là đề xuất, chưa ai duyệt.
+1. ⚠️ **Trưởng nhóm là mở rộng ngoài SRS** — cần Bên A biết.
+2. **Bộ quyền khởi tạo cho `SUBTEAM_ADMIN`** mới là đề xuất, chưa ai duyệt.
+3. **`SUBTEAM_ADMIN` chưa xem được danh sách thành viên qua API.** Họ có
+   `group.subteam.member.view`, nhưng `GET /groups/:id/members` đòi `group.member.view` và trả
+   **toàn nhóm**. Muốn trưởng tổ xem được thì phải lọc theo `sub_team_id` của chính họ — chưa
+   làm, vì chưa rõ Bên A muốn trưởng tổ thấy đến đâu.
+4. **Không có đường xoá tổ.** `sub_teams.deleted_at` đã có cột, chưa có endpoint. Xoá tổ còn
+   người trong đó thì xử lý ra sao cũng chưa ai nói.
 5. Bán kính lấy theo **Rank Config lúc tạo** — hiện đọc `limit` của capability `CREATE_GROUP`,
    nhưng capability đó seed là BOOLEAN (`allowed`) nên `limit` đang rỗng và rơi về 10km mặc
    định. Cần chốt bán kính khác nhau theo rank hay chung một con số, rồi seed cho đúng.

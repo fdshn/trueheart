@@ -1,6 +1,6 @@
 # Tham chiếu API
 
-Mô tả **62 endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
+Mô tả **123 endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
 buộc mà chữ ký hàm không nói ra.
 
 Ba file bổ trợ nhau, đừng nhầm:
@@ -794,7 +794,72 @@ Máy trạng thái: `REQUESTED → ACCEPTED → COMPLETED`, và có thể đóng
 
 ---
 
-## 11. Quản trị — `/admin`
+## 11. Nhóm — `/groups`
+
+| Endpoint | Việc |
+| --- | --- |
+| `POST /groups` | Tạo nhóm |
+| `GET /groups/me` | Nhóm của tôi |
+| `GET /groups/:groupId/members` | Danh sách thành viên |
+| `GET /groups/:groupId/sub-teams` | Danh sách tổ |
+| `POST /groups/:groupId/sub-teams` | Tạo tổ |
+| `PATCH /groups/:groupId/members/:memberId` | Xếp vào tổ / đổi vai |
+
+### Tâm và bán kính KHÔNG nhận từ body
+
+`POST /groups` chỉ nhận tên, mô tả, ảnh. Tâm vùng chụp từ `default_location` của người tạo,
+bán kính từ Rank Config — cả hai đứng yên sau đó ([BR-GRP-03](./FEATURES.md#f52--tạo-group-từ-default-location)).
+Cho Owner sửa là cho họ dời vùng theo nơi đang có nhiều sự kiện để gom điểm affiliate. Owner
+đổi Vị trí mặc định về sau thì vùng nhóm cũng không nhúc nhích.
+
+### Vào nhóm chỉ qua `POST /auth/register`
+
+Không có `POST /groups/:id/join`. `RegisterDto.inviteCode` là **đường duy nhất** sinh
+membership ([F54](./FEATURES.md#f54--link-mời--chỉ-dành-cho-tài-khoản-mới)). Mã sai hoặc nhóm
+đã giải tán thì **đăng ký vẫn thành công**, chỉ là không vào nhóm nào — tài khoản đã tạo
+xong rồi, bắt người ta đăng ký lại vì một link hỏng là phạt người dùng cho lỗi người gửi.
+
+Cũng không có endpoint rời nhóm hay chuyển nhóm (BR-GRP-06), và `UQ_group_memberships_user`
+ràng trên **`user_id` một mình** — một người một nhóm, database chặn chứ không chỉ tầng ứng dụng.
+
+### `inviteCode` chỉ trả cho Owner
+
+`GET /groups/me` trả `inviteCode: null` cho thành viên thường. Link mời là cửa vào nhóm; lộ
+cho thành viên thường là cho họ mời người khác thay Owner.
+
+### Quyền nhóm luôn mang `groupId`
+
+Bốn endpoint quản lý đi qua `hasGroupPermission(userId, groupId, permission)` chứ không phải
+`hasPermission` toàn cục. RBAC Admin không có cột nào diễn đạt phạm vi, nên gán
+`group.member.assign_role` ở đó cho một trưởng nhóm là cho họ quyền trên **mọi** nhóm.
+
+| Vai | Quyền seed sẵn |
+| --- | --- |
+| `OWNER` | `group.overview.view`, `group.member.view`, `group.member.assign_role`, `group.subteam.manage`, `group.invite.view`, `group.activity.view`, `group.affiliate.view`, `group.settings.manage` |
+| `SUBTEAM_ADMIN` | `group.overview.view`, `group.subteam.member.view`, `group.subteam.activity.view` |
+| `MEMBER` | `group.overview.view` |
+
+Bảng `group_role_permissions` là **cấu hình**, không hard-code — Admin đổi được lúc chạy.
+
+### `PATCH …/members/:memberId` — ba ca cùng một câu trả lời
+
+Trả `GroupNotFound` khi người đó không thuộc nhóm, khi họ là `OWNER`, và khi `subTeamId` trỏ
+sang tổ của nhóm khác. Phân biệt ba ca là để lộ cơ cấu nhóm người khác cho ai vừa đoán một id.
+
+- `subTeamId: null` gỡ khỏi tổ, `role` bỏ trống thì giữ nguyên vai.
+- **Không gán được `OWNER`.** Hai Owner trên một nhóm thì `groups.owner_id` và bảng membership
+  nói hai chuyện khác nhau, và không có quy tắc nào phân xử.
+- Không hạ được vai Owner hiện tại — làm thế là để lại một nhóm không ai quản trị được.
+
+### Nhóm đã giải tán thì mọi quyền tắt theo
+
+`hasGroupPermission` lọc `status = 'ACTIVE'`, nên sau khi Owner xoá tài khoản
+([F55](./FEATURES.md#f55--owner-xoá-tài-khoản--group-giải-tán)) không ai còn thao tác được —
+nhưng membership, ledger và audit **giữ nguyên** để tra lại.
+
+---
+
+## 12. Quản trị — `/admin`
 
 Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit kèm lý do bắt buộc.
 
@@ -884,7 +949,7 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 - Ghi theo copy-on-write như mọi system config: `reason` bắt buộc và đi thẳng vào audit log.
 ---
 
-## 12. Tương thích cũ — `/gift-posts`
+## 13. Tương thích cũ — `/gift-posts`
 
 Năm endpoint legacy giữ nguyên hợp đồng cũ nhưng **đọc/ghi canonical `posts`**: `create` uỷ
 quyền sang `CreatePostUseCase`, phần còn lại đọc `IPostRepository`, và một mapper dựng lại
@@ -906,7 +971,7 @@ niệm chủ sở hữu xem bài của mình.
 
 ---
 
-## 13. Vận hành
+## 14. Vận hành
 
 | Đường dẫn | Nội dung |
 | --- | --- |

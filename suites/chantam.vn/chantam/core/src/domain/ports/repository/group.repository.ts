@@ -80,6 +80,32 @@ export interface IGroupRepository {
     userId: string;
   }): Promise<void>;
 
+  createSubTeam(params: {
+    globalId: string;
+    groupId: string;
+    name: string;
+  }): Promise<void>;
+
+  listSubTeams(
+    groupId: string,
+  ): Promise<{ subTeamId: string; name: string; memberCount: number }[]>;
+
+  /**
+   * Xếp một thành viên vào tổ và/hoặc đổi vai.
+   *
+   * `subTeamId` phải thuộc CHÍNH nhóm đó — nếu không, Owner nhóm A xếp được
+   * người của mình vào tổ của nhóm B. Trả `false` khi không khớp gì.
+   *
+   * KHÔNG đổi được vai `OWNER`: chủ nhóm là người tạo, và hạ vai họ bằng endpoint
+   * quản lý thành viên là để lại một nhóm không ai quản trị được.
+   */
+  assignMember(params: {
+    groupId: string;
+    userId: string;
+    subTeamId: string | null;
+    role: GroupMemberRoles | null;
+  }): Promise<boolean>;
+
   listMembers(params: {
     groupId: string;
     skip: number;

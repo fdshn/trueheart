@@ -4,10 +4,11 @@ import {
   IRegisterUserUseCase,
 } from '@/application/contracts/auth';
 import { UsernameTakenException } from '@/domain/exceptions';
-import { IUserRepository } from '@/domain/ports/repository';
+import { IGroupRepository, IUserRepository } from '@/domain/ports/repository';
 import { UserId } from '@chantam.vn/chantam.core-lib/values';
 import { IPasswordService } from '@chantam/service.auth-lib';
 import { Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { SessionIssuer } from './session-issuer';
 
 @Injectable()
@@ -18,6 +19,8 @@ export class RegisterUserUseCase implements IRegisterUserUseCase {
     @Inject(IPasswordService)
     private readonly passwordService: IPasswordService,
     private readonly sessionIssuer: SessionIssuer,
+    @Inject(IGroupRepository)
+    private readonly groups: IGroupRepository,
   ) {}
 
   public async handle(
@@ -38,6 +41,25 @@ export class RegisterUserUseCase implements IRegisterUserUseCase {
       referralCode: registration.referralCode,
     });
     if (!created.user) throw new UsernameTakenException(username);
+
+    // Vào nhóm qua link mời (F54/BR-GRP-04). CHỈ ở đây, chỉ cho tài khoản vừa
+    // tạo: membership không sinh ra từ đường nào khác, và chính ràng buộc đó là
+    // hàng rào chặn việc một người nhảy vòng quanh các nhóm để gom affiliate.
+    //
+    // Mã sai hay nhóm đã giải tán thì BỎ QUA, không ném: tài khoản đã tạo xong
+    // rồi, và bắt họ đăng ký lại vì một mã hỏng là phạt người dùng cho lỗi của
+    // người gửi link.
+    if (registration.inviteCode) {
+      const invited = await this.groups.findActiveByInviteCode(
+        registration.inviteCode.trim().toUpperCase(),
+      );
+      if (invited)
+        await this.groups.addMember({
+          globalId: randomUUID(),
+          groupId: invited.groupId,
+          userId: globalId,
+        });
+    }
 
     // Đăng ký xong tự đăng nhập luôn (F01).
     return this.sessionIssuer.issue(

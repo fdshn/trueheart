@@ -208,6 +208,23 @@ Tắt chứ không xoá, và **chặn tắt danh mục đang có bài dùng**.
 `admin_roles` / `admin_permissions` / `admin_user_roles`. 15 quyền, 2 vai đã seed
 (`SUPER_ADMIN`, `MODERATOR`). API: `GET /admin/roles` · `POST|DELETE /admin/users/:id/roles`.
 
+### 2.9 RBAC nhóm — `group_role_permissions`
+
+**Bảng riêng, KHÔNG dùng chung `admin_permissions`.** RBAC Admin là toàn cục và không có cột
+nào diễn đạt phạm vi, nên gán `group.member.assign_role` ở đó cho một trưởng nhóm là cho họ
+quyền trên *mọi* nhóm. Phép kiểm luôn mang `groupId`.
+
+11 dòng đã seed cho ba vai:
+
+| Vai | Quyền |
+| --- | --- |
+| `OWNER` | `group.overview.view`, `group.member.view`, `group.member.assign_role`, `group.subteam.manage`, `group.invite.view`, `group.activity.view`, `group.affiliate.view`, `group.settings.manage` |
+| `SUBTEAM_ADMIN` | `group.overview.view`, `group.subteam.member.view`, `group.subteam.activity.view` |
+| `MEMBER` | `group.overview.view` |
+
+⛔ **Chưa có API sửa bảng này** — hiện chỉ đổi được bằng migration. Bộ quyền của
+`SUBTEAM_ADMIN` cũng mới là đề xuất, Bên A chưa duyệt.
+
 ---
 
 ## Phần 3 · Còn trống — cần cung cấp trước release
@@ -231,7 +248,7 @@ Tắt chứ không xoá, và **chặn tắt danh mục đang có bài dùng**.
 | Bậc được dùng SOS | Bạc trở lên |
 | Cap ngày | 5 giao dịch tính điểm · 3 mời |
 | Cap báo xấu | Tài liệu nói 10/ngày, rule đang **5** — **hai con số lệch nhau** |
-| Bán kính Group | 10km, chỉnh 1–50km |
+| Bán kính Group | 10km, chỉnh 1–50km. ⚠️ **Đang luôn rơi về 10km**: mã đọc `limit` của capability `CREATE_GROUP`, nhưng capability đó seed kiểu BOOLEAN nên `limit` rỗng. Cần chốt bán kính khác nhau theo hạng hay chung một con số rồi seed lại |
 | Onboarding cho 224đ = lên thẳng Thành viên | Đúng ý chưa? |
 
 ### 3.3 Chưa có nút xoay nhưng nên có
@@ -244,7 +261,9 @@ Tắt chứ không xoá, và **chặn tắt danh mục đang có bài dùng**.
 | Giới hạn dung lượng lưu trữ theo bậc | Không có |
 | Vùng mặc định cho khách chưa đăng nhập | Chưa chốt là vùng nào |
 | Hạn chót gỡ `/gift-posts` | Chưa ai đặt |
-| ~~Lịch cron cho 9 CLI~~ | ✅ Đã có ở [`deploy/cron/`](../deploy/cron/README.md). ⛔ Còn thiếu: **alert vào kênh người thật đọc** |
+| ~~Lịch cron cho 10 CLI~~ | ✅ Đã có ở [`deploy/cron/`](../deploy/cron/README.md). ⛔ Còn thiếu: **alert vào kênh người thật đọc** |
+| Sửa `group_role_permissions` qua API | Chỉ đổi được bằng migration (xem §2.9) |
+| Xoá sub-team | Cột `deleted_at` đã có, chưa có endpoint; xoá tổ còn người thì xử lý ra sao cũng chưa ai nói |
 | Giới hạn tốc độ toàn hệ thống | Không có |
 
 ---
