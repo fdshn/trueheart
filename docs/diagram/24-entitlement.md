@@ -44,6 +44,7 @@ flowchart LR
 | `POST_QUOTA` — bài đang mở | 0 | 3 | 10 | 20 | 50 |
 | `POST_SOS` — đăng SOS | ✗ | ✗ | ✓ | ✓ | ✓ |
 | `CREATE_GROUP` ⛔ | ✗ | ✗ | ✗ | ✗ | ✓ |
+| `OPEN_REQUEST_QUOTA` — yêu cầu đang mở | 0 | 5 | 10 | 20 | 30 |
 
 > ⚠️ Toàn bộ con số này là **baseline giả định**, chờ Bên A xác nhận.
 
@@ -104,9 +105,11 @@ flowchart LR
 ## Chỗ cần soát
 
 1. ⚠️ **Mọi con số là giả định chờ Bên A.**
-2. **Chưa có capability nào cho chat, xin nhận, tạo Group** — cổng F07 và quyền tạo Group
-   hiện chưa đi qua cơ chế này.
-3. **Không có lịch sử phiên bản** như `system_configs` — chỉ có audit log. Khi một bài bị từ
+2. ✅ **`OPEN_REQUEST_QUOTA` đã có** (25/09) — giới hạn số yêu cầu xin nhận đang mở, cần từ khi
+   mỗi yêu cầu đầu tiên mở một đồng hồ 7 ngày.
+3. **Chưa có capability cho chat và tạo Group** — cổng F07 và quyền tạo Group chưa đi qua cơ
+   chế này.
+4. **Không có lịch sử phiên bản** như `system_configs` — chỉ có audit log. Khi một bài bị từ
    chối vì quota, không tra được lúc đó quota là bao nhiêu.
-4. Chưa có capability cho **giới hạn dung lượng lưu trữ** theo rank, dù F59 có theo dõi
+5. Chưa có capability cho **giới hạn dung lượng lưu trữ** theo rank, dù F59 có theo dõi
    dung lượng.

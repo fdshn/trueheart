@@ -183,6 +183,7 @@ API: `GET|POST /admin/ranks/policy` (ngưỡng, cảnh báo) và
 | `POST_WANTED` | 0 | 3 | 10 | 20 | 50 |
 | `POST_SOS` | ✗ | ✗ | ✓ | ✓ | ✓ |
 | `CREATE_GROUP` | ✗ | ✗ | ✗ | ✗ | ✓ |
+| `OPEN_REQUEST_QUOTA` (yêu cầu đang mở) | 0 | 5 | 10 | 20 | 30 |
 
 > ⚠️ **Toàn bộ con số này là baseline giả định, chờ Bên A xác nhận.**
 >

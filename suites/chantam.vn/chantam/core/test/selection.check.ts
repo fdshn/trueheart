@@ -254,7 +254,36 @@ async function main(): Promise<void> {
       (await requests.findPostsDueForSelection(10)).length === 0,
     );
 
-    console.log('\n5. Ứng viên còn lại vào hàng đợi dự phòng');
+    console.log('\n5. Giới hạn yêu cầu đang mở');
+    const openBefore = await requests.countOpenByRequester(Nearby);
+    check(
+      'STANDBY vẫn tính là yêu cầu ĐANG MỞ',
+      openBefore === 1,
+      `${openBefore}`,
+    );
+    const winnerOpen = await requests.countOpenByRequester(Early);
+    check(
+      'người đã được duyệt thì KHÔNG còn yêu cầu đang mở',
+      winnerOpen === 0,
+      `${winnerOpen}`,
+    );
+
+    const [quota] = await dataSource.query<
+      { rank: string; limit_value: string; allowed: boolean }[]
+    >(
+      `SELECT value.rank, value.limit_value, value.allowed
+       FROM capability_rank_values value
+       INNER JOIN capability_policies policy ON policy.id = value.policy_id
+       WHERE policy.code = 'OPEN_REQUEST_QUOTA' AND value.rank = 'MEMBER'`,
+    );
+    check('quota OPEN_REQUEST_QUOTA da seed', Boolean(quota));
+    check(
+      'Thanh vien duoc giu 5 yeu cau mo',
+      Number(quota?.limit_value) === 5 && quota?.allowed === true,
+      `limit=${quota?.limit_value} allowed=${quota?.allowed}`,
+    );
+
+    console.log('\n6. Ứng viên còn lại vào hàng đợi dự phòng');
     const [standby] = await dataSource.query<{ total: string }[]>(
       `SELECT count(*) AS total FROM gift_requests
        WHERE post_id = $1 AND status = 'STANDBY'`,

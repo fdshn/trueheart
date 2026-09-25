@@ -68,6 +68,16 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Bài đăng hiện không ở trạng thái mở nhận yêu cầu',
   },
 
+  OPEN_REQUEST_QUOTA_EXCEEDED: {
+    code: ErrorCodes.OPEN_REQUEST_QUOTA_EXCEEDED,
+    httpStatus: HttpStatus.FORBIDDEN,
+    // Nói rõ con số: "bạn đang xin quá nhiều" bắt người dùng đoán bao nhiêu là
+    // đủ, và họ không có cách nào biết mình còn bao nhiêu chỗ.
+    message: (current?: number, quota?: number) =>
+      `Bạn đang có ${current ?? 0}/${quota ?? 0} yêu cầu chưa ngã ngũ. ` +
+      'Hãy rút bớt hoặc chờ người tặng trả lời trước khi xin thêm.',
+  },
+
   // ── 0x03 Người dùng ───────────────────────────────────────────────────────
   USER_NOT_FOUND: {
     code: ErrorCodes.USER_NOT_FOUND,

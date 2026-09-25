@@ -19,6 +19,7 @@ import {
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
+import { AcceptedRequestNotifier } from './accepted-request.notifier';
 
 @Injectable()
 export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
@@ -27,6 +28,7 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
     private readonly postRepository: IPostRepository,
     @Inject(IGiftRequestRepository)
     private readonly giftRequestRepository: IGiftRequestRepository,
+    private readonly acceptedNotifier: AcceptedRequestNotifier,
   ) {}
 
   public async handle(
@@ -71,6 +73,14 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
         giverId: command.userId,
         transactionId,
       });
+
+    // SAU khi lượt trao đã ghi. Người xin đang chờ biết mình có được chọn không.
+    await this.acceptedNotifier.announce({
+      receiverId: targetRequest.requesterId,
+      postId: command.postId,
+      transactionId: finalTransactionId,
+      automatic: false,
+    });
 
     return {
       requestId: command.requestId,

@@ -1,6 +1,7 @@
 import {
   CannotRequestOwnPostException,
   GiftRequestDuplicatedException,
+  OpenRequestQuotaExceededException,
   PostNotAcceptingRequestsException,
   PostNotFoundException,
 } from '@/domain/exceptions';
@@ -90,6 +91,7 @@ function makeGiftRequestRepo(
     findOneByOrFail: jest.fn().mockResolvedValue(makeRequest()),
     save: jest.fn().mockResolvedValue(makeRequest()),
     acceptRequest: jest.fn().mockResolvedValue(undefined),
+    countOpenByRequester: jest.fn().mockResolvedValue(0),
     ...overrides,
   } as unknown as jest.Mocked<IGiftRequestRepository>;
 }
@@ -123,6 +125,16 @@ function makeProfileGate() {
   } as never);
 }
 
+/**
+ * Quota yêu cầu đang mở, mặc định còn chỗ. Ca "đầy quota thì chặn" nằm ở nhóm
+ * riêng cuối file.
+ */
+function makeEntitlements(limit = 10) {
+  return {
+    getCapability: jest.fn().mockResolvedValue({ allowed: true, limit }),
+  } as never;
+}
+
 describe('CreateGiftRequestUseCase', () => {
   it('tạo yêu cầu thành công khi bài viết hợp lệ và chưa từng yêu cầu', async () => {
     const postRepo = makePostRepo();
@@ -134,6 +146,7 @@ describe('CreateGiftRequestUseCase', () => {
     const useCase = new CreateGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      makeEntitlements(),
       makeProfileGate(),
     );
     const result = await useCase.handle({
@@ -172,6 +185,7 @@ describe('CreateGiftRequestUseCase', () => {
     const useCase = new CreateGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      makeEntitlements(),
       makeProfileGate(),
     );
     const result = await useCase.handle({
@@ -202,6 +216,7 @@ describe('CreateGiftRequestUseCase', () => {
     const useCase = new CreateGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      makeEntitlements(),
       makeProfileGate(),
     );
     await useCase.handle({
@@ -237,6 +252,7 @@ describe('CreateGiftRequestUseCase', () => {
     const useCase = new CreateGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      makeEntitlements(),
       makeProfileGate(),
     );
     await useCase.handle({
@@ -271,6 +287,7 @@ describe('CreateGiftRequestUseCase', () => {
     const useCase = new CreateGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      makeEntitlements(),
       makeProfileGate(),
     );
     await useCase.handle({
@@ -292,11 +309,15 @@ describe('CreateGiftRequestUseCase', () => {
       findOneBy: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<IPostRepository>;
     const giftRequestRepo =
-      {} as unknown as jest.Mocked<IGiftRequestRepository>;
+      // Chỉ cần phép đếm quota: các ca này dừng trước khi chạm gì khác.
+      {
+        countOpenByRequester: jest.fn().mockResolvedValue(0),
+      } as unknown as jest.Mocked<IGiftRequestRepository>;
 
     const useCase = new CreateGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      makeEntitlements(),
       makeProfileGate(),
     );
     await expect(
@@ -315,11 +336,15 @@ describe('CreateGiftRequestUseCase', () => {
         .mockResolvedValue(makePost({ authorId: RequesterId })),
     } as unknown as jest.Mocked<IPostRepository>;
     const giftRequestRepo =
-      {} as unknown as jest.Mocked<IGiftRequestRepository>;
+      // Chỉ cần phép đếm quota: các ca này dừng trước khi chạm gì khác.
+      {
+        countOpenByRequester: jest.fn().mockResolvedValue(0),
+      } as unknown as jest.Mocked<IGiftRequestRepository>;
 
     const useCase = new CreateGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      makeEntitlements(),
       makeProfileGate(),
     );
     await expect(
@@ -338,11 +363,15 @@ describe('CreateGiftRequestUseCase', () => {
         .mockResolvedValue(makePost({ status: GiftPostStatuses.RESERVED })),
     } as unknown as jest.Mocked<IPostRepository>;
     const giftRequestRepo =
-      {} as unknown as jest.Mocked<IGiftRequestRepository>;
+      // Chỉ cần phép đếm quota: các ca này dừng trước khi chạm gì khác.
+      {
+        countOpenByRequester: jest.fn().mockResolvedValue(0),
+      } as unknown as jest.Mocked<IGiftRequestRepository>;
 
     const useCase = new CreateGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      makeEntitlements(),
       makeProfileGate(),
     );
     await expect(
@@ -367,11 +396,15 @@ describe('CreateGiftRequestUseCase', () => {
       ),
     } as unknown as jest.Mocked<IPostRepository>;
     const giftRequestRepo =
-      {} as unknown as jest.Mocked<IGiftRequestRepository>;
+      // Chỉ cần phép đếm quota: các ca này dừng trước khi chạm gì khác.
+      {
+        countOpenByRequester: jest.fn().mockResolvedValue(0),
+      } as unknown as jest.Mocked<IGiftRequestRepository>;
 
     const useCase = new CreateGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      makeEntitlements(),
       makeProfileGate(),
     );
     await expect(
@@ -396,6 +429,7 @@ describe('CreateGiftRequestUseCase', () => {
     const useCase = new CreateGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      makeEntitlements(),
       makeProfileGate(),
     );
 
@@ -420,6 +454,7 @@ describe('CreateGiftRequestUseCase', () => {
     const useCase = new CreateGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      makeEntitlements(),
       makeProfileGate(),
     );
     await expect(
@@ -444,6 +479,7 @@ describe('CreateGiftRequestUseCase', () => {
     const useCase = new CreateGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      makeEntitlements(),
       makeProfileGate(),
     );
     await expect(
@@ -453,5 +489,89 @@ describe('CreateGiftRequestUseCase', () => {
         message: 'Em xin món này ạ',
       }),
     ).rejects.toBeInstanceOf(GiftRequestDuplicatedException);
+  });
+});
+
+describe('CreateGiftRequestUseCase — giới hạn yêu cầu đang mở', () => {
+  it('chặn khi đã đầy quota', async () => {
+    // Từ khi mỗi yêu cầu đầu tiên mở một đồng hồ 7 ngày, xin bừa hàng loạt là
+    // khoá hàng loạt bài — kể cả khi người xin không bao giờ quay lại.
+    const giftRequestRepo = makeGiftRequestRepo({
+      countOpenByRequester: jest.fn().mockResolvedValue(10),
+    });
+
+    await expect(
+      new CreateGiftRequestUseCase(
+        makePostRepo(),
+        giftRequestRepo,
+        makeEntitlements(10),
+        makeProfileGate(),
+      ).handle({
+        postId: PostId,
+        requesterId: RequesterId,
+        message: 'Em xin món này ạ',
+      }),
+    ).rejects.toBeInstanceOf(OpenRequestQuotaExceededException);
+  });
+
+  it('kiểm quota TRƯỚC khi đọc bài', async () => {
+    // Người đã đầy quota không cần biết bài đó còn mở hay không.
+    const postRepo = makePostRepo();
+    const giftRequestRepo = makeGiftRequestRepo({
+      countOpenByRequester: jest.fn().mockResolvedValue(10),
+    });
+
+    await expect(
+      new CreateGiftRequestUseCase(
+        postRepo,
+        giftRequestRepo,
+        makeEntitlements(10),
+        makeProfileGate(),
+      ).handle({
+        postId: PostId,
+        requesterId: RequesterId,
+        message: 'Em xin món này ạ',
+      }),
+    ).rejects.toBeInstanceOf(OpenRequestQuotaExceededException);
+
+    expect(postRepo.findOneBy).not.toHaveBeenCalled();
+  });
+
+  it('bậc không được phép xin thì chặn dù chưa có yêu cầu nào', async () => {
+    const entitlements = {
+      getCapability: jest.fn().mockResolvedValue({ allowed: false, limit: 0 }),
+    } as never;
+
+    await expect(
+      new CreateGiftRequestUseCase(
+        makePostRepo(),
+        makeGiftRequestRepo(),
+        entitlements,
+        makeProfileGate(),
+      ).handle({
+        postId: PostId,
+        requesterId: RequesterId,
+        message: 'Em xin món này ạ',
+      }),
+    ).rejects.toBeInstanceOf(OpenRequestQuotaExceededException);
+  });
+
+  it('còn chỗ thì cho qua', async () => {
+    const giftRequestRepo = makeGiftRequestRepo({
+      countOpenByRequester: jest.fn().mockResolvedValue(3),
+    });
+
+    await expect(
+      new CreateGiftRequestUseCase(
+        makePostRepo(),
+        giftRequestRepo,
+        makeEntitlements(10),
+        makeProfileGate(),
+      ).handle({
+        postId: PostId,
+        requesterId: RequesterId,
+        message: 'Em xin món này ạ',
+      }),
+    ).resolves.toBeDefined();
   });
 });

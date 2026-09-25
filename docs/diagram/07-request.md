@@ -107,6 +107,9 @@ sequenceDiagram
 >
 > **Người chưa đặt vị trí ra `distanceMeters = null`, không phải 0 mét.** Coi là 0 thì người
 > lười đặt vị trí luôn thắng tiêu chí NEAREST.
+>
+> **Cả hai đường báo cho người được chọn qua MỘT chỗ.** Hai đường tự gửi là hai đường có thể
+> quên — và đúng chuyện đó đã xảy ra với đường duyệt tay.
 
 
 ```mermaid
@@ -161,7 +164,9 @@ sequenceDiagram
 2. ⛔ **Nhánh "dùng điểm chốt ngay" chưa có** — xem [14-redemption](./14-redemption.md).
    `appendAdjustment` đã mở đường ghi sổ, còn thiếu định giá và đường gọi.
 3. ✅ Cổng hồ sơ F07 **đã gắn** vào luồng xin nhận (25/09).
-4. ⚠️ Chưa có giới hạn **số yêu cầu đang mở** của một người. Một người xin 100 bài cùng lúc rồi
-   bỏ hết là chuyện làm được — và nay mỗi bài đó đều mở một đồng hồ 7 ngày.
-5. ⚠️ **Không báo cho người thắng auto-select.** Họ chỉ biết khi mở app. Cần một thông báo
-   `GIFT_REQUEST_ACCEPTED` như đường duyệt tay.
+4. ✅ **Đã có giới hạn số yêu cầu đang mở** (25/09) — capability `OPEN_REQUEST_QUOTA`, theo bậc:
+   Thành viên 5 · Bạc 10 · Vàng 20 · Kim Cương 30. Đếm cả `STANDBY` vì đó vẫn là yêu cầu đang
+   mở; bỏ nó ra là mở đúng cái cửa giới hạn này sinh ra để đóng.
+5. ✅ **Đã báo cho người thắng** (25/09) — và phát hiện ra **đường duyệt TAY cũng chưa từng
+   báo**: mẫu `GIFT_REQUEST_ACCEPTED` có từ migration `1792900000000` nhưng không đường nào gửi.
+   Nay cả hai đường đi qua một `AcceptedRequestNotifier`.

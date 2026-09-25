@@ -47,6 +47,15 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
    * `selection_deadline` đã được xoá lúc duyệt, nhưng một bài hết hạn đăng hoặc
    * bị gỡ vẫn có thể còn mốc cũ.
    */
+  /**
+   * Số yêu cầu ĐANG MỞ của một người, gồm cả `STANDBY`.
+   *
+   * `STANDBY` vẫn là yêu cầu đang mở — người đó còn trong hàng đợi và được xét
+   * tiếp nếu lượt trao hiện tại đổ (F33). Bỏ nó ra khỏi phép đếm là mở đúng cái
+   * cửa mà giới hạn này sinh ra để đóng.
+   */
+  countOpenByRequester(requesterId: string): Promise<number>;
+
   findPostsDueForSelection(
     limit: number,
   ): Promise<{ postId: string; giverId: string }[]>;

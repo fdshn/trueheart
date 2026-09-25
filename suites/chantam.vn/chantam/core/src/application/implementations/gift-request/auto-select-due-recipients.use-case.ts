@@ -12,6 +12,7 @@ import { CandidateSelectionConfigKey } from '@chantam.vn/chantam.core-lib/consts
 import { pickNextCandidate } from '@chantam.vn/chantam.core-lib/models';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { AcceptedRequestNotifier } from './accepted-request.notifier';
 
 const DefaultLimit = 200;
 
@@ -38,6 +39,7 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
     private readonly requests: IGiftRequestRepository,
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
+    private readonly acceptedNotifier: AcceptedRequestNotifier,
   ) {}
 
   public async handle(
@@ -97,6 +99,16 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
           transactionId: makeGlobalId(
             `/transactions/${post.postId}/${winner.requesterId}`,
           ),
+        });
+
+        // Với auto-select, thông báo còn quan trọng hơn đường duyệt tay: người
+        // dùng không bấm gì cả, hệ thống quyết hộ họ. Không báo thì họ chỉ biết
+        // khi tình cờ mở app, trong khi người tặng đang chờ trả lời.
+        await this.acceptedNotifier.announce({
+          receiverId: winner.requesterId,
+          postId: post.postId,
+          transactionId: accepted.transactionId,
+          automatic: true,
         });
 
         selected.push({

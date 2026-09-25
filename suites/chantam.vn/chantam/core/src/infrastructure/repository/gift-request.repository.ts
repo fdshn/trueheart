@@ -220,6 +220,19 @@ export class GiftRequestRepository
    * Đã đo bằng `npm run test:concurrency`: chỉ khoá một hàng thì 24/25 vòng dính
    * `40P01`.
    */
+  public async countOpenByRequester(requesterId: string): Promise<number> {
+    const [row] = await this.manager.query<{ total: string }[]>(
+      `SELECT COUNT(*) AS total
+       FROM gift_requests
+       WHERE requester_id = $1
+         AND status IN ($2, $3)
+         AND deleted_at IS NULL`,
+      [requesterId, GiftRequestStatuses.PENDING, GiftRequestStatuses.STANDBY],
+    );
+
+    return Number(row?.total ?? 0);
+  }
+
   public async findPostsDueForSelection(
     limit: number,
   ): Promise<{ postId: string; giverId: string }[]> {

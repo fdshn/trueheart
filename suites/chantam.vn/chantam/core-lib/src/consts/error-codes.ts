@@ -17,6 +17,13 @@ export enum ErrorCodes {
   GIFT_REQUEST_DUPLICATED = 0x02_02,
   CANNOT_REQUEST_OWN_POST = 0x02_03,
   POST_NOT_ACCEPTING_REQUESTS = 0x02_04,
+  /**
+   * Người này đang giữ quá nhiều yêu cầu chưa ngã ngũ.
+   *
+   * Từ khi mỗi yêu cầu đầu tiên mở một đồng hồ 7 ngày, xin bừa hàng loạt là khoá
+   * hàng loạt bài — kể cả khi người xin không bao giờ quay lại.
+   */
+  OPEN_REQUEST_QUOTA_EXCEEDED = 0x02_05,
 
   // 0x03 — Người dùng
   //

@@ -52,13 +52,17 @@ function makeUseCase(
     getConfigValue: jest.fn().mockResolvedValue(options.order ?? null),
   };
 
+  const notifier = { announce: jest.fn().mockResolvedValue(undefined) };
+
   return {
     useCase: new AutoSelectDueRecipientsUseCase(
       requests as never,
       adminConfig as never,
+      notifier as never,
     ),
     requests,
     adminConfig,
+    notifier,
   };
 }
 
@@ -207,5 +211,29 @@ describe('AutoSelectDueRecipientsUseCase', () => {
     const result = await useCase.handle({});
 
     expect(result.selected[0].candidates).toBe(3);
+  });
+
+  it('báo cho người được chọn, và nói rõ là hệ thống chọn', async () => {
+    // Người dùng không bấm gì cả — hệ thống quyết hộ họ. Không báo thì họ chỉ
+    // biết khi tình cờ mở app, trong khi người tặng đang chờ trả lời.
+    const { useCase, notifier } = makeUseCase();
+
+    await useCase.handle({});
+
+    expect(notifier.announce).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receiverId: 'user-1',
+        transactionId: 'tx-1',
+        automatic: true,
+      }),
+    );
+  });
+
+  it('dry-run KHÔNG báo cho ai', async () => {
+    const { useCase, notifier } = makeUseCase();
+
+    await useCase.handle({ dryRun: true });
+
+    expect(notifier.announce).not.toHaveBeenCalled();
   });
 });

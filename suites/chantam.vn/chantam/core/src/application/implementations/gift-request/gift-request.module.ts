@@ -7,6 +7,7 @@ import {
 } from '@/application/contracts/gift-request';
 import { Global, Module } from '@nestjs/common';
 import { AcceptGiftRequestUseCase } from './accept-gift-request.use-case';
+import { AcceptedRequestNotifier } from './accepted-request.notifier';
 import { AutoSelectDueRecipientsUseCase } from './auto-select-due-recipients.use-case';
 import { CreateGiftRequestUseCase } from './create-gift-request.use-case';
 import { ListPostRequestsUseCase } from './list-post-requests.use-case';
@@ -15,6 +16,7 @@ import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
 @Global()
 @Module({
   providers: [
+    AcceptedRequestNotifier,
     { provide: ICreateGiftRequestUseCase, useClass: CreateGiftRequestUseCase },
     {
       provide: IAutoSelectDueRecipientsUseCase,

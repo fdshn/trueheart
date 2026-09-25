@@ -79,6 +79,14 @@ function makeRequest(
   };
 }
 
+/**
+ * Đường báo cho người được chọn. Ca "có báo đúng không" nằm ở
+ * `accepted-request.notifier.spec.ts`.
+ */
+function notifier() {
+  return { announce: jest.fn().mockResolvedValue(undefined) } as never;
+}
+
 describe('AcceptGiftRequestUseCase', () => {
   it('duyệt thành công: gọi acceptRequest trên repo và trả về kết quả', async () => {
     const post = makePost();
@@ -95,7 +103,11 @@ describe('AcceptGiftRequestUseCase', () => {
         .mockResolvedValue({ transactionId: 'trans-123' }),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 
-    const useCase = new AcceptGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new AcceptGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      notifier(),
+    );
     const result = await useCase.handle({
       postId: PostId,
       requestId: RequestId,
@@ -122,7 +134,11 @@ describe('AcceptGiftRequestUseCase', () => {
     const giftRequestRepo =
       {} as unknown as jest.Mocked<IGiftRequestRepository>;
 
-    const useCase = new AcceptGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new AcceptGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      notifier(),
+    );
     await expect(
       useCase.handle({
         postId: PostId,
@@ -141,7 +157,11 @@ describe('AcceptGiftRequestUseCase', () => {
     const giftRequestRepo =
       {} as unknown as jest.Mocked<IGiftRequestRepository>;
 
-    const useCase = new AcceptGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new AcceptGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      notifier(),
+    );
     await expect(
       useCase.handle({
         postId: PostId,
@@ -160,7 +180,11 @@ describe('AcceptGiftRequestUseCase', () => {
     const giftRequestRepo =
       {} as unknown as jest.Mocked<IGiftRequestRepository>;
 
-    const useCase = new AcceptGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new AcceptGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      notifier(),
+    );
     await expect(
       useCase.handle({
         postId: PostId,
@@ -182,7 +206,11 @@ describe('AcceptGiftRequestUseCase', () => {
       findOneBy: jest.fn().mockResolvedValue(request),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 
-    const useCase = new AcceptGiftRequestUseCase(postRepo, giftRequestRepo);
+    const useCase = new AcceptGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      notifier(),
+    );
     await expect(
       useCase.handle({
         postId: PostId,

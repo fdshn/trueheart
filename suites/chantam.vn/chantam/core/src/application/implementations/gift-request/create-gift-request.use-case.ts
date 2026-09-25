@@ -6,10 +6,12 @@ import {
 import {
   CannotRequestOwnPostException,
   GiftRequestDuplicatedException,
+  OpenRequestQuotaExceededException,
   PostNotAcceptingRequestsException,
   PostNotFoundException,
 } from '@/domain/exceptions';
 import {
+  IEntitlementRepository,
   IGiftRequestRepository,
   IPostRepository,
 } from '@/domain/ports/repository';
@@ -35,6 +37,8 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     private readonly postRepository: IPostRepository,
     @Inject(IGiftRequestRepository)
     private readonly giftRequestRepository: IGiftRequestRepository,
+    @Inject(IEntitlementRepository)
+    private readonly entitlements: IEntitlementRepository,
     private readonly profileGate: ProfileGate,
   ) {}
 
@@ -45,6 +49,23 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     // Người tặng phải liên hệ được với người xin; hồ sơ thiếu SĐT hoặc họ tên
     // biến mỗi lượt trao thành một cuộc hẹn với người vô danh.
     await this.profileGate.assertComplete(command.requesterId);
+
+    // Giới hạn số yêu cầu ĐANG MỞ. Cần từ khi mỗi yêu cầu đầu tiên mở một đồng
+    // hồ 7 ngày (F75): xin bừa 100 bài rồi bỏ hết nay là khoá 100 bài trong một
+    // tuần, kể cả khi người xin không bao giờ quay lại.
+    //
+    // Kiểm TRƯỚC khi đọc bài: một người đã đầy quota thì không cần biết bài đó
+    // còn mở hay không.
+    const openQuota = await this.entitlements.getCapability(
+      command.requesterId,
+      'OPEN_REQUEST_QUOTA',
+    );
+    const openRequests = await this.giftRequestRepository.countOpenByRequester(
+      command.requesterId,
+    );
+    const quota = openQuota?.limit ?? 0;
+    if (!openQuota?.allowed || openRequests >= quota)
+      throw new OpenRequestQuotaExceededException(openRequests, quota);
 
     const post = await this.postRepository.findOneBy({
       globalId: command.postId,

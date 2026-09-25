@@ -34,7 +34,7 @@ flowchart TD
 | Mã | Khi nào | Khoá chống trùng |
 | --- | --- | --- |
 | `NEW_CHAT_MESSAGE` | Có tin nhắn mới | theo messageId |
-| `GIFT_REQUEST_ACCEPTED` | Chủ bài chấp nhận yêu cầu | theo requestId |
+| `GIFT_REQUEST_ACCEPTED` | Chủ bài duyệt, **hoặc** job tự chọn khi hết đồng hồ | `GIFT_REQUEST_ACCEPTED:<transactionId>` |
 | `GIFT_TRANSACTION_CLOSED` | Lượt trao bị huỷ | theo transactionId |
 | `GIFT_TRANSACTION_COMPLETED` | Lượt trao hoàn tất | theo transactionId |
 | `CHAT_ROOM_SCHEDULED_FOR_PURGE` | Phòng sắp bị dọn | theo roomId |

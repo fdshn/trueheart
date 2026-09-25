@@ -16,3 +16,7 @@ export class CannotRequestOwnPostException extends ExceptionFrom(
 export class PostNotAcceptingRequestsException extends ExceptionFrom(
   CoreErrors.POST_NOT_ACCEPTING_REQUESTS,
 ) {}
+
+export class OpenRequestQuotaExceededException extends ExceptionFrom(
+  CoreErrors.OPEN_REQUEST_QUOTA_EXCEEDED,
+) {}

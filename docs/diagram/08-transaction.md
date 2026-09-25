@@ -54,7 +54,7 @@ sequenceDiagram
     G->>API: POST /posts/:postId/requests/:requestId/accept
     API->>DB: Tạo transaction REQUESTED, bài → RESERVED
     API->>C: Mở phòng chat giữa hai bên
-    API->>N: Báo người nhận (GIFT_REQUEST_ACCEPTED)
+    API->>N: Báo người nhận (GIFT_REQUEST_ACCEPTED) ✅ từ 25/09
 
     G->>API: POST /transactions/:id/evidence/upload-url
     G->>API: POST /transactions/:id/handover { ảnh bằng chứng }
