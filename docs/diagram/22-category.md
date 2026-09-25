@@ -14,7 +14,7 @@ flowchart TD
     B --> B1["Trẻ em"]
     B --> B2["Người lớn"]
 
-    style R fill:#e7f3ff
+    style R fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 Lưu theo mô hình cây với `parent_id`. Bài đăng gắn vào **nút lá**, nhưng truy vấn theo nút
@@ -59,7 +59,7 @@ flowchart LR
     A["GET /categories<br/>người dùng thường"] --> B["Chỉ trả is_active = true"]
     C["GET /admin/categories<br/>quyền category.read"] --> D["Trả CẢ danh mục đã tắt<br/>để Admin bật lại được"]
 
-    style D fill:#fff3cd
+    style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 ## Chỗ cần soát

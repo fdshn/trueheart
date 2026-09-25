@@ -39,7 +39,7 @@ flowchart TD
     F -->|Có| G["❌ 403 — QUÊN KHAI QUYỀN<br/>route admin không khai là KHOÁ"]
     F -->|Không| D
 
-    style G fill:#fff3cd
+    style G fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 > **Vì sao mặc định đóng.** Thêm endpoint admin mà quên decorator thì nó khoá ngay lần gọi
@@ -125,7 +125,7 @@ flowchart LR
     C --> D[Use case gửi mail giải mã khi dùng]
     C -.-> E["❌ KHÔNG API nào trả về<br/>kể cả cho SUPER_ADMIN"]
 
-    style E fill:#ffe6e6
+    style E fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 ## Chỗ cần soát

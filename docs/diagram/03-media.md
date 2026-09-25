@@ -17,8 +17,8 @@ flowchart LR
         B2 -->|HEAD kiểm tra| B3
     end
 
-    style X fill:#ffe6e6
-    style Y fill:#e6ffe6
+    style X fill:#d2464621,stroke:#c0504d,stroke-width:1.5px
+    style Y fill:#3ca05021,stroke:#3f8f3f,stroke-width:1.5px
 ```
 
 > File không đi qua API server: không ăn băng thông, không chiếm worker, và một người upload
@@ -80,7 +80,7 @@ flowchart LR
     F["DELETE /posts/:postId/media/:mediaId"] --> G[Xoá bản ghi]
     G --> H[Đánh dấu object để dọn sau]
 
-    style D fill:#f8d7da
+    style D fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
 ```
 
 > **Vì sao sắp xếp phải gửi trọn mảng.** Gửi từng cặp "đổi chỗ A với B" thì hai request chồng

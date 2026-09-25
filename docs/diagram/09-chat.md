@@ -12,7 +12,7 @@ flowchart LR
     D --> E["OPEN — gửi được"]
     D --> F["READ_ONLY — đọc được, không gửi<br/>(lượt trao đã đóng)"]
 
-    style C fill:#e7f3ff
+    style C fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 > **Vì sao phòng khoá lại thay vì xoá khi lượt trao đóng.** Lịch sử trao đổi là bằng chứng
@@ -81,8 +81,8 @@ flowchart TD
 
     G["Trigger append-only chặn mọi<br/>DELETE trên chat_messages"] -.gỡ tạm bởi.-> D
 
-    style D fill:#fff3cd
-    style G fill:#f0f0f0
+    style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style G fill:#f0f0f0,stroke:#8a8a8a,stroke-width:1.5px,color:#2b2b2b
 ```
 
 > **Vì sao cần một cái cổng riêng để xoá.** Bảng tin nhắn có trigger chặn sửa/xoá để không ai

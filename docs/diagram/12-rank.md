@@ -12,8 +12,8 @@ flowchart LR
     S --> G["Vàng<br/>896<br/>quota 20"]
     G --> D["Kim Cương<br/>1792<br/>quota 50 · tạo Group ✓"]
 
-    style V fill:#f0f0f0
-    style D fill:#fff9e6
+    style V fill:#f0f0f0,stroke:#8a8a8a,stroke-width:1.5px,color:#2b2b2b
+    style D fill:#fff9e6,stroke:#c9a227,stroke-width:1.5px,color:#3d3000
 ```
 
 ## 12.2 Mô hình đã chốt 2026-09-24
@@ -30,9 +30,9 @@ flowchart TD
 
     I["❌ F76 đã HUỶ<br/>không còn 'điểm khả dụng'<br/>toàn bộ balance đều tiêu được"] -.-> F
 
-    style A fill:#e7f3ff
-    style H fill:#fff3cd
-    style I fill:#ffe6e6
+    style A fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
+    style H fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style I fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 > **Vì sao chỉ một căn cứ.** Trước đây có hai con số cùng nói về hạng: `lifetime` (sàn) và
@@ -88,8 +88,8 @@ flowchart TD
     end
     B -.-> Mốc
 
-    style C fill:#fff3cd
-    style Mốc fill:#f0f0f0
+    style C fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style Mốc fill:#8c8c8c24,stroke:#8a8a8a,stroke-width:1.5px
 ```
 
 > **Vì sao bắt buộc phải có.** Khi tiêu điểm làm tụt hạng, người dùng đổi một vật phẩm rồi
@@ -111,8 +111,8 @@ flowchart LR
     A["Bạc · ngưỡng 672<br/>muốn đổi món 280đ"] --> B["cần có 952đ<br/>mới đổi mà không rơi hạng"]
     C["Kim Cương · ngưỡng 1792<br/>muốn đổi món 280đ"] --> D["cần có 2072đ"]
 
-    style B fill:#fff3cd
-    style D fill:#fff3cd
+    style B fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 Đây là hệ quả tự nhiên của mô hình đã chọn, không phải lỗi — nhưng cần biết trước.
@@ -133,7 +133,7 @@ sequenceDiagram
 
     CLI->>R: Quét RIÊNG chu kỳ FAILED chưa bị trừ
     Note over CLI,R: Quét riêng vì chu kỳ đã FAILED thì vòng<br/>đánh giá không nhìn tới nó nữa. Tiến trình<br/>chết giữa hai bước là mất khoản trừ vĩnh viễn.
-    CLI->>L: appendAdjustment −224, khoá MAINTENANCE_FAILED:&lt;cycleId&gt;
+    CLI->>L: appendAdjustment −224, khoá MAINTENANCE_FAILED:#lt;cycleId#gt;
     Note over L: lifetime KHÔNG giảm — khoản trừ là sự kiện<br/>có thật, không phải phủ nhận khoản cộng cũ
     CLI->>U: reconcileNormalRank → xét lại theo balance mới
     U-->>CLI: Tụt hạng nếu rơi dưới ngưỡng
@@ -148,8 +148,8 @@ flowchart TD
     B & C --> D["Cả hai nổ ngay lần đầu có chu kỳ tới hạn thật"]
     E["Unit test mock query nên không thấy.<br/>test/rank-balance.check.ts là thứ đầu tiên<br/>chạy đoạn này trên Postgres thật."] -.-> D
 
-    style D fill:#ffe6e6
-    style E fill:#fff3cd
+    style D fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style E fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 ## Chỗ cần soát

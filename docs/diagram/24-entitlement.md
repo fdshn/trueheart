@@ -33,8 +33,8 @@ flowchart LR
         B3["MỘT chỗ duy nhất, có audit"]
     end
 
-    style X fill:#ffe6e6
-    style Y fill:#e6ffe6
+    style X fill:#d2464621,stroke:#c0504d,stroke-width:1.5px
+    style Y fill:#3ca05021,stroke:#3f8f3f,stroke-width:1.5px
 ```
 
 ## 24.3 Bảng giá trị hiện tại
@@ -96,7 +96,7 @@ flowchart LR
     A["GET /me/entitlements"] --> B["Trả toàn bộ capability<br/>ứng với rank hiện tại"]
     B --> C["App dùng để ẩn/hiện nút<br/>thay vì đoán theo tên rank"]
 
-    style C fill:#e7f3ff
+    style C fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 > **Vì sao app không tự suy từ tên rank.** Admin đổi ngưỡng SOS xuống Thành viên thì app cũ

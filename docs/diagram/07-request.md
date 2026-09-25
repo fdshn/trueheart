@@ -12,9 +12,9 @@ flowchart TD
     M --> O["OPTIMAL ✅ (mặc định)<br/>Countdown 7 ngày rồi auto-select"]
     M --> E["EXTENDED ✅<br/>Countdown 30 ngày"]
 
-    style I fill:#e6ffe6
-    style O fill:#e6ffe6
-    style E fill:#e6ffe6
+    style I fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style O fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style E fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 ## 7.2 Hàng đợi xin nhận
@@ -125,7 +125,7 @@ flowchart TD
     F3 --> F4["4. FEWEST_RECEIVED<br/>đếm giao dịch COMPLETED làm người nhận"]
     F4 --> F5["5. FEWEST_CANCELLATIONS<br/>đếm closed_by"]
 
-    style D fill:#e6ffe6
+    style D fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 > **Vì sao mặc định là "ai xin trước".** Đây là tiêu chí **duy nhất người dùng tự kiểm chứng

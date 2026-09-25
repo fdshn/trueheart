@@ -13,8 +13,8 @@ flowchart TD
     B --> E[idempotency_key UNIQUE]
     E --> F[Bấm hai lần / retry mạng / job chạy lại<br/>→ chỉ một bút toán]
 
-    style C fill:#fff3cd
-    style E fill:#fff3cd
+    style C fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style E fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 Mỗi dòng ghi: `user_id` · `rule_code` · `delta` · `balance_after` · `raw_balance_after` ·
@@ -81,7 +81,7 @@ flowchart LR
     U --> E["896 = 56 × 16<br/>ngưỡng Vàng"]
     U --> F["1792 = 56 × 32<br/>ngưỡng Kim Cương"]
 
-    style U fill:#e7f3ff
+    style U fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 **Chốt 2026-09-25: X = 56** — một lượt trao hoàn tất đánh giá 100% đáng bằng một lượt giới
@@ -107,12 +107,12 @@ flowchart TD
 
     C --> H["AwardGiftCompletionUseCase<br/>multiplierPercent"]
     F --> H
-    H --> I["appendByRule GIFT_COMPLETED_GIVER<br/>khoá: GIFT_COMPLETED_GIVER:&lt;transactionId&gt;"]
+    H --> I["appendByRule GIFT_COMPLETED_GIVER<br/>khoá: GIFT_COMPLETED_GIVER:#lt;transactionId#gt;"]
 
     J["Đường nào tới TRƯỚC thì đường kia<br/>thành không làm gì — applied = false"] -.-> I
 
-    style G fill:#fff3cd
-    style J fill:#e7f3ff
+    style G fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style J fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 ### Hai đường, một khoá chống trùng
@@ -126,15 +126,15 @@ sequenceDiagram
     participant L as point_ledger
     participant J as CLI gift:settle-rewards
 
-    rect rgb(240, 248, 255)
+    rect rgba(80, 140, 220, 0.12)
     Note over R,L: Đường 1 — người nhận đánh giá
     R->>S: POST /transactions/:id/reviews (accuracyPercent = 90)
     S->>S: Ghi đánh giá + tính lại accuracy (một transaction)
     S->>A: SAU commit — accuracyPercent = 90
-    A->>L: 56 × 90% = 50đ, khoá GIFT_COMPLETED_GIVER:&lt;id&gt;
+    A->>L: 56 × 90% = 50đ, khoá GIFT_COMPLETED_GIVER:#lt;id#gt;
     end
 
-    rect rgb(255, 250, 240)
+    rect rgba(220, 160, 40, 0.14)
     Note over J,L: Đường 2 — hết hạn chờ
     J->>J: Quét lượt COMPLETED quá 7 ngày,<br/>người NHẬN chưa đánh giá, chưa có bút toán
     J->>A: accuracyPercent = null

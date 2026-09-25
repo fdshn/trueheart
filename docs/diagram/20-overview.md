@@ -73,8 +73,8 @@ flowchart TB
     GRP --> AFF --> PT
     PROF --> GRP
 
-    style T6 fill:#ffe6e6
-    style T4 fill:#fff9e6
+    style T6 fill:#d2464621,stroke:#c0504d,stroke-width:1.5px
+    style T4 fill:#dcb42826,stroke:#c9a227,stroke-width:1.5px
 ```
 
 ## 20.2 Đường đi của một người dùng mới

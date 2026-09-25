@@ -17,7 +17,7 @@ flowchart TD
     T --> C1["posts.like_count<br/>= số kind = LIKE"]
     T --> C2["posts.reaction_count<br/>= tổng mọi kind"]
 
-    style T fill:#e7f3ff
+    style T fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 > **Vì sao giữ cả hai lối vào.** Trước đây hai nhánh code tạo ra hai bảng riêng, và
@@ -35,8 +35,8 @@ flowchart TD
     E[Người dùng thả LIKE lần đầu] --> F["like_count +1<br/>reaction_count +1"]
     G[Người dùng gỡ LIKE] --> H["like_count −1<br/>reaction_count −1"]
 
-    style C fill:#fff3cd
-    style D fill:#fff3cd
+    style C fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 Câu SQL phải biết **loại cũ** trước khi ghi loại mới:
@@ -103,8 +103,8 @@ flowchart TD
 
     G["Khoá chống trùng:<br/>CONTENT_REACTION_FIRST:postId:YYYY-MM-DD<br/>ngày cắt theo Asia/Ho_Chi_Minh"] -.-> D
 
-    style F fill:#e6ffe6
-    style G fill:#f0f0f0
+    style F fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style G fill:#f0f0f0,stroke:#8a8a8a,stroke-width:1.5px,color:#2b2b2b
 ```
 
 > **Vì sao chỉ một lần mỗi ngày.** Một bài 200 lượt cảm xúc mà báo 200 lần thì tác giả tắt

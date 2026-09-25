@@ -18,7 +18,7 @@ flowchart TD
     C --> A{Kim Cương đề xuất<br/>→ Admin duyệt}
     L --> E[Tồn tại tối đa 3 tháng<br/>hết hạn → chuyển OFFER]
 
-    style P fill:#e7f3ff
+    style P fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 > **Vì sao một endpoint chứ không năm.** Năm đường riêng thì năm chỗ kiểm quyền, năm chỗ kiểm
@@ -33,17 +33,20 @@ flowchart LR
     C -->|Không| D[❌ 403 QUOTA_EXCEEDED<br/>kèm số hiện tại / số tối đa]
     C -->|Có| E[✅ Cho đăng]
 
-    subgraph Cấu hình["capability_rank_values — Admin sửa lúc chạy"]
+    subgraph CauHinh["capability_rank_values — Admin sửa lúc chạy"]
         R1["Viewer — 0"]
         R2["Thành viên — 3"]
         R3["Bạc — 10"]
         R4["Vàng — 20"]
         R5["Kim Cương — 50"]
+        %% Nối vô hình để năm bậc xếp ĐÚNG THỨ TỰ; bỏ ra thì mermaid tự dàn và
+        %% cái thang hiện lên lộn xộn.
+        R1 ~~~ R2 ~~~ R3 ~~~ R4 ~~~ R5
     end
-    C -.đọc.-> Cấu hình
+    C -.đọc.-> CauHinh
 
-    style D fill:#f8d7da
-    style Cấu hình fill:#f0f0f0
+    style D fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style CauHinh fill:#8c8c8c24,stroke:#8a8a8a,stroke-width:1.5px
 ```
 
 > Con số là **baseline**, Admin chỉnh qua `POST /api/v1/admin/entitlements` không cần deploy.
@@ -127,9 +130,9 @@ flowchart TD
     F -->|Hết| G[❌ Tính quota như bài mới]
     F -->|Còn| H[✅ +3 tháng, đánh dấu đã gia hạn]
 
-    style C fill:#f8d7da
-    style E fill:#f8d7da
-    style G fill:#f8d7da
+    style C fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style E fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style G fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
 ```
 
 ## 4.5 Chuyển bài sang từ thiện

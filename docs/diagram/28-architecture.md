@@ -33,8 +33,8 @@ flowchart TD
 
     E["Mũi tên CHỈ đi một chiều:<br/>domain KHÔNG biết gì về infrastructure"] -.-> D
 
-    style D fill:#e6ffe6
-    style E fill:#f0f0f0
+    style D fill:#3ca05021,stroke:#3f8f3f,stroke-width:1.5px
+    style E fill:#f0f0f0,stroke:#8a8a8a,stroke-width:1.5px,color:#2b2b2b
 ```
 
 > **Vì sao model thuần nằm ở `core-lib`.** `computeGiverAccuracy`,
@@ -52,7 +52,7 @@ flowchart LR
 
     E["Dùng class làm token sẽ kéo<br/>hiện thực vào tầng domain"] -.-> A
 
-    style A fill:#e7f3ff
+    style A fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 ## 28.3 Khởi động HTTP
@@ -93,7 +93,7 @@ flowchart LR
         C3["KHÔNG mở cổng, chạy xong app.close()"]
     end
 
-    style C fill:#fff9e6
+    style C fill:#dcb42826,stroke:#c9a227,stroke-width:1.5px
 ```
 
 Chi tiết hai cái bẫy: [17-jobs](./17-jobs.md).
@@ -108,8 +108,8 @@ flowchart TD
 
     E["Bảy *-cli.module.ts từng tự đoán<br/>bốn module mình cần — cả bảy đều thiếu"] -.-> D
 
-    style D fill:#ffe6e6
-    style C fill:#e6ffe6
+    style D fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style C fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 ## 28.6 Kiểm thử — ba tầng, mỗi tầng bắt loại lỗi khác nhau
@@ -125,8 +125,8 @@ flowchart TD
 
     D["Hai loại lỗi chỉ tầng 3 bắt được,<br/>đã gặp thật trong dự án này"] -.-> C
 
-    style A2 fill:#ffe6e6
-    style D fill:#fff3cd
+    style A2 fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 | Lệnh | Kiểm gì |

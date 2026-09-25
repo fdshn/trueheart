@@ -15,8 +15,8 @@ flowchart LR
 
     G["❌ content_reports đã DROP<br/>bảng chết, không code nào chạm"] -.-> F
 
-    style F fill:#e7f3ff
-    style G fill:#ffe6e6
+    style F fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
+    style G fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 Lý do báo: `SCAM` · `PROHIBITED_ITEM` · `INAPPROPRIATE_CONTENT` · `HARASSMENT` ·
@@ -104,7 +104,7 @@ flowchart TD
 
     C & D & E --> F[Ghi admin_audit_logs]
 
-    style F fill:#e7f3ff
+    style F fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 ## Chỗ cần soát

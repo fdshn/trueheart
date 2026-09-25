@@ -18,8 +18,8 @@ flowchart LR
     J --> K[Chạy migration]
     K --> L["Xác nhận schema do migration dựng<br/>khớp với entity"]
 
-    style G fill:#e7f3ff
-    style L fill:#e7f3ff
+    style G fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
+    style L fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 > **Vì sao có bước "build không làm bẩn working tree".** Nếu build sinh ra file mà không ai
@@ -70,7 +70,7 @@ flowchart TB
     end
     U[Client mobile/web] --> N
 
-    style S fill:#fff3cd
+    style S fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 ## 29.4 Bốn workflow
@@ -99,13 +99,13 @@ flowchart TD
     A --> K["⛔ Ledger cho MỌI đường cộng điểm"]
     A --> L["✅ Lịch cron cho 9 CLI"]
 
-    style E fill:#ffe6e6
-    style F fill:#ffe6e6
-    style G fill:#ffe6e6
-    style H fill:#ffe6e6
-    style I fill:#ffe6e6
-    style J fill:#ffe6e6
-    style K fill:#ffe6e6
+    style E fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style F fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style G fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style H fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style I fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style J fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style K fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 > **`backup` không có `restore test` thì không phải backup**, nó chỉ là một thư mục file nén

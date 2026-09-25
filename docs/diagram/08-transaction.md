@@ -81,9 +81,9 @@ flowchart TD
     E -->|Không| G["Đóng thành COMPLETED"]
     F --> H["Admin đóng báo xấu →<br/>lần chạy sau tự xử lý"]
 
-    style C fill:#e6ffe6
-    style E fill:#e6ffe6
-    style H fill:#e7f3ff
+    style C fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style E fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style H fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 **Hai kênh tranh chấp, và cố ý chỉ hai kênh:**
@@ -113,8 +113,8 @@ flowchart LR
     H -->|Có| I[KHÔNG đóng]
     H -->|Không| J[Đóng thành COMPLETED]
 
-    style C fill:#e6ffe6
-    style I fill:#e6ffe6
+    style C fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style I fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 ## 8.4 Huỷ lượt trao
@@ -152,7 +152,7 @@ flowchart TD
     J --> K["Point rule SHIP_UNPAID_PENALTY (−50)<br/>Admin chỉnh được"]
     K --> L["Khoá chống trùng theo lượt trao<br/>báo hai lần chỉ trừ một lần"]
 
-    style H fill:#fff3cd
+    style H fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 > **Vì sao chỉ người gửi báo được.** Chỉ họ mới thấy hàng bị hoàn về. Cho người nhận báo là

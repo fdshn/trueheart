@@ -17,8 +17,8 @@ flowchart LR
         A3["Điểm từng loại sự kiện do Admin cấu hình"]
     end
 
-    style P fill:#e6ffe6
-    style A fill:#ffe6e6
+    style P fill:#3ca05021,stroke:#3f8f3f,stroke-width:1.5px
+    style A fill:#d2464621,stroke:#c0504d,stroke-width:1.5px
 ```
 
 ## 19.2 Luồng xử lý một sự kiện affiliate
@@ -38,9 +38,9 @@ flowchart TD
     I --> J[Ghi point_ledger cho TỪNG người]
     J --> K["Ghi audit: khoảng cách đo được<br/>+ bán kính đã áp dụng"]
 
-    style F fill:#fff3cd
-    style E fill:#e7f3ff
-    style K fill:#e7f3ff
+    style F fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style E fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
+    style K fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 > **Vì sao ngoài vùng vẫn ghi nhận chứ không bỏ đi.** Bỏ đi thì khi có tranh chấp "vì sao sự
@@ -65,8 +65,8 @@ flowchart TD
     E -->|Có| Z
     E -->|Không| F["❌ CHƯA ĐỦ ĐIỀU KIỆN<br/>KHÔNG mặc định cho qua"]
 
-    style F fill:#f8d7da
-    style Z fill:#e6ffe6
+    style F fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style Z fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 > **Vì sao không có vị trí thì từ chối chứ không cho qua.** Cho qua là mở đúng cái cửa mà
@@ -85,7 +85,7 @@ flowchart LR
 
     F["Chốt 2026-09-24.<br/>Mốc cập nhật MỖI LẦN refresh token,<br/>không chỉ lúc nhập mật khẩu"] -.-> D
 
-    style F fill:#fff3cd
+    style F fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 > **Vì sao mốc phải tính cả nhánh refresh token.** App mobile giữ refresh token nên người mở
@@ -104,7 +104,7 @@ flowchart TD
     A --> G["Depth = 1, không phân tầng sâu"]
     A --> H["Có cơ chế THU HỒI thưởng"]
 
-    style A fill:#e7f3ff
+    style A fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 ## Chỗ cần soát

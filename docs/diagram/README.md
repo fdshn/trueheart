@@ -100,3 +100,31 @@ hệ thống đã làm xong những việc chưa ai viết một dòng code.
 
 Đọc theo thứ tự 01 → 21. Mỗi sơ đồ có một mục **"Chỗ cần soát"** ở cuối liệt kê các quyết
 định đã cắm vào thiết kế — đó là nơi dễ phát hiện sai nhất.
+
+## Quy ước màu trong sơ đồ
+
+Mọi khối tô màu đều **khai màu chữ tối rõ ràng**, không để mermaid tự chọn. Người xem ở giao
+diện tối thì mermaid đổi chữ sang màu nhạt, và chữ nhạt trên nền pastel là thứ gần như không
+đọc được — đó là lý do mọi dòng `style` ở đây đều có đủ `fill` + `stroke` + `color`.
+
+| Ý nghĩa | Nền | Viền | Chữ |
+| --- | --- | --- | --- |
+| Đã xong | `#e6ffe6` | `#3f8f3f` | `#0f3d12` |
+| Cảnh báo / chờ chốt | `#fff3cd` | `#b8860b` | `#3d2f00` |
+| Ghi chú kỹ thuật | `#e7f3ff` | `#3d7ab8` | `#0d2a4a` |
+| Chỗ sai / chưa có | `#ffe6e6` | `#c0504d` | `#4a1210` |
+| Bị chặn | `#f8d7da` | `#a52834` | `#4a0d13` |
+| Ngoài phạm vi | `#f0f0f0` | `#8a8a8a` | `#2b2b2b` |
+
+Mọi cặp trên đều đạt **tương phản ≥ 11.5:1**, tức vượt mức AAA của WCAG.
+
+**Nền `subgraph` và dải `rect` thì dùng màu TRONG SUỐT** (`#rrggbbaa` với alpha ~0.13, hoặc
+`rect rgba(...)`). Lý do: mermaid **không** cho đặt màu chữ cho nhãn cụm và cho lời thoại bên
+trong `rect` — chúng luôn lấy màu của theme. Tô nền đặc màu sáng là ép chữ nhạt của theme tối
+nằm trên nền sáng. Tint trong suốt thì chữ giữ nguyên tương phản vốn có.
+
+Ba thứ cú pháp cần tránh — cả ba đều từng làm sơ đồ **không hiển thị nổi**:
+
+- `&lt;` / `&gt;` trong sequence diagram — dùng `#lt;` / `#gt;`.
+- Id `subgraph` có **dấu cách** — tách id khỏi nhãn: `subgraph CauHinh["Cấu hình"]`.
+- `rgba(...)` trong dòng `style` — dấu phẩy bên trong làm vỡ bộ phân tích; dùng hex 8 số.

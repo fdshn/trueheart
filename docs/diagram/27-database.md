@@ -64,8 +64,8 @@ flowchart TB
         N4[reports]
     end
 
-    style U fill:#e7f3ff
-    style PT fill:#fff9e6
+    style U fill:#4682c821,stroke:#3d7ab8,stroke-width:1.5px
+    style PT fill:#dcb42826,stroke:#c9a227,stroke-width:1.5px
 ```
 
 ## 27.2 Quan hệ lõi
@@ -106,8 +106,8 @@ flowchart LR
     T --> E["Sửa sai = ghi thêm bản ghi mới"]
     T --> F["Ngoại lệ DUY NHẤT: chat:purge<br/>SET LOCAL chantam.chat_purge = 'on'"]
 
-    style T fill:#fff3cd
-    style F fill:#e7f3ff
+    style T fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style F fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 > **Vì sao chặn ở trigger chứ không ở tầng ứng dụng.** Tầng ứng dụng có thể bị bỏ qua bởi một
@@ -136,7 +136,7 @@ flowchart LR
     B --> C["ST_DWithin(location, point, radius)"]
     C --> D["Nearby · Map · Geo eligibility ⛔"]
 
-    style B fill:#e7f3ff
+    style B fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 ## Chỗ cần soát

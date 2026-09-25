@@ -57,7 +57,7 @@ sequenceDiagram
     participant DB as Postgres
     participant R as Redis
 
-    rect rgb(240, 248, 255)
+    rect rgba(80, 140, 220, 0.12)
     Note over U,R: Đăng nhập
     U->>API: POST /auth/login
     API->>DB: Lấy user theo username/email
@@ -71,7 +71,7 @@ sequenceDiagram
     end
     end
 
-    rect rgb(255, 250, 240)
+    rect rgba(220, 160, 40, 0.14)
     Note over U,R: Làm mới
     U->>API: POST /auth/refresh
     API->>R: Token còn hiệu lực?
@@ -145,9 +145,9 @@ flowchart TD
     G -->|Không| I[Xong]
     H --> I
 
-    style B fill:#fff3cd
-    style C fill:#f8d7da
-    style G fill:#e7f3ff
+    style B fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style C fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style G fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
     style H stroke-dasharray: 5 5
 ```
 

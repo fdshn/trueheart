@@ -12,7 +12,7 @@ flowchart LR
 
     D["Ví dụ: 1.000.000 VNĐ<br/>tỷ lệ 1 điểm = 1.000 VNĐ"] --> E["1.000 điểm"]
 
-    style B fill:#fff3cd
+    style B fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 > **Khai khống ở đây KHÔNG sinh ra điểm** — nó chỉ làm vật phẩm đắt hơn, tức khó đổi hơn.
@@ -56,10 +56,10 @@ flowchart TD
     E -->|Không| X3["❌ REDEMPTION_INSUFFICIENT_POINTS<br/>nêu cả số cần và số đang có"]
     E -->|Đủ| F["✅ Trừ điểm → duyệt → báo"]
 
-    style X1 fill:#f8d7da
-    style X2 fill:#fff3cd
-    style X3 fill:#fff3cd
-    style F fill:#e6ffe6
+    style X1 fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style X2 fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style X3 fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style F fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 | Điều kiện | Vì sao |
@@ -126,8 +126,8 @@ flowchart TD
     F["Người Bạc, ngưỡng 672<br/>phải có 952 điểm<br/>mới đổi mà không tụt"] -.-> C
     G["⚠️ PHẢI cảnh báo TRƯỚC khi bấm đổi<br/>không thì họ mất hạng mà không biết vì sao"] -.-> D
 
-    style D fill:#fff3cd
-    style G fill:#ffe6e6
+    style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style G fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 ## 14.6 Ghi sổ (F77)

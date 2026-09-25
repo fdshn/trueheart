@@ -19,8 +19,8 @@ flowchart LR
     C -->|Đủ| OK[✅ Cho qua]
     C -->|Thiếu| NO[❌ 403 — kèm danh sách<br/>trường còn thiếu]
 
-    style C fill:#fff3cd
-    style NO fill:#f8d7da
+    style C fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style NO fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
     style A4 stroke-dasharray: 5 5
 ```
 
@@ -120,7 +120,7 @@ flowchart TD
     F -->|Có| G[⚠️ Cờ REVIEW_REQUIRED<br/>chỉ Admin thấy, KHÔNG hiện công khai]
     F -->|Không| H[Hiện chỉ số bình thường]
 
-    style G fill:#fff3cd
+    style G fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 > **Vì sao cờ xem xét không hiện công khai.** Cờ là tín hiệu để Admin xem, không phải một

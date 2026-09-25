@@ -6,12 +6,12 @@ Trạng thái: ✅ **đã hiện thực**, gồm hai cái bẫy đã sửa và c
 
 ```mermaid
 flowchart LR
-    A[Exception nghiệp vụ] --> B["ErrorCodes<br/>0x&lt;Resource&gt;&lt;Reason&gt;"]
+    A[Exception nghiệp vụ] --> B["ErrorCodes<br/>0x#lt;Resource#gt;#lt;Reason#gt;"]
     B --> C["ErrorOrigin<br/>phân biệt package nào ném"]
     C --> D["Response chuẩn:<br/>code · message · origin · details"]
     D --> E["docs/API-ERRORS.md<br/>sinh TỰ ĐỘNG từ catalog"]
 
-    style E fill:#e6ffe6
+    style E fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 66 mã lỗi, chia 9 nhóm:
@@ -45,7 +45,7 @@ flowchart TD
 
     E["Đã bắt được thật:<br/>ADMIN_SELF_ROLE_CHANGE và<br/>NOTIFICATION_TEMPLATE_NOT_FOUND<br/>cùng nhận 0x09_02"] -.-> C
 
-    style C fill:#fff3cd
+    style C fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 ## 26.3 Bẫy 1 — body rỗng với `Content-Type: application/json`
@@ -56,7 +56,7 @@ sequenceDiagram
     participant F as Fastify
     participant H as Handler
 
-    rect rgb(255, 235, 235)
+    rect rgba(210, 70, 70, 0.13)
     Note over C,H: ❌ Trước khi sửa
     C->>F: POST, header JSON, body RỖNG
     F-->>C: 400 - Fastify từ chối trước khi tới handler
@@ -65,7 +65,7 @@ sequenceDiagram
     H-->>C: 500 - vỡ ở tầng trong
     end
 
-    rect rgb(235, 255, 235)
+    rect rgba(60, 160, 80, 0.13)
     Note over C,H: ✅ Sau khi sửa
     C->>F: POST, header JSON, body RỖNG
     F->>H: Coi như object rỗng
@@ -89,9 +89,9 @@ flowchart TD
 
     H["✅ updateReturning() bóc đúng hình dạng"] --> I["update-returning-guard.spec.ts<br/>quét TOÀN BỘ repository,<br/>fail nếu mẫu cũ quay lại"]
 
-    style D fill:#fff3cd
-    style G fill:#ffe6e6
-    style I fill:#e6ffe6
+    style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style G fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style I fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 Kiểm trên database thật: `npm run test:returning`.
@@ -106,7 +106,7 @@ flowchart LR
 
     E["❌ Ngược lại: Fastify khớp 'nearby' thành một UUID<br/>và trả lỗi validate"] -.-> D
 
-    style E fill:#ffe6e6
+    style E fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 ## 26.6 Phân tầng kiểm
@@ -120,7 +120,7 @@ flowchart TD
 
     F["Mỗi tầng canh thứ tầng dưới KHÔNG canh được:<br/>schema không biết nghiệp vụ,<br/>nghiệp vụ không chặn được request song song"] -.-> E
 
-    style E fill:#e7f3ff
+    style E fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 ## Chỗ cần soát

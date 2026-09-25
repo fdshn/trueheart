@@ -10,8 +10,8 @@ flowchart LR
     B["Đã đăng nhập"] --> B1["Phần lớn endpoint<br/>kiểm quyền sở hữu trong use case"]
     C["Cần quyền RBAC"] --> C1["Mọi thứ dưới /admin<br/>+ /ranks/maintenance/evaluate"]
 
-    style A fill:#f0f0f0
-    style C fill:#fff9e6
+    style A fill:#f0f0f0,stroke:#8a8a8a,stroke-width:1.5px,color:#2b2b2b
+    style C fill:#fff9e6,stroke:#c9a227,stroke-width:1.5px,color:#3d3000
 ```
 
 ## 30.2 Xác thực & hồ sơ
@@ -144,12 +144,12 @@ flowchart TD
     A["✅ Group đã xong"] --> A1["sáu endpoint, xem §30.7b"]
     C["✅ Đổi điểm đã xong"] --> C1["POST /posts/:postId/redeem"]
 
-    style A fill:#e6ffe6
-    style C fill:#e6ffe6
-    style B fill:#ffe6e6
-    style D fill:#ffe6e6
-    style E fill:#ffe6e6
-    style F fill:#ffe6e6
+    style A fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style C fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style B fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style D fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style E fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style F fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 ## Chỗ cần soát

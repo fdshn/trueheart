@@ -15,7 +15,7 @@ flowchart TD
         O1["GET /posts/me"] --> O2[Bài của chính mình<br/>mọi trạng thái]
     end
 
-    style Khách fill:#f0f0f0
+    style Khách fill:#8c8c8c24,stroke:#8a8a8a,stroke-width:1.5px
 ```
 
 > **Vì sao bản đồ trả cụm chứ không trả từng bài.** Một thành phố có 50.000 bài; trả hết là
@@ -37,7 +37,7 @@ flowchart LR
     G --> H[Sắp theo khoảng cách + thời gian]
     H --> I[Keyset cursor — không OFFSET]
 
-    style G fill:#e7f3ff
+    style G fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 > **Vì sao keyset chứ không `OFFSET`.** `OFFSET 10000` bắt Postgres đọc và bỏ đi 10.000 dòng
@@ -58,7 +58,7 @@ flowchart TD
     G["findMyReactions()<br/>MỘT truy vấn cho cả trang"] -.nuôi.-> E
     G -.nuôi.-> F
 
-    style G fill:#e6ffe6
+    style G fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 > **Vì sao gom một truy vấn cho cả trang.** Hỏi từng bài "người này đã thả cảm xúc chưa" là

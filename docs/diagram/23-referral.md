@@ -18,8 +18,8 @@ flowchart LR
         A3["Cần Group + điều kiện địa lý"]
     end
 
-    style P fill:#e6ffe6
-    style A fill:#ffe6e6
+    style P fill:#3ca05021,stroke:#3f8f3f,stroke-width:1.5px
+    style A fill:#d2464621,stroke:#c0504d,stroke-width:1.5px
 ```
 
 ## 23.2 Vòng đời một referral
@@ -77,7 +77,7 @@ flowchart TD
     B -->|Không| D["❌ Không cộng<br/>ném PointDailyCapReachedException<br/>use case NUỐT ngoại lệ này"]
     D --> E["Referral VẪN chuyển QUALIFIED<br/>chỉ là không có điểm"]
 
-    style D fill:#fff3cd
+    style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 > **Vì sao chạm trần vẫn cho referral thành công.** Quan hệ giới thiệu là dữ liệu thật, cần

@@ -13,7 +13,7 @@ flowchart TD
     C --> E[Nuôi chỉ số Giver Accuracy]
     D --> F[Chỉ là đánh giá trải nghiệm]
 
-    style C fill:#e7f3ff
+    style C fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 > **Vì sao chỉ người nhận chấm accuracy.** Chỉ họ mới thấy vật phẩm thật và so được với mô
@@ -68,9 +68,9 @@ flowchart TD
     H["system_configs · accuracy.giver<br/>minSamples 5 · ngưỡng 75%<br/>Admin sửa lúc chạy ✅"] -.-> B
     H -.-> E
 
-    style C fill:#fff3cd
-    style F fill:#fff3cd
-    style H fill:#f0f0f0
+    style C fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style F fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style H fill:#f0f0f0,stroke:#8a8a8a,stroke-width:1.5px,color:#2b2b2b
 ```
 
 > **Vì sao dưới ngưỡng mẫu thì trả `null` chứ không phải một con số tạm.** Kết luận "người
@@ -92,7 +92,7 @@ flowchart LR
 
     H["❌ KHÔNG tự động trừ điểm<br/>❌ KHÔNG hiện cờ công khai"] -.-> B
 
-    style H fill:#ffe6e6
+    style H fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 ## 13.5 Đối soát khi Admin đổi ngưỡng

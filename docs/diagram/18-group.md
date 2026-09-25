@@ -59,8 +59,8 @@ flowchart TD
 
     H["Link KHÔNG tự hết hạn<br/>KHÔNG giới hạn số lượt"] -.-> A
 
-    style C fill:#f8d7da
-    style F fill:#fff3cd
+    style C fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style F fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 **Chốt 2026-09-24: KHÔNG rời, KHÔNG chuyển nhóm.** Muốn sang nhóm khác thì tạo tài khoản mới.
@@ -93,8 +93,8 @@ flowchart TD
     Admin -.-> C
     C -.vì vậy phải dùng.-> Nhóm
 
-    style C fill:#ffe6e6
-    style Nhóm fill:#e6ffe6
+    style C fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style Nhóm fill:#3ca05021,stroke:#3f8f3f,stroke-width:1.5px
 ```
 
 ## 18.4 Ba vai trong nhóm
@@ -115,7 +115,7 @@ flowchart LR
 
     M["MEMBER"] --> I1[Group Detail theo quyền được cấp]
 
-    style H3 fill:#ffe6e6
+    style H3 fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 Bộ quyền của `SUBTEAM_ADMIN` là **cấu hình Admin hệ thống**, không hard-code — bảng
@@ -162,8 +162,8 @@ flowchart TD
 
     Y["Affiliate depth = 1:<br/>một sự kiện hợp lệ chia cho<br/>TOÀN BỘ Active Member của GROUP,<br/>KHÔNG phân tầng theo sub-team"] -.-> G
 
-    style X fill:#ffe6e6
-    style Y fill:#fff3cd
+    style X fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style Y fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 > **Tổ phải thuộc CHÍNH nhóm đó.** Câu `UPDATE` trong `assignMember` mang thêm một vế

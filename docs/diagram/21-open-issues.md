@@ -103,9 +103,9 @@ flowchart LR
     H["⛔ Từ thiện, Quảng cáo, Công đức — F65"]
     I["⛔ FCM push — F44"]
 
-    style A fill:#e6ffe6
-    style B fill:#e6ffe6
-    style C fill:#ffe6e6
+    style A fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style B fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style C fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 ## 21.8 Hạ tầng chưa sẵn sàng production

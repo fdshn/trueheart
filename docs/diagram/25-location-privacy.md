@@ -16,8 +16,8 @@ flowchart TD
     E --> F["Xê dịch ngẫu nhiên trong bán kính nhỏ"]
     F --> G["Đủ để biết 'quanh khu này'<br/>KHÔNG đủ để biết nhà ai"]
 
-    style E fill:#fff3cd
-    style G fill:#e6ffe6
+    style E fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style G fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 > **Vì sao bắt buộc.** Bài "tặng tủ lạnh" kèm toạ độ chính xác là địa chỉ nhà một người, công
@@ -40,9 +40,9 @@ flowchart TD
 
     G -.-> H["KHÔNG tự chọn một toạ độ mặc định:<br/>kết quả quanh một điểm người dùng không chọn<br/>là nói SAI về thứ họ đang xem"]
 
-    style D fill:#f8d7da
-    style G fill:#fff3cd
-    style H fill:#f0f0f0
+    style D fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style G fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style H fill:#f0f0f0,stroke:#8a8a8a,stroke-width:1.5px,color:#2b2b2b
 ```
 
 ## 25.3 Thẻ xem nhanh trên bản đồ (F29)
@@ -55,7 +55,7 @@ flowchart LR
 
     B --> E["deepLinkPath là đường dẫn TƯƠNG ĐỐI<br/>server không ghép tên miền"]
 
-    style D fill:#ffe6e6
+    style D fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 ## 25.4 Lớp tương thích `/gift-posts`
@@ -82,8 +82,8 @@ flowchart TD
 
     D["❌ KHÔNG ghi hai bảng song song"] -.-> C
 
-    style C fill:#e7f3ff
-    style D fill:#ffe6e6
+    style C fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
+    style D fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 > `gift-post-compat.mapper.ts` **hardcode `likeCount` và `reactionCount` về 0** — đó là chủ ý.
@@ -98,8 +98,8 @@ flowchart LR
 
     E["❌ Nhận status từ client<br/>= ai cũng tự duyệt bài mình"] -.-> C
 
-    style C fill:#e7f3ff
-    style E fill:#ffe6e6
+    style C fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
+    style E fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 ## Chỗ cần soát

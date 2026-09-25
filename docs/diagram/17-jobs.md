@@ -17,8 +17,8 @@ flowchart TD
     C --> J["notify:reminders<br/>nhắc đánh giá và nhắc nhiệm vụ duy trì"]
     C --> K["selection:auto-select<br/>chốt người nhận khi hết đồng hồ 7 ngày"]
 
-    style C fill:#e7f3ff
-    style F fill:#fff3cd
+    style C fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
+    style F fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 > Core **cố ý không dựng scheduler nào trong tiến trình**. Hai bản sao service cùng chạy
@@ -62,10 +62,10 @@ flowchart TD
         C3 --> C4["✅ Sửa: CliInfrastructureModule dùng chung"]
     end
 
-    style A3 fill:#ffe6e6
-    style C3 fill:#ffe6e6
-    style A4 fill:#e6ffe6
-    style C4 fill:#e6ffe6
+    style A3 fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style C3 fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style A4 fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style C4 fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 `CliInfrastructureModule` bám theo `InfrastructureModule`, **trừ**:
@@ -89,7 +89,7 @@ flowchart LR
     C -->|Có| D["In TỪNG chỗ lệch<br/>KHÔNG sửa gì<br/>exit code 1"]
     C -->|Không| E["Báo bình thái<br/>exit code 0"]
 
-    style D fill:#fff3cd
+    style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 > **Vì sao in từng chỗ lệch chứ không chỉ tổng số.** Một con số "đã sửa 12 chỗ" không cho ai
@@ -139,7 +139,7 @@ flowchart LR
     B -->|"điểm vừa cộng<br/>được tính"| C["rank-evaluate<br/>03:31"]
     C --> D["chat-purge<br/>03:47<br/>nặng I/O nhất, cuối chuỗi"]
 
-    style B fill:#fff3cd
+    style B fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 > **`gift-settle-rewards` là job cấp bách nhất.** Không chạy là điểm của người tặng treo vô
@@ -160,8 +160,8 @@ flowchart TD
     A --> C["run --rm → dựng container mới,<br/>job VẪN XANH ❌"]
     C --> D["Service chết mà không ai biết"]
 
-    style B fill:#e6ffe6
-    style D fill:#ffe6e6
+    style B fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style D fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
 `exec` cũng dùng lại container đang chạy nên không phải nạp lại toàn bộ cây DI mỗi lượt.

@@ -26,7 +26,7 @@ flowchart TD
     K -->|Có| L[Đẩy tới thiết bị]
     K -->|Không| M["🟡 LoggingPushSender<br/>production fail-closed"]
 
-    style M fill:#fff3cd
+    style M fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 ## 10.2 Mười bốn loại thông báo hiện có
@@ -91,8 +91,8 @@ flowchart LR
     E -->|Có| F["pushedDevices = 0<br/>KHÔNG làm hỏng việc chính"]
     E -->|Không| G[Xong]
 
-    style C fill:#e7f3ff
-    style F fill:#fff3cd
+    style C fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
+    style F fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 ## Chỗ cần soát
