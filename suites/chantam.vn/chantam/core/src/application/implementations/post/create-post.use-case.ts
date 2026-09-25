@@ -19,6 +19,7 @@ import {
   PostSelectionModes,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
+import { postExpiryDate } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { makeGlobalId, slugify } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
@@ -164,11 +165,13 @@ export class CreatePostUseCase implements ICreatePostUseCase {
         description: post.description,
         location: post.location,
         areaLabel: post.areaLabel,
-        status: GiftPostStatuses.PENDING_REVIEW,
+        // Bài lên thẳng, KHÔNG chờ duyệt (chốt 26/09). Đồng hồ ba tháng vì thế
+        // cũng bắt đầu ngay tại đây, không phải ở tay người kiểm duyệt.
+        status: GiftPostStatuses.PUBLISHED,
         totalQuantity,
         remainingQuantity: totalQuantity,
         details: buildPostDetails(post),
-        expiresAt: null,
+        expiresAt: postExpiryDate(new Date()),
         renewedCount: 0,
         reactionCount: 0,
         commentCount: 0,

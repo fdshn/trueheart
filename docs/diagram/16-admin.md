@@ -95,7 +95,7 @@ flowchart TD
     end
     subgraph Nội["Nội dung"]
         B1["GET /admin/posts"]
-        B2["PATCH /admin/posts/:id/moderation"]
+        B2["PATCH /admin/posts/:id/moderation<br/>HẬU KIỂM — gỡ hoặc trả lại"]
         B3["GET, PATCH /admin/reports"]
         B4["GET /admin/categories"]
     end

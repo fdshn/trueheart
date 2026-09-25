@@ -213,7 +213,7 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
-| `POST` | `/posts` | Bearer | Tạo bài, luôn ở `PENDING_REVIEW` |
+| `POST` | `/posts` | Bearer | Tạo bài — lên thẳng `PUBLISHED`, không chờ duyệt |
 | `GET` | `/posts/me` | Bearer | Bài của chính mình, lọc + phân trang |
 | `GET` | `/posts/nearby` | Công khai | Quét bài quanh một toạ độ theo bán kính |
 | `GET` | `/posts/map` | Công khai | Marker trong khung bản đồ |
@@ -238,8 +238,13 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 4. Hợp lệ theo loại bài (xem dưới) → `ValidationFailedException`
 5. Còn quota theo rank → `PostQuotaExceededException`
 
-Tác giả và trạng thái do **server quyết định**, không nhận từ client. Bài luôn tạo ở
-`PENDING_REVIEW`.
+Tác giả và trạng thái do **server quyết định**, không nhận từ client. Bài tạo ra ở
+`PUBLISHED` và **hiện ngay** trên bảng tin; đồng hồ ba tháng cũng bắt đầu từ lúc đăng.
+
+> **Chốt 26/09: không có duyệt trước.** Trước đó mọi bài đứng ở `PENDING_REVIEW` chờ một
+> moderator. Nay đổi sang **hậu kiểm** — Admin gỡ bài qua `PATCH /admin/posts/:postId/moderation`
+> khi có báo xấu hoặc tự rà. Đổi lại, một bài sai luật có mặt trên bảng tin cho tới khi có
+> người gỡ; hàng đợi báo xấu vì thế là đường phát hiện chính, không còn là đường phụ.
 
 ### Trường riêng theo loại bài
 
@@ -287,8 +292,8 @@ Nó là căn cứ cho `POST /transactions/:id/reports/ship-unpaid` ở §10.
 
 ### Vòng đời bài — hết hạn và gia hạn
 
-Hạn 3 tháng đặt lúc **duyệt bài**, không phải lúc tạo: bài nằm chờ duyệt bao lâu cũng không
-ăn vào tuổi thọ.
+Hạn 3 tháng đặt **lúc đăng** — từ 26/09 bài lên thẳng nên không còn khoảng chờ duyệt để mà
+tách hai mốc ra.
 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
@@ -342,8 +347,8 @@ Trước khi bài hết hạn, chủ bài xin chuyển vật phẩm cho điểm 
 
 Đây là lý do nó tồn tại tách khỏi `/posts/nearby`:
 
-- **Không mặc định lọc về trạng thái công khai.** Chủ bài phải thấy được bài đang
-  `PENDING_REVIEW` và bài `REJECTED` của mình. Truyền `?status=` để lọc hẹp lại.
+- **Không mặc định lọc về trạng thái công khai.** Chủ bài phải thấy được bài bị Admin gỡ
+  (`REJECTED`) và bài đã `EXPIRED` của mình. Truyền `?status=` để lọc hẹp lại.
 - **Trả toạ độ thật, không làm nhiễu.** Chủ bài cần thấy đúng chỗ mình đã ghim để sửa cho
   khớp.
 
@@ -880,9 +885,9 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 | `GET` | `/admin/users/:userId` | `admin.manage` | Chi tiết một user |
 | `PATCH` | `/admin/users/:userId/status` | `admin.manage` | Đổi trạng thái |
 | `DELETE` | `/admin/users/:userId` | `admin.manage` | Xoá mềm kèm ẩn danh |
-| `GET` | `/admin/posts` | `post.read` | Queue bài đăng, mặc định lọc `PENDING_REVIEW` |
+| `GET` | `/admin/posts` | `post.read` | Danh sách bài, **không lọc sẵn** trạng thái nào |
 | `GET` | `/admin/posts/:postId` | `post.read` | Chi tiết bài và media dành cho moderator |
-| `PATCH` | `/admin/posts/:postId/moderation` | `post.moderate` | Duyệt/từ chối, reason bắt buộc, ghi audit |
+| `PATCH` | `/admin/posts/:postId/moderation` | `post.moderate` | **Hậu kiểm**: gỡ bài đang hiện hoặc trả lại, reason bắt buộc, ghi audit |
 | `GET` | `/admin/reports` | `report.read` | Hàng đợi report, ưu tiên target có nhiều tín hiệu mở |
 | `GET` | `/admin/reports/:reportId` | `report.read` | Chi tiết report và URL bằng chứng |
 | `PATCH` | `/admin/reports/:reportId/review` | `report.resolve` | Kết luận hoặc bác bỏ, ghi chú bắt buộc, ghi audit |
@@ -920,8 +925,16 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 - `/admin/system-logs` gom bốn nguồn thật (`admin_audit_logs`, `point_ledger`,
   `rank_transitions`, `gift_transactions`) về một hình dạng chung, lọc bằng `logType`.
 - CMS lấy capability từ `/admin/me`, không suy ra quyền từ `rank`, `status` hoặc JWT.
-- Queue `/admin/posts` không trả tọa độ chính xác. Moderation chỉ chuyển bài còn ở
-  `PENDING_REVIEW`; update trạng thái và audit `MODERATE_POST` nằm chung một transaction.
+- `/admin/posts` không trả tọa độ chính xác, và **không lọc sẵn** trạng thái nào — từ 26/09
+  bài lên thẳng nên không còn hàng đợi duyệt để mặc định vào.
+- Hậu kiểm chạm được vào `PUBLISHED`, `REJECTED` và `PENDING_REVIEW` còn sót từ trước.
+  **Không** chạm vào `RESERVED`/`DELIVERING` (đang có lượt trao sống) hay `COMPLETED` /
+  `CANCELLED` / `EXPIRED` (đã đóng) — trả 409. Bấm lại đúng quyết định cũ cũng trả 409 thay vì
+  ghi thêm một dòng audit nói rằng có gì đó vừa đổi.
+- Trả lại một bài gỡ nhầm **giữ nguyên hạn cũ**; đặt lại đồng hồ là thưởng thêm ba tháng cho
+  một bài đã sống gần hết. Chỉ bài chưa có hạn mới được cấp hạn mới.
+- Tác giả **sửa** bài đã bị gỡ thì bài vẫn `REJECTED`. Cho nó tự hiện lại là để tác giả gỡ
+  quyết định của Admin bằng cách sửa một dấu phẩy. Chỉ Admin trả lại được.
 - `POST /reports` nhận target `POST` hoặc `USER`, mô tả và tối đa 5 URL bằng chứng. Nhiều
   report chỉ tăng độ ưu tiên; không report nào tự động phạt. Quyết định Admin và audit
   `REVIEW_REPORT` được ghi chung transaction.

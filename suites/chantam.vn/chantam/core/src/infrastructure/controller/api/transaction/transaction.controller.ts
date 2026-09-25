@@ -111,7 +111,7 @@ export class TransactionController {
     ...ApiTokenErrors,
     [GiftTransactionNotFoundException],
     [GiftTransactionNotParticipantException],
-    [GiftTransactionInvalidStateException, 'PENDING_REVIEW'],
+    [GiftTransactionInvalidStateException, 'EXPIRED'],
     [GiftTransactionOutOfStockException],
     [GiftTransactionDuplicateRequestException],
   )

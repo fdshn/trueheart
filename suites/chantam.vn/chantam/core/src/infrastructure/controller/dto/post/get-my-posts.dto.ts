@@ -37,7 +37,7 @@ export class GetMyPostsQueryDto
     enum: GiftPostStatuses,
     description:
       'Lọc theo trạng thái duyệt/hiển thị. Bỏ trống trả mọi trạng thái, ' +
-      'kể cả PENDING_REVIEW và REJECTED — đây là bài của chính bạn.',
+      'kể cả bài bị Admin gỡ (REJECTED) và bài đã hết hạn — đây là bài của chính bạn.',
   })
   @IsOptional()
   @IsEnum(GiftPostStatuses)

@@ -54,3 +54,4 @@ export * from './1793400000000-DropDuplicateGiftCompletedRule';
 export * from './1793500000000-SeedReminderNotificationTemplates';
 export * from './1793600000000-SeedOpenRequestQuota';
 export * from './1793700000000-CreateGroups';
+export * from './1793800000000-PublishPendingPosts';

@@ -44,6 +44,21 @@ import { EntityManager, EntitySchema, Repository } from 'typeorm';
  * nghĩa mà chỗ này chặn. Hai bên lệch nhau thì API nói một đằng, lúc đăng bài
  * chặn một nẻo.
  */
+/**
+ * Trạng thái mà Admin còn can thiệp được.
+ *
+ * `RESERVED`/`DELIVERING` nằm ngoài: gỡ ngang một lượt trao đang diễn ra để lại
+ * hai người đã hẹn nhau mà bài thì biến mất. `COMPLETED`/`CANCELLED`/`EXPIRED`
+ * cũng vậy — chúng đã đóng, và mở lại bằng nút kiểm duyệt là đi cửa sau vòng
+ * đời bài. `PENDING_REVIEW` còn trong danh sách vì dữ liệu cũ từ thời còn duyệt
+ * trước vẫn có thể sót lại.
+ */
+const ModeratableStatuses: readonly string[] = [
+  'PUBLISHED',
+  'REJECTED',
+  'PENDING_REVIEW',
+];
+
 export const QuotaStatuses = [
   'PENDING_REVIEW',
   'PUBLISHED',
@@ -344,7 +359,7 @@ export class PostRepository
     return row ? this.mapAdminPost(row) : null;
   }
 
-  public async moderatePendingReviewByAdmin(
+  public async moderateByAdmin(
     command: IModeratePostByAdminCommand,
   ): Promise<IPostEntity | null> {
     return this.manager.transaction(async (manager) => {
@@ -356,12 +371,21 @@ export class PostRepository
         `,
         [command.postId],
       );
-      if (current?.status !== 'PENDING_REVIEW') return null;
+      if (!current || !ModeratableStatuses.includes(current.status))
+        return null;
+      // Gọi lại đúng quyết định cũ thì không ghi thêm một dòng audit nói rằng
+      // có gì đó vừa đổi.
+      if (current.status === command.status) return null;
 
       await manager.query(
         `
           UPDATE posts
-          SET status = $2, expires_at = $3, updated_at = now()
+          SET status = $2,
+              -- Chỉ đặt hạn khi bài CHƯA có. Trả lại bài gỡ nhầm mà đặt lại
+              -- đồng hồ là thưởng thêm ba tháng cho một bài đã sống gần hết.
+              -- Lúc gỡ thì $3 là NULL, nên COALESCE giữ nguyên hạn cũ.
+              expires_at = COALESCE(expires_at, $3::timestamptz),
+              updated_at = now()
           WHERE global_id = $1
         `,
         [command.postId, command.status, command.expiresAt],

@@ -119,6 +119,12 @@ export interface IModeratePostByAdminCommand {
   readonly actorUserId: string;
   readonly postId: string;
   readonly status: 'PUBLISHED' | 'REJECTED';
+  /**
+   * Hạn mới, CHỈ dùng khi bài chưa có hạn.
+   *
+   * Bài trả lại sau khi gỡ nhầm giữ nguyên đồng hồ cũ — đặt lại là thưởng thêm
+   * ba tháng cho một bài đã sống được hai tháng rưỡi.
+   */
   readonly expiresAt: Date | null;
   readonly reason: string;
 }
@@ -189,13 +195,27 @@ export interface IPostRepository extends Repository<IPostEntity> {
   /**
    * Bài của chính tác giả, KHÔNG lọc theo trạng thái công khai.
    *
-   * Chủ bài phải thấy được bài đang chờ duyệt và bài bị từ chối của mình —
-   * đó là toàn bộ lý do endpoint này tồn tại tách khỏi discovery.
+   * Chủ bài phải thấy được bài bị Admin gỡ và bài đã hết hạn của mình — đó là
+   * toàn bộ lý do endpoint này tồn tại tách khỏi discovery.
    */
   findMyPosts(params: IFindMyPostsParams): Promise<IFindMyPostsResult>;
   findAdminPosts(params: IFindAdminPostsParams): Promise<IFindAdminPostsResult>;
   findAdminByGlobalId(globalId: string): Promise<IAdminPostSummary | null>;
-  moderatePendingReviewByAdmin(
+  /**
+   * Gỡ bài đang hiện, hoặc trả lại bài đã gỡ (hậu kiểm).
+   *
+   * Từ 26/09 bài **lên thẳng không chờ duyệt**, nên đây không còn là hàng đợi
+   * duyệt trước mà là phanh duy nhất của Admin. Chạm được vào bài `PUBLISHED`,
+   * `REJECTED`, và `PENDING_REVIEW` còn sót lại từ trước.
+   *
+   * KHÔNG chạm vào bài đang có giao dịch sống (`RESERVED`/`DELIVERING`) hay đã
+   * đóng (`COMPLETED`/`CANCELLED`/`EXPIRED`): gỡ ngang một lượt trao đang diễn
+   * ra để lại hai người đã hẹn nhau mà bài thì biến mất.
+   *
+   * Trả `null` khi trạng thái hiện tại không cho phép — gọi lại lần hai trên
+   * cùng một quyết định cũng vậy.
+   */
+  moderateByAdmin(
     command: IModeratePostByAdminCommand,
   ): Promise<IPostEntity | null>;
   findPublicByGlobalId(

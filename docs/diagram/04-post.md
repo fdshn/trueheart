@@ -51,30 +51,41 @@ flowchart LR
 
 ## 4.3 Vòng đời bài đăng
 
+> **Chốt 26/09: bỏ duyệt TRƯỚC, chuyển sang hậu kiểm.** Bài lên thẳng. Admin vẫn gỡ được bất
+> cứ lúc nào qua `PATCH /admin/posts/:postId/moderation`, nhưng **không** chạm được vào bài
+> đang có giao dịch sống (`RESERVED`/`DELIVERING`) hay đã đóng — gỡ ngang một lượt trao đang
+> diễn ra để lại hai người đã hẹn nhau mà bài thì biến mất.
+
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING_REVIEW: MỌI bài đều tạo ở đây
-    PENDING_REVIEW --> PUBLISHED: Admin duyệt (quyền post.moderate)
-    PENDING_REVIEW --> REJECTED: Admin từ chối
+    [*] --> PUBLISHED: MỌI bài lên thẳng<br/>KHÔNG chờ duyệt (chốt 26/09)
 
     PUBLISHED --> RESERVED: Đã chọn người nhận
     RESERVED --> DELIVERING: Bắt đầu bàn giao
     DELIVERING --> COMPLETED: Người nhận xác nhận
     RESERVED --> PUBLISHED: Huỷ lượt trao → trả về kho
 
+    PUBLISHED --> REJECTED: Admin HẬU KIỂM gỡ<br/>(quyền post.moderate)
+    REJECTED --> PUBLISHED: Admin trả lại<br/>giữ nguyên hạn cũ
+
     PUBLISHED --> EXPIRED: Quá 3 tháng<br/>(CLI post:expire)
     EXPIRED --> PUBLISHED: Gia hạn 1 lần<br/>POST /posts/:postId/renew
     PUBLISHED --> CANCELLED: Người đăng gỡ
     COMPLETED --> ARCHIVED
     CANCELLED --> ARCHIVED
-    REJECTED --> [*]
 
-    note right of PENDING_REVIEW
-        UC-POST-01: MỌI bài phải qua kiểm duyệt.
-        Bài mới KHÔNG xuất hiện trong /nearby
-        cho tới khi Admin chuyển PUBLISHED.
-        author/type/status do SERVER quyết,
+    note right of PUBLISHED
+        Bài hiện trong /nearby NGAY khi đăng,
+        và đồng hồ ba tháng bắt đầu từ đó.
+        author/type/status vẫn do SERVER quyết,
         không nhận từ client.
+    end note
+
+    note right of REJECTED
+        Tác giả SỬA bài đã bị gỡ thì bài
+        VẪN là REJECTED. Cho nó tự hiện lại
+        là để tác giả gỡ quyết định của Admin
+        bằng cách sửa một dấu phẩy.
     end note
 
     note right of EXPIRED

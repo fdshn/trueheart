@@ -92,7 +92,7 @@ export class GiftPostController {
   @ApiOperation({
     summary: 'Đăng một bài cho tặng mới',
     description: [
-      'Bài tạo ra ở trạng thái `PENDING_REVIEW`, chưa hiện trên bảng tin cho tới khi được kiểm duyệt.',
+      'Bài tạo ra ở trạng thái `PUBLISHED` và hiện ngay trên bảng tin — không có bước duyệt trước. Admin gỡ được về sau qua hậu kiểm.',
       '',
       'Toạ độ gửi lên là toạ độ THẬT và được lưu nguyên vẹn, nhưng mọi kênh công khai chỉ thấy bản đã làm nhiễu trong bán kính 300m. Toạ độ thật chỉ lộ cho người đã được người tặng duyệt cho nhận.',
     ].join('\n'),

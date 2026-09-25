@@ -142,7 +142,7 @@ describe('CreatePostUseCase Generic MVP', () => {
     PostTypes.CLASSIFIED,
     PostTypes.MERIT,
   ])(
-    'creates %s under the common member moderation policy',
+    'creates %s live immediately — no pre-moderation for any type',
     async (postType) => {
       const posts = {
         createPostWithinQuota: jest.fn(async () => true),
@@ -178,7 +178,7 @@ describe('CreatePostUseCase Generic MVP', () => {
         expect.objectContaining({
           authorId: UserId,
           postType,
-          status: GiftPostStatuses.PENDING_REVIEW,
+          status: GiftPostStatuses.PUBLISHED,
           details: expectedDetails(postType),
           totalQuantity: postType === PostTypes.OFFER ? 2 : 1,
           remainingQuantity: postType === PostTypes.OFFER ? 2 : 1,

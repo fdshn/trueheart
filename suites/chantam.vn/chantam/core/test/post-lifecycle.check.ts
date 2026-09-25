@@ -478,12 +478,12 @@ async function main(): Promise<void> {
       {
         index: 41,
         postType: 'OFFER',
-        status: 'PENDING_REVIEW',
+        status: 'REJECTED',
         expiresInDays: null,
       },
     ]);
     check(
-      'bài chưa được duyệt thì chưa xin chuyển được',
+      'bài bị Admin gỡ thì không xin chuyển kho được',
       (
         await posts.requestCharityTransfer({
           postId: postId(41),
@@ -491,6 +491,95 @@ async function main(): Promise<void> {
           note: null,
         })
       ).status === 'INVALID_STATE',
+    );
+
+    // ── 3b. Hậu kiểm: Admin gỡ bài đang hiện, rồi trả lại ───────────────────
+    console.log('\nHậu kiểm — Admin gỡ và trả lại bài:\n');
+
+    await seed(dataSource, [
+      { index: 60, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 30 },
+      { index: 61, postType: 'OFFER', status: 'RESERVED', expiresInDays: 30 },
+      { index: 62, postType: 'OFFER', status: 'COMPLETED', expiresInDays: 30 },
+    ]);
+    const expiryBefore = (await readPost(dataSource, 60)).expires_at;
+
+    check(
+      'gỡ được bài ĐANG HIỆN — không cần nó từng ở PENDING_REVIEW',
+      (await posts.moderateByAdmin({
+        actorUserId: OtherId,
+        postId: postId(60),
+        status: 'REJECTED',
+        expiresAt: null,
+        reason: 'Hàng cấm',
+      })) !== null,
+    );
+    const takenDown = await readPost(dataSource, 60);
+    check('bài chuyển REJECTED', takenDown.status === 'REJECTED');
+    check(
+      'gỡ KHÔNG xoá hạn cũ — còn để trả lại được',
+      takenDown.expires_at?.getTime() === expiryBefore?.getTime(),
+      String(takenDown.expires_at),
+    );
+
+    check(
+      'gỡ lại lần nữa thì không ghi thêm gì',
+      (await posts.moderateByAdmin({
+        actorUserId: OtherId,
+        postId: postId(60),
+        status: 'REJECTED',
+        expiresAt: null,
+        reason: 'Bấm nhầm hai lần',
+      })) === null,
+    );
+
+    check(
+      'trả lại được',
+      (await posts.moderateByAdmin({
+        actorUserId: OtherId,
+        postId: postId(60),
+        status: 'PUBLISHED',
+        expiresAt: new Date(Date.now() + 90 * 24 * 3600 * 1000),
+        reason: 'Gỡ nhầm',
+      })) !== null,
+    );
+    const restored = await readPost(dataSource, 60);
+    check('bài hiện lại', restored.status === 'PUBLISHED');
+    check(
+      'GIỮ NGUYÊN đồng hồ cũ, không thưởng thêm ba tháng',
+      restored.expires_at?.getTime() === expiryBefore?.getTime(),
+      String(restored.expires_at),
+    );
+
+    const [audit] = await dataSource.query<{ total: string }[]>(
+      `SELECT count(*) AS total FROM admin_audit_logs
+       WHERE resource_id = $1 AND action = 'MODERATE_POST'`,
+      [postId(60)],
+    );
+    check(
+      'hai lần đổi thật ghi HAI dòng audit, lần bấm trùng không ghi',
+      Number(audit?.total) === 2,
+      `${audit?.total} dòng`,
+    );
+
+    check(
+      'KHÔNG gỡ được bài đang có người nhận (RESERVED)',
+      (await posts.moderateByAdmin({
+        actorUserId: OtherId,
+        postId: postId(61),
+        status: 'REJECTED',
+        expiresAt: null,
+        reason: 'thử',
+      })) === null,
+    );
+    check(
+      'KHÔNG gỡ được bài đã trao xong',
+      (await posts.moderateByAdmin({
+        actorUserId: OtherId,
+        postId: postId(62),
+        status: 'REJECTED',
+        expiresAt: null,
+        reason: 'thử',
+      })) === null,
     );
 
     // ── 4. Marker bản đồ mang dữ liệu thẻ xem nhanh (F29) ───────────────────

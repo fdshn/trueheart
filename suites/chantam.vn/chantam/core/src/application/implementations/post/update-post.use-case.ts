@@ -5,10 +5,7 @@ import {
 } from '@/application/contracts/post';
 import { PostNotFoundException } from '@/domain/exceptions';
 import { IPostRepository } from '@/domain/ports/repository';
-import {
-  GiftPostStatuses,
-  PostTypes,
-} from '@chantam.vn/chantam.core-lib/consts';
+import { PostTypes } from '@chantam.vn/chantam.core-lib/consts';
 import {
   ForbiddenException,
   ValidationFailedException,
@@ -16,6 +13,14 @@ import {
 import { definedProps } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
 
+/**
+ * Sửa bài của chính mình.
+ *
+ * KHÔNG đụng tới `status`. Trước 26/09, sửa một bài `REJECTED` sẽ đẩy nó về
+ * `PENDING_REVIEW` để duyệt lại — nhưng nay không còn duyệt trước, nên giữ nếp
+ * đó là cho tác giả tự gỡ lệnh gỡ bài của Admin bằng cách sửa một dấu phẩy.
+ * Bài đã bị gỡ chỉ Admin trả lại được.
+ */
 @Injectable()
 export class UpdatePostUseCase implements IUpdatePostUseCase {
   public constructor(
@@ -39,8 +44,6 @@ export class UpdatePostUseCase implements IUpdatePostUseCase {
         'condition và estimatedValue chỉ áp dụng cho bài OFFER',
       ]);
 
-    const isRejected = (post.status as string) === GiftPostStatuses.REJECTED;
-
     await this.postRepository.update(
       { globalId: command.postId },
       definedProps({
@@ -53,7 +56,6 @@ export class UpdatePostUseCase implements IUpdatePostUseCase {
               lng: command.post.location.lng,
             }
           : undefined,
-        status: isRejected ? GiftPostStatuses.PENDING_REVIEW : undefined,
         details: !hasOfferDetails
           ? undefined
           : {

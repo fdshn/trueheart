@@ -47,7 +47,7 @@ function makeAdmin(allowed = true): jest.Mocked<IAdminConfigRepository> {
 }
 
 describe('ListAdminPostsUseCase', () => {
-  it('mặc định lấy queue PENDING_REVIEW sau khi kiểm permission', async () => {
+  it('KHÔNG tự lọc theo trạng thái nào khi Admin không chọn', async () => {
     const posts = {
       findAdminPosts: jest
         .fn()
@@ -60,8 +60,10 @@ describe('ListAdminPostsUseCase', () => {
       pageSize: 20,
     });
 
+    // Không còn hàng đợi duyệt, nên mặc định lọc một trạng thái là cho Admin
+    // một màn hình trống rồi để họ tự đoán là do không có bài hay do hỏng.
     expect(posts.findAdminPosts).toHaveBeenCalledWith(
-      expect.objectContaining({ status: GiftPostStatuses.PENDING_REVIEW }),
+      expect.objectContaining({ status: undefined }),
     );
     expect(result.posts).toHaveLength(1);
     expect(result.meta.total).toBe(1);
@@ -86,7 +88,7 @@ describe('ModerateAdminPostUseCase', () => {
     const entity = { globalId: PostId } as IPostEntity;
     const summary = { ...makeSummary(), status: GiftPostStatuses.PUBLISHED };
     const posts = {
-      moderatePendingReviewByAdmin: jest.fn().mockResolvedValue(entity),
+      moderateByAdmin: jest.fn().mockResolvedValue(entity),
       findAdminByGlobalId: jest.fn().mockResolvedValue(summary),
     } as unknown as jest.Mocked<IPostRepository>;
 
@@ -102,7 +104,7 @@ describe('ModerateAdminPostUseCase', () => {
       },
     });
 
-    expect(posts.moderatePendingReviewByAdmin).toHaveBeenCalledWith({
+    expect(posts.moderateByAdmin).toHaveBeenCalledWith({
       actorUserId: ActorId,
       postId: PostId,
       status: GiftPostStatuses.PUBLISHED,
@@ -112,9 +114,34 @@ describe('ModerateAdminPostUseCase', () => {
     expect(result.post.status).toBe(GiftPostStatuses.PUBLISHED);
   });
 
-  it('báo conflict khi bài không còn PENDING_REVIEW', async () => {
+  it('gỡ bài đang hiện thì KHÔNG kèm hạn mới', async () => {
+    const entity = { globalId: PostId } as IPostEntity;
+    const summary = { ...makeSummary(), status: GiftPostStatuses.REJECTED };
     const posts = {
-      moderatePendingReviewByAdmin: jest.fn().mockResolvedValue(null),
+      moderateByAdmin: jest.fn().mockResolvedValue(entity),
+      findAdminByGlobalId: jest.fn().mockResolvedValue(summary),
+    } as unknown as jest.Mocked<IPostRepository>;
+
+    await new ModerateAdminPostUseCase(posts, makeAdmin()).handle({
+      actorUserId: ActorId,
+      postId: PostId,
+      moderation: {
+        decision: GiftPostStatuses.REJECTED,
+        reason: 'Hàng cấm',
+      },
+    });
+
+    expect(posts.moderateByAdmin).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: GiftPostStatuses.REJECTED,
+        expiresAt: null,
+      }),
+    );
+  });
+
+  it('báo conflict khi trạng thái không cho gỡ, ví dụ bài đang trao dở', async () => {
+    const posts = {
+      moderateByAdmin: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<IPostRepository>;
 
     await expect(

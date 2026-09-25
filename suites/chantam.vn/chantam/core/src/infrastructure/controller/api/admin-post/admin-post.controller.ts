@@ -61,7 +61,7 @@ export class AdminPostController {
   @ApiOperation({
     summary: 'Hàng đợi bài đăng cho CMS',
     description:
-      'Mặc định chỉ trả PENDING_REVIEW; hỗ trợ lọc trạng thái, loại bài, category, author và keyword.',
+      'Không lọc sẵn theo trạng thái nào — bài lên thẳng nên không còn hàng đợi duyệt. Hỗ trợ lọc trạng thái, loại bài, category, author và keyword.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(ListAdminPostsResponseDto) })
   @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
@@ -115,7 +115,7 @@ export class AdminPostController {
   @ApiOperation({
     summary: 'Duyệt hoặc từ chối bài đăng',
     description:
-      'Chỉ chuyển từ PENDING_REVIEW; reason được ghi cùng before/after vào audit log.',
+      'Hậu kiểm: gỡ một bài đang hiện (`REJECTED`) hoặc trả lại bài đã gỡ (`PUBLISHED`). KHÔNG chạm được vào bài đang có giao dịch sống (`RESERVED`/`DELIVERING`) hay đã đóng — trả 409. Bài trả lại giữ nguyên hạn cũ, không được cộng thêm ba tháng. `reason` bắt buộc, ghi cùng before/after vào audit log.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(ModerateAdminPostResponseDto) })
   @ApiErrorResponses(

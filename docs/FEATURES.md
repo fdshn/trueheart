@@ -457,6 +457,15 @@ chặn việc dùng report làm vũ khí tấn công người khác.
 Admin có thể: nhắc nhở, ẩn bài, trừ điểm, hạn chế quyền, treo hoặc khoá tài khoản. **Mọi thao
 tác đều phải ghi audit.**
 
+> ✅ **Chốt 26/09: bài KHÔNG duyệt trước nữa, chuyển sang hậu kiểm.** Bài lên thẳng
+> `PUBLISHED` ngay khi đăng. Admin gỡ về sau qua `PATCH /admin/posts/:postId/moderation`, và
+> trả lại được nếu gỡ nhầm (giữ nguyên hạn cũ). Không chạm được vào bài đang có lượt trao
+> sống hay đã đóng.
+>
+> ⚠️ **Đổi lại:** một bài sai luật nằm trên bảng tin cho tới khi có người gỡ. Hàng đợi báo xấu
+> ([F48](#f48--báo-cáo-kèm-bằng-chứng)) vì thế thành đường phát hiện **chính**, không còn là đường
+> phụ — và chưa có ai trực nó theo ca.
+
 ### F50 — Chống gian lận referral & điểm
 Theo dõi tín hiệu bất thường về referral, điểm và giao dịch. **Không dùng một tín hiệu đơn lẻ
 để kết luận.** Thu hồi điểm bằng bút toán âm trong ledger.

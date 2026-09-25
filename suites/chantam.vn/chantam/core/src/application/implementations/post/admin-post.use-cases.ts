@@ -20,6 +20,7 @@ import {
   IPostRepository,
 } from '@/domain/ports/repository';
 import { GiftPostStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import { postExpiryDate } from '@chantam.vn/chantam.core-lib/models';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import {
   ForbiddenException,
@@ -39,12 +40,6 @@ async function requirePermission(
     throw new ForbiddenException();
 }
 
-function publishedExpiryDate(publishedAt: Date): Date {
-  const expiresAt = new Date(publishedAt);
-  expiresAt.setMonth(expiresAt.getMonth() + 3);
-  return expiresAt;
-}
-
 @Injectable()
 export class ListAdminPostsUseCase implements IListAdminPostsUseCase {
   public constructor(
@@ -59,7 +54,10 @@ export class ListAdminPostsUseCase implements IListAdminPostsUseCase {
     await requirePermission(this.admin, command.actorUserId, ReadPermission);
     const { skip, take } = toSkipTake(command);
     const result = await this.posts.findAdminPosts({
-      status: command.status ?? GiftPostStatuses.PENDING_REVIEW,
+      // KHÔNG mặc định về một trạng thái nào. Từ 26/09 bài lên thẳng nên không
+      // còn hàng đợi duyệt; mặc định lọc `PENDING_REVIEW` là cho Admin một màn
+      // hình trống rồi để họ tự đoán là do không có bài hay do hỏng.
+      status: command.status,
       postType: command.postType,
       categoryId: command.categoryId,
       authorId: command.authorId,
@@ -128,14 +126,14 @@ export class ModerateAdminPostUseCase implements IModerateAdminPostUseCase {
       throw new ValidationFailedException(['reason không được để trống']);
     const decision = command.moderation.decision;
     const now = new Date();
-    const moderated = await this.posts.moderatePendingReviewByAdmin({
+    const moderated = await this.posts.moderateByAdmin({
       actorUserId: command.actorUserId,
       postId: command.postId,
       status: decision,
+      // Chỉ là hạn DỰ PHÒNG cho bài chưa có hạn; repository giữ nguyên hạn cũ
+      // nếu đã có.
       expiresAt:
-        decision === GiftPostStatuses.PUBLISHED
-          ? publishedExpiryDate(now)
-          : null,
+        decision === GiftPostStatuses.PUBLISHED ? postExpiryDate(now) : null,
       reason,
     });
     if (!moderated) throw new PostInvalidStateException();

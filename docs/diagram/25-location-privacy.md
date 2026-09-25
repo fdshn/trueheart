@@ -94,7 +94,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     A["Client gửi lên"] --> B["title · description · ảnh<br/>danh mục · vị trí · tình trạng<br/>isSos · deliveryMethod · shipPayer"]
-    C["SERVER tự quyết"] --> D["author — từ token<br/>postType — từ đường gọi<br/>status — luôn PENDING_REVIEW"]
+    C["SERVER tự quyết"] --> D["author — từ token<br/>postType — từ đường gọi<br/>status — luôn PUBLISHED<br/>(bài lên thẳng, chốt 26/09)"]
 
     E["❌ Nhận status từ client<br/>= ai cũng tự duyệt bài mình"] -.-> C
 

@@ -121,7 +121,7 @@ describe('CreatePostUseCase', () => {
     return { posts, categories, users, entitlements };
   }
 
-  it('lấy author từ userId và khởi tạo canonical OFFER pending review', async () => {
+  it('lấy author từ userId và tạo bài OFFER LÊN THẲNG, kèm hạn ba tháng', async () => {
     const { posts, categories, users, entitlements } = makeRepositories();
     const useCase = new CreatePostUseCase(
       posts,
@@ -139,7 +139,8 @@ describe('CreatePostUseCase', () => {
         authorId: UserId,
         categoryId: CategoryId,
         postType: PostTypes.OFFER,
-        status: GiftPostStatuses.PENDING_REVIEW,
+        status: GiftPostStatuses.PUBLISHED,
+        expiresAt: expect.any(Date),
         totalQuantity: 1,
         remainingQuantity: 1,
         details: {

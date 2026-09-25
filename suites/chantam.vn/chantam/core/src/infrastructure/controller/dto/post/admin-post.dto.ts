@@ -24,7 +24,11 @@ import { Mixin } from 'ts-mixer';
 import { PublicPostMediaDto } from './post.dto';
 
 export class ListAdminPostsQueryDto extends Mixin(PaginationQueryDto) {
-  @ApiPropertyOptional({ enum: GiftPostStatuses, default: 'PENDING_REVIEW' })
+  @ApiPropertyOptional({
+    enum: GiftPostStatuses,
+    description:
+      'Bỏ trống thì trả mọi trạng thái. Không còn hàng đợi duyệt để mặc định vào.',
+  })
   @IsOptional()
   @IsEnum(GiftPostStatuses)
   status?: GiftPostStatuses;

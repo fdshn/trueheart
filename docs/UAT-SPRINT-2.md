@@ -26,8 +26,8 @@ Ghi kết quả vào cột cuối: ✅ đạt, ❌ không đạt kèm mô tả, 
 
 | # | Việc làm | Kỳ vọng | KQ |
 | --- | --- | --- | --- |
-| 1.1 | Đăng một bài Muốn Tặng có ảnh, chọn vị trí trên bản đồ | Bài vào trạng thái chờ duyệt, chưa ai thấy | |
-| 1.2 | Admin duyệt bài | Bài hiện ở bảng tin | |
+| 1.1 | Đăng một bài Muốn Tặng có ảnh, chọn vị trí trên bản đồ | Bài hiện **ngay** ở bảng tin, không chờ duyệt | |
+| 1.2 | Admin gỡ bài đó xuống (hậu kiểm), rồi trả lại | Gỡ thì biến khỏi bảng tin; trả lại thì hiện lại và **giữ nguyên hạn cũ** | |
 | 1.3 | Đăng quá hạn mức của hạng hiện tại | Bị chặn, báo rõ còn bao nhiêu lượt | |
 | 1.4 | Đánh dấu một bài là Cần gấp (SOS) | Chỉ hạng được cấp quyền mới bật được | |
 | 1.5 | Mở một bài sắp hết hạn, bấm gia hạn | Hạn lùi ra, **lần thứ hai bị từ chối** | |

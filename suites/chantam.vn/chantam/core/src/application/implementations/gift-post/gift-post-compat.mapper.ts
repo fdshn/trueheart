@@ -9,6 +9,7 @@ import {
   IGiftPostEntity,
   IPostEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
+import { postExpiryDate } from '@chantam.vn/chantam.core-lib/models';
 
 const CategoryIdByLegacyCategory: Readonly<Record<GiftPostCategories, string>> =
   {
@@ -93,14 +94,16 @@ export function toCanonicalOffer(input: {
     description: input.giftPost.description,
     location: input.giftPost.location,
     areaLabel: input.giftPost.areaLabel,
-    status: GiftPostStatuses.PENDING_REVIEW,
+    // Bài lên thẳng như đường chính (chốt 26/09) — route cũ không được là cửa
+    // sau có luật riêng.
+    status: GiftPostStatuses.PUBLISHED,
     totalQuantity,
     remainingQuantity: totalQuantity,
     details: {
       condition: input.giftPost.condition,
       estimatedValue: input.giftPost.estimatedValue,
     },
-    expiresAt: null,
+    expiresAt: postExpiryDate(new Date()),
     renewedCount: 0,
     reactionCount: 0,
     commentCount: 0,

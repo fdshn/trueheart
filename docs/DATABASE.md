@@ -53,7 +53,7 @@ Ba hệ quả cần nhớ:
 | `users_rank_enum` | `VIEWER` · `MEMBER` · `SILVER` · `GOLD` · `DIAMOND` |
 | `users_status_enum` | `ACTIVE` · `SUSPENDED` · `BANNED` |
 | `posts_type_enum` | `OFFER` · `WANTED` · `CHARITY` · `CLASSIFIED` · `MERIT` |
-| `gift_posts_status_enum` | `DRAFT` · `PENDING_REVIEW` · `REJECTED` · `PUBLISHED` · `RESERVED` · `DELIVERING` · `COMPLETED` · `CANCELLED` · `EXPIRED` · `ARCHIVED` |
+| `gift_posts_status_enum` | `DRAFT` · ~~`PENDING_REVIEW`~~ · `REJECTED` · `PUBLISHED` · `RESERVED` · `DELIVERING` · `COMPLETED` · `CANCELLED` · `EXPIRED` · `ARCHIVED` — `PENDING_REVIEW` giữ trong enum cho dữ liệu cũ, bài mới không vào đó nữa (chốt 26/09) |
 | `gift_posts_category_enum` | `HOUSEHOLD` · `CLOTHING` · `BOOKS` · `ELECTRONICS` · `FURNITURE` · `VEHICLE` · `MEDICAL` · `FOOD` · `NON_MATERIAL` · `OTHER` |
 | `gift_posts_condition_enum` | `NEW` · `LIKE_NEW` · `USED` · `NOT_APPLICABLE` |
 | `posts_selection_mode_enum` | `INSTANT` · `OPTIMAL` · `EXTENDED` |

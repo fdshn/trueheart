@@ -72,7 +72,7 @@ const DemoPosts = [
     lng: 105.8301,
     lat: 21.0304,
     areaLabel: 'Ba Đình, Hà Nội',
-    status: 'PENDING_REVIEW',
+    status: 'PUBLISHED',
     totalQuantity: 1,
     remainingQuantity: 1,
     giverId: DemoUsers[0].globalId,

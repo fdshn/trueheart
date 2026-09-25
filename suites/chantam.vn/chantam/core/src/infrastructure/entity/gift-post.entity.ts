@@ -113,7 +113,7 @@ export class GiftPostEntity
   @ApiProperty({
     enum: GiftPostStatuses,
     description:
-      'Vòng đời: `PENDING_REVIEW` (chờ kiểm duyệt) → `PUBLISHED` (đang hiện) → `COMPLETED` (đã trao xong), hoặc `CANCELLED` khi người tặng gỡ bài.',
+      'Vòng đời: `PUBLISHED` (hiện ngay khi đăng) → `RESERVED` → `DELIVERING` → `COMPLETED` (đã trao xong), hoặc `CANCELLED` khi người tặng gỡ bài, `REJECTED` khi Admin hậu kiểm gỡ xuống.',
   })
   @Index()
   @Column({

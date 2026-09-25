@@ -129,7 +129,7 @@ export class CreateGiftPostResponseDto implements ICreateGiftPostResponseDto {
   @ApiProperty({
     type: () => GiftPostEntity,
     description:
-      'Bài vừa tạo, ở trạng thái `PENDING_REVIEW` — chưa hiện trên bảng tin cho ' +
+      'Bài vừa tạo, ở trạng thái `PUBLISHED` — hiện ngay trên bảng tin, không chờ ' +
       'tới khi được kiểm duyệt.',
   })
   giftPost: IGiftPostEntity;

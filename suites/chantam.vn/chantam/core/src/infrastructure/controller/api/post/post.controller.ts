@@ -150,7 +150,7 @@ export class PostController {
   @ApiOperation({
     summary: 'Tạo canonical post Generic MVP',
     description:
-      'Type được validate từ Generic MVP; tác giả và trạng thái do server quyết định, bài luôn tạo ở PENDING_REVIEW.',
+      'Type được validate từ Generic MVP; tác giả và trạng thái do server quyết định. Bài lên thẳng `PUBLISHED`, hạn ba tháng tính từ lúc đăng — không có bước duyệt trước.',
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(CreatePostResponseDto) })
   @ApiErrorResponses(
@@ -517,7 +517,7 @@ export class PostController {
     description:
       'Lọc theo loại bài, trạng thái duyệt/hiển thị và danh mục, có phân trang. ' +
       'Dùng `?postType=CLASSIFIED` để lấy danh sách tin rao vặt của bạn. ' +
-      'Khác discovery công khai ở hai điểm: trả cả bài PENDING_REVIEW/REJECTED, ' +
+      'Khác discovery công khai ở hai điểm: trả cả bài REJECTED và EXPIRED, ' +
       'và toạ độ là toạ độ THẬT vì đây là bài của chính bạn.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(GetMyPostsResponseDto) })

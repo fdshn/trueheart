@@ -21,7 +21,7 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     description: 'Còn dùng tốt',
     location: { lat: 10.7724, lng: 106.698 },
     areaLabel: 'Quận 1, TP.HCM',
-    status: 'PENDING_REVIEW' as never,
+    status: 'PUBLISHED' as never,
     totalQuantity: 1,
     remainingQuantity: 1,
     details: { condition: 'USED', estimatedValue: 1_500_000 },
@@ -69,7 +69,7 @@ describe('UpdatePostUseCase', () => {
     expect(result.post.title).toBe('Xe mới');
   });
 
-  it('bài REJECTED khi được author cập nhật thì tự động chuyển về PENDING_REVIEW để duyệt lại', async () => {
+  it('bài REJECTED sửa xong VẪN là REJECTED — không tự gỡ lệnh gỡ bài', async () => {
     const postRepository = {
       findOneBy: jest
         .fn()
@@ -78,7 +78,7 @@ describe('UpdatePostUseCase', () => {
       findOneByOrFail: jest
         .fn()
         .mockResolvedValue(
-          makePost({ title: 'Xe sửa lại', status: 'PENDING_REVIEW' as never }),
+          makePost({ title: 'Xe sửa lại', status: 'REJECTED' as never }),
         ),
     } as unknown as jest.Mocked<IPostRepository>;
 
@@ -88,11 +88,13 @@ describe('UpdatePostUseCase', () => {
       post: { title: 'Xe sửa lại' },
     });
 
+    // Không có `status` trong câu update: sửa một dấu phẩy mà bài tự hiện lại
+    // là cho tác giả tự gỡ quyết định của Admin.
     expect(postRepository.update).toHaveBeenCalledWith(
       { globalId: PostId },
-      { title: 'Xe sửa lại', status: 'PENDING_REVIEW' },
+      { title: 'Xe sửa lại' },
     );
-    expect(result.post.status).toBe('PENDING_REVIEW');
+    expect(result.post.status).toBe('REJECTED');
   });
 
   it('từ chối người không phải owner trước khi update', async () => {

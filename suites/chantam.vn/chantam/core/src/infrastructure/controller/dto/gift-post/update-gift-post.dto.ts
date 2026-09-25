@@ -78,8 +78,8 @@ export class UpdateGiftPostDto implements IUpdateGiftPostDto {
   @ApiPropertyOptional({
     enum: GiftPostStatuses,
     description:
-      'Chuyển trạng thái bài đăng, ví dụ `PENDING_REVIEW` → `PUBLISHED` sau khi ' +
-      'kiểm duyệt, hoặc `CANCELLED` khi người tặng đổi ý. Bài đã đóng ' +
+      'Chuyển trạng thái bài đăng, ví dụ `CANCELLED` khi người tặng đổi ý. ' +
+      'Bài đã đóng ' +
       '(`COMPLETED`/`CANCELLED`) thì không sửa được nữa — trả về 409.',
   })
   @IsOptional()

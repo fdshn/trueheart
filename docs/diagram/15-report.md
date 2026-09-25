@@ -98,7 +98,7 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     A[Admin xác minh đúng] --> B{Đích là gì}
-    B --> C["Bài — PATCH /admin/posts/:id/moderation<br/>ẩn hoặc gỡ"]
+    B --> C["Bài — PATCH /admin/posts/:id/moderation<br/>gỡ xuống REJECTED"]
     B --> D["Bình luận — chuyển REMOVED"]
     B --> E["Người dùng — PATCH /admin/users/:id/status<br/>SUSPENDED hoặc BANNED"]
 
