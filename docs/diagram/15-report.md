@@ -107,6 +107,12 @@ flowchart TD
     style F fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
+Với đích `POST`, xác nhận đúng thực hiện nguyên tử ba việc: chuyển bài đang
+`PUBLISHED`/`PENDING_REVIEW` sang `REJECTED`, ghi khoản phạt theo point rule
+`CONTENT_VIOLATION_PENALTY` (khởi tạo −50 điểm, không giảm lifetime), và ghi audit. Khoá
+idempotency theo bài nên nhiều report cùng đích không trừ lặp. Bài đang có giao dịch sống
+(`RESERVED`/`DELIVERING`) không bị gỡ ngang.
+
 ## Chỗ cần soát
 
 1. ✅ **Đã có 25/09.** Người báo luôn nhận `REPORT_REVIEWED` kèm kết luận — cả khi bị bác, vì
