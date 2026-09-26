@@ -41,7 +41,7 @@ services:
 
 
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     container_name: chantam-minio
     restart: unless-stopped
     command: server /data --console-address ':9001'
@@ -63,7 +63,7 @@ services:
 
 
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
     depends_on:
       minio: { condition: service_healthy }
     restart: 'no'
