@@ -36,15 +36,18 @@ flowchart LR
     B -->|Chỉ một trong hai| X["❌ 400 — lỗi của client,<br/>không phải ý muốn lùi"]
     B -->|Không có| C{Đã đăng nhập<br/>và có Vị trí mặc định?}
     C -->|Có| D[Dùng Vị trí mặc định]
-    C -->|Không| Y["❌ 400 DISCOVERY_ORIGIN_UNAVAILABLE"]
+    C -->|Không| Y["originSource = 'ALL'<br/>KHÔNG lọc bán kính"]
     F --> G["ST_DWithin(location, point, radius)<br/>index GiST"]
     D --> G
     G --> H["ORDER BY khoảng cách, rồi id"]
+    Y --> Z["ORDER BY created_at DESC, rồi id<br/>distanceMeters = null"]
     H --> I["OFFSET / LIMIT theo page, pageSize"]
+    Z --> I
 
     style G fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
     style X fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
-    style Y fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style Y fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style Z fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 > **KHÔNG có nhánh lùi thứ ba.** Sơ đồ cũ vẽ "dùng vùng mặc định từ discovery config" — mã cố

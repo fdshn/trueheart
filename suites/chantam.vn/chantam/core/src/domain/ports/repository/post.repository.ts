@@ -51,8 +51,13 @@ export interface IPostMapMarker {
 }
 
 export interface IFindNearbyPostsParams {
-  origin: IGeoPoint;
-  radiusMeters: number;
+  /**
+   * Bỏ trống thì KHÔNG lọc theo bán kính: trả toàn bộ, xếp mới nhất trước.
+   * `radiusMeters` khi đó cũng phải bỏ trống — có bán kính mà không có tâm là
+   * một tham số không dùng được vào việc gì.
+   */
+  origin?: IGeoPoint;
+  radiusMeters?: number;
   /** Bỏ trống thì không lọc theo loại — feed trộn cả năm loại. */
   postType?: PublicDiscoveryPostType;
   categoryId?: string;
@@ -64,7 +69,8 @@ export interface IFindNearbyPostsParams {
 
 export interface INearbyPost {
   post: IPostEntity;
-  distanceMeters: number;
+  /** `null` khi truy vấn không có gốc toạ độ. */
+  distanceMeters: number | null;
 }
 
 export interface IFindNearbyPostsResult {

@@ -1,7 +1,7 @@
 /**
  * Kiểm việc GỘP nút thích vào bảng cảm xúc, trên Postgres THẬT.
  *
- * Năm thứ mà unit test mock không thấy được:
+ * Sáu thứ mà unit test mock không thấy được:
  *
  *   1. **Bảng `post_likes` đã biến mất** — còn nó thì vẫn còn hai nguồn sự thật.
  *   2. **Cột `posts.like_count` cũng đã biến mất** (26/09). `LIKE` là một trong
@@ -9,8 +9,11 @@
  *      đếm cho một hành vi.
  *   3. **Đổi `LIKE` sang `LOVE`** không làm `reaction_count` nhúc nhích — vẫn là
  *      một người bày tỏ, chỉ đổi cách bày tỏ.
- *   4. **Hai lần bấm song song** không làm lệch số đếm.
- *   5. **Migration gộp**: ai đã thả `LOVE` thì giữ `LOVE`, không bị hạ xuống
+ *   4. **Gửi trùng loại đang có KHÔNG ghi gì** — `ctid` của dòng đứng yên.
+ *      Client gửi trùng là chuyện thường: chạm hai lần, retry khi mạng chập
+ *      chờn, hai thiết bị cùng đồng bộ.
+ *   5. **Hai lần bấm song song** không làm lệch số đếm.
+ *   6. **Migration gộp**: ai đã thả `LOVE` thì giữ `LOVE`, không bị hạ xuống
  *      `LIKE`; và số đếm sau backfill khớp với bảng cảm xúc.
  *
  *   npm run test:feed-merge
@@ -176,6 +179,74 @@ async function main(): Promise<void> {
       'chỉ MỘT dòng cho mỗi người, và nó mang loại mới',
       aliceRow?.kind === ReactionKinds.LOVE,
       String(aliceRow?.kind),
+    );
+
+    // ── 3b. Gửi trùng loại đang có KHÔNG được ghi gì ────────────────────────
+    //
+    // `ctid` là vị trí vật lý của dòng. Postgres không sửa tại chỗ: mỗi lần
+    // UPDATE là một phiên bản dòng MỚI ở chỗ khác, cộng một bản ghi WAL, một
+    // mục index, và một dòng chết cho vacuum. Nên `ctid` đứng yên là bằng
+    // chứng KHÔNG ghi — mạnh hơn hẳn việc tin vào giá trị trả về.
+    console.log('\nGửi trùng loại đang có:\n');
+
+    async function rowState(): Promise<{ ctid: string; updated_at: string }> {
+      const [row] = await dataSource.query<
+        { ctid: string; updated_at: string }[]
+      >(
+        `SELECT ctid::text, updated_at::text FROM content_reactions
+         WHERE subject_id = $1 AND user_id = $2`,
+        [PostId, AliceId],
+      );
+      return row;
+    }
+
+    await reactions.setReaction({
+      ...subject,
+      userId: AliceId,
+      kind: ReactionKinds.LOVE,
+    });
+    const before = await rowState();
+
+    for (let attempt = 0; attempt < 20; attempt += 1)
+      await reactions.setReaction({
+        ...subject,
+        userId: AliceId,
+        kind: ReactionKinds.LOVE,
+      });
+
+    const afterSame = await rowState();
+    check(
+      'gửi lại LOVE 20 lần: dòng KHÔNG dịch chỗ, tức không ghi lần nào',
+      afterSame.ctid === before.ctid,
+      `${before.ctid} → ${afterSame.ctid}`,
+    );
+    check(
+      'và updated_at cũng đứng yên',
+      afterSame.updated_at === before.updated_at,
+    );
+    check(
+      'số đếm vẫn đúng 1, không bị 20 lần gọi làm lệch',
+      (await reactionCount()) === 1,
+      String(await reactionCount()),
+    );
+
+    // Đổi sang loại KHÁC thì phải ghi thật — nếu không thì mệnh đề WHERE đã
+    // chặn nhầm cả thay đổi có thật.
+    await reactions.setReaction({
+      ...subject,
+      userId: AliceId,
+      kind: ReactionKinds.CARE,
+    });
+    const afterChange = await rowState();
+    check(
+      'nhưng đổi sang CARE thì dòng DỊCH CHỖ — thay đổi thật vẫn ghi',
+      afterChange.ctid !== before.ctid,
+      `${before.ctid} → ${afterChange.ctid}`,
+    );
+    check(
+      'và reaction_count vẫn đứng yên ở 1',
+      (await reactionCount()) === 1,
+      String(await reactionCount()),
     );
 
     // ── 4. Gỡ cảm xúc ───────────────────────────────────────────────────────

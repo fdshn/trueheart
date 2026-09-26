@@ -347,7 +347,8 @@ Hiển thị marker từ nhiều nguồn dữ liệu hợp lệ trên cùng mộ
 
 ### F26 — GPS hiện tại & dự phòng Default Location
 Ưu tiên GPS khi được cấp quyền. Không có quyền thì lùi về Default Location ([F11](#f11--vị-trí-mặc-định)).
-Không có cả hai thì xử lý theo trạng thái rỗng.
+Không có cả hai thì bỏ hẳn bộ lọc bán kính và trả toàn bộ, mới nhất trước (`originSource: ALL`,
+chốt 27/09) — trước đó nhánh này báo lỗi 400.
 
 ### F27 — Nạp dữ liệu theo khung nhìn
 Nạp theo vùng bản đồ đang xem (bounding box), có thao tác **"Tìm trong khu vực này"** và
@@ -822,6 +823,7 @@ Một nút duy nhất, đúng kiểu Facebook: **chạm là `LIKE`, giữ thì h
 - **Ràng buộc duy nhất:** Lưu tại `content_reactions`, khoá duy nhất `(subject_type, subject_id, user_id)` — mỗi người một cảm xúc cho mỗi chủ thể. Bảng `post_likes` riêng cũng **đã bị gỡ**: trước đây hai bảng nuôi hai con số, và `GET /posts/:id` trả hai số lượt thích khác nhau cho cùng một bài.
 - **Denormalized counter:** `posts.reaction_count` = tổng người đã bày tỏ, **bất kể loại**, cập nhật nguyên tử trong cùng transaction. Đổi `LIKE → LOVE` KHÔNG làm nó nhúc nhích — vẫn là một người. Cột `posts.like_count` đã gỡ.
 - **Chống chạy đua:** upsert `ON CONFLICT` đọc loại cũ trong cùng một câu, nên hai lần bấm song song xếp hàng thay vì cùng thấy "chưa bày tỏ" rồi cùng cộng thêm một.
+- **Không có trần gọi, và gửi trùng thì không ghi gì.** Điểm đã an toàn sẵn (khoá chống trùng theo bài và người), nên thay vì từ chối request, câu upsert mang `WHERE kind IS DISTINCT FROM EXCLUDED.kind`: gửi đúng loại đang để thì Postgres không sinh phiên bản dòng mới, không sinh WAL, không để lại dòng chết cho vacuum. Người dùng thật hưởng lợi nhiều nhất — chạm hai lần, retry khi mạng chập chờn, hai thiết bị cùng đồng bộ đều thành miễn phí.
 - **Response chi tiết bài đăng:** `reaction_count` (tổng), `my_reaction` (loại của caller, `null` khi chưa bày tỏ hoặc chưa đăng nhập) và `reaction_breakdown` (số lượt từng loại — đủ để hiện mấy biểu tượng dẫn đầu). Bảng tin chỉ trả `reaction_count` + `my_reaction`: nhóm theo loại cho từng bài trong một trang 20 bài là 20 lần GROUP BY cho một thứ không ai nhìn kỹ.
 
 ### F82 — Bình luận, trả lời và chia sẻ

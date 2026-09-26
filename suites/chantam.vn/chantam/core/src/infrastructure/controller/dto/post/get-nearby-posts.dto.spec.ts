@@ -74,4 +74,44 @@ describe('GetNearbyPostsQueryDto', () => {
 
     expect(errors).toHaveLength(0);
   });
+
+  it('BỎ TRỐNG cả toạ độ lẫn bán kính là hợp lệ — trả toàn bộ', async () => {
+    // Không có gốc toạ độ thì bán kính không lọc gì; bắt gửi nó là bắt client
+    // bịa ra một con số server sẽ lờ đi.
+    const errors = await validate(
+      plainToInstance(GetNearbyPostsQueryDto, { page: 1, pageSize: 20 }),
+    );
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('có toạ độ mà thiếu bán kính thì từ chối', async () => {
+    // Ở nhánh này bán kính THỰC SỰ quyết định kết quả, nên thiếu nó là lỗi
+    // client chứ không phải ý muốn quét toàn quốc.
+    const errors = await validate(
+      plainToInstance(GetNearbyPostsQueryDto, {
+        lat: 10.7724,
+        lng: 106.698,
+        page: 1,
+        pageSize: 20,
+      }),
+    );
+
+    expect(errors).not.toHaveLength(0);
+    expect(errors[0].property).toBe('radiusMeters');
+  });
+
+  it('bán kính sai giá trị vẫn bị bắt khi có toạ độ', async () => {
+    const errors = await validate(
+      plainToInstance(GetNearbyPostsQueryDto, {
+        lat: 10.7724,
+        lng: 106.698,
+        radiusMeters: 50_001,
+        page: 1,
+        pageSize: 20,
+      }),
+    );
+
+    expect(errors).not.toHaveLength(0);
+  });
 });

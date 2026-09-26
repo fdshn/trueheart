@@ -462,6 +462,9 @@ ra — gợi ý không giải thích được thì người dùng không có cơ
   là biến endpoint này thành đường vòng để dò toạ độ chính xác.
 - Loại bài ngoài `OFFER`/`WANTED` trả danh sách rỗng thay vì ghép bừa.
 - Ứng viên phải **cùng danh mục hoặc trùng từ khoá** — chỉ gần thôi thì chưa phải gợi ý.
+- Mỗi gợi ý kèm `media[]` cùng hình dạng với `/posts/nearby` (chốt 27/09). Ảnh chỉ nạp cho các
+  bài **đã lọt vào kết quả sau khi xếp hạng và cắt** — nạp cho cả rổ ứng viên rồi vứt phần lớn
+  là kéo về đúng thứ vừa quyết không trả.
 
 ### Ảnh bài đăng — luồng ba bước
 
@@ -499,7 +502,7 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
-| `PUT` | `/posts/:subjectId/reactions/me` | `REACT_CONTENT` | Đặt hoặc đổi cảm xúc: `LIKE`/`LOVE`/`CARE`/`WOW`/`SAD` — **đây cũng là nút thích** |
+| `PUT` | `/posts/:subjectId/reactions/me` | `REACT_CONTENT` | Đặt hoặc đổi cảm xúc: `LIKE`/`LOVE`/`CARE`/`WOW`/`SAD` — **đây cũng là nút thích**. Không có trần |
 | `DELETE` | `/posts/:subjectId/reactions/me` | `REACT_CONTENT` | Gỡ cảm xúc của chính mình |
 | `GET` | `/posts/:subjectId/reactions` | Công khai | Ai đã bày tỏ, phân trang, lọc theo `kind` |
 | `PUT` | `/comments/:subjectId/reactions/me` | `REACT_CONTENT` | Cảm xúc trên **bình luận** |
@@ -560,6 +563,13 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
   lên Bạc trong khi tặng một món đồ thật được 56 điểm. Không thưởng khi tương tác với bài của
   chính mình. Chạm trần **không** làm hỏng việc bình luận: việc người đó vừa viết một câu là sự
   thật, thưởng bao nhiêu chỉ là chính sách.
+- **Cảm xúc KHÔNG có trần gọi**, và đó là chủ ý. Điểm đã an toàn sẵn: khoá chống trùng của
+  `POST_REACTED` là `(bài, người)` nên gỡ rồi thả lại không được thưởng lần hai; thông báo cũng
+  chỉ một lần mỗi ngày mỗi bài. Chỗ duy nhất còn tốn là ghi database, và nó được xử bằng cách
+  **không ghi**: gửi đúng loại người đó đang để thì câu upsert mang
+  `WHERE kind IS DISTINCT FROM EXCLUDED.kind`, nên Postgres không sinh phiên bản dòng mới, không
+  sinh WAL, không để lại dòng chết. Client gửi trùng — chạm hai lần, retry khi mạng chập chờn,
+  hai thiết bị cùng đồng bộ — nay là miễn phí, và **không ai bị trả về 429**.
 - **Báo xấu một bình luận** đi chung `POST /reports` với `targetType: COMMENT`, không có
   endpoint riêng.
 
@@ -635,6 +645,12 @@ giới hạn — đổi trần bán kính ở server là client tự theo.
 26/09; trước đó bắt buộc, nên client muốn feed trộn phải gọi năm lần rồi tự ghép mà mỗi lần
 phân trang riêng nên ghép xong thứ tự vô nghĩa).
 
+`/posts/nearby` trả kèm `media[]` cho từng bài (chốt 27/09) — đúng hình dạng đã dùng ở
+`/posts/me` và `/posts/{postId}`: `{ id, url, sortOrder }`, sắp sẵn theo `sortOrder`, và **luôn
+là mảng** (bài chưa có ảnh trả `[]`, không bỏ trống trường). Ảnh của cả trang lấy trong **một
+truy vấn** gộp theo `postId` rồi chia về từng bài; hỏi từng bài là 20 lượt đi database mỗi lần
+cuộn feed.
+
 `/posts/map` nhận khung bbox và trả **CỤM theo ô lưới** (chốt 26/09):
 
 - `clusters[]` — mỗi ô có `cellKey`, `count`, `location`, và `marker` (chỉ khi `count === 1`).
@@ -679,14 +695,31 @@ bỏ sót bài**.
 
 | Gửi gì | Server làm gì | `originSource` |
 | --- | --- | --- |
-| Cả `lat` và `lng` | Dùng đúng toạ độ đó | `REQUEST` |
+| Cả `lat` và `lng` (kèm `radiusMeters`) | Dùng đúng toạ độ đó | `REQUEST` |
 | Không gửi, đã đăng nhập, có Vị trí mặc định | Lùi về Vị trí mặc định | `DEFAULT_LOCATION` |
-| Không gửi, chưa đăng nhập | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
-| Không gửi, đã đăng nhập, **chưa** đặt Vị trí mặc định | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
+| Không gửi, chưa đăng nhập | **Trả toàn bộ**, không lọc bán kính | `ALL` |
+| Không gửi, đã đăng nhập, **chưa** đặt Vị trí mặc định | **Trả toàn bộ**, không lọc bán kính | `ALL` |
 | Chỉ một trong hai | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
+| Có toạ độ nhưng thiếu `radiusMeters` | `VALIDATION_FAILED` (400) | — |
+
+**Chặng `ALL` là chặng CUỐI** (chốt 27/09): chỉ tới khi không còn gốc toạ độ nào. Người đã
+đăng nhập và có Vị trí mặc định vẫn được quét quanh vị trí đó như cũ — F26 không đổi.
+
+Ở nhánh `ALL`:
+
+- `radiusMeters` **tuỳ chọn** và bị bỏ qua. Có toạ độ thì nó vẫn bắt buộc.
+- `distanceMeters` của mọi bài là **`null`**, không phải `0` — `0` đọc ra là "cách bạn 0 mét".
+- Thứ tự là **`created_at DESC`, rồi `id ASC`** thay cho khoảng cách. Vẫn phải có tiebreak
+  bằng khoá chính, nếu không lật trang bằng `OFFSET` sẽ lặp bài hoặc bỏ sót bài.
+- Toạ độ vẫn bị làm nhiễu và `isLocationApproximate` vẫn `true`.
+
+> ⚠️ **Đổi hợp đồng API.** Trước 27/09 hai dòng `ALL` ở trên là **400**. Client đang bắt lỗi
+> `DISCOVERY_ORIGIN_UNAVAILABLE` để hiện màn "hãy bật GPS" sẽ không còn nhận được lỗi đó —
+> giờ nhận 200 kèm danh sách. Kiểu của `distanceMeters` cũng nới thành `number | null`.
 
 Response **luôn** trả `originSource`. Giao diện cần nó để nói "đang tìm quanh vị trí mặc định
-của bạn" — lùi về một toạ độ khác mà im lặng là đổi kết quả sau lưng người dùng.
+của bạn", hoặc "đang xem tất cả, bật GPS để tìm quanh đây" — lùi sang một phạm vi khác mà im
+lặng là đổi kết quả sau lưng người dùng.
 
 Gửi **một nửa** toạ độ là lỗi của client, không phải ý muốn lùi vị trí: bỏ qua nửa kia sẽ
 quét quanh một chỗ khác hẳn chỗ client đang chỉ tới. Và khi không có gốc nào, server **không**

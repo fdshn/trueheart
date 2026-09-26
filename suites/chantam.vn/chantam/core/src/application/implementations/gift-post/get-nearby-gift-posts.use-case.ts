@@ -54,7 +54,11 @@ export class GetNearbyGiftPostsUseCase implements IGetNearbyGiftPostsUseCase {
             this.config.geo.jitterRadiusMeters,
           ),
         },
-        distanceMeters: bucketDistance(distanceMeters),
+        // Kênh legacy bắt buộc `lat`/`lng` nên truy vấn LUÔN có gốc toạ độ và
+        // nhánh `null` không tới được. Hợp đồng cũ khai `number`, không nới
+        // thành nullable ở đây chỉ vì kênh canonical đã nới.
+        distanceMeters:
+          distanceMeters === null ? 0 : bucketDistance(distanceMeters),
         isLocationApproximate: true,
       };
     });

@@ -109,12 +109,26 @@ export class ContentReactionRepository implements IContentReactionRepository {
     manager: EntityManager,
     params: ISetReactionParams,
   ): Promise<{ created: boolean; previousKind: ReactionKinds | null }> {
-    // `xmax = 0` phân biệt INSERT thật với UPDATE do ON CONFLICT: Postgres để
-    // xmax bằng 0 trên dòng vừa chèn. Thiếu phép phân biệt này thì đổi cảm
-    // xúc từ LIKE sang LOVE sẽ cộng thêm một vào tổng — cùng một người mà
-    // thành hai lượt.
+    // Ba trạng thái, phân biệt bằng `inserted`:
+    //
+    //   `true`   — chèn dòng mới. `xmax = 0` là dấu hiệu: Postgres để xmax bằng
+    //              0 trên dòng vừa chèn, khác với dòng bị UPDATE. Thiếu phép
+    //              phân biệt này thì đổi LIKE sang LOVE sẽ cộng thêm một vào
+    //              tổng — cùng một người mà thành hai lượt.
+    //   `false`  — đụng khoá và ĐÃ ghi đè, tức loại thật sự đổi.
+    //   `null`   — đụng khoá nhưng KHÔNG ghi gì, vì `WHERE` bên dưới chặn lại.
+    //
+    // Mệnh đề `WHERE ... IS DISTINCT FROM` là chỗ tiết kiệm: gửi đúng loại đang
+    // có thì Postgres không ghi phiên bản dòng mới, không sinh WAL, không thêm
+    // mục index, không để lại dòng chết cho vacuum. Không có nó thì mỗi lần
+    // client gửi trùng — chạm hai lần vì tưởng máy lag, retry khi mạng chập
+    // chờn, hai thiết bị cùng đồng bộ — đều là một lần ghi thật vào bảng.
+    //
+    // `FROM (SELECT 1)` rồi LEFT JOIN cả hai CTE: cần LUÔN đúng một dòng trả
+    // về. Nối thẳng từ `upserted` thì lúc không ghi gì sẽ ra 0 dòng, và mất
+    // luôn `old_kind` — không phân biệt được "không đổi" với "không có".
     const [row] = await manager.query<
-      { inserted: boolean; old_kind: ReactionKinds | null }[]
+      { inserted: boolean | null; old_kind: ReactionKinds | null }[]
     >(
       `
         WITH prev AS (
@@ -127,20 +141,23 @@ export class ContentReactionRepository implements IContentReactionRepository {
           VALUES ($1, $2, $3, $4)
           ON CONFLICT (subject_type, subject_id, user_id)
           DO UPDATE SET kind = EXCLUDED.kind, updated_at = now()
+          WHERE content_reactions.kind IS DISTINCT FROM EXCLUDED.kind
           RETURNING (xmax = 0) AS inserted
         )
         SELECT upserted.inserted, prev.kind AS old_kind
-        FROM upserted LEFT JOIN prev ON true
+        FROM (SELECT 1) AS always
+        LEFT JOIN prev ON true
+        LEFT JOIN upserted ON true
       `,
       [params.subjectType, params.subjectId, params.userId, params.kind],
     );
 
-    if (row.inserted) {
+    if (row.inserted === true) {
       await this.bumpCounter(manager, params, 1);
       return { created: true, previousKind: null };
     }
 
-    // Không chèn mới nhưng `prev` rỗng nghĩa là có request song song của CHÍNH
+    // `prev` rỗng mà vẫn đụng khoá nghĩa là có request song song của CHÍNH
     // người này vừa chèn xong sau khi ảnh chụp được lấy. Cộng trừ lúc này sẽ
     // đoán sai loại cũ, nên tính lại cho chắc — hiếm, và rẻ hơn một số đếm sai.
     if (row.old_kind === null) {
@@ -148,8 +165,10 @@ export class ContentReactionRepository implements IContentReactionRepository {
       return { created: false, previousKind: null };
     }
 
-    // Đổi loại KHÔNG đụng số đếm: vẫn là một người bày tỏ. Loại cũ vẫn phải
-    // đọc ra vì nơi gọi cần biết đây là lượt mới hay chỉ đổi ý.
+    // Còn lại là đổi loại, hoặc gửi trùng loại đang có. Cả hai đều KHÔNG đụng
+    // số đếm: vẫn là một người bày tỏ. Loại cũ vẫn phải đọc ra vì nơi gọi cần
+    // biết đây là lượt mới hay chỉ đổi ý — thông báo "lần đầu trong ngày" chỉ
+    // bắn cho lượt mới.
     return { created: false, previousKind: row.old_kind };
   }
 

@@ -8,6 +8,7 @@ import { IConfig } from '@/domain/ports/config';
 import {
   IContentReactionRepository,
   IGiftRequestRepository,
+  IPostMediaRepository,
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
@@ -28,6 +29,8 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
   public constructor(
     @Inject(IPostRepository)
     private readonly postRepository: IPostRepository,
+    @Inject(IPostMediaRepository)
+    private readonly postMediaRepository: IPostMediaRepository,
     @Inject(IGiftRequestRepository)
     private readonly giftRequestRepository: IGiftRequestRepository,
     @Inject(IUserRepository)
@@ -40,14 +43,14 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
   /**
    * Chọn gốc toạ độ để quét (F26).
    *
-   * Ưu tiên toạ độ client gửi (thường là GPS). Thiếu thì lùi về Vị trí mặc
-   * định của người đang đăng nhập. Không có cả hai thì báo lỗi rõ ràng chứ
-   * KHÔNG lặng lẽ chọn một toạ độ mặc định nào — trả kết quả quanh một điểm
-   * người dùng không chọn là nói sai về thứ họ đang xem.
+   * Ưu tiên toạ độ client gửi (thường là GPS), rồi tới Vị trí mặc định của
+   * người đang đăng nhập. Hết cả hai thì KHÔNG bịa ra một toạ độ mặc định —
+   * trả kết quả quanh một điểm người dùng không chọn là nói sai về thứ họ
+   * đang xem — mà bỏ hẳn bộ lọc bán kính và trả toàn bộ.
    */
   private async resolveOrigin(command: IGetNearbyPostsCommand): Promise<{
-    origin: { lat: number; lng: number };
-    originSource: 'REQUEST' | 'DEFAULT_LOCATION';
+    origin?: { lat: number; lng: number };
+    originSource: 'REQUEST' | 'DEFAULT_LOCATION' | 'ALL';
   }> {
     if (command.lat !== undefined && command.lng !== undefined)
       return {
@@ -55,17 +58,18 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
         originSource: 'REQUEST',
       };
 
-    // Gửi một nửa toạ độ là lỗi của client, không phải ý muốn lùi về vị trí
-    // mặc định — im lặng bỏ qua nửa kia sẽ quét quanh một chỗ khác hẳn.
+    // Gửi một nửa toạ độ là lỗi của client, không phải ý muốn quét toàn bộ —
+    // im lặng bỏ qua nửa kia sẽ trả về một tập hoàn toàn khác chỗ client đang
+    // chỉ tới. Đây là nhánh DUY NHẤT còn báo lỗi.
     if (command.lat !== undefined || command.lng !== undefined)
       throw new DiscoveryOriginUnavailableException();
 
-    if (!command.currentUserId) throw new DiscoveryOriginUnavailableException();
+    if (!command.currentUserId) return { originSource: 'ALL' };
 
     const user = await this.userRepository.findOneBy({
       globalId: command.currentUserId,
     });
-    if (!user?.defaultLocation) throw new DiscoveryOriginUnavailableException();
+    if (!user?.defaultLocation) return { originSource: 'ALL' };
 
     return {
       origin: user.defaultLocation,
@@ -80,7 +84,9 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
     const { origin, originSource } = await this.resolveOrigin(command);
     const { items, total } = await this.postRepository.findNearbyPosts({
       origin,
-      radiusMeters: command.radiusMeters,
+      // Bán kính chỉ có nghĩa khi có tâm. Truyền nó xuống mà không có gốc là
+      // mời tầng repository lọc quanh một điểm không tồn tại.
+      radiusMeters: origin === undefined ? undefined : command.radiusMeters,
       postType: command.postType,
       categoryId: command.categoryId,
       // Cắt khoảng trắng và bỏ hẳn nếu rỗng: chuỗi rỗng lọt xuống
@@ -104,6 +110,28 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
           )
         : new Map<string, GiftRequestStatuses>();
 
+    // Một truy vấn cho cả trang, y như đếm và cảm xúc: hỏi ảnh từng bài là 20
+    // lần đi database mỗi lần cuộn feed.
+    const allMedia =
+      postIds.length > 0
+        ? await this.postMediaRepository.listByPostIds(postIds)
+        : [];
+
+    const mediaMap = new Map<
+      string,
+      Array<{ id: number; url: string; sortOrder: number }>
+    >();
+    for (const item of allMedia) {
+      const url = `${this.config.storage.publicBaseUrl.replace(/\/$/, '')}/${item.r2Key}`;
+      const entry = { id: item.id, url, sortOrder: item.sortOrder };
+      const list = mediaMap.get(item.postId);
+      if (list) {
+        list.push(entry);
+      } else {
+        mediaMap.set(item.postId, [entry]);
+      }
+    }
+
     // Một truy vấn cho cả trang — hỏi từng bài là 20 lần đi database mỗi lần cuộn.
     const myReactions =
       postIds.length > 0 && command.currentUserId
@@ -126,8 +154,12 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
               this.config.geo.jitterRadiusMeters,
             ),
           },
-          distanceMeters: bucketDistance(distanceMeters),
+          distanceMeters:
+            distanceMeters === null ? null : bucketDistance(distanceMeters),
           isLocationApproximate: true,
+          media: (mediaMap.get(post.globalId) ?? []).sort(
+            (a, b) => a.sortOrder - b.sortOrder,
+          ),
           requestCount: requestCounts.get(post.globalId) ?? 0,
           myRequestStatus,
           hasRequested: Boolean(myRequestStatus),
