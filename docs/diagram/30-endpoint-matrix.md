@@ -55,7 +55,7 @@ flowchart LR
 
 | Endpoint | Truy cập | Trạng thái |
 | --- | --- | --- |
-| `POST /posts/:id/comments` · `GET` | `COMMENT_CONTENT` | ✅ trần 10 lượt/phút |
+| `POST /posts/:id/comments` · `GET` | `COMMENT_CONTENT` | ✅ trần 10/phút + 200/24 giờ |
 | `GET /comments/:id/replies` | token | ✅ |
 | `PATCH` · `DELETE /comments/:id` | tác giả | ✅ |
 | `POST /posts/:id/comment-media/upload-url` | token | ✅ |

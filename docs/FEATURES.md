@@ -830,7 +830,7 @@ Một nút duy nhất, đúng kiểu Facebook: **chạm là `LIKE`, giữ thì h
 - **Bộ lọc từ ngữ hai mức**: `BLOCK` từ chối thẳng và không ghi gì, `REVIEW` vẫn ghi nhưng đặt `PENDING_REVIEW` và đẩy vào hàng đợi Admin. Danh sách từ là **cấu hình động của Admin**, sửa được mà không cần deploy. Tác giả thấy bình luận chờ duyệt **của chính mình**, người khác không thấy.
 - **Hàng đợi kiểm duyệt bình luận** (`GET /admin/comments`, `PATCH /admin/comments/:id/moderation`) dùng chung quyền `post.moderate` với hậu kiểm bài, reason bắt buộc, ghi audit `MODERATE_COMMENT`, và số đếm đi theo trạng thái.
 - **`GET /admin/comments/pending-count`** trả một con số cho huy hiệu trên menu CMS. Cố ý KHÔNG bắn thông báo cho từng bình luận chờ duyệt: nội dung bẩn đến theo đợt, và Admin sẽ tắt thông báo ngay sau đợt đầu tiên — rồi mất luôn những thông báo thật sự quan trọng.
-- **Trần 10 bình luận mỗi phút.** Cổng quyền `COMMENT_CONTENT` là boolean, không mang hạn mức — trước đó không gì chặn một người gõ liên tục.
+- **Hai trần cho bình luận:** 10 lượt/phút chặn tốc độ, 200 lượt/24 giờ chặn tổng. Cổng quyền `COMMENT_CONTENT` là boolean, không mang hạn mức — trước đó không gì chặn một người gõ liên tục, và riêng trần phút thì gõ đều suốt ngày vẫn ra 14.400 bình luận.
 - **Chia sẻ** ghi một dòng append-only và tăng `share_count` trong cùng transaction, trả về đường dẫn tương đối để client tự ghép tên miền. `share_count` đếm theo **lượt**, không theo người; vì thế có **khoảng chờ 1 giờ** khoá theo cả người lẫn bài.
 - **Thông báo:** bình luận gốc báo chủ bài, trả lời báo tác giả bình luận cha (trùng nhau thì chỉ một), không tự báo mình, và bình luận chờ duyệt không báo. Cảm xúc chỉ báo **lần đầu trong ngày** theo giờ Việt Nam.
 

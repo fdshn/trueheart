@@ -505,7 +505,7 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 | `PUT` | `/comments/:subjectId/reactions/me` | `REACT_CONTENT` | Cảm xúc trên **bình luận** |
 | `DELETE` | `/comments/:subjectId/reactions/me` | `REACT_CONTENT` | Gỡ cảm xúc trên bình luận |
 | `POST` | `/posts/:subjectId/comment-media/upload-url` | `COMMENT_CONTENT` | Xin presigned URL cho ảnh đính kèm bình luận |
-| `POST` | `/posts/:subjectId/comments` | `COMMENT_CONTENT` | Bình luận hoặc trả lời (`parentId`) — **tối đa 10 lượt/phút** |
+| `POST` | `/posts/:subjectId/comments` | `COMMENT_CONTENT` | Bình luận hoặc trả lời (`parentId`) — **tối đa 10 lượt/phút và 200 lượt/24 giờ** |
 | `GET` | `/posts/:subjectId/comments` | Công khai | Cây bình luận gốc, phân trang |
 | `GET` | `/comments/:commentId/replies` | Công khai | Trả lời của một bình luận |
 | `PATCH` | `/comments/:commentId` | Bearer (chủ bình luận) | Sửa trong **cửa sổ 15 phút** |
@@ -532,10 +532,16 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
   tác giả thì họ tưởng hệ thống nuốt mất và gõ lại lần nữa.
 - **Sửa bình luận đi lại đúng bộ lọc đó**, và `comment_count` / `reply_count` đi theo trạng
   thái mới — không thì con số nói dối cho tới lần Admin xử.
-- **Trần 10 bình luận mỗi phút** (thêm 26/09). Cổng quyền `COMMENT_CONTENT` là boolean, không
-  mang hạn mức, nên trước đó không gì chặn một người gõ liên tục. Vượt trần trả **429** kèm số
-  giây phải chờ. Suất chỉ bị trừ **sau khi** bình luận ghi xong — bình luận bị bộ lọc chặn
-  thẳng không tiêu mất một suất.
+- **Hai trần cho bình luận** (26/09): **10 lượt/phút** chặn TỐC ĐỘ, **200 lượt/24 giờ** chặn
+  TỔNG. Cổng quyền `COMMENT_CONTENT` là boolean, không mang hạn mức, nên trước đó không gì chặn
+  một người gõ liên tục. Thiếu trần ngày thì gõ đều mười cái mỗi phút suốt ngày vẫn ra 14.400
+  bình luận. Vượt trần nào cũng trả **429** kèm số giây phải chờ; trần ngày được hỏi **trước**
+  để con số giây trả về là thật. Cửa sổ 24 giờ tính từ bình luận đầu tiên của đợt, không phải
+  từ 0 giờ. Suất chỉ bị trừ **sau khi** bình luận ghi xong — bình luận bị bộ lọc chặn thẳng
+  không tiêu mất một suất.
+- **Trần ngày của rule điểm là chuyện khác.** `POST_COMMENTED` chỉ thưởng 10 lượt/ngày, nhưng
+  bình luận thứ 11 vẫn đăng được — nó chỉ không có điểm. Làm bẩn bảng tin và farm điểm là hai
+  vấn đề, cần hai cái trần.
 - **`share_count` đếm theo LƯỢT, không theo người** (chốt 26/09) — một người chia sẻ hai lần ở
   hai thời điểm là hai lượt thật. Vì thế phải có **khoảng chờ 1 giờ**, khoá theo **cả người lẫn
   bài**: không có gì khác tự chặn việc gọi endpoint một nghìn lần. Khoá theo mình người thì

@@ -89,8 +89,10 @@ FROM upserted LEFT JOIN prev ON true
 flowchart TD
     A[Gửi bình luận] --> B{Có quyền COMMENT_CONTENT?}
     B -->|Không — VIEWER| C["❌ 403"]
-    B -->|Có| D{Quá 10 bình luận<br/>trong MỘT PHÚT?}
-    D -->|Rồi| E["❌ 429"]
+    B -->|Có| Dd{Quá 200 bình luận<br/>trong 24 GIỜ?}
+    Dd -->|Rồi| E["❌ 429"]
+    Dd -->|Chưa| D{Quá 10 bình luận<br/>trong MỘT PHÚT?}
+    D -->|Rồi| E
     D -->|Chưa| F[Đi tiếp vào bộ lọc từ ngữ]
 
     G[Thả cảm xúc] --> H{Có quyền REACT_CONTENT?}
@@ -106,9 +108,20 @@ flowchart TD
 > `allowed = false` cho VIEWER và `true` cho mọi hạng còn lại. Cả hai là **boolean, không mang
 > hạn mức** — nên trước 26/09 không có gì chặn một người gõ liên tục.
 
-> ✅ **Trần 10 bình luận mỗi phút — thêm 26/09.** Rộng hơn hẳn tốc độ người thật gõ, nên người
-> dùng bình thường không bao giờ chạm tới. Hôm nay rule điểm đang tắt nên spam chỉ làm bẩn
-> bảng tin; bật lên là thành một đường farm điểm nhỏ (§6.6).
+> ✅ **Hai trần, chặn hai thứ khác nhau.** Trần phút chặn **TỐC ĐỘ**; trần ngày chặn **TỔNG**.
+> Thiếu trần ngày thì gõ đều mười cái mỗi phút suốt ngày vẫn ra **14.400 bình luận** — mỗi cái
+> là một dòng thật trên bảng tin người khác. Hai trăm rộng gấp nhiều lần một người dùng chăm
+> chỉ nhất, nhưng hạ trần spam bảy mươi hai lần.
+
+> **Trần ngày của RULE ĐIỂM không thay được trần này.** Nó chỉ chặn phần điểm (10 lượt được
+> thưởng mỗi ngày); bình luận thứ 11 vẫn đăng được, chỉ là không có điểm. Làm bẩn bảng tin và
+> farm điểm là hai vấn đề, cần hai cái trần.
+
+> **Hỏi trần NGÀY trước trần PHÚT.** Chạm cả hai mà báo "thử lại sau 57 giây" là nói sai — thật
+> ra còn phải chờ nhiều giờ nữa.
+
+> **Cửa sổ 24 giờ tính từ bình luận ĐẦU TIÊN của đợt**, không phải từ 0 giờ. Gia hạn cửa sổ
+> theo mỗi lần gõ thì một người gõ chậm rãi sẽ tự khoá mình vĩnh viễn.
 
 > **Đếm SAU khi ghi xong, không đếm trước.** Đếm trước là trừ mất một suất cho bình luận bị bộ
 > lọc chặn thẳng — tức phạt người dùng vì một thứ chưa bao giờ đăng được.
@@ -296,9 +309,10 @@ flowchart TD
 2. ⚠️ **Đổi hợp đồng API.** `POST /posts/:postId/like` đã gỡ, `likeCount` và `isLiked` biến mất
    khỏi cả bốn endpoint đọc bài. Client phải chuyển sang `PUT /posts/:id/reactions/me` và suy
    `isLiked` từ `myReaction`.
-3. **Trần 10 bình luận/phút là trần TỐC ĐỘ, không phải trần NGÀY.** Một người kiên nhẫn vẫn
-   viết được 14.400 bình luận một ngày. Trần ngày của rule điểm chặn phần điểm, nhưng không
-   chặn phần làm bẩn bảng tin.
+3. **Cảm xúc vẫn KHÔNG có trần nào.** Bình luận nay có cả trần phút lẫn trần ngày, chia sẻ có
+   khoảng chờ, nhưng thả/gỡ cảm xúc thì gọi bao nhiêu lần cũng được. Nó không tạo ra dòng mới
+   trên bảng tin nên hậu quả nhẹ hơn, nhưng rule `POST_REACTED` đã bật thì đây là đường farm
+   điểm rẻ nhất còn lại. Cần chốt.
 4. **Huy hiệu `pending-count` không có ngưỡng cảnh báo.** Hàng đợi 5 cái và hàng đợi 500 cái
    hiện giống nhau về mức độ khẩn. Cần không?
 5. **Chia sẻ chờ 1 giờ mỗi người mỗi bài** — Bên A đã chốt 26/09.
