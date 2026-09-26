@@ -18,6 +18,7 @@ import {
   IPublishAdminMaintenancePolicyUseCase,
   IPublishAdminPointRuleUseCase,
   IPublishAdminRankPolicyUseCase,
+  IReleaseVerifiedPhoneUseCase,
   ISetCandidateSelectionUseCase,
   IUpdateNotificationChannelUseCase,
   IUpdateNotificationTemplateUseCase,
@@ -46,6 +47,7 @@ import {
   DeleteAdminUserUseCase,
   GetAdminUserUseCase,
   ListAdminUsersUseCase,
+  ReleaseVerifiedPhoneUseCase,
 } from './admin-user.use-cases';
 import {
   GetCandidateSelectionUseCase,
@@ -123,6 +125,10 @@ import {
     },
     { provide: IDeleteAdminUserUseCase, useClass: DeleteAdminUserUseCase },
     {
+      provide: IReleaseVerifiedPhoneUseCase,
+      useClass: ReleaseVerifiedPhoneUseCase,
+    },
+    {
       provide: IGetNotificationChannelsUseCase,
       useClass: GetNotificationChannelsUseCase,
     },
@@ -152,6 +158,7 @@ import {
     IGetAdminUserUseCase,
     IChangeAdminUserStatusUseCase,
     IDeleteAdminUserUseCase,
+    IReleaseVerifiedPhoneUseCase,
     IGetNotificationChannelsUseCase,
     IUpdateNotificationChannelUseCase,
   ],

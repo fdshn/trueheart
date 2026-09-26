@@ -268,7 +268,7 @@ quyền trên *mọi* nhóm. Phép kiểm luôn mang `groupId`.
 | ~~Lịch cron cho 10 CLI~~ | ✅ Đã có ở [`deploy/cron/`](../deploy/cron/README.md). ⛔ Còn thiếu: **alert vào kênh người thật đọc** |
 | Sửa `group_role_permissions` qua API | Chỉ đổi được bằng migration (xem §2.9) |
 | Xoá sub-team | Cột `deleted_at` đã có, chưa có endpoint; xoá tổ còn người thì xử lý ra sao cũng chưa ai nói |
-| Admin giải phóng một SĐT đã xác minh | Cột `verified_phones.released_at` đã có, **chưa có endpoint** — hiện phải sửa tay database. Mất máy, đổi số, số bị nhà mạng cấp lại đều sẽ xảy ra |
+| ~~Admin giải phóng một SĐT đã xác minh~~ | ✅ `POST /admin/users/verified-phones/release`, lý do bắt buộc, ghi audit |
 | Giới hạn tốc độ toàn hệ thống | Mới có cho `/auth/login` và `/auth/register` (theo IP). Các endpoint còn lại **chưa có** |
 
 ---

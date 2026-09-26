@@ -1,7 +1,9 @@
 import { IConfig } from '@/domain/ports/config';
 import {
   ClaimPhoneOutcome,
+  IVerifiedPhoneHolder,
   IVerifiedPhoneRepository,
+  ReleasePhoneOutcome,
 } from '@/domain/ports/repository';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
@@ -63,5 +65,85 @@ export class VerifiedPhoneRepository implements IVerifiedPhoneRepository {
     // Xác minh lại số của CHÍNH mình là bình thái: đổi máy, cài lại app, hoặc
     // bấm nhầm hai lần.
     return owner?.user_id === params.userId ? 'ALREADY_OWN' : 'TAKEN';
+  }
+
+  public async release(params: {
+    phone: string;
+    actorUserId: string;
+    reason: string;
+  }): Promise<ReleasePhoneOutcome> {
+    const phoneHash = this.hash(params.phone);
+
+    return this.manager.transaction(async (manager) => {
+      // Khoá hàng ngay từ đầu: hai Admin cùng bấm giải phóng thì người thứ hai
+      // phải thấy trạng thái sau khi người thứ nhất ghi, không phải trạng thái
+      // lúc cả hai mở màn hình.
+      const [row] = await manager.query<
+        {
+          id: number;
+          user_id: string;
+          username: string;
+          verified_at: Date;
+          holder_deleted: boolean;
+          still_verified: boolean;
+        }[]
+      >(
+        `
+          SELECT record.id, record.user_id, holder.username, record.verified_at,
+                 (holder.deleted_at IS NOT NULL) AS holder_deleted,
+                 (holder.phone_verified_at IS NOT NULL) AS still_verified
+          FROM verified_phones record
+          INNER JOIN users holder ON holder.global_id = record.user_id
+          WHERE record.phone_hash = $1 AND record.released_at IS NULL
+          FOR UPDATE OF record
+        `,
+        [phoneHash],
+      );
+
+      if (!row) return { status: 'NOT_FOUND' };
+
+      const holder: IVerifiedPhoneHolder = {
+        userId: row.user_id,
+        username: row.username,
+        verifiedAt: row.verified_at,
+        holderDeleted: row.holder_deleted === true,
+        stillVerified: row.still_verified === true,
+      };
+
+      // Người giữ còn sống VÀ vẫn đang mang dấu xác minh: đây là tranh chấp
+      // giữa hai người thật, không phải dọn rác. Admin phải xử lý tài khoản kia
+      // trước, nếu không hệ thống có hai tài khoản cùng "đã xác minh" một SIM.
+      if (!holder.holderDeleted && holder.stillVerified)
+        return { status: 'IN_USE', holder };
+
+      await manager.query(
+        `
+          UPDATE verified_phones
+          SET released_at = now(), released_by = $2, release_reason = $3
+          WHERE id = $1
+        `,
+        [row.id, params.actorUserId, params.reason],
+      );
+
+      // Ghi audit vào CÙNG transaction. Tách ra thì có đường số được giải phóng
+      // mà không dòng nào nói ai làm và vì sao — trong khi đây đúng là loại
+      // thao tác sẽ bị hỏi lại.
+      await manager.query(
+        `
+          INSERT INTO admin_audit_logs
+            (actor_user_id, action, resource_type, resource_id, before_json, after_json, reason)
+          VALUES ($1, 'RELEASE_VERIFIED_PHONE', 'USER', $2, $3::jsonb, $4::jsonb, $5)
+        `,
+        [
+          params.actorUserId,
+          row.user_id,
+          JSON.stringify({ verifiedPhoneId: row.id, released: false }),
+          JSON.stringify({ verifiedPhoneId: row.id, released: true }),
+          params.reason,
+        ],
+      );
+
+      return { status: 'RELEASED', holder };
+    });
   }
 }

@@ -11,17 +11,24 @@ import {
   IListAdminUsersCommand,
   IListAdminUsersResult,
   IListAdminUsersUseCase,
+  IReleaseVerifiedPhoneCommand,
+  IReleaseVerifiedPhoneResult,
+  IReleaseVerifiedPhoneUseCase,
 } from '@/application/contracts/admin-config';
 import {
   SelfRoleChangeException,
   UserNotFoundException,
+  VerifiedPhoneInUseException,
+  VerifiedPhoneNotFoundException,
 } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
   IAdminUserRepository,
   IUserSessionRepository,
+  IVerifiedPhoneRepository,
 } from '@/domain/ports/repository';
 import { UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import { normalizePhoneNumber } from '@chantam.vn/chantam.core-lib/models';
 import { ITokenDenyList } from '@chantam/service.auth-lib';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import {
@@ -226,4 +233,60 @@ async function revokeEverything(
     .execute();
 
   return result.affected ?? 0;
+}
+
+/**
+ * Van xả cho sổ số đã xác minh.
+ *
+ * Một SĐT chỉ xác minh được cho MỘT tài khoản, vĩnh viễn — đó là thứ chặn vòng
+ * lặp tài khoản ảo. Nhưng mất máy, đổi số, hay số bị nhà mạng thu hồi rồi cấp
+ * cho người khác đều là chuyện sẽ xảy ra, và không có van thì người dùng thật
+ * bị khoá vĩnh viễn khỏi chính số của mình.
+ */
+@Injectable()
+export class ReleaseVerifiedPhoneUseCase implements IReleaseVerifiedPhoneUseCase {
+  public constructor(
+    @Inject(IAdminConfigRepository)
+    private readonly permissions: IAdminConfigRepository,
+    @Inject(IVerifiedPhoneRepository)
+    private readonly verifiedPhones: IVerifiedPhoneRepository,
+  ) {}
+
+  public async handle(
+    command: IReleaseVerifiedPhoneCommand,
+  ): Promise<IReleaseVerifiedPhoneResult> {
+    await assertCanManage(this.permissions, command.actorUserId);
+    assertReason(command.release.reason);
+
+    // Nắn trước khi tra: Admin gõ `0912345678` còn sổ lưu băm của
+    // `+84912345678`, không nắn thì không bao giờ tìm thấy gì.
+    const phone = normalizePhoneNumber(command.release.phone);
+
+    if (!phone)
+      throw new ValidationFailedException([
+        'release.phone: số điện thoại không hợp lệ',
+      ]);
+
+    const outcome = await this.verifiedPhones.release({
+      phone,
+      actorUserId: command.actorUserId,
+      reason: command.release.reason.trim(),
+    });
+
+    if (outcome.status === 'NOT_FOUND')
+      throw new VerifiedPhoneNotFoundException();
+
+    if (outcome.status === 'IN_USE')
+      throw new VerifiedPhoneInUseException(outcome.holder.username);
+
+    return {
+      phone,
+      previousHolder: {
+        userId: outcome.holder.userId,
+        username: outcome.holder.username,
+        verifiedAt: outcome.holder.verifiedAt,
+        holderDeleted: outcome.holder.holderDeleted,
+      },
+    };
+  }
 }

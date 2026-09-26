@@ -75,3 +75,34 @@ export interface IDeleteAdminUserUseCase extends IUseCase<
   IDeleteAdminUserResult
 > {}
 export const IDeleteAdminUserUseCase = Symbol('IDeleteAdminUserUseCase');
+
+export interface IReleaseVerifiedPhoneDto {
+  /** Số ở bất kỳ cách gõ nào; server nắn về E.164 rồi mới tra. */
+  phone: string;
+  reason: string;
+}
+
+export interface IReleaseVerifiedPhoneCommand {
+  actorUserId: string;
+  release: IReleaseVerifiedPhoneDto;
+}
+
+export interface IReleaseVerifiedPhoneResult {
+  /** Số đã nắn, trả lại để Admin đối chiếu mình gõ đúng số chưa. */
+  phone: string;
+  /** Tài khoản từng giữ số này. */
+  previousHolder: {
+    userId: string;
+    username: string;
+    verifiedAt: Date;
+    holderDeleted: boolean;
+  };
+}
+
+export interface IReleaseVerifiedPhoneUseCase extends IUseCase<
+  IReleaseVerifiedPhoneCommand,
+  IReleaseVerifiedPhoneResult
+> {}
+export const IReleaseVerifiedPhoneUseCase = Symbol(
+  'IReleaseVerifiedPhoneUseCase',
+);

@@ -1,6 +1,7 @@
 import {
   IChangeUserStatusDto,
   IDeleteAdminUserDto,
+  IReleaseVerifiedPhoneDto,
 } from '@/application/contracts/admin-config';
 import { IAdminUserSummary } from '@/domain/ports/repository';
 import { UserRanks, UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
@@ -160,6 +161,56 @@ export class ChangeUserStatusBodyDto {
   @ValidateNested()
   @Type(() => ChangeUserStatusDto)
   statusChange: ChangeUserStatusDto;
+}
+
+export class ReleaseVerifiedPhoneDto implements IReleaseVerifiedPhoneDto {
+  @ApiProperty({
+    example: '0912345678',
+    description:
+      'Gõ cách nào cũng được — server nắn về E.164 rồi mới tra. Không cần biết tài khoản nào đang giữ số: sổ lưu băm, và tài khoản cũ có thể đã xoá.',
+  })
+  @IsString()
+  @Length(6, 25)
+  phone: string;
+
+  @ApiProperty({
+    example: 'Người dùng mất tài khoản cũ, đã xác minh CMND qua hỗ trợ',
+    description:
+      'Bắt buộc. Đây là thao tác mở lại một khoá chống gian lận, nên sẽ bị hỏi lại.',
+  })
+  @IsString()
+  @Length(1, 500)
+  reason: string;
+}
+
+export class ReleaseVerifiedPhoneBodyDto {
+  @ApiProperty({ type: () => ReleaseVerifiedPhoneDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => ReleaseVerifiedPhoneDto)
+  release: ReleaseVerifiedPhoneDto;
+}
+
+export class ReleasedPhoneHolderDto {
+  @ApiProperty({ format: 'uuid' }) userId: string;
+
+  @ApiProperty() username: string;
+
+  @ApiProperty({ type: String, format: 'date-time' }) verifiedAt: Date;
+
+  @ApiProperty({ description: 'Tài khoản đó đã xoá hay chưa.' })
+  holderDeleted: boolean;
+}
+
+export class ReleaseVerifiedPhoneResponseDto {
+  @ApiProperty({
+    example: '+84912345678',
+    description: 'Số đã nắn — để Admin đối chiếu mình gõ đúng số chưa.',
+  })
+  phone: string;
+
+  @ApiProperty({ type: () => ReleasedPhoneHolderDto })
+  previousHolder: ReleasedPhoneHolderDto;
 }
 
 export class DeleteAdminUserDto implements IDeleteAdminUserDto {

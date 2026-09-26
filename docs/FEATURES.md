@@ -147,7 +147,9 @@ khoá idempotency. Đổi SĐT về sau không thưởng lại.
 >    lưu số đọc được.
 > 3. **Xác minh SĐT là nhiệm vụ onboarding BẮT BUỘC** — xem [F07](#f07--cổng-hoàn-thiện-hồ-sơ).
 >
-> ⛔ Chưa có nút cho Admin giải phóng một số (cột `released_at` đã có).
+> ✅ **Van xả:** `POST /admin/users/verified-phones/release` — lý do bắt buộc, ghi audit. Từ
+> chối khi người giữ còn sống và vẫn mang dấu xác minh: đó là tranh chấp giữa hai người thật,
+> không phải dọn rác.
 
 ### F09b — Xác minh email
 `PATCH /profile/me/email-verification/request` · `/confirm`. Gửi OTP tới địa chỉ **đang có

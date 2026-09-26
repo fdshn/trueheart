@@ -67,6 +67,16 @@ export enum ErrorCodes {
    */
   PHONE_ALREADY_VERIFIED = 0x03_0c,
 
+  /** Số chưa từng được xác minh, nên không có gì để giải phóng. */
+  VERIFIED_PHONE_NOT_FOUND = 0x03_0d,
+  /**
+   * Số đang do một tài khoản CÒN SỐNG giữ và vẫn đang xác minh.
+   *
+   * Giải phóng lúc này là để hai tài khoản cùng mang dấu "đã xác minh" cho một
+   * SIM — đúng thứ cả cơ chế này dựng ra để chặn.
+   */
+  VERIFIED_PHONE_IN_USE = 0x03_0e,
+
   // 0x05 — Danh mục
   CATEGORY_NOT_FOUND = 0x05_01,
   CATEGORY_SLUG_TAKEN = 0x05_02,

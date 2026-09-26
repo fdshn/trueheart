@@ -92,8 +92,13 @@ sequenceDiagram
 > Sổ lưu **băm HMAC**, không lưu số đọc được: bảng này cố ý sống lâu hơn tài khoản, kể cả tài
 > khoản đã xoá, nên giữ số ở dạng đọc được là giữ đúng thứ người ta vừa yêu cầu xoá.
 >
-> `released_at` là van xả cho Admin — mất máy, mất tài khoản, số bị nhà mạng thu hồi và cấp
-> lại đều là chuyện có thật. ⛔ **Chưa có endpoint cho van đó**; hiện phải sửa tay database.
+> ✅ **Van xả: `POST /admin/users/verified-phones/release`.** Mất máy, mất tài khoản, số bị
+> nhà mạng thu hồi rồi cấp lại đều là chuyện có thật. Admin gõ số (cách nào cũng được), không
+> cần biết tài khoản nào đang giữ — sổ lưu băm và tài khoản cũ có thể đã xoá.
+>
+> **Từ chối khi người giữ còn sống và vẫn mang dấu xác minh.** Lúc đó là tranh chấp giữa hai
+> người thật; giải phóng ngang là để hai tài khoản cùng "đã xác minh" một SIM — đúng thứ cả
+> cơ chế này dựng ra để chặn.
 
 > **Chuẩn hoá E.164 nằm ở `PATCH /profile/me`, không nằm ở đây.** DTO chỉ loại bỏ thứ rõ ràng
 > không phải số; `normalizePhoneNumber` trong `core-lib` mới là nơi phán quyết, và mọi đường
@@ -248,9 +253,8 @@ flowchart LR
 1. ⛔ **SMS/Zalo chưa có adapter — và nay nó CHẶN onboarding.** Từ 26/09 xác minh SĐT là
    nhiệm vụ bắt buộc, nên không có SMS thì không ai lên được hạng Thành viên, không ai nhận
    224đ, và không quan hệ giới thiệu nào đủ điều kiện. Đây là việc gấp nhất của phân hệ này.
-2. ⛔ **Chưa có nút cho Admin giải phóng một số đã xác minh.** Cột `released_at` đã có, van đã
-   thiết kế, nhưng hiện phải sửa tay database. Mất máy, đổi số, số bị nhà mạng cấp lại cho
-   người khác — đều là chuyện sẽ xảy ra.
+2. ✅ **Van xả đã có** — `POST /admin/users/verified-phones/release`, lý do bắt buộc, ghi
+   audit `RELEASE_VERIFIED_PHONE`.
 3. **Onboarding cho 224đ = lên thẳng Thành viên** mà không cần giao dịch nào. Nay đã đòi thêm
    xác minh SĐT, nhưng con số vẫn đúng bằng ngưỡng hạng. Đúng ý chưa?
 4. ⚠️ **Cổng F07 vẫn chỉ đòi CÓ email và SĐT, không đòi đã xác minh.** Tức "đăng bài được"

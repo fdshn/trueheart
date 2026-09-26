@@ -33,6 +33,15 @@ export class PhoneAlreadyVerifiedException extends ExceptionFrom(
   CoreErrors.PHONE_ALREADY_VERIFIED,
 ) {}
 
+export class VerifiedPhoneNotFoundException extends ExceptionFrom(
+  CoreErrors.VERIFIED_PHONE_NOT_FOUND,
+) {}
+
+/** Số đang do một tài khoản còn sống giữ — không giải phóng ngang được. */
+export class VerifiedPhoneInUseException extends ExceptionFrom(
+  CoreErrors.VERIFIED_PHONE_IN_USE,
+) {}
+
 export class ProfileIncompleteException extends ExceptionFrom(
   CoreErrors.PROFILE_INCOMPLETE,
 ) {}

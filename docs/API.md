@@ -1,6 +1,6 @@
 # Tham chiếu API
 
-Mô tả **126 endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
+Mô tả **127 endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
 buộc mà chữ ký hàm không nói ra.
 
 Ba file bổ trợ nhau, đừng nhầm:
@@ -949,6 +949,7 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 | `GET` | `/admin/users/:userId` | `admin.manage` | Chi tiết một user |
 | `PATCH` | `/admin/users/:userId/status` | `admin.manage` | Đổi trạng thái |
 | `DELETE` | `/admin/users/:userId` | `admin.manage` | Xoá mềm kèm ẩn danh |
+| `POST` | `/admin/users/verified-phones/release` | `admin.manage` | **Giải phóng một SĐT đã xác minh** |
 | `GET` | `/admin/posts` | `post.read` | Danh sách bài, **không lọc sẵn** trạng thái nào |
 | `GET` | `/admin/posts/:postId` | `post.read` | Chi tiết bài và media dành cho moderator |
 | `PATCH` | `/admin/posts/:postId/moderation` | `post.moderate` | **Hậu kiểm**: gỡ bài đang hiện hoặc trả lại, reason bắt buộc, ghi audit |
@@ -986,6 +987,13 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 - `DELETE /admin/users/:userId` và `DELETE /admin/users/:userId/roles` **nhận body** (lý do
   bắt buộc). Một số HTTP client xử lý DELETE-có-body không đồng nhất — nếu thư viện của bạn
   nuốt body, dùng `fetch` hoặc `curl -X DELETE -d`.
+- `POST /admin/users/verified-phones/release` là **van xả** cho khoá một-SIM-một-tài-khoản.
+  Nhận số ở bất kỳ cách gõ nào (server tự nắn về E.164) — Admin **không cần biết tài khoản nào
+  đang giữ**, vì sổ lưu băm và tài khoản cũ có thể đã xoá. **Từ chối** khi người giữ còn sống
+  và vẫn mang dấu xác minh: lúc đó là tranh chấp giữa hai người thật, phải xử lý tài khoản kia
+  trước, nếu không hệ thống có hai tài khoản cùng "đã xác minh" một SIM. Lý do bắt buộc, ghi
+  audit `RELEASE_VERIFIED_PHONE`. Hàng cũ trong sổ **giữ lại**, chỉ đánh dấu đã giải phóng —
+  xoá đi là mất dấu vết duy nhất tra lại được khi có tranh chấp.
 - `GET /admin/users?accuracyReviewRequired=true` là **hàng đợi Giver Accuracy** (F43). Mỗi
   dòng mang sẵn `giverAccuracyPercent`, `giverAccuracySamples` và `accuracyReviewRequired`,
   đủ để quyết mà không phải mở từng hồ sơ. Cờ này **chỉ Admin thấy** — nó là tín hiệu để

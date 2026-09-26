@@ -151,6 +151,20 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Số điện thoại này đã từng được xác minh cho một tài khoản khác. Dùng số khác, hoặc liên hệ hỗ trợ nếu đây đúng là số của bạn.',
   },
 
+  VERIFIED_PHONE_NOT_FOUND: {
+    code: ErrorCodes.VERIFIED_PHONE_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Số này chưa từng được xác minh cho tài khoản nào',
+  },
+
+  VERIFIED_PHONE_IN_USE: {
+    code: ErrorCodes.VERIFIED_PHONE_IN_USE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (username: string) =>
+      `Số này đang do tài khoản "${username}" giữ và vẫn còn hiệu lực xác minh. Xử lý tài khoản đó trước — đổi số hoặc khoá — rồi mới giải phóng.`,
+    sample: ['nguoidung01'],
+  },
+
   INVALID_CREDENTIALS: {
     code: ErrorCodes.INVALID_CREDENTIALS,
     httpStatus: HttpStatus.UNAUTHORIZED,

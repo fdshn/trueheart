@@ -78,6 +78,8 @@ Nghiệp vụ Chân Tâm
 | `0x030a` | `778` | 429 Too Many Requests | `LOGIN_THROTTLED` | Sai quá nhiều lần. Thử lại sau 15 phút |
 | `0x030b` | `779` | 403 Forbidden | `ONBOARDING_INCOMPLETE` | Cần hoàn tất onboarding trước khi đăng bài |
 | `0x030c` | `780` | 409 Conflict | `PHONE_ALREADY_VERIFIED` | Số điện thoại này đã từng được xác minh cho một tài khoản khác. Dùng số khác, hoặc liên hệ hỗ trợ nếu đây đúng là số của bạn. |
+| `0x030d` | `781` | 404 Not Found | `VERIFIED_PHONE_NOT_FOUND` | Số này chưa từng được xác minh cho tài khoản nào |
+| `0x030e` | `782` | 409 Conflict | `VERIFIED_PHONE_IN_USE` | Số này đang do tài khoản "nguoidung01" giữ và vẫn còn hiệu lực xác minh. Xử lý tài khoản đó trước — đổi số hoặc khoá — rồi mới giải phóng. |
 | `0x0401` | `1025` | 404 Not Found | `SESSION_NOT_FOUND` | Không tìm thấy phiên đăng nhập |
 | `0x0402` | `1026` | 401 Unauthorized | `REFRESH_TOKEN_INVALID` | Phiên đăng nhập không còn hiệu lực, vui lòng đăng nhập lại |
 | `0x0403` | `1027` | 401 Unauthorized | `REFRESH_TOKEN_EXPIRED` | Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại |
@@ -134,5 +136,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **92 mã lỗi** trên 3 tầng.
+Tổng cộng **94 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

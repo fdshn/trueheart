@@ -3,10 +3,13 @@ import {
   IDeleteAdminUserUseCase,
   IGetAdminUserUseCase,
   IListAdminUsersUseCase,
+  IReleaseVerifiedPhoneUseCase,
 } from '@/application/contracts/admin-config';
 import {
   SelfRoleChangeException,
   UserNotFoundException,
+  VerifiedPhoneInUseException,
+  VerifiedPhoneNotFoundException,
 } from '@/domain/exceptions';
 import {
   ApiTokenErrors,
@@ -27,6 +30,7 @@ import {
   Inject,
   Param,
   Patch,
+  Post,
   Query,
 } from '@nestjs/common';
 import {
@@ -43,6 +47,8 @@ import {
   DeleteAdminUserBodyDto,
   ListAdminUsersQueryDto,
   ListAdminUsersResponseDto,
+  ReleaseVerifiedPhoneBodyDto,
+  ReleaseVerifiedPhoneResponseDto,
 } from '../../dto/admin-config/admin-user.dto';
 import { RequiresPermission } from '../../guards';
 
@@ -59,7 +65,41 @@ export class AdminUserController {
     private readonly changeAdminUserStatusUseCase: IChangeAdminUserStatusUseCase,
     @Inject(IDeleteAdminUserUseCase)
     private readonly deleteAdminUserUseCase: IDeleteAdminUserUseCase,
+    @Inject(IReleaseVerifiedPhoneUseCase)
+    private readonly releaseVerifiedPhoneUseCase: IReleaseVerifiedPhoneUseCase,
   ) {}
+
+  // Đặt TRƯỚC mọi route có `:userId`. Nest khớp theo thứ tự khai báo, nên để
+  // sau thì `verified-phones` bị nuốt thành một `userId` và trả lỗi UUID.
+  @Post('verified-phones/release')
+  @RequiresPermission('admin.manage')
+  @ApiOperation({
+    summary: 'Giải phóng một số điện thoại đã xác minh',
+    description:
+      'Một SĐT chỉ xác minh được cho MỘT tài khoản, vĩnh viễn — đó là thứ chặn vòng lặp tài khoản ảo. Endpoint này là van xả cho những ca có thật: mất tài khoản cũ, đổi số, số bị nhà mạng thu hồi rồi cấp cho người khác. TỪ CHỐI khi người đang giữ còn sống và vẫn mang dấu xác minh — lúc đó là tranh chấp giữa hai người thật, phải xử lý tài khoản kia trước. Ghi audit `RELEASE_VERIFIED_PHONE` kèm lý do bắt buộc.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(ReleaseVerifiedPhoneResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    [ValidationFailedException, ['reason không được để trống']],
+    [VerifiedPhoneNotFoundException],
+    [VerifiedPhoneInUseException, 'nguoidung01'],
+  )
+  public async releaseVerifiedPhone(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: ReleaseVerifiedPhoneBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.releaseVerifiedPhoneUseCase.handle({
+          actorUserId: principal.userId,
+          release: body.release,
+        }),
+      )
+      .build();
+  }
 
   @Get()
   @RequiresPermission('admin.manage')

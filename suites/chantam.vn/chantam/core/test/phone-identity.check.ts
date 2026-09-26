@@ -147,9 +147,58 @@ async function main(): Promise<void> {
     );
 
     console.log('\n4. Van xả: Admin giải phóng số');
+    // Người giữ còn sống và vẫn mang dấu xác minh thì KHÔNG giải phóng ngang
+    // được — lúc đó là tranh chấp giữa hai người thật.
     await dataSource.query(
-      `UPDATE verified_phones SET released_at = now() WHERE user_id = $1`,
+      `UPDATE users SET phone_verified_at = now() WHERE global_id = $1`,
       [FirstUserId],
+    );
+    const blocked = await verifiedPhones.release({
+      phone: Phone,
+      actorUserId: SecondUserId,
+      reason: 'thu giai phong khi chu con song',
+    });
+    check(
+      'chủ còn sống và còn dấu xác minh thì TỪ CHỐI',
+      blocked.status === 'IN_USE',
+      blocked.status,
+    );
+
+    await dataSource.query(
+      `UPDATE users SET phone_verified_at = NULL WHERE global_id = $1`,
+      [FirstUserId],
+    );
+    const released = await verifiedPhones.release({
+      phone: Phone,
+      actorUserId: SecondUserId,
+      reason: 'chu cu mat tai khoan, da xac minh qua ho tro',
+    });
+    check(
+      'gỡ dấu xác minh rồi thì giải phóng được',
+      released.status === 'RELEASED',
+      released.status,
+    );
+
+    const [audit] = await dataSource.query<{ total: string; reason: string }[]>(
+      `SELECT count(*)::text AS total, max(reason) AS reason
+       FROM admin_audit_logs WHERE action = 'RELEASE_VERIFIED_PHONE'`,
+    );
+    check(
+      'ghi đúng một dòng audit kèm lý do',
+      Number(audit?.total) === 1 &&
+        audit?.reason === 'chu cu mat tai khoan, da xac minh qua ho tro',
+      `${audit?.total} dòng`,
+    );
+
+    check(
+      'giải phóng lần hai thì không còn gì để giải phóng',
+      (
+        await verifiedPhones.release({
+          phone: Phone,
+          actorUserId: SecondUserId,
+          reason: 'bam nham lan hai',
+        })
+      ).status === 'NOT_FOUND',
     );
     check(
       'giải phóng rồi thì người khác nhận được',
