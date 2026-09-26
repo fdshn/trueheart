@@ -292,7 +292,6 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 | `POST` | `/posts/:postId/media` | Bearer (chủ bài) | Gắn ảnh đã upload |
 | `PATCH` | `/posts/:postId/media/order` | Bearer (chủ bài) | Thay toàn bộ thứ tự ảnh |
 | `DELETE` | `/posts/:postId/media/:mediaId` | Bearer (chủ bài) | Gỡ một ảnh |
-| `POST` | `/posts/:postId/like` | Bearer | Thích hoặc bỏ thích bài đăng (toggle like) |
 
 ### Tạo bài — cổng kiểm tra theo thứ tự
 
@@ -463,6 +462,9 @@ ra — gợi ý không giải thích được thì người dùng không có cơ
   là biến endpoint này thành đường vòng để dò toạ độ chính xác.
 - Loại bài ngoài `OFFER`/`WANTED` trả danh sách rỗng thay vì ghép bừa.
 - Ứng viên phải **cùng danh mục hoặc trùng từ khoá** — chỉ gần thôi thì chưa phải gợi ý.
+- Mỗi gợi ý kèm `media[]` cùng hình dạng với `/posts/nearby` (chốt 27/09). Ảnh chỉ nạp cho các
+  bài **đã lọt vào kết quả sau khi xếp hạng và cắt** — nạp cho cả rổ ứng viên rồi vứt phần lớn
+  là kéo về đúng thứ vừa quyết không trả.
 
 ### Ảnh bài đăng — luồng ba bước
 
@@ -494,30 +496,19 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 
 - **Bảo mật tác giả ([F80](./FEATURES.md#f80--bảo-vệ-thông-tin-người-cho--contact-info-gating))**: `author` chỉ mang `id`, `username`, `avatarUrl`, `rank`, `joinedAt`. Tuyệt đối không trả `fullName`, `phone`, hay địa chỉ cụ thể ra kênh công khai.
 - **Thông tin liên lạc (`contactInfo`)**: Chứa `phone` và `address`. CHỈ hiển thị khi caller là chính tác giả (`authorId == currentUserId`) hoặc là người nhận (receiver) đã được duyệt chính thức trong giao dịch đang ở trạng thái `DELIVERING` hoặc `COMPLETED`. Mọi đối tượng khác nhận `contactInfo: null`.
-- **Thống kê tương tác**: Trả về `likeCount` (tổng lượt thích) và `isLiked` (caller đã thích chưa; `null` nếu khách chưa đăng nhập).
-
-### `POST /posts/:postId/like` — Thích hoặc bỏ thích bài đăng ([F81](./FEATURES.md#f81--tương-tác-yêu-thích-bài-đăng))
-
-- Yêu cầu đăng nhập (`Bearer`), và cần quyền `REACT_CONTENT` — mặc định VIEWER chỉ đọc.
-- Cơ chế **toggle**, nhưng ghi vào `content_reactions` với `kind = LIKE`. Bảng `post_likes`
-  riêng đã bị gỡ: trước đây hai bảng nuôi hai con số, và `GET /posts/:id` trả **hai số lượt
-  thích khác nhau** cho cùng một bài.
-- Trả về `{ liked: boolean, likeCount: number }` — hợp đồng không đổi, client không phải sửa.
-- Toggle chạy trong **một transaction** đọc `FOR UPDATE` rồi mới ghi. Bản cũ đọc trước, ghi sau
-  bằng hai lần gọi, nên hai request song song lọt qua được và số đếm lệch.
-- Số đếm cập nhật nguyên tử trong database, loại bỏ nhu cầu `COUNT(*)` khi hiển thị chi tiết bài.
+- **Thống kê tương tác**: Trả về `reactionCount` (tổng người đã bày tỏ, mọi loại), `myReaction` (loại của caller, `null` khi chưa bày tỏ hoặc chưa đăng nhập) và `reactionBreakdown` (số lượt từng loại, đủ để hiện mấy biểu tượng dẫn đầu như Facebook).
 
 ### Tương tác — cảm xúc, bình luận, chia sẻ
 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
-| `PUT` | `/posts/:subjectId/reactions/me` | `REACT_CONTENT` | Đặt hoặc đổi cảm xúc: `LIKE`/`LOVE`/`CARE`/`WOW`/`SAD` |
+| `PUT` | `/posts/:subjectId/reactions/me` | `REACT_CONTENT` | Đặt hoặc đổi cảm xúc: `LIKE`/`LOVE`/`CARE`/`WOW`/`SAD` — **đây cũng là nút thích**. Không có trần |
 | `DELETE` | `/posts/:subjectId/reactions/me` | `REACT_CONTENT` | Gỡ cảm xúc của chính mình |
 | `GET` | `/posts/:subjectId/reactions` | Công khai | Ai đã bày tỏ, phân trang, lọc theo `kind` |
 | `PUT` | `/comments/:subjectId/reactions/me` | `REACT_CONTENT` | Cảm xúc trên **bình luận** |
 | `DELETE` | `/comments/:subjectId/reactions/me` | `REACT_CONTENT` | Gỡ cảm xúc trên bình luận |
 | `POST` | `/posts/:subjectId/comment-media/upload-url` | `COMMENT_CONTENT` | Xin presigned URL cho ảnh đính kèm bình luận |
-| `POST` | `/posts/:subjectId/comments` | `COMMENT_CONTENT` | Bình luận hoặc trả lời (`parentId`) — **tối đa 10 lượt/phút** |
+| `POST` | `/posts/:subjectId/comments` | `COMMENT_CONTENT` | Bình luận hoặc trả lời (`parentId`) — **tối đa 10 lượt/phút và 200 lượt/24 giờ** |
 | `GET` | `/posts/:subjectId/comments` | Công khai | Cây bình luận gốc, phân trang |
 | `GET` | `/comments/:commentId/replies` | Công khai | Trả lời của một bình luận |
 | `PATCH` | `/comments/:commentId` | Bearer (chủ bình luận) | Sửa trong **cửa sổ 15 phút** |
@@ -526,11 +517,16 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 
 **Điều cần biết**
 
-- **`content_reactions` là nguồn sự thật duy nhất** cho cả nút thích lẫn năm cảm xúc.
-  `posts.like_count` là số lượt `kind = LIKE`; `posts.reaction_count` là tổng mọi loại. Đổi
-  `LIKE → LOVE` thì `like_count` giảm mà `reaction_count` **đứng yên** — vẫn là một người bày tỏ.
-- **Bình luận có `like_count` không?** Không. Bình luận chỉ có `reaction_count`; nó không có
-  nút thích riêng.
+- ⚠️ **Không còn `POST /posts/:postId/like`, `likeCount` hay `isLiked`** (đổi 26/09). Giao diện
+  chỉ có MỘT nút — chạm là `LIKE`, giữ thì chọn loại khác — nên nó cũng chỉ cần một đường ghi
+  và một con số. Chạm nút gọi `PUT …/reactions/me` với `kind: "LIKE"`; chạm lần nữa để bỏ thì
+  gọi `DELETE …/reactions/me`. `isLiked` cũ nay là `myReaction === "LIKE"`.
+- **`content_reactions` là nguồn sự thật duy nhất**, và `posts.reaction_count` là con số duy
+  nhất: tổng người đã bày tỏ, **bất kể loại**. Đổi `LIKE → LOVE` KHÔNG làm nó nhúc nhích — vẫn
+  là một người, chỉ đổi cách bày tỏ. Cột `posts.like_count` đã bị gỡ.
+- **Muốn hiện mấy biểu tượng dẫn đầu** thì dùng `reactionBreakdown` trong `GET /posts/:postId`
+  (`{"LIKE": 8, "LOVE": 4}`). Bảng tin chỉ trả `reactionCount` + `myReaction` — nhóm theo loại
+  cho từng bài trong một trang 20 bài là 20 lần GROUP BY cho một thứ không ai nhìn kỹ.
 - **Bộ lọc từ ngữ có hai mức.** Mức `BLOCK` trả 400 và **không ghi gì**; mức `REVIEW` vẫn ghi
   nhưng đặt `PENDING_REVIEW`, ẩn khỏi công khai và đẩy vào hàng đợi Admin. Danh sách từ là
   **cấu hình động** (`system_configs`, khoá `moderation.blocked_terms`), không phải hằng số
@@ -539,10 +535,16 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
   tác giả thì họ tưởng hệ thống nuốt mất và gõ lại lần nữa.
 - **Sửa bình luận đi lại đúng bộ lọc đó**, và `comment_count` / `reply_count` đi theo trạng
   thái mới — không thì con số nói dối cho tới lần Admin xử.
-- **Trần 10 bình luận mỗi phút** (thêm 26/09). Cổng quyền `COMMENT_CONTENT` là boolean, không
-  mang hạn mức, nên trước đó không gì chặn một người gõ liên tục. Vượt trần trả **429** kèm số
-  giây phải chờ. Suất chỉ bị trừ **sau khi** bình luận ghi xong — bình luận bị bộ lọc chặn
-  thẳng không tiêu mất một suất.
+- **Hai trần cho bình luận** (26/09): **10 lượt/phút** chặn TỐC ĐỘ, **200 lượt/24 giờ** chặn
+  TỔNG. Cổng quyền `COMMENT_CONTENT` là boolean, không mang hạn mức, nên trước đó không gì chặn
+  một người gõ liên tục. Thiếu trần ngày thì gõ đều mười cái mỗi phút suốt ngày vẫn ra 14.400
+  bình luận. Vượt trần nào cũng trả **429** kèm số giây phải chờ; trần ngày được hỏi **trước**
+  để con số giây trả về là thật. Cửa sổ 24 giờ tính từ bình luận đầu tiên của đợt, không phải
+  từ 0 giờ. Suất chỉ bị trừ **sau khi** bình luận ghi xong — bình luận bị bộ lọc chặn thẳng
+  không tiêu mất một suất.
+- **Trần ngày của rule điểm là chuyện khác.** `POST_COMMENTED` chỉ thưởng 10 lượt/ngày, nhưng
+  bình luận thứ 11 vẫn đăng được — nó chỉ không có điểm. Làm bẩn bảng tin và farm điểm là hai
+  vấn đề, cần hai cái trần.
 - **`share_count` đếm theo LƯỢT, không theo người** (chốt 26/09) — một người chia sẻ hai lần ở
   hai thời điểm là hai lượt thật. Vì thế phải có **khoảng chờ 1 giờ**, khoá theo **cả người lẫn
   bài**: không có gì khác tự chặn việc gọi endpoint một nghìn lần. Khoá theo mình người thì
@@ -555,10 +557,19 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
   `PENDING_REVIEW` **không** báo. Cảm xúc chỉ báo **lần đầu trong ngày** theo giờ
   `Asia/Ho_Chi_Minh` — một bài 200 lượt mà báo 200 lần thì tác giả tắt thông báo, và mất luôn
   thông báo về lượt xin nhận.
-- **Điểm F41 (`POST_COMMENTED` +2đ trần 10/ngày, `POST_REACTED` +1đ trần 20/ngày) seed TẮT
-  sẵn**, và `affects_lifetime = false` nên không đẩy hạng. Chạm trần hay rule chưa bật **không**
-  làm hỏng việc bình luận: việc người đó vừa viết một câu là sự thật, thưởng bao nhiêu chỉ là
-  chính sách.
+- **Điểm F41 đã BẬT** (26/09): `POST_COMMENTED` +2đ trần 10 lượt/ngày, `POST_REACTED` +1đ trần
+  20 lượt/ngày — tối đa 40đ/người/ngày vào `balance`. `affects_lifetime = false` nên **không đẩy
+  hạng**: `lifetime` là sàn của Rank, và cho bình luận đẩy hạng thì gõ 300 dòng "hay quá ạ" là
+  lên Bạc trong khi tặng một món đồ thật được 56 điểm. Không thưởng khi tương tác với bài của
+  chính mình. Chạm trần **không** làm hỏng việc bình luận: việc người đó vừa viết một câu là sự
+  thật, thưởng bao nhiêu chỉ là chính sách.
+- **Cảm xúc KHÔNG có trần gọi**, và đó là chủ ý. Điểm đã an toàn sẵn: khoá chống trùng của
+  `POST_REACTED` là `(bài, người)` nên gỡ rồi thả lại không được thưởng lần hai; thông báo cũng
+  chỉ một lần mỗi ngày mỗi bài. Chỗ duy nhất còn tốn là ghi database, và nó được xử bằng cách
+  **không ghi**: gửi đúng loại người đó đang để thì câu upsert mang
+  `WHERE kind IS DISTINCT FROM EXCLUDED.kind`, nên Postgres không sinh phiên bản dòng mới, không
+  sinh WAL, không để lại dòng chết. Client gửi trùng — chạm hai lần, retry khi mạng chập chờn,
+  hai thiết bị cùng đồng bộ — nay là miễn phí, và **không ai bị trả về 429**.
 - **Báo xấu một bình luận** đi chung `POST /reports` với `targetType: COMMENT`, không có
   endpoint riêng.
 
@@ -634,6 +645,12 @@ giới hạn — đổi trần bán kính ở server là client tự theo.
 26/09; trước đó bắt buộc, nên client muốn feed trộn phải gọi năm lần rồi tự ghép mà mỗi lần
 phân trang riêng nên ghép xong thứ tự vô nghĩa).
 
+`/posts/nearby` trả kèm `media[]` cho từng bài (chốt 27/09) — đúng hình dạng đã dùng ở
+`/posts/me` và `/posts/{postId}`: `{ id, url, sortOrder }`, sắp sẵn theo `sortOrder`, và **luôn
+là mảng** (bài chưa có ảnh trả `[]`, không bỏ trống trường). Ảnh của cả trang lấy trong **một
+truy vấn** gộp theo `postId` rồi chia về từng bài; hỏi từng bài là 20 lượt đi database mỗi lần
+cuộn feed.
+
 `/posts/map` nhận khung bbox và trả **CỤM theo ô lưới** (chốt 26/09):
 
 - `clusters[]` — mỗi ô có `cellKey`, `count`, `location`, và `marker` (chỉ khi `count === 1`).
@@ -678,14 +695,31 @@ bỏ sót bài**.
 
 | Gửi gì | Server làm gì | `originSource` |
 | --- | --- | --- |
-| Cả `lat` và `lng` | Dùng đúng toạ độ đó | `REQUEST` |
+| Cả `lat` và `lng` (kèm `radiusMeters`) | Dùng đúng toạ độ đó | `REQUEST` |
 | Không gửi, đã đăng nhập, có Vị trí mặc định | Lùi về Vị trí mặc định | `DEFAULT_LOCATION` |
-| Không gửi, chưa đăng nhập | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
-| Không gửi, đã đăng nhập, **chưa** đặt Vị trí mặc định | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
+| Không gửi, chưa đăng nhập | **Trả toàn bộ**, không lọc bán kính | `ALL` |
+| Không gửi, đã đăng nhập, **chưa** đặt Vị trí mặc định | **Trả toàn bộ**, không lọc bán kính | `ALL` |
 | Chỉ một trong hai | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
+| Có toạ độ nhưng thiếu `radiusMeters` | `VALIDATION_FAILED` (400) | — |
+
+**Chặng `ALL` là chặng CUỐI** (chốt 27/09): chỉ tới khi không còn gốc toạ độ nào. Người đã
+đăng nhập và có Vị trí mặc định vẫn được quét quanh vị trí đó như cũ — F26 không đổi.
+
+Ở nhánh `ALL`:
+
+- `radiusMeters` **tuỳ chọn** và bị bỏ qua. Có toạ độ thì nó vẫn bắt buộc.
+- `distanceMeters` của mọi bài là **`null`**, không phải `0` — `0` đọc ra là "cách bạn 0 mét".
+- Thứ tự là **`created_at DESC`, rồi `id ASC`** thay cho khoảng cách. Vẫn phải có tiebreak
+  bằng khoá chính, nếu không lật trang bằng `OFFSET` sẽ lặp bài hoặc bỏ sót bài.
+- Toạ độ vẫn bị làm nhiễu và `isLocationApproximate` vẫn `true`.
+
+> ⚠️ **Đổi hợp đồng API.** Trước 27/09 hai dòng `ALL` ở trên là **400**. Client đang bắt lỗi
+> `DISCOVERY_ORIGIN_UNAVAILABLE` để hiện màn "hãy bật GPS" sẽ không còn nhận được lỗi đó —
+> giờ nhận 200 kèm danh sách. Kiểu của `distanceMeters` cũng nới thành `number | null`.
 
 Response **luôn** trả `originSource`. Giao diện cần nó để nói "đang tìm quanh vị trí mặc định
-của bạn" — lùi về một toạ độ khác mà im lặng là đổi kết quả sau lưng người dùng.
+của bạn", hoặc "đang xem tất cả, bật GPS để tìm quanh đây" — lùi sang một phạm vi khác mà im
+lặng là đổi kết quả sau lưng người dùng.
 
 Gửi **một nửa** toạ độ là lỗi của client, không phải ý muốn lùi vị trí: bỏ qua nửa kia sẽ
 quét quanh một chỗ khác hẳn chỗ client đang chỉ tới. Và khi không có gốc nào, server **không**
@@ -1082,6 +1116,7 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 | `GET` | `/admin/posts` | `post.read` | Danh sách bài, **không lọc sẵn** trạng thái nào |
 | `GET` | `/admin/posts/:postId` | `post.read` | Chi tiết bài và media dành cho moderator |
 | `PATCH` | `/admin/posts/:postId/moderation` | `post.moderate` | **Hậu kiểm**: gỡ bài đang hiện hoặc trả lại, reason bắt buộc, ghi audit |
+| `GET` | `/admin/comments/pending-count` | `post.moderate` | **Số bình luận đang chờ** — một con số cho huy hiệu trên menu CMS |
 | `GET` | `/admin/comments` | `post.moderate` | **Hàng đợi bình luận**, lọc `status=PENDING_REVIEW`, mỗi dòng kèm tiêu đề bài và từ bị bắt |
 | `PATCH` | `/admin/comments/:commentId/moderation` | `post.moderate` | Cho hiện lại (`VISIBLE`) hoặc gỡ hẳn (`REMOVED`), reason bắt buộc, ghi audit |
 | `GET` | `/admin/reports` | `report.read` | Hàng đợi report, ưu tiên target có nhiều tín hiệu mở |
@@ -1145,6 +1180,11 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
   và gỡ một bài là cùng một loại quyết định về nội dung; tách thành hai quyền chỉ tạo thêm một
   tổ hợp để Admin cấp sót. Bấm lại đúng quyết định cũ trả **400**, và bình luận đã `REMOVED`
   coi như không còn. Mỗi lần xử, `comment_count` và `reply_count` đi theo trạng thái mới.
+- **`pending-count` là chuông, không phải thông báo.** Hàng đợi có cửa nhưng Admin không mở màn
+  hình ra thì một câu chửi nằm chờ ba ngày cũng không ai hay. Bắn thông báo cho từng bình luận
+  thì ngược lại: nội dung bẩn đến theo đợt, và Admin sẽ tắt thông báo ngay sau đợt đầu tiên —
+  rồi mất luôn những thông báo thật sự quan trọng. Một con số trên menu là thứ họ thấy mỗi lần
+  mở CMS mà không phải trả giá gì.
 - Tác giả **sửa** bài đã bị gỡ thì bài vẫn `REJECTED`. Cho nó tự hiện lại là để tác giả gỡ
   quyết định của Admin bằng cách sửa một dấu phẩy. Chỉ Admin trả lại được.
 - `POST /reports` nhận target `POST`, `USER` hoặc `COMMENT`, mô tả và tối đa 5 URL bằng

@@ -466,6 +466,21 @@ async function main(): Promise<void> {
     // bình luận bị gỡ hẳn, nên con số cũ không còn đúng nữa.
     const expectedTotal = (await comments.findForAdmin({ skip: 0, take: 500 }))
       .total;
+    // Con số cho huy hiệu menu CMS: cũng là SQL thô, cũng chỉ sai ở đây.
+    const [pendingRow] = await dataSource.query<{ count: string }[]>(
+      `SELECT COUNT(*) AS count FROM content_comments WHERE status = 'PENDING_REVIEW'`,
+    );
+    check(
+      'pending-count khớp số dòng PENDING_REVIEW thật',
+      (await comments.countPendingForAdmin()) === Number(pendingRow.count),
+      `${await comments.countPendingForAdmin()} / ${pendingRow.count}`,
+    );
+    check(
+      'và KHÔNG đếm bình luận đã gỡ hay đang hiện',
+      (await comments.countPendingForAdmin()) < (await commentCount()),
+      `${await comments.countPendingForAdmin()} chờ / ${await commentCount()} công khai`,
+    );
+
     const paged = await comments.findForAdmin({ skip: 0, take: 1 });
     check(
       'phân trang cắt đúng một dòng mà total vẫn là số thật',

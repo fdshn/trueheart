@@ -109,6 +109,17 @@ export interface IContentCommentRepository {
    * Kèm `subjectTitle` để Admin quyết ngay trên danh sách — một câu chửi chỉ có
    * nghĩa khi biết nó nằm dưới bài nào.
    */
+  /**
+   * Số bình luận đang chờ Admin xử, để CMS hiện huy hiệu trên menu.
+   *
+   * Hàng đợi có cửa nhưng không có chuông: Admin không mở màn hình ra thì một
+   * câu chửi nằm chờ ba ngày cũng không ai hay. Bắn thông báo cho từng bình
+   * luận thì ngược lại — nội dung bẩn thường đến theo đợt, và Admin sẽ tắt
+   * thông báo sau đợt đầu tiên. Một con số trên menu là thứ họ thấy mỗi lần mở
+   * CMS mà không phải trả giá gì.
+   */
+  countPendingForAdmin(): Promise<number>;
+
   findForAdmin(params: {
     status?: CommentStatuses;
     skip: number;

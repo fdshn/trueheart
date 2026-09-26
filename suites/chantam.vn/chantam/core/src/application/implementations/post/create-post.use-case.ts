@@ -188,7 +188,6 @@ export class CreatePostUseCase implements ICreatePostUseCase {
         charityTransferNote: null,
         selectionMode,
         selectionDeadline: null,
-        likeCount: 0,
         deletedAt: null,
       },
     );

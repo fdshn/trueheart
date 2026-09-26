@@ -24,9 +24,10 @@ import { IPostEntity, IPostMediaEntity } from '../../entities';
  * Số đếm lấy từ cột trên chính dòng bài — không COUNT(*) mỗi lần cuộn.
  * `myReaction` lấy bằng MỘT truy vấn cho cả trang; hỏi từng bài là N+1.
  *
- * `likeCount` đếm RIÊNG cảm xúc `LIKE`, còn `reactionCount` đếm mọi người đã
- * bày tỏ bất kể loại. Hai con số khác nhau và đều đúng: nút thích cần con số
- * thứ nhất, dải cảm xúc cần con số thứ hai. Cả hai nuôi từ `content_reactions`.
+ * `reactionCount` đếm mọi người đã bày tỏ, BẤT KỂ loại — `LIKE` chỉ là một
+ * trong năm loại chứ không phải một hệ thống riêng. Nút thích và dải cảm xúc là
+ * cùng một nút: chạm là `LIKE`, giữ thì chọn loại khác. Nên chỉ có MỘT con số,
+ * và `myReaction` nói người gọi đã bày tỏ gì.
  */
 export interface IPostFeedInteractionDto {
   reactionCount: number;
@@ -34,10 +35,6 @@ export interface IPostFeedInteractionDto {
   shareCount: number;
   /** Cảm xúc của người gọi. `null` khi chưa bày tỏ hoặc chưa đăng nhập. */
   myReaction: ReactionKinds | null;
-  /** Số lượt thích, tức số cảm xúc `LIKE`. */
-  likeCount: number;
-  /** Người gọi đã thích chưa. `null` khi chưa đăng nhập. */
-  isLiked: boolean | null;
 }
 
 export interface ICreatePostCommonDto {
@@ -113,7 +110,11 @@ export interface IGetNearbyPostsQueryDto extends IPaginationQueryDto {
    */
   lat?: number;
   lng?: number;
-  radiusMeters: number;
+  /**
+   * Bắt buộc KHI có `lat`/`lng`. Bỏ trống cùng với toạ độ thì không lọc theo
+   * bán kính nữa — xem `originSource: 'ALL'`.
+   */
+  radiusMeters?: number;
   /** Bỏ trống thì trả MỌI loại bài. */
   postType?: PublicDiscoveryPostType;
   categoryId?: string;
@@ -146,11 +147,21 @@ export interface IGetMyPostsResponseDto {
 
 export interface INearbyPostDto extends IPostFeedInteractionDto {
   post: IPostEntity;
-  distanceMeters: number;
+  /**
+   * Khoảng cách đã làm tròn theo bậc, hoặc `null` khi không có gốc toạ độ nào
+   * (`originSource: 'ALL'`). Trả `0` ở đó sẽ đọc ra "cách bạn 0 mét".
+   */
+  distanceMeters: number | null;
   isLocationApproximate: true;
   requestCount?: number;
   myRequestStatus?: GiftRequestStatuses | null;
   hasRequested?: boolean;
+  /**
+   * Ảnh của bài, sắp sẵn theo `sortOrder`. Luôn là mảng — bài chưa có ảnh trả
+   * `[]` chứ không bỏ trống trường, để client dựng carousel không phải kiểm
+   * `undefined` trước mỗi lần đọc `length`.
+   */
+  media: IPublicPostMediaDto[];
 }
 
 export interface IGetNearbyPostsResponseDto {
@@ -162,8 +173,11 @@ export interface IGetNearbyPostsResponseDto {
    * `REQUEST` là toạ độ client gửi lên, `DEFAULT_LOCATION` là Vị trí mặc định
    * trong hồ sơ. Giao diện cần phân biệt để nói cho người dùng biết kết quả
    * đang tính từ đâu — im lặng lùi về vị trí khác là đổi kết quả sau lưng họ.
+   *
+   * `ALL` nghĩa là KHÔNG có gốc nào, nên không lọc bán kính và trả toàn bộ,
+   * mới nhất trước. Ở nhánh này `distanceMeters` là `null`.
    */
-  originSource: 'REQUEST' | 'DEFAULT_LOCATION';
+  originSource: 'REQUEST' | 'DEFAULT_LOCATION' | 'ALL';
 }
 
 /** Vì sao một bài được gợi ý. Giao diện dịch các mã này ra tiếng Việt. */
@@ -176,6 +190,8 @@ export interface ISmartMatchDto {
   /** Độ khớp trong [0, 1], đọc được như phần trăm. */
   score: number;
   reasons: SmartMatchReason[];
+  /** Cùng hình dạng với `INearbyPostDto.media`; rỗng khi bài chưa có ảnh. */
+  media: IPublicPostMediaDto[];
 }
 
 export interface IGetSmartMatchesResponseDto {
@@ -424,9 +440,4 @@ export interface IReviewCharityTransferBodyDto {
 
 export interface IReviewCharityTransferResponseDto {
   post: IPostEntity;
-}
-
-export interface ITogglePostLikeResponseDto {
-  liked: boolean;
-  likeCount: number;
 }

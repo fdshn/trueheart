@@ -5,6 +5,7 @@ import {
   ValidationFailedException,
 } from '@chantam/service.common-lib/exception';
 import {
+  CountPendingAdminCommentsUseCase,
   ListAdminCommentsUseCase,
   ModerateAdminCommentUseCase,
 } from './admin-comment.use-cases';
@@ -236,5 +237,31 @@ describe('ModerateAdminCommentUseCase', () => {
 
     expect(result.comment.status).toBe(CommentStatuses.REMOVED);
     expect(result.comment.commentId).toBe(CommentId);
+  });
+});
+
+describe('CountPendingAdminCommentsUseCase', () => {
+  it('không có quyền thì không biết hàng đợi dài bao nhiêu', async () => {
+    const comments = { countPendingForAdmin: jest.fn() };
+
+    await expect(
+      new CountPendingAdminCommentsUseCase(
+        makePermissions(false),
+        comments as never,
+      ).handle({ actorUserId: ActorId }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(comments.countPendingForAdmin).not.toHaveBeenCalled();
+  });
+
+  it('trả đúng con số cho huy hiệu, không kèm nội dung bình luận nào', async () => {
+    const comments = { countPendingForAdmin: jest.fn(async () => 12) };
+
+    const result = await new CountPendingAdminCommentsUseCase(
+      makePermissions(true),
+      comments as never,
+    ).handle({ actorUserId: ActorId });
+
+    expect(result).toEqual({ pendingComments: 12 });
   });
 });

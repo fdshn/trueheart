@@ -1,4 +1,5 @@
 import {
+  ICountPendingAdminCommentsUseCase,
   IListAdminCommentsUseCase,
   IModerateAdminCommentUseCase,
 } from '@/application/contracts/admin-config';
@@ -35,6 +36,7 @@ import {
   ListAdminCommentsResponseDto,
   ModerateAdminCommentBodyDto,
   ModerateAdminCommentResponseDto,
+  PendingAdminCommentsResponseDto,
 } from '../../dto/admin-config/admin-comment.dto';
 import { RequiresPermission } from '../../guards';
 
@@ -47,7 +49,31 @@ export class AdminCommentController {
     private readonly listAdminCommentsUseCase: IListAdminCommentsUseCase,
     @Inject(IModerateAdminCommentUseCase)
     private readonly moderateAdminCommentUseCase: IModerateAdminCommentUseCase,
+    @Inject(ICountPendingAdminCommentsUseCase)
+    private readonly countPendingAdminCommentsUseCase: ICountPendingAdminCommentsUseCase,
   ) {}
+
+  // Khai báo TRƯỚC mọi route có tham số đường dẫn: `pending-count` là một chuỗi
+  // cố định, và route `:commentId` đứng trước sẽ nuốt nó.
+  @Get('pending-count')
+  @RequiresPermission('post.moderate')
+  @ApiOperation({
+    summary: 'Số bình luận đang chờ duyệt',
+    description:
+      'Một con số cho huy hiệu trên menu CMS. Hàng đợi có cửa nhưng không có chuông — Admin không mở màn hình ra thì một câu chửi nằm chờ ba ngày cũng không ai hay. Bắn thông báo cho từng bình luận thì ngược lại: nội dung bẩn đến theo đợt, và Admin sẽ tắt thông báo ngay sau đợt đầu tiên.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(PendingAdminCommentsResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
+  public async countPending(@CurrentUser() principal: IAuthPrincipal) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.countPendingAdminCommentsUseCase.handle({
+          actorUserId: principal.userId,
+        }),
+      )
+      .build();
+  }
 
   @Get()
   @RequiresPermission('post.moderate')

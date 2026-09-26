@@ -170,25 +170,38 @@ export class PostRepository
         { keyword: params.keyword },
       );
 
-    GeoQueryHelper.applyRadiusFilter(baseQuery, 'post', {
-      ...params.origin,
-      radiusMeters: params.radiusMeters,
-    });
+    // Không có gốc toạ độ thì KHÔNG lọc bán kính. Bán kính quanh một tâm không
+    // tồn tại là lọc quanh một điểm người dùng không chọn.
+    const origin = params.origin;
+    if (origin && params.radiusMeters !== undefined)
+      GeoQueryHelper.applyRadiusFilter(baseQuery, 'post', {
+        ...origin,
+        radiusMeters: params.radiusMeters,
+      });
 
     const total = await baseQuery.getCount();
     if (total === 0) return { items: [], total };
 
     const listQuery = baseQuery.clone();
-    GeoQueryHelper.selectDistance(
-      listQuery,
-      'post',
-      params.origin,
-      'distance_meters',
-    );
-    GeoQueryHelper.orderByDistance(listQuery, 'post', params.origin);
+
+    if (origin) {
+      GeoQueryHelper.selectDistance(
+        listQuery,
+        'post',
+        origin,
+        'distance_meters',
+      );
+      GeoQueryHelper.orderByDistance(listQuery, 'post', origin);
+    } else {
+      // Không có khoảng cách để xếp thì xếp theo thời gian — feed không có thứ
+      // tự nào là feed xáo lại sau mỗi lần gọi.
+      listQuery.orderBy('post.createdAt', 'DESC');
+    }
+
     // Chốt thứ tự bằng khoá chính. Thiếu nó thì hai bài cùng khoảng cách (cùng
-    // toà nhà, cùng địa chỉ) không có thứ tự đảm bảo giữa hai lần chạy, và lật
-    // trang bằng OFFSET sẽ lặp bài hoặc bỏ sót bài.
+    // toà nhà, cùng địa chỉ) — hoặc cùng mốc thời gian tạo — không có thứ tự
+    // đảm bảo giữa hai lần chạy, và lật trang bằng OFFSET sẽ lặp bài hoặc bỏ
+    // sót bài.
     listQuery.addOrderBy('post.id', 'ASC');
     listQuery.offset(params.skip).limit(params.take);
 
@@ -198,7 +211,11 @@ export class PostRepository
     return {
       items: entities.map((post, index) => ({
         post,
-        distanceMeters: Number(raw[index]?.distance_meters ?? 0),
+        // `null` chứ không `0`: không có gốc thì không có khoảng cách, và `0`
+        // đọc ra là "cách bạn 0 mét".
+        distanceMeters: origin
+          ? Number(raw[index]?.distance_meters ?? 0)
+          : null,
       })),
       total,
     };

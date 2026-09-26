@@ -30,13 +30,6 @@ export interface IReactionActor {
   readonly reactedAt: Date;
 }
 
-export interface IToggleLikeResult {
-  /** Trạng thái SAU khi bấm. */
-  readonly liked: boolean;
-  /** Số lượt `LIKE` của bài sau khi bấm, đọc từ `posts.like_count`. */
-  readonly likeCount: number;
-}
-
 export interface IContentReactionRepository {
   /**
    * Đặt hoặc ĐỔI cảm xúc. Bình thái — gọi hai lần cho cùng một kết quả.
@@ -54,16 +47,6 @@ export interface IContentReactionRepository {
   removeReaction(
     params: IContentSubjectRef & { userId: string },
   ): Promise<boolean>;
-  /**
-   * Bật/tắt riêng cảm xúc `LIKE` của một BÀI ĐĂNG — lối tắt cho nút thích.
-   *
-   * Đọc trạng thái và ghi trong CÙNG một transaction, nên hai lần bấm song
-   * song xếp hàng thay vì cùng thấy "chưa thích" rồi cùng cộng thêm một.
-   *
-   * Đang để `LOVE` mà bấm thích thì thành `LIKE`: vẫn là một người bày tỏ, nên
-   * `reaction_count` đứng yên trong khi `like_count` tăng.
-   */
-  toggleLike(subjectId: string, userId: string): Promise<IToggleLikeResult>;
   /**
    * Tổng hợp cảm xúc của một chủ thể.
    *

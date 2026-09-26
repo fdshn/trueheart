@@ -404,6 +404,13 @@ export class ContentCommentRepository implements IContentCommentRepository {
     });
   }
 
+  public async countPendingForAdmin(): Promise<number> {
+    const [row] = await this.manager.query<{ count: string }[]>(
+      `SELECT COUNT(*) AS count FROM content_comments WHERE status = 'PENDING_REVIEW'`,
+    );
+    return Number(row?.count ?? 0);
+  }
+
   public async findForAdmin(params: {
     status?: CommentStatuses;
     skip: number;

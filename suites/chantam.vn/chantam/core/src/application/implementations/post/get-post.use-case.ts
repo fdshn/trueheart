@@ -16,7 +16,6 @@ import {
 import {
   ContentSubjectTypes,
   GiftRequestStatuses,
-  ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IPostAuthorDto,
@@ -117,12 +116,6 @@ export class GetPostUseCase implements IGetPostUseCase {
       }
     }
 
-    // Thích là cảm xúc `LIKE` chứ không phải một hệ đếm riêng, nên suy thẳng
-    // từ `summarize()` đã gọi ở trên — bớt hẳn một vòng đi database.
-    const isLiked = command.currentUserId
-      ? summary.myReaction === ReactionKinds.LIKE
-      : null;
-
     return {
       post,
       author,
@@ -137,8 +130,6 @@ export class GetPostUseCase implements IGetPostUseCase {
       requestCount: requestCounts.get(post.globalId) ?? 0,
       myRequestStatus,
       hasRequested: Boolean(myRequestStatus),
-      likeCount: post.likeCount ?? 0,
-      isLiked,
       contactInfo,
       reactionCount: post.reactionCount,
       commentCount: post.commentCount,

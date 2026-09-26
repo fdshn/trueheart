@@ -1,6 +1,7 @@
 import {
   IAssignAdminRoleUseCase,
   IChangeAdminUserStatusUseCase,
+  ICountPendingAdminCommentsUseCase,
   IDeleteAdminUserUseCase,
   IGetAdminAuditLogsUseCase,
   IGetAdminConfigsUseCase,
@@ -27,6 +28,7 @@ import {
 } from '@/application/contracts/admin-config';
 import { Global, Module } from '@nestjs/common';
 import {
+  CountPendingAdminCommentsUseCase,
   ListAdminCommentsUseCase,
   ModerateAdminCommentUseCase,
 } from './admin-comment.use-cases';
@@ -131,6 +133,10 @@ import {
     },
     { provide: IDeleteAdminUserUseCase, useClass: DeleteAdminUserUseCase },
     {
+      provide: ICountPendingAdminCommentsUseCase,
+      useClass: CountPendingAdminCommentsUseCase,
+    },
+    {
       provide: IListAdminCommentsUseCase,
       useClass: ListAdminCommentsUseCase,
     },
@@ -173,6 +179,7 @@ import {
     IChangeAdminUserStatusUseCase,
     IDeleteAdminUserUseCase,
     IReleaseVerifiedPhoneUseCase,
+    ICountPendingAdminCommentsUseCase,
     IListAdminCommentsUseCase,
     IModerateAdminCommentUseCase,
     IGetNotificationChannelsUseCase,

@@ -34,7 +34,6 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     status: GiftPostStatuses.PUBLISHED,
     selectionMode: PostSelectionModes.OPTIMAL,
     selectionDeadline: null,
-    likeCount: 0,
     totalQuantity: 1,
     remainingQuantity: 1,
     details: {},
@@ -173,7 +172,6 @@ describe('GetPostUseCase', () => {
     );
     // Người lạ xem bài: contactInfo = null
     expect(result.contactInfo).toBeNull();
-    expect(result.isLiked).toBe(false);
     expect(result.reactionCount).toBe(12);
     expect(result.commentCount).toBe(3);
     expect(result.shareCount).toBe(1);
@@ -219,9 +217,10 @@ describe('GetPostUseCase', () => {
     });
   });
 
-  it('isLiked suy từ myReaction, không hỏi thêm bảng nào', async () => {
-    // Thích là cảm xúc LIKE chứ không phải hệ đếm riêng. Người đang để LOVE
-    // thì CHƯA thích — hai con số khác nhau và đều đúng.
+  it('chỉ MỘT con số cảm xúc, không có lối đếm thích riêng', async () => {
+    // Nút thích và dải cảm xúc là cùng một nút: chạm là LIKE, giữ thì chọn loại
+    // khác. Nên `myReaction` nói người gọi đang để gì, `reactionCount` nói tổng
+    // bao nhiêu người bày tỏ, và không có con số thứ ba nào cả.
     const postRepository = {
       findPublicByGlobalId: jest.fn().mockResolvedValue(makePost()),
     } as unknown as jest.Mocked<IPostRepository>;
@@ -246,7 +245,7 @@ describe('GetPostUseCase', () => {
       currentUserId: '99999999-9999-9999-9999-999999999999',
     });
     expect(loving.myReaction).toBe(ReactionKinds.LOVE);
-    expect(loving.isLiked).toBe(false);
+    expect(loving.reactionBreakdown).toEqual({ LIKE: 8, LOVE: 4 });
 
     reactions.summarize.mockResolvedValue({
       total: 12,
@@ -257,17 +256,23 @@ describe('GetPostUseCase', () => {
       postId: PostId,
       currentUserId: '99999999-9999-9999-9999-999999999999',
     });
-    expect(liking.isLiked).toBe(true);
+    expect(liking.myReaction).toBe(ReactionKinds.LIKE);
 
-    // Khách chưa đăng nhập: `null` chứ không phải `false` — "chưa thích" và
-    // "không biết có thích hay không" là hai chuyện khác nhau.
+    // Khách chưa đăng nhập: `null` chứ không phải LIKE — "chưa bày tỏ" và
+    // "không biết có bày tỏ hay không" đều ra cùng một giá trị, và đó là ý.
     reactions.summarize.mockResolvedValue({
       total: 12,
       breakdown: { LIKE: 9, LOVE: 3 },
       myReaction: null,
     });
     const anonymous = await build().handle({ postId: PostId });
-    expect(anonymous.isLiked).toBeNull();
+    expect(anonymous.myReaction).toBeNull();
+
+    // Hai trường cũ đã gỡ hẳn: giữ lại là để client tiếp tục tin rằng thích và
+    // cảm xúc là hai hệ thống khác nhau.
+    const shape = anonymous as unknown as Record<string, unknown>;
+    expect(shape.isLiked).toBeUndefined();
+    expect(shape.likeCount).toBeUndefined();
   });
 
   it('trả media đã xếp thứ tự với public URL', async () => {
@@ -327,7 +332,6 @@ describe('GetPostUseCase', () => {
     expect(result.requestCount).toBe(2);
     expect(result.myRequestStatus).toBeNull();
     expect(result.hasRequested).toBe(false);
-    expect(result.isLiked).toBeNull();
     expect(result.myReaction).toBeNull();
   });
 

@@ -8,7 +8,10 @@ import {
 } from '@/domain/consts';
 import { PostNotFoundException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
-import { IPostRepository } from '@/domain/ports/repository';
+import {
+  IPostMediaRepository,
+  IPostRepository,
+} from '@/domain/ports/repository';
 import { PostTypes } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IGetSmartMatchesResponseDto,
@@ -37,6 +40,8 @@ export class GetSmartMatchesUseCase implements IGetSmartMatchesUseCase {
   public constructor(
     @Inject(IPostRepository)
     private readonly postRepository: IPostRepository,
+    @Inject(IPostMediaRepository)
+    private readonly postMediaRepository: IPostMediaRepository,
     @Inject(IConfig) private readonly config: IConfig,
   ) {}
 
@@ -83,7 +88,7 @@ export class GetSmartMatchesUseCase implements IGetSmartMatchesUseCase {
       take,
     });
 
-    const matches = candidates
+    const ranked = candidates
       .map((candidate) => {
         const signals = {
           sameCategory: candidate.sameCategory,
@@ -112,6 +117,36 @@ export class GetSmartMatchesUseCase implements IGetSmartMatchesUseCase {
       // Khớp cao lên trước; bằng điểm thì gần hơn lên trước.
       .sort((a, b) => b.score - a.score || a.distanceMeters - b.distanceMeters)
       .slice(0, take);
+
+    // Nạp ảnh SAU khi cắt. `findSmartMatches` trả về cả rổ ứng viên rồi mới
+    // xếp hạng, nên hỏi ảnh trước đó là kéo về đúng thứ vừa quyết không trả.
+    const matchIds = ranked.map((match) => match.post.globalId);
+    const allMedia =
+      matchIds.length > 0
+        ? await this.postMediaRepository.listByPostIds(matchIds)
+        : [];
+
+    const mediaMap = new Map<
+      string,
+      Array<{ id: number; url: string; sortOrder: number }>
+    >();
+    for (const item of allMedia) {
+      const url = `${this.config.storage.publicBaseUrl.replace(/\/$/, '')}/${item.r2Key}`;
+      const entry = { id: item.id, url, sortOrder: item.sortOrder };
+      const list = mediaMap.get(item.postId);
+      if (list) {
+        list.push(entry);
+      } else {
+        mediaMap.set(item.postId, [entry]);
+      }
+    }
+
+    const matches = ranked.map((match) => ({
+      ...match,
+      media: (mediaMap.get(match.post.globalId) ?? []).sort(
+        (a, b) => a.sortOrder - b.sortOrder,
+      ),
+    }));
 
     return { sourcePostId: source.globalId, radiusMeters, matches };
   }

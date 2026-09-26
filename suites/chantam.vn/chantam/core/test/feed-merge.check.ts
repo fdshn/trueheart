@@ -1,14 +1,20 @@
 /**
  * Kiểm việc GỘP nút thích vào bảng cảm xúc, trên Postgres THẬT.
  *
- * Bốn thứ mà unit test mock không thấy được:
+ * Sáu thứ mà unit test mock không thấy được:
  *
- *   1. **Đổi `LIKE` sang `LOVE`**: `like_count` giảm 1 còn `reaction_count`
- *      ĐỨNG YÊN — vẫn là một người bày tỏ, chỉ đổi cách bày tỏ.
- *   2. **Hai lần bấm song song** không làm lệch số đếm.
- *   3. **Migration gộp**: ai đã thả `LOVE` thì giữ `LOVE`, không bị hạ xuống
- *      `LIKE`; và hai cột đếm sau backfill khớp với bảng cảm xúc.
- *   4. **Bảng `post_likes` đã biến mất** — còn nó thì vẫn còn hai nguồn sự thật.
+ *   1. **Bảng `post_likes` đã biến mất** — còn nó thì vẫn còn hai nguồn sự thật.
+ *   2. **Cột `posts.like_count` cũng đã biến mất** (26/09). `LIKE` là một trong
+ *      năm loại cảm xúc, không phải một hệ thống song song, nên chỉ còn MỘT cột
+ *      đếm cho một hành vi.
+ *   3. **Đổi `LIKE` sang `LOVE`** không làm `reaction_count` nhúc nhích — vẫn là
+ *      một người bày tỏ, chỉ đổi cách bày tỏ.
+ *   4. **Gửi trùng loại đang có KHÔNG ghi gì** — `ctid` của dòng đứng yên.
+ *      Client gửi trùng là chuyện thường: chạm hai lần, retry khi mạng chập
+ *      chờn, hai thiết bị cùng đồng bộ.
+ *   5. **Hai lần bấm song song** không làm lệch số đếm.
+ *   6. **Migration gộp**: ai đã thả `LOVE` thì giữ `LOVE`, không bị hạ xuống
+ *      `LIKE`; và số đếm sau backfill khớp với bảng cảm xúc.
  *
  *   npm run test:feed-merge
  */
@@ -76,16 +82,23 @@ async function main(): Promise<void> {
     subjectId: PostId,
   } as const;
 
-  async function counters(): Promise<{ like: number; reaction: number }> {
-    const [row] = await dataSource.query<
-      { like_count: string; reaction_count: string }[]
-    >(`SELECT like_count, reaction_count FROM posts WHERE global_id = $1`, [
-      PostId,
-    ]);
-    return {
-      like: Number(row.like_count),
-      reaction: Number(row.reaction_count),
-    };
+  async function reactionCount(): Promise<number> {
+    const [row] = await dataSource.query<{ reaction_count: string }[]>(
+      `SELECT reaction_count FROM posts WHERE global_id = $1`,
+      [PostId],
+    );
+    return Number(row.reaction_count);
+  }
+
+  async function columnExists(column: string): Promise<boolean> {
+    const [row] = await dataSource.query<{ exists: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'posts' AND column_name = $1
+       ) AS exists`,
+      [column],
+    );
+    return row.exists;
   }
 
   try {
@@ -108,103 +121,182 @@ async function main(): Promise<void> {
       [PostId, AuthorId, CategoryId],
     );
 
-    // ── 1. Bảng post_likes phải đã biến mất ─────────────────────────────────
+    // ── 1. Một nguồn sự thật, một cột đếm ───────────────────────────────────
     console.log('Một nguồn sự thật:\n');
 
     const [{ exists }] = await dataSource.query<{ exists: boolean }[]>(
       `SELECT to_regclass('public.post_likes') IS NOT NULL AS exists`,
     );
     check('bảng post_likes đã bị gỡ sau migration gộp', exists === false);
+    check(
+      'cột posts.like_count cũng đã gỡ — một hành vi thì một con số',
+      (await columnExists('like_count')) === false,
+    );
+    check(
+      'nhưng reaction_count vẫn còn, và nó là con số duy nhất',
+      (await columnExists('reaction_count')) === true,
+    );
 
-    // ── 2. Thích rồi đổi sang LOVE ──────────────────────────────────────────
+    // ── 2. Bày tỏ lần đầu ───────────────────────────────────────────────────
+    console.log('\nBày tỏ lần đầu:\n');
+
+    await reactions.setReaction({
+      ...subject,
+      userId: AliceId,
+      kind: ReactionKinds.LIKE,
+    });
+    check(
+      'thả LIKE: reaction_count lên 1 — thích cũng là một lượt bày tỏ',
+      (await reactionCount()) === 1,
+      String(await reactionCount()),
+    );
+
+    // ── 3. Đổi loại KHÔNG đụng số đếm ───────────────────────────────────────
     console.log('\nĐổi loại cảm xúc:\n');
 
-    const first = await reactions.toggleLike(PostId, AliceId);
+    const changed = await reactions.setReaction({
+      ...subject,
+      userId: AliceId,
+      kind: ReactionKinds.LOVE,
+    });
     check(
-      'bấm thích lần đầu: liked = true, likeCount = 1',
-      first.liked === true && first.likeCount === 1,
-      `liked=${first.liked} count=${first.likeCount}`,
+      'đổi LIKE sang LOVE báo created = false — không phải người mới',
+      changed.created === false,
+      `created=${changed.created}`,
+    );
+    check(
+      'và reaction_count ĐỨNG YÊN ở 1 — vẫn một người',
+      (await reactionCount()) === 1,
+      String(await reactionCount()),
     );
 
-    let now = await counters();
-    check(
-      'reaction_count cũng lên 1 — thích vẫn là một lượt bày tỏ',
-      now.reaction === 1,
-      String(now.reaction),
+    const [aliceRow] = await dataSource.query<{ kind: ReactionKinds }[]>(
+      `SELECT kind FROM content_reactions
+       WHERE subject_id = $1 AND user_id = $2`,
+      [PostId, AliceId],
     );
+    check(
+      'chỉ MỘT dòng cho mỗi người, và nó mang loại mới',
+      aliceRow?.kind === ReactionKinds.LOVE,
+      String(aliceRow?.kind),
+    );
+
+    // ── 3b. Gửi trùng loại đang có KHÔNG được ghi gì ────────────────────────
+    //
+    // `ctid` là vị trí vật lý của dòng. Postgres không sửa tại chỗ: mỗi lần
+    // UPDATE là một phiên bản dòng MỚI ở chỗ khác, cộng một bản ghi WAL, một
+    // mục index, và một dòng chết cho vacuum. Nên `ctid` đứng yên là bằng
+    // chứng KHÔNG ghi — mạnh hơn hẳn việc tin vào giá trị trả về.
+    console.log('\nGửi trùng loại đang có:\n');
+
+    async function rowState(): Promise<{ ctid: string; updated_at: string }> {
+      const [row] = await dataSource.query<
+        { ctid: string; updated_at: string }[]
+      >(
+        `SELECT ctid::text, updated_at::text FROM content_reactions
+         WHERE subject_id = $1 AND user_id = $2`,
+        [PostId, AliceId],
+      );
+      return row;
+    }
 
     await reactions.setReaction({
       ...subject,
       userId: AliceId,
       kind: ReactionKinds.LOVE,
     });
-    now = await counters();
+    const before = await rowState();
+
+    for (let attempt = 0; attempt < 20; attempt += 1)
+      await reactions.setReaction({
+        ...subject,
+        userId: AliceId,
+        kind: ReactionKinds.LOVE,
+      });
+
+    const afterSame = await rowState();
     check(
-      'đổi LIKE sang LOVE: like_count về 0',
-      now.like === 0,
-      String(now.like),
+      'gửi lại LOVE 20 lần: dòng KHÔNG dịch chỗ, tức không ghi lần nào',
+      afterSame.ctid === before.ctid,
+      `${before.ctid} → ${afterSame.ctid}`,
     );
     check(
-      'nhưng reaction_count ĐỨNG YÊN ở 1 — vẫn một người',
-      now.reaction === 1,
-      String(now.reaction),
-    );
-
-    // ── 3. Đang LOVE mà bấm nút thích ───────────────────────────────────────
-    console.log('\nBấm thích khi đang để LOVE:\n');
-
-    const switched = await reactions.toggleLike(PostId, AliceId);
-    now = await counters();
-    check(
-      'thành LIKE, like_count lên 1',
-      switched.liked === true && now.like === 1,
-      `liked=${switched.liked} like=${now.like}`,
+      'và updated_at cũng đứng yên',
+      afterSame.updated_at === before.updated_at,
     );
     check(
-      'reaction_count vẫn 1, không nhân đôi người',
-      now.reaction === 1,
-      String(now.reaction),
+      'số đếm vẫn đúng 1, không bị 20 lần gọi làm lệch',
+      (await reactionCount()) === 1,
+      String(await reactionCount()),
     );
 
-    // ── 4. Bỏ thích ─────────────────────────────────────────────────────────
-    console.log('\nBỏ thích:\n');
-
-    const off = await reactions.toggleLike(PostId, AliceId);
-    now = await counters();
+    // Đổi sang loại KHÁC thì phải ghi thật — nếu không thì mệnh đề WHERE đã
+    // chặn nhầm cả thay đổi có thật.
+    await reactions.setReaction({
+      ...subject,
+      userId: AliceId,
+      kind: ReactionKinds.CARE,
+    });
+    const afterChange = await rowState();
     check(
-      'bỏ thích: cả hai cột về 0',
-      off.liked === false && now.like === 0 && now.reaction === 0,
-      `like=${now.like} reaction=${now.reaction}`,
+      'nhưng đổi sang CARE thì dòng DỊCH CHỖ — thay đổi thật vẫn ghi',
+      afterChange.ctid !== before.ctid,
+      `${before.ctid} → ${afterChange.ctid}`,
+    );
+    check(
+      'và reaction_count vẫn đứng yên ở 1',
+      (await reactionCount()) === 1,
+      String(await reactionCount()),
+    );
+
+    // ── 4. Gỡ cảm xúc ───────────────────────────────────────────────────────
+    console.log('\nGỡ cảm xúc:\n');
+
+    const removed = await reactions.removeReaction({
+      ...subject,
+      userId: AliceId,
+    });
+    check(
+      'gỡ thì đếm về 0',
+      removed === true && (await reactionCount()) === 0,
+      `${await reactionCount()}`,
+    );
+    check(
+      'gỡ lần nữa trả false, và không đẩy số đếm xuống âm',
+      (await reactions.removeReaction({ ...subject, userId: AliceId })) ===
+        false && (await reactionCount()) === 0,
+      `${await reactionCount()}`,
     );
 
     // ── 5. Hai lần bấm song song ────────────────────────────────────────────
     console.log('\nBấm song song:\n');
 
     await Promise.all([
-      reactions.toggleLike(PostId, BobId),
-      reactions.toggleLike(PostId, BobId),
+      reactions.setReaction({
+        ...subject,
+        userId: BobId,
+        kind: ReactionKinds.LIKE,
+      }),
+      reactions.setReaction({
+        ...subject,
+        userId: BobId,
+        kind: ReactionKinds.LIKE,
+      }),
     ]);
-    now = await counters();
     const [bobRows] = await dataSource.query<{ count: string }[]>(
       `SELECT COUNT(*) AS count FROM content_reactions
        WHERE subject_id = $1 AND user_id = $2`,
       [PostId, BobId],
     );
     check(
-      'hai request song song không làm số đếm âm hay vượt',
-      now.like <= 1 && now.reaction <= 1 && now.like >= 0,
-      `like=${now.like} reaction=${now.reaction}`,
-    );
-    check(
-      'và không để lại hai dòng cảm xúc cho cùng một người',
-      Number(bobRows.count) <= 1,
+      'không để lại hai dòng cảm xúc cho cùng một người',
+      Number(bobRows.count) === 1,
       `${bobRows.count} dòng`,
     );
     check(
-      'số đếm khớp đúng số dòng thực tế',
-      now.like === Number(bobRows.count) &&
-        now.reaction === Number(bobRows.count),
-      `đếm=${now.like}/${now.reaction} dòng=${bobRows.count}`,
+      'số đếm khớp đúng số dòng thực tế, không nhân đôi',
+      (await reactionCount()) === Number(bobRows.count),
+      `đếm=${await reactionCount()} dòng=${bobRows.count}`,
     );
 
     // ── 6. Số đếm không trôi khỏi bảng cảm xúc ──────────────────────────────
@@ -221,7 +313,6 @@ async function main(): Promise<void> {
       kind: ReactionKinds.WOW,
     });
 
-    now = await counters();
     const [actual] = await dataSource.query<{ likes: string; total: string }[]>(
       `SELECT COUNT(*) FILTER (WHERE kind = 'LIKE') AS likes,
               COUNT(*) AS total
@@ -229,14 +320,31 @@ async function main(): Promise<void> {
       [PostId],
     );
     check(
-      'like_count khớp số dòng kind = LIKE',
-      now.like === Number(actual.likes),
-      `${now.like} / ${actual.likes}`,
+      'reaction_count khớp TỔNG số dòng cảm xúc, không phải riêng LIKE',
+      (await reactionCount()) === Number(actual.total) &&
+        Number(actual.total) > Number(actual.likes),
+      `đếm=${await reactionCount()} tổng=${actual.total} like=${actual.likes}`,
+    );
+
+    // ── 7. Tổng hợp trả breakdown đủ cho giao diện một nút ───────────────────
+    console.log('\nTổng hợp cho giao diện:\n');
+
+    const summary = await reactions.summarize(subject, AliceId);
+    check(
+      'summarize trả tổng đúng',
+      summary.total === Number(actual.total),
+      `${summary.total} / ${actual.total}`,
     );
     check(
-      'reaction_count khớp tổng số dòng cảm xúc',
-      now.reaction === Number(actual.total),
-      `${now.reaction} / ${actual.total}`,
+      'kèm breakdown từng loại — đủ để hiện mấy biểu tượng dẫn đầu',
+      summary.breakdown[ReactionKinds.LIKE] === 2 &&
+        summary.breakdown[ReactionKinds.WOW] === 1,
+      JSON.stringify(summary.breakdown),
+    );
+    check(
+      'và myReaction nói người gọi đang để loại nào',
+      summary.myReaction === ReactionKinds.LIKE,
+      String(summary.myReaction),
     );
   } finally {
     for (const source of opened.reverse())
@@ -255,7 +363,7 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  console.log('\nGộp thích: một nguồn sự thật, hai cột đếm không trôi.');
+  console.log('\nGộp thích: một nguồn sự thật, một cột đếm, không trôi.');
 }
 
 main().catch((error) => {

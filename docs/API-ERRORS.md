@@ -98,7 +98,7 @@ Nghiệp vụ Chân Tâm
 | `0x0607` | `1543` | 409 Conflict | `POST_RENEWAL_LIMIT_REACHED` | Mỗi bài đăng chỉ được gia hạn một lần |
 | `0x0608` | `1544` | 403 Forbidden | `POST_SOS_NOT_ALLOWED` | Thứ hạng hiện tại của bạn chưa được dùng bài Cần gấp (SOS) |
 | `0x0609` | `1545` | 409 Conflict | `POST_CHARITY_TRANSFER_INVALID_STATE` | Bài đăng này không gửi được yêu cầu chuyển về điểm từ thiện: chỉ bài đang hiển thị hoặc đã hết hạn, còn vật phẩm và chưa có yêu cầu nào đang chờ duyệt |
-| `0x060a` | `1546` | 400 Bad Request | `DISCOVERY_ORIGIN_UNAVAILABLE` | Không xác định được vị trí để quét: hãy gửi toạ độ, hoặc đặt Vị trí mặc định trong hồ sơ |
+| `0x060a` | `1546` | 400 Bad Request | `DISCOVERY_ORIGIN_UNAVAILABLE` | Gửi thiếu một nửa toạ độ (chỉ `lat` hoặc chỉ `lng`). Từ 27/09 KHÔNG còn báo khi vắng cả hai — lúc đó server trả toàn bộ với `originSource: ALL` |
 | `0x060b` | `1547` | 400 Bad Request | `POST_SELECTION_MODE_INVALID` | Chế độ chọn người nhận không hợp lệ |
 | `0x060e` | `1550` | 403 Forbidden | `POST_CONTACT_INFO_RESTRICTED` | Thông tin liên hệ chỉ hiển thị với người nhận được chọn trong giai đoạn giao nhận |
 | `0x060f` | `1551` | 409 Conflict | `POST_HAS_LIVE_TRANSACTION` | Bài này đang có lượt trao chưa xong. Đóng lượt trao đó trước rồi mới sửa hoặc gỡ bài được. |

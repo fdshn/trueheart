@@ -51,7 +51,6 @@ function makeCanonicalPost(): IPostEntity {
     charityTransferNote: null,
     selectionMode: PostSelectionModes.OPTIMAL,
     selectionDeadline: null,
-    likeCount: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,

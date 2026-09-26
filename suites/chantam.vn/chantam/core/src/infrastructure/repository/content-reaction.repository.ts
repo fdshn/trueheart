@@ -4,7 +4,6 @@ import {
   IReactionActor,
   IReactionSummary,
   ISetReactionParams,
-  IToggleLikeResult,
 } from '@/domain/ports/repository';
 import {
   ContentSubjectTypes,
@@ -22,40 +21,28 @@ import { updateReturning } from './update-returning';
  * thể là cái gì. Rải `if subjectType === POST` khắp nơi thì thêm Dharma Hub sẽ
  * phải sửa từng chỗ, và chỗ bị quên sẽ im lặng đếm sai.
  *
- * `likeColumn` chỉ bài đăng mới có: `posts.like_count` đếm RIÊNG `kind = LIKE`
- * để `POST /posts/:id/like` trả đúng con số nó vẫn hứa, trong khi
- * `reaction_count` đếm mọi người đã bày tỏ bất kể loại nào. Bình luận không có
- * nút thích riêng nên không cần cột thứ hai.
+ * Chỉ MỘT cột đếm cho mỗi chủ thể. `LIKE` là một trong năm loại cảm xúc chứ
+ * không phải một hệ thống riêng, nên `reaction_count` đếm mọi người đã bày tỏ
+ * bất kể loại — không có cột thứ hai đếm riêng lượt thích.
  */
 const CounterTargets: Record<
   ContentSubjectTypes,
-  {
-    table: string;
-    keyColumn: string;
-    countColumn: string;
-    likeColumn: string | null;
-  } | null
+  { table: string; keyColumn: string; countColumn: string } | null
 > = {
   [ContentSubjectTypes.POST]: {
     table: 'posts',
     keyColumn: 'global_id',
     countColumn: 'reaction_count',
-    likeColumn: 'like_count',
   },
   [ContentSubjectTypes.COMMENT]: {
     table: 'content_comments',
     keyColumn: 'global_id',
     countColumn: 'reaction_count',
-    likeColumn: null,
   },
   // Chưa có bảng — chỗ dành sẵn, và `null` ở đây khiến việc quên nối số đếm
   // trở thành một dòng đọc được thay vì một lỗi âm thầm.
   [ContentSubjectTypes.DHARMA_THREAD]: null,
 };
-
-function isLike(kind: ReactionKinds | null): number {
-  return kind === ReactionKinds.LIKE ? 1 : 0;
-}
 
 @Injectable()
 export class ContentReactionRepository implements IContentReactionRepository {
@@ -67,39 +54,26 @@ export class ContentReactionRepository implements IContentReactionRepository {
     manager: EntityManager,
     subject: IContentSubjectRef,
     delta: number,
-    likeDelta: number,
   ): Promise<void> {
     const target = CounterTargets[subject.subjectType];
     if (!target) return;
-    if (delta === 0 && likeDelta === 0) return;
+    if (delta === 0) return;
 
     // GREATEST(0, ...) là lưới an toàn cho ràng buộc `>= 0`: nếu có đường nào
     // đó làm lệch, ta muốn số đếm dừng ở 0 chứ không muốn một câu DELETE hợp lệ
     // vỡ vì một con số sai từ trước. `syncCounters` mới là chỗ sửa cho đúng.
-    const assignments = [
-      `${target.countColumn} = GREATEST(0, ${target.countColumn} + $2)`,
-    ];
-    const parameters: unknown[] = [subject.subjectId, delta];
-
-    if (target.likeColumn) {
-      assignments.push(
-        `${target.likeColumn} = GREATEST(0, ${target.likeColumn} + $3)`,
-      );
-      parameters.push(likeDelta);
-    }
-
     await manager.query(
       `
         UPDATE ${target.table}
-        SET ${assignments.join(', ')}
+        SET ${target.countColumn} = GREATEST(0, ${target.countColumn} + $2)
         WHERE ${target.keyColumn} = $1
       `,
-      parameters,
+      [subject.subjectId, delta],
     );
   }
 
   /**
-   * Tính lại cả hai cột đếm từ chính bảng cảm xúc.
+   * Tính lại cột đếm từ chính bảng cảm xúc.
    *
    * Đắt hơn cộng trừ nên chỉ dùng khi đường cộng trừ không biết chắc loại cũ —
    * xem ghi chú về đua trong `setReaction`. Cũng là phép toán mà CLI đối soát
@@ -112,25 +86,13 @@ export class ContentReactionRepository implements IContentReactionRepository {
     const target = CounterTargets[subject.subjectType];
     if (!target) return;
 
-    const assignments = [
-      `${target.countColumn} = (
-        SELECT COUNT(*) FROM content_reactions
-        WHERE subject_type = $2 AND subject_id = $1
-      )`,
-    ];
-    if (target.likeColumn) {
-      assignments.push(
-        `${target.likeColumn} = (
-          SELECT COUNT(*) FROM content_reactions
-          WHERE subject_type = $2 AND subject_id = $1 AND kind = 'LIKE'
-        )`,
-      );
-    }
-
     await manager.query(
       `
         UPDATE ${target.table}
-        SET ${assignments.join(', ')}
+        SET ${target.countColumn} = (
+          SELECT COUNT(*) FROM content_reactions
+          WHERE subject_type = $2 AND subject_id = $1
+        )
         WHERE ${target.keyColumn} = $1
       `,
       [subject.subjectId, subject.subjectType],
@@ -147,12 +109,26 @@ export class ContentReactionRepository implements IContentReactionRepository {
     manager: EntityManager,
     params: ISetReactionParams,
   ): Promise<{ created: boolean; previousKind: ReactionKinds | null }> {
-    // `xmax = 0` phân biệt INSERT thật với UPDATE do ON CONFLICT: Postgres để
-    // xmax bằng 0 trên dòng vừa chèn. Thiếu phép phân biệt này thì đổi cảm
-    // xúc từ LIKE sang LOVE sẽ cộng thêm một vào tổng — cùng một người mà
-    // thành hai lượt.
+    // Ba trạng thái, phân biệt bằng `inserted`:
+    //
+    //   `true`   — chèn dòng mới. `xmax = 0` là dấu hiệu: Postgres để xmax bằng
+    //              0 trên dòng vừa chèn, khác với dòng bị UPDATE. Thiếu phép
+    //              phân biệt này thì đổi LIKE sang LOVE sẽ cộng thêm một vào
+    //              tổng — cùng một người mà thành hai lượt.
+    //   `false`  — đụng khoá và ĐÃ ghi đè, tức loại thật sự đổi.
+    //   `null`   — đụng khoá nhưng KHÔNG ghi gì, vì `WHERE` bên dưới chặn lại.
+    //
+    // Mệnh đề `WHERE ... IS DISTINCT FROM` là chỗ tiết kiệm: gửi đúng loại đang
+    // có thì Postgres không ghi phiên bản dòng mới, không sinh WAL, không thêm
+    // mục index, không để lại dòng chết cho vacuum. Không có nó thì mỗi lần
+    // client gửi trùng — chạm hai lần vì tưởng máy lag, retry khi mạng chập
+    // chờn, hai thiết bị cùng đồng bộ — đều là một lần ghi thật vào bảng.
+    //
+    // `FROM (SELECT 1)` rồi LEFT JOIN cả hai CTE: cần LUÔN đúng một dòng trả
+    // về. Nối thẳng từ `upserted` thì lúc không ghi gì sẽ ra 0 dòng, và mất
+    // luôn `old_kind` — không phân biệt được "không đổi" với "không có".
     const [row] = await manager.query<
-      { inserted: boolean; old_kind: ReactionKinds | null }[]
+      { inserted: boolean | null; old_kind: ReactionKinds | null }[]
     >(
       `
         WITH prev AS (
@@ -165,20 +141,23 @@ export class ContentReactionRepository implements IContentReactionRepository {
           VALUES ($1, $2, $3, $4)
           ON CONFLICT (subject_type, subject_id, user_id)
           DO UPDATE SET kind = EXCLUDED.kind, updated_at = now()
+          WHERE content_reactions.kind IS DISTINCT FROM EXCLUDED.kind
           RETURNING (xmax = 0) AS inserted
         )
         SELECT upserted.inserted, prev.kind AS old_kind
-        FROM upserted LEFT JOIN prev ON true
+        FROM (SELECT 1) AS always
+        LEFT JOIN prev ON true
+        LEFT JOIN upserted ON true
       `,
       [params.subjectType, params.subjectId, params.userId, params.kind],
     );
 
-    if (row.inserted) {
-      await this.bumpCounter(manager, params, 1, isLike(params.kind));
+    if (row.inserted === true) {
+      await this.bumpCounter(manager, params, 1);
       return { created: true, previousKind: null };
     }
 
-    // Không chèn mới nhưng `prev` rỗng nghĩa là có request song song của CHÍNH
+    // `prev` rỗng mà vẫn đụng khoá nghĩa là có request song song của CHÍNH
     // người này vừa chèn xong sau khi ảnh chụp được lấy. Cộng trừ lúc này sẽ
     // đoán sai loại cũ, nên tính lại cho chắc — hiếm, và rẻ hơn một số đếm sai.
     if (row.old_kind === null) {
@@ -186,12 +165,10 @@ export class ContentReactionRepository implements IContentReactionRepository {
       return { created: false, previousKind: null };
     }
 
-    await this.bumpCounter(
-      manager,
-      params,
-      0,
-      isLike(params.kind) - isLike(row.old_kind),
-    );
+    // Còn lại là đổi loại, hoặc gửi trùng loại đang có. Cả hai đều KHÔNG đụng
+    // số đếm: vẫn là một người bày tỏ. Loại cũ vẫn phải đọc ra vì nơi gọi cần
+    // biết đây là lượt mới hay chỉ đổi ý — thông báo "lần đầu trong ngày" chỉ
+    // bắn cho lượt mới.
     return { created: false, previousKind: row.old_kind };
   }
 
@@ -213,7 +190,7 @@ export class ContentReactionRepository implements IContentReactionRepository {
     );
     if (deleted.length === 0) return null;
 
-    await this.bumpCounter(manager, params, -1, -isLike(deleted[0].kind));
+    await this.bumpCounter(manager, params, -1);
     return deleted[0].kind;
   }
 
@@ -232,51 +209,6 @@ export class ContentReactionRepository implements IContentReactionRepository {
     return this.manager.transaction(
       async (manager) => (await this.applyRemove(manager, params)) !== null,
     );
-  }
-
-  public async toggleLike(
-    subjectId: string,
-    userId: string,
-  ): Promise<IToggleLikeResult> {
-    const subject = {
-      subjectType: ContentSubjectTypes.POST,
-      subjectId,
-    } as const;
-
-    return this.manager.transaction(async (manager) => {
-      // Đọc và khoá trong cùng transaction với lần ghi, nên hai lần bấm song
-      // song xếp hàng thay vì cùng thấy "chưa thích" rồi cùng cộng.
-      const [current] = await manager.query<{ kind: ReactionKinds }[]>(
-        `
-          SELECT kind FROM content_reactions
-          WHERE subject_type = $1 AND subject_id = $2 AND user_id = $3
-          FOR UPDATE
-        `,
-        [subject.subjectType, subjectId, userId],
-      );
-
-      let liked: boolean;
-      if (current?.kind === ReactionKinds.LIKE) {
-        await this.applyRemove(manager, { ...subject, userId });
-        liked = false;
-      } else {
-        // Đang để LOVE mà bấm thích thì thành LIKE: vẫn một người bày tỏ, nên
-        // `reaction_count` đứng yên còn `like_count` tăng.
-        await this.applySet(manager, {
-          ...subject,
-          userId,
-          kind: ReactionKinds.LIKE,
-        });
-        liked = true;
-      }
-
-      const [row] = await manager.query<{ like_count: string | number }[]>(
-        `SELECT like_count FROM posts WHERE global_id = $1`,
-        [subjectId],
-      );
-
-      return { liked, likeCount: Number(row?.like_count ?? 0) };
-    });
   }
 
   public async summarize(

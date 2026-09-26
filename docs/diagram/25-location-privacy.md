@@ -36,9 +36,9 @@ flowchart TD
     B -->|Chỉ có một| D["❌ 400 — gửi nửa toạ độ là LỖI,<br/>không phải ý muốn lùi vị trí"]
     B -->|Không có| E{User có Default Location?}
     E -->|Có| F["originSource = 'DEFAULT_LOCATION'"]
-    E -->|Không| G["❌ DISCOVERY_ORIGIN_UNAVAILABLE"]
+    E -->|Không| G["originSource = 'ALL'<br/>trả toàn bộ, distanceMeters = null"]
 
-    G -.-> H["KHÔNG tự chọn một toạ độ mặc định:<br/>kết quả quanh một điểm người dùng không chọn<br/>là nói SAI về thứ họ đang xem"]
+    G -.-> H["VẪN không tự chọn một toạ độ mặc định:<br/>kết quả quanh một điểm người dùng không chọn<br/>là nói SAI về thứ họ đang xem.<br/>Bỏ HẲN bộ lọc thì trung thực hơn là bịa ra một tâm."]
 
     style D fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
     style G fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
@@ -86,8 +86,8 @@ flowchart TD
     style D fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
-> `gift-post-compat.mapper.ts` **hardcode `likeCount` và `reactionCount` về 0** — đó là chủ ý.
-> Client cũ không biết đến cảm xúc, và trả số thật vào một trường nó không hiểu chỉ gây nhầm.
+> `gift-post-compat.mapper.ts` **hardcode `reactionCount` về 0** — đó là chủ ý. Client cũ không
+> biết đến cảm xúc, và trả số thật vào một trường nó không hiểu chỉ gây nhầm.
 
 ## 25.5 Ai quyết trường nào
 

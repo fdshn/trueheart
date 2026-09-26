@@ -116,7 +116,6 @@ export function toCanonicalOffer(input: {
     charityTransferNote: null,
     selectionMode: PostSelectionModes.OPTIMAL,
     selectionDeadline: null,
-    likeCount: 0,
     deletedAt: null,
   };
 }

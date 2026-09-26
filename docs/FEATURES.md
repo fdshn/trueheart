@@ -30,7 +30,7 @@ Flutter (Android + iOS) · NestJS + PostgreSQL 16 + PostGIS · Redis · Socket.i
 | 9 | [Báo cáo & Chống gian lận](#9-báo-cáo--chống-gian-lận) | F48–F50 | |
 | 10 | [Group, Affiliate & Geo](#10-group-affiliate--geo) | F51–F58 | Toàn bộ event cần Geo Group (CHỐT-06) |
 | 11 | [Phật Pháp – Dharma Hub](#11-phật-pháp--dharma-hub--community) | F73 | Main Tab 3 trong Bottom Navigation |
-| 12 | [Đổi vật phẩm bằng điểm, Vận chuyển & Tương tác](#12-đổi-vật-phẩm-bằng-điểm--vận-chuyển) | F74–F82 | Điểm khả dụng, chế độ chọn, cảm xúc, bình luận, chia sẻ, bảo vệ thông tin |
+| 12 | [Đổi vật phẩm bằng điểm, Vận chuyển & Tương tác](#12-đổi-vật-phẩm-bằng-điểm--vận-chuyển) | F74–F82 | Điểm khả dụng, chế độ chọn, cảm xúc một nút, bình luận, chia sẻ, bảo vệ thông tin |
 | 13 | [Admin CMS](#13-admin-cms-campaign--blog) | F59–F65 | |
 | 14 | [Hạ tầng & Bảo mật](#14-hạ-tầng--bảo-mật) | F66–F68 | |
 | 15 | [QA & UAT](#15-qa--uat) | F69–F70 | |
@@ -347,7 +347,8 @@ Hiển thị marker từ nhiều nguồn dữ liệu hợp lệ trên cùng mộ
 
 ### F26 — GPS hiện tại & dự phòng Default Location
 Ưu tiên GPS khi được cấp quyền. Không có quyền thì lùi về Default Location ([F11](#f11--vị-trí-mặc-định)).
-Không có cả hai thì xử lý theo trạng thái rỗng.
+Không có cả hai thì bỏ hẳn bộ lọc bán kính và trả toàn bộ, mới nhất trước (`originSource: ALL`,
+chốt 27/09) — trước đó nhánh này báo lỗi 400.
 
 ### F27 — Nạp dữ liệu theo khung nhìn
 Nạp theo vùng bản đồ đang xem (bounding box), có thao tác **"Tìm trong khu vực này"** và
@@ -502,7 +503,9 @@ chính mình**.
 > **không** làm hỏng việc bình luận: việc một người vừa viết một câu là sự thật, thưởng bao
 > nhiêu chỉ là chính sách.
 
-> ⚠️ **Cả hai rule seed TẮT.** Bật lên là mở van tối đa 40đ/người/ngày vào `balance`.
+> ✅ **Cả hai rule đã BẬT** (26/09) — tối đa 40đ/người/ngày vào `balance`.
+> `REPORT_UPHELD` (+5đ, trần 5/ngày) vẫn TẮT: thưởng cho người báo xấu có động lực lệch hẳn so
+> với thưởng cho người bình luận, và Bên A chưa chốt.
 
 > ⚠️ Tài liệu tự ghi "hiện không chốt cap số lần cố định" cho report.
 
@@ -811,22 +814,25 @@ Khi người cho tạo bài đăng Muốn Tặng (`OFFER`), hệ thống hỗ tr
 - **Kênh đọc công khai:** (Feed danh sách, Quanh đây, Marker bản đồ, Chi tiết bài đăng public) thông tin tác giả bài đăng (`author`) chỉ hiển thị: `id`, `username`, `avatar_url`, `rank`, `joined_at`. Tuyệt đối không trả ra `full_name`, `phone`, và địa chỉ chi tiết (`address`).
 - **Gating thông tin liên lạc nhạy cảm (`contact_info`):** Số điện thoại (`phone`) và địa chỉ chi tiết (`address`) **chỉ được phép** trả về khi người gọi (caller) là chính người đăng bài (Giver) hoặc là người nhận (Receiver) **đã được duyệt chọn chính thức** trong giao dịch ở trạng thái `DELIVERING` hoặc `COMPLETED`. Khách vãng lai, người xem thông thường, hoặc người gửi yêu cầu ở trạng thái `PENDING`/`REJECTED`/`STANDBY` đều nhận `null`.
 
-### F81 — Tương tác Yêu thích bài đăng (Post Like / Unlike)
+### F81 — Tương tác cảm xúc trên bài đăng
 
-Người dùng đã đăng nhập có quyền Thích hoặc Bỏ thích bài đăng (CHỐT-12):
+Một nút duy nhất, đúng kiểu Facebook: **chạm là `LIKE`, giữ thì hiện dải năm cảm xúc** để chọn loại khác (CHỐT-12, sửa 26/09).
 
-- **Endpoint toggle:** `POST /api/v1/posts/:postId/like`. Nếu chưa thích thì thêm lượt thích; nếu đã thích thì huỷ thích. Cần quyền `REACT_CONTENT` — mặc định VIEWER chỉ đọc.
-- **Ràng buộc duy nhất:** Lưu tại `content_reactions` với `kind = LIKE` và khoá duy nhất `(subject_type, subject_id, user_id)`. Bảng `post_likes` riêng **đã bị gỡ**: trước đây hai bảng nuôi hai con số, và `GET /posts/:id` trả hai số lượt thích khác nhau cho cùng một bài.
-- **Denormalized counter:** `posts.like_count` = số lượt `kind = LIKE`; `posts.reaction_count` = tổng mọi loại. Cập nhật nguyên tử trong cùng transaction. Đổi `LIKE → LOVE` thì `like_count` giảm mà `reaction_count` **đứng yên** — vẫn là một người bày tỏ.
-- **Toggle chống chạy đua:** một transaction đọc `FOR UPDATE` rồi mới ghi. Bản cũ đọc trước ghi sau bằng hai lần gọi, nên hai request song song lọt qua được và số đếm lệch.
-- **Response chi tiết bài đăng:** Bổ sung `like_count` (tổng lượt thích) và `is_liked` (true nếu caller đã thích, false nếu chưa, null nếu chưa đăng nhập). `is_liked` suy ra từ `my_reaction`, không hỏi thêm một vòng database.
+- **Một đường ghi:** `PUT /api/v1/posts/:postId/reactions/me` với `kind` là `LIKE`/`LOVE`/`CARE`/`WOW`/`SAD`; bỏ bày tỏ thì `DELETE` cùng đường. Cần quyền `REACT_CONTENT` — mặc định VIEWER chỉ đọc.
+- ⚠️ **`POST /posts/:postId/like` đã gỡ** (26/09), cùng với `likeCount` và `isLiked`. Giao diện chỉ có một nút thì hệ thống cũng chỉ cần một đường ghi và một con số — giữ hai lối vào là bắt client đoán xem nên hiện con số nào. `isLiked` cũ nay là `myReaction === "LIKE"`.
+- **Ràng buộc duy nhất:** Lưu tại `content_reactions`, khoá duy nhất `(subject_type, subject_id, user_id)` — mỗi người một cảm xúc cho mỗi chủ thể. Bảng `post_likes` riêng cũng **đã bị gỡ**: trước đây hai bảng nuôi hai con số, và `GET /posts/:id` trả hai số lượt thích khác nhau cho cùng một bài.
+- **Denormalized counter:** `posts.reaction_count` = tổng người đã bày tỏ, **bất kể loại**, cập nhật nguyên tử trong cùng transaction. Đổi `LIKE → LOVE` KHÔNG làm nó nhúc nhích — vẫn là một người. Cột `posts.like_count` đã gỡ.
+- **Chống chạy đua:** upsert `ON CONFLICT` đọc loại cũ trong cùng một câu, nên hai lần bấm song song xếp hàng thay vì cùng thấy "chưa bày tỏ" rồi cùng cộng thêm một.
+- **Không có trần gọi, và gửi trùng thì không ghi gì.** Điểm đã an toàn sẵn (khoá chống trùng theo bài và người), nên thay vì từ chối request, câu upsert mang `WHERE kind IS DISTINCT FROM EXCLUDED.kind`: gửi đúng loại đang để thì Postgres không sinh phiên bản dòng mới, không sinh WAL, không để lại dòng chết cho vacuum. Người dùng thật hưởng lợi nhiều nhất — chạm hai lần, retry khi mạng chập chờn, hai thiết bị cùng đồng bộ đều thành miễn phí.
+- **Response chi tiết bài đăng:** `reaction_count` (tổng), `my_reaction` (loại của caller, `null` khi chưa bày tỏ hoặc chưa đăng nhập) và `reaction_breakdown` (số lượt từng loại — đủ để hiện mấy biểu tượng dẫn đầu). Bảng tin chỉ trả `reaction_count` + `my_reaction`: nhóm theo loại cho từng bài trong một trang 20 bài là 20 lần GROUP BY cho một thứ không ai nhìn kỹ.
 
 ### F82 — Bình luận, trả lời và chia sẻ
 
 - **Bình luận và trả lời** (`parentId`), kèm ảnh đính kèm qua presigned URL riêng. Sửa được trong **cửa sổ 15 phút**; gỡ thì **giữ chỗ trong cây** để chuỗi trả lời bên dưới không mất ngữ cảnh, nhưng không trả nội dung lẫn ảnh nữa.
 - **Bộ lọc từ ngữ hai mức**: `BLOCK` từ chối thẳng và không ghi gì, `REVIEW` vẫn ghi nhưng đặt `PENDING_REVIEW` và đẩy vào hàng đợi Admin. Danh sách từ là **cấu hình động của Admin**, sửa được mà không cần deploy. Tác giả thấy bình luận chờ duyệt **của chính mình**, người khác không thấy.
 - **Hàng đợi kiểm duyệt bình luận** (`GET /admin/comments`, `PATCH /admin/comments/:id/moderation`) dùng chung quyền `post.moderate` với hậu kiểm bài, reason bắt buộc, ghi audit `MODERATE_COMMENT`, và số đếm đi theo trạng thái.
-- **Trần 10 bình luận mỗi phút.** Cổng quyền `COMMENT_CONTENT` là boolean, không mang hạn mức — trước đó không gì chặn một người gõ liên tục.
+- **`GET /admin/comments/pending-count`** trả một con số cho huy hiệu trên menu CMS. Cố ý KHÔNG bắn thông báo cho từng bình luận chờ duyệt: nội dung bẩn đến theo đợt, và Admin sẽ tắt thông báo ngay sau đợt đầu tiên — rồi mất luôn những thông báo thật sự quan trọng.
+- **Hai trần cho bình luận:** 10 lượt/phút chặn tốc độ, 200 lượt/24 giờ chặn tổng. Cổng quyền `COMMENT_CONTENT` là boolean, không mang hạn mức — trước đó không gì chặn một người gõ liên tục, và riêng trần phút thì gõ đều suốt ngày vẫn ra 14.400 bình luận.
 - **Chia sẻ** ghi một dòng append-only và tăng `share_count` trong cùng transaction, trả về đường dẫn tương đối để client tự ghép tên miền. `share_count` đếm theo **lượt**, không theo người; vì thế có **khoảng chờ 1 giờ** khoá theo cả người lẫn bài.
 - **Thông báo:** bình luận gốc báo chủ bài, trả lời báo tác giả bình luận cha (trùng nhau thì chỉ một), không tự báo mình, và bình luận chờ duyệt không báo. Cảm xúc chỉ báo **lần đầu trong ngày** theo giờ Việt Nam.
 

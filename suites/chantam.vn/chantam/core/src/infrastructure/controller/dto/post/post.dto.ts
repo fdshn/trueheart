@@ -78,20 +78,6 @@ export class GetPostResponseDto implements IGetPostResponseDto {
   })
   hasRequested?: boolean;
 
-  @ApiProperty({
-    example: 5,
-    description: 'Số lượt thích, tức số cảm xúc LIKE.',
-  })
-  likeCount: number;
-
-  @ApiPropertyOptional({
-    example: false,
-    nullable: true,
-    description:
-      'Người dùng hiện tại đã thích bài đăng chưa (null nếu chưa đăng nhập)',
-  })
-  isLiked: boolean | null;
-
   @ApiPropertyOptional({
     type: () => PostContactInfoDto,
     nullable: true,
@@ -126,5 +112,3 @@ export class GetPostResponseDto implements IGetPostResponseDto {
   })
   reactionBreakdown: Partial<Record<ReactionKinds, number>>;
 }
-
-export * from './toggle-post-like.dto';

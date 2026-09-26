@@ -50,12 +50,6 @@ export class ReconcileFeedCountsUseCase implements IReconcileFeedCountsUseCase {
                (SELECT COUNT(*) FROM content_reactions
                 WHERE subject_type = 'POST' AND subject_id = post.global_id) AS actual
         UNION ALL
-        SELECT 'like_count',
-               post.like_count,
-               (SELECT COUNT(*) FROM content_reactions
-                WHERE subject_type = 'POST' AND subject_id = post.global_id
-                  AND kind = 'LIKE')
-        UNION ALL
         SELECT 'comment_count',
                post.comment_count,
                (SELECT COUNT(*) FROM content_comments
@@ -130,10 +124,6 @@ export class ReconcileFeedCountsUseCase implements IReconcileFeedCountsUseCase {
           reaction_count = (SELECT COUNT(*) FROM content_reactions
                             WHERE subject_type = 'POST'
                               AND subject_id = post.global_id),
-          like_count     = (SELECT COUNT(*) FROM content_reactions
-                            WHERE subject_type = 'POST'
-                              AND subject_id = post.global_id
-                              AND kind = 'LIKE'),
           comment_count  = (SELECT COUNT(*) FROM content_comments
                             WHERE subject_type = 'POST'
                               AND subject_id = post.global_id

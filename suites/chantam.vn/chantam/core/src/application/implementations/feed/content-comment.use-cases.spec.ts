@@ -94,8 +94,9 @@ describe('CreateCommentUseCase — cổng quyền và trần tốc độ', () =>
   it('chạm trần 10 bình luận mỗi phút thì từ chối, không ghi gì', async () => {
     const deps = makeDeps({
       throttle: {
-        assertWithinLimit: jest.fn(async () => {
-          throw new TooManyRequestsException(57);
+        assertWithinLimit: jest.fn(async (params: { bucket: string }) => {
+          if (params.bucket === 'comment')
+            throw new TooManyRequestsException(57);
         }),
         registerHit: jest.fn(),
       },
@@ -111,6 +112,46 @@ describe('CreateCommentUseCase — cổng quyền và trần tốc độ', () =>
       limit: 10,
     });
     expect(deps.comments.create).not.toHaveBeenCalled();
+  });
+
+  it('chạm trần 200 bình luận mỗi ngày cũng từ chối', async () => {
+    // Trần phút một mình không đủ: gõ đều mười cái mỗi phút suốt ngày vẫn ra
+    // 14.400 bình luận, và mỗi cái là một dòng thật trên bảng tin người khác.
+    const deps = makeDeps({
+      throttle: {
+        assertWithinLimit: jest.fn(async (params: { bucket: string }) => {
+          if (params.bucket === 'comment:day')
+            throw new TooManyRequestsException(3_600);
+        }),
+        registerHit: jest.fn(),
+      },
+    });
+
+    await expect(deps.useCase.handle(command)).rejects.toBeInstanceOf(
+      TooManyRequestsException,
+    );
+
+    expect(deps.throttle.assertWithinLimit).toHaveBeenCalledWith({
+      bucket: 'comment:day',
+      key: UserId,
+      limit: 200,
+    });
+    expect(deps.comments.create).not.toHaveBeenCalled();
+  });
+
+  it('hỏi trần NGÀY trước trần PHÚT', async () => {
+    // Chạm cả hai mà báo "thử lại sau 57 giây" là nói sai — thật ra còn phải
+    // chờ nhiều giờ nữa.
+    const deps = makeDeps();
+
+    await deps.useCase.handle(command);
+
+    const buckets = (
+      deps.throttle.assertWithinLimit.mock.calls as unknown as [
+        { bucket: string },
+      ][]
+    ).map(([params]) => params.bucket);
+    expect(buckets).toEqual(['comment:day', 'comment']);
   });
 
   it('bình luận bị bộ lọc chặn THẲNG không tiêu mất một suất', async () => {
@@ -141,6 +182,12 @@ describe('CreateCommentUseCase — cổng quyền và trần tốc độ', () =>
       bucket: 'comment',
       key: UserId,
       windowSeconds: 60,
+    });
+    // Cửa sổ ngày tính từ bình luận ĐẦU TIÊN của đợt, không phải từ 0 giờ.
+    expect(deps.throttle.registerHit).toHaveBeenCalledWith({
+      bucket: 'comment:day',
+      key: UserId,
+      windowSeconds: 86_400,
     });
 
     const createOrder = deps.comments.create.mock.invocationCallOrder[0];

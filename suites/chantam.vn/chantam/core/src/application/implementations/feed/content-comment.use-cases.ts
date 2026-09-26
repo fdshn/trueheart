@@ -126,16 +126,31 @@ class CommentScreening {
 }
 
 /**
- * Trần bình luận theo phút.
+ * Trần bình luận theo phút — chặn TỐC ĐỘ.
  *
  * Cổng quyền `COMMENT_CONTENT` là boolean và không mang hạn mức, nên trước đây
- * không gì chặn một người gõ liên tục. Hôm nay rule điểm `POST_COMMENTED` đang
- * TẮT nên hậu quả chỉ là bảng tin bẩn; bật lên là thành một đường farm điểm nhỏ.
+ * không gì chặn một người gõ liên tục. Rule điểm `POST_COMMENTED` nay đã BẬT,
+ * nên đây không còn chỉ là chuyện bảng tin bẩn mà là một đường farm điểm.
  *
  * Mười cái một phút rộng hơn hẳn tốc độ người thật gõ, nên người dùng bình
  * thường không bao giờ chạm tới.
  */
 const MaxCommentsPerMinute = 10;
+
+/**
+ * Trần bình luận theo NGÀY — chặn TỔNG.
+ *
+ * Trần theo phút một mình không đủ: gõ đều mười cái mỗi phút suốt ngày vẫn ra
+ * 14.400 bình luận, và mỗi cái là một dòng thật trên bảng tin của người khác.
+ * Trần ngày của rule điểm chỉ chặn phần ĐIỂM, không chặn phần làm bẩn.
+ *
+ * Hai trăm rộng gấp nhiều lần một người dùng chăm chỉ nhất — nhưng hạ trần spam
+ * từ 14.400 xuống 200, tức bảy mươi hai lần.
+ */
+const MaxCommentsPerDay = 200;
+
+/** Cửa sổ tính từ bình luận ĐẦU TIÊN của đợt, không phải từ 0 giờ. */
+const DayWindowSeconds = 86_400;
 
 @Injectable()
 export class CreateCommentUseCase implements ICreateCommentUseCase {
@@ -165,6 +180,13 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
     );
     if (!capability?.allowed) throw new ForbiddenException();
 
+    // Kiểm trần NGÀY trước trần PHÚT: chạm cả hai mà báo "thử lại sau 57 giây"
+    // là nói sai — thật ra còn phải chờ nhiều giờ nữa.
+    await this.throttle.assertWithinLimit({
+      bucket: 'comment:day',
+      key: command.userId,
+      limit: MaxCommentsPerDay,
+    });
     await this.throttle.assertWithinLimit({
       bucket: 'comment',
       key: command.userId,
@@ -256,6 +278,11 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
       bucket: 'comment',
       key: command.userId,
       windowSeconds: 60,
+    });
+    await this.throttle.registerHit({
+      bucket: 'comment:day',
+      key: command.userId,
+      windowSeconds: DayWindowSeconds,
     });
 
     await awardCommentPoint(this.points, {
