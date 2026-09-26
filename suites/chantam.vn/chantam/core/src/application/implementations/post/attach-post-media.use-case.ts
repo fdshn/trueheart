@@ -14,6 +14,7 @@ import {
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
+import { withStorageValidation } from '../shared/storage-error';
 
 @Injectable()
 export class AttachPostMediaUseCase implements IAttachPostMediaUseCase {
@@ -36,10 +37,12 @@ export class AttachPostMediaUseCase implements IAttachPostMediaUseCase {
       throw new PostNotFoundException(command.postId);
     if (post.authorId !== command.userId) throw new ForbiddenException();
 
-    await this.storage.confirmPostMediaUpload(
-      command.userId,
-      command.postId,
-      command.media.key,
+    await withStorageValidation('media.key', () =>
+      this.storage.confirmPostMediaUpload(
+        command.userId,
+        command.postId,
+        command.media.key,
+      ),
     );
 
     const media = await this.postMediaRepository.attach(

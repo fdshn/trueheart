@@ -75,3 +75,12 @@ RUN=/home/deploy/chantam/deploy/cron/run-cli.sh
 # Tính lại Giver Accuracy theo ngưỡng đang cấu hình. Chỉ có việc để làm sau khi
 # Admin đổi ngưỡng, nên hằng tuần; chạy tay ngay sau mỗi lần đổi thì tốt hơn.
 13 4 * * 1 deploy $RUN $CHANTAM_DIR accuracy-reconcile
+
+# Dọn object mồ côi trên storage. Client xin đường tải rồi bỏ ngang, hoặc tải
+# xong mà không gọi bước xác nhận — object nằm lại và KHÔNG bản ghi nào trong
+# database nhắc rằng nó tồn tại.
+#
+# CHẠY KHÔ. Job này xoá dữ liệu không hoàn tác được, và danh sách nguồn key
+# thiếu một dòng là xoá sạch ảnh của cả một phân hệ. Để nó báo con số hằng tuần;
+# thấy con số bất thường thì người thật xem rồi mới chạy tay với `--apply`.
+29 5 * * 2 deploy $RUN $CHANTAM_DIR media-sweep-orphans

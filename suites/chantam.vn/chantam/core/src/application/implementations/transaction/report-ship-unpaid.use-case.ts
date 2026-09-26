@@ -22,6 +22,7 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
+import { withStorageValidation } from '../shared/storage-error';
 
 /**
  * Người gửi báo hàng bị hoàn và người nhận không trả phí ship (CH-2).
@@ -90,10 +91,12 @@ export class ReportShipUnpaidUseCase implements IReportShipUnpaidUseCase {
     // Object phải CÓ THẬT trên storage. Một chuỗi key bịa ra sẽ thành bằng
     // chứng trỏ vào hư không, và điều đó chỉ lộ ra lúc có tranh chấp.
     for (const key of returnedKeys)
-      await this.storage.confirmTransactionEvidenceUpload(
-        command.userId,
-        transaction.globalId,
-        key,
+      await withStorageValidation('returnedEvidenceKeys', () =>
+        this.storage.confirmTransactionEvidenceUpload(
+          command.userId,
+          transaction.globalId,
+          key,
+        ),
       );
 
     const award = await this.ledger.appendByRule({

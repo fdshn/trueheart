@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.StorageService = void 0;
+exports.StorageService = exports.MediaSizeLimits = void 0;
 exports.assertAvatarUploadPolicy = assertAvatarUploadPolicy;
 exports.assertPostMediaUploadPolicy = assertPostMediaUploadPolicy;
 exports.assertTransactionEvidenceUploadPolicy = assertTransactionEvidenceUploadPolicy;
@@ -20,26 +20,42 @@ const client_s3_1 = require("@aws-sdk/client-s3");
 const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const common_1 = require("@nestjs/common");
 const node_crypto_1 = require("node:crypto");
+const contracts_1 = require("../contracts");
 const storage_options_1 = require("./storage-options");
 const AllowedContentTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const MaxAvatarBytes = 5 * 1024 * 1024;
-function assertAvatarUploadPolicy(request) {
+const Megabyte = 1024 * 1024;
+exports.MediaSizeLimits = {
+    avatar: 5 * Megabyte,
+    postMedia: 5 * Megabyte,
+    transactionEvidence: 5 * Megabyte,
+    chatMedia: 5 * Megabyte,
+    commentMedia: 5 * Megabyte,
+};
+const MediaLabels = {
+    avatar: 'Avatar',
+    postMedia: 'Ảnh bài đăng',
+    transactionEvidence: 'Ảnh bằng chứng',
+    chatMedia: 'Ảnh trong chat',
+    commentMedia: 'Ảnh bình luận',
+};
+function assertUploadPolicy(kind, request) {
+    const label = MediaLabels[kind];
+    const limit = exports.MediaSizeLimits[kind];
     if (!AllowedContentTypes.has(request.contentType))
-        throw new Error('Avatar chỉ nhận image/jpeg, image/png hoặc image/webp.');
-    if (request.contentLength < 1 || request.contentLength > MaxAvatarBytes)
-        throw new Error('Avatar phải lớn hơn 0 và không quá 5 MB.');
+        throw new contracts_1.StorageValidationError(`${label} chỉ nhận image/jpeg, image/png hoặc image/webp.`);
+    if (!Number.isInteger(request.contentLength))
+        throw new contracts_1.StorageValidationError(`${label} phải khai kích thước thật.`);
+    if (request.contentLength < 1 || request.contentLength > limit)
+        throw new contracts_1.StorageValidationError(`${label} phải lớn hơn 0 và không quá ${Math.round(limit / Megabyte)} MB.`);
+}
+function assertAvatarUploadPolicy(request) {
+    assertUploadPolicy('avatar', request);
 }
 function assertPostMediaUploadPolicy(request) {
-    if (!AllowedContentTypes.has(request.contentType))
-        throw new Error('Media bài đăng chỉ nhận image/jpeg, image/png hoặc image/webp.');
-    if (request.contentLength < 1 || request.contentLength > MaxAvatarBytes)
-        throw new Error('Media bài đăng phải lớn hơn 0 và không quá 5 MB.');
+    assertUploadPolicy('postMedia', request);
 }
 function assertTransactionEvidenceUploadPolicy(request) {
-    if (!AllowedContentTypes.has(request.contentType))
-        throw new Error('Ảnh bằng chứng chỉ nhận image/jpeg, image/png hoặc image/webp.');
-    if (request.contentLength < 1 || request.contentLength > MaxAvatarBytes)
-        throw new Error('Ảnh bằng chứng phải lớn hơn 0 và không quá 5 MB.');
+    assertUploadPolicy('transactionEvidence', request);
 }
 let StorageService = class StorageService {
     client;
@@ -48,51 +64,38 @@ let StorageService = class StorageService {
         this.client = client;
         this.options = options;
     }
-    async confirmAvatarUpload(userId, key) {
-        if (!key.startsWith(`users/${userId}/avatars/`))
-            throw new Error('Avatar key không thuộc tài khoản hiện tại.');
+    async verifyObject(kind, expectedPrefix, key) {
+        const label = MediaLabels[kind];
+        if (!key.startsWith(expectedPrefix))
+            throw new contracts_1.StorageValidationError(`Key ${label.toLowerCase()} không thuộc chủ thể hiện tại.`);
         const object = await this.client.send(new client_s3_1.HeadObjectCommand({ Bucket: this.options.bucket, Key: key }));
-        if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
-            throw new Error('Object avatar không có content type ảnh hợp lệ.');
-        if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
-            throw new Error('Object avatar không có kích thước hợp lệ.');
+        const badType = !object.ContentType || !AllowedContentTypes.has(object.ContentType);
+        const badSize = !object.ContentLength || object.ContentLength > exports.MediaSizeLimits[kind];
+        if (!badType && !badSize)
+            return;
+        await this.deleteObjects([key]);
+        throw new contracts_1.StorageValidationError(badType
+            ? `Object ${label.toLowerCase()} không có content type ảnh hợp lệ.`
+            : `Object ${label.toLowerCase()} vượt quá kích thước cho phép.`);
+    }
+    async confirmAvatarUpload(userId, key) {
+        await this.verifyObject('avatar', `users/${userId}/avatars/`, key);
         return `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`;
     }
     async confirmPostMediaUpload(userId, postId, key) {
-        if (!key.startsWith(`users/${userId}/posts/${postId}/media/`))
-            throw new Error('Media key không thuộc bài đăng hiện tại.');
-        const object = await this.client.send(new client_s3_1.HeadObjectCommand({ Bucket: this.options.bucket, Key: key }));
-        if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
-            throw new Error('Object media không có content type ảnh hợp lệ.');
-        if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
-            throw new Error('Object media không có kích thước hợp lệ.');
+        await this.verifyObject('postMedia', `users/${userId}/posts/${postId}/media/`, key);
     }
     async confirmTransactionEvidenceUpload(userId, transactionId, key) {
-        if (!key.startsWith(`users/${userId}/transactions/${transactionId}/evidence/`))
-            throw new Error('Key ảnh bằng chứng không thuộc lượt trao hiện tại.');
-        const object = await this.client.send(new client_s3_1.HeadObjectCommand({ Bucket: this.options.bucket, Key: key }));
-        if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
-            throw new Error('Object bằng chứng không có content type ảnh hợp lệ.');
-        if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
-            throw new Error('Object bằng chứng không có kích thước hợp lệ.');
+        await this.verifyObject('transactionEvidence', `users/${userId}/transactions/${transactionId}/evidence/`, key);
     }
     async confirmCommentMediaUpload(userId, subjectType, subjectId, key) {
-        const prefix = `users/${userId}/comment-media/${subjectType}/${subjectId}/`;
-        if (!key.startsWith(prefix))
-            throw new Error('Key ảnh bình luận không thuộc chủ thể hiện tại.');
-        const object = await this.client.send(new client_s3_1.HeadObjectCommand({ Bucket: this.options.bucket, Key: key }));
-        if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
-            throw new Error('Object ảnh bình luận không có content type hợp lệ.');
-        if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
-            throw new Error('Object ảnh bình luận không có kích thước hợp lệ.');
+        await this.verifyObject('commentMedia', `users/${userId}/comment-media/${subjectType}/${subjectId}/`, key);
+    }
+    async confirmChatMediaUpload(userId, roomId, key) {
+        await this.verifyObject('chatMedia', `users/${userId}/chat/${roomId}/`, key);
     }
     async createCommentMediaUpload(request) {
-        assertTransactionEvidenceUploadPolicy({
-            userId: request.userId,
-            transactionId: request.subjectId,
-            contentType: request.contentType,
-            contentLength: request.contentLength,
-        });
+        assertUploadPolicy('commentMedia', request);
         const extension = request.contentType.split('/')[1];
         const key = `users/${request.userId}/comment-media/${request.subjectType}/${request.subjectId}/${(0, node_crypto_1.randomUUID)()}.${extension}`;
         const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
@@ -100,6 +103,7 @@ let StorageService = class StorageService {
             Bucket: this.options.bucket,
             Key: key,
             ContentType: request.contentType,
+            ContentLength: request.contentLength,
         }), { expiresIn: expiresInSeconds });
         return {
             key,
@@ -117,6 +121,7 @@ let StorageService = class StorageService {
             Bucket: this.options.bucket,
             Key: key,
             ContentType: request.contentType,
+            ContentLength: request.contentLength,
         }), { expiresIn: expiresInSeconds });
         return {
             key,
@@ -134,6 +139,7 @@ let StorageService = class StorageService {
             Bucket: this.options.bucket,
             Key: key,
             ContentType: request.contentType,
+            ContentLength: request.contentLength,
         }), { expiresIn: expiresInSeconds });
         return {
             key,
@@ -151,6 +157,7 @@ let StorageService = class StorageService {
             Bucket: this.options.bucket,
             Key: key,
             ContentType: request.contentType,
+            ContentLength: request.contentLength,
         }), { expiresIn: expiresInSeconds });
         return {
             key,
@@ -160,12 +167,7 @@ let StorageService = class StorageService {
         };
     }
     async createChatMediaUpload(request) {
-        assertTransactionEvidenceUploadPolicy({
-            userId: request.userId,
-            transactionId: request.roomId,
-            contentType: request.contentType,
-            contentLength: request.contentLength,
-        });
+        assertUploadPolicy('chatMedia', request);
         const extension = request.contentType.split('/')[1];
         const key = `users/${request.userId}/chat/${request.roomId}/${(0, node_crypto_1.randomUUID)()}.${extension}`;
         const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
@@ -173,6 +175,7 @@ let StorageService = class StorageService {
             Bucket: this.options.bucket,
             Key: key,
             ContentType: request.contentType,
+            ContentLength: request.contentLength,
         }), { expiresIn: expiresInSeconds });
         return {
             key,
@@ -180,16 +183,6 @@ let StorageService = class StorageService {
             expiresInSeconds,
             publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
         };
-    }
-    async confirmChatMediaUpload(userId, roomId, key) {
-        const prefix = `users/${userId}/chat/${roomId}/`;
-        if (!key.startsWith(prefix))
-            throw new Error('Key ảnh chat không thuộc phòng hiện tại.');
-        const object = await this.client.send(new client_s3_1.HeadObjectCommand({ Bucket: this.options.bucket, Key: key }));
-        if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
-            throw new Error('Object ảnh chat không có content type hợp lệ.');
-        if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
-            throw new Error('Object ảnh chat không có kích thước hợp lệ.');
     }
     async deleteObjects(keys) {
         if (keys.length === 0)
@@ -208,6 +201,26 @@ let StorageService = class StorageService {
             }
         }
         return deleted;
+    }
+    async listObjects(params) {
+        const result = await this.client.send(new client_s3_1.ListObjectsV2Command({
+            Bucket: this.options.bucket,
+            Prefix: params.prefix,
+            ContinuationToken: params.cursor,
+            MaxKeys: params.limit ?? 1000,
+        }));
+        return {
+            objects: (result.Contents ?? [])
+                .filter((item) => Boolean(item.Key))
+                .map((item) => ({
+                key: item.Key,
+                lastModified: item.LastModified ?? null,
+                size: Number(item.Size ?? 0),
+            })),
+            nextCursor: result.IsTruncated
+                ? (result.NextContinuationToken ?? null)
+                : null,
+        };
     }
 };
 exports.StorageService = StorageService;

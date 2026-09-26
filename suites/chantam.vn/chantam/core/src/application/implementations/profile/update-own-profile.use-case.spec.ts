@@ -1,5 +1,6 @@
 import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
+import { StorageValidationError } from '@chantam/service.storage-lib';
 import { UpdateOwnProfileUseCase } from './update-own-profile.use-case';
 
 const UserId = '10000000-0000-4000-8000-000000000001';
@@ -283,7 +284,9 @@ describe('UpdateOwnProfileUseCase', () => {
     const repository = makeRepository();
     const storage = {
       confirmAvatarUpload: jest.fn(async () => {
-        throw new Error('Avatar key không thuộc tài khoản hiện tại.');
+        throw new StorageValidationError(
+          'Key avatar không thuộc chủ thể hiện tại.',
+        );
       }),
     };
 
@@ -294,5 +297,27 @@ describe('UpdateOwnProfileUseCase', () => {
         makeEvidence() as never,
       ).handle({ userId: UserId, profile: { avatarKey: 'users/ai-do/x.jpg' } }),
     ).rejects.toBeInstanceOf(ValidationFailedException);
+  });
+
+  it('lỗi HẠ TẦNG thì KHÔNG hoá thành 400', async () => {
+    // S3 chết là lỗi hệ thống. Đổi nó thành "dữ liệu bạn gửi sai" là nói dối
+    // người dùng và giấu sự cố khỏi cảnh báo.
+    const repository = makeRepository();
+    const storage = {
+      confirmAvatarUpload: jest.fn(async () => {
+        throw new Error('ECONNREFUSED');
+      }),
+    };
+
+    await expect(
+      new UpdateOwnProfileUseCase(
+        repository as never,
+        storage as never,
+        makeEvidence() as never,
+      ).handle({
+        userId: UserId,
+        profile: { avatarKey: 'users/x/avatars/a.jpg' },
+      }),
+    ).rejects.not.toBeInstanceOf(ValidationFailedException);
   });
 });

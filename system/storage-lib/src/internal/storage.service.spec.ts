@@ -86,7 +86,7 @@ describe('StorageService.confirmPostMediaUpload', () => {
 });
 
 describe('StorageService.createAvatarUpload', () => {
-  it('tạo upload url mà không ép ContentLength vào PutObjectCommand để tránh lỗi signed headers', async () => {
+  it('KÝ LUÔN ContentLength vào PutObjectCommand', async () => {
     let capturedCommand: any = null;
     const { getSignedUrl } = jest.requireMock(
       '@aws-sdk/s3-request-presigner',
@@ -114,6 +114,13 @@ describe('StorageService.createAvatarUpload', () => {
     expect(result.uploadUrl).toBe('https://mock-storage.local/upload-url');
     expect(capturedCommand?.input?.Bucket).toBe('chantam-test');
     expect(capturedCommand?.input?.ContentType).toBe('image/jpeg');
-    expect(capturedCommand?.input?.ContentLength).toBeUndefined();
+    // Thiếu dòng này thì con số client khai chỉ là lời khai: xin đường tải cho
+    // 1 KB rồi PUT 500 MB vẫn trôi, và không bản ghi nào trong database nhắc
+    // rằng object đó tồn tại.
+    //
+    // Spec cũ cố ý KHÔNG ký, với ghi chú "tránh lỗi signed headers". Đã dựng
+    // lại trên MinIO thật để kiểm: PUT đúng số đã khai trả 200, PUT lớn hơn trả
+    // 403 và object không hề được tạo. Xem `npm run test:media-policy`.
+    expect(capturedCommand?.input?.ContentLength).toBe(97008);
   });
 });

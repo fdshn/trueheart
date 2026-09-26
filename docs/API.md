@@ -444,6 +444,15 @@ ra — gợi ý không giải thích được thì người dùng không có cơ
 
 ### Ảnh bài đăng — luồng ba bước
 
+> **Presigned URL ký cả `Content-Length`.** Khai 1 KB rồi PUT 500 MB sẽ nhận **403** và object
+> không hề được tạo — trước 26/09 con số khai lên chỉ là lời khai, nên bất kỳ tài khoản nào
+> cũng bơm được dung lượng tuỳ ý. Client phải gửi đúng số byte đã khai.
+>
+> **Xác nhận thất bại thì object bị xoá** — trừ khi key không thuộc người gọi, lúc đó tuyệt
+> đối không xoá: object đó của người khác.
+>
+> Object mồ côi (xin URL rồi bỏ ngang) do `media:sweep-orphans` dọn, mặc định chạy khô.
+
 1. `POST /posts/:postId/media/upload` → nhận presigned URL. Key **bind cả user lẫn post**.
 2. Client `PUT` thẳng file lên storage.
 3. `POST /posts/:postId/media` → server `HeadObject` xác minh key, MIME, dung lượng và đúng

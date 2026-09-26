@@ -1,0 +1,1 @@
+{"version":3,"file":"storage-error.js","sourceRoot":"","sources":["../src/contracts/storage-error.ts"],"names":[],"mappings":";;;AAcA,4DAIC;AAXD,MAAa,sBAAuB,SAAQ,KAAK;IAC/C,YAAmB,OAAe;QAChC,KAAK,CAAC,OAAO,CAAC,CAAC;QACf,IAAI,CAAC,IAAI,GAAG,wBAAwB,CAAC;IACvC,CAAC;CACF;AALD,wDAKC;AAED,SAAgB,wBAAwB,CACtC,KAAc;IAEd,OAAO,KAAK,YAAY,sBAAsB,CAAC;AACjD,CAAC"}

@@ -17,6 +17,7 @@ import {
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
+import { withStorageValidation } from '../shared/storage-error';
 import { toOwnProfileDto } from './profile.mapper';
 
 @Injectable()
@@ -47,7 +48,12 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
 
     if (profileUpdate.avatarKey !== undefined) {
       update.avatarUrl = profileUpdate.avatarKey
-        ? await this.confirmAvatar(user.globalId, profileUpdate.avatarKey)
+        ? await withStorageValidation('avatarKey', () =>
+            this.storage.confirmAvatarUpload(
+              user.globalId,
+              profileUpdate.avatarKey as string,
+            ),
+          )
         : null;
     }
 
@@ -110,22 +116,5 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
     }
 
     return { profile: toOwnProfileDto(profile) };
-  }
-
-  /**
-   * Đổi lỗi thô của tầng lưu trữ thành lỗi nghiệp vụ đọc được.
-   *
-   * `confirmAvatarUpload` ném `Error` trần khi key không thuộc tài khoản, không
-   * phải ảnh, hoặc quá nặng — và `Error` trần đi thẳng thành 500. Người dùng gõ
-   * nhầm một key nhận "lỗi hệ thống" thay vì "key không hợp lệ".
-   */
-  private async confirmAvatar(userId: string, key: string): Promise<string> {
-    try {
-      return await this.storage.confirmAvatarUpload(userId, key);
-    } catch (error) {
-      throw new ValidationFailedException([
-        `avatarKey: ${error instanceof Error ? error.message : 'không dùng được'}`,
-      ]);
-    }
   }
 }

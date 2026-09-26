@@ -40,17 +40,23 @@ export class PostMediaRepository
   public async removeByPostId(
     postId: string,
     mediaId: number,
-  ): Promise<boolean> {
+  ): Promise<string | null> {
     return this.manager.transaction(async (manager) => {
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         postId,
       ]);
 
+      // Đọc key TRƯỚC khi xoá: sau lệnh DELETE thì không còn gì nói object nào
+      // thuộc bản ghi này.
+      const doomed = await manager.findOne(PostMediaEntity, {
+        where: { id: mediaId, postId },
+      });
+
       const result = await manager.delete(PostMediaEntity, {
         id: mediaId,
         postId,
       });
-      if (result.affected !== 1) return false;
+      if (result.affected !== 1) return null;
 
       await manager.query(
         `
@@ -73,7 +79,7 @@ export class PostMediaRepository
         .where('post_id = :postId', { postId })
         .execute();
 
-      return true;
+      return doomed?.r2Key ?? null;
     });
   }
 

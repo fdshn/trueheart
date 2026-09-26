@@ -14,6 +14,7 @@ import { IGiftTransactionRepository } from '@/domain/ports/repository';
 import { MaxEvidencePerKind } from '@chantam.vn/chantam.core-lib/consts';
 import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
+import { withStorageValidation } from '../shared/storage-error';
 
 /**
  * Xin đường tải ảnh bằng chứng cho một lượt trao (CH-2).
@@ -88,10 +89,12 @@ export class MarkGiftHandedOverUseCase implements IMarkGiftHandedOverUseCase {
     // vào hư không, và điều đó chỉ lộ ra lúc có tranh chấp — đúng lúc tệ nhất.
     const keys = (command.evidenceKeys ?? []).slice(0, MaxEvidencePerKind);
     for (const key of keys)
-      await this.storage.confirmTransactionEvidenceUpload(
-        command.userId,
-        command.transactionId,
-        key,
+      await withStorageValidation('evidenceKeys', () =>
+        this.storage.confirmTransactionEvidenceUpload(
+          command.userId,
+          command.transactionId,
+          key,
+        ),
       );
 
     const transaction = await this.transactions.markHandedOver({

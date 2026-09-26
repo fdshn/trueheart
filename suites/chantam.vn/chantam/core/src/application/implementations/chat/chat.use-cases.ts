@@ -45,6 +45,7 @@ import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { ProfileGate } from '../profile/profile-gate';
+import { withStorageValidation } from '../shared/storage-error';
 
 function toRoomSummary(item: IChatRoomListItem): IChatRoomSummaryDto {
   return {
@@ -204,10 +205,12 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
     // thành tin nhắn mang ảnh trỏ vào hư không, và chat chỉ ghi thêm nên không
     // sửa lại được.
     for (const key of mediaKeys)
-      await this.storage.confirmChatMediaUpload(
-        command.userId,
-        command.roomId,
-        key,
+      await withStorageValidation('message.mediaKeys', () =>
+        this.storage.confirmChatMediaUpload(
+          command.userId,
+          command.roomId,
+          key,
+        ),
       );
 
     const outcome = await this.chat.appendMessage({

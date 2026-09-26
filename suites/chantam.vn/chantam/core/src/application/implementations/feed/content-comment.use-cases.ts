@@ -57,6 +57,7 @@ import {
 import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { withStorageValidation } from '../shared/storage-error';
 import { notifyComment } from './feed-notifications';
 import { awardCommentPoint } from './feed-points';
 
@@ -192,11 +193,13 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
     // bịa ra sẽ thành bình luận mang ảnh trỏ vào hư không, và điều đó chỉ lộ ra lúc
     // người khác mở bài.
     for (const key of mediaKeys)
-      await this.storage.confirmCommentMediaUpload(
-        command.userId,
-        command.subjectType,
-        command.subjectId,
-        key,
+      await withStorageValidation('comment.mediaKeys', () =>
+        this.storage.confirmCommentMediaUpload(
+          command.userId,
+          command.subjectType,
+          command.subjectId,
+          key,
+        ),
       );
 
     const screening = await new CommentScreening(this.adminConfig).screen(

@@ -34,6 +34,18 @@ export interface IObjectStorage {
     createChatMediaUpload(request: IChatMediaUploadRequest): Promise<IStorageUploadResult>;
     confirmChatMediaUpload(userId: string, roomId: string, key: string): Promise<void>;
     deleteObjects(keys: readonly string[]): Promise<number>;
+    listObjects(params: {
+        prefix: string;
+        cursor?: string;
+        limit?: number;
+    }): Promise<{
+        objects: {
+            key: string;
+            lastModified: Date | null;
+            size: number;
+        }[];
+        nextCursor: string | null;
+    }>;
 }
 export declare const IObjectStorage: unique symbol;
 //# sourceMappingURL=object-storage.d.ts.map

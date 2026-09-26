@@ -42,8 +42,18 @@ người dùng lúc 3 giờ chiều, và `post:expire` cắt ngày lệch 7 ti�
 | 08:17 | `notify:reminders` | hằng ngày |
 | CN 04:41 | `feed:reconcile-counts` | hằng tuần |
 | T2 04:13 | `accuracy:reconcile` | hằng tuần |
+| T3 05:29 | `media:sweep-orphans` | hằng tuần, **chạy khô** |
 
 ### Vì sao mỗi cái ở giờ đó
+
+**`media:sweep-orphans` chạy KHÔ theo lịch.** Nó xoá object không hoàn tác được,
+và danh sách nguồn key trong mã là thứ duy nhất đứng giữa nó và ảnh thật — thiếu
+một dòng ở đó là xoá sạch ảnh của cả một phân hệ. Lịch chỉ để báo con số hằng
+tuần; thấy bất thường thì người thật xem rồi mới chạy tay:
+
+```bash
+docker compose exec -T core node dist/infrastructure/cli/media-sweep-orphans.cli.js --apply
+```
 
 **`point:reconcile` mỗi giờ.** Nó vá phần thưởng xác minh SĐT bị thiếu khi tiến
 trình chết giữa hai bước. Người vừa xác minh xong mà không thấy điểm sẽ nghĩ hệ

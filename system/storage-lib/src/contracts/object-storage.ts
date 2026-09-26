@@ -112,6 +112,25 @@ export interface IObjectStorage {
    * khong duoc chan viec don not nhung anh con lai.
    */
   deleteObjects(keys: readonly string[]): Promise<number>;
+
+  /**
+   * Duyệt mọi object dưới một tiền tố, kèm thời điểm sửa cuối.
+   *
+   * Dùng cho việc dọn object mồ côi: client xin đường tải rồi bỏ ngang, hoặc
+   * tải xong mà không gọi bước xác nhận — object nằm lại và KHÔNG bản ghi nào
+   * trong database nhắc rằng nó tồn tại, nên chỉ có cách duyệt bucket mới thấy.
+   *
+   * Trả về theo lô để bên gọi không phải giữ cả bucket trong bộ nhớ.
+   */
+  listObjects(params: {
+    prefix: string;
+    /** Con trỏ của lô trước. Bỏ trống là bắt đầu từ đầu. */
+    cursor?: string;
+    limit?: number;
+  }): Promise<{
+    objects: { key: string; lastModified: Date | null; size: number }[];
+    nextCursor: string | null;
+  }>;
 }
 
 export const IObjectStorage = Symbol('IObjectStorage');

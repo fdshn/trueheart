@@ -1,6 +1,9 @@
 # 17 · Job nền & CLI
 
-Trạng thái: ✅ **cả mười CLI đã chạy được** sau khi sửa hai lỗi từng làm chúng chết.
+Trạng thái: ✅ **cả mười một CLI đã chạy được** sau khi sửa hai lỗi từng làm chúng chết.
+
+`media:sweep-orphans` là CLI duy nhất **mặc định không làm gì** — nó xoá object không hoàn
+tác được, nên phải gõ rõ `--apply`. Lịch cron cũng chỉ chạy khô để báo con số.
 
 ## 17.1 Mười lệnh
 

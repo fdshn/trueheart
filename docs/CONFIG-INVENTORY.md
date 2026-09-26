@@ -262,10 +262,10 @@ quyền trên *mọi* nhóm. Phép kiểm luôn mang `groupId`.
 | Thời hạn lưu trữ tin nhắn chat | Hằng trong code |
 | Bán kính jitter theo vùng | Một hằng cho cả nước |
 | Danh sách từ ngữ bị lọc | Danh sách tĩnh trong code |
-| Giới hạn dung lượng lưu trữ theo bậc | Không có |
+| Giới hạn dung lượng lưu trữ theo bậc | Không có. Hạn mức theo TỪNG ảnh thì đã tách theo loại (`MediaSizeLimits` trong `storage-lib`), hiện đều 5 MB, và **chưa đưa ra biến môi trường** |
 | Vùng mặc định cho khách chưa đăng nhập | Chưa chốt là vùng nào |
 | Hạn chót gỡ `/gift-posts` | Chưa ai đặt |
-| ~~Lịch cron cho 10 CLI~~ | ✅ Đã có ở [`deploy/cron/`](../deploy/cron/README.md). ⛔ Còn thiếu: **alert vào kênh người thật đọc** |
+| ~~Lịch cron cho 11 CLI~~ | ✅ Đã có ở [`deploy/cron/`](../deploy/cron/README.md). ⛔ Còn thiếu: **alert vào kênh người thật đọc** |
 | Sửa `group_role_permissions` qua API | Chỉ đổi được bằng migration (xem §2.9) |
 | Xoá sub-team | Cột `deleted_at` đã có, chưa có endpoint; xoá tổ còn người thì xử lý ra sao cũng chưa ai nói |
 | ~~Admin giải phóng một SĐT đã xác minh~~ | ✅ `POST /admin/users/verified-phones/release`, lý do bắt buộc, ghi audit |

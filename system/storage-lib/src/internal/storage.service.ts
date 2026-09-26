@@ -1,6 +1,7 @@
 import {
   DeleteObjectsCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -15,6 +16,7 @@ import {
   IStorageUploadRequest,
   IStorageUploadResult,
   ITransactionEvidenceUploadRequest,
+  StorageValidationError,
 } from '../contracts';
 import {
   IS3Client,
@@ -23,35 +25,68 @@ import {
 } from './storage-options';
 
 const AllowedContentTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const MaxAvatarBytes = 5 * 1024 * 1024;
+
+const Megabyte = 1024 * 1024;
+
+/**
+ * Hạn mức theo TỪNG loại ảnh.
+ *
+ * Trước đây cả năm loại dùng chung một hằng tên `MaxAvatarBytes`, nên tên nói
+ * dối ở bốn chỗ, và muốn nới ảnh bài đăng là nới luôn avatar. Con số hiện bằng
+ * nhau — nhưng chúng là năm quyết định khác nhau, và tách ra thì đổi được từng
+ * cái mà không đụng cái khác.
+ */
+export const MediaSizeLimits = {
+  avatar: 5 * Megabyte,
+  postMedia: 5 * Megabyte,
+  transactionEvidence: 5 * Megabyte,
+  chatMedia: 5 * Megabyte,
+  commentMedia: 5 * Megabyte,
+} as const;
+
+/** Tên loại ảnh trong thông báo lỗi, để người dùng biết mình đang gửi cái gì. */
+const MediaLabels = {
+  avatar: 'Avatar',
+  postMedia: 'Ảnh bài đăng',
+  transactionEvidence: 'Ảnh bằng chứng',
+  chatMedia: 'Ảnh trong chat',
+  commentMedia: 'Ảnh bình luận',
+} as const;
+
+type MediaKind = keyof typeof MediaSizeLimits;
+
+function assertUploadPolicy(kind: MediaKind, request: IStorageUploadRequest) {
+  const label = MediaLabels[kind];
+  const limit = MediaSizeLimits[kind];
+
+  if (!AllowedContentTypes.has(request.contentType))
+    throw new StorageValidationError(
+      `${label} chỉ nhận image/jpeg, image/png hoặc image/webp.`,
+    );
+
+  if (!Number.isInteger(request.contentLength))
+    throw new StorageValidationError(`${label} phải khai kích thước thật.`);
+
+  if (request.contentLength < 1 || request.contentLength > limit)
+    throw new StorageValidationError(
+      `${label} phải lớn hơn 0 và không quá ${Math.round(limit / Megabyte)} MB.`,
+    );
+}
 
 export function assertAvatarUploadPolicy(request: IStorageUploadRequest): void {
-  if (!AllowedContentTypes.has(request.contentType))
-    throw new Error('Avatar chỉ nhận image/jpeg, image/png hoặc image/webp.');
-  if (request.contentLength < 1 || request.contentLength > MaxAvatarBytes)
-    throw new Error('Avatar phải lớn hơn 0 và không quá 5 MB.');
+  assertUploadPolicy('avatar', request);
 }
 
 export function assertPostMediaUploadPolicy(
   request: IPostMediaUploadRequest,
 ): void {
-  if (!AllowedContentTypes.has(request.contentType))
-    throw new Error(
-      'Media bài đăng chỉ nhận image/jpeg, image/png hoặc image/webp.',
-    );
-  if (request.contentLength < 1 || request.contentLength > MaxAvatarBytes)
-    throw new Error('Media bài đăng phải lớn hơn 0 và không quá 5 MB.');
+  assertUploadPolicy('postMedia', request);
 }
 
 export function assertTransactionEvidenceUploadPolicy(
   request: ITransactionEvidenceUploadRequest,
 ): void {
-  if (!AllowedContentTypes.has(request.contentType))
-    throw new Error(
-      'Ảnh bằng chứng chỉ nhận image/jpeg, image/png hoặc image/webp.',
-    );
-  if (request.contentLength < 1 || request.contentLength > MaxAvatarBytes)
-    throw new Error('Ảnh bằng chứng phải lớn hơn 0 và không quá 5 MB.');
+  assertUploadPolicy('transactionEvidence', request);
 }
 
 @Injectable()
@@ -61,20 +96,58 @@ export class StorageService implements IObjectStorage {
     @Inject(IStorageOptions) private readonly options: IStorageModuleOptions,
   ) {}
 
-  public async confirmAvatarUpload(
-    userId: string,
+  /**
+   * Khuôn chung cho mọi phép xác nhận: tiền tố, content type, dung lượng.
+   *
+   * **Xoá object khi nó sai chính sách.** Presigned PUT không ép được dung lượng
+   * ở phía S3 nếu không ký sẵn `Content-Length`, nên vẫn có đường một object
+   * quá cỡ nằm lại trong bucket sau khi bị từ chối. Không dọn thì mỗi lần từ
+   * chối là một lần bucket phình thêm, và không bản ghi nào trong database nhắc
+   * rằng nó tồn tại.
+   *
+   * KHÔNG xoá khi sai TIỀN TỐ: object đó không phải của người gọi. Xoá nó là
+   * biến endpoint xác nhận thành công cụ xoá ảnh của người khác — chỉ cần đoán
+   * đúng một key.
+   */
+  private async verifyObject(
+    kind: MediaKind,
+    expectedPrefix: string,
     key: string,
-  ): Promise<string> {
-    if (!key.startsWith(`users/${userId}/avatars/`))
-      throw new Error('Avatar key không thuộc tài khoản hiện tại.');
+  ): Promise<void> {
+    const label = MediaLabels[kind];
+
+    if (!key.startsWith(expectedPrefix))
+      throw new StorageValidationError(
+        `Key ${label.toLowerCase()} không thuộc chủ thể hiện tại.`,
+      );
 
     const object = await this.client.send(
       new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }),
     );
-    if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
-      throw new Error('Object avatar không có content type ảnh hợp lệ.');
-    if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
-      throw new Error('Object avatar không có kích thước hợp lệ.');
+
+    const badType =
+      !object.ContentType || !AllowedContentTypes.has(object.ContentType);
+    const badSize =
+      !object.ContentLength || object.ContentLength > MediaSizeLimits[kind];
+
+    if (!badType && !badSize) return;
+
+    // Dọn trước khi ném: object đã nằm trong bucket rồi, và người gọi sẽ không
+    // quay lại dọn hộ.
+    await this.deleteObjects([key]);
+
+    throw new StorageValidationError(
+      badType
+        ? `Object ${label.toLowerCase()} không có content type ảnh hợp lệ.`
+        : `Object ${label.toLowerCase()} vượt quá kích thước cho phép.`,
+    );
+  }
+
+  public async confirmAvatarUpload(
+    userId: string,
+    key: string,
+  ): Promise<string> {
+    await this.verifyObject('avatar', `users/${userId}/avatars/`, key);
 
     return `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`;
   }
@@ -84,16 +157,11 @@ export class StorageService implements IObjectStorage {
     postId: string,
     key: string,
   ): Promise<void> {
-    if (!key.startsWith(`users/${userId}/posts/${postId}/media/`))
-      throw new Error('Media key không thuộc bài đăng hiện tại.');
-
-    const object = await this.client.send(
-      new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }),
+    await this.verifyObject(
+      'postMedia',
+      `users/${userId}/posts/${postId}/media/`,
+      key,
     );
-    if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
-      throw new Error('Object media không có content type ảnh hợp lệ.');
-    if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
-      throw new Error('Object media không có kích thước hợp lệ.');
   }
 
   public async confirmTransactionEvidenceUpload(
@@ -101,18 +169,11 @@ export class StorageService implements IObjectStorage {
     transactionId: string,
     key: string,
   ): Promise<void> {
-    if (
-      !key.startsWith(`users/${userId}/transactions/${transactionId}/evidence/`)
-    )
-      throw new Error('Key ảnh bằng chứng không thuộc lượt trao hiện tại.');
-
-    const object = await this.client.send(
-      new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }),
+    await this.verifyObject(
+      'transactionEvidence',
+      `users/${userId}/transactions/${transactionId}/evidence/`,
+      key,
     );
-    if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
-      throw new Error('Object bằng chứng không có content type ảnh hợp lệ.');
-    if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
-      throw new Error('Object bằng chứng không có kích thước hợp lệ.');
   }
 
   public async confirmCommentMediaUpload(
@@ -121,28 +182,29 @@ export class StorageService implements IObjectStorage {
     subjectId: string,
     key: string,
   ): Promise<void> {
-    const prefix = `users/${userId}/comment-media/${subjectType}/${subjectId}/`;
-    if (!key.startsWith(prefix))
-      throw new Error('Key ảnh bình luận không thuộc chủ thể hiện tại.');
-
-    const object = await this.client.send(
-      new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }),
+    await this.verifyObject(
+      'commentMedia',
+      `users/${userId}/comment-media/${subjectType}/${subjectId}/`,
+      key,
     );
-    if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
-      throw new Error('Object ảnh bình luận không có content type hợp lệ.');
-    if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
-      throw new Error('Object ảnh bình luận không có kích thước hợp lệ.');
+  }
+
+  public async confirmChatMediaUpload(
+    userId: string,
+    roomId: string,
+    key: string,
+  ): Promise<void> {
+    await this.verifyObject(
+      'chatMedia',
+      `users/${userId}/chat/${roomId}/`,
+      key,
+    );
   }
 
   public async createCommentMediaUpload(
     request: ICommentMediaUploadRequest,
   ): Promise<IStorageUploadResult> {
-    assertTransactionEvidenceUploadPolicy({
-      userId: request.userId,
-      transactionId: request.subjectId,
-      contentType: request.contentType,
-      contentLength: request.contentLength,
-    });
+    assertUploadPolicy('commentMedia', request);
 
     const extension = request.contentType.split('/')[1];
     const key = `users/${request.userId}/comment-media/${request.subjectType}/${request.subjectId}/${randomUUID()}.${extension}`;
@@ -153,6 +215,11 @@ export class StorageService implements IObjectStorage {
         Bucket: this.options.bucket,
         Key: key,
         ContentType: request.contentType,
+        // KÝ LUÔN kích thước. Thiếu dòng này thì con số client khai chỉ là lời
+        // khai: xin đường tải cho 1 KB rồi PUT 500 MB vẫn trôi, vì URL đã ký
+        // không ràng buộc gì về độ dài. `content-length` nằm trong chữ ký nên
+        // gửi lệch một byte là chữ ký hỏng.
+        ContentLength: request.contentLength,
       }),
       { expiresIn: expiresInSeconds },
     );
@@ -179,6 +246,11 @@ export class StorageService implements IObjectStorage {
         Bucket: this.options.bucket,
         Key: key,
         ContentType: request.contentType,
+        // KÝ LUÔN kích thước. Thiếu dòng này thì con số client khai chỉ là lời
+        // khai: xin đường tải cho 1 KB rồi PUT 500 MB vẫn trôi, vì URL đã ký
+        // không ràng buộc gì về độ dài. `content-length` nằm trong chữ ký nên
+        // gửi lệch một byte là chữ ký hỏng.
+        ContentLength: request.contentLength,
       }),
       { expiresIn: expiresInSeconds },
     );
@@ -205,6 +277,11 @@ export class StorageService implements IObjectStorage {
         Bucket: this.options.bucket,
         Key: key,
         ContentType: request.contentType,
+        // KÝ LUÔN kích thước. Thiếu dòng này thì con số client khai chỉ là lời
+        // khai: xin đường tải cho 1 KB rồi PUT 500 MB vẫn trôi, vì URL đã ký
+        // không ràng buộc gì về độ dài. `content-length` nằm trong chữ ký nên
+        // gửi lệch một byte là chữ ký hỏng.
+        ContentLength: request.contentLength,
       }),
       { expiresIn: expiresInSeconds },
     );
@@ -231,6 +308,11 @@ export class StorageService implements IObjectStorage {
         Bucket: this.options.bucket,
         Key: key,
         ContentType: request.contentType,
+        // KÝ LUÔN kích thước. Thiếu dòng này thì con số client khai chỉ là lời
+        // khai: xin đường tải cho 1 KB rồi PUT 500 MB vẫn trôi, vì URL đã ký
+        // không ràng buộc gì về độ dài. `content-length` nằm trong chữ ký nên
+        // gửi lệch một byte là chữ ký hỏng.
+        ContentLength: request.contentLength,
       }),
       { expiresIn: expiresInSeconds },
     );
@@ -246,12 +328,7 @@ export class StorageService implements IObjectStorage {
   public async createChatMediaUpload(
     request: IChatMediaUploadRequest,
   ): Promise<IStorageUploadResult> {
-    assertTransactionEvidenceUploadPolicy({
-      userId: request.userId,
-      transactionId: request.roomId,
-      contentType: request.contentType,
-      contentLength: request.contentLength,
-    });
+    assertUploadPolicy('chatMedia', request);
 
     const extension = request.contentType.split('/')[1];
     const key = `users/${request.userId}/chat/${request.roomId}/${randomUUID()}.${extension}`;
@@ -262,6 +339,11 @@ export class StorageService implements IObjectStorage {
         Bucket: this.options.bucket,
         Key: key,
         ContentType: request.contentType,
+        // KÝ LUÔN kích thước. Thiếu dòng này thì con số client khai chỉ là lời
+        // khai: xin đường tải cho 1 KB rồi PUT 500 MB vẫn trôi, vì URL đã ký
+        // không ràng buộc gì về độ dài. `content-length` nằm trong chữ ký nên
+        // gửi lệch một byte là chữ ký hỏng.
+        ContentLength: request.contentLength,
       }),
       { expiresIn: expiresInSeconds },
     );
@@ -272,24 +354,6 @@ export class StorageService implements IObjectStorage {
       expiresInSeconds,
       publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
     };
-  }
-
-  public async confirmChatMediaUpload(
-    userId: string,
-    roomId: string,
-    key: string,
-  ): Promise<void> {
-    const prefix = `users/${userId}/chat/${roomId}/`;
-    if (!key.startsWith(prefix))
-      throw new Error('Key ảnh chat không thuộc phòng hiện tại.');
-
-    const object = await this.client.send(
-      new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }),
-    );
-    if (!object.ContentType || !AllowedContentTypes.has(object.ContentType))
-      throw new Error('Object ảnh chat không có content type hợp lệ.');
-    if (!object.ContentLength || object.ContentLength > MaxAvatarBytes)
-      throw new Error('Object ảnh chat không có kích thước hợp lệ.');
   }
 
   /**
@@ -318,5 +382,40 @@ export class StorageService implements IObjectStorage {
       }
     }
     return deleted;
+  }
+
+  public async listObjects(params: {
+    prefix: string;
+    cursor?: string;
+    limit?: number;
+  }): Promise<{
+    objects: { key: string; lastModified: Date | null; size: number }[];
+    nextCursor: string | null;
+  }> {
+    const result = await this.client.send(
+      new ListObjectsV2Command({
+        Bucket: this.options.bucket,
+        Prefix: params.prefix,
+        ContinuationToken: params.cursor,
+        MaxKeys: params.limit ?? 1000,
+      }),
+    );
+
+    return {
+      objects: (result.Contents ?? [])
+        .filter((item): item is typeof item & { Key: string } =>
+          Boolean(item.Key),
+        )
+        .map((item) => ({
+          key: item.Key,
+          lastModified: item.LastModified ?? null,
+          size: Number(item.Size ?? 0),
+        })),
+      // `IsTruncated` mới là câu trả lời cho "còn nữa không"; token có thể có
+      // giá trị mà đã hết dữ liệu.
+      nextCursor: result.IsTruncated
+        ? (result.NextContinuationToken ?? null)
+        : null,
+    };
   }
 }
