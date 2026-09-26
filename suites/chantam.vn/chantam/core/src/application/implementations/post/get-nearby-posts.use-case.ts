@@ -83,6 +83,10 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
       radiusMeters: command.radiusMeters,
       postType: command.postType,
       categoryId: command.categoryId,
+      // Cắt khoảng trắng và bỏ hẳn nếu rỗng: chuỗi rỗng lọt xuống
+      // `plainto_tsquery` cho ra một truy vấn không khớp gì, và người dùng
+      // thấy "không có kết quả" cho một ô tìm kiếm họ chưa gõ.
+      keyword: command.keyword?.trim() || undefined,
       skip,
       take,
     });

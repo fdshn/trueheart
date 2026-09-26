@@ -140,15 +140,35 @@ export class PostRepository
   ): Promise<IFindNearbyPostsResult> {
     const baseQuery = this.createQueryBuilder('post')
       .where('post.deletedAt IS NULL')
-      .andWhere('post.postType = :postType', { postType: params.postType })
       .andWhere('post.status IN (:...statuses)', {
         statuses: [...PubliclyVisibleGiftPostStatuses],
+      });
+
+    // Bỏ trống loại bài là CỐ Ý: feed trộn cả năm loại. Bắt buộc chọn loại thì
+    // client muốn một feed trộn phải gọi năm lần rồi tự ghép, mà mỗi lần phân
+    // trang riêng nên ghép xong thứ tự vô nghĩa.
+    if (params.postType)
+      baseQuery.andWhere('post.postType = :postType', {
+        postType: params.postType,
       });
 
     if (params.categoryId)
       baseQuery.andWhere('post.categoryId = :categoryId', {
         categoryId: params.categoryId,
       });
+
+    // Tìm theo từ khoá, KHÔNG phân biệt dấu. Biểu thức phải trùng khít với
+    // biểu thức của index GIN (`IDX_posts_search`), sai một ký tự là Postgres
+    // bỏ index và quét tuần tự cả bảng.
+    //
+    // `plainto_tsquery` chứ không `to_tsquery`: người dùng gõ tự do, và
+    // `to_tsquery` ném lỗi cú pháp ngay khi gặp một dấu `&` hay dấu nháy.
+    if (params.keyword)
+      baseQuery.andWhere(
+        `to_tsvector('simple', chantam_unaccent(coalesce(post.title, '') || ' ' || coalesce(post.description, '')))
+         @@ plainto_tsquery('simple', chantam_unaccent(:keyword))`,
+        { keyword: params.keyword },
+      );
 
     GeoQueryHelper.applyRadiusFilter(baseQuery, 'post', {
       ...params.origin,
@@ -166,6 +186,10 @@ export class PostRepository
       'distance_meters',
     );
     GeoQueryHelper.orderByDistance(listQuery, 'post', params.origin);
+    // Chốt thứ tự bằng khoá chính. Thiếu nó thì hai bài cùng khoảng cách (cùng
+    // toà nhà, cùng địa chỉ) không có thứ tự đảm bảo giữa hai lần chạy, và lật
+    // trang bằng OFFSET sẽ lặp bài hoặc bỏ sót bài.
+    listQuery.addOrderBy('post.id', 'ASC');
     listQuery.offset(params.skip).limit(params.take);
 
     const { entities, raw } =

@@ -114,8 +114,17 @@ export interface IGetNearbyPostsQueryDto extends IPaginationQueryDto {
   lat?: number;
   lng?: number;
   radiusMeters: number;
-  postType: PublicDiscoveryPostType;
+  /** Bỏ trống thì trả MỌI loại bài. */
+  postType?: PublicDiscoveryPostType;
   categoryId?: string;
+  /**
+   * Từ khoá tìm trong tiêu đề và mô tả.
+   *
+   * KHÔNG phân biệt dấu, và luôn bị giới hạn trong bán kính đang xem — tìm
+   * kiếm toàn quốc trên một sàn cho–nhận là trả về những món người ta không
+   * tới lấy được.
+   */
+  keyword?: string;
 }
 
 export interface IGetMyPostsQueryDto extends IPaginationQueryDto {

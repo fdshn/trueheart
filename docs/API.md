@@ -279,7 +279,7 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 | --- | --- | --- | --- |
 | `POST` | `/posts` | Bearer | Tạo bài — lên thẳng `PUBLISHED`, không chờ duyệt |
 | `GET` | `/posts/me` | Bearer | Bài của chính mình, lọc + phân trang |
-| `GET` | `/posts/nearby` | Công khai | Quét bài quanh một toạ độ theo bán kính |
+| `GET` | `/posts/nearby` | Công khai | Quét bài quanh một toạ độ — lọc loại, danh mục, và **tìm theo từ khoá** |
 | `GET` | `/posts/map` | Công khai | Marker trong khung bản đồ |
 | `GET` | `/posts/:postId` | Công khai | Chi tiết một bài công khai |
 | `GET` | `/posts/:postId/matches` | Bearer (chỉ tác giả) | Smart Match — gợi ý bài ghép đôi |
@@ -571,8 +571,32 @@ Người đang `STANDBY` **rút được** yêu cầu, và **không** gửi lạ
 Khách chưa đăng nhập dùng được cả ba. `discovery/config` tồn tại để client **không hardcode**
 giới hạn — đổi trần bán kính ở server là client tự theo.
 
-`/posts/nearby` bắt buộc có `postType`; `/posts/map` nhận khung bbox và trả tối đa 200 marker,
-gom cụm để client tự vẽ. Cả hai đều áp quy tắc làm nhiễu toạ độ ở §1.
+`/posts/nearby` nhận `postType` **tuỳ chọn** — bỏ trống thì trả feed trộn cả năm loại (chốt
+26/09; trước đó bắt buộc, nên client muốn feed trộn phải gọi năm lần rồi tự ghép mà mỗi lần
+phân trang riêng nên ghép xong thứ tự vô nghĩa).
+
+`/posts/map` nhận khung bbox và trả **từng marker, tối đa 200** — **không gom cụm**, không
+trả `total`, không có cờ báo đã cắt. Khu đông bài thì client nhận 200 marker "nào đó".
+
+Cả hai đều áp quy tắc làm nhiễu toạ độ ở §1.
+
+### Tìm kiếm — tham số của feed, không phải endpoint riêng
+
+`GET /posts/nearby?keyword=nồi cơm điện`
+
+- **Không phân biệt dấu**: gõ `noi com dien` vẫn ra `Nồi cơm điện`. Dùng `unaccent` bọc trong
+  một hàm IMMUTABLE để index được, và có index GIN `IDX_posts_search` trên đúng biểu thức đó.
+- **Luôn trong bán kính đang xem.** Đây là sàn cho–nhận: tìm ra một món cách 800 km là tìm ra
+  một món không ai tới lấy được.
+- **Chồng được với mọi bộ lọc khác** — loại bài, danh mục, bán kính, phân trang.
+- **Mọi từ phải cùng xuất hiện**, và khớp theo **từ trọn vẹn**: `nồi cơ` không ra `nồi cơm`.
+- Tìm trong **tiêu đề và mô tả**. Độ dài 2–100 ký tự; ký tự lạ không làm vỡ truy vấn.
+
+### Thứ tự và phân trang
+
+`ORDER BY` khoảng cách, rồi **`post.id`** làm tiebreak. Thiếu tiebreak thì hai bài cùng khoảng
+cách không có thứ tự đảm bảo giữa hai lần chạy, và lật trang bằng `OFFSET` sẽ **lặp bài hoặc
+bỏ sót bài**.
 
 ### Gốc toạ độ: GPS, rồi mới tới Vị trí mặc định
 

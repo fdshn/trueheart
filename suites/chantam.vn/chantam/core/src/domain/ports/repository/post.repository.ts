@@ -32,8 +32,11 @@ export interface IPostMapMarker {
 export interface IFindNearbyPostsParams {
   origin: IGeoPoint;
   radiusMeters: number;
-  postType: PublicDiscoveryPostType;
+  /** Bỏ trống thì không lọc theo loại — feed trộn cả năm loại. */
+  postType?: PublicDiscoveryPostType;
   categoryId?: string;
+  /** Từ khoá đã được chuẩn hoá ở tầng ứng dụng; rỗng thì bỏ qua. */
+  keyword?: string;
   skip: number;
   take: number;
 }

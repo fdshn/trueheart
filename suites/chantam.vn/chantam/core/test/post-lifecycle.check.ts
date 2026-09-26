@@ -680,6 +680,113 @@ async function main(): Promise<void> {
       leftovers.map((row) => row.code).join(', '),
     );
 
+    console.log('\nTìm kiếm trên feed:\n');
+    await seed(dataSource, [
+      { index: 80, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 30 },
+      { index: 81, postType: 'WANTED', status: 'PUBLISHED', expiresInDays: 30 },
+      { index: 82, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 30 },
+    ]);
+    await dataSource.query(
+      `UPDATE posts SET title = 'Nồi cơm điện Sharp', description = 'Còn tốt'
+       WHERE global_id = $1`,
+      [postId(80)],
+    );
+    await dataSource.query(
+      `UPDATE posts SET title = 'Cần một cái quạt', description = 'Nhà nóng quá'
+       WHERE global_id = $1`,
+      [postId(81)],
+    );
+    await dataSource.query(
+      `UPDATE posts SET title = 'Bếp từ', description = 'Kèm nồi cơm điện cũ'
+       WHERE global_id = $1`,
+      [postId(82)],
+    );
+
+    const origin = { lat: 10.7724, lng: 106.698 };
+    const search = async (keyword?: string, postType?: string) =>
+      posts.findNearbyPosts({
+        origin,
+        radiusMeters: 50_000,
+        postType: postType as never,
+        keyword,
+        skip: 0,
+        take: 20,
+      });
+
+    check(
+      'không từ khoá, không loại: trả HẾT — feed trộn',
+      (await search()).total === 3,
+      `${(await search()).total} bài`,
+    );
+    check(
+      'tìm "nồi cơm điện" ra cả bài có từ đó trong MÔ TẢ',
+      (await search('nồi cơm điện')).total === 2,
+      `${(await search('nồi cơm điện')).total} bài`,
+    );
+    check(
+      'gõ KHÔNG DẤU vẫn ra — "noi com dien"',
+      (await search('noi com dien')).total === 2,
+      `${(await search('noi com dien')).total} bài`,
+    );
+    check(
+      'gõ HOA/thường lẫn lộn vẫn ra',
+      (await search('NỒI Cơm')).total === 2,
+    );
+    check(
+      'mọi từ phải cùng xuất hiện — "nồi quạt" không ra gì',
+      (await search('nồi quạt')).total === 0,
+    );
+    check(
+      'ký tự lạ không làm vỡ câu truy vấn',
+      (await search("nồi & ' cơm")).total >= 0,
+    );
+    check(
+      'lọc loại bài CỘNG từ khoá cùng lúc',
+      (await search('nồi cơm điện', 'OFFER')).total === 2,
+      `${(await search('nồi cơm điện', 'OFFER')).total} bài`,
+    );
+    check(
+      'và lọc loại khác thì không dính bài của loại này',
+      (await search('nồi cơm điện', 'WANTED')).total === 0,
+    );
+
+    // Index phải được DÙNG, không chỉ tồn tại. Biểu thức trong index sai một
+    // ký tự so với câu truy vấn là Postgres lặng lẽ quét tuần tự cả bảng.
+    const plan = await dataSource.query<{ 'QUERY PLAN': string }[]>(`
+      EXPLAIN SELECT 1 FROM posts
+      WHERE to_tsvector('simple', chantam_unaccent(coalesce(title, '') || ' ' || coalesce(description, '')))
+            @@ plainto_tsquery('simple', chantam_unaccent('nồi cơm'))
+    `);
+    const planText = plan.map((row) => row['QUERY PLAN']).join(' ');
+    check(
+      'câu tìm kiếm DÙNG được index GIN',
+      planText.includes('IDX_posts_search') || planText.includes('Bitmap'),
+      planText.slice(0, 60),
+    );
+
+    // Thứ tự ổn định: cùng khoảng cách thì khoá chính chốt thứ tự, nếu không
+    // lật trang bằng OFFSET sẽ lặp bài hoặc bỏ sót bài.
+    const firstPage = await posts.findNearbyPosts({
+      origin,
+      radiusMeters: 50_000,
+      skip: 0,
+      take: 2,
+    });
+    const secondPage = await posts.findNearbyPosts({
+      origin,
+      radiusMeters: 50_000,
+      skip: 2,
+      take: 2,
+    });
+    const seen = [...firstPage.items, ...secondPage.items].map(
+      (item) => item.post.globalId,
+    );
+    check(
+      'lật trang không lặp bài dù mọi bài cùng một toạ độ',
+      new Set(seen).size === seen.length,
+      `${seen.length} bài, ${new Set(seen).size} khác nhau`,
+    );
+
     // ── 4. Marker bản đồ mang dữ liệu thẻ xem nhanh (F29) ───────────────────
     console.log('\nThẻ xem nhanh trên bản đồ:\n');
 

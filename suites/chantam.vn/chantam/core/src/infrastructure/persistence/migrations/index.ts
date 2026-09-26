@@ -60,3 +60,4 @@ export * from './1794000000000-RequirePhoneVerificationForOnboarding';
 export * from './1794100000000-NormalizePhoneNumbers';
 export * from './1794200000000-CreateVerifiedPhones';
 export * from './1794300000000-MergePostQuotaIntoOne';
+export * from './1794400000000-AddPostSearchIndex';

@@ -35,8 +35,9 @@ describe('GetNearbyPostsQueryDto', () => {
   });
 
   it.each([
-    { postType: undefined },
     { postType: 'ADS' },
+    { keyword: 'x' },
+    { keyword: 'x'.repeat(101) },
     { categoryId: 'not-a-uuid' },
     { radiusMeters: 99 },
     { radiusMeters: 50_001 },
@@ -47,5 +48,30 @@ describe('GetNearbyPostsQueryDto', () => {
     );
 
     expect(errors).not.toHaveLength(0);
+  });
+
+  it('BỎ TRỐNG postType là hợp lệ — feed trộn cả năm loại', async () => {
+    // Trước 26/09 tham số này bắt buộc, nên client muốn một feed trộn phải gọi
+    // năm lần rồi tự ghép, mà mỗi lần phân trang riêng nên ghép xong thứ tự
+    // vô nghĩa.
+    const { postType, ...withoutType } = validQuery;
+    void postType;
+
+    const errors = await validate(
+      plainToInstance(GetNearbyPostsQueryDto, withoutType),
+    );
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('nhận từ khoá tìm kiếm', async () => {
+    const errors = await validate(
+      plainToInstance(GetNearbyPostsQueryDto, {
+        ...validQuery,
+        keyword: 'nồi cơm điện',
+      }),
+    );
+
+    expect(errors).toHaveLength(0);
   });
 });

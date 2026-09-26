@@ -25,7 +25,9 @@ import {
   IsLatitude,
   IsLongitude,
   IsOptional,
+  IsString,
   IsUUID,
+  Length,
   Max,
   Min,
 } from 'class-validator';
@@ -66,9 +68,26 @@ export class GetNearbyPostsQueryDto
   @Max(MaxSearchRadiusMeters)
   radiusMeters: number;
 
-  @ApiProperty({ enum: PublicDiscoveryPostTypes })
+  @ApiPropertyOptional({
+    enum: PublicDiscoveryPostTypes,
+    description:
+      'Bỏ trống thì trả MỌI loại bài. Trước 26/09 tham số này bắt buộc, nên client muốn một feed trộn phải gọi năm lần rồi tự ghép — mà mỗi lần phân trang riêng nên ghép xong thứ tự vô nghĩa.',
+  })
+  @IsOptional()
   @IsIn(PublicDiscoveryPostTypes)
-  postType: (typeof PublicDiscoveryPostTypes)[number];
+  postType?: (typeof PublicDiscoveryPostTypes)[number];
+
+  @ApiPropertyOptional({
+    example: 'nồi cơm điện',
+    minLength: 2,
+    maxLength: 100,
+    description:
+      'Tìm trong tiêu đề và mô tả. KHÔNG phân biệt dấu: gõ "noi com dien" vẫn ra "Nồi cơm điện". Mọi từ phải cùng xuất hiện, và khớp theo TỪ trọn vẹn — "nồi cơ" không ra "nồi cơm". Luôn bị giới hạn trong bán kính đang xem.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(2, 100)
+  keyword?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()

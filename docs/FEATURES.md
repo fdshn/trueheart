@@ -259,6 +259,20 @@ Form đăng bài còn có thêm hai trường:
 Nhu cầu nhận vật phẩm hoặc hỗ trợ, kèm danh mục và vị trí/phạm vi. Cũng có quota theo Rank.
 Được ghép với bài Muốn Tặng qua Smart Match.
 
+### F16b — Tìm kiếm trên feed
+`GET /posts/nearby?keyword=...` — tìm trong tiêu đề và mô tả, **không phân biệt dấu**, và
+**luôn giới hạn trong bán kính đang xem** (chốt 26/09).
+
+Là một **tham số của feed**, không phải endpoint riêng: cùng một lần gọi vừa lọc loại bài,
+vừa lọc danh mục, vừa tìm từ khoá. Cùng đợt này `postType` chuyển thành tuỳ chọn — bỏ trống
+là feed trộn cả năm loại.
+
+> **Vì sao giới hạn bán kính.** Đây là sàn cho–nhận, không phải sàn thương mại điện tử: tìm
+> ra một món ở cách 800 km là tìm ra một món không ai tới lấy được.
+
+> ⚠️ Khớp theo **từ trọn vẹn** và **mọi từ phải cùng xuất hiện**. Chưa có gợi ý theo tiền tố
+> khi đang gõ.
+
 ### F17 — Smart Match & SOS
 Gợi ý theo **danh mục + khoảng cách + từ khoá**. Phase 1 chỉ dùng rule, không dùng học máy.
 
