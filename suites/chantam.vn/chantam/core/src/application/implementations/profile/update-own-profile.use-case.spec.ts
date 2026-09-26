@@ -1,4 +1,5 @@
 import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
+import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { UpdateOwnProfileUseCase } from './update-own-profile.use-case';
 
 const UserId = '10000000-0000-4000-8000-000000000001';
@@ -97,7 +98,7 @@ describe('UpdateOwnProfileUseCase', () => {
 
     expect(repository.update).toHaveBeenCalledWith(
       { globalId: UserId },
-      { phone: '0912345678', phoneVerifiedAt: null },
+      { phone: '+84912345678', phoneVerifiedAt: null },
     );
   });
 
@@ -241,5 +242,57 @@ describe('UpdateOwnProfileUseCase', () => {
       { globalId: UserId },
       { email: null, avatarUrl: null, emailVerifiedAt: null },
     );
+  });
+
+  it('nắn SĐT về E.164 TRƯỚC khi so trùng', async () => {
+    // `isPhoneTaken` so chuỗi. Truyền số chưa nắn vào đó thì `0912345678` không
+    // đụng `+84912345678`, và cùng một SIM thành hai tài khoản hợp lệ.
+    const repository = makeRepository();
+    const useCase = new UpdateOwnProfileUseCase(
+      repository as never,
+      makeStorage() as never,
+      makeEvidence() as never,
+    );
+
+    await useCase.handle({
+      userId: UserId,
+      profile: { phone: '091 234 5678' },
+    });
+
+    expect(repository.isPhoneTaken).toHaveBeenCalledWith(
+      '+84912345678',
+      UserId,
+    );
+  });
+
+  it('SĐT không nắn được thì báo lỗi nhập liệu, không lưu', async () => {
+    const repository = makeRepository();
+    const useCase = new UpdateOwnProfileUseCase(
+      repository as never,
+      makeStorage() as never,
+      makeEvidence() as never,
+    );
+
+    await expect(
+      useCase.handle({ userId: UserId, profile: { phone: '12' } }),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('avatarKey hỏng ra lỗi NHẬP LIỆU, không phải 500', async () => {
+    const repository = makeRepository();
+    const storage = {
+      confirmAvatarUpload: jest.fn(async () => {
+        throw new Error('Avatar key không thuộc tài khoản hiện tại.');
+      }),
+    };
+
+    await expect(
+      new UpdateOwnProfileUseCase(
+        repository as never,
+        storage as never,
+        makeEvidence() as never,
+      ).handle({ userId: UserId, profile: { avatarKey: 'users/ai-do/x.jpg' } }),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
   });
 });

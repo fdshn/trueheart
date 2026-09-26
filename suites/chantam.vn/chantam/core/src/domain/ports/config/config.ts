@@ -71,6 +71,16 @@ export interface ISecurityConfig {
    * còn hơn lưu bản rõ xuống database.
    */
   secretEncryptionKey: string;
+
+  /**
+   * Khoá băm số điện thoại trong `verified_phones`.
+   *
+   * Bảng đó cố ý sống lâu hơn tài khoản — kể cả tài khoản đã xoá — nên số phải
+   * ở dạng không đọc ngược được. Bỏ trống thì vẫn băm nhưng không có khoá:
+   * chống trùng vẫn chạy, chỉ là người đọc được database dò ngược ra số được vì
+   * không gian số Việt Nam đủ nhỏ để duyệt hết.
+   */
+  phoneHashPepper: string;
 }
 
 export interface IWebConfig {

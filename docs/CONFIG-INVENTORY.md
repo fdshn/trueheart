@@ -55,6 +55,7 @@ không client upload trực tiếp sẽ bị chặn ở trình duyệt.
 | `MAX_LOGIN_ATTEMPTS_PER_IP` | 30 | Trần đăng nhập sai theo **địa chỉ IP**, bù cho trần theo tài khoản. Chỉ đếm khi sai |
 | `MAX_REGISTRATIONS_PER_IP` | 5 | Số tài khoản tạo được từ một IP trong một cửa sổ. Chỉ đếm khi tạo được |
 | `REGISTRATION_WINDOW_SECONDS` | 3600 | Độ dài cửa sổ đếm đăng ký |
+| `PHONE_HASH_PEPPER` | *(trống)* | Khoá băm SĐT trong `verified_phones`. Bảng đó sống lâu hơn tài khoản nên số phải không đọc ngược được. Trống thì vẫn băm nhưng không có khoá — chống trùng vẫn chạy, chỉ là người đọc được database dò ngược ra số vì không gian số VN đủ nhỏ. Sinh bằng `openssl rand -base64 32` |
 | `OTP_TTL_SECONDS` | 300 | 5 phút |
 | `BCRYPT_ROUNDS` | 12 | Tăng là chậm đăng nhập, giảm là dễ dò mật khẩu |
 | `MAX_LOGIN_ATTEMPTS` · `LOGIN_LOCK_SECONDS` | 5 · 900 | Chống dò mật khẩu |
@@ -236,7 +237,7 @@ quyền trên *mọi* nhóm. Phép kiểm luôn mang `groupId`.
 
 | Việc | Chặn cái gì | Ai cấp |
 | --- | --- | --- |
-| ⛔ **Adapter + credential SMS** | Xác minh SĐT (F09) → cổng hồ sơ F07 → đăng bài | Bên A chọn nhà cung cấp |
+| ⛔ **Adapter + credential SMS** | **Chặn TOÀN BỘ onboarding** từ 26/09: xác minh SĐT nay là nhiệm vụ bắt buộc, nên không có SMS thì không ai lên hạng Thành viên, không ai nhận 224đ, và không quan hệ giới thiệu nào đủ điều kiện. Đây là hạng mục gấp nhất | Bên A chọn nhà cung cấp |
 | ⛔ **Adapter + credential Zalo ZNS** | Kênh thông báo thứ hai | ⬆ |
 | ⛔ **FCM credential** (F44) | Đẩy thông báo tới máy. Hiện thông báo vẫn ghi đủ trong app nhưng **không có gì rung máy ai** | Bên A |
 | ⛔ **R2 bucket + key + CORS + CDN domain** | Upload ảnh ở staging/prod | Bên A / hạ tầng |
@@ -267,6 +268,7 @@ quyền trên *mọi* nhóm. Phép kiểm luôn mang `groupId`.
 | ~~Lịch cron cho 10 CLI~~ | ✅ Đã có ở [`deploy/cron/`](../deploy/cron/README.md). ⛔ Còn thiếu: **alert vào kênh người thật đọc** |
 | Sửa `group_role_permissions` qua API | Chỉ đổi được bằng migration (xem §2.9) |
 | Xoá sub-team | Cột `deleted_at` đã có, chưa có endpoint; xoá tổ còn người thì xử lý ra sao cũng chưa ai nói |
+| Admin giải phóng một SĐT đã xác minh | Cột `verified_phones.released_at` đã có, **chưa có endpoint** — hiện phải sửa tay database. Mất máy, đổi số, số bị nhà mạng cấp lại đều sẽ xảy ra |
 | Giới hạn tốc độ toàn hệ thống | Mới có cho `/auth/login` và `/auth/register` (theo IP). Các endpoint còn lại **chưa có** |
 
 ---

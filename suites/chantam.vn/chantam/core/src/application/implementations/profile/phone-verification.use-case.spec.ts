@@ -1,3 +1,4 @@
+import { PhoneAlreadyVerifiedException } from '@/domain/exceptions';
 import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { PasswordResetChannels } from '@chantam.vn/chantam.core-lib/dto';
 import { ConfirmPhoneVerificationUseCase } from './confirm-phone-verification.use-case';
@@ -78,9 +79,11 @@ describe('Phone verification', () => {
     const otpStore = { verify: jest.fn(async () => true) };
     const evidence = { handle: jest.fn(async () => ({ promoted: true })) };
     const points = { handle: jest.fn(async () => undefined) };
+    const verifiedPhones = { claim: jest.fn(async () => 'CLAIMED') };
     const useCase = new ConfirmPhoneVerificationUseCase(
       users as never,
       otpStore as never,
+      verifiedPhones as never,
       evidence as never,
       points as never,
     );
@@ -105,9 +108,11 @@ describe('Phone verification', () => {
     const otpStore = { verify: jest.fn(async () => true) };
     const evidence = { handle: jest.fn(async () => ({ promoted: false })) };
     const points = { handle: jest.fn(async () => undefined) };
+    const verifiedPhones = { claim: jest.fn(async () => 'CLAIMED') };
     const useCase = new ConfirmPhoneVerificationUseCase(
       users as never,
       otpStore as never,
+      verifiedPhones as never,
       evidence as never,
       points as never,
     );
@@ -133,9 +138,11 @@ describe('Phone verification', () => {
     const otpStore = { verify: jest.fn(async () => false) };
     const evidence = { handle: jest.fn(async () => ({ promoted: false })) };
     const points = { handle: jest.fn(async () => undefined) };
+    const verifiedPhones = { claim: jest.fn(async () => 'CLAIMED') };
     const useCase = new ConfirmPhoneVerificationUseCase(
       users as never,
       otpStore as never,
+      verifiedPhones as never,
       evidence as never,
       points as never,
     );
@@ -144,5 +151,85 @@ describe('Phone verification', () => {
       useCase.handle({ userId: UserId, verification: { otp: '123456' } }),
     ).rejects.toThrow();
     expect(users.update).not.toHaveBeenCalled();
+  });
+
+  it('số đã từng xác minh cho tài khoản KHÁC thì từ chối, không ghi gì', async () => {
+    // Gỡ số khỏi hồ sơ và xoá tài khoản đều trả số lại cho người khác dùng.
+    // Không có sổ này thì một SIM quay vòng vô hạn để ăn 28đ + 224đ + thưởng
+    // giới thiệu.
+    const users = {
+      findOneBy: jest.fn(async () => makeUser()),
+      update: jest.fn(async () => undefined),
+    };
+    const otpStore = { verify: jest.fn(async () => true) };
+    const verifiedPhones = { claim: jest.fn(async () => 'TAKEN') };
+    const evidence = { handle: jest.fn() };
+    const points = { handle: jest.fn() };
+
+    await expect(
+      new ConfirmPhoneVerificationUseCase(
+        users as never,
+        otpStore as never,
+        verifiedPhones as never,
+        evidence as never,
+        points as never,
+      ).handle({ userId: UserId, verification: { otp: '123456' } }),
+    ).rejects.toBeInstanceOf(PhoneAlreadyVerifiedException);
+
+    expect(users.update).not.toHaveBeenCalled();
+    expect(evidence.handle).not.toHaveBeenCalled();
+    expect(points.handle).not.toHaveBeenCalled();
+  });
+
+  it('chính chủ xác minh lại số của mình thì vẫn cho qua', async () => {
+    // Đổi máy, cài lại app, bấm nhầm hai lần — đều là chuyện bình thường.
+    const users = {
+      findOneBy: jest.fn(async () => makeUser()),
+      update: jest.fn(async () => undefined),
+    };
+    const otpStore = { verify: jest.fn(async () => true) };
+    const verifiedPhones = { claim: jest.fn(async () => 'ALREADY_OWN') };
+    const evidence = { handle: jest.fn(async () => ({ promoted: false })) };
+    const points = { handle: jest.fn(async () => undefined) };
+
+    await new ConfirmPhoneVerificationUseCase(
+      users as never,
+      otpStore as never,
+      verifiedPhones as never,
+      evidence as never,
+      points as never,
+    ).handle({ userId: UserId, verification: { otp: '123456' } });
+
+    expect(users.update).toHaveBeenCalled();
+  });
+
+  it('ghi sổ TRƯỚC khi đánh dấu xác minh', async () => {
+    // Đánh dấu trước rồi mới ghi sổ thì hai request song song cùng vượt qua
+    // phép kiểm, và cả hai tài khoản cùng mang dấu đã xác minh.
+    const order: string[] = [];
+    const users = {
+      findOneBy: jest.fn(async () => makeUser()),
+      update: jest.fn(async () => {
+        order.push('mark');
+      }),
+    };
+    const otpStore = { verify: jest.fn(async () => true) };
+    const verifiedPhones = {
+      claim: jest.fn(async () => {
+        order.push('claim');
+
+        return 'CLAIMED';
+      }),
+    };
+
+    await new ConfirmPhoneVerificationUseCase(
+      users as never,
+      otpStore as never,
+      verifiedPhones as never,
+      { handle: jest.fn(async () => ({ promoted: false })) } as never,
+      { handle: jest.fn(async () => undefined) } as never,
+    ).handle({ userId: UserId, verification: { otp: '123456' } });
+
+    expect(order).toEqual(['claim', 'mark']);
   });
 });

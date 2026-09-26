@@ -49,6 +49,8 @@ export interface IOwnProfileDto {
   rankProgress?: IRankSummaryDto | null;
   /** Quyền và hạn mức theo hạng hiện tại. */
   entitlements?: IEntitlementsSummaryDto | null;
+  /** Độ chính xác mô tả khi tặng (F43). `null` khi chưa đủ mẫu. */
+  accuracy?: IGiverAccuracySummaryDto | null;
 }
 
 export interface IGetOwnProfileResponseDto {
@@ -103,4 +105,19 @@ export interface IConfirmEmailVerificationBodyDto {
 }
 export interface IConfirmEmailVerificationResponseDto {
   verifiedAt: Date;
+}
+
+/**
+ * Độ chính xác mô tả của người tặng (F43), phần CHÍNH CHỦ được thấy.
+ *
+ * Cố ý KHÔNG mang cờ `reviewRequired`. Cờ đó là tín hiệu để Admin xem, không
+ * phải phán quyết — cho chính chủ thấy "bạn đang bị đánh dấu xem xét" là kết
+ * tội trước khi có người thật nhìn qua.
+ */
+export interface IGiverAccuracySummaryDto {
+  /** `null` khi chưa đủ số mẫu tối thiểu. */
+  percent: number | null;
+  samples: number;
+  /** Số mẫu tối thiểu để chỉ số bắt đầu có nghĩa. */
+  minSamples: number;
 }

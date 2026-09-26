@@ -61,6 +61,8 @@ export class ListAdminUsersUseCase implements IListAdminUsersUseCase {
       status: command.status,
       adminRole: command.adminRole,
       phoneVerified: command.phoneVerified,
+      emailVerified: command.emailVerified,
+      accuracyReviewRequired: command.accuracyReviewRequired,
       registeredFrom: command.registeredFrom,
       registeredTo: command.registeredTo,
       includeDeleted: command.includeDeleted,

@@ -21,6 +21,10 @@ interface IUserRow {
   rank: UserRanks;
   status: UserStatuses;
   phone_verified_at: Date | null;
+  email_verified_at: Date | null;
+  giver_accuracy_percent: number | null;
+  giver_accuracy_samples: number;
+  accuracy_review_required: boolean;
   suspended_until: Date | null;
   created_at: Date;
   deleted_at: Date | null;
@@ -43,6 +47,10 @@ const SelectColumns = `
   user_account.rank,
   user_account.status,
   user_account.phone_verified_at,
+  user_account.email_verified_at,
+  user_account.giver_accuracy_percent,
+  user_account.giver_accuracy_samples,
+  user_account.accuracy_review_required,
   user_account.suspended_until,
   user_account.created_at,
   user_account.deleted_at,
@@ -58,6 +66,9 @@ const GroupBy = `
   GROUP BY user_account.global_id, user_account.username, user_account.full_name,
            user_account.email, user_account.phone, user_account.rank,
            user_account.status, user_account.phone_verified_at,
+           user_account.email_verified_at, user_account.giver_accuracy_percent,
+           user_account.giver_accuracy_samples,
+           user_account.accuracy_review_required,
            user_account.suspended_until, user_account.created_at,
            user_account.deleted_at
 `;
@@ -72,6 +83,14 @@ function toSummary(row: IUserRow): IAdminUserSummary {
     rank: row.rank,
     status: row.status,
     phoneVerified: row.phone_verified_at !== null,
+    emailVerified: row.email_verified_at !== null,
+    giverAccuracyPercent:
+      row.giver_accuracy_percent === null ||
+      row.giver_accuracy_percent === undefined
+        ? null
+        : Number(row.giver_accuracy_percent),
+    giverAccuracySamples: Number(row.giver_accuracy_samples ?? 0),
+    accuracyReviewRequired: row.accuracy_review_required === true,
     suspendedUntil: row.suspended_until,
     createdAt: row.created_at,
     deletedAt: row.deleted_at,
@@ -108,6 +127,20 @@ export class AdminUserRepository implements IAdminUserRepository {
         query.phoneVerified
           ? 'user_account.phone_verified_at IS NOT NULL'
           : 'user_account.phone_verified_at IS NULL',
+      );
+
+    if (query.emailVerified !== undefined)
+      conditions.push(
+        query.emailVerified
+          ? 'user_account.email_verified_at IS NOT NULL'
+          : 'user_account.email_verified_at IS NULL',
+      );
+
+    if (query.accuracyReviewRequired !== undefined)
+      conditions.push(
+        query.accuracyReviewRequired
+          ? 'user_account.accuracy_review_required = true'
+          : 'user_account.accuracy_review_required = false',
       );
 
     if (query.adminRole !== undefined) {

@@ -10,7 +10,11 @@ import {
 } from '@/domain/exceptions';
 import { IUserRepository } from '@/domain/ports/repository';
 import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
-import { isProfileComplete } from '@chantam.vn/chantam.core-lib/models';
+import {
+  isProfileComplete,
+  normalizePhoneNumber,
+} from '@chantam.vn/chantam.core-lib/models';
+import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { toOwnProfileDto } from './profile.mapper';
@@ -43,10 +47,7 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
 
     if (profileUpdate.avatarKey !== undefined) {
       update.avatarUrl = profileUpdate.avatarKey
-        ? await this.storage.confirmAvatarUpload(
-            user.globalId,
-            profileUpdate.avatarKey,
-          )
+        ? await this.confirmAvatar(user.globalId, profileUpdate.avatarKey)
         : null;
     }
 
@@ -72,7 +73,18 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
       update.defaultLocation = profileUpdate.defaultLocation;
 
     if (profileUpdate.phone !== undefined) {
-      const phone = profileUpdate.phone ? profileUpdate.phone.trim() : null;
+      // Nắn về E.164 TRƯỚC khi so trùng và trước khi lưu. Index UNIQUE so
+      // chuỗi, nên `0912345678` và `+84912345678` từng là hai tài khoản hợp lệ
+      // cho cùng một SIM.
+      const phone = profileUpdate.phone
+        ? normalizePhoneNumber(profileUpdate.phone)
+        : null;
+
+      if (profileUpdate.phone && !phone)
+        throw new ValidationFailedException([
+          'phone: số điện thoại không hợp lệ',
+        ]);
+
       if (
         phone &&
         phone !== user.phone &&
@@ -98,5 +110,22 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
     }
 
     return { profile: toOwnProfileDto(profile) };
+  }
+
+  /**
+   * Đổi lỗi thô của tầng lưu trữ thành lỗi nghiệp vụ đọc được.
+   *
+   * `confirmAvatarUpload` ném `Error` trần khi key không thuộc tài khoản, không
+   * phải ảnh, hoặc quá nặng — và `Error` trần đi thẳng thành 500. Người dùng gõ
+   * nhầm một key nhận "lỗi hệ thống" thay vì "key không hợp lệ".
+   */
+  private async confirmAvatar(userId: string, key: string): Promise<string> {
+    try {
+      return await this.storage.confirmAvatarUpload(userId, key);
+    } catch (error) {
+      throw new ValidationFailedException([
+        `avatarKey: ${error instanceof Error ? error.message : 'không dùng được'}`,
+      ]);
+    }
   }
 }

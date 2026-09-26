@@ -58,6 +58,15 @@ export enum ErrorCodes {
   /** Chưa hoàn tất các nhiệm vụ onboarding bắt buộc. */
   ONBOARDING_INCOMPLETE = 0x03_0b,
 
+  /**
+   * Số này đã từng được xác minh cho một tài khoản khác.
+   *
+   * KHÁC `PHONE_TAKEN`: cái kia nói "đang có tài khoản khác giữ số này", cái
+   * này nói "đã từng có" — kể cả tài khoản đó nay đã xoá. Phân biệt vì cách xử
+   * lý khác nhau: cái kia đổi số là xong, cái này phải nhờ Admin giải phóng.
+   */
+  PHONE_ALREADY_VERIFIED = 0x03_0c,
+
   // 0x05 — Danh mục
   CATEGORY_NOT_FOUND = 0x05_01,
   CATEGORY_SLUG_TAKEN = 0x05_02,

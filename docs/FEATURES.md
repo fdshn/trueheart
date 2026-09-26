@@ -112,15 +112,42 @@ Trước khi **đăng bài**, hồ sơ phải đủ: Họ tên, Avatar, SĐT, Em
 trùng lặp khi bổ sung.
 
 > ✅ **Chốt 2026-09-24:** cổng chặn **đăng bài, xin nhận, chat và tạo Group** — không chỉ
-> riêng đăng bài.
+> riêng đăng bài. Cả bốn đã nối, dùng chung một `ProfileGate`.
+
+> ✅ **Chốt 26/09: onboarding đòi CẢ xác minh SĐT.** Trước đó chỉ nhiệm vụ "hoàn thiện hồ sơ"
+> là bắt buộc, mà nó chỉ đòi bốn trường **có mặt**, không đòi đúng — nên mỗi tài khoản ảo tự
+> động nhận 224đ, lên thẳng hạng Thành viên, và kích hoạt 56đ cho người mời, chỉ tốn công gõ.
+>
+> ⛔ **Đổi lại: không có adapter SMS thì không ai hoàn tất được onboarding.** Chủ ý — thà chặn
+> đường lên hạng còn hơn để van điểm mở cho tài khoản ảo.
+
+> ⚠️ **Cổng vẫn chỉ đòi CÓ email và SĐT, không đòi đã xác minh.** Tức "đăng bài được" chưa
+> đồng nghĩa "liên hệ được thật". Đưa mốc xác minh vào điều kiện cổng sẽ chặn thêm một lượng
+> người đang đăng bài được, nên cần Bên A chốt trước.
 
 ### F08 — Hồ sơ cá nhân & thống kê
 Avatar, Rank, điểm hiện tại, tiến độ tới mốc kế tiếp, hoạt động Cho/Nhận, quyền đang có,
 lịch sử liên quan.
 
+> ✅ **Thêm 26/09:** `GET /profile/me` trả thêm **độ chính xác mô tả khi tặng** (F43) của
+> chính chủ — `percent`, `samples`, `minSamples`. KHÔNG kèm cờ xem xét: cờ là tín hiệu để
+> Admin nhìn qua, không phải phán quyết. Hồ sơ **công khai** không có gì về chỉ số này.
+
 ### F09 — Xác minh SĐT & thưởng lần đầu
 Sự kiện `PHONE_VERIFIED_FIRST_TIME` **chỉ thưởng đúng một lần**, đi qua Point Ledger với
 khoá idempotency. Đổi SĐT về sau không thưởng lại.
+
+> ✅ **Siết 26/09, ba lớp.**
+>
+> 1. **Nắn về E.164 trước khi lưu và trước khi so trùng.** `0912345678` và `+84912345678` là
+>    cùng một SIM mà khác chuỗi, nên index UNIQUE cho cả hai cùng lọt.
+> 2. **Bảng `verified_phones` sống lâu hơn tài khoản.** Gỡ số khỏi hồ sơ và xoá tài khoản đều
+>    trả số lại cho người khác, vì phép kiểm trùng chỉ nhìn giá trị hiện tại. Không có sổ này
+>    thì một SIM quay vòng vô hạn để ăn 28đ + 224đ + thưởng giới thiệu. Lưu **băm HMAC**, không
+>    lưu số đọc được.
+> 3. **Xác minh SĐT là nhiệm vụ onboarding BẮT BUỘC** — xem [F07](#f07--cổng-hoàn-thiện-hồ-sơ).
+>
+> ⛔ Chưa có nút cho Admin giải phóng một số (cột `released_at` đã có).
 
 ### F09b — Xác minh email
 `PATCH /profile/me/email-verification/request` · `/confirm`. Gửi OTP tới địa chỉ **đang có
@@ -450,6 +477,15 @@ Người nhận chấm mức chính xác của mô tả so với thực tế.
 
 - Chỉ tính chỉ số tổng hợp **khi đã có đủ 5 mẫu hợp lệ** — tránh kết luận từ một lần đánh giá.
 - Dưới 75% → chuyển trạng thái `REVIEW_REQUIRED`, **không tự động phạt**. Admin xem xét.
+
+> ✅ **Nối ra ngoài 26/09.** Trước đó chỉ số được tính, được lưu, rồi nằm đó: hàm đọc không
+> nơi nào gọi và cờ không hàng đợi nào đọc. Nay:
+>
+> - **Admin**: `GET /admin/users?accuracyReviewRequired=true` là hàng đợi, mỗi dòng mang sẵn
+>   `giverAccuracyPercent` và `giverAccuracySamples` để quyết mà không phải mở từng hồ sơ.
+> - **Chính chủ**: `GET /profile/me` trả `accuracy` — nhưng **không** có cờ xem xét.
+> - **Công khai**: không có gì. Gắn "độ chính xác 62%" lên hồ sơ công khai là một bản án dựng
+>   từ vài lượt đánh giá, mà người bị chấm sai không có đường kháng.
 
 ---
 

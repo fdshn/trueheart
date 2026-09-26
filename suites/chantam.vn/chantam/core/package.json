@@ -39,6 +39,7 @@
     "test:reminders": "ts-node -r tsconfig-paths/register test/reminders.check.ts",
     "test:selection": "ts-node -r tsconfig-paths/register test/selection.check.ts",
     "test:group": "ts-node -r tsconfig-paths/register test/group.check.ts",
+    "test:phone-identity": "ts-node -r tsconfig-paths/register test/phone-identity.check.ts",
     "test:user-activity": "ts-node -r tsconfig-paths/register test/user-activity.check.ts",
     "test:feed-merge": "ts-node -r tsconfig-paths/register test/feed-merge.check.ts",
     "test:returning": "ts-node -r tsconfig-paths/register test/returning-contract.check.ts",

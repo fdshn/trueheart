@@ -23,6 +23,16 @@ export class PhoneTakenException extends ExceptionFrom(
   CoreErrors.PHONE_TAKEN,
 ) {}
 
+/**
+ * Số đã từng xác minh cho tài khoản khác — kể cả tài khoản nay đã xoá.
+ *
+ * Khác `PhoneTakenException`: cái kia là "đang có ai đó giữ", cái này là "đã
+ * từng có ai đó xác minh".
+ */
+export class PhoneAlreadyVerifiedException extends ExceptionFrom(
+  CoreErrors.PHONE_ALREADY_VERIFIED,
+) {}
+
 export class ProfileIncompleteException extends ExceptionFrom(
   CoreErrors.PROFILE_INCOMPLETE,
 ) {}

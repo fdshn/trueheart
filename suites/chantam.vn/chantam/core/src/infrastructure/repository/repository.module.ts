@@ -25,6 +25,7 @@ import {
   IUserOnboardingTaskCompletionRepository,
   IUserRepository,
   IUserSessionRepository,
+  IVerifiedPhoneRepository,
 } from '@/domain/ports/repository';
 import { Global, Module } from '@nestjs/common';
 import { AdminBootstrapService } from './admin-bootstrap.service';
@@ -54,6 +55,7 @@ import { TransactionReviewRepository } from './transaction-review.repository';
 import { UserOnboardingTaskCompletionRepository } from './user-onboarding-task-completion.repository';
 import { UserSessionRepository } from './user-session.repository';
 import { UserRepository } from './user.repository';
+import { VerifiedPhoneRepository } from './verified-phone.repository';
 
 /**
  * Repository có truy vấn tuỳ biến thì khai báo class riêng như dưới đây.
@@ -110,6 +112,10 @@ import { UserRepository } from './user.repository';
     { provide: IPostMediaRepository, useClass: PostMediaRepository },
     { provide: IUserRepository, useClass: UserRepository },
     {
+      provide: IVerifiedPhoneRepository,
+      useClass: VerifiedPhoneRepository,
+    },
+    {
       provide: IUserOnboardingTaskCompletionRepository,
       useClass: UserOnboardingTaskCompletionRepository,
     },
@@ -139,6 +145,7 @@ import { UserRepository } from './user.repository';
     IPostRepository,
     IPostMediaRepository,
     IUserRepository,
+    IVerifiedPhoneRepository,
     IUserOnboardingTaskCompletionRepository,
     IUserSessionRepository,
     IGroupRepository,

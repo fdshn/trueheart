@@ -68,6 +68,19 @@ function makeDeps(user: unknown) {
     entitlementUseCase: {
       handle: jest.fn(async () => ({ entitlements: Entitlements })),
     },
+    reviewRepository: {
+      getAccuracy: jest.fn(async () => ({
+        percent: 92,
+        samples: 7,
+        reviewRequired: false,
+      })),
+    },
+    adminConfig: {
+      getConfigValue: jest.fn(async () => ({
+        minSamples: 5,
+        reviewThresholdPercent: 75,
+      })),
+    },
   };
 }
 
@@ -78,6 +91,8 @@ function makeUseCase(deps: ReturnType<typeof makeDeps>) {
     deps.pointUseCase as never,
     deps.rankUseCase as never,
     deps.entitlementUseCase as never,
+    deps.reviewRepository as never,
+    deps.adminConfig as never,
   );
 }
 
@@ -114,6 +129,7 @@ describe('GetOwnProfileUseCase', () => {
           phoneVerified: true,
           emailVerified: false,
           profileComplete: true,
+          accuracy: { percent: 92, samples: 7, minSamples: 5 },
           referral: {
             code: 'AB12CD34EF',
             totalCount: 4,

@@ -87,6 +87,8 @@ export class AdminUserController {
           status: query.status,
           adminRole: query.adminRole,
           phoneVerified: query.phoneVerified,
+          emailVerified: query.emailVerified,
+          accuracyReviewRequired: query.accuracyReviewRequired,
           registeredFrom: query.registeredFrom,
           registeredTo: query.registeredTo,
           includeDeleted: query.includeDeleted,

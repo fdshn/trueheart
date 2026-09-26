@@ -10,6 +10,12 @@ export interface IAdminUserSummary {
   readonly rank: UserRanks;
   readonly status: UserStatuses;
   readonly phoneVerified: boolean;
+  readonly emailVerified: boolean;
+  /** Độ chính xác mô tả khi tặng (F43). `null` khi chưa đủ mẫu. */
+  readonly giverAccuracyPercent: number | null;
+  readonly giverAccuracySamples: number;
+  /** Cờ xem xét — CHỈ Admin thấy, không bao giờ hiện công khai. */
+  readonly accuracyReviewRequired: boolean;
   readonly suspendedUntil: Date | null;
   readonly createdAt: Date;
   readonly deletedAt: Date | null;
@@ -26,6 +32,14 @@ export interface IAdminUserQuery {
   /** Chỉ lấy người đang giữ role quản trị này. */
   readonly adminRole?: string;
   readonly phoneVerified?: boolean;
+  readonly emailVerified?: boolean;
+  /**
+   * Chỉ lấy người đang bị gắn cờ xem xét độ chính xác (F43).
+   *
+   * Đây là hàng đợi Admin cho cờ đó. Không có nó thì cờ được ghi mà không ai
+   * đọc — và cả cơ chế Giver Accuracy dừng ở chỗ tính xong rồi để đấy.
+   */
+  readonly accuracyReviewRequired?: boolean;
   readonly registeredFrom?: Date;
   readonly registeredTo?: Date;
   /**

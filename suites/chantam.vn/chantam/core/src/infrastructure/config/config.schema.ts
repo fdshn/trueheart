@@ -69,6 +69,13 @@ export const ConfigSchema = Joi.object({
   // Bỏ trống thì không lưu được secret nào — fail closed, không lưu bản rõ.
   CONFIG_ENCRYPTION_KEY: Joi.string().allow('').default(''),
 
+  // Khoá băm số điện thoại trong bảng `verified_phones`. Bảng đó cố ý sống lâu
+  // hơn tài khoản, nên số phải ở dạng không đọc ngược được.
+  // Bỏ trống thì vẫn băm nhưng KHÔNG có khoá — chống trùng vẫn chạy, chỉ là kẻ
+  // đọc được database có thể dò ngược ra số vì không gian số VN nhỏ.
+  // Sinh bằng: openssl rand -base64 32
+  PHONE_HASH_PEPPER: Joi.string().allow('').default(''),
+
   // M1 temporary category manager allowlist. M6 replaces it with real admin roles.
   // M2 temporary moderation allowlist. M6 replaces it with real admin roles.
   // Sprint 1 temporary rank maintenance operator allowlist. M6 replaces it with real admin roles.

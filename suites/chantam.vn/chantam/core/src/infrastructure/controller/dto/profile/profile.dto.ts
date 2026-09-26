@@ -8,6 +8,7 @@ import {
   IConfirmPhoneVerificationResponseDto,
   IEntitlementsSummaryDto,
   IGetOwnProfileResponseDto,
+  IGiverAccuracySummaryDto,
   IOwnProfileDto,
   IPointSummaryDto,
   IProfileReferrerDto,
@@ -36,7 +37,16 @@ import { PointSummaryDto } from '../point';
 import { RankSummaryDto } from '../rank';
 import { ReferralSummaryDto } from '../referral';
 
-const PhonePattern = /^\+?[0-9]{8,15}$/;
+/**
+ * Chỉ loại bỏ thứ rõ ràng không phải số điện thoại.
+ *
+ * Nới hơn E.164 có chủ ý: người dùng gõ `091 234 5678` hay `(091) 234-5678` là
+ * chuyện thường, và chặn ở đây thì họ nhận "số không hợp lệ" cho một số hoàn
+ * toàn đúng. Việc nắn về E.164 và phán quyết cuối cùng nằm ở
+ * `normalizePhoneNumber` trong use case — một nơi duy nhất, dùng chung cho mọi
+ * đường vào.
+ */
+const PhonePattern = /^[+0-9][0-9\s.\-()]{6,24}$/;
 
 export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
   @ApiPropertyOptional({
@@ -77,7 +87,7 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
     example: '+84912345678',
     nullable: true,
     description:
-      'Số điện thoại E.164 hoặc chữ số 8–15 ký tự. Đổi số sẽ huỷ trạng thái xác minh cũ.',
+      'Nhận cả `0912345678`, `+84912345678` và `091 234 5678` — server tự nắn về E.164 (`+84912345678`) rồi mới lưu và mới so trùng. Đổi số sẽ huỷ trạng thái xác minh cũ.',
   })
   @IsOptional()
   @IsString()
@@ -194,6 +204,34 @@ export class OwnProfileDto implements IOwnProfileDto {
     description: 'Quyền và hạn mức theo hạng, trùng với /me/entitlements.',
   })
   entitlements?: IEntitlementsSummaryDto | null;
+
+  @ApiProperty({
+    type: () => GiverAccuracySummaryDto,
+    nullable: true,
+    description:
+      'Độ chính xác mô tả khi tặng (F43). Cố ý KHÔNG kèm cờ xem xét: cờ là tín hiệu để Admin nhìn qua, không phải phán quyết.',
+  })
+  accuracy?: IGiverAccuracySummaryDto | null;
+}
+
+export class GiverAccuracySummaryDto implements IGiverAccuracySummaryDto {
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    example: 92,
+    description: '`null` khi chưa đủ số mẫu tối thiểu.',
+  })
+  percent: number | null;
+
+  @ApiProperty({ example: 7, description: 'Số lượt đánh giá đã tính vào.' })
+  samples: number;
+
+  @ApiProperty({
+    example: 5,
+    description:
+      'Số mẫu tối thiểu để chỉ số bắt đầu có nghĩa (Admin chỉnh được).',
+  })
+  minSamples: number;
 }
 
 export class ReferrerProfileDto implements IProfileReferrerDto {

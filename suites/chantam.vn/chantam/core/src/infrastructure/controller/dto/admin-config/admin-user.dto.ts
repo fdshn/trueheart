@@ -78,6 +78,21 @@ export class ListAdminUsersQueryDto {
   @IsBoolean()
   phoneVerified?: boolean;
 
+  @ApiPropertyOptional({ description: 'Đã xác minh email hay chưa.' })
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  emailVerified?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Chỉ lấy người đang bị gắn cờ xem xét độ chính xác mô tả (F43). Đây là hàng đợi cho cờ đó.',
+  })
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  accuracyReviewRequired?: boolean;
+
   @ApiPropertyOptional({ type: String, format: 'date-time' })
   @IsOptional()
   @Type(() => Date)
@@ -178,6 +193,25 @@ export class AdminUserDto implements IAdminUserSummary {
   @ApiProperty({ enum: UserStatuses }) status: UserStatuses;
 
   @ApiProperty() phoneVerified: boolean;
+
+  @ApiProperty() emailVerified: boolean;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'Độ chính xác mô tả khi tặng (F43). `null` khi chưa đủ số mẫu tối thiểu.',
+  })
+  giverAccuracyPercent: number | null;
+
+  @ApiProperty({ description: 'Số lượt đánh giá đã tính vào chỉ số trên.' })
+  giverAccuracySamples: number;
+
+  @ApiProperty({
+    description:
+      'Cờ xem xét độ chính xác. CHỈ Admin thấy — cờ là tín hiệu để người thật nhìn qua, không phải phán quyết, nên không bao giờ hiện trên hồ sơ công khai.',
+  })
+  accuracyReviewRequired: boolean;
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   suspendedUntil: Date | null;

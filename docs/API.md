@@ -200,6 +200,14 @@ trong hồ sơ riêng.
 - Cũng không bao giờ trả email, SĐT, vị trí mặc định hay ledger.
 - `shareUrl` chỉ có giá trị khi cấu hình `WEB_PUBLIC_BASE_URL`; chưa cấu hình thì trả `null`
   chứ không bịa tên miền.
+- **SĐT được nắn về E.164 trước khi lưu và trước khi so trùng.** `0912345678`,
+  `+84912345678` và `091 234 5678` đều thành `+84912345678`. Không nắn thì index UNIQUE (so
+  chuỗi) cho cả ba cùng lọt, và một SIM thành ba tài khoản.
+- **Một SĐT chỉ xác minh được cho MỘT tài khoản, vĩnh viễn.** Bảng `verified_phones` giữ băm
+  của số đã xác minh và sống lâu hơn tài khoản. Gỡ số khỏi hồ sơ hay xoá tài khoản **không**
+  trả số lại — nếu trả thì một SIM quay vòng vô hạn để ăn 28đ + 224đ + thưởng giới thiệu. Thử
+  xác minh lại bằng số của người khác trả `PHONE_ALREADY_VERIFIED` (409). Admin giải phóng số
+  qua cột `released_at`; ⛔ chưa có endpoint cho việc đó.
 - **Vị trí mặc định ≠ GPS hiện tại.** Vị trí mặc định là giá trị dùng khi đăng bài và là điều
   kiện bắt buộc để tạo Group; GPS chỉ dùng cho bản đồ tại thời điểm xem. Server **không tự
   ghi đè** vị trí mặc định từ GPS.
@@ -213,6 +221,30 @@ trong hồ sơ riêng.
   chứng thực cho giá trị mới — mà đó chính là cửa mở đường đặt lại mật khẩu.
 - `emailVerified` và `phoneVerified` có trong `GET /profile/me` và trong `user` của mọi phản
   hồi đăng nhập/đăng ký.
+- `GET /profile/me` trả thêm `accuracy` — độ chính xác mô tả khi tặng (F43) của **chính chủ**,
+  gồm `percent`, `samples` và `minSamples`. **Không** có cờ `reviewRequired`: cờ đó là tín
+  hiệu để Admin nhìn qua, không phải phán quyết. Hồ sơ **công khai** không có gì về accuracy.
+- `avatarKey` không hợp lệ (không thuộc tài khoản, không phải ảnh, quá nặng) trả **400**, không
+  còn là 500.
+
+### Onboarding — `/onboarding`
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/onboarding/tasks` | Bearer | Danh sách nhiệm vụ và tiến độ của chính chủ |
+| `POST` | `/onboarding/tasks/evaluate` | Bearer | Chấm lại toàn bộ tiến độ |
+| `POST` | `/onboarding/tasks/:key/trigger` | Bearer | Cũng chấm lại toàn bộ; `key` chỉ để client nói vừa làm xong việc gì |
+
+- **Hai nhiệm vụ, cả hai đều BẮT BUỘC** (chốt 26/09): `PROFILE_COMPLETE` và `PHONE_VERIFIED`.
+  Trước đó chỉ nhiệm vụ đầu bắt buộc, mà nó chỉ đòi bốn trường **có mặt** — nên tạo tài khoản
+  ảo chỉ tốn công gõ, và mỗi tài khoản tự động nhận 224đ + lên hạng Thành viên + kích hoạt 56đ
+  cho người mời.
+- ⚠️ **Hệ quả:** không có adapter SMS thì **không ai hoàn tất được onboarding**.
+- **Không cần gọi hai endpoint chấm điểm.** `PATCH /profile/me` và
+  `PATCH /profile/me/phone-verification/confirm` đều tự ghi bằng chứng, và bằng chứng cuối
+  cùng tự kích hoạt phần thưởng. Hai endpoint kia để client xem và chấm lại khi nghi lệch.
+- `trigger` **kiểm `key`**: gõ sai tên nhiệm vụ trả 400. Trước 26/09 nó bỏ qua `key` hoàn
+  toàn và vẫn trả 200.
 
 ---
 
@@ -913,7 +945,7 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 | `GET` | `/admin/roles` | `admin.manage` | Role và quyền kèm theo |
 | `GET` | `/admin/me` | `admin.access` | Role và permission đọc lại từ database cho phiên CMS |
 | `POST` \| `DELETE` | `/admin/users/:userId/roles` | `admin.manage` | Cấp / thu hồi role |
-| `GET` | `/admin/users` | `admin.manage` | Tìm user với bộ lọc đầy đủ |
+| `GET` | `/admin/users` | `admin.manage` | Tìm user với bộ lọc đầy đủ, gồm **hàng đợi cờ độ chính xác** |
 | `GET` | `/admin/users/:userId` | `admin.manage` | Chi tiết một user |
 | `PATCH` | `/admin/users/:userId/status` | `admin.manage` | Đổi trạng thái |
 | `DELETE` | `/admin/users/:userId` | `admin.manage` | Xoá mềm kèm ẩn danh |
@@ -954,6 +986,11 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 - `DELETE /admin/users/:userId` và `DELETE /admin/users/:userId/roles` **nhận body** (lý do
   bắt buộc). Một số HTTP client xử lý DELETE-có-body không đồng nhất — nếu thư viện của bạn
   nuốt body, dùng `fetch` hoặc `curl -X DELETE -d`.
+- `GET /admin/users?accuracyReviewRequired=true` là **hàng đợi Giver Accuracy** (F43). Mỗi
+  dòng mang sẵn `giverAccuracyPercent`, `giverAccuracySamples` và `accuracyReviewRequired`,
+  đủ để quyết mà không phải mở từng hồ sơ. Cờ này **chỉ Admin thấy** — nó là tín hiệu để
+  người thật nhìn qua, không phải phán quyết, nên không bao giờ hiện trên hồ sơ công khai và
+  cũng không hiện cho chính chủ. Cũng có `emailVerified` để lọc.
 - `/admin/system-logs` gom bốn nguồn thật (`admin_audit_logs`, `point_ledger`,
   `rank_transitions`, `gift_transactions`) về một hình dạng chung, lọc bằng `logType`.
 - CMS lấy capability từ `/admin/me`, không suy ra quyền từ `rank`, `status` hoặc JWT.

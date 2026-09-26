@@ -144,6 +144,13 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Số điện thoại này đã được dùng cho tài khoản khác',
   },
 
+  PHONE_ALREADY_VERIFIED: {
+    code: ErrorCodes.PHONE_ALREADY_VERIFIED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Số điện thoại này đã từng được xác minh cho một tài khoản khác. Dùng số khác, hoặc liên hệ hỗ trợ nếu đây đúng là số của bạn.',
+  },
+
   INVALID_CREDENTIALS: {
     code: ErrorCodes.INVALID_CREDENTIALS,
     httpStatus: HttpStatus.UNAUTHORIZED,

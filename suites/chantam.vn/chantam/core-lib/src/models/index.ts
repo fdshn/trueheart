@@ -11,6 +11,7 @@ export * from './keyset-cursor';
 export * from './notification';
 export * from './notification-template';
 export * from './onboarding-task';
+export * from './phone-number';
 export * from './point-economy';
 export * from './point-log';
 export * from './post';

@@ -56,3 +56,6 @@ export * from './1793600000000-SeedOpenRequestQuota';
 export * from './1793700000000-CreateGroups';
 export * from './1793800000000-PublishPendingPosts';
 export * from './1793900000000-AddUserEmailVerifiedAt';
+export * from './1794000000000-RequirePhoneVerificationForOnboarding';
+export * from './1794100000000-NormalizePhoneNumbers';
+export * from './1794200000000-CreateVerifiedPhones';

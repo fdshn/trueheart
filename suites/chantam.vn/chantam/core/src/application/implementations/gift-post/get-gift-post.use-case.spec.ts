@@ -71,7 +71,7 @@ function makeConfig(): IConfig {
     otpEmail: { fromAddress: '', fromName: 'Chân Tâm' },
     adminBootstrap: { usernames: [] },
     web: { publicBaseUrl: '' },
-    security: { secretEncryptionKey: '' },
+    security: { secretEncryptionKey: '', phoneHashPepper: '' },
     storage: {
       endpoint: '',
       region: '',

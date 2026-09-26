@@ -7,9 +7,15 @@ import {
 import { IGetOwnRankSummaryUseCase } from '@/application/contracts/rank';
 import { UserNotFoundException } from '@/domain/exceptions';
 import {
+  IAdminConfigRepository,
   IReferralRepository,
+  ITransactionReviewRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
+import {
+  GiverAccuracyConfigKey,
+  normalizeGiverAccuracyConfig,
+} from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 import { toOwnProfileDto } from './profile.mapper';
 
@@ -26,6 +32,10 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
     private readonly getOwnRankSummaryUseCase: IGetOwnRankSummaryUseCase,
     @Inject(IGetOwnEntitlementsUseCase)
     private readonly getOwnEntitlementsUseCase: IGetOwnEntitlementsUseCase,
+    @Inject(ITransactionReviewRepository)
+    private readonly reviewRepository: ITransactionReviewRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig: IAdminConfigRepository,
   ) {}
 
   public async handle(command: IGetOwnProfileCommand) {
@@ -50,12 +60,15 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
     // Gọi lại chính use case đang phục vụ ba endpoint riêng, không đọc thẳng
     // repository: mọi con số ở đây phải trùng khít với /points/me, /ranks/me và
     // /me/entitlements, kể cả khi cách tính đổi về sau.
-    const [referral, point, rank, entitlements] = await Promise.all([
-      this.referralRepository.getOwnSummary(command.userId),
-      this.getOwnPointSummaryUseCase.handle({ userId: command.userId }),
-      this.getOwnRankSummaryUseCase.handle({ userId: command.userId }),
-      this.getOwnEntitlementsUseCase.handle({ userId: command.userId }),
-    ]);
+    const [referral, point, rank, entitlements, accuracy, accuracyConfig] =
+      await Promise.all([
+        this.referralRepository.getOwnSummary(command.userId),
+        this.getOwnPointSummaryUseCase.handle({ userId: command.userId }),
+        this.getOwnRankSummaryUseCase.handle({ userId: command.userId }),
+        this.getOwnEntitlementsUseCase.handle({ userId: command.userId }),
+        this.reviewRepository.getAccuracy(command.userId),
+        this.adminConfig.getConfigValue(GiverAccuracyConfigKey),
+      ]);
 
     return {
       profile: {
@@ -72,6 +85,14 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
         point: point.point,
         rankProgress: rank.rank,
         entitlements: entitlements.entitlements,
+        // Chính chủ thấy chỉ số của mình, KHÔNG thấy cờ `reviewRequired`. Cờ đó
+        // là tín hiệu để Admin xem, không phải phán quyết — cho chính chủ thấy
+        // "bạn đang bị đánh dấu xem xét" là kết tội trước khi có người nhìn qua.
+        accuracy: {
+          percent: accuracy.percent,
+          samples: accuracy.samples,
+          minSamples: normalizeGiverAccuracyConfig(accuracyConfig).minSamples,
+        },
       },
     };
   }

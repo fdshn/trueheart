@@ -117,6 +117,7 @@ export function loadConfig(): IConfig {
 
     security: {
       secretEncryptionKey: process.env.CONFIG_ENCRYPTION_KEY ?? '',
+      phoneHashPepper: process.env.PHONE_HASH_PEPPER ?? '',
     },
 
     storage: {
