@@ -1,6 +1,7 @@
 import { SmartMatchMaxResults } from '@/domain/consts';
 import {
   IGetSmartMatchesResponseDto,
+  IPublicPostMediaDto,
   ISmartMatchDto,
   SmartMatchReason,
 } from '@chantam.vn/chantam.core-lib/dto';
@@ -36,6 +37,7 @@ export class GetSmartMatchesQueryDto {
 }
 
 import { PostEntity } from '../../../entity/post.entity';
+import { PublicPostMediaDto } from './post.dto';
 
 export class SmartMatchDto implements ISmartMatchDto {
   @ApiProperty({ type: () => PostEntity })
@@ -62,6 +64,13 @@ export class SmartMatchDto implements ISmartMatchDto {
     description: 'Vì sao bài này được gợi ý.',
   })
   reasons: SmartMatchReason[];
+
+  @ApiProperty({
+    type: [PublicPostMediaDto],
+    description:
+      'Ảnh của bài được gợi ý, sắp sẵn theo `sortOrder`. Rỗng khi chưa có ảnh.',
+  })
+  media: IPublicPostMediaDto[];
 }
 
 export class GetSmartMatchesResponseDto implements IGetSmartMatchesResponseDto {

@@ -7,6 +7,7 @@ import {
   IGetNearbyPostsQueryDto,
   IGetNearbyPostsResponseDto,
   INearbyPostDto,
+  IPublicPostMediaDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
@@ -33,6 +34,7 @@ import {
 } from 'class-validator';
 import { Mixin } from 'ts-mixer';
 import { PostEntity } from '../../../entity/post.entity';
+import { PublicPostMediaDto } from './post.dto';
 
 export class GetNearbyPostsQueryDto
   extends Mixin(PaginationQueryDto)
@@ -123,6 +125,14 @@ export class NearbyPostDto implements INearbyPostDto {
     description: 'Người dùng hiện tại đã gửi yêu cầu chưa',
   })
   hasRequested?: boolean;
+
+  @ApiProperty({
+    type: [PublicPostMediaDto],
+    description:
+      'Ảnh của bài, sắp sẵn theo `sortOrder`. Rỗng khi bài chưa có ảnh — ' +
+      'cùng hình dạng với `/posts/me` và `/posts/{postId}`.',
+  })
+  media: IPublicPostMediaDto[];
 
   @ApiProperty({ example: 12 }) reactionCount: number;
   @ApiProperty({ example: 3 }) commentCount: number;

@@ -462,6 +462,9 @@ ra — gợi ý không giải thích được thì người dùng không có cơ
   là biến endpoint này thành đường vòng để dò toạ độ chính xác.
 - Loại bài ngoài `OFFER`/`WANTED` trả danh sách rỗng thay vì ghép bừa.
 - Ứng viên phải **cùng danh mục hoặc trùng từ khoá** — chỉ gần thôi thì chưa phải gợi ý.
+- Mỗi gợi ý kèm `media[]` cùng hình dạng với `/posts/nearby` (chốt 27/09). Ảnh chỉ nạp cho các
+  bài **đã lọt vào kết quả sau khi xếp hạng và cắt** — nạp cho cả rổ ứng viên rồi vứt phần lớn
+  là kéo về đúng thứ vừa quyết không trả.
 
 ### Ảnh bài đăng — luồng ba bước
 
@@ -641,6 +644,12 @@ giới hạn — đổi trần bán kính ở server là client tự theo.
 `/posts/nearby` nhận `postType` **tuỳ chọn** — bỏ trống thì trả feed trộn cả năm loại (chốt
 26/09; trước đó bắt buộc, nên client muốn feed trộn phải gọi năm lần rồi tự ghép mà mỗi lần
 phân trang riêng nên ghép xong thứ tự vô nghĩa).
+
+`/posts/nearby` trả kèm `media[]` cho từng bài (chốt 27/09) — đúng hình dạng đã dùng ở
+`/posts/me` và `/posts/{postId}`: `{ id, url, sortOrder }`, sắp sẵn theo `sortOrder`, và **luôn
+là mảng** (bài chưa có ảnh trả `[]`, không bỏ trống trường). Ảnh của cả trang lấy trong **một
+truy vấn** gộp theo `postId` rồi chia về từng bài; hỏi từng bài là 20 lượt đi database mỗi lần
+cuộn feed.
 
 `/posts/map` nhận khung bbox và trả **CỤM theo ô lưới** (chốt 26/09):
 

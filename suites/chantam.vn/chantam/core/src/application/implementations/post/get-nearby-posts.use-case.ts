@@ -8,6 +8,7 @@ import { IConfig } from '@/domain/ports/config';
 import {
   IContentReactionRepository,
   IGiftRequestRepository,
+  IPostMediaRepository,
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
@@ -28,6 +29,8 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
   public constructor(
     @Inject(IPostRepository)
     private readonly postRepository: IPostRepository,
+    @Inject(IPostMediaRepository)
+    private readonly postMediaRepository: IPostMediaRepository,
     @Inject(IGiftRequestRepository)
     private readonly giftRequestRepository: IGiftRequestRepository,
     @Inject(IUserRepository)
@@ -104,6 +107,28 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
           )
         : new Map<string, GiftRequestStatuses>();
 
+    // Một truy vấn cho cả trang, y như đếm và cảm xúc: hỏi ảnh từng bài là 20
+    // lần đi database mỗi lần cuộn feed.
+    const allMedia =
+      postIds.length > 0
+        ? await this.postMediaRepository.listByPostIds(postIds)
+        : [];
+
+    const mediaMap = new Map<
+      string,
+      Array<{ id: number; url: string; sortOrder: number }>
+    >();
+    for (const item of allMedia) {
+      const url = `${this.config.storage.publicBaseUrl.replace(/\/$/, '')}/${item.r2Key}`;
+      const entry = { id: item.id, url, sortOrder: item.sortOrder };
+      const list = mediaMap.get(item.postId);
+      if (list) {
+        list.push(entry);
+      } else {
+        mediaMap.set(item.postId, [entry]);
+      }
+    }
+
     // Một truy vấn cho cả trang — hỏi từng bài là 20 lần đi database mỗi lần cuộn.
     const myReactions =
       postIds.length > 0 && command.currentUserId
@@ -128,6 +153,9 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
           },
           distanceMeters: bucketDistance(distanceMeters),
           isLocationApproximate: true,
+          media: (mediaMap.get(post.globalId) ?? []).sort(
+            (a, b) => a.sortOrder - b.sortOrder,
+          ),
           requestCount: requestCounts.get(post.globalId) ?? 0,
           myRequestStatus,
           hasRequested: Boolean(myRequestStatus),

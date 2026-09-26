@@ -36,6 +36,7 @@ function candidate(overrides: Record<string, unknown> = {}) {
 function makeDeps(
   source: unknown = sourcePost(),
   candidates: unknown[] = [candidate()],
+  mediaItems: Array<Record<string, unknown>> = [],
 ) {
   return {
     posts: {
@@ -55,12 +56,25 @@ function makeDeps(
       update: jest.fn(),
       save: jest.fn(),
     },
-    config: { geo: { jitterRadiusMeters: 300 } },
+    media: {
+      // Trả phẳng mọi bài như `listByPostIds` thật, để test bắt được lỗi gom
+      // nhầm ảnh sang bài khác.
+      listByPostIds: jest.fn(async (_postIds: string[]) => mediaItems),
+    },
+    // Dấu `/` cuối là chuyện thường trong cấu hình; ghép thô sẽ ra `//`.
+    config: {
+      geo: { jitterRadiusMeters: 300 },
+      storage: { publicBaseUrl: 'https://cdn.chantam.vn/' },
+    },
   };
 }
 
 function makeUseCase(deps: ReturnType<typeof makeDeps>) {
-  return new GetSmartMatchesUseCase(deps.posts as never, deps.config as never);
+  return new GetSmartMatchesUseCase(
+    deps.posts as never,
+    deps.media as never,
+    deps.config as never,
+  );
 }
 
 const Command = { postId: SourceId, userId: AuthorId };
@@ -201,5 +215,76 @@ describe('GetSmartMatchesUseCase', () => {
     const result = await makeUseCase(deps).handle({ ...Command, take: 2 });
 
     expect(result.matches).toHaveLength(2);
+  });
+
+  it('chỉ hỏi ảnh cho bài thật sự trả về, không hỏi cho bài đã bị cắt', async () => {
+    // Nạp ảnh trước khi cắt là kéo về đúng thứ vừa quyết không trả.
+    const deps = makeDeps(sourcePost(), [
+      candidate({
+        post: { globalId: 'a', categoryId: CategoryId, location: {} },
+        distanceMeters: 100,
+      }),
+      candidate({
+        post: { globalId: 'b', categoryId: CategoryId, location: {} },
+        distanceMeters: 200,
+      }),
+      candidate({
+        post: { globalId: 'c', categoryId: CategoryId, location: {} },
+        distanceMeters: 300,
+      }),
+    ]);
+
+    await makeUseCase(deps).handle({ ...Command, take: 2 });
+
+    expect(deps.media.listByPostIds).toHaveBeenCalledTimes(1);
+    expect(deps.media.listByPostIds).toHaveBeenCalledWith(['a', 'b']);
+  });
+
+  it('gắn ảnh vào đúng bài và sắp theo sortOrder', async () => {
+    const deps = makeDeps(
+      sourcePost(),
+      [
+        candidate({
+          post: { globalId: 'a', categoryId: CategoryId, location: {} },
+          distanceMeters: 100,
+        }),
+        candidate({
+          post: { globalId: 'b', categoryId: CategoryId, location: {} },
+          distanceMeters: 200,
+        }),
+      ],
+      [
+        { id: 9, postId: 'b', r2Key: 'posts/b-1.webp', sortOrder: 0 },
+        { id: 7, postId: 'a', r2Key: 'posts/a-2.webp', sortOrder: 1 },
+        { id: 5, postId: 'a', r2Key: 'posts/a-1.webp', sortOrder: 0 },
+      ],
+    );
+
+    const result = await makeUseCase(deps).handle(Command);
+
+    expect(result.matches[0].media).toEqual([
+      { id: 5, url: 'https://cdn.chantam.vn/posts/a-1.webp', sortOrder: 0 },
+      { id: 7, url: 'https://cdn.chantam.vn/posts/a-2.webp', sortOrder: 1 },
+    ]);
+    expect(result.matches[1].media).toEqual([
+      { id: 9, url: 'https://cdn.chantam.vn/posts/b-1.webp', sortOrder: 0 },
+    ]);
+  });
+
+  it('bài không có ảnh thì trả mảng rỗng, không phải undefined', async () => {
+    const deps = makeDeps();
+
+    const result = await makeUseCase(deps).handle(Command);
+
+    expect(result.matches[0].media).toEqual([]);
+  });
+
+  it('không có bài ghép nào thì không hỏi ảnh', async () => {
+    const deps = makeDeps(sourcePost({ postType: PostTypes.CHARITY }));
+
+    const result = await makeUseCase(deps).handle(Command);
+
+    expect(result.matches).toEqual([]);
+    expect(deps.media.listByPostIds).not.toHaveBeenCalled();
   });
 });

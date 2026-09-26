@@ -148,6 +148,12 @@ export interface INearbyPostDto extends IPostFeedInteractionDto {
   requestCount?: number;
   myRequestStatus?: GiftRequestStatuses | null;
   hasRequested?: boolean;
+  /**
+   * Ảnh của bài, sắp sẵn theo `sortOrder`. Luôn là mảng — bài chưa có ảnh trả
+   * `[]` chứ không bỏ trống trường, để client dựng carousel không phải kiểm
+   * `undefined` trước mỗi lần đọc `length`.
+   */
+  media: IPublicPostMediaDto[];
 }
 
 export interface IGetNearbyPostsResponseDto {
@@ -173,6 +179,8 @@ export interface ISmartMatchDto {
   /** Độ khớp trong [0, 1], đọc được như phần trăm. */
   score: number;
   reasons: SmartMatchReason[];
+  /** Cùng hình dạng với `INearbyPostDto.media`; rỗng khi bài chưa có ảnh. */
+  media: IPublicPostMediaDto[];
 }
 
 export interface IGetSmartMatchesResponseDto {

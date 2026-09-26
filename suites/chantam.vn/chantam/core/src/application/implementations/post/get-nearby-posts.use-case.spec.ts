@@ -3,6 +3,7 @@ import { IConfig } from '@/domain/ports/config';
 import {
   IContentReactionRepository,
   IGiftRequestRepository,
+  IPostMediaRepository,
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
@@ -13,7 +14,10 @@ import {
   PostTypes,
   ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
+import {
+  IPostEntity,
+  IPostMediaEntity,
+} from '@chantam.vn/chantam.core-lib/entities';
 import { GetNearbyPostsUseCase } from './get-nearby-posts.use-case';
 
 const ExactLocation = { lat: 10.7724, lng: 106.698 };
@@ -111,6 +115,24 @@ function makeReactions(
   } as unknown as jest.Mocked<IContentReactionRepository>;
 }
 
+/**
+ * Ảnh của cả trang lấy trong MỘT truy vấn, nên mock trả về danh sách PHẲNG của
+ * mọi bài y như `listByPostIds` thật. Trả sẵn theo từng bài sẽ giấu mất lỗi gom
+ * nhầm ảnh sang bài khác — đúng thứ cần bắt ở đây.
+ */
+function makeMedia(
+  items: Array<Partial<IPostMediaEntity>> = [],
+): jest.Mocked<IPostMediaRepository> {
+  return {
+    listByPostIds: jest.fn().mockResolvedValue(items),
+    listByPostId: jest.fn(),
+    countByPostId: jest.fn(),
+    attach: jest.fn(),
+    replaceOrder: jest.fn(),
+    removeByPostId: jest.fn(),
+  } as unknown as jest.Mocked<IPostMediaRepository>;
+}
+
 describe('GetNearbyPostsUseCase', () => {
   it('forwards requested type and pagination then returns privacy-safe nearby posts with request counts and status', async () => {
     const post = makePost();
@@ -138,6 +160,7 @@ describe('GetNearbyPostsUseCase', () => {
 
     const result = await new GetNearbyPostsUseCase(
       posts,
+      makeMedia(),
       giftRequests,
       makeUsers(),
       reactions,
@@ -203,6 +226,7 @@ describe('GetNearbyPostsUseCase', () => {
 
     const result = await new GetNearbyPostsUseCase(
       posts,
+      makeMedia(),
       giftRequests,
       users,
       makeReactions(),
@@ -231,6 +255,7 @@ describe('GetNearbyPostsUseCase', () => {
 
     const result = await new GetNearbyPostsUseCase(
       posts,
+      makeMedia(),
       giftRequests,
       users,
       makeReactions(),
@@ -257,6 +282,7 @@ describe('GetNearbyPostsUseCase', () => {
     await expect(
       new GetNearbyPostsUseCase(
         posts,
+        makeMedia(),
         {} as unknown as jest.Mocked<IGiftRequestRepository>,
         makeUsers(),
         makeReactions(),
@@ -285,6 +311,7 @@ describe('GetNearbyPostsUseCase', () => {
         {
           findNearbyPosts: jest.fn(),
         } as unknown as jest.Mocked<IPostRepository>,
+        makeMedia(),
         {} as unknown as jest.Mocked<IGiftRequestRepository>,
         users,
         makeReactions(),
@@ -309,6 +336,7 @@ describe('GetNearbyPostsUseCase', () => {
         {
           findNearbyPosts: jest.fn(),
         } as unknown as jest.Mocked<IPostRepository>,
+        makeMedia(),
         {} as unknown as jest.Mocked<IGiftRequestRepository>,
         users,
         makeReactions(),
@@ -342,6 +370,7 @@ describe('GetNearbyPostsUseCase', () => {
 
     const result = await new GetNearbyPostsUseCase(
       posts,
+      makeMedia(),
       giftRequests,
       makeUsers(),
       reactions,
@@ -357,5 +386,123 @@ describe('GetNearbyPostsUseCase', () => {
 
     expect(reactions.findMyReactions).not.toHaveBeenCalled();
     expect(result.posts[0].myReaction).toBeNull();
+  });
+
+  it('gắn ảnh vào đúng bài, sắp theo sortOrder, và chỉ hỏi ảnh một lần cho cả trang', async () => {
+    const first = makePost();
+    const second = makePost({
+      globalId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    });
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({
+        items: [
+          { post: first, distanceMeters: 100 },
+          { post: second, distanceMeters: 200 },
+        ],
+        total: 2,
+      }),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequests = {
+      countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      findStatusesByPostIdsAndRequester: jest.fn(),
+    } as unknown as jest.Mocked<IGiftRequestRepository>;
+
+    // Trộn hai bài và để sai thứ tự: đúng thứ một truy vấn gộp có thể trả về,
+    // và là thứ duy nhất chứng minh use-case tự gom theo bài rồi tự sắp.
+    const media = makeMedia([
+      { id: 9, postId: second.globalId, r2Key: 'posts/b-1.webp', sortOrder: 1 },
+      { id: 7, postId: first.globalId, r2Key: 'posts/a-2.webp', sortOrder: 1 },
+      { id: 5, postId: first.globalId, r2Key: 'posts/a-1.webp', sortOrder: 0 },
+    ]);
+
+    // Dấu `/` cuối là chuyện thường trong cấu hình; ghép thô sẽ ra `//`.
+    const config = makeConfig();
+    config.storage.publicBaseUrl = 'https://cdn.chantam.vn/';
+
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      media,
+      giftRequests,
+      makeUsers(),
+      makeReactions(),
+      config,
+    ).handle({
+      lat: ExactLocation.lat,
+      lng: ExactLocation.lng,
+      radiusMeters: 5_000,
+      page: 1,
+      pageSize: 20,
+    });
+
+    // Một truy vấn cho cả trang — hỏi từng bài là 20 lần đi database mỗi lần cuộn.
+    expect(media.listByPostIds).toHaveBeenCalledTimes(1);
+    expect(media.listByPostIds).toHaveBeenCalledWith([
+      first.globalId,
+      second.globalId,
+    ]);
+    expect(result.posts[0].media).toEqual([
+      { id: 5, url: 'https://cdn.chantam.vn/posts/a-1.webp', sortOrder: 0 },
+      { id: 7, url: 'https://cdn.chantam.vn/posts/a-2.webp', sortOrder: 1 },
+    ]);
+    expect(result.posts[1].media).toEqual([
+      { id: 9, url: 'https://cdn.chantam.vn/posts/b-1.webp', sortOrder: 1 },
+    ]);
+  });
+
+  it('bài không có ảnh thì trả mảng rỗng, không phải undefined', async () => {
+    // Client dựng carousel bằng `media.length`; `undefined` là một lần nổ.
+    const post = makePost();
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({
+        items: [{ post, distanceMeters: 100 }],
+        total: 1,
+      }),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequests = {
+      countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      findStatusesByPostIdsAndRequester: jest.fn(),
+    } as unknown as jest.Mocked<IGiftRequestRepository>;
+
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      makeMedia(),
+      giftRequests,
+      makeUsers(),
+      makeReactions(),
+      makeConfig(),
+    ).handle({
+      lat: ExactLocation.lat,
+      lng: ExactLocation.lng,
+      radiusMeters: 5_000,
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(result.posts[0].media).toEqual([]);
+  });
+
+  it('trang rỗng thì không hỏi ảnh', async () => {
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const media = makeMedia();
+
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      media,
+      {} as unknown as jest.Mocked<IGiftRequestRepository>,
+      makeUsers(),
+      makeReactions(),
+      makeConfig(),
+    ).handle({
+      lat: ExactLocation.lat,
+      lng: ExactLocation.lng,
+      radiusMeters: 5_000,
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(media.listByPostIds).not.toHaveBeenCalled();
+    expect(result.posts).toEqual([]);
   });
 });
