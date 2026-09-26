@@ -11,9 +11,11 @@ import {
   IGetNotificationChannelsUseCase,
   IGetOwnAdminAccessUseCase,
   IGetSystemLogsUseCase,
+  IListAdminCommentsUseCase,
   IListAdminRolesUseCase,
   IListAdminUsersUseCase,
   IListNotificationTemplatesUseCase,
+  IModerateAdminCommentUseCase,
   IPublishAdminConfigUseCase,
   IPublishAdminMaintenancePolicyUseCase,
   IPublishAdminPointRuleUseCase,
@@ -24,6 +26,10 @@ import {
   IUpdateNotificationTemplateUseCase,
 } from '@/application/contracts/admin-config';
 import { Global, Module } from '@nestjs/common';
+import {
+  ListAdminCommentsUseCase,
+  ModerateAdminCommentUseCase,
+} from './admin-comment.use-cases';
 import {
   GetAdminAuditLogsUseCase,
   GetAdminConfigsUseCase,
@@ -125,6 +131,14 @@ import {
     },
     { provide: IDeleteAdminUserUseCase, useClass: DeleteAdminUserUseCase },
     {
+      provide: IListAdminCommentsUseCase,
+      useClass: ListAdminCommentsUseCase,
+    },
+    {
+      provide: IModerateAdminCommentUseCase,
+      useClass: ModerateAdminCommentUseCase,
+    },
+    {
       provide: IReleaseVerifiedPhoneUseCase,
       useClass: ReleaseVerifiedPhoneUseCase,
     },
@@ -159,6 +173,8 @@ import {
     IChangeAdminUserStatusUseCase,
     IDeleteAdminUserUseCase,
     IReleaseVerifiedPhoneUseCase,
+    IListAdminCommentsUseCase,
+    IModerateAdminCommentUseCase,
     IGetNotificationChannelsUseCase,
     IUpdateNotificationChannelUseCase,
   ],

@@ -1,4 +1,7 @@
-import { PostNotFoundException } from '@/domain/exceptions';
+import {
+  PostNotFoundException,
+  TooManyRequestsException,
+} from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
   IContentShareRepository,
@@ -46,6 +49,13 @@ function makeConfig(publicBaseUrl = ''): IConfig {
   };
 }
 
+function makeThrottle() {
+  return {
+    assertWithinLimit: jest.fn(async () => undefined),
+    registerHit: jest.fn(async () => undefined),
+  } as never;
+}
+
 describe('RecordContentShareUseCase', () => {
   it('ghi nhận lượt chia sẻ và trả đường dẫn tương đối, không nhân bản nội dung', async () => {
     const posts = {
@@ -62,6 +72,7 @@ describe('RecordContentShareUseCase', () => {
       shares,
       posts,
       makeConfig(),
+      makeThrottle(),
     ).handle({
       userId: UserId,
       subjectType: ContentSubjectTypes.POST,
@@ -97,6 +108,7 @@ describe('RecordContentShareUseCase', () => {
       shares,
       posts,
       makeConfig('https://chantam.vn/'),
+      makeThrottle(),
     ).handle({
       userId: UserId,
       subjectType: ContentSubjectTypes.POST,
@@ -116,7 +128,12 @@ describe('RecordContentShareUseCase', () => {
     } as unknown as jest.Mocked<IContentShareRepository>;
 
     await expect(
-      new RecordContentShareUseCase(shares, posts, makeConfig()).handle({
+      new RecordContentShareUseCase(
+        shares,
+        posts,
+        makeConfig(),
+        makeThrottle(),
+      ).handle({
         userId: UserId,
         subjectType: ContentSubjectTypes.POST,
         subjectId: PostId,
@@ -137,7 +154,12 @@ describe('RecordContentShareUseCase', () => {
       recordShare: jest.fn().mockResolvedValue({ shareCount: 1 }),
     } as unknown as jest.Mocked<IContentShareRepository>;
 
-    await new RecordContentShareUseCase(shares, posts, makeConfig()).handle({
+    await new RecordContentShareUseCase(
+      shares,
+      posts,
+      makeConfig(),
+      makeThrottle(),
+    ).handle({
       userId: UserId,
       subjectType: ContentSubjectTypes.POST,
       subjectId: PostId,
@@ -147,7 +169,12 @@ describe('RecordContentShareUseCase', () => {
       expect.objectContaining({ channel: null }),
     );
 
-    await new RecordContentShareUseCase(shares, posts, makeConfig()).handle({
+    await new RecordContentShareUseCase(
+      shares,
+      posts,
+      makeConfig(),
+      makeThrottle(),
+    ).handle({
       userId: UserId,
       subjectType: ContentSubjectTypes.POST,
       subjectId: PostId,
@@ -155,6 +182,66 @@ describe('RecordContentShareUseCase', () => {
     });
     expect(shares.recordShare).toHaveBeenLastCalledWith(
       expect.objectContaining({ channel: 'x'.repeat(40) }),
+    );
+  });
+
+  it('chặn chia sẻ lại CÙNG một bài trong thời gian ngắn', async () => {
+    // `share_count` đếm theo LƯỢT chứ không theo người (chốt 26/09), nên không
+    // có gì tự chặn việc gọi một nghìn lần để bài hiện "1.000 lượt chia sẻ".
+    const shares = { recordShare: jest.fn() };
+    const posts = {
+      findOneBy: jest.fn(async () => ({ globalId: PostId, deletedAt: null })),
+    };
+    const throttle = {
+      assertWithinLimit: jest.fn(async () => {
+        throw new TooManyRequestsException(60);
+      }),
+      registerHit: jest.fn(),
+    };
+
+    await expect(
+      new RecordContentShareUseCase(
+        shares as never,
+        posts as never,
+        makeConfig(),
+        throttle as never,
+      ).handle({
+        userId: UserId,
+        subjectType: ContentSubjectTypes.POST,
+        subjectId: PostId,
+      }),
+    ).rejects.toBeInstanceOf(TooManyRequestsException);
+
+    expect(shares.recordShare).not.toHaveBeenCalled();
+  });
+
+  it('khoá theo CẢ người lẫn bài, không khoá theo mình người', async () => {
+    // Khoá theo người thôi thì chia sẻ mười bài khác nhau trong một phút cũng
+    // bị chặn — mà đó là hành vi bình thường của người đang lướt.
+    const shares = {
+      recordShare: jest.fn(async () => ({ shareCount: 1 })),
+    };
+    const posts = {
+      findOneBy: jest.fn(async () => ({ globalId: PostId, deletedAt: null })),
+    };
+    const throttle = {
+      assertWithinLimit: jest.fn(async () => undefined),
+      registerHit: jest.fn(async () => undefined),
+    };
+
+    await new RecordContentShareUseCase(
+      shares as never,
+      posts as never,
+      makeConfig(),
+      throttle as never,
+    ).handle({
+      userId: UserId,
+      subjectType: ContentSubjectTypes.POST,
+      subjectId: PostId,
+    });
+
+    expect(throttle.assertWithinLimit).toHaveBeenCalledWith(
+      expect.objectContaining({ bucket: `share:POST:${PostId}`, key: UserId }),
     );
   });
 });

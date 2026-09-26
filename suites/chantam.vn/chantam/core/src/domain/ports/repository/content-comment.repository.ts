@@ -98,6 +98,36 @@ export interface IContentCommentRepository {
     globalId: string;
     status: CommentStatuses;
   }): Promise<IContentComment>;
+
+  /**
+   * Hàng đợi kiểm duyệt bình luận cho Admin.
+   *
+   * Bình luận bị bộ lọc từ ngữ giữ lại nằm ở `PENDING_REVIEW` và **ẩn khỏi công
+   * khai**. Không có hàng đợi thì nó nằm đó vĩnh viễn: người viết tưởng mình đã
+   * đăng, người đọc không thấy gì, và không ai được nhắc là có thứ đang chờ.
+   *
+   * Kèm `subjectTitle` để Admin quyết ngay trên danh sách — một câu chửi chỉ có
+   * nghĩa khi biết nó nằm dưới bài nào.
+   */
+  findForAdmin(params: {
+    status?: CommentStatuses;
+    skip: number;
+    take: number;
+  }): Promise<{ items: IAdminComment[]; total: number }>;
+}
+
+export interface IAdminComment {
+  readonly commentId: string;
+  readonly subjectType: ContentSubjectTypes;
+  readonly subjectId: string;
+  readonly subjectTitle: string | null;
+  readonly authorId: string;
+  readonly authorUsername: string;
+  readonly body: string;
+  readonly status: CommentStatuses;
+  /** Từ ngữ mà bộ lọc bắt được — lý do nó nằm trong hàng đợi. */
+  readonly flaggedTerms: string | null;
+  readonly createdAt: Date;
 }
 
 export const IContentCommentRepository = Symbol('IContentCommentRepository');

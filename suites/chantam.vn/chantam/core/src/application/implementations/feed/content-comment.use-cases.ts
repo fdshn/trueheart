@@ -33,6 +33,7 @@ import {
   IEntitlementRepository,
   IPostRepository,
 } from '@/domain/ports/repository';
+import { IRequestThrottle } from '@/domain/ports/security';
 import {
   CommentContentCapability,
   CommentEditWindowMinutes,
@@ -124,6 +125,18 @@ class CommentScreening {
   }
 }
 
+/**
+ * Trần bình luận theo phút.
+ *
+ * Cổng quyền `COMMENT_CONTENT` là boolean và không mang hạn mức, nên trước đây
+ * không gì chặn một người gõ liên tục. Hôm nay rule điểm `POST_COMMENTED` đang
+ * TẮT nên hậu quả chỉ là bảng tin bẩn; bật lên là thành một đường farm điểm nhỏ.
+ *
+ * Mười cái một phút rộng hơn hẳn tốc độ người thật gõ, nên người dùng bình
+ * thường không bao giờ chạm tới.
+ */
+const MaxCommentsPerMinute = 10;
+
 @Injectable()
 export class CreateCommentUseCase implements ICreateCommentUseCase {
   public constructor(
@@ -137,6 +150,8 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
     @Inject(IObjectStorage) private readonly storage: IObjectStorage,
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatchNotification: IDispatchNotificationUseCase,
+    @Inject(IRequestThrottle)
+    private readonly throttle: IRequestThrottle,
     @Inject(IAppendPointEntryUseCase)
     private readonly points: IAppendPointEntryUseCase,
   ) {}
@@ -149,6 +164,12 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
       CommentContentCapability,
     );
     if (!capability?.allowed) throw new ForbiddenException();
+
+    await this.throttle.assertWithinLimit({
+      bucket: 'comment',
+      key: command.userId,
+      limit: MaxCommentsPerMinute,
+    });
 
     // Giữ lại chủ bài: đằng nào cũng phải nạp bài để kiểm tra nó có thật, và
     // thông báo cần đúng người này. Hỏi lại lần nữa là thừa một vòng.
@@ -182,7 +203,7 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
       MaxContentMediaPerItem,
     );
 
-    // Bình luận phải có CHỮ hoẶC ẢNH. Database cũng chặn, nhưng chặn ở đây cho ra
+    // Bình luận phải có CHỮ hoặc ẢNH. Database cũng chặn, nhưng chặn ở đây cho ra
     // thông báo đọc được thay vì một lỗi ràng buộc 500.
     if (!command.body.trim() && mediaKeys.length === 0)
       throw new ValidationFailedException([
@@ -227,6 +248,14 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
       authorId: command.userId,
       postAuthorId,
       parentAuthorId,
+    });
+
+    // Đếm SAU khi ghi xong: đếm trước là trừ mất một suất cho một bình luận bị
+    // bộ lọc chặn thẳng, tức phạt người dùng vì một thứ chưa từng đăng được.
+    await this.throttle.registerHit({
+      bucket: 'comment',
+      key: command.userId,
+      windowSeconds: 60,
     });
 
     await awardCommentPoint(this.points, {

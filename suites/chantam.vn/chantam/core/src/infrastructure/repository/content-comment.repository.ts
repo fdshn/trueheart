@@ -1,4 +1,5 @@
 import {
+  IAdminComment,
   ICommentPage,
   IContentComment,
   IContentCommentRepository,
@@ -401,5 +402,71 @@ export class ContentCommentRepository implements IContentCommentRepository {
       );
       return toComment(row);
     });
+  }
+
+  public async findForAdmin(params: {
+    status?: CommentStatuses;
+    skip: number;
+    take: number;
+  }): Promise<{ items: IAdminComment[]; total: number }> {
+    const values: unknown[] = [];
+    let statusCondition = '';
+
+    if (params.status) {
+      values.push(params.status);
+      statusCondition = `AND comment.status = $${values.length}`;
+    }
+
+    values.push(params.take, params.skip);
+
+    const rows = await this.manager.query<
+      {
+        global_id: string;
+        subject_type: ContentSubjectTypes;
+        subject_id: string;
+        subject_title: string | null;
+        author_id: string;
+        username: string;
+        body: string;
+        status: CommentStatuses;
+        flagged_terms: string | null;
+        created_at: Date;
+        total: string;
+      }[]
+    >(
+      `
+        SELECT comment.global_id, comment.subject_type, comment.subject_id,
+               post.title AS subject_title,
+               comment.author_id, author.username, comment.body,
+               comment.status, comment.flagged_terms, comment.created_at,
+               COUNT(*) OVER () AS total
+        FROM content_comments comment
+        INNER JOIN users author ON author.global_id = comment.author_id
+        -- Bình luận có thể treo dưới nhiều loại chủ thể; chỉ bài đăng mới có
+        -- tiêu đề, nên LEFT JOIN và chấp nhận null cho loại khác.
+        LEFT JOIN posts post
+          ON comment.subject_type = 'POST' AND post.global_id = comment.subject_id
+        WHERE comment.status <> 'REMOVED' ${statusCondition}
+        ORDER BY comment.created_at ASC, comment.id ASC
+        LIMIT $${values.length - 1} OFFSET $${values.length}
+      `,
+      values,
+    );
+
+    return {
+      items: rows.map((row) => ({
+        commentId: row.global_id,
+        subjectType: row.subject_type,
+        subjectId: row.subject_id,
+        subjectTitle: row.subject_title,
+        authorId: row.author_id,
+        authorUsername: row.username,
+        body: row.body,
+        status: row.status,
+        flaggedTerms: row.flagged_terms,
+        createdAt: row.created_at,
+      })),
+      total: Number(rows[0]?.total ?? 0),
+    };
   }
 }

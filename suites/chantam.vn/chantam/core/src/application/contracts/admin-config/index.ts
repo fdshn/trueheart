@@ -1,3 +1,4 @@
+export * from './admin-comment.use-cases';
 export * from './admin-config.use-cases';
 export * from './admin-maintenance-policy.use-cases';
 export * from './admin-point-rule.use-cases';

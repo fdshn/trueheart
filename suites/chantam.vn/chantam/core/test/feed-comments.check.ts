@@ -8,6 +8,8 @@
  *   2. **Bộ lọc từ ngữ nối đúng vào đường ghi**, và đọc cấu hình động.
  *   3. **Con trỏ không lặp không sót** khi có bình luận mới chen vào giữa.
  *   4. **Tác giả thấy bình luận chờ duyệt của mình, người khác không.**
+ *   5. **Hàng đợi Admin đọc được thật.** SQL thô của `findForAdmin` chỉ sai
+ *      trên database thật — unit test mock `query` nên không thấy gì.
  *
  *   npm run test:feed-comments
  */
@@ -378,6 +380,99 @@ async function main(): Promise<void> {
       (await comments.findByGlobalId(root.globalId))?.editedAt !== null,
     );
 
+    // ── 8. Hàng đợi kiểm duyệt của Admin ────────────────────────────────────
+    //
+    // SQL thô: unit test mock `query` nên một câu sai cú pháp lọt tới tận prod.
+    console.log('\nHàng đợi Admin:\n');
+
+    const flagged = await addComment(
+      'Câu này bộ lọc giữ lại',
+      CommentStatuses.PENDING_REVIEW,
+    );
+    await dataSource.query(
+      `UPDATE content_comments SET flagged_terms = $2 WHERE global_id = $1`,
+      [flagged.globalId, 'lua dao'],
+    );
+
+    const queue = await comments.findForAdmin({
+      status: CommentStatuses.PENDING_REVIEW,
+      skip: 0,
+      take: 20,
+    });
+    check(
+      'lọc PENDING_REVIEW chỉ trả bình luận đang chờ',
+      queue.items.length > 0 &&
+        queue.items.every(
+          (item) => item.status === CommentStatuses.PENDING_REVIEW,
+        ),
+      `${queue.items.length} dòng`,
+    );
+    check(
+      'total đếm được, không phải chỉ số dòng của trang',
+      queue.total >= queue.items.length,
+      `total=${queue.total}`,
+    );
+
+    const flaggedRow = queue.items.find(
+      (item) => item.commentId === flagged.globalId,
+    );
+    check(
+      'kèm TIÊU ĐỀ BÀI — Admin không phải mở từng cái để lấy ngữ cảnh',
+      flaggedRow?.subjectTitle === 'Bài kiểm bình luận',
+      String(flaggedRow?.subjectTitle),
+    );
+    check(
+      'kèm tên tác giả và từ ngữ bộ lọc bắt được',
+      flaggedRow?.authorUsername === 'nguoidoc_bl' &&
+        flaggedRow?.flaggedTerms === 'lua dao',
+      `${flaggedRow?.authorUsername} / ${flaggedRow?.flaggedTerms}`,
+    );
+
+    const removedEarlier = await addComment('Sẽ bị gỡ hẳn');
+    await comments.markStatus({
+      globalId: removedEarlier.globalId,
+      status: CommentStatuses.REMOVED,
+    });
+    const all = await comments.findForAdmin({ skip: 0, take: 100 });
+    check(
+      'bỏ trống status thì KHÔNG trả bình luận đã gỡ',
+      all.items.every((item) => item.status !== CommentStatuses.REMOVED) &&
+        all.items.length > 0,
+      `${all.items.length} dòng`,
+    );
+
+    const before8 = await commentCount();
+    await comments.markStatus({
+      globalId: flagged.globalId,
+      status: CommentStatuses.VISIBLE,
+    });
+    check(
+      'cho hiện lại thì số đếm công khai TĂNG',
+      (await commentCount()) === before8 + 1,
+      `${await commentCount()} vs ${before8}`,
+    );
+    await comments.markStatus({
+      globalId: flagged.globalId,
+      status: CommentStatuses.REMOVED,
+    });
+    check(
+      'gỡ hẳn thì số đếm GIẢM lại',
+      (await commentCount()) === before8,
+      `${await commentCount()}`,
+    );
+
+    // `total` phải đếm TRƯỚC khi cắt: `count(*) OVER ()` chạy trước `LIMIT`.
+    // Đo lại ở đây chứ không dùng `all.total` — giữa hai lần gọi đã có một
+    // bình luận bị gỡ hẳn, nên con số cũ không còn đúng nữa.
+    const expectedTotal = (await comments.findForAdmin({ skip: 0, take: 500 }))
+      .total;
+    const paged = await comments.findForAdmin({ skip: 0, take: 1 });
+    check(
+      'phân trang cắt đúng một dòng mà total vẫn là số thật',
+      paged.items.length === 1 && paged.total === expectedTotal,
+      `${paged.items.length} dòng / total=${paged.total} vs ${expectedTotal}`,
+    );
+
     const [realCount] = await dataSource.query<{ count: string }[]>(
       `SELECT COUNT(*) AS count FROM content_comments
        WHERE subject_type = 'POST' AND subject_id = $1 AND status = 'VISIBLE'`,
@@ -405,7 +500,7 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  console.log('\nBình luận: số đếm chỉ tính thứ công khai, con trỏ không lặp.');
+  console.log('\nBình luận: số đếm chỉ tính thứ công khai, con trỏ không lặp, hàng đợi Admin chạy.');
 }
 
 main().catch((error) => {

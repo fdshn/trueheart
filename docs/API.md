@@ -498,10 +498,69 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 
 ### `POST /posts/:postId/like` — Thích hoặc bỏ thích bài đăng ([F81](./FEATURES.md#f81--tương-tác-yêu-thích-bài-đăng))
 
-- Yêu cầu đăng nhập (`Bearer`).
-- Cơ chế **toggle**: nếu chưa thích thì thêm vào `post_likes` và `likeCount++`; nếu đã thích rồi thì xoá khỏi `post_likes` và `likeCount--`.
-- Trả về `{ liked: boolean, likeCount: number }`.
-- Cập nhật số đếm nguyên tử trong database, loại bỏ nhu cầu `COUNT(*)` khi hiển thị chi tiết bài.
+- Yêu cầu đăng nhập (`Bearer`), và cần quyền `REACT_CONTENT` — mặc định VIEWER chỉ đọc.
+- Cơ chế **toggle**, nhưng ghi vào `content_reactions` với `kind = LIKE`. Bảng `post_likes`
+  riêng đã bị gỡ: trước đây hai bảng nuôi hai con số, và `GET /posts/:id` trả **hai số lượt
+  thích khác nhau** cho cùng một bài.
+- Trả về `{ liked: boolean, likeCount: number }` — hợp đồng không đổi, client không phải sửa.
+- Toggle chạy trong **một transaction** đọc `FOR UPDATE` rồi mới ghi. Bản cũ đọc trước, ghi sau
+  bằng hai lần gọi, nên hai request song song lọt qua được và số đếm lệch.
+- Số đếm cập nhật nguyên tử trong database, loại bỏ nhu cầu `COUNT(*)` khi hiển thị chi tiết bài.
+
+### Tương tác — cảm xúc, bình luận, chia sẻ
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `PUT` | `/posts/:subjectId/reactions/me` | `REACT_CONTENT` | Đặt hoặc đổi cảm xúc: `LIKE`/`LOVE`/`CARE`/`WOW`/`SAD` |
+| `DELETE` | `/posts/:subjectId/reactions/me` | `REACT_CONTENT` | Gỡ cảm xúc của chính mình |
+| `GET` | `/posts/:subjectId/reactions` | Công khai | Ai đã bày tỏ, phân trang, lọc theo `kind` |
+| `PUT` | `/comments/:subjectId/reactions/me` | `REACT_CONTENT` | Cảm xúc trên **bình luận** |
+| `DELETE` | `/comments/:subjectId/reactions/me` | `REACT_CONTENT` | Gỡ cảm xúc trên bình luận |
+| `POST` | `/posts/:subjectId/comment-media/upload-url` | `COMMENT_CONTENT` | Xin presigned URL cho ảnh đính kèm bình luận |
+| `POST` | `/posts/:subjectId/comments` | `COMMENT_CONTENT` | Bình luận hoặc trả lời (`parentId`) — **tối đa 10 lượt/phút** |
+| `GET` | `/posts/:subjectId/comments` | Công khai | Cây bình luận gốc, phân trang |
+| `GET` | `/comments/:commentId/replies` | Công khai | Trả lời của một bình luận |
+| `PATCH` | `/comments/:commentId` | Bearer (chủ bình luận) | Sửa trong **cửa sổ 15 phút** |
+| `DELETE` | `/comments/:commentId` | Bearer (chủ bình luận) | Gỡ — giữ chỗ trong cây, không trả nội dung lẫn ảnh |
+| `POST` | `/posts/:subjectId/shares` | Bearer | Ghi một lượt chia sẻ — **chờ 1 giờ cho mỗi bài** |
+
+**Điều cần biết**
+
+- **`content_reactions` là nguồn sự thật duy nhất** cho cả nút thích lẫn năm cảm xúc.
+  `posts.like_count` là số lượt `kind = LIKE`; `posts.reaction_count` là tổng mọi loại. Đổi
+  `LIKE → LOVE` thì `like_count` giảm mà `reaction_count` **đứng yên** — vẫn là một người bày tỏ.
+- **Bình luận có `like_count` không?** Không. Bình luận chỉ có `reaction_count`; nó không có
+  nút thích riêng.
+- **Bộ lọc từ ngữ có hai mức.** Mức `BLOCK` trả 400 và **không ghi gì**; mức `REVIEW` vẫn ghi
+  nhưng đặt `PENDING_REVIEW`, ẩn khỏi công khai và đẩy vào hàng đợi Admin. Danh sách từ là
+  **cấu hình động** (`system_configs`, khoá `moderation.blocked_terms`), không phải hằng số
+  trong mã — Admin sửa được mà không cần deploy.
+- **Tác giả thấy bình luận `PENDING_REVIEW` của chính mình**, người khác không thấy. Ẩn cả với
+  tác giả thì họ tưởng hệ thống nuốt mất và gõ lại lần nữa.
+- **Sửa bình luận đi lại đúng bộ lọc đó**, và `comment_count` / `reply_count` đi theo trạng
+  thái mới — không thì con số nói dối cho tới lần Admin xử.
+- **Trần 10 bình luận mỗi phút** (thêm 26/09). Cổng quyền `COMMENT_CONTENT` là boolean, không
+  mang hạn mức, nên trước đó không gì chặn một người gõ liên tục. Vượt trần trả **429** kèm số
+  giây phải chờ. Suất chỉ bị trừ **sau khi** bình luận ghi xong — bình luận bị bộ lọc chặn
+  thẳng không tiêu mất một suất.
+- **`share_count` đếm theo LƯỢT, không theo người** (chốt 26/09) — một người chia sẻ hai lần ở
+  hai thời điểm là hai lượt thật. Vì thế phải có **khoảng chờ 1 giờ**, khoá theo **cả người lẫn
+  bài**: không có gì khác tự chặn việc gọi endpoint một nghìn lần. Khoá theo mình người thì
+  chia sẻ mười bài khác nhau trong một phút cũng bị chặn, mà đó là hành vi bình thường.
+- **Chia sẻ trả đường dẫn tương đối.** `share.deepLinkPath` luôn có; `share.shareUrl` tuyệt đối
+  chỉ có khi `WEB_PUBLIC_BASE_URL` đã cấu hình, còn không thì `null` — ghép tên miền hộ client
+  là sinh ra link chết khi đổi môi trường. `share.shareCount` là tổng sau lần ghi này.
+- **Thông báo:** bình luận gốc báo chủ bài, trả lời báo tác giả bình luận cha (người đó cũng là
+  chủ bài thì **chỉ một** thông báo), không bao giờ tự báo chính mình, và bình luận
+  `PENDING_REVIEW` **không** báo. Cảm xúc chỉ báo **lần đầu trong ngày** theo giờ
+  `Asia/Ho_Chi_Minh` — một bài 200 lượt mà báo 200 lần thì tác giả tắt thông báo, và mất luôn
+  thông báo về lượt xin nhận.
+- **Điểm F41 (`POST_COMMENTED` +2đ trần 10/ngày, `POST_REACTED` +1đ trần 20/ngày) seed TẮT
+  sẵn**, và `affects_lifetime = false` nên không đẩy hạng. Chạm trần hay rule chưa bật **không**
+  làm hỏng việc bình luận: việc người đó vừa viết một câu là sự thật, thưởng bao nhiêu chỉ là
+  chính sách.
+- **Báo xấu một bình luận** đi chung `POST /reports` với `targetType: COMMENT`, không có
+  endpoint riêng.
 
 ### Xin nhận đồ — `/posts/:postId/requests`
 
@@ -1023,6 +1082,8 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 | `GET` | `/admin/posts` | `post.read` | Danh sách bài, **không lọc sẵn** trạng thái nào |
 | `GET` | `/admin/posts/:postId` | `post.read` | Chi tiết bài và media dành cho moderator |
 | `PATCH` | `/admin/posts/:postId/moderation` | `post.moderate` | **Hậu kiểm**: gỡ bài đang hiện hoặc trả lại, reason bắt buộc, ghi audit |
+| `GET` | `/admin/comments` | `post.moderate` | **Hàng đợi bình luận**, lọc `status=PENDING_REVIEW`, mỗi dòng kèm tiêu đề bài và từ bị bắt |
+| `PATCH` | `/admin/comments/:commentId/moderation` | `post.moderate` | Cho hiện lại (`VISIBLE`) hoặc gỡ hẳn (`REMOVED`), reason bắt buộc, ghi audit |
 | `GET` | `/admin/reports` | `report.read` | Hàng đợi report, ưu tiên target có nhiều tín hiệu mở |
 | `GET` | `/admin/reports/:reportId` | `report.read` | Chi tiết report và URL bằng chứng |
 | `PATCH` | `/admin/reports/:reportId/review` | `report.resolve` | Kết luận hoặc bác bỏ, ghi chú bắt buộc, ghi audit |
@@ -1080,9 +1141,13 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
   ghi thêm một dòng audit nói rằng có gì đó vừa đổi.
 - Trả lại một bài gỡ nhầm **giữ nguyên hạn cũ**; đặt lại đồng hồ là thưởng thêm ba tháng cho
   một bài đã sống gần hết. Chỉ bài chưa có hạn mới được cấp hạn mới.
+- **Hàng đợi bình luận dùng chung quyền `post.moderate` với hậu kiểm bài** — gỡ một bình luận
+  và gỡ một bài là cùng một loại quyết định về nội dung; tách thành hai quyền chỉ tạo thêm một
+  tổ hợp để Admin cấp sót. Bấm lại đúng quyết định cũ trả **400**, và bình luận đã `REMOVED`
+  coi như không còn. Mỗi lần xử, `comment_count` và `reply_count` đi theo trạng thái mới.
 - Tác giả **sửa** bài đã bị gỡ thì bài vẫn `REJECTED`. Cho nó tự hiện lại là để tác giả gỡ
   quyết định của Admin bằng cách sửa một dấu phẩy. Chỉ Admin trả lại được.
-- `POST /reports` nhận target `POST` hoặc `USER`, mô tả và tối đa 5 URL bằng chứng. Nhiều
+- `POST /reports` nhận target `POST`, `USER` hoặc `COMMENT`, mô tả và tối đa 5 URL bằng chứng. Nhiều
   report chỉ tăng độ ưu tiên; không report nào tự động phạt. Quyết định Admin và audit
   `REVIEW_REPORT` được ghi chung transaction.
 

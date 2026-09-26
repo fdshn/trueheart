@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AdminPermissionGuard } from '../../guards';
+import { AdminCommentController } from './admin-comment.controller';
 import { AdminConfigController } from './admin-config.controller';
 import { AdminPointLedgerController } from './admin-point-ledger.controller';
 import { AdminPointRuleController } from './admin-point-rule.controller';
@@ -20,6 +21,7 @@ import { NotificationTemplateController } from './notification-template.controll
     AdminPointRuleController,
     AdminRoleController,
     AdminUserController,
+    AdminCommentController,
     EntitlementPolicyController,
     NotificationChannelController,
   ],

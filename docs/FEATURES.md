@@ -30,7 +30,7 @@ Flutter (Android + iOS) · NestJS + PostgreSQL 16 + PostGIS · Redis · Socket.i
 | 9 | [Báo cáo & Chống gian lận](#9-báo-cáo--chống-gian-lận) | F48–F50 | |
 | 10 | [Group, Affiliate & Geo](#10-group-affiliate--geo) | F51–F58 | Toàn bộ event cần Geo Group (CHỐT-06) |
 | 11 | [Phật Pháp – Dharma Hub](#11-phật-pháp--dharma-hub--community) | F73 | Main Tab 3 trong Bottom Navigation |
-| 12 | [Đổi vật phẩm bằng điểm, Vận chuyển & Tương tác](#12-đổi-vật-phẩm-bằng-điểm--vận-chuyển) | F74–F81 | Điểm khả dụng, chế độ chọn, like, bảo vệ thông tin |
+| 12 | [Đổi vật phẩm bằng điểm, Vận chuyển & Tương tác](#12-đổi-vật-phẩm-bằng-điểm--vận-chuyển) | F74–F82 | Điểm khả dụng, chế độ chọn, cảm xúc, bình luận, chia sẻ, bảo vệ thông tin |
 | 13 | [Admin CMS](#13-admin-cms-campaign--blog) | F59–F65 | |
 | 14 | [Hạ tầng & Bảo mật](#14-hạ-tầng--bảo-mật) | F66–F68 | |
 | 15 | [QA & UAT](#15-qa--uat) | F69–F70 | |
@@ -491,6 +491,19 @@ phải ý kiến người thật.
 Chỉ phát sinh điểm **khi Admin bật rule**. Có cap, idempotency và chống spam.
 Report **chỉ được thưởng sau khi Admin xác minh**, không thưởng ngay lúc gửi.
 
+Đã seed: `POST_COMMENTED` **+2đ**, trần **10 lượt/ngày**; `POST_REACTED` **+1đ**, trần
+**20 lượt/ngày**. Cả hai `affects_lifetime = false` và **không thưởng khi tương tác với bài của
+chính mình**.
+
+> **Vì sao không đụng `lifetime`.** `lifetime` là sàn của Rank. Cho bình luận đẩy hạng thì gõ
+> 300 dòng "hay quá ạ" là lên Bạc, trong khi tặng một món đồ thật được 56 điểm.
+
+> **Chính sách điểm không được chặn việc tương tác.** Chạm trần ngày, hay rule chưa bật, đều
+> **không** làm hỏng việc bình luận: việc một người vừa viết một câu là sự thật, thưởng bao
+> nhiêu chỉ là chính sách.
+
+> ⚠️ **Cả hai rule seed TẮT.** Bật lên là mở van tối đa 40đ/người/ngày vào `balance`.
+
 > ⚠️ Tài liệu tự ghi "hiện không chốt cap số lần cố định" cho report.
 
 ### F42 — Đánh giá chất lượng sau giao dịch
@@ -802,10 +815,20 @@ Khi người cho tạo bài đăng Muốn Tặng (`OFFER`), hệ thống hỗ tr
 
 Người dùng đã đăng nhập có quyền Thích hoặc Bỏ thích bài đăng (CHỐT-12):
 
-- **Endpoint toggle:** `POST /api/v1/posts/:postId/like`. Nếu chưa thích thì thêm lượt thích; nếu đã thích thì huỷ thích.
-- **Ràng buộc duy nhất:** Lưu trữ tại bảng `post_likes` với cặp khoá `(user_id, post_id)` kèm UNIQUE constraint chống trùng lặp.
-- **Denormalized counter:** Cột `like_count` trên bảng `posts` được cập nhật nguyên tử (+1 khi like, -1 khi unlike) trong cùng transaction với `post_likes`.
-- **Response chi tiết bài đăng:** Bổ sung `like_count` (tổng lượt thích) và `is_liked` (true nếu caller đã thích, false nếu chưa, null nếu chưa đăng nhập).
+- **Endpoint toggle:** `POST /api/v1/posts/:postId/like`. Nếu chưa thích thì thêm lượt thích; nếu đã thích thì huỷ thích. Cần quyền `REACT_CONTENT` — mặc định VIEWER chỉ đọc.
+- **Ràng buộc duy nhất:** Lưu tại `content_reactions` với `kind = LIKE` và khoá duy nhất `(subject_type, subject_id, user_id)`. Bảng `post_likes` riêng **đã bị gỡ**: trước đây hai bảng nuôi hai con số, và `GET /posts/:id` trả hai số lượt thích khác nhau cho cùng một bài.
+- **Denormalized counter:** `posts.like_count` = số lượt `kind = LIKE`; `posts.reaction_count` = tổng mọi loại. Cập nhật nguyên tử trong cùng transaction. Đổi `LIKE → LOVE` thì `like_count` giảm mà `reaction_count` **đứng yên** — vẫn là một người bày tỏ.
+- **Toggle chống chạy đua:** một transaction đọc `FOR UPDATE` rồi mới ghi. Bản cũ đọc trước ghi sau bằng hai lần gọi, nên hai request song song lọt qua được và số đếm lệch.
+- **Response chi tiết bài đăng:** Bổ sung `like_count` (tổng lượt thích) và `is_liked` (true nếu caller đã thích, false nếu chưa, null nếu chưa đăng nhập). `is_liked` suy ra từ `my_reaction`, không hỏi thêm một vòng database.
+
+### F82 — Bình luận, trả lời và chia sẻ
+
+- **Bình luận và trả lời** (`parentId`), kèm ảnh đính kèm qua presigned URL riêng. Sửa được trong **cửa sổ 15 phút**; gỡ thì **giữ chỗ trong cây** để chuỗi trả lời bên dưới không mất ngữ cảnh, nhưng không trả nội dung lẫn ảnh nữa.
+- **Bộ lọc từ ngữ hai mức**: `BLOCK` từ chối thẳng và không ghi gì, `REVIEW` vẫn ghi nhưng đặt `PENDING_REVIEW` và đẩy vào hàng đợi Admin. Danh sách từ là **cấu hình động của Admin**, sửa được mà không cần deploy. Tác giả thấy bình luận chờ duyệt **của chính mình**, người khác không thấy.
+- **Hàng đợi kiểm duyệt bình luận** (`GET /admin/comments`, `PATCH /admin/comments/:id/moderation`) dùng chung quyền `post.moderate` với hậu kiểm bài, reason bắt buộc, ghi audit `MODERATE_COMMENT`, và số đếm đi theo trạng thái.
+- **Trần 10 bình luận mỗi phút.** Cổng quyền `COMMENT_CONTENT` là boolean, không mang hạn mức — trước đó không gì chặn một người gõ liên tục.
+- **Chia sẻ** ghi một dòng append-only và tăng `share_count` trong cùng transaction, trả về đường dẫn tương đối để client tự ghép tên miền. `share_count` đếm theo **lượt**, không theo người; vì thế có **khoảng chờ 1 giờ** khoá theo cả người lẫn bài.
+- **Thông báo:** bình luận gốc báo chủ bài, trả lời báo tác giả bình luận cha (trùng nhau thì chỉ một), không tự báo mình, và bình luận chờ duyệt không báo. Cảm xúc chỉ báo **lần đầu trong ngày** theo giờ Việt Nam.
 
 ---
 
