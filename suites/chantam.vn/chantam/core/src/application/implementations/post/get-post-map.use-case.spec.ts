@@ -44,16 +44,25 @@ function makeConfig(): IConfig {
 describe('GetPostMapUseCase', () => {
   it('trả marker tối thiểu với toạ độ jitter và distance được bucket', async () => {
     const postRepository = {
-      findMapMarkers: jest.fn().mockResolvedValue([
-        {
-          globalId: '11111111-1111-1111-1111-111111111111',
-          postType: PostTypes.OFFER,
-          categoryId: '30000000-0000-4000-8000-000000000001',
-          areaLabel: 'Quận 1, TP.HCM',
-          location: ExactLocation,
-          distanceMeters: 463,
-        },
-      ]),
+      findMapClusters: jest.fn().mockResolvedValue({
+        clusters: [
+          {
+            cellLng: 106.6,
+            cellLat: 10.7,
+            count: 1,
+            marker: {
+              globalId: '11111111-1111-1111-1111-111111111111',
+              postType: PostTypes.OFFER,
+              categoryId: '30000000-0000-4000-8000-000000000001',
+              areaLabel: 'Quận 1, TP.HCM',
+              location: ExactLocation,
+              distanceMeters: 463,
+            },
+          },
+        ],
+        total: 1,
+        cellCount: 1,
+      }),
     } as unknown as jest.Mocked<IPostRepository>;
 
     const result = await new GetPostMapUseCase(
@@ -69,49 +78,59 @@ describe('GetPostMapUseCase', () => {
       postType: PostTypes.OFFER,
     });
 
-    expect(postRepository.findMapMarkers).toHaveBeenCalledWith({
-      minLat: 10.7,
-      maxLat: 10.8,
-      minLng: 106.6,
-      maxLng: 106.8,
-      origin: { lat: 10.75, lng: 106.7 },
-      postType: PostTypes.OFFER,
-      categoryId: undefined,
-    });
-    expect(result.markers).toEqual([
+    expect(postRepository.findMapClusters).toHaveBeenCalledWith(
+      expect.objectContaining({
+        minLat: 10.7,
+        maxLat: 10.8,
+        minLng: 106.6,
+        maxLng: 106.8,
+        origin: { lat: 10.75, lng: 106.7 },
+        postType: PostTypes.OFFER,
+      }),
+    );
+    expect(result.clusters[0].marker).toEqual(
       expect.objectContaining({
         postId: '11111111-1111-1111-1111-111111111111',
         isLocationApproximate: true,
         distanceMeters: 500,
       }),
-    ]);
-    expect(result.markers[0].location).not.toEqual(ExactLocation);
+    );
+    expect(result.clusters[0].marker?.location).not.toEqual(ExactLocation);
 
     // F29 cho marker mang dữ liệu thẻ xem nhanh. `title` không phải dữ liệu
     // riêng tư — `/posts/nearby` vẫn trả cả entity bài cho khách — nên thêm nó
     // không mở thêm gì. Ranh giới thật nằm ở hai thứ dưới đây.
-    expect(result.markers[0]).not.toHaveProperty('authorId');
-    expect(result.markers[0]).not.toHaveProperty('description');
+    expect(result.clusters[0].marker).not.toHaveProperty('authorId');
+    expect(result.clusters[0].marker).not.toHaveProperty('description');
   });
 
   it('mang đủ dữ liệu thẻ xem nhanh mà không cần gọi thêm vòng nữa', async () => {
     const postRepository = {
-      findMapMarkers: jest.fn().mockResolvedValue([
-        {
-          globalId: '11111111-1111-1111-1111-111111111111',
-          postType: PostTypes.OFFER,
-          categoryId: '30000000-0000-4000-8000-000000000001',
-          areaLabel: 'Quận 1',
-          location: ExactLocation,
-          distanceMeters: 463,
-          title: 'Tặng bộ sách cũ',
-          thumbnailKey: 'posts/abc/1.jpg',
-          isSos: true,
-        },
-      ]),
+      findMapClusters: jest.fn().mockResolvedValue({
+        clusters: [
+          {
+            cellLng: 106.6,
+            cellLat: 10.7,
+            count: 1,
+            marker: {
+              globalId: '11111111-1111-1111-1111-111111111111',
+              postType: PostTypes.OFFER,
+              categoryId: '30000000-0000-4000-8000-000000000001',
+              areaLabel: 'Quận 1',
+              location: ExactLocation,
+              distanceMeters: 463,
+              title: 'Tặng bộ sách cũ',
+              thumbnailKey: 'posts/abc/1.jpg',
+              isSos: true,
+            },
+          },
+        ],
+        total: 1,
+        cellCount: 1,
+      }),
     } as unknown as jest.Mocked<IPostRepository>;
 
-    const { markers } = await new GetPostMapUseCase(
+    const { clusters } = await new GetPostMapUseCase(
       postRepository,
       makeConfig(),
     ).handle({
@@ -121,36 +140,45 @@ describe('GetPostMapUseCase', () => {
       maxLng: 106.8,
     });
 
-    expect(markers[0].title).toBe('Tặng bộ sách cũ');
-    expect(markers[0].isSos).toBe(true);
-    expect(markers[0].thumbnailUrl).toBe(
+    expect(clusters[0].marker!.title).toBe('Tặng bộ sách cũ');
+    expect(clusters[0].marker!.isSos).toBe(true);
+    expect(clusters[0].marker!.thumbnailUrl).toBe(
       'http://localhost:9000/chantam-test/posts/abc/1.jpg',
     );
     // Đường dẫn TƯƠNG ĐỐI: ghép tên miền hộ client là sinh ra link chết khi
     // đổi môi trường triển khai.
-    expect(markers[0].deepLinkPath).toBe(
+    expect(clusters[0].marker!.deepLinkPath).toBe(
       '/posts/11111111-1111-1111-1111-111111111111',
     );
-    expect(markers[0].deepLinkPath).not.toMatch(/^https?:/);
+    expect(clusters[0].marker!.deepLinkPath).not.toMatch(/^https?:/);
   });
 
   it('bài không có ảnh thì thumbnailUrl là null, không phải chuỗi cụt', async () => {
     const postRepository = {
-      findMapMarkers: jest.fn().mockResolvedValue([
-        {
-          globalId: '11111111-1111-1111-1111-111111111111',
-          postType: PostTypes.OFFER,
-          categoryId: '30000000-0000-4000-8000-000000000001',
-          areaLabel: 'Quận 1',
-          location: ExactLocation,
-          title: 'Không ảnh',
-          thumbnailKey: null,
-          isSos: false,
-        },
-      ]),
+      findMapClusters: jest.fn().mockResolvedValue({
+        clusters: [
+          {
+            cellLng: 106.6,
+            cellLat: 10.7,
+            count: 1,
+            marker: {
+              globalId: '11111111-1111-1111-1111-111111111111',
+              postType: PostTypes.OFFER,
+              categoryId: '30000000-0000-4000-8000-000000000001',
+              areaLabel: 'Quận 1',
+              location: ExactLocation,
+              title: 'Không ảnh',
+              thumbnailKey: null,
+              isSos: false,
+            },
+          },
+        ],
+        total: 1,
+        cellCount: 1,
+      }),
     } as unknown as jest.Mocked<IPostRepository>;
 
-    const { markers } = await new GetPostMapUseCase(
+    const { clusters } = await new GetPostMapUseCase(
       postRepository,
       makeConfig(),
     ).handle({
@@ -160,12 +188,12 @@ describe('GetPostMapUseCase', () => {
       maxLng: 106.8,
     });
 
-    expect(markers[0].thumbnailUrl).toBeNull();
+    expect(clusters[0].marker!.thumbnailUrl).toBeNull();
   });
 
   it('từ chối bbox đảo chiều trước khi query repository', async () => {
     const postRepository = {
-      findMapMarkers: jest.fn(),
+      findMapClusters: jest.fn(),
     } as unknown as jest.Mocked<IPostRepository>;
 
     await expect(
@@ -176,6 +204,6 @@ describe('GetPostMapUseCase', () => {
         maxLng: 106.8,
       }),
     ).rejects.toThrow();
-    expect(postRepository.findMapMarkers).not.toHaveBeenCalled();
+    expect(postRepository.findMapClusters).not.toHaveBeenCalled();
   });
 });

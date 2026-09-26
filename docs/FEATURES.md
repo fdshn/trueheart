@@ -357,6 +357,11 @@ kiểm soát tần suất gọi API khi người dùng kéo/zoom liên tục.
 Gom cụm khi thu nhỏ. Lọc theo loại nội dung, danh mục, khoảng cách, layer.
 
 ### F29 — Thẻ xem nhanh & deep link
+
+> ✅ **Bản đồ gom cụm 26/09.** Trả cụm theo ô lưới kèm `total` thật, thay cho 200 marker cắt
+> im lặng. Ô chỉ có một bài thì kèm luôn dữ liệu thẻ xem nhanh — zoom sát là lúc người dùng
+> muốn xem thẻ, bắt gọi thêm một vòng cho mỗi pin là quay lại đúng vấn đề vừa giải quyết.
+
 Chạm marker mở thẻ xem nhanh. Xem đầy đủ thì **điều hướng sang màn Detail của module nguồn**
 — Quanh Đây không tự duy trì màn chi tiết.
 

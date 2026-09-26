@@ -5,6 +5,7 @@ import {
 import {
   IGetPostMapQueryDto,
   IGetPostMapResponseDto,
+  IPostMapClusterDto,
   IPostMapMarkerDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -109,7 +110,57 @@ export class PostMapMarkerDto implements IPostMapMarkerDto {
   deepLinkPath: string;
 }
 
+export class PostMapClusterDto implements IPostMapClusterDto {
+  @ApiProperty({
+    example: '106.625:10.75',
+    description:
+      'Khoá của ô, ổn định giữa các lần gọi cùng mức phóng to — client dùng làm key khi vẽ lại để cụm không nhấp nháy lúc kéo bản đồ.',
+  })
+  cellKey: string;
+
+  @ApiProperty({ example: 47, description: 'Số bài trong ô.' })
+  count: number;
+
+  @ApiProperty({
+    type: 'object',
+    properties: { lat: { type: 'number' }, lng: { type: 'number' } },
+    description:
+      'Nhiều bài thì là TÂM Ô; đúng một bài thì là toạ độ bài đã làm nhiễu. Không bao giờ là toạ độ thật.',
+  })
+  location: { lat: number; lng: number };
+
+  @ApiProperty({ example: true })
+  isLocationApproximate: true;
+
+  @ApiProperty({
+    type: () => PostMapMarkerDto,
+    nullable: true,
+    description:
+      'Chỉ có khi `count === 1` — đủ dữ liệu cho thẻ xem nhanh mà không phải gọi thêm vòng nữa (F29).',
+  })
+  marker: IPostMapMarkerDto | null;
+}
+
 export class GetPostMapResponseDto implements IGetPostMapResponseDto {
-  @ApiProperty({ type: () => [PostMapMarkerDto] })
-  markers: IPostMapMarkerDto[];
+  @ApiProperty({ type: () => [PostMapClusterDto] })
+  clusters: IPostMapClusterDto[];
+
+  @ApiProperty({
+    example: 3_128,
+    description:
+      'Tổng số bài trong khung nhìn — con số THẬT, đếm trước khi cắt. Bản cũ cắt ở 200 marker và không báo gì, nên người dùng zoom ra thấy bản đồ thưa hơn lúc zoom vào.',
+  })
+  total: number;
+
+  @ApiProperty({
+    example: 0.0078125,
+    description: 'Cỡ ô lưới theo độ — client cần để vẽ vùng cụm.',
+  })
+  cellSizeDegrees: number;
+
+  @ApiProperty({
+    example: false,
+    description: 'Số ô vượt trần nên danh sách đã bị cắt bớt.',
+  })
+  truncated: boolean;
 }

@@ -14,6 +14,27 @@ export interface IFindPostMapMarkersParams {
   origin?: IGeoPoint;
   postType?: PostTypes;
   categoryId?: string;
+  /** Cỡ ô lưới theo độ, tính từ bề ngang khung nhìn. */
+  stepDegrees: number;
+  /** Trần số ô trả về. Vượt thì cắt, và `truncated` nói rõ là đã cắt. */
+  cellLimit: number;
+}
+
+export interface IPostMapCluster {
+  /** Góc dưới-trái của ô — khoá ổn định giữa các lần gọi cùng mức phóng to. */
+  cellLng: number;
+  cellLat: number;
+  count: number;
+  /** Chỉ có khi `count === 1`. */
+  marker: IPostMapMarker | null;
+}
+
+export interface IPostMapClusterResult {
+  clusters: IPostMapCluster[];
+  /** Tổng bài trong khung nhìn, đếm TRƯỚC khi cắt theo `cellLimit`. */
+  total: number;
+  /** Tổng số ô trước khi cắt. */
+  cellCount: number;
 }
 
 export interface IPostMapMarker {
@@ -183,7 +204,16 @@ export interface IPostRepository extends Repository<IPostEntity> {
     quota: number,
     post: Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<boolean>;
-  findMapMarkers(params: IFindPostMapMarkersParams): Promise<IPostMapMarker[]>;
+  /**
+   * Gom bài trong khung nhìn thành cụm theo ô lưới.
+   *
+   * KHÔNG trả từng bài: một thành phố có hàng nghìn bài, và trả hết là vài chục
+   * MB cho một lần kéo bản đồ. Ô nào chỉ có đúng một bài thì kèm luôn chi tiết
+   * để thẻ xem nhanh (F29) có gì đọc mà không phải gọi thêm.
+   */
+  findMapClusters(
+    params: IFindPostMapMarkersParams,
+  ): Promise<IPostMapClusterResult>;
   findNearbyPosts(
     params: IFindNearbyPostsParams,
   ): Promise<IFindNearbyPostsResult>;

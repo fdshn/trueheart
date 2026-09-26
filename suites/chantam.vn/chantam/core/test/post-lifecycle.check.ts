@@ -787,6 +787,108 @@ async function main(): Promise<void> {
       `${seen.length} bài, ${new Set(seen).size} khác nhau`,
     );
 
+    console.log('\nBản đồ gom cụm:\n');
+    await seed(dataSource, [
+      { index: 90, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 30 },
+      { index: 91, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 30 },
+      { index: 92, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 30 },
+      { index: 93, postType: 'WANTED', status: 'PUBLISHED', expiresInDays: 30 },
+    ]);
+    // Ba bài sát nhau ở Quận 1, một bài ở xa hẳn.
+    for (const [index, lng, lat] of [
+      [90, 106.698, 10.7724],
+      [91, 106.6981, 10.7725],
+      [92, 106.6982, 10.7726],
+      [93, 106.75, 10.82],
+    ] as const)
+      await dataSource.query(
+        `UPDATE posts
+         SET location = ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography
+         WHERE global_id = $1`,
+        [postId(index), lng, lat],
+      );
+
+    const bbox = {
+      minLat: 10.7,
+      maxLat: 10.9,
+      minLng: 106.6,
+      maxLng: 106.8,
+    };
+    const coarse = await posts.findMapClusters({
+      ...bbox,
+      stepDegrees: 0.0625,
+      cellLimit: 500,
+    });
+    check(
+      'gom 4 bài thành 2 cụm khi ô đủ to',
+      coarse.clusters.length === 2,
+      `${coarse.clusters.length} cụm`,
+    );
+    check(
+      'TỔNG là con số thật của cả khung nhìn, không phải số cụm',
+      coarse.total === 4,
+      `${coarse.total} bài`,
+    );
+    check(
+      'cụm đông nhất đếm đúng 3 bài',
+      coarse.clusters[0]?.count === 3,
+      `${coarse.clusters[0]?.count}`,
+    );
+    check(
+      'cụm nhiều bài KHÔNG kèm chi tiết bài nào',
+      coarse.clusters[0]?.marker === null,
+    );
+
+    const lonely = coarse.clusters.find((cluster) => cluster.count === 1);
+    check(
+      'cụm một bài thì kèm đủ dữ liệu thẻ xem nhanh',
+      lonely?.marker !== null && typeof lonely?.marker?.title === 'string',
+      lonely?.marker?.title,
+    );
+
+    const fine = await posts.findMapClusters({
+      ...bbox,
+      stepDegrees: 0.00006103515625,
+      cellLimit: 500,
+    });
+    check(
+      'ô nhỏ thì tách ra thành 4 cụm riêng',
+      fine.clusters.length === 4,
+      `${fine.clusters.length} cụm`,
+    );
+    check(
+      'và mỗi cụm mang chi tiết của chính nó',
+      fine.clusters.every((cluster) => cluster.marker !== null),
+    );
+
+    const filtered = await posts.findMapClusters({
+      ...bbox,
+      postType: 'WANTED' as never,
+      stepDegrees: 0.0625,
+      cellLimit: 500,
+    });
+    check(
+      'lọc loại bài áp TRƯỚC khi gom cụm',
+      filtered.total === 1 && filtered.clusters.length === 1,
+      `${filtered.total} bài / ${filtered.clusters.length} cụm`,
+    );
+
+    const capped = await posts.findMapClusters({
+      ...bbox,
+      stepDegrees: 0.00006103515625,
+      cellLimit: 2,
+    });
+    check(
+      'chạm trần thì cắt danh sách ô',
+      capped.clusters.length === 2,
+      `${capped.clusters.length} cụm`,
+    );
+    check(
+      'nhưng TỔNG và SỐ Ô vẫn là con số thật — đây là chỗ bản cũ im lặng',
+      capped.total === 4 && capped.cellCount === 4,
+      `${capped.total} bài / ${capped.cellCount} ô`,
+    );
+
     // ── 4. Marker bản đồ mang dữ liệu thẻ xem nhanh (F29) ───────────────────
     console.log('\nThẻ xem nhanh trên bản đồ:\n');
 
@@ -809,12 +911,19 @@ async function main(): Promise<void> {
         [postId(50), key, order],
       );
 
-    const markers = await posts.findMapMarkers({
+    // Ô nhỏ nhất để mỗi bài ra một cụm riêng — phần này kiểm dữ liệu thẻ xem
+    // nhanh, không kiểm việc gom cụm.
+    const markerCells = await posts.findMapClusters({
       minLat: 10.0,
       maxLat: 11.5,
       minLng: 106.0,
       maxLng: 107.5,
+      stepDegrees: 0.00006103515625,
+      cellLimit: 500,
     });
+    const markers = markerCells.clusters
+      .map((cluster) => cluster.marker)
+      .filter((item): item is NonNullable<typeof item> => item !== null);
     const marker = markers.find((row) => row.globalId === postId(50));
     check(
       'marker mang tiêu đề bài',
@@ -837,13 +946,17 @@ async function main(): Promise<void> {
       { index: 51, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 30 },
     ]);
     const noPhoto = (
-      await posts.findMapMarkers({
+      await posts.findMapClusters({
         minLat: 10.0,
         maxLat: 11.5,
         minLng: 106.0,
         maxLng: 107.5,
+        stepDegrees: 0.00006103515625,
+        cellLimit: 500,
       })
-    ).find((row) => row.globalId === postId(51));
+    ).clusters
+      .map((cluster) => cluster.marker)
+      .find((row) => row?.globalId === postId(51));
     check(
       'bài không ảnh thì thumbnailKey là null',
       noPhoto?.thumbnailKey === null,

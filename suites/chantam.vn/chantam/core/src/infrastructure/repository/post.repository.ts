@@ -11,7 +11,7 @@ import {
   IFindPostMapMarkersParams,
   IFindSmartMatchesParams,
   IModeratePostByAdminCommand,
-  IPostMapMarker,
+  IPostMapClusterResult,
   IPostRepository,
   IRenewPostParams,
   IRequestCharityTransferParams,
@@ -455,79 +455,140 @@ export class PostRepository
     };
   }
 
-  public async findMapMarkers(
+  public async findMapClusters(
     params: IFindPostMapMarkersParams,
-  ): Promise<IPostMapMarker[]> {
-    const query = this.createQueryBuilder('post')
-      .select('post.globalId', 'global_id')
-      .addSelect('post.postType', 'post_type')
-      .addSelect('post.categoryId', 'category_id')
-      .addSelect('post.areaLabel', 'area_label')
-      .addSelect('post.title', 'title')
-      .addSelect('post.isSos', 'is_sos')
-      .addSelect('ST_Y(post.location::geometry)', 'lat')
-      .addSelect('ST_X(post.location::geometry)', 'lng')
-      // Ảnh đầu tiên cho thẻ xem nhanh (F29). LATERAL + LIMIT 1 để mỗi bài
-      // vẫn ra đúng một dòng — JOIN thẳng vào post_media sẽ nhân bản marker
-      // theo số ảnh, và bản đồ hiện 5 pin trùng chỗ cho một bài 5 ảnh.
-      .addSelect(
-        `(SELECT m.r2_key FROM post_media m
-           WHERE m.post_id = post.global_id
-           ORDER BY m.sort_order ASC, m.id ASC
-           LIMIT 1)`,
-        'thumbnail_key',
-      )
-      .where('post.deletedAt IS NULL')
-      .andWhere('post.status IN (:...statuses)', {
-        statuses: [...PubliclyVisibleGiftPostStatuses],
-      })
-      .limit(200);
+  ): Promise<IPostMapClusterResult> {
+    const values: unknown[] = [
+      params.minLng,
+      params.minLat,
+      params.maxLng,
+      params.maxLat,
+      params.stepDegrees,
+    ];
+    const conditions: string[] = [
+      'post.deleted_at IS NULL',
+      `post.status IN (${PubliclyVisibleGiftPostStatuses.map(
+        (status) => `'${status}'`,
+      ).join(', ')})`,
+      'ST_Intersects(post.location::geometry, ST_MakeEnvelope($1, $2, $3, $4, 4326))',
+    ];
 
-    if (params.postType)
-      query.andWhere('post.postType = :postType', {
-        postType: params.postType,
-      });
-    if (params.categoryId)
-      query.andWhere('post.categoryId = :categoryId', {
-        categoryId: params.categoryId,
-      });
+    if (params.postType) {
+      values.push(params.postType);
+      conditions.push(`post.post_type = $${values.length}`);
+    }
+    if (params.categoryId) {
+      values.push(params.categoryId);
+      conditions.push(`post.category_id = $${values.length}`);
+    }
 
-    GeoQueryHelper.applyBoundingBox(query, 'post', params);
+    const originSelect = params.origin
+      ? (() => {
+          values.push(params.origin.lng, params.origin.lat);
 
-    if (params.origin)
-      GeoQueryHelper.selectDistance(
-        query,
-        'post',
-        params.origin,
-        'distance_meters',
-      );
+          return `ST_Distance(sole.location, ST_SetSRID(ST_MakePoint($${
+            values.length - 1
+          }, $${values.length}), 4326)::geography)`;
+        })()
+      : 'NULL::double precision';
 
-    const rows = await query.getRawMany<{
-      global_id: string;
-      post_type: PostTypes;
-      category_id: string;
-      area_label: string;
-      title: string;
-      is_sos: boolean;
-      thumbnail_key: string | null;
-      lat: string;
-      lng: string;
-      distance_meters?: string;
-    }>();
+    values.push(params.cellLimit);
+    const limitParam = `$${values.length}`;
 
-    return rows.map((row) => ({
-      globalId: row.global_id,
-      postType: row.post_type,
-      categoryId: row.category_id,
-      areaLabel: row.area_label,
-      title: row.title,
-      isSos: Boolean(row.is_sos),
-      thumbnailKey: row.thumbnail_key,
-      location: { lat: Number(row.lat), lng: Number(row.lng) },
-      ...(row.distance_meters === undefined
-        ? {}
-        : { distanceMeters: Number(row.distance_meters) }),
-    }));
+    // `ST_SnapToGrid` cho ra GÓC DƯỚI-TRÁI của ô, và lưới neo vào gốc toạ độ
+    // chứ không vào khung nhìn — nhờ vậy kéo bản đồ ngang thì cụm đứng yên.
+    //
+    // `count(*) OVER ()` và `sum(...) OVER ()` chạy TRƯỚC `LIMIT`, nên hai con
+    // số tổng là số thật của cả khung nhìn chứ không phải của phần đã cắt. Đây
+    // đúng là thứ mà bản cũ thiếu: nó cắt ở 200 marker và không nói gì.
+    const rows = await this.manager.query<
+      {
+        cell_lng: string;
+        cell_lat: string;
+        total: string;
+        cell_count: string;
+        viewport_total: string;
+        global_id: string | null;
+        post_type: PostTypes | null;
+        category_id: string | null;
+        area_label: string | null;
+        title: string | null;
+        is_sos: boolean | null;
+        thumbnail_key: string | null;
+        lat: string | null;
+        lng: string | null;
+        distance_meters: string | null;
+      }[]
+    >(
+      `
+        WITH bounded AS (
+          SELECT post.global_id, post.location, post.location::geometry AS geom
+          FROM posts post
+          WHERE ${conditions.join(' AND ')}
+        ),
+        clustered AS (
+          SELECT ST_SnapToGrid(geom, $5, $5) AS cell,
+                 count(*)::int AS total,
+                 -- Postgres KHÔNG có aggregate min() cho uuid; lấy phần tử đầu
+                 -- của mảng đã sắp cho ra cùng kết quả và chạy được với mọi kiểu.
+                 (array_agg(global_id ORDER BY global_id))[1] AS sole_id,
+                 count(*) OVER ()::int AS cell_count,
+                 sum(count(*)) OVER ()::int AS viewport_total
+          FROM bounded
+          GROUP BY 1
+        )
+        SELECT ST_X(clustered.cell) AS cell_lng,
+               ST_Y(clustered.cell) AS cell_lat,
+               clustered.total,
+               clustered.cell_count,
+               clustered.viewport_total,
+               sole.global_id, sole.post_type, sole.category_id,
+               sole.area_label, sole.title, sole.is_sos,
+               ST_Y(sole.location::geometry) AS lat,
+               ST_X(sole.location::geometry) AS lng,
+               ${originSelect} AS distance_meters,
+               (SELECT m.r2_key FROM post_media m
+                 WHERE m.post_id = sole.global_id
+                 ORDER BY m.sort_order ASC, m.id ASC
+                 LIMIT 1) AS thumbnail_key
+        FROM clustered
+        -- Chỉ nạp chi tiết cho ô có ĐÚNG MỘT bài. Ô đông thì client chỉ cần
+        -- con số, và nạp chi tiết ở đó là kéo về đúng thứ vừa quyết không trả.
+        LEFT JOIN LATERAL (
+          SELECT * FROM posts detail
+          WHERE clustered.total = 1 AND detail.global_id = clustered.sole_id
+        ) sole ON true
+        ORDER BY clustered.total DESC, cell_lng ASC, cell_lat ASC
+        LIMIT ${limitParam}
+      `,
+      values,
+    );
+
+    return {
+      clusters: rows.map((row) => ({
+        cellLng: Number(row.cell_lng),
+        cellLat: Number(row.cell_lat),
+        count: Number(row.total),
+        marker:
+          row.global_id === null
+            ? null
+            : {
+                globalId: row.global_id,
+                postType: row.post_type as PostTypes,
+                categoryId: row.category_id as string,
+                areaLabel: row.area_label as string,
+                title: row.title as string,
+                isSos: Boolean(row.is_sos),
+                thumbnailKey: row.thumbnail_key,
+                location: { lat: Number(row.lat), lng: Number(row.lng) },
+                ...(row.distance_meters === null
+                  ? {}
+                  : { distanceMeters: Number(row.distance_meters) }),
+              },
+      })),
+      total: Number(rows[0]?.viewport_total ?? 0),
+      cellCount: Number(rows[0]?.cell_count ?? 0),
+    };
   }
 
   public async expireDuePosts(now: Date): Promise<IExpireDuePostsResult> {

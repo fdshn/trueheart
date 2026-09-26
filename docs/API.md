@@ -575,8 +575,23 @@ giới hạn — đổi trần bán kính ở server là client tự theo.
 26/09; trước đó bắt buộc, nên client muốn feed trộn phải gọi năm lần rồi tự ghép mà mỗi lần
 phân trang riêng nên ghép xong thứ tự vô nghĩa).
 
-`/posts/map` nhận khung bbox và trả **từng marker, tối đa 200** — **không gom cụm**, không
-trả `total`, không có cờ báo đã cắt. Khu đông bài thì client nhận 200 marker "nào đó".
+`/posts/map` nhận khung bbox và trả **CỤM theo ô lưới** (chốt 26/09):
+
+- `clusters[]` — mỗi ô có `cellKey`, `count`, `location`, và `marker` (chỉ khi `count === 1`).
+- `total` — **số bài thật** trong khung nhìn, đếm trước khi cắt.
+- `cellSizeDegrees` — cỡ ô đang dùng, client cần để vẽ vùng cụm.
+- `truncated` — `true` khi số ô vượt trần 500.
+
+Cỡ ô = bề ngang khung nhìn chia 16, **lượng tử về luỹ thừa của 2** và lưới neo vào gốc toạ độ
+— nhờ vậy kéo bản đồ ngang thì cụm đứng yên, chỉ khi phóng to/thu nhỏ mới đổi cỡ ô. Chia đều
+theo khung nhìn sẽ khiến cụm nhảy chỗ mỗi lần kéo dù không bài nào đổi.
+
+Ô nhiều bài vẽ ở **tâm ô**, không phải trọng tâm các bài: trọng tâm của hai bài cùng một địa
+chỉ chính là địa chỉ đó. Ô một bài dùng toạ độ đã làm nhiễu như mọi chỗ khác.
+
+> ⚠️ **Đổi hợp đồng API.** Trước 26/09 response là `markers[]` — từng bài, **cắt cứng ở 200**,
+> không `total`, không cờ báo. Khu đông bài thì client nhận 200 marker "nào đó" và người dùng
+> zoom ra thấy bản đồ thưa hơn lúc zoom vào. Client phải sửa theo hình dạng mới.
 
 Cả hai đều áp quy tắc làm nhiễu toạ độ ở §1.
 

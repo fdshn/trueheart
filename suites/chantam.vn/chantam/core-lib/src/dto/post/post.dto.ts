@@ -285,8 +285,43 @@ export interface IPostMapMarkerDto {
   deepLinkPath: string;
 }
 
+/**
+ * Một ô lưới trên bản đồ.
+ *
+ * Bản đồ trả CỤM chứ không trả từng bài: một thành phố có hàng nghìn bài, và
+ * trước 26/09 truy vấn cắt cứng ở 200 marker mà không báo gì — người dùng zoom
+ * ra thấy bản đồ thưa hơn lúc zoom vào từng quận, không hiểu vì sao.
+ */
+export interface IPostMapClusterDto {
+  /**
+   * Khoá của ô, ổn định giữa các lần gọi cùng mức phóng to.
+   *
+   * Client dùng nó làm key khi vẽ lại để cụm không nhấp nháy mỗi lần kéo bản
+   * đồ. Dạng `<lng>:<lat>` của góc dưới-trái ô.
+   */
+  cellKey: string;
+  count: number;
+  /**
+   * Điểm để vẽ cụm.
+   *
+   * Nhiều bài thì là TÂM Ô — không phải trọng tâm các bài, vì trọng tâm của hai
+   * bài cùng một địa chỉ chính là địa chỉ đó. Đúng một bài thì là toạ độ bài đã
+   * làm nhiễu, y như mọi chỗ khác.
+   */
+  location: IGeoPoint;
+  isLocationApproximate: true;
+  /** Chỉ có khi `count === 1` — đủ dữ liệu cho thẻ xem nhanh (F29). */
+  marker: IPostMapMarkerDto | null;
+}
+
 export interface IGetPostMapResponseDto {
-  markers: IPostMapMarkerDto[];
+  clusters: IPostMapClusterDto[];
+  /** Tổng số bài trong khung nhìn — con số THẬT, không bị cắt. */
+  total: number;
+  /** Cỡ ô lưới đang dùng, theo độ. Client cần nó để vẽ vùng cụm. */
+  cellSizeDegrees: number;
+  /** `true` khi số ô vượt trần và danh sách đã bị cắt bớt. */
+  truncated: boolean;
 }
 
 export interface IUpdatePostDto {
