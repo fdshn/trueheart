@@ -650,6 +650,36 @@ async function main(): Promise<void> {
       postId(70),
     ]);
 
+    console.log('\nHạn mức đăng bài: MỘT rổ, MỘT con số\n');
+    const [merged] = await dataSource.query<
+      { code: string; rank: string; limit_value: number }[]
+    >(`
+      SELECT policy.code, value."rank", value.limit_value
+      FROM capability_policies policy
+      INNER JOIN config_revisions revision ON revision.id = policy.revision_id
+      INNER JOIN capability_rank_values value ON value.policy_id = policy.id
+      WHERE policy.code = 'POST_OPEN' AND value."rank" = 'MEMBER'
+        AND revision.effective_to IS NULL
+    `);
+    check(
+      'POST_OPEN có mặt, giữ nguyên con số cũ của POST_OFFER',
+      merged?.limit_value === 3,
+      `${merged?.limit_value}`,
+    );
+
+    const leftovers = await dataSource.query<{ code: string }[]>(`
+      SELECT policy.code
+      FROM capability_policies policy
+      INNER JOIN config_revisions revision ON revision.id = policy.revision_id
+      WHERE policy.code IN ('POST_OFFER', 'POST_WANTED')
+        AND revision.effective_to IS NULL
+    `);
+    check(
+      'hai capability cũ đã rút khỏi bản đang hiệu lực',
+      leftovers.length === 0,
+      leftovers.map((row) => row.code).join(', '),
+    );
+
     // ── 4. Marker bản đồ mang dữ liệu thẻ xem nhanh (F29) ───────────────────
     console.log('\nThẻ xem nhanh trên bản đồ:\n');
 

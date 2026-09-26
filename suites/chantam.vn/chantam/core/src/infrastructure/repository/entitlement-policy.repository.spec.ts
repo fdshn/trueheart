@@ -19,8 +19,8 @@ function policyRow(overrides: Record<string, unknown> = {}) {
 
 /** Bảng hai capability × hai rank — đủ để thấy ô nào bị đụng, ô nào không. */
 const CurrentPolicy = [
-  policyRow({ code: 'POST_OFFER', rank: UserRanks.MEMBER, limit_value: '3' }),
-  policyRow({ code: 'POST_OFFER', rank: UserRanks.GOLD, limit_value: '20' }),
+  policyRow({ code: 'POST_OPEN', rank: UserRanks.MEMBER, limit_value: '3' }),
+  policyRow({ code: 'POST_OPEN', rank: UserRanks.GOLD, limit_value: '20' }),
   policyRow({ code: 'POST_SOS', rank: UserRanks.MEMBER, allowed: false }),
   policyRow({ code: 'POST_SOS', rank: UserRanks.GOLD, allowed: true }),
 ];
@@ -84,9 +84,7 @@ describe('EntitlementRepository getPolicyRevision', () => {
 
     expect(policy.revisionId).toBe(7);
     expect(policy.capabilities).toHaveLength(2);
-    const offer = policy.capabilities.find(
-      (item) => item.code === 'POST_OFFER',
-    );
+    const offer = policy.capabilities.find((item) => item.code === 'POST_OPEN');
     expect(offer?.ranks).toEqual([
       { rank: UserRanks.MEMBER, allowed: true, limit: 3 },
       { rank: UserRanks.GOLD, allowed: true, limit: 20 },
@@ -116,11 +114,11 @@ describe('EntitlementRepository publishPolicyRevision', () => {
 
     await repository.publishPolicyRevision(
       publish([
-        { code: 'POST_OFFER', ranks: [{ rank: UserRanks.GOLD, limit: 10 }] },
+        { code: 'POST_OPEN', ranks: [{ rank: UserRanks.GOLD, limit: 10 }] },
       ]),
     );
 
-    expect(rankValuesFor(query, 'POST_OFFER')).toEqual([
+    expect(rankValuesFor(query, 'POST_OPEN')).toEqual([
       { rank: UserRanks.MEMBER, allowed: true, limit: 3 },
       { rank: UserRanks.GOLD, allowed: true, limit: 10 },
     ]);
@@ -157,7 +155,7 @@ describe('EntitlementRepository publishPolicyRevision', () => {
     await repository.publishPolicyRevision(
       publish([
         {
-          code: 'POST_OFFER',
+          code: 'POST_OPEN',
           ranks: [
             { rank: UserRanks.MEMBER, limit: 0 },
             { rank: UserRanks.GOLD, limit: null },
@@ -166,7 +164,7 @@ describe('EntitlementRepository publishPolicyRevision', () => {
       ]),
     );
 
-    expect(rankValuesFor(query, 'POST_OFFER')).toEqual([
+    expect(rankValuesFor(query, 'POST_OPEN')).toEqual([
       { rank: UserRanks.MEMBER, allowed: true, limit: 0 },
       { rank: UserRanks.GOLD, allowed: true, limit: null },
     ]);
@@ -238,7 +236,7 @@ describe('EntitlementRepository publishPolicyRevision', () => {
 
     await repository.publishPolicyRevision(
       publish([
-        { code: 'POST_OFFER', ranks: [{ rank: UserRanks.GOLD, limit: 10 }] },
+        { code: 'POST_OPEN', ranks: [{ rank: UserRanks.GOLD, limit: 10 }] },
       ]),
     );
 

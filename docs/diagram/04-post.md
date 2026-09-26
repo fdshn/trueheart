@@ -40,7 +40,7 @@ flowchart LR
     C -->|Không| D[❌ 403 QUOTA_EXCEEDED<br/>kèm số hiện tại / số tối đa]
     C -->|Có| E[✅ Cho đăng]
 
-    subgraph CauHinh["capability_rank_values — Admin sửa lúc chạy"]
+    subgraph CauHinh["POST_OPEN trong capability_rank_values<br/>Admin sửa lúc chạy"]
         R1["Viewer — 0"]
         R2["Thành viên — 3"]
         R3["Bạc — 10"]
@@ -59,12 +59,20 @@ flowchart LR
 > Con số là **baseline**, Admin chỉnh qua `POST /api/v1/admin/entitlements` không cần deploy.
 > Viewer 0 nghĩa là **phải xong onboarding mới đăng được bài** — đó là cổng vào thật sự.
 
-> ⚠️ **HAI núm cấu hình, MỘT rổ đếm.** Có hai capability `POST_OFFER` và `POST_WANTED`, mỗi
-> cái một bộ số theo hạng — nhưng phép đếm là **mọi bài đang mở, bất kể loại**, rồi so với
-> con số của loại đang đăng. Hôm nay hai số bằng nhau nên không ai thấy gì. Đặt lệch đi là ra
-> kết quả khó đoán: với `POST_WANTED=10`, `POST_OFFER=3` và 5 bài OFFER đang mở, người dùng
-> **đăng WANTED được** (5 < 10) mà **đăng OFFER không** (5 ≥ 3). Cần Bên A chốt: gộp về MỘT
-> hạn mức, hay đếm riêng từng rổ (khi đó tổng bài mở của Thành viên thành 3 + 3 = 6).
+> ✅ **Chốt 26/09: MỘT hạn mức `POST_OPEN` cho mọi loại bài.** Trước đó có hai capability
+> `POST_OFFER` và `POST_WANTED`, mỗi cái một bộ số theo hạng — nhưng phép đếm vẫn là **mọi
+> bài đang mở, bất kể loại**, rồi so với con số của loại đang đăng. Tức hai cái thước đo cùng
+> một rổ.
+>
+> Hôm đó hai số bằng nhau nên không ai thấy gì. Đặt lệch đi là ra kết quả khó đoán: với
+> `POST_WANTED=10`, `POST_OFFER=3` và 5 bài OFFER đang mở thì **đăng WANTED được** (5 < 10)
+> mà **đăng OFFER không** (5 ≥ 3). Gộp lại không đổi hạn mức thực tế của ai — chỉ làm cấu
+> hình nói đúng điều nó làm.
+>
+> Migration chép số từ `POST_OFFER` **đang có** chứ không từ hằng số gốc: Admin có thể đã
+> chỉnh, và ghi đè bằng baseline là lặng lẽ huỷ thay đổi của họ. Các bản cấu hình **cũ giữ
+> nguyên** hai capability kia — chúng là lịch sử, và một bút toán điểm cũ phải tra lại được
+> nó ra đời dưới luật nào.
 
 ## 4.3 Vòng đời bài đăng
 
@@ -205,13 +213,11 @@ sequenceDiagram
 
 ## Chỗ cần soát
 
-1. ⛔ **Hai núm quota, một rổ đếm** — xem §4.2. Cần chốt: gộp về một hạn mức, hay đếm riêng
-   từng rổ?
-2. ⚠️ **`CHARITY` và `MERIT` không có cổng nào.** Ai qua onboarding cũng đăng được, và cả hai
+1. ⚠️ **`CHARITY` và `MERIT` không có cổng nào.** Ai qua onboarding cũng đăng được, và cả hai
    ăn quota `POST_OFFER`. Sơ đồ cũ hứa một cổng không tồn tại. F65 nói Admin quản lý đơn vị
    Công đức — chưa có gì.
-3. **Quota đếm "bài đang mở"** — bài `EXPIRED` và `COMPLETED` không tính. Đúng ý chưa?
-4. **Gia hạn tính quota như bài mới**, nên người đang đầy quota không gia hạn được bài cũ dù
+2. **Quota đếm "bài đang mở"** — bài `EXPIRED` và `COMPLETED` không tính. Đúng ý chưa?
+3. **Gia hạn tính quota như bài mới**, nên người đang đầy quota không gia hạn được bài cũ dù
    không tạo thêm bài nào. Có thể gây khó chịu — cần xác nhận.
-5. **SOS (`WANTED` gấp)** mở theo capability `POST_SOS`, mặc định Bạc trở lên. Con số này
+4. **SOS (`WANTED` gấp)** mở theo capability `POST_SOS`, mặc định Bạc trở lên. Con số này
    vẫn đang là giả định chờ Bên A xác nhận.

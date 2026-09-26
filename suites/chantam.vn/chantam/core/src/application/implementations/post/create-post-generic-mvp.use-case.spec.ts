@@ -157,7 +157,7 @@ describe('CreatePostUseCase Generic MVP', () => {
       } as unknown as jest.Mocked<IUserRepository>;
       const entitlements = {
         getCapability: jest.fn(async () => ({
-          code: 'POST_OFFER',
+          code: 'POST_OPEN',
           allowed: true,
           limit: 3,
           used: 0,
@@ -201,7 +201,7 @@ describe('CreatePostUseCase Generic MVP', () => {
     } as unknown as jest.Mocked<IUserRepository>;
     const entitlements = {
       getCapability: jest.fn(async () => ({
-        code: 'POST_OFFER',
+        code: 'POST_OPEN',
         allowed: true,
         limit: 3,
         used: 0,

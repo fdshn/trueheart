@@ -246,6 +246,10 @@ cho đăng. Quota nằm trong `capability_rank_values` và Admin sửa được 
 `POST /api/v1/admin/entitlements` — mặc định Viewer 0, Thành viên 3, Bạc 10, Vàng 20,
 Kim Cương 50. ⚠️ *Các con số này là giả định, chờ Bên A xác nhận.*
 
+> ✅ **Chốt 26/09: MỘT hạn mức `POST_OPEN` cho cả năm loại bài.** Trước đó `POST_OFFER` và
+> `POST_WANTED` là hai capability riêng nhưng đếm chung một rổ — hai cái thước đo cùng một
+> thứ. Gộp lại không đổi hạn mức thực tế của ai.
+
 Form đăng bài còn có thêm hai trường:
 
 - **Giá trị tham khảo (VNĐ)** — cơ sở tính số điểm cần để đổi vật phẩm, xem [F74](#f74--giá-trị-tham-khảo--tỷ-lệ-quy-đổi-điểm).

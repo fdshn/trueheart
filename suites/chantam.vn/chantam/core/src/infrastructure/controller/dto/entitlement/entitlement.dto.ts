@@ -7,7 +7,7 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class EntitlementDto implements IEntitlementDto {
-  @ApiProperty({ example: 'POST_OFFER' })
+  @ApiProperty({ example: 'POST_OPEN' })
   code: string;
 
   @ApiProperty({ example: true })

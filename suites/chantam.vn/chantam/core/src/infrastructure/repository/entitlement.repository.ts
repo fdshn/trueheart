@@ -96,7 +96,7 @@ function toRevision(rows: IPolicyRow[]): IEntitlementPolicyRevisionDto {
 
 /** Chỉ quyền đăng bài mới rút từ rổ hạn mức bài đang mở. */
 function isPostCapability(code: string): boolean {
-  return code === 'POST_OFFER' || code === 'POST_WANTED';
+  return code === 'POST_OPEN';
 }
 
 /**
@@ -186,9 +186,9 @@ export class EntitlementRepository implements IEntitlementRepository {
       policyRevisionId: Number(firstRow?.revision_id ?? 0),
       capabilities: rows.map((row) => {
         const limit = row.limit_value === null ? null : Number(row.limit_value);
-        // Hạn mức đăng bài dùng CHUNG một rổ bài đang mở: `createPostWithinQuota`
-        // đếm mọi loại bài, không tách OFFER với WANTED. Các quyền khác chưa có
-        // khái niệm "đã dùng" nên để 0 thay vì bịa ra một con số.
+        // Một rổ bài đang mở cho mọi loại — `createPostWithinQuota` đếm mọi
+        // loại bài. Các quyền khác chưa có khái niệm "đã dùng" nên để 0 thay vì
+        // bịa ra một con số.
         const used = isPostCapability(row.code) ? openPosts : 0;
 
         return {

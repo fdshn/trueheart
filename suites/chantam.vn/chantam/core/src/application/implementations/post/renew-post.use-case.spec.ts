@@ -71,7 +71,7 @@ describe('RenewPostUseCase', () => {
 
     expect(entitlements.getCapability).toHaveBeenCalledWith(
       UserId,
-      'POST_OFFER',
+      'POST_OPEN',
     );
     expect(posts.renewPost.mock.calls[0][0].quota).toBe(10);
   });

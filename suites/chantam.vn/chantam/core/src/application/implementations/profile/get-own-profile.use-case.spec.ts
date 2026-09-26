@@ -23,7 +23,7 @@ const Entitlements = {
   policyRevisionId: 7,
   capabilities: [
     {
-      code: 'POST_OFFER',
+      code: 'POST_OPEN',
       allowed: true,
       limit: 3,
       used: 1,

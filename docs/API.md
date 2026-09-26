@@ -302,12 +302,12 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 4. Hợp lệ theo loại bài (xem dưới) → `ValidationFailedException`
 5. Còn quota theo rank → `PostQuotaExceededException`
 
-> ⚠️ **Quota: hai núm cấu hình, một rổ đếm.** `POST_OFFER` và `POST_WANTED` là hai capability
-> riêng, nhưng phép đếm là **mọi bài đang mở bất kể loại**, rồi so với con số của loại đang
-> đăng. Hôm nay hai số bằng nhau nên không lộ ra; đặt lệch đi là ra kết quả khó đoán.
+> **Quota là MỘT hạn mức `POST_OPEN` cho mọi loại bài** (chốt 26/09). Trước đó có
+> `POST_OFFER` và `POST_WANTED` riêng, nhưng phép đếm vẫn là mọi bài đang mở bất kể loại —
+> hai cái thước đo cùng một rổ, và đặt lệch nhau cho ra hành vi không giải thích được.
 >
-> `CHARITY`, `CLASSIFIED` và `MERIT` đều ăn quota `POST_OFFER`, và **không loại nào có cổng
-> riêng** — kể cả `CHARITY`.
+> **Không loại bài nào có cổng riêng** — kể cả `CHARITY`. Ai qua onboarding cũng đăng được
+> cả năm loại.
 
 Tác giả và trạng thái do **server quyết định**, không nhận từ client. Bài tạo ra ở
 `PUBLISHED` và **hiện ngay** trên bảng tin; đồng hồ ba tháng cũng bắt đầu từ lúc đăng.

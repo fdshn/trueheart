@@ -147,9 +147,13 @@ export class CreatePostUseCase implements ICreatePostUseCase {
 
     const totalQuantity =
       post.postType === PostTypes.OFFER ? (post.totalQuantity ?? 1) : 1;
+    // MỘT hạn mức cho mọi loại bài. Trước 26/09 có hai capability `POST_OFFER`
+    // và `POST_WANTED`, nhưng phép đếm bên dưới là mọi bài đang mở bất kể loại
+    // — nên hai con số đó là hai cái thước đo cùng một rổ, và đặt lệch nhau cho
+    // ra hành vi không giải thích được.
     const capability = await this.entitlementRepository.getCapability(
       command.userId,
-      post.postType === PostTypes.WANTED ? 'POST_WANTED' : 'POST_OFFER',
+      'POST_OPEN',
     );
     const quota = capability?.limit ?? 0;
     if (!capability?.allowed) throw new PostQuotaExceededException(quota);

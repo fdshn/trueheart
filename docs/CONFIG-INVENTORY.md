@@ -248,7 +248,7 @@ quyền trên *mọi* nhóm. Phép kiểm luôn mang `groupId`.
 
 | Hạng mục | Giá trị đang dùng |
 | --- | --- |
-| Quota bài theo bậc | 0 · 3 · 10 · 20 · 50 |
+| Quota bài theo bậc | 0 · 3 · 10 · 20 · 50 — nay là MỘT capability `POST_OPEN` cho mọi loại bài (gộp từ `POST_OFFER` + `POST_WANTED` ngày 26/09) |
 | Bậc được dùng SOS | Bạc trở lên |
 | Cap ngày | 5 giao dịch tính điểm · 3 mời |
 | Cap báo xấu | Tài liệu nói 10/ngày, rule đang **5** — **hai con số lệch nhau** |

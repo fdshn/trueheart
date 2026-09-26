@@ -17,7 +17,7 @@ describe('EntitlementRepository', () => {
         {
           rank: UserRanks.SILVER,
           revision_id: '7',
-          code: 'POST_OFFER',
+          code: 'POST_OPEN',
           allowed: true,
           limit_value: '10',
         },
@@ -38,7 +38,7 @@ describe('EntitlementRepository', () => {
       policyRevisionId: 7,
       capabilities: [
         {
-          code: 'POST_OFFER',
+          code: 'POST_OPEN',
           allowed: true,
           limit: 10,
           used: 4,
@@ -66,7 +66,7 @@ describe('EntitlementRepository', () => {
         {
           rank: UserRanks.MEMBER,
           revision_id: '8',
-          code: 'POST_OFFER',
+          code: 'POST_OPEN',
           allowed: true,
           limit_value: '3',
         },
@@ -96,7 +96,7 @@ describe('EntitlementRepository', () => {
         {
           rank: UserRanks.MEMBER,
           revision_id: '8',
-          code: 'POST_WANTED',
+          code: 'POST_OPEN',
           allowed: true,
           limit_value: '3',
         },
@@ -106,9 +106,9 @@ describe('EntitlementRepository', () => {
     const repository = new EntitlementRepository({ query } as never);
 
     await expect(
-      repository.getCapability(UserId, 'POST_WANTED'),
+      repository.getCapability(UserId, 'POST_OPEN'),
     ).resolves.toEqual({
-      code: 'POST_WANTED',
+      code: 'POST_OPEN',
       allowed: true,
       limit: 3,
       used: 5,
@@ -123,7 +123,7 @@ describe('EntitlementRepository', () => {
         {
           rank: UserRanks.DIAMOND,
           revision_id: '9',
-          code: 'POST_OFFER',
+          code: 'POST_OPEN',
           allowed: true,
           limit_value: null,
         },
@@ -133,9 +133,9 @@ describe('EntitlementRepository', () => {
     const repository = new EntitlementRepository({ query } as never);
 
     await expect(
-      repository.getCapability(UserId, 'POST_OFFER'),
+      repository.getCapability(UserId, 'POST_OPEN'),
     ).resolves.toEqual({
-      code: 'POST_OFFER',
+      code: 'POST_OPEN',
       allowed: true,
       limit: null,
       used: 12,

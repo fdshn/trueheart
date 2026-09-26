@@ -35,7 +35,7 @@ export class RenewPostUseCase implements IRenewPostUseCase {
     // luật đang áp cho một bài mới.
     const capability = await this.entitlementRepository.getCapability(
       command.userId,
-      'POST_OFFER',
+      'POST_OPEN',
     );
     const quota = capability?.limit ?? 0;
 
