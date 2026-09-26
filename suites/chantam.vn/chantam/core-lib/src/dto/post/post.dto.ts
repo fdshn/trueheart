@@ -139,6 +139,7 @@ export interface INearbyPostDto extends IPostFeedInteractionDto {
   post: IPostEntity;
   distanceMeters: number;
   isLocationApproximate: true;
+  media: IPublicPostMediaDto[];
   requestCount?: number;
   myRequestStatus?: GiftRequestStatuses | null;
   hasRequested?: boolean;

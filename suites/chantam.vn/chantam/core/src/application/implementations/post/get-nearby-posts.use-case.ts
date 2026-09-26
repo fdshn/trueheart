@@ -8,6 +8,7 @@ import { IConfig } from '@/domain/ports/config';
 import {
   IContentReactionRepository,
   IGiftRequestRepository,
+  IPostMediaRepository,
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
@@ -34,6 +35,8 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
     private readonly userRepository: IUserRepository,
     @Inject(IContentReactionRepository)
     private readonly reactions: IContentReactionRepository,
+    @Inject(IPostMediaRepository)
+    private readonly postMediaRepository: IPostMediaRepository,
     @Inject(IConfig) private readonly config: IConfig,
   ) {}
 
@@ -110,9 +113,34 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
           )
         : new Map<string, ReactionKinds>();
 
+    // Một truy vấn duy nhất cho cả trang — cùng pattern với GetMyPostsUseCase.
+    const allMedia =
+      postIds.length > 0
+        ? await this.postMediaRepository.listByPostIds(postIds)
+        : [];
+
+    const publicBase = this.config.storage.publicBaseUrl.replace(/\/$/, '');
+    const mediaMap = new Map<
+      string,
+      Array<{ id: number; url: string; sortOrder: number }>
+    >();
+    for (const item of allMedia) {
+      const url = `${publicBase}/${item.r2Key}`;
+      const entry = { id: item.id, url, sortOrder: item.sortOrder };
+      const list = mediaMap.get(item.postId);
+      if (list) {
+        list.push(entry);
+      } else {
+        mediaMap.set(item.postId, [entry]);
+      }
+    }
+
     return {
       posts: items.map(({ post, distanceMeters }) => {
         const myRequestStatus = myStatuses.get(post.globalId) ?? null;
+        const media = (mediaMap.get(post.globalId) ?? []).sort(
+          (a, b) => a.sortOrder - b.sortOrder,
+        );
         return {
           post: {
             ...post,
@@ -124,6 +152,7 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
           },
           distanceMeters: bucketDistance(distanceMeters),
           isLocationApproximate: true,
+          media,
           requestCount: requestCounts.get(post.globalId) ?? 0,
           myRequestStatus,
           hasRequested: Boolean(myRequestStatus),

@@ -3,6 +3,7 @@ import { IConfig } from '@/domain/ports/config';
 import {
   IContentReactionRepository,
   IGiftRequestRepository,
+  IPostMediaRepository,
   IPostRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
@@ -112,6 +113,24 @@ function makeReactions(
   } as unknown as jest.Mocked<IContentReactionRepository>;
 }
 
+function makeMedia(
+  mediaItems: {
+    id: number;
+    postId: string;
+    r2Key: string;
+    sortOrder: number;
+  }[] = [],
+): jest.Mocked<IPostMediaRepository> {
+  return {
+    listByPostIds: jest.fn().mockResolvedValue(mediaItems),
+    countByPostId: jest.fn(),
+    listByPostId: jest.fn(),
+    attach: jest.fn(),
+    replaceOrder: jest.fn(),
+    removeByPostId: jest.fn(),
+  } as unknown as jest.Mocked<IPostMediaRepository>;
+}
+
 describe('GetNearbyPostsUseCase', () => {
   it('forwards requested type and pagination then returns privacy-safe nearby posts with request counts and status', async () => {
     const post = makePost();
@@ -137,11 +156,28 @@ describe('GetNearbyPostsUseCase', () => {
       new Map([[post.globalId, ReactionKinds.CARE]]),
     );
 
+    const postMediaId = '11111111-1111-1111-1111-111111111111';
+    const media = makeMedia([
+      {
+        id: 1,
+        postId: postMediaId,
+        r2Key: 'users/x/media/img.jpg',
+        sortOrder: 0,
+      },
+      {
+        id: 2,
+        postId: postMediaId,
+        r2Key: 'users/x/media/img2.jpg',
+        sortOrder: 1,
+      },
+    ]);
+
     const result = await new GetNearbyPostsUseCase(
       posts,
       giftRequests,
       makeUsers(),
       reactions,
+      media,
       makeConfig(),
     ).handle({
       lat: ExactLocation.lat,
@@ -181,6 +217,10 @@ describe('GetNearbyPostsUseCase', () => {
           distanceMeters: 500,
           isLocationApproximate: true,
           post: { postType: PostTypes.WANTED },
+          media: [
+            { id: 1, url: '/users/x/media/img.jpg', sortOrder: 0 },
+            { id: 2, url: '/users/x/media/img2.jpg', sortOrder: 1 },
+          ],
           requestCount: 3,
           myRequestStatus: GiftRequestStatuses.PENDING,
           hasRequested: true,
@@ -193,6 +233,9 @@ describe('GetNearbyPostsUseCase', () => {
       meta: { page: 2, pageSize: 20, total: 41 },
     });
     expect(result.posts[0].post.location).not.toEqual(ExactLocation);
+    // listByPostIds gọi 1 lần cho cả trang, không phải từng bài.
+    expect(media.listByPostIds).toHaveBeenCalledTimes(1);
+    expect(media.listByPostIds).toHaveBeenCalledWith([post.globalId]);
   });
 
   it('thiếu toạ độ thì lùi về Vị trí mặc định và nói rõ đã lùi', async () => {
@@ -207,6 +250,7 @@ describe('GetNearbyPostsUseCase', () => {
       giftRequests,
       users,
       makeReactions(),
+      makeMedia(),
       makeConfig(),
     ).handle({
       radiusMeters: 5_000,
@@ -235,6 +279,7 @@ describe('GetNearbyPostsUseCase', () => {
       giftRequests,
       users,
       makeReactions(),
+      makeMedia(),
       makeConfig(),
     ).handle({
       lat: 10.7724,
@@ -261,6 +306,7 @@ describe('GetNearbyPostsUseCase', () => {
         {} as unknown as jest.Mocked<IGiftRequestRepository>,
         makeUsers(),
         makeReactions(),
+        makeMedia(),
         makeConfig(),
       ).handle({
         radiusMeters: 5_000,
@@ -289,6 +335,7 @@ describe('GetNearbyPostsUseCase', () => {
         {} as unknown as jest.Mocked<IGiftRequestRepository>,
         users,
         makeReactions(),
+        makeMedia(),
         makeConfig(),
       ).handle({
         radiusMeters: 5_000,
@@ -313,6 +360,7 @@ describe('GetNearbyPostsUseCase', () => {
         {} as unknown as jest.Mocked<IGiftRequestRepository>,
         users,
         makeReactions(),
+        makeMedia(),
         makeConfig(),
       ).handle({
         lat: 10.7724,
@@ -346,6 +394,7 @@ describe('GetNearbyPostsUseCase', () => {
       giftRequests,
       makeUsers(),
       reactions,
+      makeMedia(),
       makeConfig(),
     ).handle({
       lat: ExactLocation.lat,

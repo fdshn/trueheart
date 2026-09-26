@@ -7,6 +7,7 @@ import {
   IGetNearbyPostsQueryDto,
   IGetNearbyPostsResponseDto,
   INearbyPostDto,
+  IPublicPostMediaDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
@@ -31,6 +32,7 @@ import {
 } from 'class-validator';
 import { Mixin } from 'ts-mixer';
 import { PostEntity } from '../../../entity/post.entity';
+import { PublicPostMediaDto } from './post.dto';
 
 export class GetNearbyPostsQueryDto
   extends Mixin(PaginationQueryDto)
@@ -85,6 +87,12 @@ export class NearbyPostDto implements INearbyPostDto {
 
   @ApiProperty({ example: true })
   isLocationApproximate: true;
+
+  @ApiProperty({
+    type: () => [PublicPostMediaDto],
+    description: 'Danh sách ảnh đính kèm, sắp xếp theo sortOrder.',
+  })
+  media: IPublicPostMediaDto[];
 
   @ApiPropertyOptional({
     example: 3,
