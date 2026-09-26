@@ -499,7 +499,7 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
-| `PUT` | `/posts/:subjectId/reactions/me` | `REACT_CONTENT` | Đặt hoặc đổi cảm xúc: `LIKE`/`LOVE`/`CARE`/`WOW`/`SAD` — **đây cũng là nút thích** |
+| `PUT` | `/posts/:subjectId/reactions/me` | `REACT_CONTENT` | Đặt hoặc đổi cảm xúc: `LIKE`/`LOVE`/`CARE`/`WOW`/`SAD` — **đây cũng là nút thích**. Không có trần |
 | `DELETE` | `/posts/:subjectId/reactions/me` | `REACT_CONTENT` | Gỡ cảm xúc của chính mình |
 | `GET` | `/posts/:subjectId/reactions` | Công khai | Ai đã bày tỏ, phân trang, lọc theo `kind` |
 | `PUT` | `/comments/:subjectId/reactions/me` | `REACT_CONTENT` | Cảm xúc trên **bình luận** |
@@ -560,6 +560,13 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
   lên Bạc trong khi tặng một món đồ thật được 56 điểm. Không thưởng khi tương tác với bài của
   chính mình. Chạm trần **không** làm hỏng việc bình luận: việc người đó vừa viết một câu là sự
   thật, thưởng bao nhiêu chỉ là chính sách.
+- **Cảm xúc KHÔNG có trần gọi**, và đó là chủ ý. Điểm đã an toàn sẵn: khoá chống trùng của
+  `POST_REACTED` là `(bài, người)` nên gỡ rồi thả lại không được thưởng lần hai; thông báo cũng
+  chỉ một lần mỗi ngày mỗi bài. Chỗ duy nhất còn tốn là ghi database, và nó được xử bằng cách
+  **không ghi**: gửi đúng loại người đó đang để thì câu upsert mang
+  `WHERE kind IS DISTINCT FROM EXCLUDED.kind`, nên Postgres không sinh phiên bản dòng mới, không
+  sinh WAL, không để lại dòng chết. Client gửi trùng — chạm hai lần, retry khi mạng chập chờn,
+  hai thiết bị cùng đồng bộ — nay là miễn phí, và **không ai bị trả về 429**.
 - **Báo xấu một bình luận** đi chung `POST /reports` với `targetType: COMMENT`, không có
   endpoint riêng.
 

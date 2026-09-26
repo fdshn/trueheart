@@ -59,7 +59,7 @@ flowchart LR
 | `GET /comments/:id/replies` | token | ✅ |
 | `PATCH` · `DELETE /comments/:id` | tác giả | ✅ |
 | `POST /posts/:id/comment-media/upload-url` | token | ✅ |
-| `PUT` · `DELETE /posts/:id/reactions/me` | `REACT_CONTENT` | ✅ **đây cũng là nút thích** |
+| `PUT` · `DELETE /posts/:id/reactions/me` | `REACT_CONTENT` | ✅ nút thích; không trần, gửi trùng không ghi |
 | `GET /posts/:id/reactions` | token | ✅ |
 | `PUT` · `DELETE /comments/:id/reactions/me` | `REACT_CONTENT` | ✅ |
 | `POST /posts/:id/shares` | token | ✅ chờ 1 giờ mỗi người mỗi bài |

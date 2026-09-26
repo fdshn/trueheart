@@ -49,8 +49,10 @@ flowchart TD
     A[Đổi LIKE → LOVE] --> B["reaction_count GIỮ NGUYÊN<br/>vẫn là MỘT người bày tỏ"]
     C[Bày tỏ lần đầu] --> D["reaction_count +1"]
     E[Gỡ cảm xúc] --> F["reaction_count −1"]
+    G[Gửi lại ĐÚNG loại đang có] --> H["KHÔNG ghi gì cả<br/>không cả một dòng chết"]
 
     style B fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style H fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 Câu SQL vẫn phải biết **loại cũ**, dù số đếm không đổi:
@@ -65,15 +67,44 @@ WITH prev AS (
   VALUES ($1, $2, $3, $4)
   ON CONFLICT (subject_type, subject_id, user_id)
   DO UPDATE SET kind = EXCLUDED.kind, updated_at = now()
+  WHERE content_reactions.kind IS DISTINCT FROM EXCLUDED.kind
   RETURNING (xmax = 0) AS inserted
 )
 SELECT upserted.inserted, prev.kind AS old_kind
-FROM upserted LEFT JOIN prev ON true
+FROM (SELECT 1) AS always
+LEFT JOIN prev ON true
+LEFT JOIN upserted ON true
 ```
+
+Ba trạng thái, đọc từ `inserted`:
+
+| Giá trị | Nghĩa | Số đếm |
+| --- | --- | --- |
+| `true` | chèn dòng mới | **+1** |
+| `false` | đụng khoá và đã ghi đè — loại thật sự đổi | đứng yên |
+| `null` | đụng khoá nhưng **không ghi gì** — gửi trùng loại đang có | đứng yên |
 
 > `xmax = 0` phân biệt **chèn mới** với **cập nhật do đụng khoá**. Không có nó thì không biết
 > nên cộng `reaction_count` hay giữ nguyên — và đó là khác biệt giữa "một người đổi ý" với
 > "thêm một người".
+
+> ✅ **`WHERE ... IS DISTINCT FROM` — thêm 26/09, thay cho việc đặt trần.** Postgres không tự so
+> giá trị: thiếu mệnh đề này thì gửi `LIKE` khi đang để `LIKE` vẫn ghi một phiên bản dòng mới,
+> một bản ghi WAL, một mục index, và để lại một dòng chết cho vacuum — trong khi nội dung không
+> đổi một ký tự. Có nó thì gọi một nghìn lần cũng chỉ còn một lần dò index.
+
+> **Người dùng THẬT mới là bên hưởng lợi chính.** Chạm hai lần vì tưởng máy lag, client retry
+> khi mạng chập chờn, hai thiết bị cùng đồng bộ — tất cả đang sinh ra ghi thừa, và nay thành
+> miễn phí.
+
+> **Chứng minh bằng `ctid`, không bằng giá trị trả về.** `ctid` là vị trí vật lý của dòng;
+> Postgres không sửa tại chỗ nên mỗi lần UPDATE là một phiên bản mới ở chỗ khác. `test:feed-merge`
+> gọi lại đúng loại cũ 20 lần rồi canh `ctid` **đứng yên**, và gọi với loại khác thì canh nó
+> **dịch chỗ** — nếu không thì mệnh đề `WHERE` có thể đang chặn nhầm cả thay đổi có thật.
+
+> ⚠️ **`FROM (SELECT 1)` rồi LEFT JOIN cả hai CTE** chứ không nối thẳng từ `upserted`: lúc không
+> ghi gì thì `upserted` ra 0 dòng, kéo theo cả câu ra 0 dòng và mất luôn `old_kind` — không
+> phân biệt được "không đổi" với "không có".
 
 > **Loại cũ vẫn phải đọc ra** dù không còn cột nào phụ thuộc vào nó: thông báo "lần đầu trong
 > ngày" (§6.5) chỉ bắn khi đây là lượt bày tỏ MỚI, không phải khi ai đó đổi từ `LIKE` sang
@@ -309,10 +340,15 @@ flowchart TD
 2. ⚠️ **Đổi hợp đồng API.** `POST /posts/:postId/like` đã gỡ, `likeCount` và `isLiked` biến mất
    khỏi cả bốn endpoint đọc bài. Client phải chuyển sang `PUT /posts/:id/reactions/me` và suy
    `isLiked` từ `myReaction`.
-3. **Cảm xúc vẫn KHÔNG có trần nào.** Bình luận nay có cả trần phút lẫn trần ngày, chia sẻ có
-   khoảng chờ, nhưng thả/gỡ cảm xúc thì gọi bao nhiêu lần cũng được. Nó không tạo ra dòng mới
-   trên bảng tin nên hậu quả nhẹ hơn, nhưng rule `POST_REACTED` đã bật thì đây là đường farm
-   điểm rẻ nhất còn lại. Cần chốt.
+3. **Cảm xúc cố ý KHÔNG có trần** (chốt 26/09). Điểm đã an toàn sẵn: khoá chống trùng của
+   `POST_REACTED` là `(bài, người)`, nên gỡ rồi thả lại **không** được thưởng lần hai — muốn đủ
+   20đ phải chạm 20 bài khác nhau, đúng bằng trần ngày của rule. Thông báo cũng chỉ một lần mỗi
+   ngày mỗi bài. Nên chỉ còn chi phí ghi database, và chỗ đó xử bằng cách **không ghi** thay vì
+   bằng cách **từ chối** (§6.2).
+4. **Còn lại kiểu đổi qua đổi lại.** Thả → gỡ → thả, hoặc LIKE → LOVE → LIKE, vẫn là ghi thật
+   mỗi lần vì mỗi lần đều là thay đổi trạng thái có thật. Muốn chặn cả kiểu này thì phải đặt
+   trần ở tầng hạ tầng (nginx/Cloudflare theo IP) — hiện **chưa có gì** ở tầng đó, và nó là
+   việc lúc triển khai chứ không nằm trong repo này.
 4. **Huy hiệu `pending-count` không có ngưỡng cảnh báo.** Hàng đợi 5 cái và hàng đợi 500 cái
    hiện giống nhau về mức độ khẩn. Cần không?
 5. **Chia sẻ chờ 1 giờ mỗi người mỗi bài** — Bên A đã chốt 26/09.
