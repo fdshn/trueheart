@@ -21,6 +21,7 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDefined,
   IsIn,
   IsInt,
   IsLatitude,
@@ -31,6 +32,7 @@ import {
   Length,
   Max,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { Mixin } from 'ts-mixer';
 import { PostEntity } from '../../../entity/post.entity';
@@ -59,16 +61,26 @@ export class GetNearbyPostsQueryDto
   @IsLongitude()
   lng?: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     minimum: MinSearchRadiusMeters,
     maximum: MaxSearchRadiusMeters,
     example: 5_000,
+    description:
+      'BẮT BUỘC khi có `lat`/`lng`. Bỏ trống cùng với toạ độ thì không lọc ' +
+      'bán kính nữa và server trả toàn bộ (`originSource: ALL`).',
   })
+  // Chỉ kiểm khi thực sự có tâm để quét. Không có tâm thì bán kính không lọc
+  // gì, và bắt gửi nó là bắt client bịa một con số server sẽ lờ đi.
+  @ValidateIf(
+    (query: GetNearbyPostsQueryDto) =>
+      query.lat !== undefined || query.lng !== undefined,
+  )
   @Type(() => Number)
+  @IsDefined()
   @IsInt()
   @Min(MinSearchRadiusMeters)
   @Max(MaxSearchRadiusMeters)
-  radiusMeters: number;
+  radiusMeters?: number;
 
   @ApiPropertyOptional({
     enum: PublicDiscoveryPostTypes,
@@ -101,8 +113,14 @@ export class NearbyPostDto implements INearbyPostDto {
   @ApiProperty({ type: () => PostEntity })
   post: IPostEntity;
 
-  @ApiProperty({ example: 400 })
-  distanceMeters: number;
+  @ApiProperty({
+    example: 400,
+    nullable: true,
+    description:
+      'Đã làm tròn theo bậc. `null` khi `originSource` là `ALL` — không có ' +
+      'gốc toạ độ thì không có khoảng cách.',
+  })
+  distanceMeters: number | null;
 
   @ApiProperty({ example: true })
   isLocationApproximate: true;
@@ -155,9 +173,12 @@ export class GetNearbyPostsResponseDto implements IGetNearbyPostsResponseDto {
   meta: PaginationMetaDto;
 
   @ApiProperty({
-    enum: ['REQUEST', 'DEFAULT_LOCATION'],
+    enum: ['REQUEST', 'DEFAULT_LOCATION', 'ALL'],
     description:
-      'Gốc toạ độ đã dùng. DEFAULT_LOCATION nghĩa là client không gửi toạ độ và server đã lùi về Vị trí mặc định trong hồ sơ.',
+      'Gốc toạ độ đã dùng. `DEFAULT_LOCATION` nghĩa là client không gửi toạ ' +
+      'độ và server đã lùi về Vị trí mặc định trong hồ sơ. `ALL` nghĩa là ' +
+      'không có gốc nào nên server trả toàn bộ, mới nhất trước, và ' +
+      '`distanceMeters` của mọi bài là `null`.',
   })
-  originSource: 'REQUEST' | 'DEFAULT_LOCATION';
+  originSource: 'REQUEST' | 'DEFAULT_LOCATION' | 'ALL';
 }

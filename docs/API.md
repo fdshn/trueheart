@@ -695,14 +695,31 @@ bỏ sót bài**.
 
 | Gửi gì | Server làm gì | `originSource` |
 | --- | --- | --- |
-| Cả `lat` và `lng` | Dùng đúng toạ độ đó | `REQUEST` |
+| Cả `lat` và `lng` (kèm `radiusMeters`) | Dùng đúng toạ độ đó | `REQUEST` |
 | Không gửi, đã đăng nhập, có Vị trí mặc định | Lùi về Vị trí mặc định | `DEFAULT_LOCATION` |
-| Không gửi, chưa đăng nhập | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
-| Không gửi, đã đăng nhập, **chưa** đặt Vị trí mặc định | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
+| Không gửi, chưa đăng nhập | **Trả toàn bộ**, không lọc bán kính | `ALL` |
+| Không gửi, đã đăng nhập, **chưa** đặt Vị trí mặc định | **Trả toàn bộ**, không lọc bán kính | `ALL` |
 | Chỉ một trong hai | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
+| Có toạ độ nhưng thiếu `radiusMeters` | `VALIDATION_FAILED` (400) | — |
+
+**Chặng `ALL` là chặng CUỐI** (chốt 27/09): chỉ tới khi không còn gốc toạ độ nào. Người đã
+đăng nhập và có Vị trí mặc định vẫn được quét quanh vị trí đó như cũ — F26 không đổi.
+
+Ở nhánh `ALL`:
+
+- `radiusMeters` **tuỳ chọn** và bị bỏ qua. Có toạ độ thì nó vẫn bắt buộc.
+- `distanceMeters` của mọi bài là **`null`**, không phải `0` — `0` đọc ra là "cách bạn 0 mét".
+- Thứ tự là **`created_at DESC`, rồi `id ASC`** thay cho khoảng cách. Vẫn phải có tiebreak
+  bằng khoá chính, nếu không lật trang bằng `OFFSET` sẽ lặp bài hoặc bỏ sót bài.
+- Toạ độ vẫn bị làm nhiễu và `isLocationApproximate` vẫn `true`.
+
+> ⚠️ **Đổi hợp đồng API.** Trước 27/09 hai dòng `ALL` ở trên là **400**. Client đang bắt lỗi
+> `DISCOVERY_ORIGIN_UNAVAILABLE` để hiện màn "hãy bật GPS" sẽ không còn nhận được lỗi đó —
+> giờ nhận 200 kèm danh sách. Kiểu của `distanceMeters` cũng nới thành `number | null`.
 
 Response **luôn** trả `originSource`. Giao diện cần nó để nói "đang tìm quanh vị trí mặc định
-của bạn" — lùi về một toạ độ khác mà im lặng là đổi kết quả sau lưng người dùng.
+của bạn", hoặc "đang xem tất cả, bật GPS để tìm quanh đây" — lùi sang một phạm vi khác mà im
+lặng là đổi kết quả sau lưng người dùng.
 
 Gửi **một nửa** toạ độ là lỗi của client, không phải ý muốn lùi vị trí: bỏ qua nửa kia sẽ
 quét quanh một chỗ khác hẳn chỗ client đang chỉ tới. Và khi không có gốc nào, server **không**

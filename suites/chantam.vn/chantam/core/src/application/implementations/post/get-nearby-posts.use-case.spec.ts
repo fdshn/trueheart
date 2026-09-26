@@ -274,56 +274,103 @@ describe('GetNearbyPostsUseCase', () => {
     expect(result.originSource).toBe('REQUEST');
   });
 
-  it('khách chưa đăng nhập không gửi toạ độ thì báo lỗi rõ ràng', async () => {
+  it('khách chưa đăng nhập không gửi toạ độ thì trả TOÀN BỘ, không lọc bán kính', async () => {
+    const post = makePost();
     const posts = {
-      findNearbyPosts: jest.fn(),
-    } as unknown as jest.Mocked<IPostRepository>;
-
-    await expect(
-      new GetNearbyPostsUseCase(
-        posts,
-        makeMedia(),
-        {} as unknown as jest.Mocked<IGiftRequestRepository>,
-        makeUsers(),
-        makeReactions(),
-        makeConfig(),
-      ).handle({
-        radiusMeters: 5_000,
-        postType: PostTypes.OFFER,
-        page: 1,
-        pageSize: 20,
+      findNearbyPosts: jest.fn().mockResolvedValue({
+        items: [{ post, distanceMeters: null }],
+        total: 1,
       }),
-    ).rejects.toBeInstanceOf(DiscoveryOriginUnavailableException);
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequests = {
+      countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      findStatusesByPostIdsAndRequester: jest.fn(),
+    } as unknown as jest.Mocked<IGiftRequestRepository>;
 
-    expect(posts.findNearbyPosts).not.toHaveBeenCalled();
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      makeMedia(),
+      giftRequests,
+      makeUsers(),
+      makeReactions(),
+      makeConfig(),
+    ).handle({
+      postType: PostTypes.OFFER,
+      page: 1,
+      pageSize: 20,
+    });
+
+    // Không gốc thì KHÔNG được truyền bán kính xuống: lọc quanh một điểm
+    // không ai chọn chính là thứ nhánh này sinh ra để tránh.
+    expect(posts.findNearbyPosts).toHaveBeenCalledWith(
+      expect.objectContaining({ origin: undefined, radiusMeters: undefined }),
+    );
+    expect(result.originSource).toBe('ALL');
+    // `0` ở đây là nói dối — nó đọc ra "cách bạn 0 mét".
+    expect(result.posts[0].distanceMeters).toBeNull();
+    expect(result.posts[0].isLocationApproximate).toBe(true);
   });
 
-  it('người dùng chưa đặt Vị trí mặc định cũng báo lỗi, không quét bừa', async () => {
+  it('đã đăng nhập nhưng chưa đặt Vị trí mặc định thì cũng trả TOÀN BỘ', async () => {
     const users = {
       findOneBy: jest.fn().mockResolvedValue({
         globalId: '99999999-9999-9999-9999-999999999999',
         defaultLocation: null,
       }),
     } as unknown as jest.Mocked<IUserRepository>;
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+    } as unknown as jest.Mocked<IPostRepository>;
 
-    await expect(
-      new GetNearbyPostsUseCase(
-        {
-          findNearbyPosts: jest.fn(),
-        } as unknown as jest.Mocked<IPostRepository>,
-        makeMedia(),
-        {} as unknown as jest.Mocked<IGiftRequestRepository>,
-        users,
-        makeReactions(),
-        makeConfig(),
-      ).handle({
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      makeMedia(),
+      {} as unknown as jest.Mocked<IGiftRequestRepository>,
+      users,
+      makeReactions(),
+      makeConfig(),
+    ).handle({
+      postType: PostTypes.OFFER,
+      page: 1,
+      pageSize: 20,
+      currentUserId: '99999999-9999-9999-9999-999999999999',
+    });
+
+    expect(posts.findNearbyPosts).toHaveBeenCalledWith(
+      expect.objectContaining({ origin: undefined, radiusMeters: undefined }),
+    );
+    expect(result.originSource).toBe('ALL');
+  });
+
+  it('có Vị trí mặc định thì vẫn lùi về đó, KHÔNG rơi xuống trả toàn bộ', async () => {
+    // Chặng "trả toàn bộ" là chặng CUỐI. Nuốt mất nhánh Vị trí mặc định là bỏ
+    // hẳn F26 và đổi kết quả của mọi người đang đăng nhập.
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+    } as unknown as jest.Mocked<IPostRepository>;
+
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      makeMedia(),
+      {} as unknown as jest.Mocked<IGiftRequestRepository>,
+      makeUsers(),
+      makeReactions(),
+      makeConfig(),
+    ).handle({
+      radiusMeters: 5_000,
+      postType: PostTypes.OFFER,
+      page: 1,
+      pageSize: 20,
+      currentUserId: '99999999-9999-9999-9999-999999999999',
+    });
+
+    expect(posts.findNearbyPosts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: { lat: 21.0278, lng: 105.8342 },
         radiusMeters: 5_000,
-        postType: PostTypes.OFFER,
-        page: 1,
-        pageSize: 20,
-        currentUserId: '99999999-9999-9999-9999-999999999999',
       }),
-    ).rejects.toBeInstanceOf(DiscoveryOriginUnavailableException);
+    );
+    expect(result.originSource).toBe('DEFAULT_LOCATION');
   });
 
   it('gửi một nửa toạ độ là lỗi client, không phải ý muốn lùi vị trí', async () => {

@@ -347,7 +347,8 @@ Hiển thị marker từ nhiều nguồn dữ liệu hợp lệ trên cùng mộ
 
 ### F26 — GPS hiện tại & dự phòng Default Location
 Ưu tiên GPS khi được cấp quyền. Không có quyền thì lùi về Default Location ([F11](#f11--vị-trí-mặc-định)).
-Không có cả hai thì xử lý theo trạng thái rỗng.
+Không có cả hai thì bỏ hẳn bộ lọc bán kính và trả toàn bộ, mới nhất trước (`originSource: ALL`,
+chốt 27/09) — trước đó nhánh này báo lỗi 400.
 
 ### F27 — Nạp dữ liệu theo khung nhìn
 Nạp theo vùng bản đồ đang xem (bounding box), có thao tác **"Tìm trong khu vực này"** và
