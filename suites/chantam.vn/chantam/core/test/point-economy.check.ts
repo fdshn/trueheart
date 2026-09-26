@@ -131,6 +131,56 @@ async function main(): Promise<void> {
     );
     check('bật sẵn', giftRule?.is_enabled === true);
 
+    // Rule là bảng copy-on-write: đọc phải lấy phiên bản MỚI NHẤT cho mỗi mã.
+    // Đọc nhầm phiên bản cũ là thấy trạng thái đã bị thay thế từ lâu.
+    console.log('\n1b. Rule điểm tương tác đã được bật (26/09)');
+    const interactionRules = await dataSource.query<
+      {
+        code: string;
+        points: string;
+        daily_cap: string | null;
+        is_enabled: boolean;
+        affects_lifetime: boolean;
+      }[]
+    >(`
+      SELECT DISTINCT ON (code)
+        code, points, daily_cap, is_enabled, affects_lifetime
+      FROM point_rules
+      WHERE code IN ('POST_COMMENTED', 'POST_REACTED', 'REPORT_UPHELD')
+      ORDER BY code ASC, version DESC
+    `);
+    const byCode = new Map(interactionRules.map((rule) => [rule.code, rule]));
+
+    for (const [code, points, cap] of [
+      ['POST_COMMENTED', 2, 10],
+      ['POST_REACTED', 1, 20],
+    ] as [string, number, number][]) {
+      const rule = byCode.get(code);
+      check(
+        `${code} đã BẬT`,
+        rule?.is_enabled === true,
+        `is_enabled=${rule?.is_enabled}`,
+      );
+      check(
+        `${code} giữ nguyên ${points}đ và trần ${cap} lượt/ngày`,
+        Number(rule?.points) === points && Number(rule?.daily_cap) === cap,
+        `points=${rule?.points} cap=${rule?.daily_cap}`,
+      );
+      // `lifetime` là sàn của Rank. Cho bình luận đẩy hạng thì gõ 300 dòng
+      // "hay quá ạ" là lên Bạc, trong khi tặng một món đồ thật được 56 điểm.
+      check(
+        `${code} KHÔNG đẩy hạng`,
+        rule?.affects_lifetime === false,
+        `affects_lifetime=${rule?.affects_lifetime}`,
+      );
+    }
+
+    check(
+      'REPORT_UPHELD vẫn TẮT — Bên A chưa chốt thưởng cho người báo xấu',
+      byCode.get('REPORT_UPHELD')?.is_enabled === false,
+      `is_enabled=${byCode.get('REPORT_UPHELD')?.is_enabled}`,
+    );
+
     console.log('\n2. Phần thưởng mốc nằm trên lưới 56');
     const rules = await dataSource.query<{ code: string; points: string }[]>(
       `SELECT code, points FROM point_rules WHERE code = ANY($1)`,

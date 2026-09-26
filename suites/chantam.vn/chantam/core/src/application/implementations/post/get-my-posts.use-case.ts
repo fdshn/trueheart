@@ -95,8 +95,6 @@ export class GetMyPostsUseCase implements IGetMyPostsUseCase {
         commentCount: post.commentCount,
         shareCount: post.shareCount,
         myReaction: myReactions.get(post.globalId) ?? null,
-        likeCount: post.likeCount ?? 0,
-        isLiked: myReactions.get(post.globalId) === ReactionKinds.LIKE,
       };
     });
 

@@ -15,5 +15,4 @@ export * from './remove-post-media.use-case';
 export * from './renew-post.use-case';
 export * from './reorder-post-media.use-case';
 export * from './request-post-media-upload.use-case';
-export * from './toggle-post-like.use-case';
 export * from './update-post.use-case';

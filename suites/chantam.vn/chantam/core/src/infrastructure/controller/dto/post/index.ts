@@ -7,5 +7,4 @@ export * from './get-smart-matches.dto';
 export * from './post-media.dto';
 export * from './post.dto';
 export * from './renew-post.dto';
-export * from './toggle-post-like.dto';
 export * from './update-post.dto';

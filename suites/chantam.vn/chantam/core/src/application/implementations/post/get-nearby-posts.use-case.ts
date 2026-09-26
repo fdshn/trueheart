@@ -135,10 +135,6 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
           commentCount: post.commentCount,
           shareCount: post.shareCount,
           myReaction: myReactions.get(post.globalId) ?? null,
-          likeCount: post.likeCount ?? 0,
-          isLiked: command.currentUserId
-            ? myReactions.get(post.globalId) === ReactionKinds.LIKE
-            : null,
         };
       }),
       meta: new PaginationMetaDto(Math.floor(skip / take) + 1, take, total),

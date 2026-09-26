@@ -46,7 +46,6 @@ flowchart LR
 | `POST /posts/:postId/media/upload` · `/media` · `/media/order` · `DELETE /media/:id` | chủ bài | ✅ |
 | `GET /posts/:postId/matches` | token | ✅ |
 | `POST /posts/:postId/charity-transfer` · `PATCH` | chủ bài / Admin | ✅ |
-| `POST /posts/:postId/like` | token | ✅ lối tắt sang `content_reactions` |
 | `POST|GET|PATCH|DELETE /gift-posts/*` | token | ✅ lớp tương thích |
 | `GET /discovery/config` | công khai | ✅ |
 | `GET /categories` | công khai | ✅ |
@@ -56,14 +55,14 @@ flowchart LR
 
 | Endpoint | Truy cập | Trạng thái |
 | --- | --- | --- |
-| `POST /posts/:id/comments` · `GET` | token | ✅ |
+| `POST /posts/:id/comments` · `GET` | `COMMENT_CONTENT` | ✅ trần 10 lượt/phút |
 | `GET /comments/:id/replies` | token | ✅ |
 | `PATCH` · `DELETE /comments/:id` | tác giả | ✅ |
 | `POST /posts/:id/comment-media/upload-url` | token | ✅ |
-| `PUT` · `DELETE /posts/:id/reactions/me` | token | ✅ |
+| `PUT` · `DELETE /posts/:id/reactions/me` | `REACT_CONTENT` | ✅ **đây cũng là nút thích** |
 | `GET /posts/:id/reactions` | token | ✅ |
-| `PUT` · `DELETE /comments/:id/reactions/me` | token | ✅ |
-| `POST /posts/:id/shares` | token | ✅ |
+| `PUT` · `DELETE /comments/:id/reactions/me` | `REACT_CONTENT` | ✅ |
+| `POST /posts/:id/shares` | token | ✅ chờ 1 giờ mỗi người mỗi bài |
 
 ## 30.5 Giao dịch & chat
 
@@ -114,6 +113,9 @@ flowchart LR
 | `GET` · `PUT /admin/notification-templates/:type` | `notification.manage` | ✅ |
 | `GET /admin/posts` · `/:id` | `post.read` | ✅ |
 | `PATCH /admin/posts/:id/moderation` | `post.moderate` | ✅ |
+| `GET /admin/comments/pending-count` | `post.moderate` | ✅ huy hiệu menu CMS |
+| `GET /admin/comments` | `post.moderate` | ✅ hàng đợi bình luận chờ duyệt |
+| `PATCH /admin/comments/:id/moderation` | `post.moderate` | ✅ |
 | `GET /admin/reports` · `/:id` | `report.read` | ✅ |
 | `PATCH /admin/reports/:id/review` | `report.resolve` | ✅ |
 | `GET /admin/categories` | `category.read` | ✅ |

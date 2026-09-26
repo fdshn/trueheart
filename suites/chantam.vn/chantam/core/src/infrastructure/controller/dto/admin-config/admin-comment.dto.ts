@@ -109,3 +109,12 @@ export class ModerateAdminCommentResponseDto {
   @ApiProperty({ type: () => AdminCommentDto })
   comment: IAdminComment;
 }
+
+export class PendingAdminCommentsResponseDto {
+  @ApiProperty({
+    example: 12,
+    description:
+      'Số bình luận đang ở `PENDING_REVIEW`. Dành cho huy hiệu trên menu CMS — gọi được liên tục vì chỉ là một phép đếm.',
+  })
+  pendingComments: number;
+}

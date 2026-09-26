@@ -40,7 +40,6 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     status: GiftPostStatuses.PUBLISHED,
     selectionMode: PostSelectionModes.OPTIMAL,
     selectionDeadline: null,
-    likeCount: 0,
     totalQuantity: 1,
     remainingQuantity: 1,
     details: {},

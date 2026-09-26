@@ -86,8 +86,8 @@ flowchart TD
     style D fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
-> `gift-post-compat.mapper.ts` **hardcode `likeCount` và `reactionCount` về 0** — đó là chủ ý.
-> Client cũ không biết đến cảm xúc, và trả số thật vào một trường nó không hiểu chỉ gây nhầm.
+> `gift-post-compat.mapper.ts` **hardcode `reactionCount` về 0** — đó là chủ ý. Client cũ không
+> biết đến cảm xúc, và trả số thật vào một trường nó không hiểu chỉ gây nhầm.
 
 ## 25.5 Ai quyết trường nào
 

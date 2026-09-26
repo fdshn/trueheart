@@ -135,15 +135,6 @@ export class NearbyPostDto implements INearbyPostDto {
       'Cảm xúc của người gọi. `null` khi chưa bày tỏ hoặc chưa đăng nhập.',
   })
   myReaction: ReactionKinds | null;
-
-  @ApiProperty({ example: 8, description: 'Số lượt thích, tức cảm xúc LIKE.' })
-  likeCount: number;
-
-  @ApiPropertyOptional({
-    nullable: true,
-    description: 'Người gọi đã thích chưa. `null` khi chưa đăng nhập.',
-  })
-  isLiked: boolean | null;
 }
 
 export class GetNearbyPostsResponseDto implements IGetNearbyPostsResponseDto {

@@ -174,8 +174,4 @@ export class PostEntity
   })
   @Column({ name: 'selection_deadline', type: 'timestamptz', nullable: true })
   selectionDeadline: Date | null;
-
-  @ApiProperty({ description: 'Tổng số lượt thích bài đăng.', default: 0 })
-  @Column({ name: 'like_count', type: 'int', default: 0 })
-  likeCount: number;
 }

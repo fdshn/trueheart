@@ -135,22 +135,25 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    P[Một bài trong danh sách] --> A["likeCount — số lượt kind = LIKE"]
-    P --> B["reactionCount — tổng mọi cảm xúc"]
+    P[Một bài trong danh sách] --> B["reactionCount — tổng NGƯỜI đã bày tỏ,<br/>bất kể loại"]
     P --> C["commentCount"]
     P --> D["shareCount"]
-    P --> E["isLiked — suy ra từ myReaction"]
     P --> F["myReaction — LIKE/LOVE/CARE/WOW/SAD hoặc null"]
 
-    G["findMyReactions()<br/>MỘT truy vấn cho cả trang"] -.nuôi.-> E
-    G -.nuôi.-> F
+    G["findMyReactions()<br/>MỘT truy vấn cho cả trang"] -.nuôi.-> F
 
     style G fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 > **Vì sao gom một truy vấn cho cả trang.** Hỏi từng bài "người này đã thả cảm xúc chưa" là
-> 20 truy vấn cho một trang 20 bài. Gom lại còn một, và `isLiked` suy ra từ `myReaction` chứ
-> không hỏi thêm lần nữa.
+> 20 truy vấn cho một trang 20 bài. Gom lại còn một.
+
+> ✅ **Không còn `likeCount` và `isLiked` — 26/09.** Giao diện chỉ có một nút (chạm là `LIKE`,
+> giữ thì chọn loại khác), nên chỉ cần một con số. `isLiked` cũ nay là `myReaction === "LIKE"`,
+> client tự suy.
+
+> **Bảng tin KHÔNG trả `reactionBreakdown`.** Nhóm theo loại cho từng bài trong một trang 20
+> bài là 20 lần GROUP BY cho một thứ không ai nhìn kỹ khi đang cuộn. Chi tiết bài mới có.
 
 ## 5.6 Smart match
 

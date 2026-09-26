@@ -4,7 +4,6 @@ import {
   IReactionActor,
   IReactionSummary,
   ISetReactionParams,
-  IToggleLikeResult,
 } from '@/domain/ports/repository';
 import {
   ContentSubjectTypes,
@@ -22,40 +21,28 @@ import { updateReturning } from './update-returning';
  * thể là cái gì. Rải `if subjectType === POST` khắp nơi thì thêm Dharma Hub sẽ
  * phải sửa từng chỗ, và chỗ bị quên sẽ im lặng đếm sai.
  *
- * `likeColumn` chỉ bài đăng mới có: `posts.like_count` đếm RIÊNG `kind = LIKE`
- * để `POST /posts/:id/like` trả đúng con số nó vẫn hứa, trong khi
- * `reaction_count` đếm mọi người đã bày tỏ bất kể loại nào. Bình luận không có
- * nút thích riêng nên không cần cột thứ hai.
+ * Chỉ MỘT cột đếm cho mỗi chủ thể. `LIKE` là một trong năm loại cảm xúc chứ
+ * không phải một hệ thống riêng, nên `reaction_count` đếm mọi người đã bày tỏ
+ * bất kể loại — không có cột thứ hai đếm riêng lượt thích.
  */
 const CounterTargets: Record<
   ContentSubjectTypes,
-  {
-    table: string;
-    keyColumn: string;
-    countColumn: string;
-    likeColumn: string | null;
-  } | null
+  { table: string; keyColumn: string; countColumn: string } | null
 > = {
   [ContentSubjectTypes.POST]: {
     table: 'posts',
     keyColumn: 'global_id',
     countColumn: 'reaction_count',
-    likeColumn: 'like_count',
   },
   [ContentSubjectTypes.COMMENT]: {
     table: 'content_comments',
     keyColumn: 'global_id',
     countColumn: 'reaction_count',
-    likeColumn: null,
   },
   // Chưa có bảng — chỗ dành sẵn, và `null` ở đây khiến việc quên nối số đếm
   // trở thành một dòng đọc được thay vì một lỗi âm thầm.
   [ContentSubjectTypes.DHARMA_THREAD]: null,
 };
-
-function isLike(kind: ReactionKinds | null): number {
-  return kind === ReactionKinds.LIKE ? 1 : 0;
-}
 
 @Injectable()
 export class ContentReactionRepository implements IContentReactionRepository {
@@ -67,39 +54,26 @@ export class ContentReactionRepository implements IContentReactionRepository {
     manager: EntityManager,
     subject: IContentSubjectRef,
     delta: number,
-    likeDelta: number,
   ): Promise<void> {
     const target = CounterTargets[subject.subjectType];
     if (!target) return;
-    if (delta === 0 && likeDelta === 0) return;
+    if (delta === 0) return;
 
     // GREATEST(0, ...) là lưới an toàn cho ràng buộc `>= 0`: nếu có đường nào
     // đó làm lệch, ta muốn số đếm dừng ở 0 chứ không muốn một câu DELETE hợp lệ
     // vỡ vì một con số sai từ trước. `syncCounters` mới là chỗ sửa cho đúng.
-    const assignments = [
-      `${target.countColumn} = GREATEST(0, ${target.countColumn} + $2)`,
-    ];
-    const parameters: unknown[] = [subject.subjectId, delta];
-
-    if (target.likeColumn) {
-      assignments.push(
-        `${target.likeColumn} = GREATEST(0, ${target.likeColumn} + $3)`,
-      );
-      parameters.push(likeDelta);
-    }
-
     await manager.query(
       `
         UPDATE ${target.table}
-        SET ${assignments.join(', ')}
+        SET ${target.countColumn} = GREATEST(0, ${target.countColumn} + $2)
         WHERE ${target.keyColumn} = $1
       `,
-      parameters,
+      [subject.subjectId, delta],
     );
   }
 
   /**
-   * Tính lại cả hai cột đếm từ chính bảng cảm xúc.
+   * Tính lại cột đếm từ chính bảng cảm xúc.
    *
    * Đắt hơn cộng trừ nên chỉ dùng khi đường cộng trừ không biết chắc loại cũ —
    * xem ghi chú về đua trong `setReaction`. Cũng là phép toán mà CLI đối soát
@@ -112,25 +86,13 @@ export class ContentReactionRepository implements IContentReactionRepository {
     const target = CounterTargets[subject.subjectType];
     if (!target) return;
 
-    const assignments = [
-      `${target.countColumn} = (
-        SELECT COUNT(*) FROM content_reactions
-        WHERE subject_type = $2 AND subject_id = $1
-      )`,
-    ];
-    if (target.likeColumn) {
-      assignments.push(
-        `${target.likeColumn} = (
-          SELECT COUNT(*) FROM content_reactions
-          WHERE subject_type = $2 AND subject_id = $1 AND kind = 'LIKE'
-        )`,
-      );
-    }
-
     await manager.query(
       `
         UPDATE ${target.table}
-        SET ${assignments.join(', ')}
+        SET ${target.countColumn} = (
+          SELECT COUNT(*) FROM content_reactions
+          WHERE subject_type = $2 AND subject_id = $1
+        )
         WHERE ${target.keyColumn} = $1
       `,
       [subject.subjectId, subject.subjectType],
@@ -174,7 +136,7 @@ export class ContentReactionRepository implements IContentReactionRepository {
     );
 
     if (row.inserted) {
-      await this.bumpCounter(manager, params, 1, isLike(params.kind));
+      await this.bumpCounter(manager, params, 1);
       return { created: true, previousKind: null };
     }
 
@@ -186,12 +148,8 @@ export class ContentReactionRepository implements IContentReactionRepository {
       return { created: false, previousKind: null };
     }
 
-    await this.bumpCounter(
-      manager,
-      params,
-      0,
-      isLike(params.kind) - isLike(row.old_kind),
-    );
+    // Đổi loại KHÔNG đụng số đếm: vẫn là một người bày tỏ. Loại cũ vẫn phải
+    // đọc ra vì nơi gọi cần biết đây là lượt mới hay chỉ đổi ý.
     return { created: false, previousKind: row.old_kind };
   }
 
@@ -213,7 +171,7 @@ export class ContentReactionRepository implements IContentReactionRepository {
     );
     if (deleted.length === 0) return null;
 
-    await this.bumpCounter(manager, params, -1, -isLike(deleted[0].kind));
+    await this.bumpCounter(manager, params, -1);
     return deleted[0].kind;
   }
 
@@ -232,51 +190,6 @@ export class ContentReactionRepository implements IContentReactionRepository {
     return this.manager.transaction(
       async (manager) => (await this.applyRemove(manager, params)) !== null,
     );
-  }
-
-  public async toggleLike(
-    subjectId: string,
-    userId: string,
-  ): Promise<IToggleLikeResult> {
-    const subject = {
-      subjectType: ContentSubjectTypes.POST,
-      subjectId,
-    } as const;
-
-    return this.manager.transaction(async (manager) => {
-      // Đọc và khoá trong cùng transaction với lần ghi, nên hai lần bấm song
-      // song xếp hàng thay vì cùng thấy "chưa thích" rồi cùng cộng.
-      const [current] = await manager.query<{ kind: ReactionKinds }[]>(
-        `
-          SELECT kind FROM content_reactions
-          WHERE subject_type = $1 AND subject_id = $2 AND user_id = $3
-          FOR UPDATE
-        `,
-        [subject.subjectType, subjectId, userId],
-      );
-
-      let liked: boolean;
-      if (current?.kind === ReactionKinds.LIKE) {
-        await this.applyRemove(manager, { ...subject, userId });
-        liked = false;
-      } else {
-        // Đang để LOVE mà bấm thích thì thành LIKE: vẫn một người bày tỏ, nên
-        // `reaction_count` đứng yên còn `like_count` tăng.
-        await this.applySet(manager, {
-          ...subject,
-          userId,
-          kind: ReactionKinds.LIKE,
-        });
-        liked = true;
-      }
-
-      const [row] = await manager.query<{ like_count: string | number }[]>(
-        `SELECT like_count FROM posts WHERE global_id = $1`,
-        [subjectId],
-      );
-
-      return { liked, likeCount: Number(row?.like_count ?? 0) };
-    });
   }
 
   public async summarize(

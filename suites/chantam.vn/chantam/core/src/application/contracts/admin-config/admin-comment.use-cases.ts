@@ -47,3 +47,21 @@ export interface IModerateAdminCommentUseCase extends IUseCase<
 export const IModerateAdminCommentUseCase = Symbol(
   'IModerateAdminCommentUseCase',
 );
+
+export interface ICountPendingAdminCommentsCommand {
+  actorUserId: string;
+}
+
+export interface ICountPendingAdminCommentsResult {
+  /** Số bình luận đang chờ Admin xử — con số cho huy hiệu trên menu CMS. */
+  pendingComments: number;
+}
+
+export interface ICountPendingAdminCommentsUseCase extends IUseCase<
+  ICountPendingAdminCommentsCommand,
+  ICountPendingAdminCommentsResult
+> {}
+
+export const ICountPendingAdminCommentsUseCase = Symbol(
+  'ICountPendingAdminCommentsUseCase',
+);

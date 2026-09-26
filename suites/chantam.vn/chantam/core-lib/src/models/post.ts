@@ -54,6 +54,4 @@ export interface IPost {
    * - Được set = NOW() + 7d / 30d khi request đầu tiên xuất hiện.
    */
   selectionDeadline: Date | null;
-  /** Tổng số lượt thích bài đăng. */
-  likeCount: number;
 }

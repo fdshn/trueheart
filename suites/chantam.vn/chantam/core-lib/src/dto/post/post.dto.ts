@@ -24,9 +24,10 @@ import { IPostEntity, IPostMediaEntity } from '../../entities';
  * Số đếm lấy từ cột trên chính dòng bài — không COUNT(*) mỗi lần cuộn.
  * `myReaction` lấy bằng MỘT truy vấn cho cả trang; hỏi từng bài là N+1.
  *
- * `likeCount` đếm RIÊNG cảm xúc `LIKE`, còn `reactionCount` đếm mọi người đã
- * bày tỏ bất kể loại. Hai con số khác nhau và đều đúng: nút thích cần con số
- * thứ nhất, dải cảm xúc cần con số thứ hai. Cả hai nuôi từ `content_reactions`.
+ * `reactionCount` đếm mọi người đã bày tỏ, BẤT KỂ loại — `LIKE` chỉ là một
+ * trong năm loại chứ không phải một hệ thống riêng. Nút thích và dải cảm xúc là
+ * cùng một nút: chạm là `LIKE`, giữ thì chọn loại khác. Nên chỉ có MỘT con số,
+ * và `myReaction` nói người gọi đã bày tỏ gì.
  */
 export interface IPostFeedInteractionDto {
   reactionCount: number;
@@ -34,10 +35,6 @@ export interface IPostFeedInteractionDto {
   shareCount: number;
   /** Cảm xúc của người gọi. `null` khi chưa bày tỏ hoặc chưa đăng nhập. */
   myReaction: ReactionKinds | null;
-  /** Số lượt thích, tức số cảm xúc `LIKE`. */
-  likeCount: number;
-  /** Người gọi đã thích chưa. `null` khi chưa đăng nhập. */
-  isLiked: boolean | null;
 }
 
 export interface ICreatePostCommonDto {
@@ -424,9 +421,4 @@ export interface IReviewCharityTransferBodyDto {
 
 export interface IReviewCharityTransferResponseDto {
   post: IPostEntity;
-}
-
-export interface ITogglePostLikeResponseDto {
-  liked: boolean;
-  likeCount: number;
 }

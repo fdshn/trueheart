@@ -1,4 +1,7 @@
 import {
+  ICountPendingAdminCommentsCommand,
+  ICountPendingAdminCommentsResult,
+  ICountPendingAdminCommentsUseCase,
   IListAdminCommentsCommand,
   IListAdminCommentsResult,
   IListAdminCommentsUseCase,
@@ -140,5 +143,30 @@ export class ModerateAdminCommentUseCase implements IModerateAdminCommentUseCase
         createdAt: before.createdAt,
       },
     };
+  }
+}
+
+/**
+ * Con số cho huy hiệu trên menu CMS.
+ *
+ * Hàng đợi có cửa nhưng không có chuông. Bắn thông báo cho từng bình luận chờ
+ * duyệt thì Admin tắt thông báo ngay sau đợt đầu tiên — nội dung bẩn đến theo
+ * đợt, không đến lác đác. Một con số là thứ họ thấy mỗi lần mở CMS mà không
+ * phải trả giá gì.
+ */
+@Injectable()
+export class CountPendingAdminCommentsUseCase implements ICountPendingAdminCommentsUseCase {
+  public constructor(
+    @Inject(IAdminConfigRepository)
+    private readonly permissions: IAdminConfigRepository,
+    @Inject(IContentCommentRepository)
+    private readonly comments: IContentCommentRepository,
+  ) {}
+
+  public async handle(
+    command: ICountPendingAdminCommentsCommand,
+  ): Promise<ICountPendingAdminCommentsResult> {
+    await assertCanModerate(this.permissions, command.actorUserId);
+    return { pendingComments: await this.comments.countPendingForAdmin() };
   }
 }
