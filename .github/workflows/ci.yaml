@@ -123,9 +123,42 @@ jobs:
         run: npm run build
 
       - name: Khởi động MinIO (object storage)
+        # Dùng bitnami/minio thay quay.io/minio/minio: image trên Docker Hub,
+        # không cần auth, API S3 tương thích hoàn toàn. quay.io bị throttle
+        # anonymous pull trên GitHub-hosted runner.
+        #
+        # bitnami/minio lắng nghe cổng 9000 (S3) và 9001 (console) theo mặc định.
+        # CI dùng port 19000/19001 để tránh xung đột với service host — map qua -p.
         run: |
-          docker compose up -d minio
-          docker compose up minio-init
+          docker run -d \
+            --name chantam-minio \
+            -p 19000:9000 \
+            -p 19001:9001 \
+            -e MINIO_ROOT_USER=chantam-minio \
+            -e MINIO_ROOT_PASSWORD=chantam-minio-secret \
+            bitnami/minio:2025
+
+          # Chờ MinIO healthy
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:19000/minio/health/live > /dev/null 2>&1; then
+              echo "MinIO healthy sau $((i * 2)) giây"
+              break
+            fi
+            sleep 2
+          done
+
+          # Tạo bucket và đặt anonymous download
+          docker run --rm \
+            -e MC_HOST_local=http://chantam-minio:chantam-minio-secret@localhost:19000 \
+            --network host \
+            bitnami/minio-client:latest \
+            mc mb --ignore-existing local/chantam-media
+
+          docker run --rm \
+            -e MC_HOST_local=http://chantam-minio:chantam-minio-secret@localhost:19000 \
+            --network host \
+            bitnami/minio-client:latest \
+            mc anonymous set download local/chantam-media
 
       - name: Chạy migration
         # Cố ý KHÔNG tạo extension bằng tay ở đây: migration đầu tiên phải tự
