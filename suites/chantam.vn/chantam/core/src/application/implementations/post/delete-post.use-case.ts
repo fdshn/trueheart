@@ -1,19 +1,47 @@
+import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import {
   IDeletePostCommand,
   IDeletePostResult,
   IDeletePostUseCase,
 } from '@/application/contracts/post';
-import { PostNotFoundException } from '@/domain/exceptions';
-import { IPostRepository } from '@/domain/ports/repository';
-import { GiftPostStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  PostHasLiveTransactionException,
+  PostNotFoundException,
+} from '@/domain/exceptions';
+import {
+  IGiftTransactionRepository,
+  IPostRepository,
+} from '@/domain/ports/repository';
+import {
+  GiftPostStatuses,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+
+/**
+ * Hai trạng thái nghĩa là đã có người thật đang chờ ở đầu bên kia.
+ *
+ * Trùng đúng danh sách mà hậu kiểm của Admin từ chối chạm vào, và vì cùng một
+ * lý do: gỡ ngang một lượt trao đang diễn ra để lại hai người đã hẹn nhau mà
+ * bài thì biến mất.
+ */
+const LiveTransactionStatuses: readonly string[] = [
+  GiftPostStatuses.RESERVED,
+  GiftPostStatuses.DELIVERING,
+];
 
 @Injectable()
 export class DeletePostUseCase implements IDeletePostUseCase {
+  private readonly logger = new Logger(DeletePostUseCase.name);
+
   public constructor(
     @Inject(IPostRepository)
     private readonly postRepository: IPostRepository,
+    @Inject(IGiftTransactionRepository)
+    private readonly transactions: IGiftTransactionRepository,
+    @Inject(IDispatchNotificationUseCase)
+    private readonly dispatchNotificationUseCase: IDispatchNotificationUseCase,
   ) {}
 
   public async handle(command: IDeletePostCommand): Promise<IDeletePostResult> {
@@ -24,11 +52,56 @@ export class DeletePostUseCase implements IDeletePostUseCase {
       throw new PostNotFoundException(command.postId);
     if (post.authorId !== command.userId) throw new ForbiddenException();
 
+    // Chặn TRƯỚC khi ghi gì: xoá tài khoản cũng chặn y hệt bằng
+    // `countOpenForUser`, và hậu kiểm của Admin cũng từ chối đúng hai trạng
+    // thái này. Chỉ riêng đường gỡ bài của tác giả trước đây không canh gì —
+    // mà đó lại là nút dễ bấm nhất.
+    if (LiveTransactionStatuses.includes(post.status))
+      throw new PostHasLiveTransactionException();
+
     await this.postRepository.update(
       { globalId: command.postId },
       { deletedAt: new Date(), status: GiftPostStatuses.CANCELLED },
     );
 
+    // Đóng nốt những yêu cầu còn treo. Không đóng thì người xin không bao giờ
+    // nhận được câu trả lời, và mỗi yêu cầu treo vẫn ăn một suất trong trần
+    // "yêu cầu đang mở" của họ — tức gỡ một bài là khoá bớt chỗ của người khác.
+    const closed = await this.transactions.closeOpenRequestsForPost({
+      postId: command.postId,
+      closedBy: command.userId,
+      reason: 'Người đăng đã gỡ bài',
+    });
+
+    for (const request of closed) await this.notify(request, post.title);
+
     return {};
+  }
+
+  /**
+   * Báo cho người xin, và KHÔNG để lỗi đẩy làm hỏng việc gỡ bài.
+   *
+   * Bài đã gỡ xong rồi; ném ở đây chỉ khiến client tưởng thao tác thất bại và
+   * bấm lại — lần hai sẽ nhận 404 vì bài không còn.
+   */
+  private async notify(
+    request: { transactionId: string; receiverId: string },
+    postTitle: string,
+  ): Promise<void> {
+    try {
+      await this.dispatchNotificationUseCase.handle({
+        userId: request.receiverId,
+        type: NotificationTypes.GIFT_TRANSACTION_CLOSED,
+        title: 'Bài đăng đã được gỡ',
+        body: `Người đăng đã gỡ bài "${postTitle}", nên yêu cầu xin nhận của bạn được đóng lại.`,
+        referenceType: 'GIFT_TRANSACTION',
+        referenceId: request.transactionId,
+        idempotencyKey: `POST_DELETED:${request.transactionId}`,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Không báo được cho người xin ${request.receiverId}: ${String(error)}`,
+      );
+    }
   }
 }

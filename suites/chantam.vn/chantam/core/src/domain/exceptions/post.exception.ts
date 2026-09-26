@@ -44,3 +44,13 @@ export class PostCharityTransferInvalidStateException extends ExceptionFrom(
 export class PostSelectionModeInvalidException extends ExceptionFrom(
   CoreErrors.POST_SELECTION_MODE_INVALID,
 ) {}
+
+/**
+ * Bài đang có lượt trao sống (`RESERVED`/`DELIVERING`) — không sửa, không gỡ.
+ *
+ * Nói rõ vì sao thay vì dùng chung `PostInvalidStateException`: người dùng cần
+ * biết việc phải làm trước là đóng lượt trao, không phải đoán.
+ */
+export class PostHasLiveTransactionException extends ExceptionFrom(
+  CoreErrors.POST_HAS_LIVE_TRANSACTION,
+) {}

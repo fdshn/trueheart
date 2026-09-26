@@ -98,6 +98,13 @@ export enum ErrorCodes {
   // `content_reactions`, không còn trạng thái nào để mà xung đột.
   /** Thông tin liên lạc chỉ tiết lộ cho receiver đã được chọn. */
   POST_CONTACT_INFO_RESTRICTED = 0x06_0e,
+  /**
+   * Bài đang có lượt trao sống — không sửa, không xoá.
+   *
+   * Khác `POST_INVALID_STATE` ở chỗ nói rõ VÌ SAO: người dùng cần biết mình
+   * phải đóng lượt trao trước, chứ không phải "trạng thái không cho phép".
+   */
+  POST_HAS_LIVE_TRANSACTION = 0x06_0f,
 
   // 0x07 — Point / Rank / Referral M4
   POINT_RULE_UNAVAILABLE = 0x07_01,

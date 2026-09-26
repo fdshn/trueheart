@@ -1,3 +1,4 @@
+import { PostHasLiveTransactionException } from '@/domain/exceptions';
 import { IPostRepository } from '@/domain/ports/repository';
 import {
   PostSelectionModes,
@@ -111,5 +112,44 @@ describe('UpdatePostUseCase', () => {
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(postRepository.update).not.toHaveBeenCalled();
+  });
+
+  it('KHÔNG sửa được bài đã chốt người nhận', async () => {
+    // Người nhận đồng ý một món rồi mở lại thấy món khác. Với tin rao vặt thì
+    // sửa được cả giá sau khi đã chốt người.
+    const repository = {
+      findOneBy: jest
+        .fn()
+        .mockResolvedValue(makePost({ status: 'RESERVED' as never })),
+      update: jest.fn(),
+      findOneByOrFail: jest.fn(),
+    } as unknown as jest.Mocked<IPostRepository>;
+
+    await expect(
+      new UpdatePostUseCase(repository).handle({
+        postId: PostId,
+        userId: AuthorId,
+        post: { title: 'Đổi thành món khác' },
+      }),
+    ).rejects.toBeInstanceOf(PostHasLiveTransactionException);
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('bài đang bàn giao cũng không sửa được', async () => {
+    const repository = {
+      findOneBy: jest
+        .fn()
+        .mockResolvedValue(makePost({ status: 'DELIVERING' as never })),
+      update: jest.fn(),
+      findOneByOrFail: jest.fn(),
+    } as unknown as jest.Mocked<IPostRepository>;
+
+    await expect(
+      new UpdatePostUseCase(repository).handle({
+        postId: PostId,
+        userId: AuthorId,
+        post: { title: 'x' },
+      }),
+    ).rejects.toBeInstanceOf(PostHasLiveTransactionException);
   });
 });

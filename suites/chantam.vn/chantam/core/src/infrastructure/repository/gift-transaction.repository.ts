@@ -818,6 +818,37 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     return Number(row?.total ?? 0);
   }
 
+  public async closeOpenRequestsForPost(params: {
+    postId: string;
+    closedBy: string;
+    reason: string;
+  }): Promise<{ transactionId: string; receiverId: string }[]> {
+    const rows = await updateReturning<{
+      global_id: string;
+      receiver_id: string;
+    }>(
+      this.manager,
+      `
+        UPDATE gift_transactions
+        SET status = 'CANCELLED',
+            closed_at = now(),
+            -- closed_by bắt buộc đi kèm closed_at: ràng buộc
+            -- CHK_gift_transactions_closed_pairing ở database, và nó đúng —
+            -- một lượt đóng mà không biết ai đóng thì tra lại được gì.
+            closed_by = $2,
+            close_reason = $3
+        WHERE post_id = $1 AND status = 'REQUESTED'
+        RETURNING global_id, receiver_id
+      `,
+      [params.postId, params.closedBy, params.reason],
+    );
+
+    return rows.map((row) => ({
+      transactionId: row.global_id,
+      receiverId: row.receiver_id,
+    }));
+  }
+
   public async isReceiverOfPost(
     postId: string,
     receiverId: string,

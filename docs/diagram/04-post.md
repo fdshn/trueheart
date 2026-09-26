@@ -13,13 +13,20 @@ flowchart TD
     T --> L["CLASSIFIED<br/>Rao vặt giá rẻ"]
     T --> M["MERIT<br/>Công đức"]
 
-    O --> Q{Quota theo rank?}
-    W --> S{SOS cần rank Bạc+?}
-    C --> A{Kim Cương đề xuất<br/>→ Admin duyệt}
+    O --> Q{Quota theo rank}
+    W --> S{Bật SOS cần rank Bạc+}
+    C --> A["⚠️ KHÔNG có cổng riêng<br/>ai qua onboarding cũng đăng được<br/>và nó ăn quota POST_OFFER"]
     L --> E[Tồn tại tối đa 3 tháng<br/>hết hạn → chuyển OFFER]
+    M --> A
 
     style P fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
+    style A fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
+
+> ⚠️ **Sơ đồ cũ ghi CHARITY cần "Kim Cương đề xuất → Admin duyệt" — trong mã KHÔNG có gì như
+> vậy.** Không cổng theo hạng, không bước duyệt. `CHARITY` và `MERIT` hiện chỉ khác `OFFER` ở
+> chỗ chúng không mang trường riêng nào, và cả hai đều ăn quota `POST_OFFER`. Cần Bên A chốt
+> có muốn cổng thật không.
 
 > **Vì sao một endpoint chứ không năm.** Năm đường riêng thì năm chỗ kiểm quyền, năm chỗ kiểm
 > quota, năm chỗ kiểm media — và chỉ cần sót một chỗ là có một lối vào không được canh.
@@ -51,6 +58,13 @@ flowchart LR
 
 > Con số là **baseline**, Admin chỉnh qua `POST /api/v1/admin/entitlements` không cần deploy.
 > Viewer 0 nghĩa là **phải xong onboarding mới đăng được bài** — đó là cổng vào thật sự.
+
+> ⚠️ **HAI núm cấu hình, MỘT rổ đếm.** Có hai capability `POST_OFFER` và `POST_WANTED`, mỗi
+> cái một bộ số theo hạng — nhưng phép đếm là **mọi bài đang mở, bất kể loại**, rồi so với
+> con số của loại đang đăng. Hôm nay hai số bằng nhau nên không ai thấy gì. Đặt lệch đi là ra
+> kết quả khó đoán: với `POST_WANTED=10`, `POST_OFFER=3` và 5 bài OFFER đang mở, người dùng
+> **đăng WANTED được** (5 < 10) mà **đăng OFFER không** (5 ≥ 3). Cần Bên A chốt: gộp về MỘT
+> hạn mức, hay đếm riêng từng rổ (khi đó tổng bài mở của Thành viên thành 3 + 3 = 6).
 
 ## 4.3 Vòng đời bài đăng
 
@@ -122,7 +136,9 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A["POST /posts/:postId/renew"] --> B{Đã gia hạn lần nào chưa?}
+    A["POST /posts/:postId/renew"] --> A1{Là tin rao vặt?}
+    A1 -->|Có| A2["❌ CLASSIFIED không gia hạn<br/>nó tự thành OFFER khi hết hạn"]
+    A1 -->|Không| B{Đã gia hạn lần nào chưa?}
     B -->|Rồi| C[❌ Chỉ được 1 lần — CHỐT-07]
     B -->|Chưa| D{Đã có người nhận?}
     D -->|Có| E[❌ Không gia hạn bài đã chốt người]
@@ -130,12 +146,46 @@ flowchart TD
     F -->|Hết| G[❌ Tính quota như bài mới]
     F -->|Còn| H[✅ +3 tháng, đánh dấu đã gia hạn]
 
+    style A2 fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
     style C fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
     style E fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
     style G fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
 ```
 
-## 4.5 Chuyển bài sang từ thiện
+## 4.5 Sửa và gỡ bài — ✅ siết 26/09
+
+```mermaid
+flowchart TD
+    A["PATCH /posts/:postId<br/>DELETE /posts/:postId"] --> B{Chủ bài?}
+    B -->|Không| C[❌ 403]
+    B -->|Có| D{"Trạng thái là RESERVED<br/>hoặc DELIVERING?"}
+    D -->|Có| E["❌ 409 POST_HAS_LIVE_TRANSACTION<br/>đóng lượt trao trước đã"]
+    D -->|Không| F{Sửa hay gỡ?}
+    F -->|Sửa| G[✅ Ghi nội dung mới]
+    F -->|Gỡ| H[Xoá mềm + CANCELLED]
+    H --> I["Đóng mọi yêu cầu còn REQUESTED"]
+    I --> J["Báo cho từng người xin<br/>GIFT_TRANSACTION_CLOSED"]
+
+    style C fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style E fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style J fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
+```
+
+> **Vì sao chặn cả sửa lẫn gỡ ở đúng hai trạng thái đó.** Trước 26/09 hai đường này chỉ kiểm
+> chủ sở hữu. Người tặng đã chốt người nhận vẫn **gỡ được bài**, để bên kia lại với một giao
+> dịch trỏ vào bài không còn tồn tại; và vẫn **sửa được nội dung**, nên người nhận đồng ý "tủ
+> lạnh còn tốt" rồi mở lại thấy "quạt cũ" — với tin rao vặt thì sửa được cả giá. Không bản ghi
+> nào nói nội dung từng khác.
+>
+> Hai trạng thái này trùng đúng danh sách mà **xoá tài khoản** và **hậu kiểm của Admin** đã
+> chặn từ trước. Chỉ đường của chính tác giả là không canh gì — mà đó lại là nút dễ bấm nhất.
+
+> **Vì sao gỡ bài phải đóng các yêu cầu còn treo.** Không đóng thì người xin không bao giờ
+> nhận được câu trả lời, và mỗi yêu cầu treo vẫn ăn một suất trong trần "yêu cầu đang mở" của
+> họ — tức gỡ một bài là khoá bớt chỗ của người khác. Đẩy thông báo hỏng KHÔNG làm hỏng việc
+> gỡ bài: bài đã gỡ xong rồi, ném ở đây chỉ khiến client bấm lại và nhận 404.
+
+## 4.6 Chuyển bài sang từ thiện
 
 ```mermaid
 sequenceDiagram
@@ -155,10 +205,13 @@ sequenceDiagram
 
 ## Chỗ cần soát
 
-1. **Quota đếm "bài đang mở"** — bài `EXPIRED` và `COMPLETED` không tính. Đúng ý chưa?
-2. **Gia hạn tính quota như bài mới**, nên người đang đầy quota không gia hạn được bài cũ dù
+1. ⛔ **Hai núm quota, một rổ đếm** — xem §4.2. Cần chốt: gộp về một hạn mức, hay đếm riêng
+   từng rổ?
+2. ⚠️ **`CHARITY` và `MERIT` không có cổng nào.** Ai qua onboarding cũng đăng được, và cả hai
+   ăn quota `POST_OFFER`. Sơ đồ cũ hứa một cổng không tồn tại. F65 nói Admin quản lý đơn vị
+   Công đức — chưa có gì.
+3. **Quota đếm "bài đang mở"** — bài `EXPIRED` và `COMPLETED` không tính. Đúng ý chưa?
+4. **Gia hạn tính quota như bài mới**, nên người đang đầy quota không gia hạn được bài cũ dù
    không tạo thêm bài nào. Có thể gây khó chịu — cần xác nhận.
-3. **SOS (`WANTED` gấp)** mở theo capability `POST_SOS`, mặc định Bạc trở lên. Con số này
+5. **SOS (`WANTED` gấp)** mở theo capability `POST_SOS`, mặc định Bạc trở lên. Con số này
    vẫn đang là giả định chờ Bên A xác nhận.
-4. Bài `MERIT` (Công đức) hiện chỉ có chỗ đăng, **chưa có luồng nghiệp vụ riêng** — F65 nói
-   Admin quản lý đơn vị Công đức nhưng chưa có gì.

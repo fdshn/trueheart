@@ -3,9 +3,15 @@ import {
   IUpdatePostResult,
   IUpdatePostUseCase,
 } from '@/application/contracts/post';
-import { PostNotFoundException } from '@/domain/exceptions';
+import {
+  PostHasLiveTransactionException,
+  PostNotFoundException,
+} from '@/domain/exceptions';
 import { IPostRepository } from '@/domain/ports/repository';
-import { PostTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  GiftPostStatuses,
+  PostTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   ForbiddenException,
   ValidationFailedException,
@@ -16,11 +22,22 @@ import { Inject, Injectable } from '@nestjs/common';
 /**
  * Sửa bài của chính mình.
  *
+ * CẤM khi bài đã có người nhận (`RESERVED`) hoặc đang bàn giao (`DELIVERING`).
+ * Người nhận đồng ý "tủ lạnh Sanyo còn tốt" rồi mở lại thấy "quạt cũ" — và với
+ * tin rao vặt thì sửa được cả giá sau khi đã chốt người. Không có bản ghi nào
+ * nói nội dung từng khác, nên tranh chấp xong không ai dựng lại được.
+ *
  * KHÔNG đụng tới `status`. Trước 26/09, sửa một bài `REJECTED` sẽ đẩy nó về
  * `PENDING_REVIEW` để duyệt lại — nhưng nay không còn duyệt trước, nên giữ nếp
  * đó là cho tác giả tự gỡ lệnh gỡ bài của Admin bằng cách sửa một dấu phẩy.
  * Bài đã bị gỡ chỉ Admin trả lại được.
  */
+/** Trùng đúng danh sách mà gỡ bài và hậu kiểm của Admin đều từ chối chạm. */
+const LiveTransactionStatuses: readonly string[] = [
+  GiftPostStatuses.RESERVED,
+  GiftPostStatuses.DELIVERING,
+];
+
 @Injectable()
 export class UpdatePostUseCase implements IUpdatePostUseCase {
   public constructor(
@@ -35,6 +52,9 @@ export class UpdatePostUseCase implements IUpdatePostUseCase {
     if (!post || post.deletedAt)
       throw new PostNotFoundException(command.postId);
     if (post.authorId !== command.userId) throw new ForbiddenException();
+
+    if (LiveTransactionStatuses.includes(post.status))
+      throw new PostHasLiveTransactionException();
 
     const hasOfferDetails =
       command.post.condition !== undefined ||

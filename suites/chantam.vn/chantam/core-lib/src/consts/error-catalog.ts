@@ -240,6 +240,13 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Trạng thái bài đăng không cho phép thao tác này',
   },
 
+  POST_HAS_LIVE_TRANSACTION: {
+    code: ErrorCodes.POST_HAS_LIVE_TRANSACTION,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Bài này đang có lượt trao chưa xong. Đóng lượt trao đó trước rồi mới sửa hoặc gỡ bài được.',
+  },
+
   POST_MEDIA_LIMIT_EXCEEDED: {
     code: ErrorCodes.POST_MEDIA_LIMIT_EXCEEDED,
     httpStatus: HttpStatus.CONFLICT,

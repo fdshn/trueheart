@@ -101,6 +101,7 @@ Nghiệp vụ Chân Tâm
 | `0x060a` | `1546` | 400 Bad Request | `DISCOVERY_ORIGIN_UNAVAILABLE` | Không xác định được vị trí để quét: hãy gửi toạ độ, hoặc đặt Vị trí mặc định trong hồ sơ |
 | `0x060b` | `1547` | 400 Bad Request | `POST_SELECTION_MODE_INVALID` | Chế độ chọn người nhận không hợp lệ |
 | `0x060e` | `1550` | 403 Forbidden | `POST_CONTACT_INFO_RESTRICTED` | Thông tin liên hệ chỉ hiển thị với người nhận được chọn trong giai đoạn giao nhận |
+| `0x060f` | `1551` | 409 Conflict | `POST_HAS_LIVE_TRANSACTION` | Bài này đang có lượt trao chưa xong. Đóng lượt trao đó trước rồi mới sửa hoặc gỡ bài được. |
 | `0x0701` | `1793` | 409 Conflict | `POINT_RULE_UNAVAILABLE` | Point rule PHONE_VERIFIED_FIRST_TIME không khả dụng |
 | `0x0702` | `1794` | 500 Internal Server Error | `RANK_TIER_UNAVAILABLE` | Không tìm thấy cấu hình tier cho rank SILVER |
 | `0x0703` | `1795` | 409 Conflict | `POINT_DAILY_CAP_REACHED` | Đã đạt giới hạn 3 lần/ngày cho point rule REFERRAL_QUALIFIED |
@@ -136,5 +137,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **94 mã lỗi** trên 3 tầng.
+Tổng cộng **95 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

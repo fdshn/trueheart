@@ -19,6 +19,7 @@ import {
 import {
   CategoryNotFoundException,
   PostCharityTransferInvalidStateException,
+  PostHasLiveTransactionException,
   PostMediaLimitExceededException,
   PostMediaOrderInvalidException,
   PostNotFoundException,
@@ -302,9 +303,9 @@ export class PostController {
   @Delete(':postId')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Gỡ canonical post',
+    summary: 'Gỡ bài',
     description:
-      'Chỉ owner. Xoá mềm và chuyển CANCELLED; transaction guard sẽ bổ sung khi M3 có giao dịch.',
+      'Chỉ chủ bài. Xoá mềm và chuyển CANCELLED. TỪ CHỐI khi bài đang có lượt trao sống (`RESERVED`/`DELIVERING`) — gỡ ngang để lại bên kia một giao dịch trỏ vào bài không còn tồn tại. Những yêu cầu còn ở `REQUESTED` được đóng lại và người xin nhận thông báo; không đóng thì mỗi yêu cầu treo vẫn ăn một suất trong trần "yêu cầu đang mở" của họ.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(Object) })
   @ApiErrorResponses(
@@ -312,6 +313,7 @@ export class PostController {
     [ValidationFailedException, ['postId: postId must be a UUID']],
     [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
     [ForbiddenException],
+    [PostHasLiveTransactionException],
   )
   public async deletePost(
     @CurrentUser() principal: IAuthPrincipal,
@@ -328,9 +330,9 @@ export class PostController {
   @Patch(':postId')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Cập nhật nội dung canonical post',
+    summary: 'Cập nhật nội dung bài',
     description:
-      'Chỉ owner sửa title, description hoặc areaLabel. Status/type/author do route riêng của server quản lý.',
+      'Chỉ chủ bài sửa title, description, areaLabel, vị trí và trường riêng theo loại. Status/type/author do server quản lý. TỪ CHỐI khi bài đã có người nhận (`RESERVED`) hoặc đang bàn giao (`DELIVERING`): người nhận đồng ý một món rồi mở lại thấy món khác, và không bản ghi nào nói nội dung từng khác.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(UpdatePostResponseDto) })
   @ApiErrorResponses(
@@ -341,6 +343,7 @@ export class PostController {
     ],
     [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
     [ForbiddenException],
+    [PostHasLiveTransactionException],
   )
   public async updatePost(
     @CurrentUser() principal: IAuthPrincipal,

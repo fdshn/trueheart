@@ -283,11 +283,11 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 | `GET` | `/posts/map` | Công khai | Marker trong khung bản đồ |
 | `GET` | `/posts/:postId` | Công khai | Chi tiết một bài công khai |
 | `GET` | `/posts/:postId/matches` | Bearer (chỉ tác giả) | Smart Match — gợi ý bài ghép đôi |
-| `PATCH` | `/posts/:postId` | Bearer (chủ bài) | Sửa nội dung |
-| `DELETE` | `/posts/:postId` | Bearer (chủ bài) | Xoá mềm |
+| `PATCH` | `/posts/:postId` | Bearer (chủ bài) | Sửa nội dung — **cấm khi bài đang có lượt trao** |
+| `DELETE` | `/posts/:postId` | Bearer (chủ bài) | Xoá mềm — **cấm khi bài đang có lượt trao** |
 | `POST` | `/posts/:postId/renew` | Bearer (chủ bài) | Gia hạn thêm 3 tháng, tối đa một lần |
 | `POST` | `/posts/:postId/charity-transfer` | Bearer (chủ bài) | Xin chuyển vật phẩm về điểm từ thiện |
-| `PATCH` | `/posts/:postId/charity-transfer` | Bearer + allowlist | Duyệt hoặc từ chối yêu cầu chuyển |
+| `PATCH` | `/posts/:postId/charity-transfer` | `post.moderate` | Duyệt hoặc từ chối yêu cầu chuyển |
 | `POST` | `/posts/:postId/media/upload` | Bearer (chủ bài) | Xin presigned URL upload ảnh |
 | `POST` | `/posts/:postId/media` | Bearer (chủ bài) | Gắn ảnh đã upload |
 | `PATCH` | `/posts/:postId/media/order` | Bearer (chủ bài) | Thay toàn bộ thứ tự ảnh |
@@ -301,6 +301,13 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 3. Danh mục phải tồn tại và đang bật → `CategoryNotFoundException`
 4. Hợp lệ theo loại bài (xem dưới) → `ValidationFailedException`
 5. Còn quota theo rank → `PostQuotaExceededException`
+
+> ⚠️ **Quota: hai núm cấu hình, một rổ đếm.** `POST_OFFER` và `POST_WANTED` là hai capability
+> riêng, nhưng phép đếm là **mọi bài đang mở bất kể loại**, rồi so với con số của loại đang
+> đăng. Hôm nay hai số bằng nhau nên không lộ ra; đặt lệch đi là ra kết quả khó đoán.
+>
+> `CHARITY`, `CLASSIFIED` và `MERIT` đều ăn quota `POST_OFFER`, và **không loại nào có cổng
+> riêng** — kể cả `CHARITY`.
 
 Tác giả và trạng thái do **server quyết định**, không nhận từ client. Bài tạo ra ở
 `PUBLISHED` và **hiện ngay** trên bảng tin; đồng hồ ba tháng cũng bắt đầu từ lúc đăng.
@@ -353,6 +360,21 @@ Nó là căn cứ cho `POST /transactions/:id/reports/ship-unpaid` ở §10.
 > **giá trị tham khảo (VNĐ)** làm cơ sở quy đổi điểm. Hiện `OFFER` mới có `estimatedValue`
 > — một con số hiển thị, **không** phải cơ sở tính điểm quy đổi.
 > Xem [F74](./FEATURES.md#f74--giá-trị-tham-khảo--tỷ-lệ-quy-đổi-điểm).
+
+### Sửa và gỡ bài — chặn khi đang có lượt trao
+
+Cả `PATCH /posts/:postId` và `DELETE /posts/:postId` trả **409 `POST_HAS_LIVE_TRANSACTION`**
+khi bài ở `RESERVED` hoặc `DELIVERING`.
+
+- **Gỡ:** để bên kia lại với một giao dịch trỏ vào bài không còn tồn tại.
+- **Sửa:** người nhận đồng ý "tủ lạnh còn tốt" rồi mở lại thấy "quạt cũ"; với `CLASSIFIED`
+  thì sửa được cả `price` sau khi đã chốt người. Không bản ghi nào nói nội dung từng khác.
+
+Hai trạng thái này trùng đúng danh sách mà xoá tài khoản và hậu kiểm của Admin đã chặn.
+
+Gỡ bài thành công thì **mọi yêu cầu còn ở `REQUESTED` được đóng** (`CANCELLED`, kèm lý do) và
+người xin nhận thông báo `GIFT_TRANSACTION_CLOSED`. Không đóng thì họ không bao giờ nhận được
+câu trả lời, và mỗi yêu cầu treo vẫn ăn một suất trong trần "yêu cầu đang mở" của họ.
 
 ### Vòng đời bài — hết hạn và gia hạn
 

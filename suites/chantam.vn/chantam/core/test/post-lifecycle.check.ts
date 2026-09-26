@@ -16,6 +16,10 @@ import { CharityTransferOutcome } from '../src/domain/ports/repository';
 import * as entities from '../src/infrastructure/entity';
 import { PostEntity } from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
+import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
+import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
+import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
+import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { PostRepository } from '../src/infrastructure/repository/post.repository';
 
 loadEnvFile({ path: '.env.local' });
@@ -24,6 +28,7 @@ loadEnvFile();
 const ScratchDatabase = 'chantam_lifecycle_check';
 const AuthorId = '99999999-9999-4999-8999-999999999911';
 const OtherId = '99999999-9999-4999-8999-999999999912';
+const ThirdId = '99999999-9999-4999-8999-999999999913';
 const CategoryId = '30000000-0000-4000-8000-000000000001';
 
 const failures: string[] = [];
@@ -148,7 +153,7 @@ async function main(): Promise<void> {
   console.log('Đã dựng schema trên database nháp\n');
 
   try {
-    for (const [index, userId] of [AuthorId, OtherId].entries())
+    for (const [index, userId] of [AuthorId, OtherId, ThirdId].entries())
       await dataSource.query(
         `INSERT INTO users (global_id, username, password_hash, rank, status)
          VALUES ($1, $2, 'x', 'MEMBER', 'ACTIVE') ON CONFLICT DO NOTHING`,
@@ -156,6 +161,14 @@ async function main(): Promise<void> {
       );
 
     const posts = new PostRepository(PostEntity as never, dataSource.manager);
+    const transactions = new GiftTransactionRepository(
+      dataSource.manager,
+      new ChatRepository(
+        dataSource.manager,
+        new AdminConfigRepository(dataSource.manager),
+      ),
+      new PointLedgerRepository(dataSource.manager),
+    );
 
     // ── 1. Vòng quét hết hạn ────────────────────────────────────────────────
     console.log('Vòng quét hết hạn:\n');
@@ -581,6 +594,61 @@ async function main(): Promise<void> {
         reason: 'thử',
       })) === null,
     );
+
+    console.log('\nĐóng yêu cầu còn treo khi gỡ bài:\n');
+    await seed(dataSource, [
+      { index: 70, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 30 },
+    ]);
+    for (const [txId, receiver, status] of [
+      ['70000000-0000-4000-8000-000000000001', OtherId, 'REQUESTED'],
+      ['70000000-0000-4000-8000-000000000002', ThirdId, 'CANCELLED'],
+    ] as const)
+      await dataSource.query(
+        `INSERT INTO gift_transactions
+           (global_id, post_id, giver_id, receiver_id, quantity, status)
+         VALUES ($1, $2, $3, $4, 1, $5)`,
+        [txId, postId(70), AuthorId, receiver, status],
+      );
+
+    const closed = await transactions.closeOpenRequestsForPost({
+      postId: postId(70),
+      closedBy: AuthorId,
+      reason: 'Người đăng đã gỡ bài',
+    });
+    check(
+      'trả về đúng người đang treo yêu cầu',
+      closed.length === 1 && closed[0]?.receiverId === OtherId,
+      `${closed.length} yêu cầu`,
+    );
+
+    const [afterClose] = await dataSource.query<
+      { status: string; close_reason: string | null }[]
+    >(
+      `SELECT status, close_reason FROM gift_transactions WHERE global_id = $1`,
+      ['70000000-0000-4000-8000-000000000001'],
+    );
+    check('yêu cầu chuyển CANCELLED', afterClose?.status === 'CANCELLED');
+    check(
+      'và ghi lý do để người xin đọc được',
+      afterClose?.close_reason === 'Người đăng đã gỡ bài',
+      afterClose?.close_reason ?? 'null',
+    );
+    check(
+      'gọi lại không đóng thêm gì',
+      (
+        await transactions.closeOpenRequestsForPost({
+          postId: postId(70),
+          closedBy: AuthorId,
+          reason: 'bấm nhầm lần hai',
+        })
+      ).length === 0,
+    );
+
+    // Dọn trước khi `seed()` của mục sau xoá sạch bảng `posts`: lượt trao còn
+    // trỏ vào bài 70 sẽ chặn lệnh xoá đó bằng khoá ngoại.
+    await dataSource.query(`DELETE FROM gift_transactions WHERE post_id = $1`, [
+      postId(70),
+    ]);
 
     // ── 4. Marker bản đồ mang dữ liệu thẻ xem nhanh (F29) ───────────────────
     console.log('\nThẻ xem nhanh trên bản đồ:\n');

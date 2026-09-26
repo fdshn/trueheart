@@ -209,6 +209,23 @@ export interface IGiftTransactionRepository {
    */
   countOpenForUser(userId: string): Promise<number>;
   /**
+   * Đóng mọi yêu cầu còn ở `REQUESTED` của một bài, trả về ai bị đóng.
+   *
+   * Gọi khi tác giả gỡ bài. Không đóng thì những yêu cầu đó treo vĩnh viễn:
+   * người xin không bao giờ nhận được câu trả lời, và mỗi yêu cầu treo vẫn ăn
+   * một suất trong trần "yêu cầu đang mở" của họ — tức gỡ một bài là khoá bớt
+   * chỗ của người khác.
+   *
+   * KHÔNG đụng `ACCEPTED`/`DELIVERING`: đường gỡ bài đã chặn sẵn hai trạng thái
+   * đó, và nếu lọt tới đây thì đóng ngang là cắt một lượt trao đang diễn ra.
+   */
+  closeOpenRequestsForPost(params: {
+    postId: string;
+    /** Người gỡ bài — `closed_by` bắt buộc đi kèm `closed_at` ở database. */
+    closedBy: string;
+    reason: string;
+  }): Promise<{ transactionId: string; receiverId: string }[]>;
+  /**
    * Kiểm tra xem một người dùng có phải là người nhận đã được chọn cho bài đăng này
    * trong một giao dịch đang giao hoặc hoàn tất (ACCEPTED, DELIVERING, COMPLETED) hay không.
    * Dùng cho kiểm soát quyền riêng tư (Privacy): chỉ người nhận mới thấy thông tin liên lạc.

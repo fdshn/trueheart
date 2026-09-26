@@ -1,4 +1,7 @@
-import { PostNotFoundException } from '@/domain/exceptions';
+import {
+  PostHasLiveTransactionException,
+  PostNotFoundException,
+} from '@/domain/exceptions';
 import { IPostRepository } from '@/domain/ports/repository';
 import {
   PostSelectionModes,
@@ -22,7 +25,7 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     description: 'Còn dùng tốt',
     location: { lat: 10.7724, lng: 106.698 },
     areaLabel: 'Quận 1, TP.HCM',
-    status: 'PENDING_REVIEW' as never,
+    status: 'PUBLISHED' as never,
     totalQuantity: 1,
     remainingQuantity: 1,
     details: {},
@@ -47,14 +50,30 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
   };
 }
 
+function makeDeps(
+  closed: { transactionId: string; receiverId: string }[] = [],
+) {
+  return {
+    transactions: {
+      closeOpenRequestsForPost: jest.fn(async () => closed),
+    },
+    notifications: { handle: jest.fn(async () => ({ created: true })) },
+  };
+}
+
 describe('DeletePostUseCase', () => {
   it('owner xoá mềm post và chuyển trạng thái cancelled', async () => {
     const posts = {
       findOneBy: jest.fn().mockResolvedValue(makePost()),
       update: jest.fn(),
     } as unknown as jest.Mocked<IPostRepository>;
+    const deps = makeDeps();
 
-    await new DeletePostUseCase(posts).handle({
+    await new DeletePostUseCase(
+      posts,
+      deps.transactions as never,
+      deps.notifications as never,
+    ).handle({
       postId: PostId,
       userId: OwnerId,
     });
@@ -71,9 +90,14 @@ describe('DeletePostUseCase', () => {
       findOneBy: jest.fn().mockResolvedValue(makePost()),
       update: jest.fn(),
     } as unknown as jest.Mocked<IPostRepository>;
+    const deps = makeDeps();
 
     await expect(
-      new DeletePostUseCase(posts).handle({
+      new DeletePostUseCase(
+        posts,
+        deps.transactions as never,
+        deps.notifications as never,
+      ).handle({
         postId: PostId,
         userId: '33333333-3333-3333-3333-333333333333',
       }),
@@ -81,7 +105,97 @@ describe('DeletePostUseCase', () => {
 
     posts.findOneBy.mockResolvedValue(null);
     await expect(
-      new DeletePostUseCase(posts).handle({ postId: PostId, userId: OwnerId }),
+      new DeletePostUseCase(
+        posts,
+        deps.transactions as never,
+        deps.notifications as never,
+      ).handle({ postId: PostId, userId: OwnerId }),
     ).rejects.toBeInstanceOf(PostNotFoundException);
+  });
+
+  it('KHÔNG gỡ được bài đang có người nhận', async () => {
+    // Gỡ ngang để lại bên kia một giao dịch trỏ vào bài không còn tồn tại —
+    // đúng thứ mà xoá tài khoản và hậu kiểm của Admin đều đã chặn.
+    const posts = {
+      findOneBy: jest
+        .fn()
+        .mockResolvedValue(makePost({ status: 'RESERVED' as never })),
+      update: jest.fn(),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const deps = makeDeps();
+
+    await expect(
+      new DeletePostUseCase(
+        posts,
+        deps.transactions as never,
+        deps.notifications as never,
+      ).handle({ postId: PostId, userId: OwnerId }),
+    ).rejects.toBeInstanceOf(PostHasLiveTransactionException);
+
+    expect(posts.update).not.toHaveBeenCalled();
+    expect(deps.transactions.closeOpenRequestsForPost).not.toHaveBeenCalled();
+  });
+
+  it('bài đang bàn giao cũng vậy', async () => {
+    const posts = {
+      findOneBy: jest
+        .fn()
+        .mockResolvedValue(makePost({ status: 'DELIVERING' as never })),
+      update: jest.fn(),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const deps = makeDeps();
+
+    await expect(
+      new DeletePostUseCase(
+        posts,
+        deps.transactions as never,
+        deps.notifications as never,
+      ).handle({ postId: PostId, userId: OwnerId }),
+    ).rejects.toBeInstanceOf(PostHasLiveTransactionException);
+  });
+
+  it('đóng yêu cầu còn treo và BÁO cho người xin', async () => {
+    // Không đóng thì người xin không bao giờ nhận được câu trả lời, và mỗi yêu
+    // cầu treo vẫn ăn một suất trong trần "yêu cầu đang mở" của họ.
+    const posts = {
+      findOneBy: jest.fn().mockResolvedValue(makePost()),
+      update: jest.fn(),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const deps = makeDeps([
+      { transactionId: 'tx-1', receiverId: 'nguoi-xin-1' },
+      { transactionId: 'tx-2', receiverId: 'nguoi-xin-2' },
+    ]);
+
+    await new DeletePostUseCase(
+      posts,
+      deps.transactions as never,
+      deps.notifications as never,
+    ).handle({ postId: PostId, userId: OwnerId });
+
+    expect(deps.notifications.handle).toHaveBeenCalledTimes(2);
+    expect(deps.notifications.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'nguoi-xin-1',
+        idempotencyKey: 'POST_DELETED:tx-1',
+      }),
+    );
+  });
+
+  it('đẩy thông báo hỏng KHÔNG làm hỏng việc gỡ bài', async () => {
+    // Bài đã gỡ xong; ném ở đây chỉ khiến client bấm lại và nhận 404.
+    const posts = {
+      findOneBy: jest.fn().mockResolvedValue(makePost()),
+      update: jest.fn(),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const deps = makeDeps([{ transactionId: 'tx-1', receiverId: 'ai-do' }]);
+    deps.notifications.handle.mockRejectedValue(new Error('Redis chết'));
+
+    await expect(
+      new DeletePostUseCase(
+        posts,
+        deps.transactions as never,
+        deps.notifications as never,
+      ).handle({ postId: PostId, userId: OwnerId }),
+    ).resolves.toEqual({});
   });
 });
