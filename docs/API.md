@@ -1147,9 +1147,12 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
   coi như không còn. Mỗi lần xử, `comment_count` và `reply_count` đi theo trạng thái mới.
 - Tác giả **sửa** bài đã bị gỡ thì bài vẫn `REJECTED`. Cho nó tự hiện lại là để tác giả gỡ
   quyết định của Admin bằng cách sửa một dấu phẩy. Chỉ Admin trả lại được.
-- `POST /reports` nhận target `POST`, `USER` hoặc `COMMENT`, mô tả và tối đa 5 URL bằng chứng. Nhiều
-  report chỉ tăng độ ưu tiên; không report nào tự động phạt. Quyết định Admin và audit
-  `REVIEW_REPORT` được ghi chung transaction.
+- `POST /reports` nhận target `POST`, `USER` hoặc `COMMENT`, mô tả và tối đa 5 URL bằng
+  chứng. Nhiều report chỉ tăng độ ưu tiên; việc gửi report không tự động phạt. Khi Admin
+  xác nhận report nhắm vào bài đăng, bài công khai bị chuyển sang `REJECTED`, chủ bài bị
+  trừ điểm theo rule `CONTENT_VIOLATION_PENALTY` (mặc định −50, không giảm lifetime), và
+  audit `MODERATE_POST` + `REVIEW_REPORT` được ghi chung transaction. Một bài chỉ bị trừ
+  một lần dù có nhiều report cùng đích.
 
 
 ### Thứ tự ưu tiên chọn người nhận (CH-1)

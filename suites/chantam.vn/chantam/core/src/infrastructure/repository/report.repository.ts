@@ -1,10 +1,14 @@
+import { PointRuleUnavailableException } from '@/domain/exceptions';
 import {
   IFindAdminReportsParams,
   IFindAdminReportsResult,
+  IPointLedgerRepository,
   IReportRepository,
   IReviewReportByAdminCommand,
 } from '@/domain/ports/repository';
 import {
+  ContentViolationPenaltyRuleCode,
+  GiftPostStatuses,
   ReportStatuses,
   ReportTargetTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -59,6 +63,8 @@ export class ReportRepository
   public constructor(
     @Inject(IReportEntity) target: EntitySchema,
     @InjectEntityManager() manager: EntityManager,
+    @Inject(IPointLedgerRepository)
+    private readonly pointLedger: IPointLedgerRepository,
   ) {
     super(target, manager);
   }
@@ -182,8 +188,15 @@ export class ReportRepository
     command: IReviewReportByAdminCommand,
   ): Promise<boolean> {
     return this.manager.transaction(async (manager) => {
-      const [current] = await manager.query<{ status: ReportStatuses }[]>(
-        `SELECT status FROM reports WHERE global_id = $1 FOR UPDATE`,
+      const [current] = await manager.query<
+        {
+          status: ReportStatuses;
+          target_type: ReportTargetTypes;
+          target_id: string;
+        }[]
+      >(
+        `SELECT status, target_type, target_id
+         FROM reports WHERE global_id = $1 FOR UPDATE`,
         [command.reportId],
       );
       if (
@@ -193,6 +206,17 @@ export class ReportRepository
         )
       )
         return false;
+
+      if (
+        command.status === ReportStatuses.RESOLVED &&
+        current.target_type === ReportTargetTypes.POST
+      )
+        await this.rejectReportedPost(manager, {
+          actorUserId: command.actorUserId,
+          postId: current.target_id,
+          reportId: command.reportId,
+          reason: command.note,
+        });
 
       await manager.query(
         `UPDATE reports
@@ -215,6 +239,81 @@ export class ReportRepository
       );
       return true;
     });
+  }
+
+  /**
+   * Gỡ bài và phạt chủ bài trong CÙNG transaction với kết luận report.
+   *
+   * Chỉ đụng bài đang công khai hoặc còn sót ở hàng đợi cũ. Bài RESERVED /
+   * DELIVERING có giao dịch sống nên không được gỡ ngang; bài đã REJECTED thì
+   * không phạt lại khi Admin xử lý thêm một report trùng đích.
+   */
+  private async rejectReportedPost(
+    manager: EntityManager,
+    command: {
+      actorUserId: string;
+      postId: string;
+      reportId: string;
+      reason: string;
+    },
+  ): Promise<void> {
+    const [post] = await manager.query<
+      { status: GiftPostStatuses; author_id: string }[]
+    >(
+      `SELECT status, author_id
+       FROM posts
+       WHERE global_id = $1 AND deleted_at IS NULL
+       FOR UPDATE`,
+      [command.postId],
+    );
+    if (
+      !post ||
+      ![GiftPostStatuses.PUBLISHED, GiftPostStatuses.PENDING_REVIEW].includes(
+        post.status,
+      )
+    )
+      return;
+
+    await manager.query(
+      `UPDATE posts SET status = $2, updated_at = now() WHERE global_id = $1`,
+      [command.postId, GiftPostStatuses.REJECTED],
+    );
+
+    try {
+      await this.pointLedger.appendByRuleWithinTransaction(manager, {
+        userId: post.author_id,
+        ruleCode: ContentViolationPenaltyRuleCode,
+        referenceType: 'REPORT',
+        referenceId: command.reportId,
+        // Một bài chỉ bị phạt một lần dù có nhiều người cùng báo và Admin xử lý
+        // lần lượt từng report.
+        idempotencyKey: `${ContentViolationPenaltyRuleCode}:POST:${command.postId}`,
+        actor: command.actorUserId,
+        source: 'ADMIN_REPORT',
+        reason: command.reason,
+      });
+    } catch (error) {
+      // Tắt rule là quyết định chính sách "không trừ điểm", không phải lý do
+      // giữ nội dung vi phạm trên bảng tin. Lỗi database thật vẫn phải rollback.
+      if (!(error instanceof PointRuleUnavailableException)) throw error;
+    }
+
+    await manager.query(
+      `INSERT INTO admin_audit_logs
+         (actor_user_id, action, resource_type, resource_id,
+          before_json, after_json, reason)
+       VALUES ($1, 'MODERATE_POST', 'POST', $2, $3::jsonb, $4::jsonb, $5)`,
+      [
+        command.actorUserId,
+        command.postId,
+        JSON.stringify({ status: post.status }),
+        JSON.stringify({
+          status: GiftPostStatuses.REJECTED,
+          sourceReportId: command.reportId,
+        }),
+        command.reason,
+      ],
+    );
   }
 
   private baseSelect(): string {

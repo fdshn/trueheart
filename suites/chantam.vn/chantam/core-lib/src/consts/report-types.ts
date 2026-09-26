@@ -31,3 +31,11 @@ export enum ReportStatuses {
  * để việc báo xấu không đẩy được thứ hạng.
  */
 export const ReportUpheldRuleCode = 'REPORT_UPHELD';
+
+/**
+ * Phạt chủ bài khi Admin xác nhận một report nhắm vào bài đăng là đúng.
+ *
+ * Khoản phạt đi qua point rule để Admin đổi mức mà không cần deploy và không
+ * làm giảm lifetime — vi phạm là một sự kiện mới, không xoá đóng góp cũ.
+ */
+export const ContentViolationPenaltyRuleCode = 'CONTENT_VIOLATION_PENALTY';
