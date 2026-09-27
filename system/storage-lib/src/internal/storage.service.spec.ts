@@ -41,20 +41,39 @@ describe('assertAvatarUploadPolicy', () => {
 });
 
 describe('assertPostMediaUploadPolicy', () => {
-  const validRequest = {
+  const validImageRequest = {
     userId: '11111111-1111-1111-1111-111111111111',
     postId: '22222222-2222-2222-2222-222222222222',
     contentType: 'image/webp',
     contentLength: 5 * 1024 * 1024,
   };
 
+  const validVideoRequest = {
+    userId: '11111111-1111-1111-1111-111111111111',
+    postId: '22222222-2222-2222-2222-222222222222',
+    contentType: 'video/quicktime',
+    contentLength: 25 * 1024 * 1024,
+  };
+
   it('nhận ảnh JPEG/PNG/WebP không quá 5MB cho đúng post', () => {
-    expect(() => assertPostMediaUploadPolicy(validRequest)).not.toThrow();
+    expect(() => assertPostMediaUploadPolicy(validImageRequest)).not.toThrow();
+  });
+
+  it('nhận video MP4/QuickTime/WebM không quá 25MB cho đúng post', () => {
+    expect(() => assertPostMediaUploadPolicy(validVideoRequest)).not.toThrow();
+    expect(() =>
+      assertPostMediaUploadPolicy({
+        ...validVideoRequest,
+        contentType: 'video/mp4',
+        contentLength: 10 * 1024 * 1024,
+      }),
+    ).not.toThrow();
   });
 
   it.each([
-    { ...validRequest, contentType: 'video/mp4' },
-    { ...validRequest, contentLength: 5 * 1024 * 1024 + 1 },
+    { ...validImageRequest, contentLength: 5 * 1024 * 1024 + 1 },
+    { ...validVideoRequest, contentLength: 25 * 1024 * 1024 + 1 },
+    { ...validImageRequest, contentType: 'application/pdf' },
   ])('từ chối post media sai policy', (request) => {
     expect(() => assertPostMediaUploadPolicy(request)).toThrow();
   });
@@ -82,6 +101,39 @@ describe('StorageService.confirmPostMediaUpload', () => {
     ).rejects.toThrow();
 
     expect(client.send).not.toHaveBeenCalled();
+  });
+
+  it('chấp nhận video <= 25MB', async () => {
+    client.send.mockReset();
+    client.send.mockResolvedValueOnce({
+      ContentType: 'video/quicktime',
+      ContentLength: 20 * 1024 * 1024,
+    });
+
+    await expect(
+      storage.confirmPostMediaUpload(
+        userId,
+        postId,
+        `users/${userId}/posts/${postId}/media/a.mov`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it('từ chối và xoá video > 25MB', async () => {
+    client.send.mockReset();
+    client.send.mockResolvedValueOnce({
+      ContentType: 'video/mp4',
+      ContentLength: 26 * 1024 * 1024,
+    });
+    client.send.mockResolvedValueOnce({ Errors: [] }); // DeleteObjects
+
+    await expect(
+      storage.confirmPostMediaUpload(
+        userId,
+        postId,
+        `users/${userId}/posts/${postId}/media/a.mp4`,
+      ),
+    ).rejects.toThrow();
   });
 });
 

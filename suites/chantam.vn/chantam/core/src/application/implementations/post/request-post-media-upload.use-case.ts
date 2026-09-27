@@ -13,6 +13,7 @@ import {
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
+import { withStorageValidation } from '../shared/storage-error';
 
 @Injectable()
 export class RequestPostMediaUploadUseCase implements IRequestPostMediaUploadUseCase {
@@ -35,6 +36,8 @@ export class RequestPostMediaUploadUseCase implements IRequestPostMediaUploadUse
     if ((await this.postMediaRepository.countByPostId(command.postId)) >= 10)
       throw new PostMediaLimitExceededException();
 
-    return this.storage.createPostMediaUpload(command);
+    return withStorageValidation('media', () =>
+      this.storage.createPostMediaUpload(command),
+    );
   }
 }

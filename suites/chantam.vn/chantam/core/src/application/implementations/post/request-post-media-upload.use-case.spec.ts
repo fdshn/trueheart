@@ -94,4 +94,43 @@ describe('RequestPostMediaUploadUseCase', () => {
     ).rejects.toBeInstanceOf(PostMediaLimitExceededException);
     expect(storage.createPostMediaUpload).not.toHaveBeenCalled();
   });
+
+  it('bọc StorageValidationError thành ValidationFailedException', async () => {
+    const { StorageValidationError } = jest.requireActual(
+      '@chantam/service.storage-lib',
+    );
+    const { ValidationFailedException } = jest.requireActual(
+      '@chantam/service.common-lib/exception',
+    );
+
+    const posts = {
+      findOneBy: jest.fn().mockResolvedValue({
+        globalId: PostId,
+        authorId: OwnerId,
+        deletedAt: null,
+      }),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const storage = {
+      createPostMediaUpload: jest
+        .fn()
+        .mockRejectedValue(
+          new StorageValidationError(
+            'Ảnh bài đăng phải lớn hơn 0 và không quá 5 MB.',
+          ),
+        ),
+    } as unknown as jest.Mocked<IObjectStorage>;
+
+    const media = {
+      countByPostId: jest.fn().mockResolvedValue(0),
+    } as unknown as jest.Mocked<IPostMediaRepository>;
+
+    await expect(
+      new RequestPostMediaUploadUseCase(posts, media, storage).handle({
+        postId: PostId,
+        userId: OwnerId,
+        contentType: 'image/webp',
+        contentLength: 6 * 1024 * 1024,
+      }),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+  });
 });

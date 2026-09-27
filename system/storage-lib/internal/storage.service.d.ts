@@ -1,13 +1,18 @@
 import { S3Client } from '@aws-sdk/client-s3';
 import { IChatMediaUploadRequest, ICommentMediaUploadRequest, IObjectStorage, IPostMediaUploadRequest, IStorageUploadRequest, IStorageUploadResult, ITransactionEvidenceUploadRequest } from '../contracts';
 import { IStorageModuleOptions } from './storage-options';
+export declare const AllowedImageContentTypes: Set<string>;
+export declare const AllowedVideoContentTypes: Set<string>;
 export declare const MediaSizeLimits: {
     readonly avatar: number;
+    readonly postMediaImage: number;
+    readonly postMediaVideo: number;
     readonly postMedia: number;
     readonly transactionEvidence: number;
     readonly chatMedia: number;
     readonly commentMedia: number;
 };
+export declare function getMediaExtension(contentType: string): string;
 export declare function assertAvatarUploadPolicy(request: IStorageUploadRequest): void;
 export declare function assertPostMediaUploadPolicy(request: IPostMediaUploadRequest): void;
 export declare function assertTransactionEvidenceUploadPolicy(request: ITransactionEvidenceUploadRequest): void;

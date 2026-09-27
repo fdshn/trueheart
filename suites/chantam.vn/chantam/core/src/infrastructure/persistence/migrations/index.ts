@@ -61,6 +61,6 @@ export * from './1794100000000-NormalizePhoneNumbers';
 export * from './1794200000000-CreateVerifiedPhones';
 export * from './1794300000000-MergePostQuotaIntoOne';
 export * from './1794400000000-AddPostSearchIndex';
-export * from './1794500000000-SeedContentViolationPenaltyRule';
 export * from './1794500000000-EnableInteractionPointRules';
+export * from './1794500000000-SeedContentViolationPenaltyRule';
 export * from './1794600000000-DropPostLikeCount';

@@ -24,42 +24,71 @@ import {
   IStorageOptions,
 } from './storage-options';
 
-const AllowedContentTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+export const AllowedImageContentTypes = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+
+export const AllowedVideoContentTypes = new Set([
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+]);
 
 const Megabyte = 1024 * 1024;
 
 /**
- * Hạn mức theo TỪNG loại ảnh.
- *
- * Trước đây cả năm loại dùng chung một hằng tên `MaxAvatarBytes`, nên tên nói
- * dối ở bốn chỗ, và muốn nới ảnh bài đăng là nới luôn avatar. Con số hiện bằng
- * nhau — nhưng chúng là năm quyết định khác nhau, và tách ra thì đổi được từng
- * cái mà không đụng cái khác.
+ * Hạn mức theo TỪNG loại media.
  */
 export const MediaSizeLimits = {
   avatar: 5 * Megabyte,
-  postMedia: 5 * Megabyte,
+  postMediaImage: 5 * Megabyte,
+  postMediaVideo: 25 * Megabyte,
+  postMedia: 25 * Megabyte,
   transactionEvidence: 5 * Megabyte,
   chatMedia: 5 * Megabyte,
   commentMedia: 5 * Megabyte,
 } as const;
 
-/** Tên loại ảnh trong thông báo lỗi, để người dùng biết mình đang gửi cái gì. */
+/** Tên loại media trong thông báo lỗi, để người dùng biết mình đang gửi cái gì. */
 const MediaLabels = {
   avatar: 'Avatar',
-  postMedia: 'Ảnh bài đăng',
+  postMedia: 'Phương tiện bài đăng',
   transactionEvidence: 'Ảnh bằng chứng',
   chatMedia: 'Ảnh trong chat',
   commentMedia: 'Ảnh bình luận',
 } as const;
 
-type MediaKind = keyof typeof MediaSizeLimits;
+type MediaKind = keyof typeof MediaLabels;
 
-function assertUploadPolicy(kind: MediaKind, request: IStorageUploadRequest) {
+export function getMediaExtension(contentType: string): string {
+  switch (contentType) {
+    case 'image/jpeg':
+      return 'jpeg';
+    case 'image/png':
+      return 'png';
+    case 'image/webp':
+      return 'webp';
+    case 'video/mp4':
+      return 'mp4';
+    case 'video/quicktime':
+      return 'mov';
+    case 'video/webm':
+      return 'webm';
+    default:
+      return contentType.split('/')[1] || 'bin';
+  }
+}
+
+function assertUploadPolicy(
+  kind: Exclude<MediaKind, 'postMedia'>,
+  request: IStorageUploadRequest,
+) {
   const label = MediaLabels[kind];
   const limit = MediaSizeLimits[kind];
 
-  if (!AllowedContentTypes.has(request.contentType))
+  if (!AllowedImageContentTypes.has(request.contentType))
     throw new StorageValidationError(
       `${label} chỉ nhận image/jpeg, image/png hoặc image/webp.`,
     );
@@ -80,7 +109,28 @@ export function assertAvatarUploadPolicy(request: IStorageUploadRequest): void {
 export function assertPostMediaUploadPolicy(
   request: IPostMediaUploadRequest,
 ): void {
-  assertUploadPolicy('postMedia', request);
+  const isImage = AllowedImageContentTypes.has(request.contentType);
+  const isVideo = AllowedVideoContentTypes.has(request.contentType);
+
+  if (!isImage && !isVideo)
+    throw new StorageValidationError(
+      'Phương tiện bài đăng chỉ nhận ảnh (image/jpeg, image/png, image/webp) hoặc video (video/mp4, video/quicktime, video/webm).',
+    );
+
+  if (!Number.isInteger(request.contentLength))
+    throw new StorageValidationError(
+      'Phương tiện bài đăng phải khai kích thước thật.',
+    );
+
+  const limit = isImage
+    ? MediaSizeLimits.postMediaImage
+    : MediaSizeLimits.postMediaVideo;
+  const label = isImage ? 'Ảnh bài đăng' : 'Video bài đăng';
+
+  if (request.contentLength < 1 || request.contentLength > limit)
+    throw new StorageValidationError(
+      `${label} phải lớn hơn 0 và không quá ${Math.round(limit / Megabyte)} MB.`,
+    );
 }
 
 export function assertTransactionEvidenceUploadPolicy(
@@ -125,10 +175,32 @@ export class StorageService implements IObjectStorage {
       new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }),
     );
 
-    const badType =
-      !object.ContentType || !AllowedContentTypes.has(object.ContentType);
-    const badSize =
-      !object.ContentLength || object.ContentLength > MediaSizeLimits[kind];
+    let badType = false;
+    let badSize = false;
+
+    if (kind === 'postMedia') {
+      const isImage = object.ContentType
+        ? AllowedImageContentTypes.has(object.ContentType)
+        : false;
+      const isVideo = object.ContentType
+        ? AllowedVideoContentTypes.has(object.ContentType)
+        : false;
+
+      if (!isImage && !isVideo) {
+        badType = true;
+      } else {
+        const limit = isImage
+          ? MediaSizeLimits.postMediaImage
+          : MediaSizeLimits.postMediaVideo;
+        badSize = !object.ContentLength || object.ContentLength > limit;
+      }
+    } else {
+      badType =
+        !object.ContentType ||
+        !AllowedImageContentTypes.has(object.ContentType);
+      badSize =
+        !object.ContentLength || object.ContentLength > MediaSizeLimits[kind];
+    }
 
     if (!badType && !badSize) return;
 
@@ -138,7 +210,7 @@ export class StorageService implements IObjectStorage {
 
     throw new StorageValidationError(
       badType
-        ? `Object ${label.toLowerCase()} không có content type ảnh hợp lệ.`
+        ? `Object ${label.toLowerCase()} không có content type hợp lệ.`
         : `Object ${label.toLowerCase()} vượt quá kích thước cho phép.`,
     );
   }
@@ -268,7 +340,7 @@ export class StorageService implements IObjectStorage {
   ): Promise<IStorageUploadResult> {
     assertPostMediaUploadPolicy(request);
 
-    const extension = request.contentType.split('/')[1];
+    const extension = getMediaExtension(request.contentType);
     const key = `users/${request.userId}/posts/${request.postId}/media/${randomUUID()}.${extension}`;
     const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
     const uploadUrl = await getSignedUrl(

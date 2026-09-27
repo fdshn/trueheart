@@ -20,11 +20,18 @@ import {
 import { PostMediaEntity } from '../../../entity/post-media.entity';
 
 export class RequestPostMediaUploadDto {
-  @ApiProperty({ example: 'image/webp' })
+  @ApiProperty({
+    example: 'image/webp',
+    description:
+      'Hỗ trợ JPEG, PNG, WebP cho ảnh; MP4, QuickTime, WebM cho video.',
+  })
   @IsString()
   contentType: string;
 
-  @ApiProperty({ example: 123456, description: 'Tối đa 5 MB.' })
+  @ApiProperty({
+    example: 123456,
+    description: 'Tối đa 5 MB cho ảnh, 25 MB cho video.',
+  })
   @Type(() => Number)
   @IsInt()
   contentLength: number;

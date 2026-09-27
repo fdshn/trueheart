@@ -12,7 +12,8 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.StorageService = exports.MediaSizeLimits = void 0;
+exports.StorageService = exports.MediaSizeLimits = exports.AllowedVideoContentTypes = exports.AllowedImageContentTypes = void 0;
+exports.getMediaExtension = getMediaExtension;
 exports.assertAvatarUploadPolicy = assertAvatarUploadPolicy;
 exports.assertPostMediaUploadPolicy = assertPostMediaUploadPolicy;
 exports.assertTransactionEvidenceUploadPolicy = assertTransactionEvidenceUploadPolicy;
@@ -22,26 +23,55 @@ const common_1 = require("@nestjs/common");
 const node_crypto_1 = require("node:crypto");
 const contracts_1 = require("../contracts");
 const storage_options_1 = require("./storage-options");
-const AllowedContentTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+exports.AllowedImageContentTypes = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+]);
+exports.AllowedVideoContentTypes = new Set([
+    'video/mp4',
+    'video/quicktime',
+    'video/webm',
+]);
 const Megabyte = 1024 * 1024;
 exports.MediaSizeLimits = {
     avatar: 5 * Megabyte,
-    postMedia: 5 * Megabyte,
+    postMediaImage: 5 * Megabyte,
+    postMediaVideo: 25 * Megabyte,
+    postMedia: 25 * Megabyte,
     transactionEvidence: 5 * Megabyte,
     chatMedia: 5 * Megabyte,
     commentMedia: 5 * Megabyte,
 };
 const MediaLabels = {
     avatar: 'Avatar',
-    postMedia: 'Ảnh bài đăng',
+    postMedia: 'Phương tiện bài đăng',
     transactionEvidence: 'Ảnh bằng chứng',
     chatMedia: 'Ảnh trong chat',
     commentMedia: 'Ảnh bình luận',
 };
+function getMediaExtension(contentType) {
+    switch (contentType) {
+        case 'image/jpeg':
+            return 'jpeg';
+        case 'image/png':
+            return 'png';
+        case 'image/webp':
+            return 'webp';
+        case 'video/mp4':
+            return 'mp4';
+        case 'video/quicktime':
+            return 'mov';
+        case 'video/webm':
+            return 'webm';
+        default:
+            return contentType.split('/')[1] || 'bin';
+    }
+}
 function assertUploadPolicy(kind, request) {
     const label = MediaLabels[kind];
     const limit = exports.MediaSizeLimits[kind];
-    if (!AllowedContentTypes.has(request.contentType))
+    if (!exports.AllowedImageContentTypes.has(request.contentType))
         throw new contracts_1.StorageValidationError(`${label} chỉ nhận image/jpeg, image/png hoặc image/webp.`);
     if (!Number.isInteger(request.contentLength))
         throw new contracts_1.StorageValidationError(`${label} phải khai kích thước thật.`);
@@ -52,7 +82,18 @@ function assertAvatarUploadPolicy(request) {
     assertUploadPolicy('avatar', request);
 }
 function assertPostMediaUploadPolicy(request) {
-    assertUploadPolicy('postMedia', request);
+    const isImage = exports.AllowedImageContentTypes.has(request.contentType);
+    const isVideo = exports.AllowedVideoContentTypes.has(request.contentType);
+    if (!isImage && !isVideo)
+        throw new contracts_1.StorageValidationError('Phương tiện bài đăng chỉ nhận ảnh (image/jpeg, image/png, image/webp) hoặc video (video/mp4, video/quicktime, video/webm).');
+    if (!Number.isInteger(request.contentLength))
+        throw new contracts_1.StorageValidationError('Phương tiện bài đăng phải khai kích thước thật.');
+    const limit = isImage
+        ? exports.MediaSizeLimits.postMediaImage
+        : exports.MediaSizeLimits.postMediaVideo;
+    const label = isImage ? 'Ảnh bài đăng' : 'Video bài đăng';
+    if (request.contentLength < 1 || request.contentLength > limit)
+        throw new contracts_1.StorageValidationError(`${label} phải lớn hơn 0 và không quá ${Math.round(limit / Megabyte)} MB.`);
 }
 function assertTransactionEvidenceUploadPolicy(request) {
     assertUploadPolicy('transactionEvidence', request);
@@ -69,13 +110,37 @@ let StorageService = class StorageService {
         if (!key.startsWith(expectedPrefix))
             throw new contracts_1.StorageValidationError(`Key ${label.toLowerCase()} không thuộc chủ thể hiện tại.`);
         const object = await this.client.send(new client_s3_1.HeadObjectCommand({ Bucket: this.options.bucket, Key: key }));
-        const badType = !object.ContentType || !AllowedContentTypes.has(object.ContentType);
-        const badSize = !object.ContentLength || object.ContentLength > exports.MediaSizeLimits[kind];
+        let badType = false;
+        let badSize = false;
+        if (kind === 'postMedia') {
+            const isImage = object.ContentType
+                ? exports.AllowedImageContentTypes.has(object.ContentType)
+                : false;
+            const isVideo = object.ContentType
+                ? exports.AllowedVideoContentTypes.has(object.ContentType)
+                : false;
+            if (!isImage && !isVideo) {
+                badType = true;
+            }
+            else {
+                const limit = isImage
+                    ? exports.MediaSizeLimits.postMediaImage
+                    : exports.MediaSizeLimits.postMediaVideo;
+                badSize = !object.ContentLength || object.ContentLength > limit;
+            }
+        }
+        else {
+            badType =
+                !object.ContentType ||
+                    !exports.AllowedImageContentTypes.has(object.ContentType);
+            badSize =
+                !object.ContentLength || object.ContentLength > exports.MediaSizeLimits[kind];
+        }
         if (!badType && !badSize)
             return;
         await this.deleteObjects([key]);
         throw new contracts_1.StorageValidationError(badType
-            ? `Object ${label.toLowerCase()} không có content type ảnh hợp lệ.`
+            ? `Object ${label.toLowerCase()} không có content type hợp lệ.`
             : `Object ${label.toLowerCase()} vượt quá kích thước cho phép.`);
     }
     async confirmAvatarUpload(userId, key) {
@@ -132,7 +197,7 @@ let StorageService = class StorageService {
     }
     async createPostMediaUpload(request) {
         assertPostMediaUploadPolicy(request);
-        const extension = request.contentType.split('/')[1];
+        const extension = getMediaExtension(request.contentType);
         const key = `users/${request.userId}/posts/${request.postId}/media/${(0, node_crypto_1.randomUUID)()}.${extension}`;
         const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
         const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.client, new client_s3_1.PutObjectCommand({
