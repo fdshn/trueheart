@@ -6,6 +6,8 @@ export const ClosedGiftPostStatuses = [
   'ARCHIVED',
 ] as const;
 
+export * from './discovery';
+
 /** Thời hạn bài đăng không có người nhận trước khi hết hạn (đặc tả mục 3.2). */
 export const GiftPostExpiryDays = 30;
 

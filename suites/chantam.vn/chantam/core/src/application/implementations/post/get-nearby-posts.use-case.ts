@@ -3,9 +3,14 @@ import {
   IGetNearbyPostsResult,
   IGetNearbyPostsUseCase,
 } from '@/application/contracts/post';
+import {
+  DiscoveryMaxRadiusConfigKey,
+  normalizeGuestMaxRadiusMeters,
+} from '@/domain/consts';
 import { DiscoveryOriginUnavailableException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
+  IAdminConfigRepository,
   IContentReactionRepository,
   IGiftRequestRepository,
   IPostMediaRepository,
@@ -18,7 +23,10 @@ import {
   ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
+import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import {
+  MaxSearchRadiusMeters,
+  MinSearchRadiusMeters,
   applyGeoJitter,
   bucketDistance,
 } from '@chantam/service.persistency-lib/geo';
@@ -38,6 +46,8 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
     @Inject(IContentReactionRepository)
     private readonly reactions: IContentReactionRepository,
     @Inject(IConfig) private readonly config: IConfig,
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig: IAdminConfigRepository,
   ) {}
 
   /**
@@ -82,6 +92,20 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
   ): Promise<IGetNearbyPostsResult> {
     const { skip, take } = toSkipTake(command);
     const { origin, originSource } = await this.resolveOrigin(command);
+    if (
+      !command.currentUserId &&
+      origin &&
+      command.radiusMeters !== undefined
+    ) {
+      const maxRadiusMeters = normalizeGuestMaxRadiusMeters(
+        await this.adminConfig.getConfigValue(DiscoveryMaxRadiusConfigKey),
+        { min: MinSearchRadiusMeters, max: MaxSearchRadiusMeters },
+      );
+      if (command.radiusMeters > maxRadiusMeters)
+        throw new ValidationFailedException([
+          `radiusMeters không được lớn hơn ${maxRadiusMeters} với khách chưa đăng nhập`,
+        ]);
+    }
     const { items, total } = await this.postRepository.findNearbyPosts({
       origin,
       // Bán kính chỉ có nghĩa khi có tâm. Truyền nó xuống mà không có gốc là
