@@ -147,7 +147,7 @@ Không cần JWT để guest khám phá dữ liệu public. Gói API dùng chung
 | Marker bản đồ | `GET /api/v1/posts/map` | Bbox bắt buộc; optional origin/type/category; tối đa 200 marker tối thiểu để client cluster. |
 | Chi tiết vật phẩm | `GET /api/v1/posts/:postId` | Chỉ `PUBLISHED`/`RESERVED`, media public và location jitter. |
 | Bộ lọc danh mục | `GET /api/v1/categories` | Chỉ cây danh mục active. |
-| Policy client | `GET /api/v1/discovery/config` | Radius 100–50,000m, page mặc định 20/tối đa 50, type guest OFFER/WANTED. |
+| Policy client | `GET /api/v1/discovery/config` | Radius tối thiểu 100m; trần lấy từ `discovery.max_radius_meters` (hiện 5,000m), page mặc định 20/tối đa 50. |
 
 Ví dụ quét item WANTED quanh vị trí hiện tại:
 

@@ -18,6 +18,7 @@ import {
   IPostEntity,
   IPostMediaEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
+import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { GetNearbyPostsUseCase } from './get-nearby-posts.use-case';
 
 const ExactLocation = { lat: 10.7724, lng: 106.698 };
@@ -93,6 +94,12 @@ function makeConfig(): IConfig {
   };
 }
 
+function makeAdminConfig(maxRadiusMeters = 5_000) {
+  return {
+    getConfigValue: jest.fn().mockResolvedValue(maxRadiusMeters),
+  };
+}
+
 /**
  * Người dùng CÓ Vị trí mặc định, để phân biệt hai nhánh của F26: khi client
  * gửi toạ độ thì tuyệt đối không được đọc tới hồ sơ.
@@ -134,6 +141,28 @@ function makeMedia(
 }
 
 describe('GetNearbyPostsUseCase', () => {
+  it('chặn guest quét vượt bán kính tối đa đang cấu hình', async () => {
+    const useCase = new GetNearbyPostsUseCase(
+      {} as never,
+      {} as never,
+      {} as never,
+      makeUsers(),
+      {} as never,
+      makeConfig(),
+      makeAdminConfig(5_000) as never,
+    );
+
+    await expect(
+      useCase.handle({
+        lat: ExactLocation.lat,
+        lng: ExactLocation.lng,
+        radiusMeters: 5_001,
+        page: 1,
+        pageSize: 20,
+      }),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+  });
+
   it('forwards requested type and pagination then returns privacy-safe nearby posts with request counts and status', async () => {
     const post = makePost();
     const posts = {
@@ -165,6 +194,7 @@ describe('GetNearbyPostsUseCase', () => {
       makeUsers(),
       reactions,
       makeConfig(),
+      makeAdminConfig() as never,
     ).handle({
       lat: ExactLocation.lat,
       lng: ExactLocation.lng,
@@ -231,6 +261,7 @@ describe('GetNearbyPostsUseCase', () => {
       users,
       makeReactions(),
       makeConfig(),
+      makeAdminConfig() as never,
     ).handle({
       radiusMeters: 5_000,
       postType: PostTypes.OFFER,
@@ -260,6 +291,7 @@ describe('GetNearbyPostsUseCase', () => {
       users,
       makeReactions(),
       makeConfig(),
+      makeAdminConfig() as never,
     ).handle({
       lat: 10.7724,
       lng: 106.698,
@@ -294,6 +326,7 @@ describe('GetNearbyPostsUseCase', () => {
       makeUsers(),
       makeReactions(),
       makeConfig(),
+      makeAdminConfig() as never,
     ).handle({
       postType: PostTypes.OFFER,
       page: 1,
@@ -329,6 +362,7 @@ describe('GetNearbyPostsUseCase', () => {
       users,
       makeReactions(),
       makeConfig(),
+      makeAdminConfig() as never,
     ).handle({
       postType: PostTypes.OFFER,
       page: 1,
@@ -356,6 +390,7 @@ describe('GetNearbyPostsUseCase', () => {
       makeUsers(),
       makeReactions(),
       makeConfig(),
+      makeAdminConfig() as never,
     ).handle({
       radiusMeters: 5_000,
       postType: PostTypes.OFFER,
@@ -388,6 +423,7 @@ describe('GetNearbyPostsUseCase', () => {
         users,
         makeReactions(),
         makeConfig(),
+        makeAdminConfig() as never,
       ).handle({
         lat: 10.7724,
         radiusMeters: 5_000,
@@ -422,6 +458,7 @@ describe('GetNearbyPostsUseCase', () => {
       makeUsers(),
       reactions,
       makeConfig(),
+      makeAdminConfig() as never,
     ).handle({
       lat: ExactLocation.lat,
       lng: ExactLocation.lng,
@@ -473,6 +510,7 @@ describe('GetNearbyPostsUseCase', () => {
       makeUsers(),
       makeReactions(),
       config,
+      makeAdminConfig() as never,
     ).handle({
       lat: ExactLocation.lat,
       lng: ExactLocation.lng,
@@ -517,6 +555,7 @@ describe('GetNearbyPostsUseCase', () => {
       makeUsers(),
       makeReactions(),
       makeConfig(),
+      makeAdminConfig() as never,
     ).handle({
       lat: ExactLocation.lat,
       lng: ExactLocation.lng,
@@ -541,6 +580,7 @@ describe('GetNearbyPostsUseCase', () => {
       makeUsers(),
       makeReactions(),
       makeConfig(),
+      makeAdminConfig() as never,
     ).handle({
       lat: ExactLocation.lat,
       lng: ExactLocation.lng,
