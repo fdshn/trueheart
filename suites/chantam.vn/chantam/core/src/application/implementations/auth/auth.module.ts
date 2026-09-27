@@ -7,6 +7,7 @@ import {
   IRefreshSessionUseCase,
   IRegisterUserUseCase,
   IRequestPasswordResetUseCase,
+  IVerifyPasswordResetOtpUseCase,
 } from '@/application/contracts/auth';
 import { Global, Module } from '@nestjs/common';
 import { ChangePasswordUseCase } from './change-password.use-case';
@@ -18,6 +19,7 @@ import { RefreshSessionUseCase } from './refresh-session.use-case';
 import { RegisterUserUseCase } from './register-user.use-case';
 import { RequestPasswordResetUseCase } from './request-password-reset.use-case';
 import { SessionIssuer } from './session-issuer';
+import { VerifyPasswordResetOtpUseCase } from './verify-password-reset-otp.use-case';
 
 /**
  * Tên có hậu tố `UseCase` để không đụng `AuthModule` của `auth-lib` — hai thứ
@@ -36,6 +38,10 @@ import { SessionIssuer } from './session-issuer';
       useClass: RequestPasswordResetUseCase,
     },
     {
+      provide: IVerifyPasswordResetOtpUseCase,
+      useClass: VerifyPasswordResetOtpUseCase,
+    },
+    {
       provide: IConfirmPasswordResetUseCase,
       useClass: ConfirmPasswordResetUseCase,
     },
@@ -48,6 +54,7 @@ import { SessionIssuer } from './session-issuer';
     IRefreshSessionUseCase,
     ILogoutUserUseCase,
     IRequestPasswordResetUseCase,
+    IVerifyPasswordResetOtpUseCase,
     IConfirmPasswordResetUseCase,
     IChangePasswordUseCase,
     IDeleteAccountUseCase,

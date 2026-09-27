@@ -10,6 +10,9 @@ import {
   IRequestPasswordResetBodyDto,
   IRequestPasswordResetDto,
   IRequestPasswordResetResponseDto,
+  IVerifyPasswordResetOtpBodyDto,
+  IVerifyPasswordResetOtpDto,
+  IVerifyPasswordResetOtpResponseDto,
   PasswordResetChannels,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { MatchesProperty } from '@chantam/service.common-lib/decorators';
@@ -79,10 +82,10 @@ export class RequestPasswordResetResponseDto implements IRequestPasswordResetRes
   expiresInSeconds: number | null;
 }
 
-export class ConfirmPasswordResetDto implements IConfirmPasswordResetDto {
+export class VerifyPasswordResetOtpDto implements IVerifyPasswordResetOtpDto {
   @ApiProperty({
-    example: 'nguyenvanan',
-    description: 'Đúng định danh đã dùng ở bước xin mã.',
+    example: 'sonit251203@gmail.com',
+    description: 'Username, email hoặc số điện thoại của tài khoản.',
   })
   @IsString()
   @IsNotEmpty()
@@ -91,13 +94,61 @@ export class ConfirmPasswordResetDto implements IConfirmPasswordResetDto {
 
   @ApiProperty({
     example: '048213',
-    description:
-      'Mã 6 chữ số vừa nhận. Dùng được ĐÚNG MỘT LẦN và hết hạn sau 5 phút. ' +
-      'Nhập sai quá 5 lần thì mã bị huỷ, phải xin mã mới.',
+    description: 'Mã 6 chữ số nhận được.',
   })
   @IsString()
   @Matches(/^\d{6}$/, { message: 'otp phải là 6 chữ số' })
   otp: string;
+}
+
+export class VerifyPasswordResetOtpBodyDto implements IVerifyPasswordResetOtpBodyDto {
+  @ApiProperty({ type: () => VerifyPasswordResetOtpDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => VerifyPasswordResetOtpDto)
+  reset: IVerifyPasswordResetOtpDto;
+}
+
+export class VerifyPasswordResetOtpResponseDto implements IVerifyPasswordResetOtpResponseDto {
+  @ApiProperty({
+    description: 'Token dùng để xác thực bước đổi mật khẩu tiếp theo.',
+  })
+  resetToken: string;
+
+  @ApiProperty({
+    example: 900,
+    description: 'Thời gian hiệu lực của token tính bằng giây (15 phút).',
+  })
+  expiresInSeconds: number;
+}
+
+export class ConfirmPasswordResetDto implements IConfirmPasswordResetDto {
+  @ApiPropertyOptional({
+    example: 'nguyenvanan',
+    description:
+      'Đúng định danh đã dùng ở bước xin mã (nếu không dùng resetToken).',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 255)
+  identifier?: string;
+
+  @ApiPropertyOptional({
+    example: '048213',
+    description:
+      'Mã 6 chữ số vừa nhận (nếu không dùng resetToken). Dùng được ĐÚNG MỘT LẦN.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'otp phải là 6 chữ số' })
+  otp?: string;
+
+  @ApiPropertyOptional({
+    description: 'Token nhận được từ bước verify OTP.',
+  })
+  @IsOptional()
+  @IsString()
+  resetToken?: string;
 
   @ApiProperty({
     minLength: 8,

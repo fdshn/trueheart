@@ -30,9 +30,24 @@ export interface IRequestPasswordResetResponseDto {
   expiresInSeconds: number | null;
 }
 
-export interface IConfirmPasswordResetDto {
+export interface IVerifyPasswordResetOtpDto {
   identifier: string;
   otp: string;
+}
+
+export interface IVerifyPasswordResetOtpBodyDto {
+  reset: IVerifyPasswordResetOtpDto;
+}
+
+export interface IVerifyPasswordResetOtpResponseDto {
+  resetToken: string;
+  expiresInSeconds: number;
+}
+
+export interface IConfirmPasswordResetDto {
+  identifier?: string;
+  otp?: string;
+  resetToken?: string;
   newPassword: string;
   confirmPassword: string;
 }

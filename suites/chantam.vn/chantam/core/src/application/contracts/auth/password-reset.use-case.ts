@@ -3,6 +3,8 @@ import {
   IConfirmPasswordResetResponseDto,
   IRequestPasswordResetBodyDto,
   IRequestPasswordResetResponseDto,
+  IVerifyPasswordResetOtpBodyDto,
+  IVerifyPasswordResetOtpResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IUseCase } from '@chantam/service.common-lib';
 
@@ -16,6 +18,18 @@ export interface IRequestPasswordResetUseCase extends IUseCase<
 
 export const IRequestPasswordResetUseCase = Symbol(
   'IRequestPasswordResetUseCase',
+);
+
+export interface IVerifyPasswordResetOtpCommand extends IVerifyPasswordResetOtpBodyDto {}
+export interface IVerifyPasswordResetOtpResult extends IVerifyPasswordResetOtpResponseDto {}
+
+export interface IVerifyPasswordResetOtpUseCase extends IUseCase<
+  IVerifyPasswordResetOtpCommand,
+  IVerifyPasswordResetOtpResult
+> {}
+
+export const IVerifyPasswordResetOtpUseCase = Symbol(
+  'IVerifyPasswordResetOtpUseCase',
 );
 
 export interface IConfirmPasswordResetCommand extends IConfirmPasswordResetBodyDto {}

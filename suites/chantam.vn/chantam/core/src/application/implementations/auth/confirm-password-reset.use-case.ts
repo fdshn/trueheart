@@ -9,9 +9,13 @@ import {
   IUserSessionRepository,
 } from '@/domain/ports/repository';
 import { IOtpStore } from '@/domain/ports/security';
+import { IRedisClient } from '@/infrastructure/redis/redis.module';
+import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { IPasswordService, ITokenDenyList } from '@chantam/service.auth-lib';
 import { Inject, Injectable } from '@nestjs/common';
+import Redis from 'ioredis';
 import { PasswordResetPurpose } from './request-password-reset.use-case';
+import { PasswordResetTokenPrefix } from './verify-password-reset-otp.use-case';
 
 @Injectable()
 export class ConfirmPasswordResetUseCase implements IConfirmPasswordResetUseCase {
@@ -26,27 +30,45 @@ export class ConfirmPasswordResetUseCase implements IConfirmPasswordResetUseCase
     private readonly passwordService: IPasswordService,
     @Inject(ITokenDenyList)
     private readonly denyList: ITokenDenyList,
+    @Inject(IRedisClient)
+    private readonly redis: Redis,
   ) {}
 
   public async handle(
     command: IConfirmPasswordResetCommand,
   ): Promise<IConfirmPasswordResetResult> {
     const { reset } = command;
-    const user = await this.userRepository.findByIdentifier(
-      reset.identifier.trim(),
-    );
+    let user: IUserEntity | null = null;
 
-    // Không tìm thấy tài khoản cũng ném đúng lỗi như mã sai — không tiết lộ
-    // tài khoản nào có thật.
-    if (!user) throw new OtpInvalidException();
+    if (reset.resetToken?.trim()) {
+      const key = `${PasswordResetTokenPrefix}${reset.resetToken.trim()}`;
+      const userId = await this.redis.get(key);
+      if (!userId) throw new OtpInvalidException();
 
-    const valid = await this.otpStore.verify(
-      PasswordResetPurpose,
-      user.globalId,
-      reset.otp,
-    );
+      // Dùng 1 lần: xoá ngay khỏi Redis
+      await this.redis.del(key);
 
-    if (!valid) throw new OtpInvalidException();
+      user = await this.userRepository.findOneBy({ globalId: userId });
+      if (!user) throw new OtpInvalidException();
+    } else if (reset.identifier?.trim() && reset.otp?.trim()) {
+      user = await this.userRepository.findByIdentifier(
+        reset.identifier.trim(),
+      );
+
+      // Không tìm thấy tài khoản cũng ném đúng lỗi như mã sai — không tiết lộ
+      // tài khoản nào có thật.
+      if (!user) throw new OtpInvalidException();
+
+      const valid = await this.otpStore.verify(
+        PasswordResetPurpose,
+        user.globalId,
+        reset.otp.trim(),
+      );
+
+      if (!valid) throw new OtpInvalidException();
+    } else {
+      throw new OtpInvalidException();
+    }
 
     const resetAt = new Date();
 

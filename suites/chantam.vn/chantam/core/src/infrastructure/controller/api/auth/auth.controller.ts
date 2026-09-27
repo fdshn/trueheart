@@ -7,6 +7,7 @@ import {
   IRefreshSessionUseCase,
   IRegisterUserUseCase,
   IRequestPasswordResetUseCase,
+  IVerifyPasswordResetOtpUseCase,
 } from '@/application/contracts/auth';
 import {
   InvalidCredentialsException,
@@ -30,6 +31,7 @@ import {
   IRefreshSessionResponseDto,
   IRegisterResponseDto,
   IRequestPasswordResetResponseDto,
+  IVerifyPasswordResetOtpResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import {
   ApiTokenErrors,
@@ -77,6 +79,8 @@ import {
   RegisterResponseDto,
   RequestPasswordResetBodyDto,
   RequestPasswordResetResponseDto,
+  VerifyPasswordResetOtpBodyDto,
+  VerifyPasswordResetOtpResponseDto,
 } from '../../dto/auth';
 
 @ApiTags('Xác thực')
@@ -93,6 +97,8 @@ export class AuthController {
     private readonly logoutUserUseCase: ILogoutUserUseCase,
     @Inject(IRequestPasswordResetUseCase)
     private readonly requestPasswordResetUseCase: IRequestPasswordResetUseCase,
+    @Inject(IVerifyPasswordResetOtpUseCase)
+    private readonly verifyPasswordResetOtpUseCase: IVerifyPasswordResetOtpUseCase,
     @Inject(IConfirmPasswordResetUseCase)
     private readonly confirmPasswordResetUseCase: IConfirmPasswordResetUseCase,
     @Inject(IChangePasswordUseCase)
@@ -249,6 +255,32 @@ export class AuthController {
     const result = await this.requestPasswordResetUseCase.handle({ ...body });
 
     return ResponseDto.create<IRequestPasswordResetResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Public()
+  @Post('password-reset/verify-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Xác thực mã OTP đặt lại mật khẩu',
+    description:
+      'Xác thực mã OTP và trả về resetToken dùng để đặt mật khẩu mới ở bước tiếp theo.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(VerifyPasswordResetOtpResponseDto),
+  })
+  @ApiErrorResponses(
+    [ValidationFailedException, ['reset.otp: otp phải là 6 chữ số']],
+    OtpInvalidException,
+  )
+  public async verifyPasswordResetOtp(
+    @Body() body: VerifyPasswordResetOtpBodyDto,
+  ): Promise<ResponseDto<IVerifyPasswordResetOtpResponseDto>> {
+    const result = await this.verifyPasswordResetOtpUseCase.handle({ ...body });
+
+    return ResponseDto.create<IVerifyPasswordResetOtpResponseDto>()
       .succeed()
       .attach(result)
       .build();
