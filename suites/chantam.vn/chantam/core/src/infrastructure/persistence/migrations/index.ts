@@ -64,3 +64,4 @@ export * from './1794400000000-AddPostSearchIndex';
 export * from './1794500000000-EnableInteractionPointRules';
 export * from './1794500000000-SeedContentViolationPenaltyRule';
 export * from './1794600000000-DropPostLikeCount';
+export * from './1794700000000-SeedDiscoveryRadiusEntitlement';

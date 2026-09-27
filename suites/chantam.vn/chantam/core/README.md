@@ -149,6 +149,11 @@ Không cần JWT để guest khám phá dữ liệu public. Gói API dùng chung
 | Bộ lọc danh mục | `GET /api/v1/categories` | Chỉ cây danh mục active. |
 | Policy client | `GET /api/v1/discovery/config` | Radius tối thiểu 100m; trần lấy từ `discovery.max_radius_meters` (hiện 5,000m), page mặc định 20/tối đa 50. |
 
+Khách bị giới hạn bởi `discovery.max_radius_meters`. Người đã đăng nhập dùng
+capability `DISCOVERY_RADIUS` theo hạng (baseline 5/10/20/30/50km); giá trị này
+được trả cùng các quyền khác ở `GET /api/v1/me/entitlements`. Bán kính này độc
+lập với bán kính hoạt động của Group.
+
 Ví dụ quét item WANTED quanh vị trí hiện tại:
 
 ```bash

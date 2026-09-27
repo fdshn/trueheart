@@ -2,6 +2,7 @@ import { DiscoveryOriginUnavailableException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
   IContentReactionRepository,
+  IEntitlementRepository,
   IGiftRequestRepository,
   IPostMediaRepository,
   IPostRepository,
@@ -100,6 +101,19 @@ function makeAdminConfig(maxRadiusMeters = 5_000) {
   };
 }
 
+function makeEntitlements(limit = 10_000) {
+  return {
+    getCapability: jest.fn().mockResolvedValue({
+      code: 'DISCOVERY_RADIUS',
+      allowed: true,
+      limit,
+      used: 0,
+      remaining: limit,
+      reasonCode: null,
+    }),
+  } as unknown as jest.Mocked<IEntitlementRepository>;
+}
+
 /**
  * Người dùng CÓ Vị trí mặc định, để phân biệt hai nhánh của F26: khi client
  * gửi toạ độ thì tuyệt đối không được đọc tới hồ sơ.
@@ -150,6 +164,7 @@ describe('GetNearbyPostsUseCase', () => {
       {} as never,
       makeConfig(),
       makeAdminConfig(5_000) as never,
+      makeEntitlements(),
     );
 
     await expect(
@@ -161,6 +176,35 @@ describe('GetNearbyPostsUseCase', () => {
         pageSize: 20,
       }),
     ).rejects.toBeInstanceOf(ValidationFailedException);
+  });
+
+  it('chặn người dùng đăng nhập quét vượt hạn mức theo hạng', async () => {
+    const entitlements = makeEntitlements(10_000);
+    const useCase = new GetNearbyPostsUseCase(
+      {} as never,
+      {} as never,
+      {} as never,
+      makeUsers(),
+      {} as never,
+      makeConfig(),
+      makeAdminConfig() as never,
+      entitlements,
+    );
+
+    await expect(
+      useCase.handle({
+        lat: ExactLocation.lat,
+        lng: ExactLocation.lng,
+        radiusMeters: 10_001,
+        page: 1,
+        pageSize: 20,
+        currentUserId: '99999999-9999-9999-9999-999999999999',
+      }),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+    expect(entitlements.getCapability).toHaveBeenCalledWith(
+      '99999999-9999-9999-9999-999999999999',
+      'DISCOVERY_RADIUS',
+    );
   });
 
   it('forwards requested type and pagination then returns privacy-safe nearby posts with request counts and status', async () => {

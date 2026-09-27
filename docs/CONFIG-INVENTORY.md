@@ -183,11 +183,11 @@ API: `GET|POST /admin/ranks/policy` (ngưỡng, cảnh báo) và
 
 | Capability | Viewer | Thành viên | Bạc | Vàng | Kim Cương |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `POST_OFFER` (quota bài tặng) | 0 | 3 | 10 | 20 | 50 |
-| `POST_WANTED` | 0 | 3 | 10 | 20 | 50 |
+| `POST_OPEN` (quota mọi bài đang mở) | 0 | 3 | 10 | 20 | 50 |
 | `POST_SOS` | ✗ | ✗ | ✓ | ✓ | ✓ |
 | `CREATE_GROUP` | ✗ | ✗ | ✗ | ✗ | ✓ | (⚠️ `limit` rỗng nên bán kính rơi về 10km mặc định) |
 | `OPEN_REQUEST_QUOTA` (yêu cầu đang mở) | 0 | 5 | 10 | 20 | 30 |
+| `DISCOVERY_RADIUS` (bán kính quét bài, mét) | 5 000 | 10 000 | 20 000 | 30 000 | 50 000 |
 
 > ⚠️ **Toàn bộ con số này là baseline giả định, chờ Bên A xác nhận.**
 >
@@ -253,6 +253,7 @@ quyền trên *mọi* nhóm. Phép kiểm luôn mang `groupId`.
 | Cap ngày | 5 giao dịch tính điểm · 3 mời |
 | Cap báo xấu | Tài liệu nói 10/ngày, rule đang **5** — **hai con số lệch nhau** |
 | Bán kính Group | 10km, chỉnh 1–50km. ⚠️ **Đang luôn rơi về 10km**: mã đọc `limit` của capability `CREATE_GROUP`, nhưng capability đó seed kiểu BOOLEAN nên `limit` rỗng. Cần chốt bán kính khác nhau theo hạng hay chung một con số rồi seed lại |
+| Bán kính quét bài cá nhân | Viewer 5km · Thành viên 10km · Bạc 20km · Vàng 30km · Kim Cương 50km qua `DISCOVERY_RADIUS`; độc lập với Group |
 | Onboarding cho 224đ = lên thẳng Thành viên | Đúng ý chưa? |
 
 ### 3.3 Chưa có nút xoay nhưng nên có

@@ -5,6 +5,7 @@ import {
 } from '@/application/contracts/post';
 import {
   DiscoveryMaxRadiusConfigKey,
+  DiscoveryRadiusCapabilityCode,
   normalizeGuestMaxRadiusMeters,
 } from '@/domain/consts';
 import { DiscoveryOriginUnavailableException } from '@/domain/exceptions';
@@ -12,6 +13,7 @@ import { IConfig } from '@/domain/ports/config';
 import {
   IAdminConfigRepository,
   IContentReactionRepository,
+  IEntitlementRepository,
   IGiftRequestRepository,
   IPostMediaRepository,
   IPostRepository,
@@ -30,7 +32,7 @@ import {
   applyGeoJitter,
   bucketDistance,
 } from '@chantam/service.persistency-lib/geo';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 
 @Injectable()
 export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
@@ -48,7 +50,34 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
     @Inject(IConfig) private readonly config: IConfig,
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
+    @Inject(IEntitlementRepository)
+    @Optional()
+    private readonly entitlements?: IEntitlementRepository,
   ) {}
+
+  private async resolveMaxRadiusMeters(userId?: string): Promise<number> {
+    const guestMax = normalizeGuestMaxRadiusMeters(
+      await this.adminConfig.getConfigValue(DiscoveryMaxRadiusConfigKey),
+      { min: MinSearchRadiusMeters, max: MaxSearchRadiusMeters },
+    );
+    if (!userId || !this.entitlements) return guestMax;
+
+    const capability = await this.entitlements.getCapability(
+      userId,
+      DiscoveryRadiusCapabilityCode,
+    );
+    if (
+      !capability?.allowed ||
+      capability.limit === null ||
+      !Number.isFinite(capability.limit)
+    )
+      return guestMax;
+
+    return Math.min(
+      MaxSearchRadiusMeters,
+      Math.max(MinSearchRadiusMeters, capability.limit),
+    );
+  }
 
   /**
    * Chọn gốc toạ độ để quét (F26).
@@ -92,18 +121,13 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
   ): Promise<IGetNearbyPostsResult> {
     const { skip, take } = toSkipTake(command);
     const { origin, originSource } = await this.resolveOrigin(command);
-    if (
-      !command.currentUserId &&
-      origin &&
-      command.radiusMeters !== undefined
-    ) {
-      const maxRadiusMeters = normalizeGuestMaxRadiusMeters(
-        await this.adminConfig.getConfigValue(DiscoveryMaxRadiusConfigKey),
-        { min: MinSearchRadiusMeters, max: MaxSearchRadiusMeters },
+    if (origin && command.radiusMeters !== undefined) {
+      const maxRadiusMeters = await this.resolveMaxRadiusMeters(
+        command.currentUserId,
       );
       if (command.radiusMeters > maxRadiusMeters)
         throw new ValidationFailedException([
-          `radiusMeters không được lớn hơn ${maxRadiusMeters} với khách chưa đăng nhập`,
+          `radiusMeters không được lớn hơn hạn mức ${maxRadiusMeters}`,
         ]);
     }
     const { items, total } = await this.postRepository.findNearbyPosts({

@@ -476,6 +476,8 @@ Mười khoá seed sẵn:
 Cùng ràng buộc `EXCLUDE` như trên, nhưng khoá theo `scope`.
 
 Seed: bundle `M6_BASE_POLICY` v1 với một revision `scope = 'ENTITLEMENT'`.
+Migration sau đó bổ sung `DISCOVERY_RADIUS` vào revision đang hiệu lực và giữ
+nguyên các revision lịch sử.
 
 ### `capability_policies` / `capability_rank_values`
 
@@ -496,6 +498,7 @@ Sáu capability seed sẵn, giá trị theo rank:
 | `POST_SOS` | ✗ | ✗ | ✓ | ✓ | ✓ |
 | `CREATE_GROUP` | ✗ | ✗ | ✗ | ✗ | ✓ |
 | `SUBMIT_CHARITY_PROPOSAL` | ✗ | ✗ | ✗ | ✗ | ✓ |
+| `DISCOVERY_RADIUS` (mét) | 5 000 | 10 000 | 20 000 | 30 000 | 50 000 |
 
 Số = `limit_value` (hạn mức), `✓` = cho phép không giới hạn (`limit_value` NULL),
 `✗` = `allowed = false`.
