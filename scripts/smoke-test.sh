@@ -175,7 +175,7 @@ else
     '/api/v1/auth/account' \
     '/api/v1/points/me' '/api/v1/points/me/ledger' '/api/v1/ranks/me' \
     '/api/v1/referrals/me' '/api/v1/me/entitlements' \
-    '/api/v1/transactions' '/api/v1/transactions/me' \
+    '/api/v1/transactions/me' \
     '/api/v1/categories' \
     '/api/v1/posts' '/api/v1/posts/me' '/api/v1/posts/nearby' \
     '/api/v1/posts/{postId}' '/api/v1/posts/{postId}/matches' \

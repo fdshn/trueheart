@@ -119,8 +119,14 @@ export interface ICloseGiftTransactionResult {
 export interface IGiftTransactionRepository {
   findByGlobalId(globalId: string): Promise<IGiftTransactionSummary | null>;
   listForUser(userId: string): Promise<IGiftTransactionSummary[]>;
-  /** Người nhận xin một suất. Bài phải đang PUBLISHED và còn hàng. */
-  request(params: IRequestGiftParams): Promise<IGiftTransactionSummary>;
+  /**
+   * Duyệt một lượt đang ở `REQUESTED`.
+   *
+   * KHÔNG còn đường nào tạo ra `REQUESTED` từ 28/09: `POST /transactions` đã gỡ
+   * vì nó tạo thẳng `gift_transactions` mà bỏ qua mọi cổng của luồng xin nhận —
+   * hồ sơ F07, trần `OPEN_REQUEST_QUOTA`, đồng hồ chọn người, và cả việc báo
+   * chủ bài. Giữ lại hàm này cho những dòng `REQUESTED` còn sót từ trước.
+   */
   /**
    * Người tặng duyệt một yêu cầu. Trừ tồn kho NGUYÊN TỬ trong cùng transaction
    * — đọc rồi ghi là hai người cùng duyệt sẽ vượt số lượng thật.
@@ -193,9 +199,18 @@ export interface IGiftTransactionRepository {
    * cần hàng đợi riêng. Nhưng con số `heldForDispute` PHẢI lộ ra: một lượt trao
    * treo vô thời hạn vì báo xấu không ai xử là chuyện người vận hành cần thấy.
    */
-  completeDueDeliveries(
-    olderThanDays: number,
-  ): Promise<{ completed: number; heldForDispute: number }>;
+  completeDueDeliveries(olderThanDays: number): Promise<{
+    completed: number;
+    heldForDispute: number;
+    /**
+     * Chính những lượt vừa được đóng.
+     *
+     * Con số không đủ cho nơi gọi: hai bên phải được BÁO. Ở đường này họ không
+     * bấm gì cả, nên thông báo là cách duy nhất họ biết lượt trao đã khép và
+     * lịch sử trò chuyện sắp bị xoá.
+     */
+    completedTransactions: IGiftTransactionSummary[];
+  }>;
   /** Số lượt tặng đã hoàn tất của một người tặng, dùng cho rank. */
   countCompletedByGiver(
     giverId: string,

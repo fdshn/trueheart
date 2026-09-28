@@ -111,13 +111,24 @@ async function main(): Promise<void> {
         shipPayer,
       ],
     );
-    await transactions.request({
-      globalId: transactionId,
-      postId,
-      receiverId: ReceiverId,
-      quantity: 1,
-    });
-    await transactions.accept(transactionId, GiverId);
+    // Dựng thẳng bản ghi ở ACCEPTED, đúng hình dạng mà `acceptRequest` của
+    // luồng xin nhận ghi ra. Trước 28/09 chỗ này gọi `transactions.request()`
+    // rồi `.accept()` — cửa phụ đó đã gỡ vì nó tạo lượt trao mà bỏ qua mọi cổng
+    // của luồng xin nhận. Đây là FIXTURE, còn thứ script này kiểm là bàn giao và
+    // báo bom ship, không phải đường tạo ra lượt trao.
+    await dataSource.query(
+      `INSERT INTO gift_transactions
+         (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at)
+       VALUES ($1, $2, $3, $4, 1, 'ACCEPTED', now())`,
+      [transactionId, postId, GiverId, ReceiverId],
+    );
+    // `acceptRequest` trừ kho trong cùng transaction; giữ cho fixture khớp,
+    // nếu không `syncPostStatus` sẽ thấy bài còn hàng và tính sai trạng thái.
+    await dataSource.query(
+      `UPDATE posts SET remaining_quantity = GREATEST(0, remaining_quantity - 1)
+       WHERE global_id = $1`,
+      [postId],
+    );
     return transactionId;
   }
 

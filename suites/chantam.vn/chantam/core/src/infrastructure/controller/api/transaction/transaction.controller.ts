@@ -1,20 +1,17 @@
 import {
-  IAcceptGiftRequestUseCase,
   ICancelGiftTransactionUseCase,
   IConfirmGiftReceiptUseCase,
+  IGetGiftTransactionUseCase,
   IListOwnGiftTransactionsUseCase,
   IMarkGiftHandedOverUseCase,
   IReportShipUnpaidUseCase,
   IRequestGiftEvidenceUploadUseCase,
-  IRequestGiftUseCase,
 } from '@/application/contracts/transaction';
 import {
   GiftHandoverEvidenceRequiredException,
-  GiftTransactionDuplicateRequestException,
   GiftTransactionInvalidStateException,
   GiftTransactionNotFoundException,
   GiftTransactionNotParticipantException,
-  GiftTransactionOutOfStockException,
   ShipPayerNotReceiverException,
 } from '@/domain/exceptions';
 import {
@@ -43,7 +40,6 @@ import {
   ReportShipUnpaidBodyDto,
   ReportShipUnpaidParamsDto,
   ReportShipUnpaidResponseDto,
-  RequestGiftBodyDto,
   RequestGiftEvidenceUploadBodyDto,
   RequestGiftEvidenceUploadResponseDto,
 } from '../../dto/transaction';
@@ -59,10 +55,8 @@ const ParticipantErrors: ApiErrorSpec[] = [
 @Controller('transactions')
 export class TransactionController {
   public constructor(
-    @Inject(IRequestGiftUseCase)
-    private readonly requestGiftUseCase: IRequestGiftUseCase,
-    @Inject(IAcceptGiftRequestUseCase)
-    private readonly acceptGiftRequestUseCase: IAcceptGiftRequestUseCase,
+    @Inject(IGetGiftTransactionUseCase)
+    private readonly getGiftTransactionUseCase: IGetGiftTransactionUseCase,
     @Inject(IConfirmGiftReceiptUseCase)
     private readonly confirmGiftReceiptUseCase: IConfirmGiftReceiptUseCase,
     @Inject(IReportShipUnpaidUseCase)
@@ -98,56 +92,25 @@ export class TransactionController {
       .build();
   }
 
-  @Post()
+  // Khai SAU `me`: `me` là chuỗi cố định, còn `:transactionId` nuốt mọi thứ.
+  // Đảo thứ tự thì `/transactions/me` rơi vào route dưới và trả 404 vì "me"
+  // không phải uuid.
+  @Get(':transactionId')
   @ApiOperation({
-    summary: 'Xin một suất từ bài đăng',
+    summary: 'Xem một lượt trao',
     description:
-      'Người nhận luôn là chủ token; không nhận receiverId từ body. Mỗi người chỉ có một yêu cầu đang mở trên một bài.',
-  })
-  @ApiCreatedResponse({
-    type: ResponseDto.forApi(GiftTransactionResponseDto),
-  })
-  @ApiErrorResponses(
-    ...ApiTokenErrors,
-    [GiftTransactionNotFoundException],
-    [GiftTransactionNotParticipantException],
-    [GiftTransactionInvalidStateException, 'EXPIRED'],
-    [GiftTransactionOutOfStockException],
-    [GiftTransactionDuplicateRequestException],
-  )
-  public async requestGift(
-    @CurrentUser() principal: IAuthPrincipal,
-    @Body() body: RequestGiftBodyDto,
-  ) {
-    return ResponseDto.create()
-      .succeed()
-      .attach(
-        await this.requestGiftUseCase.handle({
-          userId: principal.userId,
-          giftRequest: body.giftRequest,
-        }),
-      )
-      .build();
-  }
-
-  @Post(':transactionId/accept')
-  @ApiOperation({
-    summary: 'Người tặng duyệt một yêu cầu',
-    description:
-      'Trừ số lượng còn lại của bài ngay trong cùng transaction, nên hai lượt duyệt song song không thể vượt tồn kho.',
+      'Chỉ hai bên trong cuộc. Người ngoài nhận 404 chứ không phải 403 — 403 xác nhận rằng lượt trao đó có thật, và id đoán được thì đó là một kênh dò. Trước 28/09 chỉ có `/transactions/me`, trong khi mọi thông báo của luồng này mang `referenceType: GIFT_TRANSACTION` kèm `referenceId` — tức bấm vào thông báo thì không có đường nào mở đúng lượt đó.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(GiftTransactionResponseDto) })
-  @ApiErrorResponses(...ApiTokenErrors, ...ParticipantErrors, [
-    GiftTransactionOutOfStockException,
-  ])
-  public async acceptGiftRequest(
+  @ApiErrorResponses(...ApiTokenErrors, [GiftTransactionNotFoundException])
+  public async getTransaction(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: GiftTransactionParamsDto,
   ) {
     return ResponseDto.create()
       .succeed()
       .attach(
-        await this.acceptGiftRequestUseCase.handle({
+        await this.getGiftTransactionUseCase.handle({
           userId: principal.userId,
           transactionId: params.transactionId,
         }),

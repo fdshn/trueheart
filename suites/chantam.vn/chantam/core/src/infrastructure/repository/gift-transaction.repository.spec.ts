@@ -166,12 +166,17 @@ describe('GiftTransactionRepository auto-complete', () => {
     const query = jest
       .fn()
       .mockResolvedValueOnce([{ global_id: TransactionId }])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce([])
+      // Lần đọc cuối: bản ghi đầy đủ của những lượt vừa đóng, để nơi gọi còn
+      // BÁO cho hai bên. Con số không đủ — ở đường tự hoàn tất người dùng không
+      // bấm gì cả, nên thông báo là cách duy nhất họ biết.
+      .mockResolvedValue([]);
     const repository = makeRepository(query);
 
     await expect(repository.completeDueDeliveries(5)).resolves.toEqual({
       completed: 1,
       heldForDispute: 0,
+      completedTransactions: [],
     });
 
     const [sql, params] = query.mock.calls[0];
@@ -207,6 +212,8 @@ describe('GiftTransactionRepository auto-complete', () => {
     await expect(repository.completeDueDeliveries(5)).resolves.toEqual({
       completed: 0,
       heldForDispute: 1,
+      // Không đóng lượt nào thì cũng không báo cho ai.
+      completedTransactions: [],
     });
 
     // Không có câu UPDATE nào chạy: lượt duy nhất đủ hạn đang bị giữ.

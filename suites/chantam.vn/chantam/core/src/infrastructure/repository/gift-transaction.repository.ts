@@ -1,5 +1,4 @@
 import {
-  GiftTransactionDuplicateRequestException,
   GiftTransactionInvalidStateException,
   GiftTransactionNotFoundException,
   GiftTransactionNotParticipantException,
@@ -18,7 +17,6 @@ import {
   IGiftTransactionSummary,
   IPointLedgerRepository,
   IReopenedQueue,
-  IRequestGiftParams,
   StockHoldingGiftTransactionStatuses,
 } from '@/domain/ports/repository';
 import {
@@ -156,56 +154,6 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     );
 
     return rows.map(toSummary);
-  }
-
-  public async request(
-    params: IRequestGiftParams,
-  ): Promise<IGiftTransactionSummary> {
-    return this.manager.transaction(async (manager) => {
-      // Tác giả bài là người tặng; lấy từ bài chứ không nhận từ client.
-      const [post] = await manager.query<
-        { author_id: string; status: string; remaining_quantity: number }[]
-      >(
-        `
-          SELECT author_id, status, remaining_quantity
-          FROM posts
-          WHERE global_id = $1 AND deleted_at IS NULL
-        `,
-        [params.postId],
-      );
-
-      if (!post) throw new GiftTransactionNotFoundException();
-      if (post.status !== 'PUBLISHED')
-        throw new GiftTransactionInvalidStateException(post.status);
-      if (Number(post.remaining_quantity) < params.quantity)
-        throw new GiftTransactionOutOfStockException();
-      // Xin đồ của chính mình là đường farm hoạt động rẻ nhất.
-      if (post.author_id === params.receiverId)
-        throw new GiftTransactionNotParticipantException();
-
-      const inserted = await manager.query<ITransactionRow[]>(
-        `
-          INSERT INTO gift_transactions
-            (global_id, post_id, giver_id, receiver_id, quantity)
-          VALUES ($1, $2, $3, $4, $5)
-          ON CONFLICT DO NOTHING
-          RETURNING ${SelectColumns}
-        `,
-        [
-          params.globalId,
-          params.postId,
-          post.author_id,
-          params.receiverId,
-          params.quantity,
-        ],
-      );
-
-      // Trùng với index một-yêu-cầu-đang-mở, không phải lỗi hệ thống.
-      if (inserted.length === 0)
-        throw new GiftTransactionDuplicateRequestException();
-
-      return toSummary(inserted[0]);
-    });
   }
 
   /**
@@ -697,9 +645,11 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     return Number(row.total);
   }
 
-  public async completeDueDeliveries(
-    olderThanDays: number,
-  ): Promise<{ completed: number; heldForDispute: number }> {
+  public async completeDueDeliveries(olderThanDays: number): Promise<{
+    completed: number;
+    heldForDispute: number;
+    completedTransactions: IGiftTransactionSummary[];
+  }> {
     return this.manager.transaction(async (manager) => {
       // SKIP LOCKED để hai lần chạy song song không tranh cùng một lượt.
       const due = await manager.query<
@@ -725,7 +675,8 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         [olderThanDays],
       );
 
-      if (due.length === 0) return { completed: 0, heldForDispute: 0 };
+      if (due.length === 0)
+        return { completed: 0, heldForDispute: 0, completedTransactions: [] };
 
       // Giữ lại lượt đang có tranh chấp. Hai kênh, và cố ý CHỈ hai kênh này:
       //
@@ -757,7 +708,11 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
       const closable = due.filter((row) => !heldIds.has(row.global_id));
 
       if (closable.length === 0)
-        return { completed: 0, heldForDispute: heldIds.size };
+        return {
+          completed: 0,
+          heldForDispute: heldIds.size,
+          completedTransactions: [],
+        };
 
       await manager.query(
         `
@@ -780,7 +735,19 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         await this.awardCompletionPoints(manager, row);
       }
 
-      return { completed: closable.length, heldForDispute: heldIds.size };
+      // Đọc lại SAU khi ghi: nơi gọi cần bản ghi đầy đủ để báo cho hai bên, và
+      // `completed_at` chỉ có giá trị sau câu UPDATE ở trên. Đọc trước là gửi
+      // thông báo mô tả một trạng thái chưa xảy ra.
+      const closedRows = await manager.query<ITransactionRow[]>(
+        `SELECT ${SelectColumns} FROM gift_transactions WHERE global_id = ANY($1::uuid[])`,
+        [closable.map((row) => row.global_id)],
+      );
+
+      return {
+        completed: closable.length,
+        heldForDispute: heldIds.size,
+        completedTransactions: closedRows.map(toSummary),
+      };
     });
   }
 

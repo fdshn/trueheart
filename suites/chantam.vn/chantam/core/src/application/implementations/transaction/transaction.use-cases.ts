@@ -1,9 +1,6 @@
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import {
   AutoCompleteAfterDays,
-  IAcceptGiftRequestCommand,
-  IAcceptGiftRequestResult,
-  IAcceptGiftRequestUseCase,
   ICancelGiftTransactionCommand,
   ICancelGiftTransactionResult,
   ICancelGiftTransactionUseCase,
@@ -13,13 +10,14 @@ import {
   IConfirmGiftReceiptCommand,
   IConfirmGiftReceiptResult,
   IConfirmGiftReceiptUseCase,
+  IGetGiftTransactionCommand,
+  IGetGiftTransactionResult,
+  IGetGiftTransactionUseCase,
   IListOwnGiftTransactionsCommand,
   IListOwnGiftTransactionsResult,
   IListOwnGiftTransactionsUseCase,
-  IRequestGiftCommand,
-  IRequestGiftResult,
-  IRequestGiftUseCase,
 } from '@/application/contracts/transaction';
+import { GiftTransactionNotFoundException } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
   IChatRepository,
@@ -33,8 +31,7 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IGiftTransactionDto } from '@chantam.vn/chantam.core-lib/dto';
 import { pickNextCandidate } from '@chantam.vn/chantam.core-lib/models';
-import { makeGlobalId } from '@chantam/service.common-lib/utils';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 /**
  * Báo cho cả hai bên ngày phòng chat sẽ bị xoá.
@@ -69,6 +66,50 @@ async function notifyChatPurgeSchedule(
     });
 }
 
+/**
+ * Báo cho CẢ HAI bên rằng lượt trao đã hoàn tất.
+ *
+ * Mẫu `GIFT_TRANSACTION_COMPLETED` có từ migration `1792900000000` nhưng cho
+ * tới 28/09 là mẫu DUY NHẤT trong migration đó chưa đường nào gửi — bảy mẫu còn
+ * lại đều đã nối. Nghĩa là khoảnh khắc trọng tâm của cả sản phẩm, món đồ đến
+ * tay người cần, không ai được báo.
+ *
+ * Gửi cho cả hai vì mỗi bên biết một nửa: người nhận vừa bấm xác nhận nên họ
+ * biết, nhưng người tặng thì không — trừ khi tự mở app ra xem. Ở đường tự hoàn
+ * tất thì KHÔNG bên nào biết.
+ *
+ * Không bao giờ ném: món đồ đã đến tay là một sự thật đã ghi, còn thông báo chỉ
+ * là tiện ích. Ném ở đây khiến người nhận tưởng xác nhận thất bại và bấm lại.
+ */
+async function notifyTransactionCompleted(
+  logger: Logger,
+  dispatch: IDispatchNotificationUseCase,
+  transaction: IGiftTransactionSummary,
+  automatic: boolean,
+): Promise<void> {
+  for (const userId of [transaction.giverId, transaction.receiverId])
+    try {
+      await dispatch.handle({
+        userId,
+        type: NotificationTypes.GIFT_TRANSACTION_COMPLETED,
+        title: 'Lượt trao đã hoàn tất',
+        body: automatic
+          ? 'Quá thời hạn xác nhận nên hệ thống đã khép lượt trao này. Nếu có gì chưa đúng, hãy báo cho quản trị viên.'
+          : 'Người nhận đã xác nhận nhận được vật phẩm. Cảm ơn bạn.',
+        referenceType: 'GIFT_TRANSACTION',
+        referenceId: transaction.globalId,
+        // Khoá theo LƯỢT TRAO và NGƯỜI: một lượt chỉ hoàn tất một lần, và hai
+        // đường dẫn tới đây (xác nhận tay, tự hoàn tất) loại trừ nhau.
+        idempotencyKey: `GIFT_TRANSACTION_COMPLETED:${transaction.globalId}:${userId}`,
+        variables: { automatic: automatic ? 'true' : 'false' },
+      });
+    } catch (error) {
+      logger.warn(
+        `Không báo được lượt trao hoàn tất cho ${userId}: ${String(error)}`,
+      );
+    }
+}
+
 function toDto(summary: IGiftTransactionSummary): IGiftTransactionDto {
   return {
     transactionId: summary.globalId,
@@ -84,54 +125,45 @@ function toDto(summary: IGiftTransactionSummary): IGiftTransactionDto {
   };
 }
 
+/**
+ * Xem một lượt trao, chỉ hai bên trong cuộc.
+ *
+ * Trước 28/09 chỉ có `/transactions/me`. Trong khi mọi thông báo của luồng này
+ * mang `referenceType: 'GIFT_TRANSACTION'` kèm `referenceId` — tức client bấm
+ * vào thông báo thì không có đường nào mở đúng lượt đó, phải tải cả danh sách
+ * rồi tự lọc.
+ */
 @Injectable()
-export class RequestGiftUseCase implements IRequestGiftUseCase {
+export class GetGiftTransactionUseCase implements IGetGiftTransactionUseCase {
   public constructor(
     @Inject(IGiftTransactionRepository)
     private readonly transactions: IGiftTransactionRepository,
   ) {}
 
   public async handle(
-    command: IRequestGiftCommand,
-  ): Promise<IRequestGiftResult> {
-    const { giftRequest } = command;
+    command: IGetGiftTransactionCommand,
+  ): Promise<IGetGiftTransactionResult> {
+    const transaction = await this.transactions.findByGlobalId(
+      command.transactionId,
+    );
 
-    return {
-      transaction: toDto(
-        await this.transactions.request({
-          globalId: makeGlobalId(
-            `/transactions/${giftRequest.postId}/${command.userId}/${new Date().toISOString()}`,
-          ),
-          postId: giftRequest.postId,
-          // Người nhận luôn là chủ token. Nhận từ body là cho phép xin hộ.
-          receiverId: command.userId,
-          quantity: giftRequest.quantity ?? 1,
-        }),
-      ),
-    };
-  }
-}
+    // Người ngoài cuộc nhận 404 chứ không phải 403: 403 xác nhận rằng lượt trao
+    // đó CÓ THẬT, và id đoán được thì đó là một kênh dò.
+    if (
+      !transaction ||
+      (transaction.giverId !== command.userId &&
+        transaction.receiverId !== command.userId)
+    )
+      throw new GiftTransactionNotFoundException();
 
-@Injectable()
-export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
-  public constructor(
-    @Inject(IGiftTransactionRepository)
-    private readonly transactions: IGiftTransactionRepository,
-  ) {}
-
-  public async handle(
-    command: IAcceptGiftRequestCommand,
-  ): Promise<IAcceptGiftRequestResult> {
-    return {
-      transaction: toDto(
-        await this.transactions.accept(command.transactionId, command.userId),
-      ),
-    };
+    return { transaction: toDto(transaction) };
   }
 }
 
 @Injectable()
 export class ConfirmGiftReceiptUseCase implements IConfirmGiftReceiptUseCase {
+  private readonly logger = new Logger(ConfirmGiftReceiptUseCase.name);
+
   public constructor(
     @Inject(IGiftTransactionRepository)
     private readonly transactions: IGiftTransactionRepository,
@@ -149,8 +181,17 @@ export class ConfirmGiftReceiptUseCase implements IConfirmGiftReceiptUseCase {
       command.evidenceKeys ?? [],
     );
 
-    // Sau khi commit. Xác nhận xong là phòng chat khoá và đồng hồ xoá bắt đầu chạy
-    // — hai bên cần biết để còn lưu lại địa chỉ hay số điện thoại đã hẹn.
+    // Sau khi commit. Hai thông báo, hai chuyện khác nhau: một cái nói lượt trao
+    // đã xong, một cái nói lịch sử trò chuyện sắp bị xoá.
+    await notifyTransactionCompleted(
+      this.logger,
+      this.dispatchNotification,
+      transaction,
+      false,
+    );
+
+    // Xác nhận xong là phòng chat khoá và đồng hồ xoá bắt đầu chạy — hai bên
+    // cần biết để còn lưu lại địa chỉ hay số điện thoại đã hẹn.
     await notifyChatPurgeSchedule(
       this.chat,
       this.dispatchNotification,
@@ -265,9 +306,14 @@ export class ListOwnGiftTransactionsUseCase implements IListOwnGiftTransactionsU
 
 @Injectable()
 export class CompleteDueGiftDeliveriesUseCase implements ICompleteDueGiftDeliveriesUseCase {
+  private readonly logger = new Logger(CompleteDueGiftDeliveriesUseCase.name);
+
   public constructor(
     @Inject(IGiftTransactionRepository)
     private readonly transactions: IGiftTransactionRepository,
+    @Inject(IChatRepository) private readonly chat: IChatRepository,
+    @Inject(IDispatchNotificationUseCase)
+    private readonly dispatchNotification: IDispatchNotificationUseCase,
   ) {}
 
   public async handle(
@@ -276,6 +322,34 @@ export class CompleteDueGiftDeliveriesUseCase implements ICompleteDueGiftDeliver
     const outcome = await this.transactions.completeDueDeliveries(
       command.olderThanDays ?? AutoCompleteAfterDays,
     );
+
+    // Đường này im lặng hoàn toàn cho tới 28/09: repository khoá phòng chat —
+    // có chú thích hẳn hoi — rồi dừng ở đó. Nên hai bên mất CẢ HAI thông báo mà
+    // `confirm` và `cancel` đều gửi, và ở đây thiếu chúng còn nặng hơn: người
+    // dùng không bấm gì cả, nên thông báo là cách duy nhất họ biết lượt trao đã
+    // khép và lịch sử trò chuyện sắp bị xoá.
+    //
+    // Một lượt báo hỏng không được chặn những lượt còn lại: `notifyTransactionCompleted`
+    // tự nuốt lỗi, còn lịch xoá chat thì bọc riêng ở đây.
+    for (const transaction of outcome.completedTransactions) {
+      await notifyTransactionCompleted(
+        this.logger,
+        this.dispatchNotification,
+        transaction,
+        true,
+      );
+      try {
+        await notifyChatPurgeSchedule(
+          this.chat,
+          this.dispatchNotification,
+          transaction,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Không báo được lịch xoá chat của lượt ${transaction.globalId}: ${String(error)}`,
+        );
+      }
+    }
 
     return {
       completedTransactions: outcome.completed,

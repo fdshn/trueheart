@@ -1,14 +1,14 @@
 import { AutoCompleteAfterDays } from '@/application/contracts/transaction';
+import { GiftTransactionNotFoundException } from '@/domain/exceptions';
 import { IGiftTransactionSummary } from '@/domain/ports/repository';
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
 import {
-  AcceptGiftRequestUseCase,
   CancelGiftTransactionUseCase,
   CompleteDueGiftDeliveriesUseCase,
   ConfirmGiftReceiptUseCase,
+  GetGiftTransactionUseCase,
   ListOwnGiftTransactionsUseCase,
-  RequestGiftUseCase,
 } from './transaction.use-cases';
 
 const UserId = '10000000-0000-4000-8000-000000000001';
@@ -130,54 +130,48 @@ function makeRepository() {
     completeDueDeliveries: jest.fn(async (_days: number) => ({
       completed: 3,
       heldForDispute: 0,
+      // Trả ra CHÍNH những lượt đã đóng: con số không đủ để báo cho ai.
+      completedTransactions: [Summary, Summary, Summary],
     })),
-    findByGlobalId: jest.fn(),
+    findByGlobalId: jest.fn(async () => Summary),
     countCompletedByGiver: jest.fn(),
   };
 }
 
 describe('Gift transaction use cases', () => {
-  it('xin quà dùng danh tính từ token, không nhận receiverId từ client', async () => {
+  it('xem chi tiết một lượt trao, chỉ hai bên trong cuộc', async () => {
     const repository = makeRepository();
-    const useCase = new RequestGiftUseCase(repository as never);
+    const useCase = new GetGiftTransactionUseCase(repository as never);
 
-    await useCase.handle({
-      userId: UserId,
-      giftRequest: { postId: PostId, quantity: 2 },
+    const result = await useCase.handle({
+      userId: Summary.giverId,
+      transactionId: TransactionId,
     });
 
-    expect(repository.request).toHaveBeenCalledWith(
-      expect.objectContaining({
-        postId: PostId,
-        receiverId: UserId,
-        quantity: 2,
+    expect(result.transaction.transactionId).toBe(TransactionId);
+  });
+
+  it('người ngoài cuộc nhận 404 chứ không phải 403', async () => {
+    // 403 xác nhận rằng lượt trao đó CÓ THẬT. Id đoán được thì đó là một kênh dò.
+    const repository = makeRepository();
+    const useCase = new GetGiftTransactionUseCase(repository as never);
+
+    await expect(
+      useCase.handle({
+        userId: '00000000-0000-4000-8000-000000000999',
+        transactionId: TransactionId,
       }),
-    );
+    ).rejects.toBeInstanceOf(GiftTransactionNotFoundException);
   });
 
-  it('sinh sẵn định danh cho lượt xin quà', async () => {
+  it('lượt trao không tồn tại cũng ra 404', async () => {
     const repository = makeRepository();
-    const useCase = new RequestGiftUseCase(repository as never);
+    repository.findByGlobalId = jest.fn(async () => null) as never;
+    const useCase = new GetGiftTransactionUseCase(repository as never);
 
-    await useCase.handle({ userId: UserId, giftRequest: { postId: PostId } });
-
-    const params = repository.request.mock.calls[0]?.[0] as unknown as {
-      globalId: string;
-      quantity: number;
-    };
-    expect(params.globalId).toEqual(expect.any(String));
-    expect(params.globalId.length).toBeGreaterThan(0);
-    // Không gửi số lượng thì mặc định xin một suất.
-    expect(params.quantity).toBe(1);
-  });
-
-  it('duyệt yêu cầu bằng danh tính người tặng từ token', async () => {
-    const repository = makeRepository();
-    const useCase = new AcceptGiftRequestUseCase(repository as never);
-
-    await useCase.handle({ userId: UserId, transactionId: TransactionId });
-
-    expect(repository.accept).toHaveBeenCalledWith(TransactionId, UserId);
+    await expect(
+      useCase.handle({ userId: UserId, transactionId: TransactionId }),
+    ).rejects.toBeInstanceOf(GiftTransactionNotFoundException);
   });
 
   it('xác nhận đã nhận bằng danh tính người nhận từ token', async () => {
@@ -349,7 +343,11 @@ describe('Gift transaction use cases', () => {
 
   it('tự hoàn tất dùng mốc 5 ngày của đặc tả khi không truyền tham số', async () => {
     const repository = makeRepository();
-    const useCase = new CompleteDueGiftDeliveriesUseCase(repository as never);
+    const useCase = new CompleteDueGiftDeliveriesUseCase(
+      repository as never,
+      makeChat() as never,
+      makeNotifier() as never,
+    );
 
     const result = await useCase.handle({});
 

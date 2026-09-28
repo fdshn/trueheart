@@ -630,8 +630,8 @@ Người đang `STANDBY` **rút được** yêu cầu, và **không** gửi lạ
   và Postgres huỷ một bên.
 - **Bài chỉ chuyển `DELIVERING` khi hết số lượng.** Còn hàng thì vẫn `PUBLISHED` để người
   khác tiếp tục xin; chỉ khi hết hàng mới từ chối hàng loạt các yêu cầu còn lại.
-- **Một lượt bàn giao chỉ trừ kho một lần.** Nếu người nhận đã có giao dịch được duyệt qua
-  `/transactions`, duyệt tiếp ở đây bị từ chối thay vì trừ kho lần nữa.
+- **Một lượt bàn giao chỉ trừ kho một lần.** Người nhận đã có lượt trao đang mở trên bài này thì
+  duyệt tiếp bị từ chối, thay vì trừ kho lần nữa.
 - `requestCount` hiển thị công khai **không đếm** yêu cầu đã rút, huỷ hoặc bị từ chối.
 
 ---
@@ -988,14 +988,16 @@ cho phép nâng cấp WebSocket trên cổng đang dùng.
 
 ## 10. Giao dịch tặng/nhận — `/transactions`
 
-Máy trạng thái: `REQUESTED → ACCEPTED → COMPLETED`, và có thể đóng sớm sang `CANCELLED` /
-`REJECTED`.
+Máy trạng thái: `ACCEPTED → DELIVERING → COMPLETED`, và có thể đóng sớm sang `CANCELLED`.
+
+Lượt trao **bắt đầu ở `ACCEPTED`**: duyệt một yêu cầu ở §5 chèn thẳng trạng thái đó. `REQUESTED`
+và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ cho dữ liệu cũ (xem
+[08-transaction §8.6](./diagram/08-transaction.md)).
 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
 | `GET` | `/transactions/me` | Bearer | Các lượt của chính mình, cả vai tặng lẫn vai nhận |
-| `POST` | `/transactions` | Bearer | Xin một suất từ bài đăng |
-| `POST` | `/transactions/:id/accept` | Bearer (người tặng) | Duyệt |
+| `GET` | `/transactions/:id` | Bearer (hai bên trong cuộc) | **Xem một lượt trao** — người ngoài nhận 404 |
 | `POST` | `/transactions/:id/confirm` | Bearer (người nhận) | Xác nhận đã nhận |
 | `POST` | `/transactions/:id/cancel` | Bearer (cả hai vai) | Huỷ |
 | `POST` | `/transactions/:id/evidence/upload-url` | Bearer (cả hai bên) | Xin đường tải ảnh bằng chứng |
@@ -1245,6 +1247,11 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
   kho và phòng chat phải dọn theo. Trước 28/09 `REJECTED` là trạng thái **chết**: khai trong
   enum, lọc ra khỏi bộ đếm, nhưng không đường nào ghi — nên chủ bài thấy một yêu cầu rõ ràng
   không ổn cũng không gạt ra được, và auto-select có thể trao đúng cho người đó khi hết đồng hồ.
+- ⚠️ **`POST /transactions` và `POST /transactions/:id/accept` đã GỠ** (28/09). Chúng tạo thẳng
+  `gift_transactions` mà không tạo `gift_requests`, nên đi vòng qua **mọi** cổng của luồng này:
+  hồ sơ F07, trần `OPEN_REQUEST_QUOTA`, đồng hồ chọn người, thông báo cho chủ bài, và hàng đợi
+  ứng viên. Đường duy nhất tạo ra một lượt trao nay là duyệt một yêu cầu. Gỡ được vì không client
+  nào dùng: lớp tương thích `/gift-posts`, smoke test và các script kiểm đều không gọi tới.
 - **Bốn thông báo của luồng này:** `GIFT_REQUEST_CREATED` (tới chủ bài), `GIFT_REQUEST_ACCEPTED`
   (tới người thắng), `GIFT_REQUEST_REJECTED` (chủ bài chủ động từ chối) và `GIFT_REQUEST_CLOSED`
   (bài đóng lại). Hai cái cuối tách nhau vì lý do khác hẳn: một bên có người từ chối họ, bên kia

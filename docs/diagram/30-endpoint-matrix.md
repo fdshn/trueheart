@@ -46,6 +46,7 @@ flowchart LR
 | `POST /posts/:postId/media/upload` · `/media` · `/media/order` · `DELETE /media/:id` | chủ bài | ✅ |
 | `GET /posts/:postId/matches` | token | ✅ |
 | `GET /requests/me` | token | ✅ yêu cầu của chính người gọi |
+| `GET /transactions/:id` | hai bên trong cuộc | ✅ người ngoài nhận 404 |
 | `POST /posts/:id/requests/:requestId/reject` | chủ bài | ✅ chỉ PENDING/STANDBY |
 | `POST /posts/:postId/charity-transfer` · `PATCH` | chủ bài / Admin | ✅ |
 | `POST|GET|PATCH|DELETE /gift-posts/*` | token | ✅ lớp tương thích |
