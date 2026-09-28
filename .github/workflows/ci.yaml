@@ -101,6 +101,12 @@ jobs:
       REDIS_URI: redis://localhost:6379
       JWT_SECRET: khoa-chi-dung-trong-ci-khong-phai-bi-mat-that-0123456789
       POST_OPERATOR_USERNAMES: demo-kiem-duyet
+      # Trần đăng ký theo IP có mặc định là 5/giờ, và nó đúng cho production:
+      # thứ cần chặn là một IP tạo hàng loạt tài khoản. Nhưng CI chạy MỌI thứ
+      # từ một IP duy nhất — chat-e2e tạo 3 tài khoản rồi smoke test tạo thêm 3,
+      # nên tài khoản thứ 6 sẽ ăn 429 và cả phần hồ sơ/đăng bài của smoke đổ
+      # theo. Nới ở đây chứ không sửa mặc định: ngoài CI thì con số 5 vẫn đúng.
+      MAX_REGISTRATIONS_PER_IP: '50'
       STORAGE_ENDPOINT: http://localhost:19000
       STORAGE_REGION: us-east-1
       STORAGE_BUCKET: chantam-media

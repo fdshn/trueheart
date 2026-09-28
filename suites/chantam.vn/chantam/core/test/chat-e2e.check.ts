@@ -82,7 +82,82 @@ async function register(
       `Không đăng ký được ${username}: HTTP ${status} ${JSON.stringify(body).slice(0, 300)}`,
     );
 
+  await completeProfile(token, username, suffix);
+
   return { token, userId, username };
+}
+
+/**
+ * Điền cho xong hồ sơ ngay sau khi đăng ký.
+ *
+ * Gửi tin nhắn đi qua cổng hồ sơ F07 (`ProfileGate.assertComplete` trong
+ * `SendChatMessageUseCase`), nên tài khoản vừa đăng ký xong — chưa có họ tên,
+ * avatar, SĐT, email — sẽ ăn 403 ở ngay bước gửi đầu tiên, rồi kéo theo tám
+ * phép kiểm phía sau cùng đỏ vì không có tin nào để nhận.
+ *
+ * Avatar phải là một object CÓ THẬT: server `HeadObject` xác nhận key thuộc
+ * đúng người gọi trước khi gắn, nên không bịa key được. Đây là lý do bước này
+ * đi đủ ba nhịp — xin chữ ký, `PUT` lên storage, rồi mới gắn vào hồ sơ — y hệt
+ * `scripts/smoke-test.sh`.
+ */
+async function completeProfile(
+  token: string,
+  username: string,
+  suffix: string,
+): Promise<void> {
+  const { status: presignStatus, body: presign } = await call<{
+    body?: { uploadUrl?: string; key?: string };
+  }>('/profile/me/avatar-upload', {
+    method: 'PATCH',
+    token,
+    body: { contentType: 'image/webp', contentLength: 20 },
+  });
+
+  const uploadUrl = presign.body?.uploadUrl;
+  const avatarKey = presign.body?.key;
+  if (!uploadUrl || !avatarKey)
+    throw new Error(
+      `Không xin được chữ ký avatar cho ${username}: HTTP ${presignStatus}`,
+    );
+
+  // Đúng 20 byte, và đúng content type đã khai: cả hai đều nằm trong chữ ký,
+  // nên lệch một byte là storage trả 403.
+  const upload = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'image/webp', 'Content-Length': '20' },
+    body: Buffer.from('RIFF....WEBPVP8 ........'.slice(0, 20)),
+  });
+  if (!upload.ok)
+    throw new Error(
+      `Không tải được avatar cho ${username}: HTTP ${upload.status}`,
+    );
+
+  const { status, body } = await call<{
+    body?: { profile?: { profileComplete?: boolean } };
+  }>(
+    '/profile/me',
+    {
+      method: 'PATCH',
+      token,
+      body: {
+        profile: {
+          fullName: `Chat E2E ${username}`,
+          avatarKey,
+          // SĐT phải DUY NHẤT trên toàn hệ thống. `stamp` tách được lần chạy
+          // này khỏi lần chạy khác, còn `suffix` tách ba tài khoản trong CÙNG
+          // một lần — bỏ nó thì a và b ra chung một số và người thứ hai ăn 409.
+          phone: `+84${stamp}${suffix.charCodeAt(0) - 96}`,
+          email: `${username}@example.com`,
+          defaultLocation: { lat: 21.028, lng: 105.835 },
+        },
+      },
+    },
+  );
+
+  if (body.body?.profile?.profileComplete !== true)
+    throw new Error(
+      `Hồ sơ ${username} vẫn chưa đủ sau khi cập nhật: HTTP ${status} ${JSON.stringify(body).slice(0, 300)}`,
+    );
 }
 
 /** Chờ một sự kiện socket, hoặc trả `null` khi hết thời gian. */
