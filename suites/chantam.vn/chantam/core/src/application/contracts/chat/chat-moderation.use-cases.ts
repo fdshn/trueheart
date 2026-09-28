@@ -50,3 +50,21 @@ export interface IReadAdminChatRoomUseCase extends IUseCase<
 > {}
 
 export const IReadAdminChatRoomUseCase = Symbol('IReadAdminChatRoomUseCase');
+
+export interface IMuteChatRoomCommand {
+  roomId: string;
+  userId: string;
+  muted: boolean;
+}
+
+export interface IMuteChatRoomResult {
+  roomId: string;
+  muted: boolean;
+}
+
+export interface IMuteChatRoomUseCase extends IUseCase<
+  IMuteChatRoomCommand,
+  IMuteChatRoomResult
+> {}
+
+export const IMuteChatRoomUseCase = Symbol('IMuteChatRoomUseCase');

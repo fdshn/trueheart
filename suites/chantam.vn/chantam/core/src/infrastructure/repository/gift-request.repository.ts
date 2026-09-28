@@ -534,6 +534,35 @@ export class GiftRequestRepository
           FROM gift_transactions dropped
           WHERE dropped.closed_by = candidate.requester_id
             AND dropped.status = 'CANCELLED'
+            -- Không tính lượt huỷ mà người này huỷ để TỰ VỆ.
+            --
+            -- Huỷ là cửa thoát duy nhất khi bị quấy rối giữa chừng: nó khoá
+            -- phòng chat ngay. Nhưng nếu lượt huỷ đó vẫn tính vào đây thì nạn
+            -- nhân phải tự hạ thứ hạng của mình để thoát, còn kẻ quấy rối không
+            -- mất gì.
+            --
+            -- Điều kiện là báo xấu ĐÃ ĐƯỢC XÁC MINH (RESOLVED), không phải
+            -- vừa gửi: trừ ngay lúc gửi thì ai cũng gửi một báo xấu vu vơ để né
+            -- hình phạt huỷ. Con số này tính sống mỗi lần xếp hạng, nên nó TỰ
+            -- SỬA khi Admin kết luận — không cần bút toán ngược hay job vá.
+            AND NOT EXISTS (
+              SELECT 1 FROM reports upheld
+              WHERE upheld.reporter_user_id = candidate.requester_id
+                AND upheld.status = 'RESOLVED'
+                AND (
+                  -- Nhắm vào bên KIA của chính lượt trao đó.
+                  (upheld.target_type = 'USER'
+                   AND upheld.target_id = CASE
+                         WHEN dropped.receiver_id = candidate.requester_id
+                           THEN dropped.giver_id
+                         ELSE dropped.receiver_id
+                       END)
+                  -- Hoặc vào chính bài của lượt trao: bài sai sự thật thì huỷ
+                  -- cũng không phải lỗi của người huỷ.
+                  OR (upheld.target_type = 'POST'
+                      AND upheld.target_id = dropped.post_id)
+                )
+            )
         ) cancelled
         WHERE candidate.post_id = $1
           AND candidate.status = $2

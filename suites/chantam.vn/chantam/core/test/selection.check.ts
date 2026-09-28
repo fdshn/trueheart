@@ -207,6 +207,91 @@ async function main(): Promise<void> {
       early?.receivedCount === 0 && early?.cancellationCount === 0,
     );
 
+    // ── Lượt huỷ để TỰ VỆ không được tính vào đầu nạn nhân ──────────────────
+    //
+    // Huỷ là cửa thoát duy nhất khi bị quấy rối giữa chừng — nó khoá phòng chat
+    // ngay. Nhưng nếu lượt huỷ đó vẫn tính vào FEWEST_CANCELLATIONS thì nạn
+    // nhân phải tự hạ thứ hạng của mình để thoát, còn kẻ quấy rối không mất gì.
+    console.log('\n2b. Huỷ để tự vệ không bị tính');
+
+    const AbusivePostId = '88888888-8888-4888-8888-8888888e3001';
+    const AbusiveDealId = '55555555-5555-4555-8555-5555555e3001';
+    await dataSource.query(
+      `INSERT INTO posts
+         (global_id, post_type, author_id, category_id, title, description,
+          location, area_label, status, total_quantity, remaining_quantity,
+          details, renewed_count)
+       VALUES ($1, 'OFFER', $2, $3, 'Bài của người quấy rối',
+               'Mô tả đủ dài cho bài kiểm tra',
+               ST_SetSRID(ST_MakePoint(106.698, 10.7724), 4326)::geography,
+               'Quận 1', 'CANCELLED', 1, 1, '{}'::jsonb, 0)`,
+      [AbusivePostId, GiverId, CategoryId],
+    );
+    await dataSource.query(
+      `INSERT INTO gift_transactions
+         (global_id, post_id, giver_id, receiver_id, quantity, status,
+          accepted_at, closed_at, closed_by, close_reason)
+       VALUES ($1, $2, $3, $4, 1, 'CANCELLED', now(), now(), $4, 'Bị quấy rối')`,
+      [AbusiveDealId, AbusivePostId, GiverId, Early],
+    );
+
+    const afterCancel = await requests.listCandidateMetrics(PostId);
+    check(
+      'huỷ thường VẪN tính — không phải cứ huỷ là được miễn',
+      afterCancel.find((row) => row.requesterId === Early)
+        ?.cancellationCount === 1,
+      String(
+        afterCancel.find((row) => row.requesterId === Early)?.cancellationCount,
+      ),
+    );
+
+    // Báo xấu ĐANG CHỜ chưa được miễn: nếu miễn ngay lúc gửi thì ai cũng gửi
+    // một báo xấu vu vơ để né hình phạt huỷ.
+    const ReportId = '11111111-2222-4333-8444-555555550001';
+    await dataSource.query(
+      `INSERT INTO reports
+         (global_id, reporter_user_id, target_type, target_id, reason,
+          description, status)
+       VALUES ($1, $2, 'USER', $3, 'HARASSMENT', 'Quấy rối trong chat', 'PENDING')`,
+      [ReportId, Early, GiverId],
+    );
+    check(
+      'báo xấu mới gửi thì CHƯA được miễn',
+      (await requests.listCandidateMetrics(PostId)).find(
+        (row) => row.requesterId === Early,
+      )?.cancellationCount === 1,
+    );
+
+    // Admin xác minh là đúng → con số tự sửa ở lần xếp hạng kế tiếp, không cần
+    // bút toán ngược hay job vá.
+    await dataSource.query(
+      `UPDATE reports SET status = 'RESOLVED' WHERE global_id = $1`,
+      [ReportId],
+    );
+    check(
+      'Admin xác minh ĐÚNG thì lượt huỷ đó thôi không tính nữa',
+      (await requests.listCandidateMetrics(PostId)).find(
+        (row) => row.requesterId === Early,
+      )?.cancellationCount === 0,
+      String(
+        (await requests.listCandidateMetrics(PostId)).find(
+          (row) => row.requesterId === Early,
+        )?.cancellationCount,
+      ),
+    );
+
+    // Báo xấu bị BÁC thì hình phạt quay lại.
+    await dataSource.query(
+      `UPDATE reports SET status = 'DISMISSED' WHERE global_id = $1`,
+      [ReportId],
+    );
+    check(
+      'báo xấu bị bác thì lượt huỷ tính lại như cũ',
+      (await requests.listCandidateMetrics(PostId)).find(
+        (row) => row.requesterId === Early,
+      )?.cancellationCount === 1,
+    );
+
     console.log('\n3. Thứ tự Admin cấu hình đổi được người thắng');
     const byDefault = pickNextCandidate(metrics, null);
     check(

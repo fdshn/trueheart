@@ -46,6 +46,8 @@ export type AppendChatMessageOutcome =
       room: IChatRoomEntity;
       /** Người còn lại — nơi gọi cần để gửi thông báo, không phải để phân quyền. */
       counterpartId: string;
+      /** Bên nhận tin đã tắt thông báo phòng này chưa. */
+      counterpartMuted: boolean;
     }
   | { status: 'ROOM_NOT_FOUND' }
   | { status: 'READ_ONLY' };
@@ -134,6 +136,21 @@ export interface IChatRepository {
       sentAt: Date;
     }[]
   >;
+
+  /**
+   * Bật/tắt thông báo của MỘT phía trong phòng.
+   *
+   * Người bị làm phiền giữa chừng hiện chỉ có một cửa thoát: huỷ lượt trao, thứ
+   * khoá phòng ngay nhưng cũng bỏ luôn món đồ họ đang chờ. Với người vẫn muốn
+   * nhận, cái họ cần là im lặng chứ không phải mất lượt.
+   *
+   * Trả `false` khi người gọi không ở trong phòng — nơi gọi biến thành 404.
+   */
+  setRoomMuted(params: {
+    roomId: string;
+    userId: string;
+    muted: boolean;
+  }): Promise<boolean>;
 
   reopenRoomWithinTransaction(
     manager: EntityManager,

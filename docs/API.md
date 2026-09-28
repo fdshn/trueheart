@@ -842,6 +842,7 @@ Mỗi giao dịch đã duyệt có **đúng một** phòng chat, mở ngay trong
 | `POST` | `/chat/rooms/:roomId/messages` | Bearer (trong phòng) | Gửi tin, tối đa 2000 ký tự — **30/phút và 500/24 giờ** |
 | `POST` | `/chat/rooms/:roomId/message-media/upload-url` | Bearer (trong phòng) | Xin presigned URL cho ảnh đính kèm |
 | `DELETE` | `/chat/rooms/:roomId/messages/:messageId` | Bearer (**người gửi**) | **Thu hồi** tin trong vòng 5 phút |
+| `PATCH` | `/chat/rooms/:roomId/mute` | Bearer (trong phòng) | **Tắt/bật thông báo** phòng này, chỉ cho chính mình |
 | `PATCH` | `/chat/rooms/:roomId/read` | Bearer (trong phòng) | Đánh dấu đã đọc tới hiện tại |
 | `GET` | `/admin/chat/rooms/:roomId/messages` | `report.read` | **Đọc phòng để điều tra** — chỉ khi có báo xấu đang mở |
 
@@ -859,6 +860,15 @@ Mỗi giao dịch đã duyệt có **đúng một** phòng chat, mở ngay trong
   phòng mà **cả người bị báo lẫn người báo** cùng có mặt — chỉ cần người bị báo có mặt là một
   báo xấu duy nhất mở toang mọi cuộc trò chuyện của họ. Không đủ điều kiện thì trả **404** y như
   phòng không tồn tại. Mỗi lần mở ghi audit `READ_CHAT_ROOM`.
+- **Tắt thông báo KHÔNG phải chặn tin.** Tin vẫn tới nơi và vẫn vào danh sách hội thoại, chỉ là
+  không kêu — với người vẫn muốn nhận món đồ thì đó đúng là thứ họ cần. Hai cột riêng cho hai
+  phía: người tặng tắt không kéo theo người nhận.
+- **Huỷ để TỰ VỆ không bị tính vào `FEWEST_CANCELLATIONS`.** Huỷ lượt trao khoá phòng ngay, nên
+  đó là cửa thoát khi bị quấy rối — nhưng lượt huỷ vốn tính vào đầu người bấm huỷ, tức nạn nhân
+  phải tự hạ thứ hạng để thoát. Nay lượt huỷ đó được bỏ qua **khi báo xấu của họ nhắm vào bên
+  kia đã được Admin xác minh** (`RESOLVED`). Chỉ khi xác minh, không phải khi vừa gửi — nếu
+  không thì ai cũng gửi một báo xấu vu vơ để né hình phạt. Con số tính sống nên nó tự sửa lúc
+  Admin kết luận, và tự quay lại nếu báo xấu bị bác.
 - **Báo xấu một tin nhắn** dùng `POST /reports` với `targetType: CHAT_MESSAGE`; hàng đợi Admin
   hiện đoạn đầu nội dung kèm tên người gửi, và nói rõ khi tin đã bị thu hồi.
 

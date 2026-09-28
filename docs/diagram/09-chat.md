@@ -3,8 +3,8 @@
 Trạng thái: ✅ **đã hiện thực** gồm realtime, ảnh, dọn tin quá hạn, và từ 28/09 thêm thu hồi
 tin, trần gửi, cùng đường điều tra cho Admin.
 
-**Bảy endpoint:** danh sách phòng, đọc tin, gửi tin, xin link ảnh, đánh dấu đã đọc, **thu hồi
-tin**, và **Admin đọc phòng** (có điều kiện).
+**Tám endpoint:** danh sách phòng, đọc tin, gửi tin, xin link ảnh, đánh dấu đã đọc, thu hồi
+tin, **tắt thông báo phòng**, và Admin đọc phòng (có điều kiện).
 
 ## 9.1 Phòng chat sinh từ lượt trao
 
@@ -155,6 +155,44 @@ flowchart TD
 > **Quyền `report.read`, không phải `admin.manage`.** Đọc phòng chat chỉ có một lý do chính
 > đáng: điều tra một báo xấu. Nên nó thuộc về người đang xử báo xấu.
 
+## 9.5b Bị làm phiền thì làm gì — ✅ 28/09
+
+```mermaid
+flowchart TD
+    A[Bị làm phiền trong phòng] --> B{Còn muốn nhận món đồ?}
+    B -->|Còn| C["PATCH /chat/rooms/:id/mute<br/>tắt chuông, KHÔNG chặn tin"]
+    B -->|Không| D["POST /transactions/:id/cancel<br/>phòng khoá ngay"]
+    D --> E[Báo xấu bên kia]
+    E --> F{Admin xác minh}
+    F -->|Đúng| G["Lượt huỷ đó THÔI không tính<br/>vào FEWEST_CANCELLATIONS"]
+    F -->|Bác| H[Hình phạt huỷ giữ nguyên]
+
+    style C fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style G fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+```
+
+> **Cửa thoát vốn đã có, nhưng nó bắt nạn nhân trả tiền.** Huỷ lượt trao khoá phòng ngay —
+> `close()` gọi `lockRoomWithinTransaction`, nên quấy rối trong chat chỉ xảy ra được khi lượt
+> trao còn sống. Nhưng lượt huỷ tính vào đầu **người bấm huỷ**
+> (`dropped.closed_by = candidate.requester_id`), nên người tự vệ phải tự hạ thứ hạng của mình
+> còn kẻ quấy rối không mất gì.
+
+> **Miễn khi báo xấu ĐÃ ĐƯỢC XÁC MINH, không phải khi vừa gửi.** Miễn ngay lúc gửi thì ai cũng
+> gửi một báo xấu vu vơ để né hình phạt huỷ.
+
+> **Con số tự sửa, không cần bút toán ngược.** `cancellation_count` được tính sống từ
+> `gift_transactions` mỗi lần xếp hạng, nên lúc Admin kết luận là nó đổi theo — và đổi ngược lại
+> nếu báo xấu bị bác.
+
+> **Tắt thông báo KHÔNG phải chặn tin.** Tin vẫn tới nơi và vẫn vào danh sách hội thoại, chỉ là
+> không kêu. Với người vẫn muốn nhận món đồ thì đó đúng là thứ họ cần: im lặng mà không mất lượt.
+
+> **Hai cột riêng cho hai phía.** Người tặng tắt không kéo theo người nhận — một cột chung sẽ
+> biến một lựa chọn riêng tư thành thao tác áp cho cả hai.
+
+> ⚠️ **Vẫn CHƯA có chặn ở mức nền tảng** (không xin nhận bài của nhau, ẩn khỏi feed của nhau).
+> Đó là một tính năng riêng với bề mặt riêng, và phần lớn chỗ đau đã được hai cửa trên xử.
+
 ## 9.6 Dọn tin quá hạn lưu trữ
 
 ```mermaid
@@ -189,9 +227,9 @@ flowchart TD
 3. ✅ **Báo xấu trỏ đúng tin nhắn** (28/09) — `POST /reports` nhận `targetType: CHAT_MESSAGE`,
    và hàng đợi Admin hiện đoạn đầu nội dung kèm tên người gửi.
 4. ✅ **Đã có trần gửi tin** (28/09) — 30/phút + 500/24 giờ.
-5. ⚠️ **Vẫn chưa CHẶN được một người.** Báo xấu là kênh tố cáo, không phải kênh tự vệ: trong
-   lúc chờ Admin xử, người bị quấy rối vẫn nhận tin. Chặn ở đây khó hơn ở mạng xã hội vì hai
-   người đang có một lượt trao chung — chặn xong thì ai hẹn giao đồ? Cần Bên A chốt.
+5. ✅ **Có hai cửa tự vệ** (28/09) — tắt thông báo phòng, và huỷ-để-tự-vệ không còn bị tính
+   vào `FEWEST_CANCELLATIONS`. Xem §9.5b. Chặn ở mức nền tảng thì chưa, và cố ý gác lại: nó là
+   một tính năng riêng, còn phần lớn chỗ đau đã được hai cửa này xử.
 6. **Tin đã thu hồi vẫn nằm trong database cho tới kỳ dọn.** Với người dùng thì nó biến mất,
    nhưng Admin có báo xấu đang mở vẫn đọc được mốc `recalledAt`. Đó là chủ ý — chính việc thu
    hồi sau khi gửi bậy là thứ đáng biết — nhưng nên nói rõ trong chính sách riêng tư.

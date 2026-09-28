@@ -9,6 +9,9 @@ import {
   IMarkChatRoomReadCommand,
   IMarkChatRoomReadResult,
   IMarkChatRoomReadUseCase,
+  IMuteChatRoomCommand,
+  IMuteChatRoomResult,
+  IMuteChatRoomUseCase,
   IPurgeExpiredChatsCommand,
   IPurgeExpiredChatsResult,
   IPurgeExpiredChatsUseCase,
@@ -276,16 +279,21 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
     // Thông báo là việc SAU khi tin đã lưu, và có khoá chống trùng theo id tin
     // nhắn — retry không làm rung điện thoại hai lần. Lỗi ở đây không được
     // huỷ tin nhắn đã gửi thành công, nên use case kia tự nuốt lỗi đẩy.
-    await this.dispatchNotification.handle({
-      userId: outcome.counterpartId,
-      type: NotificationTypes.NEW_CHAT_MESSAGE,
-      title: 'Bạn có tin nhắn mới',
-      // Cắt bớt để thông báo không thành một bản sao cả đoạn chat trên màn khoá.
-      body: notificationPreview(body, mediaKeys.length),
-      referenceType: 'CHAT_ROOM',
-      referenceId: command.roomId,
-      idempotencyKey: `NEW_CHAT_MESSAGE:${outcome.message.globalId}`,
-    });
+    //
+    // Bên kia đã tắt thông báo phòng này thì KHÔNG gửi. Tin vẫn tới nơi và vẫn
+    // vào danh sách hội thoại — chỉ là không kêu. Đó đúng là thứ người bị làm
+    // phiền cần khi họ vẫn muốn nhận món đồ.
+    if (!outcome.counterpartMuted)
+      await this.dispatchNotification.handle({
+        userId: outcome.counterpartId,
+        type: NotificationTypes.NEW_CHAT_MESSAGE,
+        title: 'Bạn có tin nhắn mới',
+        // Cắt bớt để thông báo không thành một bản sao cả đoạn chat trên màn khoá.
+        body: notificationPreview(body, mediaKeys.length),
+        referenceType: 'CHAT_ROOM',
+        referenceId: command.roomId,
+        idempotencyKey: `NEW_CHAT_MESSAGE:${outcome.message.globalId}`,
+      });
 
     const message: IChatMessageDto = {
       messageId: outcome.message.globalId,
@@ -460,5 +468,36 @@ export class PurgeExpiredChatsUseCase implements IPurgeExpiredChatsUseCase {
     const purgedMedia = await this.storage.deleteObjects(mediaKeys);
 
     return { purgedRooms, purgedMessages, purgedMedia };
+  }
+}
+
+/**
+ * Bật/tắt thông báo của một phòng chat.
+ *
+ * Trước 28/09, người bị làm phiền giữa chừng chỉ có một cửa thoát: huỷ lượt
+ * trao. Nó khoá phòng ngay, nhưng cũng bỏ luôn món đồ họ đang chờ — và tính một
+ * lượt huỷ vào đầu chính họ. Tắt thông báo là cửa nhẹ hơn cho người vẫn muốn
+ * nhận: im lặng mà không mất lượt.
+ */
+@Injectable()
+export class MuteChatRoomUseCase implements IMuteChatRoomUseCase {
+  public constructor(
+    @Inject(IChatRepository) private readonly chat: IChatRepository,
+  ) {}
+
+  public async handle(
+    command: IMuteChatRoomCommand,
+  ): Promise<IMuteChatRoomResult> {
+    const updated = await this.chat.setRoomMuted({
+      roomId: command.roomId,
+      userId: command.userId,
+      muted: command.muted,
+    });
+
+    // Không ở trong phòng thì 404, giống hệt phòng không tồn tại: trả lời khác
+    // nhau cho hai trường hợp là cho người lạ dò được giao dịch nào có thật.
+    if (!updated) throw new ChatRoomNotFoundException();
+
+    return { roomId: command.roomId, muted: command.muted };
   }
 }

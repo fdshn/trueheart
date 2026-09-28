@@ -2,6 +2,7 @@ import {
   IListChatMessagesUseCase,
   IListChatRoomsUseCase,
   IMarkChatRoomReadUseCase,
+  IMuteChatRoomUseCase,
   IRecallChatMessageUseCase,
   IRequestChatMediaUploadUseCase,
   ISendChatMessageUseCase,
@@ -53,6 +54,8 @@ import {
   ListChatRoomsResponseDto,
   MarkChatRoomReadParamsDto,
   MarkChatRoomReadResponseDto,
+  MuteChatRoomBodyDto,
+  MuteChatRoomResponseDto,
   RecallChatMessageParamsDto,
   RecallChatMessageResponseDto,
   RequestChatMediaUploadBodyDto,
@@ -66,6 +69,8 @@ import {
 @Controller('chat')
 export class ChatController {
   public constructor(
+    @Inject(IMuteChatRoomUseCase)
+    private readonly muteChatRoomUseCase: IMuteChatRoomUseCase,
     @Inject(IRecallChatMessageUseCase)
     private readonly recallChatMessageUseCase: IRecallChatMessageUseCase,
     @Inject(IListChatRoomsUseCase)
@@ -225,6 +230,31 @@ export class ChatController {
           messageId: params.messageId,
           userId: principal.userId,
           username: principal.username,
+        }),
+      )
+      .build();
+  }
+
+  @Patch('rooms/:roomId/mute')
+  @ApiOperation({
+    summary: 'Tắt hoặc bật lại thông báo của một phòng',
+    description:
+      'Chỉ áp cho CHÍNH người gọi — bên kia không biết và không bị ảnh hưởng. Tin nhắn VẪN tới nơi và vẫn vào danh sách hội thoại, chỉ là không kêu. Trước 28/09, người bị làm phiền giữa chừng chỉ có một cửa thoát là huỷ lượt trao — thứ khoá phòng ngay nhưng cũng bỏ luôn món đồ họ đang chờ.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(MuteChatRoomResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, [ChatRoomNotFoundException])
+  public async muteRoom(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: MarkChatRoomReadParamsDto,
+    @Body() body: MuteChatRoomBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.muteChatRoomUseCase.handle({
+          roomId: params.roomId,
+          userId: principal.userId,
+          muted: body.mute.muted,
         }),
       )
       .build();

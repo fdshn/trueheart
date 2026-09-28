@@ -2,6 +2,7 @@ import {
   IListChatMessagesUseCase,
   IListChatRoomsUseCase,
   IMarkChatRoomReadUseCase,
+  IMuteChatRoomUseCase,
   IPurgeExpiredChatsUseCase,
   IReadAdminChatRoomUseCase,
   IRecallChatMessageUseCase,
@@ -13,6 +14,7 @@ import {
   ListChatMessagesUseCase,
   ListChatRoomsUseCase,
   MarkChatRoomReadUseCase,
+  MuteChatRoomUseCase,
   PurgeExpiredChatsUseCase,
   RecallChatMessageUseCase,
   RequestChatMediaUploadUseCase,
@@ -23,6 +25,7 @@ import { ReadAdminChatRoomUseCase } from './read-admin-chat-room.use-case';
 @Global()
 @Module({
   providers: [
+    { provide: IMuteChatRoomUseCase, useClass: MuteChatRoomUseCase },
     { provide: IRecallChatMessageUseCase, useClass: RecallChatMessageUseCase },
     { provide: IReadAdminChatRoomUseCase, useClass: ReadAdminChatRoomUseCase },
     { provide: IListChatRoomsUseCase, useClass: ListChatRoomsUseCase },
@@ -36,6 +39,7 @@ import { ReadAdminChatRoomUseCase } from './read-admin-chat-room.use-case';
     },
   ],
   exports: [
+    IMuteChatRoomUseCase,
     IRecallChatMessageUseCase,
     IReadAdminChatRoomUseCase,
     IListChatRoomsUseCase,

@@ -130,6 +130,33 @@ export class ChatRepository implements IChatRepository {
     );
   }
 
+  public async setRoomMuted(params: {
+    roomId: string;
+    userId: string;
+    muted: boolean;
+  }): Promise<boolean> {
+    // Đặt đúng cột của NGƯỜI GỌI. Tắt thông báo là lựa chọn riêng của từng
+    // người; một cột chung sẽ biến nó thành thao tác áp cho cả hai.
+    const rows = await updateReturning<{ global_id: string }>(
+      this.manager,
+      `
+        UPDATE chat_rooms
+        SET giver_muted_at = CASE
+              WHEN giver_id = $2 THEN $3::timestamptz ELSE giver_muted_at
+            END,
+            receiver_muted_at = CASE
+              WHEN receiver_id = $2 THEN $3::timestamptz ELSE receiver_muted_at
+            END,
+            updated_at = now()
+        WHERE global_id = $1 AND $2 IN (giver_id, receiver_id)
+        RETURNING global_id
+      `,
+      [params.roomId, params.userId, params.muted ? new Date() : null],
+    );
+
+    return rows.length > 0;
+  }
+
   public async reopenRoomWithinTransaction(
     manager: EntityManager,
     transactionId: string,
@@ -374,10 +401,17 @@ export class ChatRepository implements IChatRepository {
       // Khoá hàng phòng rồi mới kiểm: đọc trạng thái trước rồi ghi sau sẽ cho
       // một tin lọt vào phòng vừa bị khoá ở giữa hai bước.
       const [room] = await manager.query<
-        { status: string; giver_id: string; receiver_id: string }[]
+        {
+          status: string;
+          giver_id: string;
+          receiver_id: string;
+          giver_muted_at: Date | null;
+          receiver_muted_at: Date | null;
+        }[]
       >(
         `
-          SELECT status, giver_id, receiver_id
+          SELECT status, giver_id, receiver_id,
+                 giver_muted_at, receiver_muted_at
           FROM chat_rooms
           WHERE global_id = $1
           FOR UPDATE
@@ -461,6 +495,12 @@ export class ChatRepository implements IChatRepository {
         room: updatedRoom,
         counterpartId:
           room.giver_id === params.senderId ? room.receiver_id : room.giver_id,
+        // Bên NHẬN tin đã tắt thông báo phòng này chưa. Trả về đây thay vì bắt
+        // use case hỏi thêm một vòng: dòng phòng vừa được khoá và đọc xong rồi.
+        counterpartMuted:
+          room.giver_id === params.senderId
+            ? room.receiver_muted_at !== null
+            : room.giver_muted_at !== null,
       };
     });
   }

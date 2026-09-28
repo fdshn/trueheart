@@ -67,3 +67,4 @@ export * from './1794600000000-DropPostLikeCount';
 export * from './1794700000000-SeedDiscoveryRadiusEntitlement';
 export * from './1794800000000-DropDeadTransactionStatuses';
 export * from './1794900000000-AddChatRecallAndMessageReports';
+export * from './1795000000000-AddChatRoomMute';

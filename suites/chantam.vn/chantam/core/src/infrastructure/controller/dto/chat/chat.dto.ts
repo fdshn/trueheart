@@ -33,6 +33,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsDefined,
   IsIn,
   IsInt,
@@ -329,4 +330,28 @@ export class RecallChatMessageResponseDto {
   @ApiProperty({ format: 'uuid' }) messageId: string;
 
   @ApiProperty({ type: String, format: 'date-time' }) recalledAt: Date;
+}
+
+export class MuteChatRoomDto {
+  @ApiProperty({
+    example: true,
+    description:
+      '`true` để tắt thông báo phòng này, `false` để bật lại. Chỉ áp cho CHÍNH người gọi — bên kia không biết và không bị ảnh hưởng.',
+  })
+  @IsBoolean()
+  muted: boolean;
+}
+
+export class MuteChatRoomBodyDto {
+  @ApiProperty({ type: () => MuteChatRoomDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => MuteChatRoomDto)
+  mute: MuteChatRoomDto;
+}
+
+export class MuteChatRoomResponseDto {
+  @ApiProperty({ format: 'uuid' }) roomId: string;
+
+  @ApiProperty() muted: boolean;
 }

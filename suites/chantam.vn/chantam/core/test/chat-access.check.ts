@@ -445,6 +445,90 @@ async function main(): Promise<void> {
       (await chat.findRoomForModeration(RoomId)) === null,
     );
 
+    // ── Tắt thông báo một phòng ─────────────────────────────────────────────
+    //
+    // Cửa nhẹ hơn huỷ lượt trao: im lặng mà không mất món đồ đang chờ.
+    console.log('\nTắt thông báo phòng:\n');
+
+    check(
+      'người NGOÀI phòng không tắt được',
+      (await chat.setRoomMuted({
+        roomId: RoomId,
+        userId: OutsiderId,
+        muted: true,
+      })) === false,
+    );
+
+    check(
+      'người trong phòng tắt được',
+      (await chat.setRoomMuted({
+        roomId: RoomId,
+        userId: ReceiverId,
+        muted: true,
+      })) === true,
+    );
+
+    const [muteRow] = await dataSource.query<
+      { giver_muted_at: Date | null; receiver_muted_at: Date | null }[]
+    >(
+      `SELECT giver_muted_at, receiver_muted_at FROM chat_rooms WHERE global_id = $1`,
+      [RoomId],
+    );
+    check(
+      'chỉ đặt cột của CHÍNH người gọi — bên kia không bị kéo theo',
+      muteRow.receiver_muted_at !== null && muteRow.giver_muted_at === null,
+      `giver=${muteRow.giver_muted_at} receiver=${muteRow.receiver_muted_at}`,
+    );
+
+    // Người tặng gửi tin: `appendMessage` phải báo rằng bên nhận đã tắt.
+    const afterMute = await chat.appendMessage({
+      globalId: '77777777-7777-4777-8777-77777777b020',
+      roomId: RoomId,
+      senderId: GiverId,
+      body: 'Tin gửi khi bên kia đã tắt thông báo',
+    });
+    check(
+      'gửi tin vẫn THÀNH CÔNG — tắt chuông không phải chặn tin',
+      afterMute.status === 'APPENDED',
+      afterMute.status,
+    );
+    check(
+      'nhưng báo rõ bên nhận đã tắt, để use case bỏ qua thông báo',
+      afterMute.status === 'APPENDED' && afterMute.counterpartMuted === true,
+      String(
+        afterMute.status === 'APPENDED' ? afterMute.counterpartMuted : 'n/a',
+      ),
+    );
+
+    // Chiều ngược lại: người nhận gửi cho người tặng, người tặng CHƯA tắt.
+    const toGiver = await chat.appendMessage({
+      globalId: '77777777-7777-4777-8777-77777777b021',
+      roomId: RoomId,
+      senderId: ReceiverId,
+      body: 'Tin gửi cho người chưa tắt',
+    });
+    check(
+      'bên chưa tắt thì vẫn nhận thông báo như thường',
+      toGiver.status === 'APPENDED' && toGiver.counterpartMuted === false,
+      String(toGiver.status === 'APPENDED' ? toGiver.counterpartMuted : 'n/a'),
+    );
+
+    check(
+      'bật lại được',
+      (await chat.setRoomMuted({
+        roomId: RoomId,
+        userId: ReceiverId,
+        muted: false,
+      })) === true,
+    );
+    const [unmuted] = await dataSource.query<
+      { receiver_muted_at: Date | null }[]
+    >(
+      `SELECT receiver_muted_at FROM chat_rooms WHERE global_id = $1`,
+      [RoomId],
+    );
+    check('mốc tắt được xoá', unmuted.receiver_muted_at === null);
+
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();
