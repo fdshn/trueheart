@@ -3,15 +3,15 @@
 Trạng thái: ✅ đã hiện thực. Từ 28/09 thì hoàn tất lượt trao **có báo cho hai bên** ở cả hai
 đường, và cửa phụ tạo lượt trao đã gỡ.
 
-**Bảy endpoint:** xem danh sách của mình, **xem một lượt**, xin link ảnh bằng chứng, bàn giao,
-xác nhận, báo bom ship, huỷ.
+**Tám endpoint:** xem danh sách của mình, xem một lượt, xin link ảnh bằng chứng, bàn giao,
+xác nhận, báo bom ship, huỷ, và **mở lại** (Admin).
 
 ## 8.1 Máy trạng thái
 
 ```mermaid
 stateDiagram-v2
     [*] --> ACCEPTED: Chủ bài duyệt yêu cầu<br/>POST /posts/:id/requests/:reqId/accept
-    ACCEPTED --> DELIVERING: POST /transactions/:id/handover<br/>(người tặng bàn giao)
+    ACCEPTED --> DELIVERING: POST /transactions/:id/handover<br/>(người tặng bàn giao)<br/>🔔 báo người nhận
     DELIVERING --> COMPLETED: POST /transactions/:id/confirm<br/>(người NHẬN xác nhận)
 
     ACCEPTED --> COMPLETED: Tự hoàn tất sau 5 ngày
@@ -19,6 +19,11 @@ stateDiagram-v2
 
     ACCEPTED --> CANCELLED: Bên nào cũng huỷ được
     DELIVERING --> CANCELLED
+
+    COMPLETED --> ACCEPTED: Admin mở lại<br/>(chưa bàn giao)
+    COMPLETED --> DELIVERING: Admin mở lại<br/>(đã bàn giao)
+    CANCELLED --> ACCEPTED: Admin mở lại
+    CANCELLED --> DELIVERING: Admin mở lại
 
     COMPLETED --> [*]
     CANCELLED --> [*]
@@ -203,6 +208,49 @@ Ràng buộc `CHK_point_ledger_balance_is_clamped_raw` giữ `balance_after = GR
 > và lần cộng điểm sau sẽ trả hết nợ một cách vô hình. Cộng 50 khi đang âm 30 phải ra 20,
 > không phải 50 — khoản phạt là một món nợ, không phải một lần xoá sạch.
 
+## 8.5b Mở lại lượt đóng nhầm — ✅ 28/09
+
+```mermaid
+flowchart TD
+    A["PATCH /admin/transactions/:id/reopen<br/>quyền admin.manage"] --> B{Đang ở trạng thái nào?}
+    B -->|COMPLETED| C["Kho ĐỨNG YÊN<br/>hoàn tất chưa bao giờ trả kho"]
+    B -->|CANCELLED| D["Kho bị TRỪ LẠI<br/>huỷ đã trả nên phải lấy về"]
+    B -->|đang sống| E["❌ 409"]
+    D --> F{Bài còn hàng?}
+    F -->|Không| G["❌ hết hàng — món đồ đã sang tay người khác"]
+    F -->|Còn| H
+    C --> H["Về chặng ĐANG DỞ:<br/>có handed_over_at → DELIVERING<br/>không → ACCEPTED"]
+    H --> I[Mở lại phòng chat, HUỶ đồng hồ xoá]
+    I --> J["🔔 báo cả hai bên + audit REOPEN_TRANSACTION"]
+
+    style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style E fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style G fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+```
+
+> **Vì sao cần.** Cả hai đường đóng đều có thể sai: tự hoàn tất khép một lượt mà hàng chưa tới,
+> hoặc một bên bấm huỷ nhầm. Và từ khi tự hoàn tất biết gửi thông báo (§8.3), người dùng sẽ
+> **thấy** lượt trao bị khép rồi hỏi lại — nên càng cần một đường sửa.
+
+> ⚠️ **Tồn kho đối xử khác nhau theo trạng thái đang đóng, và đây là chỗ dễ sai nhất.** Duyệt
+> yêu cầu đã trừ kho. Huỷ **trả lại** kho, còn hoàn tất thì **không**. Nên mở lại một lượt
+> `CANCELLED` phải trừ kho lần nữa — và từ chối nếu bài đã hết hàng, vì lúc đó món đồ thật sự
+> đã sang tay người khác. Mở lại một lượt `COMPLETED` thì không đụng kho.
+
+> **Về chặng đang dở, không về đầu.** Người tặng đã bàn giao thì bắt họ bàn giao lại là yêu cầu
+> làm lại một việc đã làm.
+
+> **Phòng chat mở lại VÀ đồng hồ xoá bị huỷ.** Khoá phòng đặt `purge_after`; không xoá mốc đó
+> thì lượt trao được mở lại nhưng lịch sử trò chuyện vẫn biến mất đúng ngày đã hẹn — tức mở lại
+> một cuộc rồi lấy đi bằng chứng của chính nó.
+
+> **Điểm đã cộng GIỮ NGUYÊN.** Sổ điểm là append-only, và khoá chống trùng của phần thưởng hoàn
+> tất theo chính lượt trao, nên hoàn tất lần nữa sau khi mở lại cũng không cộng thêm lần hai.
+
+> **Quyền `admin.manage`, không phải `post.moderate`.** Mở lại một lượt trao là đụng vào tồn
+> kho, thứ hạng và lịch sử của hai người thật — nó thuộc nhóm thao tác nặng, không phải nhóm
+> kiểm duyệt nội dung.
+
 ## 8.6 Cửa phụ đã gỡ — ✅ 28/09
 
 ```mermaid
@@ -246,16 +294,24 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. ✅ **Hoàn tất lượt trao nay sinh điểm** — nhưng **không ở bước `confirm`**: điểm chờ người
+1. ✅ **Báo khi BÀN GIAO** (28/09) — `GIFT_TRANSACTION_HANDED_OVER` tới người nhận. Đó cũng là
+   lúc đồng hồ tự hoàn tất được đặt lại, nên không báo là để cái đồng hồ đó chạy sau lưng họ.
+   Chỉ báo người nhận: người tặng vừa tự bấm nút này.
+2. ✅ **Hoàn tất lượt trao nay sinh điểm** — nhưng **không ở bước `confirm`**: điểm chờ người
    nhận chấm % chính xác, hoặc chờ hết 7 ngày rồi áp mức mặc định. Xem
    [11-point §11.4](./11-point.md).
-2. ✅ **Đồng hồ đếm từ `COALESCE(handed_over_at, accepted_at)`** và ✅ **đã kiểm tranh chấp**
+3. ✅ **Đồng hồ đếm từ `COALESCE(handed_over_at, accepted_at)`** và ✅ **đã kiểm tranh chấp**
    (25/09). Còn lại: tìm API tính thời gian vận chuyển thật để khỏi dùng con số 5 ngày cố định.
-3. Khoản phạt ship giờ **cũng làm tụt hạng** (do rank đọc `balance` theo quyết định
-   2026-09-24). Trước đây cố ý không đụng `lifetime` để tránh đúng chuyện này.
-4. Chưa có cơ chế **mở lại** một lượt trao đã đóng nhầm. Nay còn đáng bàn hơn: tự hoàn tất đã
-   gửi thông báo, nên người dùng sẽ thấy lượt trao bị khép và hỏi lại — mà không có đường nào mở.
-5. ⚠️ **Không có thông báo khi người tặng BÀN GIAO** (`ACCEPTED → DELIVERING`). Người nhận chỉ
-   biết nếu tự mở app, trong khi đó chính là lúc đồng hồ 5 ngày được đặt lại.
-6. **`REQUESTED` và `REJECTED` là hai giá trị enum không còn đường nào ghi.** Giữ cho dữ liệu cũ,
-   nhưng nên chốt có dọn hẳn không.
+4. ✅ **Nguồn điểm xét hạng nay là cấu hình động** (28/09). Khoá `rank.points_source` nhận
+   `BALANCE` (mặc định, giữ nguyên hành vi) hoặc `LIFETIME`. Chọn `LIFETIME` thì khoản phạt ship
+   và việc tiêu điểm đổi vật phẩm không còn làm tụt hạng — thứ hạng trở lại là bằng ghi nhận đã
+   đóng góp. Để Admin chọn vì đây là quyết định sản phẩm, và nó đã bị đổi qua lại một lần.
+5. ✅ **Mở lại lượt đóng nhầm đã có** (28/09) — xem §8.5b.
+6. ✅ **`REQUESTED` và `REJECTED` đã dọn** (28/09). Cột `status` là `varchar` nên không có enum
+   để drop, nhưng nó mang **DEFAULT `'REQUESTED'`** — một cái bẫy: câu INSERT nào quên truyền
+   `status` sẽ rơi thẳng vào trạng thái chết. Đã bỏ default và thay bằng ràng buộc
+   `CHK_gift_transactions_live_status` chỉ cho bốn trạng thái còn sống.
+7. ⚠️ **`closeOpenRequestsForPost` nay không khớp dòng nào.** Điều kiện của nó là
+   `status = 'REQUESTED'`, mà trạng thái đó không còn được tạo ra. Đường gỡ bài của tác giả vẫn
+   gọi nó, nhưng bị chặn từ trước bởi `PostHasLiveTransactionException` nên không lộ ra. Cần
+   chốt: gỡ hẳn, hay đổi điều kiện sang `ACCEPTED`/`DELIVERING`?

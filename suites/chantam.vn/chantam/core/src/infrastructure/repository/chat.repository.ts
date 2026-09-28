@@ -130,6 +130,26 @@ export class ChatRepository implements IChatRepository {
     );
   }
 
+  public async reopenRoomWithinTransaction(
+    manager: EntityManager,
+    transactionId: string,
+  ): Promise<void> {
+    // Xoá cả `locked_at` lẫn `purge_after`: hai mốc đó nói "cuộc này đã kết
+    // thúc vào lúc X và sẽ bị xoá vào ngày Y". Mở lại mà giữ chúng là hẹn xoá
+    // một cuộc đang sống.
+    await manager.query(
+      `
+        UPDATE chat_rooms
+        SET status = $2,
+            locked_at = NULL,
+            purge_after = NULL,
+            updated_at = now()
+        WHERE transaction_id = $1 AND status = $3
+      `,
+      [transactionId, ChatRoomStatuses.OPEN, ChatRoomStatuses.READ_ONLY],
+    );
+  }
+
   public async findRoomForParticipant(
     roomId: string,
     userId: string,

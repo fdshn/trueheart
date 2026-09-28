@@ -47,6 +47,7 @@ flowchart LR
 | `GET /posts/:postId/matches` | token | ✅ |
 | `GET /requests/me` | token | ✅ yêu cầu của chính người gọi |
 | `GET /transactions/:id` | hai bên trong cuộc | ✅ người ngoài nhận 404 |
+| `PATCH /admin/transactions/:id/reopen` | `admin.manage` | ✅ mở lại lượt đóng nhầm |
 | `POST /posts/:id/requests/:requestId/reject` | chủ bài | ✅ chỉ PENDING/STANDBY |
 | `POST /posts/:postId/charity-transfer` · `PATCH` | chủ bài / Admin | ✅ |
 | `POST|GET|PATCH|DELETE /gift-posts/*` | token | ✅ lớp tương thích |

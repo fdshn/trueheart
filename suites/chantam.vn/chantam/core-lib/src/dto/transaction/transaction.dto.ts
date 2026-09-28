@@ -1,10 +1,11 @@
+/**
+ * Bốn trạng thái còn sống.
+ *
+ * `REQUESTED` và `REJECTED` đã dọn 28/09: cái đầu chỉ sinh ra được từ
+ * `POST /transactions` — cửa đã gỡ — còn cái sau chưa đường nào từng ghi.
+ */
 export type GiftTransactionStatusDto =
-  | 'REQUESTED'
-  | 'ACCEPTED'
-  | 'DELIVERING'
-  | 'COMPLETED'
-  | 'CANCELLED'
-  | 'REJECTED';
+  'ACCEPTED' | 'DELIVERING' | 'COMPLETED' | 'CANCELLED';
 
 export interface IGiftTransactionDto {
   transactionId: string;

@@ -2,20 +2,18 @@ import { GiftEvidenceKinds } from '@chantam.vn/chantam.core-lib/consts';
 import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
 import { EntityManager } from 'typeorm';
 
+/**
+ * Bốn trạng thái còn sống.
+ *
+ * Lượt trao bắt đầu ở `ACCEPTED`: duyệt một yêu cầu chèn thẳng trạng thái đó.
+ * `REQUESTED` và `REJECTED` đã dọn 28/09 — xem migration
+ * `DropDeadTransactionStatuses`.
+ */
 export type GiftTransactionStatuses =
-  | 'REQUESTED'
-  | 'ACCEPTED'
-  | 'DELIVERING'
-  | 'COMPLETED'
-  | 'CANCELLED'
-  | 'REJECTED';
+  'ACCEPTED' | 'DELIVERING' | 'COMPLETED' | 'CANCELLED';
 
 /**
  * Những trạng thái ĐANG GIỮ TỒN KHO của bài đăng.
- *
- * `REQUESTED` KHÔNG nằm trong đây: xin một suất chưa trừ kho, chỉ lúc duyệt mới
- * trừ. Đếm nó vào đây thì một yêu cầu bỏ quên trên bài đã hết hàng sẽ giữ bài ở
- * `RESERVED` mãi mãi — chính là lỗi quota kẹt, chỉ đổi chỗ.
  *
  * Cùng một tập với điều kiện trả kho trong `close()`, và phải luôn như vậy.
  */
@@ -63,7 +61,7 @@ export interface IRequestGiftParams {
 export interface ICloseGiftTransactionParams {
   readonly transactionId: string;
   readonly actorUserId: string;
-  readonly status: Extract<GiftTransactionStatuses, 'CANCELLED' | 'REJECTED'>;
+  readonly status: Extract<GiftTransactionStatuses, 'CANCELLED'>;
   readonly reason: string;
   /**
    * Ai bị tính lượt huỷ này. Mặc định là chính người bấm.
@@ -120,21 +118,28 @@ export interface IGiftTransactionRepository {
   findByGlobalId(globalId: string): Promise<IGiftTransactionSummary | null>;
   listForUser(userId: string): Promise<IGiftTransactionSummary[]>;
   /**
-   * Duyệt một lượt đang ở `REQUESTED`.
+   * Mở lại một lượt trao đã đóng nhầm.
    *
-   * KHÔNG còn đường nào tạo ra `REQUESTED` từ 28/09: `POST /transactions` đã gỡ
-   * vì nó tạo thẳng `gift_transactions` mà bỏ qua mọi cổng của luồng xin nhận —
-   * hồ sơ F07, trần `OPEN_REQUEST_QUOTA`, đồng hồ chọn người, và cả việc báo
-   * chủ bài. Giữ lại hàm này cho những dòng `REQUESTED` còn sót từ trước.
+   * Chỉ Admin gọi. `COMPLETED` và `CANCELLED` đều mở lại được, và về đúng chặng
+   * mà nó đang dở: có `handed_over_at` thì về `DELIVERING`, không thì về
+   * `ACCEPTED`.
+   *
+   * **Tồn kho đối xử khác nhau theo trạng thái đang đóng**, và đây là chỗ dễ
+   * sai nhất. Duyệt yêu cầu đã trừ kho; huỷ TRẢ LẠI kho còn hoàn tất thì
+   * KHÔNG. Nên mở lại một lượt `CANCELLED` phải trừ kho lần nữa — và từ chối
+   * nếu bài đã hết hàng, vì lúc đó món đồ thật sự đã sang tay người khác. Mở
+   * lại một lượt `COMPLETED` thì không đụng kho: nó chưa bao giờ được trả.
+   *
+   * **Điểm đã cộng thì GIỮ NGUYÊN.** Sổ điểm là append-only, và khoá chống
+   * trùng của phần thưởng hoàn tất theo chính lượt trao — nên hoàn tất lần nữa
+   * sau khi mở lại cũng không cộng thêm lần hai.
    */
-  /**
-   * Người tặng duyệt một yêu cầu. Trừ tồn kho NGUYÊN TỬ trong cùng transaction
-   * — đọc rồi ghi là hai người cùng duyệt sẽ vượt số lượng thật.
-   */
-  accept(
-    transactionId: string,
-    giverId: string,
-  ): Promise<IGiftTransactionSummary>;
+  reopen(params: {
+    transactionId: string;
+    actorUserId: string;
+    reason: string;
+  }): Promise<IGiftTransactionSummary>;
+
   /**
    * Người tặng báo đã trao đồ — `ACCEPTED` → `DELIVERING` (H1).
    *
@@ -184,7 +189,7 @@ export interface IGiftTransactionRepository {
    */
   countClosedBy(
     userId: string,
-    status: Extract<GiftTransactionStatuses, 'CANCELLED' | 'REJECTED'>,
+    status: Extract<GiftTransactionStatuses, 'CANCELLED'>,
   ): Promise<number>;
   /**
    * Tự hoàn tất những lượt đã duyệt quá hạn. Gọi từ scheduler NGOÀI tiến trình,

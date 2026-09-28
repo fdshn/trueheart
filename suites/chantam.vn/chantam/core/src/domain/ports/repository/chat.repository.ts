@@ -72,6 +72,18 @@ export interface IChatRepository {
    *
    * Không xoá gì: lịch sử là bằng chứng khi có tranh chấp hoặc report.
    */
+  /**
+   * Mở lại phòng đã khoá, và HUỶ đồng hồ xoá.
+   *
+   * Khoá phòng đặt `purge_after`; không xoá mốc đó thì lượt trao được mở lại
+   * nhưng lịch sử trò chuyện vẫn biến mất đúng ngày đã hẹn — tức mở lại một
+   * cuộc rồi lấy đi bằng chứng của chính nó.
+   */
+  reopenRoomWithinTransaction(
+    manager: EntityManager,
+    transactionId: string,
+  ): Promise<void>;
+
   lockRoomWithinTransaction(
     manager: EntityManager,
     transactionId: string,

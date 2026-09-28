@@ -998,6 +998,7 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 | --- | --- | --- | --- |
 | `GET` | `/transactions/me` | Bearer | Các lượt của chính mình, cả vai tặng lẫn vai nhận |
 | `GET` | `/transactions/:id` | Bearer (hai bên trong cuộc) | **Xem một lượt trao** — người ngoài nhận 404 |
+| `PATCH` | `/admin/transactions/:id/reopen` | `admin.manage` | **Mở lại lượt đóng nhầm**, reason bắt buộc, ghi audit |
 | `POST` | `/transactions/:id/confirm` | Bearer (người nhận) | Xác nhận đã nhận |
 | `POST` | `/transactions/:id/cancel` | Bearer (cả hai vai) | Huỷ |
 | `POST` | `/transactions/:id/evidence/upload-url` | Bearer (cả hai bên) | Xin đường tải ảnh bằng chứng |

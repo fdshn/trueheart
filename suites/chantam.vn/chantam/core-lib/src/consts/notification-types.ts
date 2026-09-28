@@ -26,8 +26,18 @@ export enum NotificationTypes {
    * cả, món đồ chỉ là không còn nữa.
    */
   GIFT_REQUEST_CLOSED = 'GIFT_REQUEST_CLOSED',
+  /**
+   * Người tặng vừa báo đã bàn giao.
+   *
+   * Đây cũng là lúc đồng hồ tự hoàn tất 5 ngày được đặt lại
+   * (`COALESCE(handed_over_at, accepted_at)`), nên người nhận cần biết để còn
+   * kịp xác nhận hoặc khiếu nại trước khi hệ thống tự khép.
+   */
+  GIFT_TRANSACTION_HANDED_OVER = 'GIFT_TRANSACTION_HANDED_OVER',
   /** Giao dịch bị huỷ hoặc từ chối. */
   GIFT_TRANSACTION_CLOSED = 'GIFT_TRANSACTION_CLOSED',
+  /** Admin mở lại một lượt trao đã đóng nhầm. */
+  GIFT_TRANSACTION_REOPENED = 'GIFT_TRANSACTION_REOPENED',
   /** Người nhận đã xác nhận nhận được vật phẩm. */
   GIFT_TRANSACTION_COMPLETED = 'GIFT_TRANSACTION_COMPLETED',
   /**

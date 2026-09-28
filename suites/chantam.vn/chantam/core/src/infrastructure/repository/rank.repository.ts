@@ -5,6 +5,7 @@ import {
 } from '@/domain/exceptions';
 import { IGiveActivityCounter } from '@/domain/ports/give-activity.counter';
 import {
+  IAdminConfigRepository,
   IMaintenanceReminder,
   IRankChange,
   IRankMaintenanceCycleSummary,
@@ -13,6 +14,10 @@ import {
   IRankTierSummary,
 } from '@/domain/ports/repository';
 import { RankOrder, UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  RankPointsSourceConfigKey,
+  normalizeRankPointsSourceConfig,
+} from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
@@ -88,7 +93,38 @@ export class RankRepository implements IRankRepository {
     @InjectEntityManager() private readonly manager: EntityManager,
     @Inject(IGiveActivityCounter)
     private readonly giveActivityCounter?: IGiveActivityCounter,
+    // Tuỳ chọn để mọi bài kiểm dựng repository bằng tay không phải biết tới nó.
+    // Thiếu thì `rankPointsColumn()` lùi về mặc định, tức giữ nguyên hành vi.
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig?: IAdminConfigRepository,
   ) {}
+
+  /**
+   * Cột điểm dùng để xét hạng, do Admin chọn.
+   *
+   * Hai cột nói hai chuyện khác nhau:
+   *
+   * - `balance` — điểm TIÊU ĐƯỢC. Tiêu điểm đổi vật phẩm làm tụt hạng, và khoản
+   *   phạt `SHIP_UNPAID_PENALTY` (−50) cũng làm tụt hạng. Hạng là "đang giữ bao
+   *   nhiêu", giống số dư tài khoản.
+   * - `lifetime` — điểm TÍCH LUỸ, chỉ tăng. Hạng là bằng ghi nhận đã đóng góp,
+   *   và không ai mất hạng vì đã tiêu điểm mình kiếm được.
+   *
+   * Để Admin chọn vì đây là quyết định sản phẩm, không phải quyết định kỹ
+   * thuật — và nó đã bị đổi qua lại một lần (2026-09-24). Mặc định `BALANCE`
+   * giữ nguyên hành vi đang chạy: một cấu hình mới không được lặng lẽ đổi thứ
+   * hạng của tất cả mọi người ngay lúc deploy.
+   *
+   * Trả về TÊN CỘT chứ không phải giá trị người dùng nhập: chuỗi này ghép thẳng
+   * vào SQL, nên nó phải đến từ một tập đóng do mã quyết định.
+   */
+  private async rankPointsColumn(): Promise<'balance' | 'lifetime'> {
+    const config = normalizeRankPointsSourceConfig(
+      await this.adminConfig?.getConfigValue(RankPointsSourceConfigKey),
+    );
+
+    return config.source === 'LIFETIME' ? 'lifetime' : 'balance';
+  }
 
   public async reconcileNormalRank(
     userId: string,
@@ -98,11 +134,12 @@ export class RankRepository implements IRankRepository {
         userId,
       ]);
 
+      const pointsColumn = await this.rankPointsColumn();
       const [user] = await manager.query<IRawNormalRankEvaluationRow[]>(
         `
           SELECT
             user_account.rank,
-            balance.balance AS balance_points,
+            balance.${pointsColumn} AS balance_points,
             user_account.promotion_locked_until,
             qualified_referrals.qualified_referrals
           FROM users user_account
@@ -342,11 +379,12 @@ export class RankRepository implements IRankRepository {
           cycle.user_id,
         ]);
 
+        const pointsColumn = await this.rankPointsColumn();
         const [user] = await manager.query<IRawMaintenanceEvaluationRow[]>(
           `
             SELECT
               user_account.rank,
-              balance.balance AS balance_points,
+              balance.${pointsColumn} AS balance_points,
               qualified_referrals.qualified_referrals
               , total_referrals.total_qualified_referrals
             FROM users user_account

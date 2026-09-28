@@ -201,69 +201,75 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     );
   }
 
-  public async accept(
-    transactionId: string,
-    giverId: string,
-  ): Promise<IGiftTransactionSummary> {
+  public async reopen(params: {
+    transactionId: string;
+    actorUserId: string;
+    reason: string;
+  }): Promise<IGiftTransactionSummary> {
     return this.manager.transaction(async (manager) => {
-      const current = await this.lockTransaction(manager, transactionId);
+      const current = await this.lockTransaction(manager, params.transactionId);
 
-      if (current.giver_id !== giverId)
-        throw new GiftTransactionNotParticipantException();
-      if (current.status !== 'REQUESTED')
+      if (current.status !== 'COMPLETED' && current.status !== 'CANCELLED')
         throw new GiftTransactionInvalidStateException(current.status);
 
-      // Trừ tồn kho NGUYÊN TỬ. Đọc remaining rồi mới ghi thì hai người duyệt
-      // cùng lúc sẽ phát vượt số lượng thật — README của repo cảnh báo đúng chỗ
-      // này.
-      const decremented = await updateReturning<{ global_id: string }>(
-        manager,
-        `
-          UPDATE posts
-          SET remaining_quantity = remaining_quantity - $2
-          WHERE global_id = $1
-            AND deleted_at IS NULL
-            AND remaining_quantity >= $2
-          RETURNING global_id
-        `,
-        [current.post_id, Number(current.quantity)],
-      );
+      // Về đúng chặng đang dở, không phải về đầu: người tặng đã bàn giao thì
+      // bắt họ bàn giao lại là yêu cầu làm lại một việc đã làm.
+      const target = current.handed_over_at ? 'DELIVERING' : 'ACCEPTED';
 
-      // Mệnh đề `remaining_quantity >= $2` là thứ duy nhất chặn phát vượt kho,
-      // nên đọc đúng số dòng nó khớp mới biết được là hết hàng.
-      if (decremented.length === 0)
-        throw new GiftTransactionOutOfStockException();
+      // Huỷ đã TRẢ kho, nên mở lại phải trừ lần nữa — và có điều kiện, vì món
+      // đồ có thể đã sang tay người khác trong lúc lượt này đang đóng.
+      if (current.status === 'CANCELLED') {
+        const taken = await updateReturning<{ global_id: string }>(
+          manager,
+          `
+            UPDATE posts
+            SET remaining_quantity = remaining_quantity - $2,
+                updated_at = now()
+            WHERE global_id = $1 AND remaining_quantity >= $2
+            RETURNING global_id
+          `,
+          [current.post_id, current.quantity],
+        );
+        if (taken.length === 0) throw new GiftTransactionOutOfStockException();
+      }
 
-      const [updated] = await updateReturning<ITransactionRow>(
+      const [reopened] = await updateReturning<ITransactionRow>(
         manager,
         `
           UPDATE gift_transactions
-          SET status = 'ACCEPTED', accepted_at = now()
-          WHERE global_id = $1 AND status = 'REQUESTED'
+          SET status = $2,
+              completed_at = NULL,
+              closed_at = NULL,
+              closed_by = NULL,
+              close_reason = NULL
+          WHERE global_id = $1
           RETURNING ${SelectColumns}
         `,
-        [transactionId],
+        [params.transactionId, target],
       );
 
-      if (!updated) {
-        throw new GiftTransactionInvalidStateException(current.status);
-      }
-
-      // Trừ kho xong thì trạng thái bài có thể đã khác — F34 đòi cập nhật CẢ hai,
-      // trong cùng transaction.
       await this.syncPostStatus(manager, current.post_id);
+      await this.chat.reopenRoomWithinTransaction(
+        manager,
+        params.transactionId,
+      );
 
-      // Mở phòng chat trong CÙNG transaction (F34): duyệt xong mà chat chưa mở
-      // thì hai bên không có đường liên lạc để hẹn trao đồ.
-      await this.chat.openRoomWithinTransaction(manager, {
-        globalId: randomUUID(),
-        transactionId,
-        postId: current.post_id,
-        giverId: current.giver_id,
-        receiverId: current.receiver_id,
-      });
+      await manager.query(
+        `
+          INSERT INTO admin_audit_logs
+            (actor_user_id, action, resource_type, resource_id, before_json, after_json, reason)
+          VALUES ($1, 'REOPEN_TRANSACTION', 'GIFT_TRANSACTION', $2, $3::jsonb, $4::jsonb, $5)
+        `,
+        [
+          params.actorUserId,
+          params.transactionId,
+          JSON.stringify({ status: current.status }),
+          JSON.stringify({ status: target }),
+          params.reason,
+        ],
+      );
 
-      return toSummary(updated);
+      return toSummary(reopened);
     });
   }
 
@@ -632,7 +638,7 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
 
   public async countClosedBy(
     userId: string,
-    status: Extract<GiftTransactionStatuses, 'CANCELLED' | 'REJECTED'>,
+    status: Extract<GiftTransactionStatuses, 'CANCELLED'>,
   ): Promise<number> {
     const [row] = await this.manager.query<{ total: string }[]>(
       `

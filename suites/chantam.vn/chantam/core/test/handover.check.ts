@@ -390,6 +390,142 @@ async function main(): Promise<void> {
         )[0].remaining_quantity,
       ) === 1,
     );
+    // ── Mở lại lượt đóng nhầm ───────────────────────────────────────────────
+    //
+    // Tồn kho là chỗ dễ sai nhất và chỉ sai trên database thật: duyệt yêu cầu
+    // đã TRỪ kho, huỷ thì TRẢ lại, còn hoàn tất thì KHÔNG trả. Nên mở lại một
+    // lượt CANCELLED phải trừ lần nữa, mở lại một lượt COMPLETED thì không.
+    console.log('\nMở lại lượt đóng nhầm:\n');
+
+    async function remaining(postId: string): Promise<number> {
+      const [row] = await dataSource.query<{ remaining_quantity: number }[]>(
+        `SELECT remaining_quantity FROM posts WHERE global_id = $1`,
+        [postId],
+      );
+      return Number(row.remaining_quantity);
+    }
+
+    async function postIdOf(transactionId: string): Promise<string> {
+      const [row] = await dataSource.query<{ post_id: string }[]>(
+        `SELECT post_id FROM gift_transactions WHERE global_id = $1`,
+        [transactionId],
+      );
+      return row.post_id;
+    }
+
+    // 1. Mở lại một lượt ĐÃ HUỶ: kho phải bị trừ lại.
+    const cancelledDeal = await acceptedTransaction();
+    const cancelledPost = await postIdOf(cancelledDeal);
+    await transactions.close({
+      transactionId: cancelledDeal,
+      actorUserId: GiverId,
+      status: 'CANCELLED',
+      reason: 'Kiểm mở lại',
+    });
+    const afterCancel = await remaining(cancelledPost);
+
+    const reopenedCancelled = await transactions.reopen({
+      transactionId: cancelledDeal,
+      actorUserId: GiverId,
+      reason: 'Huỷ nhầm',
+    });
+    check(
+      'lượt ĐÃ HUỶ mở lại về ACCEPTED',
+      reopenedCancelled.status === 'ACCEPTED',
+      reopenedCancelled.status,
+    );
+    check(
+      'và kho bị TRỪ lại — huỷ đã trả kho nên mở lại phải lấy về',
+      (await remaining(cancelledPost)) === afterCancel - 1,
+      `${afterCancel} → ${await remaining(cancelledPost)}`,
+    );
+    check(
+      'mốc đóng được xoá sạch',
+      reopenedCancelled.completedAt === null,
+    );
+
+    // 2. Mở lại một lượt ĐÃ HOÀN TẤT: kho KHÔNG được trừ thêm lần nữa.
+    const doneDeal = await acceptedTransaction();
+    const donePost = await postIdOf(doneDeal);
+    // Fixture dựng lượt trao bằng SQL nên chưa có phòng chat. Mở một phòng thật
+    // ở đây để phép kiểm bên dưới chứng minh được `reopen` mở khoá nó — không
+    // có phòng thì `lockRoomWithinTransaction` lẫn `reopenRoom...` đều chỉ là
+    // câu UPDATE không khớp dòng nào, và hai phép kiểm sẽ xanh một cách rỗng.
+    await dataSource.query(
+      `INSERT INTO chat_rooms
+         (global_id, transaction_id, post_id, giver_id, receiver_id, status)
+       VALUES ($1, $2, $3, $4, $5, 'OPEN')`,
+      [
+        '66666666-6666-4666-8666-666666666001',
+        doneDeal,
+        donePost,
+        GiverId,
+        ReceiverId,
+      ],
+    );
+    await transactions.markHandedOver({
+      transactionId: doneDeal,
+      giverId: GiverId,
+      evidenceKeys: [],
+    });
+    await transactions.confirmReceipt(doneDeal, ReceiverId, []);
+    const afterComplete = await remaining(donePost);
+
+    const reopenedDone = await transactions.reopen({
+      transactionId: doneDeal,
+      actorUserId: GiverId,
+      reason: 'Cron đóng nhầm',
+    });
+    check(
+      'lượt ĐÃ HOÀN TẤT có mốc bàn giao thì mở lại về DELIVERING, không về đầu',
+      reopenedDone.status === 'DELIVERING',
+      reopenedDone.status,
+    );
+    check(
+      'và kho ĐỨNG YÊN — hoàn tất chưa bao giờ trả kho',
+      (await remaining(donePost)) === afterComplete,
+      `${afterComplete} → ${await remaining(donePost)}`,
+    );
+
+    // 3. Phòng chat mở lại và đồng hồ xoá bị huỷ.
+    const [room] = await dataSource.query<
+      { status: string; purge_after: string | null }[]
+    >(
+      `SELECT status, purge_after::text FROM chat_rooms WHERE transaction_id = $1`,
+      [doneDeal],
+    );
+    check(
+      'phòng chat mở lại',
+      room?.status === 'OPEN',
+      String(room?.status),
+    );
+    check(
+      'và đồng hồ xoá bị HUỶ — mở lại một cuộc rồi vẫn xoá nó là vô nghĩa',
+      room?.purge_after === null,
+      String(room?.purge_after),
+    );
+
+    // 4. Có vết audit.
+    const [audit] = await dataSource.query<{ count: string }[]>(
+      `SELECT COUNT(*) AS count FROM admin_audit_logs
+       WHERE action = 'REOPEN_TRANSACTION' AND resource_id = $1`,
+      [doneDeal],
+    );
+    check('ghi audit REOPEN_TRANSACTION', Number(audit.count) === 1);
+
+    // 5. Lượt đang sống thì KHÔNG mở lại được.
+    let rejected = false;
+    try {
+      await transactions.reopen({
+        transactionId: reopenedDone.globalId,
+        actorUserId: GiverId,
+        reason: 'Mở lại lần nữa',
+      });
+    } catch {
+      rejected = true;
+    }
+    check('lượt đang DELIVERING thì từ chối mở lại', rejected);
+
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

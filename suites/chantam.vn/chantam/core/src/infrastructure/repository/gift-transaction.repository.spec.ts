@@ -66,69 +66,6 @@ function makeRepository(
   );
 }
 
-describe('GiftTransactionRepository accept', () => {
-  it('trừ tồn kho nguyên tử bằng UPDATE có điều kiện, không đọc rồi ghi', async () => {
-    // Đọc remaining rồi mới ghi thì hai người tặng duyệt cùng lúc sẽ phát quá
-    // số lượng thật. Phải là UPDATE ... WHERE remaining_quantity > 0.
-    const query = jest
-      .fn()
-      .mockResolvedValueOnce([transactionRow()])
-      .mockResolvedValueOnce([{ global_id: PostId }])
-      .mockResolvedValueOnce([
-        transactionRow({ status: 'ACCEPTED', accepted_at: new Date() }),
-      ]);
-    const repository = makeRepository(query);
-
-    await repository.accept(TransactionId, GiverId);
-
-    const decrement = query.mock.calls.find(([sql]) =>
-      String(sql).includes('UPDATE posts'),
-    );
-    expect(decrement).toBeDefined();
-    expect(String(decrement?.[0])).toMatch(
-      /remaining_quantity\s*=\s*remaining_quantity\s*-/,
-    );
-    expect(String(decrement?.[0])).toMatch(
-      /WHERE[\s\S]*remaining_quantity\s*>=/,
-    );
-    expect(String(decrement?.[0])).toContain('RETURNING');
-  });
-
-  it('không duyệt được khi bài đã hết hàng', async () => {
-    const query = jest
-      .fn()
-      .mockResolvedValueOnce([transactionRow()])
-      // UPDATE không trả dòng nào nghĩa là đã hết hàng.
-      .mockResolvedValueOnce([]);
-    const repository = makeRepository(query);
-
-    await expect(repository.accept(TransactionId, GiverId)).rejects.toThrow();
-    const statusUpdate = query.mock.calls.find(([sql]) =>
-      String(sql).includes('UPDATE gift_transactions'),
-    );
-    expect(statusUpdate).toBeUndefined();
-  });
-
-  it('chỉ người tặng mới duyệt được', async () => {
-    const query = jest.fn().mockResolvedValueOnce([transactionRow()]);
-    const repository = makeRepository(query);
-
-    await expect(
-      repository.accept(TransactionId, ReceiverId),
-    ).rejects.toThrow();
-    expect(query).toHaveBeenCalledTimes(1);
-  });
-
-  it('không duyệt lại lượt đã duyệt', async () => {
-    const query = jest
-      .fn()
-      .mockResolvedValueOnce([transactionRow({ status: 'ACCEPTED' })]);
-    const repository = makeRepository(query);
-
-    await expect(repository.accept(TransactionId, GiverId)).rejects.toThrow();
-  });
-});
-
 describe('GiftTransactionRepository confirmReceipt', () => {
   it('chỉ người nhận mới xác nhận được', async () => {
     const query = jest

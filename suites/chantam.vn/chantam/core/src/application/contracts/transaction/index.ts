@@ -4,5 +4,6 @@ export * from './confirm-gift-receipt.use-case';
 export * from './get-gift-transaction.use-case';
 export * from './list-own-gift-transactions.use-case';
 export * from './mark-gift-handed-over.use-case';
+export * from './reopen-gift-transaction.use-case';
 export * from './report-ship-unpaid.use-case';
 export * from './request-gift-evidence-upload.use-case';

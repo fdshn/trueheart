@@ -1,3 +1,4 @@
+import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import {
   IMarkGiftHandedOverCommand,
   IMarkGiftHandedOverResult,
@@ -11,9 +12,12 @@ import {
   GiftTransactionNotParticipantException,
 } from '@/domain/exceptions';
 import { IGiftTransactionRepository } from '@/domain/ports/repository';
-import { MaxEvidencePerKind } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  MaxEvidencePerKind,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { IObjectStorage } from '@chantam/service.storage-lib';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { withStorageValidation } from '../shared/storage-error';
 
 /**
@@ -74,11 +78,15 @@ export class RequestGiftEvidenceUploadUseCase implements IRequestGiftEvidenceUpl
  */
 @Injectable()
 export class MarkGiftHandedOverUseCase implements IMarkGiftHandedOverUseCase {
+  private readonly logger = new Logger(MarkGiftHandedOverUseCase.name);
+
   public constructor(
     @Inject(IGiftTransactionRepository)
     private readonly transactions: IGiftTransactionRepository,
     @Inject(IObjectStorage)
     private readonly storage: IObjectStorage,
+    @Inject(IDispatchNotificationUseCase)
+    private readonly dispatchNotification: IDispatchNotificationUseCase,
   ) {}
 
   public async handle(
@@ -102,6 +110,31 @@ export class MarkGiftHandedOverUseCase implements IMarkGiftHandedOverUseCase {
       giverId: command.userId,
       evidenceKeys: keys,
     });
+
+    // Chỉ báo NGƯỜI NHẬN: người tặng vừa tự bấm nút này nên họ đã biết.
+    //
+    // Đây cũng là lúc đồng hồ tự hoàn tất được đặt lại — nó đếm từ
+    // `COALESCE(handed_over_at, accepted_at)` — nên người nhận có đúng 5 ngày
+    // để xác nhận hoặc khiếu nại trước khi hệ thống tự khép. Không báo thì cái
+    // đồng hồ đó chạy sau lưng họ.
+    try {
+      await this.dispatchNotification.handle({
+        userId: transaction.receiverId,
+        type: NotificationTypes.GIFT_TRANSACTION_HANDED_OVER,
+        title: 'Người tặng đã bàn giao',
+        body: 'Người tặng vừa báo đã trao vật phẩm. Hãy xác nhận khi bạn nhận được — quá 5 ngày hệ thống sẽ tự khép lượt trao này.',
+        referenceType: 'GIFT_TRANSACTION',
+        referenceId: transaction.globalId,
+        // Khoá theo LƯỢT TRAO: bàn giao chỉ xảy ra một lần cho mỗi lượt.
+        idempotencyKey: `GIFT_TRANSACTION_HANDED_OVER:${transaction.globalId}`,
+      });
+    } catch (error) {
+      // Bàn giao đã ghi xong. Ném ở đây khiến người tặng tưởng thất bại và bấm
+      // lại một việc đã xong.
+      this.logger.warn(
+        `Không báo được bàn giao cho ${transaction.receiverId}: ${String(error)}`,
+      );
+    }
 
     return {
       transaction: {

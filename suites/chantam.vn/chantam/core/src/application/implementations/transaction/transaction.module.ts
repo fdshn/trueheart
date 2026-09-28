@@ -5,6 +5,7 @@ import {
   IGetGiftTransactionUseCase,
   IListOwnGiftTransactionsUseCase,
   IMarkGiftHandedOverUseCase,
+  IReopenGiftTransactionUseCase,
   IReportShipUnpaidUseCase,
   IRequestGiftEvidenceUploadUseCase,
 } from '@/application/contracts/transaction';
@@ -22,9 +23,15 @@ import {
   ListOwnGiftTransactionsUseCase,
 } from './transaction.use-cases';
 
+import { ReopenGiftTransactionUseCase } from './reopen-gift-transaction.use-case';
+
 @Global()
 @Module({
   providers: [
+    {
+      provide: IReopenGiftTransactionUseCase,
+      useClass: ReopenGiftTransactionUseCase,
+    },
     {
       provide: IGetGiftTransactionUseCase,
       useClass: GetGiftTransactionUseCase,
@@ -57,6 +64,7 @@ import {
     },
   ],
   exports: [
+    IReopenGiftTransactionUseCase,
     IGetGiftTransactionUseCase,
     IReportShipUnpaidUseCase,
     IMarkGiftHandedOverUseCase,

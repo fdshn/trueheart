@@ -23,12 +23,10 @@ import {
 } from 'class-validator';
 
 const TransactionStatuses: GiftTransactionStatusDto[] = [
-  'REQUESTED',
   'ACCEPTED',
   'DELIVERING',
   'COMPLETED',
   'CANCELLED',
-  'REJECTED',
 ];
 
 export class GiftTransactionParamsDto {

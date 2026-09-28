@@ -153,3 +153,49 @@ export function quoteRedemption(
 
   return { redeemable: true, points, reason: null };
 }
+
+/** Khoá `system_configs` cho việc xét hạng đọc cột điểm nào. */
+export const RankPointsSourceConfigKey = 'rank.points_source';
+
+/**
+ * Xét hạng dựa trên cột điểm nào.
+ *
+ * Hai cột nói hai chuyện khác nhau, và chọn sai là đổi hẳn ý nghĩa của thứ hạng:
+ *
+ * - `BALANCE` — điểm **tiêu được**, kẹp ở 0. Tiêu điểm đổi vật phẩm làm tụt
+ *   hạng, và khoản phạt (ví dụ `SHIP_UNPAID_PENALTY` −50) cũng làm tụt hạng.
+ *   Hạng ở đây là "đang giữ bao nhiêu", giống số dư tài khoản.
+ * - `LIFETIME` — điểm **tích luỹ**, chỉ tăng. Thứ hạng là bằng ghi nhận những
+ *   gì đã đóng góp, và không ai mất hạng vì đã tiêu điểm mình kiếm được.
+ *
+ * Để Admin chọn thay vì chốt cứng vì đây là quyết định sản phẩm, không phải
+ * quyết định kỹ thuật — và nó đã bị đổi qua lại một lần (2026-09-24).
+ */
+export type RankPointsSource = 'BALANCE' | 'LIFETIME';
+
+export interface IRankPointsSourceConfig {
+  readonly source: RankPointsSource;
+}
+
+/**
+ * Mặc định `BALANCE` — giữ NGUYÊN hành vi đang chạy.
+ *
+ * Một cấu hình mới không được lặng lẽ đổi thứ hạng của tất cả mọi người ngay
+ * lúc deploy; đổi là việc Admin làm có chủ ý, và lúc đó họ biết mình vừa làm gì.
+ */
+export const DefaultRankPointsSourceConfig: IRankPointsSourceConfig = {
+  source: 'BALANCE',
+};
+
+export function normalizeRankPointsSourceConfig(
+  raw: unknown,
+): IRankPointsSourceConfig {
+  if (!raw || typeof raw !== 'object') return DefaultRankPointsSourceConfig;
+
+  const source = (raw as Record<string, unknown>).source;
+  // Giá trị lạ thì lùi về mặc định chứ không ném: một dòng cấu hình gõ sai
+  // không được làm chết cả vòng xét hạng của mọi người.
+  return source === 'LIFETIME' || source === 'BALANCE'
+    ? { source }
+    : DefaultRankPointsSourceConfig;
+}

@@ -69,6 +69,32 @@ không client upload trực tiếp sẽ bị chặn ở trình duyệt.
 > **Bản MinIO miễn phí cuối cùng sẽ không được vá nữa.** Với container CI dựng rồi vứt thì
 > không sao, nhưng đừng chĩa nó ra Internet trên máy dev.
 
+### 1.2b Cấu hình động trong `system_configs`
+
+Không phải biến môi trường — Admin sửa lúc chạy, có đánh phiên bản và ghi audit.
+
+| Khoá | Mặc định | Đổi thì ảnh hưởng gì |
+| --- | --- | --- |
+| `moderation.blocked_terms` | rỗng | Danh sách từ chặn/giữ lại bình luận |
+| `point.redemption` | — | Tỷ lệ quy đổi điểm sang giá trị vật phẩm |
+| `review.grace` | 7 ngày, 80% | Chờ bao lâu rồi áp mức mặc định khi không ai đánh giá |
+| `chat.retention` | — | Bao lâu sau khi khoá thì xoá lịch sử trò chuyện |
+| `accuracy.giver` | — | Ngưỡng gắn cờ độ chính xác người tặng |
+| `selection.candidate_priority` | ai xin trước | Thứ tự tiêu chí auto-select |
+| **`rank.points_source`** | `BALANCE` | **Xét hạng đọc cột điểm nào** |
+
+> **`rank.points_source` là quyết định sản phẩm, không phải kỹ thuật** — và nó đã bị đổi qua lại
+> một lần (24/09), nên nay đưa ra cấu hình thay vì chốt cứng trong mã.
+>
+> - `BALANCE` — điểm **tiêu được**, kẹp ở 0. Tiêu điểm đổi vật phẩm làm tụt hạng, và khoản phạt
+>   `SHIP_UNPAID_PENALTY` (−50) cũng làm tụt hạng. Thứ hạng là "đang giữ bao nhiêu".
+> - `LIFETIME` — điểm **tích luỹ**, chỉ tăng. Thứ hạng là bằng ghi nhận đã đóng góp, và không ai
+>   mất hạng vì đã tiêu điểm mình kiếm được.
+>
+> Mặc định `BALANCE` giữ **nguyên** hành vi đang chạy: một cấu hình mới không được lặng lẽ đổi
+> thứ hạng của tất cả mọi người ngay lúc deploy. Giá trị lạ thì lùi về mặc định chứ không ném —
+> một dòng cấu hình gõ sai không được làm chết cả vòng xét hạng.
+
 ### 1.3 Có mặc định hợp lý, chỉ đổi khi cần
 
 | Biến | Mặc định | Ghi chú |
