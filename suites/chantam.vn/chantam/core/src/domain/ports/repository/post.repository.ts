@@ -213,6 +213,13 @@ export interface IReviewCharityTransferParams {
 }
 
 export interface IPostRepository extends Repository<IPostEntity> {
+  /** Recheck ownership, lifecycle and real live transactions under a row lock. */
+  updateOwnedContent(params: {
+    postId: string;
+    authorId: string;
+    expectedUpdatedAt: Date;
+    changes: Partial<IPostEntity>;
+  }): Promise<IPostEntity>;
   createPostWithinQuota(
     authorId: string,
     quota: number,

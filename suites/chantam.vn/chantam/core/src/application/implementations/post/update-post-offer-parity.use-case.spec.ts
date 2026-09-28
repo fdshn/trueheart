@@ -48,11 +48,11 @@ describe('UpdatePostUseCase OFFER parity', () => {
   it('merges typed OFFER details into canonical details', async () => {
     const posts = {
       findOneBy: jest.fn(async () => makePost()),
-      update: jest.fn(async () => undefined),
+      updateOwnedContent: jest.fn(async () => makePost()),
       findOneByOrFail: jest.fn(async () => makePost()),
     } as unknown as jest.Mocked<IPostRepository>;
 
-    await new UpdatePostUseCase(posts).handle({
+    await new UpdatePostUseCase(posts, {} as never, {} as never).handle({
       userId: '22222222-2222-2222-2222-222222222222',
       postId: PostId,
       post: {
@@ -61,13 +61,15 @@ describe('UpdatePostUseCase OFFER parity', () => {
       },
     });
 
-    expect(posts.update).toHaveBeenCalledWith(
-      { globalId: PostId },
+    expect(posts.updateOwnedContent).toHaveBeenCalledWith(
       expect.objectContaining({
-        details: {
-          condition: GiftPostConditions.LIKE_NEW,
-          estimatedValue: 2_000_000,
-        },
+        postId: PostId,
+        changes: expect.objectContaining({
+          details: {
+            condition: GiftPostConditions.LIKE_NEW,
+            estimatedValue: 2_000_000,
+          },
+        }),
       }),
     );
   });
@@ -75,17 +77,17 @@ describe('UpdatePostUseCase OFFER parity', () => {
   it('rejects OFFER details for non-OFFER posts', async () => {
     const posts = {
       findOneBy: jest.fn(async () => makePost(PostTypes.CHARITY)),
-      update: jest.fn(),
+      updateOwnedContent: jest.fn(),
       findOneByOrFail: jest.fn(),
     } as unknown as jest.Mocked<IPostRepository>;
 
     await expect(
-      new UpdatePostUseCase(posts).handle({
+      new UpdatePostUseCase(posts, {} as never, {} as never).handle({
         userId: '22222222-2222-2222-2222-222222222222',
         postId: PostId,
         post: { condition: GiftPostConditions.LIKE_NEW },
       }),
     ).rejects.toThrow();
-    expect(posts.update).not.toHaveBeenCalled();
+    expect(posts.updateOwnedContent).not.toHaveBeenCalled();
   });
 });

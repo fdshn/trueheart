@@ -201,6 +201,17 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     );
   }
 
+  public async hasLiveForPost(postId: string): Promise<boolean> {
+    const [result] = await this.manager.query<{ exists: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1 FROM gift_transactions
+         WHERE post_id = $1 AND status IN ('ACCEPTED', 'DELIVERING')
+       ) AS exists`,
+      [postId],
+    );
+    return result.exists;
+  }
+
   public async reopen(params: {
     transactionId: string;
     actorUserId: string;

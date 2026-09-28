@@ -45,6 +45,10 @@ export class PublicPostMediaDto implements IPublicPostMediaDto {
 }
 
 export class GetPostResponseDto implements IGetPostResponseDto {
+  @ApiPropertyOptional({
+    description: 'Quyền sửa của chủ bài theo trạng thái và giao dịch thực tế.',
+  })
+  canEdit?: boolean;
   @ApiProperty({ type: () => PostEntity })
   post: IPostEntity;
 

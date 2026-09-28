@@ -114,6 +114,7 @@ const makeUserRepo = () =>
 
 const makeGiftTransactionRepo = () =>
   ({
+    hasLiveForPost: jest.fn().mockResolvedValue(false),
     isReceiverOfPost: jest.fn().mockResolvedValue(false),
   }) as unknown as jest.Mocked<IGiftTransactionRepository>;
 
@@ -128,6 +129,30 @@ const makeReactions = () =>
   }) as unknown as jest.Mocked<IContentReactionRepository>;
 
 describe('GetPostUseCase', () => {
+  it.each([false, true])(
+    'owner gets original coordinates and canEdit reflects live transaction=%s',
+    async (live) => {
+      const post = makePost();
+      const transactions = makeGiftTransactionRepo();
+      transactions.hasLiveForPost.mockResolvedValue(live);
+      const result = await new GetPostUseCase(
+        {
+          findPublicByGlobalId: jest.fn().mockResolvedValue(post),
+        } as unknown as IPostRepository,
+        {
+          listByPostId: jest.fn().mockResolvedValue([]),
+        } as unknown as IPostMediaRepository,
+        makeGiftRequestRepo(),
+        transactions,
+        makeUserRepo(),
+        makeReactions(),
+        makeConfig(),
+      ).handle({ postId: PostId, currentUserId: post.authorId });
+      expect(result.post.location).toEqual(ExactLocation);
+      expect(result.isLocationApproximate).toBe(false);
+      expect(result.canEdit).toBe(!live);
+    },
+  );
   it('áp dụng geo jitter cho toạ độ trả ra qua kênh public và bảo vệ quyền riêng tư (không trả fullName)', async () => {
     const postRepository = {
       findPublicByGlobalId: jest.fn().mockResolvedValue(makePost()),

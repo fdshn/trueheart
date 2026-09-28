@@ -164,6 +164,28 @@ Mọi public response có location đều jitter ổn định theo post ID. `dis
 
 ## Canonical posts M2.1
 
+### Owner editing
+
+`PATCH /api/v1/posts/:postId` edits title, description, active category, area/location,
+quantity, SOS and delivery/shipping terms. OFFER supports condition/estimatedValue;
+CLASSIFIED supports condition/price/negotiable. Explicit `deliveryMethod: null`
+means privately negotiated delivery and clears shipPayer; omitted fields stay unchanged.
+Type, author, lifecycle status, expiry and rewards are not editable.
+
+Only DRAFT/PENDING_REVIEW/PUBLISHED, still-valid posts without ACCEPTED/DELIVERING
+transactions can be edited. The post-row lock serializes saving/media changes with
+stock allocation, including multi-quantity posts still PUBLISHED. Quantity preserves
+already allocated stock. Waiting requests and queue timestamps remain untouched.
+Content changes are audited. Owner detail returns original coordinates and canEdit;
+non-owner coordinates remain jittered.
+
+TODO notification: after committed important edits, notify still-waiting applicants
+without deleting/rejecting their requests. Cover item/category/condition/media,
+quantity, location and delivery/ship-payer changes. Use durable outbox + per-recipient
+idempotency, coalesce content/media requests, respect privacy, and never send before
+commit. Detailed follow-up is in the Flutter repository's
+`documentation/post-edit-notifications.md`; notifications are intentionally deferred.
+
 `/api/v1/posts` là API canonical mới. Trong compatibility window, `/api/v1/gift-posts` vẫn tồn tại cho
 client cũ và đã map vào canonical `posts`; không ghi hai bảng song song. `POST /api/v1/posts` chỉ tạo `OFFER` ở
 `PENDING_REVIEW`; author/type/status do server quyết định. Operator tạm thời cấu hình bằng

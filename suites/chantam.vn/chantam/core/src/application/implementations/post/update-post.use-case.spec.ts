@@ -1,8 +1,20 @@
-import { PostHasLiveTransactionException } from '@/domain/exceptions';
-import { IPostRepository } from '@/domain/ports/repository';
 import {
+  CategoryNotFoundException,
+  PostHasLiveTransactionException,
+  PostInvalidStateException,
+  PostSosNotAllowedException,
+} from '@/domain/exceptions';
+import {
+  ICategoryRepository,
+  IEntitlementRepository,
+  IPostRepository,
+} from '@/domain/ports/repository';
+import {
+  DeliveryMethods,
+  GiftPostConditions,
   PostSelectionModes,
   PostTypes,
+  ShipPayers,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
@@ -46,109 +58,219 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
   };
 }
 
-describe('UpdatePostUseCase', () => {
-  it('chỉ owner cập nhật nội dung canonical post', async () => {
-    const postRepository = {
-      findOneBy: jest.fn().mockResolvedValue(makePost()),
-      update: jest.fn(),
-      findOneByOrFail: jest
-        .fn()
-        .mockResolvedValue(makePost({ title: 'Xe mới' })),
-    } as unknown as jest.Mocked<IPostRepository>;
+function setup(overrides: Partial<IPostEntity> = {}) {
+  const post = makePost(overrides);
+  const posts = {
+    findOneBy: jest.fn(async () => post),
+    updateOwnedContent: jest.fn(
+      async (params: { changes: Partial<IPostEntity> }) => ({
+        ...post,
+        ...params.changes,
+      }),
+    ),
+  };
+  const categories = {
+    findOneBy: jest.fn(async () => ({ isActive: true, deletedAt: null })),
+  };
+  const entitlements = {
+    getCapability: jest.fn(async () => ({ allowed: true })),
+  };
+  const useCase = new UpdatePostUseCase(
+    posts as unknown as IPostRepository,
+    categories as unknown as ICategoryRepository,
+    entitlements as unknown as IEntitlementRepository,
+  );
+  return { post, posts, categories, entitlements, useCase };
+}
 
-    const result = await new UpdatePostUseCase(postRepository).handle({
+describe('UpdatePostUseCase', () => {
+  it('updates full content without changing type/status/expiry or pending requests', async () => {
+    const { useCase, posts, post } = setup();
+    const result = await useCase.handle({
       postId: PostId,
       userId: AuthorId,
-      post: { title: 'Xe mới' },
+      post: {
+        title: 'Xe mới',
+        categoryId: '30000000-0000-4000-8000-000000000002',
+        totalQuantity: 5,
+        isSos: true,
+        deliveryMethod: DeliveryMethods.GIVER_SHIPS,
+        shipPayer: ShipPayers.GIVER,
+        condition: GiftPostConditions.NEW,
+        estimatedValue: 20,
+      },
     });
-
-    expect(postRepository.update).toHaveBeenCalledWith(
-      { globalId: PostId },
-      { title: 'Xe mới' },
+    expect(posts.updateOwnedContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authorId: AuthorId,
+        expectedUpdatedAt: post.updatedAt,
+        changes: expect.objectContaining({
+          totalQuantity: 5,
+          remainingQuantity: 5,
+          isSos: true,
+        }),
+      }),
     );
+    const changes = posts.updateOwnedContent.mock.calls[0][0].changes;
+    expect(changes).not.toHaveProperty('status');
+    expect(changes).not.toHaveProperty('postType');
+    expect(changes).not.toHaveProperty('expiresAt');
+    expect(changes).not.toHaveProperty('authorId');
     expect(result.post.title).toBe('Xe mới');
   });
 
-  it('bài REJECTED sửa xong VẪN là REJECTED — không tự gỡ lệnh gỡ bài', async () => {
-    const postRepository = {
-      findOneBy: jest
-        .fn()
-        .mockResolvedValue(makePost({ status: 'REJECTED' as never })),
-      update: jest.fn(),
-      findOneByOrFail: jest
-        .fn()
-        .mockResolvedValue(
-          makePost({ title: 'Xe sửa lại', status: 'REJECTED' as never }),
-        ),
-    } as unknown as jest.Mocked<IPostRepository>;
-
-    const result = await new UpdatePostUseCase(postRepository).handle({
-      postId: PostId,
-      userId: AuthorId,
-      post: { title: 'Xe sửa lại' },
-    });
-
-    // Không có `status` trong câu update: sửa một dấu phẩy mà bài tự hiện lại
-    // là cho tác giả tự gỡ quyết định của Admin.
-    expect(postRepository.update).toHaveBeenCalledWith(
-      { globalId: PostId },
-      { title: 'Xe sửa lại' },
-    );
-    expect(result.post.status).toBe('REJECTED');
-  });
-
-  it('từ chối người không phải owner trước khi update', async () => {
-    const postRepository = {
-      findOneBy: jest.fn().mockResolvedValue(makePost()),
-      update: jest.fn(),
-    } as unknown as jest.Mocked<IPostRepository>;
-
+  it.each(['REJECTED', 'COMPLETED', 'CANCELLED', 'EXPIRED', 'ARCHIVED'])(
+    'blocks terminal/removed state %s',
+    async (status) => {
+      const { useCase, posts } = setup({ status: status as never });
+      await expect(
+        useCase.handle({
+          postId: PostId,
+          userId: AuthorId,
+          post: { title: 'Xe mới' },
+        }),
+      ).rejects.toBeInstanceOf(PostInvalidStateException);
+      expect(posts.updateOwnedContent).not.toHaveBeenCalled();
+    },
+  );
+  it.each(['RESERVED', 'DELIVERING'])(
+    'blocks live state %s',
+    async (status) => {
+      const { useCase } = setup({ status: status as never });
+      await expect(
+        useCase.handle({
+          postId: PostId,
+          userId: AuthorId,
+          post: { title: 'Xe mới' },
+        }),
+      ).rejects.toBeInstanceOf(PostHasLiveTransactionException);
+    },
+  );
+  it('checks ownership before writing', async () => {
+    const { useCase, posts } = setup();
     await expect(
-      new UpdatePostUseCase(postRepository).handle({
+      useCase.handle({
         postId: PostId,
-        userId: '33333333-3333-3333-3333-333333333333',
-        post: { title: 'Không được phép' },
+        userId: 'other',
+        post: { title: 'Xe mới' },
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(postRepository.update).not.toHaveBeenCalled();
+    expect(posts.updateOwnedContent).not.toHaveBeenCalled();
   });
-
-  it('KHÔNG sửa được bài đã chốt người nhận', async () => {
-    // Người nhận đồng ý một món rồi mở lại thấy món khác. Với tin rao vặt thì
-    // sửa được cả giá sau khi đã chốt người.
-    const repository = {
-      findOneBy: jest
-        .fn()
-        .mockResolvedValue(makePost({ status: 'RESERVED' as never })),
-      update: jest.fn(),
-      findOneByOrFail: jest.fn(),
-    } as unknown as jest.Mocked<IPostRepository>;
-
+  it('preserves allocated stock while changing quantity', async () => {
+    const { useCase, posts } = setup({
+      totalQuantity: 5,
+      remainingQuantity: 3,
+    });
+    await useCase.handle({
+      postId: PostId,
+      userId: AuthorId,
+      post: { totalQuantity: 4 },
+    });
+    expect(posts.updateOwnedContent.mock.calls[0][0].changes).toMatchObject({
+      totalQuantity: 4,
+      remainingQuantity: 2,
+    });
     await expect(
-      new UpdatePostUseCase(repository).handle({
+      useCase.handle({
         postId: PostId,
         userId: AuthorId,
-        post: { title: 'Đổi thành món khác' },
+        post: { totalQuantity: 2 },
       }),
-    ).rejects.toBeInstanceOf(PostHasLiveTransactionException);
-    expect(repository.update).not.toHaveBeenCalled();
+    ).rejects.toThrow();
   });
-
-  it('bài đang bàn giao cũng không sửa được', async () => {
-    const repository = {
-      findOneBy: jest
-        .fn()
-        .mockResolvedValue(makePost({ status: 'DELIVERING' as never })),
-      update: jest.fn(),
-      findOneByOrFail: jest.fn(),
-    } as unknown as jest.Mocked<IPostRepository>;
-
+  it('validates changed category and SOS permission', async () => {
+    const { useCase, categories, entitlements } = setup();
+    categories.findOneBy.mockResolvedValueOnce({
+      isActive: false,
+      deletedAt: null,
+    });
     await expect(
-      new UpdatePostUseCase(repository).handle({
+      useCase.handle({
         postId: PostId,
         userId: AuthorId,
-        post: { title: 'x' },
+        post: { categoryId: 'other' },
       }),
-    ).rejects.toBeInstanceOf(PostHasLiveTransactionException);
+    ).rejects.toBeInstanceOf(CategoryNotFoundException);
+    entitlements.getCapability.mockResolvedValueOnce({ allowed: false });
+    await expect(
+      useCase.handle({
+        postId: PostId,
+        userId: AuthorId,
+        post: { isSos: true },
+      }),
+    ).rejects.toBeInstanceOf(PostSosNotAllowedException);
+  });
+  it('supports CLASSIFIED condition/price/negotiable but rejects OFFER-only value', async () => {
+    const { useCase, posts } = setup({ postType: PostTypes.CLASSIFIED });
+    await useCase.handle({
+      postId: PostId,
+      userId: AuthorId,
+      post: {
+        price: 100,
+        negotiable: true,
+        condition: GiftPostConditions.USED,
+      },
+    });
+    expect(
+      posts.updateOwnedContent.mock.calls[0][0].changes.details,
+    ).toMatchObject({ price: 100, negotiable: true });
+    await expect(
+      useCase.handle({
+        postId: PostId,
+        userId: AuthorId,
+        post: { estimatedValue: 100 },
+      }),
+    ).rejects.toThrow();
+  });
+  it('WANTED supports quantity and content but not condition/price', async () => {
+    const { useCase } = setup({ postType: PostTypes.WANTED });
+    await expect(
+      useCase.handle({
+        postId: PostId,
+        userId: AuthorId,
+        post: { totalQuantity: 3 },
+      }),
+    ).resolves.toBeDefined();
+    await expect(
+      useCase.handle({
+        postId: PostId,
+        userId: AuthorId,
+        post: { condition: GiftPostConditions.USED },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      useCase.handle({ postId: PostId, userId: AuthorId, post: { price: 1 } }),
+    ).rejects.toThrow();
+  });
+  it('changing ship delivery to pickup or negotiation clears payer', async () => {
+    const { useCase, posts } = setup({
+      deliveryMethod: DeliveryMethods.GIVER_SHIPS,
+      shipPayer: ShipPayers.GIVER,
+    });
+    await useCase.handle({
+      postId: PostId,
+      userId: AuthorId,
+      post: { deliveryMethod: null },
+    });
+    expect(posts.updateOwnedContent.mock.calls[0][0].changes).toMatchObject({
+      deliveryMethod: null,
+      shipPayer: null,
+    });
+    await useCase.handle({
+      postId: PostId,
+      userId: AuthorId,
+      post: { deliveryMethod: DeliveryMethods.SELF_PICKUP },
+    });
+    expect(
+      posts.updateOwnedContent.mock.calls[1][0].changes.shipPayer,
+    ).toBeNull();
+    await expect(
+      useCase.handle({
+        postId: PostId,
+        userId: AuthorId,
+        post: { deliveryMethod: null, shipPayer: ShipPayers.GIVER },
+      }),
+    ).rejects.toThrow();
   });
 });

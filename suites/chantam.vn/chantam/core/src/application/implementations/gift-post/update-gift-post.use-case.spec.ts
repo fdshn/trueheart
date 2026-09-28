@@ -55,7 +55,7 @@ describe('UpdateGiftPostUseCase compatibility', () => {
   it('chỉ update canonical content/details, không ghi gift_posts', async () => {
     const posts = {
       findOneBy: jest.fn().mockResolvedValue(makePost()),
-      update: jest.fn(),
+      updateOwnedContent: jest.fn(),
       findOneByOrFail: jest
         .fn()
         .mockResolvedValue(makePost({ title: 'Tiêu đề mới' })),
@@ -70,15 +70,18 @@ describe('UpdateGiftPostUseCase compatibility', () => {
       },
     });
 
-    expect(posts.update).toHaveBeenCalledWith(
-      { globalId: GiftPostId },
-      {
-        title: 'Tiêu đề mới',
-        details: {
-          condition: GiftPostConditions.LIKE_NEW,
-          estimatedValue: 1_500_000,
+    expect(posts.updateOwnedContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        postId: GiftPostId,
+        authorId: UserId,
+        changes: {
+          title: 'Tiêu đề mới',
+          details: {
+            condition: GiftPostConditions.LIKE_NEW,
+            estimatedValue: 1_500_000,
+          },
         },
-      },
+      }),
     );
   });
 
