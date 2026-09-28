@@ -238,22 +238,15 @@ async function main(): Promise<void> {
       `${doubleAccepted}/${Rounds} vòng duyệt quá số lượng`,
     );
 
-    // ── 2. Hai luồng duyệt KHÁC NHAU chạy chéo — chỗ từng khoá ngược ────────
+    // ── 2. Hai lượt duyệt cùng một yêu cầu (bấm trùng / retry) ──────────────
     let crossDeadlocks = 0;
     let doubleDecrement = 0;
 
     for (let round = 0; round < Rounds; round += 1) {
       await seedRound(dataSource, round, 2, 1);
 
-      // Luồng cũ tạo sẵn một lượt REQUESTED cho chính người xin đó.
-      const legacyTransactionId = `44444444-4444-4444-8444-${suffix('44', round, 0)}`;
-      await dataSource.query(
-        `INSERT INTO gift_transactions
-           (global_id, post_id, giver_id, receiver_id, quantity, status)
-         VALUES ($1, $2, $3, $4, 1, 'REQUESTED')`,
-        [legacyTransactionId, PostId, GiverId, requesterId(0)],
-      );
-
+      // Không dựng REQUESTED hay gọi đường accept cũ đã bị gỡ. Cả hai lượt
+      // phải qua luồng duyệt gift_requests đang được API sử dụng.
       const results = await Promise.allSettled([
         giftRequests.acceptRequest({
           requestId: requestId(round, 0),
@@ -261,7 +254,12 @@ async function main(): Promise<void> {
           giverId: GiverId,
           transactionId: `55555555-5555-4555-8555-${suffix('56', round, 0)}`,
         }),
-        giftTransactions.accept(legacyTransactionId, GiverId),
+        giftRequests.acceptRequest({
+          requestId: requestId(round, 0),
+          postId: PostId,
+          giverId: GiverId,
+          transactionId: `55555555-5555-4555-8555-${suffix('56', round, 1)}`,
+        }),
       ]);
 
       crossDeadlocks += results.filter(
@@ -271,11 +269,15 @@ async function main(): Promise<void> {
       // Một lượt bàn giao cho cùng một người: tồn kho chỉ được trừ MỘT lần,
       // nên từ 2 phải còn đúng 1.
       const remaining = await remainingQuantity(dataSource);
-      if (remaining < 1) doubleDecrement += 1;
+      const transactionCount = await countBy(
+        dataSource,
+        `SELECT COUNT(*) AS count FROM gift_transactions WHERE post_id = $1`,
+      );
+      if (remaining !== 1 || transactionCount !== 1) doubleDecrement += 1;
     }
 
     check(
-      'hai luồng duyệt chạy chéo không gây deadlock',
+      'hai lượt duyệt trùng không gây deadlock',
       crossDeadlocks === 0,
       `${crossDeadlocks} lần gặp 40P01`,
     );
