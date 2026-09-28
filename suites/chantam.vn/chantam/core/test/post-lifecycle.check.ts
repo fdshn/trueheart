@@ -595,12 +595,14 @@ async function main(): Promise<void> {
       })) === null,
     );
 
-    console.log('\nĐóng yêu cầu còn treo khi gỡ bài:\n');
+    console.log('\nĐóng lượt trao còn hiệu lực khi gỡ bài:\n');
     await seed(dataSource, [
       { index: 70, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 30 },
     ]);
     for (const [txId, receiver, status] of [
-      ['70000000-0000-4000-8000-000000000001', OtherId, 'REQUESTED'],
+      // Yêu cầu chưa duyệt thuộc gift_requests. gift_transactions chỉ được
+      // tạo sau khi duyệt; migration chặn trạng thái REQUESTED ở bảng này.
+      ['70000000-0000-4000-8000-000000000001', OtherId, 'ACCEPTED'],
       ['70000000-0000-4000-8000-000000000002', ThirdId, 'CANCELLED'],
     ] as const)
       await dataSource.query(
@@ -616,7 +618,7 @@ async function main(): Promise<void> {
       reason: 'Người đăng đã gỡ bài',
     });
     check(
-      'trả về đúng người đang treo yêu cầu',
+      'trả về đúng người có lượt trao còn hiệu lực',
       closed.length === 1 && closed[0]?.receiverId === OtherId,
       `${closed.length} yêu cầu`,
     );
@@ -632,6 +634,17 @@ async function main(): Promise<void> {
       'và ghi lý do để người xin đọc được',
       afterClose?.close_reason === 'Người đăng đã gỡ bài',
       afterClose?.close_reason ?? 'null',
+    );
+    const [alreadyCancelled] = await dataSource.query<
+      { status: string; close_reason: string | null }[]
+    >(
+      `SELECT status, close_reason FROM gift_transactions WHERE global_id = $1`,
+      ['70000000-0000-4000-8000-000000000002'],
+    );
+    check(
+      'không ghi đè lượt trao đã huỷ từ trước',
+      alreadyCancelled?.status === 'CANCELLED' &&
+        alreadyCancelled.close_reason === null,
     );
     check(
       'gọi lại không đóng thêm gì',
