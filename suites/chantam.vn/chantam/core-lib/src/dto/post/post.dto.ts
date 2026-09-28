@@ -162,6 +162,12 @@ export interface INearbyPostDto extends IPostFeedInteractionDto {
    * `undefined` trước mỗi lần đọc `length`.
    */
   media: IPublicPostMediaDto[];
+  /**
+   * Người đăng bài, đúng bộ trường công khai của `IPostAuthorDto` — KHÔNG có
+   * `fullName`, `phone`, `address`. `null` chỉ khi hàng user không còn tồn
+   * tại; tài khoản đã xoá vẫn giữ username nên vẫn trả về được.
+   */
+  author: IPostAuthorDto | null;
 }
 
 export interface IGetNearbyPostsResponseDto {
@@ -192,6 +198,8 @@ export interface ISmartMatchDto {
   reasons: SmartMatchReason[];
   /** Cùng hình dạng với `INearbyPostDto.media`; rỗng khi bài chưa có ảnh. */
   media: IPublicPostMediaDto[];
+  /** Cùng hình dạng với `INearbyPostDto.author`. */
+  author: IPostAuthorDto | null;
 }
 
 export interface IGetSmartMatchesResponseDto {

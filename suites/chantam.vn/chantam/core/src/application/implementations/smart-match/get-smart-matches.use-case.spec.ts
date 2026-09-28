@@ -37,6 +37,7 @@ function makeDeps(
   source: unknown = sourcePost(),
   candidates: unknown[] = [candidate()],
   mediaItems: Array<Record<string, unknown>> = [],
+  authors: Array<Record<string, unknown>> = [],
 ) {
   return {
     posts: {
@@ -61,6 +62,9 @@ function makeDeps(
       // nhầm ảnh sang bài khác.
       listByPostIds: jest.fn(async (_postIds: string[]) => mediaItems),
     },
+    users: {
+      findByGlobalIds: jest.fn(async (_ids: string[]) => authors),
+    },
     // Dấu `/` cuối là chuyện thường trong cấu hình; ghép thô sẽ ra `//`.
     config: {
       geo: { jitterRadiusMeters: 300 },
@@ -73,6 +77,7 @@ function makeUseCase(deps: ReturnType<typeof makeDeps>) {
   return new GetSmartMatchesUseCase(
     deps.posts as never,
     deps.media as never,
+    deps.users as never,
     deps.config as never,
   );
 }
@@ -286,5 +291,76 @@ describe('GetSmartMatchesUseCase', () => {
 
     expect(result.matches).toEqual([]);
     expect(deps.media.listByPostIds).not.toHaveBeenCalled();
+  });
+
+  it('chỉ hỏi tác giả cho bài thật sự trả về, và khử trùng id', async () => {
+    const shared = '60000000-0000-4000-8000-000000000006';
+    const deps = makeDeps(
+      sourcePost(),
+      [
+        candidate({
+          post: {
+            globalId: 'a',
+            categoryId: CategoryId,
+            location: {},
+            authorId: shared,
+          },
+          distanceMeters: 100,
+        }),
+        candidate({
+          post: {
+            globalId: 'b',
+            categoryId: CategoryId,
+            location: {},
+            authorId: shared,
+          },
+          distanceMeters: 200,
+        }),
+        candidate({
+          post: {
+            globalId: 'c',
+            categoryId: CategoryId,
+            location: {},
+            authorId: '70000000-0000-4000-8000-000000000007',
+          },
+          distanceMeters: 300,
+        }),
+      ],
+      [],
+      [
+        {
+          globalId: shared,
+          username: 'sondeptrai',
+          avatarUrl: null,
+          rank: 'MEMBER',
+          createdAt: new Date('2026-09-17T17:59:10.190Z'),
+        },
+      ],
+    );
+
+    const result = await makeUseCase(deps).handle({ ...Command, take: 2 });
+
+    // Hai bài lọt vào kết quả cùng một tác giả, và bài 'c' đã bị cắt — không
+    // được hỏi tới nó.
+    expect(deps.users.findByGlobalIds).toHaveBeenCalledTimes(1);
+    expect(deps.users.findByGlobalIds).toHaveBeenCalledWith([shared]);
+    expect(result.matches[0].author?.username).toBe('sondeptrai');
+    expect(result.matches[1].author?.username).toBe('sondeptrai');
+  });
+
+  it('không có bài ghép nào thì không hỏi tác giả', async () => {
+    const deps = makeDeps(sourcePost({ postType: PostTypes.CHARITY }));
+
+    await makeUseCase(deps).handle(Command);
+
+    expect(deps.users.findByGlobalIds).not.toHaveBeenCalled();
+  });
+
+  it('mất hàng user thì author là null', async () => {
+    const deps = makeDeps();
+
+    const result = await makeUseCase(deps).handle(Command);
+
+    expect(result.matches[0].author).toBeNull();
   });
 });

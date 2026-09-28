@@ -21,6 +21,15 @@ export interface IUserRepository extends Repository<IUserEntity> {
    */
   findByIdentifier(identifier: string): Promise<IUserEntity | null>;
 
+  /**
+   * Nạp nhiều hồ sơ trong MỘT truy vấn — dùng cho feed, nơi mỗi trang có tới
+   * 20 bài và hỏi từng tác giả là 20 lượt đi database mỗi lần cuộn.
+   *
+   * KHÔNG lọc `deletedAt`: tài khoản đã xoá vẫn giữ username, và bài cũ của
+   * họ vẫn phải hiện đúng tên thay vì trống trơn.
+   */
+  findByGlobalIds(globalIds: string[]): Promise<IUserEntity[]>;
+
   createWithReferral(
     params: ICreateUserWithReferralParams,
   ): Promise<ICreateUserWithReferralResult>;

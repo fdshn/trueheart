@@ -7,6 +7,7 @@ import {
   IGetNearbyPostsQueryDto,
   IGetNearbyPostsResponseDto,
   INearbyPostDto,
+  IPostAuthorDto,
   IPublicPostMediaDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
@@ -36,7 +37,7 @@ import {
 } from 'class-validator';
 import { Mixin } from 'ts-mixer';
 import { PostEntity } from '../../../entity/post.entity';
-import { PublicPostMediaDto } from './post.dto';
+import { PostAuthorDto, PublicPostMediaDto } from './post.dto';
 
 export class GetNearbyPostsQueryDto
   extends Mixin(PaginationQueryDto)
@@ -151,6 +152,15 @@ export class NearbyPostDto implements INearbyPostDto {
       'cùng hình dạng với `/posts/me` và `/posts/{postId}`.',
   })
   media: IPublicPostMediaDto[];
+
+  @ApiProperty({
+    type: () => PostAuthorDto,
+    nullable: true,
+    description:
+      'Người đăng bài. KHÔNG bao giờ chứa `fullName`, `phone` hay `address` — ' +
+      'đây là kênh công khai. `null` khi hàng user không còn tồn tại.',
+  })
+  author: IPostAuthorDto | null;
 
   @ApiProperty({ example: 12 }) reactionCount: number;
   @ApiProperty({ example: 3 }) commentCount: number;

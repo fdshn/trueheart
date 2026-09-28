@@ -465,6 +465,8 @@ ra — gợi ý không giải thích được thì người dùng không có cơ
 - Mỗi gợi ý kèm `media[]` cùng hình dạng với `/posts/nearby` (chốt 27/09). Ảnh chỉ nạp cho các
   bài **đã lọt vào kết quả sau khi xếp hạng và cắt** — nạp cho cả rổ ứng viên rồi vứt phần lớn
   là kéo về đúng thứ vừa quyết không trả.
+- Mỗi gợi ý cũng kèm `author` cùng bộ trường với `/posts/nearby` (chốt 28/09), nạp theo đúng
+  quy tắc trên: sau khi cắt, và khử trùng id.
 
 ### Ảnh bài đăng — luồng ba bước
 
@@ -652,6 +654,24 @@ phân trang riêng nên ghép xong thứ tự vô nghĩa).
 là mảng** (bài chưa có ảnh trả `[]`, không bỏ trống trường). Ảnh của cả trang lấy trong **một
 truy vấn** gộp theo `postId` rồi chia về từng bài; hỏi từng bài là 20 lượt đi database mỗi lần
 cuộn feed.
+
+`/posts/nearby` trả kèm `author` cho từng bài (chốt 28/09) — đúng bộ trường công khai của
+`IPostAuthorDto`, cùng khuôn với `/posts/{postId}`:
+
+```json
+"author": { "id": "...", "username": "sondeptrai", "avatarUrl": "https://...",
+            "rank": "MEMBER", "joinedAt": "2026-09-17T17:59:10.190Z" }
+```
+
+- **Không bao giờ có `fullName`, `phone` hay `address`.** Feed là kênh công khai, khách chưa
+  đăng nhập cũng quét được — lộ ở đây là lộ cho cả internet. Thông tin liên lạc chỉ đi qua
+  `contactInfo` của `/posts/{postId}`, và chỉ cho receiver đã được chọn.
+- Tác giả **đã xoá tài khoản vẫn hiện username**; `avatarUrl` về `null`. Xoá tài khoản là xoá
+  mềm có ẩn danh, cố ý giữ username để không ai đăng ký đúng tên đó rồi mạo danh trong lịch sử
+  giao dịch cũ.
+- `null` chỉ khi hàng user không còn tồn tại — trả `null` còn hơn làm vỡ cả trang feed.
+- Một truy vấn cho cả trang, và **id tác giả được khử trùng trước khi hỏi**: một người đăng năm
+  bài trên cùng trang vẫn chỉ là một hàng trong bảng `users`.
 
 `/posts/map` nhận khung bbox và trả **CỤM theo ô lưới** (chốt 26/09):
 

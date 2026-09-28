@@ -11,12 +11,15 @@ import { IConfig } from '@/domain/ports/config';
 import {
   IPostMediaRepository,
   IPostRepository,
+  IUserRepository,
 } from '@/domain/ports/repository';
 import { PostTypes } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IGetSmartMatchesResponseDto,
+  IPostAuthorDto,
   SmartMatchReason,
 } from '@chantam.vn/chantam.core-lib/dto';
+import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import {
   applyGeoJitter,
@@ -35,6 +38,23 @@ const ComplementaryType: Partial<Record<PostTypes, PostTypes>> = {
   [PostTypes.WANTED]: PostTypes.OFFER,
 };
 
+/**
+ * Bộ trường tác giả được phép ra kênh công khai.
+ *
+ * Repository trả NGUYÊN hàng user — có cả `email`, `phone`, `fullName`,
+ * `passwordHash`. Trả thẳng nó ra feed là lộ hồ sơ của mọi người đăng bài cho
+ * bất kỳ ai quét bản đồ. Hàm này là chỗ duy nhất quyết định cái gì đi ra.
+ */
+function toPublicAuthor(user: IUserEntity): IPostAuthorDto {
+  return {
+    id: user.globalId,
+    username: user.username,
+    avatarUrl: user.avatarUrl,
+    rank: user.rank,
+    joinedAt: user.createdAt,
+  };
+}
+
 @Injectable()
 export class GetSmartMatchesUseCase implements IGetSmartMatchesUseCase {
   public constructor(
@@ -42,6 +62,8 @@ export class GetSmartMatchesUseCase implements IGetSmartMatchesUseCase {
     private readonly postRepository: IPostRepository,
     @Inject(IPostMediaRepository)
     private readonly postMediaRepository: IPostMediaRepository,
+    @Inject(IUserRepository)
+    private readonly userRepository: IUserRepository,
     @Inject(IConfig) private readonly config: IConfig,
   ) {}
 
@@ -141,11 +163,22 @@ export class GetSmartMatchesUseCase implements IGetSmartMatchesUseCase {
       }
     }
 
+    // Cũng nạp SAU khi cắt, và khử trùng: hai bài lọt vào kết quả có thể cùng
+    // một người đăng.
+    const authorIds = [...new Set(ranked.map((match) => match.post.authorId))];
+    const authorMap = new Map<string, IPostAuthorDto>(
+      (authorIds.length > 0
+        ? await this.userRepository.findByGlobalIds(authorIds)
+        : []
+      ).map((user) => [user.globalId, toPublicAuthor(user)]),
+    );
+
     const matches = ranked.map((match) => ({
       ...match,
       media: (mediaMap.get(match.post.globalId) ?? []).sort(
         (a, b) => a.sortOrder - b.sortOrder,
       ),
+      author: authorMap.get(match.post.authorId) ?? null,
     }));
 
     return { sourcePostId: source.globalId, radiusMeters, matches };

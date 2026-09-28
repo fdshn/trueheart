@@ -18,6 +18,7 @@ import {
 import {
   IPostEntity,
   IPostMediaEntity,
+  IUserEntity,
 } from '@chantam.vn/chantam.core-lib/entities';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { GetNearbyPostsUseCase } from './get-nearby-posts.use-case';
@@ -118,12 +119,16 @@ function makeEntitlements(limit = 10_000) {
  * Người dùng CÓ Vị trí mặc định, để phân biệt hai nhánh của F26: khi client
  * gửi toạ độ thì tuyệt đối không được đọc tới hồ sơ.
  */
-function makeUsers() {
+function makeUsers(
+  authors: Array<Partial<IUserEntity>> = [],
+): jest.Mocked<IUserRepository> {
   return {
     findOneBy: jest.fn().mockResolvedValue({
       globalId: '99999999-9999-9999-9999-999999999999',
       defaultLocation: { lat: 21.0278, lng: 105.8342 },
     }),
+    // Cùng khuôn với ảnh: một truy vấn cho cả trang, trả phẳng mọi tác giả.
+    findByGlobalIds: jest.fn().mockResolvedValue(authors),
   } as unknown as jest.Mocked<IUserRepository>;
 }
 
@@ -635,5 +640,251 @@ describe('GetNearbyPostsUseCase', () => {
 
     expect(media.listByPostIds).not.toHaveBeenCalled();
     expect(result.posts).toEqual([]);
+  });
+
+  it('gắn tác giả vào đúng bài và chỉ tra MỘT hàng cho tác giả đăng nhiều bài', async () => {
+    const shared = '22222222-2222-2222-2222-222222222222';
+    const other = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const first = makePost();
+    const second = makePost({
+      globalId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    });
+    const third = makePost({
+      globalId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      authorId: other,
+    });
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({
+        items: [
+          { post: first, distanceMeters: 100 },
+          { post: second, distanceMeters: 200 },
+          { post: third, distanceMeters: 300 },
+        ],
+        total: 3,
+      }),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequests = {
+      countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      findStatusesByPostIdsAndRequester: jest.fn(),
+    } as unknown as jest.Mocked<IGiftRequestRepository>;
+
+    const joined = new Date('2026-09-17T17:59:10.190Z');
+    const users = makeUsers([
+      {
+        globalId: shared,
+        username: 'sondeptrai',
+        avatarUrl: 'https://cdn/avatar.jpeg',
+        rank: 'MEMBER',
+        createdAt: joined,
+      },
+      {
+        globalId: other,
+        username: 'nguoikhac',
+        avatarUrl: null,
+        rank: 'MEMBER',
+        createdAt: joined,
+      },
+    ] as Array<Partial<IUserEntity>>);
+
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      makeMedia(),
+      giftRequests,
+      users,
+      makeReactions(),
+      makeConfig(),
+      makeAdminConfig() as never,
+      makeEntitlements(),
+    ).handle({
+      lat: ExactLocation.lat,
+      lng: ExactLocation.lng,
+      radiusMeters: 5_000,
+      page: 1,
+      pageSize: 20,
+    });
+
+    // Hai bài đầu CÙNG tác giả — hỏi hai lần cho cùng một người là lãng phí
+    // đúng thứ mà gộp truy vấn sinh ra để tránh.
+    expect(users.findByGlobalIds).toHaveBeenCalledTimes(1);
+    const asked = (users.findByGlobalIds as jest.Mock).mock
+      .calls[0][0] as string[];
+    expect(asked).toHaveLength(2);
+    expect([...asked].sort()).toEqual([shared, other].sort());
+
+    expect(result.posts[0].author).toEqual({
+      id: shared,
+      username: 'sondeptrai',
+      avatarUrl: 'https://cdn/avatar.jpeg',
+      rank: 'MEMBER',
+      joinedAt: joined,
+    });
+    expect(result.posts[1].author?.username).toBe('sondeptrai');
+    expect(result.posts[2].author?.username).toBe('nguoikhac');
+  });
+
+  it('KHÔNG lộ thông tin liên lạc của tác giả ra feed công khai', async () => {
+    // IPostAuthorDto cấm fullName/phone/address: feed là kênh công khai, khách
+    // chưa đăng nhập cũng quét được, nên lộ ở đây là lộ cho cả internet.
+    const post = makePost();
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({
+        items: [{ post, distanceMeters: 100 }],
+        total: 1,
+      }),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequests = {
+      countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      findStatusesByPostIdsAndRequester: jest.fn(),
+    } as unknown as jest.Mocked<IGiftRequestRepository>;
+
+    // Repository trả NGUYÊN hàng user; lọc là việc của use case.
+    const users = makeUsers([
+      {
+        globalId: post.authorId,
+        username: 'sondeptrai',
+        avatarUrl: null,
+        rank: 'MEMBER',
+        createdAt: new Date(),
+        fullName: 'Pham Van Son',
+        email: 'sonit251203@gmail.com',
+        phone: '+84329442505',
+        passwordHash: '$2b$12$khong-duoc-lo',
+      },
+    ] as Array<Partial<IUserEntity>>);
+
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      makeMedia(),
+      giftRequests,
+      users,
+      makeReactions(),
+      makeConfig(),
+      makeAdminConfig() as never,
+      makeEntitlements(),
+    ).handle({
+      lat: ExactLocation.lat,
+      lng: ExactLocation.lng,
+      radiusMeters: 5_000,
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(Object.keys(result.posts[0].author ?? {}).sort()).toEqual([
+      'avatarUrl',
+      'id',
+      'joinedAt',
+      'rank',
+      'username',
+    ]);
+    const serialised = JSON.stringify(result.posts[0].author);
+    expect(serialised).not.toContain('@gmail');
+    expect(serialised).not.toContain('84329442505');
+    expect(serialised).not.toContain('$2b$12$');
+  });
+
+  it('tác giả đã xoá tài khoản thì vẫn còn username, avatar về null', async () => {
+    // Xoá tài khoản là xoá MỀM có ẩn danh: giữ username để không ai đăng ký
+    // đúng tên đó rồi mạo danh trong lịch sử giao dịch cũ.
+    const post = makePost();
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({
+        items: [{ post, distanceMeters: 100 }],
+        total: 1,
+      }),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequests = {
+      countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      findStatusesByPostIdsAndRequester: jest.fn(),
+    } as unknown as jest.Mocked<IGiftRequestRepository>;
+
+    const users = makeUsers([
+      {
+        globalId: post.authorId,
+        username: 'sondeptrai',
+        avatarUrl: null,
+        rank: 'MEMBER',
+        createdAt: new Date(),
+        deletedAt: new Date(),
+      },
+    ] as Array<Partial<IUserEntity>>);
+
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      makeMedia(),
+      giftRequests,
+      users,
+      makeReactions(),
+      makeConfig(),
+      makeAdminConfig() as never,
+      makeEntitlements(),
+    ).handle({
+      lat: ExactLocation.lat,
+      lng: ExactLocation.lng,
+      radiusMeters: 5_000,
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(result.posts[0].author?.username).toBe('sondeptrai');
+    expect(result.posts[0].author?.avatarUrl).toBeNull();
+  });
+
+  it('mất hàng user thì trả author null chứ không làm vỡ cả trang', async () => {
+    const post = makePost();
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({
+        items: [{ post, distanceMeters: 100 }],
+        total: 1,
+      }),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequests = {
+      countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      findStatusesByPostIdsAndRequester: jest.fn(),
+    } as unknown as jest.Mocked<IGiftRequestRepository>;
+
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      makeMedia(),
+      giftRequests,
+      makeUsers([]),
+      makeReactions(),
+      makeConfig(),
+      makeAdminConfig() as never,
+      makeEntitlements(),
+    ).handle({
+      lat: ExactLocation.lat,
+      lng: ExactLocation.lng,
+      radiusMeters: 5_000,
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(result.posts[0].author).toBeNull();
+  });
+
+  it('trang rỗng thì không hỏi tác giả', async () => {
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const users = makeUsers();
+
+    await new GetNearbyPostsUseCase(
+      posts,
+      makeMedia(),
+      {} as unknown as jest.Mocked<IGiftRequestRepository>,
+      users,
+      makeReactions(),
+      makeConfig(),
+      makeAdminConfig() as never,
+      makeEntitlements(),
+    ).handle({
+      lat: ExactLocation.lat,
+      lng: ExactLocation.lng,
+      radiusMeters: 5_000,
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(users.findByGlobalIds).not.toHaveBeenCalled();
   });
 });

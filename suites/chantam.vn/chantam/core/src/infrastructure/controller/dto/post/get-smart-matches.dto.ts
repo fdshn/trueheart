@@ -1,6 +1,7 @@
 import { SmartMatchMaxResults } from '@/domain/consts';
 import {
   IGetSmartMatchesResponseDto,
+  IPostAuthorDto,
   IPublicPostMediaDto,
   ISmartMatchDto,
   SmartMatchReason,
@@ -37,7 +38,7 @@ export class GetSmartMatchesQueryDto {
 }
 
 import { PostEntity } from '../../../entity/post.entity';
-import { PublicPostMediaDto } from './post.dto';
+import { PostAuthorDto, PublicPostMediaDto } from './post.dto';
 
 export class SmartMatchDto implements ISmartMatchDto {
   @ApiProperty({ type: () => PostEntity })
@@ -71,6 +72,14 @@ export class SmartMatchDto implements ISmartMatchDto {
       'Ảnh của bài được gợi ý, sắp sẵn theo `sortOrder`. Rỗng khi chưa có ảnh.',
   })
   media: IPublicPostMediaDto[];
+
+  @ApiProperty({
+    type: () => PostAuthorDto,
+    nullable: true,
+    description:
+      'Người đăng bài được gợi ý. Cùng bộ trường với `/posts/nearby`.',
+  })
+  author: IPostAuthorDto | null;
 }
 
 export class GetSmartMatchesResponseDto implements IGetSmartMatchesResponseDto {

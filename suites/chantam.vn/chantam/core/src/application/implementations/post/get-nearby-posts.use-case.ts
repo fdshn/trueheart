@@ -24,6 +24,8 @@ import {
   GiftRequestStatuses,
   ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
+import { IPostAuthorDto } from '@chantam.vn/chantam.core-lib/dto';
+import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import {
@@ -33,6 +35,23 @@ import {
   bucketDistance,
 } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable, Optional } from '@nestjs/common';
+
+/**
+ * Bộ trường tác giả được phép ra kênh công khai.
+ *
+ * Repository trả NGUYÊN hàng user — có cả `email`, `phone`, `fullName`,
+ * `passwordHash`. Trả thẳng nó ra feed là lộ hồ sơ của mọi người đăng bài cho
+ * bất kỳ ai quét bản đồ. Hàm này là chỗ duy nhất quyết định cái gì đi ra.
+ */
+function toPublicAuthor(user: IUserEntity): IPostAuthorDto {
+  return {
+    id: user.globalId,
+    username: user.username,
+    avatarUrl: user.avatarUrl,
+    rank: user.rank,
+    joinedAt: user.createdAt,
+  };
+}
 
 @Injectable()
 export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
@@ -180,6 +199,16 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
       }
     }
 
+    // Khử trùng TRƯỚC khi hỏi: một người đăng năm bài trên cùng trang thì vẫn
+    // chỉ là một hàng trong bảng users.
+    const authorIds = [...new Set(items.map(({ post }) => post.authorId))];
+    const authorMap = new Map<string, IPostAuthorDto>(
+      (authorIds.length > 0
+        ? await this.userRepository.findByGlobalIds(authorIds)
+        : []
+      ).map((user) => [user.globalId, toPublicAuthor(user)]),
+    );
+
     // Một truy vấn cho cả trang — hỏi từng bài là 20 lần đi database mỗi lần cuộn.
     const myReactions =
       postIds.length > 0 && command.currentUserId
@@ -208,6 +237,7 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
           media: (mediaMap.get(post.globalId) ?? []).sort(
             (a, b) => a.sortOrder - b.sortOrder,
           ),
+          author: authorMap.get(post.authorId) ?? null,
           requestCount: requestCounts.get(post.globalId) ?? 0,
           myRequestStatus,
           hasRequested: Boolean(myRequestStatus),

@@ -7,7 +7,7 @@ import { UserRanks, UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
-import { EntityManager, EntitySchema, Repository } from 'typeorm';
+import { EntityManager, EntitySchema, In, Repository } from 'typeorm';
 
 function makeReferralCode(globalId: string): string {
   return globalId.replaceAll('-', '').slice(0, 12).toUpperCase();
@@ -25,6 +25,13 @@ export class UserRepository
     manager: EntityManager,
   ) {
     super(target, manager);
+  }
+
+  public async findByGlobalIds(globalIds: string[]): Promise<IUserEntity[]> {
+    // Mảng rỗng lọt xuống `In([])` sinh ra `IN ()` — cú pháp hỏng ở Postgres.
+    if (globalIds.length === 0) return [];
+
+    return this.find({ where: { globalId: In(globalIds) } });
   }
 
   public async createWithReferral(
