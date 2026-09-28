@@ -134,6 +134,16 @@ function makeEntitlements(limit = 10) {
   } as never;
 }
 
+/**
+ * Notifier giả, và cố ý KHÔNG ném.
+ *
+ * Thông báo hỏng không được làm hỏng việc xin nhận: yêu cầu đã ghi vào bảng
+ * rồi, ném ở đây chỉ khiến client tưởng thất bại và bấm lại.
+ */
+function makeNotifier() {
+  return { announceCreated: jest.fn(async () => undefined) } as never;
+}
+
 describe('CreateGiftRequestUseCase', () => {
   it('tạo yêu cầu thành công khi bài viết hợp lệ và chưa từng yêu cầu', async () => {
     const postRepo = makePostRepo();
@@ -147,6 +157,7 @@ describe('CreateGiftRequestUseCase', () => {
       giftRequestRepo,
       makeEntitlements(),
       makeProfileGate(),
+      makeNotifier(),
     );
     const result = await useCase.handle({
       postId: PostId,
@@ -186,6 +197,7 @@ describe('CreateGiftRequestUseCase', () => {
       giftRequestRepo,
       makeEntitlements(),
       makeProfileGate(),
+      makeNotifier(),
     );
     const result = await useCase.handle({
       postId: PostId,
@@ -217,6 +229,7 @@ describe('CreateGiftRequestUseCase', () => {
       giftRequestRepo,
       makeEntitlements(),
       makeProfileGate(),
+      makeNotifier(),
     );
     await useCase.handle({
       postId: PostId,
@@ -253,6 +266,7 @@ describe('CreateGiftRequestUseCase', () => {
       giftRequestRepo,
       makeEntitlements(),
       makeProfileGate(),
+      makeNotifier(),
     );
     await useCase.handle({
       postId: PostId,
@@ -288,6 +302,7 @@ describe('CreateGiftRequestUseCase', () => {
       giftRequestRepo,
       makeEntitlements(),
       makeProfileGate(),
+      makeNotifier(),
     );
     await useCase.handle({
       postId: PostId,
@@ -318,6 +333,7 @@ describe('CreateGiftRequestUseCase', () => {
       giftRequestRepo,
       makeEntitlements(),
       makeProfileGate(),
+      makeNotifier(),
     );
     await expect(
       useCase.handle({
@@ -345,6 +361,7 @@ describe('CreateGiftRequestUseCase', () => {
       giftRequestRepo,
       makeEntitlements(),
       makeProfileGate(),
+      makeNotifier(),
     );
     await expect(
       useCase.handle({
@@ -372,6 +389,7 @@ describe('CreateGiftRequestUseCase', () => {
       giftRequestRepo,
       makeEntitlements(),
       makeProfileGate(),
+      makeNotifier(),
     );
     await expect(
       useCase.handle({
@@ -405,6 +423,7 @@ describe('CreateGiftRequestUseCase', () => {
       giftRequestRepo,
       makeEntitlements(),
       makeProfileGate(),
+      makeNotifier(),
     );
     await expect(
       useCase.handle({
@@ -430,6 +449,7 @@ describe('CreateGiftRequestUseCase', () => {
       giftRequestRepo,
       makeEntitlements(),
       makeProfileGate(),
+      makeNotifier(),
     );
 
     await expect(
@@ -455,6 +475,7 @@ describe('CreateGiftRequestUseCase', () => {
       giftRequestRepo,
       makeEntitlements(),
       makeProfileGate(),
+      makeNotifier(),
     );
     await expect(
       useCase.handle({
@@ -480,6 +501,7 @@ describe('CreateGiftRequestUseCase', () => {
       giftRequestRepo,
       makeEntitlements(),
       makeProfileGate(),
+      makeNotifier(),
     );
     await expect(
       useCase.handle({
@@ -505,6 +527,7 @@ describe('CreateGiftRequestUseCase — giới hạn yêu cầu đang mở', () =
         giftRequestRepo,
         makeEntitlements(10),
         makeProfileGate(),
+        makeNotifier(),
       ).handle({
         postId: PostId,
         requesterId: RequesterId,
@@ -526,6 +549,7 @@ describe('CreateGiftRequestUseCase — giới hạn yêu cầu đang mở', () =
         giftRequestRepo,
         makeEntitlements(10),
         makeProfileGate(),
+        makeNotifier(),
       ).handle({
         postId: PostId,
         requesterId: RequesterId,
@@ -547,6 +571,7 @@ describe('CreateGiftRequestUseCase — giới hạn yêu cầu đang mở', () =
         makeGiftRequestRepo(),
         entitlements,
         makeProfileGate(),
+        makeNotifier(),
       ).handle({
         postId: PostId,
         requesterId: RequesterId,
@@ -566,6 +591,7 @@ describe('CreateGiftRequestUseCase — giới hạn yêu cầu đang mở', () =
         giftRequestRepo,
         makeEntitlements(10),
         makeProfileGate(),
+        makeNotifier(),
       ).handle({
         postId: PostId,
         requesterId: RequesterId,

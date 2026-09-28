@@ -45,6 +45,8 @@ flowchart LR
 | `POST /posts/:postId/renew` | chủ bài | ✅ 1 lần |
 | `POST /posts/:postId/media/upload` · `/media` · `/media/order` · `DELETE /media/:id` | chủ bài | ✅ |
 | `GET /posts/:postId/matches` | token | ✅ |
+| `GET /requests/me` | token | ✅ yêu cầu của chính người gọi |
+| `POST /posts/:id/requests/:requestId/reject` | chủ bài | ✅ chỉ PENDING/STANDBY |
 | `POST /posts/:postId/charity-transfer` · `PATCH` | chủ bài / Admin | ✅ |
 | `POST|GET|PATCH|DELETE /gift-posts/*` | token | ✅ lớp tương thích |
 | `GET /discovery/config` | công khai | ✅ |

@@ -24,6 +24,7 @@ import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
 import { ProfileGate } from '../profile/profile-gate';
 import { toGiftRequestDto } from './gift-request.mapper';
+import { RequestLifecycleNotifier } from './request-lifecycle.notifier';
 
 function isUniqueViolation(error: unknown): boolean {
   const err = error as { code?: string; driverError?: { code?: string } };
@@ -40,6 +41,7 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     @Inject(IEntitlementRepository)
     private readonly entitlements: IEntitlementRepository,
     private readonly profileGate: ProfileGate,
+    private readonly notifier: RequestLifecycleNotifier,
   ) {}
 
   public async handle(
@@ -139,6 +141,18 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
         }
         throw error;
       }
+      // Gửi lại sau khi đã rút vẫn là một yêu cầu MỚI với chủ bài: bản ghi
+      // được dùng lại chỉ là chi tiết lưu trữ, còn phía họ thì vừa có người
+      // quay lại xin. Khoá chống trùng theo id yêu cầu nên không báo hai lần
+      // cho cùng một lần gửi.
+      await this.notifier.announceCreated({
+        ownerId: post.authorId,
+        requesterId: command.requesterId,
+        postId: command.postId,
+        postTitle: post.title,
+        requestId: existing.globalId,
+      });
+
       return { request: toGiftRequestDto(existing) };
     }
 
@@ -176,6 +190,7 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     // Chạy sau khi insert thành công. Nếu acceptRequest fail (deadlock, network),
     // request vẫn tồn tại ở trạng thái PENDING — cron hoặc admin sẽ xử lý lại.
     // Không throw để tránh roll back việc tạo request.
+    let instantAccepted = false;
     if (
       post.postType === 'OFFER' &&
       post.selectionMode === PostSelectionModes.INSTANT &&
@@ -191,6 +206,7 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
           giverId: post.authorId,
           transactionId,
         });
+        instantAccepted = true;
       } catch (acceptError) {
         // Log để monitoring phát hiện; request vẫn tồn tại ở PENDING.
         // Cron timeout hoặc admin có thể trigger lại accept thủ công.
@@ -200,6 +216,18 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
         );
       }
     }
+
+    // Báo SAU khi đã ghi xong, và sau cả nhánh INSTANT: ở chế độ đó người đầu
+    // tiên được chốt luôn, nên chủ bài nhận thông báo "đã có người nhận" từ
+    // `AcceptedRequestNotifier` chứ không cần thêm một thông báo "có người xin".
+    if (!instantAccepted)
+      await this.notifier.announceCreated({
+        ownerId: post.authorId,
+        requesterId: command.requesterId,
+        postId: command.postId,
+        postTitle: post.title,
+        requestId: globalId,
+      });
 
     return {
       request: toGiftRequestDto(created),

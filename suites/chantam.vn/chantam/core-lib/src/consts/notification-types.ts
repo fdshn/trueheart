@@ -7,8 +7,25 @@
 export enum NotificationTypes {
   /** Có tin nhắn mới trong phòng chat của một giao dịch. */
   NEW_CHAT_MESSAGE = 'NEW_CHAT_MESSAGE',
+  /**
+   * Có người vừa xin nhận đồ của bạn.
+   *
+   * Thông báo quan trọng nhất của cả luồng, và là thông báo duy nhất từng
+   * thiếu: đồng hồ 7 ngày giả định chủ bài BIẾT có ứng viên để mà chốt sớm.
+   * Không báo thì họ chỉ biết nếu tự mở bài ra xem.
+   */
+  GIFT_REQUEST_CREATED = 'GIFT_REQUEST_CREATED',
   /** Yêu cầu xin nhận được duyệt — chat vừa mở. */
   GIFT_REQUEST_ACCEPTED = 'GIFT_REQUEST_ACCEPTED',
+  /** Chủ bài chủ động từ chối một yêu cầu. */
+  GIFT_REQUEST_REJECTED = 'GIFT_REQUEST_REJECTED',
+  /**
+   * Yêu cầu bị đóng vì BÀI đóng lại — hết hạn, bị gỡ, hoặc Admin hậu kiểm.
+   *
+   * Tách khỏi `GIFT_REQUEST_REJECTED` vì lý do khác hẳn: không ai từ chối họ
+   * cả, món đồ chỉ là không còn nữa.
+   */
+  GIFT_REQUEST_CLOSED = 'GIFT_REQUEST_CLOSED',
   /** Giao dịch bị huỷ hoặc từ chối. */
   GIFT_TRANSACTION_CLOSED = 'GIFT_TRANSACTION_CLOSED',
   /** Người nhận đã xác nhận nhận được vật phẩm. */

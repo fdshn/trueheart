@@ -9,6 +9,7 @@ import {
   IModerateAdminPostResult,
   IModerateAdminPostUseCase,
 } from '@/application/contracts/post';
+import { CloseOpenRequestsService } from '@/application/implementations/gift-request/close-open-requests.service';
 import {
   PostInvalidStateException,
   PostNotFoundException,
@@ -111,6 +112,7 @@ export class ModerateAdminPostUseCase implements IModerateAdminPostUseCase {
     @Inject(IPostRepository) private readonly posts: IPostRepository,
     @Inject(IAdminConfigRepository)
     private readonly admin: IAdminConfigRepository,
+    private readonly closeOpenRequests: CloseOpenRequestsService,
   ) {}
 
   public async handle(
@@ -137,6 +139,16 @@ export class ModerateAdminPostUseCase implements IModerateAdminPostUseCase {
       reason,
     });
     if (!moderated) throw new PostInvalidStateException();
+
+    // Gỡ bài mà để hàng đợi nguyên thì người xin không bao giờ nhận được câu
+    // trả lời, và mỗi yêu cầu treo vẫn ăn một suất trong trần của họ. Trả lại
+    // bài thì KHÔNG mở lại hàng đợi: những người đó đã được báo là đóng rồi,
+    // dựng lại sau lưng họ là mời họ vào một cuộc chờ họ không còn biết tới.
+    if (decision === GiftPostStatuses.REJECTED)
+      await this.closeOpenRequests.closeFor({
+        postIds: [command.postId],
+        reason: 'Bài đăng đã bị gỡ,',
+      });
 
     const post = await this.posts.findAdminByGlobalId(command.postId);
     if (!post) throw new PostNotFoundException(command.postId);

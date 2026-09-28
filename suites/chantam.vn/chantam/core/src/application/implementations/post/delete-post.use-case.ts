@@ -4,6 +4,7 @@ import {
   IDeletePostResult,
   IDeletePostUseCase,
 } from '@/application/contracts/post';
+import { CloseOpenRequestsService } from '@/application/implementations/gift-request/close-open-requests.service';
 import {
   PostHasLiveTransactionException,
   PostNotFoundException,
@@ -42,6 +43,7 @@ export class DeletePostUseCase implements IDeletePostUseCase {
     private readonly transactions: IGiftTransactionRepository,
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatchNotificationUseCase: IDispatchNotificationUseCase,
+    private readonly closeOpenRequests: CloseOpenRequestsService,
   ) {}
 
   public async handle(command: IDeletePostCommand): Promise<IDeletePostResult> {
@@ -74,6 +76,15 @@ export class DeletePostUseCase implements IDeletePostUseCase {
     });
 
     for (const request of closed) await this.notify(request, post.title);
+
+    // `closeOpenRequestsForPost` ở trên chỉ đụng `gift_transactions`. Yêu cầu
+    // đang ở PENDING/STANDBY chưa có lượt trao nào nên không rơi vào đó — và
+    // trước 28/09 không gì đóng chúng lại, khiến mỗi bài gỡ đi là khoá bớt
+    // suất trong trần của những người đã xin.
+    await this.closeOpenRequests.closeFor({
+      postIds: [command.postId],
+      reason: 'Người đăng đã gỡ bài,',
+    });
 
     return {};
   }

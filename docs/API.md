@@ -578,8 +578,10 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
 | `POST` | `/posts/:postId/requests` | Bearer | Gửi yêu cầu xin nhận, kèm lời nhắn tối đa 500 ký tự |
-| `POST` | `/posts/:postId/requests/withdraw` | Bearer | Rút yêu cầu của chính mình |
+| `POST` | `/posts/:postId/requests/withdraw` | Bearer | Rút yêu cầu của chính mình — được cả khi đang `STANDBY` |
+| `GET` | `/requests/me` | Bearer | **Yêu cầu của chính tôi**, kèm tiêu đề + ảnh + trạng thái bài |
 | `GET` | `/posts/:postId/requests` | Bearer (chỉ tác giả) | Danh sách người xin, có phân trang |
+| `POST` | `/posts/:postId/requests/:requestId/reject` | Bearer (chỉ tác giả) | **Từ chối** một yêu cầu đang `PENDING`/`STANDBY` |
 | `POST` | `/posts/:postId/requests/:requestId/accept` | Bearer (chỉ tác giả) | Duyệt một người xin |
 
 #### Hàng đợi dự phòng
@@ -1194,6 +1196,39 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
   audit `MODERATE_POST` + `REVIEW_REPORT` được ghi chung transaction. Một bài chỉ bị trừ
   một lần dù có nhiều report cùng đích.
 
+
+### Vòng đời một yêu cầu xin nhận
+
+- **`GET /requests/me` là màn hình phía NGƯỜI XIN** (thêm 28/09). Trước đó không có endpoint nào
+  liệt kê yêu cầu theo người xin, nên người dùng không có cách nào biết mình đang xin những gì.
+  Mỗi dòng kèm `postTitle`, `postThumbnailUrl`, `postStatus` và cờ `postClosed` — **server tự
+  tính** `postClosed` để mỗi client không phải cài lại danh sách trạng thái, vì chỗ nào cài sót
+  sẽ hiện nút "rút yêu cầu" cho một bài không còn tồn tại. Mặc định trả **mọi** trạng thái, kể
+  cả đã rút và đã đóng: người dùng mở màn này chính là để biết chuyện gì đã xảy ra.
+- ⚠️ **Yêu cầu treo từng khoá tài khoản vĩnh viễn.** Trước 28/09 không đường nào đóng
+  `gift_requests` khi bài đóng lại — kể cả đường tác giả tự gỡ, vốn chỉ đóng `gift_transactions`
+  (yêu cầu `PENDING`/`STANDBY` chưa có lượt trao nào nên không rơi vào đó). Yêu cầu treo vẫn
+  tính vào `OPEN_REQUEST_QUOTA`, nên một Thành viên (trần 5) xin 5 món mà cả 5 bài hết hạn sẽ
+  đứng ở trần mãi mãi. Nay **cả ba** đường — tác giả gỡ, `post:expire`, Admin hậu kiểm — đều
+  đóng yêu cầu treo và bắn `GIFT_REQUEST_CLOSED` cho từng người xin.
+- **Hai lớp bảo vệ, không phải một.** Ngoài đường đóng ở trên, `countOpenByRequester` nay JOIN
+  sang `posts` và bỏ qua yêu cầu dưới bài `EXPIRED`/`CANCELLED`/`REJECTED`/`COMPLETED`/`ARCHIVED`.
+  Mai này thêm một đường đóng bài mà quên gọi thì tệ nhất là con số hơi lệch, chứ không phải một
+  người bị khoá mà không hiểu vì sao. `RESERVED`/`DELIVERING` **vẫn tính**: lượt trao đang chạy,
+  và người đứng `STANDBY` dưới nó vẫn được xét tiếp nếu nó đổ.
+- **Chủ bài nay được báo khi có người xin** (`GIFT_REQUEST_CREATED`, thêm 28/09). Trước đó không
+  có loại thông báo nào cho việc này, trong khi cả cơ chế đồng hồ 7 ngày giả định chủ bài BIẾT
+  có ứng viên để mà chốt sớm. Ở chế độ `INSTANT` thì không gửi: người đầu tiên được chốt luôn,
+  nên chủ bài nhận thẳng `GIFT_REQUEST_ACCEPTED`.
+- **`POST …/requests/:requestId/reject` chỉ đụng `PENDING` và `STANDBY`.** Từ chối một yêu cầu
+  đã `ACCEPTED` là huỷ một lượt trao đang sống — việc đó thuộc luồng `/transactions`, nơi tồn
+  kho và phòng chat phải dọn theo. Trước 28/09 `REJECTED` là trạng thái **chết**: khai trong
+  enum, lọc ra khỏi bộ đếm, nhưng không đường nào ghi — nên chủ bài thấy một yêu cầu rõ ràng
+  không ổn cũng không gạt ra được, và auto-select có thể trao đúng cho người đó khi hết đồng hồ.
+- **Bốn thông báo của luồng này:** `GIFT_REQUEST_CREATED` (tới chủ bài), `GIFT_REQUEST_ACCEPTED`
+  (tới người thắng), `GIFT_REQUEST_REJECTED` (chủ bài chủ động từ chối) và `GIFT_REQUEST_CLOSED`
+  (bài đóng lại). Hai cái cuối tách nhau vì lý do khác hẳn: một bên có người từ chối họ, bên kia
+  chỉ là món đồ không còn nữa.
 
 ### Thứ tự ưu tiên chọn người nhận (CH-1)
 

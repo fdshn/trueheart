@@ -3,6 +3,7 @@ import {
   IExpireDuePostsResult,
   IExpireDuePostsUseCase,
 } from '@/application/contracts/post';
+import { CloseOpenRequestsService } from '@/application/implementations/gift-request/close-open-requests.service';
 import { IPostRepository } from '@/domain/ports/repository';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -18,11 +19,23 @@ export class ExpireDuePostsUseCase implements IExpireDuePostsUseCase {
   public constructor(
     @Inject(IPostRepository)
     private readonly postRepository: IPostRepository,
+    private readonly closeOpenRequests: CloseOpenRequestsService,
   ) {}
 
   public async handle(
     command: IExpireDuePostsCommand,
   ): Promise<IExpireDuePostsResult> {
-    return this.postRepository.expireDuePosts(command.now ?? new Date());
+    const result = await this.postRepository.expireDuePosts(
+      command.now ?? new Date(),
+    );
+
+    // Đóng SAU khi bài đã sang EXPIRED. Đóng trước thì một lỗi ở bước đổi
+    // trạng thái sẽ để lại những yêu cầu đã đóng dưới một bài vẫn đang mở.
+    await this.closeOpenRequests.closeFor({
+      postIds: result.expiredPostIds,
+      reason: 'Bài đăng đã hết hạn,',
+    });
+
+    return result;
   }
 }

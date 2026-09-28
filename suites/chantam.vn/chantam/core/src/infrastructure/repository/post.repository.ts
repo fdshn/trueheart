@@ -628,7 +628,8 @@ export class PostRepository
         [now],
       );
 
-      if (due.length === 0) return { expired: 0, convertedToOffer: 0 };
+      if (due.length === 0)
+        return { expired: 0, convertedToOffer: 0, expiredPostIds: [] };
 
       const toOffer = due
         .filter((row) => expiryConvertsToOffer(row.post_type as PostTypes))
@@ -668,7 +669,11 @@ export class PostRepository
           [toOffer, now, PostLifetimeMonths],
         );
 
-      return { expired: toExpired.length, convertedToOffer: toOffer.length };
+      return {
+        expired: toExpired.length,
+        convertedToOffer: toOffer.length,
+        expiredPostIds: toExpired,
+      };
     });
   }
 

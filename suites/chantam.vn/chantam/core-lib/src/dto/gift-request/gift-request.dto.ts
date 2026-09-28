@@ -1,4 +1,4 @@
-import { GiftRequestStatuses } from '../../consts';
+import { GiftPostStatuses, GiftRequestStatuses } from '../../consts';
 
 export interface ICreateGiftRequestBodyDto {
   message: string;
@@ -62,4 +62,28 @@ export interface IRedeemPostWithPointsResponseDto {
   pointsSpent: number;
   /** Điểm còn lại sau khi trừ. */
   balanceAfter: number;
+}
+
+/**
+ * Một dòng trong màn "Yêu cầu của tôi".
+ *
+ * Kèm thông tin BÀI ngay trên dòng. Không có nó thì người dùng nhìn thấy một
+ * danh sách id và phải mở từng cái — mà bài đã hết hạn thì mở cũng không còn.
+ */
+export interface IMyGiftRequestDto extends IGiftRequestDto {
+  postTitle: string;
+  postStatus: GiftPostStatuses;
+  /** Ảnh đầu tiên của bài, `null` khi bài không có ảnh. */
+  postThumbnailUrl: string | null;
+  /** `true` khi bài không còn nhận yêu cầu — để client hiện nhãn "đã đóng". */
+  postClosed: boolean;
+}
+
+export interface IListMyGiftRequestsResponseDto {
+  requests: IMyGiftRequestDto[];
+  meta: unknown;
+}
+
+export interface IRejectGiftRequestResponseDto {
+  request: IGiftRequestDto;
 }

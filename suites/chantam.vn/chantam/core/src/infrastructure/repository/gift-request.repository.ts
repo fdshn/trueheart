@@ -8,7 +8,9 @@ import {
 import {
   ICandidateMetricsWithId,
   IChatRepository,
+  IClosedRequestRow,
   IGiftRequestRepository,
+  IMyGiftRequestRow,
   IRedemptionContext,
 } from '@/domain/ports/repository';
 import { GiftRequestEntity, UserEntity } from '@/infrastructure/entity';
@@ -25,6 +27,36 @@ import { InjectEntityManager } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
 import { EntityManager, EntitySchema, In, Repository } from 'typeorm';
 import { updateReturning } from './update-returning';
+
+/**
+ * Bài ở những trạng thái này thì mọi yêu cầu treo dưới nó đã hết ý nghĩa.
+ *
+ * `RESERVED`/`DELIVERING` KHÔNG nằm đây: lượt trao đang chạy, và người đứng
+ * `STANDBY` vẫn được xét tiếp nếu nó đổ.
+ */
+const ClosedPostStatuses: readonly string[] = [
+  GiftPostStatuses.EXPIRED,
+  GiftPostStatuses.CANCELLED,
+  GiftPostStatuses.REJECTED,
+  GiftPostStatuses.COMPLETED,
+  GiftPostStatuses.ARCHIVED,
+];
+
+interface IMyRequestRow {
+  global_id: string;
+  post_id: string;
+  requester_id: string;
+  message: string;
+  status: GiftRequestStatuses;
+  queue_joined_at: Date;
+  withdrawn_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+  post_title: string;
+  post_status: GiftPostStatuses;
+  post_thumbnail_key: string | null;
+  total: string;
+}
 
 @Injectable()
 export class GiftRequestRepository
@@ -223,15 +255,163 @@ export class GiftRequestRepository
    */
   public async countOpenByRequester(requesterId: string): Promise<number> {
     const [row] = await this.manager.query<{ total: string }[]>(
+      // JOIN sang `posts` là lưới an toàn, không phải phép lọc chính. Đường
+      // đóng yêu cầu (`closeOpenForPosts`) mới là chỗ sửa cho đúng; nhưng nếu
+      // mai này có thêm một đường đóng bài mà quên gọi nó, thì tệ nhất là con
+      // số hiển thị hơi lệch — chứ không phải một người bị khoá VĨNH VIỄN,
+      // không xin được gì nữa, mà không có cách nào hiểu vì sao.
+      //
+      // RESERVED và DELIVERING VẪN tính: người đứng STANDBY dưới một lượt trao
+      // đang chạy là hàng đợi còn sống, họ được xét tiếp nếu lượt đó đổ.
       `SELECT COUNT(*) AS total
-       FROM gift_requests
-       WHERE requester_id = $1
-         AND status IN ($2, $3)
-         AND deleted_at IS NULL`,
-      [requesterId, GiftRequestStatuses.PENDING, GiftRequestStatuses.STANDBY],
+       FROM gift_requests request
+       INNER JOIN posts post ON post.global_id = request.post_id
+       WHERE request.requester_id = $1
+         AND request.status IN ($2, $3)
+         AND request.deleted_at IS NULL
+         AND post.deleted_at IS NULL
+         AND post.status::text <> ALL($4::text[])`,
+      [
+        requesterId,
+        GiftRequestStatuses.PENDING,
+        GiftRequestStatuses.STANDBY,
+        ClosedPostStatuses,
+      ],
     );
 
     return Number(row?.total ?? 0);
+  }
+
+  public async listByRequester(params: {
+    requesterId: string;
+    status?: GiftRequestStatuses;
+    skip: number;
+    take: number;
+  }): Promise<{ items: IMyGiftRequestRow[]; total: number }> {
+    const values: unknown[] = [params.requesterId];
+    let statusCondition = '';
+    if (params.status) {
+      values.push(params.status);
+      statusCondition = `AND request.status = $${values.length}`;
+    }
+    values.push(params.take, params.skip);
+
+    const rows = await this.manager.query<IMyRequestRow[]>(
+      `
+        SELECT request.global_id, request.post_id, request.requester_id,
+               request.message, request.status, request.queue_joined_at,
+               request.withdrawn_at, request.created_at, request.updated_at,
+               post.title AS post_title, post.status AS post_status,
+               media.r2_key AS post_thumbnail_key,
+               COUNT(*) OVER () AS total
+        FROM gift_requests request
+        INNER JOIN posts post ON post.global_id = request.post_id
+        -- Ảnh đầu tiên thôi: đây là danh sách, không phải màn chi tiết.
+        LEFT JOIN LATERAL (
+          SELECT r2_key FROM post_media
+          WHERE post_id = post.global_id
+          ORDER BY sort_order ASC
+          LIMIT 1
+        ) media ON true
+        WHERE request.requester_id = $1
+          AND request.deleted_at IS NULL
+          ${statusCondition}
+        -- Mới nhất trước: người dùng mở màn này để xem việc vừa làm ra sao.
+        ORDER BY request.created_at DESC, request.id DESC
+        LIMIT $${values.length - 1} OFFSET $${values.length}
+      `,
+      values,
+    );
+
+    return {
+      items: rows.map((row) => ({
+        request: {
+          globalId: row.global_id,
+          postId: row.post_id,
+          requesterId: row.requester_id,
+          message: row.message,
+          status: row.status,
+          queueJoinedAt: row.queue_joined_at,
+          withdrawnAt: row.withdrawn_at,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        } as IGiftRequestEntity,
+        postTitle: row.post_title,
+        postStatus: row.post_status,
+        postThumbnailKey: row.post_thumbnail_key,
+      })),
+      total: Number(rows[0]?.total ?? 0),
+    };
+  }
+
+  public async closeOpenForPosts(params: {
+    postIds: string[];
+    status: GiftRequestStatuses;
+  }): Promise<IClosedRequestRow[]> {
+    if (params.postIds.length === 0) return [];
+
+    // Tiêu đề bài lấy trong CÙNG câu lệnh: đọc lại sau khi đóng thì bài gỡ mềm
+    // có thể đã biến mất khỏi mọi truy vấn thường, và thông báo gửi đi sẽ nhắc
+    // tới một bài không tên.
+    const rows = await updateReturning<{
+      global_id: string;
+      requester_id: string;
+      post_id: string;
+      post_title: string;
+    }>(
+      this.manager,
+      `
+        UPDATE gift_requests request
+        SET status = $2, updated_at = now()
+        FROM posts post
+        WHERE post.global_id = request.post_id
+          AND request.post_id = ANY($1::uuid[])
+          AND request.status::text = ANY($3::text[])
+          AND request.deleted_at IS NULL
+        RETURNING request.global_id, request.requester_id,
+                  request.post_id, post.title AS post_title
+      `,
+      [
+        params.postIds,
+        params.status,
+        [GiftRequestStatuses.PENDING, GiftRequestStatuses.STANDBY],
+      ],
+    );
+
+    return rows.map((row) => ({
+      requestId: row.global_id,
+      requesterId: row.requester_id,
+      postId: row.post_id,
+      postTitle: row.post_title,
+    }));
+  }
+
+  public async rejectIfOpen(params: {
+    postId: string;
+    requestId: string;
+  }): Promise<IGiftRequestEntity | null> {
+    // Một câu có điều kiện, không đọc-rồi-ghi: cùng lý do với
+    // `withdrawIfPending` — một lượt duyệt commit xen vào giữa sẽ bị câu ghi ở
+    // đây đè mất, để lại giao dịch đang sống gắn với yêu cầu mang trạng thái
+    // REJECTED.
+    const rows = await updateReturning<{ global_id: string }>(
+      this.manager,
+      `UPDATE gift_requests
+       SET status = $1, updated_at = now()
+       WHERE global_id = $2 AND post_id = $3
+         AND status::text = ANY($4::text[]) AND deleted_at IS NULL
+       RETURNING global_id`,
+      [
+        GiftRequestStatuses.REJECTED,
+        params.requestId,
+        params.postId,
+        [GiftRequestStatuses.PENDING, GiftRequestStatuses.STANDBY],
+      ],
+    );
+
+    if (rows.length === 0) return null;
+
+    return this.findOne({ where: { globalId: rows[0].global_id } as never });
   }
 
   public async findRedemptionContext(params: {

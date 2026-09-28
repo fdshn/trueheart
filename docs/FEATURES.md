@@ -509,6 +509,13 @@ chính mình**.
 
 > ⚠️ Tài liệu tự ghi "hiện không chốt cap số lần cố định" cho report.
 
+### F41b — Vòng đời yêu cầu xin nhận khép kín (28/09)
+
+- **`GET /requests/me`**: màn hình phía người xin, kèm tiêu đề + ảnh + trạng thái bài và cờ `postClosed`. Trước đó không có endpoint nào liệt kê theo người xin.
+- **Yêu cầu treo được đóng ở cả ba đường bài đóng lại** (tác giả gỡ, hết hạn, Admin hậu kiểm), kèm thông báo cho người xin. Trước đó không đường nào làm, và vì yêu cầu treo vẫn tính vào `OPEN_REQUEST_QUOTA` nên một người xin 5 món mà cả 5 bài hết hạn sẽ bị khoá vĩnh viễn.
+- **`POST /posts/:id/requests/:requestId/reject`**: chủ bài từ chối một yêu cầu. `REJECTED` trước đó là trạng thái chết — không đường nào ghi, nên auto-select có thể trao cho người mà chủ bài đã gạt.
+- **Chủ bài được báo khi có người xin** (`GIFT_REQUEST_CREATED`). Đồng hồ 7 ngày giả định họ biết có ứng viên; trước đó họ chỉ biết nếu tự mở bài ra xem.
+
 ### F42 — Đánh giá chất lượng sau giao dịch
 Sau `COMPLETED`, **hai bên cùng đánh giá** trải nghiệm. Review Quality **tách khỏi Point
 Ledger**, trừ khi có Point Rule gắn riêng.

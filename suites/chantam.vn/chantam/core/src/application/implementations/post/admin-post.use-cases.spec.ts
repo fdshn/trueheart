@@ -46,6 +46,16 @@ function makeAdmin(allowed = true): jest.Mocked<IAdminConfigRepository> {
   } as unknown as jest.Mocked<IAdminConfigRepository>;
 }
 
+/**
+ * Dịch vụ đóng yêu cầu treo, dạng giả.
+ *
+ * Bài đóng lại mà để hàng đợi nguyên thì người xin không bao giờ nhận được câu
+ * trả lời, và mỗi yêu cầu treo vẫn ăn một suất trong trần của họ.
+ */
+function makeCloseOpenRequests() {
+  return { closeFor: jest.fn(async () => 0) } as never;
+}
+
 describe('ListAdminPostsUseCase', () => {
   it('KHÔNG tự lọc theo trạng thái nào khi Admin không chọn', async () => {
     const posts = {
@@ -95,6 +105,7 @@ describe('ModerateAdminPostUseCase', () => {
     const result = await new ModerateAdminPostUseCase(
       posts,
       makeAdmin(),
+      makeCloseOpenRequests(),
     ).handle({
       actorUserId: ActorId,
       postId: PostId,
@@ -122,7 +133,11 @@ describe('ModerateAdminPostUseCase', () => {
       findAdminByGlobalId: jest.fn().mockResolvedValue(summary),
     } as unknown as jest.Mocked<IPostRepository>;
 
-    await new ModerateAdminPostUseCase(posts, makeAdmin()).handle({
+    await new ModerateAdminPostUseCase(
+      posts,
+      makeAdmin(),
+      makeCloseOpenRequests(),
+    ).handle({
       actorUserId: ActorId,
       postId: PostId,
       moderation: {
@@ -145,7 +160,11 @@ describe('ModerateAdminPostUseCase', () => {
     } as unknown as jest.Mocked<IPostRepository>;
 
     await expect(
-      new ModerateAdminPostUseCase(posts, makeAdmin()).handle({
+      new ModerateAdminPostUseCase(
+        posts,
+        makeAdmin(),
+        makeCloseOpenRequests(),
+      ).handle({
         actorUserId: ActorId,
         postId: PostId,
         moderation: {

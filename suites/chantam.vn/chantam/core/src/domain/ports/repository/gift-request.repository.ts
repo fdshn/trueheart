@@ -1,4 +1,7 @@
-import { GiftRequestStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  GiftPostStatuses,
+  GiftRequestStatuses,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { IPostRequestItemDto } from '@chantam.vn/chantam.core-lib/dto';
 import { IGiftRequestEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
@@ -23,6 +26,23 @@ export interface IRedemptionContext {
 
 export interface ICandidateMetricsWithId extends ICandidateMetrics {
   readonly requestGlobalId: string;
+}
+
+/** Một dòng trong màn "Yêu cầu của tôi" — xem `listByRequester`. */
+export interface IMyGiftRequestRow {
+  readonly request: IGiftRequestEntity;
+  readonly postTitle: string;
+  readonly postStatus: GiftPostStatuses;
+  /** Key ảnh đầu tiên của bài; nơi gọi ghép tên miền. */
+  readonly postThumbnailKey: string | null;
+}
+
+/** Đủ để báo cho người xin biết yêu cầu của họ vừa bị đóng, và vì bài nào. */
+export interface IClosedRequestRow {
+  readonly requestId: string;
+  readonly requesterId: string;
+  readonly postId: string;
+  readonly postTitle: string;
 }
 
 export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
@@ -65,6 +85,55 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
    * cửa mà giới hạn này sinh ra để đóng.
    */
   countOpenByRequester(requesterId: string): Promise<number>;
+
+  /**
+   * Yêu cầu của MỘT người, xem từ phía người xin.
+   *
+   * Không có danh sách này thì người dùng không có cách nào biết mình đang xin
+   * những gì — và khi một yêu cầu treo ăn mất suất trong `OPEN_REQUEST_QUOTA`,
+   * họ cũng không tìm ra nó để rút. Kèm tiêu đề và trạng thái BÀI ngay trên
+   * dòng: bài đã đóng thì mở ra cũng không còn gì để xem.
+   */
+  listByRequester(params: {
+    requesterId: string;
+    /** Bỏ trống thì trả mọi trạng thái. */
+    status?: GiftRequestStatuses;
+    skip: number;
+    take: number;
+  }): Promise<{ items: IMyGiftRequestRow[]; total: number }>;
+
+  /**
+   * Đóng mọi yêu cầu còn treo của những bài vừa đóng lại.
+   *
+   * Trước 28/09 KHÔNG đường nào làm việc này — kể cả đường tác giả tự gỡ bài,
+   * vốn chỉ đóng `gift_transactions` chứ không đụng `gift_requests`. Hậu quả
+   * nặng hơn vẻ ngoài: yêu cầu treo vẫn tính vào `countOpenByRequester`, nên
+   * một người xin 5 món mà cả 5 bài hết hạn sẽ đứng ở trần VĨNH VIỄN, không
+   * xin được gì nữa, và không có màn hình nào để nhìn thấy vì sao.
+   *
+   * Trả về đủ dữ liệu để báo cho từng người xin — họ đang chờ một câu trả lời.
+   */
+  closeOpenForPosts(params: {
+    postIds: string[];
+    status: GiftRequestStatuses;
+  }): Promise<IClosedRequestRow[]>;
+
+  /**
+   * Chủ bài chủ động từ chối một yêu cầu.
+   *
+   * `REJECTED` từng là trạng thái CHẾT: khai báo trong enum, lọc ra khỏi bộ
+   * đếm, nhưng không đường nào ghi. Nghĩa là chủ bài thấy một yêu cầu rõ ràng
+   * không ổn cũng không gạt ra được — và nếu hết đồng hồ mà chưa kịp chọn ai
+   * khác thì auto-select có thể trao đúng cho người đó.
+   *
+   * Chỉ đụng `PENDING` và `STANDBY`. Từ chối một yêu cầu đã `ACCEPTED` là huỷ
+   * một lượt trao đang sống — việc đó thuộc luồng `/transactions`, nơi có tồn
+   * kho và phòng chat phải dọn theo.
+   */
+  rejectIfOpen(params: {
+    postId: string;
+    requestId: string;
+  }): Promise<IGiftRequestEntity | null>;
 
   /**
    * Bối cảnh đủ để quyết một người có đổi vật phẩm bằng điểm được không (F75).

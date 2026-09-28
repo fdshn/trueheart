@@ -3,6 +3,7 @@ import {
   ICreateGiftRequestUseCase,
   IListPostRequestsUseCase,
   IRedeemPostWithPointsUseCase,
+  IRejectGiftRequestUseCase,
   IWithdrawGiftRequestUseCase,
 } from '@/application/contracts/gift-request';
 import {
@@ -63,6 +64,8 @@ import {
   ListPostRequestsQueryDto,
   RedeemPostWithPointsParamDto,
   RedeemPostWithPointsResponseDto,
+  RejectGiftRequestParamDto,
+  RejectGiftRequestResponseDto,
   WithdrawGiftRequestParamDto,
   WithdrawGiftRequestResponseDto,
 } from '../../dto/gift-request';
@@ -81,6 +84,8 @@ export class GiftRequestController {
     private readonly acceptGiftRequestUseCase: IAcceptGiftRequestUseCase,
     @Inject(IRedeemPostWithPointsUseCase)
     private readonly redeemPostWithPointsUseCase: IRedeemPostWithPointsUseCase,
+    @Inject(IRejectGiftRequestUseCase)
+    private readonly rejectGiftRequestUseCase: IRejectGiftRequestUseCase,
   ) {}
 
   @Post(':postId/requests')
@@ -219,6 +224,36 @@ export class GiftRequestController {
     return ResponseDto.create<IAcceptGiftRequestResponseDto>()
       .succeed()
       .attach(result)
+      .build();
+  }
+
+  @Post(':postId/requests/:requestId/reject')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Từ chối một yêu cầu xin nhận',
+    description:
+      'Chỉ tác giả bài đăng. Trước 28/09 `REJECTED` là trạng thái CHẾT — khai trong enum, lọc ra khỏi bộ đếm, nhưng không đường nào ghi. Nghĩa là chủ bài thấy một yêu cầu rõ ràng không ổn cũng không gạt ra được, và nếu hết đồng hồ mà chưa kịp chọn ai khác thì auto-select có thể trao đúng cho người đó. Chỉ đụng `PENDING` và `STANDBY`: từ chối một yêu cầu đã `ACCEPTED` là huỷ một lượt trao đang sống, việc đó thuộc luồng `/transactions`.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(RejectGiftRequestResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [PostNotFoundException, 'Post không tồn tại'],
+    [GiftRequestNotFoundException, 'Không tìm thấy yêu cầu nhận quà'],
+    [ForbiddenException],
+  )
+  public async rejectGiftRequest(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: RejectGiftRequestParamDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.rejectGiftRequestUseCase.handle({
+          postId: params.postId,
+          requestId: params.requestId,
+          userId: principal.userId,
+        }),
+      )
       .build();
   }
 

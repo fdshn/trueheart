@@ -60,6 +60,16 @@ function makeDeps(
   };
 }
 
+/**
+ * Dịch vụ đóng yêu cầu treo, dạng giả.
+ *
+ * Bài đóng lại mà để hàng đợi nguyên thì người xin không bao giờ nhận được câu
+ * trả lời, và mỗi yêu cầu treo vẫn ăn một suất trong trần của họ.
+ */
+function makeCloseOpenRequests() {
+  return { closeFor: jest.fn(async () => 0) } as never;
+}
+
 describe('DeletePostUseCase', () => {
   it('owner xoá mềm post và chuyển trạng thái cancelled', async () => {
     const posts = {
@@ -72,6 +82,7 @@ describe('DeletePostUseCase', () => {
       posts,
       deps.transactions as never,
       deps.notifications as never,
+      makeCloseOpenRequests(),
     ).handle({
       postId: PostId,
       userId: OwnerId,
@@ -96,6 +107,7 @@ describe('DeletePostUseCase', () => {
         posts,
         deps.transactions as never,
         deps.notifications as never,
+        makeCloseOpenRequests(),
       ).handle({
         postId: PostId,
         userId: '33333333-3333-3333-3333-333333333333',
@@ -108,6 +120,7 @@ describe('DeletePostUseCase', () => {
         posts,
         deps.transactions as never,
         deps.notifications as never,
+        makeCloseOpenRequests(),
       ).handle({ postId: PostId, userId: OwnerId }),
     ).rejects.toBeInstanceOf(PostNotFoundException);
   });
@@ -128,6 +141,7 @@ describe('DeletePostUseCase', () => {
         posts,
         deps.transactions as never,
         deps.notifications as never,
+        makeCloseOpenRequests(),
       ).handle({ postId: PostId, userId: OwnerId }),
     ).rejects.toBeInstanceOf(PostHasLiveTransactionException);
 
@@ -149,6 +163,7 @@ describe('DeletePostUseCase', () => {
         posts,
         deps.transactions as never,
         deps.notifications as never,
+        makeCloseOpenRequests(),
       ).handle({ postId: PostId, userId: OwnerId }),
     ).rejects.toBeInstanceOf(PostHasLiveTransactionException);
   });
@@ -169,6 +184,7 @@ describe('DeletePostUseCase', () => {
       posts,
       deps.transactions as never,
       deps.notifications as never,
+      makeCloseOpenRequests(),
     ).handle({ postId: PostId, userId: OwnerId });
 
     expect(deps.notifications.handle).toHaveBeenCalledTimes(2);
@@ -194,6 +210,7 @@ describe('DeletePostUseCase', () => {
         posts,
         deps.transactions as never,
         deps.notifications as never,
+        makeCloseOpenRequests(),
       ).handle({ postId: PostId, userId: OwnerId }),
     ).resolves.toEqual({});
   });
