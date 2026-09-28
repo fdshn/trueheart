@@ -1,0 +1,102 @@
+name: Mirror ảnh hạ tầng
+
+# Sao ảnh của bên thứ ba về registry của CHÍNH repo này.
+#
+# Vì sao cần: 24/09/2026 `quay.io/minio/minio` và `quay.io/minio/mc` bị chuyển
+# sang riêng tư. Pull ẩn danh trả 401 cho MỌI tag và cả digest, `docker.io/minio/minio`
+# thì bị xoá hẳn, và CI đỏ toàn bộ dù không ai sửa gì. Máy nào còn ảnh trong
+# cache vẫn chạy — nên chỉ runner sạch mới lộ ra.
+#
+# Ghim digest KHÔNG cứu được chuyện đó: khi cả kho bị khoá thì digest cũng 401.
+# Thứ duy nhất cứu được là giữ một bản sao ở nơi mình kiểm soát.
+#
+# Chạy tay qua tab Actions ("Run workflow"). Cố ý KHÔNG chạy theo lịch: mirror
+# là để ĐÓNG BĂNG một bản đã kiểm, không phải để lặng lẽ kéo bản mới về.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Ảnh nguồn, NÊN ghim theo digest'
+        required: true
+        default: 'ghcr.io/coollabsio/minio@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9'
+      target_tag:
+        description: 'Tag đặt cho bản sao — dùng đúng số hiệu bản gốc'
+        required: true
+        default: 'RELEASE.2025-10-15T17-29-55Z'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  mirror:
+    name: Sao về ghcr.io/${{ github.repository_owner }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      TARGET: ghcr.io/${{ github.repository_owner }}/trueheart-minio
+
+    steps:
+      - name: Đăng nhập GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Kéo ảnh nguồn
+        run: docker pull "${{ inputs.source }}"
+
+      - name: Kiểm ảnh có thật sự dùng được trước khi sao
+        # Sao một ảnh hỏng về registry của mình thì chỉ đổi chỗ lỗi. Đây đúng là
+        # bẫy mà `quay.io/minio/aistor/minio` giăng ra: kéo được, container sống,
+        # `/minio/health/live` trả 200 — nhưng mọi thao tác S3 trả
+        # `AccessDenied — No license is installed`.
+        run: |
+          docker run -d --name probe -p 19000:9000 \
+            -e MINIO_ROOT_USER=probe -e MINIO_ROOT_PASSWORD=probe-secret-123 \
+            "${{ inputs.source }}" server /data
+
+          for i in $(seq 1 30); do
+            if curl -sf -m 3 http://localhost:19000/minio/health/live > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          # `mc` phải nằm sẵn trong ảnh: healthcheck của compose gọi
+          # `mc ready local`, và service `minio-init` cũng dùng lại chính ảnh này
+          # thay vì kéo thêm một ảnh `mc` riêng.
+          docker exec probe sh -c 'command -v mc' > /dev/null
+
+          docker exec probe mc alias set local http://127.0.0.1:9000 probe probe-secret-123
+          docker exec probe mc mb --ignore-existing local/probe-bucket
+          docker exec probe mc ls local > /dev/null
+
+          echo "Ảnh phục vụ được thao tác S3 thật, không đòi license."
+          docker rm -f probe
+
+      - name: Gắn tag và đẩy lên
+        run: |
+          docker tag "${{ inputs.source }}" "$TARGET:${{ inputs.target_tag }}"
+          docker push "$TARGET:${{ inputs.target_tag }}"
+
+      - name: In digest để ghim vào docker-compose.yml
+        run: |
+          DIGEST=$(docker inspect --format '{{index .RepoDigests 0}}' "$TARGET:${{ inputs.target_tag }}")
+          echo "Đã sao xong. Ghim dòng này vào docker-compose.yml:"
+          echo ""
+          echo "    image: $DIGEST"
+          echo ""
+          echo "LƯU Ý: package mặc định là PRIVATE. Vào Packages > trueheart-minio >"
+          echo "Package settings và đổi visibility sang Public, nếu không thì"
+          echo "docker compose trên máy dev sẽ phải đăng nhập GHCR mới kéo được."
+          {
+            echo "## Mirror xong"
+            echo ""
+            echo '```yaml'
+            echo "    image: $DIGEST"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

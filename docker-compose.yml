@@ -40,8 +40,22 @@ services:
       - chantam-net
 
 
+  # MinIO RELEASE.2025-10-15T17-29-55Z, ghim theo DIGEST chứ không theo tag.
+  #
+  # `quay.io/minio/minio` đã bị chuyển sang riêng tư (24/09): pull ẩn danh trả
+  # 401 cho MỌI tag và cả digest, và `docker.io/minio/minio` thì bị xoá hẳn. Máy
+  # nào còn ảnh trong cache vẫn chạy, nên lỗi chỉ lộ ra ở runner CI sạch.
+  #
+  # `quay.io/minio/aistor/minio` mà tài liệu chỉ sang KHÔNG thay được ở đây: nó
+  # kéo được, container sống, `/minio/health/live` trả 200 — nhưng mọi thao tác
+  # S3 trả `AccessDenied — No license is installed`. Đổi sang nó thì CI qua được
+  # bước kéo ảnh rồi chết ở smoke test, khó truy hơn hẳn hiện tại.
+  #
+  # Đây vẫn là mirror của người khác. Bước tiếp theo là đổi sang mirror của
+  # chính repo (`ghcr.io/fdshn/trueheart-minio`) sau khi workflow
+  # `mirror-images.yaml` chạy lần đầu — xem ghi chú trong workflow đó.
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: ghcr.io/coollabsio/minio@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
     container_name: chantam-minio
     restart: unless-stopped
     command: server /data --console-address ':9001'
@@ -62,8 +76,11 @@ services:
       - chantam-net
 
 
+  # Dùng LẠI ảnh minio thay vì kéo thêm ảnh `mc` riêng: `mc` nằm sẵn trong đó ở
+  # `/usr/bin/mc` — chính là thứ healthcheck `mc ready local` ở trên đang gọi.
+  # Một ảnh ít đi là một kho ít đi có thể bị khoá.
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: ghcr.io/coollabsio/minio@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
     depends_on:
       minio: { condition: service_healthy }
     restart: 'no'

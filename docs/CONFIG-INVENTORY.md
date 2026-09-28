@@ -46,6 +46,29 @@ lúc chạy mới nằm ở đây.
 Kèm việc ngoài biến môi trường: **CORS của bucket** phải cho phép `PUT` từ domain app, nếu
 không client upload trực tiếp sẽ bị chặn ở trình duyệt.
 
+> **Vì sao dev và CI vẫn cần MinIO dù production dùng R2.** Hai bước kiểm tự động chạm object
+> storage THẬT: `scripts/smoke-test.sh` xin presigned URL rồi `PUT` ảnh lên và khẳng định hồ sơ
+> hoàn tất, còn `test:media-policy` chứng minh ký `Content-Length` thì PUT quá cỡ bị **403** và
+> object không hề được tạo. Chĩa chúng vào R2 thật thì phải nhét credential production vào CI,
+> và mỗi lần chạy lại vứt rác vào một bucket thật.
+
+> ⚠️ **Ảnh MinIO không còn kéo ẩn danh được** (24/09/2026). `quay.io/minio/minio` và
+> `quay.io/minio/mc` đã chuyển sang riêng tư — 401 cho **mọi** tag và cả digest — còn
+> `docker.io/minio/minio` thì bị xoá hẳn. Máy nào còn ảnh trong cache vẫn chạy, nên chuyện này
+> chỉ lộ ra ở runner CI sạch.
+>
+> `quay.io/minio/aistor/minio` mà tài liệu MinIO chỉ sang **không thay được**: nó kéo được,
+> container sống, `/minio/health/live` trả 200 — nhưng mọi thao tác S3 trả
+> `AccessDenied — No license is installed`. Đó là ảnh bản thương mại.
+>
+> `docker-compose.yml` nay ghim một mirror theo **digest**, và `minio-init` dùng lại chính ảnh
+> đó thay vì kéo thêm ảnh `mc` riêng (`mc` nằm sẵn ở `/usr/bin/mc`, chính là thứ healthcheck
+> `mc ready local` đang gọi). Workflow `mirror-images.yaml` sao ảnh về registry của repo để lần
+> sau ai khoá kho thì CI không đỏ theo.
+>
+> **Bản MinIO miễn phí cuối cùng sẽ không được vá nữa.** Với container CI dựng rồi vứt thì
+> không sao, nhưng đừng chĩa nó ra Internet trên máy dev.
+
 ### 1.3 Có mặc định hợp lý, chỉ đổi khi cần
 
 | Biến | Mặc định | Ghi chú |
