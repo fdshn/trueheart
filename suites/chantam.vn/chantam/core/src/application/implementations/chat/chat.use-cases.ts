@@ -12,6 +12,9 @@ import {
   IPurgeExpiredChatsCommand,
   IPurgeExpiredChatsResult,
   IPurgeExpiredChatsUseCase,
+  IRecallChatMessageCommand,
+  IRecallChatMessageResult,
+  IRecallChatMessageUseCase,
   IRequestChatMediaUploadCommand,
   IRequestChatMediaUploadResult,
   IRequestChatMediaUploadUseCase,
@@ -21,12 +24,16 @@ import {
 } from '@/application/contracts/chat';
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import {
+  ChatMessageNotFoundException,
+  ChatRecallWindowClosedException,
   ChatRoomNotFoundException,
   ChatRoomReadOnlyException,
 } from '@/domain/exceptions';
 import { IChatRealtimePublisher } from '@/domain/ports/realtime';
 import { IChatRepository, IChatRoomListItem } from '@/domain/ports/repository';
+import { IRequestThrottle } from '@/domain/ports/security';
 import {
+  ChatRecallWindowMinutes,
   MaxContentMediaPerItem,
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -168,6 +175,28 @@ function notificationPreview(body: string, mediaCount: number): string {
   return mediaCount > 0 ? `${preview} (kèm ảnh)` : preview;
 }
 
+/**
+ * Trần gửi tin theo phút — chặn TỐC ĐỘ.
+ *
+ * Nặng hơn trần bình luận ở một điểm: mỗi tin nhắn bắn MỘT thông báo
+ * `NEW_CHAT_MESSAGE` tới người kia, và khoá chống trùng theo id tin nên không
+ * gộp được. Một nghìn tin là một nghìn lần rung máy.
+ *
+ * Ba mươi cái một phút rộng hơn hẳn nhịp gõ của người thật đang mặc cả chỗ hẹn.
+ */
+const MaxMessagesPerMinute = 30;
+
+/**
+ * Trần gửi tin theo NGÀY — chặn TỔNG.
+ *
+ * Trần phút một mình vẫn cho 43.200 tin mỗi ngày. Năm trăm rộng gấp nhiều lần
+ * một cuộc trao đổi thật, kể cả cuộc dài nhất.
+ */
+const MaxMessagesPerDay = 500;
+
+/** Cửa sổ tính từ tin ĐẦU TIÊN của đợt, không phải từ 0 giờ. */
+const DayWindowSeconds = 86_400;
+
 @Injectable()
 export class SendChatMessageUseCase implements ISendChatMessageUseCase {
   public constructor(
@@ -178,6 +207,8 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
     private readonly realtime: IChatRealtimePublisher,
     @Inject(IObjectStorage) private readonly storage: IObjectStorage,
     private readonly profileGate: ProfileGate,
+    @Inject(IRequestThrottle)
+    private readonly throttle: IRequestThrottle,
   ) {}
 
   public async handle(
@@ -187,6 +218,19 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
     // không ở đường đọc: người hồ sơ chưa đủ vẫn phải đọc được tin nhắn gửi
     // cho mình, nếu không họ mất luôn lời nhắn đang chờ.
     await this.profileGate.assertComplete(command.userId);
+
+    // Hỏi trần NGÀY trước trần PHÚT: chạm cả hai mà báo "thử lại sau 12 giây"
+    // là nói sai — thật ra còn phải chờ nhiều giờ nữa.
+    await this.throttle.assertWithinLimit({
+      bucket: 'chat:day',
+      key: command.userId,
+      limit: MaxMessagesPerDay,
+    });
+    await this.throttle.assertWithinLimit({
+      bucket: 'chat',
+      key: command.userId,
+      limit: MaxMessagesPerMinute,
+    });
 
     const body = command.message.body.trim();
     const mediaKeys = (command.message.mediaKeys ?? []).slice(
@@ -259,7 +303,76 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
     // cách nào rút lại lời đó.
     await this.realtime.publishMessage(command.roomId, message);
 
+    // Đếm SAU khi tin đã lưu: đếm trước là trừ mất một suất cho một tin bị từ
+    // chối vì phòng đã khoá — tức phạt người dùng vì thứ chưa bao giờ gửi được.
+    for (const [bucket, windowSeconds] of [
+      ['chat', 60],
+      ['chat:day', DayWindowSeconds],
+    ] as [string, number][])
+      await this.throttle.registerHit({
+        bucket,
+        key: command.userId,
+        windowSeconds,
+      });
+
     return { message };
+  }
+}
+
+/**
+ * Thu hồi một tin nhắn vừa gửi.
+ *
+ * Đây là nơi hai bên trao số điện thoại và địa chỉ thật, nên dán nhầm vào phòng
+ * khác là chuyện sẽ xảy ra — và trước 28/09 không gỡ được kể cả một giây sau.
+ *
+ * **Không xoá dòng.** Bảng tin nhắn cấm sửa/xoá để không ai âm thầm viết lại
+ * lịch sử trao đổi, và chính lịch sử đó là bằng chứng khi có tranh chấp. Thu
+ * hồi chỉ làm RỖNG nội dung và đặt `recalled_at`; dòng vẫn giữ chỗ trong cuộc
+ * trò chuyện, nên ai đọc lại vẫn thấy "ở đây từng có một tin".
+ */
+@Injectable()
+export class RecallChatMessageUseCase implements IRecallChatMessageUseCase {
+  public constructor(
+    @Inject(IChatRepository) private readonly chat: IChatRepository,
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+    @Inject(IChatRealtimePublisher)
+    private readonly realtime: IChatRealtimePublisher,
+  ) {}
+
+  public async handle(
+    command: IRecallChatMessageCommand,
+  ): Promise<IRecallChatMessageResult> {
+    const outcome = await this.chat.recallMessage({
+      roomId: command.roomId,
+      messageId: command.messageId,
+      senderId: command.userId,
+      windowMinutes: ChatRecallWindowMinutes,
+    });
+
+    if (outcome.status === 'NOT_FOUND')
+      throw new ChatMessageNotFoundException();
+    if (outcome.status === 'WINDOW_CLOSED')
+      throw new ChatRecallWindowClosedException(ChatRecallWindowMinutes);
+
+    // Ảnh phải biến mất theo. Thu hồi mà để ảnh vẫn mở được bằng đường dẫn công
+    // khai thì chữ biến mất còn thứ đáng lo nhất vẫn nằm đó.
+    if (outcome.mediaKeys.length > 0)
+      await this.storage.deleteObjects(outcome.mediaKeys);
+
+    // Báo realtime để thiết bị bên kia xoá ngay, không phải chờ tải lại phòng.
+    await this.realtime.publishMessage(command.roomId, {
+      messageId: command.messageId,
+      roomId: command.roomId,
+      senderId: command.userId,
+      senderUsername: command.username,
+      body: '',
+      mediaKeys: [],
+      sentAt: outcome.sentAt,
+      recalledAt: outcome.recalledAt,
+      isMine: true,
+    } as never);
+
+    return { messageId: command.messageId, recalledAt: outcome.recalledAt };
   }
 }
 

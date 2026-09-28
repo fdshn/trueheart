@@ -134,37 +134,46 @@ async function main(): Promise<void> {
       [PostId, GiverId, CategoryId],
     );
 
-    const requested = await transactions.request({
-      globalId: TransactionId,
-      postId: PostId,
-      receiverId: ReceiverId,
-      quantity: 1,
-    });
-    check(
-      'xin nhận trả về bản ghi thật, không phải object rỗng',
-      requested.globalId === TransactionId && requested.status === 'REQUESTED',
-      `${requested.globalId ?? 'undefined'}/${requested.status ?? 'undefined'}`,
+    // Dựng thẳng ở ACCEPTED: cửa phụ `request()`/`accept()` đã gỡ 28/09 vì nó
+    // tạo lượt trao mà bỏ qua mọi cổng của luồng xin nhận. Hợp đồng
+    // `UPDATE ... RETURNING` mà script này canh vẫn được kiểm đầy đủ — nay qua
+    // `reopen()` và `confirmReceipt()`, hai đường ghi THẬT còn lại.
+    await dataSource.query(
+      `INSERT INTO gift_transactions
+         (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at)
+       VALUES ($1, $2, $3, $4, 1, 'ACCEPTED', now())`,
+      [TransactionId, PostId, GiverId, ReceiverId],
     );
-
-    // Vét sạch kho SAU khi đã có yêu cầu: lúc duyệt, câu trừ kho sẽ không khớp
-    // dòng nào và bắt buộc phải nhận ra là hết hàng.
     await dataSource.query(
       `UPDATE posts SET remaining_quantity = 0 WHERE global_id = $1`,
       [PostId],
     );
 
+    // ── `reopen()` trên lượt ĐÃ HUỶ phải trừ kho, và từ chối khi cạn ────────
+    await dataSource.query(
+      `UPDATE gift_transactions
+       SET status = 'CANCELLED', closed_at = now(), closed_by = $2,
+           close_reason = 'Kiểm hợp đồng RETURNING'
+       WHERE global_id = $1`,
+      [TransactionId, GiverId],
+    );
+
     let outOfStockDetected = false;
     try {
-      await transactions.accept(TransactionId, GiverId);
+      await transactions.reopen({
+        transactionId: TransactionId,
+        actorUserId: GiverId,
+        reason: 'Kho đã cạn',
+      });
     } catch (error) {
       outOfStockDetected = (error as Error).constructor.name.includes(
         'OutOfStock',
       );
     }
     check(
-      'duyệt khi kho đã cạn thì báo HẾT HÀNG',
+      'mở lại khi kho đã cạn thì báo HẾT HÀNG',
       outOfStockDetected,
-      outOfStockDetected ? '' : 'duyệt trót lọt dù kho bằng 0',
+      outOfStockDetected ? '' : 'mở lại trót lọt dù kho bằng 0',
     );
     check(
       'kho không bị trừ xuống âm',
@@ -176,16 +185,23 @@ async function main(): Promise<void> {
       )) === 0,
     );
 
-    // Trả lại một món rồi duyệt thật, để kiểm giá trị trả về.
     await dataSource.query(
       `UPDATE posts SET remaining_quantity = 1 WHERE global_id = $1`,
       [PostId],
     );
-    const accepted = await transactions.accept(TransactionId, GiverId);
+    const reopened = await transactions.reopen({
+      transactionId: TransactionId,
+      actorUserId: GiverId,
+      reason: 'Huỷ nhầm',
+    });
     check(
-      'duyệt thành công trả về bản ghi ĐÃ cập nhật, không phải mảng',
-      accepted.globalId === TransactionId && accepted.status === 'ACCEPTED',
-      `${accepted.globalId ?? 'undefined'}/${accepted.status ?? 'undefined'}`,
+      'mở lại trả về bản ghi ĐÃ cập nhật, không phải mảng [rows, affected]',
+      reopened.globalId === TransactionId && reopened.status === 'ACCEPTED',
+      `${reopened.globalId ?? 'undefined'}/${reopened.status ?? 'undefined'}`,
+    );
+    check(
+      'và mốc đóng đã được xoá',
+      reopened.completedAt === null,
     );
 
     const confirmed = await transactions.confirmReceipt(

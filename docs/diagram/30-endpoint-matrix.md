@@ -48,6 +48,8 @@ flowchart LR
 | `GET /requests/me` | token | ✅ yêu cầu của chính người gọi |
 | `GET /transactions/:id` | hai bên trong cuộc | ✅ người ngoài nhận 404 |
 | `PATCH /admin/transactions/:id/reopen` | `admin.manage` | ✅ mở lại lượt đóng nhầm |
+| `DELETE /chat/rooms/:id/messages/:id` | người gửi | ✅ thu hồi trong 5 phút |
+| `GET /admin/chat/rooms/:id/messages` | `report.read` | ✅ chỉ khi có báo xấu đang mở |
 | `POST /posts/:id/requests/:requestId/reject` | chủ bài | ✅ chỉ PENDING/STANDBY |
 | `POST /posts/:postId/charity-transfer` · `PATCH` | chủ bài / Admin | ✅ |
 | `POST|GET|PATCH|DELETE /gift-posts/*` | token | ✅ lớp tương thích |

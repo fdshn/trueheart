@@ -284,6 +284,167 @@ async function main(): Promise<void> {
         )[0].count,
       ) === 1,
     );
+    // ── Thu hồi tin nhắn ────────────────────────────────────────────────────
+    //
+    // Đây là chỗ đục một lỗ vào trigger append-only, nên phải chứng minh cái lỗ
+    // đó HẸP: cho đúng hình dạng thu hồi, và vẫn chặn mọi thứ khác.
+    console.log('\nThu hồi tin nhắn:\n');
+
+    const recallId = '77777777-7777-4777-8777-77777777b010';
+    await chat.appendMessage({
+      globalId: recallId,
+      roomId: RoomId,
+      senderId: GiverId,
+      body: 'Nhà mình ở 12 Nguyễn Trãi, gửi nhầm phòng rồi',
+    });
+
+    const notMine = await chat.recallMessage({
+      roomId: RoomId,
+      messageId: recallId,
+      senderId: ReceiverId,
+      windowMinutes: 5,
+    });
+    check(
+      'người KHÔNG gửi thì không thu hồi được',
+      notMine.status === 'NOT_FOUND',
+      notMine.status,
+    );
+
+    const recalled = await chat.recallMessage({
+      roomId: RoomId,
+      messageId: recallId,
+      senderId: GiverId,
+      windowMinutes: 5,
+    });
+    check(
+      'người gửi thu hồi được trong cửa sổ',
+      recalled.status === 'RECALLED',
+      recalled.status,
+    );
+
+    const [recalledRow] = await dataSource.query<
+      { body: string; recalled_at: Date | null; media_count: number }[]
+    >(
+      `SELECT body, recalled_at, media_count FROM chat_messages WHERE global_id = $1`,
+      [recallId],
+    );
+    check(
+      'nội dung bị làm RỖNG, không phải xoá dòng',
+      recalledRow !== undefined &&
+        recalledRow.body === '' &&
+        recalledRow.recalled_at !== null,
+      `body='${recalledRow?.body}' recalled_at=${recalledRow?.recalled_at}`,
+    );
+    check(
+      'dòng vẫn giữ chỗ trong cuộc trò chuyện',
+      recalledRow !== undefined,
+    );
+
+    const twice = await chat.recallMessage({
+      roomId: RoomId,
+      messageId: recallId,
+      senderId: GiverId,
+      windowMinutes: 5,
+    });
+    check(
+      'thu hồi lần nữa không làm gì thêm',
+      twice.status === 'NOT_FOUND',
+      twice.status,
+    );
+
+    // Hết cửa sổ: dựng một tin có `created_at` lùi về quá khứ.
+    const oldId = '77777777-7777-4777-8777-77777777b011';
+    await chat.appendMessage({
+      globalId: oldId,
+      roomId: RoomId,
+      senderId: GiverId,
+      body: 'Tin cũ',
+    });
+    await dataSource.query(
+      `SET LOCAL chantam.chat_purge = 'on'`,
+    ).catch(() => undefined);
+    await dataSource.query(
+      `UPDATE chat_messages SET created_at = now() - interval '30 minutes'
+       WHERE global_id = $1`,
+      [oldId],
+    ).catch(() => undefined);
+
+    const [oldRow] = await dataSource.query<{ created_at: Date }[]>(
+      `SELECT created_at FROM chat_messages WHERE global_id = $1`,
+      [oldId],
+    );
+    // Trigger chặn cả câu UPDATE lùi giờ ở trên — đó chính là điều cần chứng
+    // minh: lỗ chỉ mở cho đúng hình dạng thu hồi, không mở cho sửa giờ gửi.
+    check(
+      'trigger CHẶN cả việc sửa created_at, dù có bật cờ dọn',
+      new Date(oldRow.created_at).getTime() > Date.now() - 60_000,
+      String(oldRow.created_at),
+    );
+
+    let plainUpdateBlocked = false;
+    try {
+      await dataSource.query(
+        `UPDATE chat_messages SET body = 'sửa trộm sau thu hồi' WHERE global_id = $1`,
+        [oldId],
+      );
+    } catch {
+      plainUpdateBlocked = true;
+    }
+    check('và vẫn chặn UPDATE thường như trước', plainUpdateBlocked);
+
+    // ── Admin đọc phòng: phải có báo xấu đang mở ────────────────────────────
+    console.log('\nAdmin đọc phòng chat:\n');
+
+    check(
+      'KHÔNG có báo xấu nào thì không mở được',
+      (await chat.findRoomForModeration(RoomId)) === null,
+    );
+
+    await dataSource.query(
+      `INSERT INTO reports
+         (global_id, reporter_user_id, target_type, target_id, reason, description, status)
+       VALUES ($1, $2, 'USER', $3, 'HARASSMENT', 'Quấy rối trong chat', 'PENDING')`,
+      [
+        '99999999-1111-4999-8999-99999999b100',
+        ReceiverId,
+        GiverId,
+      ],
+    );
+
+    const room = await chat.findRoomForModeration(RoomId);
+    check(
+      'có báo xấu ĐANG MỞ nhắm vào một bên thì mở được',
+      room?.roomId === RoomId,
+      String(room?.roomId),
+    );
+    check(
+      'phòng KHÁC vẫn không mở được — báo xấu chỉ mở đúng phòng liên quan',
+      (await chat.findRoomForModeration(OtherRoomId)) === null,
+    );
+
+    const moderationMessages = await chat.listMessagesForModeration(RoomId, 200);
+    check(
+      'đọc được tin trong phòng',
+      moderationMessages.length > 0,
+      `${moderationMessages.length} tin`,
+    );
+    check(
+      'và tin đã thu hồi vẫn hiện ra, kèm mốc thu hồi',
+      moderationMessages.some(
+        (message) =>
+          message.messageId === recallId && message.recalledAt !== null,
+      ),
+    );
+
+    await dataSource.query(
+      `UPDATE reports SET status = 'RESOLVED' WHERE global_id = $1`,
+      ['99999999-1111-4999-8999-99999999b100'],
+    );
+    check(
+      'báo xấu đóng lại thì cửa đóng theo',
+      (await chat.findRoomForModeration(RoomId)) === null,
+    );
+
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

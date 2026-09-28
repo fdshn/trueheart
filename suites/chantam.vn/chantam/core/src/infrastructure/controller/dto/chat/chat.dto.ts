@@ -314,3 +314,19 @@ export class RequestChatMediaUploadResponseDto implements IRequestChatMediaUploa
   @ApiProperty({ type: () => ChatMediaUploadDto })
   upload: ChatMediaUploadDto;
 }
+
+export class RecallChatMessageParamsDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  roomId: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  messageId: string;
+}
+
+export class RecallChatMessageResponseDto {
+  @ApiProperty({ format: 'uuid' }) messageId: string;
+
+  @ApiProperty({ type: String, format: 'date-time' }) recalledAt: Date;
+}

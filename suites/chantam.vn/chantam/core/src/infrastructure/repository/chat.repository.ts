@@ -465,6 +465,190 @@ export class ChatRepository implements IChatRepository {
     });
   }
 
+  public async recallMessage(params: {
+    roomId: string;
+    messageId: string;
+    senderId: string;
+    windowMinutes: number;
+  }): Promise<{
+    status: 'RECALLED' | 'NOT_FOUND' | 'WINDOW_CLOSED';
+    mediaKeys: string[];
+    sentAt: Date;
+    recalledAt: Date;
+  }> {
+    return this.manager.transaction(async (manager) => {
+      const [current] = await manager.query<
+        { created_at: Date; recalled_at: Date | null }[]
+      >(
+        `SELECT created_at, recalled_at
+         FROM chat_messages
+         WHERE global_id = $1 AND room_id = $2 AND sender_id = $3`,
+        [params.messageId, params.roomId, params.senderId],
+      );
+
+      // Không phải tin của mình, không có trong phòng này, hoặc đã thu hồi rồi
+      // — cả ba trả về cùng một câu. Phân biệt là cho người ta dò được ai đã
+      // nhắn gì trong phòng nào.
+      if (!current || current.recalled_at)
+        return {
+          status: 'NOT_FOUND' as const,
+          mediaKeys: [],
+          sentAt: new Date(),
+          recalledAt: new Date(),
+        };
+
+      const ageMinutes =
+        (Date.now() - new Date(current.created_at).getTime()) / 60_000;
+      if (ageMinutes > params.windowMinutes)
+        return {
+          status: 'WINDOW_CLOSED' as const,
+          mediaKeys: [],
+          sentAt: current.created_at,
+          recalledAt: new Date(),
+        };
+
+      const media = await manager.query<{ storage_key: string }[]>(
+        `SELECT storage_key FROM chat_message_media WHERE message_id = $1`,
+        [params.messageId],
+      );
+
+      // Cờ phiên, y như cách job dọn phải khai `chantam.chat_purge`. Trigger
+      // append-only từ chối mọi UPDATE khác, kể cả từ chính đường này.
+      await manager.query(`SET LOCAL chantam.chat_recall = 'on'`);
+
+      const [updated] = await updateReturning<{ recalled_at: Date }>(
+        manager,
+        `UPDATE chat_messages
+         SET body = '', media_count = 0, recalled_at = now()
+         WHERE global_id = $1 AND recalled_at IS NULL
+         RETURNING recalled_at`,
+        [params.messageId],
+      );
+
+      // Xoá bản ghi ảnh; object trên storage do nơi gọi dọn sau khi commit.
+      await manager.query(
+        `DELETE FROM chat_message_media WHERE message_id = $1`,
+        [params.messageId],
+      );
+
+      return {
+        status: 'RECALLED' as const,
+        mediaKeys: media.map((row) => row.storage_key),
+        sentAt: current.created_at,
+        recalledAt: updated?.recalled_at ?? new Date(),
+      };
+    });
+  }
+
+  public async findRoomForModeration(roomId: string): Promise<{
+    roomId: string;
+    postId: string;
+    giverId: string;
+    receiverId: string;
+  } | null> {
+    const [row] = await this.manager.query<
+      {
+        global_id: string;
+        post_id: string;
+        giver_id: string;
+        receiver_id: string;
+      }[]
+    >(
+      `
+        SELECT room.global_id, room.post_id, room.giver_id, room.receiver_id
+        FROM chat_rooms room
+        WHERE room.global_id = $1
+          -- Điều kiện MỞ CỬA: phải có một báo xấu đang mở trỏ vào phòng này.
+          -- Không có nó thì không có lý do nào để đọc chỗ riêng tư của hai người.
+          AND EXISTS (
+            SELECT 1 FROM reports open_report
+            WHERE open_report.status IN ('PENDING', 'IN_REVIEW')
+              AND (
+                -- Báo xấu một NGƯỜI chỉ mở phòng mà CẢ HAI cùng có mặt: người
+                -- bị báo và chính người báo. Chỉ cần người bị báo có mặt là
+                -- một báo xấu duy nhất mở toang mọi cuộc trò chuyện của họ với
+                -- người khác — cùng lối nghĩ với điều kiện giữ lượt trao đang
+                -- tranh chấp ở completeDueDeliveries.
+                (open_report.target_type = 'USER'
+                 AND open_report.target_id IN (room.giver_id, room.receiver_id)
+                 AND open_report.reporter_user_id
+                       IN (room.giver_id, room.receiver_id))
+                OR (open_report.target_type = 'POST'
+                    AND open_report.target_id = room.post_id)
+                OR (open_report.target_type = 'CHAT_MESSAGE'
+                    AND open_report.target_id IN (
+                      SELECT message.global_id FROM chat_messages message
+                      WHERE message.room_id = room.global_id
+                    ))
+              )
+          )
+      `,
+      [roomId],
+    );
+
+    if (!row) return null;
+
+    return {
+      roomId: row.global_id,
+      postId: row.post_id,
+      giverId: row.giver_id,
+      receiverId: row.receiver_id,
+    };
+  }
+
+  public async listMessagesForModeration(
+    roomId: string,
+    limit: number,
+  ): Promise<
+    {
+      messageId: string;
+      senderId: string;
+      senderUsername: string;
+      body: string;
+      mediaKeys: string[];
+      recalledAt: Date | null;
+      sentAt: Date;
+    }[]
+  > {
+    const rows = await this.manager.query<
+      {
+        global_id: string;
+        sender_id: string;
+        username: string;
+        body: string;
+        media_keys: string[] | null;
+        recalled_at: Date | null;
+        created_at: Date;
+      }[]
+    >(
+      `
+        SELECT m.global_id, m.sender_id, sender.username, m.body,
+               (SELECT array_agg(media.storage_key ORDER BY media.slot)
+                FROM chat_message_media media
+                WHERE media.message_id = m.global_id) AS media_keys,
+               m.recalled_at, m.created_at
+        FROM chat_messages m
+        INNER JOIN users sender ON sender.global_id = m.sender_id
+        WHERE m.room_id = $1
+        -- Cũ nhất trước: Admin đọc để hiểu chuyện đã diễn ra thế nào, và một
+        -- cuộc trao đổi phải đọc từ trên xuống.
+        ORDER BY m.created_at ASC, m.id ASC
+        LIMIT $2
+      `,
+      [roomId, limit],
+    );
+
+    return rows.map((row) => ({
+      messageId: row.global_id,
+      senderId: row.sender_id,
+      senderUsername: row.username,
+      body: row.body,
+      mediaKeys: row.media_keys ?? [],
+      recalledAt: row.recalled_at,
+      sentAt: row.created_at,
+    }));
+  }
+
   public async listMessages(params: {
     roomId: string;
     limit: number;

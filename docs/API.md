@@ -839,8 +839,28 @@ Mỗi giao dịch đã duyệt có **đúng một** phòng chat, mở ngay trong
 | --- | --- | --- | --- |
 | `GET` | `/chat/rooms` | Bearer | Danh sách hội thoại của chính mình, phân trang |
 | `GET` | `/chat/rooms/:roomId/messages` | Bearer (trong phòng) | Lịch sử, mới nhất trước, **phân trang bằng con trỏ** |
-| `POST` | `/chat/rooms/:roomId/messages` | Bearer (trong phòng) | Gửi tin, tối đa 2000 ký tự |
+| `POST` | `/chat/rooms/:roomId/messages` | Bearer (trong phòng) | Gửi tin, tối đa 2000 ký tự — **30/phút và 500/24 giờ** |
+| `POST` | `/chat/rooms/:roomId/message-media/upload-url` | Bearer (trong phòng) | Xin presigned URL cho ảnh đính kèm |
+| `DELETE` | `/chat/rooms/:roomId/messages/:messageId` | Bearer (**người gửi**) | **Thu hồi** tin trong vòng 5 phút |
 | `PATCH` | `/chat/rooms/:roomId/read` | Bearer (trong phòng) | Đánh dấu đã đọc tới hiện tại |
+| `GET` | `/admin/chat/rooms/:roomId/messages` | `report.read` | **Đọc phòng để điều tra** — chỉ khi có báo xấu đang mở |
+
+**Điều cần biết**
+
+- **Cổng hồ sơ F07 đặt ở đường GỬI, không ở đường ĐỌC.** Người hồ sơ chưa đủ vẫn phải đọc được
+  tin nhắn gửi cho mình, nếu không họ mất luôn lời nhắn đang chờ.
+- **Trần gửi tin: 30/phút + 500/24 giờ** (28/09). Nặng hơn trần bình luận ở một điểm: mỗi tin
+  bắn MỘT thông báo `NEW_CHAT_MESSAGE`, khoá chống trùng theo id tin nên không gộp — một nghìn
+  tin là một nghìn lần rung máy. Suất chỉ bị trừ **sau khi** tin đã lưu.
+- **Thu hồi KHÔNG xoá dòng.** Bảng tin nhắn cấm sửa/xoá để không ai âm thầm viết lại lịch sử, và
+  chính lịch sử đó là bằng chứng khi tranh chấp. Thu hồi chỉ làm rỗng nội dung và đặt
+  `recalledAt`; dòng vẫn giữ chỗ, và ảnh đính kèm bị xoá khỏi storage. Quá 5 phút trả **409**.
+- **Admin đọc phòng CHỈ khi có báo xấu đang mở** trỏ vào phòng đó. Báo xấu một *người* chỉ mở
+  phòng mà **cả người bị báo lẫn người báo** cùng có mặt — chỉ cần người bị báo có mặt là một
+  báo xấu duy nhất mở toang mọi cuộc trò chuyện của họ. Không đủ điều kiện thì trả **404** y như
+  phòng không tồn tại. Mỗi lần mở ghi audit `READ_CHAT_ROOM`.
+- **Báo xấu một tin nhắn** dùng `POST /reports` với `targetType: CHAT_MESSAGE`; hàng đợi Admin
+  hiện đoạn đầu nội dung kèm tên người gửi, và nói rõ khi tin đã bị thu hồi.
 
 ### Lazy loading tin nhắn — con trỏ, không phải `page`
 

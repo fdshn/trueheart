@@ -106,13 +106,28 @@ async function main(): Promise<void> {
                'Quận 1', 'PUBLISHED', 1, 1, '{}'::jsonb, 0)`,
       [postId, GiverId, CategoryId, `Bài kiểm xoá chat ${sequence}`],
     );
-    await transactions.request({
-      globalId: transactionId,
-      postId,
-      receiverId: ReceiverId,
-      quantity: 1,
-    });
-    await transactions.accept(transactionId, GiverId);
+    // Dựng thẳng ở ACCEPTED, đúng hình dạng mà `acceptRequest` của luồng xin
+    // nhận ghi ra. Cửa phụ `request()`/`accept()` đã gỡ 28/09 vì nó tạo lượt
+    // trao mà bỏ qua mọi cổng — đây là FIXTURE, còn thứ script này kiểm là việc
+    // dọn tin theo hạn lưu trữ.
+    await dataSource.query(
+      `INSERT INTO gift_transactions
+         (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at)
+       VALUES ($1, $2, $3, $4, 1, 'ACCEPTED', now())`,
+      [transactionId, postId, GiverId, ReceiverId],
+    );
+    await dataSource.query(
+      `UPDATE posts SET remaining_quantity = GREATEST(0, remaining_quantity - 1)
+       WHERE global_id = $1`,
+      [postId],
+    );
+    // `acceptRequest` mở phòng chat trong cùng transaction; fixture phải mở hộ.
+    await dataSource.query(
+      `INSERT INTO chat_rooms
+         (global_id, transaction_id, post_id, giver_id, receiver_id, status)
+       VALUES ($1, $2, $3, $4, $5, 'OPEN')`,
+      [randomUUID(), transactionId, postId, GiverId, ReceiverId],
+    );
 
     const [room] = await dataSource.query<{ global_id: string }[]>(
       `SELECT global_id FROM chat_rooms WHERE transaction_id = $1`,

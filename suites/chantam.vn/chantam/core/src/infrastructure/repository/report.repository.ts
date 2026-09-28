@@ -58,6 +58,11 @@ export class ReportRepository
       AND target_comment.global_id = report.target_id
     LEFT JOIN users comment_author
       ON comment_author.global_id = target_comment.author_id
+    LEFT JOIN chat_messages target_message
+      ON report.target_type = 'CHAT_MESSAGE'
+      AND target_message.global_id = report.target_id
+    LEFT JOIN users message_sender
+      ON message_sender.global_id = target_message.sender_id
   `;
 
   public constructor(
@@ -100,6 +105,19 @@ export class ReportRepository
         `SELECT EXISTS(
            SELECT 1 FROM content_comments
            WHERE global_id = $1 AND status <> 'REMOVED'
+         ) AS "exists"`,
+        [targetId],
+      );
+      return row?.exists === true;
+    }
+
+    // Tin nhắn không có `deleted_at`: job dọn theo hạn XOÁ hẳn dòng. Nên chỉ
+    // cần dòng còn đó là báo xấu được — kể cả tin đã thu hồi, vì chính việc
+    // thu hồi sau khi gửi bậy là thứ Admin cần biết.
+    if (targetType === ReportTargetTypes.CHAT_MESSAGE) {
+      const [row] = await this.manager.query<{ exists: boolean }[]>(
+        `SELECT EXISTS(
+           SELECT 1 FROM chat_messages WHERE global_id = $1
          ) AS "exists"`,
         [targetId],
       );
@@ -152,6 +170,7 @@ export class ReportRepository
         OR target_user.username ILIKE '%' || ${keyword} || '%'
         OR target_user.full_name ILIKE '%' || ${keyword} || '%'
         OR target_comment.body ILIKE '%' || ${keyword} || '%'
+        OR target_message.body ILIKE '%' || ${keyword} || '%'
       )`);
     }
     const where =
@@ -332,6 +351,19 @@ export class ReportRepository
                    ELSE target_comment.body
                  END,
                  'Bình luận đã gỡ'
+               )
+               -- Tin đã thu hồi có body rỗng: nói thẳng là đã thu hồi, thay vì
+               -- hiện một nhãn trống để Admin tưởng dữ liệu hỏng.
+               WHEN 'CHAT_MESSAGE' THEN COALESCE(
+                 '@' || message_sender.username || ': ' ||
+                 CASE
+                   WHEN target_message.recalled_at IS NOT NULL
+                     THEN '(tin đã thu hồi)'
+                   WHEN length(target_message.body) > 80
+                     THEN left(target_message.body, 77) || '...'
+                   ELSE target_message.body
+                 END,
+                 'Tin nhắn đã bị dọn theo hạn lưu trữ'
                )
              END AS target_label,
              report.reason, report.description, report.evidence_urls, report.status,

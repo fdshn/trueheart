@@ -2,10 +2,13 @@ import {
   IListChatMessagesUseCase,
   IListChatRoomsUseCase,
   IMarkChatRoomReadUseCase,
+  IRecallChatMessageUseCase,
   IRequestChatMediaUploadUseCase,
   ISendChatMessageUseCase,
 } from '@/application/contracts/chat';
 import {
+  ChatMessageNotFoundException,
+  ChatRecallWindowClosedException,
   ChatRoomNotFoundException,
   ChatRoomReadOnlyException,
 } from '@/domain/exceptions';
@@ -27,6 +30,7 @@ import { ValidationFailedException } from '@chantam/service.common-lib/exception
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Inject,
   Param,
@@ -49,6 +53,8 @@ import {
   ListChatRoomsResponseDto,
   MarkChatRoomReadParamsDto,
   MarkChatRoomReadResponseDto,
+  RecallChatMessageParamsDto,
+  RecallChatMessageResponseDto,
   RequestChatMediaUploadBodyDto,
   RequestChatMediaUploadResponseDto,
   SendChatMessageBodyDto,
@@ -60,6 +66,8 @@ import {
 @Controller('chat')
 export class ChatController {
   public constructor(
+    @Inject(IRecallChatMessageUseCase)
+    private readonly recallChatMessageUseCase: IRecallChatMessageUseCase,
     @Inject(IListChatRoomsUseCase)
     private readonly listChatRoomsUseCase: IListChatRoomsUseCase,
     @Inject(IListChatMessagesUseCase)
@@ -190,6 +198,35 @@ export class ChatController {
     return ResponseDto.create<IRequestChatMediaUploadResponseDto>()
       .succeed()
       .attach(result)
+      .build();
+  }
+
+  @Delete('rooms/:roomId/messages/:messageId')
+  @ApiOperation({
+    summary: 'Thu hồi một tin nhắn vừa gửi',
+    description:
+      'Chỉ người ĐÃ GỬI, và chỉ trong vòng 5 phút. KHÔNG xoá dòng: bảng tin nhắn cấm sửa/xoá để không ai âm thầm viết lại lịch sử trao đổi, và chính lịch sử đó là bằng chứng khi tranh chấp. Thu hồi chỉ làm rỗng nội dung và đặt `recalledAt`, nên dòng vẫn giữ chỗ trong cuộc trò chuyện. Ảnh đính kèm bị xoá khỏi storage — thu hồi mà để ảnh vẫn mở được bằng đường dẫn công khai thì chữ biến mất còn thứ đáng lo nhất vẫn nằm đó.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(RecallChatMessageResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ChatMessageNotFoundException],
+    [ChatRecallWindowClosedException, [5]],
+  )
+  public async recallMessage(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: RecallChatMessageParamsDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.recallChatMessageUseCase.handle({
+          roomId: params.roomId,
+          messageId: params.messageId,
+          userId: principal.userId,
+          username: principal.username,
+        }),
+      )
       .build();
   }
 

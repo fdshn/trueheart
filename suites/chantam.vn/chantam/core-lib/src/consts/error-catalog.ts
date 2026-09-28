@@ -279,6 +279,22 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Giao dịch đã kết thúc nên phòng chat chỉ còn đọc được, không gửi thêm tin nhắn',
   },
 
+  CHAT_MESSAGE_NOT_FOUND: {
+    code: ErrorCodes.CHAT_MESSAGE_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    // Gộp cả "không có tin đó" với "tin của người khác": trả lời khác nhau cho
+    // hai trường hợp là cho người ta dò được ai đã nhắn gì trong phòng nào.
+    message: () => 'Không tìm thấy tin nhắn',
+  },
+
+  CHAT_RECALL_WINDOW_CLOSED: {
+    code: ErrorCodes.CHAT_RECALL_WINDOW_CLOSED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (minutes: number) =>
+      `Chỉ thu hồi được tin nhắn trong vòng ${minutes} phút sau khi gửi`,
+    sample: [5],
+  },
+
   NOTIFICATION_NOT_FOUND: {
     code: ErrorCodes.NOTIFICATION_NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,

@@ -123,6 +123,8 @@ Nghiệp vụ Chân Tâm
 | `0x0b01` | `2817` | 404 Not Found | `CHAT_ROOM_NOT_FOUND` | Không tìm thấy phòng chat |
 | `0x0b02` | `2818` | 409 Conflict | `CHAT_ROOM_READ_ONLY` | Giao dịch đã kết thúc nên phòng chat chỉ còn đọc được, không gửi thêm tin nhắn |
 | `0x0b03` | `2819` | 404 Not Found | `NOTIFICATION_NOT_FOUND` | Không tìm thấy thông báo |
+| `0x0b04` | `2820` | 404 Not Found | `CHAT_MESSAGE_NOT_FOUND` | Không tìm thấy tin nhắn |
+| `0x0b05` | `2821` | 409 Conflict | `CHAT_RECALL_WINDOW_CLOSED` | Chỉ thu hồi được tin nhắn trong vòng 5 phút sau khi gửi |
 | `0x0e01` | `3585` | 422 | `CONTENT_BLOCKED_TERMS` | Nội dung có từ ngữ không được phép. Vui lòng viết lại |
 | `0x0e02` | `3586` | 404 Not Found | `CONTENT_COMMENT_NOT_FOUND` | Không tìm thấy bình luận |
 | `0x0e03` | `3587` | 409 Conflict | `CONTENT_EDIT_WINDOW_CLOSED` | Chỉ sửa được bình luận trong 15 phút đầu |
@@ -137,5 +139,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **95 mã lỗi** trên 3 tầng.
+Tổng cộng **97 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

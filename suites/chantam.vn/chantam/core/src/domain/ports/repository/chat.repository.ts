@@ -79,6 +79,62 @@ export interface IChatRepository {
    * nhưng lịch sử trò chuyện vẫn biến mất đúng ngày đã hẹn — tức mở lại một
    * cuộc rồi lấy đi bằng chứng của chính nó.
    */
+  /**
+   * Thu hồi một tin nhắn, trong cửa sổ cho phép.
+   *
+   * KHÔNG xoá dòng: bảng tin nhắn cấm sửa/xoá để không ai âm thầm viết lại lịch
+   * sử, và chính lịch sử đó là bằng chứng khi tranh chấp. Chỉ làm rỗng nội dung
+   * và đặt `recalled_at`, nên dòng vẫn giữ chỗ trong cuộc trò chuyện.
+   *
+   * Trả về `mediaKeys` để nơi gọi xoá object: thu hồi mà để ảnh vẫn mở được
+   * bằng đường dẫn công khai thì chữ biến mất còn thứ đáng lo nhất vẫn nằm đó.
+   */
+  recallMessage(params: {
+    roomId: string;
+    messageId: string;
+    senderId: string;
+    windowMinutes: number;
+  }): Promise<{
+    status: 'RECALLED' | 'NOT_FOUND' | 'WINDOW_CLOSED';
+    mediaKeys: string[];
+    sentAt: Date;
+    recalledAt: Date;
+  }>;
+
+  /**
+   * Đọc một phòng chat cho Admin — CHỈ khi có báo xấu đang mở.
+   *
+   * Phòng chat là chỗ riêng tư của hai người. Nhưng nếu không đường nào mở được
+   * thì cả kênh tố cáo quấy rối là trang trí: người bị quấy rối báo xấu, Admin
+   * mở hàng đợi ra và không có gì để xem ngoài lời khai.
+   *
+   * Điều kiện là một báo xấu **đang mở** trỏ vào phòng này — nhắm vào một trong
+   * hai người, vào bài của lượt trao, hoặc vào một tin nhắn trong chính phòng.
+   * Không có nó thì trả `null`, và nơi gọi biến thành 404. Không có báo xấu thì
+   * không có lý do để đọc.
+   */
+  findRoomForModeration(roomId: string): Promise<{
+    roomId: string;
+    postId: string;
+    giverId: string;
+    receiverId: string;
+  } | null>;
+
+  listMessagesForModeration(
+    roomId: string,
+    limit: number,
+  ): Promise<
+    {
+      messageId: string;
+      senderId: string;
+      senderUsername: string;
+      body: string;
+      mediaKeys: string[];
+      recalledAt: Date | null;
+      sentAt: Date;
+    }[]
+  >;
+
   reopenRoomWithinTransaction(
     manager: EntityManager,
     transactionId: string,

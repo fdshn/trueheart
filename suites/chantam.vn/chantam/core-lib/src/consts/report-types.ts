@@ -3,6 +3,14 @@ export enum ReportTargetTypes {
   USER = 'USER',
   /** Bình luận trên bảng tin — chung hàng đợi Admin với bài và người dùng. */
   COMMENT = 'COMMENT',
+  /**
+   * Một tin nhắn cụ thể trong phòng chat.
+   *
+   * Trước 28/09 người bị quấy rối chỉ báo được cả CON NGƯỜI, và Admin mở hàng
+   * đợi ra thì không có gì để xem — họ không phải thành viên phòng. Báo xấu trỏ
+   * đúng vào dòng cần đọc mới mở được đường điều tra.
+   */
+  CHAT_MESSAGE = 'CHAT_MESSAGE',
 }
 
 export enum ReportReasons {
