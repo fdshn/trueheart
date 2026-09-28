@@ -526,6 +526,70 @@ async function main(): Promise<void> {
     }
     check('lượt đang DELIVERING thì từ chối mở lại', rejected);
 
+    // ── Gỡ bài khi còn lượt trao sống ───────────────────────────────────────
+    //
+    // Cổng chặn ở `DeletePostUseCase` đọc TRẠNG THÁI BÀI, mà `syncPostStatus`
+    // giữ bài ở PUBLISHED chừng nào còn hàng. Nên một bài số lượng nhiều đã
+    // duyệt một người VẪN gỡ được — và điều kiện cũ của
+    // `closeOpenRequestsForPost` (`status = 'REQUESTED'`) không khớp dòng nào,
+    // nên lượt trao đó bị bỏ lại: phòng chat vẫn mở, và cron vẫn có thể đánh nó
+    // thành COMPLETED trên một bài đã biến mất.
+    console.log('\nGỡ bài khi còn lượt trao sống:\n');
+
+    const liveDeal = await acceptedTransaction();
+    const livePost = await postIdOf(liveDeal);
+    await dataSource.query(
+      `INSERT INTO chat_rooms
+         (global_id, transaction_id, post_id, giver_id, receiver_id, status)
+       VALUES ($1, $2, $3, $4, $5, 'OPEN')`,
+      [
+        '66666666-6666-4666-8666-666666666002',
+        liveDeal,
+        livePost,
+        GiverId,
+        ReceiverId,
+      ],
+    );
+
+    const closedByDelete = await transactions.closeOpenRequestsForPost({
+      postId: livePost,
+      closedBy: GiverId,
+      reason: 'Người đăng đã gỡ bài',
+    });
+    check(
+      'lượt trao ĐANG SỐNG bị đóng theo bài — điều kiện cũ để lọt hết',
+      closedByDelete.length === 1 &&
+        closedByDelete[0].transactionId === liveDeal,
+      `${closedByDelete.length} lượt`,
+    );
+
+    const [liveRow] = await dataSource.query<{ status: string }[]>(
+      `SELECT status FROM gift_transactions WHERE global_id = $1`,
+      [liveDeal],
+    );
+    check(
+      'và ghi xuống database thật',
+      liveRow?.status === 'CANCELLED',
+      String(liveRow?.status),
+    );
+
+    const [liveRoom] = await dataSource.query<{ status: string }[]>(
+      `SELECT status FROM chat_rooms WHERE transaction_id = $1`,
+      [liveDeal],
+    );
+    check(
+      'phòng chat khoá theo — không thì hai người vẫn nhắn về một bài đã biến mất',
+      liveRoom?.status === 'READ_ONLY',
+      String(liveRoom?.status),
+    );
+
+    const doneAgain = await transactions.closeOpenRequestsForPost({
+      postId: livePost,
+      closedBy: GiverId,
+      reason: 'Gọi lại',
+    });
+    check('gọi lại không đóng thêm gì', doneAgain.length === 0);
+
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

@@ -211,10 +211,11 @@ describe('GiftTransactionRepository open transaction count', () => {
     await repository.countOpenForUser(GiverId);
 
     const sql = String(query.mock.calls[0][0]);
-    for (const status of ['REQUESTED', 'ACCEPTED', 'DELIVERING'])
+    for (const status of ['ACCEPTED', 'DELIVERING'])
       expect(sql).toContain(status);
-    // Đã xong hoặc đã đóng thì không chặn xoá tài khoản nữa.
-    for (const status of ['COMPLETED', 'CANCELLED', 'REJECTED'])
+    // Đã xong hoặc đã đóng thì không chặn xoá tài khoản nữa. `REQUESTED` và
+    // `REJECTED` đã dọn 28/09 nên cũng không được xuất hiện lại ở đây.
+    for (const status of ['COMPLETED', 'CANCELLED', 'REQUESTED', 'REJECTED'])
       expect(sql).not.toContain(status);
   });
 });

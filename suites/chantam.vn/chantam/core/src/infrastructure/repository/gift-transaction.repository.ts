@@ -783,7 +783,7 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         SELECT COUNT(*) AS total
         FROM gift_transactions
         WHERE (giver_id = $1 OR receiver_id = $1)
-          AND status IN ('REQUESTED', 'ACCEPTED', 'DELIVERING')
+          AND status IN ('ACCEPTED', 'DELIVERING')
       `,
       [userId],
     );
@@ -791,35 +791,63 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     return Number(row?.total ?? 0);
   }
 
+  /**
+   * Đóng mọi lượt trao còn sống của một bài vừa bị gỡ.
+   *
+   * **Điều kiện cũ là `status = 'REQUESTED'`, và nó không khớp dòng nào** kể từ
+   * khi duyệt yêu cầu chèn thẳng `ACCEPTED` — nên hàm này chạy mà không đóng gì.
+   *
+   * Nó KHÔNG phải nhánh chết như thoạt nhìn. Cổng chặn ở `DeletePostUseCase` đọc
+   * **trạng thái BÀI**, mà `syncPostStatus` giữ bài ở `PUBLISHED` chừng nào
+   * `remaining_quantity > 0`. Một bài số lượng 3 đã duyệt một người vẫn là
+   * `PUBLISHED`, nên tác giả gỡ được — và lượt trao đang sống của người kia bị
+   * bỏ lại: phòng chat vẫn mở, và cron vẫn có thể đánh nó thành COMPLETED trên
+   * một bài đã biến mất.
+   *
+   * Không trả tồn kho: bài đang bị gỡ mềm nên con số đó không còn ai đọc.
+   */
   public async closeOpenRequestsForPost(params: {
     postId: string;
     closedBy: string;
     reason: string;
   }): Promise<{ transactionId: string; receiverId: string }[]> {
-    const rows = await updateReturning<{
-      global_id: string;
-      receiver_id: string;
-    }>(
-      this.manager,
-      `
-        UPDATE gift_transactions
-        SET status = 'CANCELLED',
-            closed_at = now(),
-            -- closed_by bắt buộc đi kèm closed_at: ràng buộc
-            -- CHK_gift_transactions_closed_pairing ở database, và nó đúng —
-            -- một lượt đóng mà không biết ai đóng thì tra lại được gì.
-            closed_by = $2,
-            close_reason = $3
-        WHERE post_id = $1 AND status = 'REQUESTED'
-        RETURNING global_id, receiver_id
-      `,
-      [params.postId, params.closedBy, params.reason],
-    );
+    return this.manager.transaction(async (manager) => {
+      const rows = await updateReturning<{
+        global_id: string;
+        receiver_id: string;
+      }>(
+        manager,
+        `
+          UPDATE gift_transactions
+          SET status = 'CANCELLED',
+              closed_at = now(),
+              -- closed_by bắt buộc đi kèm closed_at: ràng buộc
+              -- CHK_gift_transactions_closed_pairing ở database, và nó đúng —
+              -- một lượt đóng mà không biết ai đóng thì tra lại được gì.
+              closed_by = $2,
+              close_reason = $3
+          WHERE post_id = $1 AND status::text = ANY($4::text[])
+          RETURNING global_id, receiver_id
+        `,
+        [
+          params.postId,
+          params.closedBy,
+          params.reason,
+          StockHoldingGiftTransactionStatuses,
+        ],
+      );
 
-    return rows.map((row) => ({
-      transactionId: row.global_id,
-      receiverId: row.receiver_id,
-    }));
+      // Khoá phòng chat trong CÙNG transaction, y như mọi đường đóng khác. Bỏ
+      // bước này thì hai người vẫn nhắn tin được về một lượt trao đã đóng trên
+      // một bài không còn tồn tại.
+      for (const row of rows)
+        await this.chat.lockRoomWithinTransaction(manager, row.global_id);
+
+      return rows.map((row) => ({
+        transactionId: row.global_id,
+        receiverId: row.receiver_id,
+      }));
+    });
   }
 
   public async isReceiverOfPost(

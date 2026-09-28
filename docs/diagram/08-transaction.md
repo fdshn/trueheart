@@ -292,6 +292,38 @@ flowchart TD
 > **Khai route SAU `/transactions/me`.** `me` là chuỗi cố định còn `:transactionId` nuốt mọi
 > thứ; đảo thứ tự thì `/transactions/me` rơi vào route dưới và trả 404 vì "me" không phải uuid.
 
+## 8.8 Gỡ bài khi còn lượt trao sống — ✅ 28/09
+
+```mermaid
+flowchart TD
+    A[Tác giả bấm gỡ bài] --> B{Trạng thái BÀI?}
+    B -->|RESERVED / DELIVERING| C["❌ PostHasLiveTransactionException"]
+    B -->|PUBLISHED| D[Cho gỡ]
+    D --> E["closeOpenRequestsForPost"]
+    E --> F["ACCEPTED + DELIVERING → CANCELLED"]
+    F --> G[Khoá phòng chat]
+    F --> H["🔔 báo người nhận"]
+
+    I["⚠️ Bài số lượng 3, đã duyệt 1 người<br/>→ remaining_quantity = 2<br/>→ syncPostStatus giữ ở PUBLISHED"] -.-> B
+
+    style C fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style I fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+```
+
+> ⚠️ **Cổng chặn đọc trạng thái BÀI, không đọc lượt trao.** Và `syncPostStatus` giữ bài ở
+> `PUBLISHED` chừng nào `remaining_quantity > 0`. Nên một bài số lượng 3 đã duyệt một người vẫn
+> là `PUBLISHED` — tác giả **gỡ được**, trong khi lượt trao của người kia đang sống.
+
+> **Điều kiện cũ là `status = 'REQUESTED'`, và nó không khớp dòng nào** kể từ khi duyệt yêu cầu
+> chèn thẳng `ACCEPTED`. Nghĩa là hàm này vẫn chạy, vẫn trả về mảng rỗng, và lượt trao bị bỏ
+> lại: phòng chat vẫn mở, và cron vẫn có thể đánh nó thành `COMPLETED` trên một bài đã biến mất.
+> Nay lọc theo `ACCEPTED`/`DELIVERING` — cùng tập với `StockHoldingGiftTransactionStatuses`.
+
+> **Khoá phòng chat trong CÙNG transaction**, y như mọi đường đóng khác. Bỏ bước này thì hai
+> người vẫn nhắn tin được về một lượt trao đã đóng trên một bài không còn tồn tại.
+
+> **Không trả tồn kho.** Bài đang bị gỡ mềm nên con số đó không còn ai đọc.
+
 ## Chỗ cần soát
 
 1. ✅ **Báo khi BÀN GIAO** (28/09) — `GIFT_TRANSACTION_HANDED_OVER` tới người nhận. Đó cũng là
@@ -311,7 +343,5 @@ flowchart TD
    để drop, nhưng nó mang **DEFAULT `'REQUESTED'`** — một cái bẫy: câu INSERT nào quên truyền
    `status` sẽ rơi thẳng vào trạng thái chết. Đã bỏ default và thay bằng ràng buộc
    `CHK_gift_transactions_live_status` chỉ cho bốn trạng thái còn sống.
-7. ⚠️ **`closeOpenRequestsForPost` nay không khớp dòng nào.** Điều kiện của nó là
-   `status = 'REQUESTED'`, mà trạng thái đó không còn được tạo ra. Đường gỡ bài của tác giả vẫn
-   gọi nó, nhưng bị chặn từ trước bởi `PostHasLiveTransactionException` nên không lộ ra. Cần
-   chốt: gỡ hẳn, hay đổi điều kiện sang `ACCEPTED`/`DELIVERING`?
+7. ✅ **`closeOpenRequestsForPost` đã sửa** (28/09) — và nó KHÔNG phải nhánh chết như tôi
+   tưởng lúc đầu. Xem §8.8.
