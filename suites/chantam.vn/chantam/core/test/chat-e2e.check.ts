@@ -134,25 +134,22 @@ async function completeProfile(
 
   const { status, body } = await call<{
     body?: { profile?: { profileComplete?: boolean } };
-  }>(
-    '/profile/me',
-    {
-      method: 'PATCH',
-      token,
-      body: {
-        profile: {
-          fullName: `Chat E2E ${username}`,
-          avatarKey,
-          // SĐT phải DUY NHẤT trên toàn hệ thống. `stamp` tách được lần chạy
-          // này khỏi lần chạy khác, còn `suffix` tách ba tài khoản trong CÙNG
-          // một lần — bỏ nó thì a và b ra chung một số và người thứ hai ăn 409.
-          phone: `+84${stamp}${suffix.charCodeAt(0) - 96}`,
-          email: `${username}@example.com`,
-          defaultLocation: { lat: 21.028, lng: 105.835 },
-        },
+  }>('/profile/me', {
+    method: 'PATCH',
+    token,
+    body: {
+      profile: {
+        fullName: `Chat E2E ${username}`,
+        avatarKey,
+        // SĐT phải DUY NHẤT trên toàn hệ thống. `stamp` tách được lần chạy
+        // này khỏi lần chạy khác, còn `suffix` tách ba tài khoản trong CÙNG
+        // một lần — bỏ nó thì a và b ra chung một số và người thứ hai ăn 409.
+        phone: `+84${stamp}${suffix.charCodeAt(0) - 96}`,
+        email: `${username}@example.com`,
+        defaultLocation: { lat: 21.028, lng: 105.835 },
       },
     },
-  );
+  });
 
   if (body.body?.profile?.profileComplete !== true)
     throw new Error(
