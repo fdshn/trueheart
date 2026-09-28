@@ -41,10 +41,15 @@ async function main(): Promise<void> {
 
   console.log(
     `Cần nhắc: ${result.pendingReview} lượt chờ đánh giá, ` +
-      `${result.pendingMaintenance} chu kỳ duy trì sắp hết.`,
+      `${result.pendingMaintenance} chu kỳ duy trì sắp hết, ` +
+      `${result.pendingExpiringPosts} bài sắp hết hạn.`,
   );
 
-  if (result.pendingReview === 0 && result.pendingMaintenance === 0) {
+  if (
+    result.pendingReview === 0 &&
+    result.pendingMaintenance === 0 &&
+    result.pendingExpiringPosts === 0
+  ) {
     console.log('Không có lời nhắc nào cần gửi.');
     return;
   }
@@ -55,8 +60,9 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `\nĐã gửi ${result.reviewReminders} lời nhắc đánh giá ` +
-      `và ${result.maintenanceReminders} lời nhắc nhiệm vụ duy trì.`,
+    `\nĐã gửi ${result.reviewReminders} lời nhắc đánh giá, ` +
+      `${result.maintenanceReminders} lời nhắc nhiệm vụ duy trì, ` +
+      `và ${result.expiringPostReminders} lời nhắc bài sắp hết hạn.`,
   );
 
   // Chênh lệch là bình thái, không phải lỗi: khoá chống trùng đã chặn những lượt
@@ -64,9 +70,11 @@ async function main(): Promise<void> {
   // báo.
   const skipped =
     result.pendingReview +
-    result.pendingMaintenance -
+    result.pendingMaintenance +
+    result.pendingExpiringPosts -
     result.reviewReminders -
-    result.maintenanceReminders;
+    result.maintenanceReminders -
+    result.expiringPostReminders;
   if (skipped > 0)
     console.log(`${skipped} lượt đã nhắc từ trước, không gửi lại.`);
 }

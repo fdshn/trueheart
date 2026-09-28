@@ -199,3 +199,57 @@ export function normalizeRankPointsSourceConfig(
     ? { source }
     : DefaultRankPointsSourceConfig;
 }
+
+/** Khoá `system_configs` cho hạn lưu trữ thông báo. */
+export const NotificationRetentionConfigKey = 'notification.retention';
+
+export interface INotificationRetentionConfig {
+  readonly retentionDays: number;
+}
+
+/**
+ * 90 ngày.
+ *
+ * Thông báo mang tiêu đề bài, tên người và **đoạn đầu tin nhắn chat**. Giữ mãi
+ * nghĩa là xoá lịch sử chat theo hạn xong, một bản sao của chính những câu đó
+ * vẫn nằm trong hộp thư — tức chính sách lưu trữ có một lỗ thủng ở chỗ không ai
+ * nhìn vào.
+ *
+ * 90 ngày dài hơn mọi chu kỳ nghiệp vụ đang có (đồng hồ chọn người 30 ngày, hạn
+ * bài 3 tháng), nên không ai mất một thông báo còn đang cần.
+ */
+export const DefaultNotificationRetentionConfig: INotificationRetentionConfig =
+  {
+    retentionDays: 90,
+  };
+
+/** Trần trên để cấu hình sai không biến "dọn" thành "giữ mãi". */
+export const MaxNotificationRetentionDays = 365;
+
+export function normalizeNotificationRetentionConfig(
+  raw: unknown,
+): INotificationRetentionConfig {
+  if (!raw || typeof raw !== 'object')
+    return DefaultNotificationRetentionConfig;
+
+  const days = Number((raw as Record<string, unknown>).retentionDays);
+  if (!Number.isFinite(days)) return DefaultNotificationRetentionConfig;
+
+  return {
+    // Tối thiểu 7: dưới một tuần thì người đi vắng vài ngày về sẽ thấy hộp thư
+    // trống và không biết mình đã bỏ lỡ gì.
+    retentionDays: Math.min(
+      MaxNotificationRetentionDays,
+      Math.max(7, Math.trunc(days)),
+    ),
+  };
+}
+
+/**
+ * Nhắc bài sắp hết hạn trước bao nhiêu ngày.
+ *
+ * Bảy ngày khớp với nhịp đồng hồ chọn người nhận đã có trong sản phẩm, nên
+ * người dùng chỉ phải nhớ một khoảng thời gian. Đủ để họ kịp bấm gia hạn, và
+ * chưa xa tới mức nhắc xong rồi quên.
+ */
+export const PostExpiryReminderDays = 7;

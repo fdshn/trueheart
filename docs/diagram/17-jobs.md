@@ -5,7 +5,7 @@ Trạng thái: ✅ **cả mười một CLI đã chạy được** sau khi sửa
 `media:sweep-orphans` là CLI duy nhất **mặc định không làm gì** — nó xoá object không hoàn
 tác được, nên phải gõ rõ `--apply`. Lịch cron cũng chỉ chạy khô để báo con số.
 
-## 17.1 Mười lệnh
+## 17.1 Mười một lệnh
 
 ```mermaid
 flowchart TD
@@ -17,8 +17,9 @@ flowchart TD
     C --> G["feed:reconcile-counts<br/>đối soát số đếm feed"]
     C --> H["accuracy:reconcile<br/>tính lại Giver Accuracy theo ngưỡng"]
     C --> I["gift:settle-rewards<br/>trả thưởng lượt trao người nhận không đánh giá"]
-    C --> J["notify:reminders<br/>nhắc đánh giá và nhắc nhiệm vụ duy trì"]
+    C --> J["notify:reminders<br/>nhắc đánh giá, nhiệm vụ duy trì, và bài sắp hết hạn"]
     C --> K["selection:auto-select<br/>chốt người nhận khi hết đồng hồ 7 ngày"]
+    C --> L["notification:purge<br/>dọn thông báo quá hạn lưu trữ"]
 
     style C fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
     style F fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
@@ -127,6 +128,7 @@ gantt
     gift-settle-rewards      :02:23, 10m
     rank-evaluate            :03:31, 8m
     chat-purge               :03:47, 15m
+    notification-purge       :04:09, 10m
     section Buổi sáng
     notify-reminders       :08:17, 10m
     section Mỗi giờ

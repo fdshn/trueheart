@@ -12,9 +12,14 @@ import {
 } from './notification.use-cases';
 import { SendPendingRemindersUseCase } from './send-pending-reminders.use-case';
 
+import { NotificationPreferenceUseCases } from './notification-preference.use-cases';
+import { PurgeOldNotificationsUseCase } from './purge-old-notifications.use-case';
+
 @Global()
 @Module({
   providers: [
+    NotificationPreferenceUseCases,
+    PurgeOldNotificationsUseCase,
     {
       provide: IDispatchNotificationUseCase,
       useClass: DispatchNotificationUseCase,
@@ -30,6 +35,8 @@ import { SendPendingRemindersUseCase } from './send-pending-reminders.use-case';
     },
   ],
   exports: [
+    NotificationPreferenceUseCases,
+    PurgeOldNotificationsUseCase,
     IDispatchNotificationUseCase,
     IListNotificationsUseCase,
     IMarkNotificationsReadUseCase,

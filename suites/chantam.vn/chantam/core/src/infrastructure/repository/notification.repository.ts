@@ -3,6 +3,7 @@ import {
   INotificationRepository,
 } from '@/domain/ports/repository';
 import { NotificationEntity } from '@/infrastructure/entity';
+import { NotificationGroups } from '@chantam.vn/chantam.core-lib/consts';
 import { INotificationEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
@@ -126,6 +127,67 @@ export class NotificationRepository implements INotificationRepository {
     );
 
     return { markedCount: marked.length, unreadCount: Number(unread) };
+  }
+
+  public async listMutedGroups(userId: string): Promise<NotificationGroups[]> {
+    const rows = await this.manager.query<{ notification_group: string }[]>(
+      `SELECT notification_group FROM notification_mutes WHERE user_id = $1`,
+      [userId],
+    );
+
+    // Lọc qua enum: một giá trị lạ còn sót trong bảng (đổi tên nhóm, sửa tay)
+    // không được biến thành một nhóm không ai bật lại được.
+    const known = new Set<string>(Object.values(NotificationGroups));
+    return rows
+      .map((row) => row.notification_group)
+      .filter((group): group is NotificationGroups => known.has(group))
+      .map((group) => group as NotificationGroups);
+  }
+
+  public async setGroupMuted(params: {
+    userId: string;
+    group: NotificationGroups;
+    muted: boolean;
+  }): Promise<void> {
+    if (params.muted) {
+      await this.manager.query(
+        `INSERT INTO notification_mutes (user_id, notification_group)
+         VALUES ($1, $2)
+         ON CONFLICT (user_id, notification_group) DO NOTHING`,
+        [params.userId, params.group],
+      );
+      return;
+    }
+
+    await this.manager.query(
+      `DELETE FROM notification_mutes
+       WHERE user_id = $1 AND notification_group = $2`,
+      [params.userId, params.group],
+    );
+  }
+
+  public async purgeOlderThan(params: {
+    olderThanDays: number;
+    limit: number;
+  }): Promise<number> {
+    // Xoá theo lô: một lần chạy trên bảng đã tích nhiều năm sẽ khoá bảng lâu và
+    // thổi phồng WAL. Job gọi lại cho tới khi hết.
+    const rows = await updateReturning<{ id: string }>(
+      this.manager,
+      `
+        DELETE FROM notifications
+        WHERE id IN (
+          SELECT id FROM notifications
+          WHERE created_at < now() - ($1 || ' days')::interval
+          ORDER BY created_at ASC
+          LIMIT $2
+        )
+        RETURNING id
+      `,
+      [String(params.olderThanDays), params.limit],
+    );
+
+    return rows.length;
   }
 
   public async findPushTokens(userId: string): Promise<string[]> {

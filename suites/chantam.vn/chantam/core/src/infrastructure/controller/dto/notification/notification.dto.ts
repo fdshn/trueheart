@@ -1,4 +1,7 @@
-import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  NotificationGroups,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   IListNotificationsQueryDto,
   IListNotificationsResponseDto,
@@ -18,6 +21,7 @@ import {
   IsArray,
   IsBoolean,
   IsDefined,
+  IsIn,
   IsOptional,
   IsUUID,
   ValidateNested,
@@ -105,4 +109,46 @@ export class MarkNotificationsReadResponseDto implements IMarkNotificationsReadR
 
   @ApiProperty()
   unreadCount: number;
+}
+
+export class NotificationPreferenceDto {
+  @ApiProperty({ enum: NotificationGroups })
+  group: NotificationGroups;
+
+  @ApiProperty({
+    description:
+      '`true` là đã TẮT tiếng nhóm này. Thông báo vẫn được ghi vào hộp thư — tắt chuông không phải tắt bản ghi.',
+  })
+  muted: boolean;
+
+  @ApiProperty({
+    enum: NotificationTypes,
+    isArray: true,
+    description:
+      'Những loại thuộc nhóm này, để client khỏi tự đoán và khỏi lệch khi backend thêm loại mới.',
+  })
+  types: NotificationTypes[];
+}
+
+export class ListNotificationPreferencesResponseDto {
+  @ApiProperty({ type: () => [NotificationPreferenceDto] })
+  preferences: NotificationPreferenceDto[];
+}
+
+export class SetNotificationPreferenceDto {
+  @ApiProperty({ enum: NotificationGroups })
+  @IsIn(Object.values(NotificationGroups))
+  group: NotificationGroups;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  muted: boolean;
+}
+
+export class SetNotificationPreferenceBodyDto {
+  @ApiProperty({ type: () => SetNotificationPreferenceDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => SetNotificationPreferenceDto)
+  preference: SetNotificationPreferenceDto;
 }

@@ -277,6 +277,25 @@ export interface IPostRepository extends Repository<IPostEntity> {
    * giao dịch sống, hết hạn ngang là cắt ngang một lượt trao đang diễn ra.
    */
   expireDuePosts(now: Date): Promise<IExpireDuePostsResult>;
+
+  /**
+   * Bài sắp hết hạn, để nhắc tác giả kịp gia hạn.
+   *
+   * `POST /posts/:postId/renew` đã có sẵn và cho thêm ba tháng, nhưng trước
+   * 29/09 không ai được nhắc để bấm — bài cứ thế hết hạn trong im lặng.
+   *
+   * Chỉ lấy bài `PUBLISHED`: bài đang có lượt trao sống thì hết hạn cũng không
+   * đụng tới nó, nên nhắc là nhắc một việc sẽ không xảy ra.
+   */
+  findPostsExpiringSoon(params: { withinDays: number; limit: number }): Promise<
+    {
+      postId: string;
+      authorId: string;
+      title: string;
+      expiresAt: Date;
+      daysLeft: number;
+    }[]
+  >;
   /**
    * Gia hạn một bài, kiểm tra trần quota và số lần gia hạn trong cùng một
    * transaction — đọc trước rồi ghi sau sẽ cho hai request song song cùng

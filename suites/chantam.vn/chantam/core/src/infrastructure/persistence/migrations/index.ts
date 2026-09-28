@@ -68,3 +68,4 @@ export * from './1794700000000-SeedDiscoveryRadiusEntitlement';
 export * from './1794800000000-DropDeadTransactionStatuses';
 export * from './1794900000000-AddChatRecallAndMessageReports';
 export * from './1795000000000-AddChatRoomMute';
+export * from './1795100000000-CreateNotificationPreferences';

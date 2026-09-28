@@ -8,6 +8,7 @@ import {
   INotificationRepository,
   INotificationTemplateRepository,
 } from '@/domain/ports/repository';
+import { NotificationGroupOf } from '@chantam.vn/chantam.core-lib/consts';
 import { renderNotificationTemplate } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -48,8 +49,37 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
     // người dùng rung hai lần cho cùng một việc.
     if (!created) return { created: false, pushedDevices: 0 };
 
+    // Tắt một nhóm chỉ tắt TIẾNG CHUÔNG, không tắt bản ghi: thông báo vẫn nằm
+    // trong hộp thư để người dùng tự vào xem. Bỏ luôn bản ghi thì họ mất hẳn
+    // thông tin, chứ không phải được yên tĩnh — cùng lối nghĩ với việc tắt
+    // thông báo một phòng chat.
+    if (await this.isGroupMuted(command))
+      return { created: true, pushedDevices: 0 };
+
     const pushedDevices = await this.push(created.globalId, command);
     return { created: true, pushedDevices };
+  }
+
+  /**
+   * Người nhận đã tắt nhóm chứa loại thông báo này chưa.
+   *
+   * Đọc hỏng thì coi như CHƯA tắt: mất một lần yên tĩnh còn hơn nuốt mất một
+   * thông báo người dùng đang chờ. Cùng lối xử lý với việc đọc mẫu ở dưới.
+   */
+  private async isGroupMuted(
+    command: IDispatchNotificationCommand,
+  ): Promise<boolean> {
+    try {
+      const muted = await this.notifications.listMutedGroups(command.userId);
+      if (muted.length === 0) return false;
+
+      return muted.includes(NotificationGroupOf[command.type]);
+    } catch (error) {
+      this.logger.warn(
+        `Không đọc được cài đặt thông báo của ${command.userId}, coi như chưa tắt: ${String(error)}`,
+      );
+      return false;
+    }
   }
 
   /**

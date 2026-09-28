@@ -608,6 +608,54 @@ export class PostRepository
     };
   }
 
+  public async findPostsExpiringSoon(params: {
+    withinDays: number;
+    limit: number;
+  }): Promise<
+    {
+      postId: string;
+      authorId: string;
+      title: string;
+      expiresAt: Date;
+      daysLeft: number;
+    }[]
+  > {
+    const rows = await this.manager.query<
+      {
+        global_id: string;
+        author_id: string;
+        title: string;
+        expires_at: Date;
+        days_left: string;
+      }[]
+    >(
+      `
+        SELECT global_id, author_id, title, expires_at,
+               CEIL(EXTRACT(EPOCH FROM (expires_at - now())) / 86400)::text
+                 AS days_left
+        FROM posts
+        WHERE status = 'PUBLISHED'
+          AND deleted_at IS NULL
+          AND expires_at IS NOT NULL
+          -- Chưa hết hạn: bài đã quá hạn thì post:expire lo, nhắc gia hạn lúc
+          -- đó là mời người ta bấm một nút sắp hết tác dụng.
+          AND expires_at > now()
+          AND expires_at <= now() + ($1 || ' days')::interval
+        ORDER BY expires_at ASC
+        LIMIT $2
+      `,
+      [String(params.withinDays), params.limit],
+    );
+
+    return rows.map((row) => ({
+      postId: row.global_id,
+      authorId: row.author_id,
+      title: row.title,
+      expiresAt: row.expires_at,
+      daysLeft: Number(row.days_left),
+    }));
+  }
+
   public async expireDuePosts(now: Date): Promise<IExpireDuePostsResult> {
     return this.manager.transaction(async (manager) => {
       // SKIP LOCKED để hai lần chạy song song không tranh cùng một bài. Chỉ

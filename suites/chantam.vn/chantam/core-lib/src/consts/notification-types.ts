@@ -80,6 +80,13 @@ export enum NotificationTypes {
    */
   REVIEW_REMINDER = 'REVIEW_REMINDER',
   /**
+   * Bài sắp hết hạn, còn kịp gia hạn.
+   *
+   * `POST /posts/:postId/renew` đã có sẵn và cho thêm ba tháng, nhưng trước
+   * 29/09 không ai được nhắc để bấm — bài cứ thế hết hạn trong im lặng.
+   */
+  POST_EXPIRING_SOON = 'POST_EXPIRING_SOON',
+  /**
    * Nhắc nhiệm vụ duy trì hạng, trước khi chu kỳ hết (SRS BR-PROF-RANK-03).
    *
    * Trượt chu kỳ nay bị trừ điểm và có thể tụt hạng, nên báo muộn hơn thời điểm
@@ -91,3 +98,64 @@ export enum NotificationTypes {
   /** Nội dung của bạn bị Admin xử lý sau khi có báo xấu. */
   CONTENT_MODERATED = 'CONTENT_MODERATED',
 }
+
+/**
+ * Nhóm thông báo để người dùng tắt/bật.
+ *
+ * **Nhóm chứ không phải từng loại.** Mười chín công tắc là một màn hình không ai
+ * đọc, và người đang bị làm phiền cần tắt nhanh chứ không cần chính xác. Bốn
+ * nhóm thì đọc một lượt là hiểu.
+ *
+ * Vì sao phải có: hiện là tất-cả-hoặc-không, nên người bị làm phiền sẽ tắt
+ * thông báo ở mức HỆ ĐIỀU HÀNH — và mất luôn `GIFT_REQUEST_ACCEPTED`, thứ thật
+ * sự quan trọng. Đây đúng là lý lẽ đã dùng để thiết kế luật "cảm xúc chỉ báo
+ * lần đầu trong ngày".
+ */
+export enum NotificationGroups {
+  /** Yêu cầu xin nhận và vòng đời lượt trao. */
+  TRANSACTION = 'TRANSACTION',
+  /** Tin nhắn và vòng đời phòng chat. */
+  CHAT = 'CHAT',
+  /** Bình luận, trả lời, cảm xúc trên nội dung của mình. */
+  FEED = 'FEED',
+  /** Hạng, nhắc lịch, kết luận báo xấu, hậu kiểm nội dung. */
+  SYSTEM = 'SYSTEM',
+}
+
+/**
+ * Mỗi loại thuộc đúng một nhóm.
+ *
+ * Khai đủ cả 20 loại thay vì có nhánh mặc định: thêm một loại mới mà quên xếp
+ * nhóm thì TypeScript báo ngay, thay vì nó lặng lẽ rơi vào nhóm nào đó và không
+ * ai tắt được.
+ */
+export const NotificationGroupOf: Record<
+  NotificationTypes,
+  NotificationGroups
+> = {
+  [NotificationTypes.NEW_CHAT_MESSAGE]: NotificationGroups.CHAT,
+  [NotificationTypes.CHAT_ROOM_SCHEDULED_FOR_PURGE]: NotificationGroups.CHAT,
+
+  [NotificationTypes.GIFT_REQUEST_CREATED]: NotificationGroups.TRANSACTION,
+  [NotificationTypes.GIFT_REQUEST_ACCEPTED]: NotificationGroups.TRANSACTION,
+  [NotificationTypes.GIFT_REQUEST_REJECTED]: NotificationGroups.TRANSACTION,
+  [NotificationTypes.GIFT_REQUEST_CLOSED]: NotificationGroups.TRANSACTION,
+  [NotificationTypes.GIFT_TRANSACTION_HANDED_OVER]:
+    NotificationGroups.TRANSACTION,
+  [NotificationTypes.GIFT_TRANSACTION_CLOSED]: NotificationGroups.TRANSACTION,
+  [NotificationTypes.GIFT_TRANSACTION_COMPLETED]:
+    NotificationGroups.TRANSACTION,
+  [NotificationTypes.GIFT_TRANSACTION_REOPENED]: NotificationGroups.TRANSACTION,
+
+  [NotificationTypes.CONTENT_COMMENT_CREATED]: NotificationGroups.FEED,
+  [NotificationTypes.CONTENT_COMMENT_REPLIED]: NotificationGroups.FEED,
+  [NotificationTypes.CONTENT_REACTION_FIRST_OF_DAY]: NotificationGroups.FEED,
+
+  [NotificationTypes.RANK_DEMOTION_WARNING]: NotificationGroups.SYSTEM,
+  [NotificationTypes.RANK_DEMOTED]: NotificationGroups.SYSTEM,
+  [NotificationTypes.RANK_MAINTENANCE_REMINDER]: NotificationGroups.SYSTEM,
+  [NotificationTypes.REVIEW_REMINDER]: NotificationGroups.SYSTEM,
+  [NotificationTypes.POST_EXPIRING_SOON]: NotificationGroups.SYSTEM,
+  [NotificationTypes.REPORT_REVIEWED]: NotificationGroups.SYSTEM,
+  [NotificationTypes.CONTENT_MODERATED]: NotificationGroups.SYSTEM,
+};

@@ -81,6 +81,7 @@ Không phải biến môi trường — Admin sửa lúc chạy, có đánh phi�
 | `chat.retention` | — | Bao lâu sau khi khoá thì xoá lịch sử trò chuyện |
 | `accuracy.giver` | — | Ngưỡng gắn cờ độ chính xác người tặng |
 | `selection.candidate_priority` | ai xin trước | Thứ tự tiêu chí auto-select |
+| `notification.retention` | 90 ngày | Bao lâu thì dọn thông báo cũ khỏi hộp thư |
 | **`rank.points_source`** | `BALANCE` | **Xét hạng đọc cột điểm nào** |
 
 > **`rank.points_source` là quyết định sản phẩm, không phải kỹ thuật** — và nó đã bị đổi qua lại

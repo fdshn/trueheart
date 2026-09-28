@@ -1004,12 +1004,23 @@ cho phép nâng cấp WebSocket trên cổng đang dùng.
 | --- | --- | --- | --- |
 | `GET` | `/notifications/me` | Bearer | Hộp thư của chính mình, lọc `unreadOnly` |
 | `PATCH` | `/notifications/me/read` | Bearer | Đánh dấu đã đọc; bỏ trống id thì đánh dấu tất cả |
+| `GET` | `/notifications/me/preferences` | Bearer | **Cài đặt theo nhóm** — luôn trả đủ bốn nhóm |
+| `PATCH` | `/notifications/me/preferences` | Bearer | **Tắt/bật tiếng** một nhóm |
 
 - `unreadCount` là **tổng** số chưa đọc, không phụ thuộc trang hay bộ lọc đang xem — mở
   trang 2 không được làm badge tụt xuống.
 - Id không thuộc người gọi đơn giản không khớp dòng nào; **không báo lỗi**, vì báo lỗi là
   nói cho họ biết id đó có thật.
 - Mỗi sự kiện có `idempotencyKey` UNIQUE, nên retry không làm rung điện thoại hai lần.
+- **Bốn nhóm để tắt/bật**: `TRANSACTION`, `CHAT`, `FEED`, `SYSTEM`. Nhóm chứ không phải từng
+  loại — hai mươi công tắc là một màn hình không ai đọc, và người đang bị làm phiền cần tắt
+  nhanh chứ không cần chính xác. Mỗi nhóm trả kèm `types` để client khỏi tự đoán và khỏi lệch
+  khi backend thêm loại mới.
+- **Tắt tiếng KHÔNG phải tắt bản ghi.** Thông báo vẫn vào hộp thư để người dùng tự vào xem; chỉ
+  `pushedDevices` về 0. Bỏ luôn bản ghi thì họ mất hẳn thông tin, chứ không phải được yên tĩnh.
+- **Hộp thư được dọn theo hạn lưu trữ** (`notification.retention`, mặc định 90 ngày, sàn 7). Cần
+  vì thông báo mang tiêu đề bài, tên người và **đoạn đầu tin nhắn chat** — giữ mãi thì xoá lịch
+  sử chat theo hạn xong, một bản sao của chính những câu đó vẫn nằm trong hộp thư.
 - ⛔ **Đẩy FCM chưa dùng được**: chưa có khoá dự án Firebase, `LoggingPushSender`
   fail-closed ở production. Thông báo **trong app** không phụ thuộc vào nó — mất đường đẩy
   không làm mất thông báo.

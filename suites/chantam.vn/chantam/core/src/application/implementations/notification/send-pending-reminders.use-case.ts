@@ -6,12 +6,14 @@ import {
 } from '@/application/contracts/notification';
 import {
   IAdminConfigRepository,
+  IPostRepository,
   IRankRepository,
   ITransactionReviewRepository,
 } from '@/domain/ports/repository';
 import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
 import {
   normalizeReviewGraceConfig,
+  PostExpiryReminderDays,
   ReviewGraceConfigKey,
 } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
@@ -50,6 +52,7 @@ export class SendPendingRemindersUseCase implements ISendPendingRemindersUseCase
     private readonly reviews: ITransactionReviewRepository,
     @Inject(IRankRepository)
     private readonly ranks: IRankRepository,
+    @Inject(IPostRepository) private readonly posts: IPostRepository,
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
     @Inject(IDispatchNotificationUseCase)
@@ -75,13 +78,19 @@ export class SendPendingRemindersUseCase implements ISendPendingRemindersUseCase
       remindBeforeDays: RemindMaintenanceBeforeDays,
       limit,
     });
+    const expiringPosts = await this.posts.findPostsExpiringSoon({
+      withinDays: PostExpiryReminderDays,
+      limit,
+    });
 
     if (dryRun)
       return {
         reviewReminders: 0,
         maintenanceReminders: 0,
+        expiringPostReminders: 0,
         pendingReview: pendingReviews.length,
         pendingMaintenance: pendingCycles.length,
+        pendingExpiringPosts: expiringPosts.length,
       };
 
     let reviewReminders = 0;
@@ -137,11 +146,36 @@ export class SendPendingRemindersUseCase implements ISendPendingRemindersUseCase
     }
     await this.ranks.markCyclesReminded(reminded);
 
+    let expiringPostReminders = 0;
+    for (const post of expiringPosts) {
+      const sent = await this.dispatchNotification.handle({
+        userId: post.authorId,
+        type: NotificationTypes.POST_EXPIRING_SOON,
+        title: 'Bài đăng sắp hết hạn',
+        body:
+          `Bài "${post.title}" còn ${post.daysLeft} ngày là hết hạn. ` +
+          `Bạn có thể gia hạn thêm ba tháng nếu vẫn muốn giữ bài.`,
+        referenceType: 'POST',
+        referenceId: post.postId,
+        // Khoá theo bài VÀ mốc hết hạn: gia hạn đổi `expires_at`, nên lần sắp
+        // hết hạn sau là một sự việc khác và đáng được nhắc lại. Khoá theo mình
+        // id bài thì người gia hạn một lần sẽ không bao giờ được nhắc nữa.
+        idempotencyKey: `POST_EXPIRING_SOON:${post.postId}:${post.expiresAt.toISOString().slice(0, 10)}`,
+        variables: {
+          title: post.title,
+          daysLeft: String(post.daysLeft),
+        },
+      });
+      if (sent.created) expiringPostReminders += 1;
+    }
+
     return {
       reviewReminders,
       maintenanceReminders,
+      expiringPostReminders,
       pendingReview: pendingReviews.length,
       pendingMaintenance: pendingCycles.length,
+      pendingExpiringPosts: expiringPosts.length,
     };
   }
 }

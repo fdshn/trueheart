@@ -11,6 +11,13 @@ function makeUseCase(
     cycles?: unknown[];
     grace?: unknown;
     created?: boolean;
+    expiringPosts?: {
+      postId: string;
+      authorId: string;
+      title: string;
+      expiresAt: Date;
+      daysLeft: number;
+    }[];
   } = {},
 ) {
   const reviews = {
@@ -38,13 +45,20 @@ function makeUseCase(
     }),
   };
 
+  // Mặc định không có bài nào sắp hết hạn: từng bài kiểm ghi đè khi cần.
+  const posts = {
+    findPostsExpiringSoon: jest.fn(async () => options.expiringPosts ?? []),
+  };
+
   return {
     useCase: new SendPendingRemindersUseCase(
       reviews as never,
       ranks as never,
+      posts as never,
       adminConfig as never,
       dispatch as never,
     ),
+    posts,
     reviews,
     ranks,
     dispatch,

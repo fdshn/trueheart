@@ -2,6 +2,7 @@ import {
   IListNotificationsUseCase,
   IMarkNotificationsReadUseCase,
 } from '@/application/contracts/notification';
+import { NotificationPreferenceUseCases } from '@/application/implementations/notification/notification-preference.use-cases';
 import {
   IListNotificationsResponseDto,
   IMarkNotificationsReadResponseDto,
@@ -21,16 +22,19 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  ListNotificationPreferencesResponseDto,
   ListNotificationsQueryDto,
   ListNotificationsResponseDto,
   MarkNotificationsReadBodyDto,
   MarkNotificationsReadResponseDto,
+  SetNotificationPreferenceBodyDto,
 } from '../../dto/notification';
 
 @ApiTags('Thông báo')
 @Controller('notifications')
 export class NotificationController {
   public constructor(
+    private readonly preferences: NotificationPreferenceUseCases,
     @Inject(IListNotificationsUseCase)
     private readonly listNotificationsUseCase: IListNotificationsUseCase,
     @Inject(IMarkNotificationsReadUseCase)
@@ -58,6 +62,51 @@ export class NotificationController {
     return ResponseDto.create<IListNotificationsResponseDto>()
       .succeed()
       .attach(result)
+      .build();
+  }
+
+  @Get('me/preferences')
+  @ApiOperation({
+    summary: 'Cài đặt thông báo theo nhóm',
+    description:
+      'Bốn nhóm: giao dịch, chat, bảng tin, hệ thống. Luôn trả đủ bốn kể cả khi người dùng chưa đụng tới cài đặt — bảng chỉ lưu ngoại lệ, nhưng màn hình cần đủ bốn công tắc. Mỗi nhóm kèm danh sách loại thuộc nó, để client khỏi tự đoán và khỏi lệch khi backend thêm loại mới.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(ListNotificationPreferencesResponseDto),
+  })
+  @ApiErrorResponses(...ApiTokenErrors)
+  public async listPreferences(@CurrentUser() principal: IAuthPrincipal) {
+    return ResponseDto.create()
+      .succeed()
+      .attach({
+        preferences: await this.preferences.list(principal.userId),
+      })
+      .build();
+  }
+
+  @Patch('me/preferences')
+  @ApiOperation({
+    summary: 'Tắt hoặc bật tiếng một nhóm thông báo',
+    description:
+      'Tắt một nhóm chỉ tắt TIẾNG CHUÔNG: thông báo vẫn được ghi vào hộp thư để người dùng tự vào xem. Bỏ luôn bản ghi thì họ mất hẳn thông tin, chứ không phải được yên tĩnh. Trước 29/09 là tất-cả-hoặc-không, nên người bị làm phiền sẽ tắt thông báo ở mức hệ điều hành và mất luôn `GIFT_REQUEST_ACCEPTED` — thứ thật sự quan trọng.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(ListNotificationPreferencesResponseDto),
+  })
+  @ApiErrorResponses(...ApiTokenErrors)
+  public async setPreference(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: SetNotificationPreferenceBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach({
+        preferences: await this.preferences.set({
+          userId: principal.userId,
+          group: body.preference.group,
+          muted: body.preference.muted,
+        }),
+      })
       .build();
   }
 
