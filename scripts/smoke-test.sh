@@ -479,6 +479,51 @@ else
   fail "hồ sơ owner thiếu vị trí mặc định" "HTTP $RESP_CODE — $RESP_BODY"
 fi
 
+# F56: hồ sơ đủ mới chỉ qua được `assertComplete`. Đăng bài còn cần
+# `assertOnboarded` — tức đã thoát VIEWER — và từ 26/09 thoát VIEWER đòi thêm
+# bằng chứng PHONE_VERIFIED. Bỏ chặng này thì mọi phép thử vòng đời bài đăng
+# phía dưới đều ăn 403 "Cần hoàn tất onboarding trước khi đăng bài".
+#
+# OTP không đi qua HTTP được: ở môi trường không phải production nó được GHI RA
+# LOG thay vì gửi SMS (`ConfiguredOtpSender`), và đó là đường duy nhất lấy được
+# mã mà không chọc thẳng vào database. Nên smoke đọc log service — cần
+# `CORE_LOG` trỏ tới file log, và cần service chạy ở mức log `debug` vì mã nằm
+# ở dòng `logger.debug`.
+call_auth PATCH /api/v1/profile/me/phone-verification/request "$PROFILE_ACCESS_TOKEN" ''
+if [ "$RESP_CODE" = "200" ]; then
+  pass "xin được OTP xác minh SĐT (F56)"
+else
+  fail "không xin được OTP xác minh SĐT" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+PHONE_OTP=""
+if [ -n "${CORE_LOG:-}" ] && [ -f "$CORE_LOG" ]; then
+  # Lấy mã CUỐI CÙNG: cùng một lần chạy có thể đã xin OTP cho việc khác trước đó,
+  # và mã cũ thì OTP store đã thay thế.
+  PHONE_OTP=$(grep -o 'mã: [0-9]\{6\}' "$CORE_LOG" | tail -1 | grep -o '[0-9]\{6\}')
+fi
+
+if [ -z "$PHONE_OTP" ]; then
+  fail "không đọc được OTP từ log service" "CORE_LOG='${CORE_LOG:-chưa đặt}' — cần trỏ tới log của service và service phải chạy LOG_LEVEL=debug"
+else
+  call_auth PATCH /api/v1/profile/me/phone-verification/confirm "$PROFILE_ACCESS_TOKEN" "{\"verification\":{\"otp\":\"$PHONE_OTP\"}}"
+  if [ "$RESP_CODE" = "200" ]; then
+    pass "xác minh SĐT bằng OTP đọc từ log (F56)"
+  else
+    fail "xác nhận OTP thất bại" "HTTP $RESP_CODE — $RESP_BODY"
+  fi
+
+  # Thoát VIEWER là điều kiện đăng bài. Kiểm ngay tại đây chứ không để lộ ra ở
+  # bước tạo bài: ở đó lỗi sẽ hiện thành "không tạo được bài đăng", đúng nhưng
+  # chỉ sai chỗ.
+  call_auth GET /api/v1/profile/me "$PROFILE_ACCESS_TOKEN"
+  if printf '%s' "$RESP_BODY" | grep -q '"rank":"VIEWER"'; then
+    fail "xác minh SĐT xong vẫn là VIEWER" "$RESP_BODY"
+  else
+    pass "xác minh SĐT xong thì thoát VIEWER, đăng bài được"
+  fi
+fi
+
 call GET "/api/v1/profile/$PROFILE_USER"
 if [ "$RESP_CODE" = "200" ] && ! printf '%s' "$RESP_BODY" | grep -qE '"(email|phone|defaultLocation)"'; then
   pass "hồ sơ công khai không lộ contact/vị trí"
@@ -599,10 +644,12 @@ else
   fail "không tạo được bài đăng" "HTTP $RESP_CODE — $RESP_BODY"
 fi
 
-if printf '%s' "$RESP_BODY" | grep -q '"status":"PENDING_REVIEW"'; then
-  pass "bài mới ở trạng thái chờ kiểm duyệt"
+# Từ 26/09 bài lên THẲNG PUBLISHED — hậu kiểm thay cho tiền kiểm. Trước đó chỗ
+# này canh PENDING_REVIEW, và nó đúng cho tới ngày đổi.
+if printf '%s' "$RESP_BODY" | grep -q '"status":"PUBLISHED"'; then
+  pass "bài mới lên thẳng PUBLISHED, không chờ duyệt"
 else
-  fail "bài mới không vào PENDING_REVIEW" "$RESP_BODY"
+  fail "bài mới không vào PUBLISHED" "$RESP_BODY"
 fi
 
 if [ -z "$CREATED_ID" ]; then
@@ -612,26 +659,45 @@ if [ -z "$CREATED_ID" ]; then
   exit 1
 fi
 
-# Cổng kiểm duyệt: bài chưa duyệt tuyệt đối không được lộ ra bảng tin công khai.
+# Hậu kiểm: bài hiện NGAY, không chờ ai duyệt. Đây chính là điều khoản đã đổi
+# 26/09, nên kiểm thẳng nó thay vì kiểm điều ngược lại như trước.
 call GET "/api/v1/gift-posts/nearby?lat=${TEST_LAT}&lng=${TEST_LNG}&radiusMeters=2000"
 if printf '%s' "$RESP_BODY" | grep -q "$CREATED_ID"; then
-  fail "bài CHƯA duyệt đã lộ ra bảng tin công khai" "$CREATED_ID"
+  pass "bài mới hiện ngay trên bảng tin, không qua hàng đợi duyệt"
 else
-  pass "bài chưa duyệt không xuất hiện ở bảng tin"
+  fail "bài mới KHÔNG hiện trên bảng tin" "$CREATED_ID"
 fi
 
-# Duyệt bài qua hàng đợi Admin. Đây là ĐƯỜNG DUY NHẤT: `reason` bắt buộc và mọi
-# quyết định đi vào nhật ký kiểm duyệt. Tài khoản demo-kiem-duyet được
+# Hậu kiểm đi qua CÙNG một endpoint, chỉ đổi vai: nay nó dùng để GỠ bài đang
+# hiện chứ không phải để thả bài đang chờ. `reason` vẫn bắt buộc và mọi quyết
+# định vẫn đi vào nhật ký kiểm duyệt. Tài khoản demo-kiem-duyet được
 # `npm run seed:demo` gán vai trò MODERATOR, nên quyền đọc từ database chứ
 # không từ biến môi trường.
 call POST /api/v1/auth/login '{"credentials":{"identifier":"demo-kiem-duyet","password":"Demo@12345","deviceId":"smoke-moderator"}}'
 MOD_ACCESS_TOKEN=$(json_str "$RESP_BODY" accessToken)
 
-call_auth PATCH "/api/v1/admin/posts/${CREATED_ID}/moderation" "$MOD_ACCESS_TOKEN" '{"moderation":{"decision":"PUBLISHED","reason":"Smoke test duyệt tự động"}}'
-if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"status":"PUBLISHED"'; then
-  pass "duyệt bài sang PUBLISHED"
+call_auth PATCH "/api/v1/admin/posts/${CREATED_ID}/moderation" "$MOD_ACCESS_TOKEN" '{"moderation":{"decision":"REJECTED","reason":"Smoke test gỡ thử"}}'
+if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"status":"REJECTED"'; then
+  pass "hậu kiểm gỡ được bài đang hiện"
 else
-  fail "không duyệt được bài" "HTTP $RESP_CODE — $RESP_BODY"
+  fail "không gỡ được bài bằng hậu kiểm" "HTTP $RESP_CODE — $RESP_BODY"
+fi
+
+# Gỡ xong thì phải BIẾN MẤT khỏi bảng tin — nếu không thì hậu kiểm chỉ là ghi
+# chép, không phải biện pháp.
+call GET "/api/v1/gift-posts/nearby?lat=${TEST_LAT}&lng=${TEST_LNG}&radiusMeters=2000"
+if printf '%s' "$RESP_BODY" | grep -q "$CREATED_ID"; then
+  fail "bài đã gỡ VẪN còn trên bảng tin" "$CREATED_ID"
+else
+  pass "bài bị gỡ biến mất khỏi bảng tin"
+fi
+
+# Trả lại để những phép thử không gian phía dưới vẫn có bài mà tìm.
+call_auth PATCH "/api/v1/admin/posts/${CREATED_ID}/moderation" "$MOD_ACCESS_TOKEN" '{"moderation":{"decision":"PUBLISHED","reason":"Smoke test trả lại"}}'
+if [ "$RESP_CODE" = "200" ] && printf '%s' "$RESP_BODY" | grep -q '"status":"PUBLISHED"'; then
+  pass "hậu kiểm trả lại được bài gỡ nhầm"
+else
+  fail "không trả lại được bài" "HTTP $RESP_CODE — $RESP_BODY"
 fi
 
 # Thiếu lý do thì phải bị từ chối — vết audit không được để trống.

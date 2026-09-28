@@ -95,7 +95,11 @@ jobs:
       # `migration:run` ở dưới lo việc đó, để lỗi migration lộ ra ngay tại bước
       # của nó thay vì lẫn vào log khởi động.
       NODE_ENV: development
-      LOG_LEVEL: info
+      # `debug` chứ không `info`: smoke test đọc OTP xác minh SĐT từ log service,
+      # mà `ConfiguredOtpSender` ghi mã ở mức `debug`. Ở mức `info` thì chặng
+      # F56 không chạy được, và mọi phép thử vòng đời bài đăng phía sau ăn 403
+      # "Cần hoàn tất onboarding trước khi đăng bài".
+      LOG_LEVEL: debug
       PORT: '3000'
       DATABASE_URI: postgres://chantam:chantam@localhost:5432/chantam
       REDIS_URI: redis://localhost:6379
@@ -216,6 +220,12 @@ jobs:
         # Đây là chỗ duy nhất chuỗi ST_DWithin -> repository -> use case ->
         # controller được kiểm tự động. Unit test mock repository nên không
         # chạm tới PostGIS.
+        #
+        # `CORE_LOG` là đường lấy OTP xác minh SĐT: ở môi trường không phải
+        # production, mã được ghi ra log thay vì gửi SMS. Không có nó thì smoke
+        # dừng ở cổng onboarding.
+        env:
+          CORE_LOG: ${{ runner.temp }}/core.log
         run: bash scripts/smoke-test.sh http://localhost:3000
 
       - name: In log service khi thất bại
