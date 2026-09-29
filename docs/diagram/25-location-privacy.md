@@ -45,6 +45,27 @@ flowchart TD
     style H fill:#f0f0f0,stroke:#8a8a8a,stroke-width:1.5px,color:#2b2b2b
 ```
 
+## 25.2b Ngoại lệ DUY NHẤT — chính chủ xem bài của mình
+
+```mermaid
+flowchart LR
+    A["GET /posts/{postId}"] --> B{"currentUserId == authorId?"}
+    B -->|Có| C["Toạ độ THẬT<br/>isLocationApproximate = false"]
+    B -->|Không| D["applyGeoJitter<br/>isLocationApproximate = true"]
+
+    style C fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style D fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
+```
+
+> **Vì sao mở ngoại lệ này (chốt 28/09).** Làm nhiễu toạ độ là để che chỗ ở của người đăng
+> khỏi người lạ — che nó khỏi chính họ thì không bảo vệ ai. Chủ bài mở bài mình lên sửa mà
+> thấy điểm ghim lệch vài trăm mét sẽ kéo nó về "đúng chỗ" theo cái họ nhìn thấy, và mỗi lần
+> sửa là vị trí thật trôi thêm một đoạn. `GET /posts/me` đã trả toạ độ thật từ trước vì đúng
+> lý do đó; đây chỉ là bù nốt đường còn thiếu.
+>
+> Ngoại lệ này KHÔNG áp cho `/posts/nearby`, `/posts/map` hay bất kỳ kênh quét nào — ở đó mọi
+> bài đều là bài của người khác.
+
 ## 25.3 Thẻ xem nhanh trên bản đồ (F29)
 
 ```mermaid

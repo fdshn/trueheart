@@ -3,6 +3,7 @@ import {
   IAttachPostMediaResult,
   IAttachPostMediaUseCase,
 } from '@/application/contracts/post';
+import { assertEditablePost } from '@/domain/consts/post-edit-policy';
 import {
   PostMediaLimitExceededException,
   PostNotFoundException,
@@ -36,6 +37,7 @@ export class AttachPostMediaUseCase implements IAttachPostMediaUseCase {
     if (!post || post.deletedAt)
       throw new PostNotFoundException(command.postId);
     if (post.authorId !== command.userId) throw new ForbiddenException();
+    assertEditablePost(post);
 
     await withStorageValidation('media.key', () =>
       this.storage.confirmPostMediaUpload(

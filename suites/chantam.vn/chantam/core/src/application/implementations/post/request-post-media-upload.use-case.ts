@@ -2,6 +2,7 @@ import {
   IRequestPostMediaUploadCommand,
   IRequestPostMediaUploadUseCase,
 } from '@/application/contracts/post';
+import { assertEditablePost } from '@/domain/consts/post-edit-policy';
 import {
   PostMediaLimitExceededException,
   PostNotFoundException,
@@ -33,6 +34,7 @@ export class RequestPostMediaUploadUseCase implements IRequestPostMediaUploadUse
     if (!post || post.deletedAt)
       throw new PostNotFoundException(command.postId);
     if (post.authorId !== command.userId) throw new ForbiddenException();
+    assertEditablePost(post);
     if ((await this.postMediaRepository.countByPostId(command.postId)) >= 10)
       throw new PostMediaLimitExceededException();
 

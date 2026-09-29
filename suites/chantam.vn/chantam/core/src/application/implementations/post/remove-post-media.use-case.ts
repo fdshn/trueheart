@@ -3,6 +3,7 @@ import {
   IRemovePostMediaResult,
   IRemovePostMediaUseCase,
 } from '@/application/contracts/post';
+import { assertEditablePost } from '@/domain/consts/post-edit-policy';
 import { PostNotFoundException } from '@/domain/exceptions';
 import {
   IPostMediaRepository,
@@ -32,6 +33,7 @@ export class RemovePostMediaUseCase implements IRemovePostMediaUseCase {
     if (!post || post.deletedAt)
       throw new PostNotFoundException(command.postId);
     if (post.authorId !== command.userId) throw new ForbiddenException();
+    assertEditablePost(post);
 
     const removedKey = await this.postMediaRepository.removeByPostId(
       command.postId,

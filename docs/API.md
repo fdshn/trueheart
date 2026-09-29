@@ -114,8 +114,10 @@ Quy tắc xuyên suốt mọi kênh công khai:
   nhiễu vẫn đủ để tam giác đạc ra nhà người ta.
 - Response có cờ `isLocationApproximate: true` để client không hiển thị nhầm là chính xác.
 
-Chỉ hai nơi trả **toạ độ thật**: `GET /posts/me` (bài của chính mình) và vị trí mặc định
-trong hồ sơ riêng.
+Chỉ ba nơi trả **toạ độ thật**: `GET /posts/me` (bài của chính mình), `GET /posts/{postId}`
+**khi người gọi chính là tác giả** (chốt 28/09), và vị trí mặc định trong hồ sơ riêng. Ở hai
+nơi đầu, `isLocationApproximate` trả `false` để client biết đây là toạ độ chuẩn — chủ bài cần
+thấy đúng chỗ mình đã ghim thì mới sửa cho khớp được.
 
 ---
 
@@ -283,7 +285,7 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 | `GET` | `/posts/map` | Công khai | Marker trong khung bản đồ |
 | `GET` | `/posts/:postId` | Công khai | Chi tiết một bài công khai |
 | `GET` | `/posts/:postId/matches` | Bearer (chỉ tác giả) | Smart Match — gợi ý bài ghép đôi |
-| `PATCH` | `/posts/:postId` | Bearer (chủ bài) | Sửa nội dung — **cấm khi bài đang có lượt trao** |
+| `PATCH` | `/posts/:postId` | Bearer (chủ bài) | Sửa nội dung, danh mục, số lượng, giao nhận, SOS — **cấm khi có giao dịch sống** |
 | `DELETE` | `/posts/:postId` | Bearer (chủ bài) | Xoá mềm — **cấm khi bài đang có lượt trao** |
 | `POST` | `/posts/:postId/renew` | Bearer (chủ bài) | Gia hạn thêm 3 tháng, tối đa một lần |
 | `POST` | `/posts/:postId/charity-transfer` | Bearer (chủ bài) | Xin chuyển vật phẩm về điểm từ thiện |
@@ -362,14 +364,47 @@ Nó là căn cứ cho `POST /transactions/:id/reports/ship-unpaid` ở §10.
 
 ### Sửa và gỡ bài — chặn khi đang có lượt trao
 
-Cả `PATCH /posts/:postId` và `DELETE /posts/:postId` trả **409 `POST_HAS_LIVE_TRANSACTION`**
-khi bài ở `RESERVED` hoặc `DELIVERING`.
+Cả hai trả **409 `POST_HAS_LIVE_TRANSACTION`**, nhưng từ 28/09 **hai đường dùng hai luật khác
+nhau** — đọc kỹ chỗ này:
 
-- **Gỡ:** để bên kia lại với một giao dịch trỏ vào bài không còn tồn tại.
-- **Sửa:** người nhận đồng ý "tủ lạnh còn tốt" rồi mở lại thấy "quạt cũ"; với `CLASSIFIED`
-  thì sửa được cả `price` sau khi đã chốt người. Không bản ghi nào nói nội dung từng khác.
+| Đường | Chặn theo | Nghĩa là |
+| --- | --- | --- |
+| `PATCH /posts/:postId`, `POST /media`, `DELETE /media/:id`, `PATCH /media/order` | **Giao dịch thật** trên bài: có `gift_transactions` nào ở `ACCEPTED`/`DELIVERING` | Bài chia lô còn hàng, vẫn `PUBLISHED`, nhưng đã duyệt một người → **vẫn chặn** |
+| `DELETE /posts/:postId` | **Trạng thái bài** là `RESERVED`/`DELIVERING` | Giữ nguyên như 26/09 |
 
-Hai trạng thái này trùng đúng danh sách mà xoá tài khoản và hậu kiểm của Admin đã chặn.
+Vì sao `PATCH` phải siết hơn: bài `totalQuantity: 5` đã duyệt một người vẫn còn 4 suất nên
+trạng thái vẫn là `PUBLISHED`. Luật cũ nhìn trạng thái nên cho sửa — người đã được duyệt đồng
+ý "tủ lạnh còn tốt" rồi mở lại thấy "quạt cũ", với `CLASSIFIED` thì đổi được cả `price` sau
+khi đã chốt người. Không bản ghi nào nói nội dung từng khác.
+
+- **Yêu cầu ở `REQUESTED` KHÔNG chặn sửa.** Người mới bấm xin chưa được hứa hẹn gì; chặn ở đó
+  là khoá bài chỉ vì có người ngó tới. Các yêu cầu đang chờ **được giữ nguyên** qua lượt sửa,
+  kể cả mốc thời gian xếp hàng — xoá rồi tạo lại là đẩy họ xuống cuối hàng.
+- **Kiểm dưới row lock.** `lockEditablePost` khoá `pessimistic_write` đúng hàng post rồi mới
+  hỏi giao dịch — cùng khoá mà cấp phát kho đang dùng. Không có nó thì duyệt-và-sửa chạy song
+  song vẫn lọt qua khe.
+- **Trạng thái kết thúc và bài hết hạn** trả `POST_INVALID_STATE`. Chỉ `DRAFT`,
+  `PENDING_REVIEW`, `PUBLISHED` và còn hạn mới sửa được.
+- **`POST /posts/:postId/media/upload` chỉ kiểm trạng thái bài**, không khoá hàng và không hỏi
+  giao dịch — nó mới chỉ cấp presigned URL. Cổng thật là bước gắn ảnh; xin được URL mà không
+  gắn được thì cùng lắm sinh một object mồ côi, và `media:sweep-orphans` đã lo phần đó.
+
+**Những gì chủ bài sửa được** (chốt 28/09): nội dung (`title`, `description`, `areaLabel`, vị
+trí), `categoryId`, `totalQuantity`, `isSos`, `deliveryMethod`, `shipPayer`, và trường riêng
+theo loại. `postType`, `status`, `authorId` và hạn đăng vẫn do server giữ.
+
+| Trường | Chỉ áp dụng cho | Kiểm thêm |
+| --- | --- | --- |
+| `price`, `negotiable` | `CLASSIFIED` | — |
+| `estimatedValue` | `OFFER` | — |
+| `condition` | `OFFER` và `CLASSIFIED` | — |
+| `categoryId` | mọi loại | Danh mục phải tồn tại và đang bật, nếu không `CATEGORY_NOT_FOUND` |
+| `isSos` | mọi loại | Bật lên cần quyền `POST_SOS`, nếu không `POST_SOS_NOT_ALLOWED` |
+
+Sửa nội dung được **ghi audit**.
+
+Hai trạng thái `RESERVED`/`DELIVERING` trùng đúng danh sách mà xoá tài khoản và hậu kiểm của
+Admin đã chặn.
 
 Gỡ bài thành công thì **mọi yêu cầu còn ở `REQUESTED` được đóng** (`CANCELLED`, kèm lý do) và
 người xin nhận thông báo `GIFT_TRANSACTION_CLOSED`. Không đóng thì họ không bao giờ nhận được
@@ -499,6 +534,13 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 - **Bảo mật tác giả ([F80](./FEATURES.md#f80--bảo-vệ-thông-tin-người-cho--contact-info-gating))**: `author` chỉ mang `id`, `username`, `avatarUrl`, `rank`, `joinedAt`. Tuyệt đối không trả `fullName`, `phone`, hay địa chỉ cụ thể ra kênh công khai.
 - **Thông tin liên lạc (`contactInfo`)**: Chứa `phone` và `address`. CHỈ hiển thị khi caller là chính tác giả (`authorId == currentUserId`) hoặc là người nhận (receiver) đã được duyệt chính thức trong giao dịch đang ở trạng thái `DELIVERING` hoặc `COMPLETED`. Mọi đối tượng khác nhận `contactInfo: null`.
 - **Thống kê tương tác**: Trả về `reactionCount` (tổng người đã bày tỏ, mọi loại), `myReaction` (loại của caller, `null` khi chưa bày tỏ hoặc chưa đăng nhập) và `reactionBreakdown` (số lượt từng loại, đủ để hiện mấy biểu tượng dẫn đầu như Facebook).
+- **Toạ độ cho chính chủ (chốt 28/09)**: Khi `currentUserId == authorId`, response trả **toạ độ
+  THẬT** và `isLocationApproximate: false`. Mọi người khác vẫn nhận toạ độ đã làm nhiễu. Chủ bài
+  không thấy đúng chỗ mình ghim thì không sửa cho khớp được.
+- **`canEdit` (chốt 28/09)**: `true` khi người gọi là tác giả, bài ở `DRAFT`/`PENDING_REVIEW`/
+  `PUBLISHED`, chưa hết hạn, và **không có giao dịch `ACCEPTED`/`DELIVERING`** nào. Đây chỉ là
+  gợi ý để client ẩn nút Sửa — **lúc lưu server vẫn kiểm lại dưới row lock**, vì giữa lúc mở
+  màn hình và lúc bấm Lưu có thể đã có người được duyệt.
 
 ### Tương tác — cảm xúc, bình luận, chia sẻ
 

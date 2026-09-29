@@ -145,8 +145,13 @@ export class CreatePostUseCase implements ICreatePostUseCase {
         ? (post.selectionMode ?? PostSelectionModes.OPTIMAL)
         : PostSelectionModes.OPTIMAL;
 
-    const totalQuantity =
-      post.postType === PostTypes.OFFER ? (post.totalQuantity ?? 1) : 1;
+    const totalQuantity = [
+      PostTypes.OFFER,
+      PostTypes.WANTED,
+      PostTypes.CLASSIFIED,
+    ].includes(post.postType)
+      ? (post.totalQuantity ?? 1)
+      : 1;
     // MỘT hạn mức cho mọi loại bài. Trước 26/09 có hai capability `POST_OFFER`
     // và `POST_WANTED`, nhưng phép đếm bên dưới là mọi bài đang mở bất kể loại
     // — nên hai con số đó là hai cái thước đo cùng một rổ, và đặt lệch nhau cho

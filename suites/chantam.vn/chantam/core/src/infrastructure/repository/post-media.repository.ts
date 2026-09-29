@@ -4,6 +4,7 @@ import { IPostMediaEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager, EntitySchema, In, Repository } from 'typeorm';
+import { lockEditablePost } from './lock-editable-post';
 
 const MaxPostMedia = 10;
 
@@ -42,6 +43,7 @@ export class PostMediaRepository
     mediaId: number,
   ): Promise<string | null> {
     return this.manager.transaction(async (manager) => {
+      await lockEditablePost(manager, postId);
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         postId,
       ]);
@@ -88,6 +90,7 @@ export class PostMediaRepository
     mediaIds: number[],
   ): Promise<IPostMediaEntity[] | null> {
     return this.manager.transaction(async (manager) => {
+      await lockEditablePost(manager, postId);
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         postId,
       ]);
@@ -126,6 +129,7 @@ export class PostMediaRepository
     r2Key: string,
   ): Promise<IPostMediaEntity | null> {
     return this.manager.transaction(async (manager) => {
+      await lockEditablePost(manager, postId);
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         postId,
       ]);

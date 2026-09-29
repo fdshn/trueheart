@@ -40,10 +40,11 @@ flowchart LR
 | --- | --- | --- |
 | `POST /posts` | token + quota rank | ✅ |
 | `GET /posts/nearby` · `/map` · `/me` | token | ✅ |
-| `GET /posts/:postId` | token | ✅ jitter toạ độ |
-| `PATCH /posts/:postId` · `DELETE` | chủ bài | ✅ |
+| `GET /posts/:postId` | token | ✅ jitter toạ độ — trừ chính tác giả, kèm `canEdit` |
+| `PATCH /posts/:postId` | chủ bài | ✅ chặn khi có giao dịch `ACCEPTED`/`DELIVERING` |
+| `DELETE /posts/:postId` | chủ bài | ✅ chặn khi bài `RESERVED`/`DELIVERING` |
 | `POST /posts/:postId/renew` | chủ bài | ✅ 1 lần |
-| `POST /posts/:postId/media/upload` · `/media` · `/media/order` · `DELETE /media/:id` | chủ bài | ✅ |
+| `POST /posts/:postId/media/upload` · `/media` · `/media/order` · `DELETE /media/:id` | chủ bài | ✅ cùng khoá với `PATCH` |
 | `GET /posts/:postId/matches` | token | ✅ |
 | `GET /requests/me` | token | ✅ yêu cầu của chính người gọi |
 | `GET /transactions/:id` | hai bên trong cuộc | ✅ người ngoài nhận 404 |

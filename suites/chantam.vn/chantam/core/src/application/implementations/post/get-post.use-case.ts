@@ -52,11 +52,13 @@ export class GetPostUseCase implements IGetPostUseCase {
 
     if (!post) throw new PostNotFoundException(command.postId);
 
-    post.location = applyGeoJitter(
-      post.location,
-      post.globalId,
-      this.config.geo.jitterRadiusMeters,
-    );
+    const isAuthor = command.currentUserId === post.authorId;
+    if (!isAuthor)
+      post.location = applyGeoJitter(
+        post.location,
+        post.globalId,
+        this.config.geo.jitterRadiusMeters,
+      );
 
     const media = await this.postMediaRepository.listByPostId(post.globalId);
 
@@ -117,6 +119,11 @@ export class GetPostUseCase implements IGetPostUseCase {
     }
 
     return {
+      canEdit:
+        isAuthor &&
+        ['DRAFT', 'PENDING_REVIEW', 'PUBLISHED'].includes(post.status) &&
+        (post.expiresAt === null || post.expiresAt > new Date()) &&
+        !(await this.giftTransactionRepository.hasLiveForPost(post.globalId)),
       post,
       author,
       media: media
@@ -126,7 +133,7 @@ export class GetPostUseCase implements IGetPostUseCase {
           url: `${this.config.storage.publicBaseUrl.replace(/\/$/, '')}/${item.r2Key}`,
           sortOrder: item.sortOrder,
         })),
-      isLocationApproximate: true,
+      isLocationApproximate: !isAuthor,
       requestCount: requestCounts.get(post.globalId) ?? 0,
       myRequestStatus,
       hasRequested: Boolean(myRequestStatus),

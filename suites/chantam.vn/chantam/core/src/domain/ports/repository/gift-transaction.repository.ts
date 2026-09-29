@@ -115,6 +115,7 @@ export interface ICloseGiftTransactionResult {
 }
 
 export interface IGiftTransactionRepository {
+  hasLiveForPost(postId: string): Promise<boolean>;
   findByGlobalId(globalId: string): Promise<IGiftTransactionSummary | null>;
   listForUser(userId: string): Promise<IGiftTransactionSummary[]>;
   /**

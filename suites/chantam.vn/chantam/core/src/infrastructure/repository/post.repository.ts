@@ -1,3 +1,4 @@
+import { PostInvalidStateException } from '@/domain/exceptions';
 import {
   CharityTransferOutcome,
   IAdminPostSummary,
@@ -36,6 +37,7 @@ import { GeoQueryHelper } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager, EntitySchema, Repository } from 'typeorm';
+import { lockEditablePost } from './lock-editable-post';
 
 /**
  * Những trạng thái tính vào hạn mức đăng bài.
@@ -132,6 +134,57 @@ export class PostRepository
 
       await manager.insert(PostEntity, post as never);
       return true;
+    });
+  }
+
+  public async updateOwnedContent(params: {
+    postId: string;
+    authorId: string;
+    expectedUpdatedAt: Date;
+    changes: Partial<IPostEntity>;
+  }): Promise<IPostEntity> {
+    return this.manager.transaction(async (manager) => {
+      const current = await lockEditablePost(
+        manager,
+        params.postId,
+        params.authorId,
+      );
+      // Validation used a snapshot. Never merge that stale snapshot over a
+      // concurrent edit, allocation, moderation or lifecycle transition.
+      if (current.updatedAt.getTime() !== params.expectedUpdatedAt.getTime())
+        throw new PostInvalidStateException();
+      await manager.save(PostEntity, { ...current, ...params.changes });
+      const updated = await manager.findOneByOrFail(PostEntity, {
+        globalId: params.postId,
+      });
+      const content = (post: IPostEntity) => ({
+        title: post.title,
+        description: post.description,
+        categoryId: post.categoryId,
+        areaLabel: post.areaLabel,
+        location: post.location,
+        details: post.details,
+        totalQuantity: post.totalQuantity,
+        remainingQuantity: post.remainingQuantity,
+        isSos: post.isSos,
+        deliveryMethod: post.deliveryMethod,
+        shipPayer: post.shipPayer,
+      });
+      await manager.query(
+        `INSERT INTO admin_audit_logs
+         (actor_user_id, action, resource_type, resource_id, before_json, after_json, reason)
+         VALUES ($1, 'OWNER_UPDATE_POST', 'POST', $2, $3::jsonb, $4::jsonb, $5)`,
+        [
+          params.authorId,
+          params.postId,
+          JSON.stringify(content(current)),
+          JSON.stringify(content(updated)),
+          'Owner edited post content',
+        ],
+      );
+      // Do not touch REQUESTED records or queue timestamps. Notification for
+      // waiting applicants is tracked in documentation/post-edit-notifications.md.
+      return updated;
     });
   }
 

@@ -17,6 +17,8 @@ describe('RequestPostMediaUploadUseCase', () => {
         globalId: PostId,
         authorId: OwnerId,
         deletedAt: null,
+        status: 'PUBLISHED',
+        expiresAt: null,
       }),
     } as unknown as jest.Mocked<IPostRepository>;
     const storage = {
@@ -48,6 +50,8 @@ describe('RequestPostMediaUploadUseCase', () => {
         globalId: PostId,
         authorId: OwnerId,
         deletedAt: null,
+        status: 'PUBLISHED',
+        expiresAt: null,
       }),
     } as unknown as jest.Mocked<IPostRepository>;
     const storage = {
@@ -75,6 +79,8 @@ describe('RequestPostMediaUploadUseCase', () => {
         globalId: PostId,
         authorId: OwnerId,
         deletedAt: null,
+        status: 'PUBLISHED',
+        expiresAt: null,
       }),
     } as unknown as jest.Mocked<IPostRepository>;
     const media = {
@@ -108,6 +114,8 @@ describe('RequestPostMediaUploadUseCase', () => {
         globalId: PostId,
         authorId: OwnerId,
         deletedAt: null,
+        status: 'PUBLISHED',
+        expiresAt: null,
       }),
     } as unknown as jest.Mocked<IPostRepository>;
     const storage = {

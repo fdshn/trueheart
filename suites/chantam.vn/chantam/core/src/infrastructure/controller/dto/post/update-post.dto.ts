@@ -1,4 +1,8 @@
-import { GiftPostConditions } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  DeliveryMethods,
+  GiftPostConditions,
+  ShipPayers,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   IUpdatePostBodyDto,
   IUpdatePostDto,
@@ -9,6 +13,7 @@ import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDefined,
   IsEnum,
   IsInt,
@@ -18,35 +23,77 @@ import {
   Length,
   Max,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { PostEntity } from '../../../entity/post.entity';
 import { GeoPointDto } from '../geo-point.dto';
 
 export class UpdatePostDto implements IUpdatePostDto {
-  @ApiPropertyOptional({ minLength: 5, maxLength: 200 })
+  @ApiPropertyOptional({ format: 'uuid' })
+  @ValidateIf((_post, value) => value !== undefined)
+  @IsUUID()
+  categoryId?: string;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 10_000 })
+  @ValidateIf((_post, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(10_000)
+  totalQuantity?: number;
+
+  @ApiPropertyOptional()
+  @ValidateIf((_post, value) => value !== undefined)
+  @IsBoolean()
+  isSos?: boolean;
+
+  @ApiPropertyOptional({ enum: DeliveryMethods, nullable: true })
   @IsOptional()
+  @IsEnum(DeliveryMethods)
+  deliveryMethod?: DeliveryMethods | null;
+
+  @ApiPropertyOptional({ enum: ShipPayers, nullable: true })
+  @IsOptional()
+  @IsEnum(ShipPayers)
+  shipPayer?: ShipPayers | null;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 1_000_000_000 })
+  @ValidateIf((_post, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000_000)
+  price?: number;
+
+  @ApiPropertyOptional()
+  @ValidateIf((_post, value) => value !== undefined)
+  @IsBoolean()
+  negotiable?: boolean;
+
+  @ApiPropertyOptional({ minLength: 5, maxLength: 200 })
+  @ValidateIf((_post, value) => value !== undefined)
   @IsString()
   @Length(5, 200)
   title?: string;
 
   @ApiPropertyOptional({ minLength: 10, maxLength: 5_000 })
-  @IsOptional()
+  @ValidateIf((_post, value) => value !== undefined)
   @IsString()
   @Length(10, 5_000)
   description?: string;
 
   @ApiPropertyOptional({ minLength: 2, maxLength: 200 })
-  @IsOptional()
+  @ValidateIf((_post, value) => value !== undefined)
   @IsString()
   @Length(2, 200)
   areaLabel?: string;
 
   @ApiPropertyOptional({
     enum: GiftPostConditions,
-    description: 'Chỉ áp dụng cho bài OFFER.',
+    description: 'Chỉ áp dụng cho bài OFFER và CLASSIFIED.',
   })
-  @IsOptional()
+  @ValidateIf((_post, value) => value !== undefined)
   @IsEnum(GiftPostConditions)
   condition?: GiftPostConditions;
 
@@ -55,7 +102,7 @@ export class UpdatePostDto implements IUpdatePostDto {
     maximum: 1_000_000_000,
     description: 'Chỉ áp dụng cho bài OFFER.',
   })
-  @IsOptional()
+  @ValidateIf((_post, value) => value !== undefined)
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -63,7 +110,7 @@ export class UpdatePostDto implements IUpdatePostDto {
   estimatedValue?: number;
 
   @ApiPropertyOptional({ type: () => GeoPointDto })
-  @IsOptional()
+  @ValidateIf((_post, value) => value !== undefined)
   @ValidateNested()
   @Type(() => GeoPointDto)
   location?: GeoPointDto;

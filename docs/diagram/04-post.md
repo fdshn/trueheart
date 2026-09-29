@@ -160,24 +160,54 @@ flowchart TD
     style G fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
 ```
 
-## 4.5 Sửa và gỡ bài — ✅ siết 26/09
+## 4.5 Sửa và gỡ bài — ✅ siết 26/09, siết tiếp 28/09
+
+Từ 28/09 hai đường **tách luật**: sửa nhìn giao dịch thật, gỡ vẫn nhìn trạng thái bài.
 
 ```mermaid
 flowchart TD
-    A["PATCH /posts/:postId<br/>DELETE /posts/:postId"] --> B{Chủ bài?}
+    A["PATCH /posts/:postId<br/>POST /media · DELETE /media/:id<br/>PATCH /media/order"] --> B{Chủ bài?}
     B -->|Không| C[❌ 403]
-    B -->|Có| D{"Trạng thái là RESERVED<br/>hoặc DELIVERING?"}
-    D -->|Có| E["❌ 409 POST_HAS_LIVE_TRANSACTION<br/>đóng lượt trao trước đã"]
-    D -->|Không| F{Sửa hay gỡ?}
-    F -->|Sửa| G[✅ Ghi nội dung mới]
-    F -->|Gỡ| H[Xoá mềm + CANCELLED]
+    B -->|Có| L["🔒 Khoá hàng post<br/>pessimistic_write"]
+    L --> M{"Có gift_transactions nào<br/>ACCEPTED hoặc DELIVERING?"}
+    M -->|Có| E["❌ 409 POST_HAS_LIVE_TRANSACTION<br/>kể cả khi bài vẫn PUBLISHED"]
+    M -->|Không| N{"Trạng thái DRAFT/PENDING_REVIEW<br/>/PUBLISHED và còn hạn?"}
+    N -->|Không| O["❌ POST_INVALID_STATE"]
+    N -->|Có| G["✅ Ghi nội dung mới<br/>yêu cầu REQUESTED giữ nguyên<br/>kèm mốc xếp hàng"]
+
+    D0["DELETE /posts/:postId"] --> B2{Chủ bài?}
+    B2 -->|Không| C
+    B2 -->|Có| D{"Trạng thái là RESERVED<br/>hoặc DELIVERING?"}
+    D -->|Có| E
+    D -->|Không| H[Xoá mềm + CANCELLED]
     H --> I["Đóng mọi yêu cầu còn REQUESTED"]
     I --> J["Báo cho từng người xin<br/>GIFT_TRANSACTION_CLOSED"]
 
     style C fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
     style E fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style O fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
+    style L fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
     style J fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
+
+> **Vì sao sửa phải nhìn GIAO DỊCH chứ không nhìn trạng thái bài.** Bài `totalQuantity: 5` đã
+> duyệt một người vẫn còn 4 suất, nên trạng thái vẫn là `PUBLISHED` — luật 26/09 nhìn trạng
+> thái nên cho sửa thoải mái. Người đã được duyệt vẫn bị đổi món dưới chân, đúng lỗ hổng mà
+> lần siết trước tưởng đã bịt. Yêu cầu còn ở `REQUESTED` thì KHÔNG chặn: mới bấm xin là chưa
+> được hứa gì, chặn ở đó là khoá bài chỉ vì có người ngó tới.
+>
+> **Vì sao phải khoá hàng trước khi hỏi.** Đọc rồi mới ghi mà không khoá thì duyệt-và-sửa chạy
+> song song vẫn lọt qua khe. `lockEditablePost` dùng đúng `pessimistic_write` mà cấp phát kho
+> đang dùng, nên hai đường không thể vượt nhau.
+>
+> **Vì sao `canEdit` không thay được lần kiểm ở server.** `GET /posts/{postId}` trả `canEdit`
+> cho client ẩn nút Sửa, nhưng giữa lúc mở màn hình và lúc bấm Lưu có thể đã có người được
+> duyệt. Cờ đó là gợi ý giao diện, không phải quyết định.
+>
+> **`POST /posts/:postId/media/upload` không nằm trong sơ đồ trên.** Nó chỉ cấp một presigned
+> URL nên chỉ kiểm trạng thái bài (`assertEditablePost`), không khoá hàng và không hỏi giao
+> dịch. Cổng thật là bước gắn ảnh — xin được URL mà không gắn được thì cùng lắm sinh ra một
+> object mồ côi, và `media:sweep-orphans` đã lo phần đó.
 
 > **Vì sao chặn cả sửa lẫn gỡ ở đúng hai trạng thái đó.** Trước 26/09 hai đường này chỉ kiểm
 > chủ sở hữu. Người tặng đã chốt người nhận vẫn **gỡ được bài**, để bên kia lại với một giao
@@ -187,6 +217,9 @@ flowchart TD
 >
 > Hai trạng thái này trùng đúng danh sách mà **xoá tài khoản** và **hậu kiểm của Admin** đã
 > chặn từ trước. Chỉ đường của chính tác giả là không canh gì — mà đó lại là nút dễ bấm nhất.
+>
+> Từ 28/09 `DELETE` vẫn giữ luật theo trạng thái; chỉ `PATCH` và các route media chuyển sang
+> nhìn giao dịch thật.
 
 > **Vì sao gỡ bài phải đóng các yêu cầu còn treo.** Không đóng thì người xin không bao giờ
 > nhận được câu trả lời, và mỗi yêu cầu treo vẫn ăn một suất trong trần "yêu cầu đang mở" của

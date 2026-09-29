@@ -19,12 +19,14 @@ import {
   CategoryNotFoundException,
   PostCharityTransferInvalidStateException,
   PostHasLiveTransactionException,
+  PostInvalidStateException,
   PostMediaLimitExceededException,
   PostMediaOrderInvalidException,
   PostNotFoundException,
   PostNotRenewableException,
   PostQuotaExceededException,
   PostRenewalLimitReachedException,
+  PostSosNotAllowedException,
   ProfileIncompleteException,
 } from '@/domain/exceptions';
 import {
@@ -187,6 +189,8 @@ export class PostController {
     [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
     [ForbiddenException],
     PostMediaLimitExceededException,
+    [PostInvalidStateException],
+    [PostHasLiveTransactionException],
   )
   public async requestPostMediaUpload(
     @CurrentUser() principal: IAuthPrincipal,
@@ -219,6 +223,8 @@ export class PostController {
     [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
     [ForbiddenException],
     PostMediaLimitExceededException,
+    [PostInvalidStateException],
+    [PostHasLiveTransactionException],
   )
   public async attachPostMedia(
     @CurrentUser() principal: IAuthPrincipal,
@@ -251,6 +257,8 @@ export class PostController {
     [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
     [ForbiddenException],
     PostMediaOrderInvalidException,
+    [PostInvalidStateException],
+    [PostHasLiveTransactionException],
   )
   public async reorderPostMedia(
     @CurrentUser() principal: IAuthPrincipal,
@@ -282,6 +290,8 @@ export class PostController {
     [ValidationFailedException, ['mediaId: mediaId must be an integer number']],
     [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
     [ForbiddenException],
+    [PostInvalidStateException],
+    [PostHasLiveTransactionException],
   )
   public async removePostMedia(
     @CurrentUser() principal: IAuthPrincipal,
@@ -327,7 +337,7 @@ export class PostController {
   @ApiOperation({
     summary: 'Cập nhật nội dung bài',
     description:
-      'Chỉ chủ bài sửa title, description, areaLabel, vị trí và trường riêng theo loại. Status/type/author do server quản lý. TỪ CHỐI khi bài đã có người nhận (`RESERVED`) hoặc đang bàn giao (`DELIVERING`): người nhận đồng ý một món rồi mở lại thấy món khác, và không bản ghi nào nói nội dung từng khác.',
+      'Chỉ chủ bài: sửa nội dung, danh mục, số lượng, vị trí, giao nhận, SOS theo quyền và trường riêng theo loại. Không sửa type/status/author/hạn đăng. Request đang chờ giữ nguyên. Khóa nội dung và media khi có ACCEPTED/DELIVERING, kể cả bài còn PUBLISHED; từ chối trạng thái kết thúc hoặc đã hết hạn.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(UpdatePostResponseDto) })
   @ApiErrorResponses(
@@ -339,6 +349,9 @@ export class PostController {
     [PostNotFoundException, '4182a141-a5c5-5c25-92ab-0d4488158e8f'],
     [ForbiddenException],
     [PostHasLiveTransactionException],
+    [PostInvalidStateException],
+    [CategoryNotFoundException],
+    [PostSosNotAllowedException],
   )
   public async updatePost(
     @CurrentUser() principal: IAuthPrincipal,

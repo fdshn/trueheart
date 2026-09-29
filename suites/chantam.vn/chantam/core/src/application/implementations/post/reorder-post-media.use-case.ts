@@ -3,6 +3,7 @@ import {
   IReorderPostMediaResult,
   IReorderPostMediaUseCase,
 } from '@/application/contracts/post';
+import { assertEditablePost } from '@/domain/consts/post-edit-policy';
 import {
   PostMediaOrderInvalidException,
   PostNotFoundException,
@@ -32,6 +33,7 @@ export class ReorderPostMediaUseCase implements IReorderPostMediaUseCase {
     if (!post || post.deletedAt)
       throw new PostNotFoundException(command.postId);
     if (post.authorId !== command.userId) throw new ForbiddenException();
+    assertEditablePost(post);
 
     const media = await this.postMediaRepository.replaceOrder(
       command.postId,

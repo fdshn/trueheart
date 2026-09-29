@@ -15,6 +15,8 @@ describe('ReorderPostMediaUseCase', () => {
         globalId: PostId,
         authorId: OwnerId,
         deletedAt: null,
+        status: 'PUBLISHED',
+        expiresAt: null,
       }),
     } as unknown as jest.Mocked<IPostRepository>;
     const media = {
@@ -40,6 +42,8 @@ describe('ReorderPostMediaUseCase', () => {
         globalId: PostId,
         authorId: OwnerId,
         deletedAt: null,
+        status: 'PUBLISHED',
+        expiresAt: null,
       }),
     } as unknown as jest.Mocked<IPostRepository>;
     const media = {

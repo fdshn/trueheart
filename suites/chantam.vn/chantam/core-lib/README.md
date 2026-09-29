@@ -24,6 +24,12 @@ có implementation**.
 
 ## Quy ước DTO
 
+`IUpdatePostDto` supports owner content/category/quantity/SOS/delivery changes and
+typed OFFER/CLASSIFIED details. Nullable deliveryMethod explicitly clears the method;
+omitted fields retain their values. Status/type/author/expiry are server-owned.
+`IGetPostResponseDto.canEdit` is an owner capability hint, never a substitute for
+backend authorization and transaction-safe lifecycle checks at save time.
+
 Mỗi intent một file, chứa đủ bộ interface của intent đó:
 
 ```typescript

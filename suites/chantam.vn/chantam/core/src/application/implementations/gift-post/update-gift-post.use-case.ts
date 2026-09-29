@@ -51,7 +51,12 @@ export class UpdateGiftPostUseCase implements IUpdateGiftPostUseCase {
             },
     });
 
-    await this.postRepository.update({ globalId: command.giftPostId }, update);
+    await this.postRepository.updateOwnedContent({
+      postId: command.giftPostId,
+      authorId: command.userId,
+      expectedUpdatedAt: existing.updatedAt,
+      changes: update,
+    });
 
     return {
       giftPost: toLegacyGiftPost(

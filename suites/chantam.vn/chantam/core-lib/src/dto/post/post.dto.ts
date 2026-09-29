@@ -247,6 +247,8 @@ export interface IPostContactInfoDto {
 }
 
 export interface IGetPostResponseDto extends IPostFeedInteractionDto {
+  /** Owner-only edit capability. Saving must still recheck under a row lock. */
+  canEdit?: boolean;
   post: IPostEntity;
   author?: IPostAuthorDto | null;
   media: IPublicPostMediaDto[];
@@ -349,6 +351,13 @@ export interface IGetPostMapResponseDto {
 }
 
 export interface IUpdatePostDto {
+  categoryId?: string;
+  totalQuantity?: number;
+  isSos?: boolean;
+  deliveryMethod?: DeliveryMethods | null;
+  shipPayer?: ShipPayers | null;
+  price?: number;
+  negotiable?: boolean;
   title?: string;
   description?: string;
   areaLabel?: string;
