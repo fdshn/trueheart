@@ -38,6 +38,8 @@ function setup() {
     {} as never,
     manager as never,
     ledger,
+    // `report.abuse`: trả null để `normalizeReportAbuseConfig` lùi về mặc định.
+    { getConfigValue: async () => null } as never,
   );
   return { manager, transactionManager, ledger, repository };
 }

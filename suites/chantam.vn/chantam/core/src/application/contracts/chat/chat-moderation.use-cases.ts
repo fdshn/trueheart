@@ -68,3 +68,22 @@ export interface IMuteChatRoomUseCase extends IUseCase<
 > {}
 
 export const IMuteChatRoomUseCase = Symbol('IMuteChatRoomUseCase');
+
+export interface IRemoveChatMessageCommand {
+  actorUserId: string;
+  messageId: string;
+  /** Bắt buộc — đây là quyết định sẽ bị hỏi lại. */
+  reason: string;
+}
+
+export interface IRemoveChatMessageResult {
+  messageId: string;
+  roomId: string;
+}
+
+export interface IRemoveChatMessageUseCase extends IUseCase<
+  IRemoveChatMessageCommand,
+  IRemoveChatMessageResult
+> {}
+
+export const IRemoveChatMessageUseCase = Symbol('IRemoveChatMessageUseCase');

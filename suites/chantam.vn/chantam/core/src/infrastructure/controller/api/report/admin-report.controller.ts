@@ -1,6 +1,7 @@
 import {
   IGetAdminReportUseCase,
   IListAdminReportsUseCase,
+  IListReporterStatsUseCase,
   IReviewReportUseCase,
 } from '@/application/contracts/report';
 import {
@@ -35,6 +36,8 @@ import {
   GetAdminReportResponseDto,
   ListAdminReportsQueryDto,
   ListAdminReportsResponseDto,
+  ListReporterStatsQueryDto,
+  ListReporterStatsResponseDto,
   ReviewReportBodyDto,
   ReviewReportResponseDto,
 } from '../../dto/report/report.dto';
@@ -51,7 +54,30 @@ export class AdminReportController {
     private readonly getAdminReportUseCase: IGetAdminReportUseCase,
     @Inject(IReviewReportUseCase)
     private readonly reviewReportUseCase: IReviewReportUseCase,
+    @Inject(IListReporterStatsUseCase)
+    private readonly listReporterStatsUseCase: IListReporterStatsUseCase,
   ) {}
+
+  // Đặt TRƯỚC `@Get(':reportId')`: Nest khớp route theo thứ tự khai, nên để sau
+  // thì `reporters` sẽ bị nuốt làm một `reportId` và trả 400 vì không phải UUID.
+  @Get('reporters')
+  @RequiresPermission('report.read')
+  @ApiOperation({
+    summary: 'Ai đang báo xấu bừa',
+    description:
+      'Tỷ lệ bị BÁC của từng người báo, xếp giảm dần. Ngưỡng ở cấu hình động `report.abuse` (mặc định: từ 5 lượt đã có kết luận, bị bác ≥ 80%). ' +
+      'Chỉ đếm những lượt ĐÃ có kết luận: một người vừa gửi 20 báo còn đang chờ xử lý không phải người báo bừa, họ chỉ là người đang chờ. ' +
+      '**KHÔNG tự động phạt** — danh sách này chỉ đưa hồ sơ lên bàn Admin, y như cờ Giver Accuracy. Một người báo sai nhiều có thể là người hiểu sai luật chứ không phải người xấu, và phân biệt hai cái là việc của con người. ' +
+      'Tính SỐNG từ bảng `reports`, không lưu thành cột: chỉ Admin đọc nên không có áp lực hiệu năng, mà lưu sẵn thì kéo theo migration backfill, đường tính lại, và job đối soát cho lần đổi ngưỡng. Tính sống thì con số không bao giờ lệch được với nguồn, và đổi ngưỡng có hiệu lực ngay.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(ListReporterStatsResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
+  public async listReporterStats(@Query() query: ListReporterStatsQueryDto) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(await this.listReporterStatsUseCase.handle({ ...query }))
+      .build();
+  }
 
   @Get()
   @RequiresPermission('report.read')

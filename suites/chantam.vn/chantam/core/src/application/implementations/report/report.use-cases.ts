@@ -10,6 +10,9 @@ import {
   IListAdminReportsCommand,
   IListAdminReportsResult,
   IListAdminReportsUseCase,
+  IListReporterStatsCommand,
+  IListReporterStatsResult,
+  IListReporterStatsUseCase,
   IReviewReportCommand,
   IReviewReportResult,
   IReviewReportUseCase,
@@ -26,12 +29,17 @@ import {
   IAdminConfigRepository,
   IReportRepository,
 } from '@/domain/ports/repository';
+import { IRequestThrottle } from '@/domain/ports/security';
 import {
   NotificationTypes,
   ReportStatuses,
   ReportTargetTypes,
   ReportUpheldRuleCode,
 } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  normalizeReportAbuseConfig,
+  ReportAbuseConfigKey,
+} from '@chantam.vn/chantam.core-lib/models';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import {
   ForbiddenException,
@@ -40,6 +48,36 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { isPointPolicyError } from '../point/point-policy-errors';
+
+/** Một ngày, cho trần ngày của việc gửi báo xấu. */
+const DayWindowSeconds = 24 * 60 * 60;
+
+/**
+ * Trần GỬI báo xấu, không phải trần thưởng.
+ *
+ * Trước 29/09 không có trần nào cả. Bình luận, chia sẻ, tin nhắn, đăng nhập, đăng
+ * ký đều có; báo xấu thì không. Giới hạn duy nhất là
+ * `UQ_reports_open_reporter_target` — mỗi người một báo đang mở cho mỗi ĐÍCH — nên
+ * một người báo 500 đích khác nhau trong một phút là hoàn toàn hợp lệ, và mỗi lượt
+ * là một mục trong hàng đợi Admin. Hậu quả không phải "người báo bừa không bị gì",
+ * mà là **báo xấu thật bị chôn** dưới hàng trăm mục rác.
+ *
+ * Con số 10/ngày là baseline trong `docs/diagram/15-report.md`. Tài liệu từng so nó
+ * với `REPORT_UPHELD.daily_cap = 5` rồi kết luận "hai con số khác nhau, cần soát" —
+ * nhưng đó là so hai thứ không so được: 5 là trần THƯỞNG, và 10 là trần GỬI. Nay cả
+ * hai đều tồn tại và không đụng nhau.
+ */
+const MaxReportsPerDay = 10;
+
+/**
+ * Trần PHÚT, chặn một lượt bắn bằng script.
+ *
+ * Trần ngày một mình vẫn cho phép gửi trọn 10 lượt trong hai giây — đủ để một
+ * người dùng thật thấy hàng đợi Admin nhảy 10 mục cùng lúc, và không có lý do
+ * chính đáng nào để báo xấu nhanh như vậy: mỗi lượt đòi một mô tả ít nhất 10 ký tự
+ * về một đích cụ thể.
+ */
+const MaxReportsPerMinute = 3;
 
 async function requirePermission(
   admin: IAdminConfigRepository,
@@ -54,6 +92,7 @@ async function requirePermission(
 export class CreateReportUseCase implements ICreateReportUseCase {
   public constructor(
     @Inject(IReportRepository) private readonly reports: IReportRepository,
+    @Inject(IRequestThrottle) private readonly throttle: IRequestThrottle,
   ) {}
 
   public async handle(
@@ -65,6 +104,19 @@ export class CreateReportUseCase implements ICreateReportUseCase {
       throw new ValidationFailedException([
         'report.description phải có ít nhất 10 ký tự',
       ]);
+
+    // Kiểm trần NGÀY trước trần PHÚT: chạm cả hai mà báo "thử lại sau 57 giây" là
+    // nói sai — thật ra còn phải chờ nhiều giờ nữa. Cùng thứ tự với bình luận.
+    await this.throttle.assertWithinLimit({
+      bucket: 'report:day',
+      key: command.reporterUserId,
+      limit: MaxReportsPerDay,
+    });
+    await this.throttle.assertWithinLimit({
+      bucket: 'report',
+      key: command.reporterUserId,
+      limit: MaxReportsPerMinute,
+    });
     if (!(await this.reports.targetExists(input.targetType, input.targetId))) {
       if (input.targetType === ReportTargetTypes.POST)
         throw new PostNotFoundException(input.targetId);
@@ -95,6 +147,20 @@ export class CreateReportUseCase implements ICreateReportUseCase {
       reviewedAt: null,
     });
     await this.reports.save(report);
+
+    // Đếm SAU khi ghi xong: đếm trước là trừ mất một suất cho một lượt bị chặn
+    // ngay ở bước kiểm đích, tức phạt người dùng vì một báo xấu chưa từng vào sổ.
+    await this.throttle.registerHit({
+      bucket: 'report',
+      key: command.reporterUserId,
+      windowSeconds: 60,
+    });
+    await this.throttle.registerHit({
+      bucket: 'report:day',
+      key: command.reporterUserId,
+      windowSeconds: DayWindowSeconds,
+    });
+
     const created = await this.reports.findAdminByGlobalId(report.globalId);
     if (!created) throw new ReportNotFoundException();
     return { report: created };
@@ -279,5 +345,44 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
       const isPolicy = isPointPolicyError(error);
       if (!isPolicy) throw error;
     }
+  }
+}
+
+/**
+ * Ai đang báo bừa.
+ *
+ * **Không tự động phạt, y như cờ Giver Accuracy.** Danh sách này chỉ đưa hồ sơ lên
+ * bàn Admin; mọi chế tài vẫn là quyết định của người thật. Một người báo sai nhiều
+ * có thể là người hiểu sai luật chứ không phải người xấu, và phân biệt hai cái là
+ * việc của con người.
+ *
+ * Trả kèm ngưỡng đang áp để Admin đọc được con số `abusive` dựa trên đâu — không
+ * thì nó là một dấu đỏ không ai giải thích được.
+ */
+@Injectable()
+export class ListReporterStatsUseCase implements IListReporterStatsUseCase {
+  public constructor(
+    @Inject(IReportRepository) private readonly reports: IReportRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: IListReporterStatsCommand,
+  ): Promise<IListReporterStatsResult> {
+    const config = normalizeReportAbuseConfig(
+      await this.adminConfig.getConfigValue(ReportAbuseConfigKey),
+    );
+
+    return {
+      reporters: await this.reports.findReporterStats({
+        // Mặc định CHỈ người đã vượt ngưỡng: mở màn hình ra để thấy mọi người
+        // từng báo xấu thì không ai đọc hết, và cái cần xem sẽ nằm lẫn trong đó.
+        abusiveOnly: command.abusiveOnly !== false,
+        limit: command.limit ?? 100,
+      }),
+      minReports: config.minReports,
+      dismissedRatioPercent: config.dismissedRatioPercent,
+    };
   }
 }

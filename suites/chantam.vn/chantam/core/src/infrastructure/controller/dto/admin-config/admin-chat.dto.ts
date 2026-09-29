@@ -1,7 +1,51 @@
 import { IAdminChatMessageDto } from '@/application/contracts/chat';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import {
+  IsDefined,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+
+export class RemoveChatMessageParamDto {
+  @ApiProperty({ format: 'uuid', description: 'Tin nhắn cần gỡ.' })
+  @IsUUID()
+  messageId: string;
+}
+
+export class RemoveChatMessageDto {
+  @ApiProperty({
+    minLength: 10,
+    maxLength: 500,
+    description:
+      'Lý do gỡ. BẮT BUỘC và vào audit log: gỡ nội dung của người khác là quyết định sẽ bị hỏi lại.',
+  })
+  @IsString()
+  @Length(10, 500)
+  reason: string;
+}
+
+export class RemoveChatMessageBodyDto {
+  @ApiProperty({ type: () => RemoveChatMessageDto })
+  // `@IsDefined()` chứ không chỉ `@ValidateNested()`: thiếu nó thì body rỗng đi
+  // qua được validation rồi nổ ở tầng dưới thành 500. `body-wrapper-guard.spec`
+  // canh đúng chỗ này và đã bắt được lần tôi quên.
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => RemoveChatMessageDto)
+  removal: RemoveChatMessageDto;
+}
+
+export class RemoveChatMessageResponseDto {
+  @ApiProperty({ format: 'uuid' }) messageId: string;
+  @ApiProperty({ format: 'uuid' }) roomId: string;
+}
 
 export class AdminChatRoomParamsDto {
   @ApiProperty({ format: 'uuid' })

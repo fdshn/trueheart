@@ -165,3 +165,50 @@ export function computeReviewRating(
 
   return { average: Math.round((total / samples) * 10) / 10, samples };
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Ngưỡng nhận diện báo xấu ác ý (F43b)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export const ReportAbuseConfigKey = 'report.abuse';
+
+export interface IReportAbuseConfig {
+  /**
+   * Số lượt báo tối thiểu trước khi tỷ lệ có nghĩa.
+   *
+   * Người báo 1 lần và bị bác 1 lần có tỷ lệ 100%, nhưng đó không phải bằng chứng
+   * gì cả — chỉ là một lần đọc sai tình huống. Cùng lý lẽ với `accuracy.giver`.
+   */
+  readonly minReports: number;
+  /**
+   * Tỷ lệ bị BÁC từ mức này trở lên thì đưa người báo vào diện Admin xem xét.
+   *
+   * Chỉ tính những lượt ĐÃ có kết luận: một người vừa gửi 20 báo còn đang chờ xử
+   * lý không phải người báo bừa, họ chỉ là người đang chờ.
+   */
+  readonly dismissedRatioPercent: number;
+}
+
+export const DefaultReportAbuseConfig: IReportAbuseConfig = {
+  minReports: 5,
+  dismissedRatioPercent: 80,
+};
+
+export function normalizeReportAbuseConfig(raw: unknown): IReportAbuseConfig {
+  if (!raw || typeof raw !== 'object') return DefaultReportAbuseConfig;
+
+  const source = raw as Record<string, unknown>;
+  const minReports = Number(source.minReports);
+  const ratio = Number(source.dismissedRatioPercent);
+
+  if (!Number.isFinite(minReports) || !Number.isFinite(ratio))
+    return DefaultReportAbuseConfig;
+
+  return {
+    // Ít nhất 1: 0 nghĩa là gắn cờ từ hư không.
+    minReports: Math.max(1, Math.trunc(minReports)),
+    // 0 nghĩa là gắn cờ mọi người từng bị bác một lần; 100 nghĩa là chỉ gắn khi
+    // bác sạch. Cả hai đều hợp lệ nên chỉ kẹp vào khoảng phần trăm.
+    dismissedRatioPercent: Math.min(100, Math.max(0, Math.trunc(ratio))),
+  };
+}

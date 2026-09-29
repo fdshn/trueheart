@@ -85,6 +85,7 @@ async function main(): Promise<void> {
     entities.ReportEntity as never,
     dataSource.manager,
     new PointLedgerRepository(dataSource.manager),
+    new AdminConfigRepository(dataSource.manager),
   );
 
   async function seedDeal(

@@ -505,6 +505,64 @@ export class ChatRepository implements IChatRepository {
     });
   }
 
+  public async removeMessageByAdmin(params: { messageId: string }): Promise<{
+    status: 'REMOVED' | 'NOT_FOUND';
+    roomId: string;
+    senderId: string;
+    mediaKeys: string[];
+  }> {
+    return this.manager.transaction(async (manager) => {
+      const [current] = await manager.query<
+        { room_id: string; sender_id: string; recalled_at: Date | null }[]
+      >(
+        `SELECT room_id, sender_id, recalled_at
+         FROM chat_messages WHERE global_id = $1`,
+        [params.messageId],
+      );
+
+      // Đã gỡ rồi cũng trả NOT_FOUND: với Admin thì "không còn gì để gỡ" và
+      // "không tồn tại" dẫn tới cùng một việc phải làm, tức không việc gì.
+      if (!current || current.recalled_at)
+        return {
+          status: 'NOT_FOUND' as const,
+          roomId: '',
+          senderId: '',
+          mediaKeys: [],
+        };
+
+      const media = await manager.query<{ storage_key: string }[]>(
+        `SELECT storage_key FROM chat_message_media WHERE message_id = $1`,
+        [params.messageId],
+      );
+
+      // Cùng cờ phiên mà `recallMessage` khai. Trigger append-only từ chối mọi
+      // UPDATE khác, kể cả từ đường này — nên hình dạng bản ghi phải khớp đúng
+      // những gì trigger cho phép.
+      await manager.query(`SET LOCAL chantam.chat_recall = 'on'`);
+
+      await updateReturning(
+        manager,
+        `UPDATE chat_messages
+         SET body = '', media_count = 0, recalled_at = now()
+         WHERE global_id = $1 AND recalled_at IS NULL
+         RETURNING recalled_at`,
+        [params.messageId],
+      );
+
+      await manager.query(
+        `DELETE FROM chat_message_media WHERE message_id = $1`,
+        [params.messageId],
+      );
+
+      return {
+        status: 'REMOVED' as const,
+        roomId: current.room_id,
+        senderId: current.sender_id,
+        mediaKeys: media.map((row) => row.storage_key),
+      };
+    });
+  }
+
   public async recallMessage(params: {
     roomId: string;
     messageId: string;

@@ -71,6 +71,20 @@ function notifier() {
   } as never;
 }
 
+/**
+ * Throttle luôn cho qua.
+ *
+ * Trần GỬI báo xấu thêm 29/09 (10/ngày, 3/phút). Mock cho qua ở đây vì những phép
+ * kiểm này đo luật nghiệp vụ của việc báo, không đo trần — trần có phép kiểm riêng
+ * trên Redis thật.
+ */
+function makeThrottle() {
+  return {
+    assertWithinLimit: jest.fn(async () => undefined),
+    registerHit: jest.fn(async () => undefined),
+  } as never;
+}
+
 describe('CreateReportUseCase', () => {
   it('tạo report PENDING cho target hợp lệ', async () => {
     const reports = {
@@ -80,7 +94,10 @@ describe('CreateReportUseCase', () => {
       save: jest.fn().mockResolvedValue(undefined),
       findAdminByGlobalId: jest.fn().mockResolvedValue(reportDto()),
     } as unknown as jest.Mocked<IReportRepository>;
-    const result = await new CreateReportUseCase(reports).handle({
+    const result = await new CreateReportUseCase(
+      reports,
+      makeThrottle(),
+    ).handle({
       reporterUserId: ActorId,
       report: {
         targetType: ReportTargetTypes.POST,
@@ -109,7 +126,7 @@ describe('CreateReportUseCase', () => {
       findAdminByGlobalId: jest.fn().mockResolvedValue(reportDto()),
     } as unknown as jest.Mocked<IReportRepository>;
 
-    await new CreateReportUseCase(reports).handle({
+    await new CreateReportUseCase(reports, makeThrottle()).handle({
       reporterUserId: ActorId,
       report: {
         targetType: ReportTargetTypes.COMMENT,
@@ -140,7 +157,7 @@ describe('CreateReportUseCase', () => {
     } as unknown as jest.Mocked<IReportRepository>;
 
     await expect(
-      new CreateReportUseCase(reports).handle({
+      new CreateReportUseCase(reports, makeThrottle()).handle({
         reporterUserId: ActorId,
         report: {
           targetType: ReportTargetTypes.COMMENT,
@@ -161,7 +178,7 @@ describe('CreateReportUseCase', () => {
       findOpenByReporterAndTarget: jest.fn().mockResolvedValue({}),
     } as unknown as jest.Mocked<IReportRepository>;
     await expect(
-      new CreateReportUseCase(reports).handle({
+      new CreateReportUseCase(reports, makeThrottle()).handle({
         reporterUserId: ActorId,
         report: {
           targetType: ReportTargetTypes.POST,
@@ -176,7 +193,7 @@ describe('CreateReportUseCase', () => {
   it('chặn mô tả chỉ có khoảng trắng', async () => {
     const reports = {} as jest.Mocked<IReportRepository>;
     await expect(
-      new CreateReportUseCase(reports).handle({
+      new CreateReportUseCase(reports, makeThrottle()).handle({
         reporterUserId: ActorId,
         report: {
           targetType: ReportTargetTypes.POST,

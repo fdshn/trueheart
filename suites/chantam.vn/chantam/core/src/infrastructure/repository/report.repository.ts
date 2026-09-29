@@ -1,8 +1,10 @@
 import { isPointPolicyError } from '@/application/implementations/point/point-policy-errors';
 import {
+  IAdminConfigRepository,
   IFindAdminReportsParams,
   IFindAdminReportsResult,
   IPointLedgerRepository,
+  IReporterStats,
   IReportRepository,
   IReviewReportByAdminCommand,
 } from '@/domain/ports/repository';
@@ -14,9 +16,14 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IReportDto } from '@chantam.vn/chantam.core-lib/dto';
 import { IReportEntity } from '@chantam.vn/chantam.core-lib/entities';
+import {
+  normalizeReportAbuseConfig,
+  ReportAbuseConfigKey,
+} from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager, EntitySchema, In, Repository } from 'typeorm';
+import { updateReturning } from './update-returning';
 
 interface IReportRow {
   report_id: string;
@@ -70,6 +77,8 @@ export class ReportRepository
     @InjectEntityManager() manager: EntityManager,
     @Inject(IPointLedgerRepository)
     private readonly pointLedger: IPointLedgerRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig: IAdminConfigRepository,
   ) {
     super(target, manager);
   }
@@ -92,6 +101,93 @@ export class ReportRepository
     );
 
     return row?.owner_id ?? null;
+  }
+
+  public async findReporterStats(params: {
+    abusiveOnly: boolean;
+    limit: number;
+  }): Promise<IReporterStats[]> {
+    const config = normalizeReportAbuseConfig(
+      await this.adminConfig.getConfigValue(ReportAbuseConfigKey),
+    );
+
+    // Ngưỡng đi vào SQL làm tham số, không nội suy vào chuỗi: nó đến từ cấu hình
+    // động, và một giá trị lạ ghép thẳng vào câu lệnh là một lối tiêm.
+    //
+    // Chỉ đếm lượt ĐÃ có kết luận vào mẫu: một người vừa gửi 20 báo còn đang chờ
+    // xử lý không phải người báo bừa, họ chỉ là người đang chờ.
+    const rows = await this.manager.query<
+      {
+        user_id: string;
+        username: string;
+        total_reports: string;
+        reviewed_reports: string;
+        dismissed_reports: string;
+        resolved_reports: string;
+        dismissed_ratio: string | null;
+        abusive: boolean;
+      }[]
+    >(
+      `
+        WITH tally AS (
+          SELECT reporter.global_id AS user_id,
+                 reporter.username,
+                 COUNT(*) AS total_reports,
+                 COUNT(*) FILTER (
+                   WHERE report.status IN ('RESOLVED', 'DISMISSED')
+                 ) AS reviewed_reports,
+                 COUNT(*) FILTER (WHERE report.status = 'DISMISSED')
+                   AS dismissed_reports,
+                 COUNT(*) FILTER (WHERE report.status = 'RESOLVED')
+                   AS resolved_reports
+          FROM reports report
+          INNER JOIN users reporter
+            ON reporter.global_id = report.reporter_user_id
+          WHERE reporter.deleted_at IS NULL
+          GROUP BY reporter.global_id, reporter.username
+        ), scored AS (
+          SELECT tally.*,
+                 CASE
+                   WHEN reviewed_reports = 0 THEN NULL
+                   ELSE ROUND(dismissed_reports * 100.0 / reviewed_reports)
+                 END AS dismissed_ratio
+          FROM tally
+        )
+        SELECT scored.*,
+               (
+                 reviewed_reports >= $1
+                 AND dismissed_ratio IS NOT NULL
+                 AND dismissed_ratio >= $2
+               ) AS abusive
+        FROM scored
+        WHERE $3 = FALSE
+           OR (
+             reviewed_reports >= $1
+             AND dismissed_ratio IS NOT NULL
+             AND dismissed_ratio >= $2
+           )
+        ORDER BY dismissed_ratio DESC NULLS LAST, total_reports DESC
+        LIMIT $4
+      `,
+      [
+        config.minReports,
+        config.dismissedRatioPercent,
+        params.abusiveOnly,
+        params.limit,
+      ],
+    );
+
+    return rows.map((row) => ({
+      userId: row.user_id,
+      username: row.username,
+      totalReports: Number(row.total_reports),
+      reviewedReports: Number(row.reviewed_reports),
+      dismissedReports: Number(row.dismissed_reports),
+      resolvedReports: Number(row.resolved_reports),
+      dismissedRatioPercent:
+        row.dismissed_ratio === null ? null : Number(row.dismissed_ratio),
+      abusive: row.abusive === true,
+    }));
   }
 
   public async targetExists(
@@ -237,6 +333,16 @@ export class ReportRepository
           reason: command.note,
         });
 
+      if (
+        command.status === ReportStatuses.RESOLVED &&
+        current.target_type === ReportTargetTypes.COMMENT
+      )
+        await this.removeReportedComment(manager, {
+          actorUserId: command.actorUserId,
+          commentId: current.target_id,
+          reason: command.note,
+        });
+
       await manager.query(
         `UPDATE reports
          SET status = $2, reviewed_by_user_id = $3, review_note = $4,
@@ -263,10 +369,53 @@ export class ReportRepository
   /**
    * Gỡ bài và phạt chủ bài trong CÙNG transaction với kết luận report.
    *
-   * Chỉ đụng bài đang công khai hoặc còn sót ở hàng đợi cũ. Bài RESERVED /
-   * RESERVED có giao dịch sống nên không được gỡ ngang; bài đã REJECTED thì
+   * Chỉ đụng bài đang công khai hoặc còn sót ở hàng đợi cũ. Bài `RESERVED` có
+   * giao dịch sống nên không được gỡ ngang; bài đã REJECTED thì
    * không phạt lại khi Admin xử lý thêm một report trùng đích.
    */
+  /**
+   * Gỡ bình luận trong CÙNG transaction với kết luận report.
+   *
+   * Trước 29/09 nhánh này không tồn tại: tài liệu §15.5 vẽ ba hành động nhưng chỉ
+   * `POST` có hành động thật, nên Admin bấm RESOLVED trên một bình luận rồi phải tự
+   * nhớ sang màn hình khác gỡ nó — và không bản ghi nào cho biết họ có làm hay
+   * không.
+   *
+   * Đích `USER` thì CỐ Ý vẫn tách rời: đình chỉ một người phải là một quyết định
+   * riêng, có cân nhắc, qua `PATCH /admin/users/:id/status`. Gỡ một dòng chữ và
+   * khoá một tài khoản không cùng mức hệ quả.
+   *
+   * `status <> 'REMOVED'` để hai report cùng trỏ một bình luận không ghi audit hai
+   * lần cho một lần gỡ.
+   */
+  private async removeReportedComment(
+    manager: EntityManager,
+    command: { actorUserId: string; commentId: string; reason: string },
+  ): Promise<void> {
+    const removed = await updateReturning<{ global_id: string }>(
+      manager,
+      `UPDATE content_comments
+       SET status = 'REMOVED', updated_at = now()
+       WHERE global_id = $1 AND status <> 'REMOVED'
+       RETURNING global_id`,
+      [command.commentId],
+    );
+    if (removed.length === 0) return;
+
+    await manager.query(
+      `INSERT INTO admin_audit_logs
+         (actor_user_id, action, resource_type, resource_id, before_json, after_json, reason)
+       VALUES ($1, 'REMOVE_COMMENT', 'CONTENT_COMMENT', $2, $3::jsonb, $4::jsonb, $5)`,
+      [
+        command.actorUserId,
+        command.commentId,
+        JSON.stringify({ status: 'VISIBLE' }),
+        JSON.stringify({ status: 'REMOVED' }),
+        command.reason,
+      ],
+    );
+  }
+
   private async rejectReportedPost(
     manager: EntityManager,
     command: {

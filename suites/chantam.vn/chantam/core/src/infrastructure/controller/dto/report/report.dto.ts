@@ -19,13 +19,17 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsDefined,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   IsUrl,
   IsUUID,
   Length,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { Mixin } from 'ts-mixer';
@@ -68,6 +72,67 @@ export class AdminReportParamsDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   reportId: string;
+}
+
+export class ListReporterStatsQueryDto {
+  @ApiPropertyOptional({
+    default: true,
+    description:
+      'Mặc định CHỈ trả người đã vượt ngưỡng. Mở ra thấy mọi người từng báo xấu thì không ai đọc hết, và cái cần xem sẽ nằm lẫn trong đó. Đặt `false` để xem toàn bộ.',
+  })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  abusiveOnly?: boolean;
+
+  @ApiPropertyOptional({ default: 100, minimum: 1, maximum: 500 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
+}
+
+export class ReporterStatsDto {
+  @ApiProperty({ format: 'uuid' }) userId: string;
+  @ApiProperty() username: string;
+
+  @ApiProperty({ description: 'Tổng lượt báo, kể cả đang chờ xử lý.' })
+  totalReports: number;
+
+  @ApiProperty({
+    description:
+      'Số lượt ĐÃ có kết luận — mẫu để tính tỷ lệ. Người vừa gửi 20 báo còn đang chờ không phải người báo bừa, họ chỉ là người đang chờ.',
+  })
+  reviewedReports: number;
+
+  @ApiProperty() dismissedReports: number;
+  @ApiProperty() resolvedReports: number;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Phần trăm bị bác trên số lượt đã có kết luận.',
+  })
+  dismissedRatioPercent: number | null;
+
+  @ApiProperty({
+    description:
+      '`true` khi đủ mẫu VÀ vượt ngưỡng. KHÔNG tự động phạt — chỉ đưa hồ sơ lên bàn Admin, y như cờ Giver Accuracy.',
+  })
+  abusive: boolean;
+}
+
+export class ListReporterStatsResponseDto {
+  @ApiProperty({ type: () => [ReporterStatsDto] })
+  reporters: ReporterStatsDto[];
+
+  @ApiProperty({ description: 'Ngưỡng số mẫu đang áp (`report.abuse`).' })
+  minReports: number;
+
+  @ApiProperty({ description: 'Ngưỡng tỷ lệ bị bác đang áp.' })
+  dismissedRatioPercent: number;
 }
 
 export class ListAdminReportsQueryDto extends Mixin(PaginationQueryDto) {

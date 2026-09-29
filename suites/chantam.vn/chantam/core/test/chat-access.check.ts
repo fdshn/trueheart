@@ -529,6 +529,82 @@ async function main(): Promise<void> {
     );
     check('mốc tắt được xoá', unmuted.receiver_muted_at === null);
 
+    console.log('\nAdmin gỡ tin nhắn bị báo xấu:\n');
+    // Đợt 28/09 mở hai cửa — báo xấu trỏ đúng một dòng, và Admin đọc được phòng —
+    // rồi dừng ở đó. Nạn nhân báo được, Admin đọc được, bấm RESOLVED được, và câu
+    // chữ vẫn nằm trong phòng vĩnh viễn. Đây là cửa thứ ba.
+    const RemovableId = '77777777-7777-4777-8777-77777777b900';
+    await chat.appendMessage({
+      globalId: RemovableId,
+      roomId: RoomId,
+      senderId: GiverId,
+      body: 'Câu này sẽ bị Admin gỡ',
+      mediaKeys: [],
+    });
+
+    const removed = await chat.removeMessageByAdmin({ messageId: RemovableId });
+    check(
+      'gỡ được, và trả về phòng để nơi gọi bắn realtime',
+      removed.status === 'REMOVED' && removed.roomId === RoomId,
+      `${removed.status} room=${removed.roomId}`,
+    );
+    check(
+      'kèm người gửi để ghi audit — ai đã nhắn câu đó',
+      removed.senderId === GiverId,
+      removed.senderId,
+    );
+
+    const [removedRow] = await dataSource.query<
+      { body: string; media_count: number; recalled_at: Date | null }[]
+    >(
+      `SELECT body, media_count, recalled_at FROM chat_messages WHERE global_id = $1`,
+      [RemovableId],
+    );
+    check(
+      'bản ghi mang ĐÚNG hình dạng một lượt thu hồi — body rỗng, media 0, có mốc',
+      removedRow?.body === '' &&
+        Number(removedRow?.media_count) === 0 &&
+        removedRow?.recalled_at !== null,
+      `body="${removedRow?.body}" media=${String(removedRow?.media_count)}`,
+    );
+    check(
+      'dòng KHÔNG bị xoá — sổ chat vẫn là bằng chứng cho tranh chấp',
+      removedRow !== undefined,
+    );
+
+    const removedTwice = await chat.removeMessageByAdmin({
+      messageId: RemovableId,
+    });
+    check(
+      'gỡ lần hai trả NOT_FOUND — không có gì để gỡ nữa',
+      removedTwice.status === 'NOT_FOUND',
+      removedTwice.status,
+    );
+    check(
+      'tin nhắn KHÔNG tồn tại cũng trả NOT_FOUND',
+      (
+        await chat.removeMessageByAdmin({
+          messageId: '77777777-7777-4777-8777-77777777b999',
+        })
+      ).status === 'NOT_FOUND',
+    );
+
+    // Trigger append-only phải VẪN chặn mọi UPDATE khác. Nếu đường gỡ của Admin
+    // nới lỏng nó thì cả bảng mất tính append-only mà không ai nhận ra.
+    let stillAppendOnly = false;
+    try {
+      await dataSource.query(
+        `UPDATE chat_messages SET body = 'sửa lậu' WHERE global_id = $1`,
+        ['77777777-7777-4777-8777-77777777b001'],
+      );
+    } catch {
+      stillAppendOnly = true;
+    }
+    check(
+      'đường gỡ của Admin KHÔNG nới lỏng trigger append-only',
+      stillAppendOnly,
+    );
+
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

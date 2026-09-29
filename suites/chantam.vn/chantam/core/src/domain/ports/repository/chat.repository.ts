@@ -91,6 +91,29 @@ export interface IChatRepository {
    * Trả về `mediaKeys` để nơi gọi xoá object: thu hồi mà để ảnh vẫn mở được
    * bằng đường dẫn công khai thì chữ biến mất còn thứ đáng lo nhất vẫn nằm đó.
    */
+  /**
+   * Admin gỡ một tin nhắn bị báo xấu.
+   *
+   * KHÁC `recallMessage` ở hai chỗ, và cả hai đều cố ý: không đòi người gọi là
+   * người gửi, và không có cửa sổ thời gian. Một câu quấy rối bị báo sau ba ngày
+   * vẫn phải gỡ được — cửa sổ 5 phút là để người gửi chữa lỗi gõ nhầm, không phải
+   * để giới hạn quyền kiểm duyệt.
+   *
+   * Đi qua ĐÚNG cờ phiên `chantam.chat_recall` mà trigger append-only cho phép,
+   * nên hình dạng bản ghi sau khi gỡ giống hệt một lượt thu hồi: `recalled_at`
+   * được đặt, `body` rỗng, `media_count` về 0. Không mở thêm lối ghi nào vào bảng
+   * append-only.
+   *
+   * Trả `roomId` để nơi gọi bắn realtime cho đúng phòng, và `mediaKeys` để xoá
+   * object trên storage SAU khi commit.
+   */
+  removeMessageByAdmin(params: { messageId: string }): Promise<{
+    status: 'REMOVED' | 'NOT_FOUND';
+    roomId: string;
+    senderId: string;
+    mediaKeys: string[];
+  }>;
+
   recallMessage(params: {
     roomId: string;
     messageId: string;

@@ -1,5 +1,11 @@
-import { IReadAdminChatRoomUseCase } from '@/application/contracts/chat';
-import { ChatRoomNotFoundException } from '@/domain/exceptions';
+import {
+  IReadAdminChatRoomUseCase,
+  IRemoveChatMessageUseCase,
+} from '@/application/contracts/chat';
+import {
+  ChatMessageNotFoundException,
+  ChatRoomNotFoundException,
+} from '@/domain/exceptions';
 import {
   ApiTokenErrors,
   CurrentUser,
@@ -8,7 +14,15 @@ import {
 import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
-import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Inject,
+  Param,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -19,6 +33,9 @@ import {
   AdminChatRoomParamsDto,
   AdminChatRoomQueryDto,
   AdminChatRoomResponseDto,
+  RemoveChatMessageBodyDto,
+  RemoveChatMessageParamDto,
+  RemoveChatMessageResponseDto,
 } from '../../dto/admin-config/admin-chat.dto';
 import { RequiresPermission } from '../../guards';
 
@@ -29,7 +46,42 @@ export class AdminChatController {
   public constructor(
     @Inject(IReadAdminChatRoomUseCase)
     private readonly readAdminChatRoomUseCase: IReadAdminChatRoomUseCase,
+    @Inject(IRemoveChatMessageUseCase)
+    private readonly removeChatMessageUseCase: IRemoveChatMessageUseCase,
   ) {}
+
+  @Delete('messages/:messageId')
+  @RequiresPermission('report.resolve')
+  @ApiOperation({
+    summary: 'Gỡ một tin nhắn bị báo xấu',
+    description:
+      'Đóng nốt cửa thứ ba của việc báo xấu tin nhắn. Trước 29/09 nạn nhân báo được đúng một dòng tin nhắn và Admin đọc được phòng làm bằng chứng, nhưng KHÔNG có đường nào gỡ — câu chữ đó nằm trong phòng vĩnh viễn, cả hai vẫn đọc lại được. ' +
+      '`PATCH /chat/rooms/:roomId/messages/:messageId/recall` không phải đường này: nó đòi người gọi LÀ người gửi và trong 5 phút — cửa sổ đó để người gửi chữa lỗi gõ nhầm, không phải để giới hạn quyền kiểm duyệt. ' +
+      'Đi qua đúng cờ phiên mà trigger append-only cho phép, nên bản ghi sau khi gỡ có hình dạng giống hệt một lượt thu hồi; không mở thêm lối ghi nào vào bảng append-only. Ảnh kèm bị xoá khỏi storage, hai thiết bị nhận realtime để xoá ngay. `reason` bắt buộc, ghi audit `REMOVE_CHAT_MESSAGE`. ' +
+      'Cần quyền `report.resolve`, KHÔNG phải `report.read`: mở hàng đợi để xem bằng chứng và xoá nội dung của người khác là hai quyền khác nhau.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(RemoveChatMessageResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    [ChatMessageNotFoundException, 'Không còn gì để gỡ, hoặc đã gỡ trước đó'],
+  )
+  public async removeMessage(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: RemoveChatMessageParamDto,
+    @Body() body: RemoveChatMessageBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.removeChatMessageUseCase.handle({
+          actorUserId: principal.userId,
+          messageId: params.messageId,
+          reason: body.removal.reason,
+        }),
+      )
+      .build();
+  }
 
   @Get('rooms/:roomId/messages')
   @RequiresPermission('report.read')
