@@ -26,6 +26,19 @@ export enum NotificationTypes {
    * cả, món đồ chỉ là không còn nữa.
    */
   GIFT_REQUEST_CLOSED = 'GIFT_REQUEST_CLOSED',
+
+  /**
+   * Bài của bạn đã có người nhận mà KHÔNG do bạn chọn.
+   *
+   * Thêm 29/09. Hai đường chốt người nhận không cần chủ bài bấm gì: job tự chọn khi
+   * hết đồng hồ, và người xin dùng điểm đổi thẳng. Trước đó chỉ người NHẬN được
+   * báo, nên chủ bài thấy bài mình đột nhiên RESERVED và một phòng chat mở ra, rồi
+   * chỉ hiểu chuyện gì xảy ra khi người kia nhắn tin.
+   *
+   * Đường chủ bài tự duyệt KHÔNG dùng loại này — họ vừa bấm, báo lại là nhắc một
+   * việc họ vừa làm.
+   */
+  GIFT_POST_RECEIVER_SELECTED = 'GIFT_POST_RECEIVER_SELECTED',
   /**
    * Người tặng vừa báo đã bàn giao.
    *
@@ -150,6 +163,8 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.GIFT_REQUEST_ACCEPTED]: NotificationGroups.TRANSACTION,
   [NotificationTypes.GIFT_REQUEST_REJECTED]: NotificationGroups.TRANSACTION,
   [NotificationTypes.GIFT_REQUEST_CLOSED]: NotificationGroups.TRANSACTION,
+  [NotificationTypes.GIFT_POST_RECEIVER_SELECTED]:
+    NotificationGroups.TRANSACTION,
   [NotificationTypes.GIFT_TRANSACTION_HANDED_OVER]:
     NotificationGroups.TRANSACTION,
   [NotificationTypes.GIFT_TRANSACTION_CLOSED]: NotificationGroups.TRANSACTION,

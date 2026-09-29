@@ -1,7 +1,8 @@
 # 14 · Đổi vật phẩm bằng điểm
 
-Trạng thái: ✅ **đã hiện thực** (26/09). `POST /posts/:postId/redeem`, có script kiểm trên
-Postgres thật.
+Trạng thái: ✅ **đã hiện thực** (26/09). `POST /posts/:postId/redeem` để đổi,
+`GET /posts/:postId/redemption-quote` để xem trước (29/09). Script kiểm riêng:
+`npm run test:redemption`.
 
 ## 14.1 Định giá vật phẩm (F74) — ✅
 
@@ -24,6 +25,14 @@ flowchart LR
 >
 > **Không khai giá KHÔNG có nghĩa là cho không** — nó nghĩa là chưa quy ra điểm được. Coi ô
 > trống là 0 điểm thì mọi bài quên điền giá trở thành đổi miễn phí.
+>
+> ⚠️ **Client KHÔNG được tự chia** (sửa 29/09). Trước đó `vndPerPoint` chỉ được đọc ở đúng một
+> chỗ trong máy chủ và không endpoint nào trả nó ra, nên muốn hiện "cần 500 điểm" thì client
+> phải hardcode tỷ lệ và tự làm tròn. Hai hệ quả: Admin đổi tỷ lệ là mọi client hiện sai cho
+> tới khi deploy lại, và client làm tròn XUỐNG thì hiện thiếu 1 điểm so với số sẽ bị trừ. Với
+> người ĐỦ điểm, đường duy nhất để biết giá là trả nó — lỗi thiếu điểm chỉ nêu số cần khi bạn
+> thiếu. Nay `GET /posts/:postId/redemption-quote` trả giá đã tính, tỷ lệ đang áp, và tính bằng
+> ĐÚNG hàm `quoteRedemption` mà đường bấm thật dùng.
 
 ## 14.2 ✅ Tỷ lệ quy đổi — chốt 2026-09-25
 
@@ -72,7 +81,12 @@ flowchart TD
 > bài đã hết hạn mà chưa ai chốt — trong khoảng đó bài vẫn `PUBLISHED`.
 >
 > **Chưa xin và bài không tồn tại trả CÙNG một lỗi.** Phân biệt hai cái là để lộ bài nào tồn
-> tại cho người chưa từng thấy nó.
+> tại cho người chưa từng thấy nó. Endpoint xem trước gộp y như vậy (`NOT_AVAILABLE`), và
+> `test:redemption` canh cả bốn nhánh cùng ra một lý do.
+>
+> **Xem trước thì KHÔNG ném lỗi.** Mọi nhánh trả 200 kèm `unavailableReason`: client chỉ cần
+> biết "hiện nút hay không, và nếu không thì vì sao", còn bắt nó đọc mã lỗi 4xx để dựng giao
+> diện là bắt nó dựng lại logic đã có sẵn ở máy chủ. `POST …/redeem` mới là chỗ ném lỗi thật.
 
 ## 14.4 Luồng đổi điểm (F75 + F77)
 
@@ -124,7 +138,7 @@ flowchart TD
     C -->|Không| E[Giữ hạng]
 
     F["Người Bạc, ngưỡng 672<br/>phải có 952 điểm<br/>mới đổi mà không tụt"] -.-> C
-    G["⚠️ PHẢI cảnh báo TRƯỚC khi bấm đổi<br/>không thì họ mất hạng mà không biết vì sao"] -.-> D
+    G["✅ GET /posts/:id/redemption-quote<br/>wouldDemote + rankAfter"] -.-> D
 
     style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
     style G fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
@@ -146,11 +160,26 @@ Mỗi lần đổi **bắt buộc** vào `point_ledger`:
 
 1. ✅ **Đã hiện thực** (26/09). `appendAdjustment` ghi sổ với số điểm truyền vào, và
    `acceptRequest` tự xoá `selection_deadline` nên đồng hồ dừng luôn.
-2. ⚠️ **Chưa có cảnh báo "đổi món này sẽ làm bạn tụt hạng"** trước khi người dùng bấm. Từ
-   quyết định 2026-09-24, tiêu điểm làm tụt hạng — người Bạc (ngưỡng 672) đổi món 500 điểm sẽ
-   mất hạng nếu đang có dưới 1.172. Họ nhận `RANK_DEMOTED` **sau khi** đã đổi, tức quá muộn.
-3. ⚠️ **Chưa có endpoint xem giá trước.** Client phải tự tính `estimatedValue / vndPerPoint`
-   để hiện "cần 500 điểm", mà tỷ lệ là cấu hình động — hai bên sẽ lệch.
-4. Vật phẩm đổi bằng điểm có được **đánh giá và tính accuracy** như lượt trao thường không?
-   Chưa ai nói.
-5. Người tặng có **được điểm** khi vật phẩm của họ bị đổi bằng điểm không? Chưa ai nói.
+2. ✅ **Cảnh báo tụt hạng đã có** (29/09) — `wouldDemote` + `rankAfter` trong endpoint xem
+   trước, tính theo bậc thang thật trong `rank_tiers`. Luôn `false` khi `rank.points_source`
+   là LIFETIME: lúc đó tiêu điểm không đụng tới con số quyết hạng, nên cảnh báo ở đó là cảnh
+   báo sai.
+3. ✅ **Endpoint xem giá trước đã có** (29/09) — `GET /posts/:postId/redemption-quote`.
+4. ✅ **Có, giống mọi lượt trao.** `acceptRequest` tạo một `gift_transaction` bình thường, nên
+   khi COMPLETED thì hai bên đánh giá như thường và mức chính xác vào mẫu Giver Accuracy như
+   thường. Không có nhánh riêng nào cho vật phẩm đổi bằng điểm.
+5. ✅ **Có.** Người tặng được tới 56 điểm qua `GIFT_COMPLETED_GIVER` (× mức chính xác người
+   nhận chấm), đúng như mọi lượt trao.
+   ⚠️ **Nhưng người ĐỔI cũng được +28.** `awardCompletionPoints` cộng
+   `GIFT_COMPLETED_RECEIVER` cho người nhận mà không phân biệt lượt trao đó đến từ đâu, nên
+   người vừa trả 500 điểm nhận lại 28. Không phải cỗ máy in điểm — cả lượt là
+   −500 +28 +56 = **−416**, vẫn giảm phát. Nhưng hoàn 28 cho người vừa *mua* món đồ cần Bên A
+   chốt là có chủ ý hay không; **chưa sửa, chỉ ghi lại**.
+6. ✅ **Thông báo đã nói đúng sự thật** (sửa 29/09). Trước đó `AcceptedRequestNotifier` chỉ có
+   một cờ boolean `automatic`, và đường đổi điểm truyền `false` — nên người vừa trả 500 điểm
+   nhận được câu "Người tặng đã chọn bạn", trong khi người tặng không chọn ai cả. Nay là ba
+   đường `MANUAL` / `AUTOMATIC` / `REDEEMED`; một cờ hai giá trị không diễn tả được ba đường.
+7. ✅ **Chủ bài nay được báo khi lượt chốt KHÔNG do họ bấm** (29/09,
+   `GIFT_POST_RECEIVER_SELECTED`). Hai đường: job tự chọn và đổi điểm. Trước đó chỉ người NHẬN
+   được báo, nên chủ bài thấy bài mình đột nhiên `RESERVED` và một phòng chat mở ra, rồi chỉ
+   hiểu chuyện gì xảy ra khi người kia nhắn tin. Đường `MANUAL` cố ý im — họ vừa bấm.

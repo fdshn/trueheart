@@ -106,9 +106,10 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
         // khi tình cờ mở app, trong khi người tặng đang chờ trả lời.
         await this.acceptedNotifier.announce({
           receiverId: winner.requesterId,
+          giverId: post.giverId,
           postId: post.postId,
           transactionId: accepted.transactionId,
-          automatic: true,
+          trigger: 'AUTOMATIC',
         });
 
         selected.push({

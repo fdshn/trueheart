@@ -2,6 +2,7 @@ import {
   IAcceptGiftRequestUseCase,
   IAutoSelectDueRecipientsUseCase,
   ICreateGiftRequestUseCase,
+  IGetRedemptionQuoteUseCase,
   IListMyGiftRequestsUseCase,
   IListPostRequestsUseCase,
   IRedeemPostWithPointsUseCase,
@@ -20,6 +21,7 @@ import {
   RejectGiftRequestUseCase,
 } from './my-gift-requests.use-cases';
 import { RedeemPostWithPointsUseCase } from './redeem-post-with-points.use-case';
+import { GetRedemptionQuoteUseCase } from './redemption-quote.use-case';
 import { RequestLifecycleNotifier } from './request-lifecycle.notifier';
 import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
 
@@ -44,6 +46,10 @@ import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
       useClass: RedeemPostWithPointsUseCase,
     },
     {
+      provide: IGetRedemptionQuoteUseCase,
+      useClass: GetRedemptionQuoteUseCase,
+    },
+    {
       provide: IWithdrawGiftRequestUseCase,
       useClass: WithdrawGiftRequestUseCase,
     },
@@ -63,6 +69,7 @@ import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
     IAcceptGiftRequestUseCase,
     IAutoSelectDueRecipientsUseCase,
     IRedeemPostWithPointsUseCase,
+    IGetRedemptionQuoteUseCase,
   ],
 })
 export class GiftRequestModule {}

@@ -32,6 +32,7 @@
     "test:feed-comments": "ts-node -r tsconfig-paths/register test/feed-comments.check.ts",
     "test:feed-media": "ts-node -r tsconfig-paths/register test/feed-media.check.ts",
     "test:feed-shares": "ts-node -r tsconfig-paths/register test/feed-shares.check.ts",
+    "test:redemption": "ts-node -r tsconfig-paths/register test/redemption.check.ts",
     "test:reviews": "ts-node -r tsconfig-paths/register test/reviews.check.ts",
     "typecheck:checks": "tsc --noEmit -p test/tsconfig.json",
     "test:point-economy": "ts-node -r tsconfig-paths/register test/point-economy.check.ts",

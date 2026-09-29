@@ -77,9 +77,11 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
     // SAU khi lượt trao đã ghi. Người xin đang chờ biết mình có được chọn không.
     await this.acceptedNotifier.announce({
       receiverId: targetRequest.requesterId,
+      giverId: command.userId,
       postId: command.postId,
       transactionId: finalTransactionId,
-      automatic: false,
+      // Chủ bài tự bấm, nên KHÔNG báo lại cho họ — xem `notifyGiverIfPassive`.
+      trigger: 'MANUAL',
     });
 
     return {

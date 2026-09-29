@@ -286,3 +286,29 @@ export type RetryablePointRuleCode = (typeof RetryablePointRuleCodes)[number];
 export function isRetryablePointRule(ruleCode: string): boolean {
   return (RetryablePointRuleCodes as readonly string[]).includes(ruleCode);
 }
+
+/**
+ * Bậc hạng mà một số điểm rơi vào, chỉ xét theo NGƯỠNG.
+ *
+ * Dùng cho phần xem trước "đổi món này có làm tôi tụt hạng không". Hàm thuần, nhận
+ * bảng ngưỡng làm tham số — bảng đó là cấu hình động và sẽ còn đổi.
+ *
+ * **Chỉ dự đoán chiều XUỐNG.** Tiêu điểm không bao giờ đẩy ai lên hạng, nên ở đây
+ * không cần tới những cửa phụ mà việc thăng hạng phải qua (số lượt trao đã hoàn
+ * tất, số lượt giới thiệu hợp lệ). Dùng hàm này để đoán chiều lên là sai.
+ */
+export function rankForPoints(
+  points: number,
+  tiers: readonly { rank: string; thresholdPoints: number }[],
+): string | null {
+  let landed: { rank: string; thresholdPoints: number } | null = null;
+
+  for (const tier of tiers)
+    if (
+      points >= tier.thresholdPoints &&
+      (landed === null || tier.thresholdPoints > landed.thresholdPoints)
+    )
+      landed = tier;
+
+  return landed?.rank ?? null;
+}

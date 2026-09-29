@@ -67,6 +67,15 @@ export interface IRankSummary {
 
 export interface IRankRepository {
   getOwnSummary(userId: string): Promise<IRankSummary>;
+
+  /**
+   * Toàn bộ bậc hạng kèm ngưỡng, xếp tăng dần.
+   *
+   * Cần cho phần xem trước "đổi món này có làm tôi tụt hạng không": phải biết cả
+   * bậc thang mới nói được số điểm còn lại rơi vào đâu, chứ không chỉ bậc đang
+   * giữ. Đọc từ database vì ngưỡng là cấu hình động.
+   */
+  listTiers(): Promise<IRankTierSummary[]>;
   promoteMemberOnboarding(userId: string): Promise<boolean>;
   /**
    * Xét lại hạng theo balance hiện tại, gọi sau MỌI biến động điểm.

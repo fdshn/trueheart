@@ -15,6 +15,7 @@ import {
   PublicDiscoveryPostType,
   ReactionKinds,
   ShipPayers,
+  UserRanks,
 } from '../../consts';
 import { IPostEntity, IPostMediaEntity } from '../../entities';
 
@@ -244,6 +245,56 @@ export interface IPostAuthorDto {
 export interface IPostContactInfoDto {
   phone?: string | null;
   address?: string | null;
+}
+
+/**
+ * Xem trước một lượt đổi vật phẩm bằng điểm, TRƯỚC khi bấm.
+ *
+ * Sinh ra vì hai lỗ (29/09):
+ *
+ * 1. Tỷ lệ quy đổi `vndPerPoint` chỉ được đọc ở đúng một chỗ trong máy chủ, nên
+ *    client muốn hiện "cần 500 điểm" thì phải tự hardcode tỷ lệ và tự làm tròn.
+ *    Admin đổi tỷ lệ là mọi client hiện sai; làm tròn xuống là hiện thiếu điểm so
+ *    với số sẽ bị trừ. Với người ĐỦ điểm, đường duy nhất để biết giá là trả nó.
+ * 2. Tiêu điểm làm tụt hạng (chốt 2026-09-24), mà `RANK_DEMOTED` chỉ tới SAU khi
+ *    đã trừ. Người Bạc đang có 1.000 điểm đổi món 500 sẽ mất quota bài và quyền
+ *    SOS, và chỉ biết khi mọi thứ đã xong.
+ */
+export interface IRedemptionQuoteDto {
+  /** Giá bằng điểm, đã làm tròn LÊN. `0` khi chưa quy ra điểm được. */
+  points: number;
+  /** Giá trị tham khảo người tặng khai. `null` khi bỏ trống. */
+  estimatedValueVnd: number | null;
+  /** Tỷ lệ đang áp — trả kèm để client giải thích được con số, không phải đoán. */
+  vndPerPoint: number;
+  /** `false` khi bài chưa quy ra điểm được. */
+  redeemable: boolean;
+  /**
+   * Vì sao chưa đổi được, `null` khi đổi được.
+   *
+   * `NOT_AVAILABLE` gộp "đồng hồ không chạy" với "bạn chưa gửi yêu cầu xin" —
+   * cùng một lỗi như khi bấm đổi thật, vì phân biệt hai cái là để lộ bài nào tồn
+   * tại cho người chưa từng thấy nó.
+   */
+  unavailableReason:
+    'NOT_AVAILABLE' | 'NO_ESTIMATED_VALUE' | 'INSUFFICIENT_POINTS' | null;
+  /** Điểm đang có của người gọi. */
+  balancePoints: number;
+  /** Còn thiếu bao nhiêu điểm; `0` khi đã đủ. */
+  missingPoints: number;
+  /**
+   * `true` khi trả số điểm này sẽ làm người gọi TỤT HẠNG.
+   *
+   * Luôn `false` khi `rank.points_source` là LIFETIME — lúc đó tiêu điểm không
+   * đụng tới con số quyết hạng.
+   */
+  wouldDemote: boolean;
+  /** Hạng sau khi đổi. Bằng hạng hiện tại khi không tụt. */
+  rankAfter: UserRanks;
+}
+
+export interface IRedemptionQuoteResponseDto {
+  quote: IRedemptionQuoteDto;
 }
 
 export interface IGetPostResponseDto extends IPostFeedInteractionDto {

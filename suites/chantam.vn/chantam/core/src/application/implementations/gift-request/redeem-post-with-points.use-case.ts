@@ -159,9 +159,13 @@ export class RedeemPostWithPointsUseCase implements IRedeemPostWithPointsUseCase
 
     await this.acceptedNotifier.announce({
       receiverId: command.requesterId,
+      giverId: context.giverId,
       postId: command.postId,
       transactionId,
-      automatic: false,
+      // `REDEEMED`, không `MANUAL`: người tặng KHÔNG chọn ai — người xin tự mua.
+      // Truyền `MANUAL` ở đây là nói với người vừa trả 500 điểm rằng "người tặng
+      // đã chọn bạn", một câu sai.
+      trigger: 'REDEEMED',
     });
 
     return {

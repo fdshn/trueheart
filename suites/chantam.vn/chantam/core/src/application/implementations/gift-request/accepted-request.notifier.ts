@@ -3,6 +3,33 @@ import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 /**
+ * Ba đường chốt người nhận, không hai.
+ *
+ * Trước 29/09 đây là một cờ boolean `automatic`, và đường đổi điểm truyền `false`
+ * nên người vừa trả 500 điểm nhận được câu "Người tặng đã chọn bạn" — trong khi
+ * người tặng không chọn ai cả. Một cờ hai giá trị không diễn tả được ba đường, và
+ * chỗ sai không nằm ở code mà nằm trong câu nói với người dùng.
+ */
+export type AcceptanceTrigger = 'MANUAL' | 'AUTOMATIC' | 'REDEEMED';
+
+const ReceiverBody: Record<AcceptanceTrigger, string> = {
+  MANUAL: 'Người tặng đã chọn bạn. Cuộc trò chuyện với người tặng đã mở.',
+  AUTOMATIC:
+    'Hết thời gian chọn, hệ thống đã chọn bạn làm người nhận. Cuộc trò chuyện với người tặng đã mở.',
+  REDEEMED:
+    'Bạn đã dùng điểm để nhận vật phẩm này. Cuộc trò chuyện với người tặng đã mở.',
+};
+
+const GiverBody: Record<AcceptanceTrigger, string> = {
+  // Không dùng: chủ bài tự bấm thì không được báo lại.
+  MANUAL: '',
+  AUTOMATIC:
+    'Hết thời gian chọn, hệ thống đã chọn người nhận cho bài của bạn. Cuộc trò chuyện đã mở.',
+  REDEEMED:
+    'Một người đã dùng điểm để nhận vật phẩm của bạn, nên lượt trao được chốt ngay. Cuộc trò chuyện đã mở.',
+};
+
+/**
  * Báo cho người được chọn làm người nhận.
  *
  * **Vì sao một chỗ chứ không hai.** Có hai đường dẫn tới việc chốt người nhận —
@@ -32,29 +59,72 @@ export class AcceptedRequestNotifier {
    */
   public async announce(params: {
     receiverId: string;
+    /** Chủ bài. Được báo riêng khi lượt chốt KHÔNG do họ bấm. */
+    giverId: string;
     postId: string;
     transactionId: string;
-    /** `true` khi do job tự chọn, `false` khi chủ bài duyệt tay. */
-    automatic: boolean;
+    trigger: AcceptanceTrigger;
+  }): Promise<void> {
+    await this.notifyReceiver(params);
+    await this.notifyGiverIfPassive(params);
+  }
+
+  private async notifyReceiver(params: {
+    receiverId: string;
+    transactionId: string;
+    trigger: AcceptanceTrigger;
   }): Promise<void> {
     try {
       await this.dispatchNotification.handle({
         userId: params.receiverId,
         type: NotificationTypes.GIFT_REQUEST_ACCEPTED,
         title: 'Yêu cầu của bạn đã được duyệt',
-        body: params.automatic
-          ? 'Hết thời gian chọn, hệ thống đã chọn bạn làm người nhận. Cuộc trò chuyện với người tặng đã mở.'
-          : 'Người tặng đã chọn bạn. Cuộc trò chuyện với người tặng đã mở.',
+        body: ReceiverBody[params.trigger],
         referenceType: 'GIFT_TRANSACTION',
         referenceId: params.transactionId,
-        // Khoá theo LƯỢT TRAO: một lượt trao chỉ có một lần được duyệt, và hai
+        // Khoá theo LƯỢT TRAO: một lượt trao chỉ có một lần được duyệt, và ba
         // đường dẫn tới đây đều tạo đúng một lượt.
         idempotencyKey: `GIFT_REQUEST_ACCEPTED:${params.transactionId}`,
-        variables: { automatic: params.automatic ? 'true' : 'false' },
+        variables: { trigger: params.trigger },
       });
     } catch (error) {
       this.logger.warn(
         `Không báo được cho người nhận ${params.receiverId}: ${String(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Báo cho chủ bài khi lượt chốt KHÔNG do họ bấm.
+   *
+   * Hai đường: job tự chọn khi hết đồng hồ, và người xin dùng điểm đổi thẳng. Ở cả
+   * hai, chủ bài không làm gì mà bài đột nhiên RESERVED và một phòng chat mở ra —
+   * trước 29/09 họ chỉ hiểu chuyện gì xảy ra khi người kia nhắn tin.
+   *
+   * Đường `MANUAL` thì im: họ vừa bấm, báo lại là nhắc một việc họ vừa làm.
+   */
+  private async notifyGiverIfPassive(params: {
+    giverId: string;
+    postId: string;
+    transactionId: string;
+    trigger: AcceptanceTrigger;
+  }): Promise<void> {
+    if (params.trigger === 'MANUAL') return;
+
+    try {
+      await this.dispatchNotification.handle({
+        userId: params.giverId,
+        type: NotificationTypes.GIFT_POST_RECEIVER_SELECTED,
+        title: 'Bài của bạn đã có người nhận',
+        body: GiverBody[params.trigger],
+        referenceType: 'GIFT_TRANSACTION',
+        referenceId: params.transactionId,
+        idempotencyKey: `GIFT_POST_RECEIVER_SELECTED:${params.transactionId}`,
+        variables: { trigger: params.trigger, postId: params.postId },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Không báo được cho chủ bài ${params.giverId}: ${String(error)}`,
       );
     }
   }

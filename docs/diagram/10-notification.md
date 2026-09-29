@@ -32,7 +32,7 @@ flowchart TD
     style M fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
-## 10.2 Hai mươi mốt loại, chia bốn nhóm
+## 10.2 Hai mươi hai loại, chia bốn nhóm
 
 Nhóm là thứ người dùng tắt/bật được (§10.5). Mọi loại dưới đây đều **thật sự được gửi** —
 không còn loại nào khai mà nằm im.
@@ -56,6 +56,7 @@ không còn loại nào khai mà nằm im.
 | `RANK_DEMOTION_WARNING` | SYSTEM | Điểm xuống dưới mốc cảnh báo của bậc | `RANK_DEMOTION_WARNING:<userId>:<rank>:<ngày VN>` |
 | `RANK_DEMOTED` | SYSTEM | Đã tụt hạng | `RANK_DEMOTED:<userId>:<từ>:<sang>:<ngày VN>` |
 | `RANK_PROMOTED` | SYSTEM | Đã lên hạng — quyền lợi bậc mới có hiệu lực ngay | `RANK_PROMOTED:<userId>:<từ>:<sang>:<ngày VN>` |
+| `GIFT_POST_RECEIVER_SELECTED` | TRANSACTION | Bài của bạn đã có người nhận mà KHÔNG do bạn chọn (job tự chọn, hoặc có người dùng điểm đổi) | `GIFT_POST_RECEIVER_SELECTED:<transactionId>` |
 | `REVIEW_REMINDER` | SYSTEM | Nhắc người nhận đánh giá | `REVIEW_REMINDER:<transactionId>` |
 | `RANK_MAINTENANCE_REMINDER` | SYSTEM | Nhắc nhiệm vụ duy trì, trước 30 ngày | `RANK_MAINTENANCE_REMINDER:<cycleId>` |
 | `REPORT_REVIEWED` | SYSTEM | Báo xấu của bạn đã được xử lý | `REPORT_REVIEWED:<targetId>:<reporterId>:<status>` |
@@ -105,7 +106,7 @@ flowchart TD
     style D fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
-> **Nhóm chứ không phải từng loại.** Hai mươi mốt công tắc là một màn hình không ai đọc, và người
+> **Nhóm chứ không phải từng loại.** Hai mươi hai công tắc là một màn hình không ai đọc, và người
 > đang bị làm phiền cần tắt nhanh chứ không cần chính xác. Bốn nhóm thì đọc một lượt là hiểu.
 
 > **Vì sao phải có.** Trước đó là tất-cả-hoặc-không, nên người bị làm phiền sẽ tắt thông báo ở

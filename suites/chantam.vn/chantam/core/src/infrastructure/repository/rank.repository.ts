@@ -561,6 +561,17 @@ export class RankRepository implements IRankRepository {
     });
   }
 
+  public async listTiers(): Promise<IRankTierSummary[]> {
+    const rows = await this.manager.query<IRawRankTierRow[]>(`
+      SELECT rank, threshold_points, warning_points, required_gifts,
+             required_referrals, post_quota
+      FROM rank_tiers
+      ORDER BY threshold_points ASC
+    `);
+
+    return rows.map((row) => this.mapTier(row));
+  }
+
   public async getOwnSummary(userId: string): Promise<IRankSummary> {
     const [summary] = await this.manager.query<IRawRankSummaryRow[]>(
       `

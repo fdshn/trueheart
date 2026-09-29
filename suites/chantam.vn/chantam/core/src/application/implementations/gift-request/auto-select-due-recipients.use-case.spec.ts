@@ -224,7 +224,13 @@ describe('AutoSelectDueRecipientsUseCase', () => {
       expect.objectContaining({
         receiverId: 'user-1',
         transactionId: 'tx-1',
-        automatic: true,
+        // `AUTOMATIC`, không phải một cờ boolean: có BA đường chốt người nhận, và
+        // một cờ hai giá trị từng khiến người dùng điểm đổi nhận được câu "người
+        // tặng đã chọn bạn" — trong khi người tặng không chọn ai cả.
+        trigger: 'AUTOMATIC',
+        // Chủ bài cũng được báo ở đường này: họ không bấm gì mà bài đột nhiên có
+        // người nhận.
+        giverId: expect.any(String),
       }),
     );
   });

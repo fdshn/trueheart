@@ -1,6 +1,7 @@
 import {
   IAcceptGiftRequestUseCase,
   ICreateGiftRequestUseCase,
+  IGetRedemptionQuoteUseCase,
   IListPostRequestsUseCase,
   IRedeemPostWithPointsUseCase,
   IRejectGiftRequestUseCase,
@@ -24,6 +25,7 @@ import {
   ICreateGiftRequestResponseDto,
   IGetPostRequestsResponseDto,
   IRedeemPostWithPointsResponseDto,
+  IRedemptionQuoteResponseDto,
   IWithdrawGiftRequestResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import {
@@ -64,6 +66,7 @@ import {
   ListPostRequestsQueryDto,
   RedeemPostWithPointsParamDto,
   RedeemPostWithPointsResponseDto,
+  RedemptionQuoteResponseDto,
   RejectGiftRequestParamDto,
   RejectGiftRequestResponseDto,
   WithdrawGiftRequestParamDto,
@@ -84,6 +87,8 @@ export class GiftRequestController {
     private readonly acceptGiftRequestUseCase: IAcceptGiftRequestUseCase,
     @Inject(IRedeemPostWithPointsUseCase)
     private readonly redeemPostWithPointsUseCase: IRedeemPostWithPointsUseCase,
+    @Inject(IGetRedemptionQuoteUseCase)
+    private readonly getRedemptionQuoteUseCase: IGetRedemptionQuoteUseCase,
     @Inject(IRejectGiftRequestUseCase)
     private readonly rejectGiftRequestUseCase: IRejectGiftRequestUseCase,
   ) {}
@@ -254,6 +259,32 @@ export class GiftRequestController {
           userId: principal.userId,
         }),
       )
+      .build();
+  }
+
+  @Get(':postId/redemption-quote')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Xem trước một lượt đổi vật phẩm bằng điểm',
+    description:
+      'Trả giá bằng điểm, tỷ lệ quy đổi đang áp, số điểm bạn đang có, và **có tụt hạng hay không** nếu bấm đổi. ' +
+      'Luôn trả 200 kèm lý do thay vì ném lỗi — đây là màn hình xem trước, client chỉ cần biết hiện nút hay không và nếu không thì vì sao; `POST /posts/:postId/redeem` mới là chỗ ném lỗi thật. ' +
+      'Tính giá bằng ĐÚNG hàm mà đường bấm thật dùng, nên không có chuyện thấy một giá rồi bị trừ một giá khác.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(RedemptionQuoteResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors)
+  public async getRedemptionQuote(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: RedeemPostWithPointsParamDto,
+  ): Promise<ResponseDto<IRedemptionQuoteResponseDto>> {
+    const result = await this.getRedemptionQuoteUseCase.handle({
+      postId: params.postId,
+      userId: principal.userId,
+    });
+
+    return ResponseDto.create<IRedemptionQuoteResponseDto>()
+      .succeed()
+      .attach(result)
       .build();
   }
 
