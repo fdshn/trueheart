@@ -31,7 +31,7 @@ import { updateReturning } from './update-returning';
 /**
  * Bài ở những trạng thái này thì mọi yêu cầu treo dưới nó đã hết ý nghĩa.
  *
- * `RESERVED`/`DELIVERING` KHÔNG nằm đây: lượt trao đang chạy, và người đứng
+ * `RESERVED` KHÔNG nằm đây: lượt trao đang chạy, và người đứng
  * `STANDBY` vẫn được xét tiếp nếu nó đổ.
  */
 const ClosedPostStatuses: readonly string[] = [
@@ -261,7 +261,7 @@ export class GiftRequestRepository
       // số hiển thị hơi lệch — chứ không phải một người bị khoá VĨNH VIỄN,
       // không xin được gì nữa, mà không có cách nào hiểu vì sao.
       //
-      // RESERVED và DELIVERING VẪN tính: người đứng STANDBY dưới một lượt trao
+      // RESERVED VẪN tính: người đứng STANDBY dưới một lượt trao
       // đang chạy là hàng đợi còn sống, họ được xét tiếp nếu lượt đó đổ.
       `SELECT COUNT(*) AS total
        FROM gift_requests request
@@ -621,7 +621,10 @@ export class GiftRequestRepository
       >(
         `SELECT global_id, status, quantity FROM gift_transactions
          WHERE post_id = $1 AND receiver_id = $2
-           AND status IN ('REQUESTED', 'ACCEPTED', 'DELIVERING')
+           -- REQUESTED đã bị gỡ khỏi vòng đời lượt trao ngày 28/09 và nay có
+           -- ràng buộc CHK_gift_transactions_live_status chặn, nên để lại trong
+           -- danh sách này chỉ gây tưởng là còn dùng.
+           AND status IN ('ACCEPTED', 'DELIVERING')
          FOR UPDATE`,
         [params.postId, targetRequest.requester_id],
       );
@@ -670,7 +673,12 @@ export class GiftRequestRepository
       }
 
       const newRemaining = Number(post.remaining_quantity) - quantity;
-      const newPostStatus = newRemaining === 0 ? 'DELIVERING' : 'PUBLISHED';
+      // `RESERVED`, không `DELIVERING`: chốt 29/09 giữ MỘT tên cho trạng thái
+      // "kho đã cạn, lượt trao đang chạy". Hai tên nghĩa là mọi chỗ đọc phải kiểm
+      // cả hai, và chỗ nào quên một tên là một lỗ thật — `syncPostStatus` từng
+      // quên, nên bài đã giao hết suất không bao giờ được suy lại trạng thái và
+      // tác giả mất vĩnh viễn một suất đăng bài. Xem migration `1795200000000`.
+      const newPostStatus = newRemaining === 0 ? 'RESERVED' : 'PUBLISHED';
 
       await manager.query(
         // `selection_deadline = NULL`: đồng hồ chọn người nhận đã hết việc. Để

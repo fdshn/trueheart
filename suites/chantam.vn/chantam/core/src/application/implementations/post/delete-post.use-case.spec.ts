@@ -149,7 +149,11 @@ describe('DeletePostUseCase', () => {
     expect(deps.transactions.closeOpenRequestsForPost).not.toHaveBeenCalled();
   });
 
-  it('bài đang bàn giao cũng vậy', async () => {
+  it('bài mang tên DELIVERING cũ VẪN bị chặn — lưới hứng cho dòng sót', async () => {
+    // `DELIVERING` đã bị loại khỏi đường GHI ngày 29/09 (chốt giữ `RESERVED`).
+    // Nhưng đây là chỗ ĐỌC: bỏ một tên khỏi hàng rào không phải dọn tên mà là
+    // tháo hàng rào, và migration chỉ chạy trên môi trường đã migrate. Một dòng
+    // sót không được thành cửa gỡ bài đang có người chờ ở đầu bên kia.
     const posts = {
       findOneBy: jest
         .fn()
@@ -166,6 +170,7 @@ describe('DeletePostUseCase', () => {
         makeCloseOpenRequests(),
       ).handle({ postId: PostId, userId: OwnerId }),
     ).rejects.toBeInstanceOf(PostHasLiveTransactionException);
+    expect(posts.update).not.toHaveBeenCalled();
   });
 
   it('đóng yêu cầu còn treo và BÁO cho người xin', async () => {

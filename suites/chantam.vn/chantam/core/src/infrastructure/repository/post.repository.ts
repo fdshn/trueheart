@@ -49,7 +49,7 @@ import { lockEditablePost } from './lock-editable-post';
 /**
  * Trạng thái mà Admin còn can thiệp được.
  *
- * `RESERVED`/`DELIVERING` nằm ngoài: gỡ ngang một lượt trao đang diễn ra để lại
+ * `RESERVED` nằm ngoài: gỡ ngang một lượt trao đang diễn ra để lại
  * hai người đã hẹn nhau mà bài thì biến mất. `COMPLETED`/`CANCELLED`/`EXPIRED`
  * cũng vậy — chúng đã đóng, và mở lại bằng nút kiểm duyệt là đi cửa sau vòng
  * đời bài. `PENDING_REVIEW` còn trong danh sách vì dữ liệu cũ từ thời còn duyệt
@@ -65,6 +65,9 @@ export const QuotaStatuses = [
   'PENDING_REVIEW',
   'PUBLISHED',
   'RESERVED',
+  // Tên cũ của RESERVED, đã bị loại khỏi đường GHI ngày 29/09. Vẫn đếm: bỏ nó ra
+  // nghĩa là một dòng sót sẽ KHÔNG ăn quota, tức tác giả được thêm một suất đăng
+  // bài trong khi vẫn còn một nghĩa vụ chưa xong.
   'DELIVERING',
 ];
 
@@ -712,7 +715,7 @@ export class PostRepository
   public async expireDuePosts(now: Date): Promise<IExpireDuePostsResult> {
     return this.manager.transaction(async (manager) => {
       // SKIP LOCKED để hai lần chạy song song không tranh cùng một bài. Chỉ
-      // lấy PUBLISHED: bài RESERVED/DELIVERING đang có giao dịch sống.
+      // lấy PUBLISHED: bài RESERVED đang có giao dịch sống.
       const due = await manager.query<
         { global_id: string; post_type: string }[]
       >(

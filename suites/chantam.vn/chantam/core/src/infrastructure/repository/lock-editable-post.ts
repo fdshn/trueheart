@@ -9,7 +9,9 @@ import { EntityManager } from 'typeorm';
 
 /**
  * Same post-row lock as stock allocation. REQUESTED transactions do not block
- * editing; ACCEPTED/DELIVERING do, even if the post still has available stock.
+ * editing; ACCEPTED/DELIVERING transactions do, even if the post still has
+ * available stock. (Those two are TRANSACTION statuses — the post itself only
+ * ever reads RESERVED, xem migration 1795200000000.)
  */
 export async function lockEditablePost(
   manager: EntityManager,
@@ -30,7 +32,7 @@ export async function lockEditablePost(
      ) AS exists`,
     [postId],
   );
-  if (live.exists || ['RESERVED', 'DELIVERING'].includes(post.status))
+  if (live.exists || post.status === 'RESERVED')
     throw new PostHasLiveTransactionException();
   assertEditablePost(post);
   return post;

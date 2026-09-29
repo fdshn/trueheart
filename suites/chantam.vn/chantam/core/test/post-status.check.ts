@@ -221,24 +221,24 @@ async function main(): Promise<void> {
       giverId: GiverId,
       transactionId: TransactionTwoId,
     });
-    // `acceptRequest` ghi `DELIVERING`, còn `syncPostStatus` quy về `RESERVED`.
-    // Hai tên cho MỘT trạng thái "kho đã cạn, lượt trao đang chạy", và mọi chỗ
-    // đọc đều phải kiểm cả hai. Phép kiểm này đo Ý NGHĨA, không đo tên; việc chọn
-    // một tên rồi bỏ tên kia đã ghi ở `21-open-issues.md`.
+    // MỘT tên duy nhất cho "kho đã cạn, lượt trao đang chạy" — chốt 29/09 giữ
+    // `RESERVED`. Phép kiểm so bằng dấu bằng chứ không nhận hai tên: nhận cả hai
+    // là để ngỏ đúng cái mơ hồ vừa dọn, và một đường ghi mới lỡ dùng tên cũ sẽ
+    // lọt qua đây.
     check(
-      'duyệt nốt món cuối thì bài bị khoá kho (RESERVED/DELIVERING)',
-      ['RESERVED', 'DELIVERING'].includes(await postStatus()),
+      'duyệt nốt món cuối thì bài sang RESERVED',
+      (await postStatus()) === 'RESERVED',
       await postStatus(),
     );
     check(
-      'bài bị khoá kho vẫn ăn quota — tác giả còn một nghĩa vụ chưa xong',
+      'RESERVED vẫn ăn quota — tác giả còn một nghĩa vụ chưa xong',
       (await quotaUsed()) === 1,
     );
 
     await transactions.confirmReceipt(TransactionOneId, requestOne.requesterId);
     check(
-      'một người đã nhận, người kia chưa thì bài vẫn bị khoá kho',
-      ['RESERVED', 'DELIVERING'].includes(await postStatus()),
+      'một người đã nhận, người kia chưa thì bài vẫn RESERVED',
+      (await postStatus()) === 'RESERVED',
       await postStatus(),
     );
 
@@ -275,8 +275,8 @@ async function main(): Promise<void> {
       transactionId: cancelId,
     });
     check(
-      'duyệt xong, hết hàng → bài bị khoá kho',
-      ['RESERVED', 'DELIVERING'].includes(await postStatus()),
+      'duyệt xong, hết hàng → RESERVED',
+      (await postStatus()) === 'RESERVED',
       await postStatus(),
     );
 

@@ -171,18 +171,15 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
    * `PUBLISHED` — làm vậy là hồi sinh một bài đã hết hạn hoặc đã chuyển kho từ
    * thiện.
    *
-   * **`DELIVERING` nằm trong danh sách quản (thêm 29/09).** `acceptRequest` đặt
-   * bài sang `DELIVERING` khi duyệt hết kho, còn câu này lại chỉ nhận
-   * `PUBLISHED`/`RESERVED`/`COMPLETED` — nên một bài đã giao hết suất KHÔNG BAO
-   * GIỜ được suy lại trạng thái nữa. Người nhận xác nhận xong, bài vẫn đứng ở
-   * `DELIVERING`, và `DELIVERING` có trong `QuotaStatuses`: tác giả mất vĩnh viễn
-   * một suất đăng bài. Đúng cái lỗi mà hàm này được viết ra để chặn, quay lại qua
-   * một cửa khác.
+   * **`DELIVERING` nằm trong danh sách quản như một LƯỚI HỨNG.** Tên đó đã bị
+   * loại khỏi trạng thái bài ngày 29/09 (chốt giữ `RESERVED`, xem migration
+   * `1795200000000`) và không đường nào ghi ra nó nữa. Nhưng giá trị vẫn còn
+   * trong enum, nên nếu có dòng sót — dữ liệu cũ, hay một đường ghi mới viết
+   * sai — câu này vẫn suy lại được cho nó.
    *
-   * `RESERVED` và `DELIVERING` hiện là HAI TÊN CHO MỘT trạng thái — mọi chỗ đọc
-   * đều phải kiểm cả hai (`post-edit-policy.ts`, `lock-editable-post.ts`,
-   * `delete-post`, `update-post`). Câu này quy về `RESERVED`. Chọn một tên rồi bỏ
-   * tên kia là việc cần Bên A chốt, ghi ở `docs/diagram/21-open-issues.md`.
+   * Bỏ nó ra khỏi danh sách là dựng lại đúng cái lỗ vừa bịt: bài đã giao hết suất
+   * mà không được suy lại trạng thái thì đứng mãi một chỗ, và trạng thái đó tính
+   * vào `QuotaStatuses` — tác giả mất vĩnh viễn một suất đăng bài.
    */
   private async syncPostStatus(
     manager: EntityManager,

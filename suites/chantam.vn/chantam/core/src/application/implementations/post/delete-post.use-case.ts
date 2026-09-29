@@ -15,22 +15,11 @@ import {
 } from '@/domain/ports/repository';
 import {
   GiftPostStatuses,
+  LiveTransactionGiftPostStatuses,
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-
-/**
- * Hai trạng thái nghĩa là đã có người thật đang chờ ở đầu bên kia.
- *
- * Trùng đúng danh sách mà hậu kiểm của Admin từ chối chạm vào, và vì cùng một
- * lý do: gỡ ngang một lượt trao đang diễn ra để lại hai người đã hẹn nhau mà
- * bài thì biến mất.
- */
-const LiveTransactionStatuses: readonly string[] = [
-  GiftPostStatuses.RESERVED,
-  GiftPostStatuses.DELIVERING,
-];
 
 @Injectable()
 export class DeletePostUseCase implements IDeletePostUseCase {
@@ -58,7 +47,9 @@ export class DeletePostUseCase implements IDeletePostUseCase {
     // `countOpenForUser`, và hậu kiểm của Admin cũng từ chối đúng hai trạng
     // thái này. Chỉ riêng đường gỡ bài của tác giả trước đây không canh gì —
     // mà đó lại là nút dễ bấm nhất.
-    if (LiveTransactionStatuses.includes(post.status))
+    if (
+      LiveTransactionGiftPostStatuses.includes(post.status as GiftPostStatuses)
+    )
       throw new PostHasLiveTransactionException();
 
     await this.postRepository.update(

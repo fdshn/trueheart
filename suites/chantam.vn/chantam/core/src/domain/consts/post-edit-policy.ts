@@ -5,8 +5,7 @@ import {
 } from '../exceptions';
 
 export function assertEditablePost(post: IPostEntity): void {
-  if (['RESERVED', 'DELIVERING'].includes(post.status))
-    throw new PostHasLiveTransactionException();
+  if (post.status === 'RESERVED') throw new PostHasLiveTransactionException();
   if (
     !['DRAFT', 'PENDING_REVIEW', 'PUBLISHED'].includes(post.status) ||
     (post.expiresAt !== null && post.expiresAt <= new Date())

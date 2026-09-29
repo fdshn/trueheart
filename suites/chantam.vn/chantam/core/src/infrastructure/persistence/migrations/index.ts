@@ -69,3 +69,5 @@ export * from './1794800000000-DropDeadTransactionStatuses';
 export * from './1794900000000-AddChatRecallAndMessageReports';
 export * from './1795000000000-AddChatRoomMute';
 export * from './1795100000000-CreateNotificationPreferences';
+export * from './1795200000000-UnifyReservedPostStatus';
+export * from './1795300000000-EnableReportUpheldPointRule';

@@ -18,6 +18,7 @@ import {
 import {
   DeliveryMethods,
   GiftPostStatuses,
+  LiveTransactionGiftPostStatuses,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
@@ -30,7 +31,7 @@ import { Inject, Injectable } from '@nestjs/common';
 /**
  * Sửa bài của chính mình.
  *
- * CẤM khi bài đã có người nhận (`RESERVED`) hoặc đang bàn giao (`DELIVERING`).
+ * CẤM khi bài đã có người nhận (`RESERVED`).
  * Người nhận đồng ý "tủ lạnh Sanyo còn tốt" rồi mở lại thấy "quạt cũ" — và với
  * tin rao vặt thì sửa được cả giá sau khi đã chốt người. Không có bản ghi nào
  * nói nội dung từng khác, nên tranh chấp xong không ai dựng lại được.
@@ -40,12 +41,6 @@ import { Inject, Injectable } from '@nestjs/common';
  * đó là cho tác giả tự gỡ lệnh gỡ bài của Admin bằng cách sửa một dấu phẩy.
  * Bài đã bị gỡ chỉ Admin trả lại được.
  */
-/** Trùng đúng danh sách mà gỡ bài và hậu kiểm của Admin đều từ chối chạm. */
-const LiveTransactionStatuses: readonly string[] = [
-  GiftPostStatuses.RESERVED,
-  GiftPostStatuses.DELIVERING,
-];
-
 @Injectable()
 export class UpdatePostUseCase implements IUpdatePostUseCase {
   public constructor(
@@ -65,7 +60,9 @@ export class UpdatePostUseCase implements IUpdatePostUseCase {
       throw new PostNotFoundException(command.postId);
     if (post.authorId !== command.userId) throw new ForbiddenException();
 
-    if (LiveTransactionStatuses.includes(post.status))
+    if (
+      LiveTransactionGiftPostStatuses.includes(post.status as GiftPostStatuses)
+    )
       throw new PostHasLiveTransactionException();
     assertEditablePost(post);
 

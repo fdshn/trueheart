@@ -81,7 +81,7 @@ phiên bản rule mới nhất. Một rule đã nối mà đang tắt thì hôm 
 | `PHONE_VERIFIED_FIRST_TIME` | 28 | — | ✅ | ✅ | |
 | `REFERRAL_QUALIFIED` | 56 | 3 | ✅ | ✅ | |
 | `ONBOARDING_COMPLETED` | 224 | — | ✅ | ✅ | |
-| `REPORT_UPHELD` | 5 | 5 | ✅ | ⛔ | seed TẮT, chưa migration nào bật — xem §Chỗ cần soát |
+| `REPORT_UPHELD` | 5 | 5 | ✅ | ✅ | bật ở migration `1795300000000` (chốt 29/09) |
 | `CONTENT_VIOLATION_PENALTY` | −50 | — | ✅ | ✅ | phạt chủ bài khi Admin xác nhận báo xấu |
 | `SHIP_UNPAID_PENALTY` | −50 | — | ✅ | ✅ | |
 | `POST_REACTED` | 1 | **20** | ✅ | ✅ | bật ở migration `1794500000000` |
@@ -287,9 +287,10 @@ Trần hiện hành: **giao dịch 10 phía người tặng / 5 phía người n
 6. ✅ **Bút toán ghi nhận "đã chặn vì trần ngày" nay thật sự tồn tại** (29/09). Dòng
    `point_cap_decisions = REJECTED` nằm trong transaction, nên chính ngoại lệ chặn nó đã cuốn
    nó đi — bảng đó chưa từng giữ được một dòng REJECTED nào cho lối gọi qua `appendByRule`.
-7. ⚠️ **`REPORT_UPHELD` đã nối nhưng vẫn TẮT.** Seed `is_enabled = false` và migration
-   `1794500000000` cố ý không bật nó cùng hai rule tương tác. Thưởng cho người báo xấu có động
-   lực lệch hẳn so với thưởng cho người bình luận — cần Bên A chốt bật hay bỏ.
+7. ✅ **`REPORT_UPHELD` đã bật** (29/09, migration `1795300000000`). Trần 5 lượt/ngày là phần
+   chống lạm dụng chứ không phải trang trí: báo xấu là hành động tạo VIỆC cho người khác — mỗi
+   lượt là một mục trong hàng đợi Admin — nên không có trần thì cách cày điểm rẻ nhất là rải
+   báo xấu vu vơ, và cái giá rơi vào thời gian của Admin chứ không phải vào người cày.
 8. ⚠️ **Chưa có màn hình nào cho Admin đọc `point_cap_decisions`.** Bảng nay đã giữ đủ bằng
    chứng cho câu hỏi "vì sao tôi không được điểm", nhưng chưa có endpoint nào trả nó ra.
 9. Phân biệt `lifetime` / `balance` cần soát lại sau khi rank chuyển sang đọc `balance`.

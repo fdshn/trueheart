@@ -184,9 +184,17 @@ async function main(): Promise<void> {
     }
 
     check(
-      'REPORT_UPHELD vẫn TẮT — Bên A chưa chốt thưởng cho người báo xấu',
-      byCode.get('REPORT_UPHELD')?.is_enabled === false,
+      'REPORT_UPHELD đã BẬT — chốt 29/09',
+      byCode.get('REPORT_UPHELD')?.is_enabled === true,
       `is_enabled=${byCode.get('REPORT_UPHELD')?.is_enabled}`,
+    );
+    check(
+      // Báo xấu là hành động tạo VIỆC cho người khác: mỗi lượt là một mục trong
+      // hàng đợi Admin. Bỏ trần thì cách cày điểm rẻ nhất là rải báo xấu vu vơ,
+      // và cái giá rơi vào thời gian của Admin chứ không phải vào người cày.
+      'và GIỮ trần 5 lượt/ngày — bật thưởng mà bỏ trần là mở đường cày báo xấu',
+      Number(byCode.get('REPORT_UPHELD')?.daily_cap) === 5,
+      `daily_cap=${String(byCode.get('REPORT_UPHELD')?.daily_cap)}`,
     );
 
     console.log('\n2. Phần thưởng mốc nằm trên lưới 56');

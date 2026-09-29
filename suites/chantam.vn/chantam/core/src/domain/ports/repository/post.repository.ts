@@ -262,7 +262,7 @@ export interface IPostRepository extends Repository<IPostEntity> {
    * duyệt trước mà là phanh duy nhất của Admin. Chạm được vào bài `PUBLISHED`,
    * `REJECTED`, và `PENDING_REVIEW` còn sót lại từ trước.
    *
-   * KHÔNG chạm vào bài đang có giao dịch sống (`RESERVED`/`DELIVERING`) hay đã
+   * KHÔNG chạm vào bài đang có giao dịch sống (`RESERVED`) hay đã
    * đóng (`COMPLETED`/`CANCELLED`/`EXPIRED`): gỡ ngang một lượt trao đang diễn
    * ra để lại hai người đã hẹn nhau mà bài thì biến mất.
    *
@@ -280,7 +280,7 @@ export interface IPostRepository extends Repository<IPostEntity> {
   /**
    * Đóng vòng đời các bài đã quá hạn.
    *
-   * Chỉ đụng vào bài `PUBLISHED`: bài đang `RESERVED`/`DELIVERING` là đang có
+   * Chỉ đụng vào bài `PUBLISHED`: bài đang `RESERVED` là đang có
    * giao dịch sống, hết hạn ngang là cắt ngang một lượt trao đang diễn ra.
    */
   expireDuePosts(now: Date): Promise<IExpireDuePostsResult>;

@@ -198,7 +198,7 @@ export class GiftRequestController {
   @ApiOperation({
     summary: 'Duyệt người xin nhận đồ (Chọn ứng viên)',
     description:
-      'Chỉ tác giả của bài đăng mới có thể duyệt người xin nhận. Yêu cầu được duyệt chuyển sang ACCEPTED và một lượt giao dịch được tạo. Bài đăng CHỈ chuyển sang DELIVERING khi đã hết số lượng — còn hàng thì vẫn PUBLISHED để người khác tiếp tục xin, và chỉ khi hết hàng mới từ chối hàng loạt các yêu cầu PENDING còn lại.',
+      'Chỉ tác giả của bài đăng mới có thể duyệt người xin nhận. Yêu cầu được duyệt chuyển sang ACCEPTED và một lượt giao dịch được tạo. Bài đăng CHỈ chuyển sang RESERVED khi đã hết số lượng — còn hàng thì vẫn PUBLISHED để người khác tiếp tục xin, và chỉ khi hết hàng mới đẩy các yêu cầu PENDING còn lại sang STANDBY.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(AcceptGiftRequestResponseDto) })
   @ApiErrorResponses(

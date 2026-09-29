@@ -264,7 +264,7 @@ export class ReportRepository
    * Gỡ bài và phạt chủ bài trong CÙNG transaction với kết luận report.
    *
    * Chỉ đụng bài đang công khai hoặc còn sót ở hàng đợi cũ. Bài RESERVED /
-   * DELIVERING có giao dịch sống nên không được gỡ ngang; bài đã REJECTED thì
+   * RESERVED có giao dịch sống nên không được gỡ ngang; bài đã REJECTED thì
    * không phạt lại khi Admin xử lý thêm một report trùng đích.
    */
   private async rejectReportedPost(

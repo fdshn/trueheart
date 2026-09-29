@@ -178,7 +178,7 @@ describe('GiftRequestRepository.acceptRequest — tồn kho', () => {
 
 describe('GiftRequestRepository.acceptRequest — trạng thái bài', () => {
   it('còn hàng thì bài vẫn PUBLISHED để người khác xin tiếp', async () => {
-    // Ép DELIVERING khi còn hàng là khoá bài nhiều món sau lần duyệt đầu:
+    // Ép RESERVED khi còn hàng là khoá bài nhiều món sau lần duyệt đầu:
     // không ai xin được nữa mà tác giả cũng không duyệt tiếp được.
     const query = makeQuery({ post: postRow(3) });
 
@@ -187,7 +187,7 @@ describe('GiftRequestRepository.acceptRequest — trạng thái bài', () => {
     expect(postUpdate(query)?.[1]).toBe('PUBLISHED');
   });
 
-  it('hết hàng thì chuyển DELIVERING và đưa người còn lại vào hàng đợi', async () => {
+  it('hết hàng thì chuyển RESERVED và đưa người còn lại vào hàng đợi', async () => {
     // STANDBY, KHÔNG phải REJECTED. Hết hàng nghĩa là chưa tới lượt, không phải
     // đã bị loại: nếu lượt trao này huỷ thì họ được xét tiếp (F33). Dùng
     // REJECTED cho cả hai việc thì không phân biệt được "đang chờ" với "đã bị
@@ -196,7 +196,12 @@ describe('GiftRequestRepository.acceptRequest — trạng thái bài', () => {
 
     await makeRepository(query).acceptRequest(Params);
 
-    expect(postUpdate(query)?.[1]).toBe('DELIVERING');
+    // `RESERVED`, KHÔNG `DELIVERING` — chốt 29/09 giữ một tên duy nhất cho trạng
+    // thái "kho đã cạn, lượt trao đang chạy". Hai tên nghĩa là mọi chỗ đọc phải
+    // kiểm cả hai, và `syncPostStatus` từng quên một tên nên bài đã giao hết suất
+    // không bao giờ được suy lại trạng thái: tác giả mất vĩnh viễn một suất đăng
+    // bài. Xem migration `1795200000000`.
+    expect(postUpdate(query)?.[1]).toBe('RESERVED');
 
     const queueOthers = query.mock.calls.find(
       ([sql, params]) =>

@@ -115,7 +115,7 @@ export class AdminPostController {
   @ApiOperation({
     summary: 'Duyệt hoặc từ chối bài đăng',
     description:
-      'Hậu kiểm: gỡ một bài đang hiện (`REJECTED`) hoặc trả lại bài đã gỡ (`PUBLISHED`). KHÔNG chạm được vào bài đang có giao dịch sống (`RESERVED`/`DELIVERING`) hay đã đóng — trả 409. Bài trả lại giữ nguyên hạn cũ, không được cộng thêm ba tháng. `reason` bắt buộc, ghi cùng before/after vào audit log.',
+      'Hậu kiểm: gỡ một bài đang hiện (`REJECTED`) hoặc trả lại bài đã gỡ (`PUBLISHED`). KHÔNG chạm được vào bài đang có giao dịch sống (`RESERVED`) hay đã đóng — trả 409. Bài trả lại giữ nguyên hạn cũ, không được cộng thêm ba tháng. `reason` bắt buộc, ghi cùng before/after vào audit log.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(ModerateAdminPostResponseDto) })
   @ApiErrorResponses(

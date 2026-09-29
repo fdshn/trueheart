@@ -310,7 +310,7 @@ export class PostController {
   @ApiOperation({
     summary: 'Gỡ bài',
     description:
-      'Chỉ chủ bài. Xoá mềm và chuyển CANCELLED. TỪ CHỐI khi bài đang có lượt trao sống (`RESERVED`/`DELIVERING`) — gỡ ngang để lại bên kia một giao dịch trỏ vào bài không còn tồn tại. Những yêu cầu còn ở `REQUESTED` được đóng lại và người xin nhận thông báo; không đóng thì mỗi yêu cầu treo vẫn ăn một suất trong trần "yêu cầu đang mở" của họ.',
+      'Chỉ chủ bài. Xoá mềm và chuyển CANCELLED. TỪ CHỐI khi bài đang có lượt trao sống (`RESERVED`) — gỡ ngang để lại bên kia một giao dịch trỏ vào bài không còn tồn tại. Những yêu cầu còn ở `REQUESTED` được đóng lại và người xin nhận thông báo; không đóng thì mỗi yêu cầu treo vẫn ăn một suất trong trần "yêu cầu đang mở" của họ.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(Object) })
   @ApiErrorResponses(
@@ -337,7 +337,7 @@ export class PostController {
   @ApiOperation({
     summary: 'Cập nhật nội dung bài',
     description:
-      'Chỉ chủ bài: sửa nội dung, danh mục, số lượng, vị trí, giao nhận, SOS theo quyền và trường riêng theo loại. Không sửa type/status/author/hạn đăng. Request đang chờ giữ nguyên. Khóa nội dung và media khi có ACCEPTED/DELIVERING, kể cả bài còn PUBLISHED; từ chối trạng thái kết thúc hoặc đã hết hạn.',
+      'Chỉ chủ bài: sửa nội dung, danh mục, số lượng, vị trí, giao nhận, SOS theo quyền và trường riêng theo loại. Không sửa type/status/author/hạn đăng. Request đang chờ giữ nguyên. Khóa nội dung và media khi có lượt trao ACCEPTED/DELIVERING, kể cả bài còn PUBLISHED; từ chối trạng thái kết thúc hoặc đã hết hạn.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(UpdatePostResponseDto) })
   @ApiErrorResponses(

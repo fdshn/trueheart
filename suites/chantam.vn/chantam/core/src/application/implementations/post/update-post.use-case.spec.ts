@@ -133,6 +133,8 @@ describe('UpdatePostUseCase', () => {
       expect(posts.updateOwnedContent).not.toHaveBeenCalled();
     },
   );
+  // Cả hai tên: `DELIVERING` đã bị loại khỏi đường GHI ngày 29/09, nhưng hàng rào
+  // ĐỌC vẫn phải nhận nó — xem `LiveTransactionGiftPostStatuses`.
   it.each(['RESERVED', 'DELIVERING'])(
     'blocks live state %s',
     async (status) => {

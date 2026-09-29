@@ -113,7 +113,7 @@ export class GiftPostEntity
   @ApiProperty({
     enum: GiftPostStatuses,
     description:
-      'Vòng đời: `PUBLISHED` (hiện ngay khi đăng) → `RESERVED` → `DELIVERING` → `COMPLETED` (đã trao xong), hoặc `CANCELLED` khi người tặng gỡ bài, `REJECTED` khi Admin hậu kiểm gỡ xuống.',
+      'Vòng đời: `PUBLISHED` (hiện ngay khi đăng) → `RESERVED` (hết kho, lượt trao đang chạy) → `COMPLETED` (đã trao xong), hoặc `CANCELLED` khi người tặng gỡ bài, `REJECTED` khi Admin hậu kiểm gỡ xuống. `DELIVERING` là trạng thái của LƯỢT TRAO, không phải của bài.',
   })
   @Index()
   @Column({
