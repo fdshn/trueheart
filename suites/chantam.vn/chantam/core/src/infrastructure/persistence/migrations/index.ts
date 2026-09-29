@@ -62,7 +62,7 @@ export * from './1794200000000-CreateVerifiedPhones';
 export * from './1794300000000-MergePostQuotaIntoOne';
 export * from './1794400000000-AddPostSearchIndex';
 export * from './1794500000000-EnableInteractionPointRules';
-export * from './1794500000000-SeedContentViolationPenaltyRule';
+export * from './1794550000000-SeedContentViolationPenaltyRule';
 export * from './1794600000000-DropPostLikeCount';
 export * from './1794700000000-SeedDiscoveryRadiusEntitlement';
 export * from './1794800000000-DropDeadTransactionStatuses';

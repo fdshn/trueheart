@@ -1,3 +1,4 @@
+import { PointRuleUnavailableException } from '@/domain/exceptions';
 import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { RecordOnboardingEvidenceUseCase } from './record-onboarding-evidence.use-case';
 
@@ -96,5 +97,89 @@ describe('RecordOnboardingEvidenceUseCase', () => {
     expect(referrals.handle).toHaveBeenCalledWith({
       refereeId: Command.userId,
     });
+  });
+
+  it('rule điểm bị tắt VẪN thăng hạng và VẪN tính giới thiệu', async () => {
+    // Đây là lỗi chặn đã sửa ngày 29/09. Cộng điểm từng đứng TRƯỚC thăng hạng và
+    // không nuốt ngoại lệ, nên Admin tắt `ONBOARDING_COMPLETED` là không ai lên
+    // được MEMBER — tức không ai đăng được bài. Việc người dùng đã làm là sự thật;
+    // thưởng bao nhiêu là chính sách.
+    const completions = {
+      recordEvidenceAndDetermineCompletion: jest.fn(async () => ({
+        onboardingComplete: true,
+      })),
+    };
+    const points = {
+      handle: jest
+        .fn()
+        .mockRejectedValue(new PointRuleUnavailableException('X')),
+    };
+    const ranks = { handle: jest.fn(async () => true) };
+    const referrals = { handle: jest.fn(async () => undefined) };
+    const useCase = new RecordOnboardingEvidenceUseCase(
+      completions as never,
+      points as never,
+      ranks as never,
+      referrals as never,
+    );
+
+    await expect(useCase.handle(Command)).resolves.toEqual({ promoted: true });
+    expect(ranks.handle).toHaveBeenCalled();
+    expect(referrals.handle).toHaveBeenCalled();
+  });
+
+  it('thăng hạng đi TRƯỚC cộng điểm', async () => {
+    // Kiểm thứ tự, không chỉ kiểm "có gọi cả hai". Đảo lại là một lỗi cộng điểm
+    // bất kỳ — không riêng rule bị tắt — cũng chặn được đường lên MEMBER.
+    const order: string[] = [];
+    const completions = {
+      recordEvidenceAndDetermineCompletion: jest.fn(async () => ({
+        onboardingComplete: true,
+      })),
+    };
+    const points = {
+      handle: jest.fn(async () => {
+        order.push('points');
+        return {};
+      }),
+    };
+    const ranks = {
+      handle: jest.fn(async () => {
+        order.push('rank');
+        return true;
+      }),
+    };
+    const referrals = { handle: jest.fn(async () => undefined) };
+    const useCase = new RecordOnboardingEvidenceUseCase(
+      completions as never,
+      points as never,
+      ranks as never,
+      referrals as never,
+    );
+
+    await useCase.handle(Command);
+
+    expect(order).toEqual(['rank', 'points']);
+  });
+
+  it('lỗi database khi cộng điểm thì VẪN ném — không nuốt bừa', async () => {
+    const completions = {
+      recordEvidenceAndDetermineCompletion: jest.fn(async () => ({
+        onboardingComplete: true,
+      })),
+    };
+    const points = {
+      handle: jest.fn().mockRejectedValue(new Error('ledger sập')),
+    };
+    const ranks = { handle: jest.fn(async () => true) };
+    const referrals = { handle: jest.fn(async () => undefined) };
+    const useCase = new RecordOnboardingEvidenceUseCase(
+      completions as never,
+      points as never,
+      ranks as never,
+      referrals as never,
+    );
+
+    await expect(useCase.handle(Command)).rejects.toThrow('ledger sập');
   });
 });

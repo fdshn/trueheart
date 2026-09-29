@@ -1,3 +1,5 @@
+import { IAppendPointEntryResult } from '@/application/contracts/point';
+import { isPointPolicyError } from '@/application/implementations/point/point-policy-errors';
 import {
   IPointLedgerRepository,
   IReferralQualificationResult,
@@ -56,6 +58,27 @@ export class ReferralRepository implements IReferralRepository {
     };
   }
 
+  public async findPendingQualifications(limit: number): Promise<string[]> {
+    // `rank <> 'VIEWER'` là tín hiệu người được giới thiệu đã hoàn tất
+    // onboarding — cùng tín hiệu mà đường gọi thật dùng, xem
+    // `findOnboardedUsersMissingReward`.
+    const rows = await this.manager.query<{ referee_id: string }[]>(
+      `
+        SELECT invite.referee_id
+        FROM referrals invite
+        INNER JOIN users referee ON referee.global_id = invite.referee_id
+        WHERE invite.qualified_at IS NULL
+          AND referee.rank <> 'VIEWER'
+          AND referee.deleted_at IS NULL
+        ORDER BY invite.created_at ASC
+        LIMIT $1
+      `,
+      [limit],
+    );
+
+    return rows.map((row) => row.referee_id);
+  }
+
   public async qualifyAndAward(params: {
     refereeId: string;
   }): Promise<IReferralQualificationResult> {
@@ -72,15 +95,29 @@ export class ReferralRepository implements IReferralRepository {
       );
       if (!referral) return { qualified: false };
 
-      const award = await this.ledger.appendByRuleWithinTransaction(manager, {
-        userId: referral.referrer_id,
-        ruleCode: 'REFERRAL_QUALIFIED',
-        referenceType: 'REFERRAL',
-        referenceId: params.refereeId,
-        idempotencyKey: `REFERRAL_QUALIFIED:${params.refereeId}`,
-        actor: 'SYSTEM',
-        source: 'REFERRAL',
-      });
+      // Trigger `enforce_referral_qualification_transition` đòi
+      // `reward_entry_id IS NOT NULL`: ở tầng database, "đã đủ điều kiện" ĐỒNG
+      // NGHĨA với "đã trả thưởng". Nên khi rule bị tắt hoặc chạm trần ngày, cách
+      // đúng là HOÃN — để `qualified_at` vẫn NULL và trả `qualified: false` — chứ
+      // không phải ghi một dòng hợp lệ mà không có thưởng, cũng không phải ném
+      // ra ngoài và làm hỏng việc hoàn tất onboarding của người được giới thiệu.
+      //
+      // `point:reconcile` quét lại những lượt đang treo như vậy.
+      let award: IAppendPointEntryResult;
+      try {
+        award = await this.ledger.appendByRuleWithinTransaction(manager, {
+          userId: referral.referrer_id,
+          ruleCode: 'REFERRAL_QUALIFIED',
+          referenceType: 'REFERRAL',
+          referenceId: params.refereeId,
+          idempotencyKey: `REFERRAL_QUALIFIED:${params.refereeId}`,
+          actor: 'SYSTEM',
+          source: 'REFERRAL',
+        });
+      } catch (error) {
+        if (isPointPolicyError(error)) return { qualified: false };
+        throw error;
+      }
 
       // `AND qualified_at IS NULL` cho phép gọi lại mà không thưởng hai lần.
       // Đọc đúng số dòng khớp mới phân biệt được "vừa đủ điều kiện" với "đã

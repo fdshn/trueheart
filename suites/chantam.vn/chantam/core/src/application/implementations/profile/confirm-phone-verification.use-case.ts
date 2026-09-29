@@ -16,6 +16,7 @@ import {
 import { IOtpStore } from '@/domain/ports/security';
 import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { Inject, Injectable } from '@nestjs/common';
+import { appendPointIgnoringPolicy } from '../point/point-policy-errors';
 import { PhoneVerificationPurpose } from './request-phone-verification.use-case';
 
 @Injectable()
@@ -73,7 +74,12 @@ export class ConfirmPhoneVerificationUseCase implements IConfirmPhoneVerificatio
 
     // Khoá chống trùng theo NGƯỜI. Sổ số đã xác minh lo phần còn lại: cùng một
     // SIM không mở được tài khoản thứ hai để mà cộng lần nữa.
-    await this.appendPointEntryUseCase.handle({
+    //
+    // Thưởng trượt KHÔNG được làm hỏng việc xác minh. Tới đây `phoneVerifiedAt`
+    // đã ghi và số đã vào sổ, nên ném ra ngoài là trả lỗi cho một việc đã thành
+    // công — và bấm lại cũng vô ích vì `claim()` trả `ALREADY_OWN` rồi lại ném ở
+    // đúng chỗ này. `reconcile-milestone-rewards` là đường vá cho phần điểm.
+    await appendPointIgnoringPolicy(this.appendPointEntryUseCase, {
       userId: user.globalId,
       ruleCode: 'PHONE_VERIFIED_FIRST_TIME',
       referenceType: 'PHONE_VERIFICATION',

@@ -14,6 +14,7 @@ import {
   IReversePointEntryParams,
   ReversePointEntryOutcome,
 } from '@/domain/ports/repository';
+import { BusinessTimeZone } from '@chantam.vn/chantam.core-lib/consts';
 import { formatPointLogNote } from '@chantam.vn/chantam.core-lib/models';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
@@ -50,6 +51,35 @@ export class PointLedgerRepository implements IPointLedgerRepository {
   public constructor(
     @InjectEntityManager() private readonly manager: EntityManager,
   ) {}
+
+  /**
+   * Ghi lại quyết định của trần ngày.
+   *
+   * `ON CONFLICT DO NOTHING` theo `idempotency_key`: cùng một lượt thử đi qua
+   * đây hai lần — chẳng hạn ghi trong transaction rồi ghi lại sau khi transaction
+   * bị cuốn — chỉ để lại một dòng.
+   */
+  private async recordCapDecision(
+    manager: EntityManager,
+    command: { userId: string; ruleCode: string; idempotencyKey: string },
+    decision: 'APPLIED' | 'REJECTED',
+  ): Promise<void> {
+    await manager.query(
+      `
+        INSERT INTO point_cap_decisions
+          (user_id, rule_code, policy_date, decision, idempotency_key)
+        VALUES ($1, $2, (timezone($4, now()))::date, $5, $3)
+        ON CONFLICT (idempotency_key) DO NOTHING
+      `,
+      [
+        command.userId,
+        command.ruleCode,
+        command.idempotencyKey,
+        BusinessTimeZone,
+        decision,
+      ],
+    );
+  }
 
   public async getSummary(userId: string): Promise<IPointLedgerSummary> {
     const [balance] = await this.manager.query<
@@ -174,6 +204,29 @@ export class PointLedgerRepository implements IPointLedgerRepository {
     return rows.map((row) => row.global_id);
   }
 
+  public async findOnboardedUsersMissingReward(
+    limit: number,
+  ): Promise<string[]> {
+    const rows = await this.manager.query<{ global_id: string }[]>(
+      `
+        SELECT user_account.global_id
+        FROM users user_account
+        WHERE user_account.rank <> 'VIEWER'
+          AND user_account.deleted_at IS NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM point_ledger entry
+            WHERE entry.idempotency_key = 'ONBOARDING_COMPLETED:' || user_account.global_id
+          )
+        ORDER BY user_account.rank_attained_at ASC NULLS FIRST
+        LIMIT $1
+      `,
+      [limit],
+    );
+
+    return rows.map((row) => row.global_id);
+  }
+
   /** Mã rule cho bút toán hoàn. */
   private static readonly ReversalRuleCode = 'REVERSAL';
 
@@ -210,6 +263,16 @@ export class PointLedgerRepository implements IPointLedgerRepository {
       // Hoàn một bút toán hoàn là mở đường cho vòng lặp vô nghĩa.
       if (original.rule_code === PointLedgerRepository.ReversalRuleCode)
         return { status: 'NOT_REVERSIBLE' as const };
+
+      // Cùng một advisory lock mà `appendByRule` và `appendAdjustment` lấy, đặt
+      // ngay khi đã biết bút toán gốc thuộc về ai. `FOR UPDATE` trên
+      // `user_point_balances` phía dưới gần như luôn đủ — đảo bút toán hàm ý đã
+      // có bút toán, nên dòng số dư chắc chắn tồn tại — nhưng ba đường ghi cùng
+      // một cột thì nên khoá cùng một chỗ, không để một đường dựa vào suy luận
+      // riêng của nó.
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        original.user_id,
+      ]);
 
       const idempotencyKey = `REVERSAL:${params.entryId}`;
       const [existing] = await manager.query<{ id: string }[]>(
@@ -296,9 +359,23 @@ export class PointLedgerRepository implements IPointLedgerRepository {
   public async appendByRule(
     command: IAppendPointEntryCommand,
   ): Promise<IAppendPointEntryResult> {
-    return this.manager.transaction((manager) =>
-      this.appendByRuleWithinTransaction(manager, command),
-    );
+    try {
+      return await this.manager.transaction((manager) =>
+        this.appendByRuleWithinTransaction(manager, command),
+      );
+    } catch (error) {
+      // Dòng ghi nhận "đã chặn vì chạm trần" nằm TRONG transaction, nên chính
+      // ngoại lệ này cuốn nó đi — bảng `point_cap_decisions` vì vậy chưa từng
+      // giữ được một dòng REJECTED nào cho lối gọi này. Ghi lại ngoài
+      // transaction đã rollback.
+      //
+      // Đây là bằng chứng cho câu hỏi "vì sao tôi không được điểm", và là đầu
+      // vào để đối soát những lượt thưởng bị hoãn.
+      if (error instanceof PointDailyCapReachedException)
+        await this.recordCapDecision(this.manager, command, 'REJECTED');
+
+      throw error;
+    }
   }
 
   public async appendAdjustment(command: {
@@ -469,27 +546,23 @@ export class PointLedgerRepository implements IPointLedgerRepository {
     }
 
     if (rule.daily_cap !== null) {
+      // Ngày cắt theo MÚI GIỜ NGHIỆP VỤ, không theo UTC. Cắt theo UTC thì trần
+      // ngày reset lúc 7h sáng giờ Việt Nam, nên buổi sáng sớm vẫn đang tiêu
+      // quota của hôm qua. Giữ dạng khoảng chặn hai đầu để index trên
+      // `created_at` còn dùng được.
       const [{ count }] = await manager.query<{ count: string }[]>(
         `
           SELECT COUNT(*)::text AS count
           FROM point_ledger
           WHERE user_id = $1
             AND rule_code = $2
-            AND created_at >= date_trunc('day', timezone('UTC', now())) AT TIME ZONE 'UTC'
-            AND created_at < (date_trunc('day', timezone('UTC', now())) + INTERVAL '1 day') AT TIME ZONE 'UTC'
+            AND created_at >= date_trunc('day', timezone($3, now())) AT TIME ZONE $3
+            AND created_at < (date_trunc('day', timezone($3, now())) + INTERVAL '1 day') AT TIME ZONE $3
         `,
-        [command.userId, command.ruleCode],
+        [command.userId, command.ruleCode, BusinessTimeZone],
       );
       if (Number(count) >= rule.daily_cap) {
-        await manager.query(
-          `
-            INSERT INTO point_cap_decisions
-              (user_id, rule_code, policy_date, decision, idempotency_key)
-            VALUES ($1, $2, (timezone('UTC', now()))::date, 'REJECTED', $3)
-            ON CONFLICT (idempotency_key) DO NOTHING
-          `,
-          [command.userId, command.ruleCode, command.idempotencyKey],
-        );
+        await this.recordCapDecision(manager, command, 'REJECTED');
         throw new PointDailyCapReachedException(
           command.ruleCode,
           rule.daily_cap,
@@ -568,17 +641,8 @@ export class PointLedgerRepository implements IPointLedgerRepository {
       [command.userId, nextBalance, nextRawBalance, nextLifetime, id],
     );
 
-    if (rule.daily_cap !== null) {
-      await manager.query(
-        `
-          INSERT INTO point_cap_decisions
-            (user_id, rule_code, policy_date, decision, idempotency_key)
-          VALUES ($1, $2, (timezone('UTC', now()))::date, 'APPLIED', $3)
-          ON CONFLICT (idempotency_key) DO NOTHING
-        `,
-        [command.userId, command.ruleCode, command.idempotencyKey],
-      );
-    }
+    if (rule.daily_cap !== null)
+      await this.recordCapDecision(manager, command, 'APPLIED');
 
     return {
       // `delta`, không `rule.points`: khi có hệ số nhân, hai giá trị này khác

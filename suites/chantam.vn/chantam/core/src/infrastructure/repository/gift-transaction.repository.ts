@@ -1,10 +1,9 @@
+import { isPointPolicyError } from '@/application/implementations/point/point-policy-errors';
 import {
   GiftTransactionInvalidStateException,
   GiftTransactionNotFoundException,
   GiftTransactionNotParticipantException,
   GiftTransactionOutOfStockException,
-  PointDailyCapReachedException,
-  PointRuleUnavailableException,
 } from '@/domain/exceptions';
 import {
   GiftTransactionStatuses,
@@ -123,10 +122,7 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
           source: 'GIFT_TRANSACTION',
         });
       } catch (error) {
-        const isPolicy =
-          error instanceof PointDailyCapReachedException ||
-          error instanceof PointRuleUnavailableException;
-        if (!isPolicy) throw error;
+        if (!isPointPolicyError(error)) throw error;
       }
     }
   }
@@ -170,9 +166,23 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
    * hết hàng, không còn lượt nào   → COMPLETED
    * ```
    *
-   * Chỉ đụng ba trạng thái do lượt trao điều khiển. Bài `PENDING_REVIEW`, `EXPIRED`,
-   * `ARCHIVED`, `CANCELLED` không được một lượt huỷ kéo ngược về `PUBLISHED` — làm vậy
-   * là hồi sinh một bài đã hết hạn hoặc đã chuyển kho từ thiện.
+   * Chỉ đụng những trạng thái do lượt trao điều khiển. Bài `PENDING_REVIEW`,
+   * `EXPIRED`, `ARCHIVED`, `CANCELLED` không được một lượt huỷ kéo ngược về
+   * `PUBLISHED` — làm vậy là hồi sinh một bài đã hết hạn hoặc đã chuyển kho từ
+   * thiện.
+   *
+   * **`DELIVERING` nằm trong danh sách quản (thêm 29/09).** `acceptRequest` đặt
+   * bài sang `DELIVERING` khi duyệt hết kho, còn câu này lại chỉ nhận
+   * `PUBLISHED`/`RESERVED`/`COMPLETED` — nên một bài đã giao hết suất KHÔNG BAO
+   * GIỜ được suy lại trạng thái nữa. Người nhận xác nhận xong, bài vẫn đứng ở
+   * `DELIVERING`, và `DELIVERING` có trong `QuotaStatuses`: tác giả mất vĩnh viễn
+   * một suất đăng bài. Đúng cái lỗi mà hàm này được viết ra để chặn, quay lại qua
+   * một cửa khác.
+   *
+   * `RESERVED` và `DELIVERING` hiện là HAI TÊN CHO MỘT trạng thái — mọi chỗ đọc
+   * đều phải kiểm cả hai (`post-edit-policy.ts`, `lock-editable-post.ts`,
+   * `delete-post`, `update-post`). Câu này quy về `RESERVED`. Chọn một tên rồi bỏ
+   * tên kia là việc cần Bên A chốt, ghi ở `docs/diagram/21-open-issues.md`.
    */
   private async syncPostStatus(
     manager: EntityManager,
@@ -195,7 +205,7 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
             updated_at = now()
         WHERE p.global_id = $1
           AND p.deleted_at IS NULL
-          AND p.status::text IN ('PUBLISHED', 'RESERVED', 'COMPLETED')
+          AND p.status::text IN ('PUBLISHED', 'RESERVED', 'DELIVERING', 'COMPLETED')
       `,
       [postId, StockHoldingGiftTransactionStatuses],
     );

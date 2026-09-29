@@ -33,6 +33,7 @@
     "test:feed-media": "ts-node -r tsconfig-paths/register test/feed-media.check.ts",
     "test:feed-shares": "ts-node -r tsconfig-paths/register test/feed-shares.check.ts",
     "test:reviews": "ts-node -r tsconfig-paths/register test/reviews.check.ts",
+    "typecheck:checks": "tsc --noEmit -p test/tsconfig.json",
     "test:point-economy": "ts-node -r tsconfig-paths/register test/point-economy.check.ts",
     "test:gift-rewards": "ts-node -r tsconfig-paths/register test/gift-rewards.check.ts",
     "test:rank-balance": "ts-node -r tsconfig-paths/register test/rank-balance.check.ts",

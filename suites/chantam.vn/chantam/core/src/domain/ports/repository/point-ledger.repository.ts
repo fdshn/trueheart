@@ -128,6 +128,16 @@ export interface IPointLedgerRepository {
    * để được thưởng. Đây là đầu vào cho job đối soát chạy từ scheduler ngoài.
    */
   findPhoneVerifiedUsersMissingReward(limit: number): Promise<string[]>;
+
+  /**
+   * Người đã hoàn tất onboarding mà thiếu bút toán `ONBOARDING_COMPLETED`.
+   *
+   * Tín hiệu là `rank <> 'VIEWER'`: đường duy nhất ra khỏi VIEWER là hoàn tất
+   * onboarding, nên hạng khác VIEWER đồng nghĩa với đã hoàn tất. Đọc hạng chứ
+   * không đọc bảng nhiệm vụ vì hạng là thứ đã commit — còn bảng nhiệm vụ có thể
+   * đủ điều kiện mà lần chạy kia chưa kịp ghi gì.
+   */
+  findOnboardedUsersMissingReward(limit: number): Promise<string[]>;
 }
 
 export const IPointLedgerRepository = Symbol('IPointLedgerRepository');

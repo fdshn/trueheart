@@ -19,6 +19,7 @@ import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
+import { GiftRequestRepository } from '../src/infrastructure/repository/gift-request.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { QuotaStatuses } from '../src/infrastructure/repository/post.repository';
@@ -83,6 +84,15 @@ async function main(): Promise<void> {
     return row.status;
   }
 
+  /** Số món còn lại trong kho của bài — xin nhận không được trừ vào đây. */
+  async function remainingQuantity(postId = PostId): Promise<number> {
+    const [row] = await dataSource.query<{ remaining_quantity: string }[]>(
+      `SELECT remaining_quantity FROM posts WHERE global_id = $1`,
+      [postId],
+    );
+    return Number(row.remaining_quantity);
+  }
+
   /** Số bài đang ăn quota đăng bài của tác giả — cùng định nghĩa với chỗ chặn. */
   async function quotaUsed(): Promise<number> {
     const [row] = await dataSource.query<{ count: string }[]>(
@@ -120,6 +130,20 @@ async function main(): Promise<void> {
       [PostId, GiverId, CategoryId],
     );
 
+    // Luồng XIN NHẬN là đường sống duy nhất tạo ra một lượt trao kể từ 28/09:
+    // `request()`/`accept()` trên repository lượt trao đã bị gỡ vì
+    // `POST /transactions` là cửa sau bỏ qua mọi hàng rào mà luồng xin nhận áp.
+    // Phép kiểm này vì thế lái bằng `acceptRequest`, không dựng trạng thái bằng
+    // SQL — nó đang đo chính phản ứng của trạng thái BÀI trước từng bước đó.
+    const requests = new GiftRequestRepository(
+      entities.GiftRequestEntity as never,
+      dataSource.manager,
+      {
+        openRoomWithinTransaction: async () => undefined,
+        lockRoomWithinTransaction: async () => undefined,
+      } as never,
+    );
+
     const transactions = new GiftTransactionRepository(
       dataSource.manager,
       new ChatRepository(
@@ -134,50 +158,91 @@ async function main(): Promise<void> {
     check('mới đăng thì PUBLISHED', (await postStatus()) === 'PUBLISHED');
     check('và ăn một suất quota', (await quotaUsed()) === 1);
 
-    await transactions.request({
-      globalId: TransactionOneId,
-      postId: PostId,
-      receiverId: ReceiverOneId,
-      quantity: 1,
-    });
+    /**
+     * Ghi một lượt xin đang chờ duyệt, trả về id của nó.
+     *
+     * Mỗi lượt một NGƯỜI XIN MỚI: `UQ_gift_requests_post_requester` là unique một
+     * phần trên `(post_id, requester_id) WHERE deleted_at IS NULL`, tức một người
+     * chỉ xin một bài đúng một lần. Dùng lại người cũ là phép kiểm tự đâm vào
+     * ràng buộc nghiệp vụ chứ không đo được gì.
+     */
+    let requesterSequence = 0;
+    async function seedRequest(
+      postId: string = PostId,
+    ): Promise<{ requestId: string; requesterId: string }> {
+      requesterSequence += 1;
+      const requesterId = `99999999-9999-4999-8999-9999999d${String(
+        requesterSequence,
+      ).padStart(4, '0')}`;
+      await dataSource.query(
+        `INSERT INTO users (global_id, username, password_hash, rank, status)
+         VALUES ($1, $2, 'x', 'MEMBER', 'ACTIVE')
+         ON CONFLICT DO NOTHING`,
+        [requesterId, `nguoixin_${requesterSequence}`],
+      );
+
+      const [{ global_id }] = await dataSource.query<{ global_id: string }[]>(
+        `INSERT INTO gift_requests (global_id, post_id, requester_id, message, status)
+         VALUES (gen_random_uuid(), $1, $2, 'Xin nhận cho bài kiểm tra', 'PENDING')
+         RETURNING global_id`,
+        [postId, requesterId],
+      );
+      return { requestId: global_id, requesterId };
+    }
+
+    const requestOne = await seedRequest();
     check(
       'có người xin nhưng chưa duyệt thì VẪN PUBLISHED — xin chưa trừ kho',
       (await postStatus()) === 'PUBLISHED',
       await postStatus(),
     );
+    check(
+      'và kho chưa bị trừ',
+      (await remainingQuantity()) === 2,
+      String(await remainingQuantity()),
+    );
 
-    await transactions.accept(TransactionOneId, GiverId);
+    await requests.acceptRequest({
+      requestId: requestOne.requestId,
+      postId: PostId,
+      giverId: GiverId,
+      transactionId: TransactionOneId,
+    });
     check(
       'duyệt một món, còn một món thì vẫn PUBLISHED',
       (await postStatus()) === 'PUBLISHED',
       await postStatus(),
     );
 
-    await transactions.request({
-      globalId: TransactionTwoId,
+    const requestTwo = await seedRequest();
+    await requests.acceptRequest({
+      requestId: requestTwo.requestId,
       postId: PostId,
-      receiverId: ReceiverTwoId,
-      quantity: 1,
+      giverId: GiverId,
+      transactionId: TransactionTwoId,
     });
-    await transactions.accept(TransactionTwoId, GiverId);
+    // `acceptRequest` ghi `DELIVERING`, còn `syncPostStatus` quy về `RESERVED`.
+    // Hai tên cho MỘT trạng thái "kho đã cạn, lượt trao đang chạy", và mọi chỗ
+    // đọc đều phải kiểm cả hai. Phép kiểm này đo Ý NGHĨA, không đo tên; việc chọn
+    // một tên rồi bỏ tên kia đã ghi ở `21-open-issues.md`.
     check(
-      'duyệt nốt món cuối thì bài sang RESERVED',
-      (await postStatus()) === 'RESERVED',
+      'duyệt nốt món cuối thì bài bị khoá kho (RESERVED/DELIVERING)',
+      ['RESERVED', 'DELIVERING'].includes(await postStatus()),
       await postStatus(),
     );
     check(
-      'RESERVED vẫn ăn quota — tác giả còn một nghĩa vụ chưa xong',
+      'bài bị khoá kho vẫn ăn quota — tác giả còn một nghĩa vụ chưa xong',
       (await quotaUsed()) === 1,
     );
 
-    await transactions.confirmReceipt(TransactionOneId, ReceiverOneId);
+    await transactions.confirmReceipt(TransactionOneId, requestOne.requesterId);
     check(
-      'một người đã nhận, người kia chưa thì bài vẫn RESERVED',
-      (await postStatus()) === 'RESERVED',
+      'một người đã nhận, người kia chưa thì bài vẫn bị khoá kho',
+      ['RESERVED', 'DELIVERING'].includes(await postStatus()),
       await postStatus(),
     );
 
-    await transactions.confirmReceipt(TransactionTwoId, ReceiverTwoId);
+    await transactions.confirmReceipt(TransactionTwoId, requestTwo.requesterId);
     check(
       'người cuối nhận xong thì bài COMPLETED',
       (await postStatus()) === 'COMPLETED',
@@ -202,21 +267,22 @@ async function main(): Promise<void> {
       [PostId],
     );
     const cancelId = '55555555-5555-4555-8555-55555555c004';
-    await transactions.request({
-      globalId: cancelId,
+    const requestCancel = await seedRequest();
+    await requests.acceptRequest({
+      requestId: requestCancel.requestId,
       postId: PostId,
-      receiverId: ReceiverOneId,
-      quantity: 1,
+      giverId: GiverId,
+      transactionId: cancelId,
     });
-    await transactions.accept(cancelId, GiverId);
     check(
-      'duyệt xong, hết hàng → RESERVED',
-      (await postStatus()) === 'RESERVED',
+      'duyệt xong, hết hàng → bài bị khoá kho',
+      ['RESERVED', 'DELIVERING'].includes(await postStatus()),
+      await postStatus(),
     );
 
     await transactions.close({
       transactionId: cancelId,
-      actorUserId: ReceiverOneId,
+      actorUserId: requestCancel.requesterId,
       status: 'CANCELLED',
       reason: 'Không nhận được nữa',
     });
@@ -251,13 +317,12 @@ async function main(): Promise<void> {
                'Quận 1', 'PUBLISHED', 1, 1, '{}'::jsonb, 0)`,
       [ExpiredPostId, GiverId, CategoryId],
     );
-    await transactions.request({
-      globalId: ExpiredTransactionId,
+    await requests.acceptRequest({
+      requestId: (await seedRequest(ExpiredPostId)).requestId,
       postId: ExpiredPostId,
-      receiverId: ReceiverTwoId,
-      quantity: 1,
+      giverId: GiverId,
+      transactionId: ExpiredTransactionId,
     });
-    await transactions.accept(ExpiredTransactionId, GiverId);
 
     // Giả lập bài bị chuyển sang một trạng thái ngoài vòng đời lượt trao.
     await dataSource.query(
@@ -279,26 +344,32 @@ async function main(): Promise<void> {
     // ── Yêu cầu bỏ quên không được giữ bài mãi ──────────────────────────────
     console.log('\nYêu cầu chưa duyệt bị bỏ quên:\n');
 
-    const strayId = '55555555-5555-4555-8555-55555555c005';
     const lastId = '55555555-5555-4555-8555-55555555c006';
-    await transactions.request({
-      globalId: strayId,
+    // Lượt xin bỏ quên nay là một dòng `gift_requests` đang PENDING. Trạng thái
+    // `gift_transactions.REQUESTED` đã bị gỡ ngày 28/09: một lượt trao chỉ tồn
+    // tại sau khi đã duyệt, còn "đang xin" thuộc về bảng lượt xin.
+    const strayRequest = await seedRequest();
+    const requestLast = await seedRequest();
+    await requests.acceptRequest({
+      requestId: requestLast.requestId,
       postId: PostId,
-      receiverId: ReceiverTwoId,
-      quantity: 1,
+      giverId: GiverId,
+      transactionId: lastId,
     });
-    await transactions.request({
-      globalId: lastId,
-      postId: PostId,
-      receiverId: ReceiverOneId,
-      quantity: 1,
-    });
-    await transactions.accept(lastId, GiverId);
-    await transactions.confirmReceipt(lastId, ReceiverOneId);
+    await transactions.confirmReceipt(lastId, requestLast.requesterId);
     check(
-      'một REQUESTED bỏ quên KHÔNG giữ bài ở RESERVED mãi',
+      'một lượt XIN bỏ quên KHÔNG giữ bài ở RESERVED mãi',
       (await postStatus()) === 'COMPLETED',
       await postStatus(),
+    );
+    const [stray] = await dataSource.query<{ status: string }[]>(
+      `SELECT status FROM gift_requests WHERE global_id = $1`,
+      [strayRequest.requestId],
+    );
+    check(
+      'và lượt xin bỏ quên đó đã được đóng lại, không treo mãi',
+      stray?.status !== 'PENDING',
+      `status=${stray?.status}`,
     );
     check(
       'quota vẫn được trả dù còn yêu cầu treo',

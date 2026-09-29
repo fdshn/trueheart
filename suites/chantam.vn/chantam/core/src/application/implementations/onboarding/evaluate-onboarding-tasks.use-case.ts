@@ -19,6 +19,7 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import { isProfileComplete } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
+import { appendPointIgnoringPolicy } from '../point/point-policy-errors';
 
 @Injectable()
 export class EvaluateOnboardingTasksUseCase implements IEvaluateOnboardingTasksUseCase {
@@ -92,7 +93,14 @@ export class EvaluateOnboardingTasksUseCase implements IEvaluateOnboardingTasksU
       requiredTasks.length > 0 && completedRequired === requiredTasks.length;
 
     if (isAllCompleted) {
-      await this.appendPointEntryUseCase.handle({
+      // Thăng hạng trước, thưởng sau — xem `record-onboarding-evidence`.
+      const promoted = await this.promoteOnboardingMemberUseCase.handle({
+        userId: user.globalId,
+      });
+      if (promoted) promotedToMember = true;
+      await this.qualifyReferralUseCase.handle({ refereeId: user.globalId });
+
+      await appendPointIgnoringPolicy(this.appendPointEntryUseCase, {
         userId: user.globalId,
         ruleCode: 'ONBOARDING_COMPLETED',
         referenceType: 'ONBOARDING',
@@ -101,11 +109,6 @@ export class EvaluateOnboardingTasksUseCase implements IEvaluateOnboardingTasksU
         actor: 'SYSTEM',
         source: 'ONBOARDING',
       });
-      const promoted = await this.promoteOnboardingMemberUseCase.handle({
-        userId: user.globalId,
-      });
-      if (promoted) promotedToMember = true;
-      await this.qualifyReferralUseCase.handle({ refereeId: user.globalId });
     }
 
     const updatedUser = await this.users.findOneBy({

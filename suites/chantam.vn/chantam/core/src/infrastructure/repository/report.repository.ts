@@ -1,4 +1,4 @@
-import { PointRuleUnavailableException } from '@/domain/exceptions';
+import { isPointPolicyError } from '@/application/implementations/point/point-policy-errors';
 import {
   IFindAdminReportsParams,
   IFindAdminReportsResult,
@@ -314,7 +314,10 @@ export class ReportRepository
     } catch (error) {
       // Tắt rule là quyết định chính sách "không trừ điểm", không phải lý do
       // giữ nội dung vi phạm trên bảng tin. Lỗi database thật vẫn phải rollback.
-      if (!(error instanceof PointRuleUnavailableException)) throw error;
+      // Nuốt cả hai ngoại lệ chính sách, không chỉ "rule đã tắt". Rule này hiện
+      // không có trần ngày, nhưng Admin đặt trần cho nó là một thao tác hợp lệ,
+      // và khi đó việc xử lý báo xấu không được đổ theo.
+      if (!isPointPolicyError(error)) throw error;
     }
 
     await manager.query(

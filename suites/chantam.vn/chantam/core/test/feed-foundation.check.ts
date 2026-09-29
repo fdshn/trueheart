@@ -328,7 +328,10 @@ async function main(): Promise<void> {
     );
     check(
       'và GIỮ NGUYÊN các quyền cũ — quên chép là vô tình cấm cả nền tảng đăng bài',
-      ['POST_OFFER', 'POST_WANTED', 'POST_SOS', 'CREATE_GROUP'].every((code) =>
+      // `POST_OFFER` và `POST_WANTED` đã gộp thành MỘT quyền `POST_OPEN` ở
+      // migration `1794300000000-MergePostQuotaIntoOne`: hai hạn mức riêng cho
+      // "cho" và "cần" là hai con số nói về cùng một nghĩa vụ của tác giả.
+      ['POST_OPEN', 'POST_SOS', 'CREATE_GROUP'].every((code) =>
         codes.includes(code),
       ),
       codes.join(', '),
@@ -377,16 +380,26 @@ async function main(): Promise<void> {
     // ── 7. Rule điểm F41 ────────────────────────────────────────────────────
     console.log('\nRule điểm F41:\n');
 
+    // `DISTINCT ON (code) … ORDER BY version DESC`: `point_rules` là bảng
+    // copy-on-write, nên đếm số DÒNG là đếm cả những phiên bản đã bị thay. Bật
+    // hai rule này ở migration `1794500000000` ghi thêm hai dòng version 2, và
+    // phép kiểm cũ đếm ra 4 rồi báo sai.
     const rules = await dataSource.query<
       { code: string; is_enabled: boolean; affects_lifetime: boolean }[]
     >(
-      `SELECT code, is_enabled, affects_lifetime FROM point_rules
-       WHERE code IN ('POST_COMMENTED', 'POST_REACTED') ORDER BY code`,
+      `SELECT DISTINCT ON (code) code, is_enabled, affects_lifetime
+       FROM point_rules
+       WHERE code IN ('POST_COMMENTED', 'POST_REACTED')
+       ORDER BY code, version DESC`,
     );
     check('hai rule đã seed', rules.length === 2, String(rules.length));
     check(
-      'TẮT sẵn — F41 chốt chỉ phát điểm khi Admin bật',
-      rules.every((rule) => rule.is_enabled === false),
+      // Seed ban đầu TẮT, và migration `1794500000000-EnableInteractionPointRules`
+      // bật lên theo quyết định ngày 26/09. Ghi thành phiên bản mới chứ không sửa
+      // đè, nên lịch sử "rule từng tắt" vẫn tra được.
+      'ĐÃ BẬT ở phiên bản mới nhất — quyết định 26/09',
+      rules.every((rule) => rule.is_enabled === true),
+      rules.map((rule) => `${rule.code}=${String(rule.is_enabled)}`).join(', '),
     );
     check(
       'KHÔNG đẩy lifetime — bình luận không được mua hạng',

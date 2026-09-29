@@ -10,6 +10,11 @@
  *    lỗi im lặng, test mock chỉ kiểm tham số truyền vào chứ không kiểm SQL.
  * 4. Bậc có chỉ tiêu duy trì thì phải có mức phạt, nếu không cả cơ chế duy trì
  *    chỉ là trang trí.
+ * 5. Dòng `point_cap_decisions = REJECTED` có SỐNG SÓT qua ngoại lệ đã sinh ra
+ *    nó hay không — mock `query` không bao giờ thấy được một lần rollback.
+ * 6. Trần ngày cắt theo `Asia/Ho_Chi_Minh`: chỉ Postgres tính được ranh giới đó.
+ * 7. Truy vấn tìm phần thưởng còn treo nhận đúng những lượt cần nhận, và KHÔNG
+ *    nhận những lượt đã trả.
  */
 import {
   normalizePointRedemptionConfig,
@@ -21,6 +26,9 @@ import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
+import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
+import { ReferralRepository } from '../src/infrastructure/repository/referral.repository';
+import { TransactionReviewRepository } from '../src/infrastructure/repository/transaction-review.repository';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -354,6 +362,290 @@ async function main(): Promise<void> {
       'audit giữ lại LÝ DO đổi, không chỉ giữ giá trị',
       audit?.reason === reason,
       `reason=${audit?.reason}`,
+    );
+    console.log('\n7. Dòng ghi nhận "đã chặn vì trần ngày" sống sót qua rollback');
+    // Đây là lỗi mà mock không thể thấy: dòng REJECTED nằm TRONG transaction, nên
+    // chính ngoại lệ chặn nó cũng cuốn nó đi. Trước 29/09 bảng này chưa từng giữ
+    // được một dòng REJECTED nào cho lối gọi qua `appendByRule`.
+    const ledger = new PointLedgerRepository(dataSource.manager);
+    const CappedUser = '99999999-9999-4999-8999-9999999e0002';
+    await dataSource.query(
+      `INSERT INTO users (global_id, username, email, password_hash, rank, status)
+       VALUES ($1, 'kiem-tra-cap', 'kiem-tra-cap@chantam.test', 'x', 'MEMBER', 'ACTIVE')
+       ON CONFLICT DO NOTHING`,
+      [CappedUser],
+    );
+    // Một rule trần = 1 để chạm ngay ở lượt thứ hai.
+    await dataSource.query(
+      `INSERT INTO point_rules (code, points, is_enabled, affects_lifetime, daily_cap, version)
+       VALUES ('KIEM_TRA_TRAN', 5, true, false, 1, 1)`,
+    );
+
+    const first = await ledger.appendByRule({
+      userId: CappedUser,
+      ruleCode: 'KIEM_TRA_TRAN',
+      referenceType: 'KIEM_TRA',
+      referenceId: 'lan-1',
+      idempotencyKey: 'KIEM_TRA_TRAN:lan-1',
+      actor: 'SYSTEM',
+      source: 'KIEM_TRA',
+    });
+    check('lượt đầu cộng được', first.applied && first.delta === 5);
+
+    let capped = false;
+    try {
+      await ledger.appendByRule({
+        userId: CappedUser,
+        ruleCode: 'KIEM_TRA_TRAN',
+        referenceType: 'KIEM_TRA',
+        referenceId: 'lan-2',
+        idempotencyKey: 'KIEM_TRA_TRAN:lan-2',
+        actor: 'SYSTEM',
+        source: 'KIEM_TRA',
+      });
+    } catch {
+      capped = true;
+    }
+    check('lượt thứ hai bị trần ngày chặn', capped);
+
+    const decisions = await dataSource.query<
+      { decision: string; idempotency_key: string; policy_date: string }[]
+    >(
+      // `::text` ngay trong SQL: driver trả cột `date` thành một Date của JS, và
+      // so sánh nó với chuỗi ngày sẽ luôn lệch vì bị định dạng lại theo múi giờ
+      // của tiến trình Node — đúng cái nhầm mà phép kiểm này đang đi tìm.
+      `SELECT decision, idempotency_key, policy_date::text AS policy_date
+       FROM point_cap_decisions
+       WHERE user_id = $1 ORDER BY id`,
+      [CappedUser],
+    );
+    check(
+      'có ĐÚNG hai dòng: một APPLIED, một REJECTED',
+      decisions.length === 2 &&
+        decisions[0].decision === 'APPLIED' &&
+        decisions[1].decision === 'REJECTED',
+      `nhận ${JSON.stringify(decisions.map((row) => row.decision))}`,
+    );
+    check(
+      'dòng REJECTED giữ đúng khoá của lượt bị chặn',
+      decisions[1]?.idempotency_key === 'KIEM_TRA_TRAN:lan-2',
+      `nhận ${decisions[1]?.idempotency_key}`,
+    );
+
+    // Trần ngày phải KHÔNG bị bút toán của "hôm qua theo giờ Việt Nam" tính vào.
+    const [{ vn_date }] = await dataSource.query<{ vn_date: string }[]>(
+      `SELECT (timezone('Asia/Ho_Chi_Minh', now()))::date::text AS vn_date`,
+    );
+    check(
+      'policy_date ghi theo ngày giờ Việt Nam',
+      decisions[1]?.policy_date === vn_date,
+      `policy_date=${decisions[1]?.policy_date} vs VN ${vn_date}`,
+    );
+
+    // Phép kiểm phân biệt được UTC với giờ Việt Nam.
+    //
+    // Mốc dùng là **nửa đêm giờ VN của hôm nay + 1 phút**. Instant đó luôn nằm
+    // trong ngày VN hôm nay, và luôn nằm trong ngày UTC HÔM QUA — vì nửa đêm giờ
+    // VN hôm nay là 17:00 UTC hôm qua. Nên:
+    //
+    // - Cắt theo giờ VN: bút toán này ĐƯỢC đếm → lượt sau bị chặn.
+    // - Cắt theo UTC: KHÔNG được đếm → lượt sau đi qua.
+    //
+    // Ghi bằng INSERT chứ không UPDATE: trigger append-only chặn mọi UPDATE, và
+    // đó chính là thứ nó phải chặn.
+    const SecondUser = '99999999-9999-4999-8999-9999999e0006';
+    await dataSource.query(
+      `INSERT INTO users (global_id, username, email, password_hash, rank, status)
+       VALUES ($1, 'kiem-tra-mui-gio', 'kiem-tra-mui-gio@chantam.test', 'x', 'MEMBER', 'ACTIVE')`,
+      [SecondUser],
+    );
+    await dataSource.query(
+      `INSERT INTO point_ledger
+         (user_id, rule_code, rule_version, delta, balance_after, raw_balance_after,
+          lifetime_after, reference_type, reference_id, idempotency_key, actor, source,
+          created_at)
+       VALUES ($1, 'KIEM_TRA_TRAN', 1, 5, 5, 5, 0, 'KIEM_TRA', 'dau-ngay-vn',
+               'KIEM_TRA_TRAN:dau-ngay-vn', 'SYSTEM', 'KIEM_TRA',
+               date_trunc('day', timezone('Asia/Ho_Chi_Minh', now()))
+                 AT TIME ZONE 'Asia/Ho_Chi_Minh' + INTERVAL '1 minute')`,
+      [SecondUser],
+    );
+
+    let blockedByVietnamDay = false;
+    try {
+      await ledger.appendByRule({
+        userId: SecondUser,
+        ruleCode: 'KIEM_TRA_TRAN',
+        referenceType: 'KIEM_TRA',
+        referenceId: 'sau-dau-ngay',
+        idempotencyKey: 'KIEM_TRA_TRAN:sau-dau-ngay',
+        actor: 'SYSTEM',
+        source: 'KIEM_TRA',
+      });
+    } catch {
+      blockedByVietnamDay = true;
+    }
+    check(
+      'trần ngày ĐẾM bút toán đầu ngày giờ VN — tức cắt theo VN, không theo UTC',
+      blockedByVietnamDay,
+      blockedByVietnamDay ? '' : 'lượt sau vẫn đi qua → đang cắt theo UTC',
+    );
+
+    console.log('\n8. Truy vấn tìm phần thưởng còn treo');
+    // `repository` là AdminConfigRepository đã dựng ở nhóm 6.
+    const reviews = new TransactionReviewRepository(
+      dataSource.manager,
+      repository,
+    );
+    const Giver = '99999999-9999-4999-8999-9999999e0003';
+    const Receiver = '99999999-9999-4999-8999-9999999e0004';
+    const PostId = '99999999-9999-4999-8999-9999999e0010';
+    const DealRated = '99999999-9999-4999-8999-9999999e0020';
+    const DealPaid = '99999999-9999-4999-8999-9999999e0021';
+
+    for (const [id, name, rank] of [
+      [Giver, 'kiem-tra-tang', 'MEMBER'],
+      [Receiver, 'kiem-tra-nhan', 'MEMBER'],
+    ] as const)
+      await dataSource.query(
+        `INSERT INTO users (global_id, username, email, password_hash, rank, status)
+         VALUES ($1, $2::text, $2::text || '@chantam.test', 'x', $3, 'ACTIVE')
+         ON CONFLICT DO NOTHING`,
+        [id, name, rank],
+      );
+
+    const CategoryId = '99999999-9999-4999-8999-9999999e0011';
+    await dataSource.query(
+      `INSERT INTO categories (global_id, name, slug, is_active)
+       VALUES ($1, 'Kiểm điểm', 'kiem-diem', true)`,
+      [CategoryId],
+    );
+    await dataSource.query(
+      `INSERT INTO posts
+         (global_id, post_type, author_id, category_id, title, description,
+          location, area_label, status, total_quantity, remaining_quantity,
+          details, renewed_count)
+       VALUES ($1, 'OFFER', $2, $3, 'Món kiểm tra',
+               'Mô tả đủ dài cho bài kiểm tra vòng đời điểm',
+               ST_SetSRID(ST_MakePoint(106.698, 10.7724), 4326)::geography,
+               'Quận 1', 'ARCHIVED', 1, 0, '{}'::jsonb, 0)`,
+      [PostId, Giver, CategoryId],
+    );
+
+    for (const deal of [DealRated, DealPaid])
+      await dataSource.query(
+        `INSERT INTO gift_transactions
+           (global_id, post_id, giver_id, receiver_id, quantity, status,
+            accepted_at, completed_at)
+         VALUES ($1, $2, $3, $4, 1, 'COMPLETED', now(), now())`,
+        [deal, PostId, Giver, Receiver],
+      );
+
+    // Lượt 1: người nhận ĐÃ chấm 40%, nhưng chưa có bút toán — đúng dạng bị trần
+    // ngày chặn. Trước 29/09 dạng này rơi khỏi mọi danh sách vĩnh viễn.
+    await dataSource.query(
+      `INSERT INTO transaction_reviews
+         (global_id, transaction_id, reviewer_id, reviewee_id, reviewer_role,
+          rating, accuracy_percent)
+       VALUES (gen_random_uuid(), $1, $2, $3, 'RECEIVER', 4, 40)`,
+      [DealRated, Receiver, Giver],
+    );
+    // Lượt 2: đã trả thưởng người tặng rồi — không được xuất hiện lại.
+    await dataSource.query(
+      `INSERT INTO point_ledger
+         (user_id, rule_code, rule_version, delta, balance_after, raw_balance_after,
+          lifetime_after, reference_type, reference_id, idempotency_key, actor, source)
+       VALUES ($1, 'GIFT_COMPLETED_GIVER', 1, 56, 56, 56, 56,
+               'GIFT_TRANSACTION', $2::text, 'GIFT_COMPLETED_GIVER:' || $2::text, 'SYSTEM', 'KIEM_TRA')`,
+      [Giver, DealPaid],
+    );
+
+    const unsettledGivers = await reviews.findUnsettledGiverRewards({
+      graceDays: 7,
+      limit: 50,
+    });
+    const rated = unsettledGivers.find((row) => row.transactionId === DealRated);
+    check(
+      'lượt ĐÃ đánh giá mà chưa trả thưởng vẫn nằm trong danh sách',
+      rated !== undefined,
+    );
+    check(
+      'và mang theo đúng mức người nhận chấm, không phải null',
+      rated?.accuracyPercent === 40,
+      `nhận ${String(rated?.accuracyPercent)}`,
+    );
+    check(
+      'lượt đã trả thưởng KHÔNG xuất hiện lại',
+      unsettledGivers.every((row) => row.transactionId !== DealPaid),
+    );
+
+    const unsettledReceivers = await reviews.findUnsettledReceiverRewards({
+      limit: 50,
+    });
+    check(
+      'cả hai lượt còn treo thưởng phía người NHẬN',
+      [DealRated, DealPaid].every((deal) =>
+        unsettledReceivers.some((row) => row.transactionId === deal),
+      ),
+      `nhận ${unsettledReceivers.length} lượt`,
+    );
+
+    await dataSource.query(
+      `INSERT INTO point_ledger
+         (user_id, rule_code, rule_version, delta, balance_after, raw_balance_after,
+          lifetime_after, reference_type, reference_id, idempotency_key, actor, source)
+       VALUES ($1, 'GIFT_COMPLETED_RECEIVER', 1, 28, 28, 28, 0,
+               'GIFT_TRANSACTION', $2::text, 'GIFT_COMPLETED_RECEIVER:' || $2::text, 'SYSTEM', 'KIEM_TRA')`,
+      [Receiver, DealPaid],
+    );
+    const receiversAfter = await reviews.findUnsettledReceiverRewards({
+      limit: 50,
+    });
+    check(
+      'trả rồi thì biến khỏi danh sách phía người nhận',
+      receiversAfter.every((row) => row.transactionId !== DealPaid),
+    );
+
+    console.log('\n9. Đối soát mốc một-lần tìm đúng người');
+    const onboardedMissing = await ledger.findOnboardedUsersMissingReward(50);
+    check(
+      'người hạng khác VIEWER mà thiếu bút toán onboarding thì bị tìm ra',
+      onboardedMissing.includes(Giver) && onboardedMissing.includes(Receiver),
+      `nhận ${onboardedMissing.length} người`,
+    );
+
+    const ViewerUser = '99999999-9999-4999-8999-9999999e0005';
+    await dataSource.query(
+      `INSERT INTO users (global_id, username, email, password_hash, rank, status)
+       VALUES ($1, 'kiem-tra-viewer', 'kiem-tra-viewer@chantam.test', 'x', 'VIEWER', 'ACTIVE')`,
+      [ViewerUser],
+    );
+    check(
+      'người còn VIEWER thì KHÔNG bị tìm ra — họ chưa hoàn tất onboarding',
+      !(await ledger.findOnboardedUsersMissingReward(50)).includes(ViewerUser),
+    );
+
+    const referrals = new ReferralRepository(dataSource.manager, ledger);
+    await dataSource.query(
+      `INSERT INTO referrals (referrer_id, referee_id, code)
+       VALUES ($1, $2, 'KIEMTRA1')`,
+      [Giver, Receiver],
+    );
+    const pendingReferees = await referrals.findPendingQualifications(50);
+    check(
+      'lượt giới thiệu treo mà người được giới thiệu đã thoát VIEWER thì tìm ra',
+      pendingReferees.includes(Receiver),
+      `nhận ${JSON.stringify(pendingReferees)}`,
+    );
+
+    await dataSource.query(
+      `INSERT INTO referrals (referrer_id, referee_id, code)
+       VALUES ($1, $2, 'KIEMTRA2')`,
+      [Giver, ViewerUser],
+    );
+    check(
+      'nhưng người được giới thiệu còn VIEWER thì KHÔNG — chưa đủ điều kiện',
+      !(await referrals.findPendingQualifications(50)).includes(ViewerUser),
     );
   } finally {
     for (const source of opened.reverse())

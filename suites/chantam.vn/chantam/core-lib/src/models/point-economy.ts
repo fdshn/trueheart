@@ -253,3 +253,36 @@ export function normalizeNotificationRetentionConfig(
  * chưa xa tới mức nhắc xong rồi quên.
  */
 export const PostExpiryReminderDays = 7;
+
+/**
+ * Những rule mà chạm trần ngày nghĩa là **HOÃN**, không phải mất.
+ *
+ * Phân biệt này là nội dung nghiệp vụ, không phải chi tiết kỹ thuật:
+ *
+ * - **Hành động LẶP được** — bình luận, cảm xúc, báo xấu được xử lý. Trần ngày
+ *   ở đây chính là hàng rào chống cày điểm. Câu bình luận thứ mười một không
+ *   sinh điểm, và trả bù nó hôm sau là vô hiệu hoá hàng rào: người ta chỉ cần
+ *   gõ thoải mái rồi chờ hệ thống tự rót dần.
+ *
+ * - **MỐC một-lần** — một lượt trao hoàn tất, một lượt giới thiệu hợp lệ, xác
+ *   minh số điện thoại, hoàn tất onboarding. Sự kiện chỉ xảy ra đúng một lần
+ *   trong đời và đã xảy ra thật. Trần ngày ở đây chỉ để chặn hai tài khoản trao
+ *   qua trao lại cả ngày; nó không có nghĩa "việc này không đáng thưởng". Mất
+ *   vĩnh viễn là phạt người tặng thứ sáu trong ngày vì họ hào phóng.
+ *
+ * Danh sách này là cái mà `point:reconcile` và `gift:settle-rewards` dựa vào để
+ * quyết định có quét lại hay không.
+ */
+export const RetryablePointRuleCodes = [
+  'GIFT_COMPLETED_GIVER',
+  'GIFT_COMPLETED_RECEIVER',
+  'REFERRAL_QUALIFIED',
+  'PHONE_VERIFIED_FIRST_TIME',
+  'ONBOARDING_COMPLETED',
+] as const;
+
+export type RetryablePointRuleCode = (typeof RetryablePointRuleCodes)[number];
+
+export function isRetryablePointRule(ruleCode: string): boolean {
+  return (RetryablePointRuleCodes as readonly string[]).includes(ruleCode);
+}

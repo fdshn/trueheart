@@ -1,6 +1,9 @@
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import { IRankChange, IRankRepository } from '@/domain/ports/repository';
-import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  BusinessTimeZone,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 /**
@@ -11,7 +14,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
  */
 function vietnamDateKey(now: Date): string {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
+    timeZone: BusinessTimeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

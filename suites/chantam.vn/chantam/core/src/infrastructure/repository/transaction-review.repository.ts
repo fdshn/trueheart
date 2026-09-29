@@ -7,7 +7,8 @@ import {
   IReviewableTransaction,
   ISubmitTransactionReviewParams,
   ITransactionReviewRepository,
-  IUnreviewedCompletion,
+  IUnsettledGiverReward,
+  IUnsettledReceiverReward,
 } from '@/domain/ports/repository';
 import { ITransactionReviewEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
@@ -204,35 +205,47 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
     }));
   }
 
-  public async findUnreviewedCompletions(params: {
+  public async findUnsettledGiverRewards(params: {
     graceDays: number;
     limit: number;
-  }): Promise<IUnreviewedCompletion[]> {
-    // `NOT EXISTS` trên đánh giá của NGƯỜI NHẬN: người tặng đánh giá người nhận
-    // không nói gì về chất lượng món quà, nên sự tồn tại của nó không được coi
-    // là "đã có đánh giá".
+  }): Promise<IUnsettledGiverReward[]> {
+    // `LEFT JOIN` đánh giá của NGƯỜI NHẬN, không phải `NOT EXISTS`: chính mức
+    // họ chấm là thứ quyết định số điểm, nên phải lấy ra chứ không chỉ kiểm tra
+    // có hay không. Đánh giá của người tặng dành cho người nhận không nói gì về
+    // chất lượng món quà nên không tính ở đây.
     //
     // `NOT EXISTS` trên ledger theo đúng khoá chống trùng mà đường đánh giá
     // dùng. Nhờ vậy job và đường đánh giá không bao giờ trả thưởng hai lần cho
     // cùng một lượt trao, dù chạy song song.
+    //
+    // Điều kiện cuối là phép hợp của hai dạng: đã có đánh giá thì lấy ngay,
+    // chưa có thì chờ hết hạn. Lượt đã đánh giá không phải chờ thêm — nó đã quá
+    // hạn theo định nghĩa, lẽ ra được trả từ lúc người nhận bấm gửi.
     const rows = await this.manager.query<
-      { transaction_id: string; giver_id: string; completed_at: Date }[]
+      {
+        transaction_id: string;
+        giver_id: string;
+        completed_at: Date;
+        accuracy_percent: number | string | null;
+      }[]
     >(
       `
         SELECT deal.global_id AS transaction_id,
                deal.giver_id,
-               deal.completed_at
+               deal.completed_at,
+               rated.accuracy_percent
         FROM gift_transactions deal
+        LEFT JOIN transaction_reviews rated
+          ON rated.transaction_id = deal.global_id
+          AND rated.reviewer_role = 'RECEIVER'
         WHERE deal.status = 'COMPLETED'
-          AND deal.completed_at <= now() - ($1 || ' days')::interval
-          AND NOT EXISTS (
-            SELECT 1 FROM transaction_reviews rated
-            WHERE rated.transaction_id = deal.global_id
-              AND rated.reviewer_role = 'RECEIVER'
-          )
           AND NOT EXISTS (
             SELECT 1 FROM point_ledger paid
             WHERE paid.idempotency_key = 'GIFT_COMPLETED_GIVER:' || deal.global_id
+          )
+          AND (
+            rated.transaction_id IS NOT NULL
+            OR deal.completed_at <= now() - ($1 || ' days')::interval
           )
         ORDER BY deal.completed_at
         LIMIT $2
@@ -243,6 +256,39 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
     return rows.map((row) => ({
       transactionId: row.transaction_id,
       giverId: row.giver_id,
+      completedAt: row.completed_at,
+      // `null` là tín hiệu "không có đánh giá" cho `AwardGiftCompletionUseCase`.
+      // Chấm 0% KHÁC không chấm, nên phải phân biệt tại đây chứ không dùng `||`.
+      accuracyPercent:
+        row.accuracy_percent === null ? null : Number(row.accuracy_percent),
+    }));
+  }
+
+  public async findUnsettledReceiverRewards(params: {
+    limit: number;
+  }): Promise<IUnsettledReceiverReward[]> {
+    const rows = await this.manager.query<
+      { transaction_id: string; receiver_id: string; completed_at: Date }[]
+    >(
+      `
+        SELECT deal.global_id AS transaction_id,
+               deal.receiver_id,
+               deal.completed_at
+        FROM gift_transactions deal
+        WHERE deal.status = 'COMPLETED'
+          AND NOT EXISTS (
+            SELECT 1 FROM point_ledger paid
+            WHERE paid.idempotency_key = 'GIFT_COMPLETED_RECEIVER:' || deal.global_id
+          )
+        ORDER BY deal.completed_at
+        LIMIT $1
+      `,
+      [params.limit],
+    );
+
+    return rows.map((row) => ({
+      transactionId: row.transaction_id,
+      receiverId: row.receiver_id,
       completedAt: row.completed_at,
     }));
   }

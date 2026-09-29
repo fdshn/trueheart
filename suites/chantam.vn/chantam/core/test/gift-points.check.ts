@@ -101,13 +101,22 @@ async function main(): Promise<void> {
                'Quận 1', 'PUBLISHED', 1, 1, '{}'::jsonb, 0)`,
       [postId, GiverId, CategoryId, `Bài kiểm điểm số ${sequence}`],
     );
-    await transactions.request({
-      globalId: transactionId,
-      postId,
-      receiverId: ReceiverId,
-      quantity: 1,
-    });
-    await transactions.accept(transactionId, GiverId);
+    // Dựng thẳng trạng thái ACCEPTED bằng SQL.
+    //
+    // `request()` và `accept()` đã bị gỡ ngày 28/09: `POST /transactions` là một
+    // cửa sau bỏ qua mọi hàng rào mà luồng xin nhận áp. Phép kiểm này cần một
+    // lượt trao ở trạng thái ACCEPTED để đo ĐIỂM, không cần đo lại đường tạo nó
+    // — luồng đó đã có `request-lifecycle.check.ts` lo.
+    await dataSource.query(
+      `INSERT INTO gift_transactions
+         (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at)
+       VALUES ($1, $2, $3, $4, 1, 'ACCEPTED', now())`,
+      [transactionId, postId, GiverId, ReceiverId],
+    );
+    await dataSource.query(
+      `UPDATE posts SET remaining_quantity = 0 WHERE global_id = $1`,
+      [postId],
+    );
     return transactionId;
   }
 

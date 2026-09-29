@@ -47,10 +47,24 @@ export interface IAccuracyReconcileResult {
   readonly repaired: number;
 }
 
-export interface IUnreviewedCompletion {
+export interface IUnsettledReceiverReward {
+  readonly transactionId: string;
+  readonly receiverId: string;
+  readonly completedAt: Date;
+}
+
+export interface IUnsettledGiverReward {
   readonly transactionId: string;
   readonly giverId: string;
   readonly completedAt: Date;
+  /**
+   * Mức chính xác người NHẬN đã chấm, hoặc `null` khi họ chưa đánh giá.
+   *
+   * `null` là tín hiệu "áp mức mặc định trong `review.grace`". Chấm 0% KHÁC
+   * không chấm: 0 là một ý kiến thật và vẫn ghi một bút toán delta = 0, nên hai
+   * giá trị này không được gộp bằng `||` ở bất cứ đâu.
+   */
+  readonly accuracyPercent: number | null;
 }
 
 export interface IPendingReviewReminder {
@@ -74,17 +88,40 @@ export interface ITransactionReviewRepository {
   }): Promise<IPendingReviewReminder[]>;
 
   /**
-   * Lượt trao đã hoàn tất quá `graceDays` mà NGƯỜI NHẬN chưa đánh giá, và người
-   * tặng chưa được trả thưởng.
+   * Lượt trao đã hoàn tất mà NGƯỜI TẶNG chưa được trả thưởng — cả hai dạng.
+   *
+   * Hai dạng, một danh sách, vì cả hai đều kết thúc bằng đúng một hành động là
+   * gọi `AwardGiftCompletionUseCase`:
+   *
+   * 1. Người nhận **chưa** đánh giá và đã quá `graceDays` → `accuracyPercent`
+   *    trả về `null`, tức tín hiệu "áp mức mặc định".
+   * 2. Người nhận **đã** đánh giá nhưng bút toán vẫn chưa có → trả về đúng mức
+   *    họ chấm. Dạng này sinh ra khi lần cộng điểm lúc đánh giá bị trần ngày
+   *    chặn. Trước đây điều kiện lọc là "chưa ai đánh giá", nên những lượt này
+   *    bị loại khỏi danh sách VĨNH VIỄN và người tặng mất thưởng — nghĩa là
+   *    người nhận đánh giá sớm lại làm người tặng thiệt, đúng cái động cơ lệch
+   *    mà cả cơ chế này được dựng ra để tránh.
    *
    * Lọc luôn theo `point_ledger` chứ không để tầng trên tự kiểm: danh sách này
    * chạy mỗi ngày, và trả về cả nghìn lượt đã trả thưởng rồi để tầng trên bỏ đi
    * là nghìn lượt đi database vô ích.
    */
-  findUnreviewedCompletions(params: {
+  findUnsettledGiverRewards(params: {
     graceDays: number;
     limit: number;
-  }): Promise<IUnreviewedCompletion[]>;
+  }): Promise<IUnsettledGiverReward[]>;
+
+  /**
+   * Lượt trao đã hoàn tất mà NGƯỜI NHẬN chưa được trả thưởng.
+   *
+   * Phần thưởng người nhận cộng phẳng ngay lúc hoàn tất và nuốt ngoại lệ chính
+   * sách, nên chạm trần ngày là mất — và trước đây KHÔNG có đường nào quét lại
+   * phía người nhận cả. Không cần chờ hết hạn: chẳng có gì phải chờ, món quà đã
+   * trao xong rồi.
+   */
+  findUnsettledReceiverRewards(params: {
+    limit: number;
+  }): Promise<IUnsettledReceiverReward[]>;
 
   /**
    * Tính lại chỉ số accuracy của MỌI người theo ngưỡng đang cấu hình.

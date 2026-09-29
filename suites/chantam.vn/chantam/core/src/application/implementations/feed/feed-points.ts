@@ -1,26 +1,18 @@
 import { IAppendPointEntryUseCase } from '@/application/contracts/point';
 import {
-  PointDailyCapReachedException,
-  PointRuleUnavailableException,
-} from '@/domain/exceptions';
-import {
   PostCommentedRuleCode,
   PostReactedRuleCode,
 } from '@chantam.vn/chantam.core-lib/consts';
+import { appendPointIgnoringPolicy } from '../point/point-policy-errors';
 
 /**
  * Điểm cho tương tác bảng tin (F41).
  *
- * **Hai rule này seed TẮT sẵn** (`is_enabled = false`, xem migration
- * `CreateFeedInteractions`), và `appendByRule` KHÔNG phân biệt "rule đã tắt"
- * với "rule không tồn tại" — cả hai đều ném `PointRuleUnavailableException`.
- * Nghĩa là mọi lời gọi ở đây sẽ ném cho tới khi Admin bật rule.
- *
- * **Điểm không được làm hỏng việc bình luận.** Việc một người vừa viết một câu
- * là SỰ THẬT; thưởng bao nhiêu là CHÍNH SÁCH. Để chính sách đánh đổ sự thật thì
- * người dùng không bình luận được chỉ vì họ đạt trần điểm trong ngày, hoặc vì
- * Admin chưa bật rule. Nên hai ngoại lệ chính sách bị nuốt; mọi lỗi khác — tức
- * lỗi database thật — vẫn nổi lên.
+ * **Trần ngày ở đây là CỐ Ý mất thưởng, không phải hoãn.** Bình luận và cảm xúc
+ * là hành động lặp được, nên trần chính là hàng rào chống cày điểm: viết câu thứ
+ * mười một thì câu đó không sinh điểm, và trả bù hôm sau sẽ vô hiệu hoá luôn cái
+ * hàng rào. Khác hẳn những mốc một-lần như một lượt trao hay một lượt giới
+ * thiệu — xem `RetryablePointRuleCodes`.
  *
  * `affects_lifetime = false` nằm ở seed chứ không ở đây: `lifetime` là sàn của
  * Rank, và cho bình luận đẩy hạng thì gõ 300 dòng "hay quá ạ" là lên Bạc, trong
@@ -37,14 +29,7 @@ async function awardSwallowingPolicy(
     source: string;
   },
 ): Promise<void> {
-  try {
-    await points.handle({ ...command, actor: 'SYSTEM' });
-  } catch (error) {
-    const isPolicy =
-      error instanceof PointDailyCapReachedException ||
-      error instanceof PointRuleUnavailableException;
-    if (!isPolicy) throw error;
-  }
+  await appendPointIgnoringPolicy(points, { ...command, actor: 'SYSTEM' });
 }
 
 export interface IAwardCommentPointParams {

@@ -1,5 +1,6 @@
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import {
+  BusinessTimeZone,
   CommentStatuses,
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -23,7 +24,7 @@ import {
  */
 export function vietnamDateKey(now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
+    timeZone: BusinessTimeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

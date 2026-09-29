@@ -1,4 +1,7 @@
-import { UserNotFoundException } from '@/domain/exceptions';
+import {
+  PointRuleUnavailableException,
+  UserNotFoundException,
+} from '@/domain/exceptions';
 import {
   OnboardingTaskEvidenceTypes,
   UserRanks,
@@ -122,5 +125,80 @@ describe('EvaluateOnboardingTasksUseCase', () => {
     expect(result.promotedToMember).toBe(true);
     expect(result.currentRank).toBe(UserRanks.MEMBER);
     expect(result.isAllCompleted).toBe(true);
+  });
+  it('rule điểm bị tắt VẪN thăng hạng, và thăng hạng đi TRƯỚC cộng điểm', async () => {
+    // Lỗi chặn đã sửa 29/09: cộng điểm từng đứng trước thăng hạng và không nuốt
+    // ngoại lệ chính sách, nên Admin tắt `ONBOARDING_COMPLETED` là không ai lên
+    // được MEMBER — tức không ai đăng được bài.
+    const order: string[] = [];
+
+    const usersRepo = {
+      findOneBy: jest
+        .fn()
+        .mockResolvedValueOnce({
+          globalId: UserId,
+          fullName: 'Nguyễn Văn A',
+          avatarUrl: 'https://example.com/avatar.jpg',
+          email: 'a@example.com',
+          phone: '0901234567',
+          phoneVerifiedAt: new Date(),
+          rank: UserRanks.VIEWER,
+        })
+        .mockResolvedValueOnce({ globalId: UserId, rank: UserRanks.MEMBER }),
+    };
+    const onboardingTasksRepo = {
+      findUserTaskProgress: jest.fn(async () => [
+        {
+          id: '40000000-0000-4000-8000-000000000001',
+          key: 'PROFILE_COMPLETE',
+          evidenceType: 'PROFILE_COMPLETE',
+          title: 'Hoàn thiện hồ sơ',
+          description: 'Cập nhật họ tên, ảnh đại diện, email và số điện thoại.',
+          required: true,
+          sortOrder: 1,
+          completed: true,
+          completedAt: new Date(),
+        },
+      ]),
+    };
+    const completionsRepo = {
+      hasCompletedEvidence: jest.fn(async () => false),
+    };
+    const recordUseCase = {
+      handle: jest
+        .fn()
+        .mockResolvedValueOnce({ promoted: false })
+        .mockResolvedValueOnce({ promoted: true }),
+    };
+    const points = {
+      handle: jest.fn(async () => {
+        order.push('points');
+        throw new PointRuleUnavailableException('ONBOARDING_COMPLETED');
+      }),
+    };
+    const ranks = {
+      handle: jest.fn(async () => {
+        order.push('rank');
+        return true;
+      }),
+    };
+    const referrals = { handle: jest.fn(async () => undefined) };
+
+    const useCase = new EvaluateOnboardingTasksUseCase(
+      usersRepo as never,
+      onboardingTasksRepo as never,
+      completionsRepo as never,
+      recordUseCase as never,
+      points as never,
+      ranks as never,
+      referrals as never,
+    );
+
+    const result = await useCase.handle({ userId: UserId });
+
+    expect(order).toEqual(['rank', 'points']);
+    expect(ranks.handle).toHaveBeenCalled();
+    expect(referrals.handle).toHaveBeenCalled();
+    expect(result.promotedToMember).toBe(true);
   });
 });

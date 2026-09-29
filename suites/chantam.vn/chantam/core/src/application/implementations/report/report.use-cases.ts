@@ -16,8 +16,6 @@ import {
 } from '@/application/contracts/report';
 import {
   ContentCommentNotFoundException,
-  PointDailyCapReachedException,
-  PointRuleUnavailableException,
   PostNotFoundException,
   ReportDuplicatedException,
   ReportInvalidStateException,
@@ -41,6 +39,7 @@ import {
 } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { isPointPolicyError } from '../point/point-policy-errors';
 
 async function requirePermission(
   admin: IAdminConfigRepository,
@@ -277,9 +276,7 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
         source: 'REPORT',
       });
     } catch (error) {
-      const isPolicy =
-        error instanceof PointDailyCapReachedException ||
-        error instanceof PointRuleUnavailableException;
+      const isPolicy = isPointPolicyError(error);
       if (!isPolicy) throw error;
     }
   }

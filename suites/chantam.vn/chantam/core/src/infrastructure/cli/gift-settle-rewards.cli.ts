@@ -44,12 +44,15 @@ async function main(): Promise<void> {
       `áp mặc định ${result.defaultPercent}%.`,
   );
 
-  if (result.pending === 0) {
-    console.log('Không lượt trao nào quá hạn chờ mà chưa được trả thưởng.');
+  if (result.pending === 0 && result.pendingReceivers === 0) {
+    console.log('Không lượt trao nào còn treo phần thưởng.');
     return;
   }
 
-  console.log(`\n${result.pending} lượt trao quá hạn chờ.`);
+  console.log(
+    `\n${result.pending} lượt treo thưởng người TẶNG, ` +
+      `${result.pendingReceivers} lượt treo thưởng người NHẬN.`,
+  );
 
   if (dryRun) {
     console.log('\n--dry-run: không cộng điểm nào. Bỏ cờ này để trả thưởng.');
@@ -66,12 +69,26 @@ async function main(): Promise<void> {
       `  ${reward.transactionId} → ${reward.giverId}: ` +
         `+${reward.points}đ (${reward.appliedPercent}%)`,
     );
+  for (const reward of result.settledReceivers)
+    console.log(
+      `  ${reward.transactionId} → ${reward.receiverId} (người nhận): ` +
+        `+${reward.points}đ`,
+    );
 
-  const skipped = result.pending - result.settled.length;
-  console.log(`\nĐã trả thưởng ${result.settled.length} lượt.`);
+  console.log(
+    `\nĐã trả thưởng ${result.settled.length} lượt phía người tặng ` +
+      `và ${result.settledReceivers.length} lượt phía người nhận.`,
+  );
+
+  const skipped =
+    result.pending +
+    result.pendingReceivers -
+    result.settled.length -
+    result.settledReceivers.length;
   if (skipped > 0)
     console.log(
-      `${skipped} lượt KHÔNG cộng được — rule đang tắt, hoặc đã chạm cap ngày.`,
+      `${skipped} lượt KHÔNG cộng được — rule đang tắt, hoặc đã chạm cap ngày. ` +
+        `Lần chạy sau sẽ thử lại.`,
     );
 }
 

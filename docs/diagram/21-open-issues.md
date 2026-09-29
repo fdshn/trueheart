@@ -63,15 +63,17 @@ hình động:
 | 3 | Bán kính jitter là hằng trong code; vùng nông thôn có thể vẫn chỉ ra đúng một nhà | [25](./25-location-privacy.md) |
 | 4 | Compatibility window của `/gift-posts` **chưa có hạn chót** | [25](./25-location-privacy.md) |
 | 5 | Hai bên trong lượt trao **không có endpoint lấy vị trí thật** — họ tự gõ địa chỉ qua chat | [25](./25-location-privacy.md) |
-| 6 | Referral chạm cap ngày thì **mất điểm vĩnh viễn**, không trả bù hôm sau | [23](./23-referral.md) |
+| 6 | ✅ **Đã sửa 29/09.** Referral chạm cap ngày nay HOÃN chứ không mất: `qualifyAndAward` trả `qualified: false` và để nguyên dòng, `point:reconcile` quét lại | [23](./23-referral.md) · [11](./11-point.md) |
 | 7 | Chưa chặn referral vòng tròn giữa nhiều tài khoản cùng một người | [23](./23-referral.md) |
 | 8 | Danh mục: chưa có gộp (merge), chưa giới hạn độ sâu cây, chưa sắp xếp thủ công | [22](./22-category.md) |
 | 9 | `capability_rank_values` **không có lịch sử phiên bản** — bài bị từ chối vì quota thì không tra được lúc đó quota là bao nhiêu | [24](./24-entitlement.md) |
 | 10 | Chưa có test nào chạy CLI thật trong CI — đúng loại lỗi đã làm cả bảy CLI chết | [28](./28-architecture.md) · [29](./29-cicd.md) |
-| 11 | Script `test/*.check.ts` phải chạy tay, chưa nằm trong pipeline | [28](./28-architecture.md) |
+| 11 | Script `test/*.check.ts` phải chạy tay, chưa nằm trong pipeline. **Từ 29/09 CI đã typecheck toàn bộ chúng** (`npm run typecheck:checks`) — đủ để chúng không hỏng âm thầm nữa, nhưng vẫn chưa chạy thật | [28](./28-architecture.md) |
 | 12 | Chưa có request id / trace id xuyên suốt | [26](./26-api-conventions.md) |
 | 13 | Thông báo lỗi chỉ có tiếng Việt, chưa có cơ chế đa ngữ | [26](./26-api-conventions.md) |
 | 14 | `point_ledger` và `chat_messages` chỉ tăng không giảm, chưa có chiến lược phân vùng | [27](./27-database.md) |
+| 15 | ⚠️ **`RESERVED` và `DELIVERING` là HAI TÊN cho MỘT trạng thái bài.** `acceptRequest` ghi `DELIVERING` khi duyệt hết kho, `syncPostStatus` quy về `RESERVED`, và mọi chỗ đọc phải kiểm cả hai (`post-edit-policy.ts`, `lock-editable-post.ts`, `delete-post`, `update-post`). Cần chốt giữ tên nào rồi bỏ tên kia. Hệ quả đã xảy ra: xem mục dưới | [04](./04-post.md) · [07](./07-request.md) |
+| 16 | ✅ **Đã sửa 29/09 — rò rỉ quota đăng bài.** `syncPostStatus` chỉ quản `PUBLISHED`/`RESERVED`/`COMPLETED`, nên bài đã bị `acceptRequest` đẩy sang `DELIVERING` thì KHÔNG BAO GIỜ được suy lại trạng thái: người nhận xác nhận xong, bài vẫn đứng `DELIVERING`, mà `DELIVERING` nằm trong `QuotaStatuses` → tác giả mất vĩnh viễn một suất đăng bài. Đúng lỗi mà `syncPostStatus` được viết ra để chặn, quay lại qua cửa khác. `post-status.check.ts` bắt được, nhưng script đó đã hỏng biên dịch từ 28/09 nên không ai chạy | [04](./04-post.md) · [07](./07-request.md) |
 
 ## 21.5 Con số vẫn là giả định, chờ Bên A xác nhận
 

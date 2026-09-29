@@ -13,14 +13,23 @@ export interface ISettledGiftReward {
   readonly appliedPercent: number;
 }
 
+export interface ISettledReceiverReward {
+  readonly transactionId: string;
+  readonly receiverId: string;
+  readonly points: number;
+}
+
 export interface ISettleGiftRewardsResult {
-  /** Số lượt trao quá hạn chờ mà chưa được trả thưởng. */
+  /** Số lượt trao mà NGƯỜI TẶNG còn chưa được trả thưởng. */
   readonly pending: number;
+  /** Số lượt trao mà NGƯỜI NHẬN còn chưa được trả thưởng. */
+  readonly pendingReceivers: number;
   /** Số ngày chờ đang cấu hình. */
   readonly graceDays: number;
   /** Mức phần trăm mặc định đang cấu hình. */
   readonly defaultPercent: number;
   readonly settled: ISettledGiftReward[];
+  readonly settledReceivers: ISettledReceiverReward[];
 }
 
 export interface ISettleGiftRewardsUseCase extends IUseCase<

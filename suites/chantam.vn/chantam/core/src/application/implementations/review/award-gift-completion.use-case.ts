@@ -4,16 +4,13 @@ import {
   IAwardGiftCompletionResult,
   IAwardGiftCompletionUseCase,
 } from '@/application/contracts/review';
-import {
-  PointDailyCapReachedException,
-  PointRuleUnavailableException,
-} from '@/domain/exceptions';
 import { IAdminConfigRepository } from '@/domain/ports/repository';
 import {
   normalizeReviewGraceConfig,
   ReviewGraceConfigKey,
 } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { isPointPolicyError } from '../point/point-policy-errors';
 
 /**
  * Mã rule cho phần thưởng của NGƯỜI TẶNG khi lượt trao hoàn tất.
@@ -100,10 +97,7 @@ export class AwardGiftCompletionUseCase implements IAwardGiftCompletionUseCase {
       //
       // Mọi lỗi khác ném tiếp. `catch` trống ở đây sẽ biến một sự cố database
       // thành "hôm nay không ai được điểm" mà không ai biết.
-      if (
-        error instanceof PointRuleUnavailableException ||
-        error instanceof PointDailyCapReachedException
-      ) {
+      if (isPointPolicyError(error)) {
         this.logger.warn(
           `Không cộng điểm lượt trao ${command.transactionId}: ${error.message}`,
         );

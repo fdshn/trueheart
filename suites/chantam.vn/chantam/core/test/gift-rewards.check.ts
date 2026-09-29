@@ -6,7 +6,7 @@
  * 1. Hệ số nhân thật sự đổi `delta` trong `point_ledger`, và làm tròn đúng.
  * 2. Khoá chống trùng chặn được **cả hai** đường: đánh giá tới trước thì job
  *    không trả thêm, và ngược lại.
- * 3. Câu `findUnreviewedCompletions` lọc đúng — chỉ đếm đánh giá của NGƯỜI NHẬN,
+ * 3. Câu `findUnsettledGiverRewards` lọc đúng — chỉ đếm đánh giá của NGƯỜI NHẬN,
  *    và loại lượt đã có bút toán.
  * 4. Chấm 0% vẫn ghi bút toán delta = 0, nên job sau đó KHÔNG trả mức mặc định.
  * 5. `lifetime` cộng theo delta đã nhân, không theo mức trần của rule.
@@ -233,7 +233,7 @@ async function main(): Promise<void> {
     );
     check('chỉ MỘT bút toán trong sổ', Number(entryCount) === 1);
 
-    console.log('\n5. findUnreviewedCompletions lọc đúng');
+    console.log('\n5. findUnsettledGiverRewards lọc đúng');
     // Lượt quá hạn, chưa đánh giá, chưa trả thưởng → PHẢI có trong danh sách.
     const dealDue = await seedDeal('77777777-7777-4777-8777-7777777a0003', 30);
     // Lượt mới hoàn tất hôm nay → CHƯA tới hạn.
@@ -250,7 +250,14 @@ async function main(): Promise<void> {
        VALUES (gen_random_uuid(), $1, $2, $3, 'GIVER', 5, NULL)`,
       [dealGiverOnly, GiverId, ReceiverId],
     );
-    // Lượt quá hạn và NGƯỜI NHẬN đã đánh giá → KHÔNG được có.
+    // Lượt NGƯỜI NHẬN đã đánh giá nhưng chưa có bút toán → PHẢI có, và phải mang
+    // theo đúng mức đã chấm.
+    //
+    // **Phép kiểm này trước 29/09 khẳng định điều NGƯỢC LẠI** — nó canh đúng cái
+    // lỗi: điều kiện lọc cũ là "người nhận chưa đánh giá", nên một lượt vừa được
+    // chấm mà cộng điểm chạm trần ngày sẽ rơi khỏi mọi danh sách vĩnh viễn, vì
+    // đường đánh giá đã đi qua và nuốt ngoại lệ. Người nhận đánh giá sớm lại làm
+    // người tặng thiệt.
     const dealReviewed = await seedDeal(
       '77777777-7777-4777-8777-7777777a0006',
       30,
@@ -262,7 +269,7 @@ async function main(): Promise<void> {
       [dealReviewed, ReceiverId, GiverId],
     );
 
-    const due = await reviews.findUnreviewedCompletions({
+    const due = await reviews.findUnsettledGiverRewards({
       graceDays: 7,
       limit: 100,
     });
@@ -275,9 +282,21 @@ async function main(): Promise<void> {
       dueIds.has(dealGiverOnly),
     );
     check(
-      'lượt người NHẬN đã đánh giá KHÔNG có',
-      !dueIds.has(dealReviewed),
-      dueIds.has(dealReviewed) ? 'bị lọt' : '',
+      'lượt người NHẬN đã đánh giá mà CHƯA trả thưởng thì VẪN có',
+      dueIds.has(dealReviewed),
+      dueIds.has(dealReviewed) ? '' : 'bị loại — đây là lỗi mất thưởng cũ',
+    );
+    check(
+      'và mang theo đúng mức đã chấm, không phải null',
+      due.find((row) => row.transactionId === dealReviewed)?.accuracyPercent ===
+        95,
+      `nhận ${String(
+        due.find((row) => row.transactionId === dealReviewed)?.accuracyPercent,
+      )}`,
+    );
+    check(
+      'lượt CHƯA ai đánh giá thì accuracyPercent là null — tín hiệu áp mức mặc định',
+      due.find((row) => row.transactionId === dealDue)?.accuracyPercent === null,
     );
     check(
       'lượt đã có bút toán KHÔNG có — kể cả khi chấm 0%',

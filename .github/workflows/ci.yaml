@@ -47,6 +47,13 @@ jobs:
       - name: Build toàn bộ package
         run: npm run build
 
+      # Các script trong `test/*.check.ts` KHÔNG nằm trong `tsconfig.json` của
+      # core, nên `npm run build` không thấy chúng, và CI cũng chỉ chạy vài cái.
+      # Hệ quả thật: `request()`/`accept()` bị gỡ ngày 28/09 mà bốn check script
+      # vẫn gọi, hỏng âm thầm cả tuần. Bước này là lưới chặn đó.
+      - name: Typecheck các script kiểm chứng
+        run: npm run typecheck:checks --workspace @chantam.vn/chantam.core
+
       - name: Unit test
         run: npm test
 

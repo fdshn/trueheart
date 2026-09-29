@@ -10,13 +10,13 @@ tác được, nên phải gõ rõ `--apply`. Lịch cron cũng chỉ chạy kh�
 ```mermaid
 flowchart TD
     C["Lịch bên ngoài (cron/systemd)"] --> A["chat:purge<br/>xoá tin nhắn quá hạn lưu trữ"]
-    C --> B["point:reconcile<br/>vá thưởng xác minh SĐT bị thiếu"]
+    C --> B["point:reconcile<br/>vá thưởng MỐC một-lần bị treo:<br/>xác minh SĐT · onboarding · giới thiệu"]
     C --> D["post:expire<br/>đóng bài quá hạn, rao vặt thành bài tặng"]
     C --> E["rank:evaluate<br/>đánh giá chu kỳ duy trì rank"]
     C --> F["transaction:autocomplete<br/>tự hoàn tất lượt trao quá hạn ⚠️"]
     C --> G["feed:reconcile-counts<br/>đối soát số đếm feed"]
     C --> H["accuracy:reconcile<br/>tính lại Giver Accuracy theo ngưỡng"]
-    C --> I["gift:settle-rewards<br/>trả thưởng lượt trao người nhận không đánh giá"]
+    C --> I["gift:settle-rewards<br/>trả nốt thưởng lượt trao còn treo:<br/>hết hạn chờ · bị trần ngày chặn · phía người nhận"]
     C --> J["notify:reminders<br/>nhắc đánh giá, nhiệm vụ duy trì, và bài sắp hết hạn"]
     C --> K["selection:auto-select<br/>chốt người nhận khi hết đồng hồ 7 ngày"]
     C --> L["notification:purge<br/>dọn thông báo quá hạn lưu trữ"]
