@@ -1,6 +1,8 @@
 # 19 · Group Affiliate & điều kiện địa lý
 
-Trạng thái: ⛔ **chưa có dòng code nào.** Thiết kế theo SRS §3.7A (BR-AFF) và CHỐT-06.
+Trạng thái: ⛔ **bộ máy chia thưởng chưa có dòng code nào** — không bảng sự kiện, không bảng
+hoa hồng. Nhưng **nền móng thì phần lớn đã có**, xem §Chỗ cần soát mục 1. Thiết kế theo SRS
+§3.7A (BR-AFF) và CHỐT-06.
 
 ## 19.1 Affiliate khác Personal Referral thế nào
 
@@ -33,7 +35,7 @@ flowchart TD
     E -->|Ngoài vùng| F["Vẫn GHI NHẬN<br/>gắn NOT_ELIGIBLE_GEO<br/>point_delta = 0"]
     E -->|Trong vùng| G[Lấy danh sách Active Member]
 
-    G --> H["Active Member = status ACTIVE<br/>VÀ last_login_at trong 90 ngày"]
+    G --> H["Active Member = status ACTIVE<br/>VÀ last_active_at trong 90 ngày"]
     H --> I[Chia thưởng theo rule Admin cấu hình]
     I --> J[Ghi point_ledger cho TỪNG người]
     J --> K["Ghi audit: khoảng cách đo được<br/>+ bán kính đã áp dụng"]
@@ -50,6 +52,17 @@ flowchart TD
 > **Vì sao audit phải lưu cả khoảng cách lẫn bán kính.** Bán kính là snapshot lúc tạo Group;
 > nếu về sau Admin sửa cấu hình, không có hai con số này thì không dựng lại được phán quyết
 > cũ (F58).
+>
+> ⚠️ **`groups.radius_km` là KM, còn `ST_DWithin` trên `geography` nhận MÉT.** Câu cổng địa lý
+> phải nhân 1000, và đó là chỗ duy nhất trong phân hệ này có thể lệch đơn vị mà không báo lỗi.
+> Ba khoá cấu hình `group.*_radius_meters` đặt tên bằng mét đúng như mọi khoá bán kính khác;
+> chỗ đổi sang km nằm ở đúng một hàm, `resolveGroupRadiusKm`.
+>
+> Bẫy này đã cắn một lần: tới 30/09 bán kính đọc từ `capability.limit` của `CREATE_GROUP` — một
+> ô số trần Admin sửa được, không nói đơn vị — rồi kẹp bằng cận **km**. Đặt `10000` với ý "10 km"
+> sẽ ra **50 km**: gấp 5 lần bán kính, 25 lần diện tích, không lỗi. Và vì bán kính là snapshot cố
+> định (BR-GRP-03), mọi nhóm tạo trong khoảng đó sai vĩnh viễn. Nay `capability.limit` không còn
+> tham gia.
 
 ## 19.3 Thứ tự lấy vị trí (F58)
 
@@ -79,7 +92,7 @@ flowchart TD
 flowchart LR
     A[Thành viên nhóm] --> B{status = ACTIVE?}
     B -->|Không| C[❌ Không nhận thưởng]
-    B -->|Có| D{"last_login_at trong 90 ngày?"}
+    B -->|Có| D{"last_active_at trong 90 ngày?"}
     D -->|Không| C
     D -->|Có| E[✅ Nhận phần chia]
 
@@ -121,12 +134,29 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. ⛔ **Toàn bộ phân hệ chưa có code**, và nó phụ thuộc [18-group](./18-group.md) cũng chưa có.
+1. ⚠️ **Bộ máy chưa có, nhưng nền móng thì phần lớn ĐÃ có** — câu "phụ thuộc 18-group cũng chưa
+   có" sai (sửa 30/09). Group đã có ba bảng (`groups`, `group_memberships`,
+   `group_role_permissions`), 6 endpoint, repository và hai file use case. Và quan trọng nhất:
+   `groups` đã có `center_location` + `radius_km`, tức **đúng hai thứ mà cổng địa lý §19.2 cần**.
+
+   Những thứ khác cũng sẵn: `last_active_at` ghi đúng ở mọi lần cấp phiên (xem
+   [17-jobs](./17-jobs.md) mục 2), `group_memberships` để lấy danh sách thành viên, và
+   `appendAdjustment` để ghi sổ với số điểm truyền vào. Phần thiếu là **bộ máy**, không phải nền.
 2. **Danh sách loại sự kiện affiliate chưa chốt cụ thể.** BR-AFF-02 liệt kê "đăng bài,
    tặng/giao dịch hoàn tất, mời user mới hợp lệ, tham gia Event, giao dịch hợp lệ trong vùng"
    — cần biến thành danh sách mã rule rõ ràng.
 3. **Điểm cho từng loại sự kiện chưa có con số nào.**
-4. **Cách chia thưởng chưa rõ**: mỗi Active Member nhận đủ N điểm, hay N điểm chia đều cho số
-   người? Nhóm 500 người thì hai cách chênh nhau 500 lần.
+4. ⚠️ **Cách chia thưởng chưa rõ, và đây là quyết định kinh tế lớn nhất còn treo của cả hệ**:
+   mỗi Active Member nhận đủ N điểm, hay N điểm chia đều cho số người? Nhóm 500 người thì hai
+   cách chênh nhau **500 lần**. Viết code trước khi chốt việc này là viết để bỏ.
 5. **Cơ chế thu hồi** (BR-AFF) chưa có thiết kế — thu hồi khi nào, ai bấm, ghi sổ thế nào.
 6. **Cap ngày cho affiliate chưa có.** Không có cap thì một nhóm lớn sinh điểm không giới hạn.
+   ⚠️ Và đừng seed thêm một khoá kiểu `affiliate.*_daily_cap`: `point.referral_daily_cap` với
+   `point.transaction_daily_cap` đã seed từ lâu mà **không ai đọc** — trần thật nằm ở
+   `point_rules.daily_cap`. Cap của affiliate nên đi cùng đường đó.
+7. ✅ **Ba khoá `group.*_radius_meters` nay được đọc thật** (30/09). Trước đó chúng chỉ nằm
+   trong allowlist của Admin: sửa được, lưu được, và **không gì thay đổi** — tệ hơn khoá chưa
+   seed, vì ở đó Admin không thấy ô nào, còn ở đây ô có và người ta tin là đã đổi.
+   Đây là một họ lỗi: `test:config-inventory` nay canh cả hai chiều, và đang ghi **6 khoá còn
+   là nợ** — bốn trong số đó bị hằng cứng trong code qua mặt (`discovery.default_radius_meters`,
+   `discovery.min_radius_meters`, `rank.maintenance_period_months`, và hai khoá cap ở mục 6).

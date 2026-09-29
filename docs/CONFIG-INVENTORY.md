@@ -154,6 +154,7 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | `rank.points_source` | `source: BALANCE` | Cột điểm quyết định hạng. BALANCE = tiêu điểm làm tụt hạng (chốt 24/09); LIFETIME = hạng là bằng ghi nhận đã đóng góp | `GET\|POST /admin/system-configs` |
 | `notification.retention` | `retentionDays: 90` | Hạn lưu trữ hộp thư | `GET\|POST /admin/system-configs` |
 | `selection.candidate_priority` | *(cố ý CHƯA seed)* | Thứ tự tiêu chí chọn người nhận. Không seed vì `isConfigured` tính bằng "có dòng hay không" — seed mặc định vào là nói với Admin rằng đã có người đặt, trong khi chưa ai đặt | `GET\|PUT /admin/candidate-selection` |
+| `group.default_radius_meters` · `min` · `max` | `10000` · `1000` · `50000` | Bán kính vùng nhóm, đơn vị MÉT. **Tới 30/09 cả ba chỉ nằm trong allowlist mà không ai đọc** — Admin sửa được và không gì thay đổi; bán kính thật đọc từ `capability.limit` của `CREATE_GROUP`, một ô không nói đơn vị | `GET\|POST /admin/system-configs` |
 | `point.redemption` | `vndPerPoint: 2000` | Tỷ lệ quy đổi khi đổi vật phẩm (F74). **Đã nối** vào `POST /posts/:id/redeem` | ⬆ |
 | `review.grace` | `graceDays: 7`, `defaultAccuracyPercent: 80` | Chờ rồi áp mức mặc định khi người nhận không đánh giá (F40). Đọc bởi CLI `gift:settle-rewards` — job này còn trả nốt những lượt bị trần ngày chặn, và ở đó dùng mức người nhận ĐÃ chấm chứ không phải mức mặc định | ⬆ |
 | `selection.candidate_priority` | *(chưa đặt → mặc định "ai xin trước")* | Thứ tự tiêu chí chọn người nhận (CH-1). **Đã nối vào auto-select** 25/09 | `GET\|PUT /admin/candidate-selection` |

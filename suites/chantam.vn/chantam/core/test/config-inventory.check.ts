@@ -17,8 +17,28 @@
  * Không phép kiểm nào bắt được vì tất cả đều TRUYỀN danh sách từ vào trực tiếp.
  * Không cái nào hỏi "ngoài production thì danh sách đó có tồn tại không". Đây là
  * chỗ hỏi câu đó.
+ *
+ * ## Và chiều NGƯỢC LẠI, thêm 30/09
+ *
+ * Bản đầu của file này chỉ hỏi "khoá code đọc có dòng chưa". Nó bỏ sót hẳn chiều kia:
+ * **khoá có dòng mà không ai đọc.** Soát 19-affiliate tìm ra CHÍN khoá như vậy trên
+ * mười lăm — Admin mở CMS, sửa được, lưu được, và không gì thay đổi.
+ *
+ * Đó tệ hơn khoá chưa seed. Chưa seed thì Admin không thấy ô nào; seed mà không đọc
+ * thì ô có, bấm Lưu xong, và người ta tin là đã đổi.
+ *
+ * Nên mỗi khoá trong `system_configs` phải nằm ở đúng một trong hai danh sách dưới:
+ * `ReadKeys` (code thật sự đọc) hoặc `KnownUnreadKeys` (chưa đọc, kèm lý do). Seed
+ * một khoá mới mà không khai vào đâu là phép kiểm đỏ — buộc người thêm phải trả lời
+ * "ai sẽ đọc nó".
  */
-import { CandidateSelectionConfigKey } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  CandidateSelectionConfigKey,
+  GroupDefaultRadiusConfigKey,
+  GroupMaxRadiusConfigKey,
+  GroupMinRadiusConfigKey,
+} from '@chantam.vn/chantam.core-lib/consts';
+import { DiscoveryMaxRadiusConfigKey } from '@/domain/consts/discovery';
 import {
   ChatRetentionConfigKey,
   GiverAccuracyConfigKey,
@@ -55,6 +75,12 @@ const RequiredKeys: readonly string[] = [
   ReportAbuseConfigKey,
   ReviewGraceConfigKey,
   ReviewRatingConfigKey,
+  GroupDefaultRadiusConfigKey,
+  GroupMinRadiusConfigKey,
+  GroupMaxRadiusConfigKey,
+  // Khoá này khai trong `core`, không phải core-lib — nên nó lọt khỏi lượt soát đầu
+  // của tôi, và lưới ở nhóm 3 bắt được. Đúng việc nó phải làm.
+  DiscoveryMaxRadiusConfigKey,
 ];
 
 /**
@@ -66,6 +92,50 @@ const RequiredKeys: readonly string[] = [
  * trong khi chưa ai đặt. Ở đây sự VẮNG MẶT chính là thông tin.
  */
 const DeliberatelyUnseeded: readonly string[] = [CandidateSelectionConfigKey];
+
+/**
+ * Khoá ĐÃ seed mà code CHƯA đọc, kèm lý do.
+ *
+ * Hai loại, và chúng khác nhau về mức đáng lo:
+ *
+ * - **Seed trước cho tính năng chưa có.** Bình thường: con số đã chốt, chờ code tới
+ *   đọc. `affiliate.active_member_window_days` thuộc loại này.
+ * - **Bị hằng cứng trong code qua mặt.** Đây là lỗ thật: ô cấu hình tồn tại, Admin
+ *   sửa được, và một hằng trong code quyết định thay nó. Ba khoá `discovery.*` và
+ *   `rank.maintenance_period_months` thuộc loại này.
+ *
+ * Danh sách này KHÔNG phải chỗ để cất khoá đi cho phép kiểm xanh. Mỗi dòng ở đây là
+ * một món nợ có tên, và loại thứ hai nên được nối vào hoặc bỏ khỏi allowlist của
+ * Admin — hiện trạng "sửa được mà vô nghĩa" là lựa chọn tệ nhất trong ba.
+ */
+const KnownUnreadKeys: readonly { key: string; reason: string }[] = [
+  {
+    key: 'affiliate.active_member_window_days',
+    reason: 'seed trước; bộ máy affiliate chưa có dòng code nào (19 §Chỗ cần soát 1)',
+  },
+  {
+    key: 'discovery.default_radius_meters',
+    reason:
+      'bị hằng `DefaultSearchRadiusMeters` qua mặt — chỉ `discovery.max_radius_meters` được đọc thật',
+  },
+  {
+    key: 'discovery.min_radius_meters',
+    reason: 'bị hằng `MinSearchRadiusMeters` qua mặt',
+  },
+  {
+    key: 'point.referral_daily_cap',
+    reason: 'trần thật nằm ở `point_rules.daily_cap` của REFERRAL_QUALIFIED',
+  },
+  {
+    key: 'point.transaction_daily_cap',
+    reason: 'trần thật nằm ở `point_rules.daily_cap` của GIFT_COMPLETED_*',
+  },
+  {
+    key: 'rank.maintenance_period_months',
+    reason:
+      "bị `interval '3 months'` viết cứng trong `rank.repository.ts` qua mặt (hai chỗ)",
+  },
+];
 
 const failures: string[] = [];
 
@@ -105,7 +175,38 @@ async function main(): Promise<void> {
           : '',
       );
 
-    console.log('\n3. Bộ lọc từ ngữ THẬT SỰ bắt được, không chỉ có dòng');
+    console.log('\n3. Không khoá nào seed mà không ai đọc — hoặc phải khai lý do');
+    const declared = new Set<string>([
+      ...RequiredKeys,
+      ...KnownUnreadKeys.map((entry) => entry.key),
+    ]);
+    const undeclared = [...present].filter((key) => !declared.has(key));
+    check(
+      'mọi khoá trong system_configs đều được khai ở một trong hai danh sách',
+      undeclared.length === 0,
+      undeclared.length === 0
+        ? ''
+        : `chưa khai: ${undeclared.join(', ')} — thêm vào ReadKeys nếu code đọc, hoặc KnownUnreadKeys kèm lý do`,
+    );
+
+    // Một khoá đã nối vào code thì phải RA khỏi danh sách nợ. Thiếu phép kiểm này
+    // thì danh sách chỉ dài ra và không ai dọn.
+    const stillUnread = KnownUnreadKeys.filter((entry) =>
+      (RequiredKeys as readonly string[]).includes(entry.key),
+    );
+    check(
+      'không khoá nào nằm ở CẢ HAI danh sách — nối vào rồi thì phải xoá khỏi nợ',
+      stillUnread.length === 0,
+      stillUnread.map((entry) => entry.key).join(', '),
+    );
+
+    console.log(
+      `  …${KnownUnreadKeys.length} khoá đang là NỢ: seed mà chưa ai đọc`,
+    );
+    for (const entry of KnownUnreadKeys)
+      console.log(`     • ${entry.key} — ${entry.reason}`);
+
+    console.log('\n4. Bộ lọc từ ngữ THẬT SỰ bắt được, không chỉ có dòng');
     // Có dòng mà danh sách rỗng thì cũng vô dụng y như không có dòng. Phép kiểm
     // này đọc đúng đường mà use case đọc, rồi cho nó một câu phải chặn.
     const [termRow] = await dataSource.query<{ value_json: unknown }[]>(

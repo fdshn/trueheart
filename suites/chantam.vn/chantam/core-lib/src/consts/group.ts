@@ -25,7 +25,25 @@ export enum GroupMemberRoles {
   MEMBER = 'MEMBER',
 }
 
-/** Bán kính mặc định khi Rank Config không nói gì (MĐ-3). */
+/**
+ * Khoá cấu hình bán kính vùng nhóm, đơn vị **MÉT**.
+ *
+ * Mét chứ không km, vì đó là đơn vị của mọi khoá bán kính khác trong hệ
+ * (`discovery.*_radius_meters`) và là đơn vị mà `ST_DWithin` trên `geography`
+ * nhận. Cột `groups.radius_km` giữ km vì nó đã như vậy từ đầu; chỗ đổi đơn vị nằm
+ * ở đúng một hàm — `resolveGroupRadiusKm`.
+ */
+export const GroupDefaultRadiusConfigKey = 'group.default_radius_meters';
+export const GroupMinRadiusConfigKey = 'group.min_radius_meters';
+export const GroupMaxRadiusConfigKey = 'group.max_radius_meters';
+
+/**
+ * Hằng dự phòng khi cấu hình thiếu hoặc hỏng, đơn vị **KM**.
+ *
+ * Hậu tố `Km` là bắt buộc trong tên: ba khoá cấu hình ở trên là mét, nên một hằng
+ * tên `DefaultGroupRadius` trần sẽ bị đọc lẫn — và 10 với 10000 chênh nhau 1000
+ * lần mà không có gì báo.
+ */
 export const DefaultGroupRadiusKm = 10;
 export const MinGroupRadiusKm = 1;
 export const MaxGroupRadiusKm = 50;

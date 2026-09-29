@@ -14,16 +14,17 @@ import {
   GroupNotFoundException,
 } from '@/domain/exceptions';
 import {
+  IAdminConfigRepository,
   IEntitlementRepository,
   IGroupRepository,
 } from '@/domain/ports/repository';
 import {
-  DefaultGroupRadiusKm,
+  GroupDefaultRadiusConfigKey,
   GroupInviteCodeLength,
-  MaxGroupRadiusKm,
-  MinGroupRadiusKm,
+  GroupMaxRadiusConfigKey,
+  GroupMinRadiusConfigKey,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { normalizeGroupRadiusKm } from '@chantam.vn/chantam.core-lib/models';
+import { resolveGroupRadiusKm } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomBytes, randomUUID } from 'node:crypto';
 
@@ -55,6 +56,8 @@ export class CreateGroupUseCase implements ICreateGroupUseCase {
     private readonly groups: IGroupRepository,
     @Inject(IEntitlementRepository)
     private readonly entitlements: IEntitlementRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig: IAdminConfigRepository,
     private readonly profileGate: ProfileGate,
   ) {}
 
@@ -69,6 +72,16 @@ export class CreateGroupUseCase implements ICreateGroupUseCase {
       CreateGroupCapability,
     );
     if (!capability?.allowed) throw new GroupCreateNotAllowedException();
+
+    // `capability.limit` CỐ Ý không còn tham gia vào bán kính. Nó là một ô số trần
+    // Admin sửa được, không nói đơn vị, nằm giữa một hệ mà mọi khoá bán kính khác
+    // đều đặt tên bằng mét — cách chắc nhất để nó không bị đọc sai là không đọc nó.
+    const [defaultMeters, minMeters, maxMeters] = await Promise.all([
+      this.adminConfig.getConfigValue(GroupDefaultRadiusConfigKey),
+      this.adminConfig.getConfigValue(GroupMinRadiusConfigKey),
+      this.adminConfig.getConfigValue(GroupMaxRadiusConfigKey),
+    ]);
+    const radiusConfig = { defaultMeters, minMeters, maxMeters };
 
     // Kiểm membership TRƯỚC khi đụng vị trí: người đã thuộc nhóm thì không cần
     // biết mình thiếu Vị trí mặc định hay không.
@@ -90,11 +103,18 @@ export class CreateGroupUseCase implements ICreateGroupUseCase {
       coverUrl: command.group.coverUrl ?? null,
       centerLocation: owner.defaultLocation,
       regionLabel: command.group.regionLabel.trim(),
-      // Bán kính snapshot từ cấu hình, kẹp vào khoảng cho phép. Một giá trị
+      // Bán kính snapshot từ cấu hình ĐỘNG, kẹp vào khoảng cho phép. Một giá trị
       // ngoài khoảng là lỗi cấu hình, không phải lỗi của người đang tạo nhóm.
-      radiusKm: normalizeGroupRadiusKm(capability.limit, DefaultGroupRadiusKm, {
-        min: MinGroupRadiusKm,
-        max: MaxGroupRadiusKm,
+      //
+      // Trước 30/09 câu comment này nói "từ cấu hình" nhưng thật ra đọc
+      // `capability.limit` của `CREATE_GROUP`, còn ba khoá `group.*_radius_meters`
+      // thì chỉ nằm trong allowlist của Admin và KHÔNG ai đọc: Admin sửa được, lưu
+      // được, và không gì thay đổi. Kèm một bẫy đơn vị — ô capability nhận số trần
+      // rồi kẹp bằng cận km, nên đặt `10000` với ý "10 km" sẽ ra 50 km.
+      radiusKm: resolveGroupRadiusKm({
+        defaultMeters: radiusConfig.defaultMeters,
+        minMeters: radiusConfig.minMeters,
+        maxMeters: radiusConfig.maxMeters,
       }),
       inviteCode: makeInviteCode(),
       ownerMembershipId: randomUUID(),
