@@ -80,6 +80,7 @@ Không phải biến môi trường — Admin sửa lúc chạy, có đánh phi�
 | `review.grace` | 7 ngày, 80% | Chờ bao lâu rồi áp mức mặc định khi không ai đánh giá |
 | `chat.retention` | — | Bao lâu sau khi khoá thì xoá lịch sử trò chuyện |
 | `accuracy.giver` | — | Ngưỡng gắn cờ độ chính xác người tặng |
+| `rating.display` | — | Số mẫu tối thiểu trước khi công bố điểm sao 1–5 |
 | `selection.candidate_priority` | ai xin trước | Thứ tự tiêu chí auto-select |
 | `notification.retention` | 90 ngày | Bao lâu thì dọn thông báo cũ khỏi hộp thư |
 | **`rank.points_source`** | `BALANCE` | **Xét hạng đọc cột điểm nào** |
@@ -146,6 +147,7 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | Khoá | Giá trị hiện tại | Ý nghĩa | API |
 | --- | --- | --- | --- |
 | `accuracy.giver` | `minSamples: 5`, `reviewThresholdPercent: 75` | Ngưỡng Giver Accuracy (F43) | `GET\|POST /admin/system-configs` |
+| `rating.display` | `minSamples: 3` | Số mẫu tối thiểu để công bố điểm sao (F42). Thấp hơn `accuracy.giver` vì điểm sao là cảm nhận trải nghiệm, không phải cáo buộc mô tả sai, và không gắn cờ ai vào diện Admin xem xét. Áp lúc ĐỌC nên hạ ngưỡng là công bố ngay | `GET\|POST /admin/system-configs` |
 | `point.redemption` | `vndPerPoint: 2000` | Tỷ lệ quy đổi khi đổi vật phẩm (F74). **Đã nối** vào `POST /posts/:id/redeem` | ⬆ |
 | `review.grace` | `graceDays: 7`, `defaultAccuracyPercent: 80` | Chờ rồi áp mức mặc định khi người nhận không đánh giá (F40). Đọc bởi CLI `gift:settle-rewards` — job này còn trả nốt những lượt bị trần ngày chặn, và ở đó dùng mức người nhận ĐÃ chấm chứ không phải mức mặc định | ⬆ |
 | `selection.candidate_priority` | *(chưa đặt → mặc định "ai xin trước")* | Thứ tự tiêu chí chọn người nhận (CH-1). **Đã nối vào auto-select** 25/09 | `GET\|PUT /admin/candidate-selection` |

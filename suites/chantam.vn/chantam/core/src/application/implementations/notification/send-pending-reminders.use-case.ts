@@ -95,20 +95,35 @@ export class SendPendingRemindersUseCase implements ISendPendingRemindersUseCase
 
     let reviewReminders = 0;
     for (const pending of pendingReviews) {
+      // Câu nhắc khác nhau theo VAI, và không phải chỉ khác chữ: bên NHẬN có một
+      // mốc thật — hết hạn chờ là hệ thống áp mức mặc định và chốt thưởng của
+      // người tặng, nên nói rõ còn mấy ngày là thông tin có giá trị. Bên TẶNG
+      // không có mốc nào, nên bịa ra một con số ngày ở đó là dựng một áp lực
+      // không tồn tại.
+      const isReceiver = pending.role === 'RECEIVER';
       const sent = await this.dispatchNotification.handle({
-        userId: pending.receiverId,
+        userId: pending.userId,
         type: NotificationTypes.REVIEW_REMINDER,
         title: 'Bạn chưa đánh giá lượt trao',
-        body:
-          `Hãy chấm mức chính xác của mô tả so với món đồ thật. ` +
-          `Còn ${pending.daysLeft} ngày trước khi hệ thống áp mức mặc định.`,
+        body: isReceiver
+          ? `Hãy chấm mức chính xác của mô tả so với món đồ thật. ` +
+            `Còn ${String(pending.daysLeft)} ngày trước khi hệ thống áp mức mặc định.`
+          : `Hãy chấm điểm người nhận. Đánh giá của bạn là thứ duy nhất nói được ` +
+            `họ có đàng hoàng khi nhận hay không.`,
         referenceType: 'GIFT_TRANSACTION',
         referenceId: pending.transactionId,
-        // Một lời nhắc cho mỗi lượt trao, không phải mỗi ngày một lời: người
-        // không muốn đánh giá đã quyết rồi, nhắc mỗi ngày chỉ khiến họ tắt hết
-        // thông báo và từ đó mất luôn thông báo về lượt xin nhận.
-        idempotencyKey: `REVIEW_REMINDER:${pending.transactionId}`,
-        variables: { daysLeft: String(pending.daysLeft) },
+        // Một lời nhắc cho mỗi lượt trao VÀ MỖI VAI, không phải mỗi ngày một
+        // lời: người không muốn đánh giá đã quyết rồi, nhắc mỗi ngày chỉ khiến
+        // họ tắt hết thông báo và từ đó mất luôn thông báo về lượt xin nhận.
+        //
+        // Khoá phải mang vai: hai bên của cùng một lượt trao là hai lời nhắc gửi
+        // cho hai người khác nhau, và một khoá chung sẽ để người thứ hai không
+        // bao giờ được nhắc.
+        idempotencyKey: `REVIEW_REMINDER:${pending.role}:${pending.transactionId}`,
+        variables: {
+          role: pending.role,
+          daysLeft: pending.daysLeft === null ? '' : String(pending.daysLeft),
+        },
       });
       if (sent.created) reviewReminders += 1;
     }

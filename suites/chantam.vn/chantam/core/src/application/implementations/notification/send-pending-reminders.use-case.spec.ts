@@ -4,9 +4,11 @@ import { SendPendingRemindersUseCase } from './send-pending-reminders.use-case';
 function makeUseCase(
   options: {
     reviews?: {
+      role: 'GIVER' | 'RECEIVER';
       transactionId: string;
-      receiverId: string;
-      daysLeft: number;
+      userId: string;
+      /** `null` với vai TẶNG: họ không có hạn nào. */
+      daysLeft: number | null;
     }[];
     cycles?: unknown[];
     grace?: unknown;
@@ -66,9 +68,18 @@ function makeUseCase(
 }
 
 const pendingReview = {
+  role: 'RECEIVER' as const,
   transactionId: 'deal-1',
-  receiverId: 'receiver-1',
+  userId: 'receiver-1',
   daysLeft: 4,
+};
+
+/** Bên TẶNG: không có hạn nào, nên `daysLeft` là `null`. */
+const pendingGiverReview = {
+  role: 'GIVER' as const,
+  transactionId: 'deal-1',
+  userId: 'giver-1',
+  daysLeft: null,
 };
 
 const pendingCycle = {
@@ -128,9 +139,32 @@ describe('SendPendingRemindersUseCase', () => {
 
     await useCase.handle({});
 
+    // Khoá mang VAI: hai bên của cùng một lượt trao là hai lời nhắc gửi cho hai
+    // người khác nhau, và một khoá chung sẽ để người thứ hai không bao giờ được
+    // nhắc.
     expect(dispatch.handle.mock.calls[0][0].idempotencyKey).toBe(
-      'REVIEW_REMINDER:deal-1',
+      'REVIEW_REMINDER:RECEIVER:deal-1',
     );
+  });
+
+  it('nhắc bên TẶNG bằng câu khác, KHÔNG bịa ra số ngày', async () => {
+    // Bên nhận có một mốc thật: hết hạn chờ là hệ thống áp mức mặc định và chốt
+    // thưởng của người tặng. Bên tặng không có mốc nào, nên nói "còn N ngày" ở đó
+    // là dựng một áp lực không tồn tại.
+    const { useCase, dispatch } = makeUseCase({
+      reviews: [pendingGiverReview],
+    });
+
+    await useCase.handle({});
+
+    expect(dispatch.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: NotificationTypes.REVIEW_REMINDER,
+        userId: 'giver-1',
+        idempotencyKey: 'REVIEW_REMINDER:GIVER:deal-1',
+      }),
+    );
+    expect(dispatch.handle.mock.calls[0][0].body).not.toContain('ngày');
   });
 
   it('lời nhắc nhiệm vụ nêu tiến độ và mức phạt', async () => {

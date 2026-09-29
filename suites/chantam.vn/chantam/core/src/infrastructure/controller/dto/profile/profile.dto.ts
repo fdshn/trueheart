@@ -15,6 +15,7 @@ import {
   IRankSummaryDto,
   IRequestEmailVerificationResponseDto,
   IRequestPhoneVerificationResponseDto,
+  IReviewRatingSummaryDto,
   IUpdateOwnProfileBodyDto,
   IUpdateOwnProfileDto,
   IUpdateOwnProfileResponseDto,
@@ -212,6 +213,48 @@ export class OwnProfileDto implements IOwnProfileDto {
       'Độ chính xác mô tả khi tặng (F43). Cố ý KHÔNG kèm cờ xem xét: cờ là tín hiệu để Admin nhìn qua, không phải phán quyết.',
   })
   accuracy?: IGiverAccuracySummaryDto | null;
+
+  @ApiProperty({
+    type: () => ReviewRatingSummaryDto,
+    nullable: true,
+    description: 'Điểm sao 1–5 theo từng vai (F42).',
+  })
+  rating?: IReviewRatingSummaryDto | null;
+}
+
+export class ReviewRatingSideDto {
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    example: 4.6,
+    description:
+      'Điểm trung bình, một chữ số thập phân. `null` khi chưa đủ số mẫu tối thiểu — thang 1–5 chỉ có năm bậc nên làm tròn về số nguyên sẽ bỏ mất gần một phần tư dải giá trị.',
+  })
+  average: number | null;
+
+  @ApiProperty({ example: 12, description: 'Số lượt chấm đã tính vào.' })
+  samples: number;
+}
+
+export class ReviewRatingSummaryDto implements IReviewRatingSummaryDto {
+  @ApiProperty({
+    type: () => ReviewRatingSideDto,
+    description: 'Điểm khi người này TẶNG — do những người NHẬN chấm.',
+  })
+  asGiver: { average: number | null; samples: number };
+
+  @ApiProperty({
+    type: () => ReviewRatingSideDto,
+    description: 'Điểm khi người này NHẬN — do những người TẶNG chấm.',
+  })
+  asReceiver: { average: number | null; samples: number };
+
+  @ApiProperty({
+    example: 3,
+    description:
+      'Số mẫu tối thiểu để điểm bắt đầu được công bố (Admin chỉnh được qua `rating.display`).',
+  })
+  minSamples: number;
 }
 
 export class GiverAccuracySummaryDto implements IGiverAccuracySummaryDto {

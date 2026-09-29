@@ -74,12 +74,20 @@ function makeDeps(user: unknown) {
         samples: 7,
         reviewRequired: false,
       })),
+      getRating: jest.fn(async () => ({
+        asGiver: { average: 4.6, samples: 7 },
+        asReceiver: { average: null, samples: 1 },
+      })),
     },
     adminConfig: {
-      getConfigValue: jest.fn(async () => ({
-        minSamples: 5,
-        reviewThresholdPercent: 75,
-      })),
+      // Trả theo KHOÁ. Mock bỏ qua khoá thì `accuracy.giver` và `rating.display`
+      // cùng nhận một giá trị, và phép kiểm sẽ xanh cho một cách đọc cấu hình mà
+      // production không bao giờ làm.
+      getConfigValue: jest.fn(async (key: string) =>
+        key === 'rating.display'
+          ? { minSamples: 3 }
+          : { minSamples: 5, reviewThresholdPercent: 75 },
+      ),
     },
   };
 }
@@ -130,6 +138,13 @@ describe('GetOwnProfileUseCase', () => {
           emailVerified: false,
           profileComplete: true,
           accuracy: { percent: 92, samples: 7, minSamples: 5 },
+          // `asReceiver.average` là `null` dù đã có 1 mẫu: ngưỡng công bố áp lúc
+          // đọc, và một điểm sao dựng từ đúng một lần chấm không phải một phép đo.
+          rating: {
+            asGiver: { average: 4.6, samples: 7 },
+            asReceiver: { average: null, samples: 1 },
+            minSamples: 3,
+          },
           referral: {
             code: 'AB12CD34EF',
             totalCount: 4,

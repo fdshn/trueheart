@@ -151,16 +151,34 @@ async function main(): Promise<void> {
       !ids.has(tooLate),
     );
 
-    const target = pending.find((row) => row.transactionId === inWindow);
+    // Từ 29/09 quét CẢ HAI vai: đánh giá của người tặng nuôi điểm sao của người
+    // nhận, và trước đó không ai nhắc họ nên mẫu phía đó luôn mỏng hơn.
+    const target = pending.find(
+      (row) => row.transactionId === inWindow && row.role === 'RECEIVER',
+    );
     check(
-      'gửi cho NGƯỜI NHẬN, không phải người tặng',
-      target?.receiverId === ReceiverId,
-      target?.receiverId,
+      'nhánh NGƯỜI NHẬN gửi cho đúng người nhận',
+      target?.userId === ReceiverId,
+      target?.userId,
     );
     check(
       'days_left tính đúng: 7 − 4 = 3',
       target?.daysLeft === 3,
       `daysLeft=${target?.daysLeft}`,
+    );
+
+    const giverSide = pending.find(
+      (row) => row.transactionId === inWindow && row.role === 'GIVER',
+    );
+    check(
+      'nhánh NGƯỜI TẶNG cũng được nhắc, gửi cho đúng người tặng',
+      giverSide?.userId === GiverId,
+      giverSide?.userId,
+    );
+    check(
+      'và KHÔNG có hạn nào — daysLeft là null, không phải một con số bịa ra',
+      giverSide?.daysLeft === null,
+      `daysLeft=${String(giverSide?.daysLeft)}`,
     );
 
     console.log('\n2. Đã đánh giá thì thôi nhắc');
@@ -177,8 +195,16 @@ async function main(): Promise<void> {
       limit: 100,
     });
     check(
-      'lượt đã đánh giá rời khỏi danh sách',
-      !afterReview.some((row) => row.transactionId === inWindow),
+      'bên NHẬN đã đánh giá thì nhánh của HỌ rời khỏi danh sách',
+      !afterReview.some(
+        (row) => row.transactionId === inWindow && row.role === 'RECEIVER',
+      ),
+    );
+    check(
+      'nhưng nhánh người TẶNG vẫn còn — họ chưa đánh giá, và đó là lượt khác',
+      afterReview.some(
+        (row) => row.transactionId === inWindow && row.role === 'GIVER',
+      ),
     );
 
     console.log('\n3. Chu kỳ duy trì sắp hết');

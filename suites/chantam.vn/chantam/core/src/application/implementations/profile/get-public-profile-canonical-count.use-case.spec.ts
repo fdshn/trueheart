@@ -25,9 +25,24 @@ describe('GetPublicProfileUseCase canonical post count', () => {
       getSummary: jest.fn(async () => ({ balance: 0, lifetime: 224 })),
     } as unknown as jest.Mocked<IPointLedgerRepository>;
 
-    const result = await new GetPublicProfileUseCase(users, posts, ledger, {
-      web: { publicBaseUrl: '' },
-    } as never).handle({
+    const result = await new GetPublicProfileUseCase(
+      users,
+      posts,
+      ledger,
+      { web: { publicBaseUrl: '' } } as never,
+      {
+        getAccuracy: async () => ({
+          percent: null,
+          samples: 0,
+          reviewRequired: false,
+        }),
+        getRating: async () => ({
+          asGiver: { average: null, samples: 0 },
+          asReceiver: { average: null, samples: 0 },
+        }),
+      } as never,
+      { getConfigValue: async () => null } as never,
+    ).handle({
       username: User.username,
     });
 

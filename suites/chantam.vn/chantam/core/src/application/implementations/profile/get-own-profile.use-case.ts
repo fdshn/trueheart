@@ -15,6 +15,8 @@ import {
 import {
   GiverAccuracyConfigKey,
   normalizeGiverAccuracyConfig,
+  normalizeReviewRatingConfig,
+  ReviewRatingConfigKey,
 } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 import { toOwnProfileDto } from './profile.mapper';
@@ -60,15 +62,25 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
     // Gọi lại chính use case đang phục vụ ba endpoint riêng, không đọc thẳng
     // repository: mọi con số ở đây phải trùng khít với /points/me, /ranks/me và
     // /me/entitlements, kể cả khi cách tính đổi về sau.
-    const [referral, point, rank, entitlements, accuracy, accuracyConfig] =
-      await Promise.all([
-        this.referralRepository.getOwnSummary(command.userId),
-        this.getOwnPointSummaryUseCase.handle({ userId: command.userId }),
-        this.getOwnRankSummaryUseCase.handle({ userId: command.userId }),
-        this.getOwnEntitlementsUseCase.handle({ userId: command.userId }),
-        this.reviewRepository.getAccuracy(command.userId),
-        this.adminConfig.getConfigValue(GiverAccuracyConfigKey),
-      ]);
+    const [
+      referral,
+      point,
+      rank,
+      entitlements,
+      accuracy,
+      accuracyConfig,
+      rating,
+      ratingConfig,
+    ] = await Promise.all([
+      this.referralRepository.getOwnSummary(command.userId),
+      this.getOwnPointSummaryUseCase.handle({ userId: command.userId }),
+      this.getOwnRankSummaryUseCase.handle({ userId: command.userId }),
+      this.getOwnEntitlementsUseCase.handle({ userId: command.userId }),
+      this.reviewRepository.getAccuracy(command.userId),
+      this.adminConfig.getConfigValue(GiverAccuracyConfigKey),
+      this.reviewRepository.getRating(command.userId),
+      this.adminConfig.getConfigValue(ReviewRatingConfigKey),
+    ]);
 
     return {
       profile: {
@@ -88,6 +100,11 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
         // Chính chủ thấy chỉ số của mình, KHÔNG thấy cờ `reviewRequired`. Cờ đó
         // là tín hiệu để Admin xem, không phải phán quyết — cho chính chủ thấy
         // "bạn đang bị đánh dấu xem xét" là kết tội trước khi có người nhìn qua.
+        rating: {
+          asGiver: rating.asGiver,
+          asReceiver: rating.asReceiver,
+          minSamples: normalizeReviewRatingConfig(ratingConfig).minSamples,
+        },
         accuracy: {
           percent: accuracy.percent,
           samples: accuracy.samples,

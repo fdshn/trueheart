@@ -47,6 +47,21 @@ export interface IAccuracyReconcileResult {
   readonly repaired: number;
 }
 
+/**
+ * Điểm sao trung bình của một người, theo TỪNG VAI.
+ *
+ * Hai con số vì vai của người được đánh giá là vai đối lập với người đánh giá:
+ * người NHẬN chấm thì đang chấm đối phương với vai người tặng, và ngược lại. Gộp
+ * lại là trộn "có đáng xin nhận từ người này không" với "có nên duyệt cho người
+ * này không".
+ */
+export interface IReviewRatingState {
+  /** Điểm khi người này TẶNG. `null` khi chưa đủ mẫu. */
+  readonly asGiver: { average: number | null; samples: number };
+  /** Điểm khi người này NHẬN. `null` khi chưa đủ mẫu. */
+  readonly asReceiver: { average: number | null; samples: number };
+}
+
 export interface IUnsettledReceiverReward {
   readonly transactionId: string;
   readonly receiverId: string;
@@ -68,10 +83,23 @@ export interface IUnsettledGiverReward {
 }
 
 export interface IPendingReviewReminder {
+  /**
+   * Vai của người CẦN đánh giá.
+   *
+   * Câu nhắc khác nhau theo vai, và hạn cũng khác: bên NHẬN có một mốc thật — hết
+   * `graceDays` là hệ thống áp mức mặc định và chốt thưởng của người tặng. Bên
+   * TẶNG thì không có mốc nào, đánh giá của họ chỉ nuôi điểm sao của người nhận.
+   */
+  readonly role: 'GIVER' | 'RECEIVER';
   readonly transactionId: string;
-  readonly receiverId: string;
-  /** Số ngày còn lại trước khi hệ thống áp mức mặc định. */
-  readonly daysLeft: number;
+  /** Người cần được nhắc — chính là người phải gửi đánh giá. */
+  readonly userId: string;
+  /**
+   * Số ngày còn lại trước khi hệ thống áp mức mặc định.
+   *
+   * Chỉ có nghĩa với vai NHẬN; với vai TẶNG luôn là `null` vì không có hạn nào.
+   */
+  readonly daysLeft: number | null;
 }
 
 export interface ITransactionReviewRepository {
@@ -156,6 +184,8 @@ export interface ITransactionReviewRepository {
     review: ITransactionReviewEntity;
     /** Trạng thái accuracy của người ĐƯỢC đánh giá sau lần ghi này. */
     accuracy: IGiverAccuracyState;
+    /** Điểm sao của người ĐƯỢC đánh giá sau lần ghi này, tách theo vai. */
+    rating: IReviewRatingState;
   }>;
 
   /** Đánh giá của một người cho một lượt trao. `null` khi chưa gửi. */
@@ -172,6 +202,21 @@ export interface ITransactionReviewRepository {
 
   /** Chỉ số accuracy đang công bố của một người. */
   getAccuracy(userId: string): Promise<IGiverAccuracyState>;
+
+  /** Điểm sao đã lưu của một người, tách theo vai. */
+  getRating(userId: string): Promise<IReviewRatingState>;
+
+  /**
+   * CHỈ mức chính xác trong đánh giá của bên kia, không kèm bình luận hay điểm sao.
+   *
+   * Tách khỏi `findCounterpart` vì hai thứ được che vì hai lý do khác nhau: bình
+   * luận và điểm sao che để tránh trả đũa, còn mức chính xác là hệ số tính thưởng
+   * của người tặng nên họ phải xem được — xem `GetTransactionReviewsUseCase`.
+   */
+  findCounterpartAccuracy(
+    transactionId: string,
+    userId: string,
+  ): Promise<number | null>;
 }
 
 export const ITransactionReviewRepository = Symbol(

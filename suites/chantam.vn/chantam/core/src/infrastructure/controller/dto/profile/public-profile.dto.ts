@@ -2,10 +2,13 @@ import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IGetPublicProfileParamsDto,
   IGetPublicProfileResponseDto,
+  IGiverAccuracySummaryDto,
   IPublicProfileDto,
+  IReviewRatingSummaryDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, Length, Matches } from 'class-validator';
+import { GiverAccuracySummaryDto, ReviewRatingSummaryDto } from './profile.dto';
 
 const UsernamePattern = /^[a-zA-Z0-9_-]+$/;
 
@@ -38,6 +41,21 @@ export class PublicProfileDto implements IPublicProfileDto {
     description: 'Link chia sẻ hồ sơ; null khi chưa cấu hình web công khai.',
   })
   shareUrl: string | null;
+
+  @ApiProperty({
+    type: () => GiverAccuracySummaryDto,
+    nullable: true,
+    description:
+      'Độ chính xác mô tả khi tặng (F43). `null` khi người này chưa có mẫu nào. Cố ý KHÔNG kèm cờ xem xét: cờ là tín hiệu để Admin nhìn qua, hiện nó ra công khai là biến một việc cần người thật xem lại thành một dấu đóng lên mặt người ta.',
+  })
+  accuracy: IGiverAccuracySummaryDto | null;
+
+  @ApiProperty({
+    type: () => ReviewRatingSummaryDto,
+    description:
+      'Điểm sao 1–5 theo từng vai (F42) — người đang chọn xin nhận cần con số khác với chủ bài đang duyệt.',
+  })
+  rating: IReviewRatingSummaryDto;
 }
 
 export class GetPublicProfileResponseDto implements IGetPublicProfileResponseDto {

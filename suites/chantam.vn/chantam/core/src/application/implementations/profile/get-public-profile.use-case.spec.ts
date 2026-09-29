@@ -40,6 +40,18 @@ function makeUseCase(deps: ReturnType<typeof makeDeps>) {
     deps.postRepository as never,
     deps.pointLedgerRepository as never,
     deps.config as never,
+    {
+      getAccuracy: async () => ({
+        percent: null,
+        samples: 0,
+        reviewRequired: false,
+      }),
+      getRating: async () => ({
+        asGiver: { average: null, samples: 0 },
+        asReceiver: { average: null, samples: 0 },
+      }),
+    } as never,
+    { getConfigValue: async () => null } as never,
   );
 }
 
@@ -57,6 +69,15 @@ describe('GetPublicProfileUseCase', () => {
       publishedGiftPostCount: 2,
       lifetimePoints: 1792,
       shareUrl: 'https://chantam.vn/u/nguoi-demo',
+      // Tín hiệu tin cậy, công khai từ 29/09. `accuracy` là `null` khi chưa có
+      // mẫu nào — KHÔNG phải một con số 0, vì "chưa ai chấm" và "bị chấm 0%" là
+      // hai chuyện khác nhau.
+      accuracy: null,
+      rating: {
+        asGiver: { average: null, samples: 0 },
+        asReceiver: { average: null, samples: 0 },
+        minSamples: 3,
+      },
     });
     for (const secret of [
       'email',

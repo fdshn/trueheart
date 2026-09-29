@@ -15,6 +15,7 @@ import {
   IGiftRequestRepository,
   IPostRepository,
 } from '@/domain/ports/repository';
+import { isUniqueViolation } from '@/infrastructure/repository/unique-violation';
 import {
   GiftPostStatuses,
   GiftRequestStatuses,
@@ -25,11 +26,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ProfileGate } from '../profile/profile-gate';
 import { toGiftRequestDto } from './gift-request.mapper';
 import { RequestLifecycleNotifier } from './request-lifecycle.notifier';
-
-function isUniqueViolation(error: unknown): boolean {
-  const err = error as { code?: string; driverError?: { code?: string } };
-  return err?.code === '23505' || err?.driverError?.code === '23505';
-}
 
 @Injectable()
 export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {

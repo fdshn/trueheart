@@ -5,6 +5,7 @@ import {
   IGiverAccuracyState,
   IPendingReviewReminder,
   IReviewableTransaction,
+  IReviewRatingState,
   ISubmitTransactionReviewParams,
   ITransactionReviewRepository,
   IUnsettledGiverReward,
@@ -13,8 +14,11 @@ import {
 import { ITransactionReviewEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
   computeGiverAccuracy,
+  computeReviewRating,
   GiverAccuracyConfigKey,
   normalizeGiverAccuracyConfig,
+  normalizeReviewRatingConfig,
+  ReviewRatingConfigKey,
   TransactionReviewRoles,
 } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
@@ -73,6 +77,75 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
     );
   }
 
+  private async readRatingConfig() {
+    return normalizeReviewRatingConfig(
+      await this.adminConfig.getConfigValue(ReviewRatingConfigKey),
+    );
+  }
+
+  /**
+   * Tính lại điểm sao của một người từ TOÀN BỘ mẫu, tách theo vai.
+   *
+   * Cùng lý lẽ với `recomputeAccuracy`: cộng dồn thì một lần ghi hỏng là chỉ số
+   * lệch vĩnh viễn và không còn gì để đối chiếu.
+   *
+   * Vai của người ĐƯỢC đánh giá là vai ĐỐI LẬP với người đánh giá — nên mẫu cho
+   * "điểm khi tặng" là những đánh giá có `reviewer_role = 'RECEIVER'`.
+   */
+  private async recomputeRating(
+    manager: EntityManager,
+    userId: string,
+  ): Promise<IReviewRatingState> {
+    const rows = await manager.query<
+      { reviewer_role: string; rating: number }[]
+    >(
+      `
+        SELECT reviewer_role, rating FROM transaction_reviews
+        WHERE reviewee_id = $1
+      `,
+      [userId],
+    );
+
+    const config = await this.readRatingConfig();
+    const asGiver = computeReviewRating(
+      rows
+        .filter((row) => row.reviewer_role === TransactionReviewRoles.RECEIVER)
+        .map((row) => Number(row.rating)),
+      config,
+    );
+    const asReceiver = computeReviewRating(
+      rows
+        .filter((row) => row.reviewer_role === TransactionReviewRoles.GIVER)
+        .map((row) => Number(row.rating)),
+      config,
+    );
+
+    // Ghi SỐ LIỆU THÔ, kể cả khi `average` là `null` vì chưa đủ mẫu: số mẫu vẫn
+    // là sự thật và vẫn phải đếm, còn việc công bố hay không do ngưỡng quyết lúc
+    // đọc. Ghi `samples = 0` cho một người đã có hai đánh giá là làm đối soát về
+    // sau không còn gì để so.
+    await manager.query(
+      `
+        UPDATE users
+        SET giver_rating_average = $2,
+            giver_rating_samples = $3,
+            receiver_rating_average = $4,
+            receiver_rating_samples = $5,
+            updated_at = now()
+        WHERE global_id = $1
+      `,
+      [
+        userId,
+        asGiver.average,
+        asGiver.samples,
+        asReceiver.average,
+        asReceiver.samples,
+      ],
+    );
+
+    return { asGiver, asReceiver };
+  }
+
   public async reconcileAccuracy(params: {
     dryRun: boolean;
   }): Promise<IAccuracyReconcileResult> {
@@ -80,6 +153,10 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
 
     // Lấy cả người ĐANG mang chỉ số đã lưu nhưng nay không còn mẫu nào: nâng
     // `minSamples` có thể khiến một chỉ số từng công bố phải rút lại.
+    //
+    // `deleted_at IS NULL`: tài khoản đã xoá mềm không còn hồ sơ để hiện chỉ số,
+    // và tính lại cờ cho họ chỉ làm báo cáo đối soát dài ra bằng những dòng không
+    // ai đọc.
     const rows = await this.manager.query<
       {
         user_id: string;
@@ -102,9 +179,12 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
         WHERE accuracy_percent IS NOT NULL
         GROUP BY reviewee_id
       ) sample ON sample.reviewee_id = person.global_id
-      WHERE sample.reviewee_id IS NOT NULL
-         OR person.giver_accuracy_samples > 0
-         OR person.accuracy_review_required = true
+      WHERE person.deleted_at IS NULL
+        AND (
+          sample.reviewee_id IS NOT NULL
+          OR person.giver_accuracy_samples > 0
+          OR person.accuracy_review_required = true
+        )
     `);
 
     const drifts: IAccuracyDrift[] = [];
@@ -169,12 +249,27 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
     // Cửa sổ HAI đầu: đã qua `remindAfterDays` (nhắc ngay hôm hoàn tất là làm
     // phiền người còn chưa mở hộp), nhưng chưa quá `graceDays` (quá rồi thì hệ
     // thống đã áp mức mặc định, nhắc là nhắc một việc vô ích).
+    // Hai vai, hai nhánh, một danh sách.
+    //
+    // Bên NHẬN bị chặn hai đầu: nhắc sau `remindAfterDays` và THÔI nhắc khi quá
+    // `graceDays`, vì lúc đó hệ thống đã áp mức mặc định và nhắc là nhắc một việc
+    // vô ích.
+    //
+    // Bên TẶNG không có mốc nào cả — đánh giá của họ chỉ nuôi điểm sao của người
+    // nhận, không chốt thưởng của ai. Nên chỉ chặn đầu dưới, và dùng chính
+    // `graceDays` làm giới hạn trên để không đi nhắc những lượt trao từ năm ngoái.
     const rows = await this.manager.query<
-      { transaction_id: string; receiver_id: string; days_left: string }[]
+      {
+        role: string;
+        transaction_id: string;
+        user_id: string;
+        days_left: string | null;
+      }[]
     >(
       `
-        SELECT deal.global_id AS transaction_id,
-               deal.receiver_id,
+        SELECT 'RECEIVER' AS role,
+               deal.global_id AS transaction_id,
+               deal.receiver_id AS user_id,
                GREATEST(
                  0,
                  CEIL(
@@ -182,7 +277,8 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
                      deal.completed_at + ($1 || ' days')::interval - now()
                    )) / 86400
                  )
-               ) AS days_left
+               )::text AS days_left,
+               deal.completed_at
         FROM gift_transactions deal
         WHERE deal.status = 'COMPLETED'
           AND deal.completed_at <= now() - ($2 || ' days')::interval
@@ -192,16 +288,35 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
             WHERE rated.transaction_id = deal.global_id
               AND rated.reviewer_role = 'RECEIVER'
           )
-        ORDER BY deal.completed_at
+
+        UNION ALL
+
+        SELECT 'GIVER' AS role,
+               deal.global_id AS transaction_id,
+               deal.giver_id AS user_id,
+               NULL AS days_left,
+               deal.completed_at
+        FROM gift_transactions deal
+        WHERE deal.status = 'COMPLETED'
+          AND deal.completed_at <= now() - ($2 || ' days')::interval
+          AND deal.completed_at > now() - ($1 || ' days')::interval
+          AND NOT EXISTS (
+            SELECT 1 FROM transaction_reviews rated
+            WHERE rated.transaction_id = deal.global_id
+              AND rated.reviewer_role = 'GIVER'
+          )
+
+        ORDER BY completed_at
         LIMIT $3
       `,
       [String(params.graceDays), String(params.remindAfterDays), params.limit],
     );
 
     return rows.map((row) => ({
+      role: row.role === 'GIVER' ? ('GIVER' as const) : ('RECEIVER' as const),
       transactionId: row.transaction_id,
-      receiverId: row.receiver_id,
-      daysLeft: Number(row.days_left),
+      userId: row.user_id,
+      daysLeft: row.days_left === null ? null : Number(row.days_left),
     }));
   }
 
@@ -376,9 +491,76 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
     };
   }
 
+  public async findCounterpartAccuracy(
+    transactionId: string,
+    userId: string,
+  ): Promise<number | null> {
+    const [row] = await this.manager.query<{ accuracy_percent: number }[]>(
+      `
+        SELECT accuracy_percent FROM transaction_reviews
+        WHERE transaction_id = $1
+          AND reviewer_id <> $2
+          AND accuracy_percent IS NOT NULL
+        LIMIT 1
+      `,
+      [transactionId, userId],
+    );
+
+    return row === undefined ? null : Number(row.accuracy_percent);
+  }
+
+  public async getRating(userId: string): Promise<IReviewRatingState> {
+    const [row] = await this.manager.query<
+      {
+        giver_rating_average: string | null;
+        giver_rating_samples: string;
+        receiver_rating_average: string | null;
+        receiver_rating_samples: string;
+      }[]
+    >(
+      `
+        SELECT giver_rating_average, giver_rating_samples,
+               receiver_rating_average, receiver_rating_samples
+        FROM users WHERE global_id = $1
+      `,
+      [userId],
+    );
+
+    // Ngưỡng áp lúc ĐỌC, không lúc ghi: cột lưu số liệu thô, nên Admin hạ
+    // `rating.display` là mọi hồ sơ công bố ngay, không phải chờ ai đánh giá thêm.
+    // Cùng lối với `computeGiverAccuracy`.
+    const config = await this.readRatingConfig();
+    const shape = (
+      average: string | null,
+      samples: string,
+    ): { average: number | null; samples: number } => {
+      const count = Number(samples ?? 0);
+
+      return {
+        average:
+          average === null || count < config.minSamples
+            ? null
+            : Number(average),
+        samples: count,
+      };
+    };
+
+    return {
+      asGiver: shape(
+        row?.giver_rating_average ?? null,
+        row?.giver_rating_samples ?? '0',
+      ),
+      asReceiver: shape(
+        row?.receiver_rating_average ?? null,
+        row?.receiver_rating_samples ?? '0',
+      ),
+    };
+  }
+
   public async submitReview(params: ISubmitTransactionReviewParams): Promise<{
     review: ITransactionReviewEntity;
     accuracy: IGiverAccuracyState;
+    rating: IReviewRatingState;
   }> {
     return this.manager.transaction(async (manager) => {
       const [row] = await manager.query<IReviewRow[]>(
@@ -401,13 +583,17 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
         ],
       );
 
-      // Chỉ bên NHẬN chấm accuracy, nên chỉ lần đó mới phải tính lại.
+      // Chỉ bên NHẬN chấm accuracy, nên chỉ lần đó mới phải tính lại accuracy.
       const accuracy =
         params.accuracyPercent === null
           ? await this.readAccuracy(manager, params.revieweeId)
           : await this.recomputeAccuracy(manager, params.revieweeId);
 
-      return { review: toEntity(row), accuracy };
+      // Điểm sao thì CẢ HAI vai đều chấm, nên lần nào cũng tính lại. Trước 29/09
+      // con số này chỉ được ghi vào bảng rồi không ai đọc.
+      const rating = await this.recomputeRating(manager, params.revieweeId);
+
+      return { review: toEntity(row), accuracy, rating };
     });
   }
 

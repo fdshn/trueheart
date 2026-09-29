@@ -51,6 +51,8 @@ export interface IOwnProfileDto {
   entitlements?: IEntitlementsSummaryDto | null;
   /** Độ chính xác mô tả khi tặng (F43). `null` khi chưa đủ mẫu. */
   accuracy?: IGiverAccuracySummaryDto | null;
+  /** Điểm sao 1–5 theo từng vai (F42). */
+  rating?: IReviewRatingSummaryDto | null;
 }
 
 export interface IGetOwnProfileResponseDto {
@@ -71,6 +73,17 @@ export interface IPublicProfileDto {
   lifetimePoints: number;
   /** `null` khi chưa cấu hình web công khai. */
   shareUrl: string | null;
+  /**
+   * Độ chính xác mô tả khi tặng (F43). `null` khi chưa đủ mẫu.
+   *
+   * **Công khai từ 29/09.** Trước đó chỉ chính chủ và Admin thấy được, nên người
+   * đang chọn xin nhận giữa hai người tặng không có gì để so — trong khi cả cơ chế
+   * "đủ 5 mẫu mới công bố" được dựng ra chính là để con số này ĐƯỢC công bố mà
+   * không bôi nhọ ai.
+   */
+  accuracy: IGiverAccuracySummaryDto | null;
+  /** Điểm sao 1–5 theo từng vai (F42). Công khai từ 29/09. */
+  rating: IReviewRatingSummaryDto;
 }
 export interface IGetPublicProfileParamsDto {
   username: string;
@@ -114,6 +127,22 @@ export interface IConfirmEmailVerificationResponseDto {
  * phải phán quyết — cho chính chủ thấy "bạn đang bị đánh dấu xem xét" là kết
  * tội trước khi có người thật nhìn qua.
  */
+/**
+ * Điểm sao 1–5, tách theo vai.
+ *
+ * Hai con số vì hai người khác nhau đi tìm hai câu trả lời khác nhau: người đang
+ * chọn xin nhận muốn biết "tặng có tử tế không", còn chủ bài đang duyệt muốn biết
+ * "nhận có đàng hoàng không". Gộp lại thành một điểm là trộn hai câu đó.
+ */
+export interface IReviewRatingSummaryDto {
+  /** Điểm khi người này TẶNG — do những người NHẬN chấm. */
+  asGiver: { average: number | null; samples: number };
+  /** Điểm khi người này NHẬN — do những người TẶNG chấm. */
+  asReceiver: { average: number | null; samples: number };
+  /** Số mẫu tối thiểu để điểm bắt đầu được công bố. */
+  minSamples: number;
+}
+
 export interface IGiverAccuracySummaryDto {
   /** `null` khi chưa đủ số mẫu tối thiểu. */
   percent: number | null;

@@ -105,3 +105,63 @@ export function computeGiverAccuracy(
     reviewRequired: percent < config.reviewThresholdPercent,
   };
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Điểm sao 1–5 (F42)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Khoá `system_configs` cho ngưỡng công bố điểm sao. */
+export const ReviewRatingConfigKey = 'rating.display';
+
+export interface IReviewRatingConfig {
+  /**
+   * Số mẫu tối thiểu trước khi công bố điểm sao.
+   *
+   * Cùng lý lẽ với `accuracy.giver`: một người mới nhận đúng một sao từ một lượt
+   * trao không phải là "người 1 sao". Nhưng ngưỡng ở đây thấp hơn, vì điểm sao là
+   * cảm nhận trải nghiệm chứ không phải một cáo buộc về mô tả sai — và nó KHÔNG
+   * gắn cờ ai vào diện Admin xem xét.
+   */
+  readonly minSamples: number;
+}
+
+export const DefaultReviewRatingConfig: IReviewRatingConfig = { minSamples: 3 };
+
+export function normalizeReviewRatingConfig(raw: unknown): IReviewRatingConfig {
+  if (!raw || typeof raw !== 'object') return DefaultReviewRatingConfig;
+
+  const samples = Number((raw as Record<string, unknown>).minSamples);
+  if (!Number.isFinite(samples)) return DefaultReviewRatingConfig;
+
+  return {
+    minSamples: Math.min(
+      MaxGiverAccuracySamples,
+      Math.max(1, Math.trunc(samples)),
+    ),
+  };
+}
+
+export interface IRatingSnapshot {
+  /** Điểm trung bình đã làm tròn một chữ số thập phân. `null` khi chưa đủ mẫu. */
+  readonly average: number | null;
+  readonly samples: number;
+}
+
+/**
+ * Tính điểm sao trung bình từ danh sách mẫu thô.
+ *
+ * **Một chữ số thập phân, không làm tròn về số nguyên.** Khác với accuracy: thang
+ * 1–5 chỉ có năm bậc, nên làm tròn 4,4 thành 4 là bỏ mất gần một phần tư dải giá
+ * trị. Thang phần trăm thì một phần lẻ không thêm thông tin gì.
+ */
+export function computeReviewRating(
+  ratings: readonly number[],
+  config: IReviewRatingConfig,
+): IRatingSnapshot {
+  const samples = ratings.length;
+  if (samples < config.minSamples) return { average: null, samples };
+
+  const total = ratings.reduce((sum, value) => sum + value, 0);
+
+  return { average: Math.round((total / samples) * 10) / 10, samples };
+}

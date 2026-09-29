@@ -13,6 +13,7 @@ import {
   ReviewTransactionNotCompletedException,
 } from '@/domain/exceptions';
 import { ITransactionReviewRepository } from '@/domain/ports/repository';
+import { isUniqueViolation } from '@/infrastructure/repository/unique-violation';
 import { ITransactionReviewDto } from '@chantam.vn/chantam.core-lib/dto';
 import { ITransactionReviewEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { TransactionReviewRoles } from '@chantam.vn/chantam.core-lib/models';
@@ -80,16 +81,27 @@ export class SubmitReviewUseCase implements ISubmitReviewUseCase {
 
     const comment = command.review.comment?.trim();
 
-    const { review } = await this.reviews.submitReview({
-      globalId: randomUUID(),
-      transactionId: command.transactionId,
-      reviewerId: command.userId,
-      revieweeId: isReceiver ? context.giverId : context.receiverId,
-      reviewerRole: context.role,
-      rating: command.review.rating,
-      accuracyPercent: isReceiver ? (accuracyPercent as number) : null,
-      comment: comment ? comment : null,
-    });
+    // Phép kiểm ở trên là để ra thông báo đọc được; ràng buộc
+    // `UQ_transaction_reviews_one_per_reviewer` mới là thứ thật sự chặn. Hai
+    // request song song cùng vượt qua phép kiểm rồi cùng ghi thì đúng một cái
+    // thắng, và cái thua phải nhận cùng một lỗi nghiệp vụ chứ không phải một lỗi
+    // ràng buộc 500 — cùng lối với `create-gift-request`.
+    let review: ITransactionReviewEntity;
+    try {
+      ({ review } = await this.reviews.submitReview({
+        globalId: randomUUID(),
+        transactionId: command.transactionId,
+        reviewerId: command.userId,
+        revieweeId: isReceiver ? context.giverId : context.receiverId,
+        reviewerRole: context.role,
+        rating: command.review.rating,
+        accuracyPercent: isReceiver ? (accuracyPercent as number) : null,
+        comment: comment ? comment : null,
+      }));
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new ReviewAlreadySubmittedException();
+      throw error;
+    }
 
     // Cộng điểm cho người tặng SAU khi đánh giá đã commit (F40). Chỉ đường của
     // người NHẬN mới sinh điểm: mức chính xác là thứ họ chấm, và đánh giá của
@@ -141,9 +153,31 @@ export class GetTransactionReviewsUseCase implements IGetTransactionReviewsUseCa
         )
       : null;
 
+    // NHƯNG mức chính xác thì người TẶNG được thấy ngay, kể cả khi chưa đánh giá.
+    //
+    // Con số đó không phải một ý kiến về họ mà là **hệ số tính tiền**: thưởng của
+    // người tặng bằng 56 × mức chính xác. Che nó đi nghĩa là họ thấy 24 điểm rơi
+    // vào sổ mà không bao giờ biết con số 43% nào tạo ra, và muốn biết thì phải đi
+    // chấm điểm người khác trước — một điều kiện không ai giải thích được.
+    //
+    // Việc che cũng đã là một lớp bảo vệ HÌNH THỨC: `reason` của bút toán trong
+    // `GET /points/me/ledger` ghi thẳng "người nhận chấm 43% mức chính xác". Nên
+    // giữ nguyên chỉ khiến hai endpoint nói khác nhau về cùng một con số.
+    //
+    // Bình luận và điểm sao vẫn kín — đó mới là chỗ trả đũa được.
+    const disclosedAccuracy =
+      counterpart === null && context.role === TransactionReviewRoles.GIVER
+        ? await this.reviews.findCounterpartAccuracy(
+            command.transactionId,
+            command.userId,
+          )
+        : null;
+
     return {
       mine: mine ? toDto(mine) : null,
       counterpart: counterpart ? toDto(counterpart) : null,
+      counterpartAccuracyPercent:
+        counterpart?.accuracyPercent ?? disclosedAccuracy,
     };
   }
 }

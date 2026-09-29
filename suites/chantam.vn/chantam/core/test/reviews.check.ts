@@ -523,6 +523,97 @@ async function main(): Promise<void> {
         awarded.entryId,
       ]),
     );
+    console.log('\n8. Điểm sao 1–5 được TỔNG HỢP, không còn là dữ liệu chết');
+    // Trước 29/09 con số này chỉ được ghi vào bảng rồi không ai đọc: không hồ sơ
+    // công khai, không hồ sơ riêng, không danh sách Admin. Hỏi hàng nghìn lần rồi
+    // bỏ đi.
+    const [ratingRow] = await dataSource.query<
+      {
+        giver_rating_average: string | null;
+        giver_rating_samples: string;
+        receiver_rating_average: string | null;
+        receiver_rating_samples: string;
+      }[]
+    >(
+      `SELECT giver_rating_average, giver_rating_samples,
+              receiver_rating_average, receiver_rating_samples
+       FROM users WHERE global_id = $1`,
+      [GiverId],
+    );
+    const [{ expected_average, expected_samples }] = await dataSource.query<
+      { expected_average: string; expected_samples: string }[]
+    >(
+      `SELECT ROUND(AVG(rating)::numeric, 1) AS expected_average,
+              COUNT(*) AS expected_samples
+       FROM transaction_reviews
+       WHERE reviewee_id = $1 AND reviewer_role = 'RECEIVER'`,
+      [GiverId],
+    );
+    check(
+      'điểm sao khi TẶNG khớp số liệu thô trong bảng',
+      Number(ratingRow?.giver_rating_average) === Number(expected_average) &&
+        Number(ratingRow?.giver_rating_samples) === Number(expected_samples),
+      `lưu ${String(ratingRow?.giver_rating_average)}/${String(ratingRow?.giver_rating_samples)} vs thô ${expected_average}/${expected_samples}`,
+    );
+    check(
+      'một chữ số thập phân, KHÔNG làm tròn về số nguyên — thang 1–5 chỉ có năm bậc',
+      /^\d(\.\d)?$/.test(String(ratingRow?.giver_rating_average ?? '')),
+      String(ratingRow?.giver_rating_average),
+    );
+
+    const ratingState = await reviews.getRating(GiverId);
+    check(
+      'getRating áp ngưỡng công bố lúc ĐỌC',
+      ratingState.asGiver.samples === Number(expected_samples),
+      `${ratingState.asGiver.samples} mẫu`,
+    );
+
+    // Ngưỡng cao hơn số mẫu → phải rút con số về null NGAY, không chờ ai chấm thêm.
+    await dataSource.query(
+      `UPDATE system_configs SET value_json = $1
+       WHERE config_key = 'rating.display'`,
+      [JSON.stringify({ minSamples: 999 })],
+    );
+    const hidden = await reviews.getRating(GiverId);
+    check(
+      'nâng ngưỡng thì điểm bị rút về null ngay, số mẫu vẫn giữ',
+      hidden.asGiver.average === null &&
+        hidden.asGiver.samples === Number(expected_samples),
+      `average=${String(hidden.asGiver.average)} samples=${hidden.asGiver.samples}`,
+    );
+    await dataSource.query(
+      `UPDATE system_configs SET value_json = $1
+       WHERE config_key = 'rating.display'`,
+      [JSON.stringify({ minSamples: 3 })],
+    );
+
+    console.log('\n9. Người TẶNG xem được mức chính xác đã bị chấm');
+    // Con số này là HỆ SỐ TÍNH TIỀN (56 × mức chính xác), không phải một ý kiến về
+    // họ. Che đi nghĩa là họ thấy 24 điểm rơi vào sổ mà không biết con số nào tạo
+    // ra — và `reason` của bút toán vốn đã ghi thẳng nó, nên che chỉ khiến hai
+    // endpoint nói khác nhau.
+    const [ratedDeal] = await dataSource.query<{ transaction_id: string }[]>(
+      `SELECT transaction_id FROM transaction_reviews
+       WHERE reviewer_role = 'RECEIVER' AND accuracy_percent IS NOT NULL
+       ORDER BY id LIMIT 1`,
+    );
+    const disclosed = await reviews.findCounterpartAccuracy(
+      ratedDeal.transaction_id,
+      GiverId,
+    );
+    check(
+      'đọc được mức chính xác của bên kia mà không cần đánh giá trước',
+      typeof disclosed === 'number',
+      `nhận ${String(disclosed)}`,
+    );
+    check(
+      'nhưng KHÔNG đọc được đánh giá của chính mình qua đường đó',
+      (await reviews.findCounterpartAccuracy(
+        ratedDeal.transaction_id,
+        ReceiverId,
+      )) === null,
+    );
+
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

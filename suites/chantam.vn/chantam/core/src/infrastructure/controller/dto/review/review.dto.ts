@@ -103,4 +103,13 @@ export class GetTransactionReviewsResponseDto implements IGetTransactionReviewsR
       'Đánh giá của bên kia. Chỉ hiện SAU khi bạn đã gửi của mình — đọc trước rồi mới chấm là mời nhau trả đũa.',
   })
   counterpart: ITransactionReviewDto | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    example: 90,
+    description:
+      'Mức chính xác bên kia đã chấm. Người TẶNG thấy ngay cả khi chưa gửi đánh giá của mình: đây là hệ số tính thưởng của họ (56 × mức này), không phải một ý kiến về họ — và `reason` của bút toán trong `GET /points/me/ledger` vốn đã ghi thẳng con số đó. Bình luận và điểm sao thì vẫn kín cho tới khi cả hai đã gửi.',
+  })
+  counterpartAccuracyPercent: number | null;
 }
