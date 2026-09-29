@@ -217,9 +217,32 @@ async function main(): Promise<void> {
       cycle?.daysLeft === 20,
       `daysLeft=${cycle?.daysLeft}`,
     );
+    // Tiến độ phải đếm SỐNG, không đọc hai cột `gifts_done`/`referrals_done`.
+    //
+    // Hai cột đó chỉ được ghi ở bước ĐÁNH GIÁ, tức lúc chu kỳ đóng; lời nhắc gửi
+    // 30 ngày trước đó nên chúng luôn là 0, và lời nhắc đi ra với nội dung "bạn đã
+    // hoàn tất 0/2 lượt trao" kể cả với người đã trao xong. Sửa 29/09.
+    //
+    // Fixture dựng riêng để phân biệt được hai cách đọc:
+    //
+    // - `gifts_done` lưu sẵn là 0, nhưng trong cửa sổ chu kỳ có 3 lượt trao đã
+    //   hoàn tất thật → đọc sống phải ra 3.
+    // - `referrals_done` lưu sẵn là **1**, nhưng KHÔNG có lượt giới thiệu nào hợp
+    //   lệ trong cửa sổ → đọc sống phải ra 0. Con số 1 đó nằm đây chính là để bắt
+    //   trường hợp ai đó quay về đọc cột cũ.
     check(
-      'kèm tiến độ để lời nhắc nói được còn thiếu bao nhiêu',
-      cycle?.requiredGifts === 2 && cycle?.referralsDone === 1,
+      'giftsDone đếm SỐNG trong cửa sổ chu kỳ, không đọc cột lưu sẵn',
+      cycle?.giftsDone === 3,
+      `nhận ${String(cycle?.giftsDone)}, cột lưu sẵn là 0`,
+    );
+    check(
+      'referralsDone cũng đếm SỐNG — BỎ QUA giá trị 1 lưu trong cột',
+      cycle?.referralsDone === 0,
+      `nhận ${String(cycle?.referralsDone)}, cột lưu sẵn là 1`,
+    );
+    check(
+      'kèm chỉ tiêu để lời nhắc nói được còn thiếu bao nhiêu',
+      cycle?.requiredGifts === 2 && cycle?.requiredReferrals === 2,
       `gifts ${cycle?.giftsDone}/${cycle?.requiredGifts}, referrals ${cycle?.referralsDone}/${cycle?.requiredReferrals}`,
     );
     check(

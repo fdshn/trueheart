@@ -61,9 +61,22 @@ export class RankSummaryDto implements IRankSummaryDto {
 
   @ApiProperty({
     example: 700,
-    description: 'Điểm đang có — con số QUYẾT ĐỊNH hạng.',
+    description: 'Điểm đang có — số tiêu được.',
   })
   balancePoints: number;
+
+  @ApiProperty({
+    example: 700,
+    description:
+      'Con số THẬT SỰ quyết định hạng. Bằng `balancePoints` với cấu hình mặc định, bằng `lifetimePoints` khi Admin chuyển `rank.points_source` sang LIFETIME. So với `thresholdPoints`/`warningPoints` thì đọc field NÀY — đọc `balancePoints` là đúng hôm nay và sai ngay lần cấu hình đổi.',
+  })
+  rankPoints: number;
+
+  @ApiProperty({
+    enum: ['BALANCE', 'LIFETIME'],
+    description: 'Cột đang cầm quyền quyết hạng, để client khỏi tự đoán.',
+  })
+  rankPointsSource: 'BALANCE' | 'LIFETIME';
 
   @ApiProperty({
     example: 672,

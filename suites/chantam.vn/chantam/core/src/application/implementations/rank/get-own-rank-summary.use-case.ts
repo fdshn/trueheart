@@ -23,24 +23,29 @@ export class GetOwnRankSummaryUseCase implements IGetOwnRankSummaryUseCase {
         rank: summary.rank,
         lifetimePoints: summary.lifetimePoints,
         balancePoints: summary.balancePoints,
+        rankPoints: summary.rankPoints,
+        rankPointsSource: summary.rankPointsSource,
         thresholdPoints: summary.currentTier.thresholdPoints,
         warningPoints: summary.currentTier.warningPoints,
         // Cảnh báo tính ở máy chủ để web và app không đặt hai mốc khác nhau cho
-        // cùng một hồ sơ.
+        // cùng một hồ sơ. So bằng `rankPoints` — con số thật sự quyết hạng — chứ
+        // không bằng `balancePoints`: hai cái trùng nhau với cấu hình mặc định và
+        // rẽ đôi ngay khi Admin chuyển `rank.points_source`.
         demotionWarning:
           summary.currentTier.warningPoints > 0 &&
-          summary.balancePoints < summary.currentTier.warningPoints,
+          summary.rankPoints < summary.currentTier.warningPoints,
         postQuota: summary.currentTier.postQuota,
         nextRank: summary.nextTier
           ? {
               rank: summary.nextTier.rank,
               requiredPoints: summary.nextTier.thresholdPoints,
-              // Trừ theo BALANCE, không theo lifetime: lên hạng xét trên số
-              // điểm đang có. Dùng lifetime sẽ nói với người đã tiêu 500 điểm
-              // rằng họ gần bậc kế tiếp hơn 500 điểm so với thực tế.
+              // Trừ theo con số ĐANG CẦM QUYỀN quyết hạng. Với cấu hình mặc
+              // định đó là balance, và nói "còn bao nhiêu nữa" theo lifetime sẽ
+              // bảo người đã tiêu 500 điểm rằng họ gần bậc kế tiếp hơn 500 điểm
+              // so với thực tế.
               remainingPoints: Math.max(
                 0,
-                summary.nextTier.thresholdPoints - summary.balancePoints,
+                summary.nextTier.thresholdPoints - summary.rankPoints,
               ),
               requiredGifts: summary.nextTier.requiredGifts,
               requiredReferrals: summary.nextTier.requiredReferrals,

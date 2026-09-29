@@ -41,7 +41,7 @@ export class RankController {
   @ApiOperation({
     summary: 'Đánh giá các chu kỳ duy trì rank đến hạn',
     description:
-      'Cần quyền `rank.operate` trong Admin CMS. Trigger này phải do scheduler bên ngoài gọi; M3 chưa có completed-gift source nên activity unavailable được ghi UNEVALUATED, không bị giáng hạng.',
+      'Cần quyền `rank.operate` trong Admin CMS. Trigger này phải do scheduler bên ngoài gọi. Chu kỳ thiếu chỉ tiêu chỉ được đánh `FAILED` ở bước này — hạng KHÔNG tự đổi; khoản trừ điểm theo bậc áp ở lượt quét thứ hai rồi hạng mới được xét lại theo số điểm mới, và người bị tụt hạng nhận thông báo `RANK_DEMOTED`.',
   })
   @ApiOkResponse({
     type: ResponseDto.forApi(EvaluateDueRankMaintenanceResponseDto),

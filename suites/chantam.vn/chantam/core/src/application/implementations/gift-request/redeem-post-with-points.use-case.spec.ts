@@ -62,6 +62,9 @@ function makeUseCase(
       ),
   };
   const notifier = { announce: jest.fn().mockResolvedValue(undefined) };
+  const rankChange = {
+    afterBalanceChange: jest.fn().mockResolvedValue(null),
+  };
 
   return {
     useCase: new RedeemPostWithPointsUseCase(
@@ -69,10 +72,12 @@ function makeUseCase(
       ledger as never,
       adminConfig as never,
       notifier as never,
+      rankChange as never,
     ),
     requests,
     ledger,
     notifier,
+    rankChange,
   };
 }
 
@@ -224,5 +229,30 @@ describe('RedeemPostWithPointsUseCase', () => {
     await useCase.handle(command);
 
     expect(ledger.appendAdjustment.mock.calls[0][0].delta).toBe(-500);
+  });
+  it('xét lại hạng sau khi đổi vật phẩm', async () => {
+    // Lỗ đã bịt 29/09. Tiêu điểm làm tụt hạng, nên đổi vật phẩm mà không xét lại
+    // là để người hạng Vàng còn 596 điểm vẫn giữ quota 20 bài và quyền SOS họ
+    // không còn đủ điều kiện — cho tới khi một biến động điểm KHÔNG liên quan nào
+    // đó tình cờ kích hoạt xét lại. Và không có lời cảnh báo nào.
+    //
+    // `rank-balance.check.ts` từng gọi `reconcileNormalRank` BẰNG TAY sau
+    // `appendAdjustment`, nên nó xanh trong khi đường thật hỏng. Phép kiểm này
+    // canh chính chỗ nối đó.
+    const { useCase, rankChange } = makeUseCase();
+
+    await useCase.handle(command);
+
+    expect(rankChange.afterBalanceChange).toHaveBeenCalledWith(RequesterId);
+  });
+
+  it('hoàn điểm khi duyệt hỏng cũng xét lại hạng', async () => {
+    // Khoản trừ có thể đã kéo họ tụt hạng; khoản hoàn phải đưa hạng trở lại.
+    const { useCase, requests, rankChange } = makeUseCase();
+    requests.acceptRequest.mockRejectedValue(new Error('hết hàng'));
+
+    await expect(useCase.handle(command)).rejects.toThrow('hết hàng');
+
+    expect(rankChange.afterBalanceChange).toHaveBeenCalledWith(RequesterId);
   });
 });

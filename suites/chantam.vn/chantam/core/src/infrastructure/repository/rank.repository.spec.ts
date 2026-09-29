@@ -65,6 +65,10 @@ describe('RankRepository', () => {
         postQuota: 20,
       },
       qualifiedReferrals: 2,
+      // Repository dựng bằng tay nên không có `adminConfig`, và `rankPointsColumn()`
+      // lùi về mặc định BALANCE — đúng hành vi khi chưa ai đặt cấu hình.
+      rankPoints: 640,
+      rankPointsSource: 'BALANCE',
       maintenanceCycle: {
         rank: UserRanks.SILVER,
         cycleStart: CycleStart,

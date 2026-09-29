@@ -21,6 +21,7 @@ import {
 } from '@chantam.vn/chantam.core-lib/models';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
+import { RankChangeNotifier } from '../rank/rank-change.notifier';
 import { AcceptedRequestNotifier } from './accepted-request.notifier';
 
 /** Mã phân loại bút toán trừ điểm khi đổi vật phẩm (F77). */
@@ -52,6 +53,7 @@ export class RedeemPostWithPointsUseCase implements IRedeemPostWithPointsUseCase
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
     private readonly acceptedNotifier: AcceptedRequestNotifier,
+    private readonly rankChange: RankChangeNotifier,
   ) {}
 
   public async handle(
@@ -136,8 +138,24 @@ export class RedeemPostWithPointsUseCase implements IRedeemPostWithPointsUseCase
         source: 'REDEMPTION_REFUND',
         reason: 'Hoàn điểm vì không chốt được vật phẩm',
       });
+      // Hoàn điểm cũng là một biến động balance: nếu khoản trừ vừa rồi đã kéo họ
+      // tụt hạng thì khoản hoàn phải đưa hạng trở lại.
+      await this.rankChange.afterBalanceChange(command.requesterId);
       throw error;
     }
+
+    // Xét lại hạng SAU khi đã chốt xong, và trước khi trả về.
+    //
+    // Đây là đường thứ tư trong bốn đường làm đổi balance mà `RankChangeNotifier`
+    // được dựng ra để gom — và là đường DUY NHẤT từng quên gọi nó. Hệ quả rất cụ
+    // thể: người hạng Vàng đổi một món 300 điểm còn 596, dưới cả ngưỡng Bạc, mà
+    // `users.rank` vẫn là GOLD — họ giữ quota 20 bài và quyền SOS không còn đủ
+    // điều kiện, cho tới khi một biến động điểm KHÔNG liên quan nào đó tình cờ
+    // kích hoạt xét lại. Và không có lời cảnh báo nào.
+    //
+    // Chính tình huống này là lý do §12.4 tồn tại: "đổi một vật phẩm rồi sáng hôm
+    // sau phát hiện mình đã xuống Bạc mà không ai nói trước".
+    await this.rankChange.afterBalanceChange(command.requesterId);
 
     await this.acceptedNotifier.announce({
       receiverId: command.requesterId,

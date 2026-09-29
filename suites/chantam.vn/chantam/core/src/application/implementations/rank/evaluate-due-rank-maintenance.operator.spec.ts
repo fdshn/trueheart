@@ -8,9 +8,13 @@ describe('EvaluateDueRankMaintenanceUseCase — không cần danh tính HTTP', (
       reconcileNormalRank: jest.fn(),
     };
     const ledger = { appendAdjustment: jest.fn() };
+    const rankChange = {
+      afterBalanceChange: jest.fn().mockResolvedValue(null),
+    };
     const useCase = new EvaluateDueRankMaintenanceUseCase(
       ranks as never,
       ledger as never,
+      rankChange as never,
     );
 
     await expect(useCase.handle({})).resolves.toEqual({

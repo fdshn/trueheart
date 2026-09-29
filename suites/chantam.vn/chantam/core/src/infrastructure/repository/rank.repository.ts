@@ -249,10 +249,16 @@ export class RankRepository implements IRankRepository {
     remindBeforeDays: number;
     limit: number;
   }): Promise<IMaintenanceReminder[]> {
-    // `gifts_done` / `referrals_done` đọc từ chính bản ghi chu kỳ: chúng được
-    // ghi lúc đánh giá, nên với chu kỳ còn OPEN chúng là 0. Đó là đúng — lời
-    // nhắc nói "bạn đã làm 0/2", và người dùng cần biết con số đó chứ không phải
-    // một câu chung chung.
+    // Tiến độ tính SỐNG, không đọc `cycle.gifts_done` / `cycle.referrals_done`.
+    //
+    // Hai cột đó chỉ được ghi ở bước ĐÁNH GIÁ, tức lúc chu kỳ đóng. Lời nhắc thì
+    // gửi 30 ngày TRƯỚC đó, khi chu kỳ còn OPEN, nên hai cột luôn bằng 0 — và lời
+    // nhắc đi ra với nội dung "bạn đã hoàn tất 0/2 lượt trao" kể cả với người đã
+    // trao xong cả hai. Một con số sai trong thông báo còn tệ hơn không có số:
+    // người làm đủ rồi bị bảo là chưa làm gì sẽ thôi tin những lời nhắc sau.
+    //
+    // Đếm bằng đúng hai câu mà bước đánh giá đếm, trên cùng cửa sổ chu kỳ, để
+    // lời nhắc và kết quả cuối không bao giờ nói hai chuyện khác nhau.
     const rows = await this.manager.query<
       {
         cycle_id: string;
@@ -274,13 +280,28 @@ export class RankRepository implements IRankRepository {
                  0,
                  CEIL(EXTRACT(EPOCH FROM (cycle.cycle_end - now())) / 86400)
                ) AS days_left,
-               cycle.gifts_done,
+               gifts.gifts_done,
                cycle.required_gifts,
-               cycle.referrals_done,
+               referrals.referrals_done,
                cycle.required_referrals,
                tier.maintenance_penalty_points AS penalty_points
         FROM rank_maintenance_cycles cycle
         INNER JOIN rank_tiers tier ON tier.rank = cycle.rank
+        CROSS JOIN LATERAL (
+          SELECT COUNT(*)::text AS gifts_done
+          FROM gift_transactions deal
+          WHERE deal.giver_id = cycle.user_id
+            AND deal.status = 'COMPLETED'
+            AND deal.completed_at >= cycle.cycle_start
+            AND deal.completed_at < cycle.cycle_end
+        ) gifts
+        CROSS JOIN LATERAL (
+          SELECT COUNT(*)::text AS referrals_done
+          FROM referrals invite
+          WHERE invite.referrer_id = cycle.user_id
+            AND invite.qualified_at >= cycle.cycle_start
+            AND invite.qualified_at < cycle.cycle_end
+        ) referrals
         WHERE cycle.status = 'OPEN'
           AND cycle.reminded_at IS NULL
           AND cycle.cycle_end > now()
@@ -587,10 +608,19 @@ export class RankRepository implements IRankRepository {
     const nextRank = this.getNextRank(summary.rank);
     const nextTier = nextRank ? await this.getTier(nextRank) : null;
 
+    // Cả hai con số vẫn trả về nguyên vẹn — chúng là hai sự thật khác nhau và màn
+    // hình hồ sơ hiển thị cả hai. `rankPoints` chỉ nói CON SỐ NÀO đang cầm quyền,
+    // đọc đúng cùng một cấu hình mà `reconcileNormalRank` đọc.
+    const pointsColumn = await this.rankPointsColumn();
+    const lifetimePoints = Number(summary.lifetime_points ?? 0);
+    const balancePoints = Number(summary.balance_points ?? 0);
+
     return {
       rank: summary.rank,
-      lifetimePoints: Number(summary.lifetime_points ?? 0),
-      balancePoints: Number(summary.balance_points ?? 0),
+      lifetimePoints,
+      balancePoints,
+      rankPoints: pointsColumn === 'lifetime' ? lifetimePoints : balancePoints,
+      rankPointsSource: pointsColumn === 'lifetime' ? 'LIFETIME' : 'BALANCE',
       currentTier,
       nextTier,
       qualifiedReferrals: Number(summary.qualified_referrals),

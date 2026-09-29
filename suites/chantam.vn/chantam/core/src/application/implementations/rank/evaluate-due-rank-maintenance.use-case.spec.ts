@@ -36,13 +36,28 @@ function makeDeps(
     }),
   };
 
+  // Khoản trừ phải đi qua `RankChangeNotifier`, không gọi `reconcileNormalRank`
+  // trần: trước 29/09 hạng CÓ tụt nhưng không thông báo nào được gửi, nên người
+  // bị trừ 224 điểm và mất hạng Bạc là người duy nhất không được báo.
+  const rankChange = {
+    afterBalanceChange: jest
+      .fn()
+      .mockResolvedValue(
+        options.demoted === true
+          ? { fromRank: 'SILVER', toRank: 'MEMBER', demoted: true }
+          : null,
+      ),
+  };
+
   return {
     useCase: new EvaluateDueRankMaintenanceUseCase(
       ranks as never,
       ledger as never,
+      rankChange as never,
     ),
     ranks,
     ledger,
+    rankChange,
   };
 }
 
@@ -94,28 +109,31 @@ describe('EvaluateDueRankMaintenanceUseCase', () => {
   });
 
   it('xét lại hạng theo balance mới sau khi trừ', async () => {
-    const { useCase, ranks } = makeDeps({
+    const { useCase, ranks, rankChange } = makeDeps({
       pending: [silverCycle],
       demoted: true,
     });
 
     const result = await useCase.handle({});
 
-    expect(ranks.reconcileNormalRank).toHaveBeenCalledWith('u-1');
+    // Qua notifier, KHÔNG gọi `reconcileNormalRank` trần: người bị trừ 224 điểm
+    // và mất hạng phải được báo.
+    expect(rankChange.afterBalanceChange).toHaveBeenCalledWith('u-1');
+    expect(ranks.reconcileNormalRank).not.toHaveBeenCalled();
     expect(result.penalties[0].demoted).toBe(true);
   });
 
   it('bút toán đã tồn tại thì KHÔNG xét lại hạng lần nữa', async () => {
     // Khoá chống trùng đã chặn khoản trừ, nên balance không đổi và một lượt xét
     // hạng nữa chỉ là lượt đi database vô ích.
-    const { useCase, ranks } = makeDeps({
+    const { useCase, rankChange } = makeDeps({
       pending: [silverCycle],
       applied: false,
     });
 
     const result = await useCase.handle({});
 
-    expect(ranks.reconcileNormalRank).not.toHaveBeenCalled();
+    expect(rankChange.afterBalanceChange).not.toHaveBeenCalled();
     expect(result.penalties).toHaveLength(0);
   });
 

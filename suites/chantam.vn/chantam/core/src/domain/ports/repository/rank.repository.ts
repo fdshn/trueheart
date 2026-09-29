@@ -43,6 +43,18 @@ export interface IRankChange {
 
 export interface IRankSummary {
   readonly rank: UserRanks;
+  /**
+   * Con số THẬT SỰ quyết định hạng, theo cấu hình `rank.points_source`.
+   *
+   * Bằng `balancePoints` với cấu hình mặc định, và bằng `lifetimePoints` khi Admin
+   * chuyển nguồn sang LIFETIME. Có field riêng vì mọi phép so với ngưỡng phải đọc
+   * ĐÚNG con số mà chỗ quyết hạng đọc: trước đây lời cảnh báo sắp tụt hạng so
+   * `balancePoints` với ngưỡng trong khi quyết định tụt hạng lại so cột đã cấu
+   * hình, nên đổi cấu hình một lần là hai bên nói về hai con số khác nhau.
+   */
+  readonly rankPoints: number;
+  /** Cột đang được dùng để quyết hạng — để client khỏi đoán. */
+  readonly rankPointsSource: 'BALANCE' | 'LIFETIME';
   /** Tổng điểm từng kiếm được. Số thống kê, KHÔNG phải căn cứ xét hạng. */
   readonly lifetimePoints: number;
   /** Điểm đang có — con số QUYẾT ĐỊNH hạng (chốt 2026-09-24). */

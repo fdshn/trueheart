@@ -6,6 +6,7 @@ function makeNotifier(
     change?: unknown;
     reconcileError?: unknown;
     balancePoints?: number;
+    rankPoints?: number;
     warningPoints?: number;
     rank?: string;
     dispatchError?: unknown;
@@ -19,6 +20,11 @@ function makeNotifier(
       rank: options.rank ?? 'SILVER',
       lifetimePoints: 1200,
       balancePoints: options.balancePoints ?? 700,
+      // `rankPoints` là con số notifier thật sự so với ngưỡng — với cấu hình mặc
+      // định nó bằng balance. Thiếu field này thì phép so ra `undefined >= 470`,
+      // tức false, và cảnh báo gửi cả khi điểm còn dư.
+      rankPoints: options.rankPoints ?? options.balancePoints ?? 700,
+      rankPointsSource: 'BALANCE',
       currentTier: {
         rank: options.rank ?? 'SILVER',
         thresholdPoints: 672,
@@ -149,5 +155,38 @@ describe('RankChangeNotifier', () => {
     const { notifier } = makeNotifier({ change: demotion });
 
     await expect(notifier.afterBalanceChange('u-1')).resolves.toEqual(demotion);
+  });
+  it('báo khi LÊN hạng, và không kèm cảnh báo sắp tụt', async () => {
+    // Trước 29/09 lên hạng im lặng hoàn toàn ở mọi đường, trong khi tụt hạng có
+    // hai loại thông báo. Chính lúc vừa lên hạng là lúc người dùng có thêm quyền
+    // — quota nhiều hơn, mở SOS ở Bạc — mà không ai nói thì họ không biết mình
+    // đang có gì để dùng.
+    const { notifier, dispatch } = makeNotifier({
+      change: { fromRank: 'MEMBER', toRank: 'SILVER', demoted: false },
+    });
+
+    await notifier.afterBalanceChange('u-1');
+
+    expect(dispatch.handle).toHaveBeenCalledTimes(1);
+    expect(dispatch.handle).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'RANK_PROMOTED' }),
+    );
+  });
+
+  it('cảnh báo so theo con số QUYẾT HẠNG, không theo balance', async () => {
+    // Bẫy đã bịt 29/09: `rank.points_source` áp cho chỗ quyết hạng nhưng cảnh báo
+    // lại đọc `balancePoints`. Đổi cấu hình sang LIFETIME một lần là cảnh báo tính
+    // theo một con số còn tụt hạng tính theo con số khác.
+    //
+    // Ở đây balance đã dưới mốc 470 nhưng `rankPoints` (lifetime) thì chưa — nên
+    // KHÔNG được cảnh báo, vì hạng của họ không hề lung lay.
+    const { notifier, dispatch } = makeNotifier({
+      balancePoints: 100,
+      rankPoints: 1200,
+    });
+
+    await notifier.afterBalanceChange('u-1');
+
+    expect(dispatch.handle).not.toHaveBeenCalled();
   });
 });

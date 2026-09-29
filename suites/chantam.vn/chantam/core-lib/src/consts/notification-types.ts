@@ -72,6 +72,16 @@ export enum NotificationTypes {
   RANK_DEMOTED = 'RANK_DEMOTED',
 
   /**
+   * Đã LÊN hạng.
+   *
+   * Thêm 29/09. Trước đó lên hạng hoàn toàn im lặng ở mọi đường, trong khi tụt
+   * hạng thì có hai loại thông báo. Lệch đó không cố ý: chính lúc vừa lên hạng là
+   * lúc người dùng có thêm quyền — quota bài nhiều hơn, mở SOS ở Bạc, mở tạo Group
+   * ở Kim Cương — mà không ai nói thì họ không biết mình đang có gì để dùng.
+   */
+  RANK_PROMOTED = 'RANK_PROMOTED',
+
+  /**
    * Nhắc người nhận đánh giá lượt trao đã hoàn tất.
    *
    * Không nhắc thì phần lớn không đánh giá, và nhánh "áp mức mặc định sau 7
@@ -125,7 +135,7 @@ export enum NotificationGroups {
 /**
  * Mỗi loại thuộc đúng một nhóm.
  *
- * Khai đủ cả 20 loại thay vì có nhánh mặc định: thêm một loại mới mà quên xếp
+ * Khai đủ MỌI loại thay vì có nhánh mặc định: thêm một loại mới mà quên xếp
  * nhóm thì TypeScript báo ngay, thay vì nó lặng lẽ rơi vào nhóm nào đó và không
  * ai tắt được.
  */
@@ -153,6 +163,7 @@ export const NotificationGroupOf: Record<
 
   [NotificationTypes.RANK_DEMOTION_WARNING]: NotificationGroups.SYSTEM,
   [NotificationTypes.RANK_DEMOTED]: NotificationGroups.SYSTEM,
+  [NotificationTypes.RANK_PROMOTED]: NotificationGroups.SYSTEM,
   [NotificationTypes.RANK_MAINTENANCE_REMINDER]: NotificationGroups.SYSTEM,
   [NotificationTypes.REVIEW_REMINDER]: NotificationGroups.SYSTEM,
   [NotificationTypes.POST_EXPIRING_SOON]: NotificationGroups.SYSTEM,

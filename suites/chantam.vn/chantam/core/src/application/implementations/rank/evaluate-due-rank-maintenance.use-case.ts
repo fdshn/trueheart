@@ -9,6 +9,7 @@ import {
   IRankRepository,
 } from '@/domain/ports/repository';
 import { Inject, Injectable } from '@nestjs/common';
+import { RankChangeNotifier } from './rank-change.notifier';
 
 /** Trần số chu kỳ trừ điểm mỗi lần chạy. */
 const PenaltyBatchLimit = 500;
@@ -23,6 +24,7 @@ export class EvaluateDueRankMaintenanceUseCase implements IEvaluateDueRankMainte
     private readonly rankRepository: IRankRepository,
     @Inject(IPointLedgerRepository)
     private readonly ledger: IPointLedgerRepository,
+    private readonly rankChange: RankChangeNotifier,
   ) {}
 
   public async handle(
@@ -53,12 +55,15 @@ export class EvaluateDueRankMaintenanceUseCase implements IEvaluateDueRankMainte
       });
       if (!entry.applied) continue;
 
-      // Xét lại hạng theo balance MỚI. Khoản trừ tác động tới hạng gián tiếp
-      // qua điểm, nên phải gọi tường minh ở đây — `appendAdjustment` là đường
-      // ghi sổ, nó không biết gì về thứ hạng.
-      const change = await this.rankRepository.reconcileNormalRank(
-        cycle.userId,
-      );
+      // Xét lại hạng theo balance MỚI **và báo cho người dùng**. Khoản trừ tác
+      // động tới hạng gián tiếp qua điểm, nên phải gọi tường minh ở đây —
+      // `appendAdjustment` là đường ghi sổ, nó không biết gì về thứ hạng.
+      //
+      // Đi qua `RankChangeNotifier` chứ không gọi `reconcileNormalRank` trần:
+      // trước đây hạng CÓ tụt nhưng không thông báo nào được gửi, nên người bị
+      // trừ 224 điểm và mất hạng Bạc vì trượt chỉ tiêu — tức người cần biết nhất
+      // — lại là người duy nhất không được báo.
+      const change = await this.rankChange.afterBalanceChange(cycle.userId);
 
       penalties.push({
         cycleId: cycle.cycleId,

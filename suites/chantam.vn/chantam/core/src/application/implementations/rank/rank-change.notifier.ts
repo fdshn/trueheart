@@ -63,6 +63,10 @@ export class RankChangeNotifier {
 
     try {
       if (change?.demoted) await this.notifyDemoted(userId, change);
+      // Lên hạng: báo, và KHÔNG chạy nhánh cảnh báo. Người vừa vượt ngưỡng lên
+      // trên thì không thể đang dưới mốc cảnh báo của bậc cũ, và nghe "bạn sắp
+      // tụt hạng" ngay sau khi lên hạng là vô nghĩa.
+      else if (change) await this.notifyPromoted(userId, change);
       else await this.notifyWarningIfNeeded(userId);
     } catch (error) {
       this.logger.warn(
@@ -94,6 +98,28 @@ export class RankChangeNotifier {
     });
   }
 
+  private async notifyPromoted(
+    userId: string,
+    change: IRankChange,
+  ): Promise<void> {
+    await this.dispatchNotification.handle({
+      userId,
+      type: NotificationTypes.RANK_PROMOTED,
+      title: 'Bạn đã lên hạng',
+      body: `Bạn đã lên hạng ${change.toRank} từ ${change.fromRank}. Quyền lợi của bậc mới đã có hiệu lực ngay.`,
+      referenceType: 'USER_RANK',
+      referenceId: userId,
+      // Cùng khuôn khoá với tụt hạng: theo CẶP bậc và theo ngày. Lên Bạc rồi lên
+      // Vàng là hai sự kiện khác nhau; còn ai dao động quanh đúng một ngưỡng thì
+      // mốc ngày chặn lại ở một lần mỗi ngày cho mỗi cặp.
+      idempotencyKey: `RANK_PROMOTED:${userId}:${change.fromRank}:${change.toRank}:${vietnamDateKey(new Date())}`,
+      variables: {
+        fromRank: change.fromRank,
+        toRank: change.toRank,
+      },
+    });
+  }
+
   private async notifyWarningIfNeeded(userId: string): Promise<void> {
     const summary = await this.ranks.getOwnSummary(userId);
     const threshold = summary.currentTier.warningPoints;
@@ -101,13 +127,17 @@ export class RankChangeNotifier {
     // `0` nghĩa là bậc này không có mốc cảnh báo (Viewer). So sánh trần cũng ra
     // false, nhưng chặn tường minh để ý đồ đọc được.
     if (threshold <= 0) return;
-    if (summary.balancePoints >= threshold) return;
+    // `rankPoints`, KHÔNG `balancePoints`: phải so đúng con số mà chỗ quyết hạng
+    // so. Đọc `balancePoints` là đúng với cấu hình mặc định và sai ngay khi Admin
+    // chuyển `rank.points_source` sang LIFETIME — cảnh báo tính theo một con số
+    // còn tụt hạng tính theo con số khác.
+    if (summary.rankPoints >= threshold) return;
 
     await this.dispatchNotification.handle({
       userId,
       type: NotificationTypes.RANK_DEMOTION_WARNING,
       title: 'Bạn sắp tụt hạng',
-      body: `Bạn còn ${summary.balancePoints} điểm, gần mốc ${summary.currentTier.thresholdPoints} điểm để giữ hạng ${summary.rank}. Tiêu thêm có thể làm bạn tụt hạng.`,
+      body: `Bạn còn ${summary.rankPoints} điểm, gần mốc ${summary.currentTier.thresholdPoints} điểm để giữ hạng ${summary.rank}. Tiêu thêm có thể làm bạn tụt hạng.`,
       referenceType: 'USER_RANK',
       referenceId: userId,
       // MỘT lần mỗi ngày cho mỗi bậc. Không có mốc ngày thì mỗi lượt thả cảm
@@ -116,7 +146,7 @@ export class RankChangeNotifier {
       idempotencyKey: `RANK_DEMOTION_WARNING:${userId}:${summary.rank}:${vietnamDateKey(new Date())}`,
       variables: {
         rank: summary.rank,
-        balancePoints: String(summary.balancePoints),
+        balancePoints: String(summary.rankPoints),
         thresholdPoints: String(summary.currentTier.thresholdPoints),
       },
     });

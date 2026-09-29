@@ -7,7 +7,7 @@ describe('QualifyReferralUseCase', () => {
     const referrals = {
       qualifyAndAward: jest.fn(async () => ({ qualified: false })),
     };
-    const rank = { reconcileNormalRank: jest.fn() };
+    const rank = { afterBalanceChange: jest.fn() };
     const useCase = new QualifyReferralUseCase(
       referrals as never,
       rank as never,
@@ -25,7 +25,7 @@ describe('QualifyReferralUseCase', () => {
     const referrals = {
       qualifyAndAward: jest.fn(async () => ({ qualified: true, referrerId })),
     };
-    const rank = { reconcileNormalRank: jest.fn().mockResolvedValue(false) };
+    const rank = { afterBalanceChange: jest.fn().mockResolvedValue(null) };
     const useCase = new QualifyReferralUseCase(
       referrals as never,
       rank as never,
@@ -33,14 +33,16 @@ describe('QualifyReferralUseCase', () => {
 
     await useCase.handle({ refereeId: RefereeId });
 
-    expect(rank.reconcileNormalRank).toHaveBeenCalledWith(referrerId);
+    // Qua notifier, không phải `reconcileNormalRank` trần: 56 điểm giới thiệu có
+    // thể đẩy người ta lên hạng, và họ nên được biết.
+    expect(rank.afterBalanceChange).toHaveBeenCalledWith(referrerId);
   });
 
   it('does not disclose or reconcile an unchanged qualification replay', async () => {
     const referrals = {
       qualifyAndAward: jest.fn(async () => ({ qualified: false })),
     };
-    const rank = { reconcileNormalRank: jest.fn() };
+    const rank = { afterBalanceChange: jest.fn() };
     const useCase = new QualifyReferralUseCase(
       referrals as never,
       rank as never,
@@ -48,6 +50,6 @@ describe('QualifyReferralUseCase', () => {
 
     await useCase.handle({ refereeId: RefereeId });
 
-    expect(rank.reconcileNormalRank).not.toHaveBeenCalled();
+    expect(rank.afterBalanceChange).not.toHaveBeenCalled();
   });
 });

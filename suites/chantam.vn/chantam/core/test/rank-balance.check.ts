@@ -299,7 +299,117 @@ async function main(): Promise<void> {
     );
     check(
       '460 đã dưới mốc 470 — client dựng được lời nhắc',
-      summary.balancePoints < summary.currentTier.warningPoints,
+      summary.rankPoints < summary.currentTier.warningPoints,
+    );
+    check(
+      'rankPoints bằng balance với cấu hình mặc định',
+      summary.rankPoints === summary.balancePoints &&
+        summary.rankPointsSource === 'BALANCE',
+      `${summary.rankPoints} / ${summary.rankPointsSource}`,
+    );
+
+    console.log('\n10. Lời nhắc duy trì đọc tiến độ THẬT');
+    // Lỗi đã sửa 29/09: câu quét đọc `cycle.gifts_done` / `cycle.referrals_done`,
+    // hai cột chỉ được ghi lúc ĐÁNH GIÁ. Lời nhắc thì gửi 30 ngày trước đó, khi
+    // chu kỳ còn OPEN, nên hai cột luôn bằng 0 — người đã trao xong cả hai món vẫn
+    // nhận câu "bạn đã hoàn tất 0/2 lượt trao".
+    //
+    // Chỉ Postgres thật kiểm được: unit test mock `query` nên nó trả về đúng những
+    // gì mình dựng, kể cả một con số sai.
+    await dataSource.query(
+      `DELETE FROM rank_maintenance_cycles WHERE user_id = $1`,
+      [UserId],
+    );
+    await setBalance(700, 2000, 'SILVER');
+    const [{ id: reminderCycleId }] = await dataSource.query<{ id: string }[]>(
+      `INSERT INTO rank_maintenance_cycles
+         (user_id, rank, cycle_start, cycle_end, required_gifts, required_referrals,
+          policy_version, status)
+       VALUES ($1, 'SILVER', now() - INTERVAL '60 days', now() + INTERVAL '20 days',
+               2, 2, 1, 'OPEN')
+       RETURNING id`,
+      [UserId],
+    );
+
+    // Một lượt trao ĐÃ hoàn tất trong chu kỳ, và một lượt giới thiệu đã hợp lệ.
+    const ReminderPostId = '88888888-8888-4888-8888-8888888c0090';
+    const ReminderCategoryId = '77777777-7777-4777-8777-7777777c0090';
+    const ReminderReceiverId = '99999999-9999-4999-8999-9999999c0091';
+    const ReminderRefereeId = '99999999-9999-4999-8999-9999999c0092';
+    await dataSource.query(
+      `INSERT INTO categories (global_id, name, slug, is_active)
+       VALUES ($1, 'Kiểm nhắc hạng', 'kiem-nhac-hang', true)
+       ON CONFLICT DO NOTHING`,
+      [ReminderCategoryId],
+    );
+    for (const [id, name] of [
+      [ReminderReceiverId, 'nguoinhan-nhac-hang'],
+      [ReminderRefereeId, 'nguoiduocmoi-nhac-hang'],
+    ] as const)
+      await dataSource.query(
+        `INSERT INTO users (global_id, username, password_hash, rank, status)
+         VALUES ($1, $2::text, 'x', 'MEMBER', 'ACTIVE')
+         ON CONFLICT DO NOTHING`,
+        [id, name],
+      );
+    await dataSource.query(
+      `INSERT INTO posts
+         (global_id, post_type, author_id, category_id, title, description,
+          location, area_label, status, total_quantity, remaining_quantity,
+          details, renewed_count)
+       VALUES ($1, 'OFFER', $2, $3, 'Món kiểm nhắc hạng',
+               'Mô tả đủ dài cho bài kiểm nhắc nhiệm vụ duy trì',
+               ST_SetSRID(ST_MakePoint(106.698, 10.7724), 4326)::geography,
+               'Quận 1', 'COMPLETED', 1, 0, '{}'::jsonb, 0)
+       ON CONFLICT DO NOTHING`,
+      [ReminderPostId, UserId, ReminderCategoryId],
+    );
+    await dataSource.query(
+      `INSERT INTO gift_transactions
+         (global_id, post_id, giver_id, receiver_id, quantity, status,
+          accepted_at, completed_at)
+       VALUES ($1, $2, $3, $4, 1, 'COMPLETED',
+               now() - INTERVAL '30 days', now() - INTERVAL '29 days')`,
+      [
+        '55555555-5555-4555-8555-55555555c090',
+        ReminderPostId,
+        UserId,
+        ReminderReceiverId,
+      ],
+    );
+    await dataSource.query(
+      `INSERT INTO referrals (referrer_id, referee_id, code, qualified_at, reward_entry_id)
+       VALUES ($1, $2, 'NHACHANG', now() - INTERVAL '10 days', NULL)`,
+      [UserId, ReminderRefereeId],
+    );
+
+    const reminders = await ranks.findCyclesNeedingReminder({
+      remindBeforeDays: 30,
+      limit: 50,
+    });
+    const reminderRow = reminders.find(
+      (row) => row.cycleId === reminderCycleId,
+    );
+    check(
+      'chu kỳ sắp hết hạn có trong danh sách nhắc',
+      reminderRow !== undefined,
+    );
+    check(
+      'giftsDone đếm SỐNG trong chu kỳ, không phải 0',
+      reminderRow?.giftsDone === 1,
+      `nhận ${String(reminderRow?.giftsDone)}`,
+    );
+    check(
+      'referralsDone đếm SỐNG trong chu kỳ, không phải 0',
+      reminderRow?.referralsDone === 1,
+      `nhận ${String(reminderRow?.referralsDone)}`,
+    );
+    check(
+      'và vẫn trả chỉ tiêu cùng mức phạt để dựng câu nhắc',
+      reminderRow?.requiredGifts === 2 &&
+        reminderRow?.requiredReferrals === 2 &&
+        reminderRow?.penaltyPoints === 224,
+      `${String(reminderRow?.requiredGifts)}/${String(reminderRow?.requiredReferrals)} phạt ${String(reminderRow?.penaltyPoints)}`,
     );
   } finally {
     for (const source of opened.reverse())
