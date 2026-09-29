@@ -5,6 +5,7 @@ import {
   IDeleteAdminUserUseCase,
   IGetAdminAuditLogsUseCase,
   IGetAdminConfigsUseCase,
+  IGetAdminDashboardUseCase,
   IGetAdminPointRulesUseCase,
   IGetAdminRankPolicyUseCase,
   IGetAdminUserUseCase,
@@ -37,6 +38,7 @@ import {
   GetAdminConfigsUseCase,
   PublishAdminConfigUseCase,
 } from './admin-config.use-cases';
+import { GetAdminDashboardUseCase } from './admin-dashboard.use-case';
 import { PublishAdminMaintenancePolicyUseCase } from './admin-maintenance-policy.use-cases';
 import {
   GetAdminPointRulesUseCase,
@@ -76,6 +78,10 @@ import {
 @Global()
 @Module({
   providers: [
+    {
+      provide: IGetAdminDashboardUseCase,
+      useClass: GetAdminDashboardUseCase,
+    },
     {
       provide: IListNotificationTemplatesUseCase,
       useClass: ListNotificationTemplatesUseCase,
@@ -158,6 +164,7 @@ import {
     },
   ],
   exports: [
+    IGetAdminDashboardUseCase,
     IListNotificationTemplatesUseCase,
     IUpdateNotificationTemplateUseCase,
     IGetAdminConfigsUseCase,

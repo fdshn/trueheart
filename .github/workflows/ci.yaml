@@ -168,6 +168,18 @@ jobs:
         working-directory: suites/chantam.vn/chantam/core
         run: npm run migration:backfill-check
 
+      - name: Kiểm mọi khoá cấu hình đều có chỗ cho Admin sửa
+        # Mọi `normalize*` lùi về mặc định khi thiếu dòng, nên một khoá chưa seed
+        # KHÔNG làm gì đổ — nó chỉ lặng lẽ khiến Admin không có ô nào để sửa, và
+        # tính năng "cấu hình động" thành ra phải deploy mới đổi được.
+        #
+        # Ngày 29/09 soát ra năm khoá như vậy, một trong số đó tệ hơn hẳn:
+        # `moderation.blocked_terms` rỗng làm `screenText` trả ALLOW cho MỌI nội
+        # dung, tức cả nhánh kiểm duyệt bình luận nằm im. Không unit test nào bắt
+        # được vì tất cả đều truyền danh sách từ vào trực tiếp.
+        working-directory: suites/chantam.vn/chantam/core
+        run: npm run test:config-inventory
+
       - name: Kiểm hợp đồng UPDATE ... RETURNING
         # `query()` bọc kết quả UPDATE/DELETE thành [rows, affected] nhưng
         # INSERT/SELECT thì không. Unit test mock `query` nên xanh cả khi đọc

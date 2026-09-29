@@ -73,3 +73,6 @@ export * from './1795200000000-UnifyReservedPostStatus';
 export * from './1795300000000-EnableReportUpheldPointRule';
 export * from './1795400000000-AddReviewRatingAggregates';
 export * from './1795500000000-SeedReportAbuseConfig';
+export * from './1795600000000-SeedModerationTerms';
+export * from './1795700000000-SeedMissingSystemConfigs';
+export * from './1795800000000-AddDashboardPermission';

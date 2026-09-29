@@ -327,8 +327,30 @@ async function main(): Promise<void> {
     // ── 6. Bộ lọc từ ngữ đọc cấu hình động ─────────────────────────────────
     console.log('\nBộ lọc từ ngữ:\n');
 
+    // Phép kiểm này TRƯỚC 29/09 khẳng định "chưa cấu hình gì thì không chặn", và
+    // nó xanh vì migration chưa seed từ nào — tức nó ghi nhận chính trạng thái
+    // hỏng làm hành vi mong đợi. Cả bộ lọc nằm im ngoài production và đây là chỗ
+    // lẽ ra phải hỏi.
+    //
+    // Nay migration `1795600000000` seed danh sách khởi tạo, nên câu hỏi đúng là
+    // hai câu khác nhau: danh sách có TỒN TẠI không, và khi nó vắng thì hệ thống
+    // fail-OPEN hay fail-closed.
+    const seeded = await adminConfig.getConfigValue(ModerationTermsConfigKey);
     check(
-      'chưa cấu hình gì thì không chặn',
+      'migration đã seed danh sách từ — bộ lọc có gì để so',
+      Array.isArray(seeded) && seeded.length > 0,
+      `${Array.isArray(seeded) ? seeded.length : 0} mục`,
+    );
+
+    // Xoá cấu hình để kiểm nhánh vắng mặt. Fail-OPEN là CỐ Ý: một dòng JSON gõ
+    // nhầm không được biến thành "không ai bình luận được nữa" — đó là loại sự cố
+    // không ai nối được với một ô nhập liệu. Nhưng nó cũng chính là lý do phải có
+    // `test:config-inventory`: fail-open nghĩa là thiếu cấu hình KHÔNG ồn ào.
+    await dataSource.query(`DELETE FROM system_configs WHERE config_key = $1`, [
+      ModerationTermsConfigKey,
+    ]);
+    check(
+      'xoá cấu hình thì fail-OPEN, không chặn ai — và vì thế phải có lưới khác canh',
       (await adminConfig.getConfigValue(ModerationTermsConfigKey)) === null,
     );
 

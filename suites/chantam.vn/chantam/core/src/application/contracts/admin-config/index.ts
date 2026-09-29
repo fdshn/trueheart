@@ -1,5 +1,6 @@
 export * from './admin-comment.use-cases';
 export * from './admin-config.use-cases';
+export * from './admin-dashboard.use-case';
 export * from './admin-maintenance-policy.use-cases';
 export * from './admin-point-rule.use-cases';
 export * from './admin-rank-policy.use-cases';

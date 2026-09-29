@@ -22,6 +22,7 @@
     "migration:backfill-check": "ts-node -r tsconfig-paths/register test/posts-backfill.check.ts",
     "test:chat-e2e": "ts-node -r tsconfig-paths/register test/chat-e2e.check.ts",
     "test:chat-paging": "ts-node -r tsconfig-paths/register test/chat-paging.check.ts",
+    "test:config-inventory": "ts-node -r tsconfig-paths/register test/config-inventory.check.ts",
     "test:chat-access": "ts-node -r tsconfig-paths/register test/chat-access.check.ts",
     "test:post-status": "ts-node -r tsconfig-paths/register test/post-status.check.ts",
     "test:gift-points": "ts-node -r tsconfig-paths/register test/gift-points.check.ts",

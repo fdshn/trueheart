@@ -149,6 +149,11 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | `accuracy.giver` | `minSamples: 5`, `reviewThresholdPercent: 75` | Ngưỡng Giver Accuracy (F43) | `GET\|POST /admin/system-configs` |
 | `rating.display` | `minSamples: 3` | Số mẫu tối thiểu để công bố điểm sao (F42). Thấp hơn `accuracy.giver` vì điểm sao là cảm nhận trải nghiệm, không phải cáo buộc mô tả sai, và không gắn cờ ai vào diện Admin xem xét. Áp lúc ĐỌC nên hạ ngưỡng là công bố ngay | `GET\|POST /admin/system-configs` |
 | `report.abuse` | `minSamples: 5`, `dismissedRatioPercent: 80` | Ngưỡng đưa người báo xấu vào diện Admin xem xét. Tính SỐNG từ bảng `reports` nên đổi ngưỡng có hiệu lực ngay, không cần job đối soát | `GET\|POST /admin/system-configs` |
+| `moderation.blocked_terms` | 41 mục khởi tạo (38 sau chuẩn hoá) | Danh sách từ ngữ cho bộ lọc bình luận. **Trước 29/09 khoá này không có dòng nào**, nên `screenText` trả ALLOW cho mọi nội dung và cả nhánh kiểm duyệt bình luận nằm im | `GET\|POST /admin/system-configs` |
+| `chat.retention` | `value: 1`, `unit: WEEK` | Hạn lưu trữ lịch sử chat. Mốc xoá CHỐT theo cấu hình lúc phòng khoá | `GET\|POST /admin/system-configs` |
+| `rank.points_source` | `source: BALANCE` | Cột điểm quyết định hạng. BALANCE = tiêu điểm làm tụt hạng (chốt 24/09); LIFETIME = hạng là bằng ghi nhận đã đóng góp | `GET\|POST /admin/system-configs` |
+| `notification.retention` | `retentionDays: 90` | Hạn lưu trữ hộp thư | `GET\|POST /admin/system-configs` |
+| `selection.candidate_priority` | *(cố ý CHƯA seed)* | Thứ tự tiêu chí chọn người nhận. Không seed vì `isConfigured` tính bằng "có dòng hay không" — seed mặc định vào là nói với Admin rằng đã có người đặt, trong khi chưa ai đặt | `GET\|PUT /admin/candidate-selection` |
 | `point.redemption` | `vndPerPoint: 2000` | Tỷ lệ quy đổi khi đổi vật phẩm (F74). **Đã nối** vào `POST /posts/:id/redeem` | ⬆ |
 | `review.grace` | `graceDays: 7`, `defaultAccuracyPercent: 80` | Chờ rồi áp mức mặc định khi người nhận không đánh giá (F40). Đọc bởi CLI `gift:settle-rewards` — job này còn trả nốt những lượt bị trần ngày chặn, và ở đó dùng mức người nhận ĐÃ chấm chứ không phải mức mặc định | ⬆ |
 | `selection.candidate_priority` | *(chưa đặt → mặc định "ai xin trước")* | Thứ tự tiêu chí chọn người nhận (CH-1). **Đã nối vào auto-select** 25/09 | `GET\|PUT /admin/candidate-selection` |

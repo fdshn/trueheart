@@ -181,6 +181,7 @@ else
     '/api/v1/posts/{postId}' '/api/v1/posts/{postId}/matches' \
     '/api/v1/admin/system-configs' '/api/v1/admin/audit-logs' \
     '/api/v1/admin/system-logs' '/api/v1/admin/users' \
+    '/api/v1/admin/dashboard' '/api/v1/admin/reports/reporters' \
     '/api/v1/admin/entitlements'; do
     printf '%s' "$RESP_BODY" | grep -q "\"$route\"" || MISSING="$MISSING $route"
   done
@@ -597,7 +598,8 @@ fi
 
 # Người thường không được chạm vào khu quản trị. Guard là fail-closed nên đây
 # cũng là phép kiểm rằng nó thật sự đang gắn.
-for admin_path in /api/v1/admin/system-configs /api/v1/admin/audit-logs /api/v1/admin/users; do
+for admin_path in /api/v1/admin/system-configs /api/v1/admin/audit-logs \
+  /api/v1/admin/users /api/v1/admin/dashboard /api/v1/admin/reports/reporters; do
   call_auth GET "$admin_path" "$PROFILE_ACCESS_TOKEN"
   if [ "$RESP_CODE" = "403" ]; then
     pass "người thường bị chặn khỏi $admin_path"

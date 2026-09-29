@@ -30,6 +30,7 @@ import {
 import { Global, Module } from '@nestjs/common';
 import { AdminBootstrapService } from './admin-bootstrap.service';
 import { AdminConfigRepository } from './admin-config.repository';
+import { AdminDashboardRepository } from './admin-dashboard.repository';
 import { AdminUserRepository } from './admin-user.repository';
 import { CategoryRepository } from './category.repository';
 import { ChatRepository } from './chat.repository';
@@ -75,6 +76,10 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     },
     { provide: IAdminConfigRepository, useClass: AdminConfigRepository },
     { provide: IAdminUserRepository, useClass: AdminUserRepository },
+    // Lớp cụ thể, không qua token: nó không có cài đặt thay thế nào và cũng không
+    // cần — dựng một token chỉ để có đúng một cài đặt là thêm một lớp gián tiếp
+    // không trả lại gì.
+    AdminDashboardRepository,
     { provide: IEntitlementRepository, useClass: EntitlementRepository },
     {
       provide: IContentCommentRepository,
@@ -122,6 +127,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     { provide: IUserSessionRepository, useClass: UserSessionRepository },
   ],
   exports: [
+    AdminDashboardRepository,
     ICategoryRepository,
     IChatRepository,
     INotificationRepository,
