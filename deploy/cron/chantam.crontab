@@ -59,6 +59,14 @@ RUN=/home/deploy/chantam/deploy/cron/run-cli.sh
 # không ai chờ kết quả.
 47 3 * * * deploy $RUN $CHANTAM_DIR chat-purge
 
+# Dọn hộp thư quá hạn lưu trữ. SAU chat-purge, và thứ tự đó có lý do: thông báo
+# mang đoạn đầu tin nhắn chat, nên xoá chat trước rồi dọn hộp thư sau thì bản sao
+# cuối cùng của câu chữ đó cũng đi trong cùng một đêm.
+#
+# Thoát khác 0 khi chạm trần 20 lô trong một lần chạy — nghĩa là còn tồn đọng và
+# nhịp chạy hiện tại chưa đuổi kịp.
+9 4 * * * deploy $RUN $CHANTAM_DIR notification-purge
+
 # ── Hằng ngày, buổi sáng ───────────────────────────────────────────────────────
 #
 # Nhắc đánh giá và nhắc nhiệm vụ duy trì. Gửi lúc SÁNG chứ không lúc 3 giờ đêm:

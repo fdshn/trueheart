@@ -180,6 +180,17 @@ jobs:
         working-directory: suites/chantam.vn/chantam/core
         run: npm run test:config-inventory
 
+      - name: Chạy THẬT mọi CLI một lượt
+        # Bốn spec CLI hiện có đều TIÊM một `createApplicationContext` giả, mà đúng
+        # hai cái bẫy từng làm cả bảy CLI chết lại nằm chính ở chỗ bị tiêm: tham số
+        # mặc định `.bind(NestFactory)`, và việc `@Global()` chỉ có hiệu lực SAU KHI
+        # được import ở đâu đó. Cả hai chỉ hiện khi tiến trình khởi động thật.
+        #
+        # Bước này bắt được ngay lần chạy đầu: `post:expire` chết vì `PostModule`
+        # thiếu `GiftRequestModule`, và nó đang nằm trong crontab — tức bài quá hạn
+        # KHÔNG được đóng suốt từ lúc `CloseOpenRequestsService` ra đời.
+        run: bash scripts/smoke-cli.sh
+
       - name: Kiểm hợp đồng UPDATE ... RETURNING
         # `query()` bọc kết quả UPDATE/DELETE thành [rows, affected] nhưng
         # INSERT/SELECT thì không. Unit test mock `query` nên xanh cả khi đọc

@@ -1,11 +1,12 @@
 # 17 · Job nền & CLI
 
-Trạng thái: ✅ **cả mười một CLI đã chạy được** sau khi sửa hai lỗi từng làm chúng chết.
+Trạng thái: ✅ **cả mười hai CLI đã chạy được**, và từ 29/09 CI chạy thật cả mười hai mỗi
+lượt build — xem §17.6.
 
 `media:sweep-orphans` là CLI duy nhất **mặc định không làm gì** — nó xoá object không hoàn
 tác được, nên phải gõ rõ `--apply`. Lịch cron cũng chỉ chạy khô để báo con số.
 
-## 17.1 Mười một lệnh
+## 17.1 Mười hai lệnh
 
 ```mermaid
 flowchart TD
@@ -20,6 +21,7 @@ flowchart TD
     C --> J["notify:reminders<br/>nhắc đánh giá, nhiệm vụ duy trì, và bài sắp hết hạn"]
     C --> K["selection:auto-select<br/>chốt người nhận khi hết đồng hồ 7 ngày"]
     C --> L["notification:purge<br/>dọn thông báo quá hạn lưu trữ"]
+    C --> M["media:sweep-orphans<br/>báo object mồ côi — chạy KHÔ, xem đoạn trên"]
 
     style C fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
     style F fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
@@ -27,6 +29,17 @@ flowchart TD
 
 > Core **cố ý không dựng scheduler nào trong tiến trình**. Hai bản sao service cùng chạy
 > scheduler nội bộ sẽ chạy mọi job hai lần, và không có gì ngăn được điều đó từ bên trong.
+
+**Ba loại job, và loại đáng lo nhất không phải loại dọn:**
+
+| Loại | Job | Không chạy thì sao |
+| --- | --- | --- |
+| **Dọn** | `chat:purge` · `notification:purge` · `media:sweep-orphans` | Database và bucket phình to. Chậm và tốn tiền, nhưng **không ai mất gì** |
+| **Trả & đối soát** | `gift:settle-rewards` · `point:reconcile` · `rank:evaluate` · `accuracy:reconcile` · `feed:reconcile-counts` | **Người dùng không nhận được điểm họ đã kiếm**, hạng không lên/tụt đúng. Đây là tiền |
+| **Đẩy vòng đời** | `post:expire` · `selection:auto-select` · `transaction:autocomplete` · `notify:reminders` | Bài hết hạn vẫn hiện, **đồng hồ 7 ngày hết mà không ai được chọn**, không ai được nhắc |
+
+Phân loại này quyết định canh alert cho cái nào: bảng chat to lên thì không ai thấy, còn người
+tặng không được cộng điểm là thứ họ sẽ khiếu nại.
 
 ## 17.2 Khuôn chung
 
@@ -106,13 +119,66 @@ flowchart LR
 
 1. ⚠️ **`transaction:autocomplete` đếm từ `accepted_at`** nên đóng lượt trao trước khi hàng
    tới nơi, và **không kiểm tranh chấp** — xem [08-transaction](./08-transaction.md).
-2. ⛔ **Chưa có job kiểm Active Member** (`last_login_at` quá 90 ngày).
-3. ⛔ **Chưa có job dọn object mồ côi** trong bucket.
+2. ⛔ **Chưa có job kiểm Active Member.** Nhưng đầu vào thì **đã có đủ**: cột `last_active_at`
+   đang được ghi (`user.repository.ts`), và cấu hình `affiliate.active_member_window_days` = 90
+   đã seed từ migration `1790200000000`. Chỉ là **không ai đọc cấu hình đó** — nó là một khoá
+   ghi-mà-không-đọc, và `test:config-inventory` KHÔNG bắt được loại này: nó kiểm khoá có dòng,
+   không kiểm có ai đọc.
+   Còn thiếu một quyết định trước khi làm: đánh dấu bất hoạt thì **hệ quả là gì**? Cấu hình nằm
+   trong nhóm `affiliate` nên có lẽ liên quan tính hoa hồng — xem [19-affiliate](./19-affiliate.md).
+3. ✅ **`media:sweep-orphans` chính là job dọn object mồ côi**, đã xếp lịch hằng tuần
+   (`29 5 * * 2`) và chạy **KHÔ** — không có `--apply`. Chỉ báo con số là lựa chọn đúng cho một
+   job xoá thứ không hoàn tác được.
 4. ✅ **Nhắc nhiệm vụ duy trì trước 30 ngày đã có** — `notify:reminders`.
 5. ✅ **Lịch cron đã có** — [`deploy/cron/`](../../deploy/cron/README.md): crontab, wrapper,
    logrotate và runbook. Xem §17.5.
-6. ⛔ **Chưa nối alert vào kênh người thật đọc.** Cron gửi mail cho user `deploy` theo mặc định
-   hệ thống, nên một job đỏ lúc 2 giờ sáng không ai biết.
+   ⚠️ **`notification:purge` từng bị vẽ trong biểu đồ §17.5 mà KHÔNG có trong crontab** (sửa
+   29/09). Nó được thêm ở đợt 10-notification, đưa vào sơ đồ lịch ở mốc 04:09, rồi không ai xếp
+   lịch thật — nên ngoài production hộp thư chưa bao giờ được dọn, và tài liệu thì nói đã xếp.
+   Dạng lỗi tệ hơn quên làm: nó **trông như đã làm**.
+6. ⛔ **Chưa nối alert vào kênh người thật đọc.** `run-cli.sh` làm đúng phần của nó — giữ exit
+   code, ghi stderr, nên chạy thành công thì **không** gửi gì và chỉ lượt đỏ mới báo. Nhưng
+   crontab không có `MAILTO`, nên thư vào hộp local của user `deploy`.
+   Đặt `MAILTO` một mình **không đủ**: cron luôn đi qua MTA cục bộ, mà một VPS chỉ chạy
+   docker-compose thường chưa cài MTA — lúc đó cron ghi "no MTA, discarding output" rồi bỏ. Gửi
+   tới Gmail còn cần SPF/DKIM, thiếu thì bị chặn im lặng: **có alert mà không biết mình không
+   nhận được alert**, kiểu hỏng tệ nhất cho một hệ báo động. Và credential SMTP sẽ tồn tại ở hai
+   nơi (app trong `system_configs`, hệ thống trong cấu hình MTA).
+   Hướng nhẹ hơn: một lượt `curl` trong `run-cli.sh` khi đỏ, URL trong env var — không MTA,
+   không SPF/DKIM, không nhân bản credential. Chờ Bên A chốt kênh.
+
+## 17.6 CI chạy thật cả mười hai CLI
+
+```mermaid
+flowchart TD
+    A["4 spec CLI hiện có"] --> B["TIÊM createApplicationContext giả"]
+    B --> C["❌ không bao giờ chạy tham số mặc định<br/>.bind(NestFactory) — bẫy 1"]
+    B --> D["❌ không bao giờ dựng cây DI thật<br/>module thiếu — bẫy 2"]
+
+    E["scripts/smoke-cli.sh"] --> F["chạy THẬT cả 12, Postgres thật"]
+    F --> G["✅ bắt cả hai bẫy"]
+    F --> H["✅ và canh: CLI mới phải có trong danh sách"]
+
+    style C fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style D fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style G fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+```
+
+> **Nó bắt được lỗi ngay lần chạy đầu.** `post:expire` chết khi khởi động vì `PostModule` cần
+> `CloseOpenRequestsService` mà không khai `GiftRequestModule` — trong app HTTP thì chạy được chỉ
+> vì một chỗ khác đã import và module là `@Global()`. Đúng bẫy 2, và nó nằm trong crontab ở
+> `11 0 * * *`: **bài quá hạn không được đóng suốt từ lúc `CloseOpenRequestsService` ra đời.**
+> Sửa ở gốc — `PostModule` tự khai phụ thuộc của nó, chứ không thêm module vào từng
+> `*-cli.module.ts`.
+>
+> **`exit 1` chỉ được tha cho CLI KHAI nó là tín hiệu.** Bản đầu của script tha exit 1 cho mọi
+> CLI và lập tức che đúng lỗi trên: `main()` bắt lỗi rồi đặt `exitCode = 1`, nên nó hiện ra y như
+> một lượt "có việc cần biết". Một lưới chặn mà tha thứ quá rộng thì không phải lưới.
+>
+> **Chạy TẤT CẢ, không chọn mẫu.** Bẫy 2 là lỗi theo từng module, nên `notification-cli.module`
+> đủ không nói gì về `post-cli.module`. Script còn canh luôn rằng mọi CLI có file đều nằm trong
+> danh sách — thêm CLI mới mà quên là script vẫn xanh, đúng kiểu lỗi im lặng nó được viết ra để
+> chặn.
 
 ## 17.5 Lịch chạy trên VPS
 
@@ -129,6 +195,10 @@ gantt
     rank-evaluate            :03:31, 8m
     chat-purge               :03:47, 15m
     notification-purge       :04:09, 10m
+    section Hằng tuần
+    feed-reconcile-counts  :04:41, 10m
+    accuracy-reconcile     :04:13, 10m
+    media-sweep-orphans    :05:29, 10m
     section Buổi sáng
     notify-reminders       :08:17, 10m
     section Mỗi giờ

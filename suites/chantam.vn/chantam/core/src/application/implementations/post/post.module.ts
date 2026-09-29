@@ -20,6 +20,7 @@ import {
   IUpdatePostUseCase,
 } from '@/application/contracts/post';
 import { Global, Module } from '@nestjs/common';
+import { GiftRequestModule } from '../gift-request/gift-request.module';
 import { GetSmartMatchesUseCase } from '../smart-match/get-smart-matches.use-case';
 import {
   GetAdminPostUseCase,
@@ -46,6 +47,25 @@ import { UpdatePostUseCase } from './update-post.use-case';
 
 @Global()
 @Module({
+  /**
+   * `GiftRequestModule` khai TƯỜNG MINH, dù nó là `@Global()`.
+   *
+   * `ModerateAdminPostUseCase` và hai use case vòng đời bài đều cần
+   * `CloseOpenRequestsService`, mà nó do module kia export. Trong app HTTP thì chạy
+   * được chỉ vì một chỗ khác đã import `GiftRequestModule` — tức module này dựa vào
+   * việc ai đó ở ngoài nhớ nạp hộ.
+   *
+   * Và đó đúng là bẫy 2 ở `docs/diagram/17-jobs.md` §17.3: `@Global()` chỉ có hiệu
+   * lực SAU KHI được import ở đâu đó. `PostCliModule` chỉ nạp `PostModule` +
+   * `CliInfrastructureModule`, nên `post:expire` chết ngay khi khởi động —
+   * "Nest can't resolve dependencies … CloseOpenRequestsService at index [2]" —
+   * và nó nằm trong crontab ở `11 0 * * *`, nghĩa là bài quá hạn KHÔNG được đóng
+   * suốt từ lúc `CloseOpenRequestsService` ra đời.
+   *
+   * Khai ở đây thay vì thêm vào từng `*-cli.module.ts`: phụ thuộc thuộc về module
+   * CÓ phụ thuộc, không thuộc về từng chỗ gọi nó.
+   */
+  imports: [GiftRequestModule],
   providers: [
     { provide: IAttachPostMediaUseCase, useClass: AttachPostMediaUseCase },
     { provide: IGetAdminPostUseCase, useClass: GetAdminPostUseCase },

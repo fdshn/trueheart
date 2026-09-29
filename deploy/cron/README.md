@@ -39,6 +39,7 @@ người dùng lúc 3 giờ chiều, và `post:expire` cắt ngày lệch 7 ti�
 | 02:23 | `gift:settle-rewards` | hằng ngày |
 | 03:31 | `rank:evaluate` | hằng ngày |
 | 03:47 | `chat:purge` | hằng ngày |
+| 04:09 | `notification:purge` | hằng ngày |
 | 08:17 | `notify:reminders` | hằng ngày |
 | CN 04:41 | `feed:reconcile-counts` | hằng tuần |
 | T2 04:13 | `accuracy:reconcile` | hằng tuần |
@@ -120,10 +121,33 @@ chết** — và không ai biết.
 
 ## Chưa có
 
-- ⛔ **Alert.** Cron gửi mail cho user `deploy` theo mặc định của hệ thống; chưa nối
-  vào kênh nào người thật đọc.
-- ⛔ **Job dọn object mồ côi** trong bucket — client xin URL rồi bỏ ngang thì object
-  nằm lại mãi.
-- ⛔ **Job kiểm Active Member** (`last_active_at` quá 90 ngày). Chưa cần tới khi
-  Group/Affiliate chưa có.
-- ⛔ **Nhắc bài sắp hết hạn.**
+- ⛔ **Alert vào kênh người thật đọc.** `run-cli.sh` làm đúng phần của nó: giữ exit
+  code và ghi stderr, nên chạy thành công thì **không** gửi gì — chỉ lượt đỏ mới báo.
+  Nhưng crontab không có `MAILTO`, nên thư vào hộp local của user `deploy`.
+
+  Đặt `MAILTO` một mình **không đủ**. Cron luôn đi qua MTA cục bộ, mà một VPS chỉ
+  chạy docker-compose thường chưa cài MTA — lúc đó cron ghi "no MTA, discarding
+  output" rồi bỏ, bất kể `MAILTO` là gì. Gửi tới Gmail còn cần SPF/DKIM cho domain;
+  thiếu thì bị chặn im lặng, tức **có alert mà không biết mình không nhận được
+  alert** — kiểu hỏng tệ nhất cho một hệ báo động. Và credential SMTP sẽ tồn tại ở
+  hai nơi: app trong `system_configs`, hệ thống trong cấu hình MTA, nên lần đổi mật
+  khẩu nào cũng phải nhớ cả hai.
+
+  Hướng nhẹ hơn: một lượt `curl` trong `run-cli.sh` khi đỏ, URL đặt trong env var.
+  Không MTA, không SPF/DKIM, không nhân bản credential. Chờ Bên A chốt kênh.
+
+- ⛔ **Job kiểm Active Member.** Đầu vào đã có đủ — cột `last_active_at` đang được
+  ghi, cấu hình `affiliate.active_member_window_days` = 90 đã seed — nhưng **không ai
+  đọc cấu hình đó**. Còn thiếu một quyết định trước khi làm: đánh dấu bất hoạt thì
+  hệ quả là gì.
+
+### Đã có, từng ghi thiếu ở đây
+
+- ✅ **Dọn object mồ côi** — `media:sweep-orphans`, hằng tuần `29 5 * * 2`, chạy
+  **KHÔ** (không `--apply`). Chỉ báo con số là lựa chọn đúng cho một job xoá thứ
+  không hoàn tác được; muốn xoá thật thì chạy tay sau khi đọc con số.
+- ✅ **Nhắc bài sắp hết hạn** — nằm trong `notify:reminders` từ đợt 10-notification.
+- ✅ **`notification:purge`** — 04:09 hằng ngày, thêm vào crontab 29/09. Nó được viết
+  từ đợt 10 và **vẽ vào biểu đồ lịch** của `17-jobs.md`, nhưng không ai xếp lịch
+  thật: ngoài production hộp thư chưa bao giờ được dọn trong khi tài liệu nói đã
+  xếp. Dạng lỗi tệ hơn quên làm, vì nó trông như đã làm.
