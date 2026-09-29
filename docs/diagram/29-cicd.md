@@ -10,7 +10,7 @@ flowchart LR
     B --> C[Lint]
     C --> D[Kiểm tra định dạng]
     D --> E[Build toàn bộ package]
-    E --> F[Unit test — 709 test]
+    E --> F[Unit test — 844 test]
     F --> G["Bảng tra mã lỗi còn khớp mã nguồn"]
     G --> H["Xác nhận build không làm bẩn working tree"]
 
@@ -73,15 +73,30 @@ flowchart TB
     style S fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
-## 29.4 Bốn workflow
+## 29.4 Sáu workflow
 
 | Workflow | Làm gì |
 | --- | --- |
-| `ci.yaml` | Lint, format, build, test, migration, schema drift |
+| `ci.yaml` | Lint, format, build, test, **typecheck script kiểm**, migration, schema drift |
 | `deploy.yaml` | Triển khai có cổng kiểm tra và rollback |
 | `release.yaml` | Đóng gói bản phát hành |
 | `codeql.yaml` | Quét bảo mật mã nguồn |
 | `security-audit.yaml` | Quét lỗ hổng dependency |
+| `mirror-images.yaml` | Sao ảnh hạ tầng của bên thứ ba về GHCR của chính repo. **Chạy tay**, cố ý không theo lịch — mirror là để ĐÓNG BĂNG một bản đã kiểm, không phải để lặng lẽ kéo bản mới về |
+
+> **Vì sao phải có workflow mirror.** Ngày 24/09 `quay.io/minio/minio` bị chuyển sang riêng
+> tư: pull ẩn danh trả 401 cho MỌI tag **và cả digest**, `docker.io/minio/minio` thì bị xoá
+> hẳn, và CI đỏ toàn bộ dù không ai sửa gì. Máy nào còn ảnh trong cache vẫn chạy, nên chỉ
+> runner sạch mới lộ ra.
+>
+> **Ghim digest không cứu được chuyện đó** — khi cả kho bị khoá thì digest cũng 401. Thứ duy
+> nhất cứu được là giữ một bản sao ở nơi mình kiểm soát. Từ 29/09 compose ghim
+> `ghcr.io/fdshn/trueheart-minio`, package để Public nên runner sạch kéo được mà không cần
+> đăng nhập.
+>
+> **Workflow kiểm ảnh TRƯỚC khi đẩy**: dựng container, tạo bucket, `mc ls`. Sao một ảnh hỏng
+> về kho của mình thì chỉ đổi chỗ lỗi — đúng cái bẫy `quay.io/minio/aistor/minio` giăng ra,
+> nơi container sống và healthcheck trả 200 nhưng mọi thao tác S3 báo thiếu license.
 
 ## 29.5 Điều kiện trước khi gọi production-ready
 

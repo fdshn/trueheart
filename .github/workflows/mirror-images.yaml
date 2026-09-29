@@ -85,7 +85,27 @@ jobs:
 
       - name: In digest để ghim vào docker-compose.yml
         run: |
-          DIGEST=$(docker inspect --format '{{index .RepoDigests 0}}' "$TARGET:${{ inputs.target_tag }}")
+          # `docker buildx imagetools inspect` HỎI REGISTRY, không đọc cache cục bộ.
+          #
+          # Bản trước dùng `docker inspect --format '{{index .RepoDigests 0}}'` và
+          # in ra SAI: sau `docker tag`, ảnh mang nhiều RepoDigests, và phần tử
+          # [0] là digest ở kho NGUỒN. Nó bảo người dùng ghim thẳng lại
+          # `ghcr.io/coollabsio/minio@...` — tức phá đúng mục đích của việc sao
+          # ảnh về, mà lại nói bằng giọng đã xong việc. Lỗi im lặng đắt hơn một
+          # lần workflow đỏ.
+          DIGEST=$(docker buildx imagetools inspect \
+            --format '{{json .Manifest.Digest}}' \
+            "$TARGET:${{ inputs.target_tag }}" | tr -d '"')
+
+          case "$DIGEST" in
+            sha256:*) ;;
+            *)
+              echo "Không đọc được digest từ registry, nhận: $DIGEST" >&2
+              exit 1
+              ;;
+          esac
+
+          DIGEST="$TARGET@$DIGEST"
           echo "Đã sao xong. Ghim dòng này vào docker-compose.yml:"
           echo ""
           echo "    image: $DIGEST"

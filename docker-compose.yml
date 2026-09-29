@@ -51,11 +51,20 @@ services:
   # S3 trả `AccessDenied — No license is installed`. Đổi sang nó thì CI qua được
   # bước kéo ảnh rồi chết ở smoke test, khó truy hơn hẳn hiện tại.
   #
-  # Đây vẫn là mirror của người khác. Bước tiếp theo là đổi sang mirror của
-  # chính repo (`ghcr.io/fdshn/trueheart-minio`) sau khi workflow
-  # `mirror-images.yaml` chạy lần đầu — xem ghi chú trong workflow đó.
+  # Nay là mirror của CHÍNH repo này (29/09), sao bằng `mirror-images.yaml`.
+  #
+  # Ghim digest một mình không cứu được chuyện đã xảy ra với MinIO: khi cả kho bị
+  # khoá thì digest cũng 401. Thứ duy nhất cứu được là giữ một bản sao ở nơi mình
+  # kiểm soát — nên trước đó, dù đã ghim digest, CI vẫn phụ thuộc vào việc
+  # `coollabsio` có tiếp tục mở kho hay không.
+  #
+  # Ảnh đã được workflow kiểm THẬT trước khi đẩy: dựng container, tạo bucket,
+  # `mc ls`. Sao một ảnh hỏng về kho của mình thì chỉ đổi chỗ lỗi.
+  #
+  # Đổi phiên bản thì chạy lại `mirror-images.yaml` rồi ghim digest MỚI nó in ra,
+  # đừng sửa tay chuỗi dưới đây.
   minio:
-    image: ghcr.io/coollabsio/minio@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
+    image: ghcr.io/fdshn/trueheart-minio@sha256:c737b782e5600ae90f95954b88364379734adb868f89e9c09370f80e4afbbd26
     container_name: chantam-minio
     restart: unless-stopped
     command: server /data --console-address ':9001'
@@ -80,7 +89,7 @@ services:
   # `/usr/bin/mc` — chính là thứ healthcheck `mc ready local` ở trên đang gọi.
   # Một ảnh ít đi là một kho ít đi có thể bị khoá.
   minio-init:
-    image: ghcr.io/coollabsio/minio@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
+    image: ghcr.io/fdshn/trueheart-minio@sha256:c737b782e5600ae90f95954b88364379734adb868f89e9c09370f80e4afbbd26
     depends_on:
       minio: { condition: service_healthy }
     restart: 'no'
