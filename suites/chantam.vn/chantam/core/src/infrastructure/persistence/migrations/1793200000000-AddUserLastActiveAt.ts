@@ -33,8 +33,14 @@ export class AddUserLastActiveAt1793200000000 implements MigrationInterface {
       ALTER TABLE "users"
       ALTER COLUMN "last_active_at" SET DEFAULT now()
     `);
-    // Job kiểm Active Member quét theo đúng cột này trên toàn bảng người dùng;
-    // không có index thì nó là một lần quét tuần tự mỗi lần chạy.
+    // Câu lọc Active Member lúc chia thưởng affiliate đọc đúng cột này; không có
+    // index thì mỗi lượt chia là một lần quét tuần tự.
+    //
+    // KHÔNG có job nào quét toàn bảng để đánh dấu ai bất hoạt, và đó là chủ ý
+    // (19-affiliate §19.4): một cột `is_active` ghi sẵn là con số THỨ HAI nói về
+    // cùng một sự thật, nên sẽ có lúc lệch — người mở app hôm qua vẫn mang cờ
+    // `false` từ lần job chạy tuần trước, và họ mất phần chia. Đọc mốc trực tiếp
+    // lúc cần dùng thì không lệch được.
     await queryRunner.query(`
       CREATE INDEX IF NOT EXISTS "IDX_users_last_active_at"
       ON "users" ("last_active_at")

@@ -136,10 +136,19 @@ chết** — và không ai biết.
   Hướng nhẹ hơn: một lượt `curl` trong `run-cli.sh` khi đỏ, URL đặt trong env var.
   Không MTA, không SPF/DKIM, không nhân bản credential. Chờ Bên A chốt kênh.
 
-- ⛔ **Job kiểm Active Member.** Đầu vào đã có đủ — cột `last_active_at` đang được
-  ghi, cấu hình `affiliate.active_member_window_days` = 90 đã seed — nhưng **không ai
-  đọc cấu hình đó**. Còn thiếu một quyết định trước khi làm: đánh dấu bất hoạt thì
-  hệ quả là gì.
+- ✅ **KHÔNG cần job kiểm Active Member** — chốt 29/09, nên đừng thêm.
+
+  "Active Member" là điều kiện lọc lúc chia thưởng affiliate, không phải trạng thái
+  được đánh dấu: `status = ACTIVE` và `last_active_at` trong 90 ngày thì có tên trong
+  danh sách chia của kỳ đó. Không ai bị đánh dấu nên không có hệ quả nào giáng xuống
+  người dùng.
+
+  Một job quét toàn bảng rồi ghi cột `is_active` sẽ tạo con số THỨ HAI nói về cùng một
+  sự thật, và nó sẽ lệch: người mở app hôm qua vẫn mang cờ `false` từ lần job chạy
+  tuần trước, rồi mất phần chia. Đọc mốc trực tiếp lúc cần dùng thì không lệch được.
+
+  Phần buộc phải đúng ngay — ghi `last_active_at` ở **mọi** lần cấp phiên, không riêng
+  đăng nhập — thì đã đúng và đã có canh. Xem `docs/diagram/17-jobs.md` mục 2.
 
 ### Đã có, từng ghi thiếu ở đây
 

@@ -91,6 +91,18 @@ flowchart LR
 > **Vì sao mốc phải tính cả nhánh refresh token.** App mobile giữ refresh token nên người mở
 > app hằng ngày vẫn có thể không "đăng nhập" lần nào suốt 90 ngày. Chỉ ghi ở nhánh login sẽ
 > đánh nhầm người đang dùng đều thành không hoạt động, và họ mất phần chia.
+>
+> **KHÔNG đánh dấu, chỉ ĐỌC lúc chia** — chốt 29/09. Đây là một điều kiện lọc, không phải một
+> cột trạng thái, và không có job nào quét toàn bảng để ghi `is_active`.
+>
+> Một cột ghi sẵn là con số **thứ hai** nói về cùng một sự thật, nên sẽ có lúc lệch: anh A mở app
+> hôm qua nhưng job đánh dấu chạy từ tuần trước, lúc đó anh đã im 91 ngày → cột ghi `false` → kỳ
+> chia hôm nay bỏ anh ra, dù anh đang dùng app. Chữa thì phải thêm job chạy dày hơn, một đường
+> tính lại, và một job đối soát cho lần job kia chạy sai. Đọc `last_active_at` trực tiếp lúc cần
+> dùng thì không lệch được, và đổi `affiliate.active_member_window_days` có hiệu lực ngay.
+>
+> **Tầng dữ liệu cho việc này đã xong và đã có canh** — xem [17-jobs](./17-jobs.md) §Chỗ cần soát
+> mục 2. Phần còn thiếu của phân hệ này là chính nó, không phải cái mốc hoạt động.
 
 ## 19.5 Chống gian lận
 

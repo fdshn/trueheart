@@ -119,13 +119,27 @@ flowchart LR
 
 1. ⚠️ **`transaction:autocomplete` đếm từ `accepted_at`** nên đóng lượt trao trước khi hàng
    tới nơi, và **không kiểm tranh chấp** — xem [08-transaction](./08-transaction.md).
-2. ⛔ **Chưa có job kiểm Active Member.** Nhưng đầu vào thì **đã có đủ**: cột `last_active_at`
-   đang được ghi (`user.repository.ts`), và cấu hình `affiliate.active_member_window_days` = 90
-   đã seed từ migration `1790200000000`. Chỉ là **không ai đọc cấu hình đó** — nó là một khoá
-   ghi-mà-không-đọc, và `test:config-inventory` KHÔNG bắt được loại này: nó kiểm khoá có dòng,
-   không kiểm có ai đọc.
-   Còn thiếu một quyết định trước khi làm: đánh dấu bất hoạt thì **hệ quả là gì**? Cấu hình nằm
-   trong nhóm `affiliate` nên có lẽ liên quan tính hoa hồng — xem [19-affiliate](./19-affiliate.md).
+2. ✅ **KHÔNG cần job kiểm Active Member** — chốt 29/09. Mục này trước đây ghi ⛔, nhưng nó
+   đang đòi một thứ mà thiết kế không cần.
+   "Active Member" không phải một trạng thái được đánh dấu; nó là **điều kiện lọc lúc chia
+   thưởng** ([19-affiliate](./19-affiliate.md) §19.4): `status = ACTIVE` và `last_active_at`
+   trong 90 ngày thì có tên trong danh sách chia của kỳ đó. Không ai bị đánh dấu, nên **không có
+   hệ quả nào giáng xuống người dùng** — im lâu thì kỳ đó không có tên, mở app lại là kỳ sau có.
+   Một job quét toàn bảng rồi ghi cột `is_active` sẽ tạo ra con số THỨ HAI nói về cùng một sự
+   thật, và nó sẽ lệch: người mở app hôm qua vẫn mang cờ `false` từ lần job chạy tuần trước, rồi
+   mất phần chia. Chữa thì phải thêm job chạy dày hơn, một đường tính lại, và một job đối soát
+   cho lần job kia chạy sai — đúng ba thứ mà cả loạt soát này liên tục gặp. Đọc mốc trực tiếp
+   lúc cần dùng thì không lệch được.
+   **Phần buộc phải đúng NGAY thì đã đúng**, và nó là phần duy nhất không vá được về sau: sang
+   năm không ai dựng lại được "ba tháng trước người này có mở app không". `session-issuer.ts` ghi
+   mốc ở chỗ chung của **cả bốn** đường cấp phiên — đăng ký, đăng nhập, đổi mật khẩu, làm mới
+   token — chứ không riêng nhánh đăng nhập: app mobile giữ refresh token nên người mở app hằng
+   ngày vẫn có thể không nhập mật khẩu lần nào suốt 90 ngày. Cột là `NOT NULL DEFAULT now()` nên
+   người vừa đăng ký đã hoạt động ngay, không có cạnh biên NULL. Có `session-issuer.spec.ts` canh
+   lời gọi và `test:user-activity` canh câu SQL trên Postgres thật.
+   `affiliate.active_member_window_days = 90` chưa ai đọc **không phải lỗ** — nó là cấu hình seed
+   trước cho tính năng sẽ đọc nó. Affiliate chưa có dòng code nào và còn chờ
+   [18-group](./18-group.md).
 3. ✅ **`media:sweep-orphans` chính là job dọn object mồ côi**, đã xếp lịch hằng tuần
    (`29 5 * * 2`) và chạy **KHÔ** — không có `--apply`. Chỉ báo con số là lựa chọn đúng cho một
    job xoá thứ không hoàn tác được.
