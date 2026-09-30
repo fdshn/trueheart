@@ -8,6 +8,8 @@ function makeRepository() {
   return {
     findOneBy: jest.fn(async () => null),
     insert: jest.fn(async () => undefined),
+    // Tang 2 la trong tran; ca vuot tran thu rieng o category-guards.spec.ts.
+    measureDepthAfterMove: jest.fn(async () => 2),
     findOneByOrFail: jest.fn(async (criteria) => ({
       globalId: criteria.globalId,
       name: 'Sách',

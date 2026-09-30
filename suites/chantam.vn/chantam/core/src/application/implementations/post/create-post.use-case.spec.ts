@@ -67,6 +67,8 @@ function makeCategory(
     postTypes: [...GenericMvpPostTypes],
     isActive: true,
     parentId: null,
+    mergedIntoId: null,
+    mergeReason: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -104,6 +106,11 @@ describe('CreatePostUseCase', () => {
     } as unknown as jest.Mocked<IPostRepository>;
     const categories = {
       findOneBy: jest.fn().mockResolvedValue(category),
+      // Chuoi to tien mac dinh: chinh no, dang bat. Ca "to tien da tat" duoc thu
+      // rieng trong category-guards.spec.ts.
+      findAncestorChain: jest.fn(async () => [
+        { categoryId: category?.globalId ?? 'c', isActive: true },
+      ]),
     } as unknown as jest.Mocked<ICategoryRepository>;
     const users = {
       findOneBy: jest.fn().mockResolvedValue(user),
@@ -326,7 +333,12 @@ describe('CreatePostUseCase — tin rao vặt CLASSIFIED', () => {
       ),
       findOneByOrFail: jest.fn(async () => ({ globalId: 'post' })),
     };
-    const categories = { findOneBy: jest.fn(async () => makeCategory()) };
+    const categories = {
+      findOneBy: jest.fn(async () => makeCategory()),
+      findAncestorChain: jest.fn(async () => [
+        { categoryId: CategoryId, isActive: true },
+      ]),
+    };
     const users = {
       findOneBy: jest.fn(async () => makeUser({ rank: UserRanks.MEMBER })),
     };

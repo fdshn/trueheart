@@ -14,6 +14,7 @@ import { GenericMvpPostTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { makeGlobalId, slugify } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
+import { assertDepthWithinLimit } from './category-guards';
 import { toCategoryDto } from './category.mapper';
 
 @Injectable()
@@ -39,6 +40,14 @@ export class CreateCategoryUseCase implements ICreateCategoryUseCase {
       });
       if (!parent || !parent.isActive) throw new CategoryNotFoundException();
     }
+
+    // Danh mục mới là một nút LÁ, nên độ sâu của nó là độ sâu của cha cộng một.
+    // `categoryId: null` nói với `measureDepthAfterMove` đúng điều đó.
+    await assertDepthWithinLimit(this.categories, {
+      categoryId: null,
+      parentId: input.parentId ?? null,
+    });
+
     const globalId = makeGlobalId(`/categories/${slug}`);
     await this.categories.insert({
       globalId,

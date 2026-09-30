@@ -130,6 +130,65 @@ export class CategoryDto implements ICategoryDto {
   @ApiProperty({ isArray: true, enum: GenericMvpPostTypes })
   postTypes: PostTypes[];
   @ApiProperty({ type: () => [CategoryDto] }) children: ICategoryDto[];
+
+  @ApiPropertyOptional({
+    description:
+      'false khi chính nó bật nhưng một TỔ TIÊN đã tắt — người dùng không thấy danh mục này dù isActive là true. Chỉ có nghĩa ở đường Admin.',
+  })
+  effectivelyActive?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'true khi nút này không nối được về gốc: nhánh của nó có vòng parent_id. Chỉ đường Admin trả về, và đó là cách duy nhất lấy lại categoryId để sửa.',
+  })
+  orphaned?: boolean;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Danh mục này đã được gộp vào đâu và vì sao. null nếu chưa gộp. Phân biệt "tắt vì đã gộp" với "tắt tay" — chỉ cái sau bật lại được.',
+  })
+  mergedInto?: { categoryId: string; reason: string | null } | null;
+}
+
+export class MergeCategoryDto {
+  @ApiProperty({
+    format: 'uuid',
+    description:
+      'Danh mục NHẬN bài. Phải đang bật, và không nằm trong nhánh con của nguồn.',
+  })
+  @IsUUID()
+  targetCategoryId: string;
+
+  @ApiProperty({
+    example: 'Hai danh mục trùng nghĩa, gộp Sách Giáo Khoa vào Sách',
+    description:
+      'Bắt buộc — hiện trong audit log và trong merge_reason của danh mục nguồn.',
+  })
+  @IsString()
+  @Length(10, 500)
+  reason: string;
+}
+
+export class MergeCategoryBodyDto {
+  @ApiProperty({ type: () => MergeCategoryDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => MergeCategoryDto)
+  merge: MergeCategoryDto;
+}
+
+export class MergeCategoryResponseDto {
+  @ApiProperty({ type: () => CategoryDto })
+  category: ICategoryDto;
+
+  @ApiProperty({ description: 'Số bài đã chuyển sang danh mục đích.' })
+  movedPosts: number;
+
+  @ApiProperty({
+    description: 'Số danh mục con đã chuyển sang làm con của đích.',
+  })
+  movedChildren: number;
 }
 
 export class GetCategoryTreeQueryDto {

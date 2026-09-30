@@ -57,6 +57,8 @@ function makeCategory(): ICategoryEntity {
     postTypes: [...GenericMvpPostTypes],
     isActive: true,
     parentId: null,
+    mergedIntoId: null,
+    mergeReason: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -151,6 +153,9 @@ describe('CreatePostUseCase Generic MVP', () => {
       } as unknown as jest.Mocked<IPostRepository>;
       const categories = {
         findOneBy: jest.fn(async () => makeCategory()),
+        findAncestorChain: jest.fn(async () => [
+          { categoryId: CategoryId, isActive: true },
+        ]),
       } as unknown as jest.Mocked<ICategoryRepository>;
       const users = {
         findOneBy: jest.fn(async () => makeUser()),
@@ -195,6 +200,9 @@ describe('CreatePostUseCase Generic MVP', () => {
     } as unknown as jest.Mocked<IPostRepository>;
     const categories = {
       findOneBy: jest.fn(async () => makeCategory()),
+      findAncestorChain: jest.fn(async () => [
+        { categoryId: CategoryId, isActive: true },
+      ]),
     } as unknown as jest.Mocked<ICategoryRepository>;
     const users = {
       findOneBy: jest.fn(async () => makeUser()),

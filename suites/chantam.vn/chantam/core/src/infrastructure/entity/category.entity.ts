@@ -36,6 +36,15 @@ export class CategoryEntity
       `ARRAY['OFFER', 'WANTED', 'CHARITY', 'CLASSIFIED', 'MERIT']::text[]`,
   })
   postTypes: PostTypes[];
+  @Column({ name: 'merged_into_id', type: 'uuid', nullable: true })
+  mergedIntoId: string | null;
+  @Column({
+    name: 'merge_reason',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  mergeReason: string | null;
   @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
   deletedAt: Date | null;
 }

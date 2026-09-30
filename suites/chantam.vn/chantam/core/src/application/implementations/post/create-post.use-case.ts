@@ -4,6 +4,10 @@ import {
   ICreatePostUseCase,
 } from '@/application/contracts/post';
 import {
+  assertCategoryAssignable,
+  assertPostTypeAllowed,
+} from '@/application/implementations/category/category-guards';
+import {
   CategoryNotFoundException,
   PostQuotaExceededException,
   PostSosNotAllowedException,
@@ -71,6 +75,18 @@ export class CreatePostUseCase implements ICreatePostUseCase {
     });
     if (!category || category.deletedAt || !category.isActive)
       throw new CategoryNotFoundException();
+
+    // Tổ tiên cũng phải đang bật. Thiếu vế này thì một danh mục active dưới một cha
+    // đã tắt vẫn gán được qua API — dù nó vô hình trên cây nên người dùng không
+    // chọn được nó ở giao diện nào.
+    await assertCategoryAssignable(this.categoryRepository, post.categoryId);
+
+    // `postTypes` của danh mục nay được KIỂM, không chỉ dùng để tỉa cây hiển thị.
+    // Trước 30/09 nó xuất hiện đúng hai chỗ — mapper trả ra và `pruneByPostType` —
+    // nên server nói với client "danh mục này chỉ nhận OFFER", client tuân, còn một
+    // lượt gọi API trực tiếp thì đặt WANTED vào đó được. Đo được: bài WANTED vào
+    // danh mục khai `{OFFER}` tạo thành công.
+    assertPostTypeAllowed(category, post.postType);
 
     const createdAt = new Date();
     const globalId = makeGlobalId(

@@ -70,7 +70,17 @@ function setup(overrides: Partial<IPostEntity> = {}) {
     ),
   };
   const categories = {
-    findOneBy: jest.fn(async () => ({ isActive: true, deletedAt: null })),
+    findOneBy: jest.fn(async () => ({
+      isActive: true,
+      deletedAt: null,
+      // Mảng RỖNG = nhận mọi loại bài, tức mặc định không siết gì. Kiểu trường
+      // ghi tường minh: để TypeScript tứ suy thì nó ra `never[]`, và ca nào muốn
+      // `mockResolvedValueOnce` với một loại bài thật sẽ không biên dịch được.
+      postTypes: [] as PostTypes[],
+    })),
+    findAncestorChain: jest.fn(async () => [
+      { categoryId: 'danh-muc-moi', isActive: true },
+    ]),
   };
   const entitlements = {
     getCapability: jest.fn(async () => ({ allowed: true })),
@@ -186,6 +196,7 @@ describe('UpdatePostUseCase', () => {
     categories.findOneBy.mockResolvedValueOnce({
       isActive: false,
       deletedAt: null,
+      postTypes: [],
     });
     await expect(
       useCase.handle({
@@ -274,5 +285,53 @@ describe('UpdatePostUseCase', () => {
         post: { deliveryMethod: null, shipPayer: ShipPayers.GIVER },
       }),
     ).rejects.toThrow();
+  });
+
+  it('không chuyển bài sang danh mục không nhận loại của nó', async () => {
+    // Đường TẠO đã chặn tứ 30/09, nhưng đường SỬA thì không: tạo bài OFFER ở một
+    // danh mục hợp lệ rồi `PATCH` sang danh mục khai `{WANTED}` là tới đúng chỗ mà
+    // đường tạo vừa đóng.
+    const { useCase, posts, categories } = setup({
+      postType: PostTypes.OFFER,
+    });
+    categories.findOneBy.mockResolvedValueOnce({
+      isActive: true,
+      deletedAt: null,
+      postTypes: [PostTypes.WANTED],
+    });
+    await expect(
+      useCase.handle({
+        postId: PostId,
+        userId: AuthorId,
+        post: { categoryId: 'chi-nhan-wanted' },
+      }),
+    ).rejects.toThrow();
+    expect(posts.updateOwnedContent).not.toHaveBeenCalled();
+  });
+
+  it('không chuyển bài sang danh mục có TỔ TIÊN đã tắt', async () => {
+    const { useCase, posts, categories } = setup();
+    categories.findAncestorChain.mockResolvedValueOnce([
+      { categoryId: 'con-dang-bat', isActive: true },
+      { categoryId: 'cha-da-tat', isActive: false },
+    ]);
+    await expect(
+      useCase.handle({
+        postId: PostId,
+        userId: AuthorId,
+        post: { categoryId: 'con-dang-bat' },
+      }),
+    ).rejects.toThrow();
+    expect(posts.updateOwnedContent).not.toHaveBeenCalled();
+  });
+
+  it('danh mục khai danh sách RỐNG thì chuyển được như cũ', async () => {
+    const { useCase, posts } = setup();
+    await useCase.handle({
+      postId: PostId,
+      userId: AuthorId,
+      post: { categoryId: 'danh-muc-moi' },
+    });
+    expect(posts.updateOwnedContent).toHaveBeenCalled();
   });
 });

@@ -218,6 +218,69 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['sach'],
   },
 
+  /**
+   * Đổi cha danh mục sẽ tạo VÒNG trong cây.
+   *
+   * Vì sao phải chặn, không phải chuyện thẩm mỹ: cây dựng từ gốc `parent_id IS NULL`
+   * đi xuống, nên một nhánh có vòng thì không nút nào của nó còn là gốc — cả nhánh
+   * biến mất khỏi CẢ hai đường đọc, kể cả đường của Admin. Khi đó không lấy lại được
+   * `categoryId` qua API để sửa, và chỉ còn đường SQL tay.
+   */
+  CATEGORY_PARENT_CYCLE: {
+    code: ErrorCodes.CATEGORY_PARENT_CYCLE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (name: string) =>
+      `Không đặt "${name}" làm cha được: nó nằm trong nhánh con của danh mục đang sửa, và làm vậy sẽ tạo vòng khiến cả nhánh biến mất khỏi cây`,
+    sample: ['Điện thoại'],
+  },
+
+  /**
+   * Tắt danh mục đang có bài dùng.
+   *
+   * Đếm cả NHÁNH CON: tắt một danh mục cha làm cả nhánh biến mất khỏi bộ lọc, nên
+   * bài nằm ở nút lá cũng mất chỗ hiện.
+   */
+  CATEGORY_IN_USE: {
+    code: ErrorCodes.CATEGORY_IN_USE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (postCount: number) =>
+      `Không tắt được: còn ${postCount} bài đang dùng danh mục này hoặc nhánh con của nó. Chuyển bài sang danh mục khác trước`,
+    sample: [34],
+  },
+
+  CATEGORY_DEPTH_EXCEEDED: {
+    code: ErrorCodes.CATEGORY_DEPTH_EXCEEDED,
+    httpStatus: HttpStatus.UNPROCESSABLE_ENTITY,
+    message: (maxDepth: number) =>
+      `Cây danh mục sâu tối đa ${maxDepth} tầng. Sâu hơn thì màn hình chọn danh mục không dùng được`,
+    sample: [4],
+  },
+
+  CATEGORY_POST_TYPE_NOT_ALLOWED: {
+    code: ErrorCodes.CATEGORY_POST_TYPE_NOT_ALLOWED,
+    httpStatus: HttpStatus.UNPROCESSABLE_ENTITY,
+    message: (postType: string, allowed: string) =>
+      `Danh mục này không nhận bài loại ${postType}. Loại được nhận: ${allowed}`,
+    sample: ['WANTED', 'OFFER, CLASSIFIED'],
+  },
+
+  CATEGORY_MERGE_INVALID: {
+    code: ErrorCodes.CATEGORY_MERGE_INVALID,
+    httpStatus: HttpStatus.UNPROCESSABLE_ENTITY,
+    message: (reason: string) => `Không gộp được: ${reason}`,
+    sample: ['không gộp một danh mục vào chính nó'],
+  },
+  // Tách khỏi CATEGORY_MERGE_INVALID vì đây không phải một lượt gộp bị từ chối, mà
+  // là một lượt BẬT LẠI bị từ chối — và hành động tiếp theo khác nhau: tạo danh
+  // mục mới, chứ không sửa lại tham số gộp.
+  CATEGORY_MERGED_CANNOT_REOPEN: {
+    code: ErrorCodes.CATEGORY_MERGED_CANNOT_REOPEN,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (name: string, target: string) =>
+      `"${name}" đã được gộp vào "${target}" nên không bật lại được. Tạo danh mục mới nếu cần tách lại.`,
+    sample: ['Đồ gia dụng', 'Gia dụng'],
+  },
+
   // ── 0x06 Canonical bài đăng M2 ─────────────────────────────────────────────
   POST_NOT_FOUND: {
     code: ErrorCodes.POST_NOT_FOUND,

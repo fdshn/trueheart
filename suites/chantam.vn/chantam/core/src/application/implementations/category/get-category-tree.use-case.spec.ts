@@ -29,11 +29,14 @@ function node(
 function makeUseCase(rows: ReturnType<typeof node>[]) {
   return new GetCategoryTreeUseCase(
     {
-      findActiveTree: jest.fn(async () => rows),
+      findActiveTree: jest.fn(async () => rows.filter((row) => row.isActive)),
+      findAdminTree: jest.fn(async () => rows),
     } as never,
     { hasPermission: jest.fn(async () => true) } as never,
   );
 }
+
+const asAdmin = { includeInactive: true, actorUserId: 'admin' };
 
 describe('GetCategoryTreeUseCase', () => {
   it('dựng cây từ danh sách phẳng và không trả category inactive', async () => {
@@ -103,6 +106,75 @@ describe('GetCategoryTreeUseCase', () => {
       node('cha', null, [PostTypes.OFFER]),
       node('con', 'cha', [PostTypes.OFFER]),
     ]).handle({ postType: PostTypes.CLASSIFIED });
+
+    expect(result.categories).toEqual([]);
+  });
+
+  it('cây có VÒNG vẫn ra được ở đường Admin, kèm cờ orphaned', async () => {
+    // Ca nặng nhất của phân hệ: A → B → C rồi đặt `A.parent = C`. Mọi nút đều có
+    // cha hợp lệ và `is_active = true`, nên không nút nào là gốc — trước 30/09 cả
+    // nhánh biến mất khỏi CẢ hai đường đọc, kể cả Admin, và khi đó không lấy được
+    // `categoryId` nào qua API để sửa. Chỉ còn đường SQL tay.
+    const result = await makeUseCase([
+      node('a', 'c'),
+      node('b', 'a'),
+      node('c', 'b'),
+    ]).handle(asAdmin);
+
+    expect(result.categories).toHaveLength(1);
+    expect(result.categories[0].categoryId).toBe('a');
+    expect(result.categories[0].orphaned).toBe(true);
+  });
+
+  it('và vòng không làm đệ quy chạy mãi — nó đóng lại đúng một lần', async () => {
+    const result = await makeUseCase([
+      node('a', 'c'),
+      node('b', 'a'),
+      node('c', 'b'),
+    ]).handle(asAdmin);
+
+    // a → b → c → a, và lượt gặp lại `a` dừng tại đó.
+    const b = result.categories[0].children;
+    expect(b.map((item) => item.categoryId)).toEqual(['b']);
+    expect(b[0].children.map((item) => item.categoryId)).toEqual(['c']);
+    const closing = b[0].children[0].children;
+    expect(closing.map((item) => item.categoryId)).toEqual(['a']);
+    expect(closing[0].children).toEqual([]);
+    expect(closing[0].orphaned).toBe(true);
+  });
+
+  it('đường công khai KHÔNG trả nhánh có vòng', async () => {
+    const result = await makeUseCase([
+      node('a', 'c'),
+      node('b', 'a'),
+      node('c', 'b'),
+    ]).handle({});
+
+    expect(result.categories).toEqual([]);
+  });
+
+  it('con đang bật dưới cha đã tắt: Admin thấy, và effectivelyActive là false', async () => {
+    // Trước 30/09 Admin thấy `isActive: true` cho một danh mục mà người dùng hoàn
+    // toàn không thấy, và không có tín hiệu nào về việc đó.
+    const rows = [
+      { ...node('cha', null), isActive: false },
+      node('con', 'cha'),
+    ];
+    const admin = await makeUseCase(rows).handle(asAdmin);
+
+    const con = admin.categories
+      .flatMap((item) => [item, ...item.children])
+      .find((item) => item.categoryId === 'con');
+    expect(con?.isActive).toBe(true);
+    expect(con?.effectivelyActive).toBe(false);
+  });
+
+  it('và đường công khai không trả con đó', async () => {
+    const rows = [
+      { ...node('cha', null), isActive: false },
+      node('con', 'cha'),
+    ];
+    const result = await makeUseCase(rows).handle({});
 
     expect(result.categories).toEqual([]);
   });

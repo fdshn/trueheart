@@ -83,3 +83,4 @@ export * from './1796200000000-VersionGroupRolePermissions';
 export * from './1796300000000-GrantOverviewToSubTeamAdmin';
 export * from './1796400000000-DropDuplicatePointCapKeys';
 export * from './1796500000000-CreateChatMessageFlags';
+export * from './1796600000000-AddCategoryMergedInto';

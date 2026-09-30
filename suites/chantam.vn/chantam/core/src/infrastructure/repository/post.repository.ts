@@ -100,6 +100,41 @@ interface IAdminPostRow {
   updated_at: Date;
 }
 
+/**
+ * Mệnh đề lọc bài theo danh mục VÀ toàn bộ nhánh con của nó.
+ *
+ * ## Vì sao không so bằng dấu bằng
+ *
+ * Trước 30/09 cả bốn đường đọc dùng `post.category_id = :categoryId` phẳng, nên lọc
+ * theo một danh mục CHA trả về 0 bài — trong khi
+ * [22 §22.1](../../../../../../docs/diagram/22-category.md) nói rõ *"truy vấn theo
+ * nút cha phải lấy được cả nhánh con"*, và cùng đoạn đó còn nói bài đăng gắn vào nút
+ * lá. Hai câu đó cộng lại nghĩa là chọn bất kỳ danh mục cha nào cũng ra feed rỗng.
+ * Đo được: bài ở nút lá, lọc theo lá ra 1, lọc theo cha và gốc đều ra 0.
+ *
+ * ## Vì sao đệ quy TRONG câu, không giải id trước rồi truyền mảng
+ *
+ * Giải trước cần một lượt đi database nữa, và giữa hai lượt đó cây có thể đổi — lọc
+ * ra một tập id không còn đúng với cây lúc đọc bài. Một câu thì không có khoảng hở
+ * đó.
+ *
+ * `UNION` (không `ALL`) là hàng rào chống VÒNG: nó bỏ id đã thấy nên một vòng trong
+ * cây làm câu dừng thay vì chạy mãi. Cần vì dữ liệu cũ có thể đã có vòng từ trước
+ * khi `UpdateCategoryUseCase` biết chặn.
+ */
+function categorySubtreeFilter(placeholder: string): string {
+  return `post.category_id IN (
+    WITH RECURSIVE subtree AS (
+      SELECT global_id FROM categories WHERE global_id = ${placeholder}
+      UNION
+      SELECT child.global_id
+      FROM categories child
+      INNER JOIN subtree ON child.parent_id = subtree.global_id
+    )
+    SELECT global_id FROM subtree
+  )`;
+}
+
 @Injectable()
 export class PostRepository
   extends Repository<IPostEntity>
@@ -209,7 +244,7 @@ export class PostRepository
       });
 
     if (params.categoryId)
-      baseQuery.andWhere('post.categoryId = :categoryId', {
+      baseQuery.andWhere(categorySubtreeFilter(':categoryId'), {
         categoryId: params.categoryId,
       });
 
@@ -358,7 +393,7 @@ export class PostRepository
     if (params.status)
       query.andWhere('post.status = :status', { status: params.status });
     if (params.categoryId)
-      query.andWhere('post.categoryId = :categoryId', {
+      query.andWhere(categorySubtreeFilter(':categoryId'), {
         categoryId: params.categoryId,
       });
 
@@ -384,7 +419,11 @@ export class PostRepository
 
     add('post.status = $?', params.status);
     add('post.post_type = $?', params.postType);
-    add('post.category_id = $?', params.categoryId);
+    // Lọc theo cả nhánh con, không so bằng dấu bằng — xem `categorySubtreeFilter`.
+    if (params.categoryId) {
+      values.push(params.categoryId);
+      conditions.push(categorySubtreeFilter(`$${values.length}`));
+    }
     add('post.author_id = $?', params.authorId);
     if (params.keyword) {
       values.push(params.keyword);
@@ -552,7 +591,8 @@ export class PostRepository
     }
     if (params.categoryId) {
       values.push(params.categoryId);
-      conditions.push(`post.category_id = $${values.length}`);
+      // Cả nhánh con — xem `categorySubtreeFilter`.
+      conditions.push(categorySubtreeFilter(`$${values.length}`));
     }
 
     const originSelect = params.origin

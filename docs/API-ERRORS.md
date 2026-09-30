@@ -89,6 +89,12 @@ Nghiệp vụ Chân Tâm
 | `0x0407` | `1031` | 429 Too Many Requests | `TOO_MANY_REQUESTS` | Bạn thao tác quá nhanh. Thử lại sau 60 giây |
 | `0x0501` | `1281` | 404 Not Found | `CATEGORY_NOT_FOUND` | Không tìm thấy danh mục |
 | `0x0502` | `1282` | 409 Conflict | `CATEGORY_SLUG_TAKEN` | Slug danh mục "sach" đã tồn tại |
+| `0x0503` | `1283` | 409 Conflict | `CATEGORY_PARENT_CYCLE` | Không đặt "Điện thoại" làm cha được: nó nằm trong nhánh con của danh mục đang sửa, và làm vậy sẽ tạo vòng khiến cả nhánh biến mất khỏi cây |
+| `0x0504` | `1284` | 409 Conflict | `CATEGORY_IN_USE` | Không tắt được: còn 34 bài đang dùng danh mục này hoặc nhánh con của nó. Chuyển bài sang danh mục khác trước |
+| `0x0505` | `1285` | 422 | `CATEGORY_DEPTH_EXCEEDED` | Cây danh mục sâu tối đa 4 tầng. Sâu hơn thì màn hình chọn danh mục không dùng được |
+| `0x0506` | `1286` | 422 | `CATEGORY_POST_TYPE_NOT_ALLOWED` | Danh mục này không nhận bài loại WANTED. Loại được nhận: OFFER, CLASSIFIED |
+| `0x0507` | `1287` | 422 | `CATEGORY_MERGE_INVALID` | Không gộp được: không gộp một danh mục vào chính nó |
+| `0x0508` | `1288` | 409 Conflict | `CATEGORY_MERGED_CANNOT_REOPEN` | "Đồ gia dụng" đã được gộp vào "Gia dụng" nên không bật lại được. Tạo danh mục mới nếu cần tách lại. |
 | `0x0601` | `1537` | 404 Not Found | `POST_NOT_FOUND` | Không tìm thấy bài đăng 4182a141-a5c5-5c25-92ab-0d4488158e8f |
 | `0x0602` | `1538` | 409 Conflict | `POST_QUOTA_EXCEEDED` | Bạn đã đạt giới hạn 3 bài đăng đang hoạt động |
 | `0x0603` | `1539` | 409 Conflict | `POST_INVALID_STATE` | Trạng thái bài đăng không cho phép thao tác này |
@@ -139,5 +145,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **97 mã lỗi** trên 3 tầng.
+Tổng cộng **103 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

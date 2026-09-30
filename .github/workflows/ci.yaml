@@ -196,6 +196,16 @@ jobs:
         # KHÔNG được đóng suốt từ lúc `CloseOpenRequestsService` ra đời.
         run: bash scripts/smoke-cli.sh
 
+      - name: Kiểm ba chế độ policy của /docs
+        # `/docs` ẩn ở production, sau Basic Auth ở staging, mở ở local — ba nhánh
+        # đó quyết định liệu toàn bộ bản đồ API có nằm công khai hay không, nên chúng
+        # phải được kiểm ở mọi lượt đẩy. Phép kiểm chạy bằng curl giả nên không cần
+        # dịch vụ sống.
+        #
+        # 30/09 nó đỏ tại HEAD và không ai biết, vì nó chưa từng được nối vào đây — và nó
+        # đỏ vì danh sách route chép tay trong mock của chính nó đã cũ 19 route.
+        run: bash scripts/smoke-docs-policy.spec.sh
+
       - name: Kiểm hợp đồng UPDATE ... RETURNING
         # `query()` bọc kết quả UPDATE/DELETE thành [rows, affected] nhưng
         # INSERT/SELECT thì không. Unit test mock `query` nên xanh cả khi đọc

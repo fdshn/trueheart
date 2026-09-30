@@ -1,10 +1,18 @@
 import {
   ICreateCategoryUseCase,
   IGetCategoryTreeUseCase,
+  IMergeCategoryResult,
+  IMergeCategoryUseCase,
   IUpdateCategoryUseCase,
 } from '@/application/contracts/category';
 import {
+  CategoryDepthExceededException,
+  CategoryInUseException,
+  CategoryMergedCannotReopenException,
+  CategoryMergeInvalidException,
   CategoryNotFoundException,
+  CategoryParentCycleException,
+  CategoryPostTypeNotAllowedException,
   CategorySlugTakenException,
 } from '@/domain/exceptions';
 import {
@@ -46,6 +54,8 @@ import {
   CreateCategoryResponseDto,
   GetCategoryTreeQueryDto,
   GetCategoryTreeResponseDto,
+  MergeCategoryBodyDto,
+  MergeCategoryResponseDto,
   UpdateCategoryBodyDto,
   UpdateCategoryParamsDto,
   UpdateCategoryResponseDto,
@@ -61,6 +71,8 @@ export class CategoryController {
     private readonly createCategory: ICreateCategoryUseCase,
     @Inject(IUpdateCategoryUseCase)
     private readonly updateCategory: IUpdateCategoryUseCase,
+    @Inject(IMergeCategoryUseCase)
+    private readonly mergeCategory: IMergeCategoryUseCase,
   ) {}
 
   @Public()
@@ -115,6 +127,39 @@ export class CategoryController {
       .build();
   }
 
+  @Post(':categoryId/merge')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Gộp danh mục này vào danh mục khác',
+    description:
+      'Cần `category.manage`. Chuyển toàn bộ bài và danh mục con sang đích rồi TẮT nguồn — không xoá, vì bài cũ vẫn cần đọc được tên để hiển thị lịch sử. `merged_into_id` ghi nguồn đã đi đâu, nên sau này tra được "tắt vì gộp" khác với "Admin tắt tay". Tất cả trong MỘT transaction: tách ra thì một lần chết giữa chừng để lại nguồn đã tắt mà bài vẫn ở đó. Từ chối khi đích nằm trong nhánh con của nguồn (sẽ tạo vòng), khi đích không nhận đủ loại bài mà nguồn đang nhận, hoặc khi nhánh sau gộp vượt giới hạn độ sâu.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(MergeCategoryResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    CategoryNotFoundException,
+    [CategoryMergeInvalidException, ['không gộp một danh mục vào chính nó']],
+    [CategoryDepthExceededException, [4]],
+    [CategoryPostTypeNotAllowedException, ['WANTED', 'OFFER']],
+  )
+  public async merge(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: UpdateCategoryParamsDto,
+    @Body() body: MergeCategoryBodyDto,
+  ): Promise<ResponseDto<IMergeCategoryResult>> {
+    const result = await this.mergeCategory.handle({
+      categoryId: params.categoryId,
+      merge: body.merge,
+      userId: principal.userId,
+    });
+
+    return ResponseDto.create<IMergeCategoryResult>()
+      .succeed()
+      .attach(result as never)
+      .build();
+  }
+
   @Patch(':categoryId')
   @ApiBearerAuth()
   @ApiOperation({
@@ -129,6 +174,10 @@ export class CategoryController {
     [ForbiddenException],
     CategoryNotFoundException,
     [CategorySlugTakenException, 'sach'],
+    [CategoryParentCycleException, ['Điện thoại']],
+    [CategoryInUseException, [34]],
+    [CategoryDepthExceededException, [4]],
+    [CategoryMergedCannotReopenException, ['Đồ gia dụng', 'Gia dụng']],
   )
   public async update(
     @CurrentUser() principal: IAuthPrincipal,

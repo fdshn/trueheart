@@ -3,6 +3,10 @@ import {
   IUpdatePostResult,
   IUpdatePostUseCase,
 } from '@/application/contracts/post';
+import {
+  assertCategoryAssignable,
+  assertPostTypeAllowed,
+} from '@/application/implementations/category/category-guards';
 import { assertEditablePost } from '@/domain/consts/post-edit-policy';
 import {
   CategoryNotFoundException,
@@ -76,6 +80,16 @@ export class UpdatePostUseCase implements IUpdatePostUseCase {
       });
       if (!category || category.deletedAt || !category.isActive)
         throw new CategoryNotFoundException();
+
+      // Cùng hai vế như `create-post`: tổ tiên phải đang bật, và danh mục phải
+      // nhận loại bài này. Thiếu ở đây thì đường tạo đóng mà đường SỬA vẫn mở:
+      // tạo bài WANTED ở một danh mục hợp lệ rồi `PATCH` sang danh mục khai `{OFFER}`.
+      await assertCategoryAssignable(this.categoryRepository, input.categoryId);
+
+      // `post.postType` chứ không phải `input.postType`: `IUpdatePostDto` không có
+      // trường đó — loại bài là bất biến sau khi tạo. Đọc từ `input` sẽ là `undefined`
+      // vĩnh viễn, tức một phép kiểm trông như có mà không bao giờ chặn gì.
+      assertPostTypeAllowed(category, post.postType);
     }
     if (input.isSos === true && !post.isSos) {
       const capability = await this.entitlementRepository.getCapability(
