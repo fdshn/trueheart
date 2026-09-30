@@ -5,6 +5,16 @@ Tài liệu này ghi nhận hiện trạng các giả định ban đầu và **�
 - **4 câu hỏi lớn trước đây:** ĐÃ ĐƯỢC BÊN A CHỐT CHÍNH THỨC trong SRS v1.15.0 (v1.14.2).
 - **6 mặc định mềm:** Admin chỉnh được qua CMS, cấu hình mặc định vẫn áp dụng.
 
+## F83 — điểm danh/streak: đã chốt và còn chờ số cụ thể (30/09/2026)
+
+Product Owner đã xác nhận streak theo **ngày liên tiếp**; lượt điểm danh bù chỉ tích
+từ giao dịch **tặng/nhận quà hoàn tất**. Mốc ban đầu là 7/14/30/50 ngày, Admin có thể
+cấu hình điểm thưởng ở từng mốc và số giao dịch đổi một lượt bù. Thiết kế chọn mỗi
+giao dịch hợp lệ tính một lần cho **mỗi bên**; cần xác nhận nếu chỉ muốn tính cho một
+bên. Các số chưa chốt: điểm ngày, điểm từng mốc, giao dịch/lượt bù, số ngày được bù,
+giới hạn lượt bù tích trữ. Không bật phát điểm khi policy chưa đủ các giá trị này.
+Xem [đặc tả F83](./CHECK-IN-STREAK-DESIGN.md).
+
 ---
 
 ## Đối chiếu 4 giả định với quyết định chính thức của Bên A

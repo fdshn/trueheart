@@ -161,6 +161,13 @@ Phòng chat gắn 1-1 với giao dịch, **chỉ tạo khi giao dịch đạt `A
 `version` trên `point_rules` là bắt buộc: khi Admin đổi rule, bút toán cũ phải tra được nó ra
 đời dưới phiên bản nào.
 
+**F83 — điểm danh/streak (chưa có migration):** thêm `check_in_entries` (UNIQUE
+`user_id,policy_date`), `check_in_runs`, `check_in_milestone_awards` (UNIQUE
+`streak_run_id,milestone_days`), `repair_transaction_progress` (UNIQUE
+`user_id,transaction_id`), `repair_credit_cohorts`, `repair_credit_ledger` append-only và
+`check_in_policy_revisions`. `point_ledger` vẫn là nguồn sự thật cho điểm ngày/thưởng
+mốc; credit ledger chỉ theo dõi lượt bù. Xem [schema mục tiêu](../DATABASE.md#điểm-danh-streak-và-lượt-bù).
+
 Giver Accuracy: Người nhận chấm theo % (0–100%). Lưu vào bảng `reviews.accuracy_percent` và tính tổng hợp vào `users.accuracy_percent` (kèm `users.accuracy_samples`). Chỉ hiển thị và xét cảnh báo khi `accuracy_samples >= 5`; dưới 75% đưa vào `REVIEW_REQUIRED` (CHỐT-03).
 
 ---

@@ -108,6 +108,7 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 | 16 | Group & affiliate | Affiliate recurring, reward active member, idempotency/reversal | M5 | ⬜ |
 | 17 | Group & affiliate | Geo eligibility và audit mọi event | M5 | ⬜ |
 | 18 | Point & review | Point rule/ledger, review quality, giver accuracy | M4 | 🟡 F39 (kèm đường hoàn bút toán), F41, F42, F43 đã xong. **F40 chờ Bên A cho con số "X điểm = 100% giá trị"** |
+| 18a | Điểm danh & streak (F83) | Lịch sử/ngày, mốc thưởng 7/14/30/50, lượt bù từ giao dịch tặng/nhận quà hoàn tất, cấu hình Admin, UAT | M4 + M6 | ⬜ Yêu cầu bổ sung 30/09; chưa có API, schema, app hoặc CMS |
 | 19 | Nội dung đặc thù & Phật Pháp | Charity/Event, Classified, ads, Merit, Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng dường, Diễn đàn, Chùa) | M2 extension + F73 | ⬜ |
 | 20 | Admin CMS | Rule config, moderation cơ bản | M6 | 🟡 Kiểm duyệt bài/báo xấu, RBAC, cấu hình rule điểm/hạng/entitlement, hoàn bút toán, danh mục và **mẫu thông báo** đã có. Ngưỡng Giver Accuracy cũng đã đưa ra cấu hình động. Còn KPI dashboard (F59), campaign/home động (F63), blog (F64), quản lý từ thiện/quảng cáo (F65) |
 | 21 | QA | Integration/UAT Sprint 3 |  | ⬜ |

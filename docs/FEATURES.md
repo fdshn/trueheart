@@ -25,7 +25,7 @@ Flutter (Android + iOS) · NestJS + PostgreSQL 16 + PostGIS · Redis · Socket.i
 | 4 | [Quanh Đây & Bản đồ GIS](#4-quanh-đây--bản-đồ-gis) | F25–F29 | Chỉ bản đồ toàn màn hình, không có feed |
 | 5 | [Giao dịch & FSM](#5-giao-dịch--fsm) | F30–F36 | Lõi nghiệp vụ |
 | 6 | [Chat Realtime 1-1](#6-chat-realtime-1-1) | F37–F38 | Text + ảnh (tối đa 3/tin) |
-| 7 | [Điểm, Review & Accuracy](#7-điểm-review--accuracy) | F39–F43 | Accuracy dùng % (CHỐT-03) |
+| 7 | [Điểm, Review & Accuracy](#7-điểm-review--accuracy) | F39–F43, F83 | F83 điểm danh/streak là yêu cầu bổ sung 30/09, chưa triển khai |
 | 8 | [Thông báo & Lịch Âm](#8-thông-báo--lịch-âm) | F44–F47 | |
 | 9 | [Báo cáo & Chống gian lận](#9-báo-cáo--chống-gian-lận) | F48–F50 | |
 | 10 | [Group, Affiliate & Geo](#10-group-affiliate--geo) | F51–F58 | Toàn bộ event cần Geo Group (CHỐT-06) |
@@ -535,6 +535,21 @@ Người nhận chấm mức chính xác của mô tả so với thực tế.
 > - **Công khai**: không có gì. Gắn "độ chính xác 62%" lên hồ sơ công khai là một bản án dựng
 >   từ vài lượt đánh giá, mà người bị chấm sai không có đường kháng.
 
+### F83 — Điểm danh ngày, streak và điểm danh bù (bổ sung 30/09/2026)
+
+**Trạng thái: ⬜ chưa triển khai.** Mã F83 là yêu cầu bổ sung, không thay đổi 72 chức
+năng của bảng phạm vi gốc. Chi tiết: [thiết kế điểm danh/streak](./plan/CHECK-IN-STREAK-DESIGN.md).
+
+- App đọc trạng thái và lịch sử điểm danh; user điểm danh tối đa một lần/ngày theo giờ Việt
+  Nam. Streak tính theo **ngày liên tiếp**, không theo tuần lịch. Các mốc khởi đầu 7, 14,
+  30, 50 ngày; thưởng mốc cộng thêm điểm ngày, mỗi mốc một lần trong một chuỗi.
+- User có thể điểm danh bù ngày bỏ lỡ để nối lại streak. Một ngày bù tiêu một lượt; không
+  nhận lại điểm cơ bản của ngày đó, nhưng có thể mở thưởng mốc chưa nhận.
+- Lượt bù chỉ tích từ giao dịch **tặng/nhận quà `COMPLETED`**. Cả người tặng và người nhận
+  được tính một giao dịch; mỗi cặp giao dịch/người chỉ tính một lần. Admin cấu hình số
+  giao dịch đổi một lượt bù, thời hạn bù, điểm ngày và điểm ở từng mốc. Có version/audit.
+- Điểm thưởng qua Point Ledger; lịch, streak, lượt bù và mốc đều có khoá chống trùng.
+
 ---
 
 ## 8. Thông báo & Lịch Âm
@@ -858,6 +873,10 @@ Quản lý người dùng, report, nội dung vi phạm, xử phạt, xem audit.
 CRUD toàn bộ: bậc Rank, nhiệm vụ 3 tháng, cap theo ngày, Point Rule, Personal Referral,
 Affiliate event và geo, Accuracy. Có điều chỉnh thủ công, thu hồi, tạm dừng — **kèm audit và
 đánh phiên bản cấu hình**.
+
+Bổ sung cấu hình F83: `transactionsPerRepair`, `repairWindowDays`, `dailyPoints`,
+`milestones[{streakDays,bonusPoints}]`, bật/tắt và thời điểm hiệu lực. Giá trị cụ thể do
+Admin nhập sau khi Product Owner chốt; UI phải hiện version và audit trước khi publish.
 
 > Đánh phiên bản là bắt buộc: khi Admin đổi rule, các bút toán đã phát sinh phải tra được là
 > chúng ra đời dưới phiên bản nào. ⚠️ *Giá trị cap theo ngày chưa có.*

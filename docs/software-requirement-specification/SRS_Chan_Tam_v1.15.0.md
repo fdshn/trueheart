@@ -8,7 +8,7 @@
 | ---                             | ---                                                                                 |
 | Tên Hệ Thống                    | Nền tảng Ứng Dụng Di Động & Hệ Thống Quản Trị Ứng dụng Chân tâm                     |
 | ---                             | ---                                                                                 |
-| Phiên Bản (Version)             | v1.14.1                                                                             |
+| Phiên Bản (Version)             | v1.15.3 (tên file giữ nguyên để không làm hỏng liên kết cũ)                         |
 | ---                             | ---                                                                                 |
 | Ngày Biên Soạn                  | 08/09/2026                                                                          |
 | ---                             | ---                                                                                 |
@@ -119,6 +119,8 @@ CHỐT-12 - Tương tác Yêu thích Bài đăng (Post Like / Unlike):
 | ---                                       | ---            | ---                                                                                                                                         |
 | Cho đi thành công                         | Admin cấu hình | Cộng khi Transaction COMPLETED theo Point Rule.                                                                                             |
 | ---                                       | ---            | ---                                                                                                                                         |
+| Điểm danh hằng ngày                       | Admin cấu hình | Một lần/ngày lịch Việt Nam; thưởng cơ bản qua Point Ledger.                                                                                  |
+| Mốc streak 7/14/30/50 ngày và mốc bổ sung | Admin cấu hình | Thưởng thêm đúng một lần/mốc/chuỗi; số điểm mỗi mốc do Admin cấu hình.                                                                      |
 | Giá trị cho đi                            | Admin cấu hình | Phase 1 có áp dụng; người nhận đánh giá theo tỷ lệ %. Mức 100% tương ứng X điểm do Admin cấu hình; các mức còn lại theo mapping Point Rule. |
 | ---                                       | ---            | ---                                                                                                                                         |
 | Thả tim                                   | Admin cấu hình | Có thể bật/tắt và cấu hình điều kiện/cap trong Point Rule; không hard-code mức điểm.                                                        |
@@ -318,6 +320,8 @@ v1.15.1 (22/09/2026): Cập nhật yêu cầu nghiệp vụ khách hàng mới c
 
 v1.15.2 (22/09/2026): Bổ sung 3 chế độ tìm người nhận bài Muốn Tặng (selection_mode: INSTANT - trao ngay cho người đầu tiên; OPTIMAL - chờ countdown tối đa 7 ngày; EXTENDED - chờ mở rộng tối đa 30 ngày); bảo vệ quyền riêng tư người cho (kênh công khai chỉ hiển thị username/avatar/rank/joinedAt, số điện thoại và địa chỉ chi tiết chỉ trả cho receiver chính thức trong giao dịch DELIVERING/COMPLETED); tính năng tương tác Yêu thích bài đăng (Like/Unlike toggle qua POST /api/v1/posts/:id/like, bảng post_likes kèm UNIQUE constraint, denorm like_count trên posts).
 
+v1.15.3 (30/09/2026): Bổ sung điểm danh theo ngày liên tiếp, lịch sử, thưởng mốc streak 7/14/30/50 ngày và điểm danh bù bằng lượt tích từ giao dịch tặng/nhận quà hoàn tất. Chi tiết tại [thiết kế điểm danh và streak](docs/plan/CHECK-IN-STREAK-DESIGN.md). Đây là yêu cầu mới, chưa triển khai.
+
 | Phiên Bản | Ngày Cập Nhật | Người Biên Soạn                                                                                                                                                                                                                                                                      | Mô Tả Thay Đổi Chi Tiết                                                                                                                                                                                          | Trạng Thái         |
 | --------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
 | v1.0.0    | 18/08/2026    | Nguyễn Trường Sơn                                                                                                                                                                                                                                                                    | Khởi tạo tài liệu đặc tả yêu cầu kinh doanh ban đầu (BRD).                                                                                                                                                       | Bản thảo           |
@@ -334,6 +338,7 @@ v1.15.2 (22/09/2026): Bổ sung 3 chế độ tìm người nhận bài Muốn T
 | v1.14.0   | 08/09/2026    | Nguyễn Trường Sơn                                                                                                                                                                                                                                                                    | Tích hợp câu trả lời nghiệp vụ của khách hàng: Rank/Referral, Group & Affiliate, Geo, Transaction/Queue, Rao vặt, Từ thiện, Công đức, Point Rule, Map, Lunar Calendar; loại KYC và chuẩn hóa các rule liên quan. | Cập nhật nghiệp vụ |
 | v1.15.1   | 22/09/2026    | Nguyễn Trường Sơn                                                                                                                                                                                                                                                                    | Cập nhật cơ chế đổi vật phẩm bằng Điểm Cống Hiến, countdown 7 ngày, điểm khả dụng bảo vệ Rank, ghi Point Ledger ITEM_REDEMPTION và lựa chọn hình thức vận chuyển.                                                | Cập nhật nghiệp vụ |
 | v1.15.2   | 22/09/2026    | Nguyễn Trường Sơn                                                                                                                                                                                                                                                                    | Cập nhật 3 chế độ tìm người nhận (selection_mode: INSTANT, OPTIMAL, EXTENDED), bảo vệ riêng tư người cho (contact_info gating), tương tác Yêu thích bài đăng (POST /posts/:id/like, post_likes, like_count). | Cập nhật nghiệp vụ |
+| v1.15.3 | 30/09/2026 | Product Owner / nhóm kỹ thuật | Bổ sung UC-CHECKIN-01/02, mốc thưởng streak, lượt điểm danh bù từ giao dịch tặng/nhận quà hoàn tất và policy Admin. | Yêu cầu mới, chưa triển khai |
 
 # CHƯƠNG 2: MÔ TẢ TỔNG QUAN HỆ THỐNG (SYSTEM PERSPECTIVE & ARCHITECTURE)
 
@@ -1356,6 +1361,35 @@ BR-POINT-05: Mọi biến động điểm phải ghi Point Ledger với user_id,
 
 BR-POINT-06: Rank dùng số dư Điểm Cống hiến hiện tại (current point balance), không dùng lifetime rank point riêng. Khi ledger làm balance thay đổi, hệ thống đánh giá lại Rank theo ngưỡng hiện hành; nếu balance giảm dưới ngưỡng, Rank có thể hạ tương ứng. Mọi thay đổi phải dựa trên Point Ledger và không sửa trực tiếp balance ngoài ledger.
 
+### UC-CHECKIN-01: Điểm danh ngày và xem lịch sử
+
+- Actor: thành viên đã đăng nhập. App gọi `GET /api/v1/check-ins/me` và
+  `GET /api/v1/check-ins/me/history` để hiển thị lịch, streak hiện tại/dài nhất, mốc
+  tiếp theo và lượt bù; gọi `POST /api/v1/check-ins` để điểm danh hôm nay.
+- BR-CHECKIN-01: Ngày nghiệp vụ theo `Asia/Ho_Chi_Minh`; mỗi user tối đa một điểm danh
+  thường/bù cho một ngày. Retry hoặc request đồng thời không tạo thêm ngày/điểm.
+- BR-CHECKIN-02: Streak là số **ngày liên tiếp**, không reset theo tuần lịch. Mốc khởi
+  đầu 7, 14, 30, 50 ngày; Admin thêm/sửa mốc và điểm thưởng từng mốc. Điểm mốc cộng
+  **ngoài** điểm điểm danh ngày, đúng một lần cho mỗi mốc trong một chuỗi.
+- BR-CHECKIN-03: Điểm cơ bản và điểm mốc đều ghi Point Ledger append-only cùng reference,
+  idempotency và version policy. Đổi policy không tính lại lịch sử.
+
+### UC-CHECKIN-02: Điểm danh bù để phục hồi streak
+
+- Actor: thành viên đã đăng nhập; chọn ngày bỏ lỡ trong lịch sử và gọi
+  `POST /api/v1/check-ins/repairs` với `{ "repair": { "date": "YYYY-MM-DD" } }`.
+- BR-CHECKIN-04: Lượt bù chỉ được tạo từ số **giao dịch tặng/nhận quà hoàn tất** theo
+  ngưỡng `transactions_per_repair` Admin cấu hình. Mỗi giao dịch đủ điều kiện tính một
+  lần cho người tặng và một lần cho người nhận; không tính rao vặt/referral/giao dịch
+  huỷ hoặc gian lận. Phần giao dịch dư được giữ để tích tiếp.
+- BR-CHECKIN-05: Một ngày thiếu tiêu một lượt bù, chỉ trong cửa sổ thời gian Admin cấu
+  hình, theo thứ tự ngày cũ tới mới. Điểm danh bù nối lại streak và có thể mở thưởng mốc
+  chưa nhận; ngày bù không nhận điểm cơ bản của ngày đã bỏ lỡ. Hết cửa sổ mà còn lỗ hổng
+  thì streak đứt, lần điểm danh sau bắt đầu chuỗi mới.
+- BR-CHECKIN-06: Việc tiêu lượt bù, ghi ngày bù, cập nhật streak và thưởng mốc phải
+  nguyên tử, chống xử lý lặp và có dữ liệu đối soát. Tham khảo quy tắc chi tiết trong
+  [thiết kế điểm danh và streak](docs/plan/CHECK-IN-STREAK-DESIGN.md).
+
 ### UC-REVIEW-01: Đánh Giá Sau Giao Dịch & Giver Accuracy (không cộng chồng Điểm Cống hiến)
 
 - Mã Ca Sử Dụng: UC-REVIEW-01
@@ -1546,6 +1580,12 @@ BR-ADM-POINT-05: Super Admin được cộng/trừ/thu hồi điểm để thư�
 BR-ADM-POINT-06: Super Admin có thể tạm dừng toàn bộ hoặc từng cơ chế phát sinh điểm khi rà soát gian lận/chính sách/sự cố.
 
 BR-ADM-POINT-07: Mọi thao tác quản trị thay đổi điểm hoặc kết quả tự động phải lưu Point Ledger và Audit Log, gồm actor, thời gian, giá trị trước/sau và lý do. Quyền thao tác tuân theo Admin RBAC.
+
+BR-ADM-CHECKIN-01: Admin có quyền `config.write` được cấu hình số giao dịch tặng/nhận
+quà hoàn tất đổi một lượt bù, thời hạn điểm danh bù, điểm điểm danh ngày, danh sách mốc
+streak và số điểm của từng mốc; thao tác có version, thời điểm hiệu lực, lý do và audit.
+`config.read` chỉ được xem. Các giá trị điểm/ngưỡng chưa được Product Owner cung cấp,
+phải publish policy hợp lệ trước khi bật; không hard-code mức thưởng.
 
 ### UC-ADM-01: Bảng Điều Khiển Giám Sát & Phân Tích KPI Thời Gian Thực
 
@@ -2227,6 +2267,13 @@ Lưu trữ cấu hình Smart Match/queue ở mức nghiệp vụ. Phase 1 Smart 
 point_ledger: lưu mọi biến động Point Event với user_id, event_type, reference/idempotency, delta, balance_after, actor/source, metadata và created_at. Giá trị delta lấy từ Point Rule do Admin cấu hình; Rank được xác định theo balance_after/current point balance theo rule hiện hành. Hỗ trợ sự kiện chuẩn hóa `ITEM_REDEMPTION` khi người dùng tiêu Điểm Cống Hiến đổi trực tiếp vật phẩm (delta âm = -required_points, reference_id trỏ về post_id, ghi nhận idempotency_key chống xử lý trùng lặp).
 
 point_rules / rank_configs: lưu mức điểm, cap, điều kiện, trạng thái rule; ngưỡng Rank, nhiệm vụ duy trì, quyền và chu kỳ áp dụng.
+
+check_in_entries / check_in_runs / check_in_milestone_awards: lưu ngày điểm danh thường/bù,
+chuỗi streak và mốc đã thưởng. repair_transaction_progress / repair_credit_cohorts /
+repair_credit_ledger lưu nguồn giao dịch tặng/nhận quà hoàn tất, nhóm tích lượt và
+lượt bù đã phát/tiêu/đảo với khoá chống trùng; check_in_policy_revisions lưu
+ngưỡng đổi lượt, thời hạn bù, điểm ngày và điểm từng mốc theo version. Chi tiết tại
+[docs/DATABASE.md](docs/DATABASE.md#điểm-danh-streak-và-lượt-bù).
 
 personal_referrals: referrer_user_id, referred_user_id, referral_code/source, registered_at, reward_status/rewarded_at; tài khoản mới đủ điều kiện one-time ngay khi đăng ký thành công bằng mã/link hợp lệ.
 
@@ -2928,6 +2975,9 @@ Redis đóng vai trò lớp đệm hiệu năng cao (In-Memory Accelerator), gi�
 | REQ-CHAT-01           | Chat WebSocket 1-1 theo giao dịch                                                           | UC-CHAT-01            | chat_messages                 | Socket Event: send_message                            | TC-CHAT-001, TC-CHAT-002            |
 | ---                   | ---                                                                                         | ---                   | ---                           | ---                                                   | ---                                 |
 | REQ-REVIEW-01         | Lưu Review/Giver Accuracy; Point Ledger chỉ thay đổi khi có Point Rule                      | UC-REVIEW-01          | reviews, users                | POST /reviews                                         | TC-REVIEW-001, TC-REVIEW-002        |
+| REQ-CHECKIN-01 | Điểm danh một lần/ngày, lịch sử, streak và thưởng mốc theo policy | UC-CHECKIN-01 | check_in_entries, check_in_runs, point_ledger | GET /check-ins/me, GET /check-ins/me/history, POST /check-ins | TC-CHECKIN-001, TC-CHECKIN-002 |
+| REQ-CHECKIN-02 | Tích và tiêu lượt bù từ giao dịch tặng/nhận quà hoàn tất | UC-CHECKIN-02 | repair_credit_ledger, gift_transactions, check_in_entries | POST /check-ins/repairs | TC-CHECKIN-003, TC-CHECKIN-004 |
+| REQ-CHECKIN-03 | Admin cấu hình điểm ngày, mốc thưởng, số giao dịch/lượt bù và cửa sổ bù | UC-ADM-03 | check_in_policy_revisions, admin_audit_logs | GET/PUT /admin/check-in-policy | TC-CHECKIN-005 |
 | ---                   | ---                                                                                         | ---                   | ---                           | ---                                                   | ---                                 |
 | REQ-ADMIN-01          | Khóa/tạm khóa tài khoản theo policy & thu hồi phiên                                         | UC-ADM-02             | users, Redis Blacklist        | PATCH /admin/users/:id/ban                            | TC-ADM-001                          |
 | ---                   | ---                                                                                         | ---                   | ---                           | ---                                                   | ---                                 |
@@ -2984,6 +3034,23 @@ TC-GEO-AFF-001: Event yêu cầu geo trong vùng được ELIGIBLE; ngoài vùng
 TC-ACC-001: Accuracy Review chỉ gửi sau COMPLETED và lưu dạng phần trăm 0-100%. Trước 05 mẫu hợp lệ chưa kích hoạt cảnh báo; từ mẫu thứ 05 trở đi, nếu Giver Accuracy tổng hợp <75% thì vào REVIEW_REQUIRED, không tự ban nếu chưa có rule/xác minh.
 
 TC-ADM-POINT-001: Admin adjustment/pause/config change chỉ thực hiện theo RBAC và luôn tạo Point Ledger/Audit Log với lý do.
+
+TC-CHECKIN-001: Điểm danh 2 lần hoặc 2 request đồng thời trong cùng ngày Việt Nam chỉ
+có một `check_in_entries`, một bút toán điểm ngày và cùng kết quả; qua 00:00 mới có ngày mới.
+
+TC-CHECKIN-002: Điểm danh ngày 7/14/30/50 trả điểm cơ bản cộng thưởng mốc cấu hình,
+mỗi mốc chỉ một lần trong cùng chuỗi. Thay đổi điểm mốc không viết lại bút toán cũ.
+
+TC-CHECKIN-003: Giao dịch tặng/nhận quà `COMPLETED` cấp tiến độ lượt bù cho cả hai bên;
+retry completion không cấp lại. Rao vặt/hủy không cấp. Tích đủ ngưỡng Admin cấu hình có
+một lượt bù; phần dư được giữ.
+
+TC-CHECKIN-004: Bỏ ngày 8 rồi bù trong thời hạn, tiêu một lượt và phục hồi streak;
+ngày bù không có điểm cơ bản. Bù ngoài hạn/không đủ lượt/trùng ngày bị từ chối; failure
+ở ledger rollback cả ngày bù lẫn lượt tiêu.
+
+TC-CHECKIN-005: `config.read` xem policy, `config.write` publish policy hợp lệ với lý do
+và audit; không quyền bị chặn. Đổi ngưỡng giao dịch/lượt bù không tính lại lượt cũ.
 
 TC-QUEUE-001: Receiver rút request PENDING rồi xin lại cùng bài; request được chấp nhận lại nhưng queue_joined_at mới khiến user đứng sau các request đang chờ trước đó.
 

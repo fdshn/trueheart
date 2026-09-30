@@ -9,6 +9,7 @@ Bốn tài liệu, mỗi cái trả lời một câu hỏi:
 | [`ROADMAP.md`](./ROADMAP.md) | Làm gì trước, làm gì sau, đang ở đâu? | Đầu mỗi tuần |
 | [`../SPRINT-PLAN.md`](../SPRINT-PLAN.md) | Sprint nào có chức năng nào, điều kiện kết thúc là gì? | Lập kế hoạch/kiểm soát sprint |
 | [`../FEATURES.md`](../FEATURES.md) | Chức năng F01–F72 làm gì? | Khi code một chức năng cụ thể |
+| [`CHECK-IN-STREAK-DESIGN.md`](./CHECK-IN-STREAK-DESIGN.md) | F83 điểm danh, streak, lượt bù, API và UAT mục tiêu | Khi triển khai backend/app/CMS cho yêu cầu 30/09 |
 
 ## Đang ở đâu
 
