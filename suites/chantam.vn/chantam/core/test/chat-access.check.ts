@@ -605,6 +605,125 @@ async function main(): Promise<void> {
       stillAppendOnly,
     );
 
+    // ── Cờ kiểm duyệt chat ──────────────────────────────────────────────────
+    //
+    // Bốn thứ unit test mock không thấy được: cờ ghi CÙNG transaction với tin
+    // nhắn, ràng buộc một-tin-một-cờ, ràng buộc "đã xem thì phải có quyết định",
+    // và mảng `text[]` có đi về đúng qua driver hay không.
+    console.log('\nCờ kiểm duyệt chat:\n');
+
+    const FlaggedId = '77777777-7777-4777-8777-77777777b101';
+    await chat.appendMessage({
+      globalId: FlaggedId,
+      roomId: RoomId,
+      senderId: GiverId,
+      body: 'ban chuyen khoan truoc roi minh gui, nhan zalo rieng nhe',
+      flag: {
+        severity: 'REVIEW',
+        matchedTerms: ['chuyen khoan truoc', 'nhan zalo rieng'],
+      },
+    });
+
+    const [flagRow] = await dataSource.query<
+      { global_id: string; severity: string; matched_terms: string[] }[]
+    >(
+      `SELECT global_id, severity, matched_terms FROM chat_message_flags WHERE message_id = $1`,
+      [FlaggedId],
+    );
+    check('cờ được ghi cùng tin nhắn', flagRow !== undefined);
+    check(
+      'mảng text[] đi về đúng qua driver, không thành chuỗi',
+      Array.isArray(flagRow?.matched_terms) &&
+        flagRow.matched_terms.length === 2,
+      JSON.stringify(flagRow?.matched_terms),
+    );
+
+    // Tin KHÔNG khớp gì thì không sinh cờ — thiếu vế này thì hàng đợi Admin đầy
+    // mọi tin nhắn và bộ lọc mất tác dụng theo cách không ai đo được.
+    await chat.appendMessage({
+      globalId: '77777777-7777-4777-8777-77777777b102',
+      roomId: RoomId,
+      senderId: GiverId,
+      body: 'minh o gan cho, ban qua lay giup nhe',
+    });
+    check(
+      'tin không khớp gì thì KHÔNG sinh cờ',
+      (await chat.countPendingFlags()) === 1,
+      `${await chat.countPendingFlags()} cờ`,
+    );
+
+    // Một tin một cờ. Dòng thứ hai chỉ có thể là lỗi ghi trùng.
+    let duplicateRejected = false;
+    try {
+      await dataSource.query(
+        `INSERT INTO chat_message_flags (global_id, message_id, room_id, sender_id, severity, matched_terms)
+         VALUES (gen_random_uuid(), $1, $2, $3, 'BLOCK', ARRAY['dm'])`,
+        [FlaggedId, RoomId, GiverId],
+      );
+    } catch {
+      duplicateRejected = true;
+    }
+    check('UQ_chat_message_flags_message chặn cờ thứ hai', duplicateRejected);
+
+    // "Đã xem" phải có CẢ mốc lẫn quyết định. Thiếu một nửa là một dòng nói "đã
+    // xử" mà không nói xử thế nào.
+    let halfReviewRejected = false;
+    try {
+      await dataSource.query(
+        `UPDATE chat_message_flags SET reviewed_at = now() WHERE message_id = $1`,
+        [FlaggedId],
+      );
+    } catch {
+      halfReviewRejected = true;
+    }
+    check(
+      'CHK_chat_message_flags_review chặn "đã xem" mà không có quyết định',
+      halfReviewRejected,
+    );
+
+    const BlockFlagId = '77777777-7777-4777-8777-77777777b103';
+    await chat.appendMessage({
+      globalId: BlockFlagId,
+      roomId: RoomId,
+      senderId: ReceiverId,
+      body: 'dm cai gi the',
+      flag: { severity: 'BLOCK', matchedTerms: ['dm'] },
+    });
+    const queue = await chat.listPendingFlags({ skip: 0, take: 10 });
+    check(
+      'hàng đợi sắp BLOCK trước REVIEW',
+      queue.items[0]?.severity === 'BLOCK',
+      queue.items.map((item) => item.severity).join(', '),
+    );
+    check('hàng đợi đếm đúng tổng', queue.total === 2, `${queue.total}`);
+
+    const targetFlag = queue.items.find(
+      (item) => item.messageId === FlaggedId,
+    );
+    check(
+      'xử được một cờ',
+      await chat.reviewFlag({
+        flagId: targetFlag?.flagId ?? '',
+        reviewerId: GiverId,
+        action: 'DISMISSED',
+        note: 'Phep kiem: cau hoi giao nhan that tha',
+      }),
+    );
+    check(
+      'xử lần hai trả false — KHÔNG ghi đè quyết định người trước',
+      !(await chat.reviewFlag({
+        flagId: targetFlag?.flagId ?? '',
+        reviewerId: ReceiverId,
+        action: 'MESSAGE_REMOVED',
+        note: 'Phep kiem: co ghi de duoc khong',
+      })),
+    );
+    check(
+      'cờ đã xử ra khỏi hàng đợi',
+      (await chat.countPendingFlags()) === 1,
+      `${await chat.countPendingFlags()} cờ còn lại`,
+    );
+
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();
@@ -613,6 +732,7 @@ async function main(): Promise<void> {
     await cleanup.initialize();
     await cleanup.query(`DROP DATABASE IF EXISTS ${ScratchDatabase}`);
     await cleanup.destroy();
+
     console.log(`\nĐã xoá database nháp ${ScratchDatabase}`);
   }
 

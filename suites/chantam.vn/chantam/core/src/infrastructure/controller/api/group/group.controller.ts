@@ -3,11 +3,14 @@ import {
   ICreateGroupUseCase,
   ICreateSubTeamUseCase,
   IDeleteSubTeamUseCase,
+  IGetGroupAffiliateUseCase,
+  IGetGroupInviteUseCase,
   IGetGroupOverviewUseCase,
   IGetOwnGroupUseCase,
   IListGroupActivitiesUseCase,
   IListGroupMembersUseCase,
   IListSubTeamsUseCase,
+  IUpdateGroupSettingsUseCase,
 } from '@/application/contracts/group';
 import {
   GroupAlreadyMemberException,
@@ -51,6 +54,8 @@ import {
   CreateGroupBodyDto,
   CreateGroupResponseDto,
   CreateSubTeamBodyDto,
+  GetGroupAffiliateResponseDto,
+  GetGroupInviteResponseDto,
   GetGroupOverviewResponseDto,
   GetOwnGroupResponseDto,
   GroupIdParamDto,
@@ -60,6 +65,7 @@ import {
   ListGroupMembersResponseDto,
   ListSubTeamsResponseDto,
   SubTeamParamDto,
+  UpdateGroupSettingsBodyDto,
 } from '../../dto/group';
 
 @ApiTags('Nhóm')
@@ -85,6 +91,12 @@ export class GroupController {
     private readonly getGroupOverviewUseCase: IGetGroupOverviewUseCase,
     @Inject(IListGroupActivitiesUseCase)
     private readonly listGroupActivitiesUseCase: IListGroupActivitiesUseCase,
+    @Inject(IGetGroupInviteUseCase)
+    private readonly getGroupInviteUseCase: IGetGroupInviteUseCase,
+    @Inject(IGetGroupAffiliateUseCase)
+    private readonly getGroupAffiliateUseCase: IGetGroupAffiliateUseCase,
+    @Inject(IUpdateGroupSettingsUseCase)
+    private readonly updateGroupSettingsUseCase: IUpdateGroupSettingsUseCase,
   ) {}
 
   @Get('me')
@@ -186,6 +198,93 @@ export class GroupController {
     });
 
     return ResponseDto.create<ListGroupActivitiesResponseDto>()
+      .succeed()
+      .attach(result as never)
+      .build();
+  }
+
+  @Get(':groupId/invite')
+  @ApiOperation({
+    summary: 'Link mời của nhóm',
+    description:
+      'Cần `group.invite.view` — chỉ Owner có. Link mời là CỬA VÀO nhóm: lộ cho thành viên thường là cho họ mời người khác thay Owner. Link KHÔNG tự hết hạn và KHÔNG giới hạn lượt dùng (BR-GRP-04); nó chỉ ngừng dùng được khi nhóm rời khỏi ACTIVE. Trả kèm số người đã vào qua link, không tính Owner.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    GroupNotFoundException,
+  )
+  @ApiOkResponse({ type: ResponseDto.forApi(GetGroupInviteResponseDto) })
+  public async getGroupInvite(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: GroupIdParamDto,
+  ): Promise<ResponseDto<GetGroupInviteResponseDto>> {
+    const result = await this.getGroupInviteUseCase.handle({
+      userId: principal.userId,
+      groupId: params.groupId,
+    });
+
+    return ResponseDto.create<GetGroupInviteResponseDto>()
+      .succeed()
+      .attach(result as never)
+      .build();
+  }
+
+  @Get(':groupId/affiliate')
+  @ApiOperation({
+    summary: 'Điều kiện affiliate của nhóm',
+    description:
+      'Cần `group.affiliate.view` — chỉ Owner có; trưởng tổ KHÔNG xem được affiliate toàn nhóm. Đây KHÔNG phải số điểm đã chia: bộ máy chia thưởng chưa có dòng code nào, và `rewardEngineReady: false` nói thẳng điều đó thay vì im lặng trả 0. Những gì trả về là ĐẦU VÀO của bộ máy — bao nhiêu người đủ điều kiện nếu nó chạy hôm nay, tính trực tiếp từ `users.status` và `users.last_active_at` chứ không qua cột cờ nào.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    GroupNotFoundException,
+  )
+  @ApiOkResponse({ type: ResponseDto.forApi(GetGroupAffiliateResponseDto) })
+  public async getGroupAffiliate(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: GroupIdParamDto,
+  ): Promise<ResponseDto<GetGroupAffiliateResponseDto>> {
+    const result = await this.getGroupAffiliateUseCase.handle({
+      userId: principal.userId,
+      groupId: params.groupId,
+    });
+
+    return ResponseDto.create<GetGroupAffiliateResponseDto>()
+      .succeed()
+      .attach(result as never)
+      .build();
+  }
+
+  @Patch(':groupId')
+  @ApiOperation({
+    summary: 'Sửa thông tin nhóm',
+    description:
+      'Cần `group.settings.manage` — chỉ Owner có. Sửa được tên, mô tả, ảnh đại diện, ảnh bìa. **KHÔNG sửa được tâm và bán kính**: cả hai là snapshot lúc tạo (BR-GRP-03), và cho sửa là cho người ta dời vùng theo nơi đang có nhiều sự kiện để gom điểm affiliate. Bỏ trống một trường là GIỮ NGUYÊN; gửi `null` tường minh mới xoá mô tả hoặc ảnh. Nhóm đã giải tán không sửa được gì.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    [
+      ValidationFailedException,
+      ['cần ít nhất một trong: name, description, avatarUrl, coverUrl'],
+    ],
+    GroupNotFoundException,
+  )
+  @ApiOkResponse({ type: ResponseDto.forApi(GetGroupOverviewResponseDto) })
+  public async updateGroupSettings(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: GroupIdParamDto,
+    @Body() body: UpdateGroupSettingsBodyDto,
+  ): Promise<ResponseDto<GetGroupOverviewResponseDto>> {
+    const result = await this.updateGroupSettingsUseCase.handle({
+      userId: principal.userId,
+      groupId: params.groupId,
+      settings: body.settings,
+    });
+
+    return ResponseDto.create<GetGroupOverviewResponseDto>()
       .succeed()
       .attach(result as never)
       .build();

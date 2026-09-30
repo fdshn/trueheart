@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AdminPermissionGuard } from '../../guards';
+import { AdminChatFlagController } from './admin-chat-flag.controller';
 import { AdminChatController } from './admin-chat.controller';
 import { AdminCommentController } from './admin-comment.controller';
 import { AdminConfigController } from './admin-config.controller';
@@ -20,6 +21,7 @@ import { NotificationTemplateController } from './notification-template.controll
 @Module({
   controllers: [
     AdminConfigController,
+    AdminChatFlagController,
     AdminGroupRadiusController,
     AdminGroupRoleController,
     AdminRankPolicyController,

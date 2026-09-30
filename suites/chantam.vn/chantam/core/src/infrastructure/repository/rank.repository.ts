@@ -13,7 +13,12 @@ import {
   IRankSummary,
   IRankTierSummary,
 } from '@/domain/ports/repository';
-import { RankOrder, UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  RankMaintenancePeriodConfigKey,
+  RankOrder,
+  UserRanks,
+  normalizeRankMaintenanceMonths,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   RankPointsSourceConfigKey,
   normalizeRankPointsSourceConfig,
@@ -126,6 +131,18 @@ export class RankRepository implements IRankRepository {
     return config.source === 'LIFETIME' ? 'lifetime' : 'balance';
   }
 
+  /**
+   * Độ dài một kỳ duy trì, đọc từ cấu hình động.
+   *
+   * Trả về SỐ THÁNG chứ không trả chuỗi interval: ghép chuỗi vào SQL là mở cửa
+   * tiêm, và `make_interval(months => $n)` nhận tham số nên không cần ghép.
+   */
+  private async maintenanceMonths(): Promise<number> {
+    return normalizeRankMaintenanceMonths(
+      await this.adminConfig?.getConfigValue(RankMaintenancePeriodConfigKey),
+    );
+  }
+
   public async reconcileNormalRank(
     userId: string,
   ): Promise<IRankChange | null> {
@@ -223,16 +240,19 @@ export class RankRepository implements IRankRepository {
         ],
       );
       if (this.isMaintenanceRank(evaluation.rank)) {
+        // Đọc TRƯỚC khi ghi và dùng cùng một giá trị cho cả câu: đọc lại giữa các
+        // câu là để Admin sửa cấu hình đúng lúc này rồi hai kỳ dài khác nhau.
+        const months = await this.maintenanceMonths();
         await manager.query(
           `
             INSERT INTO rank_maintenance_cycles
               (user_id, rank, cycle_start, cycle_end, required_gifts, required_referrals, policy_version)
-            SELECT $1, $2, now(), now() + interval '3 months',
+            SELECT $1, $2, now(), now() + make_interval(months => $3),
                    maintenance_gifts, maintenance_referrals, version
             FROM rank_tiers WHERE rank = $2
             ON CONFLICT DO NOTHING
           `,
-          [userId, evaluation.rank],
+          [userId, evaluation.rank, months],
         );
       }
 
@@ -382,6 +402,10 @@ export class RankRepository implements IRankRepository {
   }
 
   public async evaluateDueMaintenanceCycles(): Promise<number> {
+    // Một giá trị cho cả lượt duyệt: đọc lại trong vòng lặp là để Admin sửa cấu
+    // hình giữa lượt rồi hai người cùng kỳ nhận hai độ dài khác nhau.
+    const months = await this.maintenanceMonths();
+
     return this.manager.transaction(async (manager) => {
       const cycles = await manager.query<IRawDueMaintenanceCycle[]>(
         `
@@ -490,12 +514,13 @@ export class RankRepository implements IRankRepository {
               -- Ép kiểu timestamptz là BẮT BUỘC: cùng một tham số vừa làm giá trị cột
               -- vừa làm toán hạng cộng interval thì Postgres không suy được kiểu
               -- (42P08). Đoạn này chưa từng chạy thật nên lỗi nằm im từ đầu.
-              SELECT $1, $2, $3::timestamptz, $3::timestamptz + interval '3 months',
+              SELECT $1, $2, $3::timestamptz,
+                     $3::timestamptz + make_interval(months => $4),
                      maintenance_gifts, maintenance_referrals, version
               FROM rank_tiers WHERE rank = $2
               ON CONFLICT DO NOTHING
             `,
-            [cycle.user_id, evaluation.rank, cycle.cycle_end],
+            [cycle.user_id, evaluation.rank, cycle.cycle_end, months],
           );
         }
       }

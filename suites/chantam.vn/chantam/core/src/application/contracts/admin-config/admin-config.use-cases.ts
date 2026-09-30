@@ -39,8 +39,6 @@ export const SupportedSystemConfigKeys = [
   'group.radius_meters.diamond',
   'affiliate.active_member_window_days',
   'rank.maintenance_period_months',
-  'point.referral_daily_cap',
-  'point.transaction_daily_cap',
   'accuracy.giver',
 ] as const;
 

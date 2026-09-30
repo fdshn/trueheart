@@ -29,6 +29,34 @@ export const RankThresholds: Readonly<Record<UserRanks, number>> = {
   [UserRanks.DIAMOND]: 1792,
 };
 
+/**
+ * Khoá cấu hình độ dài một kỳ duy trì hạng, đơn vị THÁNG.
+ *
+ * Tới 30/09 khoá này có dòng trong `system_configs` mà không ai đọc: hai câu
+ * `INSERT INTO rank_maintenance_cycles` viết cứng `interval '3 months'`. Admin sửa
+ * được ô đó và không gì thay đổi — tệ hơn khoá chưa seed, vì ở đó Admin không thấy
+ * ô nào.
+ */
+export const RankMaintenancePeriodConfigKey = 'rank.maintenance_period_months';
+
+/** Dự phòng khi cấu hình thiếu hoặc hỏng. Bằng giá trị đang seed. */
+export const DefaultRankMaintenanceMonths = 3;
+
+/**
+ * Cận cho độ dài kỳ duy trì.
+ *
+ * Dưới 1 tháng thì kỳ đóng trước khi người dùng kịp làm gì; trên 24 tháng thì nó
+ * không còn là "duy trì" mà là vĩnh viễn. Kẹp thay vì ném: một ô cấu hình gõ sai
+ * không được làm chết đường thăng hạng.
+ */
+export function normalizeRankMaintenanceMonths(raw: unknown): number {
+  const months = Number(raw);
+
+  return Number.isInteger(months) && months >= 1 && months <= 24
+    ? months
+    : DefaultRankMaintenanceMonths;
+}
+
 /** Thứ tự từ thấp lên cao. Dùng khi so sánh quyền theo bậc. */
 export const RankOrder: readonly UserRanks[] = [
   UserRanks.VIEWER,

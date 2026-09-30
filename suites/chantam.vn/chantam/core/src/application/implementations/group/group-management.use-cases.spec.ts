@@ -7,10 +7,13 @@ import {
 import {
   AssignGroupMemberUseCase,
   DeleteSubTeamUseCase,
+  GetGroupAffiliateUseCase,
+  GetGroupInviteUseCase,
   GetGroupOverviewUseCase,
   ListGroupActivitiesUseCase,
   ListGroupMembersUseCase,
   ListSubTeamsUseCase,
+  UpdateGroupSettingsUseCase,
 } from './group-management.use-cases';
 
 const GroupId = '20000000-0000-4000-8000-000000000001';
@@ -30,6 +33,9 @@ function makeGroups(options: {
   assignResult?: boolean;
   deleteResult?: boolean;
   overview?: unknown;
+  invite?: unknown;
+  affiliate?: unknown;
+  updateResult?: boolean;
 }) {
   return {
     deleteSubTeam: jest.fn(async () => options.deleteResult ?? true),
@@ -41,6 +47,9 @@ function makeGroups(options: {
     listSubTeams: jest.fn(async () => []),
     listActivities: jest.fn(async () => ({ items: [], total: 0 })),
     findOverview: jest.fn(async () => options.overview ?? null),
+    findInviteStats: jest.fn(async () => options.invite ?? null),
+    findAffiliateSnapshot: jest.fn(async () => options.affiliate ?? null),
+    updateSettings: jest.fn(async () => options.updateResult ?? true),
     assignMember: jest.fn(async () => options.assignResult ?? true),
   };
 }
@@ -347,5 +356,175 @@ describe('ListGroupActivitiesUseCase — phạm vi riêng khỏi xem thành viê
 
     await expect(run(groups)).rejects.toThrow(ForbiddenException);
     expect(groups.listActivities).not.toHaveBeenCalled();
+  });
+});
+
+describe('GetGroupInviteUseCase', () => {
+  it('đòi group.invite.view — chỉ Owner có', async () => {
+    // Link mời là CỬA VÀO nhóm: lộ cho thành viên thường là cho họ mời người khác
+    // thay Owner.
+    const groups = makeGroups({ grants: ['group.member.view'] });
+
+    await expect(
+      new GetGroupInviteUseCase(groups as never).handle({
+        userId: CallerId,
+        groupId: GroupId,
+      }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(groups.findInviteStats).not.toHaveBeenCalled();
+  });
+
+  it('trả mã mời kèm số liệu', async () => {
+    const groups = makeGroups({
+      grants: ['group.invite.view'],
+      invite: { inviteCode: 'ABCD2345EFGH6789', usable: true, joinedTotal: 4 },
+    });
+    const result = await new GetGroupInviteUseCase(groups as never).handle({
+      userId: CallerId,
+      groupId: GroupId,
+    });
+
+    expect(result.invite.inviteCode).toBe('ABCD2345EFGH6789');
+  });
+});
+
+describe('GetGroupAffiliateUseCase', () => {
+  const adminConfig = (value: unknown) => ({
+    getConfigValue: jest.fn(async () => value),
+  });
+
+  it('đòi group.affiliate.view — trưởng tổ KHÔNG xem affiliate toàn nhóm', async () => {
+    const groups = makeGroups({
+      grants: ['group.subteam.member.view', 'group.subteam.activity.view'],
+    });
+
+    await expect(
+      new GetGroupAffiliateUseCase(
+        groups as never,
+        adminConfig(90) as never,
+      ).handle({ userId: CallerId, groupId: GroupId }),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('đọc cửa sổ Active Member TỪ CẤU HÌNH', async () => {
+    // Khoá `affiliate.active_member_window_days` có dòng từ đầu mà không ai đọc.
+    const groups = makeGroups({
+      grants: ['group.affiliate.view'],
+      affiliate: { eligibleCount: 2, activeMemberWindowDays: 45 },
+    });
+    const config = adminConfig(45);
+    await new GetGroupAffiliateUseCase(groups as never, config as never).handle(
+      {
+        userId: CallerId,
+        groupId: GroupId,
+      },
+    );
+
+    expect(config.getConfigValue).toHaveBeenCalledWith(
+      'affiliate.active_member_window_days',
+    );
+    expect(groups.findAffiliateSnapshot).toHaveBeenCalledWith({
+      groupId: GroupId,
+      activeMemberWindowDays: 45,
+    });
+  });
+
+  it('cấu hình hỏng thì về 90 ngày, không về 0', async () => {
+    // 0 ngày nghĩa là không ai đủ điều kiện — cả trang affiliate thành số 0 mà
+    // không ai hiểu vì sao.
+    const groups = makeGroups({
+      grants: ['group.affiliate.view'],
+      affiliate: { eligibleCount: 0 },
+    });
+    await new GetGroupAffiliateUseCase(
+      groups as never,
+      adminConfig('không phải số') as never,
+    ).handle({ userId: CallerId, groupId: GroupId });
+
+    expect(groups.findAffiliateSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ activeMemberWindowDays: 90 }),
+    );
+  });
+
+  it('nói rõ bộ máy chia thưởng CHƯA có, không im lặng trả 0 điểm', async () => {
+    const groups = makeGroups({
+      grants: ['group.affiliate.view'],
+      affiliate: { eligibleCount: 5 },
+    });
+    const result = await new GetGroupAffiliateUseCase(
+      groups as never,
+      adminConfig(90) as never,
+    ).handle({ userId: CallerId, groupId: GroupId });
+
+    expect(result.rewardEngineReady).toBe(false);
+  });
+});
+
+describe('UpdateGroupSettingsUseCase', () => {
+  const run = (
+    groups: ReturnType<typeof makeGroups>,
+    settings: Record<string, unknown>,
+  ) =>
+    new UpdateGroupSettingsUseCase(groups as never).handle({
+      userId: CallerId,
+      groupId: GroupId,
+      settings: settings as never,
+    });
+
+  it('đòi group.settings.manage', async () => {
+    const groups = makeGroups({ grants: ['group.member.view'] });
+
+    await expect(run(groups, { name: 'Tên mới' })).rejects.toThrow(
+      ForbiddenException,
+    );
+    expect(groups.updateSettings).not.toHaveBeenCalled();
+  });
+
+  it('không gửi trường nào thì là lượt gọi sai', async () => {
+    const groups = makeGroups({ grants: ['group.settings.manage'] });
+
+    await expect(run(groups, {})).rejects.toThrow(ValidationFailedException);
+    expect(groups.updateSettings).not.toHaveBeenCalled();
+  });
+
+  it('bỏ trống mô tả là GIỮ NGUYÊN, không xoá', async () => {
+    // Gộp `undefined` với `null` ở đây sẽ xoá mô tả của người ta mỗi lần họ đổi
+    // tên — cùng bài học với `subTeamId` ở `assignMember`.
+    const groups = makeGroups({
+      grants: ['group.settings.manage'],
+      overview: { groupId: GroupId },
+    });
+    await run(groups, { name: '  Tên mới  ' });
+
+    expect(groups.updateSettings).toHaveBeenCalledWith({
+      groupId: GroupId,
+      name: 'Tên mới',
+      description: undefined,
+      avatarUrl: undefined,
+      coverUrl: undefined,
+    });
+  });
+
+  it('null tường minh thì XOÁ ảnh bìa', async () => {
+    const groups = makeGroups({
+      grants: ['group.settings.manage'],
+      overview: { groupId: GroupId },
+    });
+    await run(groups, { coverUrl: null });
+
+    expect(groups.updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ coverUrl: null }),
+    );
+  });
+
+  it('nhóm đã giải tán thì không sửa được', async () => {
+    const groups = makeGroups({
+      grants: ['group.settings.manage'],
+      updateResult: false,
+    });
+
+    await expect(run(groups, { name: 'Tên mới' })).rejects.toThrow(
+      GroupNotFoundException,
+    );
   });
 });

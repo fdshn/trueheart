@@ -29,6 +29,22 @@ export interface IChatMessageListItem {
   mediaKeys: string[];
 }
 
+export interface IChatMessageFlagItem {
+  readonly flagId: string;
+  readonly messageId: string;
+  readonly roomId: string;
+  readonly senderId: string;
+  readonly senderUsername: string;
+  /** `BLOCK` hoặc `REVIEW` — CHỈ để xếp hàng đợi; chat không chặn ai. */
+  readonly severity: string;
+  /** Mục đã khớp, dạng đã chuẩn hoá đúng như bộ lọc thấy. */
+  readonly matchedTerms: string[];
+  /** `null` khi tin đã bị thu hồi — dòng cờ vẫn hiện vì nó là bằng chứng. */
+  readonly body: string | null;
+  readonly recalled: boolean;
+  readonly createdAt: Date;
+}
+
 export interface IAppendChatMessageParams {
   globalId: string;
   roomId: string;
@@ -37,6 +53,18 @@ export interface IAppendChatMessageParams {
   body: string;
   /** Key ảnh đã tải lên, tối đa 3. Đính trong cùng lần ghi vì chat chỉ ghi thêm. */
   mediaKeys?: string[];
+  /**
+   * Kết quả sàng từ ngữ, khi có mục khớp.
+   *
+   * Ghi trong CÙNG transaction với tin nhắn: ghi ở lượt riêng sau đó thì một lần
+   * thất bại để lại tin nhắn không có cờ, và không ai biết mình mất tín hiệu.
+   *
+   * Chat GẮN CỜ chứ không CHẶN, nên `severity` chỉ dùng để xếp hàng đợi Admin.
+   */
+  flag?: {
+    readonly severity: string;
+    readonly matchedTerms: string[];
+  };
 }
 
 export type AppendChatMessageOutcome =
@@ -211,6 +239,32 @@ export interface IChatRepository {
   appendMessage(
     params: IAppendChatMessageParams,
   ): Promise<AppendChatMessageOutcome>;
+
+  /**
+   * Hàng đợi cờ kiểm duyệt chat — chỉ dòng CHƯA xem.
+   *
+   * Sắp `BLOCK` trước `REVIEW` rồi cũ trước mới. Mức nặng chỉ để xếp thứ tự: chat
+   * gắn cờ chứ không chặn, nên không tin nào bị giữ lại chờ duyệt.
+   */
+  listPendingFlags(params: {
+    skip: number;
+    take: number;
+  }): Promise<{ items: IChatMessageFlagItem[]; total: number }>;
+
+  /** Số cờ chưa xem, cho badge Admin. */
+  countPendingFlags(): Promise<number>;
+
+  /**
+   * Đánh dấu đã xử một cờ. Trả `false` khi cờ không tồn tại HOẶC đã được xử.
+   *
+   * Không cho ghi lại lên dòng đã xử: làm vậy là xoá quyết định của người trước.
+   */
+  reviewFlag(params: {
+    flagId: string;
+    reviewerId: string;
+    action: string;
+    note: string | null;
+  }): Promise<boolean>;
 
   /**
    * Mot cua so tin nhan theo KHOA SAP XEP, khong phai theo OFFSET.

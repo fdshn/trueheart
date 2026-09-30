@@ -1,6 +1,8 @@
 import {
   ICreateGroupParams,
   IGroupActivityItem,
+  IGroupAffiliateSnapshot,
+  IGroupInviteStats,
   IGroupMemberItem,
   IGroupOverview,
   IGroupRepository,
@@ -596,6 +598,153 @@ export class GroupRepository
       })),
       total: Number(rows[0]?.total ?? 0),
     };
+  }
+
+  public async findAffiliateSnapshot(params: {
+    groupId: string;
+    activeMemberWindowDays: number;
+  }): Promise<IGroupAffiliateSnapshot | null> {
+    const [row] = await this.entityManager.query<
+      {
+        radius_km: string;
+        member_count: string;
+        active_member_count: string;
+        inside_radius_count: string;
+        eligible_count: string;
+      }[]
+    >(
+      `
+        SELECT team.radius_km,
+               COUNT(*)::text AS member_count,
+               COUNT(*) FILTER (WHERE person.status = 'ACTIVE'
+                 AND person.last_active_at >= now() - make_interval(days => $3)
+               )::text AS active_member_count,
+               -- ST_DWithin trên geography nhận MÉT, còn cột lưu KM. Đây là chỗ
+               -- duy nhất trong phân hệ này lệch đơn vị mà không báo lỗi.
+               COUNT(*) FILTER (WHERE person.default_location IS NOT NULL
+                 AND ST_DWithin(person.default_location, team.center_location,
+                                team.radius_km * 1000)
+               )::text AS inside_radius_count,
+               COUNT(*) FILTER (WHERE person.status = 'ACTIVE'
+                 AND person.last_active_at >= now() - make_interval(days => $3)
+                 AND person.default_location IS NOT NULL
+                 AND ST_DWithin(person.default_location, team.center_location,
+                                team.radius_km * 1000)
+               )::text AS eligible_count
+        FROM groups team
+        INNER JOIN group_memberships membership
+          ON membership.group_id = team.global_id
+         AND membership.status = $2
+        INNER JOIN users person ON person.global_id = membership.user_id
+        WHERE team.global_id = $1 AND team.deleted_at IS NULL
+        GROUP BY team.radius_km
+      `,
+      [
+        params.groupId,
+        GroupMembershipStatuses.ACTIVE,
+        params.activeMemberWindowDays,
+      ],
+    );
+
+    if (!row) return null;
+
+    return {
+      radiusKm: Number(row.radius_km),
+      activeMemberWindowDays: params.activeMemberWindowDays,
+      memberCount: Number(row.member_count),
+      activeMemberCount: Number(row.active_member_count),
+      insideRadiusCount: Number(row.inside_radius_count),
+      eligibleCount: Number(row.eligible_count),
+    };
+  }
+
+  public async findInviteStats(params: {
+    groupId: string;
+  }): Promise<IGroupInviteStats | null> {
+    const [row] = await this.entityManager.query<
+      {
+        invite_code: string;
+        status: GroupStatuses;
+        joined_total: string;
+        joined_last_30d: string;
+        last_joined_at: Date | null;
+      }[]
+    >(
+      `
+        SELECT team.invite_code,
+               team.status,
+               COUNT(membership.id)::text AS joined_total,
+               COUNT(membership.id) FILTER (
+                 WHERE membership.joined_at >= now() - interval '30 days'
+               )::text AS joined_last_30d,
+               MAX(membership.joined_at) AS last_joined_at
+        FROM groups team
+        -- LEFT JOIN: nhóm chưa ai vào vẫn phải trả được mã mời. INNER JOIN ở đây
+        -- làm endpoint 404 đúng lúc Owner cần lấy link để mời người đầu tiên.
+        LEFT JOIN group_memberships membership
+          ON membership.group_id = team.global_id
+         AND membership.status = $2
+         AND membership.role <> $3
+        WHERE team.global_id = $1 AND team.deleted_at IS NULL
+        GROUP BY team.invite_code, team.status
+      `,
+      [params.groupId, GroupMembershipStatuses.ACTIVE, GroupMemberRoles.OWNER],
+    );
+
+    if (!row) return null;
+
+    return {
+      inviteCode: row.invite_code,
+      // Link chỉ ngừng dùng được khi nhóm rời khỏi ACTIVE (BR-GRP-04) — nó không
+      // tự hết hạn và không giới hạn lượt.
+      usable: row.status === GroupStatuses.ACTIVE,
+      joinedTotal: Number(row.joined_total),
+      joinedLast30Days: Number(row.joined_last_30d),
+      lastJoinedAt: row.last_joined_at,
+    };
+  }
+
+  public async updateSettings(params: {
+    groupId: string;
+    name?: string;
+    description?: string | null;
+    avatarUrl?: string | null;
+    coverUrl?: string | null;
+  }): Promise<boolean> {
+    // `COALESCE($n, cột)` cho từng trường: `undefined` là GIỮ NGUYÊN, và gộp nó
+    // với `null` ở đây sẽ xoá mô tả của người ta mỗi lần họ đổi tên. Cùng bài học
+    // với `subTeamId` ở `assignMember`.
+    //
+    // Nhưng `null` TƯỜNG MINH phải xoá được ảnh bìa, nên ba trường nullable dùng
+    // cờ "có gửi hay không" riêng thay vì COALESCE.
+    const result = await this.entityManager.query<unknown>(
+      `
+        UPDATE groups
+        SET name = COALESCE($2, name),
+            description = CASE WHEN $6 THEN $3 ELSE description END,
+            avatar_url = CASE WHEN $7 THEN $4 ELSE avatar_url END,
+            cover_url = CASE WHEN $8 THEN $5 ELSE cover_url END,
+            updated_at = now()
+        WHERE global_id = $1
+          AND deleted_at IS NULL
+          -- Nhóm đã giải tán thì không sửa được gì: nó không nhận thành viên,
+          -- không sinh affiliate, và sửa tên nó chỉ làm lịch sử khó đọc.
+          AND status = $9
+      `,
+      [
+        params.groupId,
+        params.name ?? null,
+        params.description ?? null,
+        params.avatarUrl ?? null,
+        params.coverUrl ?? null,
+        params.description !== undefined,
+        params.avatarUrl !== undefined,
+        params.coverUrl !== undefined,
+        GroupStatuses.ACTIVE,
+      ],
+    );
+
+    return Number((result as [unknown[], number])[1] ?? 0) > 0;
   }
 
   public async hasGroupPermission(params: {

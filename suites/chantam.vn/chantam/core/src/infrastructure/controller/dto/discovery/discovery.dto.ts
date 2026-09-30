@@ -9,6 +9,12 @@ export class DiscoveryConfigResponseDto implements IDiscoveryConfigResponseDto {
   @ApiProperty({ example: 100 })
   minRadiusMeters: number;
 
+  @ApiProperty({
+    description:
+      'Bán kính áp dụng khi client gửi toạ độ mà bỏ trống radiusMeters. Trước 30/09 bỏ trống nghĩa là không lọc bán kính, tức quét cả nước.',
+  })
+  defaultRadiusMeters: number;
+
   @ApiProperty({ example: 50_000 })
   maxRadiusMeters: number;
 

@@ -1,3 +1,4 @@
+export * from './admin-chat-flag.use-cases';
 export * from './admin-comment.use-cases';
 export * from './admin-config.use-cases';
 export * from './admin-dashboard.use-case';

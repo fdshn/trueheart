@@ -34,7 +34,9 @@
  */
 import {
   CandidateSelectionConfigKey,
+  AffiliateActiveMemberWindowConfigKey,
   EmptyGroupPermissionSetMarker,
+  RankMaintenancePeriodConfigKey,
   GroupDefaultRadiusConfigKey,
   GroupMaxRadiusConfigKey,
   GroupMinRadiusConfigKey,
@@ -42,7 +44,11 @@ import {
   groupRadiusConfigKeyForRank,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { EnforcedGroupPermissions } from '@/application/contracts/admin-config';
-import { DiscoveryMaxRadiusConfigKey } from '@/domain/consts/discovery';
+import {
+  DiscoveryDefaultRadiusConfigKey,
+  DiscoveryMaxRadiusConfigKey,
+  DiscoveryMinRadiusConfigKey,
+} from '@/domain/consts/discovery';
 import {
   ChatRetentionConfigKey,
   GiverAccuracyConfigKey,
@@ -90,6 +96,10 @@ const RequiredKeys: readonly string[] = [
   // Bán kính riêng theo bậc (chốt 30/09). VIEWER cố ý KHÔNG có: họ chưa qua
   // onboarding nên `assertOnboarded` chặn từ trước, và seed một khoá không ai đọc
   // là đúng thứ nhóm 3 dưới đây bắt.
+  RankMaintenancePeriodConfigKey,
+  AffiliateActiveMemberWindowConfigKey,
+  DiscoveryMinRadiusConfigKey,
+  DiscoveryDefaultRadiusConfigKey,
   ...[
     UserRanks.MEMBER,
     UserRanks.SILVER,
@@ -109,7 +119,42 @@ const RequiredKeys: readonly string[] = [
 const DeliberatelyUnseeded: readonly string[] = [CandidateSelectionConfigKey];
 
 /**
+ * Khoá đã XOÁ có chủ ý, kèm lý do.
+ *
+ * Khác `DeliberatelyUnseeded` ở chỗ: những khoá đó chưa từng có dòng, còn những
+ * khoá này ĐÃ CÓ rồi bị bỏ. Khai riêng để lần sau ai thấy chúng trong một migration
+ * cũ thì biết là cố ý, không phải sót — và để phép kiểm đỏ nếu chúng quay lại.
+ */
+const DeliberatelyRemoved: readonly { key: string; reason: string }[] = [
+  {
+    key: 'point.referral_daily_cap',
+    reason:
+      'bản thô hơn của point_rules.daily_cap (REFERRAL_QUALIFIED); nối vào là hai con số cho một trần',
+  },
+  {
+    key: 'point.transaction_daily_cap',
+    reason:
+      'point_rules.daily_cap tách GIVER 10 và RECEIVER 5; một khoá chung không diễn đạt được',
+  },
+];
+
+/**
  * Khoá ĐÃ seed mà code CHƯA đọc, kèm lý do.
+ *
+ * **RỖNG tính tới 30/09.** Sáu khoá từng nằm đây đã xử hết, và hai cách xử khác
+ * nhau vì hai tình trạng khác nhau:
+ *
+ * - **Nối vào code** (bốn khoá): `discovery.min_radius_meters` và
+ *   `discovery.default_radius_meters` nay được `GET /discovery/config` và
+ *   `get-nearby-posts` đọc — khoá mặc định còn bịt một lỗ, vì trước đó client gửi
+ *   toạ độ mà bỏ trống bán kính sẽ quét cả nước. `rank.maintenance_period_months`
+ *   thay `interval '3 months'` viết cứng ở hai câu SQL.
+ *   `affiliate.active_member_window_days` được `GET /groups/:id/affiliate` đọc —
+ *   có người đọc trước cả khi bộ máy chia thưởng ra đời.
+ * - **XOÁ** (hai khoá): `point.referral_daily_cap` và
+ *   `point.transaction_daily_cap` là bản THÔ hơn của `point_rules.daily_cap`, thứ
+ *   đã chạy và mịn hơn theo từng mã quy tắc. Nối chúng vào là tạo hai con số cho
+ *   một trần và làm mất độ mịn — xem `1796400000000`.
  *
  * Hai loại, và chúng khác nhau về mức đáng lo:
  *
@@ -123,34 +168,7 @@ const DeliberatelyUnseeded: readonly string[] = [CandidateSelectionConfigKey];
  * một món nợ có tên, và loại thứ hai nên được nối vào hoặc bỏ khỏi allowlist của
  * Admin — hiện trạng "sửa được mà vô nghĩa" là lựa chọn tệ nhất trong ba.
  */
-const KnownUnreadKeys: readonly { key: string; reason: string }[] = [
-  {
-    key: 'affiliate.active_member_window_days',
-    reason: 'seed trước; bộ máy affiliate chưa có dòng code nào (19 §Chỗ cần soát 1)',
-  },
-  {
-    key: 'discovery.default_radius_meters',
-    reason:
-      'bị hằng `DefaultSearchRadiusMeters` qua mặt — chỉ `discovery.max_radius_meters` được đọc thật',
-  },
-  {
-    key: 'discovery.min_radius_meters',
-    reason: 'bị hằng `MinSearchRadiusMeters` qua mặt',
-  },
-  {
-    key: 'point.referral_daily_cap',
-    reason: 'trần thật nằm ở `point_rules.daily_cap` của REFERRAL_QUALIFIED',
-  },
-  {
-    key: 'point.transaction_daily_cap',
-    reason: 'trần thật nằm ở `point_rules.daily_cap` của GIFT_COMPLETED_*',
-  },
-  {
-    key: 'rank.maintenance_period_months',
-    reason:
-      "bị `interval '3 months'` viết cứng trong `rank.repository.ts` qua mặt (hai chỗ)",
-  },
-];
+const KnownUnreadKeys: readonly { key: string; reason: string }[] = [];
 
 /**
  * Quyền nhóm mà code THẬT SỰ kiểm, cùng chỗ kiểm.
@@ -167,31 +185,18 @@ const ReadGroupPermissions: readonly string[] = EnforcedGroupPermissions;
 /**
  * Quyền đã seed mà chưa ai kiểm, kèm lý do.
  *
- * Tất cả ở đây đều canh những endpoint CHƯA tồn tại — seed trước là chính đáng.
- * Nhưng phải khai ra, không thì một quyền bị bỏ quên trông y như một quyền chờ
- * tính năng.
+ * **RỖNG tính tới 30/09** — mười trên mười quyền nhóm đều có người kiểm.
  *
- * Danh sách này KHÔNG phải chỗ cất quyền cho phép kiểm xanh.
+ * Giữ danh sách lại chứ không xoá hàm: thêm một quyền mới cho một endpoint chưa
+ * viết là việc hợp lý, và khi đó nó phải có chỗ để khai kèm LÝ DO. Danh sách này
+ * không phải chỗ cất quyền cho phép kiểm xanh — nó là danh sách những chỗ chưa
+ * được chứng minh, và một quyền chưa ai kiểm cũng chưa ai BIẾT là đúng (bộ seed
+ * từng bỏ sót `group.overview.view` của SUBTEAM_ADMIN đúng ba tháng theo cách đó).
  */
 const KnownUnreadGroupPermissions: readonly {
   permission: string;
   reason: string;
-}[] = [
-  {
-    permission: 'group.invite.view',
-    reason:
-      'chưa có endpoint quản lý link mời; inviteCode hiện trả kèm GET /groups/me và chỉ cho Owner',
-  },
-  {
-    permission: 'group.affiliate.view',
-    reason:
-      'bộ máy affiliate chưa có dòng code nào (19 §Chỗ cần soát 1) — không có số nào để xem',
-  },
-  {
-    permission: 'group.settings.manage',
-    reason: 'chưa có endpoint sửa nhóm; tâm và bán kính cố ý KHÔNG sửa được (BR-GRP-03)',
-  },
-];
+}[] = [];
 
 const failures: string[] = [];
 
@@ -237,6 +242,16 @@ async function main(): Promise<void> {
       ...KnownUnreadKeys.map((entry) => entry.key),
     ]);
     const undeclared = [...present].filter((key) => !declared.has(key));
+    const resurrected = DeliberatelyRemoved.filter((entry) =>
+      present.has(entry.key),
+    );
+    check(
+      'khoá đã xoá có chủ ý KHÔNG quay lại',
+      resurrected.length === 0,
+      resurrected
+        .map((entry) => `${entry.key} — ${entry.reason}`)
+        .join(' | '),
+    );
     check(
       'mọi khoá trong system_configs đều được khai ở một trong hai danh sách',
       undeclared.length === 0,

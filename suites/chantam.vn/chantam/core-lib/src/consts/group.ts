@@ -68,6 +68,39 @@ export enum GroupMemberRoles {
  * nhận. Cột `groups.radius_km` giữ km vì nó đã như vậy từ đầu; chỗ đổi đơn vị nằm
  * ở đúng một hàm — `resolveGroupRadiusKm`.
  */
+/**
+ * Cửa sổ "Active Member" của affiliate, đơn vị NGÀY.
+ *
+ * Active Member là điều kiện LỌC lúc chia thưởng, không phải trạng thái được đánh
+ * dấu: `users.status = ACTIVE` và `last_active_at` trong cửa sổ này. Không có job
+ * nào ghi cờ `is_active`, và cố ý — xem `deploy/cron/README.md`.
+ *
+ * Tới 30/09 khoá này có dòng trong `system_configs` mà không ai đọc: bộ máy chia
+ * thưởng chưa có, nên không chỗ nào cần con số. `GET /groups/:id/affiliate` nay
+ * đọc nó để trả về SỐ NGƯỜI đủ điều kiện — tức khoá này có người đọc trước cả khi
+ * bộ máy ra đời.
+ */
+export const AffiliateActiveMemberWindowConfigKey =
+  'affiliate.active_member_window_days';
+
+/** Dự phòng khi cấu hình thiếu hoặc hỏng. Bằng giá trị đang seed. */
+export const DefaultActiveMemberWindowDays = 90;
+
+/**
+ * Kẹp cửa sổ Active Member.
+ *
+ * Dưới 1 ngày thì gần như không ai đủ điều kiện; trên 365 ngày thì "đang hoạt
+ * động" mất nghĩa. Kẹp thay vì ném: một ô cấu hình gõ sai không được làm chết
+ * trang affiliate của nhóm.
+ */
+export function normalizeActiveMemberWindowDays(raw: unknown): number {
+  const days = Number(raw);
+
+  return Number.isInteger(days) && days >= 1 && days <= 365
+    ? days
+    : DefaultActiveMemberWindowDays;
+}
+
 export const GroupDefaultRadiusConfigKey = 'group.default_radius_meters';
 
 /**

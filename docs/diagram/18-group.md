@@ -10,14 +10,17 @@ tác dụng**, đổi vai **âm thầm gỡ người khỏi tổ**, thành viên
 băng vĩnh viễn**, và ba endpoint nhóm **chưa hề được validate** vì thiếu decorator ở khoá bọc
 body.
 
-Chín endpoint nhóm: `POST /groups`, `GET /groups/me`, `GET /groups/:groupId`,
-`GET /groups/:groupId/activities`, `GET /groups/:groupId/members`,
+Mười hai endpoint nhóm: `POST /groups`, `GET /groups/me`, `GET|PATCH /groups/:groupId`,
+`GET /groups/:groupId/activities`, `GET /groups/:groupId/invite`,
+`GET /groups/:groupId/affiliate`, `GET /groups/:groupId/members`,
 `GET|POST /groups/:groupId/sub-teams`, `DELETE /groups/:groupId/sub-teams/:subTeamId`,
 `PATCH /groups/:groupId/members/:memberId` — chi tiết ở
 [API.md §11](../API.md#11-nhóm--groups).
 
 Và bốn endpoint Admin: `GET|PUT /admin/groups/role-permissions[/:role]` cho bộ quyền vai,
 `GET|PUT /admin/groups/radius-policy` cho thang bán kính.
+
+✅ **Mười trên mười quyền nhóm nay có người kiểm** — không còn mã nào seed mà không ai đọc.
 
 ⛔ **Còn thiếu (Sprint 3, cần Bên A chốt):** affiliate event engine (F56) và điều kiện địa lý
 bắt buộc (F57) — xem [`19-affiliate.md`](./19-affiliate.md).
@@ -280,11 +283,15 @@ flowchart TD
    | Vàng | 7.000 | 7 |
    | Kim Cương | 10.000 | 10 |
 
-   ⛔ **Thang số là ĐỀ XUẤT, cần Bên A chốt.** Nó chọn theo hai điều kiện đo được: đơn điệu tăng
-   (bậc cao mà vùng hẹp hơn thì thăng bậc thành hình phạt), và nằm trong 1.000–50.000 m. Kim
-   Cương giữ đúng 10.000 m — bằng giá trị chung đang chạy — nên việc bật cơ chế này KHÔNG âm
-   thầm đổi vùng của nhóm nào. Hôm nay `CREATE_GROUP` chỉ mở cho Kim Cương, nên bốn bậc dưới
-   chỉ có tác dụng khi Bên A hạ ngưỡng.
+   ✅ **Thang số đã chốt 30/09.** Nó thoả hai điều kiện đo được: đơn điệu tăng (bậc cao mà vùng
+   hẹp hơn thì thăng bậc thành hình phạt), và nằm trong 1.000–50.000 m. Kim Cương giữ đúng
+   10.000 m — bằng giá trị chung trước đó — nên việc bật cơ chế này KHÔNG âm thầm đổi vùng của
+   nhóm nào. Hôm nay `CREATE_GROUP` chỉ mở cho Kim Cương, nên ba bậc dưới chỉ có tác dụng khi
+   Bên A hạ ngưỡng.
+
+   Sửa cả thang một lượt qua `GET|PUT /admin/groups/radius-policy`, nơi canh được bất biến đơn
+   điệu — ghi từng khoá qua `POST /admin/system-configs` vẫn được, nhưng ở đó không có gì để so
+   giữa các bậc.
 
    Bậc dùng để tính là bậc **tại thời điểm tạo**: tụt bậc về sau không làm vùng co lại, lên bậc
    cũng không làm nó rộng ra (BR-GRP-03).
@@ -326,10 +333,28 @@ flowchart TD
    `body-wrapper-guard.spec` đã có từ trước nhưng không thấy — nó chỉ soát wrapper **đã có**
    `@ValidateNested()`, nên wrapper không decorator nào thì vô hình. Nay nó soát mọi thuộc tính
    trong một class `*BodyDto` mà kiểu là một DTO khác.
-9. ✅ **Đã có endpoint hoạt động và tổng quan** (30/09), nên `group.activity.view`,
-   `group.subteam.activity.view` và `group.overview.view` nay đều có người kiểm — **7 trên 10**
-   quyền có tác dụng, còn 3 là nợ (`group.invite.view`, `group.affiliate.view`,
-   `group.settings.manage`).
+9. ✅ **Mười trên mười quyền nhóm có người kiểm** (30/09). Ba endpoint cuối nối nốt ba mã còn
+   nợ:
+
+   | Endpoint | Quyền | Ghi chú |
+   | --- | --- | --- |
+   | `GET /groups/:id/invite` | `group.invite.view` | mã mời + số người đã vào, không tính Owner |
+   | `GET /groups/:id/affiliate` | `group.affiliate.view` | **điều kiện**, không phải điểm đã chia |
+   | `PATCH /groups/:id` | `group.settings.manage` | tên, mô tả, ảnh — **không** tâm và bán kính |
+
+   `GET /groups/:id/affiliate` trả `rewardEngineReady: false` và ba con số riêng: bao nhiêu người
+   đang hoạt động, bao nhiêu trong vùng, bao nhiêu thoả CẢ HAI. Ba số tách riêng vì chúng trả lời
+   ba câu khác nhau khi Owner hỏi *"sao nhóm tôi ít người đủ điều kiện"*. Và cờ `false` thay cho
+   việc im lặng trả 0 điểm — Owner sẽ tưởng nhóm mình chưa làm được gì, trong khi chưa có gì chia.
+
+   Endpoint này cũng là chỗ đọc `affiliate.active_member_window_days`, khoá vốn nằm im vì bộ máy
+   chia thưởng chưa có. Nó đọc `users.status` và `users.last_active_at` TRỰC TIẾP, không qua cột
+   cờ nào: một job quét rồi ghi `is_active` sẽ tạo con số thứ hai nói về cùng một sự thật, và
+   người mở app hôm qua vẫn mang cờ `false` từ lần job chạy tuần trước rồi mất phần chia.
+
+   `PATCH /groups/:id` cố ý KHÔNG nhận tâm và bán kính (BR-GRP-03). Bỏ trống một trường là giữ
+   nguyên; `null` tường minh mới xoá mô tả hoặc ảnh — gộp hai thứ đó lại sẽ xoá mô tả của người
+   ta mỗi lần họ đổi tên.
 
    `GET /groups/:groupId` cần `group.overview.view` — quyền duy nhất của vai `MEMBER`, nên vai
    đó nay không còn rỗng nghĩa.

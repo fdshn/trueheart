@@ -1,4 +1,9 @@
-import { IGroupActivityItem, IGroupOverview } from '@/domain/ports/repository';
+import {
+  IGroupActivityItem,
+  IGroupAffiliateSnapshot,
+  IGroupInviteStats,
+  IGroupOverview,
+} from '@/domain/ports/repository';
 import { GroupMemberRoles } from '@chantam.vn/chantam.core-lib/consts';
 import { IUseCase } from '@chantam/service.common-lib/use-case';
 
@@ -95,6 +100,57 @@ export interface IListGroupActivitiesUseCase extends IUseCase<
 
 export const IListGroupActivitiesUseCase = Symbol(
   'IListGroupActivitiesUseCase',
+);
+
+export interface IGetGroupInviteCommand {
+  readonly userId: string;
+  readonly groupId: string;
+}
+export interface IGetGroupInviteResult {
+  readonly invite: IGroupInviteStats;
+}
+export interface IGetGroupInviteUseCase extends IUseCase<
+  IGetGroupInviteCommand,
+  IGetGroupInviteResult
+> {}
+export const IGetGroupInviteUseCase = Symbol('IGetGroupInviteUseCase');
+
+export interface IGetGroupAffiliateCommand {
+  readonly userId: string;
+  readonly groupId: string;
+}
+export interface IGetGroupAffiliateResult {
+  readonly affiliate: IGroupAffiliateSnapshot;
+  /**
+   * `false` cho tới khi bộ máy chia thưởng ra đời.
+   *
+   * Trả cờ này chứ không im lặng trả số 0: Owner thấy "0 điểm affiliate" sẽ tưởng
+   * nhóm mình chưa làm được gì, trong khi thật ra chưa có gì chia cả.
+   */
+  readonly rewardEngineReady: boolean;
+}
+export interface IGetGroupAffiliateUseCase extends IUseCase<
+  IGetGroupAffiliateCommand,
+  IGetGroupAffiliateResult
+> {}
+export const IGetGroupAffiliateUseCase = Symbol('IGetGroupAffiliateUseCase');
+
+export interface IUpdateGroupSettingsCommand {
+  readonly userId: string;
+  readonly groupId: string;
+  readonly settings: {
+    readonly name?: string;
+    readonly description?: string | null;
+    readonly avatarUrl?: string | null;
+    readonly coverUrl?: string | null;
+  };
+}
+export interface IUpdateGroupSettingsUseCase extends IUseCase<
+  IUpdateGroupSettingsCommand,
+  IGetGroupOverviewResult
+> {}
+export const IUpdateGroupSettingsUseCase = Symbol(
+  'IUpdateGroupSettingsUseCase',
 );
 
 export interface IDeleteSubTeamCommand {

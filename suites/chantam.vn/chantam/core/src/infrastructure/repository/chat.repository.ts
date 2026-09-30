@@ -2,6 +2,7 @@ import {
   AppendChatMessageOutcome,
   IAdminConfigRepository,
   IAppendChatMessageParams,
+  IChatMessageFlagItem,
   IChatMessageListItem,
   IChatRepository,
   IChatRoomListItem,
@@ -24,6 +25,7 @@ import {
 } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
+import { randomUUID } from 'node:crypto';
 import { EntityManager } from 'typeorm';
 import { updateReturning } from './update-returning';
 
@@ -394,6 +396,101 @@ export class ChatRepository implements IChatRepository {
     return row ? this.toListItem(row) : null;
   }
 
+  public async listPendingFlags(params: {
+    skip: number;
+    take: number;
+  }): Promise<{ items: IChatMessageFlagItem[]; total: number }> {
+    const rows = await this.manager.query<
+      {
+        flag_id: string;
+        message_id: string;
+        room_id: string;
+        sender_id: string;
+        sender_username: string;
+        severity: string;
+        matched_terms: string[];
+        body: string;
+        recalled_at: Date | null;
+        created_at: Date;
+        total: string;
+      }[]
+    >(
+      `
+        SELECT flag.global_id AS flag_id,
+               flag.message_id,
+               flag.room_id,
+               flag.sender_id,
+               person.username AS sender_username,
+               flag.severity,
+               flag.matched_terms,
+               message.body,
+               message.recalled_at,
+               flag.created_at,
+               COUNT(*) OVER () AS total
+        FROM chat_message_flags flag
+        INNER JOIN chat_messages message
+          ON message.global_id = flag.message_id
+        INNER JOIN users person ON person.global_id = flag.sender_id
+        WHERE flag.reviewed_at IS NULL
+        -- BLOCK trước REVIEW rồi cũ trước mới: mức nặng chỉ để XẾP hàng đợi, chat
+        -- không chặn ai. Sắp theo chuỗi được vì 'BLOCK' < 'REVIEW' theo thứ tự chữ.
+        ORDER BY flag.severity ASC, flag.created_at ASC
+        LIMIT $1 OFFSET $2
+      `,
+      [params.take, params.skip],
+    );
+
+    return {
+      items: rows.map((row) => ({
+        flagId: row.flag_id,
+        messageId: row.message_id,
+        roomId: row.room_id,
+        senderId: row.sender_id,
+        senderUsername: row.sender_username,
+        severity: row.severity,
+        matchedTerms: row.matched_terms,
+        // Tin đã bị thu hồi thì nội dung không còn nghĩa gì để Admin đọc, nhưng
+        // dòng cờ vẫn phải hiện: nó là bằng chứng người đó từng gửi câu ấy.
+        body: row.recalled_at === null ? row.body : null,
+        recalled: row.recalled_at !== null,
+        createdAt: row.created_at,
+      })),
+      total: Number(rows[0]?.total ?? 0),
+    };
+  }
+
+  public async countPendingFlags(): Promise<number> {
+    const [row] = await this.manager.query<{ total: string }[]>(
+      `SELECT COUNT(*)::text AS total FROM chat_message_flags WHERE reviewed_at IS NULL`,
+    );
+
+    return Number(row?.total ?? 0);
+  }
+
+  public async reviewFlag(params: {
+    flagId: string;
+    reviewerId: string;
+    action: string;
+    note: string | null;
+  }): Promise<boolean> {
+    const result = await this.manager.query<unknown>(
+      `
+        UPDATE chat_message_flags
+        SET reviewed_at = now(),
+            reviewed_by = $2,
+            action = $3::chat_flag_actions_enum,
+            review_note = $4
+        WHERE global_id = $1
+          -- CHỈ dòng chưa xem. Cho ghi lại lên dòng đã xử là xoá mất quyết định
+          -- của người trước, và audit sẽ nói hai chuyện khác nhau.
+          AND reviewed_at IS NULL
+      `,
+      [params.flagId, params.reviewerId, params.action, params.note],
+    );
+
+    return Number((result as [unknown[], number])[1] ?? 0) > 0;
+  }
+
   public async appendMessage(
     params: IAppendChatMessageParams,
   ): Promise<AppendChatMessageOutcome> {
@@ -461,6 +558,30 @@ export class ChatRepository implements IChatRepository {
             VALUES ($1, $2, $3, $4)
           `,
           [params.globalId, params.roomId, index + 1, storageKey],
+        );
+
+      // Cờ kiểm duyệt trong CÙNG transaction với tin nhắn. Ghi ở lượt riêng sau
+      // đó là mở một cửa: lượt thứ hai thất bại thì tin nhắn đã vào nhưng cờ mất,
+      // và không ai biết mình vừa mất một tín hiệu.
+      //
+      // Chat GẮN CỜ, không chặn (chốt Bên A): tin vẫn tới nơi, Admin xem sau. Một
+      // dương tính giả ở đây làm đứng cả cuộc bàn giao — "đặt cọc" trong câu "mình
+      // không cần đặt cọc gì đâu" là ví dụ.
+      if (params.flag)
+        await manager.query(
+          `
+            INSERT INTO chat_message_flags
+              (global_id, message_id, room_id, sender_id, severity, matched_terms)
+            VALUES ($1, $2, $3, $4, $5, $6)
+          `,
+          [
+            randomUUID(),
+            params.globalId,
+            params.roomId,
+            params.senderId,
+            params.flag.severity,
+            params.flag.matchedTerms,
+          ],
         );
 
       // `last_message_at` lấy đúng mốc của tin vừa ghi, không phải `now()` gọi

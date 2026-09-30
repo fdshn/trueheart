@@ -3,21 +3,27 @@ import {
   ICreateGroupUseCase,
   ICreateSubTeamUseCase,
   IDeleteSubTeamUseCase,
+  IGetGroupAffiliateUseCase,
+  IGetGroupInviteUseCase,
   IGetGroupOverviewUseCase,
   IGetOwnGroupUseCase,
   IListGroupActivitiesUseCase,
   IListGroupMembersUseCase,
   IListSubTeamsUseCase,
+  IUpdateGroupSettingsUseCase,
 } from '@/application/contracts/group';
 import { Global, Module } from '@nestjs/common';
 import {
   AssignGroupMemberUseCase,
   CreateSubTeamUseCase,
   DeleteSubTeamUseCase,
+  GetGroupAffiliateUseCase,
+  GetGroupInviteUseCase,
   GetGroupOverviewUseCase,
   ListGroupActivitiesUseCase,
   ListGroupMembersUseCase,
   ListSubTeamsUseCase,
+  UpdateGroupSettingsUseCase,
 } from './group-management.use-cases';
 import { CreateGroupUseCase, GetOwnGroupUseCase } from './group.use-cases';
 
@@ -36,6 +42,12 @@ import { CreateGroupUseCase, GetOwnGroupUseCase } from './group.use-cases';
       provide: IListGroupActivitiesUseCase,
       useClass: ListGroupActivitiesUseCase,
     },
+    { provide: IGetGroupInviteUseCase, useClass: GetGroupInviteUseCase },
+    { provide: IGetGroupAffiliateUseCase, useClass: GetGroupAffiliateUseCase },
+    {
+      provide: IUpdateGroupSettingsUseCase,
+      useClass: UpdateGroupSettingsUseCase,
+    },
   ],
   exports: [
     ICreateGroupUseCase,
@@ -47,6 +59,9 @@ import { CreateGroupUseCase, GetOwnGroupUseCase } from './group.use-cases';
     IDeleteSubTeamUseCase,
     IGetGroupOverviewUseCase,
     IListGroupActivitiesUseCase,
+    IGetGroupInviteUseCase,
+    IGetGroupAffiliateUseCase,
+    IUpdateGroupSettingsUseCase,
   ],
 })
 export class GroupModule {}

@@ -33,7 +33,11 @@ import {
   ChatRoomReadOnlyException,
 } from '@/domain/exceptions';
 import { IChatRealtimePublisher } from '@/domain/ports/realtime';
-import { IChatRepository, IChatRoomListItem } from '@/domain/ports/repository';
+import {
+  IAdminConfigRepository,
+  IChatRepository,
+  IChatRoomListItem,
+} from '@/domain/ports/repository';
 import { IRequestThrottle } from '@/domain/ports/security';
 import {
   ChatRecallWindowMinutes,
@@ -48,6 +52,10 @@ import {
   clampChatMessageLimit,
   decodeKeysetCursor,
   encodeKeysetCursor,
+  ModerationTermsConfigKey,
+  ModerationVerdicts,
+  normalizeBlockedTerms,
+  screenText,
 } from '@chantam.vn/chantam.core-lib/models';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
@@ -212,6 +220,8 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
     private readonly profileGate: ProfileGate,
     @Inject(IRequestThrottle)
     private readonly throttle: IRequestThrottle,
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig: IAdminConfigRepository,
   ) {}
 
   public async handle(
@@ -260,6 +270,27 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
         ),
       );
 
+    // Sàng từ ngữ, GẮN CỜ chứ không chặn (chốt Bên A 30/09).
+    //
+    // Tới 30/09 `screenText` chỉ chạy trên bình luận — một kênh công khai — trong
+    // khi mọi thương lượng diễn ra ở chat. Nên 14 mục dấu hiệu lừa đảo và 8 mục
+    // kéo ra ngoài nền tảng đang canh đúng chỗ không cần canh.
+    //
+    // Không chặn vì chat là hội thoại riêng giữa hai người đang bàn giao món đồ,
+    // và một dương tính giả ở đây làm đứng cả việc: "đặt cọc" trong câu "mình
+    // không cần đặt cọc gì đâu" khớp y như trong câu của kẻ lừa. Máy không phân
+    // biệt được, người thì được — nên việc của máy là đưa nó tới người.
+    //
+    // Cấu hình hỏng hoặc rỗng thì `screenText` trả ALLOW, tức không cờ nào. Fail
+    // OPEN là cố ý ở đây: một dòng JSON gõ nhầm không được biến thành "mọi tin
+    // nhắn đều vào hàng đợi Admin".
+    const screening = screenText(
+      body,
+      normalizeBlockedTerms(
+        await this.adminConfig.getConfigValue(ModerationTermsConfigKey),
+      ),
+    );
+
     const outcome = await this.chat.appendMessage({
       // Id NGẪU NHIÊN, không phải `makeGlobalId`: hàm đó là UUID v5 tiền định,
       // nên hai tin cùng nội dung gửi trong cùng một mili-giây sẽ ra cùng một
@@ -271,6 +302,16 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
       senderId: command.userId,
       body,
       mediaKeys,
+      flag:
+        screening.verdict === ModerationVerdicts.ALLOW
+          ? undefined
+          : {
+              // `verdict` chứ không `severity` của từng mục: `screenText` đã gộp
+              // "mục nặng nhất thắng", và tính lại ở đây là hai chỗ cùng quyết một
+              // việc.
+              severity: screening.verdict,
+              matchedTerms: screening.matched,
+            },
     });
 
     if (outcome.status === 'READ_ONLY') throw new ChatRoomReadOnlyException();

@@ -4,7 +4,10 @@ import {
   IGetDiscoveryConfigUseCase,
 } from '@/application/contracts/discovery';
 import {
+  DiscoveryDefaultRadiusConfigKey,
   DiscoveryMaxRadiusConfigKey,
+  DiscoveryMinRadiusConfigKey,
+  normalizeDiscoveryRadiusMeters,
   normalizeGuestMaxRadiusMeters,
 } from '@/domain/consts';
 import { IAdminConfigRepository } from '@/domain/ports/repository';
@@ -26,11 +29,32 @@ export class GetDiscoveryConfigUseCase implements IGetDiscoveryConfigUseCase {
   public async handle(
     _command: IGetDiscoveryConfigCommand,
   ): Promise<IGetDiscoveryConfigResult> {
+    const limits = {
+      min: MinSearchRadiusMeters,
+      max: MaxSearchRadiusMeters,
+    };
+    const [minRaw, maxRaw, defaultRaw] = await Promise.all([
+      this.adminConfig.getConfigValue(DiscoveryMinRadiusConfigKey),
+      this.adminConfig.getConfigValue(DiscoveryMaxRadiusConfigKey),
+      this.adminConfig.getConfigValue(DiscoveryDefaultRadiusConfigKey),
+    ]);
+
+    const minRadiusMeters = normalizeDiscoveryRadiusMeters(
+      minRaw,
+      limits,
+      MinSearchRadiusMeters,
+    );
+    const maxRadiusMeters = normalizeGuestMaxRadiusMeters(maxRaw, limits);
+
     return {
-      minRadiusMeters: MinSearchRadiusMeters,
-      maxRadiusMeters: normalizeGuestMaxRadiusMeters(
-        await this.adminConfig.getConfigValue(DiscoveryMaxRadiusConfigKey),
-        { min: MinSearchRadiusMeters, max: MaxSearchRadiusMeters },
+      minRadiusMeters,
+      maxRadiusMeters,
+      // Mặc định phải nằm TRONG khoảng min–max vừa tính, không chỉ trong cận kỹ
+      // thuật: một mặc định lớn hơn trần cho khách là client mở app đã bị 422.
+      defaultRadiusMeters: normalizeDiscoveryRadiusMeters(
+        defaultRaw,
+        { min: minRadiusMeters, max: maxRadiusMeters },
+        Math.min(maxRadiusMeters, Math.max(minRadiusMeters, 10_000)),
       ),
       defaultPageSize: DefaultPageSize,
       maxPageSize: MaxPageSize,

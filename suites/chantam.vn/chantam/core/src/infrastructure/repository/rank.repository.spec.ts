@@ -347,10 +347,17 @@ describe('RankRepository', () => {
         'SYSTEM',
       ],
     ]);
+    // Độ dài kỳ nay là THAM SỐ, không phải `interval '3 months'` viết cứng: khoá
+    // `rank.maintenance_period_months` có dòng trong `system_configs` từ đầu mà
+    // không ai đọc — Admin sửa được ô đó và không gì thay đổi.
+    //
+    // `make_interval(months => $3)` chứ không ghép chuỗi: ghép vào SQL là mở cửa
+    // tiêm, và hàm này nhận tham số nên không cần ghép.
     expect(query.mock.calls[5][0]).toMatch(
-      /INSERT INTO rank_maintenance_cycles[\s\S]*interval '3 months'[\s\S]*ON CONFLICT DO NOTHING/i,
+      /INSERT INTO rank_maintenance_cycles[\s\S]*make_interval\(months => \$3\)[\s\S]*ON CONFLICT DO NOTHING/i,
     );
-    expect(query.mock.calls[5][1]).toEqual([UserId, UserRanks.SILVER]);
+    expect(query.mock.calls[5][0]).not.toMatch(/interval '3 months'/);
+    expect(query.mock.calls[5][1]).toEqual([UserId, UserRanks.SILVER, 3]);
   });
 
   it('is idempotent after a normal promotion retry and writes no duplicate transition or cycle', async () => {

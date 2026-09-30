@@ -1040,6 +1040,41 @@ cho phép nâng cấp WebSocket trên cổng đang dùng.
 
 ---
 
+### Bộ lọc từ ngữ trên chat: GẮN CỜ, không CHẶN
+
+Tới 30/09 `screenText` chỉ chạy trên **bình luận** — một kênh công khai — trong khi mọi thương
+lượng diễn ra ở chat. Nên 14 mục dấu hiệu lừa đảo và 8 mục kéo ra ngoài nền tảng đang canh đúng
+chỗ không cần canh.
+
+Nay chat cũng đi qua bộ lọc, nhưng **không chặn** (chốt Bên A): tin vẫn tới nơi, Admin xem sau.
+
+| | |
+| --- | --- |
+| `GET /admin/chat/flags` | hàng đợi, `BLOCK` trước `REVIEW` rồi cũ trước mới |
+| `GET /admin/chat/flags/pending-count` | badge |
+| `PATCH /admin/chat/flags/:flagId/review` | ghi quyết định: `DISMISSED` / `MESSAGE_REMOVED` / `USER_WARNED` |
+
+Quyền là `report.read` / `report.resolve` — cùng việc với xử báo xấu, và hai mã đó đã thuộc
+`MODERATOR`.
+
+- **Không chặn** vì chat là hội thoại riêng giữa người tặng và người nhận đang bàn giao món đồ, và
+  một dương tính giả ở đó làm đứng cả việc: "đặt cọc" trong câu *"mình không cần đặt cọc gì đâu"*
+  khớp y như trong câu của kẻ lừa. Máy không phân biệt được, người thì được — nên việc của máy là
+  đưa nó tới người. `severity` được lưu lại nhưng CHỈ để xếp thứ tự hàng đợi, kể cả mức `BLOCK`.
+- **Cờ ghi trong cùng transaction với tin nhắn.** Ghi ở lượt riêng sau đó là mở một cửa: lượt thứ
+  hai thất bại thì tin nhắn đã vào nhưng cờ mất, và không ai biết mình vừa mất một tín hiệu.
+- **Bảng riêng, không thêm cột vào `chat_messages`.** Bảng đó có trigger chặn mọi UPDATE/DELETE —
+  cố ý, vì lịch sử chat là bằng chứng cho tranh chấp. Đặt cờ vào đó thì thao tác "Admin đã xem"
+  phải mở cửa hậu bằng session variable, tức nới một bất biến đang bảo vệ đúng thứ cần bảo vệ.
+- **Không ghi lại được lên cờ đã xử.** Hai Admin bấm cùng lúc thì người thứ hai nhận `404`, vì với
+  họ kết luận là "không còn việc ở đây". `MESSAGE_REMOVED` chỉ GHI LẠI quyết định; gỡ tin thật đi
+  qua `DELETE /admin/chat/messages/:messageId`, nơi đã có trigger và audit riêng.
+- **Hàng đợi chỉ hiện tin ĐÃ KHỚP một mục**, không phải cả phòng. Cấu hình rỗng hoặc hỏng thì
+  `screenText` trả `ALLOW`, tức không cờ nào — fail OPEN là cố ý: một dòng JSON gõ nhầm không được
+  biến thành "mọi tin nhắn đều vào hàng đợi Admin".
+
+---
+
 ## 9. Thông báo — `/notifications`
 
 | Method | Đường dẫn | Quyền | Mô tả |
@@ -1141,7 +1176,10 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 | `POST /groups` | Tạo nhóm |
 | `GET /groups/me` | Nhóm của tôi |
 | `GET /groups/:groupId` | Trang tổng quan nhóm |
+| `PATCH /groups/:groupId` | Sửa tên, mô tả, ảnh |
 | `GET /groups/:groupId/activities` | Dòng hoạt động |
+| `GET /groups/:groupId/invite` | Link mời + số người đã vào |
+| `GET /groups/:groupId/affiliate` | Điều kiện affiliate của nhóm |
 | `GET /groups/:groupId/members` | Danh sách thành viên |
 | `GET /groups/:groupId/sub-teams` | Danh sách tổ |
 | `POST /groups/:groupId/sub-teams` | Tạo tổ |
@@ -1259,6 +1297,27 @@ của người khác), `GIFT_COMPLETED` (tính cho phía người tặng).
 
 `GET /groups/:groupId` trả 404 cho cả hai ca "nhóm không tồn tại" và "bạn không thuộc nhóm này":
 phân biệt là cho người lạ dò xem id nào là một nhóm thật.
+
+### `GET …/invite`, `GET …/affiliate`, `PATCH /groups/:groupId`
+
+| Endpoint | Quyền | |
+| --- | --- | --- |
+| `GET /groups/:id/invite` | `group.invite.view` | chỉ Owner; link không hết hạn, không giới hạn lượt |
+| `GET /groups/:id/affiliate` | `group.affiliate.view` | chỉ Owner; trưởng tổ KHÔNG xem affiliate toàn nhóm |
+| `PATCH /groups/:id` | `group.settings.manage` | tên, mô tả, ảnh — **không** tâm và bán kính |
+
+`GET …/affiliate` trả **điều kiện**, không phải điểm đã chia: `rewardEngineReady: false` nói
+thẳng rằng bộ máy chia thưởng chưa có, thay cho việc im lặng trả 0 điểm — Owner sẽ tưởng nhóm
+mình chưa làm được gì. Ba con số tách riêng (`activeMemberCount`, `insideRadiusCount`,
+`eligibleCount`) vì chúng trả lời ba câu khác nhau khi Owner hỏi "sao nhóm tôi ít người đủ điều
+kiện": vắng mặt, ngoài vùng, hay cả hai. Cửa sổ đọc từ
+`affiliate.active_member_window_days`, và tính từ `users.status` + `users.last_active_at` trực
+tiếp — không có cột cờ `is_active` nào, vì một job quét rồi ghi cờ sẽ tạo con số thứ hai nói về
+cùng một sự thật.
+
+`PATCH /groups/:id` cố ý không nhận tâm và bán kính (BR-GRP-03). Bỏ trống một trường là **giữ
+nguyên**; `null` tường minh mới xoá mô tả hoặc ảnh. Không gửi trường nào thì `422`. Nhóm đã giải
+tán không sửa được gì.
 
 ### `GET|PUT /admin/groups/radius-policy` — cả thang một lượt
 

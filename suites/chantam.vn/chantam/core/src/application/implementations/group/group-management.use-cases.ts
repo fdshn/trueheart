@@ -6,6 +6,12 @@ import {
   ICreateSubTeamUseCase,
   IDeleteSubTeamCommand,
   IDeleteSubTeamUseCase,
+  IGetGroupAffiliateCommand,
+  IGetGroupAffiliateResult,
+  IGetGroupAffiliateUseCase,
+  IGetGroupInviteCommand,
+  IGetGroupInviteResult,
+  IGetGroupInviteUseCase,
   IGetGroupOverviewCommand,
   IGetGroupOverviewResult,
   IGetGroupOverviewUseCase,
@@ -18,10 +24,19 @@ import {
   IListSubTeamsCommand,
   IListSubTeamsResult,
   IListSubTeamsUseCase,
+  IUpdateGroupSettingsCommand,
+  IUpdateGroupSettingsUseCase,
 } from '@/application/contracts/group';
 import { GroupNotFoundException } from '@/domain/exceptions';
-import { IGroupRepository } from '@/domain/ports/repository';
-import { GroupMemberRoles } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  IAdminConfigRepository,
+  IGroupRepository,
+} from '@/domain/ports/repository';
+import {
+  AffiliateActiveMemberWindowConfigKey,
+  GroupMemberRoles,
+  normalizeActiveMemberWindowDays,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   ForbiddenException,
   ValidationFailedException,
@@ -264,6 +279,117 @@ export class ListGroupActivitiesUseCase implements IListGroupActivitiesUseCase {
     });
 
     return { activities: items, total, scopedToSubTeamId: subTeamId };
+  }
+}
+
+@Injectable()
+export class GetGroupInviteUseCase implements IGetGroupInviteUseCase {
+  public constructor(
+    @Inject(IGroupRepository) private readonly groups: IGroupRepository,
+  ) {}
+
+  public async handle(
+    command: IGetGroupInviteCommand,
+  ): Promise<IGetGroupInviteResult> {
+    // `group.invite.view` chỉ Owner có. Link mời là CỬA VÀO nhóm: lộ cho thành
+    // viên thường là cho họ mời người khác thay Owner.
+    await assertGroupPermission(this.groups, {
+      userId: command.userId,
+      groupId: command.groupId,
+      permission: 'group.invite.view',
+    });
+
+    const invite = await this.groups.findInviteStats({
+      groupId: command.groupId,
+    });
+    if (!invite) throw new GroupNotFoundException();
+
+    return { invite };
+  }
+}
+
+@Injectable()
+export class GetGroupAffiliateUseCase implements IGetGroupAffiliateUseCase {
+  public constructor(
+    @Inject(IGroupRepository) private readonly groups: IGroupRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: IGetGroupAffiliateCommand,
+  ): Promise<IGetGroupAffiliateResult> {
+    await assertGroupPermission(this.groups, {
+      userId: command.userId,
+      groupId: command.groupId,
+      permission: 'group.affiliate.view',
+    });
+
+    const affiliate = await this.groups.findAffiliateSnapshot({
+      groupId: command.groupId,
+      activeMemberWindowDays: normalizeActiveMemberWindowDays(
+        await this.adminConfig.getConfigValue(
+          AffiliateActiveMemberWindowConfigKey,
+        ),
+      ),
+    });
+    if (!affiliate) throw new GroupNotFoundException();
+
+    // `false` cho tới khi bộ máy chia thưởng ra đời. Không im lặng trả 0 điểm:
+    // Owner sẽ tưởng nhóm mình chưa làm được gì, trong khi chưa có gì chia cả.
+    return { affiliate, rewardEngineReady: false };
+  }
+}
+
+@Injectable()
+export class UpdateGroupSettingsUseCase implements IUpdateGroupSettingsUseCase {
+  public constructor(
+    @Inject(IGroupRepository) private readonly groups: IGroupRepository,
+  ) {}
+
+  public async handle(
+    command: IUpdateGroupSettingsCommand,
+  ): Promise<IGetGroupOverviewResult> {
+    await assertGroupPermission(this.groups, {
+      userId: command.userId,
+      groupId: command.groupId,
+      permission: 'group.settings.manage',
+    });
+
+    const { name, description, avatarUrl, coverUrl } = command.settings;
+    // Một PATCH không nói gì thì không phải "thành công" — cùng lối đã chọn ở
+    // `assignMember`: cho qua thì client gửi thiếu trường vẫn nhận 200 và tin là
+    // đã đổi.
+    if (
+      name === undefined &&
+      description === undefined &&
+      avatarUrl === undefined &&
+      coverUrl === undefined
+    )
+      throw new ValidationFailedException([
+        'cần ít nhất một trong: name, description, avatarUrl, coverUrl',
+      ]);
+
+    const changed = await this.groups.updateSettings({
+      groupId: command.groupId,
+      name: name?.trim(),
+      description:
+        description === undefined ? undefined : description?.trim() || null,
+      avatarUrl,
+      coverUrl,
+    });
+    // Không khớp gì: nhóm không tồn tại, hoặc đã giải tán. Nhóm đã giải tán thì
+    // `hasGroupPermission` đã chặn ở trên, nên tới đây chỉ còn ca thứ nhất — vẫn
+    // kiểm vì hai lớp chặn cùng một thứ không tốn gì.
+    if (!changed) throw new GroupNotFoundException();
+
+    const group = await this.groups.findOverview({
+      groupId: command.groupId,
+      viewerId: command.userId,
+    });
+    if (!group) throw new GroupNotFoundException();
+
+    return { group };
   }
 }
 

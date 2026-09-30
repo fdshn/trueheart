@@ -10,6 +10,8 @@ import {
   IGetAdminRankPolicyUseCase,
   IGetAdminUserUseCase,
   IGetCandidateSelectionUseCase,
+  IGetChatFlagPendingCountUseCase,
+  IGetChatFlagQueueUseCase,
   IGetGroupRadiusPolicyUseCase,
   IGetGroupRolePermissionsUseCase,
   IGetNotificationChannelsUseCase,
@@ -27,11 +29,17 @@ import {
   IPublishGroupRadiusPolicyUseCase,
   IReleaseVerifiedPhoneUseCase,
   IReplaceGroupRolePermissionsUseCase,
+  IReviewChatFlagUseCase,
   ISetCandidateSelectionUseCase,
   IUpdateNotificationChannelUseCase,
   IUpdateNotificationTemplateUseCase,
 } from '@/application/contracts/admin-config';
 import { Global, Module } from '@nestjs/common';
+import {
+  GetChatFlagPendingCountUseCase,
+  GetChatFlagQueueUseCase,
+  ReviewChatFlagUseCase,
+} from './admin-chat-flag.use-cases';
 import {
   CountPendingAdminCommentsUseCase,
   ListAdminCommentsUseCase,
@@ -117,6 +125,18 @@ import {
     },
     { provide: IGetAdminAuditLogsUseCase, useClass: GetAdminAuditLogsUseCase },
     {
+      provide: IGetChatFlagQueueUseCase,
+      useClass: GetChatFlagQueueUseCase,
+    },
+    {
+      provide: IGetChatFlagPendingCountUseCase,
+      useClass: GetChatFlagPendingCountUseCase,
+    },
+    {
+      provide: IReviewChatFlagUseCase,
+      useClass: ReviewChatFlagUseCase,
+    },
+    {
       provide: IGetGroupRadiusPolicyUseCase,
       useClass: GetGroupRadiusPolicyUseCase,
     },
@@ -201,6 +221,9 @@ import {
     IPublishAdminConfigUseCase,
     IGetAdminAuditLogsUseCase,
     IGetAdminRankPolicyUseCase,
+    IGetChatFlagQueueUseCase,
+    IGetChatFlagPendingCountUseCase,
+    IReviewChatFlagUseCase,
     IGetGroupRadiusPolicyUseCase,
     IGetGroupRolePermissionsUseCase,
     IPublishGroupRadiusPolicyUseCase,

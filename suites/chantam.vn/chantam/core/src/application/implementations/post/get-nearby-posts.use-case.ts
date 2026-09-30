@@ -4,8 +4,10 @@ import {
   IGetNearbyPostsUseCase,
 } from '@/application/contracts/post';
 import {
+  DiscoveryDefaultRadiusConfigKey,
   DiscoveryMaxRadiusConfigKey,
   DiscoveryRadiusCapabilityCode,
+  normalizeDiscoveryRadiusMeters,
   normalizeGuestMaxRadiusMeters,
 } from '@/domain/consts';
 import { DiscoveryOriginUnavailableException } from '@/domain/exceptions';
@@ -74,6 +76,27 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
     private readonly entitlements?: IEntitlementRepository,
   ) {}
 
+  /**
+   * Bán kính áp dụng khi client gửi toạ độ mà BỎ TRỐNG bán kính.
+   *
+   * Trước 30/09 ca đó cho ra `radiusMeters: undefined`, tức không có mệnh đề
+   * `ST_DWithin` nào — một client gửi toạ độ suông quét CẢ NƯỚC, đúng thứ mà
+   * comment của `MaxSearchRadiusMeters` nói là phải chặn. Và
+   * `discovery.default_radius_meters` thì nằm trong `system_configs` không ai đọc.
+   *
+   * Kẹp theo hạn mức của chính người gọi: một mặc định lớn hơn hạn mức của họ là
+   * tự sinh ra 422 ở dòng dưới.
+   */
+  private async resolveDefaultRadiusMeters(
+    maxRadiusMeters: number,
+  ): Promise<number> {
+    return normalizeDiscoveryRadiusMeters(
+      await this.adminConfig.getConfigValue(DiscoveryDefaultRadiusConfigKey),
+      { min: MinSearchRadiusMeters, max: maxRadiusMeters },
+      Math.min(maxRadiusMeters, Math.max(MinSearchRadiusMeters, 10_000)),
+    );
+  }
+
   private async resolveMaxRadiusMeters(userId?: string): Promise<number> {
     const guestMax = normalizeGuestMaxRadiusMeters(
       await this.adminConfig.getConfigValue(DiscoveryMaxRadiusConfigKey),
@@ -140,6 +163,15 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
   ): Promise<IGetNearbyPostsResult> {
     const { skip, take } = toSkipTake(command);
     const { origin, originSource } = await this.resolveOrigin(command);
+    // Tính bán kính hiệu lực TRƯỚC nhánh kiểm: cả hai ca — client gửi bán kính và
+    // client bỏ trống — đều phải nằm trong hạn mức, và cả hai đều phải sinh ra một
+    // mệnh đề `ST_DWithin`.
+    let effectiveRadiusMeters = command.radiusMeters;
+    if (origin && command.radiusMeters === undefined)
+      effectiveRadiusMeters = await this.resolveDefaultRadiusMeters(
+        await this.resolveMaxRadiusMeters(command.currentUserId),
+      );
+
     if (origin && command.radiusMeters !== undefined) {
       const maxRadiusMeters = await this.resolveMaxRadiusMeters(
         command.currentUserId,
@@ -153,7 +185,7 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
       origin,
       // Bán kính chỉ có nghĩa khi có tâm. Truyền nó xuống mà không có gốc là
       // mời tầng repository lọc quanh một điểm không tồn tại.
-      radiusMeters: origin === undefined ? undefined : command.radiusMeters,
+      radiusMeters: origin === undefined ? undefined : effectiveRadiusMeters,
       postType: command.postType,
       categoryId: command.categoryId,
       // Cắt khoảng trắng và bỏ hẳn nếu rỗng: chuỗi rỗng lọt xuống

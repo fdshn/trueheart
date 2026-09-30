@@ -15,6 +15,7 @@ import {
   Length,
   Max,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -264,6 +265,103 @@ export class ListGroupActivitiesQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+}
+
+export class GroupInviteDto {
+  @ApiProperty() inviteCode: string;
+
+  @ApiProperty({
+    description:
+      'Link KHÔNG tự hết hạn và KHÔNG giới hạn lượt dùng (BR-GRP-04). Chỉ thành false khi nhóm rời khỏi ACTIVE.',
+  })
+  usable: boolean;
+
+  @ApiProperty({ description: 'Không tính Owner.' })
+  joinedTotal: number;
+
+  @ApiProperty() joinedLast30Days: number;
+
+  @ApiPropertyOptional({ type: Date, nullable: true })
+  lastJoinedAt: Date | null;
+}
+
+export class GetGroupInviteResponseDto {
+  @ApiProperty({ type: () => GroupInviteDto })
+  invite: GroupInviteDto;
+}
+
+export class GroupAffiliateDto {
+  @ApiProperty({ description: 'Bán kính vùng nhóm, snapshot lúc tạo.' })
+  radiusKm: number;
+
+  @ApiProperty({ description: 'Từ `affiliate.active_member_window_days`.' })
+  activeMemberWindowDays: number;
+
+  @ApiProperty() memberCount: number;
+
+  @ApiProperty({ description: 'status ACTIVE và có mặt trong cửa sổ.' })
+  activeMemberCount: number;
+
+  @ApiProperty({
+    description: 'Có Vị trí mặc định và nằm trong bán kính nhóm.',
+  })
+  insideRadiusCount: number;
+
+  @ApiProperty({
+    description:
+      'Thoả CẢ HAI — con số bộ máy chia thưởng sẽ dùng. Ba số tách riêng để trả lời được câu "sao nhóm tôi ít người đủ điều kiện": vắng mặt, ngoài vùng, hay cả hai.',
+  })
+  eligibleCount: number;
+}
+
+export class GetGroupAffiliateResponseDto {
+  @ApiProperty({ type: () => GroupAffiliateDto })
+  affiliate: GroupAffiliateDto;
+
+  @ApiProperty({
+    description:
+      'false cho tới khi bộ máy chia thưởng ra đời. Có cờ này để Owner không hiểu "0 điểm" là nhóm mình chưa làm được gì.',
+  })
+  rewardEngineReady: boolean;
+}
+
+export class UpdateGroupSettingsDto {
+  @ApiPropertyOptional({ example: 'Chân Tâm Quận Cầu Giấy' })
+  @IsOptional()
+  @IsString()
+  @Length(3, 150)
+  name?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'null tường minh để xoá mô tả. Bỏ trống là giữ nguyên.',
+  })
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== null)
+  @IsString()
+  @Length(0, 1000)
+  description?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== null)
+  @IsUrl()
+  avatarUrl?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== null)
+  @IsUrl()
+  coverUrl?: string | null;
+}
+
+export class UpdateGroupSettingsBodyDto {
+  @ApiProperty({ type: () => UpdateGroupSettingsDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => UpdateGroupSettingsDto)
+  settings: UpdateGroupSettingsDto;
 }
 
 export class CreateSubTeamDto {

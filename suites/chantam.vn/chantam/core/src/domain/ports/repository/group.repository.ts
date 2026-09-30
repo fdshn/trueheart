@@ -62,6 +62,38 @@ export interface IGroupActivityItem {
   readonly subjectLabel: string | null;
 }
 
+export interface IGroupInviteStats {
+  readonly inviteCode: string;
+  /** Link chỉ ngừng dùng được khi nhóm rời khỏi ACTIVE (BR-GRP-04). */
+  readonly usable: boolean;
+  readonly joinedTotal: number;
+  readonly joinedLast30Days: number;
+  readonly lastJoinedAt: Date | null;
+}
+
+/**
+ * Ảnh chụp điều kiện affiliate của một nhóm.
+ *
+ * KHÔNG phải số điểm đã chia — bộ máy chia thưởng chưa có dòng code nào
+ * ([19-affiliate](../../../../../docs/diagram/19-affiliate.md)). Đây là những con
+ * số ĐẦU VÀO của nó: bao nhiêu người đủ điều kiện nếu bộ máy chạy hôm nay.
+ *
+ * Trả ra ba con số riêng thay vì một, vì chúng trả lời ba câu khác nhau khi Owner
+ * hỏi "sao nhóm tôi ít người đủ điều kiện": người vắng mặt, người ở ngoài vùng,
+ * hay cả hai.
+ */
+export interface IGroupAffiliateSnapshot {
+  readonly radiusKm: number;
+  readonly activeMemberWindowDays: number;
+  readonly memberCount: number;
+  /** `status = ACTIVE` và `last_active_at` trong cửa sổ. */
+  readonly activeMemberCount: number;
+  /** Có Vị trí mặc định và nằm trong bán kính nhóm. */
+  readonly insideRadiusCount: number;
+  /** Thoả CẢ HAI — đây là con số bộ máy sẽ dùng. */
+  readonly eligibleCount: number;
+}
+
 export interface IGroupMemberItem {
   readonly userId: string;
   readonly username: string;
@@ -213,6 +245,43 @@ export interface IGroupRepository {
     skip: number;
     take: number;
   }): Promise<{ items: IGroupMemberItem[]; total: number }>;
+
+  /** Mã mời kèm số liệu dùng thật. `null` khi nhóm không tồn tại. */
+  findInviteStats(params: {
+    groupId: string;
+  }): Promise<IGroupInviteStats | null>;
+
+  /**
+   * Điều kiện affiliate của nhóm, tính TẠI THỜI ĐIỂM GỌI.
+   *
+   * Đọc `users.status` và `users.last_active_at` trực tiếp, không qua một cột
+   * `is_active` nào: một job quét rồi ghi cờ sẽ tạo con số thứ hai nói về cùng một
+   * sự thật, và người mở app hôm qua vẫn mang cờ `false` từ lần job chạy tuần
+   * trước rồi mất phần chia (xem `deploy/cron/README.md`).
+   */
+  findAffiliateSnapshot(params: {
+    groupId: string;
+    activeMemberWindowDays: number;
+  }): Promise<IGroupAffiliateSnapshot | null>;
+
+  /**
+   * Sửa thông tin hiển thị của nhóm.
+   *
+   * CỐ Ý không nhận tâm và bán kính: cả hai là snapshot lúc tạo (BR-GRP-03), và
+   * cho sửa là cho người ta dời vùng theo nơi đang có nhiều sự kiện để gom điểm.
+   *
+   * `undefined` là GIỮ NGUYÊN, `null` tường minh là XOÁ (ảnh, mô tả). Gộp hai thứ
+   * đó lại sẽ xoá mô tả của người ta mỗi lần họ đổi tên.
+   *
+   * Trả `false` khi nhóm không tồn tại hoặc đã giải tán.
+   */
+  updateSettings(params: {
+    groupId: string;
+    name?: string;
+    description?: string | null;
+    avatarUrl?: string | null;
+    coverUrl?: string | null;
+  }): Promise<boolean>;
 
   /**
    * Quyền của một người TRÊN MỘT NHÓM cụ thể.
