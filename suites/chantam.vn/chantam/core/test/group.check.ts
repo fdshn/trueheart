@@ -1,7 +1,7 @@
 /**
  * Kiểm nền Group trên Postgres THẬT (F51–F55, BR-GRP).
  *
- * Sáu thứ unit test mock không thấy được:
+ * Mười thứ unit test mock không thấy được:
  *
  * 1. Tâm nhóm là SNAPSHOT — Owner đổi Default Location thì vùng nhóm đứng yên.
  * 2. `UQ_group_memberships_user` chặn một người thuộc HAI nhóm, không phải chỉ
@@ -12,6 +12,14 @@
  *    trên nhóm khác.
  * 5. Giải tán giữ nguyên membership, chỉ đổi trạng thái.
  * 6. Link mời hết dùng được ngay khi nhóm rời khỏi ACTIVE.
+ * 7. Giải tán KHÔNG khoá thành viên cũ ngoài hệ thống nhóm vĩnh viễn — dòng
+ *    membership thôi hiệu lực nhưng ở lại, và index một phần cho họ có dòng
+ *    ACTIVE mới. UNIQUE trần trên `user_id` sẽ chặn đúng chỗ này.
+ * 8. Bỏ trống `subTeamId` GIỮ tổ hiện tại, chỉ `null` tường minh mới gỡ ra —
+ *    phân biệt này nằm trong câu SQL nên mock không kiểm được.
+ * 9. Lọc danh sách thành viên theo tổ: trưởng tổ chỉ thấy tổ mình.
+ * 10. `CHK_groups_radius` vẫn khớp hằng `GroupRadiusColumnBoundsKm` — lệch nhau
+ *    thì một cấu hình hợp lệ theo code bị database từ chối.
  */
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
@@ -252,7 +260,7 @@ async function main(): Promise<void> {
       groupId: GroupId,
       name: 'To Dich Vong',
     });
-    const teams = await groups.listSubTeams(GroupId);
+    const teams = await groups.listSubTeams({ groupId: GroupId });
     check('tạo được tổ', teams.length === 1, `${teams.length} tổ`);
     check('tổ mới chưa có ai', teams[0]?.memberCount === 0);
 
@@ -267,7 +275,7 @@ async function main(): Promise<void> {
     );
     check(
       'tổ đếm được đầu người',
-      (await groups.listSubTeams(GroupId))[0]?.memberCount === 1,
+      (await groups.listSubTeams({ groupId: GroupId }))[0]?.memberCount === 1,
     );
 
     const roster = await groups.listMembers({
@@ -362,7 +370,72 @@ async function main(): Promise<void> {
     );
     check(
       'gỡ xong thì tổ hết người, vai GIỮ NGUYÊN',
-      (await groups.listSubTeams(GroupId))[0]?.memberCount === 0,
+      (await groups.listSubTeams({ groupId: GroupId }))[0]?.memberCount === 0,
+    );
+
+    console.log('\n5d. Đổi vai KHÔNG âm thầm gỡ người khỏi tổ');
+    // Bẫy cũ: controller đổi "không gửi subTeamId" thành `null`, còn câu UPDATE
+    // ghi `sub_team_id` vô điều kiện. Nên phong trưởng tổ cho ai thì gỡ họ khỏi
+    // đúng cái tổ họ sắp quản — và không có cách nào đổi vai mà giữ tổ.
+    await groups.assignMember({
+      groupId: GroupId,
+      userId: MemberId,
+      subTeamId: SubTeamId,
+      role: 'MEMBER' as never,
+    });
+    check(
+      'BỎ TRỐNG subTeamId thì giữ nguyên tổ',
+      await groups.assignMember({
+        groupId: GroupId,
+        userId: MemberId,
+        role: 'SUBTEAM_ADMIN' as never,
+      }),
+    );
+    const keptTeam = (
+      await groups.listMembers({ groupId: GroupId, skip: 0, take: 50 })
+    ).items.find((row) => row.userId === MemberId);
+    check(
+      'vẫn ở trong tổ sau khi đổi vai',
+      keptTeam?.subTeamId === SubTeamId,
+      `${keptTeam?.subTeamId}`,
+    );
+    check(
+      'và vai đã đổi thật',
+      keptTeam?.role === 'SUBTEAM_ADMIN',
+      keptTeam?.role,
+    );
+
+    console.log('\n5e. Trưởng tổ chỉ thấy tổ MÌNH, không thấy cả nhóm');
+    const scoped = await groups.listMembers({
+      groupId: GroupId,
+      subTeamId: SubTeamId,
+      skip: 0,
+      take: 50,
+    });
+    check('lọc theo tổ trả đúng một người', scoped.total === 1, `${scoped.total}`);
+    check(
+      'và KHÔNG có Owner trong đó',
+      !scoped.items.some((row) => row.userId === OwnerId),
+    );
+    check(
+      'bỏ trống subTeamId thì vẫn trả CẢ nhóm',
+      (await groups.listMembers({ groupId: GroupId, skip: 0, take: 50 }))
+        .total === 2,
+    );
+
+    console.log('\n5f. Cận bán kính của cột khớp hằng trong code');
+    // `resolveGroupRadiusKm` kẹp theo hằng `GroupRadiusColumnBoundsKm`, và hằng
+    // đó là bản sao của ràng buộc dưới đây. Lệch nhau thì một cấu hình hợp lệ
+    // theo code sẽ bị database từ chối — 500 ở mọi lượt tạo nhóm.
+    const [radiusCheck] = await dataSource.query<{ def: string }[]>(
+      `SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+       WHERE conname = 'CHK_groups_radius'`,
+    );
+    check(
+      'CHK_groups_radius vẫn là 1–50 như hằng trong code',
+      /radius_km >= 1/.test(radiusCheck?.def ?? '') &&
+        /radius_km <= 50/.test(radiusCheck?.def ?? ''),
+      radiusCheck?.def ?? 'KHONG TIM THAY rang buoc',
     );
 
     console.log('\n6. Owner xoá tài khoản → nhóm giải tán');
@@ -403,6 +476,73 @@ async function main(): Promise<void> {
     check(
       'gọi lại không giải tán thêm lần nào',
       (await groups.dissolveOwnedBy(OwnerId)) === 0,
+    );
+
+    console.log('\n6b. Giải tán KHÔNG khoá thành viên ngoài hệ thống nhóm');
+    // Lỗ này sống tới 30/09: `hasMembership` chỉ hỏi "có dòng membership nào
+    // không", nên sau khi nhóm giải tán, thành viên cũ vẫn bị coi là đã có nhóm.
+    // Họ không lập được nhóm mới, mà cũng không vào nhóm nào khác được — đường
+    // duy nhất để vào là link mời cho tài khoản MỚI. Nhóm đã chết, họ mất luôn
+    // quyền thuộc một nhóm.
+    const statuses = await dataSource.query<{ status: string }[]>(
+      `SELECT status FROM group_memberships WHERE group_id = $1`,
+      [GroupId],
+    );
+    check(
+      'membership của nhóm đã giải tán thôi hiệu lực',
+      statuses.length === 2 && statuses.every((row) => row.status === 'DISSOLVED'),
+      statuses.map((row) => row.status).join(', '),
+    );
+    check(
+      'nhưng dòng vẫn Ở LẠI làm lịch sử (CHỐT-02)',
+      statuses.length === 2,
+      `${statuses.length} bản ghi`,
+    );
+    check(
+      'hasMembership trả false — thành viên cũ KHÔNG còn bị coi là có nhóm',
+      !(await groups.hasMembership(MemberId)),
+    );
+    check(
+      'findMine trả null nên màn hình Nhóm của tôi hiện lại nút Tạo nhóm',
+      (await groups.findMine(MemberId)) === null,
+    );
+
+    // Đây là phép kiểm mà index một phần phải đỗ: UNIQUE trần trên `user_id` sẽ
+    // chặn dòng thứ hai, và khi đó thành viên cũ vẫn kẹt dù đã sửa hasMembership.
+    const RebornGroupId = '55555555-5555-4555-8555-5555555f1001';
+    await groups.createWithOwner({
+      globalId: RebornGroupId,
+      ownerId: MemberId,
+      name: 'Nhom lap lai sau giai tan',
+      description: null,
+      avatarUrl: null,
+      coverUrl: null,
+      centerLocation: { lat: 21.03, lng: 105.85 },
+      regionLabel: 'Ha Noi',
+      radiusKm: 10,
+      inviteCode: 'REBORN2345EFGH67',
+      ownerMembershipId: '66666666-6666-4666-8666-6666666f1001',
+    });
+    check(
+      'thành viên cũ lập được nhóm MỚI — đúng ý của index một phần',
+      (await groups.findMine(MemberId))?.groupId === RebornGroupId,
+    );
+    check(
+      'và người đó nay có hai dòng membership: một lịch sử, một hiệu lực',
+      (
+        await dataSource.query<{ total: string }[]>(
+          `SELECT count(*) AS total FROM group_memberships WHERE user_id = $1`,
+          [MemberId],
+        )
+      )[0]?.total === '2',
+    );
+    check(
+      'quyền đọc từ dòng HIỆU LỰC, không phải dòng lịch sử',
+      await groups.hasGroupPermission({
+        userId: MemberId,
+        groupId: RebornGroupId,
+        permission: 'group.settings.manage',
+      }),
     );
   } finally {
     for (const source of opened.reverse())

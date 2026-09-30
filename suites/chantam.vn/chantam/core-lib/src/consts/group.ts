@@ -12,6 +12,26 @@ export enum GroupStatuses {
   DISSOLVED = 'DISSOLVED',
 }
 
+/**
+ * Hiệu lực của một dòng `group_memberships`.
+ *
+ * Có cột này vì "mỗi người một nhóm" phải là "mỗi người một membership ĐANG
+ * HIỆU LỰC". Thiếu nó, thành viên của một nhóm đã giải tán bị coi là vẫn có nhóm
+ * và không bao giờ vào được nhóm nào nữa — xem migration
+ * `1795900000000-AddGroupMembershipStatus`.
+ *
+ * KHÔNG có `BANNED`: ban một người là `users.status`, và đường đó đã thu hồi
+ * toàn bộ phiên của họ. Chép sang đây là tạo nguồn sự thật thứ hai.
+ *
+ * KHÔNG có `LEFT`: không rời, không chuyển nhóm (BR-GRP-06). Thêm giá trị đó là
+ * mở một đường đặc tả cố ý đóng, và sẽ có người dùng.
+ */
+export enum GroupMembershipStatuses {
+  ACTIVE = 'ACTIVE',
+  /** Nhóm đã giải tán. Dòng ở lại làm lịch sử (CHỐT-02). */
+  DISSOLVED = 'DISSOLVED',
+}
+
 export enum GroupMemberRoles {
   OWNER = 'OWNER',
   /**
@@ -47,6 +67,24 @@ export const GroupMaxRadiusConfigKey = 'group.max_radius_meters';
 export const DefaultGroupRadiusKm = 10;
 export const MinGroupRadiusKm = 1;
 export const MaxGroupRadiusKm = 50;
+
+/**
+ * Cận TUYỆT ĐỐI của cột `groups.radius_km`, phải khớp `CHK_groups_radius`.
+ *
+ * Đây KHÔNG phải cận cấu hình — cận cấu hình nằm ở `group.*_radius_meters` và
+ * Admin sửa được. Cái này là bất biến của dữ liệu: vượt ra là database từ chối
+ * ghi.
+ *
+ * Tách ra vì hai thứ đó trùng số hôm nay nhưng khác bản chất, và lần trùng số
+ * đó đã che một lỗ thật: khi bán kính còn là hằng `MaxGroupRadiusKm`, không giá
+ * trị nào vượt được CHECK. Nối cấu hình động vào mà vẫn kẹp bằng cận cấu hình
+ * thì Admin đặt `group.default_radius_meters = 60000` sẽ ra 60 km → vi phạm
+ * CHECK → **500 ở mọi lượt tạo nhóm**. Đổi một ô "sửa được mà vô nghĩa" thành
+ * một ô "sửa sai thì sập" là đi lùi.
+ *
+ * Sửa cận này thì phải sửa CHECK trong cùng một migration, không thì nó nói dối.
+ */
+export const GroupRadiusColumnBoundsKm = { min: 1, max: 50 } as const;
 
 /**
  * Độ dài mã mời.

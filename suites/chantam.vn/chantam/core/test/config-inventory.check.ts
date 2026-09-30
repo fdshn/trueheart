@@ -137,6 +137,65 @@ const KnownUnreadKeys: readonly { key: string; reason: string }[] = [
   },
 ];
 
+/**
+ * Quyền nhóm mà code THẬT SỰ kiểm, cùng chỗ kiểm.
+ *
+ * `group_role_permissions` là cùng một họ với `system_configs`: hàng seed mà
+ * không ai đọc. Và ở đây nó tệ hơn — một khoá cấu hình không ai đọc chỉ làm ô
+ * Admin vô nghĩa, còn một QUYỀN không ai đọc làm cả một VAI vô nghĩa.
+ *
+ * Đúng chuyện đó đã xảy ra: `SUBTEAM_ADMIN` có đúng hai quyền, cả hai không ai
+ * đọc, nên tới 30/09 phong vai đó cho ai cũng không đổi một thứ gì.
+ */
+const ReadGroupPermissions: readonly string[] = [
+  'group.member.view',
+  'group.member.assign_role',
+  'group.subteam.manage',
+  'group.subteam.member.view',
+];
+
+/**
+ * Quyền đã seed mà chưa ai kiểm, kèm lý do.
+ *
+ * Tất cả ở đây đều canh những endpoint CHƯA tồn tại — seed trước là chính đáng.
+ * Nhưng phải khai ra, không thì một quyền bị bỏ quên trông y như một quyền chờ
+ * tính năng.
+ *
+ * Danh sách này KHÔNG phải chỗ cất quyền cho phép kiểm xanh.
+ */
+const KnownUnreadGroupPermissions: readonly {
+  permission: string;
+  reason: string;
+}[] = [
+  {
+    permission: 'group.overview.view',
+    reason:
+      'chưa có endpoint Group Detail; GET /groups/me đọc theo membership, không qua hasGroupPermission',
+  },
+  {
+    permission: 'group.invite.view',
+    reason:
+      'chưa có endpoint quản lý link mời; inviteCode hiện trả kèm GET /groups/me và chỉ cho Owner',
+  },
+  {
+    permission: 'group.activity.view',
+    reason: 'chưa có endpoint hoạt động nhóm (F55)',
+  },
+  {
+    permission: 'group.subteam.activity.view',
+    reason: 'chưa có endpoint hoạt động, nên chưa có gì để giới hạn theo tổ',
+  },
+  {
+    permission: 'group.affiliate.view',
+    reason:
+      'bộ máy affiliate chưa có dòng code nào (19 §Chỗ cần soát 1) — không có số nào để xem',
+  },
+  {
+    permission: 'group.settings.manage',
+    reason: 'chưa có endpoint sửa nhóm; tâm và bán kính cố ý KHÔNG sửa được (BR-GRP-03)',
+  },
+];
+
 const failures: string[] = [];
 
 function check(label: string, ok: boolean, detail = ''): void {
@@ -240,6 +299,76 @@ async function main(): Promise<void> {
         'ALLOW',
       screenText('Món này còn tốt lắm, mình tặng miễn phí', terms).verdict,
     );
+    console.log('\n5. Quyền nhóm: không quyền nào seed mà không ai kiểm');
+    const grantRows = await dataSource.query<{ permission: string }[]>(
+      `SELECT DISTINCT permission FROM group_role_permissions`,
+    );
+    const seededGrants = grantRows.map((row) => row.permission);
+    const declaredGrants = new Set<string>([
+      ...ReadGroupPermissions,
+      ...KnownUnreadGroupPermissions.map((entry) => entry.permission),
+    ]);
+
+    check(
+      'group_role_permissions có dòng — thiếu là mọi vai nhóm mất hết quyền',
+      seededGrants.length > 0,
+      `${seededGrants.length} quyền`,
+    );
+
+    const undeclaredGrants = seededGrants.filter(
+      (permission) => !declaredGrants.has(permission),
+    );
+    check(
+      'mọi quyền đã seed đều được khai ở một trong hai danh sách',
+      undeclaredGrants.length === 0,
+      undeclaredGrants.join(', '),
+    );
+
+    const grantsInBoth = KnownUnreadGroupPermissions.filter((entry) =>
+      ReadGroupPermissions.includes(entry.permission),
+    );
+    check(
+      'không quyền nào nằm ở CẢ HAI danh sách — nối vào rồi thì xoá khỏi nợ',
+      grantsInBoth.length === 0,
+      grantsInBoth.map((entry) => entry.permission).join(', '),
+    );
+
+    // Quyền code kiểm mà KHÔNG có dòng nào là lỗ ngược lại: use case đòi một
+    // quyền không ai được cấp, nên endpoint đó 403 với tất cả mọi người.
+    const missingGrants = ReadGroupPermissions.filter(
+      (permission) => !seededGrants.includes(permission),
+    );
+    check(
+      'mọi quyền code kiểm đều đã được seed cho một vai nào đó',
+      missingGrants.length === 0,
+      missingGrants.length === 0
+        ? ''
+        : `${missingGrants.join(', ')} — endpoint dùng quyền này sẽ 403 với mọi người`,
+    );
+
+    // Vai nào cũng phải có ít nhất một quyền CÓ TÁC DỤNG. Một vai gán được mà
+    // không đổi gì là thứ tệ nhất trong ba: người ta tin là đã phân quyền.
+    const roleRows = await dataSource.query<
+      { role: string; permission: string }[]
+    >(`SELECT role, permission FROM group_role_permissions`);
+    for (const role of ['OWNER', 'SUBTEAM_ADMIN']) {
+      const effective = roleRows
+        .filter((row) => row.role === role)
+        .filter((row) => ReadGroupPermissions.includes(row.permission));
+      check(
+        `vai ${role} có ít nhất một quyền code thật sự kiểm`,
+        effective.length > 0,
+        effective.length > 0
+          ? `${effective.length} quyền có tác dụng`
+          : 'gán vai này không đổi một thứ gì',
+      );
+    }
+
+    console.log(
+      `  …${KnownUnreadGroupPermissions.length} quyền nhóm đang là NỢ: seed mà chưa ai kiểm`,
+    );
+    for (const entry of KnownUnreadGroupPermissions)
+      console.log(`     • ${entry.permission} — ${entry.reason}`);
   } finally {
     if (dataSource.isInitialized) await dataSource.destroy();
   }

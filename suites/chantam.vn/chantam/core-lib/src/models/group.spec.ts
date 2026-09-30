@@ -1,5 +1,6 @@
 import {
   DefaultGroupRadiusKm,
+  GroupRadiusColumnBoundsKm,
   MaxGroupRadiusKm,
   MinGroupRadiusKm,
 } from '../consts';
@@ -95,6 +96,37 @@ describe('resolveGroupRadiusKm', () => {
         maxMeters: 100,
       }),
     ).toBeGreaterThanOrEqual(1);
+  });
+
+  it('KHÔNG BAO GIỜ vượt cận của cột, dù cấu hình nói gì', () => {
+    // Đây là lỗ tôi tự mở khi nối cấu hình động vào: cột có
+    // `CHK_groups_radius CHECK (radius_km BETWEEN 1 AND 50)`, nên 60 km làm
+    // database từ chối ghi → 500 ở MỌI lượt tạo nhóm. Trước đó cận là hằng
+    // `MaxGroupRadiusKm` nên không giá trị nào vượt được.
+    expect(
+      resolveGroupRadiusKm({
+        defaultMeters: 60_000,
+        minMeters: 1_000,
+        maxMeters: 80_000,
+      }),
+    ).toBe(GroupRadiusColumnBoundsKm.max);
+
+    // Kể cả khi cả ba khoá đều ngoài khoảng.
+    for (const meters of [80_000, 1_000_000, Number.MAX_SAFE_INTEGER]) {
+      const km = resolveGroupRadiusKm({
+        defaultMeters: meters,
+        minMeters: meters,
+        maxMeters: meters,
+      });
+      expect(km).toBeLessThanOrEqual(GroupRadiusColumnBoundsKm.max);
+      expect(km).toBeGreaterThanOrEqual(GroupRadiusColumnBoundsKm.min);
+    }
+  });
+
+  it('cận của cột khớp CHK_groups_radius', () => {
+    // Hằng này là bản sao của một ràng buộc database. Lệch nhau thì hoặc hàm
+    // chặn oan một giá trị hợp lệ, hoặc để lọt một giá trị làm sập.
+    expect(GroupRadiusColumnBoundsKm).toEqual({ min: 1, max: 50 });
   });
 
   it('hằng dự phòng nằm trong khoảng của chính nó', () => {

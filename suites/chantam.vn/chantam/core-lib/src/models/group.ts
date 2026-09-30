@@ -1,6 +1,8 @@
 import {
   DefaultGroupRadiusKm,
   GroupMemberRoles,
+  GroupMembershipStatuses,
+  GroupRadiusColumnBoundsKm,
   GroupStatuses,
   MaxGroupRadiusKm,
   MinGroupRadiusKm,
@@ -38,6 +40,13 @@ export interface IGroupMembership {
   /** `null` khi chưa xếp vào tổ nào. */
   subTeamId: string | null;
   role: GroupMemberRoles;
+  /**
+   * Hiệu lực của dòng này.
+   *
+   * `DISSOLVED` là LỊCH SỬ, không phải "đang thuộc nhóm" — mọi phép đếm và mọi
+   * phép kiểm quyền phải lọc theo nó.
+   */
+  status: GroupMembershipStatuses;
   joinedAt: Date;
 }
 
@@ -68,6 +77,17 @@ export interface IGroupMembership {
  * phải lỗi của người đang tạo nhóm. Cận cũng được kẹp theo nhau — min lớn hơn max
  * là một cấu hình vô nghĩa, và ưu tiên max để không ai bị chặn tạo nhóm.
  *
+ * ## Vi sao con mot lop kep nua o cuoi
+ *
+ * Can cau hinh do Admin dat, nen no khong duoc phep vuot can cua cot
+ * (`CHK_groups_radius`, 1-50). Thieu lop kep cuoi thi `group.max_radius_meters`
+ * dat thanh 80000 lam moi luot tao nhom tra 500 - loi cau hinh bien thanh loi
+ * cua nguoi dang tao nhom, dung thu ham nay noi la khong duoc de xay ra.
+ *
+ * Kep o day la de KHONG BAO GIO sap. Viec cho Admin biet ho vua dien mot so
+ * ngoai khoang la viec cua duong ghi cau hinh (`PublishAdminConfigUseCase`) -
+ * kep im lang mot minh thi lai thanh "sua duoc ma vo nghia".
+ *
  * ## Làm tròn
  *
  * Cột là `int` km nên độ phân giải là 1 km: 1.500 m ra 2 km. `Math.round` chứ không
@@ -87,11 +107,21 @@ export function resolveGroupRadiusKm(config: {
       : fallbackKm;
   };
 
-  const min = toKm(config.minMeters, MinGroupRadiusKm);
-  const max = Math.max(min, toKm(config.maxMeters, MaxGroupRadiusKm));
+  const bounds = GroupRadiusColumnBoundsKm;
+  const clampToColumn = (km: number): number =>
+    Math.min(bounds.max, Math.max(bounds.min, km));
+
+  const min = clampToColumn(toKm(config.minMeters, MinGroupRadiusKm));
+  const max = Math.max(
+    min,
+    clampToColumn(toKm(config.maxMeters, MaxGroupRadiusKm)),
+  );
 
   return Math.min(
     max,
-    Math.max(min, toKm(config.defaultMeters, DefaultGroupRadiusKm)),
+    Math.max(
+      min,
+      clampToColumn(toKm(config.defaultMeters, DefaultGroupRadiusKm)),
+    ),
   );
 }

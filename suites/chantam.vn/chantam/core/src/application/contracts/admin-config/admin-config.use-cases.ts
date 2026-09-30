@@ -38,6 +38,29 @@ export const SupportedSystemConfigKeys = [
   'accuracy.giver',
 ] as const;
 
+/**
+ * Khoảng hợp lệ cho từng khoá, đơn vị đúng như tên khoá nói.
+ *
+ * Chỉ khai ở đây những khoá có cận CỨNG ở tầng dưới — một ràng buộc database,
+ * một cột int, một thứ mà vượt ra là sập chứ không phải là lạ. Khoá không có cận
+ * như vậy thì để trống: bịa ra một khoảng là đặt chính sách thay Bên A.
+ *
+ * Ba khoá `group.*` ở đây vì cột `groups.radius_km` có
+ * `CHK_groups_radius CHECK (radius_km BETWEEN 1 AND 50)`. Thiếu phép kiểm này,
+ * Admin đặt `group.default_radius_meters = 60000` sẽ làm MỌI lượt tạo nhóm trả
+ * 500 — và màn hình cấu hình không hề nói gì lúc bấm Lưu.
+ *
+ * `resolveGroupRadiusKm` vẫn kẹp một lần nữa ở tầng dưới. Hai lớp làm hai việc
+ * khác nhau: tầng này để Admin BIẾT, tầng dưới để không bao giờ SẬP.
+ */
+export const SystemConfigValueRanges: Readonly<
+  Record<string, { readonly min: number; readonly max: number }>
+> = {
+  'group.default_radius_meters': { min: 1_000, max: 50_000 },
+  'group.min_radius_meters': { min: 1_000, max: 50_000 },
+  'group.max_radius_meters': { min: 1_000, max: 50_000 },
+};
+
 export interface IPublishAdminConfigCommand {
   actorUserId: string;
   systemConfig: IPublishAdminConfigBodyDto;

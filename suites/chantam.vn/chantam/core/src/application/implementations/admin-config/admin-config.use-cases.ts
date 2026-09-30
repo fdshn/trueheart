@@ -9,6 +9,7 @@ import {
   IPublishAdminConfigResult,
   IPublishAdminConfigUseCase,
   SupportedSystemConfigKeys,
+  SystemConfigValueRanges,
 } from '@/application/contracts/admin-config';
 import { IAdminConfigRepository } from '@/domain/ports/repository';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
@@ -57,6 +58,7 @@ export class PublishAdminConfigUseCase implements IPublishAdminConfigUseCase {
     // Payload hỏng là lỗi của dữ liệu gửi lên, không phải thiếu quyền. Trả 403
     // ở đây khiến admin đi tìm quyền bị thiếu trong khi thứ cần sửa là body.
     const { key, value, valueType } = command.systemConfig;
+    const range = SystemConfigValueRanges[key];
     const problems = [
       !SupportedSystemConfigKeys.includes(key as never) &&
         `key không nằm trong danh sách cấu hình được phép: ${key}`,
@@ -65,6 +67,16 @@ export class PublishAdminConfigUseCase implements IPublishAdminConfigUseCase {
       Number.isInteger(value) &&
         Number(value) < 0 &&
         'value không được nhỏ hơn 0',
+      // Cận cứng của tầng dưới, không phải số tuỳ chọn. Thiếu phép kiểm này thì
+      // một số ngoài khoảng được lưu thành công, rồi sập ở chỗ khác — và Admin
+      // không có lý do nào để nối hai việc đó với nhau.
+      ...(Number.isInteger(value) &&
+      range &&
+      (Number(value) < range.min || Number(value) > range.max)
+        ? [
+            `value cho ${key} phải nằm trong khoảng ${range.min}–${range.max} (cận cứng của dữ liệu, không nới rộng bằng cấu hình)`,
+          ]
+        : []),
     ].filter(Boolean) as string[];
     if (problems.length > 0) throw new ValidationFailedException(problems);
 

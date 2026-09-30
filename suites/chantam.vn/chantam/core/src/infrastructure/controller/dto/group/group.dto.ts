@@ -5,6 +5,7 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDefined,
   IsEnum,
   IsInt,
   IsOptional,
@@ -14,6 +15,7 @@ import {
   Length,
   Max,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 export class CreateGroupDto {
@@ -50,6 +52,15 @@ export class CreateGroupDto {
 
 export class CreateGroupBodyDto {
   @ApiProperty({ type: () => CreateGroupDto })
+  // Ba decorator, ba việc khác nhau, và thiếu bất kỳ cái nào cũng hỏng:
+  // `@IsDefined()` chặn body không có khoá bọc (thiếu nó thì use case đọc
+  // `command.group.name` và nổ 500), `@ValidateNested()` bắt validation đi vào
+  // bên trong, `@Type()` cho class-transformer biết dựng class nào — thiếu nó
+  // thì bên trong vẫn là object trần và mọi decorator ở `CreateGroupDto` bị bỏ
+  // qua. Cả ba endpoint nhóm đều thiếu đủ bộ tới 30/09.
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => CreateGroupDto)
   group: CreateGroupDto;
 }
 
@@ -176,6 +187,9 @@ export class CreateSubTeamDto {
 
 export class CreateSubTeamBodyDto {
   @ApiProperty({ type: () => CreateSubTeamDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => CreateSubTeamDto)
   subTeam: CreateSubTeamDto;
 }
 
@@ -194,7 +208,8 @@ export class AssignGroupMemberDto {
     type: String,
     format: 'uuid',
     nullable: true,
-    description: 'null để gỡ khỏi tổ. Tổ phải thuộc chính nhóm này.',
+    description:
+      'BỎ TRỐNG để giữ tổ hiện tại, `null` tường minh để gỡ khỏi tổ. Tổ phải thuộc chính nhóm này.',
   })
   @IsOptional()
   @IsUUID()
@@ -211,5 +226,8 @@ export class AssignGroupMemberDto {
 
 export class AssignGroupMemberBodyDto {
   @ApiProperty({ type: () => AssignGroupMemberDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => AssignGroupMemberDto)
   membership: AssignGroupMemberDto;
 }

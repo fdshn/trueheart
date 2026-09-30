@@ -68,8 +68,14 @@ export interface IAssignGroupMemberCommand {
   readonly userId: string;
   readonly groupId: string;
   readonly memberId: string;
-  /** `null` để gỡ khỏi tổ. */
-  readonly subTeamId: string | null;
+  /**
+   * `undefined` để GIỮ tổ hiện tại, `null` để gỡ khỏi tổ.
+   *
+   * Phân biệt hai thứ này là bắt buộc, không phải tiểu tiết: gộp lại thì không
+   * có cách nào đổi vai mà giữ tổ, và phong trưởng tổ cho ai sẽ gỡ họ khỏi đúng
+   * cái tổ họ sắp quản.
+   */
+  readonly subTeamId?: string | null;
   /** Bỏ trống để giữ nguyên vai. `OWNER` không gán được. */
   readonly role?: GroupMemberRoles;
 }

@@ -1,5 +1,6 @@
 import {
   GroupMemberRoles,
+  GroupMembershipStatuses,
   GroupStatuses,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
@@ -136,6 +137,15 @@ export class GroupMembershipEntity
     default: GroupMemberRoles.MEMBER,
   })
   role: GroupMemberRoles;
+
+  @ApiProperty({ enum: GroupMembershipStatuses })
+  @Column({
+    type: 'enum',
+    enum: GroupMembershipStatuses,
+    enumName: 'group_membership_statuses_enum',
+    default: GroupMembershipStatuses.ACTIVE,
+  })
+  status: GroupMembershipStatuses;
 
   @ApiProperty()
   @Column({ name: 'joined_at', type: 'timestamptz', default: () => 'now()' })

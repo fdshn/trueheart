@@ -128,7 +128,7 @@ export class GroupController {
   @ApiOperation({
     summary: 'Danh sách thành viên nhóm',
     description:
-      'Cần quyền `group.member.view` TRÊN CHÍNH nhóm đó. Quyền nhóm luôn mang phạm vi — trưởng nhóm này không xem được nhóm khác.',
+      'Cần `group.member.view` (trả CẢ nhóm) hoặc `group.subteam.member.view` (trả CHỈ tổ của chính người gọi) TRÊN CHÍNH nhóm đó. Quyền nhóm luôn mang phạm vi — trưởng nhóm này không xem được nhóm khác. Trưởng tổ chưa được xếp vào tổ nào thì bị từ chối, không phải được xem cả nhóm.',
   })
   @ApiErrorResponses(...ApiTokenErrors, ForbiddenException)
   @ApiOkResponse({ type: ResponseDto.forApi(ListGroupMembersResponseDto) })
@@ -201,14 +201,17 @@ export class GroupController {
   @ApiOperation({
     summary: 'Xếp thành viên vào tổ, hoặc đổi vai',
     description:
-      'Tổ phải thuộc CHÍNH nhóm này. Vai `OWNER` không gán được và vai Owner hiện tại không hạ được — chủ nhóm là người tạo nhóm, và đổi được sẽ để lại một nhóm không ai quản trị.',
+      'Tổ phải thuộc CHÍNH nhóm này. Vai `OWNER` không gán được và vai Owner hiện tại không hạ được — chủ nhóm là người tạo nhóm, và đổi được sẽ để lại một nhóm không ai quản trị. BỎ TRỐNG `subTeamId` để giữ tổ hiện tại; gửi `null` tường minh mới là gỡ khỏi tổ. Cần ít nhất một trong hai trường.',
   })
   @ApiErrorResponses(
     ...ApiTokenErrors,
     ForbiddenException,
     [
       ValidationFailedException,
-      ['role: không gán được vai OWNER — chủ nhóm là người tạo nhóm'],
+      [
+        'role: không gán được vai OWNER — chủ nhóm là người tạo nhóm',
+        'cần ít nhất một trong hai: subTeamId (null để gỡ khỏi tổ) hoặc role',
+      ],
     ],
     GroupNotFoundException,
   )
@@ -222,7 +225,9 @@ export class GroupController {
       userId: principal.userId,
       groupId: params.groupId,
       memberId: params.memberId,
-      subTeamId: body.membership.subTeamId ?? null,
+      // KHÔNG `?? null`. JSON không gửi được `undefined`, nên thiếu khoá là
+      // `undefined` và đó là ý "giữ tổ hiện tại"; `null` tường minh mới là gỡ ra.
+      subTeamId: body.membership.subTeamId,
       role: body.membership.role,
     });
 

@@ -39,6 +39,48 @@ async function assertGroupPermission(
     throw new ForbiddenException();
 }
 
+/**
+ * Phạm vi danh sách thành viên mà người gọi được xem.
+ *
+ * `null` = cả nhóm. Một `subTeamId` = chỉ tổ đó.
+ *
+ * Hai quyền, hai phạm vi — và trước 30/09 chỉ quyền đầu được đọc, nên
+ * `group.subteam.member.view` là một dòng seed không ai dùng và vai
+ * `SUBTEAM_ADMIN` hoàn toàn vô tác dụng: phong cho ai cũng không đổi một thứ gì.
+ *
+ * Thứ tự kiểm quan trọng: quyền toàn nhóm xét TRƯỚC, vì Owner cũng có thể được
+ * xếp vào một tổ, và xét ngược thì Owner ở trong tổ sẽ chỉ còn thấy tổ mình.
+ */
+async function resolveMemberScope(
+  groups: IGroupRepository,
+  params: { userId: string; groupId: string },
+): Promise<string | null> {
+  if (
+    await groups.hasGroupPermission({
+      ...params,
+      permission: 'group.member.view',
+    })
+  )
+    return null;
+
+  if (
+    !(await groups.hasGroupPermission({
+      ...params,
+      permission: 'group.subteam.member.view',
+    }))
+  )
+    throw new ForbiddenException();
+
+  const membership = await groups.findMembership(params);
+
+  // Trưởng tổ chưa được xếp vào tổ nào thì KHÔNG có tổ để xem. Trả `null` ở đây
+  // là biến "chưa có tổ" thành "xem được cả nhóm" — leo thang quyền bằng một
+  // trường bỏ trống.
+  if (!membership?.subTeamId) throw new ForbiddenException();
+
+  return membership.subTeamId;
+}
+
 @Injectable()
 export class ListGroupMembersUseCase implements IListGroupMembersUseCase {
   public constructor(
@@ -48,16 +90,16 @@ export class ListGroupMembersUseCase implements IListGroupMembersUseCase {
   public async handle(
     command: IListGroupMembersCommand,
   ): Promise<IListGroupMembersResult> {
-    await assertGroupPermission(this.groups, {
+    const subTeamId = await resolveMemberScope(this.groups, {
       userId: command.userId,
       groupId: command.groupId,
-      permission: 'group.member.view',
     });
 
     const take = Math.min(MaxPageSize, command.limit ?? DefaultPageSize);
     const skip = Math.max(0, ((command.page ?? 1) - 1) * take);
     const { items, total } = await this.groups.listMembers({
       groupId: command.groupId,
+      subTeamId,
       skip,
       take,
     });
@@ -76,14 +118,19 @@ export class ListSubTeamsUseCase implements IListSubTeamsUseCase {
     command: IListSubTeamsCommand,
   ): Promise<IListSubTeamsResult> {
     // Xem tổ đi cùng quyền xem thành viên: danh sách tổ không nói gì mà danh
-    // sách thành viên chưa nói.
-    await assertGroupPermission(this.groups, {
+    // sách thành viên chưa nói. Trưởng tổ cũng vào được — họ cần biết tên tổ
+    // mình, và `resolveMemberScope` đã đòi họ thật sự thuộc một tổ.
+    const subTeamId = await resolveMemberScope(this.groups, {
       userId: command.userId,
       groupId: command.groupId,
-      permission: 'group.member.view',
     });
 
-    return { subTeams: await this.groups.listSubTeams(command.groupId) };
+    return {
+      subTeams: await this.groups.listSubTeams({
+        groupId: command.groupId,
+        subTeamId,
+      }),
+    };
   }
 }
 
@@ -114,7 +161,9 @@ export class CreateSubTeamUseCase implements ICreateSubTeamUseCase {
       name,
     });
 
-    return { subTeams: await this.groups.listSubTeams(command.groupId) };
+    return {
+      subTeams: await this.groups.listSubTeams({ groupId: command.groupId }),
+    };
   }
 }
 
@@ -133,6 +182,13 @@ export class AssignGroupMemberUseCase implements IAssignGroupMemberUseCase {
       permission: 'group.member.assign_role',
     });
 
+    // Một PATCH không nói gì thì không phải "thành công", nó là một lượt gọi
+    // sai. Cho qua thì client gửi thiếu trường vẫn nhận 200 và tin là đã đổi.
+    if (command.subTeamId === undefined && command.role === undefined)
+      throw new ValidationFailedException([
+        'cần ít nhất một trong hai: subTeamId (null để gỡ khỏi tổ) hoặc role',
+      ]);
+
     // OWNER không gán được cho ai. Hai Owner trên một nhóm thì `groups.owner_id`
     // và bảng membership nói hai chuyện khác nhau, và không có quy tắc nào phân
     // xử. Repository cũng từ chối HẠ vai Owner hiện tại.
@@ -144,6 +200,8 @@ export class AssignGroupMemberUseCase implements IAssignGroupMemberUseCase {
     const changed = await this.groups.assignMember({
       groupId: command.groupId,
       userId: command.memberId,
+      // Truyền THẲNG, không `?? null`: chính phép `?? null` ở controller là thứ
+      // đã biến "không gửi" thành "gỡ khỏi tổ".
       subTeamId: command.subTeamId,
       role: command.role ?? null,
     });

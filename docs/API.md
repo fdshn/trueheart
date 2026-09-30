@@ -1148,7 +1148,8 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 ### Tâm và bán kính KHÔNG nhận từ body
 
 `POST /groups` chỉ nhận tên, mô tả, ảnh. Tâm vùng chụp từ `default_location` của người tạo,
-bán kính từ Rank Config — cả hai đứng yên sau đó ([BR-GRP-03](./FEATURES.md#f52--tạo-group-từ-default-location)).
+bán kính từ ba khoá cấu hình `group.*_radius_meters` (đơn vị **mét**) — cả hai đứng yên sau đó
+([BR-GRP-03](./FEATURES.md#f52--tạo-group-từ-default-location)).
 Cho Owner sửa là cho họ dời vùng theo nơi đang có nhiều sự kiện để gom điểm affiliate. Owner
 đổi Vị trí mặc định về sau thì vùng nhóm cũng không nhúc nhích.
 
@@ -1159,8 +1160,13 @@ membership ([F54](./FEATURES.md#f54--link-mời--chỉ-dành-cho-tài-khoản-m�
 đã giải tán thì **đăng ký vẫn thành công**, chỉ là không vào nhóm nào — tài khoản đã tạo
 xong rồi, bắt người ta đăng ký lại vì một link hỏng là phạt người dùng cho lỗi người gửi.
 
-Cũng không có endpoint rời nhóm hay chuyển nhóm (BR-GRP-06), và `UQ_group_memberships_user`
-ràng trên **`user_id` một mình** — một người một nhóm, database chặn chứ không chỉ tầng ứng dụng.
+Cũng không có endpoint rời nhóm hay chuyển nhóm (BR-GRP-06), và ràng buộc UNIQUE đặt trên
+**`user_id` một mình** — một người một nhóm, database chặn chứ không chỉ tầng ứng dụng.
+
+Chính xác hơn: `UQ_group_memberships_one_active_per_user` là index **một phần** trên `user_id`
+`WHERE status = 'ACTIVE'`. Dòng của một nhóm đã giải tán mang `status = 'DISSOLVED'` — ở lại làm
+lịch sử nhưng không tính, nên thành viên cũ lập được nhóm mới. Ràng buộc UNIQUE trần trước đó
+khoá họ ngoài hệ thống nhóm vĩnh viễn.
 
 ### `inviteCode` chỉ trả cho Owner
 
@@ -1176,26 +1182,52 @@ Bốn endpoint quản lý đi qua `hasGroupPermission(userId, groupId, permissio
 | Vai | Quyền seed sẵn |
 | --- | --- |
 | `OWNER` | `group.overview.view`, `group.member.view`, `group.member.assign_role`, `group.subteam.manage`, `group.invite.view`, `group.activity.view`, `group.affiliate.view`, `group.settings.manage` |
-| `SUBTEAM_ADMIN` | `group.overview.view`, `group.subteam.member.view`, `group.subteam.activity.view` |
+| `SUBTEAM_ADMIN` | `group.subteam.member.view` ✅, `group.subteam.activity.view` |
 | `MEMBER` | `group.overview.view` |
 
-Bảng `group_role_permissions` là **cấu hình**, không hard-code — Admin đổi được lúc chạy.
+✅ = có dòng code thật sự kiểm. **Bốn trong mười quyền** ở trạng thái đó; sáu quyền còn lại canh
+những endpoint chưa tồn tại và `test:config-inventory` khai từng cái kèm lý do. Tới 30/09 cả hai
+quyền của `SUBTEAM_ADMIN` đều không ai đọc, nên phong vai đó cho ai cũng không đổi một thứ gì.
+
+Bảng `group_role_permissions` **không** hard-code trong code, nhưng cũng **chưa có endpoint
+Admin**: đổi bộ quyền hiện phải chạy SQL tay, bảng không có cột `version`, và `updated_by` chưa
+bao giờ được ghi.
+
+### `GET …/members` — hai quyền, hai phạm vi
+
+| Quyền của người gọi | Trả về |
+| --- | --- |
+| `group.member.view` | **cả nhóm** |
+| chỉ `group.subteam.member.view` | **chỉ tổ của chính họ** |
+| không quyền nào | `403` |
+
+Quyền toàn nhóm xét **trước**, vì Owner cũng có thể được xếp vào một tổ và xét ngược thì Owner ở
+trong tổ tự thu hẹp tầm nhìn của mình. Trưởng tổ **chưa** được xếp vào tổ nào thì `403` — trả cả
+nhóm ở đó là leo thang quyền bằng một trường bỏ trống. `GET …/sub-teams` theo cùng quy tắc.
 
 ### `PATCH …/members/:memberId` — ba ca cùng một câu trả lời
 
 Trả `GroupNotFound` khi người đó không thuộc nhóm, khi họ là `OWNER`, và khi `subTeamId` trỏ
 sang tổ của nhóm khác. Phân biệt ba ca là để lộ cơ cấu nhóm người khác cho ai vừa đoán một id.
 
-- `subTeamId: null` gỡ khỏi tổ, `role` bỏ trống thì giữ nguyên vai.
+- **`subTeamId` bỏ trống = GIỮ tổ hiện tại. `null` tường minh = gỡ khỏi tổ.** `role` bỏ trống
+  thì giữ nguyên vai. Hai thứ này phải khác nhau: gộp lại thì không có cách nào đổi vai mà giữ
+  tổ, và phong `SUBTEAM_ADMIN` cho ai sẽ gỡ họ khỏi đúng cái tổ họ sắp quản.
+- **Không gửi trường nào thì `422`**, không phải `200`. Một `PATCH` không nói gì là lượt gọi sai;
+  cho qua thì client gửi thiếu trường vẫn nhận `200` và tin là đã đổi.
 - **Không gán được `OWNER`.** Hai Owner trên một nhóm thì `groups.owner_id` và bảng membership
   nói hai chuyện khác nhau, và không có quy tắc nào phân xử.
 - Không hạ được vai Owner hiện tại — làm thế là để lại một nhóm không ai quản trị được.
 
 ### Nhóm đã giải tán thì mọi quyền tắt theo
 
-`hasGroupPermission` lọc `status = 'ACTIVE'`, nên sau khi Owner xoá tài khoản
+`hasGroupPermission` lọc `groups.status = 'ACTIVE'` **và** `group_memberships.status = 'ACTIVE'`,
+nên sau khi Owner xoá tài khoản
 ([F55](./FEATURES.md#f55--owner-xoá-tài-khoản--group-giải-tán)) không ai còn thao tác được —
 nhưng membership, ledger và audit **giữ nguyên** để tra lại.
+
+`GET /groups/me` trả `null` sau khi nhóm giải tán, nên màn hình Nhóm của tôi hiện lại nút Tạo
+nhóm. Giữ nguyên nhóm đã chết ở đó là ẩn nút Tạo nhóm vĩnh viễn cho một nhóm không còn làm gì.
 
 ---
 

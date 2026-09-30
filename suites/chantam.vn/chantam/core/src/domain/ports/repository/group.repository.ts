@@ -65,8 +65,25 @@ export interface IGroupRepository {
     ownerId: string;
   } | null>;
 
-  /** `true` khi người này đã thuộc một nhóm nào đó. */
+  /**
+   * `true` khi người này đang thuộc một nhóm CÒN HIỆU LỰC.
+   *
+   * Dòng membership của một nhóm đã giải tán là lịch sử, không tính — nếu tính
+   * thì thành viên cũ không lập được nhóm mới, mà cũng không vào được nhóm nào
+   * khác vì đường duy nhất để vào là link mời cho tài khoản MỚI.
+   */
   hasMembership(userId: string): Promise<boolean>;
+
+  /**
+   * Membership còn hiệu lực của một người trong một nhóm.
+   *
+   * Dùng để biết trưởng tổ đang ở tổ nào: `GET /groups/:id/members` trả tổ của
+   * chính họ khi họ chỉ có `group.subteam.member.view`.
+   */
+  findMembership(params: {
+    userId: string;
+    groupId: string;
+  }): Promise<{ role: GroupMemberRoles; subTeamId: string | null } | null>;
 
   /**
    * Thêm thành viên qua link mời.
@@ -86,9 +103,11 @@ export interface IGroupRepository {
     name: string;
   }): Promise<void>;
 
-  listSubTeams(
-    groupId: string,
-  ): Promise<{ subTeamId: string; name: string; memberCount: number }[]>;
+  /** `subTeamId` khác `undefined`/`null` = chỉ tổ đó (dành cho trưởng tổ). */
+  listSubTeams(params: {
+    groupId: string;
+    subTeamId?: string | null;
+  }): Promise<{ subTeamId: string; name: string; memberCount: number }[]>;
 
   /**
    * Xếp một thành viên vào tổ và/hoặc đổi vai.
@@ -102,12 +121,20 @@ export interface IGroupRepository {
   assignMember(params: {
     groupId: string;
     userId: string;
-    subTeamId: string | null;
+    /**
+     * `undefined` = GIỮ tổ hiện tại, `null` = gỡ khỏi tổ.
+     *
+     * Hai thứ này phải khác nhau. Gộp chúng lại thì không có cách nào đổi vai mà
+     * giữ tổ, và phong trưởng tổ cho ai sẽ gỡ họ khỏi đúng cái tổ họ sắp quản.
+     */
+    subTeamId?: string | null;
     role: GroupMemberRoles | null;
   }): Promise<boolean>;
 
   listMembers(params: {
     groupId: string;
+    /** Chỉ thành viên của tổ này. `undefined`/`null` = cả nhóm. */
+    subTeamId?: string | null;
     skip: number;
     take: number;
   }): Promise<{ items: IGroupMemberItem[]; total: number }>;
@@ -129,6 +156,10 @@ export interface IGroupRepository {
    *
    * Giữ nguyên membership, ledger và audit — chỉ đổi trạng thái. Xoá đi thì mọi
    * bút toán affiliate đã phát sinh trỏ vào một nhóm không còn tồn tại.
+   *
+   * Membership của nhóm đó cũng chuyển sang `DISSOLVED` trong CÙNG transaction:
+   * dòng ở lại làm lịch sử, nhưng thôi hiệu lực để thành viên cũ không bị khoá
+   * ngoài hệ thống nhóm vĩnh viễn.
    *
    * Trả số nhóm đã giải tán; `0` là bình thái khi người đó không sở hữu nhóm nào.
    */
