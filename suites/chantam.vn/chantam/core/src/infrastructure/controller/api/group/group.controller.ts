@@ -3,7 +3,9 @@ import {
   ICreateGroupUseCase,
   ICreateSubTeamUseCase,
   IDeleteSubTeamUseCase,
+  IGetGroupOverviewUseCase,
   IGetOwnGroupUseCase,
+  IListGroupActivitiesUseCase,
   IListGroupMembersUseCase,
   IListSubTeamsUseCase,
 } from '@/application/contracts/group';
@@ -49,8 +51,11 @@ import {
   CreateGroupBodyDto,
   CreateGroupResponseDto,
   CreateSubTeamBodyDto,
+  GetGroupOverviewResponseDto,
   GetOwnGroupResponseDto,
   GroupIdParamDto,
+  ListGroupActivitiesQueryDto,
+  ListGroupActivitiesResponseDto,
   ListGroupMembersQueryDto,
   ListGroupMembersResponseDto,
   ListSubTeamsResponseDto,
@@ -76,6 +81,10 @@ export class GroupController {
     private readonly assignGroupMemberUseCase: IAssignGroupMemberUseCase,
     @Inject(IDeleteSubTeamUseCase)
     private readonly deleteSubTeamUseCase: IDeleteSubTeamUseCase,
+    @Inject(IGetGroupOverviewUseCase)
+    private readonly getGroupOverviewUseCase: IGetGroupOverviewUseCase,
+    @Inject(IListGroupActivitiesUseCase)
+    private readonly listGroupActivitiesUseCase: IListGroupActivitiesUseCase,
   ) {}
 
   @Get('me')
@@ -124,6 +133,59 @@ export class GroupController {
     });
 
     return ResponseDto.create<CreateGroupResponseDto>()
+      .succeed()
+      .attach(result as never)
+      .build();
+  }
+
+  @Get(':groupId')
+  @ApiOperation({
+    summary: 'Trang tổng quan nhóm',
+    description:
+      'Cần `group.overview.view` TRÊN CHÍNH nhóm đó — quyền duy nhất của vai `MEMBER`, và tới 30/09 không dòng code nào kiểm nó. `inviteCode` CHỈ trả cho Owner. Nhóm không tồn tại và người xem không thuộc nhóm cùng một câu trả lời 404: phân biệt là cho người lạ dò xem id nào là một nhóm thật.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    GroupNotFoundException,
+  )
+  @ApiOkResponse({ type: ResponseDto.forApi(GetGroupOverviewResponseDto) })
+  public async getGroupOverview(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: GroupIdParamDto,
+  ): Promise<ResponseDto<GetGroupOverviewResponseDto>> {
+    const result = await this.getGroupOverviewUseCase.handle({
+      userId: principal.userId,
+      groupId: params.groupId,
+    });
+
+    return ResponseDto.create<GetGroupOverviewResponseDto>()
+      .succeed()
+      .attach(result as never)
+      .build();
+  }
+
+  @Get(':groupId/activities')
+  @ApiOperation({
+    summary: 'Dòng hoạt động của nhóm',
+    description:
+      'Cần `group.activity.view` (trả CẢ nhóm) hoặc `group.subteam.activity.view` (trả CHỈ hoạt động của người trong tổ mình). Ba loại sự kiện, dựng TỪ dữ liệu đã có chứ không từ một bảng sự kiện riêng: `MEMBER_JOINED`, `POST_PUBLISHED` (chỉ bài công khai), `GIFT_COMPLETED` (tính cho phía người tặng). `scopedToSubTeamId` nói rõ đang xem phạm vi nào.',
+  })
+  @ApiErrorResponses(...ApiTokenErrors, ForbiddenException)
+  @ApiOkResponse({ type: ResponseDto.forApi(ListGroupActivitiesResponseDto) })
+  public async listGroupActivities(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: GroupIdParamDto,
+    @Query() query: ListGroupActivitiesQueryDto,
+  ): Promise<ResponseDto<ListGroupActivitiesResponseDto>> {
+    const result = await this.listGroupActivitiesUseCase.handle({
+      userId: principal.userId,
+      groupId: params.groupId,
+      page: query.page,
+      limit: query.limit,
+    });
+
+    return ResponseDto.create<ListGroupActivitiesResponseDto>()
       .succeed()
       .attach(result as never)
       .build();

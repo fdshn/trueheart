@@ -61,6 +61,16 @@ set -e
 if [[ ${exit_code} -ne 0 ]]; then
   echo "[chantam-cron] ${CLI_NAME} thoát ${exit_code}; xem ${LOG_FILE}" >&2
   echo "${output}" >&2
+
+  # Đẩy tới kênh người thật đọc. Ghi stderr một mình là chưa đủ: crontab không có
+  # MAILTO, và kể cả có thì một VPS chỉ chạy docker-compose thường chưa cài MTA —
+  # cron ghi "no MTA, discarding output" rồi bỏ. Một job đỏ mà không ai biết thì
+  # y như job không chạy, và `post:expire` đã chết ba tháng theo đúng cách đó.
+  #
+  # `|| true` vì gửi cảnh báo thất bại KHÔNG được che mất exit code thật của CLI:
+  # cron cần thấy đúng mã lỗi của job, và `send-alert.sh` đã tự ghi lại lượt không
+  # gửi được vào file riêng.
+  "$(dirname "${BASH_SOURCE[0]}")/send-alert.sh"     "${CLI_NAME} thoát ${exit_code}"     "$(tail -n 30 <<<"${output}")" || true
 fi
 
 exit "${exit_code}"

@@ -1,6 +1,7 @@
 export * from './admin-comment.use-cases';
 export * from './admin-config.use-cases';
 export * from './admin-dashboard.use-case';
+export * from './admin-group-radius.use-cases';
 export * from './admin-group-role.use-cases';
 export * from './admin-maintenance-policy.use-cases';
 export * from './admin-point-rule.use-cases';

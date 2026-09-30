@@ -178,22 +178,9 @@ const KnownUnreadGroupPermissions: readonly {
   reason: string;
 }[] = [
   {
-    permission: 'group.overview.view',
-    reason:
-      'chưa có endpoint Group Detail; GET /groups/me đọc theo membership, không qua hasGroupPermission',
-  },
-  {
     permission: 'group.invite.view',
     reason:
       'chưa có endpoint quản lý link mời; inviteCode hiện trả kèm GET /groups/me và chỉ cho Owner',
-  },
-  {
-    permission: 'group.activity.view',
-    reason: 'chưa có endpoint hoạt động nhóm (F55)',
-  },
-  {
-    permission: 'group.subteam.activity.view',
-    reason: 'chưa có endpoint hoạt động, nên chưa có gì để giới hạn theo tổ',
   },
   {
     permission: 'group.affiliate.view',

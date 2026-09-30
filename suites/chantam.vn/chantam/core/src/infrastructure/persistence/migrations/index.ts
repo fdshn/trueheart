@@ -80,3 +80,4 @@ export * from './1795900000000-AddGroupMembershipStatus';
 export * from './1796000000000-ReviseModerationTerms';
 export * from './1796100000000-SeedGroupRadiusByRank';
 export * from './1796200000000-VersionGroupRolePermissions';
+export * from './1796300000000-GrantOverviewToSubTeamAdmin';

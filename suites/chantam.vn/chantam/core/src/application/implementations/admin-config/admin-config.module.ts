@@ -10,6 +10,7 @@ import {
   IGetAdminRankPolicyUseCase,
   IGetAdminUserUseCase,
   IGetCandidateSelectionUseCase,
+  IGetGroupRadiusPolicyUseCase,
   IGetGroupRolePermissionsUseCase,
   IGetNotificationChannelsUseCase,
   IGetOwnAdminAccessUseCase,
@@ -23,6 +24,7 @@ import {
   IPublishAdminMaintenancePolicyUseCase,
   IPublishAdminPointRuleUseCase,
   IPublishAdminRankPolicyUseCase,
+  IPublishGroupRadiusPolicyUseCase,
   IReleaseVerifiedPhoneUseCase,
   IReplaceGroupRolePermissionsUseCase,
   ISetCandidateSelectionUseCase,
@@ -41,6 +43,10 @@ import {
   PublishAdminConfigUseCase,
 } from './admin-config.use-cases';
 import { GetAdminDashboardUseCase } from './admin-dashboard.use-case';
+import {
+  GetGroupRadiusPolicyUseCase,
+  PublishGroupRadiusPolicyUseCase,
+} from './admin-group-radius.use-cases';
 import {
   GetGroupRolePermissionsUseCase,
   ReplaceGroupRolePermissionsUseCase,
@@ -110,6 +116,14 @@ import {
       useClass: PublishAdminConfigUseCase,
     },
     { provide: IGetAdminAuditLogsUseCase, useClass: GetAdminAuditLogsUseCase },
+    {
+      provide: IGetGroupRadiusPolicyUseCase,
+      useClass: GetGroupRadiusPolicyUseCase,
+    },
+    {
+      provide: IPublishGroupRadiusPolicyUseCase,
+      useClass: PublishGroupRadiusPolicyUseCase,
+    },
     {
       provide: IGetGroupRolePermissionsUseCase,
       useClass: GetGroupRolePermissionsUseCase,
@@ -187,7 +201,9 @@ import {
     IPublishAdminConfigUseCase,
     IGetAdminAuditLogsUseCase,
     IGetAdminRankPolicyUseCase,
+    IGetGroupRadiusPolicyUseCase,
     IGetGroupRolePermissionsUseCase,
+    IPublishGroupRadiusPolicyUseCase,
     IReplaceGroupRolePermissionsUseCase,
     IPublishAdminRankPolicyUseCase,
     IGetAdminPointRulesUseCase,

@@ -178,6 +178,94 @@ export class ListSubTeamsResponseDto {
   subTeams: SubTeamItemDto[];
 }
 
+export class GroupOverviewDto {
+  @ApiProperty({ format: 'uuid' }) groupId: string;
+  @ApiProperty({ format: 'uuid' }) ownerId: string;
+  @ApiProperty() ownerUsername: string;
+  @ApiProperty() name: string;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  description: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  avatarUrl: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  coverUrl: string | null;
+  @ApiProperty() regionLabel: string;
+  @ApiProperty({ description: 'Đơn vị KM. Snapshot lúc tạo, không đổi được.' })
+  radiusKm: number;
+  @ApiProperty({ enum: GroupStatuses }) status: GroupStatuses;
+  @ApiProperty() activatedAt: Date;
+  @ApiProperty() memberCount: number;
+  @ApiProperty() subTeamCount: number;
+  @ApiProperty({ enum: GroupMemberRoles }) myRole: GroupMemberRoles;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  mySubTeamId: string | null;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'CHỈ Owner thấy. Thành viên thường luôn nhận null.',
+  })
+  inviteCode: string | null;
+}
+
+export class GetGroupOverviewResponseDto {
+  @ApiProperty({ type: () => GroupOverviewDto })
+  group: GroupOverviewDto;
+}
+
+export class GroupActivityItemDto {
+  @ApiProperty({
+    enum: ['MEMBER_JOINED', 'POST_PUBLISHED', 'GIFT_COMPLETED'],
+  })
+  kind: string;
+
+  @ApiProperty() occurredAt: Date;
+  @ApiProperty({ format: 'uuid' }) actorId: string;
+  @ApiProperty() actorUsername: string;
+
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  subjectId: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Tiêu đề bài liên quan, nếu loại sự kiện có bài.',
+  })
+  subjectLabel: string | null;
+}
+
+export class ListGroupActivitiesResponseDto {
+  @ApiProperty({ type: () => [GroupActivityItemDto] })
+  activities: GroupActivityItemDto[];
+
+  @ApiProperty() total: number;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'null khi thấy CẢ nhóm, một id khi chỉ thấy tổ mình. Thiếu trường này thì trưởng tổ thấy danh sách ngắn và không hiểu vì sao thiếu người.',
+  })
+  scopedToSubTeamId: string | null;
+}
+
+export class ListGroupActivitiesQueryDto {
+  @ApiPropertyOptional({ minimum: 1, default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+}
+
 export class CreateSubTeamDto {
   @ApiProperty({ example: 'Tổ Dịch Vọng' })
   @IsString()

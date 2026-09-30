@@ -121,20 +121,49 @@ chết** — và không ai biết.
 
 ## Chưa có
 
-- ⛔ **Alert vào kênh người thật đọc.** `run-cli.sh` làm đúng phần của nó: giữ exit
-  code và ghi stderr, nên chạy thành công thì **không** gửi gì — chỉ lượt đỏ mới báo.
-  Nhưng crontab không có `MAILTO`, nên thư vào hộp local của user `deploy`.
+- ✅ **Alert đã nối** (30/09) — chỉ còn điền URL. `run-cli.sh` gọi
+  `send-alert.sh` khi job đỏ, và nó POST một JSON tới `$CHANTAM_CRON_ALERT_URL`.
 
-  Đặt `MAILTO` một mình **không đủ**. Cron luôn đi qua MTA cục bộ, mà một VPS chỉ
-  chạy docker-compose thường chưa cài MTA — lúc đó cron ghi "no MTA, discarding
-  output" rồi bỏ, bất kể `MAILTO` là gì. Gửi tới Gmail còn cần SPF/DKIM cho domain;
-  thiếu thì bị chặn im lặng, tức **có alert mà không biết mình không nhận được
-  alert** — kiểu hỏng tệ nhất cho một hệ báo động. Và credential SMTP sẽ tồn tại ở
-  hai nơi: app trong `system_configs`, hệ thống trong cấu hình MTA, nên lần đổi mật
-  khẩu nào cũng phải nhớ cả hai.
+  **Việc duy nhất cần làm để bật:** đặt biến đó trong môi trường của cron.
 
-  Hướng nhẹ hơn: một lượt `curl` trong `run-cli.sh` khi đỏ, URL đặt trong env var.
-  Không MTA, không SPF/DKIM, không nhân bản credential. Chờ Bên A chốt kênh.
+  ```bash
+  # Trong crontab, ngay dưới CHANTAM_DIR:
+  CHANTAM_CRON_ALERT_URL=https://hooks.slack.com/services/xxx/yyy/zzz
+  ```
+
+  Payload mang **cả `text` lẫn `content`** nên webhook của Slack, Mattermost hay
+  Discord đều đọc được mà không phải sửa script — mỗi bên bỏ qua khoá nó không
+  biết. Telegram cần hình khác (`chat_id` trên query string); nếu chốt Telegram thì
+  thêm một nhánh, và chưa thêm sẵn vì một nhánh không ai dùng là một nhánh không ai
+  thử.
+
+  **Không dùng `MAILTO`** vì cron luôn đi qua MTA cục bộ, mà một VPS chỉ chạy
+  docker-compose thường chưa cài MTA — lúc đó cron ghi "no MTA, discarding output"
+  rồi bỏ, bất kể `MAILTO` là gì. Gửi tới Gmail còn cần SPF/DKIM; thiếu thì bị chặn
+  im lặng, tức **có alert mà không biết mình không nhận được alert**. Và credential
+  SMTP sẽ tồn tại ở hai nơi: app trong `system_configs`, hệ thống trong cấu hình
+  MTA. Một lượt `curl` không cần thứ nào trong đó.
+
+  **Chưa đặt URL thì KHÔNG im lặng.** `send-alert.sh` ghi vào
+  `/var/log/chantam/alerts-chua-gui-duoc.log` và trả mã khác 0. Một hệ báo động
+  trông như đang chạy mà không gửi gì là đúng cái bệnh đã làm `post:expire` chết ba
+  tháng. Cùng lý do, lượt `curl` thất bại cũng được ghi vào đó — cảnh báo về việc
+  cảnh báo hỏng không đi qua cùng kênh đó được.
+
+  **Nhịp tim hằng tuần** (thứ Hai 09:07) để im lặng có nghĩa. Mọi dòng khác chỉ gửi
+  khi job đỏ, nên "cả tuần không có gì" vừa có thể là mọi thứ tốt, vừa có thể là
+  đường cảnh báo đã chết. Không thấy nhịp tim nghĩa là nó đã chết. Hằng tuần chứ
+  không hằng ngày: một dòng "vẫn ổn" mỗi ngày là thứ người ta học cách bỏ qua trong
+  hai tuần.
+
+  **Thử trước khi tin:** `bash scripts/test-cron-alert.sh` chạy thật qua HTTP —
+  dựng một webhook cục bộ, kiểm payload là JSON hợp lệ sau khi nhét log nhiều dòng
+  có dấu ngoặc kép, gạch chéo ngược và tab, kiểm cả hai nhánh thất bại. Nó đã bắt
+  được hai lỗi thật lúc viết: một dấu tab làm payload hỏng, và `python` đọc stdin
+  bằng code page của hệ nên mọi chữ có dấu ra mojibake.
+
+  Cần `jq` HOẶC `python` trên host để đóng gói JSON. Thiếu cả hai thì script từ
+  chối gửi và ghi lại — thà không gửi hơn là gửi một payload hỏng rồi tưởng đã gửi.
 
 - ✅ **KHÔNG cần job kiểm Active Member** — chốt 29/09, nên đừng thêm.
 

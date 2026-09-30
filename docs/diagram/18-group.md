@@ -10,12 +10,14 @@ tác dụng**, đổi vai **âm thầm gỡ người khỏi tổ**, thành viên
 băng vĩnh viễn**, và ba endpoint nhóm **chưa hề được validate** vì thiếu decorator ở khoá bọc
 body.
 
-Bảy endpoint nhóm: `POST /groups`, `GET /groups/me`, `GET /groups/:groupId/members`,
+Chín endpoint nhóm: `POST /groups`, `GET /groups/me`, `GET /groups/:groupId`,
+`GET /groups/:groupId/activities`, `GET /groups/:groupId/members`,
 `GET|POST /groups/:groupId/sub-teams`, `DELETE /groups/:groupId/sub-teams/:subTeamId`,
 `PATCH /groups/:groupId/members/:memberId` — chi tiết ở
 [API.md §11](../API.md#11-nhóm--groups).
 
-Và hai endpoint Admin cho bộ quyền vai: `GET|PUT /admin/groups/role-permissions[/:role]`.
+Và bốn endpoint Admin: `GET|PUT /admin/groups/role-permissions[/:role]` cho bộ quyền vai,
+`GET|PUT /admin/groups/radius-policy` cho thang bán kính.
 
 ⛔ **Còn thiếu (Sprint 3, cần Bên A chốt):** affiliate event engine (F56) và điều kiện địa lý
 bắt buộc (F57) — xem [`19-affiliate.md`](./19-affiliate.md).
@@ -324,10 +326,30 @@ flowchart TD
    `body-wrapper-guard.spec` đã có từ trước nhưng không thấy — nó chỉ soát wrapper **đã có**
    `@ValidateNested()`, nên wrapper không decorator nào thì vô hình. Nay nó soát mọi thuộc tính
    trong một class `*BodyDto` mà kiểu là một DTO khác.
-9. ⚠️ **`group.subteam.activity.view` còn là NỢ.** Trưởng tổ được cấp quyền này nhưng chưa có
-   endpoint hoạt động nhóm (F55) nên chưa ai kiểm nó. `test:config-inventory` khai nó kèm lý do;
-   nó không phải chỗ bỏ sót mà là chỗ chờ tính năng.
-10. ⚠️ **`MEMBER` vẫn là vai không có quyền nào CÓ TÁC DỤNG.** `group.overview.view` là quyền
-   duy nhất của họ và chưa có endpoint Group Detail để kiểm nó; `GET /groups/me` đọc theo
-   membership, không qua `hasGroupPermission`. `GET /admin/groups/role-permissions` trả
-   `effective: false` cho vai này để Admin thấy đúng hiện trạng thay vì đoán.
+9. ✅ **Đã có endpoint hoạt động và tổng quan** (30/09), nên `group.activity.view`,
+   `group.subteam.activity.view` và `group.overview.view` nay đều có người kiểm — **7 trên 10**
+   quyền có tác dụng, còn 3 là nợ (`group.invite.view`, `group.affiliate.view`,
+   `group.settings.manage`).
+
+   `GET /groups/:groupId` cần `group.overview.view` — quyền duy nhất của vai `MEMBER`, nên vai
+   đó nay không còn rỗng nghĩa.
+
+   `GET /groups/:groupId/activities` dùng **cặp quyền riêng**: `group.activity.view` (cả nhóm)
+   hoặc `group.subteam.activity.view` (chỉ tổ mình). Tách khỏi cặp quyền xem thành viên chứ
+   không dùng chung một hàm phạm vi: hai cặp là hai quyết định độc lập của Bên A, và gộp lại thì
+   sửa phạm vi xem thành viên sẽ âm thầm đổi cả phạm vi xem hoạt động.
+
+   Ba loại sự kiện, **dựng TỪ dữ liệu đã có** chứ không từ một bảng sự kiện riêng:
+   `MEMBER_JOINED`, `POST_PUBLISHED` (chỉ bài công khai), `GIFT_COMPLETED` (tính cho phía người
+   tặng). Một bảng riêng đòi mọi đường ghi phải nhớ append vào đó, và chỗ nào quên thì hoạt động
+   thiếu một cách không ai thấy — y như `post:expire` chết ba tháng. Đánh đổi: câu truy vấn đắt
+   hơn, và không mang được loại sự kiện nào không suy ra được từ dữ liệu hiện có.
+10. ⚠️ **Một lỗ chỉ hiện ra khi có endpoint để thử.** Bộ seed cho `MEMBER` mã
+   `group.overview.view` nhưng **bỏ sót `SUBTEAM_ADMIN`** — trưởng tổ mất một thứ thành viên
+   thường có, dù vai của họ là mở RỘNG chứ không thay thế. Ba tháng không ai thấy vì quyền đó
+   chưa có người kiểm; đúng lượt gọi thật đầu tiên thì nó thành 403. Sửa ở migration
+   `1796300000000`, ghi thành phiên bản mới qua đúng cơ chế copy-on-write.
+
+   Bài học: **một quyền chưa ai kiểm cũng chưa ai BIẾT là đúng.** Danh sách "seed mà chưa ai
+   kiểm" của `test:config-inventory` không phải chỗ cất quyền cho phép kiểm xanh — nó là danh
+   sách những chỗ chưa được chứng minh.

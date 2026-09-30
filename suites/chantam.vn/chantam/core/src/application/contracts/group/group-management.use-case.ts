@@ -1,3 +1,4 @@
+import { IGroupActivityItem, IGroupOverview } from '@/domain/ports/repository';
 import { GroupMemberRoles } from '@chantam.vn/chantam.core-lib/consts';
 import { IUseCase } from '@chantam/service.common-lib/use-case';
 
@@ -51,6 +52,50 @@ export interface ICreateSubTeamUseCase extends IUseCase<
 > {}
 
 export const ICreateSubTeamUseCase = Symbol('ICreateSubTeamUseCase');
+
+export interface IGetGroupOverviewCommand {
+  readonly userId: string;
+  readonly groupId: string;
+}
+
+export interface IGetGroupOverviewResult {
+  readonly group: IGroupOverview;
+}
+
+export interface IGetGroupOverviewUseCase extends IUseCase<
+  IGetGroupOverviewCommand,
+  IGetGroupOverviewResult
+> {}
+
+export const IGetGroupOverviewUseCase = Symbol('IGetGroupOverviewUseCase');
+
+export interface IListGroupActivitiesCommand {
+  readonly userId: string;
+  readonly groupId: string;
+  readonly page?: number;
+  readonly limit?: number;
+}
+
+export interface IListGroupActivitiesResult {
+  readonly activities: IGroupActivityItem[];
+  readonly total: number;
+  /**
+   * `null` khi người xem thấy CẢ nhóm, một id khi họ chỉ thấy tổ mình.
+   *
+   * Trả ra để client biết mình đang xem phạm vi nào — thiếu nó thì trưởng tổ thấy
+   * một danh sách ngắn và không hiểu vì sao thiếu người.
+   */
+  readonly scopedToSubTeamId: string | null;
+}
+
+export interface IListGroupActivitiesUseCase extends IUseCase<
+  IListGroupActivitiesCommand,
+  IListGroupActivitiesResult
+> {}
+
+export const IListGroupActivitiesUseCase = Symbol(
+  'IListGroupActivitiesUseCase',
+);
 
 export interface IDeleteSubTeamCommand {
   readonly userId: string;

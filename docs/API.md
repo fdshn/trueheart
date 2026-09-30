@@ -1140,14 +1140,17 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 | --- | --- |
 | `POST /groups` | Tạo nhóm |
 | `GET /groups/me` | Nhóm của tôi |
+| `GET /groups/:groupId` | Trang tổng quan nhóm |
+| `GET /groups/:groupId/activities` | Dòng hoạt động |
 | `GET /groups/:groupId/members` | Danh sách thành viên |
 | `GET /groups/:groupId/sub-teams` | Danh sách tổ |
 | `POST /groups/:groupId/sub-teams` | Tạo tổ |
 | `DELETE /groups/:groupId/sub-teams/:subTeamId` | Xoá tổ |
 | `PATCH /groups/:groupId/members/:memberId` | Xếp vào tổ / đổi vai |
 
-Và hai endpoint Admin cho bộ quyền vai: `GET /admin/groups/role-permissions`,
-`PUT /admin/groups/role-permissions/:role`.
+Và bốn endpoint Admin: `GET /admin/groups/role-permissions`,
+`PUT /admin/groups/role-permissions/:role`, `GET /admin/groups/radius-policy`,
+`PUT /admin/groups/radius-policy`.
 
 ### Tâm và bán kính KHÔNG nhận từ body
 
@@ -1236,6 +1239,45 @@ không xoá được tổ của chính mình vì họ không tạo ra nó.
   vai là để lại một người mang danh trưởng mà mọi endpoint đều từ chối.
 - Xoá MỀM, và gọi lần thứ hai trả `GroupNotFound` chứ không đè mốc xoá cũ — mốc bị đè là mất
   dấu thời điểm tổ thật sự biến mất.
+
+### `GET /groups/:groupId` và `/activities` — hai cặp quyền khác nhau
+
+| Endpoint | Quyền | Phạm vi |
+| --- | --- | --- |
+| `GET /groups/:groupId` | `group.overview.view` | trang nhóm; `inviteCode` chỉ Owner thấy |
+| `GET /groups/:groupId/activities` | `group.activity.view` | hoạt động CẢ nhóm |
+| ⬆ | chỉ `group.subteam.activity.view` | hoạt động của người trong tổ mình |
+
+Cặp quyền hoạt động tách khỏi cặp quyền xem thành viên: hai cặp là hai quyết định độc lập, và
+gộp lại thì sửa phạm vi xem thành viên sẽ âm thầm đổi cả phạm vi xem hoạt động. `scopedToSubTeamId`
+trong kết quả nói rõ đang xem phạm vi nào — thiếu nó thì trưởng tổ thấy danh sách ngắn và tưởng
+nhóm ít hoạt động.
+
+Ba loại sự kiện, **dựng từ dữ liệu đã có** chứ không từ bảng sự kiện riêng: `MEMBER_JOINED`,
+`POST_PUBLISHED` (chỉ bài công khai — hoạt động nhóm không phải đường xem bài nháp hay bài đã gỡ
+của người khác), `GIFT_COMPLETED` (tính cho phía người tặng).
+
+`GET /groups/:groupId` trả 404 cho cả hai ca "nhóm không tồn tại" và "bạn không thuộc nhóm này":
+phân biệt là cho người lạ dò xem id nào là một nhóm thật.
+
+### `GET|PUT /admin/groups/radius-policy` — cả thang một lượt
+
+Bốn khoá `group.radius_meters.<bậc>` vốn đã sửa được bằng `POST /admin/system-configs`. Endpoint
+này ghi trên **cùng bốn khoá đó**, nên hai đường ra cùng một chỗ. Nó tồn tại vì ba chỗ hụt của
+việc ghi từng khoá:
+
+1. **Không nguyên tử.** Hạ Kim Cương rồi mới nâng Vàng là có một khoảng thời gian Vàng rộng hơn
+   Kim Cương, và nhóm nào tạo trong khoảng đó mang bán kính sai **vĩnh viễn** — bán kính là
+   snapshot lúc tạo (BR-GRP-03).
+2. **Không kiểm được ràng buộc giữa các bậc.** "Đơn điệu tăng theo bậc" là bất biến của cả thang;
+   một lượt ghi thấy đúng một khoá thì không có gì để so. Phép kiểm chạy trên thang **đã trộn**
+   với giá trị đang có, nên sửa một bậc vẫn thấy quan hệ với ba bậc kia — kể cả khi chỉ đổi
+   `defaultMeters`, vì nó kéo theo mọi bậc đang thừa hưởng.
+3. **Admin thấy bốn dòng rời rạc** lẫn giữa mười mấy khoá khác, không thấy hình của cái thang.
+
+`GET` trả kèm `inherited` (bậc chưa có số riêng) và `canCreateGroup` (bậc THẬT SỰ tạo được nhóm —
+hôm nay chỉ Kim Cương, nên ba bậc dưới là số chờ sẵn chứ không phải vùng đang hoạt động), cùng
+`columnBoundsMeters` là cận tuyệt đối của cột, không nới bằng cấu hình.
 
 ### `GET|PUT /admin/groups/role-permissions` — bộ quyền vai, có phiên bản
 

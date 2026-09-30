@@ -78,10 +78,24 @@ export const KnownGroupPermissions: readonly string[] = [
   'group.settings.manage',
 ];
 
-/** Trong số trên, những mã có dòng code thật sự kiểm (soát 30/09). */
+/**
+ * Trong số trên, những mã có dòng code thật sự kiểm.
+ *
+ * Bảy trên mười, tính tới 30/09. Ba mã còn lại canh endpoint chưa tồn tại và được
+ * khai kèm lý do ở `test:config-inventory` — một mã rơi ra khỏi cả hai danh sách
+ * là phép kiểm đỏ.
+ *
+ * Danh sách này là NGUỒN DUY NHẤT: cờ `effective` của `GET /admin/groups/
+ * role-permissions` và phép kiểm "mỗi vai phải có ít nhất một quyền có tác dụng"
+ * đều đọc từ đây. Hai bản sao sẽ trôi khỏi nhau, và khi trôi thì Admin thấy cờ
+ * `effective` nói dối.
+ */
 export const EnforcedGroupPermissions: readonly string[] = [
+  'group.overview.view',
   'group.member.view',
   'group.member.assign_role',
   'group.subteam.manage',
   'group.subteam.member.view',
+  'group.activity.view',
+  'group.subteam.activity.view',
 ];

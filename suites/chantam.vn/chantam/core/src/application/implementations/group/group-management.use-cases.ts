@@ -6,6 +6,12 @@ import {
   ICreateSubTeamUseCase,
   IDeleteSubTeamCommand,
   IDeleteSubTeamUseCase,
+  IGetGroupOverviewCommand,
+  IGetGroupOverviewResult,
+  IGetGroupOverviewUseCase,
+  IListGroupActivitiesCommand,
+  IListGroupActivitiesResult,
+  IListGroupActivitiesUseCase,
   IListGroupMembersCommand,
   IListGroupMembersResult,
   IListGroupMembersUseCase,
@@ -78,6 +84,42 @@ async function resolveMemberScope(
   // Trưởng tổ chưa được xếp vào tổ nào thì KHÔNG có tổ để xem. Trả `null` ở đây
   // là biến "chưa có tổ" thành "xem được cả nhóm" — leo thang quyền bằng một
   // trường bỏ trống.
+  if (!membership?.subTeamId) throw new ForbiddenException();
+
+  return membership.subTeamId;
+}
+
+/**
+ * Phạm vi dòng hoạt động — cùng hình với `resolveMemberScope`, khác cặp quyền.
+ *
+ * Tách hai hàm chứ không thêm tham số: hai cặp quyền là hai quyết định độc lập
+ * của Bên A, và gộp lại thì sửa phạm vi xem thành viên sẽ âm thầm đổi cả phạm vi
+ * xem hoạt động.
+ */
+async function resolveActivityScope(
+  groups: IGroupRepository,
+  params: { userId: string; groupId: string },
+): Promise<string | null> {
+  if (
+    await groups.hasGroupPermission({
+      ...params,
+      permission: 'group.activity.view',
+    })
+  )
+    return null;
+
+  if (
+    !(await groups.hasGroupPermission({
+      ...params,
+      permission: 'group.subteam.activity.view',
+    }))
+  )
+    throw new ForbiddenException();
+
+  const membership = await groups.findMembership(params);
+
+  // Trưởng tổ chưa có tổ thì KHÔNG có hoạt động nào để xem. Trả `null` ở đây là
+  // biến "chưa có tổ" thành "xem được cả nhóm".
   if (!membership?.subTeamId) throw new ForbiddenException();
 
   return membership.subTeamId;
@@ -166,6 +208,62 @@ export class CreateSubTeamUseCase implements ICreateSubTeamUseCase {
     return {
       subTeams: await this.groups.listSubTeams({ groupId: command.groupId }),
     };
+  }
+}
+
+@Injectable()
+export class GetGroupOverviewUseCase implements IGetGroupOverviewUseCase {
+  public constructor(
+    @Inject(IGroupRepository) private readonly groups: IGroupRepository,
+  ) {}
+
+  public async handle(
+    command: IGetGroupOverviewCommand,
+  ): Promise<IGetGroupOverviewResult> {
+    // `group.overview.view` — quyền DUY NHẤT của vai MEMBER, và tới 30/09 không
+    // dòng code nào kiểm nó. Đây là endpoint làm nó có tác dụng.
+    await assertGroupPermission(this.groups, {
+      userId: command.userId,
+      groupId: command.groupId,
+      permission: 'group.overview.view',
+    });
+
+    const group = await this.groups.findOverview({
+      groupId: command.groupId,
+      viewerId: command.userId,
+    });
+    // Không tồn tại và không thuộc nhóm cùng một câu trả lời. Phân biệt là cho
+    // người lạ dò xem id nào là một nhóm thật.
+    if (!group) throw new GroupNotFoundException();
+
+    return { group };
+  }
+}
+
+@Injectable()
+export class ListGroupActivitiesUseCase implements IListGroupActivitiesUseCase {
+  public constructor(
+    @Inject(IGroupRepository) private readonly groups: IGroupRepository,
+  ) {}
+
+  public async handle(
+    command: IListGroupActivitiesCommand,
+  ): Promise<IListGroupActivitiesResult> {
+    const subTeamId = await resolveActivityScope(this.groups, {
+      userId: command.userId,
+      groupId: command.groupId,
+    });
+
+    const take = Math.min(MaxPageSize, command.limit ?? DefaultPageSize);
+    const skip = Math.max(0, ((command.page ?? 1) - 1) * take);
+    const { items, total } = await this.groups.listActivities({
+      groupId: command.groupId,
+      subTeamId,
+      skip,
+      take,
+    });
+
+    return { activities: items, total, scopedToSubTeamId: subTeamId };
   }
 }
 

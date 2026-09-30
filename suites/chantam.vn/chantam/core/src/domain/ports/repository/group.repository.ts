@@ -32,6 +32,36 @@ export interface IGroupSummary {
   readonly myRole: GroupMemberRoles | null;
 }
 
+export interface IGroupOverview {
+  readonly groupId: string;
+  readonly ownerId: string;
+  readonly ownerUsername: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly avatarUrl: string | null;
+  readonly coverUrl: string | null;
+  readonly regionLabel: string;
+  readonly radiusKm: number;
+  readonly status: GroupStatuses;
+  readonly activatedAt: Date;
+  readonly memberCount: number;
+  readonly subTeamCount: number;
+  readonly myRole: GroupMemberRoles;
+  readonly mySubTeamId: string | null;
+  /** Chỉ Owner mới thấy — cùng quy tắc với `GET /groups/me`. */
+  readonly inviteCode: string | null;
+}
+
+export interface IGroupActivityItem {
+  readonly kind: 'MEMBER_JOINED' | 'POST_PUBLISHED' | 'GIFT_COMPLETED';
+  readonly occurredAt: Date;
+  readonly actorId: string;
+  readonly actorUsername: string;
+  /** Bài liên quan, nếu loại sự kiện có. */
+  readonly subjectId: string | null;
+  readonly subjectLabel: string | null;
+}
+
 export interface IGroupMemberItem {
   readonly userId: string;
   readonly username: string;
@@ -53,6 +83,36 @@ export interface IGroupRepository {
 
   /** Nhóm người này đang thuộc về, kèm vai. `null` khi chưa vào nhóm nào. */
   findMine(userId: string): Promise<IGroupSummary | null>;
+
+  /**
+   * Trang tổng quan một nhóm, nhìn từ mắt `viewerId`.
+   *
+   * `null` khi nhóm không tồn tại HOẶC người xem không thuộc nhóm đó — câu truy
+   * vấn `INNER JOIN` membership, nên nó không phụ thuộc vào việc tầng trên có
+   * nhớ kiểm quyền hay không.
+   */
+  findOverview(params: {
+    groupId: string;
+    viewerId: string;
+  }): Promise<IGroupOverview | null>;
+
+  /**
+   * Dòng hoạt động của nhóm, dựng TỪ dữ liệu đã có (F55).
+   *
+   * Ba loại: thành viên mới vào, bài công khai của thành viên, lượt trao hoàn tất
+   * tính cho phía người tặng. Không có bảng sự kiện riêng — một bảng như vậy đòi
+   * mọi đường ghi phải nhớ append vào đó, và chỗ nào quên thì hoạt động thiếu một
+   * cách không ai thấy.
+   *
+   * `subTeamId` khác rỗng = chỉ hoạt động của người trong tổ đó (dành cho trưởng
+   * tổ, quyền `group.subteam.activity.view`).
+   */
+  listActivities(params: {
+    groupId: string;
+    subTeamId?: string | null;
+    skip: number;
+    take: number;
+  }): Promise<{ items: IGroupActivityItem[]; total: number }>;
 
   /**
    * Nhóm còn ACTIVE ứng với mã mời.

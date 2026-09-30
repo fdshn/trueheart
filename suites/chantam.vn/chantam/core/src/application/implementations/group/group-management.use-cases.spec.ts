@@ -7,6 +7,8 @@ import {
 import {
   AssignGroupMemberUseCase,
   DeleteSubTeamUseCase,
+  GetGroupOverviewUseCase,
+  ListGroupActivitiesUseCase,
   ListGroupMembersUseCase,
   ListSubTeamsUseCase,
 } from './group-management.use-cases';
@@ -27,6 +29,7 @@ function makeGroups(options: {
   membership?: { role: GroupMemberRoles; subTeamId: string | null } | null;
   assignResult?: boolean;
   deleteResult?: boolean;
+  overview?: unknown;
 }) {
   return {
     deleteSubTeam: jest.fn(async () => options.deleteResult ?? true),
@@ -36,6 +39,8 @@ function makeGroups(options: {
     findMembership: jest.fn(async () => options.membership ?? null),
     listMembers: jest.fn(async () => ({ items: [], total: 0 })),
     listSubTeams: jest.fn(async () => []),
+    listActivities: jest.fn(async () => ({ items: [], total: 0 })),
+    findOverview: jest.fn(async () => options.overview ?? null),
     assignMember: jest.fn(async () => options.assignResult ?? true),
   };
 }
@@ -247,5 +252,100 @@ describe('DeleteSubTeamUseCase', () => {
     await run(groups);
 
     expect(groups.listSubTeams).toHaveBeenCalledWith({ groupId: GroupId });
+  });
+});
+
+describe('GetGroupOverviewUseCase', () => {
+  const run = (groups: ReturnType<typeof makeGroups>) =>
+    new GetGroupOverviewUseCase(groups as never).handle({
+      userId: CallerId,
+      groupId: GroupId,
+    });
+
+  it('đòi group.overview.view — quyền duy nhất của vai MEMBER', async () => {
+    // Tới 30/09 không dòng code nào kiểm quyền này, nên gán vai MEMBER không đổi
+    // một thứ gì. Đây là endpoint làm nó có tác dụng.
+    const groups = makeGroups({ grants: [] });
+
+    await expect(run(groups)).rejects.toThrow(ForbiddenException);
+    expect(groups.findOverview).not.toHaveBeenCalled();
+  });
+
+  it('nhóm không tồn tại và không thuộc nhóm cùng một câu trả lời', async () => {
+    // Phân biệt là cho người lạ dò xem id nào là một nhóm thật.
+    const groups = makeGroups({ grants: ['group.overview.view'] });
+
+    await expect(run(groups)).rejects.toThrow(GroupNotFoundException);
+  });
+
+  it('trả tổng quan khi đủ quyền', async () => {
+    const groups = makeGroups({
+      grants: ['group.overview.view'],
+      overview: { groupId: GroupId, name: 'Nhóm thử' },
+    });
+
+    await expect(run(groups)).resolves.toEqual({
+      group: { groupId: GroupId, name: 'Nhóm thử' },
+    });
+    expect(groups.findOverview).toHaveBeenCalledWith({
+      groupId: GroupId,
+      viewerId: CallerId,
+    });
+  });
+});
+
+describe('ListGroupActivitiesUseCase — phạm vi riêng khỏi xem thành viên', () => {
+  const run = (groups: ReturnType<typeof makeGroups>) =>
+    new ListGroupActivitiesUseCase(groups as never).handle({
+      userId: CallerId,
+      groupId: GroupId,
+    });
+
+  it('có group.activity.view thì thấy CẢ nhóm', async () => {
+    const groups = makeGroups({ grants: ['group.activity.view'] });
+    const result = await run(groups);
+
+    expect(groups.listActivities).toHaveBeenCalledWith(
+      expect.objectContaining({ subTeamId: null }),
+    );
+    expect(result.scopedToSubTeamId).toBeNull();
+  });
+
+  it('trưởng tổ chỉ thấy hoạt động của tổ mình', async () => {
+    const groups = makeGroups({
+      grants: ['group.subteam.activity.view'],
+      membership: {
+        role: GroupMemberRoles.SUBTEAM_ADMIN,
+        subTeamId: SubTeamId,
+      },
+    });
+    const result = await run(groups);
+
+    expect(groups.listActivities).toHaveBeenCalledWith(
+      expect.objectContaining({ subTeamId: SubTeamId }),
+    );
+    // Trả ra phạm vi để client không tưởng danh sách ngắn là nhóm ít hoạt động.
+    expect(result.scopedToSubTeamId).toBe(SubTeamId);
+  });
+
+  it('quyền xem THÀNH VIÊN không mở được hoạt động', async () => {
+    // Hai cặp quyền là hai quyết định độc lập. Gộp lại thì sửa phạm vi xem thành
+    // viên sẽ âm thầm đổi cả phạm vi xem hoạt động.
+    const groups = makeGroups({
+      grants: ['group.member.view', 'group.subteam.member.view'],
+      membership: { role: GroupMemberRoles.OWNER, subTeamId: null },
+    });
+
+    await expect(run(groups)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('trưởng tổ chưa có tổ thì bị từ chối, KHÔNG phải xem cả nhóm', async () => {
+    const groups = makeGroups({
+      grants: ['group.subteam.activity.view'],
+      membership: { role: GroupMemberRoles.SUBTEAM_ADMIN, subTeamId: null },
+    });
+
+    await expect(run(groups)).rejects.toThrow(ForbiddenException);
+    expect(groups.listActivities).not.toHaveBeenCalled();
   });
 });

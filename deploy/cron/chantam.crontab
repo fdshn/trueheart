@@ -92,3 +92,17 @@ RUN=/home/deploy/chantam/deploy/cron/run-cli.sh
 # thiếu một dòng là xoá sạch ảnh của cả một phân hệ. Để nó báo con số hằng tuần;
 # thấy con số bất thường thì người thật xem rồi mới chạy tay với `--apply`.
 29 5 * * 2 deploy $RUN $CHANTAM_DIR media-sweep-orphans
+
+# ─── Nhịp tim của chính hệ cảnh báo ─────────────────────────────────────────
+#
+# Vì sao cần: mọi dòng trên chỉ gửi cảnh báo khi job ĐỎ. Nên "cả tuần không có
+# cảnh báo nào" có hai nghĩa không phân biệt được — mọi thứ chạy tốt, hoặc đường
+# cảnh báo đã chết (URL sai, webhook bị thu hồi, host mất mạng ra ngoài). Đó là
+# kiểu hỏng tệ nhất của một hệ báo động: nó im lặng đúng lúc cần nói.
+#
+# Một nhịp tim mỗi tuần làm im lặng trở thành tín hiệu: KHÔNG thấy nhịp tim nghĩa
+# là đường cảnh báo hỏng, bất kể job có đỏ hay không.
+#
+# Hằng tuần chứ không hằng ngày: một dòng "vẫn ổn" mỗi ngày là thứ người ta học
+# cách bỏ qua trong hai tuần, và khi đã bỏ qua thì nó không còn là nhịp tim.
+7 9 * * 1 deploy $CHANTAM_DIR/deploy/cron/send-alert.sh "nhịp tim hằng tuần" "Đường cảnh báo còn sống. Không nhận được dòng này nghĩa là nó đã chết — kiểm CHANTAM_CRON_ALERT_URL và $CHANTAM_CRON_LOG_DIR/alerts-chua-gui-duoc.log" >/dev/null 2>&1

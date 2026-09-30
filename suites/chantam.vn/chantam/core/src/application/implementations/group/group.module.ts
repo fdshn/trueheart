@@ -3,7 +3,9 @@ import {
   ICreateGroupUseCase,
   ICreateSubTeamUseCase,
   IDeleteSubTeamUseCase,
+  IGetGroupOverviewUseCase,
   IGetOwnGroupUseCase,
+  IListGroupActivitiesUseCase,
   IListGroupMembersUseCase,
   IListSubTeamsUseCase,
 } from '@/application/contracts/group';
@@ -12,6 +14,8 @@ import {
   AssignGroupMemberUseCase,
   CreateSubTeamUseCase,
   DeleteSubTeamUseCase,
+  GetGroupOverviewUseCase,
+  ListGroupActivitiesUseCase,
   ListGroupMembersUseCase,
   ListSubTeamsUseCase,
 } from './group-management.use-cases';
@@ -27,6 +31,11 @@ import { CreateGroupUseCase, GetOwnGroupUseCase } from './group.use-cases';
     { provide: ICreateSubTeamUseCase, useClass: CreateSubTeamUseCase },
     { provide: IAssignGroupMemberUseCase, useClass: AssignGroupMemberUseCase },
     { provide: IDeleteSubTeamUseCase, useClass: DeleteSubTeamUseCase },
+    { provide: IGetGroupOverviewUseCase, useClass: GetGroupOverviewUseCase },
+    {
+      provide: IListGroupActivitiesUseCase,
+      useClass: ListGroupActivitiesUseCase,
+    },
   ],
   exports: [
     ICreateGroupUseCase,
@@ -36,6 +45,8 @@ import { CreateGroupUseCase, GetOwnGroupUseCase } from './group.use-cases';
     ICreateSubTeamUseCase,
     IAssignGroupMemberUseCase,
     IDeleteSubTeamUseCase,
+    IGetGroupOverviewUseCase,
+    IListGroupActivitiesUseCase,
   ],
 })
 export class GroupModule {}

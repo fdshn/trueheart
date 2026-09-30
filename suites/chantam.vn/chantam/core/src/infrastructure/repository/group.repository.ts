@@ -1,6 +1,8 @@
 import {
   ICreateGroupParams,
+  IGroupActivityItem,
   IGroupMemberItem,
+  IGroupOverview,
   IGroupRepository,
   IGroupSummary,
 } from '@/domain/ports/repository';
@@ -129,6 +131,94 @@ export class GroupRepository
       inviteCode:
         row.my_role === GroupMemberRoles.OWNER ? row.invite_code : null,
       myRole: row.my_role,
+    };
+  }
+
+  public async findOverview(params: {
+    groupId: string;
+    viewerId: string;
+  }): Promise<IGroupOverview | null> {
+    const [row] = await this.entityManager.query<
+      {
+        group_id: string;
+        owner_id: string;
+        owner_username: string;
+        name: string;
+        description: string | null;
+        avatar_url: string | null;
+        cover_url: string | null;
+        region_label: string;
+        radius_km: string;
+        status: GroupStatuses;
+        activated_at: Date;
+        invite_code: string;
+        my_role: GroupMemberRoles;
+        my_sub_team_id: string | null;
+        member_count: string;
+        sub_team_count: string;
+      }[]
+    >(
+      `
+        SELECT team.global_id AS group_id,
+               team.owner_id,
+               owner.username AS owner_username,
+               team.name,
+               team.description,
+               team.avatar_url,
+               team.cover_url,
+               team.region_label,
+               team.radius_km,
+               team.status,
+               team.activated_at,
+               team.invite_code,
+               mine.role AS my_role,
+               mine.sub_team_id AS my_sub_team_id,
+               headcount.total AS member_count,
+               teams.total AS sub_team_count
+        FROM groups team
+        INNER JOIN users owner ON owner.global_id = team.owner_id
+        -- INNER JOIN, không LEFT: người ngoài nhóm không đọc được trang nhóm.
+        -- Quyền đã kiểm ở tầng trên, nhưng để LEFT ở đây là mở một đường thứ hai
+        -- mà lần sau ai bỏ phép kiểm kia sẽ không thấy gì hỏng.
+        INNER JOIN group_memberships mine
+          ON mine.group_id = team.global_id
+         AND mine.user_id = $2
+         AND mine.status = $3
+        CROSS JOIN LATERAL (
+          SELECT COUNT(*)::text AS total FROM group_memberships everyone
+          WHERE everyone.group_id = team.global_id AND everyone.status = $3
+        ) headcount
+        CROSS JOIN LATERAL (
+          SELECT COUNT(*)::text AS total FROM sub_teams sub
+          WHERE sub.group_id = team.global_id AND sub.deleted_at IS NULL
+        ) teams
+        WHERE team.global_id = $1 AND team.deleted_at IS NULL
+      `,
+      [params.groupId, params.viewerId, GroupMembershipStatuses.ACTIVE],
+    );
+
+    if (!row) return null;
+
+    return {
+      groupId: row.group_id,
+      ownerId: row.owner_id,
+      ownerUsername: row.owner_username,
+      name: row.name,
+      description: row.description,
+      avatarUrl: row.avatar_url,
+      coverUrl: row.cover_url,
+      regionLabel: row.region_label,
+      radiusKm: Number(row.radius_km),
+      status: row.status,
+      activatedAt: row.activated_at,
+      memberCount: Number(row.member_count),
+      subTeamCount: Number(row.sub_team_count),
+      myRole: row.my_role,
+      mySubTeamId: row.my_sub_team_id,
+      // Cùng quy tắc với `GET /groups/me`: link mời là cửa vào nhóm, lộ cho thành
+      // viên thường là cho họ mời người khác thay Owner.
+      inviteCode:
+        row.my_role === GroupMemberRoles.OWNER ? row.invite_code : null,
     };
   }
 
@@ -407,6 +497,102 @@ export class GroupRepository
         subTeamId: row.sub_team_id,
         subTeamName: row.sub_team_name,
         joinedAt: row.joined_at,
+      })),
+      total: Number(rows[0]?.total ?? 0),
+    };
+  }
+
+  public async listActivities(params: {
+    groupId: string;
+    subTeamId?: string | null;
+    skip: number;
+    take: number;
+  }): Promise<{ items: IGroupActivityItem[]; total: number }> {
+    // Hoạt động DỰNG TỪ dữ liệu đã có, không phải một bảng sự kiện riêng. Một
+    // bảng riêng đòi mọi đường ghi phải nhớ append vào đó, và chỗ nào quên thì
+    // hoạt động thiếu một cách không ai thấy — y như `post:expire` chết ba tháng.
+    //
+    // Đánh đổi: câu này đắt hơn đọc một bảng phẳng, và không mang được loại sự
+    // kiện nào không suy ra được từ dữ liệu hiện có. Khi cần loại thứ tư thì đó
+    // là lúc bàn bảng riêng, không phải bây giờ.
+    const rows = await this.entityManager.query<
+      {
+        kind: string;
+        occurred_at: Date;
+        actor_id: string;
+        actor_username: string;
+        subject_id: string | null;
+        subject_label: string | null;
+        total: string;
+      }[]
+    >(
+      `
+        WITH roster AS (
+          SELECT membership.user_id, membership.sub_team_id
+          FROM group_memberships membership
+          WHERE membership.group_id = $1
+            AND membership.status = $4
+            AND ($5::uuid IS NULL OR membership.sub_team_id = $5::uuid)
+        ), events AS (
+          -- Thành viên mới vào nhóm.
+          SELECT 'MEMBER_JOINED' AS kind,
+                 membership.joined_at AS occurred_at,
+                 membership.user_id AS actor_id,
+                 NULL::uuid AS subject_id,
+                 NULL::text AS subject_label
+          FROM group_memberships membership
+          INNER JOIN roster ON roster.user_id = membership.user_id
+          WHERE membership.group_id = $1 AND membership.status = $4
+
+          UNION ALL
+
+          -- Bài đăng của thành viên. Chỉ bài CÔNG KHAI: hoạt động nhóm không phải
+          -- đường xem bài nháp hay bài bị gỡ của người khác.
+          SELECT 'POST_PUBLISHED', post.created_at, post.author_id,
+                 post.global_id, post.title
+          FROM posts post
+          INNER JOIN roster ON roster.user_id = post.author_id
+          WHERE post.status = 'PUBLISHED' AND post.deleted_at IS NULL
+
+          UNION ALL
+
+          -- Lượt trao hoàn tất, tính cho phía NGƯỜI TẶNG trong nhóm.
+          SELECT 'GIFT_COMPLETED', txn.completed_at, txn.giver_id,
+                 txn.post_id, post.title
+          FROM gift_transactions txn
+          INNER JOIN roster ON roster.user_id = txn.giver_id
+          INNER JOIN posts post ON post.global_id = txn.post_id
+          WHERE txn.completed_at IS NOT NULL
+        )
+        SELECT events.kind,
+               events.occurred_at,
+               events.actor_id,
+               person.username AS actor_username,
+               events.subject_id,
+               events.subject_label,
+               COUNT(*) OVER () AS total
+        FROM events
+        INNER JOIN users person ON person.global_id = events.actor_id
+        ORDER BY events.occurred_at DESC, events.actor_id ASC
+        LIMIT $2 OFFSET $3
+      `,
+      [
+        params.groupId,
+        params.take,
+        params.skip,
+        GroupMembershipStatuses.ACTIVE,
+        params.subTeamId ?? null,
+      ],
+    );
+
+    return {
+      items: rows.map((row) => ({
+        kind: row.kind as IGroupActivityItem['kind'],
+        occurredAt: row.occurred_at,
+        actorId: row.actor_id,
+        actorUsername: row.actor_username,
+        subjectId: row.subject_id,
+        subjectLabel: row.subject_label,
       })),
       total: Number(rows[0]?.total ?? 0),
     };
