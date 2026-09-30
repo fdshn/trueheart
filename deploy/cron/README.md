@@ -9,7 +9,11 @@ từ bên trong. Lịch nằm ngoài là chỗ duy nhất biết "chỉ một m�
 ```bash
 # Trên VPS, dưới user deploy
 sudo install -o deploy -g deploy -d /var/log/chantam
-chmod +x /home/deploy/chantam/deploy/cron/run-cli.sh
+
+# Bit thực thi đã được git giữ từ 30/09, nên bản checkout mới không cần bước
+# này. Giữ lại cho những máy đã clone trước đó — và `chmod` trên file vốn đã
+# +x thì không hại gì.
+chmod +x /home/deploy/chantam/deploy/cron/*.sh
 
 # Sửa CHANTAM_DIR trong file crontab cho khớp môi trường, rồi:
 sudo cp deploy/cron/chantam.crontab /etc/cron.d/chantam

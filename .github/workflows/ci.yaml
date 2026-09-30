@@ -57,6 +57,17 @@ jobs:
       - name: Unit test
         run: npm test
 
+      - name: Hợp đồng chạy của smoke-cli
+        # Deploy nạp `smoke-cli.sh` qua stdin (`bash -s < ...`), nơi `$0` là
+        # "bash" chứ không phải đường dẫn file. CI gọi nó bằng
+        # `bash scripts/smoke-cli.sh` nên `$0` đúng và lỗi đó KHÔNG BAO GIỜ lộ
+        # ra ở đây — 30/09 nó chỉ đổ ở bước release, sau khi mọi cổng đã xanh.
+        #
+        # Nằm ở `verify` chứ không phải `integration`: phép kiểm này không cần
+        # database, Redis hay MinIO. Để trong `integration` thì một lượt pull
+        # ảnh hỏng là nó không bao giờ chạy.
+        run: bash scripts/smoke-cli.spec.sh
+
       - name: Bảng tra mã lỗi còn khớp mã nguồn
         # docs/API-ERRORS.md sinh từ danh mục lỗi. Thêm lỗi mà quên chạy lại
         # `npm run docs:errors` thì bảng tra của bên mobile nói sai — chặn ở đây.
@@ -205,6 +216,7 @@ jobs:
         # 30/09 nó đỏ tại HEAD và không ai biết, vì nó chưa từng được nối vào đây — và nó
         # đỏ vì danh sách route chép tay trong mock của chính nó đã cũ 19 route.
         run: bash scripts/smoke-docs-policy.spec.sh
+
 
       - name: Kiểm hợp đồng UPDATE ... RETURNING
         # `query()` bọc kết quả UPDATE/DELETE thành [rows, affected] nhưng

@@ -26,6 +26,16 @@ ok() { printf '  OK   %s\n' "$1"; pass=$((pass + 1)); }
 ko() { printf '  LỖI  %s — %s\n' "$1" "${2:-}"; fail=$((fail + 1)); }
 check() { if [[ "$1" == 'true' ]]; then ok "$2"; else ko "$2" "${3:-}"; fi; }
 
+# Crontab gọi THẲNG các script này, không qua `bash`, nên mất bit thực thi là
+# mọi job chết với exit 126. Kiểm trước mọi thứ khác: thiếu bit thì bốn mục dưới
+# đều đỏ vì cùng một lý do, và không mục nào nói ra lý do đó.
+echo '0. Script cron còn bit thực thi'
+for script in run-cli.sh send-alert.sh check-health.sh; do
+  check "$([[ -x "${ROOT}/deploy/cron/${script}" ]] && echo true || echo false)" \
+    "${script} chạy trực tiếp được" 'thiếu bit x — git update-index --chmod=+x'
+done
+echo
+
 echo '1. Chưa cấu hình URL thì KHÔNG im lặng'
 set +e
 CHANTAM_CRON_ALERT_URL='' CHANTAM_CRON_LOG_DIR="${WORK}/logs" \

@@ -40,7 +40,14 @@
 # Mọi CLI khác phải thoát 0.
 set -uo pipefail
 
-cd "$(dirname "$0")/../suites/chantam.vn/chantam/core" || exit 1
+# Cây mã nguồn khi chạy tại chỗ. BỎ QUA khi caller đã chỉ định
+# `CHANTAM_CLI_WORKDIR`: trên host triển khai không có cây mã nguồn, và deploy
+# nạp script này qua stdin (`bash -s < scripts/smoke-cli.sh`) nên `$0` là
+# "bash" chứ không phải đường dẫn file — `dirname` cho ra `.`, và `cd` xuống
+# `./../suites/...` tính từ thư mục home của tài khoản SSH.
+if [[ -z "${CHANTAM_CLI_WORKDIR:-}" ]]; then
+  cd "$(dirname "$0")/../suites/chantam.vn/chantam/core" || exit 1
+fi
 
 # `media-sweep-orphans` cố ý KHÔNG có trong danh sách chạy ghi: nó xoá object
 # không hoàn tác được. Chạy khô thì an toàn, nên nó nằm ở nhóm dry-run.
