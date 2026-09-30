@@ -71,7 +71,12 @@ jobs:
   integration:
     name: Kiểm thử tích hợp (PostGIS thật)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # 40 chứ không 25: bước "mọi script kiểm chứng" chạy 30 script tuần tự, mất
+    # khoảng 6 phút trên máy local và runner CI chậm hơn. Tuần tự là bắt buộc —
+    # nhiều script dựng database nháp riêng rồi drop, chạy song song là đạp lên
+    # nhau. Thà job dài hơn còn hơn bỏ lớp kiểm chứng duy nhất thấy được những lỗi
+    # mà unit test mock `query` không thể thấy.
+    timeout-minutes: 40
 
     services:
       postgres:
@@ -213,6 +218,65 @@ jobs:
         # nhau. Lần đầu chạy nó tìm ra 24/25 vòng bị deadlock.
         working-directory: suites/chantam.vn/chantam/core
         run: npm run test:concurrency
+
+      - name: Mọi script kiểm chứng trên Postgres thật
+        # 25 trong 30 script `test/*.check.ts` trước 30/09 chỉ chạy khi có người gõ
+        # tay, dù chúng là lớp duy nhất bắt được những lỗi mà unit test mock
+        # `query` không thể thấy.
+        #
+        # Bước này bắt được ngay hai cái ở lượt đầu, và cả hai do migration
+        # `1795700000000` seed thêm `chat.retention` + `rank.points_source` gây ra:
+        #
+        #   - `chat-purge` nổ `UQ_system_configs_key_version` vì nó ghi cứng
+        #     version 1 — hỏng ỒN ÀO.
+        #   - `redemption` dùng `ON CONFLICT DO NOTHING` nên lượt ghi bị bỏ qua
+        #     LẶNG LẼ: cấu hình vẫn là BALANCE, và phép kiểm "nguồn LIFETIME thì
+        #     không cảnh báo tụt hạng" đo một thứ nó tưởng đã đặt. Kiểu này tệ hơn.
+        #
+        # Cả hai lọt qua nhiều commit. Sửa bằng `test/publish-config-version.ts`.
+        #
+        # Chạy TUẦN TỰ và `--no-bail` kiểu thủ công: nhiều script dựng database
+        # nháp riêng rồi drop, nên chạy song song là chúng đạp lên nhau. Vòng lặp
+        # thu hết lỗi để một lượt CI báo mọi script hỏng, không chỉ script đầu tiên.
+        working-directory: suites/chantam.vn/chantam/core
+        run: |
+          SCRIPTS=$(node -e "
+            const p = require('./package.json');
+            const skip = new Set([
+              'test:cov', 'test:watch',
+              // Đã chạy ở bước riêng phía trên, có chú thích lý do ở đó.
+              'test:config-inventory', 'test:returning', 'test:lifecycle',
+              'test:concurrency',
+              // Cần service HTTP + WebSocket đang chạy — chạy sau khi service lên.
+              'test:chat-e2e',
+            ]);
+            console.log(
+              Object.keys(p.scripts)
+                .filter((k) => k.startsWith('test:') && !skip.has(k))
+                .join(' '),
+            );
+          ")
+          failed=''
+          for s in $SCRIPTS; do
+            echo "::group::$s"
+            if npm run "$s"; then
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error::$s thất bại"
+              failed="$failed $s"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "Script kiểm chứng thất bại:$failed"
+            exit 1
+          fi
+
+      - name: Kiểm đường cảnh báo cron
+        # Một hệ báo động chưa ai thử là một hệ báo động không biết mình có chạy
+        # hay không, và đó là kiểu hỏng tệ nhất — khi cần tới nó thì đã muộn.
+        # Script dựng một webhook cục bộ và kiểm cả hai nhánh thất bại.
+        run: bash scripts/test-cron-alert.sh
 
       - name: Khởi tạo dữ liệu demo
         working-directory: suites/chantam.vn/chantam/core

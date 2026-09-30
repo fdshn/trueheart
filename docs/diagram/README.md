@@ -41,19 +41,19 @@ hệ thống đã làm xong những việc chưa ai viết một dòng code.
 
 | # | Sơ đồ | Nội dung | Trạng thái |
 | --- | --- | --- | --- |
-| 07 | [Xin nhận & chọn người](./07-request.md) | Hàng đợi, 3 chế độ chọn, countdown 7 ngày, auto-select, dự phòng | ✅ ⛔ |
+| 07 | [Xin nhận & chọn người](./07-request.md) | Hàng đợi, 3 chế độ chọn, countdown 7 ngày, auto-select, dự phòng | ✅ |
 | 08 | [Vòng đời lượt trao](./08-transaction.md) | Chấp nhận → bàn giao → xác nhận → hoàn tất, huỷ, tự hoàn tất | ✅ ⚠️ |
-| 09 | [Chat](./09-chat.md) | Phòng chat, tin nhắn, ảnh, realtime, dọn tin quá hạn | ✅ |
+| 09 | [Chat](./09-chat.md) | Phòng chat, tin nhắn, ảnh, realtime, dọn tin quá hạn, cờ kiểm duyệt | ✅ |
 | 10 | [Thông báo](./10-notification.md) | Ghi, chống trùng, đẩy, mẫu thông báo Admin sửa được | ✅ 🟡 |
 
 ### Tầng 4 — Điểm, hạng, đánh giá
 
 | # | Sơ đồ | Nội dung | Trạng thái |
 | --- | --- | --- | --- |
-| 11 | [Điểm cống hiến](./11-point.md) | Ledger append-only, rule, cap ngày, idempotency, đảo bút toán, điểm âm | ✅ ⛔ |
-| 12 | [Thứ hạng](./12-rank.md) | Xét hạng, chu kỳ duy trì 3 tháng, tụt hạng, cảnh báo sắp tụt | ⚠️ ⛔ |
+| 11 | [Điểm cống hiến](./11-point.md) | Ledger append-only, rule, cap ngày, idempotency, đảo bút toán, điểm âm | ✅ |
+| 12 | [Thứ hạng](./12-rank.md) | Xét hạng, chu kỳ duy trì kỳ Admin cấu hình, tụt hạng, cảnh báo sắp tụt | ✅ |
 | 13 | [Đánh giá & Giver Accuracy](./13-review.md) | Hai chiều đánh giá, chỉ số accuracy, cờ xem xét, đối soát | ✅ |
-| 14 | [Đổi vật phẩm bằng điểm](./14-redemption.md) | Định giá, trừ điểm, chốt ngay, ledger | ⛔ |
+| 14 | [Đổi vật phẩm bằng điểm](./14-redemption.md) | Định giá, trừ điểm, chốt ngay, ledger | ✅ |
 
 ### Tầng 5 — Kiểm duyệt & vận hành
 
@@ -61,14 +61,14 @@ hệ thống đã làm xong những việc chưa ai viết một dòng code.
 | --- | --- | --- | --- |
 | 15 | [Báo xấu & kiểm duyệt](./15-report.md) | Báo bài/người/bình luận, hàng đợi Admin, thưởng người báo đúng | ✅ |
 | 16 | [Admin CMS & RBAC](./16-admin.md) | Quyền, cấu hình động copy-on-write, audit, mẫu thông báo | ✅ |
-| 17 | [Job nền & CLI](./17-jobs.md) | Mười CLI chạy một lần, lịch cron, đối soát | ✅ |
+| 17 | [Job nền & CLI](./17-jobs.md) | Mười hai CLI chạy một lần, lịch cron, đối soát, cảnh báo job đỏ | ✅ |
 
 ### Tầng 6 — Nhóm
 
 | # | Sơ đồ | Nội dung | Trạng thái |
 | --- | --- | --- | --- |
-| 18 | [Group & Sub-team](./18-group.md) | Tạo nhóm, snapshot vùng, link mời, RBAC nhóm, sub-team | ✅ |
-| 19 | [Group Affiliate](./19-affiliate.md) | Sự kiện affiliate, điều kiện địa lý, chia thưởng | ⛔ |
+| 18 | [Group & Sub-team](./18-group.md) | Tạo nhóm, snapshot vùng theo bậc, link mời, RBAC nhóm, sub-team, hoạt động | ✅ |
+| 19 | [Group Affiliate](./19-affiliate.md) | Điều kiện địa lý và Active Member ✅ · bộ máy chia thưởng ⛔ | 🟡 |
 
 ### Tổng hợp
 
@@ -91,10 +91,10 @@ hệ thống đã làm xong những việc chưa ai viết một dòng code.
 | # | Sơ đồ | Nội dung | Trạng thái |
 | --- | --- | --- | --- |
 | 26 | [Quy ước API & lỗi](./26-api-conventions.md) | 66 mã lỗi, hai cái bẫy đã sửa, phân tầng kiểm | ✅ |
-| 27 | [Lược đồ database](./27-database.md) | 44 bảng, bảng append-only, ràng buộc giữ bất biến | ✅ |
-| 28 | [Kiến trúc & khởi động](./28-architecture.md) | Bốn tầng, DI bằng Symbol, ba tầng kiểm thử | ✅ |
+| 27 | [Lược đồ database](./27-database.md) | Bảng append-only, ràng buộc giữ bất biến (số bảng: đếm bằng SQL, đừng tin tài liệu) | ✅ |
+| 28 | [Kiến trúc & khởi động](./28-architecture.md) | Bốn tầng, DI bằng Symbol, ba tầng kiểm thử — cả 30 script kiểm chứng nay nằm trong CI | ✅ |
 | 29 | [CI/CD & triển khai](./29-cicd.md) | Pipeline, rollback, điều kiện production-ready | ✅ 🟡 |
-| 30 | [Ma trận endpoint](./30-endpoint-matrix.md) | 62 endpoint × quyền × trạng thái, và cái chưa có | — |
+| 30 | [Ma trận endpoint](./30-endpoint-matrix.md) | Endpoint × quyền × trạng thái, và cái chưa có | — |
 
 ## Cách soát
 

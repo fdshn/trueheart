@@ -29,6 +29,7 @@ import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { ContentCommentRepository } from '../src/infrastructure/repository/content-comment.repository';
+import { publishConfigVersion } from './publish-config-version';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -354,15 +355,13 @@ async function main(): Promise<void> {
       (await adminConfig.getConfigValue(ModerationTermsConfigKey)) === null,
     );
 
-    await dataSource.query(
-      `INSERT INTO system_configs
-         (config_key, value_json, value_type, version, status, effective_from)
-       VALUES ($1, $2::jsonb, 'JSON', 1, 'PUBLISHED', now())`,
-      [
-        ModerationTermsConfigKey,
-        JSON.stringify(['đm', { term: 'lừa đảo', severity: 'REVIEW' }]),
-      ],
-    );
+    // Qua hàm dùng chung: version ghi cứng `1` ở đây đang xanh chỉ vì database
+    // nháp của script này chưa có dòng nào cho khoá đó. Một migration seed thêm
+    // là nó vỡ y như `chat-purge` đã vỡ.
+    await publishConfigVersion(dataSource, ModerationTermsConfigKey, [
+      'đm',
+      { term: 'lừa đảo', severity: 'REVIEW' },
+    ]);
     const loaded = await adminConfig.getConfigValue(ModerationTermsConfigKey);
     check(
       'cấu hình đọc được ngay, không cần restart',

@@ -2,6 +2,11 @@
 
 Gom toàn bộ điểm còn treo rải rác trong 29 sơ đồ còn lại về một chỗ, xếp theo mức chặn.
 
+> **Soát lại 30/09.** Bảy mục ghi là treo thì đã xong, và **hai mục tự nó sai** — xem đánh dấu
+> ✅ và ❌ dưới đây. Một danh sách "việc còn treo" mà không ai dọn sẽ dài ra rồi bị bỏ qua cả
+> khối, nên mỗi mục đã xong phải được đánh dấu chứ không xoá: xoá đi thì lần sau không ai biết
+> nó từng là vấn đề.
+
 ## 21.1 Quyết định còn treo
 
 **✅ Không còn câu hỏi nào chặn cứng.** Toàn bộ đã chốt ngày 2026-09-25 và đã seed vào cấu
@@ -36,7 +41,7 @@ hình động:
 | 3 | Rule `GIFT_COMPLETED` = 56 điểm | 2026-09-25 | ✅ đã nối 25/09 — hai đường, một khoá | [11](./11-point.md) |
 | 4 | Chặn xoá tài khoản khi còn lượt trao dở dang | từ lâu | ✅ **vốn đã có** — tôi ghi sai trạng thái | [01](./01-auth.md) |
 | 6 | Trừ điểm khi trượt nhiệm vụ duy trì | 2026-09-24 | ✅ đã nối 25/09 | [12](./12-rank.md) |
-| 5 | Cổng hồ sơ cho tạo Group | 2026-09-24 | ⛔ chờ phân hệ Group | [18](./18-group.md) |
+| 5 | Cổng hồ sơ cho tạo Group | 2026-09-24 | ✅ đã gắn — `assertOnboarded` ở `CreateGroupUseCase` | [18](./18-group.md) |
 
 ## 21.4 Lỗ hổng nghiệp vụ đã phát hiện
 
@@ -45,30 +50,30 @@ hình động:
 | 1 | ✅ **Đã sửa 25/09.** Hoàn tất lượt trao nay sinh điểm qua đánh giá, hoặc qua `gift:settle-rewards` sau 7 ngày | — | [11](./11-point.md) |
 | 2 | ✅ **Vốn đã đếm từ `COALESCE(handed_over_at, accepted_at)`** — tôi ghi sai trạng thái | — | [08](./08-transaction.md) |
 | 3 | ✅ **Đã sửa 25/09.** Lượt có báo xấu đang mở bị giữ lại; CLI in ra và thoát khác 0 | — | [08](./08-transaction.md) |
-| 4 | Object mồ côi không ai dọn | Bucket phình mãi | [03](./03-media.md) |
+| 4 | ✅ **Đã có.** `media:sweep-orphans` báo con số hằng tuần (thứ Ba 05:29); xoá thật vẫn phải chạy tay với `--apply` vì danh sách nguồn key thiếu một dòng là xoá sạch ảnh của cả một phân hệ | — | [03](./03-media.md) |
 | 5 | ✅ **Đã sửa 25/09** — `notify:reminders`, nhắc sau 2 ngày, một lời nhắc cho mỗi lượt trao | — | [13](./13-review.md) |
-| 6 | Không có hàng đợi Admin cho hồ sơ bị gắn cờ accuracy và bình luận `PENDING_REVIEW` | Cờ gắn xong không ai thấy | [13](./13-review.md) · [16](./16-admin.md) |
+| 6 | ✅ **Đã có cả hai.** `GET /admin/comments` + `/pending-count` cho bình luận `PENDING_REVIEW`; bộ lọc `accuracyReviewRequired` trên `GET /admin/users` cho hồ sơ bị gắn cờ | — | [13](./13-review.md) · [16](./16-admin.md) |
 | 7 | ✅ **Đã sửa 25/09.** Người báo luôn được biết kết luận; người bị xử lý chỉ được báo khi báo xấu được XÁC MINH — bị bác thì họ chưa làm gì sai | — | [15](./15-report.md) |
-| 8 | Cap report: tài liệu 10/ngày, rule đang 5 | Hai con số khác nhau | [15](./15-report.md) |
+| 8 | ✅ **Đã khớp.** `MaxReportsPerDay = 10` trong `report.use-cases.ts`, đúng con số tài liệu. (`report.abuse` là thứ khác: ngưỡng nhận diện người báo bừa) | — | [15](./15-report.md) |
 | 8b | **Từng cộng điểm HAI LẦN cho người tặng** vì tin `GIVE-RECEIVE-FLOW.md` §H4 ghi sai rằng chưa có rule. Đã sửa ở migration `1793400000000`, và `test:point-economy` nay canh "chỉ một mã thưởng người tặng" | — | [11](./11-point.md) |
 | 9 | ✅ **Bên A xác nhận 25/09:** cap 10 lượt/ngày, chạm trần là mất thưởng, KHÔNG có hàng đợi trả bù. Đúng chủ ý | — | [11](./11-point.md) |
-| 10 | ✅ **Đã có 25/09** — `deploy/cron/`: crontab + wrapper + logrotate + runbook. ⛔ Nhưng **alert chưa nối vào kênh người thật đọc** | Job đỏ lúc 2 giờ sáng không ai biết | [17](./17-jobs.md) |
+| 10 | ✅ **Đã nối 30/09.** `send-alert.sh` POST tới `$CHANTAM_CRON_ALERT_URL`, payload mang cả `text` lẫn `content` nên Slack/Mattermost/Discord đều đọc được. Chưa đặt URL thì ghi vào `alerts-chua-gui-duoc.log` và trả mã khác 0 — không im lặng. Nhịp tim hằng tuần để im lặng có nghĩa. **Việc còn lại: điền một biến môi trường** | — | [17](./17-jobs.md) |
 
 ## 21.4b Phát hiện thêm từ đợt soát thứ hai
 
 | # | Vấn đề | Sơ đồ |
 | --- | --- | --- |
-| 1 | `docs/DATABASE.md` ghi **28 bảng**, thực tế **44** | [27](./27-database.md) |
-| 2 | Jitter toạ độ — chưa rõ ngẫu nhiên mỗi lần gọi hay cố định theo bài. Nếu ngẫu nhiên, gọi nhiều lần rồi lấy trung bình sẽ ra gần đúng vị trí thật | [25](./25-location-privacy.md) |
+| 1 | `docs/DATABASE.md` ghi **28 bảng** (và **25** ở một chỗ khác trong cùng file), thực tế **52**. Con số "44" ở bản trước của dòng này cũng đã lạc hậu — một tài liệu đếm bảng bằng tay thì luôn lạc hậu, nên §27 nay chỉ dẫn cách ĐẾM thay vì ghi số | [27](./27-database.md) |
+| 2 | ✅ **Đã có đáp án trong code: CỐ ĐỊNH theo bài.** `applyGeoJitter(point, seed, radius)` nhận `seed = post.globalId` và sinh số ngẫu nhiên tiền định từ đó, nên gọi bao nhiêu lần cũng ra cùng một điểm — phép lấy trung bình không thu được gì. `bucketDistance` còn làm tròn khoảng cách về bội số 100 m để chặn giải tam giác từ ba điểm. Câu hỏi này nằm treo trong tài liệu dù code đã trả lời | [25](./25-location-privacy.md) |
 | 3 | Bán kính jitter là hằng trong code; vùng nông thôn có thể vẫn chỉ ra đúng một nhà | [25](./25-location-privacy.md) |
 | 4 | Compatibility window của `/gift-posts` **chưa có hạn chót** | [25](./25-location-privacy.md) |
 | 5 | Hai bên trong lượt trao **không có endpoint lấy vị trí thật** — họ tự gõ địa chỉ qua chat | [25](./25-location-privacy.md) |
 | 6 | ✅ **Đã sửa 29/09.** Referral chạm cap ngày nay HOÃN chứ không mất: `qualifyAndAward` trả `qualified: false` và để nguyên dòng, `point:reconcile` quét lại | [23](./23-referral.md) · [11](./11-point.md) |
 | 7 | Chưa chặn referral vòng tròn giữa nhiều tài khoản cùng một người | [23](./23-referral.md) |
 | 8 | Danh mục: chưa có gộp (merge), chưa giới hạn độ sâu cây, chưa sắp xếp thủ công | [22](./22-category.md) |
-| 9 | `capability_rank_values` **không có lịch sử phiên bản** — bài bị từ chối vì quota thì không tra được lúc đó quota là bao nhiêu | [24](./24-entitlement.md) |
-| 10 | Chưa có test nào chạy CLI thật trong CI — đúng loại lỗi đã làm cả bảy CLI chết | [28](./28-architecture.md) · [29](./29-cicd.md) |
-| 11 | Script `test/*.check.ts` phải chạy tay, chưa nằm trong pipeline. **Từ 29/09 CI đã typecheck toàn bộ chúng** (`npm run typecheck:checks`) — đủ để chúng không hỏng âm thầm nữa, nhưng vẫn chưa chạy thật | [28](./28-architecture.md) |
+| 9 | ❌ **Khẳng định này SAI.** `capability_policies.revision_id` trỏ `config_revisions`, và bảng đó giữ đủ lịch sử: hiện có hai bản, bản 1 `ARCHIVED` với `effective_to`, bản 2 `PUBLISHED` còn mở. Tra được lúc đó quota là bao nhiêu. Điều CHƯA có là một endpoint đọc lịch sử đó — khác hẳn với "không có lịch sử" | [24](./24-entitlement.md) |
+| 10 | ✅ **Đã có.** `scripts/smoke-cli.sh` chạy thật cả 12 CLI trong job `integration`, và nó bắt được `post:expire` chết vì `PostModule` thiếu `GiftRequestModule` ngay lượt đầu | [28](./28-architecture.md) · [29](./29-cicd.md) |
+| 11 | ✅ **Đã chạy thật 30/09.** Trước đó chỉ 5 trong 30 script nằm trong CI; nay cả 30 chạy (25 ở một bước tuần tự, `chat-e2e` sau khi service lên, cộng `test-cron-alert.sh`). Lượt đầu bắt ngay **hai lỗi do migration `1795700000000` của chính tôi gây ra**: `chat-purge` nổ ràng buộc vì ghi cứng version 1, và `redemption` dùng `ON CONFLICT DO NOTHING` nên lượt đặt cấu hình bị bỏ qua LẶNG LẼ — phép kiểm "nguồn LIFETIME thì không cảnh báo tụt hạng" đo một thứ nó tưởng đã đặt. Kiểu thứ hai tệ hơn: nó xanh trong khi không kiểm gì. Sửa bằng `test/publish-config-version.ts` | [28](./28-architecture.md) |
 | 12 | Chưa có request id / trace id xuyên suốt | [26](./26-api-conventions.md) |
 | 13 | Thông báo lỗi chỉ có tiếng Việt, chưa có cơ chế đa ngữ | [26](./26-api-conventions.md) |
 | 14 | `point_ledger` và `chat_messages` chỉ tăng không giảm, chưa có chiến lược phân vùng | [27](./27-database.md) |
@@ -83,23 +88,24 @@ hình động:
 | Rank được dùng SOS | Bạc trở lên |
 | Cap ngày | 5 giao dịch tính điểm · 3 referral |
 | Cap report | 10/người/ngày |
-| Bán kính Group | 10km, chỉnh 1–50km |
+| ~~Bán kính Group~~ | ✅ **đã chốt 30/09**: thang theo bậc 3/5/7/10 km, sửa qua `PUT /admin/groups/radius-policy` |
 | Onboarding cho 224đ = lên thẳng Thành viên | đúng ý chưa? |
 
 ## 21.6 Mở rộng ngoài SRS — cần Bên A biết
 
 | Nội dung | Vì sao là mở rộng |
 | --- | --- |
-| **Trưởng nhóm sub-team** (`SUBTEAM_ADMIN`) | BR-GRP-05 chỉ chia Owner/Member; SRS nói sub-team *"chỉ để tổ chức"* |
+| **Trưởng nhóm sub-team** (`SUBTEAM_ADMIN`) | BR-GRP-05 chỉ chia Owner/Member; SRS nói sub-team *"chỉ để tổ chức"*. Phạm vi đã chốt 30/09: đúng thành viên tổ mình, không hơn |
 | **Cảnh báo sắp tụt hạng** | Hệ quả bắt buộc của việc bỏ F76, SRS không có |
+| **Cờ kiểm duyệt chat** | SRS không nói chat đi qua bộ lọc từ ngữ. Thêm vì mọi thương lượng diễn ra ở đó, và **gắn cờ chứ không chặn** — chặn một hội thoại riêng vì một danh sách từ là quyền lớn hơn mức danh sách đó đáng được trao |
 
 ## 21.7 Chưa có dòng code nào
 
 ```mermaid
 flowchart LR
     A["✅ Countdown 7 ngày + auto-select<br/>đã xong 25/09"] --> B["✅ Đổi vật phẩm bằng điểm<br/>đã xong 26/09"]
-    C["⛔ Group & Sub-team<br/>F51–F55"] --> D["⛔ Affiliate & Geo<br/>F56–F58"]
-    E["⛔ Dashboard KPI — F59"]
+    C["✅ Group & Sub-team<br/>F51–F55 — xong 30/09"] --> D["🟡 Affiliate & Geo F56–F58<br/>nền có, bộ máy chia thưởng chưa"]
+    E["✅ Dashboard KPI — F59"]
     F["⛔ Campaign & Home động — F63"]
     G["⛔ Blog / Tin tức — F64"]
     H["⛔ Từ thiện, Quảng cáo, Công đức — F65"]
@@ -107,8 +113,16 @@ flowchart LR
 
     style A fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style B fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
-    style C fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style C fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style E fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
+
+> **Vì sao affiliate là 🟡 chứ không ⛔.** Nền đã có đủ: `groups.center_location` + `radius_km`,
+> `last_active_at` ghi ở mọi lần cấp phiên, `group_memberships` để lấy danh sách, và
+> `GET /groups/:id/affiliate` đếm được ai đủ điều kiện ngay hôm nay. Thiếu đúng phần **chia
+> thưởng**, và phần đó chờ Bên A chốt cách chia — mục 4 của [19](./19-affiliate.md) một mình đủ
+> làm lệch kinh tế điểm 500 lần với nhóm 500 người, nên viết trước khi chốt là viết để bỏ.
 
 ## 21.8 Hạ tầng chưa sẵn sàng production
 
@@ -118,7 +132,8 @@ flowchart LR
 [ ] R2 staging/prod: bucket, key, CORS, CDN domain
 [ ] Backup database VÀ restore test
 [ ] Global rate limit
-[ ] Monitoring / alerting
-[x] Lịch cron thật cho 9 CLI
+[~] Monitoring / alerting — cron đỏ đã có đường báo (`$CHANTAM_CRON_ALERT_URL`),
+    service chết thì vẫn chưa ai biết
+[x] Lịch cron thật cho 12 CLI
 [ ] Queue / retry / dead-letter cho thông báo
 ```

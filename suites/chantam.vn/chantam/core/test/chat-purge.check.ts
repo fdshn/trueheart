@@ -28,6 +28,7 @@ import { AdminConfigRepository } from '../src/infrastructure/repository/admin-co
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
+import { publishConfigVersion } from './publish-config-version';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -169,26 +170,19 @@ async function main(): Promise<void> {
     return row;
   }
 
-  /** Xuất bản một phiên bản cấu hình hạn lưu trữ. */
-  async function publishRetention(
-    version: number,
-    value: { value: number; unit: ChatRetentionUnits },
-  ): Promise<void> {
-    // Đóng cửa sổ hiệu lực của bản cũ trước. `EX_system_configs_published_window`
-    // cấm hai bản cùng khoá cùng hiệu lực — đúng ra để không ai trả lời được
-    // "lúc đó đang áp bản nào".
-    await dataSource.query(
-      `UPDATE system_configs
-       SET effective_to = now()
-       WHERE config_key = $1 AND effective_to IS NULL`,
-      [ChatRetentionConfigKey],
-    );
-    await dataSource.query(
-      `INSERT INTO system_configs
-         (config_key, value_json, value_type, version, status, effective_from)
-       VALUES ($1, $2::jsonb, 'JSON', $3, 'PUBLISHED', now())`,
-      [ChatRetentionConfigKey, JSON.stringify(value), version],
-    );
+  /**
+   * Xuất bản một phiên bản cấu hình hạn lưu trữ.
+   *
+   * KHÔNG nhận số phiên bản nữa: bản cũ ghi cứng `1`, và khi migration
+   * `1795700000000` seed sẵn version 1 cho `chat.retention` thì script nổ
+   * `UQ_system_configs_key_version`. Số phiên bản là chuyện của database, không
+   * phải của phép kiểm — xem `publish-config-version.ts`.
+   */
+  async function publishRetention(value: {
+    value: number;
+    unit: ChatRetentionUnits;
+  }): Promise<void> {
+    await publishConfigVersion(dataSource, ChatRetentionConfigKey, value);
   }
 
   async function messageCount(roomId: string): Promise<number> {
@@ -242,7 +236,7 @@ async function main(): Promise<void> {
     // ── 2. Đổi config KHÔNG dịch hạn của phòng đã khoá ──────────────────────
     console.log('\nAdmin đổi cấu hình:\n');
 
-    await publishRetention(1, { value: 3, unit: ChatRetentionUnits.WEEK });
+    await publishRetention({ value: 3, unit: ChatRetentionUnits.WEEK });
 
     check(
       'phòng đã khoá GIỮ NGUYÊN hạn cũ — lời hứa đã nói với người dùng',
@@ -267,7 +261,7 @@ async function main(): Promise<void> {
 
     // Đơn vị ngày cũng phải chạy. Phiên bản cao hơn thắng — copy-on-write như
     // mọi system config khác, không sửa đè bản cũ.
-    await publishRetention(2, { value: 10, unit: ChatRetentionUnits.DAY });
+    await publishRetention({ value: 10, unit: ChatRetentionUnits.DAY });
     const byDay = await chattingTransaction();
     await transactions.confirmReceipt(byDay.transactionId, ReceiverId);
     const dayUnitDays = Math.round(

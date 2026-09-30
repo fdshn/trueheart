@@ -1,6 +1,13 @@
 # 27 · Lược đồ database
 
-Trạng thái: ✅ **44 bảng đang chạy** (đã trừ `content_reports` và `post_likes` bị drop khi gộp).
+Trạng thái: ✅ đang chạy. **Không ghi số bảng ở đây nữa** — con số đó đã lạc hậu ba lần
+(25 → 28 → 44 → 52) và mỗi lần lại có người tin nó. Đếm bằng câu này:
+
+```sql
+SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';
+```
+
+Một tài liệu đếm bằng tay thì luôn chậm hơn migration mới nhất; một câu SQL thì không.
 
 > ⚠️ `docs/DATABASE.md` còn ghi **28 bảng** — con số đó đã lạc hậu.
 
@@ -141,10 +148,16 @@ flowchart LR
 
 ## Chỗ cần soát
 
-1. ⚠️ **`docs/DATABASE.md` nói 28 bảng, thực tế 44** — tài liệu cần cập nhật.
+1. ⚠️ **`docs/DATABASE.md` nói 28 bảng ở một chỗ và 25 ở chỗ khác; thực tế 52.** Đã bỏ con số
+   khỏi sơ đồ này và thay bằng câu SQL để đếm — xem đầu trang. `DATABASE.md` cũng nên làm vậy.
 2. `gift_posts` và `posts` **cùng tồn tại** vì lớp tương thích. Cần chốt bao giờ gỡ bảng cũ.
-3. **Chưa có bảng nào cho Group/Affiliate** — khối lớn nhất còn lại.
-4. **Chưa có `users.last_login_at`** dù đã chốt ngày 2026-09-24.
+3. ✅ **Đã có năm bảng cho Group** (30/09): `groups`, `sub_teams`, `group_memberships`,
+   `group_role_permissions`, và `chat_message_flags` cho kiểm duyệt chat. Affiliate chưa có bảng
+   riêng nào — nhưng nó cũng chưa cần: điều kiện tính trực tiếp từ `groups.center_location` +
+   `radius_km` + `users.last_active_at`, và bảng sự kiện chỉ cần khi có bộ máy chia thưởng.
+4. ✅ **Cố ý KHÔNG có `users.last_login_at`** (chốt 30/09). Mốc dùng là `last_active_at`, ghi ở
+   **mọi** lần cấp phiên chứ không riêng lúc đăng nhập — xem [17](./17-jobs.md) mục 2. Hai cột
+   cho hai khái niệm gần nhau là hai nguồn sự thật, và cái ít được ghi hơn sẽ bị dùng nhầm.
 5. **Chưa có chiến lược lưu trữ dài hạn / phân vùng** cho `point_ledger` và `chat_messages`,
    hai bảng chỉ tăng không giảm.
 6. **Backup có, nhưng restore test chưa từng chạy** — `DEFERRED.md` liệt nó là release blocker.

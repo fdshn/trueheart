@@ -130,5 +130,14 @@ flowchart LR
 2. **Compatibility window chưa có hạn chót.** Không ai nói bao giờ gỡ `/gift-posts`.
 3. **Chưa có endpoint trả vị trí thật cho hai bên trong lượt trao** — hiện họ hẹn nhau qua
    chat bằng cách tự gõ địa chỉ.
-4. Jitter dùng **ngẫu nhiên mỗi lần gọi** hay cố định theo bài? Nếu ngẫu nhiên mỗi lần, gọi
-   nhiều lần rồi lấy trung bình sẽ ra gần đúng vị trí thật.
+4. ✅ **CỐ ĐỊNH theo bài** (đáp án đã có trong code, ghi lại 30/09).
+   `applyGeoJitter(point, seed, radius)` nhận `seed = post.globalId` rồi sinh số ngẫu nhiên
+   **tiền định** từ hạt đó, nên gọi bao nhiêu lần cũng ra đúng một điểm — phép lấy trung bình
+   không thu được gì.
+
+   Hai lớp, không phải một: `bucketDistance` còn làm tròn khoảng cách trả ra kênh công khai về
+   bội số 100 m, để ba lần truy vấn từ ba chỗ khác nhau không giải tam giác ra một điểm mà chỉ
+   ra một vùng.
+
+   Câu hỏi này nằm treo trong tài liệu dù code đã trả lời — nên nếu ai đó "sửa" `applyGeoJitter`
+   thành ngẫu nhiên mỗi lần vì tưởng như vậy an toàn hơn, họ sẽ phá đúng cái bảo vệ này.

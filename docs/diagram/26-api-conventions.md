@@ -125,7 +125,12 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. **Chưa có global rate limit** — `DEFERRED.md` liệt nó là điều kiện trước public launch.
+1. ⛔ **Vẫn chưa có** (kiểm lại 30/09): không có `ThrottlerModule` hay plugin rate-limit nào
+   ở tầng ứng dụng. `DEFERRED.md` liệt nó là điều kiện trước public launch.
+
+   Lưu ý cái ĐÃ có để không ai tưởng là đủ: `IRequestThrottle` (Redis) chặn theo **hành vi** —
+   chat, báo xấu, đăng ký theo IP — nhưng nó áp từng chỗ gọi, không phải một lớp chặn chung. Một
+   endpoint mới quên gọi nó thì không có gì đỡ.
 2. **Chưa có request id / trace id** xuyên suốt để nối log với một request cụ thể.
 3. Thông báo lỗi hiện **chỉ có tiếng Việt**, chưa có cơ chế đa ngữ.
 4. **Chưa có versioning API** ngoài tiền tố `/api/v1` — chưa có kế hoạch cho v2.

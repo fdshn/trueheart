@@ -3,9 +3,17 @@
 Bảng tra **schema thật đang chạy** — sinh từ 15 migration trong
 `suites/chantam.vn/chantam/core/src/infrastructure/persistence/migrations/`.
 
-Đừng nhầm với [`plan/DATA-MODEL.md`](./plan/DATA-MODEL.md): file đó là **bản thiết kế**
-(~25 bảng dự kiến cho toàn Phase 1), còn file này mô tả **28 bảng đã tồn tại** sau khi
-`npm run migration:run`. Bảng nào có ở thiết kế mà không có ở đây thì chưa được dựng.
+Đừng nhầm với [`plan/DATA-MODEL.md`](./plan/DATA-MODEL.md): file đó là **bản thiết kế**, còn
+file này mô tả các bảng **đã tồn tại** sau khi `npm run migration:run`. Bảng nào có ở thiết kế
+mà không có ở đây thì chưa được dựng.
+
+> **Cố ý không ghi tổng số bảng.** Con số đó đã lạc hậu bốn lần (25 → 28 → 44 → 52) và mỗi lần
+> lại có người tin nó — `21-open-issues` từng ghi "thực tế 44" trong khi đã là 52. Một tài liệu
+> đếm bằng tay thì luôn chậm hơn migration mới nhất. Đếm bằng câu này:
+>
+> ```sql
+> SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';
+> ```
 
 > Sửa schema thì luôn qua migration, không bao giờ `synchronize`. Sau khi thêm migration,
 > cập nhật lại file này.
@@ -61,7 +69,7 @@ Ba hệ quả cần nhớ:
 `posts.status` **dùng lại** `gift_posts_status_enum` chứ không có enum riêng — tên enum
 mang tiền tố lịch sử, đừng đọc nó thành "chỉ áp dụng cho `gift_posts`".
 
-### Bản đồ 28 bảng
+### Bản đồ quan hệ
 
 ```
 users ──┬──< user_sessions

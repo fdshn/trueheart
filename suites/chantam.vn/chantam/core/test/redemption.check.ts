@@ -27,6 +27,7 @@ import { AdminConfigRepository } from '../src/infrastructure/repository/admin-co
 import { GiftRequestRepository } from '../src/infrastructure/repository/gift-request.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { RankRepository } from '../src/infrastructure/repository/rank.repository';
+import { publishConfigVersion } from './publish-config-version';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -302,12 +303,22 @@ async function main(): Promise<void> {
 
     // Nguồn quyết hạng là LIFETIME thì tiêu điểm không đụng tới hạng, nên cảnh báo
     // ở đó là cảnh báo sai.
-    await dataSource.query(
-      `INSERT INTO system_configs
-         (config_key, value_json, value_type, version, status, change_reason)
-       VALUES ('rank.points_source', $1, 'JSON', 1, 'PUBLISHED', 'Kiểm đổi điểm')
-       ON CONFLICT DO NOTHING`,
-      [JSON.stringify({ source: 'LIFETIME' })],
+    // `ON CONFLICT DO NOTHING` với version ghi cứng là cách phép kiểm này từng
+    // hỏng LẶNG LẼ: migration `1795700000000` seed sẵn version 1 cho
+    // `rank.points_source`, nên lượt ghi bị bỏ qua, cấu hình vẫn là `BALANCE`, và
+    // khẳng định dưới đây đo một thứ nó tưởng đã đặt.
+    //
+    // Khẳng định luôn là ghi ĐƯỢC: một lượt ghi không xảy ra không được trông
+    // giống một lượt thành công.
+    const lifetimeVersion = await publishConfigVersion(
+      dataSource,
+      'rank.points_source',
+      { source: 'LIFETIME' },
+    );
+    check(
+      'đặt được nguồn quyết hạng thành LIFETIME',
+      lifetimeVersion > 0,
+      `version=${lifetimeVersion}`,
     );
     await setBalance(RicherId, 1_000);
     const lifetimeMode = await quotes.handle({

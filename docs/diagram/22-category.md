@@ -70,3 +70,7 @@ flowchart LR
 3. **Chưa có gộp danh mục** (merge). Tạo nhầm hai danh mục trùng nghĩa thì phải sửa tay từng
    bài.
 4. Độ sâu cây **không giới hạn** — chưa có ràng buộc nào chặn ai đó tạo 20 tầng.
+
+> **Bốn mục trên đều cần Bên A chốt trước khi làm**, và cả bốn đều là tính năng thêm chứ không
+> phải lỗi: danh mục hiện tại tạo/sửa/gán được, và bài đăng gắn đúng danh mục. Ghi lại ở đây để
+> lần soát sau không ai đọc chúng thành "phân hệ chưa xong".

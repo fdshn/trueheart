@@ -1,6 +1,15 @@
 # 30 · Ma trận endpoint × quyền × trạng thái
 
-Bảng tra nhanh: mỗi endpoint cần gì, và nó đã chạy được chưa. 62 endpoint đang có.
+Bảng tra nhanh: mỗi endpoint cần gì, và nó đã chạy được chưa.
+
+> **Không ghi tổng số endpoint ở đây nữa** (30/09). Con số "62" đã lạc hậu — hiện có **154**
+> route decorator. Cùng bài học với số bảng ở [27](./27-database.md): một con số đếm tay thì
+> luôn chậm hơn commit mới nhất. Lấy danh sách thật từ `GET /docs/json`, hoặc:
+>
+> ```bash
+> grep -rhoE '@(Get|Post|Put|Patch|Delete)\(' \
+>   suites/chantam.vn/chantam/core/src/infrastructure/controller/api --include=*.ts | wc -l
+> ```
 
 ## 30.1 Ba mức truy cập
 
@@ -135,13 +144,31 @@ flowchart LR
 | --- | --- | --- |
 | `POST /groups` | token + hồ sơ + onboarding + rank + có Default Location | ✅ |
 | `GET /groups/me` | token | ✅ |
-| `GET /groups/:groupId/members` | `group.member.view` **trên nhóm đó** | ✅ |
-| `GET /groups/:groupId/sub-teams` | `group.member.view` **trên nhóm đó** | ✅ |
+| `GET /groups/:groupId` | `group.overview.view` | ✅ |
+| `PATCH /groups/:groupId` | `group.settings.manage` — chỉ Owner; KHÔNG sửa tâm/bán kính | ✅ |
+| `GET /groups/:groupId/activities` | `group.activity.view` (cả nhóm) HOẶC `group.subteam.activity.view` (chỉ tổ mình) | ✅ |
+| `GET /groups/:groupId/invite` | `group.invite.view` — chỉ Owner | ✅ |
+| `GET /groups/:groupId/affiliate` | `group.affiliate.view` — chỉ Owner; trả ĐIỀU KIỆN, không phải điểm đã chia | ✅ |
+| `GET /groups/:groupId/members` | `group.member.view` (cả nhóm) HOẶC `group.subteam.member.view` (chỉ tổ mình) | ✅ |
+| `GET /groups/:groupId/sub-teams` | ⬆ cùng cặp quyền | ✅ |
 | `POST /groups/:groupId/sub-teams` | `group.subteam.manage` — chỉ Owner | ✅ |
-| `PATCH /groups/:groupId/members/:memberId` | `group.member.assign_role` | ✅ |
+| `DELETE /groups/:groupId/sub-teams/:subTeamId` | ⬆ — người trong tổ Ở LẠI nhóm, trưởng tổ hạ về MEMBER | ✅ |
+| `PATCH /groups/:groupId/members/:memberId` | `group.member.assign_role` — bỏ trống `subTeamId` là GIỮ tổ | ✅ |
+| `GET\|PUT /admin/groups/role-permissions[/:role]` | `config.read` / `config.write` | ✅ |
+| `GET\|PUT /admin/groups/radius-policy` | ⬆ — canh bất biến đơn điệu theo bậc | ✅ |
+| `GET /admin/chat/flags` · `/pending-count` | `report.read` | ✅ |
+| `PATCH /admin/chat/flags/:flagId/review` | `report.resolve` | ✅ |
 
 Vào nhóm KHÔNG có endpoint riêng: `POST /auth/register` kèm `inviteCode` là đường duy nhất
 (F54/BR-GRP-04). Rời nhóm và chuyển nhóm cũng không có, và đó là chủ ý (BR-GRP-06).
+
+> **Quyền nhóm luôn mang phạm vi một nhóm.** Mọi dòng trên đi qua
+> `hasGroupPermission(userId, groupId, permission)`, không phải `hasPermission` toàn cục — RBAC
+> Admin không diễn đạt được "có quyền X trên nhóm nào", nên gán `group.member.assign_role` ở đó
+> cho một trưởng nhóm là cho họ quyền trên **mọi** nhóm. Xem [18 §18.3](./18-group.md).
+>
+> Mười trên mười quyền nhóm nay đều có dòng code kiểm — `test:config-inventory` đỏ nếu ai seed
+> thêm một mã mà không khai nó đọc ở đâu.
 
 ## 30.8 Còn thiếu gì
 
@@ -166,7 +193,13 @@ flowchart TD
 ## Chỗ cần soát
 
 1. **Ba endpoint cần gắn cổng hồ sơ F07** (xin nhận, chat, tạo Group) — cả ba đã gắn.
-2. **`POST /transactions/:id/confirm` chưa cộng điểm** — lỗ hổng lớn nhất.
-3. **`GET /points/me` và `/ranks/me` chưa phản ánh mô hình rank chốt 2026-09-24.**
-4. `POST /reports` nhận `COMMENT` nhưng **`targetLabel` cho bình luận** cần soát xem Admin có
-   đủ thông tin để quyết mà không phải mở từng cái không.
+2. ✅ **Đã sửa 25/09.** Hoàn tất lượt trao sinh điểm qua đường đánh giá, hoặc qua
+   `gift:settle-rewards` sau 7 ngày nếu người nhận không đánh giá — xem
+   [21 §21.4](./21-open-issues.md) mục 1.
+3. ✅ **Đã phản ánh.** Xét hạng đọc `balance` (hoặc `lifetime` nếu Admin đổi
+   `rank.points_source`), và `test:rank-balance` canh đúng điều đó.
+4. ✅ **Đã có `targetLabel` cho bình luận** (đợt 15-report): trích đoạn đầu `body` cùng tên tác
+   giả, đủ để Admin quyết mà không phải mở từng cái.
+5. ⚠️ **Bảng dưới đây liệt kê theo phân hệ, không theo từng route.** Với 154 route thì một bảng
+   đầy đủ sẽ lạc hậu ngay lượt commit sau — `GET /docs/json` là nguồn duy nhất luôn đúng. Bảng
+   này giữ lại vì nó trả lời câu khác: endpoint cần QUYỀN gì và cổng nào chặn nó.

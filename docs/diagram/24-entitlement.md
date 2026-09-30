@@ -107,9 +107,24 @@ flowchart LR
 1. ⚠️ **Mọi con số là giả định chờ Bên A.**
 2. ✅ **`OPEN_REQUEST_QUOTA` đã có** (25/09) — giới hạn số yêu cầu xin nhận đang mở, cần từ khi
    mỗi yêu cầu đầu tiên mở một đồng hồ 7 ngày.
-3. **Chưa có capability cho chat và tạo Group** — cổng F07 và quyền tạo Group chưa đi qua cơ
-   chế này.
-4. **Không có lịch sử phiên bản** như `system_configs` — chỉ có audit log. Khi một bài bị từ
-   chối vì quota, không tra được lúc đó quota là bao nhiêu.
+3. ⚠️ **Nửa đúng** (soát 30/09). `CREATE_GROUP` ĐÃ đi qua cơ chế này — nó là capability quyết
+   ai tạo được nhóm (baseline Kim Cương), và `CreateGroupUseCase` đọc `allowed` từ đó. Mười
+   capability đang có: `POST_OFFER`, `POST_WANTED`, `POST_SOS`, `POST_OPEN`, `CREATE_GROUP`,
+   `DISCOVERY_RADIUS`, `OPEN_REQUEST_QUOTA`, `SELECT_REQUESTER`, `REACT_CONTENT`,
+   `COMMENT_CONTENT`.
+
+   Còn thiếu là **chat**: cổng F07 dùng `ProfileGate.assertComplete` chứ không qua capability,
+   nên không đặt được hạn mức chat theo bậc. Đó là chỗ thật, khác với câu cũ.
+
+   ⚠️ Và `capability.limit` của `CREATE_GROUP` CỐ Ý không còn được đọc — nó từng làm bán kính
+   nhóm, một ô số trần không nói đơn vị, và đặt `10000` với ý "10 km" cho ra 50 km. Xem
+   [18](./18-group.md) mục 5.
+4. ❌ **Khẳng định cũ SAI** (sửa 30/09). Câu trước ghi *"không có lịch sử phiên bản như
+   `system_configs` — chỉ có audit log"*. Thực tế `capability_policies.revision_id` trỏ
+   `config_revisions`, và bảng đó giữ đủ lịch sử với `effective_from`/`effective_to` cùng trạng
+   thái `PUBLISHED`/`ARCHIVED` — đúng cơ chế `system_configs` dùng. Hiện đã hai bản.
+
+   Nên câu "bài bị từ chối vì quota thì không tra được lúc đó quota là bao nhiêu" cũng sai: tra
+   được bằng SQL. Điều CHƯA có là một **endpoint đọc lịch sử** đó, và đó là việc khác hẳn.
 5. Chưa có capability cho **giới hạn dung lượng lưu trữ** theo rank, dù F59 có theo dõi
    dung lượng.

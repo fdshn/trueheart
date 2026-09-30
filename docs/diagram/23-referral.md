@@ -86,9 +86,16 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. **Referral chạm cap ngày thì mất điểm vĩnh viễn** — không có hàng đợi trả bù ngày hôm sau.
-   Người mời 10 người trong một ngày chỉ được điểm cho 3. Đúng ý chưa?
-2. **Chưa có thông báo cho người giới thiệu** khi referee của họ đủ điều kiện.
+1. ✅ **Đã sửa 29/09 — không mất nữa mà HOÃN.** `qualifyAndAward` trả `qualified: false` và để
+   nguyên dòng khi chạm trần ngày; `point:reconcile` quét lại ở lượt sau. Xem
+   [21 §21.4b](./21-open-issues.md) mục 6.
+2. ⛔ **Vẫn chưa có** (kiểm lại 30/09): `notification-types.ts` không có mã nào cho referral.
+   Người mời không biết referee của mình đã đủ điều kiện, nên họ cũng không biết mình vừa được
+   56 điểm — mà đó chính là lúc cần nói, vì nó khuyến khích họ mời tiếp.
+
+   Đây là việc nhỏ và rõ: thêm một mã `REFERRAL_QUALIFIED` vào `NotificationTypes` rồi dispatch
+   ở `qualifyAndAward` sau khi ghi sổ, khoá chống trùng theo id referral. Chưa làm vì nó không
+   nằm trong phạm vi bốn việc đợt này.
 3. **Chưa chống được referral vòng tròn** giữa nhiều tài khoản do cùng một người tạo — mới chỉ
    chặn tự giới thiệu chính mình.
 4. Nhiệm vụ duy trì rank đòi "N Personal Referral **hợp lệ**" mỗi quý — cần xác nhận "hợp lệ"

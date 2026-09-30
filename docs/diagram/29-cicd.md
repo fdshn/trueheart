@@ -112,7 +112,7 @@ flowchart TD
     A --> I["⛔ Monitoring / alerting"]
     A --> J["⛔ Chặn xoá tài khoản khi còn lượt trao"]
     A --> K["⛔ Ledger cho MỌI đường cộng điểm"]
-    A --> L["✅ Lịch cron cho 9 CLI"]
+    A --> L["✅ Lịch cron cho 12 CLI<br/>+ cảnh báo job đỏ"]
 
     style E fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
     style F fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
@@ -128,9 +128,21 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. ✅ **Lịch cron đã có** — [`deploy/cron/`](../../deploy/cron/README.md). ⛔ Nhưng alert chưa nối vào kênh người thật đọc.
-2. ⛔ **Chưa có monitoring/alerting.** Service chết lúc 2 giờ sáng thì sáng ra mới biết.
+1. ✅ **Lịch cron và alert đều đã có** (30/09) — [`deploy/cron/`](../../deploy/cron/README.md).
+   `send-alert.sh` POST tới `$CHANTAM_CRON_ALERT_URL`; chưa đặt URL thì ghi vào
+   `alerts-chua-gui-duoc.log` và trả mã khác 0 thay vì im lặng. Nhịp tim hằng tuần để "không có
+   cảnh báo" khác được với "đường cảnh báo đã chết". `scripts/test-cron-alert.sh` chạy trong CI.
+2. 🟡 **Cron đỏ thì biết; SERVICE chết thì vẫn chưa.** Đường báo mới chỉ nối vào `run-cli.sh`.
+   Service chết lúc 2 giờ sáng vẫn phải sáng ra mới biết — cần một healthcheck bên ngoài gọi
+   `/health` theo chu kỳ, và đó là việc chưa làm.
 3. ⛔ **Restore test chưa từng chạy.**
-4. **Cổng kiểm tra sau triển khai kiểm gì?** Cần soát xem nó có đủ sâu để bắt được lỗi DI
-   kiểu đã làm cả bảy CLI chết hay không.
-5. **Chưa có smoke test chạy CLI** trong pipeline.
+4. ⚠️ **Đã soát 30/09: KHÔNG đủ sâu.** Cổng chạy `smoke-test.sh --read-only`, tức chỉ gọi
+   endpoint đọc qua HTTP. Nó bắt được service không lên, nhưng **không chạy CLI nào** — mà lỗi DI
+   kiểu đã làm bảy CLI chết chỉ hiện khi tiến trình CLI khởi động thật.
+
+   Việc cần làm: thêm `smoke-cli.sh` vào `deploy.yaml`. Chưa làm vì nó chạy `docker compose exec`
+   trên host đích, nên cần quyết định chạy ở runner hay qua SSH — và đó là quyết định triển khai,
+   không phải kỹ thuật.
+5. ✅ **Đã có trong CI** (`smoke-cli.sh`, job `integration`). ⛔ Nhưng **chưa có trong
+   `deploy.yaml`** — tức đường triển khai thật vẫn không kiểm được lỗi DI kiểu đã làm bảy CLI
+   chết. Đó là mục 4 ở trên nói cụ thể ra.
