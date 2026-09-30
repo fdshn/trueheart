@@ -92,6 +92,36 @@ interface IRawDueMaintenanceCycle {
   policy_version: string;
 }
 
+/**
+ * Một lượt giới thiệu có được TÍNH cho nhiệm vụ hạng hay không.
+ *
+ * ## Vì sao không chỉ là `qualified_at IS NOT NULL`
+ *
+ * Nhiệm vụ duy trì hạng đòi "N Personal Referral hợp lệ mỗi quý", và trước 30/09 cả
+ * năm chỗ SQL ở file này hiểu "hợp lệ" là chỉ cần có `qualified_at`. Đo được: một người
+ * mời ba tài khoản, cả ba đủ điều kiện rồi cả ba bị khoá vì là tài khoản ảo — bộ đếm
+ * vẫn ra 3, tức vẫn đủ nhiệm vụ của quý. Nói cách khác: chính việc Admin dọn tài khoản
+ * ảo không làm giảm thành tích của người tạo ra chúng.
+ *
+ * ## Vì sao là `<> 'BANNED'`, không phải `= 'ACTIVE'`
+ *
+ * `SUSPENDED` là treo CÓ THỜI HẠN và tự về `ACTIVE`. Một người được mời bị treo bảy ngày
+ * vẫn là một thành viên thật, và xoá công của người mời vì việc đó là phạt sai người.
+ * Chỉ `BANNED` và xoá mềm mới là tín hiệu "tài khoản này không đáng tính".
+ *
+ * Quan hệ giới thiệu VẪN được giữ và vẫn hiện ở `GET /referrals/me` — đây chỉ là
+ * chuyện nó có được tính vào nhiệm vụ hạng hay không. Điểm đã trả cũng không bị thu
+ * lại: sổ điểm là append-only, và thu hồi là việc của đường đảo bút toán có lý do.
+ */
+function countsAsQualifiedReferral(alias: string): string {
+  return `EXISTS (
+            SELECT 1 FROM users counted_referee
+            WHERE counted_referee.global_id = ${alias}.referee_id
+              AND counted_referee.status <> 'BANNED'
+              AND counted_referee.deleted_at IS NULL
+          )`;
+}
+
 @Injectable()
 export class RankRepository implements IRankRepository {
   public constructor(
@@ -166,6 +196,7 @@ export class RankRepository implements IRankRepository {
             FROM referrals referral
             WHERE referral.referrer_id = user_account.global_id
               AND referral.qualified_at IS NOT NULL
+              AND ${countsAsQualifiedReferral('referral')}
           ) qualified_referrals
           WHERE user_account.global_id = $1
           FOR UPDATE OF user_account
@@ -321,6 +352,7 @@ export class RankRepository implements IRankRepository {
           WHERE invite.referrer_id = cycle.user_id
             AND invite.qualified_at >= cycle.cycle_start
             AND invite.qualified_at < cycle.cycle_end
+            AND ${countsAsQualifiedReferral('invite')}
         ) referrals
         WHERE cycle.status = 'OPEN'
           AND cycle.reminded_at IS NULL
@@ -440,12 +472,14 @@ export class RankRepository implements IRankRepository {
               WHERE referral.referrer_id = user_account.global_id
                 AND referral.qualified_at >= $2
                 AND referral.qualified_at < $3
+                AND ${countsAsQualifiedReferral('referral')}
             ) qualified_referrals
             CROSS JOIN LATERAL (
               SELECT COUNT(*)::text AS total_qualified_referrals
               FROM referrals referral
               WHERE referral.referrer_id = user_account.global_id
                 AND referral.qualified_at IS NOT NULL
+                AND ${countsAsQualifiedReferral('referral')}
             ) total_referrals
             WHERE user_account.global_id = $1
             FOR UPDATE OF user_account
@@ -624,6 +658,7 @@ export class RankRepository implements IRankRepository {
           FROM referrals referral
           WHERE referral.referrer_id = user_account.global_id
             AND referral.qualified_at IS NOT NULL
+            AND ${countsAsQualifiedReferral('referral')}
         ) qualified_referrals
         LEFT JOIN LATERAL (
           SELECT rank, cycle_start, cycle_end, gifts_done, referrals_done, status

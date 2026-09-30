@@ -53,6 +53,16 @@ function makeDeps(granted: string[]) {
     },
     sessions: { createQueryBuilder: () => builder },
     denyList: { revokeIssuedBefore: jest.fn(async () => undefined) },
+    referrals: {
+      getOwnSummary: jest.fn(async () => ({
+        code: 'AB12CD34EF',
+        totalCount: 4,
+        qualifiedCount: 2,
+        rewardedCount: 2,
+        invitees: [],
+      })),
+      countSharedSignupFingerprints: jest.fn(async () => 1),
+    },
   };
 }
 
@@ -75,6 +85,7 @@ describe('Admin user management authorization', () => {
     const useCase = new GetAdminUserUseCase(
       deps.permissions as never,
       deps.users as never,
+      deps.referrals as never,
     );
 
     await expect(

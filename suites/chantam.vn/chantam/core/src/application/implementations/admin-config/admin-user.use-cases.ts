@@ -24,6 +24,7 @@ import {
 import {
   IAdminConfigRepository,
   IAdminUserRepository,
+  IReferralRepository,
   IUserSessionRepository,
   IVerifiedPhoneRepository,
 } from '@/domain/ports/repository';
@@ -91,6 +92,8 @@ export class GetAdminUserUseCase implements IGetAdminUserUseCase {
     private readonly permissions: IAdminConfigRepository,
     @Inject(IAdminUserRepository)
     private readonly users: IAdminUserRepository,
+    @Inject(IReferralRepository)
+    private readonly referrals: IReferralRepository,
   ) {}
 
   public async handle(
@@ -101,7 +104,21 @@ export class GetAdminUserUseCase implements IGetAdminUserUseCase {
     const user = await this.users.findOne(command.targetUserId);
     if (!user) throw new UserNotFoundException();
 
-    return { user };
+    // Hai cột `signup_*_hash` nay ĐƯỢC ĐọC ở đây. Viết dữ liệu mà không đường nào
+    // đọc thì đúng bằng không viết — chỉ tốn chỗ và tạo cảm giác đã làm gì đó.
+    const summary = await this.referrals.getOwnSummary(command.targetUserId);
+
+    return {
+      user,
+      referrals: {
+        invited: summary.totalCount,
+        qualified: summary.qualifiedCount,
+        sharedSignupFingerprints:
+          await this.referrals.countSharedSignupFingerprints(
+            command.targetUserId,
+          ),
+      },
+    };
   }
 }
 

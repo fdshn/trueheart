@@ -46,6 +46,9 @@ function buildUseCase(
   };
   const config = {
     auth: { maxRegistrationsPerIp: 5, registrationWindowSeconds: 3600 },
+    // Pepper rong: bam van chay, chi la do nguoc duoc — dung nhanh ma
+    // `hashSignupFingerprint` mo ta cho may dev chua cam gi.
+    security: { phoneHashPepper: '' },
   };
   const groups = {
     findActiveByInviteCode: jest.fn().mockResolvedValue(null),

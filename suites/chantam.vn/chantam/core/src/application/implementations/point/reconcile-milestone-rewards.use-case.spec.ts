@@ -22,8 +22,11 @@ function makeDeps(
       findPendingQualifications: jest.fn(
         async (_limit: number) => extra.pendingReferees ?? [],
       ),
+      // Van giu mock nay de mot phep kiem chung minh duoc rang KHONG con ai
+      // goi thang repository nua.
       qualifyAndAward: jest.fn(async () => ({ qualified: true })),
     },
+    qualifyReferral: { handle: jest.fn(async () => ({ qualified: true })) },
   };
 }
 
@@ -38,6 +41,7 @@ describe('ReconcileMilestoneRewardsUseCase', () => {
       deps.ledger as never,
       deps.append as never,
       deps.referrals as never,
+      deps.qualifyReferral as never,
     );
 
     await expect(useCase.handle({})).resolves.toEqual({
@@ -60,6 +64,7 @@ describe('ReconcileMilestoneRewardsUseCase', () => {
       deps.ledger as never,
       deps.append as never,
       deps.referrals as never,
+      deps.qualifyReferral as never,
     );
 
     await expect(useCase.handle({})).resolves.toEqual({
@@ -78,6 +83,7 @@ describe('ReconcileMilestoneRewardsUseCase', () => {
       deps.ledger as never,
       deps.append as never,
       deps.referrals as never,
+      deps.qualifyReferral as never,
     );
 
     await expect(useCase.handle({})).resolves.toEqual({
@@ -93,6 +99,7 @@ describe('ReconcileMilestoneRewardsUseCase', () => {
       deps.ledger as never,
       deps.append as never,
       deps.referrals as never,
+      deps.qualifyReferral as never,
     );
 
     await useCase.handle({});
@@ -108,6 +115,7 @@ describe('ReconcileMilestoneRewardsUseCase', () => {
       deps.ledger as never,
       deps.append as never,
       deps.referrals as never,
+      deps.qualifyReferral as never,
     );
 
     await expect(useCase.handle({})).resolves.toEqual({
@@ -130,6 +138,7 @@ describe('ReconcileMilestoneRewardsUseCase', () => {
       deps.ledger as never,
       deps.append as never,
       deps.referrals as never,
+      deps.qualifyReferral as never,
     );
 
     await expect(useCase.handle({})).resolves.toEqual({
@@ -137,20 +146,24 @@ describe('ReconcileMilestoneRewardsUseCase', () => {
       repairedOnboarding: 0,
       repairedReferrals: 1,
     });
-    expect(deps.referrals.qualifyAndAward).toHaveBeenCalledWith({
+    expect(deps.qualifyReferral.handle).toHaveBeenCalledWith({
       refereeId: UserA,
     });
+    // Đi qua USE CASE, không qua repository: use case là nơi gửi thông báo và gọi
+    // `afterBalanceChange`. Gọi thẳng repository là cộng điểm im lặng.
+    expect(deps.referrals.qualifyAndAward).not.toHaveBeenCalled();
   });
 
   it('lượt giới thiệu vẫn hoãn thì KHÔNG tính là đã vá', async () => {
     // Rule còn tắt: `qualifyAndAward` trả `qualified: false` và để nguyên dòng
     // đó cho lần chạy sau. Đếm nó là đã vá thì người vận hành tưởng xong rồi.
     const deps = makeDeps([], { pendingReferees: [UserA] });
-    deps.referrals.qualifyAndAward.mockResolvedValueOnce({ qualified: false });
+    deps.qualifyReferral.handle.mockResolvedValueOnce({ qualified: false });
     const useCase = new ReconcileMilestoneRewardsUseCase(
       deps.ledger as never,
       deps.append as never,
       deps.referrals as never,
+      deps.qualifyReferral as never,
     );
 
     await expect(useCase.handle({})).resolves.toEqual({

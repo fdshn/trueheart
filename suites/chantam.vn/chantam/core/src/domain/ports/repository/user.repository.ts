@@ -6,6 +6,18 @@ export interface ICreateUserWithReferralParams {
   username: string;
   passwordHash: string;
   referralCode?: string;
+  /**
+   * Dấu vết đăng ký, để ghi vào `referrals` cùng lúc tạo quan hệ giới thiệu.
+   *
+   * Hai cột `signup_ip_hash` / `signup_device_hash` có từ migration đầu tiên và trước
+   * 30/09 không dòng nào có giá trị — trong khi chúng là dữ liệu duy nhất để nhìn ra
+   * một người tự tạo nhiều tài khoản. Trigger coi chúng là BẤT BIẾN, nên chỉ ghi được
+   * ở đúng lần `INSERT` này; vá sau cho dữ liệu cũ là không thể.
+   *
+   * Đã băm tại tầng gọi — xem `hashSignupFingerprint`.
+   */
+  signupIpHash?: string | null;
+  signupDeviceHash?: string | null;
 }
 
 export interface ICreateUserWithReferralResult {

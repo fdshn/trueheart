@@ -1,4 +1,5 @@
 import {
+  IAdminReferralSignals,
   IChangeUserStatusDto,
   IDeleteAdminUserDto,
   IReleaseVerifiedPhoneDto,
@@ -284,9 +285,33 @@ export class ListAdminUsersResponseDto {
   meta: PaginationMetaDto;
 }
 
+export class AdminReferralSignalsDto implements IAdminReferralSignals {
+  @ApiProperty({
+    example: 4,
+    description: 'Số người đã đăng ký bằng mã của họ.',
+  })
+  invited: number;
+
+  @ApiProperty({
+    example: 2,
+    description: 'Trong đó bao nhiêu đã đủ điều kiện.',
+  })
+  qualified: number;
+
+  @ApiProperty({
+    example: 0,
+    description:
+      'Số cụm dấu vết đăng ký trùng nhau (cùng IP hoặc cùng thiết bị) trong số người họ đã mời. Số càng cao càng giống một người tự tạo nhiều tài khoản — nhưng KHÔNG phải bằng chứng: một gia đình dùng chung wifi cũng ra cụm trùng. Hệ thống chỉ đếm, không tự khoá ai. Lượt đăng ký trước 30/09 không có dấu vết nên luôn ra 0 — nghĩa là "không biết", không phải "sạch".',
+  })
+  sharedSignupFingerprints: number;
+}
+
 export class AdminUserResponseDto {
   @ApiProperty({ type: () => AdminUserDto })
   user: IAdminUserSummary;
+
+  @ApiProperty({ type: () => AdminReferralSignalsDto })
+  referrals: IAdminReferralSignals;
 }
 
 export class AdminUserMutationResponseDto {

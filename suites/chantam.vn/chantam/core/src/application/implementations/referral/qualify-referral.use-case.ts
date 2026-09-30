@@ -1,6 +1,7 @@
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import {
   IQualifyReferralCommand,
+  IQualifyReferralResult,
   IQualifyReferralUseCase,
 } from '@/application/contracts/referral';
 import { IReferralRepository } from '@/domain/ports/repository';
@@ -18,9 +19,11 @@ export class QualifyReferralUseCase implements IQualifyReferralUseCase {
     private readonly dispatchNotification: IDispatchNotificationUseCase,
   ) {}
 
-  public async handle(command: IQualifyReferralCommand): Promise<void> {
+  public async handle(
+    command: IQualifyReferralCommand,
+  ): Promise<IQualifyReferralResult> {
     const result = await this.referrals.qualifyAndAward(command);
-    if (!result.qualified || !result.referrerId) return;
+    if (!result.qualified || !result.referrerId) return { qualified: false };
 
     // Nói với NGƯỜI MỜI rằng họ vừa được thưởng.
     //
@@ -53,5 +56,7 @@ export class QualifyReferralUseCase implements IQualifyReferralUseCase {
     // Qua `RankChangeNotifier`, không gọi `reconcileNormalRank` trần: 56 điểm
     // giới thiệu có thể đẩy người ta lên hạng, và họ nên được biết.
     await this.rankChange.afterBalanceChange(result.referrerId);
+
+    return { qualified: true };
   }
 }

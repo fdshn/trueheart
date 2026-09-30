@@ -7,6 +7,7 @@ import { UsernameTakenException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import { IGroupRepository, IUserRepository } from '@/domain/ports/repository';
 import { IRequestThrottle } from '@/domain/ports/security';
+import { hashSignupFingerprint } from '@/infrastructure/security/signup-fingerprint';
 import { UserId } from '@chantam.vn/chantam.core-lib/values';
 import { IPasswordService } from '@chantam/service.auth-lib';
 import { Inject, Injectable } from '@nestjs/common';
@@ -53,6 +54,23 @@ export class RegisterUserUseCase implements IRegisterUserUseCase {
       username,
       passwordHash: await this.passwordService.hash(registration.password),
       referralCode: registration.referralCode,
+      // Dấu vết đăng ký, ghi cùng lúc tạo quan hệ giới thiệu. Trigger coi hai cột
+      // này là bất biến, nên đây là lần duy nhất ghi được.
+      //
+      // `deviceId` do client tự sinh nên nó là tín hiệu YẾU: ai muốn lách thì đổi
+      // mỗi lần. Giữ vì phần lớn người tạo tài khoản hàng loạt không lách — và một
+      // tín hiệu yếu vẫn hơn không có tín hiệu nào, miễn là không ai tự động khoá
+      // tài khoản dựa vào nó.
+      signupIpHash: hashSignupFingerprint(
+        'IP',
+        command.clientIp,
+        this.config.security.phoneHashPepper,
+      ),
+      signupDeviceHash: hashSignupFingerprint(
+        'DEVICE',
+        registration.deviceId,
+        this.config.security.phoneHashPepper,
+      ),
     });
     if (!created.user) throw new UsernameTakenException(username);
 

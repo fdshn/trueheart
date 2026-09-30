@@ -24,8 +24,28 @@ export interface IGetAdminUserCommand {
   actorUserId: string;
   targetUserId: string;
 }
+export interface IAdminReferralSignals {
+  /** Số người đã đăng ký bằng mã của người này. */
+  readonly invited: number;
+  /** Trong đó bao nhiêu đã đủ điều kiện. */
+  readonly qualified: number;
+  /**
+   * Số cụm dấu vết đăng ký TRÙNG NHAU trong số người họ đã mời.
+   *
+   * `0` là bình thường; số càng cao càng giống một người tự tạo nhiều tài khoản.
+   * Nhưng KHÔNG phải bằng chứng: một gia đình dùng chung wifi hay mấy người đăng
+   * ký ở cùng một quán cũng ra cụm trùng. Nên hệ thống chỉ ĐẾM và hiện cho
+   * Admin, không tự khoá ai.
+   *
+   * Dữ liệu trước 30/09 không có dấu vết nào, nên con số này luôn `0` cho những
+   * lượt đăng ký cũ — không phải "sạch", mà là "không biết".
+   */
+  readonly sharedSignupFingerprints: number;
+}
+
 export interface IGetAdminUserResult {
   user: IAdminUserSummary;
+  referrals: IAdminReferralSignals;
 }
 export interface IGetAdminUserUseCase extends IUseCase<
   IGetAdminUserCommand,

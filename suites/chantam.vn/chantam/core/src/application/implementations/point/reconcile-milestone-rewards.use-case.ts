@@ -5,6 +5,7 @@ import {
   IReconcileMilestoneRewardsUseCase,
   MilestoneRewardReconcileBatchSize,
 } from '@/application/contracts/point';
+import { IQualifyReferralUseCase } from '@/application/contracts/referral';
 import {
   IPointLedgerRepository,
   IReferralRepository,
@@ -40,6 +41,8 @@ export class ReconcileMilestoneRewardsUseCase implements IReconcileMilestoneRewa
     private readonly appendPointEntryUseCase: IAppendPointEntryUseCase,
     @Inject(IReferralRepository)
     private readonly referrals: IReferralRepository,
+    @Inject(IQualifyReferralUseCase)
+    private readonly qualifyReferralUseCase: IQualifyReferralUseCase,
   ) {}
 
   public async handle(
@@ -64,12 +67,25 @@ export class ReconcileMilestoneRewardsUseCase implements IReconcileMilestoneRewa
     // Giới thiệu KHÔNG đi qua `appendPointEntry` trực tiếp: trigger database đòi
     // `qualified_at` và `reward_entry_id` phải cùng xuất hiện trong một lần ghi,
     // nên phải gọi lại đúng đường nghiệp vụ.
+    //
+    // VÀ ĐÓ PHẢI LÀ USE CASE, không phải repository. Trước 30/09 chỗ này gọi thẳng
+    // `this.referrals.qualifyAndAward`, nên nó bỏ qua cả hai việc mà `QualifyReferralUseCase`
+    // làm sau khi ghi sổ: gửi thông báo `REFERRAL_QUALIFIED`, và gọi
+    // `RankChangeNotifier.afterBalanceChange`.
+    //
+    // Hệ quả trước đó: lượt giới thiệu bị hoãn vì trần ngày — tức referral thứ 4 trở
+    // đi, đường bình thường của một người mời tích cực — được cộng điểm HOÀN TOÀN IM
+    // LẶNG, và cú đẩy lên hạng từ những điểm đó cũng không ai nói. Hai mục "đã sửa"
+    // của §23 — hoãn thay vì mất, và thêm thông báo — không ăn khớp với nhau.
+    //
+    // `repairRule` ngay trên đã đi qua use case (`IAppendPointEntryUseCase`) từ đầu; hai
+    // nhánh cạnh nhau mà khác nhau là chỗ dễ đọc qua nhất.
     let repairedReferrals = 0;
     const pendingReferees =
       await this.referrals.findPendingQualifications(limit);
     for (const refereeId of pendingReferees) {
       try {
-        const outcome = await this.referrals.qualifyAndAward({ refereeId });
+        const outcome = await this.qualifyReferralUseCase.handle({ refereeId });
         if (outcome.qualified) repairedReferrals += 1;
       } catch (error) {
         this.logger.error(

@@ -74,12 +74,21 @@ export class UserRepository
         if (referrer && referrer.global_id !== params.globalId) {
           const linked = await manager.query<{ id: string }[]>(
             `
-              INSERT INTO referrals (referrer_id, referee_id, code)
-              VALUES ($1, $2, $3)
+              INSERT INTO referrals (
+                referrer_id, referee_id, code,
+                signup_ip_hash, signup_device_hash
+              )
+              VALUES ($1, $2, $3, $4, $5)
               ON CONFLICT (referee_id) DO NOTHING
               RETURNING id
             `,
-            [referrer.global_id, params.globalId, params.referralCode],
+            [
+              referrer.global_id,
+              params.globalId,
+              params.referralCode,
+              params.signupIpHash ?? null,
+              params.signupDeviceHash ?? null,
+            ],
           );
           referralApplied = linked.length === 1;
         }
