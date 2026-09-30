@@ -41,6 +41,18 @@ export const ConfigSchema = Joi.object({
   MAX_REGISTRATIONS_PER_IP: Joi.number().min(1).max(100).default(5),
   REGISTRATION_WINDOW_SECONDS: Joi.number().min(60).default(3_600),
 
+  // Trần gọi CHUNG cho mọi endpoint, theo IP mỗi phút. Mặc định 600 = 10 lượt/giây:
+  // rộng cho một người dùng thật kể cả lúc mở app và tải nhiều màn cùng lúc, nhưng
+  // chặn được lụt thô.
+  //
+  // `min(60)` chứ không cho nhỏ hơn: đặt trần quá thấp là tự khoá chính mình, và
+  // một con số như 10/phút sẽ làm client mở app đã bị 429.
+  GLOBAL_RATE_LIMIT_PER_MINUTE: Joi.number().min(60).max(100_000).default(600),
+
+  // Mặc định `false` và phải đặt đúng lúc triển khai — xem `trustProxy` trong
+  // `domain/ports/config/config.ts` để biết sai mỗi hướng thì hỏng thế nào.
+  TRUST_PROXY: Joi.boolean().truthy('true').falsy('false').default(false),
+
   // Config-only cho EmailOtpSender tương lai. Có From address KHÔNG có nghĩa
   // sender đã gửi được: vẫn cần vendor adapter, credential và domain verify.
   OTP_EMAIL_FROM_ADDRESS: Joi.string().email().allow('').default(''),

@@ -176,6 +176,30 @@ jobs:
               bash scripts/smoke-test.sh "$HEALTH_URL" --read-only
           fi
 
+      - name: Tự kiểm cây DI của cả 12 CLI trên host
+        # Cổng ở trên chỉ gọi endpoint ĐỌC qua HTTP. Nó bắt được service không lên,
+        # nhưng KHÔNG chạy CLI nào — mà hai cái bẫy từng làm cả bảy CLI chết
+        # (`.bind(NestFactory)` ở tham số mặc định, và `@Global()` chỉ có hiệu lực
+        # sau khi được import) chỉ hiện khi tiến trình CLI khởi động thật. Suốt thời
+        # gian đó `post:expire` chết trong crontab mà mọi cổng vẫn xanh.
+        #
+        # KHÔNG chạy CLI ở chế độ thường: sáu cái trong danh sách ghi dữ liệu thật —
+        # `chat-purge` xoá lịch sử chat, `notification-purge` xoá hộp thư. Nên dùng
+        # `--self-check`: dựng cây DI, giải token use case, rồi thoát. Không đọc,
+        # không ghi.
+        #
+        # Đẩy script qua stdin (`bash -s`) chứ không dựa vào cây mã nguồn trên host:
+        # deploy đẩy IMAGE, không đẩy source, nên một checkout cũ trên host sẽ kiểm
+        # bằng danh sách CLI lỗi thời. Nguồn duy nhất là file trong repo này.
+        if: steps.guard.outputs.enabled == 'true'
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" "$SSH_USER@$SSH_HOST"             "CHANTAM_CLI_SELF_CHECK=1              CHANTAM_CLI_RUNNER='docker compose exec -T core node'              CHANTAM_CLI_WORKDIR='$DEPLOY_PATH'              bash -s" < scripts/smoke-cli.sh
+
       - name: Rollback về image trước đó
         # Không có bước này, một lần deploy hỏng là dịch vụ nằm im tới khi có
         # người vào sửa tay. Chạy khi bất kỳ bước nào ở trên thất bại, kể cả

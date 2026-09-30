@@ -125,12 +125,28 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. ⛔ **Vẫn chưa có** (kiểm lại 30/09): không có `ThrottlerModule` hay plugin rate-limit nào
-   ở tầng ứng dụng. `DEFERRED.md` liệt nó là điều kiện trước public launch.
+1. ✅ **Đã có 30/09** — `GlobalRateLimitGuard`, đăng ký bằng `APP_GUARD` nên áp cho MỌI route,
+   kể cả route thêm sau này. Trần theo IP mỗi phút, mặc định 600 (10 lượt/giây), đặt qua
+   `GLOBAL_RATE_LIMIT_PER_MINUTE`.
 
-   Lưu ý cái ĐÃ có để không ai tưởng là đủ: `IRequestThrottle` (Redis) chặn theo **hành vi** —
-   chat, báo xấu, đăng ký theo IP — nhưng nó áp từng chỗ gọi, không phải một lớp chặn chung. Một
-   endpoint mới quên gọi nó thì không có gì đỡ.
+   Hai lớp không trùng việc: lớp này chặn lụt thô từ một nguồn; `IRequestThrottle` ở từng chỗ gọi
+   chặn lạm dụng một HÀNH VI ở mức thấp hơn nhiều (5 lượt đăng ký/giờ so với 600 request/phút).
+   Vấn đề của lớp kia là nó phải được gọi ở từng chỗ, nên một endpoint mới quên gọi thì không có
+   gì đỡ — đó là lý do lớp chung tồn tại.
+
+   ⚠️ **Cái bẫy phải đặt đúng lúc triển khai: `TRUST_PROXY`.** Đứng sau nginx hay Cloudflare mà
+   để `false` thì `request.ip` là IP của PROXY, nên mọi người dùng chung một bucket — trần chung
+   sẽ đánh sập cả API ngay khi tổng lưu lượng vượt ngưỡng, và lớp bảo vệ trở thành lỗ tự gây.
+   Ngược lại, bật khi KHÔNG có proxy thì ai cũng tự khai `X-Forwarded-For` được và trần thành vô
+   nghĩa. Nó là env riêng, mặc định `false`, truyền vào `FastifyAdapter` lúc dựng — Fastify tự
+   phân giải `request.ip`, không tự đọc header ở guard.
+
+   `/health` **KHÔNG** bị áp trần: healthcheck hạ tầng gọi liên tục, và một `/health` bị 429 làm
+   cổng kiểm tra sau triển khai chớp tắt vô cớ — rồi người ta sẽ tắt cổng đó đi. WebSocket cũng
+   không, vì một tin nhắn chat không nên tiêu hạn mức của một lượt gọi API.
+
+   Redis chết thì **cho qua**, giữ nguyên tinh thần `IRequestThrottle`: chặn toàn bộ người dùng
+   chỉ vì Redis hỏng là đánh đổi tệ hơn hẳn.
 2. **Chưa có request id / trace id** xuyên suốt để nối log với một request cụ thể.
 3. Thông báo lỗi hiện **chỉ có tiếng Việt**, chưa có cơ chế đa ngữ.
 4. **Chưa có versioning API** ngoài tiền tố `/api/v1` — chưa có kế hoạch cho v2.

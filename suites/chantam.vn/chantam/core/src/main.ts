@@ -43,9 +43,17 @@ function allowEmptyJsonBody(app: NestFastifyApplication): void {
 }
 
 async function bootstrap(): Promise<void> {
+  // `trustProxy` phải đặt lúc DỰNG adapter, không đặt được sau: Fastify quyết cách
+  // phân giải `request.ip` ngay khi khởi tạo.
+  //
+  // Đọc env trực tiếp vì `IConfig` chỉ lấy được SAU khi app dựng xong, mà giá trị
+  // này cần TRƯỚC đó. Joi vẫn kiểm nó ở `config.schema` nên một giá trị rác không
+  // đi xa được; ở đây chỉ cần biết bật hay tắt.
+  //
+  // Đặt sai hướng nào cũng nguy — xem `trustProxy` trong `domain/ports/config`.
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter(),
+    new FastifyAdapter({ trustProxy: process.env.TRUST_PROXY === 'true' }),
     { bufferLogs: true },
   );
 

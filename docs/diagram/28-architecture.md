@@ -148,10 +148,20 @@ flowchart TD
    Bản đầu của script này còn **che mất chính lỗi đó**: nó tha exit code 1 cho mọi CLI, nên
    `post:expire` chết lúc khởi động mà vẫn hiện xanh. Nay chỉ một allowlist `SIGNAL_CLIS` được
    phép thoát khác 0, kèm lý do từng cái.
-2. ⚠️ **Có, nhưng chỉ phần ĐỌC.** `deploy.yaml` chạy `smoke-test.sh --read-only` sau khi
-   triển khai. Nó bắt được service không lên và endpoint đọc hỏng, nhưng **không** chạy CLI nào —
-   nên đúng loại lỗi DI đã làm bảy CLI chết vẫn đi qua được cổng này. Chạy `smoke-cli.sh` ở đó
-   là việc chưa làm; xem [29](./29-cicd.md) mục 4.
+2. ✅ **Đã đủ 30/09.** `deploy.yaml` chạy `smoke-test.sh --read-only`, VÀ tự kiểm cây DI của
+   cả 12 CLI trên host.
+
+   Không chạy CLI ở chế độ thường được: sáu cái ghi dữ liệu thật — `chat-purge` xoá lịch sử chat,
+   `notification-purge` xoá hộp thư — và một cổng kiểm tra mà xoá dữ liệu người dùng thì tệ hơn
+   không có cổng nào. Nên có cờ `--self-check`: dựng cây DI, giải đúng token use case mà CLI sẽ
+   dùng, rồi thoát. Không đọc, không ghi.
+
+   Đó vẫn bắt được đúng thứ cần bắt, vì cả hai cái bẫy từng làm bảy CLI chết đều nằm ở lúc KHỞI
+   ĐỘNG. Giải cả token chứ không chỉ dựng cây: dựng cây bắt module thiếu, giải token còn bắt được
+   `Symbol` ở CLI không trùng `Symbol` module provide — lỗi im lặng hơn.
+
+   Script đẩy qua stdin (`bash -s`) chứ không dựa vào cây mã nguồn trên host: deploy đẩy IMAGE
+   chứ không đẩy source, nên một checkout cũ trên host sẽ kiểm bằng danh sách CLI lỗi thời.
 3. ✅ **Đã nằm trong pipeline 30/09.** Trước đó chỉ 5 trong 30 script chạy trong CI; nay cả 30.
    Lượt đầu bắt ngay hai lỗi, và cả hai do migration `1795700000000` seed thêm khoá cấu hình:
    một script nổ ràng buộc duy nhất, một script **hỏng lặng lẽ** vì `ON CONFLICT DO NOTHING`

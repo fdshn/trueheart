@@ -81,6 +81,10 @@ export function loadConfig(): IConfig {
       registrationWindowSeconds: Number(
         process.env.REGISTRATION_WINDOW_SECONDS ?? 3_600,
       ),
+      globalRateLimitPerMinute: Number(
+        process.env.GLOBAL_RATE_LIMIT_PER_MINUTE ?? 600,
+      ),
+      trustProxy: process.env.TRUST_PROXY === 'true',
     },
     // Khai `API_SERVERS` thì DÙNG ĐÚNG danh sách đó, không chèn localhost.
     //

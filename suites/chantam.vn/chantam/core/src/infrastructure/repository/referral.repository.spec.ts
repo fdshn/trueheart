@@ -33,6 +33,10 @@ describe('ReferralRepository', () => {
     expect(qualified).toEqual({
       qualified: true,
       referrerId: '20000000-0000-4000-8000-000000000002',
+      // Trả kèm số điểm để thông báo cho người giới thiệu nói đúng con số. Lấy từ
+      // bút toán vừa ghi, KHÔNG đọc lại `point_rules` — rule là cấu hình động nên
+      // đọc lại có thể ra con số khác với con số đã vào sổ.
+      awardedPoints: 56,
     });
     expect(rootManager.transaction).toHaveBeenCalledTimes(1);
     const sql = query.mock.calls.map(([statement]) => statement).join('\n');

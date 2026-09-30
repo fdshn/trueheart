@@ -37,6 +37,28 @@ export interface IAuthConfig {
   maxLoginAttemptsPerIp: number;
   /** Số tài khoản tối đa tạo được từ một địa chỉ IP trong một cửa sổ. */
   maxRegistrationsPerIp: number;
+  /**
+   * Trần gọi CHUNG cho mọi endpoint, tính theo IP mỗi phút.
+   *
+   * Khác `maxLoginAttemptsPerIp` và `maxRegistrationsPerIp`: hai cái đó chặn theo
+   * HÀNH VI ở từng chỗ gọi, nên một endpoint mới quên gọi chúng thì không có gì
+   * đỡ. Cái này là lớp chặn chung, áp cho mọi route.
+   */
+  globalRateLimitPerMinute: number;
+  /**
+   * `true` khi service đứng SAU proxy tin cậy (nginx, Cloudflare).
+   *
+   * BẮT BUỘC đúng, và sai theo hướng nào cũng nguy:
+   *
+   * - Đứng sau proxy mà để `false`: `request.ip` là IP của proxy, nên MỌI người
+   *   dùng chung một bucket. Trần chung sẽ đánh sập cả API ngay khi tổng lưu lượng
+   *   vượt ngưỡng — lớp bảo vệ trở thành lỗ tự gây.
+   * - KHÔNG sau proxy mà để `true`: ai cũng tự khai `X-Forwarded-For` được, nên
+   *   trần chung thành vô nghĩa vì mỗi request là một IP mới.
+   *
+   * Nên nó là env riêng, mặc định `false`, và phải đặt đúng lúc triển khai.
+   */
+  trustProxy: boolean;
   /** Độ dài cửa sổ đếm đăng ký, tính bằng giây. */
   registrationWindowSeconds: number;
 }

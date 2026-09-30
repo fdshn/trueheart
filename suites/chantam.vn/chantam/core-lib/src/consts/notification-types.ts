@@ -95,6 +95,19 @@ export enum NotificationTypes {
   RANK_PROMOTED = 'RANK_PROMOTED',
 
   /**
+   * Người mình giới thiệu đã đủ điều kiện, và mình vừa được thưởng.
+   *
+   * Thêm 30/09. Trước đó đường giới thiệu hoàn toàn im lặng với NGƯỜI MỜI: họ mời
+   * xong rồi không biết gì nữa — không biết người kia đã qua onboarding, cũng không
+   * biết mình vừa được 56 điểm. Mà đó chính là lúc cần nói, vì nó là thứ khiến họ
+   * mời tiếp.
+   *
+   * Gửi ở nhánh ĐÃ GHI SỔ, không phải lúc người kia đăng ký: điểm chỉ vào khi
+   * referee hoàn tất onboarding, và báo sớm hơn là hứa một thứ chưa chắc có.
+   */
+  REFERRAL_QUALIFIED = 'REFERRAL_QUALIFIED',
+
+  /**
    * Nhắc người nhận đánh giá lượt trao đã hoàn tất.
    *
    * Không nhắc thì phần lớn không đánh giá, và nhánh "áp mức mặc định sau 7
@@ -179,6 +192,7 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.RANK_DEMOTION_WARNING]: NotificationGroups.SYSTEM,
   [NotificationTypes.RANK_DEMOTED]: NotificationGroups.SYSTEM,
   [NotificationTypes.RANK_PROMOTED]: NotificationGroups.SYSTEM,
+  [NotificationTypes.REFERRAL_QUALIFIED]: NotificationGroups.SYSTEM,
   [NotificationTypes.RANK_MAINTENANCE_REMINDER]: NotificationGroups.SYSTEM,
   [NotificationTypes.REVIEW_REMINDER]: NotificationGroups.SYSTEM,
   [NotificationTypes.POST_EXPIRING_SOON]: NotificationGroups.SYSTEM,

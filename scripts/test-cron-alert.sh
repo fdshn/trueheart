@@ -117,6 +117,7 @@ PYEOF
 fi
 
 echo
+
 echo '3. Máy chủ chết thì ghi lại, không im lặng'
 kill "${SERVER_PID}" 2>/dev/null || true
 wait "${SERVER_PID}" 2>/dev/null || true
@@ -132,6 +133,42 @@ check "$([[ ${rc} -ne 0 ]] && echo true || echo false)" \
 check "$([[ -f "${WORK}/logs3/alerts-chua-gui-duoc.log" ]] && echo true || echo false)" \
   'ghi lại lượt không gửi được — cảnh báo về cảnh báo không đi qua cùng kênh'
 
+echo
+echo '4. Healthcheck ngoài: chỉ báo sau N lượt thất bại liên tiếp'
+HEALTH="${ROOT}/deploy/cron/check-health.sh"
+HLOG="${WORK}/hlogs"
+
+# URL chắc chắn không ai phục vụ. Ngưỡng 2 để phép kiểm ngắn.
+run_health() {
+  set +e
+  CHANTAM_CRON_ALERT_URL="" CHANTAM_CRON_LOG_DIR="${HLOG}" \
+    CHANTAM_HEALTH_FAILURES=2 CHANTAM_HEALTH_TIMEOUT=2 \
+    "${HEALTH}" "http://127.0.0.1:1/health" >/dev/null 2>&1
+  local rc=$?
+  set -e
+  return ${rc}
+}
+
+# Lượt 1: thất bại nhưng CHƯA chạm ngưỡng nên KHÔNG gửi gì.
+run_health || true
+check "$([[ ! -f "${HLOG}/alerts-chua-gui-duoc.log" ]] && echo true || echo false)" \
+  'lượt thất bại ĐẦU chưa báo — mạng chớp một nhịp không phải sự cố'
+
+# Lượt 2: chạm ngưỡng nên PHẢI gửi. Kênh chưa cấu hình nên nó rơi vào file
+# "chưa gửi được" — đúng đường đã kiểm ở mục 1.
+run_health || true
+check "$([[ -f "${HLOG}/alerts-chua-gui-duoc.log" ]] && echo true || echo false)" \
+  'lượt chạm ngưỡng thì BÁO'
+
+# Lượt 3: vẫn đỏ nhưng KHÔNG báo lại — một sự cố hai giờ không được gửi 24 dòng.
+before_lines=$(wc -l < "${HLOG}/alerts-chua-gui-duoc.log")
+run_health || true
+after_lines=$(wc -l < "${HLOG}/alerts-chua-gui-duoc.log")
+check "$([[ "${before_lines}" == "${after_lines}" ]] && echo true || echo false)" \
+  'lượt sau ngưỡng KHÔNG báo lại' "${before_lines} -> ${after_lines}"
+
+check "$([[ "$(cat "${HLOG}/health-that-bai.count")" == '3' ]] && echo true || echo false)" \
+  'đếm đúng số lượt thất bại liên tiếp' "$(cat "${HLOG}/health-that-bai.count")"
 echo
 if [[ ${fail} -eq 0 ]]; then
   echo "Kết quả: ${pass} đạt, 0 lỗi"

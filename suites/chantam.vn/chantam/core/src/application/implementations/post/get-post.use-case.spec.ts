@@ -70,6 +70,8 @@ function makeConfig(): IConfig {
       maxLoginAttempts: 5,
       loginLockSeconds: 900,
       otpTtlSeconds: 300,
+      globalRateLimitPerMinute: 600,
+      trustProxy: false,
       maxLoginAttemptsPerIp: 30,
       maxRegistrationsPerIp: 5,
       registrationWindowSeconds: 3600,

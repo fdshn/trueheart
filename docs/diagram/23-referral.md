@@ -89,13 +89,21 @@ flowchart TD
 1. ✅ **Đã sửa 29/09 — không mất nữa mà HOÃN.** `qualifyAndAward` trả `qualified: false` và để
    nguyên dòng khi chạm trần ngày; `point:reconcile` quét lại ở lượt sau. Xem
    [21 §21.4b](./21-open-issues.md) mục 6.
-2. ⛔ **Vẫn chưa có** (kiểm lại 30/09): `notification-types.ts` không có mã nào cho referral.
-   Người mời không biết referee của mình đã đủ điều kiện, nên họ cũng không biết mình vừa được
-   56 điểm — mà đó chính là lúc cần nói, vì nó khuyến khích họ mời tiếp.
+2. ✅ **Đã có 30/09.** `NotificationTypes.REFERRAL_QUALIFIED`, gửi ở `QualifyReferralUseCase`
+   ngay sau khi bút toán vào sổ.
 
-   Đây là việc nhỏ và rõ: thêm một mã `REFERRAL_QUALIFIED` vào `NotificationTypes` rồi dispatch
-   ở `qualifyAndAward` sau khi ghi sổ, khoá chống trùng theo id referral. Chưa làm vì nó không
-   nằm trong phạm vi bốn việc đợt này.
+   Ba chi tiết đáng ghi:
+
+   - **Số điểm lấy từ bút toán vừa ghi** (`award.delta`), không đọc lại `point_rules`: rule là
+     cấu hình động, nên đọc lại có thể ra con số khác với con số đã vào sổ và thông báo sẽ nói
+     sai.
+   - **Thiếu số điểm thì không nói con số nào** thay vì nói `+undefined điểm`.
+   - **Khoá chống trùng theo NGƯỜI ĐƯỢC GIỚI THIỆU**, đúng khoá mà bút toán dùng: một lượt giới
+     thiệu chỉ đủ điều kiện một lần, nên `point:reconcile` quét lại không rung điện thoại lần
+     hai.
+
+   Gửi TRƯỚC `afterBalanceChange` để thứ tự đọc theo thứ tự nhân quả — "bạn được thưởng" rồi mới
+   "bạn lên hạng".
 3. **Chưa chống được referral vòng tròn** giữa nhiều tài khoản do cùng một người tạo — mới chỉ
    chặn tự giới thiệu chính mình.
 4. Nhiệm vụ duy trì rank đòi "N Personal Referral **hợp lệ**" mỗi quý — cần xác nhận "hợp lệ"

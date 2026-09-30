@@ -3,6 +3,7 @@ import { INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { config as loadEnvFile } from 'dotenv';
 import { MediaCliModule } from './media-cli.module';
+import { selfCheckIfRequested } from './self-check';
 
 export async function runMediaSweepOrphans(
   options: { dryRun?: boolean; minAgeHours?: number } = {},
@@ -32,6 +33,12 @@ export async function runMediaSweepOrphans(
 async function main(): Promise<void> {
   loadEnvFile({ path: '.env.local' });
   loadEnvFile();
+
+  // `--self-check` dựng cây DI rồi thoát, KHÔNG làm việc gì. Cổng kiểm tra sau
+  // triển khai dùng nó: sáu CLI ở đây ghi dữ liệu thật, nên chạy nguyên xi trên
+  // production là xoá lịch sử chat và hộp thư của người dùng.
+  if (await selfCheckIfRequested(MediaCliModule, ISweepOrphanMediaUseCase))
+    return;
 
   const apply = process.argv.includes('--apply');
   const ageArg = process.argv.find((arg) => arg.startsWith('--min-age-hours='));

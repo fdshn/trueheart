@@ -3,6 +3,7 @@ import { INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { config as loadEnvFile } from 'dotenv';
 import { NotificationCliModule } from './notification-cli.module';
+import { selfCheckIfRequested } from './self-check';
 
 export async function runPurgeOldNotifications(
   // `.bind` là BẮT BUỘC: `NestFactory` là một instance, nên truyền tham chiếu
@@ -26,6 +27,17 @@ export async function runPurgeOldNotifications(
 async function main(): Promise<void> {
   loadEnvFile({ path: '.env.local' });
   loadEnvFile();
+
+  // `--self-check` dựng cây DI rồi thoát, KHÔNG làm việc gì. Cổng kiểm tra sau
+  // triển khai dùng nó: sáu CLI ở đây ghi dữ liệu thật, nên chạy nguyên xi trên
+  // production là xoá lịch sử chat và hộp thư của người dùng.
+  if (
+    await selfCheckIfRequested(
+      NotificationCliModule,
+      PurgeOldNotificationsUseCase,
+    )
+  )
+    return;
 
   const result = await runPurgeOldNotifications();
   console.log(`Đã dọn ${result.purged} thông báo quá hạn lưu trữ.`);

@@ -6,6 +6,7 @@ import { INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { config as loadEnvFile } from 'dotenv';
 import { GiftRequestCliModule } from './gift-request-cli.module';
+import { selfCheckIfRequested } from './self-check';
 
 export async function runAutoSelectDueRecipients(
   dryRun: boolean,
@@ -35,6 +36,17 @@ export async function runAutoSelectDueRecipients(
 async function main(): Promise<void> {
   loadEnvFile({ path: '.env.local' });
   loadEnvFile();
+
+  // `--self-check` dựng cây DI rồi thoát, KHÔNG làm việc gì. Cổng kiểm tra sau
+  // triển khai dùng nó: sáu CLI ở đây ghi dữ liệu thật, nên chạy nguyên xi trên
+  // production là xoá lịch sử chat và hộp thư của người dùng.
+  if (
+    await selfCheckIfRequested(
+      GiftRequestCliModule,
+      IAutoSelectDueRecipientsUseCase,
+    )
+  )
+    return;
 
   const dryRun = process.argv.includes('--dry-run');
   const result = await runAutoSelectDueRecipients(dryRun);

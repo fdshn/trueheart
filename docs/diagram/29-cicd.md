@@ -132,17 +132,36 @@ flowchart TD
    `send-alert.sh` POST tới `$CHANTAM_CRON_ALERT_URL`; chưa đặt URL thì ghi vào
    `alerts-chua-gui-duoc.log` và trả mã khác 0 thay vì im lặng. Nhịp tim hằng tuần để "không có
    cảnh báo" khác được với "đường cảnh báo đã chết". `scripts/test-cron-alert.sh` chạy trong CI.
-2. 🟡 **Cron đỏ thì biết; SERVICE chết thì vẫn chưa.** Đường báo mới chỉ nối vào `run-cli.sh`.
-   Service chết lúc 2 giờ sáng vẫn phải sáng ra mới biết — cần một healthcheck bên ngoài gọi
-   `/health` theo chu kỳ, và đó là việc chưa làm.
-3. ⛔ **Restore test chưa từng chạy.**
-4. ⚠️ **Đã soát 30/09: KHÔNG đủ sâu.** Cổng chạy `smoke-test.sh --read-only`, tức chỉ gọi
-   endpoint đọc qua HTTP. Nó bắt được service không lên, nhưng **không chạy CLI nào** — mà lỗi DI
-   kiểu đã làm bảy CLI chết chỉ hiện khi tiến trình CLI khởi động thật.
+2. ✅ **Đã có 30/09** — `deploy/cron/check-health.sh`, mỗi 5 phút, dùng đúng đường cảnh báo
+   của `send-alert.sh`.
 
-   Việc cần làm: thêm `smoke-cli.sh` vào `deploy.yaml`. Chưa làm vì nó chạy `docker compose exec`
-   trên host đích, nên cần quyết định chạy ở runner hay qua SSH — và đó là quyết định triển khai,
-   không phải kỹ thuật.
-5. ✅ **Đã có trong CI** (`smoke-cli.sh`, job `integration`). ⛔ Nhưng **chưa có trong
-   `deploy.yaml`** — tức đường triển khai thật vẫn không kiểm được lỗi DI kiểu đã làm bảy CLI
-   chết. Đó là mục 4 ở trên nói cụ thể ra.
+   Đây là healthcheck NGOÀI tiến trình: nó không phụ thuộc vào việc service còn sống để báo rằng
+   service đã chết. Cần nó vì `run-cli.sh` chỉ báo khi một JOB đỏ, mà service chết thì không job
+   nào đỏ — chúng chỉ không chạy được, và giữa hai lượt job là một khoảng nằm im không ai biết.
+
+   Ba quyết định về NHỊP báo, mỗi cái vì một cách người ta bỏ qua cảnh báo:
+
+   - **Chỉ báo sau 3 lượt thất bại liên tiếp.** Một lượt `curl` trượt vì mạng chớp hay vì
+     container đang khởi động lại sau deploy — báo ngay là dạy người ta bỏ qua.
+   - **Báo ĐÚNG một lần lúc chạm ngưỡng**, không lặp mỗi 5 phút. Một sự cố hai giờ sẽ gửi 24
+     dòng giống nhau, và kênh sẽ bị tắt.
+   - **Báo cả lúc hồi phục.** Thiếu nó thì người nhận không biết chuyện đã xong, và họ vào xem
+     một sự cố đã tự khỏi — hoặc tệ hơn, tưởng nó vẫn đang xảy ra.
+
+   `scripts/test-cron-alert.sh` canh cả bốn hành vi đó.
+3. ⛔ **Restore test chưa từng chạy.**
+4. ✅ **Đã đủ sâu 30/09.** Cổng nay có hai phần: `smoke-test.sh --read-only` qua HTTP, và tự
+   kiểm cây DI của cả 12 CLI trên host qua SSH.
+
+   Chốt cách chạy: **qua SSH trên host**, không ở runner — mã sống trong container ở đó, và
+   `docker compose exec` cần chính máy đó. Script đẩy qua stdin nên không cần checkout trên host;
+   deploy đẩy image chứ không đẩy source, nên một checkout cũ sẽ kiểm bằng danh sách CLI lỗi thời.
+
+   Và **không chạy CLI ở chế độ thường** — xem [28](./28-architecture.md) mục 2 để biết vì sao.
+5. ✅ **Đã có ở cả hai chỗ 30/09.** CI chạy `smoke-cli.sh` ở chế độ thường (database throwaway
+   nên chạy thật được); `deploy.yaml` chạy nó với `CHANTAM_CLI_SELF_CHECK=1` trên host qua SSH,
+   dùng `CHANTAM_CLI_RUNNER='docker compose exec -T core node'` vì mã chạy trong container.
+
+   Một script, hai chế độ, một danh sách CLI — quan trọng vì hai danh sách sẽ trôi khỏi nhau, và
+   `smoke-cli.sh` còn có phép kiểm "không CLI nào bị bỏ ngoài danh sách" để thêm CLI mới mà quên
+   khai thì đỏ.

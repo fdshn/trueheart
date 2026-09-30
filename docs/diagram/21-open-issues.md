@@ -3,7 +3,8 @@
 Gom toàn bộ điểm còn treo rải rác trong 29 sơ đồ còn lại về một chỗ, xếp theo mức chặn.
 
 > **Soát lại 30/09.** Bảy mục ghi là treo thì đã xong, và **hai mục tự nó sai** — xem đánh dấu
-> ✅ và ❌ dưới đây. Một danh sách "việc còn treo" mà không ai dọn sẽ dài ra rồi bị bỏ qua cả
+> ✅ và ❌ dưới đây. Lượt thứ hai cùng ngày đóng nốt bốn chỗ còn lại: thông báo cho người giới
+> thiệu, trần gọi chung, tự kiểm CLI ở cổng triển khai, và healthcheck ngoài cho service chết. Một danh sách "việc còn treo" mà không ai dọn sẽ dài ra rồi bị bỏ qua cả
 > khối, nên mỗi mục đã xong phải được đánh dấu chứ không xoá: xoá đi thì lần sau không ai biết
 > nó từng là vấn đề.
 
@@ -132,8 +133,13 @@ flowchart LR
 [ ] R2 staging/prod: bucket, key, CORS, CDN domain
 [ ] Backup database VÀ restore test
 [ ] Global rate limit
-[~] Monitoring / alerting — cron đỏ đã có đường báo (`$CHANTAM_CRON_ALERT_URL`),
-    service chết thì vẫn chưa ai biết
+[x] Monitoring / alerting — cron đỏ và service chết đều có đường báo
+    (`check-health.sh` mỗi 5 phút). ⚠️ Vẫn cần ĐIỀN `CHANTAM_CRON_ALERT_URL`
+    và `CHANTAM_HEALTH_URL` — chưa điền thì mọi cảnh báo rơi vào
+    `alerts-chua-gui-duoc.log`, có ghi lại nhưng không ai đọc
+[x] Global rate limit (`GlobalRateLimitGuard`, 600/phút theo IP).
+    ⚠️ Phải đặt `TRUST_PROXY=true` khi đứng sau proxy — để sai là trần chung
+    đánh sập cả API vì mọi người dùng chung một bucket
 [x] Lịch cron thật cho 12 CLI
 [ ] Queue / retry / dead-letter cho thông báo
 ```

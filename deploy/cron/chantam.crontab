@@ -106,3 +106,17 @@ RUN=/home/deploy/chantam/deploy/cron/run-cli.sh
 # Hằng tuần chứ không hằng ngày: một dòng "vẫn ổn" mỗi ngày là thứ người ta học
 # cách bỏ qua trong hai tuần, và khi đã bỏ qua thì nó không còn là nhịp tim.
 7 9 * * 1 deploy $CHANTAM_DIR/deploy/cron/send-alert.sh "nhịp tim hằng tuần" "Đường cảnh báo còn sống. Không nhận được dòng này nghĩa là nó đã chết — kiểm CHANTAM_CRON_ALERT_URL và $CHANTAM_CRON_LOG_DIR/alerts-chua-gui-duoc.log" >/dev/null 2>&1
+
+# ─── Healthcheck NGOÀI tiến trình ───────────────────────────────────────────
+#
+# Vì sao cần, khi cron đỏ đã có đường báo: `run-cli.sh` báo khi một JOB đỏ. Nhưng
+# service chết lúc 2 giờ sáng thì không job nào đỏ — chúng chỉ không chạy được, và
+# giữa hai lượt job là một khoảng service nằm im mà không ai biết.
+#
+# Mỗi 5 phút, và chỉ báo sau 3 lượt thất bại LIÊN TIẾP: một lượt curl trượt vì mạng
+# chớp hay vì container đang khởi động lại sau deploy thì báo ngay là dạy người ta
+# bỏ qua cảnh báo. Báo đúng một lần lúc chạm ngưỡng, cộng một lần khi hồi phục —
+# gửi lại mỗi 5 phút suốt hai giờ sự cố là cách chắc nhất để kênh bị tắt.
+#
+# Cần `CHANTAM_HEALTH_URL` trong môi trường của cron, hoặc truyền URL làm tham số.
+*/5 * * * * deploy $CHANTAM_DIR/deploy/cron/check-health.sh >/dev/null 2>&1

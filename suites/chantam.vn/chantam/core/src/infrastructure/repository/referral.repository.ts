@@ -135,7 +135,15 @@ export class ReferralRepository implements IReferralRepository {
       );
       if (qualified.length === 0) return { qualified: false };
 
-      return { qualified: true, referrerId: referral.referrer_id };
+      // Trả kèm SỐ ĐIỂM để thông báo nói đúng con số. Lấy từ `award` chứ không đọc
+      // lại `point_rules`: rule là cấu hình động, và đọc lại có thể ra con số khác
+      // với con số vừa ghi vào sổ.
+      return {
+        qualified: true,
+        referrerId: referral.referrer_id,
+        // `delta` là mức thay đổi của chính bút toán này — dương với khoản thưởng.
+        awardedPoints: award.delta,
+      };
     });
   }
 }

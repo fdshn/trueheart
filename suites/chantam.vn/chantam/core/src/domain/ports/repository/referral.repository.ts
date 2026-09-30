@@ -8,6 +8,14 @@ export interface IReferralSummary {
 export interface IReferralQualificationResult {
   readonly qualified: boolean;
   readonly referrerId?: string;
+  /**
+   * Số điểm đã ghi cho người giới thiệu.
+   *
+   * Lấy từ bút toán vừa ghi, không đọc lại `point_rules`: rule là cấu hình động
+   * nên đọc lại có thể ra con số khác với con số đã vào sổ, và thông báo sẽ nói
+   * sai.
+   */
+  readonly awardedPoints?: number;
 }
 
 export interface IReferralRepository {

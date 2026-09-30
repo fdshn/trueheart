@@ -77,6 +77,29 @@ PLAIN_CLIS=(
   transaction-autocomplete
 )
 
+# ── Hai chế độ, và vì sao cần chế độ thứ hai ────────────────────────────────
+#
+# Mặc định: chạy THẬT từng CLI, `--dry-run` ở đâu có. Đúng cho CI vì database là
+# throwaway, và đó là lớp duy nhất bắt được lỗi DI lúc khởi động.
+#
+# `CHANTAM_CLI_SELF_CHECK=1`: chỉ dựng cây DI rồi thoát (`--self-check`). Đây là
+# chế độ cho cổng kiểm tra sau TRIỂN KHAI, vì sáu CLI trong `PLAIN_CLIS` ghi dữ
+# liệu thật — `chat-purge` xoá lịch sử chat, `notification-purge` xoá hộp thư. Một
+# cổng kiểm tra mà xoá dữ liệu người dùng thì tệ hơn không có cổng nào.
+#
+# Hai cái bẫy từng làm cả bảy CLI chết đều nằm ở lúc KHỞI ĐỘNG, nên chế độ tự kiểm
+# vẫn bắt được đúng thứ cần bắt.
+SELF_CHECK="${CHANTAM_CLI_SELF_CHECK:-0}"
+
+# Tiền tố lệnh. Trên host triển khai, mã chạy TRONG container nên cần
+# `docker compose exec -T core node`. Để trống thì gọi `node` tại chỗ.
+RUNNER="${CHANTAM_CLI_RUNNER:-node}"
+
+# Thư mục chạy. Trên host là thư mục compose project, không phải cây mã nguồn.
+if [[ -n "${CHANTAM_CLI_WORKDIR:-}" ]]; then
+  cd "${CHANTAM_CLI_WORKDIR}"
+fi
+
 pass=0
 fail=0
 failed_names=()
@@ -85,13 +108,19 @@ run_one() {
   local name="$1"
   shift
   local output
-  output="$(node "dist/infrastructure/cli/${name}.cli.js" "$@" 2>&1)"
+  # `${RUNNER}` KHÔNG trong ngoặc kép: nó có thể là nhiều từ
+  # (`docker compose exec -T core node`) và cần tách thành tham số.
+  # shellcheck disable=SC2086
+  output="$(${RUNNER} "dist/infrastructure/cli/${name}.cli.js" "$@" 2>&1)"
   local code=$?
 
   local allowed=0
   if [[ ${code} -eq 0 ]]; then
     allowed=1
-  elif [[ ${code} -eq 1 ]] && printf '%s\n' "${SIGNAL_CLIS[@]}" | grep -qx "${name}"; then
+  elif [[ ${code} -eq 1 ]] && [[ "${SELF_CHECK}" != '1' ]] &&
+    printf '%s\n' "${SIGNAL_CLIS[@]}" | grep -qx "${name}"; then
+    # Ở chế độ tự kiểm KHÔNG tha exit 1 cho ai: tự kiểm không làm việc gì nên nó
+    # không có tín hiệu nghiệp vụ nào để phát. Thoát khác 0 là hỏng thật.
     # CLI này KHAI exit 1 là tín hiệu nghiệp vụ. Với CLI không khai, exit 1 gần như
     # luôn là `main()` bắt được một lỗi rồi đặt `exitCode = 1` — tức hỏng thật.
     allowed=1
@@ -109,10 +138,18 @@ run_one() {
   failed_names+=("${name}")
 }
 
-echo "Chạy thật từng CLI (dry-run ở đâu có):"
-echo
-for name in "${DRY_RUN_CLIS[@]}"; do run_one "${name}" --dry-run; done
-for name in "${PLAIN_CLIS[@]}"; do run_one "${name}"; done
+if [[ "${SELF_CHECK}" == '1' ]]; then
+  echo "Tự kiểm cây DI từng CLI (KHÔNG chạy việc, không đụng dữ liệu):"
+  echo
+  for name in "${DRY_RUN_CLIS[@]}" "${PLAIN_CLIS[@]}"; do
+    run_one "${name}" --self-check
+  done
+else
+  echo "Chạy thật từng CLI (dry-run ở đâu có):"
+  echo
+  for name in "${DRY_RUN_CLIS[@]}"; do run_one "${name}" --dry-run; done
+  for name in "${PLAIN_CLIS[@]}"; do run_one "${name}"; done
+fi
 
 # Mọi CLI có file đều phải nằm trong một trong hai danh sách trên. Thiếu bước này
 # thì thêm một CLI mới mà quên thêm vào đây sẽ không bao giờ được chạy, và script
@@ -120,6 +157,9 @@ for name in "${PLAIN_CLIS[@]}"; do run_one "${name}"; done
 echo
 echo "Không CLI nào bị bỏ ngoài danh sách:"
 missing=0
+# Cần cây mã nguồn. Trên host triển khai chỉ có `dist` trong image, nên bỏ qua —
+# phép kiểm này đã chạy ở CI, nơi có mã nguồn.
+if [[ -d src/infrastructure/cli ]]; then
 for file in src/infrastructure/cli/*.cli.ts; do
   name="$(basename "${file}" .cli.ts)"
   if ! printf '%s\n' "${DRY_RUN_CLIS[@]}" "${PLAIN_CLIS[@]}" | grep -qx "${name}"; then
@@ -127,6 +167,10 @@ for file in src/infrastructure/cli/*.cli.ts; do
     missing=$((missing + 1))
   fi
 done
+else
+  printf '  (bỏ qua phép kiểm phủ: không có cây mã nguồn ở đây)
+'
+fi
 if [[ ${missing} -eq 0 ]]; then
   printf '  \033[32m✓\033[0m cả %s CLI đều được chạy\n' "$((pass + fail))"
 else
