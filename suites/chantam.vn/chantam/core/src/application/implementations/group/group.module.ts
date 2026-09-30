@@ -2,6 +2,7 @@ import {
   IAssignGroupMemberUseCase,
   ICreateGroupUseCase,
   ICreateSubTeamUseCase,
+  IDeleteSubTeamUseCase,
   IGetOwnGroupUseCase,
   IListGroupMembersUseCase,
   IListSubTeamsUseCase,
@@ -10,6 +11,7 @@ import { Global, Module } from '@nestjs/common';
 import {
   AssignGroupMemberUseCase,
   CreateSubTeamUseCase,
+  DeleteSubTeamUseCase,
   ListGroupMembersUseCase,
   ListSubTeamsUseCase,
 } from './group-management.use-cases';
@@ -24,6 +26,7 @@ import { CreateGroupUseCase, GetOwnGroupUseCase } from './group.use-cases';
     { provide: IListSubTeamsUseCase, useClass: ListSubTeamsUseCase },
     { provide: ICreateSubTeamUseCase, useClass: CreateSubTeamUseCase },
     { provide: IAssignGroupMemberUseCase, useClass: AssignGroupMemberUseCase },
+    { provide: IDeleteSubTeamUseCase, useClass: DeleteSubTeamUseCase },
   ],
   exports: [
     ICreateGroupUseCase,
@@ -32,6 +35,7 @@ import { CreateGroupUseCase, GetOwnGroupUseCase } from './group.use-cases';
     IListSubTeamsUseCase,
     ICreateSubTeamUseCase,
     IAssignGroupMemberUseCase,
+    IDeleteSubTeamUseCase,
   ],
 })
 export class GroupModule {}

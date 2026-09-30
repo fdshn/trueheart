@@ -103,6 +103,21 @@ export interface IGroupRepository {
     name: string;
   }): Promise<void>;
 
+  /**
+   * Xoá MỀM một tổ, và gỡ mọi thành viên khỏi tổ đó trong cùng transaction.
+   *
+   * Người trong tổ vẫn ở lại NHÓM — tổ là cách tổ chức, không phải điều kiện ở
+   * lại. Trưởng tổ của tổ bị xoá hạ về `MEMBER`: phạm vi của vai đó đọc từ
+   * `sub_team_id`, nên giữ vai là để lại một người mang danh trưởng mà mọi
+   * endpoint đều từ chối.
+   *
+   * Trả `false` khi tổ không tồn tại, thuộc nhóm khác, hoặc đã xoá rồi.
+   */
+  deleteSubTeam(params: {
+    groupId: string;
+    subTeamId: string;
+  }): Promise<boolean>;
+
   /** `subTeamId` khác `undefined`/`null` = chỉ tổ đó (dành cho trưởng tổ). */
   listSubTeams(params: {
     groupId: string;
@@ -150,6 +165,32 @@ export interface IGroupRepository {
     groupId: string;
     permission: string;
   }): Promise<boolean>;
+
+  /**
+   * Bộ quyền ĐANG HIỆU LỰC của từng vai, kèm số phiên bản.
+   *
+   * Dòng mốc của bộ rỗng (`EmptyGroupPermissionSetMarker`) bị lọc ra — nó giữ chỗ
+   * cho phiên bản, không phải một quyền.
+   */
+  listRolePermissions(): Promise<
+    { role: GroupMemberRoles; version: number; permissions: string[] }[]
+  >;
+
+  /**
+   * Thay CẢ TẬP quyền của một vai, ghi thành phiên bản mới.
+   *
+   * Dòng cũ ở lại làm lịch sử: một bộ quyền ghi đè tại chỗ thì không tra lại được
+   * bộ nào đang chạy lúc một trưởng nhóm bị từ chối.
+   *
+   * Trả `before` để nơi gọi ghi audit — so được trước/sau là toàn bộ giá trị của
+   * một dòng audit.
+   */
+  replaceRolePermissions(params: {
+    role: GroupMemberRoles;
+    permissions: readonly string[];
+    actorUserId: string;
+    changeReason: string;
+  }): Promise<{ version: number; permissions: string[]; before: string[] }>;
 
   /**
    * Giải tán nhóm khi Owner xoá tài khoản (CHỐT-02, BR-GRP-07).

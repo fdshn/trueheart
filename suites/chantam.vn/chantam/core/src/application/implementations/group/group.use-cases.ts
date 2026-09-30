@@ -23,6 +23,7 @@ import {
   GroupInviteCodeLength,
   GroupMaxRadiusConfigKey,
   GroupMinRadiusConfigKey,
+  groupRadiusConfigKeyForRank,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { resolveGroupRadiusKm } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
@@ -76,12 +77,22 @@ export class CreateGroupUseCase implements ICreateGroupUseCase {
     // `capability.limit` CỐ Ý không còn tham gia vào bán kính. Nó là một ô số trần
     // Admin sửa được, không nói đơn vị, nằm giữa một hệ mà mọi khoá bán kính khác
     // đều đặt tên bằng mét — cách chắc nhất để nó không bị đọc sai là không đọc nó.
-    const [defaultMeters, minMeters, maxMeters] = await Promise.all([
-      this.adminConfig.getConfigValue(GroupDefaultRadiusConfigKey),
-      this.adminConfig.getConfigValue(GroupMinRadiusConfigKey),
-      this.adminConfig.getConfigValue(GroupMaxRadiusConfigKey),
-    ]);
-    const radiusConfig = { defaultMeters, minMeters, maxMeters };
+    //
+    // Bán kính theo BẬC của người tạo (chốt 30/09). Đọc khoá riêng của bậc đó,
+    // thiếu thì rơi về `group.default_radius_meters`. Bậc lấy từ `owner.rank` —
+    // tức bậc TẠI THỜI ĐIỂM TẠO, đúng tinh thần snapshot của BR-GRP-03: tụt bậc
+    // về sau không làm vùng nhóm co lại.
+    const [defaultMeters, minMeters, maxMeters, rankMeters] = await Promise.all(
+      [
+        this.adminConfig.getConfigValue(GroupDefaultRadiusConfigKey),
+        this.adminConfig.getConfigValue(GroupMinRadiusConfigKey),
+        this.adminConfig.getConfigValue(GroupMaxRadiusConfigKey),
+        this.adminConfig.getConfigValue(
+          groupRadiusConfigKeyForRank(owner.rank as string),
+        ),
+      ],
+    );
+    const radiusConfig = { defaultMeters, minMeters, maxMeters, rankMeters };
 
     // Kiểm membership TRƯỚC khi đụng vị trí: người đã thuộc nhóm thì không cần
     // biết mình thiếu Vị trí mặc định hay không.
@@ -115,6 +126,7 @@ export class CreateGroupUseCase implements ICreateGroupUseCase {
         defaultMeters: radiusConfig.defaultMeters,
         minMeters: radiusConfig.minMeters,
         maxMeters: radiusConfig.maxMeters,
+        rankMeters: radiusConfig.rankMeters,
       }),
       inviteCode: makeInviteCode(),
       ownerMembershipId: randomUUID(),

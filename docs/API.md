@@ -1143,13 +1143,19 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 | `GET /groups/:groupId/members` | Danh sách thành viên |
 | `GET /groups/:groupId/sub-teams` | Danh sách tổ |
 | `POST /groups/:groupId/sub-teams` | Tạo tổ |
+| `DELETE /groups/:groupId/sub-teams/:subTeamId` | Xoá tổ |
 | `PATCH /groups/:groupId/members/:memberId` | Xếp vào tổ / đổi vai |
+
+Và hai endpoint Admin cho bộ quyền vai: `GET /admin/groups/role-permissions`,
+`PUT /admin/groups/role-permissions/:role`.
 
 ### Tâm và bán kính KHÔNG nhận từ body
 
 `POST /groups` chỉ nhận tên, mô tả, ảnh. Tâm vùng chụp từ `default_location` của người tạo,
-bán kính từ ba khoá cấu hình `group.*_radius_meters` (đơn vị **mét**) — cả hai đứng yên sau đó
-([BR-GRP-03](./FEATURES.md#f52--tạo-group-từ-default-location)).
+bán kính từ `group.radius_meters.<bậc>` của **bậc người tạo** (đơn vị **mét**), thiếu thì rơi về
+`group.default_radius_meters` — cả hai đứng yên sau đó
+([BR-GRP-03](./FEATURES.md#f52--tạo-group-từ-default-location)). Bậc dùng để tính là bậc tại
+thời điểm tạo: tụt bậc về sau không làm vùng co lại, lên bậc cũng không làm nó rộng ra.
 Cho Owner sửa là cho họ dời vùng theo nơi đang có nhiều sự kiện để gom điểm affiliate. Owner
 đổi Vị trí mặc định về sau thì vùng nhóm cũng không nhúc nhích.
 
@@ -1218,6 +1224,35 @@ sang tổ của nhóm khác. Phân biệt ba ca là để lộ cơ cấu nhóm n
 - **Không gán được `OWNER`.** Hai Owner trên một nhóm thì `groups.owner_id` và bảng membership
   nói hai chuyện khác nhau, và không có quy tắc nào phân xử.
 - Không hạ được vai Owner hiện tại — làm thế là để lại một nhóm không ai quản trị được.
+
+### `DELETE …/sub-teams/:subTeamId` — người trong tổ Ở LẠI nhóm
+
+Cùng quyền `group.subteam.manage` với tạo tổ: ai lập được tổ thì dẹp được tổ, và trưởng tổ
+không xoá được tổ của chính mình vì họ không tạo ra nó.
+
+- **Người trong tổ vẫn là thành viên nhóm**, chỉ rời tổ. Tổ là cách tổ chức, không phải điều
+  kiện ở lại (BR-GRP-05).
+- **Trưởng tổ của tổ bị xoá hạ về `MEMBER`.** Phạm vi của vai đó đọc từ `sub_team_id`, nên giữ
+  vai là để lại một người mang danh trưởng mà mọi endpoint đều từ chối.
+- Xoá MỀM, và gọi lần thứ hai trả `GroupNotFound` chứ không đè mốc xoá cũ — mốc bị đè là mất
+  dấu thời điểm tổ thật sự biến mất.
+
+### `GET|PUT /admin/groups/role-permissions` — bộ quyền vai, có phiên bản
+
+`config.read` để đọc, `config.write` để ghi. Đây là bảng cấu hình và hai mã đó đã thuộc
+`POLICY_ADMIN`/`SUPER_ADMIN`; thêm một mã riêng nghĩa là seed một quyền chưa chắc vai nào được
+gán, tức tự tạo đúng loại "quyền seed mà không ai có".
+
+- **`PUT` thay CẢ TẬP**, không thêm từng cái — nên mảng rỗng là thu hồi hết.
+- Mỗi lần sửa ghi thành **phiên bản mới**; dòng cũ ở lại, và bộ đang hiệu lực là `MAX(version)`
+  tính riêng từng vai. `admin_audit_logs` giữ cả trước lẫn sau — chỉ ghi "sau" thì đọc lại không
+  biết Admin vừa thêm hay vừa thu hồi, mà thu hồi mới là thứ cần tra.
+- **`OWNER` không cấu hình được**: thu hồi `group.member.assign_role` của chủ nhóm để lại một
+  nhóm không ai xếp được người vào tổ, mà cũng không lấy lại được vì đường duy nhất để lấy lại
+  là chính endpoint này.
+- **Mã quyền lạ bị từ chối**, không lưu im lặng. `GET` trả kèm `knownPermissions` và cờ
+  `effective` — một bộ quyền toàn mã mà code chưa kiểm thì gán vai đó không đổi một thứ gì, và
+  hôm nay `MEMBER` đúng ở trạng thái ấy.
 
 ### Nhóm đã giải tán thì mọi quyền tắt theo
 

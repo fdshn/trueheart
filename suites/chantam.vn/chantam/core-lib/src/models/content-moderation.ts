@@ -13,10 +13,14 @@
  * trong khi người đọc thấy cùng một từ. Nên mọi thứ đi qua một phép chuẩn hoá:
  *
  * ```
- * "Đ.Mmmm  mày"  →  spaced   "d mm may"
- *                →  squeezed "dmmmay"
- *                →  joined   "dmm may"     (gộp các chữ cái đứng lẻ)
+ * "Đ.Mmmm  mày"  →  spaced   "d m may"
+ *                →  squeezed "dmmay"
+ *                →  joined   "dm may"      (gộp các chữ cái đứng lẻ)
  * ```
+ *
+ * Ví dụ trên từng ghi `"d mm may"` — sai, và sai từ lúc phép rút chữ lặp đổi từ
+ * "về hai chữ" sang "về MỘT chữ". Không phép kiểm nào khẳng định nó nên nó nằm
+ * đó cho tới 30/09; `content-moderation.corpus.spec` nay canh đúng ba dạng này.
  *
  * Ba dạng vì mỗi dạng bắt một kiểu lách khác nhau, và mỗi dạng cũng bắt nhầm một
  * kiểu khác nhau — xem `screenText`.

@@ -1,6 +1,7 @@
 import {
   DefaultGroupRadiusKm,
   GroupRadiusColumnBoundsKm,
+  groupRadiusConfigKeyForRank,
   MaxGroupRadiusKm,
   MinGroupRadiusKm,
 } from '../consts';
@@ -127,6 +128,53 @@ describe('resolveGroupRadiusKm', () => {
     // Hằng này là bản sao của một ràng buộc database. Lệch nhau thì hoặc hàm
     // chặn oan một giá trị hợp lệ, hoặc để lọt một giá trị làm sập.
     expect(GroupRadiusColumnBoundsKm).toEqual({ min: 1, max: 50 });
+  });
+
+  it('bán kính RIÊNG của bậc thắng giá trị chung', () => {
+    // Bậc Vàng seed 7000 m: nhóm do người Vàng lập rộng 7 km, không phải 10.
+    expect(resolveGroupRadiusKm({ ...SeededConfig, rankMeters: 7_000 })).toBe(
+      7,
+    );
+  });
+
+  it('bậc CHƯA chốt số thì rơi về giá trị chung, không về 0', () => {
+    // 0 km là vùng rỗng: không sự kiện nào đủ điều kiện địa lý, tức cả cơ chế
+    // affiliate tắt lặng lẽ cho mọi nhóm của bậc đó.
+    for (const missing of [undefined, null])
+      expect(
+        resolveGroupRadiusKm({ ...SeededConfig, rankMeters: missing }),
+      ).toBe(10);
+  });
+
+  it('giá trị bậc gõ sai rơi về giá trị chung, không về hằng dự phòng', () => {
+    // Khác biệt có thật: nếu Admin đã đặt `group.default_radius_meters` thành
+    // 20000 thì một khoá bậc gõ sai phải ra 20, không phải 10 — rơi về hằng là
+    // âm thầm bỏ qua cấu hình mà Admin ĐÃ đặt đúng.
+    expect(
+      resolveGroupRadiusKm({
+        defaultMeters: 20_000,
+        minMeters: 1_000,
+        maxMeters: 50_000,
+        rankMeters: 'bảy km',
+      }),
+    ).toBe(20);
+  });
+
+  it('bán kính bậc vẫn bị kẹp bởi cận của cột', () => {
+    expect(resolveGroupRadiusKm({ ...SeededConfig, rankMeters: 90_000 })).toBe(
+      GroupRadiusColumnBoundsKm.max,
+    );
+  });
+
+  it('khoá cấu hình của bậc sinh đúng tên', () => {
+    // Tên khoá là hợp đồng với dữ liệu đã seed. Đổi cách sinh là làm mọi dòng đã
+    // seed thành khoá không ai đọc.
+    expect(groupRadiusConfigKeyForRank('DIAMOND')).toBe(
+      'group.radius_meters.diamond',
+    );
+    expect(groupRadiusConfigKeyForRank('Gold')).toBe(
+      'group.radius_meters.gold',
+    );
   });
 
   it('hằng dự phòng nằm trong khoảng của chính nó', () => {

@@ -75,7 +75,7 @@ Không phải biến môi trường — Admin sửa lúc chạy, có đánh phi�
 
 | Khoá | Mặc định | Đổi thì ảnh hưởng gì |
 | --- | --- | --- |
-| `moderation.blocked_terms` | rỗng | Danh sách từ chặn/giữ lại bình luận |
+| `moderation.blocked_terms` | 66 mục (soát 30/09) | Danh sách từ chặn/giữ lại bình luận |
 | `point.redemption` | — | Tỷ lệ quy đổi điểm sang giá trị vật phẩm |
 | `review.grace` | 7 ngày, 80% | Chờ bao lâu rồi áp mức mặc định khi không ai đánh giá |
 | `chat.retention` | — | Bao lâu sau khi khoá thì xoá lịch sử trò chuyện |
@@ -149,12 +149,13 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | `accuracy.giver` | `minSamples: 5`, `reviewThresholdPercent: 75` | Ngưỡng Giver Accuracy (F43) | `GET\|POST /admin/system-configs` |
 | `rating.display` | `minSamples: 3` | Số mẫu tối thiểu để công bố điểm sao (F42). Thấp hơn `accuracy.giver` vì điểm sao là cảm nhận trải nghiệm, không phải cáo buộc mô tả sai, và không gắn cờ ai vào diện Admin xem xét. Áp lúc ĐỌC nên hạ ngưỡng là công bố ngay | `GET\|POST /admin/system-configs` |
 | `report.abuse` | `minSamples: 5`, `dismissedRatioPercent: 80` | Ngưỡng đưa người báo xấu vào diện Admin xem xét. Tính SỐNG từ bảng `reports` nên đổi ngưỡng có hiệu lực ngay, không cần job đối soát | `GET\|POST /admin/system-configs` |
-| `moderation.blocked_terms` | 41 mục khởi tạo (38 sau chuẩn hoá) | Danh sách từ ngữ cho bộ lọc bình luận. **Trước 29/09 khoá này không có dòng nào**, nên `screenText` trả ALLOW cho mọi nội dung và cả nhánh kiểm duyệt bình luận nằm im | `GET\|POST /admin/system-configs` |
+| `moderation.blocked_terms` | **66 mục** (66 sau chuẩn hoá) | Danh sách từ ngữ cho bộ lọc bình luận. Trước 29/09 khoá này không có dòng nào nên `screenText` trả ALLOW cho mọi nội dung và cả nhánh kiểm duyệt bình luận nằm im. Soát lại 30/09 bằng corpus: bỏ 4 mục bắt nhầm câu vô hại (`con chó` ở mức BLOCK chặn cả người cho đồ thú nuôi, `súng` khớp trong "sung túc", `giá rẻ` khớp câu người tặng hay viết, `súc vật` khớp "thức ăn cho súc vật"), bỏ 3 mục trùng sau chuẩn hoá, hạ `cút đi`/`im đi` xuống REVIEW, thêm 28 mục. `test:config-inventory` chạy corpus trên danh sách ĐANG NẰM trong database: 0 dương tính giả, 0 mục chết, 0 câu xấu lọt lưới | `GET\|POST /admin/system-configs` |
 | `chat.retention` | `value: 1`, `unit: WEEK` | Hạn lưu trữ lịch sử chat. Mốc xoá CHỐT theo cấu hình lúc phòng khoá | `GET\|POST /admin/system-configs` |
 | `rank.points_source` | `source: BALANCE` | Cột điểm quyết định hạng. BALANCE = tiêu điểm làm tụt hạng (chốt 24/09); LIFETIME = hạng là bằng ghi nhận đã đóng góp | `GET\|POST /admin/system-configs` |
 | `notification.retention` | `retentionDays: 90` | Hạn lưu trữ hộp thư | `GET\|POST /admin/system-configs` |
 | `selection.candidate_priority` | *(cố ý CHƯA seed)* | Thứ tự tiêu chí chọn người nhận. Không seed vì `isConfigured` tính bằng "có dòng hay không" — seed mặc định vào là nói với Admin rằng đã có người đặt, trong khi chưa ai đặt | `GET\|PUT /admin/candidate-selection` |
-| `group.default_radius_meters` · `min` · `max` | `10000` · `1000` · `50000` | Bán kính vùng nhóm, đơn vị MÉT. **Tới 30/09 cả ba chỉ nằm trong allowlist mà không ai đọc** — Admin sửa được và không gì thay đổi; bán kính thật đọc từ `capability.limit` của `CREATE_GROUP`, một ô không nói đơn vị | `GET\|POST /admin/system-configs` |
+| `group.default_radius_meters` · `min` · `max` | `10000` · `1000` · `50000` | Bán kính vùng nhóm, đơn vị MÉT. Khoá mặc định dùng khi bậc người tạo chưa có số riêng; `min`/`max` kẹp mọi giá trị. Tới 30/09 cả ba chỉ nằm trong allowlist mà **không ai đọc** — Admin sửa được và không gì thay đổi. Cột `groups.radius_km` có `CHECK (1..50)` nên đường ghi từ chối giá trị ngoài 1000–50000 | `GET\|POST /admin/system-configs` |
+| `group.radius_meters.member` · `.silver` · `.gold` · `.diamond` | `3000` · `5000` · `7000` · `10000` | Bán kính RIÊNG theo bậc người tạo, đơn vị MÉT (chốt 30/09). Thiếu khoá của bậc nào thì bậc đó dùng khoá mặc định — không rơi về 0, vì 0 km là vùng rỗng và làm điều kiện địa lý của affiliate tắt lặng lẽ. Thang số là ĐỀ XUẤT, cần Bên A chốt; Kim Cương giữ đúng 10000 bằng giá trị chung cũ nên bật cơ chế không đổi vùng của nhóm nào. VIEWER cố ý không có khoá | `GET\|POST /admin/system-configs` |
 | `point.redemption` | `vndPerPoint: 2000` | Tỷ lệ quy đổi khi đổi vật phẩm (F74). **Đã nối** vào `POST /posts/:id/redeem` | ⬆ |
 | `review.grace` | `graceDays: 7`, `defaultAccuracyPercent: 80` | Chờ rồi áp mức mặc định khi người nhận không đánh giá (F40). Đọc bởi CLI `gift:settle-rewards` — job này còn trả nốt những lượt bị trần ngày chặn, và ở đó dùng mức người nhận ĐÃ chấm chứ không phải mức mặc định | ⬆ |
 | `selection.candidate_priority` | *(chưa đặt → mặc định "ai xin trước")* | Thứ tự tiêu chí chọn người nhận (CH-1). **Đã nối vào auto-select** 25/09 | `GET\|PUT /admin/candidate-selection` |

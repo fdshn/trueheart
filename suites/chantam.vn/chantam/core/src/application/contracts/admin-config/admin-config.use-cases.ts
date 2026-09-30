@@ -31,6 +31,12 @@ export const SupportedSystemConfigKeys = [
   'group.default_radius_meters',
   'group.min_radius_meters',
   'group.max_radius_meters',
+  // Bán kính riêng theo bậc. Thiếu khoá của bậc nào thì bậc đó dùng
+  // `group.default_radius_meters` — xem `groupRadiusConfigKeyForRank`.
+  'group.radius_meters.member',
+  'group.radius_meters.silver',
+  'group.radius_meters.gold',
+  'group.radius_meters.diamond',
   'affiliate.active_member_window_days',
   'rank.maintenance_period_months',
   'point.referral_daily_cap',
@@ -59,6 +65,10 @@ export const SystemConfigValueRanges: Readonly<
   'group.default_radius_meters': { min: 1_000, max: 50_000 },
   'group.min_radius_meters': { min: 1_000, max: 50_000 },
   'group.max_radius_meters': { min: 1_000, max: 50_000 },
+  'group.radius_meters.member': { min: 1_000, max: 50_000 },
+  'group.radius_meters.silver': { min: 1_000, max: 50_000 },
+  'group.radius_meters.gold': { min: 1_000, max: 50_000 },
+  'group.radius_meters.diamond': { min: 1_000, max: 50_000 },
 };
 
 export interface IPublishAdminConfigCommand {

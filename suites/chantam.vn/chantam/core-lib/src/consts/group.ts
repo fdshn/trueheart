@@ -32,6 +32,21 @@ export enum GroupMembershipStatuses {
   DISSOLVED = 'DISSOLVED',
 }
 
+/**
+ * Dòng mốc cho một bộ quyền RỖNG.
+ *
+ * Thu hồi hết quyền của một vai là lựa chọn hợp lệ của Admin. Nhưng bộ đang hiệu
+ * lực tính bằng `MAX(version)` của vai đó, nên một tập rỗng sẽ không có dòng nào
+ * mang phiên bản mới — `MAX(version)` vẫn trỏ về bộ CŨ và việc thu hồi âm thầm
+ * không có hiệu lực.
+ *
+ * Một dòng mang mã này giữ chỗ cho phiên bản đó. Nó không bao giờ khớp phép kiểm
+ * quyền nào vì không nơi nào kiểm một quyền tên như vậy, và mọi chỗ ĐỌC bộ quyền
+ * phải lọc nó ra — nếu không Admin sẽ thấy một quyền tên `__none__` trong danh
+ * sách và tưởng nó có nghĩa.
+ */
+export const EmptyGroupPermissionSetMarker = '__none__';
+
 export enum GroupMemberRoles {
   OWNER = 'OWNER',
   /**
@@ -54,6 +69,32 @@ export enum GroupMemberRoles {
  * ở đúng một hàm — `resolveGroupRadiusKm`.
  */
 export const GroupDefaultRadiusConfigKey = 'group.default_radius_meters';
+
+/**
+ * Khoá bán kính RIÊNG cho một bậc thứ hạng, đơn vị **MÉT**.
+ *
+ * `group.radius_meters.diamond`, `group.radius_meters.gold`, …
+ *
+ * Thiếu khoá của bậc nào thì bậc đó dùng `group.default_radius_meters`. Nên bậc
+ * chưa chốt số không bị rơi về 0 — 0 km là vùng rỗng, tức không sự kiện nào đủ
+ * điều kiện địa lý và cả cơ chế affiliate tắt lặng lẽ.
+ *
+ * ## Vì sao KHÔNG dùng `capability_rank_values.limit_value`
+ *
+ * Bảng đó đã có chiều theo bậc và đã có đường Admin, nên thoạt trông là chỗ đúng.
+ * Nhưng `limit_value` ở mọi capability khác nghĩa là **hạn mức đếm** (bao nhiêu
+ * bài, bao nhiêu lượt). Nhồi thêm nghĩa "mét" cho đúng một capability là đặt hai
+ * đơn vị vào một cột — chính cái bẫy đã cắn một lần ở đây: tới 30/09 bán kính đọc
+ * `capability.limit` của `CREATE_GROUP` rồi kẹp bằng cận km, nên đặt `10000` với ý
+ * "10 km" ra 50 km.
+ *
+ * Khoá riêng thì đơn vị nằm trong TÊN, và nó đi qua đúng đường Admin
+ * (`POST /admin/system-configs`) với audit, phiên bản, copy-on-write và phép kiểm
+ * khoảng hợp lệ có sẵn.
+ */
+export function groupRadiusConfigKeyForRank(rank: string): string {
+  return `group.radius_meters.${rank.toLowerCase()}`;
+}
 export const GroupMinRadiusConfigKey = 'group.min_radius_meters';
 export const GroupMaxRadiusConfigKey = 'group.max_radius_meters';
 

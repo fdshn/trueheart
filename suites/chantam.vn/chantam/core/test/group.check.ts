@@ -438,6 +438,167 @@ async function main(): Promise<void> {
       radiusCheck?.def ?? 'KHONG TIM THAY rang buoc',
     );
 
+    console.log('\n5g. Xoá tổ — người trong tổ Ở LẠI nhóm');
+    const DoomedTeamId = '44444444-4444-4444-8444-4444444f1003';
+    await groups.createSubTeam({
+      globalId: DoomedTeamId,
+      groupId: GroupId,
+      name: 'To se bi xoa',
+    });
+    await groups.assignMember({
+      groupId: GroupId,
+      userId: MemberId,
+      subTeamId: DoomedTeamId,
+      role: 'SUBTEAM_ADMIN' as never,
+    });
+
+    check(
+      'Owner nhóm KHÁC không xoá được tổ của nhóm này',
+      !(await groups.deleteSubTeam({
+        groupId: OtherGroupId,
+        subTeamId: DoomedTeamId,
+      })),
+    );
+    check(
+      'xoá được tổ của chính nhóm mình',
+      await groups.deleteSubTeam({
+        groupId: GroupId,
+        subTeamId: DoomedTeamId,
+      }),
+    );
+    check(
+      'gọi lại trả false, KHÔNG đè mốc xoá cũ',
+      !(await groups.deleteSubTeam({
+        groupId: GroupId,
+        subTeamId: DoomedTeamId,
+      })),
+    );
+    check(
+      'tổ biến khỏi danh sách',
+      !(await groups.listSubTeams({ groupId: GroupId })).some(
+        (team) => team.subTeamId === DoomedTeamId,
+      ),
+    );
+
+    const afterDelete = (
+      await groups.listMembers({ groupId: GroupId, skip: 0, take: 50 })
+    ).items.find((row) => row.userId === MemberId);
+    check(
+      'người trong tổ VẪN ở trong nhóm, chỉ rời tổ',
+      afterDelete !== undefined && afterDelete.subTeamId === null,
+      `subTeamId=${afterDelete?.subTeamId}`,
+    );
+    check(
+      'trưởng tổ của tổ đã xoá hạ về MEMBER',
+      afterDelete?.role === 'MEMBER',
+      afterDelete?.role,
+    );
+
+    console.log('\n5h. Bộ quyền vai có PHIÊN BẢN và thu hồi được');
+    // Dựng LẠI vai trưởng tổ trước khi đo: mục 5g vừa hạ người này về MEMBER khi
+    // xoá tổ của họ. Không dựng lại thì hai phép kiểm dưới đây xanh vì người đó
+    // không còn là SUBTEAM_ADMIN — tức xanh vì lý do sai, và chúng sẽ vẫn xanh kể
+    // cả khi việc thu hồi quyền hoàn toàn không hoạt động.
+    const LiveTeamId = '44444444-4444-4444-8444-4444444f1004';
+    await groups.createSubTeam({
+      globalId: LiveTeamId,
+      groupId: GroupId,
+      name: 'To de do quyen',
+    });
+    await groups.assignMember({
+      groupId: GroupId,
+      userId: MemberId,
+      subTeamId: LiveTeamId,
+      role: 'SUBTEAM_ADMIN' as never,
+    });
+    check(
+      'dựng lại được trưởng tổ để đo — nếu không thì hai phép kiểm dưới vô nghĩa',
+      await groups.hasGroupPermission({
+        userId: MemberId,
+        groupId: GroupId,
+        permission: 'group.subteam.activity.view',
+      }),
+    );
+
+    const before = await groups.listRolePermissions();
+    const subteamBefore = before.find((row) => row.role === 'SUBTEAM_ADMIN');
+    check(
+      'đọc được bộ quyền đang hiệu lực kèm phiên bản',
+      subteamBefore !== undefined && subteamBefore.version >= 1,
+      `version=${subteamBefore?.version}`,
+    );
+
+    const written = await groups.replaceRolePermissions({
+      role: 'SUBTEAM_ADMIN' as never,
+      permissions: ['group.subteam.member.view'],
+      actorUserId: OwnerId,
+      changeReason: 'Phep kiem: thu hoi quyen xem hoat dong to',
+    });
+    check(
+      'ghi thành phiên bản MỚI',
+      written.version === (subteamBefore?.version ?? 0) + 1,
+      `${subteamBefore?.version} -> ${written.version}`,
+    );
+    check(
+      'trả bộ CŨ để ghi audit so trước/sau',
+      written.before.includes('group.subteam.activity.view'),
+      written.before.join(', '),
+    );
+
+    // Đây là phép kiểm quan trọng nhất của cả nhóm 5h: thu hồi phải có HIỆU LỰC.
+    // Thiếu vế MAX(version) trong `hasGroupPermission` thì dòng cũ vẫn khớp và
+    // quyền đã thu hồi vẫn dùng được — tệ hơn cả việc chưa có đường thu hồi.
+    check(
+      'quyền đã THU HỒI mất tác dụng ngay',
+      !(await groups.hasGroupPermission({
+        userId: MemberId,
+        groupId: GroupId,
+        permission: 'group.subteam.activity.view',
+      })),
+    );
+    check(
+      'quyền còn giữ thì vẫn chạy',
+      await groups.hasGroupPermission({
+        userId: MemberId,
+        groupId: GroupId,
+        permission: 'group.subteam.member.view',
+      }),
+    );
+
+    const history = await dataSource.query<{ total: string }[]>(
+      `SELECT count(*) AS total FROM group_role_permissions WHERE role = 'SUBTEAM_ADMIN'`,
+    );
+    check(
+      'dòng CŨ ở lại làm lịch sử',
+      Number(history[0]?.total) > 1,
+      `${history[0]?.total} dòng`,
+    );
+
+    // Tập rỗng: thiếu dòng mốc thì MAX(version) vẫn trỏ bộ cũ và việc thu hồi
+    // toàn bộ âm thầm không có hiệu lực.
+    await groups.replaceRolePermissions({
+      role: 'SUBTEAM_ADMIN' as never,
+      permissions: [],
+      actorUserId: OwnerId,
+      changeReason: 'Phep kiem: thu hoi toan bo quyen cua truong to',
+    });
+    check(
+      'thu hồi TOÀN BỘ thì không quyền nào còn tác dụng',
+      !(await groups.hasGroupPermission({
+        userId: MemberId,
+        groupId: GroupId,
+        permission: 'group.subteam.member.view',
+      })),
+    );
+    const emptySet = (await groups.listRolePermissions()).find(
+      (row) => row.role === 'SUBTEAM_ADMIN',
+    );
+    check(
+      'và danh sách đọc ra RỖNG, không lộ dòng mốc',
+      emptySet === undefined || emptySet.permissions.length === 0,
+      `${emptySet?.permissions.join(', ')}`,
+    );
+
     console.log('\n6. Owner xoá tài khoản → nhóm giải tán');
     const dissolved = await groups.dissolveOwnedBy(OwnerId);
     check('giải tán đúng một nhóm', dissolved === 1, `${dissolved}`);

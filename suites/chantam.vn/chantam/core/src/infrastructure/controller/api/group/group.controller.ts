@@ -2,6 +2,7 @@ import {
   IAssignGroupMemberUseCase,
   ICreateGroupUseCase,
   ICreateSubTeamUseCase,
+  IDeleteSubTeamUseCase,
   IGetOwnGroupUseCase,
   IListGroupMembersUseCase,
   IListSubTeamsUseCase,
@@ -28,6 +29,7 @@ import {
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Inject,
   Param,
@@ -52,6 +54,7 @@ import {
   ListGroupMembersQueryDto,
   ListGroupMembersResponseDto,
   ListSubTeamsResponseDto,
+  SubTeamParamDto,
 } from '../../dto/group';
 
 @ApiTags('Nhóm')
@@ -71,6 +74,8 @@ export class GroupController {
     private readonly createSubTeamUseCase: ICreateSubTeamUseCase,
     @Inject(IAssignGroupMemberUseCase)
     private readonly assignGroupMemberUseCase: IAssignGroupMemberUseCase,
+    @Inject(IDeleteSubTeamUseCase)
+    private readonly deleteSubTeamUseCase: IDeleteSubTeamUseCase,
   ) {}
 
   @Get('me')
@@ -189,6 +194,34 @@ export class GroupController {
       userId: principal.userId,
       groupId: params.groupId,
       name: body.subTeam.name,
+    });
+
+    return ResponseDto.create<ListSubTeamsResponseDto>()
+      .succeed()
+      .attach(result as never)
+      .build();
+  }
+
+  @Delete(':groupId/sub-teams/:subTeamId')
+  @ApiOperation({
+    summary: 'Xoá tổ',
+    description:
+      'CHỈ Owner — cùng quyền `group.subteam.manage` với tạo tổ. Xoá MỀM: người trong tổ vẫn ở lại NHÓM, chỉ rời tổ, vì tổ là cách tổ chức chứ không phải điều kiện ở lại. Trưởng tổ của tổ bị xoá hạ về `MEMBER`: phạm vi của vai đó đọc từ `sub_team_id`, nên giữ vai là để lại một người mang danh trưởng mà mọi endpoint đều từ chối. Trả danh sách tổ còn lại.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    GroupNotFoundException,
+  )
+  @ApiOkResponse({ type: ResponseDto.forApi(ListSubTeamsResponseDto) })
+  public async deleteSubTeam(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: SubTeamParamDto,
+  ): Promise<ResponseDto<ListSubTeamsResponseDto>> {
+    const result = await this.deleteSubTeamUseCase.handle({
+      userId: principal.userId,
+      groupId: params.groupId,
+      subTeamId: params.subTeamId,
     });
 
     return ResponseDto.create<ListSubTeamsResponseDto>()

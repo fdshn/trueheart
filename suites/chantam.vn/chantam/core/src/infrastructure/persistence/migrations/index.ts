@@ -77,3 +77,6 @@ export * from './1795600000000-SeedModerationTerms';
 export * from './1795700000000-SeedMissingSystemConfigs';
 export * from './1795800000000-AddDashboardPermission';
 export * from './1795900000000-AddGroupMembershipStatus';
+export * from './1796000000000-ReviseModerationTerms';
+export * from './1796100000000-SeedGroupRadiusByRank';
+export * from './1796200000000-VersionGroupRolePermissions';

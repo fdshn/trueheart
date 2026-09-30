@@ -10,6 +10,7 @@ import {
   IGetAdminRankPolicyUseCase,
   IGetAdminUserUseCase,
   IGetCandidateSelectionUseCase,
+  IGetGroupRolePermissionsUseCase,
   IGetNotificationChannelsUseCase,
   IGetOwnAdminAccessUseCase,
   IGetSystemLogsUseCase,
@@ -23,6 +24,7 @@ import {
   IPublishAdminPointRuleUseCase,
   IPublishAdminRankPolicyUseCase,
   IReleaseVerifiedPhoneUseCase,
+  IReplaceGroupRolePermissionsUseCase,
   ISetCandidateSelectionUseCase,
   IUpdateNotificationChannelUseCase,
   IUpdateNotificationTemplateUseCase,
@@ -39,6 +41,10 @@ import {
   PublishAdminConfigUseCase,
 } from './admin-config.use-cases';
 import { GetAdminDashboardUseCase } from './admin-dashboard.use-case';
+import {
+  GetGroupRolePermissionsUseCase,
+  ReplaceGroupRolePermissionsUseCase,
+} from './admin-group-role.use-cases';
 import { PublishAdminMaintenancePolicyUseCase } from './admin-maintenance-policy.use-cases';
 import {
   GetAdminPointRulesUseCase,
@@ -104,6 +110,14 @@ import {
       useClass: PublishAdminConfigUseCase,
     },
     { provide: IGetAdminAuditLogsUseCase, useClass: GetAdminAuditLogsUseCase },
+    {
+      provide: IGetGroupRolePermissionsUseCase,
+      useClass: GetGroupRolePermissionsUseCase,
+    },
+    {
+      provide: IReplaceGroupRolePermissionsUseCase,
+      useClass: ReplaceGroupRolePermissionsUseCase,
+    },
     {
       provide: IGetAdminRankPolicyUseCase,
       useClass: GetAdminRankPolicyUseCase,
@@ -173,6 +187,8 @@ import {
     IPublishAdminConfigUseCase,
     IGetAdminAuditLogsUseCase,
     IGetAdminRankPolicyUseCase,
+    IGetGroupRolePermissionsUseCase,
+    IReplaceGroupRolePermissionsUseCase,
     IPublishAdminRankPolicyUseCase,
     IGetAdminPointRulesUseCase,
     IPublishAdminPointRuleUseCase,

@@ -4,6 +4,8 @@ import {
   IAssignGroupMemberUseCase,
   ICreateSubTeamCommand,
   ICreateSubTeamUseCase,
+  IDeleteSubTeamCommand,
+  IDeleteSubTeamUseCase,
   IListGroupMembersCommand,
   IListGroupMembersResult,
   IListGroupMembersUseCase,
@@ -160,6 +162,39 @@ export class CreateSubTeamUseCase implements ICreateSubTeamUseCase {
       groupId: command.groupId,
       name,
     });
+
+    return {
+      subTeams: await this.groups.listSubTeams({ groupId: command.groupId }),
+    };
+  }
+}
+
+@Injectable()
+export class DeleteSubTeamUseCase implements IDeleteSubTeamUseCase {
+  public constructor(
+    @Inject(IGroupRepository) private readonly groups: IGroupRepository,
+  ) {}
+
+  public async handle(
+    command: IDeleteSubTeamCommand,
+  ): Promise<IListSubTeamsResult> {
+    // Cùng quyền với TẠO tổ: ai lập được tổ thì dẹp được tổ. Trưởng tổ không xoá
+    // được tổ của chính mình — họ không tạo ra nó, và cho họ xoá là cho họ tự gỡ
+    // mọi người khỏi tổ mà Owner vừa xếp vào.
+    await assertGroupPermission(this.groups, {
+      userId: command.userId,
+      groupId: command.groupId,
+      permission: 'group.subteam.manage',
+    });
+
+    const removed = await this.groups.deleteSubTeam({
+      groupId: command.groupId,
+      subTeamId: command.subTeamId,
+    });
+    // Không tồn tại, thuộc nhóm khác, hoặc đã xoá — cùng một câu trả lời. Phân
+    // biệt là để lộ cấu trúc nhóm người khác cho người vừa đoán một id, đúng lối
+    // `assignMember` đã chọn.
+    if (!removed) throw new GroupNotFoundException();
 
     return {
       subTeams: await this.groups.listSubTeams({ groupId: command.groupId }),

@@ -52,6 +52,19 @@ export interface ICreateSubTeamUseCase extends IUseCase<
 
 export const ICreateSubTeamUseCase = Symbol('ICreateSubTeamUseCase');
 
+export interface IDeleteSubTeamCommand {
+  readonly userId: string;
+  readonly groupId: string;
+  readonly subTeamId: string;
+}
+
+export interface IDeleteSubTeamUseCase extends IUseCase<
+  IDeleteSubTeamCommand,
+  IListSubTeamsResult
+> {}
+
+export const IDeleteSubTeamUseCase = Symbol('IDeleteSubTeamUseCase');
+
 export interface IListSubTeamsCommand {
   readonly userId: string;
   readonly groupId: string;

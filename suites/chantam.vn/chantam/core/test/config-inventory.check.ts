@@ -34,14 +34,20 @@
  */
 import {
   CandidateSelectionConfigKey,
+  EmptyGroupPermissionSetMarker,
   GroupDefaultRadiusConfigKey,
   GroupMaxRadiusConfigKey,
   GroupMinRadiusConfigKey,
+  UserRanks,
+  groupRadiusConfigKeyForRank,
 } from '@chantam.vn/chantam.core-lib/consts';
+import { EnforcedGroupPermissions } from '@/application/contracts/admin-config';
 import { DiscoveryMaxRadiusConfigKey } from '@/domain/consts/discovery';
 import {
   ChatRetentionConfigKey,
   GiverAccuracyConfigKey,
+  AbusiveModerationCorpus,
+  InnocentModerationCorpus,
   ModerationTermsConfigKey,
   NotificationRetentionConfigKey,
   PointRedemptionConfigKey,
@@ -81,6 +87,15 @@ const RequiredKeys: readonly string[] = [
   // Khoá này khai trong `core`, không phải core-lib — nên nó lọt khỏi lượt soát đầu
   // của tôi, và lưới ở nhóm 3 bắt được. Đúng việc nó phải làm.
   DiscoveryMaxRadiusConfigKey,
+  // Bán kính riêng theo bậc (chốt 30/09). VIEWER cố ý KHÔNG có: họ chưa qua
+  // onboarding nên `assertOnboarded` chặn từ trước, và seed một khoá không ai đọc
+  // là đúng thứ nhóm 3 dưới đây bắt.
+  ...[
+    UserRanks.MEMBER,
+    UserRanks.SILVER,
+    UserRanks.GOLD,
+    UserRanks.DIAMOND,
+  ].map((rank) => groupRadiusConfigKeyForRank(rank)),
 ];
 
 /**
@@ -147,12 +162,7 @@ const KnownUnreadKeys: readonly { key: string; reason: string }[] = [
  * Đúng chuyện đó đã xảy ra: `SUBTEAM_ADMIN` có đúng hai quyền, cả hai không ai
  * đọc, nên tới 30/09 phong vai đó cho ai cũng không đổi một thứ gì.
  */
-const ReadGroupPermissions: readonly string[] = [
-  'group.member.view',
-  'group.member.assign_role',
-  'group.subteam.manage',
-  'group.subteam.member.view',
-];
+const ReadGroupPermissions: readonly string[] = EnforcedGroupPermissions;
 
 /**
  * Quyền đã seed mà chưa ai kiểm, kèm lý do.
@@ -299,9 +309,61 @@ async function main(): Promise<void> {
         'ALLOW',
       screenText('Món này còn tốt lắm, mình tặng miễn phí', terms).verdict,
     );
+
+    // Corpus chạy trên danh sách ĐANG NẰM trong database, không phải trên một
+    // danh sách truyền vào. Spec ở core-lib canh bản seed; phép kiểm này canh bản
+    // THẬT — kể cả sau một lần sửa qua `POST /admin/system-configs`.
+    //
+    // Cùng một corpus cho cả hai, xuất từ `core-lib`: hai bản sao của bốn mươi
+    // câu sẽ trôi khỏi nhau, và khi trôi thì cái yếu hơn thắng.
+    const falsePositives = InnocentModerationCorpus.filter(
+      (sentence) => screenText(sentence, terms).verdict !== 'ALLOW',
+    );
+    check(
+      'không câu vô hại nào bị bắt nhầm — 0 dương tính giả',
+      falsePositives.length === 0,
+      falsePositives
+        .map(
+          (sentence) =>
+            `"${sentence}" bị ${screenText(sentence, terms).verdict} bởi [${screenText(sentence, terms).matched.join(', ')}]`,
+        )
+        .join(' | '),
+    );
+
+    const deadTerms = terms.filter(
+      (term) =>
+        !AbusiveModerationCorpus.some(
+          (sentence) => screenText(sentence, [term]).verdict !== 'ALLOW',
+        ),
+    );
+    check(
+      'không mục nào CHẾT — mục không bắt được gì trông y như mục đang canh gì đó',
+      deadTerms.length === 0,
+      deadTerms.map((term) => term.term).join(', '),
+    );
+
+    const missed = AbusiveModerationCorpus.filter(
+      (sentence) => screenText(sentence, terms).verdict === 'ALLOW',
+    );
+    check(
+      'không câu xấu nào lọt lưới',
+      missed.length === 0,
+      `${missed.length} câu: ${missed.slice(0, 3).join(' | ')}`,
+    );
     console.log('\n5. Quyền nhóm: không quyền nào seed mà không ai kiểm');
+    // Chỉ bộ ĐANG HIỆU LỰC, và bỏ dòng mốc của bộ rỗng. Đọc cả lịch sử thì một
+    // quyền đã thu hồi vẫn trông như đang được cấp.
     const grantRows = await dataSource.query<{ permission: string }[]>(
-      `SELECT DISTINCT permission FROM group_role_permissions`,
+      `
+        SELECT DISTINCT grant_row.permission
+        FROM group_role_permissions grant_row
+        WHERE grant_row.version = (
+          SELECT MAX(live.version) FROM group_role_permissions live
+          WHERE live.role = grant_row.role
+        )
+          AND grant_row.permission <> $1
+      `,
+      [EmptyGroupPermissionSetMarker],
     );
     const seededGrants = grantRows.map((row) => row.permission);
     const declaredGrants = new Set<string>([
@@ -350,7 +412,14 @@ async function main(): Promise<void> {
     // không đổi gì là thứ tệ nhất trong ba: người ta tin là đã phân quyền.
     const roleRows = await dataSource.query<
       { role: string; permission: string }[]
-    >(`SELECT role, permission FROM group_role_permissions`);
+    >(`
+      SELECT grant_row.role, grant_row.permission
+      FROM group_role_permissions grant_row
+      WHERE grant_row.version = (
+        SELECT MAX(live.version) FROM group_role_permissions live
+        WHERE live.role = grant_row.role
+      )
+    `);
     for (const role of ['OWNER', 'SUBTEAM_ADMIN']) {
       const effective = roleRows
         .filter((row) => row.role === role)

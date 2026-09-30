@@ -98,6 +98,10 @@ export function resolveGroupRadiusKm(config: {
   defaultMeters: unknown;
   minMeters: unknown;
   maxMeters: unknown;
+  /**
+   * Bán kính riêng của bậc người tạo, đơn vị mét. Thiếu thì dùng `defaultMeters`.
+   */
+  rankMeters?: unknown;
 }): number {
   const toKm = (raw: unknown, fallbackKm: number): number => {
     const meters = Number(raw);
@@ -117,11 +121,15 @@ export function resolveGroupRadiusKm(config: {
     clampToColumn(toKm(config.maxMeters, MaxGroupRadiusKm)),
   );
 
-  return Math.min(
-    max,
-    Math.max(
-      min,
-      clampToColumn(toKm(config.defaultMeters, DefaultGroupRadiusKm)),
-    ),
-  );
+  // Bậc trước, mặc định sau. Bậc chưa chốt số thì rơi về mặc định chứ không về 0
+  // — 0 km là vùng rỗng, tức tắt luôn điều kiện địa lý của affiliate.
+  const base =
+    config.rankMeters === undefined || config.rankMeters === null
+      ? toKm(config.defaultMeters, DefaultGroupRadiusKm)
+      : toKm(
+          config.rankMeters,
+          toKm(config.defaultMeters, DefaultGroupRadiusKm),
+        );
+
+  return Math.min(max, Math.max(min, clampToColumn(base)));
 }

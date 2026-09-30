@@ -5,6 +5,7 @@ import {
   IGroupSummary,
 } from '@/domain/ports/repository';
 import {
+  EmptyGroupPermissionSetMarker,
   GroupMemberRoles,
   GroupMembershipStatuses,
   GroupStatuses,
@@ -207,6 +208,57 @@ export class GroupRepository
     );
   }
 
+  public async deleteSubTeam(params: {
+    groupId: string;
+    subTeamId: string;
+  }): Promise<boolean> {
+    return this.entityManager.transaction(async (manager) => {
+      // Xoá MỀM, và `group_id` nằm trong điều kiện: thiếu nó thì Owner nhóm A xoá
+      // được tổ của nhóm B chỉ bằng cách đoán một id — đúng lỗ mà `assignMember`
+      // đã phải bịt.
+      //
+      // `deleted_at IS NULL` để lần gọi thứ hai trả false thay vì dựng lại mốc
+      // xoá; mốc bị đè là mất dấu thời điểm tổ thật sự biến mất.
+      const removed = await manager.query<unknown>(
+        `
+          UPDATE sub_teams
+          SET deleted_at = now(), updated_at = now()
+          WHERE global_id = $1 AND group_id = $2 AND deleted_at IS NULL
+        `,
+        [params.subTeamId, params.groupId],
+      );
+      if (Number((removed as [unknown[], number])[1] ?? 0) === 0) return false;
+
+      // Người trong tổ KHÔNG bị xoá khỏi nhóm — chỉ rời tổ. Tổ là cách tổ chức,
+      // không phải điều kiện ở lại nhóm (BR-GRP-05, §3255).
+      //
+      // `ON DELETE SET NULL` của khoá ngoại KHÔNG chạy ở đây vì đây là xoá mềm.
+      // Dựa vào nó là để lại một loạt membership trỏ tới tổ đã biến mất, và
+      // `listMembers` sẽ trả `subTeamName: null` với một `subTeamId` vẫn có giá
+      // trị — hai thứ nói hai chuyện khác nhau.
+      await manager.query(
+        `
+          UPDATE group_memberships
+          SET sub_team_id = NULL,
+              -- Trưởng tổ của một tổ không còn tồn tại thì không còn là trưởng
+              -- tổ. Giữ vai là để lại một người mang danh trưởng mà mọi endpoint
+              -- đều từ chối, vì phạm vi của họ đọc từ cột sub_team_id.
+              role = CASE WHEN role = $3 THEN $4 ELSE role END,
+              updated_at = now()
+          WHERE group_id = $1 AND sub_team_id = $2
+        `,
+        [
+          params.groupId,
+          params.subTeamId,
+          GroupMemberRoles.SUBTEAM_ADMIN,
+          GroupMemberRoles.MEMBER,
+        ],
+      );
+
+      return true;
+    });
+  }
+
   public async listSubTeams(params: {
     groupId: string;
     subTeamId?: string | null;
@@ -373,6 +425,13 @@ export class GroupRepository
          FROM group_memberships membership
          INNER JOIN group_role_permissions grant_row
            ON grant_row.role = membership.role
+           -- Chỉ bộ ĐANG HIỆU LỰC. Bỏ vế này thì mọi quyền từng được cấp rồi thu
+           -- hồi vẫn còn tác dụng — thu hồi quyền mà không có hiệu lực là lỗ
+           -- nguy hiểm hơn cả việc chưa có đường thu hồi.
+           AND grant_row.version = (
+             SELECT MAX(live.version) FROM group_role_permissions live
+             WHERE live.role = membership.role
+           )
          INNER JOIN groups team ON team.global_id = membership.group_id
          WHERE membership.user_id = $1
            AND membership.group_id = $2
@@ -391,6 +450,125 @@ export class GroupRepository
     );
 
     return row?.exists === true;
+  }
+
+  public async listRolePermissions(): Promise<
+    { role: GroupMemberRoles; version: number; permissions: string[] }[]
+  > {
+    const rows = await this.entityManager.query<
+      { role: GroupMemberRoles; version: string; permissions: string[] }[]
+    >(
+      `
+        SELECT grant_row.role,
+               grant_row.version::text,
+               array_agg(grant_row.permission ORDER BY grant_row.permission)
+                 AS permissions
+        FROM group_role_permissions grant_row
+        WHERE grant_row.version = (
+          SELECT MAX(live.version) FROM group_role_permissions live
+          WHERE live.role = grant_row.role
+        )
+          -- Dòng mốc của bộ RỖNG không phải một quyền. Để lọt ra thì Admin thấy
+          -- một quyền tên __none__ và tưởng nó có nghĩa.
+          AND grant_row.permission <> $1
+        GROUP BY grant_row.role, grant_row.version
+        ORDER BY grant_row.role ASC
+      `,
+      [EmptyGroupPermissionSetMarker],
+    );
+
+    return rows.map((row) => ({
+      role: row.role,
+      version: Number(row.version),
+      permissions: row.permissions,
+    }));
+  }
+
+  public async replaceRolePermissions(params: {
+    role: GroupMemberRoles;
+    permissions: readonly string[];
+    actorUserId: string;
+    changeReason: string;
+  }): Promise<{ version: number; permissions: string[]; before: string[] }> {
+    return this.entityManager.transaction(async (manager) => {
+      // Khoá theo vai trước khi đọc phiên bản: hai Admin bấm Lưu cùng lúc mà
+      // không khoá thì cả hai đọc cùng phiên bản và cùng ghi vào version + 1 —
+      // hai tập trộn lẫn vào một phiên bản, và không ai thấy gì bất thường.
+      //
+      // `ORDER BY ... LIMIT 1` chứ không `MAX()`: Postgres từ chối `FOR UPDATE`
+      // cùng hàm tổng hợp, và một câu `MAX()` không khoá dòng nào cả. Khoá dòng
+      // phiên bản cao nhất là đủ — người viết thứ hai dừng ở đây tới khi người
+      // đầu commit, rồi đọc lại đúng phiên bản mới.
+      //
+      // Vai chưa có dòng nào thì không khoá được gì, và lớp chặn cuối là
+      // `UQ_group_role_permissions_versioned`: hai lượt ghi cùng phiên bản đụng
+      // ràng buộc và một lượt thất bại RÕ RÀNG, thay vì trộn im lặng.
+      const [current] = await manager.query<{ version: string }[]>(
+        `
+          SELECT grant_row.version::text AS version
+          FROM group_role_permissions grant_row
+          WHERE grant_row.role = $1
+          ORDER BY grant_row.version DESC
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [params.role],
+      );
+
+      const liveVersion = Number(current?.version ?? 0);
+      const before = await manager.query<{ permission: string }[]>(
+        `
+          SELECT permission FROM group_role_permissions
+          WHERE role = $1 AND version = $2
+          ORDER BY permission ASC
+        `,
+        [params.role, liveVersion],
+      );
+
+      const nextVersion = liveVersion + 1;
+      // Dòng cũ Ở LẠI. Đó là toàn bộ mục đích của cột `version` — xoá đi thì lại
+      // về đúng chỗ tài liệu từng nói sai.
+      for (const permission of params.permissions)
+        await manager.query(
+          `
+            INSERT INTO group_role_permissions
+              (role, permission, version, updated_by, updated_at, change_reason)
+            VALUES ($1, $2, $3, $4, now(), $5)
+          `,
+          [
+            params.role,
+            permission,
+            nextVersion,
+            params.actorUserId,
+            params.changeReason,
+          ],
+        );
+
+      // Tập RỖNG là một lựa chọn hợp lệ (thu hồi hết quyền của một vai), nhưng
+      // khi đó không dòng nào mang `nextVersion` nên MAX(version) vẫn trỏ về bộ
+      // cũ và việc thu hồi không có hiệu lực. Một dòng mốc giữ phiên bản.
+      if (params.permissions.length === 0)
+        await manager.query(
+          `
+            INSERT INTO group_role_permissions
+              (role, permission, version, updated_by, updated_at, change_reason)
+            VALUES ($1, $2, $3, $4, now(), $5)
+          `,
+          [
+            params.role,
+            EmptyGroupPermissionSetMarker,
+            nextVersion,
+            params.actorUserId,
+            params.changeReason,
+          ],
+        );
+
+      return {
+        version: nextVersion,
+        permissions: [...params.permissions],
+        before: before.map((row) => row.permission),
+      };
+    });
   }
 
   public async dissolveOwnedBy(ownerId: string): Promise<number> {

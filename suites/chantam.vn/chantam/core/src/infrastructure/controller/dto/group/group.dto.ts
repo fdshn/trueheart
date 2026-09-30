@@ -203,6 +203,16 @@ export class AssignGroupMemberParamDto {
   memberId: string;
 }
 
+export class SubTeamParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  groupId: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  subTeamId: string;
+}
+
 export class AssignGroupMemberDto {
   @ApiPropertyOptional({
     type: String,

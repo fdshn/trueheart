@@ -6,6 +6,7 @@ import {
 } from '@chantam/service.common-lib/exception';
 import {
   AssignGroupMemberUseCase,
+  DeleteSubTeamUseCase,
   ListGroupMembersUseCase,
   ListSubTeamsUseCase,
 } from './group-management.use-cases';
@@ -25,8 +26,10 @@ function makeGroups(options: {
   grants: string[];
   membership?: { role: GroupMemberRoles; subTeamId: string | null } | null;
   assignResult?: boolean;
+  deleteResult?: boolean;
 }) {
   return {
+    deleteSubTeam: jest.fn(async () => options.deleteResult ?? true),
     hasGroupPermission: jest.fn(async (params: { permission: string }) =>
       options.grants.includes(params.permission),
     ),
@@ -194,5 +197,55 @@ describe('AssignGroupMemberUseCase — giữ tổ khác gỡ tổ', () => {
     const groups = makeGroups({ grants: [] });
 
     await expect(run(groups, {})).rejects.toThrow(ForbiddenException);
+  });
+});
+
+describe('DeleteSubTeamUseCase', () => {
+  const run = (groups: ReturnType<typeof makeGroups>) =>
+    new DeleteSubTeamUseCase(groups as never).handle({
+      userId: CallerId,
+      groupId: GroupId,
+      subTeamId: SubTeamId,
+    });
+
+  it('đòi group.subteam.manage — cùng quyền với TẠO tổ', async () => {
+    const groups = makeGroups({ grants: ['group.subteam.manage'] });
+    await run(groups);
+
+    expect(groups.deleteSubTeam).toHaveBeenCalledWith({
+      groupId: GroupId,
+      subTeamId: SubTeamId,
+    });
+  });
+
+  it('trưởng tổ KHÔNG xoá được tổ của chính mình', async () => {
+    // Họ không tạo ra tổ, và cho họ xoá là cho họ tự gỡ mọi người khỏi tổ mà
+    // Owner vừa xếp vào.
+    const groups = makeGroups({
+      grants: ['group.subteam.member.view', 'group.subteam.activity.view'],
+      membership: {
+        role: GroupMemberRoles.SUBTEAM_ADMIN,
+        subTeamId: SubTeamId,
+      },
+    });
+
+    await expect(run(groups)).rejects.toThrow(ForbiddenException);
+    expect(groups.deleteSubTeam).not.toHaveBeenCalled();
+  });
+
+  it('tổ không tồn tại hoặc thuộc nhóm khác thì 404, không nói rõ ca nào', async () => {
+    const groups = makeGroups({
+      grants: ['group.subteam.manage'],
+      deleteResult: false,
+    });
+
+    await expect(run(groups)).rejects.toThrow(GroupNotFoundException);
+  });
+
+  it('trả danh sách tổ CÒN LẠI sau khi xoá', async () => {
+    const groups = makeGroups({ grants: ['group.subteam.manage'] });
+    await run(groups);
+
+    expect(groups.listSubTeams).toHaveBeenCalledWith({ groupId: GroupId });
   });
 });

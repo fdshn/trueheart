@@ -3,16 +3,19 @@
 Trạng thái: ✅ **xong Phase 1** (26/09, soát lại 30/09) — bảng, RBAC có phạm vi, tạo nhóm, xem
 nhóm của tôi, vào nhóm qua link mời, danh sách thành viên, sub-team và phép xếp người vào tổ,
 giải tán khi Owner xoá tài khoản. Script kiểm trên Postgres thật: `npm run test:group`
-(54 phép kiểm).
+(69 phép kiểm).
 
 Lượt soát 30/09 sửa bốn thứ, xem §Chỗ cần soát: vai `SUBTEAM_ADMIN` trước đó **hoàn toàn vô
 tác dụng**, đổi vai **âm thầm gỡ người khỏi tổ**, thành viên của nhóm đã giải tán bị **đóng
 băng vĩnh viễn**, và ba endpoint nhóm **chưa hề được validate** vì thiếu decorator ở khoá bọc
 body.
 
-Sáu endpoint: `POST /groups`, `GET /groups/me`, `GET /groups/:groupId/members`,
-`GET|POST /groups/:groupId/sub-teams`, `PATCH /groups/:groupId/members/:memberId` — chi tiết
-ở [API.md §11](../API.md#11-nhóm--groups).
+Bảy endpoint nhóm: `POST /groups`, `GET /groups/me`, `GET /groups/:groupId/members`,
+`GET|POST /groups/:groupId/sub-teams`, `DELETE /groups/:groupId/sub-teams/:subTeamId`,
+`PATCH /groups/:groupId/members/:memberId` — chi tiết ở
+[API.md §11](../API.md#11-nhóm--groups).
+
+Và hai endpoint Admin cho bộ quyền vai: `GET|PUT /admin/groups/role-permissions[/:role]`.
 
 ⛔ **Còn thiếu (Sprint 3, cần Bên A chốt):** affiliate event engine (F56) và điều kiện địa lý
 bắt buộc (F57) — xem [`19-affiliate.md`](./19-affiliate.md).
@@ -117,7 +120,7 @@ flowchart LR
 
     S["SUBTEAM_ADMIN<br/>trưởng nhóm con"] --> H1["Xem thành viên tổ mình<br/>GET /members lọc theo sub_team_id"]
     S --> H2[Xem hoạt động tổ mình]
-    S -.-> H3["❌ KHÔNG tạo sub-team<br/>❌ KHÔNG xem affiliate toàn nhóm<br/>❌ KHÔNG quản lý link mời<br/>❌ KHÔNG đổi cài đặt"]
+    S -.-> H3["❌ KHÔNG tạo sub-team<br/>❌ KHÔNG xoá sub-team<br/>❌ KHÔNG xem thành viên tổ KHÁC<br/>❌ KHÔNG xem affiliate toàn nhóm<br/>❌ KHÔNG quản lý link mời<br/>❌ KHÔNG đổi cài đặt"]
 
     M["MEMBER"] --> I1[Group Detail theo quyền được cấp]
 
@@ -127,17 +130,49 @@ flowchart LR
 Bộ quyền của `SUBTEAM_ADMIN` nằm ở bảng `group_role_permissions`, **không** hard-code trong
 code.
 
-> ⚠️ **Nhưng "cấu hình Admin hệ thống" thì chưa đúng** (sửa 30/09 — câu cũ nói bảng này *"có
-> audit và đánh phiên bản như mọi cấu hình động khác"*, sai cả ba vế). Không endpoint nào chạm
-> tới bảng: đổi quyền hiện phải chạy SQL tay. Bảng **không có cột `version`** nên không đánh
-> phiên bản được, và cột `updated_by` có sẵn nhưng **chưa bao giờ được ghi**.
+✅ **Và nay đúng là "cấu hình Admin hệ thống"** (30/09). Câu cũ ở đây nói bảng *"có audit và
+đánh phiên bản như mọi cấu hình động khác"* trong khi cả ba vế đều sai: không endpoint nào
+chạm tới bảng, không có cột `version`, và `updated_by` chưa bao giờ được ghi. Nay có đủ:
+
+| | |
+| --- | --- |
+| `GET /admin/groups/role-permissions` | bộ quyền từng vai, kèm `version` và cờ `effective` |
+| `PUT /admin/groups/role-permissions/:role` | thay CẢ TẬP, ghi thành phiên bản mới |
+
+Quyền dùng là `config.read` / `config.write` — bảng này là cấu hình, và `POLICY_ADMIN` cùng
+`SUPER_ADMIN` đã giữ hai mã đó. Thêm một mã riêng nghĩa là seed thêm một dòng
+`admin_permissions` chưa chắc vai nào được gán, tức tự tạo đúng loại "quyền seed mà không ai
+có" mà lượt soát này vừa đi dọn.
+
+> **Copy-on-write theo VAI.** Bộ quyền là một TẬP nên phiên bản gắn với tập: sửa vai nào thì cả
+> tập của vai đó ghi lại ở `version + 1`, dòng cũ nằm nguyên, và bộ đang hiệu lực là
+> `MAX(version)` tính RIÊNG từng vai. `hasGroupPermission` lọc theo đúng vế đó — thiếu nó thì
+> một quyền đã thu hồi vẫn còn tác dụng, tệ hơn cả việc chưa có đường thu hồi.
 >
-> Khác biệt này quan trọng vì nó quyết định ai đổi được bộ quyền: hôm nay là người có quyền
-> truy cập database, không phải người có quyền Admin. Muốn đúng như câu cũ thì cần một đường
-> Admin thật, và đó là việc chưa làm.
+> **Vai `OWNER` KHÔNG cấu hình được.** Thu hồi `group.member.assign_role` của chủ nhóm để lại
+> một nhóm không ai xếp được người vào tổ — mà cũng không lấy lại được, vì đường duy nhất để
+> lấy lại là chính endpoint này.
+>
+> **Mã quyền lạ bị TỪ CHỐI, không lưu im lặng.** Một mã gõ nhầm lưu thành công là đúng cái bệnh
+> đã làm cả vai `SUBTEAM_ADMIN` vô tác dụng ba tháng mà không hiện ra ở đâu. Cờ `effective` trả
+> kèm cũng để nói thẳng điều đó: một bộ quyền toàn mã mà code chưa kiểm thì gán vai đó không đổi
+> một thứ gì — hôm nay `MEMBER` đúng ở trạng thái ấy.
 
 > ⚠️ **SRS không có khái niệm trưởng nhóm.** BR-GRP-05 chỉ chia Owner và Member, và §3255
 > nói sub-team *"chỉ để tổ chức"*. Thêm vai này là **mở rộng SRS**, không phải làm rõ.
+
+**Chốt 2026-09-30 — trưởng tổ thấy đúng thành viên tổ mình, không hơn.** Cụ thể:
+
+| Trưởng tổ | |
+| --- | --- |
+| ✅ `GET /groups/:id/members` | chỉ người trong tổ CỦA HỌ |
+| ✅ `GET /groups/:id/sub-teams` | chỉ tổ của họ, không thấy tổ khác |
+| ❌ tạo tổ, xoá tổ | `group.subteam.manage` chỉ Owner có |
+| ❌ xếp người vào tổ, đổi vai | `group.member.assign_role` chỉ Owner có |
+| ❌ affiliate, link mời, cài đặt | không có quyền tương ứng |
+
+Chưa được xếp vào tổ nào thì bị từ chối, **không** phải được xem cả nhóm — trả cả nhóm ở đó
+là leo thang quyền bằng một trường bỏ trống.
 
 ## 18.5 Owner xoá tài khoản → Group giải tán (CHỐT-02) — ✅
 
@@ -178,6 +213,7 @@ flowchart TD
     S2 --> M2[Thành viên]
 
     Z["Xếp người vào tổ:<br/>PATCH /groups/:id/members/:memberId<br/>subTeamId=null để gỡ ra"] -.-> S1
+    D["Xoá tổ:<br/>DELETE /groups/:id/sub-teams/:subTeamId<br/>người trong tổ Ở LẠI nhóm,<br/>trưởng tổ hạ về MEMBER"] -.-> S2
 
     Y["Affiliate depth = 1:<br/>một sự kiện hợp lệ chia cho<br/>TOÀN BỘ Active Member của GROUP,<br/>KHÔNG phân tầng theo sub-team"] -.-> G
 
@@ -199,8 +235,9 @@ flowchart TD
 ## Chỗ cần soát
 
 1. ⚠️ **Trưởng nhóm là mở rộng ngoài SRS** — cần Bên A biết.
-2. **Bộ quyền khởi tạo cho `SUBTEAM_ADMIN`** mới là đề xuất, chưa ai duyệt. Và xem §18.4: đổi
-   bộ quyền đó hiện phải chạy SQL tay, chưa có đường Admin.
+2. **Bộ quyền khởi tạo cho `SUBTEAM_ADMIN`** mới là đề xuất, chưa ai duyệt — nhưng nay Bên A
+   sửa được mà không cần deploy, xem §18.4. Bộ hiện tại là `group.subteam.member.view` +
+   `group.subteam.activity.view`, trong đó cái thứ hai còn là NỢ (chưa có endpoint hoạt động).
 3. ✅ **`SUBTEAM_ADMIN` nay xem được thành viên tổ mình** (30/09). Thực trạng trước đó nặng hơn
    câu cũ ở đây: **cả hai** quyền của vai này đều không dòng code nào đọc, nên phong vai đó cho
    ai cũng **không đổi một thứ gì**. Bảy trong mười quyền nhóm ở tình trạng đó, kể cả
@@ -214,13 +251,45 @@ flowchart TD
    Năm quyền còn lại canh những endpoint **chưa tồn tại**; `test:config-inventory` nay khai
    từng cái kèm lý do, và một quyền seed mà không khai vào đâu là phép kiểm đỏ.
 
-   ⛔ **Còn cần Bên A:** trưởng tổ nên thấy đến đâu *ngoài* thành viên tổ mình. Hiện họ thấy
-   đúng tổ mình, không thấy tổ khác và không thấy affiliate.
-4. **Không có đường xoá tổ.** `sub_teams.deleted_at` đã có cột, chưa có endpoint. Xoá tổ còn
-   người trong đó thì xử lý ra sao cũng chưa ai nói.
-5. ✅ **Bán kính nay đọc ba khoá `group.*_radius_meters`** (30/09) — `capability.limit` không
-   còn tham gia, xem [19-affiliate](./19-affiliate.md) mục 7. Vẫn còn một câu cho Bên A: bán
-   kính **khác nhau theo rank** hay chung một con số? Hiện là một con số chung.
+   ✅ **Phạm vi trưởng tổ đã chốt 30/09**: đúng thành viên tổ mình, không hơn — bảng chi tiết
+   ở §18.4.
+4. ✅ **Đã có đường xoá tổ** (30/09): `DELETE /groups/:groupId/sub-teams/:subTeamId`, cùng
+   quyền `group.subteam.manage` với tạo tổ — ai lập được tổ thì dẹp được tổ, và trưởng tổ không
+   xoá được tổ của chính mình vì họ không tạo ra nó.
+
+   Câu "xoá tổ còn người trong đó thì xử lý ra sao" trả lời thế này: **người trong tổ Ở LẠI
+   nhóm**, chỉ rời tổ. Tổ là cách tổ chức, không phải điều kiện ở lại nhóm (BR-GRP-05, §3255).
+
+   Và **trưởng tổ của tổ bị xoá hạ về `MEMBER`**: phạm vi của vai đó đọc từ `sub_team_id`, nên
+   giữ vai là để lại một người mang danh trưởng mà mọi endpoint đều từ chối.
+
+   Xoá là xoá MỀM (`deleted_at`), và `group_id` nằm trong điều kiện — thiếu nó thì Owner nhóm A
+   xoá được tổ của nhóm B chỉ bằng cách đoán một id. Lưu ý `ON DELETE SET NULL` của khoá ngoại
+   KHÔNG chạy với xoá mềm, nên việc gỡ `sub_team_id` phải làm tay trong cùng transaction.
+5. ✅ **Bán kính THEO BẬC, chốt 30/09.** Đọc `group.radius_meters.<bậc>` của bậc người tạo,
+   thiếu thì rơi về `group.default_radius_meters` — không rơi về 0, vì 0 km là vùng rỗng và làm
+   điều kiện địa lý của affiliate tắt lặng lẽ. `capability.limit` không còn tham gia, xem
+   [19-affiliate](./19-affiliate.md) mục 7.
+
+   | Bậc | Mét | Km |
+   | --- | --- | --- |
+   | Thành viên | 3.000 | 3 |
+   | Bạc | 5.000 | 5 |
+   | Vàng | 7.000 | 7 |
+   | Kim Cương | 10.000 | 10 |
+
+   ⛔ **Thang số là ĐỀ XUẤT, cần Bên A chốt.** Nó chọn theo hai điều kiện đo được: đơn điệu tăng
+   (bậc cao mà vùng hẹp hơn thì thăng bậc thành hình phạt), và nằm trong 1.000–50.000 m. Kim
+   Cương giữ đúng 10.000 m — bằng giá trị chung đang chạy — nên việc bật cơ chế này KHÔNG âm
+   thầm đổi vùng của nhóm nào. Hôm nay `CREATE_GROUP` chỉ mở cho Kim Cương, nên bốn bậc dưới
+   chỉ có tác dụng khi Bên A hạ ngưỡng.
+
+   Bậc dùng để tính là bậc **tại thời điểm tạo**: tụt bậc về sau không làm vùng co lại, lên bậc
+   cũng không làm nó rộng ra (BR-GRP-03).
+
+   ⚠️ Cột có `CHK_groups_radius CHECK (radius_km BETWEEN 1 AND 50)`, nên cấu hình **không nới
+   rộng quá 50 km được**. Đường Admin từ chối thẳng giá trị ngoài khoảng, và
+   `resolveGroupRadiusKm` còn kẹp một lần nữa — nới thật thì phải sửa CHECK trong một migration.
 
    ⚠️ Cột có `CHK_groups_radius CHECK (radius_km BETWEEN 1 AND 50)`, nên cấu hình **không nới
    rộng quá 50 km được**. Đường Admin từ chối thẳng giá trị ngoài khoảng, và
@@ -255,3 +324,10 @@ flowchart TD
    `body-wrapper-guard.spec` đã có từ trước nhưng không thấy — nó chỉ soát wrapper **đã có**
    `@ValidateNested()`, nên wrapper không decorator nào thì vô hình. Nay nó soát mọi thuộc tính
    trong một class `*BodyDto` mà kiểu là một DTO khác.
+9. ⚠️ **`group.subteam.activity.view` còn là NỢ.** Trưởng tổ được cấp quyền này nhưng chưa có
+   endpoint hoạt động nhóm (F55) nên chưa ai kiểm nó. `test:config-inventory` khai nó kèm lý do;
+   nó không phải chỗ bỏ sót mà là chỗ chờ tính năng.
+10. ⚠️ **`MEMBER` vẫn là vai không có quyền nào CÓ TÁC DỤNG.** `group.overview.view` là quyền
+   duy nhất của họ và chưa có endpoint Group Detail để kiểm nó; `GET /groups/me` đọc theo
+   membership, không qua `hasGroupPermission`. `GET /admin/groups/role-permissions` trả
+   `effective: false` cho vai này để Admin thấy đúng hiện trạng thay vì đoán.
