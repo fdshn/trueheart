@@ -87,7 +87,8 @@
     "test": "jest",
     "test:cov": "jest --coverage",
     "test:watch": "jest --watch",
-    "typeorm": "typeorm-ts-node-commonjs --dataSource src/infrastructure/persistence/data-source.ts"
+    "typeorm": "typeorm-ts-node-commonjs --dataSource src/infrastructure/persistence/data-source.ts",
+    "test:srs-endpoints": "ts-node -r tsconfig-paths/register test/srs-endpoint-gaps.check.ts"
   },
   "dependencies": {
     "@chantam.vn/chantam.core-lib": "file:../core-lib",

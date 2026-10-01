@@ -328,6 +328,65 @@ describe('GetNearbyPostsUseCase', () => {
     expect(result.originSource).toBe('DEFAULT_LOCATION');
   });
 
+  it('isSos=true đi xuống repository thành bộ lọc', async () => {
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+    } as unknown as jest.Mocked<IPostRepository>;
+
+    await new GetNearbyPostsUseCase(
+      posts,
+      makeMedia(),
+      {} as unknown as jest.Mocked<IGiftRequestRepository>,
+      makeUsers(),
+      makeReactions(),
+      makeConfig(),
+      makeAdminConfig() as never,
+    ).handle({
+      lat: 10.77,
+      lng: 106.69,
+      radiusMeters: 5_000,
+      isSos: true,
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(posts.findNearbyPosts).toHaveBeenCalledWith(
+      expect.objectContaining({ isSos: true }),
+    );
+  });
+
+  it('isSos=false và bỏ trống đều KHÔNG lọc', async () => {
+    // "Cho tôi xem những bài KHÔNG gấp" không phải một nhu cầu có thật, và ép nó
+    // thành bộ lọc thì một client gửi `isSos=false` theo mặc định sẽ âm thầm làm
+    // biến mất mọi bài SOS khỏi feed chính.
+    for (const isSos of [false, undefined]) {
+      const posts = {
+        findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+      } as unknown as jest.Mocked<IPostRepository>;
+
+      await new GetNearbyPostsUseCase(
+        posts,
+        makeMedia(),
+        {} as unknown as jest.Mocked<IGiftRequestRepository>,
+        makeUsers(),
+        makeReactions(),
+        makeConfig(),
+        makeAdminConfig() as never,
+      ).handle({
+        lat: 10.77,
+        lng: 106.69,
+        radiusMeters: 5_000,
+        isSos,
+        page: 1,
+        pageSize: 20,
+      });
+
+      expect(posts.findNearbyPosts).toHaveBeenCalledWith(
+        expect.objectContaining({ isSos: undefined }),
+      );
+    }
+  });
+
   it('có toạ độ thì KHÔNG đọc tới hồ sơ', async () => {
     const posts = {
       findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),

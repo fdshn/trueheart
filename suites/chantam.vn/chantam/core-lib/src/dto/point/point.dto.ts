@@ -99,6 +99,37 @@ export interface IReversePointEntryBodyDto {
   reversal: IReversePointEntryDto;
 }
 
+export interface IAdjustUserPointsBodyDto {
+  /** Chủ tài khoản bị cộng/trừ. */
+  userId: string;
+  /** Khác 0. Âm là trừ. Bị kẹp theo `MaxAdminPointAdjustmentDelta`. */
+  delta: number;
+  /** Vì sao. Bắt buộc — người bị trừ điểm sẽ hỏi, và một con số không trả lời được. */
+  reason: string;
+  /**
+   * Khoá chống trùng do client đặt, không bắt buộc.
+   *
+   * Gửi cùng một khoá hai lần thì lần sau KHÔNG ghi gì và trả lại đúng bút toán
+   * cũ với `applied: false`. Bỏ trống thì mỗi lần gọi là một lần điều chỉnh
+   * mới — kể cả khi trùng khít lần trước, vì cộng bù hai ngày liên tiếp cùng
+   * một số điểm là việc có thật.
+   */
+  idempotencyKey?: string;
+}
+
+export interface IAdjustUserPointsResponseDto {
+  adjustment: {
+    entryId: number;
+    delta: number;
+    balance: number;
+    /** Số dư THẬT, có thể âm. */
+    rawBalance: number;
+    lifetime: number;
+    /** `false` nghĩa là `idempotencyKey` đã dùng rồi và lần này không ghi gì. */
+    applied: boolean;
+  };
+}
+
 export interface IReversePointEntryResponseDto {
   reversal: {
     /** Bút toán HOÀN vừa ghi, không phải bút toán gốc. */

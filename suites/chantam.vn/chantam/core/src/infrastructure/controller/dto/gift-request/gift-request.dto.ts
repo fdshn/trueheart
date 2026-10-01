@@ -24,6 +24,15 @@ export class GiftRequestDto implements IGiftRequestDto {
   @ApiProperty({ nullable: true })
   withdrawnAt: Date | null;
 
+  @ApiProperty({
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Bài Muốn Tặng người gửi mang ra, khi lời tặng đi qua ' +
+      '`POST /posts/{wantedPostId}/offer-gift`. `null` ở yêu cầu xin nhận thường.',
+  })
+  offeringPostId: string | null;
+
   @ApiProperty()
   createdAt: Date;
 

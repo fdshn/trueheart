@@ -248,6 +248,10 @@ export class PostRepository
         categoryId: params.categoryId,
       });
 
+    // Chỉ lọc khi được yêu cầu rõ ràng. `is_sos` có `default false` và NOT NULL
+    // nên không cần phòng `IS NULL`.
+    if (params.isSos) baseQuery.andWhere('post.isSos = true');
+
     // Tìm theo từ khoá, KHÔNG phân biệt dấu. Biểu thức phải trùng khít với
     // biểu thức của index GIN (`IDX_posts_search`), sai một ký tự là Postgres
     // bỏ index và quét tuần tự cả bảng.

@@ -282,6 +282,7 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 | `POST` | `/posts` | Bearer | Tạo bài — lên thẳng `PUBLISHED`, không chờ duyệt |
 | `GET` | `/posts/me` | Bearer | Bài của chính mình, lọc + phân trang |
 | `GET` | `/posts/nearby` | Công khai | Quét bài quanh một toạ độ — lọc loại, danh mục, và **tìm theo từ khoá** |
+| `GET` | `/posts/sos-urgent` | Công khai | Danh sách cứu trợ SOS — đúng truy vấn của `/posts/nearby` với `isSos` ghim `true` (SRS §19) |
 | `GET` | `/posts/map` | Công khai | Marker trong khung bản đồ |
 | `GET` | `/posts/:postId` | Công khai | Chi tiết một bài công khai |
 | `GET` | `/posts/:postId/matches` | Bearer (chỉ tác giả) | Smart Match — gợi ý bài ghép đôi |
@@ -627,6 +628,8 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 | `GET` | `/posts/:postId/requests` | Bearer (chỉ tác giả) | Danh sách người xin, có phân trang |
 | `POST` | `/posts/:postId/requests/:requestId/reject` | Bearer (chỉ tác giả) | **Từ chối** một yêu cầu đang `PENDING`/`STANDBY` |
 | `POST` | `/posts/:postId/requests/:requestId/accept` | Bearer (chỉ tác giả) | Duyệt một người xin |
+| `POST` | `/posts/:postId/batch-accept` | Bearer (chỉ tác giả) | Duyệt **nhiều** người trong MỘT transaction — hoặc hết, hoặc không ai |
+| `POST` | `/posts/:wantedPostId/offer-gift` | Bearer | Chủ động tặng cho một bài Muốn Nhận, kèm được một bài Muốn Tặng của chính mình |
 
 #### Hàng đợi dự phòng
 

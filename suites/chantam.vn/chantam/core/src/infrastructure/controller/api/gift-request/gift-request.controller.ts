@@ -1,8 +1,10 @@
 import {
   IAcceptGiftRequestUseCase,
+  IBatchAcceptRequestsUseCase,
   ICreateGiftRequestUseCase,
   IGetRedemptionQuoteUseCase,
   IListPostRequestsUseCase,
+  IOfferGiftUseCase,
   IRedeemPostWithPointsUseCase,
   IRejectGiftRequestUseCase,
   IWithdrawGiftRequestUseCase,
@@ -13,6 +15,8 @@ import {
   GiftRequestNotFoundException,
   GiftTransactionInvalidStateException,
   GiftTransactionOutOfStockException,
+  OfferGiftSourceInvalidException,
+  OfferGiftTargetNotWantedException,
   PostInvalidStateException,
   PostNotAcceptingRequestsException,
   PostNotFoundException,
@@ -22,8 +26,10 @@ import {
 } from '@/domain/exceptions';
 import {
   IAcceptGiftRequestResponseDto,
+  IBatchAcceptRequestsResponseDto,
   ICreateGiftRequestResponseDto,
   IGetPostRequestsResponseDto,
+  IOfferGiftResponseDto,
   IRedeemPostWithPointsResponseDto,
   IRedemptionQuoteResponseDto,
   IWithdrawGiftRequestResponseDto,
@@ -58,12 +64,18 @@ import {
 import {
   AcceptGiftRequestParamDto,
   AcceptGiftRequestResponseDto,
+  BatchAcceptRequestsBodyDto,
+  BatchAcceptRequestsParamDto,
+  BatchAcceptRequestsResponseDto,
   CreateGiftRequestBodyDto,
   CreateGiftRequestParamDto,
   CreateGiftRequestResponseDto,
   GetPostRequestsResponseDto,
   ListPostRequestsParamDto,
   ListPostRequestsQueryDto,
+  OfferGiftBodyDto,
+  OfferGiftParamDto,
+  OfferGiftResponseDto,
   RedeemPostWithPointsParamDto,
   RedeemPostWithPointsResponseDto,
   RedemptionQuoteResponseDto,
@@ -85,12 +97,16 @@ export class GiftRequestController {
     private readonly listPostRequestsUseCase: IListPostRequestsUseCase,
     @Inject(IAcceptGiftRequestUseCase)
     private readonly acceptGiftRequestUseCase: IAcceptGiftRequestUseCase,
+    @Inject(IBatchAcceptRequestsUseCase)
+    private readonly batchAcceptRequestsUseCase: IBatchAcceptRequestsUseCase,
     @Inject(IRedeemPostWithPointsUseCase)
     private readonly redeemPostWithPointsUseCase: IRedeemPostWithPointsUseCase,
     @Inject(IGetRedemptionQuoteUseCase)
     private readonly getRedemptionQuoteUseCase: IGetRedemptionQuoteUseCase,
     @Inject(IRejectGiftRequestUseCase)
     private readonly rejectGiftRequestUseCase: IRejectGiftRequestUseCase,
+    @Inject(IOfferGiftUseCase)
+    private readonly offerGiftUseCase: IOfferGiftUseCase,
   ) {}
 
   @Post(':postId/requests')
@@ -227,6 +243,99 @@ export class GiftRequestController {
     });
 
     return ResponseDto.create<IAcceptGiftRequestResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Post(':wantedPostId/offer-gift')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Chủ động tặng đồ cho một bài Muốn Nhận',
+    description:
+      'Dành cho người CÓ món mà bài Muốn Nhận đang cần (SRS §19). Kèm được một ' +
+      'bài Muốn Tặng của chính bạn để chủ bài xem ảnh và vị trí món đồ thay vì ' +
+      'chỉ đọc một dòng chữ.\n\n' +
+      'Về dữ liệu đây CHÍNH LÀ một yêu cầu trên bài đó, nên nó đi qua đúng hàng ' +
+      'đợi, đúng hạn mức `OPEN_REQUEST_QUOTA`, đúng cổng hồ sơ (F07) và đúng ' +
+      'đường duyệt như `POST /posts/{postId}/requests`. Khác biệt duy nhất là ' +
+      'endpoint này từ chối bài không phải loại Muốn Nhận, và nhận thêm ' +
+      '`offeringPostId`.\n\n' +
+      'Gửi lại trên cùng một bài sau khi đã rút thì `offeringPostId` bị GHI ĐÈ ' +
+      'theo lần gửi mới — kể cả ghi đè thành `null`.',
+  })
+  @ApiCreatedResponse({ type: ResponseDto.forApi(OfferGiftResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [PostNotFoundException, 'Post không tồn tại'],
+    [OfferGiftTargetNotWantedException],
+    [OfferGiftSourceInvalidException],
+    [CannotRequestOwnPostException],
+    [GiftRequestDuplicatedException],
+    [PostNotAcceptingRequestsException],
+  )
+  public async offerGift(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: OfferGiftParamDto,
+    @Body() body: OfferGiftBodyDto,
+  ): Promise<ResponseDto<IOfferGiftResponseDto>> {
+    const result = await this.offerGiftUseCase.handle({
+      wantedPostId: params.wantedPostId,
+      offererId: principal.userId,
+      message: body.message,
+      offeringPostId: body.offeringPostId,
+    });
+
+    return ResponseDto.create<IOfferGiftResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Post(':postId/batch-accept')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Duyệt nhiều người xin nhận trong một lượt',
+    description:
+      'Dành cho bài số lượng lớn (UC-TRANS-05). Cả lô chạy trong MỘT transaction: ' +
+      'hoặc duyệt hết, hoặc không ai được duyệt.\n\n' +
+      'Khác với việc gọi `POST /posts/{postId}/requests/{requestId}/accept` nhiều ' +
+      'lần ở chỗ **nguyên tử**, và khác biệt đó hiện ra khi lô ĐÔNG HƠN số suất ' +
+      'còn lại: gọi nhiều lần sẽ duyệt được tới khi cạn suất rồi trả ' +
+      '`GIFT_REQUEST_NOT_FOUND` cho những người còn lại (họ vừa bị đẩy sang ' +
+      '`STANDBY` theo F33), trong khi các lượt trước đã commit và bài đã ' +
+      '`RESERVED` — duyệt một phần, không có đường lùi. Lô thì từ chối trọn vẹn.\n\n' +
+      'Khi số yêu cầu bằng đúng số suất thì cả hai đường cho cùng kết quả; ' +
+      'endpoint này vẫn gọn hơn vì chỉ một lượt đi database và một lần lấy khoá.\n\n' +
+      'Thiếu suất cho đủ số yêu cầu gửi lên thì trả ' +
+      '`GIFT_TRANSACTION_OUT_OF_STOCK` và KHÔNG ghi gì. Một id không còn `PENDING` ' +
+      'thì trả `GIFT_REQUEST_NOT_FOUND` kèm đúng id đó, cũng không ghi gì.\n\n' +
+      'Mỗi người được duyệt có một lượt trao và một phòng chat riêng, y như duyệt ' +
+      'từng cái.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(BatchAcceptRequestsResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [PostNotFoundException, 'Post không tồn tại'],
+    [GiftRequestNotFoundException, 'Không tìm thấy yêu cầu nhận quà'],
+    [PostInvalidStateException, 'Bài đăng không ở trạng thái hợp lệ để duyệt'],
+    [ForbiddenException],
+    [GiftTransactionOutOfStockException],
+    [GiftTransactionInvalidStateException, 'ACCEPTED'],
+    [ValidationFailedException, ['requestIds: không được trùng nhau']],
+  )
+  public async batchAcceptRequests(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: BatchAcceptRequestsParamDto,
+    @Body() body: BatchAcceptRequestsBodyDto,
+  ): Promise<ResponseDto<IBatchAcceptRequestsResponseDto>> {
+    const result = await this.batchAcceptRequestsUseCase.handle({
+      postId: params.postId,
+      userId: principal.userId,
+      requestIds: body.requestIds,
+    });
+
+    return ResponseDto.create<IBatchAcceptRequestsResponseDto>()
       .succeed()
       .attach(result)
       .build();

@@ -131,6 +131,7 @@ Xếp theo mức đáng làm trước.
 | L16 | [23](./23-referral.md) | **Không có phân trang cho `invitees`** ở cả hai đường đọc — trần cứng 50 | Đủ cho trang tóm tắt; thiếu khi có người mời vài trăm người |
 | L18 | [24](./24-entitlement.md) | **Không có kiểm KHOẢNG cho `limit` của capability**, chỉ kiểm tính nhất quán | Đặt `POST_OPEN = 100000` vẫn qua được. Không làm sập gì, chỉ là một chính sách lạ không ai chặn. Đơn vị mỗi capability một khác (số bài, số yêu cầu, mét) nên một khoảng chung không có nghĩa |
 | L17 | [28](./28-architecture.md) | **Chưa có đo phủ bắt buộc** — `test:cov` có script nhưng không có ngưỡng trong CI | Phủ có thể tụt dần mà không ai thấy |
+| L19 | [11](./11-point.md) | **`POST /admin/points/ledger/:entryId/reversal` KHÔNG ghi `admin_audit_logs`** — phát hiện 01/10 khi thêm đường `adjust` bên cạnh | Một lần Admin đảo bút toán điểm của người khác không để lại dấu nào ở sổ audit. Đường `adjust` mới thì có ghi, nên hai đường cùng quyền `point.adjust` để lại hai mức dấu vết khác nhau |
 
 ---
 
@@ -173,6 +174,83 @@ Ba thứ đã làm mà SRS không nói. Ghi ở đây để không ai phát hi�
 | **Trưởng nhóm sub-team** (`SUBTEAM_ADMIN`) | BR-GRP-05 chỉ chia Owner/Member; SRS nói sub-team *"chỉ để tổ chức"*. Phạm vi đã chốt 30/09: đúng thành viên tổ mình, không hơn. Bộ quyền khởi tạo vẫn là **đề xuất** |
 | **Cảnh báo sắp tụt hạng** | Hệ quả bắt buộc của việc bỏ F76 |
 | **Cờ kiểm duyệt chat** | SRS không nói chat đi qua bộ lọc từ ngữ. Thêm vì mọi thương lượng diễn ra ở đó — và **gắn cờ chứ không chặn**: chặn một hội thoại riêng vì một danh sách từ là quyền lớn hơn mức danh sách đó đáng được trao |
+
+---
+
+## Đối chiếu SRS — 16 lỗ endpoint còn lại và 15 quy tắc chưa soát
+
+Lập 01/10 khi rà `docs/software-requirement-specification/SRS_Chan_Tam_v1.15.0.md` sang mã nguồn.
+Con số đo bằng script, không ước lượng.
+
+### Endpoint SRS đặt tên mà chưa có
+
+SRS nêu **52** cặp `(VERB, path)`. Đối chiếu OpenAPI đang chạy: 11 khớp y nguyên, 21 **đổi tên
+hoặc gộp nhưng CÓ**, và 20 thiếu thật. Bốn cái rời rạc đã làm 01/10 (xem dưới), còn **16 cái
+nằm trong bốn khối chưa từng bắt đầu**:
+
+| Khối | Số endpoint | UC | Ghi ở |
+| --- | --- | --- | --- |
+| Campaign & Home động | 5 | UC-ADM-03 | ⚪ phần tính năng thêm |
+| Blog / Tin tức | 5 | UC-BLOG-01 | ⚪ phần tính năng thêm |
+| Charity campaigns | 3 | — | ⚪ phần tính năng thêm |
+| Bộ máy chia thưởng Affiliate | 3 | — | 🟡 A1–A5 phía trên |
+
+> Bốn cái rời rạc **đã đóng 01/10**: `GET /posts/sos-urgent`, `POST /admin/points/adjust`,
+> `POST /posts/{postId}/batch-accept`, `POST /posts/{wantedPostId}/offer-gift`.
+
+### Hai hợp đồng mã lỗi không tương thích
+
+SRS đặt tên **14 mã lỗi API** cho client khớp theo **chuỗi**. Đối chiếu cả ba catalog (103 tên):
+**1** tên khớp (`VALIDATION_FAILED`). Hành vi đều có, chỉ khác tên — `AUTH_USERNAME_ALREADY_EXISTS`
+→ `USERNAME_TAKEN`, `AUTH_ACCOUNT_BANNED` → `USER_BANNED`, `REQUEST_ALREADY_SUBMITTED` →
+`GIFT_REQUEST_DUPLICATED`, `INSUFFICIENT_AVAILABLE_POINTS` → `REDEMPTION_INSUFFICIENT_POINTS`.
+
+Nhưng sâu hơn tên: **[26](./26-api-conventions.md) bảo client khớp CẶP SỐ `(errorOrigin, errorCode)`
+và nói thẳng "đừng bắt lỗi theo message"**. Ai dựng client Flutter từ SRS sẽ viết so chuỗi
+**không bao giờ khớp**. Quyết định đổi sang mã số chưa bao giờ được ghi lại vào SRS.
+
+🟡 **Cần Bên A chốt**: cập nhật SRS theo mã số, hay thêm một trường tên chuỗi vào response.
+
+### 15 quy tắc nghiệp vụ chưa ai đối chiếu
+
+SRS có **61** id BR duy nhất (19 dạng `BR_X_n` + 42 dạng `BR-X-n` — cùng một dãy bị đổi quy ước
+giữa tài liệu). Sổ truy vết nay ở `core/src/srs-traceability.spec.ts`:
+
+| Trạng thái | Nghĩa |
+| --- | --- |
+| `IMPLEMENTED` | Đã đối chiếu tận mã nguồn, có trỏ chỗ quyết định |
+| `PARTIAL` | Có hiện thực nhưng lệch một điểm, nêu rõ trong sổ |
+| `NOT_IMPLEMENTED` | Chưa làm, hầu hết vì phân hệ chưa dựng (DHARMA, CHARITY, CAMP, AFF) |
+| `UNVERIFIED` | **Chưa ai đối chiếu** — không phải "chưa làm", đúng nghĩa là chưa biết |
+
+**Con số duy nhất ghi ở đây là `UNVERIFIED`: 15**, vì nó là con số duy nhất có phép kiểm canh —
+`UnverifiedBaseline` trong chính file spec, và phép kiểm đỏ nếu số đó tăng. Phân bố ba trạng thái
+còn lại đọc thẳng ở file spec; chép sang đây là tự dựng một con số sẽ rữa, đúng thứ
+[26](./26-api-conventions.md) vừa dọn.
+
+Sổ cũng đỏ khi SRS lên bản mới và thêm quy tắc mà sổ chưa khai, và khi SRS bỏ một quy tắc mà sổ
+còn giữ dòng chết.
+
+15 mục chưa soát: `BR_AUTH_03`, `BR_POST_01`, `BR_POST_03`, `BR_POST_05`, `BR-GIS-03`,
+`BR-GIS-04`, `BR-GIS-06`, `BR_CHAT_02`, `BR-AFF-01`, `BR-NOTI-01`, `BR-POINT-02`, `BR-POINT-03`,
+`BR-POINT-04`, `BR-REP-02`, `BR-REP-04`.
+
+### 🟡 Một chỗ hiện thực LỆCH đặc tả, cần Bên A chốt
+
+`BR-POINT-06` nói *"Rank dùng số dư Điểm Cống hiến hiện tại, **không dùng lifetime rank point
+riêng**"*. Mã nguồn mặc định đúng (`rank.points_source = BALANCE`), nhưng đó là **cấu hình động
+và Admin bật được `LIFETIME`** — tức bật được đúng thứ đặc tả nói là không dùng.
+
+Giữ hay bỏ lựa chọn đó là quyết định của Bên A. Để nguyên thì một lần Admin đổi cấu hình sẽ làm
+hệ thống chạy trái đặc tả mà không ai coi đó là lỗi.
+
+### Hai lỗi của chính SRS
+
+1. **`BR_AUTH_04` dùng cho HAI quy tắc khác nhau** — dòng ~535 nói không cần xác thực email để
+   kích hoạt tài khoản, dòng ~616 nói xoá tài khoản phải ẩn danh hoá theo NĐ 13/2023. Sổ truy vết
+   giữ một dòng mang cả hai, có ghi chú.
+2. **`BR-REP-01` không tồn tại** — nhóm REP đánh số từ 02. Không rõ là bỏ sót một quy tắc hay chỉ
+   là lỗ số.
 
 ---
 

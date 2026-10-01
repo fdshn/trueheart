@@ -63,6 +63,13 @@ export interface IFindNearbyPostsParams {
   categoryId?: string;
   /** Từ khoá đã được chuẩn hoá ở tầng ứng dụng; rỗng thì bỏ qua. */
   keyword?: string;
+  /**
+   * `true` thì chỉ trả bài Cần gấp / SOS. Bỏ trống hoặc `false` là KHÔNG lọc.
+   *
+   * Tầng ứng dụng đã quy về đúng hai trạng thái đó, nên ở đây không có nhánh
+   * "chỉ bài không gấp".
+   */
+  isSos?: boolean;
   skip: number;
   take: number;
 }

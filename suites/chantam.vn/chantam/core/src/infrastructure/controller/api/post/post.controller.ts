@@ -89,6 +89,7 @@ import {
   GetPostResponseDto,
   GetSmartMatchesQueryDto,
   GetSmartMatchesResponseDto,
+  GetSosUrgentPostsQueryDto,
   PostMediaItemParamsDto,
   PostMediaParamsDto,
   PostMediaUploadResponseDto,
@@ -510,6 +511,42 @@ export class PostController {
   ): Promise<ResponseDto<IGetNearbyPostsResponseDto>> {
     const result = await this.getNearbyPostsUseCase.handle({
       ...query,
+      currentUserId: principal?.userId,
+    });
+
+    return ResponseDto.create<IGetNearbyPostsResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  // PHẢI đứng trước `:postId` y như `nearby` và `me`. Có `route-order-guard.spec.ts`
+  // canh, nhưng chú thích ở đây là để người sửa file thấy trước khi guard đỏ.
+  @Public()
+  @Get('sos-urgent')
+  @ApiOperation({
+    summary: 'Danh sách cứu trợ SOS quanh đây',
+    description:
+      'Đúng truy vấn của `GET /posts/nearby` với `isSos` ghim `true`, nên mọi ' +
+      'tham số còn lại — toạ độ, bán kính, danh mục, từ khoá, phân trang — và ' +
+      'mọi quy tắc che vị trí hoạt động y như ở đó.\n\n' +
+      'Endpoint riêng vì SRS §19 đặt tên nó cho màn hình cứu trợ, và một màn ' +
+      'hình chỉ có một mục đích thì không nên phụ thuộc vào việc client nhớ ' +
+      'gửi đúng một tham số lọc. Ai cần trộn SOS vào feed chính thì dùng ' +
+      '`GET /posts/nearby?isSos=true`.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(GetNearbyPostsResponseDto) })
+  @ApiErrorResponses([
+    ValidationFailedException,
+    ['radiusMeters: radiusMeters must not be greater than 50000'],
+  ])
+  public async getSosUrgentPosts(
+    @Query() query: GetSosUrgentPostsQueryDto,
+    @CurrentUser() principal?: IAuthPrincipal,
+  ): Promise<ResponseDto<IGetNearbyPostsResponseDto>> {
+    const result = await this.getNearbyPostsUseCase.handle({
+      ...query,
+      isSos: true,
       currentUserId: principal?.userId,
     });
 

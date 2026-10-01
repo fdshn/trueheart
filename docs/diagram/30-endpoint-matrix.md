@@ -49,6 +49,7 @@ flowchart LR
 | --- | --- | --- |
 | `POST /posts` | token + quota rank | ✅ |
 | `GET /posts/nearby` · `/map` · `/me` | token | ✅ |
+| `GET /posts/sos-urgent` | công khai | ✅ |
 | `GET /posts/:postId` | token | ✅ jitter toạ độ — trừ chính tác giả, kèm `canEdit` |
 | `PATCH /posts/:postId` | chủ bài | ✅ chặn khi có giao dịch `ACCEPTED`/`DELIVERING` |
 | `DELETE /posts/:postId` | chủ bài | ✅ chặn khi bài `RESERVED`/`DELIVERING` |
@@ -89,6 +90,8 @@ flowchart LR
 | `POST /posts/:id/requests` · `/withdraw` | token | ⚠️ chưa gắn cổng F07 |
 | `GET /posts/:id/requests` | chủ bài | ✅ |
 | `POST /posts/:id/requests/:requestId/accept` | chủ bài | ✅ |
+| `POST /posts/:id/batch-accept` | chủ bài | ✅ |
+| `POST /posts/:wantedPostId/offer-gift` | token | ✅ |
 | `POST /transactions` · `/accept` | bên liên quan | ✅ |
 | `POST /transactions/:id/evidence/upload-url` | bên liên quan | ✅ |
 | `POST /transactions/:id/handover` | người tặng | ✅ |
@@ -125,6 +128,7 @@ flowchart LR
 | `PATCH /admin/users/:id/status` · `DELETE` | `admin.manage` | ✅ |
 | `GET` · `POST /admin/points/rules` | `config.*` | ✅ |
 | `POST /admin/points/ledger/:id/reversal` | `point.adjust` | ✅ |
+| `POST /admin/points/adjust` | `point.adjust` | ✅ |
 | `GET` · `POST /admin/ranks/policy` · `/maintenance` | `rank.operate` | ✅ |
 | `GET` · `POST /admin/entitlements` | `entitlement.*` | ✅ |
 | `GET` · `PUT /admin/notification-channels/:channel` | `notification.manage` | ✅ |

@@ -67,6 +67,7 @@ export class ListMyGiftRequestsUseCase implements IListMyGiftRequestsUseCase {
         status: row.request.status,
         queueJoinedAt: row.request.queueJoinedAt,
         withdrawnAt: row.request.withdrawnAt ?? null,
+        offeringPostId: row.request.offeringPostId ?? null,
         createdAt: row.request.createdAt,
         updatedAt: row.request.updatedAt,
         postTitle: row.postTitle,

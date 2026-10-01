@@ -101,6 +101,22 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Hãy rút bớt hoặc chờ người tặng trả lời trước khi xin thêm.',
   },
 
+  OFFER_GIFT_TARGET_NOT_WANTED: {
+    code: ErrorCodes.OFFER_GIFT_TARGET_NOT_WANTED,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: () =>
+      'Chỉ gửi lời tặng được cho bài Muốn Nhận. Với bài Muốn Tặng, hãy gửi yêu cầu xin nhận.',
+  },
+
+  OFFER_GIFT_SOURCE_INVALID: {
+    code: ErrorCodes.OFFER_GIFT_SOURCE_INVALID,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    // Nói rõ cả ba điều kiện: người dùng chọn bài từ danh sách bài của chính họ,
+    // nên khi bị từ chối họ cần biết là do loại bài hay do bài đã đóng.
+    message: () =>
+      'Bài mang ra tặng phải là bài Muốn Tặng của chính bạn và đang còn công khai',
+  },
+
   // ── 0x03 Người dùng ───────────────────────────────────────────────────────
   USER_NOT_FOUND: {
     code: ErrorCodes.USER_NOT_FOUND,

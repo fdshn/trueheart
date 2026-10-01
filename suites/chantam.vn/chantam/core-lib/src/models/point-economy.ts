@@ -273,6 +273,30 @@ export const PostExpiryReminderDays = 7;
  * Danh sách này là cái mà `point:reconcile` và `gift:settle-rewards` dựa vào để
  * quyết định có quét lại hay không.
  */
+/**
+ * `rule_code` của một lần Admin tự cộng/trừ điểm (`POST /admin/points/adjust`).
+ *
+ * KHÔNG có hàng nào trong `point_rules` mang mã này, và đó là cố ý:
+ * `appendAdjustment` nhận số điểm truyền vào chứ không tra bảng, nên mã ở đây
+ * chỉ để **phân loại khi đọc sổ**. Nhờ vậy lọc ra mọi can thiệp thủ công là một
+ * mệnh đề `rule_code = 'ADMIN_ADJUSTMENT'`, không phải suy từ `source`.
+ */
+export const AdminPointAdjustmentRuleCode = 'ADMIN_ADJUSTMENT';
+
+/**
+ * Trần cho TRỊ TUYỆT ĐỐI một lần Admin điều chỉnh.
+ *
+ * Không phải hàng rào chống Admin xấu — người có `point.adjust` gọi mười lần là
+ * xong. Nó chặn **lỗi gõ**: thêm một số 0 vào `5000` là phát ra số điểm nhiều
+ * hơn toàn hệ thống cộng lại, và `point_ledger` chỉ ghi thêm nên dọn một bút
+ * toán như vậy là ghi thêm một bút toán ngược rồi sống chung với cả hai dòng
+ * trong lịch sử của người dùng đó mãi mãi.
+ *
+ * 100.000 điểm ở tỷ lệ 2.000 VNĐ/điểm là 200 triệu VNĐ — đủ rộng cho mọi lần
+ * bù đắp có thật, đủ chặt để một lần gõ nhầm không thành sự cố.
+ */
+export const MaxAdminPointAdjustmentDelta = 100_000;
+
 export const RetryablePointRuleCodes = [
   'GIFT_COMPLETED_GIVER',
   'GIFT_COMPLETED_RECEIVER',

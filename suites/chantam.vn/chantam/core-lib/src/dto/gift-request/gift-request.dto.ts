@@ -12,6 +12,11 @@ export interface IGiftRequestDto {
   status: GiftRequestStatuses;
   queueJoinedAt: Date;
   withdrawnAt: Date | null;
+  /**
+   * Bài Muốn Tặng người gửi mang ra, khi lời tặng đi qua
+   * `POST /posts/{id}/offer-gift`. `null` ở yêu cầu xin nhận thường.
+   */
+  offeringPostId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,6 +58,51 @@ export interface IAcceptGiftRequestResponseDto {
   postId: string;
   status: GiftRequestStatuses;
   transactionId?: string;
+}
+
+export interface IOfferGiftBodyDto {
+  /** Lời nhắn gửi chủ bài Muốn Nhận. */
+  message: string;
+  /**
+   * Bài Muốn Tặng của chính người gửi, không bắt buộc.
+   *
+   * Có nó thì chủ bài xem được ảnh, danh mục và vị trí của món đồ thay vì chỉ
+   * đọc một dòng chữ.
+   */
+  offeringPostId?: string;
+}
+
+export interface IOfferGiftResponseDto {
+  request: IGiftRequestDto;
+}
+
+export interface IBatchAcceptRequestsBodyDto {
+  /**
+   * Các yêu cầu cần duyệt. Không được trùng nhau.
+   *
+   * Cả lô ăn cùng một quyết định: thiếu suất cho đủ số này thì KHÔNG duyệt một
+   * phần nào cả.
+   */
+  requestIds: string[];
+}
+
+export interface IBatchAcceptedRequestDto {
+  requestId: string;
+  requesterId: string;
+  transactionId: string;
+}
+
+export interface IBatchAcceptRequestsResponseDto {
+  postId: string;
+  accepted: IBatchAcceptedRequestDto[];
+  /** Số suất còn lại sau lô. `0` nghĩa là bài đã chuyển `RESERVED`. */
+  remainingQuantity: number;
+  /**
+   * Số yêu cầu còn lại bị đẩy sang `STANDBY` vì bài hết suất (F33).
+   *
+   * Luôn `0` khi `remainingQuantity > 0` — còn suất thì không ai bị xếp chờ.
+   */
+  standbyCount: number;
 }
 
 export interface IRedeemPostWithPointsResponseDto {

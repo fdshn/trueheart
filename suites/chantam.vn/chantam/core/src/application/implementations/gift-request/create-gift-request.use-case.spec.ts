@@ -73,6 +73,7 @@ function makeRequest(
     status: GiftRequestStatuses.PENDING,
     queueJoinedAt: new Date(),
     withdrawnAt: null,
+    offeringPostId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -174,6 +175,8 @@ describe('CreateGiftRequestUseCase', () => {
       message: 'Em xin món này ạ',
       status: GiftRequestStatuses.PENDING,
       queueJoinedAt: expect.any(Date),
+      // Yêu cầu xin nhận thường KHÔNG trỏ sang bài nào; chỉ `offer-gift` mới có.
+      offeringPostId: null,
     });
     expect(result.request.id).toBe(created.globalId);
     expect(result.request.status).toBe(GiftRequestStatuses.PENDING);

@@ -32,3 +32,11 @@ export class RedemptionPriceUnavailableException extends ExceptionFrom(
 export class RedemptionInsufficientPointsException extends ExceptionFrom(
   CoreErrors.REDEMPTION_INSUFFICIENT_POINTS,
 ) {}
+
+export class OfferGiftTargetNotWantedException extends ExceptionFrom(
+  CoreErrors.OFFER_GIFT_TARGET_NOT_WANTED,
+) {}
+
+export class OfferGiftSourceInvalidException extends ExceptionFrom(
+  CoreErrors.OFFER_GIFT_SOURCE_INVALID,
+) {}

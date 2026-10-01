@@ -129,6 +129,10 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
       existing.status = GiftRequestStatuses.PENDING;
       existing.queueJoinedAt = new Date();
       existing.withdrawnAt = null;
+      // Ghi đè, kể cả bằng `null`: gửi lại mà không kèm bài nào nghĩa là lời
+      // tặng lần này không trỏ sang bài nào: giữ lại bài của lần trước là để
+      // chủ bài xem một món người kia không còn mang ra nữa.
+      existing.offeringPostId = command.offeringPostId ?? null;
 
       try {
         await this.giftRequestRepository.save(existing);
@@ -168,6 +172,7 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
         message: command.message,
         status: GiftRequestStatuses.PENDING,
         queueJoinedAt: new Date(),
+        offeringPostId: command.offeringPostId ?? null,
       } as never);
     } catch (error) {
       // Hai người xin cùng lúc thì cả hai đều không thấy bản ghi cũ và cùng

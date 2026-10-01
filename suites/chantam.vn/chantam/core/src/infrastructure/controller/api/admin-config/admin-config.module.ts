@@ -8,6 +8,7 @@ import { AdminConfigController } from './admin-config.controller';
 import { AdminDashboardController } from './admin-dashboard.controller';
 import { AdminGroupRadiusController } from './admin-group-radius.controller';
 import { AdminGroupRoleController } from './admin-group-role.controller';
+import { AdminPointAdjustController } from './admin-point-adjust.controller';
 import { AdminPointLedgerController } from './admin-point-ledger.controller';
 import { AdminPointRuleController } from './admin-point-rule.controller';
 import { AdminRankPolicyController } from './admin-rank-policy.controller';
@@ -26,6 +27,7 @@ import { NotificationTemplateController } from './notification-template.controll
     AdminGroupRoleController,
     AdminRankPolicyController,
     AdminPointLedgerController,
+    AdminPointAdjustController,
     NotificationTemplateController,
     AdminPointRuleController,
     AdminRoleController,

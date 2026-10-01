@@ -19,9 +19,10 @@ import {
   MaxSearchRadiusMeters,
   MinSearchRadiusMeters,
 } from '@chantam/service.persistency-lib/geo';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDefined,
   IsIn,
   IsInt,
@@ -38,6 +39,10 @@ import {
 import { Mixin } from 'ts-mixer';
 import { PostEntity } from '../../../entity/post.entity';
 import { PostAuthorDto, PublicPostMediaDto } from './post.dto';
+
+/** Query string gửi `?x=true`, nên phải tự đổi chuỗi sang boolean. */
+const toBoolean = ({ value }: { value: unknown }): unknown =>
+  value === 'true' ? true : value === 'false' ? false : value;
 
 export class GetNearbyPostsQueryDto
   extends Mixin(PaginationQueryDto)
@@ -108,7 +113,31 @@ export class GetNearbyPostsQueryDto
   @IsOptional()
   @IsUUID()
   categoryId?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    description:
+      'Chỉ bài Cần gấp / SOS. Bỏ trống thì feed trộn cả hai — `isSos=false` ' +
+      'cũng là không lọc, không phải "chỉ bài không gấp".\n\n' +
+      '`GET /posts/sos-urgent` là cùng truy vấn này với `isSos` ghim sẵn `true`.',
+  })
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  isSos?: boolean;
 }
+
+/**
+ * Query của `GET /posts/sos-urgent`.
+ *
+ * `OmitType` chứ không dùng thẳng `GetNearbyPostsQueryDto`: route đó ghim
+ * `isSos = true`, nên để tham số `isSos` lộ ra Swagger là mô tả một tham số
+ * server bỏ qua — client gửi `isSos=false` sẽ tưởng mình vừa tắt bộ lọc.
+ */
+export class GetSosUrgentPostsQueryDto extends OmitType(
+  GetNearbyPostsQueryDto,
+  ['isSos'] as const,
+) {}
 
 export class NearbyPostDto implements INearbyPostDto {
   @ApiProperty({ type: () => PostEntity })

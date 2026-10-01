@@ -30,6 +30,19 @@ export enum ErrorCodes {
   REDEMPTION_PRICE_UNAVAILABLE = 0x02_07,
   /** Điểm đang có không đủ để đổi. */
   REDEMPTION_INSUFFICIENT_POINTS = 0x02_08,
+  /**
+   * `POST /posts/{id}/offer-gift` nhắm vào một bài KHÔNG phải loại Muốn Nhận.
+   *
+   * Tách khỏi `POST_NOT_ACCEPTING_REQUESTS`: cái kia nói "bài đang đóng", còn
+   * cái này nói "bài này không bao giờ là đích của việc chủ động tặng". Gộp hai
+   * thứ thì client không biết nên thử lại sau hay nên đổi endpoint.
+   */
+  OFFER_GIFT_TARGET_NOT_WANTED = 0x02_09,
+  /**
+   * Bài mang ra tặng không dùng được: không phải của người gọi, không phải loại
+   * Muốn Tặng, hoặc không còn công khai.
+   */
+  OFFER_GIFT_SOURCE_INVALID = 0x02_0a,
 
   // 0x03 — Người dùng
   //

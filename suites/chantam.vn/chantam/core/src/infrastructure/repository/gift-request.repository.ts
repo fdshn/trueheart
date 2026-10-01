@@ -22,6 +22,7 @@ import {
 import { IPostRequestItemDto } from '@chantam.vn/chantam.core-lib/dto';
 import { IGiftRequestEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
+import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
@@ -50,6 +51,7 @@ interface IMyRequestRow {
   status: GiftRequestStatuses;
   queue_joined_at: Date;
   withdrawn_at: Date | null;
+  offering_post_id: string | null;
   created_at: Date;
   updated_at: Date;
   post_title: string;
@@ -300,7 +302,8 @@ export class GiftRequestRepository
       `
         SELECT request.global_id, request.post_id, request.requester_id,
                request.message, request.status, request.queue_joined_at,
-               request.withdrawn_at, request.created_at, request.updated_at,
+               request.withdrawn_at, request.offering_post_id,
+               request.created_at, request.updated_at,
                post.title AS post_title, post.status AS post_status,
                media.r2_key AS post_thumbnail_key,
                COUNT(*) OVER () AS total
@@ -333,6 +336,7 @@ export class GiftRequestRepository
           status: row.status,
           queueJoinedAt: row.queue_joined_at,
           withdrawnAt: row.withdrawn_at,
+          offeringPostId: row.offering_post_id,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
         } as IGiftRequestEntity,
@@ -746,6 +750,162 @@ export class GiftRequestRepository
       });
 
       return { transactionId: params.transactionId };
+    });
+  }
+
+  public async acceptRequestsBatch(params: {
+    postId: string;
+    giverId: string;
+    requestIds: readonly string[];
+  }): Promise<{
+    accepted: {
+      requestId: string;
+      requesterId: string;
+      transactionId: string;
+    }[];
+    remainingQuantity: number;
+    standbyCount: number;
+  }> {
+    return this.manager.transaction(async (manager) => {
+      // Khoá đúng tập PENDING của bài, y như `acceptRequest`. `ORDER BY global_id`
+      // để hai lô chạy song song trên cùng bài lấy khoá theo cùng thứ tự và
+      // không deadlock nhau.
+      const pendingRows = await manager.query<
+        { global_id: string; requester_id: string }[]
+      >(
+        `SELECT global_id, requester_id
+         FROM gift_requests
+         WHERE post_id = $1 AND status = $2 AND deleted_at IS NULL
+         ORDER BY global_id
+         FOR UPDATE`,
+        [params.postId, GiftRequestStatuses.PENDING],
+      );
+
+      const pendingById = new Map(
+        (pendingRows ?? []).map((row) => [row.global_id, row.requester_id]),
+      );
+
+      // Kiểm CẢ LÔ trước khi ghi bất cứ thứ gì. Một id sai trong lô làm cả lô
+      // dừng, chứ không duyệt những cái đúng rồi báo lỗi cái sai — chủ bài sẽ
+      // không biết phần nào đã chạy.
+      for (const requestId of params.requestIds)
+        if (!pendingById.has(requestId))
+          throw new GiftRequestNotFoundException(requestId);
+
+      const requesterIds = params.requestIds.map(
+        (requestId) => pendingById.get(requestId) as string,
+      );
+
+      // Mọi lượt trao CÒN SỐNG của đúng những người này trên bài này, lấy một
+      // câu. `REQUESTED` không còn trong vòng đời (CHK_gift_transactions_live_status),
+      // nên bất cứ hàng nào tìm thấy đều là một lượt đang chạy — duyệt thêm là
+      // trừ tồn kho hai lần cho một lượt bàn giao.
+      const liveRows = await manager.query<
+        { receiver_id: string; status: string }[]
+      >(
+        `SELECT receiver_id, status FROM gift_transactions
+         WHERE post_id = $1 AND receiver_id = ANY($2::uuid[])
+           AND status IN ('ACCEPTED', 'DELIVERING')
+         FOR UPDATE`,
+        [params.postId, requesterIds],
+      );
+      if (liveRows && liveRows.length > 0)
+        throw new GiftTransactionInvalidStateException(liveRows[0].status);
+
+      const postRows = await manager.query<
+        {
+          global_id: string;
+          author_id: string;
+          status: string;
+          remaining_quantity: number;
+        }[]
+      >(
+        `SELECT global_id, author_id, status, remaining_quantity FROM posts
+         WHERE global_id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [params.postId],
+      );
+      if (!postRows || postRows.length === 0)
+        throw new PostNotFoundException(params.postId);
+
+      const post = postRows[0];
+      if (post.author_id !== params.giverId) throw new ForbiddenException();
+      if (post.status !== GiftPostStatuses.PUBLISHED)
+        throw new PostInvalidStateException();
+
+      // Mỗi yêu cầu duyệt theo đường này ăn đúng MỘT suất: nhánh "nhận nuôi lượt
+      // cũ" của `acceptRequest` không tới được đây, vì mọi lượt còn sống đã bị
+      // chặn ở trên.
+      const needed = params.requestIds.length;
+      if (Number(post.remaining_quantity) < needed)
+        throw new GiftTransactionOutOfStockException();
+
+      const newRemaining = Number(post.remaining_quantity) - needed;
+      const newPostStatus = newRemaining === 0 ? 'RESERVED' : 'PUBLISHED';
+
+      await manager.query(
+        `UPDATE posts
+         SET remaining_quantity = $1, status = $2,
+             selection_deadline = NULL, updated_at = now()
+         WHERE global_id = $3`,
+        [newRemaining, newPostStatus, params.postId],
+      );
+
+      await manager.query(
+        `UPDATE gift_requests SET status = $1, updated_at = now()
+         WHERE global_id = ANY($2::uuid[])`,
+        [GiftRequestStatuses.ACCEPTED, [...params.requestIds]],
+      );
+
+      // Quét STANDBY đúng MỘT lần, ở cuối. Đây là chỗ vòng lặp gọi
+      // `acceptRequest` sai: ở đó phép quét chạy ngay khi suất cạn, nên nó cướp
+      // luôn những yêu cầu còn lại TRONG CÙNG LÔ.
+      let standbyCount = 0;
+      if (newRemaining === 0) {
+        const swept = await updateReturning<{ global_id: string }>(
+          manager,
+          `UPDATE gift_requests SET status = $1, updated_at = now()
+           WHERE post_id = $2 AND status = $3 AND NOT (global_id = ANY($4::uuid[]))
+           RETURNING global_id`,
+          [
+            GiftRequestStatuses.STANDBY,
+            params.postId,
+            GiftRequestStatuses.PENDING,
+            [...params.requestIds],
+          ],
+        );
+        standbyCount = swept.length;
+      }
+
+      const accepted: {
+        requestId: string;
+        requesterId: string;
+        transactionId: string;
+      }[] = [];
+
+      for (const requestId of params.requestIds) {
+        const requesterId = pendingById.get(requestId) as string;
+        const transactionId = makeGlobalId(
+          `/transactions/${params.postId}/${requesterId}/${requestId}`,
+        );
+
+        await manager.query(
+          `INSERT INTO gift_transactions
+             (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at)
+           VALUES ($1, $2, $3, $4, 1, 'ACCEPTED', now())`,
+          [transactionId, params.postId, params.giverId, requesterId],
+        );
+
+        await this.openChatRoom(manager, {
+          transactionId,
+          postId: params.postId,
+          giverId: params.giverId,
+          receiverId: requesterId,
+        });
+
+        accepted.push({ requestId, requesterId, transactionId });
+      }
+
+      return { accepted, remainingQuantity: newRemaining, standbyCount };
     });
   }
 

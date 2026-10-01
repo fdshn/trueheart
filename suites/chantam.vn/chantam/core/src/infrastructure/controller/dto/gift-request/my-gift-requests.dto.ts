@@ -40,6 +40,9 @@ export class MyGiftRequestDto implements IMyGiftRequestDto {
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   withdrawnAt: Date | null;
 
+  @ApiProperty({ format: 'uuid', nullable: true })
+  offeringPostId: string | null;
+
   @ApiProperty({ type: String, format: 'date-time' }) createdAt: Date;
 
   @ApiProperty({ type: String, format: 'date-time' }) updatedAt: Date;

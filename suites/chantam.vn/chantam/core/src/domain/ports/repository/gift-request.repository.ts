@@ -170,6 +170,47 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
   }): Promise<{ transactionId: string }>;
 
   /**
+   * Duyệt NHIỀU yêu cầu trên cùng một bài trong MỘT transaction (F65, UC-TRANS-05).
+   *
+   * **Vì sao không phải một vòng lặp gọi `acceptRequest`.** Vì tính nguyên tử, và
+   * điều đó chỉ thành khác biệt thấy được khi lô ĐÔNG HƠN số suất còn lại —
+   * `test/srs-endpoint-gaps.check.ts` đo cả hai đường trên cùng một tình huống:
+   *
+   * - Vòng lặp trên bài 2 suất với 3 yêu cầu: duyệt xong 2 người và **đã
+   *   commit**, rồi chết ở người thứ 3 bằng `GiftRequestNotFoundException` —
+   *   vì khi suất cạn ở lượt thứ 2, `acceptRequest` đã quét mọi `PENDING` còn
+   *   lại thành `STANDBY` (F33), kể cả người thứ 3 trong lô. Bài nay `RESERVED`,
+   *   cạn suất, không bấm lại được. Chủ bài thấy "đã duyệt 2 trong 3 người bạn
+   *   chọn" — một kết quả không ai yêu cầu và không có đường lùi.
+   * - Lô trên đúng tình huống đó: từ chối trọn vẹn bằng
+   *   `GiftTransactionOutOfStockException`, và để bài y nguyên để chủ bài chọn lại.
+   *
+   * Và điều KHÔNG đúng, ghi lại để không ai dựng lại giả định sai: khi số yêu cầu
+   * BẰNG số suất, vòng lặp chạy hết bình thường. Phép quét `STANDBY` chỉ chạy lúc
+   * suất về 0, và lúc đó mọi yêu cầu trong lô đã `ACCEPTED` nên không còn gì để nó
+   * cướp. Giá trị của lô nằm ở tính nguyên tử, không ở chỗ đó.
+   *
+   * Ở đây tồn kho bị trừ MỘT lần theo đúng số lượng của lô, và phép quét
+   * `STANDBY` chạy đúng một lần ở cuối.
+   */
+  acceptRequestsBatch(params: {
+    postId: string;
+    giverId: string;
+    /** Không trùng nhau, và đã kiểm số lượng ở tầng ứng dụng. */
+    requestIds: readonly string[];
+  }): Promise<{
+    accepted: {
+      requestId: string;
+      requesterId: string;
+      transactionId: string;
+    }[];
+    /** Số suất còn lại sau lô. */
+    remainingQuantity: number;
+    /** Số yêu cầu bị đẩy sang `STANDBY` vì bài đã hết suất. */
+    standbyCount: number;
+  }>;
+
+  /**
    * Rút yêu cầu bằng MỘT câu lệnh có điều kiện.
    *
    * Đọc rồi ghi sẽ đè mất một lượt duyệt vừa commit xen vào giữa: người dùng

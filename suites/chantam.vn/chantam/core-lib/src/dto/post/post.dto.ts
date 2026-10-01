@@ -127,6 +127,16 @@ export interface IGetNearbyPostsQueryDto extends IPaginationQueryDto {
    * tới lấy được.
    */
   keyword?: string;
+  /**
+   * Chỉ bài Cần gấp / SOS.
+   *
+   * Bỏ trống thì KHÔNG lọc — feed trộn cả bài thường và bài SOS, y như
+   * `postType`. Chỉ `true` mới lọc; gửi `false` cũng là không lọc, vì "cho tôi
+   * xem những bài KHÔNG gấp" không phải một nhu cầu có thật, còn ép nó thành
+   * một bộ lọc thì một client gửi `isSos=false` theo mặc định sẽ âm thầm làm
+   * biến mất mọi bài SOS khỏi feed chính.
+   */
+  isSos?: boolean;
 }
 
 export interface IGetMyPostsQueryDto extends IPaginationQueryDto {

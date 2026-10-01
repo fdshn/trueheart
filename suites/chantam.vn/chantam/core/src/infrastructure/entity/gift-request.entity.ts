@@ -67,4 +67,14 @@ export class GiftRequestEntity
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   @Column({ name: 'withdrawn_at', type: 'timestamptz', nullable: true })
   withdrawnAt: Date | null;
+
+  @ApiProperty({
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Bài Muốn Tặng mà người gửi mang ra, khi lời tặng đi qua ' +
+      '`POST /posts/{id}/offer-gift`. `null` ở yêu cầu xin nhận thường.',
+  })
+  @Column({ name: 'offering_post_id', type: 'uuid', nullable: true })
+  offeringPostId: string | null;
 }

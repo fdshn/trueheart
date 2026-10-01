@@ -192,6 +192,9 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
       // `plainto_tsquery` cho ra một truy vấn không khớp gì, và người dùng
       // thấy "không có kết quả" cho một ô tìm kiếm họ chưa gõ.
       keyword: command.keyword?.trim() || undefined,
+      // `|| undefined` chứ không truyền thẳng: `false` xuống tầng repository là
+      // một mệnh đề WHERE không ai yêu cầu.
+      isSos: command.isSos || undefined,
       skip,
       take,
     });

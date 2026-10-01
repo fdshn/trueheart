@@ -1,4 +1,5 @@
 import {
+  IAdjustUserPointsUseCase,
   IAppendPointEntryUseCase,
   IGetOwnPointLedgerUseCase,
   IGetOwnPointSummaryUseCase,
@@ -7,6 +8,7 @@ import {
 } from '@/application/contracts/point';
 import { ReferralModule } from '@/application/implementations/referral/referral.module';
 import { Global, Module } from '@nestjs/common';
+import { AdjustUserPointsUseCase } from './adjust-user-points.use-case';
 import { AppendPointEntryUseCase } from './append-point-entry.use-case';
 import { GetOwnPointLedgerUseCase } from './get-own-point-ledger.use-case';
 import { GetOwnPointSummaryUseCase } from './get-own-point-summary.use-case';
@@ -31,6 +33,7 @@ import { ReversePointEntryUseCase } from './reverse-point-entry.use-case';
   imports: [ReferralModule],
   providers: [
     { provide: IAppendPointEntryUseCase, useClass: AppendPointEntryUseCase },
+    { provide: IAdjustUserPointsUseCase, useClass: AdjustUserPointsUseCase },
     {
       provide: IReversePointEntryUseCase,
       useClass: ReversePointEntryUseCase,
@@ -47,6 +50,7 @@ import { ReversePointEntryUseCase } from './reverse-point-entry.use-case';
   ],
   exports: [
     IAppendPointEntryUseCase,
+    IAdjustUserPointsUseCase,
     IReversePointEntryUseCase,
     IGetOwnPointLedgerUseCase,
     IGetOwnPointSummaryUseCase,

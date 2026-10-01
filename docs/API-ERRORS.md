@@ -66,6 +66,8 @@ Nghiệp vụ Chân Tâm
 | `0x0206` | `518` | 400 Bad Request | `REDEMPTION_NOT_AVAILABLE` | Vật phẩm này hiện không đổi được bằng điểm. Đồng hồ chọn người nhận đã kết thúc hoặc bài đã có chủ. |
 | `0x0207` | `519` | 400 Bad Request | `REDEMPTION_PRICE_UNAVAILABLE` | Người tặng chưa khai giá trị tham khảo cho vật phẩm này, nên không quy ra điểm được. |
 | `0x0208` | `520` | 400 Bad Request | `REDEMPTION_INSUFFICIENT_POINTS` | Vật phẩm này cần 0 điểm, bạn đang có 0. |
+| `0x0209` | `521` | 400 Bad Request | `OFFER_GIFT_TARGET_NOT_WANTED` | Chỉ gửi lời tặng được cho bài Muốn Nhận. Với bài Muốn Tặng, hãy gửi yêu cầu xin nhận. |
+| `0x020a` | `522` | 400 Bad Request | `OFFER_GIFT_SOURCE_INVALID` | Bài mang ra tặng phải là bài Muốn Tặng của chính bạn và đang còn công khai |
 | `0x0301` | `769` | 404 Not Found | `USER_NOT_FOUND` | Không tìm thấy tài khoản |
 | `0x0302` | `770` | 403 Forbidden | `USER_SUSPENDED` | Tài khoản đang bị tạm khoá tới 2026-10-01T00:00:00.000Z |
 | `0x0303` | `771` | 403 Forbidden | `USER_BANNED` | Tài khoản đã bị khoá vĩnh viễn |
@@ -146,5 +148,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **104 mã lỗi** trên 3 tầng.
+Tổng cộng **106 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

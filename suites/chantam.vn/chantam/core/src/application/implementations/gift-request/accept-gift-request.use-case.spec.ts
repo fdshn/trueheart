@@ -71,6 +71,7 @@ function makeRequest(
     status: GiftRequestStatuses.PENDING,
     queueJoinedAt: new Date(),
     withdrawnAt: null,
+    offeringPostId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,

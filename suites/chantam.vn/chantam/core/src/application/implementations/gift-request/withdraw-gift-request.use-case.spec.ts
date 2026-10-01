@@ -19,6 +19,7 @@ function makeRequest(
     status: GiftRequestStatuses.WITHDRAWN,
     queueJoinedAt: new Date(),
     withdrawnAt: new Date(),
+    offeringPostId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
