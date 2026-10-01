@@ -4,7 +4,11 @@ import {
   IDeleteAdminUserDto,
   IReleaseVerifiedPhoneDto,
 } from '@/application/contracts/admin-config';
-import { IAdminUserSummary } from '@/domain/ports/repository';
+import {
+  IAdminUserSummary,
+  IReferralFingerprintSignals,
+  IReferralReviewInvitee,
+} from '@/domain/ports/repository';
 import { UserRanks, UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import { PaginationMetaDto } from '@chantam/service.common-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -285,6 +289,51 @@ export class ListAdminUsersResponseDto {
   meta: PaginationMetaDto;
 }
 
+export class ReferralFingerprintSignalsDto implements IReferralFingerprintSignals {
+  @ApiProperty({
+    example: 1,
+    description:
+      'Số cụm địa chỉ IP trùng nhau. Đọc để biết, KHÔNG dùng để lọc hàng đợi: mạng di động Việt Nam dùng CGNAT nên hàng nghìn người không liên quan chia một IPv4, cộng thêm wifi gia đình, quán cà phê, tiệm net. IP trùng là chuyện thường.',
+  })
+  sharedIpClusters: number;
+
+  @ApiProperty({
+    example: 0,
+    description:
+      'Số cụm thiết bị trùng nhau — tín hiệu mạnh hơn IP nhiều, và là vế được dùng để lọc hàng đợi soát.',
+  })
+  sharedDeviceClusters: number;
+
+  @ApiProperty({
+    example: 0,
+    description:
+      'Số người trong cụm lớn nhất. "Ba cụm mỗi cụm hai người" và "một cụm mười một người" là hai hình dạng rất khác nhau mà riêng số cụm không phân biệt được.',
+  })
+  largestClusterSize: number;
+}
+
+export class ReferralReviewInviteeDto implements IReferralReviewInvitee {
+  @ApiProperty({ format: 'uuid' }) refereeUserId: string;
+  @ApiProperty() username: string;
+  @ApiProperty({ enum: ['PENDING', 'QUALIFIED'] })
+  status: 'PENDING' | 'QUALIFIED';
+  @ApiProperty({
+    example: 'BANNED',
+    description:
+      'Trạng thái HIỆN TẠI của người được mời — để thấy ai đã bị dọn.',
+  })
+  refereeStatus: string;
+  @ApiProperty() refereeDeleted: boolean;
+  @ApiProperty({
+    nullable: true,
+    example: '4821',
+    description:
+      'Bút toán đã trả cho lượt này. Chính là entryId mà POST /admin/points/ledger/:entryId/reversal nhận — đường thu hồi 56 điểm khi xác minh đây là tài khoản ảo. null khi lượt đó chưa được tính.',
+  })
+  rewardEntryId: string | null;
+  @ApiProperty() invitedAt: Date;
+}
+
 export class AdminReferralSignalsDto implements IAdminReferralSignals {
   @ApiProperty({
     example: 4,
@@ -298,12 +347,11 @@ export class AdminReferralSignalsDto implements IAdminReferralSignals {
   })
   qualified: number;
 
-  @ApiProperty({
-    example: 0,
-    description:
-      'Số cụm dấu vết đăng ký trùng nhau (cùng IP hoặc cùng thiết bị) trong số người họ đã mời. Số càng cao càng giống một người tự tạo nhiều tài khoản — nhưng KHÔNG phải bằng chứng: một gia đình dùng chung wifi cũng ra cụm trùng. Hệ thống chỉ đếm, không tự khoá ai. Lượt đăng ký trước 30/09 không có dấu vết nên luôn ra 0 — nghĩa là "không biết", không phải "sạch".',
-  })
-  sharedSignupFingerprints: number;
+  @ApiProperty({ type: () => ReferralFingerprintSignalsDto })
+  signupFingerprints: IReferralFingerprintSignals;
+
+  @ApiProperty({ type: () => [ReferralReviewInviteeDto] })
+  invitees: IReferralReviewInvitee[];
 }
 
 export class AdminUserResponseDto {

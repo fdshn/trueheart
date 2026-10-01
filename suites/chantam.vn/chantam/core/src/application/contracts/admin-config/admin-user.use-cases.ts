@@ -1,4 +1,9 @@
-import { IAdminUserQuery, IAdminUserSummary } from '@/domain/ports/repository';
+import {
+  IAdminUserQuery,
+  IAdminUserSummary,
+  IReferralFingerprintSignals,
+  IReferralReviewInvitee,
+} from '@/domain/ports/repository';
 import { UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import { IUseCase } from '@chantam/service.common-lib';
 import { IPaginationMetaDto } from '@chantam/service.common-lib/dto';
@@ -30,17 +35,23 @@ export interface IAdminReferralSignals {
   /** Trong đó bao nhiêu đã đủ điều kiện. */
   readonly qualified: number;
   /**
-   * Số cụm dấu vết đăng ký TRÙNG NHAU trong số người họ đã mời.
+   * Dấu vết đăng ký trùng nhau, ĐẾM TÁCH NHAU theo IP và theo thiết bị.
    *
-   * `0` là bình thường; số càng cao càng giống một người tự tạo nhiều tài khoản.
-   * Nhưng KHÔNG phải bằng chứng: một gia đình dùng chung wifi hay mấy người đăng
-   * ký ở cùng một quán cũng ra cụm trùng. Nên hệ thống chỉ ĐẾM và hiện cho
-   * Admin, không tự khoá ai.
+   * KHÔNG phải bằng chứng: một gia đình dùng chung wifi hay mấy người đăng ký ở
+   * cùng một quán cũng ra cụm trùng. Hệ thống chỉ ĐẾM và hiện cho Admin.
    *
-   * Dữ liệu trước 30/09 không có dấu vết nào, nên con số này luôn `0` cho những
+   * Dữ liệu trước 30/09 không có dấu vết nào, nên các con số này luôn `0` cho những
    * lượt đăng ký cũ — không phải "sạch", mà là "không biết".
    */
-  readonly sharedSignupFingerprints: number;
+  readonly signupFingerprints: IReferralFingerprintSignals;
+  /**
+   * Người họ đã mời, kèm `rewardEntryId` để đi thẳng sang đường đảo bút toán.
+   *
+   * Trước 01/10 `referrals.reward_entry_id` giữ đúng con số cần cho
+   * `POST /admin/points/ledger/:entryId/reversal` mà không endpoint nào trả ra — nên
+   * đường thu hồi điểm có sẵn, đúng, và không ai tới được.
+   */
+  readonly invitees: IReferralReviewInvitee[];
 }
 
 export interface IGetAdminUserResult {

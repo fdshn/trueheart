@@ -1,3 +1,4 @@
+import { referralCodeCandidates } from '@chantam.vn/chantam.core-lib/models';
 import { hash } from 'bcryptjs';
 import { createHash } from 'node:crypto';
 
@@ -343,16 +344,32 @@ export function ensureDemoSeedAllowed(value: string | undefined): void {
 export async function seedDemoData(executor: ISqlExecutor): Promise<void> {
   const passwordHash = await hash(DemoPassword, 12);
 
+  // Mã giới thiệu cho cả ba, chọn TRƯỚC và đảm bảo không trùng.
+  //
+  // Chọn theo chỉ số vòng lặp thì đúng với đúng ba user hiện tại và vỡ ngay khi ai thêm
+  // user thứ tư có uuid trùng tiền tố. Lọc theo "ứng viên đầu tiên chưa ai lấy" thì
+  // không phụ thuộc số lượng và không phụ thuộc thứ tự.
+  const seededCodes = new Map<string, string>();
+  const taken = new Set<string>();
+  for (const user of DemoUsers) {
+    const code =
+      referralCodeCandidates(user.globalId).find((one) => !taken.has(one)) ??
+      referralCodeCandidates(user.globalId)[0];
+    taken.add(code);
+    seededCodes.set(user.globalId, code);
+  }
+
   for (const user of DemoUsers) {
     await executor.query(
       `
         INSERT INTO users (
           global_id, username, password_hash, email, full_name, rank, status,
-          phone_verified_at, default_location
+          phone_verified_at, default_location, referral_code
         )
         VALUES (
           $1, $2, $3, $4, $5, $6::users_rank_enum, 'ACTIVE'::users_status_enum,
-          now(), ST_SetSRID(ST_MakePoint(105.835, 21.028), 4326)::geography
+          now(), ST_SetSRID(ST_MakePoint(105.835, 21.028), 4326)::geography,
+          $7
         )
         ON CONFLICT (global_id) DO UPDATE SET
           username = EXCLUDED.username,
@@ -363,6 +380,9 @@ export async function seedDemoData(executor: ISqlExecutor): Promise<void> {
           status = EXCLUDED.status,
           phone_verified_at = EXCLUDED.phone_verified_at,
           default_location = EXCLUDED.default_location,
+          -- Giữ mã cũ nếu đã có: mã giới thiệu là BẤT BIẾN, và một lượt seed lại đổi
+          -- mã của người đã đi mời là làm chết mọi đường link họ đã gửi.
+          referral_code = COALESCE(users.referral_code, EXCLUDED.referral_code),
           deleted_at = NULL,
           updated_at = now()
       `,
@@ -373,6 +393,7 @@ export async function seedDemoData(executor: ISqlExecutor): Promise<void> {
         user.email,
         user.fullName,
         user.rank,
+        seededCodes.get(user.globalId),
       ],
     );
   }

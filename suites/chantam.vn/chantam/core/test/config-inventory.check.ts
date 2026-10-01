@@ -58,6 +58,9 @@ import {
   NotificationRetentionConfigKey,
   PointRedemptionConfigKey,
   RankPointsSourceConfigKey,
+  ReferralReviewMinClusterSizeConfigKey,
+  ReferralReviewMinDeviceClustersConfigKey,
+  ReferralReviewMinQualifiedConfigKey,
   ReportAbuseConfigKey,
   ReviewGraceConfigKey,
   ReviewRatingConfigKey,
@@ -100,6 +103,12 @@ const RequiredKeys: readonly string[] = [
   AffiliateActiveMemberWindowConfigKey,
   DiscoveryMinRadiusConfigKey,
   DiscoveryDefaultRadiusConfigKey,
+  // Ngưỡng diện xem xét cho dấu vết đăng ký trùng (01/10). Seed với hai vế lọc ở 0
+  // tức TẮT — có chủ đích, vì dấu vết mới ghi từ 30/09 nên chưa có dữ liệu để chọn
+  // ngưỡng. Vẫn phải seed để Admin thấy cái núm, đúng điều nhóm 1 dưới đòi.
+  ReferralReviewMinQualifiedConfigKey,
+  ReferralReviewMinDeviceClustersConfigKey,
+  ReferralReviewMinClusterSizeConfigKey,
   ...[
     UserRanks.MEMBER,
     UserRanks.SILVER,

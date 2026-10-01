@@ -1,3 +1,49 @@
+import { IReferralAbuseConfig } from '@chantam.vn/chantam.core-lib/models';
+
+export interface IReferralFingerprintSignals {
+  /**
+   * Số cụm địa chỉ IP trùng nhau. Đọc để biết, KHÔNG dùng để lọc.
+   *
+   * Mạng di động Việt Nam dùng CGNAT nên hàng nghìn người không liên quan gì nhau chia
+   * một IPv4; thêm wifi gia đình, quán cà phê, tiệm net, ký túc xá. IP trùng là chuyện
+   * THƯỜNG, nhưng khi đọc cùng số cụm thiết bị thì nó vẫn giúp Admin hình dung.
+   */
+  readonly sharedIpClusters: number;
+  /** Số cụm thiết bị trùng nhau — tín hiệu mạnh hơn IP nhiều. */
+  readonly sharedDeviceClusters: number;
+  /**
+   * Số người trong cụm LỚN NHẤT (mọi loại dấu vết), `0` khi không có cụm nào.
+   *
+   * "Ba cụm, mỗi cụm hai người" và "một cụm mười một người" là hai hình dạng rất khác
+   * nhau mà riêng số cụm không phân biệt được — cái thứ hai đáng xem hơn nhiều nhưng lại
+   * có số cụm NHỎ hơn.
+   */
+  readonly largestClusterSize: number;
+}
+
+export interface IReferralReviewInvitee {
+  readonly refereeUserId: string;
+  readonly username: string;
+  readonly status: 'PENDING' | 'QUALIFIED';
+  /** Trạng thái HIỆN TẠI của người được mời — để Admin thấy ai đã bị dọn. */
+  readonly refereeStatus: string;
+  readonly refereeDeleted: boolean;
+  /**
+   * Bút toán đã trả cho lượt này, `null` khi chưa tính.
+   *
+   * Đây là `entryId` mà `POST /admin/points/ledger/:entryId/reversal` nhận.
+   */
+  readonly rewardEntryId: string | null;
+  readonly invitedAt: Date;
+}
+
+export interface IReferralReviewCandidate {
+  readonly referrerUserId: string;
+  readonly username: string;
+  readonly qualifiedReferrals: number;
+  readonly signals: IReferralFingerprintSignals;
+}
+
 export interface IReferralInvitee {
   /** Tên đăng nhập của người được mời — đã công khai qua trang hồ sơ. */
   readonly username: string;
@@ -66,17 +112,45 @@ export interface IReferralRepository {
   findPendingQualifications(limit: number): Promise<string[]>;
 
   /**
-   * Số cụm dấu vết đăng ký TRÙNG NHAU trong danh sách người mà một người đã mời.
+   * Dấu vết đăng ký trùng nhau trong danh sách người mà một người đã mời.
    *
-   * Đếm theo `signup_ip_hash` và `signup_device_hash`: hai người được mời cùng dấu
-   * vết là tín hiệu một người tự tạo nhiều tài khoản — đúng rủi ro mà
-   * [23 §Chỗ cần soát](../../../../../../docs/diagram/23-referral.md) mục 3 nói tới.
+   * Hai người được mời cùng dấu vết là tín hiệu một người tự tạo nhiều tài khoản — đúng
+   * rủi ro mà [23 §23.7](../../../../../../docs/diagram/23-referral.md) nói tối.
    *
-   * Chỉ ĐẾM và cho Admin xem, không tự xử: ngưỡng bao nhiêu là đáng chặn và chặn thế
-   * nào là quyết định nghiệp vụ, và một quy tắc tự động đoán sai sẽ khoá oan người
-   * dùng chung một mạng gia đình hoặc một máy trong tiệm net.
+   * Chỉ ĐẾM và cho Admin xem, không tự xứ: ngưỡng bao nhiêu là đáng chặn và chặn thế
+   * nào là quyết định nghiệp vụ, và một quy tắc tự động đoán sai sẽ khoá oan người dùng
+   * chung một mạng gia đình hoặc một máy trong tiệm net.
    */
-  countSharedSignupFingerprints(referrerId: string): Promise<number>;
+  readSignupFingerprintSignals(
+    referrerId: string,
+  ): Promise<IReferralFingerprintSignals>;
+
+  /**
+   * Danh sách người được mời cho đường ADMIN, kèm `rewardEntryId`.
+   *
+   * Tách khỏi danh sách của chính chủ vì hai đường cần hai thứ khác nhau. Admin cần
+   * `rewardEntryId` để đi thẳng từ "tài khoản này là ảo" sang
+   * `POST /admin/points/ledger/:entryId/reversal` — trước 01/10 `referrals.reward_entry_id`
+   * giữ đúng con số đó mà không endpoint nào trả ra, nên đường đảo bút toán có sẵn mà
+   * không ai tới được. Chính chủ thì không cần: một id bút toán nội bộ không giúp họ
+   * việc gì và chỉ sinh ra câu hỏi cho CSKH.
+   */
+  listInviteesForReview(referrerId: string): Promise<IReferralReviewInvitee[]>;
+
+  /**
+   * Người giới thiệu đang vượt ngưỡng xem xét, nặng trước.
+   *
+   * Tính SỐNG từ `referrals`, không lưu thành cờ — cùng lý lẽ đã ghi ở
+   * `GET /admin/reports/reporters`: con số không bao giờ lệch được với nguồn, và đổi
+   * ngưỡng có hiệu lực ngay thay vì kéo theo một lượt backfill và một job đối soát.
+   * Một cờ lưu sẵn cho một điều kiện TÍNH ĐƯỢC còn cũ theo hai chiều: hạ ngưỡng thì
+   * cờ cũ thiếu, gỡ khoá một referee thì cờ cũ sai.
+   */
+  findReferrersForReview(params: {
+    config: IReferralAbuseConfig;
+    limit: number;
+    offset: number;
+  }): Promise<{ entries: IReferralReviewCandidate[]; total: number }>;
 }
 
 export const IReferralRepository = Symbol('IReferralRepository');

@@ -40,6 +40,14 @@ export const SupportedSystemConfigKeys = [
   'affiliate.active_member_window_days',
   'rank.maintenance_period_months',
   'accuracy.giver',
+  // Ngưỡng diện xem xét cho dấu vết đăng ký trùng (23 §23.7).
+  //
+  // Phải có ở đây, không chỉ ở `system_configs`: cả thiết kế dựa trên việc Bên A BẬT
+  // nó khi đã có dữ liệu, và một khoá seed sẵn mà không nằm trong danh sách này thì
+  // chỉ đổi được bằng SQL tay — đúng thứ "cấu hình động" sinh ra để tránh.
+  'referral.review_min_qualified',
+  'referral.review_min_device_clusters',
+  'referral.review_min_cluster_size',
 ] as const;
 
 /**

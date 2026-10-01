@@ -244,9 +244,12 @@ async function main(): Promise<void> {
     );
 
     console.log('\n7. Đếm cụm dấu vết đăng ký trùng nhau');
+    const noMarks = await referrals.readSignupFingerprintSignals(Referrer);
     check(
-      'chưa có dấu vết nào thì ra 0, không báo đỏ oan cho dữ liệu cũ',
-      (await referrals.countSharedSignupFingerprints(Referrer)) === 0,
+      'chưa có dấu vết nào thì ra 0 cả ba, không báo đỏ oan cho dữ liệu cũ',
+      noMarks.sharedIpClusters === 0 &&
+        noMarks.sharedDeviceClusters === 0 &&
+        noMarks.largestClusterSize === 0,
     );
     const shared = 'e0000000-0000-4000-8000-00000000e003';
     await addUser(shared, 'nguoi-moi-ba');
@@ -258,11 +261,176 @@ async function main(): Promise<void> {
       await addUser(referee(n), `duoc-moi-${n}`);
       await link(shared, referee(n), { ip, device });
     }
+    const marks = await referrals.readSignupFingerprintSignals(shared);
     check(
-      'hai người cùng IP và hai người cùng máy đếm thành HAI cụm, không gộp',
-      (await referrals.countSharedSignupFingerprints(shared)) === 2,
-      `${await referrals.countSharedSignupFingerprints(shared)}`,
+      'cụm IP và cụm thiết bị đếm TÁCH nhau, không gộp thành một số',
+      marks.sharedIpClusters === 1 && marks.sharedDeviceClusters === 1,
+      `ip=${marks.sharedIpClusters} may=${marks.sharedDeviceClusters}`,
     );
+    check(
+      'và biết cụm lớn nhất có bao nhiêu người',
+      marks.largestClusterSize === 2,
+      `${marks.largestClusterSize}`,
+    );
+
+    console.log('\n8. Hàng đợi soát: tắt thì RỖNG, bật thì đúng người');
+    const Off = {
+      minQualifiedReferrals: 1,
+      minDeviceClusters: 0,
+      minClusterSize: 0,
+    };
+    check(
+      'cả hai vế 0 thì hàng đợi rỗng — chưa bật, không phải không có ai',
+      (
+        await referrals.findReferrersForReview({
+          config: Off,
+          limit: 20,
+          offset: 0,
+        })
+      ).total === 0,
+    );
+
+    // `shared` có 1 cụm IP và 1 cụm thiết bị, cụm lớn nhất 2 người. Nhưng chưa lượt nào
+    // của họ đủ điều kiện, nên sàn mẫu phải loại họ ra.
+    const bySize = await referrals.findReferrersForReview({
+      config: { ...Off, minClusterSize: 2 },
+      limit: 20,
+      offset: 0,
+    });
+    check(
+      'sàn mẫu loại người chưa có lượt nào đủ điều kiện',
+      !bySize.entries.some((row) => row.referrerUserId === shared),
+      `${bySize.total} người`,
+    );
+
+    // Cho một lượt của `shared` đủ điều kiện rồi đo lại.
+    await referrals.qualifyAndAward({ refereeId: referee(21) });
+    const nowListed = await referrals.findReferrersForReview({
+      config: { ...Off, minClusterSize: 2 },
+      limit: 20,
+      offset: 0,
+    });
+    const found = nowListed.entries.find(
+      (row) => row.referrerUserId === shared,
+    );
+    check('qua sàn mẫu thì vào hàng đợi', found !== undefined);
+    check(
+      'và mang theo cả ba tín hiệu tách nhau',
+      found?.signals.sharedIpClusters === 1 &&
+        found?.signals.sharedDeviceClusters === 1 &&
+        found?.signals.largestClusterSize === 2,
+      JSON.stringify(found?.signals),
+    );
+    check(
+      'ngưỡng theo cụm THIẾT BỊ cũng bắt được người đó',
+      (
+        await referrals.findReferrersForReview({
+          config: { ...Off, minDeviceClusters: 1 },
+          limit: 20,
+          offset: 0,
+        })
+      ).entries.some((row) => row.referrerUserId === shared),
+    );
+    check(
+      'ngưỡng cao hơn thực tế thì không bắt ai',
+      (
+        await referrals.findReferrersForReview({
+          config: { ...Off, minClusterSize: 9 },
+          limit: 20,
+          offset: 0,
+        })
+      ).total === 0,
+    );
+
+    console.log('\n9. listInviteesForReview trả rewardEntryId để đảo bút toán');
+    const forReview = await referrals.listInviteesForReview(Referrer);
+    const withEntry = forReview.filter((row) => row.rewardEntryId !== null);
+    check(
+      'lượt đã trả thưởng có entryId',
+      withEntry.length === 3,
+      `${withEntry.length}`,
+    );
+    check(
+      'lượt còn treo thì null — không có gì để đảo',
+      forReview
+        .filter((row) => row.status === 'PENDING')
+        .every((row) => row.rewardEntryId === null),
+    );
+    check(
+      'và thấy được ai đã bị dọn',
+      forReview.some((row) => row.refereeStatus === 'BANNED') &&
+        forReview.some((row) => row.refereeDeleted),
+    );
+
+
+    console.log('\n10. Thu hồi thưởng: đường đảo bút toán làm đúng ba việc');
+    // Đây là khẳng định cả thiết kế dựa vào: khi xác minh là tài khoản ảo thì đường
+    // thu hồi ĐÃ CÓ và đã làm đúng ca khó — điểm đã bị tiêu.
+    const [entryRow] = await dataSource.query<{ id: string }[]>(
+      `SELECT reward_entry_id::text AS id FROM referrals
+       WHERE referrer_id = $1 AND reward_entry_id IS NOT NULL
+       ORDER BY id ASC LIMIT 1`,
+      [Referrer],
+    );
+
+    // Tiêu gần hết điểm trước khi thu hồi, để lượt đảo PHẢI đẩy xuống dưới 0.
+    const [before] = await dataSource.query<
+      { balance: number; lifetime: number }[]
+    >(`SELECT balance, lifetime FROM user_point_balances WHERE user_id = $1`, [
+      Referrer,
+    ]);
+    await ledger.appendAdjustment({
+      userId: Referrer,
+      ruleCode: 'ADMIN_ADJUSTMENT',
+      delta: -(Number(before.balance) - 20),
+      referenceType: 'MANUAL',
+      referenceId: Referrer,
+      idempotencyKey: `PROBE_SPEND:${Referrer}`,
+      actor: 'SYSTEM',
+      source: 'MANUAL',
+      reason: 'Tiêu điểm để dựng ca "đã tiêu rồi mới thu hồi"',
+    });
+
+    const outcome = await ledger.reverseEntry({
+      entryId: Number(entryRow.id),
+      actorUserId: Referrer,
+      reason: 'Tài khoản ảo — thu hồi thưởng giới thiệu',
+    });
+    check('đảo được bút toán thưởng', outcome.status === 'REVERSED', outcome.status);
+
+    const [after] = await dataSource.query<
+      { balance: number; raw_balance: number; lifetime: number }[]
+    >(
+      `SELECT balance, raw_balance, lifetime FROM user_point_balances
+       WHERE user_id = $1`,
+      [Referrer],
+    );
+    check(
+      'nợ ghi ở raw_balance và được phép ÂM',
+      Number(after.raw_balance) < 0,
+      `raw_balance=${after.raw_balance}`,
+    );
+    check(
+      'còn balance kỹ về 0 nên CHK_user_point_balances_balance không vỡ',
+      Number(after.balance) === 0,
+      `balance=${after.balance}`,
+    );
+    check(
+      'và lifetime BỊ TRỪ — hạng không giữ được sàn do điểm farm thổi lên',
+      Number(after.lifetime) === Number(before.lifetime) - 56,
+      `${before.lifetime} -> ${after.lifetime}`,
+    );
+    check(
+      'đảo lần thứ hai bị từ chối, không trừ hai lần',
+      (
+        await ledger.reverseEntry({
+          entryId: Number(entryRow.id),
+          actorUserId: Referrer,
+          reason: 'Bấm lại lần nữa',
+        })
+      ).status !== 'REVERSED',
+    );
+
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

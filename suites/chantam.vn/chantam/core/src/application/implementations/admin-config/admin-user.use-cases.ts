@@ -113,10 +113,12 @@ export class GetAdminUserUseCase implements IGetAdminUserUseCase {
       referrals: {
         invited: summary.totalCount,
         qualified: summary.qualifiedCount,
-        sharedSignupFingerprints:
-          await this.referrals.countSharedSignupFingerprints(
-            command.targetUserId,
-          ),
+        signupFingerprints: await this.referrals.readSignupFingerprintSignals(
+          command.targetUserId,
+        ),
+        invitees: await this.referrals.listInviteesForReview(
+          command.targetUserId,
+        ),
       },
     };
   }

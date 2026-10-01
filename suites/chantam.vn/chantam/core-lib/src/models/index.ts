@@ -19,6 +19,7 @@ export * from './point-log';
 export * from './post';
 export * from './post-lifecycle';
 export * from './post-media';
+export * from './referral';
 export * from './report';
 export * from './transaction-review';
 export * from './user';

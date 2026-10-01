@@ -2,11 +2,18 @@ import { IAppendPointEntryResult } from '@/application/contracts/point';
 import { isPointPolicyError } from '@/application/implementations/point/point-policy-errors';
 import {
   IPointLedgerRepository,
+  IReferralFingerprintSignals,
   IReferralInvitee,
   IReferralQualificationResult,
   IReferralRepository,
+  IReferralReviewCandidate,
+  IReferralReviewInvitee,
   IReferralSummary,
 } from '@/domain/ports/repository';
+import {
+  IReferralAbuseConfig,
+  referralAbuseReviewEnabled,
+} from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
@@ -20,6 +27,39 @@ import { updateReturning } from './update-returning';
  * biến một lượt đọc hồ sơ thành vài nghìn dòng JSON.
  */
 const MaxInviteesReturned = 50;
+
+/**
+ * Đếm cụm dấu vết trùng nhau, dùng chung cho cả một người và cả hàng đợi soát.
+ *
+ * Một hàm sinh câu chứ không hai câu chép tay: hai bản chép của cùng một định nghĩa "cụm
+ * trùng" sẽ lệch nhau ở lần sửa thứ hai, và khi đó con số Admin thấy ở hàng đợi khác con
+ * số họ thấy khi mở hồ sơ — kiểu lệch khó lần nhất.
+ *
+ * `scope` là mệnh đề lọc trên alias `invite`, do phía gọi truyền vào.
+ */
+function fingerprintSignalsSql(scope: string): string {
+  return `
+    WITH marks AS (
+      SELECT invite.referrer_id, 'IP' AS kind, invite.signup_ip_hash AS value
+      FROM referrals invite
+      ${scope} AND invite.signup_ip_hash IS NOT NULL
+      UNION ALL
+      SELECT invite.referrer_id, 'DEVICE' AS kind, invite.signup_device_hash AS value
+      FROM referrals invite
+      ${scope} AND invite.signup_device_hash IS NOT NULL
+    ), clusters AS (
+      SELECT referrer_id, kind, value, count(*) AS members
+      FROM marks
+      GROUP BY referrer_id, kind, value
+      HAVING count(*) > 1
+    )
+    SELECT
+      count(*) FILTER (WHERE kind = 'IP')::text AS ip_clusters,
+      count(*) FILTER (WHERE kind = 'DEVICE')::text AS device_clusters,
+      COALESCE(MAX(members), 0)::text AS largest_cluster
+    FROM clusters
+  `;
+}
 
 @Injectable()
 export class ReferralRepository implements IReferralRepository {
@@ -78,39 +118,87 @@ export class ReferralRepository implements IReferralRepository {
   }
 
   /**
-   * Số cụm dấu vết đăng ký trùng nhau trong danh sách người đã mời.
+   * Ba tín hiệu dấu vết đăng ký, ĐẾM TÁCH NHAU trong một lượt truy vấn.
    *
-   * Đếm theo từng loại dấu vết rồi cộng: hai người cùng IP nhưng khác máy và hai người
-   * cùng máy nhưng khác IP là hai tín hiệu khác nhau, và gộp chúng thành một là làm mất
-   * chính thứ Admin cần để phân biệt "một gia đình dùng chung wifi" với "một người
-   * mở mười tài khoản trên một máy".
+   * ## Vì sao tách IP và thiết bị
    *
-   * `HAVING COUNT(*) > 1` trên giá trị KHÁC NULL: dữ liệu trước 30/09 không có dấu vết
-   * nào, và gộp chúng lại thành một cụm "trùng" sẽ báo đỏ cho mọi tài khoản cũ.
+   * Bản đầu (30/09) cộng hai loại thành MỘT con số. Ở Việt Nam hai thứ đó khác nhau rất
+   * xa: mạng di động dùng CGNAT nên hàng nghìn người không liên quan chia một IPv4, còn
+   * trùng thiết bị là cùng một bản cài app. Cộng lại là làm mất đúng thứ để phân biệt một
+   * gia đình dùng chung mạng với một người mở mười tài khoản trên một máy — và một
+   * ngưỡng đặt trên tổng đó không có nghĩa gì.
+   *
+   * ## Vì sao có cả cụm lớn nhất
+   *
+   * Riêng SỐ cụm không phân biệt được "ba cụm mỗi cụm hai người" với "một cụm mười
+   * một người", mà cái thứ hai đáng xem hơn nhiều dù số cụm nhỏ hơn.
+   *
+   * `HAVING count(*) > 1` trên giá trị KHÁC NULL: dữ liệu trước 30/09 không có dấu vết
+   * nào, và gộp chúng thành một cụm "trùng" sẽ báo đỏ cho mọi tài khoản cũ.
    */
-  public async countSharedSignupFingerprints(
+  public async readSignupFingerprintSignals(
     referrerId: string,
-  ): Promise<number> {
-    const [row] = await this.manager.query<{ clusters: string }[]>(
+  ): Promise<IReferralFingerprintSignals> {
+    const [row] = await this.manager.query<
+      {
+        ip_clusters: string;
+        device_clusters: string;
+        largest_cluster: string;
+      }[]
+    >(fingerprintSignalsSql('WHERE invite.referrer_id = $1'), [referrerId]);
+
+    return {
+      sharedIpClusters: Number(row?.ip_clusters ?? 0),
+      sharedDeviceClusters: Number(row?.device_clusters ?? 0),
+      largestClusterSize: Number(row?.largest_cluster ?? 0),
+    };
+  }
+
+  /** Danh sách người được mời cho đường Admin, kèm `rewardEntryId` để đảo bút toán. */
+  public async listInviteesForReview(
+    referrerId: string,
+  ): Promise<IReferralReviewInvitee[]> {
+    const rows = await this.manager.query<
+      {
+        referee_user_id: string;
+        username: string;
+        qualified_at: Date | null;
+        referee_status: string;
+        referee_deleted: boolean;
+        reward_entry_id: string | null;
+        invited_at: Date;
+      }[]
+    >(
       `
-        WITH fingerprints AS (
-          SELECT 'IP' AS kind, signup_ip_hash AS value
-          FROM referrals WHERE referrer_id = $1 AND signup_ip_hash IS NOT NULL
-          UNION ALL
-          SELECT 'DEVICE' AS kind, signup_device_hash AS value
-          FROM referrals WHERE referrer_id = $1 AND signup_device_hash IS NOT NULL
-        )
-        SELECT COUNT(*)::text AS clusters
-        FROM (
-          SELECT kind, value FROM fingerprints
-          GROUP BY kind, value
-          HAVING COUNT(*) > 1
-        ) shared
+        SELECT
+          invite.referee_id AS referee_user_id,
+          referee.username,
+          invite.qualified_at,
+          referee.status AS referee_status,
+          (referee.deleted_at IS NOT NULL) AS referee_deleted,
+          invite.reward_entry_id::text AS reward_entry_id,
+          invite.created_at AS invited_at
+        FROM referrals invite
+        INNER JOIN users referee ON referee.global_id = invite.referee_id
+        WHERE invite.referrer_id = $1
+        ORDER BY invite.created_at DESC
+        LIMIT $2
       `,
-      [referrerId],
+      [referrerId, MaxInviteesReturned],
     );
 
-    return Number(row?.clusters ?? 0);
+    return rows.map((row) => ({
+      refereeUserId: row.referee_user_id,
+      username: row.username,
+      status:
+        row.qualified_at === null
+          ? ('PENDING' as const)
+          : ('QUALIFIED' as const),
+      refereeStatus: row.referee_status,
+      refereeDeleted: row.referee_deleted,
+      rewardEntryId: row.reward_entry_id,
+      invitedAt: row.invited_at,
+    }));
   }
 
   public async getOwnSummary(userId: string): Promise<IReferralSummary> {
@@ -276,5 +364,128 @@ export class ReferralRepository implements IReferralRepository {
         awardedPoints: award.delta,
       };
     });
+  }
+
+  /**
+   * Người giới thiệu đang vượt ngưỡng xem xét, nặng trước.
+   *
+   * ## Tính sống, không lưu cờ
+   *
+   * Cùng lý lẽ đã ghi ở `GET /admin/reports/reporters`: chỉ Admin đọc nên không có áp lực
+   * hiệu năng, mà lưu sẵn thì kéo theo migration backfill, đường tính lại và job đối
+   * soát cho mỗi lần đổi ngưỡng. Một cờ lưu sẵn cho điều kiện này còn cũ theo HAI chiều:
+   * hạ ngưỡng thì cờ cũ thiếu người, gỡ khoá một referee thì cờ cũ chỉ sai người.
+   *
+   * ## Hai vế ngưỡng là HOẬC, không phải VÀ
+   *
+   * Nhiều cụm nhỏ và một cụm rất lớn là hai hình dạng khác nhau của cùng một việc; đòi
+   * cả hai cùng vượt là bỏ sót cả hai. Vế nào đặt `0` thì TẮT — xem
+   * `DefaultReferralAbuseConfig`.
+   */
+  public async findReferrersForReview(params: {
+    config: IReferralAbuseConfig;
+    limit: number;
+    offset: number;
+  }): Promise<{ entries: IReferralReviewCandidate[]; total: number }> {
+    const { config } = params;
+    if (!referralAbuseReviewEnabled(config)) return { entries: [], total: 0 };
+
+    // `$3` và `$4` là hai vế ngưỡng. `0` được dịch thành "không bao giờ khớp" chứ
+    // không phải "luôn khớp": `>= 0` sẽ đúng với mọi người, tức THÊM mọi người vào
+    // hàng đợi thay vì tắt vế đó.
+    const deviceThreshold =
+      config.minDeviceClusters > 0 ? config.minDeviceClusters : null;
+    const sizeThreshold =
+      config.minClusterSize > 0 ? config.minClusterSize : null;
+
+    const rows = await this.manager.query<
+      {
+        referrer_user_id: string;
+        username: string;
+        qualified_referrals: string;
+        ip_clusters: string;
+        device_clusters: string;
+        largest_cluster: string;
+        total: string;
+      }[]
+    >(
+      `
+        WITH marks AS (
+          SELECT invite.referrer_id, 'IP' AS kind, invite.signup_ip_hash AS value
+          FROM referrals invite WHERE invite.signup_ip_hash IS NOT NULL
+          UNION ALL
+          SELECT invite.referrer_id, 'DEVICE' AS kind, invite.signup_device_hash AS value
+          FROM referrals invite WHERE invite.signup_device_hash IS NOT NULL
+        ), clusters AS (
+          SELECT referrer_id, kind, value, count(*) AS members
+          FROM marks
+          GROUP BY referrer_id, kind, value
+          HAVING count(*) > 1
+        ), signals AS (
+          SELECT
+            referrer_id,
+            count(*) FILTER (WHERE kind = 'IP') AS ip_clusters,
+            count(*) FILTER (WHERE kind = 'DEVICE') AS device_clusters,
+            COALESCE(MAX(members), 0) AS largest_cluster
+          FROM clusters
+          GROUP BY referrer_id
+        ), scored AS (
+          SELECT
+            signals.referrer_id,
+            referrer.username,
+            (
+              SELECT count(*)
+              FROM referrals counted
+              WHERE counted.referrer_id = signals.referrer_id
+                AND counted.qualified_at IS NOT NULL
+            ) AS qualified_referrals,
+            signals.ip_clusters,
+            signals.device_clusters,
+            signals.largest_cluster
+          FROM signals
+          INNER JOIN users referrer ON referrer.global_id = signals.referrer_id
+          WHERE referrer.deleted_at IS NULL
+        ), matched AS (
+          SELECT * FROM scored
+          WHERE qualified_referrals >= $1
+            AND (
+              ($2::int IS NOT NULL AND device_clusters >= $2::int)
+              OR ($3::int IS NOT NULL AND largest_cluster >= $3::int)
+            )
+        )
+        SELECT
+          referrer_id AS referrer_user_id,
+          username,
+          qualified_referrals::text,
+          ip_clusters::text,
+          device_clusters::text,
+          largest_cluster::text,
+          count(*) OVER ()::text AS total
+        FROM matched
+        ORDER BY largest_cluster DESC, device_clusters DESC, username ASC
+        LIMIT $4 OFFSET $5
+      `,
+      [
+        config.minQualifiedReferrals,
+        deviceThreshold,
+        sizeThreshold,
+        params.limit,
+        params.offset,
+      ],
+    );
+
+    return {
+      entries: rows.map((row) => ({
+        referrerUserId: row.referrer_user_id,
+        username: row.username,
+        qualifiedReferrals: Number(row.qualified_referrals),
+        signals: {
+          sharedIpClusters: Number(row.ip_clusters),
+          sharedDeviceClusters: Number(row.device_clusters),
+          largestClusterSize: Number(row.largest_cluster),
+        },
+      })),
+      total: Number(rows[0]?.total ?? 0),
+    };
   }
 }
