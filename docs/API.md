@@ -810,6 +810,28 @@ mà **không cần một vòng gọi nữa cho mỗi marker**.
 
 ## 7. Điểm, hạng, giới thiệu, quyền
 
+### API mục tiêu — điểm danh và streak (chưa triển khai)
+
+Các route dưới đây là contract đề xuất của [F83](./FEATURES.md#f83--điểm-danh-ngày-streak-và-điểm-danh-bù-bổ-sung-30092026),
+**không thuộc 127 endpoint đang chạy**. Tiền tố chung `/api/v1`; response dùng vỏ chuẩn,
+body ghi theo khóa tài nguyên. Swagger và mã lỗi chính xác sẽ được sinh khi implement.
+
+| Method | Đường dẫn | Quyền | Kết quả chính |
+| --- | --- | --- | --- |
+| `GET` | `/check-ins/me` | Bearer | Ngày nghiệp vụ, trạng thái hôm nay, streak, mốc tới, lượt bù và tiến độ giao dịch |
+| `GET` | `/check-ins/me/history?page=&pageSize=` | Bearer | Lịch phân trang của chính user, ngày thường/bù, điểm và khả năng bù |
+| `POST` | `/check-ins` | Bearer | Body `{ "checkIn": {} }`; điểm danh hôm nay, điểm ngày và thưởng mốc nếu đạt |
+| `POST` | `/check-ins/repairs` | Bearer | Body `{ "repair": { "date": "YYYY-MM-DD" } }`; tiêu một lượt và nối streak |
+| `GET` | `/admin/check-in-policy` | `config.read` | Policy/version hiện hành |
+| `PUT` | `/admin/check-in-policy` | `config.write` | Body `{ "checkInPolicy": { ... } }`; publish version mới và audit |
+
+Một user/ngày chỉ có một điểm danh. Mốc 7/14/30/50 là **ngày liên tiếp**. Lượt bù
+được tích từ giao dịch tặng/nhận quà hoàn tất theo ngưỡng Admin cấu hình. Điểm mốc
+cộng thêm điểm ngày; ngày bù không nhận điểm ngày. `Idempotency-Key` và unique key
+nghiệp vụ bảo vệ retry/đồng thời. Xem [quy tắc và trường response đầy đủ](./plan/CHECK-IN-STREAK-DESIGN.md).
+
+### API hiện có
+
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
 | `GET` | `/points/me` | Bearer | Số dư điểm của chính chủ |

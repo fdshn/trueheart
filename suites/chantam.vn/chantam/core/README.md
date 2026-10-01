@@ -23,6 +23,10 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 Bảng dưới là danh mục tra nhanh. Hành vi đầy đủ của từng endpoint — quyền truy cập, ràng
 buộc riêng tư, thứ tự kiểm tra — xem [`docs/API.md`](../../../../docs/API.md).
 
+F83 điểm danh, streak và lượt bù đang ở mức **đặc tả, chưa có endpoint**. Khi triển khai,
+thêm resource `check-in` theo ba lớp và cập nhật bảng endpoint này cùng Swagger.
+Xem [thiết kế F83](../../../../docs/plan/CHECK-IN-STREAK-DESIGN.md).
+
 | Method | Đường dẫn | Use case |
 | --- | --- | --- |
 | `POST` | `/api/v1/gift-posts` | `CreateGiftPostUseCase` |

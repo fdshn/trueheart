@@ -89,6 +89,15 @@ Role phải được đọc lại từ DB trong use case; không tin rank/status
 
 ### 3.2 Point
 
+#### `check_in_policy_revisions` (F83, chưa triển khai)
+
+Policy chuyên biệt lưu `enabled`, `transactions_per_repair`, `repair_window_days`,
+`daily_points`, `milestones[{streakDays,bonusPoints}]`, `effective_at`, `version`,
+`created_by`, `reason`. Nó là nguồn điểm duy nhất cho `CHECK_IN_DAILY` và
+`CHECK_IN_STREAK_MILESTONE`, không sao chép giá trị vào `point_rules` tổng quát. Thưởng
+vẫn ghi `point_ledger` với policy version. Publish có preview, RBAC `config.write` và
+`admin_audit_logs`; bản cũ không bị viết lại. Xem [đặc tả F83](./CHECK-IN-STREAK-DESIGN.md).
+
 #### `point_rule_revisions`
 
 Có thể mở rộng `point_rules` hiện hữu hoặc tách bảng revision. Mỗi dòng gồm `code`, `event_type`, `delta`, `affects_lifetime`, `affects_balance`, `daily_cap`, `per_user_cap`, `conditions_json`, `revision_id`, `enabled`, `created_at`.
@@ -177,6 +186,7 @@ Các endpoint yêu cầu JWT + permission; body bọc dưới khóa resource the
 | `POST` | `/api/v1/admin/config/revisions/:revisionId/publish` | publish có lý do |
 | `POST` | `/api/v1/admin/config/scopes/:scope/rollback` | publish lại revision cũ |
 | `GET` | `/api/v1/admin/points/rules` | xem rule và lịch sử |
+| `GET/PUT` | `/api/v1/admin/check-in-policy` | xem/publish điểm ngày, thưởng từng mốc, giao dịch/lượt bù và thời hạn bù; `config.read/write` |
 | `POST` | `/api/v1/admin/points/adjustments` | tạo bút toán điều chỉnh |
 | `GET` | `/api/v1/admin/ranks/policy` | xem policy hiệu lực |
 | `POST` | `/api/v1/admin/notifications/channels/:channel/test` | test SMTP/provider |
@@ -459,6 +469,8 @@ JWT chỉ cung cấp danh tính phiên; không dùng rank/status trong JWT để
 | `GET` | `/api/v1/me/points/ledger` | ledger phân trang, source/reference |
 | `GET` | `/api/v1/me/rank` | tier, warning, maintenance cycle |
 | `GET` | `/api/v1/me/referrals` | code, qualified count, reward state |
+| `GET` | `/api/v1/check-ins/me`, `/api/v1/check-ins/me/history` | trạng thái và lịch điểm danh của chính user (F83, chưa triển khai) |
+| `POST` | `/api/v1/check-ins`, `/api/v1/check-ins/repairs` | điểm danh hôm nay / tiêu lượt bù (F83, chưa triển khai) |
 | `GET` | `/api/v1/discovery/config` | radius min/default/max, map limits |
 | `POST` | `/api/v1/posts` | capability + quota + profile gate |
 | `POST` | `/api/v1/posts/:postId/requests` | request policy |
@@ -477,6 +489,7 @@ phải có `expiresAt` hoặc cache policy nếu entitlement được cache.
 | Bundle | `GET/POST /api/v1/admin/policy-bundles`, `POST /:id/validate`, `POST /:id/publish`, `POST /:id/rollback` |
 | Capability | `GET/PUT /api/v1/admin/policies/capabilities/:code` |
 | Points | `GET/POST /api/v1/admin/policies/point-rules`, `POST /points/adjustments`, `POST /points/:id/reverse` |
+| Check-in | `GET/PUT /api/v1/admin/check-in-policy` — F83, chưa triển khai, `config.read/write` |
 | Rank | `GET/PUT /api/v1/admin/policies/ranks`, `POST /ranks/preview`, `POST /ranks/reconcile` |
 | Geo | `GET/PUT /api/v1/admin/policies/geo`, `GET /geo/eligibility-preview` |
 | Referral | `GET/PUT /api/v1/admin/policies/referral`, `GET /referrals/fraud-signals` |

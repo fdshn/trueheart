@@ -42,6 +42,13 @@ implementation**. Ba lý do:
 
 ---
 
+**F83 — điểm danh/streak (thiết kế, chưa triển khai):** contract DTO và mã lỗi sẽ nằm ở
+`core-lib`; `core` có resource `check-in` theo ba lớp hiện hữu. Điểm ngày/mốc ghi qua
+Point Ledger, lượt bù có ledger riêng và nguồn từ `gift_transactions.COMPLETED`.
+Điểm danh/bù commit nguyên tử cùng thưởng điểm và khoá theo user để request đồng thời
+không nhân đôi. Policy Admin có version/audit; trạng thái streak xác định theo ngày
+nghiệp vụ Việt Nam khi đọc/ghi. Xem [thiết kế chi tiết](./plan/CHECK-IN-STREAK-DESIGN.md).
+
 ## 4. PostGIS — trung tâm của nghiệp vụ
 
 Toàn bộ trải nghiệm "ưu tiên cự ly gần" dựa trên hai hàm:

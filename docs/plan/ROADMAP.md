@@ -135,9 +135,15 @@ và mở chat phải nằm trong cùng transaction với việc duyệt.
 - [ ] F43 Giver Accuracy (dùng %, đủ 5 mẫu mới tính, warning < 75% — CHỐT-03)
 - [x] F12 Rank 5 tầng + chu kỳ duy trì (xét theo current balance — CHỐT-01; chu kỳ 3 tháng 2+2/3+3/4+4 — BR-PROF-RANK-03)
 - [x] F13 Referral cá nhân, thưởng một lần
+- [ ] F83 Điểm danh hằng ngày, lịch sử, streak 7/14/30/50 ngày, thưởng mốc và điểm danh
+  bù từ giao dịch tặng/nhận quà hoàn tất; policy Admin có version/audit
 
 **Xong khi:** hoàn tất một giao dịch → điểm vào ledger có idempotency → đủ 224 điểm thì lên
 Member. Ghi cùng một `idempotency_key` hai lần chỉ cộng một lần.
+
+**Bổ sung F83:** xong khi ngày điểm danh/lượt bù/mốc thưởng nguyên tử và idempotent;
+app xem được lịch sử, streak, lượt bù; Admin cấu hình ngưỡng giao dịch/lượt, điểm ngày,
+điểm từng mốc và thời hạn bù. [Đặc tả triển khai](./CHECK-IN-STREAK-DESIGN.md).
 
 > ✅ **Toàn bộ 4 câu hỏi/giả định của mốc này đã được chốt chính thức trong SRS v1.15.0** (Mục 1.7). Không còn rủi ro đụng cấu trúc bảng do thiếu yêu cầu.
 

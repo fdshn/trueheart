@@ -361,6 +361,29 @@ Nhật ký quyết định chạm trần điểm theo ngày — để giải th�
 | `idempotency_key` | `varchar(200)` UNIQUE | |
 | `created_at` | `timestamptz` | |
 
+### Điểm danh, streak và lượt bù
+
+**Schema mục tiêu cho F83; chưa có migration.** Chi tiết luồng và idempotency tại
+[CHECK-IN-STREAK-DESIGN](./plan/CHECK-IN-STREAK-DESIGN.md). Mọi ngày là `date` theo
+`Asia/Ho_Chi_Minh`, timestamp vẫn lưu `timestamptz` UTC.
+
+| Bảng | Cột/ràng buộc chính | Mục đích |
+| --- | --- | --- |
+| `check_in_entries` | `id`, `user_id` FK, `policy_date` DATE, `kind` NORMAL/REPAIR, `streak_run_id` FK, `streak_day`, `policy_version`, `created_at`; UNIQUE `(user_id,policy_date)` | Một dấu điểm danh/ngày; chỉ thêm |
+| `check_in_runs` | `id`, `user_id` FK, `start_date`, `latest_covered_date`, `current_length`, `status` ACTIVE/AT_RISK/ENDED, `version` | Snapshot chuỗi; tính lại được từ entries |
+| `check_in_milestone_awards` | `streak_run_id`, `milestone_days`, `point_ledger_id`, `policy_version`; UNIQUE `(streak_run_id,milestone_days)` | Một thưởng cho mỗi mốc/chuỗi |
+| `repair_transaction_progress` | `user_id`, `transaction_id`, `cohort_id`, `policy_version`, `created_at`; UNIQUE `(user_id,transaction_id)` | Một giao dịch tặng/nhận quà hoàn tất chỉ tích một lần cho mỗi bên |
+| `repair_credit_cohorts` | `id`, `user_id`, `policy_version`, `required_transactions`, `current_count`, `status` OPEN/CLOSED | Khóa ngưỡng của một nhóm giao dịch cho đến khi phát lượt |
+| `repair_credit_ledger` | `id`, `user_id`, `event_type` ISSUE/SPEND/REVERSE, `delta`, `balance_after`, `reference_type/id`, `idempotency_key` UNIQUE, `policy_version`, `created_at` | Lượt bù phát/tiêu/đảo; append-only, số dư không âm |
+| `check_in_policy_revisions` | `version` PK, `enabled`, `transactions_per_repair`, `repair_window_days`, `daily_points`, `milestones_json`, `effective_at`, `reason`, `created_by`, `created_at` | Policy có hiệu lực và audit; mốc duy nhất, tăng dần, điểm không âm |
+
+`repair_credit_cohorts` giữ version/ngưỡng tại lúc giao dịch đầu tiên của nhóm đến;
+giao dịch tiếp theo hoàn thành nhóm đó rồi mới mở nhóm mới theo policy hiện hành. Khi đủ
+ngưỡng, `repair_credit_ledger.ISSUE` cấp một lượt. Đổi policy không quy đổi lại tiến độ/
+lượt đã cấp. Mọi ghi điểm danh/bù, award, point ledger và credit ledger
+phải cùng transaction database, khoá theo user; không UPDATE/DELETE ledger. Nếu giao dịch
+bị đảo sau khi lượt bù đã tiêu, giữ lịch sử và đưa vào đối soát thay vì làm số dư âm.
+
 ### `rank_tiers`
 
 | Cột | Kiểu | Ghi chú |

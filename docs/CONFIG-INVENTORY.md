@@ -198,6 +198,23 @@ API: `GET|POST /admin/points/rules`.
 > nhiệm vụ (mức nằm ở `rank_tiers` theo bậc) và đổi vật phẩm (tính từ giá món). Cả hai đi qua
 > `appendAdjustment` — vẫn append-only, vẫn idempotent, và **bắt buộc có lý do đọc được**.
 
+### 2.2a `check_in_policy_revisions` — điểm danh và lượt bù (F83, chưa triển khai)
+
+| Trường | Quy tắc | Trạng thái |
+| --- | --- | --- |
+| `enabled` | Chỉ bật sau khi publish đủ cấu hình | Chưa có |
+| `daily_points` | Điểm cơ bản cho điểm danh thường; ghi ledger `CHECK_IN_DAILY` | Chờ Product Owner chốt |
+| `milestones_json` | Các cặp `{streakDays,bonusPoints}`, khởi đầu 7/14/30/50 ngày; điểm theo từng mốc | Chờ Product Owner chốt |
+| `transactions_per_repair` | Số giao dịch tặng/nhận quà `COMPLETED` đổi một lượt bù, >= 1 | Chờ Product Owner chốt |
+| `repair_window_days` | Số ngày được quay lại bù, >= 1 | Chờ Product Owner chốt |
+| `effective_at`, `version`, `reason`, `created_by` | Publish phiên bản mới, không hồi tố, audit | Chưa có |
+
+Policy này là **nguồn điểm duy nhất** cho `CHECK_IN_DAILY` và
+`CHECK_IN_STREAK_MILESTONE`; không thêm hai mức điểm khác trong `point_rules` tổng quát.
+Lượt tích từ giao dịch trước khi đổi ngưỡng tiếp tục theo version cũ, không bị quy đổi
+lại. Đọc/ghi dự kiến qua `GET|PUT /admin/check-in-policy` với `config.read/write`.
+Xem [thiết kế F83](./plan/CHECK-IN-STREAK-DESIGN.md).
+
 ### 2.3 `rank_tiers` — ngưỡng và nhiệm vụ theo bậc
 
 | Bậc | Ngưỡng | Cảnh báo | Nhiệm vụ/quý | Phạt trượt |
