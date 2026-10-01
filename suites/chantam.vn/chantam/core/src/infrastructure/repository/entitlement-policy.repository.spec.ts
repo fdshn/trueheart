@@ -45,10 +45,14 @@ function makeQuery(policyRows = CurrentPolicy) {
 }
 
 function makeRepository(query: jest.Mock) {
-  return new EntitlementRepository({
-    query,
-    transaction: async (cb: (m: unknown) => unknown) => cb({ query }),
-  } as never);
+  return new EntitlementRepository(
+    {
+      query,
+      transaction: async (cb: (m: unknown) => unknown) => cb({ query }),
+    } as never,
+    // Đường publish không đọc bộ đếm nào; mock để đủ chự ký.
+    { countOpenByRequester: jest.fn(async () => 0) } as never,
+  );
 }
 
 function rankValuesFor(query: jest.Mock, code: string) {
@@ -147,15 +151,17 @@ describe('EntitlementRepository publishPolicyRevision', () => {
     ]);
   });
 
-  it('phân biệt limit null với limit 0', async () => {
-    // null là không giới hạn, 0 là cấm hẳn. Gộp hai thứ này là sai nghiệp vụ.
+  it('giữ phân biệt limit null với limit 0 ở tầng lưu', async () => {
+    // Tầng lưu không được gộp hai giá trị này. Dùng một capability `GATE`: ở đó
+    // `limit` không được đọc nên cả hai đều vô hại, và phép kiểm nói đúng điều nó
+    // muốn nói.
     const query = makeQuery();
     const repository = makeRepository(query);
 
     await repository.publishPolicyRevision(
       publish([
         {
-          code: 'POST_OPEN',
+          code: 'POST_SOS',
           ranks: [
             { rank: UserRanks.MEMBER, limit: 0 },
             { rank: UserRanks.GOLD, limit: null },
@@ -164,10 +170,54 @@ describe('EntitlementRepository publishPolicyRevision', () => {
       ]),
     );
 
-    expect(rankValuesFor(query, 'POST_OPEN')).toEqual([
-      { rank: UserRanks.MEMBER, allowed: true, limit: 0 },
+    // `allowed` không được nhắc tới nên giữ nguyên giá trị cũ của từng bậc — MEMBER
+    // vẫn `false` vì SOS là từ Bạc trở lên. Đó chính là lý lẽ của `applyPatches`.
+    expect(rankValuesFor(query, 'POST_SOS')).toEqual([
+      { rank: UserRanks.MEMBER, allowed: false, limit: 0 },
       { rank: UserRanks.GOLD, allowed: true, limit: null },
     ]);
+  });
+
+  it('từ chối QUOTA đang bật mà hạn mức là null', async () => {
+    // Ô trống bị `create-post` đọc thành 0, nên Admin xoá trống định MỞ khoá thì thực
+    // tế là KHOÁ SẠCH cả bậc đó, và người dùng nhận thông báo "quota 0" không nói gì
+    // về cấu hình. Chặn ngay tại đây thay vì để nó thành một sự cố im lặng.
+    const query = makeQuery();
+    const repository = makeRepository(query);
+
+    await expect(
+      repository.publishPolicyRevision(
+        publish([
+          {
+            code: 'POST_OPEN',
+            ranks: [{ rank: UserRanks.GOLD, allowed: true, limit: null }],
+          },
+        ]),
+      ),
+    ).rejects.toThrow();
+
+    const wrote = query.mock.calls.some(([sql]) =>
+      String(sql).includes('INSERT INTO config_revisions'),
+    );
+    expect(wrote).toBe(false);
+  });
+
+  it('từ chối QUOTA vừa cho phép vừa hạn mức 0', async () => {
+    // "Cho phép nhưng hạn mức không" là hai câu đánh nhau; muốn cấm thì đặt
+    // `allowed: false`, đúng cách bậc VIEWER đang được seed.
+    const query = makeQuery();
+    const repository = makeRepository(query);
+
+    await expect(
+      repository.publishPolicyRevision(
+        publish([
+          {
+            code: 'OPEN_REQUEST_QUOTA',
+            ranks: [{ rank: UserRanks.MEMBER, allowed: true, limit: 0 }],
+          },
+        ]),
+      ),
+    ).rejects.toThrow();
   });
 
   it('từ chối mã capability không có thật, không ghi gì cả', async () => {
@@ -249,5 +299,27 @@ describe('EntitlementRepository publishPolicyRevision', () => {
     expect(String(params[2])).toContain('"limit":20');
     expect(String(params[3])).toContain('"limit":10');
     expect(params[4]).toBe('Hạ quota Gold');
+  });
+
+  it('đóng bản cũ bằng CẢ effective_to VÀ status = ARCHIVED', async () => {
+    // Bản trước 01/10 chỉ đặt `effective_to`, nên sau N lượt publish có N dòng đều
+    // mang `PUBLISHED`. Các đường đọc vẫn đúng vì chúng lọc cả khung thời gian — nhưng
+    // `GET /admin/entitlements/history` trả chính cột `status` ra cho Admin đọc, nên một
+    // cột nói sai thành một câu trả lời sai.
+    const query = makeQuery();
+    const repository = makeRepository(query);
+
+    await repository.publishPolicyRevision(
+      publish([
+        { code: 'POST_OPEN', ranks: [{ rank: UserRanks.GOLD, limit: 25 }] },
+      ]),
+    );
+
+    const closing = query.mock.calls.find(([sql]) =>
+      String(sql).includes('UPDATE config_revisions'),
+    );
+    expect(closing).toBeDefined();
+    expect(String(closing?.[0])).toContain('ARCHIVED');
+    expect(String(closing?.[0])).toContain('effective_to');
   });
 });

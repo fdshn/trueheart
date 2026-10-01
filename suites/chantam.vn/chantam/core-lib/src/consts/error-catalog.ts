@@ -550,6 +550,19 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       `Không có capability nào mang mã ${code} trong bản chính sách hiện hành`,
     sample: ['POST_TELEPATHY'],
   },
+  // Tách khỏi ENTITLEMENT_CAPABILITY_UNKNOWN vì đây không phải "gõ sai mã" mà là "mã
+  // đúng, giá trị tự mâu thuẫn" — và hai cái dẫn tới hai việc sửa khác nhau.
+  ENTITLEMENT_LIMIT_INVALID: {
+    code: ErrorCodes.ENTITLEMENT_LIMIT_INVALID,
+    httpStatus: HttpStatus.UNPROCESSABLE_ENTITY,
+    message: (code: string, rank: string, reason: string) =>
+      `Hạn mức của ${code} ở bậc ${rank} không dùng được: ${reason}`,
+    sample: [
+      'POST_OPEN',
+      'SILVER',
+      'đã cho phép thì phải có hạn mức lớn hơn 0 — ô trống bị đọc thành 0 nên sẽ khoá cả bậc này',
+    ],
+  },
 
   // ── 0x0B Báo cáo vi phạm ─────────────────────────────────────────────────
   REPORT_NOT_FOUND: {

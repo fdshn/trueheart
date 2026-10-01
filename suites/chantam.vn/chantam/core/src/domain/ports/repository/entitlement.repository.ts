@@ -1,6 +1,7 @@
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IEntitlementDto,
+  IEntitlementPolicyHistoryEntryDto,
   IEntitlementPolicyRevisionDto,
   IEntitlementsSummaryDto,
 } from '@chantam.vn/chantam.core-lib/dto';
@@ -45,6 +46,17 @@ export interface IEntitlementRepository {
   publishPolicyRevision(
     command: IPublishEntitlementPolicyCommand,
   ): Promise<IEntitlementPolicyRevisionDto>;
+
+  /**
+   * Lịch sử các bản chính sách, mới nhất trước.
+   *
+   * Dữ liệu đã có đủ từ đầu trong `config_revisions`; chỉ thiếu đường đọc. Thiếu nó
+   * thì khi một người khiếu nại "lúc đó tôi còn suất mà", Admin không tra được quota
+   * ấy lúc đó là bao nhiêu — trừ khi vào database.
+   */
+  listPolicyHistory(
+    limit: number,
+  ): Promise<IEntitlementPolicyHistoryEntryDto[]>;
 }
 
 export const IEntitlementRepository = Symbol('IEntitlementRepository');

@@ -21,6 +21,7 @@ import {
   GiftRequestStatuses,
   PostSelectionModes,
 } from '@chantam.vn/chantam.core-lib/consts';
+import { resolveQuotaLimit } from '@chantam.vn/chantam.core-lib/models';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
 import { ProfileGate } from '../profile/profile-gate';
@@ -61,7 +62,7 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     const openRequests = await this.giftRequestRepository.countOpenByRequester(
       command.requesterId,
     );
-    const quota = openQuota?.limit ?? 0;
+    const quota = resolveQuotaLimit(openQuota?.limit ?? null);
     if (!openQuota?.allowed || openRequests >= quota)
       throw new OpenRequestQuotaExceededException(openRequests, quota);
 

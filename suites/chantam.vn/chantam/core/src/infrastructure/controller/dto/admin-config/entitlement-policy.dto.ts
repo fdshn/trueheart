@@ -5,8 +5,10 @@ import {
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IEntitlementPolicyCapabilityDto,
+  IEntitlementPolicyHistoryEntryDto,
   IEntitlementPolicyRankValueDto,
   IEntitlementPolicyRevisionDto,
+  IGetEntitlementPolicyHistoryResponseDto,
   IGetEntitlementPolicyResponseDto,
   IPublishEntitlementPolicyResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
@@ -21,6 +23,7 @@ import {
   IsOptional,
   IsString,
   Length,
+  Max,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -132,4 +135,49 @@ export class GetEntitlementPolicyResponseDto implements IGetEntitlementPolicyRes
 export class PublishEntitlementPolicyResponseDto implements IPublishEntitlementPolicyResponseDto {
   @ApiProperty({ type: () => EntitlementPolicyRevisionDto })
   policy: EntitlementPolicyRevisionDto;
+}
+
+export class EntitlementPolicyHistoryEntryDto implements IEntitlementPolicyHistoryEntryDto {
+  @ApiProperty({ example: 2 })
+  revisionId: number;
+
+  @ApiProperty({
+    example: 'PUBLISHED',
+    description:
+      'PUBLISHED là bản đang hiệu lực; ARCHIVED là bản đã bị đóng lại.',
+  })
+  status: string;
+
+  @ApiProperty()
+  effectiveFrom: Date;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'null là bản đang hiệu lực.',
+  })
+  effectiveTo: Date | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  changeReason: string | null;
+
+  @ApiProperty({
+    example: 9,
+    description: 'Số capability có trong bản đó — để thấy bản nào thêm mã mới.',
+  })
+  capabilityCount: number;
+}
+
+export class GetEntitlementPolicyHistoryResponseDto implements IGetEntitlementPolicyHistoryResponseDto {
+  @ApiProperty({ type: () => [EntitlementPolicyHistoryEntryDto] })
+  revisions: IEntitlementPolicyHistoryEntryDto[];
+}
+
+export class GetEntitlementPolicyHistoryQueryDto {
+  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
 }

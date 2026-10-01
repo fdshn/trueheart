@@ -8,3 +8,6 @@ export class EntitlementPolicyUnavailableException extends ExceptionFrom(
 export class EntitlementCapabilityUnknownException extends ExceptionFrom(
   CoreErrors.ENTITLEMENT_CAPABILITY_UNKNOWN,
 ) {}
+export class EntitlementLimitInvalidException extends ExceptionFrom(
+  CoreErrors.ENTITLEMENT_LIMIT_INVALID,
+) {}

@@ -88,6 +88,18 @@ Thiếu đúng phần chia thưởng, và nó chờ năm câu:
 
 Tất cả đã nằm trong cấu hình động nên đổi không cần deploy — nhưng **đang chạy bằng giả định**.
 
+### [24](./24-entitlement.md) · Entitlement — hai capability khai mà chưa ai đọc
+
+| # | Câu hỏi | Trạng thái |
+| --- | --- | --- |
+| E1 | `SELECT_REQUESTER` — hạn mức 1/3/5/10 theo bậc, **không ai đọc** | Không ai biết đơn vị của nó: mỗi bài được chọn mấy người, hay mỗi ngày? Nối nó đòi chốt nghiệp vụ trước — đoán sai là đặt một trần người dùng không hiểu |
+| E2 | `SUBMIT_CHARITY_PROPOSAL` — **không ai đọc** | Dành cho F65, phân hệ chưa có dòng code nào. Giữ dòng cấu hình để khi làm thì cổng quyền đã sấn |
+| E3 | Chat có nên đi qua capability để đặt trần theo bậc? | Hiện trần chat là hằng trong code (30/phút, 500/ngày), giống trần bình luận. Nếu không phân biệt theo bậc thì một hằng có tên vẫn tốt hơn một ô cấu hình không ai đổi |
+
+Cả hai mục đầu nay được `test:entitlement-inventory` ghi là **nợ đã biết** kèm lý do, nên
+chúng không còn lặng lẽ nằm đó — và thêm một capability vào database mà quên khai là phép
+kiểm đỏ.
+
 ### [16](./16-admin.md) · Admin — danh sách từ kiểm duyệt
 
 66 mục là bản **khởi tạo**, cần Bên A soát. Ba từ tải hàng đợi Admin nặng nhất vì chúng xuất
@@ -117,6 +129,7 @@ Xếp theo mức đáng làm trước.
 | L14 | [13](./13-review.md) | **Chưa có gì tổng hợp `comment` của đánh giá** | Ghi được, giới hạn 1000 ký tự, và không đường nào đọc ra ngoài từng bản ghi lẻ |
 | L15 | [04](./04-post.md) | **`CHARITY` và `MERIT` không có cổng nào** — ai qua onboarding cũng đăng được | Hai loại này mang ý nghĩa tổ chức/công đức, mở cho tất cả có thể không đúng ý |
 | L16 | [23](./23-referral.md) | **Không có phân trang cho `invitees`** ở cả hai đường đọc — trần cứng 50 | Đủ cho trang tóm tắt; thiếu khi có người mời vài trăm người |
+| L18 | [24](./24-entitlement.md) | **Không có kiểm KHOẢNG cho `limit` của capability**, chỉ kiểm tính nhất quán | Đặt `POST_OPEN = 100000` vẫn qua được. Không làm sập gì, chỉ là một chính sách lạ không ai chặn. Đơn vị mỗi capability một khác (số bài, số yêu cầu, mét) nên một khoảng chung không có nghĩa |
 | L17 | [28](./28-architecture.md) | **Chưa có đo phủ bắt buộc** — `test:cov` có script nhưng không có ngưỡng trong CI | Phủ có thể tụt dần mà không ai thấy |
 
 ---
@@ -129,7 +142,7 @@ Xếp theo mức đáng làm trước.
 | T2 | [10](./10-notification.md) | **FCM push (F44)** — hạ tầng token đã xong, chỉ thiếu nhà cung cấp. Đây là việc **còn lại duy nhất** của đẩy thật |
 | T3 | [01](./01-auth.md) | **Chưa có đường cho Admin đặt lại mật khẩu hộ** |
 | T4 | [01](./01-auth.md) | **Mật khẩu chỉ yêu cầu 8 ký tự** — `12345678` qua được |
-| T5 | [03](./03-media.md) · [24](./24-entitlement.md) | **Chưa có giới hạn dung lượng theo người dùng**, dù F59 đã theo dõi con số |
+| T5 | [03](./03-media.md) · [24](./24-entitlement.md) | **Chưa có giới hạn dung lượng theo người dùng**, dù F59 đã theo dõi con số. Cần Bên A cho con số theo bậc trước khi làm |
 | T6 | [09](./09-chat.md) | **Chat nhóm** chưa có |
 | T7 | [05](./05-feed.md) | **Feed không loại bài của chính mình**; chưa có gợi ý theo tiền tố khi đang gõ; smart match chỉ khớp danh mục + khoảng cách + từ khoá tiêu đề |
 | T8 | [22](./22-category.md) | **Chưa có ảnh cho danh mục** (có `icon` dạng chuỗi tên); chưa có `GET /admin/categories/:id`; **gộp không có đường lùi** |

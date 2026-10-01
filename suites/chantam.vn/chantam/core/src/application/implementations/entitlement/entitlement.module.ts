@@ -1,9 +1,11 @@
 import {
+  IGetEntitlementPolicyHistoryUseCase,
   IGetEntitlementPolicyUseCase,
   IGetOwnEntitlementsUseCase,
   IPublishEntitlementPolicyUseCase,
 } from '@/application/contracts/entitlement';
 import { Global, Module } from '@nestjs/common';
+import { GetEntitlementPolicyHistoryUseCase } from './get-entitlement-policy-history.use-case';
 import { GetEntitlementPolicyUseCase } from './get-entitlement-policy.use-case';
 import { GetOwnEntitlementsUseCase } from './get-own-entitlements.use-case';
 import { PublishEntitlementPolicyUseCase } from './publish-entitlement-policy.use-case';
@@ -20,6 +22,10 @@ import { PublishEntitlementPolicyUseCase } from './publish-entitlement-policy.us
       useClass: GetEntitlementPolicyUseCase,
     },
     {
+      provide: IGetEntitlementPolicyHistoryUseCase,
+      useClass: GetEntitlementPolicyHistoryUseCase,
+    },
+    {
       provide: IPublishEntitlementPolicyUseCase,
       useClass: PublishEntitlementPolicyUseCase,
     },
@@ -27,6 +33,7 @@ import { PublishEntitlementPolicyUseCase } from './publish-entitlement-policy.us
   exports: [
     IGetOwnEntitlementsUseCase,
     IGetEntitlementPolicyUseCase,
+    IGetEntitlementPolicyHistoryUseCase,
     IPublishEntitlementPolicyUseCase,
   ],
 })

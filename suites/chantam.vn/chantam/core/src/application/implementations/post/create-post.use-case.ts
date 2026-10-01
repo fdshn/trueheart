@@ -23,7 +23,10 @@ import {
   PostSelectionModes,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { postExpiryDate } from '@chantam.vn/chantam.core-lib/models';
+import {
+  postExpiryDate,
+  resolveQuotaLimit,
+} from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { makeGlobalId, slugify } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
@@ -176,7 +179,9 @@ export class CreatePostUseCase implements ICreatePostUseCase {
       command.userId,
       'POST_OPEN',
     );
-    const quota = capability?.limit ?? 0;
+    // `resolveQuotaLimit` chứ không `?? 0` tại chỗ: lựa chọn fail-closed cho ô trống
+    // giờ ở một hàm có tên, vì nó ngược với nghĩa mà người đọc DTO dễ đoán.
+    const quota = resolveQuotaLimit(capability?.limit ?? null);
     if (!capability?.allowed) throw new PostQuotaExceededException(quota);
     const created = await this.postRepository.createPostWithinQuota(
       command.userId,

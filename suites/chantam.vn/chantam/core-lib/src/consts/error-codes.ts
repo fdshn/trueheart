@@ -146,6 +146,7 @@ export enum ErrorCodes {
   // 0x0A — Chính sách quyền/quota theo rank
   ENTITLEMENT_POLICY_UNAVAILABLE = 0x0a_01,
   ENTITLEMENT_CAPABILITY_UNKNOWN = 0x0a_02,
+  ENTITLEMENT_LIMIT_INVALID = 0x0a_03,
 
   // Chat & thông báo
   CHAT_ROOM_NOT_FOUND = 0x0b_01,

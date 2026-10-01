@@ -5,6 +5,7 @@ export * from './chat-cursor';
 export * from './chat-retention';
 export * from './content-moderation';
 export * from './content-moderation.corpus';
+export * from './entitlement';
 export * from './gift-post';
 export * from './gift-request';
 export * from './group';

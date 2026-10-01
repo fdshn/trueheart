@@ -86,3 +86,4 @@ export * from './1796500000000-CreateChatMessageFlags';
 export * from './1796600000000-AddCategoryMergedInto';
 export * from './1796700000000-IndexReferralsByReferrer';
 export * from './1796800000000-SeedReferralAbuseConfig';
+export * from './1796900000000-ArchiveClosedEntitlementRevisions';

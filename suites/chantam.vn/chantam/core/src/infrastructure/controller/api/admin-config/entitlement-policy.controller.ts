@@ -1,9 +1,11 @@
 import {
+  IGetEntitlementPolicyHistoryUseCase,
   IGetEntitlementPolicyUseCase,
   IPublishEntitlementPolicyUseCase,
 } from '@/application/contracts/entitlement';
 import {
   EntitlementCapabilityUnknownException,
+  EntitlementLimitInvalidException,
   EntitlementPolicyUnavailableException,
 } from '@/domain/exceptions';
 import {
@@ -17,7 +19,7 @@ import {
   ForbiddenException,
   ValidationFailedException,
 } from '@chantam/service.common-lib/exception';
-import { Body, Controller, Get, Inject, Post } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Post, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -25,6 +27,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  GetEntitlementPolicyHistoryQueryDto,
+  GetEntitlementPolicyHistoryResponseDto,
   GetEntitlementPolicyResponseDto,
   PublishEntitlementPolicyBodyDto,
   PublishEntitlementPolicyResponseDto,
@@ -38,6 +42,8 @@ export class EntitlementPolicyController {
   public constructor(
     @Inject(IGetEntitlementPolicyUseCase)
     private readonly getEntitlementPolicyUseCase: IGetEntitlementPolicyUseCase,
+    @Inject(IGetEntitlementPolicyHistoryUseCase)
+    private readonly getEntitlementPolicyHistoryUseCase: IGetEntitlementPolicyHistoryUseCase,
     @Inject(IPublishEntitlementPolicyUseCase)
     private readonly publishEntitlementPolicyUseCase: IPublishEntitlementPolicyUseCase,
   ) {}
@@ -68,6 +74,36 @@ export class EntitlementPolicyController {
       .build();
   }
 
+  // ĐẶT TRƯỚC `@Post()` không cần thiết, nhưng đặt trước các route có tham số thì
+  // cần: Nest khớp theo thứ tự khai, và `history` để sau một `:revisionId` tương lai sẽ
+  // bị nuốt thành tham số rồi trả 400 vì không phải số.
+  @Get('history')
+  @RequiresPermission('entitlement.read')
+  @ApiOperation({
+    summary: 'Lịch sử các bản chính sách quyền/quota',
+    description:
+      'Các bản đã từng hiệu lực, mới nhất trước, kèm khung thời gian và lý do đổi.\n\n' +
+      'Dữ liệu này có đủ từ đầu — `capability_policies.revision_id` trỏ `config_revisions`, và bảng đó giữ `effective_from`/`effective_to` cùng `PUBLISHED`/`ARCHIVED`, đúng cơ chế `system_configs` dùng. Nhưng trước 01/10 không endpoint nào đọc chúng, nên câu **"bài bị từ chối vì quota thì lúc đó quota là bao nhiêu"** chỉ trả lời được bằng SQL tay — đúng vào lúc tệ nhất, khi có người khiếu nại.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(GetEntitlementPolicyHistoryResponseDto),
+  })
+  @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
+  public async getEntitlementPolicyHistory(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Query() query: GetEntitlementPolicyHistoryQueryDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.getEntitlementPolicyHistoryUseCase.handle({
+          actorUserId: principal.userId,
+          limit: query.limit,
+        }),
+      )
+      .build();
+  }
+
   @Post()
   @RequiresPermission('entitlement.write')
   @ApiOperation({
@@ -86,6 +122,14 @@ export class EntitlementPolicyController {
       ['changeReason must be longer than or equal to 1 characters'],
     ],
     [EntitlementCapabilityUnknownException, 'POST_TELEPATHY'],
+    [
+      EntitlementLimitInvalidException,
+      [
+        'POST_OPEN',
+        'SILVER',
+        'đã cho phép thì phải có hạn mức lớn hơn 0 — ô trống bị đọc thành 0 nên sẽ khoá cả bậc này',
+      ],
+    ],
     EntitlementPolicyUnavailableException,
   )
   public async publishEntitlementPolicy(
