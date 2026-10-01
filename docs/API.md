@@ -1,6 +1,6 @@
 # Tham chiếu API
 
-Mô tả **127 endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
+Mô tả **các endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
 buộc mà chữ ký hàm không nói ra.
 
 Ba file bổ trợ nhau, đừng nhầm:

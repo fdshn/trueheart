@@ -2,8 +2,8 @@
 
 Bảng tra nhanh: mỗi endpoint cần gì, và nó đã chạy được chưa.
 
-> **Không ghi tổng số endpoint ở đây nữa** (30/09). Con số "62" đã lạc hậu — hiện có **154**
-> route decorator. Cùng bài học với số bảng ở [27](./27-database.md): một con số đếm tay thì
+> **Không ghi tổng số endpoint ở đây nữa** (30/09). Con số "62" đã lạc hậu, và bản sửa nó ghi "154" cũng lạc hậu nốt — chính câu này
+> từng vừa nói "không ghi tổng số" vừa ghi một tổng số (sửa 01/10). Cùng bài học với số bảng ở [27](./27-database.md): một con số đếm tay thì
 > luôn chậm hơn commit mới nhất. Lấy danh sách thật từ `GET /docs/json`, hoặc:
 >
 > ```bash
@@ -200,6 +200,6 @@ flowchart TD
    `rank.points_source`), và `test:rank-balance` canh đúng điều đó.
 4. ✅ **Đã có `targetLabel` cho bình luận** (đợt 15-report): trích đoạn đầu `body` cùng tên tác
    giả, đủ để Admin quyết mà không phải mở từng cái.
-5. ⚠️ **Bảng dưới đây liệt kê theo phân hệ, không theo từng route.** Với 154 route thì một bảng
+5. ⚠️ **Bảng dưới đây liệt kê theo phân hệ, không theo từng route.** Với hơn một trăm rưỵi route thì một bảng
    đầy đủ sẽ lạc hậu ngay lượt commit sau — `GET /docs/json` là nguồn duy nhất luôn đúng. Bảng
    này giữ lại vì nó trả lời câu khác: endpoint cần QUYỀN gì và cổng nào chặn nó.
