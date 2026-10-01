@@ -244,6 +244,61 @@ describe('GetPostUseCase', () => {
     });
   });
 
+  it('người nhận được chọn thấy TOẠ ĐỘ THẬT, cùng ngưỡng với contactInfo', async () => {
+    // Đặc tả mục 1.3. Trước 01/10 câu này chưa từng chạy cho toạ độ: hệ đã trả
+    // `contactInfo.address` — địa chỉ dạng chứ — cho người nhận, nhưng pin trên bản đồ
+    // vẫn lệch ~300 m. Tức app đưa họ số nhà rồi chỉ sai chỗ để đi tới.
+    const post = makePost();
+    const postRepository = {
+      findPublicByGlobalId: jest.fn().mockResolvedValue(post),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftTransactionRepository = {
+      isReceiverOfPost: jest.fn().mockResolvedValue(true),
+    } as unknown as jest.Mocked<IGiftTransactionRepository>;
+
+    const result = await new GetPostUseCase(
+      postRepository,
+      { listByPostId: jest.fn().mockResolvedValue([]) } as never,
+      makeGiftRequestRepo(),
+      giftTransactionRepository,
+      makeUserRepo(),
+      makeReactions(),
+      makeConfig(),
+    ).handle({
+      postId: PostId,
+      currentUserId: '88888888-8888-8888-8888-888888888888',
+    });
+
+    expect(result.isLocationApproximate).toBe(false);
+    expect(result.post.location).toEqual(makePost().location);
+    // MỘT lượt hỏi cho cả toạ độ và contactInfo: hai lần gọi là hai cơ hội để hai
+    // ngưỡng trôi lệch nhau về sau.
+    expect(giftTransactionRepository.isReceiverOfPost).toHaveBeenCalledTimes(1);
+  });
+
+  it('người ngoài đăng nhập vẫn chỉ thấy toạ độ đã làm nhiễu', async () => {
+    const postRepository = {
+      findPublicByGlobalId: jest.fn().mockResolvedValue(makePost()),
+    } as unknown as jest.Mocked<IPostRepository>;
+
+    const result = await new GetPostUseCase(
+      postRepository,
+      { listByPostId: jest.fn().mockResolvedValue([]) } as never,
+      makeGiftRequestRepo(),
+      makeGiftTransactionRepo(),
+      makeUserRepo(),
+      makeReactions(),
+      makeConfig(),
+    ).handle({
+      postId: PostId,
+      currentUserId: '77777777-7777-7777-7777-777777777777',
+    });
+
+    expect(result.isLocationApproximate).toBe(true);
+    expect(result.post.location).not.toEqual(makePost().location);
+    expect(result.contactInfo).toBeNull();
+  });
+
   it('chỉ MỘT con số cảm xúc, không có lối đếm thích riêng', async () => {
     // Nút thích và dải cảm xúc là cùng một nút: chạm là LIKE, giữ thì chọn loại
     // khác. Nên `myReaction` nói người gọi đang để gì, `reactionCount` nói tổng

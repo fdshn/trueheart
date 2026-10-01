@@ -53,7 +53,32 @@ export class GetPostUseCase implements IGetPostUseCase {
     if (!post) throw new PostNotFoundException(command.postId);
 
     const isAuthor = command.currentUserId === post.authorId;
-    if (!isAuthor)
+
+    // Hai bên trong lượt trao thấy toạ độ THẬT, dùng ĐÚNG ngưỡng đã mở cho thông tin
+    // liên lạc ở dưới: `isReceiverOfPost` (giao dịch ACCEPTED/DELIVERING/COMPLETED).
+    //
+    // ## Vì sao không đặt một ngưỡng riêng cho toạ độ
+    //
+    // Hệ này ĐÃ trả `contactInfo.address` — địa chỉ dạng chứ — cho chính người nhận đó,
+    // cùng số điện thoại. Nhưng pin trên bản đồ họ thấy vẫn lệch ~300 m, tức app đưa họ
+    // số nhà rồi chỉ sai chỗ để đi tới. Hai ngưỡng khác nhau cho cùng một cặp người là một
+    // sự tùy ý khó giải thích, và cái bị giữ lại lại đúng là cái họ cần để tìm đường.
+    //
+    // Đặc tả mục 1.3 nói "chỉ người đã được duyệt nhận mới biết địa chỉ chính xác".
+    // Trước 01/10 câu đó chưa từng chạy cho toạ độ: đường canonical chỉ có ngoại lệ chủ
+    // bài, còn đường legacy mang một tham số `canViewExactLocation` hardcode `false`.
+    //
+    // KHÔNG áp cho `/posts/nearby`, `/posts/map`, `/posts/:id/matches`: ở đó mọi bài đều
+    // là bài của người khác, và một kênh quét không bao giờ được trả toạ độ thật.
+    const isReceiver = command.currentUserId
+      ? await this.giftTransactionRepository.isReceiverOfPost(
+          post.globalId,
+          command.currentUserId,
+        )
+      : false;
+    const canSeeExactLocation = isAuthor || isReceiver;
+
+    if (!canSeeExactLocation)
       post.location = applyGeoJitter(
         post.location,
         post.globalId,
@@ -100,17 +125,15 @@ export class GetPostUseCase implements IGetPostUseCase {
       }
     }
 
-    // Privacy: Thông tin liên lạc chỉ tiết lộ cho chính người tặng hoặc receiver
-    // đã được chọn trong giao dịch DELIVERING/COMPLETED.
+    // Privacy: thông tin liên lạc chỉ tiết lộ cho chính người tặng hoặc người nhận đã
+    // được chọn — giao dịch ACCEPTED/DELIVERING/COMPLETED, xem `isReceiverOfPost`.
+    //
+    // Dùng lại `canSeeExactLocation` đã tính ở trên thay vì gọi `isReceiverOfPost` lần hai:
+    // một lượt đọc bài không nên hỏi cùng một câu hai lần, và quan trọng hơn: hai lần gọi
+    // là hai cơ hội để hai ngưỡng trôi lệch nhau về sau.
     let contactInfo: IPostContactInfoDto | null = null;
     if (command.currentUserId && authorUser) {
-      const isAuthor = command.currentUserId === post.authorId;
-      const isReceiver = await this.giftTransactionRepository.isReceiverOfPost(
-        post.globalId,
-        command.currentUserId,
-      );
-
-      if (isAuthor || isReceiver) {
+      if (canSeeExactLocation) {
         contactInfo = {
           phone: authorUser.phone ?? null,
           address: (post.details?.address as string) || post.areaLabel || null,
@@ -133,7 +156,7 @@ export class GetPostUseCase implements IGetPostUseCase {
           url: `${this.config.storage.publicBaseUrl.replace(/\/$/, '')}/${item.r2Key}`,
           sortOrder: item.sortOrder,
         })),
-      isLocationApproximate: !isAuthor,
+      isLocationApproximate: !canSeeExactLocation,
       requestCount: requestCounts.get(post.globalId) ?? 0,
       myRequestStatus,
       hasRequested: Boolean(myRequestStatus),

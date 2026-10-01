@@ -146,7 +146,7 @@ Xếp theo mức đáng làm trước.
 | T6 | [09](./09-chat.md) | **Chat nhóm** chưa có |
 | T7 | [05](./05-feed.md) | **Feed không loại bài của chính mình**; chưa có gợi ý theo tiền tố khi đang gõ; smart match chỉ khớp danh mục + khoảng cách + từ khoá tiêu đề |
 | T8 | [22](./22-category.md) | **Chưa có ảnh cho danh mục** (có `icon` dạng chuỗi tên); chưa có `GET /admin/categories/:id`; **gộp không có đường lùi** |
-| T9 | [25](./25-location-privacy.md) | **Bán kính jitter là hằng trong code** — vùng nông thôn có thể vẫn chỉ ra đúng một nhà; **chưa có endpoint trả vị trí thật cho hai bên trong lượt trao** (hiện họ hẹn qua chat) |
+| T9 | [25](./25-location-privacy.md) | **Bán kính jitter là MỘT con số CHUNG** cho cả thành phố lẫn nông thôn (300 m, qua `GEO_JITTER_RADIUS_METERS`) — ở vùng thưa vẫn có thể chỉ ra đúng một nhà. Và nó là biến môi trường nên đổi phải deploy. Chuyển sang cấu hình động cần một **sàn cứng** trước — một ô số hạ được lúc chạy thì cũng nâng lên 0 được lúc chạy, tức tắt sạch lớp bảo vệ. Sàn đó là con số Bên A phải chốt |
 | T10 | [26](./26-api-conventions.md) | Thông báo lỗi **chỉ có tiếng Việt**; chưa có kế hoạch cho API v2 |
 | T11 | [16](./16-admin.md) | Chưa có **vai cho vận hành** ngoài bốn vai đã seed |
 | T12 | [27](./27-database.md) | Chưa có **chiến lược phân vùng** cho `point_ledger` và `chat_messages` (cả hai chỉ tăng) |

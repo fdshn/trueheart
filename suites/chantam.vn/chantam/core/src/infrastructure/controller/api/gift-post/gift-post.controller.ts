@@ -166,12 +166,9 @@ export class GiftPostController {
   public async getGiftPost(
     @Param() params: GetGiftPostParamsDto,
   ): Promise<ResponseDto<IGetGiftPostResponseDto>> {
-    // `canViewExactLocation` cố ý KHÔNG lấy từ client. Khi có auth-lib, giá trị
-    // này được suy ra từ trạng thái đơn xin của người gọi.
-    const result = await this.getGiftPostUseCase.handle({
-      ...params,
-      canViewExactLocation: false,
-    });
+    // Route `@Public()` nên KHÔNG có danh tính người gọi — toạ độ luôn được làm nhiễu.
+    // Client cần toạ độ thật dùng `GET /posts/:postId`, xem ghi chú trong use case.
+    const result = await this.getGiftPostUseCase.handle({ ...params });
 
     return ResponseDto.create<IGetGiftPostResponseDto>()
       .succeed()
