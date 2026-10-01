@@ -335,8 +335,11 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. ⚠️ **`REPORT_UPHELD` vẫn TẮT.** Hai rule tương tác đã bật, còn thưởng cho người báo xấu thì
-   chưa — cần Bên A chốt có thưởng không, và nếu có thì +5đ với trần 5/ngày đã đúng chưa.
+1. ✅ **`REPORT_UPHELD` ĐÃ BẬT** — dòng này lạc hậu, sửa 01/10. Migration `1795300000000`
+   bật nó từ 29/09: hiện `version 2`, `+5` điểm, trần `5/ngày`, `is_enabled = true` — đọc
+   thật từ `point_rules`. [11 §mục 7](./11-point.md) đã ghi đúng từ lúc đó; chỉ dòng này
+   đứng im. Hai tài liệu nói trái nhau về cùng một rule là lý do
+   [31](./31-open-items.md) tồn tại: một sổ treo, không phải ba mươi.
 2. ⚠️ **Đổi hợp đồng API.** `POST /posts/:postId/like` đã gỡ, `likeCount` và `isLiked` biến mất
    khỏi cả bốn endpoint đọc bài. Client phải chuyển sang `PUT /posts/:id/reactions/me` và suy
    `isLiked` từ `myReaction`.

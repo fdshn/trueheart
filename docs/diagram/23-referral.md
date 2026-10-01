@@ -307,7 +307,7 @@ niệm "nợ bằng hiện vật" là tạo ra thứ không ai bảo trì.
    dùng chung cho cả ba, và cách làm việc với hàng đợi là quyết định của Bên A — dựng một
    luồng chưa ai đồng ý là cách sinh ra bảng không ai dùng.
 
-3. **Nhiều khoá `system_configs` seed sẵn mà KHÔNG sửa được qua Admin.** Hiện 22 khoá có
+3. **Nhiều khoá `system_configs` seed sẵn mà KHÔNG sửa được qua Admin.** Hiện 24 khoá có
    dòng, `SupportedSystemConfigKeys` cho 16 — và đường ghi chỉ nhận `INTEGER`, nên mọi
    khoá hình JSON (`report.abuse`, `accuracy.giver`, `moderation.blocked_terms`…) chỉ đổi
    được bằng SQL tay. Không thuộc phân hệ này, nhưng phát hiện ở đây nên ghi lại.

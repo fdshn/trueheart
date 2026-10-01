@@ -2,6 +2,15 @@
 
 Gom toàn bộ điểm còn treo rải rác trong 29 sơ đồ còn lại về một chỗ, xếp theo mức chặn.
 
+> **File này là LỊCH SỬ, xếp theo loại vấn đề.** Mỗi mục đã đóng được đánh ✅ chứ
+> không xoá, vì xoá đi thì lần sau không ai biết nó từng là vấn đề. Nhưng vì vậy nó càng
+> dài thì càng khó trả lời câu "hôm nay còn vướng gì".
+>
+> **Danh sách ĐANG còn treo nằm ở [31 · Sổ treo theo phân hệ](./31-open-items.md)** — xếp theo
+> phân hệ, chỉ chứa thứ chưa đóng, mỗi mục ghi rõ ai quyết và để treo thì mất gì.
+>
+> Hai file, một nguồn: khi một mục đóng lại, nó được đánh ✅ ở đây rồi **xoá khỏi 31**.
+
 > **Soát lại 30/09.** Bảy mục ghi là treo thì đã xong, và **hai mục tự nó sai** — xem đánh dấu
 > ✅ và ❌ dưới đây. Lượt thứ hai cùng ngày đóng nốt bốn chỗ còn lại: thông báo cho người giới
 > thiệu, trần gọi chung, tự kiểm CLI ở cổng triển khai, và healthcheck ngoài cho service chết. Một danh sách "việc còn treo" mà không ai dọn sẽ dài ra rồi bị bỏ qua cả

@@ -95,11 +95,16 @@ hệ thống đã làm xong những việc chưa ai viết một dòng code.
 | 28 | [Kiến trúc & khởi động](./28-architecture.md) | Bốn tầng, DI bằng Symbol, ba tầng kiểm thử — cả 30 script kiểm chứng nay nằm trong CI | ✅ |
 | 29 | [CI/CD & triển khai](./29-cicd.md) | Pipeline, rollback, điều kiện production-ready | ✅ 🟡 |
 | 30 | [Ma trận endpoint](./30-endpoint-matrix.md) | Endpoint × quyền × trạng thái, và cái chưa có | — |
+| 31 | [Sổ treo theo phân hệ](./31-open-items.md) | Danh sách ĐANG còn treo, xếp theo phân hệ, mỗi mục ghi ai quyết và để treo thì mất gì | — |
 
 ## Cách soát
 
 Đọc theo thứ tự 01 → 21. Mỗi sơ đồ có một mục **"Chỗ cần soát"** ở cuối liệt kê các quyết
 định đã cắm vào thiết kế — đó là nơi dễ phát hiện sai nhất.
+
+Muốn biết **hôm nay còn vướng gì** thì đọc [31](./31-open-items.md) trước: nó gom các mục "Chỗ
+cần soát" của 30 file còn lại, bỏ hết thứ đã đóng, và xếp theo phân hệ. [21](./21-open-issues.md)
+giữ lịch sử — những gì từng treo và đã đóng.
 
 ## Quy ước màu trong sơ đồ
 
