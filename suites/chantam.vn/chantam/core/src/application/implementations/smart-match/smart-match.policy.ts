@@ -1,4 +1,8 @@
-import { SmartMatchStopWords, SmartMatchWeights } from '@/domain/consts';
+import { SmartMatchStopWords } from '@/domain/consts';
+import {
+  DefaultAllocationPolicy,
+  IAllocationMatchWeights,
+} from '@chantam.vn/chantam.core-lib/models';
 
 /** Tín hiệu thô của một ứng viên, đọc thẳng từ database. */
 export interface ISmartMatchSignals {
@@ -37,17 +41,28 @@ export function extractSmartMatchKeywords(text: string): string[] {
  * Khoảng cách tính ngược: sát bên là 1, tới đúng rìa bán kính là 0. Ra ngoài
  * bán kính thì đã bị lọc từ SQL, nhưng vẫn kẹp về 0 để một lần gọi sai tham số
  * không tạo ra điểm âm.
+ *
+ * Trọng số là THAM SỐ, không còn là hằng số nhập từ `@/domain/consts`: Admin đổi
+ * được chúng qua `PUT /admin/config/allocation-policy`. Mặc định vẫn là đúng ba
+ * con số cũ, nên gọi không truyền gì thì kết quả không đổi.
+ *
+ * Điểm chỉ ở trong [0, 1] khi ba trọng số cộng lại bằng 1 —
+ * `normalizeAllocationPolicy` lo việc đó trước khi ghi, nên mọi bộ lấy từ config
+ * đều đã chia về tổng 1.
  */
-export function scoreSmartMatch(signals: ISmartMatchSignals): number {
+export function scoreSmartMatch(
+  signals: ISmartMatchSignals,
+  weights: IAllocationMatchWeights = DefaultAllocationPolicy.weights,
+): number {
   const proximity =
     signals.radiusMeters <= 0
       ? 0
       : Math.max(0, 1 - signals.distanceMeters / signals.radiusMeters);
 
   return (
-    (signals.sameCategory ? SmartMatchWeights.sameCategory : 0) +
-    (signals.keywordMatched ? SmartMatchWeights.keyword : 0) +
-    SmartMatchWeights.proximity * proximity
+    (signals.sameCategory ? weights.sameCategory : 0) +
+    (signals.keywordMatched ? weights.keyword : 0) +
+    weights.proximity * proximity
   );
 }
 

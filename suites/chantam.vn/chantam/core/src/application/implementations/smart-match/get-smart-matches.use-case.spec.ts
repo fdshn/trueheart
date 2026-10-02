@@ -50,6 +50,9 @@ function makeDeps(
           excludeAuthorId: string;
           sourcePostId: string;
           keywords: string[];
+          categoryMatchRequired?: boolean;
+          radiusMeters: number;
+          take: number;
         }) => candidates,
       ),
       // Có mặt để test chứng minh được là KHÔNG bị gọi.
@@ -70,6 +73,19 @@ function makeDeps(
       geo: { jitterRadiusMeters: 300 },
       storage: { publicBaseUrl: 'https://cdn.chantam.vn/' },
     },
+    // `null` = chưa Admin nào publish `allocation.policy`. Mặc định của mock này
+    // là trạng thái thật của hệ sau khi triển khai, nên mọi phép kiểm cũ trong file
+    // chứng minh luôn một điều: bản cấu hình hoá KHÔNG đổi hành vi khi chưa publish.
+    adminConfig: {
+      getConfigValue: jest.fn(async (_key: string) => allocationPolicy),
+    },
+    entitlements: {
+      getCapability: jest.fn(async (_userId: string, _code: string) =>
+        rankRadiusMeters === null
+          ? null
+          : { allowed: true, limit: rankRadiusMeters },
+      ),
+    },
   };
 }
 
@@ -79,10 +95,27 @@ function makeUseCase(deps: ReturnType<typeof makeDeps>) {
     deps.media as never,
     deps.users as never,
     deps.config as never,
+    deps.adminConfig as never,
+    deps.entitlements as never,
   );
 }
 
 const Command = { postId: SourceId, userId: AuthorId };
+
+/**
+ * Chính sách và hạn mức hạng dùng cho lượt gọi kế tiếp.
+ *
+ * `null` ở cả hai = trạng thái sau khi triển khai nhưng chưa ai publish, tức đúng
+ * hành vi có từ trước. `beforeEach` đặt lại để một phép kiểm đổi chính sách không
+ * làm lệch phép kiểm sau nó.
+ */
+let allocationPolicy: unknown = null;
+let rankRadiusMeters: number | null = null;
+
+beforeEach(() => {
+  allocationPolicy = null;
+  rankRadiusMeters = null;
+});
 
 describe('GetSmartMatchesUseCase', () => {
   it('ghép Muốn Nhận với Muốn Tặng', async () => {
@@ -362,5 +395,161 @@ describe('GetSmartMatchesUseCase', () => {
     const result = await makeUseCase(deps).handle(Command);
 
     expect(result.matches[0].author).toBeNull();
+  });
+  describe('allocation.policy đổi hành vi thật', () => {
+    it('chưa publish thì truyền categoryMatchRequired false và vẫn có từ khoá', async () => {
+      const deps = makeDeps();
+
+      await makeUseCase(deps).handle(Command);
+
+      const params = deps.posts.findSmartMatches.mock.calls[0][0];
+      expect(params.categoryMatchRequired).toBe(false);
+      expect(params.keywords.length).toBeGreaterThan(0);
+      expect(params.radiusMeters).toBe(20_000);
+      expect(params.take).toBe(20);
+    });
+
+    it('categoryMatchRequired đi xuống repository', async () => {
+      allocationPolicy = { categoryMatchRequired: true };
+      const deps = makeDeps();
+
+      await makeUseCase(deps).handle(Command);
+
+      expect(
+        deps.posts.findSmartMatches.mock.calls[0][0].categoryMatchRequired,
+      ).toBe(true);
+    });
+
+    it('tắt từ khoá thì KHÔNG gửi token nào xuống truy vấn', async () => {
+      // Tắt cả hai bị `allocationPolicyGaps` chặn ở đường publish, nên ca hợp lệ
+      // duy nhất của `keywordMatchEnabled: false` là kèm `categoryMatchRequired`.
+      allocationPolicy = {
+        categoryMatchRequired: true,
+        keywordMatchEnabled: false,
+      };
+      const deps = makeDeps();
+
+      await makeUseCase(deps).handle(Command);
+
+      expect(deps.posts.findSmartMatches.mock.calls[0][0].keywords).toEqual([]);
+    });
+
+    it('maxSuggestions chặn trên được cả giá trị client gửi', async () => {
+      allocationPolicy = { maxSuggestions: 1 };
+      const deps = makeDeps();
+
+      const result = await makeUseCase(deps).handle({ ...Command, take: 50 });
+
+      expect(deps.posts.findSmartMatches.mock.calls[0][0].take).toBe(1);
+      expect(result.matches).toHaveLength(1);
+    });
+
+    it('FILTER_ONLY không hỏi hạn mức hạng', async () => {
+      // Một truy vấn capability mỗi lượt gợi ý cho giá trị không ai đọc là tốn vô
+      // ích, và `FILTER_ONLY` là mặc định nên đó là mọi lượt gọi.
+      rankRadiusMeters = 45_000;
+      const deps = makeDeps();
+
+      await makeUseCase(deps).handle(Command);
+
+      expect(deps.entitlements.getCapability).not.toHaveBeenCalled();
+      expect(deps.posts.findSmartMatches.mock.calls[0][0].radiusMeters).toBe(
+        20_000,
+      );
+    });
+
+    it('RANK_ONLY lấy bán kính theo hạng, bỏ qua bán kính client gửi', async () => {
+      allocationPolicy = { distanceRule: 'RANK_ONLY' };
+      rankRadiusMeters = 45_000;
+      const deps = makeDeps();
+
+      await makeUseCase(deps).handle({ ...Command, radiusMeters: 1_000 });
+
+      expect(deps.entitlements.getCapability).toHaveBeenCalled();
+      expect(deps.posts.findSmartMatches.mock.calls[0][0].radiusMeters).toBe(
+        45_000,
+      );
+    });
+
+    it('RANK_ONLY thiếu capability thì lùi về bán kính client, không về 0', async () => {
+      allocationPolicy = { distanceRule: 'RANK_ONLY' };
+      rankRadiusMeters = null;
+      const deps = makeDeps();
+
+      await makeUseCase(deps).handle({ ...Command, radiusMeters: 1_000 });
+
+      expect(deps.posts.findSmartMatches.mock.calls[0][0].radiusMeters).toBe(
+        1_000,
+      );
+    });
+
+    it('RANK_OR_FILTER lấy cái nới hơn', async () => {
+      allocationPolicy = { distanceRule: 'RANK_OR_FILTER' };
+      rankRadiusMeters = 45_000;
+      const deps = makeDeps();
+
+      await makeUseCase(deps).handle({ ...Command, radiusMeters: 1_000 });
+
+      expect(deps.posts.findSmartMatches.mock.calls[0][0].radiusMeters).toBe(
+        45_000,
+      );
+    });
+
+    it('bán kính theo hạng vẫn bị kẹp vào trần kỹ thuật 50km', async () => {
+      // Hạn mức hạng là dữ liệu Admin nhập; nới quá trần truy vấn là quét cả nước.
+      allocationPolicy = { distanceRule: 'RANK_ONLY' };
+      rankRadiusMeters = 900_000;
+      const deps = makeDeps();
+
+      await makeUseCase(deps).handle(Command);
+
+      expect(deps.posts.findSmartMatches.mock.calls[0][0].radiusMeters).toBe(
+        50_000,
+      );
+    });
+
+    it('trọng số của Admin đổi được THỨ TỰ gợi ý', async () => {
+      // Hai ứng viên cố ý ngược nhau: một bài SÁT BÊN nhưng sai danh mục và không
+      // trùng từ khoá, một bài XA nhưng khớp cả hai. Bộ trọng số nào thắng thì thấy
+      // ngay ở bài nào lên đầu — mạnh hơn hẳn việc so hai con số điểm, vì điểm có
+      // thể lệch vài phần nghìn mà thứ tự vẫn y nguyên.
+      const near = candidate({
+        post: {
+          globalId: '50000000-0000-4000-8000-00000000000a',
+          categoryId: CategoryId,
+          location: { lat: 10.78, lng: 106.7 },
+        },
+        distanceMeters: 100,
+        sameCategory: false,
+        keywordMatched: false,
+      });
+      const farButMatching = candidate({
+        post: {
+          globalId: '50000000-0000-4000-8000-00000000000b',
+          categoryId: CategoryId,
+          location: { lat: 10.9, lng: 106.9 },
+        },
+        distanceMeters: 19_000,
+        sameCategory: true,
+        keywordMatched: true,
+      });
+
+      // Mặc định: khớp danh mục + từ khoá (0,8) thắng khoảng cách (0,2 × 0,995).
+      const baseline = await makeUseCase(
+        makeDeps(sourcePost(), [near, farButMatching]),
+      ).handle(Command);
+      expect(baseline.matches[0].post.globalId).toBe(
+        farButMatching.post.globalId,
+      );
+
+      // Dồn hết sang khoảng cách: bài sát bên lên đầu dù sai danh mục.
+      allocationPolicy = {
+        weights: { sameCategory: 0, keyword: 0, proximity: 1 },
+      };
+      const tuned = await makeUseCase(
+        makeDeps(sourcePost(), [near, farButMatching]),
+      ).handle(Command);
+      expect(tuned.matches[0].post.globalId).toBe(near.post.globalId);
+    });
   });
 });

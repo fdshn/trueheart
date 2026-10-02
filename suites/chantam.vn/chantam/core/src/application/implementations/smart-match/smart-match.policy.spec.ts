@@ -1,4 +1,4 @@
-import { SmartMatchWeights } from '@/domain/consts';
+import { DefaultAllocationPolicy } from '@chantam.vn/chantam.core-lib/models';
 import {
   buildSmartMatchReasons,
   extractSmartMatchKeywords,
@@ -73,7 +73,7 @@ describe('scoreSmartMatch', () => {
     });
 
     expect(category).toBeGreaterThan(keyword);
-    expect(category).toBeCloseTo(SmartMatchWeights.sameCategory);
+    expect(category).toBeCloseTo(DefaultAllocationPolicy.weights.sameCategory);
   });
 
   it('tới đúng rìa bán kính thì phần khoảng cách về 0', () => {
@@ -106,7 +106,7 @@ describe('scoreSmartMatch', () => {
         distanceMeters: 0,
         radiusMeters: 0,
       }),
-    ).toBeCloseTo(SmartMatchWeights.sameCategory);
+    ).toBeCloseTo(DefaultAllocationPolicy.weights.sameCategory);
   });
 });
 

@@ -205,9 +205,21 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
 
 **Admin CMS**
 - [ ] F59 Dashboard KPI
-- [ ] F60 Kiểm duyệt + quản lý người dùng — API đã có (tìm/lọc, đổi trạng thái, xoá mềm) và **đã gọi `ITokenDenyList.revokeIssuedBefore()`** trước khi thu hồi phiên; giao diện CMS chưa có
-- [ ] F61 Cấu hình Rank/Point/Referral/Affiliate/Accuracy (có version) — `system_configs` có revision bất biến cho một tập khoá; chưa phủ hết Rank/Accuracy
-- [ ] F62 Quản lý danh mục + mẫu thông báo
+- [x] F60 Kiểm duyệt + quản lý người dùng — 23 endpoint đã chạy (`users` 7, `reports` 5,
+  `chat` 5, `comments` 3, `posts` 3) và **đã gọi `ITokenDenyList.revokeIssuedBefore()`**
+  trước khi thu hồi phiên. Phần API xong; **giao diện CMS chưa có** (không có `apps/`)
+- [x] F61 Cấu hình Rank/Point/Referral/Affiliate/Accuracy (có version) — đã phủ đủ: Rank
+  (`/admin/ranks` + `publishRankPolicy`), Point (`/admin/points`), Referral
+  (`referral.review_*`), Affiliate (`/admin/affiliate-policy`), Accuracy (`accuracy.giver`),
+  và 02/10 thêm **phân bổ & ghép nối** (`GET|PUT /admin/config/allocation-policy`, SRS
+  §6.2.14) — sáu trường trước đó là hằng số cứng `SmartMatchWeights` /
+  `SmartMatchMaxResults` và nhánh lọc viết thẳng trong câu truy vấn. Mặc định trùng khít
+  hành vi cũ nên triển khai không đổi gợi ý nào; `autoCreateTransaction` có trong schema
+  nhưng `PUT` TỪ CHỐI bật vì chưa hiện thực
+- [x] F62 Quản lý danh mục + mẫu thông báo — mẫu và kênh ở `/admin/notification-templates`
+  (2) và `/admin/notification-channels` (2); danh mục ĐỌC ở `/admin/categories` còn SỬA ở
+  `/categories` (POST), `/categories/{id}` (PATCH), `/categories/{id}/merge` (POST) — chia
+  hai tiền tố nên dễ tưởng là thiếu, nhưng không thiếu endpoint nào
 - [ ] F63 Campaign + Home động
 - [ ] F64 Blog / Tin tức
 - [ ] F65 Quản lý Từ thiện, Rao vặt, Quảng cáo, Công đức

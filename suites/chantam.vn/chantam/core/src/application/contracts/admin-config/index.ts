@@ -9,6 +9,7 @@ export * from './admin-point-rule.use-cases';
 export * from './admin-rank-policy.use-cases';
 export * from './admin-role.use-cases';
 export * from './admin-user.use-cases';
+export * from './allocation-policy.use-cases';
 export * from './candidate-selection.use-cases';
 export * from './get-own-admin-access.use-case';
 export * from './get-system-logs.use-case';

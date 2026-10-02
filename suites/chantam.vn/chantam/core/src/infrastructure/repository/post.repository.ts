@@ -377,12 +377,25 @@ export class PostRepository
 
     query.addSelect(tsQuery ? keywordMatch : 'false', 'keyword_matched');
 
+    // Bind NGAY ở đây, không nhờ nhánh `andWhere` bên dưới bind hộ.
+    //
+    // Tới trước `allocation.policy`, `:tsQuery` chỉ xuất hiện trong câu `andWhere`
+    // của nhánh OR, nên nó luôn được bind cùng chỗ nó được dùng. Với
+    // `categoryMatchRequired = true` nhánh đó không chạy nữa, mà `addSelect` ở trên
+    // vẫn tham chiếu `:tsQuery` — thiếu bind là TypeORM ném ngay, và chỉ ném SAU khi
+    // Admin publish bản bắt buộc danh mục, tức một lỗi ngủ trong mã nguồn chờ một
+    // lượt đổi cấu hình mới nổ.
+    if (tsQuery) query.setParameter('tsQuery', tsQuery);
+
     // Chỉ gần thôi thì chưa phải gợi ý: phải cùng danh mục hoặc trùng từ khoá,
     // nếu không danh sách đầy những bài chẳng liên quan gì.
-    if (tsQuery)
+    //
+    // `categoryMatchRequired` của `allocation.policy` quyết định phép nối là AND hay
+    // OR. Bắt buộc danh mục thì từ khoá chỉ còn là tín hiệu CHẤM ĐIỂM, không còn là
+    // đường vào — nên `keyword_matched` vẫn được select để `scoreSmartMatch` dùng.
+    if (tsQuery && params.categoryMatchRequired !== true)
       query.andWhere(`(post.category_id = :categoryId OR ${keywordMatch})`, {
         categoryId: params.categoryId,
-        tsQuery,
       });
     else
       query.andWhere('post.category_id = :categoryId', {

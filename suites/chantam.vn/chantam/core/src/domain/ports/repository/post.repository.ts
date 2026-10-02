@@ -98,8 +98,19 @@ export interface IFindSmartMatchesParams {
   /**
    * Token đã được làm sạch để ghép thành `tsquery`. Mảng rỗng nghĩa là bài
    * nguồn không còn từ khoá nào đáng tìm, khi đó chỉ lọc theo danh mục.
+   *
+   * Cũng rỗng khi `allocation.policy` tắt `keywordMatchEnabled` — hai nguyên nhân
+   * khác nhau, cùng một hệ quả ở tầng truy vấn.
    */
   keywords: string[];
+  /**
+   * `true` thì cùng danh mục là ĐIỀU KIỆN BẮT BUỘC, bất kể có từ khoá hay không.
+   * `false` thì cùng danh mục HOẶC trùng từ khoá là đủ.
+   *
+   * Thiếu trường (gọi từ mã cũ) coi như `false` — giữ đúng hành vi có từ trước khi
+   * `allocation.policy` ra đời, chứ không âm thầm thắt bộ lọc.
+   */
+  categoryMatchRequired?: boolean;
   take: number;
 }
 

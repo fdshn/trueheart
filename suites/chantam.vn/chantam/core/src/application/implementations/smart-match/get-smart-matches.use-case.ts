@@ -3,12 +3,14 @@ import {
   IGetSmartMatchesUseCase,
 } from '@/application/contracts/post';
 import {
+  DiscoveryRadiusCapabilityCode,
   SmartMatchDefaultRadiusMeters,
-  SmartMatchMaxResults,
 } from '@/domain/consts';
 import { PostNotFoundException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
+  IAdminConfigRepository,
+  IEntitlementRepository,
   IPostMediaRepository,
   IPostRepository,
   IUserRepository,
@@ -20,12 +22,19 @@ import {
   SmartMatchReason,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
+import {
+  AllocationPolicyConfigKey,
+  normalizeAllocationPolicy,
+  resolveAllocationRadiusMeters,
+} from '@chantam.vn/chantam.core-lib/models';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import {
+  MaxSearchRadiusMeters,
+  MinSearchRadiusMeters,
   applyGeoJitter,
   bucketDistance,
 } from '@chantam/service.persistency-lib/geo';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   buildSmartMatchReasons,
   extractSmartMatchKeywords,
@@ -65,7 +74,38 @@ export class GetSmartMatchesUseCase implements IGetSmartMatchesUseCase {
     @Inject(IUserRepository)
     private readonly userRepository: IUserRepository,
     @Inject(IConfig) private readonly config: IConfig,
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig: IAdminConfigRepository,
+    @Inject(IEntitlementRepository)
+    @Optional()
+    private readonly entitlements?: IEntitlementRepository,
   ) {}
+
+  /**
+   * Hạn mức bán kính theo hạng, hoặc `null` khi không có.
+   *
+   * Cùng lối `GetNearbyPostsUseCase.resolveMaxRadiusMeters`, trừ một chỗ: ở đây
+   * không có khái niệm khách chưa đăng nhập (chỉ tác giả xem được gợi ý cho bài của
+   * mình), nên thiếu capability là `null` chứ không phải một trần dành cho khách.
+   */
+  private async resolveRankRadiusMeters(
+    userId: string,
+  ): Promise<number | null> {
+    if (!this.entitlements) return null;
+
+    const capability = await this.entitlements.getCapability(
+      userId,
+      DiscoveryRadiusCapabilityCode,
+    );
+    if (
+      !capability?.allowed ||
+      capability.limit === null ||
+      !Number.isFinite(capability.limit)
+    )
+      return null;
+
+    return capability.limit;
+  }
 
   public async handle(
     command: IGetSmartMatchesCommand,
@@ -93,10 +133,38 @@ export class GetSmartMatchesUseCase implements IGetSmartMatchesUseCase {
         matches: [],
       };
 
-    const radiusMeters = command.radiusMeters ?? SmartMatchDefaultRadiusMeters;
+    // Chính sách phân bổ (SRS §6.2.14). Chưa publish thì
+    // `normalizeAllocationPolicy(null)` trả mặc định, và mặc định đó trùng khít hành
+    // vi có từ trước đường cấu hình này — nên nhánh "chưa cấu hình" không cần xử lý
+    // riêng ở đây.
+    const policy = normalizeAllocationPolicy(
+      await this.adminConfig.getConfigValue(AllocationPolicyConfigKey),
+    );
+
+    const filterRadiusMeters =
+      command.radiusMeters ?? SmartMatchDefaultRadiusMeters;
+    const radiusMeters = Math.min(
+      MaxSearchRadiusMeters,
+      Math.max(
+        MinSearchRadiusMeters,
+        resolveAllocationRadiusMeters(policy.distanceRule, {
+          filterRadiusMeters,
+          // Chỉ hỏi hạn mức hạng khi luật thật sự dùng tới nó: `FILTER_ONLY` là
+          // mặc định, và một truy vấn capability mỗi lượt gợi ý cho giá trị không
+          // ai đọc là tốn vô ích.
+          rankRadiusMeters:
+            policy.distanceRule === 'FILTER_ONLY'
+              ? null
+              : await this.resolveRankRadiusMeters(command.userId),
+        }),
+      ),
+    );
+
+    // Trần là chính sách, không phải hằng số: `@Max` trên DTO chỉ chặn giá trị phi lý
+    // ở tầng parse, còn số thật sự trả về do Admin quyết.
     const take = Math.min(
-      command.take ?? SmartMatchMaxResults,
-      SmartMatchMaxResults,
+      command.take ?? policy.maxSuggestions,
+      policy.maxSuggestions,
     );
 
     const candidates = await this.postRepository.findSmartMatches({
@@ -106,7 +174,13 @@ export class GetSmartMatchesUseCase implements IGetSmartMatchesUseCase {
       categoryId: source.categoryId,
       origin: source.location,
       radiusMeters,
-      keywords: extractSmartMatchKeywords(source.title),
+      // Tắt từ khoá thì không gửi token nào xuống: truy vấn bỏ hẳn nhánh
+      // `to_tsquery`, và `keyword_matched` về `false` cho mọi ứng viên — tức trọng
+      // số `keyword` cũng tự hết tác dụng, không cần tắt riêng ở hai chỗ.
+      keywords: policy.keywordMatchEnabled
+        ? extractSmartMatchKeywords(source.title)
+        : [],
+      categoryMatchRequired: policy.categoryMatchRequired,
       take,
     });
 
@@ -132,7 +206,7 @@ export class GetSmartMatchesUseCase implements IGetSmartMatchesUseCase {
           // mét chính xác là đủ để tam giác đạc ra nhà người ta.
           distanceMeters: bucketDistance(candidate.distanceMeters),
           isLocationApproximate: true as const,
-          score: scoreSmartMatch(signals),
+          score: scoreSmartMatch(signals, policy.weights),
           reasons: buildSmartMatchReasons(signals) as SmartMatchReason[],
         };
       })

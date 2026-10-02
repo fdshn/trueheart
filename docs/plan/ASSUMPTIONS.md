@@ -361,6 +361,25 @@ hoặc quá nặng với Bạc. Giá trị đặt đúng bằng **số điểm �
 
 ---
 
+## allocation.policy — bốn chỗ tôi tự chốt, Bên A đổi được bằng một lượt PUT (02/10/2026)
+
+SRS §6.2.14 `system_allocation_configs` nêu năm cột nhưng không nói rõ bốn điều dưới.
+Tôi chọn theo lệ dự án và theo nguyên tắc **triển khai không được âm thầm đổi hành vi**,
+rồi làm chúng thành trường trong `PUT /admin/config/allocation-policy` — nên đây là bốn
+ô trong một form, không phải bốn lượt viết lại mã nguồn.
+
+| Chỗ SRS không nói | Tôi chốt tạm | Vì sao |
+| --- | --- | --- |
+| Bảng riêng hay khoá `system_configs` | **Khoá `system_configs`** (`allocation.policy`, kiểu JSON) | `system_configs` đã có copy-on-write, `updated_by`, `change_reason` vào audit. Đúng cơ chế `selection.candidate_priority` cùng nhóm `/admin/config` đang dùng. SRS vẽ `id INT PK Default 1` tức một hàng ghi đè — làm vậy là mất lịch sử ai đổi luật ghép nối lúc nào |
+| `category_match_required` mặc định | **`false`**, trái mặc định SRS (`true`) | Mã hiện tại lọc `(cùng danh mục HOẶC trùng từ khoá)`. Lấy `true` là thắt bộ lọc ngay lúc deploy và không ai biết vì sao gợi ý ít đi. Giá trị SRS đề nghị là giá trị Bên A **publish**, không phải thứ lén đổi theo bản cài |
+| `distance_rule = 'RANK_OR_FILTER'` nghĩa gì | Enum ba giá trị; `RANK_OR_FILTER` lấy **nới hơn** của hạn mức theo hạng và bán kính client gửi | Tên SRS đặt là "OR" nên là hợp của hai vùng; lấy giao thì đã gọi `AND`. Hai giá trị kia là `FILTER_ONLY` (hành vi cũ) và `RANK_ONLY` |
+| Trọng số chấm điểm | **Đưa vào bảng**, mặc định bằng ba hằng số cũ `0.5 / 0.3 / 0.2` | SRS không nêu trọng số. Nối năm cột SRS mà bỏ trọng số thì Admin cấu hình được cái **lọc** mà không cấu hình được cái **xếp hạng** — nửa vời theo đúng nghĩa. Admin gõ `5/3/2` cũng được, hệ chia lại về tổng 1 trước khi lưu |
+
+Cột thứ năm, `auto_create_transaction`, **không** chốt tạm: `PUT` từ chối bật vì chưa
+đường mã nào đọc nó. Xem [L23](../diagram/31-open-items.md).
+
+---
+
 ## Lịch sử thay đổi
 
 | Ngày | Thay đổi |
@@ -372,3 +391,4 @@ hoặc quá nặng với Bạc. Giá trị đặt đúng bằng **số điểm �
 | 2026-09-22 | CH-2 bổ sung: điểm âm ghi được — cột điểm kẹp ở 0, cột log giữ giá trị thật kèm câu "−50 điểm, đang âm 30 điểm" |
 | 2026-09-24 | Bên A chốt gom: mô hình Rank theo balance (**huỷ F76**), trượt nhiệm vụ trừ điểm, điểm trao nhận × x% kèm mức mặc định khi không đánh giá, Active Member = `last_login_at` 90 ngày, cổng hồ sơ mở rộng, không rời Group, RBAC `GROUP_ADMIN`/`SUBTEAM_ADMIN` có phạm vi |
 | 2026-09-25 | Chốt **X = 56** cho một lượt trao hoàn tất, và đưa nốt bốn con số vòng đời điểm vào cấu hình động: tỷ lệ quy đổi 2.000 VNĐ/điểm, chờ 7 ngày áp mặc định 80%, phạt trượt nhiệm vụ 224/336/448 theo bậc |
+| 2026-10-02 | `allocation.policy` (SRS §6.2.14, F61): bốn chỗ SRS không nói được chốt tạm và đưa thành trường cấu hình — chọn `system_configs` thay vì bảng singleton, `category_match_required` mặc định `false` để triển khai không đổi hành vi, `RANK_OR_FILTER` = nới hơn của hai, và trọng số chấm điểm vào bảng dù SRS không nêu |

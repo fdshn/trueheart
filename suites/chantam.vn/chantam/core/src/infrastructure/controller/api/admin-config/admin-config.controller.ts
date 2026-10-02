@@ -1,9 +1,11 @@
 import {
   IGetAdminAuditLogsUseCase,
   IGetAdminConfigsUseCase,
+  IGetAllocationPolicyUseCase,
   IGetCandidateSelectionUseCase,
   IGetSystemLogsUseCase,
   IPublishAdminConfigUseCase,
+  ISetAllocationPolicyUseCase,
   ISetCandidateSelectionUseCase,
 } from '@/application/contracts/admin-config';
 import {
@@ -41,6 +43,11 @@ import {
   PublishSystemConfigResponseDto,
 } from '../../dto/admin-config/admin-config.dto';
 import {
+  GetAllocationPolicyResponseDto,
+  SetAllocationPolicyBodyDto,
+  SetAllocationPolicyResponseDto,
+} from '../../dto/admin-config/allocation-policy.dto';
+import {
   GetCandidateSelectionResponseDto,
   SetCandidateSelectionBodyDto,
   SetCandidateSelectionResponseDto,
@@ -62,6 +69,10 @@ export class AdminConfigController {
     private readonly publishAdminConfigUseCase: IPublishAdminConfigUseCase,
     @Inject(IGetAdminAuditLogsUseCase)
     private readonly getAdminAuditLogsUseCase: IGetAdminAuditLogsUseCase,
+    @Inject(IGetAllocationPolicyUseCase)
+    private readonly getAllocationPolicyUseCase: IGetAllocationPolicyUseCase,
+    @Inject(ISetAllocationPolicyUseCase)
+    private readonly setAllocationPolicyUseCase: ISetAllocationPolicyUseCase,
     @Inject(IGetCandidateSelectionUseCase)
     private readonly getCandidateSelectionUseCase: IGetCandidateSelectionUseCase,
     @Inject(ISetCandidateSelectionUseCase)
@@ -118,6 +129,84 @@ export class AdminConfigController {
         await this.publishAdminConfigUseCase.handle({
           actorUserId: principal.userId,
           systemConfig: body.systemConfig,
+        }),
+      )
+      .build();
+  }
+
+  @Get('config/allocation-policy')
+  @RequiresPermission('config.read')
+  @ApiOperation({
+    summary: 'Chính sách phân bổ & ghép nối đang hiệu lực',
+    description:
+      'Sáu trường ở đây tới trước bản này đều là HẰNG SỐ CỨNG trong mã nguồn: ' +
+      '`SmartMatchWeights`, `SmartMatchMaxResults`, và nhánh lọc ' +
+      '`(cùng danh mục HOẶC trùng từ khoá)` viết thẳng trong câu truy vấn.\n\n' +
+      '`isConfigured: false` nghĩa là chưa ai publish, KHÔNG phải tính năng đang tắt — ' +
+      'mặc định trả về trùng khít hành vi có từ trước, nên triển khai bản này không ' +
+      'đổi một gợi ý nào.\n\n' +
+      '`weights` trả về là bộ ĐÃ CHUẨN HOÁ về tổng bằng 1, tức con số hệ thống thật ' +
+      'sự dùng, không phải con số Admin gõ vào.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(GetAllocationPolicyResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
+  public async getAllocationPolicy(@CurrentUser() principal: IAuthPrincipal) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.getAllocationPolicyUseCase.handle({
+          actorUserId: principal.userId,
+        }),
+      )
+      .build();
+  }
+
+  @Put('config/allocation-policy')
+  @RequiresPermission('config.write')
+  @ApiOperation({
+    summary: 'Publish chính sách phân bổ & ghép nối',
+    description:
+      'Ghi theo copy-on-write như mọi system config: bản cũ đóng lại, `reason` đi ' +
+      'thẳng vào audit log. Đây là chính sách quyết định ai thấy bài của ai, nên đổi ' +
+      'mà không truy được ai đổi là không chấp nhận được.\n\n' +
+      'Ba chỗ bị TỪ CHỐI:\n' +
+      '- `categoryMatchRequired` và `keywordMatchEnabled` tắt cùng lúc — gợi ý sẽ chỉ ' +
+      'còn lọc theo khoảng cách, tức trả về gần như mọi bài quanh đó.\n' +
+      '- `autoCreateTransaction: true` — chưa hiện thực, chưa đường mã nào đọc cờ ' +
+      'này.\n' +
+      '- `maxSuggestions` vượt 100 — bằng đúng kích cỡ rổ ứng viên truy vấn kéo ' +
+      'về.\n\n' +
+      '`weights` không cần cộng đúng 1: ba số được chia lại theo tỉ lệ rồi mới lưu, ' +
+      'nên `5/3/2` và `0.5/0.3/0.2` là cùng một chính sách. Thứ ghi vào config và vào ' +
+      'audit log là bộ đã chia, để bản ghi nói đúng thứ đang chạy.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(SetAllocationPolicyResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    [
+      ValidationFailedException,
+      [
+        'autoCreateTransaction: chưa hiện thực, chưa đường mã nào đọc cờ này nên bật lên sẽ không có tác dụng gì',
+      ],
+    ],
+  )
+  public async setAllocationPolicy(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: SetAllocationPolicyBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.setAllocationPolicyUseCase.handle({
+          actorUserId: principal.userId,
+          categoryMatchRequired: body.allocation.categoryMatchRequired,
+          distanceRule: body.allocation.distanceRule,
+          keywordMatchEnabled: body.allocation.keywordMatchEnabled,
+          autoCreateTransaction: body.allocation.autoCreateTransaction,
+          maxSuggestions: body.allocation.maxSuggestions,
+          weights: body.allocation.weights,
+          reason: body.allocation.reason,
         }),
       )
       .build();

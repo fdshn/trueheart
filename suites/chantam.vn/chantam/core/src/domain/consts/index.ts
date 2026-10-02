@@ -12,24 +12,25 @@ export * from './discovery';
 export const GiftPostExpiryDays = 30;
 
 /**
- * Trọng số gợi ý Smart Match (F17 — Phase 1 thuần luật, không học máy).
+ * Ba trọng số gợi ý Smart Match ĐÃ CHUYỂN sang `allocation.policy`.
  *
- * Ba trọng số cộng lại đúng bằng 1 nên điểm luôn nằm trong [0, 1] và đọc được
- * như phần trăm độ khớp. Cùng danh mục nặng nhất vì đó là tín hiệu người dùng
- * chủ động khai báo; khoảng cách nhẹ nhất vì nó đã là điều kiện lọc rồi, để
- * nặng nữa thì một bài sát vách nhưng sai danh mục lại chen lên đầu.
+ * Tới 02/10 chúng là `SmartMatchWeights` ở đúng chỗ này, và không có đường nào để
+ * Admin đổi. Nay nguồn duy nhất là `DefaultAllocationPolicy.weights` trong
+ * `core-lib/src/models/allocation.ts`, đổi bằng `PUT /admin/config/allocation-policy`.
+ *
+ * Không để lại hằng số ở đây: hai bản của cùng ba con số thì sớm muộn lệch nhau, và
+ * bản không ai đọc mới là bản người đọc mã nguồn tin.
  */
-export const SmartMatchWeights = {
-  sameCategory: 0.5,
-  keyword: 0.3,
-  proximity: 0.2,
-} as const;
 
 /** Bán kính gợi ý mặc định khi client không nêu. */
 export const SmartMatchDefaultRadiusMeters = 20_000;
 
-/** Số gợi ý tối đa cho một lần gọi. */
-export const SmartMatchMaxResults = 20;
+/**
+ * Số gợi ý tối đa ĐÃ CHUYỂN sang `allocation.policy` (`maxSuggestions`).
+ *
+ * Trần kỹ thuật tuyệt đối còn lại là `MaxAllocationSuggestions` = 100, bằng đúng
+ * kích cỡ rổ ứng viên `SmartMatchCandidateLimit` mà truy vấn kéo về.
+ */
 
 /**
  * Từ quá phổ biến thì bỏ khỏi truy vấn từ khoá.

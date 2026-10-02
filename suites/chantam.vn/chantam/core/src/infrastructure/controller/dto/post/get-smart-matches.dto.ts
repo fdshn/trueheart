@@ -1,4 +1,3 @@
-import { SmartMatchMaxResults } from '@/domain/consts';
 import {
   IGetSmartMatchesResponseDto,
   IPostAuthorDto,
@@ -7,6 +6,7 @@ import {
   SmartMatchReason,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
+import { MaxAllocationSuggestions } from '@chantam.vn/chantam.core-lib/models';
 import {
   MaxSearchRadiusMeters,
   MinSearchRadiusMeters,
@@ -28,12 +28,12 @@ export class GetSmartMatchesQueryDto {
   @Max(MaxSearchRadiusMeters)
   radiusMeters?: number;
 
-  @ApiPropertyOptional({ minimum: 1, maximum: SmartMatchMaxResults })
+  @ApiPropertyOptional({ minimum: 1, maximum: MaxAllocationSuggestions })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(SmartMatchMaxResults)
+  @Max(MaxAllocationSuggestions)
   take?: number;
 }
 

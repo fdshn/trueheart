@@ -142,6 +142,7 @@ Xếp theo mức đáng làm trước.
 | L20 | [12](./12-rank.md) | **Không có thông báo khi đạt ~70% ngưỡng hạng kế tiếp** (`BR-PROF-RANK-04`, và `BR-NOTI-02` liệt kê đây là trigger **bắt buộc**) | Người sắp lên hạng không được khuyến khích gì — đúng lúc một lời nhắc có tác dụng nhất |
 | L21 | [11](./11-point.md) | **Không có công tắc tắt TOÀN BỘ cơ chế phát điểm** (`BR-ADM-POINT-06`). Chỉ tắt được từng rule qua `is_enabled` | Lúc cần nhất — đang có sự cố phát điểm sai — Admin phải tắt lần lượt từng rule, và quên một rule là rule đó vẫn phát |
 | L22 | [02](./02-profile.md) | **Vị trí mặc định chỉ có TOẠ ĐỘ, không có địa chỉ hiển thị** (`BR-PROF-LOC-01` đòi cả hai) | App phải tự geocode ngược, hoặc hiện toạ độ thô để người dùng xác nhận "đây là nhà bạn" |
+| L23 | SRS §6.2.14 | **`autoCreateTransaction` có trong schema `allocation.policy` mà chưa đường mã nào đọc.** `PUT /admin/config/allocation-policy` TỪ CHỐI bật, kèm lý do "chưa hiện thực" | Giữ trường cho đúng đặc tả nhưng không cho bật là chọn có chủ ý: một cờ bật được mà không ai đọc là đúng cái bẫy `canViewExactLocation` / `SELECT_REQUESTER`. Hiện thực xong thì phải **xoá cùng ngày** phép kiểm `từ chối autoCreateTransaction vì chưa hiện thực` trong `allocation.spec.ts` |
 
 ---
 

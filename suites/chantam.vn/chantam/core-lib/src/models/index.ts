@@ -1,4 +1,5 @@
 export * from './affiliate';
+export * from './allocation';
 export * from './candidate-selection';
 export * from './category';
 export * from './chat';

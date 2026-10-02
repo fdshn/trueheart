@@ -9,6 +9,7 @@ import {
   IGetAdminPointRulesUseCase,
   IGetAdminRankPolicyUseCase,
   IGetAdminUserUseCase,
+  IGetAllocationPolicyUseCase,
   IGetCandidateSelectionUseCase,
   IGetChatFlagPendingCountUseCase,
   IGetChatFlagQueueUseCase,
@@ -30,6 +31,7 @@ import {
   IReleaseVerifiedPhoneUseCase,
   IReplaceGroupRolePermissionsUseCase,
   IReviewChatFlagUseCase,
+  ISetAllocationPolicyUseCase,
   ISetCandidateSelectionUseCase,
   IUpdateNotificationChannelUseCase,
   IUpdateNotificationTemplateUseCase,
@@ -80,6 +82,10 @@ import {
   ReleaseVerifiedPhoneUseCase,
 } from './admin-user.use-cases';
 import {
+  GetAllocationPolicyUseCase,
+  SetAllocationPolicyUseCase,
+} from './allocation-policy.use-cases';
+import {
   GetCandidateSelectionUseCase,
   SetCandidateSelectionUseCase,
 } from './candidate-selection.use-cases';
@@ -111,6 +117,14 @@ import {
       useClass: UpdateNotificationTemplateUseCase,
     },
     { provide: IGetAdminConfigsUseCase, useClass: GetAdminConfigsUseCase },
+    {
+      provide: IGetAllocationPolicyUseCase,
+      useClass: GetAllocationPolicyUseCase,
+    },
+    {
+      provide: ISetAllocationPolicyUseCase,
+      useClass: SetAllocationPolicyUseCase,
+    },
     {
       provide: IGetCandidateSelectionUseCase,
       useClass: GetCandidateSelectionUseCase,
@@ -216,6 +230,8 @@ import {
     IListNotificationTemplatesUseCase,
     IUpdateNotificationTemplateUseCase,
     IGetAdminConfigsUseCase,
+    IGetAllocationPolicyUseCase,
+    ISetAllocationPolicyUseCase,
     IGetCandidateSelectionUseCase,
     ISetCandidateSelectionUseCase,
     IPublishAdminConfigUseCase,

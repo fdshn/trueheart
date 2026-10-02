@@ -32,17 +32,6 @@
  * một khoá mới mà không khai vào đâu là phép kiểm đỏ — buộc người thêm phải trả lời
  * "ai sẽ đọc nó".
  */
-import {
-  CandidateSelectionConfigKey,
-  AffiliateActiveMemberWindowConfigKey,
-  EmptyGroupPermissionSetMarker,
-  RankMaintenancePeriodConfigKey,
-  GroupDefaultRadiusConfigKey,
-  GroupMaxRadiusConfigKey,
-  GroupMinRadiusConfigKey,
-  UserRanks,
-  groupRadiusConfigKeyForRank,
-} from '@chantam.vn/chantam.core-lib/consts';
 import { EnforcedGroupPermissions } from '@/application/contracts/admin-config';
 import {
   DiscoveryDefaultRadiusConfigKey,
@@ -50,9 +39,21 @@ import {
   DiscoveryMinRadiusConfigKey,
 } from '@/domain/consts/discovery';
 import {
+  AffiliateActiveMemberWindowConfigKey,
+  CandidateSelectionConfigKey,
+  EmptyGroupPermissionSetMarker,
+  GroupDefaultRadiusConfigKey,
+  GroupMaxRadiusConfigKey,
+  GroupMinRadiusConfigKey,
+  RankMaintenancePeriodConfigKey,
+  UserRanks,
+  groupRadiusConfigKeyForRank,
+} from '@chantam.vn/chantam.core-lib/consts';
+import {
+  AbusiveModerationCorpus,
+  AllocationPolicyConfigKey,
   ChatRetentionConfigKey,
   GiverAccuracyConfigKey,
-  AbusiveModerationCorpus,
   InnocentModerationCorpus,
   ModerationTermsConfigKey,
   NotificationRetentionConfigKey,
@@ -123,7 +124,15 @@ const RequiredKeys: readonly string[] = [
  * sẽ làm cờ đó thành `true` và nói với Admin rằng đã có người đặt thứ tự này —
  * trong khi chưa ai đặt. Ở đây sự VẮNG MẶT chính là thông tin.
  */
-const DeliberatelyUnseeded: readonly string[] = [CandidateSelectionConfigKey];
+const DeliberatelyUnseeded: readonly string[] = [
+  CandidateSelectionConfigKey,
+  // `allocation.policy` (02/10): mặc định của `normalizeAllocationPolicy` trùng khít
+  // hành vi có TRƯỚC khi khoá này ra đời, nên vắng dòng nghĩa là "chạy y như cũ".
+  // Seed một dòng mặc định sẽ làm `isConfigured` nói sai: nó sẽ báo đã-cấu-hình cho
+  // một bản không ai publish, và Admin mất cách phân biệt "chưa ai đụng" với "đã
+  // chọn đúng các giá trị mặc định".
+  AllocationPolicyConfigKey,
+];
 
 /**
  * Khoá đã XOÁ có chủ ý, kèm lý do.
@@ -243,7 +252,9 @@ async function main(): Promise<void> {
           : '',
       );
 
-    console.log('\n3. Không khoá nào seed mà không ai đọc — hoặc phải khai lý do');
+    console.log(
+      '\n3. Không khoá nào seed mà không ai đọc — hoặc phải khai lý do',
+    );
     const declared = new Set<string>([
       ...RequiredKeys,
       ...KnownUnreadKeys.map((entry) => entry.key),
@@ -255,9 +266,7 @@ async function main(): Promise<void> {
     check(
       'khoá đã xoá có chủ ý KHÔNG quay lại',
       resurrected.length === 0,
-      resurrected
-        .map((entry) => `${entry.key} — ${entry.reason}`)
-        .join(' | '),
+      resurrected.map((entry) => `${entry.key} — ${entry.reason}`).join(' | '),
     );
     check(
       'mọi khoá trong system_configs đều được khai ở một trong hai danh sách',
