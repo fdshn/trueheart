@@ -434,7 +434,11 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-AFF-01',
     title:
       'Group Affiliate độc lập Personal Referral; Phase 1 một tầng (depth = 1)',
-    status: 'UNVERIFIED',
+    status: 'IMPLEMENTED',
+    where:
+      'affiliate.repository.ts `recordEvent` lấy ĐÚNG MỘT nhóm của người có hành động ' +
+      'và không đi lên cây nào — depth = 1 là cấu trúc, không phải một tham số. ' +
+      'Personal referral vẫn ở `referrals` với đường thưởng riêng, không đụng nhau',
   },
   {
     id: 'BR-AFF-02',
@@ -690,8 +694,11 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-ADM-POINT-03',
     title:
       'Admin cấu hình mức điểm theo Group Affiliate Event; depth=1, phải đạt Geo Eligibility, chia cho mọi Active Member',
-    status: 'NOT_IMPLEMENTED',
-    note: 'Bộ máy chia thưởng affiliate chưa dựng — xem BR-AFF-02. Không có đường sinh reward nên không có mức điểm nào để cấu hình',
+    status: 'IMPLEMENTED',
+    where:
+      '`GET|PUT /admin/affiliate-policy` với `config.read`/`config.write`, publish cả ' +
+      'bản có version kèm audit. Điểm từng loại ở `event_points_json`, depth = 1 là cấu ' +
+      'trúc, cổng geo bắt buộc trước khi chia, và người nhận là mọi Active Member',
   },
   {
     id: 'BR-ADM-POINT-04',
@@ -736,22 +743,32 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-GEO-AFF-01',
     title:
       'TOÀN BỘ Group Affiliate Event phải vượt Geo Eligibility của Group trước khi cộng reward',
-    status: 'NOT_IMPLEMENTED',
-    note: 'Cùng lý do BR-ADM-POINT-03: chưa có đường sinh affiliate event nào để mà kiểm geo',
+    status: 'IMPLEMENTED',
+    where:
+      'affiliate.repository.ts đo bằng `ST_DWithin` của Postgres (cùng hàm mà discovery ' +
+      'dùng) trước khi chia, và `CHK_affiliate_events_geo_zero` ở database chặn một sự ' +
+      'kiện ngoài vùng mang điểm khác 0 — không chỉ một nhánh code',
   },
   {
     id: 'BR-GEO-AFF-02',
     title:
       'Vị trí mặc định là gốc của member cho Geo Affiliate; event có location nghiệp vụ riêng thì ưu tiên location đó',
-    status: 'NOT_IMPLEMENTED',
-    note: 'Cùng lý do BR-ADM-POINT-03. Nửa đầu đã có sẵn và đúng hướng (xem BR-PROF-LOC-02), chỉ thiếu phía affiliate',
+    status: 'IMPLEMENTED',
+    where:
+      'core-lib `resolveAffiliateLocation` là chỗ DUY NHẤT viết thứ tự ưu tiên ' +
+      'EVENT → TRANSACTION → POST → MEMBER_DEFAULT, có spec cho từng bậc. Mỗi chỗ gọi ' +
+      'chỉ truyền những toạ độ mình có, không tự chọn trước',
   },
   {
     id: 'BR-GEO-AFF-03',
     title:
       'Event ngoài vùng vẫn LƯU để audit với `reward_status = NOT_ELIGIBLE_GEO`, `point_delta = 0` và thông tin distance/radius',
-    status: 'NOT_IMPLEMENTED',
-    note: 'Cùng lý do BR-ADM-POINT-03. Đây là quy tắc đáng chú ý khi dựng: không được im lặng bỏ event ngoài vùng, phải ghi lại kèm lý do',
+    status: 'PARTIAL',
+    where:
+      '`affiliate_events` lưu MỌI sự kiện kèm `geo_status`, `location_source`, ' +
+      '`distance_meters` và `radius_meters`; `GET /admin/affiliate-events?geoStatus=NOT_ELIGIBLE_GEO` ' +
+      'đọc ra được. Tổng điểm 0 có ràng buộc database canh',
+    note: 'LỆCH một điểm có chủ ý: quy tắc nhắc `reward_status = NOT_ELIGIBLE_GEO`, tức ở tầng từng dòng reward. Ở đây sự kiện ngoài vùng KHÔNG sinh dòng reward cho từng thành viên — với nhóm 500 người thì mỗi sự kiện bị loại sinh 500 dòng 0 điểm, và bảng reward sẽ phình nhanh nhất đúng trên đường không phát điểm. Kết luận và số đo nằm ở hàng sự kiện, đủ trả lời "vì sao nhóm tôi không được điểm"',
   },
   {
     id: 'BR-PHONE-REWARD-01',
@@ -891,12 +908,15 @@ const BrTrace: readonly BrTraceEntry[] = [
  * Trong 24 cái đó, 23 đối chiếu được ngay (phần lớn thuộc phân hệ đã dựng), chỉ
  * `BR-PROF-RANK-03` phải để `UNVERIFIED`. Nên con số tăng đúng 1.
  *
+ * **16 → 15 ngày 02/10** khi dựng bộ máy affiliate: `BR-AFF-01` không còn là câu hỏi
+ * mở mà đối chiếu được tới `recordEvent`. Đây là chiều ĐÚNG của cái chốt.
+ *
  * Lỗ regex lộ ra ở lần SRS lên bản đầu tiên sau khi dựng sổ (v1.15.3): `BR-ADM-CHECKIN-01`
  * là id ba đoạn và phép kiểm "SRS có id nào sổ chưa khai" **không hề đỏ** cho nó.
  * Một phép kiểm bỏ sót trong im lặng thì tệ hơn không có, vì đọc kết quả xanh người
  * ta kết luận là đã phủ hết.
  */
-const UnverifiedBaseline = 16;
+const UnverifiedBaseline = 15;
 
 describe('truy vết BR của SRS sang mã nguồn', () => {
   it('mọi BR id trong SRS đều có một dòng trong sổ', () => {

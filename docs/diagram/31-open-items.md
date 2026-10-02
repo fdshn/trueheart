@@ -43,19 +43,27 @@ Năm mục. Bốn thuộc hạ tầng, một thuộc bảo mật dữ liệu.
 
 ## 🟡 Quyết định kinh tế còn treo
 
-### [19](./19-affiliate.md) · Affiliate — bộ máy chia thưởng
+### ✅ [19](./19-affiliate.md) · Affiliate — bộ máy đã dựng 02/10, còn ba con số
 
-Nền móng đã có đủ (`groups.center_location` + `radius_km`, `last_active_at`,
-`group_memberships`, `GET /groups/:id/affiliate` đếm được ai đủ điều kiện **hôm nay**).
-Thiếu đúng phần chia thưởng, và nó chờ năm câu:
+Nền móng và bộ máy đều đã có: `affiliate_events`, `affiliate_rewards`,
+`affiliate_policy_revisions`, hook thật ở đăng bài và hoàn tất lượt trao, cổng geo bằng
+`ST_DWithin`, audit kèm khoảng cách, và đường thu hồi ghi thêm bút toán đảo. 32 phép kiểm
+trên Postgres thật (`npm run test:affiliate`).
 
-| # | Câu hỏi | Vì sao không viết trước được |
+**Sổ này trước đây ghi *"viết trước khi chốt A1 là viết để bỏ"*. Câu đó chỉ đúng với CON SỐ,
+không đúng với CƠ CHẾ** — và phân biệt sai hai thứ đó đã giữ M5 đứng im lâu hơn cần thiết.
+A1 không phải hai con số mà hai công thức, nên cả hai được hiện thực và Admin chọn.
+
+| # | Câu hỏi | Trạng thái |
 | --- | --- | --- |
-| A1 | **Cách chia thưởng** — chia đều cho mọi Active Member, hay chia một mức cố định mỗi người? | **Quyết định kinh tế lớn nhất còn treo của cả hệ.** Với nhóm 500 người, hai cách chênh nhau **500 lần**. Viết trước khi chốt là viết để bỏ |
-| A2 | Những loại sự kiện nào sinh affiliate | BR-AFF-02 liệt kê "đăng bài, hoàn tất trao, giới thiệu…" nhưng không chốt danh sách |
-| A3 | Điểm cho từng loại sự kiện | Chưa có con số nào |
-| A4 | **Cap ngày** | Không có cap thì một nhóm lớn sinh điểm **không giới hạn** |
-| A5 | Cơ chế thu hồi: thu khi nào, ai bấm, ghi sổ thế nào | Chưa có thiết kế |
+| A1 | Cách chia thưởng | ✅ **Cả hai cách đã có.** `distributionMode`: `SPLIT_POOL` (giỏ chia đều, tổng không đổi theo quy mô) hoặc `PER_MEMBER` (mỗi người nhận đủ). Mặc định `SPLIT_POOL` vì nó chặn trên được tổng điểm. Bên A chọn một ô |
+| A2 | Loại sự kiện nào sinh affiliate | 🟡 Hai loại có hook thật: `POST_CREATED`, `GIFT_COMPLETED`. Hai loại BR-AFF-02 còn nhắc — mời user mới, tham gia Event — **cố ý chưa khai** vì chưa có trả lời và vì phân hệ từ thiện chưa dựng |
+| A3 | Điểm cho từng loại | 🟡 `eventPoints` trong `PUT /admin/affiliate-policy`. Bật mà mọi loại 0 điểm thì publish bị từ chối |
+| A4 | Cap ngày | ✅ **BẮT BUỘC khi bật.** `dailyCapPerBeneficiary` và `maxBeneficiariesPerEvent` đều phải > 0, nếu không publish bị từ chối kèm danh sách thiếu. Con số cụ thể chờ Bên A |
+| A5 | Cơ chế thu hồi | ✅ `POST /admin/affiliate-events/{id}/reversal`, quyền `point.adjust`, ghi thêm bút toán đảo và giữ nguyên dòng reward với `REVERSED` |
+
+**Còn lại cho Bên A:** ba con số (A1 chọn cách, A3 điểm từng loại, A4 trần). Tới lúc đó
+engine không ghi gì — mọi lượt đăng bài và hoàn tất lượt trao vẫn chạy bình thường.
 
 ### [23](./23-referral.md) · Referral — ngưỡng diện xem xét
 

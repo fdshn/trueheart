@@ -17,6 +17,7 @@ import * as entities from '../src/infrastructure/entity';
 import { PostEntity } from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
+import { AffiliateRepository } from '../src/infrastructure/repository/affiliate.repository';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
 import { CheckInRepository } from '../src/infrastructure/repository/check-in.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
@@ -175,6 +176,11 @@ async function main(): Promise<void> {
       new CheckInRepository(
         dataSource.manager,
         new PointLedgerRepository(dataSource.manager),
+      ),
+      new AffiliateRepository(
+        dataSource.manager,
+        new PointLedgerRepository(dataSource.manager),
+        new AdminConfigRepository(dataSource.manager),
       ),
     );
 

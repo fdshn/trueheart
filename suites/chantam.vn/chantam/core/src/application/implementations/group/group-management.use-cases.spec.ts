@@ -388,6 +388,21 @@ describe('GetGroupInviteUseCase', () => {
   });
 });
 
+/**
+ * Chính sách affiliate cho `GetGroupAffiliateUseCase`.
+ *
+ * `rewardEngineReady` nay ĐỌC chính sách thay vì trả hằng `false`: "ready" nghĩa là
+ * đang thật sự phát thưởng, không phải "code đã có".
+ */
+const affiliateRepo = (enabled = false) =>
+  ({
+    getActivePolicy: jest
+      .fn()
+      .mockResolvedValue(
+        enabled ? { version: 2, policy: { enabled: true } } : null,
+      ),
+  }) as never;
+
 describe('GetGroupAffiliateUseCase', () => {
   const adminConfig = (value: unknown) => ({
     getConfigValue: jest.fn(async () => value),
@@ -402,6 +417,7 @@ describe('GetGroupAffiliateUseCase', () => {
       new GetGroupAffiliateUseCase(
         groups as never,
         adminConfig(90) as never,
+        affiliateRepo(),
       ).handle({ userId: CallerId, groupId: GroupId }),
     ).rejects.toThrow(ForbiddenException);
   });
@@ -413,12 +429,14 @@ describe('GetGroupAffiliateUseCase', () => {
       affiliate: { eligibleCount: 2, activeMemberWindowDays: 45 },
     });
     const config = adminConfig(45);
-    await new GetGroupAffiliateUseCase(groups as never, config as never).handle(
-      {
-        userId: CallerId,
-        groupId: GroupId,
-      },
-    );
+    await new GetGroupAffiliateUseCase(
+      groups as never,
+      config as never,
+      affiliateRepo(),
+    ).handle({
+      userId: CallerId,
+      groupId: GroupId,
+    });
 
     expect(config.getConfigValue).toHaveBeenCalledWith(
       'affiliate.active_member_window_days',
@@ -439,6 +457,7 @@ describe('GetGroupAffiliateUseCase', () => {
     await new GetGroupAffiliateUseCase(
       groups as never,
       adminConfig('không phải số') as never,
+      affiliateRepo(),
     ).handle({ userId: CallerId, groupId: GroupId });
 
     expect(groups.findAffiliateSnapshot).toHaveBeenCalledWith(
@@ -446,7 +465,10 @@ describe('GetGroupAffiliateUseCase', () => {
     );
   });
 
-  it('nói rõ bộ máy chia thưởng CHƯA có, không im lặng trả 0 điểm', async () => {
+  it('chính sách CHƯA publish thì rewardEngineReady là false', async () => {
+    // Trước 02/10 cờ này là hằng `false` vì bộ máy chưa có. Nay bộ máy đã có, nên cờ
+    // phải đọc CHÍNH SÁCH: "ready" nghĩa là đang thật sự phát thưởng. Owner cần biết
+    // nhóm mình chưa được chia gì vì chính sách chưa bật, không phải vì họ chưa hoạt động.
     const groups = makeGroups({
       grants: ['group.affiliate.view'],
       affiliate: { eligibleCount: 5 },
@@ -454,9 +476,24 @@ describe('GetGroupAffiliateUseCase', () => {
     const result = await new GetGroupAffiliateUseCase(
       groups as never,
       adminConfig(90) as never,
+      affiliateRepo(),
     ).handle({ userId: CallerId, groupId: GroupId });
 
     expect(result.rewardEngineReady).toBe(false);
+  });
+
+  it('chính sách đã BẬT thì rewardEngineReady là true', async () => {
+    const groups = makeGroups({
+      grants: ['group.affiliate.view'],
+      affiliate: { eligibleCount: 5 },
+    });
+    const result = await new GetGroupAffiliateUseCase(
+      groups as never,
+      adminConfig(90) as never,
+      affiliateRepo(true),
+    ).handle({ userId: CallerId, groupId: GroupId });
+
+    expect(result.rewardEngineReady).toBe(true);
   });
 });
 

@@ -30,6 +30,7 @@ import {
 import { GroupNotFoundException } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
+  IAffiliateRepository,
   IGroupRepository,
 } from '@/domain/ports/repository';
 import {
@@ -314,6 +315,8 @@ export class GetGroupAffiliateUseCase implements IGetGroupAffiliateUseCase {
     @Inject(IGroupRepository) private readonly groups: IGroupRepository,
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
+    @Inject(IAffiliateRepository)
+    private readonly affiliate: IAffiliateRepository,
   ) {}
 
   public async handle(
@@ -335,9 +338,17 @@ export class GetGroupAffiliateUseCase implements IGetGroupAffiliateUseCase {
     });
     if (!affiliate) throw new GroupNotFoundException();
 
-    // `false` cho tới khi bộ máy chia thưởng ra đời. Không im lặng trả 0 điểm:
-    // Owner sẽ tưởng nhóm mình chưa làm được gì, trong khi chưa có gì chia cả.
-    return { affiliate, rewardEngineReady: false };
+    // Bộ máy chia thưởng đã dựng 02/10 (F56–F58), nhưng "ready" ở đây nghĩa là
+    // **đang thật sự phát thưởng**, không phải "code đã có". Nên nó đọc chính sách:
+    // chưa Admin nào publish, hoặc bản đang tắt, thì vẫn `false` — Owner cần biết
+    // nhóm mình chưa được chia gì, và lý do là chính sách chưa bật chứ không phải
+    // họ chưa hoạt động.
+    const affiliatePolicy = await this.affiliate.getActivePolicy();
+
+    return {
+      affiliate,
+      rewardEngineReady: affiliatePolicy?.policy.enabled === true,
+    };
   }
 }
 

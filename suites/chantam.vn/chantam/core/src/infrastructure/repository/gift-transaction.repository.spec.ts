@@ -58,6 +58,9 @@ function makeRepository(
   checkIn: { accrueFromCompletedTransaction: jest.Mock } = {
     accrueFromCompletedTransaction: jest.fn().mockResolvedValue(undefined),
   },
+  affiliate: { recordEvent: jest.Mock } = {
+    recordEvent: jest.fn().mockResolvedValue(null),
+  },
 ) {
   return new GiftTransactionRepository(
     {
@@ -67,6 +70,7 @@ function makeRepository(
     chat as never,
     ledger as never,
     checkIn as never,
+    affiliate as never,
   );
 }
 
@@ -88,7 +92,13 @@ describe('GiftTransactionRepository confirmReceipt', () => {
       .mockResolvedValueOnce([transactionRow({ status: 'ACCEPTED' })])
       .mockResolvedValueOnce([
         transactionRow({ status: 'COMPLETED', completed_at: new Date() }),
-      ]);
+      ])
+      // Mọi câu sau đó: `awardCompletionPoints`, `awardAffiliateForCompletion` (đọc
+      // toạ độ bài), `syncPostStatus`. Trả mảng rỗng là đủ — phép kiểm này chỉ quan
+      // tâm câu UPDATE đặt `completed_at`, nhưng mock phải trả thứ ITERATE được, nếu
+      // không thì `const [post] = await query(...)` ném và lỗi hiện ra như một lỗi
+      // của chỗ khác.
+      .mockResolvedValue([]);
     const repository = makeRepository(query);
 
     const result = await repository.confirmReceipt(TransactionId, ReceiverId);

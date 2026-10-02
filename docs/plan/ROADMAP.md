@@ -173,10 +173,21 @@ app xem được lịch sử, streak, lượt bù; Admin cấu hình ngưỡng g
   (`BR-GRP-04`)
 - [x] F55 Owner xoá tài khoản → Group giải tán — `delete-account.use-case.ts` giải tán nhóm,
   KHÔNG chuyển owner cho member khác. `BR-GRP-07`
-- [ ] F56 Affiliate Event Engine (depth = 1, recurring)
-- [ ] F57 **Geo eligibility bắt buộc** (`ST_DWithin`)
-- [ ] F58 Thứ tự ưu tiên vị trí + audit khoảng cách
-- [ ] F50 Chống gian lận referral/điểm
+- [x] F56 Affiliate Event Engine (depth = 1, recurring) — `affiliate_events` +
+  `affiliate_rewards` + `affiliate_policy_revisions`, hook thật ở đăng bài và hoàn tất
+  lượt trao, chạy TRONG transaction của đường nghiệp vụ. **Ship ở trạng thái TẮT**:
+  chưa Admin publish chính sách thì engine không ghi gì
+- [x] F57 **Geo eligibility bắt buộc** (`ST_DWithin`) — đo bằng Postgres, cùng hàm mà
+  discovery dùng; `CHK_affiliate_events_geo_zero` ở database chặn sự kiện ngoài vùng
+  mang điểm khác 0
+- [x] F58 Thứ tự ưu tiên vị trí + audit khoảng cách — `resolveAffiliateLocation` là chỗ
+  DUY NHẤT viết thứ tự `EVENT → TRANSACTION → POST → MEMBER_DEFAULT`; mỗi sự kiện lưu
+  `location_source`, `distance_meters`, `radius_meters` nên trả lời được "vì sao bị loại"
+- [ ] F50 Chống gian lận referral/điểm — **nửa đã có**: trần ngày mỗi người nhận và
+  trần người nhận mỗi sự kiện là BẮT BUỘC khi bật affiliate (publish bị từ chối nếu
+  thiếu), cộng hàng đợi soát referral `GET /admin/referrals/review`. Còn thiếu: ba ngưỡng
+  dấu vết đăng ký vẫn seed `0 = TẮT` chờ dữ liệu thật, và không có đường nối kết luận
+  báo xấu với việc đình chỉ (L4)
 - [ ] F47 Thông báo theo khu vực
 
 **Xong khi:** sự kiện trong bán kính Group thì cộng điểm cho Active Member; sự kiện ngoài
@@ -253,4 +264,5 @@ Những mục này **không tính vào mẫu số tiến độ**.
 | Ngày | Thay đổi |
 | --- | --- |
 | 2026-09-15 | Lập lần đầu — 6 mốc, 72 chức năng |
+| 2026-10-02 | Dựng bộ máy affiliate F56–F58, nên **M5 đóng** phần cơ chế; A1–A4 của Bên A nay là lựa chọn trong `PUT /admin/affiliate-policy` |
 | 2026-10-02 | Dọn theo đợt đối chiếu SRS ↔ mã nguồn: **10 mục đổi sang `[x]`** vì đã xong từ trước mà tài liệu chưa theo (F41, F42, F43, F48, F51–F55, rate limit toàn cục); F20 chuyển sang mục đã bỏ; thêm F83. Hai tài liệu kế hoạch từng nói trái nhau về F41/F42/F43 — `SPRINT-PLAN` ghi xong, file này ghi chưa; nay cùng một nguồn |

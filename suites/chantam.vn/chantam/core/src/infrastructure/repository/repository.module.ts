@@ -1,6 +1,7 @@
 import {
   IAdminConfigRepository,
   IAdminUserRepository,
+  IAffiliateRepository,
   ICategoryRepository,
   IChatRepository,
   ICheckInRepository,
@@ -33,6 +34,7 @@ import { AdminBootstrapService } from './admin-bootstrap.service';
 import { AdminConfigRepository } from './admin-config.repository';
 import { AdminDashboardRepository } from './admin-dashboard.repository';
 import { AdminUserRepository } from './admin-user.repository';
+import { AffiliateRepository } from './affiliate.repository';
 import { CategoryRepository } from './category.repository';
 import { ChatRepository } from './chat.repository';
 import { CheckInRepository } from './check-in.repository';
@@ -97,6 +99,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     },
     { provide: IGiftRequestRepository, useClass: GiftRequestRepository },
     { provide: ICheckInRepository, useClass: CheckInRepository },
+    { provide: IAffiliateRepository, useClass: AffiliateRepository },
     {
       provide: IGiftTransactionRepository,
       useClass: GiftTransactionRepository,
@@ -130,6 +133,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     { provide: IUserSessionRepository, useClass: UserSessionRepository },
   ],
   exports: [
+    IAffiliateRepository,
     ICheckInRepository,
     AdminDashboardRepository,
     ICategoryRepository,

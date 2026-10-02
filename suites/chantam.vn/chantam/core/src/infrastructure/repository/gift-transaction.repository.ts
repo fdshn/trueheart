@@ -7,6 +7,7 @@ import {
 } from '@/domain/exceptions';
 import {
   GiftTransactionStatuses,
+  IAffiliateRepository,
   IAttachGiftEvidenceParams,
   IChatRepository,
   ICheckInRepository,
@@ -81,6 +82,10 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     // đi dò lại những giao dịch đã hoàn tất.
     @Inject(ICheckInRepository)
     private readonly checkIn: ICheckInRepository,
+    // Affiliate nhóm (F56) cũng phải ghi TRONG transaction hoàn tất, cùng lý do:
+    // một lượt trao commit xong mà reward chưa ghi là mất vĩnh viễn.
+    @Inject(IAffiliateRepository)
+    private readonly affiliate: IAffiliateRepository,
   ) {}
 
   /**
@@ -99,6 +104,41 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
    * Khoá chống trùng theo lượt trao và theo vai, nên xác nhận tay và cron tự hoàn
    * tất có chạy chồng lên nhau cũng chỉ thưởng một lần.
    */
+  /**
+   * Affiliate nhóm cho một lượt trao vừa hoàn tất (F56–F58).
+   *
+   * Nguồn sự kiện là NGƯỜI TẶNG, không phải người nhận: BR-AFF-02 nói affiliate
+   * thưởng cho hoạt động của thành viên trong nhóm, và hành động tạo giá trị ở đây là
+   * việc cho đi. Người nhận đã có `GIFT_COMPLETED_RECEIVER` trên đường điểm thường.
+   *
+   * Toạ độ truyền vào là của BÀI ĐĂNG, để `resolveAffiliateLocation` xét theo đúng
+   * bậc `POST` của BR-GEO-AFF-02. Không tự chọn trước ở đây — luật ưu tiên chỉ được
+   * viết ở một chỗ.
+   */
+  private async awardAffiliateForCompletion(
+    manager: EntityManager,
+    transaction: { global_id: string; giver_id: string; post_id: string },
+  ): Promise<void> {
+    const [post] = await manager.query<
+      { lat: number | null; lng: number | null }[]
+    >(
+      `SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng
+       FROM posts WHERE global_id = $1`,
+      [transaction.post_id],
+    );
+
+    await this.affiliate.recordEvent(manager, {
+      eventType: 'GIFT_COMPLETED',
+      sourceUserId: transaction.giver_id,
+      referenceType: 'GIFT_TRANSACTION',
+      referenceId: transaction.global_id,
+      postLocation:
+        post?.lat === null || post?.lng === null || !post
+          ? null
+          : { lat: Number(post.lat), lng: Number(post.lng) },
+    });
+  }
+
   private async awardCompletionPoints(
     manager: EntityManager,
     transaction: { global_id: string; giver_id: string; receiver_id: string },
@@ -475,6 +515,8 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         receiverId: current.receiver_id,
       });
 
+      await this.awardAffiliateForCompletion(manager, current);
+
       // Lượt cuối cùng xong thì bài mới thực sự xong, và quota của tác giả được
       // trả lại. Thiếu dòng này thì bài đã tặng hết vẫn chiếm chỗ đăng bài mãi mãi.
       await this.syncPostStatus(manager, current.post_id);
@@ -776,6 +818,7 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
           giverId: row.giver_id,
           receiverId: row.receiver_id,
         });
+        await this.awardAffiliateForCompletion(manager, row);
       }
 
       // Đọc lại SAU khi ghi: nơi gọi cần bản ghi đầy đủ để báo cho hai bên, và

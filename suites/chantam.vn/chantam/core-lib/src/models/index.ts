@@ -1,3 +1,4 @@
+export * from './affiliate';
 export * from './candidate-selection';
 export * from './category';
 export * from './chat';

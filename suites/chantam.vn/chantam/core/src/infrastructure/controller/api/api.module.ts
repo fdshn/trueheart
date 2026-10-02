@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AdminConfigControllerModule } from './admin-config/admin-config.module';
 import { AdminPostControllerModule } from './admin-post/admin-post.module';
+import { AffiliateControllerModule } from './affiliate/affiliate.module';
 import { AuthControllerModule } from './auth/auth.module';
 import { CategoryControllerModule } from './category/category.module';
 import { ChatControllerModule } from './chat/chat.module';
@@ -25,6 +26,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
 /** Gom mọi controller module theo resource. */
 @Module({
   imports: [
+    AffiliateControllerModule,
     CheckInControllerModule,
     AdminConfigControllerModule,
     AdminPostControllerModule,

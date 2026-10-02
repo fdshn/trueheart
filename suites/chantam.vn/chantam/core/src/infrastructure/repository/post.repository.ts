@@ -2,6 +2,7 @@ import { PostInvalidStateException } from '@/domain/exceptions';
 import {
   CharityTransferOutcome,
   IAdminPostSummary,
+  IAffiliateRepository,
   IExpireDuePostsResult,
   IFindAdminPostsParams,
   IFindAdminPostsResult,
@@ -34,7 +35,7 @@ import {
   expiryConvertsToOffer,
 } from '@chantam.vn/chantam.core-lib/models';
 import { GeoQueryHelper } from '@chantam/service.persistency-lib/geo';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager, EntitySchema, Repository } from 'typeorm';
 import { lockEditablePost } from './lock-editable-post';
@@ -145,6 +146,12 @@ export class PostRepository
     target: EntitySchema,
     @InjectEntityManager()
     manager: EntityManager,
+    // Affiliate nhóm (F56) phải ghi TRONG transaction tạo bài. Tuỳ chọn vì repository
+    // này được dựng tay ở nhiều script kiểm chứng, và ở đó không có affiliate nào để
+    // xét — `?.` dưới kia biến nó thành không-làm-gì chứ không thành lỗi.
+    @Inject(IAffiliateRepository)
+    @Optional()
+    private readonly affiliate?: IAffiliateRepository,
   ) {
     super(target, manager);
   }
@@ -171,6 +178,24 @@ export class PostRepository
       if (openPostCount >= quota) return false;
 
       await manager.insert(PostEntity, post as never);
+
+      // Affiliate nhóm cho hành động đăng bài (F56). TRONG cùng transaction với bài:
+      // bài commit xong mà reward chưa ghi là mất vĩnh viễn, và không ai đi dò lại
+      // những bài đã đăng.
+      //
+      // Toạ độ truyền vào là của BÀI, để `resolveAffiliateLocation` xét ở bậc `POST`.
+      // Một người ở Hà Nội đăng bài tặng đồ ở TP.HCM thì sự kiện thuộc vùng TP.HCM —
+      // đó là lựa chọn của BR-GEO-AFF-02, không phải của chỗ gọi này.
+      await this.affiliate?.recordEvent(manager, {
+        eventType: 'POST_CREATED',
+        sourceUserId: authorId,
+        referenceType: 'POST',
+        referenceId: post.globalId,
+        postLocation: post.location
+          ? { lat: post.location.lat, lng: post.location.lng }
+          : null,
+      });
+
       return true;
     });
   }

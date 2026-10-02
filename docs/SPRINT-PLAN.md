@@ -30,9 +30,14 @@ Tổng effort nguồn: **60 man-days / 50 ngày / 4 sprint**.
 
 ## Tiến độ hiện tại
 
-**Đang ở Sprint 3** (soát 02/10/2026). `M1`, `M2`, `M3` đã đóng. `M4` còn đúng **F40** chờ
-Bên A cho con số. `M5` còn **affiliate engine F56–F58** — món duy nhất chặn mốc đó. `M6` có
-nền API nhưng **chưa có giao diện**, và toàn bộ chặng vận hành/UAT/bàn giao chưa bắt đầu.
+**Đang ở cuối Sprint 3** (soát 02/10/2026). `M1`, `M2`, `M3` đã đóng. `M4` còn đúng **F40**
+chờ Bên A cho con số. `M5` **đóng phần cơ chế** sau khi dựng affiliate engine — còn `F50`
+một nửa và `F47` thông báo theo khu vực. `M6` có nền API nhưng **chưa có giao diện**, và
+toàn bộ chặng vận hành/UAT/bàn giao chưa bắt đầu.
+
+> Ba tính năng nay **ship ở trạng thái TẮT** chờ Bên A chốt số: điểm danh F83, affiliate
+> F56–F58, và điểm theo giá trị vật phẩm F40. Cả ba đã dựng xong cơ chế, và con số là một
+> lựa chọn trong CMS chứ không phải một lượt viết lại.
 
 | Phạm vi | Trạng thái thực tế | Ghi chú |
 | --- | --- | --- |
@@ -48,7 +53,7 @@ nền API nhưng **chưa có giao diện**, và toàn bộ chặng vận hành/U
 | Sprint 3 – Group & sub-team (F51–F55) | ✅ Đã có | 13 endpoint, snapshot tâm/bán kính lúc tạo, sub-team một tầng, quyền theo vai có version, link mời, giải tán khi owner xoá tài khoản. Bảy quy tắc `BR-GRP-*` đều đối chiếu được tới mã nguồn |
 | Sprint 3 – điểm danh & streak (F83) | ✅ Đã có, **ship ở trạng thái TẮT** | 7 bảng, 6 endpoint, policy có version/audit. Chờ Bên A duyệt bộ số đã seed sẵn (`GET /admin/check-in-policy`) rồi publish `enabled: true` |
 | Sprint 3 – review & accuracy (F42, F43) | ✅ Đã có | Đánh giá hai chiều `GIVER`/`RECEIVER` trên bảng chỉ ghi thêm; Giver Accuracy ngưỡng 75% / tối thiểu 5 mẫu, có hàng đợi soát cho Admin |
-| Sprint 3 – affiliate engine (F56–F58) | ⬜ **Chưa triển khai** | `GET /groups/{id}/affiliate` chỉ ĐỌC số liệu. Không có đường sinh reward, không kiểm geo eligibility, không audit `NOT_ELIGIBLE_GEO`. **Đây là món duy nhất chặn M5** |
+| Sprint 3 – affiliate engine (F56–F58) | ✅ Đã có, **ship ở trạng thái TẮT** | 3 bảng, 4 endpoint Admin, hook ở đăng bài và hoàn tất lượt trao, 32 phép kiểm trên Postgres thật. **M5 nay đóng phần cơ chế.** Chờ Bên A chốt A1 (cách chia), A3 (điểm từng loại), A4 (trần ngày) — cả ba là lựa chọn trong `PUT /admin/affiliate-policy` |
 | Sprint 3–4 (phần còn lại) | ⬜ Chưa triển khai | **Toàn bộ giao diện Admin CMS chưa có một dòng nào** — không có `apps/`, không package frontend nào. Cộng Dharma Hub, FCM đẩy thật, KPI/campaign/blog, lịch âm, và chặng vận hành/UAT/bàn giao |
 
 ---
@@ -126,8 +131,8 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 | ---: | --- | --- | --- | --- |
 | 14 | Group & affiliate | Create group, default-location snapshot, management/sub-team | M5 | ✅ F51–F53 — capability `CREATE_GROUP`, snapshot tâm/bán kính lúc tạo, sub-team một tầng, quyền theo vai có version |
 | 15 | Group & affiliate | Invite account mới, dissolve group khi owner xoá | M5 + F06 | ✅ F54–F55 — link mời không tự hết hạn khi nhóm ACTIVE, owner xoá tài khoản thì nhóm giải tán và KHÔNG chuyển owner |
-| 16 | Group & affiliate | Affiliate recurring, reward active member, idempotency/reversal | M5 | ⬜ **F56 — chặn M5.** `GET /groups/{id}/affiliate` chỉ đọc số liệu; không có đường sinh reward |
-| 17 | Group & affiliate | Geo eligibility và audit mọi event | M5 | ⬜ **F57–F58 — chặn M5.** Hạ tầng `ST_DWithin` đã dùng ở discovery/Group nên sẵn sàng; thiếu chỗ GỌI nó cho affiliate event và thiếu bảng audit `NOT_ELIGIBLE_GEO` |
+| 16 | Group & affiliate | Affiliate recurring, reward active member, idempotency/reversal | M5 | ✅ F56 — ba bảng, hook thật ở đăng bài và hoàn tất lượt trao, chống trùng ở database theo đúng bộ ba của BR-AFF-04, thu hồi ghi thêm bút toán đảo. **Ship ở trạng thái TẮT** chờ Bên A chốt A1–A4 |
+| 17 | Group & affiliate | Geo eligibility và audit mọi event | M5 | ✅ F57–F58 — `ST_DWithin` chạy trước khi chia, ràng buộc database chặn sự kiện ngoài vùng mang điểm; mọi sự kiện lưu kèm `location_source`/`distance`/`radius` và đọc được qua `GET /admin/affiliate-events` |
 | 18 | Point & review | Point rule/ledger, review quality, giver accuracy | M4 | 🟡 F39 (kèm hoàn bút toán VÀ `POST /admin/points/adjust`, cả hai ghi audit), F41 (đang BẬT), F42 (hai chiều), F43 (75% / 5 mẫu) đã xong. **Còn đúng F40 — chờ Bên A cho con số "X điểm = 100% giá trị"** |
 | 18a | Điểm danh & streak (F83) | Lịch sử/ngày, mốc thưởng, lượt bù từ giao dịch tặng/nhận quà hoàn tất, cấu hình Admin, UAT | M4 + M6 | ✅ Backend xong 02/10 — 7 bảng, 6 endpoint, 38 phép kiểm trên Postgres thật. **Ship ở trạng thái TẮT** chờ Bên A duyệt số. Phần app và CMS vẫn chưa có (xem hàng 22) |
 | 19 | Nội dung đặc thù & Phật Pháp | Charity/Event, Classified, ads, Merit, Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng dường, Diễn đàn, Chùa) | M2 extension + F73 | ⬜ |

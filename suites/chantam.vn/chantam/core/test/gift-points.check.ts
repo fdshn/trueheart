@@ -23,6 +23,7 @@ import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
+import { AffiliateRepository } from '../src/infrastructure/repository/affiliate.repository';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
 import { CheckInRepository } from '../src/infrastructure/repository/check-in.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
@@ -85,6 +86,11 @@ async function main(): Promise<void> {
     // `accrueFromCompletedTransaction` thoát sớm. Nhờ vậy tám script này canh luôn
     // nhánh "tính năng tắt thì KHÔNG tích lượt bù" mà không phải viết gì thêm.
     new CheckInRepository(dataSource.manager, ledger),
+    new AffiliateRepository(
+      dataSource.manager,
+      ledger,
+      new AdminConfigRepository(dataSource.manager),
+    ),
   );
 
   let sequence = 0;
