@@ -1,5 +1,12 @@
-import { IAdminDashboard } from '@/domain/ports/repository';
-import { Injectable } from '@nestjs/common';
+import {
+  IAdminConfigRepository,
+  IAdminDashboard,
+} from '@/domain/ports/repository';
+import {
+  GiverAccuracyConfigKey,
+  normalizeGiverAccuracyConfig,
+} from '@chantam.vn/chantam.core-lib/models';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
 
@@ -19,6 +26,8 @@ import { EntityManager } from 'typeorm';
 export class AdminDashboardRepository {
   public constructor(
     @InjectEntityManager() private readonly manager: EntityManager,
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig: IAdminConfigRepository,
   ) {}
 
   public async read(windowDays: number): Promise<IAdminDashboard> {
@@ -126,6 +135,155 @@ export class AdminDashboardRepository {
       `,
     );
 
+    // Phân bổ Điểm Cống hiến theo đúng ngưỡng hạng ĐANG hiệu lực.
+    //
+    // Cắt theo mốc tự nghĩ ra sẽ cho một biểu đồ không so sánh được với `users.byRank` ở
+    // trên — mà khoảng lệch giữa hai cái đó mới là thứ đáng xem: một cái là hạng hệ thống
+    // đang cấp quyền theo, một cái là hạng mà số dư nói lẽ ra phải là.
+    //
+    // KHÔNG cast `threshold_points` sang text ở đây.
+    //
+    // `SELECT threshold_points::text` (không alias) đặt tên cột RA đúng bằng tên cột VÀO,
+    // và `ORDER BY threshold_points` khi đó trỏ vào cột RA — tức sắp theo CHUỖI:
+    // `'0' < '1792' < '224' < '672' < '896'`. Mảng mốc truyền cho `width_bucket` thành ra
+    // không tăng dần, và `width_bucket` với mảng chưa sắp trả bucket sai mà KHÔNG ném.
+    // Bắt được 02/10 bằng `test:dashboard` nhóm 0; không phép kiểm mock nào thấy được.
+    const tiers = await this.manager.query<
+      { rank: string; threshold_points: number }[]
+    >(
+      `SELECT rank, threshold_points
+       FROM rank_tiers
+       ORDER BY threshold_points ASC`,
+    );
+
+    const [points] = await this.manager.query<
+      { total_balance: string; issued: string; spent: string }[]
+    >(
+      `
+        SELECT (SELECT COALESCE(SUM(balance), 0)::text
+                FROM user_point_balances) AS total_balance,
+               COALESCE(SUM(delta) FILTER (
+                 WHERE delta > 0
+                   AND created_at >= now() - ($1 || ' days')::interval
+               ), 0)::text AS issued,
+               -- Lượt tiêu là delta ÂM; đổi dấu để con số đọc ra là "đã tiêu bao nhiêu",
+               -- không phải "âm bao nhiêu".
+               COALESCE(-SUM(delta) FILTER (
+                 WHERE delta < 0
+                   AND created_at >= now() - ($1 || ' days')::interval
+               ), 0)::text AS spent
+        FROM point_ledger
+      `,
+      [String(windowDays)],
+    );
+
+    // Đếm người theo từng khoảng ngưỡng, trong MỘT câu.
+    //
+    // `width_bucket` cần mảng mốc tăng dần, và truy vấn `rank_tiers` ở trên đã sắp đúng
+    // vậy. Người có số dư dưới mốc đầu tiên vẫn vào bucket 1, nên không ai rơi ra ngoài.
+    const thresholds = tiers.map((tier) => Number(tier.threshold_points));
+    const buckets =
+      thresholds.length === 0
+        ? []
+        : await this.manager.query<{ bucket: string; total: string }[]>(
+            `
+              SELECT width_bucket(balance, $1::int[])::text AS bucket,
+                     COUNT(*)::text AS total
+              FROM user_point_balances
+              GROUP BY 1
+            `,
+            [thresholds],
+          );
+    const bucketCounts = new Map(
+      buckets.map((row) => [Number(row.bucket), Number(row.total)]),
+    );
+
+    const [groups] = await this.manager.query<
+      {
+        total: string;
+        recent: string;
+        members: string;
+        recent_members: string;
+      }[]
+    >(
+      `
+        SELECT (SELECT COUNT(*) FROM groups WHERE deleted_at IS NULL)::text AS total,
+               (SELECT COUNT(*) FROM groups
+                 WHERE deleted_at IS NULL
+                   AND created_at >= now() - ($1 || ' days')::interval
+               )::text AS recent,
+               (SELECT COUNT(*) FROM group_memberships)::text AS members,
+               (SELECT COUNT(*) FROM group_memberships
+                 WHERE created_at >= now() - ($1 || ' days')::interval
+               )::text AS recent_members
+      `,
+      [String(windowDays)],
+    );
+
+    // Bản chính sách affiliate đang chạy, đọc riêng để phân biệt "chưa ai publish" với
+    // "đã publish mà đang tắt" — hai trạng thái cho cùng một bảng toàn số 0.
+    //
+    // `ORDER BY version DESC`, KHÔNG `effective_at DESC`: cùng bẫy đã bắt ở policy điểm
+    // danh, và truy vấn này phải khớp `AffiliateRepository.readActivePolicy` chứ không
+    // được nói một bản khác.
+    const [affiliatePolicy] = await this.manager.query<{ enabled: boolean }[]>(
+      `SELECT enabled FROM affiliate_policy_revisions
+        WHERE effective_at <= now()
+        ORDER BY version DESC
+        LIMIT 1`,
+    );
+
+    const [affiliate] = await this.manager.query<
+      {
+        eligible: string;
+        rejected: string;
+        no_location: string;
+        awarded: string;
+        reversed: string;
+      }[]
+    >(
+      `
+        SELECT (SELECT COUNT(*) FROM affiliate_events
+                 WHERE geo_status = 'ELIGIBLE')::text AS eligible,
+               (SELECT COUNT(*) FROM affiliate_events
+                 WHERE geo_status = 'NOT_ELIGIBLE_GEO')::text AS rejected,
+               (SELECT COUNT(*) FROM affiliate_events
+                 WHERE geo_status = 'NO_LOCATION')::text AS no_location,
+               (SELECT COALESCE(SUM(point_delta), 0) FROM affiliate_rewards
+                 WHERE reward_status = 'AWARDED')::text AS awarded,
+               (SELECT COALESCE(SUM(point_delta), 0) FROM affiliate_rewards
+                 WHERE reward_status = 'REVERSED')::text AS reversed
+      `,
+    );
+
+    // Ngưỡng accuracy là cấu hình động, không phải hằng số — đọc ra để trả kèm, nếu không
+    // `belowThreshold` là một con số không ai đọc được là dưới bao nhiêu.
+    const accuracyConfig = normalizeGiverAccuracyConfig(
+      await this.adminConfig.getConfigValue(GiverAccuracyConfigKey),
+    );
+
+    const [accuracy] = await this.manager.query<
+      { measured: string; below: string; flagged: string }[]
+    >(
+      `
+        SELECT COUNT(*) FILTER (
+                 WHERE giver_accuracy_samples >= $1
+               )::text AS measured,
+               COUNT(*) FILTER (
+                 WHERE giver_accuracy_samples >= $1
+                   AND giver_accuracy_percent < $2
+               )::text AS below,
+               COUNT(*) FILTER (WHERE accuracy_review_required)::text AS flagged
+        FROM users
+        WHERE deleted_at IS NULL
+      `,
+      [accuracyConfig.minSamples, accuracyConfig.reviewThresholdPercent],
+    );
+
+    const completed = Number(transactions?.completed ?? 0);
+    const cancelled = Number(transactions?.cancelled ?? 0);
+    const settled = completed + cancelled;
+
     return {
       windowDays,
       users: {
@@ -148,9 +306,48 @@ export class AdminDashboardRepository {
       },
       transactions: {
         live: Number(transactions?.live ?? 0),
-        completed: Number(transactions?.completed ?? 0),
+        completed,
         completedInWindow: Number(transactions?.recent ?? 0),
-        cancelled: Number(transactions?.cancelled ?? 0),
+        cancelled,
+        // `null` chứ không phải 0 khi chưa có giao dịch nào kết thúc: 0% nghĩa là "thử
+        // rồi và trượt hết", còn `null` nghĩa là "chưa có gì để đo".
+        completionRatePercent:
+          settled === 0 ? null : Math.round((completed / settled) * 1000) / 10,
+        completionDenominator: settled,
+      },
+      points: {
+        totalBalance: Number(points?.total_balance ?? 0),
+        issuedInWindow: Number(points?.issued ?? 0),
+        spentInWindow: Number(points?.spent ?? 0),
+        // `width_bucket` trả 1 cho giá trị dưới mốc đầu, nên bậc thứ `i` nhận bucket
+        // `i + 1`. Bậc không ai thuộc thì thiếu dòng, trả 0.
+        byRankThreshold: tiers.map((tier, index) => ({
+          rank: tier.rank,
+          thresholdPoints: Number(tier.threshold_points),
+          users: bucketCounts.get(index + 1) ?? 0,
+        })),
+      },
+      groups: {
+        total: Number(groups?.total ?? 0),
+        newInWindow: Number(groups?.recent ?? 0),
+        members: Number(groups?.members ?? 0),
+        newMembersInWindow: Number(groups?.recent_members ?? 0),
+      },
+      affiliate: {
+        policyPublished: affiliatePolicy !== undefined,
+        policyEnabled: affiliatePolicy?.enabled === true,
+        eventsEligible: Number(affiliate?.eligible ?? 0),
+        eventsRejectedGeo: Number(affiliate?.rejected ?? 0),
+        eventsNoLocation: Number(affiliate?.no_location ?? 0),
+        pointsAwarded: Number(affiliate?.awarded ?? 0),
+        pointsReversed: Number(affiliate?.reversed ?? 0),
+      },
+      accuracy: {
+        thresholdPercent: accuracyConfig.reviewThresholdPercent,
+        minSamples: accuracyConfig.minSamples,
+        measured: Number(accuracy?.measured ?? 0),
+        belowThreshold: Number(accuracy?.below ?? 0),
+        reviewRequired: Number(accuracy?.flagged ?? 0),
       },
       media: {
         postObjects: Number(media?.post_objects ?? 0),

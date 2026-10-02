@@ -93,7 +93,8 @@
     "test:affiliate": "ts-node -r tsconfig-paths/register test/affiliate-engine.check.ts",
     "test:allocation": "ts-node -r tsconfig-paths/register test/allocation-policy.check.ts",
     "test:home-campaign": "ts-node -r tsconfig-paths/register test/home-campaign.check.ts",
-    "test:blog": "ts-node -r tsconfig-paths/register test/blog.check.ts"
+    "test:blog": "ts-node -r tsconfig-paths/register test/blog.check.ts",
+    "test:dashboard": "ts-node -r tsconfig-paths/register test/dashboard-kpi.check.ts"
   },
   "dependencies": {
     "@chantam.vn/chantam.core-lib": "file:../core-lib",

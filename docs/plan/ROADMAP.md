@@ -204,7 +204,12 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
 **Package:** `apps/admin` (React) · `system/notification-lib`
 
 **Admin CMS**
-- [ ] F59 Dashboard KPI
+- [x] F59 Dashboard KPI — `GET /admin/dashboard` nay có **mười** khối. Sáu khối cũ
+  (users, posts, transactions, media, queues, byRank) cộng bốn khối thêm 02/10 đúng theo
+  UC-ADM-01 và dòng Analytics: `points` (phân bổ Điểm Cống hiến cắt theo đúng
+  `rank_tiers.threshold_points`), `transactions.completionRatePercent` kèm mẫu số,
+  `groups`, `affiliate` (có `policyPublished` tách khỏi `policyEnabled`), `accuracy` (kèm
+  ngưỡng đang dùng). **Điểm danh KHÔNG có** — không dòng nào trong đặc tả đòi nó làm KPI
 - [x] F60 Kiểm duyệt + quản lý người dùng — 23 endpoint đã chạy (`users` 7, `reports` 5,
   `chat` 5, `comments` 3, `posts` 3) và **đã gọi `ITokenDenyList.revokeIssuedBefore()`**
   trước khi thu hồi phiên. Phần API xong; **giao diện CMS chưa có** (không có `apps/`)
