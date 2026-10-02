@@ -220,7 +220,12 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
   (2) và `/admin/notification-channels` (2); danh mục ĐỌC ở `/admin/categories` còn SỬA ở
   `/categories` (POST), `/categories/{id}` (PATCH), `/categories/{id}/merge` (POST) — chia
   hai tiền tố nên dễ tưởng là thiếu, nhưng không thiếu endpoint nào
-- [ ] F63 Campaign + Home động
+- [x] F63 Campaign + Home động — bảng `home_campaign_configs` (SRS §6.2.11), bốn endpoint
+  admin `GET|POST /admin/campaigns` + `GET|PUT /admin/campaigns/:id`, và một endpoint công
+  khai `GET /config/home-layout` có đệm Redis TTL 1h. BR_CAMP_01 là ràng buộc
+  `EXCLUDE USING gist` dưới database, không phải nhánh `if`; BR_CAMP_02 là
+  `DefaultHomeLayout` nên app luôn có bố cục vẽ. Quyền riêng `campaign.read` /
+  `campaign.manage` — KHÔNG dùng lại `config.write`, vốn mở luôn ngưỡng hạng và quy tắc điểm
 - [ ] F64 Blog / Tin tức
 - [ ] F65 Quản lý Từ thiện, Rao vặt, Quảng cáo, Công đức
 

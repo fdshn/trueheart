@@ -8,6 +8,7 @@ import { Module } from '@nestjs/common';
 import { getDataSourceToken } from '@nestjs/typeorm';
 import Redis from 'ioredis';
 import { DataSource } from 'typeorm';
+import { CacheModule } from './cache/cache.module';
 import { ConfigModule } from './config/config.module';
 import { ControllerModule } from './controller/controller.module';
 import { EntityModule } from './entity/entity.module';
@@ -30,6 +31,7 @@ import { RedisTokenDenyList } from './security/token-deny-list';
     RepositoryModule,
     GiveActivityModule,
     RedisModule,
+    CacheModule,
     SecurityModule,
     NotificationModule,
     StorageModule.forRootAsync({

@@ -91,7 +91,8 @@
     "test:srs-endpoints": "ts-node -r tsconfig-paths/register test/srs-endpoint-gaps.check.ts",
     "test:check-in": "ts-node -r tsconfig-paths/register test/check-in-streak.check.ts",
     "test:affiliate": "ts-node -r tsconfig-paths/register test/affiliate-engine.check.ts",
-    "test:allocation": "ts-node -r tsconfig-paths/register test/allocation-policy.check.ts"
+    "test:allocation": "ts-node -r tsconfig-paths/register test/allocation-policy.check.ts",
+    "test:home-campaign": "ts-node -r tsconfig-paths/register test/home-campaign.check.ts"
   },
   "dependencies": {
     "@chantam.vn/chantam.core-lib": "file:../core-lib",

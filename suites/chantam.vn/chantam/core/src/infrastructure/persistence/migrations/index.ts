@@ -92,3 +92,5 @@ export * from './1797100000000-CreateCheckInStreak';
 export * from './1797200000000-DropRankPointsSourceConfig';
 export * from './1797300000000-SeedCheckInPolicyDraft';
 export * from './1797400000000-CreateAffiliateEngine';
+export * from './1797500000000-CreateHomeCampaignConfigs';
+export * from './1797600000000-AddCampaignPermissions';

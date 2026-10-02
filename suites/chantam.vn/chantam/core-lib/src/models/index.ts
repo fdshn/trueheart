@@ -12,6 +12,7 @@ export * from './entitlement';
 export * from './gift-post';
 export * from './gift-request';
 export * from './group';
+export * from './home-campaign';
 export * from './keyset-cursor';
 export * from './map-cluster';
 export * from './notification';

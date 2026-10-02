@@ -222,6 +222,9 @@ export enum ErrorCodes {
   /** Mã mời sai, hoặc nhóm đã giải tán. Cố ý KHÔNG phân biệt hai ca. */
   GROUP_INVITE_INVALID = 0x10_04,
   GROUP_NOT_FOUND = 0x10_05,
+
+  // 0x11 — Chiến dịch & Home động (F63)
+  HOME_CAMPAIGN_NOT_FOUND = 0x11_01,
 }
 
 export const ErrorOrigin = 'chantam/core';

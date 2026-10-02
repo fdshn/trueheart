@@ -281,19 +281,22 @@ const BrTrace: readonly BrTraceEntry[] = [
     where: 'qualify-referral use case + idempotency_key trên point_ledger',
   },
 
-  // ── Chiến dịch và Home nổi bật — CHƯA DỰNG ───────────────────────────────
+  // ── Chiến dịch và Home nổi bật ────────────────────────────────────────────
   {
     id: 'BR_CAMP_01',
     title:
       'Nhiều chiến dịch chạy song song, chỉ MỘT featured_home tại một thời điểm',
-    status: 'NOT_IMPLEMENTED',
-    note: 'Không bảng `campaign`, không endpoint Home động (UC-ADM-03 chưa bắt đầu)',
+    status: 'IMPLEMENTED',
+    where:
+      'EXCL_home_campaign_configs_active_overlap (1797500000000), HomeCampaignRepository',
+    note: 'Ràng buộc `EXCLUDE USING gist` chứ không phải nhánh `if`: hai request song song cùng vượt qua được một nhánh kiểm. `WHERE (is_active)` để bản nháp trùng giờ vẫn dựng được, và khoảng nửa mở (đóng đầu, mở cuối) để hai chiến dịch nối tiếp khít giờ vẫn xếp được. `test:home-campaign` nhóm 2 đo cả bốn ca.',
   },
   {
     id: 'BR_CAMP_02',
     title: 'Home nổi bật hết hạn thì fallback về Home mặc định',
-    status: 'NOT_IMPLEMENTED',
-    note: 'Cùng lý do BR_CAMP_01',
+    status: 'IMPLEMENTED',
+    where: 'GetHomeLayoutUseCase, DefaultHomeLayout',
+    note: '`GET /config/home-layout` LUÔN trả một bố cục dùng được: không chiến dịch nào tới hiệu lực thì trả `DefaultHomeLayout` với `campaignId: null`. Hai khối đọc dữ liệu theo chiến dịch (`URGENT_CAMPAIGN_ITEMS`, `CAMPAIGN_TOP_GIVERS`) tắt sẵn trong bố cục đó.',
   },
 
   // ── Danh mục ──────────────────────────────────────────────────────────────
@@ -506,7 +509,7 @@ const BrTrace: readonly BrTraceEntry[] = [
     status: 'PARTIAL',
     where:
       'RankChangeNotifier, AcceptedRequestNotifier, RequestLifecycleNotifier, cron nhắc hạn',
-    note: 'Thiếu HAI nhánh: campaign/lịch sự kiện (phân hệ chiến dịch chưa dựng, xem BR_CAMP_01) và mốc 70% ngưỡng hạng (không chỗ nào trong mã nguồn tính mốc đó — xem BR-PROF-RANK-04)',
+    note: 'Thiếu HAI nhánh: thông báo theo campaign/lịch sự kiện (bảng và endpoint đã có từ 02/10 — xem BR_CAMP_01 — nhưng chưa nối notifier nào) và mốc 70% ngưỡng hạng (không chỗ nào trong mã nguồn tính mốc đó — xem BR-PROF-RANK-04)',
   },
   {
     id: 'BR-NOTI-03',

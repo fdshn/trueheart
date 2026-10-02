@@ -12,6 +12,7 @@ import {
   IGiftRequestRepository,
   IGiftTransactionRepository,
   IGroupRepository,
+  IHomeCampaignRepository,
   INotificationChannelRepository,
   INotificationRepository,
   INotificationTemplateRepository,
@@ -45,6 +46,7 @@ import { EntitlementRepository } from './entitlement.repository';
 import { GiftRequestRepository } from './gift-request.repository';
 import { GiftTransactionRepository } from './gift-transaction.repository';
 import { GroupRepository } from './group.repository';
+import { HomeCampaignRepository } from './home-campaign.repository';
 import { NotificationChannelRepository } from './notification-channel.repository';
 import { NotificationTemplateRepository } from './notification-template.repository';
 import { NotificationRepository } from './notification.repository';
@@ -85,6 +87,10 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     // không trả lại gì.
     AdminDashboardRepository,
     { provide: IEntitlementRepository, useClass: EntitlementRepository },
+    {
+      provide: IHomeCampaignRepository,
+      useClass: HomeCampaignRepository,
+    },
     {
       provide: IContentCommentRepository,
       useClass: ContentCommentRepository,
@@ -143,6 +149,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     IAdminConfigRepository,
     IAdminUserRepository,
     IEntitlementRepository,
+    IHomeCampaignRepository,
     IContentCommentRepository,
     IContentReactionRepository,
     IContentShareRepository,

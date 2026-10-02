@@ -12,6 +12,7 @@ import { FeedControllerModule } from './feed/feed.module';
 import { GiftPostControllerModule } from './gift-post/gift-post.module';
 import { GiftRequestApiModule } from './gift-request/gift-request-api.module';
 import { GroupControllerModule } from './group/group.module';
+import { HomeCampaignControllerModule } from './home-campaign/home-campaign.module';
 import { NotificationControllerModule } from './notification/notification.module';
 import { OnboardingControllerModule } from './onboarding/onboarding.module';
 import { PointControllerModule } from './point/point.module';
@@ -27,6 +28,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
 @Module({
   imports: [
     AffiliateControllerModule,
+    HomeCampaignControllerModule,
     CheckInControllerModule,
     AdminConfigControllerModule,
     AdminPostControllerModule,

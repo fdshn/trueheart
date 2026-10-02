@@ -10,6 +10,7 @@ export * from './gift-post-not-found.exception';
 export * from './gift-request.exception';
 export * from './gift-transaction.exception';
 export * from './group.exception';
+export * from './home-campaign.exception';
 export * from './point.exception';
 export * from './post.exception';
 export * from './rank.exception';

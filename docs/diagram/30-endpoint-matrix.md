@@ -183,7 +183,8 @@ Vào nhóm KHÔNG có endpoint riêng: `POST /auth/register` kèm `inviteCode` l
 flowchart TD
     B["⛔ Affiliate"] --> B1["GET /groups/:id/affiliate<br/>GET /groups/:id/events"]
     D["⛔ Dashboard"] --> D1["GET /admin/kpi/*"]
-    E["⛔ Campaign & Blog"] --> E1["/admin/campaigns · /admin/posts-blog<br/>/blog"]
+    E["⛔ Blog"] --> E1["/admin/blogs · GET /blogs · GET /blogs/:id<br/>bảng blogs (SRS §6.2.12) chưa dựng"]
+    G["✅ Campaign & Home động"] --> G1["GET|POST /admin/campaigns · GET|PUT /admin/campaigns/:id<br/>GET /config/home-layout — đệm Redis TTL 1h"]
     F["⛔ Dharma Hub"] --> F1["/dharma/* — sáu tiểu mục, chưa có đặc tả API"]
 
     A["✅ Group đã xong"] --> A1["sáu endpoint, xem §30.7b"]
@@ -195,6 +196,7 @@ flowchart TD
     style D fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
     style E fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
     style F fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style G fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 ## Chỗ cần soát
@@ -203,8 +205,10 @@ flowchart TD
 2. ✅ **Đã sửa 25/09.** Hoàn tất lượt trao sinh điểm qua đường đánh giá, hoặc qua
    `gift:settle-rewards` sau 7 ngày nếu người nhận không đánh giá — xem
    [21 §21.4](./21-open-issues.md) mục 1.
-3. ✅ **Đã phản ánh.** Xét hạng đọc `balance` (hoặc `lifetime` nếu Admin đổi
-   `rank.points_source`), và `test:rank-balance` canh đúng điều đó.
+3. ✅ **Đã phản ánh, và đã sửa lại 02/10.** Xét hạng đọc `balance` — **chỉ** `balance`.
+   Câu "hoặc `lifetime` nếu Admin đổi `rank.points_source`" ở bản trước là sai: khoá đó
+   không nằm trong `SupportedSystemConfigKeys` nên Admin không có đường API nào đổi, và cả
+   nhánh `lifetime` đã bị gỡ ở commit `1cf6f01`. `test:rank-balance` canh đúng điều đó.
 4. ✅ **Đã có `targetLabel` cho bình luận** (đợt 15-report): trích đoạn đầu `body` cùng tên tác
    giả, đủ để Admin quyết mà không phải mở từng cái.
 5. ⚠️ **Bảng dưới đây liệt kê theo phân hệ, không theo từng route.** Với hơn một trăm rưỵi route thì một bảng

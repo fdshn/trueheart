@@ -721,4 +721,10 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     httpStatus: HttpStatus.NOT_FOUND,
     message: () => 'Không tìm thấy nhóm',
   },
+
+  HOME_CAMPAIGN_NOT_FOUND: {
+    code: ErrorCodes.HOME_CAMPAIGN_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy chiến dịch',
+  },
 });

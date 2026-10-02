@@ -11,6 +11,7 @@ import { FeedModule } from './implementations/feed/feed.module';
 import { GiftPostModule } from './implementations/gift-post/gift-post.module';
 import { GiftRequestModule } from './implementations/gift-request/gift-request.module';
 import { GroupModule } from './implementations/group/group.module';
+import { HomeCampaignUseCaseModule } from './implementations/home-campaign/home-campaign.module';
 import { MediaModule } from './implementations/media/media.module';
 import { NotificationUseCaseModule } from './implementations/notification/notification.module';
 import { OnboardingModule } from './implementations/onboarding/onboarding.module';
@@ -37,6 +38,7 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
     ChatModule,
     FeedModule,
     ReviewModule,
+    HomeCampaignUseCaseModule,
     NotificationUseCaseModule,
     DiscoveryModule,
     EntitlementModule,
