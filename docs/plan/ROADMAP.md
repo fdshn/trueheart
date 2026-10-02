@@ -186,9 +186,12 @@ app xem được lịch sử, streak, lượt bù; Admin cấu hình ngưỡng g
 - [ ] F50 Chống gian lận referral/điểm — **nửa đã có**: trần ngày mỗi người nhận và
   trần người nhận mỗi sự kiện là BẮT BUỘC khi bật affiliate (publish bị từ chối nếu
   thiếu), cộng hàng đợi soát referral `GET /admin/referrals/review`. Còn thiếu: ba ngưỡng
-  dấu vết đăng ký vẫn seed `0 = TẮT` chờ dữ liệu thật, và không có đường nối kết luận
-  báo xấu với việc đình chỉ (L4)
-- [ ] F47 Thông báo theo khu vực
+  dấu vết đăng ký vẫn seed `0 = TẮT` chờ dữ liệu thật. ~~và không có đường nối kết luận
+  báo xấu với việc đình chỉ (L4)~~ — **L4 đã đóng 02/10**, xem F49
+- [ ] F47 Thông báo theo khu vực — ⚠️ **mục này đặt sai chỗ.** Nó nằm giữa khối affiliate
+  M5 nên khối "Xong khi" ngay dưới là tiêu chí của F57/F58, KHÔNG phải của F47. Tiêu chí
+  thật của F47: Admin gửi được thông báo tới người dùng trong một bán kính — mà hiện
+  **không có endpoint gửi hàng loạt nào cả**, kể cả toàn hệ thống
 
 **Xong khi:** sự kiện trong bán kính Group thì cộng điểm cho Active Member; sự kiện ngoài
 bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ khoảng cách + bán kính.
