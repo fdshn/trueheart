@@ -96,3 +96,4 @@ export * from './1797500000000-CreateHomeCampaignConfigs';
 export * from './1797600000000-AddCampaignPermissions';
 export * from './1797700000000-CreateBlogs';
 export * from './1797800000000-AddBlogPermissions';
+export * from './1797900000000-CreateLunarHolidays';

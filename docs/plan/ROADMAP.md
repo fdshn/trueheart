@@ -248,7 +248,12 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
   không mở cửa leo thang quyền: chế tài đòi `admin.manage`, kết luận chỉ đòi
   `report.resolve`. Gỡ/ẩn bài viết KHÔNG gộp vào đây
 - [ ] F45 Phân loại + mẫu thông báo
-- [ ] F46 Lịch Âm + nhắc ngày lễ
+- [x] F46 Lịch Âm — bộ chuyển đổi Âm lịch Việt Nam viết THUẦN trong `core-lib` (không
+  dependency, UTC+7, can chi, mốc Rằm/Mùng Một), bảng `lunar_holidays` seed 10 ngày lễ
+  Phật giáo, `GET /config/lunar-today` công khai và `GET|PUT /admin/lunar-holidays`.
+  **Phần "nhắc ngày lễ" CHƯA làm** — xem [L28](../diagram/31-open-items.md): nó cần một
+  CLI cron và một quyết định của Bên A về gửi cho ai (toàn hệ thống hay theo vùng, mà
+  theo vùng là F47 còn đang mở)
 
 **Hạ tầng & bàn giao**
 - [x] F66 VPS, Docker, Nginx SSL — template host Nginx + runbook staging/production đã có; backup, monitoring và rate limit vẫn là phần còn lại

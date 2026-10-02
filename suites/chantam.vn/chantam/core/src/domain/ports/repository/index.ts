@@ -14,6 +14,7 @@ export * from './gift-request.repository';
 export * from './gift-transaction.repository';
 export * from './group.repository';
 export * from './home-campaign.repository';
+export * from './lunar-holiday.repository';
 export * from './notification-channel.repository';
 export * from './notification-template.repository';
 export * from './notification.repository';

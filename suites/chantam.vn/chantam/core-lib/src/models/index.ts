@@ -15,6 +15,7 @@ export * from './gift-request';
 export * from './group';
 export * from './home-campaign';
 export * from './keyset-cursor';
+export * from './lunar';
 export * from './map-cluster';
 export * from './notification';
 export * from './notification-template';

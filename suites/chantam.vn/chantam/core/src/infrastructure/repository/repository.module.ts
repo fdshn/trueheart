@@ -14,6 +14,7 @@ import {
   IGiftTransactionRepository,
   IGroupRepository,
   IHomeCampaignRepository,
+  ILunarHolidayRepository,
   INotificationChannelRepository,
   INotificationRepository,
   INotificationTemplateRepository,
@@ -49,6 +50,7 @@ import { GiftRequestRepository } from './gift-request.repository';
 import { GiftTransactionRepository } from './gift-transaction.repository';
 import { GroupRepository } from './group.repository';
 import { HomeCampaignRepository } from './home-campaign.repository';
+import { LunarHolidayRepository } from './lunar-holiday.repository';
 import { NotificationChannelRepository } from './notification-channel.repository';
 import { NotificationTemplateRepository } from './notification-template.repository';
 import { NotificationRepository } from './notification.repository';
@@ -90,6 +92,10 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     AdminDashboardRepository,
     { provide: IEntitlementRepository, useClass: EntitlementRepository },
     { provide: IBlogRepository, useClass: BlogRepository },
+    {
+      provide: ILunarHolidayRepository,
+      useClass: LunarHolidayRepository,
+    },
     {
       provide: IHomeCampaignRepository,
       useClass: HomeCampaignRepository,
@@ -154,6 +160,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     IEntitlementRepository,
     IBlogRepository,
     IHomeCampaignRepository,
+    ILunarHolidayRepository,
     IContentCommentRepository,
     IContentReactionRepository,
     IContentShareRepository,
