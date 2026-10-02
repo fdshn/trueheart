@@ -226,7 +226,11 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
   `EXCLUDE USING gist` dưới database, không phải nhánh `if`; BR_CAMP_02 là
   `DefaultHomeLayout` nên app luôn có bố cục vẽ. Quyền riêng `campaign.read` /
   `campaign.manage` — KHÔNG dùng lại `config.write`, vốn mở luôn ngưỡng hạng và quy tắc điểm
-- [ ] F64 Blog / Tin tức
+- [x] F64 Blog / Tin tức — bảng `blogs` (SRS §6.2.12), bốn endpoint admin
+  `GET|POST /admin/blogs` + `PUT|DELETE /admin/blogs/:id`, hai endpoint công khai
+  `GET /blogs` + `GET /blogs/:idOrSlug`. `content_html` được LỌC ở tầng ghi qua
+  `IHtmlSanitizer` (hiện thực `sanitize-html`, 22 ca tấn công có spec canh), cột lưu bản
+  đã sạch. Xoá MỀM để `slug` giữ chỗ. Quyền riêng `blog.read` / `blog.manage`
 - [ ] F65 Quản lý Từ thiện, Rao vặt, Quảng cáo, Công đức
 
 **Kiểm duyệt & thông báo**

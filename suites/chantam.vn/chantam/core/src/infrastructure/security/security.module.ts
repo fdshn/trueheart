@@ -1,4 +1,5 @@
 import {
+  IHtmlSanitizer,
   ILoginThrottle,
   IOtpStore,
   IRequestThrottle,
@@ -11,10 +12,12 @@ import { GlobalRateLimitGuard } from './global-rate-limit.guard';
 import { LoginThrottle } from './login-throttle';
 import { OtpStore } from './otp-store';
 import { RequestThrottle } from './request-throttle';
+import { SanitizeHtmlSanitizer } from './sanitize-html.sanitizer';
 
 @Global()
 @Module({
   providers: [
+    { provide: IHtmlSanitizer, useClass: SanitizeHtmlSanitizer },
     { provide: ILoginThrottle, useClass: LoginThrottle },
     { provide: IOtpStore, useClass: OtpStore },
     { provide: IRequestThrottle, useClass: RequestThrottle },
@@ -28,6 +31,12 @@ import { RequestThrottle } from './request-throttle';
     // gọi thì không có gì đỡ.
     { provide: APP_GUARD, useClass: GlobalRateLimitGuard },
   ],
-  exports: [ILoginThrottle, IOtpStore, IRequestThrottle, ISecretCipher],
+  exports: [
+    IHtmlSanitizer,
+    ILoginThrottle,
+    IOtpStore,
+    IRequestThrottle,
+    ISecretCipher,
+  ],
 })
 export class SecurityModule {}

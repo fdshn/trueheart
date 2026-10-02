@@ -225,6 +225,9 @@ export enum ErrorCodes {
 
   // 0x11 — Chiến dịch & Home động (F63)
   HOME_CAMPAIGN_NOT_FOUND = 0x11_01,
+
+  // 0x12 — Blog / Tin tức (F64)
+  BLOG_NOT_FOUND = 0x12_01,
 }
 
 export const ErrorOrigin = 'chantam/core';

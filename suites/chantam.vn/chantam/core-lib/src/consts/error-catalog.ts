@@ -727,4 +727,10 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     httpStatus: HttpStatus.NOT_FOUND,
     message: () => 'Không tìm thấy chiến dịch',
   },
+
+  BLOG_NOT_FOUND: {
+    code: ErrorCodes.BLOG_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy bài viết',
+  },
 });

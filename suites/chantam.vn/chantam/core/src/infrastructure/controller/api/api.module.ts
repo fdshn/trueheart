@@ -3,6 +3,7 @@ import { AdminConfigControllerModule } from './admin-config/admin-config.module'
 import { AdminPostControllerModule } from './admin-post/admin-post.module';
 import { AffiliateControllerModule } from './affiliate/affiliate.module';
 import { AuthControllerModule } from './auth/auth.module';
+import { BlogControllerModule } from './blog/blog.module';
 import { CategoryControllerModule } from './category/category.module';
 import { ChatControllerModule } from './chat/chat.module';
 import { CheckInControllerModule } from './check-in/check-in.module';
@@ -28,6 +29,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
 @Module({
   imports: [
     AffiliateControllerModule,
+    BlogControllerModule,
     HomeCampaignControllerModule,
     CheckInControllerModule,
     AdminConfigControllerModule,

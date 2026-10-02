@@ -2,6 +2,7 @@ import {
   IAdminConfigRepository,
   IAdminUserRepository,
   IAffiliateRepository,
+  IBlogRepository,
   ICategoryRepository,
   IChatRepository,
   ICheckInRepository,
@@ -36,6 +37,7 @@ import { AdminConfigRepository } from './admin-config.repository';
 import { AdminDashboardRepository } from './admin-dashboard.repository';
 import { AdminUserRepository } from './admin-user.repository';
 import { AffiliateRepository } from './affiliate.repository';
+import { BlogRepository } from './blog.repository';
 import { CategoryRepository } from './category.repository';
 import { ChatRepository } from './chat.repository';
 import { CheckInRepository } from './check-in.repository';
@@ -87,6 +89,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     // không trả lại gì.
     AdminDashboardRepository,
     { provide: IEntitlementRepository, useClass: EntitlementRepository },
+    { provide: IBlogRepository, useClass: BlogRepository },
     {
       provide: IHomeCampaignRepository,
       useClass: HomeCampaignRepository,
@@ -149,6 +152,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     IAdminConfigRepository,
     IAdminUserRepository,
     IEntitlementRepository,
+    IBlogRepository,
     IHomeCampaignRepository,
     IContentCommentRepository,
     IContentReactionRepository,

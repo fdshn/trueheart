@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AdminConfigModule } from './implementations/admin-config/admin-config.module';
 import { AffiliateModule } from './implementations/affiliate/affiliate.module';
 import { AuthUseCaseModule } from './implementations/auth/auth.module';
+import { BlogUseCaseModule } from './implementations/blog/blog.module';
 import { CategoryModule } from './implementations/category/category.module';
 import { ChatModule } from './implementations/chat/chat.module';
 import { CheckInModule } from './implementations/check-in/check-in.module';
@@ -38,6 +39,7 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
     ChatModule,
     FeedModule,
     ReviewModule,
+    BlogUseCaseModule,
     HomeCampaignUseCaseModule,
     NotificationUseCaseModule,
     DiscoveryModule,

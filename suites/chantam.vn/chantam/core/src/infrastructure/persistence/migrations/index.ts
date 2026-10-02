@@ -94,3 +94,5 @@ export * from './1797300000000-SeedCheckInPolicyDraft';
 export * from './1797400000000-CreateAffiliateEngine';
 export * from './1797500000000-CreateHomeCampaignConfigs';
 export * from './1797600000000-AddCampaignPermissions';
+export * from './1797700000000-CreateBlogs';
+export * from './1797800000000-AddBlogPermissions';

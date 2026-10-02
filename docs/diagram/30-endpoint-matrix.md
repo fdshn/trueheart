@@ -183,7 +183,7 @@ Vào nhóm KHÔNG có endpoint riêng: `POST /auth/register` kèm `inviteCode` l
 flowchart TD
     B["⛔ Affiliate"] --> B1["GET /groups/:id/affiliate<br/>GET /groups/:id/events"]
     D["⛔ Dashboard"] --> D1["GET /admin/kpi/*"]
-    E["⛔ Blog"] --> E1["/admin/blogs · GET /blogs · GET /blogs/:id<br/>bảng blogs (SRS §6.2.12) chưa dựng"]
+    E["✅ Blog đã xong"] --> E1["GET|POST /admin/blogs · PUT|DELETE /admin/blogs/:id<br/>GET /blogs · GET /blogs/:idOrSlug — HTML lọc ở tầng ghi"]
     G["✅ Campaign & Home động"] --> G1["GET|POST /admin/campaigns · GET|PUT /admin/campaigns/:id<br/>GET /config/home-layout — đệm Redis TTL 1h"]
     F["⛔ Dharma Hub"] --> F1["/dharma/* — sáu tiểu mục, chưa có đặc tả API"]
 
@@ -194,7 +194,7 @@ flowchart TD
     style C fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style B fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
     style D fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
-    style E fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
+    style E fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style F fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
     style G fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
