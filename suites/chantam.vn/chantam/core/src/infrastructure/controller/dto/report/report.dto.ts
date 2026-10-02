@@ -11,6 +11,11 @@ import {
   IReviewReportDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import {
+  MaxReportSuspendDays,
+  ReportEnforcementAction,
+  ReportEnforcementActions,
+} from '@chantam.vn/chantam.core-lib/models';
+import {
   PaginationMetaDto,
   PaginationQueryDto,
 } from '@chantam/service.common-lib/dto';
@@ -22,11 +27,12 @@ import {
   IsBoolean,
   IsDefined,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
-  IsUrl,
   IsUUID,
+  IsUrl,
   Length,
   Max,
   Min,
@@ -206,14 +212,75 @@ export class ReviewReportDto implements IReviewReportDto {
   note: string;
 }
 
+export class ReportEnforcementDto {
+  @ApiProperty({
+    enum: ReportEnforcementActions,
+    description:
+      '`NONE` là mặc định và là hành vi của đường cũ. `SUSPEND_USER` đòi `suspendDays`. `BAN_USER` khoá vĩnh viễn. Gỡ/ẩn bài viết KHÔNG ở đây — đường đó là `PATCH /admin/posts/:postId/moderate`, với bộ trạng thái và luật riêng.',
+  })
+  @IsIn(ReportEnforcementActions as readonly string[])
+  action: ReportEnforcementAction;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    maximum: MaxReportSuspendDays,
+    example: 7,
+    description:
+      'Bắt buộc với `SUSPEND_USER`, bỏ qua với mọi giá trị khác. Trần 365 ngày: treo 10 năm là khoá vĩnh viễn viết bằng một cách khác, và tệ hơn vì bản ghi nói "tạm" nên không ai đi soát lại.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(MaxReportSuspendDays)
+  suspendDays?: number | null;
+}
+
 export class ReviewReportBodyDto implements IReviewReportBodyDto {
   @ApiProperty({ type: () => ReviewReportDto })
   @IsDefined()
   @ValidateNested()
   @Type(() => ReviewReportDto)
   review: ReviewReportDto;
+
+  @ApiPropertyOptional({
+    type: () => ReportEnforcementDto,
+    description:
+      'Chế tài áp CÙNG LÚC với kết luận (F49, mục mở L4). Bỏ trống nghĩa là không chế tài. Chỉ hợp lệ khi `review.status` là `RESOLVED` — bác báo xấu rồi khoá người bị báo là ghi vào sổ hai câu trái nhau.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ReportEnforcementDto)
+  enforcement?: ReportEnforcementDto;
+}
+
+export class ReportEnforcementOutcomeDto {
+  @ApiProperty({ enum: ReportEnforcementActions })
+  action: ReportEnforcementAction;
+
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Tài khoản đã bị áp chế tài. Với báo xấu nhắm vào nội dung thì đây là CHỦ nội dung — chính việc mà trước bản này Admin phải tự đi tìm tay.',
+  })
+  targetUserId: string | null;
+
+  @ApiProperty({ nullable: true }) userStatus: string | null;
+  @ApiProperty({ nullable: true }) suspendedUntil: Date | null;
+
+  @ApiProperty({
+    description:
+      'Số phiên đã bị thu hồi. ROADMAP ghi rõ "chế tài nào đổi `status` thì cũng phải thu hồi token", nên con số này là BẰNG CHỨNG việc đó đã xảy ra, không phải một lời hứa trong docblock.',
+  })
+  revokedSessions: number;
 }
 
 export class ReviewReportResponseDto {
   @ApiProperty({ type: () => ReportDto }) report: IReportDto;
+
+  @ApiProperty({
+    type: () => ReportEnforcementOutcomeDto,
+    description:
+      'Luôn có mặt, kể cả khi không chế tài gì (`action: "NONE"`). Trả `undefined` ở ca không chế tài sẽ buộc client phân biệt "không áp" với "thiếu trường" — hai chuyện khác nhau khi đọc lại một response cũ.',
+  })
+  enforcement: ReportEnforcementOutcomeDto;
 }

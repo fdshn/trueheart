@@ -242,7 +242,11 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
 - [x] F48 Báo cáo kèm bằng chứng — `POST /reports` nhận `evidenceUrls`, hàng đợi
   `GET /admin/reports` + `PATCH /admin/reports/{id}/review`; thưởng người báo cáo CHỈ khi
   Admin kết luận `RESOLVED` (`BR-REP-03`). Đích `POST`/`USER`/`COMMENT`
-- [ ] F49 Tín hiệu kiểm duyệt + chế tài — chế tài nào đổi `status` thì cũng phải thu hồi token như F60
+- [x] F49 Tín hiệu kiểm duyệt + chế tài — `PATCH /admin/reports/:reportId/review` nhận thêm
+  `enforcement` (`NONE` | `SUSPEND_USER` | `BAN_USER`), đóng mục mở **L4**. Thu hồi token
+  đi kèm vì nó gọi lại NGUYÊN `ChangeAdminUserStatusUseCase`, không viết lại — nên cũng
+  không mở cửa leo thang quyền: chế tài đòi `admin.manage`, kết luận chỉ đòi
+  `report.resolve`. Gỡ/ẩn bài viết KHÔNG gộp vào đây
 - [ ] F45 Phân loại + mẫu thông báo
 - [ ] F46 Lịch Âm + nhắc ngày lễ
 

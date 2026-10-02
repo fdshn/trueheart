@@ -15,7 +15,10 @@ import {
 } from '@chantam/service.auth-lib';
 import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
-import { ForbiddenException } from '@chantam/service.common-lib/exception';
+import {
+  ForbiddenException,
+  ValidationFailedException,
+} from '@chantam/service.common-lib/exception';
 import {
   Body,
   Controller,
@@ -125,13 +128,40 @@ export class AdminReportController {
 
   @Patch(':reportId/review')
   @RequiresPermission('report.resolve')
-  @ApiOperation({ summary: 'Kết luận hoặc bác bỏ report, có audit' })
+  @ApiOperation({
+    summary: 'Kết luận hoặc bác bỏ report, có audit — và áp chế tài cùng lúc',
+    description:
+      'Gửi kèm `enforcement` để treo hoặc khoá tài khoản NGAY trong lượt kết luận ' +
+      '(F49, mục mở L4).\n\n' +
+      'Trước bản này, Admin xác minh một báo xấu rồi phải tự đi tìm tài khoản đó mà ' +
+      'đình chỉ bằng `PATCH /admin/users/:userId/status`. Hai lượt bấm rời nhau để lại ' +
+      'HAI bản ghi audit rời nhau, và sáu tháng sau không ai trả lời được "người này bị ' +
+      'khoá vì báo xấu nào".\n\n' +
+      '**Cần hai quyền.** `report.resolve` cho việc kết luận, và `admin.manage` cho ' +
+      'việc đổi trạng thái tài khoản. Một MODERATOR chỉ có `report.resolve` vẫn kết ' +
+      'luận được nhưng KHÔNG áp được chế tài — lượt gọi trả 403 và không ghi gì.\n\n' +
+      'Với báo xấu nhắm vào nội dung (POST, COMMENT), chế tài rơi vào **chủ nội dung**. ' +
+      'Nội dung đã bị xoá thì không xác định được chủ, và lượt gọi bị từ chối kèm lý ' +
+      'do thay vì một lỗi khoá ngoại.\n\n' +
+      'Chế tài chỉ hợp lệ khi `review.status` là `RESOLVED`. Kiểm TRƯỚC khi ghi kết ' +
+      'luận, nên một `suspendDays` sai không để lại một báo xấu đã đóng mà không có ' +
+      'chế tài nào.\n\n' +
+      'Gỡ/ẩn bài viết KHÔNG ở đây — đường đó là `PATCH /admin/posts/:postId/moderate`, ' +
+      'với bộ trạng thái riêng (`REMOVED` khác `HIDDEN` khác `PENDING_REVIEW`). Gói nó ' +
+      'vào enum chế tài là dựng một bản thứ hai của cùng một luật.',
+  })
   @ApiOkResponse({ type: ResponseDto.forApi(ReviewReportResponseDto) })
   @ApiErrorResponses(
     ...ApiTokenErrors,
     [ForbiddenException],
     [ReportNotFoundException],
     [ReportInvalidStateException],
+    [
+      ValidationFailedException,
+      [
+        'chỉ áp chế tài khi kết luận là RESOLVED — bác báo xấu rồi khoá người bị báo là ghi vào sổ hai câu trái nhau',
+      ],
+    ],
   )
   public async reviewReport(
     @CurrentUser() principal: IAuthPrincipal,

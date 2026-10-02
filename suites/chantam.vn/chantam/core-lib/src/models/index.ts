@@ -27,6 +27,7 @@ export * from './post-lifecycle';
 export * from './post-media';
 export * from './referral';
 export * from './report';
+export * from './report-enforcement';
 export * from './transaction-review';
 export * from './user';
 export * from './user-session';

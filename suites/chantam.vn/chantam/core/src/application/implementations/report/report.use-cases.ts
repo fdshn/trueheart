@@ -1,3 +1,4 @@
+import { IChangeAdminUserStatusUseCase } from '@/application/contracts/admin-config';
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import { IAppendPointEntryUseCase } from '@/application/contracts/point';
 import {
@@ -35,10 +36,16 @@ import {
   ReportStatuses,
   ReportTargetTypes,
   ReportUpheldRuleCode,
+  UserStatuses,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  IReportEnforcement,
+  NoReportEnforcement,
   normalizeReportAbuseConfig,
+  normalizeReportEnforcement,
   ReportAbuseConfigKey,
+  reportEnforcementGaps,
+  resolveSuspendedUntil,
 } from '@chantam.vn/chantam.core-lib/models';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import {
@@ -227,6 +234,20 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
     private readonly points: IAppendPointEntryUseCase,
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatchNotification: IDispatchNotificationUseCase,
+    /**
+     * Gọi lại NGUYÊN use case đổi trạng thái, không tự viết lại.
+     *
+     * Nó đã làm đủ bốn việc: kiểm `admin.manage`, chặn tự khoá mình, đổi trạng thái kèm
+     * audit, và THU HỒI token qua `ITokenDenyList` cộng đóng mọi phiên. Viết lại một bản
+     * thứ hai ở đây nghĩa là hai đường khoá tài khoản, và chỉ một đường được sửa khi luật
+     * thay đổi.
+     *
+     * Quan trọng hơn: nó tự kiểm `admin.manage`. Nhờ vậy một MODERATOR chỉ có
+     * `report.resolve` KHÔNG khoá được tài khoản qua đường này — nếu tự viết lại thì cửa
+     * leo thang quyền đó mở ra mà không ai thấy.
+     */
+    @Inject(IChangeAdminUserStatusUseCase)
+    private readonly changeUserStatus: IChangeAdminUserStatusUseCase,
   ) {}
 
   public async handle(
@@ -238,6 +259,38 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
       throw new ValidationFailedException(['review.note không được để trống']);
     const existing = await this.reports.findAdminByGlobalId(command.reportId);
     if (!existing) throw new ReportNotFoundException();
+
+    // Kiểm chế tài TRƯỚC khi ghi kết luận.
+    //
+    // Nếu kiểm sau thì một `suspendDays` sai sẽ để lại một báo xấu đã kết luận mà không
+    // có chế tài nào, và Admin phải tự biết là lượt thứ hai mới cần làm lại. Kiểm trước
+    // thì lượt gọi hỏng không để lại dấu nào.
+    const enforcement = normalizeReportEnforcement(command.enforcement);
+    //
+    // Dùng thẳng `findTargetOwner`, không tự xét `targetType` ở đây: repository đã trả
+    // chính `targetId` khi đích là NGƯỜI, và trả `author_id` khi đích là bài hay bình
+    // luận. Viết lại nhánh đó ở tầng use case là dựng bản thứ hai của cùng một luật, và
+    // chỉ một bản được sửa khi thêm loại đích mới.
+    //
+    // `null` nghĩa là nội dung đã biến mất; `reportEnforcementGaps` biến nó thành một
+    // thông báo đọc được thay vì một lỗi khoá ngoại.
+    const targetUserId =
+      enforcement.action === 'NONE'
+        ? null
+        : await this.reports.findTargetOwner(
+            existing.targetType,
+            existing.targetId,
+          );
+
+    const enforcementGaps = reportEnforcementGaps({
+      enforcement,
+      upheld: command.review.status === ReportStatuses.RESOLVED,
+      targetUserId,
+      actorUserId: command.actorUserId,
+    });
+    if (enforcementGaps.length > 0)
+      throw new ValidationFailedException(enforcementGaps);
+
     const changed = await this.reports.reviewByAdmin({
       actorUserId: command.actorUserId,
       reportId: command.reportId,
@@ -245,6 +298,20 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
       note,
     });
     if (!changed) throw new ReportInvalidStateException();
+
+    // Áp chế tài SAU khi kết luận đã ghi.
+    //
+    // Khác `awardReporter` và `announceOutcome` bên dưới ở một điểm quyết định: hai cái đó
+    // nuốt lỗi, cái này KHÔNG. Thưởng trượt hay thông báo trượt là mất một thứ phụ; chế
+    // tài trượt nghĩa là Admin đọc "đã xử lý" trên một tài khoản vẫn đang hoạt động bình
+    // thường. Lỗi ở đây phải nổi lên, và kết luận đã ghi vẫn còn đó để Admin thử lại bằng
+    // `PATCH /admin/users/:id/status`.
+    const outcome = await this.applyEnforcement(
+      enforcement,
+      targetUserId,
+      command.actorUserId,
+      note,
+    );
 
     // Thưởng SAU khi Admin xác minh, không phải lúc gửi (F41): thưởng ngay là
     // trả tiền cho việc bấm nút, và hàng đợi sẽ ngập báo xấu vu vơ. Chỉ
@@ -256,7 +323,56 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
 
     const report = await this.reports.findAdminByGlobalId(command.reportId);
     if (!report) throw new ReportNotFoundException();
-    return { report };
+    return { report, enforcement: outcome };
+  }
+
+  private async applyEnforcement(
+    enforcement: IReportEnforcement,
+    targetUserId: string | null,
+    actorUserId: string,
+    note: string,
+  ): Promise<{
+    action: IReportEnforcement['action'];
+    targetUserId: string | null;
+    userStatus: string | null;
+    suspendedUntil: Date | null;
+    revokedSessions: number;
+  }> {
+    if (enforcement.action === 'NONE' || targetUserId === null)
+      return {
+        action: NoReportEnforcement.action,
+        targetUserId: null,
+        userStatus: null,
+        suspendedUntil: null,
+        revokedSessions: 0,
+      };
+
+    const suspendedUntil = resolveSuspendedUntil(enforcement, new Date());
+    const status =
+      enforcement.action === 'BAN_USER'
+        ? UserStatuses.BANNED
+        : UserStatuses.SUSPENDED;
+
+    const result = await this.changeUserStatus.handle({
+      actorUserId,
+      targetUserId,
+      statusChange: {
+        status,
+        suspendedUntil,
+        // Lý do mang theo ghi chú của Admin, để bản ghi trạng thái tài khoản và bản ghi
+        // kết luận báo xấu đọc ra cùng một câu chuyện. Không có nó thì sáu tháng sau
+        // `admin_audit_logs` chỉ nói "đã khoá" mà không nói vì sao.
+        reason: `Chế tài từ kết luận báo xấu: ${note}`,
+      },
+    });
+
+    return {
+      action: enforcement.action,
+      targetUserId,
+      userStatus: result.user.status,
+      suspendedUntil,
+      revokedSessions: result.revokedSessions,
+    };
   }
 
   /**

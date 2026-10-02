@@ -72,6 +72,22 @@ function notifier() {
 }
 
 /**
+ * Use case đổi trạng thái tài khoản, dạng giả.
+ *
+ * `ReviewReportUseCase` gọi lại NGUYÊN use case thật ở production — kể cả phần kiểm
+ * `admin.manage` và phần thu hồi token. Mock ở đây để đo "có gọi đúng tham số không";
+ * bản thân việc khoá và thu hồi đã có phép kiểm riêng của nó.
+ */
+function statusChanger(revokedSessions = 3) {
+  return {
+    handle: jest.fn(async (command: Record<string, unknown>) => ({
+      user: { id: command.targetUserId, status: 'BANNED' },
+      revokedSessions,
+    })),
+  };
+}
+
+/**
  * Throttle luôn cho qua.
  *
  * Trần GỬI báo xấu thêm 29/09 (10/ngày, 3/phút). Mock cho qua ở đây vì những phép
@@ -251,6 +267,7 @@ describe('ReviewReportUseCase', () => {
       admin(),
       points(),
       notifier(),
+      statusChanger() as never,
     ).handle({
       actorUserId: ActorId,
       reportId: ReportId,
@@ -271,7 +288,13 @@ describe('ReviewReportUseCase', () => {
       reviewByAdmin: jest.fn().mockResolvedValue(false),
     } as unknown as jest.Mocked<IReportRepository>;
     await expect(
-      new ReviewReportUseCase(reports, admin(), points(), notifier()).handle({
+      new ReviewReportUseCase(
+        reports,
+        admin(),
+        points(),
+        notifier(),
+        statusChanger() as never,
+      ).handle({
         actorUserId: ActorId,
         reportId: ReportId,
         review: { status: ReportStatuses.DISMISSED, note: 'Không có vi phạm' },
@@ -291,7 +314,13 @@ describe('ReviewReportUseCase', () => {
     } as unknown as jest.Mocked<IReportRepository>;
     const award = points();
 
-    await new ReviewReportUseCase(reports, admin(), award, notifier()).handle({
+    await new ReviewReportUseCase(
+      reports,
+      admin(),
+      award,
+      notifier(),
+      statusChanger() as never,
+    ).handle({
       actorUserId: ActorId,
       reportId: ReportId,
       review: { status: ReportStatuses.RESOLVED, note: 'Đã xác minh' },
@@ -318,7 +347,13 @@ describe('ReviewReportUseCase', () => {
     } as unknown as jest.Mocked<IReportRepository>;
     const award = points();
 
-    await new ReviewReportUseCase(reports, admin(), award, notifier()).handle({
+    await new ReviewReportUseCase(
+      reports,
+      admin(),
+      award,
+      notifier(),
+      statusChanger() as never,
+    ).handle({
       actorUserId: ActorId,
       reportId: ReportId,
       review: { status: ReportStatuses.DISMISSED, note: 'Không có vi phạm' },
@@ -347,6 +382,7 @@ describe('ReviewReportUseCase', () => {
       admin(),
       award,
       notifier(),
+      statusChanger() as never,
     ).handle({
       actorUserId: ActorId,
       reportId: ReportId,
@@ -368,7 +404,13 @@ describe('ReviewReportUseCase', () => {
     award.handle.mockRejectedValue(new Error('connection terminated'));
 
     await expect(
-      new ReviewReportUseCase(reports, admin(), award, notifier()).handle({
+      new ReviewReportUseCase(
+        reports,
+        admin(),
+        award,
+        notifier(),
+        statusChanger() as never,
+      ).handle({
         actorUserId: ActorId,
         reportId: ReportId,
         review: { status: ReportStatuses.RESOLVED, note: 'Đã xác minh' },
@@ -379,7 +421,13 @@ describe('ReviewReportUseCase', () => {
   it('chặn ghi chú xử lý chỉ có khoảng trắng', async () => {
     const reports = {} as jest.Mocked<IReportRepository>;
     await expect(
-      new ReviewReportUseCase(reports, admin(), points(), notifier()).handle({
+      new ReviewReportUseCase(
+        reports,
+        admin(),
+        points(),
+        notifier(),
+        statusChanger() as never,
+      ).handle({
         actorUserId: ActorId,
         reportId: ReportId,
         review: { status: ReportStatuses.RESOLVED, note: '   ' },
@@ -414,6 +462,7 @@ describe('ReviewReportUseCase — thông báo', () => {
       admin(),
       points(),
       dispatch as never,
+      statusChanger() as never,
     );
 
     return { useCase, reports, dispatch };
@@ -527,5 +576,245 @@ describe('ReviewReportUseCase — thông báo', () => {
         review: { status: ReportStatuses.RESOLVED, note: 'Đúng là lừa đảo' },
       }),
     ).resolves.toBeDefined();
+  });
+});
+
+describe('ReviewReportUseCase — chế tài (F49, mục mở L4)', () => {
+  const OwnerId = '90000000-0000-4000-8000-000000000009';
+
+  function reportsFor(
+    options: { targetType?: ReportTargetTypes; owner?: string | null } = {},
+  ) {
+    const dto = {
+      ...reportDto(),
+      targetType: options.targetType ?? ReportTargetTypes.POST,
+    };
+    return {
+      findAdminByGlobalId: jest
+        .fn()
+        .mockResolvedValueOnce(dto)
+        .mockResolvedValueOnce({ ...dto, status: ReportStatuses.RESOLVED }),
+      reviewByAdmin: jest.fn().mockResolvedValue(true),
+      // Phản chiếu repository thật: đích là NGƯỜI thì chủ chính là `targetId`.
+      findTargetOwner: jest.fn(async (type: ReportTargetTypes, id: string) => {
+        if (type === ReportTargetTypes.USER) return id;
+        return options.owner === undefined ? OwnerId : options.owner;
+      }),
+    } as unknown as jest.Mocked<IReportRepository>;
+  }
+
+  const upheld = {
+    actorUserId: ActorId,
+    reportId: ReportId,
+    review: {
+      status: ReportStatuses.RESOLVED as ReportStatuses.RESOLVED,
+      note: 'Đã xác minh gian lận',
+    },
+  };
+
+  it('không gửi enforcement thì không chạm tới tài khoản nào', async () => {
+    const changer = statusChanger();
+    const result = await new ReviewReportUseCase(
+      reportsFor(),
+      admin(),
+      points(),
+      notifier(),
+      changer as never,
+    ).handle(upheld);
+
+    expect(changer.handle).not.toHaveBeenCalled();
+    expect(result.enforcement.action).toBe('NONE');
+    // Luôn có mặt, kể cả khi không áp gì: `undefined` buộc client phân biệt "không áp"
+    // với "thiếu trường".
+    expect(result.enforcement.targetUserId).toBeNull();
+    expect(result.enforcement.revokedSessions).toBe(0);
+  });
+
+  it('BAN_USER trên báo xấu nhắm vào NỘI DUNG áp lên CHỦ nội dung', async () => {
+    // Đây là chính việc L4 nói Admin phải tự đi tìm tay.
+    const reports = reportsFor();
+    const changer = statusChanger(5);
+
+    const result = await new ReviewReportUseCase(
+      reports,
+      admin(),
+      points(),
+      notifier(),
+      changer as never,
+    ).handle({ ...upheld, enforcement: { action: 'BAN_USER' as const } });
+
+    expect(reports.findTargetOwner).toHaveBeenCalledWith(
+      ReportTargetTypes.POST,
+      TargetId,
+    );
+    const call = changer.handle.mock.calls[0][0] as {
+      targetUserId: string;
+      statusChange: {
+        status: string;
+        suspendedUntil: Date | null;
+        reason: string;
+      };
+    };
+    expect(call.targetUserId).toBe(OwnerId);
+    expect(call.statusChange.status).toBe('BANNED');
+    // Khoá vĩnh viễn không tự gỡ, nên một mốc hết hạn ở đó là lời hứa sai.
+    expect(call.statusChange.suspendedUntil).toBeNull();
+    // Lý do mang theo ghi chú của Admin để hai bản ghi đọc ra cùng một câu chuyện.
+    expect(call.statusChange.reason).toContain('Đã xác minh gian lận');
+    expect(result.enforcement.revokedSessions).toBe(5);
+  });
+
+  it('báo xấu nhắm vào USER thì áp thẳng, không hỏi chủ nội dung', async () => {
+    const reports = reportsFor({ targetType: ReportTargetTypes.USER });
+    const changer = statusChanger();
+
+    await new ReviewReportUseCase(
+      reports,
+      admin(),
+      points(),
+      notifier(),
+      changer as never,
+    ).handle({ ...upheld, enforcement: { action: 'BAN_USER' as const } });
+
+    // `findTargetOwner` CÓ được gọi — repository tự trả `targetId` khi đích là NGƯỜI,
+    // và use case dùng thẳng nó thay vì tự xét `targetType`. Bằng chứng nhánh USER chạy
+    // đúng là tài khoản nhận chế tài bằng `targetId`, không bằng `OwnerId`.
+    expect(reports.findTargetOwner).toHaveBeenCalledWith(
+      ReportTargetTypes.USER,
+      TargetId,
+    );
+    expect(
+      (changer.handle.mock.calls[0][0] as { targetUserId: string })
+        .targetUserId,
+    ).toBe(TargetId);
+  });
+
+  it('SUSPEND_USER tính mốc hết treo từ suspendDays', async () => {
+    const changer = statusChanger();
+
+    const result = await new ReviewReportUseCase(
+      reportsFor(),
+      admin(),
+      points(),
+      notifier(),
+      changer as never,
+    ).handle({
+      ...upheld,
+      enforcement: { action: 'SUSPEND_USER' as const, suspendDays: 7 },
+    });
+
+    const call = changer.handle.mock.calls[0][0] as {
+      statusChange: { status: string; suspendedUntil: Date | null };
+    };
+    expect(call.statusChange.status).toBe('SUSPENDED');
+    const until = call.statusChange.suspendedUntil;
+    expect(until).not.toBeNull();
+    const days = Math.round(
+      ((until as Date).getTime() - Date.now()) / (24 * 60 * 60 * 1_000),
+    );
+    expect(days).toBe(7);
+    expect(result.enforcement.suspendedUntil).toEqual(until);
+  });
+
+  it('chế tài trên báo xấu BỊ BÁC bị từ chối, và KHÔNG ghi kết luận', async () => {
+    // Kiểm TRƯỚC khi ghi: nếu kiểm sau thì lượt gọi hỏng để lại một báo xấu đã đóng
+    // mà không có chế tài nào, và Admin phải tự biết là lượt thứ hai mới cần làm lại.
+    const reports = reportsFor();
+    const changer = statusChanger();
+
+    await expect(
+      new ReviewReportUseCase(
+        reports,
+        admin(),
+        points(),
+        notifier(),
+        changer as never,
+      ).handle({
+        actorUserId: ActorId,
+        reportId: ReportId,
+        review: {
+          status: ReportStatuses.DISMISSED as ReportStatuses.DISMISSED,
+          note: 'Không vi phạm',
+        },
+        enforcement: { action: 'BAN_USER' as const },
+      }),
+    ).rejects.toThrow();
+
+    expect(reports.reviewByAdmin).not.toHaveBeenCalled();
+    expect(changer.handle).not.toHaveBeenCalled();
+  });
+
+  it('không tìm được chủ nội dung thì từ chối trước khi ghi', async () => {
+    const reports = reportsFor({ owner: null });
+    const changer = statusChanger();
+
+    await expect(
+      new ReviewReportUseCase(
+        reports,
+        admin(),
+        points(),
+        notifier(),
+        changer as never,
+      ).handle({ ...upheld, enforcement: { action: 'BAN_USER' as const } }),
+    ).rejects.toThrow();
+
+    expect(reports.reviewByAdmin).not.toHaveBeenCalled();
+  });
+
+  it('tự áp chế tài lên chính mình bị từ chối', async () => {
+    const reports = reportsFor({ owner: ActorId });
+    const changer = statusChanger();
+
+    await expect(
+      new ReviewReportUseCase(
+        reports,
+        admin(),
+        points(),
+        notifier(),
+        changer as never,
+      ).handle({ ...upheld, enforcement: { action: 'BAN_USER' as const } }),
+    ).rejects.toThrow();
+
+    expect(reports.reviewByAdmin).not.toHaveBeenCalled();
+  });
+
+  it('action lạ coi như không chế tài, không coi như BAN', async () => {
+    const changer = statusChanger();
+
+    const result = await new ReviewReportUseCase(
+      reportsFor(),
+      admin(),
+      points(),
+      notifier(),
+      changer as never,
+    ).handle({
+      ...upheld,
+      enforcement: { action: 'XOA_SACH' } as never,
+    });
+
+    expect(changer.handle).not.toHaveBeenCalled();
+    expect(result.enforcement.action).toBe('NONE');
+  });
+
+  it('chế tài hỏng thì NÉM, không nuốt như thông báo', async () => {
+    // Thưởng trượt hay thông báo trượt là mất một thứ phụ. Chế tài trượt nghĩa là Admin
+    // đọc "đã xử lý" trên một tài khoản vẫn đang hoạt động bình thường.
+    const reports = reportsFor();
+    const changer = {
+      handle: jest.fn().mockRejectedValue(new Error('thiếu admin.manage')),
+    };
+
+    await expect(
+      new ReviewReportUseCase(
+        reports,
+        admin(),
+        points(),
+        notifier(),
+        changer as never,
+      ).handle({ ...upheld, enforcement: { action: 'BAN_USER' as const } }),
+    ).rejects.toThrow('thiếu admin.manage');
+
+    // Kết luận ĐÃ ghi và vẫn còn đó — Admin thử lại chế tài bằng đường riêng.
+    expect(reports.reviewByAdmin).toHaveBeenCalled();
   });
 });
