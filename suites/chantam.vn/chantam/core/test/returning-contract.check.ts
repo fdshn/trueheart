@@ -20,6 +20,7 @@ import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
+import { CheckInRepository } from '../src/infrastructure/repository/check-in.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { RankRepository } from '../src/infrastructure/repository/rank.repository';
@@ -117,6 +118,13 @@ async function main(): Promise<void> {
         new AdminConfigRepository(dataSource.manager),
       ),
       new PointLedgerRepository(dataSource.manager),
+      // `CheckInRepository` là tham số thật, không mock: ở đây chưa publish policy F83 nào nên
+      // `accrueFromCompletedTransaction` thoát sớm. Nhờ vậy tám script này canh luôn
+      // nhánh "tính năng tắt thì KHÔNG tích lượt bù" mà không phải viết gì thêm.
+      new CheckInRepository(
+        dataSource.manager,
+        new PointLedgerRepository(dataSource.manager),
+      ),
     );
 
     // ── 1. Duyệt giao dịch khi kho đã cạn ───────────────────────────────────
@@ -199,10 +207,7 @@ async function main(): Promise<void> {
       reopened.globalId === TransactionId && reopened.status === 'ACCEPTED',
       `${reopened.globalId ?? 'undefined'}/${reopened.status ?? 'undefined'}`,
     );
-    check(
-      'và mốc đóng đã được xoá',
-      reopened.completedAt === null,
-    );
+    check('và mốc đóng đã được xoá', reopened.completedAt === null);
 
     const confirmed = await transactions.confirmReceipt(
       TransactionId,

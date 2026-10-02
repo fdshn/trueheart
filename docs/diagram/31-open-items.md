@@ -131,7 +131,9 @@ Xếp theo mức đáng làm trước.
 | L16 | [23](./23-referral.md) | **Không có phân trang cho `invitees`** ở cả hai đường đọc — trần cứng 50 | Đủ cho trang tóm tắt; thiếu khi có người mời vài trăm người |
 | L18 | [24](./24-entitlement.md) | **Không có kiểm KHOẢNG cho `limit` của capability**, chỉ kiểm tính nhất quán | Đặt `POST_OPEN = 100000` vẫn qua được. Không làm sập gì, chỉ là một chính sách lạ không ai chặn. Đơn vị mỗi capability một khác (số bài, số yêu cầu, mét) nên một khoảng chung không có nghĩa |
 | L17 | [28](./28-architecture.md) | **Chưa có đo phủ bắt buộc** — `test:cov` có script nhưng không có ngưỡng trong CI | Phủ có thể tụt dần mà không ai thấy |
-| L19 | [11](./11-point.md) | **`POST /admin/points/ledger/:entryId/reversal` KHÔNG ghi `admin_audit_logs`** — phát hiện 01/10 khi thêm đường `adjust` bên cạnh | Một lần Admin đảo bút toán điểm của người khác không để lại dấu nào ở sổ audit. Đường `adjust` mới thì có ghi, nên hai đường cùng quyền `point.adjust` để lại hai mức dấu vết khác nhau |
+| L20 | [12](./12-rank.md) | **Không có thông báo khi đạt ~70% ngưỡng hạng kế tiếp** (`BR-PROF-RANK-04`, và `BR-NOTI-02` liệt kê đây là trigger **bắt buộc**) | Người sắp lên hạng không được khuyến khích gì — đúng lúc một lời nhắc có tác dụng nhất |
+| L21 | [11](./11-point.md) | **Không có công tắc tắt TOÀN BỘ cơ chế phát điểm** (`BR-ADM-POINT-06`). Chỉ tắt được từng rule qua `is_enabled` | Lúc cần nhất — đang có sự cố phát điểm sai — Admin phải tắt lần lượt từng rule, và quên một rule là rule đó vẫn phát |
+| L22 | [02](./02-profile.md) | **Vị trí mặc định chỉ có TOẠ ĐỘ, không có địa chỉ hiển thị** (`BR-PROF-LOC-01` đòi cả hai) | App phải tự geocode ngược, hoặc hiện toạ độ thô để người dùng xác nhận "đây là nhà bạn" |
 
 ---
 
@@ -174,6 +176,52 @@ Ba thứ đã làm mà SRS không nói. Ghi ở đây để không ai phát hi�
 | **Trưởng nhóm sub-team** (`SUBTEAM_ADMIN`) | BR-GRP-05 chỉ chia Owner/Member; SRS nói sub-team *"chỉ để tổ chức"*. Phạm vi đã chốt 30/09: đúng thành viên tổ mình, không hơn. Bộ quyền khởi tạo vẫn là **đề xuất** |
 | **Cảnh báo sắp tụt hạng** | Hệ quả bắt buộc của việc bỏ F76 |
 | **Cờ kiểm duyệt chat** | SRS không nói chat đi qua bộ lọc từ ngữ. Thêm vì mọi thương lượng diễn ra ở đó — và **gắn cờ chứ không chặn**: chặn một hội thoại riêng vì một danh sách từ là quyền lớn hơn mức danh sách đó đáng được trao |
+
+---
+
+## F83 điểm danh — đã dựng 02/10, còn hai thứ chờ Bên A
+
+Hiện thực xong và kiểm trên Postgres thật (`npm run test:check-in`, 36 phép kiểm). Nhưng nó
+**ship ở trạng thái TẮT** và sẽ ở đó cho tới khi có hai thứ dưới đây.
+
+### 🟡 Năm con số chưa ai cung cấp
+
+| Khoá | Ý nghĩa |
+| --- | --- |
+| `dailyPoints` | Điểm cho một lần điểm danh thường |
+| `milestones[].bonusPoints` | Điểm ở từng mốc (mốc khởi đầu SRS nêu: 7/14/30/50 ngày) |
+| `transactionsPerRepair` | Số giao dịch tặng/nhận quà hoàn tất đổi một lượt bù |
+| `repairWindowDays` | Số ngày được quay lại bù |
+| giới hạn lượt bù tích trữ | Có hay không — hiện **không** giới hạn |
+
+Đặc tả nói thẳng là *"không hard-code một giá trị mặc định có tác dụng phát điểm"*, nên
+`DefaultCheckInPolicy` là 0/tắt và `PUT /admin/check-in-policy` **từ chối** một bản bật mà
+thiếu số, kèm danh sách đúng cái thiếu. Để treo thì tính năng có mà không ai dùng được.
+
+### 🟡 Một câu hỏi chính đặc tả tự đặt ra
+
+`docs/plan/ASSUMPTIONS.md` ghi: *"Thiết kế chọn mỗi giao dịch hợp lệ tính một lần cho **mỗi
+bên**; cần xác nhận nếu chỉ muốn tính cho một bên."* Đã hiện thực theo thiết kế (cả người
+tặng và người nhận), và điều đó làm **tốc độ tích lượt gấp đôi** so với tính một bên. Đổi
+sang một bên là sửa một chỗ trong `accrueFromCompletedTransaction`.
+
+### 🟠 Một lỗ ĐẶC TẢ, không phải lỗ hiện thực
+
+Khi một giao dịch bị đảo **sau khi** lượt bù sinh ra từ nó đã bị tiêu, thiết kế nói giữ lịch
+sử và "đưa vào đối soát thủ công" — nhưng **không nêu endpoint hay màn hình nào** để làm việc
+đó. Nên mã nguồn cũng chưa có đường đó: `repair_credit_ledger` có sẵn loại `REVERSE` và số dư
+không bao giờ âm, còn ai bấm và bấm ở đâu thì chưa định nghĩa.
+
+Cùng loại với L10 (`point_cap_decisions` giữ đủ bằng chứng mà không ai đọc được): dữ liệu có,
+đường vào thì không.
+
+### 🟠 `GET /check-ins/me/history` trả `canRepair` luôn `false`
+
+Theo thiết kế, danh sách này chỉ chứa những ngày **đã có dấu**, nên không ngày nào trong đó bù
+được. Những ngày bù được nằm ở `repairableDates` của `GET /check-ins/me`. Trường vẫn giữ trong
+response vì đặc tả nêu nó và app dựng lịch cần một cờ cho mọi ô — nhưng ở dạng hiện tại nó là
+một hằng số, và đó đúng là loại "trường hiển thị mà không ai đọc" mà các đợt soát trước đã bắt.
+Nên hoặc app ghép hai nguồn, hoặc endpoint này nhận thêm khoảng ngày để trả cả ô trống.
 
 ---
 

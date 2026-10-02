@@ -55,6 +55,9 @@ function makeRepository(
   query: jest.Mock,
   chat: ReturnType<typeof makeChatRepository> = makeChatRepository(),
   ledger: ReturnType<typeof makeLedgerRepository> = makeLedgerRepository(),
+  checkIn: { accrueFromCompletedTransaction: jest.Mock } = {
+    accrueFromCompletedTransaction: jest.fn().mockResolvedValue(undefined),
+  },
 ) {
   return new GiftTransactionRepository(
     {
@@ -63,6 +66,7 @@ function makeRepository(
     } as never,
     chat as never,
     ledger as never,
+    checkIn as never,
   );
 }
 

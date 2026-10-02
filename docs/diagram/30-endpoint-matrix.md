@@ -50,6 +50,8 @@ flowchart LR
 | `POST /posts` | token + quota rank | ✅ |
 | `GET /posts/nearby` · `/map` · `/me` | token | ✅ |
 | `GET /posts/sos-urgent` | công khai | ✅ |
+| `GET /check-ins/me` · `/me/history` | token | ✅ |
+| `POST /check-ins` · `/check-ins/repairs` | token | ✅ |
 | `GET /posts/:postId` | token | ✅ jitter toạ độ — trừ chính tác giả, kèm `canEdit` |
 | `PATCH /posts/:postId` | chủ bài | ✅ chặn khi có giao dịch `ACCEPTED`/`DELIVERING` |
 | `DELETE /posts/:postId` | chủ bài | ✅ chặn khi bài `RESERVED`/`DELIVERING` |
@@ -129,6 +131,7 @@ flowchart LR
 | `GET` · `POST /admin/points/rules` | `config.*` | ✅ |
 | `POST /admin/points/ledger/:id/reversal` | `point.adjust` | ✅ |
 | `POST /admin/points/adjust` | `point.adjust` | ✅ |
+| `GET|PUT /admin/check-in-policy` | `config.read`/`config.write` | ✅ |
 | `GET` · `POST /admin/ranks/policy` · `/maintenance` | `rank.operate` | ✅ |
 | `GET` · `POST /admin/entitlements` | `entitlement.*` | ✅ |
 | `GET` · `PUT /admin/notification-channels/:channel` | `notification.manage` | ✅ |

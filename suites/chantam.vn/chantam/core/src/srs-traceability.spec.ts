@@ -65,7 +65,15 @@ const SrsDir = join(
   'software-requirement-specification',
 );
 
-const BrIdPattern = /BR[_-][A-Za-z0-9]+[_-][0-9]+/g;
+/**
+ * Nhận cả id BA đoạn như `BR-ADM-CHECKIN-01`, không chỉ hai đoạn.
+ *
+ * Bản đầu là `BR[_-][A-Za-z0-9]+[_-][0-9]+` và nó **bỏ sót** đúng kiểu id đó:
+ * sau `BR-` nó khớp `ADM`, rồi đòi ngay chữ số nhưng gặp `CHECKIN`. Lỗ hổng lộ ra
+ * ở lần SRS lên bản đầu tiên sau khi dựng sổ (v1.15.3, 01/10) — nên một quy tắc
+ * mới có thật đã lọt qua cả phép kiểm "SRS có id nào sổ chưa khai".
+ */
+const BrIdPattern = /BR[_-](?:[A-Za-z][A-Za-z0-9]*[_-])+[0-9]+/g;
 
 /**
  * Đọc đúng MỘT file SRS.
@@ -494,7 +502,7 @@ const BrTrace: readonly BrTraceEntry[] = [
     status: 'PARTIAL',
     where:
       'RankChangeNotifier, AcceptedRequestNotifier, RequestLifecycleNotifier, cron nhắc hạn',
-    note: 'Nhánh campaign/lịch sự kiện chưa có vì phân hệ chiến dịch chưa dựng (xem BR_CAMP_01)',
+    note: 'Thiếu HAI nhánh: campaign/lịch sự kiện (phân hệ chiến dịch chưa dựng, xem BR_CAMP_01) và mốc 70% ngưỡng hạng (không chỗ nào trong mã nguồn tính mốc đó — xem BR-PROF-RANK-04)',
   },
   {
     id: 'BR-NOTI-03',
@@ -550,6 +558,298 @@ const BrTrace: readonly BrTraceEntry[] = [
     note: 'LỆCH: nguồn tính hạng là cấu hình động và Admin bật được `LIFETIME` — đúng thứ SRS nói là không dùng. Mặc định đúng, nhưng đặc tả không cho phép lựa chọn này tồn tại; cần Bên A chốt giữ hay bỏ',
   },
 
+  // ── Hạng và hồ sơ vị trí (id ba đoạn, regex bản đầu bỏ sót) ───────────────
+  {
+    id: 'BR-PROF-RANK-01',
+    title:
+      'Năm cấp Viewer/Member/Bạc/Vàng/Kim Cương; Admin là vai trò quản trị, KHÔNG phải một cấp',
+    status: 'IMPLEMENTED',
+    where:
+      'core-lib `UserRanks` đúng năm giá trị; quyền quản trị nằm ở bảng role riêng ' +
+      'và `AdminPermissionGuard`, không trộn vào `users.rank`',
+  },
+  {
+    id: 'BR-PROF-RANK-02',
+    title: 'Ngưỡng 224 / 672 / 896 / 1792 điểm, xét theo số dư hiện tại',
+    status: 'IMPLEMENTED',
+    where:
+      'core-lib `RankThresholds` khớp đúng bốn con số; `rankForPoints` dùng chúng',
+  },
+  {
+    id: 'BR-PROF-RANK-03',
+    title:
+      'Viewer/Member không tụt hạng theo chu kỳ; Member lên Bạc cần 1 lượt Cho hoàn tất + 1 Personal Referral hợp lệ',
+    status: 'UNVERIFIED',
+  },
+  {
+    id: 'BR-PROF-RANK-04',
+    title:
+      'Đạt ~70% ngưỡng hạng kế tiếp thì gửi thông báo khuyến khích; đủ ngưỡng và nhiệm vụ thì lên hạng',
+    status: 'PARTIAL',
+    where: 'RankChangeNotifier báo khi nâng/tụt hạng thật',
+    note: 'THIẾU nhánh 70%: không chỗ nào trong mã nguồn tính mốc đó, nên người sắp đạt hạng không được khuyến khích gì. Cùng lỗ với `BR-NOTI-02` vốn liệt kê "đạt 70% ngưỡng rank" là trigger bắt buộc',
+  },
+  {
+    id: 'BR-PROF-RANK-05',
+    title:
+      'Quyền đăng bài, bình luận, phạm vi tương tác kiểm ở Backend Permission Guard theo rank — không chỉ ẩn nút ở Mobile',
+    status: 'IMPLEMENTED',
+    where:
+      'entitlement capability đọc ở tầng use case (create-post, create-gift-request, ' +
+      'discovery radius), nên client bỏ qua UI vẫn bị chặn',
+  },
+  {
+    id: 'BR-PROF-RANK-06',
+    title:
+      'Điểm xét Rank là số dư hiện tại; Phase 1 KHÔNG dùng lifetime rank point riêng',
+    status: 'PARTIAL',
+    where:
+      'mặc định `rank.points_source = BALANCE`, và RankChangeNotifier xét lại sau mọi biến động',
+    note: 'Cùng lệch với `BR-POINT-06`: nguồn tính hạng là cấu hình động và Admin bật được `LIFETIME` — đúng thứ hai quy tắc này cùng nói là không dùng. Hai id khác nhau cho cùng một quy tắc, nên nếu Bên A chốt bỏ thì phải sửa cả hai chỗ trong SRS',
+  },
+  {
+    id: 'BR-PROF-LOC-01',
+    title:
+      'Mỗi user có một Vị trí mặc định gồm ĐỊA CHỈ HIỂN THỊ và toạ độ lat/lng, chọn trên Map hoặc lấy GPS',
+    status: 'PARTIAL',
+    where:
+      '`users.default_location` là một điểm geography, đặt qua `PUT /profile/default-location`',
+    note: 'Chỉ có TOẠ ĐỘ. Không cột nào giữ địa chỉ hiển thị, nên app phải tự geocode ngược hoặc hiện toạ độ thô cho người dùng xác nhận "đây là nhà bạn"',
+  },
+  {
+    id: 'BR-PROF-LOC-02',
+    title:
+      'Vị trí mặc định là gốc cho nghiệp vụ khoảng cách, cho Group, và là giá trị mặc định khi tạo Post',
+    status: 'IMPLEMENTED',
+    where:
+      'get-nearby-posts lùi về `user.defaultLocation` khi client không gửi toạ độ; ' +
+      'tạo Group copy nó sang `center_location` (xem BR-GRP-03)',
+  },
+  {
+    id: 'BR-PROF-LOC-03',
+    title:
+      'GPS hiện tại và Vị trí mặc định là HAI dữ liệu khác nhau; GPS chỉ dùng cho nghiệp vụ tức thời',
+    status: 'IMPLEMENTED',
+    where:
+      '`originSource` phân biệt rõ ba nguồn `REQUEST` (GPS client gửi) / ' +
+      '`DEFAULT_LOCATION` / `ALL`, và trả về cho client biết đã dùng nguồn nào',
+  },
+
+  // ── Hàng đợi yêu cầu xin nhận ─────────────────────────────────────────────
+  {
+    id: 'BR-REQ-QUEUE-01',
+    title:
+      'Người xin được rút khi đang PENDING; yêu cầu sang WITHDRAWN và mất vị trí ưu tiên',
+    status: 'IMPLEMENTED',
+    where:
+      'gift-request.repository.ts `withdrawIfPending` đổi trạng thái bằng MỘT câu có ' +
+      'điều kiện, nên một lượt duyệt chen vào giữa không bị đè',
+  },
+  {
+    id: 'BR-REQ-QUEUE-02',
+    title:
+      'Xin lại cùng bài sau khi rút được phép; `queue_joined_at` mới và xếp xuống CUỐI hàng đợi',
+    status: 'IMPLEMENTED',
+    where:
+      'create-gift-request.use-case.ts dùng lại bản ghi cũ nhưng đặt lại ' +
+      '`queueJoinedAt = new Date()`; PENDING/STANDBY/ACCEPTED thì chặn bằng ' +
+      'GiftRequestDuplicatedException để không ai mất chỗ vì gửi thêm một lần',
+  },
+  {
+    id: 'BR-REQ-QUEUE-03',
+    title:
+      'Người xin ĐẦU TIÊN hợp lệ trên bài đang mở thì ghi `selection_deadline = NOW() + 7 ngày`',
+    status: 'IMPLEMENTED',
+    where:
+      'create-gift-request.use-case.ts nhánh `isFirstRequest`: 7 ngày cho OPTIMAL, ' +
+      '30 ngày cho EXTENDED, và INSTANT thì chốt luôn người đầu tiên',
+  },
+
+  // ── Admin cấu hình điểm, geo affiliate, thưởng SĐT, nhóm bài ──────────────
+  {
+    id: 'BR-ADM-POINT-01',
+    title:
+      'Super Admin cấu hình điểm cộng/trừ theo hành động, điều kiện, trần theo ngày và bật/tắt từng Point Rule',
+    status: 'IMPLEMENTED',
+    where:
+      'bảng `point_rules` có `points`, `daily_cap`, `is_enabled`, `version`; ' +
+      '`GET|PATCH /admin/points/rules`, và `point_cap_decisions` ghi lại ai bị chặn vì trần',
+  },
+  {
+    id: 'BR-ADM-POINT-02',
+    title:
+      'Admin cấu hình mức thưởng Personal Referral; trigger cố định là tài khoản mới đăng ký hợp lệ, thưởng one-time',
+    status: 'IMPLEMENTED',
+    where:
+      'mức nằm ở `point_rules`; one-time đảm bảo bằng `idempotency_key` trên ' +
+      '`point_ledger` cộng `UQ_referrals_referee_id`',
+  },
+  {
+    id: 'BR-ADM-POINT-03',
+    title:
+      'Admin cấu hình mức điểm theo Group Affiliate Event; depth=1, phải đạt Geo Eligibility, chia cho mọi Active Member',
+    status: 'NOT_IMPLEMENTED',
+    note: 'Bộ máy chia thưởng affiliate chưa dựng — xem BR-AFF-02. Không có đường sinh reward nên không có mức điểm nào để cấu hình',
+  },
+  {
+    id: 'BR-ADM-POINT-04',
+    title:
+      'Admin cấu hình Rank, nhiệm vụ duy trì, quyền theo Rank và campaign multiplier; Giver Accuracy thang 0-100%, tối thiểu 05 mẫu, ngưỡng 75%',
+    status: 'PARTIAL',
+    where:
+      '`GET|POST /admin/rank-policy` và `/admin/entitlements` cấu hình được hạng, ' +
+      'nhiệm vụ duy trì và quyền; accuracy khớp đúng 0-100 / 5 mẫu / 75%',
+    note: 'THIẾU `campaign multiplier`: phân hệ chiến dịch chưa dựng (xem BR_CAMP_01) nên không có hệ số nào để nhân',
+  },
+  {
+    id: 'BR-ADM-POINT-05',
+    title:
+      'Super Admin cộng/trừ/thu hồi điểm để thưởng, phạt, bồi hoàn, khiếu nại; điều chỉnh phải tạo ledger entry MỚI, không sửa lịch sử',
+    status: 'IMPLEMENTED',
+    where:
+      '`POST /admin/points/adjust` (thêm 01/10) cho khoản không ứng với bút toán nào, ' +
+      'và `POST /admin/points/ledger/{entryId}/reversal` để phủ nhận một khoản đã ghi. ' +
+      'Cả hai đi qua `point_ledger` append-only có trigger chặn UPDATE',
+  },
+  {
+    id: 'BR-ADM-POINT-06',
+    title:
+      'Super Admin tạm dừng TOÀN BỘ hoặc từng cơ chế phát sinh điểm khi rà soát gian lận/sự cố',
+    status: 'PARTIAL',
+    where:
+      '`point_rules.is_enabled` tắt được TỪNG cơ chế qua `PATCH /admin/points/rules`',
+    note: 'KHÔNG có công tắc tắt TOÀN BỘ. Lúc cần nhất — đang có sự cố phát điểm sai — Admin phải tắt lần lượt từng rule, và quên một rule là rule đó vẫn phát',
+  },
+  {
+    id: 'BR-ADM-POINT-07',
+    title:
+      'Mọi thao tác quản trị thay đổi điểm phải lưu CẢ Point Ledger VÀ Audit Log, gồm actor, thời gian, giá trị trước/sau và lý do',
+    status: 'IMPLEMENTED',
+    where:
+      'cả hai đường đổi điểm đều ghi `admin_audit_logs` kèm `reason` và số dư sau: ' +
+      '`adjust` từ đầu, `reversal` được vá 01/10 — trước đó nó chỉ ghi ledger, nên một ' +
+      'lần Admin đảo bút toán của người khác không để lại dấu nào ở sổ audit',
+  },
+  {
+    id: 'BR-GEO-AFF-01',
+    title:
+      'TOÀN BỘ Group Affiliate Event phải vượt Geo Eligibility của Group trước khi cộng reward',
+    status: 'NOT_IMPLEMENTED',
+    note: 'Cùng lý do BR-ADM-POINT-03: chưa có đường sinh affiliate event nào để mà kiểm geo',
+  },
+  {
+    id: 'BR-GEO-AFF-02',
+    title:
+      'Vị trí mặc định là gốc của member cho Geo Affiliate; event có location nghiệp vụ riêng thì ưu tiên location đó',
+    status: 'NOT_IMPLEMENTED',
+    note: 'Cùng lý do BR-ADM-POINT-03. Nửa đầu đã có sẵn và đúng hướng (xem BR-PROF-LOC-02), chỉ thiếu phía affiliate',
+  },
+  {
+    id: 'BR-GEO-AFF-03',
+    title:
+      'Event ngoài vùng vẫn LƯU để audit với `reward_status = NOT_ELIGIBLE_GEO`, `point_delta = 0` và thông tin distance/radius',
+    status: 'NOT_IMPLEMENTED',
+    note: 'Cùng lý do BR-ADM-POINT-03. Đây là quy tắc đáng chú ý khi dựng: không được im lặng bỏ event ngoài vùng, phải ghi lại kèm lý do',
+  },
+  {
+    id: 'BR-PHONE-REWARD-01',
+    title:
+      'Thưởng SĐT là MỘT LẦN cho số đầu tiên của tài khoản; đổi SĐT hoặc xác minh lại không thưởng thêm',
+    status: 'IMPLEMENTED',
+    where:
+      'confirm-phone-verification.use-case.ts ghi điểm qua `idempotency_key` theo user, ' +
+      'nên lần xác minh thứ hai không sinh bút toán; `findPhoneVerifiedUsersMissingReward` ' +
+      'là job đối soát cho ca tiến trình chết giữa hai bước',
+  },
+  {
+    id: 'BR-POST-TYPE-01',
+    title:
+      'Sáu nhóm bài hiển thị chính: MUỐN_TẶNG, MUỐN_NHẬN, TỪ_THIỆN_HOẠT_ĐỘNG, RAO_VẶT, GIỚI_THIỆU_QUẢNG_CÁO, CÔNG_ĐỨC_HỒI_HƯỚNG',
+    status: 'PARTIAL',
+    where:
+      '`PostTypes` có năm loại: OFFER, WANTED, CHARITY, CLASSIFIED, MERIT — khớp năm ' +
+      'trong sáu nhóm, và mỗi loại có cổng/hạn mức riêng ở create-post',
+    note: 'THIẾU nhóm thứ sáu `GIỚI_THIỆU_QUẢNG_CÁO`: không giá trị nào trong `PostTypes` tương ứng, nên không đăng được loại bài đó. Cần Bên A xác nhận là bỏ hay sẽ thêm',
+  },
+
+  // ── Điểm danh và streak (F83) — CHƯA DỰNG, đặc tả vào SRS v1.15.3 ─────────
+  {
+    id: 'BR-CHECKIN-01',
+    title:
+      'Ngày nghiệp vụ theo Asia/Ho_Chi_Minh; mỗi user tối đa một điểm danh mỗi ngày, retry không tạo thêm',
+    status: 'IMPLEMENTED',
+    where:
+      'core-lib `businessDateOf` dịch +07:00 (Việt Nam không có DST); ' +
+      '`UQ_check_in_entries_user_date` là thứ chặn hai request đồng thời, không ' +
+      'phải phép đọc trước; gọi lại trong cùng ngày trả `applied: false`',
+  },
+  {
+    id: 'BR-CHECKIN-02',
+    title:
+      'Streak là số NGÀY LIÊN TIẾP, không reset theo tuần; mốc 7/14/30/50 Admin sửa được; điểm mốc cộng NGOÀI điểm ngày, một lần mỗi mốc mỗi chuỗi',
+    status: 'IMPLEMENTED',
+    where:
+      '`summarizeCheckInRun` đếm đoạn liên tiếp; `UQ_check_in_milestone_awards_run_days` ' +
+      'khoá một mốc một chuỗi; mốc nằm ở `check_in_policy_revisions.milestones_json` nên ' +
+      'Admin sửa được. 7/14/30/50 chỉ là gợi ý (`SuggestedCheckInMilestoneDays`), không hard-code',
+  },
+  {
+    id: 'BR-CHECKIN-03',
+    title:
+      'Điểm ngày và điểm mốc đều ghi Point Ledger append-only kèm reference, idempotency và version policy; đổi policy không tính lại lịch sử',
+    status: 'IMPLEMENTED',
+    where:
+      '`appendAdjustmentWithinTransaction` ghi cả điểm ngày và điểm mốc vào ' +
+      '`point_ledger` trong CÙNG transaction với lịch, khoá chống trùng theo ' +
+      'user+ngày và theo run+mốc; `policy_version` lưu trên từng entry nên đổi ' +
+      'policy không tính lại lịch sử',
+  },
+  {
+    id: 'BR-CHECKIN-04',
+    title:
+      'Lượt bù chỉ tích từ giao dịch tặng/nhận quà hoàn tất theo ngưỡng Admin cấu hình; mỗi giao dịch tính một lần cho người tặng và một lần cho người nhận',
+    status: 'PARTIAL',
+    where:
+      '`accrueFromCompletedTransaction` chạy trong transaction hoàn tất ở CẢ HAI ' +
+      'đường (xác nhận tay và `transaction:autocomplete`); ' +
+      '`UQ_repair_transaction_progress_user_tx` chặn tính hai lần; ngưỡng GHIM theo ' +
+      '`repair_credit_cohorts` nên đổi policy giữa kỳ không quy đổi lại tiến độ',
+    note: 'Việc tính cho CẢ HAI bên là lựa chọn của thiết kế, và chính docs/plan/ASSUMPTIONS.md ghi là CẦN Bên A xác nhận — tính hai bên làm tốc độ tích lượt gấp đôi. Đã hiện thực theo thiết kế; đổi sang một bên là sửa một chỗ trong `accrueFromCompletedTransaction`',
+  },
+  {
+    id: 'BR-CHECKIN-05',
+    title:
+      'Một ngày thiếu tiêu một lượt bù, chỉ trong cửa sổ Admin cấu hình, theo thứ tự cũ tới mới; ngày bù nối chuỗi và mở được mốc chưa nhận nhưng KHÔNG nhận điểm cơ bản của ngày bỏ lỡ',
+    status: 'IMPLEMENTED',
+    where:
+      '`isRepairableDate` chặn hôm nay và ngoài cửa sổ; chỉ bù được một ngày trong ' +
+      '`pendingGapDates` (xếp cũ trước); `CHK_check_in_entries_repair_no_daily_points` ' +
+      'là ràng buộc DATABASE chặn trả điểm ngày cho ngày bù, không chỉ một nhánh code',
+  },
+  {
+    id: 'BR-CHECKIN-06',
+    title:
+      'Tiêu lượt bù, ghi ngày bù, cập nhật streak và thưởng mốc phải NGUYÊN TỬ, chống xử lý lặp, và có dữ liệu đối soát',
+    status: 'PARTIAL',
+    where:
+      'toàn bộ lượt ghi nằm trong MỘT transaction có `pg_advisory_xact_lock` theo ' +
+      'user; `check_in_entries` và `repair_credit_ledger` có trigger chặn ' +
+      'UPDATE/DELETE; `CHK_repair_credit_ledger_balance` chặn số dư âm',
+    note: 'Phần "dữ liệu đối soát" còn một lỗ ĐẶC TẢ, không phải lỗ hiện thực: khi giao dịch bị đảo SAU khi lượt bù đã tiêu, thiết kế giao cho đối soát thủ công mà không nêu endpoint hay màn hình nào. Mã nguồn vì thế cũng chưa có đường đó — xem docs/diagram/31-open-items.md',
+  },
+  {
+    id: 'BR-ADM-CHECKIN-01',
+    title:
+      'Admin có `config.write` cấu hình ngưỡng giao dịch/lượt bù, thời hạn bù, điểm ngày và điểm từng mốc, có version/hiệu lực/lý do/audit; `config.read` chỉ xem',
+    status: 'IMPLEMENTED',
+    where:
+      '`GET|PUT /admin/check-in-policy` với `config.read`/`config.write`; mỗi lần ' +
+      'publish là một `version` mới kèm `effective_at`, `reason`, `created_by`, và ' +
+      '`admin_audit_logs` giữ cả trước lẫn sau; `expectedVersion` lệch thì bị từ chối. ' +
+      'Bật mà thiếu số bị chặn kèm danh sách đúng cái thiếu — không hard-code mức thưởng',
+    note: 'Đây cũng là id BA ĐOẠN mà regex bản đầu của sổ này bỏ sót — xem chú thích ở `BrIdPattern`',
+  },
+
   // ── Báo xấu ───────────────────────────────────────────────────────────────
   {
     id: 'BR-REP-02',
@@ -574,13 +874,27 @@ const BrTrace: readonly BrTraceEntry[] = [
 ];
 
 /**
- * Số quy tắc CHƯA đối chiếu, tại thời điểm dựng sổ (01/10).
+ * Số quy tắc CHƯA đối chiếu.
  *
  * Đây là một cái chốt MỘT CHIỀU: phép kiểm dưới đây đỏ khi con số vượt mốc này.
- * Hạ mốc khi đối chiếu thêm được quy tắc; **không bao giờ nâng**. Nâng mốc để cho
- * xanh là bỏ đúng cái việc mà sổ này tồn tại để theo dõi.
+ * Hạ mốc khi đối chiếu thêm được quy tắc; **không nâng để cho xanh** — nâng mốc
+ * vì chưa muốn soát là bỏ đúng cái việc sổ này tồn tại để theo dõi.
+ *
+ * **15 → 16, một lần, 01/10, vì MẪU SỐ đổi chứ không vì việc soát thụt lùi.**
+ * Mốc 15 đo trên 61 id, và 61 là con số SAI: `BrIdPattern` bản đầu bỏ sót mọi id
+ * BA ĐOẠN, nên 24 quy tắc vốn đã có trong SRS từ trước chưa bao giờ được sổ nhìn
+ * thấy — `BR-ADM-POINT-*`, `BR-PROF-RANK-*`, `BR-PROF-LOC-*`, `BR-REQ-QUEUE-*`,
+ * `BR-GEO-AFF-*`, `BR-PHONE-REWARD-01`, `BR-POST-TYPE-01`. Tổng thật là **92**.
+ *
+ * Trong 24 cái đó, 23 đối chiếu được ngay (phần lớn thuộc phân hệ đã dựng), chỉ
+ * `BR-PROF-RANK-03` phải để `UNVERIFIED`. Nên con số tăng đúng 1.
+ *
+ * Lỗ regex lộ ra ở lần SRS lên bản đầu tiên sau khi dựng sổ (v1.15.3): `BR-ADM-CHECKIN-01`
+ * là id ba đoạn và phép kiểm "SRS có id nào sổ chưa khai" **không hề đỏ** cho nó.
+ * Một phép kiểm bỏ sót trong im lặng thì tệ hơn không có, vì đọc kết quả xanh người
+ * ta kết luận là đã phủ hết.
  */
-const UnverifiedBaseline = 15;
+const UnverifiedBaseline = 16;
 
 describe('truy vết BR của SRS sang mã nguồn', () => {
   it('mọi BR id trong SRS đều có một dòng trong sổ', () => {

@@ -35,6 +35,7 @@ function makeDeps(
     } as unknown as jest.Mocked<IPointLedgerRepository>,
     admin: {
       hasPermission: jest.fn().mockResolvedValue(allowed),
+      appendAudit: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<IAdminConfigRepository>,
     // Xét hạng + báo tụt hạng nay đi qua RankChangeNotifier; ca "có báo đúng
     // không" nằm ở rank-change.notifier.spec.ts.
@@ -127,6 +128,42 @@ describe('ReversePointEntryUseCase', () => {
         }),
       ).rejects.toBeInstanceOf(PointEntryNotReversibleException);
     }
+  });
+
+  it('ghi audit kèm actor, lý do và số dư hai phía (BR-ADM-POINT-07)', async () => {
+    // Trước 01/10 đường này chỉ ghi ledger. Hai đường cùng quyền `point.adjust`
+    // để lại hai mức dấu vết khác nhau là đúng thứ sổ audit tồn tại để chặn.
+    const deps = makeDeps();
+
+    await build(deps).handle({
+      actorUserId: ActorId,
+      entryId: EntryId,
+      reversal: { reason: 'Ghi nhầm hai lần' },
+    });
+
+    expect(deps.admin.appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: ActorId,
+        action: 'REVERSE_POINT_ENTRY',
+        resourceType: 'USER',
+        // Chủ tài khoản bị ảnh hưởng, KHÔNG phải Admin.
+        resourceId: OwnerId,
+        reason: 'Ghi nhầm hai lần',
+      }),
+    );
+  });
+
+  it('hoàn thất bại thì KHÔNG ghi audit', async () => {
+    const deps = makeDeps({ status: 'NOT_FOUND' });
+
+    await expect(
+      build(deps).handle({
+        actorUserId: ActorId,
+        entryId: EntryId,
+        reversal: { reason: 'Ghi nhầm' },
+      }),
+    ).rejects.toBeInstanceOf(PointEntryNotReversibleException);
+    expect(deps.admin.appendAudit).not.toHaveBeenCalled();
   });
 
   it('hoàn thất bại thì KHÔNG tính lại hạng', async () => {

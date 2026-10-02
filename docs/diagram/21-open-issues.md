@@ -90,6 +90,20 @@ hình động:
 | 15 | ✅ **Đã chốt 29/09: giữ `RESERVED`.** `acceptRequest` nay ghi `RESERVED`, năm nơi đọc bỏ tên thứ hai, migration `1795200000000` suy lại trạng thái cho dòng cũ (theo đúng luật của `syncPostStatus`, KHÔNG đổi phẳng — bài đang `DELIVERING` mà lượt trao đã xong hết thì đáng ra là `COMPLETED`, đổi phẳng sang `RESERVED` là đóng băng đúng cái lỗi cũ). Giá trị enum để lại làm lưới hứng; `DELIVERING` của LƯỢT TRAO không đổi | [04](./04-post.md) · [07](./07-request.md) |
 | 16 | ✅ **Đã sửa 29/09 — rò rỉ quota đăng bài.** `syncPostStatus` chỉ quản `PUBLISHED`/`RESERVED`/`COMPLETED`, nên bài đã bị `acceptRequest` đẩy sang `DELIVERING` thì KHÔNG BAO GIỜ được suy lại trạng thái: người nhận xác nhận xong, bài vẫn đứng `DELIVERING`, mà `DELIVERING` nằm trong `QuotaStatuses` → tác giả mất vĩnh viễn một suất đăng bài. Đúng lỗi mà `syncPostStatus` được viết ra để chặn, quay lại qua cửa khác. `post-status.check.ts` bắt được, nhưng script đó đã hỏng biên dịch từ 28/09 nên không ai chạy | [04](./04-post.md) · [07](./07-request.md) |
 
+## 21.4c Phát hiện từ đợt rà SRS (01/10)
+
+Dựng sổ truy vết `core/src/srs-traceability.spec.ts` nối từng quy tắc SRS tới chỗ hiện thực.
+
+| # | Vấn đề | Trạng thái |
+| --- | --- | --- |
+| 1 | **Bản kiểm kê quy tắc của tôi sai hai lần.** Báo cáo đầu nói 85 id (phép trích bắt cả biến môi trường và tên sự kiện), báo cáo sau nói 61 (regex bỏ sót mọi id BA ĐOẠN). Tổng thật là **92** | ✅ Đã sửa regex và khai đủ 92 dòng |
+| 2 | **`POST /admin/points/ledger/:id/reversal` không ghi `admin_audit_logs`** — và `BR-ADM-POINT-07` đòi mọi thao tác quản trị đổi điểm phải ghi CẢ ledger VÀ audit log, nên đây là **vi phạm đặc tả**, không phải thiếu sót tuỳ chọn | ✅ Đã vá 01/10, có spec canh |
+| 3 | **`BR-POST-TYPE-01` liệt kê SÁU nhóm bài, `PostTypes` chỉ có NĂM.** `GIỚI_THIỆU_QUẢNG_CÁO` không có giá trị nào tương ứng | 🟡 Cần Bên A xác nhận bỏ hay thêm |
+| 4 | **`BR-PROF-RANK-06` và `BR-POINT-06` là cùng một quy tắc mang hai id**, và cả hai nói rank KHÔNG dùng lifetime riêng — trong khi `rank.points_source` là cấu hình động bật được `LIFETIME` | 🟡 Cần Bên A chốt; sửa thì phải sửa cả hai chỗ trong SRS |
+| 5 | **Hai hợp đồng mã lỗi không tương thích**: SRS đặt 14 tên chuỗi, [26](./26-api-conventions.md) bảo client khớp cặp số `(errorOrigin, errorCode)`. Chỉ 1 tên khớp | 🟡 Xem [31](./31-open-items.md) |
+| 6 | **`BR-ADM-CHECKIN-01` lọt qua phép kiểm trong im lặng** ở lần SRS lên bản mới đầu tiên sau khi dựng sổ — vì nó là id ba đoạn. Một phép kiểm bỏ sót mà vẫn xanh thì tệ hơn không có | ✅ Đã nới regex; `BR-ADM-POINT-*`, `BR-PROF-*`, `BR-REQ-QUEUE-*`, `BR-GEO-AFF-*` cũng nhờ đó mới vào sổ |
+| 7 | Thiếu thông báo mốc **70%** ngưỡng hạng (`BR-PROF-RANK-04` + `BR-NOTI-02`), thiếu **công tắc tắt toàn bộ** cơ chế phát điểm (`BR-ADM-POINT-06`), và Vị trí mặc định **không có địa chỉ hiển thị** (`BR-PROF-LOC-01`) | 🟠 L20/L21/L22 ở [31](./31-open-items.md) |
+
 ## 21.5 Con số vẫn là giả định, chờ Bên A xác nhận
 
 | Hạng mục | Giá trị hiện tại |

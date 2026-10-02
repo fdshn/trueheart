@@ -117,6 +117,43 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Bài mang ra tặng phải là bài Muốn Tặng của chính bạn và đang còn công khai',
   },
 
+  CHECK_IN_ALREADY_RECORDED: {
+    code: ErrorCodes.CHECK_IN_ALREADY_RECORDED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (date?: string) =>
+      `Ngày ${date ?? ''} đã có dấu điểm danh, không cần bù`.replace('  ', ' '),
+  },
+
+  CHECK_IN_POLICY_UNAVAILABLE: {
+    code: ErrorCodes.CHECK_IN_POLICY_UNAVAILABLE,
+    httpStatus: HttpStatus.CONFLICT,
+    // Không nói "lỗi hệ thống": tính năng chưa bật là một trạng thái bình thường,
+    // và người dùng cần biết là chờ chứ không phải thử lại.
+    message: () => 'Tính năng điểm danh chưa được bật',
+  },
+
+  CHECK_IN_REPAIR_DATE_INVALID: {
+    code: ErrorCodes.CHECK_IN_REPAIR_DATE_INVALID,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    // Nói rõ cửa sổ: "ngày không hợp lệ" bắt người dùng thử từng ngày để đoán.
+    message: (windowDays?: number) =>
+      `Chỉ bù được những ngày trong ${windowDays ?? 0} ngày gần nhất, và không bù cho hôm nay`,
+  },
+
+  CHECK_IN_REPAIR_CREDIT_INSUFFICIENT: {
+    code: ErrorCodes.CHECK_IN_REPAIR_CREDIT_INSUFFICIENT,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (needed?: number) =>
+      `Bạn không còn lượt điểm danh bù. Hoàn tất thêm ${needed ?? 0} lượt tặng/nhận quà để có một lượt`,
+  },
+
+  CHECK_IN_REPAIR_UNAVAILABLE: {
+    code: ErrorCodes.CHECK_IN_REPAIR_UNAVAILABLE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Ngày này không nối lại được chuỗi nào, nên bù vào cũng không thay đổi gì',
+  },
+
   // ── 0x03 Người dùng ───────────────────────────────────────────────────────
   USER_NOT_FOUND: {
     code: ErrorCodes.USER_NOT_FOUND,

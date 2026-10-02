@@ -3,6 +3,7 @@ import { AdminConfigModule } from './implementations/admin-config/admin-config.m
 import { AuthUseCaseModule } from './implementations/auth/auth.module';
 import { CategoryModule } from './implementations/category/category.module';
 import { ChatModule } from './implementations/chat/chat.module';
+import { CheckInModule } from './implementations/check-in/check-in.module';
 import { DiscoveryModule } from './implementations/discovery/discovery.module';
 import { EntitlementModule } from './implementations/entitlement/entitlement.module';
 import { FeedModule } from './implementations/feed/feed.module';
@@ -28,6 +29,7 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
  */
 @Module({
   imports: [
+    CheckInModule,
     AdminConfigModule,
     AuthUseCaseModule,
     ChatModule,

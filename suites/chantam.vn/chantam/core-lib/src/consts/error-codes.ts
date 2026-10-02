@@ -44,6 +44,28 @@ export enum ErrorCodes {
    */
   OFFER_GIFT_SOURCE_INVALID = 0x02_0a,
 
+  // 0x02_0b..0x02_0f — Điểm danh và lượt bù (F83)
+  /**
+   * Ngày đó đã có dấu điểm danh.
+   *
+   * Đường `POST /check-ins` **không** dùng mã này: gọi lại trong cùng ngày trả
+   * lại đúng kết quả cũ, vì một lần bấm hai lần không phải lỗi của người dùng.
+   * Mã này dành cho đường BÙ, nơi người dùng chọn một ngày cụ thể và cần biết
+   * ngày đó không có gì để bù.
+   */
+  CHECK_IN_ALREADY_RECORDED = 0x02_0b,
+  /** Tính năng điểm danh chưa bật, hoặc policy chưa đủ số để phát điểm. */
+  CHECK_IN_POLICY_UNAVAILABLE = 0x02_0c,
+  /** Ngày muốn bù không nằm trong cửa sổ cho phép, hoặc là ngày tương lai. */
+  CHECK_IN_REPAIR_DATE_INVALID = 0x02_0d,
+  /** Không còn lượt bù nào. */
+  CHECK_IN_REPAIR_CREDIT_INSUFFICIENT = 0x02_0e,
+  /**
+   * Bù không dùng được cho ngày đó vì lý do nghiệp vụ khác ngày/lượt — ví dụ
+   * ngày đó nằm ngoài mọi chuỗi đang mở nên bù vào cũng không nối lại được gì.
+   */
+  CHECK_IN_REPAIR_UNAVAILABLE = 0x02_0f,
+
   // 0x03 — Người dùng
   //
   // Cố ý đặt tên USER_* chứ không phải MEMBER_*: "Member" đã là tên một bậc

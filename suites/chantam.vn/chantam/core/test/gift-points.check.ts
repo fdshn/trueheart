@@ -24,6 +24,7 @@ import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
+import { CheckInRepository } from '../src/infrastructure/repository/check-in.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 
@@ -80,6 +81,10 @@ async function main(): Promise<void> {
       new AdminConfigRepository(dataSource.manager),
     ),
     ledger,
+    // `CheckInRepository` là tham số thật, không mock: ở đây chưa publish policy F83 nào nên
+    // `accrueFromCompletedTransaction` thoát sớm. Nhờ vậy tám script này canh luôn
+    // nhánh "tính năng tắt thì KHÔNG tích lượt bù" mà không phải viết gì thêm.
+    new CheckInRepository(dataSource.manager, ledger),
   );
 
   let sequence = 0;

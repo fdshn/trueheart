@@ -26,6 +26,7 @@ import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
+import { CheckInRepository } from '../src/infrastructure/repository/check-in.repository';
 import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 
@@ -81,6 +82,13 @@ async function main(): Promise<void> {
       new AdminConfigRepository(dataSource.manager),
     ),
     new PointLedgerRepository(dataSource.manager),
+    // `CheckInRepository` là tham số thật, không mock: ở đây chưa publish policy F83 nào nên
+    // `accrueFromCompletedTransaction` thoát sớm. Nhờ vậy tám script này canh luôn
+    // nhánh "tính năng tắt thì KHÔNG tích lượt bù" mà không phải viết gì thêm.
+    new CheckInRepository(
+      dataSource.manager,
+      new PointLedgerRepository(dataSource.manager),
+    ),
   );
 
   let sequence = 0;
@@ -439,10 +447,7 @@ async function main(): Promise<void> {
       (await remaining(cancelledPost)) === afterCancel - 1,
       `${afterCancel} → ${await remaining(cancelledPost)}`,
     );
-    check(
-      'mốc đóng được xoá sạch',
-      reopenedCancelled.completedAt === null,
-    );
+    check('mốc đóng được xoá sạch', reopenedCancelled.completedAt === null);
 
     // 2. Mở lại một lượt ĐÃ HOÀN TẤT: kho KHÔNG được trừ thêm lần nữa.
     const doneDeal = await acceptedTransaction();
@@ -494,11 +499,7 @@ async function main(): Promise<void> {
       `SELECT status, purge_after::text FROM chat_rooms WHERE transaction_id = $1`,
       [doneDeal],
     );
-    check(
-      'phòng chat mở lại',
-      room?.status === 'OPEN',
-      String(room?.status),
-    );
+    check('phòng chat mở lại', room?.status === 'OPEN', String(room?.status));
     check(
       'và đồng hồ xoá bị HUỶ — mở lại một cuộc rồi vẫn xoá nó là vô nghĩa',
       room?.purge_after === null,
@@ -589,7 +590,6 @@ async function main(): Promise<void> {
       reason: 'Gọi lại',
     });
     check('gọi lại không đóng thêm gì', doneAgain.length === 0);
-
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

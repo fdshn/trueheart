@@ -111,6 +111,33 @@ export interface IPointLedgerRepository {
     reason: string;
   }): Promise<IAppendPointEntryResult>;
 
+  /**
+   * `appendAdjustment` nhưng chạy TRONG transaction đã mở của nơi gọi.
+   *
+   * Cần cho những nghiệp vụ mà bút toán phải commit cùng lúc với dữ liệu sinh ra
+   * nó: điểm danh (F83) ghi lịch, cập nhật chuỗi và cộng điểm trong một lượt, và
+   * một lịch đã đánh dấu mà thiếu điểm là trạng thái không có đường sửa — bảng
+   * điểm danh chỉ ghi thêm.
+   *
+   * Khác `appendByRuleWithinTransaction` ở chỗ số điểm TRUYỀN VÀO chứ không tra
+   * `point_rules`: mức của điểm danh nằm ở `check_in_policy_revisions`, và tạo
+   * bản sao con số sang `point_rules` là mở đường cho hai nơi nói hai mức.
+   */
+  appendAdjustmentWithinTransaction(
+    manager: EntityManager,
+    command: {
+      userId: string;
+      ruleCode: string;
+      delta: number;
+      referenceType: string;
+      referenceId: string;
+      idempotencyKey: string;
+      actor: string;
+      source: string;
+      reason: string;
+    },
+  ): Promise<IAppendPointEntryResult>;
+
   appendByRuleWithinTransaction(
     manager: EntityManager,
     command: IAppendPointEntryCommand,

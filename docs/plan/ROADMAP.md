@@ -135,8 +135,10 @@ và mở chat phải nằm trong cùng transaction với việc duyệt.
 - [ ] F43 Giver Accuracy (dùng %, đủ 5 mẫu mới tính, warning < 75% — CHỐT-03)
 - [x] F12 Rank 5 tầng + chu kỳ duy trì (xét theo current balance — CHỐT-01; chu kỳ 3 tháng 2+2/3+3/4+4 — BR-PROF-RANK-03)
 - [x] F13 Referral cá nhân, thưởng một lần
-- [ ] F83 Điểm danh hằng ngày, lịch sử, streak 7/14/30/50 ngày, thưởng mốc và điểm danh
-  bù từ giao dịch tặng/nhận quà hoàn tất; policy Admin có version/audit
+- [x] F83 Điểm danh hằng ngày, lịch sử, streak, thưởng mốc và điểm danh bù từ giao dịch
+  tặng/nhận quà hoàn tất; policy Admin có version/audit — **hiện thực 02/10, ship ở trạng
+  thái TẮT**: chờ Bên A chốt điểm ngày, điểm từng mốc, số giao dịch đổi một lượt bù, cửa
+  sổ bù và giới hạn lượt tích trữ, rồi Admin publish policy
 
 **Xong khi:** hoàn tất một giao dịch → điểm vào ledger có idempotency → đủ 224 điểm thì lên
 Member. Ghi cùng một `idempotency_key` hai lần chỉ cộng một lần.

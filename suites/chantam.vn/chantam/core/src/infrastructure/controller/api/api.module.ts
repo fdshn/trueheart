@@ -4,6 +4,7 @@ import { AdminPostControllerModule } from './admin-post/admin-post.module';
 import { AuthControllerModule } from './auth/auth.module';
 import { CategoryControllerModule } from './category/category.module';
 import { ChatControllerModule } from './chat/chat.module';
+import { CheckInControllerModule } from './check-in/check-in.module';
 import { DiscoveryControllerModule } from './discovery/discovery.module';
 import { EntitlementControllerModule } from './entitlement/entitlement.module';
 import { FeedControllerModule } from './feed/feed.module';
@@ -24,6 +25,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
 /** Gom mọi controller module theo resource. */
 @Module({
   imports: [
+    CheckInControllerModule,
     AdminConfigControllerModule,
     AdminPostControllerModule,
     AuthControllerModule,

@@ -9,6 +9,7 @@ import {
   GiftTransactionStatuses,
   IAttachGiftEvidenceParams,
   IChatRepository,
+  ICheckInRepository,
   ICloseGiftTransactionParams,
   ICloseGiftTransactionResult,
   IGiftEvidenceRef,
@@ -75,6 +76,11 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     private readonly chat: IChatRepository,
     @Inject(IPointLedgerRepository)
     private readonly ledger: IPointLedgerRepository,
+    // Tiến độ lượt bù của F83 phải ghi TRONG transaction hoàn tất: ngoài nó thì
+    // một lượt trao commit xong mà tiến độ chưa ghi là mất vĩnh viễn — không ai
+    // đi dò lại những giao dịch đã hoàn tất.
+    @Inject(ICheckInRepository)
+    private readonly checkIn: ICheckInRepository,
   ) {}
 
   /**
@@ -463,6 +469,12 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
 
       await this.awardCompletionPoints(manager, current);
 
+      await this.checkIn.accrueFromCompletedTransaction(manager, {
+        transactionId: current.global_id,
+        giverId: current.giver_id,
+        receiverId: current.receiver_id,
+      });
+
       // Lượt cuối cùng xong thì bài mới thực sự xong, và quota của tác giả được
       // trả lại. Thiếu dòng này thì bài đã tặng hết vẫn chiếm chỗ đăng bài mãi mãi.
       await this.syncPostStatus(manager, current.post_id);
@@ -757,6 +769,13 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
         // Tự hoàn tất cũng là hoàn tất: không thưởng ở đây thì ai chờ cron đóng hộ
         // sẽ mất điểm so với người bấm xác nhận, dù hai lượt trao giống hệt nhau.
         await this.awardCompletionPoints(manager, row);
+        // Và cùng lý do đó, tiến độ lượt bù cũng phải tích. Đặc tả F83 nói thẳng:
+        // "giao dịch tự hoàn tất sau 5 ngày đủ điều kiện như hoàn tất thủ công".
+        await this.checkIn.accrueFromCompletedTransaction(manager, {
+          transactionId: row.global_id,
+          giverId: row.giver_id,
+          receiverId: row.receiver_id,
+        });
       }
 
       // Đọc lại SAU khi ghi: nơi gọi cần bản ghi đầy đủ để báo cho hai bên, và

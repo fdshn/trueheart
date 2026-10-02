@@ -1,6 +1,7 @@
 export * from './auth';
 export * from './category';
 export * from './chat';
+export * from './check-in';
 export * from './discovery';
 export * from './entitlement';
 export * from './feed';

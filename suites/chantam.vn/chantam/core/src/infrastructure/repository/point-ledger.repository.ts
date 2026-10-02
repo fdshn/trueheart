@@ -394,7 +394,31 @@ export class PointLedgerRepository implements IPointLedgerRepository {
     if (command.reason.trim().length === 0)
       throw new Error('appendAdjustment: reason không được để trống');
 
-    return this.manager.transaction(async (manager) => {
+    return this.manager.transaction(async (manager) =>
+      this.appendAdjustmentWithinTransaction(manager, command),
+    );
+  }
+
+  public async appendAdjustmentWithinTransaction(
+    manager: EntityManager,
+    command: {
+      userId: string;
+      ruleCode: string;
+      delta: number;
+      referenceType: string;
+      referenceId: string;
+      idempotencyKey: string;
+      actor: string;
+      source: string;
+      reason: string;
+    },
+  ): Promise<IAppendPointEntryResult> {
+    if (command.delta === 0)
+      throw new Error('appendAdjustment: delta phải khác 0');
+    if (command.reason.trim().length === 0)
+      throw new Error('appendAdjustment: reason không được để trống');
+
+    {
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         command.userId,
       ]);
@@ -487,7 +511,7 @@ export class PointLedgerRepository implements IPointLedgerRepository {
         lifetime: nextLifetime,
         applied: true,
       };
-    });
+    }
   }
 
   public async appendByRuleWithinTransaction(

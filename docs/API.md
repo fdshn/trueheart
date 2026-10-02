@@ -810,11 +810,17 @@ mà **không cần một vòng gọi nữa cho mỗi marker**.
 
 ## 7. Điểm, hạng, giới thiệu, quyền
 
-### API mục tiêu — điểm danh và streak (chưa triển khai)
+### Điểm danh và streak (F83) — ĐANG CHẠY từ 02/10
 
-Các route dưới đây là contract đề xuất của [F83](./FEATURES.md#f83--điểm-danh-ngày-streak-và-điểm-danh-bù-bổ-sung-30092026),
-**không thuộc 127 endpoint đang chạy**. Tiền tố chung `/api/v1`; response dùng vỏ chuẩn,
-body ghi theo khóa tài nguyên. Swagger và mã lỗi chính xác sẽ được sinh khi implement.
+Contract của [F83](./FEATURES.md#f83--điểm-danh-ngày-streak-và-điểm-danh-bù-bổ-sung-30092026),
+hiện thực 02/10. Swagger và mã lỗi sinh từ code như mọi endpoint khác.
+
+**Tính năng ship ở trạng thái TẮT.** Chưa Admin nào publish policy thì
+`GET /check-ins/me` trả `enabled: false` và mọi đường ghi trả
+`CHECK_IN_POLICY_UNAVAILABLE` — **không có mặc định nào phát điểm**, theo đúng
+yêu cầu của đặc tả. Bên A chốt năm con số (điểm ngày, điểm từng mốc, số giao dịch
+đổi một lượt bù, cửa sổ bù, có/không giới hạn lượt tích trữ) rồi Admin publish
+qua `PUT /admin/check-in-policy` thì tính năng mới chạy.
 
 | Method | Đường dẫn | Quyền | Kết quả chính |
 | --- | --- | --- | --- |

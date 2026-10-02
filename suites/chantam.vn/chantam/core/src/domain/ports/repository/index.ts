@@ -3,6 +3,7 @@ export * from './admin-dashboard.repository';
 export * from './admin-user.repository';
 export * from './category.repository';
 export * from './chat.repository';
+export * from './check-in.repository';
 export * from './content-comment.repository';
 export * from './content-reaction.repository';
 export * from './content-share.repository';

@@ -2,12 +2,12 @@
 
 Trạng thái: ✅ sổ cái đã vững. ✅ Trao tặng đã cộng điểm cả hai phía, cả hai đường.
 
-**F83 — điểm danh/streak đang ở mức thiết kế, chưa có code.** Điểm danh thường ghi
+**F83 — hiện thực 02/10, nhưng TẮT cho tới khi Admin publish policy.** Điểm danh thường ghi
 `CHECK_IN_DAILY`; đúng mốc 7/14/30/50 ngày hoặc mốc Admin thêm thì ghi thêm
 `CHECK_IN_STREAK_MILESTONE`. Cả hai đi qua Point Ledger, version lấy từ
 `check_in_policy_revisions`. Điểm danh bù chỉ nối chuỗi, không phát điểm ngày bỏ lỡ;
 lượt bù phát từ giao dịch tặng/nhận quà hoàn tất và theo dõi ở credit ledger riêng.
-Xem [luồng và điều kiện nguyên tử](../plan/CHECK-IN-STREAK-DESIGN.md).
+Hai mã này KHÔNG có hàng nào trong `point_rules` — mức nằm ở `check_in_policy_revisions`, và tạo bản sao con số sang `point_rules` là mở đường cho hai nơi nói hai mức. Xem [luồng và điều kiện nguyên tử](../plan/CHECK-IN-STREAK-DESIGN.md).
 
 ## 11.1 Sổ cái append-only
 

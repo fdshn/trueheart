@@ -3,6 +3,7 @@ import {
   IAdminUserRepository,
   ICategoryRepository,
   IChatRepository,
+  ICheckInRepository,
   IContentCommentRepository,
   IContentReactionRepository,
   IContentShareRepository,
@@ -34,6 +35,7 @@ import { AdminDashboardRepository } from './admin-dashboard.repository';
 import { AdminUserRepository } from './admin-user.repository';
 import { CategoryRepository } from './category.repository';
 import { ChatRepository } from './chat.repository';
+import { CheckInRepository } from './check-in.repository';
 import { ContentCommentRepository } from './content-comment.repository';
 import { ContentReactionRepository } from './content-reaction.repository';
 import { ContentShareRepository } from './content-share.repository';
@@ -94,6 +96,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
       useClass: ContentShareRepository,
     },
     { provide: IGiftRequestRepository, useClass: GiftRequestRepository },
+    { provide: ICheckInRepository, useClass: CheckInRepository },
     {
       provide: IGiftTransactionRepository,
       useClass: GiftTransactionRepository,
@@ -127,6 +130,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     { provide: IUserSessionRepository, useClass: UserSessionRepository },
   ],
   exports: [
+    ICheckInRepository,
     AdminDashboardRepository,
     ICategoryRepository,
     IChatRepository,
