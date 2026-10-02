@@ -339,6 +339,7 @@ v1.15.3 (30/09/2026): Bổ sung điểm danh theo ngày liên tiếp, lịch s�
 | v1.15.1   | 22/09/2026    | Nguyễn Trường Sơn                                                                                                                                                                                                                                                                    | Cập nhật cơ chế đổi vật phẩm bằng Điểm Cống Hiến, countdown 7 ngày, điểm khả dụng bảo vệ Rank, ghi Point Ledger ITEM_REDEMPTION và lựa chọn hình thức vận chuyển.                                                | Cập nhật nghiệp vụ |
 | v1.15.2   | 22/09/2026    | Nguyễn Trường Sơn                                                                                                                                                                                                                                                                    | Cập nhật 3 chế độ tìm người nhận (selection_mode: INSTANT, OPTIMAL, EXTENDED), bảo vệ riêng tư người cho (contact_info gating), tương tác Yêu thích bài đăng (POST /posts/:id/like, post_likes, like_count). | Cập nhật nghiệp vụ |
 | v1.15.3 | 30/09/2026 | Product Owner / nhóm kỹ thuật | Bổ sung UC-CHECKIN-01/02, mốc thưởng streak, lượt điểm danh bù từ giao dịch tặng/nhận quà hoàn tất và policy Admin. | Yêu cầu mới, chưa triển khai |
+| v1.15.4 | 02/10/2026 | Product Owner / nhóm kỹ thuật | Bốn quyết định sau đợt đối chiếu SRS ↔ mã nguồn: (1) BR-POST-TYPE-01 bỏ nhóm GIỚI_THIỆU_QUẢNG_CÁO, còn năm nhóm; (2) BR-CHECKIN-04 chốt tính lượt bù cho CẢ HAI bên của một giao dịch hoàn tất; (3) BR-POINT-06 và BR-PROF-RANK-06 chốt nguồn tính hạng là SỐ DƯ, gỡ hẳn tuỳ chọn LIFETIME khỏi mã nguồn và khỏi `system_configs`; (4) F83 có bản policy nháp đang TẮT để duyệt số. | UC-CHECKIN-01/02 đã triển khai, tính năng ship ở trạng thái tắt |
 
 # CHƯƠNG 2: MÔ TẢ TỔNG QUAN HỆ THỐNG (SYSTEM PERSPECTIVE & ARCHITECTURE)
 
@@ -803,7 +804,7 @@ BR-PHONE-REWARD-01: Điểm thưởng số điện thoại là thưởng một l
 
 PHẠM VI HỢP NHẤT - POST TYPE & CATEGORY
 
-BR-POST-TYPE-01: Các nhóm nghiệp vụ hiển thị chính trên Mobile gồm MUỐN_TẶNG, MUỐN_NHẬN, TỪ_THIỆN_HOẠT_ĐỘNG, RAO_VẶT, GIỚI_THIỆU_QUẢNG_CÁO và CÔNG_ĐỨC_HỒI_HƯỚNG. Loại KHÁC có thể tồn tại như nhóm dự phòng do Admin cấu hình. Mỗi nhóm có quyền, trạng thái, giới hạn và luồng riêng; không ép tất cả dùng chung một form nghiệp vụ.
+BR-POST-TYPE-01: Các nhóm nghiệp vụ hiển thị chính trên Mobile gồm MUỐN_TẶNG, MUỐN_NHẬN, TỪ_THIỆN_HOẠT_ĐỘNG, RAO_VẶT và CÔNG_ĐỨC_HỒI_HƯỚNG. (Sửa 02/10/2026: nhóm GIỚI_THIỆU_QUẢNG_CÁO được BỎ — nội dung rao và quảng cáo nằm trong RAO_VẶT. Trước đó bản SRS nêu sáu nhóm trong khi hệ thống chỉ hiện thực năm, và đối chiếu ngày 01/10 phát hiện không giá trị nào trong `PostTypes` ứng với nhóm thứ sáu.) Loại KHÁC có thể tồn tại như nhóm dự phòng do Admin cấu hình. Mỗi nhóm có quyền, trạng thái, giới hạn và luồng riêng; không ép tất cả dùng chung một form nghiệp vụ.
 
 BR-CAT-01: Mỗi bài đăng phải gắn category_id. Category được lưu động trong CSDL, không hard-code trong ứng dụng; tối thiểu gồm id, name, slug, icon/icon_name, display_order, is_active và quan hệ parent_id nếu sử dụng danh mục cây.
 

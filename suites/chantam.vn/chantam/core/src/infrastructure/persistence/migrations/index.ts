@@ -89,3 +89,5 @@ export * from './1796800000000-SeedReferralAbuseConfig';
 export * from './1796900000000-ArchiveClosedEntitlementRevisions';
 export * from './1797000000000-AddGiftRequestOfferingPost';
 export * from './1797100000000-CreateCheckInStreak';
+export * from './1797200000000-DropRankPointsSourceConfig';
+export * from './1797300000000-SeedCheckInPolicyDraft';

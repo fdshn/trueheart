@@ -23,17 +23,14 @@ export class GetOwnRankSummaryUseCase implements IGetOwnRankSummaryUseCase {
         rank: summary.rank,
         lifetimePoints: summary.lifetimePoints,
         balancePoints: summary.balancePoints,
-        rankPoints: summary.rankPoints,
-        rankPointsSource: summary.rankPointsSource,
         thresholdPoints: summary.currentTier.thresholdPoints,
         warningPoints: summary.currentTier.warningPoints,
         // Cảnh báo tính ở máy chủ để web và app không đặt hai mốc khác nhau cho
-        // cùng một hồ sơ. So bằng `rankPoints` — con số thật sự quyết hạng — chứ
-        // không bằng `balancePoints`: hai cái trùng nhau với cấu hình mặc định và
-        // rẽ đôi ngay khi Admin chuyển `rank.points_source`.
+        // cùng một hồ sơ. So bằng `balancePoints` — từ 02/10 đó là con số DUY NHẤT
+        // quyết hạng, nên cảnh báo và quyết định tụt hạng chắc chắn nói cùng một thứ.
         demotionWarning:
           summary.currentTier.warningPoints > 0 &&
-          summary.rankPoints < summary.currentTier.warningPoints,
+          summary.balancePoints < summary.currentTier.warningPoints,
         postQuota: summary.currentTier.postQuota,
         nextRank: summary.nextTier
           ? {
@@ -45,7 +42,7 @@ export class GetOwnRankSummaryUseCase implements IGetOwnRankSummaryUseCase {
               // so với thực tế.
               remainingPoints: Math.max(
                 0,
-                summary.nextTier.thresholdPoints - summary.rankPoints,
+                summary.nextTier.thresholdPoints - summary.balancePoints,
               ),
               requiredGifts: summary.nextTier.requiredGifts,
               requiredReferrals: summary.nextTier.requiredReferrals,

@@ -552,10 +552,12 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-POINT-06',
     title:
       'Rank dùng SỐ DƯ hiện tại, KHÔNG dùng lifetime riêng; ledger đổi thì xét lại Rank',
-    status: 'PARTIAL',
+    status: 'IMPLEMENTED',
     where:
-      'RankChangeNotifier.afterBalanceChange xét lại sau mọi biến động; mặc định `rank.points_source = BALANCE` đúng đặc tả',
-    note: 'LỆCH: nguồn tính hạng là cấu hình động và Admin bật được `LIFETIME` — đúng thứ SRS nói là không dùng. Mặc định đúng, nhưng đặc tả không cho phép lựa chọn này tồn tại; cần Bên A chốt giữ hay bỏ',
+      '`RankRepository.RankPointsColumn` là hằng `balance` chốt cứng, và ' +
+      'RankChangeNotifier.afterBalanceChange xét lại sau mọi biến động trên CÙNG con ' +
+      'số đó; migration `1797200000000` gỡ hẳn khoá `rank.points_source`',
+    note: 'Trước 02/10 là PARTIAL: nguồn tính hạng là cấu hình động bật được `LIFETIME` — đúng thứ quy tắc này cấm. Bên A chốt BALANCE, nên cái núm, khoá cấu hình, hai trường `rankPoints`/`rankPointsSource` trong response và nhánh trong `redemption-quote` đều bị gỡ.',
   },
 
   // ── Hạng và hồ sơ vị trí (id ba đoạn, regex bản đầu bỏ sót) ───────────────
@@ -602,10 +604,10 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-PROF-RANK-06',
     title:
       'Điểm xét Rank là số dư hiện tại; Phase 1 KHÔNG dùng lifetime rank point riêng',
-    status: 'PARTIAL',
+    status: 'IMPLEMENTED',
     where:
-      'mặc định `rank.points_source = BALANCE`, và RankChangeNotifier xét lại sau mọi biến động',
-    note: 'Cùng lệch với `BR-POINT-06`: nguồn tính hạng là cấu hình động và Admin bật được `LIFETIME` — đúng thứ hai quy tắc này cùng nói là không dùng. Hai id khác nhau cho cùng một quy tắc, nên nếu Bên A chốt bỏ thì phải sửa cả hai chỗ trong SRS',
+      'xem `BR-POINT-06` — cùng một quy tắc mang hai id, cùng một chỗ hiện thực',
+    note: 'Hai id khác nhau cho CÙNG một quy tắc. Bên A chốt BALANCE 02/10 và nhánh lifetime đã gỡ, nên cả hai dòng cùng đóng. Nếu sau này SRS được dọn thì nên gộp hai id lại — giữ hai tên cho một luật là mời chúng trôi khỏi nhau.',
   },
   {
     id: 'BR-PROF-LOC-01',
@@ -765,11 +767,11 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-POST-TYPE-01',
     title:
       'Sáu nhóm bài hiển thị chính: MUỐN_TẶNG, MUỐN_NHẬN, TỪ_THIỆN_HOẠT_ĐỘNG, RAO_VẶT, GIỚI_THIỆU_QUẢNG_CÁO, CÔNG_ĐỨC_HỒI_HƯỚNG',
-    status: 'PARTIAL',
+    status: 'IMPLEMENTED',
     where:
-      '`PostTypes` có năm loại: OFFER, WANTED, CHARITY, CLASSIFIED, MERIT — khớp năm ' +
-      'trong sáu nhóm, và mỗi loại có cổng/hạn mức riêng ở create-post',
-    note: 'THIẾU nhóm thứ sáu `GIỚI_THIỆU_QUẢNG_CÁO`: không giá trị nào trong `PostTypes` tương ứng, nên không đăng được loại bài đó. Cần Bên A xác nhận là bỏ hay sẽ thêm',
+      '`PostTypes` có năm loại: OFFER, WANTED, CHARITY, CLASSIFIED, MERIT, mỗi loại ' +
+      'một cổng/hạn mức riêng ở create-post',
+    note: 'Bên A CHỐT 02/10: nhóm thứ sáu `GIỚI_THIỆU_QUẢNG_CÁO` được BỎ, phần rao/quảng cáo nằm trong `RAO_VẶT` (CLASSIFIED). SRS đã sửa cùng ngày, nên năm loại là ĐỦ chứ không phải thiếu một.',
   },
 
   // ── Điểm danh và streak (F83) — CHƯA DỰNG, đặc tả vào SRS v1.15.3 ─────────
@@ -808,13 +810,13 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-CHECKIN-04',
     title:
       'Lượt bù chỉ tích từ giao dịch tặng/nhận quà hoàn tất theo ngưỡng Admin cấu hình; mỗi giao dịch tính một lần cho người tặng và một lần cho người nhận',
-    status: 'PARTIAL',
+    status: 'IMPLEMENTED',
     where:
       '`accrueFromCompletedTransaction` chạy trong transaction hoàn tất ở CẢ HAI ' +
       'đường (xác nhận tay và `transaction:autocomplete`); ' +
       '`UQ_repair_transaction_progress_user_tx` chặn tính hai lần; ngưỡng GHIM theo ' +
       '`repair_credit_cohorts` nên đổi policy giữa kỳ không quy đổi lại tiến độ',
-    note: 'Việc tính cho CẢ HAI bên là lựa chọn của thiết kế, và chính docs/plan/ASSUMPTIONS.md ghi là CẦN Bên A xác nhận — tính hai bên làm tốc độ tích lượt gấp đôi. Đã hiện thực theo thiết kế; đổi sang một bên là sửa một chỗ trong `accrueFromCompletedTransaction`',
+    note: 'Bên A CHỐT 02/10: tính cho CẢ HAI bên — câu hỏi này do chính docs/plan/ASSUMPTIONS.md đặt ra, nay đã có trả lời. Hệ quả cần biết: một người vừa tặng vừa nhận chỉ cần một nửa số lượt trao để đạt ngưỡng.',
   },
   {
     id: 'BR-CHECKIN-05',

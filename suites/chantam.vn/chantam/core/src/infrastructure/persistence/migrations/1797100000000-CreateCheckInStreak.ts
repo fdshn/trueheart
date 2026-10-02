@@ -51,7 +51,9 @@ export class CreateCheckInStreak1797100000000 implements MigrationInterface {
       )
     `);
 
-    // Bản ĐANG hiệu lực là bản có `version` lớn nhất với `effective_at <= now()`.
+    // Bản ĐANG hiệu lực là bản có `version` lớn nhất trong số có `effective_at <= now()`.
+    // Index phục vụ mệnh đề lọc; phép sắp xếp chạy trên `version` (xem chú thích ở
+    // `getActivePolicy` về việc vì sao KHÔNG sắp theo `effective_at`).
     // Không có cột `status`: bài học từ `config_revisions`, nơi đường publish đặt
     // `effective_to` mà giữ `PUBLISHED` nên cột trạng thái nói sai suốt N lượt
     // publish mà không ai thấy, vì không đường đọc nào đọc nó (migration

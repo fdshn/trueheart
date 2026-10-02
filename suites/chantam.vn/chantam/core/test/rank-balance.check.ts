@@ -299,13 +299,15 @@ async function main(): Promise<void> {
     );
     check(
       '460 đã dưới mốc 470 — client dựng được lời nhắc',
-      summary.rankPoints < summary.currentTier.warningPoints,
+      summary.balancePoints < summary.currentTier.warningPoints,
     );
+    // `rankPoints`/`rankPointsSource` đã bị gỡ 02/10 cùng với cấu hình
+    // `rank.points_source`. Thay bằng phép kiểm rằng hạng thật sự suy từ SỐ DƯ:
+    // lifetime ở đây là 2000, thừa sức lên Vàng, nhưng số dư 460 giữ người này ở Bạc.
     check(
-      'rankPoints bằng balance với cấu hình mặc định',
-      summary.rankPoints === summary.balancePoints &&
-        summary.rankPointsSource === 'BALANCE',
-      `${summary.rankPoints} / ${summary.rankPointsSource}`,
+      'hạng suy từ SỐ DƯ, không từ lifetime — lifetime 2000 không đẩy lên Vàng',
+      summary.rank === 'SILVER' && summary.lifetimePoints === 2000,
+      `${summary.rank} / lifetime=${summary.lifetimePoints}`,
     );
 
     console.log('\n10. Lời nhắc duy trì đọc tiến độ THẬT');

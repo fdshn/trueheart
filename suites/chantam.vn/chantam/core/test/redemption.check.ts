@@ -27,7 +27,6 @@ import { AdminConfigRepository } from '../src/infrastructure/repository/admin-co
 import { GiftRequestRepository } from '../src/infrastructure/repository/gift-request.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { RankRepository } from '../src/infrastructure/repository/rank.repository';
-import { publishConfigVersion } from './publish-config-version';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -301,34 +300,33 @@ async function main(): Promise<void> {
       `${safe.quote.rankAfter} wouldDemote=${String(safe.quote.wouldDemote)}`,
     );
 
-    // Nguồn quyết hạng là LIFETIME thì tiêu điểm không đụng tới hạng, nên cảnh báo
-    // ở đó là cảnh báo sai.
-    // `ON CONFLICT DO NOTHING` với version ghi cứng là cách phép kiểm này từng
-    // hỏng LẶNG LẼ: migration `1795700000000` seed sẵn version 1 cho
-    // `rank.points_source`, nên lượt ghi bị bỏ qua, cấu hình vẫn là `BALANCE`, và
-    // khẳng định dưới đây đo một thứ nó tưởng đã đặt.
+    // Chỗ này trước 02/10 kiểm nhánh `rank.points_source = LIFETIME` (tiêu điểm
+    // không đụng hạng nên không cảnh báo). Nhánh đó đã bị gỡ: SRS `BR-POINT-06` và
+    // `BR-PROF-RANK-06` cùng nói Phase 1 dùng SỐ DƯ, và cái núm ấy chưa bao giờ bật
+    // được qua đường Admin — chỉ `UPDATE` SQL tay.
     //
-    // Khẳng định luôn là ghi ĐƯỢC: một lượt ghi không xảy ra không được trông
-    // giống một lượt thành công.
-    const lifetimeVersion = await publishConfigVersion(
-      dataSource,
-      'rank.points_source',
-      { source: 'LIFETIME' },
+    // Thay bằng phép kiểm rằng khoá cấu hình đã BIẾN MẤT. Giữ lại một khoá không ai
+    // đọc thì `config-inventory.check.ts` sẽ bắt, nhưng ở đây mới là chỗ nói VÌ SAO
+    // nó biến mất — và chặn một lần "tiện thì seed lại" trong tương lai.
+    const [orphan] = await dataSource.query<{ count: string }[]>(
+      `SELECT COUNT(*) AS count FROM system_configs WHERE config_key = 'rank.points_source'`,
     );
     check(
-      'đặt được nguồn quyết hạng thành LIFETIME',
-      lifetimeVersion > 0,
-      `version=${lifetimeVersion}`,
+      'khoá rank.points_source đã bị gỡ hẳn, mọi version',
+      Number(orphan.count) === 0,
+      `còn ${orphan.count} hàng`,
     );
+
+    // Và hạng vẫn phải suy từ SỐ DƯ: lifetime cao không cứu được người đã tiêu hết.
     await setBalance(RicherId, 1_000);
-    const lifetimeMode = await quotes.handle({
+    const afterDrop = await quotes.handle({
       postId: PricedPostId,
       userId: RicherId,
     });
     check(
-      'nguồn quyết hạng là LIFETIME thì KHÔNG cảnh báo tụt hạng',
-      lifetimeMode.quote.wouldDemote === false,
-      `wouldDemote=${String(lifetimeMode.quote.wouldDemote)}`,
+      'tiêu 500 từ 1.000 xuống 500 thì VẪN cảnh báo tụt hạng',
+      afterDrop.quote.wouldDemote === true,
+      `wouldDemote=${String(afterDrop.quote.wouldDemote)} rankAfter=${afterDrop.quote.rankAfter}`,
     );
   } finally {
     for (const source of opened.reverse())

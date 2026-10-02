@@ -11,8 +11,6 @@ describe('GetOwnRankSummaryUseCase', () => {
         lifetimePoints: 448,
         // Đã tiêu 48: lên hạng xét theo 400, không theo 448.
         balancePoints: 400,
-        rankPoints: 400,
-        rankPointsSource: 'BALANCE',
         currentTier: {
           rank: UserRanks.MEMBER,
           thresholdPoints: 224,
@@ -40,8 +38,6 @@ describe('GetOwnRankSummaryUseCase', () => {
         rank: UserRanks.MEMBER,
         lifetimePoints: 448,
         balancePoints: 400,
-        rankPoints: 400,
-        rankPointsSource: 'BALANCE',
         thresholdPoints: 224,
         warningPoints: 157,
         demotionWarning: false,
@@ -67,8 +63,6 @@ describe('GetOwnRankSummaryUseCase', () => {
         rank: UserRanks.DIAMOND,
         lifetimePoints: 1792,
         balancePoints: 1792,
-        rankPoints: 1792,
-        rankPointsSource: 'BALANCE',
         currentTier: {
           rank: UserRanks.DIAMOND,
           thresholdPoints: 1792,
@@ -97,8 +91,6 @@ describe('GetOwnRankSummaryUseCase', () => {
         rank: UserRanks.SILVER,
         lifetimePoints: 1200,
         balancePoints: 460,
-        rankPoints: 460,
-        rankPointsSource: 'BALANCE',
         currentTier: {
           rank: UserRanks.SILVER,
           thresholdPoints: 672,
@@ -126,8 +118,6 @@ describe('GetOwnRankSummaryUseCase', () => {
         rank: UserRanks.VIEWER,
         lifetimePoints: 0,
         balancePoints: 0,
-        rankPoints: 0,
-        rankPointsSource: 'BALANCE',
         currentTier: {
           rank: UserRanks.VIEWER,
           thresholdPoints: 0,

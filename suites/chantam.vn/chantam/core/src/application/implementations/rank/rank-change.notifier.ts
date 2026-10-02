@@ -127,17 +127,16 @@ export class RankChangeNotifier {
     // `0` nghĩa là bậc này không có mốc cảnh báo (Viewer). So sánh trần cũng ra
     // false, nhưng chặn tường minh để ý đồ đọc được.
     if (threshold <= 0) return;
-    // `rankPoints`, KHÔNG `balancePoints`: phải so đúng con số mà chỗ quyết hạng
-    // so. Đọc `balancePoints` là đúng với cấu hình mặc định và sai ngay khi Admin
-    // chuyển `rank.points_source` sang LIFETIME — cảnh báo tính theo một con số
-    // còn tụt hạng tính theo con số khác.
-    if (summary.rankPoints >= threshold) return;
+    // `balancePoints` là con số DUY NHẤT quyết hạng từ 02/10, nên cảnh báo và
+    // quyết định tụt hạng chắc chắn so cùng một thứ — trước đó có hai tên cho
+    // cùng việc này và chúng rẽ đôi khi cấu hình `rank.points_source` đổi.
+    if (summary.balancePoints >= threshold) return;
 
     await this.dispatchNotification.handle({
       userId,
       type: NotificationTypes.RANK_DEMOTION_WARNING,
       title: 'Bạn sắp tụt hạng',
-      body: `Bạn còn ${summary.rankPoints} điểm, gần mốc ${summary.currentTier.thresholdPoints} điểm để giữ hạng ${summary.rank}. Tiêu thêm có thể làm bạn tụt hạng.`,
+      body: `Bạn còn ${summary.balancePoints} điểm, gần mốc ${summary.currentTier.thresholdPoints} điểm để giữ hạng ${summary.rank}. Tiêu thêm có thể làm bạn tụt hạng.`,
       referenceType: 'USER_RANK',
       referenceId: userId,
       // MỘT lần mỗi ngày cho mỗi bậc. Không có mốc ngày thì mỗi lượt thả cảm
@@ -146,7 +145,7 @@ export class RankChangeNotifier {
       idempotencyKey: `RANK_DEMOTION_WARNING:${userId}:${summary.rank}:${vietnamDateKey(new Date())}`,
       variables: {
         rank: summary.rank,
-        balancePoints: String(summary.rankPoints),
+        balancePoints: String(summary.balancePoints),
         thresholdPoints: String(summary.currentTier.thresholdPoints),
       },
     });

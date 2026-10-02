@@ -99,10 +99,13 @@ export class GetRedemptionQuoteUseCase implements IGetRedemptionQuoteUseCase {
     const balance = await this.ledger.getSummary(command.userId);
     const missingPoints = Math.max(0, priced.points - balance.balance);
 
-    // Tụt hạng CHỈ khi hạng đang đọc `balance`. Với cấu hình LIFETIME thì tiêu
-    // điểm không đụng tới con số quyết hạng, nên cảnh báo ở đó là cảnh báo sai.
-    const tiers =
-      rank.rankPointsSource === 'BALANCE' ? await this.ranks.listTiers() : [];
+    // Hạng đọc `balance`, và tiêu điểm giảm đúng con số đó — nên luôn phải tính
+    // hạng sau khi trả điểm. Trước 02/10 ở đây có một nhánh bỏ qua bảng bậc khi
+    // `rank.points_source` là LIFETIME; cái núm đó đã bị gỡ, nên nhánh cũng đi theo.
+    //
+    // `tiers` rỗng vẫn phải phòng: bảng bậc có thể chưa seed ở môi trường mới, và
+    // lúc đó "không biết hạng sau" phải trả về hạng hiện tại chứ không phải VIEWER.
+    const tiers = await this.ranks.listTiers();
     const rankAfter =
       tiers.length === 0
         ? rank.rank

@@ -9,10 +9,17 @@ Tài liệu này ghi nhận hiện trạng các giả định ban đầu và **�
 
 Product Owner đã xác nhận streak theo **ngày liên tiếp**; lượt điểm danh bù chỉ tích
 từ giao dịch **tặng/nhận quà hoàn tất**. Mốc ban đầu là 7/14/30/50 ngày, Admin có thể
-cấu hình điểm thưởng ở từng mốc và số giao dịch đổi một lượt bù. Thiết kế chọn mỗi
-giao dịch hợp lệ tính một lần cho **mỗi bên**; cần xác nhận nếu chỉ muốn tính cho một
-bên. Các số chưa chốt: điểm ngày, điểm từng mốc, giao dịch/lượt bù, số ngày được bù,
-giới hạn lượt bù tích trữ. Không bật phát điểm khi policy chưa đủ các giá trị này.
+cấu hình điểm thưởng ở từng mốc và số giao dịch đổi một lượt bù. **Chốt 02/10:** mỗi giao
+dịch hợp lệ tính một lần cho **mỗi bên** — cả người tặng và người nhận. Hệ quả cần
+biết khi chọn ngưỡng: một người vừa tặng vừa nhận chỉ cần một nửa số lượt trao để đạt
+ngưỡng so với người chỉ làm một phía.
+
+**Cũng chốt 02/10:** bộ số đề xuất đã seed thành một bản policy **đang TẮT**
+(migration `1797300000000`) — điểm ngày 2, mốc 7/14/30/50 ngày thưởng 10/25/60/120,
+4 giao dịch đổi một lượt bù, cửa sổ bù 7 ngày, không giới hạn lượt tích trữ. Suy từ
+kinh tế điểm đang chạy: 50 ngày liên tiếp ≈ 315 điểm ≈ 5,6 lượt trao hoàn tất, có chủ
+ý để điểm danh không trả hơn việc tặng đồ thật. Bên A mở
+`GET /admin/check-in-policy` xem, sửa nếu cần, rồi publish với `enabled: true`.
 Xem [đặc tả F83](./CHECK-IN-STREAK-DESIGN.md).
 
 ---

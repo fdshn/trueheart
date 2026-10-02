@@ -51,7 +51,9 @@ export class RedemptionQuoteDto implements IRedemptionQuoteDto {
 
   @ApiProperty({
     description:
-      '`true` khi trả số điểm này sẽ làm bạn TỤT HẠNG — mất quota bài và các quyền của bậc đang giữ. Luôn `false` khi `rank.points_source` là LIFETIME, vì lúc đó tiêu điểm không đụng tới con số quyết hạng.',
+      '`true` khi trả số điểm này sẽ làm bạn TỤT HẠNG — mất quota bài và các quyền ' +
+      'của bậc đang giữ. Hạng đọc `balancePoints` và tiêu điểm giảm đúng con số đó, ' +
+      'nên cảnh báo này luôn có nghĩa.',
   })
   wouldDemote: boolean;
 

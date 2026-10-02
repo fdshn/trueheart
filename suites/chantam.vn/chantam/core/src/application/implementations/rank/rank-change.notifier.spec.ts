@@ -6,7 +6,6 @@ function makeNotifier(
     change?: unknown;
     reconcileError?: unknown;
     balancePoints?: number;
-    rankPoints?: number;
     warningPoints?: number;
     rank?: string;
     dispatchError?: unknown;
@@ -20,11 +19,6 @@ function makeNotifier(
       rank: options.rank ?? 'SILVER',
       lifetimePoints: 1200,
       balancePoints: options.balancePoints ?? 700,
-      // `rankPoints` là con số notifier thật sự so với ngưỡng — với cấu hình mặc
-      // định nó bằng balance. Thiếu field này thì phép so ra `undefined >= 470`,
-      // tức false, và cảnh báo gửi cả khi điểm còn dư.
-      rankPoints: options.rankPoints ?? options.balancePoints ?? 700,
-      rankPointsSource: 'BALANCE',
       currentTier: {
         rank: options.rank ?? 'SILVER',
         thresholdPoints: 672,
@@ -173,20 +167,24 @@ describe('RankChangeNotifier', () => {
     );
   });
 
-  it('cảnh báo so theo con số QUYẾT HẠNG, không theo balance', async () => {
-    // Bẫy đã bịt 29/09: `rank.points_source` áp cho chỗ quyết hạng nhưng cảnh báo
-    // lại đọc `balancePoints`. Đổi cấu hình sang LIFETIME một lần là cảnh báo tính
-    // theo một con số còn tụt hạng tính theo con số khác.
+  it('lifetime cao KHÔNG ngăn được cảnh báo — hạng chỉ đọc số dư', async () => {
+    // Đây là phép canh cho thay đổi 02/10. Trước đó cấu hình `rank.points_source`
+    // bật được `LIFETIME`, và ở chế độ ấy đúng ca này KHÔNG cảnh báo: lifetime 1200
+    // còn trên mốc nên hạng "không lung lay" dù số tiêu được chỉ còn 100.
     //
-    // Ở đây balance đã dưới mốc 470 nhưng `rankPoints` (lifetime) thì chưa — nên
-    // KHÔNG được cảnh báo, vì hạng của họ không hề lung lay.
-    const { notifier, dispatch } = makeNotifier({
-      balancePoints: 100,
-      rankPoints: 1200,
-    });
+    // Cái núm đó đã gỡ (SRS `BR-POINT-06` và `BR-PROF-RANK-06` cùng cấm nhánh
+    // lifetime), nên nay người này PHẢI được cảnh báo — họ thật sự sắp tụt hạng.
+    // Fixture để lifetime 1200 đúng bằng bản cũ, để nếu có ai seed lại khoá cấu
+    // hình đó thì phép kiểm này đỏ.
+    const { notifier, dispatch } = makeNotifier({ balancePoints: 100 });
 
     await notifier.afterBalanceChange('u-1');
 
-    expect(dispatch.handle).not.toHaveBeenCalled();
+    expect(dispatch.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: NotificationTypes.RANK_DEMOTION_WARNING,
+        body: expect.stringContaining('Bạn còn 100 điểm'),
+      }),
+    );
   });
 });

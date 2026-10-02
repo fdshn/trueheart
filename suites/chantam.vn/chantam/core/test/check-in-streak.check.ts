@@ -141,9 +141,13 @@ async function main(): Promise<void> {
     await addUser(UserD, 'nguoi-diem-danh-d');
 
     // ── 2. Fail-closed TRƯỚC khi có policy ─────────────────────────────────
-    console.log('1. Chưa publish policy thì không ghi được gì');
+    console.log('1. Bản nháp seed sẵn thì vẫn chưa phát điểm được');
+    // Ca "chưa publish gì cả" nay không dựng được ở đây vì migration
+    // `1797300000000` seed một bản nháp — và đó là trạng thái thật của mọi môi
+    // trường. Nhánh `!row` trong `usablePolicy` vẫn còn để phòng ca ai đó xoá hết
+    // bản, nhưng nó không còn là ca mặc định nên không giả vờ kiểm nó ở đây.
     await expectThrow(
-      'chưa có policy thì điểm danh bị từ chối',
+      'bản nháp đang tắt thì điểm danh bị từ chối',
       () =>
         checkIns.record({
           userId: UserA,
@@ -156,15 +160,35 @@ async function main(): Promise<void> {
 
     // ── 1. Policy ───────────────────────────────────────────────────────────
     console.log('\n2. Publish policy: version, xung đột, và chặn bản thiếu số');
-    const v1 = await publish({
-      expectedVersion: null,
-      enabled: false,
-      dailyPoints: 0,
-      milestones: [],
-      transactionsPerRepair: 0,
-      repairWindowDays: 0,
-    });
-    check('bản đầu là version 1', v1.version === 1, `version=${v1.version}`);
+    // Migration `1797300000000` seed sẵn một bản NHÁP đang tắt, nên phép kiểm này
+    // bắt đầu từ đúng trạng thái đó chứ không từ bảng rỗng — kiểm một trạng thái
+    // không môi trường nào có thì xanh cũng không nói được gì.
+    const seeded = await checkIns.getActivePolicy();
+    check(
+      'migration seed sẵn bản nháp v1, ĐANG TẮT',
+      seeded?.version === 1 && seeded.policy.enabled === false,
+      `version=${seeded?.version} enabled=${String(seeded?.policy.enabled)}`,
+    );
+    check(
+      'bản nháp có đủ số để Bên A phản biện, chỉ là chưa bật',
+      (seeded?.policy.dailyPoints ?? 0) > 0 &&
+        (seeded?.policy.milestones.length ?? 0) === 4,
+      `daily=${seeded?.policy.dailyPoints} mốc=${seeded?.policy.milestones.length}`,
+    );
+
+    await expectThrow(
+      'expectedVersion null khi đã có bản v1 bị từ chối',
+      () =>
+        publish({
+          expectedVersion: null,
+          enabled: false,
+          dailyPoints: 0,
+          milestones: [],
+          transactionsPerRepair: 0,
+          repairWindowDays: 0,
+        }),
+      'ValidationFailedException',
+    );
 
     await expectThrow(
       'bật mà thiếu số bị từ chối kèm danh sách thiếu',
@@ -221,6 +245,18 @@ async function main(): Promise<void> {
       'bản hợp lệ lên version 2',
       v2.version === 2,
       `version=${v2.version}`,
+    );
+
+    // Phép kiểm CÓ TÊN cho một bẫy khó thấy, bắt được ở lượt chạy 02/10. Bản nháp v1
+    // có `effective_at = now()` lúc migration, còn v2 vừa publish với mốc hiệu lực
+    // LÙI một phút. Nếu `usablePolicy` sắp theo `effective_at DESC` thì bản nháp
+    // ĐANG TẮT thắng, và tính năng không bật được bằng bất kỳ lượt publish nào.
+    const activeAfterPublish = await checkIns.getActivePolicy();
+    check(
+      'bản publish SAU thắng, dù mốc hiệu lực sớm hơn bản trước',
+      activeAfterPublish?.version === 2 &&
+        activeAfterPublish.policy.enabled === true,
+      `version=${activeAfterPublish?.version} enabled=${String(activeAfterPublish?.policy.enabled)}`,
     );
 
     // ── 3 & 4. Chuỗi liền mạch, lặp, và mốc ────────────────────────────────

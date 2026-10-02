@@ -110,12 +110,23 @@ export class CheckInRepository implements ICheckInRepository {
   ) {}
 
   public async getActivePolicy(): Promise<ICheckInPolicyRevision | null> {
-    // Bản đang chạy = version lớn nhất đã tới hiệu lực. Không cột trạng thái nào
-    // phải giữ đồng bộ, nên không có cột nào nói sai được.
+    // Bản đang chạy = **version lớn nhất** trong số đã tới hiệu lực. Không cột trạng
+    // thái nào phải giữ đồng bộ, nên không có cột nào nói sai được.
+    //
+    // `ORDER BY version DESC`, KHÔNG `effective_at DESC`. Bản đầu sắp theo
+    // `effective_at` và nó sai theo một chiều khó thấy: một bản publish SAU với mốc
+    // hiệu lực sớm hơn sẽ bị một bản publish TRƯỚC với mốc muộn hơn đè lên. Cụ thể
+    // hơn, ca mà `test/check-in-streak.check.ts` bắt được: migration seed bản nháp
+    // v1 với `effective_at = now()`, rồi Admin publish v2 hiệu lực lùi một phút —
+    // sắp theo `effective_at` thì bản NHÁP ĐANG TẮT thắng, và tính năng không bật
+    // được bằng bất kỳ lượt publish nào.
+    //
+    // Version là thứ tự publish, tức thứ tự Ý ĐỊNH. Một bản hẹn giờ cho tương lai chỉ
+    // là "chưa tới lượt"; khi tới lượt nó vẫn không được vượt một bản publish sau nó.
     const [row] = await this.manager.query<IPolicyRow[]>(
       `SELECT ${PolicyColumns} FROM check_in_policy_revisions
        WHERE effective_at <= now()
-       ORDER BY effective_at DESC, version DESC
+       ORDER BY version DESC
        LIMIT 1`,
     );
     return row ? toRevision(row) : null;
@@ -352,7 +363,7 @@ export class CheckInRepository implements ICheckInRepository {
     const [row] = await manager.query<IPolicyRow[]>(
       `SELECT ${PolicyColumns} FROM check_in_policy_revisions
        WHERE effective_at <= now()
-       ORDER BY effective_at DESC, version DESC
+       ORDER BY version DESC
        LIMIT 1`,
     );
 
@@ -752,7 +763,7 @@ export class CheckInRepository implements ICheckInRepository {
     const [row] = await manager.query<IPolicyRow[]>(
       `SELECT ${PolicyColumns} FROM check_in_policy_revisions
        WHERE effective_at <= now()
-       ORDER BY effective_at DESC, version DESC
+       ORDER BY version DESC
        LIMIT 1`,
     );
     // Chưa bật thì KHÔNG tích gì. Tích sẵn khi tắt nghe có vẻ tốt hơn, nhưng

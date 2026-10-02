@@ -295,8 +295,9 @@ export interface IRedemptionQuoteDto {
   /**
    * `true` khi trả số điểm này sẽ làm người gọi TỤT HẠNG.
    *
-   * Luôn `false` khi `rank.points_source` là LIFETIME — lúc đó tiêu điểm không
-   * đụng tới con số quyết hạng.
+   * Hạng đọc `balancePoints`, và tiêu điểm thì giảm đúng con số đó — nên cảnh báo
+   * này luôn có nghĩa. Trước 02/10 ở đây còn một câu "luôn `false` khi
+   * `rank.points_source` là LIFETIME"; cái núm đó đã bị gỡ.
    */
   wouldDemote: boolean;
   /** Hạng sau khi đổi. Bằng hạng hiện tại khi không tụt. */

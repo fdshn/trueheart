@@ -184,26 +184,25 @@ Ba thứ đã làm mà SRS không nói. Ghi ở đây để không ai phát hi�
 Hiện thực xong và kiểm trên Postgres thật (`npm run test:check-in`, 36 phép kiểm). Nhưng nó
 **ship ở trạng thái TẮT** và sẽ ở đó cho tới khi có hai thứ dưới đây.
 
-### 🟡 Năm con số chưa ai cung cấp
+### ✅ Năm con số — đã có bản nháp để duyệt (02/10)
 
-| Khoá | Ý nghĩa |
-| --- | --- |
-| `dailyPoints` | Điểm cho một lần điểm danh thường |
-| `milestones[].bonusPoints` | Điểm ở từng mốc (mốc khởi đầu SRS nêu: 7/14/30/50 ngày) |
-| `transactionsPerRepair` | Số giao dịch tặng/nhận quà hoàn tất đổi một lượt bù |
-| `repairWindowDays` | Số ngày được quay lại bù |
-| giới hạn lượt bù tích trữ | Có hay không — hiện **không** giới hạn |
+Migration `1797300000000` seed một bản policy **đang TẮT** với bộ số do nhóm kỹ thuật đề
+xuất: điểm ngày **2**, mốc **7/14/30/50** ngày thưởng **10/25/60/120**, **4** giao dịch
+đổi một lượt bù, cửa sổ bù **7** ngày, **không** giới hạn lượt tích trữ.
 
-Đặc tả nói thẳng là *"không hard-code một giá trị mặc định có tác dụng phát điểm"*, nên
-`DefaultCheckInPolicy` là 0/tắt và `PUT /admin/check-in-policy` **từ chối** một bản bật mà
-thiếu số, kèm danh sách đúng cái thiếu. Để treo thì tính năng có mà không ai dùng được.
+Suy từ kinh tế điểm đang chạy, không bốc: `GIFT_COMPLETED_RECEIVER = 56` điểm/lượt trao,
+nên 50 ngày liên tiếp ≈ **315 điểm ≈ 5,6 lượt trao**. Có chủ ý — điểm danh thưởng THÓI
+QUEN và không được trả hơn việc tặng đồ thật, nếu không thì cách tối ưu để lên hạng là mở
+app mỗi ngày chứ không phải cho ai cái gì.
 
-### 🟡 Một câu hỏi chính đặc tả tự đặt ra
+**Còn lại cho Bên A:** mở `GET /admin/check-in-policy`, sửa số nếu thấy lệch, rồi publish
+với `enabled: true`. Tới lúc đó tính năng vẫn tắt.
 
-`docs/plan/ASSUMPTIONS.md` ghi: *"Thiết kế chọn mỗi giao dịch hợp lệ tính một lần cho **mỗi
-bên**; cần xác nhận nếu chỉ muốn tính cho một bên."* Đã hiện thực theo thiết kế (cả người
-tặng và người nhận), và điều đó làm **tốc độ tích lượt gấp đôi** so với tính một bên. Đổi
-sang một bên là sửa một chỗ trong `accrueFromCompletedTransaction`.
+### ✅ Tính lượt bù cho ai — đã chốt (02/10)
+
+**Cả hai bên.** Người tặng và người nhận mỗi bên tích một giao dịch. Hệ quả cần nhớ khi
+chọn ngưỡng: một người vừa tặng vừa nhận chỉ cần **một nửa** số lượt trao để đạt ngưỡng
+so với người chỉ làm một phía.
 
 ### 🟠 Một lỗ ĐẶC TẢ, không phải lỗ hiện thực
 
@@ -225,7 +224,7 @@ Nên hoặc app ghép hai nguồn, hoặc endpoint này nhận thêm khoảng ng
 
 ---
 
-## Đối chiếu SRS — 16 lỗ endpoint còn lại và 15 quy tắc chưa soát
+## Đối chiếu SRS — 16 lỗ endpoint còn lại và 16 quy tắc chưa soát
 
 Lập 01/10 khi rà `docs/software-requirement-specification/SRS_Chan_Tam_v1.15.0.md` sang mã nguồn.
 Con số đo bằng script, không ước lượng.
@@ -259,7 +258,7 @@ và nói thẳng "đừng bắt lỗi theo message"**. Ai dựng client Flutter 
 
 🟡 **Cần Bên A chốt**: cập nhật SRS theo mã số, hay thêm một trường tên chuỗi vào response.
 
-### 15 quy tắc nghiệp vụ chưa ai đối chiếu
+### 16 quy tắc nghiệp vụ chưa ai đối chiếu
 
 SRS có **61** id BR duy nhất (19 dạng `BR_X_n` + 42 dạng `BR-X-n` — cùng một dãy bị đổi quy ước
 giữa tài liệu). Sổ truy vết nay ở `core/src/srs-traceability.spec.ts`:
@@ -271,7 +270,7 @@ giữa tài liệu). Sổ truy vết nay ở `core/src/srs-traceability.spec.ts`
 | `NOT_IMPLEMENTED` | Chưa làm, hầu hết vì phân hệ chưa dựng (DHARMA, CHARITY, CAMP, AFF) |
 | `UNVERIFIED` | **Chưa ai đối chiếu** — không phải "chưa làm", đúng nghĩa là chưa biết |
 
-**Con số duy nhất ghi ở đây là `UNVERIFIED`: 15**, vì nó là con số duy nhất có phép kiểm canh —
+**Con số duy nhất ghi ở đây là `UNVERIFIED`: 16**, vì nó là con số duy nhất có phép kiểm canh —
 `UnverifiedBaseline` trong chính file spec, và phép kiểm đỏ nếu số đó tăng. Phân bố ba trạng thái
 còn lại đọc thẳng ở file spec; chép sang đây là tự dựng một con số sẽ rữa, đúng thứ
 [26](./26-api-conventions.md) vừa dọn.
@@ -279,26 +278,20 @@ còn lại đọc thẳng ở file spec; chép sang đây là tự dựng một 
 Sổ cũng đỏ khi SRS lên bản mới và thêm quy tắc mà sổ chưa khai, và khi SRS bỏ một quy tắc mà sổ
 còn giữ dòng chết.
 
-15 mục chưa soát: `BR_AUTH_03`, `BR_POST_01`, `BR_POST_03`, `BR_POST_05`, `BR-GIS-03`,
-`BR-GIS-04`, `BR-GIS-06`, `BR_CHAT_02`, `BR-AFF-01`, `BR-NOTI-01`, `BR-POINT-02`, `BR-POINT-03`,
-`BR-POINT-04`, `BR-REP-02`, `BR-REP-04`.
+Danh sách đọc thẳng ở file spec (lọc `status: 'UNVERIFIED'`) — không chép sang đây, vì một
+danh sách chép tay sẽ lệch đúng vào lúc nó được dùng để lập kế hoạch.
 
-### 🟡 Một chỗ hiện thực LỆCH đặc tả, cần Bên A chốt
-
-`BR-POINT-06` nói *"Rank dùng số dư Điểm Cống hiến hiện tại, **không dùng lifetime rank point
-riêng**"*. Mã nguồn mặc định đúng (`rank.points_source = BALANCE`), nhưng đó là **cấu hình động
-và Admin bật được `LIFETIME`** — tức bật được đúng thứ đặc tả nói là không dùng.
-
-Giữ hay bỏ lựa chọn đó là quyết định của Bên A. Để nguyên thì một lần Admin đổi cấu hình sẽ làm
-hệ thống chạy trái đặc tả mà không ai coi đó là lỗi.
-
-### Hai lỗi của chính SRS
+### Bốn chỗ cần dọn ở chính SRS (một đã sửa)
 
 1. **`BR_AUTH_04` dùng cho HAI quy tắc khác nhau** — dòng ~535 nói không cần xác thực email để
    kích hoạt tài khoản, dòng ~616 nói xoá tài khoản phải ẩn danh hoá theo NĐ 13/2023. Sổ truy vết
    giữ một dòng mang cả hai, có ghi chú.
 2. **`BR-REP-01` không tồn tại** — nhóm REP đánh số từ 02. Không rõ là bỏ sót một quy tắc hay chỉ
    là lỗ số.
+3. **`BR-POINT-06` và `BR-PROF-RANK-06` là CÙNG một quy tắc mang hai id.** Cả hai đã đóng 02/10,
+   nhưng hai tên cho một luật là mời chúng trôi khỏi nhau ở bản SRS sau — nên dọn thì gộp lại.
+4. ✅ **`BR-POST-TYPE-01` nêu sáu nhóm bài trong khi hệ thống có năm** — đã sửa SRS 02/10: nhóm
+   `GIỚI_THIỆU_QUẢNG_CÁO` bỏ, nội dung rao/quảng cáo nằm trong `RAO_VẶT`.
 
 ---
 

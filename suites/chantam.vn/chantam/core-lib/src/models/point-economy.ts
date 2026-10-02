@@ -154,51 +154,30 @@ export function quoteRedemption(
   return { redeemable: true, points, reason: null };
 }
 
-/** Khoá `system_configs` cho việc xét hạng đọc cột điểm nào. */
-export const RankPointsSourceConfigKey = 'rank.points_source';
-
 /**
- * Xét hạng dựa trên cột điểm nào.
+ * **Nguồn tính hạng là SỐ DƯ, chốt cứng trong code — 02/10.**
  *
- * Hai cột nói hai chuyện khác nhau, và chọn sai là đổi hẳn ý nghĩa của thứ hạng:
+ * Trước đó đây là một cấu hình động `rank.points_source` với hai giá trị
+ * `BALANCE`/`LIFETIME`, cộng một khoá trong `system_configs`, một hàm chuẩn hoá,
+ * một nhánh trong `rank.repository`, một nhánh trong `redemption-quote`, và hai
+ * trường `rankPoints`/`rankPointsSource` trong response.
  *
- * - `BALANCE` — điểm **tiêu được**, kẹp ở 0. Tiêu điểm đổi vật phẩm làm tụt
- *   hạng, và khoản phạt (ví dụ `SHIP_UNPAID_PENALTY` −50) cũng làm tụt hạng.
- *   Hạng ở đây là "đang giữ bao nhiêu", giống số dư tài khoản.
- * - `LIFETIME` — điểm **tích luỹ**, chỉ tăng. Thứ hạng là bằng ghi nhận những
- *   gì đã đóng góp, và không ai mất hạng vì đã tiêu điểm mình kiếm được.
+ * Gỡ hết vì ba lý do, theo thứ tự quan trọng:
  *
- * Để Admin chọn thay vì chốt cứng vì đây là quyết định sản phẩm, không phải
- * quyết định kỹ thuật — và nó đã bị đổi qua lại một lần (2026-09-24).
+ * 1. `BR-POINT-06` và `BR-PROF-RANK-06` của SRS **cùng nói** hạng dùng số dư hiện
+ *    tại và *"Phase 1 không dùng một lifetime rank point riêng"*. Một cái núm bật
+ *    được thứ đặc tả cấm là một cái núm không nên tồn tại.
+ * 2. Núm đó **không bật được qua đường chính thức**: `rank.points_source` chưa bao
+ *    giờ nằm trong `SupportedSystemConfigKeys`, nên `POST /admin/system-configs`
+ *    từ chối nó và chỉ `UPDATE` SQL tay mới đổi được. Nó là một nhánh chết mang
+ *    hình dạng một tính năng — đúng loại đã bắt ở `canViewExactLocation` (25).
+ * 3. Hai trường trong response thì **nói sai với client**: mô tả của chúng dạy
+ *    client đọc `rankPoints` thay vì `balancePoints` "vì cấu hình có thể đổi", mà
+ *    cấu hình thì không đổi được.
+ *
+ * Nay chỉ còn MỘT con số quyết hạng: `balancePoints`. Muốn đổi lại thành tích luỹ
+ * thì đó là một quyết định sản phẩm có migration riêng, không phải một dòng config.
  */
-export type RankPointsSource = 'BALANCE' | 'LIFETIME';
-
-export interface IRankPointsSourceConfig {
-  readonly source: RankPointsSource;
-}
-
-/**
- * Mặc định `BALANCE` — giữ NGUYÊN hành vi đang chạy.
- *
- * Một cấu hình mới không được lặng lẽ đổi thứ hạng của tất cả mọi người ngay
- * lúc deploy; đổi là việc Admin làm có chủ ý, và lúc đó họ biết mình vừa làm gì.
- */
-export const DefaultRankPointsSourceConfig: IRankPointsSourceConfig = {
-  source: 'BALANCE',
-};
-
-export function normalizeRankPointsSourceConfig(
-  raw: unknown,
-): IRankPointsSourceConfig {
-  if (!raw || typeof raw !== 'object') return DefaultRankPointsSourceConfig;
-
-  const source = (raw as Record<string, unknown>).source;
-  // Giá trị lạ thì lùi về mặc định chứ không ném: một dòng cấu hình gõ sai
-  // không được làm chết cả vòng xét hạng của mọi người.
-  return source === 'LIFETIME' || source === 'BALANCE'
-    ? { source }
-    : DefaultRankPointsSourceConfig;
-}
 
 /** Khoá `system_configs` cho hạn lưu trữ thông báo. */
 export const NotificationRetentionConfigKey = 'notification.retention';

@@ -19,10 +19,7 @@ import {
   UserRanks,
   normalizeRankMaintenanceMonths,
 } from '@chantam.vn/chantam.core-lib/consts';
-import {
-  RankPointsSourceConfigKey,
-  normalizeRankPointsSourceConfig,
-} from '@chantam.vn/chantam.core-lib/models';
+import {} from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
@@ -135,31 +132,17 @@ export class RankRepository implements IRankRepository {
   ) {}
 
   /**
-   * Cột điểm dùng để xét hạng, do Admin chọn.
+   * Cột điểm quyết định thứ hạng: **số dư**, chốt cứng 02/10.
    *
-   * Hai cột nói hai chuyện khác nhau:
+   * Trước đó là `rankPointsColumn()` đọc cấu hình động `rank.points_source` và trả
+   * `'balance' | 'lifetime'`. Xem chú thích ở `core-lib/src/models/point-economy.ts`
+   * về việc vì sao cái núm đó bị gỡ — tóm lại: SRS cấm nhánh `lifetime`, và nhánh
+   * đó chưa bao giờ bật được qua đường Admin chính thức.
    *
-   * - `balance` — điểm TIÊU ĐƯỢC. Tiêu điểm đổi vật phẩm làm tụt hạng, và khoản
-   *   phạt `SHIP_UNPAID_PENALTY` (−50) cũng làm tụt hạng. Hạng là "đang giữ bao
-   *   nhiêu", giống số dư tài khoản.
-   * - `lifetime` — điểm TÍCH LUỸ, chỉ tăng. Hạng là bằng ghi nhận đã đóng góp,
-   *   và không ai mất hạng vì đã tiêu điểm mình kiếm được.
-   *
-   * Để Admin chọn vì đây là quyết định sản phẩm, không phải quyết định kỹ
-   * thuật — và nó đã bị đổi qua lại một lần (2026-09-24). Mặc định `BALANCE`
-   * giữ nguyên hành vi đang chạy: một cấu hình mới không được lặng lẽ đổi thứ
-   * hạng của tất cả mọi người ngay lúc deploy.
-   *
-   * Trả về TÊN CỘT chứ không phải giá trị người dùng nhập: chuỗi này ghép thẳng
-   * vào SQL, nên nó phải đến từ một tập đóng do mã quyết định.
+   * Giữ dạng một hằng có TÊN thay vì ghép thẳng `'balance'` vào SQL: tên này nói
+   * cột đó mang nghĩa gì, và khi nào cần đổi thì chỉ có một chỗ để đổi.
    */
-  private async rankPointsColumn(): Promise<'balance' | 'lifetime'> {
-    const config = normalizeRankPointsSourceConfig(
-      await this.adminConfig?.getConfigValue(RankPointsSourceConfigKey),
-    );
-
-    return config.source === 'LIFETIME' ? 'lifetime' : 'balance';
-  }
+  private static readonly RankPointsColumn = 'balance' as const;
 
   /**
    * Độ dài một kỳ duy trì, đọc từ cấu hình động.
@@ -181,7 +164,7 @@ export class RankRepository implements IRankRepository {
         userId,
       ]);
 
-      const pointsColumn = await this.rankPointsColumn();
+      const pointsColumn = RankRepository.RankPointsColumn;
       const [user] = await manager.query<IRawNormalRankEvaluationRow[]>(
         `
           SELECT
@@ -456,7 +439,7 @@ export class RankRepository implements IRankRepository {
           cycle.user_id,
         ]);
 
-        const pointsColumn = await this.rankPointsColumn();
+        const pointsColumn = RankRepository.RankPointsColumn;
         const [user] = await manager.query<IRawMaintenanceEvaluationRow[]>(
           `
             SELECT
@@ -679,10 +662,9 @@ export class RankRepository implements IRankRepository {
     const nextRank = this.getNextRank(summary.rank);
     const nextTier = nextRank ? await this.getTier(nextRank) : null;
 
-    // Cả hai con số vẫn trả về nguyên vẹn — chúng là hai sự thật khác nhau và màn
-    // hình hồ sơ hiển thị cả hai. `rankPoints` chỉ nói CON SỐ NÀO đang cầm quyền,
-    // đọc đúng cùng một cấu hình mà `reconcileNormalRank` đọc.
-    const pointsColumn = await this.rankPointsColumn();
+    // Cả hai con số vẫn trả về — chúng là hai sự thật khác nhau và màn hình hồ sơ
+    // hiển thị cả hai. Nhưng chỉ `balancePoints` quyết hạng, nên không còn trường
+    // thứ ba nói "con số nào đang cầm quyền": chỉ có một con số, và nó có tên rồi.
     const lifetimePoints = Number(summary.lifetime_points ?? 0);
     const balancePoints = Number(summary.balance_points ?? 0);
 
@@ -690,8 +672,6 @@ export class RankRepository implements IRankRepository {
       rank: summary.rank,
       lifetimePoints,
       balancePoints,
-      rankPoints: pointsColumn === 'lifetime' ? lifetimePoints : balancePoints,
-      rankPointsSource: pointsColumn === 'lifetime' ? 'LIFETIME' : 'BALANCE',
       currentTier,
       nextTier,
       qualifiedReferrals: Number(summary.qualified_referrals),
