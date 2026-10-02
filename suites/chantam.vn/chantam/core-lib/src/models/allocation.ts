@@ -69,13 +69,28 @@ export interface IAllocationPolicy {
    */
   readonly keywordMatchEnabled: boolean;
   /**
-   * Tự tạo lượt trao từ gợi ý, không chờ người dùng xin nhận.
+   * Cho phép hệ thống TỰ chốt người nhận khi hết đồng hồ chọn (F75).
    *
-   * **Chưa hiện thực.** Giữ trường để đúng schema SRS, nhưng `allocationPolicyGaps`
-   * TỪ CHỐI `true`: một cờ bật được mà không đường mã nào đọc là đúng cái bẫy đã bắt
-   * nhiều lần ở repo này (`canViewExactLocation` hardcode `false`, `SELECT_REQUESTER`
-   * seed mà không ai đọc). Thà báo "chưa làm" ở API còn hơn để Admin bật rồi ngồi đợi
-   * một việc không bao giờ xảy ra.
+   * ## Cách hiểu đã chọn, và cách hiểu đã bỏ
+   *
+   * SRS §6.2.14 đặt cột này cạnh bốn tham số Smart Match, nên đọc thoáng thì nó là *"tìm
+   * được cặp khớp thì tự tạo lượt trao"*. Bỏ cách đó: Smart Match sống ở
+   * `GET /posts/:postId/smart-matches`, và một endpoint `GET` không được ghi hàng nào —
+   * chưa nói tới việc mỗi lượt xem bài sẽ sinh tới 20 giao dịch.
+   *
+   * Chỗ DUY NHẤT trong cả hệ mà hệ thống tạo giao dịch không do người dùng bấm là
+   * `AutoSelectDueRecipientsUseCase` — job chốt người nhận cho bài hết `selection_deadline`.
+   * Nên cờ này là công tắc của chính nó.
+   *
+   * ## Mặc định `true`, trái mặc định SRS
+   *
+   * SRS ghi `DEFAULT false`. Lấy `false` ở đây sẽ **TẮT** một tính năng đang chạy đúng
+   * ngay lúc triển khai: `selection_deadline` lại thành một đồng hồ không bao giờ reo, và
+   * người xin chờ mãi. Cùng lý do `categoryMatchRequired` cũng trái mặc định SRS — giá
+   * trị đặc tả đề nghị là giá trị Bên A **publish**, không phải thứ lén đổi theo bản cài.
+   *
+   * Tắt nó là một quyết định có ích thật: lúc đang có sự cố chọn sai người nhận, Admin
+   * cần một chỗ dừng job mà không phải sửa cron.
    */
   readonly autoCreateTransaction: boolean;
   readonly maxSuggestions: number;
@@ -101,7 +116,9 @@ export const DefaultAllocationPolicy: IAllocationPolicy = {
   // `get-smart-matches.use-case.ts` không đọc `DISCOVERY_RADIUS` ở đường này.
   distanceRule: 'FILTER_ONLY',
   keywordMatchEnabled: true,
-  autoCreateTransaction: false,
+  // `AutoSelectDueRecipientsUseCase` hiện chạy không điều kiện — xem docblock của
+  // trường này về việc vì sao mặc định ở đây là `true` chứ không phải `false` như SRS.
+  autoCreateTransaction: true,
   // `SmartMatchMaxResults`.
   maxSuggestions: 20,
   // `SmartMatchWeights`.
@@ -171,7 +188,9 @@ export function normalizeAllocationPolicy(raw: unknown): IAllocationPolicy {
     // Khác ba cờ còn lại: thiếu khoá thì BẬT, vì tắt từ khoá là thu hẹp gợi ý. Dữ
     // liệu cấu hình đọc không ra không được tự ý cắt bớt thứ người dùng đang thấy.
     keywordMatchEnabled: source.keywordMatchEnabled !== false,
-    autoCreateTransaction: source.autoCreateTransaction === true,
+    // Thiếu khoá thì BẬT, cùng lối `keywordMatchEnabled`: dữ liệu cấu hình đọc không ra
+    // không được tự ý tắt một tính năng đang chạy.
+    autoCreateTransaction: source.autoCreateTransaction !== false,
     maxSuggestions: clampInt(
       source.maxSuggestions,
       1,
@@ -196,12 +215,6 @@ export function allocationPolicyGaps(policy: IAllocationPolicy): string[] {
     gaps.push(
       'categoryMatchRequired và keywordMatchEnabled không được tắt cùng lúc: ' +
         'gợi ý sẽ chỉ còn lọc theo khoảng cách',
-    );
-
-  if (policy.autoCreateTransaction)
-    gaps.push(
-      'autoCreateTransaction: chưa hiện thực, chưa đường mã nào đọc cờ này nên ' +
-        'bật lên sẽ không có tác dụng gì',
     );
 
   if (policy.maxSuggestions < 1) gaps.push('maxSuggestions phải lớn hơn 0');

@@ -70,6 +70,8 @@
     "selection:auto-select": "ts-node -r tsconfig-paths/register src/infrastructure/cli/selection-auto-select.cli.ts",
     "selection:auto-select:built": "node dist/infrastructure/cli/selection-auto-select.cli.js",
     "notify:reminders:built": "node dist/infrastructure/cli/notify-reminders.cli.js",
+    "notify:lunar": "ts-node -r tsconfig-paths/register src/infrastructure/cli/notify-lunar.cli.ts",
+    "notify:lunar:built": "node dist/infrastructure/cli/notify-lunar.cli.js",
     "gift:settle-rewards:built": "node dist/infrastructure/cli/gift-settle-rewards.cli.js",
     "accuracy:reconcile:built": "node dist/infrastructure/cli/accuracy-reconcile.cli.js",
     "feed:reconcile-counts": "ts-node -r tsconfig-paths/register src/infrastructure/cli/feed-reconcile-counts.cli.ts",

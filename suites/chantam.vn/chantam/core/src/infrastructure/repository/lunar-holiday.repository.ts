@@ -1,4 +1,5 @@
 import {
+  IBulkNotifyAudienceRepository,
   ILunarHoliday,
   ILunarHolidayRepository,
   IReplaceLunarHolidaysParams,
@@ -93,5 +94,41 @@ export class LunarHolidayRepository implements ILunarHolidayRepository {
       );
       return (rows ?? []).map(toHoliday);
     });
+  }
+}
+
+/**
+ * Danh sách người nhận cho thông báo hàng loạt (mục mở L28).
+ *
+ * Tách thành class riêng, không gắn vào `LunarHolidayRepository`: việc "lặp người dùng
+ * đang hoạt động" không thuộc về danh mục ngày lễ, và F47 (thông báo theo khu vực) sẽ dùng
+ * lại đúng cổng này với một mệnh đề `ST_DWithin` thêm vào.
+ */
+@Injectable()
+export class BulkNotifyAudienceRepository implements IBulkNotifyAudienceRepository {
+  public constructor(
+    @InjectEntityManager() private readonly manager: EntityManager,
+  ) {}
+
+  public async findActiveUserIdsAfter(params: {
+    afterId: number;
+    limit: number;
+  }): Promise<{ id: number; globalId: string }[]> {
+    const rows = await this.manager.query<{ id: string; global_id: string }[]>(
+      `SELECT id, global_id FROM users
+        WHERE id > $1
+          AND status = 'ACTIVE'
+          AND deleted_at IS NULL
+        ORDER BY id ASC
+        LIMIT $2`,
+      [params.afterId, params.limit],
+    );
+    return (rows ?? []).map((row) => ({
+      // `id` là BIGSERIAL nên node-pg trả về CHUỖI. Dùng thẳng nó làm `afterId` cho trang
+      // sau sẽ so chuỗi với số trong câu `WHERE id > $1` — Postgres vẫn chạy, nhưng mọi
+      // phép tính ở tầng JS thì sai.
+      id: Number(row.id),
+      globalId: row.global_id,
+    }));
   }
 }

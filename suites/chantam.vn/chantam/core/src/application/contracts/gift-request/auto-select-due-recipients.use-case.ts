@@ -19,6 +19,15 @@ export interface IAutoSelectDueRecipientsResult {
   readonly selected: IAutoSelectedRecipient[];
   /** Bài bỏ qua vì lỗi — không dừng cả vòng vì một bài hỏng. */
   readonly failed: { postId: string; reason: string }[];
+  /**
+   * `true` khi Admin đã TẮT `allocation.policy.autoCreateTransaction` (mục mở L23).
+   *
+   * Phải là một trường riêng, không được để lẫn với `selected: []`: hai thứ đó nghĩa khác
+   * nhau hoàn toàn — một là "Admin chủ ý dừng", một là "không có bài nào tới hạn". Người
+   * đọc log cron cần phân biệt được, nếu không một lượt tắt có chủ ý trông y như một job
+   * chạy không.
+   */
+  readonly skippedByPolicy: boolean;
 }
 
 export interface IAutoSelectDueRecipientsUseCase extends IUseCase<

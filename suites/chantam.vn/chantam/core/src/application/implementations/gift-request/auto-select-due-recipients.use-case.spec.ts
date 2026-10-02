@@ -72,8 +72,15 @@ describe('AutoSelectDueRecipientsUseCase', () => {
 
     const result = await useCase.handle({});
 
-    expect(result).toEqual({ due: 0, selected: [], failed: [] });
-    expect(adminConfig.getConfigValue).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      due: 0,
+      selected: [],
+      failed: [],
+      skippedByPolicy: false,
+    });
+    // Vẫn đọc MỘT khoá — `allocation.policy` để biết công tắc có bật không (L23). Khoá
+    // thứ tự ưu tiên thì chưa, vì không có bài nào để xếp.
+    expect(adminConfig.getConfigValue).toHaveBeenCalledTimes(1);
     expect(requests.listCandidateMetrics).not.toHaveBeenCalled();
   });
 
@@ -89,7 +96,9 @@ describe('AutoSelectDueRecipientsUseCase', () => {
 
     await useCase.handle({});
 
-    expect(adminConfig.getConfigValue).toHaveBeenCalledTimes(1);
+    // Hai lượt đọc: `allocation.policy` (công tắc) và `selection.candidate_priority`
+    // (thứ tự ưu tiên). Cái thứ hai là cái phải đọc MỘT lần cho cả vòng.
+    expect(adminConfig.getConfigValue).toHaveBeenCalledTimes(2);
   });
 
   it('duyệt đúng yêu cầu của người thắng, không phải id người dùng', async () => {
@@ -241,5 +250,63 @@ describe('AutoSelectDueRecipientsUseCase', () => {
     await useCase.handle({ dryRun: true });
 
     expect(notifier.announce).not.toHaveBeenCalled();
+  });
+
+  describe('công tắc autoCreateTransaction (mục mở L23)', () => {
+    it('mặc định BẬT — chưa ai publish chính sách thì job vẫn chạy', async () => {
+      // Tắt sẵn là biến `selection_deadline` lại thành đồng hồ không bao giờ reo, và
+      // người xin chờ mãi. Đó là lý do mặc định ở đây trái mặc định SRS.
+      const { useCase, requests } = makeUseCase({});
+
+      const result = await useCase.handle({});
+
+      expect(result.skippedByPolicy).toBe(false);
+      expect(requests.findPostsDueForSelection).toHaveBeenCalled();
+    });
+
+    it('Admin tắt thì KHÔNG quét bài nào', async () => {
+      // Kiểm cờ trước khi quét: quét rồi mới dừng là tốn một truy vấn cho một lượt chạy
+      // không làm gì.
+      const { useCase, requests, adminConfig } = makeUseCase({});
+      adminConfig.getConfigValue.mockImplementation(async (key: string) =>
+        key === 'allocation.policy' ? { autoCreateTransaction: false } : null,
+      );
+
+      const result = await useCase.handle({});
+
+      expect(result.skippedByPolicy).toBe(true);
+      expect(requests.findPostsDueForSelection).not.toHaveBeenCalled();
+      expect(requests.acceptRequest).not.toHaveBeenCalled();
+    });
+
+    it('bị tắt KHÁC không có bài nào — hai tín hiệu riêng', async () => {
+      // `selected: []` một mình không phân biệt được "Admin chủ ý dừng" với "không có bài
+      // nào tới hạn". Người đọc log cron cần biết mình đang xem cái nào.
+      const quiet = makeUseCase({ due: [] });
+      const quietResult = await quiet.useCase.handle({});
+
+      const off = makeUseCase({});
+      off.adminConfig.getConfigValue.mockImplementation(async (key: string) =>
+        key === 'allocation.policy' ? { autoCreateTransaction: false } : null,
+      );
+      const offResult = await off.useCase.handle({});
+
+      expect(quietResult.selected).toEqual([]);
+      expect(offResult.selected).toEqual([]);
+      expect(quietResult.skippedByPolicy).toBe(false);
+      expect(offResult.skippedByPolicy).toBe(true);
+    });
+
+    it('cấu hình hỏng thì coi như BẬT, không tự tắt', async () => {
+      const { useCase, requests, adminConfig } = makeUseCase({});
+      adminConfig.getConfigValue.mockResolvedValue(
+        'khong-phai-object' as never,
+      );
+
+      const result = await useCase.handle({});
+
+      expect(result.skippedByPolicy).toBe(false);
+      expect(requests.findPostsDueForSelection).toHaveBeenCalled();
+    });
   });
 });

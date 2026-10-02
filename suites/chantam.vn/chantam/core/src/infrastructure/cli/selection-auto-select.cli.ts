@@ -51,6 +51,20 @@ async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   const result = await runAutoSelectDueRecipients(dryRun);
 
+  // Kiểm `skippedByPolicy` TRƯỚC `due === 0`.
+  //
+  // Lượt dừng theo công tắc cũng trả `due: 0`, nên đọc `due` trước sẽ in "Không bài nào
+  // hết đồng hồ" cho một lượt Admin chủ ý tắt — đúng cái lẫn lộn hai tín hiệu mà
+  // `skippedByPolicy` sinh ra để tránh. Bắt được 02/10 bằng cách chạy thật sau khi tắt
+  // công tắc; không phép kiểm nào của use case thấy, vì lỗi nằm ở CLI.
+  if (result.skippedByPolicy) {
+    console.log(
+      'Bỏ qua: allocation.policy.autoCreateTransaction đang TẮT. ' +
+        'Bật lại bằng PUT /admin/config/allocation-policy.',
+    );
+    return;
+  }
+
   if (result.due === 0) {
     console.log('Không bài nào hết đồng hồ chọn người nhận.');
     return;

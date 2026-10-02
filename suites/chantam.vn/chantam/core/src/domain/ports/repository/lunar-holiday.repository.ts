@@ -42,3 +42,24 @@ export interface ILunarHolidayRepository {
 }
 
 export const ILunarHolidayRepository = Symbol('ILunarHolidayRepository');
+
+/**
+ * Lặp người dùng để gửi thông báo hàng loạt (mục mở L28).
+ *
+ * Phân trang theo KHOÁ (`afterId`), không theo `OFFSET`: bảng `users` sẽ lớn, và `OFFSET`
+ * trên trang thứ 500 phải đếm qua 50.000 hàng mỗi lượt. Cùng lối `keyset-cursor` đã dùng ở
+ * phân hệ chat.
+ *
+ * Chỉ `ACTIVE`: gửi cho tài khoản đang bị treo hoặc đã khoá là làm tốn một dòng trong hộp
+ * thư mà họ không mở được, và gửi cho tài khoản đã xoá mềm là gửi cho một người đã rời đi.
+ */
+export interface IBulkNotifyAudienceRepository {
+  findActiveUserIdsAfter(params: {
+    afterId: number;
+    limit: number;
+  }): Promise<{ id: number; globalId: string }[]>;
+}
+
+export const IBulkNotifyAudienceRepository = Symbol(
+  'IBulkNotifyAudienceRepository',
+);

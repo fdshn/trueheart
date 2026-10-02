@@ -9,7 +9,11 @@ import {
   IGiftRequestRepository,
 } from '@/domain/ports/repository';
 import { CandidateSelectionConfigKey } from '@chantam.vn/chantam.core-lib/consts';
-import { pickNextCandidate } from '@chantam.vn/chantam.core-lib/models';
+import {
+  AllocationPolicyConfigKey,
+  normalizeAllocationPolicy,
+  pickNextCandidate,
+} from '@chantam.vn/chantam.core-lib/models';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AcceptedRequestNotifier } from './accepted-request.notifier';
@@ -29,6 +33,18 @@ const DefaultLimit = 200;
  * đường nào chạy trước.
  *
  * Chạy bằng `npm run selection:auto-select`, thêm `--dry-run` để chỉ xem.
+ *
+ * ## Công tắc của Admin (mục mở L23)
+ *
+ * `allocation.policy.autoCreateTransaction` tắt job này. Đây là chỗ DUY NHẤT trong cả hệ
+ * mà hệ thống tạo giao dịch không do người dùng bấm, nên nó là chỗ duy nhất cờ đó có nghĩa.
+ *
+ * Mặc định BẬT — tắt sẵn là biến `selection_deadline` lại thành đồng hồ không bao giờ reo.
+ * Nhưng khi đang có sự cố chọn sai người nhận, Admin cần một chỗ dừng mà không phải sửa
+ * cron trên máy chủ, và đó là lúc cờ này đáng giá.
+ *
+ * Kiểm cờ TRƯỚC khi quét bài: quét rồi mới dừng là tốn một truy vấn cho một lượt chạy
+ * không làm gì.
  */
 @Injectable()
 export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsUseCase {
@@ -45,11 +61,24 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
   public async handle(
     command: IAutoSelectDueRecipientsCommand,
   ): Promise<IAutoSelectDueRecipientsResult> {
+    // Kiểm công tắc TRƯỚC khi quét: quét rồi mới dừng là tốn một truy vấn cho một lượt
+    // chạy không làm gì.
+    const allocation = normalizeAllocationPolicy(
+      await this.adminConfig.getConfigValue(AllocationPolicyConfigKey),
+    );
+    if (!allocation.autoCreateTransaction) {
+      this.logger.log(
+        'Bỏ qua: Admin đã tắt allocation.policy.autoCreateTransaction',
+      );
+      return { due: 0, selected: [], failed: [], skippedByPolicy: true };
+    }
+
     const due = await this.requests.findPostsDueForSelection(
       command.limit ?? DefaultLimit,
     );
 
-    if (due.length === 0) return { due: 0, selected: [], failed: [] };
+    if (due.length === 0)
+      return { due: 0, selected: [], failed: [], skippedByPolicy: false };
 
     // Đọc cấu hình MỘT lần cho cả vòng: thứ tự ưu tiên là chính sách chung, và
     // đọc lại mỗi bài sẽ cho ra hai bài cùng lượt chạy xếp theo hai thứ tự khác
@@ -129,6 +158,6 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
       }
     }
 
-    return { due: due.length, selected, failed };
+    return { due: due.length, selected, failed, skippedByPolicy: false };
   }
 }

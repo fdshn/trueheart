@@ -133,6 +133,13 @@ export enum NotificationTypes {
   REPORT_REVIEWED = 'REPORT_REVIEWED',
   /** Nội dung của bạn bị Admin xử lý sau khi có báo xấu. */
   CONTENT_MODERATED = 'CONTENT_MODERATED',
+  /**
+   * Nhắc ngày Rằm / Mùng Một và ngày lễ Phật giáo (UC-LUNAR-01, BR-DHARMA-03).
+   *
+   * Cột `notifications.type` là `varchar(64)`, không phải enum Postgres, nên thêm giá trị
+   * KHÔNG cần migration.
+   */
+  LUNAR_OBSERVANCE = 'LUNAR_OBSERVANCE',
 }
 
 /**
@@ -198,4 +205,5 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.POST_EXPIRING_SOON]: NotificationGroups.SYSTEM,
   [NotificationTypes.REPORT_REVIEWED]: NotificationGroups.SYSTEM,
   [NotificationTypes.CONTENT_MODERATED]: NotificationGroups.SYSTEM,
+  [NotificationTypes.LUNAR_OBSERVANCE]: NotificationGroups.SYSTEM,
 };

@@ -25,7 +25,7 @@ describe('normalizeAllocationPolicy', () => {
       categoryMatchRequired: false,
       distanceRule: 'FILTER_ONLY',
       keywordMatchEnabled: true,
-      autoCreateTransaction: false,
+      autoCreateTransaction: true,
       maxSuggestions: 20,
       weights: { sameCategory: 0.5, keyword: 0.3, proximity: 0.2 },
     });
@@ -96,7 +96,12 @@ describe('normalizeAllocationPolicy', () => {
         .keywordMatchEnabled,
     ).toBe(false);
     expect(normalizeAllocationPolicy({}).categoryMatchRequired).toBe(false);
-    expect(normalizeAllocationPolicy({}).autoCreateTransaction).toBe(false);
+    // Thiếu khoá thì BẬT — không được tự ý tắt job tự chọn đang chạy.
+    expect(normalizeAllocationPolicy({}).autoCreateTransaction).toBe(true);
+    expect(
+      normalizeAllocationPolicy({ autoCreateTransaction: false })
+        .autoCreateTransaction,
+    ).toBe(false);
   });
 });
 
@@ -126,17 +131,22 @@ describe('allocationPolicyGaps', () => {
     ).toEqual([]);
   });
 
-  it('từ chối autoCreateTransaction vì chưa hiện thực', () => {
-    // Phép kiểm này phải ĐỔI cùng ngày với lượt hiện thực cờ đó. Để nguyên mà
-    // hiện thực xong là chặn một tính năng đã làm; xoá mà chưa hiện thực là mở
-    // một cờ không ai đọc.
-    const gaps = allocationPolicyGaps({
-      ...DefaultAllocationPolicy,
-      autoCreateTransaction: true,
-    });
-
-    expect(gaps).toHaveLength(1);
-    expect(gaps[0]).toContain('chưa hiện thực');
+  it('autoCreateTransaction bật được — cờ đã nối vào job tự chọn', () => {
+    // Bản trước phép kiểm này đòi gaps CHẶN `true`, vì cờ chưa nối vào đâu. Đổi cùng
+    // ngày với lượt nối (02/10, mục mở L23) đúng như ghi chú lúc đó yêu cầu: để nguyên
+    // là chặn một tính năng đã làm.
+    expect(
+      allocationPolicyGaps({
+        ...DefaultAllocationPolicy,
+        autoCreateTransaction: true,
+      }),
+    ).toEqual([]);
+    expect(
+      allocationPolicyGaps({
+        ...DefaultAllocationPolicy,
+        autoCreateTransaction: false,
+      }),
+    ).toEqual([]);
   });
 });
 

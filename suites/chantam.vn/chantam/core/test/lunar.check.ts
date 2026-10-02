@@ -19,9 +19,13 @@ import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import { GetLunarTodayUseCase } from '../src/application/implementations/lunar/lunar.use-cases';
+import { NotifyLunarObservanceUseCase } from '../src/application/implementations/lunar/notify-lunar-observance.use-case';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
-import { LunarHolidayRepository } from '../src/infrastructure/repository/lunar-holiday.repository';
+import {
+  BulkNotifyAudienceRepository,
+  LunarHolidayRepository,
+} from '../src/infrastructure/repository/lunar-holiday.repository';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -288,6 +292,139 @@ async function main(): Promise<void> {
       phatDan.holiday === null && (phatDan.banner ?? '').includes('Ngày Rằm'),
       `holiday=${String(phatDan.holiday)}`,
     );
+
+    console.log('\n6. Vai CAMPAIGN_MANAGER (mục mở L24)');
+    const [role] = await dataSource.query<{ name: string }[]>(
+      `SELECT name FROM admin_roles WHERE code = 'CAMPAIGN_MANAGER'`,
+    );
+    check('vai đã được seed', role !== undefined, String(role?.name));
+
+    const granted = await dataSource.query<{ code: string }[]>(
+      `SELECT permission.code
+         FROM admin_roles role
+         JOIN admin_role_permissions map ON map.role_id = role.id
+         JOIN admin_permissions permission ON permission.id = map.permission_id
+        WHERE role.code = 'CAMPAIGN_MANAGER'
+        ORDER BY permission.code`,
+    );
+    const codes = granted.map((row) => row.code);
+    check(
+      'nhận đủ 5 quyền nội dung',
+      JSON.stringify(codes) ===
+        JSON.stringify([
+          'blog.manage',
+          'blog.read',
+          'campaign.manage',
+          'campaign.read',
+          'config.read',
+        ]),
+      JSON.stringify(codes),
+    );
+    // Đây là phép kiểm quan trọng nhất của nhóm: cả mục đích của vai này là KHÔNG có
+    // `config.write`. Thêm nó vào là quay lại đúng chỗ L24 phàn nàn.
+    for (const forbidden of [
+      'config.write',
+      'admin.manage',
+      'post.moderate',
+      'report.resolve',
+      'point.adjust',
+    ]) {
+      check(`KHÔNG nhận \`${forbidden}\``, !codes.includes(forbidden));
+    }
+
+    console.log('\n7. Thông báo ngày Rằm (mục mở L28)');
+    const notifier = new NotifyLunarObservanceUseCase(
+      repository as never,
+      new BulkNotifyAudienceRepository(dataSource.manager),
+      {
+        handle: async (command: {
+          userId: string;
+          idempotencyKey?: string | null;
+        }) => {
+          const [row] = await dataSource.query<{ created: boolean }[]>(
+            `INSERT INTO notifications
+               (global_id, user_id, type, title, body, idempotency_key)
+             VALUES (gen_random_uuid(), $1, 'LUNAR_OBSERVANCE', 'x', 'y', $2)
+             ON CONFLICT (idempotency_key) DO NOTHING
+             RETURNING true AS created`,
+            [command.userId, command.idempotencyKey],
+          );
+          return { created: row !== undefined, pushedDevices: 0 };
+        },
+      } as never,
+    );
+
+    // Ba người ACTIVE, một SUSPENDED, một đã xoá mềm.
+    for (const [index, status] of [
+      ['ACTIVE'],
+      ['ACTIVE'],
+      ['ACTIVE'],
+      ['SUSPENDED'],
+    ].entries()) {
+      await dataSource.query(
+        `INSERT INTO users (global_id, username, password_hash, rank, status)
+         VALUES ($1, $2, 'x', 'MEMBER', $3)`,
+        [
+          `c1000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+          `nhan${index + 1}`,
+          status[0],
+        ],
+      );
+    }
+    await dataSource.query(
+      `INSERT INTO users (global_id, username, password_hash, rank, status, deleted_at)
+       VALUES ($1, 'daxoa', 'x', 'MEMBER', 'ACTIVE', now())`,
+      ['c1000000-0000-4000-8000-000000000099'],
+    );
+
+    // Danh mục hiện còn 3 dòng từ nhóm 4, trong đó 15/07 là "Vu Lan" đang bật.
+    const sent = await notifier.handle({
+      at: new Date('2026-08-27T03:00:00Z'),
+    });
+    check(
+      'gửi cho đúng người ACTIVE, bỏ SUSPENDED và đã xoá mềm',
+      // 1 admin (quantri, ACTIVE) + 3 người ACTIVE vừa thêm = 4.
+      sent.audience === 4,
+      `audience=${sent.audience}`,
+    );
+    check(
+      'tất cả đều gửi được',
+      sent.notified === 4 && sent.failed === 0,
+      `notified=${sent.notified} failed=${sent.failed}`,
+    );
+    check(
+      'nhận ra ngày lễ Vu Lan',
+      sent.holidayName === 'Vu Lan',
+      String(sent.holidayName),
+    );
+
+    // Chạy LẠI cùng ngày: khoá chống trùng phải chặn hết.
+    const again = await notifier.handle({
+      at: new Date('2026-08-27T09:00:00Z'),
+    });
+    check(
+      'chạy lại cùng ngày KHÔNG gửi trùng',
+      again.notified === 0 && again.alreadySent === 4,
+      `notified=${again.notified} alreadySent=${again.alreadySent}`,
+    );
+    const [count] = await dataSource.query<{ total: string }[]>(
+      `SELECT count(*)::text AS total FROM notifications WHERE type = 'LUNAR_OBSERVANCE'`,
+    );
+    check(
+      'bảng notifications chỉ có 4 dòng, không phải 8',
+      count?.total === '4',
+      `${count?.total} dòng`,
+    );
+
+    // Ngày thường: thoát sớm, không thêm dòng nào.
+    const quiet = await notifier.handle({
+      at: new Date('2026-08-22T03:00:00Z'),
+    });
+    check('ngày thường thoát sớm', quiet.skipped === true);
+    const [stillFour] = await dataSource.query<{ total: string }[]>(
+      `SELECT count(*)::text AS total FROM notifications WHERE type = 'LUNAR_OBSERVANCE'`,
+    );
+    check('vẫn 4 dòng', stillFour?.total === '4', `${stillFour?.total} dòng`);
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();
@@ -296,7 +433,7 @@ async function main(): Promise<void> {
   console.log(
     `\n${
       failures.length === 0
-        ? 'F46: danh mục 10 ngày lễ seed thật và bật, ràng buộc chặn ngày 31 và tháng 13 và ngày lễ trùng, replaceAll rollback nguyên vẹn khi có dòng sai nên danh mục không bị xoá trắng, và lượt đầu-cuối nối bộ chuyển đổi âm lịch với bảng đúng ngày Vu Lan 2026'
+        ? 'F46 + L23/L24/L28: danh mục 10 ngày lễ seed thật và bật, ràng buộc chặn ngày 31 và tháng 13 và ngày lễ trùng, replaceAll rollback nguyên vẹn khi có dòng sai nên danh mục không bị xoá trắng, và lượt đầu-cuối nối bộ chuyển đổi âm lịch với bảng đúng ngày Vu Lan 2026; vai CAMPAIGN_MANAGER nhận đúng 5 quyền nội dung và KHÔNG có config.write; thông báo ngày Rằm gửi đúng người ACTIVE và chạy lại không gửi trùng'
         : `${failures.length} phép kiểm thất bại`
     }`,
   );
