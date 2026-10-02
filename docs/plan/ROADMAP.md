@@ -68,7 +68,6 @@ và `scripts/smoke-test.sh` phủ được luồng này.
 - [x] F18 Từ thiện / Hoạt động — ⚠️ tạo được qua `CHARITY`, chưa có trường riêng theo loại
 - [x] F19 Rao vặt giá rẻ — `CLASSIFIED` kèm `price`/`condition`/`negotiable`, và vòng quét
       `post:expire` chuyển bài quá hạn thành `OFFER` kèm hạn mới (CHỐT-05)
-- [ ] F20 Giới thiệu / Quảng cáo (chỉ Admin tạo) — chưa có loại bài `PROMOTION`
 - [x] F21 Công đức / Hồi hướng — ⚠️ tạo được qua `MERIT`, chưa có trường riêng theo loại
 - [ ] F73 Phật Pháp – Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng/Công đức, Diễn đàn, Giới thiệu chùa)
 - [x] F22 Vòng đời bài + gia hạn 1 lần (CHỐT-07) — CLI `post:expire` đóng bài quá hạn,
@@ -130,9 +129,15 @@ và mở chat phải nằm trong cùng transaction với việc duyệt.
 
 - [x] F39 Point Rule Engine + Ledger (xét Rank theo `balance_after`, `lifetime_after` dùng để thống kê/audit — CHỐT-01)
 - [ ] F40 Điểm theo giá trị vật phẩm — dùng [GĐ-1](./ASSUMPTIONS.md#gđ-1--đánh-giá--giver-accuracy)
-- [ ] F41 Điểm Like/Comment/Report *(mặc định tắt)*
-- [ ] F42 Đánh giá chất lượng hai chiều
-- [ ] F43 Giver Accuracy (dùng %, đủ 5 mẫu mới tính, warning < 75% — CHỐT-03)
+- [x] F41 Điểm Like/Comment/Report — `POST_REACTED` (1đ, trần 20/ngày), `POST_COMMENTED`
+  (2đ, trần 10/ngày) và `REPORT_UPHELD` (5đ, trần 5/ngày) đều ở **version 2 và ĐANG BẬT**
+  trong `point_rules`. Ghi chú *"mặc định tắt"* đúng ở bản seed đầu, đã lạc hậu từ 29/09
+- [x] F42 Đánh giá chất lượng hai chiều — `POST|GET /transactions/{id}/reviews`, và
+  `transaction_reviews.reviewer_role` nhận `GIVER`/`RECEIVER` nên thật sự hai chiều;
+  bảng chỉ ghi thêm (trigger `TRG_transaction_reviews_append_only`). `npm run test:reviews`
+- [x] F43 Giver Accuracy (dùng %, đủ 5 mẫu mới tính, warning < 75% — CHỐT-03) —
+  `reviewThresholdPercent: 75` và `minSamples: 5` ở core-lib, ngưỡng đưa ra cấu hình động,
+  hàng đợi soát là `GET /admin/users?accuracyReviewRequired=true`. Đối chiếu ở `BR-ACC-03`
 - [x] F12 Rank 5 tầng + chu kỳ duy trì (xét theo current balance — CHỐT-01; chu kỳ 3 tháng 2+2/3+3/4+4 — BR-PROF-RANK-03)
 - [x] F13 Referral cá nhân, thưởng một lần
 - [x] F83 Điểm danh hằng ngày, lịch sử, streak, thưởng mốc và điểm danh bù từ giao dịch
@@ -155,11 +160,19 @@ app xem được lịch sử, streak, lượt bù; Admin cấu hình ngưỡng g
 
 **Package:** resource `group`, `affiliate`
 
-- [ ] F51 Quyền tạo Group theo Rank
-- [ ] F52 Tạo Group từ Default Location (chụp tâm + bán kính)
-- [ ] F53 Quản lý Group + Sub-team (1 tầng — [MĐ-4](./ASSUMPTIONS.md#6-mặc-định-mềm))
-- [ ] F54 Link mời — chỉ tài khoản mới
-- [ ] F55 Owner xoá tài khoản → Group giải tán
+- [x] F51 Quyền tạo Group theo Rank — capability `CREATE_GROUP`, Admin đổi được bậc
+  qua `POST /admin/entitlements`. Đối chiếu ở `BR-GRP-01`
+- [x] F52 Tạo Group từ Default Location (chụp tâm + bán kính) — copy `user.default_location`
+  sang `group.center_location` và snapshot bán kính theo hạng; đổi Vị trí mặc định sau đó
+  KHÔNG dịch tâm nhóm. `BR-GRP-03`, migration `1796100000000`
+- [x] F53 Quản lý Group + Sub-team (1 tầng — [MĐ-4](./ASSUMPTIONS.md#6-mặc-định-mềm)) —
+  `GET|POST /groups/{id}/sub-teams`, `PATCH /groups/{id}/members/{memberId}`, quyền theo vai
+  có version (`group_role_permissions`). `BR-GRP-05`, `npm run test:group`
+- [x] F54 Link mời — chỉ tài khoản mới — `GET /groups/{id}/invite`, và
+  `POST /auth/register` nhận `group_invite_token`. Link không tự hết hạn khi nhóm ACTIVE
+  (`BR-GRP-04`)
+- [x] F55 Owner xoá tài khoản → Group giải tán — `delete-account.use-case.ts` giải tán nhóm,
+  KHÔNG chuyển owner cho member khác. `BR-GRP-07`
 - [ ] F56 Affiliate Event Engine (depth = 1, recurring)
 - [ ] F57 **Geo eligibility bắt buộc** (`ST_DWithin`)
 - [ ] F58 Thứ tự ưu tiên vị trí + audit khoảng cách
@@ -189,7 +202,9 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
 - [ ] F65 Quản lý Từ thiện, Rao vặt, Quảng cáo, Công đức
 
 **Kiểm duyệt & thông báo**
-- [ ] F48 Báo cáo kèm bằng chứng
+- [x] F48 Báo cáo kèm bằng chứng — `POST /reports` nhận `evidenceUrls`, hàng đợi
+  `GET /admin/reports` + `PATCH /admin/reports/{id}/review`; thưởng người báo cáo CHỈ khi
+  Admin kết luận `RESOLVED` (`BR-REP-03`). Đích `POST`/`USER`/`COMMENT`
 - [ ] F49 Tín hiệu kiểm duyệt + chế tài — chế tài nào đổi `status` thì cũng phải thu hồi token như F60
 - [ ] F45 Phân loại + mẫu thông báo
 - [ ] F46 Lịch Âm + nhắc ngày lễ
@@ -213,9 +228,23 @@ restore thử thành công**.
 Không có mã F nhưng không làm thì không lên production được:
 
 - [x] **Migration TypeORM** thay cho `synchronize` — xong. Nợ kỹ thuật #1 đã đóng
-- [ ] **Rate limit toàn cục** — nợ kỹ thuật #3, cần trước khi mở công khai
+- [x] **Rate limit toàn cục** — `GlobalRateLimitGuard` chạy thật, mặc định 600 req/phút theo
+  IP (`GLOBAL_RATE_LIMIT_PER_MINUTE`), có danh sách path miễn trừ và nuốt lỗi Redis để một
+  sự cố cache không đánh sập API. ⚠️ Cần `TRUST_PROXY=true` khi đứng sau proxy, nếu không
+  mọi người dùng chung một bucket — xem B5 ở [31](../diagram/31-open-items.md)
 - [x] **Host Nginx + Certbot cho staging** — vhost tách port 8080, HTTPS external health gate xanh; xem `deploy/STAGING.md`
 - [ ] **Production Nginx + TLS** — chuẩn bị theo `deploy/PRODUCTION.md` khi khách cấp server thật
+
+---
+
+## Đã bỏ khỏi phạm vi
+
+Ghi lại chứ không xoá: một chức năng biến mất không dấu vết sẽ được hỏi lại sáu tháng sau.
+Những mục này **không tính vào mẫu số tiến độ**.
+
+| Mã | Ngày bỏ | Lý do |
+| --- | --- | --- |
+| F20 Giới thiệu / Quảng cáo | 02/10/2026 | Bên A chốt gộp vào `RAO_VẶT` (CLASSIFIED). `BR-POST-TYPE-01` của SRS đã sửa từ sáu nhóm bài còn năm |
 
 ---
 
@@ -224,3 +253,4 @@ Không có mã F nhưng không làm thì không lên production được:
 | Ngày | Thay đổi |
 | --- | --- |
 | 2026-09-15 | Lập lần đầu — 6 mốc, 72 chức năng |
+| 2026-10-02 | Dọn theo đợt đối chiếu SRS ↔ mã nguồn: **10 mục đổi sang `[x]`** vì đã xong từ trước mà tài liệu chưa theo (F41, F42, F43, F48, F51–F55, rate limit toàn cục); F20 chuyển sang mục đã bỏ; thêm F83. Hai tài liệu kế hoạch từng nói trái nhau về F41/F42/F43 — `SPRINT-PLAN` ghi xong, file này ghi chưa; nay cùng một nguồn |

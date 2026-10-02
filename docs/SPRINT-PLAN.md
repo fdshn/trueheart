@@ -15,7 +15,24 @@
 
 Tổng effort nguồn: **60 man-days / 50 ngày / 4 sprint**.
 
+> **Ba con số tiến độ, ba câu hỏi khác nhau — đừng trộn.** Đợt soát 02/10 cho thấy chúng
+> lệch nhau rất xa và mỗi con số chỉ đúng cho câu của nó:
+>
+> | Cách đếm | Kết quả | Trả lời câu |
+> | --- | ---: | --- |
+> | UC **có thân đặc tả** trong SRS | ~86% | *"Hành vi SRS mô tả đủ thì API phủ bao nhiêu?"* |
+> | UC tính cả 16 id chỉ nêu tên | ~73% | *"Toàn bộ UC được SRS đặt tên?"* |
+> | **F-feature của ROADMAP** | ~68% | *"Bao nhiêu phần công việc của dự án?"* |
+>
+> Chỉ con số **thứ ba** dùng được để báo tiến độ. Hai con số đầu bỏ qua mọi việc không có
+> hình dạng UC: toàn bộ giao diện Admin CMS, affiliate engine (SRS không viết UC nào cho
+> nó), backup/restore, monitoring, UAT với người thật, build store, bàn giao.
+
 ## Tiến độ hiện tại
+
+**Đang ở Sprint 3** (soát 02/10/2026). `M1`, `M2`, `M3` đã đóng. `M4` còn đúng **F40** chờ
+Bên A cho con số. `M5` còn **affiliate engine F56–F58** — món duy nhất chặn mốc đó. `M6` có
+nền API nhưng **chưa có giao diện**, và toàn bộ chặng vận hành/UAT/bàn giao chưa bắt đầu.
 
 | Phạm vi | Trạng thái thực tế | Ghi chú |
 | --- | --- | --- |
@@ -23,12 +40,16 @@ Tổng effort nguồn: **60 man-days / 50 ngày / 4 sprint**.
 | Sprint 1 – point, rank, referral (F12–F13) | ✅ Code hoàn chỉnh | Ledger, tier, promotion, maintenance cycle, referral bất biến và các endpoint chính chủ đều đã có |
 | Sprint 1 – canonical OFFER foundation | ✅ M2.1 đã xong | `posts` migration/backfill, Generic MVP create (OFFER/WANTED/CHARITY/CLASSIFIED/MERIT) kèm quota riêng từng loại, detail/map/moderation, owner update/delete, post-media ownership, legacy adapter `/api/v1/gift-posts`, và CI chạy backfill với dữ liệu thật |
 | M3 – giao dịch tặng/nhận | ✅ Vòng đời xong | Request → chọn ứng viên → duyệt → xác nhận → hoàn tất, huỷ trả tồn kho, trừ tồn kho nguyên tử, tự hoàn tất 5 ngày qua CLI, và `npm run test:concurrency` kiểm 6 bất biến trên database thật. Chat đã có — xem hàng dưới |
-| M6 – Admin CMS nền | 🟡 Nền đã có | RBAC, system config động, cấu hình kênh gửi, nhật ký hệ thống và quản lý user đã có; giao diện CMS chưa có |
+| M6 – Admin CMS nền | 🟡 Chỉ có API | RBAC, system config động, cấu hình kênh gửi, nhật ký hệ thống và quản lý user đã gọi được qua HTTP. **Giao diện chưa tồn tại** — xem hàng cuối bảng |
 | Sprint 2 – map discovery | ✅ Đã có | `GET /api/v1/posts/map` marker bbox, jitter, clustering |
 | Sprint 2 – vòng đời bài đăng | ✅ Đã có | CLI `post:expire` đóng bài quá hạn và chuyển rao vặt thành Muốn Tặng; `POST /posts/:postId/renew` gia hạn một lần; `npm run test:lifecycle` kiểm 21 bất biến trên database thật |
 | Sprint 2 – chat | ✅ Đã có | REST + Socket.io, khoá chỉ đọc khi giao dịch xong, thông báo trong app, **ảnh trong tin nhắn** (tối đa 3, xoá theo hạn cuốn cả object). `npm run test:chat-e2e` kiểm trên service thật |
-| Sprint 3 – bảng tin, báo xấu, điểm tương tác | 🟡 Có code, chưa nằm trong bảng epic | Cảm xúc/bình luận/ảnh/chia sẻ/thông báo, báo xấu chung hàng đợi Admin, rule điểm F41 (seed TẮT), CLI đối soát số đếm. Xem `docs/plan/FEED-INTERACTIONS.md` |
-| Sprint 3–4 (phần còn lại) | ⬜ Chưa triển khai | Không đánh dấu xong khi chỉ có contract/mock |
+| Sprint 3 – bảng tin, báo xấu, điểm tương tác | ✅ Đã có | Cảm xúc/bình luận/ảnh/chia sẻ/thông báo, báo xấu chung hàng đợi Admin kèm `evidenceUrls`, CLI đối soát số đếm. **Rule điểm F41 nay ĐANG BẬT** ở version 2 (`POST_REACTED` 1đ, `POST_COMMENTED` 2đ, `REPORT_UPHELD` 5đ) — ghi chú "seed TẮT" ở bản trước đã lạc hậu. Xem `docs/plan/FEED-INTERACTIONS.md` |
+| Sprint 3 – Group & sub-team (F51–F55) | ✅ Đã có | 13 endpoint, snapshot tâm/bán kính lúc tạo, sub-team một tầng, quyền theo vai có version, link mời, giải tán khi owner xoá tài khoản. Bảy quy tắc `BR-GRP-*` đều đối chiếu được tới mã nguồn |
+| Sprint 3 – điểm danh & streak (F83) | ✅ Đã có, **ship ở trạng thái TẮT** | 7 bảng, 6 endpoint, policy có version/audit. Chờ Bên A duyệt bộ số đã seed sẵn (`GET /admin/check-in-policy`) rồi publish `enabled: true` |
+| Sprint 3 – review & accuracy (F42, F43) | ✅ Đã có | Đánh giá hai chiều `GIVER`/`RECEIVER` trên bảng chỉ ghi thêm; Giver Accuracy ngưỡng 75% / tối thiểu 5 mẫu, có hàng đợi soát cho Admin |
+| Sprint 3 – affiliate engine (F56–F58) | ⬜ **Chưa triển khai** | `GET /groups/{id}/affiliate` chỉ ĐỌC số liệu. Không có đường sinh reward, không kiểm geo eligibility, không audit `NOT_ELIGIBLE_GEO`. **Đây là món duy nhất chặn M5** |
+| Sprint 3–4 (phần còn lại) | ⬜ Chưa triển khai | **Toàn bộ giao diện Admin CMS chưa có một dòng nào** — không có `apps/`, không package frontend nào. Cộng Dharma Hub, FCM đẩy thật, KPI/campaign/blog, lịch âm, và chặng vận hành/UAT/bàn giao |
 
 ---
 
@@ -81,7 +102,7 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 | 10 | Giao dịch & FSM | Gift request, candidate selection, batch allocation, queue | M3 transaction | ✅ Gửi/rút yêu cầu, danh sách ứng viên, duyệt, trừ tồn kho nguyên tử, và hàng đợi dự phòng mở lại khi huỷ |
 | 11 | Giao dịch & FSM | Accepted/cancel/receiver confirm/auto-complete 5 ngày | M3 transaction | ✅ Đủ cả bốn, kèm CLI `transaction:autocomplete` |
 | 12 | Chat | Chat text WSS, persistence, lifecycle read-only | M3 chat | ✅ Socket.io namespace `/chat`, lịch sử chỉ ghi thêm, khoá chỉ đọc ở cả ba đường kết thúc |
-| 13 | QA | Regression/UAT Sprint 2 |  | 🟡 **554 unit test** và **16 script chạy database/service thật** đều xanh (xem `core/package.json`, tiền tố `test:`), smoke 53/53. Kịch bản nghiệm thu đã soạn: [`UAT-SPRINT-2.md`](./UAT-SPRINT-2.md). **Buổi UAT với Bên A chưa chạy** — cần người thật, không tự động hoá được |
+| 13 | QA | Regression/UAT Sprint 2 |  | 🟡 Unit test, script chạy database/service thật và smoke đều xanh. **Đừng ghi cứng con số ở đây** — bản trước ghi "554 unit test, 16 script, smoke 53/53" và cả ba đã lạc hậu. Đếm thật: `npm test` ở `core` và `core-lib`, `ls core/test/*.check.ts`, `bash scripts/smoke-test.sh`. Kịch bản nghiệm thu: [`UAT-SPRINT-2.md`](./UAT-SPRINT-2.md). **Buổi UAT với Bên A chưa chạy** — cần người thật, không tự động hoá được |
 
 ### Thứ tự bắt buộc trong Sprint 2
 
@@ -103,14 +124,14 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 
 | # | Epic | Hạng mục | Mapping roadmap | Trạng thái |
 | ---: | --- | --- | --- | --- |
-| 14 | Group & affiliate | Create group, default-location snapshot, management/sub-team | M5 | ⬜ |
-| 15 | Group & affiliate | Invite account mới, dissolve group khi owner xoá | M5 + F06 | ⬜ |
-| 16 | Group & affiliate | Affiliate recurring, reward active member, idempotency/reversal | M5 | ⬜ |
-| 17 | Group & affiliate | Geo eligibility và audit mọi event | M5 | ⬜ |
-| 18 | Point & review | Point rule/ledger, review quality, giver accuracy | M4 | 🟡 F39 (kèm đường hoàn bút toán), F41, F42, F43 đã xong. **F40 chờ Bên A cho con số "X điểm = 100% giá trị"** |
-| 18a | Điểm danh & streak (F83) | Lịch sử/ngày, mốc thưởng 7/14/30/50, lượt bù từ giao dịch tặng/nhận quà hoàn tất, cấu hình Admin, UAT | M4 + M6 | ⬜ Yêu cầu bổ sung 30/09; chưa có API, schema, app hoặc CMS |
+| 14 | Group & affiliate | Create group, default-location snapshot, management/sub-team | M5 | ✅ F51–F53 — capability `CREATE_GROUP`, snapshot tâm/bán kính lúc tạo, sub-team một tầng, quyền theo vai có version |
+| 15 | Group & affiliate | Invite account mới, dissolve group khi owner xoá | M5 + F06 | ✅ F54–F55 — link mời không tự hết hạn khi nhóm ACTIVE, owner xoá tài khoản thì nhóm giải tán và KHÔNG chuyển owner |
+| 16 | Group & affiliate | Affiliate recurring, reward active member, idempotency/reversal | M5 | ⬜ **F56 — chặn M5.** `GET /groups/{id}/affiliate` chỉ đọc số liệu; không có đường sinh reward |
+| 17 | Group & affiliate | Geo eligibility và audit mọi event | M5 | ⬜ **F57–F58 — chặn M5.** Hạ tầng `ST_DWithin` đã dùng ở discovery/Group nên sẵn sàng; thiếu chỗ GỌI nó cho affiliate event và thiếu bảng audit `NOT_ELIGIBLE_GEO` |
+| 18 | Point & review | Point rule/ledger, review quality, giver accuracy | M4 | 🟡 F39 (kèm hoàn bút toán VÀ `POST /admin/points/adjust`, cả hai ghi audit), F41 (đang BẬT), F42 (hai chiều), F43 (75% / 5 mẫu) đã xong. **Còn đúng F40 — chờ Bên A cho con số "X điểm = 100% giá trị"** |
+| 18a | Điểm danh & streak (F83) | Lịch sử/ngày, mốc thưởng, lượt bù từ giao dịch tặng/nhận quà hoàn tất, cấu hình Admin, UAT | M4 + M6 | ✅ Backend xong 02/10 — 7 bảng, 6 endpoint, 38 phép kiểm trên Postgres thật. **Ship ở trạng thái TẮT** chờ Bên A duyệt số. Phần app và CMS vẫn chưa có (xem hàng 22) |
 | 19 | Nội dung đặc thù & Phật Pháp | Charity/Event, Classified, ads, Merit, Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng dường, Diễn đàn, Chùa) | M2 extension + F73 | ⬜ |
-| 20 | Admin CMS | Rule config, moderation cơ bản | M6 | 🟡 Kiểm duyệt bài/báo xấu, RBAC, cấu hình rule điểm/hạng/entitlement, hoàn bút toán, danh mục và **mẫu thông báo** đã có. Ngưỡng Giver Accuracy cũng đã đưa ra cấu hình động. Còn KPI dashboard (F59), campaign/home động (F63), blog (F64), quản lý từ thiện/quảng cáo (F65) |
+| 20 | Admin CMS | Rule config, moderation cơ bản | M6 | 🟡 **API đã có, GIAO DIỆN thì chưa.** Kiểm duyệt bài/báo xấu, RBAC, cấu hình rule điểm/hạng/entitlement/điểm danh, hoàn bút toán và cộng/trừ điểm tay, danh mục, mẫu thông báo, ngưỡng Giver Accuracy — tất cả gọi được qua HTTP. Nhưng **không có `apps/`, không package frontend nào**, nên Admin hiện phải dùng Swagger hoặc curl. Còn thiếu cả API: KPI dashboard (F59), campaign/home động (F63), blog (F64), quản lý từ thiện/quảng cáo (F65) |
 | 21 | QA | Integration/UAT Sprint 3 |  | ⬜ |
 
 ### Điều kiện mở Sprint 3
