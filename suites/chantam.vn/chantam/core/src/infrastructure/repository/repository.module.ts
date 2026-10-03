@@ -16,6 +16,7 @@ import {
   IGroupRepository,
   IHomeCampaignRepository,
   ILunarHolidayRepository,
+  INotificationBroadcastRepository,
   INotificationChannelRepository,
   INotificationRepository,
   INotificationTemplateRepository,
@@ -55,6 +56,7 @@ import {
   BulkNotifyAudienceRepository,
   LunarHolidayRepository,
 } from './lunar-holiday.repository';
+import { NotificationBroadcastRepository } from './notification-broadcast.repository';
 import { NotificationChannelRepository } from './notification-channel.repository';
 import { NotificationTemplateRepository } from './notification-template.repository';
 import { NotificationRepository } from './notification.repository';
@@ -103,6 +105,10 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     {
       provide: IBulkNotifyAudienceRepository,
       useClass: BulkNotifyAudienceRepository,
+    },
+    {
+      provide: INotificationBroadcastRepository,
+      useClass: NotificationBroadcastRepository,
     },
     {
       provide: IHomeCampaignRepository,
@@ -170,6 +176,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     IHomeCampaignRepository,
     IBulkNotifyAudienceRepository,
     ILunarHolidayRepository,
+    INotificationBroadcastRepository,
     IContentCommentRepository,
     IContentReactionRepository,
     IContentShareRepository,

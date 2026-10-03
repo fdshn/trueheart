@@ -18,6 +18,7 @@ export * from './keyset-cursor';
 export * from './lunar';
 export * from './map-cluster';
 export * from './notification';
+export * from './notification-broadcast';
 export * from './notification-template';
 export * from './onboarding-task';
 export * from './phone-number';

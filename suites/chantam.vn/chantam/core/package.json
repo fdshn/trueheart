@@ -72,6 +72,8 @@
     "notify:reminders:built": "node dist/infrastructure/cli/notify-reminders.cli.js",
     "notify:lunar": "ts-node -r tsconfig-paths/register src/infrastructure/cli/notify-lunar.cli.ts",
     "notify:lunar:built": "node dist/infrastructure/cli/notify-lunar.cli.js",
+    "notify:broadcast": "ts-node -r tsconfig-paths/register src/infrastructure/cli/notify-broadcast.cli.ts",
+    "notify:broadcast:built": "node dist/infrastructure/cli/notify-broadcast.cli.js",
     "gift:settle-rewards:built": "node dist/infrastructure/cli/gift-settle-rewards.cli.js",
     "accuracy:reconcile:built": "node dist/infrastructure/cli/accuracy-reconcile.cli.js",
     "feed:reconcile-counts": "ts-node -r tsconfig-paths/register src/infrastructure/cli/feed-reconcile-counts.cli.ts",
@@ -97,7 +99,8 @@
     "test:home-campaign": "ts-node -r tsconfig-paths/register test/home-campaign.check.ts",
     "test:blog": "ts-node -r tsconfig-paths/register test/blog.check.ts",
     "test:dashboard": "ts-node -r tsconfig-paths/register test/dashboard-kpi.check.ts",
-    "test:lunar": "ts-node -r tsconfig-paths/register test/lunar.check.ts"
+    "test:lunar": "ts-node -r tsconfig-paths/register test/lunar.check.ts",
+    "test:broadcast": "ts-node -r tsconfig-paths/register test/broadcast.check.ts"
   },
   "dependencies": {
     "@chantam.vn/chantam.core-lib": "file:../core-lib",

@@ -1,3 +1,4 @@
+import { IBroadcastAudience } from '@chantam.vn/chantam.core-lib/models';
 /**
  * Danh mục Ngày lễ Phật giáo (UC-LUNAR-01 bước 3, F46).
  *
@@ -54,9 +55,16 @@ export const ILunarHolidayRepository = Symbol('ILunarHolidayRepository');
  * thư mà họ không mở được, và gửi cho tài khoản đã xoá mềm là gửi cho một người đã rời đi.
  */
 export interface IBulkNotifyAudienceRepository {
+  /**
+   * Một lô người nhận, theo bộ lọc đã chọn.
+   *
+   * `audience` thêm 03/10 cho F47. Bỏ trống thì vẫn là "toàn bộ người đang hoạt động" —
+   * đúng hành vi của L28, nên đường gửi ngày Rằm không phải sửa.
+   */
   findActiveUserIdsAfter(params: {
     afterId: number;
     limit: number;
+    audience?: IBroadcastAudience;
   }): Promise<{ id: number; globalId: string }[]>;
 }
 

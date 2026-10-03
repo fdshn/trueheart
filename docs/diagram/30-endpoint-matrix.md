@@ -182,6 +182,7 @@ Vào nhóm KHÔNG có endpoint riêng: `POST /auth/register` kèm `inviteCode` l
 ```mermaid
 flowchart TD
     B["⛔ Affiliate"] --> B1["GET /groups/:id/affiliate<br/>GET /groups/:id/events"]
+    H["✅ Gửi thông báo hàng loạt"] --> H1["POST|GET /admin/notifications/broadcasts<br/>CLI notify:broadcast — ALL · GROUP · AREA"]
     D["✅ Dashboard KPI"] --> D1["GET /admin/dashboard — 10 khối<br/>points · completionRate · groups · affiliate · accuracy"]
     E["✅ Blog đã xong"] --> E1["GET|POST /admin/blogs · PUT|DELETE /admin/blogs/:id<br/>GET /blogs · GET /blogs/:idOrSlug — HTML lọc ở tầng ghi"]
     G["✅ Campaign & Home động"] --> G1["GET|POST /admin/campaigns · GET|PUT /admin/campaigns/:id<br/>GET /config/home-layout — đệm Redis TTL 1h"]
@@ -197,6 +198,7 @@ flowchart TD
     style E fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style F fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
     style G fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style H fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
 ## Chỗ cần soát

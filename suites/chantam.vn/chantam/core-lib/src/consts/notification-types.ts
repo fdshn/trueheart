@@ -140,6 +140,13 @@ export enum NotificationTypes {
    * KHÔNG cần migration.
    */
   LUNAR_OBSERVANCE = 'LUNAR_OBSERVANCE',
+  /**
+   * Thông báo Admin gửi hàng loạt (F47, SRS mục 1507).
+   *
+   * Thuộc nhóm `SYSTEM` nên người dùng tắt được — SRS nói họ quản được *"các nhóm thông
+   * báo không bắt buộc"*, và một tấm thông báo sự kiện cộng đồng đúng là không bắt buộc.
+   */
+  SYSTEM_BROADCAST = 'SYSTEM_BROADCAST',
 }
 
 /**
@@ -206,4 +213,5 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.REPORT_REVIEWED]: NotificationGroups.SYSTEM,
   [NotificationTypes.CONTENT_MODERATED]: NotificationGroups.SYSTEM,
   [NotificationTypes.LUNAR_OBSERVANCE]: NotificationGroups.SYSTEM,
+  [NotificationTypes.SYSTEM_BROADCAST]: NotificationGroups.SYSTEM,
 };
