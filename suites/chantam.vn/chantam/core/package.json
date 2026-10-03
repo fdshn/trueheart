@@ -100,7 +100,8 @@
     "test:blog": "ts-node -r tsconfig-paths/register test/blog.check.ts",
     "test:dashboard": "ts-node -r tsconfig-paths/register test/dashboard-kpi.check.ts",
     "test:lunar": "ts-node -r tsconfig-paths/register test/lunar.check.ts",
-    "test:broadcast": "ts-node -r tsconfig-paths/register test/broadcast.check.ts"
+    "test:broadcast": "ts-node -r tsconfig-paths/register test/broadcast.check.ts",
+    "test:charity": "ts-node -r tsconfig-paths/register test/charity-campaign.check.ts"
   },
   "dependencies": {
     "@chantam.vn/chantam.core-lib": "file:../core-lib",

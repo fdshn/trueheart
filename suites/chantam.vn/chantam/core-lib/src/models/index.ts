@@ -3,6 +3,7 @@ export * from './allocation';
 export * from './blog';
 export * from './candidate-selection';
 export * from './category';
+export * from './charity-campaign';
 export * from './chat';
 export * from './chat-cursor';
 export * from './chat-retention';

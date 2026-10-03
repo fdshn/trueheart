@@ -5,6 +5,7 @@ import {
   IBlogRepository,
   IBulkNotifyAudienceRepository,
   ICategoryRepository,
+  ICharityCampaignRepository,
   IChatRepository,
   ICheckInRepository,
   IContentCommentRepository,
@@ -42,6 +43,7 @@ import { AdminUserRepository } from './admin-user.repository';
 import { AffiliateRepository } from './affiliate.repository';
 import { BlogRepository } from './blog.repository';
 import { CategoryRepository } from './category.repository';
+import { CharityCampaignRepository } from './charity-campaign.repository';
 import { ChatRepository } from './chat.repository';
 import { CheckInRepository } from './check-in.repository';
 import { ContentCommentRepository } from './content-comment.repository';
@@ -98,6 +100,10 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     AdminDashboardRepository,
     { provide: IEntitlementRepository, useClass: EntitlementRepository },
     { provide: IBlogRepository, useClass: BlogRepository },
+    {
+      provide: ICharityCampaignRepository,
+      useClass: CharityCampaignRepository,
+    },
     {
       provide: ILunarHolidayRepository,
       useClass: LunarHolidayRepository,
@@ -173,6 +179,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     IAdminUserRepository,
     IEntitlementRepository,
     IBlogRepository,
+    ICharityCampaignRepository,
     IHomeCampaignRepository,
     IBulkNotifyAudienceRepository,
     ILunarHolidayRepository,

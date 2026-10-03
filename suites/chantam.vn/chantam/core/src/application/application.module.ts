@@ -4,6 +4,7 @@ import { AffiliateModule } from './implementations/affiliate/affiliate.module';
 import { AuthUseCaseModule } from './implementations/auth/auth.module';
 import { BlogUseCaseModule } from './implementations/blog/blog.module';
 import { CategoryModule } from './implementations/category/category.module';
+import { CharityCampaignUseCaseModule } from './implementations/charity-campaign/charity-campaign.module';
 import { ChatModule } from './implementations/chat/chat.module';
 import { CheckInModule } from './implementations/check-in/check-in.module';
 import { DiscoveryModule } from './implementations/discovery/discovery.module';
@@ -41,6 +42,7 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
     FeedModule,
     ReviewModule,
     BlogUseCaseModule,
+    CharityCampaignUseCaseModule,
     HomeCampaignUseCaseModule,
     LunarUseCaseModule,
     NotificationUseCaseModule,

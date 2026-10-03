@@ -2,6 +2,7 @@ export * from './admin-role.exception';
 export * from './auth.exception';
 export * from './blog.exception';
 export * from './category.exception';
+export * from './charity-campaign.exception';
 export * from './chat.exception';
 export * from './check-in.exception';
 export * from './content.exception';

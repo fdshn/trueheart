@@ -185,8 +185,9 @@ flowchart LR
    Phân bổ hạng đọc từ chính `users.rank`, **không tính lại từ điểm**: bảng phải nói đúng cái mà
    hệ thống đang DÙNG để cấp quyền, kể cả khi nó đang lệch với điểm. Tính lại sẽ che mất chính
    xác loại lệch cần thấy.
-2. ⛔ **Campaign & Home động (F63), Blog (F64), quản lý Từ thiện/Quảng cáo/Công đức (F65)**
-   chưa có dòng nào.
+2. ✅ **Campaign & Home động (F63)** và ✅ **Blog / Tin tức (F64)** đã xong. 🟡 **F65** làm
+   được **một phần tư**: phân hệ **Từ thiện** đã có đủ bảng, endpoint và cổng quyền
+   (03/10). Còn **Rao vặt**, **Quảng cáo**, **Công đức** — chưa có dòng nào.
 3. ✅ **Cả hai hàng đợi đã có** — `GET /admin/users?accuracyReviewRequired=true` cho hồ sơ bị gắn
    cờ accuracy, và `GET /admin/comments` kèm `/admin/comments/pending-count` cho bình luận chờ
    duyệt.

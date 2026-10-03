@@ -44,6 +44,10 @@ const ReadCapabilities: readonly { code: string; readAt: string }[] = [
   { code: 'CREATE_GROUP', readAt: 'group.use-cases' },
   { code: 'REACT_CONTENT', readAt: 'content-reaction.use-cases' },
   { code: 'COMMENT_CONTENT', readAt: 'content-comment.use-cases' },
+  {
+    code: 'SUBMIT_CHARITY_PROPOSAL',
+    readAt: 'charity-campaign.use-cases (F65 — 03/10)',
+  },
 ];
 
 /**
@@ -57,11 +61,6 @@ const DeclaredButUnread: readonly { code: string; reason: string }[] = [
     code: 'SELECT_REQUESTER',
     reason:
       'Hạn mức 1/3/5/10 theo bậc nhưng không ai đọc, nên không ai biết đơn vị của nó là gì — mỗi bài được chọn mấy người, hay mỗi ngày? Nối nó đòi chốt nghiệp vụ trước, và đoán sai thì đặt một trần người dùng không hiểu',
-  },
-  {
-    code: 'SUBMIT_CHARITY_PROPOSAL',
-    reason:
-      'Dành cho F65 (quản lý Từ thiện/Quảng cáo/Công đức) — phân hệ đó chưa có dòng code nào, xem 16-admin. Giữ dòng cấu hình để khi làm thì cổng quyền đã sẵn',
   },
 ];
 

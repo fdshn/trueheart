@@ -99,3 +99,5 @@ export * from './1797800000000-AddBlogPermissions';
 export * from './1797900000000-CreateLunarHolidays';
 export * from './1798000000000-AddCampaignManagerRole';
 export * from './1798100000000-CreateNotificationBroadcasts';
+export * from './1798200000000-CreateCharityCampaigns';
+export * from './1798400000000-WidenCampaignPermissionsForCharity';

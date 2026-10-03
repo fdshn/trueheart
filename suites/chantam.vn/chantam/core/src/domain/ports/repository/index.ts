@@ -4,6 +4,7 @@ export * from './admin-user.repository';
 export * from './affiliate.repository';
 export * from './blog.repository';
 export * from './category.repository';
+export * from './charity-campaign.repository';
 export * from './chat.repository';
 export * from './check-in.repository';
 export * from './content-comment.repository';

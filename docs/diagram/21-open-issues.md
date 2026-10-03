@@ -130,9 +130,9 @@ flowchart LR
     A["✅ Countdown 7 ngày + auto-select<br/>đã xong 25/09"] --> B["✅ Đổi vật phẩm bằng điểm<br/>đã xong 26/09"]
     C["✅ Group & Sub-team<br/>F51–F55 — xong 30/09"] --> D["🟡 Affiliate & Geo F56–F58<br/>nền có, bộ máy chia thưởng chưa"]
     E["✅ Dashboard KPI — F59"]
-    F["⛔ Campaign & Home động — F63"]
-    G["⛔ Blog / Tin tức — F64"]
-    H["⛔ Từ thiện, Quảng cáo, Công đức — F65"]
+    F["✅ Campaign & Home động — F63"]
+    G["✅ Blog / Tin tức — F64"]
+    H["🟡 F65 — Từ thiện xong; Rao vặt, Quảng cáo, Công đức chưa"]
     I["⛔ FCM push — F44"]
 
     style A fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12

@@ -733,4 +733,70 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     httpStatus: HttpStatus.NOT_FOUND,
     message: () => 'Không tìm thấy bài viết',
   },
+
+  CHARITY_CAMPAIGN_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_CAMPAIGN_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy hoạt động từ thiện',
+  },
+
+  CHARITY_CAMPAIGN_CREATE_NOT_ALLOWED: {
+    code: ErrorCodes.CHARITY_CAMPAIGN_CREATE_NOT_ALLOWED,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () => 'Hạng của bạn chưa được tạo hoạt động từ thiện',
+  },
+
+  CHARITY_PARTICIPATION_CLOSED: {
+    code: ErrorCodes.CHARITY_PARTICIPATION_CLOSED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Hoạt động đã đóng đăng ký',
+  },
+
+  CHARITY_ALREADY_REGISTERED: {
+    code: ErrorCodes.CHARITY_ALREADY_REGISTERED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Bạn đã đăng ký hoạt động này',
+  },
+
+  CHARITY_NOT_REGISTERED: {
+    code: ErrorCodes.CHARITY_NOT_REGISTERED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Bạn chưa đăng ký hoạt động này',
+  },
+
+  CHARITY_CANCEL_TOO_LATE: {
+    code: ErrorCodes.CHARITY_CANCEL_TOO_LATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Hoạt động đã bắt đầu, không huỷ đăng ký được nữa',
+  },
+
+  CHARITY_REVIEW_TOO_EARLY: {
+    code: ErrorCodes.CHARITY_REVIEW_TOO_EARLY,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Chỉ đánh giá được sau khi hoạt động kết thúc',
+  },
+
+  CHARITY_REVIEW_NOT_PERMITTED: {
+    code: ErrorCodes.CHARITY_REVIEW_NOT_PERMITTED,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () => 'Bạn không Ở trong hoạt động này nên không đánh giá được',
+  },
+
+  CHARITY_REVIEW_DUPLICATE: {
+    code: ErrorCodes.CHARITY_REVIEW_DUPLICATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Bạn đã đánh giá người này trong hoạt động này',
+  },
+
+  CHARITY_NOT_ORGANIZER: {
+    code: ErrorCodes.CHARITY_NOT_ORGANIZER,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () => 'Chỉ người tổ chức cập nhật được tiến độ',
+  },
+
+  CHARITY_APPROVAL_ALREADY_DECIDED: {
+    code: ErrorCodes.CHARITY_APPROVAL_ALREADY_DECIDED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Hồ sơ này đã được xử lý',
+  },
 });

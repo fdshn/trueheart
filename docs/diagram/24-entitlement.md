@@ -239,8 +239,11 @@ khi có người khiếu nại.
    **đơn vị** của nó: mỗi bài được chọn mấy người, hay mỗi ngày? Nối nó đòi chốt nghiệp
    vụ trước — đoán sai là đặt một cái trần người dùng không hiểu. Đang được
    `test:entitlement-inventory` ghi là nợ, nên nó không lặng lẽ nằm đó nữa.
-3. 🟡 **`SUBMIT_CHARITY_PROPOSAL` khai mà chưa ai đọc** — dành cho F65, phân hệ chưa có
-   dòng code nào ([16](./16-admin.md)). Giữ dòng cấu hình để khi làm thì cổng quyền đã sẵn.
+3. ✅ **`SUBMIT_CHARITY_PROPOSAL` đã có chỗ đọc (03/10)** — `CreateCharityCampaignUseCase`
+   dùng nó làm cổng BR-CHARITY-01 (chỉ Kim Cương gửi được hồ sơ hoạt động). Giá trị seed
+   từ `1790100000000` đúng như cần, nên không phải thêm migration nào — và **không được**
+   thêm mã mới cho cùng việc, vì hai dòng cho một quyết định là cách để Admin tắt một
+   dòng rồi tưởng đã khoá.
 4. **Chat không đi qua capability** — cổng dùng `ProfileGate.assertComplete`, nên không
    đặt được hạn mức chat theo bậc. Hiện trần chat là hằng trong code (30/phút, 500/ngày),
    giống trần bình luận (10/phút, 200/ngày). Chuyển chúng sang capability là một việc

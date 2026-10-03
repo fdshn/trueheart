@@ -101,7 +101,7 @@ Tất cả đã nằm trong cấu hình động nên đổi không cần deploy 
 | # | Câu hỏi | Trạng thái |
 | --- | --- | --- |
 | E1 | `SELECT_REQUESTER` — hạn mức 1/3/5/10 theo bậc, **không ai đọc** | Không ai biết đơn vị của nó: mỗi bài được chọn mấy người, hay mỗi ngày? Nối nó đòi chốt nghiệp vụ trước — đoán sai là đặt một trần người dùng không hiểu |
-| E2 | `SUBMIT_CHARITY_PROPOSAL` — **không ai đọc** | Dành cho F65, phân hệ chưa có dòng code nào. Giữ dòng cấu hình để khi làm thì cổng quyền đã sấn |
+| E2 | ~~`SUBMIT_CHARITY_PROPOSAL` — **không ai đọc**~~ | ✅ **ĐÓNG 03/10** — `CreateCharityCampaignUseCase` (F65 phân hệ Từ thiện) đọc nó làm cổng BR-CHARITY-01. Bản đầu của lượt làm đó đặt một mã MỚI `CREATE_CHARITY_CAMPAIGN` và seed lại năm bậc — tức hai dòng cho cùng một quyết định trên màn Rank Config. Chính dòng E2 này chặn được lỗi đó |
 | E3 | Chat có nên đi qua capability để đặt trần theo bậc? | Hiện trần chat là hằng trong code (30/phút, 500/ngày), giống trần bình luận. Nếu không phân biệt theo bậc thì một hằng có tên vẫn tốt hơn một ô cấu hình không ai đổi |
 
 Cả hai mục đầu nay được `test:entitlement-inventory` ghi là **nợ đã biết** kèm lý do, nên
@@ -155,7 +155,7 @@ Xếp theo mức đáng làm trước.
 
 | # | Phân hệ | Mục |
 | --- | --- | --- |
-| T1 | [16](./16-admin.md) | **F63 Campaign & Home động, F64 Blog, F65 Từ thiện/Quảng cáo/Công đức** — chưa có dòng code nào |
+| T1 | [16](./16-admin.md) | ~~F63, F64~~ ✅ **ĐÓNG**. **F65** còn ba phần tư: phân hệ **Từ thiện** đóng 03/10 (3 bảng, 11 endpoint, cổng `SUBMIT_CHARITY_PROPOSAL`); **Rao vặt**, **Quảng cáo**, **Công đức** chưa có dòng nào |
 | T2 | [10](./10-notification.md) | **FCM push (F44)** — hạ tầng token đã xong, chỉ thiếu nhà cung cấp. Đây là việc **còn lại duy nhất** của đẩy thật |
 | T3 | [01](./01-auth.md) | **Chưa có đường cho Admin đặt lại mật khẩu hộ** |
 | T4 | [01](./01-auth.md) | **Mật khẩu chỉ yêu cầu 8 ký tự** — `12345678` qua được |

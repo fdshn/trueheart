@@ -5,6 +5,7 @@ import { AffiliateControllerModule } from './affiliate/affiliate.module';
 import { AuthControllerModule } from './auth/auth.module';
 import { BlogControllerModule } from './blog/blog.module';
 import { CategoryControllerModule } from './category/category.module';
+import { CharityCampaignControllerModule } from './charity-campaign/charity-campaign.module';
 import { ChatControllerModule } from './chat/chat.module';
 import { CheckInControllerModule } from './check-in/check-in.module';
 import { DiscoveryControllerModule } from './discovery/discovery.module';
@@ -31,6 +32,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
   imports: [
     AffiliateControllerModule,
     BlogControllerModule,
+    CharityCampaignControllerModule,
     LunarControllerModule,
     HomeCampaignControllerModule,
     CheckInControllerModule,
