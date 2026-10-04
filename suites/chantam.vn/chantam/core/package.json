@@ -123,7 +123,7 @@
     "@nestjs/typeorm": "^11.0.0",
     "@nestjs/websockets": "^11.2.5",
     "class-transformer": "^0.5.1",
-    "class-validator": "^0.14.2",
+    "class-validator": "^0.15.1",
     "fastify": "^5.6.0",
     "ioredis": "^5.4.2",
     "joi": "^17.13.3",
