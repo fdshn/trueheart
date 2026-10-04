@@ -358,10 +358,10 @@ một điều họ không nói.
 Chỉ là **dấu hiệu** ghi ai lẽ ra trả phí — hệ thống không xử lý tiền ship (COD bên ngoài).
 Nó là căn cứ cho `POST /transactions/:id/reports/ship-unpaid` ở §10.
 
-> ⛔ **Chưa có trường cho cơ chế đổi điểm.** `srs/new-req.txt` còn yêu cầu bài đem tặng mang
-> **giá trị tham khảo (VNĐ)** làm cơ sở quy đổi điểm. Hiện `OFFER` mới có `estimatedValue`
-> — một con số hiển thị, **không** phải cơ sở tính điểm quy đổi.
-> Xem [F74](./FEATURES.md#f74--giá-trị-tham-khảo--tỷ-lệ-quy-đổi-điểm).
+> `OFFER.estimatedValue` hiện đã là cơ sở tính giá đổi điểm qua `quoteRedemption`, làm
+> tròn **lên**. Bỏ trống thì không đổi được, không phải đổi miễn phí. Đây là hiện trạng;
+> việc bắt buộc khai giá cho mọi `OFFER` vẫn cần PO chốt. Xem
+> [F74](./FEATURES.md#f74--giá-trị-tham-khảo--tỷ-lệ-quy-đổi-điểm).
 
 ### Sửa và gỡ bài — chặn khi đang có lượt trao
 
@@ -630,6 +630,26 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 | `POST` | `/posts/:postId/requests/:requestId/accept` | Bearer (chỉ tác giả) | Duyệt một người xin |
 | `POST` | `/posts/:postId/batch-accept` | Bearer (chỉ tác giả) | Duyệt **nhiều** người trong MỘT transaction — hoặc hết, hoặc không ai |
 | `POST` | `/posts/:wantedPostId/offer-gift` | Bearer | Chủ động tặng cho một bài Muốn Nhận, kèm được một bài Muốn Tặng của chính mình |
+| `GET` | `/posts/:postId/redemption-quote` | Bearer (người xin) | Xem giá đổi và lý do không đổi được; hiện luôn 200, không giữ hàng/điểm |
+| `POST` | `/posts/:postId/redeem` | Bearer (người xin) | Dùng điểm chốt ngay; hiện có ledger debit + accept/refund bù, **chưa** atomic và chưa bảo vệ Rank |
+
+#### Đổi vật phẩm bằng điểm — contract hiện tại và đích
+
+Chỉ người đã gửi request mới được đổi khi bài `PUBLISHED` và
+`selection_deadline > now()`. Bài không tồn tại/chưa xin/đồng hồ không chạy được gộp
+`NOT_AVAILABLE` để tránh lộ sự tồn tại của bài. Thiếu `estimatedValue` là
+`NO_ESTIMATED_VALUE`. Quote trả `points`, `estimatedValueVnd`, `vndPerPoint`, `redeemable`,
+`unavailableReason`, `balancePoints`, `missingPoints`, `wouldDemote`, `rankAfter` trong
+`body.quote`. Hiện `redeemable` có thể `true` dù `unavailableReason=INSUFFICIENT_POINTS`;
+client không được chỉ nhìn `redeemable` để bật CTA. POST thành công trả `postId`,
+`transactionId`, `pointsSpent`, `balanceAfter`.
+
+**Yêu cầu mới chưa có ở backend:** chỉ được tiêu
+`max(0, balance - minPoints(currentRank))`; quote và POST phải cùng kết luận; debit ledger,
+chốt request, dừng deadline và tạo transaction/chat phải atomic và idempotent. Admin phải
+publish được `point.redemption`; quote stale do đổi giá/tỷ lệ phải được xác nhận lại,
+không âm thầm trừ giá mới. Xem [handoff và acceptance tests](./plan/REDEMPTION-REQUIREMENT-GAP.md).
+Không coi `wouldDemote` là cơ chế chặn hiện tại.
 
 #### Hàng đợi dự phòng
 
@@ -856,10 +876,10 @@ nghiệp vụ bảo vệ retry/đồng thời. Xem [quy tắc và trường resp
   Tiêu điểm không làm tụt hạng, vì hạng đọc `lifetime`.
 
   > ⚠️ **Đây là hành vi hiện tại của code, và nó sắp đổi.** Bên A chốt ngày 2026-09-24:
-  > hạng đọc **balance hiện tại**, tiêu điểm thì **tụt hạng** — không có phần điểm nào được
-  > bảo vệ, và **F76 (điểm khả dụng) đã huỷ**. Khi làm xong, `/points/me` không cần trả thêm
-  > "điểm khả dụng": toàn bộ `balance` đều tiêu được. Đổi lại phải có **cảnh báo sắp tụt
-  > hạng** khi balance rơi xuống 70% ngưỡng đang giữ.
+  > hạng đọc **balance hiện tại**. Quyết định 24/09 từng cho tiêu tự do rồi tụt hạng;
+  > yêu cầu 04/10 đổi lại **riêng luồng đổi vật phẩm**: chỉ phần dư trên ngưỡng giữ Rank
+  > được dùng. Backend hiện mới cảnh báo, chưa chặn; xem
+  > [handoff redemption](./plan/REDEMPTION-REQUIREMENT-GAP.md).
   > Xem [Mô hình Rank chốt 2026-09-24](./plan/ASSUMPTIONS.md#mô-hình-rank--chốt-ngày-2026-09-24).
 - Ledger là **append-only**. Không có UPDATE, không có DELETE; đảo một bút toán là ghi thêm
   bút toán âm. Trigger ở database chặn sửa/xoá.
@@ -895,11 +915,10 @@ nghiệp vụ bảo vệ retry/đồng thời. Xem [quy tắc và trường resp
 - `POST /ranks/maintenance/evaluate` dành cho **lịch chạy ngoài** (cron/CI). Core cố ý
   **không** chạy scheduler trong tiến trình vì deploy nhiều replica sẽ chạy trùng. Có CLI
   tương đương: `npm run rank:evaluate`.
-- ⛔ **Chưa có đường nào tiêu điểm.** Cơ chế đổi vật phẩm bằng điểm
-  ([F75](./FEATURES.md#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm),
-  [F77](./FEATURES.md#f77--ledger-cho-giao-dịch-đổi-điểm)) chưa có endpoint. Khi làm, bút toán
-  trừ điểm phải đi qua chính ledger này với `rule_code = 'ITEM_REDEMPTION'` và
-  `idempotency_key` bắt buộc — không mở một đường ghi điểm thứ hai.
+- ✅ **Đã có đường tiêu điểm** qua `POST /posts/:postId/redeem`, ghi
+  `ITEM_REDEMPTION` vào ledger với idempotency key theo request. Nhưng debit và accept
+  hiện là hai transaction, lỗi accept ghi bút toán hoàn; chưa đạt yêu cầu atomic và
+  bảo vệ Rank mới. Xem contract đích tại [handoff](./plan/REDEMPTION-REQUIREMENT-GAP.md).
 
 ---
 
