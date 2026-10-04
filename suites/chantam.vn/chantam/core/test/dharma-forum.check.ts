@@ -47,6 +47,7 @@ import { AdminConfigRepository } from '../src/infrastructure/repository/admin-co
 import { ContentCommentRepository } from '../src/infrastructure/repository/content-comment.repository';
 import { ContentReactionRepository } from '../src/infrastructure/repository/content-reaction.repository';
 import { DharmaRepository } from '../src/infrastructure/repository/dharma.repository';
+import { publishConfigVersion } from './publish-config-version';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -241,35 +242,22 @@ async function main(): Promise<void> {
     // KHÔNG ghi `version: 1` — migration `1795600000000` và `1796000000000` đã seed sẵn,
     // và `UQ_system_configs_key_version` chặn. Bản đang hiệu lực là bản có `version` CAO
     // NHẤT với `effective_from <= now()`, nên cộng một vào bản cao nhất đang có.
-    // ĐÓNG bản đang hiệu lực TRƯỚC khi mở bản mới.
+    // Dùng helper của nhà thay vì tự viết SQL.
     //
-    // `EX_system_configs_published_window` cấm hai bản PUBLISHED cùng khoá có khung thời gian
-    // trùng nhau — đúng kỷ luật copy-on-write của `system_configs`. Hai câu, không một.
-    // Khoảng nửa mở `[)` nên `effective_to = now()` của bản cũ và `effective_from = now()`
-    // của bản mới không chồng nhau.
-    const closedAt = new Date();
-    await dataSource.query(
-      `UPDATE system_configs
-          SET effective_to = $1
-        WHERE config_key = 'moderation.blocked_terms' AND effective_to IS NULL`,
-      [closedAt],
-    );
-    await dataSource.query(
-      `INSERT INTO system_configs
-         (config_key, value_json, value_type, version, effective_from, updated_by)
-       SELECT 'moderation.blocked_terms', $1::jsonb, 'JSON',
-              COALESCE(MAX(version), 0) + 1, $3, $2
-         FROM system_configs
-        WHERE config_key = 'moderation.blocked_terms'`,
-      [
-        // Khoá là `severity`, không phải `action` — và mặc định là `BLOCK`, nên gõ sai tên
-        // khoá thì mục cấm thành chặn thẳng. Đó là lối fail-closed đúng, và tôi đã mắc nó
-        // một lượt khi viết phép kiểm này.
-        JSON.stringify([{ term: 'luadao', severity: 'REVIEW' }]),
-        AdminId,
-        closedAt,
-      ],
-    );
+    // Bản đầu của tôi tự đóng bản cũ rồi chèn bản mới bằng hai câu, và nó chạy đúng ở
+    // máy tôi. Nhưng `publishConfigVersion` xử lý một ràng buộc tôi đã bỏ qua:
+    // `CHK_system_configs_dates` đòi `effective_to > effective_from`, nên mốc đóng phải là
+    // `GREATEST(now(), effective_from + 1 microsecond)` — trên một database VẪA DỰNG,
+    // migration và script chạy sát nhau đủ để `now()` ra cùng một microsecond.
+    //
+    // Tức SQL tay của tôi là một lỗi flaky chờ xảy ra trên CI, và docblock của helper nói
+    // rõ nó được viết ra chính vì ba script khác đã mắc đúng lớp lỗi này.
+    await publishConfigVersion(dataSource, 'moderation.blocked_terms', [
+      // Khoá là `severity`, không phải `action` — và mặc định là `BLOCK`, nên gõ sai tên
+      // khoá thì mục cấm thành chặn thẳng. Đó là lối fail-closed đúng, và tôi đã mắc nó
+      // một lượt khi viết phép kiểm này.
+      { term: 'luadao', severity: 'REVIEW' },
+    ]);
     const flagged = await createThread.handle({
       actorUserId: AuthorId,
       title: 'Cẩn thận chuyện luadao trong nhóm',

@@ -150,8 +150,33 @@ Nghiệp vụ Chân Tâm
 | `0x1003` | `4099` | 403 Forbidden | `GROUP_CREATE_NOT_ALLOWED` | Thứ hạng của bạn chưa đủ điều kiện tạo nhóm. |
 | `0x1004` | `4100` | 400 Bad Request | `GROUP_INVITE_INVALID` | Link mời không dùng được. |
 | `0x1005` | `4101` | 404 Not Found | `GROUP_NOT_FOUND` | Không tìm thấy nhóm |
+| `0x1101` | `4353` | 404 Not Found | `HOME_CAMPAIGN_NOT_FOUND` | Không tìm thấy chiến dịch |
+| `0x1201` | `4609` | 404 Not Found | `BLOG_NOT_FOUND` | Không tìm thấy bài viết |
+| `0x1301` | `4865` | 404 Not Found | `CHARITY_CAMPAIGN_NOT_FOUND` | Không tìm thấy hoạt động từ thiện |
+| `0x1302` | `4866` | 403 Forbidden | `CHARITY_CAMPAIGN_CREATE_NOT_ALLOWED` | Hạng của bạn chưa được tạo hoạt động từ thiện |
+| `0x1303` | `4867` | 409 Conflict | `CHARITY_PARTICIPATION_CLOSED` | Hoạt động đã đóng đăng ký |
+| `0x1304` | `4868` | 409 Conflict | `CHARITY_ALREADY_REGISTERED` | Bạn đã đăng ký hoạt động này |
+| `0x1305` | `4869` | 409 Conflict | `CHARITY_NOT_REGISTERED` | Bạn chưa đăng ký hoạt động này |
+| `0x1306` | `4870` | 409 Conflict | `CHARITY_CANCEL_TOO_LATE` | Hoạt động đã bắt đầu, không huỷ đăng ký được nữa |
+| `0x1307` | `4871` | 409 Conflict | `CHARITY_REVIEW_TOO_EARLY` | Chỉ đánh giá được sau khi hoạt động kết thúc |
+| `0x1308` | `4872` | 403 Forbidden | `CHARITY_REVIEW_NOT_PERMITTED` | Bạn không Ở trong hoạt động này nên không đánh giá được |
+| `0x1309` | `4873` | 409 Conflict | `CHARITY_REVIEW_DUPLICATE` | Bạn đã đánh giá người này trong hoạt động này |
+| `0x130a` | `4874` | 403 Forbidden | `CHARITY_NOT_ORGANIZER` | Chỉ người tổ chức cập nhật được tiến độ |
+| `0x130b` | `4875` | 409 Conflict | `CHARITY_APPROVAL_ALREADY_DECIDED` | Hồ sơ này đã được xử lý |
+| `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
+| `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
+| `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
+| `0x1501` | `5377` | 404 Not Found | `MERIT_UNIT_NOT_FOUND` | Không tìm thấy đơn vị công đức |
+| `0x1502` | `5378` | 404 Not Found | `MERIT_DECLARATION_NOT_FOUND` | Không tìm thấy lời khai công đức |
+| `0x1503` | `5379` | 409 Conflict | `MERIT_DECLARATION_ALREADY_COMPLETED` | Lời khai này đã được đánh dấu hoàn tất |
+| `0x1601` | `5633` | 404 Not Found | `DHARMA_CONTENT_NOT_FOUND` | Không tìm thấy nội dung Phật Pháp |
+| `0x1602` | `5634` | 409 Conflict | `DHARMA_CONTENT_NOT_RECITABLE` | Nội dung này không phải kinh để tụng |
+| `0x1603` | `5635` | 404 Not Found | `DHARMA_RECITATION_NOT_FOUND` | Không tìm thấy lượt tụng |
+| `0x1604` | `5636` | 409 Conflict | `DHARMA_RECITATION_ALREADY_COMPLETED` | Lượt tụng này đã được đánh dấu hoàn tất |
+| `0x1605` | `5637` | 404 Not Found | `DHARMA_THREAD_NOT_FOUND` | Không tìm thấy chủ đề |
+| `0x1606` | `5638` | 409 Conflict | `DHARMA_THREAD_LOCKED` | Chủ đề này đã khoá bình luận |
 
 ---
 
-Tổng cộng **111 mã lỗi** trên 3 tầng.
+Tổng cộng **136 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

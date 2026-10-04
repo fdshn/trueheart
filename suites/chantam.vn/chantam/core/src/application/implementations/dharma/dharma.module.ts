@@ -90,8 +90,14 @@ import {
       useClass: DeleteDharmaContentUseCase,
     },
     { provide: IStartRecitationUseCase, useClass: StartRecitationUseCase },
-    { provide: ICompleteRecitationUseCase, useClass: CompleteRecitationUseCase },
-    { provide: IListOwnRecitationsUseCase, useClass: ListOwnRecitationsUseCase },
+    {
+      provide: ICompleteRecitationUseCase,
+      useClass: CompleteRecitationUseCase,
+    },
+    {
+      provide: IListOwnRecitationsUseCase,
+      useClass: ListOwnRecitationsUseCase,
+    },
 
     // -- Diễn đàn và Hồi hướng (UC-DHARMA-03, UC-DHARMA-04) ------------------
     { provide: ICreateThreadUseCase, useClass: CreateThreadUseCase },
@@ -104,7 +110,10 @@ import {
       provide: IListPublicDedicationsUseCase,
       useClass: ListPublicDedicationsUseCase,
     },
-    { provide: IListOwnDedicationsUseCase, useClass: ListOwnDedicationsUseCase },
+    {
+      provide: IListOwnDedicationsUseCase,
+      useClass: ListOwnDedicationsUseCase,
+    },
   ],
   exports: [
     IGetDharmaHubUseCase,

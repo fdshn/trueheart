@@ -82,12 +82,20 @@ jobs:
   integration:
     name: Kiểm thử tích hợp (PostGIS thật)
     runs-on: ubuntu-latest
-    # 40 chứ không 25: bước "mọi script kiểm chứng" chạy 30 script tuần tự, mất
-    # khoảng 6 phút trên máy local và runner CI chậm hơn. Tuần tự là bắt buộc —
-    # nhiều script dựng database nháp riêng rồi drop, chạy song song là đạp lên
-    # nhau. Thà job dài hơn còn hơn bỏ lớp kiểm chứng duy nhất thấy được những lỗi
-    # mà unit test mock `query` không thể thấy.
-    timeout-minutes: 40
+    # 60 chứ không 40: bước "mọi script kiểm chứng" nay chạy **43** script tuần tự,
+    # không phải 30 như ghi chú trước. Tuần tự là bắt buộc — nhiều script dựng
+    # database nháp riêng rồi drop, chạy song song là đạp lên nhau.
+    #
+    # Đo 04/10 tại máy: mỗi script mất ~19 giây, phần lớn là chạy lại toàn bộ hơn
+    # 100 migration để dựng database nháp. 43 × 19s ≈ 14 phút tại máy, và runner CI
+    # chậm hơn đáng kể — cộng các bước còn lại của job (migration, seed demo, khởi
+    # động service, chat e2e, smoke) thì 40 phút là mép quá sát.
+    #
+    # Con số này CHƯA TỪNG được đo trên CI: job luôn chết ở bước `smoke-cli` trước
+    # khi tới bước nặng, nên 40 phút chưa bao giờ bị thử thật. Nới trước thay vì
+    # chờ một lượt timeout để biết — thà job dài hơn còn hơn bỏ lớp kiểm chứng duy
+    # nhất thấy được những lỗi mà unit test mock `query` không thể thấy.
+    timeout-minutes: 60
 
     services:
       postgres:
@@ -244,7 +252,10 @@ jobs:
       - name: Mọi script kiểm chứng trên Postgres thật
         # 25 trong 30 script `test/*.check.ts` trước 30/09 chỉ chạy khi có người gõ
         # tay, dù chúng là lớp duy nhất bắt được những lỗi mà unit test mock
-        # `query` không thể thấy.
+        # `query` không thể thấy. Nay là 43 script, và danh sách tự lấy từ
+        # `package.json` nên thêm một script mới là nó tự vào — KHÔNG phải sửa file
+        # này. Đó là chủ ý: một danh sách chép tay ở đây sẽ mục đúng như ghi chú
+        # "30 script" đã mục.
         #
         # Bước này bắt được ngay hai cái ở lượt đầu, và cả hai do migration
         # `1795700000000` seed thêm `chat.retention` + `rank.points_source` gây ra:

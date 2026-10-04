@@ -55,6 +55,11 @@ fi
 # - nhóm `--dry-run` thoát 1 khi phát hiện lệch;
 # - `transaction-autocomplete` thoát 1 khi giữ lại lượt đang tranh chấp;
 # - `notification-purge` thoát 1 khi chạm trần lô, tức còn tồn đọng.
+#
+# `notify-broadcast` và `notify-lunar` KHÔNG ở nhóm đó dù cũng thoát 1 được: chúng
+# chỉ thoát 1 khi `failed > 0`, tức gửi THẤT BẠI thật. Trên database CI không có ai
+# để gửi nên `failed` là 0 và chúng thoát 0. Xếp chúng vào `SIGNAL_CLIS` là bỏ mất
+# đúng tín hiệu đáng quan tâm nhất của hai job này.
 SIGNAL_CLIS=(
   accuracy-reconcile
   feed-reconcile-counts
@@ -70,6 +75,8 @@ DRY_RUN_CLIS=(
   accuracy-reconcile
   feed-reconcile-counts
   gift-settle-rewards
+  notify-broadcast
+  notify-lunar
   notify-reminders
   selection-auto-select
   media-sweep-orphans
