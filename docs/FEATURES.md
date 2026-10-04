@@ -710,6 +710,12 @@ Tận dụng hạ tầng hiện có: CMS Content Engine, Post/Comment, Media R2,
 > Nguồn: yêu cầu bổ sung của Bên A (`srs/new-req.txt`). Cơ chế này **chốt luôn** cách
 > Điểm Cống Hiến được tiêu, và qua đó chốt cả cách bảo vệ Rank — xem [F12](#f12--rank-5-tầng--chu-kỳ-duy-trì-3-tháng).
 
+> **Cập nhật yêu cầu 2026-10-04:** Bên A yêu cầu lại cơ chế chỉ tiêu **phần dư trên ngưỡng
+> giữ Rank** khi đổi vật phẩm. Đây là contract đích của `ITEM_REDEMPTION`, **chưa phải hành vi
+> backend hiện tại**. Quyết định 2026-09-24 cho phép tiêu rồi tụt hạng ở F76 bên dưới là
+> lịch sử mâu thuẫn; cần PO xác nhận phạm vi thay thế trước MR implementation. Xem
+> [handoff backend](./plan/REDEMPTION-REQUIREMENT-GAP.md) để phân biệt gap, API đích và test.
+
 ### F74 — Giá trị tham khảo & tỷ lệ quy đổi điểm
 
 Khi đăng bài Muốn Tặng, người cho khai **giá trị tham khảo** của vật phẩm bằng VNĐ. Hệ thống
@@ -752,6 +758,10 @@ một lần, không được nửa vời:
 
 Hết 7 ngày mà không ai dùng điểm thì hệ thống tự chọn người nhận theo bộ tiêu chí.
 
+> Phạm vi “tối đa 7 ngày” đang mâu thuẫn với `INSTANT` và `EXTENDED` ở F79 (0 và 30 ngày).
+> Không tự xoá hai mode này trong implementation trước khi PO chốt: mọi `OFFER` đều tối đa
+> 7 ngày, hay chỉ mode mặc định `OPTIMAL` áp dụng quy tắc trên?
+
 > ✅ **Đã chốt ở [CH-1](./plan/ASSUMPTIONS.md#ch-1--thứ-tự-ưu-tiên-chọn-người-nhận-admin-cấu-hình)
 > và đã hiện thực.** Admin xếp thứ tự bộ tiêu chí qua `GET|PUT /api/v1/admin/candidate-selection`;
 > mặc định khi chưa cấu hình là **ai xin trước**. Dùng chung với [F33](#f33--hàng-đợi-dự-phòng).
@@ -760,22 +770,28 @@ Hết 7 ngày mà không ai dùng điểm thì hệ thống tự chọn người
 xin, countdown bắt đầu. Ngày thứ 3, User A dùng đủ 1.000 điểm → A được chọn ngay, countdown
 kết thúc ở ngày 3, 9 người còn lại không được xét cho vật phẩm đó nữa.
 
-### F76 — ~~Điểm khả dụng & bảo vệ Rank~~ (ĐÃ HUỶ)
+### F76 — Điểm khả dụng & bảo vệ Rank khi đổi vật phẩm (YÊU CẦU MỚI)
 
-> ❌ **Huỷ ngày 2026-09-24 theo quyết định của Bên A.** Giữ mục này để người đọc tài liệu cũ
-> không tưởng hệ thống đang hành xử như vậy.
+> Quyết định **huỷ F76 ngày 2026-09-24** là lịch sử. Yêu cầu Bên A chuyển ngày
+> 2026-10-04 đưa bảo vệ Rank trở lại **cho giao dịch đổi vật phẩm**. Backend hiện vẫn đi theo
+> quyết định cũ: quote chỉ cảnh báo `wouldDemote`, POST chỉ kiểm toàn balance. Không mô tả
+> trạng thái hiện tại là đã bảo vệ Rank.
 
-Cơ chế cũ chặn không cho tiêu phần điểm cần để giữ Rank (`Điểm khả dụng = Balance − Ngưỡng
-Rank hiện tại`), nên Rank không bao giờ tụt vì tiêu điểm.
+Điểm khả dụng = `max(0, Current Point Balance − Minimum Point của Rank hiện tại)`.
+Ngưỡng lấy từ chính sách Rank đang áp dụng, không hard-code. Người Bạc có 1.800 điểm,
+ngưỡng 672, món cần 1.000 điểm thì được đổi (còn 800, giữ Bạc); có 1.500 điểm thì chỉ
+có 828 điểm khả dụng và **không được đổi** dù balance lớn hơn 1.000.
 
-**Quyết định mới đi hướng ngược lại:** Rank xét theo **point balance hiện tại**, tiêu điểm tự
-do, và **tụt hạng nếu balance rơi dưới ngưỡng**. Không có điểm nào được bảo vệ.
+Rank vẫn xét theo **point balance hiện tại**. Quy tắc này chặn riêng `ITEM_REDEMPTION`
+trước khi trừ, không tạo một loại Rank Point mới và không bảo vệ trước điểm phạt/điều chỉnh
+Admin. Quote và POST phải dùng cùng cách tính; quyết định cuối cùng nằm trong transaction
+đã khóa balance. Điểm sát ngưỡng vừa đủ được đổi, thiếu một điểm thì bị từ chối.
 
-Đổi lại, người dùng phải được **cảnh báo trước khi tụt** — xem cột *Cảnh báo tại 70%* ở
-[bảng Rank](#f10--hệ-thống-rank-5-bậc). Không có cảnh báo thì người ta đổi một vật phẩm rồi
-sáng hôm sau phát hiện mình đã xuống Bạc mà không ai báo.
+Quyết định 2026-09-24 từng cho **tiêu tự do rồi tụt hạng**, kèm cảnh báo tại 70%. Cảnh báo
+vẫn có ý nghĩa với các biến động điểm khác, nhưng không thay thế việc chặn đổi vật phẩm
+theo yêu cầu mới. Đây là thay đổi nghiệp vụ cần PO xác nhận để đồng bộ SRS chính thức.
 
-Chi tiết và hệ quả: [Mô hình Rank chốt ngày 2026-09-24](./plan/ASSUMPTIONS.md#mô-hình-rank--chốt-ngày-2026-09-24).
+Chi tiết hiện trạng và acceptance tests: [handoff backend](./plan/REDEMPTION-REQUIREMENT-GAP.md).
 
 ### F77 — Ledger cho giao dịch đổi điểm
 
@@ -826,7 +842,7 @@ báo qua `POST /transactions/:id/reports/ship-unpaid` và khoản trừ điểm 
 Khi người cho tạo bài đăng Muốn Tặng (`OFFER`), hệ thống hỗ trợ 03 chế độ lựa chọn người nhận (CHỐT-10):
 
 1. **`INSTANT` (Trao ngay lập tức):** Khi người đầu tiên gửi yêu cầu xin nhận hợp lệ, hệ thống tự động chấp nhận (atomic accept) ngay lập tức, chuyển bài sang trạng thái `DELIVERING`, tạo giao dịch và mở phòng chat trực tiếp. Không áp dụng countdown 7 ngày.
-2. **`OPTIMAL` (Tìm người nhận tối ưu — Mặc định):** Khi có yêu cầu hợp lệ đầu tiên, hệ thống kích hoạt đồng hồ đếm ngược (countdown) tối đa 7 ngày (`selection_deadline = NOW() + 7 days`). Trong thời gian này, các ứng viên khác có thể tiếp tục gửi yêu cầu hoặc dùng Điểm Cống Hiến để đổi trực tiếp vật phẩm (theo [F75](#f75--dùng-điểm-chốt-ngay-vật-phẩm)). Hết 7 ngày, hệ thống auto-select theo cấu hình của Admin.
+2. **`OPTIMAL` (Tìm người nhận tối ưu — Mặc định):** Khi có yêu cầu hợp lệ đầu tiên, hệ thống kích hoạt đồng hồ đếm ngược (countdown) tối đa 7 ngày (`selection_deadline = NOW() + 7 days`). Trong thời gian này, các ứng viên khác có thể tiếp tục gửi yêu cầu hoặc dùng Điểm Cống Hiến để đổi trực tiếp vật phẩm (theo [F75](#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm)). Hết 7 ngày, hệ thống auto-select theo cấu hình của Admin.
 3. **`EXTENDED` (Thời gian mở rộng):** Kích hoạt thời gian chờ tối đa 30 ngày (`selection_deadline = NOW() + 30 days`) kể từ yêu cầu đầu tiên. Phù hợp cho các vật phẩm có giá trị cao, cần thêm thời gian xem xét hoặc thẩm định người nhận phù hợp nhất.
 
 ### F80 — Quyền riêng tư & Bảo vệ thông tin người cho
