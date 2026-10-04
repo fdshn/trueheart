@@ -308,17 +308,36 @@ async function main(): Promise<void> {
         ORDER BY permission.code`,
     );
     const codes = granted.map((row) => row.code);
+
+    // NĂM quyền migration `1798000000000` cấp phải CÒN ĐÓ — kiểm TẬP CON, không khớp
+    // chính xác.
+    //
+    // Bản trước so `JSON.stringify(codes)` với một mảng năm phần tử, và nó **làm đỏ CI**
+    // 04/10 khi F65 và F73 cấp thêm `banner.*`, `merit.read`, `dharma.*` cho đúng vai này.
+    // Một phép kiểm đếm cứng thì mục mỗi lần có thêm một quyền nội dung hợp lệ — cùng lớp
+    // với những con số đếm tay trong tài liệu đã mục.
+    for (const required of [
+      'blog.manage',
+      'blog.read',
+      'campaign.manage',
+      'campaign.read',
+      'config.read',
+    ]) {
+      check(`vẫn giữ \`${required}\``, codes.includes(required));
+    }
+
+    // Và đây là phần thay cho phép so khớp chính xác: mọi quyền vai này giữ phải thuộc
+    // MỘT KHUÔN an toàn cho một vai NỘI DUNG. Mẫu chứ không danh sách, nên thêm
+    // `dharma.manage` thì tự qua, còn `config.write` hay `user.delete` thì đỏ ngay — giữ
+    // được cái mà phép so khớp chính xác bảo vệ (một quyền nguy hiểm LẠ lọt vào) mà không
+    // mục theo từng quyền.
+    const ContentRoleShape =
+      /^(?:blog|campaign|banner|merit|dharma)\.(?:read|manage)$|^config\.read$/;
+    const outside = codes.filter((code) => !ContentRoleShape.test(code));
     check(
-      'nhận đủ 5 quyền nội dung',
-      JSON.stringify(codes) ===
-        JSON.stringify([
-          'blog.manage',
-          'blog.read',
-          'campaign.manage',
-          'campaign.read',
-          'config.read',
-        ]),
-      JSON.stringify(codes),
+      'không giữ quyền nào ngoài khuôn của một vai nội dung',
+      outside.length === 0,
+      outside.length > 0 ? JSON.stringify(outside) : JSON.stringify(codes),
     );
     // Đây là phép kiểm quan trọng nhất của nhóm: cả mục đích của vai này là KHÔNG có
     // `config.write`. Thêm nó vào là quay lại đúng chỗ L24 phàn nàn.
