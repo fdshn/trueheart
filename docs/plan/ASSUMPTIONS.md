@@ -68,6 +68,12 @@ Xem [đặc tả F83](./CHECK-IN-STREAK-DESIGN.md).
   cách hiểu cũ về `lifetime` không còn hiệu lực. Xem
   [Mô hình Rank chốt ngày 2026-09-24](#mô-hình-rank--chốt-ngày-2026-09-24) bên dưới.
 
+> **Diễn biến sau đó (2026-10-04):** Bên A yêu cầu lại bảo vệ Rank **khi đổi vật phẩm**.
+> Dòng “đã được thay thế” ở trên ghi lại quyết định 24/09, không còn là contract đích
+> cho `ITEM_REDEMPTION`. Phạm vi mới chỉ áp dụng redemption, không đảo ngược quy tắc Rank
+> dựa trên balance hoặc tự miễn mọi khoản phạt. Xem
+> [handoff backend](./REDEMPTION-REQUIREMENT-GAP.md); cần PO cập nhật SRS chính thức.
+
 ---
 
 ### GĐ-4 · Ký hiệu "2+2 / 3+3 / 4+4"
@@ -207,6 +213,12 @@ vẫn khiến việc trượt có hậu quả thật.
 **F76 (điểm khả dụng / bảo vệ Rank) bị huỷ.** Cơ chế đó chặn không cho tiêu phần
 điểm cần để giữ hạng. Quyết định mới đi hướng ngược lại: tiêu tự do, tụt thì
 tụt. Hai cái không cùng tồn tại được.
+
+> **Lịch sử đến 2026-09-24, không phải contract redemption mới nhất.** Yêu cầu
+> 2026-10-04 chọn lại điểm khả dụng cho `ITEM_REDEMPTION`: balance vẫn quyết Rank,
+> nhưng giao dịch đổi bị chặn nếu balance sau đổi thấp hơn ngưỡng giữ hạng. Các
+> loại debit khác tiếp tục theo chính sách riêng. Xem
+> [REDEMPTION-REQUIREMENT-GAP.md](./REDEMPTION-REQUIREMENT-GAP.md).
 
 **Hệ quả kèm theo, đã xác nhận:**
 
