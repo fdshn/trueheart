@@ -8,6 +8,7 @@ import { CategoryControllerModule } from './category/category.module';
 import { CharityCampaignControllerModule } from './charity-campaign/charity-campaign.module';
 import { ChatControllerModule } from './chat/chat.module';
 import { CheckInControllerModule } from './check-in/check-in.module';
+import { DharmaControllerModule } from './dharma/dharma.module';
 import { DiscoveryControllerModule } from './discovery/discovery.module';
 import { EntitlementControllerModule } from './entitlement/entitlement.module';
 import { FeedControllerModule } from './feed/feed.module';
@@ -37,6 +38,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
     CharityCampaignControllerModule,
     SponsorBannerControllerModule,
     MeritControllerModule,
+    DharmaControllerModule,
     LunarControllerModule,
     HomeCampaignControllerModule,
     CheckInControllerModule,

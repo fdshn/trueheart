@@ -10,6 +10,7 @@ export * from './check-in.repository';
 export * from './content-comment.repository';
 export * from './content-reaction.repository';
 export * from './content-share.repository';
+export * from './dharma.repository';
 export * from './entitlement.repository';
 export * from './gift-request.repository';
 export * from './gift-transaction.repository';

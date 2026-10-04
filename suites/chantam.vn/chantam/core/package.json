@@ -103,7 +103,8 @@
     "test:broadcast": "ts-node -r tsconfig-paths/register test/broadcast.check.ts",
     "test:charity": "ts-node -r tsconfig-paths/register test/charity-campaign.check.ts",
     "test:banner": "ts-node -r tsconfig-paths/register test/sponsor-banner.check.ts",
-    "test:merit": "ts-node -r tsconfig-paths/register test/merit.check.ts"
+    "test:merit": "ts-node -r tsconfig-paths/register test/merit.check.ts",
+    "test:dharma": "ts-node -r tsconfig-paths/register test/dharma.check.ts"
   },
   "dependencies": {
     "@chantam.vn/chantam.core-lib": "file:../core-lib",

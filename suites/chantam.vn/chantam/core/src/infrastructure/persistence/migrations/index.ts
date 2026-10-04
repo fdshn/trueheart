@@ -105,3 +105,5 @@ export * from './1798500000000-CreateSponsorBanners';
 export * from './1798600000000-AddBannerPermissions';
 export * from './1798700000000-CreateMeritUnits';
 export * from './1798800000000-AddMeritPermissions';
+export * from './1798900000000-CreateDharmaContents';
+export * from './1799000000000-AddDharmaPermissions';

@@ -7,6 +7,7 @@ import { CategoryModule } from './implementations/category/category.module';
 import { CharityCampaignUseCaseModule } from './implementations/charity-campaign/charity-campaign.module';
 import { ChatModule } from './implementations/chat/chat.module';
 import { CheckInModule } from './implementations/check-in/check-in.module';
+import { DharmaUseCaseModule } from './implementations/dharma/dharma.module';
 import { DiscoveryModule } from './implementations/discovery/discovery.module';
 import { EntitlementModule } from './implementations/entitlement/entitlement.module';
 import { FeedModule } from './implementations/feed/feed.module';
@@ -47,6 +48,7 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
     CharityCampaignUseCaseModule,
     SponsorBannerUseCaseModule,
     MeritUseCaseModule,
+    DharmaUseCaseModule,
     HomeCampaignUseCaseModule,
     LunarUseCaseModule,
     NotificationUseCaseModule,

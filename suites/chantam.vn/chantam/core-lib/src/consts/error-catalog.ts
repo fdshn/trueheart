@@ -835,4 +835,28 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     httpStatus: HttpStatus.CONFLICT,
     message: () => 'Lời khai này đã được đánh dấu hoàn tất',
   },
+
+  DHARMA_CONTENT_NOT_FOUND: {
+    code: ErrorCodes.DHARMA_CONTENT_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy nội dung Phật Pháp',
+  },
+
+  DHARMA_CONTENT_NOT_RECITABLE: {
+    code: ErrorCodes.DHARMA_CONTENT_NOT_RECITABLE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Nội dung này không phải kinh để tụng',
+  },
+
+  DHARMA_RECITATION_NOT_FOUND: {
+    code: ErrorCodes.DHARMA_RECITATION_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy lượt tụng',
+  },
+
+  DHARMA_RECITATION_ALREADY_COMPLETED: {
+    code: ErrorCodes.DHARMA_RECITATION_ALREADY_COMPLETED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Lượt tụng này đã được đánh dấu hoàn tất',
+  },
 });
