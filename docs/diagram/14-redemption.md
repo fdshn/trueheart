@@ -1,8 +1,10 @@
 # 14 · Đổi vật phẩm bằng điểm
 
-Trạng thái: ✅ **đã hiện thực** (26/09). `POST /posts/:postId/redeem` để đổi,
-`GET /posts/:postId/redemption-quote` để xem trước (29/09). Script kiểm riêng:
-`npm run test:redemption`.
+Trạng thái: 🟡 **đã có API và luồng cơ bản, chưa khớp đầy đủ yêu cầu khách hàng**.
+`POST /posts/:postId/redeem` để đổi, `GET /posts/:postId/redemption-quote` để xem trước.
+Các gap về bảo vệ Rank, tính nguyên tử, tỷ lệ Admin và hàng đợi sau redeem được theo dõi
+tại [handoff backend](../plan/REDEMPTION-REQUIREMENT-GAP.md). Script kiểm hiện có:
+`npm run test:redemption` — chưa thay thế acceptance tests trong handoff.
 
 ## 14.1 Định giá vật phẩm (F74) — ✅
 
@@ -36,7 +38,9 @@ flowchart LR
 
 ## 14.2 ✅ Tỷ lệ quy đổi — chốt 2026-09-25
 
-**2.000 VNĐ/điểm**, seed ở `system_configs.point.redemption`, Admin sửa lúc chạy.
+**2.000 VNĐ/điểm**, seed ở `system_configs.point.redemption`. Backend đọc cấu hình khi xử
+lý, nhưng API Admin hiện **chưa cho publish khoá này**; xem handoff trước khi coi việc
+"Admin sửa lúc chạy" là hoàn chỉnh.
 
 Chọn theo câu trả lời được, chứ không theo cảm giác về giá trị một điểm:
 
@@ -61,7 +65,7 @@ flowchart TD
     C -->|Chưa| X1
     C -->|Rồi| D{Bài có khai giá trị tham khảo?}
     D -->|Không| X2["❌ REDEMPTION_PRICE_UNAVAILABLE"]
-    D -->|Có| E{Đủ điểm?}
+    D -->|Có| E{Điểm khả dụng đủ?}
     E -->|Không| X3["❌ REDEMPTION_INSUFFICIENT_POINTS<br/>nêu cả số cần và số đang có"]
     E -->|Đủ| F["✅ Trừ điểm → duyệt → báo"]
 
@@ -100,20 +104,20 @@ sequenceDiagram
 
     R->>API: Xác nhận dùng điểm đổi vật phẩm
     API->>DB: Countdown còn chạy? Bài còn mở?
-    API->>P: Balance đủ không?
+    API->>P: Điểm khả dụng sau ngưỡng Rank đủ không?
     alt Không đủ
         API-->>R: 400 - thiếu bao nhiêu điểm
     else Đủ
-        API->>API: MỘT TRANSACTION DUY NHẤT
+        API->>API: MỤC TIÊU: một transaction duy nhất
         API->>P: Trừ điểm (rule ITEM_REDEMPTION, delta âm)
         Note over P: idempotency_key BẮT BUỘC.<br/>Bấm hai lần không trừ hai lần
         API->>DB: DỪNG countdown
         API->>DB: Chọn người này làm người nhận chính thức
-        API->>DB: Các ứng viên khác chuyển STANDBY
+        API->>DB: Xử lý ứng viên khác theo policy đã chốt
         API->>DB: KHÔNG chạy auto-select
         API->>API: COMMIT
         API-->>R: Đã chốt
-        API->>API: Xét lại rank theo balance mới - có thể TỤT
+        API->>API: Xét lại rank theo balance mới - phải giữ nguyên rank khi đổi
     end
 ```
 
@@ -123,10 +127,10 @@ sequenceDiagram
 > món quà đi mất và không có đường đòi. Trừ trước thì lỗi tệ nhất là điểm bị giữ tạm, và khoản
 > hoàn trả lại ngay.
 >
-> Hai bước **không** nằm trong một transaction: `appendAdjustment` và `acceptRequest` mỗi cái
-> tự mở một transaction, và gộp chúng đòi một đường ghi sổ mới. Khoá chống trùng cộng khoản
-> hoàn là cái giá rẻ hơn — và sổ append-only nên khoản đã trừ chỉ đảo được bằng bút toán ngược,
-> không xoá được.
+> **Hiện trạng khác sơ đồ mục tiêu:** `appendAdjustment` và `acceptRequest` mỗi cái mở một
+> transaction; lỗi duyệt được bù bằng bút toán hoàn. Cơ chế này không bảo đảm nguyên tử nếu
+> tiến trình chết giữa hai bước. Handoff yêu cầu gộp transaction và kiểm điểm khả dụng theo
+> ngưỡng Rank dưới khóa.
 
 ## 14.5 Hệ quả với thứ hạng
 
@@ -134,11 +138,11 @@ sequenceDiagram
 flowchart TD
     A[Đổi vật phẩm 280 điểm] --> B[Balance giảm 280]
     B --> C{Rơi dưới ngưỡng rank?}
-    C -->|Có| D["⬇️ TỤT HẠNG<br/>(quyết định 2026-09-24)"]
+    C -->|Có| D["❌ PHẢI CHẶN ĐỔI<br/>(yêu cầu bảo vệ Rank)"]
     C -->|Không| E[Giữ hạng]
 
     F["Người Bạc, ngưỡng 672<br/>phải có 952 điểm<br/>mới đổi mà không tụt"] -.-> C
-    G["✅ GET /posts/:id/redemption-quote<br/>wouldDemote + rankAfter"] -.-> D
+    G["⚠️ Quote hiện chỉ cảnh báo tụt hạng<br/>chưa chặn giao dịch"] -.-> D
 
     style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
     style G fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
@@ -160,10 +164,9 @@ Mỗi lần đổi **bắt buộc** vào `point_ledger`:
 
 1. ✅ **Đã hiện thực** (26/09). `appendAdjustment` ghi sổ với số điểm truyền vào, và
    `acceptRequest` tự xoá `selection_deadline` nên đồng hồ dừng luôn.
-2. ✅ **Cảnh báo tụt hạng đã có** (29/09) — `wouldDemote` + `rankAfter` trong endpoint xem
-   trước, tính theo bậc thang thật trong `rank_tiers`. Luôn `false` khi `rank.points_source`
-   là LIFETIME: lúc đó tiêu điểm không đụng tới con số quyết hạng, nên cảnh báo ở đó là cảnh
-   báo sai.
+2. 🟡 **Quote mới cảnh báo tụt hạng, chưa bảo vệ Rank.** `wouldDemote` + `rankAfter` tính
+   theo bậc thang trong `rank_tiers`, nhưng POST hiện vẫn cho tiêu phần điểm cần để giữ hạng.
+   Nguồn tính Rank nay luôn là balance; tuỳ chọn `rank.points_source` đã được gỡ 02/10.
 3. ✅ **Endpoint xem giá trước đã có** (29/09) — `GET /posts/:postId/redemption-quote`.
 4. ✅ **Có, giống mọi lượt trao.** `acceptRequest` tạo một `gift_transaction` bình thường, nên
    khi COMPLETED thì hai bên đánh giá như thường và mức chính xác vào mẫu Giver Accuracy như
