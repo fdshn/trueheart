@@ -12,6 +12,7 @@ import {
   ICreatePostResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
+import { MaxClassifiedPrice } from '@chantam.vn/chantam.core-lib/models';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -35,7 +36,8 @@ const MaxTotalQuantity = 10_000;
 const MaxEstimatedValue = 1_000_000_000;
 
 /** Trần giá rao bán. Cùng bậc với trần giá trị ước tính để hai bên không lệch. */
-const MaxPrice = 1_000_000_000;
+/** Dùng lại trần chung ở `models/classified.ts` — trước đây là hai bản rịi nhau. */
+const MaxPrice = MaxClassifiedPrice;
 
 export class CreatePostDto implements ICreatePostDto {
   @ApiProperty({ enum: GenericMvpPostTypes })
@@ -88,6 +90,24 @@ export class CreatePostDto implements ICreatePostDto {
   @Min(0)
   @Max(MaxPrice)
   price?: number;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: MaxPrice,
+    description:
+      'Giá thị trường do người bán TỰ KHAI, để UI hiện % giảm (UI-MARKET-01). ' +
+      'TUỲ CHỌN — không biết giá thị trường thì để trống, và % giảm trả `null` chứ ' +
+      'không phải `0`. ' +
+      'CHỐT-05: hệ thống **không xác minh** con số này và **không ép** nó lớn hơn `price`. ' +
+      'Khai thấp hơn giá bán thì % ra số ÂM, và hiện đúng số âm đó.',
+  })
+  @IsOptional()
+  @ValidateIf((post) => post.postType === PostTypes.CLASSIFIED)
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(MaxPrice)
+  marketPrice?: number;
 
   @ApiPropertyOptional({
     default: false,

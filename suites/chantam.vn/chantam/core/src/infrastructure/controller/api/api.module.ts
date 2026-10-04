@@ -16,6 +16,7 @@ import { GiftRequestApiModule } from './gift-request/gift-request-api.module';
 import { GroupControllerModule } from './group/group.module';
 import { HomeCampaignControllerModule } from './home-campaign/home-campaign.module';
 import { LunarControllerModule } from './lunar/lunar.module';
+import { MeritControllerModule } from './merit/merit.module';
 import { NotificationControllerModule } from './notification/notification.module';
 import { OnboardingControllerModule } from './onboarding/onboarding.module';
 import { PointControllerModule } from './point/point.module';
@@ -25,6 +26,7 @@ import { RankControllerModule } from './rank/rank.module';
 import { ReferralControllerModule } from './referral/referral.module';
 import { ReportControllerModule } from './report/report.module';
 import { ReviewControllerModule } from './review/review.module';
+import { SponsorBannerControllerModule } from './sponsor-banner/sponsor-banner.module';
 import { TransactionControllerModule } from './transaction/transaction.module';
 
 /** Gom mọi controller module theo resource. */
@@ -33,6 +35,8 @@ import { TransactionControllerModule } from './transaction/transaction.module';
     AffiliateControllerModule,
     BlogControllerModule,
     CharityCampaignControllerModule,
+    SponsorBannerControllerModule,
+    MeritControllerModule,
     LunarControllerModule,
     HomeCampaignControllerModule,
     CheckInControllerModule,

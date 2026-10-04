@@ -799,4 +799,40 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     httpStatus: HttpStatus.CONFLICT,
     message: () => 'Hồ sơ này đã được xử lý',
   },
+
+  SPONSOR_BANNER_NOT_FOUND: {
+    code: ErrorCodes.SPONSOR_BANNER_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy banner',
+  },
+
+  SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED: {
+    code: ErrorCodes.SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Banner này đã được xử lý',
+  },
+
+  SPONSOR_BANNER_NOT_SERVING: {
+    code: ErrorCodes.SPONSOR_BANNER_NOT_SERVING,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Banner này không còn được hiển thị',
+  },
+
+  MERIT_UNIT_NOT_FOUND: {
+    code: ErrorCodes.MERIT_UNIT_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy đơn vị công đức',
+  },
+
+  MERIT_DECLARATION_NOT_FOUND: {
+    code: ErrorCodes.MERIT_DECLARATION_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy lời khai công đức',
+  },
+
+  MERIT_DECLARATION_ALREADY_COMPLETED: {
+    code: ErrorCodes.MERIT_DECLARATION_ALREADY_COMPLETED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Lời khai này đã được đánh dấu hoàn tất',
+  },
 });

@@ -132,6 +132,7 @@ function expectedDetails(postType: PostTypes): Record<string, unknown> {
       price: 5_200_000,
       condition: GiftPostConditions.USED,
       negotiable: false,
+      marketPrice: null,
     };
 
   return {};

@@ -24,6 +24,7 @@ import {
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  classifiedPricingGaps,
   postExpiryDate,
   resolveQuotaLimit,
 } from '@chantam.vn/chantam.core-lib/models';
@@ -49,6 +50,10 @@ function buildPostDetails(
     return {
       price: post.price,
       condition: post.condition,
+      // `null` khi nguời bán không khai giá thị trường. Ghi khóa với giá trị `null` thay vì
+      // bỏ hẳn khóa: `details` là `jsonb` không có lược đồ, nên một khóa VẮNG MẶT
+      // không nói được là "chưa khai" hay "phiên bản cũ chưa có trường này".
+      marketPrice: post.marketPrice ?? null,
       // Mặc định là không thương lượng: im lặng mà hiểu thành "có thương lượng"
       // là hứa hộ người bán một điều họ không nói.
       negotiable: post.negotiable ?? false,
@@ -113,10 +118,12 @@ export class CreatePostUseCase implements ICreatePostUseCase {
     // là biến món quà thành món hàng ngay trên giao diện.
     if (
       post.postType !== PostTypes.CLASSIFIED &&
-      (post.price !== undefined || post.negotiable !== undefined)
+      (post.price !== undefined ||
+        post.negotiable !== undefined ||
+        post.marketPrice !== undefined)
     )
       throw new ValidationFailedException([
-        'price và negotiable chỉ áp dụng cho bài CLASSIFIED',
+        'price, marketPrice và negotiable chỉ áp dụng cho bài CLASSIFIED',
       ]);
 
     // Bắt buộc ở tầng use case chứ không chỉ ở DTO: tin rao bán thiếu giá thì
@@ -124,6 +131,15 @@ export class CreatePostUseCase implements ICreatePostUseCase {
     if (post.postType === PostTypes.CLASSIFIED) {
       if (post.price === undefined)
         throw new ValidationFailedException(['bài CLASSIFIED phải có price']);
+      // `marketPrice` thì KHÔNG bắt buộc, và cũng không bắt phải lẻn hơn `price` —
+      // CHỐT-05 nói rõ hệ thống không ép mức giảm tối thiểu nào. Xem docblock
+      // `models/classified.ts`.
+      const pricingGaps = classifiedPricingGaps({
+        price: post.price,
+        marketPrice: post.marketPrice,
+      });
+      if (pricingGaps.length > 0)
+        throw new ValidationFailedException(pricingGaps);
       if (post.condition === undefined)
         throw new ValidationFailedException([
           'bài CLASSIFIED phải có condition',

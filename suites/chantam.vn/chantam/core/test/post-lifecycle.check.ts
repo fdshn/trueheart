@@ -207,12 +207,33 @@ async function main(): Promise<void> {
         expiresInDays: -1,
         details: { condition: 'LIKE_NEW' },
       },
+      // Có khai giá thị trường: món giá 3 triệu thanh lý 500k.
+      {
+        index: 8,
+        postType: 'CLASSIFIED',
+        status: 'PUBLISHED',
+        expiresInDays: -1,
+        details: {
+          price: 500000,
+          marketPrice: 3000000,
+          condition: 'GOOD',
+          negotiable: false,
+        },
+      },
+      // `marketPrice: null` là cách ghi "chưa khai" của `buildPostDetails`.
+      {
+        index: 9,
+        postType: 'CLASSIFIED',
+        status: 'PUBLISHED',
+        expiresInDays: -1,
+        details: { price: 250000, marketPrice: null, condition: 'GOOD' },
+      },
     ]);
 
     const swept = await posts.expireDuePosts(new Date());
     check(
       'đếm đúng số bài đã đóng và đã chuyển',
-      swept.expired === 1 && swept.convertedToOffer === 2,
+      swept.expired === 1 && swept.convertedToOffer === 4,
       JSON.stringify(swept),
     );
 
@@ -270,6 +291,31 @@ async function main(): Promise<void> {
       convertedNoPrice.post_type === 'OFFER' &&
         !('estimatedValue' in convertedNoPrice.details),
       JSON.stringify(convertedNoPrice.details),
+    );
+
+    // Giá trị món đồ = giá THỊ TRƯỜNG, không phải giá thanh lý.
+    const withMarket = await readPost(dataSource, 8);
+    check(
+      'có marketPrice thì estimatedValue lấy GIÁ THỊ TRƯỜNG, không lấy giá thanh lý',
+      Number(withMarket.details.estimatedValue) === 3000000,
+      JSON.stringify(withMarket.details),
+    );
+    check(
+      'estimatedValue là SỐ trong jsonb, không phải chuỗi',
+      typeof withMarket.details.estimatedValue === 'number',
+      typeof withMarket.details.estimatedValue,
+    );
+    check(
+      'không còn marketPrice trên bài tặng',
+      !('marketPrice' in withMarket.details),
+      JSON.stringify(withMarket.details),
+    );
+
+    const nullMarket = await readPost(dataSource, 9);
+    check(
+      'marketPrice null KHÔNG thắng giá bán khi tính estimatedValue',
+      Number(nullMarket.details.estimatedValue) === 250000,
+      JSON.stringify(nullMarket.details),
     );
 
     const sweptAgain = await posts.expireDuePosts(new Date());

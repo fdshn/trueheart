@@ -368,7 +368,32 @@ describe('CreatePostUseCase — tin rao vặt CLASSIFIED', () => {
       price: 5_200_000,
       condition: GiftPostConditions.USED,
       negotiable: true,
+      // Khóa CÓ MẶT với giá trị `null` khi người bán không khai giá thị trường.
+      // `details` là `jsonb` không có lược đồ, nên một khóa VẮNG MẶT không nói được
+      // là "chưa khai" hay "phiên bản cũ chưa có trường này".
+      marketPrice: null,
     });
+  });
+
+  it('lưu giá thị trường khi người bán có khai (CHỐT-05)', async () => {
+    const deps = makeDeps();
+
+    await run(deps, classified({ marketPrice: 8_000_000 }));
+
+    const saved = deps.posts.createPostWithinQuota.mock.calls[0][2];
+    expect(saved.details.marketPrice).toBe(8_000_000);
+  });
+
+  it('giá tham khảo THẤP hơn giá bán vẫn được lưu', async () => {
+    // CHỐT-05: hệ thống không ép mức giảm tối thiểu nào. Chặn ca này là âm thầm ép
+    // mức giảm tối thiểu bằng 0.
+    const deps = makeDeps();
+
+    await run(deps, classified({ marketPrice: 1_000_000 }));
+
+    const saved = deps.posts.createPostWithinQuota.mock.calls[0][2];
+    expect(saved.details.marketPrice).toBe(1_000_000);
+    expect(saved.details.price).toBe(5_200_000);
   });
 
   it('mặc định không thương lượng khi không nói gì', async () => {

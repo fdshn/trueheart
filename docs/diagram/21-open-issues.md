@@ -132,7 +132,7 @@ flowchart LR
     E["✅ Dashboard KPI — F59"]
     F["✅ Campaign & Home động — F63"]
     G["✅ Blog / Tin tức — F64"]
-    H["🟡 F65 — Từ thiện xong; Rao vặt, Quảng cáo, Công đức chưa"]
+    H["✅ F65 — Từ thiện, Rao vặt, Quảng cáo, Công đức"]
     I["⛔ FCM push — F44"]
 
     style A fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12

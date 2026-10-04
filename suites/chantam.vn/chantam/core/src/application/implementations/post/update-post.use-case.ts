@@ -112,11 +112,13 @@ export class UpdatePostUseCase implements IUpdatePostUseCase {
         'condition chỉ áp dụng cho bài OFFER và CLASSIFIED',
       ]);
     if (
-      (input.price !== undefined || input.negotiable !== undefined) &&
+      (input.price !== undefined ||
+        input.negotiable !== undefined ||
+        input.marketPrice !== undefined) &&
       post.postType !== PostTypes.CLASSIFIED
     )
       throw new ValidationFailedException([
-        'price và negotiable chỉ áp dụng cho bài CLASSIFIED',
+        'price, marketPrice và negotiable chỉ áp dụng cho bài CLASSIFIED',
       ]);
 
     const deliveryMethod =
@@ -139,7 +141,11 @@ export class UpdatePostUseCase implements IUpdatePostUseCase {
       hasOfferDetails ||
       input.condition !== undefined ||
       input.price !== undefined ||
-      input.negotiable !== undefined;
+      input.negotiable !== undefined ||
+      // `!== undefined` chứ không `!= null`: `marketPrice: null` là lệnh XOÁ con số đã
+      // khai, còn bỏ trống trường là "không đổi". Gộp hai thứ đó làm người bán
+      // không có cách nào rút lại một giá tham khảo gõ sai.
+      input.marketPrice !== undefined;
 
     const updated = await this.postRepository.updateOwnedContent({
       postId: command.postId,
@@ -175,6 +181,9 @@ export class UpdatePostUseCase implements IUpdatePostUseCase {
                 price: input.price,
                 negotiable: input.negotiable,
               }),
+              ...(input.marketPrice === undefined
+                ? {}
+                : { marketPrice: input.marketPrice }),
               ...(command.post.condition === undefined
                 ? {}
                 : { condition: command.post.condition }),

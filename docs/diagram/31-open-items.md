@@ -155,7 +155,7 @@ Xếp theo mức đáng làm trước.
 
 | # | Phân hệ | Mục |
 | --- | --- | --- |
-| T1 | [16](./16-admin.md) | ~~F63, F64~~ ✅ **ĐÓNG**. **F65** còn ba phần tư: phân hệ **Từ thiện** đóng 03/10 (3 bảng, 11 endpoint, cổng `SUBMIT_CHARITY_PROPOSAL`); **Rao vặt**, **Quảng cáo**, **Công đức** chưa có dòng nào |
+| T1 | [16](./16-admin.md) | ~~F63, F64, F65~~ ✅ **ĐÓNG đủ**. Từ thiện 03/10 (3 bảng, 11 endpoint, cổng `SUBMIT_CHARITY_PROPOSAL`). 04/10: **Rao vặt** thêm `details.marketPrice` (CHỐT-05 — giá tham khảo tự khai, % giảm KHÔNG lưu); **Quảng cáo** `sponsor_banners` + 8 endpoint + cặp `banner.*`; **Công đức** `merit_units` + `merit_declarations` + 10 endpoint + cặp `merit.*` (chỉ `SUPER_ADMIN` có `merit.manage`) |
 | T2 | [10](./10-notification.md) | **FCM push (F44)** — hạ tầng token đã xong, chỉ thiếu nhà cung cấp. Đây là việc **còn lại duy nhất** của đẩy thật |
 | T3 | [01](./01-auth.md) | **Chưa có đường cho Admin đặt lại mật khẩu hộ** |
 | T4 | [01](./01-auth.md) | **Mật khẩu chỉ yêu cầu 8 ký tự** — `12345678` qua được |

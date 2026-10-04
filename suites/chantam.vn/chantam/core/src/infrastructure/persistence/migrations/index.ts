@@ -101,3 +101,7 @@ export * from './1798000000000-AddCampaignManagerRole';
 export * from './1798100000000-CreateNotificationBroadcasts';
 export * from './1798200000000-CreateCharityCampaigns';
 export * from './1798400000000-WidenCampaignPermissionsForCharity';
+export * from './1798500000000-CreateSponsorBanners';
+export * from './1798600000000-AddBannerPermissions';
+export * from './1798700000000-CreateMeritUnits';
+export * from './1798800000000-AddMeritPermissions';

@@ -16,6 +16,7 @@ import { GroupModule } from './implementations/group/group.module';
 import { HomeCampaignUseCaseModule } from './implementations/home-campaign/home-campaign.module';
 import { LunarUseCaseModule } from './implementations/lunar/lunar.module';
 import { MediaModule } from './implementations/media/media.module';
+import { MeritUseCaseModule } from './implementations/merit/merit.module';
 import { NotificationUseCaseModule } from './implementations/notification/notification.module';
 import { OnboardingModule } from './implementations/onboarding/onboarding.module';
 import { PointModule } from './implementations/point/point.module';
@@ -26,6 +27,7 @@ import { RankModule } from './implementations/rank/rank.module';
 import { ReferralModule } from './implementations/referral/referral.module';
 import { ReportModule } from './implementations/report/report.module';
 import { ReviewModule } from './implementations/review/review.module';
+import { SponsorBannerUseCaseModule } from './implementations/sponsor-banner/sponsor-banner.module';
 import { TransactionModule } from './implementations/transaction/transaction.module';
 
 /**
@@ -43,6 +45,8 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
     ReviewModule,
     BlogUseCaseModule,
     CharityCampaignUseCaseModule,
+    SponsorBannerUseCaseModule,
+    MeritUseCaseModule,
     HomeCampaignUseCaseModule,
     LunarUseCaseModule,
     NotificationUseCaseModule,

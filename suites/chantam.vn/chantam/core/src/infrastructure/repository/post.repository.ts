@@ -836,18 +836,36 @@ export class PostRepository
 
       if (toOffer.length > 0)
         // Rao vặt hết hạn thì THÀNH bài Muốn Tặng, không biến mất (CHỐT-05).
-        // Giá đã khai chuyển thành giá trị tham khảo; cờ thương lượng bỏ đi
-        // vì món đồ không còn được bán nữa.
+        // Cờ thương lượng bỏ đi vì món đồ không còn được bán nữa.
+        //
+        // `estimatedValue` của bài Muốn Tặng nghĩa là "món này giá trị bao nhiêu", nên nó
+        // ưu tiên `marketPrice` — giá THỊ TRƯỜNG người bán khai — rồi mới lùi về `price`.
+        // Lấy `price` khi đã có `marketPrice` là ghi giá THANH LÝ thành giá trị món đồ, tức
+        // một món giá thị trường 3 triệu bán 500k sẽ thành món quà "trị giá 500k".
+        //
+        // `COALESCE` trên `jsonb` cần `details -> 'x'` (toán tử `->` trả `jsonb`), không
+        // phải `->>`: `->>` trả `text`, và `jsonb_build_object` sẽ bọc nó thành CHUỖI
+        // `"500000"` thay vì số. Khi đó mọi phép lọc khoảng giá trị ở phía đọc đều so chuỗi.
         await manager.query(
           `
             UPDATE posts
             SET post_type = 'OFFER',
                 expires_at = $2::timestamptz + make_interval(months => $3),
                 details = CASE
-                  WHEN jsonb_exists(details, 'price')
-                    THEN (details - 'price' - 'negotiable')
-                         || jsonb_build_object('estimatedValue', details -> 'price')
-                  ELSE details - 'negotiable'
+                  WHEN jsonb_typeof(details -> 'marketPrice') = 'number'
+                    OR jsonb_exists(details, 'price')
+                    THEN (details - 'price' - 'negotiable' - 'marketPrice')
+                         || jsonb_build_object(
+                              'estimatedValue',
+                              COALESCE(
+                                CASE
+                                  WHEN jsonb_typeof(details -> 'marketPrice') = 'number'
+                                    THEN details -> 'marketPrice'
+                                END,
+                                details -> 'price'
+                              )
+                            )
+                  ELSE details - 'negotiable' - 'marketPrice'
                 END,
                 updated_at = now()
             WHERE global_id = ANY($1::uuid[]) AND status = 'PUBLISHED'

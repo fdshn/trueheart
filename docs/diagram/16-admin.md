@@ -185,9 +185,11 @@ flowchart LR
    Phân bổ hạng đọc từ chính `users.rank`, **không tính lại từ điểm**: bảng phải nói đúng cái mà
    hệ thống đang DÙNG để cấp quyền, kể cả khi nó đang lệch với điểm. Tính lại sẽ che mất chính
    xác loại lệch cần thấy.
-2. ✅ **Campaign & Home động (F63)** và ✅ **Blog / Tin tức (F64)** đã xong. 🟡 **F65** làm
-   được **một phần tư**: phân hệ **Từ thiện** đã có đủ bảng, endpoint và cổng quyền
-   (03/10). Còn **Rao vặt**, **Quảng cáo**, **Công đức** — chưa có dòng nào.
+2. ✅ **Campaign & Home động (F63)**, ✅ **Blog / Tin tức (F64)** và ✅ **F65 đủ bốn phân
+   hệ** đã xong: Từ thiện (03/10), Rao vặt, Quảng cáo và Công đức (04/10). Ba cặp quyền
+   riêng: `campaign.*` (nới nghĩa cho Từ thiện), `banner.*`, `merit.*`. `merit.manage` là quyền
+   nạng nhất trong CMS — nó sửa được **số tài khoản ngân hàng** của đơn vị nhận công đức,
+   nên chỉ `SUPER_ADMIN` được cấp.
 3. ✅ **Cả hai hàng đợi đã có** — `GET /admin/users?accuracyReviewRequired=true` cho hồ sơ bị gắn
    cờ accuracy, và `GET /admin/comments` kèm `/admin/comments/pending-count` cho bình luận chờ
    duyệt.

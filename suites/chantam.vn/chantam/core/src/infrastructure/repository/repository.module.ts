@@ -17,6 +17,7 @@ import {
   IGroupRepository,
   IHomeCampaignRepository,
   ILunarHolidayRepository,
+  IMeritRepository,
   INotificationBroadcastRepository,
   INotificationChannelRepository,
   INotificationRepository,
@@ -28,6 +29,7 @@ import {
   IRankRepository,
   IReferralRepository,
   IReportRepository,
+  ISponsorBannerRepository,
   ISystemLogRepository,
   ITransactionReviewRepository,
   IUserOnboardingTaskCompletionRepository,
@@ -58,6 +60,7 @@ import {
   BulkNotifyAudienceRepository,
   LunarHolidayRepository,
 } from './lunar-holiday.repository';
+import { MeritRepository } from './merit.repository';
 import { NotificationBroadcastRepository } from './notification-broadcast.repository';
 import { NotificationChannelRepository } from './notification-channel.repository';
 import { NotificationTemplateRepository } from './notification-template.repository';
@@ -69,6 +72,7 @@ import { PostRepository } from './post.repository';
 import { RankRepository } from './rank.repository';
 import { ReferralRepository } from './referral.repository';
 import { ReportRepository } from './report.repository';
+import { SponsorBannerRepository } from './sponsor-banner.repository';
 import { SystemLogRepository } from './system-log.repository';
 import { TransactionReviewRepository } from './transaction-review.repository';
 import { UserOnboardingTaskCompletionRepository } from './user-onboarding-task-completion.repository';
@@ -104,6 +108,11 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
       provide: ICharityCampaignRepository,
       useClass: CharityCampaignRepository,
     },
+    {
+      provide: ISponsorBannerRepository,
+      useClass: SponsorBannerRepository,
+    },
+    { provide: IMeritRepository, useClass: MeritRepository },
     {
       provide: ILunarHolidayRepository,
       useClass: LunarHolidayRepository,
@@ -180,6 +189,8 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     IEntitlementRepository,
     IBlogRepository,
     ICharityCampaignRepository,
+    ISponsorBannerRepository,
+    IMeritRepository,
     IHomeCampaignRepository,
     IBulkNotifyAudienceRepository,
     ILunarHolidayRepository,

@@ -90,6 +90,13 @@ export interface ICreatePostDto extends ICreatePostCommonDto {
   totalQuantity?: number;
   /** Giá bán, chỉ dùng cho bài CLASSIFIED. Đơn vị VND, số nguyên. */
   price?: number;
+  /**
+   * Giá thị trường do người bán TỰ KHAI, chỉ dùng cho bài CLASSIFIED (CHỐT-05).
+   *
+   * Tuỳ chọn. Hệ thống không xác minh con số này và không ép nó lốn hơn `price` —
+   * xem docblock `models/classified.ts`.
+   */
+  marketPrice?: number;
   /** Có thương lượng giá hay không. Chỉ dùng cho bài CLASSIFIED. */
   negotiable?: boolean;
   /** Chế độ tìm người nhận — chỉ áp dụng cho bài OFFER, mặc định OPTIMAL. */
@@ -419,6 +426,8 @@ export interface IUpdatePostDto {
   deliveryMethod?: DeliveryMethods | null;
   shipPayer?: ShipPayers | null;
   price?: number;
+  /** Giá thị trường tự khai (CHỐT-05). Gửi `null` để xoá con số đã khai. */
+  marketPrice?: number | null;
   negotiable?: boolean;
   title?: string;
   description?: string;

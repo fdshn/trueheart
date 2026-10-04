@@ -10,6 +10,7 @@ import {
   IUpdatePostResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
+import { MaxClassifiedPrice } from '@chantam.vn/chantam.core-lib/models';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -58,13 +59,28 @@ export class UpdatePostDto implements IUpdatePostDto {
   @IsEnum(ShipPayers)
   shipPayer?: ShipPayers | null;
 
-  @ApiPropertyOptional({ minimum: 0, maximum: 1_000_000_000 })
+  @ApiPropertyOptional({ minimum: 0, maximum: MaxClassifiedPrice })
   @ValidateIf((_post, value) => value !== undefined)
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  @Max(1_000_000_000)
+  @Max(MaxClassifiedPrice)
   price?: number;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: MaxClassifiedPrice,
+    nullable: true,
+    description:
+      'Giá thị trường tự khai (CHỐT-05). Gửi `null` để **xoá** con số đã khai — ' +
+      'khác với bỏ trống trường, là "không đổi".',
+  })
+  @ValidateIf((_post, value) => value !== undefined && value !== null)
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(MaxClassifiedPrice)
+  marketPrice?: number | null;
 
   @ApiPropertyOptional()
   @ValidateIf((_post, value) => value !== undefined)
