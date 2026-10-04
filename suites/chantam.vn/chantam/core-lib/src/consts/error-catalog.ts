@@ -859,4 +859,16 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     httpStatus: HttpStatus.CONFLICT,
     message: () => 'Lượt tụng này đã được đánh dấu hoàn tất',
   },
+
+  DHARMA_THREAD_NOT_FOUND: {
+    code: ErrorCodes.DHARMA_THREAD_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy chủ đề',
+  },
+
+  DHARMA_THREAD_LOCKED: {
+    code: ErrorCodes.DHARMA_THREAD_LOCKED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Chủ đề này đã khoá bình luận',
+  },
 });

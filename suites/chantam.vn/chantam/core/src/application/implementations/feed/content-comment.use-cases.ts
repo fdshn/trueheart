@@ -24,12 +24,15 @@ import {
   ContentBlockedTermsException,
   ContentCommentNotFoundException,
   ContentEditWindowClosedException,
+  DharmaThreadLockedException,
+  DharmaThreadNotFoundException,
   PostNotFoundException,
 } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
   IContentComment,
   IContentCommentRepository,
+  IDharmaRepository,
   IEntitlementRepository,
   IPostRepository,
 } from '@/domain/ports/repository';
@@ -43,9 +46,11 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IContentCommentDto } from '@chantam.vn/chantam.core-lib/dto';
 import {
+  acceptsThreadComments,
   clampChatMessageLimit,
   decodeKeysetCursor,
   encodeKeysetCursor,
+  isPubliclyVisibleThread,
   ModerationTermsConfigKey,
   ModerationVerdicts,
   normalizeBlockedTerms,
@@ -160,6 +165,8 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
     @Inject(IEntitlementRepository)
     private readonly entitlements: IEntitlementRepository,
     @Inject(IPostRepository) private readonly posts: IPostRepository,
+    // Cần cho nhánh `DHARMA_THREAD`: chủ đề phải có thật, đang hiện, và chưa khoá (F73).
+    @Inject(IDharmaRepository) private readonly dharma: IDharmaRepository,
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
     @Inject(IObjectStorage) private readonly storage: IObjectStorage,
@@ -203,6 +210,23 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
       if (!post || post.deletedAt)
         throw new PostNotFoundException(command.subjectId);
       postAuthorId = post.authorId ?? null;
+    }
+
+    // Chủ đề Diễn đàn Phật Pháp (F73, UC-DHARMA-03).
+    //
+    // Hai phép kiểm, và phép thứ hai là một yêu cầu đặc tả chứ không phải phòng xa:
+    //
+    // 1. Chủ đề phải CÓ THẬT và đang hiện. Trước 04/10 nhánh này không tồn tại, nên bình
+    //    luận vào một `DHARMA_THREAD` bất kỳ cũng được — kể cả một UUID bịa.
+    // 2. **`isLocked`** — UC-DHARMA-03 cho Admin *"khóa bình luận"*. Khoá mà vẫn nhận bình
+    //    luận thì cái nút đó không làm gì, và Admin tưởng mình đã dừng được cuộc tranh luận.
+    if (command.subjectType === ContentSubjectTypes.DHARMA_THREAD) {
+      const thread = await this.dharma.findThreadByGlobalId(command.subjectId);
+      if (!thread || !isPubliclyVisibleThread(thread.status))
+        throw new DharmaThreadNotFoundException();
+      if (!acceptsThreadComments(thread))
+        throw new DharmaThreadLockedException();
+      postAuthorId = thread.authorId;
     }
 
     // Trả lời phải trỏ vào một bình luận CÓ THẬT của ĐÚNG chủ thể này. Thiếu

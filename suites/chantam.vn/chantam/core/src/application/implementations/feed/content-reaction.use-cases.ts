@@ -11,9 +11,13 @@ import {
 } from '@/application/contracts/feed';
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import { IAppendPointEntryUseCase } from '@/application/contracts/point';
-import { PostNotFoundException } from '@/domain/exceptions';
+import {
+  DharmaThreadNotFoundException,
+  PostNotFoundException,
+} from '@/domain/exceptions';
 import {
   IContentReactionRepository,
+  IDharmaRepository,
   IEntitlementRepository,
   IPostRepository,
 } from '@/domain/ports/repository';
@@ -21,6 +25,7 @@ import {
   ContentSubjectTypes,
   ReactContentCapability,
 } from '@chantam.vn/chantam.core-lib/consts';
+import { isPubliclyVisibleThread } from '@chantam.vn/chantam.core-lib/models';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
@@ -39,6 +44,7 @@ import { awardReactionPoint } from './feed-points';
 class SubjectGuard {
   public constructor(
     @Inject(IPostRepository) private readonly posts: IPostRepository,
+    @Inject(IDharmaRepository) private readonly dharma: IDharmaRepository,
   ) {}
 
   /** Trả chủ bài để bên gọi khỏi nạp lại bài lần nữa chỉ để gửi thông báo. */
@@ -46,11 +52,33 @@ class SubjectGuard {
     subjectType: ContentSubjectTypes,
     subjectId: string,
   ): Promise<{ authorId: string | null }> {
-    if (subjectType !== ContentSubjectTypes.POST) return { authorId: null };
+    if (subjectType === ContentSubjectTypes.POST) {
+      const post = await this.posts.findOneBy({ globalId: subjectId });
+      if (!post || post.deletedAt) throw new PostNotFoundException(subjectId);
+      return { authorId: post.authorId ?? null };
+    }
 
-    const post = await this.posts.findOneBy({ globalId: subjectId });
-    if (!post || post.deletedAt) throw new PostNotFoundException(subjectId);
-    return { authorId: post.authorId ?? null };
+    // Chủ đề Diễn đàn Phật Pháp (F73).
+    //
+    // Trước 04/10 nhánh này KHÔNG tồn tại: hàm trả `{authorId: null}` cho mọi loại không
+    // phải POST, nên thả cảm xúc vào một `DHARMA_THREAD` không có thật cũng được, và hàng
+    // `content_reactions` nằm đó trỏ vào hư không. Lỗ đó vô hại khi chưa có chủ đề nào —
+    // nay có rồi.
+    //
+    // Chủ đề đang chờ duyệt hoặc đã ẩn cũng trả "không tìm thấy": nó chưa (hoặc không còn)
+    // hiện ra ngoài, nên sự TỒN TẠI của nó cũng vậy.
+    if (subjectType === ContentSubjectTypes.DHARMA_THREAD) {
+      const thread = await this.dharma.findThreadByGlobalId(subjectId);
+      if (!thread || !isPubliclyVisibleThread(thread.status))
+        throw new DharmaThreadNotFoundException();
+      return { authorId: thread.authorId };
+    }
+
+    // `COMMENT` vẫn chưa kiểm — đó là nợ CÓ TỪ TRƯỚC, không phải thứ bản này tạo ra. Thả
+    // cảm xúc vào một bình luận không có thật để lại một hàng mồ côi; không ai mất gì và
+    // không con số nào trên bài sai, vì số đếm của bài tính theo `subject_type = 'POST'`.
+    // Ghi ra để lần soát sau không ai đọc khoảng trống này thành "đã kiểm".
+    return { authorId: null };
   }
 }
 
@@ -62,6 +90,8 @@ export class SetContentReactionUseCase implements ISetContentReactionUseCase {
     @Inject(IEntitlementRepository)
     private readonly entitlements: IEntitlementRepository,
     @Inject(IPostRepository) private readonly posts: IPostRepository,
+    // Cần cho `SubjectGuard`: chủ đề Diễn đàn phải được kiểm có thật và đang hiện (F73).
+    @Inject(IDharmaRepository) private readonly dharma: IDharmaRepository,
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatchNotification: IDispatchNotificationUseCase,
     @Inject(IAppendPointEntryUseCase)
@@ -79,10 +109,10 @@ export class SetContentReactionUseCase implements ISetContentReactionUseCase {
     );
     if (!capability?.allowed) throw new ForbiddenException();
 
-    const { authorId } = await new SubjectGuard(this.posts).assertExists(
-      command.subjectType,
-      command.subjectId,
-    );
+    const { authorId } = await new SubjectGuard(
+      this.posts,
+      this.dharma,
+    ).assertExists(command.subjectType, command.subjectId);
 
     // `created` chỉ đúng khi đây là lượt bày tỏ MỚI. Đổi LIKE sang LOVE không
     // đáng một thông báo — vẫn là người đó, vẫn là sự quan tâm đó.

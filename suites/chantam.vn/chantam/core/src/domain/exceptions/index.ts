@@ -6,6 +6,7 @@ export * from './charity-campaign.exception';
 export * from './chat.exception';
 export * from './check-in.exception';
 export * from './content.exception';
+export * from './dharma-forum.exception';
 export * from './dharma.exception';
 export * from './entitlement.exception';
 export * from './gift-post-already-closed.exception';

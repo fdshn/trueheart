@@ -207,6 +207,19 @@ export class ReportRepository
       return row?.exists === true;
     }
 
+    // Chủ đề cũng không xoá cứng mà đổi trạng thái, nên loại `REMOVED` y như bình luận: báo
+    // xấu một chủ đề đã gỡ thì Admin không còn gì để xử.
+    if (targetType === ReportTargetTypes.DHARMA_THREAD) {
+      const [row] = await this.manager.query<{ exists: boolean }[]>(
+        `SELECT EXISTS(
+           SELECT 1 FROM dharma_threads
+           WHERE global_id = $1 AND status <> 'REMOVED'
+         ) AS "exists"`,
+        [targetId],
+      );
+      return row?.exists === true;
+    }
+
     // Tin nhắn không có `deleted_at`: job dọn theo hạn XOÁ hẳn dòng. Nên chỉ
     // cần dòng còn đó là báo xấu được — kể cả tin đã thu hồi, vì chính việc
     // thu hồi sau khi gửi bậy là thứ Admin cần biết.

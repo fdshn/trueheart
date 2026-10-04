@@ -1,4 +1,7 @@
-import { DharmaContentType } from '@chantam.vn/chantam.core-lib/models';
+import {
+  DharmaContentType,
+  DharmaThreadStatus,
+} from '@chantam.vn/chantam.core-lib/models';
 
 export interface IDharmaContent {
   readonly globalId: string;
@@ -39,6 +42,51 @@ export interface IDharmaRecitation {
   readonly startedAt: Date;
   readonly completedAt: Date | null;
   readonly durationSeconds: number | null;
+}
+
+export interface IDharmaThread {
+  readonly globalId: string;
+  readonly authorId: string | null;
+  readonly title: string;
+  readonly bodyText: string;
+  readonly category: string | null;
+  readonly status: DharmaThreadStatus;
+  readonly flaggedTerms: string | null;
+  readonly isLocked: boolean;
+  readonly isPinned: boolean;
+  readonly moderatedBy: string | null;
+  readonly moderatedAt: Date | null;
+  readonly moderationNote: string | null;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  /**
+   * Hai con số ĐẾM LÚC ĐỌC từ `content_comments` và `content_reactions`.
+   *
+   * KHÔNG phải cột lưu sẵn: `posts.comment_count` và `posts.reaction_count` là bản sao của
+   * đúng hai bảng đó và chúng đã trôi. Ở đây hai bảng có sẵn nên đếm.
+   */
+  readonly commentCount: number;
+  readonly reactionCount: number;
+}
+
+export interface IDharmaDedication {
+  readonly globalId: string;
+  readonly userId: string;
+  readonly recitationId: string | null;
+  readonly dedicateeName: string | null;
+  readonly text: string;
+  readonly isPublic: boolean;
+  readonly isAnonymous: boolean;
+  readonly createdAt: Date;
+}
+
+/** Một hàng trong danh sách hồi hướng công khai — đã bỏ tên khi người khai chọn ẩn danh. */
+export interface IPublicDedication {
+  readonly globalId: string;
+  readonly dedicatorLabel: string;
+  readonly dedicateeName: string | null;
+  readonly text: string;
+  readonly createdAt: Date;
 }
 
 export interface IWriteDharmaContentParams {
@@ -146,6 +194,82 @@ export interface IDharmaRepository {
    * và bản sao thì trôi.
    */
   countCompletedRecitations(contentId: string): Promise<number>;
+
+  // ── Diễn đàn Phật Pháp (UC-DHARMA-03) ───────────────────────────────────────
+
+  createThread(params: {
+    readonly authorId: string;
+    readonly title: string;
+    readonly bodyText: string;
+    readonly category: string | null;
+    readonly status: DharmaThreadStatus;
+    readonly flaggedTerms: string | null;
+  }): Promise<IDharmaThread>;
+
+  /**
+   * Bất kể trạng thái — dùng cho mọi lượt kiểm quyền và cho `SubjectGuard`.
+   *
+   * Đây là thứ `SubjectGuard` của cảm xúc/bình luận thiếu trước 04/10: nó trả
+   * `{authorId: null}` cho mọi loại không phải POST, nên thả cảm xúc vào một `DHARMA_THREAD`
+   * không tồn tại cũng được.
+   */
+  findThreadByGlobalId(globalId: string): Promise<IDharmaThread | null>;
+
+  listPublicThreads(query: {
+    readonly limit: number;
+    readonly offset: number;
+    readonly category?: string;
+  }): Promise<{ readonly items: IDharmaThread[]; readonly total: number }>;
+
+  listThreadsForAdmin(query: {
+    readonly limit: number;
+    readonly offset: number;
+    readonly status?: DharmaThreadStatus;
+  }): Promise<{ readonly items: IDharmaThread[]; readonly total: number }>;
+
+  /**
+   * Lượt kiểm duyệt của Admin: đổi trạng thái, khoá bình luận, ghim.
+   *
+   * Ba việc một endpoint vì chúng cùng một hành động nghiệp vụ (UC-DHARMA-03 liệt kê
+   * chúng trong một câu) và cùng ghi một dấu vết `moderated_by`/`moderated_at`.
+   */
+  moderateThread(params: {
+    readonly threadId: string;
+    readonly moderatorId: string;
+    readonly status?: DharmaThreadStatus;
+    readonly isLocked?: boolean;
+    readonly isPinned?: boolean;
+    readonly note: string | null;
+  }): Promise<IDharmaThread | null>;
+
+  // ── Hồi hướng (UC-DHARMA-04) ──────────────────────────────────────────────────
+
+  createDedication(params: {
+    readonly userId: string;
+    readonly recitationId: string | null;
+    readonly dedicateeName: string | null;
+    readonly text: string;
+    readonly isPublic: boolean;
+    readonly isAnonymous: boolean;
+  }): Promise<IDharmaDedication>;
+
+  /**
+   * Danh sách hồi hướng công khai.
+   *
+   * Tên người ẩn danh KHÔNG ra khỏi đây — câu SQL không kéo nó về. Lọc ở tầng gần dự
+   * liệu nhất là cách duy nhất để một endpoint thêm sau này không tự tạo một lối rò, và
+   * `test:merit` đã bắt được lỗi "hai lớp che nhau" khi tôi làm kiểu khác.
+   */
+  listPublicDedications(query: {
+    readonly limit: number;
+    readonly offset: number;
+  }): Promise<{ readonly items: IPublicDedication[]; readonly total: number }>;
+
+  listOwnDedications(query: {
+    readonly userId: string;
+    readonly limit: number;
+    readonly offset: number;
+  }): Promise<{ readonly items: IDharmaDedication[]; readonly total: number }>;
 }
 
 export const IDharmaRepository = Symbol('IDharmaRepository');

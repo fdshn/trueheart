@@ -107,3 +107,4 @@ export * from './1798700000000-CreateMeritUnits';
 export * from './1798800000000-AddMeritPermissions';
 export * from './1798900000000-CreateDharmaContents';
 export * from './1799000000000-AddDharmaPermissions';
+export * from './1799100000000-CreateDharmaForum';

@@ -49,6 +49,11 @@ function makeDeps(overrides: Partial<Record<string, unknown>> = {}) {
       registerHit: jest.fn(async () => undefined),
     },
     points: { handle: jest.fn(async () => undefined) },
+    // `findThreadByGlobalId` trả `null` là mặc định đúng cho nhóm spec này: mọi ca ở đây bình
+    // luận vào POST, nên nhánh `DHARMA_THREAD` không chạy. Ca chủ đề được canh ở
+    // `test:dharma-forum` với chuỗi thật, vì điều đáng kiểm là khoá bình luận có chặn thật
+    // không — một mock trả `isLocked: true` chỉ chứng minh `if` có chạy.
+    dharma: { findThreadByGlobalId: jest.fn(async () => null) },
     ...overrides,
   };
 
@@ -56,6 +61,7 @@ function makeDeps(overrides: Partial<Record<string, unknown>> = {}) {
     deps.comments as never,
     deps.entitlements as never,
     deps.posts as never,
+    deps.dharma as never,
     deps.adminConfig as never,
     deps.storage as never,
     deps.dispatchNotification as never,

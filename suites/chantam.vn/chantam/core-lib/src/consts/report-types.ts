@@ -11,6 +11,14 @@ export enum ReportTargetTypes {
    * đúng vào dòng cần đọc mới mở được đường điều tra.
    */
   CHAT_MESSAGE = 'CHAT_MESSAGE',
+  /**
+   * Một chủ đề trên Diễn đàn Phật Pháp (UC-DHARMA-03, F73).
+   *
+   * Chung hàng đợi Admin với bài, bình luận, người dùng và tin nhắn — đầu tiển là một màn
+   * kiểm duyệt, không phải năm. Đúng điều UC-DHARMA-03 nói: *"tái sử dụng cơ chế
+   * Post/Comment/Like/Report/Moderation hiện có"*.
+   */
+  DHARMA_THREAD = 'DHARMA_THREAD',
 }
 
 export enum ReportReasons {
