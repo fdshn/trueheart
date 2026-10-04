@@ -30,10 +30,19 @@ Tổng effort nguồn: **60 man-days / 50 ngày / 4 sprint**.
 
 ## Tiến độ hiện tại
 
-**Đang ở cuối Sprint 3** (soát 02/10/2026). `M1`, `M2`, `M3` đã đóng. `M4` còn đúng **F40**
-chờ Bên A cho con số. `M5` **đóng phần cơ chế** sau khi dựng affiliate engine — còn `F50`
-một nửa và `F47` thông báo theo khu vực. `M6` có nền API nhưng **chưa có giao diện**, và
-toàn bộ chặng vận hành/UAT/bàn giao chưa bắt đầu.
+**Đang ở cuối Sprint 3** (soát 04/10/2026). `M1`–`M4` đã đóng. `M5` **đóng phần cơ chế**
+sau khi dựng affiliate engine — còn `F50` một nửa. `M6` đã **đủ API**, nhưng **chưa có giao
+diện** (front-end Admin ở repo khác). Toàn bộ chặng vận hành/UAT/bàn giao chưa bắt đầu.
+
+> **Hai dòng đã sửa ở lượt soát 04/10, vì bản trước nói sai trạng thái:**
+>
+> - `M4` từng ghi *"còn đúng F40 chờ Bên A cho con số"*. **F40 không chờ gì.** Con số là
+>   `point_rules.GIFT_COMPLETED_GIVER` = 56 — một dòng cấu hình Admin sửa được lúc chạy, không
+>   phải một hằng trong mã nguồn; dạng ánh xạ đã chốt 24/09 là **tuyến tính** `trần × x%`; và
+>   `AwardGiftCompletionUseCase` đã nối cả hai đường kích hoạt (người nhận đánh giá, hoặc
+>   `npm run gift:settle-rewards` khi hết thối hạn chờ). `test:gift-rewards` có phép kiểm canh
+>   *"số điểm là bản đã nhân (50), không phải mức trần phẳng (56)"*.
+> - `F47` từng ghi là còn thiếu — **đóng 03/10** (`2020ceb`).
 
 > Ba tính năng nay **ship ở trạng thái TẮT** chờ Bên A chốt số: điểm danh F83, affiliate
 > F56–F58, và điểm theo giá trị vật phẩm F40. Cả ba đã dựng xong cơ chế, và con số là một
@@ -54,7 +63,7 @@ toàn bộ chặng vận hành/UAT/bàn giao chưa bắt đầu.
 | Sprint 3 – điểm danh & streak (F83) | ✅ Đã có, **ship ở trạng thái TẮT** | 7 bảng, 6 endpoint, policy có version/audit. Chờ Bên A duyệt bộ số đã seed sẵn (`GET /admin/check-in-policy`) rồi publish `enabled: true` |
 | Sprint 3 – review & accuracy (F42, F43) | ✅ Đã có | Đánh giá hai chiều `GIVER`/`RECEIVER` trên bảng chỉ ghi thêm; Giver Accuracy ngưỡng 75% / tối thiểu 5 mẫu, có hàng đợi soát cho Admin |
 | Sprint 3 – affiliate engine (F56–F58) | ✅ Đã có, **ship ở trạng thái TẮT** | 3 bảng, 4 endpoint Admin, hook ở đăng bài và hoàn tất lượt trao, 32 phép kiểm trên Postgres thật. **M5 nay đóng phần cơ chế.** Chờ Bên A chốt A1 (cách chia), A3 (điểm từng loại), A4 (trần ngày) — cả ba là lựa chọn trong `PUT /admin/affiliate-policy` |
-| Sprint 3–4 (phần còn lại) | ⬜ Chưa triển khai | **Toàn bộ giao diện Admin CMS chưa có một dòng nào** — không có `apps/`, không package frontend nào. Cộng Dharma Hub, FCM đẩy thật, KPI/campaign/blog, lịch âm, và chặng vận hành/UAT/bàn giao |
+| Sprint 3–4 (phần còn lại) | 🟡 Còn ba việc | **API đã đủ** sau khi đóng F59 (KPI), F63 (Home động), F64 (Blog) và F65 (Từ thiện/Rao vặt/Quảng cáo/Công đức). Còn lại: **F73 Dharma Hub** — chưa có bảng hay endpoint nào, chỉ một giá trị enum `DHARMA_THREAD` để dành sẵn; **giao diện Admin CMS** (ở repo khác); và **chặng vận hành/UAT/bàn giao** gồm FCM đẩy thật |
 
 ---
 
@@ -133,10 +142,10 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 | 15 | Group & affiliate | Invite account mới, dissolve group khi owner xoá | M5 + F06 | ✅ F54–F55 — link mời không tự hết hạn khi nhóm ACTIVE, owner xoá tài khoản thì nhóm giải tán và KHÔNG chuyển owner |
 | 16 | Group & affiliate | Affiliate recurring, reward active member, idempotency/reversal | M5 | ✅ F56 — ba bảng, hook thật ở đăng bài và hoàn tất lượt trao, chống trùng ở database theo đúng bộ ba của BR-AFF-04, thu hồi ghi thêm bút toán đảo. **Ship ở trạng thái TẮT** chờ Bên A chốt A1–A4 |
 | 17 | Group & affiliate | Geo eligibility và audit mọi event | M5 | ✅ F57–F58 — `ST_DWithin` chạy trước khi chia, ràng buộc database chặn sự kiện ngoài vùng mang điểm; mọi sự kiện lưu kèm `location_source`/`distance`/`radius` và đọc được qua `GET /admin/affiliate-events` |
-| 18 | Point & review | Point rule/ledger, review quality, giver accuracy | M4 | 🟡 F39 (kèm hoàn bút toán VÀ `POST /admin/points/adjust`, cả hai ghi audit), F41 (đang BẬT), F42 (hai chiều), F43 (75% / 5 mẫu) đã xong. **Còn đúng F40 — chờ Bên A cho con số "X điểm = 100% giá trị"** |
+| 18 | Point & review | Point rule/ledger, review quality, giver accuracy | M4 | ✅ F39 (kèm hoàn bút toán VÀ `POST /admin/points/adjust`, cả hai ghi audit), F40, F41 (đang BẬT), F42 (hai chiều), F43 (75% / 5 mẫu). **F40 không chờ Bên A** — con số nằm ở `point_rules.GIFT_COMPLETED_GIVER` (56, Admin sửa lúc chạy) và `system_configs.review.grace` (80% sau 7 ngày); `AwardGiftCompletionUseCase` nhân trần với % người nhận chấm, một khoá chống trùng cho cả hai đường kích hoạt |
 | 18a | Điểm danh & streak (F83) | Lịch sử/ngày, mốc thưởng, lượt bù từ giao dịch tặng/nhận quà hoàn tất, cấu hình Admin, UAT | M4 + M6 | ✅ Backend xong 02/10 — 7 bảng, 6 endpoint, 38 phép kiểm trên Postgres thật. **Ship ở trạng thái TẮT** chờ Bên A duyệt số. Phần app và CMS vẫn chưa có (xem hàng 22) |
-| 19 | Nội dung đặc thù & Phật Pháp | Charity/Event, Classified, ads, Merit, Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng dường, Diễn đàn, Chùa) | M2 extension + F73 | ⬜ |
-| 20 | Admin CMS | Rule config, moderation cơ bản | M6 | 🟡 **API đã có, GIAO DIỆN thì chưa.** Kiểm duyệt bài/báo xấu, RBAC, cấu hình rule điểm/hạng/entitlement/điểm danh, hoàn bút toán và cộng/trừ điểm tay, danh mục, mẫu thông báo, ngưỡng Giver Accuracy — tất cả gọi được qua HTTP. Nhưng **không có `apps/`, không package frontend nào**, nên Admin hiện phải dùng Swagger hoặc curl. Còn thiếu cả API: KPI dashboard (F59), campaign/home động (F63), blog (F64), quản lý từ thiện/quảng cáo (F65) |
+| 19 | Nội dung đặc thù & Phật Pháp | Charity/Event, Classified, ads, Merit, Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng dường, Diễn đàn, Chùa) | M2 extension + F73 | 🟡 **Bốn trên năm**. ✅ Charity/Event (03/10 — 3 bảng, 11 endpoint, cổng `SUBMIT_CHARITY_PROPOSAL`); ✅ Classified (04/10 — thêm `details.marketPrice` theo CHỐT-05, phần còn lại đã có từ trước); ✅ ads (04/10 — `sponsor_banners`, 8 endpoint, cặp `banner.*`); ✅ Merit (04/10 — `merit_units` + `merit_declarations`, 10 endpoint, cặp `merit.*`, chỉ `SUPER_ADMIN` có `merit.manage` vì nó sửa được số tài khoản ngân hàng). ⛔ **Dharma Hub (F73) chưa có dòng nào** — SRS §3.3.12 có 5 UC + 4 BR nhưng **0 endpoint**, nên mặt API phải thiết kế rồi Bên A duyệt |
+| 20 | Admin CMS | Rule config, moderation cơ bản | M6 | 🟡 **API ĐỦ, GIAO DIỆN thì chưa.** Kiểm duyệt bài/báo xấu, RBAC, cấu hình rule điểm/hạng/entitlement/điểm danh, hoàn bút toán và cộng/trừ điểm tay, danh mục, mẫu thông báo, ngưỡng Giver Accuracy, **KPI dashboard (F59)**, **campaign/Home động (F63)**, **blog (F64)**, **Từ thiện/Rao vặt/Quảng cáo/Công đức (F65)** — tất cả gọi được qua HTTP. Danh sách "còn thiếu cả API" ở bản trước nay đã đóng hết. Front-end Admin ở **repo khác**, nên không còn là việc của repo này |
 | 21 | QA | Integration/UAT Sprint 3 |  | ⬜ |
 
 ### Điều kiện mở Sprint 3

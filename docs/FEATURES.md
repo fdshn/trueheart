@@ -486,7 +486,14 @@ phải ý kiến người thật.
 > Mức mặc định khi người nhận không đánh giá: **80% sau 7 ngày**
 > (`system_configs.review.grace`).
 >
-> ⛔ **Chưa có đường nào gọi tới rule này** — hoàn tất lượt trao vẫn chưa cộng điểm.
+> ✅ **Đã nối (soát 04/10/2026).** `AwardGiftCompletionUseCase` nhân mức trần của rule với %
+> người nhận chấm. Hai đường kích hoạt, MỘT khoá chống trùng theo lượt trao
+> (`GIFT_COMPLETED_GIVER:<transactionId>`) nên đường nào tới trước thì đường kia thành không
+> làm gì: người nhận đánh giá, hoặc `npm run gift:settle-rewards` khi hết thối hạn chờ.
+> `test:gift-rewards` canh *"số điểm là bản đã nhân (50), không phải mức trần phẳng (56)"*.
+>
+> Dòng ⛔ ở bản trước nói sai trạng thái, và nó đã làm `SPRINT-PLAN.md` ghi F40 đang chờ Bên A
+> cho một con số — trong khi con số đó là một dòng cấu hình Admin sửa được lúc chạy.
 
 ### F41 — Điểm cho Like / Comment / Report
 Chỉ phát sinh điểm **khi Admin bật rule**. Có cap, idempotency và chống spam.
