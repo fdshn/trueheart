@@ -196,10 +196,11 @@ cho bản đồ tại thời điểm xem.
 > Tiêu điểm thì tụt hạng; mức tụt xét lại theo ngưỡng hiện tại, **không ép đúng một bậc**.
 > Trượt nhiệm vụ duy trì **bị trừ N điểm** (Admin cấu hình) rồi rank tự xét lại theo balance
 > mới — nhiệm vụ tác động gián tiếp qua điểm để không có hai cơ chế cùng quyết một thứ.
-> [F76](#f76--điểm-khả-dụng--bảo-vệ-rank-đã-huỷ) đã huỷ.
+> Quyết định 24/09 từng huỷ [F76](#f76--điểm-khả-dụng--bảo-vệ-rank-khi-đổi-vật-phẩm-yêu-cầu-mới);
+> yêu cầu 04/10 đưa bảo vệ Rank trở lại riêng cho đổi vật phẩm, backend chưa triển khai.
 >
-> ⚠️ **Chưa hiện thực.** Code hiện xét hạng theo `lifetime` (`rank.repository.ts:387`), và cột
-> *Cảnh báo tại 70%* chưa có đường nào gửi. Đây là mâu thuẫn đã biết giữa tài liệu và code.
+> Mô hình Rank theo balance và cảnh báo đã được hiện thực; riêng quy tắc chặn đổi vật phẩm
+> theo điểm khả dụng là gap mới. Xem [handoff](./plan/REDEMPTION-REQUIREMENT-GAP.md).
 
 **Điều kiện lên Bạc:** 1 giao dịch Cho hoàn tất + 1 Personal Referral hợp lệ (áp dụng cho Member).
 
@@ -965,7 +966,7 @@ Toàn bộ các điểm blocker trước đây đã được Bên A làm rõ và
 |---|---|---|
 | 1 | **Giver Accuracy & Đánh giá** | ✅ **CHỐT-03**: Dùng tỷ lệ % (0–100%), chỉ tính tổng hợp sau ≥ 5 giao dịch. Ngưỡng cảnh báo < 75% đưa vào `REVIEW_REQUIRED`, không tự động phạt. |
 | 2 | **Định nghĩa "Active Member"** | ✅ **CHỐT-06** + **chốt 2026-09-24**: `users.last_login_at` quá **90 ngày** thì coi như không hoạt động (mốc cập nhật mỗi lần refresh token). Toàn bộ Group Affiliate Event bắt buộc nằm trong bán kính Group; phân bổ cho toàn bộ Active Member. |
-| 3 | **Cơ chế Rank & Tụt hạng** | ✅ **CHỐT-01 & BR-PROF-RANK-04/06** + **chốt 2026-09-24**: quyết định bởi `current point balance`, tiêu điểm thì tụt, xét lại theo ngưỡng hiện tại (không ép 1 bậc). Trượt nhiệm vụ duy trì **bị trừ N điểm** rồi xét lại. Không dùng `lifetime rank point` riêng; **F76 đã huỷ**. |
+| 3 | **Cơ chế Rank & Tụt hạng** | ✅ **CHỐT-01 & BR-PROF-RANK-04/06** + **chốt 2026-09-24**: Rank quyết định bởi `current point balance`; debit làm giảm balance và xét lại theo ngưỡng hiện tại (không ép 1 bậc). Trượt nhiệm vụ duy trì **bị trừ N điểm** rồi xét lại. Không dùng `lifetime rank point` riêng. **Lịch sử:** 24/09 huỷ F76; **yêu cầu 04/10:** bảo vệ ngưỡng Rank riêng khi đổi vật phẩm, backend chưa triển khai và cần PO cập nhật SRS. |
 | 4 | **Nhiệm vụ "2+2 / 3+3 / 4+4"** | ✅ **BR-PROF-RANK-03**: Xác nhận chính thức là N giao dịch Cho hoàn tất + N Personal Referral hợp lệ trong chu kỳ 3 tháng. |
 | 5 | Quota bài đăng theo Rank | ✅ Baseline: Viewer 0, Member 3, Bạc 10, Vàng 20, Kim Cương 50 (Admin chỉnh qua CMS). |
 | 6 | Rank được dùng SOS | ✅ Từ hạng **Bạc** trở lên (UI-WANTED-01). |
