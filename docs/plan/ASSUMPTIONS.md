@@ -62,7 +62,7 @@ Xem [đặc tả F83](./CHECK-IN-STREAK-DESIGN.md).
   1.000 điểm, dù tổng balance lớn hơn. Nhờ vậy **không cần tạo thêm một loại Rank Point
   riêng**: vẫn một loại Điểm Cống Hiến, chỉ chia thành *protected* và *spendable*.
 
-  Xem [FEATURES.md F76 — đã huỷ](../FEATURES.md#f76--điểm-khả-dụng--bảo-vệ-rank-đã-huỷ).
+  Xem [FEATURES.md F76](../FEATURES.md#f76--điểm-khả-dụng--bảo-vệ-rank-khi-đổi-vật-phẩm-yêu-cầu-mới).
 
 - **⚠️ ĐÃ ĐƯỢC THAY THẾ ngày 2026-09-24.** Cơ chế *điểm khả dụng* (F76) và mọi
   cách hiểu cũ về `lifetime` không còn hiệu lực. Xem
