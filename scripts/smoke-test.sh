@@ -211,7 +211,17 @@ else
   # nằm im hai ngày qua ba commit và chỉ lộ khi có người mở trang.
   #
   # `node --check` là phép kiểm đúng: nó phân tích cú pháp mà không chạy mã.
-  INIT_JS="$(mktemp)"
+  #
+  # Tên file PHẢI kết thúc bằng `.js`. `mktemp` cho `/tmp/tmp.AbC123`, và Node 22 đọc
+  # `.AbC123` là một phần mở rộng lạ rồi ném `ERR_UNKNOWN_FILE_EXTENSION` — tức
+  # `node --check` thất bại với MỌI nội dung, kể cả một file hoàn toàn đúng. Lượt đầu
+  # của phép kiểm này mắc đúng lỗi đó: nó làm job docker đỏ trên một image lành, và
+  # thông điệp đỏ lại nói "trang docs sẽ trắng" — một phép kiểm luôn đỏ vô dụng y như
+  # một phép kiểm luôn xanh.
+  INIT_DIR="$(mktemp -d)"
+  INIT_JS="$INIT_DIR/swagger-ui-init.js"
+  INIT_CONTROL="$INIT_DIR/positive-control.js"
+  echo 'window.onload = function () { return 1; };' > "$INIT_CONTROL"
   INIT_CODE="$(
     curl -sS -o "$INIT_JS" -w '%{http_code}' \
       ${DOCS_AUTH:+-u "$DOCS_AUTH"} "$BASE_URL/docs/swagger-ui-init.js" || echo 000
@@ -222,13 +232,19 @@ else
     # Không có node thì nói thẳng là BỎ QUA. Im lặng coi như đạt là đúng kiểu lỗi
     # phép kiểm này được viết ra để chặn.
     printf '  (bỏ qua: host không có node để chạy `node --check`)\n'
+  elif ! NODE_ERR="$(node --check "$INIT_CONTROL" 2>&1)"; then
+    # Mẫu đối chứng: một file JS chắc chắn đúng, nằm cùng thư mục, cùng phần mở rộng.
+    # Nó đỏ thì lỗi ở CÁCH GỌI `node --check`, không phải ở nội dung tải về — nói đúng
+    # điều đó thay vì vu cho trang docs.
+    fail "node --check không dùng được ở host này" \
+      "$(printf '%s' "$NODE_ERR" | head -3 | tr '\n' ' ')"
   elif NODE_ERR="$(node --check "$INIT_JS" 2>&1)"; then
     pass "/docs/swagger-ui-init.js là JS hợp lệ — trang docs dựng được"
   else
     fail "/docs/swagger-ui-init.js LỖI CÚ PHÁP — trang docs sẽ trắng" \
       "$(printf '%s' "$NODE_ERR" | head -3 | tr '\n' ' ')"
   fi
-  rm -f "$INIT_JS"
+  rm -rf "$INIT_DIR"
 fi
 
 if [ "$DOCS_POLICY" != "hidden" ]; then

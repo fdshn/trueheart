@@ -36,12 +36,39 @@ set -euo pipefail
 
 has_auth=0
 path=""
+out=""
+prev=""
 for arg in "$@"; do
   [ "$arg" = "-u" ] && has_auth=1
+  # `-o <file>`: curl thật ghi THÂN vào file và chỉ in mã HTTP ra stdout. Mock phải
+  # làm đúng vậy, nếu không bên gọi đọc được một chuỗi rỗng rồi báo "không tải được".
+  [ "$prev" = "-o" ] && out="$arg"
   case "$arg" in
-    */health|*/docs|*/docs/json) path="$arg" ;;
+    */health|*/docs|*/docs/json|*/docs/swagger-ui-init.js) path="$arg" ;;
   esac
+  prev="$arg"
 done
+
+# `*/docs*` ở dưới sẽ hút luôn đường này, nên phải chặn trước.
+if [[ "$path" = */docs/swagger-ui-init.js ]]; then
+  if [ "${MOCK_DOCS_POLICY:-public}" = "hidden" ]; then
+    code=404
+    body='{"success":false}'
+  elif [ "${MOCK_DOCS_POLICY:-public}" = "basic" ] && [ "$has_auth" = 0 ]; then
+    code=401
+    body='{"success":false}'
+  else
+    code=200
+    body='window.onload = function () { return 1; };'
+  fi
+  if [ -n "$out" ]; then
+    printf '%s\n' "$body" > "$out"
+    printf '%s' "$code"
+  else
+    printf '%s\n%s\n' "$body" "$code"
+  fi
+  exit 0
+fi
 
 if [[ "$path" = */health ]]; then
   printf '%s\n200\n' '{"success":true,"body":{"status":"ok","checks":[{"name":"postgres","healthy":true}]}}'
