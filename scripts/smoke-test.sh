@@ -192,6 +192,43 @@ else
   else
     fail "/docs/json sai contract versioned" "HTTP $RESP_CODE — thiếu:$MISSING cũ:$LEGACY_ROUTES"
   fi
+
+  # ── swagger-ui-init.js phải là JS CHẠY ĐƯỢC ────────────────────────────────
+  #
+  # Lỗi thật trên staging 05/10: `/docs` trả trang TRẮNG TINH sau khi đăng nhập, mà
+  # mọi phép kiểm ở trên đều xanh — `/docs` 200, `/docs/json` 200 với spec đúng và đủ
+  # route, cả ba asset 200. Trang trắng vì `swagger-ui-init.js` là JS **lỗi cú pháp**:
+  #
+  #   SyntaxError: Invalid or unexpected token
+  #     "description": "Nhận cả hai dạng: slug có dạng `^[a-z0-9]+(-[a-z0-9]+)*
+  #
+  # `@nestjs/swagger` nhét spec vào template bằng `String.replace()`, và trong CHUỖI
+  # THAY THẾ của `replace()` thì `$`` nghĩa là "toàn bộ phần trước chỗ khớp". Một
+  # description chứa `$`` (dấu đô ngay trước backtick) làm spec vỡ từ điểm đó.
+  #
+  # Vì sao cần phép kiểm RIÊNG: `/docs/json` dựng theo đường khác nên nó vẫn ĐÚNG
+  # hoàn toàn. Không có bước nào hỏi "cái file init kia có chạy được không", nên lỗi
+  # nằm im hai ngày qua ba commit và chỉ lộ khi có người mở trang.
+  #
+  # `node --check` là phép kiểm đúng: nó phân tích cú pháp mà không chạy mã.
+  INIT_JS="$(mktemp)"
+  INIT_CODE="$(
+    curl -sS -o "$INIT_JS" -w '%{http_code}' \
+      ${DOCS_AUTH:+-u "$DOCS_AUTH"} "$BASE_URL/docs/swagger-ui-init.js" || echo 000
+  )"
+  if [ "$INIT_CODE" != "200" ]; then
+    fail "/docs/swagger-ui-init.js không tải được" "HTTP $INIT_CODE"
+  elif ! command -v node >/dev/null 2>&1; then
+    # Không có node thì nói thẳng là BỎ QUA. Im lặng coi như đạt là đúng kiểu lỗi
+    # phép kiểm này được viết ra để chặn.
+    printf '  (bỏ qua: host không có node để chạy `node --check`)\n'
+  elif NODE_ERR="$(node --check "$INIT_JS" 2>&1)"; then
+    pass "/docs/swagger-ui-init.js là JS hợp lệ — trang docs dựng được"
+  else
+    fail "/docs/swagger-ui-init.js LỖI CÚ PHÁP — trang docs sẽ trắng" \
+      "$(printf '%s' "$NODE_ERR" | head -3 | tr '\n' ' ')"
+  fi
+  rm -f "$INIT_JS"
 fi
 
 if [ "$DOCS_POLICY" != "hidden" ]; then

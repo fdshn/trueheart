@@ -74,7 +74,7 @@ export class CharityCampaignPublicController {
   @ApiOperation({
     summary: 'Một hoạt động, theo slug hoặc id',
     description:
-      'Nhận cả hai dạng: slug có dạng `^[a-z0-9]+(-[a-z0-9]+)*$` nên không chuỗi nào ' +
+      'Nhận cả hai dạng: slug có dạng `[a-z0-9]+(-[a-z0-9]+)*` khớp trọn chuỗi nên không chuỗi nào ' +
       'vừa là UUID hợp lệ vừa là slug hợp lệ, và một câu truy vấn phục vụ được cả hai.\n\n' +
       'Tra bằng id cũng CHỈ trả hoạt động đã duyệt: đường này công khai, nên một hồ sơ ' +
       'chờ duyệt đọc được bằng id là nội dung chưa kiểm lọt ra ngoài. Người gửi hồ sơ xem ' +

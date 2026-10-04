@@ -60,7 +60,7 @@ export class MeritPublicController {
   @ApiOperation({
     summary: 'Một đơn vị, theo slug hoặc id, kèm Sổ vàng',
     description:
-      'Nhận cả hai dạng: slug có dạng `^[a-z0-9]+(-[a-z0-9]+)*$` nên không chuỗi nào vừa là ' +
+      'Nhận cả hai dạng: slug có dạng `[a-z0-9]+(-[a-z0-9]+)*` khớp trọn chuỗi nên không chuỗi nào vừa là ' +
       'UUID hợp lệ vừa là slug hợp lệ.\n\n' +
       'Sổ vàng mặc định công khai (UI-MERIT-01). Hàng của người chọn ẩn danh hiện ' +
       '"Người ẩn danh" — tên thật **không ra khỏi tầng repository**, câu SQL không kéo nó về. ' +

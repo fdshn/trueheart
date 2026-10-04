@@ -92,7 +92,7 @@ export class DharmaPublicController {
   @ApiOperation({
     summary: 'Một nội dung, theo slug hoặc id',
     description:
-      'Nhận cả hai dạng: slug có dạng `^[a-z0-9]+(-[a-z0-9]+)*$` nên không chuỗi nào vừa là ' +
+      'Nhận cả hai dạng: slug có dạng `[a-z0-9]+(-[a-z0-9]+)*` khớp trọn chuỗi nên không chuỗi nào vừa là ' +
       'UUID hợp lệ vừa là slug hợp lệ.\n\n' +
       'Tra bằng id cũng CHỈ trả bản đã xuất bản — đường này công khai, nên một bản nháp đọc ' +
       'được bằng id là nội dung chưa duyệt lọt ra ngoài.\n\n' +
