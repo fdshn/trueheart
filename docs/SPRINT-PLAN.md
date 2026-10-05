@@ -175,6 +175,12 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 
 - Backup **và restore test** đã chạy.
 - Monitoring/alerting/global rate limit có hiệu lực.
+  - **Trên staging: xong 05/10, có kiểm chứng.** Rate limit chạy ở hai tầng (app
+    `APP_GUARD` + nginx `limit_req`); 14 cron job cài ở `/etc/cron.d/chantam`;
+    `check-health.sh` mỗi 5 phút; cảnh báo đi Telegram và **đã thử bằng một job
+    đỏ thật** — không chỉ bằng một lượt gửi tay.
+  - **Production: chưa.** `DEPLOY_ENABLED=false`, chưa có stack nào chạy ở đó, nên
+    gạch này chỉ tick được sau khi production dựng xong.
 - Email/SMS và R2 staging/prod có delivery/upload acceptance thật.
 - Regression/UAT, production deploy và handover có biên bản/checklist.
 
