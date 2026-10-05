@@ -308,7 +308,12 @@ jobs:
       - name: Kiểm đường cảnh báo cron
         # Một hệ báo động chưa ai thử là một hệ báo động không biết mình có chạy
         # hay không, và đó là kiểu hỏng tệ nhất — khi cần tới nó thì đã muộn.
-        # Script dựng một webhook cục bộ và kiểm cả hai nhánh thất bại.
+        # Script dựng một webhook cục bộ và kiểm: hai hình payload (webhook và
+        # Telegram), cắt tin quá trần, hai bộ đóng gói JSON, và các nhánh thất bại.
+        env:
+          # Runner ubuntu-latest có jq sẵn. Đặt biến này để thiếu jq là ĐỎ, chứ
+          # không phải một dòng "BỎ QUA" lặng im giữa vài nghìn dòng log.
+          CHANTAM_ALERT_REQUIRE_JQ: '1'
         run: bash scripts/test-cron-alert.sh
 
       - name: Khởi tạo dữ liệu demo

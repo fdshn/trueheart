@@ -137,9 +137,37 @@ chết** — và không ai biết.
 
   Payload mang **cả `text` lẫn `content`** nên webhook của Slack, Mattermost hay
   Discord đều đọc được mà không phải sửa script — mỗi bên bỏ qua khoá nó không
-  biết. Telegram cần hình khác (`chat_id` trên query string); nếu chốt Telegram thì
-  thêm một nhánh, và chưa thêm sẵn vì một nhánh không ai dùng là một nhánh không ai
-  thử.
+  biết.
+
+  **Telegram cũng dùng được** (thêm 05/10). Đặt URL dạng
+  `https://api.telegram.org/bot<TOKEN>/sendMessage` **kèm** `chat_id`:
+
+  ```bash
+  CHANTAM_CRON_ALERT_URL=https://api.telegram.org/bot123456:AA.../sendMessage
+  CHANTAM_CRON_ALERT_CHAT_ID=-1001234567890
+  ```
+
+  Script nhận kênh theo **hình dạng đường** (`…/bot<token>/sendMessage`), không
+  theo tên miền — để bộ thử dựng server ở `127.0.0.1` vẫn thử được chính nhánh đó.
+  Nhận theo tên miền thì nhánh Telegram là thứ không thử được, và một phép nhận
+  dạng không thử được là một phép nhận dạng sẽ sai trong im lặng.
+  `CHANTAM_CRON_ALERT_KIND=telegram|webhook` ép tay nếu có proxy đứng trước.
+
+  **Thiếu `chat_id` thì KHÔNG gửi.** Telegram không suy ra người nhận từ URL, nên
+  gửi thiếu nó là nhận một 400 rồi mất cảnh báo — mất đúng lúc đang có sự cố. Script
+  chặn trước, ghi lại, và trả mã khác 0.
+
+  **Tin quá dài bị cắt**, mặc định 4096 ký tự với Telegram và 1900 với webhook
+  (dưới mức 2000 của Discord, vì script không biết URL webhook thuộc bên nào). Hạ
+  hoặc nâng bằng `CHANTAM_CRON_ALERT_MAX_CHARS`. Không cắt thì kênh trả 400 và mất
+  cảnh báo — F67 đính stderr của `pg_restore` vào thân tin, nên tin dài là chuyện
+  sẽ xảy ra. Chỗ cắt luôn nói rõ là đã cắt.
+
+  Cả hai hình payload, phần cắt tin, và **cả hai bộ đóng gói JSON** (`jq` và
+  python) đều có phép thử trong `scripts/test-cron-alert.sh`, chạy thật qua HTTP và
+  chạy trong CI. Nhánh Telegram từng cố ý không tồn tại với lý do *"một nhánh không
+  ai dùng là một nhánh không ai thử"* — lý do đó vẫn đúng, nên nhánh này đi kèm
+  phép thử chứ không đi một mình.
 
   **Không dùng `MAILTO`** vì cron luôn đi qua MTA cục bộ, mà một VPS chỉ chạy
   docker-compose thường chưa cài MTA — lúc đó cron ghi "no MTA, discarding output"
