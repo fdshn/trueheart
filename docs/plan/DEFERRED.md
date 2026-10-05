@@ -48,26 +48,35 @@ Trước khi thêm `EmailOtpSender`, `IOtpSender.isConfigured` phải thay thàn
 - [x] Vòng đời giao dịch tặng/nhận: request → accept → confirm, huỷ trả lại tồn
       kho, tự hoàn tất sau 5 ngày qua CLI `transaction:autocomplete`.
 - [x] Nguồn "lượt tặng hoàn tất" cho rank — đây là thứ mở khoá F12.
-- [~] F44 push FCM: **mã đã xong, chỉ còn CHỜ KHOÁ.** `FcmPushSender` gọi FCM
-      HTTP v1 (tự ký JWT RS256, tự đổi access token, gộp token trùng, bỏ token
-      chết mà không làm sập lượt gửi) và `notification.module.ts` chọn nó khi có
-      `FCM_SERVICE_ACCOUNT_BASE64`.
+- [~] F44 push FCM: **backend XONG, khoá đã cắm trên staging 05/10.** Còn chờ một
+      thiết bị thật đăng ký token.
 
-      **Việc còn lại là của Bên A, không phải việc code:** tạo dự án Firebase,
-      tải service account JSON, rồi đặt một biến:
+      `FcmPushSender` gọi FCM HTTP v1 (tự ký JWT RS256, tự đổi access token, gộp
+      token trùng, bỏ token chết mà không làm sập lượt gửi), và
+      `notification.module.ts` chọn nó khi có `FCM_SERVICE_ACCOUNT_BASE64`.
 
-      ```bash
-      FCM_SERVICE_ACCOUNT_BASE64=$(base64 -w0 service-account.json)
-      ```
+      **Đã gọi THẬT tới Google 05/10** bằng chính class đó, với khoá của dự án
+      `true-heart-2d822`: Google cấp access token (không có dòng warn nào về đổi
+      token), và chỉ từ chối đúng cái token thiết bị rác dùng để thử (`HTTP 400`).
+      Đó là lượt gọi thật mà bản ghi trước của mục này còn nợ.
 
-      Dán vào `.env` của host là push chạy — **không sửa một dòng mã nào**. Khi
-      trống, hệ dùng `LoggingPushSender`: fail-closed ở production, không bao giờ
-      giả vờ đã gửi. Thông báo trong app không phụ thuộc đường đẩy.
+      Trạng thái trên staging: biến đã tới container (3184 ký tự), không có dòng
+      lỗi parse nào, `core` healthy.
 
-      Giới hạn đã biết: 18 phép kiểm phủ hình payload HTTP v1, chữ ký JWT (ký
-      thật rồi xác thực lại bằng khoá công khai) và mọi nhánh lỗi — nhưng **chưa
-      có lượt gọi THẬT tới Google**, vì chưa có khoá. Lượt đó vẫn là một bước
-      phải làm sau khi nhận khoá.
+      **Việc còn lại KHÔNG phải việc backend:** `SELECT count(*) FROM user_sessions
+      WHERE fcm_token IS NOT NULL AND revoked_at IS NULL` đang trả **0**. Client
+      mobile phải đăng nhập và gửi `fcmToken` lên, thì mới có đích để đẩy. Tới lúc
+      đó mới kiểm được một lượt push tới thiết bị thật.
+
+      Khi `FCM_SERVICE_ACCOUNT_BASE64` trống, hệ dùng `LoggingPushSender`:
+      fail-closed ở production, không bao giờ giả vờ đã gửi. Thông báo trong app
+      không phụ thuộc đường đẩy.
+
+      Lưu ý cho người triển khai: khoá cần là **service account JSON** (Project
+      settings → Service accounts → Generate new private key), KHÔNG phải VAPID
+      public key ở mục Cloud Messaging → Web Push certificates. VAPID key là khoá
+      công khai dùng ở client web; nó không xác thực được gì cho server, và nhầm
+      hai thứ này mất một lượt qua lại.
 - [ ] Queue/retry/dead-letter thực tế cho delivery notification.
 - [ ] Chat và Smart Match.
 - [ ] Gắn F06 check “còn giao dịch dở dang” khi xoá tài khoản (bảng đã có, phép
