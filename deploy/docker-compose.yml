@@ -131,10 +131,19 @@ services:
           '-e',
           "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
-      interval: 5s
-      timeout: 5s
+      # Giá trị này lấy TỪ HOST staging, không phải từ repo.
+      #
+      # Repo đặt 5s/60s hôm 18/09 (`06e7265`). Host được nới thành 15s/40s hôm
+      # 23/09 — mới hơn, nên đó là tuỳ biến có chủ ý của người vận hành. Đo được
+      # 05/10 khi so compose trên host với repo.
+      #
+      # Ghi lại ở đây để lượt deploy sau KHÔNG xoá nó: một file trong repo nói
+      # khác thực tế trên host là cách tuỳ biến bị mất mà không ai thấy. VPS này
+      # chạy cả EduStack, nên hạ interval về 5s là tăng gấp ba số lượt healthcheck.
+      interval: 15s
+      timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 40s
     logging:
       driver: json-file
       options: { max-size: '20m', max-file: '5' }
