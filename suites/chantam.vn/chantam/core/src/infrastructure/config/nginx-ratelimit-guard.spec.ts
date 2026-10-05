@@ -27,12 +27,22 @@ import { ConfigSchema } from './config.schema';
  * REST API", tức chat đã chạy ở chế độ long-polling trên staging mà không ai ghi
  * lại điều đó.
  *
- * ## Giới hạn của phép kiểm này, nói rõ để không ai tưởng đã đủ
+ * ## Phép kiểm này là lớp RẺ; lớp đắt nằm ở `scripts/test-nginx-config.sh`
  *
- * Đây là phép kiểm VĂN BẢN. Nó không chạy `nginx -t`, không dựng Nginx, nên nó
- * không chứng minh cấu hình khởi động được — máy phát triển không có Nginx. Điều
- * nó chứng minh: các zone được dùng đều đã khai, quan hệ ngưỡng đúng, và hai
- * khối server không lệch nhau. Lượt `nginx -t` trên host vẫn là một bước phải làm.
+ * Đây là phép kiểm VĂN BẢN: nó chạy ở mọi lượt `npm test`, trong một giây, không
+ * cần Docker. Nó chứng minh các zone được dùng đều đã khai, quan hệ ngưỡng đúng,
+ * và hai khối server không lệch nhau — những thứ `nginx -t` KHÔNG kiểm, vì với
+ * Nginx thì một ngưỡng đặt sai vẫn là một cấu hình hợp lệ.
+ *
+ * Nó KHÔNG chứng minh cấu hình khởi động được. Việc đó do
+ * `scripts/test-nginx-config.sh` làm: nó chạy `nginx -t` thật trong Docker trên
+ * chính hai file này.
+ *
+ * Hai lớp bắt hai họ lỗi khác nhau, và không lớp nào thay được lớp kia. Bằng chứng
+ * đo được 05/10: lượt chạy `nginx -t` đầu tiên lộ ra rằng Nginx NẠP và kiểm tham
+ * số DH ngay lúc test cấu hình (`dh key too small` với file 1024 bit) — một điều
+ * không phép kiểm văn bản nào phát hiện được. Ngược lại, hạ `rate` xuống dưới trần
+ * của app vẫn cho một cấu hình `nginx -t` hoàn toàn xanh.
  */
 
 function findRepoRoot(): string {

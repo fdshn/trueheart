@@ -387,6 +387,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Kiểm cấu hình Nginx bằng nginx -t thật
+        # Phép kiểm văn bản `nginx-ratelimit-guard.spec.ts` canh quan hệ ngưỡng và
+        # tên zone, nhưng nó KHÔNG biết Nginx có khởi động được không. Một dấu `}`
+        # thiếu hay một directive sai ngữ cảnh chỉ `nginx -t` thấy — và trên host
+        # đang chạy, reload thất bại nghĩa là cấu hình CŨ vẫn phục vụ, nên người ta
+        # tưởng đã áp dụng xong.
+        #
+        # Đặt ở job này vì nó đã có Docker sẵn.
+        run: bash scripts/test-nginx-config.sh
+
       - name: Kiểm tra Dockerfile không lệch với cây dependency
         # Thêm một dependency `file:` mà quên chạy `npm run docker:generate` thì
         # image thiếu package — lỗi chỉ lộ ra lúc deploy. Bộ sinh chỉ dùng

@@ -33,6 +33,14 @@ server {
 }
 
 server {
+    # `listen ... http2` là cú pháp CŨ, và Nginx >= 1.25 báo deprecated cho nó.
+    # GIỮ NGUYÊN, đừng đổi sang `http2 on;`: host chạy Nginx của gói Ubuntu
+    # (22.04 → 1.18, 24.04 → 1.24), và `http2 on` chưa tồn tại ở những bản đó nên
+    # đổi là Nginx KHÔNG khởi động. Một dòng cảnh báo lúc reload rẻ hơn nhiều so
+    # với một host không lên được.
+    #
+    # `scripts/test-nginx-config.sh` chạy `nginx -t` trên ảnh 1.27 nên cảnh báo đó
+    # sẽ hiện ở đó — nó là cảnh báo mong đợi, không phải lỗi.
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
     server_name api-staging.example.com;
@@ -185,6 +193,14 @@ server {
 }
 
 server {
+    # `listen ... http2` là cú pháp CŨ, và Nginx >= 1.25 báo deprecated cho nó.
+    # GIỮ NGUYÊN, đừng đổi sang `http2 on;`: host chạy Nginx của gói Ubuntu
+    # (22.04 → 1.18, 24.04 → 1.24), và `http2 on` chưa tồn tại ở những bản đó nên
+    # đổi là Nginx KHÔNG khởi động. Một dòng cảnh báo lúc reload rẻ hơn nhiều so
+    # với một host không lên được.
+    #
+    # `scripts/test-nginx-config.sh` chạy `nginx -t` trên ảnh 1.27 nên cảnh báo đó
+    # sẽ hiện ở đó — nó là cảnh báo mong đợi, không phải lỗi.
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
     server_name api.example.com;
