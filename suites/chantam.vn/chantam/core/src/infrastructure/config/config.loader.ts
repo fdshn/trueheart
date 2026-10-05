@@ -124,6 +124,10 @@ export function loadConfig(): IConfig {
       phoneHashPepper: process.env.PHONE_HASH_PEPPER ?? '',
     },
 
+    push: {
+      serviceAccountBase64: process.env.FCM_SERVICE_ACCOUNT_BASE64 ?? '',
+    },
+
     storage: {
       endpoint: process.env.STORAGE_ENDPOINT ?? '',
       region: process.env.STORAGE_REGION ?? 'auto',

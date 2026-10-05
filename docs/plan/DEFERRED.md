@@ -48,7 +48,26 @@ Trước khi thêm `EmailOtpSender`, `IOtpSender.isConfigured` phải thay thàn
 - [x] Vòng đời giao dịch tặng/nhận: request → accept → confirm, huỷ trả lại tồn
       kho, tự hoàn tất sau 5 ngày qua CLI `transaction:autocomplete`.
 - [x] Nguồn "lượt tặng hoàn tất" cho rank — đây là thứ mở khoá F12.
-- [ ] F44 push FCM + notification in-app tối thiểu cho giao dịch.
+- [~] F44 push FCM: **mã đã xong, chỉ còn CHỜ KHOÁ.** `FcmPushSender` gọi FCM
+      HTTP v1 (tự ký JWT RS256, tự đổi access token, gộp token trùng, bỏ token
+      chết mà không làm sập lượt gửi) và `notification.module.ts` chọn nó khi có
+      `FCM_SERVICE_ACCOUNT_BASE64`.
+
+      **Việc còn lại là của Bên A, không phải việc code:** tạo dự án Firebase,
+      tải service account JSON, rồi đặt một biến:
+
+      ```bash
+      FCM_SERVICE_ACCOUNT_BASE64=$(base64 -w0 service-account.json)
+      ```
+
+      Dán vào `.env` của host là push chạy — **không sửa một dòng mã nào**. Khi
+      trống, hệ dùng `LoggingPushSender`: fail-closed ở production, không bao giờ
+      giả vờ đã gửi. Thông báo trong app không phụ thuộc đường đẩy.
+
+      Giới hạn đã biết: 18 phép kiểm phủ hình payload HTTP v1, chữ ký JWT (ký
+      thật rồi xác thực lại bằng khoá công khai) và mọi nhánh lỗi — nhưng **chưa
+      có lượt gọi THẬT tới Google**, vì chưa có khoá. Lượt đó vẫn là một bước
+      phải làm sau khi nhận khoá.
 - [ ] Queue/retry/dead-letter thực tế cho delivery notification.
 - [ ] Chat và Smart Match.
 - [ ] Gắn F06 check “còn giao dịch dở dang” khi xoá tài khoản (bảng đã có, phép

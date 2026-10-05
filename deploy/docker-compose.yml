@@ -106,6 +106,9 @@ services:
       # Khoá băm số điện thoại. Bỏ trống thì vẫn băm nhưng không có khoá, và
       # chống trùng vẫn chạy — nên nó hỏng hoàn toàn im lặng.
       PHONE_HASH_PEPPER: ${PHONE_HASH_PEPPER:-}
+
+      # Push FCM (F44). Trống thì fail-closed, không giả vờ đã gửi.
+      FCM_SERVICE_ACCOUNT_BASE64: ${FCM_SERVICE_ACCOUNT_BASE64:-}
       # R2/S3 credential chỉ tồn tại trong .env server/environment secret, không
       # commit. Thiếu config thì Storage endpoint fail closed, Core vẫn healthy.
       STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}

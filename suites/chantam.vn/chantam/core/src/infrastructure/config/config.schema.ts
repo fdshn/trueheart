@@ -88,6 +88,16 @@ export const ConfigSchema = Joi.object({
   // Sinh bằng: openssl rand -base64 32
   PHONE_HASH_PEPPER: Joi.string().allow('').default(''),
 
+  // Service account JSON của dự án Firebase, mã hoá base64 (F44).
+  // Sinh bằng: base64 -w0 service-account.json
+  //
+  // Base64 chứ không phải JSON thô: chuỗi JSON mang một khoá RSA nhiều dòng,
+  // và nó không đi qua nổi một dòng `.env` mà không bị cắt ở ký tự dòng mới.
+  //
+  // Bỏ trống thì chưa có đường đẩy và `IPushSender` fail-closed. Thông báo trong
+  // app vẫn ghi và hiển thị bình thường — hai việc tách rời nhau.
+  FCM_SERVICE_ACCOUNT_BASE64: Joi.string().allow('').default(''),
+
   // M1 temporary category manager allowlist. M6 replaces it with real admin roles.
   // M2 temporary moderation allowlist. M6 replaces it with real admin roles.
   // Sprint 1 temporary rank maintenance operator allowlist. M6 replaces it with real admin roles.

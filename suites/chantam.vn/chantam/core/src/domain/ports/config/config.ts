@@ -120,6 +120,20 @@ export interface IAdminBootstrapConfig {
   usernames: string[];
 }
 
+export interface IPushConfig {
+  /**
+   * Service account JSON của dự án Firebase, đã mã hoá base64 (F44).
+   *
+   * Giữ ở dạng base64 THÔ, chưa giải mã, vì một chuỗi JSON nhiều dòng với khoá
+   * RSA bên trong không đi qua nổi một dòng `.env` mà không bị cắt ở ký tự dòng
+   * mới. Sinh bằng: `base64 -w0 service-account.json`
+   *
+   * Để rỗng thì chưa có đường đẩy, và `IPushSender` fail-closed. Thông báo TRONG
+   * APP không phụ thuộc vào nó — mất đường đẩy không được làm mất thông báo.
+   */
+  serviceAccountBase64: string;
+}
+
 export interface IConfig {
   port: number;
   env: Env;
@@ -133,6 +147,7 @@ export interface IConfig {
   adminBootstrap: IAdminBootstrapConfig;
   web: IWebConfig;
   security: ISecurityConfig;
+  push: IPushConfig;
 
   /**
    * Môi trường cho ô chọn của Swagger. Mục đầu luôn trỏ về chính instance đang
