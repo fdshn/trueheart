@@ -146,11 +146,18 @@ Từ gốc repo local:
 ```powershell
 scp deploy/nginx/chantam.conf.example `
   root@<IP-SERVER-PRODUCTION>:/tmp/chantam.conf.example
+scp deploy/nginx/chantam-ratelimit.conf.example `
+  root@<IP-SERVER-PRODUCTION>:/tmp/chantam-ratelimit.conf.example
 ```
+
+> **File thứ hai là BẮT BUỘC.** vhost dùng các zone chặn tốc độ và biến
+> `$connection_upgrade`, mà `limit_req_zone`/`limit_conn_zone`/`map` chỉ hợp lệ ở
+> ngữ cảnh `http{}`. Thiếu nó thì `nginx -t` đỏ và Nginx không reload.
 
 Trên server root:
 
 ```bash
+cp /tmp/chantam-ratelimit.conf.example /etc/nginx/conf.d/chantam-ratelimit.conf
 cp /tmp/chantam.conf.example /etc/nginx/sites-available/api.<domain>
 nano /etc/nginx/sites-available/api.<domain>
 ```

@@ -101,9 +101,23 @@ Trên máy local, chép template:
 ```bash
 scp deploy/nginx/chantam.conf.example \
   root@<server>:/tmp/chantam.conf.example
+scp deploy/nginx/chantam-ratelimit.conf.example \
+  root@<server>:/tmp/chantam-ratelimit.conf.example
 ```
 
-Trên server root, tạo site staging **riêng**:
+> **Hai file, và file thứ hai là BẮT BUỘC.** vhost dùng các zone chặn tốc độ
+> (`chantam_general`, `chantam_auth`, `chantam_conn`) và biến `$connection_upgrade`,
+> mà `limit_req_zone`/`limit_conn_zone`/`map` chỉ hợp lệ ở ngữ cảnh `http{}` nên
+> không đặt được trong vhost. Thiếu file thứ hai thì **`nginx -t` đỏ và Nginx không
+> reload** — hỏng ồn ào ở đúng bước kiểm, không phải hỏng khi có người bị chặn oan.
+
+Trên server root, cài file zone vào `conf.d/` **trước**:
+
+```bash
+cp /tmp/chantam-ratelimit.conf.example /etc/nginx/conf.d/chantam-ratelimit.conf
+```
+
+Rồi tạo site staging **riêng**:
 
 ```bash
 cp /tmp/chantam.conf.example /etc/nginx/sites-available/api-staging.<domain>

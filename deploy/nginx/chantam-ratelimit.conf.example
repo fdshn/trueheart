@@ -1,0 +1,68 @@
+# Chặn tốc độ ở tầng Nginx — Chân Tâm (F66)
+#
+# CÁCH DÙNG:
+#   sudo cp chantam-ratelimit.conf.example /etc/nginx/conf.d/chantam-ratelimit.conf
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# File này PHẢI nằm trong `conf.d/`, không phải `sites-available/`.
+# `limit_req_zone`, `limit_conn_zone` và `map` chỉ hợp lệ ở ngữ cảnh `http{}`;
+# đặt trong một khối `server{}` thì Nginx từ chối khởi động.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# Nguyên tắc: Nginx là LƯỚI CHẶN LỤT, không phải cái trần chính
+#
+# Trần chính nằm ở tầng app (`GLOBAL_RATE_LIMIT_PER_MINUTE`, mặc định 600/phút =
+# 10 lượt/giây mỗi IP, cùng trần đăng nhập và đăng ký theo IP). Lý do để app trả
+# lời trước, không phải Nginx:
+#
+#   **Nginx trả một trang HTML, app trả JSON có `errorCode`.** Client mobile code
+#   theo cặp `(errorOrigin, errorCode)`; một trang HTML 429 thì nó không phân tích
+#   được, và người dùng thấy một lỗi không rõ nghĩa thay vì "bạn thử lại sau N
+#   giây". Nên trong vận hành bình thường, Nginx KHÔNG được là bên chặn.
+#
+# Vì vậy mọi ngưỡng ở đây đặt CAO HƠN HẲN ngưỡng của app — cố ý, không phải do
+# nới tay. Nginx chỉ chặn thứ mà app không nên phải xử: một host bơm hàng nghìn
+# lượt mỗi giây, đủ để chiếm hết tiến trình Node trước khi guard của app kịp chạy.
+#
+# `src/infrastructure/config/nginx-ratelimit-guard.spec.ts` canh đúng quan hệ thứ
+# tự này. Hạ ngưỡng ở đây xuống dưới ngưỡng app là một lượt build đỏ, vì làm vậy
+# là chuyển quyền trả lỗi từ app sang Nginx mà không ai định.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# Vì sao KHÔNG dùng limit_conn theo IP một cách chặt chẽ
+#
+# Người dùng Việt Nam chia nhau IP sau NAT rất nhiều — một trường học, một quán,
+# một nhà mạng di động. `limit_conn` thấp sẽ chặn những người hoàn toàn bình
+# thường, và họ không có cách nào biết tại sao. Giá trị dưới đây rộng tay: nó chỉ
+# cản một host đang mở hàng trăm kết nối, không cản một lớp học cùng vào app.
+
+# Khoá theo IP đã nhị phân hoá: 16 byte mỗi entry thay vì một chuỗi, nên 10MB
+# chứa khoảng 160 nghìn IP — đủ xa so với lượng người dùng thật cùng lúc.
+limit_req_zone $binary_remote_addr zone=chantam_general:10m rate=30r/s;
+
+# Đường xác thực: đăng nhập, đăng ký, quên mật khẩu, làm mới token. Chặt hơn vì
+# đây là nơi người ta dò mật khẩu, nhưng vẫn cao hơn trần của app (30 lượt đăng
+# nhập mỗi IP) để app là bên trả lỗi có cấu trúc.
+limit_req_zone $binary_remote_addr zone=chantam_auth:10m rate=2r/s;
+
+limit_conn_zone $binary_remote_addr zone=chantam_conn:10m;
+
+# Trả 429 chứ không phải 503 mặc định. 503 nghĩa "server đang hỏng" và client sẽ
+# thử lại ngay; 429 nghĩa "bạn gọi nhiều quá" và là mã app cũng dùng, nên client
+# xử một đường cho cả hai tầng.
+limit_req_status 429;
+limit_conn_status 429;
+
+# Ghi log lượt bị chặn ở mức `warn`: cần thấy được khi có người bị chặn oan, và
+# `error` mặc định làm nó lẫn vào log sự cố thật.
+limit_req_log_level warn;
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WebSocket cho chat (Socket.io)
+#
+# Khai ở đây vì `map` thuộc ngữ cảnh `http{}`. Thiếu nó thì `location ^~
+# /socket.io/` trong vhost dùng một biến chưa khai báo và Nginx không khởi động.
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}

@@ -90,7 +90,17 @@ server {
         proxy_send_timeout 60s;
     }
 
-    location / {
+    # ── Chặn tốc độ ─────────────────────────────────────────────────────────
+    #
+    # Zone khai ở `conf.d/chantam-ratelimit.conf` (xem file đó để biết vì sao mọi
+    # ngưỡng ở đây CAO HƠN trần của app một cách cố ý). Thiếu file đó thì Nginx
+    # không khởi động vì zone chưa khai báo — hỏng ỒN ÀO, đúng ý.
+
+    # Đường xác thực đi zone chặt hơn: đây là nơi người ta dò mật khẩu.
+    location ^~ /api/v1/auth/ {
+        limit_req zone=chantam_auth burst=10 nodelay;
+        limit_conn chantam_conn 100;
+
         proxy_pass http://127.0.0.1:8080;
         include /etc/nginx/proxy_params;
 
@@ -101,9 +111,54 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
 
-        # Chân Tâm hiện là REST API. Khi thêm WebSocket/SSE, khai `map
-        # $http_upgrade $connection_upgrade` trong http{} trước rồi mới thêm
-        # proxy_set_header Upgrade/Connection — không dùng biến chưa khai báo.
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+
+    # Socket.io cho chat. KHÔNG đặt limit_req ở đây.
+    #
+    # Khi WebSocket không nâng cấp được, Socket.io rơi về long-polling và sinh
+    # RẤT nhiều lượt request hoàn toàn hợp lệ. Một `limit_req` đặt hồn nhiên sẽ
+    # chẹn đúng chat chứ không chẹn kẻ lụt — và người dùng chỉ thấy tin nhắn
+    # không tới, không thấy lý do.
+    location ^~ /socket.io/ {
+        proxy_pass http://127.0.0.1:8080;
+        include /etc/nginx/proxy_params;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        # Idle của WebSocket dài hơn REST rất nhiều: một kết nối đang CHỜ tin
+        # nhắn thì không có byte nào chạy qua. 60s như REST sẽ cắt nó mỗi phút,
+        # và client phải nối lại liên tục.
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    location / {
+        limit_req zone=chantam_general burst=60 nodelay;
+        limit_conn chantam_conn 100;
+
+        proxy_pass http://127.0.0.1:8080;
+        include /etc/nginx/proxy_params;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+
+        # Không khai Upgrade/Connection ở đây: khối này phục vụ REST. WebSocket
+        # của chat đi qua `location ^~ /socket.io/` ở trên.
 
         proxy_connect_timeout 10s;
         proxy_read_timeout 60s;
@@ -153,7 +208,17 @@ server {
     location = /docs { return 404; }
     location ^~ /docs/ { return 404; }
 
-    location / {
+    # ── Chặn tốc độ ─────────────────────────────────────────────────────────
+    #
+    # Zone khai ở `conf.d/chantam-ratelimit.conf` (xem file đó để biết vì sao mọi
+    # ngưỡng ở đây CAO HƠN trần của app một cách cố ý). Thiếu file đó thì Nginx
+    # không khởi động vì zone chưa khai báo — hỏng ỒN ÀO, đúng ý.
+
+    # Đường xác thực đi zone chặt hơn: đây là nơi người ta dò mật khẩu.
+    location ^~ /api/v1/auth/ {
+        limit_req zone=chantam_auth burst=10 nodelay;
+        limit_conn chantam_conn 100;
+
         proxy_pass http://127.0.0.1:8085;
         include /etc/nginx/proxy_params;
 
@@ -163,9 +228,54 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
-        # Chân Tâm hiện là REST API. Khi thêm WebSocket/SSE, khai `map
-        # $http_upgrade $connection_upgrade` trong http{} trước rồi mới thêm
-        # proxy_set_header Upgrade/Connection — không dùng biến chưa khai báo.
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+
+    # Socket.io cho chat. KHÔNG đặt limit_req ở đây.
+    #
+    # Khi WebSocket không nâng cấp được, Socket.io rơi về long-polling và sinh
+    # RẤT nhiều lượt request hoàn toàn hợp lệ. Một `limit_req` đặt hồn nhiên sẽ
+    # chẹn đúng chat chứ không chẹn kẻ lụt — và người dùng chỉ thấy tin nhắn
+    # không tới, không thấy lý do.
+    location ^~ /socket.io/ {
+        proxy_pass http://127.0.0.1:8085;
+        include /etc/nginx/proxy_params;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        # Idle của WebSocket dài hơn REST rất nhiều: một kết nối đang CHỜ tin
+        # nhắn thì không có byte nào chạy qua. 60s như REST sẽ cắt nó mỗi phút,
+        # và client phải nối lại liên tục.
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    location / {
+        limit_req zone=chantam_general burst=60 nodelay;
+        limit_conn chantam_conn 100;
+
+        proxy_pass http://127.0.0.1:8085;
+        include /etc/nginx/proxy_params;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        # Không khai Upgrade/Connection ở đây: khối này phục vụ REST. WebSocket
+        # của chat đi qua `location ^~ /socket.io/` ở trên.
 
         proxy_connect_timeout 10s;
         proxy_read_timeout 60s;
@@ -174,6 +284,11 @@ server {
     }
 }
 
-# Rate limit cố ý CHƯA khai ở đây. Ngưỡng đoán mò dễ chặn mobile client hoặc
-# luồng login/refresh. F66 phải định nghĩa và kiểm thử limit_req_zone/limit_req
-# riêng trước khi bật trên host.
+# Chặn tốc độ (F66) đã khai, nhưng zone nằm ở file RIÊNG:
+# `chantam-ratelimit.conf.example` → `/etc/nginx/conf.d/`. `limit_req_zone`,
+# `limit_conn_zone` và `map` chỉ hợp lệ trong `http{}`, nên chúng không đặt được
+# trong file này.
+#
+# Cài thiếu file đó thì Nginx TỪ CHỐI khởi động vì zone chưa khai báo. Đó là chủ
+# ý: một cấu hình nửa vời phải hỏng lúc `nginx -t`, không phải hỏng lúc có người
+# bị chặn oan.
