@@ -103,6 +103,31 @@ POSTGRES_DB=chantam
 > Không copy `.env` từ staging. `POSTGRES_PASSWORD` và đặc biệt `JWT_SECRET` phải riêng:
 > dùng chung JWT secret khiến token staging có thể được production chấp nhận.
 
+### Host dựng TRƯỚC 05/10 phải thêm ba dòng bằng tay
+
+`bootstrap.sh` cố ý **không ghi đè** `.env` đã tồn tại, nên một host dựng trước 05/10 sẽ không
+nhận ba biến thêm hôm đó. Cả ba thiếu đều hỏng **im lặng** — không có gì đỏ lúc khởi động:
+
+```bash
+cd /home/deploy/chantam-production
+grep -qE '^TRUST_PROXY=' .env || echo 'TRUST_PROXY=true' >> .env
+grep -qE '^CONFIG_ENCRYPTION_KEY=' .env ||
+  echo "CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> .env
+grep -qE '^PHONE_HASH_PEPPER=' .env ||
+  echo "PHONE_HASH_PEPPER=$(openssl rand -base64 32)" >> .env
+docker compose up -d core
+```
+
+| Thiếu | Hậu quả |
+| --- | --- |
+| `TRUST_PROXY` | Mọi request mang IP của Nginx, nên trần gọi chung và trần đăng nhập/đăng ký theo IP dồn vào **một xô**: một người lụt là cả hệ bị 429 |
+| `CONFIG_ENCRYPTION_KEY` | Admin bấm lưu cấu hình SMTP/Zalo và nó fail closed. Lỗi chỉ hiện khi có người thử lưu |
+| `PHONE_HASH_PEPPER` | Vẫn băm số điện thoại nhưng **không có khoá**, và chống trùng vẫn chạy nên không ai thấy gì. Không gian số VN đủ nhỏ để kẻ đọc được database dò ngược hết bảng băm |
+
+**Đặt hai khoá kia MỘT LẦN rồi đừng đổi.** Đổi `CONFIG_ENCRYPTION_KEY` là không giải mã được
+secret Admin đã lưu; đổi `PHONE_HASH_PEPPER` là mọi băm cũ không khớp nữa, nên chống trùng mất
+sạch lịch sử.
+
 Nếu bootstrap vừa in `SSH_PRIVATE_KEY`, lưu toàn bộ key vào GitHub Environment `production`, rồi xoá
 bản tạm trên server:
 

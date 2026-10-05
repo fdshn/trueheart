@@ -66,6 +66,27 @@ ls -la /home/deploy/chantam-staging
 
 Kỳ vọng: `CORE_PORT=8080`, cùng `.env`, `docker-compose.yml`, `init.sql`.
 
+### Stack dựng TRƯỚC 05/10 phải thêm ba dòng bằng tay
+
+`bootstrap.sh` cố ý **không ghi đè** `.env` đã tồn tại, nên staging đang chạy sẽ không nhận ba
+biến thêm hôm đó. Cả ba thiếu đều hỏng **im lặng** — service vẫn healthy, không gì đỏ:
+
+```bash
+cd /home/deploy/chantam-staging
+grep -qE '^TRUST_PROXY=' .env || echo 'TRUST_PROXY=true' >> .env
+grep -qE '^CONFIG_ENCRYPTION_KEY=' .env ||
+  echo "CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> .env
+grep -qE '^PHONE_HASH_PEPPER=' .env ||
+  echo "PHONE_HASH_PEPPER=$(openssl rand -base64 32)" >> .env
+docker compose up -d core
+```
+
+`TRUST_PROXY=true` vì staging có host Nginx đứng trước (mục 3). Thiếu nó thì mọi request mang IP
+của Nginx, nên trần gọi chung và trần đăng nhập/đăng ký theo IP dồn vào **một xô**.
+
+Chi tiết hậu quả từng biến, và lý do đừng đổi hai khoá sau khi đã có dữ liệu: xem
+[`PRODUCTION.md`](./PRODUCTION.md).
+
 Nếu script vừa in `SSH_PRIVATE_KEY`, dán toàn bộ private key (BEGIN/END) vào GitHub Environment
 `staging`. Không dán key vào chat. Sau khi đã lưu GitHub:
 

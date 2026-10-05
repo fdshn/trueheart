@@ -120,6 +120,19 @@ else
   POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
   JWT_SECRET=$(openssl rand -base64 48)
 
+  # Sinh luôn hai khoá này thay vì để trống, vì bỏ trống cả hai đều hỏng IM LẶNG:
+  #
+  #   - CONFIG_ENCRYPTION_KEY trống: Admin bấm lưu cấu hình SMTP/Zalo và nó fail
+  #     closed. Không có gì đỏ lúc khởi động, lỗi chỉ hiện khi có người thử lưu.
+  #   - PHONE_HASH_PEPPER trống: vẫn băm số điện thoại nhưng KHÔNG có khoá, và
+  #     chống trùng vẫn chạy nên không ai thấy gì. Không gian số điện thoại Việt
+  #     Nam đủ nhỏ để kẻ đọc được database dò ngược hết bảng băm.
+  #
+  # Một môi trường mới dựng xong nên ở trạng thái đúng, không phải ở trạng thái
+  # chờ ai đó đọc tài liệu rồi nhớ ra.
+  CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32)
+  PHONE_HASH_PEPPER=$(openssl rand -base64 32)
+
   cat > "$APP_DIR/.env" << ENVFILE
 # Môi trường: $ENVIRONMENT
 # Sinh tự động bởi bootstrap.sh $(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -144,6 +157,27 @@ OTP_TTL_SECONDS=300
 # khác, để không ai bấm "Try it out" nhầm sang bên kia.
 API_SERVERS=$API_SERVERS_VALUE
 
+# Script này dựng môi trường CÓ host Nginx đứng trước, nên dòng này phải là true.
+# Để false thì mọi request mang IP của Nginx, và bốn cái trần theo IP (trần gọi
+# chung, trần đăng nhập theo IP, trần đăng ký theo IP) dồn hết vào một xô: một
+# người lụt là cả hệ bị 429. Ngược lại bật true khi không có proxy thì ai cũng tự
+# khai X-Forwarded-For và bốn trần đó thành vô hiệu.
+TRUST_PROXY=true
+
+# Hai khoá dưới đây sinh ngẫu nhiên lúc bootstrap. ĐỪNG đổi sau khi đã có dữ liệu:
+#   - Đổi CONFIG_ENCRYPTION_KEY là không giải mã được secret Admin đã lưu.
+#   - Đổi PHONE_HASH_PEPPER là mọi băm số điện thoại cũ không khớp nữa, nên chống
+#     trùng coi như mất sạch lịch sử.
+CONFIG_ENCRYPTION_KEY=$CONFIG_ENCRYPTION_KEY
+PHONE_HASH_PEPPER=$PHONE_HASH_PEPPER
+
+# Gốc web công khai cho link chia sẻ hồ sơ. Bỏ trống thì API trả shareUrl null.
+WEB_PUBLIC_BASE_URL=
+
+# Điền MỘT LẦN username đã tồn tại để cấp SUPER_ADMIN, rồi xoá giá trị đi và khởi
+# động lại. Để nguyên là mỗi lần khởi động lại cấp quyền cao nhất cho username đó.
+ADMIN_BOOTSTRAP_USERNAMES=
+
 # CẢNH BÁO: chưa có nhà cung cấp email/SMS/Zalo ZNS nào được cắm vào.
 # Chức năng quên mật khẩu TỰ TẮT: mọi yêu cầu trả về kênh ADMIN_SUPPORT, không
 # mã nào được ghi ra log. Service vẫn khởi động bình thường.
@@ -151,7 +185,7 @@ ENVFILE
 
   chown "$DEPLOY_USER:$DEPLOY_USER" "$APP_DIR/.env"
   chmod 600 "$APP_DIR/.env"
-  echo "Đã sinh .env với mật khẩu database và JWT_SECRET ngẫu nhiên, cổng $CORE_PORT."
+  echo "Đã sinh .env với mật khẩu database, JWT_SECRET, CONFIG_ENCRYPTION_KEY và PHONE_HASH_PEPPER ngẫu nhiên, cổng $CORE_PORT."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
