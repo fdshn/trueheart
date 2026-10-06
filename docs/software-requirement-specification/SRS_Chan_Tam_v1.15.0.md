@@ -49,7 +49,7 @@ CHỐT-05 - Rao vặt: giá thị trường là giá tham khảo do người bá
 
 CHỐT-06 - Group Affiliate Geo: TOÀN BỘ Group Affiliate Event chỉ được cộng điểm khi event xảy ra trong bán kính của Group. Bán kính được lấy theo Group đã tạo/config; dù radius của Kim Cương thường lớn, Backend vẫn phải kiểm tra Geo Eligibility cho mọi Affiliate Event.
 
-CHỐT-07 - Gia hạn bài Muốn Tặng: bài chưa có người nhận được gia hạn tối đa 01 lần. Khi gia hạn, thời hạn được reset thêm 03 tháng và bài được tính quota như một bài mới tại thời điểm gia hạn.
+CHỐT-07 - Vòng đời mới của bài Muốn Tặng/Muốn Nhận (cập nhật 07/10/2026): Cả `INSTANT` và `OPTIMAL` đều có **7 ngày đầu từ lúc đăng bài**; nếu chưa ghép được ai thì **tự mở thêm 30 ngày**. Hết 30 ngày bổ sung vẫn chưa ghép được thì bài hết hạn, đóng yêu cầu chờ và giữ lịch sử/audit: tổng thời gian tối đa **37 ngày** từ lúc đăng. `INSTANT` có phản hồi hợp lệ thì ghép ngay, không cần đợi đủ 7 ngày để xét. Không áp dụng quy tắc cũ 3 tháng + gia hạn thủ công thêm 3 tháng. Xem [đặc tả mục tiêu](../plan/GIVE-RECEIVE-2026-10-07.md).
 
 CHỐT-08 - Cơ chế đổi vật phẩm bằng Điểm Cống Hiến, Countdown 7 ngày & Bảo vệ Rank:
 1. Giá trị tham khảo & Tỷ lệ quy đổi: Khi người cho đăng bài Muốn Tặng, ngoài các thông tin hiện có, người cho khai báo Giá trị tham khảo của vật phẩm (bằng VNĐ). Giá trị này làm cơ sở tính số Điểm Cống Hiến cần thiết để người xin đổi lấy vật phẩm. Tỷ lệ quy đổi giữa Điểm Cống Hiến và VNĐ do Admin cấu hình động trên hệ thống, tuyệt đối không hard-code (ví dụ: Admin cấu hình 1 Điểm = 1.000 VNĐ; vật phẩm 1.000.000 VNĐ cần 1.000 điểm; khi Admin đổi tỷ lệ quy đổi thì hệ thống áp dụng theo cấu hình tương ứng). Khai khống giá trị tham khảo chỉ làm tăng số điểm cần để đổi vật phẩm, không tự sinh ra điểm cho người cho (phân biệt rõ với điểm thưởng theo giá trị cho đi do người nhận đánh giá sau giao dịch tại BR-POINT-02).
@@ -66,11 +66,14 @@ Luồng tạo bài Muốn Tặng bổ sung trường lựa chọn hình thức n
 - Người nhận tự đến lấy (`SELF_PICKUP`).
 - Người cho hỗ trợ ship / gửi vận chuyển (`SHIPPING_SUPPORT`).
 
-CHỐT-10 - Chế độ tìm người nhận bài Muốn Tặng (Selection Modes):
-Khi người cho tạo bài đăng Muốn Tặng (`OFFER`), hệ thống hỗ trợ 03 chế độ lựa chọn người nhận:
-1. `INSTANT` (Trao ngay lập tức): Khi người đầu tiên gửi yêu cầu xin nhận hợp lệ, hệ thống tự động chấp nhận (atomic accept) ngay lập tức, chuyển bài sang trạng thái `DELIVERING`, tạo giao dịch và mở phòng chat trực tiếp. Không áp dụng countdown 7 ngày.
-2. `OPTIMAL` (Tìm người nhận tối ưu - Mặc định): Khi có yêu cầu hợp lệ đầu tiên, hệ thống kích hoạt đồng hồ đếm ngược (countdown) tối đa 7 ngày (`selection_deadline = NOW() + 7 days`). Trong thời gian này, các ứng viên khác có thể tiếp tục gửi yêu cầu hoặc dùng Điểm Cống Hiến để đổi trực tiếp vật phẩm (theo CHỐT-08). Hết 7 ngày, hệ thống auto-select theo cấu hình ưu tiên của Admin.
-3. `EXTENDED` (Thời gian mở rộng): Kích hoạt thời gian chờ tối đa 30 ngày (`selection_deadline = NOW() + 30 days`) kể từ yêu cầu đầu tiên. Phù hợp cho các vật phẩm có giá trị cao, cần thêm thời gian xem xét hoặc thẩm định người nhận phù hợp nhất.
+CHỐT-10 - Hai chế độ kết nối cho cả `OFFER` và `WANTED` (cập nhật 07/10/2026):
+1. `INSTANT`: phản hồi hợp lệ đầu tiên bắt đầu giao dịch ngay, không đồng nghĩa đã hoàn tất.
+2. `OPTIMAL`: xét 7 ngày từ `published_at`; chủ bài hạng Kim Cương được chọn tay trong 7 ngày, dưới Kim Cương không được chọn tay. Với `OFFER`, người xin hợp lệ có thể dùng điểm đổi ngay trong 7 ngày. Hết 7 ngày còn ứng viên hợp lệ mà chưa chốt thì hệ thống tự chọn; chưa ghép được ai thì bài tự mở thêm 30 ngày và sau đó hết hạn nếu vẫn chưa ghép.
+`EXTENDED` không còn là lựa chọn khi tạo bài. Bài `WANTED` áp dụng quyền chọn tay/tự chọn tương tự theo chiều người cần đồ chọn người cho; không áp dụng đổi điểm cho `WANTED`. Chi tiết và ngoại lệ tại [đặc tả mục tiêu](../plan/GIVE-RECEIVE-2026-10-07.md).
+
+CHỐT-13 - Giá trị ước tính, đổi điểm và hoàn điểm (07/10/2026): Giá trị ước tính của `OFFER` không bắt buộc; thiếu thì tính 0, vẫn cho đăng/giao dịch nhưng không thể đổi điểm. Chỉ người đã xin hợp lệ mới đổi trong 7 ngày đầu; chỉ tiêu phần điểm vượt ngưỡng tối thiểu giữ Rank hiện tại. Giá đổi dựa trên giá trị ước tính và tỷ lệ VNĐ/điểm Admin cấu hình. Debit/ledger/chốt người/giao dịch/dừng xét phải nguyên tử và chống trùng. Nếu giao dịch đổi điểm bị hủy, hoàn **đúng số điểm đã trừ** theo ledger gốc bằng bút toán hoàn riêng, không tính lại theo tỷ lệ hiện tại. Số điểm làm tròn với phần lẻ từ 0,5 trở lên làm tròn lên, dưới 0,5 làm tròn xuống. Quyết định này thay thế đoạn F76 từng huỷ bảo vệ Rank.
+
+CHỐT-14 - Hai khoản thưởng và review (07/10/2026): Người cho nhận riêng `completion_points` khi giao dịch `COMPLETED` và `value_bonus = round_half_up(round_half_up(estimated_value_vnd / vnd_per_point) × final_accuracy_percent / 100)` sau hạn đánh giá N ngày. Không nhân `completion_points` với accuracy; không khai giá trị thì `value_bonus = 0`. Người nhận chấm accuracy 0–100%, người cho không tự chấm accuracy. Mỗi bên được sửa review của mình tối đa **một lần** trước `completed_at + N ngày`. Hết hạn, nếu người nhận chưa review thì dùng % mặc định; **N ngày và % mặc định đều do Admin cấu hình**. Chỉ tại hạn mới cộng bonus một lần qua Point Ledger; cần snapshot chính sách áp dụng vào giao dịch và lưu audit bản review trước/sau. Quyết định này thay thế công thức `X × accuracy` cũ và quy tắc review bất biến. Xem [đặc tả mục tiêu](../plan/GIVE-RECEIVE-2026-10-07.md).
 
 CHỐT-11 - Quyền riêng tư & Bảo vệ Thông tin Người Cho:
 Để bảo vệ an toàn thông tin cá nhân và tránh tình trạng bị quấy rầy:
@@ -919,12 +922,12 @@ Wireframe tham chiếu — Chi tiết vật phẩm
 • Luồng trạng thái nghiệp vụ: Đang tạo (Draft) → Đang Tặng (Published/Available) → Đang giao/Đang nhận (Matched/In Transaction) → Đã Tặng (Completed). Bài có thể chuyển Hủy/Ẩn/Hết hạn theo điều kiện vận hành.
 
 • Thời gian chờ xét người nhận (Countdown tối đa 7 ngày):
-  - Khi bài đăng có người gửi yêu cầu xin nhận đầu tiên, hệ thống tự động kích hoạt đồng hồ đếm ngược tối đa 7 ngày (`selection_deadline = NOW() + 7 ngày`) để xác định người được nhận.
+  - **Cập nhật 07/10/2026:** Với chế độ chờ, đồng hồ 7 ngày khởi động ngay khi đăng bài (`selection_deadline = published_at + 7 ngày`), kể cả khi chưa có phản hồi. Câu “từ yêu cầu đầu tiên” trong các phiên bản cũ không còn áp dụng.
   - Trong khoảng thời gian 7 ngày này, người xin có hai khả năng: tiếp tục tham gia quy trình xin nhận thông thường và chờ hệ thống xét duyệt, hoặc nếu đủ điều kiện thì sử dụng Điểm Cống Hiến để đổi trực tiếp lấy vật phẩm.
   - Đổi điểm chốt ngay: Nếu một người xin có đủ Điểm khả dụng (`Điểm khả dụng = Current Point Balance - Minimum Point của Rank hiện tại >= required_points`) và xác nhận đổi, hệ thống chọn ngay người đó làm người nhận chính thức, trừ Điểm Cống Hiến, ghi Point Ledger (`ITEM_REDEMPTION`), dừng countdown 7 ngày, đóng quy trình xét duyệt, chuyển bài sang `DELIVERING`, mở phòng chat giao dịch và không chạy auto-select đối với các ứng viên còn lại.
   - Hết 7 ngày không ai đổi điểm: Khi hết thời gian chờ 7 ngày mà không có ai sử dụng điểm để đổi vật phẩm, hệ thống sử dụng bộ tiêu chí lựa chọn người xin để tự động xác định người được nhận (bộ tiêu chí cụ thể đang chờ khách hàng chốt bổ sung; các phương án khả thi gồm khoảng cách địa lý, thời điểm gửi yêu cầu, lịch sử nhận, quota, đánh giá uy tín...).
 
-• Bài Đang Tặng chưa có người nhận có tuổi đời tối đa 3 tháng. Trước khi hết hạn, hệ thống thông báo để user gia hạn, hủy bài hoặc gửi yêu cầu chuyển vật phẩm cho Admin/điểm từ thiện được công bố. User chỉ được gia hạn tối đa 01 lần; khi gia hạn, bài được reset thêm 03 tháng và tính quota như một bài mới tại thời điểm gia hạn. Nếu user chọn chuyển cho Admin, yêu cầu phải được Admin duyệt trước; nếu sau 1 tháng kể từ yêu cầu chuyển vẫn không được Admin duyệt, bài/vật phẩm được loại khỏi danh sách hoạt động của hệ thống (giữ lịch sử/audit khi cần).
+• **Cập nhật 07/10/2026:** Cả `INSTANT` và `OPTIMAL` đều có 7 ngày đầu từ lúc đăng. Nếu chưa ghép được ai, bài tự mở tiếp 30 ngày; hết 30 ngày vẫn chưa ghép thì hết hạn, tổng thời gian tối đa 37 ngày, và giữ lịch sử/audit. `INSTANT` có phản hồi hợp lệ thì ghép ngay, không đợi hết 7 ngày. Quy định cũ “tối đa 3 tháng, gia hạn thủ công thêm 3 tháng” không còn áp dụng cho các bài này. Quy trình chuyển vật phẩm cho Admin/điểm từ thiện, nếu có, là quy trình riêng và không tự kéo dài hạn bài.
 
 UI-LIFECYCLE-01: Trong Tài khoản/Hoạt động phải có màn quản lý kho đồ và vòng đời bài của chính user, thể hiện hạn mức theo Rank, số bài đã dùng, thống kê Đã tặng/Đã nhận/Điểm cống hiến, bộ lọc trạng thái và cảnh báo bài tồn đọng/hết hạn. Các CTA Gia hạn, Sửa tin, Đóng tin hoặc Chuyển Kho Từ Thiện chỉ xuất hiện khi trạng thái và quyền cho phép.
 
@@ -1347,6 +1350,8 @@ Wireframe tham chiếu — Hội thoại Chân Tâm
 ## 3.7 Module 7: Quản Lý Điểm Cống Hiến, Rank & Đánh Giá (Point, Rank & Review Management)
 
 PHẠM VI HỢP NHẤT - POINT LEDGER & RULE ENGINE
+
+> **BR-POINT-02 cập nhật 07/10/2026:** Người cho nhận điểm hoàn tất giao dịch riêng tại `COMPLETED`; điểm theo giá trị = `round_half_up(round_half_up(estimated_value_vnd / vnd_per_point) × final_accuracy_percent / 100)`, cộng một lần sau N ngày. Không khai giá trị thì khoản theo giá trị bằng 0. `N`, tỷ lệ VNĐ/điểm và % mặc định khi không có review do Admin cấu hình. Mỗi bên được sửa review một lần trước hạn N. Công thức cũ bên dưới là lịch sử, không còn là tiêu chí triển khai; xem [đặc tả mục tiêu](../plan/GIVE-RECEIVE-2026-10-07.md).
 
 Các rule dưới đây là nguồn nghiệp vụ chính cho Điểm Cống hiến và Rank. Review Quality có thể dùng thang sao 1-5; Giver Accuracy là chỉ số riêng theo tỷ lệ phần trăm 0-100%. Các dữ liệu đánh giá không tự động cộng chồng vào Point Ledger nếu không có Point Rule tương ứng.
 

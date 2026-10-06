@@ -1,5 +1,11 @@
 # Tham chiếu API
 
+> **Lưu ý 07/10/2026:** Tài liệu này mô tả **API hiện đang có**, không phải hợp đồng đã
+> triển khai cho [nghiệp vụ cho–nhận/đổi điểm/review mới](./plan/GIVE-RECEIVE-2026-10-07.md).
+> Backend hiện còn `EXTENDED`, countdown từ request đầu tiên, `selectionMode` chỉ cho
+> `OFFER`, review không sửa được và thưởng người cho theo công thức cũ. Không dùng trang
+> này làm bằng chứng tính năng mới đã có; cần cập nhật endpoint/schema trước khi app gọi.
+
 Mô tả **các endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
 buộc mà chữ ký hàm không nói ra.
 

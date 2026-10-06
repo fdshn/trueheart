@@ -1,5 +1,9 @@
 # 13 · Đánh giá sau giao dịch & Giver Accuracy
 
+> **Sơ đồ hiện trạng backend.** [Quy tắc mục tiêu 07/10/2026](../plan/GIVE-RECEIVE-2026-10-07.md)
+> cho sửa review một lần trước hạn N, cộng điểm hoàn tất riêng và chốt điểm theo giá trị
+> sau N ngày. Phần “review không sửa được” và `56 × accuracy` bên dưới chỉ đúng với code cũ.
+
 Trạng thái: ✅ **đã hiện thực đầy đủ**, gồm cả CLI đối soát.
 
 ## 13.1 Hai chiều đánh giá
