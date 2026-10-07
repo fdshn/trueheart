@@ -1636,6 +1636,11 @@ Client không gửi `approvalStatus`. Backend kiểm tra `SUBMIT_INDIVIDUAL_APPE
 `SUBMIT_CHARITY_PROPOSAL`, sau đó kiểm tra `PUBLISH_CHARITY_WITHOUT_REVIEW` bằng Rank hiện
 tại đọc từ database.
 
+Điểm contributor dùng Point Rule `CHARITY_CONTRIBUTION_COMPLETED`: một mức `X` cố định do
+Admin cấu hình và thưởng đúng một lần cho mỗi contribution khi có transaction hoàn tất.
+Reference ledger là `campaignContributionId`; không nhân theo số lượng, số item, số chuyến
+giao, giá trị ước tính hay accuracy. External contribution không sinh điểm.
+
 ## 14. Tương thích cũ — `/gift-posts`
 
 Năm endpoint legacy giữ nguyên hợp đồng cũ nhưng **đọc/ghi canonical `posts`**: `create` uỷ

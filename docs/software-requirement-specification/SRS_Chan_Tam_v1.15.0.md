@@ -2272,6 +2272,13 @@ Không cộng các dòng khác đơn vị thành tổng số vật phẩm. API t
 dòng active, không phải nguồn sự thật. Hai cột tổng hợp cũ chỉ phục vụ tương thích campaign
 legacy và response phải chỉ rõ `progressSource`.
 
+Contributor nhận một mức điểm cố định `X` từ Point Rule
+`CHARITY_CONTRIBUTION_COMPLETED` do Admin cấu hình. Chỉ thưởng một lần cho mỗi
+`campaign_contribution` khi có ít nhất một transaction `COMPLETED`, dùng contribution id làm
+reference/idempotency. Không nhân theo số lượng, số dòng, số chuyến giao, giá trị ước tính hay
+accuracy; đóng góp ngoài app không sinh điểm. Nếu kết quả hoàn tất bị đảo hợp lệ, hệ thống ghi
+ledger reversal, không sửa/xóa bút toán cũ.
+
 Đặc tả triển khai đầy đủ tại `docs/plan/CHARITY-CONTRIBUTION-DESIGN.md`.
 
 ### 6.2.14 Bảng system_allocation_configs (Cấu Hình Chính Sách Phân Bổ & Ghép Nối Toàn Hệ Thống)
@@ -2301,7 +2308,7 @@ Lưu trữ cấu hình Smart Match/queue ở mức nghiệp vụ. Phase 1 Smart 
 
 point_ledger: lưu mọi biến động Point Event với user_id, event_type, reference/idempotency, delta, balance_after, actor/source, metadata và created_at. Giá trị delta lấy từ Point Rule do Admin cấu hình; Rank được xác định theo balance_after/current point balance theo rule hiện hành. Hỗ trợ sự kiện chuẩn hóa `ITEM_REDEMPTION` khi người dùng tiêu Điểm Cống Hiến đổi trực tiếp vật phẩm (delta âm = -required_points, reference_id trỏ về post_id, ghi nhận idempotency_key chống xử lý trùng lặp).
 
-point_rules / rank_configs: lưu mức điểm, cap, điều kiện, trạng thái rule; ngưỡng Rank, nhiệm vụ duy trì, quyền và chu kỳ áp dụng.
+point_rules / rank_configs: lưu mức điểm, cap, điều kiện, trạng thái rule; ngưỡng Rank, nhiệm vụ duy trì, quyền và chu kỳ áp dụng. Point Rule gồm `CHARITY_CONTRIBUTION_COMPLETED`, thưởng cố định theo mỗi contribution đủ điều kiện và do Admin cấu hình/version hóa.
 
 check_in_entries / check_in_runs / check_in_milestone_awards: lưu ngày điểm danh thường/bù,
 chuỗi streak và mốc đã thưởng. repair_transaction_progress / repair_credit_cohorts /
@@ -3238,6 +3245,7 @@ FIREBASE_SERVICE_ACCOUNT_PATH=./config/firebase-service-account.json
 | Giới thiệu thành viên mới | Admin cấu hình | Tài khoản mới đăng ký thành công qua Personal Referral; one-time.                                 |
 | ---                       | ---            | ---                                                                                               |
 | Cho đi thành công         | Admin cấu hình | Điều kiện/cap do Point Rule Admin cấu hình; không hard-code mức điểm.                             |
+| Đóng góp từ thiện hoàn tất | Admin cấu hình | `CHARITY_CONTRIBUTION_COMPLETED`: cố định theo contribution, một lần/reference; không nhân số lượng, giá trị hay accuracy. |
 | ---                       | ---            | ---                                                                                               |
 | Giá trị cho đi            | Admin cấu hình | Phase 1: Receiver đánh giá theo %; 100% = X điểm do Admin cấu hình, các mức còn lại theo mapping. |
 | ---                       | ---            | ---                                                                                               |

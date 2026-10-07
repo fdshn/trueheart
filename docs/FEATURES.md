@@ -919,6 +919,10 @@ Baseline quyền tạo: Member/Bạc/Vàng được tạo `INDIVIDUAL_APPEAL` nh
 Kim Cương tạo `INDIVIDUAL_APPEAL` hoặc `ORGANIZED_CAMPAIGN` và public trực tiếp. Quyền được
 biểu diễn bằng capability trong Rank Config, không so chuỗi Rank tại controller.
 
+Contributor nhận một mức điểm cố định `X` khi contribution có giao dịch hoàn tất; `X` lấy từ
+Point Rule `CHARITY_CONTRIBUTION_COMPLETED` do Admin cấu hình. Thưởng một lần theo contribution,
+không nhân số lượng/giá trị/accuracy và không áp dụng cho đóng góp ngoài app.
+
 ---
 
 ## 14. Hạ tầng & Bảo mật

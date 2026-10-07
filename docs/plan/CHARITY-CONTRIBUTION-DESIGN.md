@@ -157,6 +157,20 @@ Organizer không được gõ trực tiếp một tổng `current_items_count`. 
 chỉnh/hủy bản ghi external contribution có lý do, không ghi đè lịch sử. Chỉ bản ghi còn hiệu
 lực mới tham gia `receivedQuantity`.
 
+### Điểm Cống Hiến cho contributor
+
+- Point Rule mới: `CHARITY_CONTRIBUTION_COMPLETED` với mức cố định `X` do Admin cấu hình,
+  đánh version và có thời điểm hiệu lực như các Point Rule khác.
+- Thưởng đúng **một lần cho mỗi `campaign_contribution`**, khi contribution có ít nhất một
+  transaction `COMPLETED`; không thưởng theo từng dòng, số lượng hay số transaction con.
+- Không áp dụng `value_bonus`, `estimated_value_vnd` hoặc accuracy của OFFER/WANTED cho luồng
+  từ thiện.
+- Ledger dùng `campaign_contribution_id` làm reference/idempotency; retry hoặc việc hệ thống
+  tách một contribution thành nhiều chuyến giao không được cộng lặp.
+- Contribution bị từ chối/rút hoặc chỉ có transaction bị huỷ không được thưởng. Nếu kết quả
+  hoàn tất bị đảo hợp lệ, thu hồi bằng ledger reversal thay vì sửa/xóa bút toán cũ.
+- External contribution không gắn user nên không sinh điểm.
+
 ## 8. Vòng đời chiến dịch
 
 ```text
@@ -222,3 +236,5 @@ danh tính contributor ẩn danh.
 10. Đóng góp ngoài app có audit và không tự cộng điểm cho bất kỳ tài khoản nào.
 11. Member/Bạc/Vàng tạo individual appeal chỉ nhận `PENDING_APPROVAL`; Kim Cương tạo hai loại
     đều `ACTIVE` mà không cần Admin duyệt trước.
+12. Một contribution dù có nhiều item/nhiều transaction hoàn tất cũng chỉ sinh một bút toán
+    `CHARITY_CONTRIBUTION_COMPLETED` theo version Point Rule tại thời điểm đủ điều kiện.
