@@ -1,17 +1,32 @@
 # Lộ trình triển khai
 
-72 chức năng chia 6 mốc. Thứ tự quyết bởi **phụ thuộc kỹ thuật**, không phải độ ưu tiên —
-cả 72 đều là P0.
+**73** chức năng chia 6 mốc. Thứ tự quyết bởi **phụ thuộc kỹ thuật**, không phải độ ưu tiên
+— cả 73 đều là P0.
+
+> Bản lập đầu ghi 72 (F01–F72). Nay là 73: **F20 bỏ khỏi phạm vi** 02/10 (Bên A chốt gộp
+> Quảng cáo vào `RAO_VẶT`), **thêm F73** Dharma Hub và **thêm F83** điểm danh. 72 − 1 + 2 = 73,
+> và đếm được đúng 73 mã F có checkbox: 13 + 14 + 10 + 8 + 10 + 18.
 
 | Mốc | Nội dung | Số chức năng | Trạng thái |
 | --- | --- | ---: | --- |
 | M0 | Nền tảng monorepo + CI/CD | — | ✅ Xong |
-| [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | ✅ Xong (provider/ledger rollout deferred) |
-| [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 15 | 🟡 13/15 — chỉ còn 2 loại bài mới: Quảng cáo (F20) và Dharma Hub (F73) |
-| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 9/10 — F44 backend xong, khoá đã cắm staging 05/10; chờ client mobile gửi `fcmToken` lên (hiện đếm được 0 token) |
-| [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 7 | 🟡 3/7 — ledger/rank/referral xong; đánh giá & accuracy chưa |
-| [M5](#m5--group--affiliate) | Group, affiliate, chống gian lận | 10 | ⬜ 0/10 |
-| [M6](#m6--quản-trị--bàn-giao) | Admin CMS, kiểm duyệt, bàn giao | 18 | 🟡 1/18 — RBAC/config động/nhật ký/quản lý user đã có; giao diện CMS chưa |
+| [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | ✅ **13/13** — F09 code xong nhưng chưa gửi được thật, chờ adapter SMS |
+| [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 14 | ✅ **14/14** — F73 đóng 04/10; F20 đã bỏ khỏi phạm vi nên là 14 chứ không 15 |
+| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟠 **9/10 + F44 chờ bên ngoài** — backend đẩy xong, khoá cắm staging 05/10, chờ client mobile gửi `fcmToken` (hiện đếm được 0 token) |
+| [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 8 | ✅ **8/8** — F40 đóng 07/10 theo CHỐT-14 (ba lát); F41/F42/F43 đóng từ 02/10 |
+| [M5](#m5--group--affiliate) | Group, affiliate, chống gian lận | 10 | 🟡 **9/10** — F51–F58 và F47 xong 30/09–02/10; còn F50 (ba ngưỡng dấu vết seed `0 = TẮT`, chờ dữ liệu thật) |
+| [M6](#m6--quản-trị--bàn-giao) | Admin CMS, kiểm duyệt, bàn giao | 18 | 🟡 **11/18 + 2 nửa** — F45 và F65 mỗi mục xong một nửa; còn F67 và cả khối QA/bàn giao F69–F72 |
+
+> ⚠️ **Bảng này từng là chỗ sai nhiều nhất của file, soát lại 07/10.** Đợt dọn 02/10 đổi 10
+> mục trong các danh sách bên dưới sang `[x]` — nhưng **không ai sửa bảng**. Nên tới 06/10
+> bảng vẫn ghi M5 **0/10** trong khi chín mục của M5 đã `[x]` ngay trong cùng file này, và ghi
+> M4 *"đánh giá & accuracy chưa"* trong khi F42/F43 đã `[x]`. Hai con số trong một tài liệu nói
+> hai điều khác nhau thì người đọc tin con số ở trên, vì nó ngắn hơn.
+>
+> Cột "số chức năng" cũng lệch ở ba dòng: M2 ghi 15 (F20 đã bỏ), M4 ghi 7 (thiếu F83), M6 ghi
+> 18 (đúng, nhưng F65 chiếm **hai dòng** cho hai việc khác nhau — xem mục đó).
+>
+> Mức **🟠** nghĩa *backend xong, chờ một bên ngoài* — xem [20 §20.4](../diagram/20-overview.md).
 
 ## Vì sao thứ tự này
 
@@ -69,7 +84,15 @@ và `scripts/smoke-test.sh` phủ được luồng này.
 - [x] F19 Rao vặt giá rẻ — `CLASSIFIED` kèm `price`/`condition`/`negotiable`, và vòng quét
       `post:expire` chuyển bài quá hạn thành `OFFER` kèm hạn mới (CHỐT-05)
 - [x] F21 Công đức / Hồi hướng — ⚠️ tạo được qua `MERIT`, chưa có trường riêng theo loại
-- [ ] F73 Phật Pháp – Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng/Công đức, Diễn đàn, Giới thiệu chùa)
+- [x] F73 Phật Pháp – Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng/Công đức, Diễn đàn,
+      Giới thiệu chùa) — **backend đóng đủ 5 UC 04/10.** Bảng `dharma_contents`,
+      `dharma_recitations`, `dharma_threads`, `dharma_dedications`, cặp quyền `dharma.*`;
+      công khai `GET /dharma/threads|dedications`, người dùng
+      `POST /dharma/contents/:id/recitations` + `PATCH .../complete` +
+      `GET /dharma/recitations/mine`, admin `admin/dharma/contents` (CRUD) và
+      `admin/dharma/threads/:id/moderation`. UC-DHARMA-05 **tái dùng** `/merit-units` nên
+      không thêm bảng nào. Kiểm trên Postgres thật: `dharma.check.ts`,
+      `dharma-forum.check.ts`. Giao diện CMS ở repo khác
 - [x] F22 Vòng đời bài + gia hạn 1 lần (CHỐT-07) — CLI `post:expire` đóng bài quá hạn,
       `POST /posts/:postId/renew` gia hạn một lần kèm kiểm quota; kiểm chứng trên database
       thật bằng `npm run test:lifecycle`
@@ -131,7 +154,19 @@ và mở chat phải nằm trong cùng transaction với việc duyệt.
 **Package:** resource `point`, `review`, `rank`, `referral`
 
 - [x] F39 Point Rule Engine + Ledger (xét Rank theo `balance_after`, `lifetime_after` dùng để thống kê/audit — CHỐT-01)
-- [ ] F40 Điểm theo giá trị vật phẩm — dùng [GĐ-1](./ASSUMPTIONS.md#gđ-1--đánh-giá--giver-accuracy)
+- [x] F40 Điểm theo giá trị vật phẩm — **đóng 07/10 theo CHỐT-14**, ba lát. Luật cũ
+      (`trần × accuracy`, cộng lúc đánh giá) đã bỏ; nay **hai khoản rời**:
+      `completion_points` = mức trần của `point_rules.GIFT_COMPLETED_GIVER` (56), cộng PHẲNG
+      ngay tại `COMPLETED` trong cùng transaction đóng lượt trao; và `value_bonus`
+      = `round(round(min(giá khai, trần) / tỷ lệ) × % chính xác / 100)`, chốt **một lần tại
+      hạn** `review.grace` trong `gift:settle-rewards`. Ba đường cùng dẫn tới một bút toán
+      (`COMPLETED`, người nhận đánh giá, job) dùng **chung** khoá
+      `GIFT_COMPLETED_GIVER:<deal>`; hai đường sau giữ lại vì `daily_cap = 10` có thể chặn
+      lượt cộng tại `COMPLETED`, gỡ chúng là biến trần ngày từ HOÃN thành MẤT.
+      Trần `point.value_bonus_max_value_vnd` (mặc định 2.000.000đ) là **van an toàn**: CHỐT-14
+      đưa giá người TỰ KHAI vào công thức tính điểm, và `appendAdjustment` — đường duy nhất
+      `value_bonus` đi được — không kiểm `daily_cap` nào. Xem
+      [GIVE-RECEIVE-2026-10-07.md](./GIVE-RECEIVE-2026-10-07.md) mục 3
 - [x] F41 Điểm Like/Comment/Report — `POST_REACTED` (1đ, trần 20/ngày), `POST_COMMENTED`
   (2đ, trần 10/ngày) và `REPORT_UPHELD` (5đ, trần 5/ngày) đều ở **version 2 và ĐANG BẬT**
   trong `point_rules`. Ghi chú *"mặc định tắt"* đúng ở bản seed đầu, đã lạc hậu từ 29/09
@@ -240,17 +275,24 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
   `EXCLUDE USING gist` dưới database, không phải nhánh `if`; BR_CAMP_02 là
   `DefaultHomeLayout` nên app luôn có bố cục vẽ. Quyền riêng `campaign.read` /
   `campaign.manage` — KHÔNG dùng lại `config.write`, vốn mở luôn ngưỡng hạng và quy tắc điểm
-- [ ] F65 mở rộng Từ thiện — phân biệt `INDIVIDUAL_APPEAL` và `ORGANIZED_CAMPAIGN`, bảng
-  nhu cầu từng vật phẩm, đề nghị đóng góp nhiều dòng, organizer chấp nhận/từ chối một phần
-  và sinh transaction giao nhận. Contract đã chốt tại
-  [`CHARITY-CONTRIBUTION-DESIGN.md`](./CHARITY-CONTRIBUTION-DESIGN.md); backend/staging chưa
-  triển khai nên client không được giả lập thành công.
+- [~] F65 — **một mã F, HAI việc khác nhau**, và chúng ở hai trạng thái khác nhau. Tới 06/10
+  file này có hai dòng `[ ]` cùng mang mã F65 ở hai chỗ cách nhau mười dòng, nên không dòng
+  nào nói được trạng thái của mã đó. Tách rõ:
+
+  - **F65a · Quản lý Rao vặt, Quảng cáo, Công đức — ✅ xong 04/10.** Rao vặt thêm
+    `details.marketPrice` (CHỐT-05); Quảng cáo có bảng `sponsor_banners` + cặp quyền
+    `banner.*`; Công đức có `merit_units`/`merit_declarations` + cặp `merit.*` (chỉ
+    `SUPER_ADMIN`). Xem [31 mục T1](../diagram/31-open-items.md). Giao diện CMS ở repo khác.
+  - **F65b · Mở rộng Từ thiện — ⛔ chưa triển khai.** Phân biệt `INDIVIDUAL_APPEAL` và
+    `ORGANIZED_CAMPAIGN`, bảng nhu cầu từng vật phẩm, đề nghị đóng góp nhiều dòng, organizer
+    chấp nhận/từ chối một phần và sinh transaction giao nhận. Contract đã chốt tại
+    [`CHARITY-CONTRIBUTION-DESIGN.md`](./CHARITY-CONTRIBUTION-DESIGN.md); **backend chưa có
+    dòng nào** nên client không được giả lập thành công.
 - [x] F64 Blog / Tin tức — bảng `blogs` (SRS §6.2.12), bốn endpoint admin
   `GET|POST /admin/blogs` + `PUT|DELETE /admin/blogs/:id`, hai endpoint công khai
   `GET /blogs` + `GET /blogs/:idOrSlug`. `content_html` được LỌC ở tầng ghi qua
   `IHtmlSanitizer` (hiện thực `sanitize-html`, 22 ca tấn công có spec canh), cột lưu bản
   đã sạch. Xoá MỀM để `slug` giữ chỗ. Quyền riêng `blog.read` / `blog.manage`
-- [ ] F65 Quản lý Từ thiện, Rao vặt, Quảng cáo, Công đức
 
 **Kiểm duyệt & thông báo**
 - [x] F48 Báo cáo kèm bằng chứng — `POST /reports` nhận `evidenceUrls`, hàng đợi
@@ -261,18 +303,48 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
   đi kèm vì nó gọi lại NGUYÊN `ChangeAdminUserStatusUseCase`, không viết lại — nên cũng
   không mở cửa leo thang quyền: chế tài đòi `admin.manage`, kết luận chỉ đòi
   `report.resolve`. Gỡ/ẩn bài viết KHÔNG gộp vào đây
-- [ ] F45 Phân loại + mẫu thông báo
+- [~] F45 Phân loại + mẫu thông báo — **mẫu xong, phân loại xong nhưng KHÁC đặc tả có chủ ý.**
+  Mẫu: bảng `notification_templates` + `GET /admin/notification-templates` và
+  `PUT /admin/notification-templates/:type`, đã seed mẫu cho hạng và cho nhắc hẹn. Phân loại:
+  `NotificationGroups` + `NotificationGroupOf` phủ đủ 29 loại thông báo, và người dùng tắt/bật
+  theo nhóm qua `GET|PATCH /notifications/me/preferences`.
+
+  **Chỗ lệch đặc tả:** F45 trong `FEATURES.md` nói *"tám nhóm: hướng dẫn, điểm, sự kiện, trạng
+  thái, thưởng, cảnh báo, liên lạc, điều kiện"*. Mã có **bốn**: `TRANSACTION`, `CHAT`, `FEED`,
+  `SYSTEM`. Đây là lựa chọn có ghi lý do (`API.md` §9: *"hai mươi công tắc là một màn hình
+  không ai đọc, và người đang bị làm phiền cần tắt nhanh chứ không cần chính xác"*), không
+  phải sót. Nhưng hai tài liệu đang nói hai con số, nên **cần Bên A chốt 4 hay 8** rồi sửa bên
+  còn lại — không để nguyên như hiện tại.
 - [x] F46 Lịch Âm — bộ chuyển đổi Âm lịch Việt Nam viết THUẦN trong `core-lib` (không
   dependency, UTC+7, can chi, mốc Rằm/Mùng Một), bảng `lunar_holidays` seed 10 ngày lễ
   Phật giáo, `GET /config/lunar-today` công khai và `GET|PUT /admin/lunar-holidays`.
   Phần **nhắc ngày lễ** đã làm 02/10: `npm run notify:lunar` gửi toàn hệ thống, lô 500,
-  chống trùng theo ngày âm lịch — xem [L28](../diagram/31-open-items.md). Gửi theo VÙNG
-  vẫn chờ F47
+  chống trùng theo ngày âm lịch — xem [L28](../diagram/31-open-items.md).
+
+  Ghi chú cũ *"Gửi theo VÙNG vẫn chờ F47"* **nay nói sai chỗ chặn**: F47 đã xong, có
+  `notification_broadcasts` và chế độ `AREA` dùng `ST_DWithin`. Đo được: `notify-lunar.cli.ts`
+  **không tham chiếu** gì tới broadcast hay geo — nên việc còn lại không phải chờ ai, mà là
+  nối hai thứ đã có lại với nhau
 
 **Hạ tầng & bàn giao**
-- [x] F66 VPS, Docker, Nginx SSL — template host Nginx + runbook staging/production đã có; backup, monitoring và rate limit vẫn là phần còn lại
+- [x] F66 VPS, Docker, Nginx SSL — template host Nginx + runbook staging/production đã có.
+  Ghi chú cũ *"backup, monitoring và rate limit vẫn là phần còn lại"* nay chỉ còn đúng một
+  phần ba: **monitoring và rate limit đã xong** (xem F68), còn **backup là F67**
 - [ ] F67 Sao lưu + **kiểm thử restore**
-- [ ] F68 Bảo mật, log, giám sát
+- [x] F68 Bảo mật, log, giám sát — đủ sáu phần của đặc tả. **Rate limit**:
+  `GlobalRateLimitGuard` (600 req/phút theo IP) cộng rate limit theo path ở Nginx
+  (`deploy/nginx/chantam-ratelimit.conf.example`, áp bằng `apply-ratelimit.sh` có backup và
+  tự lùi). **Validation**: DTO + pipe trên toàn bộ endpoint. **Quản lý secret**:
+  `CONFIG_ENCRYPTION_KEY` mã hoá secret động trong database, không API nào trả chúng ra.
+  **Audit log**: `GET /admin/audit-logs`. **Health check**: `deploy/cron/check-health.sh` mỗi
+  5 phút cộng cổng health HTTPS ngoài. **Log vận hành**: `GET /admin/system-logs` +
+  `chantam-cron.logrotate`.
+
+  Và đường **cảnh báo** mà F67 còn chờ: `deploy/cron/send-alert.sh` nhận mọi kênh
+  (`CHANTAM_CRON_ALERT_URL`), tự nhận ra Telegram để đổi dạng payload, cắt theo
+  `MAX_CHARS`; `scripts/test-cron-alert.sh` có 25 phép kiểm và CI đặt
+  `CHANTAM_ALERT_REQUIRE_JQ=1` để thiếu `jq` thì đỏ. **Đã kiểm bằng một cron job cho hỏng
+  thật trên staging** và cảnh báo tới nơi — không phải kiểm bằng mock.
 - [ ] F69 Kiểm thử hồi quy + UAT
 - [ ] F70 Sửa lỗi UAT + nghiệm thu Sprint
 - [ ] F71 Build + phát hành Store
@@ -315,3 +387,6 @@ Những mục này **không tính vào mẫu số tiến độ**.
 | 2026-09-15 | Lập lần đầu — 6 mốc, 72 chức năng |
 | 2026-10-02 | Dựng bộ máy affiliate F56–F58, nên **M5 đóng** phần cơ chế; A1–A4 của Bên A nay là lựa chọn trong `PUT /admin/affiliate-policy` |
 | 2026-10-02 | Dọn theo đợt đối chiếu SRS ↔ mã nguồn: **10 mục đổi sang `[x]`** vì đã xong từ trước mà tài liệu chưa theo (F41, F42, F43, F48, F51–F55, rate limit toàn cục); F20 chuyển sang mục đã bỏ; thêm F83. Hai tài liệu kế hoạch từng nói trái nhau về F41/F42/F43 — `SPRINT-PLAN` ghi xong, file này ghi chưa; nay cùng một nguồn |
+| 2026-10-07 | **F40 đóng** theo CHỐT-14 (ba lát: bỏ phép nhân accuracy, thêm `value_bonus` kèm trần chặn in điểm, dời mốc cộng sang `COMPLETED`) → M4 **8/8**. **F73 đóng** → M2 **14/14** |
+| 2026-10-07 | **F68 đóng**: rate limit hai tầng, audit/system log, health check 5 phút, và đường cảnh báo đa kênh đã kiểm bằng một cron job cho hỏng THẬT trên staging. F66 bỏ ghi chú "monitoring và rate limit còn lại"; F67 (backup) không còn chờ F68 |
+| 2026-10-07 | **Soát lại cả file.** Bảng tổng ở đầu chưa theo đợt dọn 02/10 nên nói sai bốn dòng — nặng nhất là M5 ghi `⬜ 0/10` trong khi chín mục của M5 đã `[x]` ngay dưới, và M6 ghi `1/18` trong khi đếm được 11. Cột số lệch ở M2 (15→14, F20 đã bỏ) và M4 (7→8, thiếu F83); tiêu đề file 72→73. **F65 tách thành F65a/F65b** vì một mã F đang có hai checkbox cho hai việc ở hai trạng thái. **F45 thành `[~]`** và lộ ra một chỗ cần Bên A chốt: đặc tả nói tám nhóm thông báo, mã có bốn — lệch có chủ ý và có ghi lý do, nhưng hai tài liệu đang nói hai con số. Ghi chú F46 *"gửi theo VÙNG vẫn chờ F47"* nói sai chỗ chặn: F47 xong rồi, `notify-lunar.cli.ts` chỉ chưa nối vào |
