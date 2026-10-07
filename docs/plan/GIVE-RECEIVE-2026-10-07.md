@@ -76,6 +76,23 @@ giver_total = completion_points + value_bonus
 ```
 
 `completion_points` cộng một lần khi giao dịch `COMPLETED`; **không nhân với accuracy**.
+
+> **Khi implement, `npm run test:gift-rewards` SẼ ĐỎ — và đỏ là đúng.**
+>
+> `test/gift-rewards.check.ts` được xây hẳn quanh công thức cũ, không phải một phép kiểm lẻ:
+>
+> - dòng ~136: `'56 × 90% = 50 (50,4 làm tròn xuống)'` → đòi `delta === 50`;
+> - dòng ~150: `'ledger lưu delta đã nhân, không lưu mức trần 56'`;
+> - dòng ~167: một **bảng tham số** `percent → expected` (`50% → 28`, `100% → 56`);
+> - dòng ~155: `'lifetime cộng theo delta đã nhân'`.
+>
+> Theo quy tắc mới, `completion_points` là mức cố định của Point Rule (56), còn phần theo
+> accuracy chuyển sang `value_bonus` tính từ giá trị ước tính — nên cả bốn chỗ trên đều phải
+> viết lại, không chỉ đổi một con số.
+>
+> **Thứ tự bắt buộc:** sửa `AwardGiftCompletionUseCase` trước, rồi mới sửa phép kiểm theo quy
+> tắc mới. Sửa test cho xanh trước là cách làm spec và mã nói trái nhau mà không còn gì báo.
+
 Giá trị ước tính thiếu/0 thì `value_bonus = 0`. Tỷ lệ VNĐ/điểm, Point Rule hoàn tất, thời
 hạn chốt đánh giá `N` ngày và phần trăm mặc định khi không có đánh giá đều do Admin cấu hình,
 không hard-code. Làm tròn số dương theo `round_half_up`: phần lẻ **≥ 0,5 lên**, `< 0,5 xuống`.
