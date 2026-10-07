@@ -37,16 +37,37 @@ export function giftCompletionIdempotencyKey(transactionId: string): string {
 }
 
 /**
- * Cộng điểm cho người tặng sau khi lượt trao hoàn tất (F40).
+ * Cộng điểm hoàn tất cho người tặng sau khi lượt trao xong (F40, CHỐT-14).
  *
- * Số điểm = mức trần của rule × phần trăm chính xác NGƯỜI NHẬN chấm. Giá người
- * tặng tự khai cố ý không tham gia vào phép tính này — đó chính là chỗ chặn việc
- * khai khống để cày điểm.
+ * ## Số điểm KHÔNG nhân với accuracy nữa
  *
- * Khi người nhận không đánh giá, dùng mức mặc định trong cấu hình
- * `review.grace`. Cho 0 điểm là phạt người tặng vì việc của người khác; cho
- * thẳng 100% thì người nhận có động cơ *không* đánh giá để giúp người tặng, và
- * chỉ số accuracy mất nghĩa.
+ * Tới 06/10 công thức là `mức trần của rule × phần trăm chính xác người nhận chấm`.
+ * CHỐT-14 (SRS, 07/10) tách làm hai khoản rời:
+ *
+ * - `completion_points` — **mức trần của rule, không nhân gì**, chính là use case này;
+ * - `value_bonus` — tính từ giá trị ước tính và accuracy, chốt sau hạn `N` ngày.
+ *
+ * Nên lượt `appendPointEntry` dưới đây cố ý **không truyền `multiplierPercent`**:
+ * `scaleRulePoints` trả trọn `rule.points` khi tham số đó là `undefined`.
+ *
+ * > `value_bonus` CHƯA được hiện thực. Trong khoảng đó, accuracy không ảnh hưởng số
+ * > điểm nào — xem `docs/plan/GIVE-RECEIVE-2026-10-07.md`. Đây là trạng thái trung
+ * > gian có chủ ý: thà điểm hoàn tất đúng ngay, còn phần theo giá trị đến sau, hơn là
+ * > giữ một công thức mà SRS đã bỏ.
+ *
+ * ## Vì sao vẫn phân giải accuracy dù không còn nhân
+ *
+ * Quyết định accuracy vẫn được ghi vào `reason` và trả về cho bên gọi: nó là dữ kiện
+ * audit cho biết lượt trao được chấm bao nhiêu, và là đầu vào của `value_bonus` sắp
+ * tới. Bỏ nó đi bây giờ thì khi dựng `value_bonus` phải đi tìm lại.
+ *
+ * Khi người nhận không đánh giá, dùng mức mặc định trong cấu hình `review.grace`.
+ *
+ * ## Thời điểm cộng vẫn là lúc ĐÁNH GIÁ, chưa phải lúc `COMPLETED`
+ *
+ * CHỐT-14 nói `completion_points` cộng tại `COMPLETED`. Hiện hai đường kích hoạt vẫn
+ * là người nhận đánh giá hoặc job hết hạn chờ. Dời mốc đó là một thay đổi riêng, cần
+ * lo khoá chống trùng giữa ba đường — không gộp vào lượt sửa công thức này.
  */
 @Injectable()
 export class AwardGiftCompletionUseCase implements IAwardGiftCompletionUseCase {
@@ -78,10 +99,12 @@ export class AwardGiftCompletionUseCase implements IAwardGiftCompletionUseCase {
         idempotencyKey: giftCompletionIdempotencyKey(command.transactionId),
         actor: usedDefault ? 'SYSTEM' : command.giverId,
         source: command.source,
-        multiplierPercent: appliedPercent,
+        // KHÔNG truyền `multiplierPercent`: CHỐT-14 đòi điểm hoàn tất là mức trần
+        // của rule, không nhân accuracy. `scaleRulePoints` trả trọn `rule.points`
+        // khi tham số này là `undefined`.
         reason: usedDefault
-          ? `Lượt trao hoàn tất, người nhận không đánh giá — áp mức mặc định ${appliedPercent}%`
-          : `Lượt trao hoàn tất, người nhận chấm ${appliedPercent}% mức chính xác`,
+          ? `Lượt trao hoàn tất, người nhận không đánh giá — ghi mức mặc định ${appliedPercent}% (không nhân vào điểm hoàn tất)`
+          : `Lượt trao hoàn tất, người nhận chấm ${appliedPercent}% mức chính xác (không nhân vào điểm hoàn tất)`,
       });
 
       return {

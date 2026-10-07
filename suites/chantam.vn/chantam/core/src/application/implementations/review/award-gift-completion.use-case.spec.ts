@@ -50,10 +50,10 @@ function makeUseCase(
 }
 
 describe('AwardGiftCompletionUseCase', () => {
-  it('truyền mức người nhận chấm làm hệ số nhân', async () => {
+  it('KHÔNG nhân điểm hoàn tất với accuracy (CHỐT-14)', async () => {
     const { useCase, append } = makeUseCase();
 
-    await useCase.handle({
+    const result = await useCase.handle({
       transactionId: TransactionId,
       giverId: GiverId,
       accuracyPercent: 90,
@@ -64,9 +64,19 @@ describe('AwardGiftCompletionUseCase', () => {
       expect.objectContaining({
         userId: GiverId,
         ruleCode: 'GIFT_COMPLETED_GIVER',
-        multiplierPercent: 90,
       }),
     );
+    // Tới 06/10 lượt gọi này mang `multiplierPercent: 90`. CHỐT-14 tách điểm theo
+    // giá trị sang `value_bonus`, nên điểm hoàn tất là mức trần của rule và tham
+    // số nhân phải VẮNG — `scaleRulePoints` chỉ trả trọn `rule.points` khi nó
+    // `undefined`, nên truyền `100` cũng không tương đương về ý nghĩa.
+    expect(append.handle.mock.calls[0][0]).not.toHaveProperty(
+      'multiplierPercent',
+    );
+    // Accuracy vẫn được ghi nhận và trả về: nó là dữ kiện audit và là đầu vào của
+    // `value_bonus` sắp tới.
+    expect(result.appliedPercent).toBe(90);
+    expect(result.usedDefault).toBe(false);
   });
 
   it('KHÔNG đọc cấu hình khi đã có đánh giá', async () => {
@@ -95,7 +105,10 @@ describe('AwardGiftCompletionUseCase', () => {
     });
 
     expect(append.handle).toHaveBeenCalledWith(
-      expect.objectContaining({ multiplierPercent: 80, actor: 'SYSTEM' }),
+      expect.objectContaining({ actor: 'SYSTEM' }),
+    );
+    expect(append.handle.mock.calls[0][0]).not.toHaveProperty(
+      'multiplierPercent',
     );
     expect(result.usedDefault).toBe(true);
     expect(result.appliedPercent).toBe(80);
@@ -112,8 +125,10 @@ describe('AwardGiftCompletionUseCase', () => {
       source: 'GRACE_EXPIRED',
     });
 
-    expect(append.handle).toHaveBeenCalledWith(
-      expect.objectContaining({ multiplierPercent: 80 }),
+    // Mức mặc định 80 vẫn được phân giải và GHI vào kết quả, chỉ không còn nhân
+    // vào điểm hoàn tất.
+    expect(append.handle.mock.calls[0][0]).not.toHaveProperty(
+      'multiplierPercent',
     );
   });
 
@@ -190,8 +205,11 @@ describe('AwardGiftCompletionUseCase', () => {
       source: 'REVIEW',
     });
 
-    expect(append.handle).toHaveBeenCalledWith(
-      expect.objectContaining({ multiplierPercent: 0 }),
+    // CHỐT-14 đổi hệ quả của việc chấm 0%: trước đây nó làm điểm hoàn tất về 0,
+    // nay KHÔNG còn — accuracy chỉ ảnh hưởng `value_bonus`. Người nhận chấm 0 vẫn
+    // chiếm khoá chống trùng, nên job hết hạn chờ không trả thêm mức mặc định.
+    expect(append.handle.mock.calls[0][0]).not.toHaveProperty(
+      'multiplierPercent',
     );
     expect(result.awarded).toBe(true);
     expect(result.points).toBe(0);

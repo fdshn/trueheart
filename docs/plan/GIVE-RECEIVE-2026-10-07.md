@@ -77,21 +77,24 @@ giver_total = completion_points + value_bonus
 
 `completion_points` cộng một lần khi giao dịch `COMPLETED`; **không nhân với accuracy**.
 
-> **Khi implement, `npm run test:gift-rewards` SẼ ĐỎ — và đỏ là đúng.**
+> **Phép kiểm nào đỏ khi implement — bản đã sửa 07/10.**
 >
-> `test/gift-rewards.check.ts` được xây hẳn quanh công thức cũ, không phải một phép kiểm lẻ:
+> Ghi chú đầu của mục này nói `npm run test:gift-rewards` sẽ đỏ. **Sai.** Script đó gọi
+> `ledger.appendByRule` **trực tiếp** với `multiplierPercent`, tức nó kiểm *cơ chế nhân của
+> point ledger* — một primitive mà CHỐT-14 KHÔNG đổi, và các rule khác vẫn dùng. Nó có 0 tham
+> chiếu tới `AwardGiftCompletionUseCase`, nên nó **xanh nguyên**. Đừng sửa nó.
 >
-> - dòng ~136: `'56 × 90% = 50 (50,4 làm tròn xuống)'` → đòi `delta === 50`;
-> - dòng ~150: `'ledger lưu delta đã nhân, không lưu mức trần 56'`;
-> - dòng ~167: một **bảng tham số** `percent → expected` (`50% → 28`, `100% → 56`);
-> - dòng ~155: `'lifetime cộng theo delta đã nhân'`.
+> Phép kiểm thật sự canh quy tắc này là unit spec
+> `award-gift-completion.use-case.spec.ts`. Đo được khi thực hiện: **4 trong 10 phép kiểm đỏ**,
+> tất cả ở kỳ vọng `multiplierPercent`, còn 6 phép kiểm khác (chống trùng, nuốt ngoại lệ vận
+> hành, rơi về mặc định khi cấu hình hỏng) xanh nguyên — đúng tập đỏ mong đợi.
 >
-> Theo quy tắc mới, `completion_points` là mức cố định của Point Rule (56), còn phần theo
-> accuracy chuyển sang `value_bonus` tính từ giá trị ước tính — nên cả bốn chỗ trên đều phải
-> viết lại, không chỉ đổi một con số.
+> **Thứ tự bắt buộc:** sửa `AwardGiftCompletionUseCase` trước, phép kiểm sau. Sửa test cho
+> xanh trước là cách làm spec và mã nói trái nhau mà không còn gì báo.
 >
-> **Thứ tự bắt buộc:** sửa `AwardGiftCompletionUseCase` trước, rồi mới sửa phép kiểm theo quy
-> tắc mới. Sửa test cho xanh trước là cách làm spec và mã nói trái nhau mà không còn gì báo.
+> Và một hệ quả nghiệp vụ dễ bị bỏ sót: **người nhận chấm 0% không còn làm điểm hoàn tất về
+> 0.** Accuracy giờ chỉ ảnh hưởng `value_bonus`. Bút toán 0% vẫn được ghi để chiếm khoá chống
+> trùng, nên job hết hạn chờ không trả thêm mức mặc định cho lượt đã bị chấm.
 
 Giá trị ước tính thiếu/0 thì `value_bonus = 0`. Tỷ lệ VNĐ/điểm, Point Rule hoàn tất, thời
 hạn chốt đánh giá `N` ngày và phần trăm mặc định khi không có đánh giá đều do Admin cấu hình,
