@@ -44,11 +44,16 @@ tài liệu xác minh của beneficiary luôn là dữ liệu riêng tư.
 | `INDIVIDUAL_APPEAL` | Được tạo, vào `PENDING_APPROVAL` | Được tạo và vào thẳng `ACTIVE` | Tạo trực tiếp `ACTIVE` |
 | `ORGANIZED_CAMPAIGN` | Không được tạo | Được tạo và vào thẳng `ACTIVE` | Tạo trực tiếp `ACTIVE` |
 
+`ACTIVE` ở bảng trên là **trạng thái nghiệp vụ**, lưu bằng `approval_status = 'APPROVED'` kèm
+`is_active = true`. Xem [ánh xạ sang schema](#ánh-xạ-trạng-thái-nghiệp-vụ-sang-schema-hiện-có)
+— tuyệt đối không ghi chữ `ACTIVE` vào `approval_status`.
+
 Không hardcode phép so Rank trong controller. Rank Config dùng ba capability:
 
 - `SUBMIT_INDIVIDUAL_APPEAL`: baseline bật từ Member trở lên;
 - `SUBMIT_CHARITY_PROPOSAL`: baseline chỉ Kim Cương, dùng cho `ORGANIZED_CAMPAIGN`;
-- `PUBLISH_CHARITY_WITHOUT_REVIEW`: baseline chỉ Kim Cương, quyết định được `ACTIVE` ngay.
+- `PUBLISH_CHARITY_WITHOUT_REVIEW`: baseline chỉ Kim Cương, quyết định được public ngay
+  (`approval_status = 'APPROVED'`, `is_active = true`).
 
 Backend đọc Rank hiện tại từ database, không tin rank trong JWT. User có quyền submit nhưng
 không có quyền publish trực tiếp thì campaign luôn `PENDING_APPROVAL`; không cho client tự
@@ -173,20 +178,88 @@ lực mới tham gia `receivedQuantity`.
 
 ## 8. Vòng đời chiến dịch
 
+Các tên dưới đây là **trạng thái nghiệp vụ**, không phải giá trị cột. Lưu trữ dùng đúng
+schema hiện có — xem bảng ánh xạ ngay sau sơ đồ.
+
 ```text
-DRAFT -> PENDING_APPROVAL -> ACTIVE -> CLOSED
-                         \-> REJECTED
+PENDING_APPROVAL -> ACTIVE -> CLOSED
+                \-> REJECTED
 ACTIVE -> SUSPENDED -> ACTIVE | CLOSED
 ```
+
+### Ánh xạ trạng thái nghiệp vụ sang schema hiện có
+
+Bảng `campaigns` đã có `approval_status` với ràng buộc:
+
+```sql
+CONSTRAINT "CHK_campaigns_approval_status"
+  CHECK ("approval_status" IN ('PENDING_APPROVAL', 'APPROVED', 'REJECTED'))
+```
+
+cộng một cột `is_active BOOLEAN` và `start_time`/`end_time` riêng. Nên FSM trên **không**
+được ghi thẳng vào `approval_status`: `ACTIVE`, `SUSPENDED` và `CLOSED` không nằm trong CHECK
+và sẽ bị database từ chối ngay lúc INSERT/UPDATE.
+
+| Trạng thái nghiệp vụ | `approval_status` | `is_active` | Dấu hiệu phân biệt |
+| --- | --- | :-: | --- |
+| `PENDING_APPROVAL` | `PENDING_APPROVAL` | *không xét* | chờ Admin duyệt |
+| `REJECTED` | `REJECTED` | *không xét* | `approval_note` ghi lý do |
+| `ACTIVE` | `APPROVED` | `true` | đang nhận đề nghị |
+| `SUSPENDED` | `APPROVED` | `false` | `end_time` còn ở tương lai hoặc `NULL` |
+| `CLOSED` | `APPROVED` | `false` | `end_time <= now()` |
+
+Hai hàng đầu ghi *không xét* là có lý do đo được: `campaigns.is_active` khai
+`NOT NULL DEFAULT true` và lệnh `INSERT` hiện **không** đặt cột này, nên mọi campaign mới đều
+`is_active = true` kể cả khi còn chờ duyệt. Điều đó vô hại vì bộ lọc công khai đòi **cả hai**
+điều kiện:
+
+```sql
+-- PublicFilter, charity-campaign.repository.ts
+campaigns.approval_status = 'APPROVED'
+  AND campaigns.is_active
+  AND campaigns.deleted_at IS NULL
+```
+
+Nên một hàng `PENDING_APPROVAL` vẫn bị ẩn bất kể `is_active`. Đòi ghi `is_active = false` lúc
+tạo chỉ thêm một lượt ghi không mua được gì, và trái với mặc định đang có.
+
+`SUSPENDED` và `CLOSED` cùng cặp `(APPROVED, false)`, nên **`end_time` là thứ phân biệt chúng**:
+đình chỉ thì không đụng `end_time`, còn đóng thì đặt `end_time`. Đọc trạng thái nghiệp vụ luôn
+phải đọc cả hai cột cộng `end_time`, không suy từ một cột.
+
+> **Hướng này KHÔNG phải cách lách schema — nó là thiết kế đã có.** `PublicFilter` ở trên là
+> mã đang chạy trên staging, kèm chú thích *"Hoạt động hiện được ra ngoài: đã duyệt, còn bật,
+> chưa xoá"*. Tức cặp `APPROVED + is_active` vốn **đã** là định nghĩa của "đang hoạt động"
+> trong hệ thống này; tài liệu chỉ đang gọi đúng tên nó.
+
+> **Một việc endpoint duyệt phải làm.** `UPDATE ... SET approval_status = 'APPROVED'` hiện
+> **không** đụng `is_active`. Vì mặc định là `true` nên duyệt xong campaign hoạt động ngay —
+> đúng ý. Nhưng nếu sau này có đường nào đặt `is_active = false` trước khi duyệt, thì lượt duyệt
+> phải đặt lại `true`, nếu không campaign được duyệt mà vẫn ẩn và không ai hiểu vì sao.
+
+> **Vì sao không thêm giá trị vào CHECK.** Thêm `ACTIVE`/`CLOSED`/`SUSPENDED` vào
+> `approval_status` thì cột đó và `is_active` cùng mã hoá một phần trạng thái, và sẽ có hàng
+> `approval_status = 'CLOSED'` nhưng `is_active = true`. Hai cột nói trái nhau là loại lỗi dữ
+> liệu không ai phát hiện tới khi báo cáo ra số sai. Giữ một cột cho **quyết định duyệt** và
+> một cột cho **đang mở hay không** là tách đúng hai câu hỏi khác nhau.
+
+> **`DRAFT` đã bỏ khỏi FSM.** Không có endpoint lưu nháp, và schema không có chỗ phân biệt
+> nháp với chờ duyệt — cả hai đều là `(PENDING_APPROVAL, false)`. Nếu sản phẩm thật cần nháp
+> thì đó là một thay đổi schema riêng, không nên để lẫn vào bản này.
 
 Chiến dịch đóng khi đã đủ nhu cầu, hết hạn, organizer chủ động đóng hoặc Admin đình chỉ.
 Khi đóng:
 
+- ghi `is_active = false` và đặt `end_time`; **không** đụng `approval_status` (giữ `APPROVED`);
 - chặn đề nghị mới;
 - giữ nguyên các transaction đang chạy;
 - từ chối hàng loạt đề nghị `PENDING_REVIEW` với lý do `CAMPAIGN_CLOSED`;
 - không tự huỷ transaction đã chấp nhận;
 - cho phép gia hạn trước khi đóng và lưu audit thay đổi thời hạn.
+
+Admin **đình chỉ** thì cũng `is_active = false` nhưng **giữ nguyên `end_time`** — đó là dấu
+hiệu duy nhất phân biệt đình chỉ với đã đóng. Mở lại là đặt `is_active = true`; không cần đổi
+`approval_status` vì quyết định duyệt không thay đổi khi đình chỉ.
 
 ## 9. API mục tiêu
 
@@ -235,6 +308,8 @@ danh tính contributor ẩn danh.
 9. Không có phép cộng số lượng giữa hai dòng khác đơn vị.
 10. Đóng góp ngoài app có audit và không tự cộng điểm cho bất kỳ tài khoản nào.
 11. Member/Bạc/Vàng tạo individual appeal chỉ nhận `PENDING_APPROVAL`; Kim Cương tạo hai loại
-    đều `ACTIVE` mà không cần Admin duyệt trước.
+    đều public ngay mà không cần Admin duyệt trước. Lưu bằng
+    `approval_status = 'APPROVED'` + `is_active = true`; không ghi chữ `ACTIVE` vào
+    `approval_status` vì CHECK hiện tại từ chối giá trị đó.
 12. Một contribution dù có nhiều item/nhiều transaction hoàn tất cũng chỉ sinh một bút toán
     `CHARITY_CONTRIBUTION_COMPLETED` theo version Point Rule tại thời điểm đủ điều kiện.

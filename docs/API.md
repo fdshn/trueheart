@@ -1570,7 +1570,7 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
-| `POST` | `/charity-campaigns` | Bearer + capability theo loại | Tạo campaign kèm bảng nhu cầu; server tự quyết định `PENDING_APPROVAL`/`ACTIVE` |
+| `POST` | `/charity-campaigns` | Bearer + capability theo loại | Tạo campaign kèm bảng nhu cầu; server tự quyết định chờ duyệt hay public ngay (`approval_status` + `is_active`) |
 | `GET` | `/campaigns/:idOrSlug/needs` | Công khai | Nhu cầu, số đang giao/đã nhận/còn thiếu; không trả PII beneficiary |
 | `POST` | `/charity-campaigns/:id/contributions` | Bearer | Gửi đề nghị gồm nhiều vật phẩm và số lượng |
 | `GET` | `/charity-campaigns/:id/contributions` | Organizer/coordinator | Danh sách đề nghị chờ điều phối |
@@ -1627,10 +1627,14 @@ response phải kèm `progressSource` để client không trộn số khai tay v
 
 Quyền tạo mặc định:
 
-- `INDIVIDUAL_APPEAL`: Member/Bạc/Vàng tạo ở `PENDING_APPROVAL`; Kim Cương vào thẳng
-  `ACTIVE`.
-- `ORGANIZED_CAMPAIGN`: chỉ Kim Cương được tạo và vào thẳng `ACTIVE`.
-- Admin tạo trực tiếp `ACTIVE` cho cả hai loại.
+- `INDIVIDUAL_APPEAL`: Member/Bạc/Vàng tạo ở `PENDING_APPROVAL`; Kim Cương public ngay.
+- `ORGANIZED_CAMPAIGN`: chỉ Kim Cương được tạo và public ngay.
+- Admin tạo và public ngay cho cả hai loại.
+
+"Public ngay" lưu bằng `approval_status = 'APPROVED'` **và** `is_active = true`, không phải
+một giá trị `ACTIVE` trong `approval_status` — CHECK hiện tại chỉ nhận `PENDING_APPROVAL`,
+`APPROVED`, `REJECTED`. Bảng ánh xạ đầy đủ các trạng thái nghiệp vụ (gồm `SUSPENDED` và
+`CLOSED`) nằm ở [thiết kế đóng góp từ thiện](./plan/CHARITY-CONTRIBUTION-DESIGN.md#ánh-xạ-trạng-thái-nghiệp-vụ-sang-schema-hiện-có).
 
 Client không gửi `approvalStatus`. Backend kiểm tra `SUBMIT_INDIVIDUAL_APPEAL` hoặc
 `SUBMIT_CHARITY_PROPOSAL`, sau đó kiểm tra `PUBLISH_CHARITY_WITHOUT_REVIEW` bằng Rank hiện

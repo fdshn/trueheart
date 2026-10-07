@@ -824,7 +824,7 @@ UC-POST-03: Từ thiện/Hoạt động - Admin có quyền tạo và công bố
 
 UI-CHARITY-01: Từ thiện/Hoạt động có Main UI riêng. Không áp dụng filter quyền xem theo bán kính Rank; địa điểm vẫn được lưu để hiển thị/Map Discovery. UI thể hiện campaign/event, đơn vị tổ chức, trạng thái/thời hạn, mục tiêu hoặc tiến độ do người tổ chức/Admin cập nhật mang tính thông tin, địa điểm, loại vật phẩm cần nhận và CTA tham gia/chia sẻ. User có thể hủy đăng ký tham gia nếu hoạt động chưa bắt đầu; sau khi hoạt động kết thúc, bên tổ chức và người tham gia có thể đánh giá lẫn nhau.
 
-BR-CHARITY-01: Admin tạo trực tiếp. Member/Bạc/Vàng tạo `INDIVIDUAL_APPEAL` ở `PENDING_APPROVAL`; TV Kim Cương tạo hai loại ở `ACTIVE` và không cần duyệt trước. Backend xác định quyền bằng capability theo Rank hiện tại đọc từ database; client không được gửi `approvalStatus`.
+BR-CHARITY-01: Admin tạo trực tiếp. Member/Bạc/Vàng tạo `INDIVIDUAL_APPEAL` ở `PENDING_APPROVAL`; TV Kim Cương tạo hai loại và public ngay (`approval_status = 'APPROVED'` + `is_active = true`), không cần duyệt trước. Backend xác định quyền bằng capability theo Rank hiện tại đọc từ database; client không được gửi `approvalStatus`.
 
 BR-CHARITY-02: Hệ thống không tự xác minh/đối soát số lượng hiện vật hoặc tiến độ vật lý ngoài đời. Nếu hiển thị tiến độ, số liệu do người tổ chức/Admin cập nhật và mang tính thông tin.
 
@@ -2238,7 +2238,7 @@ Quản lý cả kêu gọi hỗ trợ cho một cá nhân/gia đình (`INDIVIDUA
 | created_at          | TIMESTAMPTZ  | DEFAULT NOW()                  | Thời điểm khởi tạo.                                                                                                     |
 | ---                 | ---          | ---                            | ---                                                                                                                     |
 | created_by          | UUID         | FK -> users(id)                | Member+ tạo kêu gọi cá nhân; Kim Cương/Admin có thể tạo cả hai loại.                                                     |
-| approval_status     | VARCHAR(30)  | DEFAULT 'PENDING'              | Member/Bạc/Vàng tạo appeal ở PENDING_APPROVAL; Kim Cương/Admin tạo ở APPROVED/ACTIVE trực tiếp.                         |
+| approval_status     | VARCHAR(30)  | DEFAULT 'PENDING_APPROVAL', CHECK IN ('PENDING_APPROVAL','APPROVED','REJECTED') | Member/Bạc/Vàng tạo appeal ở `PENDING_APPROVAL`; Kim Cương/Admin public ngay bằng `APPROVED` kèm `is_active = true`. Trạng thái nghiệp vụ `ACTIVE`/`SUSPENDED`/`CLOSED` KHÔNG ghi vào cột này.                         |
 
 `campaigns` bổ sung `campaign_type`; dữ liệu cũ được backfill thành `ORGANIZED_CAMPAIGN`.
 Kêu gọi cho cá nhân phải phân biệt người thụ hưởng là chính người đăng hay người khác, lưu
@@ -2949,7 +2949,7 @@ POST /api/v1/posts/{id}/requests/reapply - xin lại sau khi rút; queue_joined_
 
 POST /api/v1/transactions/{id}/receiver-confirm - Receiver xác nhận đã nhận; Transaction COMPLETED ngay nếu hợp lệ. Background job tự COMPLETED sau 5 ngày nếu không hủy/tranh chấp.
 
-POST /api/v1/charity-campaigns - Member/Bạc/Vàng tạo `INDIVIDUAL_APPEAL` ở PENDING_APPROVAL; Kim Cương tạo appeal hoặc organized campaign ở ACTIVE trực tiếp. Admin CMS có endpoint tạo trực tiếp.
+POST /api/v1/charity-campaigns - Member/Bạc/Vàng tạo `INDIVIDUAL_APPEAL` ở PENDING_APPROVAL; Kim Cương tạo appeal hoặc organized campaign và public ngay (`APPROVED` + `is_active = true`). Admin CMS có endpoint tạo trực tiếp.
 
 POST /api/v1/charity-campaigns/{id}/participation/cancel - user hủy tham gia nếu campaign chưa bắt đầu.
 
@@ -3100,7 +3100,7 @@ TC-TRANS-005D: Transaction ACCEPTED không bị hủy/tranh chấp; Receiver kh�
 
 TC-MARKET-003M: Rao vặt hết 3 tháng chưa hủy -> hệ thống gửi notification và tự chuyển sang Muốn Tặng. Giá tham khảo/giá bán do user tự khai, hệ thống không chặn theo một % giảm tối thiểu cố định.
 
-TC-CHARITY-APPROVAL: Member/Bạc/Vàng tạo individual appeal -> PENDING_APPROVAL và chưa public; Kim Cương tạo individual appeal hoặc organized campaign -> ACTIVE và public trực tiếp. User có thể hủy tham gia trước giờ bắt đầu; sau khi kết thúc hai bên có thể review khi áp dụng.
+TC-CHARITY-APPROVAL: Member/Bạc/Vàng tạo individual appeal -> PENDING_APPROVAL và chưa public; Kim Cương tạo individual appeal hoặc organized campaign -> `approval_status = 'APPROVED'`, `is_active = true`, public ngay. User có thể hủy tham gia trước giờ bắt đầu; sau khi kết thúc hai bên có thể review khi áp dụng.
 
 TC-MERIT-BANK: User tự khai số tiền -> ứng dụng mở bank/VietQR; hệ thống không đánh dấu giao dịch ngân hàng đã xác minh chỉ dựa trên số tiền tự khai. Hồi hướng public mặc định và hỗ trợ ẩn danh.
 
