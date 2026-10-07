@@ -906,6 +906,14 @@ chia sẻ trên mobile.
 Duyệt sự kiện do Kim Cương đề xuất; quản lý nội dung quảng cáo, đơn vị Công đức, và dữ liệu
 tham chiếu của Rao vặt.
 
+Từ thiện gồm hai loại dùng chung engine: `INDIVIDUAL_APPEAL` (kêu gọi cho cá nhân/gia đình)
+và `ORGANIZED_CAMPAIGN` (tổ chức hoạt động). Cả hai khai báo bảng nhu cầu theo từng vật phẩm,
+đơn vị và số lượng. Người tặng chọn nhiều dòng, nhập số lượng; organizer/coordinator được
+chấp nhận toàn bộ, chấp nhận một phần hoặc từ chối từng dòng có lý do. Chỉ phần được chấp
+nhận mới sinh transaction giao nhận; huỷ transaction trả capacity về nhu cầu và không xoá
+lịch sử. Chi tiết state machine, concurrency, privacy và API mục tiêu tại
+[Thiết kế Kêu gọi và Đóng góp Vật phẩm](./plan/CHARITY-CONTRIBUTION-DESIGN.md).
+
 ---
 
 ## 14. Hạ tầng & Bảo mật

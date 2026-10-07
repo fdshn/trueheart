@@ -205,7 +205,12 @@ thì tranh chấp về sau không có cách nào tra lại ([F58](../FEATURES.md
 | `reports` | `reporter_id` · `target_type` · `target_id` · `reason` · `evidence_keys` · `status` |
 | `moderation_actions` | `admin_id` · `target_type` · `target_id` · `action` · `reason` |
 | `audit_logs` | `actor_id` · `action` · `entity_type` · `entity_id` · `before` · `after` |
-| `campaigns` | `banner_r2_key` · `cta` · `deep_link` · `section_order` · `starts_at` · `ends_at` |
+| `home_campaign_configs` | `banner_r2_key` · `cta` · `deep_link` · `section_order` · `starts_at` · `ends_at` |
+| `campaigns` | `campaign_type` (`INDIVIDUAL_APPEAL`/`ORGANIZED_CAMPAIGN`) · thông tin beneficiary riêng tư · organizer · trạng thái duyệt/vòng đời · thời hạn |
+| `campaign_need_items` | `campaign_id` · `category_id` · `item_name` · `unit` · `target_quantity` · projection `active_quantity`/`received_quantity` · `allow_alternative` |
+| `campaign_contributions` | `campaign_id` · `contributor_id` · `status` · giao nhận · ghi chú · timestamps |
+| `campaign_contribution_items` | `contribution_id` · `need_item_id` · `offered_quantity` · `accepted_quantity` · quyết định/lý do |
+| `campaign_transaction_items` | `transaction_id` · `need_item_id` · `accepted_quantity` · `received_quantity` |
 | `blog_posts` | `title` · `slug` · `cover_r2_key` · `body` · `published_at` |
 
 ---

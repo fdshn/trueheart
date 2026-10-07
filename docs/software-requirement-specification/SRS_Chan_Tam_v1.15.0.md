@@ -2209,7 +2209,7 @@ Lưu trữ các bài viết truyền thông, giáo dục thiện nguyện, gươ
 
 ### 6.2.13 Bảng campaigns (Chiến Dịch Từ Thiện & Quyên Góp Chuyên Sâu)
 
-Quản lý các chương trình từ thiện quy mô lớn (Cứu trợ lũ lụt, Vu Lan, Tết ấm...), bao gồm tiến độ mục tiêu và danh sách vật phẩm.
+Quản lý cả kêu gọi hỗ trợ cho một cá nhân/gia đình (`INDIVIDUAL_APPEAL`) và hoạt động từ thiện có tổ chức (`ORGANIZED_CAMPAIGN`). Hai loại dùng chung cơ chế bảng nhu cầu vật phẩm, duyệt đề nghị đóng góp và transaction giao nhận.
 
 | Tên Cột             | Kiểu Dữ Liệu | Ràng Buộc                      | Mô Tả                                                                                                                   |
 | ------------------- | ------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
@@ -2239,6 +2239,24 @@ Quản lý các chương trình từ thiện quy mô lớn (Cứu trợ lũ lụ
 | ---                 | ---          | ---                            | ---                                                                                                                     |
 | created_by          | UUID         | FK -> users(id)                | Admin hoặc TV Kim Cương tạo đề xuất chiến dịch.                                                                         |
 | approval_status     | VARCHAR(30)  | DEFAULT 'PENDING'              | Admin tạo trực tiếp có thể APPROVED; TV Kim Cương bắt buộc PENDING_APPROVAL trước khi public.                           |
+
+`campaigns` bổ sung `campaign_type`; dữ liệu cũ được backfill thành `ORGANIZED_CAMPAIGN`.
+Kêu gọi cho cá nhân phải phân biệt người thụ hưởng là chính người đăng hay người khác, lưu
+quan hệ/xác minh đồng ý, và không công khai địa chỉ, liên hệ hoặc hồ sơ xác minh.
+
+Mỗi campaign có bảng `campaign_need_items` thay cho một con số mục tiêu tổng hợp: tên vật
+phẩm, category, đơn vị, số lượng cần, có cho phép thay thế hay không và projection số đang
+giao/đã nhận. Người tặng gửi `campaign_contributions` gồm nhiều
+`campaign_contribution_items`; organizer/coordinator có thể chấp nhận toàn bộ, chấp nhận một
+phần hoặc từ chối từng dòng với lý do. Chỉ phần được chấp nhận mới tạo transaction.
+
+`pending_quantity` không giữ chỗ. Khi accept, backend phải khoá campaign và các dòng nhu cầu,
+tính lại capacity trong cùng database transaction, dùng idempotency key và trả 409 nếu số
+lượng đã thay đổi. Transaction hoàn tất cập nhật số thực nhận; transaction bị huỷ trả capacity
+về nhu cầu nhưng không xoá đề nghị hoặc audit. Đóng campaign chặn đề nghị mới, từ chối hàng
+chờ và giữ nguyên transaction đang chạy.
+
+Đặc tả triển khai đầy đủ tại `docs/plan/CHARITY-CONTRIBUTION-DESIGN.md`.
 
 ### 6.2.14 Bảng system_allocation_configs (Cấu Hình Chính Sách Phân Bổ & Ghép Nối Toàn Hệ Thống)
 

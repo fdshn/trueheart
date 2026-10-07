@@ -1562,7 +1562,63 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 - Ghi theo copy-on-write như mọi system config: `reason` bắt buộc và đi thẳng vào audit log.
 ---
 
-## 13. Tương thích cũ — `/gift-posts`
+## 13. Từ thiện — bảng nhu cầu và đề nghị đóng góp (KẾ HOẠCH)
+
+> Các endpoint dưới đây là contract mục tiêu, **chưa có trên staging**. API campaign hiện tại
+> mới hỗ trợ nội dung chiến dịch và đăng ký tham dự; không được coi một participation là một
+> cam kết tặng vật phẩm.
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `POST` | `/charity-campaigns` | Bearer + capability | Tạo `INDIVIDUAL_APPEAL` hoặc `ORGANIZED_CAMPAIGN` kèm bảng nhu cầu |
+| `GET` | `/campaigns/:idOrSlug/needs` | Công khai | Nhu cầu, số đang giao/đã nhận/còn thiếu; không trả PII beneficiary |
+| `POST` | `/charity-campaigns/:id/contributions` | Bearer | Gửi đề nghị gồm nhiều vật phẩm và số lượng |
+| `GET` | `/charity-campaigns/:id/contributions` | Organizer/coordinator | Danh sách đề nghị chờ điều phối |
+| `GET` | `/charity-contributions/me` | Bearer | Đề nghị do chính user gửi |
+| `PATCH` | `/charity-contributions/:id` | Chính contributor | Sửa hoặc rút khi chưa có phần được chấp nhận |
+| `POST` | `/charity-contributions/:id/decision` | Organizer/coordinator | Chấp nhận/từ chối từng dòng, bắt buộc idempotency key |
+| `POST` | `/charity-campaigns/:id/close` | Organizer/Admin | Đóng chiến dịch; giữ transaction đang chạy |
+
+Body tạo đề nghị luôn bọc khoá `contribution`:
+
+```json
+{
+  "contribution": {
+    "items": [
+      { "needItemId": "uuid", "offeredQuantity": 20, "condition": "NEW" },
+      { "needItemId": "uuid", "offeredQuantity": 5, "condition": "LIKE_NEW" }
+    ],
+    "deliveryMethod": "MEETUP",
+    "note": "Có thể giao chiều thứ bảy"
+  }
+}
+```
+
+Body quyết định cho phép chấp nhận một phần và từ chối các dòng còn lại:
+
+```json
+{
+  "decision": {
+    "idempotencyKey": "uuid",
+    "items": [
+      { "contributionItemId": "uuid-1", "acceptedQuantity": 15 },
+      {
+        "contributionItemId": "uuid-2",
+        "acceptedQuantity": 0,
+        "rejectionReason": "TARGET_REACHED"
+      }
+    ]
+  }
+}
+```
+
+Accept phải khoá và kiểm tra capacity trong cùng database transaction. Nếu capacity thay đổi,
+trả `409` kèm `needItemId`, `requestedQuantity` và `remainingQuantity`; không tự cắt số lượng.
+Địa chỉ giao nhận chính xác chỉ xuất hiện sau khi phần đóng góp được chấp nhận và chỉ trả cho
+hai bên transaction. Chi tiết tại
+[CHARITY-CONTRIBUTION-DESIGN](./plan/CHARITY-CONTRIBUTION-DESIGN.md).
+
+## 14. Tương thích cũ — `/gift-posts`
 
 Năm endpoint legacy giữ nguyên hợp đồng cũ nhưng **đọc/ghi canonical `posts`**: `create` uỷ
 quyền sang `CreatePostUseCase`, phần còn lại đọc `IPostRepository`, và một mapper dựng lại
@@ -1584,7 +1640,7 @@ niệm chủ sở hữu xem bài của mình.
 
 ---
 
-## 14. Vận hành
+## 15. Vận hành
 
 | Đường dẫn | Nội dung |
 | --- | --- |
