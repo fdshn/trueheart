@@ -1570,7 +1570,7 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
-| `POST` | `/charity-campaigns` | Bearer + capability | Tạo `INDIVIDUAL_APPEAL` hoặc `ORGANIZED_CAMPAIGN` kèm bảng nhu cầu |
+| `POST` | `/charity-campaigns` | Bearer + capability theo loại | Tạo campaign kèm bảng nhu cầu; server tự quyết định `PENDING_APPROVAL`/`ACTIVE` |
 | `GET` | `/campaigns/:idOrSlug/needs` | Công khai | Nhu cầu, số đang giao/đã nhận/còn thiếu; không trả PII beneficiary |
 | `POST` | `/charity-campaigns/:id/contributions` | Bearer | Gửi đề nghị gồm nhiều vật phẩm và số lượng |
 | `GET` | `/charity-campaigns/:id/contributions` | Organizer/coordinator | Danh sách đề nghị chờ điều phối |
@@ -1624,6 +1624,17 @@ hai bên transaction. Chi tiết tại
 `hộp` thành một số lượng tổng. `overallProgressPercent` nếu có chỉ là trung bình phần trăm
 hoàn thành của từng dòng active để vẽ UI. `targetItemsCount/currentItemsCount` cũ là legacy;
 response phải kèm `progressSource` để client không trộn số khai tay với projection mới.
+
+Quyền tạo mặc định:
+
+- `INDIVIDUAL_APPEAL`: Member/Bạc/Vàng tạo ở `PENDING_APPROVAL`; Kim Cương vào thẳng
+  `ACTIVE`.
+- `ORGANIZED_CAMPAIGN`: chỉ Kim Cương được tạo và vào thẳng `ACTIVE`.
+- Admin tạo trực tiếp `ACTIVE` cho cả hai loại.
+
+Client không gửi `approvalStatus`. Backend kiểm tra `SUBMIT_INDIVIDUAL_APPEAL` hoặc
+`SUBMIT_CHARITY_PROPOSAL`, sau đó kiểm tra `PUBLISH_CHARITY_WITHOUT_REVIEW` bằng Rank hiện
+tại đọc từ database.
 
 ## 14. Tương thích cũ — `/gift-posts`
 

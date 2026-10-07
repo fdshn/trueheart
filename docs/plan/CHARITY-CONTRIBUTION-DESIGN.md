@@ -37,6 +37,24 @@ Luồng tiền, cúng dường và VietQR không thuộc thiết kế này.
 phải khai quan hệ và trạng thái đồng ý/xác minh trước khi public. Địa chỉ, số điện thoại và
 tài liệu xác minh của beneficiary luôn là dữ liệu riêng tư.
 
+### Quyền tạo và trạng thái ban đầu
+
+| Loại | Member/Bạc/Vàng | Kim Cương | Admin |
+| --- | --- | --- | --- |
+| `INDIVIDUAL_APPEAL` | Được tạo, vào `PENDING_APPROVAL` | Được tạo và vào thẳng `ACTIVE` | Tạo trực tiếp `ACTIVE` |
+| `ORGANIZED_CAMPAIGN` | Không được tạo | Được tạo và vào thẳng `ACTIVE` | Tạo trực tiếp `ACTIVE` |
+
+Không hardcode phép so Rank trong controller. Rank Config dùng ba capability:
+
+- `SUBMIT_INDIVIDUAL_APPEAL`: baseline bật từ Member trở lên;
+- `SUBMIT_CHARITY_PROPOSAL`: baseline chỉ Kim Cương, dùng cho `ORGANIZED_CAMPAIGN`;
+- `PUBLISH_CHARITY_WITHOUT_REVIEW`: baseline chỉ Kim Cương, quyết định được `ACTIVE` ngay.
+
+Backend đọc Rank hiện tại từ database, không tin rank trong JWT. User có quyền submit nhưng
+không có quyền publish trực tiếp thì campaign luôn `PENDING_APPROVAL`; không cho client tự
+gửi `approvalStatus`. Admin vẫn có quyền đình chỉ nội dung đã public trực tiếp và toàn bộ
+quyết định phải có audit.
+
 ## 3. Bảng nhu cầu vật phẩm
 
 Mỗi chiến dịch có nhiều `campaign_need_items`:
@@ -202,3 +220,5 @@ danh tính contributor ẩn danh.
 8. Tiến độ công khai được tính từ transaction, không tin số client gửi lên.
 9. Không có phép cộng số lượng giữa hai dòng khác đơn vị.
 10. Đóng góp ngoài app có audit và không tự cộng điểm cho bất kỳ tài khoản nào.
+11. Member/Bạc/Vàng tạo individual appeal chỉ nhận `PENDING_APPROVAL`; Kim Cương tạo hai loại
+    đều `ACTIVE` mà không cần Admin duyệt trước.

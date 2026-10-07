@@ -739,7 +739,7 @@ Wireframe tham chiếu — Tài khoản / Rank
 | ---          | ---                            | ---       | ---                                                                                                                                  |
 | TV Vàng      | ≥ 896                          | Vàng      | Quota/phạm vi và quyền nâng cao; áp dụng nhiệm vụ duy trì 3 tháng.                                                                   |
 | ---          | ---                            | ---       | ---                                                                                                                                  |
-| TV Kim Cương | ≥ 1792                         | Kim Cương | Quyền cao nhất trong baseline; mặc định mở CREATE_GROUP và tạo hoạt động Từ thiện chờ Admin duyệt; áp dụng nhiệm vụ duy trì 3 tháng. |
+| TV Kim Cương | ≥ 1792                         | Kim Cương | Quyền cao nhất trong baseline; mặc định mở CREATE_GROUP và được public trực tiếp kêu gọi/hoạt động Từ thiện; áp dụng nhiệm vụ duy trì 3 tháng. |
 
 ### UC-PROF-02: Cập Nhật Số Điện Thoại & Nhận Thưởng Điểm Cống Hiến
 
@@ -785,7 +785,7 @@ BR-PHONE-REWARD-01: Điểm thưởng số điện thoại là thưởng một l
 | ---          | ---      | ---                                                                  | ---                                                                                                                                                                                 |
 | TV Vàng      | 896      | Hoàn thành 3 lần cho + giới thiệu 3 user                             | Tối đa 20 bài Cho, 10 bài Muốn Nhận; nhận tối đa 20 giao dịch/tháng; phạm vi 500 km; Rao vặt tối đa 10; profile mở rộng.                                                            |
 | ---          | ---      | ---                                                                  | ---                                                                                                                                                                                 |
-| TV Kim Cương | 1792     | Hoàn thành 4 lần cho + giới thiệu 4 user                             | Tối đa 30 bài Cho, 20 bài Muốn Nhận; nhận tối đa 30 giao dịch/tháng; phạm vi 2.000 km; Rao vặt tối đa 20; mặc định có quyền CREATE_GROUP và tạo hoạt động Từ thiện chờ Admin duyệt. |
+| TV Kim Cương | 1792     | Hoàn thành 4 lần cho + giới thiệu 4 user                             | Tối đa 30 bài Cho, 20 bài Muốn Nhận; nhận tối đa 30 giao dịch/tháng; phạm vi 2.000 km; Rao vặt tối đa 20; mặc định có quyền CREATE_GROUP và public trực tiếp kêu gọi/hoạt động Từ thiện. |
 | ---          | ---      | ---                                                                  | ---                                                                                                                                                                                 |
 
 • Khi đạt đủ ngưỡng điểm tích lũy và điều kiện nhiệm vụ lên hạng (nếu có), hệ thống tự động xét nâng hạng và gửi thông báo; khi đạt khoảng 70% mốc tiếp theo, hệ thống gửi nhắc khuyến khích hoạt động.
@@ -820,11 +820,11 @@ UI-WANTED-01: Main UI Muốn Nhận hiển thị feed nhu cầu đang mở, bộ
 
 Wireframe tham chiếu — Muốn Nhận / Smart Match
 
-UC-POST-03: Từ thiện/Hoạt động - Admin có quyền tạo và công bố hoạt động. TV Kim Cương cũng có quyền tạo đề xuất Event/Từ thiện nhưng bắt buộc ở trạng thái chờ Admin duyệt trước khi public. User Bạc không có quyền tạo chiến dịch.
+UC-POST-03: Từ thiện/Hoạt động - Admin có quyền tạo và công bố cả hai loại. Member/Bạc/Vàng được tạo `INDIVIDUAL_APPEAL` nhưng bắt buộc chờ Admin duyệt. TV Kim Cương được tạo và public trực tiếp `INDIVIDUAL_APPEAL` hoặc `ORGANIZED_CAMPAIGN`.
 
 UI-CHARITY-01: Từ thiện/Hoạt động có Main UI riêng. Không áp dụng filter quyền xem theo bán kính Rank; địa điểm vẫn được lưu để hiển thị/Map Discovery. UI thể hiện campaign/event, đơn vị tổ chức, trạng thái/thời hạn, mục tiêu hoặc tiến độ do người tổ chức/Admin cập nhật mang tính thông tin, địa điểm, loại vật phẩm cần nhận và CTA tham gia/chia sẻ. User có thể hủy đăng ký tham gia nếu hoạt động chưa bắt đầu; sau khi hoạt động kết thúc, bên tổ chức và người tham gia có thể đánh giá lẫn nhau.
 
-BR-CHARITY-01: Admin tạo hoạt động trực tiếp. TV Kim Cương tạo hoạt động ở trạng thái PENDING_APPROVAL; chỉ công khai sau khi Admin duyệt.
+BR-CHARITY-01: Admin tạo trực tiếp. Member/Bạc/Vàng tạo `INDIVIDUAL_APPEAL` ở `PENDING_APPROVAL`; TV Kim Cương tạo hai loại ở `ACTIVE` và không cần duyệt trước. Backend xác định quyền bằng capability theo Rank hiện tại đọc từ database; client không được gửi `approvalStatus`.
 
 BR-CHARITY-02: Hệ thống không tự xác minh/đối soát số lượng hiện vật hoặc tiến độ vật lý ngoài đời. Nếu hiển thị tiến độ, số liệu do người tổ chức/Admin cập nhật và mang tính thông tin.
 
@@ -946,7 +946,7 @@ Hệ thống không tự động chuyển quyền sở hữu hoặc tự động
 | ---                    | ---                                             | ---                                                                                | ---                                                                                                                  |
 | Muốn Nhận              | Theo quyền rank                                 | Danh sách nhu cầu muốn nhận; matching với bài Cho.                                 | Chi tiết nhu cầu; tạo/sửa; matching; trao đổi; trạng thái nhận.                                                      |
 | ---                    | ---                                             | ---                                                                                | ---                                                                                                                  |
-| Từ thiện / Hoạt động   | Admin; hoặc TV Kim Cương (phải chờ Admin duyệt) | Chiến dịch/hoạt động cộng đồng; không áp dụng filter quyền theo bán kính Rank.     | Chi tiết chiến dịch; đăng ký/hủy tham gia trước giờ bắt đầu; chia sẻ; đánh giá hai chiều sau khi hoạt động kết thúc. |
+| Từ thiện / Hoạt động   | Member+ cho kêu gọi cá nhân; Kim Cương cho hoạt động tổ chức | Member/Bạc/Vàng chờ duyệt; Kim Cương/Admin public trực tiếp; không áp dụng filter bán kính Rank. | Bảng nhu cầu; đề nghị đóng góp; transaction giao nhận; đăng ký hoạt động và đánh giá khi áp dụng. |
 | ---                    | ---                                             | ---                                                                                | ---                                                                                                                  |
 | Rao vặt giá rẻ         | Từ Bạc trở lên                                  | Kết nối bán thanh lý giá thấp; hiển thị giá thị trường, giá bán và % giảm.         | Chi tiết; tạo bài; trao đổi; giao dịch; hết hạn/chuyển tặng.                                                         |
 | ---                    | ---                                             | ---                                                                                | ---                                                                                                                  |
@@ -2237,12 +2237,17 @@ Quản lý cả kêu gọi hỗ trợ cho một cá nhân/gia đình (`INDIVIDUA
 | ---                 | ---          | ---                            | ---                                                                                                                     |
 | created_at          | TIMESTAMPTZ  | DEFAULT NOW()                  | Thời điểm khởi tạo.                                                                                                     |
 | ---                 | ---          | ---                            | ---                                                                                                                     |
-| created_by          | UUID         | FK -> users(id)                | Admin hoặc TV Kim Cương tạo đề xuất chiến dịch.                                                                         |
-| approval_status     | VARCHAR(30)  | DEFAULT 'PENDING'              | Admin tạo trực tiếp có thể APPROVED; TV Kim Cương bắt buộc PENDING_APPROVAL trước khi public.                           |
+| created_by          | UUID         | FK -> users(id)                | Member+ tạo kêu gọi cá nhân; Kim Cương/Admin có thể tạo cả hai loại.                                                     |
+| approval_status     | VARCHAR(30)  | DEFAULT 'PENDING'              | Member/Bạc/Vàng tạo appeal ở PENDING_APPROVAL; Kim Cương/Admin tạo ở APPROVED/ACTIVE trực tiếp.                         |
 
 `campaigns` bổ sung `campaign_type`; dữ liệu cũ được backfill thành `ORGANIZED_CAMPAIGN`.
 Kêu gọi cho cá nhân phải phân biệt người thụ hưởng là chính người đăng hay người khác, lưu
 quan hệ/xác minh đồng ý, và không công khai địa chỉ, liên hệ hoặc hồ sơ xác minh.
+
+Baseline capability: `SUBMIT_INDIVIDUAL_APPEAL` bật từ Member;
+`SUBMIT_CHARITY_PROPOSAL` chỉ bật cho Kim Cương; `PUBLISH_CHARITY_WITHOUT_REVIEW` chỉ bật cho
+Kim Cương. Backend đọc Rank hiện tại từ database và tự quyết định trạng thái ban đầu; client
+không gửi `approvalStatus`.
 
 Mỗi campaign có bảng `campaign_need_items` thay cho một con số mục tiêu tổng hợp: tên vật
 phẩm, category, đơn vị, số lượng cần, có cho phép thay thế hay không và projection số đang
@@ -2937,7 +2942,7 @@ POST /api/v1/posts/{id}/requests/reapply - xin lại sau khi rút; queue_joined_
 
 POST /api/v1/transactions/{id}/receiver-confirm - Receiver xác nhận đã nhận; Transaction COMPLETED ngay nếu hợp lệ. Background job tự COMPLETED sau 5 ngày nếu không hủy/tranh chấp.
 
-POST /api/v1/charity-campaigns - TV Kim Cương tạo đề xuất hoạt động ở PENDING_APPROVAL; Admin duyệt trước khi public. Admin CMS có endpoint tạo trực tiếp.
+POST /api/v1/charity-campaigns - Member/Bạc/Vàng tạo `INDIVIDUAL_APPEAL` ở PENDING_APPROVAL; Kim Cương tạo appeal hoặc organized campaign ở ACTIVE trực tiếp. Admin CMS có endpoint tạo trực tiếp.
 
 POST /api/v1/charity-campaigns/{id}/participation/cancel - user hủy tham gia nếu campaign chưa bắt đầu.
 
@@ -3088,7 +3093,7 @@ TC-TRANS-005D: Transaction ACCEPTED không bị hủy/tranh chấp; Receiver kh�
 
 TC-MARKET-003M: Rao vặt hết 3 tháng chưa hủy -> hệ thống gửi notification và tự chuyển sang Muốn Tặng. Giá tham khảo/giá bán do user tự khai, hệ thống không chặn theo một % giảm tối thiểu cố định.
 
-TC-CHARITY-APPROVAL: TV Kim Cương tạo Event -> PENDING_APPROVAL; chỉ public sau Admin duyệt. User có thể hủy tham gia trước giờ bắt đầu; sau khi kết thúc hai bên có thể review.
+TC-CHARITY-APPROVAL: Member/Bạc/Vàng tạo individual appeal -> PENDING_APPROVAL và chưa public; Kim Cương tạo individual appeal hoặc organized campaign -> ACTIVE và public trực tiếp. User có thể hủy tham gia trước giờ bắt đầu; sau khi kết thúc hai bên có thể review khi áp dụng.
 
 TC-MERIT-BANK: User tự khai số tiền -> ứng dụng mở bank/VietQR; hệ thống không đánh dấu giao dịch ngân hàng đã xác minh chỉ dựa trên số tiền tự khai. Hồi hướng public mặc định và hỗ trợ ẩn danh.
 
@@ -3217,7 +3222,7 @@ FIREBASE_SERVICE_ACCOUNT_PATH=./config/firebase-service-account.json
 | ---          | ---                  | ---                                         | ---                                                                                                                                        |
 | TV Vàng      | ≥896                 | Duy trì 3 tháng: 3 Cho + 3 referral         | Tối đa 20 Cho + 10 Muốn nhận; nhận tối đa 20/tháng; phạm vi 500 km; Rao vặt tối đa 10.                                                     |
 | ---          | ---                  | ---                                         | ---                                                                                                                                        |
-| TV Kim Cương | ≥1792                | Duy trì 3 tháng: 4 Cho + 4 referral         | Tối đa 30 Cho + 20 Muốn nhận; nhận tối đa 30/tháng; phạm vi 2.000 km; Rao vặt tối đa 20; CREATE_GROUP; tạo Event Từ thiện chờ Admin duyệt. |
+| TV Kim Cương | ≥1792                | Duy trì 3 tháng: 4 Cho + 4 referral         | Tối đa 30 Cho + 20 Muốn nhận; nhận tối đa 30/tháng; phạm vi 2.000 km; Rao vặt tối đa 20; CREATE_GROUP; public trực tiếp kêu gọi/hoạt động Từ thiện. |
 | ---          | ---                  | ---                                         | ---                                                                                                                                        |
 | Admin        | N/A                  | N/A                                         | Toàn quyền quản trị theo RBAC.                                                                                                             |
 | ---          | ---                  | ---                                         | ---                                                                                                                                        |
@@ -3320,7 +3325,7 @@ FIREBASE_SERVICE_ACCOUNT_PATH=./config/firebase-service-account.json
 | ---       | ---                           | ---                                                                              |
 | Post Type | MUỐN NHẬN                     | Nhu cầu cần nhận/tìm vật phẩm.                                                   |
 | ---       | ---                           | ---                                                                              |
-| Post Type | TỪ THIỆN                      | Hoạt động/chiến dịch do Admin hoặc Kim Cương chờ duyệt.                          |
+| Post Type | TỪ THIỆN                      | Kêu gọi cá nhân do Member+ tạo (dưới Kim Cương chờ duyệt); hoạt động tổ chức do Kim Cương/Admin public trực tiếp. |
 | ---       | ---                           | ---                                                                              |
 | Post Type | RAO VẶT                       | Thanh lý giá rẻ; quota/thời hạn theo Rank.                                       |
 | ---       | ---                           | ---                                                                              |

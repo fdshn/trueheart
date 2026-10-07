@@ -291,8 +291,9 @@ SOS / Cần gấp mở theo quyền Rank. Quyền này là capability `POST_SOS`
 không. ⚠️ *Ngưỡng này là giả định, chờ Bên A xác nhận.*
 
 ### F18 — Từ thiện / Hoạt động
-Admin tạo trực tiếp. **Thành viên Kim Cương** được tạo đề xuất, chờ Admin duyệt. Người dùng
-đăng ký hoặc huỷ trước khi sự kiện bắt đầu; đánh giá sau khi kết thúc.
+Admin tạo trực tiếp. Member/Bạc/Vàng được tạo kêu gọi cho cá nhân nhưng phải chờ Admin duyệt;
+**thành viên Kim Cương** được tạo và public trực tiếp cả kêu gọi cá nhân lẫn hoạt động có tổ
+chức. Người dùng đăng ký hoặc huỷ trước khi sự kiện bắt đầu; đánh giá sau khi kết thúc.
 
 ### F19 — Rao vặt giá rẻ
 Người bán tự khai **giá tham khảo** và **giá bán**. Hệ thống chỉ tính tỷ lệ chênh lệch;
@@ -913,6 +914,10 @@ chấp nhận toàn bộ, chấp nhận một phần hoặc từ chối từng d
 nhận mới sinh transaction giao nhận; huỷ transaction trả capacity về nhu cầu và không xoá
 lịch sử. Chi tiết state machine, concurrency, privacy và API mục tiêu tại
 [Thiết kế Kêu gọi và Đóng góp Vật phẩm](./plan/CHARITY-CONTRIBUTION-DESIGN.md).
+
+Baseline quyền tạo: Member/Bạc/Vàng được tạo `INDIVIDUAL_APPEAL` nhưng phải chờ Admin duyệt;
+Kim Cương tạo `INDIVIDUAL_APPEAL` hoặc `ORGANIZED_CAMPAIGN` và public trực tiếp. Quyền được
+biểu diễn bằng capability trong Rank Config, không so chuỗi Rank tại controller.
 
 ---
 
