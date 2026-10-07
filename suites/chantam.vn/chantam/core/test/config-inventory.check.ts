@@ -53,6 +53,7 @@ import {
   AbusiveModerationCorpus,
   AllocationPolicyConfigKey,
   ChatRetentionConfigKey,
+  GiftValueBonusMaxValueConfigKey,
   GiverAccuracyConfigKey,
   InnocentModerationCorpus,
   ModerationTermsConfigKey,
@@ -86,6 +87,13 @@ const RequiredKeys: readonly string[] = [
   ModerationTermsConfigKey,
   NotificationRetentionConfigKey,
   PointRedemptionConfigKey,
+  // Trần giá trị quy ra điểm thưởng (CHỐT-14, 07/10). Đây KHÔNG phải con số chính
+  // sách mà là van an toàn: `value_bonus` đi qua `appendAdjustment`, đường đó
+  // KHÔNG kiểm trần ngày nào, nên giá tự khai 1 tỉ đồng ra 500.000 điểm — 279 lần
+  // ngưỡng Kim Cương. Vắng dòng thì `DefaultGiftValueBonusMaxValueVnd` vẫn chặn,
+  // nhưng Admin không thấy cái núm để hạ xuống khi phát hiện bị lạm dụng, nên đây
+  // đúng là khoá thuộc nhóm 1 chứ không phải nhóm nợ.
+  GiftValueBonusMaxValueConfigKey,
   ReportAbuseConfigKey,
   ReviewGraceConfigKey,
   ReviewRatingConfigKey,

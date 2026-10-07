@@ -107,6 +107,108 @@ export function normalizeReviewGraceConfig(raw: unknown): IReviewGraceConfig {
   };
 }
 
+/**
+ * Khoá cấu hình: trần giá trị dùng để tính `value_bonus`, đơn vị VNĐ.
+ *
+ * ## Vì sao phải có trần
+ *
+ * CHỐT-14 đưa GIÁ NGƯỜI TẶNG TỰ KHAI vào công thức tính điểm. Trước 07/10 thiết kế
+ * cố ý loại giá đó ra, với lý do ghi thẳng trong mã: đó là chỗ chặn khai khống để cày
+ * điểm. Bỏ trần thì số học như sau — `estimated_value` trần 1.000.000.000đ,
+ * `vndPerPoint` 2.000, nên MỘT lượt trao in ra 500.000 điểm, bằng 279 lần ngưỡng Kim
+ * Cương (1.792). Không cần khai trần: 5.000.000đ cho một laptop cũ đã ra 2.500 điểm,
+ * tức vượt Kim Cương bằng một giao dịch. Hai người thông đồng — một khai giá, một chấm
+ * 100% — in được điểm không giới hạn.
+ *
+ * Trần này CẮT phần giá vượt ngưỡng, không từ chối bài: người tặng vẫn khai giá thật
+ * cho việc đổi điểm và hiển thị, chỉ phần quy ra thưởng bị chặn.
+ *
+ * ## Vì sao là khoá SỐ NGUYÊN, không phải JSON
+ *
+ * Endpoint ghi cấu hình chung hiện chỉ nhận `INTEGER`, nên một khoá JSON sẽ chỉ sửa
+ * được bằng SQL tay — đúng thứ "cấu hình động" sinh ra để tránh. Và phải thêm khoá này
+ * vào `SupportedSystemConfigKeys`: thiếu đó thì nó nằm trong `system_configs` mà Admin
+ * không chạm tới được.
+ */
+export const GiftValueBonusMaxValueConfigKey =
+  'point.value_bonus_max_value_vnd';
+
+/**
+ * 2.000.000đ.
+ *
+ * Với `vndPerPoint` 2.000 thì trần này cho tối đa 1.000 điểm một lượt — dưới ngưỡng
+ * Kim Cương (1.792), nên không ai lên hạng cao nhất bằng một giao dịch tự khai giá.
+ * Đồng thời đủ rộng để phần lớn vật phẩm thật được quy đổi trọn giá trị.
+ */
+export const DefaultGiftValueBonusMaxValueVnd = 2_000_000;
+
+export interface IGiftValueBonusInput {
+  /** Giá người tặng khai. `null` hoặc <= 0 nghĩa là không có gì để quy ra điểm. */
+  readonly estimatedValueVnd: number | null;
+  /** Tỷ lệ quy đổi Admin cấu hình, lấy từ `point.redemption`. */
+  readonly vndPerPoint: number;
+  /** Mức chính xác CHỐT — người nhận chấm, hoặc mức mặc định khi hết hạn. */
+  readonly accuracyPercent: number;
+  /** Trần giá trị, lấy từ `GiftValueBonusMaxValueConfigKey`. */
+  readonly maxValueVnd: number;
+}
+
+export interface IGiftValueBonus {
+  /** Số điểm thưởng theo giá trị. Luôn >= 0. */
+  readonly points: number;
+  /** Giá trị thực sự dùng để tính, sau khi áp trần. Ghi vào `reason` để tra ngược. */
+  readonly appliedValueVnd: number;
+  /** `true` khi trần đã cắt bớt giá khai. */
+  readonly capped: boolean;
+}
+
+/**
+ * `value_bonus` theo CHỐT-14.
+ *
+ * ```text
+ * applied_value    = min(estimated_value_vnd, max_value_vnd)
+ * value_max_points = round_half_up(applied_value / vnd_per_point)
+ * value_bonus      = round_half_up(value_max_points * accuracy_percent / 100)
+ * ```
+ *
+ * Làm tròn HAI lần là đúng đặc tả, không phải nhầm: CHỐT-14 viết
+ * `round_half_up(round_half_up(...) * ... / 100)`. Gộp thành một lượt làm tròn cho kết
+ * quả khác ở những giá trị sát mốc, và đặc tả đã chọn cách này.
+ *
+ * `Math.round` của JavaScript là nửa-lên với SỐ DƯƠNG, đúng điều đặc tả đòi. Mọi đầu
+ * vào ở đây đã kẹp về >= 0 nên không rơi vào bẫy `Math.round(-0.5) === -0`.
+ */
+export function computeGiftValueBonus(
+  input: IGiftValueBonusInput,
+): IGiftValueBonus {
+  const declared =
+    typeof input.estimatedValueVnd === 'number' &&
+    Number.isFinite(input.estimatedValueVnd)
+      ? Math.max(0, input.estimatedValueVnd)
+      : 0;
+  const cap = Number.isFinite(input.maxValueVnd)
+    ? Math.max(0, input.maxValueVnd)
+    : 0;
+  const appliedValueVnd = Math.min(declared, cap);
+  const capped = declared > cap;
+
+  // Tỷ lệ 0 hoặc rác thì không chia được. Trả 0 chứ KHÔNG ném: job đối soát chạy qua
+  // hàng trăm lượt trao, và một cấu hình hỏng không được làm nó dừng giữa danh sách.
+  if (!Number.isFinite(input.vndPerPoint) || input.vndPerPoint <= 0)
+    return { points: 0, appliedValueVnd, capped };
+
+  const percent = Number.isFinite(input.accuracyPercent)
+    ? Math.min(100, Math.max(0, input.accuracyPercent))
+    : 0;
+
+  const valueMaxPoints = Math.round(appliedValueVnd / input.vndPerPoint);
+  return {
+    points: Math.round((valueMaxPoints * percent) / 100),
+    appliedValueVnd,
+    capped,
+  };
+}
+
 /** Vì sao một vật phẩm KHÔNG đổi được bằng điểm. */
 export type RedemptionBlockedReason =
   /** Bài không khai giá trị tham khảo, nên không có gì để quy ra điểm. */

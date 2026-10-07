@@ -14,6 +14,16 @@ function makeUseCase(
       completedAt: Date;
     }[];
     grace?: unknown;
+    redemption?: unknown;
+    maxValueVnd?: unknown;
+    bonusDelta?: number;
+    pendingValueBonuses?: {
+      transactionId: string;
+      giverId: string;
+      completedAt: Date;
+      accuracyPercent: number | null;
+      estimatedValueVnd: number | null;
+    }[];
     awarded?: boolean;
   } = {},
 ) {
@@ -36,13 +46,35 @@ function makeUseCase(
     findUnsettledReceiverRewards: jest
       .fn()
       .mockResolvedValue(options.pendingReceivers ?? []),
-  };
-  const adminConfig = {
-    getConfigValue: jest
+    findUnsettledValueBonuses: jest
       .fn()
-      .mockResolvedValue(
-        options.grace ?? { graceDays: 7, defaultAccuracyPercent: 80 },
-      ),
+      .mockResolvedValue(options.pendingValueBonuses ?? []),
+  };
+  // Mock phân biệt theo KHOÁ. Trả một giá trị cho mọi khoá thì ba lượt đọc cấu hình
+  // của job cùng nhận cấu hình grace, và phép kiểm sẽ xanh do tình cờ: tỷ lệ
+  // VNĐ/điểm rơi về mặc định, trần rơi về mặc định, và không ai thấy gì sai.
+  const adminConfig = {
+    getConfigValue: jest.fn().mockImplementation((key: string) => {
+      if (key === 'review.grace')
+        return Promise.resolve(
+          options.grace ?? { graceDays: 7, defaultAccuracyPercent: 80 },
+        );
+      if (key === 'point.redemption')
+        return Promise.resolve(options.redemption ?? { vndPerPoint: 2_000 });
+      if (key === 'point.value_bonus_max_value_vnd')
+        return Promise.resolve(options.maxValueVnd ?? 2_000_000);
+      return Promise.resolve(null);
+    }),
+  };
+  const ledger = {
+    appendAdjustment: jest.fn().mockResolvedValue({
+      entryId: 9,
+      delta: options.bonusDelta ?? 450,
+      balance: 450,
+      rawBalance: 450,
+      lifetime: 450,
+      applied: true,
+    }),
   };
   const award = {
     handle: jest.fn().mockResolvedValue({
@@ -64,11 +96,13 @@ function makeUseCase(
   };
 
   return {
+    ledger,
     useCase: new SettleGiftRewardsUseCase(
       reviews as never,
       adminConfig as never,
       award as never,
       appendPoint as never,
+      ledger as never,
     ),
     reviews,
     award,
@@ -241,5 +275,136 @@ describe('SettleGiftRewardsUseCase', () => {
     expect(appendPoint.handle).not.toHaveBeenCalled();
     expect(result.pendingReceivers).toBe(1);
     expect(result.settledReceivers).toHaveLength(0);
+  });
+
+  describe('value_bonus tại hạn (CHỐT-14)', () => {
+    const due = {
+      transactionId: 'deal-bonus',
+      giverId: 'giver-bonus',
+      completedAt: new Date(),
+      accuracyPercent: 90 as number | null,
+      estimatedValueVnd: 1_000_000 as number | null,
+    };
+
+    it('cộng đúng công thức và ghi lại giá đã dùng', async () => {
+      const { useCase, ledger } = makeUseCase({ pendingValueBonuses: [due] });
+
+      const result = await useCase.handle({});
+
+      // 1.000.000 / 2.000 = 500 điểm trần; 500 × 90% = 450.
+      expect(ledger.appendAdjustment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'giver-bonus',
+          ruleCode: 'GIFT_VALUE_BONUS_GIVER',
+          delta: 450,
+          idempotencyKey: 'GIFT_VALUE_BONUS_GIVER:deal-bonus',
+          actor: 'SYSTEM',
+        }),
+      );
+      expect(result.settledValueBonuses).toEqual([
+        {
+          transactionId: 'deal-bonus',
+          giverId: 'giver-bonus',
+          points: 450,
+          appliedPercent: 90,
+          appliedValueVnd: 1_000_000,
+          capped: false,
+        },
+      ]);
+    });
+
+    it('CHẶN lỗ in điểm: giá khai trần bị cắt về trần cấu hình', async () => {
+      const { useCase, ledger } = makeUseCase({
+        pendingValueBonuses: [
+          { ...due, estimatedValueVnd: 1_000_000_000, accuracyPercent: 100 },
+        ],
+        bonusDelta: 1_000,
+      });
+
+      const result = await useCase.handle({});
+
+      // Không trần thì 1.000.000.000 / 2.000 = 500.000 điểm trong MỘT lượt trao.
+      expect(ledger.appendAdjustment).toHaveBeenCalledWith(
+        expect.objectContaining({ delta: 1_000 }),
+      );
+      expect(result.settledValueBonuses[0]?.capped).toBe(true);
+      expect(result.settledValueBonuses[0]?.appliedValueVnd).toBe(2_000_000);
+      // Dưới ngưỡng Kim Cương 1.792, nên một giao dịch không đưa ai lên hạng cao nhất.
+      expect(result.settledValueBonuses[0]?.points).toBeLessThan(1_792);
+    });
+
+    it('lý do ghi lại giá, tỷ lệ và việc đã bị cắt trần', async () => {
+      const { useCase, ledger } = makeUseCase({
+        pendingValueBonuses: [
+          { ...due, estimatedValueVnd: 1_000_000_000, accuracyPercent: 100 },
+        ],
+      });
+
+      await useCase.handle({});
+
+      const reason = ledger.appendAdjustment.mock.calls[0][0].reason as string;
+      expect(reason).toContain('2000000đ');
+      expect(reason).toContain('2000đ mỗi điểm');
+      expect(reason).toContain('100%');
+      expect(reason).toContain('đã cắt theo trần');
+    });
+
+    it('KHÔNG ghi bút toán khi bonus bằng 0 — bài không khai giá', async () => {
+      const { useCase, ledger } = makeUseCase({
+        pendingValueBonuses: [{ ...due, estimatedValueVnd: 0 }],
+      });
+
+      const result = await useCase.handle({});
+
+      // Khác đường điểm hoàn tất: ở đó bút toán delta = 0 là bằng chứng "đã chấm,
+      // và chấm 0". Ở đây 0 thường chỉ nghĩa là không khai giá.
+      expect(ledger.appendAdjustment).not.toHaveBeenCalled();
+      expect(result.settledValueBonuses).toEqual([]);
+      // Vẫn báo số lượt tới hạn để job không im lặng về việc đã quét gì.
+      expect(result.pendingValueBonuses).toBe(1);
+    });
+
+    it('không có đánh giá thì dùng mức mặc định của review.grace', async () => {
+      const { useCase, ledger } = makeUseCase({
+        pendingValueBonuses: [{ ...due, accuracyPercent: null }],
+      });
+
+      await useCase.handle({});
+
+      // 500 điểm trần × 80% mặc định = 400.
+      expect(ledger.appendAdjustment).toHaveBeenCalledWith(
+        expect.objectContaining({ delta: 400 }),
+      );
+    });
+
+    it('dry-run không ghi bút toán nào nhưng vẫn báo số tới hạn', async () => {
+      const { useCase, ledger } = makeUseCase({ pendingValueBonuses: [due] });
+
+      const result = await useCase.handle({ dryRun: true });
+
+      expect(ledger.appendAdjustment).not.toHaveBeenCalled();
+      expect(result.pendingValueBonuses).toBe(1);
+      expect(result.settledValueBonuses).toEqual([]);
+    });
+
+    it('báo trần đang cấu hình để job nói ra nó đã dùng con số nào', async () => {
+      const { useCase } = makeUseCase({ maxValueVnd: 5_000_000 });
+
+      expect((await useCase.handle({})).maxValueVnd).toBe(5_000_000);
+    });
+
+    it('trần cấu hình hỏng thì rơi về mặc định, KHÔNG tắt thưởng', async () => {
+      const { useCase, ledger } = makeUseCase({
+        pendingValueBonuses: [due],
+        maxValueVnd: 'nhiều',
+      });
+
+      await useCase.handle({});
+
+      // Tắt im lặng là người tặng mất điểm mà không ai biết vì sao.
+      expect(ledger.appendAdjustment).toHaveBeenCalledWith(
+        expect.objectContaining({ delta: 450 }),
+      );
+    });
   });
 });

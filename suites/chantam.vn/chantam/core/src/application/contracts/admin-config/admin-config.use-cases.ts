@@ -48,6 +48,13 @@ export const SupportedSystemConfigKeys = [
   'referral.review_min_qualified',
   'referral.review_min_device_clusters',
   'referral.review_min_cluster_size',
+  // Trần giá trị dùng để tính `value_bonus` (CHỐT-14), đơn vị VNĐ.
+  //
+  // Phải có ở đây vì nó là van an toàn duy nhất của một lỗ in điểm: CHỐT-14 đưa giá
+  // người tặng TỰ KHAI vào công thức, và không trần thì một lượt trao khai
+  // 1.000.000.000đ cho ra 500.000 điểm — 279 lần ngưỡng Kim Cương. Một van an toàn chỉ
+  // sửa được bằng SQL tay thì không ai dám xoay nó khi cần.
+  'point.value_bonus_max_value_vnd',
 ] as const;
 
 /**
@@ -75,6 +82,12 @@ export const SystemConfigValueRanges: Readonly<
   'group.radius_meters.silver': { min: 1_000, max: 50_000 },
   'group.radius_meters.gold': { min: 1_000, max: 50_000 },
   'group.radius_meters.diamond': { min: 1_000, max: 50_000 },
+  // `0` hợp lệ và có nghĩa: TẮT hẳn thưởng theo giá trị.
+  //
+  // Cận trên là `MaxClassifiedPrice` — mức giá cao nhất người tặng khai được. Đặt trần
+  // cao hơn con số đó thì cái núm này không còn tác dụng gì, nên đây là cận CỨNG của
+  // tầng dưới chứ không phải một khoảng tôi bịa ra thay Bên A.
+  'point.value_bonus_max_value_vnd': { min: 0, max: 1_000_000_000 },
 };
 
 export interface IPublishAdminConfigCommand {

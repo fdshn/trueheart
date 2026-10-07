@@ -82,6 +82,35 @@ export interface IUnsettledGiverReward {
   readonly accuracyPercent: number | null;
 }
 
+/**
+ * Lượt trao tới hạn chốt `value_bonus` mà chưa được cộng (CHỐT-14).
+ *
+ * Tách khỏi `IUnsettledGiverReward` vì hai khoản có nhịp KHÁC nhau: điểm hoàn tất
+ * trả ngay khi có đánh giá, còn bonus theo giá trị thì CHỐT-14 nói "chỉ tại hạn mới
+ * cộng một lần" — có đánh giá sớm cũng phải chờ hết hạn, vì người nhận còn được sửa
+ * đánh giá một lần trước hạn đó.
+ */
+export interface IUnsettledValueBonus {
+  readonly transactionId: string;
+  readonly giverId: string;
+  readonly completedAt: Date;
+  /**
+   * Mức chính xác CHỐT tại hạn: người nhận chấm, hoặc `null` khi họ không chấm.
+   *
+   * `null` ở đây dẫn tới mức mặc định trong `review.grace`, giống đường điểm hoàn
+   * tất. Chấm 0% KHÁC không chấm và không được gộp bằng `||`.
+   */
+  readonly accuracyPercent: number | null;
+  /**
+   * `posts.estimated_value` của bài gốc, đơn vị VNĐ.
+   *
+   * Cột là `bigint NOT NULL DEFAULT 0` nên không bao giờ `null` ở database, nhưng
+   * `LEFT JOIN` có thể cho `null` khi bài đã bị xoá cứng — và `0` nghĩa là không khai
+   * giá. Cả hai đều dẫn tới bonus 0.
+   */
+  readonly estimatedValueVnd: number | null;
+}
+
 export interface IPendingReviewReminder {
   /**
    * Vai của người CẦN đánh giá.
@@ -147,6 +176,22 @@ export interface ITransactionReviewRepository {
    * phía người nhận cả. Không cần chờ hết hạn: chẳng có gì phải chờ, món quà đã
    * trao xong rồi.
    */
+  /**
+   * Lượt trao đã quá hạn chốt đánh giá mà chưa được cộng `value_bonus`.
+   *
+   * Khác `findUnsettledGiverRewards` ở hai chỗ, cả hai đều theo CHỐT-14:
+   *
+   * - lọc `NOT EXISTS` theo khoá chống trùng của BONUS, nên một lượt đã trả điểm hoàn
+   *   tất từ trước vẫn được xét bonus — thiếu điều này thì sau khi dời mốc cộng điểm
+   *   hoàn tất sang lúc `COMPLETED`, sẽ không lượt nào còn nhận được bonus;
+   * - KHÔNG trả sớm khi đã có đánh giá: bonus chỉ chốt tại hạn, vì trước hạn người
+   *   nhận còn được sửa đánh giá một lần.
+   */
+  findUnsettledValueBonuses(params: {
+    graceDays: number;
+    limit: number;
+  }): Promise<IUnsettledValueBonus[]>;
+
   findUnsettledReceiverRewards(params: {
     limit: number;
   }): Promise<IUnsettledReceiverReward[]>;

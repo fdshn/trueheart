@@ -1,4 +1,6 @@
 import {
+  computeGiftValueBonus,
+  DefaultGiftValueBonusMaxValueVnd,
   DefaultPointRedemptionConfig,
   DefaultReviewGraceConfig,
   MaxReviewGraceDays,
@@ -137,5 +139,121 @@ describe('quoteRedemption', () => {
 
   it('dùng tỷ lệ mặc định khi không truyền', () => {
     expect(quoteRedemption(1_000_000).points).toBe(500);
+  });
+});
+
+describe('computeGiftValueBonus (CHỐT-14)', () => {
+  const Base = {
+    vndPerPoint: 2_000,
+    maxValueVnd: DefaultGiftValueBonusMaxValueVnd,
+  };
+
+  it('áp đúng công thức hai lượt làm tròn của đặc tả', () => {
+    // 1.000.000 / 2.000 = 500 điểm trần; 500 × 90% = 450.
+    expect(
+      computeGiftValueBonus({
+        ...Base,
+        estimatedValueVnd: 1_000_000,
+        accuracyPercent: 90,
+      }),
+    ).toEqual({ points: 450, appliedValueVnd: 1_000_000, capped: false });
+  });
+
+  it('làm tròn nửa LÊN, không xuống', () => {
+    // 2.000 / 2.000 = 1 điểm; 1 × 50% = 0,5 -> 1.
+    expect(
+      computeGiftValueBonus({
+        ...Base,
+        estimatedValueVnd: 2_000,
+        accuracyPercent: 50,
+      }).points,
+    ).toBe(1);
+  });
+
+  it('CHẶN lỗ in điểm: giá khai trần bị cắt về trần cấu hình', () => {
+    // Đây là lý do hàm này có tham số `maxValueVnd`. Không trần thì
+    // 1.000.000.000 / 2.000 = 500.000 điểm trong MỘT lượt trao — 279 lần ngưỡng
+    // Kim Cương (1.792). Hai người thông đồng in điểm không giới hạn.
+    const result = computeGiftValueBonus({
+      ...Base,
+      estimatedValueVnd: 1_000_000_000,
+      accuracyPercent: 100,
+    });
+
+    expect(result.capped).toBe(true);
+    expect(result.appliedValueVnd).toBe(DefaultGiftValueBonusMaxValueVnd);
+    // 2.000.000 / 2.000 = 1.000 điểm, dưới ngưỡng Kim Cương.
+    expect(result.points).toBe(1_000);
+    expect(result.points).toBeLessThan(1_792);
+  });
+
+  it.each([
+    ['không khai giá', null],
+    ['giá 0', 0],
+    ['giá âm', -5_000_000],
+  ])('không có bonus khi %s', (_label, value) => {
+    expect(
+      computeGiftValueBonus({
+        ...Base,
+        estimatedValueVnd: value,
+        accuracyPercent: 100,
+      }).points,
+    ).toBe(0);
+  });
+
+  it('chấm 0% thì bonus 0, nhưng vẫn báo giá đã dùng', () => {
+    const result = computeGiftValueBonus({
+      ...Base,
+      estimatedValueVnd: 1_000_000,
+      accuracyPercent: 0,
+    });
+
+    expect(result.points).toBe(0);
+    expect(result.appliedValueVnd).toBe(1_000_000);
+  });
+
+  it.each([0, -1, Number.NaN])(
+    'tỷ lệ VNĐ/điểm hỏng (%p) trả 0 chứ KHÔNG ném',
+    (rate) => {
+      // Job đối soát chạy qua hàng trăm lượt trao; một cấu hình hỏng không được
+      // làm nó dừng giữa danh sách.
+      expect(() =>
+        computeGiftValueBonus({
+          estimatedValueVnd: 1_000_000,
+          accuracyPercent: 100,
+          vndPerPoint: rate,
+          maxValueVnd: DefaultGiftValueBonusMaxValueVnd,
+        }),
+      ).not.toThrow();
+      expect(
+        computeGiftValueBonus({
+          estimatedValueVnd: 1_000_000,
+          accuracyPercent: 100,
+          vndPerPoint: rate,
+          maxValueVnd: DefaultGiftValueBonusMaxValueVnd,
+        }).points,
+      ).toBe(0);
+    },
+  );
+
+  it('accuracy ngoài khoảng 0-100 bị kẹp, không nhân vượt', () => {
+    expect(
+      computeGiftValueBonus({
+        ...Base,
+        estimatedValueVnd: 1_000_000,
+        accuracyPercent: 500,
+      }).points,
+    ).toBe(500);
+  });
+
+  it('trần 0 nghĩa là TẮT hẳn bonus theo giá trị', () => {
+    expect(
+      computeGiftValueBonus({
+        vndPerPoint: 2_000,
+        maxValueVnd: 0,
+        estimatedValueVnd: 1_000_000,
+        accuracyPercent: 100,
+      }).points,
+    ).toBe(0);
   });
 });

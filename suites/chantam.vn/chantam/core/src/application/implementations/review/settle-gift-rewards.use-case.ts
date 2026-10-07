@@ -3,23 +3,40 @@ import {
   IAwardGiftCompletionUseCase,
   ISettledGiftReward,
   ISettledReceiverReward,
+  ISettledValueBonus,
   ISettleGiftRewardsCommand,
   ISettleGiftRewardsResult,
   ISettleGiftRewardsUseCase,
 } from '@/application/contracts/review';
 import {
   IAdminConfigRepository,
+  IPointLedgerRepository,
   ITransactionReviewRepository,
 } from '@/domain/ports/repository';
 import { GiftCompletedReceiverRuleCode } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  computeGiftValueBonus,
+  DefaultGiftValueBonusMaxValueVnd,
+  GiftValueBonusMaxValueConfigKey,
+  normalizePointRedemptionConfig,
   normalizeReviewGraceConfig,
+  PointRedemptionConfigKey,
   ReviewGraceConfigKey,
 } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 import { appendPointIgnoringPolicy } from '../point/point-policy-errors';
 
 const DefaultLimit = 500;
+
+/**
+ * Mã phân loại của bút toán `value_bonus`.
+ *
+ * KHÔNG có dòng tương ứng trong `point_rules`, và đó là chủ ý: mức của khoản này
+ * tính từ `posts.estimated_value` và tỷ lệ `point.redemption`, nên tạo một bản sao
+ * con số sang `point_rules` là mở đường cho hai nơi nói hai mức. Cùng lý do mà điểm
+ * danh F83 đi qua `appendAdjustment` thay vì `appendByRule`.
+ */
+const GiftValueBonusRuleCode = 'GIFT_VALUE_BONUS_GIVER';
 
 /**
  * Trả nốt những phần thưởng của một lượt trao còn treo (F40).
@@ -58,6 +75,8 @@ export class SettleGiftRewardsUseCase implements ISettleGiftRewardsUseCase {
     private readonly awardGiftCompletion: IAwardGiftCompletionUseCase,
     @Inject(IAppendPointEntryUseCase)
     private readonly appendPointEntry: IAppendPointEntryUseCase,
+    @Inject(IPointLedgerRepository)
+    private readonly ledger: IPointLedgerRepository,
   ) {}
 
   public async handle(
@@ -75,16 +94,41 @@ export class SettleGiftRewardsUseCase implements ISettleGiftRewardsUseCase {
     const pendingReceivers = await this.reviews.findUnsettledReceiverRewards({
       limit,
     });
+    const pendingValueBonuses = await this.reviews.findUnsettledValueBonuses({
+      graceDays: config.graceDays,
+      limit,
+    });
+
+    const redemption = normalizePointRedemptionConfig(
+      await this.adminConfig.getConfigValue(PointRedemptionConfigKey),
+    );
+    // Trần là một SỐ NGUYÊN, không phải JSON — xem docblock khoá. Thiếu dòng cấu
+    // hình thì dùng mặc định chứ không tắt: tắt im lặng là người tặng mất điểm mà
+    // không ai biết vì sao.
+    const rawCap = Number(
+      await this.adminConfig.getConfigValue(GiftValueBonusMaxValueConfigKey),
+    );
+    const maxValueVnd =
+      Number.isFinite(rawCap) && rawCap >= 0
+        ? Math.trunc(rawCap)
+        : DefaultGiftValueBonusMaxValueVnd;
 
     const base = {
       pending: pending.length,
       pendingReceivers: pendingReceivers.length,
       graceDays: config.graceDays,
       defaultPercent: config.defaultAccuracyPercent,
+      pendingValueBonuses: pendingValueBonuses.length,
+      maxValueVnd,
     };
 
     if (command.dryRun === true)
-      return { ...base, settled: [], settledReceivers: [] };
+      return {
+        ...base,
+        settled: [],
+        settledReceivers: [],
+        settledValueBonuses: [],
+      };
 
     const settled: ISettledGiftReward[] = [];
     for (const completion of pending) {
@@ -134,6 +178,52 @@ export class SettleGiftRewardsUseCase implements ISettleGiftRewardsUseCase {
         });
     }
 
-    return { ...base, settled, settledReceivers };
+    const settledValueBonuses: ISettledValueBonus[] = [];
+    for (const due of pendingValueBonuses) {
+      const appliedPercent =
+        due.accuracyPercent === null
+          ? config.defaultAccuracyPercent
+          : due.accuracyPercent;
+      const bonus = computeGiftValueBonus({
+        estimatedValueVnd: due.estimatedValueVnd,
+        vndPerPoint: redemption.vndPerPoint,
+        accuracyPercent: appliedPercent,
+        maxValueVnd,
+      });
+
+      // Bonus 0 thì KHÔNG ghi bút toán. Khác đường điểm hoàn tất: ở đó bút toán
+      // delta = 0 là bằng chứng "đã chấm, và chấm 0" và nó chiếm khoá chống trùng.
+      // Ở đây 0 thường nghĩa là bài không khai giá — ghi một dòng 0 cho mọi lượt
+      // trao không khai giá chỉ làm sổ điểm phình mà không nói thêm gì.
+      if (bonus.points <= 0) continue;
+
+      const award = await this.ledger.appendAdjustment({
+        userId: due.giverId,
+        ruleCode: GiftValueBonusRuleCode,
+        delta: bonus.points,
+        referenceType: 'GIFT_TRANSACTION',
+        referenceId: due.transactionId,
+        idempotencyKey: `${GiftValueBonusRuleCode}:${due.transactionId}`,
+        actor: 'SYSTEM',
+        source: 'GRACE_EXPIRED',
+        reason:
+          `Thưởng theo giá trị tại hạn ${config.graceDays} ngày: ` +
+          `${bonus.appliedValueVnd}đ / ${redemption.vndPerPoint}đ mỗi điểm ` +
+          `× ${appliedPercent}%` +
+          (bonus.capped ? ` (đã cắt theo trần ${maxValueVnd}đ)` : ''),
+      });
+
+      if (award.applied)
+        settledValueBonuses.push({
+          transactionId: due.transactionId,
+          giverId: due.giverId,
+          points: award.delta,
+          appliedPercent,
+          appliedValueVnd: bonus.appliedValueVnd,
+          capped: bonus.capped,
+        });
+    }
+
+    return { ...base, settled, settledReceivers, settledValueBonuses };
   }
 }

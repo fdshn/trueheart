@@ -10,6 +10,7 @@ import {
   ITransactionReviewRepository,
   IUnsettledGiverReward,
   IUnsettledReceiverReward,
+  IUnsettledValueBonus,
 } from '@/domain/ports/repository';
 import { ITransactionReviewEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
@@ -376,6 +377,66 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
       // Chấm 0% KHÁC không chấm, nên phải phân biệt tại đây chứ không dùng `||`.
       accuracyPercent:
         row.accuracy_percent === null ? null : Number(row.accuracy_percent),
+    }));
+  }
+
+  public async findUnsettledValueBonuses(params: {
+    graceDays: number;
+    limit: number;
+  }): Promise<IUnsettledValueBonus[]> {
+    // `NOT EXISTS` theo khoá chống trùng của BONUS, không phải của điểm hoàn tất.
+    // Hai khoản là hai bút toán rời (CHỐT-14), nên dùng chung một khoá sẽ làm lượt
+    // nào đã trả điểm hoàn tất không bao giờ nhận được bonus.
+    //
+    // Và KHÔNG có nhánh "đã có đánh giá thì lấy ngay" như đường điểm hoàn tất: bonus
+    // chỉ chốt tại hạn, vì trước hạn người nhận còn được sửa đánh giá một lần. Trả
+    // sớm là trả theo một con số còn sửa được.
+    //
+    // `LEFT JOIN posts` chứ không `INNER`: bài bị xoá cứng vẫn phải trả bonus cho
+    // lượt trao đã hoàn tất — mất bài không phải lỗi của người tặng. Lúc đó
+    // `estimated_value` về `null` và bonus thành 0, đúng như không khai giá.
+    const rows = await this.manager.query<
+      {
+        transaction_id: string;
+        giver_id: string;
+        completed_at: Date;
+        accuracy_percent: number | string | null;
+        estimated_value: string | null;
+      }[]
+    >(
+      `
+        SELECT deal.global_id AS transaction_id,
+               deal.giver_id,
+               deal.completed_at,
+               rated.accuracy_percent,
+               item.estimated_value
+        FROM gift_transactions deal
+        LEFT JOIN transaction_reviews rated
+          ON rated.transaction_id = deal.global_id
+          AND rated.reviewer_role = 'RECEIVER'
+        LEFT JOIN posts item ON item.global_id = deal.post_id
+        WHERE deal.status = 'COMPLETED'
+          AND NOT EXISTS (
+            SELECT 1 FROM point_ledger paid
+            WHERE paid.idempotency_key = 'GIFT_VALUE_BONUS_GIVER:' || deal.global_id
+          )
+          AND deal.completed_at <= now() - ($1 || ' days')::interval
+        ORDER BY deal.completed_at
+        LIMIT $2
+      `,
+      [String(params.graceDays), params.limit],
+    );
+
+    return rows.map((row) => ({
+      transactionId: row.transaction_id,
+      giverId: row.giver_id,
+      completedAt: row.completed_at,
+      accuracyPercent:
+        row.accuracy_percent === null ? null : Number(row.accuracy_percent),
+      // `estimated_value` là `bigint`, nên node-pg trả CHUỖI. Thiếu `Number()` thì
+      // phép chia dưới xuôi thành nối chuỗi và số điểm ra vô nghĩa.
+      estimatedValueVnd:
+        row.estimated_value === null ? null : Number(row.estimated_value),
     }));
   }
 
