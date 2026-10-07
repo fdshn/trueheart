@@ -296,8 +296,9 @@ SOS / Cần gấp mở theo quyền Rank. Quyền này là capability `POST_SOS`
 không. ⚠️ *Ngưỡng này là giả định, chờ Bên A xác nhận.*
 
 ### F18 — Từ thiện / Hoạt động
-Admin tạo trực tiếp. **Thành viên Kim Cương** được tạo đề xuất, chờ Admin duyệt. Người dùng
-đăng ký hoặc huỷ trước khi sự kiện bắt đầu; đánh giá sau khi kết thúc.
+Admin tạo trực tiếp. Member/Bạc/Vàng được tạo kêu gọi cho cá nhân nhưng phải chờ Admin duyệt;
+**thành viên Kim Cương** được tạo và public trực tiếp cả kêu gọi cá nhân lẫn hoạt động có tổ
+chức. Người dùng đăng ký hoặc huỷ trước khi sự kiện bắt đầu; đánh giá sau khi kết thúc.
 
 ### F19 — Rao vặt giá rẻ
 Người bán tự khai **giá tham khảo** và **giá bán**. Hệ thống chỉ tính tỷ lệ chênh lệch;
@@ -957,6 +958,22 @@ chia sẻ trên mobile.
 ### F65 — Quản lý Từ thiện, Rao vặt, Quảng cáo, Công đức
 Duyệt sự kiện do Kim Cương đề xuất; quản lý nội dung quảng cáo, đơn vị Công đức, và dữ liệu
 tham chiếu của Rao vặt.
+
+Từ thiện gồm hai loại dùng chung engine: `INDIVIDUAL_APPEAL` (kêu gọi cho cá nhân/gia đình)
+và `ORGANIZED_CAMPAIGN` (tổ chức hoạt động). Cả hai khai báo bảng nhu cầu theo từng vật phẩm,
+đơn vị và số lượng. Người tặng chọn nhiều dòng, nhập số lượng; organizer/coordinator được
+chấp nhận toàn bộ, chấp nhận một phần hoặc từ chối từng dòng có lý do. Chỉ phần được chấp
+nhận mới sinh transaction giao nhận; huỷ transaction trả capacity về nhu cầu và không xoá
+lịch sử. Chi tiết state machine, concurrency, privacy và API mục tiêu tại
+[Thiết kế Kêu gọi và Đóng góp Vật phẩm](./plan/CHARITY-CONTRIBUTION-DESIGN.md).
+
+Baseline quyền tạo: Member/Bạc/Vàng được tạo `INDIVIDUAL_APPEAL` nhưng phải chờ Admin duyệt;
+Kim Cương tạo `INDIVIDUAL_APPEAL` hoặc `ORGANIZED_CAMPAIGN` và public trực tiếp. Quyền được
+biểu diễn bằng capability trong Rank Config, không so chuỗi Rank tại controller.
+
+Contributor nhận một mức điểm cố định `X` khi contribution có giao dịch hoàn tất; `X` lấy từ
+Point Rule `CHARITY_CONTRIBUTION_COMPLETED` do Admin cấu hình. Thưởng một lần theo contribution,
+không nhân số lượng/giá trị/accuracy và không áp dụng cho đóng góp ngoài app.
 
 ---
 

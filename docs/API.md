@@ -1588,7 +1588,90 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 - Ghi theo copy-on-write như mọi system config: `reason` bắt buộc và đi thẳng vào audit log.
 ---
 
-## 13. Tương thích cũ — `/gift-posts`
+## 13. Từ thiện — bảng nhu cầu và đề nghị đóng góp (KẾ HOẠCH)
+
+> Các endpoint dưới đây là contract mục tiêu, **chưa có trên staging**. API campaign hiện tại
+> mới hỗ trợ nội dung chiến dịch và đăng ký tham dự; không được coi một participation là một
+> cam kết tặng vật phẩm.
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `POST` | `/charity-campaigns` | Bearer + capability theo loại | Tạo campaign kèm bảng nhu cầu; server tự quyết định chờ duyệt hay public ngay (`approval_status` + `is_active`) |
+| `GET` | `/campaigns/:idOrSlug/needs` | Công khai | Nhu cầu, số đang giao/đã nhận/còn thiếu; không trả PII beneficiary |
+| `POST` | `/charity-campaigns/:id/contributions` | Bearer | Gửi đề nghị gồm nhiều vật phẩm và số lượng |
+| `GET` | `/charity-campaigns/:id/contributions` | Organizer/coordinator | Danh sách đề nghị chờ điều phối |
+| `GET` | `/charity-contributions/me` | Bearer | Đề nghị do chính user gửi |
+| `PATCH` | `/charity-contributions/:id` | Chính contributor | Sửa hoặc rút khi chưa có phần được chấp nhận |
+| `POST` | `/charity-contributions/:id/decision` | Organizer/coordinator | Chấp nhận/từ chối từng dòng, bắt buộc idempotency key |
+| `POST` | `/charity-campaigns/:id/external-contributions` | Organizer/coordinator | Ghi nhận vật phẩm nhận ngoài app có audit |
+| `PATCH` | `/charity-external-contributions/:id` | Organizer/coordinator | Điều chỉnh/hủy bản ghi ngoài app có lý do |
+| `POST` | `/charity-campaigns/:id/close` | Organizer/Admin | Đóng chiến dịch; giữ transaction đang chạy |
+
+Body tạo đề nghị luôn bọc khoá `contribution`:
+
+```json
+{
+  "contribution": {
+    "items": [
+      { "needItemId": "uuid", "offeredQuantity": 20, "condition": "NEW" },
+      { "needItemId": "uuid", "offeredQuantity": 5, "condition": "LIKE_NEW" }
+    ],
+    "deliveryMethod": "MEETUP",
+    "note": "Có thể giao chiều thứ bảy"
+  }
+}
+```
+
+Body quyết định cho phép chấp nhận một phần và từ chối các dòng còn lại:
+
+```json
+{
+  "decision": {
+    "idempotencyKey": "uuid",
+    "items": [
+      { "contributionItemId": "uuid-1", "acceptedQuantity": 15 },
+      {
+        "contributionItemId": "uuid-2",
+        "acceptedQuantity": 0,
+        "rejectionReason": "TARGET_REACHED"
+      }
+    ]
+  }
+}
+```
+
+Accept phải khoá và kiểm tra capacity trong cùng database transaction. Nếu capacity thay đổi,
+trả `409` kèm `needItemId`, `requestedQuantity` và `remainingQuantity`; không tự cắt số lượng.
+Địa chỉ giao nhận chính xác chỉ xuất hiện sau khi phần đóng góp được chấp nhận và chỉ trả cho
+hai bên transaction. Chi tiết tại
+[CHARITY-CONTRIBUTION-DESIGN](./plan/CHARITY-CONTRIBUTION-DESIGN.md).
+
+`needs[]` là nguồn tiến độ và luôn giữ riêng từng `unit`; backend không cộng `kg`, `cái`,
+`hộp` thành một số lượng tổng. `overallProgressPercent` nếu có chỉ là trung bình phần trăm
+hoàn thành của từng dòng active để vẽ UI. `targetItemsCount/currentItemsCount` cũ là legacy;
+response phải kèm `progressSource` để client không trộn số khai tay với projection mới.
+
+Quyền tạo mặc định:
+
+- `INDIVIDUAL_APPEAL`: Member/Bạc/Vàng tạo ở `PENDING_APPROVAL`; Kim Cương public ngay.
+- `ORGANIZED_CAMPAIGN`: chỉ Kim Cương được tạo và public ngay.
+- Admin tạo và public ngay cho cả hai loại.
+
+"Public ngay" lưu bằng `approval_status = 'APPROVED'` **và** `is_active = true`, không phải
+một giá trị `ACTIVE` trong `approval_status` — CHECK hiện tại chỉ nhận `PENDING_APPROVAL`,
+`APPROVED`, `REJECTED`. Bảng ánh xạ đầy đủ các trạng thái nghiệp vụ (gồm `SUSPENDED` và
+`CLOSED`) nằm ở [thiết kế đóng góp từ thiện](./plan/CHARITY-CONTRIBUTION-DESIGN.md#ánh-xạ-trạng-thái-nghiệp-vụ-sang-schema-hiện-có).
+
+Client không gửi `approvalStatus`. Backend kiểm tra `SUBMIT_INDIVIDUAL_APPEAL` hoặc
+`SUBMIT_CHARITY_PROPOSAL`, sau đó kiểm tra `PUBLISH_CHARITY_WITHOUT_REVIEW` bằng Rank hiện
+tại đọc từ database.
+
+Điểm contributor dùng Point Rule `CHARITY_CONTRIBUTION_COMPLETED`: một mức `X` cố định do
+Admin cấu hình và thưởng đúng một lần cho mỗi contribution khi có transaction hoàn tất.
+Reference ledger là `campaignContributionId`; không nhân theo số lượng, số item, số chuyến
+giao, giá trị ước tính hay accuracy. External contribution không sinh điểm.
+
+## 14. Tương thích cũ — `/gift-posts`
 
 Năm endpoint legacy giữ nguyên hợp đồng cũ nhưng **đọc/ghi canonical `posts`**: `create` uỷ
 quyền sang `CreatePostUseCase`, phần còn lại đọc `IPostRepository`, và một mapper dựng lại
@@ -1610,7 +1693,7 @@ niệm chủ sở hữu xem bài của mình.
 
 ---
 
-## 14. Vận hành
+## 15. Vận hành
 
 | Đường dẫn | Nội dung |
 | --- | --- |
