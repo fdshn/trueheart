@@ -1577,6 +1577,8 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `GET` | `/charity-contributions/me` | Bearer | Đề nghị do chính user gửi |
 | `PATCH` | `/charity-contributions/:id` | Chính contributor | Sửa hoặc rút khi chưa có phần được chấp nhận |
 | `POST` | `/charity-contributions/:id/decision` | Organizer/coordinator | Chấp nhận/từ chối từng dòng, bắt buộc idempotency key |
+| `POST` | `/charity-campaigns/:id/external-contributions` | Organizer/coordinator | Ghi nhận vật phẩm nhận ngoài app có audit |
+| `PATCH` | `/charity-external-contributions/:id` | Organizer/coordinator | Điều chỉnh/hủy bản ghi ngoài app có lý do |
 | `POST` | `/charity-campaigns/:id/close` | Organizer/Admin | Đóng chiến dịch; giữ transaction đang chạy |
 
 Body tạo đề nghị luôn bọc khoá `contribution`:
@@ -1617,6 +1619,11 @@ trả `409` kèm `needItemId`, `requestedQuantity` và `remainingQuantity`; khô
 Địa chỉ giao nhận chính xác chỉ xuất hiện sau khi phần đóng góp được chấp nhận và chỉ trả cho
 hai bên transaction. Chi tiết tại
 [CHARITY-CONTRIBUTION-DESIGN](./plan/CHARITY-CONTRIBUTION-DESIGN.md).
+
+`needs[]` là nguồn tiến độ và luôn giữ riêng từng `unit`; backend không cộng `kg`, `cái`,
+`hộp` thành một số lượng tổng. `overallProgressPercent` nếu có chỉ là trung bình phần trăm
+hoàn thành của từng dòng active để vẽ UI. `targetItemsCount/currentItemsCount` cũ là legacy;
+response phải kèm `progressSource` để client không trộn số khai tay với projection mới.
 
 ## 14. Tương thích cũ — `/gift-posts`
 

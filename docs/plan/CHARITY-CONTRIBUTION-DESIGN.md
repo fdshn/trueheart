@@ -15,8 +15,9 @@ Phân hệ Từ thiện có hai loại dùng chung một engine:
 
 Cả hai loại đều cho người tạo khai báo một bảng nhu cầu vật phẩm, người dùng chọn một hoặc
 nhiều dòng và số lượng muốn tặng, người quản lý chấp nhận/từ chối từng phần, rồi hệ thống
-tạo transaction giao nhận. Không dùng `target_items_count/current_items_count` tổng hợp làm
-nguồn sự thật cho luồng này.
+tạo transaction giao nhận. Nguồn sự thật là số thực nhận theo **từng dòng nhu cầu** từ
+transaction hoàn tất và đóng góp ngoài app có audit; không dùng
+`target_items_count/current_items_count` tổng hợp làm nguồn sự thật cho luồng này.
 
 Luồng tiền, cúng dường và VietQR không thuộc thiết kế này.
 
@@ -52,6 +53,7 @@ Các số hiển thị:
 pendingQuantity  = tổng số lượng trên đề nghị PENDING_REVIEW
 activeQuantity   = tổng số lượng đã chấp nhận nhưng transaction chưa COMPLETED/CANCELLED
 receivedQuantity = tổng số lượng thực nhận từ transaction COMPLETED
+                 + tổng số lượng đóng góp ngoài app còn hiệu lực
 remainingQuantity = max(targetQuantity - activeQuantity - receivedQuantity, 0)
 ```
 
@@ -61,6 +63,11 @@ làm chiến dịch trông như đã đủ và chặn người tặng thật.
 
 Không được hạ `targetQuantity` thấp hơn `activeQuantity + receivedQuantity`. Không xoá cứng
 dòng đã có đề nghị; chỉ `is_active = false`.
+
+Mỗi dòng giữ nguyên `unit` của nó. Backend không cộng `kg + cái + hộp` thành một tổng vì kết
+quả đó không có ý nghĩa. API công khai trả tiến độ từng dòng. Nếu UI cần một progress bar
+chung, backend trả `overallProgressPercent` bằng trung bình tỷ lệ hoàn thành đã kẹp ở 100%
+của các dòng đang active; đây chỉ là chỉ số trình bày, không phải số lượng hay nguồn sự thật.
 
 ## 4. Đề nghị đóng góp
 
@@ -117,10 +124,22 @@ Một transaction có thể chứa nhiều dòng khi cùng contributor, điểm 
 Nếu khác điểm nhận/phương thức/thời gian thì tách transaction.
 
 Khi hoàn tất, organizer xác nhận `received_quantity` thực tế cho từng dòng. Projection tiến
-độ và điểm contributor chỉ phát sinh từ số thực nhận. Huỷ transaction phải trả phần
-`activeQuantity` về nhu cầu, không cộng `receivedQuantity`.
+độ chỉ phát sinh từ số thực nhận. Chính sách điểm contributor được chốt riêng, không được suy
+ra trực tiếp từ số lượng. Huỷ transaction phải trả phần `activeQuantity` về nhu cầu, không
+cộng `receivedQuantity`.
 
-## 7. Vòng đời chiến dịch
+## 7. Đóng góp ngoài app
+
+Vật phẩm nhận trực tiếp từ người không có tài khoản vẫn phải tạo
+`campaign_external_contributions`, gồm `need_item_id`, số lượng thực nhận, nhãn nguồn, thời
+điểm nhận, người ghi nhận và bằng chứng tùy chính sách. Bản ghi có audit, không gắn contributor
+user và không tự sinh điểm.
+
+Organizer không được gõ trực tiếp một tổng `current_items_count`. Sửa sai bằng cách điều
+chỉnh/hủy bản ghi external contribution có lý do, không ghi đè lịch sử. Chỉ bản ghi còn hiệu
+lực mới tham gia `receivedQuantity`.
+
+## 8. Vòng đời chiến dịch
 
 ```text
 DRAFT -> PENDING_APPROVAL -> ACTIVE -> CLOSED
@@ -137,7 +156,7 @@ Khi đóng:
 - không tự huỷ transaction đã chấp nhận;
 - cho phép gia hạn trước khi đóng và lưu audit thay đổi thời hạn.
 
-## 8. API mục tiêu
+## 9. API mục tiêu
 
 Các endpoint đọc công khai tiếp tục dùng `/campaigns`. Endpoint ghi dùng namespace
 `/charity-campaigns` hiện hữu:
@@ -151,21 +170,27 @@ Các endpoint đọc công khai tiếp tục dùng `/campaigns`. Endpoint ghi d�
 | `GET` | `/charity-contributions/me` | Contributor xem đề nghị của mình |
 | `PATCH` | `/charity-contributions/:id` | Sửa/rút đề nghị chưa được nhận |
 | `POST` | `/charity-contributions/:id/decision` | Chấp nhận/từ chối từng dòng, nguyên tử |
+| `POST` | `/charity-campaigns/:id/external-contributions` | Ghi nhận đóng góp ngoài app có audit |
+| `PATCH` | `/charity-external-contributions/:id` | Điều chỉnh/hủy bản ghi ngoài app có lý do |
 | `POST` | `/charity-campaigns/:id/close` | Đóng chiến dịch và xử lý hàng chờ |
 
 Response public không trả beneficiary contact, địa chỉ chính xác, tài liệu xác minh hoặc
 danh tính contributor ẩn danh.
 
-## 9. Tương thích dữ liệu hiện tại
+## 10. Tương thích dữ liệu hiện tại
 
 - Thêm `campaign_type`; dữ liệu cũ backfill `ORGANIZED_CAMPAIGN`.
-- `target_items_count/current_items_count` cũ giữ trong giai đoạn chuyển đổi để client cũ
-  đọc, nhưng client mới lấy tiến độ từ `campaign_need_items`.
+- `target_items_count/current_items_count` cũ được đánh dấu deprecated. Với campaign chưa có
+  bảng nhu cầu, backend giữ nguyên hành vi legacy. Ngay khi campaign có ít nhất một dòng nhu
+  cầu, hai cột không còn được ghi tay và API mới không dùng chúng.
+- Không dựng một `current_items_count` mới bằng cách cộng các đơn vị khác nhau. Client mới
+  đọc `needs[]` và `overallProgressPercent`; endpoint legacy có thể trả hai trường cũ trong
+  thời gian chuyển đổi nhưng phải kèm cờ `progressSource = LEGACY_DECLARED | NEED_ITEMS`.
 - `campaign_participations` hiện tại tiếp tục biểu diễn đăng ký tham dự sự kiện; **không**
   dùng nó thay cho đề nghị tặng vật phẩm.
 - Không tự sinh bảng nhu cầu giả từ hai cột tổng hợp cũ vì không biết tên vật phẩm/đơn vị.
 
-## 10. Acceptance criteria bắt buộc
+## 11. Acceptance criteria bắt buộc
 
 1. Hai organizer chấp nhận đồng thời không làm tổng active/received vượt mục tiêu.
 2. Từ chối một contributor không ảnh hưởng đề nghị của người khác.
@@ -175,3 +200,5 @@ danh tính contributor ẩn danh.
 6. Người ngoài không đọc được danh tính, contact hay địa chỉ riêng của beneficiary.
 7. Retry cùng idempotency key chỉ tạo một transaction.
 8. Tiến độ công khai được tính từ transaction, không tin số client gửi lên.
+9. Không có phép cộng số lượng giữa hai dòng khác đơn vị.
+10. Đóng góp ngoài app có audit và không tự cộng điểm cho bất kỳ tài khoản nào.

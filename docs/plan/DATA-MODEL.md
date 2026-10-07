@@ -211,6 +211,7 @@ thì tranh chấp về sau không có cách nào tra lại ([F58](../FEATURES.md
 | `campaign_contributions` | `campaign_id` · `contributor_id` · `status` · giao nhận · ghi chú · timestamps |
 | `campaign_contribution_items` | `contribution_id` · `need_item_id` · `offered_quantity` · `accepted_quantity` · quyết định/lý do |
 | `campaign_transaction_items` | `transaction_id` · `need_item_id` · `accepted_quantity` · `received_quantity` |
+| `campaign_external_contributions` | `campaign_id` · `need_item_id` · `quantity` · `source_label` · `evidence_urls` · `received_at` · `recorded_by` · trạng thái/lý do điều chỉnh |
 | `blog_posts` | `title` · `slug` · `cover_r2_key` · `body` · `published_at` |
 
 ---

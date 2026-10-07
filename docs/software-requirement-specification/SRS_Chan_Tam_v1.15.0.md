@@ -2225,9 +2225,9 @@ Quản lý cả kêu gọi hỗ trợ cho một cá nhân/gia đình (`INDIVIDUA
 | ---                 | ---          | ---                            | ---                                                                                                                     |
 | badge_name          | VARCHAR(50)  | NOT NULL                       | Tên huy hiệu gắn lên bài đăng thuộc chiến dịch (VD: CỨU TRỢ MIỀN TRUNG).                                                |
 | ---                 | ---          | ---                            | ---                                                                                                                     |
-| target_items_count  | INT          | DEFAULT 0                      | Mục tiêu số lượng phần quà / món đồ kêu gọi (VD: 1000 phần).                                                            |
+| target_items_count  | INT          | DEFAULT 0                      | Trường legacy cho campaign cũ chưa có bảng nhu cầu; deprecated khi đã có `campaign_need_items`.                         |
 | ---                 | ---          | ---                            | ---                                                                                                                     |
-| current_items_count | INT          | DEFAULT 0                      | Số liệu tiến độ do organizer/Admin cập nhật để hiển thị; hệ thống không tự xác minh/đối soát đóng góp vật lý ngoài đời. |
+| current_items_count | INT          | DEFAULT 0                      | Trường tiến độ khai tay legacy; không được ghi trực tiếp khi campaign đã có bảng nhu cầu.                               |
 | ---                 | ---          | ---                            | ---                                                                                                                     |
 | start_time          | TIMESTAMPTZ  | NOT NULL                       | Ngày bắt đầu chiến dịch.                                                                                                |
 | ---                 | ---          | ---                            | ---                                                                                                                     |
@@ -2255,6 +2255,17 @@ tính lại capacity trong cùng database transaction, dùng idempotency key và
 lượng đã thay đổi. Transaction hoàn tất cập nhật số thực nhận; transaction bị huỷ trả capacity
 về nhu cầu nhưng không xoá đề nghị hoặc audit. Đóng campaign chặn đề nghị mới, từ chối hàng
 chờ và giữ nguyên transaction đang chạy.
+
+Nguồn sự thật tiến độ là `received_quantity` theo từng `campaign_need_item`, lấy từ các
+transaction `COMPLETED` cộng các `campaign_external_contributions` còn hiệu lực. Đóng góp
+ngoài app phải lưu người ghi nhận, nguồn, thời điểm, bằng chứng theo chính sách và lịch sử
+điều chỉnh; không cho organizer sửa một số tổng không có dấu vết và không tự cộng điểm cho
+tài khoản nào.
+
+Không cộng các dòng khác đơn vị thành tổng số vật phẩm. API trả tiến độ từng dòng. Chỉ số
+`overallProgressPercent` nếu cần cho UI là trung bình tỷ lệ hoàn thành đã kẹp 100% của từng
+dòng active, không phải nguồn sự thật. Hai cột tổng hợp cũ chỉ phục vụ tương thích campaign
+legacy và response phải chỉ rõ `progressSource`.
 
 Đặc tả triển khai đầy đủ tại `docs/plan/CHARITY-CONTRIBUTION-DESIGN.md`.
 
