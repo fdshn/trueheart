@@ -101,7 +101,7 @@ Phần riêng của từng loại để trong `details` jsonb:
 | `gift_requests` | `post_id` · `requester_id` · `message` · `status` — **UNIQUE(post_id, requester_id)** |
 | `transactions` | `global_id` · `post_id` · `giver_id` · `receiver_id` · `request_id` · `status` · `accepted_at` · **`auto_complete_at`** · `cancel_reason` |
 
-**Chờ bổ sung cho cơ chế đổi điểm** ([F75](../FEATURES.md#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm)):
+**Bản thiết kế lịch sử và hiện trạng cần đối chiếu** ([F75](../FEATURES.md#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm)):
 
 | Cột dự kiến | Ở đâu | Vì sao |
 | --- | --- | --- |
@@ -109,6 +109,13 @@ Phần riêng của từng loại để trong `details` jsonb:
 | `reference_value_vnd` | `posts` | Giá trị tham khảo người cho khai, cơ sở tính số điểm cần |
 | `delivery_method` | `posts` | `SELF_PICKUP` hoặc `GIVER_SHIPS` |
 | `redeemed_by` · `redeemed_at` | `posts` hoặc `transactions` | Đánh dấu bài đã bị chốt bằng điểm, để auto-select **không** chạy nữa |
+
+> Tới `main` commit `0dee943`, `posts.selection_deadline` đã có (không phải
+> `selection_deadline_at`), giá nằm ở `posts.estimated_value`, và `delivery_method` đã có.
+> `redeemed_by`/`redeemed_at` **chưa có**; `selection_deadline = NULL` sau accept chỉ chứng
+> minh đồng hồ dừng, không ghi lý do chốt. Không tạo thêm các cột tên dự kiến ở bảng trên
+> một cách máy móc. Thiết kế dấu `REDEEMED` bền vững và cancellation policy trong
+> [handoff backend](./REDEMPTION-REQUIREMENT-GAP.md).
 
 > Dừng countdown phải là **trạng thái ghi xuống database**, không phải việc huỷ một timer
 > trong tiến trình. Deploy nhiều replica thì timer trong bộ nhớ chết theo tiến trình, còn
@@ -153,6 +160,11 @@ Phòng chat gắn 1-1 với giao dịch, **chỉ tạo khi giao dịch đạt `A
   `balance − minimum_point(rank hiện tại)`. Ngưỡng lấy từ `rank_tiers`, nên Admin đổi ngưỡng
   là điểm khả dụng đổi theo, không cần backfill.
 - Tỷ lệ quy đổi điểm ↔ VNĐ nằm trong cấu hình động của Admin, **không hard-code**.
+
+> Công thức điểm khả dụng trên là **yêu cầu đích ngày 2026-10-04**, chưa được POST
+> kiểm. Ledger debit và chốt request hiện nằm trong hai transaction khác nhau, có bút
+> toán hoàn bù khi chốt lỗi. Implementation mới cần cùng một transaction và kiểm balance
+> sau khóa; không chỉ thêm cột hay sửa quote. Xem [handoff](./REDEMPTION-REQUIREMENT-GAP.md).
 
 **Quy tắc xét Rank theo điểm (SRS v1.15.0 - CHỐT-01 & BR-PROF-RANK-06):**
 - Điểm dùng để xét Rank là **số dư Điểm Cống hiến hiện tại (`balance_after`)**. Phase 1 không dùng một `lifetime rank point` riêng để giữ hạng; khi balance giảm thì hệ thống tự động xác định lại Rank.

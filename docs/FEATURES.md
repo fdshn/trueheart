@@ -3,6 +3,10 @@
 Tổng hợp từ ba bảng của Bên A: bảng bóc tách chức năng, bảng chức năng không giá, và bảng
 ngưỡng điểm/cống hiến. **72 chức năng, toàn bộ P0, toàn bộ thuộc MVP Phase 1.**
 
+> **Cập nhật nghiệp vụ 07/10/2026:** [Đặc tả cho–nhận, đổi điểm và review](./plan/GIVE-RECEIVE-2026-10-07.md)
+> là nguồn quyết định mới. Các dòng “đã triển khai” bên dưới chỉ nói về backend hiện tại,
+> không có nghĩa nghiệp vụ mới đã chạy. Khi mâu thuẫn, đặc tả ngày 07/10 có ưu tiên.
+
 ## Cách đọc
 
 - Mã **F01–F72** khớp cột `STT` của bảng gốc — dùng để đối chiếu hợp đồng khi nghiệm thu.
@@ -21,7 +25,7 @@ Flutter (Android + iOS) · NestJS + PostgreSQL 16 + PostGIS · Redis · Socket.i
 |---|---|---|---|
 | 1 | [Xác thực & Tài khoản](#1-xác-thực--tài-khoản) | F01–F06 | Không có eKYC/CCCD |
 | 2 | [Hồ sơ, Rank & Referral](#2-hồ-sơ-rank--referral) | F07–F13 | Rank xét theo current balance (CHỐT-01) |
-| 3 | [Đăng tin & Nội dung](#3-đăng-tin--nội-dung) | F14–F24 | 5 loại bài khác nhau; vòng đời 3 tháng |
+| 3 | [Đăng tin & Nội dung](#3-đăng-tin--nội-dung) | F14–F24 | Bài chờ: 7 ngày + tự mở thêm 30 ngày nếu chưa ghép |
 | 4 | [Quanh Đây & Bản đồ GIS](#4-quanh-đây--bản-đồ-gis) | F25–F29 | Chỉ bản đồ toàn màn hình, không có feed |
 | 5 | [Giao dịch & FSM](#5-giao-dịch--fsm) | F30–F36 | Lõi nghiệp vụ |
 | 6 | [Chat Realtime 1-1](#6-chat-realtime-1-1) | F37–F38 | Text + ảnh (tối đa 3/tin) |
@@ -196,10 +200,11 @@ cho bản đồ tại thời điểm xem.
 > Tiêu điểm thì tụt hạng; mức tụt xét lại theo ngưỡng hiện tại, **không ép đúng một bậc**.
 > Trượt nhiệm vụ duy trì **bị trừ N điểm** (Admin cấu hình) rồi rank tự xét lại theo balance
 > mới — nhiệm vụ tác động gián tiếp qua điểm để không có hai cơ chế cùng quyết một thứ.
-> [F76](#f76--điểm-khả-dụng--bảo-vệ-rank-đã-huỷ) đã huỷ.
+> Quyết định 24/09 từng huỷ [F76](#f76--điểm-khả-dụng--bảo-vệ-rank-khi-đổi-vật-phẩm-yêu-cầu-mới);
+> yêu cầu 04/10 đưa bảo vệ Rank trở lại riêng cho đổi vật phẩm, backend chưa triển khai.
 >
-> ⚠️ **Chưa hiện thực.** Code hiện xét hạng theo `lifetime` (`rank.repository.ts:387`), và cột
-> *Cảnh báo tại 70%* chưa có đường nào gửi. Đây là mâu thuẫn đã biết giữa tài liệu và code.
+> Mô hình Rank theo balance và cảnh báo đã được hiện thực; riêng quy tắc chặn đổi vật phẩm
+> theo điểm khả dụng là gap mới. Xem [handoff](./plan/REDEMPTION-REQUIREMENT-GAP.md).
 
 **Điều kiện lên Bạc:** 1 giao dịch Cho hoàn tất + 1 Personal Referral hợp lệ (áp dụng cho Member).
 
@@ -312,16 +317,20 @@ Hiển thị đối tượng/đơn vị **đã được Admin xác minh**, kèm 
 **Ứng dụng không giữ tiền và không làm trung gian thanh toán.** Quyết định này tránh cho dự
 án rơi vào phạm vi điều chỉnh về vận động và phân phối nguồn đóng góp tự nguyện.
 
-### F22 — Vòng đời bài Muốn Tặng & gia hạn
+### F22 — Vòng đời bài Muốn Tặng/Muốn Nhận
 
 ```
 Draft ──▶ Published ──▶ Matched / In Transaction ──▶ Completed
               │
-              └── quá 3 tháng chưa có người nhận ──▶ hết hạn
+              └── chờ 7 ngày; chưa ghép thì thêm 30 ngày ──▶ hết hạn
 ```
 
-- Bài chưa có người nhận tồn tại **tối đa 3 tháng**.
-- **Gia hạn tối đa 1 lần**, reset thêm 3 tháng, và **tính quota như một bài mới**.
+- Với chế độ chờ, 7 ngày tính từ **lúc đăng**, không cần request đầu tiên để bắt đầu đồng hồ.
+- Hết 7 ngày còn ứng viên hợp lệ thì tự chọn; chưa ghép được ai thì **tự mở thêm 30 ngày**.
+  Hết 30 ngày vẫn chưa ghép thì hết hạn, đóng yêu cầu chờ và giữ audit.
+- Không còn gia hạn thủ công 3 tháng. Bài `INSTANT` chưa có phản hồi vẫn qua **7 ngày đầu**;
+  nếu chưa ghép được thì tự mở thêm 30 ngày, tổng thời gian tối đa **37 ngày từ lúc đăng**.
+  Có phản hồi hợp lệ ở bất kỳ thời điểm nào khi bài còn mở thì ghép ngay, không chờ xét.
 
 ### F23 — Chuyển vật phẩm về điểm từ thiện
 Trước khi bài hết hạn, người đăng có thể **yêu cầu chuyển** vật phẩm cho điểm từ thiện hoặc
@@ -463,6 +472,14 @@ mới lưu. Khi giao dịch `COMPLETED`, lịch sử vẫn xem được nhưng �
   UPDATE.
 
 ### F40 — Điểm theo giá trị vật phẩm
+> **Quy tắc mục tiêu 07/10:** Người cho nhận **hai khoản riêng**: điểm giao dịch thành
+> công khi `COMPLETED` (Point Rule Admin cấu hình), và điểm theo giá trị sau `N` ngày.
+> `value_bonus = round_half_up(round_half_up(estimated_value_vnd / vnd_per_point) ×
+> final_accuracy_percent / 100)`. Thiếu giá trị ước tính thì bonus bằng 0. `N`, tỷ lệ
+> VNĐ/điểm và % mặc định khi không đánh giá đều do Admin cấu hình. Review được sửa một lần
+> trước hạn N; chỉ cộng bonus một lần tại hạn. **Không nhân điểm hoàn tất với accuracy.**
+> Phần dưới mô tả công thức/backend cũ, chưa đạt quy tắc mục tiêu.
+
 **Người nhận** đánh giá vật phẩm đạt bao nhiêu phần trăm giá trị thực tế. 100% ứng với X điểm
 do Admin cấu hình; các mức khác theo bảng mapping.
 
@@ -524,6 +541,10 @@ chính mình**.
 - **Chủ bài được báo khi có người xin** (`GIFT_REQUEST_CREATED`). Đồng hồ 7 ngày giả định họ biết có ứng viên; trước đó họ chỉ biết nếu tự mở bài ra xem.
 
 ### F42 — Đánh giá chất lượng sau giao dịch
+> **Quy tắc mục tiêu 07/10:** mỗi bên được sửa đánh giá của mình **tối đa một lần** trước
+> `completed_at + N ngày`; giữ audit trước/sau. Người nhận chấm % đúng mô tả, người cho
+> không tự chấm %. Backend hiện còn chặn sửa ở database; xem [đặc tả](./plan/GIVE-RECEIVE-2026-10-07.md).
+
 Sau `COMPLETED`, **hai bên cùng đánh giá** trải nghiệm. Review Quality **tách khỏi Point
 Ledger**, trừ khi có Point Rule gắn riêng.
 
@@ -717,7 +738,17 @@ Tận dụng hạ tầng hiện có: CMS Content Engine, Post/Comment, Media R2,
 > Nguồn: yêu cầu bổ sung của Bên A (`srs/new-req.txt`). Cơ chế này **chốt luôn** cách
 > Điểm Cống Hiến được tiêu, và qua đó chốt cả cách bảo vệ Rank — xem [F12](#f12--rank-5-tầng--chu-kỳ-duy-trì-3-tháng).
 
+> **Cập nhật yêu cầu 2026-10-04:** Bên A yêu cầu lại cơ chế chỉ tiêu **phần dư trên ngưỡng
+> giữ Rank** khi đổi vật phẩm. Đây là contract đích của `ITEM_REDEMPTION`, **chưa phải hành vi
+> backend hiện tại**. Quyết định nghiệp vụ 07/10/2026 đã thay thế riêng phần cho phép
+> tiêu điểm làm tụt Rank trong luồng `ITEM_REDEMPTION`. Xem
+> [handoff backend](./plan/REDEMPTION-REQUIREMENT-GAP.md) để phân biệt gap, API đích và test.
+
 ### F74 — Giá trị tham khảo & tỷ lệ quy đổi điểm
+
+> **Quy tắc mục tiêu 07/10:** trường này **không bắt buộc**; thiếu là 0, bài vẫn hoạt động
+> nhưng không có quyền đổi điểm. Giá khai cũng là cơ sở *bonus theo giá trị sau giao dịch và
+> review* tại F40, không thưởng ngay lúc nhập. Tỷ lệ do Admin cấu hình, snapshot theo giao dịch.
 
 Khi đăng bài Muốn Tặng, người cho khai **giá trị tham khảo** của vật phẩm bằng VNĐ. Hệ thống
 lấy giá trị đó chia cho tỷ lệ quy đổi để ra số điểm cần có nếu muốn đổi thẳng vật phẩm.
@@ -742,8 +773,13 @@ thống áp theo cấu hình mới.
 
 ### F75 — Countdown 7 ngày & đổi vật phẩm bằng điểm
 
-Khi một bài có người gửi yêu cầu xin nhận, hệ thống mở **countdown tối đa 7 ngày** để xác
-định người được nhận. Trong 7 ngày đó, người xin có hai đường:
+> **Quy tắc mục tiêu 07/10:** countdown bắt đầu tại `published_at`, chỉ cho chế độ chờ;
+> đổi điểm chỉ cho `OFFER` có giá trị ước tính > 0 và request hợp lệ. Chỉ tiêu phần điểm
+> vượt ngưỡng giữ Rank; hủy giao dịch hoàn **đúng debit gốc** bằng ledger. Hết 7 ngày
+> còn ứng viên thì auto-select; chưa ghép ai thì tự mở thêm 30 ngày trước khi hết hạn.
+
+Từ lúc bài `OFFER` được đăng, hệ thống mở **countdown 7 ngày** để xác định người được nhận.
+Trong 7 ngày đó, người xin có hai đường:
 
 1. Chờ hệ thống xét theo quy trình thường.
 2. Nếu đủ **điểm khả dụng**, xác nhận dùng điểm để đổi thẳng vật phẩm.
@@ -759,6 +795,10 @@ một lần, không được nửa vời:
 
 Hết 7 ngày mà không ai dùng điểm thì hệ thống tự chọn người nhận theo bộ tiêu chí.
 
+> **Đã chốt 07/10/2026:** form chỉ còn `INSTANT` và `OPTIMAL`; bỏ `EXTENDED` khỏi input.
+> Cả hai mode có mốc 7 ngày tính từ `published_at`. Nếu chưa ghép được ai thì tự mở thêm
+> 30 ngày; không có phản hồi cũng hết hạn sau tối đa 37 ngày.
+
 > ✅ **Đã chốt ở [CH-1](./plan/ASSUMPTIONS.md#ch-1--thứ-tự-ưu-tiên-chọn-người-nhận-admin-cấu-hình)
 > và đã hiện thực.** Admin xếp thứ tự bộ tiêu chí qua `GET|PUT /api/v1/admin/candidate-selection`;
 > mặc định khi chưa cấu hình là **ai xin trước**. Dùng chung với [F33](#f33--hàng-đợi-dự-phòng).
@@ -767,22 +807,29 @@ Hết 7 ngày mà không ai dùng điểm thì hệ thống tự chọn người
 xin, countdown bắt đầu. Ngày thứ 3, User A dùng đủ 1.000 điểm → A được chọn ngay, countdown
 kết thúc ở ngày 3, 9 người còn lại không được xét cho vật phẩm đó nữa.
 
-### F76 — ~~Điểm khả dụng & bảo vệ Rank~~ (ĐÃ HUỶ)
+### F76 — Điểm khả dụng & bảo vệ Rank khi đổi vật phẩm (YÊU CẦU MỚI)
 
-> ❌ **Huỷ ngày 2026-09-24 theo quyết định của Bên A.** Giữ mục này để người đọc tài liệu cũ
-> không tưởng hệ thống đang hành xử như vậy.
+> **Được khôi phục theo quyết định 07/10/2026:** công thức mục tiêu là
+> `max(0, balance − minimum_points(current_rank))`; không cho đổi vật phẩm nếu phải tiêu
+> vào ngưỡng giữ Rank. Phần dưới là **lịch sử quyết định 24/09**, không còn là nghiệp vụ
+> mục tiêu. Backend hiện vẫn đi theo quyết định cũ: quote chỉ cảnh báo `wouldDemote`, POST
+> chỉ kiểm toàn balance. Không mô tả trạng thái hiện tại là đã bảo vệ Rank.
 
-Cơ chế cũ chặn không cho tiêu phần điểm cần để giữ Rank (`Điểm khả dụng = Balance − Ngưỡng
-Rank hiện tại`), nên Rank không bao giờ tụt vì tiêu điểm.
+Điểm khả dụng = `max(0, Current Point Balance − Minimum Point của Rank hiện tại)`.
+Ngưỡng lấy từ chính sách Rank đang áp dụng, không hard-code. Người Bạc có 1.800 điểm,
+ngưỡng 672, món cần 1.000 điểm thì được đổi (còn 800, giữ Bạc); có 1.500 điểm thì chỉ
+có 828 điểm khả dụng và **không được đổi** dù balance lớn hơn 1.000.
 
-**Quyết định mới đi hướng ngược lại:** Rank xét theo **point balance hiện tại**, tiêu điểm tự
-do, và **tụt hạng nếu balance rơi dưới ngưỡng**. Không có điểm nào được bảo vệ.
+Rank vẫn xét theo **point balance hiện tại**. Quy tắc này chặn riêng `ITEM_REDEMPTION`
+trước khi trừ, không tạo một loại Rank Point mới và không bảo vệ trước điểm phạt/điều chỉnh
+Admin. Quote và POST phải dùng cùng cách tính; quyết định cuối cùng nằm trong transaction
+đã khóa balance. Điểm sát ngưỡng vừa đủ được đổi, thiếu một điểm thì bị từ chối.
 
-Đổi lại, người dùng phải được **cảnh báo trước khi tụt** — xem cột *Cảnh báo tại 70%* ở
-[bảng Rank](#f10--hệ-thống-rank-5-bậc). Không có cảnh báo thì người ta đổi một vật phẩm rồi
-sáng hôm sau phát hiện mình đã xuống Bạc mà không ai báo.
+Quyết định 2026-09-24 từng cho **tiêu tự do rồi tụt hạng**, kèm cảnh báo tại 70%. Cảnh báo
+vẫn có ý nghĩa với các biến động điểm khác, nhưng không thay thế việc chặn đổi vật phẩm
+theo yêu cầu mới. Quyết định này đã được đồng bộ vào đặc tả ngày 07/10/2026.
 
-Chi tiết và hệ quả: [Mô hình Rank chốt ngày 2026-09-24](./plan/ASSUMPTIONS.md#mô-hình-rank--chốt-ngày-2026-09-24).
+Chi tiết hiện trạng và acceptance tests: [handoff backend](./plan/REDEMPTION-REQUIREMENT-GAP.md).
 
 ### F77 — Ledger cho giao dịch đổi điểm
 
@@ -830,10 +877,15 @@ báo qua `POST /transactions/:id/reports/ship-unpaid` và khoản trừ điểm 
 
 ### F79 — Chế độ tìm người nhận bài Muốn Tặng (Selection Modes)
 
+> **Quy tắc mục tiêu 07/10:** cả `OFFER` và `WANTED` chỉ cho người đăng chọn `INSTANT` hoặc
+> `OPTIMAL`. `OPTIMAL` = 7 ngày từ lúc đăng; Kim Cương chọn tay trong 7 ngày, dưới Kim Cương
+> không được chọn tay; hết 7 ngày còn ứng viên thì tự chọn, chưa ghép thì tự mở thêm 30 ngày.
+> `EXTENDED` không còn là lựa chọn trên form. Phần dưới là hành vi backend cũ.
+
 Khi người cho tạo bài đăng Muốn Tặng (`OFFER`), hệ thống hỗ trợ 03 chế độ lựa chọn người nhận (CHỐT-10):
 
 1. **`INSTANT` (Trao ngay lập tức):** Khi người đầu tiên gửi yêu cầu xin nhận hợp lệ, hệ thống tự động chấp nhận (atomic accept) ngay lập tức, chuyển bài sang trạng thái `DELIVERING`, tạo giao dịch và mở phòng chat trực tiếp. Không áp dụng countdown 7 ngày.
-2. **`OPTIMAL` (Tìm người nhận tối ưu — Mặc định):** Khi có yêu cầu hợp lệ đầu tiên, hệ thống kích hoạt đồng hồ đếm ngược (countdown) tối đa 7 ngày (`selection_deadline = NOW() + 7 days`). Trong thời gian này, các ứng viên khác có thể tiếp tục gửi yêu cầu hoặc dùng Điểm Cống Hiến để đổi trực tiếp vật phẩm (theo [F75](#f75--dùng-điểm-chốt-ngay-vật-phẩm)). Hết 7 ngày, hệ thống auto-select theo cấu hình của Admin.
+2. **`OPTIMAL` (Tìm người nhận tối ưu — Mặc định):** Khi có yêu cầu hợp lệ đầu tiên, hệ thống kích hoạt đồng hồ đếm ngược (countdown) tối đa 7 ngày (`selection_deadline = NOW() + 7 days`). Trong thời gian này, các ứng viên khác có thể tiếp tục gửi yêu cầu hoặc dùng Điểm Cống Hiến để đổi trực tiếp vật phẩm (theo [F75](#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm)). Hết 7 ngày, hệ thống auto-select theo cấu hình của Admin.
 3. **`EXTENDED` (Thời gian mở rộng):** Kích hoạt thời gian chờ tối đa 30 ngày (`selection_deadline = NOW() + 30 days`) kể từ yêu cầu đầu tiên. Phù hợp cho các vật phẩm có giá trị cao, cần thêm thời gian xem xét hoặc thẩm định người nhận phù hợp nhất.
 
 ### F80 — Quyền riêng tư & Bảo vệ thông tin người cho
@@ -956,7 +1008,7 @@ Toàn bộ các điểm blocker trước đây đã được Bên A làm rõ và
 |---|---|---|
 | 1 | **Giver Accuracy & Đánh giá** | ✅ **CHỐT-03**: Dùng tỷ lệ % (0–100%), chỉ tính tổng hợp sau ≥ 5 giao dịch. Ngưỡng cảnh báo < 75% đưa vào `REVIEW_REQUIRED`, không tự động phạt. |
 | 2 | **Định nghĩa "Active Member"** | ✅ **CHỐT-06** + **chốt 2026-09-24**: `users.last_login_at` quá **90 ngày** thì coi như không hoạt động (mốc cập nhật mỗi lần refresh token). Toàn bộ Group Affiliate Event bắt buộc nằm trong bán kính Group; phân bổ cho toàn bộ Active Member. |
-| 3 | **Cơ chế Rank & Tụt hạng** | ✅ **CHỐT-01 & BR-PROF-RANK-04/06** + **chốt 2026-09-24**: quyết định bởi `current point balance`, tiêu điểm thì tụt, xét lại theo ngưỡng hiện tại (không ép 1 bậc). Trượt nhiệm vụ duy trì **bị trừ N điểm** rồi xét lại. Không dùng `lifetime rank point` riêng; **F76 đã huỷ**. |
+| 3 | **Cơ chế Rank & Tụt hạng** | ✅ **CHỐT-01 & BR-PROF-RANK-04/06** + **chốt 2026-09-24**: Rank quyết định bởi `current point balance`; debit làm giảm balance và xét lại theo ngưỡng hiện tại (không ép 1 bậc). Trượt nhiệm vụ duy trì **bị trừ N điểm** rồi xét lại. Không dùng `lifetime rank point` riêng. **Ngoại lệ đã chốt 07/10:** `ITEM_REDEMPTION` chỉ được tiêu phần dư trên ngưỡng Rank; backend chưa triển khai. |
 | 4 | **Nhiệm vụ "2+2 / 3+3 / 4+4"** | ✅ **BR-PROF-RANK-03**: Xác nhận chính thức là N giao dịch Cho hoàn tất + N Personal Referral hợp lệ trong chu kỳ 3 tháng. |
 | 5 | Quota bài đăng theo Rank | ✅ Baseline: Viewer 0, Member 3, Bạc 10, Vàng 20, Kim Cương 50 (Admin chỉnh qua CMS). |
 | 6 | Rank được dùng SOS | ✅ Từ hạng **Bạc** trở lên (UI-WANTED-01). |

@@ -1,5 +1,10 @@
 # 07 · Xin nhận & chọn người nhận
 
+> **Sơ đồ hiện trạng backend.** Quy tắc mục tiêu ngày 07/10/2026 đã thay đổi mốc đồng hồ
+> sang lúc đăng, bỏ option `EXTENDED`, thêm giai đoạn tự mở 30 ngày và áp cơ chế tương tự
+> cho `WANTED`. Xem [đặc tả mới](../plan/GIVE-RECEIVE-2026-10-07.md); các sơ đồ dưới đây
+> chưa mô tả luồng mục tiêu.
+
 Trạng thái: ✅ **hàng đợi, countdown và auto-select đã chạy** (25/09), và từ 28/09 thì vòng
 đời yêu cầu đã khép kín: yêu cầu treo được đóng, người xin xem được yêu cầu của mình, chủ bài
 được báo và từ chối được. Hai script kiểm trên Postgres thật: `npm run test:selection` và
