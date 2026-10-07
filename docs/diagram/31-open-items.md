@@ -156,7 +156,7 @@ Xếp theo mức đáng làm trước.
 | # | Phân hệ | Mục |
 | --- | --- | --- |
 | T1 | [16](./16-admin.md) | ~~F63, F64, F65, F73~~ ✅ **ĐÓNG đủ**. Từ thiện 03/10. 04/10: **Rao vặt** thêm `details.marketPrice` (CHỐT-05); **Quảng cáo** `sponsor_banners` + cặp `banner.*`; **Công đức** `merit_units`/`merit_declarations` + cặp `merit.*` (chỉ `SUPER_ADMIN`); **F73 Dharma Hub** đủ 5 UC — `dharma_contents`, `dharma_recitations`, `dharma_threads`, `dharma_dedications`, cặp `dharma.*`, và UC-DHARMA-05 tái dùng `/merit-units` nên không thêm bảng nào. **Chỉ còn giao diện CMS (repo khác) và UAT** |
-| T2 | [10](./10-notification.md) | **FCM push (F44)** — hạ tầng token đã xong, chỉ thiếu nhà cung cấp. Đây là việc **còn lại duy nhất** của đẩy thật |
+| T2 | [10](./10-notification.md) | **FCM push (F44)** — ~~chỉ thiếu nhà cung cấp~~ **đã có từ 05/10**: `FcmPushSender` gọi FCM HTTP v1, khoá cắm trên staging, đã gọi thật tới Google thành công. Việc còn lại không phải việc backend — `user_sessions.fcm_token` đếm được **0**, cần client mobile gửi token lên. Kéo theo **L8** (queue/retry) nay **hết vô hại**: đường đẩy đã gọi mạng thật |
 | T3 | [01](./01-auth.md) | **Chưa có đường cho Admin đặt lại mật khẩu hộ** |
 | T4 | [01](./01-auth.md) | **Mật khẩu chỉ yêu cầu 8 ký tự** — `12345678` qua được |
 | T5 | [03](./03-media.md) · [24](./24-entitlement.md) | **Chưa có giới hạn dung lượng theo người dùng**, dù F59 đã theo dõi con số. Cần Bên A cho con số theo bậc trước khi làm |

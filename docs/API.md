@@ -1155,9 +1155,14 @@ Quyền là `report.read` / `report.resolve` — cùng việc với xử báo x�
 - **Hộp thư được dọn theo hạn lưu trữ** (`notification.retention`, mặc định 90 ngày, sàn 7). Cần
   vì thông báo mang tiêu đề bài, tên người và **đoạn đầu tin nhắn chat** — giữ mãi thì xoá lịch
   sử chat theo hạn xong, một bản sao của chính những câu đó vẫn nằm trong hộp thư.
-- ⛔ **Đẩy FCM chưa dùng được**: chưa có khoá dự án Firebase, `LoggingPushSender`
-  fail-closed ở production. Thông báo **trong app** không phụ thuộc vào nó — mất đường đẩy
-  không làm mất thông báo.
+- 🟡 **Đẩy FCM: backend xong, chưa có đích để đẩy.** Dòng này tới 06/10 ghi "chưa có khoá dự
+  án Firebase" — **sai từ 05/10**: khoá đã cắm trên staging và `FcmPushSender` đã gọi THẬT tới
+  Google bằng chính class đó (Google cấp access token; chỉ từ chối cái token thiết bị rác dùng
+  để thử). Việc còn lại **không phải việc backend**:
+  `SELECT count(*) FROM user_sessions WHERE fcm_token IS NOT NULL AND revoked_at IS NULL` đang
+  trả **0** — client mobile phải đăng nhập và gửi `fcmToken` lên thì mới có máy nào để đẩy tới.
+  Khi `FCM_SERVICE_ACCOUNT_BASE64` trống thì `LoggingPushSender` fail-closed ở production,
+  không bao giờ giả vờ đã gửi. Thông báo **trong app** không phụ thuộc vào đường đẩy.
 
 ---
 

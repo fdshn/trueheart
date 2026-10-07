@@ -68,7 +68,7 @@ Khi người dùng đổi vật phẩm bằng điểm, tài liệu nêu khả n�
 | SMS | Chọn nhà cung cấp, cung cấp credential qua secret phù hợp, phối hợp thử gửi trên staging. | Chặn xác minh SĐT; onboarding và các luồng phụ thuộc vào đó không thể nghiệm thu thực tế. |
 | Zalo ZNS | Xác nhận có dùng ở giai đoạn này không; nếu có, chọn nhà cung cấp/cung cấp credential và thông tin mẫu gửi. | Chưa gửi thông báo qua Zalo. |
 | Email | Xác thực domain người gửi; xác nhận bên sở hữu SMTP relay và nơi lưu secret. SMTP adapter đã có. | Email OTP có thể không gửi thật/không vào hộp thư, ảnh hưởng khôi phục mật khẩu và xác minh email. |
-| Push notification | Cấp quyền truy cập/khoá dự án Firebase (FCM) cho môi trường triển khai. | Thông báo trong app vẫn có, nhưng chưa đẩy tới thiết bị. |
+| ✅ Push notification | ~~Cấp quyền truy cập/khoá dự án Firebase (FCM)~~ — **đã nhận và cắm trên staging 05/10**, đã gọi thật tới Google thành công. Không còn chờ Bên A. | Việc còn lại thuộc client mobile: chưa thiết bị nào gửi `fcmToken` lên, nên chưa đẩy tới máy nào được. Thông báo trong app không phụ thuộc đường đẩy. |
 | Lưu trữ media production | Cấp R2 bucket, key, CORS và CDN/public domain cho staging/production. | Chưa thể nghiệm thu upload ảnh trên môi trường thật. |
 | Vận hành production | Chỉ định kênh nhận cảnh báo và cung cấp URL tích hợp; xác nhận URL healthcheck, cấu hình `TRUST_PROXY=true` nếu có reverse proxy. | Job/health alert có thể không tới người trực; cấu hình proxy sai có thể ảnh hưởng rate limit. |
 

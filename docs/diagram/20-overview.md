@@ -49,9 +49,8 @@ flowchart TB
         AFF["Affiliate — nền có, bộ máy chia thưởng ⛔"]
     end
 
-    subgraph T7["⑦ Chưa có code"]
-        CMS["Campaign · Blog · Từ thiện ⛔"]
-        FCM["FCM push ⛔"]
+    subgraph T7["⑦ Nội dung & chiến dịch"]
+        CMS["Campaign · Blog · Từ thiện · Dharma Hub ✅<br/>backend đủ, giao diện CMS ở repo khác"]
     end
 
     AUTH --> PROF --> POST
@@ -81,7 +80,7 @@ flowchart TB
     GRP --> AFF --> PT
     PROF --> GRP
 
-    style T7 fill:#d2464621,stroke:#c0504d,stroke-width:1.5px
+    style CMS fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style T4 fill:#dcb42826,stroke:#c9a227,stroke-width:1.5px
 ```
 
@@ -143,15 +142,17 @@ flowchart LR
 pie showData
     title Phân hệ theo trạng thái
     "Đã chạy được (✅)" : 19
-    "Có code, chưa dùng thật (🟡)" : 2
-    "Chưa có dòng nào (⛔)" : 2
+    "Có code, chưa dùng thật (🟡)" : 1
+    "Backend xong, chờ bên ngoài (🟠)" : 2
+    "Chưa có dòng nào (⛔)" : 1
 ```
 
 | Trạng thái | Phân hệ |
 | --- | --- |
 | ✅ | Xác thực · Hồ sơ · Media · Bài đăng · Feed · Tương tác · Xin nhận · Lượt trao · Chat · Đánh giá · Báo xấu · Admin CMS · CLI · Thứ hạng · Countdown chọn người nhận · Đổi vật phẩm bằng điểm · **Group & Sub-team** · **Dashboard KPI** · **Kiểm duyệt chat** |
-| 🟡 | Thông báo (chưa có FCM) · Xác minh SĐT (chưa có adapter SMS) |
-| ⛔ | Bộ máy chia thưởng affiliate · Campaign/Blog/Từ thiện |
+| 🟡 | Xác minh SĐT (chưa có adapter SMS) — thông báo ĐẨY nằm ở hàng dưới |
+| 🟠 | Thông báo đẩy FCM (backend xong, đã gọi thật tới Google 05/10, chờ client mobile gửi `fcmToken` — hiện đếm được **0**) · Campaign/Blog/Từ thiện/Dharma Hub (backend xong, chờ **giao diện CMS** ở repo khác và UAT) |
+| ⛔ | Bộ máy chia thưởng affiliate — và chỉ còn đúng phần chia thưởng |
 
 > **Hàng ⚠️ đã bỏ.** Bản trước ghi *"Tự hoàn tất (sai mốc đếm, không kiểm tranh chấp)"*, trong
 > khi [21 §21.4](./21-open-issues.md) mục 2 và 3 nói cả hai đã sửa từ 25/09 — hai tài liệu nói
@@ -163,3 +164,19 @@ pie showData
 > `last_active_at` ghi ở mọi lần cấp phiên, và `GET /groups/:id/affiliate` đếm được ai đủ điều
 > kiện. Thiếu đúng phần **chia thưởng** — mà phần đó chờ Bên A chốt cách chia, xem
 > [19](./19-affiliate.md) mục 4.
+
+> **Hai dòng sửa 07/10, vì bản trước nói sai trạng thái đo được.**
+>
+> - Ô **"⑦ Chưa có code"** bọc `Campaign · Blog · Từ thiện` là sai: cả ba đều có use case,
+>   controller và script kiểm trên Postgres thật (`home-campaign.check.ts`, `blog.check.ts`,
+>   `charity-campaign.check.ts`), và [31 mục T1](./31-open-items.md) đã ghi F63/F64/F65/F73
+>   "ĐÓNG đủ" từ 04/10. Còn lại là **giao diện CMS ở repo khác** và UAT — không phải code
+>   backend. Một ô "chưa có code" bọc quanh thứ đã chạy là cách làm người đọc đi tìm lại từ đầu
+>   một việc đã xong.
+> - **FCM** không còn nằm trong ô đó: `FcmPushSender` đã gọi thật tới Google 05/10 và khoá đã
+>   cắm trên staging. Nhưng cũng chưa phải ✅ — `user_sessions.fcm_token` đếm được **0**, nên
+>   đường đẩy chưa từng làm rung máy ai.
+>
+> Nên thêm một mức **🟠** giữa 🟡 và ⛔: *backend xong, chờ một bên ngoài*. Gộp hai thứ này vào
+> ⛔ nói rằng chưa có gì, gộp vào ✅ nói rằng đã nghiệm thu — cả hai đều sai, và cái sai thứ hai
+> đắt hơn.

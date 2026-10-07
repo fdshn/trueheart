@@ -8,7 +8,7 @@ cả 72 đều là P0.
 | M0 | Nền tảng monorepo + CI/CD | — | ✅ Xong |
 | [M1](#m1--người-dùng--nội-dung-cơ-sở) | Người dùng, hồ sơ, danh mục, media | 13 | ✅ Xong (provider/ledger rollout deferred) |
 | [M2](#m2--bài-đăng--bản-đồ) | Bài đăng 5 loại, bản đồ | 15 | 🟡 13/15 — chỉ còn 2 loại bài mới: Quảng cáo (F20) và Dharma Hub (F73) |
-| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 9/10 — chỉ còn đẩy FCM (F44) chờ khoá dự án Firebase |
+| [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟡 9/10 — F44 backend xong, khoá đã cắm staging 05/10; chờ client mobile gửi `fcmToken` lên (hiện đếm được 0 token) |
 | [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 7 | 🟡 3/7 — ledger/rank/referral xong; đánh giá & accuracy chưa |
 | [M5](#m5--group--affiliate) | Group, affiliate, chống gian lận | 10 | ⬜ 0/10 |
 | [M6](#m6--quản-trị--bàn-giao) | Admin CMS, kiểm duyệt, bàn giao | 18 | 🟡 1/18 — RBAC/config động/nhật ký/quản lý user đã có; giao diện CMS chưa |
@@ -111,9 +111,12 @@ resource `gift-post` làm mẫu.
       nhận tức thì; xác thực ngay lúc bắt tay kèm tra danh sách thu hồi token
 - [x] F38 Lưu bền vững + khoá chỉ đọc khi xong — `chat_messages` chỉ ghi thêm (trigger
       chặn UPDATE/DELETE), phòng sang `READ_ONLY` ở cả ba đường kết thúc giao dịch
-- [ ] F44 Push FCM + thông báo trong app — thông báo trong app và hộp thư đã chạy thật,
-      có chống trùng; ⛔ **đường đẩy FCM chưa dùng được** vì chưa có khoá dự án Firebase,
-      `LoggingPushSender` fail-closed ở production
+- [~] F44 Push FCM + thông báo trong app — thông báo trong app và hộp thư đã chạy thật, có
+      chống trùng. Đường đẩy: `FcmPushSender` (FCM HTTP v1, tự ký JWT RS256) **đã gọi thật tới
+      Google 05/10** và khoá đã cắm trên staging — dòng cũ ghi "chưa có khoá dự án Firebase" là
+      sai từ hôm đó. Còn chờ **client mobile** gửi `fcmToken` lên: `user_sessions.fcm_token`
+      đếm được **0**, nên chưa đẩy tới máy nào được. Khi biến khoá trống thì
+      `LoggingPushSender` fail-closed ở production, không bao giờ giả vờ đã gửi
 
 **Xong khi:** chạy trọn vòng xin → duyệt → chat → xác nhận → hoàn tất, và kiểm được **race
 condition**: 50 request đồng thời trên bài có 10 món phải ra đúng 10 giao dịch.

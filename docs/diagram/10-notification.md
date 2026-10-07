@@ -1,7 +1,8 @@
 # 10 · Thông báo
 
 Trạng thái: ✅ ghi trong app đầy đủ, có cài đặt theo nhóm và có dọn theo hạn lưu trữ.
-🟡 **Đẩy thật (FCM) chưa nối** — xem [Chỗ cần soát](#chỗ-cần-soát).
+🟡 **Đẩy thật (FCM): backend xong 05/10, chưa có token thiết bị nào để đẩy tới** — xem
+[Chỗ cần soát](#chỗ-cần-soát).
 
 **Bốn endpoint:** đọc hộp thư, đánh dấu đã đọc, **xem cài đặt**, **tắt/bật một nhóm**.
 
@@ -26,10 +27,14 @@ flowchart TD
     H --> I[Render nội dung từ MẪU Admin sửa được]
     I --> J[IPushSender]
     J --> K{canSend?}
-    K -->|Có| L[Đẩy tới thiết bị]
+    K -->|Có| L["✅ FcmPushSender → FCM HTTP v1<br/>tự ký JWT RS256, bỏ token chết"]
     K -->|Không| M["🟡 LoggingPushSender<br/>production fail-closed"]
 
+    N["Chọn theo FCM_SERVICE_ACCOUNT_BASE64<br/>(createPushSender)"] -.-> J
+
+    style L fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style M fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style N fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 ## 10.2 Hai mươi hai loại, chia bốn nhóm
@@ -161,20 +166,38 @@ flowchart LR
 
 ## Chỗ cần soát
 
-1. 🟡 **FCM chưa nối — và đây là việc CÒN LẠI DUY NHẤT của đẩy thật.** Hạ tầng token đã xong:
-   `fcmToken` được thu ở đăng ký/đăng nhập/refresh, lưu theo phiên, và **bị xoá khi đổi mật khẩu
-   hoặc thu hồi phiên**. `findPushTokens` cũng đã lọc bỏ phiên đã thu hồi hay hết hạn. Thiếu đúng
-   **một lớp**: một cài đặt `IPushSender` gọi Firebase Admin SDK — một class cộng vài biến môi
-   trường, không phải một dự án.
+1. 🟡 **FCM đã nối. Việc còn lại KHÔNG phải việc backend.** Mục này tới 06/10 ghi "FCM chưa
+   nối" và "chỗ không tự làm được: khoá Firebase" — **cả hai đã hết đúng từ 05/10.**
 
-   **Chỗ không tự làm được: khoá Firebase.** Cần project Firebase và service account. Chừng nào
-   chưa có, `LoggingPushSender` vẫn là cài đặt duy nhất và ở production `canSend()` trả `false`
-   (fail-closed, cố ý). Thông báo trong app vẫn ghi đủ, nhưng **không có gì rung máy ai**.
+   Hạ tầng token xong từ trước: `fcmToken` thu ở đăng ký/đăng nhập/refresh, lưu theo phiên,
+   **xoá khi đổi mật khẩu hoặc thu hồi phiên**; `findPushTokens` lọc bỏ phiên đã thu hồi hay hết
+   hạn. Lớp còn thiếu nay đã có: `FcmPushSender` gọi FCM HTTP v1, tự ký JWT RS256 bằng
+   `node:crypto`, tự đổi access token (cache có lề 60 giây), gộp token trùng, và coi 404/400 là
+   token chết thay vì làm sập cả lượt gửi. `createPushSender` chọn nó khi có
+   `FCM_SERVICE_ACCOUNT_BASE64`, `LoggingPushSender` khi không — và việc chọn đó tách ra hàm
+   riêng để kiểm được.
 
-2. ⚠️ **Chưa có queue / retry / dead-letter.** Hiện vô hại vì `LoggingPushSender` không bao giờ
-   lỗi. Nhưng **ngay khi nối FCM thật** nó thành mất thông báo im lặng: mạng chập một nhịp là một
-   người không bao giờ biết yêu cầu của mình đã được duyệt. Nên làm **cùng lúc** với mục 1, đừng
-   để sau.
+   **Đã gọi THẬT tới Google 05/10** bằng chính class đó: Google cấp access token, và chỉ từ chối
+   đúng cái token thiết bị rác dùng để thử (`HTTP 400`). Khoá đã cắm trên staging, biến tới được
+   container, `core` healthy.
+
+   **Chỗ còn chặn: không có đích để đẩy.**
+   `SELECT count(*) FROM user_sessions WHERE fcm_token IS NOT NULL AND revoked_at IS NULL` trả
+   **0**. Client mobile phải đăng nhập và gửi `fcmToken` lên; tới lúc đó mới kiểm được một lượt
+   push tới máy thật. Nên mục này là 🟡 chứ không ✅: đường đẩy đã dựng xong và đã chứng minh
+   nói được với Google, nhưng **chưa từng làm rung máy ai**, và một đường chưa ai đi qua thì
+   chưa gọi là đã nghiệm thu.
+
+   Lưu ý cho người triển khai: khoá phải là **service account JSON** (Project settings → Service
+   accounts), KHÔNG phải VAPID public key ở Cloud Messaging → Web Push certificates. VAPID là
+   khoá công khai dùng ở client web, nó không xác thực được gì cho server.
+
+2. ⚠️ **Chưa có queue / retry / dead-letter — và nay đã HẾT vô hại.** Tới 06/10 mục này ghi
+   "hiện vô hại vì `LoggingPushSender` không bao giờ lỗi", và lý do đó đã mất: ở staging
+   `FcmPushSender` là cài đặt đang chạy, và nó gọi mạng ra ngoài. Mạng chập một nhịp là một
+   người không bao giờ biết yêu cầu của mình đã được duyệt — im lặng, không dấu vết. Thông báo
+   trong app vẫn ghi đủ nên chưa phải mất dữ liệu, nhưng đây giờ là một lỗ thật, không phải một
+   lỗ chờ.
 
 3. ✅ **Đã có tắt/bật theo nhóm** (29/09) — xem §10.4.
 

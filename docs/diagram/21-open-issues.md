@@ -133,13 +133,14 @@ flowchart LR
     F["✅ Campaign & Home động — F63"]
     G["✅ Blog / Tin tức — F64"]
     H["✅ F65 + F73 — Từ thiện, Rao vặt, Quảng cáo, Công đức, Dharma Hub"]
-    I["⛔ FCM push — F44"]
+    I["🟡 FCM push — F44<br/>backend xong 05/10, chưa có token thiết bị"]
 
     style A fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style B fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style C fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style E fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style I fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 > **Vì sao affiliate là 🟡 chứ không ⛔.** Nền đã có đủ: `groups.center_location` + `radius_km`,
@@ -152,7 +153,8 @@ flowchart LR
 
 ```text
 [ ] SMS/Zalo adapter (F09 hiện không chạy được thật)
-[ ] FCM push (F44)
+[~] FCM push (F44) — backend xong, khoá đã cắm staging 05/10, đã gọi thật tới
+    Google. Chờ một thiết bị thật đăng ký token (hiện đếm được 0)
 [ ] R2 staging/prod: bucket, key, CORS, CDN domain
 [ ] Backup database VÀ restore test
 [ ] Global rate limit

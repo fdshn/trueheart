@@ -323,7 +323,7 @@ quyền trên *mọi* nhóm. Phép kiểm luôn mang `groupId`.
 | --- | --- | --- |
 | ⛔ **Adapter + credential SMS** | **Chặn TOÀN BỘ onboarding** từ 26/09: xác minh SĐT nay là nhiệm vụ bắt buộc, nên không có SMS thì không ai lên hạng Thành viên, không ai nhận 224đ, và không quan hệ giới thiệu nào đủ điều kiện. Đây là hạng mục gấp nhất | Bên A chọn nhà cung cấp |
 | ⛔ **Adapter + credential Zalo ZNS** | Kênh thông báo thứ hai | ⬆ |
-| ⛔ **FCM credential** (F44) | Đẩy thông báo tới máy. Hiện thông báo vẫn ghi đủ trong app nhưng **không có gì rung máy ai** | Bên A |
+| ✅ ~~**FCM credential** (F44)~~ | **Bên A đã cấp, cắm trên staging 05/10** và `FcmPushSender` đã gọi thật tới Google thành công. Không còn chặn gì ở phía Bên A. Chưa đẩy tới máy nào được vì chưa có token thiết bị thật (`user_sessions.fcm_token` đếm được **0**) — đó là việc của client mobile | ~~Bên A~~ → client |
 | ⛔ **R2 bucket + key + CORS + CDN domain** | Upload ảnh ở staging/prod | Bên A / hạ tầng |
 | ⛔ **Xác thực domain người gửi email** | Thư không vào spam, và **xác minh email** — thứ quyết định một tài khoản có khôi phục được mật khẩu hay không | Bên A |
 | ⛔ **`JWT_SECRET` + `CONFIG_ENCRYPTION_KEY` riêng cho staging/prod** | Bảo mật | Hạ tầng |
