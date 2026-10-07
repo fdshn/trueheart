@@ -62,11 +62,18 @@ Xem [đặc tả F83](./CHECK-IN-STREAK-DESIGN.md).
   1.000 điểm, dù tổng balance lớn hơn. Nhờ vậy **không cần tạo thêm một loại Rank Point
   riêng**: vẫn một loại Điểm Cống Hiến, chỉ chia thành *protected* và *spendable*.
 
-  Xem [FEATURES.md F76 — đã huỷ](../FEATURES.md#f76--điểm-khả-dụng--bảo-vệ-rank-đã-huỷ).
+  Xem [FEATURES.md F76](../FEATURES.md#f76--điểm-khả-dụng--bảo-vệ-rank-khi-đổi-vật-phẩm-yêu-cầu-mới).
 
 - **⚠️ ĐÃ ĐƯỢC THAY THẾ ngày 2026-09-24.** Cơ chế *điểm khả dụng* (F76) và mọi
   cách hiểu cũ về `lifetime` không còn hiệu lực. Xem
   [Mô hình Rank chốt ngày 2026-09-24](#mô-hình-rank--chốt-ngày-2026-09-24) bên dưới.
+
+> **Diễn biến sau đó (2026-10-04):** Bên A yêu cầu lại bảo vệ Rank **khi đổi vật phẩm**.
+> Dòng “đã được thay thế” ở trên ghi lại quyết định 24/09, không còn là contract đích
+> cho `ITEM_REDEMPTION`. Phạm vi mới chỉ áp dụng redemption, không đảo ngược quy tắc Rank
+> dựa trên balance hoặc tự miễn mọi khoản phạt. Xem
+> [handoff backend](./REDEMPTION-REQUIREMENT-GAP.md). Quyết định này đã được chuẩn hóa
+> trong [đặc tả cho–nhận 07/10/2026](./GIVE-RECEIVE-2026-10-07.md).
 
 ---
 
@@ -207,6 +214,12 @@ vẫn khiến việc trượt có hậu quả thật.
 **F76 (điểm khả dụng / bảo vệ Rank) bị huỷ.** Cơ chế đó chặn không cho tiêu phần
 điểm cần để giữ hạng. Quyết định mới đi hướng ngược lại: tiêu tự do, tụt thì
 tụt. Hai cái không cùng tồn tại được.
+
+> **Lịch sử đến 2026-09-24, không phải contract redemption mới nhất.** Yêu cầu
+> 2026-10-04 chọn lại điểm khả dụng cho `ITEM_REDEMPTION`: balance vẫn quyết Rank,
+> nhưng giao dịch đổi bị chặn nếu balance sau đổi thấp hơn ngưỡng giữ hạng. Các
+> loại debit khác tiếp tục theo chính sách riêng. Xem
+> [REDEMPTION-REQUIREMENT-GAP.md](./REDEMPTION-REQUIREMENT-GAP.md).
 
 **Hệ quả kèm theo, đã xác nhận:**
 

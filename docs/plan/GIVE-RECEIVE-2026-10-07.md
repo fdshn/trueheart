@@ -64,6 +64,10 @@ không tính lại theo giá trị hoặc tỷ lệ hiện tại. Chính sách n
 
 ## 3. Hai khoản điểm người cho nhận
 
+Phần này chỉ áp dụng cho giao dịch cho–nhận phát sinh từ bài `OFFER`/`WANTED`. Đóng góp
+cho kêu gọi hoặc chiến dịch từ thiện dùng Point Rule riêng (`CHARITY_CONTRIBUTION_COMPLETED`),
+không nhận `value_bonus`/accuracy của vật phẩm trong mục này.
+
 ```text
 completion_points = Point Rule cho giao dịch COMPLETED
 value_max_points = round_half_up(estimated_value_vnd / vnd_per_point)
@@ -115,3 +119,5 @@ Backend hiện có `INSTANT`/`OPTIMAL`/`EXTENDED` cho `OFFER`, đồng hồ 7/30
 request đầu tiên; chưa áp chế độ này cho `WANTED`. Review hiện bất biến tại database và
 thưởng người cho đang lấy Point Rule × accuracy; F76 hiện ghi cho phép tiêu điểm tụt Rank.
 Đây là **danh sách phải triển khai**, không được coi tài liệu mới là bằng chứng API đã chạy.
+Chi tiết gap kỹ thuật, atomicity, API đích và ma trận kiểm thử nằm tại
+[REDEMPTION-REQUIREMENT-GAP.md](./REDEMPTION-REQUIREMENT-GAP.md).

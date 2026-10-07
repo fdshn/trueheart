@@ -3,6 +3,12 @@
 Trạng thái: ✅ **đã hiện thực** đúng mô hình chốt ngày 2026-09-24, có script kiểm trên
 Postgres thật (`npm run test:rank-balance`).
 
+> Yêu cầu 2026-10-04 **không đổi nguồn xét Rank** (vẫn là balance), nhưng yêu cầu chặn
+> `ITEM_REDEMPTION` nếu tiêu vào phần điểm giữ hạng. Đây là contract đích chưa có ở backend;
+> sơ đồ 12.2 dưới đây mô tả hành vi hiện tại/lịch sử 24/09, không phải quyền tiêu điểm
+> mới. Xem [sơ đồ redemption](./14-redemption.md) và
+> [handoff backend](../plan/REDEMPTION-REQUIREMENT-GAP.md).
+
 ## 12.1 Năm bậc
 
 ```mermaid
@@ -28,7 +34,7 @@ flowchart TD
     B --> F[Tiêu điểm / bị phạt] --> G{Rơi dưới ngưỡng?}
     G -->|Có| H["⬇️ TỤT HẠNG<br/>xét lại theo ngưỡng hiện tại<br/>KHÔNG ép đúng một bậc"]
 
-    I["❌ F76 đã HUỶ<br/>không còn 'điểm khả dụng'<br/>toàn bộ balance đều tiêu được"] -.-> F
+    I["HIỆN TRẠNG: redeem vẫn tiêu toàn balance<br/>YÊU CẦU MỚI: chặn phần giữ Rank"] -.-> F
 
     style A fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
     style H fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
@@ -92,8 +98,9 @@ flowchart TD
     style Mốc fill:#8c8c8c24,stroke:#8a8a8a,stroke-width:1.5px
 ```
 
-> **Vì sao bắt buộc phải có.** Khi tiêu điểm làm tụt hạng, người dùng đổi một vật phẩm rồi
-> sáng hôm sau phát hiện mình đã xuống Bạc — mất quota bài, mất quyền SOS — mà không ai báo.
+> **Vì sao bắt buộc phải có.** Hiện backend vẫn cho đổi vật phẩm đến mức tụt hạng; người
+> dùng có thể mất quota bài/quyền SOS và cần được báo. Khi cơ chế bảo vệ Rank mới có hiệu
+> lực, cảnh báo này vẫn cần cho khoản phạt và các debit không thuộc `ITEM_REDEMPTION`.
 >
 > ⚠️ **Và đúng đường đó từng bị quên (sửa 29/09).** `RankChangeNotifier` được dựng để gom bốn
 > đường làm đổi balance — cộng theo rule, hoàn bút toán, khoản trừ số truyền vào, và **đổi vật
