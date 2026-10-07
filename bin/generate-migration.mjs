@@ -28,7 +28,17 @@ if (!name || !/^[A-Z][A-Za-z0-9]*$/.test(name)) {
 /** Đọc danh sách file migration, bỏ barrel, sắp theo tiền tố thời gian. */
 function listMigrations() {
   return readdirSync(MIGRATIONS_DIR)
-    .filter((file) => file.endsWith('.ts') && file !== 'index.ts')
+    // `.spec.ts` phải LOẠI RA. Thư mục này có bốn file spec (`onboarding-tasks`,
+    // `posts-backfill`, `rank-referral-foundation`, `barrel-guard`), và vì barrel
+    // được dựng lại TỪ THƯ MỤC, một lượt `migration:generate` sẽ export chúng như
+    // migration. Chúng không có class nào nên TypeORM âm thầm bỏ qua, nhưng barrel
+    // thì thành nói sai về chính nó — và `barrel-guard.spec.ts` sẽ đỏ đúng chỗ đó.
+    .filter(
+      (file) =>
+        file.endsWith('.ts') &&
+        file !== 'index.ts' &&
+        !file.endsWith('.spec.ts'),
+    )
     .sort();
 }
 
