@@ -329,22 +329,37 @@ const BrTrace: readonly BrTraceEntry[] = [
   // ── Thiện nguyện — CHƯA DỰNG ──────────────────────────────────────────────
   {
     id: 'BR-CHARITY-01',
-    title: 'Admin tạo hoạt động trực tiếp; TV Kim Cương tạo ở PENDING_APPROVAL',
-    status: 'NOT_IMPLEMENTED',
-    note: 'Ba endpoint charity campaigns của SRS đều chưa có; không bảng sự kiện thiện nguyện',
+    title:
+      'Admin tạo trực tiếp; Member/Bạc/Vàng tạo INDIVIDUAL_APPEAL ở PENDING_APPROVAL; ' +
+      'Kim Cương tạo hai loại và public ngay',
+    status: 'PARTIAL',
+    where:
+      '`POST /charity-campaigns` + `PATCH /admin/charity-campaigns/:id/approval`; ' +
+      '`approval_status` mặc định `PENDING_APPROVAL`',
+    note:
+      'Soát lại 07/10 sau khi SRS đổi: ba endpoint đã có (12 route), nhưng quy tắc MỚI ' +
+      'đòi hai loại kêu gọi và ba capability. Thiếu `SUBMIT_INDIVIDUAL_APPEAL`, thiếu ' +
+      '`PUBLISH_CHARITY_WITHOUT_REVIEW`, và `campaigns` KHÔNG có cột phân loại ' +
+      'INDIVIDUAL_APPEAL/ORGANIZED_CAMPAIGN — nên Member/Bạc/Vàng chưa tạo được appeal: ' +
+      '`SUBMIT_CHARITY_PROPOSAL` hiện chỉ bật cho DIAMOND',
   },
   {
     id: 'BR-CHARITY-02',
     title: 'Hệ thống không tự đối soát số lượng hiện vật ngoài đời',
-    status: 'NOT_IMPLEMENTED',
-    note: 'Cùng lý do BR-CHARITY-01',
+    status: 'IMPLEMENTED',
+    where:
+      '`PATCH /admin/charity-campaigns/:id/progress` — số phần quà đã trao do người tổ ' +
+      'chức KHAI, không có job nào tự đối soát với thế giới thật',
   },
   {
     id: 'BR-CHARITY-03',
     title:
       'Huỷ tham gia khi Event chưa bắt đầu; đánh giá hai chiều sau khi kết thúc',
-    status: 'NOT_IMPLEMENTED',
-    note: 'Cùng lý do BR-CHARITY-01',
+    status: 'IMPLEMENTED',
+    where:
+      'charity-campaign.use-cases.ts: huỷ chặn theo `start_time` (~394), đánh giá đòi ' +
+      '`canReviewCharityCampaign` theo `end_time` (~439), và cặp đánh giá chỉ ' +
+      'ORGANIZER↔participant (~455) nên hai người tham gia không chấm nhau được',
   },
 
   // ── Phật Pháp — CHƯA DỰNG ─────────────────────────────────────────────────
@@ -352,27 +367,39 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-DHARMA-01',
     title:
       'Dùng chung mô hình content_type/category thay vì engine riêng từng loại nội dung',
-    status: 'NOT_IMPLEMENTED',
-    note: 'Toàn phân hệ chưa dựng: `DHARMA_THREAD` chỉ tồn tại như một subject type của reaction/share, không bảng, không endpoint',
+    status: 'IMPLEMENTED',
+    where:
+      '`1798900000000-CreateDharmaContents.ts` — một bảng `dharma_contents` với ' +
+      '`content_type` (SUTRA/INFO/TEMPLE_INTRO) và `category` chuẩn hoá về slug; ' +
+      'docblock migration dẫn thẳng BR-DHARMA-01',
   },
   {
     id: 'BR-DHARMA-02',
     title:
       'Media dùng cơ chế upload R2 hiện có; metadata ở PostgreSQL; không thêm Kafka',
-    status: 'NOT_IMPLEMENTED',
-    note: 'Cùng lý do BR-DHARMA-01. Phần hạ tầng (R2, PostgreSQL) đã có sẵn và đúng hướng',
+    status: 'IMPLEMENTED',
+    where:
+      '`dharma_contents.audio_url` giữ địa chỉ media, metadata nằm trong PostgreSQL; ' +
+      'chuỗi `kafka` không xuất hiện ở bất kỳ file nguồn nào ngoài chính dòng này',
   },
   {
     id: 'BR-DHARMA-03',
     title: 'Notification Phật Pháp tái dùng FCM/In-App hiện có',
     status: 'NOT_IMPLEMENTED',
-    note: 'Cùng lý do BR-DHARMA-01',
+    note:
+      'Soát lại 07/10: phân hệ Phật Pháp ĐÃ dựng (F73), nhưng KHÔNG use case dharma nào ' +
+      'gọi `IDispatchNotificationUseCase` — nên chưa có thông báo Phật Pháp nào để mà ' +
+      'tái dùng FCM/In-App. Hạ tầng thông báo đã đủ, chỉ thiếu chỗ gọi',
   },
   {
     id: 'BR-DHARMA-04',
     title: 'Phạm vi Phật Pháp là P0, hấp thụ trong effort hiện tại',
     status: 'NOT_IMPLEMENTED',
-    note: 'Quy tắc về phạm vi/effort, không phải về hành vi phần mềm — không có chỗ nào trong mã nguồn hiện thực được nó',
+    note:
+      'Quy tắc về phạm vi/effort, không phải về hành vi phần mềm — không có chỗ nào ' +
+      'trong mã nguồn hiện thực được nó, nên `NOT_IMPLEMENTED` ở đây KHÔNG đọc là ' +
+      '"chưa làm". Phạm vi thực tế đã hấp thụ: F73 ship 04/10 với bảng, endpoint và ' +
+      'phép kiểm. Sổ này không có trạng thái "không áp dụng" nên giữ nguyên ô này',
   },
 
   // ── Nhóm ──────────────────────────────────────────────────────────────────
@@ -447,22 +474,38 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-AFF-02',
     title: 'Baseline áp cho toàn bộ nhóm event Admin bật trong Point Rule',
     status: 'PARTIAL',
-    where: '`GET /groups/{id}/affiliate` đọc được số liệu',
-    note: 'Bộ máy chia thưởng chưa dựng: ba endpoint affiliate engine của SRS còn thiếu, và tỷ lệ chia (A1-A5) đang chờ Bên A — xem docs/diagram/31-open-items.md',
+    where:
+      '`affiliate.repository.ts#recordEvent` được gọi từ HAI hook thật: ' +
+      '`gift-transaction.repository.ts:130` (`GIFT_COMPLETED`) và ' +
+      '`post.repository.ts:189` (`POST_CREATED`); chính sách publish được qua ' +
+      '`publishPolicy`',
+    note:
+      'Soát lại 07/10 — ghi chú cũ "chưa có đường sinh reward" đã SAI: đường đó có và ' +
+      'đã nối. Nhưng quy tắc đòi baseline áp cho TOÀN BỘ nhóm event Admin bật trong ' +
+      'Point Rule, mà hook chỉ phủ 2 loại. Những loại khác đang có trong Point Rule ' +
+      '(POST_REACTED, POST_COMMENTED, REPORT_UPHELD, ONBOARDING_COMPLETED…) không sinh ' +
+      'affiliate event nào. Tỷ lệ chia A1-A5 vẫn là lựa chọn cấu hình, không phải lỗ mã',
   },
   {
     id: 'BR-AFF-03',
     title:
       'Một source event sinh nhiều reward record, mỗi beneficiary là một Active Member',
-    status: 'NOT_IMPLEMENTED',
-    note: 'Cùng lý do BR-AFF-02: chưa có đường sinh reward',
+    status: 'IMPLEMENTED',
+    where:
+      '`affiliate.repository.ts#recordEvent` chia theo `SPLIT_POOL`/`PER_MEMBER`, mỗi ' +
+      'beneficiary một dòng reward; phần dư của `SPLIT_POOL` phân theo `ORDER BY ' +
+      'global_id` nên thứ tự tiền định, không phụ thuộc thứ tự trả về của database',
   },
   {
     id: 'BR-AFF-04',
     title:
       'Không cộng lặp cùng beneficiary + source reference + event_type; huỷ thì ghi adjustment',
-    status: 'NOT_IMPLEMENTED',
-    note: 'Cùng lý do BR-AFF-02. Cơ chế chống lặp (`idempotency_key`) và ghi bù (`appendAdjustment`) đã có sẵn, chỉ thiếu chỗ gọi',
+    status: 'IMPLEMENTED',
+    where:
+      'ràng buộc `UQ_affiliate_rewards_beneficiary_source` chặn cộng lặp ở tầng ' +
+      'database; `reverseEvent` khoá event `FOR UPDATE`, lấy reward `AWARDED` rồi gọi ' +
+      '`appendAdjustmentWithinTransaction` — ghi bù chứ không sửa bút toán, vì ' +
+      '`point_ledger` có trigger chặn UPDATE',
   },
 
   // ── Độ chính xác mô tả của người tặng ─────────────────────────────────────
@@ -515,9 +558,15 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-NOTI-03',
     title:
       'Mọi push quan trọng đồng thời lưu In-App để xem lịch sử đã đọc/chưa đọc',
-    status: 'PARTIAL',
-    where: 'bảng `notifications` lưu đủ, có `idempotency_key` chống trùng',
-    note: 'Phần In-App chạy đủ; phần PUSH thì chưa — `LoggingPushSender` là `IPushSender` duy nhất và ở production nó fail-closed. FCM thật vẫn là việc của F44',
+    status: 'IMPLEMENTED',
+    where:
+      'bảng `notifications` lưu đủ kèm `idempotency_key` chống trùng; ' +
+      '`FcmPushSender` gọi FCM HTTP v1 và `createPushSender` chọn nó khi có ' +
+      '`FCM_SERVICE_ACCOUNT_BASE64`, ngược lại `LoggingPushSender` fail-closed',
+    note:
+      'Soát lại 07/10: khoá Firebase đã cắm trên staging và đã có một lượt gọi THẬT tới ' +
+      'Google bằng chính class đó. Còn chờ một thiết bị thật đăng ký token mới kiểm được ' +
+      'push tới máy — nhưng đó không phải lỗ của quy tắc này',
   },
 
   // ── Điểm ──────────────────────────────────────────────────────────────────
@@ -533,7 +582,15 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-POINT-02',
     title:
       'Điểm theo giá trị vật phẩm: 100% ứng X điểm do Admin cấu hình, các mức % quy đổi theo',
-    status: 'UNVERIFIED',
+    status: 'PARTIAL',
+    where:
+      '`AwardGiftCompletionUseCase` cộng điểm hoàn tất theo `point_rules` và nhân với ' +
+      'accuracy; `test:gift-rewards` canh đúng giá trị đã nhân',
+    note:
+      'Đối chiếu lần đầu 07/10, sau khi SRS viết lại quy tắc này bằng CHỐT-14. Mã hiện ' +
+      'theo công thức CŨ: một khoản duy nhất = trần × accuracy. Quy tắc mới đòi HAI ' +
+      'khoản rời — `completion_points` KHÔNG nhân accuracy, cộng `value_bonus` tính từ ' +
+      'giá trị ước tính và chốt sau hạn N ngày. `value_bonus` chưa tồn tại trong mã',
   },
   {
     id: 'BR-POINT-03',
@@ -711,7 +768,10 @@ const BrTrace: readonly BrTraceEntry[] = [
     where:
       '`GET|POST /admin/rank-policy` và `/admin/entitlements` cấu hình được hạng, ' +
       'nhiệm vụ duy trì và quyền; accuracy khớp đúng 0-100 / 5 mẫu / 75%',
-    note: 'THIẾU `campaign multiplier`: phân hệ chiến dịch chưa dựng (xem BR_CAMP_01) nên không có hệ số nào để nhân',
+    note:
+      'Soát lại 07/10 — lý do cũ "phân hệ chiến dịch chưa dựng" đã SAI: `home-campaign` ' +
+      'và `charity-campaigns` đều có. Nhưng vẫn THIẾU `campaign multiplier`: không phân ' +
+      'hệ chiến dịch nào cung cấp một hệ số nhân điểm, nên Point Rule không có gì để nhân',
   },
   {
     id: 'BR-ADM-POINT-05',
@@ -919,7 +979,7 @@ const BrTrace: readonly BrTraceEntry[] = [
  * Một phép kiểm bỏ sót trong im lặng thì tệ hơn không có, vì đọc kết quả xanh người
  * ta kết luận là đã phủ hết.
  */
-const UnverifiedBaseline = 15;
+const UnverifiedBaseline = 14;
 
 describe('truy vết BR của SRS sang mã nguồn', () => {
   it('mọi BR id trong SRS đều có một dòng trong sổ', () => {
