@@ -171,7 +171,7 @@ Mỗi lần đổi **bắt buộc** vào `point_ledger`:
 4. ✅ **Có, giống mọi lượt trao.** `acceptRequest` tạo một `gift_transaction` bình thường, nên
    khi COMPLETED thì hai bên đánh giá như thường và mức chính xác vào mẫu Giver Accuracy như
    thường. Không có nhánh riêng nào cho vật phẩm đổi bằng điểm.
-5. ✅ **Có.** Người tặng được tới 56 điểm qua `GIFT_COMPLETED_GIVER` (× mức chính xác người
+5. ✅ **Có.** Người tặng được 56 điểm qua `GIFT_COMPLETED_GIVER` (phẳng từ CHỐT-14; mức chính xác người
    nhận chấm), đúng như mọi lượt trao.
    ⚠️ **Nhưng người ĐỔI cũng được +28.** `awardCompletionPoints` cộng
    `GIFT_COMPLETED_RECEIVER` cho người nhận mà không phân biệt lượt trao đó đến từ đâu, nên

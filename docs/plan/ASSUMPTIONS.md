@@ -240,9 +240,26 @@ tụt. Hai cái không cùng tồn tại được.
 ### Điểm cho một lượt trao hoàn tất
 
 ```
-Có đánh giá    → điểm cấu hình × x%   (x do người nhận chấm, 0–100)
-Không đánh giá → sau N ngày áp mức mặc định (Admin cấu hình cả N lẫn mức %)
+ĐÃ BỊ CHỐT-14 (07/10) THAY — giữ lại để biết luật nào đã chạy khi nào:
+  Có đánh giá    → điểm cấu hình × x%   (x do người nhận chấm, 0–100)
+  Không đánh giá → sau N ngày áp mức mặc định (Admin cấu hình cả N lẫn mức %)
+
+LUẬT ĐANG CHẠY — hai khoản RỜI:
+  completion_points = điểm cấu hình             (tại COMPLETED, KHÔNG nhân gì)
+  value_bonus       = round(round(min(giá khai, trần) / tỷ lệ) × x% / 100)
+                                                (chốt MỘT lần tại hạn N ngày)
+  Không đánh giá → x = mức mặc định Admin cấu hình, chỉ ảnh hưởng value_bonus
 ```
+
+> **Vì sao tách.** Dạng cũ làm mức chính xác người nhận chấm điều khiển **toàn bộ** điểm của
+> người tặng, nên người nhận chấm 0% là lấy sạch phần thưởng của một lượt trao đã xảy ra thật.
+> CHỐT-14 giữ phần "đã trao thành công" là một con số cố định, và chỉ phần theo giá trị món đồ
+> mới chịu ảnh hưởng của mức chính xác.
+>
+> Và vì giá đó do người tặng **tự khai**, `value_bonus` buộc phải có trần
+> (`point.value_bonus_max_value_vnd`, mặc định 2.000.000đ): khoản này đi qua
+> `appendAdjustment`, đường không kiểm `daily_cap` nào, nên không trần thì một giá khai 1 tỉ ra
+> 500.000 điểm — 279 lần ngưỡng Kim Cương.
 
 Toàn bộ bốn con số — điểm gốc, `N` ngày, mức mặc định, và ngưỡng accuracy — đều
 là cấu hình Admin, không hard-code.

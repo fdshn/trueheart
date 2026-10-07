@@ -490,25 +490,60 @@ khống để cày điểm.
 **Chốt 2026-09-24 — cách tính:**
 
 ```
-Có đánh giá    → điểm cấu hình × x%   (x do người nhận chấm, 0–100)
-Không đánh giá → sau N ngày áp mức mặc định (Admin cấu hình cả N lẫn mức %)
+ĐÃ BỊ CHỐT-14 (07/10) THAY — giữ lại để biết luật nào đã chạy khi nào:
+  Có đánh giá    → điểm cấu hình × x%   (x do người nhận chấm, 0–100)
+  Không đánh giá → sau N ngày áp mức mặc định (Admin cấu hình cả N lẫn mức %)
+
+LUẬT ĐANG CHẠY — hai khoản RỜI:
+  completion_points = điểm cấu hình             (tại COMPLETED, KHÔNG nhân gì)
+  value_bonus       = round(round(min(giá khai, trần) / tỷ lệ) × x% / 100)
+                                                (chốt MỘT lần tại hạn N ngày)
+  Không đánh giá → x = mức mặc định Admin cấu hình, chỉ ảnh hưởng value_bonus
 ```
+
+> **Vì sao tách.** Dạng cũ làm mức chính xác người nhận chấm điều khiển **toàn bộ** điểm của
+> người tặng, nên người nhận chấm 0% là lấy sạch phần thưởng của một lượt trao đã xảy ra thật.
+> CHỐT-14 giữ phần "đã trao thành công" là một con số cố định, và chỉ phần theo giá trị món đồ
+> mới chịu ảnh hưởng của mức chính xác.
+>
+> Và vì giá đó do người tặng **tự khai**, `value_bonus` buộc phải có trần
+> (`point.value_bonus_max_value_vnd`, mặc định 2.000.000đ): khoản này đi qua
+> `appendAdjustment`, đường không kiểm `daily_cap` nào, nên không trần thì một giá khai 1 tỉ ra
+> 500.000 điểm — 279 lần ngưỡng Kim Cương.
 
 Mức áp mặc định **không tính vào mẫu Giver Accuracy** — nó là giá trị hệ thống tự điền, không
 phải ý kiến người thật.
 
-> ✅ **Chốt 2026-09-25: X = 56** (`point_rules.GIFT_COMPLETED`, cap 5/ngày, Admin sửa lúc chạy).
+> ✅ **Chốt 2026-09-25: X = 56** — mã rule đúng là `point_rules.GIFT_COMPLETED_GIVER`, cap
+> **10**/ngày, Admin sửa lúc chạy. Dòng này từng ghi `GIFT_COMPLETED` và cap 5: mã đó là bản
+> trùng vai đã gỡ ở migration `1793400000000`, và 5 là cap của phía người NHẬN.
 > Suy ra từ chính các con số đã chốt — toàn bộ hệ điểm là bội số của 56: giới thiệu 56, xác minh
 > SĐT 28, onboarding 224, ngưỡng rank 224/672/896/1792 = 56 × 4/12/16/32.
 >
 > Mức mặc định khi người nhận không đánh giá: **80% sau 7 ngày**
 > (`system_configs.review.grace`).
 >
-> ✅ **Đã nối (soát 04/10/2026).** `AwardGiftCompletionUseCase` nhân mức trần của rule với %
-> người nhận chấm. Hai đường kích hoạt, MỘT khoá chống trùng theo lượt trao
-> (`GIFT_COMPLETED_GIVER:<transactionId>`) nên đường nào tới trước thì đường kia thành không
-> làm gì: người nhận đánh giá, hoặc `npm run gift:settle-rewards` khi hết thối hạn chờ.
-> `test:gift-rewards` canh *"số điểm là bản đã nhân (50), không phải mức trần phẳng (56)"*.
+> ✅ **Đã nối. Viết lại 07/10/2026 theo CHỐT-14** — bản soát 04/10 mô tả công thức CŨ (một
+> khoản `trần × %`), nay là **hai khoản rời**:
+>
+> - **`completion_points`** — mức trần của rule, **không nhân gì**, cộng ngay lúc lượt trao
+>   chuyển `COMPLETED` trong cùng transaction đóng lượt trao
+>   (`GiftTransactionRepository.awardCompletionPoints`, cả hai đường: bấm xác nhận và cron tự
+>   hoàn tất). **BA** đường cùng dẫn tới một bút toán và dùng MỘT khoá chống trùng theo lượt
+>   trao (`GIFT_COMPLETED_GIVER:<transactionId>`), nên đường nào tới trước thì hai đường kia
+>   thành không làm gì. Hai đường còn lại — người nhận đánh giá, và
+>   `npm run gift:settle-rewards` — không bị gỡ vì `daily_cap = 10` có thể chặn lượt cộng tại
+>   `COMPLETED`, và ngoại lệ đó bị nuốt để việc xác nhận nhận hàng không đổ.
+> - **`value_bonus`** — `round(round(min(giá khai, trần) / tỷ lệ) × % chính xác / 100)`, chốt
+>   **một lần tại hạn** `review.grace` trong `gift:settle-rewards`. Không trả sớm khi đánh giá
+>   vừa gửi, vì trước hạn người nhận còn được sửa đánh giá một lần.
+>
+> Trần `point.value_bonus_max_value_vnd` (mặc định 2.000.000đ) là **van an toàn, không phải con
+> số chính sách**: khoản này đi qua `appendAdjustment`, đường đó không kiểm `daily_cap` nào, nên
+> không trần thì một giá tự khai 1 tỉ ra 500.000 điểm — 279 lần ngưỡng Kim Cương.
+>
+> Hệ quả dễ bỏ sót: **người nhận chấm 0% không còn làm điểm hoàn tất về 0**, và `lifetime` của
+> người tặng nhích sớm hơn trước nên họ lên hạng sớm hơn với cùng một chuỗi giao dịch.
 >
 > Dòng ⛔ ở bản trước nói sai trạng thái, và nó đã làm `SPRINT-PLAN.md` ghi F40 đang chờ Bên A
 > cho một con số — trong khi con số đó là một dòng cấu hình Admin sửa được lúc chạy.

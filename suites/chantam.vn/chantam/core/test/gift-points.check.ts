@@ -160,13 +160,17 @@ async function main(): Promise<void> {
     const giver = await ledger.getSummary(GiverId);
     const receiver = await ledger.getSummary(ReceiverId);
 
-    // Người TẶNG KHÔNG được cộng ở đây nữa. Số điểm của họ phụ thuộc mức chính
-    // xác mà người nhận chấm (F40), và lúc này chưa ai chấm. Khoản đó đi qua
-    // `AwardGiftCompletionUseCase`: khi người nhận đánh giá, hoặc khi hết hạn
-    // chờ thì áp mức mặc định. Xem `test:gift-rewards`.
+    // CẢ HAI bên được cộng ngay tại đây, từ 07/10 (CHỐT-14).
+    //
+    // Tới 06/10 phép kiểm này khẳng định điều NGƯỢC LẠI — `balance === 0` — và nó
+    // đúng với luật lúc đó: điểm người tặng là `mức trần × mức chính xác người
+    // nhận chấm`, mà lúc hoàn tất chưa ai chấm. CHỐT-14 tách phần phụ thuộc
+    // accuracy ra thành `value_bonus` riêng (chốt tại hạn, trong
+    // `gift:settle-rewards`), nên `completion_points` còn lại là mức trần — một
+    // con số đã biết ngay tại `COMPLETED`, không còn gì phải chờ.
     check(
-      'người tặng CHƯA được cộng — chờ mức chính xác từ người nhận',
-      giver.balance === 0,
+      'người tặng được cộng NGAY — không còn chờ mức chính xác',
+      giver.balance === 56,
       `balance=${giver.balance}`,
     );
     check(
@@ -175,8 +179,8 @@ async function main(): Promise<void> {
       `balance=${receiver.balance}`,
     );
     check(
-      'nên lifetime của người tặng cũng chưa nhích',
-      giver.lifetime === 0,
+      'và lifetime của người tặng nhích theo — rule có affects_lifetime',
+      giver.lifetime === 56,
       `lifetime=${giver.lifetime}`,
     );
     check(
@@ -194,8 +198,8 @@ async function main(): Promise<void> {
       [first, [GiftCompletedGiverRuleCode, GiftCompletedReceiverRuleCode]],
     );
     check(
-      'đúng MỘT bút toán lúc hoàn tất — chỉ của người nhận',
-      Number(rows[0].count) === 1,
+      'đúng HAI bút toán lúc hoàn tất — một cho mỗi bên, không hơn',
+      Number(rows[0].count) === 2,
       `${rows[0].count} bút toán`,
     );
 
@@ -204,7 +208,7 @@ async function main(): Promise<void> {
     const afterCron = await ledger.getSummary(GiverId);
     check(
       'cron chạy lại không thưởng thêm cho lượt đã hoàn tất',
-      afterCron.balance === 0,
+      afterCron.balance === 56,
       `balance=${afterCron.balance}`,
     );
     const receiverAfterCron = await ledger.getSummary(ReceiverId);
@@ -231,16 +235,18 @@ async function main(): Promise<void> {
       `balance=${(await ledger.getSummary(ReceiverId)).balance}`,
     );
     check(
-      'và người tặng vẫn chờ mức chính xác, bấm tay hay cron cũng vậy',
-      (await ledger.getSummary(GiverId)).balance === 0,
+      'và người tặng cũng vậy — bấm tay hay cron đóng đều cộng đủ',
+      (await ledger.getSummary(GiverId)).balance === 112,
       `balance=${(await ledger.getSummary(GiverId)).balance}`,
     );
 
     // ── 4. Chính sách điểm KHÔNG được làm hỏng việc xác nhận ────────────────
     console.log('\nKhi điểm không cộng được:\n');
 
-    // Đạt trần theo ngày. Kiểm trên rule NGƯỜI NHẬN vì đó là rule duy nhất còn
-    // cộng lúc hoàn tất; trần của người tặng được canh ở `test:gift-rewards`.
+    // Đạt trần theo ngày, hạ trần của RIÊNG rule người nhận. Từ 07/10 cả hai rule
+    // đều cộng lúc hoàn tất, nên đặt trần một bên là cách dựng đúng ca đáng lo
+    // nhất: một bên bị chặn thì bên kia PHẢI vẫn được cộng. `try/catch` nằm ngoài
+    // vòng lặp sẽ làm cả hai mất điểm, và không phép kiểm nào khác thấy.
     await dataSource.query(
       `UPDATE point_rules SET daily_cap = 1 WHERE code = $1`,
       [GiftCompletedReceiverRuleCode],
@@ -271,6 +277,11 @@ async function main(): Promise<void> {
       (await ledger.getSummary(ReceiverId)).balance === 56,
       `balance=${(await ledger.getSummary(ReceiverId)).balance}`,
     );
+    check(
+      'nhưng người TẶNG vẫn được cộng — trần của bên kia không cuốn theo',
+      (await ledger.getSummary(GiverId)).balance === 168,
+      `balance=${(await ledger.getSummary(GiverId)).balance}`,
+    );
 
     // Admin tắt rule.
     await dataSource.query(
@@ -299,6 +310,14 @@ async function main(): Promise<void> {
         )
       )[0].status === 'COMPLETED',
     );
+    check(
+      'và thật sự không ai được cộng — cả hai bên đứng yên',
+      (await ledger.getSummary(GiverId)).balance === 168 &&
+        (await ledger.getSummary(ReceiverId)).balance === 56,
+      `tặng=${(await ledger.getSummary(GiverId)).balance} nhận=${
+        (await ledger.getSummary(ReceiverId)).balance
+      }`,
+    );
 
     // ── 5. Rule là cấu hình, không phải hằng số trong code ──────────────────
     console.log('\nAdmin chỉnh số điểm:\n');
@@ -318,6 +337,11 @@ async function main(): Promise<void> {
       'phiên bản rule mới có hiệu lực ngay, không cần deploy',
       (await ledger.getSummary(ReceiverId)).balance === 256,
       `balance=${(await ledger.getSummary(ReceiverId)).balance}`,
+    );
+    check(
+      'rule người tặng không bị đổi thì số điểm cũng không đổi',
+      (await ledger.getSummary(GiverId)).balance === 224,
+      `balance=${(await ledger.getSummary(GiverId)).balance}`,
     );
     check(
       'bút toán ghi lại đúng phiên bản rule đã dùng',

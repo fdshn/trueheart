@@ -1,3 +1,9 @@
+import { giftCompletionIdempotencyKey } from '@/application/implementations/review/award-gift-completion.use-case';
+import { PointDailyCapReachedException } from '@/domain/exceptions';
+import {
+  GiftCompletedGiverRuleCode,
+  GiftCompletedReceiverRuleCode,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { GiftTransactionRepository } from './gift-transaction.repository';
 
 const PostId = '30000000-0000-4000-8000-000000000001';
@@ -38,16 +44,28 @@ function makeChatRepository() {
   };
 }
 
+/**
+ * Hai tham số được KHAI TƯỜNG MINH dù thân hàm không dùng tới.
+ *
+ * `jest.fn(async () => ...)` suy ra `mock.calls` là `[]`, nên mọi phép kiểm đọc
+ * `calls[i][1]` sẽ không biên dịch được — và cách chữa nhanh là rải `as never`
+ * khắp nơi, tức bỏ luôn kiểu của chính thứ đang kiểm.
+ */
 function makeLedgerRepository() {
   return {
-    appendByRuleWithinTransaction: jest.fn(async () => ({
-      entryId: 1,
-      delta: 56,
-      balance: 56,
-      rawBalance: 56,
-      lifetime: 56,
-      applied: true,
-    })),
+    appendByRuleWithinTransaction: jest.fn(
+      async (
+        _manager: unknown,
+        _command: { userId: string; ruleCode: string; idempotencyKey: string },
+      ) => ({
+        entryId: 1,
+        delta: 56,
+        balance: 56,
+        rawBalance: 56,
+        lifetime: 56,
+        applied: true,
+      }),
+    ),
   };
 }
 
@@ -72,6 +90,30 @@ function makeRepository(
     checkIn as never,
     affiliate as never,
   );
+}
+
+/**
+ * Chuỗi `query` của một lượt `confirmReceipt` đi tới `COMPLETED`.
+ *
+ * Hai lần đầu là `lockTransaction` rồi `UPDATE ... RETURNING`; mọi câu sau đó
+ * (`awardAffiliateForCompletion` đọc toạ độ bài, `syncPostStatus`) chỉ cần trả
+ * thứ ITERATE được, nếu không thì `const [post] = await query(...)` ném và lỗi
+ * hiện ra như lỗi của chỗ khác.
+ */
+function completingQuery(overrides: Record<string, unknown> = {}) {
+  return jest
+    .fn()
+    .mockResolvedValueOnce([
+      transactionRow({ status: 'ACCEPTED', ...overrides }),
+    ])
+    .mockResolvedValueOnce([
+      transactionRow({
+        status: 'COMPLETED',
+        completed_at: new Date(),
+        ...overrides,
+      }),
+    ])
+    .mockResolvedValue([]);
 }
 
 describe('GiftTransactionRepository confirmReceipt', () => {
@@ -109,6 +151,129 @@ describe('GiftTransactionRepository confirmReceipt', () => {
       String(sql).includes('UPDATE gift_transactions'),
     );
     expect(String(update?.[0])).toContain('completed_at');
+  });
+
+  it('cộng điểm cho CẢ HAI bên ngay tại COMPLETED (CHỐT-14)', async () => {
+    // Tới 06/10 chỉ người nhận được cộng ở đây, vì điểm người tặng còn phụ thuộc
+    // mức chính xác chưa ai chấm. CHỐT-14 tách phần đó ra `value_bonus`, nên điểm
+    // hoàn tất là một con số đã biết ngay tại mốc này.
+    const query = completingQuery();
+    const ledger = makeLedgerRepository();
+    const repository = makeRepository(query, makeChatRepository(), ledger);
+
+    await repository.confirmReceipt(TransactionId, ReceiverId);
+
+    const codes = ledger.appendByRuleWithinTransaction.mock.calls.map(
+      (call) => call[1].ruleCode,
+    );
+    expect(codes).toHaveLength(2);
+    expect(codes).toContain(GiftCompletedGiverRuleCode);
+    expect(codes).toContain(GiftCompletedReceiverRuleCode);
+  });
+
+  it('khoá chống trùng của người tặng trùng KHÍT với đường đánh giá', async () => {
+    // Phép kiểm quan trọng nhất của lượt sửa này. Ba đường cùng dẫn tới một bút
+    // toán, và repository dựng khoá bằng chuỗi ghép tại chỗ vì tầng hạ tầng không
+    // nhập từ tầng ứng dụng. Hai chuỗi lệch một ký tự là trả thưởng HAI LẦN cho
+    // một lượt trao, trên một cái sổ chỉ ghi thêm.
+    const query = completingQuery();
+    const ledger = makeLedgerRepository();
+    const repository = makeRepository(query, makeChatRepository(), ledger);
+
+    await repository.confirmReceipt(TransactionId, ReceiverId);
+
+    const giverCall = ledger.appendByRuleWithinTransaction.mock.calls.find(
+      (call) => call[1].ruleCode === GiftCompletedGiverRuleCode,
+    );
+    expect(giverCall?.[1].idempotencyKey).toBe(
+      giftCompletionIdempotencyKey(TransactionId),
+    );
+  });
+
+  it('KHÔNG nhân điểm hoàn tất với mức chính xác', async () => {
+    // `scaleRulePoints` chỉ trả trọn `rule.points` khi tham số này VẮNG, nên
+    // truyền `100` cũng không tương đương về ý nghĩa.
+    const query = completingQuery();
+    const ledger = makeLedgerRepository();
+    const repository = makeRepository(query, makeChatRepository(), ledger);
+
+    await repository.confirmReceipt(TransactionId, ReceiverId);
+
+    for (const call of ledger.appendByRuleWithinTransaction.mock.calls)
+      expect(call[1]).not.toHaveProperty('multiplierPercent');
+  });
+
+  it('xin khoá theo userId tăng dần, không theo vai — chặn deadlock', async () => {
+    // Cả hai lượt cộng lấy `pg_advisory_xact_lock(hashtext(userId))` và giữ tới
+    // hết transaction. Hai lượt trao TẶNG CHÉO nhau hoàn tất cùng lúc sẽ xin hai
+    // khoá theo hai thứ tự ngược nhau — đó là deadlock. Một thứ tự toàn cục làm
+    // nó không còn đường xảy ra.
+    //
+    // `GiverId` bắt đầu bằng '1', `ReceiverId` bằng '2', nên thứ tự đúng là người
+    // tặng trước — NGƯỢC với thứ tự vai mà mã nguồn dựng mảng.
+    const query = completingQuery();
+    const ledger = makeLedgerRepository();
+    const repository = makeRepository(query, makeChatRepository(), ledger);
+
+    await repository.confirmReceipt(TransactionId, ReceiverId);
+
+    expect(
+      ledger.appendByRuleWithinTransaction.mock.calls.map(
+        (call) => call[1].userId,
+      ),
+    ).toEqual([GiverId, ReceiverId]);
+  });
+
+  it('người tặng và người nhận là MỘT người thì không cộng phần người tặng', async () => {
+    // `CannotRequestOwnPostException` chặn ở tầng use case, nhưng một chốt ở tầng
+    // use case không phải một chốt ở sổ điểm — và cái giá của việc lọt là 56 + 28
+    // điểm cho một "lượt trao" chỉ có một phía.
+    const query = completingQuery({ giver_id: ReceiverId });
+    const ledger = makeLedgerRepository();
+    const repository = makeRepository(query, makeChatRepository(), ledger);
+
+    await repository.confirmReceipt(TransactionId, ReceiverId);
+
+    expect(
+      ledger.appendByRuleWithinTransaction.mock.calls.map(
+        (call) => call[1].ruleCode,
+      ),
+    ).toEqual([GiftCompletedReceiverRuleCode]);
+  });
+
+  it('người tặng chạm trần ngày thì người NHẬN vẫn được cộng', async () => {
+    // Trần ngày của `GIFT_COMPLETED_GIVER` là 10. `try/catch` phải nằm TRONG vòng
+    // lặp: đặt ngoài thì lượt trao thứ 11 của một người tặng làm người nhận mất
+    // điểm, vì một ngoại lệ của bên này cuốn luôn bên kia.
+    const query = completingQuery();
+    const ledger = makeLedgerRepository();
+    ledger.appendByRuleWithinTransaction.mockImplementation(
+      async (_manager, command) => {
+        if (command.ruleCode === GiftCompletedGiverRuleCode)
+          throw new PointDailyCapReachedException(
+            GiftCompletedGiverRuleCode,
+            10,
+          );
+        return {
+          entryId: 1,
+          delta: 28,
+          balance: 28,
+          rawBalance: 28,
+          lifetime: 0,
+          applied: true,
+        };
+      },
+    );
+    const repository = makeRepository(query, makeChatRepository(), ledger);
+
+    const result = await repository.confirmReceipt(TransactionId, ReceiverId);
+
+    expect(result.status).toBe('COMPLETED');
+    expect(
+      ledger.appendByRuleWithinTransaction.mock.calls.map(
+        (call) => call[1].ruleCode,
+      ),
+    ).toEqual([GiftCompletedGiverRuleCode, GiftCompletedReceiverRuleCode]);
   });
 });
 

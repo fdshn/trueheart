@@ -184,8 +184,9 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | `POST_COMMENTED` | 2 | — | ✅ đang gọi |
 | `REPORT_UPHELD` | 5 | 5 | ✅ đang gọi |
 | `SHIP_UNPAID_PENALTY` | −50 | — | ✅ đang gọi |
-| `GIFT_COMPLETED_GIVER` | 56 | 10 | ✅ đang gọi — mức **TRẦN**, nhân với % người nhận chấm |
+| `GIFT_COMPLETED_GIVER` | 56 | 10 | ✅ đang gọi ngay lúc hoàn tất — mức trần và là số THỰC NHẬN; CHỐT-14 bỏ phép nhân accuracy |
 | `GIFT_COMPLETED_RECEIVER` | 28 | 5 | ✅ đang gọi ngay lúc hoàn tất |
+| `GIFT_VALUE_BONUS_GIVER` | *theo giá khai* | — | ✅ đang gọi qua `appendAdjustment`, **không nằm trong `point_rules`**; kẹp bởi `point.value_bonus_max_value_vnd` |
 | `ITEM_REDEMPTION` | *theo giá món* | — | ✅ đang gọi qua `appendAdjustment` |
 | `MAINTENANCE_FAILED` | *theo bậc, xem `rank_tiers`* | — | ✅ đang gọi qua `appendAdjustment` |
 

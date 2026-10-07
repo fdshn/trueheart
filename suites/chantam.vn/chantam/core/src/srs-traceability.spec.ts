@@ -582,15 +582,20 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-POINT-02',
     title:
       'Điểm theo giá trị vật phẩm: 100% ứng X điểm do Admin cấu hình, các mức % quy đổi theo',
-    status: 'PARTIAL',
+    status: 'IMPLEMENTED',
     where:
-      '`AwardGiftCompletionUseCase` cộng điểm hoàn tất theo `point_rules` và nhân với ' +
-      'accuracy; `test:gift-rewards` canh đúng giá trị đã nhân',
+      'HAI khoản rời theo CHỐT-14. `completion_points`: ' +
+      '`GiftTransactionRepository.awardCompletionPoints` cộng mức trần của `point_rules` ' +
+      'cho cả hai bên ngay tại `COMPLETED`, KHÔNG nhân accuracy; ' +
+      '`AwardGiftCompletionUseCase` là đường trả nốt khi trần ngày chặn. ' +
+      '`value_bonus`: `computeGiftValueBonus` + vòng thứ tư của ' +
+      '`SettleGiftRewardsUseCase`, chốt một lần tại hạn `review.grace`, kẹp bởi ' +
+      '`point.value_bonus_max_value_vnd`',
     note:
-      'Đối chiếu lần đầu 07/10, sau khi SRS viết lại quy tắc này bằng CHỐT-14. Mã hiện ' +
-      'theo công thức CŨ: một khoản duy nhất = trần × accuracy. Quy tắc mới đòi HAI ' +
-      'khoản rời — `completion_points` KHÔNG nhân accuracy, cộng `value_bonus` tính từ ' +
-      'giá trị ước tính và chốt sau hạn N ngày. `value_bonus` chưa tồn tại trong mã',
+      'Đối chiếu 07/10 nói PARTIAL: mã khi đó theo công thức CŨ (một khoản = trần × ' +
+      'accuracy) và `value_bonus` chưa tồn tại. Đã làm xong cả hai khoản trong ngày, ba ' +
+      'lát: bỏ phép nhân, thêm `value_bonus` kèm trần chặn in điểm, dời mốc cộng sang ' +
+      '`COMPLETED`',
   },
   {
     id: 'BR-POINT-03',

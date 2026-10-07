@@ -41,10 +41,11 @@ diện** (front-end Admin ở repo khác). Toàn bộ chặng vận hành/UAT/b�
 >
 > - `M4` từng ghi *"còn đúng F40 chờ Bên A cho con số"*. **F40 không chờ gì.** Con số là
 >   `point_rules.GIFT_COMPLETED_GIVER` = 56 — một dòng cấu hình Admin sửa được lúc chạy, không
->   phải một hằng trong mã nguồn; dạng ánh xạ đã chốt 24/09 là **tuyến tính** `trần × x%`; và
->   `AwardGiftCompletionUseCase` đã nối cả hai đường kích hoạt (người nhận đánh giá, hoặc
->   `npm run gift:settle-rewards` khi hết thối hạn chờ). `test:gift-rewards` có phép kiểm canh
->   *"số điểm là bản đã nhân (50), không phải mức trần phẳng (56)"*.
+>   phải một hằng trong mã nguồn. Dạng ánh xạ `trần × x%` chốt 24/09 **đã bị CHỐT-14 (07/10)
+>   thay**: điểm hoàn tất cộng phẳng tại `COMPLETED`, phần theo mức chính xác tách thành
+>   `value_bonus` tính từ giá trị món đồ và chốt tại hạn. Ba đường kích hoạt, một khoá chống
+>   trùng. `test:gift-points` canh "đúng HAI bút toán lúc hoàn tất";
+>   `point-economy.spec.ts` canh công thức và trần chặn in điểm.
 > - `F47` từng ghi là còn thiếu — **đóng 03/10** (`2020ceb`).
 
 > Ba tính năng nay **ship ở trạng thái TẮT** chờ Bên A chốt số: điểm danh F83, affiliate
@@ -145,7 +146,7 @@ Hoàn thiện discovery/lifecycle bài đăng rồi mới xây giao dịch, chat
 | 15 | Group & affiliate | Invite account mới, dissolve group khi owner xoá | M5 + F06 | ✅ F54–F55 — link mời không tự hết hạn khi nhóm ACTIVE, owner xoá tài khoản thì nhóm giải tán và KHÔNG chuyển owner |
 | 16 | Group & affiliate | Affiliate recurring, reward active member, idempotency/reversal | M5 | ✅ F56 — ba bảng, hook thật ở đăng bài và hoàn tất lượt trao, chống trùng ở database theo đúng bộ ba của BR-AFF-04, thu hồi ghi thêm bút toán đảo. **Ship ở trạng thái TẮT** chờ Bên A chốt A1–A4 |
 | 17 | Group & affiliate | Geo eligibility và audit mọi event | M5 | ✅ F57–F58 — `ST_DWithin` chạy trước khi chia, ràng buộc database chặn sự kiện ngoài vùng mang điểm; mọi sự kiện lưu kèm `location_source`/`distance`/`radius` và đọc được qua `GET /admin/affiliate-events` |
-| 18 | Point & review | Point rule/ledger, review quality, giver accuracy | M4 | ✅ F39 (kèm hoàn bút toán VÀ `POST /admin/points/adjust`, cả hai ghi audit), F40, F41 (đang BẬT), F42 (hai chiều), F43 (75% / 5 mẫu). **F40 không chờ Bên A** — con số nằm ở `point_rules.GIFT_COMPLETED_GIVER` (56, Admin sửa lúc chạy) và `system_configs.review.grace` (80% sau 7 ngày); `AwardGiftCompletionUseCase` nhân trần với % người nhận chấm, một khoá chống trùng cho cả hai đường kích hoạt |
+| 18 | Point & review | Point rule/ledger, review quality, giver accuracy | M4 | ✅ F39 (kèm hoàn bút toán VÀ `POST /admin/points/adjust`, cả hai ghi audit), F40, F41 (đang BẬT), F42 (hai chiều), F43 (75% / 5 mẫu). **F40 không chờ Bên A** — con số nằm ở `point_rules.GIFT_COMPLETED_GIVER` (56, Admin sửa lúc chạy) và `system_configs.review.grace` (80% sau 7 ngày); từ 07/10 (CHỐT-14) điểm hoàn tất cộng PHẲNG ngay tại `COMPLETED` và phần theo accuracy tách thành `value_bonus` chốt tại hạn, kẹp bởi `point.value_bonus_max_value_vnd`; một khoá chống trùng cho cả BA đường kích hoạt |
 | 18a | Điểm danh & streak (F83) | Lịch sử/ngày, mốc thưởng, lượt bù từ giao dịch tặng/nhận quà hoàn tất, cấu hình Admin, UAT | M4 + M6 | ✅ Backend xong 02/10 — 7 bảng, 6 endpoint, 38 phép kiểm trên Postgres thật. **Ship ở trạng thái TẮT** chờ Bên A duyệt số. Phần app và CMS vẫn chưa có (xem hàng 22) |
 | 19 | Nội dung đặc thù & Phật Pháp | Charity/Event, Classified, ads, Merit, Dharma Hub (Kinh sách, Tụng kinh, Hồi hướng, Cúng dường, Diễn đàn, Chùa) | M2 extension + F73 | ✅ **ĐỦ NĂM**. Charity/Event 03/10; Classified, ads, Merit 04/10. **F73 Dharma Hub đóng 04/10 đủ 5 UC**: UC-DHARMA-01 engine nội dung dùng chung (`dharma_contents`, một bảng cho Kinh sách/Thông tin/Giới thiệu chùa theo BR-DHARMA-01); UC-DHARMA-02 tụng kinh (`dharma_recitations`, `duration` tính ở database); UC-DHARMA-03 diễn đàn (`dharma_threads`, thích/bình luận dùng bảng có sẵn vì `content_subject_type_enum` đã có `DHARMA_THREAD`, bộ lọc từ ngữ và `post.moderate` dùng lại); UC-DHARMA-04 hồi hướng (`dharma_dedications` — LỜI, không phải tiền); UC-DHARMA-05 **không cần dòng code nào** vì đặc tả nói tái dùng §3.3.11, nên Hub trỏ entry Công đức sang `/merit-units` |
 | 20 | Admin CMS | Rule config, moderation cơ bản | M6 | 🟡 **API ĐỦ, GIAO DIỆN thì chưa.** Kiểm duyệt bài/báo xấu, RBAC, cấu hình rule điểm/hạng/entitlement/điểm danh, hoàn bút toán và cộng/trừ điểm tay, danh mục, mẫu thông báo, ngưỡng Giver Accuracy, **KPI dashboard (F59)**, **campaign/Home động (F63)**, **blog (F64)**, **Từ thiện/Rao vặt/Quảng cáo/Công đức (F65)** — tất cả gọi được qua HTTP. Danh sách "còn thiếu cả API" ở bản trước nay đã đóng hết. Front-end Admin ở **repo khác**, nên không còn là việc của repo này |

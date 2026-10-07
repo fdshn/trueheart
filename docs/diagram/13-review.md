@@ -1,8 +1,11 @@
 # 13 · Đánh giá sau giao dịch & Giver Accuracy
 
 > **Sơ đồ hiện trạng backend.** [Quy tắc mục tiêu 07/10/2026](../plan/GIVE-RECEIVE-2026-10-07.md)
-> cho sửa review một lần trước hạn N, cộng điểm hoàn tất riêng và chốt điểm theo giá trị
-> sau N ngày. Phần “review không sửa được” và `56 × accuracy` bên dưới chỉ đúng với code cũ.
+> cho sửa review một lần trước hạn N, cộng điểm hoàn tất riêng và chốt điểm theo giá trị sau
+> N ngày. **Hai phần sau đã triển khai 07/10:** điểm hoàn tất cộng tại `COMPLETED` không nhân
+> accuracy, và `value_bonus` chốt tại hạn — sơ đồ dưới đã sửa theo. Phần “review không sửa
+> được” thì **vẫn** chỉ đúng với code hiện tại: nới ràng buộc append-only của bảng review là
+> việc chưa làm.
 
 Trạng thái: ✅ **đã hiện thực đầy đủ**, gồm cả CLI đối soát.
 
@@ -61,7 +64,7 @@ sequenceDiagram
         API->>DB: INSERT transaction_reviews
         API->>DB: Tính lại accuracy của người ĐƯỢC đánh giá TỪ TOÀN BỘ MẪU
         API->>API: Commit
-        Note over API: SAU commit, và CHỈ khi vai là NGƯỜI NHẬN:<br/>cộng 56 × accuracyPercent cho người tặng (F40)
+        Note over API: SAU commit, và CHỈ khi vai là NGƯỜI NHẬN:<br/>gọi trả NỐT điểm hoàn tất cho người tặng (F40).<br/>Thường là không-làm-gì: khoá chống trùng đã bị<br/>lượt cộng tại COMPLETED chiếm. Chỉ ghi thật khi<br/>lượt đó bị daily_cap chặn. KHÔNG nhân accuracy<br/>(CHỐT-14) — accuracy chỉ vào value_bonus
         API-->>U: review + accuracy
     end
 ```

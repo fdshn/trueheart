@@ -93,7 +93,7 @@ phiên bản rule mới nhất. Một rule đã nối mà đang tắt thì hôm 
 | `SHIP_UNPAID_PENALTY` | −50 | — | ✅ | ✅ | |
 | `POST_REACTED` | 1 | **20** | ✅ | ✅ | bật ở migration `1794500000000` |
 | `POST_COMMENTED` | 2 | **10** | ✅ | ✅ | bật ở migration `1794500000000` |
-| **`GIFT_COMPLETED_GIVER`** | **56** (mức TRẦN) | 10 | ✅ | ✅ | **× % người nhận chấm** |
+| **`GIFT_COMPLETED_GIVER`** | **56** | 10 | ✅ | ✅ | cộng phẳng ngay lúc hoàn tất; CHỐT-14 bỏ phép nhân % |
 | `GIFT_COMPLETED_RECEIVER` | 28 | 5 | ✅ | ✅ | cộng phẳng ngay lúc hoàn tất |
 
 Hai mã dưới đây **không nằm trong `point_rules`** — chúng đi qua `appendAdjustment`, nên
@@ -139,22 +139,29 @@ thiệu hợp lệ. Dùng mã `GIFT_COMPLETED_GIVER` **đã seed từ migration 
 
 ```mermaid
 flowchart TD
-    A[Lượt trao COMPLETED] --> B{Người NHẬN đánh giá?}
-    B -->|Rồi| C["điểm = 56 × x%<br/>x do người nhận chấm"]
-    B -->|Chưa, sau 7 ngày| F["điểm = 56 × 80%<br/>(review.grace, Admin cấu hình)"]
+    A[Lượt trao COMPLETED] --> I["appendByRule GIFT_COMPLETED_GIVER<br/>56 PHẲNG, không nhân gì<br/>khoá: GIFT_COMPLETED_GIVER:#lt;transactionId#gt;"]
+    A --> B{Người NHẬN đánh giá<br/>trước hạn 7 ngày?}
+    B -->|Rồi| C["% chính xác = x do người nhận chấm"]
+    B -->|Chưa| F["% chính xác = 80%<br/>(review.grace, Admin cấu hình)"]
     F --> G["⚠️ KHÔNG tính vào mẫu Giver Accuracy"]
 
-    C --> H["AwardGiftCompletionUseCase<br/>multiplierPercent"]
-    F --> H
-    H --> I["appendByRule GIFT_COMPLETED_GIVER<br/>khoá: GIFT_COMPLETED_GIVER:#lt;transactionId#gt;"]
+    C --> V["TẠI HẠN 7 ngày — không trả sớm,<br/>vì review còn quyền sửa một lần"]
+    F --> V
+    V --> W["appendAdjustment GIFT_VALUE_BONUS_GIVER<br/>round(round(min(giá khai, TRẦN) / tỷ lệ) × %/100)<br/>khoá: GIFT_VALUE_BONUS_GIVER:#lt;transactionId#gt;"]
+    W --> X["⚠️ TRẦN point.value_bonus_max_value_vnd là van an toàn:<br/>đường appendAdjustment KHÔNG kiểm daily_cap"]
 
-    J["Đường nào tới TRƯỚC thì đường kia<br/>thành không làm gì — applied = false"] -.-> I
+    J["Ba đường cùng dẫn tới I, chung một khoá —<br/>đường nào tới trước thì hai đường kia<br/>thành không làm gì (applied = false)"] -.-> I
 
     style G fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style X fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
     style J fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
-### Hai đường, một khoá chống trùng
+> **CHỐT-14, 07/10.** Tới 06/10 đây là MỘT khoản `56 × %` cộng lúc đánh giá. Nay là HAI khoản
+> rời: điểm hoàn tất phẳng tại `COMPLETED`, và `value_bonus` theo giá món đồ chốt tại hạn.
+> Hệ quả dễ bỏ sót: **người nhận chấm 0% không còn làm điểm hoàn tất về 0.**
+
+### Ba đường, một khoá chống trùng
 
 ```mermaid
 sequenceDiagram
@@ -165,30 +172,42 @@ sequenceDiagram
     participant L as point_ledger
     participant J as CLI gift:settle-rewards
 
+    rect rgba(120, 180, 120, 0.14)
+    Note over R,L: Đường 1 — lượt trao chuyển COMPLETED (đường CHÍNH từ 07/10)
+    R->>S: PATCH /transactions/:id/confirm-receipt
+    S->>L: TRONG transaction đóng lượt trao:<br/>56 phẳng cho người tặng + 28 cho người nhận,<br/>khoá GIFT_COMPLETED_GIVER:#lt;id#gt;
+    Note over S,L: Cron tự hoàn tất đi qua ĐÚNG hàm này,<br/>nên bấm tay hay chờ cron đều cộng như nhau
+    end
+
     rect rgba(80, 140, 220, 0.12)
-    Note over R,L: Đường 1 — người nhận đánh giá
+    Note over R,L: Đường 2 — người nhận đánh giá
     R->>S: POST /transactions/:id/reviews (accuracyPercent = 90)
     S->>S: Ghi đánh giá + tính lại accuracy (một transaction)
     S->>A: SAU commit — accuracyPercent = 90
-    A->>L: 56 × 90% = 50đ, khoá GIFT_COMPLETED_GIVER:#lt;id#gt;
+    A->>L: 56 phẳng, CÙNG khoá
+    L-->>A: applied = false — đường 1 đã ghi
     end
 
     rect rgba(220, 160, 40, 0.14)
-    Note over J,L: Đường 2 — hết hạn chờ
-    J->>J: Quét lượt COMPLETED quá 7 ngày,<br/>người NHẬN chưa đánh giá, chưa có bút toán
-    J->>A: accuracyPercent = null
-    A->>A: Đọc review.grace → 80%
-    A->>L: 56 × 80% = 45đ, CÙNG khoá
-    L-->>A: applied = false nếu đường 1 đã ghi
-    end
-
-    rect rgba(120, 180, 120, 0.14)
-    Note over J,L: Đường 3 — đã đánh giá nhưng trần ngày chặn
-    J->>J: Quét lượt COMPLETED chưa có bút toán<br/>mà ĐÃ có đánh giá của người nhận
-    J->>A: accuracyPercent = mức người nhận chấm
-    A->>L: đúng mức đã chấm, CÙNG khoá
+    Note over J,L: Đường 3 — job đối soát
+    J->>J: Quét lượt COMPLETED chưa có bút toán
+    J->>A: accuracyPercent = mức đã chấm, hoặc null
+    A->>L: 56 phẳng, CÙNG khoá
     end
 ```
+
+> **Vì sao đường 2 và 3 KHÔNG bị gỡ sau khi đường 1 ra đời.** Không phải để chắc ăn.
+> `GIFT_COMPLETED_GIVER` có `daily_cap = 10`, và lượt cộng ở đường 1 **nuốt** ngoại lệ trần để
+> việc xác nhận nhận hàng không đổ — nên lượt trao thứ 11 trong ngày của một người tặng chỉ có
+> hai đường sau trả nốt được. Gỡ chúng là biến trần ngày từ HOÃN thành MẤT. Chúng cũng là
+> đường trả nốt cho những lượt đã `COMPLETED` **trước 07/10**, hồi chưa có bút toán nào ghi lúc
+> hoàn tất — nên không cần migration bù.
+>
+> **Thứ tự xin khoá.** Cả hai lượt cộng ở đường 1 lấy `pg_advisory_xact_lock(hashtext(userId))`
+> và giữ tới hết transaction. Hai người tặng chéo nhau hoàn tất cùng lúc sẽ xin hai khoá theo
+> hai thứ tự ngược nhau — một deadlock, và nó **đã** có thể xảy ra từ trước CHỐT-14
+> (`awardCompletionPoints` khoá người nhận, rồi `accrueFromCompletedTransaction` khoá người
+> tặng). Nay mảng được sắp theo `userId` tăng dần.
 
 > **Đường 3 thêm ngày 29/09.** Điều kiện lọc của job trước đó là "người nhận **chưa** đánh
 > giá", nên một lượt vừa được chấm 90% mà cộng điểm chạm trần ngày sẽ bị loại khỏi danh sách
@@ -279,10 +298,15 @@ Trần hiện hành: **giao dịch 10 phía người tặng / 5 phía người n
 
 ## Chỗ cần soát
 
-1. ✅ **Cộng điểm khi lượt trao hoàn tất đã chạy** — hai đường, một khoá chống trùng.
-   Người nhận được cộng ngay; người tặng chờ mức chính xác.
-2. ✅ **CLI `gift:settle-rewards`** áp mức mặc định sau `graceDays`, và từ 29/09 còn trả nốt
-   những lượt bị trần ngày chặn — cả phía người tặng lẫn phía người nhận.
+1. ✅ **Cộng điểm khi lượt trao hoàn tất đã chạy** — **ba** đường, một khoá chống trùng.
+   Từ 07/10 (CHỐT-14) **cả hai bên** được cộng ngay tại `COMPLETED`, trong cùng transaction
+   đóng lượt trao; người tặng không còn chờ mức chính xác, vì phần phụ thuộc accuracy đã tách
+   thành `value_bonus` riêng. Hai đường còn lại (`SubmitReviewUseCase`, `gift:settle-rewards`)
+   là đường trả nốt khi `daily_cap = 10` chặn lượt cộng tại `COMPLETED`.
+2. ✅ **CLI `gift:settle-rewards`** làm **bốn** việc: trả nốt điểm hoàn tất của người tặng bị
+   trần ngày chặn, áp mức chính xác mặc định sau `graceDays` cho lượt chưa ai chấm, trả nốt
+   phần người nhận bị trần chặn, và từ 07/10 chốt `value_bonus` theo giá trị món đồ — một lần,
+   đúng tại hạn, kẹp bởi `point.value_bonus_max_value_vnd`.
 3. ✅ **Trừ điểm khi trượt nhiệm vụ duy trì đã chạy** — `MAINTENANCE_FAILED` qua
    `appendAdjustment`, số điểm đọc từ `rank_tiers`, chạy bằng `rank:evaluate`.
 4. ✅ **`ITEM_REDEMPTION` đã nối** qua `appendAdjustment` (26/09).

@@ -41,24 +41,30 @@ const GiftValueBonusRuleCode = 'GIFT_VALUE_BONUS_GIVER';
 /**
  * Trả nốt những phần thưởng của một lượt trao còn treo (F40).
  *
- * **Ba việc, một job**, vì cả ba đều là "lượt trao đã hoàn tất mà bút toán
+ * **Bốn việc, một job**, vì cả bốn đều là "lượt trao đã hoàn tất mà bút toán
  * tương ứng chưa có":
  *
- * 1. **Người nhận không bao giờ đánh giá.** Phần lớn người nhận sẽ nhận đồ rồi
- *    biến mất. Không có đường này thì điểm của người tặng treo vô hạn, và họ bị
- *    phạt vì việc của người khác. Nhưng cũng không thể trả 100%: người nhận sẽ
- *    có động cơ *không* đánh giá để giúp người tặng, và chỉ số accuracy mất
- *    nghĩa. Nên sau `graceDays`, áp mức mặc định trong cấu hình `review.grace`.
- *    Mức đó **không tính vào mẫu Giver Accuracy** — nó là số hệ thống tự điền,
- *    không phải ý kiến của người thật.
+ * 1. **Điểm hoàn tất của người tặng bị trần ngày chặn.** Từ 07/10 khoản này cộng
+ *    ngay tại `COMPLETED` (CHỐT-14), nên đây không còn là đường chính. Nhưng
+ *    `GIFT_COMPLETED_GIVER` có `daily_cap = 10` và lượt cộng tại `COMPLETED`
+ *    **nuốt** ngoại lệ trần để việc xác nhận nhận hàng không đổ — nên lượt thứ 11
+ *    trong ngày chỉ có đường này trả nốt. Danh sách cũng còn bắt những lượt đã
+ *    `COMPLETED` TRƯỚC 07/10, hồi chưa có bút toán nào ghi lúc hoàn tất, nên
+ *    không cần migration bù.
  *
- * 2. **Đã đánh giá nhưng lần cộng điểm bị trần ngày chặn.** Trả đúng mức người
- *    nhận đã chấm, không phải mức mặc định. Trước đây dạng này rơi ra khỏi mọi
- *    danh sách và mất vĩnh viễn.
+ * 2. **Mức chính xác cho những lượt chưa ai chấm.** Sau `graceDays`, áp mức mặc
+ *    định trong cấu hình `review.grace`. Mức đó **không tính vào mẫu Giver
+ *    Accuracy** — nó là số hệ thống tự điền, không phải ý kiến của người thật — và
+ *    từ CHỐT-14 nó không còn ảnh hưởng điểm hoàn tất, chỉ ảnh hưởng `value_bonus`
+ *    ở việc thứ tư.
  *
  * 3. **Phần thưởng của người NHẬN bị trần ngày chặn.** Cộng phẳng lúc hoàn tất
  *    và nuốt ngoại lệ chính sách, nên chạm trần là mất — và chưa từng có đường
  *    nào quét lại phía này.
+ *
+ * 4. **`value_bonus` theo giá trị món đồ (CHỐT-14).** Chốt MỘT lần tại hạn
+ *    `graceDays`, không trả sớm khi đánh giá vừa gửi: trước hạn người nhận còn
+ *    được sửa đánh giá một lần, nên trả sớm là trả theo một con số còn sửa được.
  *
  * Trần ngày với một lượt trao nghĩa là HOÃN, không phải mất: xem
  * `RetryablePointRuleCodes`. Chạy bằng `npm run gift:settle-rewards`, thêm

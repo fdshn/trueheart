@@ -77,24 +77,48 @@ giver_total = completion_points + value_bonus
 
 `completion_points` cộng một lần khi giao dịch `COMPLETED`; **không nhân với accuracy**.
 
-> **Phép kiểm nào đỏ khi implement — bản đã sửa 07/10.**
+> **ĐÃ TRIỂN KHAI 07/10.** Cả mục này đã vào mã, ba lát. Phần dưới là những gì đo được khi
+> làm, để lần sau không ai phải đoán lại.
 >
-> Ghi chú đầu của mục này nói `npm run test:gift-rewards` sẽ đỏ. **Sai.** Script đó gọi
-> `ledger.appendByRule` **trực tiếp** với `multiplierPercent`, tức nó kiểm *cơ chế nhân của
-> point ledger* — một primitive mà CHỐT-14 KHÔNG đổi, và các rule khác vẫn dùng. Nó có 0 tham
-> chiếu tới `AwardGiftCompletionUseCase`, nên nó **xanh nguyên**. Đừng sửa nó.
+> **Mốc cộng.** `completion_points` cộng trong `GiftTransactionRepository.awardCompletionPoints`,
+> chạy **trong cùng transaction** đóng lượt trao, ở cả hai đường: người nhận bấm xác nhận và
+> cron tự hoàn tất. Hai đường cũ (`SubmitReviewUseCase`, job `gift:settle-rewards`) **không bị
+> gỡ**, vì `GIFT_COMPLETED_GIVER` có `daily_cap = 10` và lượt cộng tại `COMPLETED` nuốt ngoại
+> lệ trần để việc xác nhận nhận hàng không đổ — gỡ chúng là biến trần ngày từ HOÃN thành MẤT.
+> Ba đường dùng CHUNG khoá `GIFT_COMPLETED_GIVER:<deal>`, và `UQ_point_ledger_idempotency_key`
+> là chốt cuối. Lượt đã `COMPLETED` trước 07/10 vẫn được job trả nốt, **không cần migration bù**.
 >
-> Phép kiểm thật sự canh quy tắc này là unit spec
-> `award-gift-completion.use-case.spec.ts`. Đo được khi thực hiện: **4 trong 10 phép kiểm đỏ**,
-> tất cả ở kỳ vọng `multiplierPercent`, còn 6 phép kiểm khác (chống trùng, nuốt ngoại lệ vận
-> hành, rơi về mặc định khi cấu hình hỏng) xanh nguyên — đúng tập đỏ mong đợi.
+> **Trần giá trị là bắt buộc, không phải tuỳ chọn.** CHỐT-14 đưa giá người TỰ KHAI vào công
+> thức tính điểm — đúng thứ thiết kế cũ cố ý loại ra để chặn khai khống. Không trần thì
+> 1.000.000.000đ ÷ 2.000 = **500.000 điểm**, gấp 279 lần ngưỡng Kim Cương; và 5.000.000đ cho
+> một laptop cũ đã ra 2.500 điểm, tức vượt Kim Cương bằng MỘT giao dịch. Van an toàn là khoá
+> `point.value_bonus_max_value_vnd`, mặc định 2.000.000đ. Nó phải là khoá cấu hình chứ không
+> phải hằng trong mã, vì `appendAdjustment` — đường duy nhất `value_bonus` đi được — **không
+> kiểm trần ngày nào cả**.
 >
-> **Thứ tự bắt buộc:** sửa `AwardGiftCompletionUseCase` trước, phép kiểm sau. Sửa test cho
-> xanh trước là cách làm spec và mã nói trái nhau mà không còn gì báo.
+> **Phép kiểm nào đỏ.** `npm run test:gift-rewards` **xanh nguyên** — script đó gọi
+> `ledger.appendByRule` trực tiếp với `multiplierPercent`, tức kiểm *cơ chế nhân của point
+> ledger*, một primitive CHỐT-14 không đổi; nó có 0 tham chiếu tới `AwardGiftCompletionUseCase`.
+> Chỉ **nhãn** mục 6 của nó phải sửa, vì nhãn cũ ("hoàn tất KHÔNG cộng phẳng cho người tặng")
+> nay mô tả một luật đã bỏ — một nhãn như vậy tệ hơn không có nhãn, nó làm người đọc tin đã có
+> ai canh chuyện đó rồi.
 >
-> Và một hệ quả nghiệp vụ dễ bị bỏ sót: **người nhận chấm 0% không còn làm điểm hoàn tất về
-> 0.** Accuracy giờ chỉ ảnh hưởng `value_bonus`. Bút toán 0% vẫn được ghi để chiếm khoá chống
-> trùng, nên job hết hạn chờ không trả thêm mức mặc định cho lượt đã bị chấm.
+> Thật sự đỏ là: `award-gift-completion.use-case.spec.ts` (4 trong 10, đúng tập kỳ vọng
+> `multiplierPercent`) và `test:gift-points` — script này khẳng định `giver.balance === 0`
+> lúc hoàn tất, và khẳng định đó đúng với luật cũ. **Thứ tự bắt buộc:** sửa mã trước, phép
+> kiểm sau.
+>
+> **Deadlock, phát hiện khi làm.** Hai lượt cộng đều lấy `pg_advisory_xact_lock(hashtext(userId))`
+> và giữ tới hết transaction. Hai người tặng chéo nhau hoàn tất cùng lúc sẽ xin hai khoá theo
+> hai thứ tự ngược nhau. Rủi ro này **đã có từ trước** (`awardCompletionPoints` khoá người
+> nhận, rồi `accrueFromCompletedTransaction` khoá người tặng). Nay mảng được sắp theo `userId`
+> tăng dần, nên cả hai khoá được xin theo một thứ tự toàn cục ngay từ đầu transaction và thứ
+> tự của các chỗ gọi sau không còn quan trọng.
+>
+> **Hai hệ quả nghiệp vụ dễ bị bỏ sót.** Người nhận chấm 0% **không còn** làm điểm hoàn tất về
+> 0 — accuracy giờ chỉ ảnh hưởng `value_bonus`. Và `GIFT_COMPLETED_GIVER` có
+> `affects_lifetime = true`, nên `lifetime` của người tặng nay nhích **sớm hơn trước**, tức
+> người tặng lên hạng sớm hơn với cùng một chuỗi giao dịch.
 
 Giá trị ước tính thiếu/0 thì `value_bonus = 0`. Tỷ lệ VNĐ/điểm, Point Rule hoàn tất, thời
 hạn chốt đánh giá `N` ngày và phần trăm mặc định khi không có đánh giá đều do Admin cấu hình,
@@ -136,8 +160,11 @@ và các ngưỡng công bố Giver Accuracy hiện hành không bị thay đổ
 ## 6. Khoảng cách với backend `origin/main` ngày 07/10/2026
 
 Backend hiện có `INSTANT`/`OPTIMAL`/`EXTENDED` cho `OFFER`, đồng hồ 7/30 ngày khởi động từ
-request đầu tiên; chưa áp chế độ này cho `WANTED`. Review hiện bất biến tại database và
-thưởng người cho đang lấy Point Rule × accuracy; F76 hiện ghi cho phép tiêu điểm tụt Rank.
-Đây là **danh sách phải triển khai**, không được coi tài liệu mới là bằng chứng API đã chạy.
+request đầu tiên; chưa áp chế độ này cho `WANTED`. Review hiện bất biến tại database; F76
+hiện ghi cho phép tiêu điểm tụt Rank.
+
+**Mục 3 (hai khoản điểm người cho) đã hết là khoảng cách** — xong 07/10, xem khung trong mục
+đó. Mục 1, 2, 4 và 5 thì vẫn còn. Đây là **danh sách phải triển khai**, không được coi tài
+liệu mới là bằng chứng API đã chạy.
 Chi tiết gap kỹ thuật, atomicity, API đích và ma trận kiểm thử nằm tại
 [REDEMPTION-REQUIREMENT-GAP.md](./REDEMPTION-REQUIREMENT-GAP.md).

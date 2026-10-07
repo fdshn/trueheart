@@ -61,7 +61,8 @@ flowchart TB
     POST --> REQ --> SEL --> TX
     TX --> CHAT
     TX --> REV
-    REV -->|"✅ 56 × x%"| PT
+    REV -->|"✅ value_bonus theo giá × x%"| PT
+    TX -->|"✅ 56 phẳng tại COMPLETED"| PT
     PT --> RANK
     RANK --> POST
     PT --> RED
@@ -96,7 +97,7 @@ journey
       Xong onboarding (+224đ → Thành viên): 5: Người dùng
     section Hoạt động
       Đăng bài (quota 3): 4: Người dùng
-      Trao thành công (+56 × x% mỗi lượt ✅): 5: Người dùng
+      Trao thành công (+56 phẳng, cộng value_bonus theo giá ✅): 5: Người dùng
       Mời bạn (+56đ, cap 3/ngày): 4: Người dùng
     section Lên hạng
       Đủ 672đ → Bạc: 5: Người dùng
@@ -114,7 +115,7 @@ flowchart LR
         I2["ONBOARDING_COMPLETED +224 ✅"]
         I3["REFERRAL_QUALIFIED +56 ✅"]
         I4["REPORT_UPHELD +5 ✅"]
-        I5["GIFT_COMPLETED_GIVER +56 × x% ✅"]
+        I5["GIFT_COMPLETED_GIVER +56 phẳng ✅<br/>+ GIFT_VALUE_BONUS_GIVER theo giá ✅"]
         I5b["GIFT_COMPLETED_RECEIVER ✅"]
         I6["POST_REACTED · POST_COMMENTED ✅"]
         I7["Affiliate event ⛔"]

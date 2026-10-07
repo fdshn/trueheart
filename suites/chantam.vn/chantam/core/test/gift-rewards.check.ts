@@ -296,7 +296,8 @@ async function main(): Promise<void> {
     );
     check(
       'lượt CHƯA ai đánh giá thì accuracyPercent là null — tín hiệu áp mức mặc định',
-      due.find((row) => row.transactionId === dealDue)?.accuracyPercent === null,
+      due.find((row) => row.transactionId === dealDue)?.accuracyPercent ===
+        null,
     );
     check(
       'lượt đã có bút toán KHÔNG có — kể cả khi chấm 0%',
@@ -308,10 +309,18 @@ async function main(): Promise<void> {
       due.map((row) => row.giverId).join(', '),
     );
 
-    console.log('\n6. Hoàn tất lượt trao KHÔNG cộng phẳng cho người tặng');
-    // Phép kiểm quan trọng nhất của file: cộng phẳng lúc hoàn tất RỒI cộng theo
-    // % lúc đánh giá là trả thưởng hai lần cho một lượt trao, và sổ append-only
-    // không sửa lại được. Đã xảy ra thật — xem migration 1793400000000.
+    console.log('\n6. Một lượt trao ra đúng MỘT bút toán cho người tặng');
+    // Nhãn cũ của mục này là "Hoàn tất lượt trao KHÔNG cộng phẳng cho người
+    // tặng", và từ 07/10 (CHỐT-14) nhãn đó nói SAI: lượt hoàn tất giờ cộng đúng
+    // mức phẳng, đó là cả nội dung của quyết định. Hai phép kiểm bên dưới không
+    // đổi một dòng, vì chúng chưa bao giờ kiểm điều mà nhãn nói — `dealA` được
+    // dựng ở mục 1 bằng `ledger.appendByRule` TRỰC TIẾP, không đi qua
+    // `confirmReceipt`, nên đây là phép kiểm về hệ số nhân của point ledger (một
+    // primitive CHỐT-14 không đổi) và về khoá chống trùng.
+    //
+    // Chỗ thật sự canh "cộng mấy lần lúc hoàn tất" là `test:gift-points`, nơi gọi
+    // `confirmReceipt` thật. Một nhãn mô tả luật đã bỏ còn tệ hơn không có nhãn:
+    // nó làm người đọc tin là đã có ai canh chuyện đó rồi.
     const giverEntries = await dataSource.query<
       { idempotency_key: string; delta: string }[]
     >(
@@ -326,7 +335,7 @@ async function main(): Promise<void> {
       `${giverEntries.length} bút toán`,
     );
     check(
-      'và số điểm là bản đã nhân (50), không phải mức trần phẳng (56)',
+      'hệ số nhân vẫn đổi delta thật (50), không phải mức trần (56)',
       Number(giverEntries[0]?.delta) === 50,
       `delta=${giverEntries[0]?.delta}`,
     );

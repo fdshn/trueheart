@@ -21,6 +21,7 @@ import {
   StockHoldingGiftTransactionStatuses,
 } from '@/domain/ports/repository';
 import {
+  GiftCompletedGiverRuleCode,
   GiftCompletedReceiverRuleCode,
   GiftEvidenceKinds,
   MaxEvidencePerKind,
@@ -143,18 +144,51 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     manager: EntityManager,
     transaction: { global_id: string; giver_id: string; receiver_id: string },
   ): Promise<void> {
-    // CHỈ người nhận được thưởng ở đây.
+    // CẢ HAI bên được thưởng ở đây, từ 07/10 (CHỐT-14).
     //
-    // Phần thưởng của người TẶNG không còn cộng lúc hoàn tất, vì số điểm của họ
-    // phụ thuộc mức chính xác mà người nhận chấm (F40) — và lúc này chưa ai
-    // chấm. Nó đi qua `AwardGiftCompletionUseCase`: hoặc khi người nhận đánh
-    // giá, hoặc khi hết hạn chờ thì áp mức mặc định.
+    // Tới 06/10 chỉ người nhận được cộng tại đây, và lý do ghi ngay chỗ này là
+    // đúng với luật lúc đó: số điểm người tặng phụ thuộc mức chính xác người
+    // nhận chấm, mà lúc hoàn tất chưa ai chấm. CHỐT-14 tách phần phụ thuộc
+    // accuracy ra thành `value_bonus` riêng, nên `completion_points` còn lại là
+    // mức TRẦN của rule — một con số đã biết ngay tại `COMPLETED`, không còn gì
+    // phải chờ.
     //
-    // Cộng phẳng ở đây rồi cộng theo % ở đó là trả thưởng HAI LẦN cho một lượt
-    // trao, và sổ append-only không sửa lại được.
+    // Vẫn KHÔNG trả thưởng hai lần: khoá chống trùng
+    // `GIFT_COMPLETED_GIVER:<deal>` ở đây trùng KHÍT với
+    // `giftCompletionIdempotencyKey` mà hai đường kia dùng
+    // (`SubmitReviewUseCase` và job `gift:settle-rewards`), và
+    // `UQ_point_ledger_idempotency_key` là chỗ chốt cuối. Đường nào tới trước
+    // thì hai đường kia thành không làm gì.
+    //
+    // Hai đường kia vì vậy KHÔNG bị gỡ, và không phải để chắc ăn: `daily_cap`
+    // của `GIFT_COMPLETED_GIVER` là 10, nên người tặng thứ 11 trong ngày bị trần
+    // chặn ngay tại đây, ngoại lệ bị nuốt bên dưới, và chỉ job đối soát quét lại
+    // mới trả được. Gỡ chúng đi là biến trần ngày từ HOÃN thành MẤT.
+    //
+    // Thứ tự khoá theo `userId` tăng dần, không theo vai. Cả hai lượt cộng đều
+    // lấy `pg_advisory_xact_lock(hashtext(userId))` và giữ tới hết transaction;
+    // `accrueFromCompletedTransaction` ngay sau đó cũng lấy đúng hai khoá ấy,
+    // theo thứ tự người-tặng-trước. Hai lượt trao tặng chéo nhau hoàn tất cùng
+    // lúc sẽ xin hai khoá theo hai thứ tự ngược nhau — đó là một deadlock, và nó
+    // ĐÃ có thể xảy ra từ trước lượt sửa này. Sắp theo một thứ tự toàn cục làm
+    // nó không còn đường xảy ra, và vì cả hai khoá được giữ ngay từ đây nên thứ
+    // tự của những chỗ gọi sau không còn quan trọng.
     const awards: [string, string][] = [
       [transaction.receiver_id, GiftCompletedReceiverRuleCode],
     ];
+
+    // Người tặng và người nhận là CÙNG một người thì không cộng phần người tặng.
+    // `CannotRequestOwnPostException` chặn chuyện này ở tầng use case, nhưng một
+    // chốt ở tầng use case không phải một chốt ở sổ điểm — và ở đây cái giá của
+    // việc lọt là 56 + 28 điểm cho một "lượt trao" chỉ có một phía, tức một máy
+    // in điểm tự phục vụ. Phần người nhận giữ nguyên: nó có từ trước lượt sửa
+    // này, và đổi nó là một quyết định khác.
+    if (transaction.giver_id !== transaction.receiver_id)
+      awards.push([transaction.giver_id, GiftCompletedGiverRuleCode]);
+
+    awards.sort(([left], [right]) =>
+      left < right ? -1 : left > right ? 1 : 0,
+    );
 
     for (const [userId, ruleCode] of awards) {
       try {
@@ -166,6 +200,13 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
           idempotencyKey: `${ruleCode}:${transaction.global_id}`,
           actor: 'SYSTEM',
           source: 'GIFT_TRANSACTION',
+          // KHÔNG truyền `multiplierPercent`: CHỐT-14 đòi điểm hoàn tất là mức
+          // trần của rule. `scaleRulePoints` trả trọn `rule.points` khi tham số
+          // đó là `undefined`.
+          reason:
+            ruleCode === GiftCompletedGiverRuleCode
+              ? 'Lượt trao hoàn tất (CHỐT-14: mức trần của rule, không nhân mức chính xác)'
+              : undefined,
         });
       } catch (error) {
         if (!isPointPolicyError(error)) throw error;

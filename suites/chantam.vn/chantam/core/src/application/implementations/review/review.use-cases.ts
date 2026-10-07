@@ -103,12 +103,18 @@ export class SubmitReviewUseCase implements ISubmitReviewUseCase {
       throw error;
     }
 
-    // Cộng điểm cho người tặng SAU khi đánh giá đã commit (F40). Chỉ đường của
-    // người NHẬN mới sinh điểm: mức chính xác là thứ họ chấm, và đánh giá của
-    // người tặng về người nhận không nói gì về chất lượng món quà.
+    // Trả NỐT điểm hoàn tất cho người tặng, SAU khi đánh giá đã commit (F40).
     //
-    // Khoá chống trùng theo lượt trao nên nếu job hết hạn chờ đã trả thưởng
-    // trước đó, lần này không cộng thêm.
+    // Từ 07/10 (CHỐT-14) khoản này đã được cộng lúc lượt trao chuyển `COMPLETED`,
+    // nên lượt gọi dưới đây gần như luôn là không-làm-gì: khoá chống trùng theo
+    // lượt trao đã bị chiếm. Nó vẫn phải ở đây cho một ca đo được — người tặng
+    // chạm `daily_cap = 10` lúc hoàn tất thì bút toán KHÔNG được ghi, và đây là
+    // đường trả sớm nhất, không phải chờ tới job đêm. Cùng lý do đó, nó cũng trả
+    // nốt cho những lượt đã `COMPLETED` trước 07/10.
+    //
+    // Chỉ đường của người NHẬN mới gọi: trước CHỐT-14 vì mức chính xác là thứ họ
+    // chấm, và nay vẫn vậy vì `accuracyPercent` đi vào `reason` của bút toán —
+    // đánh giá của người tặng về người nhận không nói gì về chất lượng món quà.
     if (isReceiver)
       await this.awardGiftCompletion.handle({
         transactionId: command.transactionId,

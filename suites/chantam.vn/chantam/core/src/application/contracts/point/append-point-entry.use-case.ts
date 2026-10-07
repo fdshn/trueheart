@@ -19,8 +19,14 @@ export interface IAppendPointEntryCommand {
   /**
    * Nhân số điểm của rule với phần trăm này (0–100). Bỏ trống là 100%.
    *
-   * Dùng cho F40: rule `GIFT_COMPLETED` giữ mức TRẦN của một lượt trao, còn số
-   * thực nhận là trần đó nhân với mức chính xác người nhận chấm.
+   * **KHÔNG còn chỗ dùng nào trong luồng cho–nhận.** Tham số này ra đời cho F40,
+   * khi `GIFT_COMPLETED_GIVER` giữ mức TRẦN và số thực nhận là trần × mức chính
+   * xác người nhận chấm. CHỐT-14 (07/10) bỏ phép nhân đó: điểm hoàn tất là mức
+   * trần, còn phần theo accuracy thành `value_bonus` tính từ giá trị món đồ. Giữ
+   * tham số lại vì nó là primitive của point ledger và còn phép kiểm canh (xem
+   * `test:gift-rewards`), nhưng ai định dùng nó cho một rule mới nên đọc CHỐT-14
+   * trước: một mức trần nhân với một tỷ lệ do đối phương chấm là đúng cái thiết
+   * kế đã bị bỏ.
    *
    * Chỉ áp cho khoản CỘNG. Một khoản phạt "nhân 60%" không có nghĩa nghiệp vụ
    * nào, và cho phép nó là mở đường giảm nhẹ hình phạt bằng một tham số không ai

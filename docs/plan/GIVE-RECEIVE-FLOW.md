@@ -68,16 +68,34 @@ của hệ thống hạng.
 >
 > Bài học: tài liệu lạc hậu tệ hơn không có tài liệu.
 
-**Hiện trạng đúng (2026-09-25):**
+**Hiện trạng đúng (2026-10-07, CHỐT-14):**
 
 | Ai | Khi nào | Bao nhiêu |
 | --- | --- | --- |
 | Người NHẬN | ngay lúc `COMPLETED` | `GIFT_COMPLETED_RECEIVER` = 28, không đẩy `lifetime` |
-| Người TẶNG | khi người nhận đánh giá, hoặc sau 7 ngày | `GIFT_COMPLETED_GIVER` (56) **× % chính xác** |
+| Người TẶNG | ngay lúc `COMPLETED` | `GIFT_COMPLETED_GIVER` = 56, **mức trần, KHÔNG nhân gì**, có đẩy `lifetime` |
+| Người TẶNG | **tại hạn** `review.grace` (7 ngày) | `value_bonus` = `round(round(min(giá khai, trần) / tỷ lệ) × % chính xác / 100)` |
 
-Người tặng không được cộng lúc hoàn tất vì số điểm của họ phụ thuộc mức chính xác
-người nhận chấm (F40), và lúc đó chưa ai chấm. Xem
-[diagram/11-point.md](../diagram/11-point.md) §11.4.
+Cả hai bên được cộng trong **cùng transaction** đóng lượt trao, ở cả hai đường
+(`confirmReceipt` và cron tự hoàn tất). Người tặng **không còn chờ** mức chính xác:
+CHỐT-14 tách phần phụ thuộc accuracy ra thành `value_bonus` rời, nên điểm hoàn tất
+là một con số đã biết ngay tại `COMPLETED`.
+
+Và điều mục này cảnh báo ở trên vẫn đúng y nguyên — chỉ khác là lần này **không có**
+mã rule thứ ba. Ba đường cùng dẫn tới một bút toán (`COMPLETED`, người nhận đánh
+giá, job `gift:settle-rewards`) và tất cả dùng **chung** khoá
+`GIFT_COMPLETED_GIVER:<deal>`, với `UQ_point_ledger_idempotency_key` là chốt cuối.
+Hai đường sau không bị gỡ vì `daily_cap = 10` của rule người tặng có thể chặn lượt
+cộng tại `COMPLETED`, và ngoại lệ đó bị nuốt để việc xác nhận nhận hàng không đổ —
+gỡ chúng là biến trần ngày từ HOÃN thành MẤT.
+
+`value_bonus` dùng mã phân loại riêng `GIFT_VALUE_BONUS_GIVER` và đi qua
+`appendAdjustment` vì mức của nó động (tính từ giá khai và tỷ lệ `point.redemption`),
+nên nó **không** phải mã rule thứ ba của điểm hoàn tất. Đường đó không kiểm trần ngày,
+nên trần giá trị `point.value_bonus_max_value_vnd` (mặc định 2.000.000đ) là van an
+toàn duy nhất — không có nó thì một giá tự khai 1 tỉ ra 500.000 điểm. Xem
+[diagram/11-point.md](../diagram/11-point.md) §11.4 và
+[GIVE-RECEIVE-2026-10-07.md](./GIVE-RECEIVE-2026-10-07.md) mục 3.
 
 ### H5 — Đồng hồ 5 ngày đếm từ sai mốc
 
