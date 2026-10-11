@@ -156,7 +156,8 @@ export class PostEntity
     enum: PostSelectionModes,
     description:
       'Chế độ tìm người nhận. Chỉ có ý nghĩa với bài OFFER. ' +
-      'INSTANT=chọn ngay, OPTIMAL=7 ngày, EXTENDED=30 ngày.',
+      'INSTANT=chốt ngay phản hồi đầu tiên, OPTIMAL=xét tới hết hạn rồi chọn. ' +
+      'EXTENDED đã bỏ (CHỐT-10): 30 ngày mở rộng nay là bước TỰ ĐỘNG cho mọi bài.',
     default: PostSelectionModes.OPTIMAL,
   })
   @Column({

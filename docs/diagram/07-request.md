@@ -1,9 +1,14 @@
 # 07 · Xin nhận & chọn người nhận
 
-> **Sơ đồ hiện trạng backend.** Quy tắc mục tiêu ngày 07/10/2026 đã thay đổi mốc đồng hồ
-> sang lúc đăng, bỏ option `EXTENDED`, thêm giai đoạn tự mở 30 ngày và áp cơ chế tương tự
-> cho `WANTED`. Xem [đặc tả mới](../plan/GIVE-RECEIVE-2026-10-07.md); các sơ đồ dưới đây
-> chưa mô tả luồng mục tiêu.
+> **Cập nhật 11/10 (CHỐT-10).** Ba việc đã làm: mốc đồng hồ dời sang **lúc đăng**, option
+> `EXTENDED` **đã bỏ**, và giai đoạn 30 ngày mở rộng thành bước **tự động** — nó chính là
+> khoảng giữa `selection_deadline` và `expires_at`, không có cột trạng thái riêng. Sơ đồ dưới
+> đã sửa theo.
+>
+> **Còn lại:** áp cơ chế cho `WANTED`. Đó không phải việc bật một cờ — truy vấn tìm bài tới
+> hạn không lọc `post_type` và lấy `post.author_id` làm **người tặng**, mà với `WANTED` tác
+> giả là người muốn NHẬN. Phải đảo vai ở auto-select và `acceptRequest` trước. Xem
+> [đặc tả](../plan/GIVE-RECEIVE-2026-10-07.md).
 
 Trạng thái: ✅ **hàng đợi, countdown và auto-select đã chạy** (25/09), và từ 28/09 thì vòng
 đời yêu cầu đã khép kín: yêu cầu treo được đóng, người xin xem được yêu cầu của mình, chủ bài
@@ -13,19 +18,28 @@ Trạng thái: ✅ **hàng đợi, countdown và auto-select đã chạy** (25/0
 **Bảy endpoint:** gửi, rút, xem danh sách của bài, **xem danh sách của TÔI**, duyệt,
 **từ chối**, và đổi điểm chốt ngay.
 
-## 7.1 Ba chế độ chọn người nhận
+## 7.1 Hai chế độ, một đồng hồ chung
 
 ```mermaid
 flowchart TD
-    P[Bài Muốn Tặng] --> M{selectionMode}
+    P["Bài Muốn Tặng lên công khai<br/>selection_deadline = lúc đăng + 7 ngày<br/>expires_at = lúc đăng + 37 ngày"] --> M{selectionMode}
     M --> I["INSTANT ✅<br/>Ai xin trước được luôn"]
-    M --> O["OPTIMAL ✅ (mặc định)<br/>Countdown 7 ngày rồi auto-select"]
-    M --> E["EXTENDED ✅<br/>Countdown 30 ngày"]
+    M --> O["OPTIMAL ✅ (mặc định)<br/>Xét ứng viên tới hết hạn rồi auto-select"]
+
+    I --> D{"Tới hạn 7 ngày<br/>mà chưa ghép được ai?"}
+    O --> D
+    D -->|Còn ứng viên| S["auto-select theo tiêu chí Admin"]
+    D -->|Không ai xin| X["Giai đoạn mở rộng 30 ngày — TỰ ĐỘNG<br/>vẫn nhận phản hồi, vẫn ghép được"]
+    X --> E2["Hết 37 ngày: EXPIRED"]
 
     style I fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style O fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
-    style E fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
+    style X fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
+
+> **`INSTANT` cũng có hạn 7 ngày.** Đặc tả nói rõ: nó không có giai đoạn *xét ứng viên*, nhưng
+> vẫn đi qua mốc 7 ngày đầu và cũng tự mở thêm 30 ngày nếu chưa ghép được ai. Để `null` cho
+> `INSTANT` là làm nó thành bài duy nhất không có đồng hồ nào — xem mục 1 của "Chỗ cần soát".
 
 ## 7.2 Hàng đợi xin nhận
 
@@ -251,13 +265,17 @@ sequenceDiagram
 
 ## Chỗ cần soát
 
-1. ⚠️ **INSTANT auto-accept nuốt lỗi.** Nếu `acceptRequest` hỏng, yêu cầu nằm lại ở `PENDING`
-   trên một bài KHÔNG có `selection_deadline` — nên auto-select không bao giờ nhặt nó. Nó chỉ
-   được dọn khi bài hết hạn (§7.5). Cần một đường quét lại, hay để vậy?
+1. ✅ **INSTANT auto-accept nuốt lỗi — nay có đường quét lại** (11/10). Nếu `acceptRequest`
+   hỏng thì yêu cầu vẫn nằm lại ở `PENDING`; mục này trước ghi rằng nó mắc kẹt vì bài `INSTANT`
+   **không có** `selection_deadline`, nên auto-select không bao giờ nhặt. Từ CHỐT-10 mọi bài
+   `OFFER` đều có hạn ngay lúc đăng, kể cả `INSTANT` — nên lượt kẹt đó được job nhặt ở mốc 7
+   ngày. Đây là hệ quả phụ của việc dời mốc đồng hồ, không phải một lượt sửa riêng.
 2. **Chưa có thông báo cho người bị chuyển sang `STANDBY`.** Họ không trượt hẳn, nhưng cũng
    không biết mình đang đứng chờ.
-3. ✅ **Cả ba chế độ đã chạy.** `OPTIMAL` 7 ngày, `EXTENDED` 30 ngày, `INSTANT` chốt ngay.
-   Chủ bài vẫn duyệt tay được bất cứ lúc nào trong lúc đếm.
+3. ✅ **Hai chế độ đã chạy.** `OPTIMAL` xét tới hạn rồi auto-select, `INSTANT` chốt ngay.
+   `EXTENDED` **đã bỏ** 11/10 — mục này trước ghi "cả ba chế độ", và 30 ngày nay là giai đoạn
+   tự động cho mọi bài chưa ghép được ai. Chủ bài vẫn duyệt tay được bất cứ lúc nào trong lúc
+   đếm.
 4. ✅ **Nhánh "dùng điểm chốt ngay" đã có** (26/09) — `POST /posts/:postId/redeem`, xem
    [14-redemption](./14-redemption.md).
 5. ✅ Cổng hồ sơ F07 **đã gắn** vào luồng xin nhận (25/09) — sơ đồ §7.2 trước đây vẫn vẽ

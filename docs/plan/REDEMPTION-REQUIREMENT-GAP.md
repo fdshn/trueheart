@@ -28,7 +28,7 @@ không thay thế đặc tả nghiệp vụ nguồn.
 | P0 | Debit ledger và `acceptRequest` mở hai transaction riêng; lỗi duyệt thì ghi bút toán hoàn. Balance được kiểm trước transaction ghi sổ. | Một transaction CSDL cho kiểm điều kiện, trừ điểm và chốt người nhận; không có trạng thái đã trừ điểm nhưng chưa chốt bài khi tiến trình chết. |
 | P1 | `point.redemption` có seed và được đọc động, nhưng không thuộc `SupportedSystemConfigKeys`; `POST /admin/system-configs` chỉ nhận `INTEGER`, không nhận JSON `{vndPerPoint}`. | API Admin publish tỷ lệ có validation, version/audit và quyền `config.write`; quote/POST dùng tỷ lệ mới ngay. |
 | P1 | `acceptRequest` chuyển người xin còn lại sang `STANDBY`; sau huỷ transaction, hàng đợi có thể mở lại. | Phân biệt bền vững đường `REDEEMED` với `MANUAL`/`AUTOMATIC`; hoàn đúng debit gốc. Policy tái mở hàng đợi sau khi huỷ vẫn cần Product chốt riêng. |
-| P1 | `selectionMode` chỉ có ở `OFFER`, cho phép `INSTANT`/`OPTIMAL`/`EXTENDED`; deadline bắt đầu từ request đầu tiên. | Áp dụng `INSTANT`/`OPTIMAL` cho cả `OFFER`/`WANTED`, bỏ `EXTENDED` khỏi input, tính mốc 7 ngày từ `published_at` và tự mở thêm 30 ngày khi chưa ghép. |
+| ~~P1~~ ✅/⬜ | **Xong 11/10 một phần:** `EXTENDED` đã bỏ khỏi enum TS và enum Postgres (`1799300000000`); deadline nay tính từ **lúc đăng** và đặt ngay khi bài công khai; `OFFER` sống 37 ngày. **Còn:** `selectionMode` vẫn chỉ ở `OFFER` — mở cho `WANTED` phải đảo vai tặng/nhận ở auto-select và `acceptRequest` trước, vì truy vấn tới hạn lấy `post.author_id` làm người tặng. | Áp dụng `INSTANT`/`OPTIMAL` cho cả `OFFER`/`WANTED`, bỏ `EXTENDED` khỏi input, tính mốc 7 ngày từ `published_at` và tự mở thêm 30 ngày khi chưa ghép. |
 
 Đường code chính (từ `suites/chantam.vn/chantam/`):
 

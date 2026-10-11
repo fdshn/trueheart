@@ -88,24 +88,22 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
       throw new PostNotAcceptingRequestsException();
     }
 
-    // Kiểm tra đây có phải request ĐẦU TIÊN không.
-    // Nếu có, hành động tuỳ selectionMode:
-    // - INSTANT: chấp nhận ngay người này, đóng bài (chuyển RESERVED).
-    // - OPTIMAL/EXTENDED: ghi selection_deadline = NOW() + 7d / 30d.
+    // `isFirstRequest` vẫn cần cho đường `INSTANT` bên dưới — nó là điều kiện
+    // "người đầu tiên", không phải điều kiện của đồng hồ.
     const activeRequestCount =
       await this.giftRequestRepository.countActiveByPostIds([command.postId]);
     const isFirstRequest = (activeRequestCount.get(command.postId) ?? 0) === 0;
 
-    if (post.postType === 'OFFER' && isFirstRequest) {
-      if (post.selectionMode !== PostSelectionModes.INSTANT) {
-        const days =
-          post.selectionMode === PostSelectionModes.EXTENDED ? 30 : 7;
-        post.selectionDeadline = new Date(
-          Date.now() + days * 24 * 60 * 60 * 1000,
-        );
-        await this.postRepository.save(post);
-      }
-    }
+    // Phản hồi đầu tiên KHÔNG còn khởi động đồng hồ nào (CHỐT-10).
+    //
+    // Tới 06/10 chỗ này ghi `selection_deadline = NOW() + 7d/30d` khi thấy phản
+    // hồi đầu tiên. Hệ quả: bài không ai xin thì cột đó là `null` vĩnh viễn — nó
+    // không bao giờ tới hạn, không bao giờ được auto-select xét, và chỉ chết ở
+    // mốc ba tháng. Nay hạn được đặt ngay lúc đăng, nên đoạn này thành thừa.
+    //
+    // Và nó không chỉ thừa mà còn SAI nếu giữ lại: nó sẽ dời hạn ra xa mỗi khi có
+    // phản hồi đầu tiên, tức một bài đăng hôm nay mà tới ngày thứ sáu mới có
+    // người xin sẽ được xét tới ngày thứ mười ba.
 
     const existing = await this.giftRequestRepository.findByPostAndRequester(
       command.postId,

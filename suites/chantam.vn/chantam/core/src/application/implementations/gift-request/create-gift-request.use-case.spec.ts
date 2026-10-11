@@ -215,7 +215,50 @@ describe('CreateGiftRequestUseCase', () => {
     expect(result.request.status).toBe(GiftRequestStatuses.PENDING);
   });
 
-  it('tính deadline 7 ngày khi nhận request đầu tiên cho bài OPTIMAL', async () => {
+  it('phản hồi đầu tiên KHÔNG còn dời hạn xét (CHỐT-10)', async () => {
+    // Hai phép kiểm trước ở đây khẳng định điều NGƯỢC LẠI — "tính deadline 7 ngày
+    // khi nhận request đầu tiên" và một bản 30 ngày cho chế độ `EXTENDED`. Cả hai
+    // đúng với luật tới 06/10, khi đồng hồ khởi động từ phản hồi đầu tiên.
+    //
+    // CHỐT-10 dời mốc sang LÚC ĐĂNG, nên đoạn mã đó đã bị gỡ. Giữ một phép kiểm ở
+    // đây để canh nó không quay lại: nếu nó quay lại, một bài đăng hôm nay mà tới
+    // ngày thứ sáu mới có người xin sẽ được xét tới ngày thứ mười ba.
+    const deadline = new Date('2026-10-18T00:00:00.000Z');
+    const post = makePost({
+      selectionMode: PostSelectionModes.OPTIMAL,
+      selectionDeadline: deadline,
+    });
+    const postRepo = makePostRepo({
+      findOneBy: jest.fn().mockResolvedValue(post),
+    });
+    const giftRequestRepo = makeGiftRequestRepo({
+      countActiveByPostIds: jest.fn().mockResolvedValue(new Map([[PostId, 0]])),
+    });
+
+    const useCase = new CreateGiftRequestUseCase(
+      postRepo,
+      giftRequestRepo,
+      makeEntitlements(),
+      makeProfileGate(),
+      makeNotifier(),
+    );
+    await useCase.handle({
+      postId: PostId,
+      requesterId: RequesterId,
+      message: 'Em xin món này ạ',
+    });
+
+    expect(post.selectionDeadline).toBe(deadline);
+    // Và KHÔNG còn lượt ghi bài nào trên đường này. `save` ở đây từng chỉ tồn tại
+    // để lưu cái hạn vừa tính; còn một lượt ghi là còn một đường dời hạn.
+    expect(postRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('bài chưa có hạn xét thì cũng KHÔNG được đặt hạn ở đây', async () => {
+    // `selection_deadline` là `null` nay nghĩa "bài chưa công khai" hoặc "đã ghép
+    // được người nên đồng hồ đã dừng" — cả hai đều KHÔNG phải lúc để khởi động lại
+    // đồng hồ. Dữ liệu cũ từ trước 11/10 cũng rơi vào đây, và backfill của
+    // migration lo phần đó, không phải đường xin nhận.
     const post = makePost({
       selectionMode: PostSelectionModes.OPTIMAL,
       selectionDeadline: null,
@@ -240,52 +283,8 @@ describe('CreateGiftRequestUseCase', () => {
       message: 'Em xin món này ạ',
     });
 
-    expect(postRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        selectionDeadline: expect.any(Date),
-      }),
-    );
-    expect(post.selectionDeadline).toBeDefined();
-    const diffDays = Math.round(
-      (post.selectionDeadline!.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
-    );
-    expect(diffDays).toBe(7);
-  });
-
-  it('tính deadline 30 ngày khi nhận request đầu tiên cho bài EXTENDED', async () => {
-    const post = makePost({
-      selectionMode: PostSelectionModes.EXTENDED,
-      selectionDeadline: null,
-    });
-    const postRepo = makePostRepo({
-      findOneBy: jest.fn().mockResolvedValue(post),
-    });
-    const giftRequestRepo = makeGiftRequestRepo({
-      countActiveByPostIds: jest.fn().mockResolvedValue(new Map([[PostId, 0]])),
-    });
-
-    const useCase = new CreateGiftRequestUseCase(
-      postRepo,
-      giftRequestRepo,
-      makeEntitlements(),
-      makeProfileGate(),
-      makeNotifier(),
-    );
-    await useCase.handle({
-      postId: PostId,
-      requesterId: RequesterId,
-      message: 'Em xin món này ạ',
-    });
-
-    expect(postRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        selectionDeadline: expect.any(Date),
-      }),
-    );
-    const diffDays = Math.round(
-      (post.selectionDeadline!.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
-    );
-    expect(diffDays).toBe(30);
+    expect(post.selectionDeadline).toBeNull();
+    expect(postRepo.save).not.toHaveBeenCalled();
   });
 
   it('tự động chấp nhận ngay lập tức khi nhận request đầu tiên cho bài INSTANT', async () => {

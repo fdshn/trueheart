@@ -25,8 +25,10 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
   classifiedPricingGaps,
-  postExpiryDate,
+  postExpiryDateFor,
   resolveQuotaLimit,
+  selectionDeadlineFrom,
+  usesSelectionLifecycle,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { makeGlobalId, slugify } from '@chantam/service.common-lib/utils';
@@ -168,17 +170,21 @@ export class CreatePostUseCase implements ICreatePostUseCase {
         'shipPayer chỉ khai được khi deliveryMethod là GIVER_SHIPS',
       ]);
 
-    // selectionMode chỉ có ý nghĩa với bài OFFER. Bài khác truyền lên thì báo
-    // lỗi ngay tại use case — DTO optional không che được sai ngữ nghĩa.
-    if (post.selectionMode !== undefined && post.postType !== PostTypes.OFFER) {
+    // `selectionMode` vẫn chỉ áp cho `OFFER`. CHỐT-10 muốn cả `WANTED`, nhưng
+    // nhận cờ đó cho `WANTED` bây giờ là tạo một cái núm KHÔNG LÀM GÌ — hoặc tệ
+    // hơn, làm sai: xem `usesSelectionLifecycle`. Loại bài khác truyền lên thì
+    // báo lỗi ngay tại use case, DTO optional không che được sai ngữ nghĩa.
+    if (
+      post.selectionMode !== undefined &&
+      !usesSelectionLifecycle(post.postType)
+    ) {
       throw new ValidationFailedException([
         'selectionMode chỉ áp dụng cho bài OFFER',
       ]);
     }
-    const selectionMode =
-      post.postType === PostTypes.OFFER
-        ? (post.selectionMode ?? PostSelectionModes.OPTIMAL)
-        : PostSelectionModes.OPTIMAL;
+    const selectionMode = usesSelectionLifecycle(post.postType)
+      ? (post.selectionMode ?? PostSelectionModes.OPTIMAL)
+      : PostSelectionModes.OPTIMAL;
 
     const totalQuantity = [
       PostTypes.OFFER,
@@ -199,6 +205,11 @@ export class CreatePostUseCase implements ICreatePostUseCase {
     // giờ ở một hàm có tên, vì nó ngược với nghĩa mà người đọc DTO dễ đoán.
     const quota = resolveQuotaLimit(capability?.limit ?? null);
     if (!capability?.allowed) throw new PostQuotaExceededException(quota);
+    // MỘT mốc dùng cho cả hai hạn. Gọi `new Date()` hai lần thì hai cái mốc lệch
+    // nhau vài milli giây — vô hại hôm nay, nhưng nó làm `expires_at` không còn
+    // đúng bằng `selection_deadline + 30 ngày`, và phép kiểm nào so hai cột đó sẽ
+    // đỏ theo kiểu không lặp lại được.
+    const publishedAt = new Date();
     const created = await this.postRepository.createPostWithinQuota(
       command.userId,
       quota,
@@ -211,13 +222,17 @@ export class CreatePostUseCase implements ICreatePostUseCase {
         description: post.description,
         location: post.location,
         areaLabel: post.areaLabel,
-        // Bài lên thẳng, KHÔNG chờ duyệt (chốt 26/09). Đồng hồ ba tháng vì thế
-        // cũng bắt đầu ngay tại đây, không phải ở tay người kiểm duyệt.
+        // Bài lên thẳng, KHÔNG chờ duyệt (chốt 26/09). Đồng hồ vì thế cũng bắt
+        // đầu ngay tại đây, không phải ở tay người kiểm duyệt — nên `publishedAt`
+        // dưới đây ĐÚNG là mốc đăng mà CHỐT-10 đếm từ, và không cần một cột
+        // `published_at` riêng để nhớ lại nó.
         status: GiftPostStatuses.PUBLISHED,
         totalQuantity,
         remainingQuantity: totalQuantity,
         details: buildPostDetails(post),
-        expiresAt: postExpiryDate(new Date()),
+        // `OFFER`/`WANTED`: 37 ngày (7 xét + 30 mở rộng, CHỐT-10). Loại khác giữ
+        // 3 tháng của CHỐT-05/07.
+        expiresAt: postExpiryDateFor(post.postType, publishedAt),
         renewedCount: 0,
         reactionCount: 0,
         commentCount: 0,
@@ -229,7 +244,13 @@ export class CreatePostUseCase implements ICreatePostUseCase {
         charityTransferRequestedAt: null,
         charityTransferNote: null,
         selectionMode,
-        selectionDeadline: null,
+        // Đặt NGAY tại đây, cho cả `INSTANT`. Tới 06/10 cột này là `null` cho tới
+        // khi có phản hồi đầu tiên — nên một bài không ai xin thì đồng hồ không
+        // bao giờ chạy, không bao giờ vào giai đoạn mở rộng, và chỉ chết ở mốc ba
+        // tháng. Đó đúng là thứ CHỐT-10 sửa.
+        selectionDeadline: usesSelectionLifecycle(post.postType)
+          ? selectionDeadlineFrom(publishedAt)
+          : null,
         deletedAt: null,
       },
     );

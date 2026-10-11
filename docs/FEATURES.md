@@ -831,9 +831,14 @@ một lần, không được nửa vời:
 
 Hết 7 ngày mà không ai dùng điểm thì hệ thống tự chọn người nhận theo bộ tiêu chí.
 
-> **Đã chốt 07/10/2026:** form chỉ còn `INSTANT` và `OPTIMAL`; bỏ `EXTENDED` khỏi input.
-> Cả hai mode có mốc 7 ngày tính từ `published_at`. Nếu chưa ghép được ai thì tự mở thêm
-> 30 ngày; không có phản hồi cũng hết hạn sau tối đa 37 ngày.
+> ✅ **Đã triển khai 11/10.** Form chỉ còn `INSTANT` và `OPTIMAL`; `EXTENDED` đã ra khỏi cả
+> enum TypeScript lẫn enum Postgres (migration `1799300000000`). Cả hai chế độ có mốc 7 ngày
+> tính từ **lúc đăng**, đặt ngay khi bài lên công khai — bài không có phản hồi nào cũng vì thế
+> có hạn. Chưa ghép được ai thì tự mở thêm 30 ngày, và `expires_at` của bài `OFFER` là 37 ngày.
+>
+> Giai đoạn mở rộng **không có cột trạng thái riêng**: nó chính là khoảng giữa
+> `selection_deadline` và `expires_at`. Thêm một cờ `IS_EXTENDED` là thêm nguồn sự thật thứ hai
+> cho một điều đã suy ra được từ hai cái mốc.
 
 > ✅ **Đã chốt ở [CH-1](./plan/ASSUMPTIONS.md#ch-1--thứ-tự-ưu-tiên-chọn-người-nhận-admin-cấu-hình)
 > và đã hiện thực.** Admin xếp thứ tự bộ tiêu chí qua `GET|PUT /api/v1/admin/candidate-selection`;
@@ -913,16 +918,28 @@ báo qua `POST /transactions/:id/reports/ship-unpaid` và khoản trừ điểm 
 
 ### F79 — Chế độ tìm người nhận bài Muốn Tặng (Selection Modes)
 
-> **Quy tắc mục tiêu 07/10:** cả `OFFER` và `WANTED` chỉ cho người đăng chọn `INSTANT` hoặc
-> `OPTIMAL`. `OPTIMAL` = 7 ngày từ lúc đăng; Kim Cương chọn tay trong 7 ngày, dưới Kim Cương
-> không được chọn tay; hết 7 ngày còn ứng viên thì tự chọn, chưa ghép thì tự mở thêm 30 ngày.
-> `EXTENDED` không còn là lựa chọn trên form. Phần dưới là hành vi backend cũ.
+> **Trạng thái 11/10.** Phần dưới mô tả hành vi **đang chạy**, không còn là "backend cũ".
+>
+> ✅ Hai chế độ, mốc 7 ngày từ lúc đăng, tự mở 30 ngày, `EXTENDED` đã bỏ.
+> ⬜ Còn lại của CHỐT-10 ở mục này: áp cho `WANTED` (cần đảo vai trước), và quyền **Kim Cương
+> chọn tay** trong 7 ngày — hiện quyền chọn tay chưa gắn ngưỡng hạng.
 
-Khi người cho tạo bài đăng Muốn Tặng (`OFFER`), hệ thống hỗ trợ 03 chế độ lựa chọn người nhận (CHỐT-10):
+Khi người cho tạo bài đăng Muốn Tặng (`OFFER`), hệ thống hỗ trợ **02** chế độ lựa chọn người nhận (CHỐT-10):
 
-1. **`INSTANT` (Trao ngay lập tức):** Khi người đầu tiên gửi yêu cầu xin nhận hợp lệ, hệ thống tự động chấp nhận (atomic accept) ngay lập tức, chuyển bài sang trạng thái `DELIVERING`, tạo giao dịch và mở phòng chat trực tiếp. Không áp dụng countdown 7 ngày.
-2. **`OPTIMAL` (Tìm người nhận tối ưu — Mặc định):** Khi có yêu cầu hợp lệ đầu tiên, hệ thống kích hoạt đồng hồ đếm ngược (countdown) tối đa 7 ngày (`selection_deadline = NOW() + 7 days`). Trong thời gian này, các ứng viên khác có thể tiếp tục gửi yêu cầu hoặc dùng Điểm Cống Hiến để đổi trực tiếp vật phẩm (theo [F75](#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm)). Hết 7 ngày, hệ thống auto-select theo cấu hình của Admin.
-3. **`EXTENDED` (Thời gian mở rộng):** Kích hoạt thời gian chờ tối đa 30 ngày (`selection_deadline = NOW() + 30 days`) kể từ yêu cầu đầu tiên. Phù hợp cho các vật phẩm có giá trị cao, cần thêm thời gian xem xét hoặc thẩm định người nhận phù hợp nhất.
+1. **`INSTANT` (Trao ngay lập tức):** Khi người đầu tiên gửi yêu cầu xin nhận hợp lệ, hệ thống tự động chấp nhận (atomic accept) ngay lập tức, tạo giao dịch và mở phòng chat trực tiếp. Không có giai đoạn *xét ứng viên* — nhưng **vẫn có mốc 7 ngày** và vẫn tự mở thêm 30 ngày nếu chưa ghép được ai. Bỏ hạn cho `INSTANT` sẽ làm nó thành bài duy nhất không có đồng hồ nào, và một lượt `acceptRequest` hỏng giữa đường sẽ mắc kẹt vĩnh viễn vì không job nào nhặt lại.
+2. **`OPTIMAL` (Tìm người nhận tối ưu — Mặc định):** `selection_deadline` được đặt **ngay khi bài lên công khai** = lúc đăng + 7 ngày, không chờ yêu cầu đầu tiên. Trong thời gian này, ứng viên gửi yêu cầu hoặc dùng Điểm Cống Hiến để đổi trực tiếp vật phẩm (theo [F75](#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm)). Hết hạn, hệ thống auto-select theo cấu hình của Admin; chưa ghép được ai thì bài đi tiếp 30 ngày mở rộng.
+
+> **`EXTENDED` đã bị BỎ** (11/10, migration `1799300000000`). Bản trước mô tả nó là chế độ thứ
+> ba "chờ tối đa 30 ngày kể từ yêu cầu đầu tiên". Nay 30 ngày là bước **tự động** cho mọi bài
+> chưa ghép được ai, nên bài `OPTIMAL` hôm nay sống LÂU HƠN bài `EXTENDED` hôm trước: 7 ngày
+> xét cộng 30 ngày mở rộng. Lựa chọn của người đăng chỉ còn là "chốt ngay hay chờ xét", không
+> còn là "chờ bao lâu".
+>
+> **Vẫn chỉ áp cho `OFFER`.** CHỐT-10 muốn cả `WANTED`; chưa bật vì truy vấn tìm bài tới hạn
+> không lọc `post_type` và lấy `post.author_id` làm **người tặng** — với `WANTED` tác giả là
+> người muốn NHẬN, nên bật ngay sẽ sinh giao dịch ngược vai. `WANTED` tạm giữ vòng đời ba
+> tháng: rút xuống 37 ngày khi cơ chế ghép của nó chưa chạy chỉ làm bài chết sớm hơn mà không
+> bù lại gì.
 
 ### F80 — Quyền riêng tư & Bảo vệ thông tin người cho
 

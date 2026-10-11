@@ -159,12 +159,26 @@ và các ngưỡng công bố Giver Accuracy hiện hành không bị thay đổ
 
 ## 6. Khoảng cách với backend `origin/main` ngày 07/10/2026
 
-Backend hiện có `INSTANT`/`OPTIMAL`/`EXTENDED` cho `OFFER`, đồng hồ 7/30 ngày khởi động từ
-request đầu tiên; chưa áp chế độ này cho `WANTED`. Review hiện bất biến tại database; F76
-hiện ghi cho phép tiêu điểm tụt Rank.
+**Mục 3 (hai khoản điểm người cho) xong 07/10** — xem khung trong mục đó.
 
-**Mục 3 (hai khoản điểm người cho) đã hết là khoảng cách** — xong 07/10, xem khung trong mục
-đó. Mục 1, 2, 4 và 5 thì vẫn còn. Đây là **danh sách phải triển khai**, không được coi tài
-liệu mới là bằng chứng API đã chạy.
+**Mục 1 xong một phần, 11/10.** Đã làm: `EXTENDED` ra khỏi cả enum TypeScript lẫn enum
+Postgres (`1799300000000`), đồng hồ 7 ngày tính từ **lúc đăng** và đặt ngay khi bài công khai
+(nên bài không có phản hồi cũng có hạn), giai đoạn 30 ngày thành bước tự động, và `expires_at`
+của `OFFER` là 37 ngày thay vì ba tháng.
+
+Ba việc của mục 1 còn lại:
+
+1. **Áp cho `WANTED`.** Không phải bật một cờ. Truy vấn tìm bài tới hạn trong
+   `gift-request.repository` **không lọc `post_type`** và lấy `SELECT post.author_id AS
+   giver_id` — với `WANTED` tác giả là người muốn NHẬN, nên đặt hạn cho nó là để job tự dựng
+   giao dịch với hai vai ngược nhau. Hai bút toán điểm, bộ đếm rank và `GET /transactions`
+   đều đọc theo hai cột đó. Phải đảo vai ở auto-select và `acceptRequest` trước.
+2. **Quyền Kim Cương chọn tay** trong hạn xét, kiểm theo Rank đọc từ database.
+3. **`EXPIRED` phải đóng các phản hồi còn mở và thông báo cho hai bên.** Đo được: vòng quét
+   hiện chỉ đặt `status = 'EXPIRED'`, không chạm `gift_requests` và không gửi gì.
+
+Mục 2, 4 và 5 vẫn còn nguyên. Review hiện bất biến tại database; F76 hiện ghi cho phép tiêu
+điểm tụt Rank. Đây là **danh sách phải triển khai**, không được coi tài liệu mới là bằng chứng
+API đã chạy.
 Chi tiết gap kỹ thuật, atomicity, API đích và ma trận kiểm thử nằm tại
 [REDEMPTION-REQUIREMENT-GAP.md](./REDEMPTION-REQUIREMENT-GAP.md).

@@ -64,7 +64,7 @@ Ba hệ quả cần nhớ:
 | `gift_posts_status_enum` | `DRAFT` · ~~`PENDING_REVIEW`~~ · `REJECTED` · `PUBLISHED` · `RESERVED` · `DELIVERING` · `COMPLETED` · `CANCELLED` · `EXPIRED` · `ARCHIVED` — `PENDING_REVIEW` giữ trong enum cho dữ liệu cũ, bài mới không vào đó nữa (chốt 26/09) |
 | `gift_posts_category_enum` | `HOUSEHOLD` · `CLOTHING` · `BOOKS` · `ELECTRONICS` · `FURNITURE` · `VEHICLE` · `MEDICAL` · `FOOD` · `NON_MATERIAL` · `OTHER` |
 | `gift_posts_condition_enum` | `NEW` · `LIKE_NEW` · `USED` · `NOT_APPLICABLE` |
-| `posts_selection_mode_enum` | `INSTANT` · `OPTIMAL` · `EXTENDED` |
+| `posts_selection_mode_enum` | `INSTANT` · `OPTIMAL` — `EXTENDED` bỏ 11/10 (`1799300000000`) |
 
 `posts.status` **dùng lại** `gift_posts_status_enum` chứ không có enum riêng — tên enum
 mang tiền tố lịch sử, đừng đọc nó thành "chỉ áp dụng cho `gift_posts`".
@@ -198,8 +198,8 @@ phần dữ liệu riêng của từng loại nằm trong `details` (jsonb).
 | `details` | `jsonb` mặc định `'{}'` | Trường riêng theo loại bài |
 | `expires_at` | `timestamptz` NULL | |
 | `renewed_count` | `integer` mặc định `0` | Số lần gia hạn |
-| `selection_mode` | `posts_selection_mode_enum` NOT NULL | Mặc định `OPTIMAL` (`INSTANT` · `OPTIMAL` · `EXTENDED`) |
-| `selection_deadline` | `timestamptz` NULL | Set khi có request đầu tiên |
+| `selection_mode` | `posts_selection_mode_enum` NOT NULL | Mặc định `OPTIMAL`. Chỉ có nghĩa với `OFFER` |
+| `selection_deadline` | `timestamptz` NULL | **Lúc đăng + 7 ngày**, đặt ngay khi bài công khai (CHỐT-10). Trước 11/10 chỉ set khi có request đầu tiên, nên bài không ai xin thì `NULL` vĩnh viễn. `NULL` nay nghĩa chưa công khai, hoặc đã ghép được người nên đồng hồ đã dừng |
 | `like_count` | `integer` mặc định `0` | Denormalized đếm từ `post_likes` |
 
 Bốn index, mỗi cái phục vụ một truy vấn cụ thể:

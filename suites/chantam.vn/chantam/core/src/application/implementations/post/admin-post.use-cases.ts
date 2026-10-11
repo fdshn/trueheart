@@ -21,7 +21,7 @@ import {
   IPostRepository,
 } from '@/domain/ports/repository';
 import { GiftPostStatuses } from '@chantam.vn/chantam.core-lib/consts';
-import { postExpiryDate } from '@chantam.vn/chantam.core-lib/models';
+import { postExpiryDateFor } from '@chantam.vn/chantam.core-lib/models';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import {
   ForbiddenException,
@@ -128,6 +128,15 @@ export class ModerateAdminPostUseCase implements IModerateAdminPostUseCase {
       throw new ValidationFailedException(['reason không được để trống']);
     const decision = command.moderation.decision;
     const now = new Date();
+    // Đọc loại bài TRƯỚC để chọn đúng hạn dự phòng: `OFFER`/`WANTED` 37 ngày,
+    // loại khác 3 tháng (CHỐT-10). Không tính trong SQL vì con số ngày chỉ nên
+    // nằm ở `core-lib` — hai nơi nói hai mức là chỗ CHỐT-05 từng bị hiểu lệch.
+    //
+    // Lượt đọc này nằm ngoài transaction của `moderateByAdmin`. Loại bài gần như
+    // bất biến, trừ `CLASSIFIED` hết hạn thì thành `OFFER`; nếu đúng lúc đó xen
+    // vào thì hạn dự phòng tính theo loại cũ — mà bài vừa chuyển loại thì
+    // `expires_at` đã khác `NULL`, nên `COALESCE` bên dưới không dùng tới nó.
+    const existing = await this.posts.findOneBy({ globalId: command.postId });
     const moderated = await this.posts.moderateByAdmin({
       actorUserId: command.actorUserId,
       postId: command.postId,
@@ -135,7 +144,9 @@ export class ModerateAdminPostUseCase implements IModerateAdminPostUseCase {
       // Chỉ là hạn DỰ PHÒNG cho bài chưa có hạn; repository giữ nguyên hạn cũ
       // nếu đã có.
       expiresAt:
-        decision === GiftPostStatuses.PUBLISHED ? postExpiryDate(now) : null,
+        decision === GiftPostStatuses.PUBLISHED && existing
+          ? postExpiryDateFor(existing.postType, now)
+          : null,
       reason,
     });
     if (!moderated) throw new PostInvalidStateException();

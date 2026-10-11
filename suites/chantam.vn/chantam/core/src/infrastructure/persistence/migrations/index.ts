@@ -109,3 +109,4 @@ export * from './1798900000000-CreateDharmaContents';
 export * from './1799000000000-AddDharmaPermissions';
 export * from './1799100000000-CreateDharmaForum';
 export * from './1799200000000-SeedGiftValueBonusCap';
+export * from './1799300000000-DropExtendedSelectionMode';

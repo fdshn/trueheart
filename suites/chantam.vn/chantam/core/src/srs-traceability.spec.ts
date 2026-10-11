@@ -730,10 +730,15 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-REQ-QUEUE-03',
     title:
       'Người xin ĐẦU TIÊN hợp lệ trên bài đang mở thì ghi `selection_deadline = NOW() + 7 ngày`',
-    status: 'IMPLEMENTED',
-    where:
-      'create-gift-request.use-case.ts nhánh `isFirstRequest`: 7 ngày cho OPTIMAL, ' +
-      '30 ngày cho EXTENDED, và INSTANT thì chốt luôn người đầu tiên',
+    status: 'NOT_IMPLEMENTED',
+    note:
+      'CHỐT-10 (07/10) THAY quy tắc này, và mã đã theo quy tắc mới từ 11/10: ' +
+      '`selection_deadline` đặt NGAY lúc bài công khai = lúc đăng + 7 ngày, cho cả ' +
+      '`INSTANT`. Nhánh `isFirstRequest` không còn ghi hạn nào. Dòng BR này vì vậy cố ' +
+      'ý KHÔNG được hiện thực — nó mô tả đúng cái lỗ mà CHỐT-10 bịt: đếm từ phản hồi ' +
+      'đầu tiên nghĩa là bài không ai xin thì hạn là `null` vĩnh viễn, không bao giờ ' +
+      'tới hạn, không bao giờ vào giai đoạn mở rộng. Cần Bên A sửa dòng BR trong SRS; ' +
+      'tới lúc đó đây là một khoảng cách CÓ CHỦ Ý, không phải việc bỏ sót',
   },
 
   // ── Admin cấu hình điểm, geo affiliate, thưởng SĐT, nhóm bài ──────────────

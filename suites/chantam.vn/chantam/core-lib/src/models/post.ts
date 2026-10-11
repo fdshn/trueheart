@@ -42,16 +42,18 @@ export interface IPost {
   charityTransferRequestedAt: Date | null;
   charityTransferNote: string | null;
   /**
-   * Chế độ tìm người nhận. Chỉ có ý nghĩa với bài OFFER.
-   * - INSTANT  — chọn ngay người đầu tiên gửi yêu cầu hợp lệ.
-   * - OPTIMAL  — chờ tối đa 7 ngày kể từ request đầu tiên.
-   * - EXTENDED — chờ tối đa 30 ngày kể từ request đầu tiên.
+   * Chế độ tìm người nhận. Có ý nghĩa với **cả** `OFFER` và `WANTED` (CHỐT-10).
+   * - `INSTANT` — chốt ngay phản hồi hợp lệ đầu tiên.
+   * - `OPTIMAL` — tiếp nhận ứng viên tới hết hạn xét rồi mới chọn.
    */
   selectionMode: PostSelectionModes;
   /**
-   * Thời điểm kết thúc giai đoạn chờ chọn người nhận.
-   * - null cho đến khi có request đầu tiên (hoặc INSTANT mode).
-   * - Được set = NOW() + 7d / 30d khi request đầu tiên xuất hiện.
+   * Hạn xét ứng viên = **lúc đăng + 7 ngày** (CHỐT-10).
+   *
+   * Đặt ngay khi bài lên công khai, cho mọi chế độ. Tới 06/10 nó là `null` cho
+   * đến khi có phản hồi đầu tiên — nên bài không ai xin thì không bao giờ tới
+   * hạn. `null` nay chỉ còn nghĩa "bài chưa công khai", hoặc "đã ghép được người
+   * nên đồng hồ đã dừng".
    */
   selectionDeadline: Date | null;
 }

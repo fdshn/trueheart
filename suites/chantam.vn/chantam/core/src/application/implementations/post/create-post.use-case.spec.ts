@@ -15,6 +15,7 @@ import {
   GenericMvpPostTypes,
   GiftPostConditions,
   GiftPostStatuses,
+  PostSelectionModes,
   PostTypes,
   UserRanks,
   UserStatuses,
@@ -129,7 +130,7 @@ describe('CreatePostUseCase', () => {
     return { posts, categories, users, entitlements };
   }
 
-  it('lấy author từ userId và tạo bài OFFER LÊN THẲNG, kèm hạn ba tháng', async () => {
+  it('lấy author từ userId và tạo bài OFFER LÊN THẲNG, kèm hạn 37 ngày', async () => {
     const { posts, categories, users, entitlements } = makeRepositories();
     const useCase = new CreatePostUseCase(
       posts,
@@ -464,5 +465,148 @@ describe('CreatePostUseCase — tin rao vặt CLASSIFIED', () => {
         },
       }),
     ).rejects.toBeInstanceOf(ValidationFailedException);
+  });
+});
+
+describe('CreatePostUseCase · đồng hồ 7 + 30 ngày (CHỐT-10)', () => {
+  interface ISavedPost {
+    selectionDeadline: Date | null;
+    expiresAt: Date;
+  }
+
+  function makeDeps() {
+    const posts = {
+      // Khai tham số để `mock.calls` có kiểu — cùng lý do như khối CLASSIFIED.
+      createPostWithinQuota: jest.fn(
+        async (_authorId: string, _quota: number, _post: ISavedPost) => true,
+      ),
+      findOneByOrFail: jest.fn(async () => ({ globalId: 'post' })),
+    };
+    const categories = {
+      findOneBy: jest.fn(async () => makeCategory()),
+      findAncestorChain: jest.fn(async () => [
+        { categoryId: CategoryId, isActive: true },
+      ]),
+    };
+    const users = {
+      findOneBy: jest.fn(async () => makeUser({ rank: UserRanks.MEMBER })),
+    };
+    const entitlements = {
+      getCapability: jest.fn(async () => ({ allowed: true, limit: 3 })),
+    };
+    return { posts, categories, users, entitlements };
+  }
+
+  function run(deps: ReturnType<typeof makeDeps>, cmd: unknown) {
+    return new CreatePostUseCase(
+      deps.posts as never,
+      deps.categories as never,
+      deps.entitlements as never,
+      new ProfileGate(deps.users as never),
+    ).handle(cmd as never);
+  }
+
+  function postOfType(
+    postType: PostTypes,
+    extra: Record<string, unknown> = {},
+  ) {
+    // `condition` và `estimatedValue` của `command()` chỉ hợp lệ cho `OFFER` /
+    // `CLASSIFIED`; use case từ chối chúng ở loại khác. Nên base ở đây là phần
+    // CHUNG, và mỗi ca tự thêm trường của loại mình — kéo nguyên `command().post`
+    // sang sẽ đỏ vì một lý do chẳng liên quan tới đồng hồ.
+    const { condition, estimatedValue, ...base } = command().post as Record<
+      string,
+      unknown
+    >;
+    void condition;
+    void estimatedValue;
+    return { userId: UserId, post: { ...base, postType, ...extra } };
+  }
+
+  function days(from: Date): number {
+    return Math.round((from.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  }
+
+  it('OFFER nhận hạn xét NGAY lúc đăng, không chờ phản hồi đầu tiên', async () => {
+    // Tới 06/10 cột này vào database là `null` và chỉ được đặt khi có người xin
+    // đầu tiên. Hệ quả đo được: bài không ai xin thì không bao giờ tới hạn, nên
+    // auto-select không bao giờ xét tới nó, và nó chỉ chết ở mốc ba tháng.
+    const deps = makeDeps();
+
+    await run(
+      deps,
+      postOfType(PostTypes.OFFER, {
+        condition: GiftPostConditions.USED,
+      }),
+    );
+
+    const saved = deps.posts.createPostWithinQuota.mock.calls[0][2];
+    expect(saved.selectionDeadline).toBeInstanceOf(Date);
+    expect(days(saved.selectionDeadline as Date)).toBe(7);
+  });
+
+  it('OFFER hết hạn sau 37 ngày, và ĐÚNG BẰNG hạn xét + 30 ngày', async () => {
+    const deps = makeDeps();
+
+    await run(
+      deps,
+      postOfType(PostTypes.OFFER, { condition: GiftPostConditions.USED }),
+    );
+
+    const saved = deps.posts.createPostWithinQuota.mock.calls[0][2];
+    // Hai mốc phải CÙNG GỐC. Gọi `new Date()` hai lần cho hai mốc thì chúng lệch
+    // vài milli giây và phép trừ này ra số không chẵn — đó là lý do use case dùng
+    // một biến `publishedAt` duy nhất. Và giai đoạn mở rộng 30 ngày không có cột
+    // trạng thái nào: nó CHÍNH LÀ khoảng giữa hai mốc này.
+    expect(
+      saved.expiresAt.getTime() - (saved.selectionDeadline as Date).getTime(),
+    ).toBe(30 * 24 * 60 * 60 * 1000);
+    expect(days(saved.expiresAt)).toBe(37);
+  });
+
+  it('WANTED KHÔNG có hạn xét và vẫn sống ba tháng', async () => {
+    // Chốt an toàn, không phải bỏ sót. Truy vấn tìm bài tới hạn không lọc
+    // `post_type` và lấy `post.author_id AS giver_id` — với `WANTED` tác giả là
+    // người muốn NHẬN, nên đặt hạn cho nó là để job dựng giao dịch ngược vai.
+    // Và rút hạn sống xuống 37 ngày khi cơ chế ghép của nó chưa chạy thì chỉ làm
+    // bài chết sớm mà không bù lại gì.
+    const deps = makeDeps();
+
+    await run(deps, postOfType(PostTypes.WANTED));
+
+    const saved = deps.posts.createPostWithinQuota.mock.calls[0][2];
+    expect(saved.selectionDeadline).toBeNull();
+    expect(days(saved.expiresAt)).toBeGreaterThan(80);
+  });
+
+  it('WANTED gửi kèm selectionMode thì bị TỪ CHỐI, không nuốt im lặng', async () => {
+    // Nhận một cờ rồi không dùng nó là tạo một cái núm KHÔNG LÀM GÌ: người đăng
+    // tin là đã chọn "chốt ngay" mà hệ thống không bao giờ chốt ngay.
+    const deps = makeDeps();
+
+    await expect(
+      run(
+        deps,
+        postOfType(PostTypes.WANTED, {
+          selectionMode: PostSelectionModes.INSTANT,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+  });
+
+  it('CLASSIFIED không có hạn xét, giữ ba tháng', async () => {
+    const deps = makeDeps();
+
+    await run(
+      deps,
+      postOfType(PostTypes.CLASSIFIED, {
+        price: 5_200_000,
+        condition: GiftPostConditions.USED,
+      }),
+    );
+
+    const saved = deps.posts.createPostWithinQuota.mock.calls[0][2];
+    expect(saved.selectionDeadline).toBeNull();
+    expect(days(saved.expiresAt)).toBeGreaterThan(80);
   });
 });

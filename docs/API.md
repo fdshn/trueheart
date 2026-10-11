@@ -2,9 +2,12 @@
 
 > **Lưu ý 07/10/2026:** Tài liệu này mô tả **API hiện đang có**, không phải hợp đồng đã
 > triển khai cho [nghiệp vụ cho–nhận/đổi điểm/review mới](./plan/GIVE-RECEIVE-2026-10-07.md).
-> Backend hiện còn `EXTENDED`, countdown từ request đầu tiên, `selectionMode` chỉ cho
-> `OFFER`, review không sửa được và thưởng người cho theo công thức cũ. Không dùng trang
-> này làm bằng chứng tính năng mới đã có; cần cập nhật endpoint/schema trước khi app gọi.
+> **Đã triển khai:** thưởng người cho theo CHỐT-14 (hai khoản rời, xong 07/10); `EXTENDED`
+> đã bỏ và countdown tính từ **lúc đăng** (CHỐT-10, xong 11/10).
+> **Còn lại:** `selectionMode` vẫn chỉ cho `OFFER` — mở cho `WANTED` phải đảo vai
+> tặng/nhận trước, xem `usesSelectionLifecycle`; và review vẫn không sửa được. Không dùng
+> trang này làm bằng chứng tính năng mới đã có; cần cập nhật endpoint/schema trước khi app
+> gọi.
 
 Mô tả **các endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
 buộc mà chữ ký hàm không nói ra.
@@ -348,7 +351,11 @@ một điều họ không nói.
 
 `totalQuantity` chỉ có nghĩa với `OFFER`; các loại khác bị ép về 1.
 
-**Backend hiện tại:** `selectionMode` ([F79](./FEATURES.md#f79--chế-độ-tìm-người-nhận-selection-modes)) chỉ áp dụng cho bài `OFFER`: `INSTANT` (chọn ngay người đầu tiên), `OPTIMAL` (mặc định, chờ tối đa 7 ngày), `EXTENDED` (chờ tối đa 30 ngày cho vật phẩm giá trị cao). Loại bài khác truyền lên sẽ bị từ chối. **Contract đích 07/10/2026** áp dụng `INSTANT`/`OPTIMAL` cho cả `OFFER` và `WANTED`, bỏ `EXTENDED` khỏi form và tự mở giai đoạn 30 ngày khi chưa ghép được ai sau 7 ngày.
+`selectionMode` ([F79](./FEATURES.md#f79--chế-độ-tìm-người-nhận-selection-modes)) nhận `INSTANT` (chốt ngay phản hồi đầu tiên) hoặc `OPTIMAL` (mặc định, xét tới hết hạn rồi chọn). `EXTENDED` **đã bỏ** 11/10 (CHỐT-10) — 30 ngày mở rộng nay là bước TỰ ĐỘNG cho mọi bài chưa ghép được ai, không còn là ô trên form.
+
+Hạn xét = **lúc đăng + 7 ngày**, đặt ngay khi bài lên công khai và cho cả `INSTANT`. Trước 11/10 nó chỉ được đặt khi có phản hồi đầu tiên, nên bài không ai xin thì không bao giờ tới hạn. Bài `OFFER` vì thế sống **37 ngày** (7 + 30) thay vì ba tháng.
+
+**Vẫn chỉ áp cho `OFFER`.** CHỐT-10 muốn cả `WANTED`, nhưng truy vấn tìm bài tới hạn không lọc `post_type` và lấy `post.author_id` làm **người tặng** — với `WANTED` tác giả là người muốn NHẬN, nên bật ngay sẽ sinh giao dịch ngược vai. `WANTED` tạm giữ ba tháng và từ chối `selectionMode`; mở nó là một lượt riêng.
 
 > **Quota hiện dùng chung một rổ.** `CLASSIFIED` đang tính vào capability `POST_OFFER`, và
 > bộ đếm quota đếm **mọi** bài đang mở bất kể loại. Muốn tách thì thêm capability

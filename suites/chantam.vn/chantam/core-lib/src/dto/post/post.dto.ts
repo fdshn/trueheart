@@ -71,7 +71,6 @@ export interface ICreateOfferPostDto extends ICreatePostCommonDto {
    * Chế độ tìm người nhận (mặc định OPTIMAL).
    * - INSTANT  — chọn ngay người đầu tiên.
    * - OPTIMAL  — chờ tối đa 7 ngày.
-   * - EXTENDED — chờ tối đa 30 ngày.
    */
   selectionMode?: PostSelectionModes;
 }
