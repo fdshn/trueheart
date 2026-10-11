@@ -15,7 +15,7 @@
 | [M3](#m3--giao-dịch--chat) | Giao dịch, chat, thông báo | 10 | 🟠 **9/10 + F44 chờ bên ngoài** — backend đẩy xong, khoá cắm staging 05/10, chờ client mobile gửi `fcmToken` (hiện đếm được 0 token) |
 | [M4](#m4--điểm--thứ-hạng) | Điểm, đánh giá, thứ hạng | 8 | ✅ **8/8** — F40 đóng 07/10 theo CHỐT-14 (ba lát); F41/F42/F43 đóng từ 02/10 |
 | [M5](#m5--group--affiliate) | Group, affiliate, chống gian lận | 10 | 🟡 **9/10** — F51–F58 và F47 xong 30/09–02/10; còn F50 (ba ngưỡng dấu vết seed `0 = TẮT`, chờ dữ liệu thật) |
-| [M6](#m6--quản-trị--bàn-giao) | Admin CMS, kiểm duyệt, bàn giao | 18 | 🟡 **11/18 + 2 nửa** — F45 và F65 mỗi mục xong một nửa; còn F67 và cả khối QA/bàn giao F69–F72 |
+| [M6](#m6--quản-trị--bàn-giao) | Admin CMS, kiểm duyệt, bàn giao | 18 | 🟡 **12/18 + 1 nửa** — F45 đóng 11/10 (Bên A chốt tám nhóm); F65 còn xong một nửa; còn F67 và cả khối QA/bàn giao F69–F72 |
 
 > ⚠️ **Bảng này từng là chỗ sai nhiều nhất của file, soát lại 07/10.** Đợt dọn 02/10 đổi 10
 > mục trong các danh sách bên dưới sang `[x]` — nhưng **không ai sửa bảng**. Nên tới 06/10
@@ -303,18 +303,31 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
   đi kèm vì nó gọi lại NGUYÊN `ChangeAdminUserStatusUseCase`, không viết lại — nên cũng
   không mở cửa leo thang quyền: chế tài đòi `admin.manage`, kết luận chỉ đòi
   `report.resolve`. Gỡ/ẩn bài viết KHÔNG gộp vào đây
-- [~] F45 Phân loại + mẫu thông báo — **mẫu xong, phân loại xong nhưng KHÁC đặc tả có chủ ý.**
-  Mẫu: bảng `notification_templates` + `GET /admin/notification-templates` và
-  `PUT /admin/notification-templates/:type`, đã seed mẫu cho hạng và cho nhắc hẹn. Phân loại:
-  `NotificationGroups` + `NotificationGroupOf` phủ đủ 29 loại thông báo, và người dùng tắt/bật
-  theo nhóm qua `GET|PATCH /notifications/me/preferences`.
+- [x] F45 Phân loại + mẫu thông báo — **xong 11/10.** Mẫu: bảng `notification_templates` +
+  `GET /admin/notification-templates` và `PUT /admin/notification-templates/:type`, đã seed mẫu
+  cho hạng và cho nhắc hẹn. Phân loại: `NotificationGroups` có đúng **tám** nhóm theo
+  `BR-NOTI-01` (`GUIDE`, `POINT`, `EVENT`, `STATUS`, `REWARD`, `WARNING`, `CONTACT`,
+  `CONDITION`), `NotificationGroupOf` xếp hết **25** loại không có nhánh mặc định, và người
+  dùng tắt/bật theo nhóm qua `GET|PATCH /notifications/me/preferences`.
 
-  **Chỗ lệch đặc tả:** F45 trong `FEATURES.md` nói *"tám nhóm: hướng dẫn, điểm, sự kiện, trạng
-  thái, thưởng, cảnh báo, liên lạc, điều kiện"*. Mã có **bốn**: `TRANSACTION`, `CHAT`, `FEED`,
-  `SYSTEM`. Đây là lựa chọn có ghi lý do (`API.md` §9: *"hai mươi công tắc là một màn hình
-  không ai đọc, và người đang bị làm phiền cần tắt nhanh chứ không cần chính xác"*), không
-  phải sót. Nhưng hai tài liệu đang nói hai con số, nên **cần Bên A chốt 4 hay 8** rồi sửa bên
-  còn lại — không để nguyên như hiện tại.
+  **Bên A chốt 8 ngày 11/10.** Mục này tới 10/10 là `[~]` vì mã có bốn nhóm còn đặc tả nói
+  tám, và bản bốn-nhóm có ghi lý do (`API.md` §9: *"hai mươi công tắc là một màn hình không ai
+  đọc"*). Lý do đó không sai, nhưng con số là quyết định của Bên A, không phải của mã — nay
+  theo SRS. (Và dòng cũ ở đây ghi "29 loại": đếm lại đúng là **25** — 29 là số thành viên của
+  nhiều enum trong cùng file, không phải số loại thông báo.)
+
+  Hai điều đo được khi làm:
+
+  - **`GUIDE` chưa có loại nào** — chưa có thông báo hướng dẫn nào được dựng. Nhóm vẫn tồn tại
+    vì SRS đặt tên nó, và `IntentionallyEmptyNotificationGroups` khai điều đó tường minh; có
+    phép kiểm canh rằng mọi nhóm khác đều có ít nhất một loại, nên một nhóm rỗng MỚI là đỏ.
+  - **Tám nhóm cho ít quyền kiểm soát hơn ở một chỗ** — `CHAT` và `FEED` cũ cùng vào `CONTACT`,
+    nên không còn tắt riêng tin nhắn với bình luận. Phân loại của SRS không có chỗ nào khác cho
+    "có người bình luận vào bài của bạn".
+
+  Migration `1799400000000` chuyển tuỳ chọn đã đặt, và nó **bắt buộc**: không chuyển thì không
+  gì đổ — `listMutedGroups` lọc tên lạ qua enum — mà người đã tắt nhóm nhận lại đúng những
+  thông báo họ đã tắt, im lặng. Đã chạy thật trên PG17 với 6 người dùng phủ đủ ca tách/gộp.
 - [x] F46 Lịch Âm — bộ chuyển đổi Âm lịch Việt Nam viết THUẦN trong `core-lib` (không
   dependency, UTC+7, can chi, mốc Rằm/Mùng Một), bảng `lunar_holidays` seed 10 ngày lễ
   Phật giáo, `GET /config/lunar-today` công khai và `GET|PUT /admin/lunar-holidays`.
@@ -387,6 +400,7 @@ Những mục này **không tính vào mẫu số tiến độ**.
 | 2026-09-15 | Lập lần đầu — 6 mốc, 72 chức năng |
 | 2026-10-02 | Dựng bộ máy affiliate F56–F58, nên **M5 đóng** phần cơ chế; A1–A4 của Bên A nay là lựa chọn trong `PUT /admin/affiliate-policy` |
 | 2026-10-02 | Dọn theo đợt đối chiếu SRS ↔ mã nguồn: **10 mục đổi sang `[x]`** vì đã xong từ trước mà tài liệu chưa theo (F41, F42, F43, F48, F51–F55, rate limit toàn cục); F20 chuyển sang mục đã bỏ; thêm F83. Hai tài liệu kế hoạch từng nói trái nhau về F41/F42/F43 — `SPRINT-PLAN` ghi xong, file này ghi chưa; nay cùng một nguồn |
+| 2026-10-11 | **F45 đóng**: Bên A chốt **tám** nhóm thông báo theo `BR-NOTI-01` thay cho bốn nhóm đang chạy. 25 loại xếp lại, `GUIDE` khai là nhóm rỗng có chủ ý, và migration `1799400000000` chuyển tuỳ chọn người dùng — `SYSTEM` tách năm dòng, `CHAT`+`FEED` gộp một. Lát 2a của CHỐT-10 cũng xong: đồng hồ từ lúc đăng, bỏ `EXTENDED` |
 | 2026-10-07 | **F40 đóng** theo CHỐT-14 (ba lát: bỏ phép nhân accuracy, thêm `value_bonus` kèm trần chặn in điểm, dời mốc cộng sang `COMPLETED`) → M4 **8/8**. **F73 đóng** → M2 **14/14** |
 | 2026-10-07 | **F68 đóng**: rate limit hai tầng, audit/system log, health check 5 phút, và đường cảnh báo đa kênh đã kiểm bằng một cron job cho hỏng THẬT trên staging. F66 bỏ ghi chú "monitoring và rate limit còn lại"; F67 (backup) không còn chờ F68 |
 | 2026-10-07 | **Soát lại cả file.** Bảng tổng ở đầu chưa theo đợt dọn 02/10 nên nói sai bốn dòng — nặng nhất là M5 ghi `⬜ 0/10` trong khi chín mục của M5 đã `[x]` ngay dưới, và M6 ghi `1/18` trong khi đếm được 11. Cột số lệch ở M2 (15→14, F20 đã bỏ) và M4 (7→8, thiếu F83); tiêu đề file 72→73. **F65 tách thành F65a/F65b** vì một mã F đang có hai checkbox cho hai việc ở hai trạng thái. **F45 thành `[~]`** và lộ ra một chỗ cần Bên A chốt: đặc tả nói tám nhóm thông báo, mã có bốn — lệch có chủ ý và có ghi lý do, nhưng hai tài liệu đang nói hai con số. Ghi chú F46 *"gửi theo VÙNG vẫn chờ F47"* nói sai chỗ chặn: F47 xong rồi, `notify-lunar.cli.ts` chỉ chưa nối vào |

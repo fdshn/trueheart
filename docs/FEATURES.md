@@ -626,6 +626,26 @@ tin. Có trạng thái đã đọc/chưa đọc. Nguồn kích hoạt: giao dị
 Tám nhóm: hướng dẫn, điểm, sự kiện, trạng thái, thưởng, cảnh báo, liên lạc, điều kiện. Mẫu
 nội dung, đối tượng nhận và điều kiện gửi đều do Admin quản lý.
 
+> ✅ **Đã triển khai 11/10.** `NotificationGroups` có đúng tám nhóm theo `BR-NOTI-01`; 25 loại
+> thông báo được xếp hết, không có nhánh mặc định nào. Mẫu ở
+> `GET|PUT /admin/notification-templates`, tắt/bật theo nhóm ở
+> `GET|PATCH /notifications/me/preferences`.
+>
+> Hai điều đo được khi làm, ghi lại vì chúng không hiển nhiên:
+>
+> - **`GUIDE` chưa có loại nào.** Chưa có thông báo hướng dẫn/onboarding nào được dựng. Nhóm
+>   vẫn tồn tại vì SRS đặt tên nó, và `IntentionallyEmptyNotificationGroups` khai điều đó
+>   tường minh — có phép kiểm canh rằng MỌI nhóm khác đều có ít nhất một loại, nên một nhóm
+>   rỗng mới xuất hiện là đỏ.
+> - **Tám nhóm cho ÍT quyền kiểm soát hơn ở một chỗ.** `CHAT` và `FEED` của bản bốn-nhóm cùng
+>   vào *Liên lạc*, nên người dùng không còn tắt riêng tin nhắn với bình luận. Phân loại của
+>   SRS không có chỗ nào khác cho "có người bình luận vào bài của bạn".
+>
+> Migration `1799400000000` chuyển tuỳ chọn người dùng đã đặt. Không chuyển thì không có gì
+> **đổ** — `listMutedGroups` lọc tên lạ qua enum — mà người đã tắt nhóm sẽ **nhận lại** đúng
+> những thông báo họ đã tắt, im lặng. `SYSTEM` tách thành năm dòng vì một công tắc cũ gom năm
+> nhóm mới; chèn một dòng là bật lại bốn phần họ đã tắt.
+
 ### F46 — Lịch Âm & nhắc ngày lễ
 Lịch Âm Việt Nam, thông báo ngày rằm, mùng một và các đại lễ Phật giáo theo cấu hình. Tính
 toán chạy **ngay trên thiết bị**, không cần mạng.

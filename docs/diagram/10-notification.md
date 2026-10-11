@@ -37,35 +37,44 @@ flowchart TD
     style N fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
-## 10.2 Hai mươi hai loại, chia bốn nhóm
+## 10.2 Hai mươi lăm loại, chia tám nhóm
 
 Nhóm là thứ người dùng tắt/bật được (§10.5). Mọi loại dưới đây đều **thật sự được gửi** —
 không còn loại nào khai mà nằm im.
 
+> **Tám nhóm từ 11/10** (`BR-NOTI-01`), thay cho bốn nhóm
+> `TRANSACTION`/`CHAT`/`FEED`/`SYSTEM`. Và bảng này tới 10/10 ghi "hai mươi hai loại" trong
+> khi mã có **hai mươi lăm** — thiếu `REFERRAL_QUALIFIED`, `LUNAR_OBSERVANCE` và
+> `SYSTEM_BROADCAST`. Đã bổ sung; `notification-template.spec.ts` nay canh rằng mọi loại đều
+> được xếp nhóm, nhưng không có phép kiểm nào đọc bảng markdown này, nên nó vẫn phải sửa tay.
+
 | Mã | Nhóm | Khi nào | Khoá chống trùng |
 | --- | --- | --- | --- |
-| `NEW_CHAT_MESSAGE` | CHAT | Có tin nhắn mới | theo messageId |
-| `CHAT_ROOM_SCHEDULED_FOR_PURGE` | CHAT | Phòng sắp bị dọn | theo roomId |
-| `GIFT_REQUEST_CREATED` | TRANSACTION | Có người xin nhận bài của bạn | `GIFT_REQUEST_CREATED:<requestId>` |
-| `GIFT_REQUEST_REJECTED` | TRANSACTION | Chủ bài từ chối yêu cầu | `GIFT_REQUEST_REJECTED:<requestId>` |
-| `GIFT_REQUEST_CLOSED` | TRANSACTION | Bài đóng lại nên yêu cầu bị đóng theo | `GIFT_REQUEST_CLOSED:<requestId>` |
-| `GIFT_TRANSACTION_HANDED_OVER` | TRANSACTION | Người tặng báo đã bàn giao | `…:<transactionId>` |
-| `GIFT_TRANSACTION_REOPENED` | TRANSACTION | Admin mở lại lượt đóng nhầm | theo lượt + người + mốc |
-| `POST_EXPIRING_SOON` | SYSTEM | Bài còn 7 ngày là hết hạn | `POST_EXPIRING_SOON:<postId>:<ngày hết hạn>` |
-| `GIFT_REQUEST_ACCEPTED` | TRANSACTION | Chủ bài duyệt, **hoặc** job tự chọn khi hết đồng hồ | `GIFT_REQUEST_ACCEPTED:<transactionId>` |
-| `GIFT_TRANSACTION_CLOSED` | TRANSACTION | Lượt trao bị huỷ | theo transactionId |
-| `GIFT_TRANSACTION_COMPLETED` | TRANSACTION | Lượt trao hoàn tất | theo lượt + người |
-| `CONTENT_COMMENT_CREATED` | FEED | Có người bình luận bài mình | `CONTENT_COMMENT:<commentId>` |
-| `CONTENT_COMMENT_REPLIED` | FEED | Có người trả lời bình luận mình | `CONTENT_COMMENT_REPLY:<commentId>` |
-| `CONTENT_REACTION_FIRST_OF_DAY` | FEED | Lần đầu trong ngày có cảm xúc | `CONTENT_REACTION_FIRST:<postId>:<ngày VN>` |
-| `RANK_DEMOTION_WARNING` | SYSTEM | Điểm xuống dưới mốc cảnh báo của bậc | `RANK_DEMOTION_WARNING:<userId>:<rank>:<ngày VN>` |
-| `RANK_DEMOTED` | SYSTEM | Đã tụt hạng | `RANK_DEMOTED:<userId>:<từ>:<sang>:<ngày VN>` |
-| `RANK_PROMOTED` | SYSTEM | Đã lên hạng — quyền lợi bậc mới có hiệu lực ngay | `RANK_PROMOTED:<userId>:<từ>:<sang>:<ngày VN>` |
-| `GIFT_POST_RECEIVER_SELECTED` | TRANSACTION | Bài của bạn đã có người nhận mà KHÔNG do bạn chọn (job tự chọn, hoặc có người dùng điểm đổi) | `GIFT_POST_RECEIVER_SELECTED:<transactionId>` |
-| `REVIEW_REMINDER` | SYSTEM | Nhắc người nhận đánh giá | `REVIEW_REMINDER:<transactionId>` |
-| `RANK_MAINTENANCE_REMINDER` | SYSTEM | Nhắc nhiệm vụ duy trì, trước 30 ngày | `RANK_MAINTENANCE_REMINDER:<cycleId>` |
-| `REPORT_REVIEWED` | SYSTEM | Báo xấu của bạn đã được xử lý | `REPORT_REVIEWED:<targetId>:<reporterId>:<status>` |
-| `CONTENT_MODERATED` | SYSTEM | Nội dung của bạn bị xử lý | `CONTENT_MODERATED:<targetType>:<targetId>` |
+| `NEW_CHAT_MESSAGE` | CONTACT | Có tin nhắn mới | theo messageId |
+| `CHAT_ROOM_SCHEDULED_FOR_PURGE` | CONTACT | Phòng sắp bị dọn | theo roomId |
+| `GIFT_REQUEST_CREATED` | STATUS | Có người xin nhận bài của bạn | `GIFT_REQUEST_CREATED:<requestId>` |
+| `GIFT_REQUEST_REJECTED` | STATUS | Chủ bài từ chối yêu cầu | `GIFT_REQUEST_REJECTED:<requestId>` |
+| `GIFT_REQUEST_CLOSED` | STATUS | Bài đóng lại nên yêu cầu bị đóng theo | `GIFT_REQUEST_CLOSED:<requestId>` |
+| `GIFT_TRANSACTION_HANDED_OVER` | STATUS | Người tặng báo đã bàn giao | `…:<transactionId>` |
+| `GIFT_TRANSACTION_REOPENED` | STATUS | Admin mở lại lượt đóng nhầm | theo lượt + người + mốc |
+| `POST_EXPIRING_SOON` | CONDITION | Bài còn 7 ngày là hết hạn | `POST_EXPIRING_SOON:<postId>:<ngày hết hạn>` |
+| `GIFT_REQUEST_ACCEPTED` | STATUS | Chủ bài duyệt, **hoặc** job tự chọn khi hết đồng hồ | `GIFT_REQUEST_ACCEPTED:<transactionId>` |
+| `GIFT_TRANSACTION_CLOSED` | STATUS | Lượt trao bị huỷ | theo transactionId |
+| `GIFT_TRANSACTION_COMPLETED` | STATUS | Lượt trao hoàn tất | theo lượt + người |
+| `CONTENT_COMMENT_CREATED` | CONTACT | Có người bình luận bài mình | `CONTENT_COMMENT:<commentId>` |
+| `CONTENT_COMMENT_REPLIED` | CONTACT | Có người trả lời bình luận mình | `CONTENT_COMMENT_REPLY:<commentId>` |
+| `CONTENT_REACTION_FIRST_OF_DAY` | CONTACT | Lần đầu trong ngày có cảm xúc | `CONTENT_REACTION_FIRST:<postId>:<ngày VN>` |
+| `RANK_DEMOTION_WARNING` | WARNING | Điểm xuống dưới mốc cảnh báo của bậc | `RANK_DEMOTION_WARNING:<userId>:<rank>:<ngày VN>` |
+| `RANK_DEMOTED` | WARNING | Đã tụt hạng | `RANK_DEMOTED:<userId>:<từ>:<sang>:<ngày VN>` |
+| `RANK_PROMOTED` | REWARD | Đã lên hạng — quyền lợi bậc mới có hiệu lực ngay | `RANK_PROMOTED:<userId>:<từ>:<sang>:<ngày VN>` |
+| `GIFT_POST_RECEIVER_SELECTED` | STATUS | Bài của bạn đã có người nhận mà KHÔNG do bạn chọn (job tự chọn, hoặc có người dùng điểm đổi) | `GIFT_POST_RECEIVER_SELECTED:<transactionId>` |
+| `REVIEW_REMINDER` | CONDITION | Nhắc người nhận đánh giá | `REVIEW_REMINDER:<transactionId>` |
+| `RANK_MAINTENANCE_REMINDER` | CONDITION | Nhắc nhiệm vụ duy trì, trước 30 ngày | `RANK_MAINTENANCE_REMINDER:<cycleId>` |
+| `REPORT_REVIEWED` | WARNING | Báo xấu của bạn đã được xử lý | `REPORT_REVIEWED:<targetId>:<reporterId>:<status>` |
+| `CONTENT_MODERATED` | WARNING | Nội dung của bạn bị xử lý | `CONTENT_MODERATED:<targetType>:<targetId>` |
+| `REFERRAL_QUALIFIED` | POINT | Người được giới thiệu đủ điều kiện, điểm vào sổ | `REFERRAL_QUALIFIED:<userId>` |
+| `LUNAR_OBSERVANCE` | EVENT | Rằm, mùng một, đại lễ — qua `notify:lunar` | theo ngày ÂM lịch |
+| `SYSTEM_BROADCAST` | EVENT | Admin gửi thông báo diện rộng (F47) | theo broadcast + người |
 
 > `notifications.idempotency_key` có UNIQUE. Cùng một sự kiện chạy lại bao nhiêu lần cũng chỉ
 > ra một thông báo — quan trọng vì job nền và retry mạng đều có thể gọi lại.
@@ -111,8 +120,18 @@ flowchart TD
     style D fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
-> **Nhóm chứ không phải từng loại.** Hai mươi hai công tắc là một màn hình không ai đọc, và người
-> đang bị làm phiền cần tắt nhanh chứ không cần chính xác. Bốn nhóm thì đọc một lượt là hiểu.
+> **Nhóm chứ không phải từng loại.** Hai mươi lăm công tắc là một màn hình không ai đọc, và
+> người đang bị làm phiền cần tắt nhanh chứ không cần chính xác.
+>
+> Bên A chốt **tám** nhóm ngày 11/10 theo `BR-NOTI-01`, thay cho bốn. Tám vẫn còn đọc được một
+> lượt, và lý lẽ "đừng để hai mươi lăm công tắc" vẫn nguyên — chỉ con số là quyết định của Bên
+> A, không phải của mã. Một thứ THẬT SỰ mất đi: `CHAT` và `FEED` cũ cùng vào `CONTACT`, nên
+> không còn tắt riêng tin nhắn với bình luận. Phân loại của SRS không có chỗ nào khác cho "có
+> người bình luận vào bài của bạn".
+>
+> `GUIDE` hiện **không có loại nào** — chưa có thông báo hướng dẫn nào được dựng. Nhóm vẫn trả
+> về để người dùng đặt trước, và `IntentionallyEmptyNotificationGroups` khai điều đó tường
+> minh thay vì để ai đó đoán là bỏ sót.
 
 > **Vì sao phải có.** Trước đó là tất-cả-hoặc-không, nên người bị làm phiền sẽ tắt thông báo ở
 > **mức hệ điều hành** — và mất luôn `GIFT_REQUEST_ACCEPTED`, thứ thật sự quan trọng. Đây đúng

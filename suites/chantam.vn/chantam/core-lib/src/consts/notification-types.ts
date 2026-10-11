@@ -160,17 +160,63 @@ export enum NotificationTypes {
  * thông báo ở mức HỆ ĐIỀU HÀNH — và mất luôn `GIFT_REQUEST_ACCEPTED`, thứ thật
  * sự quan trọng. Đây đúng là lý lẽ đã dùng để thiết kế luật "cảm xúc chỉ báo
  * lần đầu trong ngày".
+ *
+ * ## Tám nhóm, chốt 11/10
+ *
+ * Tới 10/10 đây là BỐN nhóm (`TRANSACTION`/`CHAT`/`FEED`/`SYSTEM`), gọn hơn tám
+ * nhóm mà `BR-NOTI-01` của SRS đặt tên. Bên A chốt theo SRS: tám nhóm.
+ *
+ * Đánh đổi được ghi nhận, không phải bỏ qua: tám nhóm là tám dòng trong màn hình
+ * cài đặt, nhiều hơn bốn. Nhưng nó KHÔNG phải "hai mươi công tắc" — mỗi loại vẫn
+ * thuộc đúng một nhóm, và người đang bị làm phiền vẫn tắt được bằng một lần bấm.
+ *
+ * Một thứ THẬT SỰ mất đi: `CHAT` và `FEED` cũ cùng vào `CONTACT`, nên người dùng
+ * không còn tắt riêng tin nhắn với bình luận được nữa. Phân loại của SRS không có
+ * chỗ nào khác cho "có người bình luận vào bài của bạn" ngoài *Liên lạc*. Lượt di
+ * trú vì thế chọn phía IM LẶNG: ai đã tắt một trong hai thì `CONTACT` bị tắt —
+ * ping bất ngờ là thứ làm người ta tắt thông báo ở mức hệ điều hành, còn thiếu một
+ * thông báo thì họ vẫn thấy trong hộp thư.
  */
 export enum NotificationGroups {
-  /** Yêu cầu xin nhận và vòng đời lượt trao. */
-  TRANSACTION = 'TRANSACTION',
-  /** Tin nhắn và vòng đời phòng chat. */
-  CHAT = 'CHAT',
-  /** Bình luận, trả lời, cảm xúc trên nội dung của mình. */
-  FEED = 'FEED',
-  /** Hạng, nhắc lịch, kết luận báo xấu, hậu kiểm nội dung. */
-  SYSTEM = 'SYSTEM',
+  /**
+   * Hướng dẫn dùng ứng dụng, onboarding.
+   *
+   * **KHÔNG có loại nào hôm nay**, và đó là trạng thái được khai báo chứ không
+   * phải bỏ sót — xem `IntentionallyEmptyNotificationGroups`. Nhóm vẫn hiện trong
+   * `GET /notifications/me/preferences` để người dùng đặt trước; SRS đặt tên nó
+   * nên nó là một phần của không gian phân loại, không phải một ô rỗng tình cờ.
+   */
+  GUIDE = 'GUIDE',
+  /** Tích điểm: điểm được cộng vào sổ. */
+  POINT = 'POINT',
+  /** Sự kiện: lịch âm, ngày lễ, thông báo toàn hệ thống. */
+  EVENT = 'EVENT',
+  /** Trạng thái: vòng đời yêu cầu xin nhận và lượt trao. */
+  STATUS = 'STATUS',
+  /** Thưởng: lên hạng và các mốc đạt được. */
+  REWARD = 'REWARD',
+  /** Cảnh báo: tụt hạng, kết luận báo xấu, hậu kiểm nội dung. */
+  WARNING = 'WARNING',
+  /** Liên lạc: tin nhắn, bình luận, cảm xúc — người khác đang tìm đến bạn. */
+  CONTACT = 'CONTACT',
+  /** Điều kiện: nhắc việc phải làm trước một cái hạn. */
+  CONDITION = 'CONDITION',
 }
+
+/**
+ * Nhóm đã khai mà CHƯA có loại nào — khai tường minh, không để ai đoán.
+ *
+ * Một nhóm rỗng là một công tắc chưa điều khiển gì, và repo này coi "cái núm
+ * không làm gì" là lỗi. Nên nó phải được khai ở đây kèm lý do, và
+ * `notification-template.spec.ts` canh rằng MỌI nhóm khác đều có ít nhất một
+ * loại. Thêm một nhóm rỗng mà không khai vào đây là phép kiểm đỏ.
+ *
+ * `GUIDE` rỗng vì chưa có loại thông báo hướng dẫn/onboarding nào được dựng.
+ * `BR-NOTI-01` của SRS đặt tên nhóm này, nên nó tồn tại để nhận những loại đó
+ * khi chúng ra đời — không phải để làm tròn con số tám.
+ */
+export const IntentionallyEmptyNotificationGroups: readonly NotificationGroups[] =
+  [NotificationGroups.GUIDE];
 
 /**
  * Mỗi loại thuộc đúng một nhóm.
@@ -183,35 +229,49 @@ export const NotificationGroupOf: Record<
   NotificationTypes,
   NotificationGroups
 > = {
-  [NotificationTypes.NEW_CHAT_MESSAGE]: NotificationGroups.CHAT,
-  [NotificationTypes.CHAT_ROOM_SCHEDULED_FOR_PURGE]: NotificationGroups.CHAT,
+  // ── Liên lạc: có người đang tìm đến bạn ──────────────────────────────────
+  [NotificationTypes.NEW_CHAT_MESSAGE]: NotificationGroups.CONTACT,
+  // Hạn xoá phòng chat xếp vào LIÊN LẠC chứ không TRẠNG THÁI, và đây là một
+  // quyết định có hệ quả di trú: người từng tắt nhóm `CHAT` cũ đã tắt đúng hai
+  // loại này. Xếp nó sang TRẠNG THÁI thì lượt di trú phải tắt luôn nhóm đó cho
+  // họ — tức tắt cả `GIFT_REQUEST_ACCEPTED`, đúng thứ docblock trên nói là mất
+  // mát thật.
+  [NotificationTypes.CHAT_ROOM_SCHEDULED_FOR_PURGE]: NotificationGroups.CONTACT,
+  [NotificationTypes.CONTENT_COMMENT_CREATED]: NotificationGroups.CONTACT,
+  [NotificationTypes.CONTENT_COMMENT_REPLIED]: NotificationGroups.CONTACT,
+  [NotificationTypes.CONTENT_REACTION_FIRST_OF_DAY]: NotificationGroups.CONTACT,
 
-  [NotificationTypes.GIFT_REQUEST_CREATED]: NotificationGroups.TRANSACTION,
-  [NotificationTypes.GIFT_REQUEST_ACCEPTED]: NotificationGroups.TRANSACTION,
-  [NotificationTypes.GIFT_REQUEST_REJECTED]: NotificationGroups.TRANSACTION,
-  [NotificationTypes.GIFT_REQUEST_CLOSED]: NotificationGroups.TRANSACTION,
-  [NotificationTypes.GIFT_POST_RECEIVER_SELECTED]:
-    NotificationGroups.TRANSACTION,
-  [NotificationTypes.GIFT_TRANSACTION_HANDED_OVER]:
-    NotificationGroups.TRANSACTION,
-  [NotificationTypes.GIFT_TRANSACTION_CLOSED]: NotificationGroups.TRANSACTION,
-  [NotificationTypes.GIFT_TRANSACTION_COMPLETED]:
-    NotificationGroups.TRANSACTION,
-  [NotificationTypes.GIFT_TRANSACTION_REOPENED]: NotificationGroups.TRANSACTION,
+  // ── Trạng thái: vòng đời yêu cầu và lượt trao ────────────────────────────
+  [NotificationTypes.GIFT_REQUEST_CREATED]: NotificationGroups.STATUS,
+  [NotificationTypes.GIFT_REQUEST_ACCEPTED]: NotificationGroups.STATUS,
+  [NotificationTypes.GIFT_REQUEST_REJECTED]: NotificationGroups.STATUS,
+  [NotificationTypes.GIFT_REQUEST_CLOSED]: NotificationGroups.STATUS,
+  [NotificationTypes.GIFT_POST_RECEIVER_SELECTED]: NotificationGroups.STATUS,
+  [NotificationTypes.GIFT_TRANSACTION_HANDED_OVER]: NotificationGroups.STATUS,
+  [NotificationTypes.GIFT_TRANSACTION_CLOSED]: NotificationGroups.STATUS,
+  [NotificationTypes.GIFT_TRANSACTION_COMPLETED]: NotificationGroups.STATUS,
+  [NotificationTypes.GIFT_TRANSACTION_REOPENED]: NotificationGroups.STATUS,
 
-  [NotificationTypes.CONTENT_COMMENT_CREATED]: NotificationGroups.FEED,
-  [NotificationTypes.CONTENT_COMMENT_REPLIED]: NotificationGroups.FEED,
-  [NotificationTypes.CONTENT_REACTION_FIRST_OF_DAY]: NotificationGroups.FEED,
+  // ── Tích điểm: điểm vào sổ ───────────────────────────────────────────────
+  // Giới thiệu hợp lệ xếp vào TÍCH ĐIỂM chứ không THƯỞNG: nội dung thông báo là
+  // "bạn vừa được cộng điểm", còn THƯỞNG dành cho mốc đạt được.
+  [NotificationTypes.REFERRAL_QUALIFIED]: NotificationGroups.POINT,
 
-  [NotificationTypes.RANK_DEMOTION_WARNING]: NotificationGroups.SYSTEM,
-  [NotificationTypes.RANK_DEMOTED]: NotificationGroups.SYSTEM,
-  [NotificationTypes.RANK_PROMOTED]: NotificationGroups.SYSTEM,
-  [NotificationTypes.REFERRAL_QUALIFIED]: NotificationGroups.SYSTEM,
-  [NotificationTypes.RANK_MAINTENANCE_REMINDER]: NotificationGroups.SYSTEM,
-  [NotificationTypes.REVIEW_REMINDER]: NotificationGroups.SYSTEM,
-  [NotificationTypes.POST_EXPIRING_SOON]: NotificationGroups.SYSTEM,
-  [NotificationTypes.REPORT_REVIEWED]: NotificationGroups.SYSTEM,
-  [NotificationTypes.CONTENT_MODERATED]: NotificationGroups.SYSTEM,
-  [NotificationTypes.LUNAR_OBSERVANCE]: NotificationGroups.SYSTEM,
-  [NotificationTypes.SYSTEM_BROADCAST]: NotificationGroups.SYSTEM,
+  // ── Thưởng: mốc đạt được ─────────────────────────────────────────────────
+  [NotificationTypes.RANK_PROMOTED]: NotificationGroups.REWARD,
+
+  // ── Cảnh báo: thứ người dùng cần biết vì nó bất lợi cho họ ───────────────
+  [NotificationTypes.RANK_DEMOTION_WARNING]: NotificationGroups.WARNING,
+  [NotificationTypes.RANK_DEMOTED]: NotificationGroups.WARNING,
+  [NotificationTypes.REPORT_REVIEWED]: NotificationGroups.WARNING,
+  [NotificationTypes.CONTENT_MODERATED]: NotificationGroups.WARNING,
+
+  // ── Điều kiện: có việc phải làm trước một cái hạn ────────────────────────
+  [NotificationTypes.RANK_MAINTENANCE_REMINDER]: NotificationGroups.CONDITION,
+  [NotificationTypes.REVIEW_REMINDER]: NotificationGroups.CONDITION,
+  [NotificationTypes.POST_EXPIRING_SOON]: NotificationGroups.CONDITION,
+
+  // ── Sự kiện ──────────────────────────────────────────────────────────────
+  [NotificationTypes.LUNAR_OBSERVANCE]: NotificationGroups.EVENT,
+  [NotificationTypes.SYSTEM_BROADCAST]: NotificationGroups.EVENT,
 };

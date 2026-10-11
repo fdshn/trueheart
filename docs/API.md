@@ -1145,7 +1145,7 @@ Quyền là `report.read` / `report.resolve` — cùng việc với xử báo x�
 | --- | --- | --- | --- |
 | `GET` | `/notifications/me` | Bearer | Hộp thư của chính mình, lọc `unreadOnly` |
 | `PATCH` | `/notifications/me/read` | Bearer | Đánh dấu đã đọc; bỏ trống id thì đánh dấu tất cả |
-| `GET` | `/notifications/me/preferences` | Bearer | **Cài đặt theo nhóm** — luôn trả đủ bốn nhóm |
+| `GET` | `/notifications/me/preferences` | Bearer | **Cài đặt theo nhóm** — luôn trả đủ tám nhóm, kể cả nhóm chưa có loại nào |
 | `PATCH` | `/notifications/me/preferences` | Bearer | **Tắt/bật tiếng** một nhóm |
 
 - `unreadCount` là **tổng** số chưa đọc, không phụ thuộc trang hay bộ lọc đang xem — mở
@@ -1153,10 +1153,21 @@ Quyền là `report.read` / `report.resolve` — cùng việc với xử báo x�
 - Id không thuộc người gọi đơn giản không khớp dòng nào; **không báo lỗi**, vì báo lỗi là
   nói cho họ biết id đó có thật.
 - Mỗi sự kiện có `idempotencyKey` UNIQUE, nên retry không làm rung điện thoại hai lần.
-- **Bốn nhóm để tắt/bật**: `TRANSACTION`, `CHAT`, `FEED`, `SYSTEM`. Nhóm chứ không phải từng
-  loại — hai mươi công tắc là một màn hình không ai đọc, và người đang bị làm phiền cần tắt
-  nhanh chứ không cần chính xác. Mỗi nhóm trả kèm `types` để client khỏi tự đoán và khỏi lệch
-  khi backend thêm loại mới.
+- **Tám nhóm để tắt/bật** (`BR-NOTI-01`, chốt 11/10): `GUIDE`, `POINT`, `EVENT`, `STATUS`,
+  `REWARD`, `WARNING`, `CONTACT`, `CONDITION`. Vẫn là nhóm chứ không phải từng loại — hai
+  mươi lăm công tắc là một màn hình không ai đọc, và người đang bị làm phiền cần tắt nhanh
+  chứ không cần chính xác. Mỗi nhóm trả kèm `types` để client khỏi tự đoán và khỏi lệch khi
+  backend thêm loại mới.
+
+  Tới 10/10 đây là **bốn** nhóm (`TRANSACTION`/`CHAT`/`FEED`/`SYSTEM`); Bên A chốt theo SRS.
+  Hai điều client cần biết:
+
+  - `GUIDE` hiện **không có loại nào** — nhóm vẫn trả về để người dùng đặt trước, vì SRS đặt
+    tên nó. Đọc `types` rỗng là bình thường, không phải lỗi.
+  - `CHAT` và `FEED` cũ **gộp** vào `CONTACT`, nên không còn tắt riêng tin nhắn với bình luận
+    được nữa. Phân loại của SRS không có chỗ nào khác cho "có người bình luận vào bài của
+    bạn" ngoài *Liên lạc*. Lượt di trú chọn phía im lặng: ai đã tắt một trong hai thì
+    `CONTACT` tắt — ping bất ngờ là thứ làm người ta tắt thông báo ở mức hệ điều hành.
 - **Tắt tiếng KHÔNG phải tắt bản ghi.** Thông báo vẫn vào hộp thư để người dùng tự vào xem; chỉ
   `pushedDevices` về 0. Bỏ luôn bản ghi thì họ mất hẳn thông tin, chứ không phải được yên tĩnh.
 - **Hộp thư được dọn theo hạn lưu trữ** (`notification.retention`, mặc định 90 ngày, sàn 7). Cần

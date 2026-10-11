@@ -117,19 +117,19 @@ async function main(): Promise<void> {
 
     await notifications.setGroupMuted({
       userId: UserId,
-      group: NotificationGroups.FEED,
+      group: NotificationGroups.CONTACT,
       muted: true,
     });
     const muted = await notifications.listMutedGroups(UserId);
     check(
       'tắt một nhóm thì đọc lại thấy đúng nhóm đó',
-      muted.length === 1 && muted[0] === NotificationGroups.FEED,
+      muted.length === 1 && muted[0] === NotificationGroups.CONTACT,
       muted.join(','),
     );
 
     await notifications.setGroupMuted({
       userId: UserId,
-      group: NotificationGroups.FEED,
+      group: NotificationGroups.CONTACT,
       muted: true,
     });
     check(
@@ -144,7 +144,7 @@ async function main(): Promise<void> {
 
     await notifications.setGroupMuted({
       userId: UserId,
-      group: NotificationGroups.FEED,
+      group: NotificationGroups.CONTACT,
       muted: false,
     });
     const [remaining] = await dataSource.query<{ count: string }[]>(
@@ -160,7 +160,10 @@ async function main(): Promise<void> {
     // ── 2. Dọn theo hạn lưu trữ ─────────────────────────────────────────────
     console.log('\nDọn theo hạn lưu trữ:\n');
 
-    const old1 = await seedNotification(NotificationTypes.NEW_CHAT_MESSAGE, 120);
+    const old1 = await seedNotification(
+      NotificationTypes.NEW_CHAT_MESSAGE,
+      120,
+    );
     const old2 = await seedNotification(
       NotificationTypes.CONTENT_COMMENT_CREATED,
       100,
@@ -269,7 +272,9 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  console.log('\nHộp thư: tắt tiếng không mất bản ghi, và dọn đúng thứ quá hạn.');
+  console.log(
+    '\nHộp thư: tắt tiếng không mất bản ghi, và dọn đúng thứ quá hạn.',
+  );
 }
 
 main().catch((error) => {
