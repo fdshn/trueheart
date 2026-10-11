@@ -392,9 +392,16 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
     // chỉ chốt tại hạn, vì trước hạn người nhận còn được sửa đánh giá một lần. Trả
     // sớm là trả theo một con số còn sửa được.
     //
-    // `LEFT JOIN posts` chứ không `INNER`: bài bị xoá cứng vẫn phải trả bonus cho
-    // lượt trao đã hoàn tất — mất bài không phải lỗi của người tặng. Lúc đó
-    // `estimated_value` về `null` và bonus thành 0, đúng như không khai giá.
+    // `LEFT JOIN posts` chứ không `INNER`: bài đã xoá vẫn phải trả bonus cho lượt
+    // trao đã hoàn tất — mất bài không phải lỗi của người tặng. Câu này KHÔNG lọc
+    // `deleted_at`, nên bài xoá mềm vẫn mang theo giá đã khai. Xoá cứng thì không
+    // tới được (`FK_gift_transactions_post` là ON DELETE RESTRICT), và `LEFT JOIN`
+    // ở đây là chốt dự phòng: mất bài thì giá về `null` và bonus thành 0, đúng như
+    // không khai giá.
+    //
+    // Giá nằm trong `details ->> 'estimatedValue'`, KHÔNG phải một cột. Cột
+    // `estimated_value` là của bảng tiền thân `gift_posts`; lúc chuyển sang model
+    // canonical, `CreateCanonicalPosts` gói nó vào `details`.
     const rows = await this.manager.query<
       {
         transaction_id: string;
@@ -409,7 +416,7 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
                deal.giver_id,
                deal.completed_at,
                rated.accuracy_percent,
-               item.estimated_value
+               item.details ->> 'estimatedValue' AS estimated_value
         FROM gift_transactions deal
         LEFT JOIN transaction_reviews rated
           ON rated.transaction_id = deal.global_id
@@ -433,8 +440,15 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
       completedAt: row.completed_at,
       accuracyPercent:
         row.accuracy_percent === null ? null : Number(row.accuracy_percent),
-      // `estimated_value` là `bigint`, nên node-pg trả CHUỖI. Thiếu `Number()` thì
-      // phép chia dưới xuôi thành nối chuỗi và số điểm ra vô nghĩa.
+      // `->>` trên `jsonb` trả `text`, nên giá trị về đây là CHUỖI. (Lý do không
+      // còn là "`bigint` nên node-pg trả chuỗi" như ghi chú trước nói: cột
+      // `estimated_value` kiểu `bigint` nằm ở bảng tiền thân `gift_posts`, không
+      // phải ở `posts`. Kết luận trùng, nhưng lý do sai sẽ dẫn người sau đi tìm
+      // một cột không tồn tại — đúng cái đã làm truy vấn này hỏng.)
+      //
+      // Thiếu `Number()` thì phép chia dưới xuôi thành nối chuỗi và số điểm ra vô
+      // nghĩa. `null` phải giữ nguyên `null` chứ không qua `Number()`: `Number(null)`
+      // là 0, và 0 ở đây trông y như "đã khai giá 0đ".
       estimatedValueVnd:
         row.estimated_value === null ? null : Number(row.estimated_value),
     }));

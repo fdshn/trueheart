@@ -1,7 +1,7 @@
 /**
  * Kiểm hai đường trả thưởng lượt trao trên Postgres THẬT (F40).
  *
- * Năm thứ unit test mock không thấy được:
+ * Sáu thứ unit test mock không thấy được:
  *
  * 1. Hệ số nhân thật sự đổi `delta` trong `point_ledger`, và làm tròn đúng.
  * 2. Khoá chống trùng chặn được **cả hai** đường: đánh giá tới trước thì job
@@ -10,6 +10,10 @@
  *    và loại lượt đã có bút toán.
  * 4. Chấm 0% vẫn ghi bút toán delta = 0, nên job sau đó KHÔNG trả mức mặc định.
  * 5. `lifetime` cộng theo delta đã nhân, không theo mức trần của rule.
+ * 6. Cả ba câu `find*` của job `gift:settle-rewards` CHẠY ĐƯỢC trên schema
+ *    thật, và `value_bonus` đọc giá trị món đồ từ đúng chỗ. Ba câu ấy chạy
+ *    trước mọi lượt ghi điểm, nên một cột sai tên ở câu nào cũng giết cả
+ *    job — kể cả hai việc không liên quan tới bonus.
  */
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
@@ -79,6 +83,7 @@ async function main(): Promise<void> {
     id: string,
     daysAgo: number,
     giverId: string = GiverId,
+    postId: string = PostId,
   ): Promise<string> {
     await dataSource.query(
       `INSERT INTO gift_transactions
@@ -86,7 +91,7 @@ async function main(): Promise<void> {
        VALUES ($1, $2, $3, $4, 1, 'COMPLETED',
                now() - ($5 || ' days')::interval,
                now() - ($5 || ' days')::interval)`,
-      [id, PostId, giverId, ReceiverId, String(daysAgo)],
+      [id, postId, giverId, ReceiverId, String(daysAgo)],
     );
     return id;
   }
@@ -360,6 +365,135 @@ async function main(): Promise<void> {
       'từ chối nhân hệ số vào khoản phạt',
       rejectedPenaltyScaling,
       rejectedPenaltyScaling ? '' : 'đã cho qua — mở đường giảm nhẹ hình phạt',
+    );
+
+    console.log('\n8. findUnsettledValueBonuses chạy được trên schema thật');
+    // Ba câu `find*` của job `gift:settle-rewards` chạy TRƯỚC mọi lượt ghi điểm,
+    // nên một cột sai tên ở bất kỳ câu nào cũng giết cả job — kể cả hai việc
+    // không liên quan gì tới bonus. Unit test mock sạch cả ba câu, nên lớp lỗi
+    // này chỉ có Postgres thật mới thấy.
+    const ValuePostId = '88888888-8888-4888-8888-8888888b1002';
+    const DeletedPostId = '88888888-8888-4888-8888-8888888b1003';
+    for (const [postId, title] of [
+      [ValuePostId, 'Bài có khai giá'],
+      [DeletedPostId, 'Bài khai giá rồi bị xoá'],
+    ] as const)
+      await dataSource.query(
+        `INSERT INTO posts
+           (global_id, post_type, author_id, category_id, title, description,
+            location, area_label, status, total_quantity, remaining_quantity,
+            details, renewed_count)
+         VALUES ($1, 'OFFER', $2, $3, $4,
+                 'Mô tả đủ dài cho bài kiểm thưởng theo giá trị món đồ',
+                 ST_SetSRID(ST_MakePoint(106.698, 10.7724), 4326)::geography,
+                 'Quận 1', 'COMPLETED', 9, 9,
+                 '{"estimatedValue": 1500000}'::jsonb, 0)`,
+        [postId, GiverId, CategoryId, title],
+      );
+
+    const dealValued = await seedDeal(
+      '77777777-7777-4777-8777-7777777a0101',
+      30,
+      GiverId,
+      ValuePostId,
+    );
+    await dataSource.query(
+      `INSERT INTO transaction_reviews
+         (global_id, transaction_id, reviewer_id, reviewee_id, reviewer_role, rating, accuracy_percent)
+       VALUES (gen_random_uuid(), $1, $2, $3, 'RECEIVER', 5, 80)`,
+      [dealValued, ReceiverId, GiverId],
+    );
+    // Bài `details '{}'` — không khai giá.
+    const dealNoValue = await seedDeal(
+      '77777777-7777-4777-8777-7777777a0102',
+      30,
+    );
+    const dealFreshBonus = await seedDeal(
+      '77777777-7777-4777-8777-7777777a0103',
+      1,
+      GiverId,
+      ValuePostId,
+    );
+    const dealPaidBonus = await seedDeal(
+      '77777777-7777-4777-8777-7777777a0104',
+      30,
+      GiverId,
+      ValuePostId,
+    );
+    await ledger.appendAdjustment({
+      userId: GiverId,
+      ruleCode: 'GIFT_VALUE_BONUS_GIVER',
+      delta: 7,
+      referenceType: 'GIFT_TRANSACTION',
+      referenceId: dealPaidBonus,
+      idempotencyKey: `GIFT_VALUE_BONUS_GIVER:${dealPaidBonus}`,
+      actor: 'SYSTEM',
+      source: 'GRACE_EXPIRED',
+      reason: 'Đã trả bonus trước đó',
+    });
+
+    // Bài bị xoá MỀM vẫn phải trả bonus: mất bài không phải lỗi của người tặng.
+    // Xoá CỨNG thì không tới được — `FK_gift_transactions_post` là ON DELETE
+    // RESTRICT, nên một lượt trao đã hoàn tất luôn giữ bài gốc lại.
+    const dealDeletedPost = await seedDeal(
+      '77777777-7777-4777-8777-7777777a0105',
+      30,
+      GiverId,
+      DeletedPostId,
+    );
+    await dataSource.query(
+      `UPDATE posts SET deleted_at = now() WHERE global_id = $1`,
+      [DeletedPostId],
+    );
+
+    const bonuses = await reviews.findUnsettledValueBonuses({
+      graceDays: 7,
+      limit: 100,
+    });
+    const bonusById = new Map(bonuses.map((row) => [row.transactionId, row]));
+
+    check(
+      'lượt quá hạn có khai giá thì có trong danh sách',
+      bonusById.has(dealValued),
+    );
+    check(
+      'và mang theo đúng giá trị món đồ từ details',
+      bonusById.get(dealValued)?.estimatedValueVnd === 1_500_000,
+      `nhận ${String(bonusById.get(dealValued)?.estimatedValueVnd)}`,
+    );
+    check(
+      'mang theo mức người nhận đã chấm',
+      bonusById.get(dealValued)?.accuracyPercent === 80,
+      `nhận ${String(bonusById.get(dealValued)?.accuracyPercent)}`,
+    );
+    check(
+      'bài không khai giá thì vẫn có mặt, estimatedValueVnd là null',
+      bonusById.has(dealNoValue) &&
+        bonusById.get(dealNoValue)?.estimatedValueVnd === null,
+      `nhận ${String(bonusById.get(dealNoValue)?.estimatedValueVnd)}`,
+    );
+    check(
+      'lượt chưa tới hạn KHÔNG có — trước hạn đánh giá còn sửa được',
+      !bonusById.has(dealFreshBonus),
+    );
+    check('lượt đã trả bonus KHÔNG có', !bonusById.has(dealPaidBonus));
+    check(
+      'bài xoá mềm vẫn có, vẫn mang giá',
+      bonusById.get(dealDeletedPost)?.estimatedValueVnd === 1_500_000,
+      `nhận ${String(bonusById.get(dealDeletedPost)?.estimatedValueVnd)}`,
+    );
+    check(
+      'lượt đã trả ĐIỂM HOÀN TẤT vẫn chờ bonus — hai khoản hai khoá riêng',
+      bonusById.has(dealZero),
+      bonusById.has(dealZero) ? '' : 'bị loại — dùng chung khoá chống trùng',
+    );
+
+    const receiverDue = await reviews.findUnsettledReceiverRewards({
+      limit: 200,
+    });
+    check(
+      'findUnsettledReceiverRewards chạy được và thấy lượt chưa trả',
+      receiverDue.some((row) => row.transactionId === dealValued),
     );
   } finally {
     for (const source of opened.reverse())
