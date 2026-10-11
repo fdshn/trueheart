@@ -10,8 +10,8 @@
 > **Mục 2 và mục 4 xong 11–12/10:** đổi điểm đòi xác nhận lại khi giá đã đổi, huỷ lượt trao
 > đổi-bằng-điểm thì hoàn đúng số đã trừ, và mỗi bên **sửa đánh giá của mình được một lần**
 > trong hạn chờ.
-> **Còn lại:** mục 5 (acceptance tests). Không dùng trang này làm bằng chứng tính năng mới đã
-> có; cần cập nhật endpoint/schema trước khi app gọi.
+> **CHỐT-10 xong cả năm mục** (mục 5 là `npm run test:acceptance`). Không dùng trang này làm
+> bằng chứng tính năng mới đã có; bằng chứng là lượt chạy xanh của script đó.
 
 Mô tả **các endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
 buộc mà chữ ký hàm không nói ra.

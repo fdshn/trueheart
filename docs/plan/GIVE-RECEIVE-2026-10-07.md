@@ -284,7 +284,19 @@ Phần còn lại của mục 4 — chốt % tại hạn, mức mặc định kh
 đúng một lần — đã có từ CHỐT-14 (`SettleGiftRewardsUseCase`, `review.grace`). Chỉ số tổng hợp
 phản ánh bản cuối vì `editReview` tính lại accuracy và điểm sao trong cùng transaction.
 
-**Mục 5 (acceptance tests) vẫn còn nguyên.** Đây là **danh sách phải triển khai**, không được
-coi tài liệu mới là bằng chứng API đã chạy.
+**Mục 5 xong 12/10:** `npm run test:acceptance` (`test/acceptance-chot10.check.ts`) dựng cả
+sáu tình huống trên Postgres thật, trong một database nháp riêng.
+
+Nó KHÔNG thay các script cũ (`post-lifecycle`, `selection`, `redemption`, `gift-rewards`,
+`reviews`) mà canh thứ không script nào canh được một mình: các mảnh nối lại có ra đúng câu
+chuyện nghiệp vụ hay không. Ví dụ rõ nhất là tình huống 5 — `reviews` nói *"sửa được một
+lần"*, `gift-rewards` nói *"bonus chốt tại hạn, một lần"*, cả hai xanh mà câu *"sửa 70% thành
+100% trước hạn thì tại hạn cộng theo 100%"* vẫn có thể sai, nếu truy vấn chốt thưởng đọc một
+hàng khác với hàng vừa sửa.
+
+CI tự nhặt mọi script `test:*` trong `package.json`, nên không cần sửa workflow.
+
+Đây là **danh sách đã triển khai**, nhưng vẫn không được coi tài liệu là bằng chứng API đã
+chạy — bằng chứng là lượt chạy xanh của các script trên.
 Chi tiết gap kỹ thuật, atomicity, API đích và ma trận kiểm thử nằm tại
 [REDEMPTION-REQUIREMENT-GAP.md](./REDEMPTION-REQUIREMENT-GAP.md).
