@@ -66,6 +66,15 @@ export enum ErrorCodes {
    */
   CHECK_IN_REPAIR_UNAVAILABLE = 0x02_0f,
 
+  /**
+   * Giá bằng điểm đã đổi giữa lúc xem trước và lúc bấm đổi (CHỐT-10 mục 2).
+   *
+   * Số nằm ngoài nhóm đổi điểm ở trên vì nhóm 0x02_0b..0x02_0f đã kín; đếm tiếp
+   * từ số lớn nhất chứ không chen vào khoảng trống, để một mã đã phát ra ngoài
+   * không bao giờ đổi nghĩa.
+   */
+  REDEMPTION_QUOTE_STALE = 0x02_10,
+
   // 0x03 — Người dùng
   //
   // Cố ý đặt tên USER_* chứ không phải MEMBER_*: "Member" đã là tên một bậc

@@ -6,6 +6,7 @@ import {
   CreateGiftRequestParamDto,
   ListPostRequestsParamDto,
   ListPostRequestsQueryDto,
+  RedeemPostWithPointsBodyDto,
   WithdrawGiftRequestParamDto,
 } from './index';
 
@@ -108,5 +109,41 @@ describe('ListPostRequestsQueryDto', () => {
     expect(await errorsOf(ListPostRequestsQueryDto, { page: 0 })).toContain(
       'min',
     );
+  });
+});
+
+describe('RedeemPostWithPointsBodyDto', () => {
+  it('nhận con số xác nhận hợp lệ', async () => {
+    expect(
+      await errorsOf(RedeemPostWithPointsBodyDto, { confirmedPoints: 500 }),
+    ).toEqual([]);
+  });
+
+  it('BẮT BUỘC gửi — bỏ trống là từ chối, không phải bỏ qua phép kiểm', async () => {
+    // Đây là chỗ phép xác nhận của CHỐT-10 mục 2 thật sự được bắt buộc. Nếu
+    // trường này tuỳ chọn thì client chỉ cần không gửi nó là lại về đúng hành vi
+    // cũ: tính lại theo giá mới rồi trừ luôn.
+    expect(await errorsOf(RedeemPostWithPointsBodyDto, {})).toContain('isInt');
+  });
+
+  it('từ chối 0 và số âm', async () => {
+    // `quoteRedemption` không bao giờ trả 0 cho một bài đổi được — 0 nghĩa là
+    // "chưa quy ra điểm được", và nhận nó ở đây sẽ biến bài chưa khai giá thành
+    // một lượt đổi miễn phí nếu phép kiểm ở use case có ngày đổi hình.
+    expect(
+      await errorsOf(RedeemPostWithPointsBodyDto, { confirmedPoints: 0 }),
+    ).toContain('min');
+    expect(
+      await errorsOf(RedeemPostWithPointsBodyDto, { confirmedPoints: -500 }),
+    ).toContain('min');
+  });
+
+  it('từ chối số thập phân và chuỗi', async () => {
+    expect(
+      await errorsOf(RedeemPostWithPointsBodyDto, { confirmedPoints: 1.5 }),
+    ).toContain('isInt');
+    expect(
+      await errorsOf(RedeemPostWithPointsBodyDto, { confirmedPoints: '500' }),
+    ).toContain('isInt');
   });
 });

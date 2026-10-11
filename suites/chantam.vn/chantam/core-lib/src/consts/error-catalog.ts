@@ -84,6 +84,19 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Người tặng chưa khai giá trị tham khảo cho vật phẩm này, nên không quy ra điểm được.',
   },
 
+  REDEMPTION_QUOTE_STALE: {
+    code: ErrorCodes.REDEMPTION_QUOTE_STALE,
+    // 409 chứ không 400: người dùng không gửi gì sai. Họ xác nhận một con số
+    // đúng ở thời điểm họ thấy nó, và thế giới đổi dưới chân họ. 400 nói "sửa
+    // dữ liệu đi", còn ở đây việc cần làm là XEM LẠI giá rồi quyết lần nữa.
+    httpStatus: HttpStatus.CONFLICT,
+    // Nói cả hai con số: thiếu con số mới thì client phải gọi lại báo giá chỉ để
+    // dựng được câu thông báo, và người dùng nhìn một màn hình trống giữa hai
+    // lượt gọi.
+    message: (confirmed?: number, current?: number) =>
+      `Giá đã đổi từ ${confirmed ?? 0} điểm thành ${current ?? 0} điểm. Xem lại rồi xác nhận giúp mình nhé.`,
+  },
+
   REDEMPTION_INSUFFICIENT_POINTS: {
     code: ErrorCodes.REDEMPTION_INSUFFICIENT_POINTS,
     httpStatus: HttpStatus.BAD_REQUEST,

@@ -7,6 +7,7 @@ import {
   RedemptionInsufficientPointsException,
   RedemptionNotAvailableException,
   RedemptionPriceUnavailableException,
+  RedemptionQuoteStaleException,
 } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
@@ -45,6 +46,11 @@ export const ItemRedemptionRuleCode = 'ITEM_REDEMPTION';
  * Và từ 11/10 một điều kiện thứ tư: **chỉ tiêu được phần vượt ngưỡng giữ hạng**
  * (CHỐT-13). Tới trước đó đây là một lời cảnh báo trong quote mà client tự quyết
  * bỏ qua; CHỐT-13 nói thẳng là nó thay thế đoạn F76 từng huỷ bảo vệ Rank.
+ *
+ * Và một điều kiện thứ năm: **con số xác nhận phải khớp giá hiện tại** (CHỐT-10
+ * mục 2). Báo giá không giữ giá — chủ bài sửa giá trị tham khảo hay Admin đổi tỷ
+ * lệ là giá đổi ngay. Lệnh đổi mang theo số điểm người dùng đã thấy, và lệch thì
+ * ném chứ không âm thầm trừ theo giá mới.
  *
  * Trừ điểm rồi mới duyệt, và nếu duyệt hỏng thì HOÀN lại ngay: xem ghi chú ở
  * `handle`.
@@ -90,6 +96,27 @@ export class RedeemPostWithPointsUseCase implements IRedeemPostWithPointsUseCase
     );
     const quote = quoteRedemption(context.estimatedValueVnd, rate);
     if (!quote.redeemable) throw new RedemptionPriceUnavailableException();
+
+    // CHỐT-10 mục 2: giá đổi giữa lúc xem trước và lúc bấm thì phải XÁC NHẬN LẠI.
+    //
+    // Hai thứ làm giá đổi, và cả hai đều ngoài tay người đổi: chủ bài sửa giá trị
+    // tham khảo, hoặc Admin đổi tỷ lệ VNĐ/điểm. Tới 10/10 chỗ này tính lại theo
+    // giá MỚI rồi trừ luôn — người dùng xác nhận 500 điểm và bị trừ 1.000, không
+    // một bước nào hỏi lại.
+    //
+    // So theo SỐ ĐIỂM, không theo giá trị và tỷ lệ riêng: điểm là con số người
+    // dùng thật sự đồng ý trả, và là nơi hai đầu vào kia gộp lại. Giá tăng 1 đồng
+    // mà số điểm không đổi thì không có gì người dùng cần xem lại — chặn lúc đó
+    // chỉ dạy họ bấm lại lần nữa mà không đọc.
+    //
+    // Phép kiểm này đứng TRƯỚC phép kiểm đủ điểm: "không đủ điểm" sẽ nhắc một con
+    // số người dùng chưa từng thấy, và đẩy họ đi nạp điểm cho một cái giá có thể
+    // họ sẽ không đồng ý.
+    if (command.confirmedPoints !== quote.points)
+      throw new RedemptionQuoteStaleException(
+        command.confirmedPoints,
+        quote.points,
+      );
 
     // CHỐT-13: chỉ tiêu được phần VƯỢT ngưỡng giữ hạng hiện tại.
     //

@@ -23,6 +23,7 @@ import {
   RedemptionInsufficientPointsException,
   RedemptionNotAvailableException,
   RedemptionPriceUnavailableException,
+  RedemptionQuoteStaleException,
 } from '@/domain/exceptions';
 import {
   IAcceptGiftRequestResponseDto,
@@ -76,6 +77,7 @@ import {
   OfferGiftBodyDto,
   OfferGiftParamDto,
   OfferGiftResponseDto,
+  RedeemPostWithPointsBodyDto,
   RedeemPostWithPointsParamDto,
   RedeemPostWithPointsResponseDto,
   RedemptionQuoteResponseDto,
@@ -402,7 +404,9 @@ export class GiftRequestController {
   @ApiOperation({
     summary: 'Dùng điểm đổi thẳng vật phẩm (F75)',
     description:
-      'Chốt ngay người nhận mà không chờ hết đồng hồ 7 ngày. Ba điều kiện: đồng hồ đang chạy, người gọi ĐÃ gửi yêu cầu xin nhận, và bài có khai giá trị tham khảo. Số điểm = giá trị tham khảo chia tỷ lệ quy đổi (Admin cấu hình), làm tròn LÊN. Điểm bị trừ trước khi duyệt và được hoàn lại nếu không chốt được.',
+      'Chốt ngay người nhận mà không chờ hết đồng hồ 7 ngày. Ba điều kiện: đồng hồ đang chạy, người gọi ĐÃ gửi yêu cầu xin nhận, và bài có khai giá trị tham khảo. Số điểm = giá trị tham khảo chia tỷ lệ quy đổi (Admin cấu hình), làm tròn LÊN. Điểm bị trừ trước khi duyệt và được hoàn lại nếu không chốt được. ' +
+      'Body PHẢI mang `confirmedPoints` — số điểm đã thấy ở báo giá; lệch với giá máy chủ tính lại thì `409 REDEMPTION_QUOTE_STALE` và không trừ gì (CHỐT-10 mục 2). ' +
+      'Lượt trao này bị huỷ về sau thì điểm được hoàn tự động, đúng số đã trừ (CHỐT-13).',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(RedeemPostWithPointsResponseDto) })
   @ApiErrorResponses(
@@ -412,6 +416,7 @@ export class GiftRequestController {
       'Đồng hồ chưa mở, đã hết, bài đã có chủ, hoặc bạn chưa gửi yêu cầu xin nhận',
     ],
     [RedemptionPriceUnavailableException, 'Bài chưa khai giá trị tham khảo'],
+    [RedemptionQuoteStaleException, [500, 1000]],
     [RedemptionInsufficientPointsException, 'Không đủ điểm'],
     [GiftTransactionOutOfStockException],
     [GiftTransactionInvalidStateException, 'ACCEPTED'],
@@ -419,10 +424,12 @@ export class GiftRequestController {
   public async redeemPostWithPoints(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: RedeemPostWithPointsParamDto,
+    @Body() body: RedeemPostWithPointsBodyDto,
   ): Promise<ResponseDto<IRedeemPostWithPointsResponseDto>> {
     const result = await this.redeemPostWithPointsUseCase.handle({
       postId: params.postId,
       requesterId: principal.userId,
+      confirmedPoints: body.confirmedPoints,
     });
 
     return ResponseDto.create<IRedeemPostWithPointsResponseDto>()

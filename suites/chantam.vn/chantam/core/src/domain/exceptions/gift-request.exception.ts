@@ -44,6 +44,19 @@ export class RedemptionInsufficientPointsException extends ExceptionFrom(
   CoreErrors.REDEMPTION_INSUFFICIENT_POINTS,
 ) {}
 
+/**
+ * Giá bằng điểm đã đổi giữa lúc xem trước và lúc bấm (CHỐT-10 mục 2).
+ *
+ * Hai thứ làm giá đổi, và cả hai đều ngoài tay người đổi: chủ bài sửa giá trị
+ * tham khảo, hoặc Admin đổi tỷ lệ VNĐ/điểm. Tới trước 11/10 đường bấm tính lại
+ * theo giá MỚI rồi trừ luôn — người dùng xác nhận 500 điểm và bị trừ 1.000.
+ *
+ * Nên lệnh đổi mang theo con số người dùng ĐÃ THẤY, và lệch thì không trừ gì.
+ */
+export class RedemptionQuoteStaleException extends ExceptionFrom(
+  CoreErrors.REDEMPTION_QUOTE_STALE,
+) {}
+
 export class OfferGiftTargetNotWantedException extends ExceptionFrom(
   CoreErrors.OFFER_GIFT_TARGET_NOT_WANTED,
 ) {}

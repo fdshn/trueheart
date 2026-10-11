@@ -4,7 +4,7 @@ import {
   IRedemptionQuoteResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID } from 'class-validator';
+import { IsInt, IsUUID, Min } from 'class-validator';
 
 export class RedemptionQuoteDto implements IRedemptionQuoteDto {
   @ApiProperty({
@@ -80,6 +80,20 @@ export class RedeemPostWithPointsParamDto {
   })
   @IsUUID()
   postId: string;
+}
+
+export class RedeemPostWithPointsBodyDto {
+  @ApiProperty({
+    example: 500,
+    description:
+      'Số điểm bạn ĐÃ THẤY ở `GET /posts/{postId}/redemption-quote` và đồng ý trả — chép nguyên trường `quote.points`, không tự tính. ' +
+      'Lệch với giá máy chủ tính lại thì trả `409 REDEMPTION_QUOTE_STALE` kèm cả hai con số và KHÔNG trừ điểm: ' +
+      'báo giá không giữ giá, nên chủ bài sửa giá trị tham khảo hoặc Admin đổi tỷ lệ là giá đổi ngay (CHỐT-10 mục 2). ' +
+      'Bắt buộc gửi — một phép xác nhận bỏ qua được bằng cách không gửi trường nào thì không phải phép xác nhận.',
+  })
+  @IsInt()
+  @Min(1)
+  confirmedPoints: number;
 }
 
 export class RedeemPostWithPointsResponseDto implements IRedeemPostWithPointsResponseDto {

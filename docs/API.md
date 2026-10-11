@@ -669,7 +669,7 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 > Bên A đổi được ngưỡng qua bảng quyền theo bậc mà không cần deploy.
 | `POST` | `/posts/:wantedPostId/offer-gift` | Bearer | Chủ động tặng cho một bài Muốn Nhận, kèm được một bài Muốn Tặng của chính mình |
 | `GET` | `/posts/:postId/redemption-quote` | Bearer (người xin) | Xem giá đổi và lý do không đổi được; hiện luôn 200, không giữ hàng/điểm |
-| `POST` | `/posts/:postId/redeem` | Bearer (người xin) | Dùng điểm chốt ngay; hiện có ledger debit + accept/refund bù, **chưa** atomic và chưa bảo vệ Rank |
+| `POST` | `/posts/:postId/redeem` | Bearer (người xin) | Dùng điểm chốt ngay. Body đòi `confirmedPoints` — số điểm đã thấy ở báo giá. Có sàn giữ hạng, có xác nhận lại khi giá đổi, và hoàn điểm nếu lượt trao bị huỷ; **chưa** atomic giữa debit và accept |
 
 #### Đổi vật phẩm bằng điểm — contract hiện tại và đích
 
@@ -681,6 +681,37 @@ Chỉ người đã gửi request mới được đổi khi bài `PUBLISHED` và
 `missingPoints` trong `body.quote`. Hiện `redeemable` có thể `true` dù
 `unavailableReason=INSUFFICIENT_POINTS`; client không được chỉ nhìn `redeemable` để bật CTA.
 POST thành công trả `postId`, `transactionId`, `pointsSpent`, `balanceAfter`.
+
+> ✅ **Giá đổi giữa lúc xem và lúc bấm thì phải XÁC NHẬN LẠI, từ 11/10 (CHỐT-10 mục 2).**
+>
+> `POST /posts/:postId/redeem` nay có **body bắt buộc**:
+>
+> ```json
+> { "confirmedPoints": 500 }
+> ```
+>
+> Chép nguyên `quote.points` vừa đọc, **không tự tính**. Lệch với giá máy chủ tính lại thì
+> `409 REDEMPTION_QUOTE_STALE`, kèm cả hai con số trong thông điệp, và **không trừ điểm**.
+> Client đọc lại báo giá, hiện giá mới, rồi để người dùng quyết lần nữa.
+>
+> **Đây là một thay đổi phá vỡ**: lệnh đổi không gửi body sẽ nhận `400 VALIDATION_FAILED`.
+> Trường này bắt buộc chứ không tuỳ chọn — một phép xác nhận bỏ qua được bằng cách không gửi
+> trường nào thì không phải phép xác nhận, và hành vi cũ (tính lại theo giá mới rồi trừ luôn)
+> lại quay về nguyên vẹn.
+>
+> Hai thứ làm giá đổi, và **cả hai đều ngoài tay người đổi**: chủ bài sửa `estimatedValue`,
+> hoặc Admin đổi `point.redemption.vndPerPoint` — lần sau áp cho mọi bài cùng lúc.
+>
+> So theo **số điểm**, không theo giá trị và tỷ lệ riêng: điểm là con số người dùng thật sự
+> đồng ý trả, và là nơi hai đầu vào kia gộp lại. Giá tăng 1 đồng mà số điểm không đổi thì
+> không có gì cần xem lại, và chặn lúc đó chỉ dạy người ta bấm lại mà không đọc.
+>
+> Giá **rẻ đi** cũng bị chặn. Trừ ít hơn số đã đồng ý nghe như một món quà, nhưng nó nghĩa là
+> màn hình người dùng đang nói sai về món đồ — và lần sau giá có thể đi hướng kia.
+>
+> `409` này đứng **trước** `REDEMPTION_INSUFFICIENT_POINTS`: báo "cần 1.000 điểm, bạn có 300"
+> là nhắc một con số người dùng chưa từng thấy, và đẩy họ đi nạp điểm cho một cái giá họ có
+> thể sẽ không đồng ý.
 
 > ✅ **Sàn giữ hạng đã CHẶN, từ 11/10 (CHỐT-13).** Chỉ tiêu được
 > `availablePoints = max(0, balancePoints - reservedForRankPoints)`, với
@@ -979,9 +1010,11 @@ nghiệp vụ bảo vệ retry/đồng thời. Xem [quy tắc và trường resp
   **không** chạy scheduler trong tiến trình vì deploy nhiều replica sẽ chạy trùng. Có CLI
   tương đương: `npm run rank:evaluate`.
 - ✅ **Đã có đường tiêu điểm** qua `POST /posts/:postId/redeem`, ghi
-  `ITEM_REDEMPTION` vào ledger với idempotency key theo request. Nhưng debit và accept
-  hiện là hai transaction, lỗi accept ghi bút toán hoàn; chưa đạt yêu cầu atomic và
-  bảo vệ Rank mới. Xem contract đích tại [handoff](./plan/REDEMPTION-REQUIREMENT-GAP.md).
+  `ITEM_REDEMPTION` vào ledger với idempotency key theo request. Bảo vệ Rank đã có
+  (CHỐT-13), xác nhận lại khi báo giá cũ đã có (CHỐT-10 mục 2), và lượt trao bị huỷ về
+  sau thì điểm được hoàn đúng số đã trừ. **Còn lại:** debit và accept vẫn là hai
+  transaction — lỗi accept ghi bút toán hoàn, chưa đạt yêu cầu atomic. Xem contract đích
+  tại [handoff](./plan/REDEMPTION-REQUIREMENT-GAP.md).
 
 ---
 

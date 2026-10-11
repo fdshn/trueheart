@@ -73,6 +73,7 @@ Nghiệp vụ Chân Tâm
 | `0x020d` | `525` | 400 Bad Request | `CHECK_IN_REPAIR_DATE_INVALID` | Chỉ bù được những ngày trong 0 ngày gần nhất, và không bù cho hôm nay |
 | `0x020e` | `526` | 409 Conflict | `CHECK_IN_REPAIR_CREDIT_INSUFFICIENT` | Bạn không còn lượt điểm danh bù. Hoàn tất thêm 0 lượt tặng/nhận quà để có một lượt |
 | `0x020f` | `527` | 409 Conflict | `CHECK_IN_REPAIR_UNAVAILABLE` | Ngày này không nối lại được chuỗi nào, nên bù vào cũng không thay đổi gì |
+| `0x0210` | `528` | 409 Conflict | `REDEMPTION_QUOTE_STALE` | Giá đã đổi từ 0 điểm thành 0 điểm. Xem lại rồi xác nhận giúp mình nhé. |
 | `0x0301` | `769` | 404 Not Found | `USER_NOT_FOUND` | Không tìm thấy tài khoản |
 | `0x0302` | `770` | 403 Forbidden | `USER_SUSPENDED` | Tài khoản đang bị tạm khoá tới 2026-10-01T00:00:00.000Z |
 | `0x0303` | `771` | 403 Forbidden | `USER_BANNED` | Tài khoản đã bị khoá vĩnh viễn |
@@ -179,5 +180,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **137 mã lỗi** trên 3 tầng.
+Tổng cộng **138 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

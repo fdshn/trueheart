@@ -2,6 +2,7 @@ import {
   RedemptionInsufficientPointsException,
   RedemptionNotAvailableException,
   RedemptionPriceUnavailableException,
+  RedemptionQuoteStaleException,
 } from '@/domain/exceptions';
 import { RedeemPostWithPointsUseCase } from './redeem-post-with-points.use-case';
 
@@ -103,7 +104,16 @@ function makeUseCase(
   };
 }
 
-const command = { postId: PostId, requesterId: RequesterId };
+/**
+ * `confirmedPoints` là số điểm người dùng đã thấy ở báo giá (CHỐT-10 mục 2). Mặc
+ * định khớp bối cảnh mặc định: 1 triệu / 2.000 = 500 điểm. Ca nào đổi giá hoặc
+ * đổi tỷ lệ thì phải gửi con số của NÓ — đó chính là điều lát này canh.
+ */
+const command = {
+  postId: PostId,
+  requesterId: RequesterId,
+  confirmedPoints: 500,
+};
 
 describe('RedeemPostWithPointsUseCase', () => {
   it('trừ đúng số điểm quy từ giá trị tham khảo', async () => {
@@ -239,7 +249,9 @@ describe('RedeemPostWithPointsUseCase', () => {
     // Tỷ lệ 1.000 thay vì 2.000 → cùng món 1 triệu thành 1.000 điểm.
     const { useCase, ledger } = makeUseCase({ rate: 1000, balance: 5000 });
 
-    await useCase.handle(command);
+    // Tỷ lệ khác thì con số xác nhận cũng khác — gửi 500 ở đây là ca "báo giá cũ"
+    // và phải bị chặn, không phải ca này.
+    await useCase.handle({ ...command, confirmedPoints: 1000 });
 
     expect(ledger.appendAdjustment.mock.calls[0][0].delta).toBe(-1000);
   });
@@ -279,6 +291,103 @@ describe('RedeemPostWithPointsUseCase', () => {
   });
 });
 
+describe('RedeemPostWithPointsUseCase · báo giá cũ (CHỐT-10 mục 2)', () => {
+  it('CHỦ BÀI sửa giá giữa lúc xem và lúc bấm thì chặn, không trừ gì', async () => {
+    // Đây là lỗ tới 10/10: người dùng xác nhận 500 điểm, chủ bài nâng giá trị
+    // tham khảo lên 2 triệu, và đường bấm tính lại ra 1.000 rồi TRỪ LUÔN.
+    const { useCase, ledger, requests } = makeUseCase({
+      balance: 5000,
+      context: context({ estimatedValueVnd: 2_000_000 }),
+    });
+
+    await expect(
+      useCase.handle({ ...command, confirmedPoints: 500 }),
+    ).rejects.toBeInstanceOf(RedemptionQuoteStaleException);
+
+    expect(ledger.appendAdjustment).not.toHaveBeenCalled();
+    expect(requests.acceptRequest).not.toHaveBeenCalled();
+  });
+
+  it('ADMIN đổi tỷ lệ giữa lúc xem và lúc bấm thì cũng chặn', async () => {
+    // Đầu vào thứ hai, và nó đổi cho MỌI bài cùng lúc — một lần Admin sửa tỷ lệ
+    // là mọi báo giá đang mở trên tay người dùng thành cũ.
+    const { useCase, ledger } = makeUseCase({ rate: 1000, balance: 5000 });
+
+    await expect(
+      useCase.handle({ ...command, confirmedPoints: 500 }),
+    ).rejects.toBeInstanceOf(RedemptionQuoteStaleException);
+
+    expect(ledger.appendAdjustment).not.toHaveBeenCalled();
+  });
+
+  it('giá RẺ hơn cũng phải xác nhận lại, không âm thầm trừ ít đi', async () => {
+    // Trừ ít hơn số đã đồng ý nghe như một món quà, nhưng nó nghĩa là màn hình
+    // người dùng đang nói sai về món đồ — và lần sau giá có thể đi hướng kia.
+    const { useCase, ledger } = makeUseCase({
+      balance: 5000,
+      context: context({ estimatedValueVnd: 400_000 }),
+    });
+
+    await expect(
+      useCase.handle({ ...command, confirmedPoints: 500 }),
+    ).rejects.toBeInstanceOf(RedemptionQuoteStaleException);
+
+    expect(ledger.appendAdjustment).not.toHaveBeenCalled();
+  });
+
+  it('ném kèm CẢ HAI con số: đã xác nhận và giá hiện tại', async () => {
+    // Thiếu con số mới thì client phải gọi lại báo giá chỉ để dựng câu thông báo,
+    // và người dùng nhìn một màn hình trống giữa hai lượt gọi.
+    const { useCase } = makeUseCase({
+      balance: 5000,
+      context: context({ estimatedValueVnd: 2_000_000 }),
+    });
+
+    const error = await useCase
+      .handle({ ...command, confirmedPoints: 500 })
+      .catch((caught: unknown) => caught);
+
+    expect((error as Error).message).toContain('500');
+    expect((error as Error).message).toContain('1000');
+  });
+
+  it('báo giá CŨ bị chặn TRƯỚC khi báo "không đủ điểm"', async () => {
+    // Thứ tự có nghĩa: "cần 1.000 điểm, bạn có 300" nhắc một con số người dùng
+    // chưa từng thấy, và đẩy họ đi nạp điểm cho một cái giá họ có thể không đồng ý.
+    const { useCase } = makeUseCase({
+      balance: 300,
+      context: context({ estimatedValueVnd: 2_000_000 }),
+    });
+
+    await expect(
+      useCase.handle({ ...command, confirmedPoints: 500 }),
+    ).rejects.toBeInstanceOf(RedemptionQuoteStaleException);
+  });
+
+  it('bài không khai giá vẫn báo ĐÚNG lý do, không phải "báo giá cũ"', async () => {
+    // `quoteRedemption` trả 0 điểm cho bài không khai giá, và `confirmedPoints`
+    // tối thiểu là 1 — nên gộp hai thứ sẽ biến "bài chưa khai giá" thành "giá vừa
+    // đổi", một câu sai và không ai sửa được.
+    const { useCase } = makeUseCase({
+      context: context({ estimatedValueVnd: null }),
+    });
+
+    await expect(
+      useCase.handle({ ...command, confirmedPoints: 500 }),
+    ).rejects.toBeInstanceOf(RedemptionPriceUnavailableException);
+  });
+
+  it('khớp thì đi qua bình thường', async () => {
+    const { useCase, ledger } = makeUseCase({ balance: 5000 });
+
+    await useCase.handle({ ...command, confirmedPoints: 500 });
+
+    expect(ledger.appendAdjustment).toHaveBeenCalledWith(
+      expect.objectContaining({ delta: -500 }),
+    );
+  });
+});
+
 describe('RedeemPostWithPointsUseCase · sàn giữ hạng (CHỐT-13)', () => {
   it('CHẶN khi số điểm đổi ăn vào phần giữ hạng', async () => {
     // Vàng cần 896. Có 1.000 thì dùng được 104. Món 500 điểm phải bị chặn, dù số
@@ -291,7 +400,7 @@ describe('RedeemPostWithPointsUseCase · sàn giữ hạng (CHỐT-13)', () => {
     });
 
     await expect(
-      useCase.handle({ postId: PostId, requesterId: RequesterId }),
+      useCase.handle({ ...command, confirmedPoints: 500 }),
     ).rejects.toBeInstanceOf(RedemptionInsufficientPointsException);
 
     // Và KHÔNG trừ điểm. Chặn mà vẫn trừ là tệ hơn không chặn.
@@ -307,7 +416,7 @@ describe('RedeemPostWithPointsUseCase · sàn giữ hạng (CHỐT-13)', () => {
       rate: 2000,
     });
 
-    await useCase.handle({ postId: PostId, requesterId: RequesterId });
+    await useCase.handle({ ...command, confirmedPoints: 100 });
 
     expect(ledger.appendAdjustment).toHaveBeenCalledWith(
       expect.objectContaining({ delta: -100 }),
@@ -326,7 +435,7 @@ describe('RedeemPostWithPointsUseCase · sàn giữ hạng (CHỐT-13)', () => {
     });
 
     await expect(
-      useCase.handle({ postId: PostId, requesterId: RequesterId }),
+      useCase.handle({ ...command, confirmedPoints: 100 }),
     ).rejects.toBeInstanceOf(RedemptionInsufficientPointsException);
   });
 
@@ -338,7 +447,7 @@ describe('RedeemPostWithPointsUseCase · sàn giữ hạng (CHỐT-13)', () => {
       rate: 2000,
     });
 
-    await useCase.handle({ postId: PostId, requesterId: RequesterId });
+    await useCase.handle({ ...command, confirmedPoints: 100 });
 
     expect(ledger.appendAdjustment).toHaveBeenCalledWith(
       expect.objectContaining({ delta: -100 }),

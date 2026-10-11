@@ -91,7 +91,7 @@ contract đích của redemption.
 
 | Phạm vi | Đã có ở `main` | Contract đích |
 | --- | --- | --- |
-| Giá và quote | `estimatedValue`, `quoteRedemption`, `GET /posts/:postId/redemption-quote`; hiện làm tròn lên | Đổi sang `round_half_up`; quote và POST cùng policy và cùng phiên bản giá được xác nhận |
+| Giá và quote | **Xong 11/10 phần phiên bản giá:** `POST .../redeem` đòi `confirmedPoints`, lệch thì `409 REDEMPTION_QUOTE_STALE` và không trừ. Làm tròn **vẫn** `Math.ceil` | Đổi sang `round_half_up`; quote và POST cùng policy và cùng phiên bản giá được xác nhận |
 | Thời gian | Mode/deadline chỉ cho `OFFER`, bắt đầu từ request đầu tiên | `INSTANT`/`OPTIMAL` cho `OFFER`/`WANTED`; 7 ngày từ `published_at`, rồi tự mở thêm 30 ngày nếu chưa ghép |
 | Chọn người | `acceptRequest` chốt bài, mở transaction/chat, xoá deadline | Redeem chốt một lần, lưu nguyên nhân `REDEEMED`; không auto-select người khác |
 | Điểm và Rank | **Xong 11/10:** cả quote và POST chặn theo `max(0, balance - threshold(rank))`; `wouldDemote` đã gỡ, thay bằng `reservedForRankPoints`/`availablePoints` | POST không được vượt điểm khả dụng; quote hiển thị cùng kết luận |
@@ -106,6 +106,8 @@ contract đích của redemption.
    trong 7 ngày đầu mới được redeem. Chưa ghép được ai ở mốc 7 ngày thì tự mở thêm 30 ngày.
 3. Trước deadline, một ứng viên có thể chờ hoặc xác nhận đổi. Quote chỉ là bản xem trước,
    **không giữ hàng/điểm**. POST phải đọc lại toàn bộ điều kiện tại thời điểm commit.
+   **Xong 11/10:** vì quote không giữ giá, POST mang theo `confirmedPoints` — số điểm người
+   dùng đã thấy — và lệch thì `409 REDEMPTION_QUOTE_STALE` chứ không trừ theo giá mới.
 4. Redeem thắng: ghi một debit ledger, chốt đúng một request, bài `RESERVED`/transaction
    theo FSM hiện hành, dừng deadline, mở chat và ghi nguyên nhân `REDEEMED`. Auto-select
    không được chốt người thứ hai. Sau commit mới gửi notification.

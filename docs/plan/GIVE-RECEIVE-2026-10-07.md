@@ -245,10 +245,23 @@ toán trừ còn đó mà không có `REVERSAL:<id>` đi kèm.
 `IReopenedQueue.cancelledRequestId` là đường dẫn `requestId` ra khỏi `close()`: đó là chỗ duy
 nhất trong đường huỷ còn biết yêu cầu nào vừa bị huỷ.
 
-Việc còn lại của mục 2:
+**Mục 2 xong, 11/10.** Việc cuối là **xác nhận lại khi báo giá cũ**: `POST /posts/:id/redeem`
+nay đòi body `confirmedPoints` — số điểm người dùng đã thấy. Lệch với giá máy chủ tính lại thì
+`409 REDEMPTION_QUOTE_STALE` và không trừ gì.
 
-1. **Quote stale phải bắt xác nhận lại.** Nếu giá hoặc tỷ lệ đổi giữa lúc xem trước và lúc
-   bấm, hiện lệnh đổi tính lại theo giá mới và trừ luôn — đặc tả đòi xác nhận lại.
+Trường này **bắt buộc**, và đó là cả điểm chính: một phép xác nhận bỏ qua được bằng cách không
+gửi trường nào thì không phải phép xác nhận — hành vi cũ (tính lại theo giá mới rồi trừ luôn)
+sẽ quay về nguyên vẹn chỉ bằng việc client lược một trường.
+
+So theo **số điểm** chứ không theo giá trị và tỷ lệ riêng: điểm là con số người dùng thật sự
+đồng ý trả, và là nơi hai đầu vào kia gộp lại. Giá rẻ đi cũng chặn — trừ ít hơn số đã đồng ý
+nghĩa là màn hình người dùng đang nói sai về món đồ. Và `409` này đứng trước "không đủ điểm",
+vì câu kia nhắc một con số người dùng chưa từng thấy.
+
+Còn một việc **không** thuộc mục 2 nhưng đang ghi trong
+[REDEMPTION-REQUIREMENT-GAP.md](./REDEMPTION-REQUIREMENT-GAP.md): `quoteRedemption` làm tròn
+`Math.ceil`, còn contract đích ghi `round_half_up`. Chưa đổi, và không được coi mục 2 xong là
+đã khép việc đó.
 
 Mục 4 và 5 vẫn còn nguyên. Review hiện bất biến tại database; F76 hiện ghi cho phép tiêu
 điểm tụt Rank. Đây là **danh sách phải triển khai**, không được coi tài liệu mới là bằng chứng
