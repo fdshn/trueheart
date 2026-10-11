@@ -8,6 +8,9 @@ import {
   normalizePointRedemptionConfig,
   normalizeReviewGraceConfig,
   quoteRedemption,
+  rankForPoints,
+  rankThresholdPoints,
+  spendableWithoutDemotion,
 } from './point-economy';
 
 describe('normalizePointRedemptionConfig', () => {
@@ -255,5 +258,58 @@ describe('computeGiftValueBonus (CHỐT-14)', () => {
         accuracyPercent: 100,
       }).points,
     ).toBe(0);
+  });
+});
+
+describe('bảo vệ hạng khi đổi điểm (CHỐT-13)', () => {
+  const Tiers = [
+    { rank: 'VIEWER', thresholdPoints: 0 },
+    { rank: 'MEMBER', thresholdPoints: 224 },
+    { rank: 'SILVER', thresholdPoints: 672 },
+    { rank: 'GOLD', thresholdPoints: 896 },
+    { rank: 'DIAMOND', thresholdPoints: 1792 },
+  ];
+
+  it('chỉ tiêu được phần VƯỢT ngưỡng của hạng hiện tại', () => {
+    // Vàng cần 896. Có 1000 thì tiêu được 104, không phải 1000.
+    expect(spendableWithoutDemotion(1000, 'GOLD', Tiers)).toBe(104);
+  });
+
+  it('đúng bằng ngưỡng thì KHÔNG tiêu được gì', () => {
+    expect(spendableWithoutDemotion(896, 'GOLD', Tiers)).toBe(0);
+  });
+
+  it('dưới ngưỡng cũng trả 0, không trả số âm', () => {
+    // Xảy ra thật: hạng chỉ được xét lại theo chu kỳ, nên có khoảng người dùng
+    // mang hạng Vàng mà điểm đã xuống dưới 896. Trả số âm ở đây sẽ làm phép so
+    // `available < required` thành đúng một cách tình cờ.
+    expect(spendableWithoutDemotion(500, 'GOLD', Tiers)).toBe(0);
+  });
+
+  it('VIEWER tiêu được trọn số dư — không có gì để giữ', () => {
+    expect(spendableWithoutDemotion(300, 'VIEWER', Tiers)).toBe(300);
+  });
+
+  it('bảng bậc RỖNG thì không tiêu được — fail-closed', () => {
+    // Bảng chưa seed là môi trường sai cấu hình. Cho tiêu lúc đó là âm thầm bỏ
+    // đúng cái bảo vệ CHỐT-13 vừa dựng lại; chặn thì lộ ra ngay.
+    expect(spendableWithoutDemotion(1000, 'GOLD', [])).toBe(0);
+  });
+
+  it('hạng không có trong bảng cũng fail-closed', () => {
+    expect(spendableWithoutDemotion(1000, 'PLATINUM', Tiers)).toBe(0);
+  });
+
+  it('rankThresholdPoints trả null khi không có hạng đó', () => {
+    expect(rankThresholdPoints('GOLD', Tiers)).toBe(896);
+    expect(rankThresholdPoints('PLATINUM', Tiers)).toBeNull();
+  });
+
+  it('tiêu hết phần tiêu được thì hạng KHÔNG đổi', () => {
+    // Đây là bất biến mà cả phép chặn tồn tại để giữ: sau khi tiêu trọn
+    // `available`, `rankForPoints` phải vẫn trả về hạng cũ.
+    const balance = 1000;
+    const spendable = spendableWithoutDemotion(balance, 'GOLD', Tiers);
+    expect(rankForPoints(balance - spendable, Tiers)).toBe('GOLD');
   });
 });

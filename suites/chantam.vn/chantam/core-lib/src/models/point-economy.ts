@@ -417,3 +417,54 @@ export function rankForPoints(
 
   return landed?.rank ?? null;
 }
+
+/**
+ * Ngưỡng điểm để GIỮ một hạng, `null` khi bảng bậc không có hạng đó.
+ *
+ * Khác `rankForPoints` ở chiều hỏi: hàm kia hỏi "số điểm này rơi vào bậc nào",
+ * hàm này hỏi "bậc này đòi bao nhiêu điểm". Cần cả hai vì CHỐT-13 chặn theo
+ * ngưỡng của hạng HIỆN TẠI, không theo hạng sau khi trừ.
+ */
+export function rankThresholdPoints(
+  rank: string,
+  tiers: readonly { rank: string; thresholdPoints: number }[],
+): number | null {
+  const tier = tiers.find((entry) => entry.rank === rank);
+  return tier ? tier.thresholdPoints : null;
+}
+
+/**
+ * Số điểm tiêu được mà KHÔNG tụt hạng (CHỐT-13).
+ *
+ * ```text
+ * available = max(0, balance - threshold(current_rank))
+ * ```
+ *
+ * ## Vì sao đây là một phép CHẶN, không phải một lời cảnh báo
+ *
+ * Tới 11/10 đường đổi điểm chỉ kiểm `balance >= required` rồi trả kèm cờ
+ * `wouldDemote` để client tự quyết. Đó là F76, và CHỐT-13 nói thẳng là nó **thay
+ * thế đoạn F76 từng huỷ bảo vệ Rank**.
+ *
+ * Lý do chặn chứ không cảnh báo: hạng đọc `balance`, nên tiêu điểm là đường duy
+ * nhất người dùng tự làm mình tụt hạng. Và tụt hạng mất nhiều hơn một cái nhãn —
+ * nó mất quota đăng bài, bán kính quét, quyền tạo nhóm, và quyền chọn tay người
+ * nhận. Một cái cờ trong JSON không phải chỗ để đánh đổi chuyện đó.
+ *
+ * ## `null` ngưỡng thì KHÔNG tiêu được
+ *
+ * Fail-closed, cùng lối `resolveQuotaLimit`. Bảng bậc chưa seed là môi trường
+ * sai cấu hình; lúc đó "không biết ngưỡng" mà vẫn cho tiêu là âm thầm bỏ đúng
+ * cái bảo vệ vừa dựng lại. Chặn thì lộ ra ngay và sửa được.
+ *
+ * Hạng VIEWER có ngưỡng 0 nên vẫn tiêu được trọn số dư — không có gì để giữ.
+ */
+export function spendableWithoutDemotion(
+  balancePoints: number,
+  currentRank: string,
+  tiers: readonly { rank: string; thresholdPoints: number }[],
+): number {
+  const threshold = rankThresholdPoints(currentRank, tiers);
+  if (threshold === null) return 0;
+  return Math.max(0, balancePoints - threshold);
+}

@@ -1,4 +1,3 @@
-import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IRedeemPostWithPointsResponseDto,
   IRedemptionQuoteDto,
@@ -46,22 +45,28 @@ export class RedemptionQuoteDto implements IRedemptionQuoteDto {
   @ApiProperty({ example: 700, description: 'Điểm đang có của bạn.' })
   balancePoints: number;
 
-  @ApiProperty({ example: 0, description: 'Còn thiếu bao nhiêu điểm.' })
-  missingPoints: number;
-
   @ApiProperty({
+    example: 896,
     description:
-      '`true` khi trả số điểm này sẽ làm bạn TỤT HẠNG — mất quota bài và các quyền ' +
-      'của bậc đang giữ. Hạng đọc `balancePoints` và tiêu điểm giảm đúng con số đó, ' +
-      'nên cảnh báo này luôn có nghĩa.',
+      'Phần điểm GIỮ LẠI để không tụt hạng — bằng ngưỡng của bậc đang giữ ' +
+      '(CHỐT-13). Hiện cả hai con số cho người dùng: "bạn có 1.000 điểm, dùng ' +
+      'được 104 — 896 điểm giữ hạng Vàng".',
   })
-  wouldDemote: boolean;
+  reservedForRankPoints: number;
 
   @ApiProperty({
-    enum: UserRanks,
-    description: 'Hạng sau khi đổi. Bằng hạng hiện tại khi không tụt.',
+    example: 104,
+    description:
+      'Phần điểm thật sự tiêu được = max(0, balancePoints - reservedForRankPoints). ' +
+      'Đây là con số `missingPoints` so với, KHÔNG phải `balancePoints`.',
   })
-  rankAfter: UserRanks;
+  availablePoints: number;
+
+  @ApiProperty({
+    example: 0,
+    description: 'Còn thiếu bao nhiêu điểm so với `availablePoints`.',
+  })
+  missingPoints: number;
 }
 
 export class RedemptionQuoteResponseDto implements IRedemptionQuoteResponseDto {

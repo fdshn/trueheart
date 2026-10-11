@@ -301,9 +301,12 @@ describe('GiftRequestRepository.acceptRequest · vai theo LOẠI bài (CHỐT-10
     const query = makeQuery({ post: postRow(3, 'WANTED') });
     const chat = {
       openRoomWithinTransaction: jest.fn(
+        // Hai tham số khai TƯỜNG MINH dù thân hàm không đọc: thiếu chúng thì
+        // `mock.calls[0][1]` không có kiểu, và phép kiểm dưới phải `as` — tức bỏ
+        // kiểu của chính thứ đang kiểm.
         async (
           _manager: unknown,
-          params: { giverId: string; receiverId: string },
+          _params: { giverId: string; receiverId: string },
         ) => ({ globalId: 'room-1', transactionId: 'tx' }),
       ),
     };

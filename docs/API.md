@@ -677,17 +677,32 @@ Chỉ người đã gửi request mới được đổi khi bài `PUBLISHED` và
 `selection_deadline > now()`. Bài không tồn tại/chưa xin/đồng hồ không chạy được gộp
 `NOT_AVAILABLE` để tránh lộ sự tồn tại của bài. Thiếu `estimatedValue` là
 `NO_ESTIMATED_VALUE`. Quote trả `points`, `estimatedValueVnd`, `vndPerPoint`, `redeemable`,
-`unavailableReason`, `balancePoints`, `missingPoints`, `wouldDemote`, `rankAfter` trong
-`body.quote`. Hiện `redeemable` có thể `true` dù `unavailableReason=INSUFFICIENT_POINTS`;
-client không được chỉ nhìn `redeemable` để bật CTA. POST thành công trả `postId`,
-`transactionId`, `pointsSpent`, `balanceAfter`.
+`unavailableReason`, `balancePoints`, `reservedForRankPoints`, `availablePoints`,
+`missingPoints` trong `body.quote`. Hiện `redeemable` có thể `true` dù
+`unavailableReason=INSUFFICIENT_POINTS`; client không được chỉ nhìn `redeemable` để bật CTA.
+POST thành công trả `postId`, `transactionId`, `pointsSpent`, `balanceAfter`.
 
-**Yêu cầu mới chưa có ở backend:** chỉ được tiêu
-`max(0, balance - minPoints(currentRank))`; quote và POST phải cùng kết luận; debit ledger,
-chốt request, dừng deadline và tạo transaction/chat phải atomic và idempotent. Admin phải
-publish được `point.redemption`; quote stale do đổi giá/tỷ lệ phải được xác nhận lại,
-không âm thầm trừ giá mới. Xem [handoff và acceptance tests](./plan/REDEMPTION-REQUIREMENT-GAP.md).
-Không coi `wouldDemote` là cơ chế chặn hiện tại.
+> ✅ **Sàn giữ hạng đã CHẶN, từ 11/10 (CHỐT-13).** Chỉ tiêu được
+> `availablePoints = max(0, balancePoints - reservedForRankPoints)`, với
+> `reservedForRankPoints` là ngưỡng của bậc đang giữ, đọc từ `rank_tiers`. Phép chặn nằm ở
+> **cả** quote và `POST .../redeem` — quote là xem trước, chỗ cho phép là chỗ trừ điểm.
+>
+> `missingPoints` so với `availablePoints`, **không** với `balancePoints`. Client nên hiện cả
+> hai con số: *"bạn có 1.000 điểm, dùng được 104 — 896 điểm giữ hạng Vàng"*. Hiện mỗi số dư
+> rồi báo không đủ điểm là một câu người dùng không giải thích được.
+>
+> **`wouldDemote` và `rankAfter` đã bị GỠ.** Hai trường đó là giao diện của F76: client được
+> cảnh báo rồi tự quyết. CHỐT-13 bỏ quyền quyết đó, nên một lượt đổi được thì không bao giờ
+> tụt hạng — hai trường thành hằng số, và một trường hằng trong contract là một trường client
+> phải đọc tài liệu để biết là bỏ qua được.
+>
+> Bảng bậc chưa seed thì `availablePoints` là **0** (fail-closed): "không biết ngưỡng" mà vẫn
+> cho tiêu là âm thầm bỏ đúng cái bảo vệ này.
+
+**Còn lại của mục 2:** quote stale do đổi giá/tỷ lệ phải bắt xác nhận lại, không âm thầm trừ
+giá mới; và giao dịch đổi điểm bị **huỷ** phải hoàn đúng số điểm đã trừ theo ledger gốc — hiện
+chỉ có đường hoàn khi bước duyệt hỏng, không có đường hoàn khi giao dịch bị huỷ sau đó. Xem
+[handoff và acceptance tests](./plan/REDEMPTION-REQUIREMENT-GAP.md).
 
 #### Hàng đợi dự phòng
 
@@ -911,13 +926,12 @@ nghiệp vụ bảo vệ retry/đồng thời. Xem [quy tắc và trường resp
   - `balance` — điểm **tiêu được**, giảm khi dùng.
   - `lifetime` — điểm **tích luỹ**, chỉ tăng. Đây là thứ quyết định hạng.
 
-  Tiêu điểm không làm tụt hạng, vì hạng đọc `lifetime`.
-
-  > ⚠️ **Đây là hành vi hiện tại của code, và nó sắp đổi.** Bên A chốt ngày 2026-09-24:
-  > hạng đọc **balance hiện tại**. Quyết định 24/09 từng cho tiêu tự do rồi tụt hạng;
-  > yêu cầu 04/10 đổi lại **riêng luồng đổi vật phẩm**: chỉ phần dư trên ngưỡng giữ Rank
-  > được dùng. Backend hiện mới cảnh báo, chưa chặn; xem
-  > [handoff redemption](./plan/REDEMPTION-REQUIREMENT-GAP.md).
+  > ⚠️ **Dòng "tiêu điểm không làm tụt hạng, vì hạng đọc `lifetime`" đã SAI.** Bên A chốt
+  > 24/09: hạng đọc **balance hiện tại**, nên tiêu điểm có làm tụt hạng.
+  >
+  > Và từ 11/10 (CHỐT-13) **luồng đổi vật phẩm không cho tiêu vào phần giữ hạng nữa** — chặn
+  > thật, không chỉ cảnh báo như bản tới 10/10. Các đường tiêu điểm khác
+  > (`SHIP_UNPAID_PENALTY`…) vẫn làm tụt hạng được; CHỐT-13 chỉ nói về đổi vật phẩm.
   > Xem [Mô hình Rank chốt 2026-09-24](./plan/ASSUMPTIONS.md#mô-hình-rank--chốt-ngày-2026-09-24).
 - Ledger là **append-only**. Không có UPDATE, không có DELETE; đảo một bút toán là ghi thêm
   bút toán âm. Trigger ở database chặn sửa/xoá.

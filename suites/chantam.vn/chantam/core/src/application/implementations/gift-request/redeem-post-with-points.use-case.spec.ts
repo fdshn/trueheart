@@ -27,6 +27,10 @@ function makeUseCase(
     balance?: number;
     acceptError?: unknown;
     rate?: number;
+    /** Hạng hiện tại, để thử sàn giữ hạng của CHỐT-13. */
+    rank?: string;
+    /** Bảng bậc. `[]` dựng ca "chưa seed" — fail-closed. */
+    tiers?: { rank: string; thresholdPoints: number }[];
   } = {},
 ) {
   const requests = {
@@ -61,6 +65,22 @@ function makeUseCase(
           : { vndPerPoint: options.rate },
       ),
   };
+  // Sàn giữ hạng (CHỐT-13). Mặc định VIEWER + bảng bậc thật, nên ngưỡng là 0 và
+  // các phép kiểm cũ vẫn nói về điều chúng vốn nói — không phải vì sàn bị tắt.
+  const ranks = {
+    getOwnSummary: jest
+      .fn()
+      .mockResolvedValue({ rank: options.rank ?? 'VIEWER', balancePoints: 0 }),
+    listTiers: jest.fn().mockResolvedValue(
+      options.tiers ?? [
+        { rank: 'VIEWER', thresholdPoints: 0 },
+        { rank: 'MEMBER', thresholdPoints: 224 },
+        { rank: 'SILVER', thresholdPoints: 672 },
+        { rank: 'GOLD', thresholdPoints: 896 },
+        { rank: 'DIAMOND', thresholdPoints: 1792 },
+      ],
+    ),
+  };
   const notifier = { announce: jest.fn().mockResolvedValue(undefined) };
   const rankChange = {
     afterBalanceChange: jest.fn().mockResolvedValue(null),
@@ -71,11 +91,13 @@ function makeUseCase(
       requests as never,
       ledger as never,
       adminConfig as never,
+      ranks as never,
       notifier as never,
       rankChange as never,
     ),
     requests,
     ledger,
+    ranks,
     notifier,
     rankChange,
   };
@@ -254,5 +276,72 @@ describe('RedeemPostWithPointsUseCase', () => {
     await expect(useCase.handle(command)).rejects.toThrow('hết hàng');
 
     expect(rankChange.afterBalanceChange).toHaveBeenCalledWith(RequesterId);
+  });
+});
+
+describe('RedeemPostWithPointsUseCase · sàn giữ hạng (CHỐT-13)', () => {
+  it('CHẶN khi số điểm đổi ăn vào phần giữ hạng', async () => {
+    // Vàng cần 896. Có 1.000 thì dùng được 104. Món 500 điểm phải bị chặn, dù số
+    // dư 1.000 > 500 — đây đúng là ca mà bản tới 10/10 cho qua.
+    const { useCase, ledger } = makeUseCase({
+      balance: 1000,
+      rank: 'GOLD',
+      context: context({ estimatedValueVnd: 1_000_000 }),
+      rate: 2000,
+    });
+
+    await expect(
+      useCase.handle({ postId: PostId, requesterId: RequesterId }),
+    ).rejects.toBeInstanceOf(RedemptionInsufficientPointsException);
+
+    // Và KHÔNG trừ điểm. Chặn mà vẫn trừ là tệ hơn không chặn.
+    expect(ledger.appendAdjustment).not.toHaveBeenCalled();
+  });
+
+  it('CHO QUA khi số điểm đổi nằm trong phần dùng được', async () => {
+    // Vàng, 1.000 điểm, dùng được 104. Món 100 điểm (200.000đ / 2.000) đi qua.
+    const { useCase, ledger } = makeUseCase({
+      balance: 1000,
+      rank: 'GOLD',
+      context: context({ estimatedValueVnd: 200_000 }),
+      rate: 2000,
+    });
+
+    await useCase.handle({ postId: PostId, requesterId: RequesterId });
+
+    expect(ledger.appendAdjustment).toHaveBeenCalledWith(
+      expect.objectContaining({ delta: -100 }),
+    );
+  });
+
+  it('bảng bậc RỖNG thì chặn — fail-closed', async () => {
+    // Bảng chưa seed là môi trường sai cấu hình. Cho tiêu lúc đó là âm thầm bỏ
+    // đúng cái bảo vệ vừa dựng lại.
+    const { useCase } = makeUseCase({
+      balance: 1000,
+      rank: 'GOLD',
+      tiers: [],
+      context: context({ estimatedValueVnd: 200_000 }),
+      rate: 2000,
+    });
+
+    await expect(
+      useCase.handle({ postId: PostId, requesterId: RequesterId }),
+    ).rejects.toBeInstanceOf(RedemptionInsufficientPointsException);
+  });
+
+  it('VIEWER tiêu được trọn số dư — không có gì để giữ', async () => {
+    const { useCase, ledger } = makeUseCase({
+      balance: 100,
+      rank: 'VIEWER',
+      context: context({ estimatedValueVnd: 200_000 }),
+      rate: 2000,
+    });
+
+    await useCase.handle({ postId: PostId, requesterId: RequesterId });
+
+    expect(ledger.appendAdjustment).toHaveBeenCalledWith(
+      expect.objectContaining({ delta: -100 }),
+    );
   });
 });

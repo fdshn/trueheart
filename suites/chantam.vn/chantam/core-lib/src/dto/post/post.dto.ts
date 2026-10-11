@@ -15,7 +15,6 @@ import {
   PublicDiscoveryPostType,
   ReactionKinds,
   ShipPayers,
-  UserRanks,
 } from '../../consts';
 import { IPostEntity, IPostMediaEntity } from '../../entities';
 
@@ -296,19 +295,42 @@ export interface IRedemptionQuoteDto {
     'NOT_AVAILABLE' | 'NO_ESTIMATED_VALUE' | 'INSUFFICIENT_POINTS' | null;
   /** Điểm đang có của người gọi. */
   balancePoints: number;
-  /** Còn thiếu bao nhiêu điểm; `0` khi đã đủ. */
-  missingPoints: number;
   /**
-   * `true` khi trả số điểm này sẽ làm người gọi TỤT HẠNG.
+   * Phần điểm **giữ lại** để không tụt hạng = ngưỡng của hạng hiện tại (CHỐT-13).
    *
-   * Hạng đọc `balancePoints`, và tiêu điểm thì giảm đúng con số đó — nên cảnh báo
-   * này luôn có nghĩa. Trước 02/10 ở đây còn một câu "luôn `false` khi
-   * `rank.points_source` là LIFETIME"; cái núm đó đã bị gỡ.
+   * Client nên hiện cả hai con số: "bạn có 1.000 điểm, dùng được 104 — 896 điểm
+   * giữ hạng Vàng". Hiện mỗi `balancePoints` rồi báo không đủ điểm là một câu trả
+   * lời người dùng không giải thích được.
    */
-  wouldDemote: boolean;
-  /** Hạng sau khi đổi. Bằng hạng hiện tại khi không tụt. */
-  rankAfter: UserRanks;
+  reservedForRankPoints: number;
+  /**
+   * Phần điểm thật sự tiêu được = `max(0, balancePoints - reservedForRankPoints)`.
+   *
+   * Đây là con số mà `missingPoints` so với, không phải `balancePoints`.
+   */
+  availablePoints: number;
+  /** Còn thiếu bao nhiêu điểm so với `availablePoints`; `0` khi đã đủ. */
+  missingPoints: number;
 }
+
+/*
+ * `wouldDemote` và `rankAfter` đã BỊ GỠ 11/10, cùng lượt với CHỐT-13.
+ *
+ * Hai trường đó là giao diện của F76: client được cho biết "trả số điểm này sẽ
+ * làm bạn tụt hạng" rồi tự quyết. CHỐT-13 bỏ quyền quyết đó — chỉ tiêu được phần
+ * vượt ngưỡng giữ hạng — nên một lượt đổi được thì không bao giờ tụt, và một lượt
+ * sẽ tụt thì không bao giờ đổi được.
+ *
+ * Tôi đã thử giữ chúng kèm một phép kiểm "luôn `false`", và phép kiểm đó ĐỎ: với
+ * một lượt bị chặn, `rankAfter` vẫn tính theo số điểm được YÊU CẦU, tức nó mô tả
+ * một chuyện không xảy ra được. Sửa cho nó luôn `false` thì cả hai trường thành
+ * hằng số, và một trường hằng trong contract là một trường client phải đọc tài
+ * liệu để biết là bỏ qua được.
+ *
+ * Thay bằng `reservedForRankPoints` + `availablePoints`, hai con số nói đúng thứ
+ * người dùng cần thấy. Bất biến "tiêu hết phần tiêu được thì hạng không đổi" được
+ * canh ở `point-economy.spec.ts`, nơi nó thuộc về.
+ */
 
 export interface IRedemptionQuoteResponseDto {
   quote: IRedemptionQuoteDto;

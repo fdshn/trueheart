@@ -12,12 +12,14 @@ import {
   IAdminConfigRepository,
   IGiftRequestRepository,
   IPointLedgerRepository,
+  IRankRepository,
 } from '@/domain/ports/repository';
 import { GiftPostStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import {
   normalizePointRedemptionConfig,
   PointRedemptionConfigKey,
   quoteRedemption,
+  spendableWithoutDemotion,
 } from '@chantam.vn/chantam.core-lib/models';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
@@ -40,6 +42,10 @@ export const ItemRedemptionRuleCode = 'ITEM_REDEMPTION';
  * - **Bài phải khai giá trị tham khảo.** Không khai giá KHÔNG có nghĩa là cho
  *   không — nó nghĩa là chưa quy ra điểm được.
  *
+ * Và từ 11/10 một điều kiện thứ tư: **chỉ tiêu được phần vượt ngưỡng giữ hạng**
+ * (CHỐT-13). Tới trước đó đây là một lời cảnh báo trong quote mà client tự quyết
+ * bỏ qua; CHỐT-13 nói thẳng là nó thay thế đoạn F76 từng huỷ bảo vệ Rank.
+ *
  * Trừ điểm rồi mới duyệt, và nếu duyệt hỏng thì HOÀN lại ngay: xem ghi chú ở
  * `handle`.
  */
@@ -52,6 +58,8 @@ export class RedeemPostWithPointsUseCase implements IRedeemPostWithPointsUseCase
     private readonly ledger: IPointLedgerRepository,
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
+    @Inject(IRankRepository)
+    private readonly ranks: IRankRepository,
     private readonly acceptedNotifier: AcceptedRequestNotifier,
     private readonly rankChange: RankChangeNotifier,
   ) {}
@@ -83,11 +91,29 @@ export class RedeemPostWithPointsUseCase implements IRedeemPostWithPointsUseCase
     const quote = quoteRedemption(context.estimatedValueVnd, rate);
     if (!quote.redeemable) throw new RedemptionPriceUnavailableException();
 
-    const balance = await this.ledger.getSummary(command.requesterId);
-    if (balance.balance < quote.points)
+    // CHỐT-13: chỉ tiêu được phần VƯỢT ngưỡng giữ hạng hiện tại.
+    //
+    // Phép chặn nằm ở ĐÂY, không phải ở `redemption-quote`. Quote là xem trước và
+    // client có thể bỏ qua nó; chỗ cho phép là chỗ trừ điểm. Tới 10/10 ở đây chỉ
+    // kiểm `balance < quote.points` — tức tiêu được trọn số dư và tụt hạng — đó là
+    // F76, và CHỐT-13 nói thẳng là nó thay thế đoạn đó.
+    //
+    // Báo `available` chứ không báo `balance` trong ngoại lệ: nói "bạn có 1.000
+    // điểm nhưng không đủ 300" là một câu không ai giải thích được.
+    const [balance, tiers, rank] = await Promise.all([
+      this.ledger.getSummary(command.requesterId),
+      this.ranks.listTiers(),
+      this.ranks.getOwnSummary(command.requesterId),
+    ]);
+    const availablePoints = spendableWithoutDemotion(
+      balance.balance,
+      rank.rank,
+      tiers,
+    );
+    if (availablePoints < quote.points)
       throw new RedemptionInsufficientPointsException(
         quote.points,
-        balance.balance,
+        availablePoints,
       );
 
     // Trừ điểm TRƯỚC khi duyệt, và hoàn lại nếu duyệt hỏng.

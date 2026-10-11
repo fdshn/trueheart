@@ -16,7 +16,6 @@
  *    bảng hằng chép lại trong code.
  * 4. Tỷ lệ quy đổi là cấu hình động: Admin đổi thì báo giá đổi theo ngay.
  */
-import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
@@ -281,34 +280,52 @@ async function main(): Promise<void> {
       [PricedPostId],
     );
 
-    console.log('\n3. Cảnh báo tụt hạng theo bậc thang THẬT');
-    // Bạc ngưỡng 672. Có 1.000, trả 500 → còn 500, dưới 672 nhưng trên 224 →
-    // về MEMBER.
+    console.log('\n3. Sàn giữ hạng theo bậc thang THẬT (CHỐT-13)');
+    // Mục này tới 10/10 kiểm CẢNH BÁO tụt hạng: quote trả `wouldDemote: true` và
+    // client tự quyết. CHỐT-13 bỏ quyền quyết đó — chỉ tiêu được phần vượt ngưỡng
+    // giữ hạng — nên hai trường `wouldDemote`/`rankAfter` đã bị gỡ, và chỗ này
+    // kiểm phép CHẶN thay vì lời cảnh báo.
+    //
+    // Bạc ngưỡng 672. Có 1.000 thì giữ 672, dùng được 328. Món 500 điểm phải bị
+    // chặn — đúng ca mà bản F76 cho qua kèm một cái cờ.
     await setBalance(RicherId, 1_000);
-    const willDrop = await quotes.handle({
+    const atFloor = await quotes.handle({
       postId: PricedPostId,
       userId: RicherId,
     });
     check(
-      'trả 500 khi đang có 1.000 thì TỤT hạng',
-      willDrop.quote.wouldDemote,
-      `wouldDemote=${String(willDrop.quote.wouldDemote)}`,
+      'giữ đúng ngưỡng bậc đang có, không giữ số tròn',
+      atFloor.quote.reservedForRankPoints === 672,
+      `reserved=${atFloor.quote.reservedForRankPoints}`,
     );
     check(
-      'và nói rõ tụt về bậc nào — không chỉ "bạn sẽ tụt"',
-      willDrop.quote.rankAfter === UserRanks.MEMBER,
-      willDrop.quote.rankAfter,
+      'dùng được đúng phần vượt ngưỡng',
+      atFloor.quote.availablePoints === 328,
+      `available=${atFloor.quote.availablePoints}`,
+    );
+    check(
+      'món 500 điểm bị CHẶN, không phải cảnh báo',
+      atFloor.quote.unavailableReason === 'INSUFFICIENT_POINTS' &&
+        atFloor.quote.missingPoints === 172,
+      `${atFloor.quote.unavailableReason} missing=${atFloor.quote.missingPoints}`,
     );
 
+    // Phép chặn ở LỆNH ĐỔI không kiểm ở đây: script này chỉ dựng use case xem
+    // trước, và việc so hai con số là logic thuần nên
+    // `redeem-post-with-points.use-case.spec.ts` canh được trọn. Thứ chỉ Postgres
+    // thật thấy được là ngưỡng 672 ở trên — nó đến từ bảng `rank_tiers` đã seed,
+    // không từ một hằng trong phép kiểm.
+
     await setBalance(RicherId, 1_200);
-    const safe = await quotes.handle({
+    const enough = await quotes.handle({
       postId: PricedPostId,
       userId: RicherId,
     });
     check(
-      'có 1.200 thì trả 500 vẫn còn 700 > 672 — KHÔNG tụt',
-      safe.quote.wouldDemote === false && safe.quote.rankAfter === 'SILVER',
-      `${safe.quote.rankAfter} wouldDemote=${String(safe.quote.wouldDemote)}`,
+      'có 1.200 thì dùng được 528 — món 500 đi qua',
+      enough.quote.availablePoints === 528 &&
+        enough.quote.unavailableReason === null,
+      `available=${enough.quote.availablePoints} ${enough.quote.unavailableReason}`,
     );
 
     // Chỗ này trước 02/10 kiểm nhánh `rank.points_source = LIFETIME` (tiêu điểm
@@ -328,16 +345,17 @@ async function main(): Promise<void> {
       `còn ${orphan.count} hàng`,
     );
 
-    // Và hạng vẫn phải suy từ SỐ DƯ: lifetime cao không cứu được người đã tiêu hết.
+    // Và sàn vẫn phải suy từ SỐ DƯ: lifetime cao không cứu được người đã tiêu hết.
     await setBalance(RicherId, 1_000);
     const afterDrop = await quotes.handle({
       postId: PricedPostId,
       userId: RicherId,
     });
     check(
-      'tiêu 500 từ 1.000 xuống 500 thì VẪN cảnh báo tụt hạng',
-      afterDrop.quote.wouldDemote === true,
-      `wouldDemote=${String(afterDrop.quote.wouldDemote)} rankAfter=${afterDrop.quote.rankAfter}`,
+      'sàn tính theo SỐ DƯ, không theo lifetime',
+      afterDrop.quote.reservedForRankPoints === 672 &&
+        afterDrop.quote.availablePoints === 328,
+      `reserved=${afterDrop.quote.reservedForRankPoints} available=${afterDrop.quote.availablePoints}`,
     );
   } finally {
     for (const source of opened.reverse())

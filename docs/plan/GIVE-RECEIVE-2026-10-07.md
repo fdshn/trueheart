@@ -215,7 +215,22 @@ Ba việc của mục 1, nay **xong cả ba**:
 
    Lịch sử giữ nguyên: dòng yêu cầu không bị xoá, chỉ chuyển `CANCELLED`.
 
-Mục 2, 4 và 5 vẫn còn nguyên. Review hiện bất biến tại database; F76 hiện ghi cho phép tiêu
+**Mục 2 xong phần sàn giữ hạng, 11/10 (CHỐT-13).** Chỉ tiêu được
+`max(0, balance - threshold(current_rank))`, chặn ở **cả** quote và lệnh đổi — quote là xem
+trước, chỗ cho phép là chỗ trừ điểm. `wouldDemote`/`rankAfter` bị gỡ: chúng là giao diện của
+F76, và một lượt đổi được thì không bao giờ tụt hạng nên chúng thành hằng số. Thay bằng
+`reservedForRankPoints` + `availablePoints`. Bảng bậc chưa seed thì không tiêu được
+(fail-closed).
+
+Hai việc còn lại của mục 2:
+
+1. **Quote stale phải bắt xác nhận lại.** Nếu giá hoặc tỷ lệ đổi giữa lúc xem trước và lúc
+   bấm, hiện lệnh đổi tính lại theo giá mới và trừ luôn — đặc tả đòi xác nhận lại.
+2. **Giao dịch đổi điểm bị HUỶ phải hoàn đúng số điểm đã trừ.** Đo được: chỉ có đường hoàn khi
+   *bước duyệt* hỏng (`ITEM_REDEMPTION:REFUND:<requestId>`, trong cùng use case). Giao dịch bị
+   huỷ **sau đó** thì không đường nào hoàn — người đổi mất điểm và mất cả món đồ.
+
+Mục 4 và 5 vẫn còn nguyên. Review hiện bất biến tại database; F76 hiện ghi cho phép tiêu
 điểm tụt Rank. Đây là **danh sách phải triển khai**, không được coi tài liệu mới là bằng chứng
 API đã chạy.
 Chi tiết gap kỹ thuật, atomicity, API đích và ma trận kiểm thử nằm tại

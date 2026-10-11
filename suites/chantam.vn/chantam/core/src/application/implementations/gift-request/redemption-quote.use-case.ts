@@ -9,12 +9,11 @@ import {
   IPointLedgerRepository,
   IRankRepository,
 } from '@/domain/ports/repository';
-import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   normalizePointRedemptionConfig,
   PointRedemptionConfigKey,
   quoteRedemption,
-  rankForPoints,
+  spendableWithoutDemotion,
 } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -47,21 +46,33 @@ export class GetRedemptionQuoteUseCase implements IGetRedemptionQuoteUseCase {
   public async handle(
     command: IGetRedemptionQuoteCommand,
   ): Promise<IGetRedemptionQuoteResult> {
-    const [context, rawConfig, rank] = await Promise.all([
+    const [context, rawConfig, rank, tiers] = await Promise.all([
       this.requests.findRedemptionContext({
         postId: command.postId,
         requesterId: command.userId,
       }),
       this.adminConfig.getConfigValue(PointRedemptionConfigKey),
       this.ranks.getOwnSummary(command.userId),
+      // Bảng bậc đi cùng lượt đọc này thay vì một lượt riêng ở dưới: nó cần cho
+      // CẢ hai nhánh trả sớm, vì "bạn dùng được bao nhiêu điểm" không phụ thuộc
+      // bài hay giá.
+      this.ranks.listTiers(),
     ]);
     const config = normalizePointRedemptionConfig(rawConfig);
 
+    // Phần tiêu được, tính theo số dư mà bản tóm tắt hạng báo. Nhánh đổi được ở
+    // dưới tính LẠI theo số dư đọc từ sổ điểm và ghi đè — sổ điểm là nguồn cho
+    // phép, bản tóm tắt chỉ để hiển thị.
+    const summaryAvailable = spendableWithoutDemotion(
+      rank.balancePoints,
+      rank.rank,
+      tiers,
+    );
     const base = {
       vndPerPoint: config.vndPerPoint,
       balancePoints: rank.balancePoints,
-      rankAfter: rank.rank,
-      wouldDemote: false,
+      reservedForRankPoints: rank.balancePoints - summaryAvailable,
+      availablePoints: summaryAvailable,
     };
 
     // Bài không tồn tại, chưa ai xin, đồng hồ đã hết, hay người gọi chưa gửi yêu
@@ -97,7 +108,18 @@ export class GetRedemptionQuoteUseCase implements IGetRedemptionQuoteUseCase {
       };
 
     const balance = await this.ledger.getSummary(command.userId);
-    const missingPoints = Math.max(0, priced.points - balance.balance);
+
+    // CHỐT-13: chỉ tiêu được phần VƯỢT ngưỡng giữ hạng hiện tại. Tới 10/10 chỗ này
+    // so với trọn `balance.balance` rồi trả kèm cờ `wouldDemote` để client tự
+    // quyết — đó là F76, và CHỐT-13 nói thẳng là nó thay thế đoạn đó.
+    //
+    const availablePoints = spendableWithoutDemotion(
+      balance.balance,
+      rank.rank,
+      tiers,
+    );
+    const reservedForRankPoints = balance.balance - availablePoints;
+    const missingPoints = Math.max(0, priced.points - availablePoints);
 
     // Hạng đọc `balance`, và tiêu điểm giảm đúng con số đó — nên luôn phải tính
     // hạng sau khi trả điểm. Trước 02/10 ở đây có một nhánh bỏ qua bảng bậc khi
@@ -105,15 +127,6 @@ export class GetRedemptionQuoteUseCase implements IGetRedemptionQuoteUseCase {
     //
     // `tiers` rỗng vẫn phải phòng: bảng bậc có thể chưa seed ở môi trường mới, và
     // lúc đó "không biết hạng sau" phải trả về hạng hiện tại chứ không phải VIEWER.
-    const tiers = await this.ranks.listTiers();
-    const rankAfter =
-      tiers.length === 0
-        ? rank.rank
-        : ((rankForPoints(
-            Math.max(0, balance.balance - priced.points),
-            tiers,
-          ) ?? UserRanks.VIEWER) as UserRanks);
-
     return {
       quote: {
         points: priced.points,
@@ -122,11 +135,9 @@ export class GetRedemptionQuoteUseCase implements IGetRedemptionQuoteUseCase {
         redeemable: true,
         unavailableReason: missingPoints > 0 ? 'INSUFFICIENT_POINTS' : null,
         balancePoints: balance.balance,
+        reservedForRankPoints,
+        availablePoints,
         missingPoints,
-        // So theo NGƯỠNG của hai bậc, không so tên: bậc thang là cấu hình động và
-        // thứ tự tên không nói được bậc nào cao hơn.
-        wouldDemote: rankAfter !== rank.rank,
-        rankAfter,
       },
     };
   }
