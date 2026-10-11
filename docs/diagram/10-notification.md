@@ -37,7 +37,7 @@ flowchart TD
     style N fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
-## 10.2 Hai mươi lăm loại, chia tám nhóm
+## 10.2 Hai mươi sáu loại, chia tám nhóm
 
 Nhóm là thứ người dùng tắt/bật được (§10.5). Mọi loại dưới đây đều **thật sự được gửi** —
 không còn loại nào khai mà nằm im.
@@ -58,6 +58,7 @@ không còn loại nào khai mà nằm im.
 | `GIFT_TRANSACTION_HANDED_OVER` | STATUS | Người tặng báo đã bàn giao | `…:<transactionId>` |
 | `GIFT_TRANSACTION_REOPENED` | STATUS | Admin mở lại lượt đóng nhầm | theo lượt + người + mốc |
 | `POST_EXPIRING_SOON` | CONDITION | Bài còn 7 ngày là hết hạn | `POST_EXPIRING_SOON:<postId>:<ngày hết hạn>` |
+| `POST_EXPIRED` | STATUS | Bài hết hạn thật, qua `post:expire` | `POST_EXPIRED:<postId>` |
 | `GIFT_REQUEST_ACCEPTED` | STATUS | Chủ bài duyệt, **hoặc** job tự chọn khi hết đồng hồ | `GIFT_REQUEST_ACCEPTED:<transactionId>` |
 | `GIFT_TRANSACTION_CLOSED` | STATUS | Lượt trao bị huỷ | theo transactionId |
 | `GIFT_TRANSACTION_COMPLETED` | STATUS | Lượt trao hoàn tất | theo lượt + người |
@@ -120,7 +121,7 @@ flowchart TD
     style D fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
-> **Nhóm chứ không phải từng loại.** Hai mươi lăm công tắc là một màn hình không ai đọc, và
+> **Nhóm chứ không phải từng loại.** Hai mươi sáu công tắc là một màn hình không ai đọc, và
 > người đang bị làm phiền cần tắt nhanh chứ không cần chính xác.
 >
 > Bên A chốt **tám** nhóm ngày 11/10 theo `BR-NOTI-01`, thay cho bốn. Tám vẫn còn đọc được một

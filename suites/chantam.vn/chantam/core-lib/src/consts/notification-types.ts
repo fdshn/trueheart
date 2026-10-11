@@ -123,6 +123,15 @@ export enum NotificationTypes {
    */
   POST_EXPIRING_SOON = 'POST_EXPIRING_SOON',
   /**
+   * Bài đã hết hạn thật.
+   *
+   * Khác `POST_EXPIRING_SOON` ở chỗ nó nói việc ĐÃ xảy ra, không phải việc sắp
+   * tới. Tới 11/10 chủ bài được nhắc trước 7 ngày rồi **không ai nói gì nữa** —
+   * nên người không mở app trong tuần đó chỉ thấy bài mình biến khỏi feed mà
+   * không biết vì sao, và không biết là còn gia hạn được.
+   */
+  POST_EXPIRED = 'POST_EXPIRED',
+  /**
    * Nhắc nhiệm vụ duy trì hạng, trước khi chu kỳ hết (SRS BR-PROF-RANK-03).
    *
    * Trượt chu kỳ nay bị trừ điểm và có thể tụt hạng, nên báo muộn hơn thời điểm
@@ -251,6 +260,11 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.GIFT_TRANSACTION_CLOSED]: NotificationGroups.STATUS,
   [NotificationTypes.GIFT_TRANSACTION_COMPLETED]: NotificationGroups.STATUS,
   [NotificationTypes.GIFT_TRANSACTION_REOPENED]: NotificationGroups.STATUS,
+  // `POST_EXPIRED` là TRẠNG THÁI chứ không ĐIỀU KIỆN: điều kiện là "có việc phải
+  // làm trước một cái hạn", và `POST_EXPIRING_SOON` đúng là thế — còn 7 ngày để
+  // gia hạn. Khi hạn đã qua thì không còn việc gì làm trước hạn nữa, nó là một
+  // sự thật về bài.
+  [NotificationTypes.POST_EXPIRED]: NotificationGroups.STATUS,
 
   // ── Tích điểm: điểm vào sổ ───────────────────────────────────────────────
   // Giới thiệu hợp lệ xếp vào TÍCH ĐIỂM chứ không THƯỞNG: nội dung thông báo là

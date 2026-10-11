@@ -799,10 +799,15 @@ export class PostRepository
       // SKIP LOCKED để hai lần chạy song song không tranh cùng một bài. Chỉ
       // lấy PUBLISHED: bài RESERVED đang có giao dịch sống.
       const due = await manager.query<
-        { global_id: string; post_type: string }[]
+        {
+          global_id: string;
+          post_type: string;
+          author_id: string;
+          title: string;
+        }[]
       >(
         `
-          SELECT global_id, post_type
+          SELECT global_id, post_type, author_id, title
           FROM posts
           WHERE status = 'PUBLISHED'
             AND deleted_at IS NULL
@@ -815,14 +820,18 @@ export class PostRepository
       );
 
       if (due.length === 0)
-        return { expired: 0, convertedToOffer: 0, expiredPostIds: [] };
+        return { expired: 0, convertedToOffer: 0, expiredPosts: [] };
 
       const toOffer = due
         .filter((row) => expiryConvertsToOffer(row.post_type as PostTypes))
         .map((row) => row.global_id);
-      const toExpired = due
-        .filter((row) => !expiryConvertsToOffer(row.post_type as PostTypes))
-        .map((row) => row.global_id);
+      // Giữ cả HÀNG, không chỉ id: nơi gọi cần `author_id` và `title` để báo cho
+      // chủ bài. Lọc lại từ `toExpired` bằng `includes` cũng ra kết quả đó, nhưng
+      // đó là một vòng lặp lồng trên cùng một tập đã có sẵn ngay đây.
+      const toExpiredRows = due.filter(
+        (row) => !expiryConvertsToOffer(row.post_type as PostTypes),
+      );
+      const toExpired = toExpiredRows.map((row) => row.global_id);
 
       if (toExpired.length > 0)
         await manager.query(
@@ -876,7 +885,11 @@ export class PostRepository
       return {
         expired: toExpired.length,
         convertedToOffer: toOffer.length,
-        expiredPostIds: toExpired,
+        expiredPosts: toExpiredRows.map((row) => ({
+          postId: row.global_id,
+          authorId: row.author_id,
+          title: row.title,
+        })),
       };
     });
   }

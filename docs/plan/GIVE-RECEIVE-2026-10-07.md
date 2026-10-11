@@ -166,7 +166,7 @@ Postgres (`1799300000000`), đồng hồ 7 ngày tính từ **lúc đăng** và 
 (nên bài không có phản hồi cũng có hạn), giai đoạn 30 ngày thành bước tự động, và `expires_at`
 của `OFFER` là 37 ngày thay vì ba tháng.
 
-Ba việc của mục 1 còn lại:
+Ba việc của mục 1, nay còn HAI:
 
 1. **Áp cho `WANTED`.** Không phải bật một cờ. Truy vấn tìm bài tới hạn trong
    `gift-request.repository` **không lọc `post_type`** và lấy `SELECT post.author_id AS
@@ -174,8 +174,19 @@ Ba việc của mục 1 còn lại:
    giao dịch với hai vai ngược nhau. Hai bút toán điểm, bộ đếm rank và `GET /transactions`
    đều đọc theo hai cột đó. Phải đảo vai ở auto-select và `acceptRequest` trước.
 2. **Quyền Kim Cương chọn tay** trong hạn xét, kiểm theo Rank đọc từ database.
-3. **`EXPIRED` phải đóng các phản hồi còn mở và thông báo cho hai bên.** Đo được: vòng quét
-   hiện chỉ đặt `status = 'EXPIRED'`, không chạm `gift_requests` và không gửi gì.
+3. ✅ **`EXPIRED` đóng phản hồi và báo cho cả hai bên — xong 11/10.**
+
+   Một bản ghi trước của dòng này nói "vòng quét hiện chỉ đặt `status = 'EXPIRED'`, không chạm
+   `gift_requests` và không gửi gì". **Sai** — tôi đo `post.repository.ts` rồi suy ra cả đường
+   mà không đọc use case bên trên nó. `CloseOpenRequestsService` đã đóng yêu cầu về `CANCELLED`
+   và gửi `GIFT_REQUEST_CLOSED` cho từng người xin từ 28/09.
+
+   Phần thật sự thiếu là phía **chủ bài**: họ được nhắc trước 7 ngày qua `POST_EXPIRING_SOON`
+   rồi không ai nói gì nữa, nên người không mở app trong tuần đó chỉ thấy bài mình biến khỏi
+   feed. Nay có `POST_EXPIRED`, gửi từng bài một, nội dung nói rõ là **vẫn gia hạn được** —
+   thiếu câu đó thì người ta đăng lại từ đầu và tốn thêm một suất quota.
+
+   Lịch sử giữ nguyên: dòng yêu cầu không bị xoá, chỉ chuyển `CANCELLED`.
 
 Mục 2, 4 và 5 vẫn còn nguyên. Review hiện bất biến tại database; F76 hiện ghi cho phép tiêu
 điểm tụt Rank. Đây là **danh sách phải triển khai**, không được coi tài liệu mới là bằng chứng

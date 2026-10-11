@@ -196,7 +196,7 @@ export interface IExpireDuePostsResult {
    * người xin phải được báo. Bài rao vặt chuyển thành Muốn Tặng KHÔNG nằm đây
    * — nó vẫn mở, nên hàng đợi của nó vẫn còn giá trị.
    */
-  expiredPostIds: string[];
+  expiredPosts: { postId: string; authorId: string; title: string }[];
 }
 
 export interface IRenewPostParams {
