@@ -49,11 +49,17 @@ export const CapabilityKindByCode: Readonly<Record<string, CapabilityKinds>> = {
   REACT_CONTENT: CapabilityKinds.GATE,
   COMMENT_CONTENT: CapabilityKinds.GATE,
   SUBMIT_CHARITY_PROPOSAL: CapabilityKinds.GATE,
-  // `SELECT_REQUESTER` có hạn mức 1/3/5/10 theo bậc nhưng KHÔNG chỗ nào đọc, nên
-  // không ai biết đơn vị của nó là gì — mỗi bài được chọn mấy người, hay mỗi ngày?
-  // Khai `VALUE` để nó không báo một `used` bịa ra, và ghi ở
-  // `test:entitlement-inventory` là "khai mà chưa ai đọc".
-  SELECT_REQUESTER: CapabilityKinds.VALUE,
+  // `SELECT_REQUESTER` là `GATE` từ 11/10, trước đó khai `VALUE`.
+  //
+  // Lý do khai `VALUE` khi ấy là một câu hỏi để mở: nó có hạn mức 1/3/5/10 theo bậc
+  // mà không chỗ nào đọc, nên **không ai biết đơn vị của con số đó** — mỗi bài được
+  // chọn mấy người, hay mỗi ngày? Khai `VALUE` để nó khỏi báo một `used` bịa ra.
+  //
+  // CHỐT-10 trả lời: nó cấp hoặc không cấp **quyền** chọn tay đối tác giao dịch, và
+  // không nói con số nào. Tức đây là một cái cổng, không phải một cái trần — nên hạn
+  // mức 1/3/5/10 là con số không có nghĩa, và `1799500000000` đặt nó về 0 thay vì để
+  // Admin sửa một ô không ai đọc.
+  SELECT_REQUESTER: CapabilityKinds.GATE,
 };
 
 export function capabilityKindOf(code: string): CapabilityKinds {

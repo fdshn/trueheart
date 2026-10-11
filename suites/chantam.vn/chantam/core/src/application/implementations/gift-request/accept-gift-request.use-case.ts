@@ -7,8 +7,10 @@ import {
   GiftRequestNotFoundException,
   PostInvalidStateException,
   PostNotFoundException,
+  SelectRequesterNotAllowedException,
 } from '@/domain/exceptions';
 import {
+  IEntitlementRepository,
   IGiftRequestRepository,
   IPostRepository,
 } from '@/domain/ports/repository';
@@ -21,6 +23,23 @@ import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
 import { AcceptedRequestNotifier } from './accepted-request.notifier';
 
+/**
+ * Mã capability cho quyền CHỌN TAY người nhận (CHỐT-10).
+ *
+ * Tới 10/10 capability này đã seed đủ năm bậc mà **không chỗ nào đọc**, nên mọi chủ
+ * bài đều chọn tay được — kể cả Người xem. Nó nằm trong `DeclaredButUnread` của
+ * `test:entitlement-inventory` với đúng lý do đó.
+ *
+ * Đọc `allowed` chứ KHÔNG đọc `limit`: CHỐT-10 cấp hoặc không cấp **quyền**, và không
+ * nói con số nào. `1799500000000` vì thế đặt `limit_value` về 0 và
+ * `CapabilityKindByCode` khai nó là `GATE`.
+ *
+ * Kiểm bằng Rank **hiện tại từ database** — `getCapability` tra bậc từ bảng `users`,
+ * không đọc Rank trong token. Đặc tả nói thẳng điều đó, và nó có lý: token sống tới
+ * hạn refresh, nên một người vừa tụt hạng vẫn mang Rank cũ trong tay.
+ */
+const SelectRequesterCapability = 'SELECT_REQUESTER';
+
 @Injectable()
 export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
   public constructor(
@@ -28,6 +47,8 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
     private readonly postRepository: IPostRepository,
     @Inject(IGiftRequestRepository)
     private readonly giftRequestRepository: IGiftRequestRepository,
+    @Inject(IEntitlementRepository)
+    private readonly entitlementRepository: IEntitlementRepository,
     private readonly acceptedNotifier: AcceptedRequestNotifier,
   ) {}
 
@@ -48,6 +69,17 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
 
     if (post.status !== GiftPostStatuses.PUBLISHED) {
       throw new PostInvalidStateException();
+    }
+
+    // Quyền chọn tay kiểm TRƯỚC khi đọc yêu cầu: không có quyền thì việc yêu cầu đó
+    // có tồn tại hay không cũng không còn liên quan, và trả `GiftRequestNotFound`
+    // trước `Forbidden` là tiết lộ có/không một id.
+    const selectCapability = await this.entitlementRepository.getCapability(
+      command.userId,
+      SelectRequesterCapability,
+    );
+    if (!selectCapability?.allowed) {
+      throw new SelectRequesterNotAllowedException();
     }
 
     const targetRequest = await this.giftRequestRepository.findOneBy({

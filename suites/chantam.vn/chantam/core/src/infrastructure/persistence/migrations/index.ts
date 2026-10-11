@@ -111,3 +111,4 @@ export * from './1799100000000-CreateDharmaForum';
 export * from './1799200000000-SeedGiftValueBonusCap';
 export * from './1799300000000-DropExtendedSelectionMode';
 export * from './1799400000000-ExpandNotificationGroupsToEight';
+export * from './1799500000000-SelectRequesterDiamondOnly';

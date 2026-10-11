@@ -146,6 +146,8 @@ export enum ErrorCodes {
    * phải đóng lượt trao trước, chứ không phải "trạng thái không cho phép".
    */
   POST_HAS_LIVE_TRANSACTION = 0x06_0f,
+  /** Chủ bài không đủ hạng để chọn tay người nhận (CHỐT-10). */
+  SELECT_REQUESTER_NOT_ALLOWED = 0x06_10,
 
   // 0x07 — Point / Rank / Referral M4
   POINT_RULE_UNAVAILABLE = 0x07_01,

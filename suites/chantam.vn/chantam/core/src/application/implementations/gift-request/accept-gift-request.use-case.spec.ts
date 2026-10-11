@@ -2,6 +2,7 @@ import {
   GiftRequestNotFoundException,
   PostInvalidStateException,
   PostNotFoundException,
+  SelectRequesterNotAllowedException,
 } from '@/domain/exceptions';
 import {
   IGiftRequestRepository,
@@ -83,6 +84,23 @@ function makeRequest(
  * Đường báo cho người được chọn. Ca "có báo đúng không" nằm ở
  * `accepted-request.notifier.spec.ts`.
  */
+/**
+ * Quyền chọn tay, dạng giả. Mặc định CHO PHÉP để các phép kiểm cũ vẫn nói về điều
+ * chúng vốn nói — không phải vì mọi bậc đều được phép.
+ */
+function entitlements(allowed = true) {
+  return {
+    getCapability: jest.fn(async (_userId: string, code: string) => ({
+      code,
+      allowed,
+      limit: 0,
+      used: null,
+      remaining: null,
+      reasonCode: null,
+    })),
+  } as never;
+}
+
 function notifier() {
   return { announce: jest.fn().mockResolvedValue(undefined) } as never;
 }
@@ -106,6 +124,7 @@ describe('AcceptGiftRequestUseCase', () => {
     const useCase = new AcceptGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      entitlements(),
       notifier(),
     );
     const result = await useCase.handle({
@@ -137,6 +156,7 @@ describe('AcceptGiftRequestUseCase', () => {
     const useCase = new AcceptGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      entitlements(),
       notifier(),
     );
     await expect(
@@ -160,6 +180,7 @@ describe('AcceptGiftRequestUseCase', () => {
     const useCase = new AcceptGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      entitlements(),
       notifier(),
     );
     await expect(
@@ -183,6 +204,7 @@ describe('AcceptGiftRequestUseCase', () => {
     const useCase = new AcceptGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      entitlements(),
       notifier(),
     );
     await expect(
@@ -209,6 +231,7 @@ describe('AcceptGiftRequestUseCase', () => {
     const useCase = new AcceptGiftRequestUseCase(
       postRepo,
       giftRequestRepo,
+      entitlements(),
       notifier(),
     );
     await expect(
@@ -218,5 +241,92 @@ describe('AcceptGiftRequestUseCase', () => {
         userId: AuthorId,
       }),
     ).rejects.toBeInstanceOf(GiftRequestNotFoundException);
+  });
+});
+
+describe('AcceptGiftRequestUseCase · quyền chọn tay (CHỐT-10)', () => {
+  function build(allowed: boolean) {
+    const post = makePost();
+    const postRepo = {
+      findOneBy: jest.fn().mockResolvedValue(post),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const giftRequestRepo = {
+      findOneBy: jest.fn().mockResolvedValue(makeRequest()),
+      acceptRequest: jest.fn().mockResolvedValue({ transactionId: 'trans-1' }),
+    } as unknown as jest.Mocked<IGiftRequestRepository>;
+    const caps = entitlements(allowed) as unknown as {
+      getCapability: jest.Mock;
+    };
+    return {
+      useCase: new AcceptGiftRequestUseCase(
+        postRepo,
+        giftRequestRepo,
+        caps as never,
+        notifier(),
+      ),
+      giftRequestRepo,
+      caps,
+    };
+  }
+
+  it('chủ bài KHÔNG đủ hạng thì bị chặn, không âm thầm chọn hộ', async () => {
+    // Tới 10/10 use case này chỉ kiểm "có phải chủ bài không", nên MỌI chủ bài đều
+    // chọn tay được — kể cả Người xem. Capability `SELECT_REQUESTER` đã seed đủ năm
+    // bậc từ lâu mà không chỗ nào đọc.
+    const { useCase } = build(false);
+
+    await expect(
+      useCase.handle({
+        postId: PostId,
+        requestId: RequestId,
+        userId: AuthorId,
+      }),
+    ).rejects.toBeInstanceOf(SelectRequesterNotAllowedException);
+  });
+
+  it('bị chặn thì KHÔNG đụng tới yêu cầu nào', async () => {
+    // Chặn mà vẫn ghi là tệ hơn không chặn.
+    const { useCase, giftRequestRepo } = build(false);
+
+    await expect(
+      useCase.handle({
+        postId: PostId,
+        requestId: RequestId,
+        userId: AuthorId,
+      }),
+    ).rejects.toThrow();
+
+    expect(giftRequestRepo.acceptRequest).not.toHaveBeenCalled();
+  });
+
+  it('kiểm quyền TRƯỚC khi đọc yêu cầu — không tiết lộ id có thật', async () => {
+    // Trả `GiftRequestNotFound` trước `Forbidden` là nói cho người gọi biết id đó
+    // có tồn tại hay không.
+    const { useCase, giftRequestRepo } = build(false);
+
+    await expect(
+      useCase.handle({
+        postId: PostId,
+        requestId: RequestId,
+        userId: AuthorId,
+      }),
+    ).rejects.toThrow();
+
+    expect(giftRequestRepo.findOneBy).not.toHaveBeenCalled();
+  });
+
+  it('đọc đúng mã capability SELECT_REQUESTER', async () => {
+    const { useCase, caps } = build(true);
+
+    await useCase.handle({
+      postId: PostId,
+      requestId: RequestId,
+      userId: AuthorId,
+    });
+
+    expect(caps.getCapability).toHaveBeenCalledWith(
+      AuthorId,
+      'SELECT_REQUESTER',
+    );
   });
 });

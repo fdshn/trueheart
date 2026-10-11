@@ -430,6 +430,15 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Thứ hạng hiện tại của bạn chưa được dùng bài Cần gấp (SOS)',
   },
 
+  SELECT_REQUESTER_NOT_ALLOWED: {
+    code: ErrorCodes.SELECT_REQUESTER_NOT_ALLOWED,
+    httpStatus: HttpStatus.FORBIDDEN,
+    // Nói rõ hai điều người đọc cần: vì sao bị chặn, và chuyện gì sẽ xảy ra tiếp.
+    // Một câu "không có quyền" trơ trọi làm chủ bài tưởng bài mình bị treo.
+    message: () =>
+      'Thứ hạng hiện tại của bạn chưa được tự chọn người nhận. Hết hạn xét, hệ thống sẽ tự chọn theo tiêu chí Ban quản trị cấu hình; bạn vẫn xem được danh sách và từ chối yêu cầu không hợp lệ',
+  },
+
   POST_CHARITY_TRANSFER_INVALID_STATE: {
     code: ErrorCodes.POST_CHARITY_TRANSFER_INVALID_STATE,
     httpStatus: HttpStatus.CONFLICT,

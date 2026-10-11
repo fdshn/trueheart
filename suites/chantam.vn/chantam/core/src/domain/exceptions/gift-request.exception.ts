@@ -9,6 +9,17 @@ export class GiftRequestDuplicatedException extends ExceptionFrom(
   CoreErrors.GIFT_REQUEST_DUPLICATED,
 ) {}
 
+/**
+ * Chủ bài không đủ hạng để chọn tay người nhận (CHỐT-10).
+ *
+ * KHÁC `ForbiddenException` ở chỗ: người gọi ĐÚNG là chủ bài, chỉ không có quyền
+ * này. Dùng chung một lỗi cho "không phải bài của bạn" và "bài của bạn nhưng chưa
+ * đủ hạng" làm client không phân biệt được, và chủ bài sẽ tưởng bài mình bị treo.
+ */
+export class SelectRequesterNotAllowedException extends ExceptionFrom(
+  CoreErrors.SELECT_REQUESTER_NOT_ALLOWED,
+) {}
+
 export class CannotRequestOwnPostException extends ExceptionFrom(
   CoreErrors.CANNOT_REQUEST_OWN_POST,
 ) {}

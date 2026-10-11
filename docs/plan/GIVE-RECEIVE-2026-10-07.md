@@ -166,14 +166,27 @@ Postgres (`1799300000000`), đồng hồ 7 ngày tính từ **lúc đăng** và 
 (nên bài không có phản hồi cũng có hạn), giai đoạn 30 ngày thành bước tự động, và `expires_at`
 của `OFFER` là 37 ngày thay vì ba tháng.
 
-Ba việc của mục 1, nay còn HAI:
+Ba việc của mục 1, nay còn MỘT:
 
 1. **Áp cho `WANTED`.** Không phải bật một cờ. Truy vấn tìm bài tới hạn trong
    `gift-request.repository` **không lọc `post_type`** và lấy `SELECT post.author_id AS
    giver_id` — với `WANTED` tác giả là người muốn NHẬN, nên đặt hạn cho nó là để job tự dựng
    giao dịch với hai vai ngược nhau. Hai bút toán điểm, bộ đếm rank và `GET /transactions`
    đều đọc theo hai cột đó. Phải đảo vai ở auto-select và `acceptRequest` trước.
-2. **Quyền Kim Cương chọn tay** trong hạn xét, kiểm theo Rank đọc từ database.
+2. ✅ **Quyền Kim Cương chọn tay — xong 11/10.** Và chỗ thiếu nặng hơn đặc tả: tới 10/10
+   **không đường nào kiểm quyền này**, nên mọi chủ bài đều chọn tay được, kể cả Người xem.
+
+   Capability `SELECT_REQUESTER` đã seed đủ năm bậc từ `1790100000000` mà không chỗ nào đọc —
+   nó nằm trong `DeclaredButUnread` của `test:entitlement-inventory` với lý do: *"hạn mức
+   1/3/5/10 theo bậc nhưng không ai đọc, nên không ai biết đơn vị của nó là gì — mỗi bài được
+   chọn mấy người, hay mỗi ngày?"*
+
+   CHỐT-10 chốt điều đó theo cách làm câu hỏi biến mất: nó cấp hoặc không cấp **quyền**, không
+   nói con số nào. Nên capability thành `GATE`, `1799500000000` đặt `allowed` đúng Kim Cương
+   và `limit_value` về 0, và hai đường duyệt tay (`accept` + `batch-accept`) đọc `allowed`.
+   Danh sách nợ của `test:entitlement-inventory` nay **rỗng**.
+
+   `reject` và việc xem danh sách vẫn mở cho mọi bậc — đặc tả nói rõ đó là quyền khác.
 3. ✅ **`EXPIRED` đóng phản hồi và báo cho cả hai bên — xong 11/10.**
 
    Một bản ghi trước của dòng này nói "vòng quét hiện chỉ đặt `status = 'EXPIRED'`, không chạm

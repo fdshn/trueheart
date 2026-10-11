@@ -941,8 +941,10 @@ báo qua `POST /transactions/:id/reports/ship-unpaid` và khoản trừ điểm 
 > **Trạng thái 11/10.** Phần dưới mô tả hành vi **đang chạy**, không còn là "backend cũ".
 >
 > ✅ Hai chế độ, mốc 7 ngày từ lúc đăng, tự mở 30 ngày, `EXTENDED` đã bỏ.
-> ⬜ Còn lại của CHỐT-10 ở mục này: áp cho `WANTED` (cần đảo vai trước), và quyền **Kim Cương
-> chọn tay** trong 7 ngày — hiện quyền chọn tay chưa gắn ngưỡng hạng.
+> ✅ Quyền **Kim Cương chọn tay** xong 11/10 qua capability `SELECT_REQUESTER`, áp ở cả
+> `accept` và `batch-accept`. Tới 10/10 capability đó đã seed mà **không ai đọc**, nên mọi chủ
+> bài đều chọn tay được. `reject` và xem danh sách vẫn mở cho mọi bậc.
+> ⬜ Còn lại của CHỐT-10 ở mục này: áp cho `WANTED` (cần đảo vai tặng/nhận trước).
 
 Khi người cho tạo bài đăng Muốn Tặng (`OFFER`), hệ thống hỗ trợ **02** chế độ lựa chọn người nhận (CHỐT-10):
 

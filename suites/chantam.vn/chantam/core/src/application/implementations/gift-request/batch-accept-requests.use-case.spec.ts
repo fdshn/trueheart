@@ -1,3 +1,4 @@
+import { SelectRequesterNotAllowedException } from '@/domain/exceptions';
 import { IGiftRequestRepository } from '@/domain/ports/repository';
 import { MaxBatchAcceptRequests } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
@@ -28,11 +29,27 @@ function makeDeps(outcome?: unknown) {
     notifier: {
       announce: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<AcceptedRequestNotifier>,
+    // Quyền chọn tay, mặc định CHO PHÉP để các phép kiểm cũ vẫn nói về điều chúng
+    // vốn nói — không phải vì mọi bậc đều được phép.
+    entitlements: {
+      getCapability: jest.fn(async (_userId: string, code: string) => ({
+        code,
+        allowed: true,
+        limit: 0,
+        used: null,
+        remaining: null,
+        reasonCode: null,
+      })),
+    },
   };
 }
 
 const build = (deps: ReturnType<typeof makeDeps>) =>
-  new BatchAcceptRequestsUseCase(deps.repo, deps.notifier);
+  new BatchAcceptRequestsUseCase(
+    deps.repo,
+    deps.entitlements as never,
+    deps.notifier,
+  );
 
 describe('BatchAcceptRequestsUseCase', () => {
   it('giao cả lô cho MỘT lượt gọi repository, không lặp từng cái', async () => {
@@ -176,5 +193,53 @@ describe('BatchAcceptRequestsUseCase', () => {
       }),
     ).rejects.toThrow('out of stock');
     expect(deps.notifier.announce).not.toHaveBeenCalled();
+  });
+});
+
+describe('BatchAcceptRequestsUseCase · quyền chọn tay (CHỐT-10)', () => {
+  it('không đủ hạng thì chặn, và KHÔNG gọi repository', async () => {
+    // Cổng phải có ở CẢ HAI đường duyệt tay. Chặn `accept` mà bỏ đường này thì
+    // chọn một người qua một lô một phần tử cho ra đúng kết quả vừa bị từ chối.
+    const deps = makeDeps();
+    deps.entitlements.getCapability = jest.fn(
+      async (_userId: string, code: string) => ({
+        code,
+        allowed: false,
+        limit: 0,
+        used: null,
+        remaining: null,
+        reasonCode: null,
+      }),
+    );
+
+    await expect(
+      build(deps).handle({
+        postId: PostId,
+        userId: GiverId,
+        requestIds: [ReqA],
+      }),
+    ).rejects.toBeInstanceOf(SelectRequesterNotAllowedException);
+
+    expect(deps.repo.acceptRequestsBatch).not.toHaveBeenCalled();
+  });
+
+  it('chặn TRƯỚC cả phép kiểm lô rỗng', async () => {
+    // Người không có quyền nhận cùng một câu trả lời dù lô hợp lệ hay rỗng, nên họ
+    // không dò được gì từ thông điệp lỗi.
+    const deps = makeDeps();
+    deps.entitlements.getCapability = jest.fn(
+      async (_userId: string, code: string) => ({
+        code,
+        allowed: false,
+        limit: 0,
+        used: null,
+        remaining: null,
+        reasonCode: null,
+      }),
+    );
+
+    await expect(
+      build(deps).handle({ postId: PostId, userId: GiverId, requestIds: [] }),
+    ).rejects.toBeInstanceOf(SelectRequesterNotAllowedException);
   });
 });

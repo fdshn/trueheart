@@ -48,6 +48,10 @@ const ReadCapabilities: readonly { code: string; readAt: string }[] = [
     code: 'SUBMIT_CHARITY_PROPOSAL',
     readAt: 'charity-campaign.use-cases (F65 — 03/10)',
   },
+  {
+    code: 'SELECT_REQUESTER',
+    readAt: 'accept-gift-request + batch-accept-requests (CHỐT-10 — 11/10)',
+  },
 ];
 
 /**
@@ -56,13 +60,22 @@ const ReadCapabilities: readonly { code: string; readAt: string }[] = [
  * Khác `ReadCapabilities` ở chỗ: những mã này là NỢ đã biết, không phải tính năng chạy.
  * Ghi ra để lần soát sau không ai đọc chúng thành "đã hoạt động".
  */
-const DeclaredButUnread: readonly { code: string; reason: string }[] = [
-  {
-    code: 'SELECT_REQUESTER',
-    reason:
-      'Hạn mức 1/3/5/10 theo bậc nhưng không ai đọc, nên không ai biết đơn vị của nó là gì — mỗi bài được chọn mấy người, hay mỗi ngày? Nối nó đòi chốt nghiệp vụ trước, và đoán sai thì đặt một trần người dùng không hiểu',
-  },
-];
+const DeclaredButUnread: readonly { code: string; reason: string }[] = [];
+
+/*
+ * `SELECT_REQUESTER` từng là mục duy nhất ở đây, với lý do:
+ *
+ *   "Hạn mức 1/3/5/10 theo bậc nhưng không ai đọc, nên không ai biết đơn vị của nó
+ *    là gì — mỗi bài được chọn mấy người, hay mỗi ngày? Nối nó đòi chốt nghiệp vụ
+ *    trước, và đoán sai thì đặt một trần người dùng không hiểu"
+ *
+ * CHỐT-10 chốt nghiệp vụ đó, và chốt theo cách làm câu hỏi biến mất: nó cấp hoặc
+ * không cấp QUYỀN chọn tay, không nói con số nào. Nên capability thành `GATE`,
+ * `1799500000000` đặt `limit_value` về 0, và hai use case duyệt tay đọc `allowed`.
+ *
+ * Danh sách nay RỖNG. Giữ ghi chú này thay vì xoá trắng: một danh sách rỗng không có
+ * lịch sử thì lần soát sau không biết nó từng có gì và vì sao hết.
+ */
 
 const failures: string[] = [];
 

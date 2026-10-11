@@ -641,8 +641,27 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 | `GET` | `/requests/me` | Bearer | **Yêu cầu của chính tôi**, kèm tiêu đề + ảnh + trạng thái bài |
 | `GET` | `/posts/:postId/requests` | Bearer (chỉ tác giả) | Danh sách người xin, có phân trang |
 | `POST` | `/posts/:postId/requests/:requestId/reject` | Bearer (chỉ tác giả) | **Từ chối** một yêu cầu đang `PENDING`/`STANDBY` |
-| `POST` | `/posts/:postId/requests/:requestId/accept` | Bearer (chỉ tác giả) | Duyệt một người xin |
-| `POST` | `/posts/:postId/batch-accept` | Bearer (chỉ tác giả) | Duyệt **nhiều** người trong MỘT transaction — hoặc hết, hoặc không ai |
+| `POST` | `/posts/:postId/requests/:requestId/accept` | Bearer (chỉ tác giả **và** đủ hạng) | Duyệt một người xin — xem khung dưới |
+| `POST` | `/posts/:postId/batch-accept` | Bearer (chỉ tác giả **và** đủ hạng) | Duyệt **nhiều** người trong MỘT transaction — hoặc hết, hoặc không ai |
+
+> **Chọn tay đòi quyền `SELECT_REQUESTER`, từ 11/10 (CHỐT-10).** Mặc định chỉ **Kim Cương**
+> được tự chọn người nhận; bậc dưới nhận `SELECT_REQUESTER_NOT_ALLOWED` (403) và hệ thống tự
+> chọn khi hết hạn xét.
+>
+> Tới 10/10 **không đường nào kiểm quyền này**: capability đã seed đủ năm bậc mà không chỗ nào
+> đọc, nên mọi chủ bài đều chọn tay được, kể cả Người xem.
+>
+> Ba điều client cần biết:
+>
+> - Cổng áp cho **cả hai** endpoint. Chọn một người qua `batch-accept` với lô một phần tử cũng
+>   bị chặn — nếu không thì cổng ở `accept` thành vô nghĩa.
+> - **Từ chối thì không bị chặn.** `POST /posts/:postId/requests/:requestId/reject` và việc xem
+>   danh sách ứng viên vẫn mở cho mọi bậc: đặc tả nói rõ đó là quyền khác, và không được dùng
+>   để lách quyền chọn.
+> - Quyền kiểm bằng **hạng hiện tại trong database**, không đọc hạng trong token — token sống
+>   tới hạn refresh, nên người vừa tụt hạng vẫn mang hạng cũ trong tay.
+>
+> Bên A đổi được ngưỡng qua bảng quyền theo bậc mà không cần deploy.
 | `POST` | `/posts/:wantedPostId/offer-gift` | Bearer | Chủ động tặng cho một bài Muốn Nhận, kèm được một bài Muốn Tặng của chính mình |
 | `GET` | `/posts/:postId/redemption-quote` | Bearer (người xin) | Xem giá đổi và lý do không đổi được; hiện luôn 200, không giữ hàng/điểm |
 | `POST` | `/posts/:postId/redeem` | Bearer (người xin) | Dùng điểm chốt ngay; hiện có ledger debit + accept/refund bù, **chưa** atomic và chưa bảo vệ Rank |

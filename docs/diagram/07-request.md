@@ -111,7 +111,7 @@ stateDiagram-v2
 
     ĐangĐếm --> ChốtNgay: Có người dùng ĐIỂM đổi thẳng ✅
     ĐangĐếm --> TựChọn: Hết 7 ngày ✅
-    ĐangĐếm --> ChủBàiChọn: Chủ bài chọn tay ✅ (chốt sớm được)
+    ĐangĐếm --> ChủBàiChọn: Chủ bài KIM CƯƠNG chọn tay ✅ (chốt sớm được)
 
     ChốtNgay --> ĐãChọn: Dừng đếm, KHÔNG auto-select
     TựChọn --> ĐãChọn: Xếp theo bộ tiêu chí Admin
