@@ -17,8 +17,8 @@
  * gọi đều đọc `null` thành "không được phép" — tức tính năng im lặng tắt. Nhóm 2 dưới
  * đây hỏi câu đó.
  */
-import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { CapabilityKindByCode } from '@chantam.vn/chantam.core-lib/models';
+import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
@@ -118,7 +118,9 @@ async function main(): Promise<void> {
     const read = ReadCapabilities.map((entry) => entry.code);
     const knownUnread = DeclaredButUnread.map((entry) => entry.code);
 
-    console.log(`1. Mọi capability trong database phải được KHAI ở một trong hai danh sách`);
+    console.log(
+      `1. Mọi capability trong database phải được KHAI ở một trong hai danh sách`,
+    );
     for (const code of seeded)
       check(
         `${code} có mặt trong danh sách`,

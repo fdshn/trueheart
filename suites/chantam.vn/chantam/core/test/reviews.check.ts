@@ -613,7 +613,6 @@ async function main(): Promise<void> {
         ReceiverId,
       )) === null,
     );
-
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

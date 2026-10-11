@@ -42,7 +42,6 @@ const StaleId = 'a3000000-0000-4000-8000-00000000a006';
 // UUID chỉ nhận ký tự hex: bản đầu dùng tiền tố 'g' cho dễ đọc và Postgres ném
 // 22P02 ngay câu INSERT đầu tiên.
 const GroupId = 'be300000-0000-4000-8000-00000000be01';
-const CategoryId = 'c3000000-0000-4000-8000-00000000c001';
 
 const SaiGon = { lat: 10.7724, lng: 106.698 };
 const HaNoi = { lat: 21.0278, lng: 105.8342 };

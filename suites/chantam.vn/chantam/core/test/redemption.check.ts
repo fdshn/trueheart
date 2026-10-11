@@ -167,7 +167,9 @@ async function main(): Promise<void> {
         [postId, requesterId],
       );
 
-    console.log('1. Giá bằng điểm tính từ tỷ lệ ĐỘNG, không phải hằng trong code');
+    console.log(
+      '1. Giá bằng điểm tính từ tỷ lệ ĐỘNG, không phải hằng trong code',
+    );
     await setBalance(RicherId, 2_000);
     const priced = await quotes.handle({
       postId: PricedPostId,
@@ -183,7 +185,10 @@ async function main(): Promise<void> {
       priced.quote.vndPerPoint === 2_000,
       `${priced.quote.vndPerPoint}`,
     );
-    check('đủ điểm thì không nêu lý do nào', priced.quote.unavailableReason === null);
+    check(
+      'đủ điểm thì không nêu lý do nào',
+      priced.quote.unavailableReason === null,
+    );
     check('và không thiếu điểm', priced.quote.missingPoints === 0);
 
     // Admin đổi tỷ lệ → báo giá phải đổi theo NGAY, không chờ deploy. Đây chính là
@@ -210,7 +215,10 @@ async function main(): Promise<void> {
 
     console.log('\n2. Ba lý do không đổi được, gộp đúng như đường bấm thật');
     await setBalance(PoorerId, 100);
-    const poor = await quotes.handle({ postId: PricedPostId, userId: PoorerId });
+    const poor = await quotes.handle({
+      postId: PricedPostId,
+      userId: PoorerId,
+    });
     check(
       'thiếu điểm → INSUFFICIENT_POINTS, và nêu còn thiếu bao nhiêu',
       poor.quote.unavailableReason === 'INSUFFICIENT_POINTS' &&
@@ -293,7 +301,10 @@ async function main(): Promise<void> {
     );
 
     await setBalance(RicherId, 1_200);
-    const safe = await quotes.handle({ postId: PricedPostId, userId: RicherId });
+    const safe = await quotes.handle({
+      postId: PricedPostId,
+      userId: RicherId,
+    });
     check(
       'có 1.200 thì trả 500 vẫn còn 700 > 672 — KHÔNG tụt',
       safe.quote.wouldDemote === false && safe.quote.rankAfter === 'SILVER',

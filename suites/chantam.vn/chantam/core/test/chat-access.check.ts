@@ -335,10 +335,7 @@ async function main(): Promise<void> {
         recalledRow.recalled_at !== null,
       `body='${recalledRow?.body}' recalled_at=${recalledRow?.recalled_at}`,
     );
-    check(
-      'dòng vẫn giữ chỗ trong cuộc trò chuyện',
-      recalledRow !== undefined,
-    );
+    check('dòng vẫn giữ chỗ trong cuộc trò chuyện', recalledRow !== undefined);
 
     const twice = await chat.recallMessage({
       roomId: RoomId,
@@ -360,14 +357,16 @@ async function main(): Promise<void> {
       senderId: GiverId,
       body: 'Tin cũ',
     });
-    await dataSource.query(
-      `SET LOCAL chantam.chat_purge = 'on'`,
-    ).catch(() => undefined);
-    await dataSource.query(
-      `UPDATE chat_messages SET created_at = now() - interval '30 minutes'
+    await dataSource
+      .query(`SET LOCAL chantam.chat_purge = 'on'`)
+      .catch(() => undefined);
+    await dataSource
+      .query(
+        `UPDATE chat_messages SET created_at = now() - interval '30 minutes'
        WHERE global_id = $1`,
-      [oldId],
-    ).catch(() => undefined);
+        [oldId],
+      )
+      .catch(() => undefined);
 
     const [oldRow] = await dataSource.query<{ created_at: Date }[]>(
       `SELECT created_at FROM chat_messages WHERE global_id = $1`,
@@ -404,11 +403,7 @@ async function main(): Promise<void> {
       `INSERT INTO reports
          (global_id, reporter_user_id, target_type, target_id, reason, description, status)
        VALUES ($1, $2, 'USER', $3, 'HARASSMENT', 'Quấy rối trong chat', 'PENDING')`,
-      [
-        '99999999-1111-4999-8999-99999999b100',
-        ReceiverId,
-        GiverId,
-      ],
+      ['99999999-1111-4999-8999-99999999b100', ReceiverId, GiverId],
     );
 
     const room = await chat.findRoomForModeration(RoomId);
@@ -422,7 +417,10 @@ async function main(): Promise<void> {
       (await chat.findRoomForModeration(OtherRoomId)) === null,
     );
 
-    const moderationMessages = await chat.listMessagesForModeration(RoomId, 200);
+    const moderationMessages = await chat.listMessagesForModeration(
+      RoomId,
+      200,
+    );
     check(
       'đọc được tin trong phòng',
       moderationMessages.length > 0,
@@ -523,10 +521,9 @@ async function main(): Promise<void> {
     );
     const [unmuted] = await dataSource.query<
       { receiver_muted_at: Date | null }[]
-    >(
-      `SELECT receiver_muted_at FROM chat_rooms WHERE global_id = $1`,
-      [RoomId],
-    );
+    >(`SELECT receiver_muted_at FROM chat_rooms WHERE global_id = $1`, [
+      RoomId,
+    ]);
     check('mốc tắt được xoá', unmuted.receiver_muted_at === null);
 
     console.log('\nAdmin gỡ tin nhắn bị báo xấu:\n');
@@ -697,9 +694,7 @@ async function main(): Promise<void> {
     );
     check('hàng đợi đếm đúng tổng', queue.total === 2, `${queue.total}`);
 
-    const targetFlag = queue.items.find(
-      (item) => item.messageId === FlaggedId,
-    );
+    const targetFlag = queue.items.find((item) => item.messageId === FlaggedId);
     check(
       'xử được một cờ',
       await chat.reviewFlag({
@@ -723,7 +718,6 @@ async function main(): Promise<void> {
       (await chat.countPendingFlags()) === 1,
       `${await chat.countPendingFlags()} cờ còn lại`,
     );
-
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

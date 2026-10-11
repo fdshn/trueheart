@@ -237,6 +237,29 @@ async function main(): Promise<void> {
       JSON.stringify(swept),
     );
 
+    // `expiredPosts` mang theo `author_id` và `title` để nơi gọi báo cho chủ bài
+    // (CHỐT-10). Hai cột đó là cột THẬT trong `SELECT`, nên chỉ chạy trên Postgres
+    // mới biết chúng có tồn tại — unit test mock truy vấn thì tên cột sai vẫn
+    // xanh. Đó đúng là cách `value_bonus` đọc một cột không tồn tại mà lọt tới
+    // nhánh chính ngày 07/10.
+    check(
+      'trả kèm đủ chủ bài và tiêu đề cho từng bài hết hạn',
+      swept.expiredPosts.length === swept.expired &&
+        swept.expiredPosts.every(
+          (post) =>
+            typeof post.authorId === 'string' &&
+            post.authorId.length > 0 &&
+            typeof post.title === 'string' &&
+            post.title.length > 0,
+        ),
+      JSON.stringify(swept.expiredPosts),
+    );
+    check(
+      'và KHÔNG kèm bài rao vặt vừa chuyển thành Muốn Tặng',
+      swept.expiredPosts.length === 1,
+      `${swept.expiredPosts.length} bài — rao vặt chuyển loại thì không hết hạn`,
+    );
+
     check(
       'bài quá hạn chuyển sang EXPIRED',
       (await readPost(dataSource, 1)).status === 'EXPIRED',

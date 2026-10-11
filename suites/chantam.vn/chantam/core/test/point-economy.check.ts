@@ -371,7 +371,9 @@ async function main(): Promise<void> {
       audit?.reason === reason,
       `reason=${audit?.reason}`,
     );
-    console.log('\n7. Dòng ghi nhận "đã chặn vì trần ngày" sống sót qua rollback');
+    console.log(
+      '\n7. Dòng ghi nhận "đã chặn vì trần ngày" sống sót qua rollback',
+    );
     // Đây là lỗi mà mock không thể thấy: dòng REJECTED nằm TRONG transaction, nên
     // chính ngoại lệ chặn nó cũng cuốn nó đi. Trước 29/09 bảng này chưa từng giữ
     // được một dòng REJECTED nào cho lối gọi qua `appendByRule`.
@@ -572,7 +574,9 @@ async function main(): Promise<void> {
       graceDays: 7,
       limit: 50,
     });
-    const rated = unsettledGivers.find((row) => row.transactionId === DealRated);
+    const rated = unsettledGivers.find(
+      (row) => row.transactionId === DealRated,
+    );
     check(
       'lượt ĐÃ đánh giá mà chưa trả thưởng vẫn nằm trong danh sách',
       rated !== undefined,

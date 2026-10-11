@@ -84,7 +84,10 @@ async function main(): Promise<void> {
         username,
         options.rank ?? 'MEMBER',
         options.status ?? 'ACTIVE',
-        username.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12),
+        username
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, '')
+          .slice(0, 12),
         options.deleted === true ? new Date() : null,
       ],
     );
@@ -98,7 +101,12 @@ async function main(): Promise<void> {
       `INSERT INTO referrals
          (referrer_id, referee_id, code, signup_ip_hash, signup_device_hash)
        VALUES ($1, $2, 'MA-THU', $3, $4)`,
-      [referrerId, refereeId, fingerprints.ip ?? null, fingerprints.device ?? null],
+      [
+        referrerId,
+        refereeId,
+        fingerprints.ip ?? null,
+        fingerprints.device ?? null,
+      ],
     );
 
   try {
@@ -126,7 +134,11 @@ async function main(): Promise<void> {
       `SELECT balance FROM user_point_balances WHERE user_id = $1`,
       [Referrer],
     );
-    check('cộng đúng 3 × 56 điểm', balance?.balance === 168, `${balance?.balance}`);
+    check(
+      'cộng đúng 3 × 56 điểm',
+      balance?.balance === 168,
+      `${balance?.balance}`,
+    );
     const [stillPending] = await dataSource.query<{ n: string }[]>(
       `SELECT COUNT(*)::text n FROM referrals
        WHERE referrer_id = $1 AND qualified_at IS NULL`,
@@ -145,7 +157,9 @@ async function main(): Promise<void> {
       `${(await referrals.findPendingQualifications(10)).length}`,
     );
 
-    console.log('\n3. Người MỜI bị khoá thì không trả thưởng, và không lặp mãi');
+    console.log(
+      '\n3. Người MỜI bị khoá thì không trả thưởng, và không lặp mãi',
+    );
     await addUser(referee(9), 'duoc-moi-9');
     await link(OtherReferrer, referee(9));
     await dataSource.query(
@@ -167,10 +181,14 @@ async function main(): Promise<void> {
     check(
       'lượt đó KHÔNG nằm trong danh sách quét — nếu nằm thì reconcile lặp vô hạn',
       !pendingWhileBanned.includes(referee(9)),
-      pendingWhileBanned.length === 2 ? 'chỉ còn hai lượt cũ' : `${pendingWhileBanned.length}`,
+      pendingWhileBanned.length === 2
+        ? 'chỉ còn hai lượt cũ'
+        : `${pendingWhileBanned.length}`,
     );
 
-    console.log('\n4. Treo TẠM rồi được gỡ thì lượt đó quay lại — hoãn, không mất');
+    console.log(
+      '\n4. Treo TẠM rồi được gỡ thì lượt đó quay lại — hoãn, không mất',
+    );
     await dataSource.query(
       `UPDATE users SET status = 'ACTIVE' WHERE global_id = $1`,
       [OtherReferrer],
@@ -190,9 +208,10 @@ async function main(): Promise<void> {
       `UPDATE users SET status = 'BANNED' WHERE global_id = $1`,
       [referee(1)],
     );
-    await dataSource.query(`UPDATE users SET deleted_at = now() WHERE global_id = $1`, [
-      referee(2),
-    ]);
+    await dataSource.query(
+      `UPDATE users SET deleted_at = now() WHERE global_id = $1`,
+      [referee(2)],
+    );
     const afterBan = await ranks.getOwnSummary(Referrer);
     check(
       'trước khi dọn: đếm 3',
@@ -216,13 +235,19 @@ async function main(): Promise<void> {
 
     console.log('\n6. getOwnSummary trả danh sách người đã mời');
     const summary = await referrals.getOwnSummary(Referrer);
-    check('đủ năm người', summary.invitees.length === 5, `${summary.invitees.length}`);
+    check(
+      'đủ năm người',
+      summary.invitees.length === 5,
+      `${summary.invitees.length}`,
+    );
     check(
       'mới nhất trước',
       summary.invitees[0].username === 'duoc-moi-5',
       summary.invitees.map((row) => row.username).join(', '),
     );
-    const pendingOnes = summary.invitees.filter((row) => row.status === 'PENDING');
+    const pendingOnes = summary.invitees.filter(
+      (row) => row.status === 'PENDING',
+    );
     check(
       'hai lượt bị hoãn hiện đúng trạng thái PENDING',
       pendingOnes.length === 2,
@@ -232,7 +257,9 @@ async function main(): Promise<void> {
       'và PENDING thì không có số điểm',
       pendingOnes.every((row) => row.awardedPoints === null),
     );
-    const rewarded = summary.invitees.filter((row) => row.status === 'QUALIFIED');
+    const rewarded = summary.invitees.filter(
+      (row) => row.status === 'QUALIFIED',
+    );
     check(
       'lượt đã tính mang đúng số điểm ĐÃ VÀO SỔ',
       rewarded.every((row) => row.awardedPoints === 56),
@@ -362,7 +389,6 @@ async function main(): Promise<void> {
         forReview.some((row) => row.refereeDeleted),
     );
 
-
     console.log('\n10. Thu hồi thưởng: đường đảo bút toán làm đúng ba việc');
     // Đây là khẳng định cả thiết kế dựa vào: khi xác minh là tài khoản ảo thì đường
     // thu hồi ĐÃ CÓ và đã làm đúng ca khó — điểm đã bị tiêu.
@@ -396,7 +422,11 @@ async function main(): Promise<void> {
       actorUserId: Referrer,
       reason: 'Tài khoản ảo — thu hồi thưởng giới thiệu',
     });
-    check('đảo được bút toán thưởng', outcome.status === 'REVERSED', outcome.status);
+    check(
+      'đảo được bút toán thưởng',
+      outcome.status === 'REVERSED',
+      outcome.status,
+    );
 
     const [after] = await dataSource.query<
       { balance: number; raw_balance: number; lifetime: number }[]
@@ -430,7 +460,6 @@ async function main(): Promise<void> {
         })
       ).status !== 'REVERSED',
     );
-
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

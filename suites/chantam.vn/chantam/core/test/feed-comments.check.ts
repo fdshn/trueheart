@@ -536,7 +536,9 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  console.log('\nBình luận: số đếm chỉ tính thứ công khai, con trỏ không lặp, hàng đợi Admin chạy.');
+  console.log(
+    '\nBình luận: số đếm chỉ tính thứ công khai, con trỏ không lặp, hàng đợi Admin chạy.',
+  );
 }
 
 main().catch((error) => {

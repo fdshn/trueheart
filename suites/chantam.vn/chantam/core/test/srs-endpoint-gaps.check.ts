@@ -177,11 +177,14 @@ async function main(): Promise<void> {
     await addPost(PlainPostId);
     await addPost(SosPostId, { isSos: true });
 
-    const sosOnly = await posts.findNearbyPosts({ isSos: true, skip: 0, take: 20 });
+    const sosOnly = await posts.findNearbyPosts({
+      isSos: true,
+      skip: 0,
+      take: 20,
+    });
     check(
       'isSos=true chỉ trả bài SOS',
-      sosOnly.total === 1 &&
-        sosOnly.items[0]?.post.globalId === SosPostId,
+      sosOnly.total === 1 && sosOnly.items[0]?.post.globalId === SosPostId,
       `total=${sosOnly.total}`,
     );
 
@@ -305,7 +308,9 @@ async function main(): Promise<void> {
     check(
       'vòng lặp chết ở người thứ 3 sau khi đã commit 2 lượt',
       loopFailedAt === 2,
-      loopFailedAt === -1 ? 'không chết' : `chết ở index ${loopFailedAt} với ${loopError}`,
+      loopFailedAt === -1
+        ? 'không chết'
+        : `chết ở index ${loopFailedAt} với ${loopError}`,
     );
 
     const loopStatuses = await dataSource.query<
@@ -314,7 +319,9 @@ async function main(): Promise<void> {
       `SELECT global_id, status FROM gift_requests WHERE post_id = $1 ORDER BY global_id`,
       [LoopPostId],
     );
-    const loopAccepted = loopStatuses.filter((row) => row.status === 'ACCEPTED');
+    const loopAccepted = loopStatuses.filter(
+      (row) => row.status === 'ACCEPTED',
+    );
     const loopStandby = loopStatuses.filter((row) => row.status === 'STANDBY');
     check(
       'và để lại trạng thái NỬA VỜI không có đường lùi: 2 ACCEPTED + 1 STANDBY',
@@ -476,10 +483,10 @@ async function main(): Promise<void> {
   console.log(
     `
 ${
-      failures.length === 0
-        ? 'Bốn endpoint vá lỗ SRS: isSos lọc đúng, lô duyệt nguyên tử, vòng lặp acceptRequest để lại trạng thái nửa vời ở đúng ca lô đông hơn số suất, và lời tặng sống sót khi bài nguồn biến mất'
-        : `${failures.length} phép kiểm thất bại`
-    }`,
+  failures.length === 0
+    ? 'Bốn endpoint vá lỗ SRS: isSos lọc đúng, lô duyệt nguyên tử, vòng lặp acceptRequest để lại trạng thái nửa vời ở đúng ca lô đông hơn số suất, và lời tặng sống sót khi bài nguồn biến mất'
+    : `${failures.length} phép kiểm thất bại`
+}`,
   );
   if (failures.length > 0) {
     for (const failure of failures) console.error(`  - ${failure}`);

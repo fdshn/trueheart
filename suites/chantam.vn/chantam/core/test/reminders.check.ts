@@ -18,8 +18,8 @@ import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
-import { RankRepository } from '../src/infrastructure/repository/rank.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
+import { RankRepository } from '../src/infrastructure/repository/rank.repository';
 import { ReportRepository } from '../src/infrastructure/repository/report.repository';
 import { TransactionReviewRepository } from '../src/infrastructure/repository/transaction-review.repository';
 

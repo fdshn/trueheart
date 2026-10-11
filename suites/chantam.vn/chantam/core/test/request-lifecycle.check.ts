@@ -163,7 +163,11 @@ async function main(): Promise<void> {
       skip: 0,
       take: 20,
     });
-    check('trả đủ cả hai yêu cầu', mine.items.length === 2, `${mine.items.length}`);
+    check(
+      'trả đủ cả hai yêu cầu',
+      mine.items.length === 2,
+      `${mine.items.length}`,
+    );
     check('và total đếm đúng', mine.total === 2, `${mine.total}`);
 
     const onOpenPost = mine.items.find(

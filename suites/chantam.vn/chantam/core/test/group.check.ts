@@ -412,7 +412,11 @@ async function main(): Promise<void> {
       skip: 0,
       take: 50,
     });
-    check('lọc theo tổ trả đúng một người', scoped.total === 1, `${scoped.total}`);
+    check(
+      'lọc theo tổ trả đúng một người',
+      scoped.total === 1,
+      `${scoped.total}`,
+    );
     check(
       'và KHÔNG có Owner trong đó',
       !scoped.items.some((row) => row.userId === OwnerId),
@@ -651,7 +655,8 @@ async function main(): Promise<void> {
     );
     check(
       'membership của nhóm đã giải tán thôi hiệu lực',
-      statuses.length === 2 && statuses.every((row) => row.status === 'DISSOLVED'),
+      statuses.length === 2 &&
+        statuses.every((row) => row.status === 'DISSOLVED'),
       statuses.map((row) => row.status).join(', '),
     );
     check(
