@@ -35,27 +35,30 @@ export const ExtensionWindowDays = 30;
  * quét hết hạn), và ba chỗ tự nhớ một nửa quy định là cách CHỐT-05 từng bị hiểu
  * lệch.
  *
- * ## `WANTED` CHƯA vào đây, và đó là một chốt an toàn chứ không phải việc bỏ sót
+ * ## `WANTED` vào đây từ 11/10, SAU khi đảo vai
  *
- * CHỐT-10 nói chế độ chọn và mốc 7+30 áp cho **cả hai** loại bài. Nhưng bật nó
- * cho `WANTED` ngay bây giờ sẽ hỏng dữ liệu, đo được 11/10:
+ * Thứ tự này là cả nội dung của lượt sửa. Bản trước cố ý để `WANTED` ngoài, vì
+ * bật nó khi đó sẽ hỏng dữ liệu — đo được:
  *
  * - truy vấn tìm bài tới hạn trong `gift-request.repository` **không lọc
- *   `post_type`** — nên hễ `selection_deadline` có giá trị là job xét tới;
+ *   `post_type`**, nên hễ `selection_deadline` có giá trị là job xét tới;
  * - và nó lấy `SELECT post.author_id AS giver_id`.
  *
- * Với bài `WANTED`, tác giả là người **muốn NHẬN**. Nên đặt hạn cho `WANTED` là
- * để job tự dựng giao dịch với hai vai ngược nhau: người cần đồ thành người
- * tặng, người đề nghị cho thành người nhận. Hai bút toán điểm, bộ đếm rank và
- * `GET /transactions` đều đọc theo hai cột đó.
+ * Với bài `WANTED`, tác giả là người **muốn NHẬN**. Nên đặt hạn cho `WANTED`
+ * TRƯỚC khi sửa hai chỗ đó là để job tự dựng giao dịch với hai vai ngược nhau:
+ * người cần đồ thành người tặng. Hậu quả không nằm ở một bảng — điểm hoàn tất
+ * trả cho người nhận đồ, bộ đếm rank tính cho sai người, `GET /transactions`
+ * hiện sai vai, và phòng chat mở với nhãn sai.
  *
- * Mở `WANTED` vì vậy là một lượt riêng: phải đảo vai ở đường auto-select và ở
- * `acceptRequest` trước, rồi mới bật cờ này. Và cũng vì thế `WANTED` tạm giữ
- * vòng đời ba tháng: rút xuống 37 ngày trong khi cơ chế ghép của nó chưa chạy
- * chỉ là làm bài của người ta chết sớm hơn mà không bù lại gì.
+ * Vai nay suy từ `giftTransactionRoles`, một chỗ duy nhất, và `acceptRequest`
+ * TRẢ VỀ vai đã phân giải để nơi gọi khỏi đoán lại. Nên cờ này bật được.
+ *
+ * Vòng đời 37 ngày vì thế áp cho `WANTED` từ đây. Bài `WANTED` đăng TRƯỚC 11/10
+ * giữ hạn ba tháng đã hứa — migration cho chúng một `selection_deadline` nhưng
+ * KHÔNG rút `expires_at`, cùng lối như `1799300000000`.
  */
 export function usesSelectionLifecycle(postType: PostTypes): boolean {
-  return postType === PostTypes.OFFER;
+  return postType === PostTypes.OFFER || postType === PostTypes.WANTED;
 }
 
 /** Cộng ngày. Tách ra để mọi mốc của CHỐT-10 cùng đi qua một chỗ. */

@@ -44,9 +44,17 @@ function makeUseCase(
     listCandidateMetrics: jest
       .fn()
       .mockResolvedValue(options.candidates ?? [candidate()]),
+    // Mock trả ĐỦ hình: `acceptRequest` phân giải vai và trả chúng ra, và use
+    // case đọc chúng để gửi thông báo. Mock chỉ trả `transactionId` sẽ cho thông
+    // báo đi với `giverId: undefined` mà không phép kiểm nào thấy — đúng loại lỗ
+    // mà lượt sửa đảo vai này đang bịt.
     acceptRequest: options.acceptError
       ? jest.fn().mockRejectedValue(options.acceptError)
-      : jest.fn().mockResolvedValue({ transactionId: 'tx-1' }),
+      : jest.fn().mockResolvedValue({
+          transactionId: 'tx-1',
+          giverId: GiverId,
+          receiverId: 'user-1',
+        }),
   };
   const adminConfig = {
     getConfigValue: jest.fn().mockResolvedValue(options.order ?? null),
@@ -114,7 +122,7 @@ describe('AutoSelectDueRecipientsUseCase', () => {
       expect.objectContaining({
         requestId: 'req-9',
         postId: PostId,
-        giverId: GiverId,
+        actorUserId: GiverId,
       }),
     );
   });
@@ -239,7 +247,9 @@ describe('AutoSelectDueRecipientsUseCase', () => {
         trigger: 'AUTOMATIC',
         // Chủ bài cũng được báo ở đường này: họ không bấm gì mà bài đột nhiên có
         // người nhận.
-        giverId: expect.any(String),
+        // Vai lấy từ KẾT QUẢ `acceptRequest`, không đoán từ truy vấn: với bài
+        // Muốn Nhận `post.author_id` là người NHẬN.
+        giverId: GiverId,
       }),
     );
   });

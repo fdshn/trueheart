@@ -75,7 +75,7 @@ export class BatchAcceptRequestsUseCase implements IBatchAcceptRequestsUseCase {
 
     const outcome = await this.giftRequestRepository.acceptRequestsBatch({
       postId: command.postId,
-      giverId: command.userId,
+      actorUserId: command.userId,
       requestIds,
     });
 
@@ -84,8 +84,10 @@ export class BatchAcceptRequestsUseCase implements IBatchAcceptRequestsUseCase {
     // — lượt trao và phòng chat của họ đã có thật.
     for (const item of outcome.accepted)
       await this.acceptedNotifier.announce({
-        receiverId: item.requesterId,
-        giverId: command.userId,
+        // Vai lấy từ KẾT QUẢ của lô, không đoán lại từ người bấm: với bài Muốn
+        // Nhận, người bấm là tác giả — tức người NHẬN, không phải người cho.
+        receiverId: item.receiverId,
+        giverId: item.giverId,
         postId: command.postId,
         transactionId: item.transactionId,
         // Chủ bài tự bấm, y như duyệt từng cái — nên KHÔNG báo lại cho họ.

@@ -118,7 +118,7 @@ describe('vòng đời 7 + 30 ngày của CHỐT-10', () => {
     ).toBe(ExtensionWindowDays * 24 * 60 * 60 * 1000);
   });
 
-  it.each([PostTypes.WANTED, PostTypes.CLASSIFIED, PostTypes.CHARITY])(
+  it.each([PostTypes.CLASSIFIED, PostTypes.CHARITY, PostTypes.MERIT])(
     'loại %s giữ vòng đời ba tháng của CHỐT-05/07',
     (postType) => {
       expect(postExpiryDateFor(postType, publishedAt)).toEqual(
@@ -127,13 +127,27 @@ describe('vòng đời 7 + 30 ngày của CHỐT-10', () => {
     },
   );
 
-  it('WANTED CHƯA vào vòng đời mới — và đó là chốt an toàn, không phải sót', () => {
-    // CHỐT-10 muốn cả `WANTED`. Nhưng truy vấn tìm bài tới hạn không lọc
-    // `post_type` và lấy `post.author_id AS giver_id` — với bài `WANTED` tác giả
-    // là người muốn NHẬN, nên đặt hạn cho nó là để job dựng giao dịch với hai vai
-    // ngược nhau. Phép kiểm này đỏ đúng lúc ai đó bật cờ mà chưa đảo vai.
-    expect(usesSelectionLifecycle(PostTypes.WANTED)).toBe(false);
+  it('WANTED đi cùng vòng đời với OFFER, từ 11/10', () => {
+    // Bản trước của phép kiểm này khẳng định điều NGƯỢC LẠI (`toBe(false)`), và nó
+    // đúng với trạng thái lúc đó: truy vấn tìm bài tới hạn lấy
+    // `post.author_id AS giver_id`, nên bật `WANTED` khi chưa đảo vai là để job
+    // dựng giao dịch với người cần đồ làm người tặng.
+    //
+    // Vai nay suy từ `giftTransactionRoles` và `acceptRequest` trả về vai đã phân
+    // giải, nên cờ bật được. Giữ phép kiểm ở đây để lần sau ai thu hẹp lại phải
+    // nói ra lý do.
+    expect(usesSelectionLifecycle(PostTypes.WANTED)).toBe(true);
     expect(usesSelectionLifecycle(PostTypes.OFFER)).toBe(true);
+  });
+
+  it('WANTED cũng 37 ngày, và cũng đúng bằng hạn xét + 30', () => {
+    expect(postExpiryDateFor(PostTypes.WANTED, publishedAt).toISOString()).toBe(
+      '2026-11-17T09:30:00.000Z',
+    );
+    expect(
+      postExpiryDateFor(PostTypes.WANTED, publishedAt).getTime() -
+        selectionDeadlineFrom(publishedAt).getTime(),
+    ).toBe(ExtensionWindowDays * 24 * 60 * 60 * 1000);
   });
 
   it('không sửa vào Date được truyền vào', () => {

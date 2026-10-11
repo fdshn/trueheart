@@ -117,7 +117,7 @@ export class RedeemPostWithPointsUseCase implements IRedeemPostWithPointsUseCase
       const accepted = await this.requests.acceptRequest({
         requestId: context.requestGlobalId,
         postId: command.postId,
-        giverId: context.giverId,
+        actorUserId: context.giverId,
         transactionId: makeGlobalId(
           `/transactions/${command.postId}/${command.requesterId}`,
         ),

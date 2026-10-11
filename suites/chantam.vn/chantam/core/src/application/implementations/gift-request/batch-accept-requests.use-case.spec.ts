@@ -17,9 +17,25 @@ function makeDeps(outcome?: unknown) {
     repo: {
       acceptRequestsBatch: jest.fn().mockResolvedValue(
         outcome ?? {
+          // Mock mang theo VAI đã phân giải. Hẹp hơn contract là chỗ phép kiểm
+          // đo chính cái mock: use case đọc `item.giverId`/`item.receiverId` để
+          // báo, nên thiếu hai khoá đó thì thông báo đi với `undefined` mà không
+          // phép kiểm nào thấy.
           accepted: [
-            { requestId: ReqA, requesterId: UserA, transactionId: 'tx-a' },
-            { requestId: ReqB, requesterId: UserB, transactionId: 'tx-b' },
+            {
+              requestId: ReqA,
+              requesterId: UserA,
+              transactionId: 'tx-a',
+              giverId: GiverId,
+              receiverId: UserA,
+            },
+            {
+              requestId: ReqB,
+              requesterId: UserB,
+              transactionId: 'tx-b',
+              giverId: GiverId,
+              receiverId: UserB,
+            },
           ],
           remainingQuantity: 3,
           standbyCount: 0,
@@ -66,7 +82,7 @@ describe('BatchAcceptRequestsUseCase', () => {
     expect(deps.repo.acceptRequestsBatch).toHaveBeenCalledTimes(1);
     expect(deps.repo.acceptRequestsBatch).toHaveBeenCalledWith({
       postId: PostId,
-      giverId: GiverId,
+      actorUserId: GiverId,
       requestIds: [ReqA, ReqB],
     });
     expect(result.accepted).toHaveLength(2);

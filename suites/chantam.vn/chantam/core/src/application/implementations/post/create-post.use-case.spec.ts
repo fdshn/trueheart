@@ -564,30 +564,50 @@ describe('CreatePostUseCase · đồng hồ 7 + 30 ngày (CHỐT-10)', () => {
     expect(days(saved.expiresAt)).toBe(37);
   });
 
-  it('WANTED KHÔNG có hạn xét và vẫn sống ba tháng', async () => {
-    // Chốt an toàn, không phải bỏ sót. Truy vấn tìm bài tới hạn không lọc
-    // `post_type` và lấy `post.author_id AS giver_id` — với `WANTED` tác giả là
-    // người muốn NHẬN, nên đặt hạn cho nó là để job dựng giao dịch ngược vai.
-    // Và rút hạn sống xuống 37 ngày khi cơ chế ghép của nó chưa chạy thì chỉ làm
-    // bài chết sớm mà không bù lại gì.
+  it('WANTED cũng nhận hạn xét ngay lúc đăng, và cũng 37 ngày', async () => {
+    // Bản trước khẳng định `selectionDeadline` là `null` và hạn sống > 80 ngày,
+    // đúng với trạng thái lúc đó: vai chưa đảo nên bật `WANTED` là để job dựng
+    // giao dịch với người cần đồ làm người tặng. Vai nay suy từ
+    // `giftTransactionRoles`, nên `WANTED` đi cùng vòng đời với `OFFER`.
     const deps = makeDeps();
 
     await run(deps, postOfType(PostTypes.WANTED));
 
     const saved = deps.posts.createPostWithinQuota.mock.calls[0][2];
-    expect(saved.selectionDeadline).toBeNull();
-    expect(days(saved.expiresAt)).toBeGreaterThan(80);
+    expect(saved.selectionDeadline).toBeInstanceOf(Date);
+    expect(days(saved.selectionDeadline as Date)).toBe(7);
+    expect(days(saved.expiresAt)).toBe(37);
   });
 
-  it('WANTED gửi kèm selectionMode thì bị TỪ CHỐI, không nuốt im lặng', async () => {
-    // Nhận một cờ rồi không dùng nó là tạo một cái núm KHÔNG LÀM GÌ: người đăng
-    // tin là đã chọn "chốt ngay" mà hệ thống không bao giờ chốt ngay.
+  it('WANTED NHẬN được selectionMode — không còn là cái núm không làm gì', async () => {
+    // Bản trước đòi use case TỪ CHỐI cờ này cho `WANTED`, vì nhận một cờ rồi
+    // không dùng là tạo một cái núm không làm gì. Nay nó được dùng thật: nhánh
+    // `INSTANT` của `create-gift-request` chạy cho cả hai loại bài.
+    const deps = makeDeps();
+
+    await run(
+      deps,
+      postOfType(PostTypes.WANTED, {
+        selectionMode: PostSelectionModes.INSTANT,
+      }),
+    );
+
+    expect(deps.posts.createPostWithinQuota.mock.calls[0][2]).toMatchObject({
+      selectionMode: PostSelectionModes.INSTANT,
+    });
+  });
+
+  it('loại bài KHÁC gửi kèm selectionMode thì vẫn bị TỪ CHỐI', async () => {
+    // Cổng vẫn phải còn: `CLASSIFIED` không có cơ chế ghép đối tác nào, nên nhận
+    // cờ đó là tạo một cái núm không làm gì.
     const deps = makeDeps();
 
     await expect(
       run(
         deps,
-        postOfType(PostTypes.WANTED, {
+        postOfType(PostTypes.CLASSIFIED, {
+          price: 5_200_000,
+          condition: GiftPostConditions.USED,
           selectionMode: PostSelectionModes.INSTANT,
         }),
       ),

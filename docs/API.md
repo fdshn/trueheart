@@ -4,10 +4,11 @@
 > triển khai cho [nghiệp vụ cho–nhận/đổi điểm/review mới](./plan/GIVE-RECEIVE-2026-10-07.md).
 > **Đã triển khai:** thưởng người cho theo CHỐT-14 (hai khoản rời, xong 07/10); `EXTENDED`
 > đã bỏ và countdown tính từ **lúc đăng** (CHỐT-10, xong 11/10).
-> **Còn lại:** `selectionMode` vẫn chỉ cho `OFFER` — mở cho `WANTED` phải đảo vai
-> tặng/nhận trước, xem `usesSelectionLifecycle`; và review vẫn không sửa được. Không dùng
-> trang này làm bằng chứng tính năng mới đã có; cần cập nhật endpoint/schema trước khi app
-> gọi.
+> **Mục 1 của CHỐT-10 xong cả ba việc 11/10:** `selectionMode` nay áp cho **cả** `OFFER` và
+> `WANTED` (vai tặng/nhận đảo đúng), quyền chọn tay gắn hạng Kim Cương, và `EXPIRED` báo cho
+> cả hai bên.
+> **Còn lại:** review vẫn không sửa được (mục 4). Không dùng trang này làm bằng chứng tính
+> năng mới đã có; cần cập nhật endpoint/schema trước khi app gọi.
 
 Mô tả **các endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
 buộc mà chữ ký hàm không nói ra.
@@ -355,7 +356,11 @@ một điều họ không nói.
 
 Hạn xét = **lúc đăng + 7 ngày**, đặt ngay khi bài lên công khai và cho cả `INSTANT`. Trước 11/10 nó chỉ được đặt khi có phản hồi đầu tiên, nên bài không ai xin thì không bao giờ tới hạn. Bài `OFFER` vì thế sống **37 ngày** (7 + 30) thay vì ba tháng.
 
-**Vẫn chỉ áp cho `OFFER`.** CHỐT-10 muốn cả `WANTED`, nhưng truy vấn tìm bài tới hạn không lọc `post_type` và lấy `post.author_id` làm **người tặng** — với `WANTED` tác giả là người muốn NHẬN, nên bật ngay sẽ sinh giao dịch ngược vai. `WANTED` tạm giữ ba tháng và từ chối `selectionMode`; mở nó là một lượt riêng.
+**Áp cho cả `OFFER` và `WANTED` từ 11/10.** Với bài Muốn Nhận hai vai **đảo lại**: tác giả là người **nhận**, người phản hồi là người **cho** — một lời tặng cho bài `WANTED` chính là một hàng `gift_requests` mà `requester_id` là người sẽ đưa món đồ.
+
+Vai do backend phân giải từ loại bài (`giftTransactionRoles`), không nhận từ client. `GET /transactions` vì thế luôn hiện đúng ai cho ai nhận, và điểm hoàn tất trả đúng người.
+
+Bài `WANTED` đăng TRƯỚC 11/10 giữ hạn sống ba tháng đã hứa; chúng được cho một hạn xét nhưng không bị rút hạn sống.
 
 > **Quota hiện dùng chung một rổ.** `CLASSIFIED` đang tính vào capability `POST_OFFER`, và
 > bộ đếm quota đếm **mọi** bài đang mở bất kể loại. Muốn tách thì thêm capability

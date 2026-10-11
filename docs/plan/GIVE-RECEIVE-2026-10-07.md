@@ -161,18 +161,32 @@ và các ngưỡng công bố Giver Accuracy hiện hành không bị thay đổ
 
 **Mục 3 (hai khoản điểm người cho) xong 07/10** — xem khung trong mục đó.
 
-**Mục 1 xong một phần, 11/10.** Đã làm: `EXTENDED` ra khỏi cả enum TypeScript lẫn enum
-Postgres (`1799300000000`), đồng hồ 7 ngày tính từ **lúc đăng** và đặt ngay khi bài công khai
-(nên bài không có phản hồi cũng có hạn), giai đoạn 30 ngày thành bước tự động, và `expires_at`
-của `OFFER` là 37 ngày thay vì ba tháng.
+**Mục 1 XONG, 11/10.** `EXTENDED` ra khỏi cả enum TypeScript lẫn enum Postgres
+(`1799300000000`), đồng hồ 7 ngày tính từ **lúc đăng** và đặt ngay khi bài công khai (nên bài
+không có phản hồi cũng có hạn), giai đoạn 30 ngày thành bước tự động, `expires_at` là 37 ngày
+cho **cả** `OFFER` và `WANTED`, quyền chọn tay gắn hạng Kim Cương, và `EXPIRED` báo cho cả hai
+bên.
 
-Ba việc của mục 1, nay còn MỘT:
+Bài đăng TRƯỚC 11/10 giữ hạn ba tháng đã hứa: hai migration backfill chỉ **cho**
+`selection_deadline`, không rút `expires_at` — hạ nó là làm hết hạn ngay mọi bài quá 37 ngày
+tuổi, tức xoá bài của người ta chứ không phải di trú.
 
-1. **Áp cho `WANTED`.** Không phải bật một cờ. Truy vấn tìm bài tới hạn trong
-   `gift-request.repository` **không lọc `post_type`** và lấy `SELECT post.author_id AS
-   giver_id` — với `WANTED` tác giả là người muốn NHẬN, nên đặt hạn cho nó là để job tự dựng
-   giao dịch với hai vai ngược nhau. Hai bút toán điểm, bộ đếm rank và `GET /transactions`
-   đều đọc theo hai cột đó. Phải đảo vai ở auto-select và `acceptRequest` trước.
+Ba việc của mục 1, nay **xong cả ba**:
+
+1. ✅ **Áp cho `WANTED` — xong 11/10, SAU khi đảo vai.** Thứ tự đó là cả nội dung của lượt
+   sửa, và lý do bản trước cố ý để `WANTED` ngoài: truy vấn tìm bài tới hạn **không lọc
+   `post_type`** và lấy `SELECT post.author_id AS giver_id`, nên đặt hạn trước khi sửa là để
+   job tự dựng giao dịch với hai vai ngược nhau.
+
+   Vai nay suy từ `giftTransactionRoles` — một hàm thuần, một chỗ duy nhất biết luật — và
+   `acceptRequest` **trả về** vai đã phân giải để nơi gọi khỏi đoán lại. Bốn chỗ từng đóng
+   cứng giả định "tác giả là người cho" đã sửa hết: `acceptRequest`, `acceptRequestsBatch`,
+   đường thông báo của auto-select, và nhánh `INSTANT`.
+
+   Và một lỗi thứ hai tìm ra khi làm: phép chống trùng lượt trao lọc `receiver_id =
+   requester_id` — đúng cho bài Muốn Tặng và **không bao giờ khớp** cho bài Muốn Nhận, nơi
+   người phản hồi là `giver_id`. Nó im lặng mất tác dụng, và tồn kho bị trừ hai lần cho một
+   lượt bàn giao. Nay khoá theo ĐỐI PHƯƠNG.
 2. ✅ **Quyền Kim Cương chọn tay — xong 11/10.** Và chỗ thiếu nặng hơn đặc tả: tới 10/10
    **không đường nào kiểm quyền này**, nên mọi chủ bài đều chọn tay được, kể cả Người xem.
 

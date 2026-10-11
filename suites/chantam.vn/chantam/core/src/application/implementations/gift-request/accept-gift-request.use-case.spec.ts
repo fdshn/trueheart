@@ -140,7 +140,7 @@ describe('AcceptGiftRequestUseCase', () => {
     expect(giftRequestRepo.acceptRequest).toHaveBeenCalledWith({
       requestId: RequestId,
       postId: PostId,
-      giverId: AuthorId,
+      actorUserId: AuthorId,
       transactionId: expect.any(String),
     });
   });

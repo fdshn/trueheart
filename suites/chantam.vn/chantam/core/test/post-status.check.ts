@@ -219,7 +219,7 @@ async function main(): Promise<void> {
     await requests.acceptRequest({
       requestId: requestOne.requestId,
       postId: PostId,
-      giverId: GiverId,
+      actorUserId: GiverId,
       transactionId: TransactionOneId,
     });
     check(
@@ -232,7 +232,7 @@ async function main(): Promise<void> {
     await requests.acceptRequest({
       requestId: requestTwo.requestId,
       postId: PostId,
-      giverId: GiverId,
+      actorUserId: GiverId,
       transactionId: TransactionTwoId,
     });
     // MỘT tên duy nhất cho "kho đã cạn, lượt trao đang chạy" — chốt 29/09 giữ
@@ -285,7 +285,7 @@ async function main(): Promise<void> {
     await requests.acceptRequest({
       requestId: requestCancel.requestId,
       postId: PostId,
-      giverId: GiverId,
+      actorUserId: GiverId,
       transactionId: cancelId,
     });
     check(
@@ -334,7 +334,7 @@ async function main(): Promise<void> {
     await requests.acceptRequest({
       requestId: (await seedRequest(ExpiredPostId)).requestId,
       postId: ExpiredPostId,
-      giverId: GiverId,
+      actorUserId: GiverId,
       transactionId: ExpiredTransactionId,
     });
 
@@ -367,7 +367,7 @@ async function main(): Promise<void> {
     await requests.acceptRequest({
       requestId: requestLast.requestId,
       postId: PostId,
-      giverId: GiverId,
+      actorUserId: GiverId,
       transactionId: lastId,
     });
     await transactions.confirmReceipt(lastId, requestLast.requesterId);

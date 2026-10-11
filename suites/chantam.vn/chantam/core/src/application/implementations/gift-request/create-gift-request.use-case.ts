@@ -20,8 +20,12 @@ import {
   GiftPostStatuses,
   GiftRequestStatuses,
   PostSelectionModes,
+  PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { resolveQuotaLimit } from '@chantam.vn/chantam.core-lib/models';
+import {
+  resolveQuotaLimit,
+  usesSelectionLifecycle,
+} from '@chantam.vn/chantam.core-lib/models';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
 import { ProfileGate } from '../profile/profile-gate';
@@ -192,7 +196,10 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     // Không throw để tránh roll back việc tạo request.
     let instantAccepted = false;
     if (
-      post.postType === 'OFFER' &&
+      // `WANTED` vào đây từ 11/10. Với bài Muốn Nhận, "chốt ngay người đầu tiên"
+      // nghĩa là nhận ngay lời tặng đầu tiên — và vai do `acceptRequest` phân
+      // giải, nên không cần nhánh riêng cho loại bài ở đây.
+      usesSelectionLifecycle(post.postType as PostTypes) &&
       post.selectionMode === PostSelectionModes.INSTANT &&
       isFirstRequest
     ) {
@@ -203,7 +210,7 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
         await this.giftRequestRepository.acceptRequest({
           requestId: globalId,
           postId: command.postId,
-          giverId: post.authorId,
+          actorUserId: post.authorId,
           transactionId,
         });
         instantAccepted = true;

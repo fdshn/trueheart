@@ -323,7 +323,7 @@ async function main(): Promise<void> {
     await requests.acceptRequest({
       requestId: winner!.requestGlobalId,
       postId: PostId,
-      giverId: GiverId,
+      actorUserId: GiverId,
       transactionId: '66666666-6666-4666-8666-666666660001',
     });
 

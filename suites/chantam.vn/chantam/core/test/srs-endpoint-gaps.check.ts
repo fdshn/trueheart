@@ -222,7 +222,7 @@ async function main(): Promise<void> {
 
     const batch = await requests.acceptRequestsBatch({
       postId: BatchPostId,
-      giverId: GiverId,
+      actorUserId: GiverId,
       requestIds: batchRequests,
     });
 
@@ -295,7 +295,7 @@ async function main(): Promise<void> {
         await requests.acceptRequest({
           requestId,
           postId: LoopPostId,
-          giverId: GiverId,
+          actorUserId: GiverId,
           transactionId: `f1000000-0000-4000-8000-00000000f0${String(index + 1).padStart(2, '0')}`,
         });
       } catch (error) {
@@ -356,7 +356,7 @@ async function main(): Promise<void> {
         await requests.acceptRequest({
           requestId,
           postId: EvenPostId,
-          giverId: GiverId,
+          actorUserId: GiverId,
           transactionId: `f2000000-0000-4000-8000-00000000f1${String(index + 1).padStart(2, '0')}`,
         });
       } catch {
@@ -380,7 +380,7 @@ async function main(): Promise<void> {
     try {
       await requests.acceptRequestsBatch({
         postId: ShortPostId,
-        giverId: GiverId,
+        actorUserId: GiverId,
         requestIds: shortRequests,
       });
     } catch (error) {

@@ -162,12 +162,23 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
    */
   listCandidateMetrics(postId: string): Promise<ICandidateMetricsWithId[]>;
 
+  /**
+   * Duyệt một yêu cầu, và PHÂN GIẢI VAI theo loại bài.
+   *
+   * `actorUserId` là người bấm duyệt — luôn là tác giả bài, và chỉ dùng để xác
+   * thực quyền. Tới 11/10 tham số này tên `giverId`, và cái tên đó là một giả
+   * định đóng cứng: với bài Muốn Nhận, tác giả là người **nhận**, còn người phản
+   * hồi mới là người cho.
+   *
+   * Hàm trả về cả hai vai đã phân giải, để nơi gọi gửi thông báo mà khỏi tự đoán
+   * lại — đó đúng là chỗ `AutoSelectDueRecipientsUseCase` từng đoán sai.
+   */
   acceptRequest(params: {
     requestId: string;
     postId: string;
-    giverId: string;
+    actorUserId: string;
     transactionId: string;
-  }): Promise<{ transactionId: string }>;
+  }): Promise<{ transactionId: string; giverId: string; receiverId: string }>;
 
   /**
    * Duyệt NHIỀU yêu cầu trên cùng một bài trong MỘT transaction (F65, UC-TRANS-05).
@@ -195,7 +206,8 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
    */
   acceptRequestsBatch(params: {
     postId: string;
-    giverId: string;
+    /** Người bấm duyệt — tác giả bài. Vai phân giải trong hàm, xem `acceptRequest`. */
+    actorUserId: string;
     /** Không trùng nhau, và đã kiểm số lượng ở tầng ứng dụng. */
     requestIds: readonly string[];
   }): Promise<{
@@ -203,6 +215,9 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
       requestId: string;
       requesterId: string;
       transactionId: string;
+      /** Vai đã phân giải cho lượt trao này. */
+      giverId: string;
+      receiverId: string;
     }[];
     /** Số suất còn lại sau lô. */
     remainingQuantity: number;

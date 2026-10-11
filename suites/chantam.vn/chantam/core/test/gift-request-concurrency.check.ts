@@ -216,13 +216,13 @@ async function main(): Promise<void> {
         giftRequests.acceptRequest({
           requestId: requestId(round, 0),
           postId: PostId,
-          giverId: GiverId,
+          actorUserId: GiverId,
           transactionId: `55555555-5555-4555-8555-${suffix('55', round, 0)}`,
         }),
         giftRequests.acceptRequest({
           requestId: requestId(round, 1),
           postId: PostId,
-          giverId: GiverId,
+          actorUserId: GiverId,
           transactionId: `55555555-5555-4555-8555-${suffix('55', round, 1)}`,
         }),
       ]);
@@ -265,13 +265,13 @@ async function main(): Promise<void> {
         giftRequests.acceptRequest({
           requestId: requestId(round, 0),
           postId: PostId,
-          giverId: GiverId,
+          actorUserId: GiverId,
           transactionId: `55555555-5555-4555-8555-${suffix('56', round, 0)}`,
         }),
         giftRequests.acceptRequest({
           requestId: requestId(round, 0),
           postId: PostId,
-          giverId: GiverId,
+          actorUserId: GiverId,
           transactionId: `55555555-5555-4555-8555-${suffix('56', round, 1)}`,
         }),
       ]);
@@ -311,7 +311,7 @@ async function main(): Promise<void> {
         giftRequests.acceptRequest({
           requestId: requestId(round, 0),
           postId: PostId,
-          giverId: GiverId,
+          actorUserId: GiverId,
           transactionId: `55555555-5555-4555-8555-${suffix('57', round, 0)}`,
         }),
         giftRequests.withdrawIfPending(PostId, requesterId(0)),
@@ -396,7 +396,7 @@ async function main(): Promise<void> {
     const accepted = await giftRequests.acceptRequest({
       requestId: requestId(800, 0),
       postId: PostId,
-      giverId: GiverId,
+      actorUserId: GiverId,
       transactionId: `55555555-5555-4555-8555-${suffix('58', 800, 0)}`,
     });
 
@@ -498,7 +498,7 @@ async function main(): Promise<void> {
     const soloAccepted = await giftRequests.acceptRequest({
       requestId: requestId(801, 0),
       postId: PostId,
-      giverId: GiverId,
+      actorUserId: GiverId,
       transactionId: `55555555-5555-4555-8555-${suffix('59', 801, 0)}`,
     });
     const soloClosed = await giftTransactions.close({
@@ -528,7 +528,7 @@ async function main(): Promise<void> {
     const rankAccepted = await giftRequests.acceptRequest({
       requestId: requestId(802, 0),
       postId: PostId,
-      giverId: GiverId,
+      actorUserId: GiverId,
       transactionId: `55555555-5555-4555-8555-${suffix('5a', 802, 0)}`,
     });
     const rankClosed = await giftTransactions.close({
@@ -583,7 +583,7 @@ async function main(): Promise<void> {
     const nearAccepted = await giftRequests.acceptRequest({
       requestId: requestId(803, 0),
       postId: PostId,
-      giverId: GiverId,
+      actorUserId: GiverId,
       transactionId: `55555555-5555-4555-8555-${suffix('5b', 803, 0)}`,
     });
     const nearClosed = await giftTransactions.close({

@@ -102,7 +102,7 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
       await this.giftRequestRepository.acceptRequest({
         requestId: command.requestId,
         postId: command.postId,
-        giverId: command.userId,
+        actorUserId: command.userId,
         transactionId,
       });
 

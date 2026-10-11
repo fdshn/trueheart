@@ -944,9 +944,11 @@ báo qua `POST /transactions/:id/reports/ship-unpaid` và khoản trừ điểm 
 > ✅ Quyền **Kim Cương chọn tay** xong 11/10 qua capability `SELECT_REQUESTER`, áp ở cả
 > `accept` và `batch-accept`. Tới 10/10 capability đó đã seed mà **không ai đọc**, nên mọi chủ
 > bài đều chọn tay được. `reject` và xem danh sách vẫn mở cho mọi bậc.
-> ⬜ Còn lại của CHỐT-10 ở mục này: áp cho `WANTED` (cần đảo vai tặng/nhận trước).
+> ✅ Áp cho `WANTED` xong 11/10, **sau** khi đảo vai tặng/nhận. Vai suy từ
+> `giftTransactionRoles` (một chỗ duy nhất), và `acceptRequest` trả về vai đã phân giải nên
+> nơi gọi không đoán lại. Mục này của CHỐT-10 **đã xong cả ba việc**.
 
-Khi người cho tạo bài đăng Muốn Tặng (`OFFER`), hệ thống hỗ trợ **02** chế độ lựa chọn người nhận (CHỐT-10):
+Khi tạo bài **Muốn Tặng (`OFFER`) hoặc Muốn Nhận (`WANTED`)**, hệ thống hỗ trợ **02** chế độ lựa chọn đối tác giao dịch (CHỐT-10):
 
 1. **`INSTANT` (Trao ngay lập tức):** Khi người đầu tiên gửi yêu cầu xin nhận hợp lệ, hệ thống tự động chấp nhận (atomic accept) ngay lập tức, tạo giao dịch và mở phòng chat trực tiếp. Không có giai đoạn *xét ứng viên* — nhưng **vẫn có mốc 7 ngày** và vẫn tự mở thêm 30 ngày nếu chưa ghép được ai. Bỏ hạn cho `INSTANT` sẽ làm nó thành bài duy nhất không có đồng hồ nào, và một lượt `acceptRequest` hỏng giữa đường sẽ mắc kẹt vĩnh viễn vì không job nào nhặt lại.
 2. **`OPTIMAL` (Tìm người nhận tối ưu — Mặc định):** `selection_deadline` được đặt **ngay khi bài lên công khai** = lúc đăng + 7 ngày, không chờ yêu cầu đầu tiên. Trong thời gian này, ứng viên gửi yêu cầu hoặc dùng Điểm Cống Hiến để đổi trực tiếp vật phẩm (theo [F75](#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm)). Hết hạn, hệ thống auto-select theo cấu hình của Admin; chưa ghép được ai thì bài đi tiếp 30 ngày mở rộng.
@@ -957,11 +959,13 @@ Khi người cho tạo bài đăng Muốn Tặng (`OFFER`), hệ thống hỗ tr
 > xét cộng 30 ngày mở rộng. Lựa chọn của người đăng chỉ còn là "chốt ngay hay chờ xét", không
 > còn là "chờ bao lâu".
 >
-> **Vẫn chỉ áp cho `OFFER`.** CHỐT-10 muốn cả `WANTED`; chưa bật vì truy vấn tìm bài tới hạn
-> không lọc `post_type` và lấy `post.author_id` làm **người tặng** — với `WANTED` tác giả là
-> người muốn NHẬN, nên bật ngay sẽ sinh giao dịch ngược vai. `WANTED` tạm giữ vòng đời ba
-> tháng: rút xuống 37 ngày khi cơ chế ghép của nó chưa chạy chỉ làm bài chết sớm hơn mà không
-> bù lại gì.
+> **`WANTED` vào từ 11/10, sau khi đảo vai.** Với bài Muốn Nhận hai vai **đảo lại**: tác giả là
+> người nhận, người phản hồi là người cho — một lời tặng cho bài `WANTED` chính là một hàng
+> `gift_requests` mà `requester_id` là người sẽ đưa món đồ. Vai suy từ `giftTransactionRoles`,
+> không nhận từ nơi gọi.
+>
+> Bài `WANTED` đăng TRƯỚC 11/10 giữ hạn ba tháng đã hứa; migration `1799600000000` chỉ cho
+> chúng một hạn xét, không rút hạn sống.
 
 ### F80 — Quyền riêng tư & Bảo vệ thông tin người cho
 

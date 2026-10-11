@@ -13,10 +13,11 @@ const PendingRequest = {
   status: GiftRequestStatuses.PENDING,
 };
 
-function postRow(remaining = 3) {
+function postRow(remaining = 3, postType = 'OFFER') {
   return {
     global_id: PostId,
     author_id: GiverId,
+    post_type: postType,
     status: 'PUBLISHED',
     remaining_quantity: remaining,
   };
@@ -70,7 +71,7 @@ function makeRepository(query: jest.Mock, chat: never = makeChatRepository()) {
 const Params = {
   requestId: RequestId,
   postId: PostId,
-  giverId: GiverId,
+  actorUserId: GiverId,
   transactionId: '55555555-5555-4555-8555-555555555555',
 };
 
@@ -228,5 +229,117 @@ describe('GiftRequestRepository.acceptRequest — đồng hồ chọn người n
     await makeRepository(query).acceptRequest(Params);
 
     expect(postUpdateSql(query)).toMatch(/selection_deadline = NULL/);
+  });
+});
+
+describe('GiftRequestRepository.acceptRequest · vai theo LOẠI bài (CHỐT-10)', () => {
+  /** Lấy đối số của câu `INSERT INTO gift_transactions`. */
+  function insertedTransaction(query: jest.Mock) {
+    const call = query.mock.calls.find(([sql]) =>
+      String(sql).includes('INSERT INTO gift_transactions'),
+    );
+    const params = call?.[1] as unknown[];
+    // VALUES ($1 global_id, $2 post_id, $3 giver_id, $4 receiver_id, ...)
+    return { giverId: params?.[2], receiverId: params?.[3] };
+  }
+
+  it('bài Muốn Tặng: tác giả CHO, người phản hồi NHẬN', async () => {
+    const query = makeQuery({ post: postRow(3, 'OFFER') });
+
+    await makeRepository(query).acceptRequest({
+      requestId: RequestId,
+      postId: PostId,
+      actorUserId: GiverId,
+      transactionId: 'tx-offer',
+    });
+
+    expect(insertedTransaction(query)).toEqual({
+      giverId: GiverId,
+      receiverId: RequesterId,
+    });
+  });
+
+  it('bài Muốn Nhận: ĐẢO lại — tác giả NHẬN, người phản hồi CHO', async () => {
+    // Đây là lỗi mà việc bật chế độ chọn cho `WANTED` sẽ tạo ra nếu không sửa
+    // chỗ này: hệ thống dựng giao dịch với người cần đồ làm người tặng. Hậu quả
+    // không nằm ở một bảng — điểm hoàn tất trả cho người nhận đồ, bộ đếm rank
+    // tính cho sai người, và `GET /transactions` hiện sai vai.
+    const query = makeQuery({ post: postRow(3, 'WANTED') });
+
+    await makeRepository(query).acceptRequest({
+      requestId: RequestId,
+      postId: PostId,
+      actorUserId: GiverId,
+      transactionId: 'tx-wanted',
+    });
+
+    expect(insertedTransaction(query)).toEqual({
+      giverId: RequesterId,
+      receiverId: GiverId,
+    });
+  });
+
+  it('trả về vai đã phân giải, để nơi gọi khỏi đoán lại', async () => {
+    // `AutoSelectDueRecipientsUseCase` từng gửi thông báo với `giverId` tự đoán
+    // từ truy vấn (`post.author_id AS giver_id`). Trả vai ra đây là chỗ bịt lại.
+    const query = makeQuery({ post: postRow(3, 'WANTED') });
+
+    const result = await makeRepository(query).acceptRequest({
+      requestId: RequestId,
+      postId: PostId,
+      actorUserId: GiverId,
+      transactionId: 'tx-roles',
+    });
+
+    expect(result).toMatchObject({
+      giverId: RequesterId,
+      receiverId: GiverId,
+    });
+  });
+
+  it('phòng chat mở với ĐÚNG hai vai', async () => {
+    const query = makeQuery({ post: postRow(3, 'WANTED') });
+    const chat = {
+      openRoomWithinTransaction: jest.fn(
+        async (
+          _manager: unknown,
+          params: { giverId: string; receiverId: string },
+        ) => ({ globalId: 'room-1', transactionId: 'tx' }),
+      ),
+    };
+
+    await makeRepository(query, chat as never).acceptRequest({
+      requestId: RequestId,
+      postId: PostId,
+      actorUserId: GiverId,
+      transactionId: 'tx-chat',
+    });
+
+    expect(chat.openRoomWithinTransaction.mock.calls[0][1]).toMatchObject({
+      giverId: RequesterId,
+      receiverId: GiverId,
+    });
+  });
+
+  it('chống trùng khoá theo ĐỐI PHƯƠNG, không theo receiver_id', async () => {
+    // Câu cũ lọc `receiver_id = requester_id`, đúng cho bài Muốn Tặng và KHÔNG
+    // bao giờ khớp cho bài Muốn Nhận — ở đó người phản hồi là `giver_id`. Phép
+    // chống trùng vì thế im lặng mất tác dụng, và tồn kho bị trừ hai lần.
+    const query = makeQuery({ post: postRow(3, 'WANTED') });
+
+    await makeRepository(query).acceptRequest({
+      requestId: RequestId,
+      postId: PostId,
+      actorUserId: GiverId,
+      transactionId: 'tx-dedup',
+    });
+
+    const dedup = query.mock.calls.find(
+      ([sql]) =>
+        String(sql).includes('FROM gift_transactions') &&
+        String(sql).includes('FOR UPDATE'),
+    );
+    expect(String(dedup?.[0])).toContain('giver_id = $2');
+    expect(String(dedup?.[0])).toContain('receiver_id = $2');
   });
 });

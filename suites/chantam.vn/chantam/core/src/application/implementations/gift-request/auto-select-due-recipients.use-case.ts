@@ -124,7 +124,7 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
         const accepted = await this.requests.acceptRequest({
           requestId: winner.requestGlobalId,
           postId: post.postId,
-          giverId: post.giverId,
+          actorUserId: post.giverId,
           transactionId: makeGlobalId(
             `/transactions/${post.postId}/${winner.requesterId}`,
           ),
@@ -134,8 +134,11 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
         // dùng không bấm gì cả, hệ thống quyết hộ họ. Không báo thì họ chỉ biết
         // khi tình cờ mở app, trong khi người tặng đang chờ trả lời.
         await this.acceptedNotifier.announce({
-          receiverId: winner.requesterId,
-          giverId: post.giverId,
+          // Vai lấy từ KẾT QUẢ, không từ truy vấn. Truy vấn tìm bài tới hạn lấy
+          // `post.author_id AS giver_id`, và với bài Muốn Nhận tác giả là người
+          // NHẬN — nên đoán lại ở đây là nguồn của đúng cái lỗi đảo vai.
+          receiverId: accepted.receiverId,
+          giverId: accepted.giverId,
           postId: post.postId,
           transactionId: accepted.transactionId,
           trigger: 'AUTOMATIC',

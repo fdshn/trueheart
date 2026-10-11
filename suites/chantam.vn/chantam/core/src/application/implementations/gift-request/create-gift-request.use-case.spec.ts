@@ -315,7 +315,7 @@ describe('CreateGiftRequestUseCase', () => {
     expect(giftRequestRepo.acceptRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         postId: PostId,
-        giverId: post.authorId,
+        actorUserId: post.authorId,
       }),
     );
   });

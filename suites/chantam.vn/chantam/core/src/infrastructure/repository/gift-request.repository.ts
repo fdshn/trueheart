@@ -17,10 +17,12 @@ import { GiftRequestEntity, UserEntity } from '@/infrastructure/entity';
 import {
   GiftPostStatuses,
   GiftRequestStatuses,
+  PostTypes,
   UserRanks,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostRequestItemDto } from '@chantam.vn/chantam.core-lib/dto';
 import { IGiftRequestEntity } from '@chantam.vn/chantam.core-lib/entities';
+import { giftTransactionRoles } from '@chantam.vn/chantam.core-lib/models';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
@@ -591,9 +593,22 @@ export class GiftRequestRepository
   public async acceptRequest(params: {
     requestId: string;
     postId: string;
-    giverId: string;
+    /**
+     * Người BẤM duyệt — luôn là tác giả bài, và chỉ dùng để xác thực quyền.
+     *
+     * Tới 11/10 tham số này tên `giverId`, và cái tên đó là một giả định đóng
+     * cứng: với bài Muốn Nhận, tác giả là người muốn NHẬN. Vai được suy từ
+     * `giftTransactionRoles` bên dưới, không nhận từ nơi gọi — nơi gọi không có
+     * cách nào truyền sai nữa.
+     */
+    actorUserId: string;
     transactionId: string;
-  }): Promise<{ transactionId: string }> {
+  }): Promise<{
+    transactionId: string;
+    /** Vai đã phân giải, để nơi gọi gửi thông báo mà khỏi tự đoán lại. */
+    giverId: string;
+    receiverId: string;
+  }> {
     return this.manager.transaction(async (manager) => {
       const pendingRows = await manager.query<
         {
@@ -624,7 +639,15 @@ export class GiftRequestRepository
         { global_id: string; status: string; quantity: string }[]
       >(
         `SELECT global_id, status, quantity FROM gift_transactions
-         WHERE post_id = $1 AND receiver_id = $2
+         WHERE post_id = $1 AND (receiver_id = $2 OR giver_id = $2)
+           -- Khoá theo ĐỐI PHƯƠNG, không theo receiver_id. Tới 11/10 câu này
+           -- chỉ xét receiver_id = requester_id, đúng cho bài Muốn Tặng và
+           -- **không bao giờ khớp** cho bài Muốn Nhận: ở đó người phản hồi là
+           -- giver_id, còn receiver_id luôn là tác giả. Phép chống trùng vì
+           -- thế im lặng mất tác dụng, và tồn kho bị trừ hai lần cho một lượt.
+           --
+           -- Tác giả không bao giờ là người phản hồi trên bài của mình
+           -- (CannotRequestOwnPostException), nên hai vế OR không chồng nhau.
            -- REQUESTED đã bị gỡ khỏi vòng đời lượt trao ngày 28/09 và nay có
            -- ràng buộc CHK_gift_transactions_live_status chặn, nên để lại trong
            -- danh sách này chỉ gây tưởng là còn dùng.
@@ -651,11 +674,12 @@ export class GiftRequestRepository
         {
           global_id: string;
           author_id: string;
+          post_type: string;
           status: string;
           remaining_quantity: number;
         }[]
       >(
-        `SELECT global_id, author_id, status, remaining_quantity FROM posts WHERE global_id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        `SELECT global_id, author_id, post_type, status, remaining_quantity FROM posts WHERE global_id = $1 AND deleted_at IS NULL FOR UPDATE`,
         [params.postId],
       );
 
@@ -664,9 +688,19 @@ export class GiftRequestRepository
       }
       const post = postRows[0];
 
-      if (post.author_id !== params.giverId) {
+      // Tác giả bài là người QUYẾT, bất kể họ cho hay nhận. Giữ nguyên phép kiểm,
+      // chỉ đổi tên tham số cho đúng nghĩa.
+      if (post.author_id !== params.actorUserId) {
         throw new ForbiddenException();
       }
+
+      // Vai suy từ LOẠI bài, không nhận từ nơi gọi — xem `giftTransactionRoles`.
+      // Với bài Muốn Nhận hai vai ĐẢO lại: tác giả là người nhận.
+      const roles = giftTransactionRoles({
+        postType: post.post_type as PostTypes,
+        postAuthorId: post.author_id,
+        requesterId: targetRequest.requester_id,
+      });
 
       if (post.status !== GiftPostStatuses.PUBLISHED) {
         throw new PostInvalidStateException();
@@ -725,10 +759,10 @@ export class GiftRequestRepository
         await this.openChatRoom(manager, {
           transactionId: existingTransaction.global_id,
           postId: params.postId,
-          giverId: params.giverId,
-          receiverId: targetRequest.requester_id,
+          giverId: roles.giverId,
+          receiverId: roles.receiverId,
         });
-        return { transactionId: existingTransaction.global_id };
+        return { transactionId: existingTransaction.global_id, ...roles };
       }
 
       await manager.query(
@@ -736,8 +770,8 @@ export class GiftRequestRepository
         [
           params.transactionId,
           params.postId,
-          params.giverId,
-          targetRequest.requester_id,
+          roles.giverId,
+          roles.receiverId,
           quantity,
         ],
       );
@@ -745,23 +779,26 @@ export class GiftRequestRepository
       await this.openChatRoom(manager, {
         transactionId: params.transactionId,
         postId: params.postId,
-        giverId: params.giverId,
-        receiverId: targetRequest.requester_id,
+        giverId: roles.giverId,
+        receiverId: roles.receiverId,
       });
 
-      return { transactionId: params.transactionId };
+      return { transactionId: params.transactionId, ...roles };
     });
   }
 
   public async acceptRequestsBatch(params: {
     postId: string;
-    giverId: string;
+    /** Người BẤM duyệt — tác giả bài. Vai suy trong hàm, xem `acceptRequest`. */
+    actorUserId: string;
     requestIds: readonly string[];
   }): Promise<{
     accepted: {
       requestId: string;
       requesterId: string;
       transactionId: string;
+      giverId: string;
+      receiverId: string;
     }[];
     remainingQuantity: number;
     standbyCount: number;
@@ -803,8 +840,12 @@ export class GiftRequestRepository
       const liveRows = await manager.query<
         { receiver_id: string; status: string }[]
       >(
-        `SELECT receiver_id, status FROM gift_transactions
-         WHERE post_id = $1 AND receiver_id = ANY($2::uuid[])
+        `SELECT receiver_id, giver_id, status FROM gift_transactions
+         -- Khoá theo ĐỐI PHƯƠNG, cùng lý do như ở acceptRequest: với bài Muốn
+         -- Nhận, người phản hồi là giver_id, nên lọc theo receiver_id không
+         -- bao giờ khớp và phép chống trùng im lặng mất tác dụng.
+         WHERE post_id = $1
+           AND (receiver_id = ANY($2::uuid[]) OR giver_id = ANY($2::uuid[]))
            AND status IN ('ACCEPTED', 'DELIVERING')
          FOR UPDATE`,
         [params.postId, requesterIds],
@@ -816,11 +857,12 @@ export class GiftRequestRepository
         {
           global_id: string;
           author_id: string;
+          post_type: string;
           status: string;
           remaining_quantity: number;
         }[]
       >(
-        `SELECT global_id, author_id, status, remaining_quantity FROM posts
+        `SELECT global_id, author_id, post_type, status, remaining_quantity FROM posts
          WHERE global_id = $1 AND deleted_at IS NULL FOR UPDATE`,
         [params.postId],
       );
@@ -828,7 +870,7 @@ export class GiftRequestRepository
         throw new PostNotFoundException(params.postId);
 
       const post = postRows[0];
-      if (post.author_id !== params.giverId) throw new ForbiddenException();
+      if (post.author_id !== params.actorUserId) throw new ForbiddenException();
       if (post.status !== GiftPostStatuses.PUBLISHED)
         throw new PostInvalidStateException();
 
@@ -880,6 +922,8 @@ export class GiftRequestRepository
         requestId: string;
         requesterId: string;
         transactionId: string;
+        giverId: string;
+        receiverId: string;
       }[] = [];
 
       for (const requestId of params.requestIds) {
@@ -888,21 +932,27 @@ export class GiftRequestRepository
           `/transactions/${params.postId}/${requesterId}/${requestId}`,
         );
 
+        const roles = giftTransactionRoles({
+          postType: post.post_type as PostTypes,
+          postAuthorId: post.author_id,
+          requesterId,
+        });
+
         await manager.query(
           `INSERT INTO gift_transactions
              (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at)
            VALUES ($1, $2, $3, $4, 1, 'ACCEPTED', now())`,
-          [transactionId, params.postId, params.giverId, requesterId],
+          [transactionId, params.postId, roles.giverId, roles.receiverId],
         );
 
         await this.openChatRoom(manager, {
           transactionId,
           postId: params.postId,
-          giverId: params.giverId,
-          receiverId: requesterId,
+          giverId: roles.giverId,
+          receiverId: roles.receiverId,
         });
 
-        accepted.push({ requestId, requesterId, transactionId });
+        accepted.push({ requestId, requesterId, transactionId, ...roles });
       }
 
       return { accepted, remainingQuantity: newRemaining, standbyCount };
