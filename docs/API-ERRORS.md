@@ -130,6 +130,9 @@ Nghiệp vụ Chân Tâm
 | `0x0807` | `2055` | 409 Conflict | `GIFT_HANDOVER_EVIDENCE_REQUIRED` | Cần ảnh lúc trao đồ và ảnh hàng quay về thì mới báo được — trừ điểm người khác phải dựa trên dấu vết để lại từ trước |
 | `0x0808` | `2056` | 409 Conflict | `REVIEW_TRANSACTION_NOT_COMPLETED` | Lượt trao chưa hoàn tất nên chưa đánh giá được |
 | `0x0809` | `2057` | 409 Conflict | `REVIEW_ALREADY_SUBMITTED` | Bạn đã đánh giá lượt trao này rồi |
+| `0x080a` | `2058` | 404 Not Found | `REVIEW_NOT_FOUND` | Bạn chưa đánh giá lượt trao này, nên chưa có gì để sửa |
+| `0x080b` | `2059` | 409 Conflict | `REVIEW_ALREADY_EDITED` | Mỗi đánh giá chỉ sửa được một lần, và bạn đã sửa rồi |
+| `0x080c` | `2060` | 409 Conflict | `REVIEW_EDIT_WINDOW_CLOSED` | Hết hạn sửa đánh giá: chỉ sửa được trong 0 ngày sau khi lượt trao hoàn tất |
 | `0x0901` | `2305` | 409 Conflict | `ADMIN_LAST_SUPER_ADMIN` | Không thể thu hồi SUPER_ADMIN cuối cùng: sẽ không còn ai cấp lại quyền được |
 | `0x0902` | `2306` | 403 Forbidden | `ADMIN_SELF_ROLE_CHANGE` | Không thể tự thay đổi quyền của chính mình |
 | `0x0903` | `2307` | 404 Not Found | `NOTIFICATION_TEMPLATE_NOT_FOUND` | Không có mẫu thông báo cho loại này |
@@ -180,5 +183,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **138 mã lỗi** trên 3 tầng.
+Tổng cộng **141 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

@@ -177,6 +177,12 @@ export enum ErrorCodes {
   REVIEW_TRANSACTION_NOT_COMPLETED = 0x08_08,
   /** Mỗi người đánh giá một lượt trao đúng một lần. */
   REVIEW_ALREADY_SUBMITTED = 0x08_09,
+  /** Chưa gửi đánh giá nào cho lượt trao này, nên không có gì để sửa. */
+  REVIEW_NOT_FOUND = 0x08_0a,
+  /** Đã dùng hết lần sửa duy nhất (CHỐT-10 mục 4). */
+  REVIEW_ALREADY_EDITED = 0x08_0b,
+  /** Quá hạn `completed_at + review.grace.graceDays`, đánh giá đã khoá. */
+  REVIEW_EDIT_WINDOW_CLOSED = 0x08_0c,
 
   // 0x0E — Tuong tac bang tin
   CONTENT_BLOCKED_TERMS = 0x0e_01,

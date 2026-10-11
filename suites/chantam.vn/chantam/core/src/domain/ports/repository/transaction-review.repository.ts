@@ -21,6 +21,23 @@ export interface IReviewableTransaction {
   readonly role: TransactionReviewRoles | null;
   /** Đánh giá chỉ mở sau khi lượt trao đã hoàn tất. */
   readonly completed: boolean;
+  /**
+   * Mốc hoàn tất, `null` khi chưa hoàn tất.
+   *
+   * Cần vì hạn sửa đánh giá là `completed_at + review.grace.graceDays` (CHỐT-10
+   * mục 4) — cùng mốc mà job chốt `value_bonus` dùng. Đọc ở đây chứ không đi một
+   * truy vấn riêng: câu này đã nạp hàng lượt trao rồi.
+   */
+  readonly completedAt: Date | null;
+}
+
+export interface IEditTransactionReviewParams {
+  readonly transactionId: string;
+  readonly reviewerId: string;
+  readonly rating: number;
+  /** Chỉ bên NHẬN mới có; bên TẶNG phải là `null`. */
+  readonly accuracyPercent: number | null;
+  readonly comment: string | null;
 }
 
 export interface IGiverAccuracyState {
@@ -230,6 +247,27 @@ export interface ITransactionReviewRepository {
     /** Trạng thái accuracy của người ĐƯỢC đánh giá sau lần ghi này. */
     accuracy: IGiverAccuracyState;
     /** Điểm sao của người ĐƯỢC đánh giá sau lần ghi này, tách theo vai. */
+    rating: IReviewRatingState;
+  }>;
+
+  /**
+   * Sửa đánh giá của chính người gọi, ĐÚNG một lần (CHỐT-10 mục 4).
+   *
+   * Không nhận `editedAt` hay bản cũ: trigger
+   * `TRG_transaction_reviews_edit_once` tự chụp `previous_*` từ hàng trước khi
+   * sửa và tự đặt `edited_at`. Nơi gọi truyền bản cũ sẽ là nơi gọi có thể truyền
+   * SAI bản cũ.
+   *
+   * Lần sửa thứ hai bị **database** từ chối, không phải bởi một phép kiểm ở tầng
+   * trên: hai request song song đều đọc `editedAt === null` rồi cùng ghi thì
+   * trigger là chỗ duy nhất thấy được cái thứ hai.
+   *
+   * Tính lại accuracy và điểm sao trong CÙNG transaction, cùng lối
+   * `submitReview` — chỉ số tổng hợp phải phản ánh bản đánh giá CUỐI.
+   */
+  editReview(params: IEditTransactionReviewParams): Promise<{
+    review: ITransactionReviewEntity;
+    accuracy: IGiverAccuracyState;
     rating: IReviewRatingState;
   }>;
 

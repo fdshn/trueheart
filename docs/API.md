@@ -7,8 +7,11 @@
 > **Mục 1 của CHỐT-10 xong cả ba việc 11/10:** `selectionMode` nay áp cho **cả** `OFFER` và
 > `WANTED` (vai tặng/nhận đảo đúng), quyền chọn tay gắn hạng Kim Cương, và `EXPIRED` báo cho
 > cả hai bên.
-> **Còn lại:** review vẫn không sửa được (mục 4). Không dùng trang này làm bằng chứng tính
-> năng mới đã có; cần cập nhật endpoint/schema trước khi app gọi.
+> **Mục 2 và mục 4 xong 11–12/10:** đổi điểm đòi xác nhận lại khi giá đã đổi, huỷ lượt trao
+> đổi-bằng-điểm thì hoàn đúng số đã trừ, và mỗi bên **sửa đánh giá của mình được một lần**
+> trong hạn chờ.
+> **Còn lại:** mục 5 (acceptance tests). Không dùng trang này làm bằng chứng tính năng mới đã
+> có; cần cập nhật endpoint/schema trước khi app gọi.
 
 Mô tả **các endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
 buộc mà chữ ký hàm không nói ra.
@@ -1284,6 +1287,9 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 | `POST` | `/transactions/:id/evidence/upload-url` | Bearer (cả hai bên) | Xin đường tải ảnh bằng chứng |
 | `POST` | `/transactions/:id/handover` | Bearer (**chỉ người tặng**) | Báo đã trao đồ → `DELIVERING` |
 | `POST` | `/transactions/:id/reports/ship-unpaid` | Bearer (**chỉ người gửi**) | Báo người nhận không thanh toán phí ship (CH-2) |
+| `POST` | `/transactions/:id/reviews` | Bearer (hai bên trong cuộc) | Đánh giá sau khi `COMPLETED`, mỗi người một lần (F42) |
+| `PATCH` | `/transactions/:id/reviews/mine` | Bearer (hai bên trong cuộc) | **Sửa đánh giá của chính mình, ĐÚNG một lần**, trong hạn chờ (CHỐT-10 mục 4) |
+| `GET` | `/transactions/:id/reviews` | Bearer (hai bên trong cuộc) | Đánh giá của cả hai, kèm `myEditableUntil` |
 
 **Điều cần biết**
 
@@ -1298,6 +1304,24 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
   số đã trừ, một lần (CHỐT-13, xem §6).
 - `confirm` đặt `completed_at` — đây là **mốc mà bộ đếm hoạt động của rank đọc**. Thiếu nó
   thì lượt tặng này vô hình với hệ thống hạng.
+- **Đánh giá sửa được ĐÚNG một lần**, trước `completed_at + review.grace.graceDays` (CHỐT-10
+  mục 4, 12/10). Đọc hạn ở `myEditableUntil` của `GET .../reviews` — số ngày là cấu hình
+  động, nên client không tự tính.
+
+  Body của `PATCH` là một bản đánh giá **đầy đủ**, không phải bản vá từng trường: bỏ trống
+  `comment` là **xoá** bình luận. Nếu bỏ trống nghĩa là "giữ nguyên" thì việc xoá không diễn
+  đạt được.
+
+  Bản trước lần sửa do **trigger ở database** chụp vào `previous_*` và **không** trả ra API —
+  nó là dấu vết đối soát, không phải nội dung của ai. Lần sửa thứ hai và mọi lượt xoá bị
+  database từ chối, kể cả `UPDATE` viết tay.
+
+  Hạn này đúng là mốc chốt `value_bonus` của người tặng, và đó là chủ ý: sau mốc đó thưởng đã
+  tính theo bản đánh giá cuối, nên cho sửa tiếp là trả thưởng theo một con số rồi mới đổi nó.
+  Vì vậy **đúng mốc** là đã khoá, không phải "sau mốc".
+
+  Luật vai không nới ở đường sửa: chỉ bên NHẬN chấm `accuracyPercent`. Nới ở đây là cho người
+  tặng tự chấm mô tả của chính mình qua cửa sau.
 - **`handover` không phải riêng cho ship.** Tự đến lấy cũng có lúc trao đồ, và tranh
   chấp "tôi chưa hề nhận được" vẫn xảy ra khi không có ship. Mốc `handedOverAt` **đẩy
   lùi đồng hồ tự hoàn tất**: trước đây đếm từ `acceptedAt`, nên ship liên tỉnh 4–5 ngày

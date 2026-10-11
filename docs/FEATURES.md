@@ -478,8 +478,8 @@ mới lưu. Khi giao dịch `COMPLETED`, lịch sử vẫn xem được nhưng �
 > `value_bonus = round_half_up(round_half_up(estimated_value_vnd / vnd_per_point) ×
 > final_accuracy_percent / 100)`. Thiếu giá trị ước tính thì bonus bằng 0. `N`, tỷ lệ
 > VNĐ/điểm và % mặc định khi không đánh giá đều do Admin cấu hình. Review được sửa một lần
-> trước hạn N; chỉ cộng bonus một lần tại hạn. **Không nhân điểm hoàn tất với accuracy.**
-> Phần dưới mô tả công thức/backend cũ, chưa đạt quy tắc mục tiêu.
+> trước hạn N (xong 12/10); chỉ cộng bonus một lần tại hạn. **Không nhân điểm hoàn tất với
+> accuracy.** Phần dưới mô tả công thức/backend cũ, chưa đạt quy tắc mục tiêu.
 
 **Người nhận** đánh giá vật phẩm đạt bao nhiêu phần trăm giá trị thực tế. 100% ứng với X điểm
 do Admin cấu hình; các mức khác theo bảng mapping.
@@ -577,9 +577,20 @@ chính mình**.
 - **Chủ bài được báo khi có người xin** (`GIFT_REQUEST_CREATED`). Đồng hồ 7 ngày giả định họ biết có ứng viên; trước đó họ chỉ biết nếu tự mở bài ra xem.
 
 ### F42 — Đánh giá chất lượng sau giao dịch
-> **Quy tắc mục tiêu 07/10:** mỗi bên được sửa đánh giá của mình **tối đa một lần** trước
-> `completed_at + N ngày`; giữ audit trước/sau. Người nhận chấm % đúng mô tả, người cho
-> không tự chấm %. Backend hiện còn chặn sửa ở database; xem [đặc tả](./plan/GIVE-RECEIVE-2026-10-07.md).
+> ✅ **Sửa một lần — xong 12/10 (CHỐT-10 mục 4).** `PATCH /transactions/:id/reviews/mine`:
+> mỗi bên sửa đánh giá của mình **đúng một lần**, trước `completed_at + review.grace.graceDays`.
+> Hạn trả kèm ở `myEditableUntil` của `GET .../reviews`.
+>
+> Audit trước/sau do **trigger** `TRG_transaction_reviews_edit_once` chụp vào `previous_*`,
+> không do tầng ứng dụng gửi xuống: nơi gọi truyền bản cũ là nơi gọi có thể truyền sai bản cũ.
+> Trigger cũng chặn lần sửa thứ hai, chặn mọi lượt xoá, và chặn đổi các cột bất biến — kể cả
+> với một câu `UPDATE` viết tay trên production.
+>
+> Hạn sửa đúng là hạn chốt `value_bonus`, dùng chung một con số `N`. Hai mốc lệch nhau sẽ tạo
+> một khoảng mà đánh giá còn sửa được trong khi thưởng đã trả theo nó.
+>
+> Người nhận chấm % đúng mô tả, người cho không tự chấm % — luật vai **không** nới ở đường
+> sửa. Xem [đặc tả](./plan/GIVE-RECEIVE-2026-10-07.md).
 
 Sau `COMPLETED`, **hai bên cùng đánh giá** trải nghiệm. Review Quality **tách khỏi Point
 Ledger**, trừ khi có Point Rule gắn riêng.

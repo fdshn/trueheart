@@ -1,7 +1,9 @@
+import { ReviewAlreadyEditedException } from '@/domain/exceptions';
 import {
   IAccuracyDrift,
   IAccuracyReconcileResult,
   IAdminConfigRepository,
+  IEditTransactionReviewParams,
   IGiverAccuracyState,
   IPendingReviewReminder,
   IReviewableTransaction,
@@ -25,6 +27,7 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { updateReturning } from './update-returning';
 
 interface IReviewRow {
   global_id: string;
@@ -37,6 +40,10 @@ interface IReviewRow {
   comment: string | null;
   created_at: Date;
   id: string;
+  edited_at: Date | null;
+  previous_rating: number | null;
+  previous_accuracy_percent: number | null;
+  previous_comment: string | null;
 }
 
 function toEntity(row: IReviewRow): ITransactionReviewEntity {
@@ -52,12 +59,24 @@ function toEntity(row: IReviewRow): ITransactionReviewEntity {
       row.accuracy_percent === null ? null : Number(row.accuracy_percent),
     comment: row.comment,
     createdAt: row.created_at,
+    editedAt: row.edited_at,
+    // `smallint` thì node-pg trả số, nhưng đi qua `Number()` cho cùng lối với
+    // `rating` ở trên — và `null` phải giữ `null`, vì `Number(null)` là 0 và 0 là
+    // một mức chính xác hợp lệ.
+    previousRating:
+      row.previous_rating === null ? null : Number(row.previous_rating),
+    previousAccuracyPercent:
+      row.previous_accuracy_percent === null
+        ? null
+        : Number(row.previous_accuracy_percent),
+    previousComment: row.previous_comment,
   } as ITransactionReviewEntity;
 }
 
 const SelectColumns = `
   id, global_id, transaction_id, reviewer_id, reviewee_id,
-  reviewer_role, rating, accuracy_percent, comment, created_at
+  reviewer_role, rating, accuracy_percent, comment, created_at,
+  edited_at, previous_rating, previous_accuracy_percent, previous_comment
 `;
 
 @Injectable()
@@ -492,10 +511,11 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
         giver_id: string;
         receiver_id: string;
         status: string;
+        completed_at: Date | null;
       }[]
     >(
       `
-        SELECT giver_id, receiver_id, status
+        SELECT giver_id, receiver_id, status, completed_at
         FROM gift_transactions
         WHERE global_id = $1
       `,
@@ -516,6 +536,7 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
       receiverId: row.receiver_id,
       role,
       completed: row.status === 'COMPLETED',
+      completedAt: row.completed_at,
     };
   }
 
@@ -667,6 +688,54 @@ export class TransactionReviewRepository implements ITransactionReviewRepository
       // Điểm sao thì CẢ HAI vai đều chấm, nên lần nào cũng tính lại. Trước 29/09
       // con số này chỉ được ghi vào bảng rồi không ai đọc.
       const rating = await this.recomputeRating(manager, params.revieweeId);
+
+      return { review: toEntity(row), accuracy, rating };
+    });
+  }
+
+  public async editReview(params: IEditTransactionReviewParams): Promise<{
+    review: ITransactionReviewEntity;
+    accuracy: IGiverAccuracyState;
+    rating: IReviewRatingState;
+  }> {
+    return this.manager.transaction(async (manager) => {
+      // KHÔNG ghi `edited_at` hay `previous_*` ở đây: trigger
+      // `TRG_transaction_reviews_edit_once` tự chụp bản cũ và tự đặt mốc. Ghi từ
+      // đây là mở đường cho một lượt ghi SAI bản cũ, và đó đúng là thứ bảng này
+      // được dựng để chống.
+      //
+      // `edited_at IS NULL` trong `WHERE` chứ không chỉ dựa vào trigger: trigger
+      // ném ngoại lệ, còn điều kiện này trả 0 hàng — và 0 hàng là thứ nơi gọi dịch
+      // được thành một lỗi nghiệp vụ đọc được. Trigger vẫn là chốt cuối cho hai
+      // request song song.
+      const [row] = await updateReturning<IReviewRow>(
+        manager,
+        `
+          UPDATE transaction_reviews
+          SET rating = $3, accuracy_percent = $4, comment = $5
+          WHERE transaction_id = $1
+            AND reviewer_id = $2
+            AND edited_at IS NULL
+          RETURNING ${SelectColumns}
+        `,
+        [
+          params.transactionId,
+          params.reviewerId,
+          params.rating,
+          params.accuracyPercent,
+          params.comment,
+        ],
+      );
+      if (!row) throw new ReviewAlreadyEditedException();
+
+      // Tính lại CẢ HAI, không như `submitReview` chỉ tính accuracy khi bên NHẬN
+      // ghi: ở đây `accuracy_percent` của một đánh giá CŨ có thể vừa đổi, nên chỉ
+      // số tổng hợp phải tính lại để phản ánh bản cuối (CHỐT-10 mục 4).
+      const accuracy =
+        row.reviewer_role === TransactionReviewRoles.RECEIVER
+          ? await this.recomputeAccuracy(manager, row.reviewee_id)
+          : await this.readAccuracy(manager, row.reviewee_id);
+      const rating = await this.recomputeRating(manager, row.reviewee_id);
 
       return { review: toEntity(row), accuracy, rating };
     });

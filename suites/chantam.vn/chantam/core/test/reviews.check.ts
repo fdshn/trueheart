@@ -208,22 +208,107 @@ async function main(): Promise<void> {
       ),
     );
 
-    // ── 3. Chỉ ghi thêm ─────────────────────────────────────────────────────
-    console.log('\nChỉ ghi thêm:\n');
+    // ── 3. Sửa ĐÚNG một lần, có dấu vết ─────────────────────────────────────
+    //
+    // Tới 11/10 nhóm này canh "mọi UPDATE đều bị chặn". CHỐT-10 mục 4 cho mỗi bên
+    // sửa một lần, nên bất biến đổi — nhưng chỉ NỚI: vẫn không có đường xoá, vẫn
+    // không có đường sửa lần hai, và bản cũ do TRIGGER chụp chứ không do tầng ứng
+    // dụng gửi xuống.
+    console.log('\nSửa đúng một lần:\n');
 
     check(
-      'SỬA một đánh giá bị trigger chặn',
-      await rejected(
-        `UPDATE transaction_reviews SET rating = 1 WHERE transaction_id = $1`,
-        [first],
-      ),
-    );
-    check(
-      'XOÁ một đánh giá cũng bị chặn',
+      'XOÁ một đánh giá vẫn bị chặn',
       await rejected(
         `DELETE FROM transaction_reviews WHERE transaction_id = $1`,
         [first],
       ),
+    );
+    check(
+      'đổi cột BẤT BIẾN (người đánh giá) bị chặn',
+      await rejected(
+        `UPDATE transaction_reviews SET reviewer_id = $2 WHERE transaction_id = $1`,
+        [first, GiverId],
+      ),
+    );
+
+    // Lần sửa đầu đi qua repository, đúng đường mà use case dùng.
+    const edited = await reviews.editReview({
+      transactionId: first,
+      reviewerId: ReceiverId,
+      rating: 1,
+      accuracyPercent: 10,
+      comment: 'Nhìn lại thì mô tả lệch nhiều',
+    });
+    check(
+      'lần sửa ĐẦU được, và trigger tự chụp bản cũ',
+      edited.review.rating === 1 &&
+        edited.review.editedAt !== null &&
+        edited.review.previousRating === 3 &&
+        edited.review.previousAccuracyPercent === 50,
+      `rating ${edited.review.rating}, cũ ${String(edited.review.previousRating)}/${String(edited.review.previousAccuracyPercent)}`,
+    );
+    check(
+      'chỉ số accuracy phản ánh bản đánh giá CUỐI',
+      edited.accuracy.percent === 10,
+      `${String(edited.accuracy.percent)}%`,
+    );
+    check(
+      'điểm sao cũng tính lại theo bản cuối',
+      edited.rating.asGiver.average === 1,
+      `${String(edited.rating.asGiver.average)} sao`,
+    );
+
+    check(
+      'lần sửa THỨ HAI bị chặn ngay ở database',
+      await rejected(
+        `UPDATE transaction_reviews SET rating = 5 WHERE transaction_id = $1`,
+        [first],
+      ),
+    );
+    check(
+      'và repository dịch nó thành lỗi nghiệp vụ, không phải lỗi ràng buộc',
+      await reviews
+        .editReview({
+          transactionId: first,
+          reviewerId: ReceiverId,
+          rating: 5,
+          accuracyPercent: 100,
+          comment: null,
+        })
+        .then(() => false)
+        .catch((error: unknown) => error instanceof Error),
+    );
+
+    // Giả mạo bản cũ: trigger ghi đè bằng giá trị thật của hàng trước khi sửa.
+    // Dựng lại hàng chưa sửa bằng cách tắt trigger — đúng cái mà người có quyền
+    // trên database làm được, và là lý do bản cũ phải do trigger chụp.
+    const second = await completedTransaction();
+    await dataSource.query(
+      `INSERT INTO transaction_reviews
+         (global_id, transaction_id, reviewer_id, reviewee_id,
+          reviewer_role, rating, accuracy_percent, comment)
+       VALUES ($1, $2, $3, $4, 'RECEIVER', 4, 80, 'Bản đầu')`,
+      [randomUUID(), second, ReceiverId, GiverId],
+    );
+    await dataSource.query(
+      `UPDATE transaction_reviews
+       SET rating = 2, accuracy_percent = 20,
+           previous_rating = 5, previous_comment = 'tôi tự khai bản cũ'
+       WHERE transaction_id = $1`,
+      [second],
+    );
+    const [forged] = await dataSource.query<
+      { previous_rating: number; previous_comment: string | null }[]
+    >(
+      `SELECT previous_rating, previous_comment
+       FROM transaction_reviews WHERE transaction_id = $1`,
+      [second],
+    );
+    check(
+      'bản cũ KHÔNG giả mạo được — trigger ghi đè',
+      Number(forged.previous_rating) === 4 &&
+        forged.previous_comment === 'Bản đầu',
+      `${String(forged.previous_rating)} / ${String(forged.previous_comment)}`,
     );
 
     // ── 4. Ngưỡng 5 mẫu ─────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import {
   IAwardGiftCompletionUseCase,
+  IEditReviewUseCase,
   IGetTransactionReviewsUseCase,
   IReconcileGiverAccuracyUseCase,
   ISettleGiftRewardsUseCase,
@@ -9,6 +10,7 @@ import { Global, Module } from '@nestjs/common';
 import { AwardGiftCompletionUseCase } from './award-gift-completion.use-case';
 import { ReconcileGiverAccuracyUseCase } from './reconcile-giver-accuracy.use-case';
 import {
+  EditReviewUseCase,
   GetTransactionReviewsUseCase,
   SubmitReviewUseCase,
 } from './review.use-cases';
@@ -18,6 +20,7 @@ import { SettleGiftRewardsUseCase } from './settle-gift-rewards.use-case';
 @Module({
   providers: [
     { provide: ISubmitReviewUseCase, useClass: SubmitReviewUseCase },
+    { provide: IEditReviewUseCase, useClass: EditReviewUseCase },
     {
       provide: IGetTransactionReviewsUseCase,
       useClass: GetTransactionReviewsUseCase,
@@ -34,6 +37,7 @@ import { SettleGiftRewardsUseCase } from './settle-gift-rewards.use-case';
   ],
   exports: [
     ISubmitReviewUseCase,
+    IEditReviewUseCase,
     IGetTransactionReviewsUseCase,
     IReconcileGiverAccuracyUseCase,
     IAwardGiftCompletionUseCase,

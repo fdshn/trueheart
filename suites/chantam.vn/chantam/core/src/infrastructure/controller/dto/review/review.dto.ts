@@ -65,6 +65,15 @@ export class SubmitReviewBodyDto implements ISubmitReviewBodyDto {
   review: SubmitReviewDto;
 }
 
+/**
+ * Body của lượt SỬA đánh giá — cùng hình dạng với lượt gửi, có chủ ý.
+ *
+ * Một lần sửa là một bản đánh giá ĐẦY ĐỦ, không phải bản vá từng trường: nếu
+ * trường bỏ trống nghĩa là "giữ nguyên" thì việc XOÁ bình luận không diễn đạt
+ * được, và client không có cách nào nói điều đó.
+ */
+export class EditReviewBodyDto extends SubmitReviewBodyDto {}
+
 export class TransactionReviewDto implements ITransactionReviewDto {
   @ApiProperty({ format: 'uuid' }) reviewId: string;
   @ApiProperty({ format: 'uuid' }) transactionId: string;
@@ -81,6 +90,17 @@ export class TransactionReviewDto implements ITransactionReviewDto {
 
   @ApiPropertyOptional({ nullable: true }) comment: string | null;
   @ApiProperty({ type: String, format: 'date-time' }) createdAt: Date;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Lúc bạn sửa đánh giá này, `null` khi chưa sửa. Mỗi đánh giá sửa được ĐÚNG một lần (CHỐT-10 mục 4), ' +
+      'nên `null` cộng với `myEditableUntil` còn ở tương lai là điều kiện hiện nút Sửa. ' +
+      'Bản trước lần sửa được giữ ở database cho đối soát, không trả ra API — nó là dấu vết, không phải nội dung của ai.',
+  })
+  editedAt: Date | null;
 }
 
 export class SubmitReviewResponseDto implements ISubmitReviewResponseDto {
@@ -112,4 +132,15 @@ export class GetTransactionReviewsResponseDto implements IGetTransactionReviewsR
       'Mức chính xác bên kia đã chấm. Người TẶNG thấy ngay cả khi chưa gửi đánh giá của mình: đây là hệ số tính thưởng của họ (56 × mức này), không phải một ý kiến về họ — và `reason` của bút toán trong `GET /points/me/ledger` vốn đã ghi thẳng con số đó. Bình luận và điểm sao thì vẫn kín cho tới khi cả hai đã gửi.',
   })
   counterpartAccuracyPercent: number | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Hạn sửa đánh giá CỦA BẠN: `completed_at + review.grace.graceDays` (CHỐT-10 mục 4). `null` khi lượt trao chưa hoàn tất. ' +
+      'Trả về chứ không để client tự tính — số ngày là cấu hình động Admin đổi được. ' +
+      'Đây cũng đúng là mốc chốt `value_bonus` của người tặng: sau mốc này bản đánh giá cuối được dùng để tính thưởng, nên không còn sửa được.',
+  })
+  myEditableUntil: Date | null;
 }

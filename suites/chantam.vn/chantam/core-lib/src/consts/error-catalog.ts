@@ -583,6 +583,29 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Bạn đã đánh giá lượt trao này rồi',
   },
 
+  REVIEW_NOT_FOUND: {
+    code: ErrorCodes.REVIEW_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    // Nói luôn việc cần làm: đường sửa và đường gửi là hai endpoint khác nhau,
+    // nên "không tìm thấy" mà không nói gì thêm sẽ để client đoán.
+    message: () => 'Bạn chưa đánh giá lượt trao này, nên chưa có gì để sửa',
+  },
+
+  REVIEW_ALREADY_EDITED: {
+    code: ErrorCodes.REVIEW_ALREADY_EDITED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Mỗi đánh giá chỉ sửa được một lần, và bạn đã sửa rồi',
+  },
+
+  REVIEW_EDIT_WINDOW_CLOSED: {
+    code: ErrorCodes.REVIEW_EDIT_WINDOW_CLOSED,
+    httpStatus: HttpStatus.CONFLICT,
+    // Nói SỐ NGÀY chứ không nói mốc: mốc là một dấu thời gian người dùng phải tự
+    // trừ, còn con số ngày là thứ họ đọc một lần là hiểu.
+    message: (graceDays?: number) =>
+      `Hết hạn sửa đánh giá: chỉ sửa được trong ${graceDays ?? 0} ngày sau khi lượt trao hoàn tất`,
+  },
+
   GIFT_TRANSACTION_DUPLICATE_REQUEST: {
     code: ErrorCodes.GIFT_TRANSACTION_DUPLICATE_REQUEST,
     httpStatus: HttpStatus.CONFLICT,

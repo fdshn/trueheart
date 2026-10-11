@@ -170,9 +170,11 @@ và mở chat phải nằm trong cùng transaction với việc duyệt.
 - [x] F41 Điểm Like/Comment/Report — `POST_REACTED` (1đ, trần 20/ngày), `POST_COMMENTED`
   (2đ, trần 10/ngày) và `REPORT_UPHELD` (5đ, trần 5/ngày) đều ở **version 2 và ĐANG BẬT**
   trong `point_rules`. Ghi chú *"mặc định tắt"* đúng ở bản seed đầu, đã lạc hậu từ 29/09
-- [x] F42 Đánh giá chất lượng hai chiều — `POST|GET /transactions/{id}/reviews`, và
-  `transaction_reviews.reviewer_role` nhận `GIVER`/`RECEIVER` nên thật sự hai chiều;
-  bảng chỉ ghi thêm (trigger `TRG_transaction_reviews_append_only`). `npm run test:reviews`
+- [x] F42 Đánh giá chất lượng hai chiều — `POST|GET /transactions/{id}/reviews` cộng
+  `PATCH .../reviews/mine`, và `transaction_reviews.reviewer_role` nhận `GIVER`/`RECEIVER`
+  nên thật sự hai chiều. Bảng **sửa được đúng một lần** trong hạn chờ (CHỐT-10 mục 4, 12/10):
+  trigger `TRG_transaction_reviews_edit_once` tự chụp bản cũ vào `previous_*` và chặn lần thứ
+  hai; không có đường xoá. `npm run test:reviews`
 - [x] F43 Giver Accuracy (dùng %, đủ 5 mẫu mới tính, warning < 75% — CHỐT-03) —
   `reviewThresholdPercent: 75` và `minSamples: 5` ở core-lib, ngưỡng đưa ra cấu hình động,
   hàng đợi soát là `GET /admin/users?accuracyReviewRequired=true`. Đối chiếu ở `BR-ACC-03`

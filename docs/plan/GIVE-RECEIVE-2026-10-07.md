@@ -263,8 +263,28 @@ Còn một việc **không** thuộc mục 2 nhưng đang ghi trong
 `Math.ceil`, còn contract đích ghi `round_half_up`. Chưa đổi, và không được coi mục 2 xong là
 đã khép việc đó.
 
-Mục 4 và 5 vẫn còn nguyên. Review hiện bất biến tại database; F76 hiện ghi cho phép tiêu
-điểm tụt Rank. Đây là **danh sách phải triển khai**, không được coi tài liệu mới là bằng chứng
-API đã chạy.
+**Mục 4 xong phần sửa đánh giá, 12/10.** `PATCH /transactions/:id/reviews/mine` cho mỗi bên
+sửa đánh giá của mình **đúng một lần**, trước `completed_at + review.grace.graceDays`. Hạn trả
+kèm ở `myEditableUntil` của `GET .../reviews`, vì số ngày là cấu hình động.
+
+Bảng `transaction_reviews` vốn chặn mọi `UPDATE`/`DELETE` bằng trigger, với lý do ghi thẳng
+trong migration gốc: *"một đánh giá sửa được sau đó là một chỉ số không chứng minh được điều
+gì."* Lý do đó vẫn đúng, nên bất biến **nới chứ không bỏ**: trigger
+`TRG_transaction_reviews_edit_once` tự chụp bản cũ vào `previous_*`, tự đặt `edited_at`, chặn
+lần sửa thứ hai, chặn mọi lượt xoá, và chặn đổi các cột bất biến — kể cả với một câu `UPDATE`
+viết tay trên production. Audit nằm **trong hàng** vì "tối đa một lần" làm bản cũ có kích cỡ
+cố định; một bảng revision cho đúng một hàng là ba câu JOIN để đọc thứ bốn cột nói xong.
+
+Hạn `N` KHÔNG vào trigger: nó là cấu hình động Admin đổi được. Trigger giữ phần không phụ
+thuộc cấu hình, use case giữ cửa sổ thời gian. Và **đúng mốc** là đã khoá, không phải "sau
+mốc": job chốt thưởng lấy `completed_at <= now() - N days`, nên tại mốc ấy `value_bonus` đã
+tính theo bản đánh giá cuối.
+
+Phần còn lại của mục 4 — chốt % tại hạn, mức mặc định khi không ai chấm, cộng `value_bonus`
+đúng một lần — đã có từ CHỐT-14 (`SettleGiftRewardsUseCase`, `review.grace`). Chỉ số tổng hợp
+phản ánh bản cuối vì `editReview` tính lại accuracy và điểm sao trong cùng transaction.
+
+**Mục 5 (acceptance tests) vẫn còn nguyên.** Đây là **danh sách phải triển khai**, không được
+coi tài liệu mới là bằng chứng API đã chạy.
 Chi tiết gap kỹ thuật, atomicity, API đích và ma trận kiểm thử nằm tại
 [REDEMPTION-REQUIREMENT-GAP.md](./REDEMPTION-REQUIREMENT-GAP.md).

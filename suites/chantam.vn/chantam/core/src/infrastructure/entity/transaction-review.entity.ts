@@ -50,9 +50,39 @@ export class TransactionReviewEntity
   @Column({ type: 'varchar', length: 1000, nullable: true })
   comment: string | null;
 
-  // Chỉ `createdAt`: trigger ở database chặn UPDATE và DELETE, nên `updatedAt`
-  // sẽ là một cột không bao giờ đổi giá trị.
+  // Chỉ `createdAt`, không `updatedAt`: từ 11/10 hàng này sửa được đúng MỘT lần
+  // (CHỐT-10 mục 4), và mốc của lần đó nằm ở `editedAt` — một cột mang đúng một
+  // nghĩa. `updatedAt` sẽ nói "lần cuối đổi" cho một hàng chỉ đổi được một lần,
+  // tức cùng thông tin dưới một cái tên mơ hồ hơn.
   @ApiProperty()
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
+
+  @ApiPropertyOptional({ nullable: true })
+  @Column({ name: 'edited_at', type: 'timestamptz', nullable: true })
+  editedAt: Date | null;
+
+  // Ba cột bản cũ do TRIGGER ghi, không phải tầng ứng dụng: xem
+  // `1799700000000-AllowReviewEditOnce`. Khai ở đây để đọc được, chứ mọi lượt
+  // ghi vào chúng đều bị trigger đè lại bằng giá trị thật của hàng trước khi sửa.
+  @ApiPropertyOptional({ minimum: 1, maximum: 5, nullable: true })
+  @Column({ name: 'previous_rating', type: 'smallint', nullable: true })
+  previousRating: number | null;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 100, nullable: true })
+  @Column({
+    name: 'previous_accuracy_percent',
+    type: 'smallint',
+    nullable: true,
+  })
+  previousAccuracyPercent: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @Column({
+    name: 'previous_comment',
+    type: 'varchar',
+    length: 1000,
+    nullable: true,
+  })
+  previousComment: string | null;
 }

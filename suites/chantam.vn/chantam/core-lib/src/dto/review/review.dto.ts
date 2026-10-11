@@ -26,6 +26,13 @@ export interface ITransactionReviewDto {
   accuracyPercent: number | null;
   comment: string | null;
   createdAt: Date;
+  /**
+   * Lúc người này sửa đánh giá, `null` khi chưa sửa.
+   *
+   * `null` cũng là điều kiện "còn quyền sửa" — mỗi bên sửa tối đa một lần
+   * (CHỐT-10 mục 4). Client đọc nó cùng `myEditableUntil` để quyết hiện nút Sửa.
+   */
+  editedAt: Date | null;
 }
 
 export interface ISubmitReviewResponseDto {
@@ -58,4 +65,16 @@ export interface IGetTransactionReviewsResponseDto {
   mine: ITransactionReviewDto | null;
   /** Đánh giá của bên kia. Chỉ hiện SAU khi người gọi đã gửi của mình. */
   counterpart: ITransactionReviewDto | null;
+  /**
+   * Hạn sửa đánh giá của CHÍNH người gọi: `completed_at + review.grace.graceDays`.
+   *
+   * `null` khi lượt trao chưa hoàn tất. Trả về chứ không để client tự tính: `N` là
+   * cấu hình động Admin đổi được, và một bản sao con số đó trong client là một bản
+   * sao sẽ trôi.
+   *
+   * Cùng một mốc mà job chốt thưởng dùng — đó là chủ ý, không phải trùng hợp: sau
+   * hạn này `value_bonus` được chốt theo bản đánh giá cuối, nên cho sửa sau đó là
+   * trả thưởng theo một con số rồi mới đổi nó.
+   */
+  myEditableUntil: Date | null;
 }
