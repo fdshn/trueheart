@@ -654,11 +654,17 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     manager: EntityManager,
     params: { postId: string; cancelledReceiverId: string },
   ): Promise<IReopenedQueue> {
-    await manager.query(
+    // `RETURNING global_id` chứ không bỏ trống: nơi gọi cần id của yêu cầu vừa bị
+    // huỷ để hoàn điểm cho lượt trao đổi-bằng-điểm (CHỐT-13). Khoá chống trùng của
+    // bút toán trừ là `ITEM_REDEMPTION:<requestId>`, và đây là chỗ duy nhất trong
+    // đường huỷ còn biết `requestId` đó.
+    const cancelled = await updateReturning<{ global_id: string }>(
+      manager,
       `
         UPDATE gift_requests
         SET status = 'CANCELLED', updated_at = now()
         WHERE post_id = $1 AND requester_id = $2 AND status = 'ACCEPTED'
+        RETURNING global_id
       `,
       [params.postId, params.cancelledReceiverId],
     );
@@ -677,6 +683,9 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     return {
       reopenedCount: reopened.length,
       candidates: await this.findCandidateMetrics(manager, params.postId),
+      // `null` khi lượt trao không đến từ hàng đợi — ví dụ dữ liệu cũ, hoặc một
+      // lượt dựng bằng SQL tay. Nơi gọi coi `null` là "không có gì để hoàn".
+      cancelledRequestId: cancelled[0]?.global_id ?? null,
     };
   }
 

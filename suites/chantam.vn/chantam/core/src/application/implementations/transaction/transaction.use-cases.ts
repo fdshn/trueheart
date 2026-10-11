@@ -32,6 +32,7 @@ import {
 import { IGiftTransactionDto } from '@chantam.vn/chantam.core-lib/dto';
 import { pickNextCandidate } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { RefundRedemptionOnCloseService } from './refund-redemption-on-close.service';
 
 /**
  * Báo cho cả hai bên ngày phòng chat sẽ bị xoá.
@@ -212,6 +213,7 @@ export class CancelGiftTransactionUseCase implements ICancelGiftTransactionUseCa
     private readonly dispatchNotification: IDispatchNotificationUseCase,
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
+    private readonly refundRedemption: RefundRedemptionOnCloseService,
   ) {}
 
   public async handle(
@@ -222,6 +224,15 @@ export class CancelGiftTransactionUseCase implements ICancelGiftTransactionUseCa
       actorUserId: command.userId,
       status: 'CANCELLED',
       reason: command.cancellation.reason,
+    });
+
+    // Hoàn điểm TRƯỚC khi báo: nếu lượt trao này đến từ đổi-bằng-điểm thì người
+    // nhận đã trả điểm, và huỷ mà không hoàn là họ mất cả điểm lẫn món đồ
+    // (CHỐT-13). Service nuốt lỗi của chính nó — lượt huỷ đã commit, nên một lỗi
+    // khi hoàn không được làm việc huỷ trông như thất bại.
+    await this.refundRedemption.refundFor({
+      cancelledRequestId: queue.cancelledRequestId,
+      actorUserId: command.userId,
     });
 
     await this.announceQueue(transaction, queue);

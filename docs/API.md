@@ -699,10 +699,21 @@ POST thành công trả `postId`, `transactionId`, `pointsSpent`, `balanceAfter`
 > Bảng bậc chưa seed thì `availablePoints` là **0** (fail-closed): "không biết ngưỡng" mà vẫn
 > cho tiêu là âm thầm bỏ đúng cái bảo vệ này.
 
+> **Huỷ lượt trao đổi-bằng-điểm thì điểm được hoàn (CHỐT-13, 11/10).** Không có endpoint mới:
+> cả `POST /transactions/:id/cancel` và `POST /transactions/:id/reports/ship-unpaid` đều tự hoàn khi
+> lượt trao được đóng đến từ đổi điểm. Số hoàn là **đúng `delta` của bút toán trừ gốc**, không
+> tính lại theo tỷ lệ hiện tại, và chỉ hoàn một lần dù hai đường gọi cùng lúc.
+>
+> Khoản phạt không-trả-ship là bút toán RIÊNG và vẫn giữ: nó phạt việc không trả ship, không
+> phải việc lượt trao bị đóng. Lượt trao đi đường duyệt thường (không qua đổi điểm) thì không
+> có gì để hoàn, và đó là đường phổ biến nhất nên nó im lặng.
+>
+> Phản hồi của hai endpoint **không đổi**: nó không báo số điểm đã hoàn. Client đọc số dư mới
+> qua `GET /points/summary` hoặc sổ điểm. Thêm trường vào đây sẽ buộc nó phải chờ một bút toán
+> ở transaction khác, và một lỗi khi hoàn sẽ làm lượt huỷ trông như thất bại.
+
 **Còn lại của mục 2:** quote stale do đổi giá/tỷ lệ phải bắt xác nhận lại, không âm thầm trừ
-giá mới; và giao dịch đổi điểm bị **huỷ** phải hoàn đúng số điểm đã trừ theo ledger gốc — hiện
-chỉ có đường hoàn khi bước duyệt hỏng, không có đường hoàn khi giao dịch bị huỷ sau đó. Xem
-[handoff và acceptance tests](./plan/REDEMPTION-REQUIREMENT-GAP.md).
+giá mới. Xem [handoff và acceptance tests](./plan/REDEMPTION-REQUIREMENT-GAP.md).
 
 #### Hàng đợi dự phòng
 
@@ -1250,7 +1261,8 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 - `accept` trừ tồn kho **nguyên tử** bằng `UPDATE ... WHERE remaining_quantity >= n`. Đọc rồi
   mới ghi thì hai người duyệt cùng lúc sẽ phát vượt số lượng thật.
 - `cancel` sau khi đã duyệt thì **trả lại tồn kho**. Không trả là hàng bốc hơi khỏi bài đăng
-  mà không ai nhận được.
+  mà không ai nhận được. Nếu lượt trao đến từ **đổi-bằng-điểm** thì điểm cũng được hoàn — đúng
+  số đã trừ, một lần (CHỐT-13, xem §6).
 - `confirm` đặt `completed_at` — đây là **mốc mà bộ đếm hoạt động của rank đọc**. Thiếu nó
   thì lượt tặng này vô hình với hệ thống hạng.
 - **`handover` không phải riêng cho ship.** Tự đến lấy cũng có lúc trao đồ, và tranh
@@ -1279,6 +1291,8 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
   dấu `COMPLETED` sau 5 ngày — người nhận vừa bị trừ 50 điểm vì không trả ship, vừa
   được ghi công đã nhận quà, trong khi món đồ đang nằm ở nhà người tặng. Lượt huỷ tính
   cho **người nhận**, không phải người bấm báo.
+- Đóng lượt trao cũng **hoàn điểm** nếu nó đến từ đổi-bằng-điểm (CHỐT-13) — khoản phạt
+  không-trả-ship là bút toán riêng và vẫn giữ. Xem §6.
 - Khoản phạt đi qua chính point ledger với khoá chống trùng **theo lượt trao**, nên bấm hai
   lần hay mạng retry đều chỉ trừ một lần — lần sau trả `penaltyApplied: false` thay vì báo
   đã trừ thêm. Số điểm lấy từ point rule `SHIP_UNPAID_PENALTY` nên Admin chỉnh được.

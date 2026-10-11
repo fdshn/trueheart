@@ -25,9 +25,15 @@ import {
 
 import { ReopenGiftTransactionUseCase } from './reopen-gift-transaction.use-case';
 
+import { RefundRedemptionOnCloseService } from './refund-redemption-on-close.service';
+
 @Global()
 @Module({
   providers: [
+    // Hoàn điểm khi lượt trao đổi-bằng-điểm bị huỷ (CHỐT-13). Dùng chung bởi cả
+    // hai đường đóng lượt trao, nên nó là provider chứ không phải một hàm chép
+    // vào từng use case.
+    RefundRedemptionOnCloseService,
     {
       provide: IReopenGiftTransactionUseCase,
       useClass: ReopenGiftTransactionUseCase,

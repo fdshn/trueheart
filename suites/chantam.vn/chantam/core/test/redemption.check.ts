@@ -20,10 +20,12 @@ import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import { GetRedemptionQuoteUseCase } from '../src/application/implementations/gift-request/redemption-quote.use-case';
+import { RefundRedemptionOnCloseService } from '../src/application/implementations/transaction/refund-redemption-on-close.service';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { GiftRequestRepository } from '../src/infrastructure/repository/gift-request.repository';
+import { GiftTransactionRepository } from '../src/infrastructure/repository/gift-transaction.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { RankRepository } from '../src/infrastructure/repository/rank.repository';
 
@@ -38,6 +40,9 @@ const PoorerId = '99999999-9999-4999-8999-9999999f1003';
 const OutsiderId = '99999999-9999-4999-8999-9999999f1004';
 const PricedPostId = '88888888-8888-4888-8888-8888888f1001';
 const NoPricePostId = '88888888-8888-4888-8888-8888888f1002';
+const RefundPostId = '88888888-8888-4888-8888-8888888f1003';
+const RefundRequestId = '77777777-7777-4777-8777-7777777f1001';
+const RefundTransactionId = '66666666-6666-4666-8666-6666666f1001';
 
 const failures: string[] = [];
 
@@ -356,6 +361,129 @@ async function main(): Promise<void> {
       afterDrop.quote.reservedForRankPoints === 672 &&
         afterDrop.quote.availablePoints === 328,
       `reserved=${afterDrop.quote.reservedForRankPoints} available=${afterDrop.quote.availablePoints}`,
+    );
+
+    console.log(
+      '\n6. Huỷ lượt trao ĐỔI-BẰNG-ĐIỂM thì hoàn đúng số điểm đã trừ (CHỐT-13)',
+    );
+    // Chuỗi này SQL-hình: khoá chống trùng của bút toán trừ là
+    // `ITEM_REDEMPTION:<requestId>`, và `requestId` chỉ còn sống trong câu
+    // `UPDATE gift_requests … RETURNING global_id` nằm giữa lòng `close()`.
+    // Test mock không thấy được chỗ nối đó — nó mock luôn `close()`.
+    await seedPost(RefundPostId, { estimatedValue: 1_000_000 });
+    await dataSource.query(
+      `INSERT INTO gift_requests (global_id, post_id, requester_id, message, status)
+       VALUES ($1, $2, $3, 'Em xin đổi bằng điểm ạ', 'ACCEPTED')`,
+      [RefundRequestId, RefundPostId, RicherId],
+    );
+    await dataSource.query(
+      `INSERT INTO gift_transactions
+         (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at)
+       VALUES ($1, $2, $3, $4, 1, 'ACCEPTED', now())`,
+      [RefundTransactionId, RefundPostId, GiverId, RicherId],
+    );
+
+    // Dựng số dư qua SỔ THẬT, không `setBalance`: khoản hoàn là một bút toán
+    // NGƯỢC của bút toán trừ, nên bút toán trừ phải thật.
+    await dataSource.query(`DELETE FROM point_ledger WHERE user_id = $1`, [
+      RicherId,
+    ]);
+    await dataSource.query(
+      `UPDATE user_point_balances SET balance = 0, raw_balance = 0, lifetime = 0
+       WHERE user_id = $1`,
+      [RicherId],
+    );
+    await ledger.appendAdjustment({
+      userId: RicherId,
+      ruleCode: 'ADMIN_ADJUSTMENT',
+      delta: 2_000,
+      referenceType: 'USER',
+      referenceId: RicherId,
+      idempotencyKey: `SEED:REFUND:${RicherId}`,
+      actor: 'SYSTEM',
+      source: 'ADMIN',
+      reason: 'Nạp điểm cho phép kiểm hoàn điểm',
+    });
+    await ledger.appendAdjustment({
+      userId: RicherId,
+      ruleCode: 'ITEM_REDEMPTION',
+      delta: -500,
+      referenceType: 'POST',
+      referenceId: RefundPostId,
+      idempotencyKey: `ITEM_REDEMPTION:${RefundRequestId}`,
+      actor: RicherId,
+      source: 'REDEMPTION',
+      reason: 'Đổi vật phẩm bằng điểm (500 điểm)',
+    });
+
+    const entryId = await ledger.findEntryIdByIdempotencyKey(
+      `ITEM_REDEMPTION:${RefundRequestId}`,
+    );
+    check(
+      'tra được bút toán trừ theo khoá chống trùng',
+      typeof entryId === 'number' && Number.isInteger(entryId),
+      // `point_ledger.id` là `BIGSERIAL`, nên node-pg trả CHUỖI. Thiếu `Number()`
+      // thì chỗ này ra `'3'` và mọi phép so sánh số ở dưới lệch âm thầm.
+      `${typeof entryId} ${String(entryId)}`,
+    );
+
+    const transactions = new GiftTransactionRepository(
+      dataSource.manager,
+      {
+        openRoomWithinTransaction: async () => undefined,
+        lockRoomWithinTransaction: async () => undefined,
+      } as never,
+      ledger as never,
+      {} as never,
+      {} as never,
+    );
+    const closed = await transactions.close({
+      transactionId: RefundTransactionId,
+      actorUserId: RicherId,
+      status: 'CANCELLED',
+      reason: 'Em xin phép huỷ ạ',
+    });
+    check(
+      'close() trả về id yêu cầu vừa bị huỷ',
+      closed.queue.cancelledRequestId === RefundRequestId,
+      String(closed.queue.cancelledRequestId),
+    );
+
+    const refunds = new RefundRedemptionOnCloseService(ledger as never);
+    const refunded = await refunds.refundFor({
+      cancelledRequestId: closed.queue.cancelledRequestId,
+      actorUserId: RicherId,
+    });
+    const afterRefund = await ledger.getSummary(RicherId);
+    check(
+      'hoàn đúng 500 điểm đã trừ, số dư về 2.000',
+      refunded === 500 && afterRefund.balance === 2_000,
+      `hoàn ${refunded}, dư ${afterRefund.balance}`,
+    );
+
+    // Hai đường đóng lượt trao (người dùng tự huỷ, báo không trả ship) đều gọi
+    // tới đây. Lần thứ hai phải không cộng thêm gì — `REVERSAL:<entryId>` là chỗ
+    // chặn, và nó chỉ chặn được trên Postgres thật vì nó là UNIQUE INDEX.
+    const again = await refunds.refundFor({
+      cancelledRequestId: closed.queue.cancelledRequestId,
+      actorUserId: RicherId,
+    });
+    const afterSecond = await ledger.getSummary(RicherId);
+    check(
+      'gọi lần hai không hoàn thêm lần nữa',
+      again === 0 && afterSecond.balance === 2_000,
+      `hoàn ${again}, dư ${afterSecond.balance}`,
+    );
+
+    const [reversal] = await dataSource.query<{ count: string }[]>(
+      `SELECT COUNT(*) AS count FROM point_ledger
+       WHERE user_id = $1 AND idempotency_key LIKE 'REVERSAL:%'`,
+      [RicherId],
+    );
+    check(
+      'sổ chỉ có MỘT bút toán hoàn, không xoá bút toán gốc',
+      Number(reversal.count) === 1,
+      `${reversal.count} bút toán hoàn`,
     );
   } finally {
     for (const source of opened.reverse())

@@ -94,8 +94,8 @@ contract đích của redemption.
 | Giá và quote | `estimatedValue`, `quoteRedemption`, `GET /posts/:postId/redemption-quote`; hiện làm tròn lên | Đổi sang `round_half_up`; quote và POST cùng policy và cùng phiên bản giá được xác nhận |
 | Thời gian | Mode/deadline chỉ cho `OFFER`, bắt đầu từ request đầu tiên | `INSTANT`/`OPTIMAL` cho `OFFER`/`WANTED`; 7 ngày từ `published_at`, rồi tự mở thêm 30 ngày nếu chưa ghép |
 | Chọn người | `acceptRequest` chốt bài, mở transaction/chat, xoá deadline | Redeem chốt một lần, lưu nguyên nhân `REDEEMED`; không auto-select người khác |
-| Điểm và Rank | POST kiểm toàn balance, quote chỉ cảnh báo `wouldDemote` | POST không được vượt điểm khả dụng; quote hiển thị cùng kết luận |
-| Ledger | Có debit `ITEM_REDEMPTION` và refund bù khi accept hỏng | Atomic với việc chốt; idempotent ở lần bấm/retry/concurrent |
+| Điểm và Rank | **Xong 11/10:** cả quote và POST chặn theo `max(0, balance - threshold(rank))`; `wouldDemote` đã gỡ, thay bằng `reservedForRankPoints`/`availablePoints` | POST không được vượt điểm khả dụng; quote hiển thị cùng kết luận |
+| Ledger | **Xong 11/10:** thêm đường hoàn khi lượt trao bị huỷ SAU khi đã chốt (`RefundRedemptionOnCloseService` đảo bút toán gốc, khoá `REVERSAL:<entryId>`), nối cả hai đường đóng | Atomic với việc chốt; idempotent ở lần bấm/retry/concurrent |
 | Admin | Seed JSON `point.redemption`, backend đọc khi quote/redeem | Admin publish được JSON hợp lệ bằng API có audit/version |
 
 ## State machine và ranh giới giao dịch
@@ -113,8 +113,11 @@ contract đích của redemption.
    có. Redeem và job tranh nhau phải được serialization trên cùng bài; bên thua không ghi
    bút toán hoặc phát thông báo sai.
 6. Huỷ giao dịch sau khi redeem phải hoàn đúng debit bằng ledger reversal có reference,
-   idempotency và không sửa/xoá bút toán cũ. Việc có tái mở hàng đợi cho suất được hoàn hay
-   không vẫn là edge case cần Product chốt, không được suy từ `selection_deadline = NULL`.
+   idempotency và không sửa/xoá bút toán cũ. **Xong 11/10:** `reverseEntry` đọc `delta` của bút
+   toán gốc nên không có đường nào tính lại theo tỷ lệ hiện tại, và khoá `REVERSAL:<entryId>`
+   chặn lần hoàn thứ hai; `close()` trả `cancelledRequestId` để dựng khoá tra bút toán gốc.
+   Việc có tái mở hàng đợi cho suất được hoàn hay không vẫn là edge case cần Product chốt,
+   không được suy từ `selection_deadline = NULL`.
 
 ### Atomicity và khóa
 

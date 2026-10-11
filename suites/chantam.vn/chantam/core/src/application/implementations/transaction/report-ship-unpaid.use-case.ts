@@ -23,6 +23,7 @@ import {
 import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { withStorageValidation } from '../shared/storage-error';
+import { RefundRedemptionOnCloseService } from './refund-redemption-on-close.service';
 
 /**
  * Người gửi báo hàng bị hoàn và người nhận không trả phí ship (CH-2).
@@ -59,6 +60,7 @@ export class ReportShipUnpaidUseCase implements IReportShipUnpaidUseCase {
     private readonly ledger: IPointLedgerRepository,
     @Inject(IObjectStorage)
     private readonly storage: IObjectStorage,
+    private readonly refundRedemption: RefundRedemptionOnCloseService,
   ) {}
 
   public async handle(
@@ -123,6 +125,16 @@ export class ReportShipUnpaidUseCase implements IReportShipUnpaidUseCase {
         uploadedBy: command.userId,
         storageKeys: returnedKeys,
       },
+    });
+
+    // Cùng lý do như đường người dùng tự huỷ: lượt trao đến từ đổi-bằng-điểm thì
+    // người nhận đã trả điểm, và đóng mà không hoàn là họ mất cả hai.
+    //
+    // Khoản phạt không-trả-ship ở trên là một bút toán RIÊNG và vẫn giữ: nó phạt
+    // việc không trả ship, không phải việc lượt trao bị đóng.
+    await this.refundRedemption.refundFor({
+      cancelledRequestId: closed.queue.cancelledRequestId,
+      actorUserId: command.userId,
     });
 
     return {

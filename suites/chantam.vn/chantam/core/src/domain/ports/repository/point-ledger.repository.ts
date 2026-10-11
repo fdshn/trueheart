@@ -79,6 +79,18 @@ export interface IPointLedgerRepository {
   reverseEntry(
     params: IReversePointEntryParams,
   ): Promise<ReversePointEntryOutcome>;
+  /**
+   * Tìm `id` của một bút toán theo khoá chống trùng, `null` khi chưa có.
+   *
+   * Cần vì `reverseEntry` nhận `entryId`, mà nơi gọi thường chỉ biết khoá — khoá
+   * là thứ tất định dựng từ nghiệp vụ, còn `id` là số tự tăng không ai đoán được.
+   *
+   * Ca dùng đầu: huỷ một lượt trao đổi-bằng-điểm phải hoàn **đúng số điểm đã
+   * trừ** (CHỐT-13). Khoá của bút toán trừ là `ITEM_REDEMPTION:<requestId>`, nên
+   * tra theo nó là đọc đúng bút toán gốc — không phải tính lại theo giá hay tỷ lệ
+   * hiện tại.
+   */
+  findEntryIdByIdempotencyKey(key: string): Promise<number | null>;
   appendByRule(
     command: IAppendPointEntryCommand,
   ): Promise<IAppendPointEntryResult>;

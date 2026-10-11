@@ -222,13 +222,33 @@ F76, và một lượt đổi được thì không bao giờ tụt hạng nên c
 `reservedForRankPoints` + `availablePoints`. Bảng bậc chưa seed thì không tiêu được
 (fail-closed).
 
-Hai việc còn lại của mục 2:
+**Mục 2 xong phần hoàn điểm khi huỷ, 11/10 (CHỐT-13).** Trước đó chỉ có đường hoàn khi *bước
+duyệt* hỏng (`ITEM_REDEMPTION:REFUND:<requestId>`, trong cùng use case); lượt trao bị huỷ **sau
+đó** — người cho đổi ý, người nhận không đến, người gửi báo không trả ship — thì không đường nào
+hoàn, và người đổi mất điểm lẫn món đồ.
+
+Nay `RefundRedemptionOnCloseService` tra bút toán gốc theo khoá
+`ITEM_REDEMPTION:<requestId>` rồi **đảo** nó. Ba điều đặc tả đòi là tính chất có sẵn của
+`reverseEntry`, không phải thứ phải tự canh:
+
+- *đúng số điểm đã trừ* — nó đọc `delta` của bút toán gốc, không nhận số từ nơi gọi, nên không
+  có đường nào tính lại theo tỷ lệ hiện tại;
+- *bút toán hoàn riêng* — sổ chỉ ghi thêm, có trigger chặn `UPDATE`;
+- *chỉ một lần* — khoá chống trùng là `REVERSAL:<entryId>`.
+
+Nối vào **cả hai** đường đóng lượt trao: người dùng tự huỷ và người gửi báo không trả ship.
+Khoản phạt không-trả-ship là bút toán RIÊNG và vẫn giữ — nó phạt việc không trả ship, không
+phải việc lượt trao bị đóng. Lỗi khi hoàn **không** ném ra: lượt huỷ đã commit, và báo "huỷ
+thất bại" cho một lượt đã đóng thật là tệ hơn. Điểm chưa hoàn là một khoản nợ đọc được — bút
+toán trừ còn đó mà không có `REVERSAL:<id>` đi kèm.
+
+`IReopenedQueue.cancelledRequestId` là đường dẫn `requestId` ra khỏi `close()`: đó là chỗ duy
+nhất trong đường huỷ còn biết yêu cầu nào vừa bị huỷ.
+
+Việc còn lại của mục 2:
 
 1. **Quote stale phải bắt xác nhận lại.** Nếu giá hoặc tỷ lệ đổi giữa lúc xem trước và lúc
    bấm, hiện lệnh đổi tính lại theo giá mới và trừ luôn — đặc tả đòi xác nhận lại.
-2. **Giao dịch đổi điểm bị HUỶ phải hoàn đúng số điểm đã trừ.** Đo được: chỉ có đường hoàn khi
-   *bước duyệt* hỏng (`ITEM_REDEMPTION:REFUND:<requestId>`, trong cùng use case). Giao dịch bị
-   huỷ **sau đó** thì không đường nào hoàn — người đổi mất điểm và mất cả món đồ.
 
 Mục 4 và 5 vẫn còn nguyên. Review hiện bất biến tại database; F76 hiện ghi cho phép tiêu
 điểm tụt Rank. Đây là **danh sách phải triển khai**, không được coi tài liệu mới là bằng chứng

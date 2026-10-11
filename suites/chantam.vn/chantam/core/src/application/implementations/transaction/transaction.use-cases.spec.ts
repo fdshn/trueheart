@@ -115,7 +115,11 @@ function makeRepository() {
         _params: unknown,
       ): Promise<{
         transaction: IGiftTransactionSummary;
-        queue: { reopenedCount: number; candidates: ICandidateMetrics[] };
+        queue: {
+          reopenedCount: number;
+          candidates: ICandidateMetrics[];
+          cancelledRequestId: string | null;
+        };
       }> => ({
         transaction: { ...Summary, status: 'CANCELLED' as const },
         // Hai ứng viên khác nhau ở HẠNG và ở THỜI ĐIỂM vào hàng đợi, để đổi
@@ -123,6 +127,7 @@ function makeRepository() {
         queue: {
           reopenedCount: 2,
           candidates: [EarlyCandidate, SeniorCandidate],
+          cancelledRequestId: null,
         },
       }),
     ),
@@ -136,6 +141,14 @@ function makeRepository() {
     findByGlobalId: jest.fn(async () => Summary),
     countCompletedByGiver: jest.fn(),
   };
+}
+
+/**
+ * Service hoàn điểm, dạng giả. Mặc định "không có gì để hoàn" — đó là đường PHỔ
+ * BIẾN: phần lớn lượt trao không đến từ đổi điểm.
+ */
+function makeRefund(refunded = 0) {
+  return { refundFor: jest.fn(async () => refunded) };
 }
 
 describe('Gift transaction use cases', () => {
@@ -204,6 +217,7 @@ describe('Gift transaction use cases', () => {
       makeChat() as never,
       notifier as never,
       makeAdminConfig() as never,
+      makeRefund() as never,
     ).handle({
       userId: UserId,
       transactionId: TransactionId,
@@ -217,6 +231,82 @@ describe('Gift transaction use cases', () => {
     expect(targets).toEqual([Summary.giverId, NextCandidateId]);
   });
 
+  it('huỷ thì GỌI hoàn điểm, với id yêu cầu lấy từ queue (CHỐT-13)', async () => {
+    // Lưới cho CHỖ NỐI, không cho service. Phép kiểm của service nói rằng nó hoàn
+    // đúng số điểm; phép kiểm này nói rằng nó ĐƯỢC GỌI. Dựng lại lỗi cho thấy vì
+    // sao cần cả hai: gỡ lượt gọi khỏi use case mà chỉ có phép kiểm service thì
+    // mọi thứ vẫn xanh — đúng cái lỗ lát này sửa.
+    const repository = makeRepository();
+    repository.close = jest.fn(async () => ({
+      transaction: { ...Summary, status: 'CANCELLED' as const },
+      queue: {
+        reopenedCount: 0,
+        candidates: [],
+        cancelledRequestId: 'req-da-doi-diem',
+      },
+    })) as never;
+    const refund = makeRefund(500);
+
+    await new CancelGiftTransactionUseCase(
+      repository as never,
+      makeChat() as never,
+      makeNotifier() as never,
+      makeAdminConfig() as never,
+      refund as never,
+    ).handle({
+      userId: UserId,
+      transactionId: TransactionId,
+      cancellation: { reason: 'Không sắp xếp được' },
+    });
+
+    expect(refund.refundFor).toHaveBeenCalledWith({
+      cancelledRequestId: 'req-da-doi-diem',
+      actorUserId: UserId,
+    });
+  });
+
+  it('hoàn điểm chạy TRƯỚC khi báo cho hàng đợi', async () => {
+    // Thứ tự có nghĩa: thông báo "bài mở lại" mời ứng viên kế tiếp vào, và họ có
+    // thể đổi điểm ngay. Hoàn sau đó thì có một khoảng người vừa bị huỷ chưa có
+    // điểm lại trong khi suất đã mở cho người khác.
+    const order: string[] = [];
+    const repository = makeRepository();
+    repository.close = jest.fn(async () => ({
+      transaction: { ...Summary, status: 'CANCELLED' as const },
+      queue: {
+        reopenedCount: 1,
+        candidates: [],
+        cancelledRequestId: 'req-1',
+      },
+    })) as never;
+    const refund = {
+      refundFor: jest.fn(async () => {
+        order.push('refund');
+        return 500;
+      }),
+    };
+    const notifier = makeNotifier();
+    const original = notifier.handle;
+    notifier.handle = jest.fn(async (...args: unknown[]) => {
+      order.push('notify');
+      return (original as (...a: unknown[]) => unknown)(...args);
+    }) as never;
+
+    await new CancelGiftTransactionUseCase(
+      repository as never,
+      makeChat() as never,
+      notifier as never,
+      makeAdminConfig() as never,
+      refund as never,
+    ).handle({
+      userId: UserId,
+      transactionId: TransactionId,
+      cancellation: { reason: 'Không sắp xếp được' },
+    });
+
+    expect(order[0]).toBe('refund');
+  });
+
   it('Admin đổi thứ tự ưu tiên thì đổi người được đề xuất (CH-1)', async () => {
     // Toàn bộ lý do tồn tại của cấu hình động: cùng dữ liệu, hai chính sách,
     // hai người khác nhau được đề xuất.
@@ -228,6 +318,7 @@ describe('Gift transaction use cases', () => {
       makeChat() as never,
       notifier as never,
       makeAdminConfig(['HIGHEST_RANK']) as never,
+      makeRefund() as never,
     ).handle({
       userId: UserId,
       transactionId: TransactionId,
@@ -249,6 +340,7 @@ describe('Gift transaction use cases', () => {
       makeChat() as never,
       notifier as never,
       makeAdminConfig(['KHONG_TON_TAI']) as never,
+      makeRefund() as never,
     ).handle({
       userId: UserId,
       transactionId: TransactionId,
@@ -272,6 +364,7 @@ describe('Gift transaction use cases', () => {
       makeChat() as never,
       notifier as never,
       makeAdminConfig() as never,
+      makeRefund() as never,
     ).handle({
       userId: UserId,
       transactionId: TransactionId,
@@ -290,7 +383,7 @@ describe('Gift transaction use cases', () => {
     const repository = makeRepository();
     repository.close = jest.fn(async (_params: unknown) => ({
       transaction: { ...Summary, status: 'CANCELLED' as const },
-      queue: { reopenedCount: 0, candidates: [] },
+      queue: { reopenedCount: 0, candidates: [], cancelledRequestId: null },
     }));
     const notifier = makeNotifier();
 
@@ -299,6 +392,7 @@ describe('Gift transaction use cases', () => {
       makeChat() as never,
       notifier as never,
       makeAdminConfig() as never,
+      makeRefund() as never,
     ).handle({
       userId: UserId,
       transactionId: TransactionId,
@@ -315,6 +409,7 @@ describe('Gift transaction use cases', () => {
       makeChat() as never,
       makeNotifier() as never,
       makeAdminConfig() as never,
+      makeRefund() as never,
     );
 
     await useCase.handle({

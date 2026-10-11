@@ -230,6 +230,19 @@ export class PointLedgerRepository implements IPointLedgerRepository {
   /** Mã rule cho bút toán hoàn. */
   private static readonly ReversalRuleCode = 'REVERSAL';
 
+  public async findEntryIdByIdempotencyKey(
+    key: string,
+  ): Promise<number | null> {
+    const [row] = await this.manager.query<{ id: string }[]>(
+      `SELECT id FROM point_ledger WHERE idempotency_key = $1`,
+      [key],
+    );
+    // `id` là `BIGSERIAL`, nên node-pg trả CHUỖI. Thiếu `Number()` thì
+    // `reverseEntry` nhận một chuỗi vào chỗ chờ số và câu `WHERE id = $1` vẫn
+    // chạy — lỗi chỉ lộ ra ở phép so sánh nào đó rất xa chỗ này.
+    return row ? Number(row.id) : null;
+  }
+
   public async reverseEntry(
     params: IReversePointEntryParams,
   ): Promise<ReversePointEntryOutcome> {

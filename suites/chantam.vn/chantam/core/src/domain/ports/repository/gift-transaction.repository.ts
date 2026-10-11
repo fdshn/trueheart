@@ -107,6 +107,14 @@ export interface IReopenedQueue {
    * trao (F33) — người cho vẫn phải bấm duyệt.
    */
   readonly candidates: readonly ICandidateMetrics[];
+  /**
+   * Id của yêu cầu vừa bị huỷ cùng lượt trao, `null` khi không có.
+   *
+   * Dùng để dựng khoá bút toán trừ điểm (`ITEM_REDEMPTION:<requestId>`) khi hoàn
+   * điểm cho một lượt đổi-bằng-điểm bị huỷ (CHỐT-13). Đường huỷ là chỗ DUY NHẤT
+   * còn biết id đó: `gift_transactions` không giữ tham chiếu tới yêu cầu.
+   */
+  readonly cancelledRequestId: string | null;
 }
 
 export interface ICloseGiftTransactionResult {
