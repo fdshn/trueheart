@@ -870,6 +870,51 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Đề nghị đã được xét nên không sửa hay rút được nữa; thay đổi phải đi qua huỷ lượt giao nhận',
   },
 
+  CHARITY_CONTRIBUTION_ALREADY_DECIDED: {
+    code: ErrorCodes.CHARITY_CONTRIBUTION_ALREADY_DECIDED,
+    httpStatus: HttpStatus.CONFLICT,
+    // Retry CÙNG khoá thì không tới đây — nó nhận lại đúng kết quả cũ. Tới đây là
+    // một lượt quyết định KHÁC, ví dụ hai người cùng bấm trên hai thiết bị.
+    message: () => 'Đề nghị này không còn chờ xét — đã được xét hoặc đã rút',
+  },
+
+  CHARITY_LINES_INVALID: {
+    code: ErrorCodes.CHARITY_LINES_INVALID,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (detail?: string) => detail ?? 'Các dòng gửi lên không hợp lệ',
+  },
+
+  CHARITY_NEED_EXCEEDED: {
+    code: ErrorCodes.CHARITY_NEED_EXCEEDED,
+    httpStatus: HttpStatus.CONFLICT,
+    // Nói cả hai con số: §5 đòi trả phần còn lại MỚI NHẤT, và thiếu nó thì người tổ
+    // chức phải tải lại cả bảng nhu cầu chỉ để biết nên sửa thành bao nhiêu.
+    message: (itemName?: string, requested?: number, remaining?: number) =>
+      `${itemName ?? 'Vật phẩm'}: bạn chọn nhận ${requested ?? 0} nhưng chỉ còn thiếu ${remaining ?? 0}`,
+  },
+
+  CHARITY_SELF_CONTRIBUTION: {
+    code: ErrorCodes.CHARITY_SELF_CONTRIBUTION,
+    httpStatus: HttpStatus.CONFLICT,
+    // Chặn ở lượt GỬI chứ không đợi lượt quyết: tới lượt quyết thì
+    // CHK_campaign_deliveries_not_self mới bắt, và người dùng nhận một lỗi 500.
+    message: () =>
+      'Bạn đang tổ chức hoạt động này nên không gửi đề nghị đóng góp vào nó được',
+  },
+
+  CHARITY_DELIVERY_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_DELIVERY_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy lượt giao nhận',
+  },
+
+  CHARITY_DELIVERY_INVALID_STATE: {
+    code: ErrorCodes.CHARITY_DELIVERY_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (status?: string) =>
+      `Lượt giao nhận đang ở trạng thái ${status ?? 'khác'}, không thực hiện được thao tác này`,
+  },
+
   CHARITY_APPROVAL_ALREADY_DECIDED: {
     code: ErrorCodes.CHARITY_APPROVAL_ALREADY_DECIDED,
     httpStatus: HttpStatus.CONFLICT,

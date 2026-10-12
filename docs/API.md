@@ -1753,7 +1753,7 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 
 ## 13. Từ thiện — bảng nhu cầu và đề nghị đóng góp (ĐANG TRIỂN KHAI)
 
-> **Sáu dòng đầu đã CHẠY từ 12/10; phần còn lại vẫn là contract mục tiêu.** Tiến độ từng lát ở
+> **Các dòng đánh dấu ✅ đã CHẠY từ 12/10; phần còn lại vẫn là contract mục tiêu.** Tiến độ từng lát ở
 > [`CHARITY-CONTRIBUTION-DESIGN.md` §12](./plan/CHARITY-CONTRIBUTION-DESIGN.md#12-tiến-độ-triển-khai)
 > — đó là nguồn duy nhất, bảng này không kể lại. Endpoint nào chưa tick ở đó thì client không
 > được giả lập thành công.
@@ -1774,10 +1774,13 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `GET` | `/charity-campaigns/:id/contributions` | Organizer | ✅ **Đã chạy.** Danh sách đề nghị, lọc được theo trạng thái. Coordinator chưa có — xem lát C |
 | `GET` | `/charity-contributions/me` | Bearer | ✅ **Đã chạy.** Đề nghị của chính mình, mọi hoạt động |
 | `PATCH` | `/charity-contributions/:id` | Bearer (chủ đề nghị) | ✅ **Đã chạy.** `action: REPLACE` thay trọn bộ dòng, `WITHDRAW` rút — chỉ khi chưa có phần nào được chấp nhận |
-| `POST` | `/charity-contributions/:id/decision` | Organizer/coordinator | Chấp nhận/từ chối từng dòng, bắt buộc idempotency key |
+| `POST` | `/charity-contributions/:id/decision` | Organizer | ✅ **Đã chạy.** Quyết **mọi** dòng trong một lượt, nguyên tử; chống vượt nhu cầu khi hai lượt cùng lúc; `decisionKey` chống trùng |
 | `POST` | `/charity-campaigns/:id/external-contributions` | Organizer/coordinator | Ghi nhận vật phẩm nhận ngoài app có audit |
 | `PATCH` | `/charity-external-contributions/:id` | Organizer/coordinator | Điều chỉnh/hủy bản ghi ngoài app có lý do |
 | `POST` | `/charity-campaigns/:id/close` | Organizer/Admin | Đóng chiến dịch; giữ transaction đang chạy |
+| `GET` | `/charity-deliveries/:id` | Hai bên | ✅ **Đã chạy.** Một lượt giao nhận; người ngoài nhận cùng lỗi với không tồn tại |
+| `POST` | `/charity-deliveries/:id/complete` | Organizer | ✅ **Đã chạy.** Xác nhận số THỰC NHẬN từng dòng; phần thiếu trở về nhu cầu |
+| `POST` | `/charity-deliveries/:id/cancel` | Hai bên | ✅ **Đã chạy.** Trả phần đã nhận về nhu cầu, không xoá đề nghị |
 
 **Hai endpoint đã chạy — điều client cần biết**
 
@@ -1842,6 +1845,33 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
   `REPLACE` thay **trọn bộ** dòng: bỏ một dòng khỏi mảng là xoá dòng đó. `WITHDRAW` đổi trạng
   thái, **không xoá** bản ghi — người tổ chức đã đọc đề nghị đó và cần biết nó từng tồn tại.
   Đề nghị của người khác trả cùng lỗi với đề nghị không tồn tại.
+
+- **Lượt giao nhận từ thiện KHÔNG nằm ở `/transactions/*`.** Nó ở bảng riêng
+  (`campaign_deliveries`), vì `gift_transactions` và `chat_rooms` đều bắt buộc gắn một bài
+  đăng. Hệ quả cho app: không có phòng chat, ảnh bàn giao, cron tự hoàn tất hay review cho
+  lượt giao nhận từ thiện; mỗi đề nghị có tối đa một lượt giao, đọc qua `deliveryId` của đề
+  nghị.
+
+- `POST /charity-contributions/:id/decision` quyết **mọi** dòng trong một lượt — bỏ sót một
+  dòng là `400 CHARITY_LINES_INVALID`. Nhận ít hơn đề nghị thì **phải** có `rejectionReason`;
+  nhận đủ thì **không** được có. Phần còn thiếu được tính lại **sau khi đã khoá** các dòng nhu
+  cầu, nên hai lượt quyết cùng lúc vào một nhu cầu thì lượt sau thấy con số lượt trước để lại;
+  vượt thì `409 CHARITY_NEED_EXCEEDED` kèm phần còn lại mới nhất. Không âm thầm cắt số.
+
+  `decisionKey` do client sinh cho **mỗi lần bấm**. Gửi lại cùng khoá → nhận lại đúng kết quả
+  cũ với `replayed: true`, không ghi gì. Khoá khác trên đề nghị đã quyết →
+  `409 CHARITY_CONTRIBUTION_ALREADY_DECIDED`.
+
+- `POST /charity-deliveries/:id/complete` nhận số **thực nhận** từng dòng (0 tới số đã chấp
+  nhận). Tiến độ công khai chỉ tăng theo số thực nhận; phần thiếu trở về nhu cầu. Hoàn tất
+  xong thì người tặng được cộng `CHARITY_CONTRIBUTION_COMPLETED` **một lần cho mỗi đề nghị**,
+  nếu thực nhận được ít nhất một thứ — rule đó đang **TẮT** nên hiện chưa phát điểm.
+
+- Người tổ chức **không** gửi đề nghị vào chính hoạt động của mình
+  (`409 CHARITY_SELF_CONTRIBUTION`).
+
+- Chưa có: thông báo cho người tặng khi đề nghị được quyết/lượt giao đổi trạng thái, và vai
+  coordinator — chỉ người tạo hoạt động quyết được.
 
 Body tạo đề nghị luôn bọc khoá `contribution`:
 

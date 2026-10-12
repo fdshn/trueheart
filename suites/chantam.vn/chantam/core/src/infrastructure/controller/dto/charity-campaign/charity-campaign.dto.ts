@@ -711,6 +711,21 @@ export class CharityContributionDto {
 
   @ApiProperty({ type: () => [CharityContributionItemDto] })
   items: CharityContributionItemDto[];
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Lượt giao nhận sinh từ đề nghị này; tối đa một.',
+  })
+  deliveryId: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: ['ACCEPTED', 'COMPLETED', 'CANCELLED'],
+  })
+  deliveryStatus: string | null;
 }
 
 export class CharityContributionPageDto {
@@ -740,4 +755,152 @@ export class ListContributionsQueryDto {
   @IsInt()
   @Min(0)
   offset?: number;
+}
+
+export class ContributionLineDecisionDto {
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Dòng của ĐỀ NGHỊ (không phải dòng nhu cầu).',
+  })
+  @IsUUID()
+  contributionItemId: string;
+
+  @ApiProperty({
+    minimum: 0,
+    example: 30,
+    description:
+      'Số nhận, từ 0 tới số người tặng đề nghị. `0` là từ chối cả dòng.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(MaxNeedItemQuantity)
+  acceptedQuantity: number;
+
+  @ApiPropertyOptional({
+    enum: CharityRejectionReasons,
+    description:
+      '**Bắt buộc** khi nhận ít hơn đề nghị, và phải **bỏ trống** khi nhận đủ.',
+  })
+  @IsOptional()
+  @IsIn(CharityRejectionReasons)
+  rejectionReason?: (typeof CharityRejectionReasons)[number];
+}
+
+export class DecideCharityContributionBodyDto {
+  @ApiProperty({
+    maxLength: 100,
+    example: '0f8e2c1a-5b8c-4d7e-9f3a-2b1c0d9e8f7a',
+    description:
+      'Khoá chống trùng do CLIENT sinh cho MỖI lần bấm (nên là UUID). Bấm đúp hay mạng retry cùng khoá thì nhận lại đúng kết quả cũ (`replayed: true`) và không tạo lượt giao nhận thứ hai.',
+  })
+  @IsString()
+  @Length(8, 100)
+  decisionKey: string;
+
+  @ApiProperty({
+    type: () => [ContributionLineDecisionDto],
+    description:
+      'Quyết **mọi** dòng của đề nghị trong một lượt — không quyết dần. Một đề nghị chỉ có một lượt quyết và tối đa một lượt giao nhận.',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MaxContributionItems)
+  @ValidateNested({ each: true })
+  @Type(() => ContributionLineDecisionDto)
+  decisions: ContributionLineDecisionDto[];
+}
+
+export class DeliveryReceiptLineDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  needItemId: string;
+
+  @ApiProperty({
+    minimum: 0,
+    example: 30,
+    description:
+      'Số THỰC NHẬN, từ 0 tới số đã chấp nhận. Phần thiếu trở về nhu cầu để người khác tặng tiếp.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(MaxNeedItemQuantity)
+  receivedQuantity: number;
+}
+
+export class CompleteCharityDeliveryBodyDto {
+  @ApiProperty({
+    type: () => [DeliveryReceiptLineDto],
+    description:
+      'Xác nhận **đủ** mọi dòng của lượt giao nhận, mỗi dòng một lần.',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MaxContributionItems)
+  @ValidateNested({ each: true })
+  @Type(() => DeliveryReceiptLineDto)
+  received: DeliveryReceiptLineDto[];
+}
+
+export class CancelCharityDeliveryBodyDto {
+  @ApiProperty({ maxLength: 500, example: 'Không sắp xếp được thời gian giao' })
+  @IsString()
+  @Length(1, 500)
+  reason: string;
+}
+
+export class CharityDeliveryItemDto {
+  @ApiProperty({ format: 'uuid' }) needItemId: string;
+  @ApiProperty({ example: 'Gạo tẻ' }) itemName: string;
+  @ApiProperty({ example: 'kg' }) unit: string;
+  @ApiProperty({ example: 40 }) acceptedQuantity: number;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    example: 30,
+    description:
+      '`null` là chưa xác nhận; `0` là đã xác nhận và không nhận được gì.',
+  })
+  receivedQuantity: number | null;
+}
+
+export class CharityDeliveryDto {
+  @ApiProperty({ format: 'uuid' }) globalId: string;
+  @ApiProperty({ format: 'uuid' }) campaignId: string;
+  @ApiProperty({ format: 'uuid' }) contributionId: string;
+  @ApiProperty({ format: 'uuid' }) contributorId: string;
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Người NHẬN — người tổ chức tại lúc quyết định.',
+  })
+  organizerId: string;
+  @ApiProperty({ enum: ['ACCEPTED', 'COMPLETED', 'CANCELLED'] }) status: string;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt: Date;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  completedAt: Date | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  cancelledAt: Date | null;
+  @ApiProperty({ type: String, nullable: true }) cancelReason: string | null;
+  @ApiProperty({ type: () => [CharityDeliveryItemDto] })
+  items: CharityDeliveryItemDto[];
+}
+
+export class DecideCharityContributionResponseDto {
+  @ApiProperty({ type: () => CharityContributionDto })
+  contribution: CharityContributionDto;
+
+  @ApiProperty({
+    type: () => CharityDeliveryDto,
+    nullable: true,
+    description: '`null` khi từ chối mọi dòng — không sinh lượt giao nhận rác.',
+  })
+  delivery: CharityDeliveryDto | null;
+
+  @ApiProperty({
+    description:
+      '`true` khi đây là lần retry cùng `decisionKey`: không ghi gì, chỉ trả lại kết quả cũ.',
+  })
+  replayed: boolean;
 }

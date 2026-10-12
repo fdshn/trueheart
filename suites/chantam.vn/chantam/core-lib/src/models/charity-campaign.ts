@@ -442,3 +442,113 @@ export function contributionStatusFrom(
   );
   return full ? 'ACCEPTED' : 'PARTIALLY_ACCEPTED';
 }
+
+export interface IContributionLineForDecision {
+  readonly contributionItemId: string;
+  readonly needItemId: string;
+  readonly offeredQuantity: number;
+}
+
+export interface IContributionLineDecision {
+  readonly contributionItemId: string;
+  readonly acceptedQuantity: number;
+  readonly rejectionReason?: CharityRejectionReason | null;
+}
+
+/**
+ * Vì sao một lượt quyết định không hợp lệ. `null` khi hợp lệ.
+ *
+ * Trả lý do chứ không trả `boolean`: người tổ chức đang chọn số lượng cho từng dòng,
+ * và "quyết định không hợp lệ" mà không nói dòng nào là một màn hình họ phải tự dò.
+ */
+export function contributionDecisionProblem(
+  lines: readonly IContributionLineForDecision[],
+  decisions: readonly IContributionLineDecision[],
+): string | null {
+  // Quyết MỌI dòng trong một lượt, không quyết dần. Một đề nghị nửa đã quyết sẽ sinh
+  // một lượt giao nhận cho phần đã nhận rồi chờ phần kia — và lượt quyết thứ hai
+  // không có chỗ nào để đặt lượt giao nhận thứ hai (`UQ_campaign_deliveries_contribution`).
+  const byId = new Map(lines.map((line) => [line.contributionItemId, line]));
+  const seen = new Set<string>();
+
+  for (const decision of decisions) {
+    const line = byId.get(decision.contributionItemId);
+    if (!line)
+      return `Dòng ${decision.contributionItemId} không thuộc đề nghị này`;
+    if (seen.has(decision.contributionItemId))
+      return `Dòng ${decision.contributionItemId} được quyết hai lần`;
+    seen.add(decision.contributionItemId);
+
+    if (
+      !Number.isInteger(decision.acceptedQuantity) ||
+      decision.acceptedQuantity < 0 ||
+      decision.acceptedQuantity > line.offeredQuantity
+    )
+      return `Dòng ${decision.contributionItemId}: số nhận phải từ 0 tới ${line.offeredQuantity}`;
+
+    const partial = decision.acceptedQuantity < line.offeredQuantity;
+    const reason = decision.rejectionReason ?? null;
+    // Nhận ÍT hơn đề nghị thì PHẢI nói vì sao (§4); nhận đủ thì KHÔNG được mang lý
+    // do từ chối — database cũng chặn, nhưng chặn ở đây cho ra câu đọc được.
+    if (partial && reason === null)
+      return `Dòng ${decision.contributionItemId}: nhận ít hơn đề nghị thì phải chọn lý do`;
+    if (!partial && reason !== null)
+      return `Dòng ${decision.contributionItemId}: nhận đủ thì không có lý do từ chối`;
+  }
+
+  if (seen.size !== lines.length)
+    return 'Phải quyết đủ mọi dòng của đề nghị trong một lượt';
+  return null;
+}
+
+export interface INeedCapacity {
+  readonly needItemId: string;
+  readonly itemName: string;
+  readonly targetQuantity: number;
+  readonly acceptedQuantity: number;
+  readonly receivedQuantity: number;
+}
+
+export interface INeedOverflow {
+  readonly needItemId: string;
+  readonly itemName: string;
+  readonly requested: number;
+  readonly remaining: number;
+}
+
+/**
+ * Dòng nhu cầu đầu tiên mà lượt chấp nhận này làm VƯỢT phần còn thiếu (§5).
+ *
+ * Gọi TRONG transaction, sau khi đã khoá các dòng nhu cầu — con số `remaining` ở đây
+ * chỉ đúng vì không ai khác ghi được vào những dòng đó cho tới khi transaction xong.
+ * Gọi ngoài khoá là đúng cái lỗ mà tiêu chí §11.1 (hai người tổ chức bấm cùng lúc)
+ * được viết ra để canh.
+ *
+ * Không âm thầm cắt số: §5 nói người tổ chức phải biết chính xác mình vừa chấp nhận
+ * bao nhiêu, nên vượt thì từ chối cả lượt và trả phần còn lại mới nhất.
+ */
+export function firstNeedOverflow(
+  needs: readonly INeedCapacity[],
+  accepted: readonly { needItemId: string; acceptedQuantity: number }[],
+): INeedOverflow | null {
+  const requested = new Map<string, number>();
+  for (const line of accepted)
+    requested.set(
+      line.needItemId,
+      (requested.get(line.needItemId) ?? 0) + line.acceptedQuantity,
+    );
+
+  for (const need of needs) {
+    const want = requested.get(need.needItemId) ?? 0;
+    if (want === 0) continue;
+    const remaining = remainingNeedQuantity(need);
+    if (want > remaining)
+      return {
+        needItemId: need.needItemId,
+        itemName: need.itemName,
+        requested: want,
+        remaining,
+      };
+  }
+  return null;
+}

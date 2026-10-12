@@ -265,6 +265,17 @@ export enum ErrorCodes {
   CHARITY_CONTRIBUTION_NOT_FOUND = 0x13_0e,
   /** Đã có phần được chấp nhận, nên đề nghị khoá (F65b §4). */
   CHARITY_CONTRIBUTION_NOT_EDITABLE = 0x13_0f,
+  /** Đề nghị đã được quyết bằng một khoá KHÁC (F65b §5). */
+  CHARITY_CONTRIBUTION_ALREADY_DECIDED = 0x13_10,
+  /** Các dòng gửi lên không khớp đề nghị/lượt giao nhận, hoặc sai luật lý do. */
+  CHARITY_LINES_INVALID = 0x13_11,
+  /** Lượt chấp nhận làm vượt phần còn thiếu của một dòng nhu cầu (§5). */
+  CHARITY_NEED_EXCEEDED = 0x13_12,
+  CHARITY_DELIVERY_NOT_FOUND = 0x13_13,
+  /** Lượt giao nhận không còn ở trạng thái cho phép thao tác này. */
+  CHARITY_DELIVERY_INVALID_STATE = 0x13_14,
+  /** Người tổ chức gửi đề nghị vào chính hoạt động của mình. */
+  CHARITY_SELF_CONTRIBUTION = 0x13_15,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

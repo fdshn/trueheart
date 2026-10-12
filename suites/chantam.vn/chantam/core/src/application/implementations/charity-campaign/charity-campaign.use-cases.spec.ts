@@ -3,10 +3,13 @@ import {
   CharityCampaignNotFoundException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
+  CharityDeliveryNotFoundException,
+  CharityLinesInvalidException,
   CharityNeedItemInvalidException,
   CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
   CharityReviewNotPermittedException,
+  CharitySelfContributionException,
 } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
@@ -19,8 +22,11 @@ import {
   ValidationFailedException,
 } from '@chantam/service.common-lib/exception';
 import {
+  CancelCharityDeliveryUseCase,
   CreateCharityCampaignUseCase,
+  DecideCharityContributionUseCase,
   GetCampaignNeedsUseCase,
+  GetCharityDeliveryUseCase,
   ListCampaignContributionsUseCase,
   ReviewCharityCampaignUseCase,
   SubmitCharityContributionUseCase,
@@ -91,6 +97,10 @@ function makeRepository(): jest.Mocked<ICharityCampaignRepository> {
     findContributionByGlobalId: jest.fn(),
     replaceContribution: jest.fn(),
     withdrawContribution: jest.fn(),
+    decideContribution: jest.fn(),
+    completeDelivery: jest.fn(),
+    cancelDelivery: jest.fn(),
+    findDeliveryByGlobalId: jest.fn(),
     listReviews: jest.fn(),
   } as unknown as jest.Mocked<ICharityCampaignRepository>;
 }
@@ -903,6 +913,8 @@ describe('UpdateCharityContributionUseCase (F65b §4)', () => {
       decidedAt: null,
       createdAt: new Date(),
       items: [],
+      deliveryId: null,
+      deliveryStatus: null,
       ...overrides,
     };
   }
@@ -1032,5 +1044,127 @@ describe('UpdateCharityContributionUseCase (F65b §4)', () => {
 
     expect(result.status).toBe('WITHDRAWN');
     expect(repository.replaceContribution).not.toHaveBeenCalled();
+  });
+});
+
+describe('Lát C — tầng ứng dụng (F65b §5–§6)', () => {
+  const Need = '99999999-9999-4999-8999-99999999aaaa';
+
+  function delivery(overrides: Record<string, unknown> = {}) {
+    return {
+      globalId: 'delivery-1',
+      campaignId: CampaignId,
+      contributionId: 'contribution-1',
+      contributorId: ActorId,
+      organizerId: OrganizerId,
+      status: 'ACCEPTED' as const,
+      createdAt: new Date(),
+      completedAt: null,
+      cancelledAt: null,
+      cancelReason: null,
+      items: [],
+      ...overrides,
+    };
+  }
+
+  it('người tổ chức KHÔNG gửi đề nghị vào chính hoạt động của mình', async () => {
+    // Không chặn ở đây thì tới lượt quyết `CHK_campaign_deliveries_not_self` mới bắt,
+    // và người dùng nhận lỗi 500 cho một đề nghị hệ thống đã nhận từ trước.
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({
+        approvalStatus: 'APPROVED',
+        isActive: true,
+        endTime: new Date(Date.now() + 7 * 24 * Hour),
+        createdBy: ActorId,
+      }),
+    );
+
+    await expect(
+      new SubmitCharityContributionUseCase(repository).handle({
+        campaignId: CampaignId,
+        contributorId: ActorId,
+        items: [{ needItemId: Need, offeredQuantity: 5 }],
+      }),
+    ).rejects.toBeInstanceOf(CharitySelfContributionException);
+    expect(repository.createContribution).not.toHaveBeenCalled();
+  });
+
+  it('quyết định đi thẳng xuống repository — mọi luật nằm trong transaction', async () => {
+    // Kiểm quyền ở use case, NGOÀI transaction, là kiểm trên một bản đọc có thể đã
+    // cũ khi transaction mở. Phép kiểm này canh rằng use case không tự thêm một
+    // bản sao nào của luật đó.
+    const repository = makeRepository();
+    repository.decideContribution.mockResolvedValue({
+      contribution: {} as never,
+      delivery: null,
+      replayed: false,
+    });
+    const command = {
+      contributionId: 'contribution-1',
+      organizerId: OrganizerId,
+      decisionKey: 'khoa-1-abcdef',
+      decisions: [{ contributionItemId: 'item-1', acceptedQuantity: 5 }],
+    };
+
+    await new DecideCharityContributionUseCase(repository).handle(command);
+
+    expect(repository.decideContribution).toHaveBeenCalledWith(command);
+    expect(repository.findByGlobalId).not.toHaveBeenCalled();
+  });
+
+  it('huỷ mà lý do chỉ có khoảng trắng thì bị chặn trước khi ghi', async () => {
+    const repository = makeRepository();
+
+    await expect(
+      new CancelCharityDeliveryUseCase(repository).handle({
+        deliveryId: 'delivery-1',
+        actorUserId: ActorId,
+        reason: '   ',
+      }),
+    ).rejects.toBeInstanceOf(CharityLinesInvalidException);
+    expect(repository.cancelDelivery).not.toHaveBeenCalled();
+  });
+
+  it('huỷ thì lý do được cắt khoảng trắng', async () => {
+    const repository = makeRepository();
+    repository.cancelDelivery.mockResolvedValue(delivery() as never);
+
+    await new CancelCharityDeliveryUseCase(repository).handle({
+      deliveryId: 'delivery-1',
+      actorUserId: ActorId,
+      reason: '  Không sắp xếp được  ',
+    });
+
+    expect(repository.cancelDelivery).toHaveBeenCalledWith({
+      deliveryId: 'delivery-1',
+      actorUserId: ActorId,
+      reason: 'Không sắp xếp được',
+    });
+  });
+
+  it('người NGOÀI đọc lượt giao nhận thì nhận cùng lỗi với không tồn tại', async () => {
+    const repository = makeRepository();
+    repository.findDeliveryByGlobalId.mockResolvedValue(delivery() as never);
+
+    await expect(
+      new GetCharityDeliveryUseCase(repository).handle({
+        deliveryId: 'delivery-1',
+        viewerUserId: 'nguoi-ngoai',
+      }),
+    ).rejects.toBeInstanceOf(CharityDeliveryNotFoundException);
+  });
+
+  it('cả HAI bên đều đọc được lượt giao nhận', async () => {
+    const repository = makeRepository();
+    repository.findDeliveryByGlobalId.mockResolvedValue(delivery() as never);
+
+    for (const viewer of [ActorId, OrganizerId])
+      await expect(
+        new GetCharityDeliveryUseCase(repository).handle({
+          deliveryId: 'delivery-1',
+          viewerUserId: viewer,
+        }),
+      ).resolves.toMatchObject({ globalId: 'delivery-1' });
   });
 });

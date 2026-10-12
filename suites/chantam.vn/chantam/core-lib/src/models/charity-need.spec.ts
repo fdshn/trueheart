@@ -2,7 +2,9 @@ import {
   canEditContribution,
   CharityBeneficiaryRelations,
   CharityCampaignTypes,
+  contributionDecisionProblem,
   contributionStatusFrom,
+  firstNeedOverflow,
   MaxNeedItemQuantity,
   MaxNeedItemsPerCampaign,
   overallNeedProgressPercent,
@@ -162,5 +164,123 @@ describe('canEditContribution (F65b §4)', () => {
       'WITHDRAWN',
     ] as const)
       expect(canEditContribution(status)).toBe(false);
+  });
+});
+
+describe('contributionDecisionProblem (F65b §4–§5)', () => {
+  const lines = [
+    { contributionItemId: 'a', needItemId: 'gao', offeredQuantity: 50 },
+    { contributionItemId: 'b', needItemId: 'mi', offeredQuantity: 10 },
+  ];
+
+  it('quyết đủ mọi dòng, đúng luật thì hợp lệ', () => {
+    expect(
+      contributionDecisionProblem(lines, [
+        { contributionItemId: 'a', acceptedQuantity: 50 },
+        {
+          contributionItemId: 'b',
+          acceptedQuantity: 0,
+          rejectionReason: 'QUALITY_NOT_ACCEPTABLE',
+        },
+      ]),
+    ).toBeNull();
+  });
+
+  it('BỎ SÓT một dòng thì không hợp lệ — không quyết dần', () => {
+    // Đề nghị nửa đã quyết sinh lượt giao nhận cho phần đã nhận, và lượt quyết thứ
+    // hai không có chỗ đặt lượt giao nhận thứ hai.
+    expect(
+      contributionDecisionProblem(lines, [
+        { contributionItemId: 'a', acceptedQuantity: 50 },
+      ]),
+    ).toMatch(/đủ mọi dòng/);
+  });
+
+  it('nhận ÍT hơn đề nghị mà không có lý do thì không hợp lệ', () => {
+    expect(
+      contributionDecisionProblem(lines, [
+        { contributionItemId: 'a', acceptedQuantity: 30 },
+        { contributionItemId: 'b', acceptedQuantity: 10 },
+      ]),
+    ).toMatch(/lý do/);
+  });
+
+  it('nhận ĐỦ mà mang lý do từ chối thì không hợp lệ', () => {
+    expect(
+      contributionDecisionProblem(lines, [
+        {
+          contributionItemId: 'a',
+          acceptedQuantity: 50,
+          rejectionReason: 'TARGET_REACHED',
+        },
+        { contributionItemId: 'b', acceptedQuantity: 10 },
+      ]),
+    ).toMatch(/không có lý do/);
+  });
+
+  it('nhận NHIỀU hơn đề nghị thì không hợp lệ', () => {
+    // Nhận nhiều hơn là tự khai một cam kết thay cho người tặng.
+    expect(
+      contributionDecisionProblem(lines, [
+        { contributionItemId: 'a', acceptedQuantity: 51 },
+        { contributionItemId: 'b', acceptedQuantity: 10 },
+      ]),
+    ).toMatch(/từ 0 tới 50/);
+  });
+
+  it('dòng lạ hoặc quyết một dòng hai lần thì không hợp lệ', () => {
+    expect(
+      contributionDecisionProblem(lines, [
+        { contributionItemId: 'x', acceptedQuantity: 1 },
+      ]),
+    ).toMatch(/không thuộc/);
+    expect(
+      contributionDecisionProblem(lines, [
+        { contributionItemId: 'a', acceptedQuantity: 50 },
+        { contributionItemId: 'a', acceptedQuantity: 50 },
+      ]),
+    ).toMatch(/hai lần/);
+  });
+});
+
+describe('firstNeedOverflow (F65b §5)', () => {
+  const needs = [
+    {
+      needItemId: 'gao',
+      itemName: 'Gạo tẻ',
+      targetQuantity: 100,
+      acceptedQuantity: 60,
+      receivedQuantity: 20,
+    },
+  ];
+
+  it('vừa khít phần còn thiếu thì cho qua', () => {
+    expect(
+      firstNeedOverflow(needs, [{ needItemId: 'gao', acceptedQuantity: 20 }]),
+    ).toBeNull();
+  });
+
+  it('vượt một đơn vị thì chặn, và nói phần còn lại MỚI NHẤT', () => {
+    // Không âm thầm cắt số: người tổ chức phải biết chính xác mình vừa chấp nhận
+    // bao nhiêu (§5).
+    expect(
+      firstNeedOverflow(needs, [{ needItemId: 'gao', acceptedQuantity: 21 }]),
+    ).toEqual({
+      needItemId: 'gao',
+      itemName: 'Gạo tẻ',
+      requested: 21,
+      remaining: 20,
+    });
+  });
+
+  it('dòng nhận 0 không bao giờ là vượt, kể cả khi nhu cầu đã đủ', () => {
+    // Từ chối một dòng của một nhu cầu đã đủ là việc người tổ chức PHẢI làm được —
+    // đó đúng là lý do `TARGET_REACHED` tồn tại.
+    expect(
+      firstNeedOverflow(
+        [{ ...needs[0], acceptedQuantity: 80 }],
+        [{ needItemId: 'gao', acceptedQuantity: 0 }],
+      ),
+    ).toBeNull();
   });
 });

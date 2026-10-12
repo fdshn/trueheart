@@ -5,6 +5,7 @@ import {
   CharityCampaignController,
 } from './charity-campaign.controller';
 import { CharityContributionController } from './charity-contribution.controller';
+import { CharityDeliveryController } from './charity-delivery.controller';
 
 @Module({
   controllers: [
@@ -12,6 +13,7 @@ import { CharityContributionController } from './charity-contribution.controller
     CharityCampaignController,
     CharityCampaignPublicController,
     CharityContributionController,
+    CharityDeliveryController,
   ],
 })
 export class CharityCampaignControllerModule {}

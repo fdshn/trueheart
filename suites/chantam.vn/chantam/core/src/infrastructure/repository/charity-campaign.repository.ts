@@ -1,16 +1,32 @@
+import { isPointPolicyError } from '@/application/implementations/point/point-policy-errors';
+import {
+  CharityCampaignNotFoundException,
+  CharityContributionAlreadyDecidedException,
+  CharityContributionNotFoundException,
+  CharityDeliveryInvalidStateException,
+  CharityDeliveryNotFoundException,
+  CharityLinesInvalidException,
+  CharityNeedExceededException,
+  CharityNotAcceptingContributionsException,
+  CharityNotOrganizerException,
+} from '@/domain/exceptions';
 import {
   CharityCampaignPhase,
+  CharityDeliveryStatus,
   ICharityCampaign,
   ICharityCampaignPage,
   ICharityCampaignRepository,
   ICharityContribution,
   ICharityContributionPage,
+  ICharityDelivery,
   ICharityNeedItem,
   ICharityReview,
   ICreateCharityCampaignParams,
   ICreateCharityContributionItemParams,
   ICreateCharityContributionParams,
   ICreateCharityNeedItemParams,
+  IDecideContributionResult,
+  IPointLedgerRepository,
 } from '@/domain/ports/repository';
 import {
   CharityApprovalStatus,
@@ -21,9 +37,12 @@ import {
   CharityRejectionReason,
   CharityReviewRole,
   charityProgressPercent,
+  contributionDecisionProblem,
+  contributionStatusFrom,
+  firstNeedOverflow,
   remainingNeedQuantity,
 } from '@chantam.vn/chantam.core-lib/models';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
 import { updateReturning } from './update-returning';
@@ -86,6 +105,8 @@ interface IContributionRow {
   contact_note: string | null;
   decided_at: Date | null;
   created_at: Date;
+  delivery_id: string | null;
+  delivery_status: string | null;
 }
 
 interface IContributionItemRow {
@@ -100,10 +121,44 @@ interface IContributionItemRow {
   rejection_reason: string | null;
 }
 
+interface INeedLockRow {
+  global_id: string;
+  item_name: string;
+  target_quantity: number | string;
+  accepted_quantity: number | string;
+  received_quantity: number | string;
+  is_active: boolean;
+}
+
+interface IDeliveryRow {
+  global_id: string;
+  campaign_id: string;
+  contribution_id: string;
+  contributor_id: string;
+  organizer_id: string;
+  status: string;
+  created_at: Date;
+  completed_at: Date | null;
+  cancelled_at: Date | null;
+  cancel_reason: string | null;
+}
+
+/** Mã rule của Point Rule từ thiện — seed TẮT ở `1799800000000`. */
+const CharityContributionCompletedRuleCode = 'CHARITY_CONTRIBUTION_COMPLETED';
+
 const ContributionColumns = `contribution.global_id, contribution.campaign_id,
        contribution.contributor_id, contribution.status, contribution.note,
        contribution.contact_note, contribution.decided_at,
-       contribution.created_at`;
+       contribution.created_at,
+       delivery.global_id AS delivery_id, delivery.status AS delivery_status`;
+
+/**
+ * Nguồn FROM của mọi lượt đọc đề nghị. LEFT JOIN vì phần lớn đề nghị chưa có lượt
+ * giao nhận nào; `UQ_campaign_deliveries_contribution` bảo đảm nó không nhân hàng.
+ */
+const ContributionSource = `campaign_contributions contribution
+       LEFT JOIN campaign_deliveries delivery
+         ON delivery.contribution_id = contribution.global_id`;
 
 function toContribution(
   row: IContributionRow,
@@ -118,6 +173,8 @@ function toContribution(
     contactNote: row.contact_note,
     decidedAt: row.decided_at,
     createdAt: row.created_at,
+    deliveryId: row.delivery_id,
+    deliveryStatus: row.delivery_status as CharityDeliveryStatus | null,
     items: items.map((item) => ({
       globalId: item.global_id,
       needItemId: item.need_item_id,
@@ -224,6 +281,11 @@ const PublicFilter = `campaigns.approval_status = 'APPROVED'
 export class CharityCampaignRepository implements ICharityCampaignRepository {
   public constructor(
     @InjectEntityManager() private readonly manager: EntityManager,
+    // Repository gọi repository cùng tầng hạ tầng — cùng lối `GiftTransactionRepository`
+    // — vì bút toán điểm phải ghi TRONG transaction hoàn tất lượt giao nhận. Ngoài nó
+    // thì một lượt giao nhận commit xong mà điểm chưa ghi là mất vĩnh viễn.
+    @Inject(IPointLedgerRepository)
+    private readonly ledger: IPointLedgerRepository,
   ) {}
 
   public async create(
@@ -458,7 +520,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
   ): Promise<ICharityContribution | null> {
     const [row] = await manager.query<IContributionRow[]>(
       `SELECT ${ContributionColumns}
-       FROM campaign_contributions contribution
+       FROM ${ContributionSource}
        WHERE contribution.global_id = $1`,
       [globalId],
     );
@@ -529,7 +591,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
   }): Promise<ICharityContributionPage> {
     const rows = await this.manager.query<IContributionRow[]>(
       `SELECT ${ContributionColumns}
-       FROM campaign_contributions contribution
+       FROM ${ContributionSource}
        WHERE ${params.where}
        ORDER BY contribution.created_at DESC, contribution.id DESC
        LIMIT $3 OFFSET $4`,
@@ -609,6 +671,590 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
 
       return this.readContribution(manager, params.contributionId);
     });
+  }
+
+  /**
+   * Khoá chiến dịch rồi khoá MỌI dòng nhu cầu của nó theo `id` tăng dần.
+   *
+   * Đây là hai bước đầu của thứ tự khoá cố định (§5), dùng chung cho cả ba đường
+   * ghi vào projection: quyết định, hoàn tất, huỷ. Một hàm cho cả ba nghĩa là không
+   * đường nào lỡ tay đảo thứ tự.
+   */
+  private async lockCampaignAndNeeds(
+    manager: EntityManager,
+    campaignId: string,
+  ): Promise<{
+    campaign: {
+      approval_status: string;
+      is_active: boolean;
+      created_by: string | null;
+    };
+    needs: INeedLockRow[];
+  }> {
+    const [campaign] = await manager.query<
+      {
+        approval_status: string;
+        is_active: boolean;
+        created_by: string | null;
+      }[]
+    >(
+      `SELECT approval_status, is_active, created_by
+       FROM campaigns WHERE global_id = $1 FOR UPDATE`,
+      [campaignId],
+    );
+    if (!campaign) throw new CharityCampaignNotFoundException();
+
+    const needs = await manager.query<INeedLockRow[]>(
+      `SELECT global_id, item_name, target_quantity, accepted_quantity,
+              received_quantity, is_active
+       FROM campaign_need_items
+       WHERE campaign_id = $1
+       ORDER BY id
+       FOR UPDATE`,
+      [campaignId],
+    );
+    return { campaign, needs };
+  }
+
+  /**
+   * Cộng/trừ projection của nhiều dòng nhu cầu trong MỘT câu lệnh.
+   *
+   * Gọi chỉ sau `lockCampaignAndNeeds` trong cùng transaction — những dòng này đã bị
+   * khoá, nên phép cộng ở đây không đua với ai.
+   */
+  private async shiftNeedProjections(
+    manager: EntityManager,
+    shifts: readonly {
+      needItemId: string;
+      acceptedDelta: number;
+      receivedDelta: number;
+    }[],
+  ): Promise<void> {
+    if (shifts.length === 0) return;
+    await manager.query(
+      `UPDATE campaign_need_items need
+       SET accepted_quantity = need.accepted_quantity + shift.accepted_delta,
+           received_quantity = need.received_quantity + shift.received_delta,
+           updated_at = now()
+       FROM UNNEST($1::uuid[], $2::int[], $3::int[])
+         AS shift(need_item_id, accepted_delta, received_delta)
+       WHERE need.global_id = shift.need_item_id`,
+      [
+        shifts.map((shift) => shift.needItemId),
+        shifts.map((shift) => shift.acceptedDelta),
+        shifts.map((shift) => shift.receivedDelta),
+      ],
+    );
+  }
+
+  public async decideContribution(params: {
+    contributionId: string;
+    organizerId: string;
+    decisionKey: string;
+    decisions: readonly {
+      contributionItemId: string;
+      acceptedQuantity: number;
+      rejectionReason?: CharityRejectionReason | null;
+    }[];
+  }): Promise<IDecideContributionResult> {
+    return this.manager.transaction(async (manager) => {
+      // Đọc KHÔNG khoá để biết chiến dịch nào — thứ tự khoá đòi khoá chiến dịch
+      // TRƯỚC đề nghị, nên chưa được khoá đề nghị ở bước này.
+      const [peek] = await manager.query<{ campaign_id: string }[]>(
+        `SELECT campaign_id FROM campaign_contributions WHERE global_id = $1`,
+        [params.contributionId],
+      );
+      if (!peek) throw new CharityContributionNotFoundException();
+
+      const { campaign, needs } = await this.lockCampaignAndNeeds(
+        manager,
+        peek.campaign_id,
+      );
+      if (campaign.created_by !== params.organizerId)
+        throw new CharityNotOrganizerException();
+
+      const [contribution] = await manager.query<
+        {
+          status: string;
+          decision_key: string | null;
+          contributor_id: string;
+        }[]
+      >(
+        `SELECT status, decision_key, contributor_id
+         FROM campaign_contributions WHERE global_id = $1 FOR UPDATE`,
+        [params.contributionId],
+      );
+
+      // Retry CÙNG khoá: trả lại đúng kết quả cũ, không ghi gì. Kiểm SAU khi đã
+      // khoá, nên hai lượt retry song song cũng chỉ một lượt thấy trạng thái chờ.
+      if (contribution.decision_key === params.decisionKey)
+        return {
+          contribution: await this.mustReadContribution(
+            manager,
+            params.contributionId,
+          ),
+          delivery: await this.readDeliveryByContribution(
+            manager,
+            params.contributionId,
+          ),
+          replayed: true,
+        };
+
+      if (contribution.status !== 'PENDING_REVIEW')
+        throw new CharityContributionAlreadyDecidedException();
+      // Chiến dịch đã đóng hoặc đình chỉ thì không nhận thêm. KHÔNG xét `end_time`:
+      // hết giờ mà người tổ chức chưa đóng thì họ vẫn phải xử nốt hàng đợi được.
+      if (campaign.approval_status !== 'APPROVED' || !campaign.is_active)
+        throw new CharityNotAcceptingContributionsException();
+
+      const lines = await manager.query<
+        {
+          global_id: string;
+          need_item_id: string;
+          offered_quantity: number | string;
+        }[]
+      >(
+        `SELECT global_id, need_item_id, offered_quantity
+         FROM campaign_contribution_items
+         WHERE contribution_id = $1
+         ORDER BY id
+         FOR UPDATE`,
+        [params.contributionId],
+      );
+      const forDecision = lines.map((line) => ({
+        contributionItemId: line.global_id,
+        needItemId: line.need_item_id,
+        offeredQuantity: Number(line.offered_quantity),
+      }));
+
+      const problem = contributionDecisionProblem(
+        forDecision,
+        params.decisions,
+      );
+      if (problem) throw new CharityLinesInvalidException(problem);
+
+      const needById = new Map(needs.map((need) => [need.global_id, need]));
+      const decided = forDecision.map((line) => {
+        const decision = params.decisions.find(
+          (item) => item.contributionItemId === line.contributionItemId,
+        ) as (typeof params.decisions)[number];
+        return {
+          ...line,
+          acceptedQuantity: decision.acceptedQuantity,
+          rejectionReason: decision.rejectionReason ?? null,
+        };
+      });
+
+      // Nhận vào một dòng nhu cầu người tổ chức đã RÚT là nhận vào một nhu cầu không
+      // còn ai cần. Từ chối dòng đó thì vẫn được — đó là cách dọn nó.
+      const intoClosedNeed = decided.find(
+        (line) =>
+          line.acceptedQuantity > 0 &&
+          !needById.get(line.needItemId)?.is_active,
+      );
+      if (intoClosedNeed)
+        throw new CharityLinesInvalidException(
+          `Dòng ${intoClosedNeed.contributionItemId}: nhu cầu này đã được rút, chỉ từ chối được`,
+        );
+
+      const overflow = firstNeedOverflow(
+        needs.map((need) => ({
+          needItemId: need.global_id,
+          itemName: need.item_name,
+          targetQuantity: Number(need.target_quantity),
+          acceptedQuantity: Number(need.accepted_quantity),
+          receivedQuantity: Number(need.received_quantity),
+        })),
+        decided,
+      );
+      if (overflow)
+        throw new CharityNeedExceededException(
+          overflow.itemName,
+          overflow.requested,
+          overflow.remaining,
+        );
+
+      await manager.query(
+        `UPDATE campaign_contribution_items item
+         SET accepted_quantity = decided.accepted_quantity,
+             rejection_reason = decided.rejection_reason,
+             updated_at = now()
+         FROM UNNEST($1::uuid[], $2::int[], $3::text[])
+           AS decided(global_id, accepted_quantity, rejection_reason)
+         WHERE item.global_id = decided.global_id`,
+        [
+          decided.map((line) => line.contributionItemId),
+          decided.map((line) => line.acceptedQuantity),
+          decided.map((line) => line.rejectionReason),
+        ],
+      );
+
+      await manager.query(
+        `UPDATE campaign_contributions
+         SET status = $2, decided_at = now(), decided_by = $3,
+             decision_key = $4, updated_at = now()
+         WHERE global_id = $1`,
+        [
+          params.contributionId,
+          contributionStatusFrom(decided),
+          params.organizerId,
+          params.decisionKey,
+        ],
+      );
+
+      const accepted = decided.filter((line) => line.acceptedQuantity > 0);
+      await this.shiftNeedProjections(
+        manager,
+        accepted.map((line) => ({
+          needItemId: line.needItemId,
+          acceptedDelta: line.acceptedQuantity,
+          receivedDelta: 0,
+        })),
+      );
+
+      // Chỉ phần được NHẬN mới sinh lượt giao nhận (§6). Từ chối hết thì không có
+      // lượt giao nhận rác nào.
+      if (accepted.length > 0) {
+        const [delivery] = await manager.query<{ global_id: string }[]>(
+          `INSERT INTO campaign_deliveries
+             (campaign_id, contribution_id, contributor_id, organizer_id)
+           VALUES ($1, $2, $3, $4)
+           RETURNING global_id`,
+          [
+            peek.campaign_id,
+            params.contributionId,
+            contribution.contributor_id,
+            params.organizerId,
+          ],
+        );
+        await manager.query(
+          `INSERT INTO campaign_delivery_items
+             (delivery_id, contribution_item_id, need_item_id, accepted_quantity)
+           SELECT $1, line.contribution_item_id, line.need_item_id,
+                  line.accepted_quantity
+           FROM UNNEST($2::uuid[], $3::uuid[], $4::int[])
+             AS line(contribution_item_id, need_item_id, accepted_quantity)`,
+          [
+            delivery.global_id,
+            accepted.map((line) => line.contributionItemId),
+            accepted.map((line) => line.needItemId),
+            accepted.map((line) => line.acceptedQuantity),
+          ],
+        );
+      }
+
+      return {
+        contribution: await this.mustReadContribution(
+          manager,
+          params.contributionId,
+        ),
+        delivery: await this.readDeliveryByContribution(
+          manager,
+          params.contributionId,
+        ),
+        replayed: false,
+      };
+    });
+  }
+
+  public async completeDelivery(params: {
+    deliveryId: string;
+    organizerId: string;
+    received: readonly { needItemId: string; receivedQuantity: number }[];
+  }): Promise<ICharityDelivery> {
+    return this.manager.transaction(async (manager) => {
+      const delivery = await this.lockDeliveryInOrder(
+        manager,
+        params.deliveryId,
+      );
+      // Người NHẬN của lượt giao này xác nhận — người tổ chức tại lúc quyết định.
+      if (delivery.organizer_id !== params.organizerId)
+        throw new CharityNotOrganizerException();
+      if (delivery.status !== 'ACCEPTED')
+        throw new CharityDeliveryInvalidStateException(delivery.status);
+
+      const items = await manager.query<
+        { need_item_id: string; accepted_quantity: number | string }[]
+      >(
+        `SELECT need_item_id, accepted_quantity
+         FROM campaign_delivery_items
+         WHERE delivery_id = $1
+         ORDER BY id
+         FOR UPDATE`,
+        [params.deliveryId],
+      );
+
+      // Xác nhận ĐỦ mọi dòng, mỗi dòng một lần, trong [0, accepted]. Bỏ sót một dòng
+      // là để lại một phần đã chấp nhận không bao giờ được trả về nhu cầu.
+      const received = new Map<string, number>();
+      for (const line of params.received) {
+        if (received.has(line.needItemId))
+          throw new CharityLinesInvalidException(
+            `Dòng ${line.needItemId} được xác nhận hai lần`,
+          );
+        received.set(line.needItemId, line.receivedQuantity);
+      }
+      if (received.size !== items.length)
+        throw new CharityLinesInvalidException(
+          'Phải xác nhận đủ mọi dòng của lượt giao nhận',
+        );
+      for (const item of items) {
+        const quantity = received.get(item.need_item_id);
+        const accepted = Number(item.accepted_quantity);
+        if (
+          quantity === undefined ||
+          !Number.isInteger(quantity) ||
+          quantity < 0 ||
+          quantity > accepted
+        )
+          throw new CharityLinesInvalidException(
+            `Dòng ${item.need_item_id}: số thực nhận phải từ 0 tới ${accepted}`,
+          );
+      }
+
+      await manager.query(
+        `UPDATE campaign_delivery_items item
+         SET received_quantity = line.received_quantity
+         FROM UNNEST($2::uuid[], $3::int[]) AS line(need_item_id, received_quantity)
+         WHERE item.delivery_id = $1 AND item.need_item_id = line.need_item_id`,
+        [params.deliveryId, [...received.keys()], [...received.values()]],
+      );
+
+      // Phần đã chấp nhận RỜI khỏi `accepted_quantity` theo đúng số đã chấp nhận,
+      // còn `received_quantity` chỉ nhận số THỰC NHẬN. Thiếu hụt giữa hai số trở về
+      // phần còn thiếu của nhu cầu — người khác lại tặng vào được.
+      await this.shiftNeedProjections(
+        manager,
+        items.map((item) => ({
+          needItemId: item.need_item_id,
+          acceptedDelta: -Number(item.accepted_quantity),
+          receivedDelta: received.get(item.need_item_id) ?? 0,
+        })),
+      );
+
+      await manager.query(
+        `UPDATE campaign_deliveries
+         SET status = 'COMPLETED', completed_at = now(), completed_by = $2
+         WHERE global_id = $1`,
+        [params.deliveryId, params.organizerId],
+      );
+
+      // Một lần cho mỗi ĐỀ NGHỊ, không cho từng dòng hay từng lượt giao (§7). Khoá
+      // chống trùng theo `contribution_id` làm điều đó thành tính chất của sổ điểm.
+      //
+      // Chỉ khi thực nhận được ít nhất một thứ: một lượt "hoàn tất" mà người tổ chức
+      // xác nhận không nhận được gì không phải một đóng góp — thưởng cho nó là mở
+      // đường cho hai người thông đồng cày điểm.
+      const totalReceived = [...received.values()].reduce((a, b) => a + b, 0);
+      if (totalReceived > 0) {
+        try {
+          await this.ledger.appendByRuleWithinTransaction(manager, {
+            userId: delivery.contributor_id,
+            ruleCode: CharityContributionCompletedRuleCode,
+            referenceType: 'CHARITY_CONTRIBUTION',
+            referenceId: delivery.contribution_id,
+            idempotencyKey: `${CharityContributionCompletedRuleCode}:${delivery.contribution_id}`,
+            actor: 'SYSTEM',
+            source: 'CHARITY_DELIVERY',
+          });
+        } catch (error) {
+          // Rule đang TẮT chờ Bên A chốt mức — đó là trường hợp BÌNH THƯỜNG lúc này,
+          // không phải lỗi. Việc món đồ đã tới tay là sự thật; thưởng bao nhiêu là
+          // chính sách, và chính sách không được đánh đổ sự thật.
+          if (!isPointPolicyError(error)) throw error;
+        }
+      }
+
+      return this.mustReadDelivery(manager, params.deliveryId);
+    });
+  }
+
+  public async cancelDelivery(params: {
+    deliveryId: string;
+    actorUserId: string;
+    reason: string;
+  }): Promise<ICharityDelivery> {
+    return this.manager.transaction(async (manager) => {
+      const delivery = await this.lockDeliveryInOrder(
+        manager,
+        params.deliveryId,
+      );
+      const isParty =
+        delivery.organizer_id === params.actorUserId ||
+        delivery.contributor_id === params.actorUserId;
+      // Người ngoài nhận cùng lỗi với lượt không tồn tại.
+      if (!isParty) throw new CharityDeliveryNotFoundException();
+      if (delivery.status !== 'ACCEPTED')
+        throw new CharityDeliveryInvalidStateException(delivery.status);
+
+      const items = await manager.query<
+        { need_item_id: string; accepted_quantity: number | string }[]
+      >(
+        `SELECT need_item_id, accepted_quantity
+         FROM campaign_delivery_items WHERE delivery_id = $1 ORDER BY id`,
+        [params.deliveryId],
+      );
+
+      // Trả phần đã chấp nhận về nhu cầu, KHÔNG cộng vào phần đã nhận (§6), và KHÔNG
+      // đụng đề nghị: nó vẫn là lịch sử của một cam kết đã được chấp nhận (§11.4).
+      await this.shiftNeedProjections(
+        manager,
+        items.map((item) => ({
+          needItemId: item.need_item_id,
+          acceptedDelta: -Number(item.accepted_quantity),
+          receivedDelta: 0,
+        })),
+      );
+
+      await manager.query(
+        `UPDATE campaign_deliveries
+         SET status = 'CANCELLED', cancelled_at = now(), cancelled_by = $2,
+             cancel_reason = $3
+         WHERE global_id = $1`,
+        [params.deliveryId, params.actorUserId, params.reason],
+      );
+
+      return this.mustReadDelivery(manager, params.deliveryId);
+    });
+  }
+
+  /**
+   * Khoá lượt giao nhận ĐÚNG thứ tự: chiến dịch → dòng nhu cầu → lượt giao.
+   *
+   * Đọc không khoá trước để biết chiến dịch nào, vì khoá lượt giao trước rồi mới khoá
+   * chiến dịch là đảo thứ tự so với `decideContribution` — hai đường đó chạy cùng lúc
+   * trên cùng chiến dịch là deadlock.
+   */
+  private async lockDeliveryInOrder(
+    manager: EntityManager,
+    deliveryId: string,
+  ): Promise<{
+    campaign_id: string;
+    contribution_id: string;
+    contributor_id: string;
+    organizer_id: string;
+    status: string;
+  }> {
+    const [peek] = await manager.query<{ campaign_id: string }[]>(
+      `SELECT campaign_id FROM campaign_deliveries WHERE global_id = $1`,
+      [deliveryId],
+    );
+    if (!peek) throw new CharityDeliveryNotFoundException();
+
+    await this.lockCampaignAndNeeds(manager, peek.campaign_id);
+
+    const [delivery] = await manager.query<
+      {
+        campaign_id: string;
+        contribution_id: string;
+        contributor_id: string;
+        organizer_id: string;
+        status: string;
+      }[]
+    >(
+      `SELECT campaign_id, contribution_id, contributor_id, organizer_id, status
+       FROM campaign_deliveries WHERE global_id = $1 FOR UPDATE`,
+      [deliveryId],
+    );
+    return delivery;
+  }
+
+  public async findDeliveryByGlobalId(
+    globalId: string,
+  ): Promise<ICharityDelivery | null> {
+    return this.readDelivery(this.manager, `delivery.global_id = $1`, globalId);
+  }
+
+  private async readDeliveryByContribution(
+    manager: EntityManager,
+    contributionId: string,
+  ): Promise<ICharityDelivery | null> {
+    return this.readDelivery(
+      manager,
+      `delivery.contribution_id = $1`,
+      contributionId,
+    );
+  }
+
+  private async mustReadDelivery(
+    manager: EntityManager,
+    deliveryId: string,
+  ): Promise<ICharityDelivery> {
+    const delivery = await this.readDelivery(
+      manager,
+      `delivery.global_id = $1`,
+      deliveryId,
+    );
+    if (!delivery) throw new CharityDeliveryNotFoundException();
+    return delivery;
+  }
+
+  private async mustReadContribution(
+    manager: EntityManager,
+    contributionId: string,
+  ): Promise<ICharityContribution> {
+    const contribution = await this.readContribution(manager, contributionId);
+    if (!contribution) throw new CharityContributionNotFoundException();
+    return contribution;
+  }
+
+  private async readDelivery(
+    manager: EntityManager,
+    where: string,
+    value: string,
+  ): Promise<ICharityDelivery | null> {
+    const [row] = await manager.query<IDeliveryRow[]>(
+      `SELECT delivery.global_id, delivery.campaign_id, delivery.contribution_id,
+              delivery.contributor_id, delivery.organizer_id, delivery.status,
+              delivery.created_at, delivery.completed_at, delivery.cancelled_at,
+              delivery.cancel_reason
+       FROM campaign_deliveries delivery
+       WHERE ${where}`,
+      [value],
+    );
+    if (!row) return null;
+
+    const items = await manager.query<
+      {
+        need_item_id: string;
+        item_name: string;
+        unit: string;
+        accepted_quantity: number | string;
+        received_quantity: number | string | null;
+      }[]
+    >(
+      `SELECT item.need_item_id, need.item_name, need.unit,
+              item.accepted_quantity, item.received_quantity
+       FROM campaign_delivery_items item
+       INNER JOIN campaign_need_items need ON need.global_id = item.need_item_id
+       WHERE item.delivery_id = $1
+       ORDER BY need.sort_order, item.id`,
+      [row.global_id],
+    );
+
+    return {
+      globalId: row.global_id,
+      campaignId: row.campaign_id,
+      contributionId: row.contribution_id,
+      contributorId: row.contributor_id,
+      organizerId: row.organizer_id,
+      status: row.status as CharityDeliveryStatus,
+      createdAt: row.created_at,
+      completedAt: row.completed_at,
+      cancelledAt: row.cancelled_at,
+      cancelReason: row.cancel_reason,
+      items: items.map((item) => ({
+        needItemId: item.need_item_id,
+        itemName: item.item_name,
+        unit: item.unit,
+        acceptedQuantity: Number(item.accepted_quantity),
+        // `null` giữ `null`: "chưa xác nhận" khác "xác nhận không nhận được gì".
+        receivedQuantity:
+          item.received_quantity === null
+            ? null
+            : Number(item.received_quantity),
+      })),
+    };
   }
 
   public async withdrawContribution(params: {

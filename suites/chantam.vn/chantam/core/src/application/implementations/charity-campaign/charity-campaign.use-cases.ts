@@ -1,15 +1,24 @@
 import {
+  ICancelCharityDeliveryCommand,
+  ICancelCharityDeliveryUseCase,
   ICancelCharityParticipationUseCase,
   ICharityCampaignPageResult,
   ICharityCampaignView,
   ICharityCampaignWriteInput,
+  ICompleteCharityDeliveryCommand,
+  ICompleteCharityDeliveryUseCase,
   ICreateCharityCampaignCommand,
   ICreateCharityCampaignUseCase,
   IDecideCharityApprovalCommand,
   IDecideCharityApprovalUseCase,
+  IDecideCharityContributionCommand,
+  IDecideCharityContributionResult,
+  IDecideCharityContributionUseCase,
   IGetCampaignNeedsCommand,
   IGetCampaignNeedsResult,
   IGetCampaignNeedsUseCase,
+  IGetCharityDeliveryCommand,
+  IGetCharityDeliveryUseCase,
   IGetPublicCharityCampaignCommand,
   IGetPublicCharityCampaignResult,
   IGetPublicCharityCampaignUseCase,
@@ -51,6 +60,8 @@ import {
   CharityCancelTooLateException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
+  CharityDeliveryNotFoundException,
+  CharityLinesInvalidException,
   CharityNeedItemInvalidException,
   CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
@@ -59,11 +70,13 @@ import {
   CharityReviewDuplicateException,
   CharityReviewNotPermittedException,
   CharityReviewTooEarlyException,
+  CharitySelfContributionException,
 } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
   ICharityCampaign,
   ICharityCampaignRepository,
+  ICharityDelivery,
   IEntitlementRepository,
 } from '@/domain/ports/repository';
 import {
@@ -408,6 +421,11 @@ export class SubmitCharityContributionUseCase implements ISubmitCharityContribut
       throw new CharityCampaignNotFoundException();
     if (!acceptsContributions(campaign))
       throw new CharityNotAcceptingContributionsException();
+    // Người tổ chức không tặng vào chính hoạt động của mình. Chặn ở ĐÂY chứ không đợi
+    // lượt quyết: tới đó `CHK_campaign_deliveries_not_self` mới bắt, và người dùng
+    // nhận một lỗi 500 cho một đề nghị hệ thống đã nhận từ trước.
+    if (campaign.createdBy === command.contributorId)
+      throw new CharitySelfContributionException();
 
     // Mọi dòng phải thuộc ĐÚNG chiến dịch này và còn bật. Thiếu phép kiểm này thì
     // một `needItemId` của chiến dịch khác vẫn ghi được, và tiến độ của chiến dịch
@@ -548,6 +566,97 @@ export class UpdateCharityContributionUseCase implements IUpdateCharityContribut
     });
     if (!replaced) throw new CharityContributionNotEditableException();
     return replaced;
+  }
+}
+
+/**
+ * Người tổ chức quyết mọi dòng của một đề nghị (F65b §5).
+ *
+ * Mỏng có chủ ý: mọi luật — quyền người tổ chức, khoá theo thứ tự cố định, chống vượt
+ * nhu cầu, chống trùng — nằm TRONG transaction của repository. Đặt phép kiểm quyền ở
+ * đây, ngoài transaction, là kiểm trên một bản đọc có thể đã cũ khi transaction mở.
+ */
+@Injectable()
+export class DecideCharityContributionUseCase implements IDecideCharityContributionUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: IDecideCharityContributionCommand,
+  ): Promise<IDecideCharityContributionResult> {
+    return this.repository.decideContribution({
+      contributionId: command.contributionId,
+      organizerId: command.organizerId,
+      decisionKey: command.decisionKey,
+      decisions: command.decisions,
+    });
+  }
+}
+
+@Injectable()
+export class CompleteCharityDeliveryUseCase implements ICompleteCharityDeliveryUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: ICompleteCharityDeliveryCommand,
+  ): Promise<ICharityDelivery> {
+    return this.repository.completeDelivery(command);
+  }
+}
+
+@Injectable()
+export class CancelCharityDeliveryUseCase implements ICancelCharityDeliveryUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: ICancelCharityDeliveryCommand,
+  ): Promise<ICharityDelivery> {
+    // Lý do bắt buộc và không được là khoảng trắng: `CHK_campaign_deliveries_cancelled`
+    // đòi nó, và một lượt huỷ không lý do là một lượt không ai đối soát được.
+    const reason = command.reason.trim();
+    if (!reason)
+      throw new CharityLinesInvalidException(
+        'Huỷ lượt giao nhận phải có lý do',
+      );
+
+    return this.repository.cancelDelivery({
+      deliveryId: command.deliveryId,
+      actorUserId: command.actorUserId,
+      reason,
+    });
+  }
+}
+
+@Injectable()
+export class GetCharityDeliveryUseCase implements IGetCharityDeliveryUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: IGetCharityDeliveryCommand,
+  ): Promise<ICharityDelivery> {
+    const delivery = await this.repository.findDeliveryByGlobalId(
+      command.deliveryId,
+    );
+    // Chỉ hai bên đọc được. Người ngoài nhận cùng lỗi với lượt không tồn tại —
+    // phân biệt hai cái là để lộ ai đang giao nhận với ai.
+    if (
+      !delivery ||
+      (delivery.organizerId !== command.viewerUserId &&
+        delivery.contributorId !== command.viewerUserId)
+    )
+      throw new CharityDeliveryNotFoundException();
+    return delivery;
   }
 }
 

@@ -66,6 +66,7 @@ import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
 import { EntitlementRepository } from '../src/infrastructure/repository/entitlement.repository';
+import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -172,7 +173,12 @@ async function main(): Promise<void> {
   console.log('Đã dựng schema trên database nháp\n');
 
   try {
-    const repository = new CharityCampaignRepository(dataSource.manager);
+    const repository = new CharityCampaignRepository(
+      dataSource.manager,
+      // Sổ điểm THẬT: bút toán của lượt giao nhận từ thiện ghi trong transaction
+      // hoàn tất, nên một mock ở đây bỏ đúng chỗ cần kiểm.
+      new PointLedgerRepository(dataSource.manager),
+    );
     // `EntitlementRepository` đòi một `IGiftRequestRepository` để đếm hạn mức đang dùng
     // của những capability CÓ bộ đếm. `SUBMIT_CHARITY_PROPOSAL` không có bộ đếm nào, nhưng
     // `getOwnEntitlements` trả MỌI capability của hạng đó và đếm cho từng cái có counter —

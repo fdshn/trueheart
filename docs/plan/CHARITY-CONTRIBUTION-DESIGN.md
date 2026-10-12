@@ -132,6 +132,16 @@ Idempotency key bắt buộc cho thao tác accept để double tap/retry không 
 
 ## 6. Transaction giao nhận
 
+> **Đổi 12/10: bảng RIÊNG, không dùng chung `gift_transactions`.** Đoạn dưới ghi
+> *"tái sử dụng FSM cho–tặng hiện hành"*; đo thì tiền đề đó không đúng với schema —
+> `gift_transactions.post_id` và `chat_rooms.post_id` đều `NOT NULL` kèm FK tới `posts`,
+> mọi đường của repository lượt trao đọc `post_id`, 19 use case đọc `transaction.postId`
+> và `postId: string` nằm trong DTO trả cho app. `complete()` còn cộng `GIFT_COMPLETED_*`
+> — trái §7 — và job `gift:settle-rewards` sẽ quét chúng để trả thêm. Chủ dự án chốt:
+> `campaign_deliveries` + `campaign_delivery_items`, FSM gọn `ACCEPTED → COMPLETED |
+> CANCELLED`. Cái giá: phòng chat, ảnh bàn giao, cron tự hoàn tất và review của lượt trao
+> **không** có sẵn cho luồng từ thiện. Phần dưới giữ nguyên làm lịch sử ý định.
+
 Chỉ tạo transaction cho phần đã được chấp nhận. Các đề nghị chờ/từ chối không tạo
 transaction rác.
 
@@ -279,6 +289,9 @@ Các endpoint đọc công khai tiếp tục dùng `/campaigns`. Endpoint ghi d�
 | `POST` | `/charity-campaigns/:id/external-contributions` | Ghi nhận đóng góp ngoài app có audit |
 | `PATCH` | `/charity-external-contributions/:id` | Điều chỉnh/hủy bản ghi ngoài app có lý do |
 | `POST` | `/charity-campaigns/:id/close` | Đóng chiến dịch và xử lý hàng chờ |
+| `GET` | `/charity-deliveries/:id` | Hai bên đọc lượt giao nhận *(thêm 12/10, vì §6 đổi sang bảng riêng)* |
+| `POST` | `/charity-deliveries/:id/complete` | Người tổ chức xác nhận số thực nhận từng dòng *(thêm 12/10)* |
+| `POST` | `/charity-deliveries/:id/cancel` | Một trong hai bên huỷ, trả phần đã nhận về nhu cầu *(thêm 12/10)* |
 
 Response public không trả beneficiary contact, địa chỉ chính xác, tài liệu xác minh hoặc
 danh tính contributor ẩn danh.
@@ -330,9 +343,19 @@ cần deploy.
 | --- | --- | :-: |
 | A | `campaign_type` + `beneficiary_relation`, ba capability Rank, bảng `campaign_need_items`, Point Rule seed TẮT, `POST /charity-campaigns` nhận bảng nhu cầu, `GET /campaigns/:idOrSlug/needs` | ✅ 12/10 |
 | B | `campaign_contributions` + `campaign_contribution_items`, bốn endpoint đề nghị (gửi, organizer xem, contributor xem, sửa/rút) | ✅ 12/10 |
-| C | `campaign_transaction_items`, `POST /charity-contributions/:id/decision` nguyên tử có idempotency, cộng điểm một lần cho mỗi contribution | ⬜ |
+| C | `campaign_deliveries` + `campaign_delivery_items` (bảng riêng, xem §6), `POST /charity-contributions/:id/decision` nguyên tử có idempotency, hoàn tất/huỷ lượt giao nhận, cộng điểm một lần cho mỗi contribution | ✅ 12/10 |
 | D | `campaign_external_contributions` (ghi nhận + điều chỉnh có audit), `POST /charity-campaigns/:id/close` | ⬜ |
 | E | Acceptance tests cho 12 tiêu chí §11, trên Postgres thật | ⬜ |
+
+**Ba việc lát C CỐ Ý chưa làm**, ghi ra để không ai tưởng là có:
+
+- **Thông báo.** Người tặng chưa được báo khi đề nghị được quyết, lượt giao được hoàn
+  tất hay bị huỷ. Cần thêm loại thông báo vào nhóm `CONTACT`/`STATUS` của F45.
+- **Coordinator** (§2) chưa có: chỉ người tạo hoạt động quyết được. Cần một bảng giao
+  quyền; `organizer_id` trên lượt giao nhận đã đúng chỗ để đón nó.
+- **Cờ "cho phép vượt mục tiêu"** (§5 nói *"nếu chiến dịch không cho vượt"*) không có
+  cột nào — hiện luôn chặn vượt. Thêm cờ là một cột `boolean` và một nhánh trong
+  `firstNeedOverflow`.
 
 **`pendingQuantity` đã có từ lát B** (12/10), và nó **đếm lúc đọc** chứ không phải một cột:
 §3 nói nó không giữ chỗ, nên một con số lưu sẵn mà không ai được dựa vào là mời người sau dựa
@@ -345,15 +368,15 @@ số không phải phép đo nằm giữa những con số có thật.
 
 | # | Tiêu chí | Lưới | Tình trạng |
 | :-: | --- | --- | :-: |
-| 1 | Hai organizer chấp nhận đồng thời không vượt mục tiêu | script Postgres thật (hai transaction song song) | ⬜ |
+| 1 | Hai organizer chấp nhận đồng thời không vượt mục tiêu | script Postgres thật (hai transaction song song) | 🟡 lát C — đã chạy repository thật trên PG17 với khoảng chồng lấn ép bằng trigger `pg_sleep`: có khoá thì 1 thắng/1 thua báo đúng phần còn 40; **gỡ khoá thì 2 cùng thắng, nhu cầu 100 bị nhận 120**. Script CI ở lát E |
 | 2 | Từ chối một người không ảnh hưởng đề nghị người khác | unit + script | 🟡 lát B dựng nền (mỗi đề nghị là một hàng riêng, `UNIQUE` theo `(contribution, need)`); phép kiểm thật thuộc lát C |
-| 3 | Chấp nhận một phần sinh transaction đúng số lượng | unit + script | ⬜ |
-| 4 | Huỷ transaction trả lại capacity, không xoá audit | script | ⬜ |
+| 3 | Chấp nhận một phần sinh transaction đúng số lượng | unit + script | 🟡 lát C — unit (`contributionStatusFrom`, `contributionDecisionProblem`) + chạy thật trên PG17; script CI ở lát E |
+| 4 | Huỷ transaction trả lại capacity, không xoá audit | script | 🟡 lát C — chạy thật trên PG17 (trả 60 về nhu cầu, đề nghị giữ `ACCEPTED`); script CI ở lát E |
 | 5 | Đóng chiến dịch chặn đề nghị mới, giữ transaction đang chạy | unit + script | ⬜ |
 | 6 | Người ngoài không đọc được contact/địa chỉ beneficiary | unit (DTO) + script | 🟡 lát B — `contactNote` chỉ ra ở hai đường có token (organizer của chiến dịch, và chính contributor), có phép kiểm dựng lại lỗi bỏ phép kiểm organizer; phần địa chỉ beneficiary thuộc lát D |
-| 7 | Retry cùng idempotency key chỉ tạo một transaction | script | ⬜ |
+| 7 | Retry cùng idempotency key chỉ tạo một transaction | script | 🟡 lát C — tính chất SCHEMA (`UQ_campaign_deliveries_contribution`) + chạy thật trên PG17; script CI ở lát E |
 | 8 | Tiến độ tính từ transaction, không tin số client gửi | unit + script | ⬜ |
 | 9 | Không cộng số lượng giữa hai dòng khác đơn vị | unit | ✅ lát A — `overallNeedProgressPercent` trung bình TỶ LỆ, có phép kiểm dựng lại lỗi cộng-số-lượng |
 | 10 | Đóng góp ngoài app có audit, không cộng điểm cho ai | unit + script | ⬜ |
 | 11 | Member/Bạc/Vàng chỉ nhận `PENDING_APPROVAL`; Kim Cương public ngay | unit (capability) + script | 🟡 lát A — phần unit xong (ba capability, hai nhánh approval); phần script Postgres chờ lát E |
-| 12 | Một contribution chỉ sinh MỘT bút toán điểm | unit + script | ⬜ |
+| 12 | Một contribution chỉ sinh MỘT bút toán điểm | unit + script | 🟡 lát C — khoá `CHARITY_CONTRIBUTION_COMPLETED:<contributionId>`; chạy thật thấy đúng một lượt gọi sổ điểm; rule TẮT thì lượt hoàn tất vẫn thành công. Script với sổ điểm thật ở lát E |

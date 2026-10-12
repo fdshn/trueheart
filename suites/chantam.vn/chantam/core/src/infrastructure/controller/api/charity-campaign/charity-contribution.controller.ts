@@ -1,11 +1,17 @@
 import {
+  IDecideCharityContributionUseCase,
   IListMyContributionsUseCase,
   IUpdateCharityContributionUseCase,
 } from '@/application/contracts/charity-campaign';
 import {
+  CharityContributionAlreadyDecidedException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
+  CharityLinesInvalidException,
+  CharityNeedExceededException,
   CharityNeedItemInvalidException,
+  CharityNotAcceptingContributionsException,
+  CharityNotOrganizerException,
 } from '@/domain/exceptions';
 import {
   ApiTokenErrors,
@@ -21,10 +27,12 @@ import {
   Inject,
   Param,
   Patch,
+  Post,
   Query,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -32,6 +40,8 @@ import {
 import {
   CharityContributionDto,
   CharityContributionPageDto,
+  DecideCharityContributionBodyDto,
+  DecideCharityContributionResponseDto,
   ListContributionsQueryDto,
   UpdateCharityContributionBodyDto,
 } from '../../dto/charity-campaign/charity-campaign.dto';
@@ -55,6 +65,8 @@ export class CharityContributionController {
     private readonly listMineUseCase: IListMyContributionsUseCase,
     @Inject(IUpdateCharityContributionUseCase)
     private readonly updateUseCase: IUpdateCharityContributionUseCase,
+    @Inject(IDecideCharityContributionUseCase)
+    private readonly decideUseCase: IDecideCharityContributionUseCase,
   ) {}
 
   @Get('me')
@@ -77,6 +89,45 @@ export class CharityContributionController {
           contributorId: principal.userId,
           limit: query.limit ?? 20,
           offset: query.offset ?? 0,
+        }),
+      )
+      .build();
+  }
+
+  @Post(':id/decision')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Người tổ chức quyết mọi dòng của một đề nghị (F65b §5)',
+    description:
+      'Chấp nhận toàn bộ, một phần, hoặc từ chối từng dòng — trong MỘT lượt, nguyên tử. Phần được nhận sinh MỘT lượt giao nhận; từ chối hết thì không sinh lượt nào.\n\n' +
+      '**Chống vượt nhu cầu.** Phần còn thiếu được tính lại SAU khi đã khoá các dòng nhu cầu, nên hai lượt quyết cùng lúc vào một nhu cầu thì lượt sau thấy con số lượt trước để lại. Vượt thì `409 CHARITY_NEED_EXCEEDED` kèm phần còn lại MỚI NHẤT — không âm thầm cắt số, vì người tổ chức phải biết chính xác mình vừa chấp nhận bao nhiêu.\n\n' +
+      '**Chống trùng.** `decisionKey` cùng giá trị thì nhận lại đúng kết quả cũ với `replayed: true`. Khoá khác trên một đề nghị đã quyết thì `409 CHARITY_CONTRIBUTION_ALREADY_DECIDED`.',
+  })
+  @ApiCreatedResponse({
+    type: ResponseDto.forApi(DecideCharityContributionResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    CharityContributionNotFoundException,
+    CharityNotOrganizerException,
+    CharityContributionAlreadyDecidedException,
+    CharityNotAcceptingContributionsException,
+    CharityLinesInvalidException,
+    [CharityNeedExceededException, ['Gạo tẻ', 60, 40]],
+  )
+  public async decide(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('id') id: string,
+    @Body() body: DecideCharityContributionBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.decideUseCase.handle({
+          contributionId: id,
+          organizerId: principal.userId,
+          decisionKey: body.decisionKey,
+          decisions: body.decisions,
         }),
       )
       .build();

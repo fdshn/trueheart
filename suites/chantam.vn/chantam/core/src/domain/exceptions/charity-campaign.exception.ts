@@ -69,3 +69,35 @@ export class CharityContributionNotFoundException extends ExceptionFrom(
 export class CharityContributionNotEditableException extends ExceptionFrom(
   CoreErrors.CHARITY_CONTRIBUTION_NOT_EDITABLE,
 ) {}
+
+export class CharityContributionAlreadyDecidedException extends ExceptionFrom(
+  CoreErrors.CHARITY_CONTRIBUTION_ALREADY_DECIDED,
+) {}
+
+/** Dòng gửi lên không khớp, hoặc sai luật lý do — kèm câu nói rõ dòng nào. */
+export class CharityLinesInvalidException extends ExceptionFrom(
+  CoreErrors.CHARITY_LINES_INVALID,
+) {}
+
+/**
+ * Lượt chấp nhận làm vượt phần còn thiếu (F65b §5).
+ *
+ * Ném TRONG transaction đang giữ khoá các dòng nhu cầu, nên `remaining` trong thông
+ * điệp là con số mới nhất thật — không ai ghi xen vào được giữa lúc tính và lúc báo.
+ */
+export class CharityNeedExceededException extends ExceptionFrom(
+  CoreErrors.CHARITY_NEED_EXCEEDED,
+) {}
+
+export class CharityDeliveryNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_DELIVERY_NOT_FOUND,
+) {}
+
+export class CharityDeliveryInvalidStateException extends ExceptionFrom(
+  CoreErrors.CHARITY_DELIVERY_INVALID_STATE,
+) {}
+
+/** Người tổ chức gửi đề nghị vào chính hoạt động của mình. */
+export class CharitySelfContributionException extends ExceptionFrom(
+  CoreErrors.CHARITY_SELF_CONTRIBUTION,
+) {}

@@ -1,8 +1,12 @@
 import {
+  ICancelCharityDeliveryUseCase,
   ICancelCharityParticipationUseCase,
+  ICompleteCharityDeliveryUseCase,
   ICreateCharityCampaignUseCase,
   IDecideCharityApprovalUseCase,
+  IDecideCharityContributionUseCase,
   IGetCampaignNeedsUseCase,
+  IGetCharityDeliveryUseCase,
   IGetPublicCharityCampaignUseCase,
   IJoinCharityCampaignUseCase,
   IListAdminCharityCampaignsUseCase,
@@ -19,10 +23,14 @@ import {
 } from '@/application/contracts/charity-campaign';
 import { Global, Module } from '@nestjs/common';
 import {
+  CancelCharityDeliveryUseCase,
   CancelCharityParticipationUseCase,
+  CompleteCharityDeliveryUseCase,
   CreateCharityCampaignUseCase,
   DecideCharityApprovalUseCase,
+  DecideCharityContributionUseCase,
   GetCampaignNeedsUseCase,
+  GetCharityDeliveryUseCase,
   GetPublicCharityCampaignUseCase,
   JoinCharityCampaignUseCase,
   ListAdminCharityCampaignsUseCase,
@@ -78,6 +86,22 @@ import {
       useClass: UpdateCharityContributionUseCase,
     },
     {
+      provide: IDecideCharityContributionUseCase,
+      useClass: DecideCharityContributionUseCase,
+    },
+    {
+      provide: ICompleteCharityDeliveryUseCase,
+      useClass: CompleteCharityDeliveryUseCase,
+    },
+    {
+      provide: ICancelCharityDeliveryUseCase,
+      useClass: CancelCharityDeliveryUseCase,
+    },
+    {
+      provide: IGetCharityDeliveryUseCase,
+      useClass: GetCharityDeliveryUseCase,
+    },
+    {
       provide: IGetPublicCharityCampaignUseCase,
       useClass: GetPublicCharityCampaignUseCase,
     },
@@ -126,6 +150,10 @@ import {
     IListCampaignContributionsUseCase,
     IListMyContributionsUseCase,
     IUpdateCharityContributionUseCase,
+    IDecideCharityContributionUseCase,
+    ICompleteCharityDeliveryUseCase,
+    ICancelCharityDeliveryUseCase,
+    IGetCharityDeliveryUseCase,
     IGetPublicCharityCampaignUseCase,
     IListMyCharityCampaignsUseCase,
     IListJoinedCharityCampaignsUseCase,

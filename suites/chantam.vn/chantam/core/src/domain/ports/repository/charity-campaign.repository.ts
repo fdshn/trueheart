@@ -171,6 +171,56 @@ export interface ICharityContribution {
   readonly decidedAt: Date | null;
   readonly createdAt: Date;
   readonly items: readonly ICharityContributionItem[];
+  /**
+   * Lượt giao nhận sinh từ đề nghị này, `null` khi chưa quyết hoặc bị từ chối hết.
+   *
+   * Tối đa MỘT — `UQ_campaign_deliveries_contribution` giữ điều đó ở database.
+   */
+  readonly deliveryId: string | null;
+  readonly deliveryStatus: CharityDeliveryStatus | null;
+}
+
+export type CharityDeliveryStatus = 'ACCEPTED' | 'COMPLETED' | 'CANCELLED';
+
+export interface ICharityDeliveryItem {
+  readonly needItemId: string;
+  readonly itemName: string;
+  readonly unit: string;
+  readonly acceptedQuantity: number;
+  /** `null` khi chưa xác nhận — KHÁC `0` là đã xác nhận và không nhận được gì. */
+  readonly receivedQuantity: number | null;
+}
+
+/**
+ * Một lượt giao nhận từ thiện (F65b §6).
+ *
+ * Bảng RIÊNG, không phải `gift_transactions` — xem docblock migration
+ * `1800000000000-CreateCharityDeliveries` để biết vì sao.
+ */
+export interface ICharityDelivery {
+  readonly globalId: string;
+  readonly campaignId: string;
+  readonly contributionId: string;
+  readonly contributorId: string;
+  /** Người tổ chức tại lúc quyết định — người NHẬN của lượt giao này. */
+  readonly organizerId: string;
+  readonly status: CharityDeliveryStatus;
+  readonly createdAt: Date;
+  readonly completedAt: Date | null;
+  readonly cancelledAt: Date | null;
+  readonly cancelReason: string | null;
+  readonly items: readonly ICharityDeliveryItem[];
+}
+
+export interface IDecideContributionResult {
+  readonly contribution: ICharityContribution;
+  /** `null` khi từ chối mọi dòng — không sinh lượt giao nhận rác (§6). */
+  readonly delivery: ICharityDelivery | null;
+  /**
+   * `true` khi đây là lượt RETRY cùng khoá: không ghi gì, chỉ trả lại kết quả cũ.
+   * Nơi gọi dùng nó để không gửi thông báo lần hai.
+   */
+  readonly replayed: boolean;
 }
 
 export interface ICreateCharityContributionItemParams {
@@ -386,6 +436,58 @@ export interface ICharityNeedsRepositoryPart {
     contactNote: string | null;
     items: readonly ICreateCharityContributionItemParams[];
   }): Promise<ICharityContribution | null>;
+
+  /**
+   * Quyết MỌI dòng của một đề nghị và sinh lượt giao nhận, trong MỘT transaction
+   * (F65b §5).
+   *
+   * Khoá theo thứ tự CỐ ĐỊNH, giống hệt ở `completeDelivery` và `cancelDelivery`:
+   * `campaigns` → `campaign_need_items` theo `id` tăng dần → đề nghị và các dòng.
+   * Hai đường xin khoá theo hai thứ tự khác nhau là một deadlock chờ ngày xảy ra.
+   *
+   * Phần còn thiếu được tính lại SAU khi đã giữ khoá các dòng nhu cầu, nên hai người
+   * cùng chấp nhận vào một nhu cầu thì người sau thấy con số người trước để lại —
+   * tiêu chí §11.1. Vượt thì ném `CharityNeedExceededException` kèm phần còn lại mới
+   * nhất, không âm thầm cắt số.
+   *
+   * Retry CÙNG `decisionKey` trả lại đúng kết quả cũ với `replayed = true` và không
+   * ghi gì — tiêu chí §11.7.
+   */
+  decideContribution(params: {
+    contributionId: string;
+    organizerId: string;
+    decisionKey: string;
+    decisions: readonly {
+      contributionItemId: string;
+      acceptedQuantity: number;
+      rejectionReason?: CharityRejectionReason | null;
+    }[];
+  }): Promise<IDecideContributionResult>;
+
+  /**
+   * Hoàn tất lượt giao nhận: người tổ chức xác nhận số THỰC NHẬN từng dòng (§6).
+   *
+   * Chuyển phần đã chấp nhận sang phần đã nhận trên từng dòng nhu cầu, và cộng điểm
+   * `CHARITY_CONTRIBUTION_COMPLETED` cho người tặng — một lần cho mỗi đề nghị, nuốt
+   * lỗi chính sách vì rule đang TẮT chờ Bên A chốt mức.
+   */
+  completeDelivery(params: {
+    deliveryId: string;
+    organizerId: string;
+    received: readonly { needItemId: string; receivedQuantity: number }[];
+  }): Promise<ICharityDelivery>;
+
+  /**
+   * Huỷ lượt giao nhận: trả phần đã chấp nhận về nhu cầu, KHÔNG xoá đề nghị hay
+   * lịch sử (tiêu chí §11.4). Người tặng hoặc người tổ chức đều huỷ được.
+   */
+  cancelDelivery(params: {
+    deliveryId: string;
+    actorUserId: string;
+    reason: string;
+  }): Promise<ICharityDelivery>;
+
+  findDeliveryByGlobalId(globalId: string): Promise<ICharityDelivery | null>;
 
   /** Rút đề nghị. `null` khi không còn rút được. Rút là đổi trạng thái, không xoá. */
   withdrawContribution(params: {

@@ -3,14 +3,17 @@ import {
   ICharityCampaign,
   ICharityContribution,
   ICharityContributionPage,
+  ICharityDelivery,
   ICharityNeedsView,
   ICharityReview,
+  IDecideContributionResult,
 } from '@/domain/ports/repository';
 import {
   CharityApprovalStatus,
   CharityBeneficiaryRelation,
   CharityCampaignType,
   CharityContributionStatus,
+  CharityRejectionReason,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 
@@ -170,6 +173,77 @@ export interface IUpdateCharityContributionUseCase extends IUseCase<
 export const IUpdateCharityContributionUseCase = Symbol(
   'IUpdateCharityContributionUseCase',
 );
+
+export interface IDecideCharityContributionCommand {
+  readonly contributionId: string;
+  readonly organizerId: string;
+  /**
+   * Khoá chống trùng do CLIENT sinh cho mỗi lần bấm (§5). Bấm đúp hay mạng retry
+   * cùng khoá thì nhận lại đúng kết quả cũ, không tạo lượt giao nhận thứ hai.
+   */
+  readonly decisionKey: string;
+  readonly decisions: readonly {
+    contributionItemId: string;
+    acceptedQuantity: number;
+    rejectionReason?: CharityRejectionReason | null;
+  }[];
+}
+
+export type IDecideCharityContributionResult = IDecideContributionResult;
+
+export interface IDecideCharityContributionUseCase extends IUseCase<
+  IDecideCharityContributionCommand,
+  IDecideCharityContributionResult
+> {}
+
+export const IDecideCharityContributionUseCase = Symbol(
+  'IDecideCharityContributionUseCase',
+);
+
+export interface ICompleteCharityDeliveryCommand {
+  readonly deliveryId: string;
+  readonly organizerId: string;
+  readonly received: readonly {
+    needItemId: string;
+    receivedQuantity: number;
+  }[];
+}
+
+export interface ICompleteCharityDeliveryUseCase extends IUseCase<
+  ICompleteCharityDeliveryCommand,
+  ICharityDelivery
+> {}
+
+export const ICompleteCharityDeliveryUseCase = Symbol(
+  'ICompleteCharityDeliveryUseCase',
+);
+
+export interface ICancelCharityDeliveryCommand {
+  readonly deliveryId: string;
+  readonly actorUserId: string;
+  readonly reason: string;
+}
+
+export interface ICancelCharityDeliveryUseCase extends IUseCase<
+  ICancelCharityDeliveryCommand,
+  ICharityDelivery
+> {}
+
+export const ICancelCharityDeliveryUseCase = Symbol(
+  'ICancelCharityDeliveryUseCase',
+);
+
+export interface IGetCharityDeliveryCommand {
+  readonly deliveryId: string;
+  readonly viewerUserId: string;
+}
+
+export interface IGetCharityDeliveryUseCase extends IUseCase<
+  IGetCharityDeliveryCommand,
+  ICharityDelivery
+> {}
+
+export const IGetCharityDeliveryUseCase = Symbol('IGetCharityDeliveryUseCase');
 
 export interface IGetCampaignNeedsCommand {
   /** uuid canonical hoặc slug — cùng lối với `GET /campaigns/:idOrSlug`. */
