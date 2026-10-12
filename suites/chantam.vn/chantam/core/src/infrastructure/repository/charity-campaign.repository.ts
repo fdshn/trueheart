@@ -776,6 +776,29 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
   }
 
   /**
+   * Quyền ĐIỀU PHỐI, đọc TRONG transaction đang giữ khoá chiến dịch.
+   *
+   * Đọc ở đây chứ không tin một kết quả đọc trước đó: thu quyền coordinator giữa lúc
+   * mở màn hình và lúc bấm phải có hiệu lực ngay.
+   */
+  private async managesWithin(
+    manager: EntityManager,
+    campaign: { created_by: string | null },
+    campaignId: string,
+    userId: string,
+  ): Promise<boolean> {
+    if (campaign.created_by === userId) return true;
+    const [row] = await manager.query<{ found: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1 FROM campaign_coordinators
+         WHERE campaign_id = $1 AND user_id = $2 AND revoked_at IS NULL
+       ) AS found`,
+      [campaignId, userId],
+    );
+    return row.found;
+  }
+
+  /**
    * Cộng/trừ projection của nhiều dòng nhu cầu trong MỘT câu lệnh.
    *
    * Gọi chỉ sau `lockCampaignAndNeeds` trong cùng transaction — những dòng này đã bị
@@ -829,7 +852,14 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         manager,
         peek.campaign_id,
       );
-      if (campaign.created_by !== params.organizerId)
+      if (
+        !(await this.managesWithin(
+          manager,
+          campaign,
+          peek.campaign_id,
+          params.organizerId,
+        ))
+      )
         throw new CharityNotOrganizerException();
 
       const [contribution] = await manager.query<
@@ -1027,8 +1057,16 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         manager,
         params.deliveryId,
       );
-      // Người NHẬN của lượt giao này xác nhận — người tổ chức tại lúc quyết định.
-      if (delivery.organizer_id !== params.organizerId)
+      // Người tổ chức hoặc một coordinator còn hiệu lực xác nhận — không nhất thiết là
+      // người đã xét: lượt giao có thể được nhận ở điểm tập kết do người khác trực.
+      if (
+        !(await this.managesWithin(
+          manager,
+          { created_by: delivery.campaign_created_by },
+          delivery.campaign_id,
+          params.organizerId,
+        ))
+      )
         throw new CharityNotOrganizerException();
       if (delivery.status !== 'ACCEPTED')
         throw new CharityDeliveryInvalidStateException(delivery.status);
@@ -1140,8 +1178,13 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         params.deliveryId,
       );
       const isParty =
-        delivery.organizer_id === params.actorUserId ||
-        delivery.contributor_id === params.actorUserId;
+        delivery.contributor_id === params.actorUserId ||
+        (await this.managesWithin(
+          manager,
+          { created_by: delivery.campaign_created_by },
+          delivery.campaign_id,
+          params.actorUserId,
+        ));
       // Người ngoài nhận cùng lỗi với lượt không tồn tại.
       if (!isParty) throw new CharityDeliveryNotFoundException();
       if (delivery.status !== 'ACCEPTED')
@@ -1194,6 +1237,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     contributor_id: string;
     organizer_id: string;
     status: string;
+    campaign_created_by: string | null;
   }> {
     const [peek] = await manager.query<{ campaign_id: string }[]>(
       `SELECT campaign_id FROM campaign_deliveries WHERE global_id = $1`,
@@ -1201,7 +1245,10 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     );
     if (!peek) throw new CharityDeliveryNotFoundException();
 
-    await this.lockCampaignAndNeeds(manager, peek.campaign_id);
+    const { campaign } = await this.lockCampaignAndNeeds(
+      manager,
+      peek.campaign_id,
+    );
 
     const [delivery] = await manager.query<
       {
@@ -1216,7 +1263,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
        FROM campaign_deliveries WHERE global_id = $1 FOR UPDATE`,
       [deliveryId],
     );
-    return delivery;
+    return { ...delivery, campaign_created_by: campaign.created_by };
   }
 
   public async findDeliveryByGlobalId(
@@ -1331,7 +1378,14 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         manager,
         params.campaignId,
       );
-      if (campaign.created_by !== params.recordedBy)
+      if (
+        !(await this.managesWithin(
+          manager,
+          campaign,
+          params.campaignId,
+          params.recordedBy,
+        ))
+      )
         throw new CharityNotOrganizerException();
       // Chỉ chiến dịch đã duyệt mới có tiến độ để ghi vào. KHÔNG đòi `is_active`:
       // vật phẩm về kho sau khi đã đóng chiến dịch vẫn là vật phẩm thật.
@@ -1389,7 +1443,14 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         peek.campaign_id,
       );
       // Người ngoài nhận cùng lỗi với bản ghi không tồn tại.
-      if (campaign.created_by !== params.actorUserId)
+      if (
+        !(await this.managesWithin(
+          manager,
+          campaign,
+          peek.campaign_id,
+          params.actorUserId,
+        ))
+      )
         throw new CharityExternalContributionNotFoundException();
 
       const [current] = await manager.query<IExternalRow[]>(
@@ -1569,6 +1630,72 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         openDeliveries: Number(open.count),
       };
     });
+  }
+
+  public async isCampaignManager(
+    campaignId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const [row] = await this.manager.query<{ found: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1 FROM campaigns
+         WHERE global_id = $1 AND created_by = $2
+       ) OR EXISTS (
+         SELECT 1 FROM campaign_coordinators
+         WHERE campaign_id = $1 AND user_id = $2 AND revoked_at IS NULL
+       ) AS found`,
+      [campaignId, userId],
+    );
+    return row.found;
+  }
+
+  public async grantCoordinator(params: {
+    campaignId: string;
+    userId: string;
+    grantedBy: string;
+  }): Promise<void> {
+    // ON CONFLICT theo chỉ mục MỘT PHẦN: giao lại cho người đang có quyền là không làm
+    // gì, nhưng giao lại sau khi đã thu là một hàng mới — lịch sử giữ cả hai lần.
+    await this.manager.query(
+      `INSERT INTO campaign_coordinators (campaign_id, user_id, granted_by)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (campaign_id, user_id) WHERE revoked_at IS NULL DO NOTHING`,
+      [params.campaignId, params.userId, params.grantedBy],
+    );
+  }
+
+  public async revokeCoordinator(params: {
+    campaignId: string;
+    userId: string;
+    revokedBy: string;
+  }): Promise<boolean> {
+    const rows = await updateReturning<{ id: string }>(
+      this.manager,
+      `UPDATE campaign_coordinators
+       SET revoked_at = now(), revoked_by = $3
+       WHERE campaign_id = $1 AND user_id = $2 AND revoked_at IS NULL
+       RETURNING id`,
+      [params.campaignId, params.userId, params.revokedBy],
+    );
+    return rows.length > 0;
+  }
+
+  public async listCoordinators(
+    campaignId: string,
+  ): Promise<{ userId: string; grantedBy: string; grantedAt: Date }[]> {
+    const rows = await this.manager.query<
+      { user_id: string; granted_by: string; granted_at: Date }[]
+    >(
+      `SELECT user_id, granted_by, granted_at FROM campaign_coordinators
+       WHERE campaign_id = $1 AND revoked_at IS NULL
+       ORDER BY granted_at`,
+      [campaignId],
+    );
+    return rows.map((row) => ({
+      userId: row.user_id,
+      grantedBy: row.granted_by,
+      grantedAt: row.granted_at,
+    }));
   }
 
   public async extendCampaign(params: {

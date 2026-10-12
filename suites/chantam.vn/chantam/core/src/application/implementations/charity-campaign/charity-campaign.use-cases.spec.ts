@@ -3,6 +3,7 @@ import {
   CharityCampaignNotFoundException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
+  CharityCoordinatorNotAllowedException,
   CharityDeliveryNotFoundException,
   CharityLinesInvalidException,
   CharityNeedItemInvalidException,
@@ -31,6 +32,7 @@ import {
   GetCampaignNeedsUseCase,
   GetCharityDeliveryUseCase,
   ListCampaignContributionsUseCase,
+  ManageCharityCoordinatorsUseCase,
   RecordExternalContributionUseCase,
   ReviewCharityCampaignUseCase,
   SubmitCharityContributionUseCase,
@@ -110,6 +112,12 @@ function makeRepository(): jest.Mocked<ICharityCampaignRepository> {
     amendExternalContribution: jest.fn(),
     listExternalContributions: jest.fn().mockResolvedValue([]),
     closeCampaign: jest.fn(),
+    extendCampaign: jest.fn(),
+    // Mặc định KHÔNG phải người điều phối: phép kiểm nào cần quyền thì tự bật.
+    isCampaignManager: jest.fn().mockResolvedValue(false),
+    grantCoordinator: jest.fn(),
+    revokeCoordinator: jest.fn(),
+    listCoordinators: jest.fn().mockResolvedValue([]),
     listReviews: jest.fn(),
   } as unknown as jest.Mocked<ICharityCampaignRepository>;
 }
@@ -898,6 +906,9 @@ describe('ListCampaignContributionsUseCase (F65b §9)', () => {
     repository.findByGlobalId.mockResolvedValue(
       campaign({ createdBy: ActorId }),
     );
+    // Từ khi có coordinator, quyền đọc đi qua `isCampaignManager` — nguồn duy nhất
+    // nói "người tổ chức HOẶC coordinator còn hiệu lực".
+    repository.isCampaignManager.mockResolvedValue(true);
     repository.listContributionsByCampaign.mockResolvedValue({
       items: [],
       total: 0,
@@ -1189,6 +1200,9 @@ describe('Lát C — tầng ứng dụng (F65b §5–§6)', () => {
   it('cả HAI bên đều đọc được lượt giao nhận', async () => {
     const repository = makeRepository();
     repository.findDeliveryByGlobalId.mockResolvedValue(delivery() as never);
+    repository.isCampaignManager.mockImplementation(
+      async (_campaignId: string, userId: string) => userId === OrganizerId,
+    );
 
     for (const viewer of [ActorId, OrganizerId])
       await expect(
@@ -1467,5 +1481,107 @@ describe('ExtendCharityCampaignUseCase (F65b §8)', () => {
       }),
     ).rejects.toBeInstanceOf(CharityLinesInvalidException);
     expect(repository.extendCampaign).not.toHaveBeenCalled();
+  });
+});
+
+describe('Coordinator (F65b §2)', () => {
+  it('coordinator ĐỌC được danh sách đề nghị dù không phải người tạo', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: 'nguoi-tao' }),
+    );
+    repository.isCampaignManager.mockResolvedValue(true);
+    repository.listContributionsByCampaign.mockResolvedValue({
+      items: [],
+      total: 0,
+    });
+
+    await new ListCampaignContributionsUseCase(repository).handle({
+      campaignId: CampaignId,
+      actorUserId: ActorId,
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(repository.listContributionsByCampaign).toHaveBeenCalled();
+  });
+
+  it('coordinator KHÔNG đóng được hoạt động — đó là quyền chủ sở hữu', async () => {
+    // Ranh giới §2: điều phối được, không đổi được số phận của hoạt động.
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: 'nguoi-tao' }),
+    );
+    repository.isCampaignManager.mockResolvedValue(true);
+
+    await expect(
+      new CloseCharityCampaignUseCase(
+        repository,
+        makeAdmin(false),
+        makeNotifier(),
+      ).handle({ campaignId: CampaignId, actorUserId: ActorId }),
+    ).rejects.toBeInstanceOf(CharityNotOrganizerException);
+    expect(repository.closeCampaign).not.toHaveBeenCalled();
+  });
+
+  it('coordinator KHÔNG giao quyền tiếp cho người khác', async () => {
+    // Để coordinator tự giao quyền là đường chuyển quyền chủ sở hữu từng bước.
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: 'nguoi-tao' }),
+    );
+    repository.isCampaignManager.mockResolvedValue(true);
+
+    await expect(
+      new ManageCharityCoordinatorsUseCase(repository).handle({
+        campaignId: CampaignId,
+        actorUserId: ActorId,
+        action: 'GRANT',
+        userId: 'nguoi-thu-ba',
+      }),
+    ).rejects.toBeInstanceOf(CharityNotOrganizerException);
+    expect(repository.grantCoordinator).not.toHaveBeenCalled();
+  });
+
+  it('kêu gọi CÁ NHÂN không có coordinator', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({
+        createdBy: ActorId,
+        campaignType: 'INDIVIDUAL_APPEAL',
+        beneficiaryRelation: 'SELF',
+      }),
+    );
+
+    await expect(
+      new ManageCharityCoordinatorsUseCase(repository).handle({
+        campaignId: CampaignId,
+        actorUserId: ActorId,
+        action: 'GRANT',
+        userId: 'nguoi-khac',
+      }),
+    ).rejects.toBeInstanceOf(CharityCoordinatorNotAllowedException);
+  });
+
+  it('coordinator KHÔNG tặng vào hoạt động mình điều phối', async () => {
+    // Họ sẽ tự xét đề nghị của chính mình.
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({
+        approvalStatus: 'APPROVED',
+        isActive: true,
+        endTime: new Date(Date.now() + 7 * 24 * Hour),
+        createdBy: 'nguoi-tao',
+      }),
+    );
+    repository.isCampaignManager.mockResolvedValue(true);
+
+    await expect(
+      new SubmitCharityContributionUseCase(repository, makeNotifier()).handle({
+        campaignId: CampaignId,
+        contributorId: ActorId,
+        items: [{ needItemId: 'need-1', offeredQuantity: 1 }],
+      }),
+    ).rejects.toBeInstanceOf(CharitySelfContributionException);
   });
 });

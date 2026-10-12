@@ -931,6 +931,15 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Chỉ gia hạn được hoạt động đang mở, và mốc kết thúc mới phải sau mốc hiện tại',
   },
 
+  CHARITY_COORDINATOR_NOT_ALLOWED: {
+    code: ErrorCodes.CHARITY_COORDINATOR_NOT_ALLOWED,
+    httpStatus: HttpStatus.CONFLICT,
+    // §2 chỉ cho coordinator ở hoạt động CÓ TỔ CHỨC: kêu gọi cho một cá nhân không có
+    // ai để điều phối ngoài chính người kêu gọi.
+    message: () =>
+      'Chỉ hoạt động có tổ chức mới có coordinator, và không giao được cho chính mình',
+  },
+
   CHARITY_DELIVERY_NOT_FOUND: {
     code: ErrorCodes.CHARITY_DELIVERY_NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,

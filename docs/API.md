@@ -1780,6 +1780,9 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `PATCH` | `/charity-external-contributions/:id` | Organizer | ✅ **Đã chạy.** `VOID` huỷ, `ADJUST` huỷ + tạo bản thay thế; luôn kèm lý do, không sửa tại chỗ |
 | `POST` | `/charity-campaigns/:id/close` | Organizer/Admin | ✅ **Đã chạy.** Chặn đề nghị mới, từ chối hàng đợi với `CAMPAIGN_CLOSED`, giữ lượt giao đang chạy |
 | `POST` | `/charity-campaigns/:id/extend` | Organizer/Admin | ✅ **Đã chạy.** Gia hạn hoạt động đang mở, chỉ dời ra sau, mỗi lần một hàng audit |
+| `POST` | `/charity-campaigns/:id/coordinators` | Organizer | ✅ **Đã chạy.** Giao quyền điều phối (chỉ hoạt động có tổ chức) |
+| `GET` | `/charity-campaigns/:id/coordinators` | Organizer/coordinator | ✅ **Đã chạy.** Coordinator đang có hiệu lực |
+| `DELETE` | `/charity-campaigns/:id/coordinators/:userId` | Organizer | ✅ **Đã chạy.** Thu quyền — đặt mốc, không xoá |
 | `GET` | `/charity-deliveries/:id` | Hai bên | ✅ **Đã chạy.** Một lượt giao nhận; người ngoài nhận cùng lỗi với không tồn tại |
 | `POST` | `/charity-deliveries/:id/complete` | Organizer | ✅ **Đã chạy.** Xác nhận số THỰC NHẬN từng dòng; phần thiếu trở về nhu cầu |
 | `POST` | `/charity-deliveries/:id/cancel` | Hai bên | ✅ **Đã chạy.** Trả phần đã nhận về nhu cầu, không xoá đề nghị |
@@ -1892,7 +1895,11 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
   hoạt động đóng) và `CHARITY_DELIVERY_COMPLETED`; huỷ lượt giao thì `CHARITY_DELIVERY_CANCELLED`
   đi tới bên KIA.
 
-- Chưa có: vai coordinator, và chỗ lưu dữ liệu riêng tư của người thụ hưởng. Xem
+- **Coordinator**: mọi đường ghi "Organizer" ở trên (trừ đóng, gia hạn, giao quyền) nhận cả
+  coordinator còn hiệu lực. Quyền đọc lại trong transaction, nên thu quyền có hiệu lực ngay ở
+  lượt bấm kế tiếp. Người điều phối không gửi đề nghị vào hoạt động mình điều phối.
+
+- Chưa có: chỗ lưu dữ liệu riêng tư của người thụ hưởng. Xem
   [§12](./plan/CHARITY-CONTRIBUTION-DESIGN.md#12-tiến-độ-triển-khai).
 
 Body tạo đề nghị luôn bọc khoá `contribution`:

@@ -46,6 +46,9 @@ import {
   IListMyContributionsUseCase,
   IListPublicCharityCampaignsCommand,
   IListPublicCharityCampaignsUseCase,
+  IManageCharityCoordinatorsCommand,
+  IManageCharityCoordinatorsResult,
+  IManageCharityCoordinatorsUseCase,
   IRecordExternalContributionCommand,
   IRecordExternalContributionUseCase,
   IReviewCharityCampaignCommand,
@@ -70,6 +73,7 @@ import {
   CharityCancelTooLateException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
+  CharityCoordinatorNotAllowedException,
   CharityDeliveryNotFoundException,
   CharityLinesInvalidException,
   CharityNeedItemInvalidException,
@@ -439,7 +443,15 @@ export class SubmitCharityContributionUseCase implements ISubmitCharityContribut
     // Người tổ chức không tặng vào chính hoạt động của mình. Chặn ở ĐÂY chứ không đợi
     // lượt quyết: tới đó `CHK_campaign_deliveries_not_self` mới bắt, và người dùng
     // nhận một lỗi 500 cho một đề nghị hệ thống đã nhận từ trước.
-    if (campaign.createdBy === command.contributorId)
+    // Người điều phối — người tổ chức hoặc coordinator — không tặng vào hoạt động
+    // mình điều phối: họ sẽ tự xét đề nghị của chính mình.
+    if (
+      campaign.createdBy === command.contributorId ||
+      (await this.repository.isCampaignManager(
+        campaign.globalId,
+        command.contributorId,
+      ))
+    )
       throw new CharitySelfContributionException();
 
     // Mọi dòng phải thuộc ĐÚNG chiến dịch này và còn bật. Thiếu phép kiểm này thì
@@ -493,7 +505,12 @@ export class ListCampaignContributionsUseCase implements IListCampaignContributi
     // Danh sách này chứa `contactNote` của người tặng — cách liên lạc họ khai cho
     // lượt giao nhận. Chỉ người tổ chức đọc được; §9 nói response công khai không
     // trả contact.
-    if (campaign.createdBy !== command.actorUserId)
+    if (
+      !(await this.repository.isCampaignManager(
+        campaign.globalId,
+        command.actorUserId,
+      ))
+    )
       throw new CharityNotOrganizerException();
 
     return this.repository.listContributionsByCampaign({
@@ -702,12 +719,14 @@ export class GetCharityDeliveryUseCase implements IGetCharityDeliveryUseCase {
     );
     // Chỉ hai bên đọc được. Người ngoài nhận cùng lỗi với lượt không tồn tại —
     // phân biệt hai cái là để lộ ai đang giao nhận với ai.
-    if (
-      !delivery ||
-      (delivery.organizerId !== command.viewerUserId &&
-        delivery.contributorId !== command.viewerUserId)
-    )
-      throw new CharityDeliveryNotFoundException();
+    if (!delivery) throw new CharityDeliveryNotFoundException();
+    const allowed =
+      delivery.contributorId === command.viewerUserId ||
+      (await this.repository.isCampaignManager(
+        delivery.campaignId,
+        command.viewerUserId,
+      ));
+    if (!allowed) throw new CharityDeliveryNotFoundException();
     return delivery;
   }
 }
@@ -792,7 +811,12 @@ export class ListExternalContributionsUseCase implements IListExternalContributi
   ): Promise<{ items: ICharityExternalContribution[] }> {
     const campaign = await this.repository.findByGlobalId(command.campaignId);
     if (!campaign) throw new CharityCampaignNotFoundException();
-    if (campaign.createdBy !== command.actorUserId)
+    if (
+      !(await this.repository.isCampaignManager(
+        campaign.globalId,
+        command.actorUserId,
+      ))
+    )
       throw new CharityNotOrganizerException();
     return {
       items: await this.repository.listExternalContributions(campaign.globalId),
@@ -885,6 +909,60 @@ export class ExtendCharityCampaignUseCase implements IExtendCharityCampaignUseCa
       newEndTime,
       reason,
     });
+  }
+}
+
+/**
+ * Giao, thu và đọc coordinator (F65b §2). Giao/thu: CHỈ người tổ chức — để coordinator
+ * tự giao quyền cho người khác là chuyển quyền chủ sở hữu từng bước.
+ */
+@Injectable()
+export class ManageCharityCoordinatorsUseCase implements IManageCharityCoordinatorsUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: IManageCharityCoordinatorsCommand,
+  ): Promise<IManageCharityCoordinatorsResult> {
+    const campaign = await this.repository.findByGlobalId(command.campaignId);
+    if (!campaign) throw new CharityCampaignNotFoundException();
+
+    if (command.action === 'LIST') {
+      if (
+        !(await this.repository.isCampaignManager(
+          campaign.globalId,
+          command.actorUserId,
+        ))
+      )
+        throw new CharityNotOrganizerException();
+    } else {
+      if (campaign.createdBy !== command.actorUserId)
+        throw new CharityNotOrganizerException();
+      if (campaign.campaignType !== 'ORGANIZED_CAMPAIGN')
+        throw new CharityCoordinatorNotAllowedException();
+      const target = command.userId as string;
+      if (target === command.actorUserId)
+        throw new CharityCoordinatorNotAllowedException();
+
+      if (command.action === 'GRANT')
+        await this.repository.grantCoordinator({
+          campaignId: campaign.globalId,
+          userId: target,
+          grantedBy: command.actorUserId,
+        });
+      else
+        await this.repository.revokeCoordinator({
+          campaignId: campaign.globalId,
+          userId: target,
+          revokedBy: command.actorUserId,
+        });
+    }
+
+    return {
+      coordinators: await this.repository.listCoordinators(campaign.globalId),
+    };
   }
 }
 

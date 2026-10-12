@@ -329,6 +329,31 @@ export const IExtendCharityCampaignUseCase = Symbol(
   'IExtendCharityCampaignUseCase',
 );
 
+export interface IManageCharityCoordinatorsCommand {
+  readonly campaignId: string;
+  readonly actorUserId: string;
+  readonly action: 'GRANT' | 'REVOKE' | 'LIST';
+  /** Bắt buộc với `GRANT`/`REVOKE`. */
+  readonly userId?: string;
+}
+
+export interface IManageCharityCoordinatorsResult {
+  readonly coordinators: readonly {
+    userId: string;
+    grantedBy: string;
+    grantedAt: Date;
+  }[];
+}
+
+export interface IManageCharityCoordinatorsUseCase extends IUseCase<
+  IManageCharityCoordinatorsCommand,
+  IManageCharityCoordinatorsResult
+> {}
+
+export const IManageCharityCoordinatorsUseCase = Symbol(
+  'IManageCharityCoordinatorsUseCase',
+);
+
 export interface IGetCampaignNeedsCommand {
   /** uuid canonical hoặc slug — cùng lối với `GET /campaigns/:idOrSlug`. */
   readonly idOrSlug: string;

@@ -355,8 +355,11 @@ cần deploy.
   (cho người tặng — nói rõ nhận đủ/một phần/không nhận, và cả khi bị từ chối vì hoạt động
   ĐÓNG), `CHARITY_DELIVERY_COMPLETED`, `CHARITY_DELIVERY_CANCELLED` (cho BÊN KIA). Gửi sau
   commit, nuốt lỗi, retry cùng khoá quyết định không báo lại.
-- **Coordinator** (§2) chưa có: chỉ người tạo hoạt động quyết được. Cần một bảng giao
-  quyền; `organizer_id` trên lượt giao nhận đã đúng chỗ để đón nó.
+- ~~**Coordinator**~~ ✅ **Xong 12/10.** `campaign_coordinators`, chỉ ở hoạt động có tổ
+  chức, chỉ người tổ chức giao/thu. Coordinator xét đề nghị, hoàn tất/huỷ lượt giao, ghi
+  ngoài app, đọc danh sách — KHÔNG đóng, gia hạn hay giao quyền tiếp. Quyền đọc lại TRONG
+  transaction nên thu quyền có hiệu lực ngay; thu là đặt `revoked_at`, không xoá. Người điều
+  phối không tặng vào hoạt động mình điều phối. Nhóm 15 của script.
 - ~~**Cờ "cho phép vượt mục tiêu"**~~ ✅ **Xong 12/10.** `campaigns.allow_over_target`
   (mặc định `false`, giữ hành vi cũ), đặt lúc tạo. Chỉ nới lượt CHẤP NHẬN — ngoài app vốn
   không bao giờ bị chặn vượt. Nhóm 13 của script.

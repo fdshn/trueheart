@@ -10,6 +10,7 @@ import {
   IListExternalContributionsUseCase,
   IListJoinedCharityCampaignsUseCase,
   IListMyCharityCampaignsUseCase,
+  IManageCharityCoordinatorsUseCase,
   IRecordExternalContributionUseCase,
   IReviewCharityCampaignUseCase,
   ISetCharityCampaignActiveUseCase,
@@ -24,6 +25,7 @@ import {
   CharityCampaignNotExtendableException,
   CharityCampaignNotFoundException,
   CharityCancelTooLateException,
+  CharityCoordinatorNotAllowedException,
   CharityLinesInvalidException,
   CharityNeedItemInvalidException,
   CharityNotAcceptingContributionsException,
@@ -49,6 +51,7 @@ import {
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Inject,
   Param,
@@ -68,12 +71,14 @@ import {
   CharityCampaignWrapperResponseDto,
   CharityContributionDto,
   CharityContributionPageDto,
+  CharityCoordinatorListDto,
   CharityExternalContributionDto,
   CharityExternalContributionListDto,
   CloseCharityCampaignResponseDto,
   DecideCharityApprovalBodyDto,
   ExtendCharityCampaignBodyDto,
   ExtendCharityCampaignResponseDto,
+  GrantCharityCoordinatorBodyDto,
   ListAdminCharityCampaignsQueryDto,
   ListCharityCampaignsQueryDto,
   ListCharityCampaignsResponseDto,
@@ -127,6 +132,8 @@ export class CharityCampaignController {
     private readonly closeUseCase: ICloseCharityCampaignUseCase,
     @Inject(IExtendCharityCampaignUseCase)
     private readonly extendUseCase: IExtendCharityCampaignUseCase,
+    @Inject(IManageCharityCoordinatorsUseCase)
+    private readonly coordinatorsUseCase: IManageCharityCoordinatorsUseCase,
   ) {}
 
   @Get('mine')
@@ -405,6 +412,95 @@ export class CharityCampaignController {
           actorUserId: principal.userId,
           endTime: body.endTime,
           reason: body.reason,
+        }),
+      )
+      .build();
+  }
+
+  @Post(':id/coordinators')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Giao quyền coordinator (chỉ người tổ chức)',
+    description:
+      'Coordinator (F65b §2) xét đề nghị, hoàn tất/huỷ lượt giao nhận và ghi đóng góp ngoài app được — nhưng KHÔNG đóng, gia hạn hay giao quyền tiếp. Chỉ hoạt động có tổ chức mới có coordinator. Thu quyền có hiệu lực ngay ở lượt bấm kế tiếp, kể cả khi màn hình của coordinator còn mở.',
+  })
+  @ApiCreatedResponse({ type: ResponseDto.forApi(CharityCoordinatorListDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    CharityCampaignNotFoundException,
+    CharityNotOrganizerException,
+    CharityCoordinatorNotAllowedException,
+  )
+  public async grantCoordinator(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('id') id: string,
+    @Body() body: GrantCharityCoordinatorBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.coordinatorsUseCase.handle({
+          campaignId: id,
+          actorUserId: principal.userId,
+          action: 'GRANT',
+          userId: body.userId,
+        }),
+      )
+      .build();
+  }
+
+  @Get(':id/coordinators')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Danh sách coordinator đang có hiệu lực' })
+  @ApiOkResponse({ type: ResponseDto.forApi(CharityCoordinatorListDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    CharityCampaignNotFoundException,
+    CharityNotOrganizerException,
+  )
+  public async listCoordinators(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.coordinatorsUseCase.handle({
+          campaignId: id,
+          actorUserId: principal.userId,
+          action: 'LIST',
+        }),
+      )
+      .build();
+  }
+
+  @Delete(':id/coordinators/:userId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Thu quyền coordinator (chỉ người tổ chức)',
+    description:
+      'Đặt mốc thu quyền, KHÔNG xoá bản ghi: lượt giao nhận do coordinator đó xét vẫn phải truy được vì sao họ từng có quyền.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(CharityCoordinatorListDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    CharityCampaignNotFoundException,
+    CharityNotOrganizerException,
+    CharityCoordinatorNotAllowedException,
+  )
+  public async revokeCoordinator(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.coordinatorsUseCase.handle({
+          campaignId: id,
+          actorUserId: principal.userId,
+          action: 'REVOKE',
+          userId,
         }),
       )
       .build();

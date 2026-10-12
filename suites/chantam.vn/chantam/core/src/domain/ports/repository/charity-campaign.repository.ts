@@ -581,6 +581,31 @@ export interface ICharityNeedsRepositoryPart {
    * Gia hạn chiến dịch đang mở, ghi một hàng audit trong cùng transaction (§8).
    * Chỉ DỜI RA SAU — rút ngắn đi qua đường đóng. Quyền do use case kiểm.
    */
+  /**
+   * Người này có quyền ĐIỀU PHỐI hoạt động không: người tổ chức, hoặc coordinator
+   * còn hiệu lực (F65b §2). Không gồm đóng/gia hạn/giao quyền — những việc đó chỉ
+   * người tổ chức.
+   */
+  isCampaignManager(campaignId: string, userId: string): Promise<boolean>;
+
+  /** Giao quyền coordinator. Giao lại cho người đang có quyền thì không làm gì. */
+  grantCoordinator(params: {
+    campaignId: string;
+    userId: string;
+    grantedBy: string;
+  }): Promise<void>;
+
+  /** Thu quyền: đặt `revoked_at`, không xoá hàng. `false` khi không có gì để thu. */
+  revokeCoordinator(params: {
+    campaignId: string;
+    userId: string;
+    revokedBy: string;
+  }): Promise<boolean>;
+
+  listCoordinators(
+    campaignId: string,
+  ): Promise<{ userId: string; grantedBy: string; grantedAt: Date }[]>;
+
   extendCampaign(params: {
     campaignId: string;
     actorUserId: string;

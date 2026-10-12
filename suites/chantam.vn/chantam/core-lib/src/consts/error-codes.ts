@@ -283,6 +283,8 @@ export enum ErrorCodes {
   CHARITY_EXTERNAL_CONTRIBUTION_VOIDED = 0x13_18,
   /** Không gia hạn được: chưa duyệt, đã đóng/đình chỉ, hoặc mốc mới không dời ra sau. */
   CHARITY_CAMPAIGN_NOT_EXTENDABLE = 0x13_19,
+  /** Không giao được coordinator: không phải hoạt động có tổ chức, hoặc giao cho chính mình. */
+  CHARITY_COORDINATOR_NOT_ALLOWED = 0x13_1a,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

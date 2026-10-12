@@ -120,3 +120,7 @@ export class CharityExternalContributionVoidedException extends ExceptionFrom(
 export class CharityCampaignNotExtendableException extends ExceptionFrom(
   CoreErrors.CHARITY_CAMPAIGN_NOT_EXTENDABLE,
 ) {}
+
+export class CharityCoordinatorNotAllowedException extends ExceptionFrom(
+  CoreErrors.CHARITY_COORDINATOR_NOT_ALLOWED,
+) {}

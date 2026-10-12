@@ -1054,3 +1054,23 @@ export class ExtendCharityCampaignResponseDto {
   @ApiProperty({ type: String, format: 'date-time' }) previousEndTime: Date;
   @ApiProperty({ type: String, format: 'date-time' }) newEndTime: Date;
 }
+
+export class GrantCharityCoordinatorBodyDto {
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Người được giao quyền điều phối.',
+  })
+  @IsUUID()
+  userId: string;
+}
+
+export class CharityCoordinatorDto {
+  @ApiProperty({ format: 'uuid' }) userId: string;
+  @ApiProperty({ format: 'uuid' }) grantedBy: string;
+  @ApiProperty({ type: String, format: 'date-time' }) grantedAt: Date;
+}
+
+export class CharityCoordinatorListDto {
+  @ApiProperty({ type: () => [CharityCoordinatorDto] })
+  coordinators: CharityCoordinatorDto[];
+}

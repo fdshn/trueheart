@@ -820,6 +820,99 @@ async function main(): Promise<void> {
         q(`UPDATE campaign_schedule_changes SET reason = 'khac'`),
       )) === 'QueryFailedError',
     );
+
+    console.log(
+      '\n15. Coordinator: điều phối được, thu quyền có hiệu lực NGAY (§2)',
+    );
+
+    await repo.grantCoordinator({
+      campaignId: generous.globalId,
+      userId: GoldId,
+      grantedBy: DiamondId,
+    });
+    await repo.grantCoordinator({
+      campaignId: generous.globalId,
+      userId: GoldId,
+      grantedBy: DiamondId,
+    });
+    check(
+      'giao lại cho người đang có quyền không sinh hàng thứ hai',
+      (await repo.listCoordinators(generous.globalId)).length === 1,
+    );
+
+    const h = await submit.handle({
+      campaignId: generous.globalId,
+      contributorId: GiverB,
+      items: [{ needItemId: blanket.globalId, offeredQuantity: 2 }],
+    });
+    const hDecided = await repo.decideContribution({
+      contributionId: h.globalId,
+      organizerId: GoldId,
+      decisionKey: `h-${h.globalId}`,
+      decisions: [
+        { contributionItemId: h.items[0].globalId, acceptedQuantity: 2 },
+      ],
+    });
+    check(
+      'coordinator XÉT được, và lượt giao đứng tên người đã xét',
+      hDecided.delivery?.organizerId === GoldId,
+      String(hDecided.delivery?.organizerId),
+    );
+    check(
+      'NGƯỜI TỔ CHỨC hoàn tất được lượt giao do coordinator xét',
+      (
+        await repo.completeDelivery({
+          deliveryId: hDecided.delivery!.globalId,
+          organizerId: DiamondId,
+          received: [{ needItemId: blanket.globalId, receivedQuantity: 2 }],
+        })
+      ).status === 'COMPLETED',
+    );
+
+    const i = await submit.handle({
+      campaignId: generous.globalId,
+      contributorId: GiverC,
+      items: [{ needItemId: blanket.globalId, offeredQuantity: 1 }],
+    });
+    await repo.revokeCoordinator({
+      campaignId: generous.globalId,
+      userId: GoldId,
+      revokedBy: DiamondId,
+    });
+    check(
+      'thu quyền xong thì lượt xét KẾ TIẾP của người đó bị chặn',
+      (await errorName(
+        repo.decideContribution({
+          contributionId: i.globalId,
+          organizerId: GoldId,
+          decisionKey: `i-${i.globalId}`,
+          decisions: [
+            { contributionItemId: i.items[0].globalId, acceptedQuantity: 1 },
+          ],
+        }),
+      )) === 'CharityNotOrganizerException',
+    );
+    check(
+      'và quyền điều phối (kể cả quyền đọc) cũng hết',
+      (await repo.isCampaignManager(generous.globalId, GoldId)) === false,
+    );
+
+    await repo.grantCoordinator({
+      campaignId: generous.globalId,
+      userId: GoldId,
+      grantedBy: DiamondId,
+    });
+    const [history] = await q(
+      `SELECT count(*)::int AS total,
+              count(*) FILTER (WHERE revoked_at IS NULL)::int AS active
+       FROM campaign_coordinators WHERE campaign_id = $1 AND user_id = $2`,
+      [generous.globalId, GoldId],
+    );
+    check(
+      'giao lại sau khi thu là một hàng MỚI — lịch sử giữ cả hai lần',
+      history.total === 2 && history.active === 1,
+      JSON.stringify(history),
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();
