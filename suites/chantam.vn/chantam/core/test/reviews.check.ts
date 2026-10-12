@@ -31,6 +31,13 @@ const CategoryId = '30000000-0000-4000-8000-000000000001';
 const GiverId = '99999999-9999-4999-8999-9999999f1001';
 const ReceiverId = '99999999-9999-4999-8999-9999999f1002';
 const PostId = '88888888-8888-4888-8888-8888888f1001';
+/**
+ * Cặp riêng cho ca giả mạo bản cũ. Dùng chung `GiverId` thì đánh giá giả mạo thành
+ * một MẪU nữa của người tặng đó, và mọi phép đếm mẫu ở các nhóm sau lệch đi một — lần
+ * chạy đầu trên Postgres thật đã đỏ đúng chín ca vì thế.
+ */
+const ForgeGiverId = '99999999-9999-4999-8999-9999999f1003';
+const ForgeReceiverId = '99999999-9999-4999-8999-9999999f1004';
 
 const failures: string[] = [];
 
@@ -117,6 +124,12 @@ async function main(): Promise<void> {
        VALUES ($1, 'nguoi_tang_rv', 'x', 'MEMBER', 'ACTIVE'),
               ($2, 'nguoi_nhan_rv', 'x', 'MEMBER', 'ACTIVE')`,
       [GiverId, ReceiverId],
+    );
+    await dataSource.query(
+      `INSERT INTO users (global_id, username, password_hash, rank, status)
+       VALUES ($1, 'nguoi_tang_gia_mao', 'x', 'MEMBER', 'ACTIVE'),
+              ($2, 'nguoi_nhan_gia_mao', 'x', 'MEMBER', 'ACTIVE')`,
+      [ForgeGiverId, ForgeReceiverId],
     );
     await dataSource.query(
       `INSERT INTO posts
@@ -231,46 +244,76 @@ async function main(): Promise<void> {
       ),
     );
 
+    // Phép SỬA chạy trên một lượt trao của cặp riêng, không trên `first`: sửa mẫu của
+    // `GiverId` là viết lại câu chuyện của mọi nhóm sau (trung bình 60% ở nhóm "Ngưỡng
+    // công bố" thành 50%). Lần chạy thật đầu tiên đỏ đúng vì thế.
+    const editable = randomUUID();
+    await dataSource.query(
+      `INSERT INTO gift_transactions
+         (global_id, post_id, giver_id, receiver_id, status, completed_at)
+       VALUES ($1, $2, $3, $4, 'COMPLETED', now())`,
+      [editable, PostId, ForgeGiverId, ForgeReceiverId],
+    );
+    await reviews.submitReview({
+      globalId: randomUUID(),
+      transactionId: editable,
+      reviewerId: ForgeReceiverId,
+      revieweeId: ForgeGiverId,
+      reviewerRole: TransactionReviewRoles.RECEIVER,
+      rating: 5,
+      accuracyPercent: 60,
+      comment: 'Bản gốc',
+    });
+
     // Lần sửa đầu đi qua repository, đúng đường mà use case dùng.
     const edited = await reviews.editReview({
-      transactionId: first,
-      reviewerId: ReceiverId,
+      transactionId: editable,
+      reviewerId: ForgeReceiverId,
       rating: 1,
       accuracyPercent: 10,
       comment: 'Nhìn lại thì mô tả lệch nhiều',
     });
+    // Phiên bản đầu của phép kiểm này ghi bản gốc là 3/50 — con số của một lượt chèn
+    // BỊ CHẶN ở nhóm trên, tức một hàng không tồn tại. Chỉ chạy thật mới thấy.
     check(
       'lần sửa ĐẦU được, và trigger tự chụp bản cũ',
       edited.review.rating === 1 &&
         edited.review.editedAt !== null &&
-        edited.review.previousRating === 3 &&
-        edited.review.previousAccuracyPercent === 50,
+        edited.review.previousRating === 5 &&
+        edited.review.previousAccuracyPercent === 60,
       `rating ${edited.review.rating}, cũ ${String(edited.review.previousRating)}/${String(edited.review.previousAccuracyPercent)}`,
     );
-    check(
-      'chỉ số accuracy phản ánh bản đánh giá CUỐI',
-      edited.accuracy.percent === 10,
-      `${String(edited.accuracy.percent)}%`,
+    // Chỉ số chưa CÔNG BỐ với một mẫu (ngưỡng là 5), nên kiểm rằng phép tính lại đã
+    // chạy trên bản cuối bằng số mẫu và giá trị thô — không bằng `percent`, vốn còn
+    // `null` đúng như thiết kế.
+    const [raw] = await dataSource.query<{ accuracy_percent: number }[]>(
+      `SELECT accuracy_percent FROM transaction_reviews WHERE transaction_id = $1`,
+      [editable],
     );
     check(
-      'điểm sao cũng tính lại theo bản cuối',
-      edited.rating.asGiver.average === 1,
-      `${String(edited.rating.asGiver.average)} sao`,
+      'phép tính lại chạy trên bản CUỐI — một mẫu, giá trị 10',
+      edited.accuracy.samples === 1 && Number(raw.accuracy_percent) === 10,
+      `samples=${edited.accuracy.samples}, thô=${String(raw.accuracy_percent)}`,
+    );
+    check(
+      'điểm sao cũng tính lại — một mẫu khi tặng',
+      edited.rating.asGiver.samples === 1,
+      `samples=${edited.rating.asGiver.samples}`,
     );
 
     check(
       'lần sửa THỨ HAI bị chặn ngay ở database',
       await rejected(
         `UPDATE transaction_reviews SET rating = 5 WHERE transaction_id = $1`,
-        [first],
+        [editable],
       ),
     );
     check(
       'và repository dịch nó thành lỗi nghiệp vụ, không phải lỗi ràng buộc',
       await reviews
         .editReview({
-          transactionId: first,
-          reviewerId: ReceiverId,
+          transactionId: editable,
+          reviewerId: ForgeReceiverId,
           rating: 5,
           accuracyPercent: 100,
           comment: null,
@@ -282,13 +325,19 @@ async function main(): Promise<void> {
     // Giả mạo bản cũ: trigger ghi đè bằng giá trị thật của hàng trước khi sửa.
     // Dựng lại hàng chưa sửa bằng cách tắt trigger — đúng cái mà người có quyền
     // trên database làm được, và là lý do bản cũ phải do trigger chụp.
-    const second = await completedTransaction();
+    const second = randomUUID();
+    await dataSource.query(
+      `INSERT INTO gift_transactions
+         (global_id, post_id, giver_id, receiver_id, status, completed_at)
+       VALUES ($1, $2, $3, $4, 'COMPLETED', now())`,
+      [second, PostId, ForgeGiverId, ForgeReceiverId],
+    );
     await dataSource.query(
       `INSERT INTO transaction_reviews
          (global_id, transaction_id, reviewer_id, reviewee_id,
           reviewer_role, rating, accuracy_percent, comment)
        VALUES ($1, $2, $3, $4, 'RECEIVER', 4, 80, 'Bản đầu')`,
-      [randomUUID(), second, ReceiverId, GiverId],
+      [randomUUID(), second, ForgeReceiverId, ForgeGiverId],
     );
     await dataSource.query(
       `UPDATE transaction_reviews
@@ -407,9 +456,12 @@ async function main(): Promise<void> {
     const [total] = await dataSource.query<{ count: string }[]>(
       `SELECT COUNT(*) AS count FROM transaction_reviews`,
     );
+    // Đếm mẫu của ĐÚNG người được đo. Tới 12/10 câu này đếm cả bảng, và nó đúng chỉ
+    // vì cả bảng khi đó chỉ có một người tặng — thêm một cặp người dùng khác là lệch.
     const [samples] = await dataSource.query<{ count: string }[]>(
       `SELECT COUNT(*) AS count FROM transaction_reviews
-       WHERE accuracy_percent IS NOT NULL`,
+       WHERE accuracy_percent IS NOT NULL AND reviewee_id = $1`,
+      [GiverId],
     );
     check(
       'số mẫu accuracy khớp số dòng có chấm, không trôi',

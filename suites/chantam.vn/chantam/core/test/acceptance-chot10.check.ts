@@ -467,8 +467,19 @@ async function main(): Promise<void> {
        WHERE config_key = 'point.redemption'`,
       [JSON.stringify({ vndPerPoint: 1_000 })],
     );
+    // Báo giá trên một bài KHÁC còn mở, cùng giá: bài vừa đổi đã có chủ nên báo giá
+    // của nó là NOT_AVAILABLE với 0 điểm. Phiên bản đầu hỏi đúng bài đó và đỏ ở lần
+    // chạy thật đầu tiên.
+    const sameValueId = randomUUID();
+    await seedPost({
+      postId: sameValueId,
+      postType: 'OFFER',
+      publishedDaysAgo: 3,
+      estimatedValueVnd: 1_000_000,
+    });
+    await requestFrom(sameValueId, Member, 1);
     const quoteAfter = await quotes.handle({
-      postId: redeemId,
+      postId: sameValueId,
       userId: Member,
     });
     check(

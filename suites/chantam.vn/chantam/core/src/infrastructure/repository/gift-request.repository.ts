@@ -456,6 +456,13 @@ export class GiftRequestRepository
           AND candidate.status = $3
           AND candidate.deleted_at IS NULL
           AND post.deleted_at IS NULL
+          -- CHỈ bài Muốn Tặng. Tới 11/10 chốt này nằm ngầm trong phép kiểm đồng hồ:
+          -- bài Muốn Nhận không có selection_deadline nên không bao giờ "đang chạy".
+          -- Bật vòng đời 7+30 cho cả Muốn Nhận (CHỐT-10 mục 1) làm chốt ngầm đó biến
+          -- mất, và bài Muốn Nhận có khai giá trị thì ĐỔI ĐƯỢC — trong khi ở bài đó
+          -- người xin là người TẶNG, tức trừ điểm của người đang cho đồ. Lọc ở đây
+          -- vì đây là nguồn dùng chung của cả báo giá lẫn lệnh đổi.
+          AND post.post_type = 'OFFER'
       `,
       [params.postId, params.requesterId, GiftRequestStatuses.PENDING],
     );

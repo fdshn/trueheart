@@ -48,7 +48,14 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *
  * `CHARITY_CONTRIBUTION_COMPLETED` với `is_enabled = false`, đúng lối F83 và F56:
  * mức điểm là con số Bên A chốt, và một con số bịa sẵn ở trạng thái bật sẽ phát
- * điểm thật trước khi ai kịp duyệt. `daily_cap = NULL` vì đóng góp từ thiện không
+ * điểm thật trước khi ai kịp duyệt.
+ *
+ * **`points = 10` là SỐ GIỮ CHỖ, không phải mức đã chốt.** Phiên bản đầu ghi `0` và
+ * làm vỡ cả chuỗi migration: `CHK_point_rules_points` là `points <> 0` từ
+ * `AddNegativePointsAndShipping`. Kiểm trên schema tối giản dựng tay thì không thấy,
+ * vì bảng dựng tay không có CHECK đó — chỉ chạy chuỗi migration thật mới thấy. Cùng
+ * tiền lệ `REPORT_UPHELD` seed `5` ở trạng thái tắt. Trước khi bật, Admin PHẢI sửa
+ * con số này theo mức Bên A chốt. `daily_cap = NULL` vì đóng góp từ thiện không
  * phải việc cần làm chậm; `affects_lifetime = false` vì `lifetime` là sàn của Rank
  * và không nên có đường đẩy hạng bằng một luồng chưa chốt mức.
  */
@@ -213,7 +220,7 @@ export class CreateCharityNeedItems1799800000000 implements MigrationInterface {
     await queryRunner.query(`
       INSERT INTO point_rules
         (code, points, is_enabled, affects_lifetime, daily_cap, version)
-      VALUES ('CHARITY_CONTRIBUTION_COMPLETED', 0, false, false, NULL, 1)
+      VALUES ('CHARITY_CONTRIBUTION_COMPLETED', 10, false, false, NULL, 1)
       ON CONFLICT DO NOTHING
     `);
   }

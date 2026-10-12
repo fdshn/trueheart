@@ -78,6 +78,15 @@ const ScratchDatabase = 'chantam_charity_check';
 // lượt chèn vốn để dựng dự liệu, làm toàn bộ script đỏ vì một lý do không liên quan
 // đến F65.
 const DiamondId = 'c1000000-0000-4000-8000-0000000000d1';
+/**
+ * Người tổ chức của hồ sơ CHỜ DUYỆT dùng suốt phần còn lại của script — hạng Vàng.
+ *
+ * Tới 11/10 vai này do Kim Cương đóng, vì khi đó Kim Cương tạo thì vào
+ * `PENDING_APPROVAL`. Từ F65b lát A, Kim Cương có `PUBLISH_CHARITY_WITHOUT_REVIEW` và
+ * public NGAY (§2, tiêu chí §11.11), nên không còn dựng được hồ sơ chờ duyệt từ Kim
+ * Cương. Vàng tạo được kêu gọi cá nhân nhưng không được public ngay — đúng vai cần.
+ */
+const OrganizerId = 'c1000000-0000-4000-8000-0000000000a9';
 const MemberId = 'c1000000-0000-4000-8000-0000000000e1';
 const AdminId = 'c1000000-0000-4000-8000-0000000000ad';
 const JoinerId = 'c1000000-0000-4000-8000-0000000000b1';
@@ -225,6 +234,7 @@ async function main(): Promise<void> {
     };
 
     await seedUser(DiamondId, 'kimcuong', 'DIAMOND');
+    await seedUser(OrganizerId, 'hangvang', 'GOLD');
     await seedUser(MemberId, 'thanhvien', 'MEMBER');
     await seedUser(AdminId, 'quantri', 'MEMBER');
     await seedUser(JoinerId, 'nguoithamgia1', 'MEMBER');
@@ -262,20 +272,37 @@ async function main(): Promise<void> {
       JSON.stringify(memberCapability),
     );
 
-    const diamondCampaign = await createUseCase.handle({
-      ...writeInput(),
+    // Luật ĐỔI từ F65b lát A (§2, tiêu chí §11.11): Kim Cương có quyền public ngay.
+    const diamondPublished = await createUseCase.handle({
+      ...writeInput({ title: 'Hoạt động Kim Cương public ngay' }),
       actorUserId: DiamondId,
       asAdmin: false,
     });
     check(
-      'Kim Cương tạo -> PENDING_APPROVAL',
-      diamondCampaign.approvalStatus === 'PENDING_APPROVAL',
-      diamondCampaign.approvalStatus,
+      'Kim Cương tạo hoạt động có tổ chức -> APPROVED ngay, không chờ Admin',
+      diamondPublished.approvalStatus === 'APPROVED' &&
+        diamondPublished.approvedAt !== null &&
+        diamondPublished.approvedBy === DiamondId,
+      `${diamondPublished.approvalStatus} / ${String(diamondPublished.approvedBy)}`,
+    );
+
+    const pendingCampaign = await createUseCase.handle({
+      ...writeInput({
+        campaignType: 'INDIVIDUAL_APPEAL',
+        beneficiaryRelation: 'SELF',
+      }),
+      actorUserId: OrganizerId,
+      asAdmin: false,
+    });
+    check(
+      'hạng Vàng tạo kêu gọi cá nhân -> PENDING_APPROVAL (tạo được, không public ngay)',
+      pendingCampaign.approvalStatus === 'PENDING_APPROVAL',
+      pendingCampaign.approvalStatus,
     );
     check(
       'Hồ sơ chờ duyệt KHÔNG có approvedAt (CHK_campaigns_approved_at)',
-      diamondCampaign.approvedAt === null &&
-        diamondCampaign.approvedBy === null,
+      pendingCampaign.approvedAt === null &&
+        pendingCampaign.approvedBy === null,
     );
 
     await expectThrow(
@@ -413,12 +440,12 @@ async function main(): Promise<void> {
 
     check(
       'Tra bằng ID một hồ sơ PENDING -> không trả gì',
-      (await repository.findPublicByIdOrSlug(diamondCampaign.globalId)) ===
+      (await repository.findPublicByIdOrSlug(pendingCampaign.globalId)) ===
         null,
     );
     check(
       'Tra bằng SLUG một hồ sơ PENDING -> không trả gì',
-      (await repository.findPublicByIdOrSlug(diamondCampaign.slug)) === null,
+      (await repository.findPublicByIdOrSlug(pendingCampaign.slug)) === null,
     );
     check(
       'Hồ sơ APPROVED tra được bằng slug',
@@ -430,13 +457,15 @@ async function main(): Promise<void> {
       'Danh sách công khai chỉ có hồ sơ đã duyệt',
       publicList.items.every(
         (item) => item.approvalStatus === 'APPROVED' && item.isActive,
-      ) && publicList.items.length === 1,
+        // Hai: của Admin và của Kim Cương public ngay. Hồ sơ chờ duyệt của hạng Vàng
+        // không có mặt — đó là điều phép kiểm này canh.
+      ) && publicList.items.length === 2,
       `${publicList.items.length} hàng`,
     );
     // Người gửi hồ sơ vẫn phải thấy hồ sơ của mình — nếu không thì họ không bao giờ biết
     // nó bị từ chối vì sao.
     const mine = await repository.listByCreator({
-      userId: DiamondId,
+      userId: OrganizerId,
       limit: 10,
       offset: 0,
     });
@@ -451,7 +480,7 @@ async function main(): Promise<void> {
 
     const approved = await decideUseCase.handle({
       actorUserId: AdminId,
-      campaignId: diamondCampaign.globalId,
+      campaignId: pendingCampaign.globalId,
       approve: true,
       note: 'Hồ sơ đủ thông tin.',
     });
@@ -466,7 +495,7 @@ async function main(): Promise<void> {
       () =>
         decideUseCase.handle({
           actorUserId: AdminId,
-          campaignId: diamondCampaign.globalId,
+          campaignId: pendingCampaign.globalId,
           approve: false,
           note: 'Đổi ý',
         }),
@@ -475,7 +504,7 @@ async function main(): Promise<void> {
 
     console.log('\n5. Đăng ký, huỷ, đăng ký lại — và BR-CHARITY-03');
 
-    const target = diamondCampaign.globalId;
+    const target = pendingCampaign.globalId;
 
     const joined = await joinUseCase.handle({
       actorUserId: JoinerId,
@@ -558,7 +587,7 @@ async function main(): Promise<void> {
         reviewUseCase.handle({
           actorUserId: JoinerId,
           campaignId: target,
-          revieweeId: DiamondId,
+          revieweeId: OrganizerId,
           rating: 5,
         }),
       'CharityReviewTooEarlyException',
@@ -583,7 +612,7 @@ async function main(): Promise<void> {
     const participantReview = await reviewUseCase.handle({
       actorUserId: JoinerId,
       campaignId: target,
-      revieweeId: DiamondId,
+      revieweeId: OrganizerId,
       rating: 5,
       comment: 'Tổ chức chu đáo.',
     });
@@ -595,7 +624,7 @@ async function main(): Promise<void> {
     );
 
     const organizerReview = await reviewUseCase.handle({
-      actorUserId: DiamondId,
+      actorUserId: OrganizerId,
       campaignId: target,
       revieweeId: JoinerId,
       rating: 4,
@@ -612,7 +641,7 @@ async function main(): Promise<void> {
         reviewUseCase.handle({
           actorUserId: JoinerId,
           campaignId: target,
-          revieweeId: DiamondId,
+          revieweeId: OrganizerId,
           rating: 1,
         }),
       'CharityReviewDuplicateException',
@@ -636,7 +665,7 @@ async function main(): Promise<void> {
         reviewUseCase.handle({
           actorUserId: OutsiderId,
           campaignId: target,
-          revieweeId: DiamondId,
+          revieweeId: OrganizerId,
           rating: 1,
         }),
       'CharityReviewNotPermittedException',
@@ -663,7 +692,7 @@ async function main(): Promise<void> {
     );
 
     const declared = await progressUseCase.handle({
-      actorUserId: DiamondId,
+      actorUserId: OrganizerId,
       campaignId: target,
       currentItemsCount: 480,
       asAdmin: false,

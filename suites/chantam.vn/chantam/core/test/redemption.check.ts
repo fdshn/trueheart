@@ -226,8 +226,11 @@ async function main(): Promise<void> {
     });
     check(
       'thiếu điểm → INSUFFICIENT_POINTS, và nêu còn thiếu bao nhiêu',
+      // 500, không 400: từ CHỐT-13 người hạng Bạc giữ 672 điểm cho hạng, nên với
+      // 100 điểm họ dùng được 0 và thiếu trọn 500. Phép kiểm này viết trước CHỐT-13
+      // và chưa từng chạy lại trên Postgres thật cho tới 12/10.
       poor.quote.unavailableReason === 'INSUFFICIENT_POINTS' &&
-        poor.quote.missingPoints === 400,
+        poor.quote.missingPoints === 500,
       `${poor.quote.unavailableReason} thiếu ${poor.quote.missingPoints}`,
     );
     check(
@@ -382,6 +385,14 @@ async function main(): Promise<void> {
          (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at)
        VALUES ($1, $2, $3, $4, 1, 'ACCEPTED', now())`,
       [RefundTransactionId, RefundPostId, GiverId, RicherId],
+    );
+    // Lượt trao đã duyệt thì tồn kho đã bị trừ — dựng đúng trạng thái đó. Thiếu bước
+    // này thì `close()` trả lại 1 suất cho một bài vốn còn đủ, và
+    // `CHK_posts_remaining_quantity_valid` từ chối: lần chạy đầu đỏ đúng ở đây.
+    await dataSource.query(
+      `UPDATE posts SET remaining_quantity = 0, status = 'RESERVED'
+       WHERE global_id = $1`,
+      [RefundPostId],
     );
 
     // Dựng số dư qua SỔ THẬT, không `setBalance`: khoản hoàn là một bút toán
