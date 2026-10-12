@@ -32,6 +32,7 @@ chiến dịch là một bảng khác, quyền sửa khác, và hạn mức khá
 | `id` | `BIGSERIAL` PK | |
 | `campaign_id` | `uuid NOT NULL` | FK → `campaigns(global_id)` `ON DELETE CASCADE` |
 | `storage_key` | `varchar(500) NOT NULL` | `UNIQUE`: một object không thể thuộc hai chiến dịch |
+| `public_url` | `text NOT NULL` | URL CDN lúc xác nhận. Cách lưu giống `banner_url`, để repository trả URL mà không phải biết `publicBaseUrl`. `CHECK ~ '^https?://'` |
 | `media_type` | `varchar(10) NOT NULL` | `CHECK IN ('IMAGE','VIDEO')`, suy từ `contentType` lúc HeadObject |
 | `sort_order` | `int NOT NULL` | `CHECK 0..4`; `UNIQUE (campaign_id, sort_order)` |
 | `is_cover` | `boolean NOT NULL DEFAULT false` | |
@@ -47,15 +48,21 @@ hàm kiểm tra ở tầng domain giữ (xem bên dưới), và có test chạy 
 
 ### `campaigns.banner_url`
 
-Giữ nguyên cột và ràng buộc `CHECK LIKE 'https://%'`. Mỗi lần tạo hoặc thay media, server
-ghi vào đó `publicUrl` của ảnh bìa. Nhờ vậy mọi API đọc hiện có vẫn trả `bannerUrl` như cũ.
+Giữ nguyên cột. Mỗi lần tạo hoặc thay media, server ghi vào đó `publicUrl` của ảnh bìa. Nhờ
+vậy mọi API đọc hiện có vẫn trả `bannerUrl` như cũ.
+
+**Nới `CHK_campaigns_banner_url` từ `LIKE 'https://%'` sang `~ '^https?://'`.** Môi trường dev
+có `STORAGE_PUBLIC_BASE_URL=http://localhost:19000/...`, nên nếu giữ CHECK cũ thì mọi lượt tạo
+chiến dịch ở dev đều hỏng. Lý do ban đầu của CHECK là chặn client gửi URL `http` gây lỗi
+mixed-content. Lý do đó hết hiệu lực vì giờ URL do server dựng từ cấu hình, và production
+cấu hình `https`.
 
 Chiến dịch cũ (`banner_url` ngoài, không có dòng media nào) giữ nguyên, **không backfill**.
 Response trả `media: []` cho các chiến dịch này.
 
 ## Storage lib (`system/storage-lib`)
 
-- `ICampaignMediaUploadRequest extends IStorageUploadRequest`, không có trường thêm. Key không
+- Dùng thẳng `IStorageUploadRequest`, không cần kiểu request riêng. Key không
   chứa id chiến dịch vì lúc xin URL chiến dịch chưa tồn tại.
 - `createCampaignMediaUpload(request)`: sinh key `users/<userId>/campaign-media/<uuid>.<ext>`.
 - `confirmCampaignMediaUpload(userId, key)`: gọi `verifyObject` với tiền tố
@@ -79,15 +86,15 @@ Body `campaign` bỏ `bannerUrl`, thêm:
 
 Thứ tự xử lý trong use case tạo:
 1. Kiểm tra quyền và nội dung như hiện nay.
-2. Gọi `confirmCampaignMediaUpload` song song cho từng key.
+2. Gọi `confirmCampaignMediaUpload` lần lượt cho từng key, giống luồng comment.
 3. Gọi hàm kiểm tra bộ media.
 4. Trong cùng một transaction: INSERT `campaigns` với `banner_url` = URL bìa, sau đó INSERT các dòng `campaign_media`.
 
 ### `PUT /charity-campaigns/:id/media` (Bearer)
 Body `{ media: string[], coverKey: string }`. Server kiểm tra lần lượt:
 - Chiến dịch có tồn tại không.
-- Người gọi có phải `created_by` không. Nếu không thì trả 403. Coordinator cũng không được sửa.
-- `approval_status = 'PENDING_APPROVAL'` không. Nếu không thì trả `CampaignMediaNotEditable`.
+- Người gọi có phải `created_by` không. Nếu không thì trả `CHARITY_NOT_ORGANIZER`. Coordinator cũng không được sửa.
+- `approval_status = 'PENDING_APPROVAL'` không. Nếu không thì trả `CHARITY_MEDIA_NOT_EDITABLE`.
 
 Sau đó server xác minh từng key và kiểm tra bộ media như bước tạo. Trong một transaction:
 `SELECT ... FOR UPDATE` dòng chiến dịch và kiểm lại trạng thái, phòng trường hợp Admin duyệt
@@ -96,7 +103,7 @@ Response trả chiến dịch kèm `media`. Key cũ bị thay ra không xoá nga
 vì không còn được tham chiếu.
 
 Key đã thuộc một chiến dịch **khác** sẽ bị chặn bởi `UNIQUE(storage_key)`. Use case phải bắt
-lỗi này và trả `CampaignMediaInvalid`, không để thành lỗi 500. Còn key đang thuộc chính chiến
+lỗi này và trả `CHARITY_MEDIA_INVALID`, không để thành lỗi 500. Còn key đang thuộc chính chiến
 dịch đang sửa thì gửi lại hợp lệ, vì dòng cũ đã bị DELETE trước khi INSERT trong cùng
 transaction.
 
@@ -109,7 +116,7 @@ bằng một truy vấn `WHERE campaign_id = ANY($1)` cho cả trang, không gâ
 
 ## Hàm kiểm tra bộ media (domain, thuần, không I/O)
 
-Input: danh sách `{ key, mediaType }` đã xác minh, và `coverKey`. Lỗi `CampaignMediaInvalid`
+Input: danh sách `{ key, mediaType }` đã xác minh, và `coverKey`. Lỗi `CHARITY_MEDIA_INVALID`
 có mô tả cụ thể khi gặp một trong các trường hợp:
 - Số media nằm ngoài khoảng 1–5.
 - Có key trùng nhau trong danh sách.
@@ -121,9 +128,14 @@ Output: các dòng sẵn sàng INSERT (`sort_order`, `is_cover`), kèm URL bìa.
 
 ## Lỗi mới (`CoreErrors`)
 
-- `CAMPAIGN_MEDIA_INVALID` (400).
-- `CAMPAIGN_MEDIA_NOT_EDITABLE` (409).
+Đặt tên theo nhóm `CHARITY_*` có sẵn (`0x13`):
+- `CHARITY_MEDIA_INVALID` (`0x13_1d`, 400, thông điệp nêu chi tiết lỗi).
+- `CHARITY_MEDIA_NOT_EDITABLE` (`0x13_1e`, 409).
+- Không phải người tạo: dùng lại `CHARITY_NOT_ORGANIZER`.
 - Key sai chủ, sai MIME hoặc vượt dung lượng: dùng lại lỗi storage có sẵn qua `withStorageValidation('media', ...)`.
+- **Key chưa từng được upload:** HeadObject trả 404. Hiện lỗi này lọt ra thành 500 ở mọi luồng
+  upload. Sửa ngay trong `verifyObject` dùng chung để nó thành `StorageValidationError`, tức
+  400. Các luồng khác cũng được hưởng thay đổi này, và không luồng nào cần 500 ở đây.
 
 ## Job dọn rác
 
