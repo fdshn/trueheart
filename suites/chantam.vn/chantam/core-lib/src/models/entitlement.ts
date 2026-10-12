@@ -49,6 +49,10 @@ export const CapabilityKindByCode: Readonly<Record<string, CapabilityKinds>> = {
   REACT_CONTENT: CapabilityKinds.GATE,
   COMMENT_CONTENT: CapabilityKinds.GATE,
   SUBMIT_CHARITY_PROPOSAL: CapabilityKinds.GATE,
+  // Hai cổng của F65b (12/10): ai mở được kêu gọi cá nhân, và ai public ngay không cần
+  // Admin đọc trước. Cả hai là bật/tắt theo bậc, không mang con số nào.
+  SUBMIT_INDIVIDUAL_APPEAL: CapabilityKinds.GATE,
+  PUBLISH_CHARITY_WITHOUT_REVIEW: CapabilityKinds.GATE,
   // `SELECT_REQUESTER` là `GATE` từ 11/10, trước đó khai `VALUE`.
   //
   // Lý do khai `VALUE` khi ấy là một câu hỏi để mở: nó có hạn mức 1/3/5/10 theo bậc

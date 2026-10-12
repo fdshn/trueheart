@@ -37,6 +37,14 @@ const ScratchDatabase = 'chantam_entitlement_inventory';
  * phép kiểm trượt im lặng còn tệ hơn không có.
  */
 const ReadCapabilities: readonly { code: string; readAt: string }[] = [
+  {
+    code: 'SUBMIT_INDIVIDUAL_APPEAL',
+    readAt: 'charity-campaign.use-cases CreateCharityCampaign (F65b — 12/10)',
+  },
+  {
+    code: 'PUBLISH_CHARITY_WITHOUT_REVIEW',
+    readAt: 'charity-campaign.use-cases CreateCharityCampaign (F65b — 12/10)',
+  },
   { code: 'POST_OPEN', readAt: 'create-post / renew-post' },
   { code: 'POST_SOS', readAt: 'create-post / update-post' },
   { code: 'OPEN_REQUEST_QUOTA', readAt: 'create-gift-request' },
