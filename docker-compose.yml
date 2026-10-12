@@ -2,7 +2,7 @@
 # Dùng: docker compose up -d
 services:
   postgres:
-    image: postgis/postgis:16-3.4
+    image: postgis/postgis:16-3.5
     container_name: chantam-postgres
     restart: unless-stopped
     environment:
