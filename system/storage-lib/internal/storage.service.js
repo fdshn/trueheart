@@ -102,7 +102,10 @@ function assertPostMediaUploadPolicy(request) { assertMixedMediaPolicy('postMedi
 function assertCampaignMediaUploadPolicy(request) { assertMixedMediaPolicy('campaignMedia', request); }
 function isMissingObject(error) {
     const candidate = error;
-    return candidate?.name === 'NotFound' || candidate?.name === 'NoSuchKey' || candidate?.$metadata?.httpStatusCode === 404;
+    const status = candidate?.$metadata?.httpStatusCode;
+    if (status !== undefined)
+        return status === 404;
+    return candidate?.name === 'NotFound' || candidate?.name === 'NoSuchKey';
 }
 function assertTransactionEvidenceUploadPolicy(request) {
     assertUploadPolicy('transactionEvidence', request);

@@ -235,4 +235,16 @@ describe('StorageService.confirmCampaignMediaUpload', () => {
     client.send.mockRejectedValueOnce(Object.assign(new Error('boom'), { name: 'TimeoutError', $metadata: { httpStatusCode: 503 } }));
     await expect(storage.confirmCampaignMediaUpload(userId, `users/${userId}/campaign-media/a.webp`)).rejects.toMatchObject({ name: 'TimeoutError' });
   });
+  it('NoSuchKey với status 503 vẫn ném nguyên dạng', async () => {
+    client.send.mockRejectedValueOnce(
+      Object.assign(new Error('temporarily unavailable'), {
+        name: 'NoSuchKey',
+        $metadata: { httpStatusCode: 503 },
+      }),
+    );
+
+    await expect(
+      storage.confirmCampaignMediaUpload(userId, `users/${userId}/campaign-media/outage.webp`),
+    ).rejects.toMatchObject({ name: 'NoSuchKey' });
+  });
 });

@@ -114,7 +114,9 @@ export function assertCampaignMediaUploadPolicy(request: IStorageUploadRequest):
 
 function isMissingObject(error: unknown): boolean {
   const candidate = error as { name?: string; $metadata?: { httpStatusCode?: number } };
-  return candidate?.name === 'NotFound' || candidate?.name === 'NoSuchKey' || candidate?.$metadata?.httpStatusCode === 404;
+  const status = candidate?.$metadata?.httpStatusCode;
+  if (status !== undefined) return status === 404;
+  return candidate?.name === 'NotFound' || candidate?.name === 'NoSuchKey';
 }
 
 export function assertTransactionEvidenceUploadPolicy(
