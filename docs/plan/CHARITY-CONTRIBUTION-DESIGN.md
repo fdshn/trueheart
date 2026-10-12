@@ -1,8 +1,9 @@
 # Thiết kế Kêu gọi và Đóng góp Vật phẩm Từ thiện
 
-> Trạng thái: **đã chốt nghiệp vụ, chưa triển khai backend**. Tài liệu này thay thế cách
-> hiểu cũ rằng một `campaign` chỉ là sự kiện để user đăng ký tham dự. Phần đăng ký sự kiện
-> hiện hữu được giữ tương thích, còn đóng góp vật phẩm là một luồng riêng có transaction.
+> Trạng thái: **đã chốt nghiệp vụ, đang triển khai backend từ 12/10** — bảng theo dõi ở
+> [§12](#12-tiến-độ-triển-khai). Tài liệu này thay thế cách hiểu cũ rằng một `campaign` chỉ là
+> sự kiện để user đăng ký tham dự. Phần đăng ký sự kiện hiện hữu được giữ tương thích, còn
+> đóng góp vật phẩm là một luồng riêng có transaction.
 
 ## 1. Mục tiêu và phạm vi
 
@@ -313,3 +314,41 @@ danh tính contributor ẩn danh.
     `approval_status` vì CHECK hiện tại từ chối giá trị đó.
 12. Một contribution dù có nhiều item/nhiều transaction hoàn tất cũng chỉ sinh một bút toán
     `CHARITY_CONTRIBUTION_COMPLETED` theo version Point Rule tại thời điểm đủ điều kiện.
+
+## 12. Tiến độ triển khai
+
+Bảng này là **nguồn theo dõi duy nhất** cho phân hệ này. Mỗi lát xong thì tick ở đây cùng
+commit làm nó, không tick trước. `ROADMAP.md` chỉ giữ một dòng `F65` trỏ về đây — hai nơi cùng
+kể tiến độ là hai nơi sẽ nói khác nhau.
+
+Phân hệ **ship ở trạng thái TẮT** theo đúng lối F83 (điểm danh) và F56 (affiliate): Point Rule
+`CHARITY_CONTRIBUTION_COMPLETED` seed `is_enabled = false`, mức điểm chờ Bên A chốt. Mọi đường
+nghiệp vụ vẫn chạy; chỉ bút toán điểm là không phát. Bật bằng một lượt publish Point Rule, không
+cần deploy.
+
+| Lát | Nội dung | Tình trạng |
+| --- | --- | :-: |
+| A | `campaign_type` + `beneficiary_relation`, ba capability Rank, bảng `campaign_need_items`, Point Rule seed TẮT, `POST /charity-campaigns` nhận bảng nhu cầu, `GET /campaigns/:idOrSlug/needs` | ⬜ |
+| B | `campaign_contributions` + `campaign_contribution_items`, bốn endpoint đề nghị (gửi, organizer xem, contributor xem, sửa/rút) | ⬜ |
+| C | `campaign_transaction_items`, `POST /charity-contributions/:id/decision` nguyên tử có idempotency, cộng điểm một lần cho mỗi contribution | ⬜ |
+| D | `campaign_external_contributions` (ghi nhận + điều chỉnh có audit), `POST /charity-campaigns/:id/close` | ⬜ |
+| E | Acceptance tests cho 12 tiêu chí §11, trên Postgres thật | ⬜ |
+
+### 12 tiêu chí §11 — ai canh
+
+Để không ai phải đoán tiêu chí nào đã có lưới:
+
+| # | Tiêu chí | Lưới | Tình trạng |
+| :-: | --- | --- | :-: |
+| 1 | Hai organizer chấp nhận đồng thời không vượt mục tiêu | script Postgres thật (hai transaction song song) | ⬜ |
+| 2 | Từ chối một người không ảnh hưởng đề nghị người khác | unit + script | ⬜ |
+| 3 | Chấp nhận một phần sinh transaction đúng số lượng | unit + script | ⬜ |
+| 4 | Huỷ transaction trả lại capacity, không xoá audit | script | ⬜ |
+| 5 | Đóng chiến dịch chặn đề nghị mới, giữ transaction đang chạy | unit + script | ⬜ |
+| 6 | Người ngoài không đọc được contact/địa chỉ beneficiary | unit (DTO) + script | ⬜ |
+| 7 | Retry cùng idempotency key chỉ tạo một transaction | script | ⬜ |
+| 8 | Tiến độ tính từ transaction, không tin số client gửi | unit + script | ⬜ |
+| 9 | Không cộng số lượng giữa hai dòng khác đơn vị | unit | ⬜ |
+| 10 | Đóng góp ngoài app có audit, không cộng điểm cho ai | unit + script | ⬜ |
+| 11 | Member/Bạc/Vàng chỉ nhận `PENDING_APPROVAL`; Kim Cương public ngay | unit (capability) + script | ⬜ |
+| 12 | Một contribution chỉ sinh MỘT bút toán điểm | unit + script | ⬜ |

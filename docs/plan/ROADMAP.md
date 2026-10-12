@@ -285,11 +285,14 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
     `details.marketPrice` (CHỐT-05); Quảng cáo có bảng `sponsor_banners` + cặp quyền
     `banner.*`; Công đức có `merit_units`/`merit_declarations` + cặp `merit.*` (chỉ
     `SUPER_ADMIN`). Xem [31 mục T1](../diagram/31-open-items.md). Giao diện CMS ở repo khác.
-  - **F65b · Mở rộng Từ thiện — ⛔ chưa triển khai.** Phân biệt `INDIVIDUAL_APPEAL` và
-    `ORGANIZED_CAMPAIGN`, bảng nhu cầu từng vật phẩm, đề nghị đóng góp nhiều dòng, organizer
-    chấp nhận/từ chối một phần và sinh transaction giao nhận. Contract đã chốt tại
-    [`CHARITY-CONTRIBUTION-DESIGN.md`](./CHARITY-CONTRIBUTION-DESIGN.md); **backend chưa có
-    dòng nào** nên client không được giả lập thành công.
+  - **F65b · Mở rộng Từ thiện — 🟡 đang triển khai từ 12/10.** Phân biệt `INDIVIDUAL_APPEAL`
+    và `ORGANIZED_CAMPAIGN`, bảng nhu cầu từng vật phẩm, đề nghị đóng góp nhiều dòng,
+    organizer chấp nhận/từ chối một phần và sinh transaction giao nhận. Contract và **bảng
+    theo dõi từng lát** ở
+    [`CHARITY-CONTRIBUTION-DESIGN.md` §12](./CHARITY-CONTRIBUTION-DESIGN.md#12-tiến-độ-triển-khai)
+    — đó là nguồn duy nhất, dòng này không kể lại. Lát nào chưa tick ở §12 thì client không
+    được giả lập thành công. Phân hệ ship TẮT theo lối F83/F56: Point Rule
+    `CHARITY_CONTRIBUTION_COMPLETED` seed `is_enabled = false`, mức điểm chờ Bên A chốt.
 - [x] F64 Blog / Tin tức — bảng `blogs` (SRS §6.2.12), bốn endpoint admin
   `GET|POST /admin/blogs` + `PUT|DELETE /admin/blogs/:id`, hai endpoint công khai
   `GET /blogs` + `GET /blogs/:idOrSlug`. `content_html` được LỌC ở tầng ghi qua
