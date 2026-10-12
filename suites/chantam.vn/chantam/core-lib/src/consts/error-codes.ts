@@ -276,6 +276,11 @@ export enum ErrorCodes {
   CHARITY_DELIVERY_INVALID_STATE = 0x13_14,
   /** Người tổ chức gửi đề nghị vào chính hoạt động của mình. */
   CHARITY_SELF_CONTRIBUTION = 0x13_15,
+  /** Chiến dịch không đóng được: chưa duyệt, hoặc đã đóng rồi. */
+  CHARITY_CAMPAIGN_NOT_CLOSABLE = 0x13_16,
+  CHARITY_EXTERNAL_CONTRIBUTION_NOT_FOUND = 0x13_17,
+  /** Bản ghi ngoài app đã bị huỷ hoặc đã bị thay — không huỷ/điều chỉnh lần nữa. */
+  CHARITY_EXTERNAL_CONTRIBUTION_VOIDED = 0x13_18,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

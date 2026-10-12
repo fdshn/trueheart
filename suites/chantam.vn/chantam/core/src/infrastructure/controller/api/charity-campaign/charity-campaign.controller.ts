@@ -1,12 +1,15 @@
 import {
   ICancelCharityParticipationUseCase,
+  ICloseCharityCampaignUseCase,
   ICreateCharityCampaignUseCase,
   IDecideCharityApprovalUseCase,
   IJoinCharityCampaignUseCase,
   IListAdminCharityCampaignsUseCase,
   IListCampaignContributionsUseCase,
+  IListExternalContributionsUseCase,
   IListJoinedCharityCampaignsUseCase,
   IListMyCharityCampaignsUseCase,
+  IRecordExternalContributionUseCase,
   IReviewCharityCampaignUseCase,
   ISetCharityCampaignActiveUseCase,
   ISubmitCharityContributionUseCase,
@@ -16,8 +19,10 @@ import {
   CharityAlreadyRegisteredException,
   CharityApprovalAlreadyDecidedException,
   CharityCampaignCreateNotAllowedException,
+  CharityCampaignNotClosableException,
   CharityCampaignNotFoundException,
   CharityCancelTooLateException,
+  CharityLinesInvalidException,
   CharityNeedItemInvalidException,
   CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
@@ -61,11 +66,15 @@ import {
   CharityCampaignWrapperResponseDto,
   CharityContributionDto,
   CharityContributionPageDto,
+  CharityExternalContributionDto,
+  CharityExternalContributionListDto,
+  CloseCharityCampaignResponseDto,
   DecideCharityApprovalBodyDto,
   ListAdminCharityCampaignsQueryDto,
   ListCharityCampaignsQueryDto,
   ListCharityCampaignsResponseDto,
   ListContributionsQueryDto,
+  RecordExternalContributionBodyDto,
   ReviewCharityCampaignBodyDto,
   SetCharityCampaignActiveBodyDto,
   SubmitCharityContributionBodyDto,
@@ -106,6 +115,12 @@ export class CharityCampaignController {
     private readonly submitContributionUseCase: ISubmitCharityContributionUseCase,
     @Inject(IListCampaignContributionsUseCase)
     private readonly listContributionsUseCase: IListCampaignContributionsUseCase,
+    @Inject(IRecordExternalContributionUseCase)
+    private readonly recordExternalUseCase: IRecordExternalContributionUseCase,
+    @Inject(IListExternalContributionsUseCase)
+    private readonly listExternalUseCase: IListExternalContributionsUseCase,
+    @Inject(ICloseCharityCampaignUseCase)
+    private readonly closeUseCase: ICloseCharityCampaignUseCase,
   ) {}
 
   @Get('mine')
@@ -257,6 +272,100 @@ export class CharityCampaignController {
           status: query.status,
           limit: query.limit ?? 20,
           offset: query.offset ?? 0,
+        }),
+      )
+      .build();
+  }
+
+  @Post(':id/external-contributions')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Ghi nhận vật phẩm nhận NGOÀI APP (F65b §7)',
+    description:
+      'Cộng vào số đã nhận của dòng nhu cầu ngay. Không gắn tài khoản nào nên không sinh điểm cho ai. Không chặn vượt mục tiêu — đây là vật phẩm đã ở trong kho thật. Sửa sai bằng `PATCH /charity-external-contributions/:id`, không bao giờ bằng cách gõ lại một con số tổng.',
+  })
+  @ApiCreatedResponse({
+    type: ResponseDto.forApi(CharityExternalContributionDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    CharityCampaignNotFoundException,
+    CharityNotOrganizerException,
+    CharityNotAcceptingContributionsException,
+    CharityNeedItemInvalidException,
+    CharityLinesInvalidException,
+  )
+  public async recordExternal(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('id') id: string,
+    @Body() body: RecordExternalContributionBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.recordExternalUseCase.handle({
+          campaignId: id,
+          recordedBy: principal.userId,
+          ...body,
+        }),
+      )
+      .build();
+  }
+
+  @Get(':id/external-contributions')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Lịch sử đóng góp ngoài app (người tổ chức)',
+    description:
+      'Gồm cả bản đã huỷ: đọc chuỗi `replacesId` là đọc được toàn bộ lịch sử của một con số.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(CharityExternalContributionListDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    CharityCampaignNotFoundException,
+    CharityNotOrganizerException,
+  )
+  public async listExternal(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.listExternalUseCase.handle({
+          campaignId: id,
+          actorUserId: principal.userId,
+        }),
+      )
+      .build();
+  }
+
+  @Post(':id/close')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Đóng hoạt động (người tổ chức hoặc Admin) — F65b §8',
+    description:
+      'Chặn đề nghị mới, từ chối hàng loạt đề nghị đang chờ với lý do `CAMPAIGN_CLOSED`, và **giữ nguyên** lượt giao nhận đang chạy — chúng vẫn hoàn tất được. `approval_status` giữ `APPROVED`; trạng thái "đã đóng" là `is_active = false` cộng `end_time` đã qua. Chưa có đường gia hạn.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(CloseCharityCampaignResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    CharityCampaignNotFoundException,
+    CharityNotOrganizerException,
+    CharityCampaignNotClosableException,
+  )
+  public async close(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.closeUseCase.handle({
+          campaignId: id,
+          actorUserId: principal.userId,
         }),
       )
       .build();

@@ -242,6 +242,39 @@ export interface ICharityContributionPage {
   readonly total: number;
 }
 
+/**
+ * Một bản ghi đóng góp NGOÀI APP (F65b §7).
+ *
+ * Không có trường người tặng, và đó là chủ ý: không có đường nào gắn bản ghi này vào
+ * một tài khoản để cộng điểm (tiêu chí §11.10). `sourceLabel` là nhãn chữ.
+ */
+export interface ICharityExternalContribution {
+  readonly globalId: string;
+  readonly campaignId: string;
+  readonly needItemId: string;
+  readonly itemName: string;
+  readonly unit: string;
+  readonly quantity: number;
+  readonly sourceLabel: string;
+  readonly receivedAt: Date;
+  readonly evidenceNote: string | null;
+  readonly recordedBy: string;
+  readonly status: 'ACTIVE' | 'VOIDED';
+  /** Bản ghi mà bản này THAY THẾ, khi đây là một lượt điều chỉnh. */
+  readonly replacesId: string | null;
+  readonly voidedAt: Date | null;
+  readonly voidReason: string | null;
+  readonly createdAt: Date;
+}
+
+export interface ICloseCampaignResult {
+  readonly campaignId: string;
+  /** Số đề nghị đang chờ bị từ chối với lý do `CAMPAIGN_CLOSED` (§8). */
+  readonly rejectedContributions: number;
+  /** Lượt giao nhận còn đang chạy — KHÔNG bị huỷ, vẫn hoàn tất được (§8, §11.5). */
+  readonly openDeliveries: number;
+}
+
 export interface ICharityNeedsView {
   readonly campaignId: string;
   readonly needs: readonly ICharityNeedItem[];
@@ -488,6 +521,53 @@ export interface ICharityNeedsRepositoryPart {
   }): Promise<ICharityDelivery>;
 
   findDeliveryByGlobalId(globalId: string): Promise<ICharityDelivery | null>;
+
+  /**
+   * Ghi nhận vật phẩm nhận NGOÀI APP (F65b §7). Cộng vào `received_quantity` của
+   * dòng nhu cầu trong cùng transaction, khoá theo thứ tự cố định.
+   *
+   * KHÔNG chặn vượt mục tiêu: đây là vật phẩm ĐÃ nhận thật. Từ chối ghi một thứ đã ở
+   * trong kho là bắt người tổ chức chọn giữa nói dối và không ghi gì.
+   */
+  recordExternalContribution(params: {
+    campaignId: string;
+    recordedBy: string;
+    needItemId: string;
+    quantity: number;
+    sourceLabel: string;
+    receivedAt: Date;
+    evidenceNote: string | null;
+  }): Promise<ICharityExternalContribution>;
+
+  /**
+   * Huỷ hoặc điều chỉnh một bản ghi ngoài app — KHÔNG sửa tại chỗ (§7).
+   *
+   * Huỷ: `ACTIVE → VOIDED`, trừ lại khỏi `received_quantity`. Điều chỉnh: huỷ bản cũ
+   * rồi chèn bản mới với `replacesId` trỏ về bản cũ, trong cùng transaction. Trigger ở
+   * database từ chối mọi `UPDATE` khác, nên không có đường nào ghi đè lịch sử.
+   */
+  amendExternalContribution(params: {
+    externalId: string;
+    actorUserId: string;
+    action: 'VOID' | 'ADJUST';
+    reason: string;
+    /** Bắt buộc khi `ADJUST`. */
+    quantity?: number;
+  }): Promise<ICharityExternalContribution>;
+
+  listExternalContributions(
+    campaignId: string,
+  ): Promise<ICharityExternalContribution[]>;
+
+  /**
+   * Đóng chiến dịch (§8): `is_active = false` + đặt `end_time`, giữ `approval_status`;
+   * từ chối hàng loạt đề nghị đang chờ với `CAMPAIGN_CLOSED`; KHÔNG đụng lượt giao
+   * nhận đang chạy. Quyền (người tổ chức hoặc Admin) do use case kiểm.
+   */
+  closeCampaign(params: {
+    campaignId: string;
+    actorUserId: string;
+  }): Promise<ICloseCampaignResult>;
 
   /** Rút đề nghị. `null` khi không còn rút được. Rút là đổi trạng thái, không xoá. */
   withdrawContribution(params: {

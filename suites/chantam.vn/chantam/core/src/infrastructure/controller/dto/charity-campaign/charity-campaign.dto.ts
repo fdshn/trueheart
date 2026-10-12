@@ -904,3 +904,120 @@ export class DecideCharityContributionResponseDto {
   })
   replayed: boolean;
 }
+
+export class RecordExternalContributionBodyDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  needItemId: string;
+
+  @ApiProperty({
+    minimum: 1,
+    example: 20,
+    description: 'Số lượng THỰC NHẬN, theo đơn vị của dòng nhu cầu.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MaxNeedItemQuantity)
+  quantity: number;
+
+  @ApiProperty({
+    maxLength: 200,
+    example: 'Cô Lan bán tạp hoá đầu hẻm',
+    description:
+      'Nhãn CHỮ cho nguồn — không phải tài khoản. Bản ghi ngoài app không gắn người dùng nào nên không sinh điểm cho ai.',
+  })
+  @IsString()
+  @Length(1, 200)
+  sourceLabel: string;
+
+  @ApiProperty({
+    format: 'date-time',
+    description: 'Lúc nhận. Không được ở tương lai.',
+  })
+  @IsISO8601()
+  receivedAt: string;
+
+  @ApiPropertyOptional({ maxLength: 1000 })
+  @IsOptional()
+  @IsString()
+  @Length(1, 1000)
+  evidenceNote?: string;
+}
+
+export class AmendExternalContributionBodyDto {
+  @ApiProperty({
+    enum: ['VOID', 'ADJUST'],
+    description:
+      '`VOID` huỷ bản ghi. `ADJUST` huỷ bản ghi này và tạo bản THAY THẾ với số mới (`replacesId` trỏ về bản cũ). Không có đường sửa tại chỗ — database từ chối.',
+  })
+  @IsIn(['VOID', 'ADJUST'])
+  action: 'VOID' | 'ADJUST';
+
+  @ApiProperty({ maxLength: 500, example: 'Đếm lại thì thiếu 5 kg' })
+  @IsString()
+  @Length(1, 500)
+  reason: string;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    description: 'Bắt buộc khi `ADJUST`, và phải khác số cũ.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MaxNeedItemQuantity)
+  quantity?: number;
+}
+
+export class CharityExternalContributionDto {
+  @ApiProperty({ format: 'uuid' }) globalId: string;
+  @ApiProperty({ format: 'uuid' }) campaignId: string;
+  @ApiProperty({ format: 'uuid' }) needItemId: string;
+  @ApiProperty() itemName: string;
+  @ApiProperty() unit: string;
+  @ApiProperty() quantity: number;
+  @ApiProperty() sourceLabel: string;
+  @ApiProperty({ type: String, format: 'date-time' }) receivedAt: Date;
+  @ApiProperty({ type: String, nullable: true }) evidenceNote: string | null;
+  @ApiProperty({ format: 'uuid' }) recordedBy: string;
+  @ApiProperty({
+    enum: ['ACTIVE', 'VOIDED'],
+    description: 'Chỉ `ACTIVE` tính vào số đã nhận.',
+  })
+  status: string;
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Bản bị thay bởi bản này.',
+  })
+  replacesId: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  voidedAt: Date | null;
+  @ApiProperty({ type: String, nullable: true }) voidReason: string | null;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt: Date;
+}
+
+export class CharityExternalContributionListDto {
+  @ApiProperty({ type: () => [CharityExternalContributionDto] })
+  items: CharityExternalContributionDto[];
+}
+
+export class CloseCharityCampaignResponseDto {
+  @ApiProperty({ format: 'uuid' }) campaignId: string;
+
+  @ApiProperty({
+    example: 3,
+    description: 'Đề nghị đang chờ bị từ chối với `CAMPAIGN_CLOSED`.',
+  })
+  rejectedContributions: number;
+
+  @ApiProperty({
+    example: 1,
+    description:
+      'Lượt giao nhận còn đang chạy. KHÔNG bị huỷ — vẫn hoàn tất được sau khi đóng.',
+  })
+  openDeliveries: number;
+}

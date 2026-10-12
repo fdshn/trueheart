@@ -4,8 +4,10 @@ import {
   ICharityContribution,
   ICharityContributionPage,
   ICharityDelivery,
+  ICharityExternalContribution,
   ICharityNeedsView,
   ICharityReview,
+  ICloseCampaignResult,
   IDecideContributionResult,
 } from '@/domain/ports/repository';
 import {
@@ -244,6 +246,70 @@ export interface IGetCharityDeliveryUseCase extends IUseCase<
 > {}
 
 export const IGetCharityDeliveryUseCase = Symbol('IGetCharityDeliveryUseCase');
+
+export interface IRecordExternalContributionCommand {
+  readonly campaignId: string;
+  readonly recordedBy: string;
+  readonly needItemId: string;
+  readonly quantity: number;
+  readonly sourceLabel: string;
+  readonly receivedAt: string;
+  readonly evidenceNote?: string;
+}
+
+export interface IRecordExternalContributionUseCase extends IUseCase<
+  IRecordExternalContributionCommand,
+  ICharityExternalContribution
+> {}
+
+export const IRecordExternalContributionUseCase = Symbol(
+  'IRecordExternalContributionUseCase',
+);
+
+export interface IAmendExternalContributionCommand {
+  readonly externalId: string;
+  readonly actorUserId: string;
+  readonly action: 'VOID' | 'ADJUST';
+  readonly reason: string;
+  readonly quantity?: number;
+}
+
+export interface IAmendExternalContributionUseCase extends IUseCase<
+  IAmendExternalContributionCommand,
+  ICharityExternalContribution
+> {}
+
+export const IAmendExternalContributionUseCase = Symbol(
+  'IAmendExternalContributionUseCase',
+);
+
+export interface IListExternalContributionsCommand {
+  readonly campaignId: string;
+  readonly actorUserId: string;
+}
+
+export interface IListExternalContributionsUseCase extends IUseCase<
+  IListExternalContributionsCommand,
+  { items: ICharityExternalContribution[] }
+> {}
+
+export const IListExternalContributionsUseCase = Symbol(
+  'IListExternalContributionsUseCase',
+);
+
+export interface ICloseCharityCampaignCommand {
+  readonly campaignId: string;
+  readonly actorUserId: string;
+}
+
+export interface ICloseCharityCampaignUseCase extends IUseCase<
+  ICloseCharityCampaignCommand,
+  ICloseCampaignResult
+> {}
+
+export const ICloseCharityCampaignUseCase = Symbol(
+  'ICloseCharityCampaignUseCase',
+);
 
 export interface IGetCampaignNeedsCommand {
   /** uuid canonical hoặc slug — cùng lối với `GET /campaigns/:idOrSlug`. */

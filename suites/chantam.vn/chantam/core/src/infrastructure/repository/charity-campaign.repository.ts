@@ -1,12 +1,16 @@
 import { isPointPolicyError } from '@/application/implementations/point/point-policy-errors';
 import {
+  CharityCampaignNotClosableException,
   CharityCampaignNotFoundException,
   CharityContributionAlreadyDecidedException,
   CharityContributionNotFoundException,
   CharityDeliveryInvalidStateException,
   CharityDeliveryNotFoundException,
+  CharityExternalContributionNotFoundException,
+  CharityExternalContributionVoidedException,
   CharityLinesInvalidException,
   CharityNeedExceededException,
+  CharityNeedItemInvalidException,
   CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
 } from '@/domain/exceptions';
@@ -19,8 +23,10 @@ import {
   ICharityContribution,
   ICharityContributionPage,
   ICharityDelivery,
+  ICharityExternalContribution,
   ICharityNeedItem,
   ICharityReview,
+  ICloseCampaignResult,
   ICreateCharityCampaignParams,
   ICreateCharityContributionItemParams,
   ICreateCharityContributionParams,
@@ -141,6 +147,50 @@ interface IDeliveryRow {
   completed_at: Date | null;
   cancelled_at: Date | null;
   cancel_reason: string | null;
+}
+
+interface IExternalRow {
+  global_id: string;
+  campaign_id: string;
+  need_item_id: string;
+  item_name: string;
+  unit: string;
+  quantity: number | string;
+  source_label: string;
+  received_at: Date;
+  evidence_note: string | null;
+  recorded_by: string;
+  status: string;
+  replaces_id: string | null;
+  voided_at: Date | null;
+  void_reason: string | null;
+  created_at: Date;
+}
+
+const ExternalColumns = `external.global_id, external.campaign_id,
+       external.need_item_id, need.item_name, need.unit, external.quantity,
+       external.source_label, external.received_at, external.evidence_note,
+       external.recorded_by, external.status, external.replaces_id,
+       external.voided_at, external.void_reason, external.created_at`;
+
+function toExternal(row: IExternalRow): ICharityExternalContribution {
+  return {
+    globalId: row.global_id,
+    campaignId: row.campaign_id,
+    needItemId: row.need_item_id,
+    itemName: row.item_name,
+    unit: row.unit,
+    quantity: Number(row.quantity),
+    sourceLabel: row.source_label,
+    receivedAt: row.received_at,
+    evidenceNote: row.evidence_note,
+    recordedBy: row.recorded_by,
+    status: row.status as 'ACTIVE' | 'VOIDED',
+    replacesId: row.replaces_id,
+    voidedAt: row.voided_at,
+    voidReason: row.void_reason,
+    createdAt: row.created_at,
+  };
 }
 
 /** Mã rule của Point Rule từ thiện — seed TẮT ở `1799800000000`. */
@@ -1255,6 +1305,254 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
             : Number(item.received_quantity),
       })),
     };
+  }
+
+  public async recordExternalContribution(params: {
+    campaignId: string;
+    recordedBy: string;
+    needItemId: string;
+    quantity: number;
+    sourceLabel: string;
+    receivedAt: Date;
+    evidenceNote: string | null;
+  }): Promise<ICharityExternalContribution> {
+    return this.manager.transaction(async (manager) => {
+      const { campaign, needs } = await this.lockCampaignAndNeeds(
+        manager,
+        params.campaignId,
+      );
+      if (campaign.created_by !== params.recordedBy)
+        throw new CharityNotOrganizerException();
+      // Chỉ chiến dịch đã duyệt mới có tiến độ để ghi vào. KHÔNG đòi `is_active`:
+      // vật phẩm về kho sau khi đã đóng chiến dịch vẫn là vật phẩm thật.
+      if (campaign.approval_status !== 'APPROVED')
+        throw new CharityNotAcceptingContributionsException();
+
+      const need = needs.find((item) => item.global_id === params.needItemId);
+      if (!need || !need.is_active) throw new CharityNeedItemInvalidException();
+
+      const [row] = await manager.query<{ global_id: string }[]>(
+        `INSERT INTO campaign_external_contributions
+           (campaign_id, need_item_id, quantity, source_label, received_at,
+            evidence_note, recorded_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING global_id`,
+        [
+          params.campaignId,
+          params.needItemId,
+          params.quantity,
+          params.sourceLabel,
+          params.receivedAt,
+          params.evidenceNote,
+          params.recordedBy,
+        ],
+      );
+      await this.shiftNeedProjections(manager, [
+        {
+          needItemId: params.needItemId,
+          acceptedDelta: 0,
+          receivedDelta: params.quantity,
+        },
+      ]);
+
+      return this.mustReadExternal(manager, row.global_id);
+    });
+  }
+
+  public async amendExternalContribution(params: {
+    externalId: string;
+    actorUserId: string;
+    action: 'VOID' | 'ADJUST';
+    reason: string;
+    quantity?: number;
+  }): Promise<ICharityExternalContribution> {
+    return this.manager.transaction(async (manager) => {
+      const [peek] = await manager.query<{ campaign_id: string }[]>(
+        `SELECT campaign_id FROM campaign_external_contributions
+         WHERE global_id = $1`,
+        [params.externalId],
+      );
+      if (!peek) throw new CharityExternalContributionNotFoundException();
+
+      const { campaign } = await this.lockCampaignAndNeeds(
+        manager,
+        peek.campaign_id,
+      );
+      // Người ngoài nhận cùng lỗi với bản ghi không tồn tại.
+      if (campaign.created_by !== params.actorUserId)
+        throw new CharityExternalContributionNotFoundException();
+
+      const [current] = await manager.query<IExternalRow[]>(
+        `SELECT ${ExternalColumns}
+         FROM campaign_external_contributions external
+         INNER JOIN campaign_need_items need ON need.global_id = external.need_item_id
+         WHERE external.global_id = $1
+         FOR UPDATE OF external`,
+        [params.externalId],
+      );
+      // Đã huỷ thì không huỷ hay điều chỉnh lần nữa — sửa một bản ghi đã bị thay là
+      // sửa một nhánh lịch sử không còn ai đọc.
+      if (current.status !== 'ACTIVE')
+        throw new CharityExternalContributionVoidedException();
+      // Điều chỉnh mà số không đổi là một lượt ghi lịch sử không nói gì. Kiểm ở ĐÂY vì
+      // chỉ ở đây — trên hàng đã khoá — con số cũ mới chắc là con số hiện hành.
+      if (
+        params.action === 'ADJUST' &&
+        params.quantity === Number(current.quantity)
+      )
+        throw new CharityLinesInvalidException(
+          'Số lượng mới trùng số lượng cũ — không có gì để điều chỉnh',
+        );
+
+      await manager.query(
+        `UPDATE campaign_external_contributions
+         SET status = 'VOIDED', voided_at = now(), voided_by = $2, void_reason = $3
+         WHERE global_id = $1`,
+        [params.externalId, params.actorUserId, params.reason],
+      );
+
+      const oldQuantity = Number(current.quantity);
+      if (params.action === 'VOID') {
+        await this.shiftNeedProjections(manager, [
+          {
+            needItemId: current.need_item_id,
+            acceptedDelta: 0,
+            receivedDelta: -oldQuantity,
+          },
+        ]);
+        return this.mustReadExternal(manager, params.externalId);
+      }
+
+      const quantity = params.quantity as number;
+      const [replacement] = await manager.query<{ global_id: string }[]>(
+        `INSERT INTO campaign_external_contributions
+           (campaign_id, need_item_id, quantity, source_label, received_at,
+            evidence_note, recorded_by, replaces_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING global_id`,
+        [
+          current.campaign_id,
+          current.need_item_id,
+          quantity,
+          current.source_label,
+          current.received_at,
+          current.evidence_note,
+          params.actorUserId,
+          params.externalId,
+        ],
+      );
+      // Một lượt ghi cho chênh lệch, không hai lượt trừ-rồi-cộng: cùng một kết quả,
+      // và không có khoảnh khắc nào `received_quantity` thấp hơn sự thật.
+      await this.shiftNeedProjections(manager, [
+        {
+          needItemId: current.need_item_id,
+          acceptedDelta: 0,
+          receivedDelta: quantity - oldQuantity,
+        },
+      ]);
+      return this.mustReadExternal(manager, replacement.global_id);
+    });
+  }
+
+  public async listExternalContributions(
+    campaignId: string,
+  ): Promise<ICharityExternalContribution[]> {
+    const rows = await this.manager.query<IExternalRow[]>(
+      `SELECT ${ExternalColumns}
+       FROM campaign_external_contributions external
+       INNER JOIN campaign_need_items need ON need.global_id = external.need_item_id
+       WHERE external.campaign_id = $1
+       ORDER BY external.created_at DESC, external.id DESC`,
+      [campaignId],
+    );
+    return rows.map(toExternal);
+  }
+
+  private async mustReadExternal(
+    manager: EntityManager,
+    globalId: string,
+  ): Promise<ICharityExternalContribution> {
+    const [row] = await manager.query<IExternalRow[]>(
+      `SELECT ${ExternalColumns}
+       FROM campaign_external_contributions external
+       INNER JOIN campaign_need_items need ON need.global_id = external.need_item_id
+       WHERE external.global_id = $1`,
+      [globalId],
+    );
+    if (!row) throw new CharityExternalContributionNotFoundException();
+    return toExternal(row);
+  }
+
+  public async closeCampaign(params: {
+    campaignId: string;
+    actorUserId: string;
+  }): Promise<ICloseCampaignResult> {
+    return this.manager.transaction(async (manager) => {
+      await this.lockCampaignAndNeeds(manager, params.campaignId);
+
+      // `start_time = LEAST(...)`: đóng một chiến dịch CHƯA bắt đầu mà chỉ đặt
+      // `end_time = now()` sẽ vi phạm `CHK_campaigns_time_order`. Kéo `start_time` về
+      // trước đó một giây là hợp lý — với chiến dịch chưa bắt đầu, `start_time` là kế
+      // hoạch chứ chưa phải lịch sử. KHÔNG dời `end_time` ra sau `now()`: §8 phân biệt
+      // ĐÃ ĐÓNG với ĐÌNH CHỈ đúng bằng việc `end_time` đã qua hay chưa.
+      const closed = await updateReturning<{ global_id: string }>(
+        manager,
+        `UPDATE campaigns
+         SET is_active = false,
+             end_time = now(),
+             start_time = LEAST(start_time, now() - interval '1 second'),
+             updated_at = now()
+         WHERE global_id = $1
+           AND approval_status = 'APPROVED'
+           AND end_time > now()
+           AND deleted_at IS NULL
+         RETURNING global_id`,
+        [params.campaignId],
+      );
+      if (closed.length === 0) throw new CharityCampaignNotClosableException();
+
+      // Từ chối hàng loạt đề nghị đang chờ (§8), từng dòng nhận 0 với lý do
+      // `CAMPAIGN_CLOSED` — cùng hình dạng với một lượt từ chối bằng tay, nên danh sách
+      // của người tặng đọc nó y như mọi lượt từ chối khác.
+      const pending = await manager.query<{ global_id: string }[]>(
+        `SELECT global_id FROM campaign_contributions
+         WHERE campaign_id = $1 AND status = 'PENDING_REVIEW'
+         ORDER BY id
+         FOR UPDATE`,
+        [params.campaignId],
+      );
+      const pendingIds = pending.map((row) => row.global_id);
+      if (pendingIds.length > 0) {
+        await manager.query(
+          `UPDATE campaign_contribution_items
+           SET accepted_quantity = 0, rejection_reason = 'CAMPAIGN_CLOSED',
+               updated_at = now()
+           WHERE contribution_id = ANY($1::uuid[])`,
+          [pendingIds],
+        );
+        await manager.query(
+          `UPDATE campaign_contributions
+           SET status = 'REJECTED', decided_at = now(), decided_by = $2,
+               updated_at = now()
+           WHERE global_id = ANY($1::uuid[])`,
+          [pendingIds, params.actorUserId],
+        );
+      }
+
+      // KHÔNG huỷ lượt giao nhận đang chạy (§8, §11.5): đó là vật phẩm đã được hứa
+      // và có thể đang trên đường. Chỉ đếm để báo lại.
+      const [open] = await manager.query<{ count: string }[]>(
+        `SELECT COUNT(*) AS count FROM campaign_deliveries
+         WHERE campaign_id = $1 AND status = 'ACCEPTED'`,
+        [params.campaignId],
+      );
+
+      return {
+        campaignId: params.campaignId,
+        rejectedContributions: pendingIds.length,
+        openDeliveries: Number(open.count),
+      };
+    });
   }
 
   public async withdrawContribution(params: {

@@ -101,3 +101,17 @@ export class CharityDeliveryInvalidStateException extends ExceptionFrom(
 export class CharitySelfContributionException extends ExceptionFrom(
   CoreErrors.CHARITY_SELF_CONTRIBUTION,
 ) {}
+
+/** Chiến dịch chưa duyệt hoặc đã đóng rồi. */
+export class CharityCampaignNotClosableException extends ExceptionFrom(
+  CoreErrors.CHARITY_CAMPAIGN_NOT_CLOSABLE,
+) {}
+
+export class CharityExternalContributionNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_EXTERNAL_CONTRIBUTION_NOT_FOUND,
+) {}
+
+/** Đã huỷ hoặc đã bị thay — sửa một nhánh lịch sử không còn ai đọc là vô nghĩa. */
+export class CharityExternalContributionVoidedException extends ExceptionFrom(
+  CoreErrors.CHARITY_EXTERNAL_CONTRIBUTION_VOIDED,
+) {}

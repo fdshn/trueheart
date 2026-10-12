@@ -902,6 +902,26 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Bạn đang tổ chức hoạt động này nên không gửi đề nghị đóng góp vào nó được',
   },
 
+  CHARITY_CAMPAIGN_NOT_CLOSABLE: {
+    code: ErrorCodes.CHARITY_CAMPAIGN_NOT_CLOSABLE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Hoạt động này chưa được duyệt hoặc đã đóng rồi',
+  },
+
+  CHARITY_EXTERNAL_CONTRIBUTION_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_EXTERNAL_CONTRIBUTION_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy bản ghi đóng góp ngoài app',
+  },
+
+  CHARITY_EXTERNAL_CONTRIBUTION_VOIDED: {
+    code: ErrorCodes.CHARITY_EXTERNAL_CONTRIBUTION_VOIDED,
+    httpStatus: HttpStatus.CONFLICT,
+    // Nói việc cần làm: bản đang có hiệu lực là bản THAY THẾ, không phải bản này.
+    message: () =>
+      'Bản ghi này đã bị huỷ hoặc đã được thay bằng bản điều chỉnh — hãy thao tác trên bản đang có hiệu lực',
+  },
+
   CHARITY_DELIVERY_NOT_FOUND: {
     code: ErrorCodes.CHARITY_DELIVERY_NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,

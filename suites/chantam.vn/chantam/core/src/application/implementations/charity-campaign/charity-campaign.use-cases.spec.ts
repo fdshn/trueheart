@@ -22,12 +22,15 @@ import {
   ValidationFailedException,
 } from '@chantam/service.common-lib/exception';
 import {
+  AmendExternalContributionUseCase,
   CancelCharityDeliveryUseCase,
+  CloseCharityCampaignUseCase,
   CreateCharityCampaignUseCase,
   DecideCharityContributionUseCase,
   GetCampaignNeedsUseCase,
   GetCharityDeliveryUseCase,
   ListCampaignContributionsUseCase,
+  RecordExternalContributionUseCase,
   ReviewCharityCampaignUseCase,
   SubmitCharityContributionUseCase,
   UpdateCharityContributionUseCase,
@@ -101,6 +104,10 @@ function makeRepository(): jest.Mocked<ICharityCampaignRepository> {
     completeDelivery: jest.fn(),
     cancelDelivery: jest.fn(),
     findDeliveryByGlobalId: jest.fn(),
+    recordExternalContribution: jest.fn(),
+    amendExternalContribution: jest.fn(),
+    listExternalContributions: jest.fn().mockResolvedValue([]),
+    closeCampaign: jest.fn(),
     listReviews: jest.fn(),
   } as unknown as jest.Mocked<ICharityCampaignRepository>;
 }
@@ -1166,5 +1173,110 @@ describe('Lát C — tầng ứng dụng (F65b §5–§6)', () => {
           viewerUserId: viewer,
         }),
       ).resolves.toMatchObject({ globalId: 'delivery-1' });
+  });
+});
+
+describe('Lát D — ngoài app và đóng chiến dịch (F65b §7–§8)', () => {
+  const Need = '99999999-9999-4999-8999-99999999aaaa';
+
+  it('người tổ chức đóng được chiến dịch của mình mà không cần quyền Admin', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: ActorId }),
+    );
+    repository.closeCampaign.mockResolvedValue({
+      campaignId: CampaignId,
+      rejectedContributions: 2,
+      openDeliveries: 1,
+    });
+    const admin = makeAdmin(false);
+
+    await new CloseCharityCampaignUseCase(repository, admin).handle({
+      campaignId: CampaignId,
+      actorUserId: ActorId,
+    });
+
+    expect(repository.closeCampaign).toHaveBeenCalledWith({
+      campaignId: CampaignId,
+      actorUserId: ActorId,
+    });
+    expect(admin.hasPermission).not.toHaveBeenCalled();
+  });
+
+  it('Admin có campaign.manage đóng được chiến dịch của người khác', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: 'nguoi-khac' }),
+    );
+    repository.closeCampaign.mockResolvedValue({
+      campaignId: CampaignId,
+      rejectedContributions: 0,
+      openDeliveries: 0,
+    });
+
+    await new CloseCharityCampaignUseCase(repository, makeAdmin(true)).handle({
+      campaignId: CampaignId,
+      actorUserId: ActorId,
+    });
+
+    expect(repository.closeCampaign).toHaveBeenCalled();
+  });
+
+  it('người ngoài không có quyền Admin thì KHÔNG đóng được', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: 'nguoi-khac' }),
+    );
+
+    await expect(
+      new CloseCharityCampaignUseCase(repository, makeAdmin(false)).handle({
+        campaignId: CampaignId,
+        actorUserId: ActorId,
+      }),
+    ).rejects.toBeInstanceOf(CharityNotOrganizerException);
+    expect(repository.closeCampaign).not.toHaveBeenCalled();
+  });
+
+  it('ngày nhận ở TƯƠNG LAI bị từ chối — tiến độ chỉ tăng theo thứ đã về kho', async () => {
+    const repository = makeRepository();
+
+    await expect(
+      new RecordExternalContributionUseCase(repository).handle({
+        campaignId: CampaignId,
+        recordedBy: ActorId,
+        needItemId: Need,
+        quantity: 10,
+        sourceLabel: 'Cô Lan',
+        receivedAt: new Date(Date.now() + 24 * Hour).toISOString(),
+      }),
+    ).rejects.toBeInstanceOf(CharityLinesInvalidException);
+    expect(repository.recordExternalContribution).not.toHaveBeenCalled();
+  });
+
+  it('huỷ hay điều chỉnh mà lý do chỉ có khoảng trắng thì bị chặn', async () => {
+    const repository = makeRepository();
+
+    await expect(
+      new AmendExternalContributionUseCase(repository).handle({
+        externalId: 'ext-1',
+        actorUserId: ActorId,
+        action: 'VOID',
+        reason: '   ',
+      }),
+    ).rejects.toBeInstanceOf(CharityLinesInvalidException);
+    expect(repository.amendExternalContribution).not.toHaveBeenCalled();
+  });
+
+  it('điều chỉnh không có số mới thì bị chặn — muốn về 0 thì huỷ', async () => {
+    const repository = makeRepository();
+
+    await expect(
+      new AmendExternalContributionUseCase(repository).handle({
+        externalId: 'ext-1',
+        actorUserId: ActorId,
+        action: 'ADJUST',
+        reason: 'Đếm lại',
+      }),
+    ).rejects.toBeInstanceOf(CharityLinesInvalidException);
   });
 });

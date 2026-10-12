@@ -1,10 +1,14 @@
 import {
+  IAmendExternalContributionCommand,
+  IAmendExternalContributionUseCase,
   ICancelCharityDeliveryCommand,
   ICancelCharityDeliveryUseCase,
   ICancelCharityParticipationUseCase,
   ICharityCampaignPageResult,
   ICharityCampaignView,
   ICharityCampaignWriteInput,
+  ICloseCharityCampaignCommand,
+  ICloseCharityCampaignUseCase,
   ICompleteCharityDeliveryCommand,
   ICompleteCharityDeliveryUseCase,
   ICreateCharityCampaignCommand,
@@ -30,6 +34,8 @@ import {
   IListCampaignContributionsCommand,
   IListCampaignContributionsResult,
   IListCampaignContributionsUseCase,
+  IListExternalContributionsCommand,
+  IListExternalContributionsUseCase,
   IListJoinedCharityCampaignsUseCase,
   IListMyCharityCampaignsCommand,
   IListMyCharityCampaignsUseCase,
@@ -38,6 +44,8 @@ import {
   IListMyContributionsUseCase,
   IListPublicCharityCampaignsCommand,
   IListPublicCharityCampaignsUseCase,
+  IRecordExternalContributionCommand,
+  IRecordExternalContributionUseCase,
   IReviewCharityCampaignCommand,
   IReviewCharityCampaignResult,
   IReviewCharityCampaignUseCase,
@@ -77,6 +85,8 @@ import {
   ICharityCampaign,
   ICharityCampaignRepository,
   ICharityDelivery,
+  ICharityExternalContribution,
+  ICloseCampaignResult,
   IEntitlementRepository,
 } from '@/domain/ports/repository';
 import {
@@ -657,6 +667,130 @@ export class GetCharityDeliveryUseCase implements IGetCharityDeliveryUseCase {
     )
       throw new CharityDeliveryNotFoundException();
     return delivery;
+  }
+}
+
+@Injectable()
+export class RecordExternalContributionUseCase implements IRecordExternalContributionUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: IRecordExternalContributionCommand,
+  ): Promise<ICharityExternalContribution> {
+    const receivedAt = new Date(command.receivedAt);
+    // Ngày nhận ở TƯƠNG LAI là ghi nhận một thứ chưa về kho. Tiến độ công khai chỉ
+    // được tăng theo vật phẩm đã nhận thật (§3).
+    if (Number.isNaN(receivedAt.getTime()) || receivedAt.getTime() > Date.now())
+      throw new CharityLinesInvalidException(
+        'Ngày nhận phải là một mốc trong quá khứ',
+      );
+
+    return this.repository.recordExternalContribution({
+      campaignId: command.campaignId,
+      recordedBy: command.recordedBy,
+      needItemId: command.needItemId,
+      quantity: command.quantity,
+      sourceLabel: command.sourceLabel.trim(),
+      receivedAt,
+      evidenceNote: command.evidenceNote?.trim() ?? null,
+    });
+  }
+}
+
+/**
+ * Huỷ hoặc điều chỉnh một bản ghi ngoài app, luôn kèm lý do (§7).
+ *
+ * Điều chỉnh mà số lượng không đổi bị từ chối: đó là một lượt ghi lịch sử không nói
+ * gì, và nó đẩy bản ghi thật ra sau một chuỗi `replacesId` dài hơn cho không lý do.
+ */
+@Injectable()
+export class AmendExternalContributionUseCase implements IAmendExternalContributionUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: IAmendExternalContributionCommand,
+  ): Promise<ICharityExternalContribution> {
+    const reason = command.reason.trim();
+    if (!reason)
+      throw new CharityLinesInvalidException(
+        'Huỷ hay điều chỉnh bản ghi ngoài app phải có lý do',
+      );
+    if (command.action === 'ADJUST') {
+      if (command.quantity === undefined || command.quantity <= 0)
+        throw new CharityLinesInvalidException(
+          'Điều chỉnh phải có số lượng mới lớn hơn 0 — muốn về 0 thì huỷ bản ghi',
+        );
+    }
+
+    return this.repository.amendExternalContribution({
+      externalId: command.externalId,
+      actorUserId: command.actorUserId,
+      action: command.action,
+      reason,
+      quantity: command.quantity,
+    });
+  }
+}
+
+@Injectable()
+export class ListExternalContributionsUseCase implements IListExternalContributionsUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: IListExternalContributionsCommand,
+  ): Promise<{ items: ICharityExternalContribution[] }> {
+    const campaign = await this.repository.findByGlobalId(command.campaignId);
+    if (!campaign) throw new CharityCampaignNotFoundException();
+    if (campaign.createdBy !== command.actorUserId)
+      throw new CharityNotOrganizerException();
+    return {
+      items: await this.repository.listExternalContributions(campaign.globalId),
+    };
+  }
+}
+
+/**
+ * Đóng chiến dịch (§8) — người tổ chức, hoặc Admin có `campaign.manage`.
+ *
+ * Kiểm quyền ở đây, ngoài transaction, là an toàn vì `created_by` không bao giờ đổi
+ * sau lúc tạo. Phần cần khoá — trạng thái chiến dịch và hàng đợi đề nghị — nằm trong
+ * transaction của repository.
+ */
+@Injectable()
+export class CloseCharityCampaignUseCase implements ICloseCharityCampaignUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: ICloseCharityCampaignCommand,
+  ): Promise<ICloseCampaignResult> {
+    const campaign = await this.repository.findByGlobalId(command.campaignId);
+    if (!campaign) throw new CharityCampaignNotFoundException();
+
+    const isOrganizer = campaign.createdBy === command.actorUserId;
+    if (
+      !isOrganizer &&
+      !(await this.admin.hasPermission(command.actorUserId, WritePermission))
+    )
+      throw new CharityNotOrganizerException();
+
+    return this.repository.closeCampaign({
+      campaignId: campaign.globalId,
+      actorUserId: command.actorUserId,
+    });
   }
 }
 
