@@ -144,6 +144,7 @@ async function main(): Promise<void> {
         openRoomWithinTransaction: async () => undefined,
         lockRoomWithinTransaction: async () => undefined,
       } as never,
+      new PointLedgerRepository(dataSource.manager),
     );
 
     const transactions = new GiftTransactionRepository(

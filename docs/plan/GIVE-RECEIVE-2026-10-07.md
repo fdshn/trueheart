@@ -258,10 +258,25 @@ So theo **số điểm** chứ không theo giá trị và tỷ lệ riêng: đi�
 nghĩa là màn hình người dùng đang nói sai về món đồ. Và `409` này đứng trước "không đủ điểm",
 vì câu kia nhắc một con số người dùng chưa từng thấy.
 
-Còn một việc **không** thuộc mục 2 nhưng đang ghi trong
-[REDEMPTION-REQUIREMENT-GAP.md](./REDEMPTION-REQUIREMENT-GAP.md): `quoteRedemption` làm tròn
-`Math.ceil`, còn contract đích ghi `round_half_up`. Chưa đổi, và không được coi mục 2 xong là
-đã khép việc đó.
+**Làm tròn nửa-lên, xong 12/10.** `quoteRedemption` từng dùng `Math.ceil`; SRS CHỐT-13 ghi
+*"phần lẻ từ 0,5 trở lên làm tròn lên, dưới 0,5 làm tròn xuống"*, và `computeGiftValueBonus`
+đã nửa-lên từ CHỐT-14 — nên hai luật khác nhau làm một món 1.001 VNĐ tốn 2 điểm để đổi mà chỉ
+sinh 1 điểm thưởng. Nay cùng một luật, có phép kiểm canh hai công thức nói cùng một con số.
+
+Hệ quả: nhánh `PRICE_BELOW_ONE_POINT` từ chỗ gần như chết trở thành đường chạy thật — món 500
+VNĐ ở tỷ lệ 2.000 ra 0 điểm và bị chặn.
+
+**Trừ điểm nguyên tử với lượt chốt người, xong 12/10.** SRS CHỐT-13 đòi *"debit/ledger/chốt
+người/giao dịch/dừng xét phải nguyên tử"*. Tới 11/10 đó là hai transaction, bù bằng một bút
+toán hoàn khi duyệt hỏng — đúng về số mà sai về trạng thái: giữa hai transaction có một khoảng
+người đổi đã mất điểm mà chưa có suất, và một lần tiến trình chết đúng khoảng ấy là khoản bù
+không bao giờ được ghi.
+
+Nay `acceptRequest` nhận thêm `redemption` và ghi khoản trừ bằng
+`appendAdjustmentWithinTransaction` ngay trong transaction nó mở, SAU mọi phép kiểm. Hai hệ quả
+đáng ghi: đường hoàn bù `ITEM_REDEMPTION:REFUND:<requestId>` biến mất (hết hàng thì ném trước
+khi có bút toán nào), và thứ tự xin khoá là HÀNG trước — ADVISORY sau, cùng thứ tự với
+`complete()`, nên không mở ca deadlock giữa hai đường.
 
 **Mục 4 xong phần sửa đánh giá, 12/10.** `PATCH /transactions/:id/reviews/mine` cho mỗi bên
 sửa đánh giá của mình **đúng một lần**, trước `completed_at + review.grace.graceDays`. Hạn trả

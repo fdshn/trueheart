@@ -276,7 +276,7 @@ export interface IPostContactInfoDto {
  *    SOS, và chỉ biết khi mọi thứ đã xong.
  */
 export interface IRedemptionQuoteDto {
-  /** Giá bằng điểm, đã làm tròn LÊN. `0` khi chưa quy ra điểm được. */
+  /** Giá bằng điểm, làm tròn nửa-lên. `0` khi chưa quy ra điểm được. */
   points: number;
   /** Giá trị tham khảo người tặng khai. `null` khi bỏ trống. */
   estimatedValueVnd: number | null;

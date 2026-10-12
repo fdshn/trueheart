@@ -143,59 +143,44 @@ export class RedeemPostWithPointsUseCase implements IRedeemPostWithPointsUseCase
         availablePoints,
       );
 
-    // Trừ điểm TRƯỚC khi duyệt, và hoàn lại nếu duyệt hỏng.
+    // Trừ điểm và chốt người nhận trong MỘT transaction (SRS CHỐT-13: *"Debit/
+    // ledger/chốt người/giao dịch/dừng xét phải nguyên tử và chống trùng"*).
     //
-    // Thứ tự này là lựa chọn có chủ ý. Duyệt trước rồi trừ thì một lỗi ở bước trừ
-    // để lại người nhận đã được chốt mà chưa trả gì — món quà đi mất và không có
-    // đường đòi. Trừ trước thì lỗi tệ nhất là điểm bị giữ tạm, và khoản hoàn ngay
-    // dưới trả lại.
+    // Tới 11/10 đây là hai transaction: trừ trước, duyệt sau, và nếu duyệt hỏng
+    // thì ghi một bút toán hoàn bù `ITEM_REDEMPTION:REFUND:<requestId>`. Khoản bù
+    // ấy đúng về SỐ nhưng không đúng về TRẠNG THÁI, và hai điều cụ thể:
     //
-    // Hai bước không nằm trong một transaction vì `appendAdjustment` và
-    // `acceptRequest` mỗi cái tự mở một transaction, và gộp chúng đòi một đường
-    // ghi sổ mới. Khoá chống trùng cộng khoản hoàn là cái giá rẻ hơn.
-    const spent = await this.ledger.appendAdjustment({
-      userId: command.requesterId,
-      ruleCode: ItemRedemptionRuleCode,
-      delta: -quote.points,
-      referenceType: 'POST',
-      referenceId: command.postId,
-      idempotencyKey: `${ItemRedemptionRuleCode}:${context.requestGlobalId}`,
-      actor: command.requesterId,
-      source: 'REDEMPTION',
-      reason: `Đổi vật phẩm bằng điểm (${quote.points} điểm)`,
+    // - giữa hai transaction có một khoảng người đổi đã mất điểm mà chưa có suất,
+    //   và trong khoảng ấy `GET /points/me/ledger` của họ nói một điều sai;
+    // - tiến trình chết đúng khoảng ấy — deploy, OOM, mất kết nối — thì khoản bù
+    //   KHÔNG BAO GIỜ được ghi, và không có job nào quét lại. Điểm mất im lặng.
+    //
+    // Nay khoản trừ ghi bằng `appendAdjustmentWithinTransaction` ngay trong
+    // transaction mà `acceptRequest` mở, SAU mọi phép kiểm của nó. Hết hàng hay bị
+    // xen ngang thì ném trước khi có bút toán nào — nên đường hoàn bù biến mất
+    // cùng lý do tồn tại của nó, và khoá `ITEM_REDEMPTION:REFUND:<requestId>`
+    // không còn được ghi nữa (bút toán cũ của dữ liệu cũ vẫn nằm đó, vô hại).
+    const accepted = await this.requests.acceptRequest({
+      requestId: context.requestGlobalId,
+      postId: command.postId,
+      actorUserId: context.giverId,
+      transactionId: makeGlobalId(
+        `/transactions/${command.postId}/${command.requesterId}`,
+      ),
+      redemption: {
+        requesterId: command.requesterId,
+        points: quote.points,
+        idempotencyKey: `${ItemRedemptionRuleCode}:${context.requestGlobalId}`,
+        reason: `Đổi vật phẩm bằng điểm (${quote.points} điểm)`,
+      },
     });
-
-    let transactionId: string;
-    try {
-      const accepted = await this.requests.acceptRequest({
-        requestId: context.requestGlobalId,
-        postId: command.postId,
-        actorUserId: context.giverId,
-        transactionId: makeGlobalId(
-          `/transactions/${command.postId}/${command.requesterId}`,
-        ),
-      });
-      transactionId = accepted.transactionId;
-    } catch (error) {
-      // Hết hàng, hoặc ai đó vừa được duyệt xen vào. Trả điểm lại ngay bằng một
-      // bút toán NGƯỢC — sổ append-only nên không xoá được khoản đã trừ, và để
-      // nó nằm đó là lấy điểm của người dùng mà không đưa gì.
-      await this.ledger.appendAdjustment({
-        userId: command.requesterId,
-        ruleCode: ItemRedemptionRuleCode,
-        delta: quote.points,
-        referenceType: 'POST',
-        referenceId: command.postId,
-        idempotencyKey: `${ItemRedemptionRuleCode}:REFUND:${context.requestGlobalId}`,
-        actor: 'SYSTEM',
-        source: 'REDEMPTION_REFUND',
-        reason: 'Hoàn điểm vì không chốt được vật phẩm',
-      });
-      // Hoàn điểm cũng là một biến động balance: nếu khoản trừ vừa rồi đã kéo họ
-      // tụt hạng thì khoản hoàn phải đưa hạng trở lại.
-      await this.rankChange.afterBalanceChange(command.requesterId);
-      throw error;
-    }
+    const transactionId = accepted.transactionId;
+    // `debit` luôn có khi `redemption` được truyền; `??` là lưới cho một
+    // implementation của port quên trả nó, không phải một ca nghiệp vụ.
+    const spent = accepted.debit ?? {
+      delta: -quote.points,
+      balance: availablePoints - quote.points,
+    };
 
     // Xét lại hạng SAU khi đã chốt xong, và trước khi trả về.
     //

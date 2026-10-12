@@ -57,7 +57,31 @@ function makeChatRepository() {
   } as never;
 }
 
-function makeRepository(query: jest.Mock, chat: never = makeChatRepository()) {
+/**
+ * Sổ điểm giả. Khoản trừ của một lượt đổi-bằng-điểm nằm TRONG transaction của
+ * lượt duyệt (SRS CHỐT-13), nên mock chỉ cần đủ để kiểm rằng nó được gọi — và
+ * gọi với cùng `manager`.
+ */
+function makeLedger() {
+  return {
+    appendAdjustmentWithinTransaction: jest.fn(
+      async (_manager: unknown, command: { delta: number }) => ({
+        entryId: 1,
+        delta: command.delta,
+        balance: 1_500,
+        rawBalance: 1_500,
+        lifetime: 2_000,
+        applied: true,
+      }),
+    ),
+  };
+}
+
+function makeRepository(
+  query: jest.Mock,
+  chat: never = makeChatRepository(),
+  ledger: ReturnType<typeof makeLedger> = makeLedger(),
+) {
   return new GiftRequestRepository(
     {} as never,
     {
@@ -65,6 +89,7 @@ function makeRepository(query: jest.Mock, chat: never = makeChatRepository()) {
       transaction: async (cb: (m: unknown) => unknown) => cb({ query }),
     } as never,
     chat,
+    ledger as never,
   );
 }
 
@@ -344,5 +369,95 @@ describe('GiftRequestRepository.acceptRequest · vai theo LOẠI bài (CHỐT-10
     );
     expect(String(dedup?.[0])).toContain('giver_id = $2');
     expect(String(dedup?.[0])).toContain('receiver_id = $2');
+  });
+});
+
+describe('acceptRequest · khoản trừ điểm nguyên tử (SRS CHỐT-13)', () => {
+  it('ghi bút toán trừ bằng CÙNG manager của transaction duyệt', async () => {
+    // Đây là cả lý do khoản trừ dời vào đây. Gọi `appendAdjustment` (tự mở
+    // transaction riêng) thì một lỗi ở lượt duyệt KHÔNG cuốn khoản trừ theo, và
+    // người đổi mất điểm mà chưa có suất.
+    const query = makeQuery({});
+    const ledger = makeLedger();
+    const repository = makeRepository(query, makeChatRepository(), ledger);
+
+    await repository.acceptRequest({
+      ...Params,
+      redemption: {
+        requesterId: RequesterId,
+        points: 500,
+        idempotencyKey: `ITEM_REDEMPTION:${RequestId}`,
+        reason: 'Đổi vật phẩm bằng điểm (500 điểm)',
+      },
+    });
+
+    expect(ledger.appendAdjustmentWithinTransaction).toHaveBeenCalledTimes(1);
+    const [manager, command] =
+      ledger.appendAdjustmentWithinTransaction.mock.calls[0];
+    expect((manager as { query: unknown }).query).toBe(query);
+    expect(command).toEqual(
+      expect.objectContaining({
+        userId: RequesterId,
+        delta: -500,
+        idempotencyKey: `ITEM_REDEMPTION:${RequestId}`,
+      }),
+    );
+  });
+
+  it('trả kết quả bút toán ra cho nơi gọi', async () => {
+    const repository = makeRepository(makeQuery({}));
+
+    const result = await repository.acceptRequest({
+      ...Params,
+      redemption: {
+        requesterId: RequesterId,
+        points: 500,
+        idempotencyKey: `ITEM_REDEMPTION:${RequestId}`,
+        reason: 'Đổi vật phẩm bằng điểm (500 điểm)',
+      },
+    });
+
+    expect(result.debit?.delta).toBe(-500);
+    expect(result.debit?.balance).toBe(1_500);
+  });
+
+  it('HẾT HÀNG thì không trừ điểm — không còn gì phải hoàn', async () => {
+    // Bản tới 11/10 trừ trước rồi duyệt, nên ca này phải ghi một bút toán hoàn
+    // bù. Nay phép kiểm tồn kho chạy TRƯỚC khoản trừ, nên không có gì để hoàn.
+    const ledger = makeLedger();
+    const repository = makeRepository(
+      makeQuery({ post: postRow(0) }),
+      makeChatRepository(),
+      ledger,
+    );
+
+    await expect(
+      repository.acceptRequest({
+        ...Params,
+        redemption: {
+          requesterId: RequesterId,
+          points: 500,
+          idempotencyKey: `ITEM_REDEMPTION:${RequestId}`,
+          reason: 'Đổi vật phẩm bằng điểm (500 điểm)',
+        },
+      }),
+    ).rejects.toThrow();
+
+    expect(ledger.appendAdjustmentWithinTransaction).not.toHaveBeenCalled();
+  });
+
+  it('lượt duyệt THƯỜNG không đụng sổ điểm', async () => {
+    // Đường phổ biến nhất, nên nó không được trả giá cho tính năng đổi điểm.
+    const ledger = makeLedger();
+    const repository = makeRepository(
+      makeQuery({}),
+      makeChatRepository(),
+      ledger,
+    );
+
+    const result = await repository.acceptRequest(Params);
+
+    expect(ledger.appendAdjustmentWithinTransaction).not.toHaveBeenCalled();
+    expect(result.debit).toBeUndefined();
   });
 });

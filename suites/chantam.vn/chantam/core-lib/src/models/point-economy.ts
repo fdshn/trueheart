@@ -230,9 +230,21 @@ export interface IRedemptionQuote {
  * ranh giới kiểm được bằng bảng đầu vào/đầu ra. Tỷ lệ truyền vào chứ không đọc
  * từ đâu cả — nó là cấu hình động và sẽ còn đổi.
  *
- * **Làm tròn LÊN.** 1.500 VNĐ với tỷ lệ 1.000 ra 2 điểm chứ không phải 1: làm
- * tròn xuống là bán món đồ rẻ hơn giá người tặng khai, và chênh lệch đó nhân với
- * số lượt đổi là một khoản thất thoát không ai theo dõi.
+ * **Làm tròn NỬA-LÊN, đổi từ 12/10.** 1.500 VNĐ với tỷ lệ 1.000 ra 2 điểm; nhưng
+ * 1.001 VNĐ ra **1** điểm, không phải 2.
+ *
+ * Tới 11/10 đây là `Math.ceil`, với lý do: làm tròn xuống là bán món đồ rẻ hơn
+ * giá người tặng khai. Lý do đó không sai, nhưng yêu cầu Bên A ngày 04/10 ghi
+ * `round_half_up` cho **cả** `value_bonus` lẫn giá đổi, và `computeGiftValueBonus`
+ * ở trên đã dùng `Math.round` từ CHỐT-14 — nên `ceil` ở đây làm hai con số của
+ * cùng một món đồ đi theo hai luật làm tròn khác nhau. Một món 1.001 VNĐ tốn 2
+ * điểm để đổi nhưng chỉ sinh 1 điểm thưởng, và không có chỗ nào giải thích được
+ * khoảng lệch đó.
+ *
+ * **Hệ quả đo được:** nhánh `PRICE_BELOW_ONE_POINT` dưới đây từ chỗ gần như chết
+ * trở thành đường chạy thật. Với `ceil`, mọi giá dương đều ra >= 1 điểm; với
+ * nửa-lên, một món 500 VNĐ ở tỷ lệ 2.000 ra 0 điểm và bị CHẶN — đổi được mà không
+ * mất gì là một lỗ hổng, không phải một ưu đãi.
  */
 export function quoteRedemption(
   estimatedValueVnd: number | null | undefined,
@@ -245,11 +257,15 @@ export function quoteRedemption(
   if (!Number.isFinite(value) || value <= 0)
     return { redeemable: false, points: 0, reason: 'NO_ESTIMATED_VALUE' };
 
-  const points = Math.ceil(value / config.vndPerPoint);
+  // `Math.round` của JavaScript là nửa-lên với số dương, và `value > 0` đã được
+  // chặn ở trên — nên không rơi vào bẫy `Math.round(-0.5) === -0`. Cùng hàm mà
+  // `computeGiftValueBonus` dùng, và đó là cả điểm: một luật làm tròn cho cả hai
+  // con số của cùng một món đồ.
+  const points = Math.round(value / config.vndPerPoint);
 
   // Món rẻ tới mức quy ra 0 điểm: đổi được mà không mất gì là một lỗ hổng, không
-  // phải một ưu đãi. `Math.ceil` đã chặn hầu hết, nhưng giữ nhánh này để ý đồ
-  // đọc được và để một tỷ lệ tương lai lớn bất thường không lọt qua.
+  // phải một ưu đãi. Nhánh này là đường CHẠY THẬT kể từ khi bỏ `Math.ceil`
+  // (12/10): một món 500 VNĐ ở tỷ lệ 2.000 rơi vào đây.
   if (points <= 0)
     return { redeemable: false, points: 0, reason: 'PRICE_BELOW_ONE_POINT' };
 

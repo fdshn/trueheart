@@ -40,9 +40,27 @@ function makeUseCase(
       .mockResolvedValue(
         options.context === undefined ? context() : options.context,
       ),
+    // Khoản trừ điểm đi KÈM lượt duyệt và được ghi trong cùng transaction
+    // (SRS CHỐT-13), nên mock trả `debit` dựng từ chính số điểm được truyền —
+    // một mock trả số cố định sẽ xanh cả khi use case truyền sai số.
     acceptRequest: options.acceptError
       ? jest.fn().mockRejectedValue(options.acceptError)
-      : jest.fn().mockResolvedValue({ transactionId: 'tx-1' }),
+      : jest.fn(async (params: { redemption?: { points: number } }) => ({
+          transactionId: 'tx-1',
+          giverId: GiverId,
+          receiverId: RequesterId,
+          debit: params.redemption
+            ? {
+                entryId: 1,
+                delta: -params.redemption.points,
+                balance: (options.balance ?? 2000) - params.redemption.points,
+                rawBalance:
+                  (options.balance ?? 2000) - params.redemption.points,
+                lifetime: options.balance ?? 2000,
+                applied: true,
+              }
+            : undefined,
+        })),
   };
   const ledger = {
     getSummary: jest
@@ -117,47 +135,63 @@ const command = {
 
 describe('RedeemPostWithPointsUseCase', () => {
   it('trừ đúng số điểm quy từ giá trị tham khảo', async () => {
-    const { useCase, ledger } = makeUseCase();
+    const { useCase, requests } = makeUseCase();
 
     const result = await useCase.handle(command);
 
-    expect(ledger.appendAdjustment).toHaveBeenCalledWith(
+    expect(requests.acceptRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        userId: RequesterId,
-        ruleCode: 'ITEM_REDEMPTION',
-        delta: -500,
-        idempotencyKey: 'ITEM_REDEMPTION:req-1',
+        redemption: expect.objectContaining({
+          requesterId: RequesterId,
+          points: 500,
+          idempotencyKey: 'ITEM_REDEMPTION:req-1',
+        }),
       }),
     );
     expect(result.pointsSpent).toBe(500);
   });
 
-  it('trừ điểm TRƯỚC khi duyệt', async () => {
-    // Duyệt trước rồi trừ thì một lỗi ở bước trừ để lại người nhận đã được chốt
-    // mà chưa trả gì — món quà đi mất và không có đường đòi.
+  it('trừ điểm TRONG CÙNG transaction với lượt duyệt, không ở lượt riêng', async () => {
+    // Tới 11/10 use case gọi `appendAdjustment` (tự mở transaction riêng) rồi mới
+    // duyệt. Giữa hai lượt có một khoảng người đổi đã mất điểm mà chưa có suất, và
+    // một lần tiến trình chết đúng khoảng ấy là khoản bù không bao giờ được ghi.
+    //
+    // Phép kiểm này canh đúng chỗ đó: use case KHÔNG được còn đường ghi sổ riêng.
     const { useCase, ledger, requests } = makeUseCase();
 
     await useCase.handle(command);
 
-    expect(ledger.appendAdjustment.mock.invocationCallOrder[0]).toBeLessThan(
-      requests.acceptRequest.mock.invocationCallOrder[0],
+    expect(ledger.appendAdjustment).not.toHaveBeenCalled();
+    expect(requests.acceptRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ redemption: expect.anything() }),
     );
   });
 
-  it('HOÀN điểm khi không chốt được vật phẩm', async () => {
-    // Sổ append-only nên không xoá được khoản đã trừ. Để nó nằm đó là lấy điểm
-    // của người dùng mà không đưa gì.
+  it('duyệt hỏng thì KHÔNG có bút toán nào để phải hoàn', async () => {
+    // Đây là chỗ thay cho ca "HOÀN điểm khi không chốt được vật phẩm" của bản cũ.
+    // Khoản trừ nay nằm trong transaction của lượt duyệt, nên lượt duyệt hỏng là
+    // khoản trừ cuốn theo — không còn gì để bù, và không còn khoá
+    // `ITEM_REDEMPTION:REFUND:<requestId>` nào được ghi.
     const { useCase, ledger } = makeUseCase({
       acceptError: new Error('hết hàng'),
     });
 
     await expect(useCase.handle(command)).rejects.toThrow('hết hàng');
 
-    expect(ledger.appendAdjustment).toHaveBeenCalledTimes(2);
-    expect(ledger.appendAdjustment.mock.calls[1][0]).toMatchObject({
-      delta: 500,
-      idempotencyKey: 'ITEM_REDEMPTION:REFUND:req-1',
+    expect(ledger.appendAdjustment).not.toHaveBeenCalled();
+  });
+
+  it('duyệt hỏng thì cũng KHÔNG xét lại hạng — số dư không đổi', async () => {
+    // Bản cũ phải xét lại hạng ở đường lỗi, vì khoản hoàn là một biến động balance
+    // thật. Nay transaction rollback nên balance y nguyên, và gọi xét lại hạng chỉ
+    // là một lượt đọc database cho một thứ không đổi.
+    const { useCase, rankChange } = makeUseCase({
+      acceptError: new Error('hết hàng'),
     });
+
+    await expect(useCase.handle(command)).rejects.toThrow('hết hàng');
+
+    expect(rankChange.afterBalanceChange).not.toHaveBeenCalled();
   });
 
   it('chưa gửi yêu cầu xin nhận thì không đổi được', async () => {
@@ -247,22 +281,24 @@ describe('RedeemPostWithPointsUseCase', () => {
 
   it('dùng tỷ lệ quy đổi Admin cấu hình, không phải hằng trong code', async () => {
     // Tỷ lệ 1.000 thay vì 2.000 → cùng món 1 triệu thành 1.000 điểm.
-    const { useCase, ledger } = makeUseCase({ rate: 1000, balance: 5000 });
+    const { useCase, requests } = makeUseCase({ rate: 1000, balance: 5000 });
 
     // Tỷ lệ khác thì con số xác nhận cũng khác — gửi 500 ở đây là ca "báo giá cũ"
     // và phải bị chặn, không phải ca này.
     await useCase.handle({ ...command, confirmedPoints: 1000 });
 
-    expect(ledger.appendAdjustment.mock.calls[0][0].delta).toBe(-1000);
+    expect(requests.acceptRequest.mock.calls[0][0].redemption.points).toBe(
+      1000,
+    );
   });
 
   it('cấu hình tỷ lệ hỏng thì rơi về mặc định, không ném', async () => {
     // Một ô nhập liệu gõ nhầm không được làm chết cả đường đổi vật phẩm.
-    const { useCase, ledger } = makeUseCase({ rate: 'rác' as never });
+    const { useCase, requests } = makeUseCase({ rate: 'rác' as never });
 
     await useCase.handle(command);
 
-    expect(ledger.appendAdjustment.mock.calls[0][0].delta).toBe(-500);
+    expect(requests.acceptRequest.mock.calls[0][0].redemption.points).toBe(500);
   });
   it('xét lại hạng sau khi đổi vật phẩm', async () => {
     // Lỗ đã bịt 29/09. Tiêu điểm làm tụt hạng, nên đổi vật phẩm mà không xét lại
@@ -276,16 +312,6 @@ describe('RedeemPostWithPointsUseCase', () => {
     const { useCase, rankChange } = makeUseCase();
 
     await useCase.handle(command);
-
-    expect(rankChange.afterBalanceChange).toHaveBeenCalledWith(RequesterId);
-  });
-
-  it('hoàn điểm khi duyệt hỏng cũng xét lại hạng', async () => {
-    // Khoản trừ có thể đã kéo họ tụt hạng; khoản hoàn phải đưa hạng trở lại.
-    const { useCase, requests, rankChange } = makeUseCase();
-    requests.acceptRequest.mockRejectedValue(new Error('hết hàng'));
-
-    await expect(useCase.handle(command)).rejects.toThrow('hết hàng');
 
     expect(rankChange.afterBalanceChange).toHaveBeenCalledWith(RequesterId);
   });
@@ -378,12 +404,14 @@ describe('RedeemPostWithPointsUseCase · báo giá cũ (CHỐT-10 mục 2)', () 
   });
 
   it('khớp thì đi qua bình thường', async () => {
-    const { useCase, ledger } = makeUseCase({ balance: 5000 });
+    const { useCase, requests } = makeUseCase({ balance: 5000 });
 
     await useCase.handle({ ...command, confirmedPoints: 500 });
 
-    expect(ledger.appendAdjustment).toHaveBeenCalledWith(
-      expect.objectContaining({ delta: -500 }),
+    expect(requests.acceptRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        redemption: expect.objectContaining({ points: 500 }),
+      }),
     );
   });
 });
@@ -409,7 +437,7 @@ describe('RedeemPostWithPointsUseCase · sàn giữ hạng (CHỐT-13)', () => {
 
   it('CHO QUA khi số điểm đổi nằm trong phần dùng được', async () => {
     // Vàng, 1.000 điểm, dùng được 104. Món 100 điểm (200.000đ / 2.000) đi qua.
-    const { useCase, ledger } = makeUseCase({
+    const { useCase, requests } = makeUseCase({
       balance: 1000,
       rank: 'GOLD',
       context: context({ estimatedValueVnd: 200_000 }),
@@ -418,8 +446,10 @@ describe('RedeemPostWithPointsUseCase · sàn giữ hạng (CHỐT-13)', () => {
 
     await useCase.handle({ ...command, confirmedPoints: 100 });
 
-    expect(ledger.appendAdjustment).toHaveBeenCalledWith(
-      expect.objectContaining({ delta: -100 }),
+    expect(requests.acceptRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        redemption: expect.objectContaining({ points: 100 }),
+      }),
     );
   });
 
@@ -440,7 +470,7 @@ describe('RedeemPostWithPointsUseCase · sàn giữ hạng (CHỐT-13)', () => {
   });
 
   it('VIEWER tiêu được trọn số dư — không có gì để giữ', async () => {
-    const { useCase, ledger } = makeUseCase({
+    const { useCase, requests } = makeUseCase({
       balance: 100,
       rank: 'VIEWER',
       context: context({ estimatedValueVnd: 200_000 }),
@@ -449,8 +479,10 @@ describe('RedeemPostWithPointsUseCase · sàn giữ hạng (CHỐT-13)', () => {
 
     await useCase.handle({ ...command, confirmedPoints: 100 });
 
-    expect(ledger.appendAdjustment).toHaveBeenCalledWith(
-      expect.objectContaining({ delta: -100 }),
+    expect(requests.acceptRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        redemption: expect.objectContaining({ points: 100 }),
+      }),
     );
   });
 });

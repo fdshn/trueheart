@@ -107,6 +107,9 @@ async function main(): Promise<void> {
     entities.GiftRequestEntity as never,
     manager,
     chatStub,
+    // Sổ điểm THẬT: khoản trừ của một lượt đổi-bằng-điểm ghi trong transaction của
+    // lượt duyệt (SRS CHỐT-13), nên một mock ở đây sẽ bỏ đúng chỗ cần kiểm.
+    ledger as never,
   );
   const posts = new PostRepository(entities.PostEntity as never, manager);
   const entitlements = new EntitlementRepository(manager, requests as never);
@@ -407,23 +410,36 @@ async function main(): Promise<void> {
       source: 'ADMIN',
       reason: 'Nạp điểm cho phép kiểm acceptance',
     });
-    await ledger.appendAdjustment({
-      userId: Member,
-      ruleCode: 'ITEM_REDEMPTION',
-      delta: -quoteBefore.quote.points,
-      referenceType: 'POST',
-      referenceId: redeemId,
-      idempotencyKey: `ITEM_REDEMPTION:${redeemRequestId}`,
-      actor: Member,
-      source: 'REDEMPTION',
-      reason: `Đổi vật phẩm bằng điểm (${quoteBefore.quote.points} điểm)`,
-    });
+    // Khoản trừ đi KÈM lượt duyệt, trong MỘT transaction (SRS CHỐT-13: *"Debit/
+    // ledger/chốt người/giao dịch/dừng xét phải nguyên tử"*). Đây đúng là câu mà
+    // tình huống 3 đòi: cả ba cùng thành công, hoặc không gì cả.
     const accepted = await requests.acceptRequest({
       requestId: redeemRequestId,
       postId: redeemId,
       actorUserId: Giver,
       transactionId: randomUUID(),
+      redemption: {
+        requesterId: Member,
+        points: quoteBefore.quote.points,
+        idempotencyKey: `ITEM_REDEMPTION:${redeemRequestId}`,
+        reason: `Đổi vật phẩm bằng điểm (${quoteBefore.quote.points} điểm)`,
+      },
     });
+    check(
+      'trừ điểm và chốt người nhận cùng MỘT transaction, cùng thành công',
+      accepted.debit?.delta === -500 && accepted.debit?.balance === 1_500,
+      `delta ${String(accepted.debit?.delta)}, dư ${String(accepted.debit?.balance)}`,
+    );
+    const [refundEntries] = await dataSource.query<{ count: string }[]>(
+      `SELECT COUNT(*) AS count FROM point_ledger
+       WHERE idempotency_key = $1`,
+      [`ITEM_REDEMPTION:REFUND:${redeemRequestId}`],
+    );
+    check(
+      'và KHÔNG có bút toán hoàn bù nào — đường đó đã biến mất',
+      Number(refundEntries.count) === 0,
+      `${refundEntries.count} bút toán`,
+    );
     await dataSource.query(
       `UPDATE posts SET selection_deadline = NULL WHERE global_id = $1`,
       [redeemId],

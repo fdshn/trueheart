@@ -672,7 +672,7 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 > Bên A đổi được ngưỡng qua bảng quyền theo bậc mà không cần deploy.
 | `POST` | `/posts/:wantedPostId/offer-gift` | Bearer | Chủ động tặng cho một bài Muốn Nhận, kèm được một bài Muốn Tặng của chính mình |
 | `GET` | `/posts/:postId/redemption-quote` | Bearer (người xin) | Xem giá đổi và lý do không đổi được; hiện luôn 200, không giữ hàng/điểm |
-| `POST` | `/posts/:postId/redeem` | Bearer (người xin) | Dùng điểm chốt ngay. Body đòi `confirmedPoints` — số điểm đã thấy ở báo giá. Có sàn giữ hạng, có xác nhận lại khi giá đổi, và hoàn điểm nếu lượt trao bị huỷ; **chưa** atomic giữa debit và accept |
+| `POST` | `/posts/:postId/redeem` | Bearer (người xin) | Dùng điểm chốt ngay. Body đòi `confirmedPoints` — số điểm đã thấy ở báo giá. Trừ điểm và chốt người nhận trong **một** transaction; có sàn giữ hạng, xác nhận lại khi giá đổi, và hoàn điểm nếu lượt trao bị huỷ |
 
 #### Đổi vật phẩm bằng điểm — contract hiện tại và đích
 
@@ -684,6 +684,19 @@ Chỉ người đã gửi request mới được đổi khi bài `PUBLISHED` và
 `missingPoints` trong `body.quote`. Hiện `redeemable` có thể `true` dù
 `unavailableReason=INSUFFICIENT_POINTS`; client không được chỉ nhìn `redeemable` để bật CTA.
 POST thành công trả `postId`, `transactionId`, `pointsSpent`, `balanceAfter`.
+
+> ✅ **Làm tròn NỬA-LÊN, đổi 12/10.** SRS CHỐT-13: *"Số điểm làm tròn với phần lẻ từ 0,5 trở
+> lên làm tròn lên, dưới 0,5 làm tròn xuống."* Tới 11/10 giá đổi dùng `Math.ceil`, nên 1.001
+> VNĐ ở tỷ lệ 1.000 ra **2** điểm; nay ra **1**.
+>
+> Lý do đổi không chỉ là chữ trong đặc tả: `value_bonus` đã làm tròn nửa-lên từ CHỐT-14, nên
+> hai luật khác nhau làm một món 1.001 VNĐ **tốn 2 điểm để đổi mà chỉ sinh 1 điểm thưởng** —
+> một khoảng lệch không chỗ nào giải thích được. Có một phép kiểm canh hai công thức nói cùng
+> một con số.
+>
+> **Hệ quả cho client:** `PRICE_BELOW_ONE_POINT` từ chỗ gần như không xảy ra trở thành đường
+> chạy thật. Một món 500 VNĐ ở tỷ lệ 2.000 ra 0 điểm và **không đổi được** — đổi được mà không
+> mất gì là một lỗ hổng, không phải một ưu đãi. Client đừng tự chia để đoán giá.
 
 > ✅ **Giá đổi giữa lúc xem và lúc bấm thì phải XÁC NHẬN LẠI, từ 11/10 (CHỐT-10 mục 2).**
 >
@@ -715,6 +728,25 @@ POST thành công trả `postId`, `transactionId`, `pointsSpent`, `balanceAfter`
 > `409` này đứng **trước** `REDEMPTION_INSUFFICIENT_POINTS`: báo "cần 1.000 điểm, bạn có 300"
 > là nhắc một con số người dùng chưa từng thấy, và đẩy họ đi nạp điểm cho một cái giá họ có
 > thể sẽ không đồng ý.
+
+> ✅ **Trừ điểm và chốt người nhận NGUYÊN TỬ, từ 12/10.** SRS CHỐT-13: *"Debit/ledger/chốt
+> người/giao dịch/dừng xét phải nguyên tử và chống trùng."*
+>
+> Tới 11/10 đây là hai transaction: trừ trước, duyệt sau, và duyệt hỏng thì ghi một bút toán
+> hoàn bù `ITEM_REDEMPTION:REFUND:<requestId>`. Khoản bù ấy đúng về **số** nhưng không đúng về
+> **trạng thái**, và hai điều cụ thể: giữa hai transaction có một khoảng người đổi đã mất điểm
+> mà chưa có suất — `GET /points/me/ledger` của họ nói một điều sai trong khoảng ấy; và nếu
+> tiến trình chết đúng khoảng ấy (deploy, OOM, mất kết nối) thì khoản bù **không bao giờ** được
+> ghi và không có job nào quét lại.
+>
+> Nay khoản trừ ghi trong chính transaction mà lượt duyệt mở, **sau** mọi phép kiểm của nó. Hết
+> hàng hay bị xen ngang thì ném trước khi có bút toán nào, nên đường hoàn bù biến mất cùng lý
+> do tồn tại của nó — khoá `ITEM_REDEMPTION:REFUND:<requestId>` **không còn được ghi nữa**
+> (bút toán cũ của dữ liệu cũ vẫn nằm đó, vô hại). Khoản hoàn khi **huỷ** lượt trao là chuyện
+> khác và vẫn còn: nó đi qua `REVERSAL:<entryId>`.
+>
+> Hệ quả cho client: không có. Phản hồi và mã lỗi y nguyên; chỉ những trạng thái nửa vời biến
+> mất.
 
 > ✅ **Sàn giữ hạng đã CHẶN, từ 11/10 (CHỐT-13).** Chỉ tiêu được
 > `availablePoints = max(0, balancePoints - reservedForRankPoints)`, với
@@ -1013,11 +1045,10 @@ nghiệp vụ bảo vệ retry/đồng thời. Xem [quy tắc và trường resp
   **không** chạy scheduler trong tiến trình vì deploy nhiều replica sẽ chạy trùng. Có CLI
   tương đương: `npm run rank:evaluate`.
 - ✅ **Đã có đường tiêu điểm** qua `POST /posts/:postId/redeem`, ghi
-  `ITEM_REDEMPTION` vào ledger với idempotency key theo request. Bảo vệ Rank đã có
-  (CHỐT-13), xác nhận lại khi báo giá cũ đã có (CHỐT-10 mục 2), và lượt trao bị huỷ về
-  sau thì điểm được hoàn đúng số đã trừ. **Còn lại:** debit và accept vẫn là hai
-  transaction — lỗi accept ghi bút toán hoàn, chưa đạt yêu cầu atomic. Xem contract đích
-  tại [handoff](./plan/REDEMPTION-REQUIREMENT-GAP.md).
+  `ITEM_REDEMPTION` vào ledger với idempotency key theo request. Bảo vệ Rank (CHỐT-13),
+  xác nhận lại khi báo giá cũ (CHỐT-10 mục 2), hoàn đúng số đã trừ nếu lượt trao bị huỷ
+  về sau, và từ 12/10 **debit cùng accept nằm trong một transaction** — đúng yêu cầu
+  nguyên tử của SRS CHỐT-13. Xem [handoff](./plan/REDEMPTION-REQUIREMENT-GAP.md).
 
 ---
 

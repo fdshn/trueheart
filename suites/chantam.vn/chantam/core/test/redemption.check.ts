@@ -104,6 +104,7 @@ async function main(): Promise<void> {
         openRoomWithinTransaction: async () => undefined,
         lockRoomWithinTransaction: async () => undefined,
       } as never,
+      ledger,
     );
     const quotes = new GetRedemptionQuoteUseCase(
       requests as never,

@@ -1,3 +1,4 @@
+import { IAppendPointEntryResult } from '@/application/contracts/point';
 import {
   GiftRequestNotFoundException,
   GiftTransactionInvalidStateException,
@@ -11,6 +12,7 @@ import {
   IClosedRequestRow,
   IGiftRequestRepository,
   IMyGiftRequestRow,
+  IPointLedgerRepository,
   IRedemptionContext,
 } from '@/domain/ports/repository';
 import { GiftRequestEntity, UserEntity } from '@/infrastructure/entity';
@@ -77,6 +79,11 @@ export class GiftRequestRepository
     // transaction đó được mở ở đây, không ở use case.
     @Inject(IChatRepository)
     private readonly chat: IChatRepository,
+    // Repository gọi repository trong cùng tầng hạ tầng — cùng lối với chat ở
+    // trên, và là cách duy nhất giữ khoản trừ điểm NẰM TRONG transaction của lượt
+    // duyệt (SRS CHỐT-13). Transaction đó được mở ở đây, không ở use case.
+    @Inject(IPointLedgerRepository)
+    private readonly ledger: IPointLedgerRepository,
   ) {
     super(target, manager);
   }
@@ -603,11 +610,24 @@ export class GiftRequestRepository
      */
     actorUserId: string;
     transactionId: string;
+    /**
+     * Khoản trừ điểm của lượt đổi-bằng-điểm, ghi TRONG transaction này.
+     *
+     * Xem ghi chú ở port: để nó ở một transaction riêng rồi bù khi duyệt hỏng là
+     * đúng về số mà sai về trạng thái.
+     */
+    readonly redemption?: {
+      readonly requesterId: string;
+      readonly points: number;
+      readonly idempotencyKey: string;
+      readonly reason: string;
+    };
   }): Promise<{
     transactionId: string;
     /** Vai đã phân giải, để nơi gọi gửi thông báo mà khỏi tự đoán lại. */
     giverId: string;
     receiverId: string;
+    debit?: IAppendPointEntryResult;
   }> {
     return this.manager.transaction(async (manager) => {
       const pendingRows = await manager.query<
@@ -710,6 +730,31 @@ export class GiftRequestRepository
         throw new GiftTransactionOutOfStockException();
       }
 
+      // Trừ điểm ở ĐÂY, sau mọi phép kiểm và trước mọi lượt ghi.
+      //
+      // Sau phép kiểm: hết hàng, bài sai trạng thái, không phải tác giả — cả ba
+      // ném trước khi có bút toán nào, nên không còn gì phải hoàn. Đường hoàn bù
+      // `ITEM_REDEMPTION:REFUND:<requestId>` của bản cũ vì thế biến mất cùng lý do
+      // tồn tại của nó.
+      //
+      // Và sau mọi lượt `FOR UPDATE` ở trên: `appendAdjustmentWithinTransaction`
+      // xin `pg_advisory_xact_lock(hashtext(userId))`, nên thứ tự xin khoá ở đường
+      // này là HÀNG trước, ADVISORY sau — cùng thứ tự với `complete()`. Đảo lại là
+      // dựng một ca deadlock giữa hai đường mà không phép kiểm nào thấy.
+      const debit = params.redemption
+        ? await this.ledger.appendAdjustmentWithinTransaction(manager, {
+            userId: params.redemption.requesterId,
+            ruleCode: 'ITEM_REDEMPTION',
+            delta: -params.redemption.points,
+            referenceType: 'POST',
+            referenceId: params.postId,
+            idempotencyKey: params.redemption.idempotencyKey,
+            actor: params.redemption.requesterId,
+            source: 'REDEMPTION',
+            reason: params.redemption.reason,
+          })
+        : undefined;
+
       const newRemaining = Number(post.remaining_quantity) - quantity;
       // `RESERVED`, không `DELIVERING`: chốt 29/09 giữ MỘT tên cho trạng thái
       // "kho đã cạn, lượt trao đang chạy". Hai tên nghĩa là mọi chỗ đọc phải kiểm
@@ -762,7 +807,11 @@ export class GiftRequestRepository
           giverId: roles.giverId,
           receiverId: roles.receiverId,
         });
-        return { transactionId: existingTransaction.global_id, ...roles };
+        return {
+          transactionId: existingTransaction.global_id,
+          ...roles,
+          debit,
+        };
       }
 
       await manager.query(
@@ -783,7 +832,7 @@ export class GiftRequestRepository
         receiverId: roles.receiverId,
       });
 
-      return { transactionId: params.transactionId, ...roles };
+      return { transactionId: params.transactionId, ...roles, debit };
     });
   }
 

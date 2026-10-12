@@ -22,6 +22,7 @@ import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { GiftRequestRepository } from '../src/infrastructure/repository/gift-request.repository';
+import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -79,6 +80,7 @@ async function main(): Promise<void> {
       openRoomWithinTransaction: async () => undefined,
       lockRoomWithinTransaction: async () => undefined,
     } as never,
+    new PointLedgerRepository(dataSource.manager),
   );
 
   try {

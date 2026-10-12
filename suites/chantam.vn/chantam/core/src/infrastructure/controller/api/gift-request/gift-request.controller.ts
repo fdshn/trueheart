@@ -404,7 +404,7 @@ export class GiftRequestController {
   @ApiOperation({
     summary: 'Dùng điểm đổi thẳng vật phẩm (F75)',
     description:
-      'Chốt ngay người nhận mà không chờ hết đồng hồ 7 ngày. Ba điều kiện: đồng hồ đang chạy, người gọi ĐÃ gửi yêu cầu xin nhận, và bài có khai giá trị tham khảo. Số điểm = giá trị tham khảo chia tỷ lệ quy đổi (Admin cấu hình), làm tròn LÊN. Điểm bị trừ trước khi duyệt và được hoàn lại nếu không chốt được. ' +
+      'Chốt ngay người nhận mà không chờ hết đồng hồ 7 ngày. Ba điều kiện: đồng hồ đang chạy, người gọi ĐÃ gửi yêu cầu xin nhận, và bài có khai giá trị tham khảo. Số điểm = giá trị tham khảo chia tỷ lệ quy đổi (Admin cấu hình), làm tròn NỬA-LÊN (phần lẻ từ 0,5 lên trên thì lên, dưới thì xuống). Điểm bị trừ trước khi duyệt và được hoàn lại nếu không chốt được. ' +
       'Body PHẢI mang `confirmedPoints` — số điểm đã thấy ở báo giá; lệch với giá máy chủ tính lại thì `409 REDEMPTION_QUOTE_STALE` và không trừ gì (CHỐT-10 mục 2). ' +
       'Lượt trao này bị huỷ về sau thì điểm được hoàn tự động, đúng số đã trừ (CHỐT-13).',
   })

@@ -91,11 +91,11 @@ contract đích của redemption.
 
 | Phạm vi | Đã có ở `main` | Contract đích |
 | --- | --- | --- |
-| Giá và quote | **Xong 11/10 phần phiên bản giá:** `POST .../redeem` đòi `confirmedPoints`, lệch thì `409 REDEMPTION_QUOTE_STALE` và không trừ. Làm tròn **vẫn** `Math.ceil` | Đổi sang `round_half_up`; quote và POST cùng policy và cùng phiên bản giá được xác nhận |
+| Giá và quote | **XONG.** `POST .../redeem` đòi `confirmedPoints`, lệch thì `409 REDEMPTION_QUOTE_STALE` và không trừ (11/10); làm tròn nửa-lên, cùng luật với `value_bonus`, có phép kiểm canh hai công thức khớp nhau (12/10) | Đổi sang `round_half_up`; quote và POST cùng policy và cùng phiên bản giá được xác nhận |
 | Thời gian | Mode/deadline chỉ cho `OFFER`, bắt đầu từ request đầu tiên | `INSTANT`/`OPTIMAL` cho `OFFER`/`WANTED`; 7 ngày từ `published_at`, rồi tự mở thêm 30 ngày nếu chưa ghép |
 | Chọn người | `acceptRequest` chốt bài, mở transaction/chat, xoá deadline | Redeem chốt một lần, lưu nguyên nhân `REDEEMED`; không auto-select người khác |
 | Điểm và Rank | **Xong 11/10:** cả quote và POST chặn theo `max(0, balance - threshold(rank))`; `wouldDemote` đã gỡ, thay bằng `reservedForRankPoints`/`availablePoints` | POST không được vượt điểm khả dụng; quote hiển thị cùng kết luận |
-| Ledger | **Xong 11/10:** thêm đường hoàn khi lượt trao bị huỷ SAU khi đã chốt (`RefundRedemptionOnCloseService` đảo bút toán gốc, khoá `REVERSAL:<entryId>`), nối cả hai đường đóng | Atomic với việc chốt; idempotent ở lần bấm/retry/concurrent |
+| Ledger | **XONG.** Hoàn khi lượt trao bị huỷ sau khi đã chốt (`RefundRedemptionOnCloseService` đảo bút toán gốc, khoá `REVERSAL:<entryId>`, nối cả hai đường đóng — 11/10); debit ghi bằng `appendAdjustmentWithinTransaction` TRONG transaction của `acceptRequest`, nên đường hoàn bù `ITEM_REDEMPTION:REFUND:*` không còn (12/10) | Atomic với việc chốt; idempotent ở lần bấm/retry/concurrent |
 | Admin | Seed JSON `point.redemption`, backend đọc khi quote/redeem | Admin publish được JSON hợp lệ bằng API có audit/version |
 
 ## State machine và ranh giới giao dịch

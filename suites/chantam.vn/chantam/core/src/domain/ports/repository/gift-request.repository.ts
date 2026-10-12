@@ -1,3 +1,4 @@
+import { IAppendPointEntryResult } from '@/application/contracts/point';
 import {
   GiftPostStatuses,
   GiftRequestStatuses,
@@ -178,7 +179,30 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
     postId: string;
     actorUserId: string;
     transactionId: string;
-  }): Promise<{ transactionId: string; giverId: string; receiverId: string }>;
+    /**
+     * Khoản trừ điểm của một lượt đổi-bằng-điểm, ghi TRONG CÙNG transaction.
+     *
+     * SRS CHỐT-13: *"Debit/ledger/chốt người/giao dịch/dừng xét phải nguyên tử và
+     * chống trùng."* Tới 11/10 hai việc nằm ở hai transaction và bù bằng một bút
+     * toán hoàn khi duyệt hỏng — đúng về SỐ nhưng không đúng về TRẠNG THÁI: giữa
+     * hai transaction có một khoảng người đổi đã mất điểm mà chưa có suất, và một
+     * lần tiến trình chết đúng khoảng ấy là khoản bù không bao giờ được ghi.
+     *
+     * Bỏ trống cho lượt duyệt thường — đó là đường phổ biến nhất.
+     */
+    readonly redemption?: {
+      readonly requesterId: string;
+      readonly points: number;
+      readonly idempotencyKey: string;
+      readonly reason: string;
+    };
+  }): Promise<{
+    transactionId: string;
+    giverId: string;
+    receiverId: string;
+    /** Kết quả bút toán trừ điểm; chỉ có khi `redemption` được truyền. */
+    debit?: IAppendPointEntryResult;
+  }>;
 
   /**
    * Duyệt NHIỀU yêu cầu trên cùng một bài trong MỘT transaction (F65, UC-TRANS-05).

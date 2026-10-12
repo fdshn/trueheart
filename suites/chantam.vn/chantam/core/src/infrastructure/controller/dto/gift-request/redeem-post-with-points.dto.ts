@@ -10,7 +10,7 @@ export class RedemptionQuoteDto implements IRedemptionQuoteDto {
   @ApiProperty({
     example: 500,
     description:
-      'Giá bằng điểm, đã làm tròn LÊN. `0` khi chưa quy ra điểm được. Client PHẢI đọc con số này chứ không tự chia: tỷ lệ là cấu hình động, và làm tròn xuống ở client là hiện thiếu điểm so với số sẽ bị trừ.',
+      'Giá bằng điểm, đã làm tròn NỬA-LÊN — phần lẻ từ 0,5 trở lên thì lên, dưới 0,5 thì xuống (SRS CHỐT-13). `0` khi chưa quy ra điểm được, và một món rẻ tới mức ra 0 điểm thì KHÔNG đổi được. Client PHẢI đọc con số này chứ không tự chia: tỷ lệ là cấu hình động, và làm tròn khác ở client là hiện một giá khác với số sẽ bị trừ.',
   })
   points: number;
 

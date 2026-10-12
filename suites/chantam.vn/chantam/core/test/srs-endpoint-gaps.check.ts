@@ -21,6 +21,7 @@ import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { GiftRequestRepository } from '../src/infrastructure/repository/gift-request.repository';
+import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 import { PostRepository } from '../src/infrastructure/repository/post.repository';
 
 loadEnvFile({ path: '.env.local' });
@@ -109,6 +110,7 @@ async function main(): Promise<void> {
     entities.GiftRequestEntity as never,
     dataSource.manager,
     chat as never,
+    new PointLedgerRepository(dataSource.manager),
   );
 
   const addPost = async (

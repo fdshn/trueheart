@@ -183,6 +183,7 @@ async function main(): Promise<void> {
       GiftRequestEntity as never,
       dataSource.manager,
       chat,
+      new PointLedgerRepository(dataSource.manager),
     );
     const giftTransactions = new GiftTransactionRepository(
       dataSource.manager,

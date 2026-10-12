@@ -115,12 +115,46 @@ describe('quoteRedemption', () => {
     });
   });
 
-  it('làm tròn LÊN, không xuống', () => {
-    // Làm tròn xuống là bán món đồ rẻ hơn giá người tặng khai, và chênh lệch đó
-    // nhân với số lượt đổi là một khoản thất thoát không ai theo dõi.
+  it('làm tròn NỬA-LÊN, cùng luật với value_bonus', () => {
+    // Tới 11/10 đây là `Math.ceil`, nên 1.001 ra 2 điểm. Yêu cầu Bên A 04/10 ghi
+    // `round_half_up` cho cả hai con số, và `computeGiftValueBonus` đã dùng
+    // `Math.round` từ CHỐT-14 — hai luật khác nhau làm một món 1.001 VNĐ tốn 2
+    // điểm để đổi mà chỉ sinh 1 điểm thưởng.
     expect(quoteRedemption(1500, { vndPerPoint: 1000 }).points).toBe(2);
-    expect(quoteRedemption(1001, { vndPerPoint: 1000 }).points).toBe(2);
+    expect(quoteRedemption(1499, { vndPerPoint: 1000 }).points).toBe(1);
+    expect(quoteRedemption(1001, { vndPerPoint: 1000 }).points).toBe(1);
     expect(quoteRedemption(1000, { vndPerPoint: 1000 }).points).toBe(1);
+  });
+
+  it('cùng một giá ra cùng một số điểm ở cả hai công thức', () => {
+    // Phép kiểm này là chốt chống trôi: nếu một trong hai hàm đổi luật làm tròn,
+    // nó đỏ. Giá đổi và thưởng theo giá trị phải nói cùng một con số cho cùng một
+    // món đồ ở mức chính xác 100%.
+    for (const value of [1_000, 1_001, 1_500, 2_499, 2_500, 999_999, 1_000_000])
+      expect(quoteRedemption(value, { vndPerPoint: 2_000 }).points).toBe(
+        computeGiftValueBonus({
+          estimatedValueVnd: value,
+          vndPerPoint: 2_000,
+          accuracyPercent: 100,
+          maxValueVnd: 1_000_000_000,
+        }).points,
+      );
+  });
+
+  it('món rẻ tới mức ra 0 điểm thì bị CHẶN, không phải đổi miễn phí', () => {
+    // Nhánh `PRICE_BELOW_ONE_POINT` gần như chết khi còn `Math.ceil`: mọi giá
+    // dương đều ra >= 1 điểm. Nửa-lên biến nó thành đường chạy thật.
+    expect(quoteRedemption(500, { vndPerPoint: 2_000 })).toEqual({
+      redeemable: false,
+      points: 0,
+      reason: 'PRICE_BELOW_ONE_POINT',
+    });
+    // Đúng ranh giới nửa: 1.000 / 2.000 = 0,5 ra 1 điểm, nên đổi được.
+    expect(quoteRedemption(1_000, { vndPerPoint: 2_000 })).toEqual({
+      redeemable: true,
+      points: 1,
+      reason: null,
+    });
   });
 
   it.each([null, undefined, 0, -5, Number.NaN, 'rác'])(
