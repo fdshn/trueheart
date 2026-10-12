@@ -244,7 +244,6 @@ export function charityCampaignGaps(input: {
   readonly title: string;
   readonly slug: string;
   readonly description: string;
-  readonly bannerUrl: unknown;
   readonly badgeName: string;
   readonly startTime: Date;
   readonly endTime: Date;
@@ -260,8 +259,6 @@ export function charityCampaignGaps(input: {
     );
   if (input.description.trim().length < 10)
     gaps.push('description phải có ít nhất 10 ký tự');
-  if (!isCharityUrl(input.bannerUrl))
-    gaps.push('bannerUrl phải là một đường dẫn https');
   if (input.badgeName.trim().length === 0)
     gaps.push(
       'badgeName không được rỗng — nó là huy hiệu người tham gia nhận được',
@@ -286,6 +283,62 @@ export function charityCampaignGaps(input: {
     gaps.push(
       `targetItemsCount phải là số nguyên từ 0 tới ${MaxCharityTargetItems}`,
     );
+
+  return gaps;
+}
+
+export const CharityMediaTypes = ['IMAGE', 'VIDEO'] as const;
+
+export type CharityMediaType = (typeof CharityMediaTypes)[number];
+
+/** Trần số ảnh/video của một hoạt động. Ảnh bìa nằm TRONG số này, không tính riêng. */
+export const MaxCharityMediaPerCampaign = 5;
+
+/**
+ * Phép kiểm HÌNH DẠNG bộ media, chạy TRƯỚC khi hỏi kho lưu trữ.
+ *
+ * Tách khỏi phép kiểm loại vì hai thứ cần hai lượt khác nhau: hình dạng chỉ cần mảng
+ * key client gửi, còn loại (ảnh hay video) chỉ biết sau HeadObject. Kiểm hình dạng
+ * trước để một mảng 50 key rác không thành 50 lượt gọi R2.
+ */
+export function charityMediaShapeGaps(input: {
+  readonly keys: readonly string[];
+  readonly coverKey: string;
+}): string[] {
+  const gaps: string[] = [];
+
+  if (input.keys.length < 1 || input.keys.length > MaxCharityMediaPerCampaign)
+    gaps.push(
+      `media phải có từ 1 tới ${MaxCharityMediaPerCampaign} phần tử`,
+    );
+  if (new Set(input.keys).size !== input.keys.length)
+    gaps.push('media không được có key trùng nhau');
+  if (!input.keys.includes(input.coverKey))
+    gaps.push('coverKey phải là một key trong media');
+
+  return gaps;
+}
+
+/**
+ * Phép kiểm LOẠI, chạy sau khi kho lưu trữ đã xác nhận từng key.
+ *
+ * Bìa phải là ảnh vì `banner_url` được hiện trong thẻ danh sách và Map Discovery —
+ * những chỗ chỉ dựng `<img>`, không dựng trình phát video.
+ */
+export function charityMediaTypeGaps(input: {
+  readonly items: readonly {
+    readonly key: string;
+    readonly mediaType: CharityMediaType;
+  }[];
+  readonly coverKey: string;
+}): string[] {
+  const gaps: string[] = [];
+
+  if (!input.items.some((item) => item.mediaType === 'IMAGE'))
+    gaps.push('media phải có ít nhất một ảnh');
+  const cover = input.items.find((item) => item.key === input.coverKey);
+  if (cover && cover.mediaType !== 'IMAGE')
+    gaps.push('ảnh bìa phải là ảnh, không phải video');
 
   return gaps;
 }

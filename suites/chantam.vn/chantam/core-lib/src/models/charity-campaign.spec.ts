@@ -1,10 +1,13 @@
 import {
   CharityReviewRatingMax,
+  MaxCharityMediaPerCampaign,
   CharityReviewRatingMin,
   MaxCharityTargetItems,
   canCancelCharityParticipation,
   canReviewCharityCampaign,
   charityCampaignGaps,
+  charityMediaShapeGaps,
+  charityMediaTypeGaps,
   charityProgressPercent,
   charityReviewRoleOf,
   isCharityReviewRating,
@@ -21,7 +24,6 @@ function validInput(overrides: Record<string, unknown> = {}) {
     title: 'Bếp cơm Vu Lan',
     slug: 'bep-com-vu-lan',
     description: 'Nấu và trao 500 suất cơm chay.',
-    bannerUrl: 'https://cdn.chantam.vn/a.jpg',
     badgeName: 'Tấm lòng Vu Lan',
     startTime,
     endTime: new Date(startTime.getTime() + 8 * Hour),
@@ -103,12 +105,6 @@ describe('charityCampaignGaps', () => {
     expect(charityCampaignGaps(validInput({ badgeName: '   ' }))).toContain(
       'badgeName không được rỗng — nó là huy hiệu người tham gia nhận được',
     );
-  });
-
-  it('bannerUrl không https bị bắt', () => {
-    expect(
-      charityCampaignGaps(validInput({ bannerUrl: 'http://x.vn/a.jpg' })),
-    ).toContain('bannerUrl phải là một đường dẫn https');
   });
 
   it('targetItemsCount âm, lẻ, hoặc vượt trần đều bị bắt', () => {
@@ -242,5 +238,76 @@ describe('charityProgressPercent', () => {
     expect(
       charityProgressPercent({ currentItemsCount: 600, targetItemsCount: 500 }),
     ).toBe(120);
+  });
+});
+
+describe('charityMediaShapeGaps', () => {
+  const key = (n: number) => `users/u1/campaign-media/${n}.webp`;
+
+  it('một key làm bìa là hợp lệ', () => {
+    expect(charityMediaShapeGaps({ keys: [key(1)], coverKey: key(1) })).toEqual([]);
+  });
+
+  it('đủ 5 key là hợp lệ, 6 thì không', () => {
+    const five = [1, 2, 3, 4, 5].map(key);
+    expect(charityMediaShapeGaps({ keys: five, coverKey: key(3) })).toEqual([]);
+    expect(
+      charityMediaShapeGaps({ keys: [...five, key(6)], coverKey: key(1) })[0],
+    ).toContain(`${MaxCharityMediaPerCampaign}`);
+  });
+
+  it('rỗng thì báo thiếu', () => {
+    expect(charityMediaShapeGaps({ keys: [], coverKey: key(1) })).toEqual(
+      expect.arrayContaining([expect.stringContaining('từ 1 tới')]),
+    );
+  });
+
+  it('key trùng thì báo trùng', () => {
+    expect(
+      charityMediaShapeGaps({ keys: [key(1), key(1)], coverKey: key(1) }),
+    ).toEqual([expect.stringContaining('trùng')]);
+  });
+
+  it('coverKey không nằm trong media thì báo', () => {
+    expect(
+      charityMediaShapeGaps({ keys: [key(1)], coverKey: key(2) }),
+    ).toEqual([expect.stringContaining('coverKey')]);
+  });
+});
+
+describe('charityMediaTypeGaps', () => {
+  it('ảnh bìa + video là hợp lệ', () => {
+    expect(
+      charityMediaTypeGaps({
+        items: [
+          { key: 'a', mediaType: 'IMAGE' },
+          { key: 'b', mediaType: 'VIDEO' },
+        ],
+        coverKey: 'a',
+      }),
+    ).toEqual([]);
+  });
+
+  it('toàn video thì báo thiếu ảnh và báo bìa là video', () => {
+    const gaps = charityMediaTypeGaps({
+      items: [{ key: 'v', mediaType: 'VIDEO' }],
+      coverKey: 'v',
+    });
+    expect(gaps).toEqual([
+      expect.stringContaining('ít nhất một ảnh'),
+      expect.stringContaining('ảnh bìa'),
+    ]);
+  });
+
+  it('có ảnh nhưng bìa là video thì báo', () => {
+    expect(
+      charityMediaTypeGaps({
+        items: [
+          { key: 'a', mediaType: 'IMAGE' },
+          { key: 'v', mediaType: 'VIDEO' },
+        ],
+        coverKey: 'v',
+      }),
+    ).toEqual([expect.stringContaining('ảnh bìa')]);
   });
 });
