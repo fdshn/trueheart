@@ -118,3 +118,4 @@ export * from './1799800000000-CreateCharityNeedItems';
 export * from './1799900000000-CreateCharityContributions';
 export * from './1800000000000-CreateCharityDeliveries';
 export * from './1800100000000-CreateCharityExternalContributions';
+export * from './1800200000000-AddCharityOverTargetAndExtension';

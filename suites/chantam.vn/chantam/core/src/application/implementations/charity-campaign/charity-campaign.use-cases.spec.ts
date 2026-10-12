@@ -27,6 +27,7 @@ import {
   CloseCharityCampaignUseCase,
   CreateCharityCampaignUseCase,
   DecideCharityContributionUseCase,
+  ExtendCharityCampaignUseCase,
   GetCampaignNeedsUseCase,
   GetCharityDeliveryUseCase,
   ListCampaignContributionsUseCase,
@@ -70,6 +71,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     participantCount: 0,
     campaignType: 'ORGANIZED_CAMPAIGN' as const,
     beneficiaryRelation: null,
+    allowOverTarget: false,
     ...overrides,
   };
 }
@@ -1427,5 +1429,43 @@ describe('Thông báo được NỐI vào đúng đường (F65b)', () => {
     expect(sent.contributionSubmitted).toHaveBeenCalledWith(
       expect.objectContaining({ organizerId: OrganizerId }),
     );
+  });
+});
+
+describe('ExtendCharityCampaignUseCase (F65b §8)', () => {
+  it('người ngoài không có quyền Admin thì không gia hạn được', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: 'nguoi-khac' }),
+    );
+    repository.extendCampaign = jest.fn();
+
+    await expect(
+      new ExtendCharityCampaignUseCase(repository, makeAdmin(false)).handle({
+        campaignId: CampaignId,
+        actorUserId: ActorId,
+        endTime: new Date(Date.now() + 9 * 24 * Hour).toISOString(),
+        reason: 'Kéo dài',
+      }),
+    ).rejects.toBeInstanceOf(CharityNotOrganizerException);
+    expect(repository.extendCampaign).not.toHaveBeenCalled();
+  });
+
+  it('thiếu lý do thì bị chặn trước khi ghi audit', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: ActorId }),
+    );
+    repository.extendCampaign = jest.fn();
+
+    await expect(
+      new ExtendCharityCampaignUseCase(repository, makeAdmin(false)).handle({
+        campaignId: CampaignId,
+        actorUserId: ActorId,
+        endTime: new Date(Date.now() + 9 * 24 * Hour).toISOString(),
+        reason: '  ',
+      }),
+    ).rejects.toBeInstanceOf(CharityLinesInvalidException);
+    expect(repository.extendCampaign).not.toHaveBeenCalled();
   });
 });

@@ -273,6 +273,22 @@ describe('firstNeedOverflow (F65b §5)', () => {
     });
   });
 
+  it('chiến dịch CHO PHÉP vượt thì không chặn, kể cả vượt xa', () => {
+    expect(
+      firstNeedOverflow(
+        needs,
+        [{ needItemId: 'gao', acceptedQuantity: 500 }],
+        true,
+      ),
+    ).toBeNull();
+  });
+
+  it('mặc định là KHÔNG cho vượt — hành vi đã chạy trước khi có cờ', () => {
+    expect(
+      firstNeedOverflow(needs, [{ needItemId: 'gao', acceptedQuantity: 21 }]),
+    ).not.toBeNull();
+  });
+
   it('dòng nhận 0 không bao giờ là vượt, kể cả khi nhu cầu đã đủ', () => {
     // Từ chối một dòng của một nhu cầu đã đủ là việc người tổ chức PHẢI làm được —
     // đó đúng là lý do `TARGET_REACHED` tồn tại.

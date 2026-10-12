@@ -74,6 +74,8 @@ export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput 
    * vật phẩm nào, và §10 nói giữ nguyên hành vi legacy cho những hoạt động đó.
    */
   readonly needs?: readonly ICharityNeedItemInput[];
+  /** Cho lượt chấp nhận đề nghị vượt mục tiêu từng dòng (§5). Mặc định `false`. */
+  readonly allowOverTarget?: boolean;
 }
 
 export interface ICreateCharityCampaignCommand extends ICreateCharityCampaignInput {
@@ -309,6 +311,22 @@ export interface ICloseCharityCampaignUseCase extends IUseCase<
 
 export const ICloseCharityCampaignUseCase = Symbol(
   'ICloseCharityCampaignUseCase',
+);
+
+export interface IExtendCharityCampaignCommand {
+  readonly campaignId: string;
+  readonly actorUserId: string;
+  readonly endTime: string;
+  readonly reason: string;
+}
+
+export interface IExtendCharityCampaignUseCase extends IUseCase<
+  IExtendCharityCampaignCommand,
+  { campaignId: string; previousEndTime: Date; newEndTime: Date }
+> {}
+
+export const IExtendCharityCampaignUseCase = Symbol(
+  'IExtendCharityCampaignUseCase',
 );
 
 export interface IGetCampaignNeedsCommand {

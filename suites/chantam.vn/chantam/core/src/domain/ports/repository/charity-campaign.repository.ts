@@ -52,6 +52,8 @@ export interface ICharityCampaign {
   readonly campaignType: CharityCampaignType;
   /** Chỉ `INDIVIDUAL_APPEAL` có; database canh bằng CHECK nối hai cột. */
   readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
+  /** Lượt chấp nhận đề nghị được vượt mục tiêu từng dòng (§5). Mặc định `false`. */
+  readonly allowOverTarget: boolean;
 }
 
 /**
@@ -129,6 +131,7 @@ export interface ICreateCharityCampaignParams {
   readonly approvedBy: string | null;
   readonly campaignType: CharityCampaignType;
   readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
+  readonly allowOverTarget: boolean;
   /**
    * Bảng nhu cầu, ghi TRONG CÙNG transaction với hoạt động (F65b §3).
    *
@@ -573,6 +576,17 @@ export interface ICharityNeedsRepositoryPart {
     campaignId: string;
     actorUserId: string;
   }): Promise<ICloseCampaignResult>;
+
+  /**
+   * Gia hạn chiến dịch đang mở, ghi một hàng audit trong cùng transaction (§8).
+   * Chỉ DỜI RA SAU — rút ngắn đi qua đường đóng. Quyền do use case kiểm.
+   */
+  extendCampaign(params: {
+    campaignId: string;
+    actorUserId: string;
+    newEndTime: Date;
+    reason: string;
+  }): Promise<{ campaignId: string; previousEndTime: Date; newEndTime: Date }>;
 
   /** Rút đề nghị. `null` khi không còn rút được. Rút là đổi trạng thái, không xoá. */
   withdrawContribution(params: {

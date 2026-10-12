@@ -115,3 +115,8 @@ export class CharityExternalContributionNotFoundException extends ExceptionFrom(
 export class CharityExternalContributionVoidedException extends ExceptionFrom(
   CoreErrors.CHARITY_EXTERNAL_CONTRIBUTION_VOIDED,
 ) {}
+
+/** Không gia hạn được: chưa duyệt, đã đóng/đình chỉ, hoặc mốc mới không dời ra sau. */
+export class CharityCampaignNotExtendableException extends ExceptionFrom(
+  CoreErrors.CHARITY_CAMPAIGN_NOT_EXTENDABLE,
+) {}

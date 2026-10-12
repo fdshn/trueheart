@@ -3,6 +3,7 @@ import {
   ICloseCharityCampaignUseCase,
   ICreateCharityCampaignUseCase,
   IDecideCharityApprovalUseCase,
+  IExtendCharityCampaignUseCase,
   IJoinCharityCampaignUseCase,
   IListAdminCharityCampaignsUseCase,
   IListCampaignContributionsUseCase,
@@ -20,6 +21,7 @@ import {
   CharityApprovalAlreadyDecidedException,
   CharityCampaignCreateNotAllowedException,
   CharityCampaignNotClosableException,
+  CharityCampaignNotExtendableException,
   CharityCampaignNotFoundException,
   CharityCancelTooLateException,
   CharityLinesInvalidException,
@@ -70,6 +72,8 @@ import {
   CharityExternalContributionListDto,
   CloseCharityCampaignResponseDto,
   DecideCharityApprovalBodyDto,
+  ExtendCharityCampaignBodyDto,
+  ExtendCharityCampaignResponseDto,
   ListAdminCharityCampaignsQueryDto,
   ListCharityCampaignsQueryDto,
   ListCharityCampaignsResponseDto,
@@ -121,6 +125,8 @@ export class CharityCampaignController {
     private readonly listExternalUseCase: IListExternalContributionsUseCase,
     @Inject(ICloseCharityCampaignUseCase)
     private readonly closeUseCase: ICloseCharityCampaignUseCase,
+    @Inject(IExtendCharityCampaignUseCase)
+    private readonly extendUseCase: IExtendCharityCampaignUseCase,
   ) {}
 
   @Get('mine')
@@ -366,6 +372,39 @@ export class CharityCampaignController {
         await this.closeUseCase.handle({
           campaignId: id,
           actorUserId: principal.userId,
+        }),
+      )
+      .build();
+  }
+
+  @Post(':id/extend')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Gia hạn hoạt động đang mở (người tổ chức hoặc Admin) — F65b §8',
+    description:
+      'Chỉ DỜI mốc kết thúc ra sau, và chỉ khi hoạt động đang mở. Mỗi lần gia hạn ghi một hàng audit chỉ-ghi-thêm (mốc cũ, mốc mới, ai, vì sao).',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(ExtendCharityCampaignResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    CharityCampaignNotFoundException,
+    CharityNotOrganizerException,
+    CharityCampaignNotExtendableException,
+    CharityLinesInvalidException,
+  )
+  public async extend(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('id') id: string,
+    @Body() body: ExtendCharityCampaignBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.extendUseCase.handle({
+          campaignId: id,
+          actorUserId: principal.userId,
+          endTime: body.endTime,
+          reason: body.reason,
         }),
       )
       .build();

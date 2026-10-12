@@ -281,6 +281,8 @@ export enum ErrorCodes {
   CHARITY_EXTERNAL_CONTRIBUTION_NOT_FOUND = 0x13_17,
   /** Bản ghi ngoài app đã bị huỷ hoặc đã bị thay — không huỷ/điều chỉnh lần nữa. */
   CHARITY_EXTERNAL_CONTRIBUTION_VOIDED = 0x13_18,
+  /** Không gia hạn được: chưa duyệt, đã đóng/đình chỉ, hoặc mốc mới không dời ra sau. */
+  CHARITY_CAMPAIGN_NOT_EXTENDABLE = 0x13_19,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

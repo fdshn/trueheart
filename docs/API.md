@@ -1779,6 +1779,7 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `GET` | `/charity-campaigns/:id/external-contributions` | Organizer | ✅ **Đã chạy.** Lịch sử, gồm cả bản đã huỷ |
 | `PATCH` | `/charity-external-contributions/:id` | Organizer | ✅ **Đã chạy.** `VOID` huỷ, `ADJUST` huỷ + tạo bản thay thế; luôn kèm lý do, không sửa tại chỗ |
 | `POST` | `/charity-campaigns/:id/close` | Organizer/Admin | ✅ **Đã chạy.** Chặn đề nghị mới, từ chối hàng đợi với `CAMPAIGN_CLOSED`, giữ lượt giao đang chạy |
+| `POST` | `/charity-campaigns/:id/extend` | Organizer/Admin | ✅ **Đã chạy.** Gia hạn hoạt động đang mở, chỉ dời ra sau, mỗi lần một hàng audit |
 | `GET` | `/charity-deliveries/:id` | Hai bên | ✅ **Đã chạy.** Một lượt giao nhận; người ngoài nhận cùng lỗi với không tồn tại |
 | `POST` | `/charity-deliveries/:id/complete` | Organizer | ✅ **Đã chạy.** Xác nhận số THỰC NHẬN từng dòng; phần thiếu trở về nhu cầu |
 | `POST` | `/charity-deliveries/:id/cancel` | Hai bên | ✅ **Đã chạy.** Trả phần đã nhận về nhu cầu, không xoá đề nghị |
@@ -1877,6 +1878,10 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
   và tạo bản thay thế (`replacesId` trỏ về bản cũ). Một trigger ở database từ chối mọi đường
   sửa tại chỗ và mọi lượt xoá, nên lịch sử của một con số luôn đọc lại được.
 
+- **`allowOverTarget`** (body tạo, mặc định `false`): cho lượt chấp nhận vượt mục tiêu từng
+  dòng; `remainingQuantity` vẫn kẹp ở 0. **Gia hạn** (`POST .../extend`): chỉ dời mốc kết thúc
+  ra sau, chỉ khi đang mở, mỗi lần ghi một hàng audit không sửa được.
+
 - **Đóng chiến dịch** (`POST .../close`): người tổ chức hoặc Admin có `campaign.manage`.
   `approval_status` **giữ** `APPROVED`; "đã đóng" là `is_active = false` cộng `end_time` đã
   qua — đó cũng là thứ phân biệt nó với "đình chỉ". Đề nghị đang chờ bị từ chối với
@@ -1887,8 +1892,7 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
   hoạt động đóng) và `CHARITY_DELIVERY_COMPLETED`; huỷ lượt giao thì `CHARITY_DELIVERY_CANCELLED`
   đi tới bên KIA.
 
-- Chưa có: vai coordinator, cờ cho phép vượt mục tiêu, gia hạn chiến
-  dịch, và chỗ lưu dữ liệu riêng tư của người thụ hưởng. Xem
+- Chưa có: vai coordinator, và chỗ lưu dữ liệu riêng tư của người thụ hưởng. Xem
   [§12](./plan/CHARITY-CONTRIBUTION-DESIGN.md#12-tiến-độ-triển-khai).
 
 Body tạo đề nghị luôn bọc khoá `contribution`:

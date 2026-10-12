@@ -727,6 +727,99 @@ async function main(): Promise<void> {
         }),
       )) === null,
     );
+
+    // ── Ngoài §11: hai việc làm sau lát E ───────────────────────────────────
+    console.log('\n13. Chiến dịch CHO PHÉP vượt mục tiêu (§5)');
+
+    const generous = await create.handle({
+      ...baseInput({
+        allowOverTarget: true,
+        needs: [{ itemName: 'Chăn', unit: 'cái', targetQuantity: 10 }],
+      }),
+      actorUserId: DiamondId,
+      asAdmin: false,
+    });
+    check('cờ được ghi khi tạo', generous.allowOverTarget === true);
+    const [blanket] = await repo.listNeeds(generous.globalId);
+    const g = await submit.handle({
+      campaignId: generous.globalId,
+      contributorId: GiverA,
+      items: [{ needItemId: blanket.globalId, offeredQuantity: 25 }],
+    });
+    const gDecided = await repo.decideContribution({
+      contributionId: g.globalId,
+      organizerId: DiamondId,
+      decisionKey: `g-${g.globalId}`,
+      decisions: [
+        {
+          contributionItemId: g.items[0].globalId,
+          acceptedQuantity: 25,
+        },
+      ],
+    });
+    const [blanketAfter] = await repo.listNeeds(generous.globalId);
+    check(
+      'nhận 25 trên mục tiêu 10 thì ĐƯỢC, và phần còn thiếu kẹp ở 0',
+      gDecided.contribution.status === 'ACCEPTED' &&
+        blanketAfter.acceptedQuantity === 25 &&
+        blanketAfter.remainingQuantity === 0,
+      `accepted=${blanketAfter.acceptedQuantity} remaining=${blanketAfter.remainingQuantity}`,
+    );
+
+    console.log('\n14. Gia hạn có audit (§8)');
+
+    const [before] = await q(
+      `SELECT end_time FROM campaigns WHERE global_id = $1`,
+      [generous.globalId],
+    );
+    const later = new Date(new Date(before.end_time).getTime() + 7 * 24 * Hour);
+    const extended = await repo.extendCampaign({
+      campaignId: generous.globalId,
+      actorUserId: DiamondId,
+      newEndTime: later,
+      reason: 'Còn thiếu chăn',
+    });
+    const [audit] = await q(
+      `SELECT previous_end_time, new_end_time, changed_by, reason
+       FROM campaign_schedule_changes WHERE campaign_id = $1`,
+      [generous.globalId],
+    );
+    check(
+      'gia hạn dời end_time và ghi một hàng audit đủ mốc cũ/mới/ai/vì sao',
+      new Date(extended.newEndTime).getTime() === later.getTime() &&
+        new Date(audit.previous_end_time).getTime() ===
+          new Date(before.end_time).getTime() &&
+        audit.changed_by === DiamondId &&
+        audit.reason === 'Còn thiếu chăn',
+    );
+    check(
+      'RÚT NGẮN không đi đường gia hạn',
+      (await errorName(
+        repo.extendCampaign({
+          campaignId: generous.globalId,
+          actorUserId: DiamondId,
+          newEndTime: new Date(before.end_time),
+          reason: 'x',
+        }),
+      )) === 'CharityCampaignNotExtendableException',
+    );
+    check(
+      'chiến dịch ĐÃ ĐÓNG không gia hạn được',
+      (await errorName(
+        repo.extendCampaign({
+          campaignId: diamond.globalId,
+          actorUserId: DiamondId,
+          newEndTime: new Date(Date.now() + 60 * 24 * Hour),
+          reason: 'x',
+        }),
+      )) === 'CharityCampaignNotExtendableException',
+    );
+    check(
+      'audit gia hạn không sửa được',
+      (await errorName(
+        q(`UPDATE campaign_schedule_changes SET reason = 'khac'`),
+      )) === 'QueryFailedError',
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();
@@ -740,7 +833,7 @@ async function main(): Promise<void> {
   console.log(
     `\n${
       failures.length === 0
-        ? 'Đóng góp từ thiện: mười hai tiêu chí §11 đều có phép đo trên Postgres thật'
+        ? 'Đóng góp từ thiện: mười hai tiêu chí §11 và các việc làm sau đều có phép đo trên Postgres thật'
         : `${failures.length} phép kiểm thất bại`
     }`,
   );

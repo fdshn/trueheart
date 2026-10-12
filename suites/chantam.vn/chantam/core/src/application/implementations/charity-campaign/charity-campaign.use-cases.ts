@@ -18,6 +18,8 @@ import {
   IDecideCharityContributionCommand,
   IDecideCharityContributionResult,
   IDecideCharityContributionUseCase,
+  IExtendCharityCampaignCommand,
+  IExtendCharityCampaignUseCase,
   IGetCampaignNeedsCommand,
   IGetCampaignNeedsResult,
   IGetCampaignNeedsUseCase,
@@ -239,6 +241,7 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
     const campaign = await this.repository.create({
       ...prepared,
       campaignType: command.campaignType,
+      allowOverTarget: command.allowOverTarget ?? false,
       // `null` cho hoạt động có tổ chức, và database canh điều đó bằng một CHECK
       // nối hai cột: hoạt động có tổ chức không có người thụ hưởng đơn lẻ nào để
       // khai quan hệ với.
@@ -842,6 +845,46 @@ export class CloseCharityCampaignUseCase implements ICloseCharityCampaignUseCase
         byClosing: true,
       });
     return result;
+  }
+}
+
+/**
+ * Gia hạn chiến dịch đang mở (§8) — người tổ chức hoặc Admin có `campaign.manage`,
+ * cùng quyền với đường đóng.
+ */
+@Injectable()
+export class ExtendCharityCampaignUseCase implements IExtendCharityCampaignUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: IExtendCharityCampaignCommand,
+  ): Promise<{ campaignId: string; previousEndTime: Date; newEndTime: Date }> {
+    const campaign = await this.repository.findByGlobalId(command.campaignId);
+    if (!campaign) throw new CharityCampaignNotFoundException();
+    if (
+      campaign.createdBy !== command.actorUserId &&
+      !(await this.admin.hasPermission(command.actorUserId, WritePermission))
+    )
+      throw new CharityNotOrganizerException();
+
+    const reason = command.reason.trim();
+    const newEndTime = new Date(command.endTime);
+    if (!reason || Number.isNaN(newEndTime.getTime()))
+      throw new CharityLinesInvalidException(
+        'Gia hạn phải có mốc kết thúc hợp lệ và lý do',
+      );
+
+    return this.repository.extendCampaign({
+      campaignId: campaign.globalId,
+      actorUserId: command.actorUserId,
+      newEndTime,
+      reason,
+    });
   }
 }
 

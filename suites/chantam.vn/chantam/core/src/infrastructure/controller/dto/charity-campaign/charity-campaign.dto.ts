@@ -179,6 +179,15 @@ export class WriteCharityCampaignDto {
   @ValidateNested({ each: true })
   @Type(() => CharityNeedItemInputDto)
   needs?: CharityNeedItemInputDto[];
+
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      'Cho lượt chấp nhận đề nghị VƯỢT mục tiêu từng dòng (F65b §5). Mặc định `false`: vượt thì `409 CHARITY_NEED_EXCEEDED`. Đóng góp ngoài app thì không bao giờ bị chặn vượt, bất kể cờ này.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  allowOverTarget?: boolean;
 }
 
 export class WriteCharityCampaignBodyDto {
@@ -1020,4 +1029,28 @@ export class CloseCharityCampaignResponseDto {
       'Lượt giao nhận còn đang chạy. KHÔNG bị huỷ — vẫn hoàn tất được sau khi đóng.',
   })
   openDeliveries: number;
+}
+
+export class ExtendCharityCampaignBodyDto {
+  @ApiProperty({
+    format: 'date-time',
+    description:
+      'Mốc kết thúc MỚI, phải SAU mốc hiện tại. Rút ngắn thời hạn không đi đường này — đóng hoạt động đi qua `POST .../close`.',
+  })
+  @IsISO8601()
+  endTime: string;
+
+  @ApiProperty({
+    maxLength: 500,
+    example: 'Còn thiếu gạo, kéo dài thêm hai tuần',
+  })
+  @IsString()
+  @Length(1, 500)
+  reason: string;
+}
+
+export class ExtendCharityCampaignResponseDto {
+  @ApiProperty({ format: 'uuid' }) campaignId: string;
+  @ApiProperty({ type: String, format: 'date-time' }) previousEndTime: Date;
+  @ApiProperty({ type: String, format: 'date-time' }) newEndTime: Date;
 }

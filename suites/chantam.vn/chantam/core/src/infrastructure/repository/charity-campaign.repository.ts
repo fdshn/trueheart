@@ -1,6 +1,7 @@
 import { isPointPolicyError } from '@/application/implementations/point/point-policy-errors';
 import {
   CharityCampaignNotClosableException,
+  CharityCampaignNotExtendableException,
   CharityCampaignNotFoundException,
   CharityContributionAlreadyDecidedException,
   CharityContributionNotFoundException,
@@ -78,6 +79,7 @@ interface IRow {
   participant_count: string | number;
   campaign_type: string;
   beneficiary_relation: string | null;
+  allow_over_target: boolean;
 }
 
 interface IReviewRow {
@@ -251,6 +253,7 @@ const Columns = `campaigns.global_id, campaigns.title, campaigns.slug, campaigns
        campaigns.approved_at, campaigns.approved_by, campaigns.created_by,
        campaigns.created_at, campaigns.updated_at,
        campaigns.campaign_type, campaigns.beneficiary_relation,
+       campaigns.allow_over_target,
        (SELECT count(*) FROM campaign_participations participation
          WHERE participation.campaign_id = campaigns.global_id
            AND participation.status = 'REGISTERED') AS participant_count`;
@@ -294,6 +297,7 @@ function toCampaign(row: IRow): ICharityCampaign {
     campaignType: row.campaign_type as CharityCampaignType,
     beneficiaryRelation:
       row.beneficiary_relation as CharityBeneficiaryRelation | null,
+    allowOverTarget: row.allow_over_target,
     // `count(*)` về đây là CHUỖI. Trả thẳng ra API thì client nhận `"3"` và mọi phép
     // so sánh số ở đó đều sai một cách im lặng.
     participantCount: Number(row.participant_count),
@@ -364,11 +368,11 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
            (title, slug, description, banner_url, badge_name, target_items_count,
             location, location_label, start_time, end_time,
             created_by, approval_status, approved_by, approved_at,
-            campaign_type, beneficiary_relation)
+            campaign_type, beneficiary_relation, allow_over_target)
          VALUES ($1, $2, $3, $4, $5, $6, ${LocationExpression}, $8, $7, $11,
                  $12, $13, $14,
                  CASE WHEN $15 = 'PENDING_APPROVAL' THEN NULL ELSE now() END,
-                 $16, $17)
+                 $16, $17, $18)
          RETURNING *
        )
        SELECT ${Columns} FROM inserted AS campaigns`,
@@ -396,6 +400,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         params.approvalStatus,
         params.campaignType,
         params.beneficiaryRelation,
+        params.allowOverTarget,
       ],
     );
     return toCampaign(row);
@@ -738,6 +743,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       approval_status: string;
       is_active: boolean;
       created_by: string | null;
+      allow_over_target: boolean;
+      end_time: Date;
     };
     needs: INeedLockRow[];
   }> {
@@ -746,9 +753,11 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         approval_status: string;
         is_active: boolean;
         created_by: string | null;
+        allow_over_target: boolean;
+        end_time: Date;
       }[]
     >(
-      `SELECT approval_status, is_active, created_by
+      `SELECT approval_status, is_active, created_by, allow_over_target, end_time
        FROM campaigns WHERE global_id = $1 FOR UPDATE`,
       [campaignId],
     );
@@ -916,6 +925,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
           receivedQuantity: Number(need.received_quantity),
         })),
         decided,
+        campaign.allow_over_target,
       );
       if (overflow)
         throw new CharityNeedExceededException(
@@ -1557,6 +1567,51 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
           contributorId: row.contributor_id,
         })),
         openDeliveries: Number(open.count),
+      };
+    });
+  }
+
+  public async extendCampaign(params: {
+    campaignId: string;
+    actorUserId: string;
+    newEndTime: Date;
+    reason: string;
+  }): Promise<{ campaignId: string; previousEndTime: Date; newEndTime: Date }> {
+    return this.manager.transaction(async (manager) => {
+      const { campaign } = await this.lockCampaignAndNeeds(
+        manager,
+        params.campaignId,
+      );
+      // Chỉ chiến dịch ĐANG MỞ: đã đóng thì gia hạn là mở lại — một quyết định
+      // khác, đề nghị cũ đã bị từ chối hàng loạt; đang đình chỉ thì người quyết là
+      // Admin, không phải người tổ chức.
+      const open =
+        campaign.approval_status === 'APPROVED' &&
+        campaign.is_active &&
+        campaign.end_time.getTime() > Date.now();
+      if (!open || params.newEndTime.getTime() <= campaign.end_time.getTime())
+        throw new CharityCampaignNotExtendableException();
+
+      await manager.query(
+        `UPDATE campaigns SET end_time = $2, updated_at = now() WHERE global_id = $1`,
+        [params.campaignId, params.newEndTime],
+      );
+      await manager.query(
+        `INSERT INTO campaign_schedule_changes
+           (campaign_id, previous_end_time, new_end_time, changed_by, reason)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          params.campaignId,
+          campaign.end_time,
+          params.newEndTime,
+          params.actorUserId,
+          params.reason,
+        ],
+      );
+      return {
+        campaignId: params.campaignId,
+        previousEndTime: campaign.end_time,
+        newEndTime: params.newEndTime,
       };
     });
   }

@@ -357,11 +357,12 @@ cần deploy.
   commit, nuốt lỗi, retry cùng khoá quyết định không báo lại.
 - **Coordinator** (§2) chưa có: chỉ người tạo hoạt động quyết được. Cần một bảng giao
   quyền; `organizer_id` trên lượt giao nhận đã đúng chỗ để đón nó.
-- **Cờ "cho phép vượt mục tiêu"** (§5 nói *"nếu chiến dịch không cho vượt"*) không có
-  cột nào — hiện luôn chặn vượt. Thêm cờ là một cột `boolean` và một nhánh trong
-  `firstNeedOverflow`.
-- **Gia hạn chiến dịch** (§8: *"cho phép gia hạn trước khi đóng và lưu audit thay đổi
-  thời hạn"*) chưa có endpoint.
+- ~~**Cờ "cho phép vượt mục tiêu"**~~ ✅ **Xong 12/10.** `campaigns.allow_over_target`
+  (mặc định `false`, giữ hành vi cũ), đặt lúc tạo. Chỉ nới lượt CHẤP NHẬN — ngoài app vốn
+  không bao giờ bị chặn vượt. Nhóm 13 của script.
+- ~~**Gia hạn chiến dịch**~~ ✅ **Xong 12/10.** `POST /charity-campaigns/:id/extend`, người
+  tổ chức hoặc Admin, chỉ DỜI RA SAU và chỉ khi đang mở; mỗi lần một hàng
+  `campaign_schedule_changes` chỉ-ghi-thêm. Rút ngắn đi qua đường đóng. Nhóm 14 của script.
 - **Dữ liệu riêng tư của người thụ hưởng** (§2: địa chỉ, số điện thoại, tài liệu xác
   minh khi `beneficiaryRelation = OTHER`) chưa có chỗ lưu. Tiêu chí §11.6 hiện chỉ đo được
   phần liên hệ của người TẶNG — vì người thụ hưởng chưa có gì để lọt ra.

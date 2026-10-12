@@ -530,7 +530,13 @@ export interface INeedOverflow {
 export function firstNeedOverflow(
   needs: readonly INeedCapacity[],
   accepted: readonly { needItemId: string; acceptedQuantity: number }[],
+  /**
+   * Chiến dịch cho phép nhận vượt mục tiêu (§5: *"nếu chiến dịch không cho vượt"*).
+   * Mặc định `false` — hành vi đã chạy tới 12/10.
+   */
+  allowOverTarget = false,
 ): INeedOverflow | null {
+  if (allowOverTarget) return null;
   const requested = new Map<string, number>();
   for (const line of accepted)
     requested.set(

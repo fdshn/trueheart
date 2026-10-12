@@ -922,6 +922,15 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Bản ghi này đã bị huỷ hoặc đã được thay bằng bản điều chỉnh — hãy thao tác trên bản đang có hiệu lực',
   },
 
+  CHARITY_CAMPAIGN_NOT_EXTENDABLE: {
+    code: ErrorCodes.CHARITY_CAMPAIGN_NOT_EXTENDABLE,
+    httpStatus: HttpStatus.CONFLICT,
+    // Gộp ba lý do vì cả ba có cùng một việc phải làm: đọc lại trạng thái hoạt động.
+    // Rút ngắn thời hạn không đi đường này — nó đi qua đường đóng.
+    message: () =>
+      'Chỉ gia hạn được hoạt động đang mở, và mốc kết thúc mới phải sau mốc hiện tại',
+  },
+
   CHARITY_DELIVERY_NOT_FOUND: {
     code: ErrorCodes.CHARITY_DELIVERY_NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,
