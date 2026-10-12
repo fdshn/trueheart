@@ -1,7 +1,8 @@
 # Thiết kế Kêu gọi và Đóng góp Vật phẩm Từ thiện
 
-> Trạng thái: **đã chốt nghiệp vụ, đang triển khai backend từ 12/10** — bảng theo dõi ở
-> [§12](#12-tiến-độ-triển-khai). Tài liệu này thay thế cách hiểu cũ rằng một `campaign` chỉ là
+> Trạng thái: **backend xong cả năm lát, 12/10** — bảng theo dõi ở
+> [§12](#12-tiến-độ-triển-khai); `npm run test:charity-contribution` đo cả 12 tiêu chí §11
+> trên Postgres thật. Point Rule ship TẮT chờ Bên A chốt mức. Tài liệu này thay thế cách hiểu cũ rằng một `campaign` chỉ là
 > sự kiện để user đăng ký tham dự. Phần đăng ký sự kiện hiện hữu được giữ tương thích, còn
 > đóng góp vật phẩm là một luồng riêng có transaction.
 
@@ -344,10 +345,10 @@ cần deploy.
 | A | `campaign_type` + `beneficiary_relation`, ba capability Rank, bảng `campaign_need_items`, Point Rule seed TẮT, `POST /charity-campaigns` nhận bảng nhu cầu, `GET /campaigns/:idOrSlug/needs` | ✅ 12/10 |
 | B | `campaign_contributions` + `campaign_contribution_items`, bốn endpoint đề nghị (gửi, organizer xem, contributor xem, sửa/rút) | ✅ 12/10 |
 | C | `campaign_deliveries` + `campaign_delivery_items` (bảng riêng, xem §6), `POST /charity-contributions/:id/decision` nguyên tử có idempotency, hoàn tất/huỷ lượt giao nhận, cộng điểm một lần cho mỗi contribution | ✅ 12/10 |
-| D | `campaign_external_contributions` (ghi nhận + điều chỉnh có audit), `POST /charity-campaigns/:id/close` | ⬜ |
-| E | Acceptance tests cho 12 tiêu chí §11, trên Postgres thật | ⬜ |
+| D | `campaign_external_contributions` (ghi nhận + điều chỉnh có audit), `POST /charity-campaigns/:id/close` | ✅ 12/10 |
+| E | Acceptance tests cho 12 tiêu chí §11, trên Postgres thật | ✅ 12/10 — `npm run test:charity-contribution`, 41 phép kiểm |
 
-**Ba việc lát C CỐ Ý chưa làm**, ghi ra để không ai tưởng là có:
+**Năm việc CỐ Ý chưa làm**, ghi ra để không ai tưởng là có:
 
 - **Thông báo.** Người tặng chưa được báo khi đề nghị được quyết, lượt giao được hoàn
   tất hay bị huỷ. Cần thêm loại thông báo vào nhóm `CONTACT`/`STATUS` của F45.
@@ -356,6 +357,11 @@ cần deploy.
 - **Cờ "cho phép vượt mục tiêu"** (§5 nói *"nếu chiến dịch không cho vượt"*) không có
   cột nào — hiện luôn chặn vượt. Thêm cờ là một cột `boolean` và một nhánh trong
   `firstNeedOverflow`.
+- **Gia hạn chiến dịch** (§8: *"cho phép gia hạn trước khi đóng và lưu audit thay đổi
+  thời hạn"*) chưa có endpoint.
+- **Dữ liệu riêng tư của người thụ hưởng** (§2: địa chỉ, số điện thoại, tài liệu xác
+  minh khi `beneficiaryRelation = OTHER`) chưa có chỗ lưu. Tiêu chí §11.6 hiện chỉ đo được
+  phần liên hệ của người TẶNG — vì người thụ hưởng chưa có gì để lọt ra.
 
 **`pendingQuantity` đã có từ lát B** (12/10), và nó **đếm lúc đọc** chứ không phải một cột:
 §3 nói nó không giữ chỗ, nên một con số lưu sẵn mà không ai được dựa vào là mời người sau dựa
@@ -368,15 +374,15 @@ số không phải phép đo nằm giữa những con số có thật.
 
 | # | Tiêu chí | Lưới | Tình trạng |
 | :-: | --- | --- | :-: |
-| 1 | Hai organizer chấp nhận đồng thời không vượt mục tiêu | script Postgres thật (hai transaction song song) | 🟡 lát C — đã chạy repository thật trên PG17 với khoảng chồng lấn ép bằng trigger `pg_sleep`: có khoá thì 1 thắng/1 thua báo đúng phần còn 40; **gỡ khoá thì 2 cùng thắng, nhu cầu 100 bị nhận 120**. Script CI ở lát E |
-| 2 | Từ chối một người không ảnh hưởng đề nghị người khác | unit + script | 🟡 lát B dựng nền (mỗi đề nghị là một hàng riêng, `UNIQUE` theo `(contribution, need)`); phép kiểm thật thuộc lát C |
-| 3 | Chấp nhận một phần sinh transaction đúng số lượng | unit + script | 🟡 lát C — unit (`contributionStatusFrom`, `contributionDecisionProblem`) + chạy thật trên PG17; script CI ở lát E |
-| 4 | Huỷ transaction trả lại capacity, không xoá audit | script | 🟡 lát C — chạy thật trên PG17 (trả 60 về nhu cầu, đề nghị giữ `ACCEPTED`); script CI ở lát E |
-| 5 | Đóng chiến dịch chặn đề nghị mới, giữ transaction đang chạy | unit + script | ⬜ |
-| 6 | Người ngoài không đọc được contact/địa chỉ beneficiary | unit (DTO) + script | 🟡 lát B — `contactNote` chỉ ra ở hai đường có token (organizer của chiến dịch, và chính contributor), có phép kiểm dựng lại lỗi bỏ phép kiểm organizer; phần địa chỉ beneficiary thuộc lát D |
-| 7 | Retry cùng idempotency key chỉ tạo một transaction | script | 🟡 lát C — tính chất SCHEMA (`UQ_campaign_deliveries_contribution`) + chạy thật trên PG17; script CI ở lát E |
-| 8 | Tiến độ tính từ transaction, không tin số client gửi | unit + script | ⬜ |
-| 9 | Không cộng số lượng giữa hai dòng khác đơn vị | unit | ✅ lát A — `overallNeedProgressPercent` trung bình TỶ LỆ, có phép kiểm dựng lại lỗi cộng-số-lượng |
-| 10 | Đóng góp ngoài app có audit, không cộng điểm cho ai | unit + script | ⬜ |
-| 11 | Member/Bạc/Vàng chỉ nhận `PENDING_APPROVAL`; Kim Cương public ngay | unit (capability) + script | 🟡 lát A — phần unit xong (ba capability, hai nhánh approval); phần script Postgres chờ lát E |
-| 12 | Một contribution chỉ sinh MỘT bút toán điểm | unit + script | 🟡 lát C — khoá `CHARITY_CONTRIBUTION_COMPLETED:<contributionId>`; chạy thật thấy đúng một lượt gọi sổ điểm; rule TẮT thì lượt hoàn tất vẫn thành công. Script với sổ điểm thật ở lát E |
+| 1 | Hai organizer chấp nhận đồng thời không vượt mục tiêu | nhóm 1 — chồng lấn ÉP bằng trigger `pg_sleep`; gỡ khoá thì đỏ (120/100) | ✅ |
+| 2 | Từ chối một người không ảnh hưởng đề nghị người khác | nhóm 2 | ✅ |
+| 3 | Chấp nhận một phần sinh transaction đúng số lượng | nhóm 3 + unit `contributionStatusFrom` | ✅ |
+| 4 | Huỷ transaction trả lại capacity, không xoá audit | nhóm 4 | ✅ |
+| 5 | Đóng chiến dịch chặn đề nghị mới, giữ transaction đang chạy | nhóm 5 — kể cả hoàn tất SAU khi đóng, và đóng chiến dịch chưa bắt đầu | ✅ |
+| 6 | Người ngoài không đọc được contact/địa chỉ beneficiary | nhóm 6 — ⚠ chỉ đo `contactNote` của người tặng; schema CHƯA lưu liên hệ/địa chỉ người thụ hưởng ở đâu cả | ✅ |
+| 7 | Retry cùng idempotency key chỉ tạo một transaction | nhóm 7 — retry và chèn tay đều bị chặn | ✅ |
+| 8 | Tiến độ tính từ transaction, không tin số client gửi | nhóm 8 — số THỰC NHẬN, phần hụt trở về nhu cầu | ✅ |
+| 9 | Không cộng số lượng giữa hai dòng khác đơn vị | nhóm 9 + unit; trung bình tỷ lệ 18%, không phải 32% | ✅ |
+| 10 | Đóng góp ngoài app có audit, không cộng điểm cho ai | nhóm 10 — trigger chặn sửa tại chỗ và xoá; điều chỉnh cộng chênh lệch (gỡ thì đỏ: 10 thay vì 6) | ✅ |
+| 11 | Member/Bạc/Vàng chỉ nhận `PENDING_APPROVAL`; Kim Cương public ngay | nhóm 11 + unit | ✅ |
+| 12 | Một contribution chỉ sinh MỘT bút toán điểm | nhóm 12 — sổ điểm THẬT với rule bật trong DB nháp; rule tắt thì hoàn tất vẫn thành công | ✅ |

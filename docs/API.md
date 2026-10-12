@@ -1751,9 +1751,9 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 - Ghi theo copy-on-write như mọi system config: `reason` bắt buộc và đi thẳng vào audit log.
 ---
 
-## 13. Từ thiện — bảng nhu cầu và đề nghị đóng góp (ĐANG TRIỂN KHAI)
+## 13. Từ thiện — bảng nhu cầu và đề nghị đóng góp
 
-> **Các dòng đánh dấu ✅ đã CHẠY từ 12/10; phần còn lại vẫn là contract mục tiêu.** Tiến độ từng lát ở
+> **Mọi dòng dưới đây đã CHẠY từ 12/10**, đo bằng `npm run test:charity-contribution`. Tiến độ từng lát ở
 > [`CHARITY-CONTRIBUTION-DESIGN.md` §12](./plan/CHARITY-CONTRIBUTION-DESIGN.md#12-tiến-độ-triển-khai)
 > — đó là nguồn duy nhất, bảng này không kể lại. Endpoint nào chưa tick ở đó thì client không
 > được giả lập thành công.
@@ -1775,9 +1775,10 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `GET` | `/charity-contributions/me` | Bearer | ✅ **Đã chạy.** Đề nghị của chính mình, mọi hoạt động |
 | `PATCH` | `/charity-contributions/:id` | Bearer (chủ đề nghị) | ✅ **Đã chạy.** `action: REPLACE` thay trọn bộ dòng, `WITHDRAW` rút — chỉ khi chưa có phần nào được chấp nhận |
 | `POST` | `/charity-contributions/:id/decision` | Organizer | ✅ **Đã chạy.** Quyết **mọi** dòng trong một lượt, nguyên tử; chống vượt nhu cầu khi hai lượt cùng lúc; `decisionKey` chống trùng |
-| `POST` | `/charity-campaigns/:id/external-contributions` | Organizer/coordinator | Ghi nhận vật phẩm nhận ngoài app có audit |
-| `PATCH` | `/charity-external-contributions/:id` | Organizer/coordinator | Điều chỉnh/hủy bản ghi ngoài app có lý do |
-| `POST` | `/charity-campaigns/:id/close` | Organizer/Admin | Đóng chiến dịch; giữ transaction đang chạy |
+| `POST` | `/charity-campaigns/:id/external-contributions` | Organizer | ✅ **Đã chạy.** Ghi nhận vật phẩm nhận ngoài app; không gắn tài khoản nên không sinh điểm |
+| `GET` | `/charity-campaigns/:id/external-contributions` | Organizer | ✅ **Đã chạy.** Lịch sử, gồm cả bản đã huỷ |
+| `PATCH` | `/charity-external-contributions/:id` | Organizer | ✅ **Đã chạy.** `VOID` huỷ, `ADJUST` huỷ + tạo bản thay thế; luôn kèm lý do, không sửa tại chỗ |
+| `POST` | `/charity-campaigns/:id/close` | Organizer/Admin | ✅ **Đã chạy.** Chặn đề nghị mới, từ chối hàng đợi với `CAMPAIGN_CLOSED`, giữ lượt giao đang chạy |
 | `GET` | `/charity-deliveries/:id` | Hai bên | ✅ **Đã chạy.** Một lượt giao nhận; người ngoài nhận cùng lỗi với không tồn tại |
 | `POST` | `/charity-deliveries/:id/complete` | Organizer | ✅ **Đã chạy.** Xác nhận số THỰC NHẬN từng dòng; phần thiếu trở về nhu cầu |
 | `POST` | `/charity-deliveries/:id/cancel` | Hai bên | ✅ **Đã chạy.** Trả phần đã nhận về nhu cầu, không xoá đề nghị |
@@ -1870,8 +1871,20 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 - Người tổ chức **không** gửi đề nghị vào chính hoạt động của mình
   (`409 CHARITY_SELF_CONTRIBUTION`).
 
-- Chưa có: thông báo cho người tặng khi đề nghị được quyết/lượt giao đổi trạng thái, và vai
-  coordinator — chỉ người tạo hoạt động quyết được.
+- **Ngoài app** (`POST .../external-contributions`): cộng ngay vào số đã nhận. Không chặn
+  vượt mục tiêu — đó là vật phẩm đã ở trong kho thật. Ngày nhận không được ở tương lai. Sửa
+  sai **chỉ** qua `PATCH /charity-external-contributions/:id`: `VOID` huỷ, `ADJUST` huỷ bản cũ
+  và tạo bản thay thế (`replacesId` trỏ về bản cũ). Một trigger ở database từ chối mọi đường
+  sửa tại chỗ và mọi lượt xoá, nên lịch sử của một con số luôn đọc lại được.
+
+- **Đóng chiến dịch** (`POST .../close`): người tổ chức hoặc Admin có `campaign.manage`.
+  `approval_status` **giữ** `APPROVED`; "đã đóng" là `is_active = false` cộng `end_time` đã
+  qua — đó cũng là thứ phân biệt nó với "đình chỉ". Đề nghị đang chờ bị từ chối với
+  `CAMPAIGN_CLOSED`; lượt giao nhận đang chạy **không** bị huỷ và vẫn hoàn tất được.
+
+- Chưa có: thông báo cho người tặng, vai coordinator, cờ cho phép vượt mục tiêu, gia hạn chiến
+  dịch, và chỗ lưu dữ liệu riêng tư của người thụ hưởng. Xem
+  [§12](./plan/CHARITY-CONTRIBUTION-DESIGN.md#12-tiến-độ-triển-khai).
 
 Body tạo đề nghị luôn bọc khoá `contribution`:
 
