@@ -10,6 +10,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
   IChatMediaUploadRequest,
+  ICampaignMediaConfirmation,
   ICommentMediaUploadRequest,
   IObjectStorage,
   IPostMediaUploadRequest,
@@ -58,6 +59,7 @@ const MediaLabels = {
   transactionEvidence: 'Ảnh bằng chứng',
   chatMedia: 'Ảnh trong chat',
   commentMedia: 'Ảnh bình luận',
+  campaignMedia: 'Phương tiện hoạt động từ thiện',
 } as const;
 
 type MediaKind = keyof typeof MediaLabels;
@@ -81,56 +83,38 @@ export function getMediaExtension(contentType: string): string {
   }
 }
 
-function assertUploadPolicy(
-  kind: Exclude<MediaKind, 'postMedia'>,
-  request: IStorageUploadRequest,
-) {
-  const label = MediaLabels[kind];
-  const limit = MediaSizeLimits[kind];
+const MixedMediaLabels = {
+  postMedia: { any: 'Phương tiện bài đăng', image: 'Ảnh bài đăng', video: 'Video bài đăng' },
+  campaignMedia: { any: 'Phương tiện hoạt động từ thiện', image: 'Ảnh hoạt động từ thiện', video: 'Video hoạt động từ thiện' },
+} as const;
+type MixedMediaKind = keyof typeof MixedMediaLabels;
 
-  if (!AllowedImageContentTypes.has(request.contentType))
-    throw new StorageValidationError(
-      `${label} chỉ nhận image/jpeg, image/png hoặc image/webp.`,
-    );
-
-  if (!Number.isInteger(request.contentLength))
-    throw new StorageValidationError(`${label} phải khai kích thước thật.`);
-
-  if (request.contentLength < 1 || request.contentLength > limit)
-    throw new StorageValidationError(
-      `${label} phải lớn hơn 0 và không quá ${Math.round(limit / Megabyte)} MB.`,
-    );
-}
-
-export function assertAvatarUploadPolicy(request: IStorageUploadRequest): void {
-  assertUploadPolicy('avatar', request);
-}
-
-export function assertPostMediaUploadPolicy(
-  request: IPostMediaUploadRequest,
-): void {
+function assertMixedMediaPolicy(kind: MixedMediaKind, request: IStorageUploadRequest): void {
+  const labels = MixedMediaLabels[kind];
   const isImage = AllowedImageContentTypes.has(request.contentType);
   const isVideo = AllowedVideoContentTypes.has(request.contentType);
+  if (!isImage && !isVideo) throw new StorageValidationError(`${labels.any} chỉ nhận ảnh (image/jpeg, image/png, image/webp) hoặc video (video/mp4, video/quicktime, video/webm).`);
+  if (!Number.isInteger(request.contentLength)) throw new StorageValidationError(`${labels.any} phải khai kích thước thật.`);
+  const limit = isImage ? MediaSizeLimits.postMediaImage : MediaSizeLimits.postMediaVideo;
+  const label = isImage ? labels.image : labels.video;
+  if (request.contentLength < 1 || request.contentLength > limit) throw new StorageValidationError(`${label} phải lớn hơn 0 và không quá ${Math.round(limit / Megabyte)} MB.`);
+}
 
-  if (!isImage && !isVideo)
-    throw new StorageValidationError(
-      'Phương tiện bài đăng chỉ nhận ảnh (image/jpeg, image/png, image/webp) hoặc video (video/mp4, video/quicktime, video/webm).',
-    );
+function assertUploadPolicy(kind: Exclude<MediaKind, MixedMediaKind>, request: IStorageUploadRequest) {
+  const label = MediaLabels[kind];
+  const limit = MediaSizeLimits[kind];
+  if (!AllowedImageContentTypes.has(request.contentType)) throw new StorageValidationError(`${label} chỉ nhận image/jpeg, image/png hoặc image/webp.`);
+  if (!Number.isInteger(request.contentLength)) throw new StorageValidationError(`${label} phải khai kích thước thật.`);
+  if (request.contentLength < 1 || request.contentLength > limit) throw new StorageValidationError(`${label} phải lớn hơn 0 và không quá ${Math.round(limit / Megabyte)} MB.`);
+}
 
-  if (!Number.isInteger(request.contentLength))
-    throw new StorageValidationError(
-      'Phương tiện bài đăng phải khai kích thước thật.',
-    );
+export function assertAvatarUploadPolicy(request: IStorageUploadRequest): void { assertUploadPolicy('avatar', request); }
+export function assertPostMediaUploadPolicy(request: IPostMediaUploadRequest): void { assertMixedMediaPolicy('postMedia', request); }
+export function assertCampaignMediaUploadPolicy(request: IStorageUploadRequest): void { assertMixedMediaPolicy('campaignMedia', request); }
 
-  const limit = isImage
-    ? MediaSizeLimits.postMediaImage
-    : MediaSizeLimits.postMediaVideo;
-  const label = isImage ? 'Ảnh bài đăng' : 'Video bài đăng';
-
-  if (request.contentLength < 1 || request.contentLength > limit)
-    throw new StorageValidationError(
-      `${label} phải lớn hơn 0 và không quá ${Math.round(limit / Megabyte)} MB.`,
-    );
+function isMissingObject(error: unknown): boolean {
+  const candidate = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+  return candidate?.name === 'NotFound' || candidate?.name === 'NoSuchKey' || candidate?.$metadata?.httpStatusCode === 404;
 }
 
 export function assertTransactionEvidenceUploadPolicy(
@@ -163,7 +147,7 @@ export class StorageService implements IObjectStorage {
     kind: MediaKind,
     expectedPrefix: string,
     key: string,
-  ): Promise<void> {
+  ): Promise<string> {
     const label = MediaLabels[kind];
 
     if (!key.startsWith(expectedPrefix))
@@ -171,14 +155,17 @@ export class StorageService implements IObjectStorage {
         `Key ${label.toLowerCase()} không thuộc chủ thể hiện tại.`,
       );
 
-    const object = await this.client.send(
-      new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }),
-    );
+    const object = await this.client
+      .send(new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }))
+      .catch((error: unknown) => {
+        if (isMissingObject(error)) throw new StorageValidationError(`Không tìm thấy object ${label.toLowerCase()} — hãy tải lên xong rồi mới gửi key.`);
+        throw error;
+      });
 
     let badType = false;
     let badSize = false;
 
-    if (kind === 'postMedia') {
+    if (kind === 'postMedia' || kind === 'campaignMedia') {
       const isImage = object.ContentType
         ? AllowedImageContentTypes.has(object.ContentType)
         : false;
@@ -202,7 +189,7 @@ export class StorageService implements IObjectStorage {
         !object.ContentLength || object.ContentLength > MediaSizeLimits[kind];
     }
 
-    if (!badType && !badSize) return;
+    if (!badType && !badSize) return object.ContentType ?? '';
 
     // Dọn trước khi ném: object đã nằm trong bucket rồi, và người gọi sẽ không
     // quay lại dọn hộ.
@@ -234,6 +221,20 @@ export class StorageService implements IObjectStorage {
       `users/${userId}/posts/${postId}/media/`,
       key,
     );
+  }
+
+  public async createCampaignMediaUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult> {
+    assertCampaignMediaUploadPolicy(request);
+    const extension = getMediaExtension(request.contentType);
+    const key = `users/${request.userId}/campaign-media/${randomUUID()}.${extension}`;
+    const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
+    const uploadUrl = await getSignedUrl(this.client, new PutObjectCommand({ Bucket: this.options.bucket, Key: key, ContentType: request.contentType, ContentLength: request.contentLength }), { expiresIn: expiresInSeconds });
+    return { key, uploadUrl, expiresInSeconds, publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}` };
+  }
+
+  public async confirmCampaignMediaUpload(userId: string, key: string): Promise<ICampaignMediaConfirmation> {
+    const contentType = await this.verifyObject('campaignMedia', `users/${userId}/campaign-media/`, key);
+    return { mediaType: AllowedVideoContentTypes.has(contentType) ? 'VIDEO' : 'IMAGE', publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}` };
   }
 
   public async confirmTransactionEvidenceUpload(

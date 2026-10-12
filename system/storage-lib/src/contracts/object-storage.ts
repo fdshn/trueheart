@@ -30,6 +30,11 @@ export interface ICommentMediaUploadRequest extends IStorageUploadRequest {
   subjectId: string;
 }
 
+export interface ICampaignMediaConfirmation {
+  mediaType: 'IMAGE' | 'VIDEO';
+  publicUrl: string;
+}
+
 export interface IChatMediaUploadRequest extends IStorageUploadRequest {
   /**
    * Khoá theo PHÒNG chứ không theo tin nhắn: chat chỉ ghi thêm, tin nhắn được
@@ -98,6 +103,13 @@ export interface IObjectStorage {
     roomId: string,
     key: string,
   ): Promise<void>;
+  createCampaignMediaUpload(
+    request: IStorageUploadRequest,
+  ): Promise<IStorageUploadResult>;
+  confirmCampaignMediaUpload(
+    userId: string,
+    key: string,
+  ): Promise<ICampaignMediaConfirmation>;
   /**
    * Xoa object theo lo, kieu co-gang.
    *
