@@ -132,6 +132,22 @@ export enum NotificationTypes {
    */
   POST_EXPIRED = 'POST_EXPIRED',
   /**
+   * Có người gửi đề nghị đóng góp vào hoạt động của bạn (F65b §4). Gửi cho người TỔ
+   * CHỨC — họ là người phải xét, và không có thông báo thì hàng đợi chỉ lộ ra khi
+   * họ tự mở danh sách.
+   */
+  CHARITY_CONTRIBUTION_SUBMITTED = 'CHARITY_CONTRIBUTION_SUBMITTED',
+  /**
+   * Đề nghị của bạn đã được xét: nhận đủ, nhận một phần, hoặc không nhận (F65b §5).
+   * Cũng là thông báo người tặng nhận khi hoạt động ĐÓNG và đề nghị bị từ chối
+   * hàng loạt với `CAMPAIGN_CLOSED` — một lý do họ không gây ra vẫn phải được nói.
+   */
+  CHARITY_CONTRIBUTION_DECIDED = 'CHARITY_CONTRIBUTION_DECIDED',
+  /** Người tổ chức đã xác nhận nhận được vật phẩm (F65b §6). */
+  CHARITY_DELIVERY_COMPLETED = 'CHARITY_DELIVERY_COMPLETED',
+  /** Lượt giao nhận bị huỷ — gửi cho BÊN KIA, không gửi cho người vừa bấm huỷ. */
+  CHARITY_DELIVERY_CANCELLED = 'CHARITY_DELIVERY_CANCELLED',
+  /**
    * Nhắc nhiệm vụ duy trì hạng, trước khi chu kỳ hết (SRS BR-PROF-RANK-03).
    *
    * Trượt chu kỳ nay bị trừ điểm và có thể tụt hạng, nên báo muộn hơn thời điểm
@@ -265,6 +281,13 @@ export const NotificationGroupOf: Record<
   // gia hạn. Khi hạn đã qua thì không còn việc gì làm trước hạn nữa, nó là một
   // sự thật về bài.
   [NotificationTypes.POST_EXPIRED]: NotificationGroups.STATUS,
+  // Bốn loại của đóng góp từ thiện đều là TRẠNG THÁI của một việc người dùng đang
+  // theo, cùng nhóm với vòng đời yêu cầu xin đồ (`GIFT_REQUEST_*`). Tắt nhóm này là
+  // tắt cả hai, và đó là đúng: cả hai là "việc của tôi vừa đổi trạng thái".
+  [NotificationTypes.CHARITY_CONTRIBUTION_SUBMITTED]: NotificationGroups.STATUS,
+  [NotificationTypes.CHARITY_CONTRIBUTION_DECIDED]: NotificationGroups.STATUS,
+  [NotificationTypes.CHARITY_DELIVERY_COMPLETED]: NotificationGroups.STATUS,
+  [NotificationTypes.CHARITY_DELIVERY_CANCELLED]: NotificationGroups.STATUS,
 
   // ── Tích điểm: điểm vào sổ ───────────────────────────────────────────────
   // Giới thiệu hợp lệ xếp vào TÍCH ĐIỂM chứ không THƯỞNG: nội dung thông báo là

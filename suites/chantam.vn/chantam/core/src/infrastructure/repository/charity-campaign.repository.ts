@@ -1514,8 +1514,10 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       // Từ chối hàng loạt đề nghị đang chờ (§8), từng dòng nhận 0 với lý do
       // `CAMPAIGN_CLOSED` — cùng hình dạng với một lượt từ chối bằng tay, nên danh sách
       // của người tặng đọc nó y như mọi lượt từ chối khác.
-      const pending = await manager.query<{ global_id: string }[]>(
-        `SELECT global_id FROM campaign_contributions
+      const pending = await manager.query<
+        { global_id: string; contributor_id: string }[]
+      >(
+        `SELECT global_id, contributor_id FROM campaign_contributions
          WHERE campaign_id = $1 AND status = 'PENDING_REVIEW'
          ORDER BY id
          FOR UPDATE`,
@@ -1550,6 +1552,10 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       return {
         campaignId: params.campaignId,
         rejectedContributions: pendingIds.length,
+        rejected: pending.map((row) => ({
+          contributionId: row.global_id,
+          contributorId: row.contributor_id,
+        })),
         openDeliveries: Number(open.count),
       };
     });

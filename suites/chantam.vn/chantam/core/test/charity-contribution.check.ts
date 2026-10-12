@@ -113,7 +113,15 @@ async function main(): Promise<void> {
       entitlements,
       adminConfig,
     );
-    const submit = new SubmitCharityContributionUseCase(repo);
+    // Notifier câm: script này đo dữ liệu, còn nội dung và việc nối thông báo có phép
+    // kiểm riêng ở `charity.notifier.spec.ts` và spec use case.
+    const silent = {
+      contributionSubmitted: async () => undefined,
+      contributionDecided: async () => undefined,
+      deliveryCompleted: async () => undefined,
+      deliveryCancelled: async () => undefined,
+    } as never;
+    const submit = new SubmitCharityContributionUseCase(repo, silent);
     const needsView = new GetCampaignNeedsUseCase(repo);
 
     for (const [id, name, rank] of [

@@ -1882,7 +1882,12 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
   qua — đó cũng là thứ phân biệt nó với "đình chỉ". Đề nghị đang chờ bị từ chối với
   `CAMPAIGN_CLOSED`; lượt giao nhận đang chạy **không** bị huỷ và vẫn hoàn tất được.
 
-- Chưa có: thông báo cho người tặng, vai coordinator, cờ cho phép vượt mục tiêu, gia hạn chiến
+- **Thông báo** (nhóm `STATUS`, tắt được cùng vòng đời yêu cầu xin đồ): người tổ chức nhận
+  `CHARITY_CONTRIBUTION_SUBMITTED`; người tặng nhận `CHARITY_CONTRIBUTION_DECIDED` (kể cả khi
+  hoạt động đóng) và `CHARITY_DELIVERY_COMPLETED`; huỷ lượt giao thì `CHARITY_DELIVERY_CANCELLED`
+  đi tới bên KIA.
+
+- Chưa có: vai coordinator, cờ cho phép vượt mục tiêu, gia hạn chiến
   dịch, và chỗ lưu dữ liệu riêng tư của người thụ hưởng. Xem
   [§12](./plan/CHARITY-CONTRIBUTION-DESIGN.md#12-tiến-độ-triển-khai).
 

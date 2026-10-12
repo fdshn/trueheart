@@ -53,6 +53,7 @@ import {
   UpdateCharityContributionUseCase,
   UpdateCharityProgressUseCase,
 } from './charity-campaign.use-cases';
+import { CharityNotifier } from './charity.notifier';
 
 /**
  * `@Global()` như mọi feature module khác của tầng application.
@@ -65,6 +66,7 @@ import {
 @Global()
 @Module({
   providers: [
+    CharityNotifier,
     {
       provide: ICreateCharityCampaignUseCase,
       useClass: CreateCharityCampaignUseCase,

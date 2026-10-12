@@ -112,6 +112,7 @@ import {
   ValidationFailedException,
 } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
+import { CharityNotifier } from './charity.notifier';
 
 /**
  * Quyền Admin đọc và quyền Admin ghi.
@@ -419,6 +420,7 @@ export class SubmitCharityContributionUseCase implements ISubmitCharityContribut
   public constructor(
     @Inject(ICharityCampaignRepository)
     private readonly repository: ICharityCampaignRepository,
+    private readonly notifier: CharityNotifier,
   ) {}
 
   public async handle(
@@ -452,7 +454,7 @@ export class SubmitCharityContributionUseCase implements ISubmitCharityContribut
     if (new Set(requested).size !== requested.length)
       throw new CharityNeedItemInvalidException();
 
-    return this.repository.createContribution({
+    const contribution = await this.repository.createContribution({
       campaignId: campaign.globalId,
       contributorId: command.contributorId,
       note: command.note?.trim() ?? null,
@@ -463,6 +465,13 @@ export class SubmitCharityContributionUseCase implements ISubmitCharityContribut
         conditionNote: item.conditionNote?.trim() ?? null,
       })),
     });
+
+    await this.notifier.contributionSubmitted({
+      organizerId: campaign.createdBy,
+      campaignTitle: campaign.title,
+      contribution,
+    });
+    return contribution;
   }
 }
 
@@ -591,17 +600,32 @@ export class DecideCharityContributionUseCase implements IDecideCharityContribut
   public constructor(
     @Inject(ICharityCampaignRepository)
     private readonly repository: ICharityCampaignRepository,
+    private readonly notifier: CharityNotifier,
   ) {}
 
   public async handle(
     command: IDecideCharityContributionCommand,
   ): Promise<IDecideCharityContributionResult> {
-    return this.repository.decideContribution({
+    const result = await this.repository.decideContribution({
       contributionId: command.contributionId,
       organizerId: command.organizerId,
       decisionKey: command.decisionKey,
       decisions: command.decisions,
     });
+
+    // Retry cùng khoá KHÔNG báo lại: người tặng đã nhận thông báo ở lượt đầu, và
+    // khoá chống trùng của thông báo cũng chặn — nhưng không gọi thì khỏi một lượt
+    // đọc chiến dịch vô ích.
+    if (!result.replayed) {
+      const campaign = await this.repository.findByGlobalId(
+        result.contribution.campaignId,
+      );
+      await this.notifier.contributionDecided({
+        campaignTitle: campaign?.title ?? 'hoạt động từ thiện',
+        contribution: result.contribution,
+      });
+    }
+    return result;
   }
 }
 
@@ -610,12 +634,19 @@ export class CompleteCharityDeliveryUseCase implements ICompleteCharityDeliveryU
   public constructor(
     @Inject(ICharityCampaignRepository)
     private readonly repository: ICharityCampaignRepository,
+    private readonly notifier: CharityNotifier,
   ) {}
 
   public async handle(
     command: ICompleteCharityDeliveryCommand,
   ): Promise<ICharityDelivery> {
-    return this.repository.completeDelivery(command);
+    const delivery = await this.repository.completeDelivery(command);
+    const campaign = await this.repository.findByGlobalId(delivery.campaignId);
+    await this.notifier.deliveryCompleted({
+      campaignTitle: campaign?.title ?? 'hoạt động từ thiện',
+      delivery,
+    });
+    return delivery;
   }
 }
 
@@ -624,6 +655,7 @@ export class CancelCharityDeliveryUseCase implements ICancelCharityDeliveryUseCa
   public constructor(
     @Inject(ICharityCampaignRepository)
     private readonly repository: ICharityCampaignRepository,
+    private readonly notifier: CharityNotifier,
   ) {}
 
   public async handle(
@@ -637,11 +669,18 @@ export class CancelCharityDeliveryUseCase implements ICancelCharityDeliveryUseCa
         'Huỷ lượt giao nhận phải có lý do',
       );
 
-    return this.repository.cancelDelivery({
+    const delivery = await this.repository.cancelDelivery({
       deliveryId: command.deliveryId,
       actorUserId: command.actorUserId,
       reason,
     });
+    const campaign = await this.repository.findByGlobalId(delivery.campaignId);
+    await this.notifier.deliveryCancelled({
+      campaignTitle: campaign?.title ?? 'hoạt động từ thiện',
+      delivery,
+      cancelledBy: command.actorUserId,
+    });
+    return delivery;
   }
 }
 
@@ -772,6 +811,7 @@ export class CloseCharityCampaignUseCase implements ICloseCharityCampaignUseCase
     private readonly repository: ICharityCampaignRepository,
     @Inject(IAdminConfigRepository)
     private readonly admin: IAdminConfigRepository,
+    private readonly notifier: CharityNotifier,
   ) {}
 
   public async handle(
@@ -787,10 +827,21 @@ export class CloseCharityCampaignUseCase implements ICloseCharityCampaignUseCase
     )
       throw new CharityNotOrganizerException();
 
-    return this.repository.closeCampaign({
+    const result = await this.repository.closeCampaign({
       campaignId: campaign.globalId,
       actorUserId: command.actorUserId,
     });
+    for (const rejected of result.rejected)
+      await this.notifier.contributionDecided({
+        campaignTitle: campaign.title,
+        contribution: {
+          globalId: rejected.contributionId,
+          contributorId: rejected.contributorId,
+          status: 'REJECTED',
+        },
+        byClosing: true,
+      });
+    return result;
   }
 }
 

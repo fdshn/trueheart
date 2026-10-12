@@ -348,10 +348,13 @@ cần deploy.
 | D | `campaign_external_contributions` (ghi nhận + điều chỉnh có audit), `POST /charity-campaigns/:id/close` | ✅ 12/10 |
 | E | Acceptance tests cho 12 tiêu chí §11, trên Postgres thật | ✅ 12/10 — `npm run test:charity-contribution`, 41 phép kiểm |
 
-**Năm việc CỐ Ý chưa làm**, ghi ra để không ai tưởng là có:
+**Năm việc chưa làm lúc xong lát E** — tick dần ở đây:
 
-- **Thông báo.** Người tặng chưa được báo khi đề nghị được quyết, lượt giao được hoàn
-  tất hay bị huỷ. Cần thêm loại thông báo vào nhóm `CONTACT`/`STATUS` của F45.
+- ~~**Thông báo.**~~ ✅ **Xong 12/10.** Bốn loại trong nhóm `STATUS`:
+  `CHARITY_CONTRIBUTION_SUBMITTED` (cho người tổ chức), `CHARITY_CONTRIBUTION_DECIDED`
+  (cho người tặng — nói rõ nhận đủ/một phần/không nhận, và cả khi bị từ chối vì hoạt động
+  ĐÓNG), `CHARITY_DELIVERY_COMPLETED`, `CHARITY_DELIVERY_CANCELLED` (cho BÊN KIA). Gửi sau
+  commit, nuốt lỗi, retry cùng khoá quyết định không báo lại.
 - **Coordinator** (§2) chưa có: chỉ người tạo hoạt động quyết được. Cần một bảng giao
   quyền; `organizer_id` trên lượt giao nhận đã đúng chỗ để đón nó.
 - **Cờ "cho phép vượt mục tiêu"** (§5 nói *"nếu chiến dịch không cho vượt"*) không có

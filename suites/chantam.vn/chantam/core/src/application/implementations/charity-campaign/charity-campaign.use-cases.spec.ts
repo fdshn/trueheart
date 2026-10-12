@@ -131,6 +131,16 @@ function makeEntitlements(
   } as unknown as jest.Mocked<IEntitlementRepository>;
 }
 
+/** Notifier giả: phép kiểm từng câu thông báo nằm ở `charity.notifier.spec.ts`. */
+function makeNotifier() {
+  return {
+    contributionSubmitted: jest.fn(async () => undefined),
+    contributionDecided: jest.fn(async () => undefined),
+    deliveryCompleted: jest.fn(async () => undefined),
+    deliveryCancelled: jest.fn(async () => undefined),
+  } as never;
+}
+
 function makeAdmin(granted: boolean) {
   return {
     hasPermission: jest.fn().mockResolvedValue(granted),
@@ -730,7 +740,10 @@ describe('SubmitCharityContributionUseCase (F65b §4)', () => {
   it('gửi được, và ghi đúng dòng người tặng chọn', async () => {
     const repository = makeSubmitRepo();
 
-    await new SubmitCharityContributionUseCase(repository).handle({
+    await new SubmitCharityContributionUseCase(
+      repository,
+      makeNotifier(),
+    ).handle({
       campaignId: CampaignId,
       contributorId: ActorId,
       note: '  Em xin gửi ạ  ',
@@ -755,7 +768,7 @@ describe('SubmitCharityContributionUseCase (F65b §4)', () => {
     });
 
     await expect(
-      new SubmitCharityContributionUseCase(repository).handle({
+      new SubmitCharityContributionUseCase(repository, makeNotifier()).handle({
         campaignId: CampaignId,
         contributorId: ActorId,
         items: [{ needItemId: Need, offeredQuantity: 50 }],
@@ -777,7 +790,7 @@ describe('SubmitCharityContributionUseCase (F65b §4)', () => {
     });
 
     await expect(
-      new SubmitCharityContributionUseCase(repository).handle({
+      new SubmitCharityContributionUseCase(repository, makeNotifier()).handle({
         campaignId: CampaignId,
         contributorId: ActorId,
         items: [{ needItemId: Need, offeredQuantity: 50 }],
@@ -798,7 +811,7 @@ describe('SubmitCharityContributionUseCase (F65b §4)', () => {
     });
 
     await expect(
-      new SubmitCharityContributionUseCase(repository).handle({
+      new SubmitCharityContributionUseCase(repository, makeNotifier()).handle({
         campaignId: CampaignId,
         contributorId: ActorId,
         items: [{ needItemId: Need, offeredQuantity: 50 }],
@@ -812,7 +825,7 @@ describe('SubmitCharityContributionUseCase (F65b §4)', () => {
     const repository = makeSubmitRepo();
 
     await expect(
-      new SubmitCharityContributionUseCase(repository).handle({
+      new SubmitCharityContributionUseCase(repository, makeNotifier()).handle({
         campaignId: CampaignId,
         contributorId: ActorId,
         items: [
@@ -832,7 +845,7 @@ describe('SubmitCharityContributionUseCase (F65b §4)', () => {
     });
 
     await expect(
-      new SubmitCharityContributionUseCase(repository).handle({
+      new SubmitCharityContributionUseCase(repository, makeNotifier()).handle({
         campaignId: CampaignId,
         contributorId: ActorId,
         items: [{ needItemId: Need, offeredQuantity: 50 }],
@@ -846,7 +859,7 @@ describe('SubmitCharityContributionUseCase (F65b §4)', () => {
     const repository = makeSubmitRepo();
 
     await expect(
-      new SubmitCharityContributionUseCase(repository).handle({
+      new SubmitCharityContributionUseCase(repository, makeNotifier()).handle({
         campaignId: CampaignId,
         contributorId: ActorId,
         items: [
@@ -1088,7 +1101,7 @@ describe('Lát C — tầng ứng dụng (F65b §5–§6)', () => {
     );
 
     await expect(
-      new SubmitCharityContributionUseCase(repository).handle({
+      new SubmitCharityContributionUseCase(repository, makeNotifier()).handle({
         campaignId: CampaignId,
         contributorId: ActorId,
         items: [{ needItemId: Need, offeredQuantity: 5 }],
@@ -1114,17 +1127,26 @@ describe('Lát C — tầng ứng dụng (F65b §5–§6)', () => {
       decisions: [{ contributionItemId: 'item-1', acceptedQuantity: 5 }],
     };
 
-    await new DecideCharityContributionUseCase(repository).handle(command);
+    await new DecideCharityContributionUseCase(
+      repository,
+      makeNotifier(),
+    ).handle(command);
 
     expect(repository.decideContribution).toHaveBeenCalledWith(command);
-    expect(repository.findByGlobalId).not.toHaveBeenCalled();
+    // Từ lát thông báo, use case CÓ đọc chiến dịch — để lấy tiêu đề cho câu thông
+    // báo, SAU khi lượt quyết đã commit. Điều phép kiểm này canh là không có lượt đọc
+    // nào ĐỨNG TRƯỚC để kiểm quyền ngoài transaction.
+    for (const order of repository.findByGlobalId.mock.invocationCallOrder)
+      expect(order).toBeGreaterThan(
+        repository.decideContribution.mock.invocationCallOrder[0],
+      );
   });
 
   it('huỷ mà lý do chỉ có khoảng trắng thì bị chặn trước khi ghi', async () => {
     const repository = makeRepository();
 
     await expect(
-      new CancelCharityDeliveryUseCase(repository).handle({
+      new CancelCharityDeliveryUseCase(repository, makeNotifier()).handle({
         deliveryId: 'delivery-1',
         actorUserId: ActorId,
         reason: '   ',
@@ -1137,7 +1159,7 @@ describe('Lát C — tầng ứng dụng (F65b §5–§6)', () => {
     const repository = makeRepository();
     repository.cancelDelivery.mockResolvedValue(delivery() as never);
 
-    await new CancelCharityDeliveryUseCase(repository).handle({
+    await new CancelCharityDeliveryUseCase(repository, makeNotifier()).handle({
       deliveryId: 'delivery-1',
       actorUserId: ActorId,
       reason: '  Không sắp xếp được  ',
@@ -1188,10 +1210,15 @@ describe('Lát D — ngoài app và đóng chiến dịch (F65b §7–§8)', () 
       campaignId: CampaignId,
       rejectedContributions: 2,
       openDeliveries: 1,
+      rejected: [],
     });
     const admin = makeAdmin(false);
 
-    await new CloseCharityCampaignUseCase(repository, admin).handle({
+    await new CloseCharityCampaignUseCase(
+      repository,
+      admin,
+      makeNotifier(),
+    ).handle({
       campaignId: CampaignId,
       actorUserId: ActorId,
     });
@@ -1212,9 +1239,14 @@ describe('Lát D — ngoài app và đóng chiến dịch (F65b §7–§8)', () 
       campaignId: CampaignId,
       rejectedContributions: 0,
       openDeliveries: 0,
+      rejected: [],
     });
 
-    await new CloseCharityCampaignUseCase(repository, makeAdmin(true)).handle({
+    await new CloseCharityCampaignUseCase(
+      repository,
+      makeAdmin(true),
+      makeNotifier(),
+    ).handle({
       campaignId: CampaignId,
       actorUserId: ActorId,
     });
@@ -1229,7 +1261,11 @@ describe('Lát D — ngoài app và đóng chiến dịch (F65b §7–§8)', () 
     );
 
     await expect(
-      new CloseCharityCampaignUseCase(repository, makeAdmin(false)).handle({
+      new CloseCharityCampaignUseCase(
+        repository,
+        makeAdmin(false),
+        makeNotifier(),
+      ).handle({
         campaignId: CampaignId,
         actorUserId: ActorId,
       }),
@@ -1278,5 +1314,118 @@ describe('Lát D — ngoài app và đóng chiến dịch (F65b §7–§8)', () 
         reason: 'Đếm lại',
       }),
     ).rejects.toBeInstanceOf(CharityLinesInvalidException);
+  });
+});
+
+describe('Thông báo được NỐI vào đúng đường (F65b)', () => {
+  function notifier() {
+    return {
+      contributionSubmitted: jest.fn(async () => undefined),
+      contributionDecided: jest.fn(async () => undefined),
+      deliveryCompleted: jest.fn(async () => undefined),
+      deliveryCancelled: jest.fn(async () => undefined),
+    };
+  }
+
+  it('quyết định MỚI báo người tặng; retry cùng khoá thì KHÔNG báo lại', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(campaign());
+    const fresh = notifier();
+    repository.decideContribution.mockResolvedValue({
+      contribution: { campaignId: CampaignId } as never,
+      delivery: null,
+      replayed: false,
+    });
+    const command = {
+      contributionId: 'c-1',
+      organizerId: OrganizerId,
+      decisionKey: 'khoa-12345678',
+      decisions: [],
+    };
+
+    await new DecideCharityContributionUseCase(
+      repository,
+      fresh as never,
+    ).handle(command);
+    expect(fresh.contributionDecided).toHaveBeenCalledTimes(1);
+
+    const retried = notifier();
+    repository.decideContribution.mockResolvedValue({
+      contribution: { campaignId: CampaignId } as never,
+      delivery: null,
+      replayed: true,
+    });
+    await new DecideCharityContributionUseCase(
+      repository,
+      retried as never,
+    ).handle(command);
+    expect(retried.contributionDecided).not.toHaveBeenCalled();
+  });
+
+  it('đóng chiến dịch báo TỪNG người bị từ chối, đánh dấu là do đóng', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: ActorId }),
+    );
+    repository.closeCampaign.mockResolvedValue({
+      campaignId: CampaignId,
+      rejectedContributions: 2,
+      openDeliveries: 0,
+      rejected: [
+        { contributionId: 'c-1', contributorId: 'g-1' },
+        { contributionId: 'c-2', contributorId: 'g-2' },
+      ],
+    });
+    const sent = notifier();
+
+    await new CloseCharityCampaignUseCase(
+      repository,
+      makeAdmin(false),
+      sent as never,
+    ).handle({ campaignId: CampaignId, actorUserId: ActorId });
+
+    expect(sent.contributionDecided).toHaveBeenCalledTimes(2);
+    expect(sent.contributionDecided).toHaveBeenCalledWith(
+      expect.objectContaining({
+        byClosing: true,
+        contribution: expect.objectContaining({ contributorId: 'g-2' }),
+      }),
+    );
+  });
+
+  it('gửi đề nghị báo NGƯỜI TỔ CHỨC của hoạt động', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({
+        approvalStatus: 'APPROVED',
+        isActive: true,
+        endTime: new Date(Date.now() + 7 * 24 * Hour),
+        createdBy: OrganizerId,
+      }),
+    );
+    repository.listNeeds.mockResolvedValue([
+      {
+        globalId: 'need-1',
+        isActive: true,
+      } as never,
+    ]);
+    repository.createContribution.mockResolvedValue({
+      globalId: 'c-1',
+      items: [{}],
+    } as never);
+    const sent = notifier();
+
+    await new SubmitCharityContributionUseCase(
+      repository,
+      sent as never,
+    ).handle({
+      campaignId: CampaignId,
+      contributorId: ActorId,
+      items: [{ needItemId: 'need-1', offeredQuantity: 1 }],
+    });
+
+    expect(sent.contributionSubmitted).toHaveBeenCalledWith(
+      expect.objectContaining({ organizerId: OrganizerId }),
+    );
   });
 });

@@ -271,6 +271,11 @@ export interface ICloseCampaignResult {
   readonly campaignId: string;
   /** Số đề nghị đang chờ bị từ chối với lý do `CAMPAIGN_CLOSED` (§8). */
   readonly rejectedContributions: number;
+  /** Ai bị từ chối — để báo cho từng người. Một lý do họ không gây ra vẫn phải được nói. */
+  readonly rejected: readonly {
+    contributionId: string;
+    contributorId: string;
+  }[];
   /** Lượt giao nhận còn đang chạy — KHÔNG bị huỷ, vẫn hoàn tất được (§8, §11.5). */
   readonly openDeliveries: number;
 }
