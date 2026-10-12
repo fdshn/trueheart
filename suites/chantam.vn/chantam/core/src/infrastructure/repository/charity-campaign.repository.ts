@@ -3,6 +3,8 @@ import {
   CharityCampaignNotClosableException,
   CharityCampaignNotExtendableException,
   CharityCampaignNotFoundException,
+  CharityMediaInvalidException,
+  CharityMediaNotEditableException,
   CharityContributionAlreadyDecidedException,
   CharityContributionNotFoundException,
   CharityDeliveryInvalidStateException,
@@ -21,6 +23,8 @@ import {
   ICharityBeneficiary,
   ICharityBeneficiaryInput,
   ICharityCampaign,
+  ICharityCampaignMedia,
+  ICharityCampaignMediaParams,
   ICharityCampaignPage,
   ICharityCampaignRepository,
   ICharityContribution,
@@ -55,6 +59,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
 import { updateReturning } from './update-returning';
+import { isUniqueViolation } from './unique-violation';
 
 interface IRow {
   global_id: string;
@@ -79,6 +84,7 @@ interface IRow {
   created_at: Date;
   updated_at: Date;
   participant_count: string | number;
+  media: ICharityCampaignMedia[] | null;
   campaign_type: string;
   beneficiary_relation: string | null;
   allow_over_target: boolean;
@@ -258,7 +264,18 @@ const Columns = `campaigns.global_id, campaigns.title, campaigns.slug, campaigns
        campaigns.allow_over_target,
        (SELECT count(*) FROM campaign_participations participation
          WHERE participation.campaign_id = campaigns.global_id
-           AND participation.status = 'REGISTERED') AS participant_count`;
+           AND participation.status = 'REGISTERED') AS participant_count,
+       COALESCE(
+         (SELECT json_agg(json_build_object(
+                   'url', media.public_url,
+                   'type', media.media_type,
+                   'sortOrder', media.sort_order,
+                   'isCover', media.is_cover
+                 ) ORDER BY media.sort_order)
+            FROM campaign_media media
+           WHERE media.campaign_id = campaigns.global_id),
+         '[]'::json
+       ) AS media`;
 
 /** Mảnh `location` dựng từ hai tham số, hoặc `NULL` khi hoạt động không gắn toạ độ. */
 const LocationExpression = `CASE
@@ -303,6 +320,7 @@ function toCampaign(row: IRow): ICharityCampaign {
     // `count(*)` về đây là CHUỖI. Trả thẳng ra API thì client nhận `"3"` và mọi phép
     // so sánh số ở đó đều sai một cách im lặng.
     participantCount: Number(row.participant_count),
+    media: row.media ?? [],
   };
 }
 
@@ -328,7 +346,19 @@ function phaseFilter(phase: CharityCampaignPhase | undefined): string {
   return '';
 }
 
-/** Hoạt động hiện được ra ngoài: đã duyệt, còn bật, chưa xoá. */
+function isMediaKeyTaken(error: unknown): boolean {
+  const candidate = error as {
+    constraint?: string;
+    driverError?: { constraint?: string };
+  };
+  return (
+    isUniqueViolation(error) &&
+    (candidate?.constraint ?? candidate?.driverError?.constraint) ===
+      'UQ_campaign_media_storage_key'
+  );
+}
+
+
 const PublicFilter = `campaigns.approval_status = 'APPROVED'
       AND campaigns.is_active
       AND campaigns.deleted_at IS NULL`;
@@ -347,22 +377,30 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
   public async create(
     params: ICreateCharityCampaignParams,
   ): Promise<ICharityCampaign> {
-    // Hoạt động và bảng nhu cầu ghi trong MỘT transaction (F65b §3). Hai lượt ghi
-    // rời sẽ để lại một kêu gọi công khai không nói cần gì, nếu lượt thứ hai hỏng
-    // — và với quyền public-ngay thì nó công khai thật, không chờ ai đọc lại.
-    return this.manager.transaction(async (manager) => {
-      const campaign = await this.insertCampaign(manager, params);
-      if (params.needs.length > 0)
-        await this.insertNeeds(manager, campaign.globalId, params.needs);
-      if (params.beneficiary)
-        await this.writeBeneficiary(
-          manager,
-          campaign.globalId,
-          params.createdBy,
-          params.beneficiary,
+    try {
+      return await this.manager.transaction(async (manager) => {
+        const campaign = await this.insertCampaign(manager, params);
+        if (params.needs.length > 0)
+          await this.insertNeeds(manager, campaign.globalId, params.needs);
+        if (params.beneficiary)
+          await this.writeBeneficiary(
+            manager,
+            campaign.globalId,
+            params.createdBy,
+            params.beneficiary,
+          );
+        if (params.media.length === 0) return campaign;
+
+        await this.insertMedia(manager, campaign.globalId, params.media);
+        return this.readCampaign(manager, campaign.globalId);
+      });
+    } catch (error) {
+      if (isMediaKeyTaken(error))
+        throw new CharityMediaInvalidException(
+          'Một key trong media đã thuộc hoạt động khác — hãy tải lên ảnh mới',
         );
-      return campaign;
-    });
+      throw error;
+    }
   }
 
   private async insertCampaign(
@@ -450,6 +488,81 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         needs.map((need) => need.sortOrder),
       ],
     );
+  }
+
+  private async insertMedia(
+    manager: EntityManager,
+    campaignId: string,
+    media: readonly ICharityCampaignMediaParams[],
+  ): Promise<void> {
+    await manager.query(
+      `INSERT INTO campaign_media
+         (campaign_id, storage_key, public_url, media_type, sort_order, is_cover)
+       SELECT $1, item.storage_key, item.public_url, item.media_type,
+              item.sort_order, item.is_cover
+       FROM UNNEST($2::text[], $3::text[], $4::text[], $5::int[], $6::boolean[])
+         AS item(storage_key, public_url, media_type, sort_order, is_cover)`,
+      [
+        campaignId,
+        media.map((item) => item.storageKey),
+        media.map((item) => item.publicUrl),
+        media.map((item) => item.mediaType),
+        media.map((item) => item.sortOrder),
+        media.map((item) => item.isCover),
+      ],
+    );
+  }
+
+  private async readCampaign(
+    manager: EntityManager,
+    campaignId: string,
+  ): Promise<ICharityCampaign> {
+    const [row] = await manager.query<IRow[]>(
+      `SELECT ${Columns} FROM campaigns WHERE campaigns.global_id = $1`,
+      [campaignId],
+    );
+    return toCampaign(row);
+  }
+
+  public async replaceMedia(params: {
+    campaignId: string;
+    actorUserId: string;
+    media: readonly ICharityCampaignMediaParams[];
+    bannerUrl: string;
+  }): Promise<ICharityCampaign> {
+    try {
+      return await this.manager.transaction(async (manager) => {
+        const [locked] = await manager.query<
+          { created_by: string | null; approval_status: string }[]
+        >(
+          `SELECT created_by, approval_status FROM campaigns
+            WHERE global_id = $1 AND deleted_at IS NULL
+            FOR UPDATE`,
+          [params.campaignId],
+        );
+        if (!locked) throw new CharityCampaignNotFoundException();
+        if (locked.created_by !== params.actorUserId)
+          throw new CharityNotOrganizerException();
+        if (locked.approval_status !== 'PENDING_APPROVAL')
+          throw new CharityMediaNotEditableException();
+
+        await manager.query(`DELETE FROM campaign_media WHERE campaign_id = $1`, [
+          params.campaignId,
+        ]);
+        await this.insertMedia(manager, params.campaignId, params.media);
+        await manager.query(
+          `UPDATE campaigns SET banner_url = $2, updated_at = now() WHERE global_id = $1`,
+          [params.campaignId, params.bannerUrl],
+        );
+        return this.readCampaign(manager, params.campaignId);
+      });
+    } catch (error) {
+      if (isMediaKeyTaken(error))
+        throw new CharityMediaInvalidException(
+          'Một key trong media đã thuộc hoạt động khác — hãy tải lên ảnh mới',
+        );
+      throw error;
+    }
   }
 
   public async listNeeds(campaignId: string): Promise<ICharityNeedItem[]> {

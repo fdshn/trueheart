@@ -75,6 +75,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     createdAt: new Date(),
     updatedAt: new Date(),
     participantCount: 0,
+    media: [],
     campaignType: 'ORGANIZED_CAMPAIGN' as const,
     beneficiaryRelation: null,
     allowOverTarget: false,
@@ -85,6 +86,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
 function makeRepository(): jest.Mocked<ICharityCampaignRepository> {
   return {
     create: jest.fn(),
+    replaceMedia: jest.fn(),
     slugTaken: jest.fn().mockResolvedValue(false),
     findByGlobalId: jest.fn(),
     findPublicByIdOrSlug: jest.fn(),

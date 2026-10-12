@@ -133,3 +133,13 @@ export class CharityBeneficiaryNotApplicableException extends ExceptionFrom(
 export class CharityBeneficiaryConsentRequiredException extends ExceptionFrom(
   CoreErrors.CHARITY_BENEFICIARY_CONSENT_REQUIRED,
 ) {}
+
+/** Bộ media sai hình dạng/loại, hoặc có key đã thuộc hoạt động khác. Nhận chi tiết lỗi. */
+export class CharityMediaInvalidException extends ExceptionFrom(
+  CoreErrors.CHARITY_MEDIA_INVALID,
+) {}
+
+/** Hồ sơ đã qua bước duyệt — media khoá lại (spec D4). */
+export class CharityMediaNotEditableException extends ExceptionFrom(
+  CoreErrors.CHARITY_MEDIA_NOT_EDITABLE,
+) {}

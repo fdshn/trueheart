@@ -6,12 +6,30 @@ import {
   CharityParticipationStatus,
   CharityRejectionReason,
   CharityReviewRole,
+  CharityMediaType,
 } from '@chantam.vn/chantam.core-lib/models';
 
 /** Lọc theo pha thời gian trên đường công khai. */
 export const CharityCampaignPhases = ['UPCOMING', 'ONGOING', 'ENDED'] as const;
 
 export type CharityCampaignPhase = (typeof CharityCampaignPhases)[number];
+
+/** Một ảnh/video của hoạt động như API trả ra. Không lộ storage key. */
+export interface ICharityCampaignMedia {
+  readonly url: string;
+  readonly type: CharityMediaType;
+  readonly sortOrder: number;
+  readonly isCover: boolean;
+}
+
+/** Một dòng `campaign_media` sẵn sàng ghi — đã qua HeadObject và luật bộ media. */
+export interface ICharityCampaignMediaParams {
+  readonly storageKey: string;
+  readonly publicUrl: string;
+  readonly mediaType: CharityMediaType;
+  readonly sortOrder: number;
+  readonly isCover: boolean;
+}
 
 export interface ICharityCampaign {
   readonly globalId: string;
@@ -49,6 +67,11 @@ export interface ICharityCampaign {
    * Xem docblock migration `1798200000000`: mọi cột đếm lưu sẵn trong hệ này đã từng lệch.
    */
   readonly participantCount: number;
+  /**
+   * Ảnh/video theo thứ tự hiển thị. Rỗng với hoạt động tạo trước khi có media —
+   * những hoạt động đó vẫn có `bannerUrl` cũ.
+   */
+  readonly media: readonly ICharityCampaignMedia[];
   readonly campaignType: CharityCampaignType;
   /** Chỉ `INDIVIDUAL_APPEAL` có; database canh bằng CHECK nối hai cột. */
   readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
@@ -145,6 +168,8 @@ export interface ICreateCharityCampaignParams {
    * và §10 nói giữ nguyên hành vi legacy cho những hoạt động đó.
    */
   readonly needs: readonly ICreateCharityNeedItemParams[];
+  /** Ghi TRONG CÙNG transaction với hoạt động — hồ sơ vào hàng chờ duyệt luôn đủ ảnh. */
+  readonly media: readonly ICharityCampaignMediaParams[];
 }
 
 export interface ICharityContributionItem {
@@ -329,6 +354,22 @@ export interface ICharityCampaignPage {
 
 export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart {
   create(params: ICreateCharityCampaignParams): Promise<ICharityCampaign>;
+
+  /**
+   * Thay CẢ BỘ media và `banner_url` của một hồ sơ còn chờ duyệt.
+   *
+   * Kiểm người tạo và trạng thái DƯỚI KHOÁ dòng: Admin duyệt chen giữa thì lượt thay
+   * phải thua, không được ghi media vào một hồ sơ đã công khai.
+   *
+   * @throws CharityCampaignNotFoundException, CharityNotOrganizerException,
+   *   CharityMediaNotEditableException, CharityMediaInvalidException (key đã thuộc hoạt động khác)
+   */
+  replaceMedia(params: {
+    campaignId: string;
+    actorUserId: string;
+    media: readonly ICharityCampaignMediaParams[];
+    bannerUrl: string;
+  }): Promise<ICharityCampaign>;
 
   slugTaken(slug: string): Promise<boolean>;
 
