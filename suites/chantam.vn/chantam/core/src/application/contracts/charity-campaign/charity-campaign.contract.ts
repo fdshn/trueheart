@@ -1,9 +1,14 @@
 import {
   CharityCampaignPhase,
   ICharityCampaign,
+  ICharityNeedsView,
   ICharityReview,
 } from '@/domain/ports/repository';
-import { CharityApprovalStatus } from '@chantam.vn/chantam.core-lib/models';
+import {
+  CharityApprovalStatus,
+  CharityBeneficiaryRelation,
+  CharityCampaignType,
+} from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 
 export interface ICharityCampaignView extends ICharityCampaign {
@@ -23,6 +28,15 @@ export interface ICharityCampaignPageResult {
 }
 
 /** Thân chung cho cả hai đường tạo (thành viên và Admin). */
+export interface ICharityNeedItemInput {
+  readonly categoryId?: string;
+  readonly itemName: string;
+  readonly description?: string;
+  readonly unit: string;
+  readonly targetQuantity: number;
+  readonly allowAlternative?: boolean;
+}
+
 export interface ICharityCampaignWriteInput {
   readonly title: string;
   readonly slug?: string;
@@ -37,7 +51,24 @@ export interface ICharityCampaignWriteInput {
   readonly endTime: string;
 }
 
-export interface ICreateCharityCampaignCommand extends ICharityCampaignWriteInput {
+export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput {
+  /**
+   * Loại hoạt động (F65b §1). Quyết định capability nào gác lượt tạo, và có phải
+   * khai quan hệ với người thụ hưởng hay không.
+   */
+  readonly campaignType: CharityCampaignType;
+  /** Bắt buộc với `INDIVIDUAL_APPEAL`, phải bỏ trống với `ORGANIZED_CAMPAIGN`. */
+  readonly beneficiaryRelation?: CharityBeneficiaryRelation;
+  /**
+   * Bảng nhu cầu vật phẩm, ghi cùng transaction với hoạt động.
+   *
+   * Bỏ trống là hợp lệ — hoạt động chỉ nhận đăng ký tham dự thì không có nhu cầu
+   * vật phẩm nào, và §10 nói giữ nguyên hành vi legacy cho những hoạt động đó.
+   */
+  readonly needs?: readonly ICharityNeedItemInput[];
+}
+
+export interface ICreateCharityCampaignCommand extends ICreateCharityCampaignInput {
   readonly actorUserId: string;
   /**
    * `true` khi lượt tạo đi qua đường Admin.
@@ -47,6 +78,27 @@ export interface ICreateCharityCampaignCommand extends ICharityCampaignWriteInpu
    */
   readonly asAdmin: boolean;
 }
+
+export interface IGetCampaignNeedsCommand {
+  /** uuid canonical hoặc slug — cùng lối với `GET /campaigns/:idOrSlug`. */
+  readonly idOrSlug: string;
+  /**
+   * Người gọi, `null` khi chưa đăng nhập.
+   *
+   * Hiện chỉ dùng để quyết có thấy được chiến dịch CHƯA duyệt hay không: chủ sở
+   * hữu đọc được bảng nhu cầu của hồ sơ mình đang chờ duyệt, người ngoài thì không.
+   */
+  readonly viewerUserId: string | null;
+}
+
+export type IGetCampaignNeedsResult = ICharityNeedsView;
+
+export interface IGetCampaignNeedsUseCase extends IUseCase<
+  IGetCampaignNeedsCommand,
+  IGetCampaignNeedsResult
+> {}
+
+export const IGetCampaignNeedsUseCase = Symbol('IGetCampaignNeedsUseCase');
 
 export interface ICreateCharityCampaignUseCase extends IUseCase<
   ICreateCharityCampaignCommand,

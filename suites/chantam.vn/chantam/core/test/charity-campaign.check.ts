@@ -127,6 +127,9 @@ const Hour = 3_600_000;
 function writeInput(overrides: Record<string, unknown> = {}) {
   const start = new Date(Date.now() + 24 * Hour);
   return {
+    // Hoạt động có tổ chức: loại duy nhất tồn tại trước 12/10, nên mọi phép kiểm
+    // trong file này vẫn nói đúng điều chúng vốn nói (F65b §10).
+    campaignType: 'ORGANIZED_CAMPAIGN' as const,
     title: 'Bếp cơm Vu Lan 2026',
     description: 'Nấu và trao 500 suất cơm chay tại Chùa Vĩnh Nghiêm.',
     bannerUrl: 'https://cdn.chantam.vn/campaigns/vu-lan.jpg',

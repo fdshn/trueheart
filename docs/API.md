@@ -1751,16 +1751,25 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 - Ghi theo copy-on-write như mọi system config: `reason` bắt buộc và đi thẳng vào audit log.
 ---
 
-## 13. Từ thiện — bảng nhu cầu và đề nghị đóng góp (KẾ HOẠCH)
+## 13. Từ thiện — bảng nhu cầu và đề nghị đóng góp (ĐANG TRIỂN KHAI)
 
-> Các endpoint dưới đây là contract mục tiêu, **chưa có trên staging**. API campaign hiện tại
-> mới hỗ trợ nội dung chiến dịch và đăng ký tham dự; không được coi một participation là một
-> cam kết tặng vật phẩm.
+> **Hai dòng đầu đã CHẠY từ 12/10; phần còn lại vẫn là contract mục tiêu.** Tiến độ từng lát ở
+> [`CHARITY-CONTRIBUTION-DESIGN.md` §12](./plan/CHARITY-CONTRIBUTION-DESIGN.md#12-tiến-độ-triển-khai)
+> — đó là nguồn duy nhất, bảng này không kể lại. Endpoint nào chưa tick ở đó thì client không
+> được giả lập thành công.
+>
+> Không được coi một participation là một cam kết tặng vật phẩm: `campaign_participations` vẫn
+> chỉ là đăng ký tham dự sự kiện.
+>
+> **Phân hệ ship ở trạng thái TẮT phần điểm.** Point Rule `CHARITY_CONTRIBUTION_COMPLETED` đã
+> seed nhưng `is_enabled = false` và mức là `0` — mọi đường nghiệp vụ chạy, chỉ bút toán điểm
+> không phát. Bên A chốt mức rồi bật bằng một lượt publish, không cần deploy. Cùng lối F83
+> (điểm danh) và F56 (affiliate).
 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
-| `POST` | `/charity-campaigns` | Bearer + capability theo loại | Tạo campaign kèm bảng nhu cầu; server tự quyết định chờ duyệt hay public ngay (`approval_status` + `is_active`) |
-| `GET` | `/campaigns/:idOrSlug/needs` | Công khai | Nhu cầu, số đang giao/đã nhận/còn thiếu; không trả PII beneficiary |
+| `POST` | `/charity-campaigns` | Bearer + capability theo loại | ✅ **Đã chạy.** Tạo campaign kèm bảng nhu cầu; server tự quyết định chờ duyệt hay public ngay (`approval_status` + `is_active`) |
+| `GET` | `/campaigns/:idOrSlug/needs` | Công khai | ✅ **Đã chạy.** Nhu cầu, số đã chấp nhận/đã nhận/còn thiếu theo từng dòng; không trả PII beneficiary |
 | `POST` | `/charity-campaigns/:id/contributions` | Bearer | Gửi đề nghị gồm nhiều vật phẩm và số lượng |
 | `GET` | `/charity-campaigns/:id/contributions` | Organizer/coordinator | Danh sách đề nghị chờ điều phối |
 | `GET` | `/charity-contributions/me` | Bearer | Đề nghị do chính user gửi |
@@ -1769,6 +1778,41 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `POST` | `/charity-campaigns/:id/external-contributions` | Organizer/coordinator | Ghi nhận vật phẩm nhận ngoài app có audit |
 | `PATCH` | `/charity-external-contributions/:id` | Organizer/coordinator | Điều chỉnh/hủy bản ghi ngoài app có lý do |
 | `POST` | `/charity-campaigns/:id/close` | Organizer/Admin | Đóng chiến dịch; giữ transaction đang chạy |
+
+**Hai endpoint đã chạy — điều client cần biết**
+
+- `POST /charity-campaigns` nay đòi `campaignType`: `INDIVIDUAL_APPEAL` hay `ORGANIZED_CAMPAIGN`.
+  Hai loại hai quyền khác nhau, và quyền đọc từ **Rank Config** chứ không phải một phép so hạng
+  trong mã: `SUBMIT_INDIVIDUAL_APPEAL` (baseline Thành viên trở lên) và
+  `SUBMIT_CHARITY_PROPOSAL` (baseline chỉ Kim Cương). Bên A đổi baseline mà không cần deploy.
+
+  `beneficiaryRelation` (`SELF` | `OTHER`) **bắt buộc** với `INDIVIDUAL_APPEAL` và phải **bỏ
+  trống** với `ORGANIZED_CAMPAIGN` — database canh bằng một CHECK nối hai cột.
+
+  Trạng thái ban đầu do **server** quyết, không nhận từ body: có
+  `PUBLISH_CHARITY_WITHOUT_REVIEW` (baseline chỉ Kim Cương) thì `APPROVED` ngay, không thì
+  `PENDING_APPROVAL`. Quyền *tạo* và quyền *public ngay* là hai câu hỏi khác nhau — gộp chúng là
+  cho mọi người tạo được cũng đẩy nội dung ra ngoài không qua ai đọc.
+
+  `needs[]` ghi trong **cùng transaction** với campaign: hai lượt ghi rời sẽ để lại một kêu gọi
+  công khai không nói cần gì, nếu lượt thứ hai hỏng. Bỏ trống `needs` là hợp lệ. Thứ tự hiển thị
+  do server đặt theo thứ tự trong mảng; không nhận `sortOrder` từ client.
+
+- `GET /campaigns/:idOrSlug/needs` trả **từng dòng**, mỗi dòng giữ `unit` của nó. Backend không
+  bao giờ cộng số lượng giữa hai đơn vị — `kg + cái + hộp` là con số không có nghĩa.
+  `overallProgressPercent` là trung bình **tỷ lệ** của các dòng đang bật, mỗi tỷ lệ kẹp ở 100%;
+  nó chỉ để trình bày, nguồn sự thật là từng dòng. `null` nghĩa là chưa khai nhu cầu nào — khác
+  `0` nghĩa là chưa nhận được gì.
+
+  `remainingQuantity = max(0, target - accepted - received)`. Đề nghị **chưa** được chấp nhận
+  không trừ vào đây: giữ chỗ theo đề nghị thì một loạt đề nghị không thực hiện sẽ làm chiến dịch
+  trông như đã đủ và chặn người tặng thật.
+
+  `pendingQuantity` **chưa có** trong phản hồi và sẽ xuất hiện cùng lát B, khi bảng đề nghị tồn
+  tại. Trả `0` bây giờ là đặt một con số không phải phép đo giữa những con số có thật.
+
+  Dòng `isActive = false` vẫn trả về (nó là lịch sử của những đề nghị đã gửi) nhưng không vào
+  phép tính tiến độ.
 
 Body tạo đề nghị luôn bọc khoá `contribution`:
 

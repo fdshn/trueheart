@@ -7,6 +7,9 @@ import {
   ICreateCharityCampaignUseCase,
   IDecideCharityApprovalCommand,
   IDecideCharityApprovalUseCase,
+  IGetCampaignNeedsCommand,
+  IGetCampaignNeedsResult,
+  IGetCampaignNeedsUseCase,
   IGetPublicCharityCampaignCommand,
   IGetPublicCharityCampaignResult,
   IGetPublicCharityCampaignUseCase,
@@ -49,17 +52,19 @@ import {
 } from '@/domain/ports/repository';
 import {
   CharityApprovalStatus,
-  CreateCharityCampaignCapability,
+  CharityCapabilityByType,
   MaxCharityDescriptionLength,
   MaxCharityReviewCommentLength,
   MaxCharityTargetItems,
   MaxCharityTitleLength,
+  PublishCharityWithoutReviewCapability,
   canCancelCharityParticipation,
   canReviewCharityCampaign,
   charityCampaignGaps,
   charityReviewRoleOf,
   isCharityReviewRating,
   normalizeCharitySlug,
+  overallNeedProgressPercent,
   slugifyCharityTitle,
 } from '@chantam.vn/chantam.core-lib/models';
 import {
@@ -192,6 +197,26 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
 
     const campaign = await this.repository.create({
       ...prepared,
+      campaignType: command.campaignType,
+      // `null` cho hoạt động có tổ chức, và database canh điều đó bằng một CHECK
+      // nối hai cột: hoạt động có tổ chức không có người thụ hưởng đơn lẻ nào để
+      // khai quan hệ với.
+      beneficiaryRelation:
+        command.campaignType === 'INDIVIDUAL_APPEAL'
+          ? (command.beneficiaryRelation ?? null)
+          : null,
+      needs: (command.needs ?? []).map((need, index) => ({
+        categoryId: need.categoryId ?? null,
+        itemName: need.itemName.trim(),
+        description: need.description?.trim() ?? null,
+        unit: need.unit.trim(),
+        targetQuantity: need.targetQuantity,
+        allowAlternative: need.allowAlternative ?? false,
+        // Thứ tự do SERVER đặt theo thứ tự client gửi, không nhận `sortOrder` từ
+        // client: hai dòng cùng `sortOrder` sẽ hiện theo thứ tự ngẫu nhiên của
+        // `id`, và người tạo không có cách nào sửa lại.
+        sortOrder: index,
+      })),
       createdBy: command.actorUserId,
       approvalStatus,
       // Admin tạo trực tiếp thì chính họ là người duyệt — `CHK_campaigns_approved_at` đòi
@@ -220,16 +245,28 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       return 'APPROVED';
     }
 
+    // Quyền TẠO khác nhau theo loại (F65b §2): kêu gọi cho cá nhân mở từ Thành
+    // viên, còn hoạt động có tổ chức chỉ Kim Cương. Tra bảng chứ không `if` theo
+    // rank — Rank là cấu hình động, một phép so rank trong mã là bản sao sẽ trôi.
     const capability = await this.entitlements.getCapability(
       command.actorUserId,
-      CreateCharityCampaignCapability,
+      CharityCapabilityByType[command.campaignType],
     );
     // `null` là KHÔNG cho phép: thiếu hàng trong Rank Config nghĩa là chưa ai quyết định,
     // và mặc định của một quyền chưa quyết định phải là đóng.
     if (!capability?.allowed)
       throw new CharityCampaignCreateNotAllowedException();
 
-    return 'PENDING_APPROVAL';
+    // Quyền PUBLIC NGAY là một câu hỏi khác: "nội dung có cần ai đọc trước khi ra
+    // ngoài không". Gộp nó vào quyền tạo là buộc mọi người được tạo cũng được
+    // public — và một kêu gọi quyên góp ra ngoài không qua ai đọc là đúng chỗ
+    // người ta lợi dụng.
+    const publishNow = await this.entitlements.getCapability(
+      command.actorUserId,
+      PublishCharityWithoutReviewCapability,
+    );
+
+    return publishNow?.allowed ? 'APPROVED' : 'PENDING_APPROVAL';
   }
 }
 
@@ -273,6 +310,50 @@ export class GetPublicCharityCampaignUseCase implements IGetPublicCharityCampaig
       campaign: toView(campaign, null),
       reviews: reviews.items,
       reviewTotal: reviews.total,
+    };
+  }
+}
+
+/**
+ * Bảng nhu cầu vật phẩm và tiến độ từng dòng (F65b §3).
+ *
+ * **Công khai**, cùng đường đọc với `GET /campaigns/:idOrSlug` — nên nó chỉ thấy
+ * chiến dịch đã duyệt và còn bật. Chủ sở hữu muốn xem bảng nhu cầu của hồ sơ đang
+ * chờ duyệt thì đi đường `GET /charity-campaigns/mine`, nơi đã có phép kiểm chủ sở
+ * hữu; nhân đôi phép kiểm đó ở đây là nhân đôi một chỗ dễ lệch.
+ *
+ * **`progressSource` trả về chứ không để client đoán** (§10). Chiến dịch chưa khai
+ * dòng nhu cầu nào vẫn còn hai cột tổng hợp cũ, và chúng là LỜI KHAI của người tổ
+ * chức (BR-CHARITY-02) — client phải biết con số nó đang vẽ đến từ đâu. Đoán theo
+ * "mảng `needs` rỗng hay không" sẽ sai ngay khi có chiến dịch khai nhu cầu rồi tắt
+ * hết các dòng.
+ */
+@Injectable()
+export class GetCampaignNeedsUseCase implements IGetCampaignNeedsUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: IGetCampaignNeedsCommand,
+  ): Promise<IGetCampaignNeedsResult> {
+    const campaign = await this.repository.findPublicByIdOrSlug(
+      command.idOrSlug,
+    );
+    if (!campaign) throw new CharityCampaignNotFoundException();
+
+    const needs = await this.repository.listNeeds(campaign.globalId);
+    // Chỉ dòng ĐANG BẬT vào phép tính tiến độ: một dòng đã tắt là nhu cầu người tổ
+    // chức rút lại, và để nó kéo tiến độ xuống là báo cáo một việc không còn ai cần.
+    // Nhưng vẫn TRẢ cả dòng đã tắt, vì nó là lịch sử của những đề nghị đã gửi.
+    const active = needs.filter((need) => need.isActive);
+
+    return {
+      campaignId: campaign.globalId,
+      needs,
+      overallProgressPercent: overallNeedProgressPercent(active),
+      progressSource: needs.length > 0 ? 'NEED_ITEMS' : 'LEGACY_DECLARED',
     };
   }
 }

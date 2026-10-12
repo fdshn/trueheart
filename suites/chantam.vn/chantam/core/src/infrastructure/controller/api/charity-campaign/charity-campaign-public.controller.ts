@@ -1,4 +1,5 @@
 import {
+  IGetCampaignNeedsUseCase,
   IGetPublicCharityCampaignUseCase,
   IListPublicCharityCampaignsUseCase,
 } from '@/application/contracts/charity-campaign';
@@ -10,6 +11,7 @@ import { ResponseDto } from '@chantam/service.common-lib/dto';
 import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
+  CampaignNeedsResponseDto,
   CharityCampaignDetailResponseDto,
   ListCharityCampaignsQueryDto,
   ListCharityCampaignsResponseDto,
@@ -41,6 +43,8 @@ export class CharityCampaignPublicController {
     private readonly listUseCase: IListPublicCharityCampaignsUseCase,
     @Inject(IGetPublicCharityCampaignUseCase)
     private readonly getUseCase: IGetPublicCharityCampaignUseCase,
+    @Inject(IGetCampaignNeedsUseCase)
+    private readonly needsUseCase: IGetCampaignNeedsUseCase,
   ) {}
 
   @Get()
@@ -66,6 +70,26 @@ export class CharityCampaignPublicController {
           phase: query.phase as CharityCampaignPhase | undefined,
         }),
       )
+      .build();
+  }
+
+  @Get(':idOrSlug/needs')
+  @Public()
+  @ApiOperation({
+    summary: 'Bảng nhu cầu vật phẩm và tiến độ từng dòng (F65b)',
+    description:
+      'Mỗi dòng giữ ĐƠN VỊ của nó và tự kể tiến độ. Backend không bao giờ cộng số lượng giữa hai đơn vị khác nhau — `kg + cái + hộp` là một con số không có nghĩa.\n\n' +
+      '`remainingQuantity` trừ phần đã chấp nhận và phần thực nhận, nhưng **không** trừ đề nghị đang chờ: giữ chỗ theo đề nghị thì một loạt đề nghị không thực hiện sẽ làm chiến dịch trông như đã đủ và chặn người tặng thật.\n\n' +
+      '`overallProgressPercent` chỉ để TRÌNH BÀY — trung bình tỷ lệ của các dòng đang bật, mỗi tỷ lệ kẹp ở 100%. Nguồn sự thật là từng dòng.\n\n' +
+      'Đọc `progressSource` chứ đừng đoán theo việc `needs` rỗng hay không: `LEGACY_DECLARED` nghĩa là chiến dịch chưa khai nhu cầu nào và con số tiến độ duy nhất còn lại là LỜI KHAI của người tổ chức (BR-CHARITY-02), hệ thống không đối soát.\n\n' +
+      'Chỉ trả hoạt động đã duyệt, như `GET /campaigns/:idOrSlug`.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(CampaignNeedsResponseDto) })
+  @ApiErrorResponses([CharityCampaignNotFoundException])
+  public async getNeeds(@Param('idOrSlug') idOrSlug: string) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(await this.needsUseCase.handle({ idOrSlug, viewerUserId: null }))
       .build();
   }
 

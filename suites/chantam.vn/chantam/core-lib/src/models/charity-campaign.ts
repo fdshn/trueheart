@@ -87,7 +87,107 @@ export type CharityReviewRole = (typeof CharityReviewRoles)[number];
  * Mã capability trong Rank Config — đã seed từ migration `1790100000000`, không phải mã
  * mới. Xem docblock đầu file cho lý do không đặt thêm mã.
  */
+/**
+ * Hai loại hoạt động từ thiện dùng chung một engine (F65b §1).
+ *
+ * Dữ liệu trước 12/10 đều là `ORGANIZED_CAMPAIGN`, và đó không phải lựa chọn tuỳ
+ * ý: tới lúc đó chỉ Kim Cương tạo được hoạt động, tức mọi hàng đang có đều là
+ * hoạt động có tổ chức.
+ */
+export const CharityCampaignTypes = [
+  'INDIVIDUAL_APPEAL',
+  'ORGANIZED_CAMPAIGN',
+] as const;
+
+export type CharityCampaignType = (typeof CharityCampaignTypes)[number];
+
+/** Quan hệ giữa người kêu gọi và người thụ hưởng. */
+export const CharityBeneficiaryRelations = ['SELF', 'OTHER'] as const;
+
+export type CharityBeneficiaryRelation =
+  (typeof CharityBeneficiaryRelations)[number];
+
+/**
+ * Capability quyết định ai tạo được loại nào (F65b §2).
+ *
+ * Ba cái, không phải một — và không phép so Rank nào nằm trong controller. Rank
+ * là cấu hình động: Bên A đổi baseline qua Rank Config mà không cần deploy, nên
+ * một `if (rank === 'DIAMOND')` trong mã là một bản sao sẽ trôi.
+ */
+export const CharityCapabilityByType: Readonly<
+  Record<CharityCampaignType, string>
+> = {
+  INDIVIDUAL_APPEAL: 'SUBMIT_INDIVIDUAL_APPEAL',
+  ORGANIZED_CAMPAIGN: 'SUBMIT_CHARITY_PROPOSAL',
+};
+
+/**
+ * Quyền public ngay, không chờ Admin duyệt.
+ *
+ * Tách khỏi quyền TẠO vì hai câu hỏi khác nhau: "được mở kêu gọi không" và "nội
+ * dung có cần ai đọc trước khi ra ngoài không". Gộp chúng là buộc mọi người được
+ * tạo cũng được public.
+ */
+export const PublishCharityWithoutReviewCapability =
+  'PUBLISH_CHARITY_WITHOUT_REVIEW';
+
 export const CreateCharityCampaignCapability = 'SUBMIT_CHARITY_PROPOSAL';
+
+/** Đơn vị của một dòng nhu cầu — tối đa 30 ký tự, khớp `varchar(30)` của cột. */
+export const MaxNeedItemUnitLength = 30;
+export const MaxNeedItemNameLength = 200;
+/** Trần số lượng mỗi dòng, khớp `CHK_campaign_need_items_target`. */
+export const MaxNeedItemQuantity = 1_000_000;
+/** Trần số dòng nhu cầu mỗi lượt tạo — giữ một request ở kích cỡ đọc được. */
+export const MaxNeedItemsPerCampaign = 50;
+
+export interface ICharityNeedProgressInput {
+  readonly targetQuantity: number;
+  readonly acceptedQuantity: number;
+  readonly receivedQuantity: number;
+}
+
+/**
+ * Phần còn thiếu của một dòng nhu cầu (F65b §3).
+ *
+ * `activeQuantity` (đã nhận đề nghị, transaction chưa xong) và `receivedQuantity`
+ * (thực nhận) đều TRỪ vào phần còn thiếu; `pendingQuantity` thì KHÔNG — đề nghị
+ * chưa được chấp nhận không giữ chỗ. Giữ chỗ ngay lúc gửi đề nghị thì một loạt đề
+ * nghị không thực hiện sẽ làm chiến dịch trông như đã đủ và chặn người tặng thật.
+ */
+export function remainingNeedQuantity(
+  input: ICharityNeedProgressInput,
+): number {
+  return Math.max(
+    0,
+    input.targetQuantity - input.acceptedQuantity - input.receivedQuantity,
+  );
+}
+
+/**
+ * Một con số tiến độ CHUNG cho cả chiến dịch, chỉ để trình bày (F65b §3).
+ *
+ * **Không phải số lượng và không phải nguồn sự thật.** Nó là trung bình tỷ lệ hoàn
+ * thành của các dòng đang bật, mỗi tỷ lệ kẹp ở 100% trước khi lấy trung bình. Cộng
+ * `kg + cái + hộp` thành một tổng là con số không có nghĩa, nên phép trung bình này
+ * cố ý đi qua TỶ LỆ chứ không qua số lượng.
+ *
+ * `null` khi không có dòng nào đang bật — không phải `0`, vì 0% nghĩa là "chưa nhận
+ * được gì" còn đây là "chưa khai nhu cầu nào".
+ */
+export function overallNeedProgressPercent(
+  needs: readonly ICharityNeedProgressInput[],
+): number | null {
+  if (needs.length === 0) return null;
+
+  const total = needs.reduce((sum, need) => {
+    if (need.targetQuantity <= 0) return sum;
+    const done = need.acceptedQuantity + need.receivedQuantity;
+    return sum + Math.min(100, (done / need.targetQuantity) * 100);
+  }, 0);
+
+  return Math.round(total / needs.length);
+}
 
 export const MaxCharityTitleLength = 200;
 export const MaxCharitySlugLength = 200;

@@ -3,14 +3,19 @@ import {
   ICharityCampaign,
   ICharityCampaignPage,
   ICharityCampaignRepository,
+  ICharityNeedItem,
   ICharityReview,
   ICreateCharityCampaignParams,
+  ICreateCharityNeedItemParams,
 } from '@/domain/ports/repository';
 import {
   CharityApprovalStatus,
+  CharityBeneficiaryRelation,
+  CharityCampaignType,
   CharityParticipationStatus,
   CharityReviewRole,
   charityProgressPercent,
+  remainingNeedQuantity,
 } from '@chantam.vn/chantam.core-lib/models';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
@@ -40,6 +45,8 @@ interface IRow {
   created_at: Date;
   updated_at: Date;
   participant_count: string | number;
+  campaign_type: string;
+  beneficiary_relation: string | null;
 }
 
 interface IReviewRow {
@@ -73,6 +80,7 @@ const Columns = `campaigns.global_id, campaigns.title, campaigns.slug, campaigns
        campaigns.is_active, campaigns.approval_status, campaigns.approval_note,
        campaigns.approved_at, campaigns.approved_by, campaigns.created_by,
        campaigns.created_at, campaigns.updated_at,
+       campaigns.campaign_type, campaigns.beneficiary_relation,
        (SELECT count(*) FROM campaign_participations participation
          WHERE participation.campaign_id = campaigns.global_id
            AND participation.status = 'REGISTERED') AS participant_count`;
@@ -113,6 +121,9 @@ function toCampaign(row: IRow): ICharityCampaign {
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    campaignType: row.campaign_type as CharityCampaignType,
+    beneficiaryRelation:
+      row.beneficiary_relation as CharityBeneficiaryRelation | null,
     // `count(*)` về đây là CHUỖI. Trả thẳng ra API thì client nhận `"3"` và mọi phép
     // so sánh số ở đó đều sai một cách im lặng.
     participantCount: Number(row.participant_count),
@@ -155,17 +166,34 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
   public async create(
     params: ICreateCharityCampaignParams,
   ): Promise<ICharityCampaign> {
+    // Hoạt động và bảng nhu cầu ghi trong MỘT transaction (F65b §3). Hai lượt ghi
+    // rời sẽ để lại một kêu gọi công khai không nói cần gì, nếu lượt thứ hai hỏng
+    // — và với quyền public-ngay thì nó công khai thật, không chờ ai đọc lại.
+    return this.manager.transaction(async (manager) => {
+      const campaign = await this.insertCampaign(manager, params);
+      if (params.needs.length > 0)
+        await this.insertNeeds(manager, campaign.globalId, params.needs);
+      return campaign;
+    });
+  }
+
+  private async insertCampaign(
+    manager: EntityManager,
+    params: ICreateCharityCampaignParams,
+  ): Promise<ICharityCampaign> {
     // `INSERT … RETURNING` KHÔNG bị TypeORM bọc thành `[rows, affected]` — chỉ
     // `UPDATE`/`DELETE` bị. Nên chỗ này đọc thẳng `rows[0]`, không qua `updateReturning`.
-    const [row] = await this.manager.query<IRow[]>(
+    const [row] = await manager.query<IRow[]>(
       `WITH inserted AS (
          INSERT INTO campaigns
            (title, slug, description, banner_url, badge_name, target_items_count,
             location, location_label, start_time, end_time,
-            created_by, approval_status, approved_by, approved_at)
+            created_by, approval_status, approved_by, approved_at,
+            campaign_type, beneficiary_relation)
          VALUES ($1, $2, $3, $4, $5, $6, ${LocationExpression}, $8, $7, $11,
                  $12, $13, $14,
-                 CASE WHEN $15 = 'PENDING_APPROVAL' THEN NULL ELSE now() END)
+                 CASE WHEN $15 = 'PENDING_APPROVAL' THEN NULL ELSE now() END,
+                 $16, $17)
          RETURNING *
        )
        SELECT ${Columns} FROM inserted AS campaigns`,
@@ -191,9 +219,100 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         // deduced for parameter" — đúng lỗi đã gặp ở F47. Hai số hiệu thì không còn gì
         // phải suy diễn.
         params.approvalStatus,
+        params.campaignType,
+        params.beneficiaryRelation,
       ],
     );
     return toCampaign(row);
+  }
+
+  /**
+   * Chèn bảng nhu cầu bằng MỘT câu lệnh, không vòng lặp.
+   *
+   * `unnest` chứ không `n` lượt `INSERT`: ràng buộc
+   * `UQ_campaign_need_items_name_unit` phải thấy cả lô cùng lúc, nếu không hai dòng
+   * trùng tên+đơn vị trong CÙNG request sẽ chèn được dòng đầu rồi mới ném ở dòng
+   * sau — và nơi gọi không có cách nào nói "dòng thứ mấy".
+   */
+  private async insertNeeds(
+    manager: EntityManager,
+    campaignId: string,
+    needs: readonly ICreateCharityNeedItemParams[],
+  ): Promise<void> {
+    await manager.query(
+      `INSERT INTO campaign_need_items
+         (campaign_id, category_id, item_name, description, unit,
+          target_quantity, allow_alternative, sort_order)
+       SELECT $1, item.category_id, item.item_name, item.description, item.unit,
+              item.target_quantity, item.allow_alternative, item.sort_order
+       FROM UNNEST(
+         $2::uuid[], $3::text[], $4::text[], $5::text[],
+         $6::int[], $7::boolean[], $8::int[]
+       ) AS item(category_id, item_name, description, unit,
+                 target_quantity, allow_alternative, sort_order)`,
+      [
+        campaignId,
+        needs.map((need) => need.categoryId),
+        needs.map((need) => need.itemName),
+        needs.map((need) => need.description),
+        needs.map((need) => need.unit),
+        needs.map((need) => need.targetQuantity),
+        needs.map((need) => need.allowAlternative),
+        needs.map((need) => need.sortOrder),
+      ],
+    );
+  }
+
+  public async listNeeds(campaignId: string): Promise<ICharityNeedItem[]> {
+    const rows = await this.manager.query<
+      {
+        global_id: string;
+        category_id: string | null;
+        item_name: string;
+        description: string | null;
+        unit: string;
+        target_quantity: number;
+        allow_alternative: boolean;
+        accepted_quantity: number;
+        received_quantity: number;
+        sort_order: number;
+        is_active: boolean;
+      }[]
+    >(
+      `SELECT global_id, category_id, item_name, description, unit,
+              target_quantity, allow_alternative, accepted_quantity,
+              received_quantity, sort_order, is_active
+       FROM campaign_need_items
+       WHERE campaign_id = $1
+       ORDER BY sort_order, id`,
+      [campaignId],
+    );
+
+    return rows.map((row) => {
+      const targetQuantity = Number(row.target_quantity);
+      const acceptedQuantity = Number(row.accepted_quantity);
+      const receivedQuantity = Number(row.received_quantity);
+      return {
+        globalId: row.global_id,
+        categoryId: row.category_id,
+        itemName: row.item_name,
+        description: row.description,
+        unit: row.unit,
+        targetQuantity,
+        allowAlternative: row.allow_alternative,
+        acceptedQuantity,
+        receivedQuantity,
+        // Tính ở ĐÂY chứ không trong SQL: `remainingNeedQuantity` là hàm thuần có
+        // phép kiểm riêng, và hai nơi tính cùng một con số là hai nơi sẽ trôi.
+        remainingQuantity: remainingNeedQuantity({
+          targetQuantity,
+          acceptedQuantity,
+          receivedQuantity,
+        }),
+        sortOrder: Number(row.sort_order),
+        isActive: row.is_active,
+      };
+    });
   }
 
   public async slugTaken(slug: string): Promise<boolean> {

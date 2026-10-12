@@ -1,5 +1,7 @@
 import {
   CharityApprovalStatus,
+  CharityBeneficiaryRelation,
+  CharityCampaignType,
   CharityParticipationStatus,
   CharityReviewRole,
 } from '@chantam.vn/chantam.core-lib/models';
@@ -45,6 +47,42 @@ export interface ICharityCampaign {
    * Xem docblock migration `1798200000000`: mọi cột đếm lưu sẵn trong hệ này đã từng lệch.
    */
   readonly participantCount: number;
+  readonly campaignType: CharityCampaignType;
+  /** Chỉ `INDIVIDUAL_APPEAL` có; database canh bằng CHECK nối hai cột. */
+  readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
+}
+
+/**
+ * Một dòng nhu cầu vật phẩm, kèm projection tiến độ (F65b §3).
+ *
+ * `unit` không bao giờ bị cộng chéo giữa hai dòng: `kg + cái + hộp` là con số
+ * không có nghĩa. Mỗi dòng tự kể tiến độ của nó.
+ */
+export interface ICharityNeedItem {
+  readonly globalId: string;
+  readonly categoryId: string | null;
+  readonly itemName: string;
+  readonly description: string | null;
+  readonly unit: string;
+  readonly targetQuantity: number;
+  readonly allowAlternative: boolean;
+  /** Đã chấp nhận nhưng transaction chưa xong. Projection do hệ thống ghi. */
+  readonly acceptedQuantity: number;
+  /** Thực nhận từ transaction hoàn tất và đóng góp ngoài app còn hiệu lực. */
+  readonly receivedQuantity: number;
+  readonly remainingQuantity: number;
+  readonly sortOrder: number;
+  readonly isActive: boolean;
+}
+
+export interface ICreateCharityNeedItemParams {
+  readonly categoryId: string | null;
+  readonly itemName: string;
+  readonly description: string | null;
+  readonly unit: string;
+  readonly targetQuantity: number;
+  readonly allowAlternative: boolean;
+  readonly sortOrder: number;
 }
 
 export interface ICharityReview {
@@ -75,6 +113,40 @@ export interface ICreateCharityCampaignParams {
   readonly approvalStatus: CharityApprovalStatus;
   /** Người duyệt — chính người tạo khi Admin tạo trực tiếp, `null` khi còn chờ duyệt. */
   readonly approvedBy: string | null;
+  readonly campaignType: CharityCampaignType;
+  readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
+  /**
+   * Bảng nhu cầu, ghi TRONG CÙNG transaction với hoạt động (F65b §3).
+   *
+   * Hai lượt ghi rời sẽ để lại một hoạt động công khai không có dòng nhu cầu nào
+   * nếu lượt thứ hai hỏng — và với `PUBLISH_CHARITY_WITHOUT_REVIEW` thì nó công
+   * khai ngay, nên người dùng thấy một kêu gọi không nói cần gì.
+   *
+   * Rỗng là hợp lệ: hoạt động chỉ nhận đăng ký tham dự thì không có bảng nhu cầu,
+   * và §10 nói giữ nguyên hành vi legacy cho những hoạt động đó.
+   */
+  readonly needs: readonly ICreateCharityNeedItemParams[];
+}
+
+export interface ICharityNeedsView {
+  readonly campaignId: string;
+  readonly needs: readonly ICharityNeedItem[];
+  /**
+   * Chỉ số TRÌNH BÀY, không phải số lượng và không phải nguồn sự thật.
+   *
+   * `null` khi chiến dịch chưa khai dòng nhu cầu nào — khác `0` ("chưa nhận được
+   * gì"). Xem `overallNeedProgressPercent`.
+   */
+  readonly overallProgressPercent: number | null;
+  /**
+   * Tiến độ đang đọc từ đâu (§10).
+   *
+   * `NEED_ITEMS` khi chiến dịch có bảng nhu cầu; `LEGACY_DECLARED` khi chưa có và
+   * hai cột tổng hợp cũ (`target_items_count`/`current_items_count`) vẫn là thứ duy
+   * nhất nói được tiến độ. Client mới phải đọc cờ này chứ không đoán theo việc
+   * `needs` rỗng hay không.
+   */
+  readonly progressSource: 'LEGACY_DECLARED' | 'NEED_ITEMS';
 }
 
 export interface ICharityCampaignPage {
@@ -82,7 +154,7 @@ export interface ICharityCampaignPage {
   readonly total: number;
 }
 
-export interface ICharityCampaignRepository {
+export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart {
   create(params: ICreateCharityCampaignParams): Promise<ICharityCampaign>;
 
   slugTaken(slug: string): Promise<boolean>;
@@ -201,6 +273,17 @@ export interface ICharityCampaignRepository {
     readonly limit: number;
     readonly offset: number;
   }): Promise<{ readonly items: ICharityReview[]; readonly total: number }>;
+}
+
+export interface ICharityNeedsRepositoryPart {
+  /**
+   * Bảng nhu cầu của một chiến dịch, kèm projection từng dòng.
+   *
+   * Nhận `campaignId` canonical (uuid). Trả cả dòng đã tắt (`is_active = false`) để
+   * nơi gọi tự quyết hiện hay không: một dòng đã tắt mà đã có đề nghị vẫn là lịch
+   * sử cần đọc được.
+   */
+  listNeeds(campaignId: string): Promise<ICharityNeedItem[]>;
 }
 
 export const ICharityCampaignRepository = Symbol('ICharityCampaignRepository');

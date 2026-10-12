@@ -1,6 +1,9 @@
+import { ICharityNeedItemInput } from '@/application/contracts/charity-campaign';
 import { CharityCampaignPhases } from '@/domain/ports/repository';
 import {
   CharityApprovalStatuses,
+  CharityBeneficiaryRelations,
+  CharityCampaignTypes,
   CharityReviewRatingMax,
   CharityReviewRatingMin,
   CharityReviewRoles,
@@ -10,10 +13,16 @@ import {
   MaxCharitySlugLength,
   MaxCharityTargetItems,
   MaxCharityTitleLength,
+  MaxNeedItemNameLength,
+  MaxNeedItemQuantity,
+  MaxNeedItemUnitLength,
+  MaxNeedItemsPerCampaign,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsDefined,
   IsISO8601,
@@ -125,6 +134,41 @@ export class WriteCharityCampaignDto {
   })
   @IsISO8601()
   endTime: string;
+
+  @ApiProperty({
+    enum: CharityCampaignTypes,
+    description:
+      'Loại hoạt động (F65b §1). `INDIVIDUAL_APPEAL` là kêu gọi cho một cá nhân/gia đình, `ORGANIZED_CAMPAIGN` là hoạt động có tổ chức. ' +
+      'Quyết định capability nào gác lượt tạo — Thành viên trở lên mở được kêu gọi cá nhân, hoạt động có tổ chức thì chỉ Kim Cương. ' +
+      'Dữ liệu trước 12/10 đều là `ORGANIZED_CAMPAIGN`.',
+  })
+  @IsIn(CharityCampaignTypes)
+  campaignType: (typeof CharityCampaignTypes)[number];
+
+  @ApiPropertyOptional({
+    enum: CharityBeneficiaryRelations,
+    description:
+      'Quan hệ với người thụ hưởng. **Bắt buộc** khi `campaignType = INDIVIDUAL_APPEAL`, và phải **bỏ trống** với `ORGANIZED_CAMPAIGN` — database canh bằng một CHECK nối hai cột, nên gửi sai sẽ bị từ chối chứ không âm thầm bỏ qua. ' +
+      'Với `OTHER`, địa chỉ/số điện thoại/tài liệu xác minh của người thụ hưởng luôn là dữ liệu riêng tư và không ra response công khai.',
+  })
+  @IsOptional()
+  @IsIn(CharityBeneficiaryRelations)
+  beneficiaryRelation?: (typeof CharityBeneficiaryRelations)[number];
+
+  @ApiPropertyOptional({
+    type: () => [CharityNeedItemInputDto],
+    maxItems: MaxNeedItemsPerCampaign,
+    description:
+      'Bảng nhu cầu vật phẩm, ghi trong CÙNG transaction với hoạt động — hai lượt ghi rời sẽ để lại một kêu gọi công khai không nói cần gì. ' +
+      'Bỏ trống là hợp lệ: hoạt động chỉ nhận đăng ký tham dự thì không có nhu cầu vật phẩm nào. ' +
+      'Thứ tự hiển thị do SERVER đặt theo thứ tự trong mảng này.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MaxNeedItemsPerCampaign)
+  @ValidateNested({ each: true })
+  @Type(() => CharityNeedItemInputDto)
+  needs?: CharityNeedItemInputDto[];
 }
 
 export class WriteCharityCampaignBodyDto {
@@ -386,4 +430,124 @@ export class CharityCampaignWrapperResponseDto {
 export class CharityReviewWrapperResponseDto {
   @ApiProperty({ type: () => CharityReviewResponseDto })
   review: CharityReviewResponseDto;
+}
+
+export class CharityNeedItemInputDto implements ICharityNeedItemInput {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Danh mục của vật phẩm. Bỏ trống được — danh mục bị xoá sau này cũng không làm mất dòng nhu cầu, nó chỉ về `null`.',
+  })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
+
+  @ApiProperty({
+    maxLength: MaxNeedItemNameLength,
+    example: 'Gạo tẻ',
+    description:
+      'Tên vật phẩm cần. Trùng tên VÀ đơn vị trên cùng chiến dịch bị từ chối.',
+  })
+  @IsString()
+  @Length(1, MaxNeedItemNameLength)
+  itemName: string;
+
+  @ApiPropertyOptional({ maxLength: 1000 })
+  @IsOptional()
+  @IsString()
+  @Length(1, 1000)
+  description?: string;
+
+  @ApiProperty({
+    maxLength: MaxNeedItemUnitLength,
+    example: 'kg',
+    description:
+      'Đơn vị của DÒNG NÀY. Backend không bao giờ cộng số lượng giữa hai đơn vị khác nhau — tiến độ chung là trung bình TỶ LỆ, không phải tổng số lượng.',
+  })
+  @IsString()
+  @Length(1, MaxNeedItemUnitLength)
+  unit: string;
+
+  @ApiProperty({
+    minimum: 1,
+    maximum: MaxNeedItemQuantity,
+    example: 100,
+    description: 'Số lượng cần. Phải lớn hơn 0 — database cũng chặn.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MaxNeedItemQuantity)
+  targetQuantity: number;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Cho phép vật phẩm tương đương thay cho đúng món đã khai.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  allowAlternative?: boolean;
+}
+
+export class CharityNeedItemDto {
+  @ApiProperty({ format: 'uuid' }) globalId: string;
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
+  categoryId: string | null;
+  @ApiProperty() itemName: string;
+  @ApiProperty({ type: String, nullable: true }) description: string | null;
+  @ApiProperty({ example: 'kg' }) unit: string;
+  @ApiProperty({ example: 100 }) targetQuantity: number;
+  @ApiProperty() allowAlternative: boolean;
+
+  @ApiProperty({
+    example: 30,
+    description:
+      'Đã được chấp nhận nhưng lượt giao nhận chưa xong. Projection do HỆ THỐNG ghi; không endpoint nào nhận con số này từ client.',
+  })
+  acceptedQuantity: number;
+
+  @ApiProperty({
+    example: 20,
+    description:
+      'Thực nhận, từ lượt giao nhận đã hoàn tất cộng đóng góp ngoài app còn hiệu lực.',
+  })
+  receivedQuantity: number;
+
+  @ApiProperty({
+    example: 50,
+    description:
+      'Còn thiếu = max(0, target - accepted - received). Đề nghị CHƯA được chấp nhận **không** trừ vào đây: giữ chỗ theo đề nghị thì một loạt đề nghị không thực hiện sẽ làm chiến dịch trông như đã đủ và chặn người tặng thật.',
+  })
+  remainingQuantity: number;
+
+  @ApiProperty() sortOrder: number;
+
+  @ApiProperty({
+    description:
+      '`false` khi người tổ chức đã rút dòng này. Vẫn trả về vì nó là lịch sử của những đề nghị đã gửi, nhưng KHÔNG vào phép tính `overallProgressPercent`.',
+  })
+  isActive: boolean;
+}
+
+export class CampaignNeedsResponseDto {
+  @ApiProperty({ format: 'uuid' }) campaignId: string;
+
+  @ApiProperty({ type: () => [CharityNeedItemDto] })
+  needs: CharityNeedItemDto[];
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    example: 75,
+    description:
+      'Chỉ số TRÌNH BÀY: trung bình tỷ lệ hoàn thành của các dòng đang bật, mỗi tỷ lệ kẹp ở 100%. KHÔNG phải số lượng và không phải nguồn sự thật — nguồn sự thật là từng dòng. `null` khi chiến dịch chưa khai dòng nhu cầu nào, khác `0` nghĩa là "chưa nhận được gì".',
+  })
+  overallProgressPercent: number | null;
+
+  @ApiProperty({
+    enum: ['LEGACY_DECLARED', 'NEED_ITEMS'],
+    description:
+      'Tiến độ đang đọc từ đâu. `NEED_ITEMS` là từ bảng nhu cầu; `LEGACY_DECLARED` là chiến dịch chưa khai nhu cầu nào và chỉ còn hai cột tổng hợp cũ — vốn là LỜI KHAI của người tổ chức, hệ thống không đối soát. Client đọc cờ này chứ đừng đoán theo việc `needs` rỗng hay không.',
+  })
+  progressSource: 'LEGACY_DECLARED' | 'NEED_ITEMS';
 }

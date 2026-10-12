@@ -2,6 +2,7 @@ import {
   ICancelCharityParticipationUseCase,
   ICreateCharityCampaignUseCase,
   IDecideCharityApprovalUseCase,
+  IGetCampaignNeedsUseCase,
   IGetPublicCharityCampaignUseCase,
   IJoinCharityCampaignUseCase,
   IListAdminCharityCampaignsUseCase,
@@ -17,6 +18,7 @@ import {
   CancelCharityParticipationUseCase,
   CreateCharityCampaignUseCase,
   DecideCharityApprovalUseCase,
+  GetCampaignNeedsUseCase,
   GetPublicCharityCampaignUseCase,
   JoinCharityCampaignUseCase,
   ListAdminCharityCampaignsUseCase,
@@ -46,6 +48,10 @@ import {
     {
       provide: IListPublicCharityCampaignsUseCase,
       useClass: ListPublicCharityCampaignsUseCase,
+    },
+    {
+      provide: IGetCampaignNeedsUseCase,
+      useClass: GetCampaignNeedsUseCase,
     },
     {
       provide: IGetPublicCharityCampaignUseCase,
@@ -91,6 +97,7 @@ import {
   exports: [
     ICreateCharityCampaignUseCase,
     IListPublicCharityCampaignsUseCase,
+    IGetCampaignNeedsUseCase,
     IGetPublicCharityCampaignUseCase,
     IListMyCharityCampaignsUseCase,
     IListJoinedCharityCampaignsUseCase,

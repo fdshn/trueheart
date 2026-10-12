@@ -328,11 +328,16 @@ cần deploy.
 
 | Lát | Nội dung | Tình trạng |
 | --- | --- | :-: |
-| A | `campaign_type` + `beneficiary_relation`, ba capability Rank, bảng `campaign_need_items`, Point Rule seed TẮT, `POST /charity-campaigns` nhận bảng nhu cầu, `GET /campaigns/:idOrSlug/needs` | ⬜ |
+| A | `campaign_type` + `beneficiary_relation`, ba capability Rank, bảng `campaign_need_items`, Point Rule seed TẮT, `POST /charity-campaigns` nhận bảng nhu cầu, `GET /campaigns/:idOrSlug/needs` | ✅ 12/10 |
 | B | `campaign_contributions` + `campaign_contribution_items`, bốn endpoint đề nghị (gửi, organizer xem, contributor xem, sửa/rút) | ⬜ |
 | C | `campaign_transaction_items`, `POST /charity-contributions/:id/decision` nguyên tử có idempotency, cộng điểm một lần cho mỗi contribution | ⬜ |
 | D | `campaign_external_contributions` (ghi nhận + điều chỉnh có audit), `POST /charity-campaigns/:id/close` | ⬜ |
 | E | Acceptance tests cho 12 tiêu chí §11, trên Postgres thật | ⬜ |
+
+**Một trường CỐ Ý chưa có.** `GET /campaigns/:idOrSlug/needs` chưa trả `pendingQuantity`
+(tổng số lượng trên các đề nghị `PENDING_REVIEW`) vì bảng `campaign_contributions` chỉ ra đời ở
+lát B. Trả `0` bây giờ sẽ là một con số **không phải phép đo** nằm giữa những con số có thật —
+và nó trông đúng, nên không ai sẽ đi kiểm lại. Trường này xuất hiện cùng lát B.
 
 ### 12 tiêu chí §11 — ai canh
 
@@ -348,7 +353,7 @@ cần deploy.
 | 6 | Người ngoài không đọc được contact/địa chỉ beneficiary | unit (DTO) + script | ⬜ |
 | 7 | Retry cùng idempotency key chỉ tạo một transaction | script | ⬜ |
 | 8 | Tiến độ tính từ transaction, không tin số client gửi | unit + script | ⬜ |
-| 9 | Không cộng số lượng giữa hai dòng khác đơn vị | unit | ⬜ |
+| 9 | Không cộng số lượng giữa hai dòng khác đơn vị | unit | ✅ lát A — `overallNeedProgressPercent` trung bình TỶ LỆ, có phép kiểm dựng lại lỗi cộng-số-lượng |
 | 10 | Đóng góp ngoài app có audit, không cộng điểm cho ai | unit + script | ⬜ |
-| 11 | Member/Bạc/Vàng chỉ nhận `PENDING_APPROVAL`; Kim Cương public ngay | unit (capability) + script | ⬜ |
+| 11 | Member/Bạc/Vàng chỉ nhận `PENDING_APPROVAL`; Kim Cương public ngay | unit (capability) + script | 🟡 lát A — phần unit xong (ba capability, hai nhánh approval); phần script Postgres chờ lát E |
 | 12 | Một contribution chỉ sinh MỘT bút toán điểm | unit + script | ⬜ |
