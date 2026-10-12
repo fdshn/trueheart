@@ -19,6 +19,7 @@ import {
   CharityRejectionReason,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
+import { IStorageUploadResult } from '@chantam/service.storage-lib';
 
 export interface ICharityCampaignView extends ICharityCampaign {
   /**
@@ -63,7 +64,13 @@ export interface ICharityCampaignWriteInput {
   readonly title: string;
   readonly slug?: string;
   readonly description: string;
-  readonly bannerUrl: string;
+  /**
+   * 1–5 key lấy từ `POST /charity-campaigns/media/upload`. Thứ tự trong mảng là thứ tự
+   * hiển thị. KHÔNG nhận URL: URL là thứ server dựng sau khi HeadObject xác nhận key.
+   */
+  readonly media: readonly string[];
+  /** Một key trong `media`, phải là ảnh. Server ghi `banner_url` từ nó. */
+  readonly coverKey: string;
   readonly badgeName: string;
   readonly targetItemsCount?: number;
   readonly lat?: number;
@@ -594,4 +601,37 @@ export interface ISetCharityCampaignActiveUseCase extends IUseCase<
 
 export const ISetCharityCampaignActiveUseCase = Symbol(
   'ISetCharityCampaignActiveUseCase',
+);
+
+export interface IRequestCharityMediaUploadCommand {
+  readonly userId: string;
+  readonly contentType: string;
+  readonly contentLength: number;
+}
+
+export type IRequestCharityMediaUploadResult = IStorageUploadResult;
+
+export interface IRequestCharityMediaUploadUseCase extends IUseCase<
+  IRequestCharityMediaUploadCommand,
+  IRequestCharityMediaUploadResult
+> {}
+
+export const IRequestCharityMediaUploadUseCase = Symbol(
+  'IRequestCharityMediaUploadUseCase',
+);
+
+export interface IReplaceCharityMediaCommand {
+  readonly campaignId: string;
+  readonly actorUserId: string;
+  readonly media: readonly string[];
+  readonly coverKey: string;
+}
+
+export interface IReplaceCharityMediaUseCase extends IUseCase<
+  IReplaceCharityMediaCommand,
+  ICharityCampaignView
+> {}
+
+export const IReplaceCharityMediaUseCase = Symbol(
+  'IReplaceCharityMediaUseCase',
 );

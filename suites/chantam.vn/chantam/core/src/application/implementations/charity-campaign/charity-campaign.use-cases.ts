@@ -54,6 +54,10 @@ import {
   IManageCharityCoordinatorsUseCase,
   IRecordExternalContributionCommand,
   IRecordExternalContributionUseCase,
+  IReplaceCharityMediaCommand,
+  IReplaceCharityMediaUseCase,
+  IRequestCharityMediaUploadCommand,
+  IRequestCharityMediaUploadUseCase,
   IReviewCharityCampaignCommand,
   IReviewCharityCampaignResult,
   IReviewCharityCampaignUseCase,
@@ -81,6 +85,8 @@ import {
   CharityCoordinatorNotAllowedException,
   CharityDeliveryNotFoundException,
   CharityLinesInvalidException,
+  CharityMediaInvalidException,
+  CharityMediaNotEditableException,
   CharityNeedItemInvalidException,
   CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
@@ -94,6 +100,7 @@ import {
 import {
   IAdminConfigRepository,
   ICharityCampaign,
+  ICharityCampaignMediaParams,
   ICharityCampaignRepository,
   ICharityDelivery,
   ICharityExternalContribution,
@@ -112,6 +119,8 @@ import {
   canEditContribution,
   canReviewCharityCampaign,
   charityCampaignGaps,
+  charityMediaShapeGaps,
+  charityMediaTypeGaps,
   charityReviewRoleOf,
   isCharityReviewRating,
   normalizeCharitySlug,
@@ -122,7 +131,12 @@ import {
   ForbiddenException,
   ValidationFailedException,
 } from '@chantam/service.common-lib/exception';
+import {
+  IObjectStorage,
+  IStorageUploadResult,
+} from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
+import { withStorageValidation } from '../shared/storage-error';
 import { CharityNotifier } from './charity.notifier';
 
 /**
@@ -166,7 +180,6 @@ async function prepareWrite(
   title: string;
   slug: string;
   description: string;
-  bannerUrl: string;
   badgeName: string;
   targetItemsCount: number;
   lat: number | null;
@@ -190,7 +203,6 @@ async function prepareWrite(
     title,
     slug,
     description,
-    bannerUrl: input.bannerUrl,
     badgeName,
     startTime,
     endTime,
@@ -219,7 +231,6 @@ async function prepareWrite(
     title,
     slug,
     description,
-    bannerUrl: input.bannerUrl,
     badgeName,
     targetItemsCount,
     lat: hasLat ? Number(input.lat) : null,
@@ -228,6 +239,55 @@ async function prepareWrite(
     startTime,
     endTime,
   };
+}
+
+/**
+ * Xác nhận bộ media và dựng các dòng sẵn sàng ghi.
+ *
+ * Dùng chung cho đường tạo và đường thay, để hai đường không thể lệch luật. Hình dạng
+ * kiểm TRƯỚC khi hỏi R2; loại (ảnh hay video) chỉ biết SAU HeadObject — lấy từ content
+ * type thật của object chứ không tin lời khai lúc xin URL.
+ */
+async function confirmCharityMedia(
+  storage: IObjectStorage,
+  userId: string,
+  keys: readonly string[],
+  coverKey: string,
+): Promise<{ media: ICharityCampaignMediaParams[]; bannerUrl: string }> {
+  const shapeGaps = charityMediaShapeGaps({ keys, coverKey });
+  if (shapeGaps.length > 0)
+    throw new CharityMediaInvalidException(shapeGaps.join('; '));
+
+  // Tuần tự như luồng bình luận: tối đa 5 lượt, và một key hỏng giữa chừng thì
+  // dừng ngay thay vì bắn nốt các lượt còn lại.
+  const confirmed: {
+    key: string;
+    mediaType: 'IMAGE' | 'VIDEO';
+    publicUrl: string;
+  }[] = [];
+  for (const key of keys)
+    confirmed.push({
+      key,
+      ...(await withStorageValidation('media', () =>
+        storage.confirmCampaignMediaUpload(userId, key),
+      )),
+    });
+
+  const typeGaps = charityMediaTypeGaps({ items: confirmed, coverKey });
+  if (typeGaps.length > 0)
+    throw new CharityMediaInvalidException(typeGaps.join('; '));
+
+  const media = confirmed.map((item, index) => ({
+    storageKey: item.key,
+    publicUrl: item.publicUrl,
+    mediaType: item.mediaType,
+    // Thứ tự do SERVER đặt theo thứ tự client gửi, như bảng nhu cầu.
+    sortOrder: index,
+    isCover: item.key === coverKey,
+  }));
+
+  // `charityMediaShapeGaps` đã bảo đảm `coverKey` nằm trong `keys`.
+  return { media, bannerUrl: media[keys.indexOf(coverKey)].publicUrl };
 }
 
 @Injectable()
@@ -239,6 +299,8 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
     private readonly entitlements: IEntitlementRepository,
     @Inject(IAdminConfigRepository)
     private readonly admin: IAdminConfigRepository,
+    @Inject(IObjectStorage)
+    private readonly storage: IObjectStorage,
   ) {}
 
   public async handle(
@@ -264,9 +326,19 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
     )
       approvalStatus = 'PENDING_APPROVAL';
     const prepared = await prepareWrite(this.repository, command);
+    // SAU quyền và nội dung: người không được tạo, hoặc gửi hồ sơ thiếu, không tốn
+    // lượt gọi R2 nào.
+    const { media, bannerUrl } = await confirmCharityMedia(
+      this.storage,
+      command.actorUserId,
+      command.media,
+      command.coverKey,
+    );
 
     const campaign = await this.repository.create({
       ...prepared,
+      bannerUrl,
+      media,
       campaignType: command.campaignType,
       allowOverTarget: command.allowOverTarget ?? false,
       beneficiary: command.beneficiary
@@ -349,6 +421,75 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
     );
 
     return publishNow?.allowed ? 'APPROVED' : 'PENDING_APPROVAL';
+  }
+}
+
+/**
+ * Xin URL tải lên cho media hoạt động.
+ *
+ * KHÔNG kiểm quyền tạo hoạt động ở đây: xin URL không tạo ra gì, và quyền vẫn bị kiểm
+ * ở lượt tạo. Object không bao giờ được gắn thì job dọn rác xoá sau 24 giờ.
+ */
+@Injectable()
+export class RequestCharityMediaUploadUseCase implements IRequestCharityMediaUploadUseCase {
+  public constructor(
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+  ) {}
+
+  public async handle(
+    command: IRequestCharityMediaUploadCommand,
+  ): Promise<IStorageUploadResult> {
+    return withStorageValidation('upload', () =>
+      this.storage.createCampaignMediaUpload({
+        userId: command.userId,
+        contentType: command.contentType,
+        contentLength: command.contentLength,
+      }),
+    );
+  }
+}
+
+/**
+ * Thay cả bộ media của hồ sơ CHỜ DUYỆT (spec D4, D5).
+ *
+ * Kiểm người tạo và trạng thái TRƯỚC khi gọi R2 để trả lỗi rõ cho người gọi sai; rồi
+ * repository kiểm LẠI dưới khoá dòng, vì Admin có thể duyệt chen giữa hai lượt.
+ * Coordinator không sửa được: §2 cho họ điều phối, không cho đổi nội dung đã gửi duyệt.
+ */
+@Injectable()
+export class ReplaceCharityMediaUseCase implements IReplaceCharityMediaUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+  ) {}
+
+  public async handle(
+    command: IReplaceCharityMediaCommand,
+  ): Promise<ICharityCampaignView> {
+    const campaign = await this.repository.findByGlobalId(command.campaignId);
+    if (!campaign) throw new CharityCampaignNotFoundException();
+    if (campaign.createdBy !== command.actorUserId)
+      throw new CharityNotOrganizerException();
+    if (campaign.approvalStatus !== 'PENDING_APPROVAL')
+      throw new CharityMediaNotEditableException();
+
+    const { media, bannerUrl } = await confirmCharityMedia(
+      this.storage,
+      command.actorUserId,
+      command.media,
+      command.coverKey,
+    );
+
+    return toView(
+      await this.repository.replaceMedia({
+        campaignId: command.campaignId,
+        actorUserId: command.actorUserId,
+        media,
+        bannerUrl,
+      }),
+      null,
+    );
   }
 }
 
