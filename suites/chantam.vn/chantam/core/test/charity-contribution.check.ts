@@ -13,12 +13,11 @@
  * thiếu, TRƯỚC khi cộng projection) rồi gỡ đi. Có khoá thì lượt sau phải chờ; không có
  * khoá thì cả hai cùng đọc thấy 100 và cùng thắng.
  *
- * ## Một tiêu chí chưa có gì để canh
+ * ## Tiêu chí 6 ở HAI nhóm
  *
- * Tiêu chí 6 nói về liên hệ/địa chỉ của NGƯỜI THỤ HƯỞNG. Schema hiện CHƯA lưu thông tin
- * đó ở đâu cả, nên phần đo được ở đây là `contactNote` của người tặng không lọt ra
- * đường công khai. Ghi rõ để không ai đọc nhóm 6 xanh rồi tưởng đã có kho dữ liệu riêng
- * tư cho người thụ hưởng.
+ * Nhóm 6 đo `contactNote` của người TẶNG không lọt đường công khai. Phần liên hệ/địa chỉ
+ * của NGƯỜI THỤ HƯỞNG nằm ở nhóm 16 — tới trước khi có `campaign_beneficiaries` thì
+ * schema chưa lưu thông tin đó ở đâu cả, nên nhóm 6 khi ấy chỉ đo được một nửa.
  */
 import { IGiftRequestRepository } from '@/domain/ports/repository';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
@@ -28,6 +27,8 @@ import { DataSource } from 'typeorm';
 import {
   CreateCharityCampaignUseCase,
   GetCampaignNeedsUseCase,
+  GetPublicCharityCampaignUseCase,
+  ListPublicCharityCampaignsUseCase,
   SubmitCharityContributionUseCase,
 } from '../src/application/implementations/charity-campaign/charity-campaign.use-cases';
 import * as entities from '../src/infrastructure/entity';
@@ -123,6 +124,8 @@ async function main(): Promise<void> {
     } as never;
     const submit = new SubmitCharityContributionUseCase(repo, silent);
     const needsView = new GetCampaignNeedsUseCase(repo);
+    const publicGet = new GetPublicCharityCampaignUseCase(repo);
+    const publicList = new ListPublicCharityCampaignsUseCase(repo);
 
     for (const [id, name, rank] of [
       [DiamondId, 'tc-kimcuong', 'DIAMOND'],
@@ -912,6 +915,105 @@ async function main(): Promise<void> {
       'giao lại sau khi thu là một hàng MỚI — lịch sử giữ cả hai lần',
       history.total === 2 && history.active === 1,
       JSON.stringify(history),
+    );
+
+    console.log(
+      '\n16. Người thụ hưởng: riêng tư, và đồng ý là điều kiện public (§2, §11.6)',
+    );
+
+    const secretPhone = `09${randomUUID().replace(/\D/g, '').slice(0, 8)}`;
+    const secretAddress = `Hẻm ${randomUUID().slice(0, 6)}, Quận 8`;
+    const appeal = await create.handle({
+      ...baseInput({
+        campaignType: 'INDIVIDUAL_APPEAL',
+        beneficiaryRelation: 'OTHER',
+        needs: [{ itemName: 'Sữa', unit: 'hộp', targetQuantity: 20 }],
+        beneficiary: {
+          fullName: 'Nguyễn Thị B',
+          relationNote: 'Hàng xóm, sống một mình',
+          phone: secretPhone,
+          address: secretAddress,
+          consentStatus: 'CONFIRMED',
+        },
+      }),
+      actorUserId: DiamondId,
+      asAdmin: false,
+    });
+    check(
+      'kêu gọi cho người khác ĐÃ đồng ý: Kim Cương public ngay',
+      appeal.approvalStatus === 'APPROVED',
+      appeal.approvalStatus,
+    );
+
+    const publicSurfaces = JSON.stringify([
+      await publicGet.handle({ idOrSlug: appeal.globalId }),
+      await publicList.handle({ limit: 50, offset: 0 }),
+      await needsView.handle({ idOrSlug: appeal.globalId, viewerUserId: null }),
+    ]);
+    check(
+      'SĐT và địa chỉ người thụ hưởng KHÔNG có trên đường công khai nào',
+      !publicSurfaces.includes(secretPhone) &&
+        !publicSurfaces.includes(secretAddress),
+    );
+    check(
+      'nhưng người tổ chức đọc được qua đường riêng',
+      (await repo.findBeneficiary(appeal.globalId))?.phone === secretPhone,
+    );
+    check(
+      'bảng campaigns KHÔNG có cột nào chứa dữ liệu đó',
+      (
+        await q(
+          `SELECT count(*)::int AS n FROM information_schema.columns
+           WHERE table_name = 'campaigns'
+             AND column_name IN ('phone', 'address', 'beneficiary_phone',
+                                 'beneficiary_address')`,
+        )
+      )[0].n === 0,
+    );
+
+    const withdrawn = await repo.upsertBeneficiary({
+      campaignId: appeal.globalId,
+      actorUserId: DiamondId,
+      beneficiary: {
+        fullName: 'Nguyễn Thị B',
+        relationNote: 'Hàng xóm, sống một mình',
+        phone: secretPhone,
+        address: secretAddress,
+        consentStatus: 'PENDING',
+        verificationNote: 'Gia đình đề nghị gỡ',
+      },
+    });
+    check(
+      'rút lại đồng ý thì hoạt động TỰ ẨN trong cùng lượt ghi',
+      withdrawn.hidden === true &&
+        (await repo.findPublicByIdOrSlug(appeal.globalId)) === null,
+      `hidden=${withdrawn.hidden}`,
+    );
+    const [hiddenRow] = await q(
+      `SELECT approval_status, is_active, end_time > now() AS future
+       FROM campaigns WHERE global_id = $1`,
+      [appeal.globalId],
+    );
+    check(
+      'ẩn là ĐÌNH CHỈ theo §8 (APPROVED, is_active=false, end_time chưa qua) — không phải đóng',
+      hiddenRow.approval_status === 'APPROVED' &&
+        hiddenRow.is_active === false &&
+        hiddenRow.future === true,
+      JSON.stringify(hiddenRow),
+    );
+
+    const unconsented = await create.handle({
+      ...baseInput({
+        campaignType: 'INDIVIDUAL_APPEAL',
+        beneficiaryRelation: 'OTHER',
+      }),
+      actorUserId: DiamondId,
+      asAdmin: false,
+    });
+    check(
+      'Kim Cương tạo kêu gọi cho người khác KHÔNG kèm đồng ý → chờ duyệt',
+      unconsented.approvalStatus === 'PENDING_APPROVAL',
+      unconsented.approvalStatus,
     );
   } finally {
     for (const source of opened.reverse())

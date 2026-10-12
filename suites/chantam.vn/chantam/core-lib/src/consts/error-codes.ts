@@ -285,6 +285,10 @@ export enum ErrorCodes {
   CHARITY_CAMPAIGN_NOT_EXTENDABLE = 0x13_19,
   /** Không giao được coordinator: không phải hoạt động có tổ chức, hoặc giao cho chính mình. */
   CHARITY_COORDINATOR_NOT_ALLOWED = 0x13_1a,
+  /** Thông tin người thụ hưởng chỉ dành cho kêu gọi cá nhân cho NGƯỜI KHÁC. */
+  CHARITY_BENEFICIARY_NOT_APPLICABLE = 0x13_1b,
+  /** Kêu gọi cho người khác chưa có xác nhận đồng ý của người thụ hưởng. */
+  CHARITY_BENEFICIARY_CONSENT_REQUIRED = 0x13_1c,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

@@ -183,6 +183,8 @@ Nghiệp vụ Chân Tâm
 | `0x1318` | `4888` | 409 Conflict | `CHARITY_EXTERNAL_CONTRIBUTION_VOIDED` | Bản ghi này đã bị huỷ hoặc đã được thay bằng bản điều chỉnh — hãy thao tác trên bản đang có hiệu lực |
 | `0x1319` | `4889` | 409 Conflict | `CHARITY_CAMPAIGN_NOT_EXTENDABLE` | Chỉ gia hạn được hoạt động đang mở, và mốc kết thúc mới phải sau mốc hiện tại |
 | `0x131a` | `4890` | 409 Conflict | `CHARITY_COORDINATOR_NOT_ALLOWED` | Chỉ hoạt động có tổ chức mới có coordinator, và không giao được cho chính mình |
+| `0x131b` | `4891` | 409 Conflict | `CHARITY_BENEFICIARY_NOT_APPLICABLE` | Thông tin người thụ hưởng chỉ dành cho kêu gọi cá nhân giúp một người khác |
+| `0x131c` | `4892` | 409 Conflict | `CHARITY_BENEFICIARY_CONSENT_REQUIRED` | Kêu gọi giúp người khác cần xác nhận người thụ hưởng đã đồng ý trước khi công khai |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -198,5 +200,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **156 mã lỗi** trên 3 tầng.
+Tổng cộng **158 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

@@ -10,6 +10,7 @@ import {
   IListExternalContributionsUseCase,
   IListJoinedCharityCampaignsUseCase,
   IListMyCharityCampaignsUseCase,
+  IManageCharityBeneficiaryUseCase,
   IManageCharityCoordinatorsUseCase,
   IRecordExternalContributionUseCase,
   IReviewCharityCampaignUseCase,
@@ -20,6 +21,8 @@ import {
 import {
   CharityAlreadyRegisteredException,
   CharityApprovalAlreadyDecidedException,
+  CharityBeneficiaryConsentRequiredException,
+  CharityBeneficiaryNotApplicableException,
   CharityCampaignCreateNotAllowedException,
   CharityCampaignNotClosableException,
   CharityCampaignNotExtendableException,
@@ -57,6 +60,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import {
@@ -67,6 +71,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  CharityBeneficiaryInputDto,
+  CharityBeneficiaryResponseDto,
   CharityCampaignIdParamDto,
   CharityCampaignWrapperResponseDto,
   CharityContributionDto,
@@ -134,6 +140,8 @@ export class CharityCampaignController {
     private readonly extendUseCase: IExtendCharityCampaignUseCase,
     @Inject(IManageCharityCoordinatorsUseCase)
     private readonly coordinatorsUseCase: IManageCharityCoordinatorsUseCase,
+    @Inject(IManageCharityBeneficiaryUseCase)
+    private readonly beneficiaryUseCase: IManageCharityBeneficiaryUseCase,
   ) {}
 
   @Get('mine')
@@ -506,6 +514,66 @@ export class CharityCampaignController {
       .build();
   }
 
+  @Get(':id/beneficiary')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Thông tin người thụ hưởng — RIÊNG TƯ (F65b §2)',
+    description:
+      'Chỉ người tổ chức, hoặc Admin có `campaign.manage` để xác minh trước khi duyệt. Chỉ có ở kêu gọi cá nhân cho NGƯỜI KHÁC.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(CharityBeneficiaryResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    CharityCampaignNotFoundException,
+    CharityNotOrganizerException,
+    CharityBeneficiaryNotApplicableException,
+  )
+  public async getBeneficiary(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.beneficiaryUseCase.handle({
+          campaignId: id,
+          actorUserId: principal.userId,
+        }),
+      )
+      .build();
+  }
+
+  @Put(':id/beneficiary')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Ghi thông tin người thụ hưởng (chỉ người tổ chức)',
+    description:
+      'Chuyển đồng ý về `PENDING` lúc hoạt động đang công khai thì hoạt động TỰ ẨN ngay trong cùng lượt ghi (`hidden: true`) — người thụ hưởng không còn đồng ý thì hoàn cảnh của họ không được tiếp tục hiện.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(CharityBeneficiaryResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    CharityCampaignNotFoundException,
+    CharityNotOrganizerException,
+    CharityBeneficiaryNotApplicableException,
+  )
+  public async putBeneficiary(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('id') id: string,
+    @Body() body: CharityBeneficiaryInputDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.beneficiaryUseCase.handle({
+          campaignId: id,
+          actorUserId: principal.userId,
+          beneficiary: body,
+        }),
+      )
+      .build();
+  }
+
   @Post(':id/participation')
   @ApiOperation({
     summary: 'Đăng ký tham gia',
@@ -746,6 +814,7 @@ export class AdminCharityCampaignController {
     ForbiddenException,
     CharityCampaignNotFoundException,
     CharityApprovalAlreadyDecidedException,
+    CharityBeneficiaryConsentRequiredException,
   )
   @ApiOkResponse({
     type: ResponseDto.forApi(CharityCampaignWrapperResponseDto),

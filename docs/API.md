@@ -1783,6 +1783,8 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `POST` | `/charity-campaigns/:id/coordinators` | Organizer | ✅ **Đã chạy.** Giao quyền điều phối (chỉ hoạt động có tổ chức) |
 | `GET` | `/charity-campaigns/:id/coordinators` | Organizer/coordinator | ✅ **Đã chạy.** Coordinator đang có hiệu lực |
 | `DELETE` | `/charity-campaigns/:id/coordinators/:userId` | Organizer | ✅ **Đã chạy.** Thu quyền — đặt mốc, không xoá |
+| `GET` | `/charity-campaigns/:id/beneficiary` | Organizer/Admin | ✅ **Đã chạy.** Người thụ hưởng — RIÊNG TƯ |
+| `PUT` | `/charity-campaigns/:id/beneficiary` | Organizer | ✅ **Đã chạy.** Ghi người thụ hưởng; rút đồng ý thì hoạt động tự ẩn |
 | `GET` | `/charity-deliveries/:id` | Hai bên | ✅ **Đã chạy.** Một lượt giao nhận; người ngoài nhận cùng lỗi với không tồn tại |
 | `POST` | `/charity-deliveries/:id/complete` | Organizer | ✅ **Đã chạy.** Xác nhận số THỰC NHẬN từng dòng; phần thiếu trở về nhu cầu |
 | `POST` | `/charity-deliveries/:id/cancel` | Hai bên | ✅ **Đã chạy.** Trả phần đã nhận về nhu cầu, không xoá đề nghị |
@@ -1899,7 +1901,14 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
   coordinator còn hiệu lực. Quyền đọc lại trong transaction, nên thu quyền có hiệu lực ngay ở
   lượt bấm kế tiếp. Người điều phối không gửi đề nghị vào hoạt động mình điều phối.
 
-- Chưa có: chỗ lưu dữ liệu riêng tư của người thụ hưởng. Xem
+- **Người thụ hưởng** (chỉ kêu gọi cá nhân cho NGƯỜI KHÁC): `beneficiary` gửi kèm lúc tạo hoặc
+  qua `PUT .../beneficiary`. Dữ liệu này RIÊNG TƯ — không response công khai nào mang nó. Chưa
+  có đồng ý `CONFIRMED` thì hoạt động **không** public, kể cả với quyền public ngay, và Admin
+  duyệt thì `409 CHARITY_BENEFICIARY_CONSENT_REQUIRED`. Chuyển đồng ý về `PENDING` lúc đang
+  public thì hoạt động tự ẩn (`hidden: true`).
+
+- Còn lại: không có việc backend nào. Point Rule `CHARITY_CONTRIBUTION_COMPLETED` đang TẮT với
+  `10` là số GIỮ CHỖ — Bên A chốt mức, Admin sửa rồi mới bật. Xem
   [§12](./plan/CHARITY-CONTRIBUTION-DESIGN.md#12-tiến-độ-triển-khai).
 
 Body tạo đề nghị luôn bọc khoá `contribution`:

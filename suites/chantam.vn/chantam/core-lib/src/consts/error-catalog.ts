@@ -940,6 +940,22 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Chỉ hoạt động có tổ chức mới có coordinator, và không giao được cho chính mình',
   },
 
+  CHARITY_BENEFICIARY_NOT_APPLICABLE: {
+    code: ErrorCodes.CHARITY_BENEFICIARY_NOT_APPLICABLE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Thông tin người thụ hưởng chỉ dành cho kêu gọi cá nhân giúp một người khác',
+  },
+
+  CHARITY_BENEFICIARY_CONSENT_REQUIRED: {
+    code: ErrorCodes.CHARITY_BENEFICIARY_CONSENT_REQUIRED,
+    httpStatus: HttpStatus.CONFLICT,
+    // §2: kêu gọi cho NGƯỜI KHÁC phải có đồng ý của họ trước khi ra ngoài. Đăng hình
+    // ảnh và hoàn cảnh của một người chưa đồng ý là xâm phạm chính người được giúp.
+    message: () =>
+      'Kêu gọi giúp người khác cần xác nhận người thụ hưởng đã đồng ý trước khi công khai',
+  },
+
   CHARITY_DELIVERY_NOT_FOUND: {
     code: ErrorCodes.CHARITY_DELIVERY_NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,

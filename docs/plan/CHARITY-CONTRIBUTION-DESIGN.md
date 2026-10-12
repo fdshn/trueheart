@@ -1,8 +1,9 @@
 # Thiết kế Kêu gọi và Đóng góp Vật phẩm Từ thiện
 
-> Trạng thái: **backend xong cả năm lát, 12/10** — bảng theo dõi ở
-> [§12](#12-tiến-độ-triển-khai); `npm run test:charity-contribution` đo cả 12 tiêu chí §11
-> trên Postgres thật. Point Rule ship TẮT chờ Bên A chốt mức. Tài liệu này thay thế cách hiểu cũ rằng một `campaign` chỉ là
+> Trạng thái: **backend xong toàn bộ, 12/10** — năm lát và năm việc còn lại sau đó, bảng
+> theo dõi ở [§12](#12-tiến-độ-triển-khai); `npm run test:charity-contribution` (60 phép kiểm)
+> đo cả 12 tiêu chí §11 trên Postgres thật. Point Rule ship TẮT chờ Bên A chốt mức — `10` là
+> số GIỮ CHỖ, phải sửa trước khi bật. Tài liệu này thay thế cách hiểu cũ rằng một `campaign` chỉ là
 > sự kiện để user đăng ký tham dự. Phần đăng ký sự kiện hiện hữu được giữ tương thích, còn
 > đóng góp vật phẩm là một luồng riêng có transaction.
 
@@ -348,7 +349,7 @@ cần deploy.
 | D | `campaign_external_contributions` (ghi nhận + điều chỉnh có audit), `POST /charity-campaigns/:id/close` | ✅ 12/10 |
 | E | Acceptance tests cho 12 tiêu chí §11, trên Postgres thật | ✅ 12/10 — `npm run test:charity-contribution`, 41 phép kiểm |
 
-**Năm việc chưa làm lúc xong lát E** — tick dần ở đây:
+**Năm việc còn lại sau lát E — đã xong cả năm, 12/10:**
 
 - ~~**Thông báo.**~~ ✅ **Xong 12/10.** Bốn loại trong nhóm `STATUS`:
   `CHARITY_CONTRIBUTION_SUBMITTED` (cho người tổ chức), `CHARITY_CONTRIBUTION_DECIDED`
@@ -366,9 +367,12 @@ cần deploy.
 - ~~**Gia hạn chiến dịch**~~ ✅ **Xong 12/10.** `POST /charity-campaigns/:id/extend`, người
   tổ chức hoặc Admin, chỉ DỜI RA SAU và chỉ khi đang mở; mỗi lần một hàng
   `campaign_schedule_changes` chỉ-ghi-thêm. Rút ngắn đi qua đường đóng. Nhóm 14 của script.
-- **Dữ liệu riêng tư của người thụ hưởng** (§2: địa chỉ, số điện thoại, tài liệu xác
-  minh khi `beneficiaryRelation = OTHER`) chưa có chỗ lưu. Tiêu chí §11.6 hiện chỉ đo được
-  phần liên hệ của người TẶNG — vì người thụ hưởng chưa có gì để lọt ra.
+- ~~**Dữ liệu riêng tư của người thụ hưởng**~~ ✅ **Xong 12/10.** Bảng RIÊNG
+  `campaign_beneficiaries` (không thêm cột vào `campaigns`, vì mọi lượt đọc `campaigns` kể cả
+  đường công khai dùng chung một danh sách cột). Đọc: người tổ chức hoặc Admin
+  `campaign.manage`; ghi: người tổ chức. Kêu gọi cho NGƯỜI KHÁC chưa có đồng ý `CONFIRMED` thì
+  KHÔNG public — kể cả với quyền public ngay — và Admin không duyệt được. Rút lại đồng ý lúc
+  đang public thì hoạt động tự ẩn (đình chỉ theo §8). Nhóm 16 của script.
 
 **`pendingQuantity` đã có từ lát B** (12/10), và nó **đếm lúc đọc** chứ không phải một cột:
 §3 nói nó không giữ chỗ, nên một con số lưu sẵn mà không ai được dựa vào là mời người sau dựa
@@ -386,7 +390,7 @@ số không phải phép đo nằm giữa những con số có thật.
 | 3 | Chấp nhận một phần sinh transaction đúng số lượng | nhóm 3 + unit `contributionStatusFrom` | ✅ |
 | 4 | Huỷ transaction trả lại capacity, không xoá audit | nhóm 4 | ✅ |
 | 5 | Đóng chiến dịch chặn đề nghị mới, giữ transaction đang chạy | nhóm 5 — kể cả hoàn tất SAU khi đóng, và đóng chiến dịch chưa bắt đầu | ✅ |
-| 6 | Người ngoài không đọc được contact/địa chỉ beneficiary | nhóm 6 — ⚠ chỉ đo `contactNote` của người tặng; schema CHƯA lưu liên hệ/địa chỉ người thụ hưởng ở đâu cả | ✅ |
+| 6 | Người ngoài không đọc được contact/địa chỉ beneficiary | nhóm 6 (`contactNote` của người tặng) + nhóm 16 (SĐT/địa chỉ người thụ hưởng không có trên đường công khai nào; gỡ phép tự ẩn hay cổng chặn public thì đỏ) | ✅ |
 | 7 | Retry cùng idempotency key chỉ tạo một transaction | nhóm 7 — retry và chèn tay đều bị chặn | ✅ |
 | 8 | Tiến độ tính từ transaction, không tin số client gửi | nhóm 8 — số THỰC NHẬN, phần hụt trở về nhu cầu | ✅ |
 | 9 | Không cộng số lượng giữa hai dòng khác đơn vị | nhóm 9 + unit; trung bình tỷ lệ 18%, không phải 32% | ✅ |

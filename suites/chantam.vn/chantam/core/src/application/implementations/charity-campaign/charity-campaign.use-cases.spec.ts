@@ -1,4 +1,6 @@
 import {
+  CharityBeneficiaryConsentRequiredException,
+  CharityBeneficiaryNotApplicableException,
   CharityCampaignCreateNotAllowedException,
   CharityCampaignNotFoundException,
   CharityContributionNotEditableException,
@@ -27,11 +29,13 @@ import {
   CancelCharityDeliveryUseCase,
   CloseCharityCampaignUseCase,
   CreateCharityCampaignUseCase,
+  DecideCharityApprovalUseCase,
   DecideCharityContributionUseCase,
   ExtendCharityCampaignUseCase,
   GetCampaignNeedsUseCase,
   GetCharityDeliveryUseCase,
   ListCampaignContributionsUseCase,
+  ManageCharityBeneficiaryUseCase,
   ManageCharityCoordinatorsUseCase,
   RecordExternalContributionUseCase,
   ReviewCharityCampaignUseCase,
@@ -118,6 +122,8 @@ function makeRepository(): jest.Mocked<ICharityCampaignRepository> {
     grantCoordinator: jest.fn(),
     revokeCoordinator: jest.fn(),
     listCoordinators: jest.fn().mockResolvedValue([]),
+    findBeneficiary: jest.fn().mockResolvedValue(null),
+    upsertBeneficiary: jest.fn(),
     listReviews: jest.fn(),
   } as unknown as jest.Mocked<ICharityCampaignRepository>;
 }
@@ -1583,5 +1589,129 @@ describe('Coordinator (F65b §2)', () => {
         items: [{ needItemId: 'need-1', offeredQuantity: 1 }],
       }),
     ).rejects.toBeInstanceOf(CharitySelfContributionException);
+  });
+});
+
+describe('Người thụ hưởng — riêng tư và cổng chặn public (F65b §2)', () => {
+  const otherAppeal = {
+    campaignType: 'INDIVIDUAL_APPEAL' as const,
+    beneficiaryRelation: 'OTHER' as const,
+  };
+  const person = (consentStatus: 'PENDING' | 'CONFIRMED') => ({
+    fullName: 'Nguyễn Thị B',
+    relationNote: 'Hàng xóm',
+    phone: '0900000000',
+    consentStatus,
+  });
+
+  it('có quyền public NGAY mà người thụ hưởng CHƯA đồng ý thì vẫn chờ duyệt', async () => {
+    // Quyền public ngay nói "nội dung của tôi không cần ai đọc trước", không nói "tôi
+    // được đăng hoàn cảnh của người khác khi họ chưa đồng ý".
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+
+    await new CreateCharityCampaignUseCase(
+      repository,
+      makeEntitlements(true, true),
+      makeAdmin(false),
+    ).handle({
+      ...writeInput({ ...otherAppeal, beneficiary: person('PENDING') }),
+      actorUserId: ActorId,
+      asAdmin: false,
+    });
+
+    expect(repository.create.mock.calls[0][0].approvalStatus).toBe(
+      'PENDING_APPROVAL',
+    );
+  });
+
+  it('thiếu hẳn thông tin người thụ hưởng cũng chờ duyệt', async () => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+
+    await new CreateCharityCampaignUseCase(
+      repository,
+      makeEntitlements(true, true),
+      makeAdmin(false),
+    ).handle({
+      ...writeInput(otherAppeal),
+      actorUserId: ActorId,
+      asAdmin: false,
+    });
+
+    expect(repository.create.mock.calls[0][0].approvalStatus).toBe(
+      'PENDING_APPROVAL',
+    );
+  });
+
+  it('đã CONFIRMED và có quyền public ngay thì public ngay', async () => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+
+    await new CreateCharityCampaignUseCase(
+      repository,
+      makeEntitlements(true, true),
+      makeAdmin(false),
+    ).handle({
+      ...writeInput({ ...otherAppeal, beneficiary: person('CONFIRMED') }),
+      actorUserId: ActorId,
+      asAdmin: false,
+    });
+
+    expect(repository.create.mock.calls[0][0].approvalStatus).toBe('APPROVED');
+  });
+
+  it('gửi người thụ hưởng cho loại KHÔNG phải kêu gọi cho người khác thì bị chặn', async () => {
+    // Lưu dữ liệu riêng tư của một người không liên quan gì tới hoạt động.
+    const repository = makeRepository();
+
+    await expect(
+      new CreateCharityCampaignUseCase(
+        repository,
+        makeEntitlements(true),
+        makeAdmin(false),
+      ).handle({
+        ...writeInput({ beneficiary: person('CONFIRMED') }),
+        actorUserId: ActorId,
+        asAdmin: false,
+      }),
+    ).rejects.toBeInstanceOf(CharityBeneficiaryNotApplicableException);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('Admin DUYỆT kêu gọi cho người khác chưa có đồng ý thì bị chặn', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(campaign(otherAppeal));
+    repository.findBeneficiary.mockResolvedValue({
+      ...person('PENDING'),
+      address: null,
+      verificationNote: null,
+      updatedAt: new Date(),
+      phone: '0900000000',
+    });
+
+    await expect(
+      new DecideCharityApprovalUseCase(repository, makeAdmin(true)).handle({
+        campaignId: CampaignId,
+        actorUserId: ActorId,
+        approve: true,
+      }),
+    ).rejects.toBeInstanceOf(CharityBeneficiaryConsentRequiredException);
+    expect(repository.decideApproval).not.toHaveBeenCalled();
+  });
+
+  it('người KHÔNG tổ chức, không phải Admin thì không đọc được', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ ...otherAppeal, createdBy: 'nguoi-khac' }),
+    );
+
+    await expect(
+      new ManageCharityBeneficiaryUseCase(repository, makeAdmin(false)).handle({
+        campaignId: CampaignId,
+        actorUserId: ActorId,
+      }),
+    ).rejects.toBeInstanceOf(CharityNotOrganizerException);
+    expect(repository.findBeneficiary).not.toHaveBeenCalled();
   });
 });

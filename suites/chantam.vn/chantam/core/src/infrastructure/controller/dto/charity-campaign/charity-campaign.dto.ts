@@ -50,6 +50,79 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+export class CharityBeneficiaryInputDto {
+  @ApiProperty({ maxLength: 200, example: 'Nguyễn Thị B' })
+  @IsString()
+  @Length(1, 200)
+  fullName: string;
+
+  @ApiProperty({
+    maxLength: 200,
+    example: 'Hàng xóm, sống một mình',
+    description: 'Quan hệ CỤ THỂ với người kêu gọi.',
+  })
+  @IsString()
+  @Length(1, 200)
+  relationNote: string;
+
+  @ApiPropertyOptional({ maxLength: 30 })
+  @IsOptional()
+  @IsString()
+  @Length(1, 30)
+  phone?: string;
+
+  @ApiPropertyOptional({ maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @Length(1, 500)
+  address?: string;
+
+  @ApiProperty({
+    enum: ['PENDING', 'CONFIRMED'],
+    description:
+      '`CONFIRMED` khi người thụ hưởng đã đồng ý cho kêu gọi công khai. Chưa `CONFIRMED` thì hoạt động KHÔNG được public — kể cả khi bạn có quyền public ngay. Chuyển về `PENDING` lúc đang public thì hoạt động tự ẩn.',
+  })
+  @IsIn(['PENDING', 'CONFIRMED'])
+  consentStatus: 'PENDING' | 'CONFIRMED';
+
+  @ApiPropertyOptional({
+    maxLength: 1000,
+    description:
+      'Ghi chú xác minh — ví dụ đã gặp trực tiếp, có xác nhận của địa phương.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 1000)
+  verificationNote?: string;
+}
+
+export class CharityBeneficiaryDto {
+  @ApiProperty() fullName: string;
+  @ApiProperty() relationNote: string;
+  @ApiProperty({ type: String, nullable: true }) phone: string | null;
+  @ApiProperty({ type: String, nullable: true }) address: string | null;
+  @ApiProperty({ enum: ['PENDING', 'CONFIRMED'] }) consentStatus: string;
+  @ApiProperty({ type: String, nullable: true }) verificationNote:
+    string | null;
+  @ApiProperty({ type: String, format: 'date-time' }) updatedAt: Date;
+}
+
+export class CharityBeneficiaryResponseDto {
+  @ApiProperty({
+    type: () => CharityBeneficiaryDto,
+    nullable: true,
+    description:
+      'RIÊNG TƯ — chỉ người tổ chức và Admin có `campaign.manage` đọc được.',
+  })
+  beneficiary: CharityBeneficiaryDto | null;
+
+  @ApiProperty({
+    description:
+      '`true` khi lượt ghi vừa ẨN hoạt động vì đồng ý không còn `CONFIRMED`.',
+  })
+  hidden: boolean;
+}
+
 export class WriteCharityCampaignDto {
   @ApiProperty({
     example: 'Bếp cơm Vu Lan 2026',
@@ -188,6 +261,16 @@ export class WriteCharityCampaignDto {
   @IsOptional()
   @IsBoolean()
   allowOverTarget?: boolean;
+
+  @ApiPropertyOptional({
+    type: () => CharityBeneficiaryInputDto,
+    description:
+      'Người thụ hưởng — CHỈ cho `INDIVIDUAL_APPEAL` + `beneficiaryRelation = OTHER`. Dữ liệu này RIÊNG TƯ và không ra response công khai nào. Thiếu, hoặc đồng ý chưa `CONFIRMED`, thì hoạt động vào chờ duyệt.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CharityBeneficiaryInputDto)
+  beneficiary?: CharityBeneficiaryInputDto;
 }
 
 export class WriteCharityCampaignBodyDto {

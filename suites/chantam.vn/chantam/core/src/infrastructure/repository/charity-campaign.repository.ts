@@ -18,6 +18,8 @@ import {
 import {
   CharityCampaignPhase,
   CharityDeliveryStatus,
+  ICharityBeneficiary,
+  ICharityBeneficiaryInput,
   ICharityCampaign,
   ICharityCampaignPage,
   ICharityCampaignRepository,
@@ -352,6 +354,13 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       const campaign = await this.insertCampaign(manager, params);
       if (params.needs.length > 0)
         await this.insertNeeds(manager, campaign.globalId, params.needs);
+      if (params.beneficiary)
+        await this.writeBeneficiary(
+          manager,
+          campaign.globalId,
+          params.createdBy,
+          params.beneficiary,
+        );
       return campaign;
     });
   }
@@ -1696,6 +1705,119 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       grantedBy: row.granted_by,
       grantedAt: row.granted_at,
     }));
+  }
+
+  private async writeBeneficiary(
+    manager: EntityManager,
+    campaignId: string,
+    actorUserId: string,
+    beneficiary: ICharityBeneficiaryInput,
+  ): Promise<void> {
+    await manager.query(
+      `INSERT INTO campaign_beneficiaries
+         (campaign_id, full_name, relation_note, phone, address,
+          consent_status, verification_note, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (campaign_id) DO UPDATE
+         SET full_name = EXCLUDED.full_name,
+             relation_note = EXCLUDED.relation_note,
+             phone = EXCLUDED.phone,
+             address = EXCLUDED.address,
+             consent_status = EXCLUDED.consent_status,
+             verification_note = EXCLUDED.verification_note,
+             updated_by = EXCLUDED.updated_by,
+             updated_at = now()`,
+      [
+        campaignId,
+        beneficiary.fullName,
+        beneficiary.relationNote,
+        beneficiary.phone,
+        beneficiary.address,
+        beneficiary.consentStatus,
+        beneficiary.verificationNote,
+        actorUserId,
+      ],
+    );
+  }
+
+  public async findBeneficiary(
+    campaignId: string,
+  ): Promise<ICharityBeneficiary | null> {
+    return this.readBeneficiary(this.manager, campaignId);
+  }
+
+  private async readBeneficiary(
+    manager: EntityManager,
+    campaignId: string,
+  ): Promise<ICharityBeneficiary | null> {
+    const [row] = await manager.query<
+      {
+        full_name: string;
+        relation_note: string;
+        phone: string | null;
+        address: string | null;
+        consent_status: 'PENDING' | 'CONFIRMED';
+        verification_note: string | null;
+        updated_at: Date;
+      }[]
+    >(
+      `SELECT full_name, relation_note, phone, address, consent_status,
+              verification_note, updated_at
+       FROM campaign_beneficiaries WHERE campaign_id = $1`,
+      [campaignId],
+    );
+    if (!row) return null;
+    return {
+      fullName: row.full_name,
+      relationNote: row.relation_note,
+      phone: row.phone,
+      address: row.address,
+      consentStatus: row.consent_status,
+      verificationNote: row.verification_note,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  public async upsertBeneficiary(params: {
+    campaignId: string;
+    actorUserId: string;
+    beneficiary: ICharityBeneficiaryInput;
+  }): Promise<{ beneficiary: ICharityBeneficiary; hidden: boolean }> {
+    return this.manager.transaction(async (manager) => {
+      const { campaign } = await this.lockCampaignAndNeeds(
+        manager,
+        params.campaignId,
+      );
+      await this.writeBeneficiary(
+        manager,
+        params.campaignId,
+        params.actorUserId,
+        params.beneficiary,
+      );
+
+      // Rút lại đồng ý lúc đang public thì ẨN NGAY, cùng transaction. Không làm thì
+      // hình ảnh và hoàn cảnh của một người KHÔNG còn đồng ý vẫn nằm trên đường công
+      // khai cho tới khi có ai đó nhớ ra mà gỡ.
+      let hidden = false;
+      if (
+        params.beneficiary.consentStatus !== 'CONFIRMED' &&
+        campaign.approval_status === 'APPROVED' &&
+        campaign.is_active
+      ) {
+        await manager.query(
+          `UPDATE campaigns SET is_active = false, updated_at = now()
+           WHERE global_id = $1`,
+          [params.campaignId],
+        );
+        hidden = true;
+      }
+
+      const beneficiary = await this.readBeneficiary(
+        manager,
+        params.campaignId,
+      );
+      return { beneficiary: beneficiary as ICharityBeneficiary, hidden };
+    });
   }
 
   public async extendCampaign(params: {

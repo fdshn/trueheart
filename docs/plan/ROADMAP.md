@@ -285,7 +285,7 @@ bán kính ghi `NOT_ELIGIBLE_GEO` với `point_delta = 0`, và audit lưu đủ 
     `details.marketPrice` (CHỐT-05); Quảng cáo có bảng `sponsor_banners` + cặp quyền
     `banner.*`; Công đức có `merit_units`/`merit_declarations` + cặp `merit.*` (chỉ
     `SUPER_ADMIN`). Xem [31 mục T1](../diagram/31-open-items.md). Giao diện CMS ở repo khác.
-  - **F65b · Mở rộng Từ thiện — ✅ backend xong 12/10** (năm việc cố ý chưa làm ghi ở §12). Phân biệt `INDIVIDUAL_APPEAL`
+  - **F65b · Mở rộng Từ thiện — ✅ backend xong toàn bộ 12/10.** Phân biệt `INDIVIDUAL_APPEAL`
     và `ORGANIZED_CAMPAIGN`, bảng nhu cầu từng vật phẩm, đề nghị đóng góp nhiều dòng,
     organizer chấp nhận/từ chối một phần và sinh transaction giao nhận. Contract và **bảng
     theo dõi từng lát** ở

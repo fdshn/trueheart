@@ -1,5 +1,6 @@
 import {
   CharityCampaignPhase,
+  ICharityBeneficiary,
   ICharityCampaign,
   ICharityContribution,
   ICharityContributionPage,
@@ -36,6 +37,19 @@ export interface ICharityCampaignPageResult {
 }
 
 /** Thân chung cho cả hai đường tạo (thành viên và Admin). */
+/**
+ * Người thụ hưởng như CLIENT gửi lên — trường tuỳ chọn để trống được. Use case chuẩn
+ * hoá về `ICharityBeneficiaryInput` (trống thành `null`) trước khi xuống repository.
+ */
+export interface ICharityBeneficiaryCommandInput {
+  readonly fullName: string;
+  readonly relationNote: string;
+  readonly phone?: string;
+  readonly address?: string;
+  readonly consentStatus: 'PENDING' | 'CONFIRMED';
+  readonly verificationNote?: string;
+}
+
 export interface ICharityNeedItemInput {
   readonly categoryId?: string;
   readonly itemName: string;
@@ -76,6 +90,12 @@ export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput 
   readonly needs?: readonly ICharityNeedItemInput[];
   /** Cho lượt chấp nhận đề nghị vượt mục tiêu từng dòng (§5). Mặc định `false`. */
   readonly allowOverTarget?: boolean;
+  /**
+   * Người thụ hưởng — CHỈ cho `INDIVIDUAL_APPEAL` + `OTHER`. Thiếu, hoặc đồng ý chưa
+   * `CONFIRMED`, thì hoạt động vào `PENDING_APPROVAL` kể cả khi người tạo có quyền
+   * public ngay (§2).
+   */
+  readonly beneficiary?: ICharityBeneficiaryCommandInput;
 }
 
 export interface ICreateCharityCampaignCommand extends ICreateCharityCampaignInput {
@@ -352,6 +372,28 @@ export interface IManageCharityCoordinatorsUseCase extends IUseCase<
 
 export const IManageCharityCoordinatorsUseCase = Symbol(
   'IManageCharityCoordinatorsUseCase',
+);
+
+export interface IManageCharityBeneficiaryCommand {
+  readonly campaignId: string;
+  readonly actorUserId: string;
+  /** `undefined` là ĐỌC; có giá trị là GHI. */
+  readonly beneficiary?: ICharityBeneficiaryCommandInput;
+}
+
+export interface IManageCharityBeneficiaryResult {
+  readonly beneficiary: ICharityBeneficiary | null;
+  /** `true` khi lượt ghi vừa ẨN hoạt động vì đồng ý không còn `CONFIRMED`. */
+  readonly hidden: boolean;
+}
+
+export interface IManageCharityBeneficiaryUseCase extends IUseCase<
+  IManageCharityBeneficiaryCommand,
+  IManageCharityBeneficiaryResult
+> {}
+
+export const IManageCharityBeneficiaryUseCase = Symbol(
+  'IManageCharityBeneficiaryUseCase',
 );
 
 export interface IGetCampaignNeedsCommand {

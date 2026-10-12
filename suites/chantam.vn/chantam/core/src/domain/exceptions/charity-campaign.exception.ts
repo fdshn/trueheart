@@ -124,3 +124,12 @@ export class CharityCampaignNotExtendableException extends ExceptionFrom(
 export class CharityCoordinatorNotAllowedException extends ExceptionFrom(
   CoreErrors.CHARITY_COORDINATOR_NOT_ALLOWED,
 ) {}
+
+export class CharityBeneficiaryNotApplicableException extends ExceptionFrom(
+  CoreErrors.CHARITY_BENEFICIARY_NOT_APPLICABLE,
+) {}
+
+/** Kêu gọi cho người khác chưa có đồng ý `CONFIRMED` — không được ra ngoài (§2). */
+export class CharityBeneficiaryConsentRequiredException extends ExceptionFrom(
+  CoreErrors.CHARITY_BENEFICIARY_CONSENT_REQUIRED,
+) {}

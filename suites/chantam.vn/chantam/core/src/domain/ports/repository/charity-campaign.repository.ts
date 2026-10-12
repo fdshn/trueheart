@@ -132,6 +132,8 @@ export interface ICreateCharityCampaignParams {
   readonly campaignType: CharityCampaignType;
   readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
   readonly allowOverTarget: boolean;
+  /** Người thụ hưởng, ghi cùng transaction. Chỉ có ở kêu gọi cho NGƯỜI KHÁC. */
+  readonly beneficiary: ICharityBeneficiaryInput | null;
   /**
    * Bảng nhu cầu, ghi TRONG CÙNG transaction với hoạt động (F65b §3).
    *
@@ -282,6 +284,22 @@ export interface ICloseCampaignResult {
   /** Lượt giao nhận còn đang chạy — KHÔNG bị huỷ, vẫn hoàn tất được (§8, §11.5). */
   readonly openDeliveries: number;
 }
+
+/**
+ * Người thụ hưởng của một kêu gọi cho NGƯỜI KHÁC (§2). RIÊNG TƯ: chỉ người tổ chức và
+ * Admin có `campaign.manage` đọc được, và không DTO công khai nào mang nó.
+ */
+export interface ICharityBeneficiary {
+  readonly fullName: string;
+  readonly relationNote: string;
+  readonly phone: string | null;
+  readonly address: string | null;
+  readonly consentStatus: 'PENDING' | 'CONFIRMED';
+  readonly verificationNote: string | null;
+  readonly updatedAt: Date;
+}
+
+export type ICharityBeneficiaryInput = Omit<ICharityBeneficiary, 'updatedAt'>;
 
 export interface ICharityNeedsView {
   readonly campaignId: string;
@@ -587,6 +605,19 @@ export interface ICharityNeedsRepositoryPart {
    * người tổ chức.
    */
   isCampaignManager(campaignId: string, userId: string): Promise<boolean>;
+
+  findBeneficiary(campaignId: string): Promise<ICharityBeneficiary | null>;
+
+  /**
+   * Ghi người thụ hưởng. Chuyển đồng ý về `PENDING` khi hoạt động đang public thì ẨN
+   * hoạt động trong cùng transaction (`is_active = false`, giữ `end_time` — tức ĐÌNH
+   * CHỈ theo bảng ánh xạ §8). `hidden = true` khi điều đó xảy ra.
+   */
+  upsertBeneficiary(params: {
+    campaignId: string;
+    actorUserId: string;
+    beneficiary: ICharityBeneficiaryInput;
+  }): Promise<{ beneficiary: ICharityBeneficiary; hidden: boolean }>;
 
   /** Giao quyền coordinator. Giao lại cho người đang có quyền thì không làm gì. */
   grantCoordinator(params: {

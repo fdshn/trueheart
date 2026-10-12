@@ -46,6 +46,9 @@ import {
   IListMyContributionsUseCase,
   IListPublicCharityCampaignsCommand,
   IListPublicCharityCampaignsUseCase,
+  IManageCharityBeneficiaryCommand,
+  IManageCharityBeneficiaryResult,
+  IManageCharityBeneficiaryUseCase,
   IManageCharityCoordinatorsCommand,
   IManageCharityCoordinatorsResult,
   IManageCharityCoordinatorsUseCase,
@@ -68,6 +71,8 @@ import {
 import {
   CharityAlreadyRegisteredException,
   CharityApprovalAlreadyDecidedException,
+  CharityBeneficiaryConsentRequiredException,
+  CharityBeneficiaryNotApplicableException,
   CharityCampaignCreateNotAllowedException,
   CharityCampaignNotFoundException,
   CharityCancelTooLateException,
@@ -239,13 +244,42 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
   public async handle(
     command: ICreateCharityCampaignCommand,
   ): Promise<ICharityCampaignView> {
-    const approvalStatus = await this.resolveApprovalStatus(command);
+    const forOther =
+      command.campaignType === 'INDIVIDUAL_APPEAL' &&
+      command.beneficiaryRelation === 'OTHER';
+    // Thông tin người thụ hưởng chỉ có nghĩa ở kêu gọi cho NGƯỜI KHÁC. Nhận nó ở loại
+    // khác là lưu dữ liệu riêng tư của một người không liên quan gì tới hoạt động.
+    if (command.beneficiary && !forOther)
+      throw new CharityBeneficiaryNotApplicableException();
+
+    let approvalStatus = await this.resolveApprovalStatus(command);
+    // §2: kêu gọi cho người khác chưa có đồng ý CONFIRMED thì KHÔNG ra ngoài, kể cả với
+    // người có quyền public ngay — quyền đó nói "nội dung của tôi không cần ai đọc
+    // trước", không nói "tôi được đăng hoàn cảnh của người khác khi họ chưa đồng ý".
+    if (
+      forOther &&
+      approvalStatus === 'APPROVED' &&
+      !command.asAdmin &&
+      command.beneficiary?.consentStatus !== 'CONFIRMED'
+    )
+      approvalStatus = 'PENDING_APPROVAL';
     const prepared = await prepareWrite(this.repository, command);
 
     const campaign = await this.repository.create({
       ...prepared,
       campaignType: command.campaignType,
       allowOverTarget: command.allowOverTarget ?? false,
+      beneficiary: command.beneficiary
+        ? {
+            fullName: command.beneficiary.fullName.trim(),
+            relationNote: command.beneficiary.relationNote.trim(),
+            phone: command.beneficiary.phone?.trim() || null,
+            address: command.beneficiary.address?.trim() || null,
+            consentStatus: command.beneficiary.consentStatus,
+            verificationNote:
+              command.beneficiary.verificationNote?.trim() || null,
+          }
+        : null,
       // `null` cho hoạt động có tổ chức, và database canh điều đó bằng một CHECK
       // nối hai cột: hoạt động có tổ chức không có người thụ hưởng đơn lẻ nào để
       // khai quan hệ với.
@@ -966,6 +1000,64 @@ export class ManageCharityCoordinatorsUseCase implements IManageCharityCoordinat
   }
 }
 
+/**
+ * Đọc và ghi thông tin người thụ hưởng (F65b §2).
+ *
+ * ĐỌC: người tổ chức, hoặc Admin có `campaign.manage` (để xác minh trước khi duyệt).
+ * Coordinator KHÔNG — kêu gọi cá nhân không có coordinator, và kể cả có thì địa chỉ của
+ * người được giúp không phải thứ cần để điều phối vật phẩm.
+ * GHI: chỉ người tổ chức.
+ */
+@Injectable()
+export class ManageCharityBeneficiaryUseCase implements IManageCharityBeneficiaryUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: IManageCharityBeneficiaryCommand,
+  ): Promise<IManageCharityBeneficiaryResult> {
+    const campaign = await this.repository.findByGlobalId(command.campaignId);
+    if (!campaign) throw new CharityCampaignNotFoundException();
+    if (
+      campaign.campaignType !== 'INDIVIDUAL_APPEAL' ||
+      campaign.beneficiaryRelation !== 'OTHER'
+    )
+      throw new CharityBeneficiaryNotApplicableException();
+
+    const isOrganizer = campaign.createdBy === command.actorUserId;
+
+    if (!command.beneficiary) {
+      if (
+        !isOrganizer &&
+        !(await this.admin.hasPermission(command.actorUserId, WritePermission))
+      )
+        throw new CharityNotOrganizerException();
+      return {
+        beneficiary: await this.repository.findBeneficiary(campaign.globalId),
+        hidden: false,
+      };
+    }
+
+    if (!isOrganizer) throw new CharityNotOrganizerException();
+    return this.repository.upsertBeneficiary({
+      campaignId: campaign.globalId,
+      actorUserId: command.actorUserId,
+      beneficiary: {
+        fullName: command.beneficiary.fullName.trim(),
+        relationNote: command.beneficiary.relationNote.trim(),
+        phone: command.beneficiary.phone?.trim() || null,
+        address: command.beneficiary.address?.trim() || null,
+        consentStatus: command.beneficiary.consentStatus,
+        verificationNote: command.beneficiary.verificationNote?.trim() || null,
+      },
+    });
+  }
+}
+
 @Injectable()
 export class ListMyCharityCampaignsUseCase implements IListMyCharityCampaignsUseCase {
   public constructor(
@@ -1259,8 +1351,19 @@ export class DecideCharityApprovalUseCase implements IDecideCharityApprovalUseCa
     if (!(await this.admin.hasPermission(command.actorUserId, WritePermission)))
       throw new ForbiddenException();
 
-    if (!(await this.repository.findByGlobalId(command.campaignId)))
-      throw new CharityCampaignNotFoundException();
+    const campaign = await this.repository.findByGlobalId(command.campaignId);
+    if (!campaign) throw new CharityCampaignNotFoundException();
+
+    // §2: duyệt một kêu gọi cho NGƯỜI KHÁC đòi đồng ý `CONFIRMED`. Admin đọc được
+    // thông tin người thụ hưởng ở `GET .../beneficiary` để tự xác minh trước khi bấm.
+    if (
+      command.approve &&
+      campaign.campaignType === 'INDIVIDUAL_APPEAL' &&
+      campaign.beneficiaryRelation === 'OTHER' &&
+      (await this.repository.findBeneficiary(campaign.globalId))
+        ?.consentStatus !== 'CONFIRMED'
+    )
+      throw new CharityBeneficiaryConsentRequiredException();
 
     const decided = await this.repository.decideApproval({
       campaignId: command.campaignId,
