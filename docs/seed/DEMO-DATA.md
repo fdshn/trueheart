@@ -1,5 +1,8 @@
 # Dữ liệu demo staging
 
+> Cần dữ liệu cho **mọi bảng** để test API (giao dịch, chat, điểm, nhóm, từ thiện, Admin…)?
+> Dùng `npm run seed:full` — xem [`FULL-DATA.md`](./FULL-DATA.md). Lệnh đó chạy seed demo này trước.
+
 Dữ liệu demo tồn tại để người xem staging có ngay tài khoản và bài đăng gần nhau trên bản đồ.
 Nó **không phải migration schema** và không tự chạy lúc Core khởi động: production cũng dùng
 `NODE_ENV=production` để tự chạy migration schema, nên trộn seed vào migration sẽ đưa tài khoản
