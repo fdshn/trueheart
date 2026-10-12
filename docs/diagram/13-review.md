@@ -1,11 +1,14 @@
 # 13 · Đánh giá sau giao dịch & Giver Accuracy
 
-> **Sơ đồ hiện trạng backend.** [Quy tắc mục tiêu 07/10/2026](../plan/GIVE-RECEIVE-2026-10-07.md)
-> cho sửa review một lần trước hạn N, cộng điểm hoàn tất riêng và chốt điểm theo giá trị sau
-> N ngày. **Hai phần sau đã triển khai 07/10:** điểm hoàn tất cộng tại `COMPLETED` không nhân
-> accuracy, và `value_bonus` chốt tại hạn — sơ đồ dưới đã sửa theo. Phần “review không sửa
-> được” thì **vẫn** chỉ đúng với code hiện tại: nới ràng buộc append-only của bảng review là
-> việc chưa làm.
+> ✅ **[Quy tắc 07/10/2026](../plan/GIVE-RECEIVE-2026-10-07.md) nay đã triển khai cả ba phần.**
+> Điểm hoàn tất cộng tại `COMPLETED` không nhân accuracy và `value_bonus` chốt tại hạn (07/10);
+> và từ 12/10 mỗi bên **sửa đánh giá của mình được đúng một lần** trước
+> `completed_at + review.grace.graceDays`, qua `PATCH /transactions/:id/reviews/mine`.
+>
+> Bất biến của bảng chỉ **nới**, không bỏ: trigger `TRG_transaction_reviews_edit_once` tự chụp
+> bản cũ vào `previous_*`, chặn lần sửa thứ hai và chặn mọi lượt xoá — kể cả với một câu
+> `UPDATE` viết tay. Ghi chú cũ ở đây nói "nới ràng buộc append-only là việc chưa làm"; nay
+> không còn đúng.
 
 Trạng thái: ✅ **đã hiện thực đầy đủ**, gồm cả CLI đối soát.
 

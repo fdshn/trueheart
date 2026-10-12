@@ -4,10 +4,13 @@ Trạng thái: ✅ **đã hiện thực** đúng mô hình chốt ngày 2026-09-
 Postgres thật (`npm run test:rank-balance`).
 
 > Yêu cầu 2026-10-04 **không đổi nguồn xét Rank** (vẫn là balance), nhưng yêu cầu chặn
-> `ITEM_REDEMPTION` nếu tiêu vào phần điểm giữ hạng. Đây là contract đích chưa có ở backend;
-> sơ đồ 12.2 dưới đây mô tả hành vi hiện tại/lịch sử 24/09, không phải quyền tiêu điểm
-> mới. Xem [sơ đồ redemption](./14-redemption.md) và
-> [handoff backend](../plan/REDEMPTION-REQUIREMENT-GAP.md).
+> `ITEM_REDEMPTION` nếu tiêu vào phần điểm giữ hạng. ✅ **Đã có từ 11/10 (CHỐT-13):** chỉ tiêu
+> được `max(0, balance - threshold(rank hiện tại))`, chặn ở **cả** báo giá và lệnh đổi, và bảng
+> bậc chưa seed thì không tiêu được (fail-closed).
+>
+> Ghi chú này tới 11/10 nói "contract đích chưa có ở backend" — nay không còn đúng. Sơ đồ 12.2
+> dưới đây mô tả cách Rank được xét lại sau một biến động điểm; phần quyền tiêu điểm nằm ở
+> [sơ đồ redemption](./14-redemption.md).
 
 ## 12.1 Năm bậc
 

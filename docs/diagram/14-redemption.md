@@ -1,10 +1,19 @@
 # 14 · Đổi vật phẩm bằng điểm
 
-Trạng thái: 🟡 **đã có API và luồng cơ bản, chưa khớp đầy đủ yêu cầu khách hàng**.
+Trạng thái: ✅ **đã khớp hợp đồng của khách hàng**, tính tới 12/10.
 `POST /posts/:postId/redeem` để đổi, `GET /posts/:postId/redemption-quote` để xem trước.
-Các gap về bảo vệ Rank, tính nguyên tử, tỷ lệ Admin và hàng đợi sau redeem được theo dõi
-tại [handoff backend](../plan/REDEMPTION-REQUIREMENT-GAP.md). Script kiểm hiện có:
-`npm run test:redemption` — chưa thay thế acceptance tests trong handoff.
+
+Bốn gap mà [handoff backend](../plan/REDEMPTION-REQUIREMENT-GAP.md) theo dõi đều đã đóng: bảo
+vệ Rank (CHỐT-13, 11/10), tỷ lệ Admin cấu hình động, xác nhận lại khi báo giá cũ (CHỐT-10 mục
+2, 11/10), và **tính nguyên tử** — khoản trừ điểm nay ghi trong chính transaction của lượt chốt
+người (12/10), nên đường hoàn bù `ITEM_REDEMPTION:REFUND:*` không còn được ghi. Huỷ lượt trao
+sau khi đã chốt thì hoàn đúng số đã trừ qua `REVERSAL:<entryId>`.
+
+Còn **một câu hỏi của Product**, không phải việc của backend: suất hàng được hoàn sau khi huỷ
+có tái mở hàng đợi `STANDBY` hay không. Hiện có tái mở.
+
+Script kiểm: `npm run test:redemption` và `npm run test:acceptance` (sáu tình huống của CHỐT-10
+mục 5).
 
 ## 14.1 Định giá vật phẩm (F74) — ✅
 
