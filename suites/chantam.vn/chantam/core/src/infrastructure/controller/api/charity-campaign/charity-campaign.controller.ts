@@ -4,10 +4,12 @@ import {
   IDecideCharityApprovalUseCase,
   IJoinCharityCampaignUseCase,
   IListAdminCharityCampaignsUseCase,
+  IListCampaignContributionsUseCase,
   IListJoinedCharityCampaignsUseCase,
   IListMyCharityCampaignsUseCase,
   IReviewCharityCampaignUseCase,
   ISetCharityCampaignActiveUseCase,
+  ISubmitCharityContributionUseCase,
   IUpdateCharityProgressUseCase,
 } from '@/application/contracts/charity-campaign';
 import {
@@ -16,6 +18,8 @@ import {
   CharityCampaignCreateNotAllowedException,
   CharityCampaignNotFoundException,
   CharityCancelTooLateException,
+  CharityNeedItemInvalidException,
+  CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
   CharityNotRegisteredException,
   CharityParticipationClosedException,
@@ -55,12 +59,16 @@ import {
 import {
   CharityCampaignIdParamDto,
   CharityCampaignWrapperResponseDto,
+  CharityContributionDto,
+  CharityContributionPageDto,
   DecideCharityApprovalBodyDto,
   ListAdminCharityCampaignsQueryDto,
   ListCharityCampaignsQueryDto,
   ListCharityCampaignsResponseDto,
+  ListContributionsQueryDto,
   ReviewCharityCampaignBodyDto,
   SetCharityCampaignActiveBodyDto,
+  SubmitCharityContributionBodyDto,
   UpdateCharityProgressBodyDto,
   WriteCharityCampaignBodyDto,
 } from '../../dto/charity-campaign/charity-campaign.dto';
@@ -94,6 +102,10 @@ export class CharityCampaignController {
     private readonly reviewUseCase: IReviewCharityCampaignUseCase,
     @Inject(IUpdateCharityProgressUseCase)
     private readonly progressUseCase: IUpdateCharityProgressUseCase,
+    @Inject(ISubmitCharityContributionUseCase)
+    private readonly submitContributionUseCase: ISubmitCharityContributionUseCase,
+    @Inject(IListCampaignContributionsUseCase)
+    private readonly listContributionsUseCase: IListCampaignContributionsUseCase,
   ) {}
 
   @Get('mine')
@@ -179,6 +191,75 @@ export class CharityCampaignController {
     });
 
     return ResponseDto.create().succeed().attach({ campaign }).build();
+  }
+
+  @Post(':id/contributions')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Gửi đề nghị đóng góp vật phẩm (F65b §4)',
+    description:
+      'Một đề nghị gồm nhiều dòng; mỗi dòng trỏ vào một dòng nhu cầu của hoạt động và nói số lượng muốn tặng theo ĐƠN VỊ của dòng đó.\n\n' +
+      'Đề nghị **không giữ chỗ**: nó không trừ vào `remainingQuantity` cho tới khi người tổ chức chấp nhận. Giữ chỗ ngay lúc gửi thì một loạt đề nghị không thực hiện sẽ làm hoạt động trông như đã đủ và chặn người tặng thật.\n\n' +
+      'Hoạt động chưa duyệt trả cùng lỗi với hoạt động không tồn tại; đã đóng hoặc đang đình chỉ thì `409 CHARITY_NOT_ACCEPTING_CONTRIBUTIONS` — một mã cho cả ba, vì phân biệt chúng là cho người ngoài dò được trạng thái kiểm duyệt.\n\n' +
+      '`contactNote` chỉ người tổ chức của hoạt động và chính bạn đọc được.',
+  })
+  @ApiCreatedResponse({ type: ResponseDto.forApi(CharityContributionDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    CharityCampaignNotFoundException,
+    CharityNotAcceptingContributionsException,
+    CharityNeedItemInvalidException,
+  )
+  public async submitContribution(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('id') id: string,
+    @Body() body: SubmitCharityContributionBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.submitContributionUseCase.handle({
+          campaignId: id,
+          contributorId: principal.userId,
+          note: body.note,
+          contactNote: body.contactNote,
+          items: body.items,
+        }),
+      )
+      .build();
+  }
+
+  @Get(':id/contributions')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Danh sách đề nghị của một hoạt động (người tổ chức)',
+    description:
+      'Chỉ người tổ chức hoạt động đọc được: danh sách này mang `contactNote` của người tặng, và §9 nói response công khai không trả contact.\n\n' +
+      'Lọc theo `status` để lấy riêng hàng chờ điều phối (`PENDING_REVIEW`).',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(CharityContributionPageDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    CharityCampaignNotFoundException,
+    CharityNotOrganizerException,
+  )
+  public async listContributions(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('id') id: string,
+    @Query() query: ListContributionsQueryDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.listContributionsUseCase.handle({
+          campaignId: id,
+          actorUserId: principal.userId,
+          status: query.status,
+          limit: query.limit ?? 20,
+          offset: query.offset ?? 0,
+        }),
+      )
+      .build();
   }
 
   @Post(':id/participation')

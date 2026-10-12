@@ -350,3 +350,95 @@ export function charityProgressPercent(input: {
     return null;
   return Math.round((input.currentItemsCount / input.targetItemsCount) * 100);
 }
+
+/**
+ * Vòng đời một đề nghị đóng góp (F65b §4).
+ *
+ * `DRAFT` **không** có: không endpoint nào lưu nháp, và schema không có chỗ phân
+ * biệt nháp với chờ duyệt. Khai một trạng thái không đường nào ghi được là mời
+ * người sau viết mã cho nó.
+ */
+export const CharityContributionStatuses = [
+  'PENDING_REVIEW',
+  'PARTIALLY_ACCEPTED',
+  'ACCEPTED',
+  'REJECTED',
+  'WITHDRAWN',
+] as const;
+
+export type CharityContributionStatus =
+  (typeof CharityContributionStatuses)[number];
+
+/**
+ * Mã lý do từ chối. Bắt buộc khi nhận ít hơn số đề nghị (§4).
+ *
+ * `CAMPAIGN_CLOSED` không nằm trong danh sách §4 mà đến từ §8: đóng chiến dịch thì
+ * từ chối hàng loạt đề nghị đang chờ với lý do này. Để nó cùng chỗ vì nó cũng là
+ * một lý do organizer không nhận, chỉ khác là hệ thống điền thay.
+ */
+export const CharityRejectionReasons = [
+  'TARGET_REACHED',
+  'NOT_MATCH_REQUIREMENT',
+  'DELIVERY_NOT_AGREED',
+  'CANNOT_CONTACT',
+  'QUALITY_NOT_ACCEPTABLE',
+  'CAMPAIGN_CLOSED',
+  'OTHER',
+] as const;
+
+export type CharityRejectionReason = (typeof CharityRejectionReasons)[number];
+
+export const MaxContributionItems = 20;
+export const MaxContributionNoteLength = 1000;
+export const MaxContributionContactNoteLength = 500;
+export const MaxContributionConditionNoteLength = 500;
+
+/**
+ * Contributor còn được sửa hoặc rút đề nghị không (§4).
+ *
+ * Chỉ khi **chưa có phần nào được chấp nhận**. Sau đó mọi thay đổi phải đi qua huỷ
+ * transaction — sửa ngược lịch sử của một đề nghị đã sinh lượt giao nhận là làm
+ * hai bên nói khác nhau về cùng một cam kết.
+ *
+ * Nhận trạng thái chứ không nhận các dòng: trạng thái là nguồn duy nhất, và lát C
+ * ghi nó trong cùng transaction với lượt quyết định.
+ */
+export function canEditContribution(
+  status: CharityContributionStatus,
+): boolean {
+  return status === 'PENDING_REVIEW';
+}
+
+export interface ICharityContributionItemDecision {
+  readonly offeredQuantity: number;
+  /** `null` khi organizer chưa quyết dòng này. */
+  readonly acceptedQuantity: number | null;
+}
+
+/**
+ * Trạng thái của đề nghị, suy từ các dòng sau một lượt quyết định (§4).
+ *
+ * Hàm thuần, và đó là chủ ý: `PARTIALLY_ACCEPTED` là chỗ dễ sai nhất trong cả phân
+ * hệ. Ba nơi cần kết luận này — danh sách organizer, danh sách contributor, phép
+ * chặn sửa — nên nếu mỗi nơi tự suy thì chúng sẽ trôi khỏi nhau.
+ *
+ * Còn dòng chưa quyết thì vẫn là `PENDING_REVIEW`: một đề nghị ba dòng mới xử một
+ * dòng chưa phải là một đề nghị đã xử.
+ */
+export function contributionStatusFrom(
+  items: readonly ICharityContributionItemDecision[],
+): CharityContributionStatus {
+  if (items.length === 0) return 'PENDING_REVIEW';
+  if (items.some((item) => item.acceptedQuantity === null))
+    return 'PENDING_REVIEW';
+
+  const accepted = items.filter((item) => (item.acceptedQuantity ?? 0) > 0);
+  if (accepted.length === 0) return 'REJECTED';
+
+  // Nhận ĐỦ mọi dòng mới là ACCEPTED. Nhận đủ số trên vài dòng mà bỏ hẳn dòng
+  // khác vẫn là nhận một phần — người tặng cần thấy đúng điều đó.
+  const full = items.every(
+    (item) => item.acceptedQuantity === item.offeredQuantity,
+  );
+  return full ? 'ACCEPTED' : 'PARTIALLY_ACCEPTED';
+}

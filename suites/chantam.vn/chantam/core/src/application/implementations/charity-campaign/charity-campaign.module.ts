@@ -6,11 +6,15 @@ import {
   IGetPublicCharityCampaignUseCase,
   IJoinCharityCampaignUseCase,
   IListAdminCharityCampaignsUseCase,
+  IListCampaignContributionsUseCase,
   IListJoinedCharityCampaignsUseCase,
   IListMyCharityCampaignsUseCase,
+  IListMyContributionsUseCase,
   IListPublicCharityCampaignsUseCase,
   IReviewCharityCampaignUseCase,
   ISetCharityCampaignActiveUseCase,
+  ISubmitCharityContributionUseCase,
+  IUpdateCharityContributionUseCase,
   IUpdateCharityProgressUseCase,
 } from '@/application/contracts/charity-campaign';
 import { Global, Module } from '@nestjs/common';
@@ -22,11 +26,15 @@ import {
   GetPublicCharityCampaignUseCase,
   JoinCharityCampaignUseCase,
   ListAdminCharityCampaignsUseCase,
+  ListCampaignContributionsUseCase,
   ListJoinedCharityCampaignsUseCase,
   ListMyCharityCampaignsUseCase,
+  ListMyContributionsUseCase,
   ListPublicCharityCampaignsUseCase,
   ReviewCharityCampaignUseCase,
   SetCharityCampaignActiveUseCase,
+  SubmitCharityContributionUseCase,
+  UpdateCharityContributionUseCase,
   UpdateCharityProgressUseCase,
 } from './charity-campaign.use-cases';
 
@@ -52,6 +60,22 @@ import {
     {
       provide: IGetCampaignNeedsUseCase,
       useClass: GetCampaignNeedsUseCase,
+    },
+    {
+      provide: ISubmitCharityContributionUseCase,
+      useClass: SubmitCharityContributionUseCase,
+    },
+    {
+      provide: IListCampaignContributionsUseCase,
+      useClass: ListCampaignContributionsUseCase,
+    },
+    {
+      provide: IListMyContributionsUseCase,
+      useClass: ListMyContributionsUseCase,
+    },
+    {
+      provide: IUpdateCharityContributionUseCase,
+      useClass: UpdateCharityContributionUseCase,
     },
     {
       provide: IGetPublicCharityCampaignUseCase,
@@ -98,6 +122,10 @@ import {
     ICreateCharityCampaignUseCase,
     IListPublicCharityCampaignsUseCase,
     IGetCampaignNeedsUseCase,
+    ISubmitCharityContributionUseCase,
+    IListCampaignContributionsUseCase,
+    IListMyContributionsUseCase,
+    IUpdateCharityContributionUseCase,
     IGetPublicCharityCampaignUseCase,
     IListMyCharityCampaignsUseCase,
     IListJoinedCharityCampaignsUseCase,

@@ -1,9 +1,14 @@
-import { ICharityNeedItemInput } from '@/application/contracts/charity-campaign';
+import {
+  ICharityContributionItemInput,
+  ICharityNeedItemInput,
+} from '@/application/contracts/charity-campaign';
 import { CharityCampaignPhases } from '@/domain/ports/repository';
 import {
   CharityApprovalStatuses,
   CharityBeneficiaryRelations,
   CharityCampaignTypes,
+  CharityContributionStatuses,
+  CharityRejectionReasons,
   CharityReviewRatingMax,
   CharityReviewRatingMin,
   CharityReviewRoles,
@@ -13,6 +18,10 @@ import {
   MaxCharitySlugLength,
   MaxCharityTargetItems,
   MaxCharityTitleLength,
+  MaxContributionConditionNoteLength,
+  MaxContributionContactNoteLength,
+  MaxContributionItems,
+  MaxContributionNoteLength,
   MaxNeedItemNameLength,
   MaxNeedItemQuantity,
   MaxNeedItemUnitLength,
@@ -22,6 +31,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsDefined,
@@ -550,4 +560,184 @@ export class CampaignNeedsResponseDto {
       'Tiến độ đang đọc từ đâu. `NEED_ITEMS` là từ bảng nhu cầu; `LEGACY_DECLARED` là chiến dịch chưa khai nhu cầu nào và chỉ còn hai cột tổng hợp cũ — vốn là LỜI KHAI của người tổ chức, hệ thống không đối soát. Client đọc cờ này chứ đừng đoán theo việc `needs` rỗng hay không.',
   })
   progressSource: 'LEGACY_DECLARED' | 'NEED_ITEMS';
+}
+
+export class CharityContributionItemInputDto implements ICharityContributionItemInput {
+  @ApiProperty({
+    format: 'uuid',
+    description:
+      'Dòng nhu cầu muốn tặng. Phải thuộc đúng hoạt động này và còn đang bật — gửi id của hoạt động khác thì `400 CHARITY_NEED_ITEM_INVALID`.',
+  })
+  @IsUUID()
+  needItemId: string;
+
+  @ApiProperty({
+    minimum: 1,
+    maximum: MaxNeedItemQuantity,
+    example: 50,
+    description:
+      'Số lượng bạn đề nghị tặng, theo ĐƠN VỊ của dòng nhu cầu đó. Đề nghị KHÔNG giữ chỗ: nó không trừ vào phần còn thiếu cho tới khi người tổ chức chấp nhận.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MaxNeedItemQuantity)
+  offeredQuantity: number;
+
+  @ApiPropertyOptional({
+    maxLength: MaxContributionConditionNoteLength,
+    description: 'Tình trạng vật phẩm, ví dụ "mới", "đã dùng còn tốt".',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, MaxContributionConditionNoteLength)
+  conditionNote?: string;
+}
+
+export class SubmitCharityContributionBodyDto {
+  @ApiProperty({
+    type: () => [CharityContributionItemInputDto],
+    maxItems: MaxContributionItems,
+    description: 'Một hoặc nhiều dòng; mỗi dòng nhu cầu chỉ xuất hiện MỘT lần.',
+  })
+  @IsDefined()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MaxContributionItems)
+  @ValidateNested({ each: true })
+  @Type(() => CharityContributionItemInputDto)
+  items: CharityContributionItemInputDto[];
+
+  @ApiPropertyOptional({ maxLength: MaxContributionNoteLength })
+  @IsOptional()
+  @IsString()
+  @Length(1, MaxContributionNoteLength)
+  note?: string;
+
+  @ApiPropertyOptional({
+    maxLength: MaxContributionContactNoteLength,
+    description:
+      'Cách liên lạc cho lượt giao nhận. CHỈ người tổ chức của hoạt động và chính bạn đọc được — không ra response công khai.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, MaxContributionContactNoteLength)
+  contactNote?: string;
+}
+
+export class UpdateCharityContributionBodyDto {
+  @ApiProperty({
+    enum: ['REPLACE', 'WITHDRAW'],
+    description:
+      '`REPLACE` thay TRỌN bộ dòng (bỏ một dòng khỏi mảng là xoá dòng đó); `WITHDRAW` rút đề nghị và bỏ qua mọi trường nội dung. Cả hai chỉ làm được khi chưa có phần nào được chấp nhận.',
+  })
+  @IsIn(['REPLACE', 'WITHDRAW'])
+  action: 'REPLACE' | 'WITHDRAW';
+
+  @ApiPropertyOptional({
+    type: () => [CharityContributionItemInputDto],
+    maxItems: MaxContributionItems,
+    description: 'Bắt buộc khi `action = REPLACE`.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MaxContributionItems)
+  @ValidateNested({ each: true })
+  @Type(() => CharityContributionItemInputDto)
+  items?: CharityContributionItemInputDto[];
+
+  @ApiPropertyOptional({ maxLength: MaxContributionNoteLength })
+  @IsOptional()
+  @IsString()
+  @Length(1, MaxContributionNoteLength)
+  note?: string;
+
+  @ApiPropertyOptional({ maxLength: MaxContributionContactNoteLength })
+  @IsOptional()
+  @IsString()
+  @Length(1, MaxContributionContactNoteLength)
+  contactNote?: string;
+}
+
+export class CharityContributionItemDto {
+  @ApiProperty({ format: 'uuid' }) globalId: string;
+  @ApiProperty({ format: 'uuid' }) needItemId: string;
+  @ApiProperty({ example: 'Gạo tẻ' }) itemName: string;
+  @ApiProperty({ example: 'kg' }) unit: string;
+  @ApiProperty({ example: 50 }) offeredQuantity: number;
+  @ApiProperty({ type: String, nullable: true }) conditionNote: string | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    example: 30,
+    description:
+      '`null` là người tổ chức CHƯA xét dòng này; `0` là đã xét và không nhận. Hai điều khác nhau — đừng gộp chúng ở client.',
+  })
+  acceptedQuantity: number | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: CharityRejectionReasons,
+    description: 'Chỉ có khi nhận ít hơn số đề nghị.',
+  })
+  rejectionReason: string | null;
+}
+
+export class CharityContributionDto {
+  @ApiProperty({ format: 'uuid' }) globalId: string;
+  @ApiProperty({ format: 'uuid' }) campaignId: string;
+  @ApiProperty({ format: 'uuid' }) contributorId: string;
+
+  @ApiProperty({ enum: CharityContributionStatuses })
+  status: string;
+
+  @ApiProperty({ type: String, nullable: true }) note: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Cách liên lạc contributor khai. Chỉ hiện cho người tổ chức của hoạt động và cho chính contributor.',
+  })
+  contactNote: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  decidedAt: Date | null;
+
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt: Date;
+
+  @ApiProperty({ type: () => [CharityContributionItemDto] })
+  items: CharityContributionItemDto[];
+}
+
+export class CharityContributionPageDto {
+  @ApiProperty({ type: () => [CharityContributionDto] })
+  items: CharityContributionDto[];
+
+  @ApiProperty({ example: 12 }) total: number;
+}
+
+export class ListContributionsQueryDto {
+  @ApiPropertyOptional({ enum: CharityContributionStatuses })
+  @IsOptional()
+  @IsIn(CharityContributionStatuses)
+  status?: (typeof CharityContributionStatuses)[number];
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional({ minimum: 0, default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number;
 }

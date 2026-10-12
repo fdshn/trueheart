@@ -18,9 +18,15 @@ import {
   IJoinCharityCampaignUseCase,
   IListAdminCharityCampaignsCommand,
   IListAdminCharityCampaignsUseCase,
+  IListCampaignContributionsCommand,
+  IListCampaignContributionsResult,
+  IListCampaignContributionsUseCase,
   IListJoinedCharityCampaignsUseCase,
   IListMyCharityCampaignsCommand,
   IListMyCharityCampaignsUseCase,
+  IListMyContributionsCommand,
+  IListMyContributionsResult,
+  IListMyContributionsUseCase,
   IListPublicCharityCampaignsCommand,
   IListPublicCharityCampaignsUseCase,
   IReviewCharityCampaignCommand,
@@ -28,6 +34,12 @@ import {
   IReviewCharityCampaignUseCase,
   ISetCharityCampaignActiveCommand,
   ISetCharityCampaignActiveUseCase,
+  ISubmitCharityContributionCommand,
+  ISubmitCharityContributionResult,
+  ISubmitCharityContributionUseCase,
+  IUpdateCharityContributionCommand,
+  IUpdateCharityContributionResult,
+  IUpdateCharityContributionUseCase,
   IUpdateCharityProgressCommand,
   IUpdateCharityProgressUseCase,
 } from '@/application/contracts/charity-campaign';
@@ -37,6 +49,10 @@ import {
   CharityCampaignCreateNotAllowedException,
   CharityCampaignNotFoundException,
   CharityCancelTooLateException,
+  CharityContributionNotEditableException,
+  CharityContributionNotFoundException,
+  CharityNeedItemInvalidException,
+  CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
   CharityNotRegisteredException,
   CharityParticipationClosedException,
@@ -59,6 +75,7 @@ import {
   MaxCharityTitleLength,
   PublishCharityWithoutReviewCapability,
   canCancelCharityParticipation,
+  canEditContribution,
   canReviewCharityCampaign,
   charityCampaignGaps,
   charityReviewRoleOf,
@@ -355,6 +372,182 @@ export class GetCampaignNeedsUseCase implements IGetCampaignNeedsUseCase {
       overallProgressPercent: overallNeedProgressPercent(active),
       progressSource: needs.length > 0 ? 'NEED_ITEMS' : 'LEGACY_DECLARED',
     };
+  }
+}
+
+/**
+ * Chiến dịch có đang nhận đề nghị không (F65b §8).
+ *
+ * Đọc CẢ BA thứ, không suy từ một cột: `approval_status = 'APPROVED'` nói đã duyệt,
+ * `is_active` nói còn mở, và `end_time` phân biệt *đã đóng* với *đang đình chỉ*.
+ * Bảng ánh xạ §8 nói thẳng là `ACTIVE`/`SUSPENDED`/`CLOSED` không bao giờ được ghi
+ * vào `approval_status` — CHECK ở database từ chối chúng.
+ */
+function acceptsContributions(campaign: ICharityCampaign): boolean {
+  return (
+    campaign.approvalStatus === 'APPROVED' &&
+    campaign.isActive &&
+    campaign.endTime.getTime() > Date.now()
+  );
+}
+
+@Injectable()
+export class SubmitCharityContributionUseCase implements ISubmitCharityContributionUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: ISubmitCharityContributionCommand,
+  ): Promise<ISubmitCharityContributionResult> {
+    const campaign = await this.repository.findByGlobalId(command.campaignId);
+    // Chiến dịch chưa duyệt nhận cùng câu trả lời với chiến dịch không tồn tại:
+    // phân biệt hai cái là cho người ngoài dò được hồ sơ đang chờ kiểm duyệt.
+    if (!campaign || campaign.approvalStatus !== 'APPROVED')
+      throw new CharityCampaignNotFoundException();
+    if (!acceptsContributions(campaign))
+      throw new CharityNotAcceptingContributionsException();
+
+    // Mọi dòng phải thuộc ĐÚNG chiến dịch này và còn bật. Thiếu phép kiểm này thì
+    // một `needItemId` của chiến dịch khác vẫn ghi được, và tiến độ của chiến dịch
+    // kia nhận một đề nghị không ai gửi cho nó.
+    const needs = await this.repository.listNeeds(campaign.globalId);
+    const open = new Set(
+      needs.filter((need) => need.isActive).map((need) => need.globalId),
+    );
+    const requested = command.items.map((item) => item.needItemId);
+    if (requested.some((id) => !open.has(id)))
+      throw new CharityNeedItemInvalidException();
+    // Hai dòng cùng trỏ một nhu cầu: database có UNIQUE chặn, nhưng chặn ở đây cho
+    // ra thông báo đọc được thay vì một lỗi ràng buộc 500.
+    if (new Set(requested).size !== requested.length)
+      throw new CharityNeedItemInvalidException();
+
+    return this.repository.createContribution({
+      campaignId: campaign.globalId,
+      contributorId: command.contributorId,
+      note: command.note?.trim() ?? null,
+      contactNote: command.contactNote?.trim() ?? null,
+      items: command.items.map((item) => ({
+        needItemId: item.needItemId,
+        offeredQuantity: item.offeredQuantity,
+        conditionNote: item.conditionNote?.trim() ?? null,
+      })),
+    });
+  }
+}
+
+@Injectable()
+export class ListCampaignContributionsUseCase implements IListCampaignContributionsUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: IListCampaignContributionsCommand,
+  ): Promise<IListCampaignContributionsResult> {
+    const campaign = await this.repository.findByGlobalId(command.campaignId);
+    if (!campaign) throw new CharityCampaignNotFoundException();
+    // Danh sách này chứa `contactNote` của người tặng — cách liên lạc họ khai cho
+    // lượt giao nhận. Chỉ người tổ chức đọc được; §9 nói response công khai không
+    // trả contact.
+    if (campaign.createdBy !== command.actorUserId)
+      throw new CharityNotOrganizerException();
+
+    return this.repository.listContributionsByCampaign({
+      campaignId: campaign.globalId,
+      status: command.status,
+      limit: command.limit,
+      offset: command.offset,
+    });
+  }
+}
+
+@Injectable()
+export class ListMyContributionsUseCase implements IListMyContributionsUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: IListMyContributionsCommand,
+  ): Promise<IListMyContributionsResult> {
+    return this.repository.listContributionsByContributor({
+      contributorId: command.contributorId,
+      limit: command.limit,
+      offset: command.offset,
+    });
+  }
+}
+
+/**
+ * Sửa hoặc rút đề nghị, chỉ khi CHƯA có phần nào được chấp nhận (F65b §4).
+ *
+ * Phép kiểm trạng thái có ở HAI chỗ và cả hai đều cần: ở đây để ra thông báo đọc
+ * được, và trong câu `UPDATE` của repository để chặn hai lượt sửa song song — hai
+ * request đều đọc thấy `PENDING_REVIEW` rồi cùng ghi thì chỉ database thấy cái thứ
+ * hai.
+ */
+@Injectable()
+export class UpdateCharityContributionUseCase implements IUpdateCharityContributionUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: IUpdateCharityContributionCommand,
+  ): Promise<IUpdateCharityContributionResult> {
+    const existing = await this.repository.findContributionByGlobalId(
+      command.contributionId,
+    );
+    // Đề nghị của người khác nhận cùng câu trả lời với đề nghị không tồn tại.
+    if (!existing || existing.contributorId !== command.contributorId)
+      throw new CharityContributionNotFoundException();
+    if (!canEditContribution(existing.status))
+      throw new CharityContributionNotEditableException();
+
+    if (command.action === 'WITHDRAW') {
+      const withdrawn = await this.repository.withdrawContribution({
+        contributionId: command.contributionId,
+        contributorId: command.contributorId,
+      });
+      if (!withdrawn) throw new CharityContributionNotEditableException();
+      return withdrawn;
+    }
+
+    const items = command.items ?? [];
+    if (items.length === 0) throw new CharityNeedItemInvalidException();
+
+    // Dòng nhu cầu vẫn phải thuộc đúng chiến dịch và còn bật — người tổ chức có
+    // thể đã rút một dòng sau khi đề nghị được gửi.
+    const needs = await this.repository.listNeeds(existing.campaignId);
+    const open = new Set(
+      needs.filter((need) => need.isActive).map((need) => need.globalId),
+    );
+    const requested = items.map((item) => item.needItemId);
+    if (
+      requested.some((id) => !open.has(id)) ||
+      new Set(requested).size !== requested.length
+    )
+      throw new CharityNeedItemInvalidException();
+
+    const replaced = await this.repository.replaceContribution({
+      contributionId: command.contributionId,
+      contributorId: command.contributorId,
+      note: command.note?.trim() ?? null,
+      contactNote: command.contactNote?.trim() ?? null,
+      items: items.map((item) => ({
+        needItemId: item.needItemId,
+        offeredQuantity: item.offeredQuantity,
+        conditionNote: item.conditionNote?.trim() ?? null,
+      })),
+    });
+    if (!replaced) throw new CharityContributionNotEditableException();
+    return replaced;
   }
 }
 

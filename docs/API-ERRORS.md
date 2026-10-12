@@ -168,6 +168,10 @@ Nghiệp vụ Chân Tâm
 | `0x1309` | `4873` | 409 Conflict | `CHARITY_REVIEW_DUPLICATE` | Bạn đã đánh giá người này trong hoạt động này |
 | `0x130a` | `4874` | 403 Forbidden | `CHARITY_NOT_ORGANIZER` | Chỉ người tổ chức cập nhật được tiến độ |
 | `0x130b` | `4875` | 409 Conflict | `CHARITY_APPROVAL_ALREADY_DECIDED` | Hồ sơ này đã được xử lý |
+| `0x130c` | `4876` | 409 Conflict | `CHARITY_NOT_ACCEPTING_CONTRIBUTIONS` | Hoạt động này hiện không nhận đề nghị đóng góp |
+| `0x130d` | `4877` | 400 Bad Request | `CHARITY_NEED_ITEM_INVALID` | Có vật phẩm không thuộc danh sách nhu cầu của hoạt động này, hoặc đã được rút |
+| `0x130e` | `4878` | 404 Not Found | `CHARITY_CONTRIBUTION_NOT_FOUND` | Không tìm thấy đề nghị đóng góp |
+| `0x130f` | `4879` | 409 Conflict | `CHARITY_CONTRIBUTION_NOT_EDITABLE` | Đề nghị đã được xét nên không sửa hay rút được nữa; thay đổi phải đi qua huỷ lượt giao nhận |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -183,5 +187,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **141 mã lỗi** trên 3 tầng.
+Tổng cộng **145 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

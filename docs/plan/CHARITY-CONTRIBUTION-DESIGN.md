@@ -329,15 +329,15 @@ cần deploy.
 | Lát | Nội dung | Tình trạng |
 | --- | --- | :-: |
 | A | `campaign_type` + `beneficiary_relation`, ba capability Rank, bảng `campaign_need_items`, Point Rule seed TẮT, `POST /charity-campaigns` nhận bảng nhu cầu, `GET /campaigns/:idOrSlug/needs` | ✅ 12/10 |
-| B | `campaign_contributions` + `campaign_contribution_items`, bốn endpoint đề nghị (gửi, organizer xem, contributor xem, sửa/rút) | ⬜ |
+| B | `campaign_contributions` + `campaign_contribution_items`, bốn endpoint đề nghị (gửi, organizer xem, contributor xem, sửa/rút) | ✅ 12/10 |
 | C | `campaign_transaction_items`, `POST /charity-contributions/:id/decision` nguyên tử có idempotency, cộng điểm một lần cho mỗi contribution | ⬜ |
 | D | `campaign_external_contributions` (ghi nhận + điều chỉnh có audit), `POST /charity-campaigns/:id/close` | ⬜ |
 | E | Acceptance tests cho 12 tiêu chí §11, trên Postgres thật | ⬜ |
 
-**Một trường CỐ Ý chưa có.** `GET /campaigns/:idOrSlug/needs` chưa trả `pendingQuantity`
-(tổng số lượng trên các đề nghị `PENDING_REVIEW`) vì bảng `campaign_contributions` chỉ ra đời ở
-lát B. Trả `0` bây giờ sẽ là một con số **không phải phép đo** nằm giữa những con số có thật —
-và nó trông đúng, nên không ai sẽ đi kiểm lại. Trường này xuất hiện cùng lát B.
+**`pendingQuantity` đã có từ lát B** (12/10), và nó **đếm lúc đọc** chứ không phải một cột:
+§3 nói nó không giữ chỗ, nên một con số lưu sẵn mà không ai được dựa vào là mời người sau dựa
+vào nó. Ở lát A trường này cố ý chưa tồn tại — trả `0` lúc chưa có bảng đề nghị sẽ là một con
+số không phải phép đo nằm giữa những con số có thật.
 
 ### 12 tiêu chí §11 — ai canh
 
@@ -346,11 +346,11 @@ và nó trông đúng, nên không ai sẽ đi kiểm lại. Trường này xu�
 | # | Tiêu chí | Lưới | Tình trạng |
 | :-: | --- | --- | :-: |
 | 1 | Hai organizer chấp nhận đồng thời không vượt mục tiêu | script Postgres thật (hai transaction song song) | ⬜ |
-| 2 | Từ chối một người không ảnh hưởng đề nghị người khác | unit + script | ⬜ |
+| 2 | Từ chối một người không ảnh hưởng đề nghị người khác | unit + script | 🟡 lát B dựng nền (mỗi đề nghị là một hàng riêng, `UNIQUE` theo `(contribution, need)`); phép kiểm thật thuộc lát C |
 | 3 | Chấp nhận một phần sinh transaction đúng số lượng | unit + script | ⬜ |
 | 4 | Huỷ transaction trả lại capacity, không xoá audit | script | ⬜ |
 | 5 | Đóng chiến dịch chặn đề nghị mới, giữ transaction đang chạy | unit + script | ⬜ |
-| 6 | Người ngoài không đọc được contact/địa chỉ beneficiary | unit (DTO) + script | ⬜ |
+| 6 | Người ngoài không đọc được contact/địa chỉ beneficiary | unit (DTO) + script | 🟡 lát B — `contactNote` chỉ ra ở hai đường có token (organizer của chiến dịch, và chính contributor), có phép kiểm dựng lại lỗi bỏ phép kiểm organizer; phần địa chỉ beneficiary thuộc lát D |
 | 7 | Retry cùng idempotency key chỉ tạo một transaction | script | ⬜ |
 | 8 | Tiến độ tính từ transaction, không tin số client gửi | unit + script | ⬜ |
 | 9 | Không cộng số lượng giữa hai dòng khác đơn vị | unit | ✅ lát A — `overallNeedProgressPercent` trung bình TỶ LỆ, có phép kiểm dựng lại lỗi cộng-số-lượng |

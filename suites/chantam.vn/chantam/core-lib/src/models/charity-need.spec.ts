@@ -1,6 +1,8 @@
 import {
+  canEditContribution,
   CharityBeneficiaryRelations,
   CharityCampaignTypes,
+  contributionStatusFrom,
   MaxNeedItemQuantity,
   MaxNeedItemsPerCampaign,
   overallNeedProgressPercent,
@@ -93,5 +95,72 @@ describe('hằng của phân hệ từ thiện', () => {
     // Lệch con số này với CHECK ở database thì client nhận 500 thay vì lỗi validate.
     expect(MaxNeedItemQuantity).toBe(1_000_000);
     expect(MaxNeedItemsPerCampaign).toBe(50);
+  });
+});
+
+describe('contributionStatusFrom (F65b §4)', () => {
+  it('còn dòng CHƯA quyết thì vẫn là PENDING_REVIEW', () => {
+    // Một đề nghị ba dòng mới xử một dòng chưa phải là đề nghị đã xử. Kết luận
+    // sớm sẽ khoá đường sửa của contributor trong khi organizer còn đang xem.
+    expect(
+      contributionStatusFrom([
+        { offeredQuantity: 50, acceptedQuantity: 50 },
+        { offeredQuantity: 10, acceptedQuantity: null },
+      ]),
+    ).toBe('PENDING_REVIEW');
+  });
+
+  it('nhận ĐỦ mọi dòng là ACCEPTED', () => {
+    expect(
+      contributionStatusFrom([
+        { offeredQuantity: 50, acceptedQuantity: 50 },
+        { offeredQuantity: 10, acceptedQuantity: 10 },
+      ]),
+    ).toBe('ACCEPTED');
+  });
+
+  it('nhận đủ vài dòng mà BỎ HẲN dòng khác vẫn là nhận một phần', () => {
+    // Đây là ca dễ sai nhất: "mọi dòng được nhận đều nhận đủ" không phải
+    // "nhận đủ". Người tặng cần thấy rằng một món của họ không được nhận.
+    expect(
+      contributionStatusFrom([
+        { offeredQuantity: 50, acceptedQuantity: 50 },
+        { offeredQuantity: 10, acceptedQuantity: 0 },
+      ]),
+    ).toBe('PARTIALLY_ACCEPTED');
+  });
+
+  it('nhận ít hơn trên một dòng cũng là nhận một phần', () => {
+    expect(
+      contributionStatusFrom([{ offeredQuantity: 50, acceptedQuantity: 30 }]),
+    ).toBe('PARTIALLY_ACCEPTED');
+  });
+
+  it('không nhận dòng nào là REJECTED', () => {
+    expect(
+      contributionStatusFrom([
+        { offeredQuantity: 50, acceptedQuantity: 0 },
+        { offeredQuantity: 10, acceptedQuantity: 0 },
+      ]),
+    ).toBe('REJECTED');
+  });
+
+  it('không có dòng nào thì PENDING_REVIEW, không phải REJECTED', () => {
+    // Một đề nghị rỗng không tồn tại được qua API, nhưng nếu có thì nó là dữ liệu
+    // hỏng — và gọi nó REJECTED là khẳng định organizer đã quyết điều họ chưa thấy.
+    expect(contributionStatusFrom([])).toBe('PENDING_REVIEW');
+  });
+});
+
+describe('canEditContribution (F65b §4)', () => {
+  it('chỉ sửa/rút được khi CHƯA có phần nào được chấp nhận', () => {
+    expect(canEditContribution('PENDING_REVIEW')).toBe(true);
+    for (const status of [
+      'PARTIALLY_ACCEPTED',
+      'ACCEPTED',
+      'REJECTED',
+      'WITHDRAWN',
+    ] as const)
+      expect(canEditContribution(status)).toBe(false);
   });
 });

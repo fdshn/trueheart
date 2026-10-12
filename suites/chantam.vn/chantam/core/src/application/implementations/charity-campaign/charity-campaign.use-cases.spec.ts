@@ -1,6 +1,10 @@
 import {
   CharityCampaignCreateNotAllowedException,
   CharityCampaignNotFoundException,
+  CharityContributionNotEditableException,
+  CharityContributionNotFoundException,
+  CharityNeedItemInvalidException,
+  CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
   CharityReviewNotPermittedException,
 } from '@/domain/exceptions';
@@ -17,11 +21,15 @@ import {
 import {
   CreateCharityCampaignUseCase,
   GetCampaignNeedsUseCase,
+  ListCampaignContributionsUseCase,
   ReviewCharityCampaignUseCase,
+  SubmitCharityContributionUseCase,
+  UpdateCharityContributionUseCase,
   UpdateCharityProgressUseCase,
 } from './charity-campaign.use-cases';
 
 const OrganizerId = 'organizer';
+const CampaignId = 'campaign-1';
 const ActorId = 'actor';
 const Hour = 3_600_000;
 
@@ -77,6 +85,12 @@ function makeRepository(): jest.Mocked<ICharityCampaignRepository> {
     createReview: jest.fn(),
     reviewExists: jest.fn().mockResolvedValue(false),
     listNeeds: jest.fn().mockResolvedValue([]),
+    createContribution: jest.fn(),
+    listContributionsByCampaign: jest.fn(),
+    listContributionsByContributor: jest.fn(),
+    findContributionByGlobalId: jest.fn(),
+    replaceContribution: jest.fn(),
+    withdrawContribution: jest.fn(),
     listReviews: jest.fn(),
   } as unknown as jest.Mocked<ICharityCampaignRepository>;
 }
@@ -582,6 +596,7 @@ describe('GetCampaignNeedsUseCase (F65b §3)', () => {
     acceptedQuantity: 0,
     receivedQuantity: 0,
     remainingQuantity: 100,
+    pendingQuantity: 0,
     sortOrder: 0,
     isActive: true,
     ...overrides,
@@ -650,5 +665,372 @@ describe('GetCampaignNeedsUseCase (F65b §3)', () => {
       }),
     ).rejects.toBeInstanceOf(CharityCampaignNotFoundException);
     expect(repository.listNeeds).not.toHaveBeenCalled();
+  });
+});
+
+describe('SubmitCharityContributionUseCase (F65b §4)', () => {
+  const Need = '99999999-9999-4999-8999-99999999aaaa';
+
+  function openNeed(overrides: Record<string, unknown> = {}) {
+    return {
+      globalId: Need,
+      categoryId: null,
+      itemName: 'Gạo tẻ',
+      description: null,
+      unit: 'kg',
+      targetQuantity: 100,
+      allowAlternative: false,
+      acceptedQuantity: 0,
+      receivedQuantity: 0,
+      remainingQuantity: 100,
+      pendingQuantity: 0,
+      sortOrder: 0,
+      isActive: true,
+      ...overrides,
+    };
+  }
+
+  /** Hoạt động ĐANG nhận đề nghị: đã duyệt, còn bật, chưa tới hạn kết thúc. */
+  function activeCampaign() {
+    return campaign({
+      approvalStatus: 'APPROVED' as const,
+      isActive: true,
+      endTime: new Date(Date.now() + 7 * 24 * Hour),
+    });
+  }
+
+  function makeSubmitRepo(overrides: Record<string, unknown> = {}) {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(activeCampaign());
+    repository.listNeeds.mockResolvedValue([openNeed()]);
+    repository.createContribution.mockResolvedValue({
+      globalId: 'contribution-1',
+    } as never);
+    Object.assign(repository, overrides);
+    return repository;
+  }
+
+  it('gửi được, và ghi đúng dòng người tặng chọn', async () => {
+    const repository = makeSubmitRepo();
+
+    await new SubmitCharityContributionUseCase(repository).handle({
+      campaignId: CampaignId,
+      contributorId: ActorId,
+      note: '  Em xin gửi ạ  ',
+      items: [{ needItemId: Need, offeredQuantity: 50 }],
+    });
+
+    expect(repository.createContribution).toHaveBeenCalledWith({
+      campaignId: CampaignId,
+      contributorId: ActorId,
+      note: 'Em xin gửi ạ',
+      contactNote: null,
+      items: [{ needItemId: Need, offeredQuantity: 50, conditionNote: null }],
+    });
+  });
+
+  it('hoạt động CHƯA DUYỆT trả cùng lỗi với hoạt động không tồn tại', async () => {
+    // Phân biệt hai cái là cho người ngoài dò được hồ sơ đang chờ kiểm duyệt.
+    const repository = makeSubmitRepo({
+      findByGlobalId: jest
+        .fn()
+        .mockResolvedValue(campaign({ approvalStatus: 'PENDING_APPROVAL' })),
+    });
+
+    await expect(
+      new SubmitCharityContributionUseCase(repository).handle({
+        campaignId: CampaignId,
+        contributorId: ActorId,
+        items: [{ needItemId: Need, offeredQuantity: 50 }],
+      }),
+    ).rejects.toBeInstanceOf(CharityCampaignNotFoundException);
+  });
+
+  it('hoạt động đã ĐÓNG thì không nhận đề nghị', async () => {
+    // `end_time` trong quá khứ là dấu hiệu "đã đóng" (§8). Đọc cả ba cột chứ không
+    // suy từ một cột: `approval_status` không bao giờ mang chữ CLOSED.
+    const repository = makeSubmitRepo({
+      findByGlobalId: jest.fn().mockResolvedValue(
+        campaign({
+          approvalStatus: 'APPROVED',
+          isActive: false,
+          endTime: new Date(Date.now() - Hour),
+        }),
+      ),
+    });
+
+    await expect(
+      new SubmitCharityContributionUseCase(repository).handle({
+        campaignId: CampaignId,
+        contributorId: ActorId,
+        items: [{ needItemId: Need, offeredQuantity: 50 }],
+      }),
+    ).rejects.toBeInstanceOf(CharityNotAcceptingContributionsException);
+    expect(repository.createContribution).not.toHaveBeenCalled();
+  });
+
+  it('hoạt động đang ĐÌNH CHỈ cũng không nhận', async () => {
+    const repository = makeSubmitRepo({
+      findByGlobalId: jest.fn().mockResolvedValue(
+        campaign({
+          approvalStatus: 'APPROVED',
+          isActive: false,
+          endTime: new Date(Date.now() + 7 * 24 * Hour),
+        }),
+      ),
+    });
+
+    await expect(
+      new SubmitCharityContributionUseCase(repository).handle({
+        campaignId: CampaignId,
+        contributorId: ActorId,
+        items: [{ needItemId: Need, offeredQuantity: 50 }],
+      }),
+    ).rejects.toBeInstanceOf(CharityNotAcceptingContributionsException);
+  });
+
+  it('dòng nhu cầu của hoạt động KHÁC bị từ chối', async () => {
+    // Thiếu phép kiểm này thì một `needItemId` lạ vẫn ghi được, và tiến độ của
+    // hoạt động kia nhận một đề nghị không ai gửi cho nó.
+    const repository = makeSubmitRepo();
+
+    await expect(
+      new SubmitCharityContributionUseCase(repository).handle({
+        campaignId: CampaignId,
+        contributorId: ActorId,
+        items: [
+          {
+            needItemId: '11111111-1111-4111-8111-111111111111',
+            offeredQuantity: 5,
+          },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(CharityNeedItemInvalidException);
+    expect(repository.createContribution).not.toHaveBeenCalled();
+  });
+
+  it('dòng nhu cầu người tổ chức đã RÚT bị từ chối', async () => {
+    const repository = makeSubmitRepo({
+      listNeeds: jest.fn().mockResolvedValue([openNeed({ isActive: false })]),
+    });
+
+    await expect(
+      new SubmitCharityContributionUseCase(repository).handle({
+        campaignId: CampaignId,
+        contributorId: ActorId,
+        items: [{ needItemId: Need, offeredQuantity: 50 }],
+      }),
+    ).rejects.toBeInstanceOf(CharityNeedItemInvalidException);
+  });
+
+  it('hai dòng cùng trỏ MỘT nhu cầu bị từ chối ở tầng use case', async () => {
+    // Database có UNIQUE chặn, nhưng chặn ở đây cho ra thông báo đọc được thay vì
+    // một lỗi ràng buộc 500.
+    const repository = makeSubmitRepo();
+
+    await expect(
+      new SubmitCharityContributionUseCase(repository).handle({
+        campaignId: CampaignId,
+        contributorId: ActorId,
+        items: [
+          { needItemId: Need, offeredQuantity: 50 },
+          { needItemId: Need, offeredQuantity: 10 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(CharityNeedItemInvalidException);
+  });
+});
+
+describe('ListCampaignContributionsUseCase (F65b §9)', () => {
+  it('người KHÔNG tổ chức không đọc được danh sách', async () => {
+    // Danh sách mang `contactNote` của người tặng, và §9 nói response công khai
+    // không trả contact.
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: 'nguoi-khac' }),
+    );
+
+    await expect(
+      new ListCampaignContributionsUseCase(repository).handle({
+        campaignId: CampaignId,
+        actorUserId: ActorId,
+        limit: 20,
+        offset: 0,
+      }),
+    ).rejects.toBeInstanceOf(CharityNotOrganizerException);
+    expect(repository.listContributionsByCampaign).not.toHaveBeenCalled();
+  });
+
+  it('người tổ chức đọc được, và lọc theo trạng thái chảy xuống repository', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: ActorId }),
+    );
+    repository.listContributionsByCampaign.mockResolvedValue({
+      items: [],
+      total: 0,
+    });
+
+    await new ListCampaignContributionsUseCase(repository).handle({
+      campaignId: CampaignId,
+      actorUserId: ActorId,
+      status: 'PENDING_REVIEW',
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(repository.listContributionsByCampaign).toHaveBeenCalledWith({
+      campaignId: CampaignId,
+      status: 'PENDING_REVIEW',
+      limit: 20,
+      offset: 0,
+    });
+  });
+});
+
+describe('UpdateCharityContributionUseCase (F65b §4)', () => {
+  const Need = '99999999-9999-4999-8999-99999999aaaa';
+  const ContributionId = 'contribution-1';
+
+  function contribution(overrides: Record<string, unknown> = {}) {
+    return {
+      globalId: ContributionId,
+      campaignId: CampaignId,
+      contributorId: ActorId,
+      status: 'PENDING_REVIEW' as const,
+      note: null,
+      contactNote: null,
+      decidedAt: null,
+      createdAt: new Date(),
+      items: [],
+      ...overrides,
+    };
+  }
+
+  function makeUpdateRepo(overrides: Record<string, unknown> = {}) {
+    const repository = makeRepository();
+    repository.findContributionByGlobalId.mockResolvedValue(contribution());
+    repository.listNeeds.mockResolvedValue([
+      {
+        globalId: Need,
+        categoryId: null,
+        itemName: 'Gạo tẻ',
+        description: null,
+        unit: 'kg',
+        targetQuantity: 100,
+        allowAlternative: false,
+        acceptedQuantity: 0,
+        receivedQuantity: 0,
+        remainingQuantity: 100,
+        pendingQuantity: 0,
+        sortOrder: 0,
+        isActive: true,
+      },
+    ]);
+    repository.replaceContribution.mockResolvedValue(contribution());
+    repository.withdrawContribution.mockResolvedValue(
+      contribution({ status: 'WITHDRAWN' }),
+    );
+    Object.assign(repository, overrides);
+    return repository;
+  }
+
+  it('đề nghị của NGƯỜI KHÁC trả cùng lỗi với không tồn tại', async () => {
+    const repository = makeUpdateRepo({
+      findContributionByGlobalId: jest
+        .fn()
+        .mockResolvedValue(contribution({ contributorId: 'nguoi-khac' })),
+    });
+
+    await expect(
+      new UpdateCharityContributionUseCase(repository).handle({
+        contributionId: ContributionId,
+        contributorId: ActorId,
+        action: 'WITHDRAW',
+      }),
+    ).rejects.toBeInstanceOf(CharityContributionNotFoundException);
+  });
+
+  it('đã có phần được chấp nhận thì KHÔNG sửa và KHÔNG rút được', async () => {
+    // §4: sau đó mọi thay đổi phải đi qua huỷ lượt giao nhận. Sửa ngược một đề
+    // nghị đã sinh lượt giao nhận là để hai bên nói khác nhau về cùng một cam kết.
+    for (const status of ['PARTIALLY_ACCEPTED', 'ACCEPTED'] as const) {
+      const repository = makeUpdateRepo({
+        findContributionByGlobalId: jest
+          .fn()
+          .mockResolvedValue(contribution({ status })),
+      });
+
+      await expect(
+        new UpdateCharityContributionUseCase(repository).handle({
+          contributionId: ContributionId,
+          contributorId: ActorId,
+          action: 'WITHDRAW',
+        }),
+      ).rejects.toBeInstanceOf(CharityContributionNotEditableException);
+      expect(repository.withdrawContribution).not.toHaveBeenCalled();
+    }
+  });
+
+  it('repository trả null — ai đó vừa xét xong — thì cũng là lỗi khoá', async () => {
+    // Hai lượt sửa song song: cả hai đọc thấy PENDING_REVIEW, và chỉ database thấy
+    // cái thứ hai. `null` từ repository là tín hiệu đó.
+    const repository = makeUpdateRepo({
+      withdrawContribution: jest.fn().mockResolvedValue(null),
+    });
+
+    await expect(
+      new UpdateCharityContributionUseCase(repository).handle({
+        contributionId: ContributionId,
+        contributorId: ActorId,
+        action: 'WITHDRAW',
+      }),
+    ).rejects.toBeInstanceOf(CharityContributionNotEditableException);
+  });
+
+  it('REPLACE không có dòng nào bị từ chối', async () => {
+    // Một đề nghị rỗng không phải một đề nghị. Muốn bỏ hết thì đó là RÚT.
+    const repository = makeUpdateRepo();
+
+    await expect(
+      new UpdateCharityContributionUseCase(repository).handle({
+        contributionId: ContributionId,
+        contributorId: ActorId,
+        action: 'REPLACE',
+        items: [],
+      }),
+    ).rejects.toBeInstanceOf(CharityNeedItemInvalidException);
+  });
+
+  it('REPLACE kiểm lại dòng nhu cầu: người tổ chức có thể đã rút nó', async () => {
+    const repository = makeUpdateRepo({
+      listNeeds: jest.fn().mockResolvedValue([]),
+    });
+
+    await expect(
+      new UpdateCharityContributionUseCase(repository).handle({
+        contributionId: ContributionId,
+        contributorId: ActorId,
+        action: 'REPLACE',
+        items: [{ needItemId: Need, offeredQuantity: 20 }],
+      }),
+    ).rejects.toBeInstanceOf(CharityNeedItemInvalidException);
+  });
+
+  it('RÚT thì không đụng đường thay dòng', async () => {
+    const repository = makeUpdateRepo();
+
+    const result = await new UpdateCharityContributionUseCase(
+      repository,
+    ).handle({
+      contributionId: ContributionId,
+      contributorId: ActorId,
+      action: 'WITHDRAW',
+      // Gửi kèm nội dung cũng bị bỏ: rút là rút.
+      items: [{ needItemId: Need, offeredQuantity: 20 }],
+    });
+
+    expect(result.status).toBe('WITHDRAWN');
+    expect(repository.replaceContribution).not.toHaveBeenCalled();
   });
 });

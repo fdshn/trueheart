@@ -2,7 +2,9 @@ import {
   CharityApprovalStatus,
   CharityBeneficiaryRelation,
   CharityCampaignType,
+  CharityContributionStatus,
   CharityParticipationStatus,
+  CharityRejectionReason,
   CharityReviewRole,
 } from '@chantam.vn/chantam.core-lib/models';
 
@@ -71,6 +73,18 @@ export interface ICharityNeedItem {
   /** Thực nhận từ transaction hoàn tất và đóng góp ngoài app còn hiệu lực. */
   readonly receivedQuantity: number;
   readonly remainingQuantity: number;
+  /**
+   * Tổng số lượng trên các đề nghị đang chờ xét (§3).
+   *
+   * **KHÔNG giữ chỗ** và không trừ khỏi `remainingQuantity` — nó chỉ nói cho
+   * organizer biết tải điều phối. Giữ chỗ theo đề nghị thì một loạt đề nghị không
+   * thực hiện sẽ làm chiến dịch trông như đã đủ và chặn người tặng thật.
+   *
+   * Vì thế nó cũng KHÔNG có cột: đếm lúc đọc từ `campaign_contribution_items` của
+   * những đề nghị `PENDING_REVIEW`. Một con số lưu sẵn mà không ai được dựa vào là
+   * mời người sau dựa vào nó.
+   */
+  readonly pendingQuantity: number;
   readonly sortOrder: number;
   readonly isActive: boolean;
 }
@@ -126,6 +140,56 @@ export interface ICreateCharityCampaignParams {
    * và §10 nói giữ nguyên hành vi legacy cho những hoạt động đó.
    */
   readonly needs: readonly ICreateCharityNeedItemParams[];
+}
+
+export interface ICharityContributionItem {
+  readonly globalId: string;
+  readonly needItemId: string;
+  /** Tên và đơn vị của dòng nhu cầu, để nơi gọi khỏi đi một lượt đọc nữa. */
+  readonly itemName: string;
+  readonly unit: string;
+  readonly offeredQuantity: number;
+  readonly conditionNote: string | null;
+  /** `null` khi organizer chưa quyết dòng này — KHÁC `0` là đã xem và không nhận. */
+  readonly acceptedQuantity: number | null;
+  readonly rejectionReason: CharityRejectionReason | null;
+}
+
+export interface ICharityContribution {
+  readonly globalId: string;
+  readonly campaignId: string;
+  readonly contributorId: string;
+  readonly status: CharityContributionStatus;
+  readonly note: string | null;
+  /**
+   * Cách liên lạc contributor tự khai cho lượt giao nhận này.
+   *
+   * KHÔNG ra response công khai: §9 nói response public không trả contact. Chỉ
+   * organizer/coordinator của chiến dịch và chính contributor đọc được.
+   */
+  readonly contactNote: string | null;
+  readonly decidedAt: Date | null;
+  readonly createdAt: Date;
+  readonly items: readonly ICharityContributionItem[];
+}
+
+export interface ICreateCharityContributionItemParams {
+  readonly needItemId: string;
+  readonly offeredQuantity: number;
+  readonly conditionNote: string | null;
+}
+
+export interface ICreateCharityContributionParams {
+  readonly campaignId: string;
+  readonly contributorId: string;
+  readonly note: string | null;
+  readonly contactNote: string | null;
+  readonly items: readonly ICreateCharityContributionItemParams[];
+}
+
+export interface ICharityContributionPage {
+  readonly items: readonly ICharityContribution[];
+  readonly total: number;
 }
 
 export interface ICharityNeedsView {
@@ -276,6 +340,59 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
 }
 
 export interface ICharityNeedsRepositoryPart {
+  /**
+   * Gửi một đề nghị đóng góp cùng các dòng, trong MỘT transaction.
+   *
+   * Hai lượt ghi rời sẽ để lại một đề nghị không có dòng nào — và nó hiện trong
+   * danh sách của organizer như một đề nghị trống, không ai hiểu được.
+   */
+  createContribution(
+    params: ICreateCharityContributionParams,
+  ): Promise<ICharityContribution>;
+
+  /** Đề nghị của một chiến dịch — đường của organizer/coordinator. */
+  listContributionsByCampaign(params: {
+    campaignId: string;
+    status?: CharityContributionStatus;
+    limit: number;
+    offset: number;
+  }): Promise<ICharityContributionPage>;
+
+  /** Đề nghị của chính người gọi, mọi chiến dịch. */
+  listContributionsByContributor(params: {
+    contributorId: string;
+    limit: number;
+    offset: number;
+  }): Promise<ICharityContributionPage>;
+
+  findContributionByGlobalId(
+    globalId: string,
+  ): Promise<ICharityContribution | null>;
+
+  /**
+   * Sửa đề nghị: thay TRỌN bộ dòng, không vá từng dòng.
+   *
+   * Điều kiện `status = 'PENDING_REVIEW'` nằm trong câu `UPDATE` chứ không chỉ ở
+   * tầng trên: hai request sửa song song đều đọc thấy còn sửa được rồi cùng ghi, và
+   * database là chỗ duy nhất thấy cái thứ hai. Khớp 0 hàng thì nơi gọi dịch thành
+   * một lỗi nghiệp vụ đọc được.
+   *
+   * Trả `null` khi không còn sửa được.
+   */
+  replaceContribution(params: {
+    contributionId: string;
+    contributorId: string;
+    note: string | null;
+    contactNote: string | null;
+    items: readonly ICreateCharityContributionItemParams[];
+  }): Promise<ICharityContribution | null>;
+
+  /** Rút đề nghị. `null` khi không còn rút được. Rút là đổi trạng thái, không xoá. */
+  withdrawContribution(params: {
+    contributionId: string;
+    contributorId: string;
+  }): Promise<ICharityContribution | null>;
+
   /**
    * Bảng nhu cầu của một chiến dịch, kèm projection từng dòng.
    *

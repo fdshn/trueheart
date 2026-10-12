@@ -1,6 +1,8 @@
 import {
   CharityCampaignPhase,
   ICharityCampaign,
+  ICharityContribution,
+  ICharityContributionPage,
   ICharityNeedsView,
   ICharityReview,
 } from '@/domain/ports/repository';
@@ -8,6 +10,7 @@ import {
   CharityApprovalStatus,
   CharityBeneficiaryRelation,
   CharityCampaignType,
+  CharityContributionStatus,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 
@@ -78,6 +81,95 @@ export interface ICreateCharityCampaignCommand extends ICreateCharityCampaignInp
    */
   readonly asAdmin: boolean;
 }
+
+export interface ICharityContributionItemInput {
+  readonly needItemId: string;
+  readonly offeredQuantity: number;
+  readonly conditionNote?: string;
+}
+
+export interface ISubmitCharityContributionCommand {
+  readonly campaignId: string;
+  readonly contributorId: string;
+  readonly note?: string;
+  readonly contactNote?: string;
+  readonly items: readonly ICharityContributionItemInput[];
+}
+
+export type ISubmitCharityContributionResult = ICharityContribution;
+
+export interface ISubmitCharityContributionUseCase extends IUseCase<
+  ISubmitCharityContributionCommand,
+  ISubmitCharityContributionResult
+> {}
+
+export const ISubmitCharityContributionUseCase = Symbol(
+  'ISubmitCharityContributionUseCase',
+);
+
+export interface IListCampaignContributionsCommand {
+  readonly campaignId: string;
+  /** Người gọi; phải là người tổ chức của chiến dịch này. */
+  readonly actorUserId: string;
+  readonly status?: CharityContributionStatus;
+  readonly limit: number;
+  readonly offset: number;
+}
+
+export type IListCampaignContributionsResult = ICharityContributionPage;
+
+export interface IListCampaignContributionsUseCase extends IUseCase<
+  IListCampaignContributionsCommand,
+  IListCampaignContributionsResult
+> {}
+
+export const IListCampaignContributionsUseCase = Symbol(
+  'IListCampaignContributionsUseCase',
+);
+
+export interface IListMyContributionsCommand {
+  readonly contributorId: string;
+  readonly limit: number;
+  readonly offset: number;
+}
+
+export type IListMyContributionsResult = ICharityContributionPage;
+
+export interface IListMyContributionsUseCase extends IUseCase<
+  IListMyContributionsCommand,
+  IListMyContributionsResult
+> {}
+
+export const IListMyContributionsUseCase = Symbol(
+  'IListMyContributionsUseCase',
+);
+
+/**
+ * Sửa hoặc RÚT đề nghị — một endpoint, hai việc (F65b §4).
+ *
+ * Gộp vì cả hai có cùng điều kiện ("chưa có phần nào được chấp nhận") và cùng một
+ * phép chặn đua ở database. Hai endpoint sẽ là hai chỗ phải giữ cùng một luật.
+ */
+export interface IUpdateCharityContributionCommand {
+  readonly contributionId: string;
+  readonly contributorId: string;
+  /** `WITHDRAW` thì mọi trường nội dung bị bỏ qua. */
+  readonly action: 'REPLACE' | 'WITHDRAW';
+  readonly note?: string;
+  readonly contactNote?: string;
+  readonly items?: readonly ICharityContributionItemInput[];
+}
+
+export type IUpdateCharityContributionResult = ICharityContribution;
+
+export interface IUpdateCharityContributionUseCase extends IUseCase<
+  IUpdateCharityContributionCommand,
+  IUpdateCharityContributionResult
+> {}
+
+export const IUpdateCharityContributionUseCase = Symbol(
+  'IUpdateCharityContributionUseCase',
+);
 
 export interface IGetCampaignNeedsCommand {
   /** uuid canonical hoặc slug — cùng lối với `GET /campaigns/:idOrSlug`. */

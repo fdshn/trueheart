@@ -1753,7 +1753,7 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 
 ## 13. Từ thiện — bảng nhu cầu và đề nghị đóng góp (ĐANG TRIỂN KHAI)
 
-> **Hai dòng đầu đã CHẠY từ 12/10; phần còn lại vẫn là contract mục tiêu.** Tiến độ từng lát ở
+> **Sáu dòng đầu đã CHẠY từ 12/10; phần còn lại vẫn là contract mục tiêu.** Tiến độ từng lát ở
 > [`CHARITY-CONTRIBUTION-DESIGN.md` §12](./plan/CHARITY-CONTRIBUTION-DESIGN.md#12-tiến-độ-triển-khai)
 > — đó là nguồn duy nhất, bảng này không kể lại. Endpoint nào chưa tick ở đó thì client không
 > được giả lập thành công.
@@ -1770,10 +1770,10 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | --- | --- | --- | --- |
 | `POST` | `/charity-campaigns` | Bearer + capability theo loại | ✅ **Đã chạy.** Tạo campaign kèm bảng nhu cầu; server tự quyết định chờ duyệt hay public ngay (`approval_status` + `is_active`) |
 | `GET` | `/campaigns/:idOrSlug/needs` | Công khai | ✅ **Đã chạy.** Nhu cầu, số đã chấp nhận/đã nhận/còn thiếu theo từng dòng; không trả PII beneficiary |
-| `POST` | `/charity-campaigns/:id/contributions` | Bearer | Gửi đề nghị gồm nhiều vật phẩm và số lượng |
-| `GET` | `/charity-campaigns/:id/contributions` | Organizer/coordinator | Danh sách đề nghị chờ điều phối |
-| `GET` | `/charity-contributions/me` | Bearer | Đề nghị do chính user gửi |
-| `PATCH` | `/charity-contributions/:id` | Chính contributor | Sửa hoặc rút khi chưa có phần được chấp nhận |
+| `POST` | `/charity-campaigns/:id/contributions` | Bearer | ✅ **Đã chạy.** Gửi đề nghị gồm nhiều vật phẩm và số lượng; đề nghị KHÔNG giữ chỗ |
+| `GET` | `/charity-campaigns/:id/contributions` | Organizer | ✅ **Đã chạy.** Danh sách đề nghị, lọc được theo trạng thái. Coordinator chưa có — xem lát C |
+| `GET` | `/charity-contributions/me` | Bearer | ✅ **Đã chạy.** Đề nghị của chính mình, mọi hoạt động |
+| `PATCH` | `/charity-contributions/:id` | Bearer (chủ đề nghị) | ✅ **Đã chạy.** `action: REPLACE` thay trọn bộ dòng, `WITHDRAW` rút — chỉ khi chưa có phần nào được chấp nhận |
 | `POST` | `/charity-contributions/:id/decision` | Organizer/coordinator | Chấp nhận/từ chối từng dòng, bắt buộc idempotency key |
 | `POST` | `/charity-campaigns/:id/external-contributions` | Organizer/coordinator | Ghi nhận vật phẩm nhận ngoài app có audit |
 | `PATCH` | `/charity-external-contributions/:id` | Organizer/coordinator | Điều chỉnh/hủy bản ghi ngoài app có lý do |
@@ -1813,6 +1813,35 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 
   Dòng `isActive = false` vẫn trả về (nó là lịch sử của những đề nghị đã gửi) nhưng không vào
   phép tính tiến độ.
+
+- `POST /charity-campaigns/:id/contributions` — một đề nghị, nhiều dòng, mỗi dòng trỏ một dòng
+  nhu cầu. **Đề nghị không giữ chỗ:** nó không trừ vào `remainingQuantity` cho tới khi người tổ
+  chức chấp nhận.
+
+  Hoạt động chưa duyệt trả cùng lỗi với hoạt động không tồn tại. Đã đóng hoặc đang đình chỉ thì
+  `409 CHARITY_NOT_ACCEPTING_CONTRIBUTIONS` — **một mã cho cả ba**, vì phân biệt chúng là cho
+  người ngoài dò được trạng thái kiểm duyệt. Trạng thái đó đọc từ **ba** thứ
+  (`approval_status`, `is_active`, `end_time`), không suy từ một cột: `approval_status` không
+  bao giờ mang chữ `ACTIVE`/`CLOSED`/`SUSPENDED`.
+
+  `needItemId` phải thuộc đúng hoạt động đó và còn bật, và một dòng nhu cầu chỉ xuất hiện một
+  lần trong mảng — cả hai ra `400 CHARITY_NEED_ITEM_INVALID`.
+
+- `acceptedQuantity` của mỗi dòng: `null` là **chưa xét**, `0` là **đã xét và không nhận**. Đừng
+  gộp hai cái ở client — `pendingQuantity` của bảng nhu cầu đếm theo đúng khác biệt đó.
+  `rejectionReason` chỉ có khi nhận ít hơn số đề nghị.
+
+- `contactNote` chỉ ra ở hai đường có token: `GET /charity-campaigns/:id/contributions` (người
+  tổ chức) và `GET /charity-contributions/me` (chính người tặng). Không đường công khai nào trả
+  nó.
+
+- `PATCH /charity-contributions/:id` chỉ làm được khi **chưa có phần nào được chấp nhận**. Sau
+  đó mọi thay đổi phải đi qua huỷ lượt giao nhận — sửa ngược một đề nghị đã sinh lượt giao nhận
+  là để hai bên nói khác nhau về cùng một cam kết.
+
+  `REPLACE` thay **trọn bộ** dòng: bỏ một dòng khỏi mảng là xoá dòng đó. `WITHDRAW` đổi trạng
+  thái, **không xoá** bản ghi — người tổ chức đã đọc đề nghị đó và cần biết nó từng tồn tại.
+  Đề nghị của người khác trả cùng lỗi với đề nghị không tồn tại.
 
 Body tạo đề nghị luôn bọc khoá `contribution`:
 

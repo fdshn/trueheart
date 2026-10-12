@@ -115,3 +115,4 @@ export * from './1799500000000-SelectRequesterDiamondOnly';
 export * from './1799600000000-SelectionDeadlineForWantedPosts';
 export * from './1799700000000-AllowReviewEditOnce';
 export * from './1799800000000-CreateCharityNeedItems';
+export * from './1799900000000-CreateCharityContributions';

@@ -839,6 +839,37 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Chỉ người tổ chức cập nhật được tiến độ',
   },
 
+  CHARITY_NOT_ACCEPTING_CONTRIBUTIONS: {
+    code: ErrorCodes.CHARITY_NOT_ACCEPTING_CONTRIBUTIONS,
+    httpStatus: HttpStatus.CONFLICT,
+    // Không nói RÕ vì sao (chưa duyệt / đã đóng / đình chỉ): một chiến dịch chưa
+    // duyệt hay đang bị đình chỉ là nội dung chưa công khai, và phân biệt ba lý do
+    // là cho người ngoài dò được trạng thái kiểm duyệt của nó.
+    message: () => 'Hoạt động này hiện không nhận đề nghị đóng góp',
+  },
+
+  CHARITY_NEED_ITEM_INVALID: {
+    code: ErrorCodes.CHARITY_NEED_ITEM_INVALID,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: () =>
+      'Có vật phẩm không thuộc danh sách nhu cầu của hoạt động này, hoặc đã được rút',
+  },
+
+  CHARITY_CONTRIBUTION_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_CONTRIBUTION_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy đề nghị đóng góp',
+  },
+
+  CHARITY_CONTRIBUTION_NOT_EDITABLE: {
+    code: ErrorCodes.CHARITY_CONTRIBUTION_NOT_EDITABLE,
+    httpStatus: HttpStatus.CONFLICT,
+    // Nói việc cần làm: sau khi đã có phần được nhận, đường duy nhất là huỷ lượt
+    // giao nhận — không phải sửa ngược đề nghị.
+    message: () =>
+      'Đề nghị đã được xét nên không sửa hay rút được nữa; thay đổi phải đi qua huỷ lượt giao nhận',
+  },
+
   CHARITY_APPROVAL_ALREADY_DECIDED: {
     code: ErrorCodes.CHARITY_APPROVAL_ALREADY_DECIDED,
     httpStatus: HttpStatus.CONFLICT,

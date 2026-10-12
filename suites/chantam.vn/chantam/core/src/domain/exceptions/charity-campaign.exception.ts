@@ -44,3 +44,28 @@ export class CharityNotOrganizerException extends ExceptionFrom(
 export class CharityApprovalAlreadyDecidedException extends ExceptionFrom(
   CoreErrors.CHARITY_APPROVAL_ALREADY_DECIDED,
 ) {}
+
+/** Hoạt động không nhận đề nghị: chưa duyệt, đã đóng, hoặc đang bị đình chỉ. */
+export class CharityNotAcceptingContributionsException extends ExceptionFrom(
+  CoreErrors.CHARITY_NOT_ACCEPTING_CONTRIBUTIONS,
+) {}
+
+/** Dòng nhu cầu không thuộc hoạt động này, hoặc người tổ chức đã rút nó. */
+export class CharityNeedItemInvalidException extends ExceptionFrom(
+  CoreErrors.CHARITY_NEED_ITEM_INVALID,
+) {}
+
+export class CharityContributionNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_CONTRIBUTION_NOT_FOUND,
+) {}
+
+/**
+ * Đề nghị đã được xét nên khoá (F65b §4).
+ *
+ * Ném từ HAI chỗ: use case ném khi đọc thấy trạng thái đã qua `PENDING_REVIEW`,
+ * còn repository trả `null` khi câu `UPDATE ... AND status = 'PENDING_REVIEW'`
+ * khớp 0 hàng — đường duy nhất thấy hai lượt sửa song song.
+ */
+export class CharityContributionNotEditableException extends ExceptionFrom(
+  CoreErrors.CHARITY_CONTRIBUTION_NOT_EDITABLE,
+) {}

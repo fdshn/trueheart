@@ -3,16 +3,22 @@ import {
   ICharityCampaign,
   ICharityCampaignPage,
   ICharityCampaignRepository,
+  ICharityContribution,
+  ICharityContributionPage,
   ICharityNeedItem,
   ICharityReview,
   ICreateCharityCampaignParams,
+  ICreateCharityContributionItemParams,
+  ICreateCharityContributionParams,
   ICreateCharityNeedItemParams,
 } from '@/domain/ports/repository';
 import {
   CharityApprovalStatus,
   CharityBeneficiaryRelation,
   CharityCampaignType,
+  CharityContributionStatus,
   CharityParticipationStatus,
+  CharityRejectionReason,
   CharityReviewRole,
   charityProgressPercent,
   remainingNeedQuantity,
@@ -71,6 +77,63 @@ interface IReviewRow {
  * `participant_count` là CÂU CON, không phải cột. Xem docblock migration `1798200000000`.
  * Nó đếm trên `IDX_campaign_participations_campaign` (index phần, chỉ hàng `REGISTERED`).
  */
+interface IContributionRow {
+  global_id: string;
+  campaign_id: string;
+  contributor_id: string;
+  status: string;
+  note: string | null;
+  contact_note: string | null;
+  decided_at: Date | null;
+  created_at: Date;
+}
+
+interface IContributionItemRow {
+  contribution_id?: string;
+  global_id: string;
+  need_item_id: string;
+  item_name: string;
+  unit: string;
+  offered_quantity: string | number;
+  condition_note: string | null;
+  accepted_quantity: string | number | null;
+  rejection_reason: string | null;
+}
+
+const ContributionColumns = `contribution.global_id, contribution.campaign_id,
+       contribution.contributor_id, contribution.status, contribution.note,
+       contribution.contact_note, contribution.decided_at,
+       contribution.created_at`;
+
+function toContribution(
+  row: IContributionRow,
+  items: readonly IContributionItemRow[],
+): ICharityContribution {
+  return {
+    globalId: row.global_id,
+    campaignId: row.campaign_id,
+    contributorId: row.contributor_id,
+    status: row.status as CharityContributionStatus,
+    note: row.note,
+    contactNote: row.contact_note,
+    decidedAt: row.decided_at,
+    createdAt: row.created_at,
+    items: items.map((item) => ({
+      globalId: item.global_id,
+      needItemId: item.need_item_id,
+      itemName: item.item_name,
+      unit: item.unit,
+      offeredQuantity: Number(item.offered_quantity),
+      conditionNote: item.condition_note,
+      // `null` phải giữ `null`: nó nghĩa là "chưa ai quyết", còn `Number(null)` là
+      // 0 và 0 nghĩa là "đã xem và không nhận". Hai câu khác nhau hẳn.
+      acceptedQuantity:
+        item.accepted_quantity === null ? null : Number(item.accepted_quantity),
+      rejectionReason: item.rejection_reason as CharityRejectionReason | null,
+    })),
+  };
+}
+
 const Columns = `campaigns.global_id, campaigns.title, campaigns.slug, campaigns.description,
        campaigns.banner_url, campaigns.badge_name,
        campaigns.target_items_count, campaigns.current_items_count,
@@ -277,14 +340,28 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         received_quantity: number;
         sort_order: number;
         is_active: boolean;
+        pending_quantity: string | number;
       }[]
     >(
-      `SELECT global_id, category_id, item_name, description, unit,
-              target_quantity, allow_alternative, accepted_quantity,
-              received_quantity, sort_order, is_active
-       FROM campaign_need_items
-       WHERE campaign_id = $1
-       ORDER BY sort_order, id`,
+      // `pending_quantity` ĐẾM LÚC ĐỌC, không phải cột: §3 nói nó không giữ chỗ,
+      // nên một con số lưu sẵn mà không ai được dựa vào là mời người sau dựa vào
+      // nó. Mỗi chiến dịch có vài chục dòng nhu cầu nên đây không phải chỗ cần
+      // tối ưu; đổi lại nó không bao giờ lệch.
+      `SELECT need.global_id, need.category_id, need.item_name, need.description,
+              need.unit, need.target_quantity, need.allow_alternative,
+              need.accepted_quantity, need.received_quantity, need.sort_order,
+              need.is_active,
+              COALESCE((
+                SELECT SUM(item.offered_quantity)
+                FROM campaign_contribution_items item
+                INNER JOIN campaign_contributions contribution
+                  ON contribution.global_id = item.contribution_id
+                WHERE item.need_item_id = need.global_id
+                  AND contribution.status = 'PENDING_REVIEW'
+              ), 0) AS pending_quantity
+       FROM campaign_need_items need
+       WHERE need.campaign_id = $1
+       ORDER BY need.sort_order, need.id`,
       [campaignId],
     );
 
@@ -309,9 +386,250 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
           acceptedQuantity,
           receivedQuantity,
         }),
+        // `SUM` của Postgres trả `numeric`, và node-pg đưa `numeric` về CHUỖI.
+        // Thiếu `Number()` thì client nhận `"60"` và mọi phép so ở đó lệch âm thầm
+        // — cùng cái bẫy đã gặp ở `participant_count`.
+        pendingQuantity: Number(row.pending_quantity),
         sortOrder: Number(row.sort_order),
         isActive: row.is_active,
       };
+    });
+  }
+
+  public async createContribution(
+    params: ICreateCharityContributionParams,
+  ): Promise<ICharityContribution> {
+    return this.manager.transaction(async (manager) => {
+      const [header] = await manager.query<{ global_id: string }[]>(
+        `INSERT INTO campaign_contributions
+           (campaign_id, contributor_id, note, contact_note)
+         VALUES ($1, $2, $3, $4)
+         RETURNING global_id`,
+        [
+          params.campaignId,
+          params.contributorId,
+          params.note,
+          params.contactNote,
+        ],
+      );
+
+      await this.insertContributionItems(
+        manager,
+        header.global_id,
+        params.items,
+      );
+
+      const created = await this.readContribution(manager, header.global_id);
+      // Không bao giờ `null` ở đây — vừa chèn trong cùng transaction. Ném thay vì
+      // `!` để một lỗi tương lai ở `readContribution` lộ ra ngay chỗ nó xảy ra.
+      if (!created)
+        throw new Error(
+          'createContribution: không đọc lại được đề nghị vừa ghi',
+        );
+      return created;
+    });
+  }
+
+  private async insertContributionItems(
+    manager: EntityManager,
+    contributionId: string,
+    items: readonly ICreateCharityContributionItemParams[],
+  ): Promise<void> {
+    // Một câu lệnh cho cả lô, cùng lý do như bảng nhu cầu: ràng buộc
+    // `UQ_campaign_contribution_items_one_per_need` phải thấy cả lô cùng lúc.
+    await manager.query(
+      `INSERT INTO campaign_contribution_items
+         (contribution_id, need_item_id, offered_quantity, condition_note)
+       SELECT $1, item.need_item_id, item.offered_quantity, item.condition_note
+       FROM UNNEST($2::uuid[], $3::int[], $4::text[])
+         AS item(need_item_id, offered_quantity, condition_note)`,
+      [
+        contributionId,
+        items.map((item) => item.needItemId),
+        items.map((item) => item.offeredQuantity),
+        items.map((item) => item.conditionNote),
+      ],
+    );
+  }
+
+  private async readContribution(
+    manager: EntityManager,
+    globalId: string,
+  ): Promise<ICharityContribution | null> {
+    const [row] = await manager.query<IContributionRow[]>(
+      `SELECT ${ContributionColumns}
+       FROM campaign_contributions contribution
+       WHERE contribution.global_id = $1`,
+      [globalId],
+    );
+    if (!row) return null;
+
+    const items = await manager.query<IContributionItemRow[]>(
+      `SELECT item.global_id, item.need_item_id, need.item_name, need.unit,
+              item.offered_quantity, item.condition_note,
+              item.accepted_quantity, item.rejection_reason
+       FROM campaign_contribution_items item
+       INNER JOIN campaign_need_items need
+         ON need.global_id = item.need_item_id
+       WHERE item.contribution_id = $1
+       ORDER BY need.sort_order, item.id`,
+      [globalId],
+    );
+
+    return toContribution(row, items);
+  }
+
+  public async findContributionByGlobalId(
+    globalId: string,
+  ): Promise<ICharityContribution | null> {
+    return this.readContribution(this.manager, globalId);
+  }
+
+  public async listContributionsByCampaign(params: {
+    campaignId: string;
+    status?: CharityContributionStatus;
+    limit: number;
+    offset: number;
+  }): Promise<ICharityContributionPage> {
+    return this.listContributions({
+      where: `contribution.campaign_id = $1
+              AND ($2::text IS NULL OR contribution.status = $2)`,
+      values: [params.campaignId, params.status ?? null],
+      limit: params.limit,
+      offset: params.offset,
+    });
+  }
+
+  public async listContributionsByContributor(params: {
+    contributorId: string;
+    limit: number;
+    offset: number;
+  }): Promise<ICharityContributionPage> {
+    return this.listContributions({
+      where: `contribution.contributor_id = $1 AND $2::text IS NULL`,
+      values: [params.contributorId, null],
+      limit: params.limit,
+      offset: params.offset,
+    });
+  }
+
+  /**
+   * Một đường đọc cho cả hai danh sách.
+   *
+   * `$2::text IS NULL` ở đường contributor trông lạ nhưng có lý do đo được:
+   * Postgres từ chối một câu lệnh có tham số được TRUYỀN mà không chỗ nào tham
+   * chiếu — `could not determine data type of parameter`. Hai câu `where` khác nhau
+   * dùng chung một bộ tham số thì tham số nào cũng phải xuất hiện.
+   */
+  private async listContributions(params: {
+    where: string;
+    values: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<ICharityContributionPage> {
+    const rows = await this.manager.query<IContributionRow[]>(
+      `SELECT ${ContributionColumns}
+       FROM campaign_contributions contribution
+       WHERE ${params.where}
+       ORDER BY contribution.created_at DESC, contribution.id DESC
+       LIMIT $3 OFFSET $4`,
+      [...params.values, params.limit, params.offset],
+    );
+    const [count] = await this.manager.query<{ total: string }[]>(
+      `SELECT COUNT(*) AS total
+       FROM campaign_contributions contribution
+       WHERE ${params.where}`,
+      params.values,
+    );
+
+    if (rows.length === 0)
+      return { items: [], total: Number(count?.total ?? 0) };
+
+    const items = await this.manager.query<IContributionItemRow[]>(
+      `SELECT item.contribution_id, item.global_id, item.need_item_id,
+              need.item_name, need.unit, item.offered_quantity,
+              item.condition_note, item.accepted_quantity, item.rejection_reason
+       FROM campaign_contribution_items item
+       INNER JOIN campaign_need_items need
+         ON need.global_id = item.need_item_id
+       WHERE item.contribution_id = ANY($1::uuid[])
+       ORDER BY need.sort_order, item.id`,
+      [rows.map((row) => row.global_id)],
+    );
+
+    return {
+      items: rows.map((row) =>
+        toContribution(
+          row,
+          items.filter((item) => item.contribution_id === row.global_id),
+        ),
+      ),
+      total: Number(count?.total ?? 0),
+    };
+  }
+
+  public async replaceContribution(params: {
+    contributionId: string;
+    contributorId: string;
+    note: string | null;
+    contactNote: string | null;
+    items: readonly ICreateCharityContributionItemParams[];
+  }): Promise<ICharityContribution | null> {
+    return this.manager.transaction(async (manager) => {
+      // `status = 'PENDING_REVIEW'` trong WHERE, không chỉ ở tầng trên: hai request
+      // sửa song song đều đọc thấy còn sửa được rồi cùng ghi, và đây là chỗ duy
+      // nhất thấy cái thứ hai.
+      const updated = await updateReturning<{ global_id: string }>(
+        manager,
+        `UPDATE campaign_contributions
+         SET note = $3, contact_note = $4, updated_at = now()
+         WHERE global_id = $1 AND contributor_id = $2
+           AND status = 'PENDING_REVIEW'
+         RETURNING global_id`,
+        [
+          params.contributionId,
+          params.contributorId,
+          params.note,
+          params.contactNote,
+        ],
+      );
+      if (updated.length === 0) return null;
+
+      // Thay TRỌN bộ dòng: một lượt sửa là một bản đề nghị đầy đủ. Vá từng dòng thì
+      // việc BỎ một dòng không diễn đạt được.
+      await manager.query(
+        `DELETE FROM campaign_contribution_items WHERE contribution_id = $1`,
+        [params.contributionId],
+      );
+      await this.insertContributionItems(
+        manager,
+        params.contributionId,
+        params.items,
+      );
+
+      return this.readContribution(manager, params.contributionId);
+    });
+  }
+
+  public async withdrawContribution(params: {
+    contributionId: string;
+    contributorId: string;
+  }): Promise<ICharityContribution | null> {
+    return this.manager.transaction(async (manager) => {
+      const updated = await updateReturning<{ global_id: string }>(
+        manager,
+        // Rút là đổi TRẠNG THÁI, không xoá hàng: organizer đã đọc đề nghị đó và
+        // cần biết nó từng tồn tại.
+        `UPDATE campaign_contributions
+         SET status = 'WITHDRAWN', withdrawn_at = now(), updated_at = now()
+         WHERE global_id = $1 AND contributor_id = $2
+           AND status = 'PENDING_REVIEW'
+         RETURNING global_id`,
+        [params.contributionId, params.contributorId],
+      );
+      if (updated.length === 0) return null;
+
+      return this.readContribution(manager, params.contributionId);
     });
   }
 

@@ -258,6 +258,13 @@ export enum ErrorCodes {
   CHARITY_REVIEW_DUPLICATE = 0x13_09,
   CHARITY_NOT_ORGANIZER = 0x13_0a,
   CHARITY_APPROVAL_ALREADY_DECIDED = 0x13_0b,
+  /** Chiến dịch không nhận đề nghị đóng góp: chưa duyệt, đã đóng, hoặc đã đình chỉ. */
+  CHARITY_NOT_ACCEPTING_CONTRIBUTIONS = 0x13_0c,
+  /** Dòng nhu cầu không thuộc chiến dịch này, hoặc người tổ chức đã rút nó. */
+  CHARITY_NEED_ITEM_INVALID = 0x13_0d,
+  CHARITY_CONTRIBUTION_NOT_FOUND = 0x13_0e,
+  /** Đã có phần được chấp nhận, nên đề nghị khoá (F65b §4). */
+  CHARITY_CONTRIBUTION_NOT_EDITABLE = 0x13_0f,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,
