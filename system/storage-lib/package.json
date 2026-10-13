@@ -4,8 +4,13 @@
   "description": "S3-compatible presigned upload for Chân Tâm",
   "private": true,
   "license": "UNLICENSED",
-  "files": ["**/*.js", "**/*.d.ts"],
-  "engines": { "node": ">=22.0.0" },
+  "files": [
+    "**/*.js",
+    "**/*.d.ts"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "build": "nest build && tsc-alias",
     "dev": "nest build --watch",
@@ -25,7 +30,7 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
-    "@nestjs/common": "^11.0.1",
+    "@nestjs/common": "^11.2.7",
     "@nestjs/schematics": "^11.0.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.7",
