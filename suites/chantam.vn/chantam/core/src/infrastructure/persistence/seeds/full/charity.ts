@@ -230,6 +230,18 @@ export async function seedCharity(ctx: ISeedContext): Promise<void> {
     );
   }
 
+  // Một ảnh bìa cho mỗi hoạt động, trỏ đúng `Banner` đã ghi vào `banner_url`. Key nằm
+  // NGOÀI `users/` nên job dọn rác không quét tới — seed không có object R2 thật.
+  for (const item of Campaigns)
+    await ctx.q(
+      `
+        INSERT INTO campaign_media (campaign_id, storage_key, public_url, media_type, sort_order, is_cover)
+        VALUES ($1, $2, $3, 'IMAGE', 0, true)
+        ON CONFLICT (storage_key) DO NOTHING
+      `,
+      [campaign(item.n), `seed/campaign-media/${item.n}.png`, Banner],
+    );
+
   for (const [n, campaignN, name, unit, target, categoryId] of Needs)
     await ctx.q(
       `

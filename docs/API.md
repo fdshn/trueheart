@@ -1785,9 +1785,13 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `DELETE` | `/charity-campaigns/:id/coordinators/:userId` | Organizer | ✅ **Đã chạy.** Thu quyền — đặt mốc, không xoá |
 | `GET` | `/charity-campaigns/:id/beneficiary` | Organizer/Admin | ✅ **Đã chạy.** Người thụ hưởng — RIÊNG TƯ |
 | `PUT` | `/charity-campaigns/:id/beneficiary` | Organizer | ✅ **Đã chạy.** Ghi người thụ hưởng; rút đồng ý thì hoạt động tự ẩn |
+| `POST` | `/charity-campaigns/media/upload` | Bearer | ✅ **Đã chạy.** Xin URL tải ảnh/video (ảnh 5 MB, video 25 MB); key dùng trong lượt tạo hoặc thay media |
+| `PUT` | `/charity-campaigns/:id/media` | Người tạo | ✅ **Đã chạy.** Thay cả bộ 1–5 media + ảnh bìa, chỉ khi hồ sơ chờ duyệt |
 | `GET` | `/charity-deliveries/:id` | Hai bên | ✅ **Đã chạy.** Một lượt giao nhận; người ngoài nhận cùng lỗi với không tồn tại |
 | `POST` | `/charity-deliveries/:id/complete` | Organizer | ✅ **Đã chạy.** Xác nhận số THỰC NHẬN từng dòng; phần thiếu trở về nhu cầu |
 | `POST` | `/charity-deliveries/:id/cancel` | Hai bên | ✅ **Đã chạy.** Trả phần đã nhận về nhu cầu, không xoá đề nghị |
+
+- `POST /charity-campaigns` và `POST /admin/charity-campaigns` **không còn nhận `bannerUrl`**; gửi `media` (1–5 key) và `coverKey`. Response có thêm `media[]`; `bannerUrl` do server ghi từ ảnh bìa.
 
 **Hai endpoint đã chạy — điều client cần biết**
 

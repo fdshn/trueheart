@@ -49,6 +49,8 @@ Xem [thiết kế F83](../../../../docs/plan/CHECK-IN-STREAK-DESIGN.md).
 | `GET` | `/api/v1/notifications/me` | `ListNotificationsUseCase` — hộp thư trong app |
 | `PATCH` | `/api/v1/notifications/me/read` | `MarkNotificationsReadUseCase` |
 | `PATCH` | `/api/v1/posts/:postId/charity-transfer` | `ReviewCharityTransferUseCase` — Admin duyệt/từ chối; duyệt thì bài sang `ARCHIVED` |
+| `POST` | `/api/v1/charity-campaigns/media/upload` | `RequestCharityMediaUploadUseCase` — presign ảnh/video hoạt động từ thiện, key `users/<userId>/campaign-media/…` |
+| `PUT` | `/api/v1/charity-campaigns/:id/media` | `ReplaceCharityMediaUseCase` — người tạo thay cả bộ 1–5 media + bìa khi hồ sơ còn chờ duyệt |
 | `GET` | `/api/v1/posts/nearby` | `GetNearbyPostsUseCase` — guest radius scan canonical, required OFFER/WANTED filter, location jitter + bucketed distance |
 | `GET` | `/api/v1/posts/map` | `GetPostMapUseCase` — marker bbox public, location jitter, client-side cluster |
 | `GET` | `/api/v1/posts/:postId` | `GetPostUseCase` — chỉ PUBLISHED/RESERVED, toạ độ đã jitter, gating contactInfo |
