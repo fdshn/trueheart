@@ -37,6 +37,10 @@ import { AdminConfigRepository } from '../src/infrastructure/repository/admin-co
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
 import { EntitlementRepository } from '../src/infrastructure/repository/entitlement.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
+import {
+  fakeCampaignMediaStorage,
+  freshMediaKey,
+} from './fake-campaign-media-storage';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -109,11 +113,34 @@ async function main(): Promise<void> {
       countOpenByRequester: async (): Promise<number> => 0,
     } as unknown as IGiftRequestRepository);
     const adminConfig = new AdminConfigRepository(dataSource.manager);
-    const create = new CreateCharityCampaignUseCase(
+    const createUseCase = new CreateCharityCampaignUseCase(
       repo,
       entitlements,
       adminConfig,
+      fakeCampaignMediaStorage(),
     );
+    // Mỗi lượt tạo một key MỚI dưới namespace của đúng người tạo — key là UNIQUE
+    // toàn bảng, và bản thật từ chối key nằm ngoài namespace của người gọi. Bọc
+    // một lần ở đây thay vì ở từng lời gọi: script này không lượt tạo nào tự gửi
+    // media, và nếu sau này có thì phần tự gửi đứng sau spread nên vẫn thắng.
+    const withMedia = <T extends { actorUserId: string }>(command: T) => {
+      const key = freshMediaKey(command.actorUserId);
+      return { media: [key], coverKey: key, ...command };
+    };
+    const create = {
+      handle: (
+        command: Omit<
+          Parameters<typeof createUseCase.handle>[0],
+          'media' | 'coverKey'
+        > &
+          Partial<
+            Pick<
+              Parameters<typeof createUseCase.handle>[0],
+              'media' | 'coverKey'
+            >
+          >,
+      ) => createUseCase.handle(withMedia(command)),
+    };
     // Notifier câm: script này đo dữ liệu, còn nội dung và việc nối thông báo có phép
     // kiểm riêng ở `charity.notifier.spec.ts` và spec use case.
     const silent = {
@@ -146,7 +173,6 @@ async function main(): Promise<void> {
     const baseInput = (overrides: Record<string, unknown> = {}) => ({
       title: `Hoạt động ${randomUUID().slice(0, 6)}`,
       description: 'Kiểm acceptance đóng góp vật phẩm từ thiện.',
-      bannerUrl: 'https://cdn.chantam.vn/a.jpg',
       badgeName: 'Tấm lòng',
       startTime: start.toISOString(),
       endTime: new Date(start.getTime() + 30 * 24 * Hour).toISOString(),
