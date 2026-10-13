@@ -3,8 +3,6 @@ import {
   CharityCampaignNotClosableException,
   CharityCampaignNotExtendableException,
   CharityCampaignNotFoundException,
-  CharityMediaInvalidException,
-  CharityMediaNotEditableException,
   CharityContributionAlreadyDecidedException,
   CharityContributionNotFoundException,
   CharityDeliveryInvalidStateException,
@@ -12,6 +10,8 @@ import {
   CharityExternalContributionNotFoundException,
   CharityExternalContributionVoidedException,
   CharityLinesInvalidException,
+  CharityMediaInvalidException,
+  CharityMediaNotEditableException,
   CharityNeedExceededException,
   CharityNeedItemInvalidException,
   CharityNotAcceptingContributionsException,
@@ -58,8 +58,8 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
-import { updateReturning } from './update-returning';
 import { isUniqueViolation } from './unique-violation';
+import { updateReturning } from './update-returning';
 
 interface IRow {
   global_id: string;
@@ -358,7 +358,6 @@ function isMediaKeyTaken(error: unknown): boolean {
   );
 }
 
-
 const PublicFilter = `campaigns.approval_status = 'APPROVED'
       AND campaigns.is_active
       AND campaigns.deleted_at IS NULL`;
@@ -546,9 +545,10 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         if (locked.approval_status !== 'PENDING_APPROVAL')
           throw new CharityMediaNotEditableException();
 
-        await manager.query(`DELETE FROM campaign_media WHERE campaign_id = $1`, [
-          params.campaignId,
-        ]);
+        await manager.query(
+          `DELETE FROM campaign_media WHERE campaign_id = $1`,
+          [params.campaignId],
+        );
         await this.insertMedia(manager, params.campaignId, params.media);
         await manager.query(
           `UPDATE campaigns SET banner_url = $2, updated_at = now() WHERE global_id = $1`,

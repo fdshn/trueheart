@@ -308,9 +308,7 @@ export function charityMediaShapeGaps(input: {
   const gaps: string[] = [];
 
   if (input.keys.length < 1 || input.keys.length > MaxCharityMediaPerCampaign)
-    gaps.push(
-      `media phải có từ 1 tới ${MaxCharityMediaPerCampaign} phần tử`,
-    );
+    gaps.push(`media phải có từ 1 tới ${MaxCharityMediaPerCampaign} phần tử`);
   if (new Set(input.keys).size !== input.keys.length)
     gaps.push('media không được có key trùng nhau');
   if (!input.keys.includes(input.coverKey))

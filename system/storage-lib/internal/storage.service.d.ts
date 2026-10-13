@@ -1,5 +1,5 @@
 import { S3Client } from '@aws-sdk/client-s3';
-import { IChatMediaUploadRequest, ICampaignMediaConfirmation, ICommentMediaUploadRequest, IObjectStorage, IPostMediaUploadRequest, IStorageUploadRequest, IStorageUploadResult, ITransactionEvidenceUploadRequest } from '../contracts';
+import { ICampaignMediaConfirmation, IChatMediaUploadRequest, ICommentMediaUploadRequest, IObjectStorage, IPostMediaUploadRequest, IStorageUploadRequest, IStorageUploadResult, ITransactionEvidenceUploadRequest } from '../contracts';
 import { IStorageModuleOptions } from './storage-options';
 export declare const AllowedImageContentTypes: Set<string>;
 export declare const AllowedVideoContentTypes: Set<string>;

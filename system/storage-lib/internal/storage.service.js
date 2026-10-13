@@ -71,8 +71,16 @@ function getMediaExtension(contentType) {
     }
 }
 const MixedMediaLabels = {
-    postMedia: { any: 'Phương tiện bài đăng', image: 'Ảnh bài đăng', video: 'Video bài đăng' },
-    campaignMedia: { any: 'Phương tiện hoạt động từ thiện', image: 'Ảnh hoạt động từ thiện', video: 'Video hoạt động từ thiện' },
+    postMedia: {
+        any: 'Phương tiện bài đăng',
+        image: 'Ảnh bài đăng',
+        video: 'Video bài đăng',
+    },
+    campaignMedia: {
+        any: 'Phương tiện hoạt động từ thiện',
+        image: 'Ảnh hoạt động từ thiện',
+        video: 'Video hoạt động từ thiện',
+    },
 };
 function assertMixedMediaPolicy(kind, request) {
     const labels = MixedMediaLabels[kind];
@@ -82,7 +90,9 @@ function assertMixedMediaPolicy(kind, request) {
         throw new contracts_1.StorageValidationError(`${labels.any} chỉ nhận ảnh (image/jpeg, image/png, image/webp) hoặc video (video/mp4, video/quicktime, video/webm).`);
     if (!Number.isInteger(request.contentLength))
         throw new contracts_1.StorageValidationError(`${labels.any} phải khai kích thước thật.`);
-    const limit = isImage ? exports.MediaSizeLimits.postMediaImage : exports.MediaSizeLimits.postMediaVideo;
+    const limit = isImage
+        ? exports.MediaSizeLimits.postMediaImage
+        : exports.MediaSizeLimits.postMediaVideo;
     const label = isImage ? labels.image : labels.video;
     if (request.contentLength < 1 || request.contentLength > limit)
         throw new contracts_1.StorageValidationError(`${label} phải lớn hơn 0 và không quá ${Math.round(limit / Megabyte)} MB.`);
@@ -97,9 +107,15 @@ function assertUploadPolicy(kind, request) {
     if (request.contentLength < 1 || request.contentLength > limit)
         throw new contracts_1.StorageValidationError(`${label} phải lớn hơn 0 và không quá ${Math.round(limit / Megabyte)} MB.`);
 }
-function assertAvatarUploadPolicy(request) { assertUploadPolicy('avatar', request); }
-function assertPostMediaUploadPolicy(request) { assertMixedMediaPolicy('postMedia', request); }
-function assertCampaignMediaUploadPolicy(request) { assertMixedMediaPolicy('campaignMedia', request); }
+function assertAvatarUploadPolicy(request) {
+    assertUploadPolicy('avatar', request);
+}
+function assertPostMediaUploadPolicy(request) {
+    assertMixedMediaPolicy('postMedia', request);
+}
+function assertCampaignMediaUploadPolicy(request) {
+    assertMixedMediaPolicy('campaignMedia', request);
+}
 function isMissingObject(error) {
     const candidate = error;
     const status = candidate?.$metadata?.httpStatusCode;
@@ -173,12 +189,25 @@ let StorageService = class StorageService {
         const extension = getMediaExtension(request.contentType);
         const key = `users/${request.userId}/campaign-media/${(0, node_crypto_1.randomUUID)()}.${extension}`;
         const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
-        const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.client, new client_s3_1.PutObjectCommand({ Bucket: this.options.bucket, Key: key, ContentType: request.contentType, ContentLength: request.contentLength }), { expiresIn: expiresInSeconds });
-        return { key, uploadUrl, expiresInSeconds, publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}` };
+        const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.client, new client_s3_1.PutObjectCommand({
+            Bucket: this.options.bucket,
+            Key: key,
+            ContentType: request.contentType,
+            ContentLength: request.contentLength,
+        }), { expiresIn: expiresInSeconds });
+        return {
+            key,
+            uploadUrl,
+            expiresInSeconds,
+            publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+        };
     }
     async confirmCampaignMediaUpload(userId, key) {
         const contentType = await this.verifyObject('campaignMedia', `users/${userId}/campaign-media/`, key);
-        return { mediaType: exports.AllowedVideoContentTypes.has(contentType) ? 'VIDEO' : 'IMAGE', publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}` };
+        return {
+            mediaType: exports.AllowedVideoContentTypes.has(contentType) ? 'VIDEO' : 'IMAGE',
+            publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+        };
     }
     async confirmTransactionEvidenceUpload(userId, transactionId, key) {
         await this.verifyObject('transactionEvidence', `users/${userId}/transactions/${transactionId}/evidence/`, key);

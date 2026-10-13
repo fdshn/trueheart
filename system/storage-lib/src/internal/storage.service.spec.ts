@@ -178,28 +178,75 @@ describe('StorageService.createAvatarUpload', () => {
   });
 });
 
-
 describe('assertCampaignMediaUploadPolicy', () => {
   const base = { userId: '11111111-1111-1111-1111-111111111111' };
   it('nhận ảnh 5MB và video 25MB', () => {
-    expect(() => assertCampaignMediaUploadPolicy({ ...base, contentType: 'image/png', contentLength: 5 * 1024 * 1024 })).not.toThrow();
-    expect(() => assertCampaignMediaUploadPolicy({ ...base, contentType: 'video/webm', contentLength: 25 * 1024 * 1024 })).not.toThrow();
+    expect(() =>
+      assertCampaignMediaUploadPolicy({
+        ...base,
+        contentType: 'image/png',
+        contentLength: 5 * 1024 * 1024,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertCampaignMediaUploadPolicy({
+        ...base,
+        contentType: 'video/webm',
+        contentLength: 25 * 1024 * 1024,
+      }),
+    ).not.toThrow();
   });
   it('từ chối PDF, ảnh > 5MB, video > 25MB', () => {
-    expect(() => assertCampaignMediaUploadPolicy({ ...base, contentType: 'application/pdf', contentLength: 10 })).toThrow();
-    expect(() => assertCampaignMediaUploadPolicy({ ...base, contentType: 'image/jpeg', contentLength: 5 * 1024 * 1024 + 1 })).toThrow();
-    expect(() => assertCampaignMediaUploadPolicy({ ...base, contentType: 'video/mp4', contentLength: 25 * 1024 * 1024 + 1 })).toThrow();
+    expect(() =>
+      assertCampaignMediaUploadPolicy({
+        ...base,
+        contentType: 'application/pdf',
+        contentLength: 10,
+      }),
+    ).toThrow();
+    expect(() =>
+      assertCampaignMediaUploadPolicy({
+        ...base,
+        contentType: 'image/jpeg',
+        contentLength: 5 * 1024 * 1024 + 1,
+      }),
+    ).toThrow();
+    expect(() =>
+      assertCampaignMediaUploadPolicy({
+        ...base,
+        contentType: 'video/mp4',
+        contentLength: 25 * 1024 * 1024 + 1,
+      }),
+    ).toThrow();
   });
 });
 
 describe('StorageService.createCampaignMediaUpload', () => {
   it('sinh key dưới users/<userId>/campaign-media/ và ký ContentLength', async () => {
     let capturedCommand: any = null;
-    const { getSignedUrl } = jest.requireMock('@aws-sdk/s3-request-presigner') as { getSignedUrl: jest.Mock };
-    getSignedUrl.mockImplementation((_client: unknown, cmd: any) => { capturedCommand = cmd; return Promise.resolve('https://mock-storage.local/upload-url'); });
-    const storage = new StorageService({} as never, { bucket: 'chantam-test', publicBaseUrl: 'https://cdn.chantam.test/', uploadExpiresInSeconds: 300 } as never);
-    const result = await storage.createCampaignMediaUpload({ userId: '11111111-1111-1111-1111-111111111111', contentType: 'video/quicktime', contentLength: 1000 });
-    expect(result.key).toMatch(/^users\/11111111-1111-1111-1111-111111111111\/campaign-media\/[0-9a-f-]{36}\.mov$/);
+    const { getSignedUrl } = jest.requireMock(
+      '@aws-sdk/s3-request-presigner',
+    ) as { getSignedUrl: jest.Mock };
+    getSignedUrl.mockImplementation((_client: unknown, cmd: any) => {
+      capturedCommand = cmd;
+      return Promise.resolve('https://mock-storage.local/upload-url');
+    });
+    const storage = new StorageService(
+      {} as never,
+      {
+        bucket: 'chantam-test',
+        publicBaseUrl: 'https://cdn.chantam.test/',
+        uploadExpiresInSeconds: 300,
+      } as never,
+    );
+    const result = await storage.createCampaignMediaUpload({
+      userId: '11111111-1111-1111-1111-111111111111',
+      contentType: 'video/quicktime',
+      contentLength: 1000,
+    });
+    expect(result.key).toMatch(
+      /^users\/11111111-1111-1111-1111-111111111111\/campaign-media\/[0-9a-f-]{36}\.mov$/,
+    );
     expect(result.publicUrl).toBe(`https://cdn.chantam.test/${result.key}`);
     expect(capturedCommand?.input?.ContentLength).toBe(1000);
   });
@@ -208,32 +255,84 @@ describe('StorageService.createCampaignMediaUpload', () => {
 describe('StorageService.confirmCampaignMediaUpload', () => {
   const userId = '11111111-1111-1111-1111-111111111111';
   const client = { send: jest.fn() };
-  const storage = new StorageService(client as never, { bucket: 'chantam-test', publicBaseUrl: 'https://cdn.chantam.test' } as never);
+  const storage = new StorageService(
+    client as never,
+    {
+      bucket: 'chantam-test',
+      publicBaseUrl: 'https://cdn.chantam.test',
+    } as never,
+  );
   beforeEach(() => client.send.mockReset());
   it('từ chối key của người khác TRƯỚC HeadObject', async () => {
-    await expect(storage.confirmCampaignMediaUpload(userId, 'users/someone-else/campaign-media/a.webp')).rejects.toThrow();
+    await expect(
+      storage.confirmCampaignMediaUpload(
+        userId,
+        'users/someone-else/campaign-media/a.webp',
+      ),
+    ).rejects.toThrow();
     expect(client.send).not.toHaveBeenCalled();
   });
   it('từ chối key của chính mình nhưng sai namespace (media bài đăng)', async () => {
-    await expect(storage.confirmCampaignMediaUpload(userId, `users/${userId}/posts/p1/media/a.webp`)).rejects.toThrow();
+    await expect(
+      storage.confirmCampaignMediaUpload(
+        userId,
+        `users/${userId}/posts/p1/media/a.webp`,
+      ),
+    ).rejects.toThrow();
     expect(client.send).not.toHaveBeenCalled();
   });
   it('ảnh hợp lệ trả IMAGE kèm publicUrl', async () => {
-    client.send.mockResolvedValueOnce({ ContentType: 'image/webp', ContentLength: 1000 });
+    client.send.mockResolvedValueOnce({
+      ContentType: 'image/webp',
+      ContentLength: 1000,
+    });
     const key = `users/${userId}/campaign-media/a.webp`;
-    await expect(storage.confirmCampaignMediaUpload(userId, key)).resolves.toEqual({ mediaType: 'IMAGE', publicUrl: `https://cdn.chantam.test/${key}` });
+    await expect(
+      storage.confirmCampaignMediaUpload(userId, key),
+    ).resolves.toEqual({
+      mediaType: 'IMAGE',
+      publicUrl: `https://cdn.chantam.test/${key}`,
+    });
   });
   it('video hợp lệ trả VIDEO', async () => {
-    client.send.mockResolvedValueOnce({ ContentType: 'video/mp4', ContentLength: 20 * 1024 * 1024 });
-    await expect(storage.confirmCampaignMediaUpload(userId, `users/${userId}/campaign-media/a.mp4`)).resolves.toMatchObject({ mediaType: 'VIDEO' });
+    client.send.mockResolvedValueOnce({
+      ContentType: 'video/mp4',
+      ContentLength: 20 * 1024 * 1024,
+    });
+    await expect(
+      storage.confirmCampaignMediaUpload(
+        userId,
+        `users/${userId}/campaign-media/a.mp4`,
+      ),
+    ).resolves.toMatchObject({ mediaType: 'VIDEO' });
   });
   it('object không tồn tại thì StorageValidationError, không phải lỗi SDK thô', async () => {
-    client.send.mockRejectedValueOnce(Object.assign(new Error('NotFound'), { name: 'NotFound', $metadata: { httpStatusCode: 404 } }));
-    await expect(storage.confirmCampaignMediaUpload(userId, `users/${userId}/campaign-media/missing.webp`)).rejects.toMatchObject({ name: 'StorageValidationError' });
+    client.send.mockRejectedValueOnce(
+      Object.assign(new Error('NotFound'), {
+        name: 'NotFound',
+        $metadata: { httpStatusCode: 404 },
+      }),
+    );
+    await expect(
+      storage.confirmCampaignMediaUpload(
+        userId,
+        `users/${userId}/campaign-media/missing.webp`,
+      ),
+    ).rejects.toMatchObject({ name: 'StorageValidationError' });
   });
   it('lỗi mạng khác vẫn ném nguyên dạng', async () => {
-    client.send.mockRejectedValueOnce(Object.assign(new Error('boom'), { name: 'TimeoutError', $metadata: { httpStatusCode: 503 } }));
-    await expect(storage.confirmCampaignMediaUpload(userId, `users/${userId}/campaign-media/a.webp`)).rejects.toMatchObject({ name: 'TimeoutError' });
+    client.send.mockRejectedValueOnce(
+      Object.assign(new Error('boom'), {
+        name: 'TimeoutError',
+        $metadata: { httpStatusCode: 503 },
+      }),
+    );
+    await expect(
+      storage.confirmCampaignMediaUpload(
+        userId,
+        `users/${userId}/campaign-media/a.webp`,
+      ),
+    ).rejects.toMatchObject({ name: 'TimeoutError' });
   });
   it('NoSuchKey với status 503 vẫn ném nguyên dạng', async () => {
     client.send.mockRejectedValueOnce(
@@ -244,7 +343,10 @@ describe('StorageService.confirmCampaignMediaUpload', () => {
     );
 
     await expect(
-      storage.confirmCampaignMediaUpload(userId, `users/${userId}/campaign-media/outage.webp`),
+      storage.confirmCampaignMediaUpload(
+        userId,
+        `users/${userId}/campaign-media/outage.webp`,
+      ),
     ).rejects.toMatchObject({ name: 'NoSuchKey' });
   });
 });

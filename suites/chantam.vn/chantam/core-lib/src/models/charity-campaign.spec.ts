@@ -1,7 +1,7 @@
 import {
   CharityReviewRatingMax,
-  MaxCharityMediaPerCampaign,
   CharityReviewRatingMin,
+  MaxCharityMediaPerCampaign,
   MaxCharityTargetItems,
   canCancelCharityParticipation,
   canReviewCharityCampaign,
@@ -245,7 +245,9 @@ describe('charityMediaShapeGaps', () => {
   const key = (n: number) => `users/u1/campaign-media/${n}.webp`;
 
   it('một key làm bìa là hợp lệ', () => {
-    expect(charityMediaShapeGaps({ keys: [key(1)], coverKey: key(1) })).toEqual([]);
+    expect(charityMediaShapeGaps({ keys: [key(1)], coverKey: key(1) })).toEqual(
+      [],
+    );
   });
 
   it('đủ 5 key là hợp lệ, 6 thì không', () => {
@@ -269,9 +271,9 @@ describe('charityMediaShapeGaps', () => {
   });
 
   it('coverKey không nằm trong media thì báo', () => {
-    expect(
-      charityMediaShapeGaps({ keys: [key(1)], coverKey: key(2) }),
-    ).toEqual([expect.stringContaining('coverKey')]);
+    expect(charityMediaShapeGaps({ keys: [key(1)], coverKey: key(2) })).toEqual(
+      [expect.stringContaining('coverKey')],
+    );
   });
 });
 
