@@ -30,6 +30,11 @@ export interface IGetOwnPointLedgerQueryDto {
 export interface IPointLedgerEntryDto {
   entryId: number;
   ruleCode: string;
+  /**
+   * Tiêu đề hiển thị của `ruleCode`, ví dụ `Tặng quà thành công`. Mã chưa có tên thì
+   * là chính `ruleCode`.
+   */
+  ruleTitle: string;
   ruleVersion: number;
   delta: number;
   /** Số tiêu được ngay sau bút toán này. Kẹp ở 0. */

@@ -26,6 +26,8 @@ export interface IPointLedgerSummary {
 export interface IPointLedgerEntry {
   entryId: number;
   ruleCode: string;
+  /** Tiêu đề hiển thị của `ruleCode` — xem `pointRuleTitle`. */
+  ruleTitle: string;
   ruleVersion: number;
   delta: number;
   balanceAfter: number;

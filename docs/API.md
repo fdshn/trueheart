@@ -1024,6 +1024,10 @@ nghiệp vụ bảo vệ retry/đồng thời. Xem [quy tắc và trường resp
 
   `note` dựng ở **máy chủ** để web và app không diễn đạt "đang âm" khác nhau. Client nào
   muốn tự trình bày vẫn có `delta` và `rawBalanceAfter` thô.
+- Mỗi dòng `/points/me/ledger` có `ruleTitle` — tiêu đề tiếng Việt của `ruleCode`, ví dụ
+  `GIFT_COMPLETED_GIVER` → `"Tặng quà thành công"`, `REVERSAL` → `"Hoàn điểm"`. Cũng dựng ở
+  máy chủ, cùng lý do với `note`. Mã chưa có tên thì `ruleTitle` là chính `ruleCode`; một phép
+  kiểm quét mã nguồn đỏ ngay khi có rule mới ghi vào sổ mà quên đặt tên.
 - `/points/me` còn trả `creditCount` và `debitCount` — đếm **từ chính ledger**, không từ một cột
   đếm riêng. Một bộ đếm riêng là con số thứ hai nói về cùng một sự thật, sớm muộn lệch.
 - **Khoản phạt không trừ `lifetime`.** Lifetime là sàn của Rank; cho phạt kéo nó xuống là

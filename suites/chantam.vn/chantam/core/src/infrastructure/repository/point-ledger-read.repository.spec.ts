@@ -85,6 +85,7 @@ describe('PointLedgerRepository point reads', () => {
         {
           entryId: 15,
           ruleCode: 'PHONE_VERIFIED_FIRST_TIME',
+          ruleTitle: 'Xác minh số điện thoại lần đầu',
           ruleVersion: 1,
           delta: 28,
           balanceAfter: 28,

@@ -29,6 +29,7 @@ export * from './onboarding-task';
 export * from './phone-number';
 export * from './point-economy';
 export * from './point-log';
+export * from './point-rule-title';
 export * from './post';
 export * from './post-lifecycle';
 export * from './post-media';

@@ -52,6 +52,13 @@ export class PointLedgerEntryDto implements IPointLedgerEntryDto {
   @ApiProperty({ example: 'PHONE_VERIFIED_FIRST_TIME' })
   ruleCode: string;
 
+  @ApiProperty({
+    example: 'Xác minh số điện thoại lần đầu',
+    description:
+      'Tiêu đề hiển thị của `ruleCode`, dựng ở máy chủ để web và app hiện cùng một chữ. Mã chưa có tên thì trả chính `ruleCode`.',
+  })
+  ruleTitle: string;
+
   @ApiProperty({ example: 1 })
   ruleVersion: number;
 
