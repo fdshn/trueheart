@@ -179,6 +179,18 @@ export interface IPointLedgerRepository {
    * đủ điều kiện mà lần chạy kia chưa kịp ghi gì.
    */
   findOnboardedUsersMissingReward(limit: number): Promise<string[]>;
+
+  /**
+   * Trong các bút toán đã ghi ở một request, những khoản CỘNG của `userId` đã thật sự
+   * commit — theo thứ tự ghi. Đầu vào cho header `X-Points-*`.
+   *
+   * Đọc lại từ database thay vì tin danh sách gom trong request: lượt ghi có thể nằm
+   * trong transaction bị rollback sau đó, và header không được báo điểm không có thật.
+   */
+  findCommittedAwards(
+    userId: string,
+    entryIds: readonly number[],
+  ): Promise<{ ruleCode: string; delta: number }[]>;
 }
 
 export const IPointLedgerRepository = Symbol('IPointLedgerRepository');

@@ -22,6 +22,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { notePointAward } from '../points/point-award-context';
 
 /**
  * Nhân điểm của rule với phần trăm, cho F40.
@@ -185,6 +186,25 @@ export class PointLedgerRepository implements IPointLedgerRepository {
     };
   }
 
+  public async findCommittedAwards(
+    userId: string,
+    entryIds: readonly number[],
+  ): Promise<{ ruleCode: string; delta: number }[]> {
+    if (entryIds.length === 0) return [];
+    const rows = await this.manager.query<
+      { rule_code: string; delta: number | string }[]
+    >(
+      `SELECT rule_code, delta FROM point_ledger
+       WHERE id = ANY($1::bigint[]) AND user_id = $2 AND delta > 0
+       ORDER BY id`,
+      [entryIds, userId],
+    );
+    return rows.map((row) => ({
+      ruleCode: row.rule_code,
+      delta: Number(row.delta),
+    }));
+  }
+
   public async findPhoneVerifiedUsersMissingReward(
     limit: number,
   ): Promise<string[]> {
@@ -342,6 +362,11 @@ export class PointLedgerRepository implements IPointLedgerRepository {
           params.reason,
         ],
       );
+      notePointAward({
+        userId: original.user_id,
+        entryId: Number(id),
+        delta,
+      });
 
       await manager.query(
         `
@@ -504,6 +529,11 @@ export class PointLedgerRepository implements IPointLedgerRepository {
           `${command.reason} — ${formatPointLogNote(command.delta, nextRawBalance)}`,
         ],
       );
+      notePointAward({
+        userId: command.userId,
+        entryId: Number(id),
+        delta: command.delta,
+      });
 
       await manager.query(
         `
@@ -666,6 +696,7 @@ export class PointLedgerRepository implements IPointLedgerRepository {
         command.reason ?? null,
       ],
     );
+    notePointAward({ userId: command.userId, entryId: Number(id), delta });
 
     await manager.query(
       `
