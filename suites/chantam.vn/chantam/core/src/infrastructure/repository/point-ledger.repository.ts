@@ -15,7 +15,10 @@ import {
   ReversePointEntryOutcome,
 } from '@/domain/ports/repository';
 import { BusinessTimeZone } from '@chantam.vn/chantam.core-lib/consts';
-import { formatPointLogNote } from '@chantam.vn/chantam.core-lib/models';
+import {
+  formatPointLogNote,
+  pointRuleTitle,
+} from '@chantam.vn/chantam.core-lib/models';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
@@ -164,6 +167,7 @@ export class PointLedgerRepository implements IPointLedgerRepository {
       entries: entries.map((entry) => ({
         entryId: Number(entry.id),
         ruleCode: entry.rule_code,
+        ruleTitle: pointRuleTitle(entry.rule_code),
         ruleVersion: Number(entry.rule_version),
         delta: Number(entry.delta),
         balanceAfter: Number(entry.balance_after),
