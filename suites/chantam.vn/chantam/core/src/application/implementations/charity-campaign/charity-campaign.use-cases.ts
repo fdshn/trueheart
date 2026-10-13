@@ -488,7 +488,9 @@ export class ReplaceCharityMediaUseCase implements IReplaceCharityMediaUseCase {
         media,
         bannerUrl,
       }),
-      null,
+      // Cùng giá trị với lượt tạo: người gọi là chính người tạo, và hồ sơ chờ duyệt thì
+      // chưa ai đăng ký tham gia được — `null` dành cho đường công khai không biết ai gọi.
+      false,
     );
   }
 }

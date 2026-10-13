@@ -91,7 +91,7 @@ Thứ tự xử lý trong use case tạo:
 4. Trong cùng một transaction: INSERT `campaigns` với `banner_url` = URL bìa, sau đó INSERT các dòng `campaign_media`.
 
 ### `PUT /charity-campaigns/:id/media` (Bearer)
-Body `{ media: string[], coverKey: string }`. Server kiểm tra lần lượt:
+Body `{ media: { keys: string[], coverKey: string } }` — bọc dưới khoá `media` theo quy ước bọc body của dự án (bản nháp đầu ghi `{ media: string[], coverKey }`, đã đổi khi triển khai). Server kiểm tra lần lượt:
 - Chiến dịch có tồn tại không.
 - Người gọi có phải `created_by` không. Nếu không thì trả `CHARITY_NOT_ORGANIZER`. Coordinator cũng không được sửa.
 - `approval_status = 'PENDING_APPROVAL'` không. Nếu không thì trả `CHARITY_MEDIA_NOT_EDITABLE`.

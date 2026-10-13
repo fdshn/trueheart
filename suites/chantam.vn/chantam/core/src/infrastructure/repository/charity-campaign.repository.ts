@@ -346,6 +346,13 @@ function phaseFilter(phase: CharityCampaignPhase | undefined): string {
   return '';
 }
 
+/**
+ * Key đã thuộc một hoạt động khác — `UQ_campaign_media_storage_key`.
+ *
+ * So TÊN ràng buộc chứ không chỉ mã 23505: cùng transaction còn có
+ * `UQ_campaign_media_order`, và gộp hai cái làm một lỗi thứ tự của server thành lời
+ * trách người dùng "key không dùng được".
+ */
 function isMediaKeyTaken(error: unknown): boolean {
   const candidate = error as {
     constraint?: string;
@@ -358,6 +365,7 @@ function isMediaKeyTaken(error: unknown): boolean {
   );
 }
 
+/** Hoạt động hiện được ra ngoài: đã duyệt, còn bật, chưa xoá. */
 const PublicFilter = `campaigns.approval_status = 'APPROVED'
       AND campaigns.is_active
       AND campaigns.deleted_at IS NULL`;
@@ -376,6 +384,9 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
   public async create(
     params: ICreateCharityCampaignParams,
   ): Promise<ICharityCampaign> {
+    // Hoạt động, bảng nhu cầu và media ghi trong MỘT transaction (F65b §3). Hai lượt
+    // ghi rời sẽ để lại một kêu gọi công khai không nói cần gì, nếu lượt thứ hai hỏng
+    // — và với quyền public-ngay thì nó công khai thật, không chờ ai đọc lại.
     try {
       return await this.manager.transaction(async (manager) => {
         const campaign = await this.insertCampaign(manager, params);

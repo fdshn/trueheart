@@ -877,6 +877,32 @@ async function main(): Promise<void> {
       JSON.stringify(reordered.media),
     );
 
+    // Đổi ẢNH BÌA: câu `UPDATE campaigns SET banner_url` chỉ chạy thật ở đây — unit test
+    // mock query không thấy được nó ghi sai cột hay sai hàng.
+    const imageC = freshMediaKey(OrganizerId);
+    await replaceMedia.handle({
+      campaignId: mediaCampaign.globalId,
+      actorUserId: OrganizerId,
+      media: [imageC, imageA],
+      coverKey: imageC,
+    });
+    const coverSwapped = await dataSource.query<
+      { banner_url: string; covers: string[] }[]
+    >(
+      `SELECT c.banner_url,
+              array_agg(m.storage_key) FILTER (WHERE m.is_cover) AS covers
+         FROM campaigns c JOIN campaign_media m ON m.campaign_id = c.global_id
+        WHERE c.global_id = $1 GROUP BY c.banner_url`,
+      [mediaCampaign.globalId],
+    );
+    check(
+      'đổi ảnh bìa: banner_url trong database đổi theo đúng ảnh bìa mới',
+      coverSwapped[0]?.banner_url === `https://cdn.chantam.test/${imageC}` &&
+        coverSwapped[0]?.covers?.length === 1 &&
+        coverSwapped[0]?.covers[0] === imageC,
+      JSON.stringify(coverSwapped),
+    );
+
     // Key của hoạt động khác.
     // Kêu gọi cá nhân, không phải hoạt động có tổ chức: người tạo hạng Vàng không có
     // quyền tạo loại có tổ chức (chỉ Kim Cương).
@@ -907,6 +933,24 @@ async function main(): Promise<void> {
           coverKey: otherKey,
         }),
       'CharityMediaInvalidException',
+    );
+    // Lượt thay hỏng giữa transaction (DELETE đã chạy rồi INSERT vướng UNIQUE) phải
+    // rollback cả lượt: bộ cũ và banner_url còn nguyên, không để hồ sơ trơ trụi.
+    const afterFailedReplace = await dataSource.query<
+      { keys: string[]; banner_url: string }[]
+    >(
+      `SELECT array_agg(m.storage_key ORDER BY m.sort_order) AS keys, c.banner_url
+         FROM campaigns c JOIN campaign_media m ON m.campaign_id = c.global_id
+        WHERE c.global_id = $1 GROUP BY c.banner_url`,
+      [mediaCampaign.globalId],
+    );
+    check(
+      'lượt thay hỏng vì UNIQUE rollback trọn: media và banner_url giữ nguyên',
+      JSON.stringify(afterFailedReplace[0]?.keys) ===
+        JSON.stringify([imageC, imageA]) &&
+        afterFailedReplace[0]?.banner_url ===
+          `https://cdn.chantam.test/${imageC}`,
+      JSON.stringify(afterFailedReplace),
     );
 
     const memberKey = freshMediaKey(MemberId);
@@ -986,15 +1030,21 @@ async function main(): Promise<void> {
       JSON.stringify(legacy?.media),
     );
 
+    // Đọc lại giá trị chứ không đếm kết quả UPDATE: TypeORM bọc UPDATE … RETURNING
+    // thành `[rows, affected]`, nên `.length` của nó luôn ≥ 1 dù không hàng nào đổi.
+    await dataSource.query(
+      `UPDATE campaigns SET banner_url = 'http://localhost:19000/a.webp'
+        WHERE global_id = $1`,
+      [other.globalId],
+    );
+    const [devBanner] = await dataSource.query<{ banner_url: string }[]>(
+      `SELECT banner_url FROM campaigns WHERE global_id = $1`,
+      [other.globalId],
+    );
     check(
       'banner_url http:// (storage dev) được nhận sau khi nới CHECK',
-      (
-        await dataSource.query<{ ok: boolean }[]>(
-          `UPDATE campaigns SET banner_url = 'http://localhost:19000/a.webp'
-            WHERE global_id = $1 RETURNING true AS ok`,
-          [other.globalId],
-        )
-      ).length >= 1,
+      devBanner?.banner_url === 'http://localhost:19000/a.webp',
+      devBanner?.banner_url,
     );
   } finally {
     for (const source of opened.reverse())

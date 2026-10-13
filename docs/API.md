@@ -1792,6 +1792,10 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `POST` | `/charity-deliveries/:id/cancel` | Hai bên | ✅ **Đã chạy.** Trả phần đã nhận về nhu cầu, không xoá đề nghị |
 
 - `POST /charity-campaigns` và `POST /admin/charity-campaigns` **không còn nhận `bannerUrl`**; gửi `media` (1–5 key) và `coverKey`. Response có thêm `media[]`; `bannerUrl` do server ghi từ ảnh bìa.
+- Luồng "tải trước, tạo sau":
+  1. `POST /charity-campaigns/media/upload` — body `{ "upload": { "contentType": "image/webp", "contentLength": 512000 } }` → `{ "upload": { "key", "uploadUrl", "expiresInSeconds", "publicUrl" } }`.
+  2. `PUT` file lên `uploadUrl` đúng `Content-Type` và đúng số byte đã khai — lệch là hỏng chữ ký.
+  3. Gửi `key` trong `campaign.media` + `campaign.coverKey` khi tạo, hoặc trong `PUT /charity-campaigns/:id/media` với body `{ "media": { "keys": ["…"], "coverKey": "…" } }` → `{ "campaign" }`. Body thay media bọc dưới khoá `media` theo quy ước bọc body; key chưa tải lên thật trả `400 VALIDATION_FAILED`.
 
 **Hai endpoint đã chạy — điều client cần biết**
 

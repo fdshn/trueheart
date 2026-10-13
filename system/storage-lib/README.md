@@ -16,7 +16,8 @@ with Cloudflare R2, AWS S3, Backblaze B2 S3 API, Wasabi and MinIO by configurati
 - Post-media key is owner-and-post-scoped: `users/<userId>/posts/<postId>/media/<uuid>.<ext>`.
 - Charity-campaign media key is owner-scoped: `users/<userId>/campaign-media/<uuid>.<ext>`. It takes
   images (JPEG, PNG, WebP, max 5 MB) and video (MP4, QuickTime, WebM, max 25 MB).
-- Avatar and post media: only JPEG, PNG and WebP, max 5 MB.
+- Avatar: only JPEG, PNG and WebP, max 5 MB. Post media and charity-campaign media: those images
+  (max 5 MB) plus MP4, QuickTime and WebM video (max 25 MB).
 - `confirmAvatarUpload()` checks prefix plus `HeadObject` before an avatar URL is attached.
 - `confirmPostMediaUpload()` checks user/post prefix plus `HeadObject` before media is attached.
 - `createCampaignMediaUpload()` / `confirmCampaignMediaUpload()` do the same for campaign media;

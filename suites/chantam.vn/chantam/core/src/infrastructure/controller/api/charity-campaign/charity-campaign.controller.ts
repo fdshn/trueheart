@@ -633,6 +633,12 @@ export class CharityCampaignController {
     CharityNotOrganizerException,
     CharityMediaNotEditableException,
     CharityMediaInvalidException,
+    [
+      ValidationFailedException,
+      [
+        'media: Không tìm thấy object — hãy tải lên qua URL đã xin trước khi gửi key',
+      ],
+    ],
   )
   @ApiOkResponse({
     type: ResponseDto.forApi(CharityCampaignWrapperResponseDto),
