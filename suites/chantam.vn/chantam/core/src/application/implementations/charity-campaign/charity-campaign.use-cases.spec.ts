@@ -8,6 +8,8 @@ import {
   CharityCoordinatorNotAllowedException,
   CharityDeliveryNotFoundException,
   CharityLinesInvalidException,
+  CharityMediaInvalidException,
+  CharityMediaNotEditableException,
   CharityNeedItemInvalidException,
   CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
@@ -25,6 +27,10 @@ import {
   ValidationFailedException,
 } from '@chantam/service.common-lib/exception';
 import {
+  IObjectStorage,
+  StorageValidationError,
+} from '@chantam/service.storage-lib';
+import {
   AmendExternalContributionUseCase,
   CancelCharityDeliveryUseCase,
   CloseCharityCampaignUseCase,
@@ -38,6 +44,8 @@ import {
   ManageCharityBeneficiaryUseCase,
   ManageCharityCoordinatorsUseCase,
   RecordExternalContributionUseCase,
+  ReplaceCharityMediaUseCase,
+  RequestCharityMediaUploadUseCase,
   ReviewCharityCampaignUseCase,
   SubmitCharityContributionUseCase,
   UpdateCharityContributionUseCase,
@@ -75,6 +83,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     createdAt: new Date(),
     updatedAt: new Date(),
     participantCount: 0,
+    media: [],
     campaignType: 'ORGANIZED_CAMPAIGN' as const,
     beneficiaryRelation: null,
     allowOverTarget: false,
@@ -85,6 +94,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
 function makeRepository(): jest.Mocked<ICharityCampaignRepository> {
   return {
     create: jest.fn(),
+    replaceMedia: jest.fn(),
     slugTaken: jest.fn().mockResolvedValue(false),
     findByGlobalId: jest.fn(),
     findPublicByIdOrSlug: jest.fn(),
@@ -163,6 +173,26 @@ function makeAdmin(granted: boolean) {
   } as unknown as jest.Mocked<IAdminConfigRepository>;
 }
 
+const MediaKey = 'users/actor/campaign-media/a.webp';
+
+/** Kho lưu trữ giả: key đuôi .mp4 là video, còn lại là ảnh. */
+function makeStorage() {
+  return {
+    createCampaignMediaUpload: jest.fn(),
+    confirmCampaignMediaUpload: jest.fn(
+      async (_userId: string, key: string) => ({
+        mediaType: key.endsWith('.mp4')
+          ? ('VIDEO' as const)
+          : ('IMAGE' as const),
+        publicUrl: `https://cdn.chantam.test/${key}`,
+      }),
+    ),
+  } as unknown as jest.Mocked<IObjectStorage> & {
+    confirmCampaignMediaUpload: jest.Mock;
+    createCampaignMediaUpload: jest.Mock;
+  };
+}
+
 function writeInput(overrides: Record<string, unknown> = {}) {
   const start = new Date(Date.now() + 24 * Hour);
   return {
@@ -171,7 +201,8 @@ function writeInput(overrides: Record<string, unknown> = {}) {
     campaignType: 'ORGANIZED_CAMPAIGN' as const,
     title: 'Bếp cơm Vu Lan 2026',
     description: 'Nấu và trao 500 suất cơm chay tại chùa.',
-    bannerUrl: 'https://cdn.chantam.vn/a.jpg',
+    media: [MediaKey],
+    coverKey: MediaKey,
     badgeName: 'Tấm lòng Vu Lan',
     startTime: start.toISOString(),
     endTime: new Date(start.getTime() + 8 * Hour).toISOString(),
@@ -190,6 +221,7 @@ describe('CreateCharityCampaignUseCase', () => {
       repository,
       entitlements,
       admin,
+      makeStorage(),
     ).handle({ ...writeInput(), actorUserId: ActorId, asAdmin: false });
 
     expect(entitlements.getCapability).toHaveBeenCalledWith(
@@ -214,6 +246,7 @@ describe('CreateCharityCampaignUseCase', () => {
         makeRepository(),
         makeEntitlements(null),
         makeAdmin(true),
+        makeStorage(),
       ).handle({ ...writeInput(), actorUserId: ActorId, asAdmin: false }),
     ).rejects.toThrow(CharityCampaignCreateNotAllowedException);
   });
@@ -228,6 +261,7 @@ describe('CreateCharityCampaignUseCase', () => {
       repository,
       entitlements,
       admin,
+      makeStorage(),
     ).handle({ ...writeInput(), actorUserId: ActorId, asAdmin: true });
 
     expect(admin.hasPermission).toHaveBeenCalledWith(
@@ -250,6 +284,7 @@ describe('CreateCharityCampaignUseCase', () => {
         makeRepository(),
         makeEntitlements(true),
         makeAdmin(false),
+        makeStorage(),
       ).handle({ ...writeInput(), actorUserId: ActorId, asAdmin: true }),
     ).rejects.toThrow(ForbiddenException);
   });
@@ -263,8 +298,9 @@ describe('CreateCharityCampaignUseCase', () => {
         repository,
         makeEntitlements(false),
         makeAdmin(true),
+        makeStorage(),
       ).handle({
-        ...writeInput({ title: 'x', bannerUrl: 'http://x', description: 'a' }),
+        ...writeInput({ title: 'x', description: 'a' }),
         actorUserId: ActorId,
         asAdmin: false,
       }),
@@ -279,6 +315,7 @@ describe('CreateCharityCampaignUseCase', () => {
       repository,
       makeEntitlements(true),
       makeAdmin(true),
+      makeStorage(),
     );
 
     await useCase.handle({
@@ -308,6 +345,7 @@ describe('CreateCharityCampaignUseCase', () => {
         makeRepository(),
         makeEntitlements(true),
         makeAdmin(true),
+        makeStorage(),
       ).handle({
         ...writeInput({ lat: 10.7797 }),
         actorUserId: ActorId,
@@ -324,6 +362,7 @@ describe('CreateCharityCampaignUseCase', () => {
       repository,
       makeEntitlements(true),
       makeAdmin(true),
+      makeStorage(),
     ).handle({ ...writeInput(), actorUserId: ActorId, asAdmin: false });
 
     expect(repository.create).toHaveBeenCalledWith(
@@ -340,6 +379,7 @@ describe('CreateCharityCampaignUseCase', () => {
         repository,
         makeEntitlements(true),
         makeAdmin(true),
+        makeStorage(),
       ).handle({ ...writeInput(), actorUserId: ActorId, asAdmin: false }),
     ).rejects.toThrow(ValidationFailedException);
     expect(repository.create).not.toHaveBeenCalled();
@@ -490,6 +530,7 @@ describe('CreateCharityCampaignUseCase · hai loại hoạt động (F65b §2)',
       repository,
       entitlements,
       makeAdmin(true),
+      makeStorage(),
     ).handle({
       ...writeInput({
         campaignType: 'INDIVIDUAL_APPEAL',
@@ -517,6 +558,7 @@ describe('CreateCharityCampaignUseCase · hai loại hoạt động (F65b §2)',
       repository,
       makeEntitlements(true, true),
       makeAdmin(true),
+      makeStorage(),
     ).handle({ ...writeInput(), actorUserId: ActorId, asAdmin: false });
 
     expect(repository.create.mock.calls[0][0].approvalStatus).toBe('APPROVED');
@@ -534,6 +576,7 @@ describe('CreateCharityCampaignUseCase · hai loại hoạt động (F65b §2)',
       repository,
       makeEntitlements(true, false),
       makeAdmin(true),
+      makeStorage(),
     ).handle({ ...writeInput(), actorUserId: ActorId, asAdmin: false });
 
     expect(repository.create.mock.calls[0][0].approvalStatus).toBe(
@@ -551,6 +594,7 @@ describe('CreateCharityCampaignUseCase · hai loại hoạt động (F65b §2)',
       repository,
       makeEntitlements(true),
       makeAdmin(true),
+      makeStorage(),
     ).handle({
       ...writeInput({
         campaignType: 'ORGANIZED_CAMPAIGN',
@@ -573,6 +617,7 @@ describe('CreateCharityCampaignUseCase · hai loại hoạt động (F65b §2)',
       repository,
       makeEntitlements(true),
       makeAdmin(true),
+      makeStorage(),
     ).handle({
       ...writeInput({
         needs: [
@@ -621,6 +666,7 @@ describe('CreateCharityCampaignUseCase · hai loại hoạt động (F65b §2)',
       repository,
       makeEntitlements(true),
       makeAdmin(true),
+      makeStorage(),
     ).handle({ ...writeInput(), actorUserId: ActorId, asAdmin: false });
 
     expect(repository.create.mock.calls[0][0].needs).toEqual([]);
@@ -1614,6 +1660,7 @@ describe('Người thụ hưởng — riêng tư và cổng chặn public (F65b 
       repository,
       makeEntitlements(true, true),
       makeAdmin(false),
+      makeStorage(),
     ).handle({
       ...writeInput({ ...otherAppeal, beneficiary: person('PENDING') }),
       actorUserId: ActorId,
@@ -1633,6 +1680,7 @@ describe('Người thụ hưởng — riêng tư và cổng chặn public (F65b 
       repository,
       makeEntitlements(true, true),
       makeAdmin(false),
+      makeStorage(),
     ).handle({
       ...writeInput(otherAppeal),
       actorUserId: ActorId,
@@ -1652,6 +1700,7 @@ describe('Người thụ hưởng — riêng tư và cổng chặn public (F65b 
       repository,
       makeEntitlements(true, true),
       makeAdmin(false),
+      makeStorage(),
     ).handle({
       ...writeInput({ ...otherAppeal, beneficiary: person('CONFIRMED') }),
       actorUserId: ActorId,
@@ -1670,6 +1719,7 @@ describe('Người thụ hưởng — riêng tư và cổng chặn public (F65b 
         repository,
         makeEntitlements(true),
         makeAdmin(false),
+        makeStorage(),
       ).handle({
         ...writeInput({ beneficiary: person('CONFIRMED') }),
         actorUserId: ActorId,
@@ -1714,4 +1764,223 @@ describe('Người thụ hưởng — riêng tư và cổng chặn public (F65b 
     ).rejects.toBeInstanceOf(CharityNotOrganizerException);
     expect(repository.findBeneficiary).not.toHaveBeenCalled();
   });
+});
+
+describe('CreateCharityCampaignUseCase · media (spec 12/10)', () => {
+  const create = (
+    repository: ReturnType<typeof makeRepository>,
+    storage: ReturnType<typeof makeStorage>,
+    overrides: Record<string, unknown> = {},
+  ) =>
+    new CreateCharityCampaignUseCase(
+      repository,
+      makeEntitlements(true),
+      makeAdmin(true),
+      storage,
+    ).handle({
+      ...writeInput(overrides),
+      actorUserId: ActorId,
+      asAdmin: false,
+    });
+
+  it('xác nhận TỪNG key với đúng người gọi, rồi ghi media + banner từ ảnh bìa', async () => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    const storage = makeStorage();
+    const video = 'users/actor/campaign-media/b.mp4';
+
+    await create(repository, storage, {
+      media: [video, MediaKey],
+      coverKey: MediaKey,
+    });
+
+    expect(storage.confirmCampaignMediaUpload.mock.calls).toEqual([
+      [ActorId, video],
+      [ActorId, MediaKey],
+    ]);
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bannerUrl: `https://cdn.chantam.test/${MediaKey}`,
+        media: [
+          expect.objectContaining({
+            storageKey: video,
+            mediaType: 'VIDEO',
+            sortOrder: 0,
+            isCover: false,
+          }),
+          expect.objectContaining({
+            storageKey: MediaKey,
+            mediaType: 'IMAGE',
+            sortOrder: 1,
+            isCover: true,
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('hình dạng sai thì KHÔNG gọi kho lưu trữ', async () => {
+    const storage = makeStorage();
+
+    await expect(
+      create(makeRepository(), storage, {
+        media: [MediaKey, MediaKey],
+        coverKey: MediaKey,
+      }),
+    ).rejects.toThrow(CharityMediaInvalidException);
+    expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
+  });
+
+  it('bìa là video thì CharityMediaInvalidException và không ghi gì', async () => {
+    const repository = makeRepository();
+    const video = 'users/actor/campaign-media/b.mp4';
+
+    await expect(
+      create(repository, makeStorage(), {
+        media: [MediaKey, video],
+        coverKey: video,
+      }),
+    ).rejects.toThrow(CharityMediaInvalidException);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('lỗi chính sách kho lưu trữ thành ValidationFailedException (400), không lọt 500', async () => {
+    const storage = makeStorage();
+    storage.confirmCampaignMediaUpload.mockRejectedValueOnce(
+      new StorageValidationError('Không tìm thấy object'),
+    );
+
+    await expect(create(makeRepository(), storage)).rejects.toThrow(
+      ValidationFailedException,
+    );
+  });
+
+  it('không đủ quyền tạo thì KHÔNG gọi kho lưu trữ', async () => {
+    const storage = makeStorage();
+
+    await expect(
+      new CreateCharityCampaignUseCase(
+        makeRepository(),
+        makeEntitlements(null),
+        makeAdmin(true),
+        storage,
+      ).handle({ ...writeInput(), actorUserId: ActorId, asAdmin: false }),
+    ).rejects.toThrow(CharityCampaignCreateNotAllowedException);
+    expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
+  });
+});
+
+describe('RequestCharityMediaUploadUseCase', () => {
+  it('xin URL dưới namespace của chính người gọi', async () => {
+    const storage = makeStorage();
+    storage.createCampaignMediaUpload.mockResolvedValue({ key: 'k' });
+
+    await new RequestCharityMediaUploadUseCase(storage).handle({
+      userId: ActorId,
+      contentType: 'image/webp',
+      contentLength: 10,
+    });
+
+    expect(storage.createCampaignMediaUpload).toHaveBeenCalledWith({
+      userId: ActorId,
+      contentType: 'image/webp',
+      contentLength: 10,
+    });
+  });
+
+  it('lỗi chính sách thành ValidationFailedException', async () => {
+    const storage = makeStorage();
+    storage.createCampaignMediaUpload.mockRejectedValue(
+      new StorageValidationError('PDF'),
+    );
+
+    await expect(
+      new RequestCharityMediaUploadUseCase(storage).handle({
+        userId: ActorId,
+        contentType: 'application/pdf',
+        contentLength: 10,
+      }),
+    ).rejects.toThrow(ValidationFailedException);
+  });
+});
+
+describe('ReplaceCharityMediaUseCase', () => {
+  const pending = () =>
+    campaign({
+      approvalStatus: 'PENDING_APPROVAL',
+      approvedAt: null,
+      approvedBy: null,
+      createdBy: ActorId,
+    });
+  const command = {
+    campaignId: 'campaign-1',
+    actorUserId: ActorId,
+    media: [MediaKey],
+    coverKey: MediaKey,
+  };
+
+  it('người tạo + chờ duyệt: xác nhận key rồi gọi replaceMedia', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(pending());
+    repository.replaceMedia.mockResolvedValue(pending());
+
+    await new ReplaceCharityMediaUseCase(repository, makeStorage()).handle(
+      command,
+    );
+
+    expect(repository.replaceMedia).toHaveBeenCalledWith({
+      campaignId: 'campaign-1',
+      actorUserId: ActorId,
+      bannerUrl: `https://cdn.chantam.test/${MediaKey}`,
+      media: [
+        expect.objectContaining({
+          storageKey: MediaKey,
+          isCover: true,
+          sortOrder: 0,
+        }),
+      ],
+    });
+  });
+
+  it('không tồn tại thì NotFound', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(null);
+
+    await expect(
+      new ReplaceCharityMediaUseCase(repository, makeStorage()).handle(command),
+    ).rejects.toThrow(CharityCampaignNotFoundException);
+  });
+
+  it('không phải người tạo (kể cả coordinator) thì NotOrganizer, không gọi kho lưu trữ', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue({
+      ...pending(),
+      createdBy: 'someone-else',
+    });
+    repository.isCampaignManager.mockResolvedValue(true);
+    const storage = makeStorage();
+
+    await expect(
+      new ReplaceCharityMediaUseCase(repository, storage).handle(command),
+    ).rejects.toThrow(CharityNotOrganizerException);
+    expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
+  });
+
+  it.each(['APPROVED', 'REJECTED'] as const)(
+    'hồ sơ %s thì NotEditable',
+    async (status) => {
+      const repository = makeRepository();
+      repository.findByGlobalId.mockResolvedValue({
+        ...pending(),
+        approvalStatus: status,
+      });
+
+      await expect(
+        new ReplaceCharityMediaUseCase(repository, makeStorage()).handle(
+          command,
+        ),
+      ).rejects.toThrow(CharityMediaNotEditableException);
+      expect(repository.replaceMedia).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -956,6 +956,21 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Kêu gọi giúp người khác cần xác nhận người thụ hưởng đã đồng ý trước khi công khai',
   },
 
+  CHARITY_MEDIA_INVALID: {
+    code: ErrorCodes.CHARITY_MEDIA_INVALID,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    // Trả nguyên danh sách lỗi: người tạo sửa được cả bộ trong một lượt thay vì
+    // gửi lại năm lần để lần lượt biết từng chỗ sai.
+    message: (detail?: string) => detail ?? 'Bộ ảnh/video gửi lên không hợp lệ',
+  },
+
+  CHARITY_MEDIA_NOT_EDITABLE: {
+    code: ErrorCodes.CHARITY_MEDIA_NOT_EDITABLE,
+    httpStatus: HttpStatus.CONFLICT,
+    // Sau khi duyệt thì khoá: Admin duyệt bộ ảnh nào thì công khai đúng bộ ảnh đó.
+    message: () => 'Chỉ sửa ảnh/video được khi hồ sơ còn đang chờ duyệt',
+  },
+
   CHARITY_DELIVERY_NOT_FOUND: {
     code: ErrorCodes.CHARITY_DELIVERY_NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,

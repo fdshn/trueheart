@@ -55,6 +55,24 @@ describe('SweepOrphanMediaUseCase', () => {
     expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
   });
 
+  it('KHÔNG xoá media của hoạt động từ thiện', async () => {
+    // Thiếu `campaign_media` trong LiveKeySources là toàn bộ ảnh chiến dịch bị xoá
+    // sau 24 giờ — đúng lỗi mà danh sách này sinh ra để chặn.
+    const deps = makeDeps({
+      rows: {
+        campaign_media: [{ value: 'users/u1/campaign-media/a.webp' }],
+      },
+      objects: [
+        { key: 'users/u1/campaign-media/a.webp', lastModified: old, size: 10 },
+      ],
+    });
+
+    const result = await makeUseCase(deps).handle({ dryRun: false });
+
+    expect(result.orphans).toBe(0);
+    expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
+  });
+
   it('cắt tiền tố miền để so được URL với key', async () => {
     // `users.avatar_url` lưu URL công khai, `listObjects` trả key. Không cắt
     // thì mọi avatar bị coi là mồ côi.

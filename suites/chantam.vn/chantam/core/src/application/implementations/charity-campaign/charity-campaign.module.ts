@@ -22,6 +22,8 @@ import {
   IManageCharityBeneficiaryUseCase,
   IManageCharityCoordinatorsUseCase,
   IRecordExternalContributionUseCase,
+  IReplaceCharityMediaUseCase,
+  IRequestCharityMediaUploadUseCase,
   IReviewCharityCampaignUseCase,
   ISetCharityCampaignActiveUseCase,
   ISubmitCharityContributionUseCase,
@@ -53,6 +55,8 @@ import {
   ManageCharityBeneficiaryUseCase,
   ManageCharityCoordinatorsUseCase,
   RecordExternalContributionUseCase,
+  ReplaceCharityMediaUseCase,
+  RequestCharityMediaUploadUseCase,
   ReviewCharityCampaignUseCase,
   SetCharityCampaignActiveUseCase,
   SubmitCharityContributionUseCase,
@@ -122,6 +126,14 @@ import { CharityNotifier } from './charity.notifier';
       useClass: RecordExternalContributionUseCase,
     },
     {
+      provide: IRequestCharityMediaUploadUseCase,
+      useClass: RequestCharityMediaUploadUseCase,
+    },
+    {
+      provide: IReplaceCharityMediaUseCase,
+      useClass: ReplaceCharityMediaUseCase,
+    },
+    {
       provide: IAmendExternalContributionUseCase,
       useClass: AmendExternalContributionUseCase,
     },
@@ -188,6 +200,8 @@ import { CharityNotifier } from './charity.notifier';
   ],
   exports: [
     ICreateCharityCampaignUseCase,
+    IRequestCharityMediaUploadUseCase,
+    IReplaceCharityMediaUseCase,
     IListPublicCharityCampaignsUseCase,
     IGetCampaignNeedsUseCase,
     ISubmitCharityContributionUseCase,

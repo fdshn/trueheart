@@ -1,5 +1,5 @@
 import { S3Client } from '@aws-sdk/client-s3';
-import { IChatMediaUploadRequest, ICommentMediaUploadRequest, IObjectStorage, IPostMediaUploadRequest, IStorageUploadRequest, IStorageUploadResult, ITransactionEvidenceUploadRequest } from '../contracts';
+import { ICampaignMediaConfirmation, IChatMediaUploadRequest, ICommentMediaUploadRequest, IObjectStorage, IPostMediaUploadRequest, IStorageUploadRequest, IStorageUploadResult, ITransactionEvidenceUploadRequest } from '../contracts';
 import { IStorageModuleOptions } from './storage-options';
 export declare const AllowedImageContentTypes: Set<string>;
 export declare const AllowedVideoContentTypes: Set<string>;
@@ -15,6 +15,7 @@ export declare const MediaSizeLimits: {
 export declare function getMediaExtension(contentType: string): string;
 export declare function assertAvatarUploadPolicy(request: IStorageUploadRequest): void;
 export declare function assertPostMediaUploadPolicy(request: IPostMediaUploadRequest): void;
+export declare function assertCampaignMediaUploadPolicy(request: IStorageUploadRequest): void;
 export declare function assertTransactionEvidenceUploadPolicy(request: ITransactionEvidenceUploadRequest): void;
 export declare class StorageService implements IObjectStorage {
     private readonly client;
@@ -23,6 +24,8 @@ export declare class StorageService implements IObjectStorage {
     private verifyObject;
     confirmAvatarUpload(userId: string, key: string): Promise<string>;
     confirmPostMediaUpload(userId: string, postId: string, key: string): Promise<void>;
+    createCampaignMediaUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
+    confirmCampaignMediaUpload(userId: string, key: string): Promise<ICampaignMediaConfirmation>;
     confirmTransactionEvidenceUpload(userId: string, transactionId: string, key: string): Promise<void>;
     confirmCommentMediaUpload(userId: string, subjectType: string, subjectId: string, key: string): Promise<void>;
     confirmChatMediaUpload(userId: string, roomId: string, key: string): Promise<void>;

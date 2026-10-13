@@ -95,6 +95,7 @@ Mọi resource mới copy theo mẫu này.
 - **[`docs/DATABASE.md`](./docs/DATABASE.md)** — lược đồ **thật đang chạy**: 28 bảng, cột,
   ràng buộc, trigger và dữ liệu seed (khác `plan/DATA-MODEL.md` là bản thiết kế)
 - **[`docs/seed/DEMO-DATA.md`](./docs/seed/DEMO-DATA.md)** — dữ liệu demo staging, cách seed và dọn an toàn
+- **[`docs/seed/FULL-DATA.md`](./docs/seed/FULL-DATA.md)** — bộ dữ liệu thử phủ mọi bảng (`seed:full`): persona, kịch bản, giới hạn
 - **[`docs/FEATURES.md`](./docs/FEATURES.md)** — 72 chức năng MVP Phase 1 (F01–F72)
 - **[`docs/CONFIG-INVENTORY.md`](./docs/CONFIG-INVENTORY.md)** — sổ cấu hình: mọi nút xoay của hệ
   thống, nút nào đã có giá trị, nút nào còn trống và ai cấp được

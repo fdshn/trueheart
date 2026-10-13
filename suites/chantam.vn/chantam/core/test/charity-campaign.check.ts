@@ -57,6 +57,7 @@ import {
   DecideCharityApprovalUseCase,
   JoinCharityCampaignUseCase,
   ListJoinedCharityCampaignsUseCase,
+  ReplaceCharityMediaUseCase,
   ReviewCharityCampaignUseCase,
   UpdateCharityProgressUseCase,
 } from '../src/application/implementations/charity-campaign/charity-campaign.use-cases';
@@ -67,6 +68,10 @@ import { AdminConfigRepository } from '../src/infrastructure/repository/admin-co
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
 import { EntitlementRepository } from '../src/infrastructure/repository/entitlement.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
+import {
+  fakeCampaignMediaStorage,
+  freshMediaKey,
+} from './fake-campaign-media-storage';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -142,7 +147,6 @@ function writeInput(overrides: Record<string, unknown> = {}) {
     campaignType: 'ORGANIZED_CAMPAIGN' as const,
     title: 'Bếp cơm Vu Lan 2026',
     description: 'Nấu và trao 500 suất cơm chay tại Chùa Vĩnh Nghiêm.',
-    bannerUrl: 'https://cdn.chantam.vn/campaigns/vu-lan.jpg',
     badgeName: 'Tấm lòng Vu Lan',
     targetItemsCount: 500,
     lat: 10.7797,
@@ -207,7 +211,15 @@ async function main(): Promise<void> {
       repository,
       entitlements,
       adminConfig,
+      fakeCampaignMediaStorage(),
     );
+
+    // Mỗi lượt tạo một key MỚI dưới namespace của đúng người tạo — key là UNIQUE
+    // toàn bảng, và bản thật từ chối key nằm ngoài namespace của người gọi.
+    const withMedia = <T extends { actorUserId: string }>(command: T) => {
+      const key = freshMediaKey(command.actorUserId);
+      return { media: [key], coverKey: key, ...command };
+    };
     const joinUseCase = new JoinCharityCampaignUseCase(repository);
     const cancelUseCase = new CancelCharityParticipationUseCase(repository);
     const reviewUseCase = new ReviewCharityCampaignUseCase(repository);
@@ -273,11 +285,13 @@ async function main(): Promise<void> {
     );
 
     // Luật ĐỔI từ F65b lát A (§2, tiêu chí §11.11): Kim Cương có quyền public ngay.
-    const diamondPublished = await createUseCase.handle({
-      ...writeInput({ title: 'Hoạt động Kim Cương public ngay' }),
-      actorUserId: DiamondId,
-      asAdmin: false,
-    });
+    const diamondPublished = await createUseCase.handle(
+      withMedia({
+        ...writeInput({ title: 'Hoạt động Kim Cương public ngay' }),
+        actorUserId: DiamondId,
+        asAdmin: false,
+      }),
+    );
     check(
       'Kim Cương tạo hoạt động có tổ chức -> APPROVED ngay, không chờ Admin',
       diamondPublished.approvalStatus === 'APPROVED' &&
@@ -286,14 +300,16 @@ async function main(): Promise<void> {
       `${diamondPublished.approvalStatus} / ${String(diamondPublished.approvedBy)}`,
     );
 
-    const pendingCampaign = await createUseCase.handle({
-      ...writeInput({
-        campaignType: 'INDIVIDUAL_APPEAL',
-        beneficiaryRelation: 'SELF',
+    const pendingCampaign = await createUseCase.handle(
+      withMedia({
+        ...writeInput({
+          campaignType: 'INDIVIDUAL_APPEAL',
+          beneficiaryRelation: 'SELF',
+        }),
+        actorUserId: OrganizerId,
+        asAdmin: false,
       }),
-      actorUserId: OrganizerId,
-      asAdmin: false,
-    });
+    );
     check(
       'hạng Vàng tạo kêu gọi cá nhân -> PENDING_APPROVAL (tạo được, không public ngay)',
       pendingCampaign.approvalStatus === 'PENDING_APPROVAL',
@@ -308,19 +324,23 @@ async function main(): Promise<void> {
     await expectThrow(
       'Hạng MEMBER tạo -> bị từ chối',
       () =>
-        createUseCase.handle({
-          ...writeInput({ title: 'Hoạt động của thành viên thường' }),
-          actorUserId: MemberId,
-          asAdmin: false,
-        }),
+        createUseCase.handle(
+          withMedia({
+            ...writeInput({ title: 'Hoạt động của thành viên thường' }),
+            actorUserId: MemberId,
+            asAdmin: false,
+          }),
+        ),
       'CharityCampaignCreateNotAllowedException',
     );
 
-    const adminCampaign = await createUseCase.handle({
-      ...writeInput({ title: 'Trung thu cho em 2026' }),
-      actorUserId: AdminId,
-      asAdmin: true,
-    });
+    const adminCampaign = await createUseCase.handle(
+      withMedia({
+        ...writeInput({ title: 'Trung thu cho em 2026' }),
+        actorUserId: AdminId,
+        asAdmin: true,
+      }),
+    );
     check(
       'Admin tạo -> APPROVED ngay',
       adminCampaign.approvalStatus === 'APPROVED',
@@ -335,11 +355,13 @@ async function main(): Promise<void> {
     await expectThrow(
       'Người KHÔNG có quyền campaign.manage gọi đường Admin -> ForbiddenException',
       () =>
-        createUseCase.handle({
-          ...writeInput({ title: 'Mạo danh Admin' }),
-          actorUserId: MemberId,
-          asAdmin: true,
-        }),
+        createUseCase.handle(
+          withMedia({
+            ...writeInput({ title: 'Mạo danh Admin' }),
+            actorUserId: MemberId,
+            asAdmin: true,
+          }),
+        ),
       'ForbiddenException',
     );
 
@@ -371,14 +393,16 @@ async function main(): Promise<void> {
       'CHK_campaigns_slug_shape',
     );
 
+    // Từ migration 1800500000000 CHECK là `^https?://`: `http://` của storage dev được
+    // nhận (spec media 12/10), nhưng scheme khác vẫn phải bị chặn.
     await expectReject(
-      'banner_url không https bị chặn',
+      'banner_url không phải http(s) bị chặn',
       () =>
         dataSource.query(
           `INSERT INTO campaigns (title, slug, description, banner_url, badge_name,
                                   start_time, end_time)
            VALUES ('Thử', 'thu-banner', 'Mô tả đủ mười ký tự.',
-                   'http://cdn.chantam.vn/a.jpg', 'Huy hiệu',
+                   'javascript:alert(1)', 'Huy hiệu',
                    now(), now() + interval '1 hour')`,
         ),
       'CHK_campaigns_banner_url',
@@ -743,17 +767,19 @@ async function main(): Promise<void> {
 
     console.log('\n8. progressPercent khi không đặt mục tiêu');
 
-    const noTarget = await createUseCase.handle({
-      ...writeInput({
-        title: 'Quyên góp trực tuyến mùa lũ',
-        targetItemsCount: 0,
-        lat: undefined,
-        lng: undefined,
-        locationLabel: undefined,
+    const noTarget = await createUseCase.handle(
+      withMedia({
+        ...writeInput({
+          title: 'Quyên góp trực tuyến mùa lũ',
+          targetItemsCount: 0,
+          lat: undefined,
+          lng: undefined,
+          locationLabel: undefined,
+        }),
+        actorUserId: AdminId,
+        asAdmin: true,
       }),
-      actorUserId: AdminId,
-      asAdmin: true,
-    });
+    );
     check(
       'targetItemsCount = 0 -> progressPercent null, KHÔNG phải 0',
       noTarget.progressPercent === null,
@@ -802,6 +828,223 @@ async function main(): Promise<void> {
       'phase=UPCOMING không chứa hoạt động đã kết thúc',
       upcoming.items.every((item) => item.globalId !== target),
       `${upcoming.items.length} hàng`,
+    );
+
+    console.log('\n11. Media chiến dịch — ràng buộc thật và luồng thay cả bộ');
+
+    const replaceMedia = new ReplaceCharityMediaUseCase(
+      repository,
+      fakeCampaignMediaStorage(),
+    );
+
+    const imageA = freshMediaKey(OrganizerId);
+    const videoB = freshMediaKey(OrganizerId, 'mp4');
+    const mediaCampaign = await createUseCase.handle({
+      ...writeInput({
+        campaignType: 'INDIVIDUAL_APPEAL',
+        beneficiaryRelation: 'SELF',
+        title: 'Kiểm media chiến dịch',
+      }),
+      media: [videoB, imageA],
+      coverKey: imageA,
+      actorUserId: OrganizerId,
+      asAdmin: false,
+    });
+    check(
+      'tạo kèm media: media theo đúng thứ tự, bìa là ảnh, bannerUrl lấy từ bìa',
+      mediaCampaign.media.length === 2 &&
+        mediaCampaign.media[0].type === 'VIDEO' &&
+        mediaCampaign.media[1].isCover &&
+        mediaCampaign.bannerUrl === mediaCampaign.media[1].url,
+      JSON.stringify(mediaCampaign.media),
+    );
+    check(
+      'hồ sơ Vàng vào chờ duyệt (điều kiện cho các phép thay bên dưới)',
+      mediaCampaign.approvalStatus === 'PENDING_APPROVAL',
+      mediaCampaign.approvalStatus,
+    );
+
+    // Gửi lại đúng các key đang có, chỉ đổi thứ tự và bìa.
+    const reordered = await replaceMedia.handle({
+      campaignId: mediaCampaign.globalId,
+      actorUserId: OrganizerId,
+      media: [imageA, videoB],
+      coverKey: imageA,
+    });
+    check(
+      'thay cả bộ bằng CHÍNH các key cũ (đổi thứ tự) không vướng UNIQUE(storage_key)',
+      reordered.media[0].isCover && reordered.media[1].type === 'VIDEO',
+      JSON.stringify(reordered.media),
+    );
+
+    // Đổi ẢNH BÌA: câu `UPDATE campaigns SET banner_url` chỉ chạy thật ở đây — unit test
+    // mock query không thấy được nó ghi sai cột hay sai hàng.
+    const imageC = freshMediaKey(OrganizerId);
+    await replaceMedia.handle({
+      campaignId: mediaCampaign.globalId,
+      actorUserId: OrganizerId,
+      media: [imageC, imageA],
+      coverKey: imageC,
+    });
+    const coverSwapped = await dataSource.query<
+      { banner_url: string; covers: string[] }[]
+    >(
+      `SELECT c.banner_url,
+              array_agg(m.storage_key) FILTER (WHERE m.is_cover) AS covers
+         FROM campaigns c JOIN campaign_media m ON m.campaign_id = c.global_id
+        WHERE c.global_id = $1 GROUP BY c.banner_url`,
+      [mediaCampaign.globalId],
+    );
+    check(
+      'đổi ảnh bìa: banner_url trong database đổi theo đúng ảnh bìa mới',
+      coverSwapped[0]?.banner_url === `https://cdn.chantam.test/${imageC}` &&
+        coverSwapped[0]?.covers?.length === 1 &&
+        coverSwapped[0]?.covers[0] === imageC,
+      JSON.stringify(coverSwapped),
+    );
+
+    // Key của hoạt động khác.
+    // Kêu gọi cá nhân, không phải hoạt động có tổ chức: người tạo hạng Vàng không có
+    // quyền tạo loại có tổ chức (chỉ Kim Cương).
+    const other = await createUseCase.handle(
+      withMedia({
+        ...writeInput({
+          title: 'Hoạt động khác giữ key',
+          campaignType: 'INDIVIDUAL_APPEAL',
+          beneficiaryRelation: 'SELF',
+        }),
+        actorUserId: OrganizerId,
+        asAdmin: false,
+      }),
+    );
+    const otherKey = (
+      await dataSource.query<{ storage_key: string }[]>(
+        `SELECT storage_key FROM campaign_media WHERE campaign_id = $1`,
+        [other.globalId],
+      )
+    )[0].storage_key;
+    await expectThrow(
+      'key đã thuộc hoạt động khác → CharityMediaInvalidException, không phải 500',
+      () =>
+        replaceMedia.handle({
+          campaignId: mediaCampaign.globalId,
+          actorUserId: OrganizerId,
+          media: [otherKey],
+          coverKey: otherKey,
+        }),
+      'CharityMediaInvalidException',
+    );
+    // Lượt thay hỏng giữa transaction (DELETE đã chạy rồi INSERT vướng UNIQUE) phải
+    // rollback cả lượt: bộ cũ và banner_url còn nguyên, không để hồ sơ trơ trụi.
+    const afterFailedReplace = await dataSource.query<
+      { keys: string[]; banner_url: string }[]
+    >(
+      `SELECT array_agg(m.storage_key ORDER BY m.sort_order) AS keys, c.banner_url
+         FROM campaigns c JOIN campaign_media m ON m.campaign_id = c.global_id
+        WHERE c.global_id = $1 GROUP BY c.banner_url`,
+      [mediaCampaign.globalId],
+    );
+    check(
+      'lượt thay hỏng vì UNIQUE rollback trọn: media và banner_url giữ nguyên',
+      JSON.stringify(afterFailedReplace[0]?.keys) ===
+        JSON.stringify([imageC, imageA]) &&
+        afterFailedReplace[0]?.banner_url ===
+          `https://cdn.chantam.test/${imageC}`,
+      JSON.stringify(afterFailedReplace),
+    );
+
+    const memberKey = freshMediaKey(MemberId);
+    await expectThrow(
+      'người khác (không phải người tạo) không thay được',
+      () =>
+        replaceMedia.handle({
+          campaignId: mediaCampaign.globalId,
+          actorUserId: MemberId,
+          media: [memberKey],
+          coverKey: memberKey,
+        }),
+      'CharityNotOrganizerException',
+    );
+
+    // Admin duyệt chen giữa — repository kiểm lại dưới khoá dòng.
+    await dataSource.query(
+      `UPDATE campaigns SET approval_status = 'APPROVED', approved_at = now(), approved_by = $2
+        WHERE global_id = $1`,
+      [mediaCampaign.globalId, AdminId],
+    );
+    await expectThrow(
+      'repository.replaceMedia trên hồ sơ đã duyệt → NotEditable (kiểm dưới khoá, không chỉ ở use case)',
+      () =>
+        repository.replaceMedia({
+          campaignId: mediaCampaign.globalId,
+          actorUserId: OrganizerId,
+          media: [],
+          bannerUrl: 'https://cdn.chantam.test/x.webp',
+        }),
+      'CharityMediaNotEditableException',
+    );
+
+    // Ràng buộc database — lớp cuối khi code sai.
+    await expectReject(
+      'CHECK: bìa là video bị chặn',
+      () =>
+        dataSource.query(
+          `INSERT INTO campaign_media (campaign_id, storage_key, public_url, media_type, sort_order, is_cover)
+           VALUES ($1, 'k-video-cover', 'https://x/v.mp4', 'VIDEO', 3, true)`,
+          [other.globalId],
+        ),
+      'CHK_campaign_media_cover_is_image',
+    );
+    await expectReject(
+      'UNIQUE: hai bìa trong một hoạt động bị chặn',
+      () =>
+        dataSource.query(
+          `INSERT INTO campaign_media (campaign_id, storage_key, public_url, media_type, sort_order, is_cover)
+           VALUES ($1, 'k-second-cover', 'https://x/b.webp', 'IMAGE', 3, true)`,
+          [other.globalId],
+        ),
+      'UQ_campaign_media_one_cover',
+    );
+    await expectReject(
+      'CHECK: sort_order ngoài 0..4 bị chặn',
+      () =>
+        dataSource.query(
+          `INSERT INTO campaign_media (campaign_id, storage_key, public_url, media_type, sort_order, is_cover)
+           VALUES ($1, 'k-order-5', 'https://x/c.webp', 'IMAGE', 5, false)`,
+          [other.globalId],
+        ),
+      'CHK_campaign_media_sort_order',
+    );
+
+    // Hoạt động cũ không có media.
+    await dataSource.query(
+      `DELETE FROM campaign_media WHERE campaign_id = $1`,
+      [other.globalId],
+    );
+    const legacy = await repository.findByGlobalId(other.globalId);
+    check(
+      'hoạt động không có dòng media nào: media = [] và bannerUrl giữ nguyên',
+      Array.isArray(legacy?.media) &&
+        legacy?.media.length === 0 &&
+        legacy?.bannerUrl === other.bannerUrl,
+      JSON.stringify(legacy?.media),
+    );
+
+    // Đọc lại giá trị chứ không đếm kết quả UPDATE: TypeORM bọc UPDATE … RETURNING
+    // thành `[rows, affected]`, nên `.length` của nó luôn ≥ 1 dù không hàng nào đổi.
+    await dataSource.query(
+      `UPDATE campaigns SET banner_url = 'http://localhost:19000/a.webp'
+        WHERE global_id = $1`,
+      [other.globalId],
+    );
+    const [devBanner] = await dataSource.query<{ banner_url: string }[]>(
+      `SELECT banner_url FROM campaigns WHERE global_id = $1`,
+      [other.globalId],
+    );
+    check(
+      'banner_url http:// (storage dev) được nhận sau khi nới CHECK',
+      devBanner?.banner_url === 'http://localhost:19000/a.webp',
+      devBanner?.banner_url,
     );
   } finally {
     for (const source of opened.reverse())

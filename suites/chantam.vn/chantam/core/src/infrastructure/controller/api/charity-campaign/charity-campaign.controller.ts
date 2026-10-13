@@ -13,6 +13,8 @@ import {
   IManageCharityBeneficiaryUseCase,
   IManageCharityCoordinatorsUseCase,
   IRecordExternalContributionUseCase,
+  IReplaceCharityMediaUseCase,
+  IRequestCharityMediaUploadUseCase,
   IReviewCharityCampaignUseCase,
   ISetCharityCampaignActiveUseCase,
   ISubmitCharityContributionUseCase,
@@ -30,6 +32,8 @@ import {
   CharityCancelTooLateException,
   CharityCoordinatorNotAllowedException,
   CharityLinesInvalidException,
+  CharityMediaInvalidException,
+  CharityMediaNotEditableException,
   CharityNeedItemInvalidException,
   CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
@@ -90,6 +94,9 @@ import {
   ListCharityCampaignsResponseDto,
   ListContributionsQueryDto,
   RecordExternalContributionBodyDto,
+  ReplaceCharityMediaBodyDto,
+  RequestCharityMediaUploadBodyDto,
+  RequestCharityMediaUploadResponseDto,
   ReviewCharityCampaignBodyDto,
   SetCharityCampaignActiveBodyDto,
   SubmitCharityContributionBodyDto,
@@ -142,6 +149,10 @@ export class CharityCampaignController {
     private readonly coordinatorsUseCase: IManageCharityCoordinatorsUseCase,
     @Inject(IManageCharityBeneficiaryUseCase)
     private readonly beneficiaryUseCase: IManageCharityBeneficiaryUseCase,
+    @Inject(IRequestCharityMediaUploadUseCase)
+    private readonly mediaUploadUseCase: IRequestCharityMediaUploadUseCase,
+    @Inject(IReplaceCharityMediaUseCase)
+    private readonly replaceMediaUseCase: IReplaceCharityMediaUseCase,
   ) {}
 
   @Get('mine')
@@ -204,11 +215,13 @@ export class CharityCampaignController {
       'công khai sau khi Admin duyệt.\n\n' +
       'Quyền này là một dòng trong **Rank Config** (`SUBMIT_CHARITY_PROPOSAL`), không ' +
       'phải một phép so hạng trong mã nguồn. Mặc định chỉ Kim Cương được bật; Bên A hạ ' +
-      'xuống Vàng bằng `PUT /admin/entitlements/policy`, không cần deploy.',
+      'xuống Vàng bằng `PUT /admin/entitlements/policy`, không cần deploy.' +
+      '\n\n**Media:** gửi `media` (1–5 key từ `POST /charity-campaigns/media/upload`) và `coverKey`. Không còn nhận `bannerUrl`.',
   })
   @ApiErrorResponses(
     ...ApiTokenErrors,
     CharityCampaignCreateNotAllowedException,
+    CharityMediaInvalidException,
     [ValidationFailedException, ['endTime phải sau startTime']],
   )
   @ApiCreatedResponse({
@@ -227,6 +240,37 @@ export class CharityCampaignController {
     });
 
     return ResponseDto.create().succeed().attach({ campaign }).build();
+  }
+
+  @Post('media/upload')
+  @ApiOperation({
+    summary: 'Xin URL tải ảnh/video cho hoạt động từ thiện',
+    description:
+      'Bước 1 của luồng "tải trước, tạo sau": xin URL, PUT file lên R2, rồi gửi `key` trong ' +
+      '`POST /charity-campaigns` hoặc `PUT /charity-campaigns/:id/media`. Ảnh JPEG/PNG/WebP ' +
+      'tối đa 5 MB; video MP4/QuickTime/WebM tối đa 25 MB. URL hết hạn sau `expiresInSeconds`. ' +
+      'Object không được gắn vào hoạt động nào bị dọn sau 24 giờ.',
+  })
+  @ApiErrorResponses(...ApiTokenErrors, [
+    ValidationFailedException,
+    [
+      'upload: Phương tiện hoạt động từ thiện chỉ nhận ảnh (image/jpeg, image/png, image/webp) hoặc video (video/mp4, video/quicktime, video/webm).',
+    ],
+  ])
+  @ApiCreatedResponse({
+    type: ResponseDto.forApi(RequestCharityMediaUploadResponseDto),
+  })
+  public async requestCharityMediaUpload(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: RequestCharityMediaUploadBodyDto,
+  ) {
+    const upload = await this.mediaUploadUseCase.handle({
+      userId: principal.userId,
+      contentType: body.upload.contentType,
+      contentLength: body.upload.contentLength,
+    });
+
+    return ResponseDto.create().succeed().attach({ upload }).build();
   }
 
   @Post(':id/contributions')
@@ -574,6 +618,46 @@ export class CharityCampaignController {
       .build();
   }
 
+  @Put(':id/media')
+  @ApiOperation({
+    summary: 'Thay cả bộ ảnh/video của hồ sơ đang chờ duyệt',
+    description:
+      'Gửi LẠI toàn bộ danh sách: key giữ nguyên thì gửi lại, key bỏ đi thì không gửi. ' +
+      'Đổi thứ tự hoặc đổi ảnh bìa cũng đi đường này.\n\n' +
+      'Chỉ người TẠO, chỉ khi `approvalStatus = PENDING_APPROVAL`. Đã duyệt thì khoá — ' +
+      'Admin duyệt bộ ảnh nào thì công khai đúng bộ đó. Coordinator không gọi được.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    CharityCampaignNotFoundException,
+    CharityNotOrganizerException,
+    CharityMediaNotEditableException,
+    CharityMediaInvalidException,
+    [
+      ValidationFailedException,
+      [
+        'media: Không tìm thấy object — hãy tải lên qua URL đã xin trước khi gửi key',
+      ],
+    ],
+  )
+  @ApiOkResponse({
+    type: ResponseDto.forApi(CharityCampaignWrapperResponseDto),
+  })
+  public async replaceCharityMedia(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() param: CharityCampaignIdParamDto,
+    @Body() body: ReplaceCharityMediaBodyDto,
+  ) {
+    const campaign = await this.replaceMediaUseCase.handle({
+      campaignId: param.id,
+      actorUserId: principal.userId,
+      media: body.media.keys,
+      coverKey: body.media.coverKey,
+    });
+
+    return ResponseDto.create().succeed().attach({ campaign }).build();
+  }
+
   @Post(':id/participation')
   @ApiOperation({
     summary: 'Đăng ký tham gia',
@@ -776,12 +860,15 @@ export class AdminCharityCampaignController {
       '`approvedBy` ghi chính người tạo — một hàng đã duyệt mà không ai chịu trách nhiệm ' +
       'là một hàng không truy được.\n\n' +
       'Dùng CHUNG use case với đường thành viên, nên đúng bộ phép kiểm nội dung. Quyền ' +
-      '`campaign.manage`.',
+      '`campaign.manage`.' +
+      '\n\n**Media:** gửi `media` (1–5 key từ `POST /charity-campaigns/media/upload`) và `coverKey`. Không còn nhận `bannerUrl`.',
   })
-  @ApiErrorResponses(...ApiTokenErrors, ForbiddenException, [
-    ValidationFailedException,
-    ['endTime phải sau startTime'],
-  ])
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    CharityMediaInvalidException,
+    [ValidationFailedException, ['endTime phải sau startTime']],
+  )
   @ApiCreatedResponse({
     type: ResponseDto.forApi(CharityCampaignWrapperResponseDto),
   })

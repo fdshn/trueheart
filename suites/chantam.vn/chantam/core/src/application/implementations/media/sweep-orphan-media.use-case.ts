@@ -35,6 +35,10 @@ const DefaultMinAgeHours = 24;
 const LiveKeySources: readonly { sql: string; label: string }[] = [
   { label: 'post_media', sql: 'SELECT r2_key AS value FROM post_media' },
   {
+    label: 'campaign_media',
+    sql: 'SELECT storage_key AS value FROM campaign_media',
+  },
+  {
     label: 'chat_message_media',
     sql: 'SELECT storage_key AS value FROM chat_message_media',
   },

@@ -289,6 +289,10 @@ export enum ErrorCodes {
   CHARITY_BENEFICIARY_NOT_APPLICABLE = 0x13_1b,
   /** Kêu gọi cho người khác chưa có xác nhận đồng ý của người thụ hưởng. */
   CHARITY_BENEFICIARY_CONSENT_REQUIRED = 0x13_1c,
+  /** Bộ media gửi lên sai: số lượng, trùng key, không có ảnh, bìa sai, hoặc key đã thuộc hoạt động khác. */
+  CHARITY_MEDIA_INVALID = 0x13_1d,
+  /** Chỉ sửa media khi hồ sơ còn chờ duyệt. */
+  CHARITY_MEDIA_NOT_EDITABLE = 0x13_1e,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

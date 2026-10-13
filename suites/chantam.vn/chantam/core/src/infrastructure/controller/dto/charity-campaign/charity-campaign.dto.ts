@@ -8,12 +8,14 @@ import {
   CharityBeneficiaryRelations,
   CharityCampaignTypes,
   CharityContributionStatuses,
+  CharityMediaTypes,
   CharityRejectionReasons,
   CharityReviewRatingMax,
   CharityReviewRatingMin,
   CharityReviewRoles,
   MaxCharityBadgeNameLength,
   MaxCharityDescriptionLength,
+  MaxCharityMediaPerCampaign,
   MaxCharityReviewCommentLength,
   MaxCharitySlugLength,
   MaxCharityTargetItems,
@@ -43,7 +45,6 @@ import {
   IsOptional,
   IsString,
   IsUUID,
-  IsUrl,
   Length,
   Max,
   Min,
@@ -150,12 +151,29 @@ export class WriteCharityCampaignDto {
   description: string;
 
   @ApiProperty({
-    example: 'https://cdn.chantam.vn/campaigns/vu-lan-2026.jpg',
+    type: [String],
+    minItems: 1,
+    maxItems: MaxCharityMediaPerCampaign,
+    example: ['users/<userId>/campaign-media/2f0c….webp'],
     description:
-      'Bắt buộc `https://` — ảnh bìa qua `http` làm trình duyệt chặn nội dung.',
+      'Key lấy từ `POST /charity-campaigns/media/upload` sau khi PUT lên R2 thành công. ' +
+      `1–${MaxCharityMediaPerCampaign} ảnh/video, ít nhất một ảnh. Thứ tự trong mảng là thứ tự hiển thị. ` +
+      'KHÔNG nhận URL.',
   })
-  @IsUrl({ protocols: ['https'], require_protocol: true })
-  bannerUrl: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MaxCharityMediaPerCampaign)
+  @IsString({ each: true })
+  @Length(1, 500, { each: true })
+  media: string[];
+
+  @ApiProperty({
+    description:
+      'Một key trong `media`, phải là ảnh. Server ghi `bannerUrl` từ ảnh này — client không gửi URL bìa.',
+  })
+  @IsString()
+  @Length(1, 500)
+  coverKey: string;
 
   @ApiProperty({
     example: 'Tấm lòng Vu Lan',
@@ -279,6 +297,86 @@ export class WriteCharityCampaignBodyDto {
   @ValidateNested()
   @Type(() => WriteCharityCampaignDto)
   campaign: WriteCharityCampaignDto;
+}
+
+const CharityMediaContentTypes = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+];
+
+export class RequestCharityMediaUploadDto {
+  @ApiProperty({ enum: CharityMediaContentTypes, example: 'image/webp' })
+  @IsIn(CharityMediaContentTypes)
+  contentType: string;
+
+  @ApiProperty({
+    minimum: 1,
+    example: 512_000,
+    description:
+      'Tối đa 5 MB cho ảnh, 25 MB cho video. Được ký vào URL — PUT lệch một byte là hỏng chữ ký.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  contentLength: number;
+}
+
+export class RequestCharityMediaUploadBodyDto {
+  @ApiProperty({ type: () => RequestCharityMediaUploadDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => RequestCharityMediaUploadDto)
+  upload: RequestCharityMediaUploadDto;
+}
+
+export class CharityMediaUploadDto {
+  @ApiProperty() key: string;
+  @ApiProperty() uploadUrl: string;
+  @ApiProperty({ example: 300 }) expiresInSeconds: number;
+  @ApiProperty() publicUrl: string;
+}
+
+export class RequestCharityMediaUploadResponseDto {
+  @ApiProperty({ type: () => CharityMediaUploadDto })
+  upload: CharityMediaUploadDto;
+}
+
+export class ReplaceCharityMediaDto {
+  @ApiProperty({
+    type: [String],
+    minItems: 1,
+    maxItems: MaxCharityMediaPerCampaign,
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MaxCharityMediaPerCampaign)
+  @IsString({ each: true })
+  @Length(1, 500, { each: true })
+  keys: string[];
+
+  @ApiProperty({ description: 'Một key trong `keys`, phải là ảnh.' })
+  @IsString()
+  @Length(1, 500)
+  coverKey: string;
+}
+
+export class ReplaceCharityMediaBodyDto {
+  @ApiProperty({ type: () => ReplaceCharityMediaDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => ReplaceCharityMediaDto)
+  media: ReplaceCharityMediaDto;
+}
+
+export class CharityCampaignMediaDto {
+  @ApiProperty() url: string;
+  @ApiProperty({ enum: CharityMediaTypes }) type: string;
+  @ApiProperty() sortOrder: number;
+  @ApiProperty() isCover: boolean;
 }
 
 export class ListCharityCampaignsQueryDto {
@@ -441,7 +539,10 @@ export class CharityCampaignResponseDto {
   @ApiProperty() title: string;
   @ApiProperty() slug: string;
   @ApiProperty() description: string;
-  @ApiProperty() bannerUrl: string;
+  @ApiProperty({
+    description: 'URL ảnh bìa — do server ghi từ media được chọn làm bìa.',
+  })
+  bannerUrl: string;
   @ApiProperty() badgeName: string;
 
   @ApiProperty({ description: '`0` nghĩa là không đặt mục tiêu số lượng.' })
@@ -483,6 +584,13 @@ export class CharityCampaignResponseDto {
     description: 'Số người đang đăng ký — đếm lúc đọc, không phải cột lưu sẵn.',
   })
   participantCount: number;
+
+  @ApiProperty({
+    type: () => [CharityCampaignMediaDto],
+    description:
+      'Ảnh/video theo thứ tự hiển thị. Rỗng với hoạt động tạo trước khi có media — khi đó chỉ có `bannerUrl`.',
+  })
+  media: CharityCampaignMediaDto[];
 
   @ApiProperty({
     nullable: true,

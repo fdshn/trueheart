@@ -14,9 +14,17 @@ with Cloudflare R2, AWS S3, Backblaze B2 S3 API, Wasabi and MinIO by configurati
 
 - Avatar key is owner-scoped: `users/<userId>/avatars/<uuid>.<ext>`.
 - Post-media key is owner-and-post-scoped: `users/<userId>/posts/<postId>/media/<uuid>.<ext>`.
-- Only JPEG, PNG and WebP, max 5 MB.
+- Charity-campaign media key is owner-scoped: `users/<userId>/campaign-media/<uuid>.<ext>`. It takes
+  images (JPEG, PNG, WebP, max 5 MB) and video (MP4, QuickTime, WebM, max 25 MB).
+- Avatar: only JPEG, PNG and WebP, max 5 MB. Post media and charity-campaign media: those images
+  (max 5 MB) plus MP4, QuickTime and WebM video (max 25 MB).
 - `confirmAvatarUpload()` checks prefix plus `HeadObject` before an avatar URL is attached.
 - `confirmPostMediaUpload()` checks user/post prefix plus `HeadObject` before media is attached.
+- `createCampaignMediaUpload()` / `confirmCampaignMediaUpload()` do the same for campaign media;
+  confirm returns `{ mediaType, publicUrl }`, with the type taken from the real object's content type.
+- `HeadObject` 404 (object never uploaded) now throws `StorageValidationError` — a client input
+  error. The HTTP status decides; the error name is only a fallback when there is no status, so a
+  storage outage (e.g. 503) still surfaces as a system error.
 - Credentials live only in environment variables; never commit R2 keys.
 
 ## Config
