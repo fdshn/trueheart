@@ -120,7 +120,7 @@
     "@chantam/service.logger-lib": "file:../../../../kernel/logger-lib",
     "@chantam/service.persistency-lib": "file:../../../../kernel/persistency-lib",
     "@chantam/service.storage-lib": "file:../../../../system/storage-lib",
-    "@fastify/static": "^10.1.3",
+    "@fastify/static": "^10.1.6",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
