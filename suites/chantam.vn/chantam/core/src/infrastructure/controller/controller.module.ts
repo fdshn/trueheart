@@ -5,7 +5,9 @@ import {
   IAppContext,
 } from '@chantam/service.common-lib/modules';
 import { Global, INestApplication, Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ApiModule } from './api/api.module';
+import { PointsAwardedInterceptor } from './interceptors/points-awarded.interceptor';
 
 @Global()
 @Module({
@@ -54,6 +56,12 @@ import { ApiModule } from './api/api.module';
           '',
           '`{ "giftPost": { ... } }` chứ không phải `{ ... }` trần. Quy ước này giúp thêm',
           'trường cấp ngoài về sau mà không phá client cũ.',
+          '',
+          '### Điểm thưởng trong header',
+          '',
+          'API nào có CỘNG điểm cho người gọi đều trả thêm `X-Points-Awarded` (tổng điểm) và',
+          '`X-Points-Message` (tiêu đề, **percent-encode** — giải bằng `decodeURIComponent`).',
+          'Không cộng điểm thì không có hai header này. Chi tiết: `docs/API.md` §1.',
         ].join('\n'),
         version: config.version,
         servers: config.docsServers,
@@ -61,6 +69,11 @@ import { ApiModule } from './api/api.module';
       }),
     }),
     BaseControllerModule.forRoot(),
+  ],
+  providers: [
+    // `APP_INTERCEPTOR` áp cho MỌI route, kể cả route thêm sau này — đúng yêu cầu
+    // "API nào có cộng điểm cũng trả X-Points-*" mà không phải nhớ gắn từng chỗ.
+    { provide: APP_INTERCEPTOR, useClass: PointsAwardedInterceptor },
   ],
 })
 export class ControllerModule {}

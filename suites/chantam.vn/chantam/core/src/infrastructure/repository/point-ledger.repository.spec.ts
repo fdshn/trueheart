@@ -1,3 +1,4 @@
+import { PointAwardScope } from '../points/point-award-context';
 import { PointLedgerRepository } from './point-ledger.repository';
 
 const Command = {
@@ -52,5 +53,27 @@ describe('PointLedgerRepository', () => {
       lifetime: 28,
       applied: true,
     });
+  });
+
+  it('báo khoản cộng về scope của request — nguồn của header X-Points-*', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { points: 28, affects_lifetime: true, version: 1, daily_cap: null },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ balance: 0, lifetime: 0 }])
+      .mockResolvedValueOnce([{ id: '41' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const repository = new PointLedgerRepository({
+      transaction: jest.fn(async (callback) => callback({ query })),
+    } as never);
+    const scope = new PointAwardScope(Command.userId);
+
+    await scope.run(() => repository.appendByRule(Command));
+
+    expect(scope.entryIds).toEqual([41]);
   });
 });

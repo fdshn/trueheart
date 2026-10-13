@@ -92,6 +92,32 @@ im lặng và mọi trang đều trả về đúng số mặc định.
 Trần 50 là cố ý giữ nhỏ. `meta` trả kèm `page`, `pageSize`, `total`, `totalPages`,
 `hasNextPage`, `hasPreviousPage`.
 
+### Điểm thưởng trong header response
+
+**Mọi** API — hiện tại và về sau — mà khi xử lý xong có **cộng** điểm cho người gọi đều trả
+thêm hai header:
+
+```http
+X-Points-Awarded: 28
+X-Points-Message: X%C3%A1c%20minh%20s%E1%BB%91%20%C4%91i%E1%BB%87n%20tho%E1%BA%A1i%20l%E1%BA%A7n%20%C4%91%E1%BA%A7u
+```
+
+- `X-Points-Message` được **percent-encode** (`encodeURIComponent`). Giải bằng
+  `decodeURIComponent(h)` → `"Xác minh số điện thoại lần đầu"`. Lý do: header HTTP chỉ chở
+  được Latin-1; chữ như "Đ" ghi thẳng làm server lỗi.
+- Một request cộng nhiều khoản thì `X-Points-Awarded` là **tổng**, còn `X-Points-Message` ghép
+  các tiêu đề (không lặp) bằng `"; "`. Tiêu đề chính là `ruleTitle` của lịch sử điểm.
+- **Chỉ điểm của chính người gọi.** Người nhận xác nhận giao dịch thì người tặng cũng được
+  điểm, nhưng header của request đó chỉ nói phần người nhận.
+- **Chỉ điểm đã thật sự ghi**: server đọc lại sổ điểm trước khi trả, nên lượt bị rollback
+  không lọt ra header.
+- Không cộng điểm (hoặc chỉ bị trừ) thì **không có** hai header này — client kiểm có mặt hay
+  không, đừng mặc định là 0.
+- Điểm cộng sau khi response đã đi (cron, việc nền) không đi kèm request nào nên không có
+  header; xem `GET /points/me/ledger`.
+- Server gửi kèm `Access-Control-Expose-Headers: X-Points-Awarded, X-Points-Message` để web
+  đọc được nếu sau này bật CORS khác tên miền.
+
 ### Xác thực
 
 Bearer token ở header `Authorization`. Access token ngắn hạn, refresh token dài hạn.
