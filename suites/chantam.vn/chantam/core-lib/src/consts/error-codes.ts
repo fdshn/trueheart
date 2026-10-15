@@ -212,6 +212,8 @@ export enum ErrorCodes {
   NOTIFICATION_NOT_FOUND = 0x0b_03,
   CHAT_MESSAGE_NOT_FOUND = 0x0b_04,
   CHAT_RECALL_WINDOW_CLOSED = 0x0b_05,
+  /** Cờ kiểm duyệt chat đã có người xử — không ghi đè quyết định trước. */
+  CHAT_FLAG_ALREADY_REVIEWED = 0x0b_06,
 
   // 0x0F — Báo cáo vi phạm
   REPORT_NOT_FOUND = 0x0f_01,

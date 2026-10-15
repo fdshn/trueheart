@@ -32,3 +32,7 @@ export class ChatRecallWindowClosedException extends ExceptionFrom(
 export class NotificationNotFoundException extends ExceptionFrom(
   CoreErrors.NOTIFICATION_NOT_FOUND,
 ) {}
+
+export class ChatFlagAlreadyReviewedException extends ExceptionFrom(
+  CoreErrors.CHAT_FLAG_ALREADY_REVIEWED,
+) {}

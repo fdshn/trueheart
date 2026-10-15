@@ -445,6 +445,13 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: [5],
   },
 
+  CHAT_FLAG_ALREADY_REVIEWED: {
+    code: ErrorCodes.CHAT_FLAG_ALREADY_REVIEWED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Cờ này đã có người xử trước. Tải lại hàng đợi để xem quyết định đã chọn',
+  },
+
   NOTIFICATION_NOT_FOUND: {
     code: ErrorCodes.NOTIFICATION_NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,

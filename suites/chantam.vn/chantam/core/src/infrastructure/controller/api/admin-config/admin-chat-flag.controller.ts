@@ -3,7 +3,10 @@ import {
   IGetChatFlagQueueUseCase,
   IReviewChatFlagUseCase,
 } from '@/application/contracts/admin-config';
-import { ChatMessageNotFoundException } from '@/domain/exceptions';
+import {
+  ChatFlagAlreadyReviewedException,
+  ChatMessageNotFoundException,
+} from '@/domain/exceptions';
 import {
   ApiTokenErrors,
   CurrentUser,
@@ -103,12 +106,14 @@ export class AdminChatFlagController {
   @ApiOperation({
     summary: 'Xử một cờ',
     description:
-      'Ghi quyết định và đưa cờ ra khỏi hàng đợi. KHÔNG ghi lại được lên cờ đã xử — làm vậy là xoá quyết định của người trước. Hai Admin bấm cùng lúc thì người thứ hai nhận 404, vì với họ kết luận là "không còn việc ở đây". `MESSAGE_REMOVED` chỉ GHI LẠI quyết định; gỡ tin thật đi qua `DELETE /admin/chat/messages/:messageId`.',
+      'Ghi quyết định và đưa cờ ra khỏi hàng đợi. KHÔNG ghi lại được lên cờ đã xử — làm vậy là xoá quyết định của người trước: hai Admin bấm cùng lúc thì người thứ hai nhận 409 `CHAT_FLAG_ALREADY_REVIEWED` (tải lại hàng đợi); cờ không tồn tại vẫn là 404.\n\n' +
+      '`MESSAGE_REMOVED` GỠ LUÔN tin trong cùng transaction với việc đóng cờ — body rỗng, ảnh bị xoá, hai bên nhận realtime như một lượt thu hồi. Không cần gọi thêm `DELETE /admin/chat/messages/:messageId`. Người gửi đã tự thu hồi trước thì cờ vẫn đóng, audit ghi `messageRemoved: false`.',
   })
   @ApiErrorResponses(
     ...ApiTokenErrors,
     ForbiddenException,
     ChatMessageNotFoundException,
+    ChatFlagAlreadyReviewedException,
   )
   @ApiOkResponse({ type: ResponseDto.forApi(GetChatFlagQueueResponseDto) })
   public async reviewFlag(
