@@ -572,6 +572,24 @@ export const IListAdminCharityCampaignsUseCase = Symbol(
   'IListAdminCharityCampaignsUseCase',
 );
 
+export interface IGetAdminCharityCampaignCommand {
+  readonly actorUserId: string;
+  readonly campaignId: string;
+}
+
+export interface IGetAdminCharityCampaignResult {
+  readonly campaign: ICharityCampaignView;
+}
+
+export interface IGetAdminCharityCampaignUseCase extends IUseCase<
+  IGetAdminCharityCampaignCommand,
+  IGetAdminCharityCampaignResult
+> {}
+
+export const IGetAdminCharityCampaignUseCase = Symbol(
+  'IGetAdminCharityCampaignUseCase',
+);
+
 export interface IDecideCharityApprovalCommand {
   readonly actorUserId: string;
   readonly campaignId: string;
