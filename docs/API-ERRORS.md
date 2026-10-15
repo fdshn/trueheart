@@ -74,6 +74,7 @@ Nghiệp vụ Chân Tâm
 | `0x020e` | `526` | 409 Conflict | `CHECK_IN_REPAIR_CREDIT_INSUFFICIENT` | Bạn không còn lượt điểm danh bù. Hoàn tất thêm 0 lượt tặng/nhận quà để có một lượt |
 | `0x020f` | `527` | 409 Conflict | `CHECK_IN_REPAIR_UNAVAILABLE` | Ngày này không nối lại được chuỗi nào, nên bù vào cũng không thay đổi gì |
 | `0x0210` | `528` | 409 Conflict | `REDEMPTION_QUOTE_STALE` | Giá đã đổi từ 0 điểm thành 0 điểm. Xem lại rồi xác nhận giúp mình nhé. |
+| `0x0211` | `529` | 409 Conflict | `CHECK_IN_POLICY_VERSION_CONFLICT` | Policy điểm danh vừa được người khác publish: bản hiện tại là 2, không phải 1. Tải lại rồi sửa trên bản mới |
 | `0x0301` | `769` | 404 Not Found | `USER_NOT_FOUND` | Không tìm thấy tài khoản |
 | `0x0302` | `770` | 403 Forbidden | `USER_SUSPENDED` | Tài khoản đang bị tạm khoá tới 2026-10-01T00:00:00.000Z |
 | `0x0303` | `771` | 403 Forbidden | `USER_BANNED` | Tài khoản đã bị khoá vĩnh viễn |
@@ -156,6 +157,7 @@ Nghiệp vụ Chân Tâm
 | `0x1003` | `4099` | 403 Forbidden | `GROUP_CREATE_NOT_ALLOWED` | Thứ hạng của bạn chưa đủ điều kiện tạo nhóm. |
 | `0x1004` | `4100` | 400 Bad Request | `GROUP_INVITE_INVALID` | Link mời không dùng được. |
 | `0x1005` | `4101` | 404 Not Found | `GROUP_NOT_FOUND` | Không tìm thấy nhóm |
+| `0x1006` | `4102` | 409 Conflict | `AFFILIATE_POLICY_VERSION_CONFLICT` | Policy Affiliate vừa được người khác publish: bản hiện tại là 2, không phải 1. Tải lại rồi sửa trên bản mới |
 | `0x1101` | `4353` | 404 Not Found | `HOME_CAMPAIGN_NOT_FOUND` | Không tìm thấy chiến dịch |
 | `0x1102` | `4354` | 409 Conflict | `HOME_CAMPAIGN_SCHEDULE_CONFLICT` | Đã có giao diện trang chủ khác đang bật trùng khung thời gian này — tắt bản kia hoặc đổi thời gian |
 | `0x1201` | `4609` | 404 Not Found | `BLOG_NOT_FOUND` | Không tìm thấy bài viết |
@@ -205,5 +207,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **163 mã lỗi** trên 3 tầng.
+Tổng cộng **165 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

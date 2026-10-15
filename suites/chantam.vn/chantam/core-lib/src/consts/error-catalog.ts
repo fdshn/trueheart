@@ -167,6 +167,17 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Ngày này không nối lại được chuỗi nào, nên bù vào cũng không thay đổi gì',
   },
 
+  CHECK_IN_POLICY_VERSION_CONFLICT: {
+    code: ErrorCodes.CHECK_IN_POLICY_VERSION_CONFLICT,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (currentVersion: number | null, expectedVersion: number | null) =>
+      `Policy điểm danh vừa được người khác publish: bản hiện tại là ${currentVersion ?? 'chưa có'}, không phải ${expectedVersion ?? 'chưa có'}. Tải lại rồi sửa trên bản mới`,
+    explains: (currentVersion: number | null) => [
+      `currentVersion=${currentVersion ?? 'null'}`,
+    ],
+    sample: [2, 1],
+  },
+
   // ── 0x03 Người dùng ───────────────────────────────────────────────────────
   USER_NOT_FOUND: {
     code: ErrorCodes.USER_NOT_FOUND,
@@ -775,6 +786,17 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     code: ErrorCodes.GROUP_NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,
     message: () => 'Không tìm thấy nhóm',
+  },
+
+  AFFILIATE_POLICY_VERSION_CONFLICT: {
+    code: ErrorCodes.AFFILIATE_POLICY_VERSION_CONFLICT,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (currentVersion: number | null, expectedVersion: number | null) =>
+      `Policy Affiliate vừa được người khác publish: bản hiện tại là ${currentVersion ?? 'chưa có'}, không phải ${expectedVersion ?? 'chưa có'}. Tải lại rồi sửa trên bản mới`,
+    explains: (currentVersion: number | null) => [
+      `currentVersion=${currentVersion ?? 'null'}`,
+    ],
+    sample: [2, 1],
   },
 
   HOME_CAMPAIGN_NOT_FOUND: {

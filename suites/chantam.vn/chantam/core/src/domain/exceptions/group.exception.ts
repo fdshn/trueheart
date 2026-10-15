@@ -20,3 +20,7 @@ export class GroupInviteInvalidException extends ExceptionFrom(
 export class GroupNotFoundException extends ExceptionFrom(
   CoreErrors.GROUP_NOT_FOUND,
 ) {}
+
+export class AffiliatePolicyVersionConflictException extends ExceptionFrom(
+  CoreErrors.AFFILIATE_POLICY_VERSION_CONFLICT,
+) {}

@@ -2,6 +2,7 @@ import {
   IGetCheckInPolicyUseCase,
   IPublishCheckInPolicyUseCase,
 } from '@/application/contracts/check-in';
+import { CheckInPolicyVersionConflictException } from '@/domain/exceptions';
 import {
   ApiTokenErrors,
   CurrentUser,
@@ -71,7 +72,9 @@ export class AdminCheckInPolicyController {
       '`point_ledger` trỏ được tới đúng bản đã dùng lúc phát điểm, và đổi policy ' +
       'KHÔNG tính lại lịch sử.\n\n' +
       '`expectedVersion` phải khớp bản đang có, nếu không bị từ chối: hai Admin ' +
-      'sửa cùng lúc thì người sau sẽ xoá mất thay đổi của người trước mà không ai biết.\n\n' +
+      'sửa cùng lúc thì người sau sẽ xoá mất thay đổi của người trước mà không ai biết. Lệch thì 409 ' +
+      '`CHECK_IN_POLICY_VERSION_CONFLICT` kèm dòng phụ `currentVersion=<n|null>` trong ' +
+      '`messages` — tải lại policy rồi gửi lại với version đó.\n\n' +
       'Bật `enabled` mà thiếu `dailyPoints`, `transactionsPerRepair` hoặc ' +
       '`repairWindowDays` thì bị từ chối kèm danh sách ĐÚNG cái thiếu. Đặc tả nói ' +
       'thẳng là không hard-code một mặc định có tác dụng phát điểm, nên tính năng ' +
@@ -83,10 +86,8 @@ export class AdminCheckInPolicyController {
   @ApiErrorResponses(
     ...ApiTokenErrors,
     [ForbiddenException],
-    [
-      ValidationFailedException,
-      ['expectedVersion: bản hiện tại là 2, không phải 1'],
-    ],
+    [ValidationFailedException, ['dailyPoints phải lớn hơn 0']],
+    [CheckInPolicyVersionConflictException, [2, 1]],
   )
   public async publishPolicy(
     @CurrentUser() principal: IAuthPrincipal,

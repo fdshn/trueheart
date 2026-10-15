@@ -65,6 +65,11 @@ export enum ErrorCodes {
    * ngày đó nằm ngoài mọi chuỗi đang mở nên bù vào cũng không nối lại được gì.
    */
   CHECK_IN_REPAIR_UNAVAILABLE = 0x02_0f,
+  /**
+   * `expectedVersion` khi publish policy điểm danh không khớp bản đang có —
+   * một Admin khác vừa publish. Dòng phụ `currentVersion=<n|null>` cho client đọc.
+   */
+  CHECK_IN_POLICY_VERSION_CONFLICT = 0x02_11,
 
   /**
    * Giá bằng điểm đã đổi giữa lúc xem trước và lúc bấm đổi (CHỐT-10 mục 2).
@@ -240,6 +245,8 @@ export enum ErrorCodes {
   /** Mã mời sai, hoặc nhóm đã giải tán. Cố ý KHÔNG phân biệt hai ca. */
   GROUP_INVITE_INVALID = 0x10_04,
   GROUP_NOT_FOUND = 0x10_05,
+  /** Như `CHECK_IN_POLICY_VERSION_CONFLICT`, cho policy Affiliate. */
+  AFFILIATE_POLICY_VERSION_CONFLICT = 0x10_06,
 
   // 0x11 — Chiến dịch & Home động (F63)
   HOME_CAMPAIGN_NOT_FOUND = 0x11_01,

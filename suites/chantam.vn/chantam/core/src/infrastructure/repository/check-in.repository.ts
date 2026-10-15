@@ -1,5 +1,6 @@
 import {
   CheckInPolicyUnavailableException,
+  CheckInPolicyVersionConflictException,
   CheckInRepairCreditInsufficientException,
   CheckInRepairDateInvalidException,
   CheckInRepairUnavailableException,
@@ -162,9 +163,10 @@ export class CheckInRepository implements ICheckInRepository {
       const currentVersion = latest ? Number(latest.version) : null;
 
       if ((params.expectedVersion ?? null) !== currentVersion)
-        throw new ValidationFailedException([
-          `expectedVersion: bản hiện tại là ${currentVersion ?? 'chưa có'}, không phải ${params.expectedVersion ?? 'chưa có'}`,
-        ]);
+        throw new CheckInPolicyVersionConflictException(
+          currentVersion,
+          params.expectedVersion ?? null,
+        );
 
       const gaps = checkInPolicyGaps(params.policy);
       if (gaps.length > 0) throw new ValidationFailedException(gaps);

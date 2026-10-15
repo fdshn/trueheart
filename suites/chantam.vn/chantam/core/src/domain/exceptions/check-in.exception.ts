@@ -20,3 +20,7 @@ export class CheckInRepairCreditInsufficientException extends ExceptionFrom(
 export class CheckInRepairUnavailableException extends ExceptionFrom(
   CoreErrors.CHECK_IN_REPAIR_UNAVAILABLE,
 ) {}
+
+export class CheckInPolicyVersionConflictException extends ExceptionFrom(
+  CoreErrors.CHECK_IN_POLICY_VERSION_CONFLICT,
+) {}
