@@ -90,6 +90,19 @@ export interface IDeleteBlogUseCase extends IUseCase<
 
 export const IDeleteBlogUseCase = Symbol('IDeleteBlogUseCase');
 
+/** Đọc MỘT bài cho CMS — gồm bản nháp và `contentHtml`. */
+export interface IGetAdminBlogCommand {
+  actorUserId: string;
+  blogId: string;
+}
+
+export interface IGetAdminBlogUseCase extends IUseCase<
+  IGetAdminBlogCommand,
+  IBlogDetailView
+> {}
+
+export const IGetAdminBlogUseCase = Symbol('IGetAdminBlogUseCase');
+
 /** Công khai. */
 export interface IListPublicBlogsCommand {
   limit: number;

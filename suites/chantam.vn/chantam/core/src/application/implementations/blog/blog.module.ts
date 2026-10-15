@@ -1,6 +1,7 @@
 import {
   ICreateBlogUseCase,
   IDeleteBlogUseCase,
+  IGetAdminBlogUseCase,
   IGetPublicBlogUseCase,
   IListAdminBlogsUseCase,
   IListPublicBlogsUseCase,
@@ -10,6 +11,7 @@ import { Global, Module } from '@nestjs/common';
 import {
   CreateBlogUseCase,
   DeleteBlogUseCase,
+  GetAdminBlogUseCase,
   GetPublicBlogUseCase,
   ListAdminBlogsUseCase,
   ListPublicBlogsUseCase,
@@ -30,6 +32,7 @@ import {
     { provide: ICreateBlogUseCase, useClass: CreateBlogUseCase },
     { provide: IUpdateBlogUseCase, useClass: UpdateBlogUseCase },
     { provide: IDeleteBlogUseCase, useClass: DeleteBlogUseCase },
+    { provide: IGetAdminBlogUseCase, useClass: GetAdminBlogUseCase },
     { provide: IListPublicBlogsUseCase, useClass: ListPublicBlogsUseCase },
     { provide: IGetPublicBlogUseCase, useClass: GetPublicBlogUseCase },
   ],
@@ -38,6 +41,7 @@ import {
     ICreateBlogUseCase,
     IUpdateBlogUseCase,
     IDeleteBlogUseCase,
+    IGetAdminBlogUseCase,
     IListPublicBlogsUseCase,
     IGetPublicBlogUseCase,
   ],
