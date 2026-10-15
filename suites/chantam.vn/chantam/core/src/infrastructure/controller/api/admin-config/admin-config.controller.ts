@@ -169,13 +169,14 @@ export class AdminConfigController {
       'Ghi theo copy-on-write như mọi system config: bản cũ đóng lại, `reason` đi ' +
       'thẳng vào audit log. Đây là chính sách quyết định ai thấy bài của ai, nên đổi ' +
       'mà không truy được ai đổi là không chấp nhận được.\n\n' +
-      'Ba chỗ bị TỪ CHỐI:\n' +
+      'Hai chỗ bị TỪ CHỐI:\n' +
       '- `categoryMatchRequired` và `keywordMatchEnabled` tắt cùng lúc — gợi ý sẽ chỉ ' +
       'còn lọc theo khoảng cách, tức trả về gần như mọi bài quanh đó.\n' +
-      '- `autoCreateTransaction: true` — chưa hiện thực, chưa đường mã nào đọc cờ ' +
-      'này.\n' +
       '- `maxSuggestions` vượt 100 — bằng đúng kích cỡ rổ ứng viên truy vấn kéo ' +
       'về.\n\n' +
+      '`autoCreateTransaction` là công tắc của job `selection:auto-select`: `true` (mặc ' +
+      'định) thì bài hết hạn chọn sẽ được tự chọn người nhận và tạo giao dịch; `false` thì ' +
+      'job dừng, người tặng phải tự chọn.\n\n' +
       '`weights` không cần cộng đúng 1: ba số được chia lại theo tỉ lệ rồi mới lưu, ' +
       'nên `5/3/2` và `0.5/0.3/0.2` là cùng một chính sách. Thứ ghi vào config và vào ' +
       'audit log là bộ đã chia, để bản ghi nói đúng thứ đang chạy.',
@@ -187,7 +188,7 @@ export class AdminConfigController {
     [
       ValidationFailedException,
       [
-        'autoCreateTransaction: chưa hiện thực, chưa đường mã nào đọc cờ này nên bật lên sẽ không có tác dụng gì',
+        'categoryMatchRequired và keywordMatchEnabled không được tắt cùng lúc: gợi ý sẽ chỉ còn lọc theo khoảng cách',
       ],
     ],
   )

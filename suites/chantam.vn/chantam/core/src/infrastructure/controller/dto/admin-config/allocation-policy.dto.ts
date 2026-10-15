@@ -59,7 +59,7 @@ export class AllocationPolicyDto {
 
   @ApiProperty({
     description:
-      'CHƯA HIỆN THỰC — `PUT` sẽ từ chối nếu đặt `true`. Trường có mặt để đúng schema đặc tả, không phải để bật.',
+      'Công tắc của job `selection:auto-select`: `true` (mặc định) thì bài hết hạn chọn được tự chọn người nhận và tạo giao dịch; `false` thì job dừng.',
   })
   autoCreateTransaction: boolean;
 
@@ -104,8 +104,9 @@ export class SetAllocationPolicyDto {
   keywordMatchEnabled: boolean;
 
   @ApiProperty({
-    example: false,
-    description: 'Phải là `false` — bật lên bị từ chối vì chưa hiện thực.',
+    example: DefaultAllocationPolicy.autoCreateTransaction,
+    description:
+      '`true` (mặc định): job `selection:auto-select` tự chọn người nhận khi bài hết hạn chọn. `false`: job dừng, người tặng phải tự chọn.',
   })
   @IsBoolean()
   autoCreateTransaction: boolean;
