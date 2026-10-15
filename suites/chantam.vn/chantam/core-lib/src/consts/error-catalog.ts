@@ -314,6 +314,16 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: [34],
   },
 
+  CATEGORY_POST_TYPE_IN_USE: {
+    code: ErrorCodes.CATEGORY_POST_TYPE_IN_USE,
+    httpStatus: HttpStatus.CONFLICT,
+    // Bỏ một loại khỏi danh mục còn bài loại đó là để những bài ấy nằm ở chỗ chúng không
+    // còn được phép nằm — lọc theo loại sẽ không bao giờ tìm ra chúng nữa.
+    message: (types: string, postCount: number) =>
+      `Không bỏ được loại ${types}: còn ${postCount} bài loại đó trong danh mục này. Chuyển bài sang danh mục khác trước`,
+    sample: ['WANTED', 3],
+  },
+
   CATEGORY_DEPTH_EXCEEDED: {
     code: ErrorCodes.CATEGORY_DEPTH_EXCEEDED,
     httpStatus: HttpStatus.UNPROCESSABLE_ENTITY,

@@ -73,6 +73,8 @@ export interface IUpdateCategoryDto {
   sortOrder?: number;
   isActive?: boolean;
   parentId?: string | null;
+  /** Thay TOÀN BỘ danh sách loại bài. Bỏ một loại còn bài dùng thì 409. */
+  postTypes?: PostTypes[];
 }
 export interface IUpdateCategoryBodyDto {
   category: IUpdateCategoryDto;

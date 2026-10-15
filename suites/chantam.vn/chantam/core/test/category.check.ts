@@ -315,6 +315,46 @@ async function main(): Promise<void> {
       selfMerge.includes('CHK_categories_merge_not_self'),
       selfMerge.slice(0, 60),
     );
+
+    console.log(
+      '\nN. countPostsOfTypes — đếm đúng loại, chỉ trong chính danh mục (CMS A12)',
+    );
+    // Danh mục riêng để không lẫn bài của các nhóm trên.
+    const TypedCategory = 'b0000000-0000-4000-8000-0000000000c1';
+    const TypedChild = 'b0000000-0000-4000-8000-0000000000c2';
+    await dataSource.query(
+      `INSERT INTO categories (global_id, name, slug, parent_id, is_active)
+       VALUES ($1, 'Đếm theo loại', 'dem-theo-loai', NULL, true),
+              ($2, 'Con đếm theo loại', 'con-dem-theo-loai', $1, true)`,
+      [TypedCategory, TypedChild],
+    );
+    await addPost(TypedCategory, 'OFFER');
+    await addPost(TypedCategory, 'WANTED');
+    await addPost(TypedCategory, 'WANTED');
+    // Bài ở danh mục CON không tính: con khai postTypes riêng của nó.
+    await addPost(TypedChild, 'WANTED');
+    const deleted = await addPost(TypedCategory, 'WANTED');
+    await dataSource.query(
+      `UPDATE posts SET deleted_at = now() WHERE global_id = $1`,
+      [deleted],
+    );
+    const wanted = await categories.countPostsOfTypes(TypedCategory, [
+      'WANTED',
+    ]);
+    check(
+      'WANTED = 2 (bỏ bài đã xoá, bỏ bài ở danh mục con)',
+      wanted === 2,
+      `${wanted}`,
+    );
+    const both = await categories.countPostsOfTypes(TypedCategory, [
+      'OFFER',
+      'WANTED',
+    ]);
+    check('OFFER + WANTED = 3', both === 3, `${both}`);
+    check(
+      'loại không có bài nào = 0',
+      (await categories.countPostsOfTypes(TypedCategory, ['CHARITY'])) === 0,
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();
