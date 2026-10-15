@@ -231,6 +231,29 @@ describe('UpdateMeritUnitUseCase', () => {
       }),
     ).rejects.toThrow(MeritUnitNotFoundException);
   });
+
+  it('null ở trường xoá được là "xoá", không ném lỗi trên .trim() (CMS B12)', async () => {
+    const repository = makeRepository();
+
+    await new UpdateMeritUnitUseCase(repository, makeAdmin(true)).handle({
+      actorUserId: AdminId,
+      unitId: 'unit-1',
+      description: null,
+      coverUrl: null,
+      addressLabel: null,
+      bankName: null,
+    });
+
+    expect(repository.updateUnit).toHaveBeenCalledWith({
+      unitId: 'unit-1',
+      changes: {
+        description: null,
+        coverUrl: null,
+        addressLabel: null,
+        bankName: null,
+      },
+    });
+  });
 });
 
 describe('DeclareMeritUseCase', () => {

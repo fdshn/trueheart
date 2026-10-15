@@ -139,7 +139,8 @@ function prepareWrite(
 
   if (partnerName !== undefined) changes.partnerName = partnerName;
   if (input.partnerContact !== undefined)
-    changes.partnerContact = input.partnerContact.trim() || null;
+    // `null` là "xoá liên hệ" — trường duy nhất của banner được xoá.
+    changes.partnerContact = input.partnerContact?.trim() || null;
   if (title !== undefined) changes.title = title;
   if (input.imageUrl !== undefined) changes.imageUrl = input.imageUrl;
   if (input.targetUrl !== undefined) changes.targetUrl = input.targetUrl;

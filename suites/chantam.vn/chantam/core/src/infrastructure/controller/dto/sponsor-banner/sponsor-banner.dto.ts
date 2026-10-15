@@ -21,6 +21,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { NotNullWhenPresent } from '../not-null-when-present';
 
 export class WriteSponsorBannerDto {
   @ApiProperty({
@@ -117,7 +118,7 @@ export class WriteSponsorBannerBodyDto {
 /** Lượt sửa: mọi trường tuỳ chọn, và trường bỏ trống nghĩa là "không đổi". */
 export class PatchSponsorBannerDto {
   @ApiPropertyOptional({ maxLength: MaxBannerPartnerNameLength })
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsString()
   @Length(1, MaxBannerPartnerNameLength)
   partnerName?: string;
@@ -126,40 +127,40 @@ export class PatchSponsorBannerDto {
   @IsOptional()
   @IsString()
   @Length(1, MaxBannerPartnerNameLength)
-  partnerContact?: string;
+  partnerContact?: string | null;
 
   @ApiPropertyOptional({ maxLength: MaxBannerTitleLength })
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsString()
   @Length(1, MaxBannerTitleLength)
   title?: string;
 
   @ApiPropertyOptional({ maxLength: MaxBannerUrlLength })
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsString()
   @Length(1, MaxBannerUrlLength)
   imageUrl?: string;
 
   @ApiPropertyOptional({ maxLength: MaxBannerUrlLength })
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsString()
   @Length(1, MaxBannerUrlLength)
   targetUrl?: string;
 
   @ApiPropertyOptional({ enum: BannerPlacements })
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsIn(BannerPlacements as readonly string[])
   placement?: string;
 
   @ApiPropertyOptional({ minimum: 0 })
-  @IsOptional()
+  @NotNullWhenPresent()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   displayOrder?: number;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsISO8601()
   startsAt?: string;
 
@@ -168,7 +169,7 @@ export class PatchSponsorBannerDto {
       'Gửi một mốc lẻ thì phép so "sau startsAt" do ràng buộc database canh — mốc kia nằm ' +
       'trong database chứ không trong request.',
   })
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsISO8601()
   endsAt?: string;
 }
