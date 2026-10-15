@@ -54,7 +54,10 @@ describe('AdminConfigRepository audit filtering', () => {
           created_at: new Date('2026-09-20T00:00:00.000Z'),
         },
       ])
-      .mockResolvedValueOnce([{ total: '41' }]);
+      .mockResolvedValueOnce([{ total: '41' }])
+      .mockResolvedValueOnce([
+        { global_id: 'user-1', username: 'demo-quan-tri' },
+      ]);
   }
 
   it('không lọc theo trường nào khi bộ lọc để trống', async () => {
@@ -71,6 +74,8 @@ describe('AdminConfigRepository audit filtering', () => {
     expect(params).toEqual([20, 0]);
     expect(page.total).toBe(41);
     expect(page.entries[0].actorUserId).toBe('user-1');
+    // CMS A10: tên đi kèm id, CMS không phải gọi từng người dùng.
+    expect(page.entries[0].actorUsername).toBe('demo-quan-tri');
   });
 
   it('lọc theo actor, hành động, loại tài nguyên và khoảng thời gian', async () => {

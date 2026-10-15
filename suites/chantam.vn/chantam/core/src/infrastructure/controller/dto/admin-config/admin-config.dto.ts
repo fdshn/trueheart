@@ -151,6 +151,14 @@ export class AdminAuditLogDto implements IAdminAuditSummary {
 
   @ApiProperty({ format: 'uuid', nullable: true }) actorUserId: string | null;
 
+  @ApiProperty({
+    nullable: true,
+    example: 'demo-quan-tri',
+    description:
+      'Tên đăng nhập của người thao tác; null khi do hệ thống tự chạy.',
+  })
+  actorUsername: string | null;
+
   @ApiProperty({ example: 'PUBLISH' }) action: string;
 
   @ApiProperty({ example: 'SYSTEM_CONFIG' }) resourceType: string;

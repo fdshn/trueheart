@@ -86,8 +86,19 @@ export class SystemLogEntryDto implements ISystemLogEntry {
   })
   actorUserId: string | null;
 
+  @ApiProperty({
+    nullable: true,
+    example: 'demo-quan-tri',
+    description:
+      'Tên đăng nhập của người gây ra hành động; null khi do hệ thống tự chạy.',
+  })
+  actorUsername: string | null;
+
   @ApiProperty({ format: 'uuid', nullable: true })
   subjectUserId: string | null;
+
+  @ApiProperty({ nullable: true, example: 'demo-nguoi-nhan' })
+  subjectUsername: string | null;
 
   @ApiProperty({ example: 'COMPLETED' }) action: string;
 

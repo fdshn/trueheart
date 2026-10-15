@@ -20,8 +20,11 @@ export interface ISystemLogEntry {
   readonly occurredAt: Date;
   /** Người gây ra hành động; `null` khi do hệ thống tự chạy. */
   readonly actorUserId: string | null;
+  /** `username` của người gây ra hành động; `null` khi do hệ thống tự chạy. */
+  readonly actorUsername: string | null;
   /** Người bị ảnh hưởng. Với log admin thì thường là null. */
   readonly subjectUserId: string | null;
+  readonly subjectUsername: string | null;
   readonly action: string;
   readonly resourceType: string;
   readonly resourceId: string | null;

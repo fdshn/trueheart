@@ -16,7 +16,8 @@ function makeQuery() {
         detail: 'Mở rộng bán kính',
       },
     ])
-    .mockResolvedValueOnce([{ total: '12' }]);
+    .mockResolvedValueOnce([{ total: '12' }])
+    .mockResolvedValueOnce([{ global_id: UserId, username: 'demo-quan-tri' }]);
 }
 
 describe('SystemLogRepository', () => {
@@ -114,5 +115,22 @@ describe('SystemLogRepository', () => {
     expect(String(countSql)).toMatch(/COUNT\(\*\)/i);
     expect(String(countSql)).toContain('rule_code = $1');
     expect(countParams).toEqual(['REFERRAL_QUALIFIED']);
+  });
+
+  it('trả kèm username của người thao tác và người bị ảnh hưởng (CMS A10)', async () => {
+    const repository = new SystemLogRepository({ query: makeQuery() } as never);
+
+    const page = await repository.query({
+      logType: 'ADMIN',
+      skip: 0,
+      take: 20,
+    });
+
+    expect(page.entries[0]).toMatchObject({
+      actorUserId: UserId,
+      actorUsername: 'demo-quan-tri',
+      subjectUserId: null,
+      subjectUsername: null,
+    });
   });
 });
