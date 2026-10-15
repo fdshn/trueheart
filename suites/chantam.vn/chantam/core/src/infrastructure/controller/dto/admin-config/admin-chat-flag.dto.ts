@@ -84,7 +84,7 @@ export class ReviewChatFlagDto {
   @ApiProperty({
     enum: ChatFlagActions,
     description:
-      '`MESSAGE_REMOVED` KHÔNG tự gỡ tin nhắn — gỡ đi qua `DELETE /admin/chat/messages/:messageId`. Ở đây chỉ GHI LẠI quyết định, vì gộp hai việc thì một lượt gỡ thất bại để lại cờ nói "đã gỡ".',
+      '`MESSAGE_REMOVED` GỠ LUÔN tin nhắn trong cùng transaction với việc đóng cờ — không cần gọi thêm `DELETE /admin/chat/messages/:messageId`. Hai việc chung một lần commit nên không còn trạng thái cờ nói "đã gỡ" mà tin vẫn nằm trong phòng.',
   })
   @IsIn([...ChatFlagActions])
   action: (typeof ChatFlagActions)[number];
