@@ -15,7 +15,7 @@ import {
   PaginationQueryDto,
 } from '@chantam/service.common-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -27,6 +27,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Mixin } from 'ts-mixer';
+import { QueryBoolean } from '../query-boolean';
 
 export class NotificationDto implements INotificationDto {
   @ApiProperty({ format: 'uuid' })
@@ -60,9 +61,8 @@ export class ListNotificationsQueryDto
 {
   @ApiPropertyOptional({ default: false })
   @IsOptional()
-  // Query string luôn là chuỗi: 'false' là truthy nên `Boolean('false')` ra
-  // `true`, và bộ lọc sẽ bật khi người dùng vừa tắt nó.
-  @Transform(({ value }) => value === 'true' || value === true)
+  // Query string luôn là chuỗi: xem `QueryBoolean`.
+  @QueryBoolean()
   @IsBoolean()
   unreadOnly?: boolean;
 }

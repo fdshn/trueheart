@@ -21,6 +21,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { QueryBoolean } from '../query-boolean';
 
 export class WriteDharmaContentDto {
   @ApiProperty({
@@ -233,7 +234,7 @@ export class ListDharmaContentsQueryDto {
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()
-  @Type(() => Boolean)
+  @QueryBoolean()
   @IsBoolean()
   featuredOnly?: boolean;
 }
@@ -264,7 +265,7 @@ export class ListAdminDharmaContentsQueryDto {
     description: 'Gồm cả bản nháp. Mặc định `true` — CMS tồn tại để soạn nháp.',
   })
   @IsOptional()
-  @Type(() => Boolean)
+  @QueryBoolean()
   @IsBoolean()
   includeDrafts?: boolean;
 }

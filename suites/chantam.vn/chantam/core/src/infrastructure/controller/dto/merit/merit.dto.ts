@@ -24,6 +24,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { QueryBoolean } from '../query-boolean';
 
 export class WriteMeritUnitDto {
   @ApiProperty({
@@ -255,7 +256,7 @@ export class ListAdminMeritUnitsQueryDto extends ListMeritUnitsQueryDto {
       'Gồm cả đơn vị đã tắt. Mặc định `false` để khớp đường công khai.',
   })
   @IsOptional()
-  @Type(() => Boolean)
+  @QueryBoolean()
   @IsBoolean()
   includeInactive?: boolean;
 }

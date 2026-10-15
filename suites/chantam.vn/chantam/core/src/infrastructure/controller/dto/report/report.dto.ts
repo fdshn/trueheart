@@ -39,6 +39,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Mixin } from 'ts-mixer';
+import { QueryBoolean } from '../query-boolean';
 
 export class CreateReportDto implements ICreateReportDto {
   @ApiProperty({ enum: ReportTargetTypes })
@@ -87,7 +88,7 @@ export class ListReporterStatsQueryDto {
       'Mặc định CHỈ trả người đã vượt ngưỡng. Mở ra thấy mọi người từng báo xấu thì không ai đọc hết, và cái cần xem sẽ nằm lẫn trong đó. Đặt `false` để xem toàn bộ.',
   })
   @IsOptional()
-  @Type(() => Boolean)
+  @QueryBoolean()
   @IsBoolean()
   abusiveOnly?: boolean;
 
