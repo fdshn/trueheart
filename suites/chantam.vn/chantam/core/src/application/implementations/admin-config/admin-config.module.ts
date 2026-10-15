@@ -19,6 +19,7 @@ import {
   IGetOwnAdminAccessUseCase,
   IGetSystemLogsUseCase,
   IListAdminCommentsUseCase,
+  IListAdminGroupsUseCase,
   IListAdminRolesUseCase,
   IListAdminUsersUseCase,
   IListNotificationTemplatesUseCase,
@@ -53,6 +54,7 @@ import {
   PublishAdminConfigUseCase,
 } from './admin-config.use-cases';
 import { GetAdminDashboardUseCase } from './admin-dashboard.use-case';
+import { ListAdminGroupsUseCase } from './admin-group-list.use-cases';
 import {
   GetGroupRadiusPolicyUseCase,
   PublishGroupRadiusPolicyUseCase,
@@ -155,6 +157,10 @@ import {
       useClass: GetGroupRadiusPolicyUseCase,
     },
     {
+      provide: IListAdminGroupsUseCase,
+      useClass: ListAdminGroupsUseCase,
+    },
+    {
       provide: IPublishGroupRadiusPolicyUseCase,
       useClass: PublishGroupRadiusPolicyUseCase,
     },
@@ -241,6 +247,7 @@ import {
     IGetChatFlagPendingCountUseCase,
     IReviewChatFlagUseCase,
     IGetGroupRadiusPolicyUseCase,
+    IListAdminGroupsUseCase,
     IGetGroupRolePermissionsUseCase,
     IPublishGroupRadiusPolicyUseCase,
     IReplaceGroupRolePermissionsUseCase,

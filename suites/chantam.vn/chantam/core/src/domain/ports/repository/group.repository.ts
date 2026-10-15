@@ -334,6 +334,32 @@ export interface IGroupRepository {
    * Trả số nhóm đã giải tán; `0` là bình thái khi người đó không sở hữu nhóm nào.
    */
   dissolveOwnedBy(ownerId: string): Promise<number>;
+
+  /**
+   * Danh sách nhóm cho CMS chọn nhóm (CMS A5) — gửi thông báo hàng loạt và lọc
+   * affiliate theo nhóm mà không phải dán UUID.
+   *
+   * `keyword` khớp tên nhóm, khu vực, username chủ nhóm (không phân biệt hoa
+   * thường), hoặc ĐÚNG `groupId`.
+   */
+  listForAdmin(params: {
+    keyword: string | null;
+    status: GroupStatuses | null;
+    skip: number;
+    take: number;
+  }): Promise<{ items: IAdminGroupListItem[]; total: number }>;
+}
+
+export interface IAdminGroupListItem {
+  readonly groupId: string;
+  readonly name: string;
+  readonly regionLabel: string;
+  readonly status: GroupStatuses;
+  readonly ownerId: string;
+  readonly ownerUsername: string;
+  /** Chỉ người ĐANG trong nhóm. */
+  readonly memberCount: number;
+  readonly createdAt: Date;
 }
 
 export const IGroupRepository = Symbol('IGroupRepository');

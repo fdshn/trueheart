@@ -6,6 +6,7 @@ import { AdminChatController } from './admin-chat.controller';
 import { AdminCommentController } from './admin-comment.controller';
 import { AdminConfigController } from './admin-config.controller';
 import { AdminDashboardController } from './admin-dashboard.controller';
+import { AdminGroupListController } from './admin-group-list.controller';
 import { AdminGroupRadiusController } from './admin-group-radius.controller';
 import { AdminGroupRoleController } from './admin-group-role.controller';
 import { AdminPointAdjustController } from './admin-point-adjust.controller';
@@ -26,6 +27,7 @@ import { NotificationTemplateController } from './notification-template.controll
   controllers: [
     AdminConfigController,
     AdminChatFlagController,
+    AdminGroupListController,
     AdminGroupRadiusController,
     AdminGroupRoleController,
     AdminRankPolicyController,

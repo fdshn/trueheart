@@ -1,4 +1,5 @@
 import {
+  IAdminGroupListItem,
   ICreateGroupParams,
   IGroupActivityItem,
   IGroupAffiliateSnapshot,
@@ -949,5 +950,83 @@ export class GroupRepository
       // phần tử thứ hai là số dòng.
       return Number((result as unknown as [unknown[], number])[1] ?? 0);
     });
+  }
+
+  public async listForAdmin(params: {
+    keyword: string | null;
+    status: GroupStatuses | null;
+    skip: number;
+    take: number;
+  }): Promise<{ items: IAdminGroupListItem[]; total: number }> {
+    // $1 keyword, $2 status: dùng chung cho câu đếm và câu trang.
+    const filter = `
+      team.deleted_at IS NULL
+      AND ($2::text IS NULL OR team.status::text = $2::text)
+      AND (
+        $1::text IS NULL
+        OR team.global_id::text = $1::text
+        OR team.name ILIKE '%' || $1::text || '%'
+        OR team.region_label ILIKE '%' || $1::text || '%'
+        OR owner.username ILIKE '%' || $1::text || '%'
+      )
+    `;
+    const filterParams = [params.keyword, params.status];
+
+    const [counted] = await this.entityManager.query<{ total: string }[]>(
+      `SELECT COUNT(*)::text AS total
+       FROM groups team
+       INNER JOIN users owner ON owner.global_id = team.owner_id
+       WHERE ${filter}`,
+      filterParams,
+    );
+
+    const rows = await this.entityManager.query<
+      {
+        group_id: string;
+        name: string;
+        region_label: string;
+        status: GroupStatuses;
+        owner_id: string;
+        owner_username: string;
+        member_count: string;
+        created_at: Date;
+      }[]
+    >(
+      `SELECT team.global_id AS group_id,
+              team.name,
+              team.region_label,
+              team.status,
+              team.owner_id,
+              owner.username AS owner_username,
+              (SELECT COUNT(*)::text FROM group_memberships member
+               WHERE member.group_id = team.global_id
+                 AND member.status = $3) AS member_count,
+              team.created_at
+       FROM groups team
+       INNER JOIN users owner ON owner.global_id = team.owner_id
+       WHERE ${filter}
+       ORDER BY team.created_at DESC, team.id DESC
+       LIMIT $4 OFFSET $5`,
+      [
+        ...filterParams,
+        GroupMembershipStatuses.ACTIVE,
+        params.take,
+        params.skip,
+      ],
+    );
+
+    return {
+      items: rows.map((row) => ({
+        groupId: row.group_id,
+        name: row.name,
+        regionLabel: row.region_label,
+        status: row.status,
+        ownerId: row.owner_id,
+        ownerUsername: row.owner_username,
+        memberCount: Number(row.member_count),
+        createdAt: row.created_at,
+      })),
+      total: Number(counted?.total ?? 0),
+    };
   }
 }
