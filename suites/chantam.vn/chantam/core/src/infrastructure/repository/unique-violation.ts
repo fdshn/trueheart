@@ -15,3 +15,23 @@ export function isUniqueViolation(error: unknown): boolean {
 
   return err?.code === '23505' || err?.driverError?.code === '23505';
 }
+
+/**
+ * Postgres 23P01 — vi phạm ràng buộc EXCLUDE, đúng ràng buộc mang tên `constraint`.
+ *
+ * So cả TÊN: một bảng có thể có nhiều ràng buộc EXCLUDE, và đổi nhầm một cái khác thành
+ * lỗi nghiệp vụ là che một lỗi thật bằng một câu báo sai.
+ */
+export function isExclusionViolation(
+  error: unknown,
+  constraint: string,
+): boolean {
+  const err = error as {
+    code?: string;
+    constraint?: string;
+    driverError?: { code?: string; constraint?: string };
+  };
+  const code = err?.code ?? err?.driverError?.code;
+  const name = err?.constraint ?? err?.driverError?.constraint;
+  return code === '23P01' && name === constraint;
+}

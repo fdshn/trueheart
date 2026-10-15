@@ -5,7 +5,10 @@ import {
   IListHomeCampaignsUseCase,
   IUpdateHomeCampaignUseCase,
 } from '@/application/contracts/home-campaign';
-import { HomeCampaignNotFoundException } from '@/domain/exceptions';
+import {
+  HomeCampaignNotFoundException,
+  HomeCampaignScheduleConflictException,
+} from '@/domain/exceptions';
 import {
   ApiTokenErrors,
   CurrentUser,
@@ -142,6 +145,7 @@ export class AdminCampaignController {
     ...ApiTokenErrors,
     [ForbiddenException],
     [ValidationFailedException, ['endTime phải sau startTime']],
+    [HomeCampaignScheduleConflictException],
   )
   public async create(
     @CurrentUser() principal: IAuthPrincipal,
@@ -185,6 +189,7 @@ export class AdminCampaignController {
     [ForbiddenException],
     [HomeCampaignNotFoundException],
     [ValidationFailedException, ['endTime phải sau startTime']],
+    [HomeCampaignScheduleConflictException],
   )
   public async update(
     @CurrentUser() principal: IAuthPrincipal,

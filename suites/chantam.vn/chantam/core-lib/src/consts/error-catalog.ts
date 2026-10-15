@@ -773,6 +773,15 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Không tìm thấy chiến dịch',
   },
 
+  HOME_CAMPAIGN_SCHEDULE_CONFLICT: {
+    code: ErrorCodes.HOME_CAMPAIGN_SCHEDULE_CONFLICT,
+    httpStatus: HttpStatus.CONFLICT,
+    // Mỗi thời điểm chỉ một giao diện trang chủ được bật (BR_CAMP_01). Bản nháp
+    // (isActive = false) trùng giờ thì vẫn lưu được.
+    message: () =>
+      'Đã có giao diện trang chủ khác đang bật trùng khung thời gian này — tắt bản kia hoặc đổi thời gian',
+  },
+
   BLOG_NOT_FOUND: {
     code: ErrorCodes.BLOG_NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,

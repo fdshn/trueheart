@@ -1,3 +1,4 @@
+import { HomeCampaignScheduleConflictException } from '@/domain/exceptions';
 import {
   IHomeCampaignPage,
   IHomeCampaignRecord,
@@ -16,6 +17,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { isExclusionViolation } from './unique-violation';
 import { updateReturning } from './update-returning';
 
 interface IRow {
@@ -73,6 +75,26 @@ function toRecord(row: IRow): IHomeCampaignRecord {
   };
 }
 
+/**
+ * Đổi lỗi `EXCL_home_campaign_configs_active_overlap` (hai bản ĐANG BẬT trùng giờ) thành
+ * lỗi nghiệp vụ 409.
+ *
+ * Bắt ở database chứ không hỏi trước rồi mới ghi: hai Admin bật hai bản cùng lúc thì
+ * phép hỏi trước cho cả hai qua — ràng buộc EXCLUDE là thứ duy nhất xếp hàng được họ.
+ * Để lỗi đi lên nguyên dạng thì bộ lọc ngoại lệ trả 500 cho một việc Admin tự sửa được.
+ */
+async function guardScheduleConflict<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    if (isExclusionViolation(error, ActiveOverlapConstraint))
+      throw new HomeCampaignScheduleConflictException();
+    throw error;
+  }
+}
+
+const ActiveOverlapConstraint = 'EXCL_home_campaign_configs_active_overlap';
+
 function toLayout(record: IHomeCampaignRecord): IHomeLayout {
   return {
     campaignId: record.globalId,
@@ -128,28 +150,30 @@ export class HomeCampaignRepository implements IHomeCampaignRepository {
     // `INSERT … RETURNING` KHÔNG bị TypeORM bọc thành `[rows, affected]` — chỉ
     // `UPDATE`/`DELETE` bị. Nên ở đây đọc thẳng `rows[0]`, còn `updateCampaign` dưới
     // kia phải đi qua `updateReturning`.
-    const [row] = await this.manager.query<IRow[]>(
-      `INSERT INTO home_campaign_configs
+    const [row] = await guardScheduleConflict(() =>
+      this.manager.query<IRow[]>(
+        `INSERT INTO home_campaign_configs
          (campaign_name, theme_config, marquee_text, popup_config, floating_banner,
           banners, sections_order, start_time, end_time, is_active, created_by, updated_by)
        VALUES ($1, $2::jsonb, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb,
                $8, $9, $10, $11, $11)
        RETURNING ${Columns}`,
-      [
-        params.campaignName,
-        JSON.stringify(params.theme),
-        params.marqueeText,
-        params.popup === null ? null : JSON.stringify(params.popup),
-        params.floatingBanner === null
-          ? null
-          : JSON.stringify(params.floatingBanner),
-        JSON.stringify(params.banners),
-        JSON.stringify(params.sectionsLayout),
-        params.startTime,
-        params.endTime,
-        params.isActive,
-        params.actorUserId,
-      ],
+        [
+          params.campaignName,
+          JSON.stringify(params.theme),
+          params.marqueeText,
+          params.popup === null ? null : JSON.stringify(params.popup),
+          params.floatingBanner === null
+            ? null
+            : JSON.stringify(params.floatingBanner),
+          JSON.stringify(params.banners),
+          JSON.stringify(params.sectionsLayout),
+          params.startTime,
+          params.endTime,
+          params.isActive,
+          params.actorUserId,
+        ],
+      ),
     );
     return toRecord(row);
   }
@@ -157,9 +181,10 @@ export class HomeCampaignRepository implements IHomeCampaignRepository {
   public async updateCampaign(
     params: IUpdateHomeCampaignParams,
   ): Promise<IHomeCampaignRecord> {
-    const rows = await updateReturning<IRow>(
-      this.manager,
-      `UPDATE home_campaign_configs
+    const rows = await guardScheduleConflict(() =>
+      updateReturning<IRow>(
+        this.manager,
+        `UPDATE home_campaign_configs
           SET campaign_name = $2,
               theme_config = $3::jsonb,
               marquee_text = $4,
@@ -174,22 +199,23 @@ export class HomeCampaignRepository implements IHomeCampaignRepository {
               updated_at = now()
         WHERE global_id = $1
         RETURNING ${Columns}`,
-      [
-        params.globalId,
-        params.campaignName,
-        JSON.stringify(params.theme),
-        params.marqueeText,
-        params.popup === null ? null : JSON.stringify(params.popup),
-        params.floatingBanner === null
-          ? null
-          : JSON.stringify(params.floatingBanner),
-        JSON.stringify(params.banners),
-        JSON.stringify(params.sectionsLayout),
-        params.startTime,
-        params.endTime,
-        params.isActive,
-        params.actorUserId,
-      ],
+        [
+          params.globalId,
+          params.campaignName,
+          JSON.stringify(params.theme),
+          params.marqueeText,
+          params.popup === null ? null : JSON.stringify(params.popup),
+          params.floatingBanner === null
+            ? null
+            : JSON.stringify(params.floatingBanner),
+          JSON.stringify(params.banners),
+          JSON.stringify(params.sectionsLayout),
+          params.startTime,
+          params.endTime,
+          params.isActive,
+          params.actorUserId,
+        ],
+      ),
     );
     return toRecord(rows[0]);
   }

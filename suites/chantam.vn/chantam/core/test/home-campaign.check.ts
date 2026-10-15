@@ -72,6 +72,27 @@ function at(iso: string): Date {
   return new Date(iso);
 }
 
+/**
+ * Kỳ vọng repository NÉM lỗi nghiệp vụ mang tên đó (409), không phải QueryFailedError
+ * thô của Postgres — thứ mà bộ lọc ngoại lệ sẽ trả thành 500 (CMS backlog B3).
+ */
+async function expectConflict(
+  label: string,
+  run: () => Promise<unknown>,
+): Promise<void> {
+  try {
+    await run();
+    check(label, false, 'không ném gì — ràng buộc không chặn');
+  } catch (error) {
+    const name = (error as Error).constructor.name;
+    check(
+      label,
+      name === 'HomeCampaignScheduleConflictException',
+      `ném ${name}: ${(error as Error).message.slice(0, 100)}`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const baseUri = process.env.DATABASE_URI;
   if (!baseUri) throw new Error('Thiếu DATABASE_URI.');
@@ -206,28 +227,34 @@ async function main(): Promise<void> {
     );
     check('bản bật đầu tiên lưu được', live.isActive);
 
-    await expectReject(
-      'bản bật THỨ HAI trùng giờ bị Postgres từ chối',
+    await expectConflict(
+      'bản bật THỨ HAI trùng giờ bị từ chối — lỗi nghiệp vụ 409, không phải 500',
       () =>
         repository.createCampaign(
           write({ campaignName: 'Bật trùng giờ', isActive: true }),
         ),
-      'EXCL_home_campaign_configs_active_overlap',
     );
 
     // Giao nhau MỘT PHẦN cũng phải bị chặn, không chỉ trùng khít.
-    await expectReject(
-      'bản bật giao nhau một phần cũng bị từ chối',
+    await expectConflict('bản bật giao nhau một phần cũng bị từ chối', () =>
+      repository.createCampaign(
+        write({
+          campaignName: 'Gối đầu',
+          isActive: true,
+          startTime: at('2026-08-15T00:00:00Z'),
+          endTime: at('2026-09-15T00:00:00Z'),
+        }),
+      ),
+    );
+
+    // Đường SỬA cũng đi qua cùng ràng buộc: bật một bản nháp trùng giờ.
+    await expectConflict(
+      'bật một bản nháp trùng giờ qua đường sửa cũng ra 409',
       () =>
-        repository.createCampaign(
-          write({
-            campaignName: 'Gối đầu',
-            isActive: true,
-            startTime: at('2026-08-15T00:00:00Z'),
-            endTime: at('2026-09-15T00:00:00Z'),
-          }),
-        ),
-      'EXCL_home_campaign_configs_active_overlap',
+        repository.updateCampaign({
+          ...write({ campaignName: 'Nháp trùng giờ', isActive: true }),
+          globalId: draftB.globalId,
+        }),
     );
 
     // Quyết định dùng khoảng nửa mở: nối tiếp khít giờ KHÔNG phải giao nhau.
