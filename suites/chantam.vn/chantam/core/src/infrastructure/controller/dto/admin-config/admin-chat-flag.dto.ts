@@ -1,5 +1,8 @@
 import { ChatFlagActions } from '@/application/contracts/admin-config';
-import { PaginationMetaDto } from '@chantam/service.common-lib/dto';
+import {
+  MaxPageSize,
+  PaginationMetaDto,
+} from '@chantam/service.common-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -68,12 +71,12 @@ export class ChatFlagQueueQueryDto {
   @Min(1)
   page?: number;
 
-  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20 })
+  @ApiPropertyOptional({ minimum: 1, maximum: MaxPageSize, default: 20 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(MaxPageSize)
   pageSize?: number;
 }
 

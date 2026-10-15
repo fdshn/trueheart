@@ -3,7 +3,10 @@ import {
   SystemLogTypeValues,
   SystemLogTypes,
 } from '@/domain/ports/repository';
-import { PaginationMetaDto } from '@chantam/service.common-lib/dto';
+import {
+  MaxPageSize,
+  PaginationMetaDto,
+} from '@chantam/service.common-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -70,7 +73,7 @@ export class GetSystemLogsQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(MaxPageSize)
   pageSize = 20;
 }
 
