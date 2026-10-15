@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional } from 'class-validator';
 
 export class AdminDashboardQueryDto {
   @ApiPropertyOptional({
@@ -13,8 +13,8 @@ export class AdminDashboardQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(1)
-  @Max(365)
+  // Không @Min/@Max: use case kẹp về 1–365 (CMS backlog B9). Chặn ở đây là trả 400
+  // cho đúng thứ mô tả hứa sẽ kẹp.
   windowDays?: number;
 }
 
