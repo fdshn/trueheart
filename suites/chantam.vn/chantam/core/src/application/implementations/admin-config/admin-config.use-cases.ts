@@ -58,11 +58,15 @@ export class PublishAdminConfigUseCase implements IPublishAdminConfigUseCase {
     // Payload hỏng là lỗi của dữ liệu gửi lên, không phải thiếu quyền. Trả 403
     // ở đây khiến admin đi tìm quyền bị thiếu trong khi thứ cần sửa là body.
     const { key, value, valueType } = command.systemConfig;
+    // Lý do đi vào audit log — trống thì câu hỏi "vì sao đổi" không còn ai trả lời
+    // được. Cùng luật với chính sách điểm danh.
+    const reason = command.systemConfig.reason?.trim() ?? '';
     const range = SystemConfigValueRanges[key];
     const problems = [
       !SupportedSystemConfigKeys.includes(key as never) &&
         `key không nằm trong danh sách cấu hình được phép: ${key}`,
       valueType !== 'INTEGER' && 'valueType hiện chỉ hỗ trợ INTEGER',
+      reason.length === 0 && 'reason: phải nêu lý do thay đổi',
       !Number.isInteger(value) && 'value phải là số nguyên',
       Number.isInteger(value) &&
         Number(value) < 0 &&
@@ -84,6 +88,7 @@ export class PublishAdminConfigUseCase implements IPublishAdminConfigUseCase {
       config: await this.repository.publishSystemConfig({
         actorUserId: command.actorUserId,
         ...command.systemConfig,
+        reason,
       }),
     };
   }

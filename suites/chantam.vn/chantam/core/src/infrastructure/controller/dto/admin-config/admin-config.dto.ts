@@ -31,8 +31,14 @@ export class PublishSystemConfigDto {
   @IsString()
   valueType: string;
 
-  @ApiProperty({ example: 'Điều chỉnh bán kính mặc định' })
+  @ApiProperty({
+    example: 'Điều chỉnh bán kính mặc định',
+    description:
+      'Bắt buộc, không được trống hay toàn khoảng trắng — ghi vào audit log.',
+    maxLength: 500,
+  })
   @IsString()
+  @Length(1, 500)
   reason: string;
 }
 
