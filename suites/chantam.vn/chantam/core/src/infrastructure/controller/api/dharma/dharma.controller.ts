@@ -2,6 +2,7 @@ import {
   ICompleteRecitationUseCase,
   ICreateDharmaContentUseCase,
   IDeleteDharmaContentUseCase,
+  IGetAdminDharmaContentUseCase,
   IListAdminDharmaContentsUseCase,
   IListOwnRecitationsUseCase,
   IStartRecitationUseCase,
@@ -191,6 +192,8 @@ export class AdminDharmaController {
     private readonly updateUseCase: IUpdateDharmaContentUseCase,
     @Inject(IDeleteDharmaContentUseCase)
     private readonly deleteUseCase: IDeleteDharmaContentUseCase,
+    @Inject(IGetAdminDharmaContentUseCase)
+    private readonly getUseCase: IGetAdminDharmaContentUseCase,
   ) {}
 
   @Get()
@@ -221,6 +224,33 @@ export class AdminDharmaController {
         }),
       )
       .build();
+  }
+
+  @Get(':id')
+  @RequiresPermission('dharma.read')
+  @ApiOperation({
+    summary: 'Một nội dung cho CMS, gồm bản nháp và `bodyText`',
+    description:
+      'Dùng để điền form sửa — danh sách không trả `bodyText`. Khác `GET /dharma/contents/:idOrSlug` ' +
+      '(công khai): thấy cả bản nháp và KHÔNG tăng `viewCount`. Nội dung đã xoá mềm trả 404.\n\n' +
+      'Quyền `dharma.read`.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    DharmaContentNotFoundException,
+  )
+  @ApiOkResponse({ type: ResponseDto.forApi(DharmaContentWrapperResponseDto) })
+  public async getOne(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() param: DharmaContentIdParamDto,
+  ) {
+    const content = await this.getUseCase.handle({
+      actorUserId: principal.userId,
+      contentId: param.id,
+    });
+
+    return ResponseDto.create().succeed().attach({ content }).build();
   }
 
   @Post()

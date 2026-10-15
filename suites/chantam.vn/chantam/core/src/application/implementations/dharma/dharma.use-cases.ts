@@ -8,6 +8,8 @@ import {
   IDeleteDharmaContentUseCase,
   IDharmaContentPageResult,
   IDharmaHubEntryDto,
+  IGetAdminDharmaContentCommand,
+  IGetAdminDharmaContentUseCase,
   IGetDharmaContentCommand,
   IGetDharmaContentResult,
   IGetDharmaContentUseCase,
@@ -352,6 +354,35 @@ export class GetDharmaContentUseCase implements IGetDharmaContentUseCase {
       completedRecitationCount,
       isRecitable: isRecitableDharmaContent(content),
     };
+  }
+}
+
+/**
+ * Một nội dung cho CMS — khác `GetDharmaContentUseCase` (công khai) ở ba chỗ: thấy cả bản
+ * nháp, đòi `dharma.read`, và không tăng lượt xem.
+ *
+ * Có route này vì danh sách Admin không trả `bodyText`: thiếu nó thì CMS không có nội dung
+ * cũ để điền form sửa một bộ kinh dài hàng trăm nghìn ký tự.
+ */
+@Injectable()
+export class GetAdminDharmaContentUseCase implements IGetAdminDharmaContentUseCase {
+  public constructor(
+    @Inject(IDharmaRepository) private readonly repository: IDharmaRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: IGetAdminDharmaContentCommand,
+  ): Promise<IDharmaContent> {
+    if (!(await this.admin.hasPermission(command.actorUserId, ReadPermission)))
+      throw new ForbiddenException();
+
+    const content = await this.repository.findContentByGlobalId(
+      command.contentId,
+    );
+    if (!content) throw new DharmaContentNotFoundException();
+    return content;
   }
 }
 
