@@ -1,4 +1,7 @@
-import { BlogNotFoundException } from '@/domain/exceptions';
+import {
+  BlogNotFoundException,
+  BlogSlugConflictException,
+} from '@/domain/exceptions';
 import { BlogCategoryLabels } from '@chantam.vn/chantam.core-lib/models';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import {
@@ -207,7 +210,7 @@ describe('CreateBlogUseCase', () => {
     expect(deps.repository.createBlog).not.toHaveBeenCalled();
   });
 
-  it('slug đã có người dùng thì báo lỗi đọc được, không để UNIQUE ném 500', async () => {
+  it('slug đã có người dùng thì 409 BLOG_SLUG_CONFLICT, không để UNIQUE ném 500 (CMS B10)', async () => {
     const deps = makeDeps({ slugTaken: true });
 
     await expect(
@@ -216,7 +219,7 @@ describe('CreateBlogUseCase', () => {
         makeSanitizer() as never,
         deps.admin as never,
       ).handle(ValidInput),
-    ).rejects.toThrow();
+    ).rejects.toThrow(BlogSlugConflictException);
 
     expect(deps.repository.createBlog).not.toHaveBeenCalled();
   });

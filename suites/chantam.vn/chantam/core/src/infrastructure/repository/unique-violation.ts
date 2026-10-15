@@ -17,6 +17,26 @@ export function isUniqueViolation(error: unknown): boolean {
 }
 
 /**
+ * Postgres 23505 trên ĐÚNG ràng buộc mang tên `constraint`.
+ *
+ * Dùng khi một bảng có nhiều khoá UNIQUE và chỉ một khoá được dịch thành lỗi nghiệp vụ:
+ * dịch nhầm khoá khác là che một lỗi thật bằng một câu báo sai.
+ */
+export function isUniqueViolationOn(
+  error: unknown,
+  constraint: string,
+): boolean {
+  const err = error as {
+    constraint?: string;
+    driverError?: { constraint?: string };
+  };
+  return (
+    isUniqueViolation(error) &&
+    (err?.constraint ?? err?.driverError?.constraint) === constraint
+  );
+}
+
+/**
  * Postgres 23P01 — vi phạm ràng buộc EXCLUDE, đúng ràng buộc mang tên `constraint`.
  *
  * So cả TÊN: một bảng có thể có nhiều ràng buộc EXCLUDE, và đổi nhầm một cái khác thành

@@ -246,6 +246,7 @@ export enum ErrorCodes {
 
   // 0x12 — Blog / Tin tức (F64)
   BLOG_NOT_FOUND = 0x12_01,
+  BLOG_SLUG_CONFLICT = 0x12_02,
 
   // 0x13 — Hoat dong Tu thien (F65)
   CHARITY_CAMPAIGN_NOT_FOUND = 0x13_01,

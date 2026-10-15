@@ -7,7 +7,10 @@ import {
   IListPublicBlogsUseCase,
   IUpdateBlogUseCase,
 } from '@/application/contracts/blog';
-import { BlogNotFoundException } from '@/domain/exceptions';
+import {
+  BlogNotFoundException,
+  BlogSlugConflictException,
+} from '@/domain/exceptions';
 import {
   ApiTokenErrors,
   CurrentUser,
@@ -148,6 +151,7 @@ export class AdminBlogController {
       ValidationFailedException,
       ['contentHtml không còn nội dung nào sau khi lọc HTML'],
     ],
+    [BlogSlugConflictException],
   )
   public async create(
     @CurrentUser() principal: IAuthPrincipal,
@@ -179,6 +183,7 @@ export class AdminBlogController {
     [ForbiddenException],
     [BlogNotFoundException],
     [ValidationFailedException, ['title phải có ít nhất 3 ký tự']],
+    [BlogSlugConflictException],
   )
   public async update(
     @CurrentUser() principal: IAuthPrincipal,

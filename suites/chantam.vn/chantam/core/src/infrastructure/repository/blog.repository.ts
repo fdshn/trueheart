@@ -1,3 +1,4 @@
+import { BlogSlugConflictException } from '@/domain/exceptions';
 import {
   IBlogPage,
   IBlogRecord,
@@ -11,7 +12,25 @@ import { BlogCategory } from '@chantam.vn/chantam.core-lib/models';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { isUniqueViolationOn } from './unique-violation';
 import { updateReturning } from './update-returning';
+
+/**
+ * Trùng slug lọt qua lượt hỏi `slugTaken` (hai Admin lưu cùng lúc) thì `UQ_blogs_slug` là
+ * lớp cuối — dịch nó thành 409 thay vì để bộ lọc ngoại lệ trả 500 (CMS backlog B10).
+ */
+async function guardSlugConflict<T>(
+  slug: string,
+  write: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    if (isUniqueViolationOn(error, 'UQ_blogs_slug'))
+      throw new BlogSlugConflictException(slug);
+    throw error;
+  }
+}
 
 interface IRow {
   global_id: string;
@@ -164,31 +183,34 @@ export class BlogRepository implements IBlogRepository {
     // `published_at` do SQL quyết định, không do tầng ứng dụng truyền xuống: ràng buộc
     // `CHK_blogs_published_at` buộc hai cột khớp nhau, và để mã nguồn tự tính mốc đó là
     // mời một lượt quên.
-    const [row] = await this.manager.query<IRow[]>(
-      `INSERT INTO blogs
+    const [row] = await guardSlugConflict(params.slug, () =>
+      this.manager.query<IRow[]>(
+        `INSERT INTO blogs
          (title, slug, category, summary, content_html, thumbnail_url,
           author_id, is_published, published_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
                CASE WHEN $8 THEN now() ELSE NULL END)
        RETURNING ${FullColumns}`,
-      [
-        params.title,
-        params.slug,
-        params.category,
-        params.summary,
-        params.contentHtml,
-        params.thumbnailUrl,
-        params.actorUserId,
-        params.isPublished,
-      ],
+        [
+          params.title,
+          params.slug,
+          params.category,
+          params.summary,
+          params.contentHtml,
+          params.thumbnailUrl,
+          params.actorUserId,
+          params.isPublished,
+        ],
+      ),
     );
     return toRecord(row);
   }
 
   public async updateBlog(params: IUpdateBlogParams): Promise<IBlogRecord> {
-    const rows = await updateReturning<IRow>(
-      this.manager,
-      `UPDATE blogs
+    const rows = await guardSlugConflict(params.slug, () =>
+      updateReturning<IRow>(
+        this.manager,
+        `UPDATE blogs
           SET title = $2,
               slug = $3,
               category = $4,
@@ -206,16 +228,17 @@ export class BlogRepository implements IBlogRepository {
               updated_at = now()
         WHERE global_id = $1 AND deleted_at IS NULL
         RETURNING ${FullColumns}`,
-      [
-        params.globalId,
-        params.title,
-        params.slug,
-        params.category,
-        params.summary,
-        params.contentHtml,
-        params.thumbnailUrl,
-        params.isPublished,
-      ],
+        [
+          params.globalId,
+          params.title,
+          params.slug,
+          params.category,
+          params.summary,
+          params.contentHtml,
+          params.thumbnailUrl,
+          params.isPublished,
+        ],
+      ),
     );
     return toRecord(rows[0]);
   }

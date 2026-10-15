@@ -221,11 +221,20 @@ async function main(): Promise<void> {
       'slugTaken BỎ QUA chính bài đang sửa',
       (await repository.slugTaken('bai-dau-tien', first.globalId)) === false,
     );
-    await expectReject(
-      'trùng slug bị khoá UNIQUE chặn',
-      () => repository.createBlog(write({ slug: 'bai-dau-tien' })),
-      'UQ_blogs_slug',
-    );
+    // Ghi THẲNG qua repository, bỏ qua lượt hỏi `slugTaken` của use case — đúng khe race
+    // khi hai Admin lưu cùng slug một lúc. Phải ra lỗi nghiệp vụ 409, không phải
+    // QueryFailedError mà bộ lọc ngoại lệ trả thành 500 (CMS backlog B10).
+    try {
+      await repository.createBlog(write({ slug: 'bai-dau-tien' }));
+      check('trùng slug bị chặn', false, 'không ném gì');
+    } catch (error) {
+      const name = (error as Error).constructor.name;
+      check(
+        'trùng slug bị chặn bằng BlogSlugConflictException (409), không phải 500',
+        name === 'BlogSlugConflictException',
+        `ném ${name}`,
+      );
+    }
 
     await repository.softDeleteBlog(first.globalId, AuthorId);
     // Cột `UNIQUE` không có điều kiện `deleted_at IS NULL`, nên bỏ qua dòng đã xoá ở

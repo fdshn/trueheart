@@ -788,6 +788,16 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Không tìm thấy bài viết',
   },
 
+  BLOG_SLUG_CONFLICT: {
+    code: ErrorCodes.BLOG_SLUG_CONFLICT,
+    httpStatus: HttpStatus.CONFLICT,
+    // Slug giữ chỗ cả khi bài đã xoá mềm — link ngoài vẫn trỏ vào đó.
+    message: (slug?: string) =>
+      slug
+        ? `slug "${slug}" đã có bài khác dùng (kể cả bài đã xoá) — đổi tiêu đề hoặc gửi slug riêng`
+        : 'slug đã có bài khác dùng (kể cả bài đã xoá) — đổi tiêu đề hoặc gửi slug riêng',
+  },
+
   CHARITY_CAMPAIGN_NOT_FOUND: {
     code: ErrorCodes.CHARITY_CAMPAIGN_NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,
