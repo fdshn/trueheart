@@ -13,6 +13,7 @@ export interface ISystemConfigSummary {
 export interface IAdminAuditSummary {
   id: number;
   actorUserId: string | null;
+  actorUsername: string | null;
   action: string;
   resourceType: string;
   resourceId: string | null;

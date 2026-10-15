@@ -8,6 +8,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { usernamesByGlobalId } from './usernames';
 
 interface IRawLogRow {
   occurred_at: Date;
@@ -90,12 +91,18 @@ const Sources: Record<
   },
 };
 
-function toEntry(logType: SystemLogTypes, row: IRawLogRow): ISystemLogEntry {
+function toEntry(
+  logType: SystemLogTypes,
+  row: IRawLogRow,
+  names: Map<string, string>,
+): ISystemLogEntry {
   return {
     logType,
     occurredAt: row.occurred_at,
     actorUserId: row.actor_user_id,
+    actorUsername: names.get(row.actor_user_id ?? '') ?? null,
     subjectUserId: row.subject_user_id,
+    subjectUsername: names.get(row.subject_user_id ?? '') ?? null,
     action: row.action,
     resourceType: row.resource_type,
     resourceId: row.resource_id,
@@ -152,8 +159,13 @@ export class SystemLogRepository implements ISystemLogRepository {
       filters,
     );
 
+    const names = await usernamesByGlobalId(
+      this.manager,
+      rows.flatMap((row) => [row.actor_user_id, row.subject_user_id]),
+    );
+
     return {
-      entries: rows.map((row) => toEntry(query.logType, row)),
+      entries: rows.map((row) => toEntry(query.logType, row, names)),
       total: Number(total),
     };
   }

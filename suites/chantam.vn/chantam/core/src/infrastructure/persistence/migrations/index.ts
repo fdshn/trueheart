@@ -122,3 +122,5 @@ export * from './1800200000000-AddCharityOverTargetAndExtension';
 export * from './1800300000000-CreateCampaignCoordinators';
 export * from './1800400000000-CreateCampaignBeneficiaries';
 export * from './1800500000000-CreateCampaignMedia';
+export * from './1800600000000-GrantCampaignManagerAdminAccess';
+export * from './1800700000000-AddPointReadPermission';

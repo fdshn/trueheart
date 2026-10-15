@@ -30,15 +30,15 @@ export interface IWriteMeritUnitInput {
   readonly slug?: string;
   readonly unitType: string;
   readonly purpose: string;
-  readonly description?: string;
-  readonly coverUrl?: string;
-  readonly addressLabel?: string;
+  readonly description?: string | null;
+  readonly coverUrl?: string | null;
+  readonly addressLabel?: string | null;
   readonly lat?: number;
   readonly lng?: number;
   readonly bankBin: string;
   readonly bankAccountNumber: string;
   readonly bankAccountName: string;
-  readonly bankName?: string;
+  readonly bankName?: string | null;
   readonly displayOrder?: number;
 }
 

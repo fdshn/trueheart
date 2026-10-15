@@ -101,6 +101,9 @@ describe('Admin config input validation', () => {
     ['valueType không phải INTEGER', { valueType: 'STRING' }],
     ['value không phải số nguyên', { value: 12.5 }],
     ['value âm', { value: -1 }],
+    // CMS backlog C3: lý do trống thì audit log không trả lời được "vì sao đổi".
+    ['reason rỗng', { reason: '' }],
+    ['reason toàn khoảng trắng', { reason: '   ' }],
   ];
 
   for (const [name, override] of cases)
@@ -119,4 +122,17 @@ describe('Admin config input validation', () => {
       expect(error).not.toBeInstanceOf(ForbiddenException);
       expect(repository.publishSystemConfig).not.toHaveBeenCalled();
     });
+
+  it('lý do được trim trước khi ghi vào audit', async () => {
+    const repository = makeRepository(['config.write']);
+
+    await new PublishAdminConfigUseCase(repository as never).handle({
+      actorUserId: ActorId,
+      systemConfig: { ...ValidConfig, reason: '  Mở rộng bán kính  ' } as never,
+    });
+
+    expect(repository.publishSystemConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'Mở rộng bán kính' }),
+    );
+  });
 });

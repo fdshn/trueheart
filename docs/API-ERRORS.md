@@ -156,6 +156,7 @@ Nghiệp vụ Chân Tâm
 | `0x1004` | `4100` | 400 Bad Request | `GROUP_INVITE_INVALID` | Link mời không dùng được. |
 | `0x1005` | `4101` | 404 Not Found | `GROUP_NOT_FOUND` | Không tìm thấy nhóm |
 | `0x1101` | `4353` | 404 Not Found | `HOME_CAMPAIGN_NOT_FOUND` | Không tìm thấy chiến dịch |
+| `0x1102` | `4354` | 409 Conflict | `HOME_CAMPAIGN_SCHEDULE_CONFLICT` | Đã có giao diện trang chủ khác đang bật trùng khung thời gian này — tắt bản kia hoặc đổi thời gian |
 | `0x1201` | `4609` | 404 Not Found | `BLOG_NOT_FOUND` | Không tìm thấy bài viết |
 | `0x1301` | `4865` | 404 Not Found | `CHARITY_CAMPAIGN_NOT_FOUND` | Không tìm thấy hoạt động từ thiện |
 | `0x1302` | `4866` | 403 Forbidden | `CHARITY_CAMPAIGN_CREATE_NOT_ALLOWED` | Hạng của bạn chưa được tạo hoạt động từ thiện |
@@ -202,5 +203,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **160 mã lỗi** trên 3 tầng.
+Tổng cộng **161 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

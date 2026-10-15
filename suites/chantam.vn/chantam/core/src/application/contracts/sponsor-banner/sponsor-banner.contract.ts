@@ -8,7 +8,7 @@ import { IUseCase } from '@chantam/service.common-lib';
 /** Thân chung cho lượt tạo và lượt sửa. */
 export interface IWriteSponsorBannerInput {
   readonly partnerName: string;
-  readonly partnerContact?: string;
+  readonly partnerContact?: string | null;
   readonly title: string;
   readonly imageUrl: string;
   readonly targetUrl: string;

@@ -8,6 +8,8 @@ import {
   IDeleteBlogCommand,
   IDeleteBlogResult,
   IDeleteBlogUseCase,
+  IGetAdminBlogCommand,
+  IGetAdminBlogUseCase,
   IGetPublicBlogCommand,
   IGetPublicBlogUseCase,
   IListAdminBlogsCommand,
@@ -199,6 +201,31 @@ export class UpdateBlogUseCase implements IUpdateBlogUseCase {
         globalId: command.blogId,
       }),
     );
+  }
+}
+
+/**
+ * Một bài cho CMS — KHÁC `GetPublicBlogUseCase` ở ba chỗ: thấy cả bản nháp, đòi
+ * `blog.read`, và không tăng lượt xem (Admin mở bài để sửa không phải một độc giả).
+ *
+ * Có route này vì danh sách cố ý không trả `contentHtml`, còn `PUT` thay TOÀN BỘ bài:
+ * thiếu nó thì CMS không có nội dung cũ để điền form, Admin phải dán lại HTML mỗi lần sửa.
+ */
+@Injectable()
+export class GetAdminBlogUseCase implements IGetAdminBlogUseCase {
+  public constructor(
+    @Inject(IBlogRepository) private readonly repository: IBlogRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(command: IGetAdminBlogCommand): Promise<IBlogDetailView> {
+    if (!(await this.admin.hasPermission(command.actorUserId, 'blog.read')))
+      throw new ForbiddenException();
+
+    const record = await this.repository.findByGlobalId(command.blogId);
+    if (!record) throw new BlogNotFoundException();
+    return toDetailView(record);
   }
 }
 

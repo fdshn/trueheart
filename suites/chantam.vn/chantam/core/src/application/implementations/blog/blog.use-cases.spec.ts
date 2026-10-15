@@ -1,7 +1,10 @@
+import { BlogNotFoundException } from '@/domain/exceptions';
 import { BlogCategoryLabels } from '@chantam.vn/chantam.core-lib/models';
+import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import {
   CreateBlogUseCase,
   DeleteBlogUseCase,
+  GetAdminBlogUseCase,
   GetPublicBlogUseCase,
   ListAdminBlogsUseCase,
   ListPublicBlogsUseCase,
@@ -392,5 +395,52 @@ describe('GetPublicBlogUseCase', () => {
 
     expect(deps.repository.incrementViewCount).toHaveBeenCalledTimes(1);
     expect(deps.repository.incrementViewCount).toHaveBeenCalledWith(BlogId);
+  });
+});
+
+describe('GetAdminBlogUseCase (CMS backlog A1)', () => {
+  it('trả cả bản NHÁP kèm contentHtml — CMS sửa bài mà không phải dán lại HTML', async () => {
+    const deps = makeDeps({
+      existing: record({ isPublished: false, publishedAt: null }),
+    });
+
+    const blog = await new GetAdminBlogUseCase(
+      deps.repository as never,
+      deps.admin as never,
+    ).handle({ actorUserId: ActorId, blogId: BlogId });
+
+    expect(deps.admin.hasPermission).toHaveBeenCalledWith(ActorId, 'blog.read');
+    expect(deps.repository.findByGlobalId).toHaveBeenCalledWith(BlogId);
+    expect(blog).toMatchObject({
+      id: BlogId,
+      isPublished: false,
+      contentHtml: '<p>Nội dung</p>',
+    });
+    // Đọc trong CMS không phải một lượt xem của độc giả.
+    expect(deps.repository.incrementViewCount).not.toHaveBeenCalled();
+  });
+
+  it('thiếu blog.read thì 403 và không đọc gì', async () => {
+    const deps = makeDeps();
+    deps.admin.hasPermission.mockResolvedValue(false);
+
+    await expect(
+      new GetAdminBlogUseCase(
+        deps.repository as never,
+        deps.admin as never,
+      ).handle({ actorUserId: ActorId, blogId: BlogId }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(deps.repository.findByGlobalId).not.toHaveBeenCalled();
+  });
+
+  it('không có (hoặc đã xoá mềm) thì 404', async () => {
+    const deps = makeDeps({ existing: null });
+
+    await expect(
+      new GetAdminBlogUseCase(
+        deps.repository as never,
+        deps.admin as never,
+      ).handle({ actorUserId: ActorId, blogId: BlogId }),
+    ).rejects.toThrow(BlogNotFoundException);
   });
 });

@@ -331,14 +331,19 @@ async function main(): Promise<void> {
     // `dharma.manage` thì tự qua, còn `config.write` hay `user.delete` thì đỏ ngay — giữ
     // được cái mà phép so khớp chính xác bảo vệ (một quyền nguy hiểm LẠ lọt vào) mà không
     // mục theo từng quyền.
+    //
+    // `admin.access` thuộc khuôn từ migration `1800600000000` (CMS backlog B2): nó là cửa
+    // vào CMS (`GET /admin/me`) và không mở dữ liệu nào — thiếu nó thì vai nội dung có đủ
+    // quyền làm việc mà không mở được CMS để làm việc đó.
     const ContentRoleShape =
-      /^(?:blog|campaign|banner|merit|dharma)\.(?:read|manage)$|^config\.read$/;
+      /^(?:blog|campaign|banner|merit|dharma)\.(?:read|manage)$|^config\.read$|^admin\.access$/;
     const outside = codes.filter((code) => !ContentRoleShape.test(code));
     check(
       'không giữ quyền nào ngoài khuôn của một vai nội dung',
       outside.length === 0,
       outside.length > 0 ? JSON.stringify(outside) : JSON.stringify(codes),
     );
+    check('có `admin.access` để vào được CMS', codes.includes('admin.access'));
     // Đây là phép kiểm quan trọng nhất của nhóm: cả mục đích của vai này là KHÔNG có
     // `config.write`. Thêm nó vào là quay lại đúng chỗ L24 phàn nàn.
     for (const forbidden of [

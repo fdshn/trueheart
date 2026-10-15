@@ -3,7 +3,10 @@ import {
   SystemLogTypeValues,
   SystemLogTypes,
 } from '@/domain/ports/repository';
-import { PaginationMetaDto } from '@chantam/service.common-lib/dto';
+import {
+  MaxPageSize,
+  PaginationMetaDto,
+} from '@chantam/service.common-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -70,7 +73,7 @@ export class GetSystemLogsQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(MaxPageSize)
   pageSize = 20;
 }
 
@@ -86,8 +89,19 @@ export class SystemLogEntryDto implements ISystemLogEntry {
   })
   actorUserId: string | null;
 
+  @ApiProperty({
+    nullable: true,
+    example: 'demo-quan-tri',
+    description:
+      'Tên đăng nhập của người gây ra hành động; null khi do hệ thống tự chạy.',
+  })
+  actorUsername: string | null;
+
   @ApiProperty({ format: 'uuid', nullable: true })
   subjectUserId: string | null;
+
+  @ApiProperty({ nullable: true, example: 'demo-nguoi-nhan' })
+  subjectUsername: string | null;
 
   @ApiProperty({ example: 'COMPLETED' }) action: string;
 

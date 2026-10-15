@@ -21,6 +21,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { QueryBoolean } from '../query-boolean';
 
 export class WriteDharmaContentDto {
   @ApiProperty({
@@ -42,7 +43,7 @@ export class WriteDharmaContentDto {
   })
   @IsOptional()
   @IsString()
-  @Length(1, 200)
+  @Length(1, MaxDharmaCategoryLength)
   category?: string;
 
   @ApiProperty({
@@ -139,7 +140,7 @@ export class PatchDharmaContentDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @Length(0, 200)
+  @Length(0, MaxDharmaCategoryLength)
   category?: string;
 
   @ApiPropertyOptional({ maxLength: MaxDharmaTitleLength })
@@ -228,12 +229,12 @@ export class ListDharmaContentsQueryDto {
   @ApiPropertyOptional({ description: 'Chuẩn hoá về slug trước khi lọc.' })
   @IsOptional()
   @IsString()
-  @Length(1, 200)
+  @Length(1, MaxDharmaCategoryLength)
   category?: string;
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()
-  @Type(() => Boolean)
+  @QueryBoolean()
   @IsBoolean()
   featuredOnly?: boolean;
 }
@@ -264,7 +265,7 @@ export class ListAdminDharmaContentsQueryDto {
     description: 'Gồm cả bản nháp. Mặc định `true` — CMS tồn tại để soạn nháp.',
   })
   @IsOptional()
-  @Type(() => Boolean)
+  @QueryBoolean()
   @IsBoolean()
   includeDrafts?: boolean;
 }

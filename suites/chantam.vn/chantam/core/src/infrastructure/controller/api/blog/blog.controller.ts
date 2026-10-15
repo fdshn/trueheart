@@ -1,6 +1,7 @@
 import {
   ICreateBlogUseCase,
   IDeleteBlogUseCase,
+  IGetAdminBlogUseCase,
   IGetPublicBlogUseCase,
   IListAdminBlogsUseCase,
   IListPublicBlogsUseCase,
@@ -60,6 +61,8 @@ export class AdminBlogController {
     private readonly updateUseCase: IUpdateBlogUseCase,
     @Inject(IDeleteBlogUseCase)
     private readonly deleteUseCase: IDeleteBlogUseCase,
+    @Inject(IGetAdminBlogUseCase)
+    private readonly getUseCase: IGetAdminBlogUseCase,
   ) {}
 
   @Get('blogs')
@@ -87,6 +90,37 @@ export class AdminBlogController {
           limit: query.limit ?? 20,
           offset: query.offset ?? 0,
           category: query.category,
+        }),
+      )
+      .build();
+  }
+
+  @Get('blogs/:blogId')
+  @RequiresPermission('blog.read')
+  @ApiOperation({
+    summary: 'Một bài viết cho CMS, gồm bản nháp và `contentHtml`',
+    description:
+      'Dùng để điền form sửa: danh sách không trả `contentHtml`, còn `PUT /admin/blogs/:blogId` ' +
+      'thay TOÀN BỘ bài — nên phải đọc bài đầy đủ ở đây trước khi sửa.\n\n' +
+      'Khác `GET /blogs/:idOrSlug` (công khai): thấy cả bản nháp, và KHÔNG tăng `viewCount`. ' +
+      'Bài đã xoá mềm trả 404.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(BlogDetailResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    [BlogNotFoundException],
+  )
+  public async getOne(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('blogId', ParseUUIDPipe) blogId: string,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.getUseCase.handle({
+          actorUserId: principal.userId,
+          blogId,
         }),
       )
       .build();

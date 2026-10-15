@@ -177,18 +177,20 @@ async function prepareUnitWrite(
   if (input.unitType !== undefined)
     changes.unitType = input.unitType as MeritUnitType;
   if (purpose !== undefined) changes.purpose = purpose;
+  // Trường xoá được: `null` hay chuỗi rỗng đều là "xoá". DTO đã chặn `null` ở các
+  // trường bắt buộc (`NotNullWhenPresent`), nên ở đây chỉ còn trường cho phép xoá.
   if (input.description !== undefined)
-    changes.description = input.description.trim() || null;
+    changes.description = input.description?.trim() || null;
   if (input.coverUrl !== undefined) changes.coverUrl = input.coverUrl || null;
   if (input.addressLabel !== undefined)
-    changes.addressLabel = input.addressLabel.trim() || null;
+    changes.addressLabel = input.addressLabel?.trim() || null;
   if (input.bankBin !== undefined) changes.bankBin = input.bankBin;
   if (input.bankAccountNumber !== undefined)
     changes.bankAccountNumber = input.bankAccountNumber;
   if (input.bankAccountName !== undefined)
     changes.bankAccountName = input.bankAccountName.trim();
   if (input.bankName !== undefined)
-    changes.bankName = input.bankName.trim() || null;
+    changes.bankName = input.bankName?.trim() || null;
   if (input.displayOrder !== undefined)
     changes.displayOrder = input.displayOrder;
   if (hasLat && hasLng) {

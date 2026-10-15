@@ -139,6 +139,21 @@ export interface IGetDharmaContentUseCase extends IUseCase<
 
 export const IGetDharmaContentUseCase = Symbol('IGetDharmaContentUseCase');
 
+/** Đọc MỘT nội dung cho CMS — gồm bản nháp và `bodyText`. */
+export interface IGetAdminDharmaContentCommand {
+  readonly actorUserId: string;
+  readonly contentId: string;
+}
+
+export interface IGetAdminDharmaContentUseCase extends IUseCase<
+  IGetAdminDharmaContentCommand,
+  IDharmaContent
+> {}
+
+export const IGetAdminDharmaContentUseCase = Symbol(
+  'IGetAdminDharmaContentUseCase',
+);
+
 export interface IDeleteDharmaContentCommand {
   readonly actorUserId: string;
   readonly contentId: string;

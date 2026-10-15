@@ -18,6 +18,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
 import { updateReturning } from './update-returning';
+import { usernamesByGlobalId } from './usernames';
 
 interface IConfigRow {
   id: string;
@@ -617,10 +618,16 @@ export class AdminConfigRepository implements IAdminConfigRepository {
       filters,
     );
 
+    const names = await usernamesByGlobalId(
+      this.manager,
+      rows.map((row) => row.actor_user_id),
+    );
+
     return {
       entries: rows.map((row) => ({
         id: Number(row.id),
         actorUserId: row.actor_user_id,
+        actorUsername: names.get(row.actor_user_id ?? '') ?? null,
         action: row.action,
         resourceType: row.resource_type,
         resourceId: row.resource_id,

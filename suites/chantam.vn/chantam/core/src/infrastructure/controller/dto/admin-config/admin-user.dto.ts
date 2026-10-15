@@ -10,7 +10,10 @@ import {
   IReferralReviewInvitee,
 } from '@/domain/ports/repository';
 import { UserRanks, UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
-import { PaginationMetaDto } from '@chantam/service.common-lib/dto';
+import {
+  MaxPageSize,
+  PaginationMetaDto,
+} from '@chantam/service.common-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -131,7 +134,7 @@ export class ListAdminUsersQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(MaxPageSize)
   pageSize = 20;
 }
 

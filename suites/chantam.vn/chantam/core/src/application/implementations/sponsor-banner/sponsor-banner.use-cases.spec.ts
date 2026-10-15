@@ -190,6 +190,22 @@ describe('UpdateSponsorBannerUseCase', () => {
     });
   });
 
+  it('partnerContact: null là "xoá liên hệ", không ném lỗi trên .trim() (CMS B12)', async () => {
+    const repository = makeRepository();
+    repository.update.mockResolvedValue(banner());
+
+    await new UpdateSponsorBannerUseCase(repository, makeAdmin(true)).handle({
+      actorUserId: ActorId,
+      bannerId: 'banner-1',
+      partnerContact: null,
+    });
+
+    expect(repository.update).toHaveBeenCalledWith({
+      bannerId: 'banner-1',
+      changes: { partnerContact: null },
+    });
+  });
+
   it('gửi MỘT mốc lẻ thì không tự ném — ràng buộc database là lớp chặn', async () => {
     // Mốc kia nằm trong database chứ không trong request, nên use case không có cơ sở để
     // so. Ném ở đây là từ chối một lượt sửa hợp lệ.

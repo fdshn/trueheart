@@ -17,6 +17,7 @@ import {
 import {
   CompleteRecitationUseCase,
   CreateDharmaContentUseCase,
+  GetAdminDharmaContentUseCase,
   GetDharmaHubUseCase,
   ListPublicDharmaContentsUseCase,
   StartRecitationUseCase,
@@ -366,5 +367,53 @@ describe('GetDharmaHubUseCase', () => {
     await new GetDharmaHubUseCase(repository).handle({});
 
     expect(repository.listPublishedContents).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('GetAdminDharmaContentUseCase (CMS backlog A3)', () => {
+  it('trả cả bản NHÁP kèm bodyText, đòi dharma.read, không tăng lượt xem', async () => {
+    const repository = makeRepository();
+    repository.findContentByGlobalId.mockResolvedValue(
+      content({ isPublished: false, publishedAt: null }),
+    );
+    const admin = makeAdmin(true);
+
+    const result = await new GetAdminDharmaContentUseCase(
+      repository,
+      admin,
+    ).handle({ actorUserId: AdminId, contentId: 'content-1' });
+
+    expect(admin.hasPermission).toHaveBeenCalledWith(AdminId, 'dharma.read');
+    expect(repository.findContentByGlobalId).toHaveBeenCalledWith('content-1');
+    expect(result).toMatchObject({
+      globalId: 'content-1',
+      isPublished: false,
+      bodyText: 'Như thị ngã văn.',
+    });
+    expect(repository.incrementViewCount).not.toHaveBeenCalled();
+  });
+
+  it('thiếu dharma.read thì 403 và không đọc gì', async () => {
+    const repository = makeRepository();
+
+    await expect(
+      new GetAdminDharmaContentUseCase(repository, makeAdmin(false)).handle({
+        actorUserId: AdminId,
+        contentId: 'content-1',
+      }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(repository.findContentByGlobalId).not.toHaveBeenCalled();
+  });
+
+  it('không có (hoặc đã xoá mềm) thì 404', async () => {
+    const repository = makeRepository();
+    repository.findContentByGlobalId.mockResolvedValue(null);
+
+    await expect(
+      new GetAdminDharmaContentUseCase(repository, makeAdmin(true)).handle({
+        actorUserId: AdminId,
+        contentId: 'nope',
+      }),
+    ).rejects.toThrow(DharmaContentNotFoundException);
   });
 });

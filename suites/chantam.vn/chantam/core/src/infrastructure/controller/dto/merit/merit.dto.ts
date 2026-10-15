@@ -24,6 +24,8 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { NotNullWhenPresent } from '../not-null-when-present';
+import { QueryBoolean } from '../query-boolean';
 
 export class WriteMeritUnitDto {
   @ApiProperty({
@@ -138,24 +140,24 @@ export class WriteMeritUnitBodyDto {
 
 export class PatchMeritUnitDto {
   @ApiPropertyOptional({ maxLength: MaxMeritUnitNameLength })
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsString()
   @Length(3, MaxMeritUnitNameLength)
   name?: string;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsString()
   @Length(1, 200)
   slug?: string;
 
   @ApiPropertyOptional({ enum: MeritUnitTypes })
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsIn(MeritUnitTypes as readonly string[])
   unitType?: string;
 
   @ApiPropertyOptional({ maxLength: MaxMeritUnitPurposeLength })
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsString()
   @Length(10, MaxMeritUnitPurposeLength)
   purpose?: string;
@@ -164,19 +166,19 @@ export class PatchMeritUnitDto {
   @IsOptional()
   @IsString()
   @Length(0, 20_000)
-  description?: string;
+  description?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @Length(0, 2_000)
-  coverUrl?: string;
+  coverUrl?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @Length(0, 255)
-  addressLabel?: string;
+  addressLabel?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -192,19 +194,19 @@ export class PatchMeritUnitDto {
     description:
       'Đổi được, nhưng đây là quyền nhạy nhất — mọi lượt sửa vào audit log.',
   })
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsString()
   @Length(6, 6)
   bankBin?: string;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsString()
   @Length(4, 50)
   bankAccountNumber?: string;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @NotNullWhenPresent()
   @IsString()
   @Length(1, 200)
   bankAccountName?: string;
@@ -213,10 +215,10 @@ export class PatchMeritUnitDto {
   @IsOptional()
   @IsString()
   @Length(0, 200)
-  bankName?: string;
+  bankName?: string | null;
 
   @ApiPropertyOptional({ minimum: 0 })
-  @IsOptional()
+  @NotNullWhenPresent()
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -255,7 +257,7 @@ export class ListAdminMeritUnitsQueryDto extends ListMeritUnitsQueryDto {
       'Gồm cả đơn vị đã tắt. Mặc định `false` để khớp đường công khai.',
   })
   @IsOptional()
-  @Type(() => Boolean)
+  @QueryBoolean()
   @IsBoolean()
   includeInactive?: boolean;
 }

@@ -2,7 +2,10 @@ import {
   IAdminAuditSummary,
   ISystemConfigSummary,
 } from '@/domain/ports/repository';
-import { PaginationMetaDto } from '@chantam/service.common-lib/dto';
+import {
+  MaxPageSize,
+  PaginationMetaDto,
+} from '@chantam/service.common-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -31,8 +34,14 @@ export class PublishSystemConfigDto {
   @IsString()
   valueType: string;
 
-  @ApiProperty({ example: 'Điều chỉnh bán kính mặc định' })
+  @ApiProperty({
+    example: 'Điều chỉnh bán kính mặc định',
+    description:
+      'Bắt buộc, không được trống hay toàn khoảng trắng — ghi vào audit log.',
+    maxLength: 500,
+  })
   @IsString()
+  @Length(1, 500)
   reason: string;
 }
 
@@ -104,7 +113,7 @@ export class GetAdminAuditLogsQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(MaxPageSize)
   pageSize = 20;
 }
 
@@ -144,6 +153,14 @@ export class AdminAuditLogDto implements IAdminAuditSummary {
   @ApiProperty({ example: 41 }) id: number;
 
   @ApiProperty({ format: 'uuid', nullable: true }) actorUserId: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    example: 'demo-quan-tri',
+    description:
+      'Tên đăng nhập của người thao tác; null khi do hệ thống tự chạy.',
+  })
+  actorUsername: string | null;
 
   @ApiProperty({ example: 'PUBLISH' }) action: string;
 
