@@ -3,6 +3,7 @@ import {
   IAppendPointEntryUseCase,
   IGetOwnPointLedgerUseCase,
   IGetOwnPointSummaryUseCase,
+  IGetUserPointLedgerUseCase,
   IReconcileMilestoneRewardsUseCase,
   IReversePointEntryUseCase,
 } from '@/application/contracts/point';
@@ -12,6 +13,7 @@ import { AdjustUserPointsUseCase } from './adjust-user-points.use-case';
 import { AppendPointEntryUseCase } from './append-point-entry.use-case';
 import { GetOwnPointLedgerUseCase } from './get-own-point-ledger.use-case';
 import { GetOwnPointSummaryUseCase } from './get-own-point-summary.use-case';
+import { GetUserPointLedgerUseCase } from './get-user-point-ledger.use-case';
 import { ReconcileMilestoneRewardsUseCase } from './reconcile-milestone-rewards.use-case';
 import { ReversePointEntryUseCase } from './reverse-point-entry.use-case';
 
@@ -40,6 +42,10 @@ import { ReversePointEntryUseCase } from './reverse-point-entry.use-case';
     },
     { provide: IGetOwnPointLedgerUseCase, useClass: GetOwnPointLedgerUseCase },
     {
+      provide: IGetUserPointLedgerUseCase,
+      useClass: GetUserPointLedgerUseCase,
+    },
+    {
       provide: IGetOwnPointSummaryUseCase,
       useClass: GetOwnPointSummaryUseCase,
     },
@@ -53,6 +59,7 @@ import { ReversePointEntryUseCase } from './reverse-point-entry.use-case';
     IAdjustUserPointsUseCase,
     IReversePointEntryUseCase,
     IGetOwnPointLedgerUseCase,
+    IGetUserPointLedgerUseCase,
     IGetOwnPointSummaryUseCase,
     IReconcileMilestoneRewardsUseCase,
   ],
