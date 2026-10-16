@@ -24,10 +24,16 @@ import {
   IListSubTeamsCommand,
   IListSubTeamsResult,
   IListSubTeamsUseCase,
+  IPreviewGroupInviteCommand,
+  IPreviewGroupInviteResult,
+  IPreviewGroupInviteUseCase,
   IUpdateGroupSettingsCommand,
   IUpdateGroupSettingsUseCase,
 } from '@/application/contracts/group';
-import { GroupNotFoundException } from '@/domain/exceptions';
+import {
+  GroupInviteInvalidException,
+  GroupNotFoundException,
+} from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
   IAdminConfigRepository,
@@ -282,6 +288,28 @@ export class ListGroupActivitiesUseCase implements IListGroupActivitiesUseCase {
     });
 
     return { activities: items, total, scopedToSubTeamId: subTeamId };
+  }
+}
+
+/**
+ * Trang mời công khai: ai cầm link cũng xem được nhóm trước khi đăng ký.
+ *
+ * Mã sai và nhóm đã giải tán trả CÙNG một lỗi với lúc đăng ký bằng mã đó — phân
+ * biệt hai thứ là cho người lạ dò xem mã nào từng tồn tại. Mã dài 16 ký tự trên
+ * bảng 31 chữ, nên dò mù không phải mối lo; lo là lộ thông tin qua câu trả lời.
+ */
+@Injectable()
+export class PreviewGroupInviteUseCase implements IPreviewGroupInviteUseCase {
+  public constructor(
+    @Inject(IGroupRepository) private readonly groups: IGroupRepository,
+  ) {}
+
+  public async handle(
+    command: IPreviewGroupInviteCommand,
+  ): Promise<IPreviewGroupInviteResult> {
+    const group = await this.groups.findInvitePreview(command.inviteCode);
+    if (!group) throw new GroupInviteInvalidException();
+    return { group };
   }
 }
 

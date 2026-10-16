@@ -1444,6 +1444,7 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 | `GET /groups/:groupId/activities` | Dòng hoạt động |
 | `GET /groups/:groupId/invite` | Link mời + số người đã vào |
 | `GET /groups/:groupId/invite-link` | Như `/invite` — tên theo SRS 3.7A |
+| `GET /groups/invites/:inviteCode` | **Công khai**, không cần đăng nhập — xem trước nhóm cho trang `/invite/:code`: `name, regionLabel, description, avatarUrl, coverUrl, memberCount, ownerUsername`. Không có toạ độ hay id. Mã sai và nhóm đã giải tán cùng trả `400 GROUP_INVITE_INVALID` |
 | `GET /groups/:groupId/affiliate` | Điều kiện affiliate của nhóm |
 | `GET /groups/:groupId/members` | Danh sách thành viên |
 | `GET /groups/:groupId/sub-teams` | Danh sách tổ |

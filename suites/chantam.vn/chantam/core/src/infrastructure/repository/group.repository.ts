@@ -4,6 +4,7 @@ import {
   ICreateGroupParams,
   IGroupActivityItem,
   IGroupAffiliateSnapshot,
+  IGroupInvitePreview,
   IGroupInviteStats,
   IGroupMemberItem,
   IGroupOverview,
@@ -242,6 +243,49 @@ export class GroupRepository
     );
 
     return row ? { groupId: row.global_id, ownerId: row.owner_id } : null;
+  }
+
+  public async findInvitePreview(
+    inviteCode: string,
+  ): Promise<IGroupInvitePreview | null> {
+    const [row] = await this.entityManager.query<
+      {
+        name: string;
+        region_label: string;
+        description: string | null;
+        avatar_url: string | null;
+        cover_url: string | null;
+        member_count: string;
+        owner_username: string;
+      }[]
+    >(
+      `
+        SELECT team.name, team.region_label, team.description,
+               team.avatar_url, team.cover_url,
+               owner.username AS owner_username,
+               (SELECT COUNT(*)::text FROM group_memberships everyone
+                 WHERE everyone.group_id = team.global_id
+                   AND everyone.status = $3) AS member_count
+        FROM groups team
+        INNER JOIN users owner ON owner.global_id = team.owner_id
+        WHERE team.invite_code = $1
+          AND team.status = $2
+          AND team.deleted_at IS NULL
+      `,
+      [inviteCode, GroupStatuses.ACTIVE, GroupMembershipStatuses.ACTIVE],
+    );
+
+    return row
+      ? {
+          name: row.name,
+          regionLabel: row.region_label,
+          description: row.description,
+          avatarUrl: row.avatar_url,
+          coverUrl: row.cover_url,
+          memberCount: Number(row.member_count),
+          ownerUsername: row.owner_username,
+        }
+      : null;
   }
 
   public async hasMembership(userId: string): Promise<boolean> {

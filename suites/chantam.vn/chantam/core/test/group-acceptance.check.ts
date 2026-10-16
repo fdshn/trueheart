@@ -14,6 +14,7 @@ import { DataSource } from 'typeorm';
 import { GroupCreationEligibility } from '../src/application/implementations/group/group-creation-eligibility';
 import {
   GetGroupInviteUseCase,
+  PreviewGroupInviteUseCase,
   UpdateGroupSettingsUseCase,
 } from '../src/application/implementations/group/group-management.use-cases';
 import { CreateGroupUseCase } from '../src/application/implementations/group/group.use-cases';
@@ -204,6 +205,23 @@ async function main(): Promise<void> {
       invite.invite.inviteUrl === `https://chantam.vn/invite/${code}`,
       String(invite.invite.inviteUrl),
     );
+    const previewInvite = new PreviewGroupInviteUseCase(groups);
+    const preview = await previewInvite.handle({ inviteCode: code });
+    check(
+      'trang mời công khai xem trước được nhóm: tên, khu vực, chủ nhóm, số người',
+      preview.group.name === created.group.name &&
+        preview.group.regionLabel === 'Hà Đông, Hà Nội' &&
+        preview.group.ownerUsername === 'kim-cuong' &&
+        preview.group.memberCount === 1,
+      JSON.stringify(preview.group),
+    );
+    check(
+      'bản xem trước KHÔNG mang toạ độ tâm nhóm hay id nội bộ',
+      !/lat|lng|center|groupId|ownerId|global_id/i.test(
+        Object.keys(preview.group).join(','),
+      ),
+      Object.keys(preview.group).join(','),
+    );
 
     console.log('\n3. Đăng ký bằng Invite Link');
     const NewcomerId = 'ac000000-0000-4000-8000-0000000000e1';
@@ -300,6 +318,17 @@ async function main(): Promise<void> {
     check(
       'Invite Link mất hiệu lực',
       (await groups.findActiveByInviteCode(code)) === null,
+    );
+    let previewError = 'không ném gì';
+    try {
+      await new PreviewGroupInviteUseCase(groups).handle({ inviteCode: code });
+    } catch (error) {
+      previewError = (error as Error).constructor.name;
+    }
+    check(
+      'Group đóng thì trang mời trả CÙNG lỗi với mã sai',
+      previewError === 'GroupInviteInvalidException',
+      previewError,
     );
     const lateId = 'ac000000-0000-4000-8000-0000000000e2';
     let lateError = 'không ném gì';

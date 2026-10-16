@@ -1,4 +1,7 @@
-import { GroupNotFoundException } from '@/domain/exceptions';
+import {
+  GroupInviteInvalidException,
+  GroupNotFoundException,
+} from '@/domain/exceptions';
 import { GroupMemberRoles } from '@chantam.vn/chantam.core-lib/consts';
 import {
   ForbiddenException,
@@ -13,6 +16,7 @@ import {
   ListGroupActivitiesUseCase,
   ListGroupMembersUseCase,
   ListSubTeamsUseCase,
+  PreviewGroupInviteUseCase,
   UpdateGroupSettingsUseCase,
 } from './group-management.use-cases';
 
@@ -360,6 +364,40 @@ describe('ListGroupActivitiesUseCase — phạm vi riêng khỏi xem thành viê
 });
 
 const webConfig = (publicBaseUrl: string) => ({ web: { publicBaseUrl } });
+
+describe('PreviewGroupInviteUseCase (trang mời công khai)', () => {
+  const Preview = {
+    name: 'Nhóm Hà Đông',
+    regionLabel: 'Hà Đông, Hà Nội',
+    description: null,
+    avatarUrl: null,
+    coverUrl: null,
+    memberCount: 4,
+    ownerUsername: 'chunhom',
+  };
+
+  it('trả bản xem trước khi mã còn dùng được', async () => {
+    const groups = { findInvitePreview: jest.fn(async () => Preview) };
+
+    const result = await new PreviewGroupInviteUseCase(groups as never).handle({
+      inviteCode: 'ABCD2345EFGH6789',
+    });
+
+    expect(groups.findInvitePreview).toHaveBeenCalledWith('ABCD2345EFGH6789');
+    expect(result.group).toEqual(Preview);
+  });
+
+  it('mã sai hoặc nhóm đã giải tán: cùng một lỗi như lúc đăng ký', async () => {
+    // Trả lời khác nhau là cho người lạ dò xem mã nào từng tồn tại.
+    const groups = { findInvitePreview: jest.fn(async () => null) };
+
+    await expect(
+      new PreviewGroupInviteUseCase(groups as never).handle({
+        inviteCode: 'ABCD2345EFGH6789',
+      }),
+    ).rejects.toThrow(GroupInviteInvalidException);
+  });
+});
 
 describe('GetGroupInviteUseCase', () => {
   it('đòi group.invite.view — chỉ Owner có', async () => {

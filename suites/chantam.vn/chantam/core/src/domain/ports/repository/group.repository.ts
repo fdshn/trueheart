@@ -158,6 +158,15 @@ export interface IGroupRepository {
   } | null>;
 
   /**
+   * Bản xem trước cho trang mời CÔNG KHAI — người xem chưa đăng nhập.
+   *
+   * Cùng điều kiện với `findActiveByInviteCode`: `null` cho cả mã sai lẫn nhóm đã
+   * giải tán. Chỉ mang thứ trang mời cần vẽ; KHÔNG có toạ độ tâm nhóm (nó chụp từ
+   * Vị trí mặc định của Owner), cũng không có id nội bộ.
+   */
+  findInvitePreview(inviteCode: string): Promise<IGroupInvitePreview | null>;
+
+  /**
    * `true` khi người này đang thuộc một nhóm CÒN HIỆU LỰC.
    *
    * Dòng membership của một nhóm đã giải tán là lịch sử, không tính — nếu tính
@@ -367,6 +376,17 @@ export interface IGroupRepository {
     groupId: string;
     inviteCode: string;
   }): Promise<boolean>;
+}
+
+export interface IGroupInvitePreview {
+  readonly name: string;
+  readonly regionLabel: string;
+  readonly description: string | null;
+  readonly avatarUrl: string | null;
+  readonly coverUrl: string | null;
+  /** Người ĐANG trong nhóm, gồm cả Owner. */
+  readonly memberCount: number;
+  readonly ownerUsername: string;
 }
 
 export interface IAdminGroupDetail extends IAdminGroupListItem {

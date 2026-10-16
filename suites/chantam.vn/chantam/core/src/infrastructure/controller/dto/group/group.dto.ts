@@ -13,6 +13,7 @@ import {
   IsUrl,
   IsUUID,
   Length,
+  Matches,
   Max,
   Min,
   ValidateIf,
@@ -308,6 +309,34 @@ export class GroupInviteDto {
 export class GetGroupInviteResponseDto {
   @ApiProperty({ type: () => GroupInviteDto })
   invite: GroupInviteDto;
+}
+
+export class GroupInviteCodeParamDto {
+  @ApiProperty({ example: 'ABCD2345EFGH6789' })
+  @IsString()
+  @Matches(/^[A-Z0-9]{16}$/, {
+    message: 'inviteCode phải là 16 ký tự A-Z, 0-9',
+  })
+  inviteCode: string;
+}
+
+export class GroupInvitePreviewDto {
+  @ApiProperty() name: string;
+  @ApiProperty() regionLabel: string;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  description: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  avatarUrl: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  coverUrl: string | null;
+  @ApiProperty({ description: 'Người đang trong nhóm, gồm cả Owner.' })
+  memberCount: number;
+  @ApiProperty() ownerUsername: string;
+}
+
+export class PreviewGroupInviteResponseDto {
+  @ApiProperty({ type: () => GroupInvitePreviewDto })
+  group: GroupInvitePreviewDto;
 }
 
 export class GroupAffiliateDto {

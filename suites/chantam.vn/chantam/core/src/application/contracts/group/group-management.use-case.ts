@@ -1,6 +1,7 @@
 import {
   IGroupActivityItem,
   IGroupAffiliateSnapshot,
+  IGroupInvitePreview,
   IGroupInviteStats,
   IGroupOverview,
 } from '@/domain/ports/repository';
@@ -106,6 +107,18 @@ export interface IGetGroupInviteCommand {
   readonly userId: string;
   readonly groupId: string;
 }
+export interface IPreviewGroupInviteCommand {
+  readonly inviteCode: string;
+}
+export interface IPreviewGroupInviteResult {
+  readonly group: IGroupInvitePreview;
+}
+export interface IPreviewGroupInviteUseCase extends IUseCase<
+  IPreviewGroupInviteCommand,
+  IPreviewGroupInviteResult
+> {}
+export const IPreviewGroupInviteUseCase = Symbol('IPreviewGroupInviteUseCase');
+
 export interface IGroupInviteLink {
   /** `/invite/<mã>` — web và app cùng mở đường này. */
   readonly invitePath: string;
