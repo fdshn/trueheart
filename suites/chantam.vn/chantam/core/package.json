@@ -45,6 +45,7 @@
     "test:reminders": "ts-node -r tsconfig-paths/register test/reminders.check.ts",
     "test:selection": "ts-node -r tsconfig-paths/register test/selection.check.ts",
     "test:group": "ts-node -r tsconfig-paths/register test/group.check.ts",
+    "test:group-acceptance": "ts-node -r tsconfig-paths/register test/group-acceptance.check.ts",
     "test:category": "ts-node -r tsconfig-paths/register test/category.check.ts",
     "test:referral": "ts-node -r tsconfig-paths/register test/referral.check.ts",
     "test:media-policy": "ts-node -r tsconfig-paths/register test/media-policy.check.ts",
