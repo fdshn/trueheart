@@ -9,7 +9,8 @@
  * 2. Cổng geo (F57): ST_DWithin trên geography với bán kính lưu bằng KM.
  * 3. Thứ tự ưu tiên vị trí (F58) trên dữ liệu thật: thành viên NGOÀI vùng nhưng bài
  *    đăng TRONG vùng thì sự kiện vẫn hợp lệ.
- * 4. Sự kiện ngoài vùng vẫn lưu kèm distance/radius, và KHÔNG sinh dòng reward nào.
+ * 4. Sự kiện ngoài vùng / không toạ độ vẫn lưu kèm distance/radius, và mỗi người lẽ
+ *    ra được chia có MỘT dòng reward `NOT_ELIGIBLE_GEO` 0 điểm, không bút toán (SRS 3.7A).
  * 5. Giải người nhận: đúng vị ngữ mà findAffiliateSnapshot đếm.
  * 6. Chống trùng ở tầng database (BR-AFF-04), không ở phép đọc trước.
  * 7. Trần ngày: dòng CAPPED vẫn lưu, 0 điểm.
@@ -38,6 +39,8 @@ const InsideB = 'a3000000-0000-4000-8000-00000000a004';
 const OutsideId = 'a3000000-0000-4000-8000-00000000a005';
 /** Trong vùng nhưng KHÔNG hoạt động gần đây. */
 const StaleId = 'a3000000-0000-4000-8000-00000000a006';
+/** Thành viên chưa đặt Vị trí mặc định — nguồn của sự kiện NO_LOCATION. */
+const NoLocationId = 'a3000000-0000-4000-8000-00000000a007';
 
 // UUID chỉ nhận ký tự hex: bản đầu dùng tiền tố 'g' cho dễ đọc và Postgres ném
 // 22P02 ngay câu INSERT đầu tiên.
@@ -186,6 +189,7 @@ async function main(): Promise<void> {
     await addUser(InsideB, 'trong-vung-b', SaiGon);
     await addUser(OutsideId, 'ngoai-vung', HaNoi);
     await addUser(StaleId, 'trong-vung-im-lang', SaiGon, 400);
+    await addUser(NoLocationId, 'chua-co-vi-tri', null);
 
     await dataSource.query(
       `INSERT INTO groups
@@ -196,7 +200,14 @@ async function main(): Promise<void> {
                10, 'MACODE01', 'ACTIVE', now())`,
       [GroupId, OwnerId, SaiGon.lat, SaiGon.lng],
     );
-    for (const id of [OwnerId, InsideA, InsideB, OutsideId, StaleId])
+    for (const id of [
+      OwnerId,
+      InsideA,
+      InsideB,
+      OutsideId,
+      StaleId,
+      NoLocationId,
+    ])
       await addMember(id, id === OwnerId ? 'OWNER' : 'MEMBER');
 
     // ── 1. Fail-closed ──────────────────────────────────────────────────────
@@ -336,7 +347,7 @@ async function main(): Promise<void> {
 
     // ── 4. Ngoài vùng ───────────────────────────────────────────────────────
     console.log(
-      '\n4. Sự kiện NGOÀI vùng: lưu để audit, 0 điểm, KHÔNG dòng reward',
+      '\n4. Sự kiện NGOÀI vùng / không toạ độ: lưu để audit, 0 điểm, dòng reward NOT_ELIGIBLE_GEO',
     );
     const outside = await fire({
       eventType: 'POST_CREATED',
@@ -355,17 +366,79 @@ async function main(): Promise<void> {
         outside?.radiusMeters === 10_000,
       `distance=${outside?.distanceMeters} radius=${outside?.radiusMeters}`,
     );
-    const [{ count: outsideRewards }] = await dataSource.query<
-      { count: string }[]
-    >(
-      `SELECT COUNT(*) AS count FROM affiliate_rewards reward
-       INNER JOIN affiliate_events event ON event.id = reward.event_id
-       WHERE event.reference_id = 'post-outside'`,
+    const rewardRowsOf = (referenceId: string) =>
+      dataSource.query<
+        {
+          beneficiary_user_id: string;
+          geo_status: string;
+          reward_status: string;
+          point_delta: number;
+          point_ledger_id: string | null;
+          idempotency_key: string;
+        }[]
+      >(
+        `SELECT reward.beneficiary_user_id, reward.geo_status, reward.reward_status,
+                reward.point_delta, reward.point_ledger_id, reward.idempotency_key
+         FROM affiliate_rewards reward
+         INNER JOIN affiliate_events event ON event.id = reward.event_id
+         WHERE event.reference_id = $1
+         ORDER BY reward.beneficiary_user_id`,
+        [referenceId],
+      );
+    const outsideRows = await rewardRowsOf('post-outside');
+    check(
+      'mỗi người LẼ RA được chia có một dòng — đúng tập người nhận của sự kiện trong vùng',
+      outsideRows.length === 3 && outside?.beneficiaryCount === 3,
+      `rows=${outsideRows.length} beneficiaryCount=${outside?.beneficiaryCount}`,
     );
     check(
-      'KHÔNG sinh dòng reward 0 điểm cho từng thành viên',
-      Number(outsideRewards) === 0,
-      `count=${outsideRewards}`,
+      'dòng đó: reward_status NOT_ELIGIBLE_GEO, point_delta 0, KHÔNG bút toán, có idempotency_key',
+      outsideRows.every(
+        (row) =>
+          row.reward_status === 'NOT_ELIGIBLE_GEO' &&
+          row.geo_status === 'NOT_ELIGIBLE_GEO' &&
+          Number(row.point_delta) === 0 &&
+          row.point_ledger_id === null &&
+          row.idempotency_key.length > 0,
+      ),
+      JSON.stringify(outsideRows[0]),
+    );
+
+    const noLocation = await fire({
+      eventType: 'GIFT_COMPLETED',
+      sourceUserId: NoLocationId,
+      postLocation: null,
+      referenceId: 'tx-no-location-at-all',
+    });
+    check(
+      'không toạ độ nào (kể cả Vị trí mặc định): NO_LOCATION, 0 điểm',
+      noLocation?.geoStatus === 'NO_LOCATION' &&
+        noLocation.locationSource === 'NONE' &&
+        noLocation.totalPoints === 0,
+      `${noLocation?.geoStatus}/${noLocation?.locationSource}/${noLocation?.totalPoints}`,
+    );
+    const noLocationRows = await rewardRowsOf('tx-no-location-at-all');
+    check(
+      'dòng reward mang geo_status NO_LOCATION, reward_status NOT_ELIGIBLE_GEO, 0 điểm',
+      noLocationRows.length === 3 &&
+        noLocationRows.every(
+          (row) =>
+            row.geo_status === 'NO_LOCATION' &&
+            row.reward_status === 'NOT_ELIGIBLE_GEO' &&
+            Number(row.point_delta) === 0,
+        ),
+      `rows=${noLocationRows.length}`,
+    );
+    const replayOutside = await fire({
+      eventType: 'POST_CREATED',
+      sourceUserId: InsideA,
+      postLocation: HaNoi,
+      referenceId: 'post-outside',
+    });
+    check(
+      'gọi lại sự kiện bị loại không sinh thêm dòng',
+      replayOutside === null &&
+        (await rewardRowsOf('post-outside')).length === 3,
     );
 
     // ── 5. Thứ tự ưu tiên vị trí (F58) trên dữ liệu thật ───────────────────

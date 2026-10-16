@@ -304,13 +304,6 @@ export class AffiliateRepository implements IAffiliateRepository {
       cappedCount: 0,
     };
 
-    // Ngoài vùng hoặc không có toạ độ: sự kiện ĐÃ được lưu với `geo_status`,
-    // `distance_meters` và `radius_meters` — đủ trả lời "vì sao nhóm tôi không được
-    // điểm" (BR-GEO-AFF-03). KHÔNG ghi dòng reward 0 điểm cho từng thành viên: với
-    // nhóm 500 người thì mỗi sự kiện bị loại sinh 500 dòng vô dụng, và bảng reward
-    // sẽ phình nhanh nhất đúng trên đường không phát điểm.
-    if (input.geoStatus !== 'ELIGIBLE') return base;
-
     const windowDays = normalizeActiveMemberWindowDays(
       await this.readActiveMemberWindow(),
     );
@@ -337,6 +330,27 @@ export class AffiliateRepository implements IAffiliateRepository {
        LIMIT $3`,
       [input.groupId, windowDays, policy.maxBeneficiariesPerEvent],
     );
+
+    // Ngoài vùng hoặc không có toạ độ (SRS 3.7A): sự kiện đã lưu `geo_status`,
+    // `distance_meters`, `radius_meters`; giờ thêm MỘT dòng reward 0 điểm cho mỗi
+    // người LẼ RA được chia — để từng thành viên tra được "vì sao sự kiện này tôi
+    // không được điểm". Cùng tập người nhận và cùng trần `maxBeneficiariesPerEvent`
+    // như đường phát điểm, nên mỗi sự kiện bị loại sinh tối đa N dòng chứ không
+    // phải một dòng cho mọi thành viên. Không bút toán nào được ghi.
+    if (input.geoStatus !== 'ELIGIBLE') {
+      for (const row of beneficiaries ?? [])
+        await this.writeNotEligibleReward(manager, {
+          eventId,
+          input,
+          beneficiaryUserId: row.user_id,
+        });
+      const recorded = (beneficiaries ?? []).length;
+      await manager.query(
+        `UPDATE affiliate_events SET beneficiary_count = $2 WHERE id = $1`,
+        [eventId, recorded],
+      );
+      return { ...base, beneficiaryCount: recorded };
+    }
 
     const shares = distributeAffiliatePoints({
       beneficiaryUserIds: (beneficiaries ?? []).map((row) => row.user_id),
@@ -388,6 +402,49 @@ export class AffiliateRepository implements IAffiliateRepository {
   private async readActiveMemberWindow(): Promise<unknown> {
     return this.adminConfig.getConfigValue(
       AffiliateActiveMemberWindowConfigKey,
+    );
+  }
+
+  /** Dòng reward 0 điểm cho sự kiện ngoài vùng / không có toạ độ — chỉ để audit. */
+  private async writeNotEligibleReward(
+    manager: EntityManager,
+    args: {
+      eventId: string;
+      input: {
+        params: IRecordAffiliateEventParams;
+        revision: IAffiliatePolicyRevision;
+        groupId: string;
+        geoStatus: AffiliateGeoStatus;
+      };
+      beneficiaryUserId: string;
+    },
+  ): Promise<void> {
+    const { input } = args;
+    await manager.query(
+      `INSERT INTO affiliate_rewards
+         (event_id, group_id, source_user_id, beneficiary_user_id, event_type,
+          reference_type, reference_id, geo_status, reward_status, point_delta,
+          point_ledger_id, idempotency_key, policy_version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'NOT_ELIGIBLE_GEO', 0, NULL, $9, $10)
+       ON CONFLICT (beneficiary_user_id, event_type, reference_type, reference_id)
+       DO NOTHING`,
+      [
+        args.eventId,
+        input.groupId,
+        input.params.sourceUserId,
+        args.beneficiaryUserId,
+        input.params.eventType,
+        input.params.referenceType,
+        input.params.referenceId,
+        input.geoStatus,
+        affiliateRewardIdempotencyKey({
+          beneficiaryUserId: args.beneficiaryUserId,
+          eventType: input.params.eventType as AffiliateEventType,
+          referenceType: input.params.referenceType,
+          referenceId: input.params.referenceId,
+        }),
+        input.revision.version,
+      ],
     );
   }
 
