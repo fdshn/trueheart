@@ -170,6 +170,21 @@ export class CreateBroadcastResponseDto {
   broadcast: BroadcastResponseDto;
 }
 
+export class BroadcastIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  broadcastId: string;
+}
+
+export class SendBroadcastNowResponseDto {
+  @ApiProperty({
+    type: () => BroadcastResponseDto,
+    description:
+      'Trạng thái ngay sau khi NHẬN — luôn `SENDING`. Phần gửi chạy ở nền; xem tiến độ qua `GET /admin/notifications/broadcasts`.',
+  })
+  broadcast: BroadcastResponseDto;
+}
+
 export class ListBroadcastsResponseDto {
   @ApiProperty({ type: () => [BroadcastResponseDto] })
   items: BroadcastResponseDto[];

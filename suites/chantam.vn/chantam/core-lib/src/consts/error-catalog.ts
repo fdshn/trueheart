@@ -452,6 +452,26 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Cờ này đã có người xử trước. Tải lại hàng đợi để xem quyết định đã chọn',
   },
 
+  NOTIFICATION_BROADCAST_NOT_FOUND: {
+    code: ErrorCodes.NOTIFICATION_BROADCAST_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy lượt gửi thông báo hàng loạt',
+  },
+
+  NOTIFICATION_BROADCAST_ALREADY_COMPLETED: {
+    code: ErrorCodes.NOTIFICATION_BROADCAST_ALREADY_COMPLETED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Lượt gửi này đã xong. Muốn gửi lại nội dung đó thì tạo một lượt gửi mới',
+  },
+
+  NOTIFICATION_BROADCAST_IN_PROGRESS: {
+    code: ErrorCodes.NOTIFICATION_BROADCAST_IN_PROGRESS,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Lượt gửi này đang được gửi. Theo dõi tiến độ trong danh sách lượt gửi',
+  },
+
   NOTIFICATION_NOT_FOUND: {
     code: ErrorCodes.NOTIFICATION_NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,

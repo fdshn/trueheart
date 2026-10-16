@@ -147,6 +147,9 @@ Nghiệp vụ Chân Tâm
 | `0x0b04` | `2820` | 404 Not Found | `CHAT_MESSAGE_NOT_FOUND` | Không tìm thấy tin nhắn |
 | `0x0b05` | `2821` | 409 Conflict | `CHAT_RECALL_WINDOW_CLOSED` | Chỉ thu hồi được tin nhắn trong vòng 5 phút sau khi gửi |
 | `0x0b06` | `2822` | 409 Conflict | `CHAT_FLAG_ALREADY_REVIEWED` | Cờ này đã có người xử trước. Tải lại hàng đợi để xem quyết định đã chọn |
+| `0x0b07` | `2823` | 404 Not Found | `NOTIFICATION_BROADCAST_NOT_FOUND` | Không tìm thấy lượt gửi thông báo hàng loạt |
+| `0x0b08` | `2824` | 409 Conflict | `NOTIFICATION_BROADCAST_ALREADY_COMPLETED` | Lượt gửi này đã xong. Muốn gửi lại nội dung đó thì tạo một lượt gửi mới |
+| `0x0b09` | `2825` | 409 Conflict | `NOTIFICATION_BROADCAST_IN_PROGRESS` | Lượt gửi này đang được gửi. Theo dõi tiến độ trong danh sách lượt gửi |
 | `0x0e01` | `3585` | 422 | `CONTENT_BLOCKED_TERMS` | Nội dung có từ ngữ không được phép. Vui lòng viết lại |
 | `0x0e02` | `3586` | 404 Not Found | `CONTENT_COMMENT_NOT_FOUND` | Không tìm thấy bình luận |
 | `0x0e03` | `3587` | 409 Conflict | `CONTENT_EDIT_WINDOW_CLOSED` | Chỉ sửa được bình luận trong 15 phút đầu |
@@ -208,5 +211,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **166 mã lỗi** trên 3 tầng.
+Tổng cộng **169 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

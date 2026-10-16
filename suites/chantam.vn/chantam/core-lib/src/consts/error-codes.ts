@@ -214,6 +214,11 @@ export enum ErrorCodes {
   CHAT_RECALL_WINDOW_CLOSED = 0x0b_05,
   /** Cờ kiểm duyệt chat đã có người xử — không ghi đè quyết định trước. */
   CHAT_FLAG_ALREADY_REVIEWED = 0x0b_06,
+  NOTIFICATION_BROADCAST_NOT_FOUND = 0x0b_07,
+  /** Lượt gửi hàng loạt đã xong — "Gửi ngay" lần nữa không có gì để gửi. */
+  NOTIFICATION_BROADCAST_ALREADY_COMPLETED = 0x0b_08,
+  /** Đang có tiến trình khác giữ lượt gửi (cron, hoặc Admin khác vừa bấm). */
+  NOTIFICATION_BROADCAST_IN_PROGRESS = 0x0b_09,
 
   // 0x0F — Báo cáo vi phạm
   REPORT_NOT_FOUND = 0x0f_01,

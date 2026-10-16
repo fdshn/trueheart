@@ -46,10 +46,21 @@ export interface INotificationBroadcastRepository {
    * được nhặt lại chứ không treo mãi. Con trỏ `lastUserId` làm việc nhặt lại đó rẻ.
    */
   findNextPending(): Promise<INotificationBroadcast | null>;
-  markSending(globalId: string): Promise<void>;
-  /** Ghi tiến độ sau mỗi lô, kèm con trỏ. */
+  /**
+   * NHẬN một lượt gửi để làm, trong MỘT câu lệnh — chỉ khớp khi chưa ai giữ hoặc lease
+   * của người trước đã hết hạn. Trả `null` khi không còn lượt nào nhận được.
+   *
+   * `globalId: null` là đường cron: lượt cũ nhất `PENDING`/`SENDING`. Có `globalId` là
+   * "Gửi ngay" của CMS: nhận đúng lượt đó, kể cả `FAILED` (gửi lại sau sự cố).
+   */
+  claimForSending(params: {
+    globalId: string | null;
+    leaseSeconds: number;
+  }): Promise<INotificationBroadcast | null>;
+  /** Ghi tiến độ sau mỗi lô, kèm con trỏ — và gia hạn lease. */
   recordProgress(params: {
     globalId: string;
+    leaseSeconds: number;
     lastUserId: number;
     audienceDelta: number;
     notifiedDelta: number;

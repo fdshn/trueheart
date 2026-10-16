@@ -1,6 +1,14 @@
 import {
+  NotificationBroadcastAlreadyCompletedException,
+  NotificationBroadcastInProgressException,
+  NotificationBroadcastNotFoundException,
+} from '@/domain/exceptions';
+import { ForbiddenException } from '@chantam/service.common-lib/exception';
+import {
+  BroadcastLeaseSeconds,
   CreateBroadcastUseCase,
   ProcessBroadcastUseCase,
+  SendBroadcastNowUseCase,
 } from './broadcast.use-cases';
 
 const ActorId = '10000000-0000-4000-8000-000000000001';
@@ -55,7 +63,13 @@ function makeDeps(
       findNextPending: jest.fn(async () =>
         options.pending === undefined ? broadcastRow() : options.pending,
       ),
-      markSending: jest.fn(async (_id: string) => undefined),
+      // Cron nhận đúng lượt mà `findNextPending` sẽ thấy — mock hai cái cùng một nguồn.
+      claimForSending: jest.fn(
+        async (_p: { globalId: string | null; leaseSeconds: number }) =>
+          options.pending === undefined
+            ? broadcastRow({ status: 'SENDING' })
+            : options.pending,
+      ),
       recordProgress: jest.fn(async (_p: Record<string, unknown>) => undefined),
       markCompleted: jest.fn(async (_id: string) => undefined),
       markFailed: jest.fn(async (_id: string, _r: string) => undefined),
@@ -222,7 +236,7 @@ describe('ProcessBroadcastUseCase', () => {
     const result = await processor(deps).handle({});
 
     expect(result.broadcastId).toBeNull();
-    expect(deps.broadcasts.markSending).not.toHaveBeenCalled();
+    expect(deps.broadcasts.recordProgress).not.toHaveBeenCalled();
     expect(deps.dispatch.handle).not.toHaveBeenCalled();
   });
 
@@ -349,7 +363,8 @@ describe('ProcessBroadcastUseCase', () => {
     expect(result.broadcastId).toBe(BroadcastId);
     expect(result.notified).toBe(0);
     expect(deps.dispatch.handle).not.toHaveBeenCalled();
-    expect(deps.broadcasts.markSending).not.toHaveBeenCalled();
+    // Chỉ NHÌN: giữ lease cho một lượt không gửi gì là chặn cron thật thêm năm phút.
+    expect(deps.broadcasts.claimForSending).not.toHaveBeenCalled();
   });
 
   it('nhặt lại lượt gửi đang SENDING — một lượt chạy chết giữa đường', async () => {
@@ -399,5 +414,141 @@ describe('ProcessBroadcastUseCase', () => {
         }
       ).audience.groupId,
     ).toBe(GroupId);
+  });
+});
+
+describe('ProcessBroadcastUseCase · lease (CMS B11)', () => {
+  it('cron NHẬN lượt gửi kèm lease thay vì đọc rồi đánh dấu', async () => {
+    const deps = makeDeps({ users: 1 });
+    await processor(deps).handle({});
+
+    expect(deps.broadcasts.claimForSending).toHaveBeenCalledWith({
+      globalId: null,
+      leaseSeconds: BroadcastLeaseSeconds,
+    });
+    expect(deps.broadcasts.findNextPending).not.toHaveBeenCalled();
+  });
+
+  it('mỗi lô gia hạn lease', async () => {
+    const deps = makeDeps({ users: 3 });
+    await processor(deps).handle({ batchSize: 2 });
+
+    expect(deps.broadcasts.recordProgress).toHaveBeenCalledTimes(2);
+    for (const [params] of deps.broadcasts.recordProgress.mock.calls)
+      expect(params).toMatchObject({ leaseSeconds: BroadcastLeaseSeconds });
+  });
+
+  it('lượt đã nhận sẵn (Gửi ngay) thì không nhận lại', async () => {
+    const deps = makeDeps({ users: 1 });
+    const result = await processor(deps).handle({
+      claimed: broadcastRow({ status: 'SENDING' }) as never,
+    });
+
+    expect(deps.broadcasts.claimForSending).not.toHaveBeenCalled();
+    expect(result.completed).toBe(true);
+  });
+});
+
+describe('SendBroadcastNowUseCase (CMS B11)', () => {
+  function sender(
+    deps: ReturnType<typeof makeDeps>,
+    process = { handle: jest.fn(async () => ({}) as never) },
+  ) {
+    return {
+      process,
+      useCase: new SendBroadcastNowUseCase(
+        deps.broadcasts as never,
+        { ...deps.admin, appendAudit: jest.fn(async () => undefined) } as never,
+        process as never,
+      ),
+    };
+  }
+
+  it('đòi notification.manage', async () => {
+    const deps = makeDeps();
+    deps.admin.hasPermission.mockResolvedValue(false);
+
+    await expect(
+      sender(deps).useCase.handle({
+        actorUserId: ActorId,
+        broadcastId: BroadcastId,
+      }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(deps.broadcasts.claimForSending).not.toHaveBeenCalled();
+  });
+
+  it('không có thì 404; đã xong thì 409 và không nhận', async () => {
+    const deps = makeDeps();
+    deps.broadcasts.findByGlobalId.mockResolvedValueOnce(null as never);
+    await expect(
+      sender(deps).useCase.handle({
+        actorUserId: ActorId,
+        broadcastId: BroadcastId,
+      }),
+    ).rejects.toThrow(NotificationBroadcastNotFoundException);
+
+    deps.broadcasts.findByGlobalId.mockResolvedValueOnce(
+      broadcastRow({ status: 'COMPLETED' }) as never,
+    );
+    await expect(
+      sender(deps).useCase.handle({
+        actorUserId: ActorId,
+        broadcastId: BroadcastId,
+      }),
+    ).rejects.toThrow(NotificationBroadcastAlreadyCompletedException);
+    expect(deps.broadcasts.claimForSending).not.toHaveBeenCalled();
+  });
+
+  it('có người đang giữ lease thì 409 và KHÔNG chạy gì ở nền', async () => {
+    const deps = makeDeps({ pending: null });
+    const { useCase, process } = sender(deps);
+
+    await expect(
+      useCase.handle({ actorUserId: ActorId, broadcastId: BroadcastId }),
+    ).rejects.toThrow(NotificationBroadcastInProgressException);
+    expect(process.handle).not.toHaveBeenCalled();
+  });
+
+  it('nhận ĐÚNG lượt đó, trả ngay, rồi giao phần gửi xuống nền', async () => {
+    const deps = makeDeps();
+    let finish: () => void = () => undefined;
+    const process = {
+      handle: jest.fn(
+        () => new Promise<never>((resolve) => (finish = resolve as never)),
+      ),
+    };
+    const { useCase } = sender(deps, process);
+
+    const result = await useCase.handle({
+      actorUserId: ActorId,
+      broadcastId: BroadcastId,
+    });
+
+    expect(deps.broadcasts.claimForSending).toHaveBeenCalledWith({
+      globalId: BroadcastId,
+      leaseSeconds: BroadcastLeaseSeconds,
+    });
+    // Request đã trả về trong khi phần gửi CHƯA xong — đúng ý "gửi ở nền".
+    expect(result.broadcast.status).toBe('SENDING');
+    expect(process.handle).toHaveBeenCalledWith({
+      claimed: expect.objectContaining({ globalId: BroadcastId }),
+    });
+    finish();
+  });
+
+  it('phần gửi nền hỏng không làm hỏng request', async () => {
+    const deps = makeDeps();
+    const process = {
+      handle: jest.fn(async () => {
+        throw new Error('mất kết nối');
+      }),
+    };
+
+    await expect(
+      sender(deps, process as never).useCase.handle({
+        actorUserId: ActorId,
+        broadcastId: BroadcastId,
+      }),
+    ).resolves.toBeDefined();
   });
 });

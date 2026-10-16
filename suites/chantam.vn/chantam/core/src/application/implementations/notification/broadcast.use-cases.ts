@@ -9,7 +9,15 @@ import {
   IProcessBroadcastCommand,
   IProcessBroadcastResult,
   IProcessBroadcastUseCase,
+  ISendBroadcastNowCommand,
+  ISendBroadcastNowResult,
+  ISendBroadcastNowUseCase,
 } from '@/application/contracts/notification';
+import {
+  NotificationBroadcastAlreadyCompletedException,
+  NotificationBroadcastInProgressException,
+  NotificationBroadcastNotFoundException,
+} from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
   IBulkNotifyAudienceRepository,
@@ -28,6 +36,12 @@ import {
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 const DefaultBatchSize = 500;
+
+/**
+ * Lease của người đang gửi. Gia hạn sau MỖI lô, nên chỉ cần dài hơn thời gian một lô
+ * (500 lượt `dispatch`); tiến trình chết thì sau chừng này lượt khác nhặt lại được.
+ */
+export const BroadcastLeaseSeconds = 300;
 
 /**
  * Tạo một lượt gửi hàng loạt (F47, SRS mục 1507).
@@ -147,7 +161,16 @@ export class ProcessBroadcastUseCase implements IProcessBroadcastUseCase {
   public async handle(
     command: IProcessBroadcastCommand,
   ): Promise<IProcessBroadcastResult> {
-    const broadcast = await this.broadcasts.findNextPending();
+    // Dry-run chỉ NHÌN, không nhận: giữ lease cho một lượt không gửi gì là chặn cron
+    // thật thêm năm phút.
+    const broadcast =
+      command.claimed ??
+      (command.dryRun === true
+        ? await this.broadcasts.findNextPending()
+        : await this.broadcasts.claimForSending({
+            globalId: null,
+            leaseSeconds: BroadcastLeaseSeconds,
+          }));
 
     const idle: IProcessBroadcastResult = {
       broadcastId: null,
@@ -167,14 +190,12 @@ export class ProcessBroadcastUseCase implements IProcessBroadcastUseCase {
       audience: broadcast.audience,
     };
 
-    if (command.dryRun === true) {
+    if (command.dryRun === true && !command.claimed) {
       this.logger.log(
         `[dry-run] ${broadcast.title} → ${broadcast.audienceLabel}`,
       );
       return { ...base, ...idle, broadcastId: broadcast.globalId };
     }
-
-    await this.broadcasts.markSending(broadcast.globalId);
 
     const batchSize = command.batchSize ?? DefaultBatchSize;
     let afterId = broadcast.lastUserId;
@@ -230,6 +251,7 @@ export class ProcessBroadcastUseCase implements IProcessBroadcastUseCase {
         // ghi gì thì con trỏ vẫn ở 0, và lượt chạy lại làm lại từ đầu.
         await this.broadcasts.recordProgress({
           globalId: broadcast.globalId,
+          leaseSeconds: BroadcastLeaseSeconds,
           lastUserId: afterId,
           audienceDelta: batch.length,
           notifiedDelta: batchNotified,
@@ -256,5 +278,75 @@ export class ProcessBroadcastUseCase implements IProcessBroadcastUseCase {
       await this.broadcasts.markFailed(broadcast.globalId, String(error));
       throw error;
     }
+  }
+}
+
+/**
+ * "Gửi ngay" từ CMS (CMS B11) — không phải chờ lượt cron kế tiếp.
+ *
+ * NHẬN đồng bộ, GỬI ở nền. Nhận đồng bộ để trả lời đúng ngay trong request: đang có người
+ * gửi lượt này (cron, hay Admin khác vừa bấm) thì 409, không phải "đã nhận" rồi lặng lẽ
+ * không làm gì. Gửi ở nền vì một lượt trăm nghìn người là vài phút — hết giờ HTTP từ lâu.
+ *
+ * Tiến trình chết giữa chừng (deploy, OOM) thì lease hết hạn và cron nhặt lại từ con trỏ
+ * — "Gửi ngay" không tạo ra một con đường gửi thứ hai cần dọn riêng.
+ */
+@Injectable()
+export class SendBroadcastNowUseCase implements ISendBroadcastNowUseCase {
+  private readonly logger = new Logger(SendBroadcastNowUseCase.name);
+
+  public constructor(
+    @Inject(INotificationBroadcastRepository)
+    private readonly broadcasts: INotificationBroadcastRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+    @Inject(IProcessBroadcastUseCase)
+    private readonly process: IProcessBroadcastUseCase,
+  ) {}
+
+  public async handle(
+    command: ISendBroadcastNowCommand,
+  ): Promise<ISendBroadcastNowResult> {
+    if (
+      !(await this.admin.hasPermission(
+        command.actorUserId,
+        'notification.manage',
+      ))
+    )
+      throw new ForbiddenException();
+
+    const existing = await this.broadcasts.findByGlobalId(command.broadcastId);
+    if (!existing) throw new NotificationBroadcastNotFoundException();
+    if (existing.status === 'COMPLETED')
+      throw new NotificationBroadcastAlreadyCompletedException();
+
+    const claimed = await this.broadcasts.claimForSending({
+      globalId: command.broadcastId,
+      leaseSeconds: BroadcastLeaseSeconds,
+    });
+    // Tồn tại, chưa xong, mà không nhận được: lease đang có người giữ — hoặc vừa xong
+    // giữa hai câu trên. Cả hai đều là "không có gì để bạn bấm nữa".
+    if (!claimed) throw new NotificationBroadcastInProgressException();
+
+    await this.admin.appendAudit({
+      actorUserId: command.actorUserId,
+      action: 'SEND_BROADCAST_NOW',
+      resourceType: 'NOTIFICATION_BROADCAST',
+      resourceId: command.broadcastId,
+      before: { status: existing.status },
+      after: { status: claimed.status },
+    });
+
+    // KHÔNG await: xem docblock. Lỗi ở đây đã được `ProcessBroadcastUseCase` ghi
+    // `FAILED` vào chính lượt gửi — Admin thấy nó trong danh sách, không cần request này.
+    void this.process
+      .handle({ claimed })
+      .catch((error: unknown) =>
+        this.logger.error(
+          `Gửi nền lượt ${command.broadcastId} thất bại: ${String(error)}`,
+        ),
+      );
+
+    return { broadcast: claimed };
   }
 }

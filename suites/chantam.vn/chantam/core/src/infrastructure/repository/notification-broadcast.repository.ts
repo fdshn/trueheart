@@ -171,16 +171,37 @@ export class NotificationBroadcastRepository implements INotificationBroadcastRe
     return row ? toBroadcast(row) : null;
   }
 
-  public async markSending(globalId: string): Promise<void> {
-    await updateReturning(
+  public async claimForSending(params: {
+    globalId: string | null;
+    leaseSeconds: number;
+  }): Promise<INotificationBroadcast | null> {
+    // `FOR UPDATE SKIP LOCKED` ở câu con: hai tiến trình nhận cùng lúc thì người sau BỎ QUA
+    // dòng đang bị khoá thay vì đứng chờ rồi nhận trùng. Điều kiện lease lặp lại ở câu
+    // ngoài không cần — dòng đã khoá thì câu con không trả về.
+    const rows = await updateReturning<IRow>(
       this.manager,
       `UPDATE notification_broadcasts
           SET status = 'SENDING',
-              started_at = COALESCE(started_at, now())
-        WHERE global_id = $1
-        RETURNING global_id`,
-      [globalId],
+              started_at = COALESCE(started_at, now()),
+              lease_until = now() + make_interval(secs => $2),
+              -- Gửi lại một lượt FAILED: lỗi cũ không còn đúng nữa.
+              failure_reason = NULL,
+              completed_at = NULL
+        WHERE global_id = (
+          SELECT global_id FROM notification_broadcasts
+           WHERE (lease_until IS NULL OR lease_until < now())
+             AND (
+               ($1::uuid IS NULL AND status IN ('PENDING', 'SENDING'))
+               OR (global_id = $1::uuid AND status IN ('PENDING', 'SENDING', 'FAILED'))
+             )
+           ORDER BY created_at ASC, id ASC
+           LIMIT 1
+           FOR UPDATE SKIP LOCKED
+        )
+        RETURNING ${Columns}`,
+      [params.globalId, params.leaseSeconds],
     );
+    return rows[0] ? toBroadcast(rows[0]) : null;
   }
 
   /**
@@ -191,6 +212,7 @@ export class NotificationBroadcastRepository implements INotificationBroadcastRe
    */
   public async recordProgress(params: {
     globalId: string;
+    leaseSeconds: number;
     lastUserId: number;
     audienceDelta: number;
     notifiedDelta: number;
@@ -204,7 +226,8 @@ export class NotificationBroadcastRepository implements INotificationBroadcastRe
               audience_count = audience_count + $3,
               notified_count = notified_count + $4,
               already_sent_count = already_sent_count + $5,
-              failed_count = failed_count + $6
+              failed_count = failed_count + $6,
+              lease_until = now() + make_interval(secs => $7)
         WHERE global_id = $1
         RETURNING global_id`,
       [
@@ -214,6 +237,7 @@ export class NotificationBroadcastRepository implements INotificationBroadcastRe
         params.notifiedDelta,
         params.alreadySentDelta,
         params.failedDelta,
+        params.leaseSeconds,
       ],
     );
   }
@@ -222,7 +246,7 @@ export class NotificationBroadcastRepository implements INotificationBroadcastRe
     await updateReturning(
       this.manager,
       `UPDATE notification_broadcasts
-          SET status = 'COMPLETED', completed_at = now()
+          SET status = 'COMPLETED', completed_at = now(), lease_until = NULL
         WHERE global_id = $1
         RETURNING global_id`,
       [globalId],
@@ -233,7 +257,7 @@ export class NotificationBroadcastRepository implements INotificationBroadcastRe
     await updateReturning(
       this.manager,
       `UPDATE notification_broadcasts
-          SET status = 'FAILED', completed_at = now(),
+          SET status = 'FAILED', completed_at = now(), lease_until = NULL,
               failure_reason = left($2, 500)
         WHERE global_id = $1
         RETURNING global_id`,

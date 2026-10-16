@@ -40,8 +40,16 @@ export interface IListBroadcastsUseCase extends IUseCase<
 
 export const IListBroadcastsUseCase = Symbol('IListBroadcastsUseCase');
 
-/** Chạy bằng CLI — không có endpoint, vì nó có thể mất vài phút. */
+/**
+ * Chạy bằng CLI (cron), hoặc nền sau `POST .../broadcasts/:id/send` — không bao giờ
+ * đồng bộ trong một request HTTP, vì nó có thể mất vài phút.
+ */
 export interface IProcessBroadcastCommand {
+  /**
+   * Lượt gửi ĐÃ được nhận (đã giữ lease) — "Gửi ngay" nhận đồng bộ để trả 409
+   * ngay khi có người khác đang gửi, rồi mới giao phần chạy xuống đây.
+   */
+  readonly claimed?: INotificationBroadcast;
   readonly dryRun?: boolean;
   readonly batchSize?: number;
 }
@@ -65,3 +73,20 @@ export interface IProcessBroadcastUseCase extends IUseCase<
 > {}
 
 export const IProcessBroadcastUseCase = Symbol('IProcessBroadcastUseCase');
+
+export interface ISendBroadcastNowCommand {
+  actorUserId: string;
+  broadcastId: string;
+}
+
+export interface ISendBroadcastNowResult {
+  /** Trạng thái ngay sau khi nhận — `SENDING`. Tiến độ xem qua `GET .../broadcasts`. */
+  broadcast: IBroadcastView;
+}
+
+export interface ISendBroadcastNowUseCase extends IUseCase<
+  ISendBroadcastNowCommand,
+  ISendBroadcastNowResult
+> {}
+
+export const ISendBroadcastNowUseCase = Symbol('ISendBroadcastNowUseCase');
