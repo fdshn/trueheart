@@ -102,7 +102,7 @@ export class AdminAffiliateController {
       'không trần là đúng cái cửa đó.\n\n' +
       '`expectedVersion` phải khớp bản đang có. Lệch thì 409 ' +
       '`AFFILIATE_POLICY_VERSION_CONFLICT` kèm dòng phụ `currentVersion=<n|null>` trong ' +
-      '`messages` — tải lại policy rồi gửi lại với version đó.',
+      '`message` — tải lại policy rồi gửi lại với version đó.',
   })
   @ApiOkResponse({
     type: ResponseDto.forApi(PublishAffiliatePolicyResponseDto),

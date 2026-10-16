@@ -74,7 +74,7 @@ export class AdminCheckInPolicyController {
       '`expectedVersion` phải khớp bản đang có, nếu không bị từ chối: hai Admin ' +
       'sửa cùng lúc thì người sau sẽ xoá mất thay đổi của người trước mà không ai biết. Lệch thì 409 ' +
       '`CHECK_IN_POLICY_VERSION_CONFLICT` kèm dòng phụ `currentVersion=<n|null>` trong ' +
-      '`messages` — tải lại policy rồi gửi lại với version đó.\n\n' +
+      '`message` — tải lại policy rồi gửi lại với version đó.\n\n' +
       'Bật `enabled` mà thiếu `dailyPoints`, `transactionsPerRepair` hoặc ' +
       '`repairWindowDays` thì bị từ chối kèm danh sách ĐÚNG cái thiếu. Đặc tả nói ' +
       'thẳng là không hard-code một mặc định có tác dụng phát điểm, nên tính năng ' +
