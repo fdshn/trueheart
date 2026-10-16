@@ -138,6 +138,11 @@ Nghiệp vụ Chân Tâm
 | `0x0901` | `2305` | 409 Conflict | `ADMIN_LAST_SUPER_ADMIN` | Không thể thu hồi SUPER_ADMIN cuối cùng: sẽ không còn ai cấp lại quyền được |
 | `0x0902` | `2306` | 403 Forbidden | `ADMIN_SELF_ROLE_CHANGE` | Không thể tự thay đổi quyền của chính mình |
 | `0x0903` | `2307` | 404 Not Found | `NOTIFICATION_TEMPLATE_NOT_FOUND` | Không có mẫu thông báo cho loại này |
+| `0x0904` | `2308` | 404 Not Found | `ADMIN_ROLE_NOT_FOUND` | Không tìm thấy role CONTENT_EDITOR |
+| `0x0905` | `2309` | 409 Conflict | `ADMIN_ROLE_CODE_CONFLICT` | Mã role MODERATOR đã tồn tại |
+| `0x0906` | `2310` | 409 Conflict | `ADMIN_ROLE_PROTECTED` | Role SUPER_ADMIN do hệ thống quản lý, không sửa được từ CMS |
+| `0x0907` | `2311` | 400 Bad Request | `ADMIN_PERMISSION_UNKNOWN` | Permission không tồn tại: post.fly |
+| `0x0908` | `2312` | 409 Conflict | `ADMIN_ROLE_SELF_LOCKOUT` | Thay đổi này làm chính bạn mất quyền admin.manage. Nhờ một quản trị viên khác thực hiện |
 | `0x0a01` | `2561` | 503 | `ENTITLEMENT_POLICY_UNAVAILABLE` | Chưa có bản chính sách quyền nào đang hiệu lực |
 | `0x0a02` | `2562` | 400 Bad Request | `ENTITLEMENT_CAPABILITY_UNKNOWN` | Không có capability nào mang mã POST_TELEPATHY trong bản chính sách hiện hành |
 | `0x0a03` | `2563` | 422 | `ENTITLEMENT_LIMIT_INVALID` | Hạn mức của POST_OPEN ở bậc SILVER không dùng được: đã cho phép thì phải có hạn mức lớn hơn 0 — ô trống bị đọc thành 0 nên sẽ khoá cả bậc này |
@@ -214,5 +219,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **172 mã lỗi** trên 3 tầng.
+Tổng cộng **177 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

@@ -1660,6 +1660,9 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 | `GET` | `/admin/audit-logs` | `audit.read` | Nhật ký thao tác quản trị |
 | `GET` | `/admin/system-logs` | `audit.read` | Nhật ký hệ thống theo `logType` |
 | `GET` | `/admin/roles` | `admin.manage` | Role và quyền kèm theo |
+| `GET` | `/admin/permissions` | `admin.manage` | Danh mục permission (cột của ma trận phân quyền) |
+| `POST` | `/admin/roles` | `admin.manage` | Tạo role mới kèm bộ quyền ban đầu |
+| `PATCH` | `/admin/roles/:roleCode` | `admin.manage` | Sửa tên, bật/tắt, thay trọn bộ quyền của role |
 | `GET` | `/admin/me` | `admin.access` | Role và permission đọc lại từ database cho phiên CMS |
 | `POST` \| `DELETE` | `/admin/users/:userId/roles` | `admin.manage` | Cấp / thu hồi role |
 | `GET` | `/admin/users` | `admin.manage` | Tìm user với bộ lọc đầy đủ, gồm **hàng đợi cờ độ chính xác** |
@@ -1722,6 +1725,23 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
 - `/admin/system-logs` gom bốn nguồn thật (`admin_audit_logs`, `point_ledger`,
   `rank_transitions`, `gift_transactions`) về một hình dạng chung, lọc bằng `logType`.
 - CMS lấy capability từ `/admin/me`, không suy ra quyền từ `rank`, `status` hoặc JWT.
+- **Ma trận phân quyền sửa được.** `POST /admin/roles` body `{ role: { code, name, permissions, reason } }`;
+  `PATCH /admin/roles/:roleCode` body `{ role: { name?, isActive?, permissions?, reason } }`. Cả hai
+  trả lại toàn bộ `{ roles }` như `GET /admin/roles` để CMS vẽ lại bảng.
+  - `permissions` là **trọn bộ quyền mới** (thay thế), không phải phần thêm/bớt. Bỏ trường là giữ
+    nguyên, gửi `[]` là gỡ hết.
+  - `code` chỉ gồm `A-Z`, `0-9`, `_`, bắt đầu bằng chữ cái, và **không đổi được** sau khi tạo.
+    Role không xoá được — tắt bằng `isActive: false`: người giữ role mất quyền ngay, việc gán vẫn
+    còn nên bật lại là có lại.
+  - Permission **không tạo được từ CMS** — mỗi permission cần code kiểm tra nó, nên do migration
+    khai báo. Mã lạ trả `ADMIN_PERMISSION_UNKNOWN` (400) kèm danh sách mã lạ.
+  - `SUPER_ADMIN` **không sửa được** (`ADMIN_ROLE_PROTECTED`, 409): quyền mới được migration gắn
+    cho nó lúc deploy.
+  - Thay đổi làm **chính người sửa mất `admin.manage`** bị từ chối (`ADMIN_ROLE_SELF_LOCKOUT`,
+    409) và cuộn lại toàn bộ. Kiểm trên trạng thái sau thay đổi, nên người giữ `admin.manage`
+    qua một role khác vẫn sửa được.
+  - Audit `CREATE_ROLE` / `UPDATE_ROLE`, `resourceType = ADMIN_ROLE_DEFINITION`, `resourceId` là
+    mã role, kèm before/after. Gửi lại đúng trạng thái đang có thì không ghi.
 - `/admin/posts` không trả tọa độ chính xác, và **không lọc sẵn** trạng thái nào — từ 26/09
   bài lên thẳng nên không còn hàng đợi duyệt để mặc định vào.
 - Hậu kiểm chạm được vào `PUBLISHED`, `REJECTED` và `PENDING_REVIEW` còn sót từ trước.

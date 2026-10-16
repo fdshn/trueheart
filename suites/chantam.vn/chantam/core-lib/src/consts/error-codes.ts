@@ -200,6 +200,13 @@ export enum ErrorCodes {
   ADMIN_SELF_ROLE_CHANGE = 0x09_02,
   /** Không có mẫu thông báo cho loại này. */
   NOTIFICATION_TEMPLATE_NOT_FOUND = 0x09_03,
+  ADMIN_ROLE_NOT_FOUND = 0x09_04,
+  ADMIN_ROLE_CODE_CONFLICT = 0x09_05,
+  /** SUPER_ADMIN do migration quản lý, CMS không sửa được. */
+  ADMIN_ROLE_PROTECTED = 0x09_06,
+  ADMIN_PERMISSION_UNKNOWN = 0x09_07,
+  /** Thay đổi làm chính người sửa mất `admin.manage`. */
+  ADMIN_ROLE_SELF_LOCKOUT = 0x09_08,
 
   // 0x0A — Chính sách quyền/quota theo rank
   ENTITLEMENT_POLICY_UNAVAILABLE = 0x0a_01,

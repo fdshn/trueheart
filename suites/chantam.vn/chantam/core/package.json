@@ -112,7 +112,8 @@
     "test:banner": "ts-node -r tsconfig-paths/register test/sponsor-banner.check.ts",
     "test:merit": "ts-node -r tsconfig-paths/register test/merit.check.ts",
     "test:dharma": "ts-node -r tsconfig-paths/register test/dharma.check.ts",
-    "test:dharma-forum": "ts-node -r tsconfig-paths/register test/dharma-forum.check.ts"
+    "test:dharma-forum": "ts-node -r tsconfig-paths/register test/dharma-forum.check.ts",
+    "test:admin-rbac": "ts-node -r tsconfig-paths/register test/admin-rbac.check.ts"
   },
   "dependencies": {
     "@chantam.vn/chantam.core-lib": "file:../core-lib",
