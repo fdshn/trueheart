@@ -28,6 +28,7 @@ import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { GroupRepository } from '../src/infrastructure/repository/group.repository';
+import { UserRepository } from '../src/infrastructure/repository/user.repository';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -783,6 +784,91 @@ async function main(): Promise<void> {
           take: 10,
         })
       ).total === firstPage.total,
+    );
+
+    console.log(
+      '\nP. Đăng ký kèm mã mời — kiểm và vào nhóm CÙNG transaction (SRS 3.7A)',
+    );
+    const users = new UserRepository(
+      entities.UserEntity as never,
+      dataSource.manager,
+    );
+    const register = (globalId: string, username: string, code?: string) =>
+      users.createWithReferral({
+        globalId,
+        username,
+        passwordHash: 'x',
+        groupInviteCode: code,
+      });
+    const InvitedId = '99999999-9999-4999-8999-9999999f1101';
+    const joined = await register(
+      InvitedId,
+      'moi-qua-link',
+      'ZZZZ2345EFGH6789',
+    );
+    check(
+      'mã của nhóm ACTIVE: tài khoản tạo xong ĐÃ là thành viên của đúng nhóm đó',
+      joined.joinedGroupId === OtherGroupId &&
+        (await groups.findMine(InvitedId))?.groupId === OtherGroupId,
+      `${joined.joinedGroupId}`,
+    );
+    check(
+      'vào với vai MEMBER, không phải vai nào khác',
+      (await groups.findMine(InvitedId))?.myRole === 'MEMBER',
+    );
+
+    const rejectsWith = async (globalId: string, code: string) => {
+      try {
+        await register(globalId, `tu-choi-${globalId.slice(-4)}`, code);
+        return 'không ném gì';
+      } catch (error) {
+        return (error as Error).constructor.name;
+      }
+    };
+    const accountExists = async (globalId: string) =>
+      (
+        await dataSource.query<{ total: string }[]>(
+          `SELECT count(*)::text AS total FROM users WHERE global_id = $1`,
+          [globalId],
+        )
+      )[0]?.total === '1';
+
+    const WrongCodeId = '99999999-9999-4999-8999-9999999f1102';
+    check(
+      'mã không tồn tại: GroupInviteInvalidException',
+      (await rejectsWith(WrongCodeId, 'KHONGCOMA0000000')) ===
+        'GroupInviteInvalidException',
+    );
+    check(
+      'và KHÔNG để lại tài khoản nào — cả lượt đăng ký rollback',
+      !(await accountExists(WrongCodeId)),
+    );
+    const DissolvedCodeId = '99999999-9999-4999-8999-9999999f1103';
+    check(
+      'mã của nhóm ĐÃ GIẢI TÁN cũng bị từ chối, không để lại tài khoản',
+      (await rejectsWith(DissolvedCodeId, 'ABCD2345EFGH6789')) ===
+        'GroupInviteInvalidException' &&
+        !(await accountExists(DissolvedCodeId)),
+    );
+    const PlainId = '99999999-9999-4999-8999-9999999f1104';
+    const plain = await register(PlainId, 'dang-ky-thuong');
+    check(
+      'không gửi mã thì đăng ký bình thường, không vào nhóm nào',
+      plain.user !== null &&
+        plain.joinedGroupId === null &&
+        (await groups.findMine(PlainId)) === null,
+    );
+    // Bốn id trên chung 12 ký tự đầu nên mã giới thiệu ứng viên đầu TRÙNG nhau —
+    // lần tạo thứ hai phải lùi sang ứng viên kế. Trước SAVEPOINT, đúng ca này nổ
+    // "current transaction is aborted" và đăng ký trả 500.
+    const codes = await dataSource.query<{ referral_code: string }[]>(
+      `SELECT referral_code FROM users WHERE global_id = ANY($1::uuid[])`,
+      [[InvitedId, PlainId]],
+    );
+    check(
+      'mã giới thiệu đầu trùng thì lùi sang ứng viên kế, không 500',
+      codes.length === 2 && codes[0].referral_code !== codes[1].referral_code,
+      codes.map((row) => row.referral_code).join(' / '),
     );
   } finally {
     for (const source of opened.reverse())

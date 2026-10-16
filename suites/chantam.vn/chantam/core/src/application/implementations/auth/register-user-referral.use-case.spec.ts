@@ -1,3 +1,4 @@
+import { GroupInviteInvalidException } from '@/domain/exceptions';
 import { IPasswordService } from '@chantam/service.auth-lib';
 import { RegisterUserUseCase } from './register-user.use-case';
 
@@ -11,20 +12,23 @@ const Registration = {
   referralCode: 'UNKNOWN000',
 };
 
-function buildUseCase(
-  groupOverrides: Partial<{
-    findActiveByInviteCode: jest.Mock;
-    addMember: jest.Mock;
-  }> = {},
-) {
+function buildUseCase(options: { inviteRejected?: boolean } = {}) {
   const users = {
     isUsernameTaken: jest.fn(async () => false),
     // Trả lại đúng id đã nhận, như repository thật: id sinh từ username chứ
-    // không phải database cấp.
-    createWithReferral: jest.fn(async (params: { globalId: string }) => ({
-      user: { globalId: params.globalId, username: Registration.username },
-      referralApplied: false,
-    })),
+    // không phải database cấp. Mã mời hỏng thì repository ném và rollback cả
+    // lượt tạo — mock làm đúng như vậy.
+    createWithReferral: jest.fn(
+      async (params: { globalId: string; groupInviteCode?: string }) => {
+        if (params.groupInviteCode && options.inviteRejected)
+          throw new GroupInviteInvalidException();
+        return {
+          user: { globalId: params.globalId, username: Registration.username },
+          referralApplied: false,
+          joinedGroupId: params.groupInviteCode ? 'group-1' : null,
+        };
+      },
+    ),
   };
   const password = {
     hash: jest.fn(async () => 'hash'),
@@ -50,22 +54,14 @@ function buildUseCase(
     // `hashSignupFingerprint` mo ta cho may dev chua cam gi.
     security: { phoneHashPepper: '' },
   };
-  const groups = {
-    findActiveByInviteCode: jest.fn().mockResolvedValue(null),
-    addMember: jest.fn().mockResolvedValue(undefined),
-    ...groupOverrides,
-  };
-
   return {
     users,
     sessions,
-    groups,
     requestThrottle,
     useCase: new RegisterUserUseCase(
       users as never,
       password,
       sessions as never,
-      groups as never,
       requestThrottle as never,
       config as never,
     ),
@@ -93,13 +89,8 @@ describe('RegisterUserUseCase referral binding', () => {
 });
 
 describe('RegisterUserUseCase group invite', () => {
-  it('joins the group the invite code points at, for the account just created', async () => {
-    const { useCase, groups, users } = buildUseCase({
-      findActiveByInviteCode: jest.fn().mockResolvedValue({
-        groupId: 'group-1',
-        ownerId: 'owner-1',
-      }),
-    });
+  it('chuyển mã đã chuẩn hoá xuống repository để vào nhóm CÙNG transaction tạo tài khoản', async () => {
+    const { useCase, users } = buildUseCase();
 
     await useCase.handle({
       registration: { ...Registration, inviteCode: ' abcd2345efgh6789 ' },
@@ -108,37 +99,49 @@ describe('RegisterUserUseCase group invite', () => {
 
     // Mã đi qua trim + hoa hết: người dùng dán link kèm khoảng trắng là chuyện
     // thường, và `invite_code` lưu chữ hoa.
-    expect(groups.findActiveByInviteCode).toHaveBeenCalledWith(
-      'ABCD2345EFGH6789',
-    );
-    // Đúng tài khoản VỪA tạo, không phải id nào khác.
-    const createdId = users.createWithReferral.mock.calls[0]?.[0].globalId;
-    expect(createdId).toBeTruthy();
-    expect(groups.addMember).toHaveBeenCalledWith(
-      expect.objectContaining({ groupId: 'group-1', userId: createdId }),
+    expect(users.createWithReferral).toHaveBeenCalledWith(
+      expect.objectContaining({ groupInviteCode: 'ABCD2345EFGH6789' }),
     );
   });
 
-  it('still registers when the code is dead — a broken link is the sender fault, not the new user', async () => {
-    const { useCase, groups, sessions } = buildUseCase();
-
-    const result = await useCase.handle({
-      registration: { ...Registration, inviteCode: 'ZZZZ2345EFGH6789' },
-      clientIp: ClientIp,
+  it('mã mời hỏng thì KHÔNG đăng ký được — không cấp phiên, không đếm lượt', async () => {
+    // Quyết định 16/10: người dùng bấm link mời là muốn vào ĐÚNG nhóm đó; tạo tài
+    // khoản rồi lặng lẽ bỏ nhóm là để họ lạc vào app mà không biết vì sao.
+    const { useCase, sessions, requestThrottle } = buildUseCase({
+      inviteRejected: true,
     });
 
-    expect(groups.addMember).not.toHaveBeenCalled();
-    expect(sessions.issue).toHaveBeenCalled();
-    expect(result.session.accessToken).toBe('token');
+    await expect(
+      useCase.handle({
+        registration: { ...Registration, inviteCode: 'ZZZZ2345EFGH6789' },
+        clientIp: ClientIp,
+      }),
+    ).rejects.toThrow(GroupInviteInvalidException);
+    expect(sessions.issue).not.toHaveBeenCalled();
+    expect(requestThrottle.registerHit).not.toHaveBeenCalled();
   });
 
-  it('does not look up a group at all when no code was given', async () => {
-    const { useCase, groups } = buildUseCase();
+  it('không có mã thì không gửi mã nào xuống', async () => {
+    const { useCase, users } = buildUseCase();
 
     await useCase.handle({ registration: Registration, clientIp: ClientIp });
 
-    expect(groups.findActiveByInviteCode).not.toHaveBeenCalled();
-    expect(groups.addMember).not.toHaveBeenCalled();
+    expect(users.createWithReferral).toHaveBeenCalledWith(
+      expect.objectContaining({ groupInviteCode: undefined }),
+    );
+  });
+
+  it('mã chỉ toàn khoảng trắng coi như không có mã', async () => {
+    const { useCase, users } = buildUseCase({ inviteRejected: true });
+
+    await useCase.handle({
+      registration: { ...Registration, inviteCode: '   ' },
+      clientIp: ClientIp,
+    });
+
+    expect(users.createWithReferral).toHaveBeenCalledWith(
+      expect.objectContaining({ groupInviteCode: undefined }),
+    );
   });
 });
 

@@ -7,14 +7,24 @@ const Params = {
   referralCode: 'UNKNOWN000',
 };
 
+/**
+ * Trả lần lượt từng phản hồi cho câu NGHIỆP VỤ; `SAVEPOINT` quanh mỗi lần thử mã
+ * giới thiệu không mang dữ liệu nên trả rỗng và không ăn suất của câu nào.
+ */
+function businessQuery(responses: unknown[]) {
+  return jest.fn(async (sql: string) =>
+    /SAVEPOINT/.test(sql) ? [] : (responses.shift() ?? []),
+  );
+}
+
 describe('UserRepository referral registration', () => {
   it('creates a user and silently ignores an unknown referral code in one transaction', async () => {
-    const query = jest
-      .fn()
-      .mockResolvedValueOnce([{ global_id: Params.globalId }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ referral_code: 'AB12CD34EF' }])
-      .mockResolvedValueOnce([]);
+    const query = businessQuery([
+      [{ global_id: Params.globalId }],
+      [],
+      [{ referral_code: 'AB12CD34EF' }],
+      [],
+    ]);
     const manager = {
       query,
       findOneBy: jest.fn(async () => ({
@@ -48,9 +58,7 @@ describe('UserRepository referral registration', () => {
       username: Params.username,
       status: 'ACTIVE',
     };
-    const query = jest
-      .fn()
-      .mockResolvedValueOnce([{ global_id: Params.globalId }]);
+    const query = businessQuery([[{ global_id: Params.globalId }]]);
     const findOneBy = jest.fn(async () => mapped);
     const rootManager = {
       transaction: jest.fn(async (callback) => callback({ query, findOneBy })),

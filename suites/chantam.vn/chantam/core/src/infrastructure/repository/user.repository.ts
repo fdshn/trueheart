@@ -1,3 +1,4 @@
+import { GroupInviteInvalidException } from '@/domain/exceptions';
 import {
   ICreateUserWithReferralParams,
   ICreateUserWithReferralResult,
@@ -60,6 +61,11 @@ export class UserRepository
       let lastError: unknown;
 
       for (const referralCode of candidates) {
+        // SAVEPOINT cho MỖI lần thử: trong Postgres một câu lỗi làm hỏng cả
+        // transaction ("current transaction is aborted"), nên thiếu nó thì lần thử
+        // thứ hai luôn nổ — mã đầu trùng là đăng ký trả 500, vòng lặp vô dụng. Chỉ
+        // DB thật mới thấy được; đo ở `test:group` nhóm P.
+        await manager.query('SAVEPOINT referral_code_attempt');
         try {
           inserted = await manager.query<{ global_id: string }[]>(
             `
@@ -80,11 +86,13 @@ export class UserRepository
             ],
           );
           lastError = undefined;
+          await manager.query('RELEASE SAVEPOINT referral_code_attempt');
           break;
         } catch (error) {
           // Chỉ bắt đúng xung đột MÃ: mọi lỗi khác phải nổi lên nguyên vẹn, nếu không
           // thì một lỗi thật sẽ bị thử lại sáu lần rồi biến thành một thông điệp sai.
           if (!isReferralCodeConflict(error)) throw error;
+          await manager.query('ROLLBACK TO SAVEPOINT referral_code_attempt');
           lastError = error;
         }
       }
@@ -92,7 +100,8 @@ export class UserRepository
       // Hết ứng viên mà vẫn xung đột: ném lỗi gốc chứ không im lặng trả null, vì
       // null ở đây được đọc thành "username đã có người dùng" — sai hẳn nguyên nhân.
       if (lastError !== undefined) throw lastError;
-      if (inserted.length === 0) return { user: null, referralApplied: false };
+      if (inserted.length === 0)
+        return { user: null, referralApplied: false, joinedGroupId: null };
 
       let referralApplied = false;
       if (params.referralCode) {
@@ -129,6 +138,36 @@ export class UserRepository
         }
       }
 
+      // Vào nhóm qua link mời (F54/BR-GRP-04) — CHỈ ở đây, chỉ cho tài khoản vừa tạo
+      // trong chính transaction này. Membership không sinh ra từ đường nào khác,
+      // và đó là hàng rào chặn việc nhảy vòng quanh các nhóm để gom affiliate.
+      //
+      // `FOR SHARE` giữ dòng nhóm tới hết transaction: Owner xoá tài khoản (giải tán
+      // nhóm) chen giữa lúc kiểm và lúc ghi thì một trong hai phải chờ người kia.
+      // Mã sai ném và ROLLBACK cả tài khoản (quyết định 16/10): người bấm link mời
+      // muốn vào đúng nhóm đó, tạo tài khoản rồi lặng lẽ bỏ nhóm là để họ lạc.
+      let joinedGroupId: string | null = null;
+      if (params.groupInviteCode) {
+        const [group] = await manager.query<{ global_id: string }[]>(
+          `
+            SELECT global_id FROM groups
+            WHERE invite_code = $1 AND status = 'ACTIVE' AND deleted_at IS NULL
+            FOR SHARE
+          `,
+          [params.groupInviteCode],
+        );
+        if (!group) throw new GroupInviteInvalidException();
+
+        await manager.query(
+          `
+            INSERT INTO group_memberships (global_id, group_id, user_id, role)
+            VALUES (gen_random_uuid(), $1, $2, 'MEMBER')
+          `,
+          [group.global_id, params.globalId],
+        );
+        joinedGroupId = group.global_id;
+      }
+
       // Đọc lại qua TypeORM chứ KHÔNG `SELECT *`: hàng thô trả về tên cột
       // snake_case, nên `user.globalId` là undefined và phiên đăng nhập phát
       // ngay sau đây insert `user_id` NULL. Để TypeORM ánh xạ thì bảng `users`
@@ -137,7 +176,7 @@ export class UserRepository
         globalId: params.globalId,
       } as never);
 
-      return { user, referralApplied };
+      return { user, referralApplied, joinedGroupId };
     });
   }
 

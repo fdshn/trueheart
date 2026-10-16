@@ -1455,8 +1455,9 @@ Cho Owner sửa là cho họ dời vùng theo nơi đang có nhiều sự kiện
 
 Không có `POST /groups/:id/join`. `RegisterDto.inviteCode` là **đường duy nhất** sinh
 membership ([F54](./FEATURES.md#f54--link-mời--chỉ-dành-cho-tài-khoản-mới)). Mã sai hoặc nhóm
-đã giải tán thì **đăng ký vẫn thành công**, chỉ là không vào nhóm nào — tài khoản đã tạo
-xong rồi, bắt người ta đăng ký lại vì một link hỏng là phạt người dùng cho lỗi người gửi.
+đã giải tán thì **đăng ký thất bại** với `400 GROUP_INVITE_INVALID` và không tài khoản nào được
+tạo (quyết định 16/10/2026 — trước đó đăng ký vẫn thành công và bỏ nhóm). Kiểm mã và tạo
+membership nằm trong CÙNG transaction với tài khoản, có `FOR SHARE` trên dòng nhóm.
 
 Cũng không có endpoint rời nhóm hay chuyển nhóm (BR-GRP-06), và ràng buộc UNIQUE đặt trên
 **`user_id` một mình** — một người một nhóm, database chặn chứ không chỉ tầng ứng dụng.

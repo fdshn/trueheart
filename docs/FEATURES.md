@@ -746,8 +746,8 @@ cũ không join được. Phase 1 người dùng **không rời và không chuy�
 > mới" là hàng rào chặn việc nhảy vòng quanh các nhóm để gom affiliate.
 >
 > ✅ **Đã chạy 26/09:** `POST /auth/register` nhận thêm `inviteCode` — đường **duy nhất** sinh
-> membership. Mã sai hoặc nhóm đã giải tán thì **đăng ký vẫn thành công**, chỉ là không vào
-> nhóm nào. `UQ_group_memberships_user` ràng trên `user_id` một mình nên database chặn luôn
+> membership. Mã sai hoặc nhóm đã giải tán thì **đăng ký thất bại** (`400 GROUP_INVITE_INVALID`,
+> không tạo tài khoản — đổi 16/10/2026, trước đó vẫn đăng ký và bỏ nhóm). `UQ_group_memberships_user` ràng trên `user_id` một mình nên database chặn luôn
 > việc thuộc hai nhóm, không chỉ tầng ứng dụng.
 
 ### F55 — Owner xoá tài khoản → Group giải tán

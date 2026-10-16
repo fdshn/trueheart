@@ -10,6 +10,7 @@ import {
   IVerifyPasswordResetOtpUseCase,
 } from '@/application/contracts/auth';
 import {
+  GroupInviteInvalidException,
   InvalidCredentialsException,
   OtpInvalidException,
   OtpTooSoonException,
@@ -112,7 +113,8 @@ export class AuthController {
   @ApiOperation({
     summary: 'Đăng ký tài khoản',
     description:
-      'Chỉ cần username và mật khẩu. Đăng ký xong tự đăng nhập, trả luôn cặp token.',
+      'Chỉ cần username và mật khẩu. Đăng ký xong tự đăng nhập, trả luôn cặp token.\n\n' +
+      '`referralCode` và `inviteCode` (mã mời nhóm) kiểm ĐỘC LẬP: referral sai thì vẫn đăng ký được (không để lộ mã nào có thật); mã mời nhóm sai hoặc nhóm đã giải tán thì `400 GROUP_INVITE_INVALID` và KHÔNG tạo tài khoản. Vào nhóm chỉ có đường này — tài khoản cũ không dùng được mã mời.',
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(RegisterResponseDto) })
   @ApiErrorResponses(
@@ -123,6 +125,7 @@ export class AuthController {
       ],
     ],
     [UsernameTakenException, 'nguoidung01'],
+    [GroupInviteInvalidException],
     [TooManyRequestsException, 60],
   )
   public async registerUser(

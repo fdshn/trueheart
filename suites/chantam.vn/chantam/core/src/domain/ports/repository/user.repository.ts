@@ -18,11 +18,19 @@ export interface ICreateUserWithReferralParams {
    */
   signupIpHash?: string | null;
   signupDeviceHash?: string | null;
+  /**
+   * Mã mời nhóm ĐÃ chuẩn hoá (trim + chữ hoa). Kiểm và tạo membership trong CÙNG
+   * transaction với tài khoản: mã sai hoặc nhóm không còn ACTIVE thì ném
+   * `GroupInviteInvalidException` và không tài khoản nào được tạo.
+   */
+  groupInviteCode?: string;
 }
 
 export interface ICreateUserWithReferralResult {
   user: IUserEntity | null;
   referralApplied: boolean;
+  /** Nhóm vừa vào qua mã mời; `null` khi không gửi mã. */
+  joinedGroupId: string | null;
 }
 
 export interface IUserRepository extends Repository<IUserEntity> {
