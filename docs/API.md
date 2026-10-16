@@ -1456,6 +1456,12 @@ Và các endpoint Admin: `GET /admin/groups/role-permissions`,
 - **Link mời:** Owner chỉ ĐỌC (`/invite` hoặc `/invite-link`); Phase 1 không có đường cho user
   xoay link. Chỉ Admin đổi mã khi link bị lộ — `POST /admin/groups/:groupId/invite-link/rotate`
   (`admin.manage`, lý do bắt buộc, audit `ROTATE_GROUP_INVITE` ghi cả mã cũ lẫn mã mới).
+- **Link mời đầy đủ:** `/invite`, `/invite-link` và chi tiết nhóm phía Admin (`GET`, `dissolve`,
+  `invite-link/rotate`) trả thêm `invitePath` = `/invite/<mã>` và `inviteUrl` =
+  `WEB_PUBLIC_BASE_URL` + `invitePath`. `inviteUrl` là `null` khi môi trường chưa cấu hình web
+  công khai — cùng lối `shareUrl` của bài đăng; client hiện `inviteCode` thay thế. **Web phải
+  phục vụ trang `/invite/:code`** (đọc mã rồi đưa vào form đăng ký `registration.inviteCode`), và
+  app nên bắt cùng đường này làm deep link.
 - **Admin giải tán nhóm** — `POST /admin/groups/:groupId/dissolve` (`admin.manage`, lý do bắt
   buộc, audit `DISSOLVE_GROUP`): cùng hiệu ứng với Owner xoá tài khoản; nhóm đã giải tán →
   `409 GROUP_ALREADY_DISSOLVED`.

@@ -137,7 +137,9 @@ async function main(): Promise<void> {
       adminConfig,
       eligibility,
     );
-    const getInvite = new GetGroupInviteUseCase(groups);
+    const getInvite = new GetGroupInviteUseCase(groups, {
+      web: { publicBaseUrl: 'https://chantam.vn' },
+    } as never);
     const updateSettings = new UpdateGroupSettingsUseCase(groups);
     const create = (ownerId: string, name: string) =>
       createGroup.handle({
@@ -196,6 +198,11 @@ async function main(): Promise<void> {
     check(
       'Owner lấy được Invite Link',
       code === created.group.inviteCode && invite.invite.usable === true,
+    );
+    check(
+      'Invite Link kèm URL đầy đủ của đúng mã đó',
+      invite.invite.inviteUrl === `https://chantam.vn/invite/${code}`,
+      String(invite.invite.inviteUrl),
     );
 
     console.log('\n3. Đăng ký bằng Invite Link');

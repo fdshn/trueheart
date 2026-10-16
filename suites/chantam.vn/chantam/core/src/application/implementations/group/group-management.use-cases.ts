@@ -28,6 +28,7 @@ import {
   IUpdateGroupSettingsUseCase,
 } from '@/application/contracts/group';
 import { GroupNotFoundException } from '@/domain/exceptions';
+import { IConfig } from '@/domain/ports/config';
 import {
   IAdminConfigRepository,
   IAffiliateRepository,
@@ -44,6 +45,7 @@ import {
 } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { inviteLinkOf } from './group.use-cases';
 
 const DefaultPageSize = 50;
 const MaxPageSize = 100;
@@ -287,6 +289,7 @@ export class ListGroupActivitiesUseCase implements IListGroupActivitiesUseCase {
 export class GetGroupInviteUseCase implements IGetGroupInviteUseCase {
   public constructor(
     @Inject(IGroupRepository) private readonly groups: IGroupRepository,
+    @Inject(IConfig) private readonly config: IConfig,
   ) {}
 
   public async handle(
@@ -305,7 +308,12 @@ export class GetGroupInviteUseCase implements IGetGroupInviteUseCase {
     });
     if (!invite) throw new GroupNotFoundException();
 
-    return { invite };
+    return {
+      invite: {
+        ...invite,
+        ...inviteLinkOf(this.config.web.publicBaseUrl, invite.inviteCode),
+      },
+    };
   }
 }
 

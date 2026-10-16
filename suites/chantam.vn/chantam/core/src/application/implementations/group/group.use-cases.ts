@@ -5,6 +5,7 @@ import {
   IGetOwnGroupCommand,
   IGetOwnGroupResult,
   IGetOwnGroupUseCase,
+  IGroupInviteLink,
 } from '@/application/contracts/group';
 import {
   GroupDefaultLocationRequiredException,
@@ -42,6 +43,21 @@ export function makeInviteCode(): string {
   return Array.from(bytes)
     .map((byte) => InviteAlphabet[byte % InviteAlphabet.length])
     .join('');
+}
+
+/**
+ * Link mời của một mã. Trả đường dẫn tương đối và — chỉ khi web công khai đã
+ * cấu hình — URL tuyệt đối, cùng lối `shareUrl` của bài đăng: ghép tên miền hộ
+ * client là sinh link chết khi đổi môi trường. Bảng chữ của mã đã an toàn trong
+ * URL nên không cần mã hoá.
+ */
+export function inviteLinkOf(
+  webPublicBaseUrl: string,
+  inviteCode: string,
+): IGroupInviteLink {
+  const invitePath = `/invite/${inviteCode}`;
+  const base = webPublicBaseUrl.replace(/\/$/, '');
+  return { invitePath, inviteUrl: base ? `${base}${invitePath}` : null };
 }
 
 @Injectable()

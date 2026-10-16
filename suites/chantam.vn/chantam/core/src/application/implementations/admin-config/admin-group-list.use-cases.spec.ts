@@ -12,6 +12,7 @@ import {
 } from './admin-group-list.use-cases';
 
 const ActorId = '10000000-0000-4000-8000-000000000001';
+const WebConfig = { web: { publicBaseUrl: 'https://chantam.vn/' } };
 
 function makeDeps(granted: string[]) {
   return {
@@ -114,6 +115,7 @@ describe('Admin quản trị nhóm (SRS 3.7A)', () => {
       new GetAdminGroupUseCase(
         deps.permissions as never,
         deps.groups as never,
+        WebConfig as never,
       ).handle({ actorUserId: ActorId, groupId: GroupId }),
     ).rejects.toThrow(GroupNotFoundException);
   });
@@ -139,6 +141,7 @@ describe('Admin quản trị nhóm (SRS 3.7A)', () => {
       new DissolveAdminGroupUseCase(
         deps.permissions as never,
         deps.groups as never,
+        WebConfig as never,
       ).handle({ actorUserId: ActorId, groupId: GroupId, reason: 'Vi phạm' }),
     ).rejects.toThrow(ForbiddenException);
     expect(deps.groups.dissolveById).not.toHaveBeenCalled();
@@ -149,6 +152,7 @@ describe('Admin quản trị nhóm (SRS 3.7A)', () => {
     await new DissolveAdminGroupUseCase(
       deps.permissions as never,
       deps.groups as never,
+      WebConfig as never,
     ).handle({
       actorUserId: ActorId,
       groupId: GroupId,
@@ -172,6 +176,7 @@ describe('Admin quản trị nhóm (SRS 3.7A)', () => {
       new DissolveAdminGroupUseCase(
         deps.permissions as never,
         deps.groups as never,
+        WebConfig as never,
       ).handle({ actorUserId: ActorId, groupId: GroupId, reason: 'Lần hai' }),
     ).rejects.toThrow(GroupAlreadyDissolvedException);
     expect(deps.permissions.appendAudit).not.toHaveBeenCalled();
@@ -206,6 +211,7 @@ describe('RotateAdminGroupInviteUseCase (SRS 3.7A, phương án C)', () => {
       new RotateAdminGroupInviteUseCase(
         deps.permissions as never,
         deps.groups as never,
+        WebConfig as never,
       ).handle({ actorUserId: ActorId, groupId: GroupId, reason: 'Lộ link' }),
     ).rejects.toThrow(ForbiddenException);
     expect(deps.groups.rotateInviteCode).not.toHaveBeenCalled();
@@ -216,6 +222,7 @@ describe('RotateAdminGroupInviteUseCase (SRS 3.7A, phương án C)', () => {
     const result = await new RotateAdminGroupInviteUseCase(
       deps.permissions as never,
       deps.groups as never,
+      WebConfig as never,
     ).handle({ actorUserId: ActorId, groupId: GroupId, reason: ' Lộ link ' });
 
     const [[call]] = deps.groups.rotateInviteCode.mock.calls as unknown as [
@@ -231,6 +238,11 @@ describe('RotateAdminGroupInviteUseCase (SRS 3.7A, phương án C)', () => {
       }),
     );
     expect(result.group.inviteCode).toBe('NEWCODE234567890');
+    // CMS hiện link để Admin gửi lại cho Owner — phải là link của mã MỚI.
+    expect(result.group.invitePath).toBe('/invite/NEWCODE234567890');
+    expect(result.group.inviteUrl).toBe(
+      'https://chantam.vn/invite/NEWCODE234567890',
+    );
   });
 
   it('nhóm không còn ACTIVE thì 409, không audit', async () => {
@@ -239,6 +251,7 @@ describe('RotateAdminGroupInviteUseCase (SRS 3.7A, phương án C)', () => {
       new RotateAdminGroupInviteUseCase(
         deps.permissions as never,
         deps.groups as never,
+        WebConfig as never,
       ).handle({ actorUserId: ActorId, groupId: GroupId, reason: 'Lộ link' }),
     ).rejects.toThrow(GroupAlreadyDissolvedException);
     expect(deps.permissions.appendAudit).not.toHaveBeenCalled();

@@ -359,6 +359,8 @@ describe('ListGroupActivitiesUseCase — phạm vi riêng khỏi xem thành viê
   });
 });
 
+const webConfig = (publicBaseUrl: string) => ({ web: { publicBaseUrl } });
+
 describe('GetGroupInviteUseCase', () => {
   it('đòi group.invite.view — chỉ Owner có', async () => {
     // Link mời là CỬA VÀO nhóm: lộ cho thành viên thường là cho họ mời người khác
@@ -366,7 +368,10 @@ describe('GetGroupInviteUseCase', () => {
     const groups = makeGroups({ grants: ['group.member.view'] });
 
     await expect(
-      new GetGroupInviteUseCase(groups as never).handle({
+      new GetGroupInviteUseCase(
+        groups as never,
+        webConfig('https://chantam.vn/') as never,
+      ).handle({
         userId: CallerId,
         groupId: GroupId,
       }),
@@ -379,12 +384,34 @@ describe('GetGroupInviteUseCase', () => {
       grants: ['group.invite.view'],
       invite: { inviteCode: 'ABCD2345EFGH6789', usable: true, joinedTotal: 4 },
     });
-    const result = await new GetGroupInviteUseCase(groups as never).handle({
+    const result = await new GetGroupInviteUseCase(
+      groups as never,
+      webConfig('https://chantam.vn/') as never,
+    ).handle({
       userId: CallerId,
       groupId: GroupId,
     });
 
     expect(result.invite.inviteCode).toBe('ABCD2345EFGH6789');
+    expect(result.invite.invitePath).toBe('/invite/ABCD2345EFGH6789');
+    expect(result.invite.inviteUrl).toBe(
+      'https://chantam.vn/invite/ABCD2345EFGH6789',
+    );
+  });
+
+  it('chưa cấu hình web công khai thì inviteUrl null, vẫn có invitePath', async () => {
+    // Ghép tên miền hộ là sinh link chết khi đổi môi trường — cùng lối shareUrl.
+    const groups = makeGroups({
+      grants: ['group.invite.view'],
+      invite: { inviteCode: 'ABCD2345EFGH6789', usable: true, joinedTotal: 4 },
+    });
+    const result = await new GetGroupInviteUseCase(
+      groups as never,
+      webConfig('') as never,
+    ).handle({ userId: CallerId, groupId: GroupId });
+
+    expect(result.invite.inviteUrl).toBeNull();
+    expect(result.invite.invitePath).toBe('/invite/ABCD2345EFGH6789');
   });
 });
 
