@@ -52,12 +52,17 @@ export class RequestGiftEvidenceUploadUseCase implements IRequestGiftEvidenceUpl
       transaction.receiverId === command.userId;
     if (!isParticipant) throw new GiftTransactionNotParticipantException();
 
-    const upload = await this.storage.createTransactionEvidenceUpload({
-      userId: command.userId,
-      transactionId: command.transactionId,
-      contentType: command.contentType,
-      contentLength: command.contentLength,
-    });
+    // Lỗi chính sách của storage (sai loại, quá nặng) là lỗi của người gọi — 400,
+    // không phải 500. DTO cũng chặn, nhưng bằng hằng riêng; lệch với policy storage
+    // thì đây là chỗ duy nhất còn đỡ.
+    const upload = await withStorageValidation('upload', () =>
+      this.storage.createTransactionEvidenceUpload({
+        userId: command.userId,
+        transactionId: command.transactionId,
+        contentType: command.contentType,
+        contentLength: command.contentLength,
+      }),
+    );
 
     return { upload };
   }

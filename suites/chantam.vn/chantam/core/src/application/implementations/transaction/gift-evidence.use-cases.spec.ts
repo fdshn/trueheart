@@ -113,10 +113,9 @@ describe('RequestGiftEvidenceUploadUseCase', () => {
     },
   );
 
-  // BUG: createTransactionEvidenceUpload không bọc withStorageValidation (khác
-  // request-post-media-upload / cms-media), nên StorageValidationError lọt ra
-  // thành 500. Hiện DTO chặn trước bằng hằng riêng; lệch với policy storage là lộ.
-  it.skip('lỗi chính sách của storage (sai loại, quá nặng) thành 400', async () => {
+  // Trước 16/10 lời gọi này không bọc withStorageValidation, nên
+  // StorageValidationError lọt ra thành 500.
+  it('lỗi chính sách của storage (sai loại, quá nặng) thành 400', async () => {
     const deps = makeDeps();
     deps.storage.createTransactionEvidenceUpload.mockRejectedValueOnce(
       new StorageValidationError('chỉ nhận ảnh'),
