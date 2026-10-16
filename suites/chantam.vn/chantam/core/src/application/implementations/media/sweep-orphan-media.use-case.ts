@@ -39,6 +39,12 @@ const LiveKeySources: readonly { sql: string; label: string }[] = [
     sql: 'SELECT storage_key AS value FROM campaign_media',
   },
   {
+    // Thư viện ảnh CMS (CMS A2). Ảnh ở đây được dán vào banner/blog/Home dưới dạng URL
+    // tự do — bảng này là nơi DUY NHẤT nói chúng đang được giữ.
+    label: 'media_assets',
+    sql: 'SELECT storage_key AS value FROM media_assets',
+  },
+  {
     label: 'chat_message_media',
     sql: 'SELECT storage_key AS value FROM chat_message_media',
   },

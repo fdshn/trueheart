@@ -22,6 +22,11 @@ export interface ICategoryRepository extends Repository<ICategoryEntity> {
 
   /** Số bài đang dùng danh mục này hoặc bất kỳ nhánh con của nó. */
   countPostsInSubtree(categoryId: string): Promise<number>;
+  /**
+   * Số bài (chưa xoá) nằm TRỰC TIẾP trong danh mục và thuộc một trong `postTypes`.
+   * Không tính nhánh con: mỗi danh mục con khai `postTypes` của riêng nó.
+   */
+  countPostsOfTypes(categoryId: string, postTypes: string[]): Promise<number>;
 
   /**
    * Chuyển bài và con sang danh mục đích rồi TẮT nguồn, trong một transaction.

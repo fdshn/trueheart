@@ -14,6 +14,7 @@ import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { announceAdminRemoval } from './announce-admin-removal';
 
 /**
  * Quyền GỠ, không phải quyền ĐỌC.
@@ -65,31 +66,12 @@ export class RemoveChatMessageUseCase implements IRemoveChatMessageUseCase {
     if (outcome.status === 'NOT_FOUND')
       throw new ChatMessageNotFoundException();
 
-    // Ảnh phải biến mất theo. Gỡ chữ mà để ảnh vẫn mở được bằng đường dẫn công
-    // khai thì thứ đáng lo nhất vẫn nằm đó — cùng lý lẽ với `recallMessage`.
-    if (outcome.mediaKeys.length > 0)
-      await this.storage.deleteObjects(outcome.mediaKeys);
-
-    // Báo realtime để thiết bị hai bên xoá ngay, không phải chờ tải lại phòng —
-    // cùng hình dạng payload mà `RecallChatMessageUseCase` bắn.
-    //
-    // Không ném nếu thất bại: tin nhắn đã gỡ trong database rồi, và ném ở đây
-    // khiến Admin tưởng việc gỡ không thành rồi bấm lại.
-    try {
-      await this.realtime.publishMessage(outcome.roomId, {
-        messageId: command.messageId,
-        roomId: outcome.roomId,
-        senderId: outcome.senderId,
-        senderUsername: '',
-        body: '',
-        mediaKeys: [],
-        sentAt: new Date(),
-        recalledAt: new Date(),
-        isMine: false,
-      } as never);
-    } catch {
-      // Đã gỡ xong; lần tải phòng kế tiếp sẽ thấy đúng trạng thái.
-    }
+    await announceAdminRemoval(
+      this.storage,
+      this.realtime,
+      command.messageId,
+      outcome,
+    );
 
     await this.manager.query(
       `

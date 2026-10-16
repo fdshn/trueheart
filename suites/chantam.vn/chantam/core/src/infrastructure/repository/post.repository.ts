@@ -99,6 +99,9 @@ interface IAdminPostRow {
   media_count: string;
   created_at: Date;
   updated_at: Date;
+  charity_transfer_status: CharityTransferStatuses | null;
+  charity_transfer_requested_at: Date | null;
+  charity_transfer_note: string | null;
 }
 
 /**
@@ -467,6 +470,7 @@ export class PostRepository
       conditions.push(categorySubtreeFilter(`$${values.length}`));
     }
     add('post.author_id = $?', params.authorId);
+    add('post.charity_transfer_status = $?', params.charityTransferStatus);
     if (params.keyword) {
       values.push(params.keyword);
       const keyword = `$${values.length}`;
@@ -476,6 +480,11 @@ export class PostRepository
     }
 
     const where = `WHERE ${conditions.join(' AND ')}`;
+    // Hàng đợi chuyển từ thiện xử theo lượt xin: yêu cầu chờ lâu nhất lên đầu.
+    const order =
+      params.charityTransferStatus === CharityTransferStatuses.REQUESTED
+        ? 'post.charity_transfer_requested_at ASC, post.global_id ASC'
+        : 'post.created_at DESC, post.global_id DESC';
 
     const rows = await this.manager.query<IAdminPostRow[]>(
       `
@@ -485,13 +494,15 @@ export class PostRepository
                post.category_id, post.title, post.description, post.area_label,
                post.status, post.total_quantity, post.remaining_quantity,
                post.details, post.expires_at, post.created_at, post.updated_at,
+               post.charity_transfer_status, post.charity_transfer_requested_at,
+               post.charity_transfer_note,
                COUNT(media.id)::text AS media_count
         FROM posts post
         INNER JOIN users author ON author.global_id = post.author_id
         LEFT JOIN post_media media ON media.post_id = post.global_id
         ${where}
         GROUP BY post.id, author.username, author.full_name
-        ORDER BY post.created_at DESC, post.global_id DESC
+        ORDER BY ${order}
         LIMIT $${values.length + 1} OFFSET $${values.length + 2}
       `,
       [...values, params.take, params.skip],
@@ -525,6 +536,8 @@ export class PostRepository
                post.category_id, post.title, post.description, post.area_label,
                post.status, post.total_quantity, post.remaining_quantity,
                post.details, post.expires_at, post.created_at, post.updated_at,
+               post.charity_transfer_status, post.charity_transfer_requested_at,
+               post.charity_transfer_note,
                COUNT(media.id)::text AS media_count
         FROM posts post
         INNER JOIN users author ON author.global_id = post.author_id
@@ -606,6 +619,9 @@ export class PostRepository
       mediaCount: Number(row.media_count),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      charityTransferStatus: row.charity_transfer_status,
+      charityTransferRequestedAt: row.charity_transfer_requested_at,
+      charityTransferNote: row.charity_transfer_note,
     };
   }
 

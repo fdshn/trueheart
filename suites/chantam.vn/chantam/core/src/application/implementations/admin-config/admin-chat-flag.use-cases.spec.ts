@@ -1,4 +1,7 @@
-import { ChatMessageNotFoundException } from '@/domain/exceptions';
+import {
+  ChatFlagAlreadyReviewedException,
+  ChatMessageNotFoundException,
+} from '@/domain/exceptions';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import {
   GetChatFlagPendingCountUseCase,
@@ -9,8 +12,23 @@ import {
 const ActorId = '10000000-0000-4000-8000-000000000001';
 const FlagId = '70000000-0000-4000-8000-000000000001';
 
-function makeDeps(options: { granted: string[]; reviewed?: boolean }) {
+type Outcome = 'REVIEWED' | 'NOT_FOUND' | 'ALREADY_REVIEWED';
+const Removal = {
+  status: 'REMOVED' as const,
+  messageId: 'message-1',
+  roomId: 'room-1',
+  senderId: 'sender-1',
+  mediaKeys: ['chat/a.jpg'],
+};
+
+function makeDeps(options: {
+  granted: string[];
+  outcome?: Outcome;
+  removal?: typeof Removal | null;
+}) {
   return {
+    storage: { deleteObjects: jest.fn(async () => undefined) },
+    realtime: { publishMessage: jest.fn(async () => undefined) },
     permissions: {
       hasPermission: jest.fn(async (_id: string, code: string) =>
         options.granted.includes(code),
@@ -20,7 +38,10 @@ function makeDeps(options: { granted: string[]; reviewed?: boolean }) {
     chat: {
       listPendingFlags: jest.fn(async () => ({ items: [], total: 0 })),
       countPendingFlags: jest.fn(async () => 3),
-      reviewFlag: jest.fn(async () => options.reviewed ?? true),
+      reviewFlag: jest.fn(async () => ({
+        status: options.outcome ?? 'REVIEWED',
+        removal: options.removal ?? null,
+      })),
     },
   };
 }
@@ -70,7 +91,12 @@ describe('GetChatFlagPendingCountUseCase', () => {
 
 describe('ReviewChatFlagUseCase', () => {
   const review = (deps: ReturnType<typeof makeDeps>) =>
-    new ReviewChatFlagUseCase(deps.permissions as never, deps.chat as never);
+    new ReviewChatFlagUseCase(
+      deps.permissions as never,
+      deps.chat as never,
+      deps.storage as never,
+      deps.realtime as never,
+    );
 
   it('đòi report.resolve, không phải report.read', async () => {
     // Đọc hàng đợi và quyết định là hai việc khác nhau: một Moderator chỉ được xem
@@ -86,8 +112,27 @@ describe('ReviewChatFlagUseCase', () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
-  it('cờ đã xử thì trả 404, không ghi đè quyết định người trước', async () => {
-    const deps = makeDeps({ granted: ['report.resolve'], reviewed: false });
+  it('cờ đã xử thì 409, không ghi đè quyết định người trước', async () => {
+    const deps = makeDeps({
+      granted: ['report.resolve'],
+      outcome: 'ALREADY_REVIEWED',
+    });
+
+    await expect(
+      review(deps).handle({
+        actorUserId: ActorId,
+        flagId: FlagId,
+        review: { action: 'DISMISSED' },
+      }),
+    ).rejects.toThrow(ChatFlagAlreadyReviewedException);
+    expect(deps.permissions.appendAudit).not.toHaveBeenCalled();
+  });
+
+  it('cờ không tồn tại thì 404', async () => {
+    const deps = makeDeps({
+      granted: ['report.resolve'],
+      outcome: 'NOT_FOUND',
+    });
 
     await expect(
       review(deps).handle({
@@ -96,7 +141,38 @@ describe('ReviewChatFlagUseCase', () => {
         review: { action: 'DISMISSED' },
       }),
     ).rejects.toThrow(ChatMessageNotFoundException);
-    expect(deps.permissions.appendAudit).not.toHaveBeenCalled();
+  });
+
+  it('MESSAGE_REMOVED: tin đã gỡ thì xoá ảnh và báo realtime sau commit', async () => {
+    const deps = makeDeps({ granted: ['report.resolve'], removal: Removal });
+    await review(deps).handle({
+      actorUserId: ActorId,
+      flagId: FlagId,
+      review: { action: 'MESSAGE_REMOVED' },
+    });
+
+    expect(deps.storage.deleteObjects).toHaveBeenCalledWith(['chat/a.jpg']);
+    expect(deps.realtime.publishMessage).toHaveBeenCalledWith(
+      'room-1',
+      expect.objectContaining({ body: '', mediaKeys: [] }),
+    );
+    expect(deps.permissions.appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        after: { action: 'MESSAGE_REMOVED', messageRemoved: true },
+      }),
+    );
+  });
+
+  it('hành động khác không đụng storage hay realtime', async () => {
+    const deps = makeDeps({ granted: ['report.resolve'] });
+    await review(deps).handle({
+      actorUserId: ActorId,
+      flagId: FlagId,
+      review: { action: 'DISMISSED' },
+    });
+
+    expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
+    expect(deps.realtime.publishMessage).not.toHaveBeenCalled();
   });
 
   it('ghi audit kèm quyết định và lý do', async () => {
@@ -117,7 +193,7 @@ describe('ReviewChatFlagUseCase', () => {
       expect.objectContaining({
         action: 'REVIEW_CHAT_FLAG',
         resourceId: FlagId,
-        after: { action: 'USER_WARNED' },
+        after: { action: 'USER_WARNED', messageRemoved: false },
       }),
     );
   });

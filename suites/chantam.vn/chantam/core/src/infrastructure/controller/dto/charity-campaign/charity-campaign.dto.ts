@@ -592,6 +592,23 @@ export class CharityCampaignResponseDto {
   })
   media: CharityCampaignMediaDto[];
 
+  @ApiProperty({ enum: CharityCampaignTypes })
+  campaignType: (typeof CharityCampaignTypes)[number];
+
+  @ApiProperty({
+    enum: CharityBeneficiaryRelations,
+    nullable: true,
+    description:
+      'Chỉ `INDIVIDUAL_APPEAL` có; `ORGANIZED_CAMPAIGN` luôn `null`. Thông tin người thụ hưởng KHÔNG nằm ở đây.',
+  })
+  beneficiaryRelation: (typeof CharityBeneficiaryRelations)[number] | null;
+
+  @ApiProperty({
+    description:
+      'Chấp nhận đề nghị vượt mục tiêu từng dòng nhu cầu. Mặc định `false`.',
+  })
+  allowOverTarget: boolean;
+
   @ApiProperty({
     nullable: true,
     description:

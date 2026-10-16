@@ -695,29 +695,73 @@ async function main(): Promise<void> {
     check('hàng đợi đếm đúng tổng', queue.total === 2, `${queue.total}`);
 
     const targetFlag = queue.items.find((item) => item.messageId === FlaggedId);
+    const firstReview = await chat.reviewFlag({
+      flagId: targetFlag?.flagId ?? '',
+      reviewerId: GiverId,
+      action: 'DISMISSED',
+      note: 'Phep kiem: cau hoi giao nhan that tha',
+    });
     check(
-      'xử được một cờ',
-      await chat.reviewFlag({
-        flagId: targetFlag?.flagId ?? '',
-        reviewerId: GiverId,
-        action: 'DISMISSED',
-        note: 'Phep kiem: cau hoi giao nhan that tha',
-      }),
+      'xử được một cờ; DISMISSED không gỡ tin',
+      firstReview.status === 'REVIEWED' && firstReview.removal === null,
+      JSON.stringify(firstReview),
     );
+    const secondReview = await chat.reviewFlag({
+      flagId: targetFlag?.flagId ?? '',
+      reviewerId: ReceiverId,
+      action: 'MESSAGE_REMOVED',
+      note: 'Phep kiem: co ghi de duoc khong',
+    });
     check(
-      'xử lần hai trả false — KHÔNG ghi đè quyết định người trước',
-      !(await chat.reviewFlag({
-        flagId: targetFlag?.flagId ?? '',
-        reviewerId: ReceiverId,
-        action: 'MESSAGE_REMOVED',
-        note: 'Phep kiem: co ghi de duoc khong',
-      })),
+      'xử lần hai ALREADY_REVIEWED — KHÔNG ghi đè, KHÔNG gỡ tin',
+      secondReview.status === 'ALREADY_REVIEWED' &&
+        secondReview.removal === null,
+      secondReview.status,
+    );
+    const [dismissedMessage] = await dataSource.query<
+      { recalled_at: Date | null }[]
+    >(`SELECT recalled_at FROM chat_messages WHERE global_id = $1`, [
+      FlaggedId,
+    ]);
+    check(
+      'lượt xử thứ hai bị từ chối thì tin vẫn còn nguyên',
+      dismissedMessage?.recalled_at === null,
     );
     check(
       'cờ đã xử ra khỏi hàng đợi',
       (await chat.countPendingFlags()) === 1,
       `${await chat.countPendingFlags()} cờ còn lại`,
     );
+
+    // MESSAGE_REMOVED gỡ tin CÙNG transaction với cờ (CMS B5): qua đúng trigger
+    // append-only bằng `SET LOCAL`, nên chỉ DB thật mới bắt được nếu sai.
+    const blockFlag = queue.items.find(
+      (item) => item.messageId === BlockFlagId,
+    );
+    const removedByReview = await chat.reviewFlag({
+      flagId: blockFlag?.flagId ?? '',
+      reviewerId: GiverId,
+      action: 'MESSAGE_REMOVED',
+      note: 'Phep kiem: go tin qua co',
+    });
+    check(
+      'MESSAGE_REMOVED trả removal kèm phòng và tin',
+      removedByReview.status === 'REVIEWED' &&
+        removedByReview.removal?.messageId === BlockFlagId &&
+        removedByReview.removal.roomId === RoomId,
+      JSON.stringify(removedByReview),
+    );
+    const [flagRemovedRow] = await dataSource.query<
+      { body: string; recalled_at: Date | null }[]
+    >(`SELECT body, recalled_at FROM chat_messages WHERE global_id = $1`, [
+      BlockFlagId,
+    ]);
+    check(
+      'tin bị gỡ thật: body rỗng, recalled_at đã đặt',
+      flagRemovedRow?.body === '' && flagRemovedRow.recalled_at !== null,
+      JSON.stringify(flagRemovedRow),
+    );
+    check('hết cờ chờ xử', (await chat.countPendingFlags()) === 0);
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

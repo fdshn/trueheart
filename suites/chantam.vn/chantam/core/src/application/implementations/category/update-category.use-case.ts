@@ -5,6 +5,7 @@ import {
 import {
   CategoryMergedCannotReopenException,
   CategoryNotFoundException,
+  CategoryPostTypeInUseException,
   CategorySlugTakenException,
 } from '@/domain/exceptions';
 import {
@@ -75,6 +76,26 @@ export class UpdateCategoryUseCase implements IUpdateCategoryUseCase {
         this.categories,
         existing.globalId,
       );
+
+    // Bỏ một loại bài khỏi danh mục còn bài loại đó (CMS backlog A12): những bài ấy sẽ
+    // nằm ở chỗ chúng không còn được phép nằm, và lọc theo loại không bao giờ tìm ra
+    // chúng nữa. Chỉ đếm khi có loại BỊ BỎ — thêm loại thì luôn an toàn.
+    if (input.postTypes !== undefined) {
+      const removed = (existing.postTypes ?? []).filter(
+        (type) => !input.postTypes!.includes(type),
+      );
+      if (removed.length > 0) {
+        const postCount = await this.categories.countPostsOfTypes(
+          existing.globalId,
+          removed,
+        );
+        if (postCount > 0)
+          throw new CategoryPostTypeInUseException(
+            removed.join(', '),
+            postCount,
+          );
+      }
+    }
 
     // Bật lại một danh mục ĐÃ GỘP là tạo lại đúng hai danh mục trùng nghĩa mà
     // lượt gộp vừa dọn. `CHK_categories_merged_is_inactive` chặn việc đó ở tầng

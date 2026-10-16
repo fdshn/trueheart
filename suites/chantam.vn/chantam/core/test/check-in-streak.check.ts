@@ -20,6 +20,7 @@
  * `record` nhận `today` làm tham số chứ không đọc đồng hồ, nên ở đây dựng được
  * một chuỗi nhiều ngày một cách tiền định — không cần giả lập thời gian.
  */
+import { Exception } from '@chantam/service.common-lib/exception';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
@@ -187,7 +188,7 @@ async function main(): Promise<void> {
           transactionsPerRepair: 0,
           repairWindowDays: 0,
         }),
-      'ValidationFailedException',
+      'CheckInPolicyVersionConflictException',
     );
 
     await expectThrow(
@@ -215,7 +216,23 @@ async function main(): Promise<void> {
           transactionsPerRepair: 4,
           repairWindowDays: 7,
         }),
-      'ValidationFailedException',
+      'CheckInPolicyVersionConflictException',
+    );
+
+    const conflict = await publish({
+      expectedVersion: 99,
+      enabled: false,
+      dailyPoints: 0,
+      milestones: [],
+      transactionsPerRepair: 0,
+      repairWindowDays: 0,
+    }).catch((error: unknown) => error as Exception);
+    check(
+      'lệch version: 409 kèm dòng currentVersion=1 cho client',
+      conflict instanceof Exception &&
+        (conflict.constructor as { httpStatus?: number }).httpStatus === 409 &&
+        (conflict.explains ?? []).includes('currentVersion=1'),
+      JSON.stringify((conflict as Exception).explains),
     );
 
     await expectThrow(

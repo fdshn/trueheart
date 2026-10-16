@@ -1,7 +1,13 @@
 import {
   ICreateBroadcastUseCase,
   IListBroadcastsUseCase,
+  ISendBroadcastNowUseCase,
 } from '@/application/contracts/notification';
+import {
+  NotificationBroadcastAlreadyCompletedException,
+  NotificationBroadcastInProgressException,
+  NotificationBroadcastNotFoundException,
+} from '@/domain/exceptions';
 import {
   ApiTokenErrors,
   CurrentUser,
@@ -13,8 +19,19 @@ import {
   ForbiddenException,
   ValidationFailedException,
 } from '@chantam/service.common-lib/exception';
-import { Body, Controller, Get, Inject, Post, Query } from '@nestjs/common';
 import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiAcceptedResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
   ApiOkResponse,
@@ -22,10 +39,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  BroadcastIdParamDto,
   CreateBroadcastBodyDto,
   CreateBroadcastResponseDto,
   ListBroadcastsQueryDto,
   ListBroadcastsResponseDto,
+  SendBroadcastNowResponseDto,
 } from '../../dto/notification/broadcast.dto';
 import { RequiresPermission } from '../../guards';
 
@@ -38,6 +57,8 @@ export class AdminBroadcastController {
     private readonly createUseCase: ICreateBroadcastUseCase,
     @Inject(IListBroadcastsUseCase)
     private readonly listUseCase: IListBroadcastsUseCase,
+    @Inject(ISendBroadcastNowUseCase)
+    private readonly sendNowUseCase: ISendBroadcastNowUseCase,
   ) {}
 
   @Post('broadcasts')
@@ -46,8 +67,8 @@ export class AdminBroadcastController {
     summary: 'Xếp một lượt gửi thông báo hàng loạt',
     description:
       'Endpoint này **KHÔNG gửi gì** — nó ghi một lượt gửi ở trạng thái `PENDING` rồi ' +
-      'trả ngay, kèm số người nhận đã đếm trước. `npm run notify:broadcast` mới là chỗ ' +
-      'gửi thật.\n\n' +
+      'trả ngay, kèm số người nhận đã đếm trước. Gửi thật đi qua `npm run notify:broadcast` ' +
+      '(cron), hoặc `POST /admin/notifications/broadcasts/:broadcastId/send` (nút "Gửi ngay").\n\n' +
       'Gửi đồng bộ trong một request HTTP là hết giờ ở lượt đầu tiên có trăm nghìn ' +
       'người nhận.\n\n' +
       '**Ba chế độ người nhận** đúng những gì SRS mục 1507 nêu — *"toàn hệ thống hoặc ' +
@@ -118,6 +139,48 @@ export class AdminBroadcastController {
           actorUserId: principal.userId,
           limit: query.limit ?? 20,
           offset: query.offset ?? 0,
+        }),
+      )
+      .build();
+  }
+
+  @Post('broadcasts/:broadcastId/send')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @RequiresPermission('notification.manage')
+  @ApiOperation({
+    summary: 'Gửi ngay một lượt gửi hàng loạt',
+    description:
+      'Nút "Gửi ngay" — không phải chờ lượt cron kế tiếp. Trả **202** ngay sau khi NHẬN lượt ' +
+      'gửi; phần gửi chạy ở nền, tiến độ xem qua `GET /admin/notifications/broadcasts`.\n\n' +
+      '**Không bao giờ gửi đôi.** Nhận một lượt gửi là giữ lease của nó trong một câu lệnh: ' +
+      'đang có cron hay Admin khác giữ thì 409 `NOTIFICATION_BROADCAST_IN_PROGRESS` — bấm hai ' +
+      'lần, hai tab, hay trùng giờ cron đều ra đúng một người gửi. Tiến trình chết giữa ' +
+      'chừng (deploy) thì lease tự hết hạn sau 5 phút và cron gửi tiếp từ con trỏ.\n\n' +
+      'Gửi lại được lượt `FAILED` (sau sự cố) — tiếp từ con trỏ, khoá chống trùng chặn gửi ' +
+      'lại cho người đã nhận. Lượt `COMPLETED` thì 409 `NOTIFICATION_BROADCAST_ALREADY_COMPLETED`.\n\n' +
+      'Ghi audit `SEND_BROADCAST_NOW`. Quyền `notification.manage`.',
+  })
+  @ApiAcceptedResponse({
+    type: ResponseDto.forApi(SendBroadcastNowResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    [ValidationFailedException, ['broadcastId must be a UUID']],
+    [NotificationBroadcastNotFoundException],
+    [NotificationBroadcastAlreadyCompletedException],
+    [NotificationBroadcastInProgressException],
+  )
+  public async sendNow(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: BroadcastIdParamDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.sendNowUseCase.handle({
+          actorUserId: principal.userId,
+          broadcastId: params.broadcastId,
         }),
       )
       .build();

@@ -12,6 +12,7 @@ import {
   CategoryMergeInvalidException,
   CategoryNotFoundException,
   CategoryParentCycleException,
+  CategoryPostTypeInUseException,
   CategoryPostTypeNotAllowedException,
   CategorySlugTakenException,
 } from '@/domain/exceptions';
@@ -165,7 +166,8 @@ export class CategoryController {
   @ApiOperation({
     summary: 'Sửa hoặc tắt danh mục',
     description:
-      'KHÔNG xoá cứng: danh mục đang có bài dùng mà xoá thì những bài đó mất danh mục. Muốn ẩn thì đặt `isActive: false` — bài cũ giữ nguyên liên kết, form đăng mới không còn thấy nó nữa.',
+      'KHÔNG xoá cứng: danh mục đang có bài dùng mà xoá thì những bài đó mất danh mục. Muốn ẩn thì đặt `isActive: false` — bài cũ giữ nguyên liên kết, form đăng mới không còn thấy nó nữa.\n\n' +
+      '`postTypes` thay TOÀN BỘ danh sách loại bài. Bỏ một loại mà danh mục còn bài loại đó (chưa xoá) thì 409 `CATEGORY_POST_TYPE_IN_USE` — chuyển bài sang danh mục khác trước.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(UpdateCategoryResponseDto) })
   @ApiErrorResponses(
@@ -178,6 +180,7 @@ export class CategoryController {
     [CategoryInUseException, [34]],
     [CategoryDepthExceededException, [4]],
     [CategoryMergedCannotReopenException, ['Đồ gia dụng', 'Gia dụng']],
+    [CategoryPostTypeInUseException, ['WANTED', 3]],
   )
   public async update(
     @CurrentUser() principal: IAuthPrincipal,

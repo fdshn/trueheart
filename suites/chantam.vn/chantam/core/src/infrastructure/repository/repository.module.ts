@@ -18,6 +18,7 @@ import {
   IGroupRepository,
   IHomeCampaignRepository,
   ILunarHolidayRepository,
+  IMediaAssetRepository,
   IMeritRepository,
   INotificationBroadcastRepository,
   INotificationChannelRepository,
@@ -62,6 +63,7 @@ import {
   BulkNotifyAudienceRepository,
   LunarHolidayRepository,
 } from './lunar-holiday.repository';
+import { MediaAssetRepository } from './media-asset.repository';
 import { MeritRepository } from './merit.repository';
 import { NotificationBroadcastRepository } from './notification-broadcast.repository';
 import { NotificationChannelRepository } from './notification-channel.repository';
@@ -123,6 +125,10 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     {
       provide: IBulkNotifyAudienceRepository,
       useClass: BulkNotifyAudienceRepository,
+    },
+    {
+      provide: IMediaAssetRepository,
+      useClass: MediaAssetRepository,
     },
     {
       provide: INotificationBroadcastRepository,
@@ -198,6 +204,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     IHomeCampaignRepository,
     IBulkNotifyAudienceRepository,
     ILunarHolidayRepository,
+    IMediaAssetRepository,
     INotificationBroadcastRepository,
     IContentCommentRepository,
     IContentReactionRepository,

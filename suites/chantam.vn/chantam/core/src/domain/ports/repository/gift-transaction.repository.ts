@@ -260,6 +260,31 @@ export interface IGiftTransactionRepository {
    * Dùng cho kiểm soát quyền riêng tư (Privacy): chỉ người nhận mới thấy thông tin liên lạc.
    */
   isReceiverOfPost(postId: string, receiverId: string): Promise<boolean>;
+
+  /**
+   * Danh sách lượt trao cho CMS (CMS A6). `userId` khớp người tặng HOẶC người
+   * nhận. Mới xin trước.
+   */
+  listForAdmin(params: {
+    status: GiftTransactionStatuses | null;
+    userId: string | null;
+    postId: string | null;
+    skip: number;
+    take: number;
+  }): Promise<{ items: IAdminGiftTransactionItem[]; total: number }>;
+
+  findAdminItem(globalId: string): Promise<IAdminGiftTransactionItem | null>;
+}
+
+/** Một lượt trao kèm đủ chữ để CMS hiện mà không phải tra thêm từng UUID. */
+export interface IAdminGiftTransactionItem extends IGiftTransactionSummary {
+  readonly postTitle: string;
+  readonly giverUsername: string;
+  readonly receiverUsername: string;
+  readonly closedAt: Date | null;
+  readonly closeReason: string | null;
+  /** Người bấm đóng; `null` khi lượt chưa đóng. */
+  readonly closedBy: string | null;
 }
 
 export const IGiftTransactionRepository = Symbol('IGiftTransactionRepository');

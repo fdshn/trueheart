@@ -1,12 +1,14 @@
 import {
   AppendChatMessageOutcome,
   IAdminConfigRepository,
+  IAdminMessageRemoval,
   IAppendChatMessageParams,
   IChatMessageFlagItem,
   IChatMessageListItem,
   IChatRepository,
   IChatRoomListItem,
   IOpenChatRoomParams,
+  IReviewChatFlagOutcome,
 } from '@/domain/ports/repository';
 import { ChatMessageEntity, ChatRoomEntity } from '@/infrastructure/entity';
 import {
@@ -48,6 +50,58 @@ const UnreadCountSql = `
                                ELSE room.receiver_read_at END
       ))
 `;
+
+/**
+ * Admin gỡ một tin, trong transaction của NƠI GỌI — để duyệt cờ
+ * `MESSAGE_REMOVED` đóng cờ và gỡ tin cùng một lần commit.
+ */
+async function removeMessageIn(
+  manager: EntityManager,
+  messageId: string,
+): Promise<IAdminMessageRemoval> {
+  const [current] = await manager.query<
+    { room_id: string; sender_id: string; recalled_at: Date | null }[]
+  >(
+    `SELECT room_id, sender_id, recalled_at
+     FROM chat_messages WHERE global_id = $1`,
+    [messageId],
+  );
+
+  // Đã gỡ rồi cũng trả NOT_FOUND: với Admin thì "không còn gì để gỡ" và
+  // "không tồn tại" dẫn tới cùng một việc phải làm, tức không việc gì.
+  if (!current || current.recalled_at)
+    return { status: 'NOT_FOUND', roomId: '', senderId: '', mediaKeys: [] };
+
+  const media = await manager.query<{ storage_key: string }[]>(
+    `SELECT storage_key FROM chat_message_media WHERE message_id = $1`,
+    [messageId],
+  );
+
+  // Cùng cờ phiên mà `recallMessage` khai. Trigger append-only từ chối mọi
+  // UPDATE khác, kể cả từ đường này — nên hình dạng bản ghi phải khớp đúng
+  // những gì trigger cho phép.
+  await manager.query(`SET LOCAL chantam.chat_recall = 'on'`);
+
+  await updateReturning(
+    manager,
+    `UPDATE chat_messages
+     SET body = '', media_count = 0, recalled_at = now()
+     WHERE global_id = $1 AND recalled_at IS NULL
+     RETURNING recalled_at`,
+    [messageId],
+  );
+
+  await manager.query(`DELETE FROM chat_message_media WHERE message_id = $1`, [
+    messageId,
+  ]);
+
+  return {
+    status: 'REMOVED',
+    roomId: current.room_id,
+    senderId: current.sender_id,
+    mediaKeys: media.map((row) => row.storage_key),
+  };
+}
 
 @Injectable()
 export class ChatRepository implements IChatRepository {
@@ -472,23 +526,49 @@ export class ChatRepository implements IChatRepository {
     reviewerId: string;
     action: string;
     note: string | null;
-  }): Promise<boolean> {
-    const result = await this.manager.query<unknown>(
-      `
-        UPDATE chat_message_flags
-        SET reviewed_at = now(),
-            reviewed_by = $2,
-            action = $3::chat_flag_actions_enum,
-            review_note = $4
-        WHERE global_id = $1
-          -- CHỈ dòng chưa xem. Cho ghi lại lên dòng đã xử là xoá mất quyết định
-          -- của người trước, và audit sẽ nói hai chuyện khác nhau.
-          AND reviewed_at IS NULL
-      `,
-      [params.flagId, params.reviewerId, params.action, params.note],
-    );
+  }): Promise<IReviewChatFlagOutcome> {
+    return this.manager.transaction(async (manager) => {
+      // Khoá cờ trước: hai Admin bấm cùng lúc thì người sau chờ ở đây rồi thấy
+      // `reviewed_at` đã đặt, thay vì cùng gỡ một tin hai lần.
+      const [flag] = await manager.query<
+        { message_id: string; reviewed_at: Date | null }[]
+      >(
+        `SELECT message_id, reviewed_at FROM chat_message_flags
+         WHERE global_id = $1 FOR UPDATE`,
+        [params.flagId],
+      );
+      if (!flag) return { status: 'NOT_FOUND', removal: null };
+      // Không cho ghi lại lên dòng đã xử: làm vậy là xoá mất quyết định của
+      // người trước, và audit sẽ nói hai chuyện khác nhau.
+      if (flag.reviewed_at)
+        return { status: 'ALREADY_REVIEWED', removal: null };
 
-    return Number((result as [unknown[], number])[1] ?? 0) > 0;
+      await manager.query(
+        `
+          UPDATE chat_message_flags
+          SET reviewed_at = now(),
+              reviewed_by = $2,
+              action = $3::chat_flag_actions_enum,
+              review_note = $4
+          WHERE global_id = $1
+        `,
+        [params.flagId, params.reviewerId, params.action, params.note],
+      );
+
+      // Cùng transaction với dấu "đã xử": chọn MESSAGE_REMOVED mà tin vẫn còn
+      // trong phòng là quyết định nói một đằng, dữ liệu một nẻo.
+      if (params.action !== 'MESSAGE_REMOVED')
+        return { status: 'REVIEWED', removal: null };
+      const removal = await removeMessageIn(manager, flag.message_id);
+      return {
+        status: 'REVIEWED',
+        // Người gửi đã tự thu hồi trước đó: không còn gì để gỡ, cờ vẫn đóng.
+        removal:
+          removal.status === 'REMOVED'
+            ? { ...removal, status: 'REMOVED', messageId: flag.message_id }
+            : null,
+      };
+    });
   }
 
   public async appendMessage(
@@ -626,62 +706,12 @@ export class ChatRepository implements IChatRepository {
     });
   }
 
-  public async removeMessageByAdmin(params: { messageId: string }): Promise<{
-    status: 'REMOVED' | 'NOT_FOUND';
-    roomId: string;
-    senderId: string;
-    mediaKeys: string[];
-  }> {
-    return this.manager.transaction(async (manager) => {
-      const [current] = await manager.query<
-        { room_id: string; sender_id: string; recalled_at: Date | null }[]
-      >(
-        `SELECT room_id, sender_id, recalled_at
-         FROM chat_messages WHERE global_id = $1`,
-        [params.messageId],
-      );
-
-      // Đã gỡ rồi cũng trả NOT_FOUND: với Admin thì "không còn gì để gỡ" và
-      // "không tồn tại" dẫn tới cùng một việc phải làm, tức không việc gì.
-      if (!current || current.recalled_at)
-        return {
-          status: 'NOT_FOUND' as const,
-          roomId: '',
-          senderId: '',
-          mediaKeys: [],
-        };
-
-      const media = await manager.query<{ storage_key: string }[]>(
-        `SELECT storage_key FROM chat_message_media WHERE message_id = $1`,
-        [params.messageId],
-      );
-
-      // Cùng cờ phiên mà `recallMessage` khai. Trigger append-only từ chối mọi
-      // UPDATE khác, kể cả từ đường này — nên hình dạng bản ghi phải khớp đúng
-      // những gì trigger cho phép.
-      await manager.query(`SET LOCAL chantam.chat_recall = 'on'`);
-
-      await updateReturning(
-        manager,
-        `UPDATE chat_messages
-         SET body = '', media_count = 0, recalled_at = now()
-         WHERE global_id = $1 AND recalled_at IS NULL
-         RETURNING recalled_at`,
-        [params.messageId],
-      );
-
-      await manager.query(
-        `DELETE FROM chat_message_media WHERE message_id = $1`,
-        [params.messageId],
-      );
-
-      return {
-        status: 'REMOVED' as const,
-        roomId: current.room_id,
-        senderId: current.sender_id,
-        mediaKeys: media.map((row) => row.storage_key),
-      };
-    });
+  public async removeMessageByAdmin(params: {
+    messageId: string;
+  }): Promise<IAdminMessageRemoval> {
+    return this.manager.transaction((manager) =>
+      removeMessageIn(manager, params.messageId),
+    );
   }
 
   public async recallMessage(params: {

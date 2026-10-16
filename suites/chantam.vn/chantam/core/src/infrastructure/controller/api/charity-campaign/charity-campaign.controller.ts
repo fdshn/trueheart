@@ -4,6 +4,7 @@ import {
   ICreateCharityCampaignUseCase,
   IDecideCharityApprovalUseCase,
   IExtendCharityCampaignUseCase,
+  IGetAdminCharityCampaignUseCase,
   IJoinCharityCampaignUseCase,
   IListAdminCharityCampaignsUseCase,
   IListCampaignContributionsUseCase,
@@ -821,6 +822,8 @@ export class AdminCharityCampaignController {
     private readonly setActiveUseCase: ISetCharityCampaignActiveUseCase,
     @Inject(IUpdateCharityProgressUseCase)
     private readonly progressUseCase: IUpdateCharityProgressUseCase,
+    @Inject(IGetAdminCharityCampaignUseCase)
+    private readonly getUseCase: IGetAdminCharityCampaignUseCase,
   ) {}
 
   @Get()
@@ -846,6 +849,40 @@ export class AdminCharityCampaignController {
           offset: query.offset ?? 0,
           approvalStatus: query.approvalStatus as
             CharityApprovalStatus | undefined,
+        }),
+      )
+      .build();
+  }
+
+  @Get(':id')
+  @RequiresPermission('campaign.read')
+  @ApiOperation({
+    summary: 'Một hoạt động cho CMS, mọi trạng thái duyệt',
+    description:
+      'Khác `GET /campaigns/:idOrSlug` (công khai): đọc được cả hồ sơ `PENDING_APPROVAL` ' +
+      'và `REJECTED`, nên Admin mở được một dòng từ hàng đợi duyệt. Chỉ nhận id, không ' +
+      'nhận slug.\n\n' +
+      'KHÔNG kèm người thụ hưởng — dữ liệu riêng tư đó đọc ở ' +
+      '`GET /charity-campaigns/:id/beneficiary`. `isJoined` luôn `null`. Quyền `campaign.read`.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    CharityCampaignNotFoundException,
+  )
+  @ApiOkResponse({
+    type: ResponseDto.forApi(CharityCampaignWrapperResponseDto),
+  })
+  public async getOne(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() param: CharityCampaignIdParamDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.getUseCase.handle({
+          actorUserId: principal.userId,
+          campaignId: param.id,
         }),
       )
       .build();

@@ -18,7 +18,9 @@ import {
   IGetNotificationChannelsUseCase,
   IGetOwnAdminAccessUseCase,
   IGetSystemLogsUseCase,
+  IGetTrustThresholdsUseCase,
   IListAdminCommentsUseCase,
+  IListAdminGroupsUseCase,
   IListAdminRolesUseCase,
   IListAdminUsersUseCase,
   IListNotificationTemplatesUseCase,
@@ -33,6 +35,7 @@ import {
   IReviewChatFlagUseCase,
   ISetAllocationPolicyUseCase,
   ISetCandidateSelectionUseCase,
+  ISetTrustThresholdUseCase,
   IUpdateNotificationChannelUseCase,
   IUpdateNotificationTemplateUseCase,
 } from '@/application/contracts/admin-config';
@@ -53,6 +56,7 @@ import {
   PublishAdminConfigUseCase,
 } from './admin-config.use-cases';
 import { GetAdminDashboardUseCase } from './admin-dashboard.use-case';
+import { ListAdminGroupsUseCase } from './admin-group-list.use-cases';
 import {
   GetGroupRadiusPolicyUseCase,
   PublishGroupRadiusPolicyUseCase,
@@ -95,6 +99,10 @@ import {
   GetNotificationChannelsUseCase,
   UpdateNotificationChannelUseCase,
 } from './notification-channel.use-cases';
+import {
+  GetTrustThresholdsUseCase,
+  SetTrustThresholdUseCase,
+} from './trust-threshold.use-cases';
 
 import {
   ListNotificationTemplatesUseCase,
@@ -126,6 +134,14 @@ import {
       useClass: SetAllocationPolicyUseCase,
     },
     {
+      provide: IGetTrustThresholdsUseCase,
+      useClass: GetTrustThresholdsUseCase,
+    },
+    {
+      provide: ISetTrustThresholdUseCase,
+      useClass: SetTrustThresholdUseCase,
+    },
+    {
       provide: IGetCandidateSelectionUseCase,
       useClass: GetCandidateSelectionUseCase,
     },
@@ -153,6 +169,10 @@ import {
     {
       provide: IGetGroupRadiusPolicyUseCase,
       useClass: GetGroupRadiusPolicyUseCase,
+    },
+    {
+      provide: IListAdminGroupsUseCase,
+      useClass: ListAdminGroupsUseCase,
     },
     {
       provide: IPublishGroupRadiusPolicyUseCase,
@@ -232,6 +252,8 @@ import {
     IGetAdminConfigsUseCase,
     IGetAllocationPolicyUseCase,
     ISetAllocationPolicyUseCase,
+    IGetTrustThresholdsUseCase,
+    ISetTrustThresholdUseCase,
     IGetCandidateSelectionUseCase,
     ISetCandidateSelectionUseCase,
     IPublishAdminConfigUseCase,
@@ -241,6 +263,7 @@ import {
     IGetChatFlagPendingCountUseCase,
     IReviewChatFlagUseCase,
     IGetGroupRadiusPolicyUseCase,
+    IListAdminGroupsUseCase,
     IGetGroupRolePermissionsUseCase,
     IPublishGroupRadiusPolicyUseCase,
     IReplaceGroupRolePermissionsUseCase,

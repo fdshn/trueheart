@@ -25,6 +25,7 @@ import {
 import {
   DefaultHomeLayout,
   homeCampaignGaps,
+  homeCampaignWarnings,
   normalizeHomeBanners,
   normalizeHomeFloatingBanner,
   normalizeHomePopup,
@@ -159,7 +160,11 @@ export class CreateHomeCampaignUseCase implements ICreateHomeCampaignUseCase {
     // vừa mất đệm vừa không đổi được gì.
     const cacheInvalidated = await this.cache.invalidate();
 
-    return { campaign: toView(record), cacheInvalidated };
+    return {
+      campaign: toView(record),
+      cacheInvalidated,
+      warnings: homeCampaignWarnings(command),
+    };
   }
 }
 
@@ -193,7 +198,11 @@ export class UpdateHomeCampaignUseCase implements IUpdateHomeCampaignUseCase {
 
     const cacheInvalidated = await this.cache.invalidate();
 
-    return { campaign: toView(record), cacheInvalidated };
+    return {
+      campaign: toView(record),
+      cacheInvalidated,
+      warnings: homeCampaignWarnings(command),
+    };
   }
 }
 

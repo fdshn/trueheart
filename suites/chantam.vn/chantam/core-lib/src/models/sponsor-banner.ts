@@ -1,3 +1,5 @@
+import { AppDeepLinkSchemes } from './deep-link';
+
 /**
  * Banner Tài Trợ / Quảng Cáo — phần THUẦN (SRS UC-ADM-06, UC-POST-04, F65 phân hệ 3).
  *
@@ -76,12 +78,13 @@ export const MaxBannerUrlLength = 2_000;
 /**
  * Lược đồ được phép cho `targetUrl` (CTA / deep link).
  *
- * `https://` cho web, và `chantam://` cho deep link trong app. KHÔNG nhận `http://` (trình
+ * `https://` cho web, và `chantam://` hoặc `givingapp://` cho deep link trong app (xem
+ * `AppDeepLinkSchemes`). KHÔNG nhận `http://` (trình
  * duyệt chặn nội dung lẫn), và tuyệt đối không nhận `javascript:` — một banner do đối tác
  * gửi ảnh và link là đúng nơi để thử chèn mã, và `javascript:` chỉ cần một WebView cấu hình
  * lỏng là chạy.
  */
-const AllowedTargetSchemes = ['https://', 'chantam://'] as const;
+const AllowedTargetSchemes = ['https://', ...AppDeepLinkSchemes] as const;
 
 export function isBannerImageUrl(value: unknown): value is string {
   return (

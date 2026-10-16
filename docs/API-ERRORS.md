@@ -74,6 +74,7 @@ Nghiệp vụ Chân Tâm
 | `0x020e` | `526` | 409 Conflict | `CHECK_IN_REPAIR_CREDIT_INSUFFICIENT` | Bạn không còn lượt điểm danh bù. Hoàn tất thêm 0 lượt tặng/nhận quà để có một lượt |
 | `0x020f` | `527` | 409 Conflict | `CHECK_IN_REPAIR_UNAVAILABLE` | Ngày này không nối lại được chuỗi nào, nên bù vào cũng không thay đổi gì |
 | `0x0210` | `528` | 409 Conflict | `REDEMPTION_QUOTE_STALE` | Giá đã đổi từ 0 điểm thành 0 điểm. Xem lại rồi xác nhận giúp mình nhé. |
+| `0x0211` | `529` | 409 Conflict | `CHECK_IN_POLICY_VERSION_CONFLICT` | Policy điểm danh vừa được người khác publish: bản hiện tại là 2, không phải 1. Tải lại rồi sửa trên bản mới |
 | `0x0301` | `769` | 404 Not Found | `USER_NOT_FOUND` | Không tìm thấy tài khoản |
 | `0x0302` | `770` | 403 Forbidden | `USER_SUSPENDED` | Tài khoản đang bị tạm khoá tới 2026-10-01T00:00:00.000Z |
 | `0x0303` | `771` | 403 Forbidden | `USER_BANNED` | Tài khoản đã bị khoá vĩnh viễn |
@@ -103,6 +104,7 @@ Nghiệp vụ Chân Tâm
 | `0x0506` | `1286` | 422 | `CATEGORY_POST_TYPE_NOT_ALLOWED` | Danh mục này không nhận bài loại WANTED. Loại được nhận: OFFER, CLASSIFIED |
 | `0x0507` | `1287` | 422 | `CATEGORY_MERGE_INVALID` | Không gộp được: không gộp một danh mục vào chính nó |
 | `0x0508` | `1288` | 409 Conflict | `CATEGORY_MERGED_CANNOT_REOPEN` | "Đồ gia dụng" đã được gộp vào "Gia dụng" nên không bật lại được. Tạo danh mục mới nếu cần tách lại. |
+| `0x0509` | `1289` | 409 Conflict | `CATEGORY_POST_TYPE_IN_USE` | Không bỏ được loại WANTED: còn 3 bài loại đó trong danh mục này. Chuyển bài sang danh mục khác trước |
 | `0x0601` | `1537` | 404 Not Found | `POST_NOT_FOUND` | Không tìm thấy bài đăng 4182a141-a5c5-5c25-92ab-0d4488158e8f |
 | `0x0602` | `1538` | 409 Conflict | `POST_QUOTA_EXCEEDED` | Bạn đã đạt giới hạn 3 bài đăng đang hoạt động |
 | `0x0603` | `1539` | 409 Conflict | `POST_INVALID_STATE` | Trạng thái bài đăng không cho phép thao tác này |
@@ -144,6 +146,10 @@ Nghiệp vụ Chân Tâm
 | `0x0b03` | `2819` | 404 Not Found | `NOTIFICATION_NOT_FOUND` | Không tìm thấy thông báo |
 | `0x0b04` | `2820` | 404 Not Found | `CHAT_MESSAGE_NOT_FOUND` | Không tìm thấy tin nhắn |
 | `0x0b05` | `2821` | 409 Conflict | `CHAT_RECALL_WINDOW_CLOSED` | Chỉ thu hồi được tin nhắn trong vòng 5 phút sau khi gửi |
+| `0x0b06` | `2822` | 409 Conflict | `CHAT_FLAG_ALREADY_REVIEWED` | Cờ này đã có người xử trước. Tải lại hàng đợi để xem quyết định đã chọn |
+| `0x0b07` | `2823` | 404 Not Found | `NOTIFICATION_BROADCAST_NOT_FOUND` | Không tìm thấy lượt gửi thông báo hàng loạt |
+| `0x0b08` | `2824` | 409 Conflict | `NOTIFICATION_BROADCAST_ALREADY_COMPLETED` | Lượt gửi này đã xong. Muốn gửi lại nội dung đó thì tạo một lượt gửi mới |
+| `0x0b09` | `2825` | 409 Conflict | `NOTIFICATION_BROADCAST_IN_PROGRESS` | Lượt gửi này đang được gửi. Theo dõi tiến độ trong danh sách lượt gửi |
 | `0x0e01` | `3585` | 422 | `CONTENT_BLOCKED_TERMS` | Nội dung có từ ngữ không được phép. Vui lòng viết lại |
 | `0x0e02` | `3586` | 404 Not Found | `CONTENT_COMMENT_NOT_FOUND` | Không tìm thấy bình luận |
 | `0x0e03` | `3587` | 409 Conflict | `CONTENT_EDIT_WINDOW_CLOSED` | Chỉ sửa được bình luận trong 15 phút đầu |
@@ -155,9 +161,11 @@ Nghiệp vụ Chân Tâm
 | `0x1003` | `4099` | 403 Forbidden | `GROUP_CREATE_NOT_ALLOWED` | Thứ hạng của bạn chưa đủ điều kiện tạo nhóm. |
 | `0x1004` | `4100` | 400 Bad Request | `GROUP_INVITE_INVALID` | Link mời không dùng được. |
 | `0x1005` | `4101` | 404 Not Found | `GROUP_NOT_FOUND` | Không tìm thấy nhóm |
+| `0x1006` | `4102` | 409 Conflict | `AFFILIATE_POLICY_VERSION_CONFLICT` | Policy Affiliate vừa được người khác publish: bản hiện tại là 2, không phải 1. Tải lại rồi sửa trên bản mới |
 | `0x1101` | `4353` | 404 Not Found | `HOME_CAMPAIGN_NOT_FOUND` | Không tìm thấy chiến dịch |
 | `0x1102` | `4354` | 409 Conflict | `HOME_CAMPAIGN_SCHEDULE_CONFLICT` | Đã có giao diện trang chủ khác đang bật trùng khung thời gian này — tắt bản kia hoặc đổi thời gian |
 | `0x1201` | `4609` | 404 Not Found | `BLOG_NOT_FOUND` | Không tìm thấy bài viết |
+| `0x1202` | `4610` | 409 Conflict | `BLOG_SLUG_CONFLICT` | slug đã có bài khác dùng (kể cả bài đã xoá) — đổi tiêu đề hoặc gửi slug riêng |
 | `0x1301` | `4865` | 404 Not Found | `CHARITY_CAMPAIGN_NOT_FOUND` | Không tìm thấy hoạt động từ thiện |
 | `0x1302` | `4866` | 403 Forbidden | `CHARITY_CAMPAIGN_CREATE_NOT_ALLOWED` | Hạng của bạn chưa được tạo hoạt động từ thiện |
 | `0x1303` | `4867` | 409 Conflict | `CHARITY_PARTICIPATION_CLOSED` | Hoạt động đã đóng đăng ký |
@@ -203,5 +211,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **161 mã lỗi** trên 3 tầng.
+Tổng cộng **169 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

@@ -19,7 +19,10 @@ import {
   IUpdateBlogCommand,
   IUpdateBlogUseCase,
 } from '@/application/contracts/blog';
-import { BlogNotFoundException } from '@/domain/exceptions';
+import {
+  BlogNotFoundException,
+  BlogSlugConflictException,
+} from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
   IBlogRecord,
@@ -133,9 +136,7 @@ class BlogWritePreparer {
     // Vẫn còn một khe hẹp giữa lượt hỏi và lượt ghi — ràng buộc database là lớp cuối, và
     // nó phải là lớp cuối chứ không phải lớp duy nhất.
     if (await this.repository.slugTaken(slug, exceptGlobalId))
-      throw new ValidationFailedException([
-        `slug "${slug}" đã có bài khác dùng — đổi tiêu đề hoặc gửi slug riêng`,
-      ]);
+      throw new BlogSlugConflictException(slug);
 
     return {
       actorUserId,

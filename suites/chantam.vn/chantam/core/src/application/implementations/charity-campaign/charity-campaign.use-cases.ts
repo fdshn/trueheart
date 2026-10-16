@@ -20,6 +20,9 @@ import {
   IDecideCharityContributionUseCase,
   IExtendCharityCampaignCommand,
   IExtendCharityCampaignUseCase,
+  IGetAdminCharityCampaignCommand,
+  IGetAdminCharityCampaignResult,
+  IGetAdminCharityCampaignUseCase,
   IGetCampaignNeedsCommand,
   IGetCampaignNeedsResult,
   IGetCampaignNeedsUseCase,
@@ -1476,6 +1479,35 @@ export class ListAdminCharityCampaignsUseCase implements IListAdminCharityCampai
       }),
       null,
     );
+  }
+}
+
+/**
+ * Một hoạt động cho CMS, MỌI trạng thái duyệt (CMS A4).
+ *
+ * Đường công khai `GET /campaigns/:idOrSlug` chỉ thấy hồ sơ đã duyệt, nên Admin mở
+ * một hồ sơ chờ duyệt từ hàng đợi không có chỗ nào đọc nó. Người thụ hưởng KHÔNG
+ * trả ở đây — dữ liệu riêng tư đó có đường riêng `GET /charity-campaigns/:id/beneficiary`.
+ */
+@Injectable()
+export class GetAdminCharityCampaignUseCase implements IGetAdminCharityCampaignUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: IGetAdminCharityCampaignCommand,
+  ): Promise<IGetAdminCharityCampaignResult> {
+    if (!(await this.admin.hasPermission(command.actorUserId, ReadPermission)))
+      throw new ForbiddenException();
+
+    const campaign = await this.repository.findByGlobalId(command.campaignId);
+    if (!campaign) throw new CharityCampaignNotFoundException();
+
+    return { campaign: toView(campaign, null) };
   }
 }
 

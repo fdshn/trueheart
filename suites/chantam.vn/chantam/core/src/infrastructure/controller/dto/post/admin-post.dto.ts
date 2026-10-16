@@ -1,6 +1,7 @@
 import { IModerateAdminPostDto } from '@/application/contracts/post';
 import { IAdminPostSummary } from '@/domain/ports/repository';
 import {
+  CharityTransferStatuses,
   GiftPostStatuses,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -55,6 +56,15 @@ export class ListAdminPostsQueryDto extends Mixin(PaginationQueryDto) {
   @IsString()
   @Length(1, 200)
   keyword?: string;
+
+  @ApiPropertyOptional({
+    enum: CharityTransferStatuses,
+    description:
+      '`REQUESTED` là hàng đợi chuyển về điểm từ thiện, xếp theo lượt xin (chờ lâu nhất trước).',
+  })
+  @IsOptional()
+  @IsEnum(CharityTransferStatuses)
+  charityTransferStatus?: CharityTransferStatuses;
 }
 
 export class AdminPostParamsDto {
@@ -83,6 +93,23 @@ export class AdminPostSummaryDto implements IAdminPostSummary {
   @ApiProperty() mediaCount: number;
   @ApiProperty({ type: String, format: 'date-time' }) createdAt: Date;
   @ApiProperty({ type: String, format: 'date-time' }) updatedAt: Date;
+
+  @ApiProperty({
+    enum: CharityTransferStatuses,
+    nullable: true,
+    description: '`null` khi chủ bài chưa từng xin chuyển về điểm từ thiện.',
+  })
+  charityTransferStatus: CharityTransferStatuses | null;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  charityTransferRequestedAt: Date | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Ghi chú chủ bài gửi kèm lúc xin.',
+  })
+  charityTransferNote: string | null;
 }
 
 export class ListAdminPostsResponseDto {

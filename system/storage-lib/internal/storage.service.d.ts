@@ -1,5 +1,5 @@
 import { S3Client } from '@aws-sdk/client-s3';
-import { ICampaignMediaConfirmation, IChatMediaUploadRequest, ICommentMediaUploadRequest, IObjectStorage, IPostMediaUploadRequest, IStorageUploadRequest, IStorageUploadResult, ITransactionEvidenceUploadRequest } from '../contracts';
+import { ICampaignMediaConfirmation, IChatMediaUploadRequest, ICmsMediaConfirmation, ICommentMediaUploadRequest, IObjectStorage, IPostMediaUploadRequest, IStorageUploadRequest, IStorageUploadResult, ITransactionEvidenceUploadRequest } from '../contracts';
 import { IStorageModuleOptions } from './storage-options';
 export declare const AllowedImageContentTypes: Set<string>;
 export declare const AllowedVideoContentTypes: Set<string>;
@@ -11,6 +11,7 @@ export declare const MediaSizeLimits: {
     readonly transactionEvidence: number;
     readonly chatMedia: number;
     readonly commentMedia: number;
+    readonly cmsMedia: number;
 };
 export declare function getMediaExtension(contentType: string): string;
 export declare function assertAvatarUploadPolicy(request: IStorageUploadRequest): void;
@@ -25,6 +26,8 @@ export declare class StorageService implements IObjectStorage {
     confirmAvatarUpload(userId: string, key: string): Promise<string>;
     confirmPostMediaUpload(userId: string, postId: string, key: string): Promise<void>;
     createCampaignMediaUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
+    createCmsMediaUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
+    confirmCmsMediaUpload(userId: string, key: string): Promise<ICmsMediaConfirmation>;
     confirmCampaignMediaUpload(userId: string, key: string): Promise<ICampaignMediaConfirmation>;
     confirmTransactionEvidenceUpload(userId: string, transactionId: string, key: string): Promise<void>;
     confirmCommentMediaUpload(userId: string, subjectType: string, subjectId: string, key: string): Promise<void>;

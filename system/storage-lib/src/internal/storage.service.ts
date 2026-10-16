@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import {
   ICampaignMediaConfirmation,
   IChatMediaUploadRequest,
+  ICmsMediaConfirmation,
   ICommentMediaUploadRequest,
   IObjectStorage,
   IPostMediaUploadRequest,
@@ -50,6 +51,7 @@ export const MediaSizeLimits = {
   transactionEvidence: 5 * Megabyte,
   chatMedia: 5 * Megabyte,
   commentMedia: 5 * Megabyte,
+  cmsMedia: 5 * Megabyte,
 } as const;
 
 /** Tên loại media trong thông báo lỗi, để người dùng biết mình đang gửi cái gì. */
@@ -60,6 +62,7 @@ const MediaLabels = {
   chatMedia: 'Ảnh trong chat',
   commentMedia: 'Ảnh bình luận',
   campaignMedia: 'Phương tiện hoạt động từ thiện',
+  cmsMedia: 'Ảnh thư viện CMS',
 } as const;
 
 type MediaKind = keyof typeof MediaLabels;
@@ -294,6 +297,46 @@ export class StorageService implements IObjectStorage {
       key,
       uploadUrl,
       expiresInSeconds,
+      publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+    };
+  }
+
+  public async createCmsMediaUpload(
+    request: IStorageUploadRequest,
+  ): Promise<IStorageUploadResult> {
+    assertUploadPolicy('cmsMedia', request);
+    const extension = getMediaExtension(request.contentType);
+    const key = `users/${request.userId}/cms-media/${randomUUID()}.${extension}`;
+    const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
+    const uploadUrl = await getSignedUrl(
+      this.client,
+      new PutObjectCommand({
+        Bucket: this.options.bucket,
+        Key: key,
+        ContentType: request.contentType,
+        ContentLength: request.contentLength,
+      }),
+      { expiresIn: expiresInSeconds },
+    );
+    return {
+      key,
+      uploadUrl,
+      expiresInSeconds,
+      publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+    };
+  }
+
+  public async confirmCmsMediaUpload(
+    userId: string,
+    key: string,
+  ): Promise<ICmsMediaConfirmation> {
+    const contentType = await this.verifyObject(
+      'cmsMedia',
+      `users/${userId}/cms-media/`,
+      key,
+    );
+    return {
+      contentType,
       publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
     };
   }

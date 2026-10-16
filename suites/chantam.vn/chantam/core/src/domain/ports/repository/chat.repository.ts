@@ -5,6 +5,27 @@ import {
 import { IChatCursor } from '@chantam.vn/chantam.core-lib/models';
 import { EntityManager } from 'typeorm';
 
+/**
+ * Kết quả Admin gỡ một tin. `roomId` để bắn realtime cho đúng phòng,
+ * `mediaKeys` để xoá object trên storage SAU khi commit.
+ */
+export interface IAdminMessageRemoval {
+  status: 'REMOVED' | 'NOT_FOUND';
+  roomId: string;
+  senderId: string;
+  mediaKeys: string[];
+}
+
+export interface IReviewChatFlagOutcome {
+  status: 'REVIEWED' | 'NOT_FOUND' | 'ALREADY_REVIEWED';
+  /**
+   * Có khi xử bằng `MESSAGE_REMOVED` và tin thật sự được gỡ trong cùng
+   * transaction. `null` khi hành động khác, hoặc người gửi đã tự thu hồi trước.
+   */
+  removal:
+    (IAdminMessageRemoval & { status: 'REMOVED'; messageId: string }) | null;
+}
+
 export interface IOpenChatRoomParams {
   globalId: string;
   transactionId: string;
@@ -135,12 +156,9 @@ export interface IChatRepository {
    * Trả `roomId` để nơi gọi bắn realtime cho đúng phòng, và `mediaKeys` để xoá
    * object trên storage SAU khi commit.
    */
-  removeMessageByAdmin(params: { messageId: string }): Promise<{
-    status: 'REMOVED' | 'NOT_FOUND';
-    roomId: string;
-    senderId: string;
-    mediaKeys: string[];
-  }>;
+  removeMessageByAdmin(params: {
+    messageId: string;
+  }): Promise<IAdminMessageRemoval>;
 
   recallMessage(params: {
     roomId: string;
@@ -255,16 +273,18 @@ export interface IChatRepository {
   countPendingFlags(): Promise<number>;
 
   /**
-   * Đánh dấu đã xử một cờ. Trả `false` khi cờ không tồn tại HOẶC đã được xử.
+   * Đánh dấu đã xử một cờ; chọn `MESSAGE_REMOVED` thì gỡ luôn tin trong CÙNG
+   * transaction.
    *
-   * Không cho ghi lại lên dòng đã xử: làm vậy là xoá quyết định của người trước.
+   * Không cho ghi lại lên dòng đã xử (`ALREADY_REVIEWED`): làm vậy là xoá quyết
+   * định của người trước.
    */
   reviewFlag(params: {
     flagId: string;
     reviewerId: string;
     action: string;
     note: string | null;
-  }): Promise<boolean>;
+  }): Promise<IReviewChatFlagOutcome>;
 
   /**
    * Mot cua so tin nhan theo KHOA SAP XEP, khong phai theo OFFSET.

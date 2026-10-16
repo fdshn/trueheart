@@ -5,6 +5,7 @@ import {
   IPublishAffiliatePolicyUseCase,
   IReverseAffiliateEventUseCase,
 } from '@/application/contracts/affiliate';
+import { AffiliatePolicyVersionConflictException } from '@/domain/exceptions';
 import {
   ApiTokenErrors,
   CurrentUser,
@@ -99,7 +100,9 @@ export class AdminAffiliateController {
       'điểm thì bị TỪ CHỐI kèm danh sách đúng cái thiếu. ROADMAP ghi rõ *"thả M5 ra mà ' +
       'chưa có chống gian lận là mở cửa cho farm điểm"*, nên một chính sách bật mà ' +
       'không trần là đúng cái cửa đó.\n\n' +
-      '`expectedVersion` phải khớp bản đang có, nếu không bị từ chối.',
+      '`expectedVersion` phải khớp bản đang có. Lệch thì 409 ' +
+      '`AFFILIATE_POLICY_VERSION_CONFLICT` kèm dòng phụ `currentVersion=<n|null>` trong ' +
+      '`message` — tải lại policy rồi gửi lại với version đó.',
   })
   @ApiOkResponse({
     type: ResponseDto.forApi(PublishAffiliatePolicyResponseDto),
@@ -111,6 +114,7 @@ export class AdminAffiliateController {
       ValidationFailedException,
       ['dailyCapPerBeneficiary phải lớn hơn 0 khi bật'],
     ],
+    [AffiliatePolicyVersionConflictException, [2, 1]],
   )
   public async publishPolicy(
     @CurrentUser() principal: IAuthPrincipal,

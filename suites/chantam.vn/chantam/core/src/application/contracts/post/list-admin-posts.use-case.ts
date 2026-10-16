@@ -1,5 +1,6 @@
 import { IAdminPostSummary } from '@/domain/ports/repository';
 import {
+  CharityTransferStatuses,
   GiftPostStatuses,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -13,6 +14,7 @@ export interface IListAdminPostsCommand {
   categoryId?: string;
   authorId?: string;
   keyword?: string;
+  charityTransferStatus?: CharityTransferStatuses;
   page?: number;
   pageSize?: number;
 }

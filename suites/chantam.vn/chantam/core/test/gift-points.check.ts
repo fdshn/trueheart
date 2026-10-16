@@ -353,6 +353,81 @@ async function main(): Promise<void> {
         )
       )[0].rule_version === 2,
     );
+
+    // ── 6. Danh sách lượt trao cho CMS (A6) ─────────────────────────────────
+    console.log('\nCMS: danh sách lượt trao (A6):\n');
+    const all = await transactions.listForAdmin({
+      status: null,
+      userId: null,
+      postId: null,
+      skip: 0,
+      take: 50,
+    });
+    check(
+      'kèm tên bài và username hai bên, không chỉ UUID',
+      all.items.length > 0 &&
+        all.items.every(
+          (item) =>
+            item.postTitle.length > 0 &&
+            item.giverUsername === 'nguoitang_diem' &&
+            item.receiverUsername === 'nguoinhan_diem',
+        ),
+      JSON.stringify(all.items[0]),
+    );
+    const asReceiver = await transactions.listForAdmin({
+      status: null,
+      userId: ReceiverId,
+      postId: null,
+      skip: 0,
+      take: 50,
+    });
+    check(
+      'userId khớp cả phía người nhận',
+      asReceiver.total === all.total,
+      `${asReceiver.total}/${all.total}`,
+    );
+    const completed = await transactions.listForAdmin({
+      status: 'COMPLETED',
+      userId: null,
+      postId: null,
+      skip: 0,
+      take: 1,
+    });
+    check(
+      'lọc trạng thái; total là cả bộ lọc chứ không phải cỡ trang',
+      completed.items.length === 1 &&
+        completed.items[0]?.status === 'COMPLETED' &&
+        completed.total >= 2,
+      `total=${completed.total}`,
+    );
+    const byPost = await transactions.listForAdmin({
+      status: null,
+      userId: null,
+      postId: all.items[0]?.postId ?? null,
+      skip: 0,
+      take: 50,
+    });
+    check(
+      'lọc theo postId',
+      byPost.total >= 1 &&
+        byPost.items.every((item) => item.postId === all.items[0]?.postId),
+    );
+    const stranger = await transactions.listForAdmin({
+      status: null,
+      userId: '99999999-9999-4999-8999-99999999dfff',
+      postId: null,
+      skip: 0,
+      take: 50,
+    });
+    check('người không dính lượt nào thì rỗng', stranger.total === 0);
+    const detail = await transactions.findAdminItem(fifth);
+    check(
+      'chi tiết một lượt kèm closedAt/closeReason',
+      detail?.globalId === fifth &&
+        detail.status === 'COMPLETED' &&
+        detail.closedAt === null,
+      JSON.stringify(detail),
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

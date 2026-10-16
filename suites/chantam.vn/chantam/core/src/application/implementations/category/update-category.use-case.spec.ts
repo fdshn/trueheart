@@ -1,3 +1,4 @@
+import { CategoryPostTypeInUseException } from '@/domain/exceptions';
 import { UpdateCategoryUseCase } from './update-category.use-case';
 
 const CategoryId = '30000000-0000-4000-8000-000000000003';
@@ -164,5 +165,85 @@ describe('UpdateCategoryUseCase', () => {
       { globalId: CategoryId },
       { isActive: true },
     );
+  });
+
+  describe('postTypes (CMS backlog A12)', () => {
+    function makeCategories(postsOfRemovedTypes: number) {
+      return {
+        findOneBy: jest.fn(async () => ({
+          globalId: CategoryId,
+          name: 'Sách',
+          isActive: true,
+          postTypes: ['OFFER', 'WANTED'],
+        })),
+        update: jest.fn(async () => undefined),
+        findOneByOrFail: jest.fn(async () => ({
+          globalId: CategoryId,
+          name: 'Sách',
+          slug: 'sach',
+          icon: null,
+          sortOrder: 0,
+          isActive: true,
+          postTypes: ['OFFER'],
+          parentId: null,
+        })),
+        isSlugTaken: jest.fn(async () => false),
+        countPostsInSubtree: jest.fn(async () => 0),
+        countPostsOfTypes: jest.fn(
+          async (_id: string, _types: string[]) => postsOfRemovedTypes,
+        ),
+        findAncestorChain: jest.fn(async () => []),
+        measureDepthAfterMove: jest.fn(async () => 1),
+      };
+    }
+
+    const run = (
+      categories: ReturnType<typeof makeCategories>,
+      postTypes: string[],
+    ) =>
+      new UpdateCategoryUseCase(
+        categories as never,
+        AdminConfig as never,
+      ).handle({
+        categoryId: CategoryId,
+        userId: 'u',
+        username: 'demo-admin',
+        category: { postTypes: postTypes as never },
+      });
+
+    it('bỏ một loại còn bài dùng thì 409 và không ghi gì', async () => {
+      const categories = makeCategories(3);
+
+      await expect(run(categories, ['OFFER'])).rejects.toThrow(
+        CategoryPostTypeInUseException,
+      );
+      expect(categories.countPostsOfTypes).toHaveBeenCalledWith(CategoryId, [
+        'WANTED',
+      ]);
+      expect(categories.update).not.toHaveBeenCalled();
+    });
+
+    it('bỏ một loại không còn bài nào thì ghi được', async () => {
+      const categories = makeCategories(0);
+
+      await run(categories, ['OFFER']);
+
+      expect(categories.update).toHaveBeenCalledWith(
+        { globalId: CategoryId },
+        { postTypes: ['OFFER'] },
+      );
+    });
+
+    it('chỉ THÊM loại thì không cần đếm bài', async () => {
+      const categories = makeCategories(99);
+
+      await run(categories, ['OFFER', 'WANTED', 'CHARITY']);
+
+      expect(categories.countPostsOfTypes).not.toHaveBeenCalled();
+      expect(categories.update).toHaveBeenCalledWith(
+        { globalId: CategoryId },
+        { postTypes: ['OFFER', 'WANTED', 'CHARITY'] },
+      );
+    });
   });
 });

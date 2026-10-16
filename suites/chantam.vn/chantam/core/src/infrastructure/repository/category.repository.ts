@@ -129,6 +129,25 @@ export class CategoryRepository
     return Number(row?.total ?? 0);
   }
 
+  async countPostsOfTypes(
+    categoryId: string,
+    postTypes: string[],
+  ): Promise<number> {
+    if (postTypes.length === 0) return 0;
+    const [row] = await this.manager.query<{ total: string }[]>(
+      `
+        SELECT count(*)::text AS total
+        FROM posts
+        WHERE category_id = $1
+          AND post_type::text = ANY($2::text[])
+          AND deleted_at IS NULL
+      `,
+      [categoryId, postTypes],
+    );
+
+    return Number(row?.total ?? 0);
+  }
+
   /**
    * Chuyển bài và con sang danh mục đích, rồi TẮT nguồn — trong MỘT transaction.
    *

@@ -1,3 +1,4 @@
+export * from './admin-gift-transaction.use-case';
 export * from './cancel-gift-transaction.use-case';
 export * from './complete-due-gift-deliveries.use-case';
 export * from './confirm-gift-receipt.use-case';

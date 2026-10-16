@@ -9,14 +9,20 @@ import {
   IReviewChatFlagResult,
   IReviewChatFlagUseCase,
 } from '@/application/contracts/admin-config';
-import { ChatMessageNotFoundException } from '@/domain/exceptions';
+import {
+  ChatFlagAlreadyReviewedException,
+  ChatMessageNotFoundException,
+} from '@/domain/exceptions';
+import { IChatRealtimePublisher } from '@/domain/ports/realtime';
 import {
   IAdminConfigRepository,
   IChatRepository,
 } from '@/domain/ports/repository';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
+import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
+import { announceAdminRemoval } from '../chat/announce-admin-removal';
 
 /**
  * Hàng đợi cờ kiểm duyệt chat — 30/09.
@@ -88,6 +94,9 @@ export class ReviewChatFlagUseCase implements IReviewChatFlagUseCase {
     @Inject(IAdminConfigRepository)
     private readonly permissions: IAdminConfigRepository,
     @Inject(IChatRepository) private readonly chat: IChatRepository,
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+    @Inject(IChatRealtimePublisher)
+    private readonly realtime: IChatRealtimePublisher,
   ) {}
 
   public async handle(
@@ -107,11 +116,21 @@ export class ReviewChatFlagUseCase implements IReviewChatFlagUseCase {
       action: command.review.action,
       note: command.review.note?.trim() || null,
     });
-    // Không tồn tại và đã được xử cùng một câu trả lời: hai Admin bấm cùng lúc thì
-    // người thứ hai cần biết "không còn việc ở đây", không cần biết ai xử trước.
-    // Dùng luôn ngoại lệ "không tìm thấy tin nhắn": với Admin thì một cờ đã xử và
-    // một cờ không tồn tại là cùng một kết luận — không còn việc ở đây.
-    if (!reviewed) throw new ChatMessageNotFoundException();
+    if (reviewed.status === 'NOT_FOUND')
+      throw new ChatMessageNotFoundException();
+    // Hai Admin bấm cùng lúc: người sau cần biết "đã có người xử", và FE tải
+    // lại hàng đợi — khác hẳn một cờ không tồn tại.
+    if (reviewed.status === 'ALREADY_REVIEWED')
+      throw new ChatFlagAlreadyReviewedException();
+
+    // Tin đã gỡ cùng transaction với cờ; ảnh và realtime chỉ chạy sau commit.
+    if (reviewed.removal)
+      await announceAdminRemoval(
+        this.storage,
+        this.realtime,
+        reviewed.removal.messageId,
+        reviewed.removal,
+      );
 
     await this.permissions.appendAudit({
       actorUserId: command.actorUserId,
@@ -119,7 +138,10 @@ export class ReviewChatFlagUseCase implements IReviewChatFlagUseCase {
       resourceType: 'CHAT_MESSAGE_FLAG',
       resourceId: command.flagId,
       before: null,
-      after: { action: command.review.action },
+      after: {
+        action: command.review.action,
+        messageRemoved: reviewed.removal !== null,
+      },
       reason: command.review.note?.trim() ?? undefined,
     });
 

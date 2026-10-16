@@ -3,6 +3,7 @@ import {
   HomeSectionTypes,
   MaxHomeBanners,
   homeCampaignGaps,
+  homeCampaignWarnings,
   isHomeColor,
   isHomeDeepLink,
   isHomeImageUrl,
@@ -69,6 +70,9 @@ describe('kiểm giá trị', () => {
 
   it('deep link chỉ nhận givingapp:// hoặc https://', () => {
     expect(isHomeDeepLink('givingapp://category/cuu-tro')).toBe(true);
+    // Cả hai tên lược đồ cho tới khi mobile chốt một (CMS B7).
+    expect(isHomeDeepLink('chantam://category/cuu-tro')).toBe(true);
+    expect(isHomeDeepLink('javascript:alert("chantam://x")')).toBe(false);
     expect(isHomeDeepLink('https://chantam.vn/campaign/vu-lan')).toBe(true);
     // Đây là chỗ thiệt hại lan ra NGOÀI hệ thống nếu tài khoản Admin bị chiếm:
     // chuỗi này đi thẳng vào hàm mở link của app.
@@ -305,5 +309,78 @@ describe('homeCampaignGaps', () => {
     expect(
       homeCampaignGaps({ ...window, isActive: true, sectionsLayout: sections }),
     ).toEqual([]);
+  });
+});
+
+describe('homeCampaignWarnings (CMS B6)', () => {
+  const clean = {
+    theme: { primaryColor: '#E85D3F', headerGradient: ['#FFFFFF'] },
+    banners: [
+      {
+        id: 'b1',
+        imageUrl: 'https://cdn.test/a.webp',
+        deepLink: 'https://x.vn',
+      },
+    ],
+    sectionsLayout: [{ id: 'hero', type: 'HERO_BANNER_SLIDER', order: 1 }],
+    popup: null,
+    floatingBanner: null,
+  };
+
+  it('đầu vào sạch thì không cảnh báo gì', () => {
+    expect(homeCampaignWarnings(clean)).toEqual([]);
+  });
+
+  it('kể đúng từng ô bị đổi hoặc bị bỏ, có đường dẫn tới ô đó', () => {
+    const warnings = homeCampaignWarnings({
+      ...clean,
+      theme: {
+        primaryColor: 'red',
+        backgroundPatternUrl: 'http://cdn.test/p.png',
+        headerGradient: ['#FFF', 'blue'],
+      },
+      banners: [
+        { id: 'b1', imageUrl: 'http://cdn.test/a.webp' },
+        { id: 'b2', imageUrl: 'https://cdn.test/b.webp', deepLink: 'ftp://x' },
+        { id: 'b2', imageUrl: 'https://cdn.test/c.webp' },
+      ],
+      sectionsLayout: [
+        { id: 'hero', type: 'HERO_BANNER_SLIDER', order: 1 },
+        { id: 'lạ', type: 'UNKNOWN', order: 2 },
+      ],
+      popup: { imageUrl: 'http://cdn.test/p.webp' },
+      floatingBanner: { label: '   ' },
+    });
+
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^theme\.primaryColor:/),
+        expect.stringMatching(/^theme\.backgroundPatternUrl:/),
+        expect.stringMatching(/^theme\.headerGradient\[1\]:/),
+        expect.stringMatching(/^banners\[0\]:/),
+        expect.stringMatching(/^banners\[1\]\.deepLink:/),
+        expect.stringMatching(/^banners\[2\]:.*trùng/),
+        expect.stringMatching(/^sectionsLayout\[1\]:/),
+        expect.stringMatching(/^popup:/),
+        expect.stringMatching(/^floatingBanner:/),
+      ]),
+    );
+    expect(warnings).toHaveLength(9);
+  });
+
+  it('sectionsLayout hỏng hết thì báo đang dùng bố cục mặc định', () => {
+    expect(
+      homeCampaignWarnings({ ...clean, sectionsLayout: [{ type: 'X' }] }),
+    ).toEqual(expect.arrayContaining([expect.stringMatching(/mặc định/)]));
+  });
+
+  it('banner vượt trần bị cắt và được báo', () => {
+    const banners = Array.from({ length: MaxHomeBanners + 2 }, (_, i) => ({
+      id: `b${i}`,
+      imageUrl: `https://cdn.test/${i}.webp`,
+    }));
+    expect(homeCampaignWarnings({ ...clean, banners })).toEqual([
+      expect.stringMatching(/^banners:.*\b10\b/),
+    ]);
   });
 });

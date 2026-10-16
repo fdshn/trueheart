@@ -433,6 +433,137 @@ async function main(): Promise<void> {
       allCount === 6,
       String(allCount),
     );
+
+    console.log(
+      '\n9. Lease: hai tiến trình không bao giờ cùng gửi một lượt (CMS B11)',
+    );
+    // Gác các lượt của nhóm trên lại để nhóm này chỉ thấy đúng hai lượt nó dựng.
+    await dataSource.query(
+      `UPDATE notification_broadcasts
+          SET status = 'COMPLETED', completed_at = now(), lease_until = NULL
+        WHERE status <> 'COMPLETED'`,
+    );
+    const everyone = {
+      type: 'ALL' as const,
+      groupId: null,
+      centerLat: null,
+      centerLng: null,
+      radiusMeters: null,
+    };
+    const older = await broadcasts.create({
+      actorUserId: AdminId,
+      audience: everyone,
+      notificationType: 'SYSTEM_BROADCAST',
+      title: 'Lượt cũ',
+      body: 'Gửi trước.',
+    });
+    const newer = await broadcasts.create({
+      actorUserId: AdminId,
+      audience: everyone,
+      notificationType: 'SYSTEM_BROADCAST',
+      title: 'Lượt mới',
+      body: 'Gửi sau.',
+    });
+    await dataSource.query(
+      `UPDATE notification_broadcasts SET created_at = now() - interval '1 hour'
+        WHERE global_id = $1`,
+      [older.globalId],
+    );
+    const lease = { globalId: null, leaseSeconds: 300 };
+
+    const [first, second] = await Promise.all([
+      broadcasts.claimForSending(lease),
+      broadcasts.claimForSending(lease),
+    ]);
+    check(
+      'hai lượt nhận CÙNG LÚC ra hai lượt gửi khác nhau, không trùng',
+      first !== null &&
+        second !== null &&
+        first.globalId !== second.globalId &&
+        [first.globalId, second.globalId].includes(older.globalId),
+      `${first?.globalId} / ${second?.globalId}`,
+    );
+    check(
+      'nhận xong thì trạng thái SENDING',
+      first?.status === 'SENDING' && second?.status === 'SENDING',
+    );
+    check(
+      'cả hai đang bị giữ thì lượt nhận thứ ba ra null',
+      (await broadcasts.claimForSending(lease)) === null,
+    );
+    check(
+      '"Gửi ngay" một lượt đang có người giữ cũng ra null (409)',
+      (await broadcasts.claimForSending({
+        globalId: newer.globalId,
+        leaseSeconds: 300,
+      })) === null,
+    );
+
+    await dataSource.query(
+      `UPDATE notification_broadcasts SET lease_until = now() - interval '1 second'
+        WHERE global_id = $1`,
+      [older.globalId],
+    );
+    check(
+      'lease hết hạn (tiến trình chết) thì cron nhặt lại đúng lượt đó',
+      (await broadcasts.claimForSending(lease))?.globalId === older.globalId,
+    );
+
+    await broadcasts.markFailed(older.globalId, 'mất kết nối');
+    check(
+      'cron KHÔNG tự gửi lại lượt FAILED',
+      (await broadcasts.claimForSending(lease)) === null,
+    );
+    const resent = await broadcasts.claimForSending({
+      globalId: older.globalId,
+      leaseSeconds: 300,
+    });
+    check(
+      '"Gửi ngay" gửi lại được lượt FAILED, và xoá lý do lỗi cũ',
+      resent?.status === 'SENDING' &&
+        resent.failureReason === null &&
+        resent.completedAt === null,
+      JSON.stringify(resent?.status),
+    );
+
+    await dataSource.query(
+      `UPDATE notification_broadcasts SET lease_until = now() + interval '1 second'
+        WHERE global_id = $1`,
+      [newer.globalId],
+    );
+    await broadcasts.recordProgress({
+      globalId: newer.globalId,
+      leaseSeconds: 300,
+      lastUserId: 1,
+      audienceDelta: 1,
+      notifiedDelta: 1,
+      alreadySentDelta: 0,
+      failedDelta: 0,
+    });
+    const [renewed] = await dataSource.query<{ remaining: number }[]>(
+      `SELECT EXTRACT(EPOCH FROM lease_until - now())::int AS remaining
+         FROM notification_broadcasts WHERE global_id = $1`,
+      [newer.globalId],
+    );
+    check(
+      'mỗi lô gia hạn lease',
+      Number(renewed?.remaining) > 200,
+      `${renewed?.remaining}s`,
+    );
+
+    await broadcasts.markCompleted(newer.globalId);
+    const [released] = await dataSource.query<{ lease_until: Date | null }[]>(
+      `SELECT lease_until FROM notification_broadcasts WHERE global_id = $1`,
+      [newer.globalId],
+    );
+    check('xong thì trả lease', released?.lease_until === null);
+    check(
+      'lượt đã COMPLETED không nhận được nữa, kể cả bằng id',
+      (await broadcasts.claimForSending({
+        globalId: newer.globalId,
+        leaseSeconds: 300,
+      })) === null,
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

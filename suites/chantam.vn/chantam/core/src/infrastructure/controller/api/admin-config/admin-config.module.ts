@@ -6,8 +6,10 @@ import { AdminChatController } from './admin-chat.controller';
 import { AdminCommentController } from './admin-comment.controller';
 import { AdminConfigController } from './admin-config.controller';
 import { AdminDashboardController } from './admin-dashboard.controller';
+import { AdminGroupListController } from './admin-group-list.controller';
 import { AdminGroupRadiusController } from './admin-group-radius.controller';
 import { AdminGroupRoleController } from './admin-group-role.controller';
+import { AdminMediaController } from './admin-media.controller';
 import { AdminPointAdjustController } from './admin-point-adjust.controller';
 import {
   AdminPointLedgerController,
@@ -17,6 +19,7 @@ import { AdminPointRuleController } from './admin-point-rule.controller';
 import { AdminRankPolicyController } from './admin-rank-policy.controller';
 import { AdminRoleController } from './admin-role.controller';
 import { AdminTransactionController } from './admin-transaction.controller';
+import { AdminTrustThresholdController } from './admin-trust-threshold.controller';
 import { AdminUserController } from './admin-user.controller';
 import { EntitlementPolicyController } from './entitlement-policy.controller';
 import { NotificationChannelController } from './notification-channel.controller';
@@ -26,6 +29,9 @@ import { NotificationTemplateController } from './notification-template.controll
   controllers: [
     AdminConfigController,
     AdminChatFlagController,
+    AdminGroupListController,
+    AdminMediaController,
+    AdminTrustThresholdController,
     AdminGroupRadiusController,
     AdminGroupRoleController,
     AdminRankPolicyController,

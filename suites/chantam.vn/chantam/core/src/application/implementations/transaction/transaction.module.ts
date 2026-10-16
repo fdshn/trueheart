@@ -2,7 +2,9 @@ import {
   ICancelGiftTransactionUseCase,
   ICompleteDueGiftDeliveriesUseCase,
   IConfirmGiftReceiptUseCase,
+  IGetAdminGiftTransactionUseCase,
   IGetGiftTransactionUseCase,
+  IListAdminGiftTransactionsUseCase,
   IListOwnGiftTransactionsUseCase,
   IMarkGiftHandedOverUseCase,
   IReopenGiftTransactionUseCase,
@@ -10,6 +12,10 @@ import {
   IRequestGiftEvidenceUploadUseCase,
 } from '@/application/contracts/transaction';
 import { Global, Module } from '@nestjs/common';
+import {
+  GetAdminGiftTransactionUseCase,
+  ListAdminGiftTransactionsUseCase,
+} from './admin-gift-transaction.use-cases';
 import {
   MarkGiftHandedOverUseCase,
   RequestGiftEvidenceUploadUseCase,
@@ -37,6 +43,14 @@ import { RefundRedemptionOnCloseService } from './refund-redemption-on-close.ser
     {
       provide: IReopenGiftTransactionUseCase,
       useClass: ReopenGiftTransactionUseCase,
+    },
+    {
+      provide: IListAdminGiftTransactionsUseCase,
+      useClass: ListAdminGiftTransactionsUseCase,
+    },
+    {
+      provide: IGetAdminGiftTransactionUseCase,
+      useClass: GetAdminGiftTransactionUseCase,
     },
     {
       provide: IGetGiftTransactionUseCase,
@@ -71,6 +85,8 @@ import { RefundRedemptionOnCloseService } from './refund-redemption-on-close.ser
   ],
   exports: [
     IReopenGiftTransactionUseCase,
+    IListAdminGiftTransactionsUseCase,
+    IGetAdminGiftTransactionUseCase,
     IGetGiftTransactionUseCase,
     IReportShipUnpaidUseCase,
     IMarkGiftHandedOverUseCase,

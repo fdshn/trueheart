@@ -65,6 +65,11 @@ export enum ErrorCodes {
    * ngày đó nằm ngoài mọi chuỗi đang mở nên bù vào cũng không nối lại được gì.
    */
   CHECK_IN_REPAIR_UNAVAILABLE = 0x02_0f,
+  /**
+   * `expectedVersion` khi publish policy điểm danh không khớp bản đang có —
+   * một Admin khác vừa publish. Dòng phụ `currentVersion=<n|null>` cho client đọc.
+   */
+  CHECK_IN_POLICY_VERSION_CONFLICT = 0x02_11,
 
   /**
    * Giá bằng điểm đã đổi giữa lúc xem trước và lúc bấm đổi (CHỐT-10 mục 2).
@@ -130,6 +135,7 @@ export enum ErrorCodes {
   CATEGORY_POST_TYPE_NOT_ALLOWED = 0x05_06,
   CATEGORY_MERGE_INVALID = 0x05_07,
   CATEGORY_MERGED_CANNOT_REOPEN = 0x05_08,
+  CATEGORY_POST_TYPE_IN_USE = 0x05_09,
 
   // 0x06 — Canonical bài đăng M2
   POST_NOT_FOUND = 0x06_01,
@@ -206,6 +212,13 @@ export enum ErrorCodes {
   NOTIFICATION_NOT_FOUND = 0x0b_03,
   CHAT_MESSAGE_NOT_FOUND = 0x0b_04,
   CHAT_RECALL_WINDOW_CLOSED = 0x0b_05,
+  /** Cờ kiểm duyệt chat đã có người xử — không ghi đè quyết định trước. */
+  CHAT_FLAG_ALREADY_REVIEWED = 0x0b_06,
+  NOTIFICATION_BROADCAST_NOT_FOUND = 0x0b_07,
+  /** Lượt gửi hàng loạt đã xong — "Gửi ngay" lần nữa không có gì để gửi. */
+  NOTIFICATION_BROADCAST_ALREADY_COMPLETED = 0x0b_08,
+  /** Đang có tiến trình khác giữ lượt gửi (cron, hoặc Admin khác vừa bấm). */
+  NOTIFICATION_BROADCAST_IN_PROGRESS = 0x0b_09,
 
   // 0x0F — Báo cáo vi phạm
   REPORT_NOT_FOUND = 0x0f_01,
@@ -239,6 +252,8 @@ export enum ErrorCodes {
   /** Mã mời sai, hoặc nhóm đã giải tán. Cố ý KHÔNG phân biệt hai ca. */
   GROUP_INVITE_INVALID = 0x10_04,
   GROUP_NOT_FOUND = 0x10_05,
+  /** Như `CHECK_IN_POLICY_VERSION_CONFLICT`, cho policy Affiliate. */
+  AFFILIATE_POLICY_VERSION_CONFLICT = 0x10_06,
 
   // 0x11 — Chiến dịch & Home động (F63)
   HOME_CAMPAIGN_NOT_FOUND = 0x11_01,
@@ -246,6 +261,7 @@ export enum ErrorCodes {
 
   // 0x12 — Blog / Tin tức (F64)
   BLOG_NOT_FOUND = 0x12_01,
+  BLOG_SLUG_CONFLICT = 0x12_02,
 
   // 0x13 — Hoat dong Tu thien (F65)
   CHARITY_CAMPAIGN_NOT_FOUND = 0x13_01,

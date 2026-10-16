@@ -257,7 +257,7 @@ async function main(): Promise<void> {
           dailyCap: 50,
           maxBeneficiaries: 100,
         }),
-      'ValidationFailedException',
+      'AffiliatePolicyVersionConflictException',
     );
 
     const disabled = await fire({

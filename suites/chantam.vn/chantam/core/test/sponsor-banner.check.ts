@@ -471,6 +471,32 @@ async function main(): Promise<void> {
         ),
       'CHK_sponsor_banners_target_url',
     );
+    // Cả hai tên lược đồ deep link lọt qua CHECK cho tới khi mobile chốt (CMS B7).
+    for (const scheme of ['chantam://', 'givingapp://']) {
+      const [inserted] = await dataSource.query<{ target_url: string }[]>(
+        `INSERT INTO sponsor_banners
+           (partner_name, title, image_url, target_url, placement, starts_at, ends_at)
+         VALUES ('Đối tác', 'Thử lược đồ', 'https://cdn.chantam.vn/a.jpg',
+                 $1, 'HOME_HERO', now(), now() + interval '1 day')
+         RETURNING target_url`,
+        [`${scheme}campaigns/vu-lan`],
+      );
+      check(
+        `targetUrl ${scheme} được nhận`,
+        inserted?.target_url === `${scheme}campaigns/vu-lan`,
+      );
+    }
+    await expectReject(
+      'javascript: chứa chantam:// ở giữa vẫn bị chặn',
+      () =>
+        dataSource.query(
+          `INSERT INTO sponsor_banners
+             (partner_name, title, image_url, target_url, placement, starts_at, ends_at)
+           VALUES ('Đối tác', 'Thử', 'https://cdn.chantam.vn/a.jpg',
+                   'javascript:alert("chantam://x")', 'HOME_HERO', now(), now() + interval '1 day')`,
+        ),
+      'CHK_sponsor_banners_target_url',
+    );
     await expectReject(
       'imageUrl qua http bị chặn',
       () =>

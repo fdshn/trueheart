@@ -81,7 +81,7 @@ export class HomeBannerDto {
   @ApiPropertyOptional({
     example: 'givingapp://campaign/vu-lan-2026',
     description:
-      'Chỉ nhận `givingapp://` hoặc `https://`. Giao thức khác về `null` — chuỗi này đi thẳng vào hàm mở link của app.',
+      'Nhận `givingapp://`, `chantam://` hoặc `https://` — hai tên lược đồ app được nhận như nhau cho tới khi mobile chốt một. Giao thức khác về `null` (kèm một dòng trong `warnings`) — chuỗi này đi thẳng vào hàm mở link của app.',
   })
   @IsOptional()
   deepLink?: string | null;
@@ -296,6 +296,17 @@ export class HomeCampaignMutationResponseDto {
       '`false` nghĩa là đã LƯU nhưng chưa xoá được đệm Redis — bố cục cũ còn phục vụ tới một giờ. CMS nên nói rõ điều đó thay vì báo thành công trơn.',
   })
   cacheInvalidated: boolean;
+
+  @ApiProperty({
+    type: [String],
+    example: [
+      'banners[2]: bỏ vì imageUrl phải là https://',
+      'theme.primaryColor: không phải mã màu #RGB/#RRGGBB, dùng #10B981',
+    ],
+    description:
+      'Ô nào bị chuẩn hoá ĐỔI hoặc BỎ khi lưu, mỗi dòng bắt đầu bằng đường dẫn tới ô đó (`banners[2]`, `theme.primaryColor`, `sectionsLayout[1]`…). Đã lưu thành công — đây KHÔNG phải lỗi, nhưng CMS nên hiện cạnh ô tương ứng để Admin biết thứ mình gõ không được giữ nguyên. Rỗng khi lưu đúng nguyên văn.',
+  })
+  warnings: string[];
 }
 
 export class HomeLayoutResponseDto {

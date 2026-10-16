@@ -109,6 +109,17 @@ export class UpdateCategoryDto implements IUpdateCategoryDto {
   @IsOptional()
   @IsUUID()
   parentId?: string | null;
+  @ApiPropertyOptional({
+    isArray: true,
+    enum: GenericMvpPostTypes,
+    description:
+      'Thay TOÀN BỘ danh sách loại bài dùng được danh mục này. Thêm loại luôn được; bỏ một loại mà danh mục còn bài loại đó trả 409 `CATEGORY_POST_TYPE_IN_USE`.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsEnum(PostTypes, { each: true })
+  postTypes?: PostTypes[];
 }
 export class UpdateCategoryBodyDto implements IUpdateCategoryBodyDto {
   @ApiProperty({ type: () => UpdateCategoryDto })

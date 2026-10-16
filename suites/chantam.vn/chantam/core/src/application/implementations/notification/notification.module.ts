@@ -5,6 +5,7 @@ import {
   IListNotificationsUseCase,
   IMarkNotificationsReadUseCase,
   IProcessBroadcastUseCase,
+  ISendBroadcastNowUseCase,
   ISendPendingRemindersUseCase,
 } from '@/application/contracts/notification';
 import { Global, Module } from '@nestjs/common';
@@ -12,6 +13,7 @@ import {
   CreateBroadcastUseCase,
   ListBroadcastsUseCase,
   ProcessBroadcastUseCase,
+  SendBroadcastNowUseCase,
 } from './broadcast.use-cases';
 import { DispatchNotificationUseCase } from './dispatch-notification.use-case';
 import {
@@ -34,6 +36,7 @@ import { PurgeOldNotificationsUseCase } from './purge-old-notifications.use-case
     },
     { provide: IListBroadcastsUseCase, useClass: ListBroadcastsUseCase },
     { provide: IProcessBroadcastUseCase, useClass: ProcessBroadcastUseCase },
+    { provide: ISendBroadcastNowUseCase, useClass: SendBroadcastNowUseCase },
     {
       provide: IDispatchNotificationUseCase,
       useClass: DispatchNotificationUseCase,
@@ -52,6 +55,7 @@ import { PurgeOldNotificationsUseCase } from './purge-old-notifications.use-case
     ICreateBroadcastUseCase,
     IListBroadcastsUseCase,
     IProcessBroadcastUseCase,
+    ISendBroadcastNowUseCase,
     NotificationPreferenceUseCases,
     PurgeOldNotificationsUseCase,
     IDispatchNotificationUseCase,

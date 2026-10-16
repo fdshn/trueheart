@@ -7,6 +7,7 @@ import {
 } from '@/domain/exceptions';
 import {
   GiftTransactionStatuses,
+  IAdminGiftTransactionItem,
   IAffiliateRepository,
   IAttachGiftEvidenceParams,
   IChatRepository,
@@ -64,6 +65,41 @@ function toSummary(row: ITransactionRow): IGiftTransactionSummary {
     acceptedAt: row.accepted_at,
     handedOverAt: row.handed_over_at,
     completedAt: row.completed_at,
+  };
+}
+
+interface IAdminTransactionRow extends ITransactionRow {
+  post_title: string;
+  giver_username: string;
+  receiver_username: string;
+  closed_at: Date | null;
+  close_reason: string | null;
+  closed_by: string | null;
+}
+
+/** Cột của `ITransactionRow` mang tiền tố `tx.` vì câu này JOIN ba bảng. */
+const AdminItemSelect = `
+  SELECT tx.global_id, tx.post_id, tx.giver_id, tx.receiver_id, tx.quantity,
+         tx.status, tx.requested_at, tx.accepted_at, tx.handed_over_at,
+         tx.completed_at, tx.closed_at, tx.close_reason, tx.closed_by,
+         post.title AS post_title,
+         giver.username AS giver_username,
+         receiver.username AS receiver_username
+  FROM gift_transactions tx
+  INNER JOIN posts post ON post.global_id = tx.post_id
+  INNER JOIN users giver ON giver.global_id = tx.giver_id
+  INNER JOIN users receiver ON receiver.global_id = tx.receiver_id
+`;
+
+function toAdminItem(row: IAdminTransactionRow): IAdminGiftTransactionItem {
+  return {
+    ...toSummary(row),
+    postTitle: row.post_title,
+    giverUsername: row.giver_username,
+    receiverUsername: row.receiver_username,
+    closedAt: row.closed_at,
+    closeReason: row.close_reason,
+    closedBy: row.closed_by,
   };
 }
 
@@ -1014,5 +1050,49 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
 
     if (!row) throw new GiftTransactionNotFoundException();
     return row;
+  }
+
+  public async listForAdmin(params: {
+    status: GiftTransactionStatuses | null;
+    userId: string | null;
+    postId: string | null;
+    skip: number;
+    take: number;
+  }): Promise<{ items: IAdminGiftTransactionItem[]; total: number }> {
+    // $1 status, $2 userId, $3 postId: chung cho câu đếm và câu trang.
+    const filter = `
+      ($1::text IS NULL OR tx.status = $1::text)
+      AND ($2::uuid IS NULL OR tx.giver_id = $2::uuid OR tx.receiver_id = $2::uuid)
+      AND ($3::uuid IS NULL OR tx.post_id = $3::uuid)
+    `;
+    const filterParams = [params.status, params.userId, params.postId];
+
+    const [counted] = await this.manager.query<{ total: string }[]>(
+      `SELECT COUNT(*)::text AS total FROM gift_transactions tx WHERE ${filter}`,
+      filterParams,
+    );
+    const rows = await this.manager.query<IAdminTransactionRow[]>(
+      `${AdminItemSelect}
+       WHERE ${filter}
+       ORDER BY tx.requested_at DESC, tx.id DESC
+       LIMIT $4 OFFSET $5`,
+      [...filterParams, params.take, params.skip],
+    );
+
+    return {
+      items: rows.map(toAdminItem),
+      total: Number(counted?.total ?? 0),
+    };
+  }
+
+  public async findAdminItem(
+    globalId: string,
+  ): Promise<IAdminGiftTransactionItem | null> {
+    const [row] = await this.manager.query<IAdminTransactionRow[]>(
+      `${AdminItemSelect} WHERE tx.global_id = $1`,
+      [globalId],
+    );
+
+    return row ? toAdminItem(row) : null;
   }
 }

@@ -13,6 +13,7 @@
  * 7. `findAncestorChain` nhìn thấy tổ tiên đã tắt — thứ `create-post` dựa vào để
  *    không cho gán bài vào một danh mục vô hình.
  */
+import { CharityTransferStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
@@ -314,6 +315,113 @@ async function main(): Promise<void> {
       'không tự gộp vào chính mình',
       selfMerge.includes('CHK_categories_merge_not_self'),
       selfMerge.slice(0, 60),
+    );
+
+    console.log(
+      '\nN. countPostsOfTypes — đếm đúng loại, chỉ trong chính danh mục (CMS A12)',
+    );
+    // Danh mục riêng để không lẫn bài của các nhóm trên.
+    const TypedCategory = 'b0000000-0000-4000-8000-0000000000c1';
+    const TypedChild = 'b0000000-0000-4000-8000-0000000000c2';
+    await dataSource.query(
+      `INSERT INTO categories (global_id, name, slug, parent_id, is_active)
+       VALUES ($1, 'Đếm theo loại', 'dem-theo-loai', NULL, true),
+              ($2, 'Con đếm theo loại', 'con-dem-theo-loai', $1, true)`,
+      [TypedCategory, TypedChild],
+    );
+    await addPost(TypedCategory, 'OFFER');
+    await addPost(TypedCategory, 'WANTED');
+    await addPost(TypedCategory, 'WANTED');
+    // Bài ở danh mục CON không tính: con khai postTypes riêng của nó.
+    await addPost(TypedChild, 'WANTED');
+    const deleted = await addPost(TypedCategory, 'WANTED');
+    await dataSource.query(
+      `UPDATE posts SET deleted_at = now() WHERE global_id = $1`,
+      [deleted],
+    );
+    const wanted = await categories.countPostsOfTypes(TypedCategory, [
+      'WANTED',
+    ]);
+    check(
+      'WANTED = 2 (bỏ bài đã xoá, bỏ bài ở danh mục con)',
+      wanted === 2,
+      `${wanted}`,
+    );
+    const both = await categories.countPostsOfTypes(TypedCategory, [
+      'OFFER',
+      'WANTED',
+    ]);
+    check('OFFER + WANTED = 3', both === 3, `${both}`);
+    check(
+      'loại không có bài nào = 0',
+      (await categories.countPostsOfTypes(TypedCategory, ['CHARITY'])) === 0,
+    );
+
+    console.log(
+      '\nO. findAdminPosts lọc hàng đợi chuyển từ thiện, chờ lâu nhất trước (CMS A8)',
+    );
+    const Transferring = 'b0000000-0000-4000-8000-0000000000c3';
+    await dataSource.query(
+      `INSERT INTO categories (global_id, name, slug, parent_id, is_active)
+       VALUES ($1, 'Chuyển từ thiện', 'chuyen-tu-thien', NULL, true)`,
+      [Transferring],
+    );
+    const newer = await addPost(Transferring);
+    const older = await addPost(Transferring);
+    const rejected = await addPost(Transferring);
+    await addPost(Transferring);
+    await dataSource.query(
+      `UPDATE posts
+       SET charity_transfer_status = 'REQUESTED',
+           charity_transfer_requested_at = now() - ($2 || ' hours')::interval,
+           charity_transfer_note = 'Kho từ thiện gần nhà'
+       WHERE global_id = $1`,
+      [newer, '1'],
+    );
+    await dataSource.query(
+      `UPDATE posts
+       SET charity_transfer_status = 'REQUESTED',
+           charity_transfer_requested_at = now() - interval '5 hours'
+       WHERE global_id = $1`,
+      [older],
+    );
+    await dataSource.query(
+      `UPDATE posts
+       SET charity_transfer_status = 'REJECTED',
+           charity_transfer_requested_at = now() - interval '9 hours'
+       WHERE global_id = $1`,
+      [rejected],
+    );
+    const queue = await posts.findAdminPosts({
+      categoryId: Transferring,
+      charityTransferStatus: CharityTransferStatuses.REQUESTED,
+      skip: 0,
+      take: 20,
+    });
+    check(
+      'chỉ bài đang REQUESTED, chờ lâu nhất trước',
+      queue.total === 2 &&
+        queue.items[0]?.globalId === older &&
+        queue.items[1]?.globalId === newer,
+      queue.items.map((item) => item.globalId).join(', '),
+    );
+    check(
+      'kèm trạng thái, mốc xin và ghi chú chủ bài',
+      queue.items[1]?.charityTransferStatus === 'REQUESTED' &&
+        queue.items[1].charityTransferRequestedAt instanceof Date &&
+        queue.items[1].charityTransferNote === 'Kho từ thiện gần nhà',
+      JSON.stringify(queue.items[1]),
+    );
+    const untouched = await posts.findAdminPosts({
+      categoryId: Transferring,
+      skip: 0,
+      take: 20,
+    });
+    check(
+      'không lọc thì đủ cả 4 bài; bài chưa xin có charityTransferStatus = null',
+      untouched.total === 4 &&
+        untouched.items.some((item) => item.charityTransferStatus === null),
+      `total=${untouched.total}`,
     );
   } finally {
     for (const source of opened.reverse())

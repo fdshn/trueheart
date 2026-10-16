@@ -1,3 +1,4 @@
+import { AffiliatePolicyVersionConflictException } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
   IAffiliateEventOutcome,
@@ -125,9 +126,10 @@ export class AffiliateRepository implements IAffiliateRepository {
       const currentVersion = latest ? Number(latest.version) : null;
 
       if ((params.expectedVersion ?? null) !== currentVersion)
-        throw new ValidationFailedException([
-          `expectedVersion: bản hiện tại là ${currentVersion ?? 'chưa có'}, không phải ${params.expectedVersion ?? 'chưa có'}`,
-        ]);
+        throw new AffiliatePolicyVersionConflictException(
+          currentVersion,
+          params.expectedVersion ?? null,
+        );
 
       const gaps = affiliatePolicyGaps(params.policy);
       if (gaps.length > 0) throw new ValidationFailedException(gaps);

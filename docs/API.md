@@ -1276,9 +1276,10 @@ Quyền là `report.read` / `report.resolve` — cùng việc với xử báo x�
 - **Bảng riêng, không thêm cột vào `chat_messages`.** Bảng đó có trigger chặn mọi UPDATE/DELETE —
   cố ý, vì lịch sử chat là bằng chứng cho tranh chấp. Đặt cờ vào đó thì thao tác "Admin đã xem"
   phải mở cửa hậu bằng session variable, tức nới một bất biến đang bảo vệ đúng thứ cần bảo vệ.
-- **Không ghi lại được lên cờ đã xử.** Hai Admin bấm cùng lúc thì người thứ hai nhận `404`, vì với
-  họ kết luận là "không còn việc ở đây". `MESSAGE_REMOVED` chỉ GHI LẠI quyết định; gỡ tin thật đi
-  qua `DELETE /admin/chat/messages/:messageId`, nơi đã có trigger và audit riêng.
+- **Không ghi lại được lên cờ đã xử.** Hai Admin bấm cùng lúc thì người thứ hai nhận `409
+  CHAT_FLAG_ALREADY_REVIEWED` (cờ không tồn tại vẫn là `404`). `MESSAGE_REMOVED` GỠ LUÔN tin
+  trong cùng transaction với việc đóng cờ — cùng đường `SET LOCAL chantam.chat_recall` mà
+  `DELETE /admin/chat/messages/:messageId` dùng; ảnh và realtime chạy sau commit.
 - **Hàng đợi chỉ hiện tin ĐÃ KHỚP một mục**, không phải cả phòng. Cấu hình rỗng hoặc hỏng thì
   `screenText` trả `ALLOW`, tức không cờ nào — fail OPEN là cố ý: một dòng JSON gõ nhầm không được
   biến thành "mọi tin nhắn đều vào hàng đợi Admin".

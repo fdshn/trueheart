@@ -12,6 +12,9 @@ export class CategoryParentCycleException extends ExceptionFrom(
 export class CategoryInUseException extends ExceptionFrom(
   CoreErrors.CATEGORY_IN_USE,
 ) {}
+export class CategoryPostTypeInUseException extends ExceptionFrom(
+  CoreErrors.CATEGORY_POST_TYPE_IN_USE,
+) {}
 export class CategoryDepthExceededException extends ExceptionFrom(
   CoreErrors.CATEGORY_DEPTH_EXCEEDED,
 ) {}

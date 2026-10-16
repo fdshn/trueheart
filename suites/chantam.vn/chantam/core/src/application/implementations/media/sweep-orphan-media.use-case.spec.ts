@@ -73,6 +73,24 @@ describe('SweepOrphanMediaUseCase', () => {
     expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
   });
 
+  it('KHÔNG xoá ảnh trong thư viện CMS (CMS A2)', async () => {
+    // Ảnh CMS được dán vào banner/blog/Home dưới dạng URL tự do ở nhiều cột; thư viện
+    // là nguồn DUY NHẤT nói "ảnh này đang được giữ".
+    const deps = makeDeps({
+      rows: {
+        media_assets: [{ value: 'users/admin/cms-media/a.webp' }],
+      },
+      objects: [
+        { key: 'users/admin/cms-media/a.webp', lastModified: old, size: 10 },
+      ],
+    });
+
+    const result = await makeUseCase(deps).handle({ dryRun: false });
+
+    expect(result.orphans).toBe(0);
+    expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
+  });
+
   it('cắt tiền tố miền để so được URL với key', async () => {
     // `users.avatar_url` lưu URL công khai, `listObjects` trả key. Không cắt
     // thì mọi avatar bị coi là mồ côi.

@@ -167,6 +167,17 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Ngày này không nối lại được chuỗi nào, nên bù vào cũng không thay đổi gì',
   },
 
+  CHECK_IN_POLICY_VERSION_CONFLICT: {
+    code: ErrorCodes.CHECK_IN_POLICY_VERSION_CONFLICT,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (currentVersion: number | null, expectedVersion: number | null) =>
+      `Policy điểm danh vừa được người khác publish: bản hiện tại là ${currentVersion ?? 'chưa có'}, không phải ${expectedVersion ?? 'chưa có'}. Tải lại rồi sửa trên bản mới`,
+    explains: (currentVersion: number | null) => [
+      `currentVersion=${currentVersion ?? 'null'}`,
+    ],
+    sample: [2, 1],
+  },
+
   // ── 0x03 Người dùng ───────────────────────────────────────────────────────
   USER_NOT_FOUND: {
     code: ErrorCodes.USER_NOT_FOUND,
@@ -314,6 +325,16 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: [34],
   },
 
+  CATEGORY_POST_TYPE_IN_USE: {
+    code: ErrorCodes.CATEGORY_POST_TYPE_IN_USE,
+    httpStatus: HttpStatus.CONFLICT,
+    // Bỏ một loại khỏi danh mục còn bài loại đó là để những bài ấy nằm ở chỗ chúng không
+    // còn được phép nằm — lọc theo loại sẽ không bao giờ tìm ra chúng nữa.
+    message: (types: string, postCount: number) =>
+      `Không bỏ được loại ${types}: còn ${postCount} bài loại đó trong danh mục này. Chuyển bài sang danh mục khác trước`,
+    sample: ['WANTED', 3],
+  },
+
   CATEGORY_DEPTH_EXCEEDED: {
     code: ErrorCodes.CATEGORY_DEPTH_EXCEEDED,
     httpStatus: HttpStatus.UNPROCESSABLE_ENTITY,
@@ -422,6 +443,33 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: (minutes: number) =>
       `Chỉ thu hồi được tin nhắn trong vòng ${minutes} phút sau khi gửi`,
     sample: [5],
+  },
+
+  CHAT_FLAG_ALREADY_REVIEWED: {
+    code: ErrorCodes.CHAT_FLAG_ALREADY_REVIEWED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Cờ này đã có người xử trước. Tải lại hàng đợi để xem quyết định đã chọn',
+  },
+
+  NOTIFICATION_BROADCAST_NOT_FOUND: {
+    code: ErrorCodes.NOTIFICATION_BROADCAST_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy lượt gửi thông báo hàng loạt',
+  },
+
+  NOTIFICATION_BROADCAST_ALREADY_COMPLETED: {
+    code: ErrorCodes.NOTIFICATION_BROADCAST_ALREADY_COMPLETED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Lượt gửi này đã xong. Muốn gửi lại nội dung đó thì tạo một lượt gửi mới',
+  },
+
+  NOTIFICATION_BROADCAST_IN_PROGRESS: {
+    code: ErrorCodes.NOTIFICATION_BROADCAST_IN_PROGRESS,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Lượt gửi này đang được gửi. Theo dõi tiến độ trong danh sách lượt gửi',
   },
 
   NOTIFICATION_NOT_FOUND: {
@@ -767,6 +815,17 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Không tìm thấy nhóm',
   },
 
+  AFFILIATE_POLICY_VERSION_CONFLICT: {
+    code: ErrorCodes.AFFILIATE_POLICY_VERSION_CONFLICT,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (currentVersion: number | null, expectedVersion: number | null) =>
+      `Policy Affiliate vừa được người khác publish: bản hiện tại là ${currentVersion ?? 'chưa có'}, không phải ${expectedVersion ?? 'chưa có'}. Tải lại rồi sửa trên bản mới`,
+    explains: (currentVersion: number | null) => [
+      `currentVersion=${currentVersion ?? 'null'}`,
+    ],
+    sample: [2, 1],
+  },
+
   HOME_CAMPAIGN_NOT_FOUND: {
     code: ErrorCodes.HOME_CAMPAIGN_NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,
@@ -786,6 +845,16 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     code: ErrorCodes.BLOG_NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,
     message: () => 'Không tìm thấy bài viết',
+  },
+
+  BLOG_SLUG_CONFLICT: {
+    code: ErrorCodes.BLOG_SLUG_CONFLICT,
+    httpStatus: HttpStatus.CONFLICT,
+    // Slug giữ chỗ cả khi bài đã xoá mềm — link ngoài vẫn trỏ vào đó.
+    message: (slug?: string) =>
+      slug
+        ? `slug "${slug}" đã có bài khác dùng (kể cả bài đã xoá) — đổi tiêu đề hoặc gửi slug riêng`
+        : 'slug đã có bài khác dùng (kể cả bài đã xoá) — đổi tiêu đề hoặc gửi slug riêng',
   },
 
   CHARITY_CAMPAIGN_NOT_FOUND: {

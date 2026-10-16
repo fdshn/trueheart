@@ -21,6 +21,7 @@
  * 10. `CHK_groups_radius` vẫn khớp hằng `GroupRadiusColumnBoundsKm` — lệch nhau
  *    thì một cấu hình hợp lệ theo code bị database từ chối.
  */
+import { GroupStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
@@ -709,6 +710,79 @@ async function main(): Promise<void> {
         groupId: RebornGroupId,
         permission: 'group.settings.manage',
       }),
+    );
+
+    console.log('\nN. listForAdmin — CMS chọn nhóm (A5)');
+    const byName = await groups.listForAdmin({
+      keyword: 'cau GIAY',
+      status: null,
+      skip: 0,
+      take: 10,
+    });
+    check(
+      'tìm theo tên không phân biệt hoa thường, thấy cả nhóm đã giải tán',
+      byName.total === 1 &&
+        byName.items[0]?.groupId === GroupId &&
+        byName.items[0].status === 'DISSOLVED',
+      JSON.stringify(byName.items.map((item) => item.name)),
+    );
+    const byOwner = await groups.listForAdmin({
+      keyword: 'thanh-vien',
+      status: null,
+      skip: 0,
+      take: 10,
+    });
+    check(
+      'tìm theo username chủ nhóm; đếm chỉ thành viên đang hiệu lực',
+      byOwner.items.length === 1 &&
+        byOwner.items[0]?.groupId === RebornGroupId &&
+        byOwner.items[0].ownerUsername === 'thanh-vien' &&
+        byOwner.items[0].memberCount === 1,
+      JSON.stringify(byOwner.items[0]),
+    );
+    const byId = await groups.listForAdmin({
+      keyword: OtherGroupId,
+      status: null,
+      skip: 0,
+      take: 10,
+    });
+    check(
+      'dán đúng groupId thì ra đúng nhóm đó',
+      byId.total === 1 && byId.items[0]?.groupId === OtherGroupId,
+    );
+    const activeOnly = await groups.listForAdmin({
+      keyword: null,
+      status: GroupStatuses.ACTIVE,
+      skip: 0,
+      take: 10,
+    });
+    check(
+      'lọc ACTIVE bỏ nhóm đã giải tán',
+      activeOnly.total >= 2 &&
+        activeOnly.items.every((item) => item.status === 'ACTIVE'),
+      `${activeOnly.total}`,
+    );
+    const firstPage = await groups.listForAdmin({
+      keyword: null,
+      status: null,
+      skip: 0,
+      take: 1,
+    });
+    check(
+      'total là tổng cả bộ lọc, không phải cỡ trang',
+      firstPage.items.length === 1 && firstPage.total === activeOnly.total + 1,
+      `items=${firstPage.items.length} total=${firstPage.total}`,
+    );
+    check(
+      'trang vượt cuối vẫn trả total đúng',
+      (
+        await groups.listForAdmin({
+          keyword: null,
+          status: null,
+          skip: 100,
+          take: 10,
+        })
+      ).total === firstPage.total,
     );
   } finally {
     for (const source of opened.reverse())
