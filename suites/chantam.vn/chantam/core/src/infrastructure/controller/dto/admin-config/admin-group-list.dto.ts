@@ -6,14 +6,19 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDefined,
   IsEnum,
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
+  Length,
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { GroupMemberItemDto } from '../group/group.dto';
 
 export class ListAdminGroupsQueryDto {
   @ApiPropertyOptional({
@@ -75,4 +80,91 @@ export class ListAdminGroupsResponseDto {
 
   @ApiProperty({ type: () => PaginationMetaDto })
   meta: PaginationMetaDto;
+}
+
+export class AdminGroupIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  groupId: string;
+}
+
+export class AdminGroupDetailDto extends AdminGroupListItemDto {
+  @ApiProperty({ type: String, nullable: true }) description: string | null;
+  @ApiProperty({ type: String, nullable: true }) avatarUrl: string | null;
+  @ApiProperty({ type: String, nullable: true }) coverUrl: string | null;
+
+  @ApiProperty({
+    description:
+      'Tâm nhóm — chụp từ Vị trí mặc định của Owner lúc tạo, không đổi.',
+  })
+  centerLat: number;
+
+  @ApiProperty() centerLng: number;
+
+  @ApiProperty({ description: 'Bán kính vùng nhóm, chụp theo hạng lúc tạo.' })
+  radiusKm: number;
+
+  @ApiProperty({
+    description: 'Mã mời. Hết dùng được khi nhóm không còn ACTIVE.',
+  })
+  inviteCode: string;
+
+  @ApiProperty({ type: String, format: 'date-time' }) activatedAt: Date;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  dissolvedAt: Date | null;
+}
+
+export class AdminGroupDetailResponseDto {
+  @ApiProperty({ type: () => AdminGroupDetailDto })
+  group: AdminGroupDetailDto;
+}
+
+export class ListAdminGroupMembersQueryDto {
+  @ApiPropertyOptional({ minimum: 1, default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: MaxPageSize, default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MaxPageSize)
+  pageSize?: number;
+}
+
+export class ListAdminGroupMembersResponseDto {
+  @ApiProperty({
+    type: () => [GroupMemberItemDto],
+    description:
+      'Chỉ thành viên ĐANG hiệu lực, vào trước đứng trước. Nhóm đã giải tán trả rỗng.',
+  })
+  members: GroupMemberItemDto[];
+
+  @ApiProperty({ type: () => PaginationMetaDto })
+  meta: PaginationMetaDto;
+}
+
+export class DissolveAdminGroupDto {
+  @ApiProperty({
+    minLength: 3,
+    maxLength: 500,
+    example: 'Gian lận affiliate: tài khoản ảo hàng loạt',
+    description: 'Bắt buộc — đi vào audit log.',
+  })
+  @IsString()
+  @Length(3, 500)
+  reason: string;
+}
+
+export class DissolveAdminGroupBodyDto {
+  @ApiProperty({ type: () => DissolveAdminGroupDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => DissolveAdminGroupDto)
+  dissolution: DissolveAdminGroupDto;
 }

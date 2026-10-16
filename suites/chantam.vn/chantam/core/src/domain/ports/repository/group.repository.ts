@@ -348,6 +348,29 @@ export interface IGroupRepository {
     skip: number;
     take: number;
   }): Promise<{ items: IAdminGroupListItem[]; total: number }>;
+
+  /** Một nhóm cho CMS, MỌI trạng thái. `null` khi không tồn tại. */
+  findAdminDetail(groupId: string): Promise<IAdminGroupDetail | null>;
+
+  /**
+   * Admin giải tán MỘT nhóm — cùng hiệu ứng với `dissolveOwnedBy`: nhóm sang
+   * DISSOLVED, membership thôi hiệu lực nhưng Ở LẠI làm lịch sử, link mời chết.
+   * `false` khi nhóm không còn ACTIVE (đã giải tán hoặc không tồn tại).
+   */
+  dissolveById(groupId: string): Promise<boolean>;
+}
+
+export interface IAdminGroupDetail extends IAdminGroupListItem {
+  readonly description: string | null;
+  readonly avatarUrl: string | null;
+  readonly coverUrl: string | null;
+  /** Tâm nhóm, chụp từ Vị trí mặc định của Owner lúc tạo. */
+  readonly centerLat: number;
+  readonly centerLng: number;
+  readonly radiusKm: number;
+  readonly inviteCode: string;
+  readonly activatedAt: Date;
+  readonly dissolvedAt: Date | null;
 }
 
 export interface IAdminGroupListItem {

@@ -1,5 +1,14 @@
+import {
+  GroupAlreadyDissolvedException,
+  GroupNotFoundException,
+} from '@/domain/exceptions';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
-import { ListAdminGroupsUseCase } from './admin-group-list.use-cases';
+import {
+  DissolveAdminGroupUseCase,
+  GetAdminGroupUseCase,
+  ListAdminGroupMembersUseCase,
+  ListAdminGroupsUseCase,
+} from './admin-group-list.use-cases';
 
 const ActorId = '10000000-0000-4000-8000-000000000001';
 
@@ -70,5 +79,100 @@ describe('ListAdminGroupsUseCase (CMS A5)', () => {
       take: 5,
     });
     expect(result.meta).toMatchObject({ page: 2, total: 7 });
+  });
+});
+
+describe('Admin quản trị nhóm (SRS 3.7A)', () => {
+  const GroupId = '20000000-0000-4000-8000-000000000002';
+  const group = { groupId: GroupId, status: 'ACTIVE', memberCount: 4 };
+
+  function adminDeps(
+    granted: string[],
+    options: { found?: boolean; dissolved?: boolean } = {},
+  ) {
+    return {
+      permissions: {
+        hasPermission: jest.fn(async (_id: string, code: string) =>
+          granted.includes(code),
+        ),
+        appendAudit: jest.fn(async () => undefined),
+      },
+      groups: {
+        findAdminDetail: jest.fn(async () =>
+          options.found === false ? null : group,
+        ),
+        dissolveById: jest.fn(async () => options.dissolved ?? true),
+        listMembers: jest.fn(async () => ({ items: [], total: 4 })),
+      },
+    };
+  }
+
+  it('chi tiết: không tồn tại thì 404', async () => {
+    const deps = adminDeps(['config.read'], { found: false });
+    await expect(
+      new GetAdminGroupUseCase(
+        deps.permissions as never,
+        deps.groups as never,
+      ).handle({ actorUserId: ActorId, groupId: GroupId }),
+    ).rejects.toThrow(GroupNotFoundException);
+  });
+
+  it('thành viên: cùng quyền đọc với danh sách nhóm, có phân trang', async () => {
+    const deps = adminDeps(['notification.manage']);
+    const result = await new ListAdminGroupMembersUseCase(
+      deps.permissions as never,
+      deps.groups as never,
+    ).handle({ actorUserId: ActorId, groupId: GroupId, page: 2, pageSize: 2 });
+
+    expect(deps.groups.listMembers).toHaveBeenCalledWith({
+      groupId: GroupId,
+      skip: 2,
+      take: 2,
+    });
+    expect(result.meta).toMatchObject({ page: 2, total: 4 });
+  });
+
+  it('giải tán đòi admin.manage — quyền đọc nhóm KHÔNG đủ', async () => {
+    const deps = adminDeps(['config.read', 'notification.manage']);
+    await expect(
+      new DissolveAdminGroupUseCase(
+        deps.permissions as never,
+        deps.groups as never,
+      ).handle({ actorUserId: ActorId, groupId: GroupId, reason: 'Vi phạm' }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(deps.groups.dissolveById).not.toHaveBeenCalled();
+  });
+
+  it('giải tán ghi audit kèm lý do và trạng thái trước', async () => {
+    const deps = adminDeps(['admin.manage']);
+    await new DissolveAdminGroupUseCase(
+      deps.permissions as never,
+      deps.groups as never,
+    ).handle({
+      actorUserId: ActorId,
+      groupId: GroupId,
+      reason: '  Gian lận affiliate  ',
+    });
+
+    expect(deps.groups.dissolveById).toHaveBeenCalledWith(GroupId);
+    expect(deps.permissions.appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'DISSOLVE_GROUP',
+        resourceId: GroupId,
+        before: { status: 'ACTIVE', memberCount: 4 },
+        reason: 'Gian lận affiliate',
+      }),
+    );
+  });
+
+  it('nhóm đã giải tán thì 409 và KHÔNG ghi audit', async () => {
+    const deps = adminDeps(['admin.manage'], { dissolved: false });
+    await expect(
+      new DissolveAdminGroupUseCase(
+        deps.permissions as never,
+        deps.groups as never,
+      ).handle({ actorUserId: ActorId, groupId: GroupId, reason: 'Lần hai' }),
+    ).rejects.toThrow(GroupAlreadyDissolvedException);
+    expect(deps.permissions.appendAudit).not.toHaveBeenCalled();
   });
 });

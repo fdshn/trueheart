@@ -254,6 +254,8 @@ export enum ErrorCodes {
   GROUP_NOT_FOUND = 0x10_05,
   /** Như `CHECK_IN_POLICY_VERSION_CONFLICT`, cho policy Affiliate. */
   AFFILIATE_POLICY_VERSION_CONFLICT = 0x10_06,
+  /** Admin giải tán một nhóm không còn ACTIVE. */
+  GROUP_ALREADY_DISSOLVED = 0x10_07,
 
   // 0x11 — Chiến dịch & Home động (F63)
   HOME_CAMPAIGN_NOT_FOUND = 0x11_01,

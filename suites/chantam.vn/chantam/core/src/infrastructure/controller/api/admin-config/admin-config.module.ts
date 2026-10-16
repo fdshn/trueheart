@@ -29,11 +29,13 @@ import { NotificationTemplateController } from './notification-template.controll
   controllers: [
     AdminConfigController,
     AdminChatFlagController,
-    AdminGroupListController,
     AdminMediaController,
     AdminTrustThresholdController,
     AdminGroupRadiusController,
     AdminGroupRoleController,
+    // SAU hai controller trên: `GET /admin/groups/:groupId` không được đứng trước
+    // `/admin/groups/radius-policy` và `/admin/groups/role-permissions`.
+    AdminGroupListController,
     AdminRankPolicyController,
     AdminPointLedgerController,
     AdminUserPointLedgerController,

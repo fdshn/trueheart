@@ -870,6 +870,61 @@ async function main(): Promise<void> {
       codes.length === 2 && codes[0].referral_code !== codes[1].referral_code,
       codes.map((row) => row.referral_code).join(' / '),
     );
+
+    console.log('\nQ. Admin: chi tiết nhóm và giải tán MỘT nhóm (SRS 3.7A)');
+    const detail = await groups.findAdminDetail(OtherGroupId);
+    check(
+      'chi tiết có tâm, bán kính, mã mời, owner và số thành viên đang hiệu lực',
+      detail?.groupId === OtherGroupId &&
+        typeof detail.centerLat === 'number' &&
+        detail.radiusKm > 0 &&
+        detail.inviteCode === 'ZZZZ2345EFGH6789' &&
+        detail.ownerUsername === 'chu-nhom-khac' &&
+        detail.memberCount >= 2 &&
+        detail.dissolvedAt === null,
+      JSON.stringify(detail),
+    );
+    check(
+      'nhóm không tồn tại thì null',
+      (await groups.findAdminDetail('00000000-0000-4000-8000-000000000000')) ===
+        null,
+    );
+    const membersBefore = Number(detail?.memberCount ?? 0);
+
+    check(
+      'giải tán nhóm ACTIVE trả true',
+      await groups.dissolveById(OtherGroupId),
+    );
+    const adminAfter = await groups.findAdminDetail(OtherGroupId);
+    check(
+      'nhóm sang DISSOLVED, có mốc giải tán, và vẫn đọc được để tra lại',
+      adminAfter?.status === 'DISSOLVED' && adminAfter.dissolvedAt !== null,
+      `${adminAfter?.status}`,
+    );
+    check(
+      'link mời chết ngay',
+      (await groups.findActiveByInviteCode('ZZZZ2345EFGH6789')) === null,
+    );
+    const [{ kept: adminKept }] = await dataSource.query<{ kept: string }[]>(
+      `SELECT count(*)::text AS kept FROM group_memberships
+        WHERE group_id = $1 AND status = 'DISSOLVED'`,
+      [OtherGroupId],
+    );
+    check(
+      'membership thôi hiệu lực nhưng Ở LẠI làm lịch sử',
+      Number(adminKept) === membersBefore && adminAfter?.memberCount === 0,
+      `adminKept=${adminKept} before=${membersBefore}`,
+    );
+    check(
+      'thành viên cũ không còn thuộc nhóm nào',
+      (await groups.findMine(InvitedId)) === null,
+    );
+    check(
+      'giải tán lần hai trả false, không đè mốc cũ',
+      !(await groups.dissolveById(OtherGroupId)) &&
+        (await groups.findAdminDetail(OtherGroupId))?.dissolvedAt?.getTime() ===
+          adminAfter?.dissolvedAt?.getTime(),
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

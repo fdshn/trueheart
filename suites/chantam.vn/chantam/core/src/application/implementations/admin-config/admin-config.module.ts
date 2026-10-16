@@ -3,9 +3,11 @@ import {
   IChangeAdminUserStatusUseCase,
   ICountPendingAdminCommentsUseCase,
   IDeleteAdminUserUseCase,
+  IDissolveAdminGroupUseCase,
   IGetAdminAuditLogsUseCase,
   IGetAdminConfigsUseCase,
   IGetAdminDashboardUseCase,
+  IGetAdminGroupUseCase,
   IGetAdminPointRulesUseCase,
   IGetAdminRankPolicyUseCase,
   IGetAdminUserUseCase,
@@ -20,6 +22,7 @@ import {
   IGetSystemLogsUseCase,
   IGetTrustThresholdsUseCase,
   IListAdminCommentsUseCase,
+  IListAdminGroupMembersUseCase,
   IListAdminGroupsUseCase,
   IListAdminRolesUseCase,
   IListAdminUsersUseCase,
@@ -56,7 +59,12 @@ import {
   PublishAdminConfigUseCase,
 } from './admin-config.use-cases';
 import { GetAdminDashboardUseCase } from './admin-dashboard.use-case';
-import { ListAdminGroupsUseCase } from './admin-group-list.use-cases';
+import {
+  DissolveAdminGroupUseCase,
+  GetAdminGroupUseCase,
+  ListAdminGroupMembersUseCase,
+  ListAdminGroupsUseCase,
+} from './admin-group-list.use-cases';
 import {
   GetGroupRadiusPolicyUseCase,
   PublishGroupRadiusPolicyUseCase,
@@ -174,6 +182,15 @@ import {
       provide: IListAdminGroupsUseCase,
       useClass: ListAdminGroupsUseCase,
     },
+    { provide: IGetAdminGroupUseCase, useClass: GetAdminGroupUseCase },
+    {
+      provide: IListAdminGroupMembersUseCase,
+      useClass: ListAdminGroupMembersUseCase,
+    },
+    {
+      provide: IDissolveAdminGroupUseCase,
+      useClass: DissolveAdminGroupUseCase,
+    },
     {
       provide: IPublishGroupRadiusPolicyUseCase,
       useClass: PublishGroupRadiusPolicyUseCase,
@@ -264,6 +281,9 @@ import {
     IReviewChatFlagUseCase,
     IGetGroupRadiusPolicyUseCase,
     IListAdminGroupsUseCase,
+    IGetAdminGroupUseCase,
+    IListAdminGroupMembersUseCase,
+    IDissolveAdminGroupUseCase,
     IGetGroupRolePermissionsUseCase,
     IPublishGroupRadiusPolicyUseCase,
     IReplaceGroupRolePermissionsUseCase,

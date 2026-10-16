@@ -815,6 +815,12 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Không tìm thấy nhóm',
   },
 
+  GROUP_ALREADY_DISSOLVED: {
+    code: ErrorCodes.GROUP_ALREADY_DISSOLVED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Nhóm đã giải tán từ trước',
+  },
+
   AFFILIATE_POLICY_VERSION_CONFLICT: {
     code: ErrorCodes.AFFILIATE_POLICY_VERSION_CONFLICT,
     httpStatus: HttpStatus.CONFLICT,

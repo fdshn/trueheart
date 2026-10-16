@@ -162,6 +162,7 @@ Nghiệp vụ Chân Tâm
 | `0x1004` | `4100` | 400 Bad Request | `GROUP_INVITE_INVALID` | Link mời không dùng được. |
 | `0x1005` | `4101` | 404 Not Found | `GROUP_NOT_FOUND` | Không tìm thấy nhóm |
 | `0x1006` | `4102` | 409 Conflict | `AFFILIATE_POLICY_VERSION_CONFLICT` | Policy Affiliate vừa được người khác publish: bản hiện tại là 2, không phải 1. Tải lại rồi sửa trên bản mới |
+| `0x1007` | `4103` | 409 Conflict | `GROUP_ALREADY_DISSOLVED` | Nhóm đã giải tán từ trước |
 | `0x1101` | `4353` | 404 Not Found | `HOME_CAMPAIGN_NOT_FOUND` | Không tìm thấy chiến dịch |
 | `0x1102` | `4354` | 409 Conflict | `HOME_CAMPAIGN_SCHEDULE_CONFLICT` | Đã có giao diện trang chủ khác đang bật trùng khung thời gian này — tắt bản kia hoặc đổi thời gian |
 | `0x1201` | `4609` | 404 Not Found | `BLOG_NOT_FOUND` | Không tìm thấy bài viết |
@@ -211,5 +212,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **169 mã lỗi** trên 3 tầng.
+Tổng cộng **170 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.
