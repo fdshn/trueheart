@@ -3,6 +3,7 @@ import {
   ICloseCharityCampaignUseCase,
   ICreateCharityCampaignUseCase,
   IDecideCharityApprovalUseCase,
+  IDeleteCharityCampaignUseCase,
   IExtendCharityCampaignUseCase,
   IGetAdminCharityCampaignUseCase,
   IJoinCharityCampaignUseCase,
@@ -27,6 +28,7 @@ import {
   CharityBeneficiaryConsentRequiredException,
   CharityBeneficiaryNotApplicableException,
   CharityCampaignCreateNotAllowedException,
+  CharityCampaignHasActivityException,
   CharityCampaignNotClosableException,
   CharityCampaignNotExtendableException,
   CharityCampaignNotFoundException,
@@ -87,6 +89,8 @@ import {
   CharityExternalContributionListDto,
   CloseCharityCampaignResponseDto,
   DecideCharityApprovalBodyDto,
+  DeleteCharityCampaignBodyDto,
+  DeleteCharityCampaignResponseDto,
   ExtendCharityCampaignBodyDto,
   ExtendCharityCampaignResponseDto,
   GrantCharityCoordinatorBodyDto,
@@ -824,6 +828,8 @@ export class AdminCharityCampaignController {
     private readonly progressUseCase: IUpdateCharityProgressUseCase,
     @Inject(IGetAdminCharityCampaignUseCase)
     private readonly getUseCase: IGetAdminCharityCampaignUseCase,
+    @Inject(IDeleteCharityCampaignUseCase)
+    private readonly deleteUseCase: IDeleteCharityCampaignUseCase,
   ) {}
 
   @Get()
@@ -1018,5 +1024,46 @@ export class AdminCharityCampaignController {
     });
 
     return ResponseDto.create().succeed().attach({ campaign }).build();
+  }
+
+  @Delete(':id')
+  @RequiresPermission('campaign.manage')
+  @ApiOperation({
+    summary: 'Xoá một hoạt động từ thiện',
+    description:
+      'Xoá MỀM — hoạt động biến khỏi mọi danh sách, dòng vẫn nằm trong database. CHỈ xoá được ' +
+      'khi chưa ai đăng ký, đóng góp, giao nhận, đóng góp ngoài app hay đánh giá — đúng ca tạo ' +
+      'nhầm, trùng hồ sơ, spam. Đã có người tham gia → `409 CHARITY_CAMPAIGN_HAS_ACTIVITY`; dùng ' +
+      '`POST /charity-campaigns/:id/close` hoặc `PATCH /admin/charity-campaigns/:id/active` thay vì xoá.\n\n' +
+      'Body `{ "deletion": { "reason": "..." } }` — lý do bắt buộc, audit `DELETE_CHARITY_CAMPAIGN`. Quyền `campaign.manage`.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    [
+      ValidationFailedException,
+      ['deletion.reason must be longer than or equal to 3 characters'],
+    ],
+    CharityCampaignNotFoundException,
+    CharityCampaignHasActivityException,
+  )
+  @ApiOkResponse({
+    type: ResponseDto.forApi(DeleteCharityCampaignResponseDto),
+  })
+  public async remove(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() param: CharityCampaignIdParamDto,
+    @Body() body: DeleteCharityCampaignBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.deleteUseCase.handle({
+          actorUserId: principal.userId,
+          campaignId: param.id,
+          reason: body.deletion.reason,
+        }),
+      )
+      .build();
   }
 }

@@ -2,6 +2,7 @@ import {
   CharityBeneficiaryConsentRequiredException,
   CharityBeneficiaryNotApplicableException,
   CharityCampaignCreateNotAllowedException,
+  CharityCampaignHasActivityException,
   CharityCampaignNotFoundException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
@@ -37,6 +38,7 @@ import {
   CreateCharityCampaignUseCase,
   DecideCharityApprovalUseCase,
   DecideCharityContributionUseCase,
+  DeleteCharityCampaignUseCase,
   ExtendCharityCampaignUseCase,
   GetAdminCharityCampaignUseCase,
   GetCampaignNeedsUseCase,
@@ -2032,5 +2034,75 @@ describe('GetAdminCharityCampaignUseCase (CMS A4)', () => {
         campaignId: CampaignId,
       }),
     ).rejects.toThrow(CharityCampaignNotFoundException);
+  });
+});
+
+describe('DeleteCharityCampaignUseCase', () => {
+  const remove = (
+    repository: ReturnType<typeof makeRepository>,
+    admin: ReturnType<typeof makeAdmin>,
+  ) =>
+    new DeleteCharityCampaignUseCase(repository, admin).handle({
+      actorUserId: ActorId,
+      campaignId: CampaignId,
+      reason: '  Hồ sơ tạo trùng  ',
+    });
+
+  it('đòi campaign.manage', async () => {
+    const repository = makeRepository();
+    await expect(remove(repository, makeAdmin(false))).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('đã có người tham gia thì 409 — đóng hoặc tắt thay vì xoá', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(campaign());
+    (
+      repository as unknown as { softDeleteIfUnused: jest.Mock }
+    ).softDeleteIfUnused = jest.fn().mockResolvedValue('HAS_ACTIVITY');
+    const admin = {
+      ...makeAdmin(true),
+      appendAudit: jest.fn(),
+    } as unknown as ReturnType<typeof makeAdmin>;
+
+    await expect(remove(repository, admin)).rejects.toThrow(
+      CharityCampaignHasActivityException,
+    );
+    expect(
+      (admin as unknown as { appendAudit: jest.Mock }).appendAudit,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('xoá được thì audit kèm lý do đã cắt trắng', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(campaign());
+    (
+      repository as unknown as { softDeleteIfUnused: jest.Mock }
+    ).softDeleteIfUnused = jest.fn().mockResolvedValue('DELETED');
+    const appendAudit = jest.fn();
+    const admin = {
+      ...makeAdmin(true),
+      appendAudit,
+    } as unknown as ReturnType<typeof makeAdmin>;
+
+    await expect(remove(repository, admin)).resolves.toEqual({
+      campaignId: CampaignId,
+    });
+    expect(appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'DELETE_CHARITY_CAMPAIGN',
+        resourceId: CampaignId,
+        reason: 'Hồ sơ tạo trùng',
+      }),
+    );
+  });
+
+  it('không tồn tại thì 404', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(null);
+    await expect(remove(repository, makeAdmin(true))).rejects.toThrow(
+      CharityCampaignNotFoundException,
+    );
   });
 });

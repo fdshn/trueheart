@@ -237,4 +237,26 @@ export class HomeCampaignRepository implements IHomeCampaignRepository {
     );
     return row ? toLayout(toRecord(row)) : null;
   }
+
+  public async deleteCampaign(
+    globalId: string,
+  ): Promise<'DELETED' | 'NOT_FOUND' | 'LIVE'> {
+    // Điều kiện "đang phục vụ" nằm ngay trong câu DELETE: đọc trước rồi xoá sau thì một
+    // lượt bật chen giữa sẽ bị xoá mất khi đang lên trang chủ.
+    const deleted = await this.manager.query<unknown[]>(
+      `DELETE FROM home_campaign_configs
+        WHERE global_id = $1
+          AND NOT (is_active AND now() >= start_time AND now() < end_time)`,
+      [globalId],
+    );
+    // TypeORM bọc DELETE thành `[rows, affected]`.
+    if (Number((deleted as unknown as [unknown[], number])[1] ?? 0) > 0)
+      return 'DELETED';
+
+    const [exists] = await this.manager.query<{ found: boolean }[]>(
+      `SELECT true AS found FROM home_campaign_configs WHERE global_id = $1`,
+      [globalId],
+    );
+    return exists ? 'LIVE' : 'NOT_FOUND';
+  }
 }

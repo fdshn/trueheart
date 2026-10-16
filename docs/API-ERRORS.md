@@ -165,6 +165,7 @@ Nghiệp vụ Chân Tâm
 | `0x1007` | `4103` | 409 Conflict | `GROUP_ALREADY_DISSOLVED` | Nhóm đã giải tán từ trước |
 | `0x1101` | `4353` | 404 Not Found | `HOME_CAMPAIGN_NOT_FOUND` | Không tìm thấy chiến dịch |
 | `0x1102` | `4354` | 409 Conflict | `HOME_CAMPAIGN_SCHEDULE_CONFLICT` | Đã có giao diện trang chủ khác đang bật trùng khung thời gian này — tắt bản kia hoặc đổi thời gian |
+| `0x1103` | `4355` | 409 Conflict | `HOME_CAMPAIGN_LIVE` | Giao diện này đang hiển thị trên trang chủ — tắt (isActive: false) rồi mới xoá được |
 | `0x1201` | `4609` | 404 Not Found | `BLOG_NOT_FOUND` | Không tìm thấy bài viết |
 | `0x1202` | `4610` | 409 Conflict | `BLOG_SLUG_CONFLICT` | slug đã có bài khác dùng (kể cả bài đã xoá) — đổi tiêu đề hoặc gửi slug riêng |
 | `0x1301` | `4865` | 404 Not Found | `CHARITY_CAMPAIGN_NOT_FOUND` | Không tìm thấy hoạt động từ thiện |
@@ -197,6 +198,7 @@ Nghiệp vụ Chân Tâm
 | `0x131c` | `4892` | 409 Conflict | `CHARITY_BENEFICIARY_CONSENT_REQUIRED` | Kêu gọi giúp người khác cần xác nhận người thụ hưởng đã đồng ý trước khi công khai |
 | `0x131d` | `4893` | 400 Bad Request | `CHARITY_MEDIA_INVALID` | Bộ ảnh/video gửi lên không hợp lệ |
 | `0x131e` | `4894` | 409 Conflict | `CHARITY_MEDIA_NOT_EDITABLE` | Chỉ sửa ảnh/video được khi hồ sơ còn đang chờ duyệt |
+| `0x131f` | `4895` | 409 Conflict | `CHARITY_CAMPAIGN_HAS_ACTIVITY` | Hoạt động đã có người đăng ký, đóng góp, giao nhận hoặc đánh giá — hãy đóng hoặc tắt thay vì xoá |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -212,5 +214,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **170 mã lỗi** trên 3 tầng.
+Tổng cộng **172 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

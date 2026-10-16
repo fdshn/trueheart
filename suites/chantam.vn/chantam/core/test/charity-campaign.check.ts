@@ -1046,6 +1046,35 @@ async function main(): Promise<void> {
       devBanner?.banner_url === 'http://localhost:19000/a.webp',
       devBanner?.banner_url,
     );
+
+    console.log('\nXoá hoạt động (CMS): chỉ khi chưa có ai tham gia');
+    check(
+      'hoạt động đã có người đăng ký thì HAS_ACTIVITY, KHÔNG xoá',
+      (await repository.softDeleteIfUnused(target)) === 'HAS_ACTIVITY' &&
+        (await repository.findByGlobalId(target)) !== null,
+    );
+    check(
+      'hoạt động chưa ai đụng tới (chỉ có media) thì xoá được',
+      (await repository.softDeleteIfUnused(other.globalId)) === 'DELETED',
+    );
+    check(
+      'xoá xong biến khỏi mọi đường đọc, kể cả đường Admin',
+      (await repository.findByGlobalId(other.globalId)) === null &&
+        (await repository.findPublicByIdOrSlug(other.globalId)) === null,
+    );
+    const [softRow] = await dataSource.query<
+      { deleted_at: Date | null; is_active: boolean }[]
+    >(`SELECT deleted_at, is_active FROM campaigns WHERE global_id = $1`, [
+      other.globalId,
+    ]);
+    check(
+      'nhưng dòng VẪN nằm trong database (xoá mềm), đã tắt',
+      softRow?.deleted_at !== null && softRow?.is_active === false,
+    );
+    check(
+      'xoá lần hai trả NOT_FOUND',
+      (await repository.softDeleteIfUnused(other.globalId)) === 'NOT_FOUND',
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

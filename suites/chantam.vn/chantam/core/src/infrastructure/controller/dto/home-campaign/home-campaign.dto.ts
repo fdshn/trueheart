@@ -287,6 +287,16 @@ export class ListHomeCampaignsResponseDto {
   total: number;
 }
 
+export class DeleteHomeCampaignResponseDto {
+  @ApiProperty({ format: 'uuid' }) campaignId: string;
+
+  @ApiProperty({
+    description:
+      '`false` nghĩa là đã XOÁ nhưng chưa xoá được đệm Redis. Bản bị xoá không đang phục vụ nên trang chủ không đổi.',
+  })
+  cacheInvalidated: boolean;
+}
+
 export class HomeCampaignMutationResponseDto {
   @ApiProperty({ type: () => HomeCampaignResponseDto })
   campaign: HomeCampaignResponseDto;

@@ -260,6 +260,8 @@ export enum ErrorCodes {
   // 0x11 — Chiến dịch & Home động (F63)
   HOME_CAMPAIGN_NOT_FOUND = 0x11_01,
   HOME_CAMPAIGN_SCHEDULE_CONFLICT = 0x11_02,
+  /** Xoá giao diện trang chủ ĐANG phục vụ — phải tắt trước. */
+  HOME_CAMPAIGN_LIVE = 0x11_03,
 
   // 0x12 — Blog / Tin tức (F64)
   BLOG_NOT_FOUND = 0x12_01,
@@ -312,6 +314,8 @@ export enum ErrorCodes {
   CHARITY_MEDIA_INVALID = 0x13_1d,
   /** Chỉ sửa media khi hồ sơ còn chờ duyệt. */
   CHARITY_MEDIA_NOT_EDITABLE = 0x13_1e,
+  /** Xoá hoạt động đã có người tham gia / đóng góp / giao nhận / đánh giá. */
+  CHARITY_CAMPAIGN_HAS_ACTIVITY = 0x13_1f,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

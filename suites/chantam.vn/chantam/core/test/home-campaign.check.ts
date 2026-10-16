@@ -437,6 +437,41 @@ async function main(): Promise<void> {
       page.total === Number(all[0]?.total) && page.items.length === 2,
       `total=${page.total} items=${page.items.length} bảng=${all[0]?.total}`,
     );
+
+    console.log('\nN. Xoá giao diện trang chủ (CMS A9)');
+    check(
+      'bản ĐANG phục vụ thì KHÔNG xoá được — LIVE',
+      (await repository.deleteCampaign(now.globalId)) === 'LIVE' &&
+        (await repository.findByGlobalId(now.globalId)) !== null,
+    );
+    const draftToDelete = await repository.createCampaign(
+      write({
+        campaignName: 'Nháp sẽ bị xoá',
+        startTime: at('2027-03-01T00:00:00Z'),
+        endTime: at('2027-03-31T00:00:00Z'),
+      }),
+    );
+    check(
+      'bản nháp xoá được, và biến mất thật',
+      (await repository.deleteCampaign(draftToDelete.globalId)) === 'DELETED' &&
+        (await repository.findByGlobalId(draftToDelete.globalId)) === null,
+    );
+    check(
+      'xoá lần hai trả NOT_FOUND',
+      (await repository.deleteCampaign(draftToDelete.globalId)) === 'NOT_FOUND',
+    );
+    const scheduled = await repository.createCampaign(
+      write({
+        campaignName: 'Bật nhưng chưa tới giờ',
+        isActive: true,
+        startTime: at('2027-05-01T00:00:00Z'),
+        endTime: at('2027-05-31T00:00:00Z'),
+      }),
+    );
+    check(
+      'bản đã bật nhưng CHƯA tới giờ thì xoá được — chưa phục vụ ai',
+      (await repository.deleteCampaign(scheduled.globalId)) === 'DELETED',
+    );
   } finally {
     // `disconnect()` chứ không `quit()`: `quit` chờ Redis trả lời, và nếu client chưa
     // bao giờ nối được thì nó không bao giờ trả — script treo thay vì báo lỗi.

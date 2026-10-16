@@ -18,6 +18,8 @@ import {
   IDecideCharityContributionCommand,
   IDecideCharityContributionResult,
   IDecideCharityContributionUseCase,
+  IDeleteCharityCampaignCommand,
+  IDeleteCharityCampaignUseCase,
   IExtendCharityCampaignCommand,
   IExtendCharityCampaignUseCase,
   IGetAdminCharityCampaignCommand,
@@ -81,6 +83,7 @@ import {
   CharityBeneficiaryConsentRequiredException,
   CharityBeneficiaryNotApplicableException,
   CharityCampaignCreateNotAllowedException,
+  CharityCampaignHasActivityException,
   CharityCampaignNotFoundException,
   CharityCancelTooLateException,
   CharityContributionNotEditableException,
@@ -1577,5 +1580,58 @@ export class SetCharityCampaignActiveUseCase implements ISetCharityCampaignActiv
     if (!updated) throw new CharityCampaignNotFoundException();
 
     return toView(updated, null);
+  }
+}
+
+/**
+ * Xoá MỀM một hoạt động từ thiện (CMS).
+ *
+ * Chỉ khi CHƯA có ai đăng ký, đóng góp, giao nhận hay đánh giá — đúng ca "tạo nhầm",
+ * "trùng hồ sơ", "spam". Hoạt động đã có người tham gia thì đóng (`/close`) hoặc tắt
+ * (`/active`), vì xoá là làm mất lịch sử của họ ở mọi màn. Quyền `campaign.manage`,
+ * lý do bắt buộc, audit giữ bản ghi trước khi xoá.
+ */
+@Injectable()
+export class DeleteCharityCampaignUseCase implements IDeleteCharityCampaignUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: IDeleteCharityCampaignCommand,
+  ): Promise<{ campaignId: string }> {
+    if (!(await this.admin.hasPermission(command.actorUserId, WritePermission)))
+      throw new ForbiddenException();
+
+    const before = await this.repository.findByGlobalId(command.campaignId);
+    if (!before) throw new CharityCampaignNotFoundException();
+
+    const outcome = await this.repository.softDeleteIfUnused(
+      command.campaignId,
+    );
+    if (outcome === 'NOT_FOUND') throw new CharityCampaignNotFoundException();
+    if (outcome === 'HAS_ACTIVITY')
+      throw new CharityCampaignHasActivityException();
+
+    await this.admin.appendAudit({
+      actorUserId: command.actorUserId,
+      action: 'DELETE_CHARITY_CAMPAIGN',
+      resourceType: 'CHARITY_CAMPAIGN',
+      resourceId: command.campaignId,
+      before: {
+        title: before.title,
+        slug: before.slug,
+        approvalStatus: before.approvalStatus,
+        isActive: before.isActive,
+        createdBy: before.createdBy,
+      },
+      after: { deleted: true },
+      reason: command.reason.trim(),
+    });
+
+    return { campaignId: command.campaignId };
   }
 }

@@ -377,6 +377,15 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
   findByGlobalId(globalId: string): Promise<ICharityCampaign | null>;
 
   /**
+   * Xoá MỀM (`deleted_at`) — chỉ khi hoạt động chưa có người đăng ký, đóng góp, giao
+   * nhận, đóng góp ngoài app hay đánh giá. Kiểm dưới khoá dòng để không lọt một lượt
+   * đăng ký chen giữa.
+   */
+  softDeleteIfUnused(
+    campaignId: string,
+  ): Promise<'DELETED' | 'NOT_FOUND' | 'HAS_ACTIVITY'>;
+
+  /**
    * Đường công khai, nhận cả id lẫn slug.
    *
    * CHỈ trả hoạt động đã duyệt, còn bật, chưa xoá — kể cả khi tra bằng id. Một hồ sơ chờ

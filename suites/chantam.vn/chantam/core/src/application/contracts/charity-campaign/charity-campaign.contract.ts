@@ -590,6 +590,21 @@ export const IGetAdminCharityCampaignUseCase = Symbol(
   'IGetAdminCharityCampaignUseCase',
 );
 
+export interface IDeleteCharityCampaignCommand {
+  readonly actorUserId: string;
+  readonly campaignId: string;
+  readonly reason: string;
+}
+
+export interface IDeleteCharityCampaignUseCase extends IUseCase<
+  IDeleteCharityCampaignCommand,
+  { readonly campaignId: string }
+> {}
+
+export const IDeleteCharityCampaignUseCase = Symbol(
+  'IDeleteCharityCampaignUseCase',
+);
+
 export interface IDecideCharityApprovalCommand {
   readonly actorUserId: string;
   readonly campaignId: string;

@@ -1,6 +1,9 @@
 import {
   ICreateHomeCampaignCommand,
   ICreateHomeCampaignUseCase,
+  IDeleteHomeCampaignCommand,
+  IDeleteHomeCampaignResult,
+  IDeleteHomeCampaignUseCase,
   IGetHomeCampaignCommand,
   IGetHomeCampaignUseCase,
   IGetHomeLayoutResult,
@@ -14,7 +17,10 @@ import {
   IUpdateHomeCampaignCommand,
   IUpdateHomeCampaignUseCase,
 } from '@/application/contracts/home-campaign';
-import { HomeCampaignNotFoundException } from '@/domain/exceptions';
+import {
+  HomeCampaignLiveException,
+  HomeCampaignNotFoundException,
+} from '@/domain/exceptions';
 import { IHomeLayoutCache } from '@/domain/ports/cache';
 import {
   IAdminConfigRepository,
@@ -235,5 +241,53 @@ export class GetHomeLayoutUseCase implements IGetHomeLayoutUseCase {
     await this.cache.write(layout);
 
     return { layout, fromCache: false };
+  }
+}
+
+/**
+ * Xoá một giao diện trang chủ (CMS A9).
+ *
+ * Xoá CỨNG: đây là cấu hình, không bảng nào trỏ tới nó. Nhưng KHÔNG xoá được bản đang
+ * phục vụ — xoá nó là trang chủ rơi về mặc định giữa chừng mà Admin không định thế.
+ * Audit giữ nguyên bản ghi trước khi xoá, vì sau câu DELETE không còn đâu để tra.
+ */
+@Injectable()
+export class DeleteHomeCampaignUseCase implements IDeleteHomeCampaignUseCase {
+  public constructor(
+    @Inject(IHomeCampaignRepository)
+    private readonly repository: IHomeCampaignRepository,
+    @Inject(IHomeLayoutCache) private readonly cache: IHomeLayoutCache,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: IDeleteHomeCampaignCommand,
+  ): Promise<IDeleteHomeCampaignResult> {
+    if (
+      !(await this.admin.hasPermission(command.actorUserId, 'campaign.manage'))
+    )
+      throw new ForbiddenException();
+
+    const before = await this.repository.findByGlobalId(command.campaignId);
+    if (!before) throw new HomeCampaignNotFoundException();
+
+    const outcome = await this.repository.deleteCampaign(command.campaignId);
+    if (outcome === 'NOT_FOUND') throw new HomeCampaignNotFoundException();
+    if (outcome === 'LIVE') throw new HomeCampaignLiveException();
+
+    await this.admin.appendAudit({
+      actorUserId: command.actorUserId,
+      action: 'DELETE_HOME_CAMPAIGN',
+      resourceType: 'HOME_CAMPAIGN',
+      resourceId: command.campaignId,
+      before: toView(before),
+      after: null,
+    });
+
+    return {
+      campaignId: command.campaignId,
+      cacheInvalidated: await this.cache.invalidate(),
+    };
   }
 }

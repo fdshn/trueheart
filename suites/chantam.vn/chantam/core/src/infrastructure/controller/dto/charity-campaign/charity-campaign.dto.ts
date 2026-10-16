@@ -534,6 +534,30 @@ export class SetCharityCampaignActiveBodyDto {
   campaign: SetCharityCampaignActiveDto;
 }
 
+export class DeleteCharityCampaignDto {
+  @ApiProperty({
+    minLength: 3,
+    maxLength: 500,
+    example: 'Hồ sơ tạo trùng',
+    description: 'Bắt buộc — đi vào audit log.',
+  })
+  @IsString()
+  @Length(3, 500)
+  reason: string;
+}
+
+export class DeleteCharityCampaignBodyDto {
+  @ApiProperty({ type: () => DeleteCharityCampaignDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => DeleteCharityCampaignDto)
+  deletion: DeleteCharityCampaignDto;
+}
+
+export class DeleteCharityCampaignResponseDto {
+  @ApiProperty({ format: 'uuid' }) campaignId: string;
+}
+
 export class CharityCampaignResponseDto {
   @ApiProperty() globalId: string;
   @ApiProperty() title: string;

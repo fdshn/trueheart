@@ -1,9 +1,15 @@
 import {
+  HomeCampaignLiveException,
+  HomeCampaignNotFoundException,
+} from '@/domain/exceptions';
+import {
   DefaultHomeLayout,
   IHomeLayout,
 } from '@chantam.vn/chantam.core-lib/models';
+import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import {
   CreateHomeCampaignUseCase,
+  DeleteHomeCampaignUseCase,
   GetHomeLayoutUseCase,
   UpdateHomeCampaignUseCase,
 } from './home-campaign.use-cases';
@@ -343,5 +349,65 @@ describe('GetHomeLayoutUseCase', () => {
     ).handle();
 
     expect(deps.admin.hasPermission).not.toHaveBeenCalled();
+  });
+});
+
+describe('DeleteHomeCampaignUseCase (CMS A9)', () => {
+  function deleteDeps(
+    outcome: 'DELETED' | 'NOT_FOUND' | 'LIVE',
+    options: { granted?: boolean; existing?: unknown } = {},
+  ) {
+    const deps = makeDeps({ existing: options.existing });
+    return {
+      ...deps,
+      repository: {
+        ...deps.repository,
+        deleteCampaign: jest.fn(async () => outcome),
+      },
+      admin: {
+        hasPermission: jest.fn(async () => options.granted ?? true),
+        appendAudit: jest.fn(async () => undefined),
+      },
+    };
+  }
+  const remove = (deps: ReturnType<typeof deleteDeps>) =>
+    new DeleteHomeCampaignUseCase(
+      deps.repository as never,
+      deps.cache as never,
+      deps.admin as never,
+    ).handle({ actorUserId: ActorId, campaignId: CampaignId });
+
+  it('đòi campaign.manage', async () => {
+    const deps = deleteDeps('DELETED', { granted: false });
+    await expect(remove(deps)).rejects.toThrow(ForbiddenException);
+    expect(deps.repository.deleteCampaign).not.toHaveBeenCalled();
+  });
+
+  it('bản đang phục vụ thì 409, không audit, không xoá đệm', async () => {
+    const deps = deleteDeps('LIVE');
+    await expect(remove(deps)).rejects.toThrow(HomeCampaignLiveException);
+    expect(deps.admin.appendAudit).not.toHaveBeenCalled();
+    expect(deps.cache.invalidate).not.toHaveBeenCalled();
+  });
+
+  it('không tồn tại thì 404', async () => {
+    const deps = deleteDeps('NOT_FOUND', { existing: null });
+    await expect(remove(deps)).rejects.toThrow(HomeCampaignNotFoundException);
+  });
+
+  it('xoá xong: audit giữ bản ghi trước, xoá đệm, trả cacheInvalidated', async () => {
+    const deps = deleteDeps('DELETED');
+    await expect(remove(deps)).resolves.toEqual({
+      campaignId: CampaignId,
+      cacheInvalidated: true,
+    });
+    expect(deps.admin.appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'DELETE_HOME_CAMPAIGN',
+        resourceId: CampaignId,
+        before: expect.objectContaining({ id: CampaignId, isActive: true }),
+        after: null,
+      }),
+    );
   });
 });

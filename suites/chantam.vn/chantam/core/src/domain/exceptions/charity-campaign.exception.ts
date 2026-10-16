@@ -143,3 +143,7 @@ export class CharityMediaInvalidException extends ExceptionFrom(
 export class CharityMediaNotEditableException extends ExceptionFrom(
   CoreErrors.CHARITY_MEDIA_NOT_EDITABLE,
 ) {}
+
+export class CharityCampaignHasActivityException extends ExceptionFrom(
+  CoreErrors.CHARITY_CAMPAIGN_HAS_ACTIVITY,
+) {}

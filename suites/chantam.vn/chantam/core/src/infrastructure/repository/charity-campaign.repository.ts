@@ -2349,4 +2349,39 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       total: Number(counted?.total ?? 0),
     };
   }
+
+  public async softDeleteIfUnused(
+    campaignId: string,
+  ): Promise<'DELETED' | 'NOT_FOUND' | 'HAS_ACTIVITY'> {
+    return this.manager.transaction(async (manager) => {
+      const [campaign] = await manager.query<{ id: string }[]>(
+        `SELECT id FROM campaigns
+          WHERE global_id = $1 AND deleted_at IS NULL
+          FOR UPDATE`,
+        [campaignId],
+      );
+      if (!campaign) return 'NOT_FOUND';
+
+      // Bất kỳ dòng nào — kể cả đăng ký đã huỷ hay đề nghị bị từ chối — là lịch sử của
+      // một người thật. Xoá hoạt động là làm mất lịch sử đó khỏi mọi màn của họ.
+      const [{ used }] = await manager.query<{ used: boolean }[]>(
+        `SELECT (
+            EXISTS (SELECT 1 FROM campaign_participations WHERE campaign_id = $1)
+            OR EXISTS (SELECT 1 FROM campaign_contributions WHERE campaign_id = $1)
+            OR EXISTS (SELECT 1 FROM campaign_deliveries WHERE campaign_id = $1)
+            OR EXISTS (SELECT 1 FROM campaign_external_contributions WHERE campaign_id = $1)
+            OR EXISTS (SELECT 1 FROM campaign_reviews WHERE campaign_id = $1)
+          ) AS used`,
+        [campaignId],
+      );
+      if (used) return 'HAS_ACTIVITY';
+
+      await manager.query(
+        `UPDATE campaigns SET deleted_at = now(), is_active = false, updated_at = now()
+          WHERE global_id = $1`,
+        [campaignId],
+      );
+      return 'DELETED';
+    });
+  }
 }

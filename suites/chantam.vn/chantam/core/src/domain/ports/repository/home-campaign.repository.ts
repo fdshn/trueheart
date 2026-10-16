@@ -76,6 +76,12 @@ export interface IHomeCampaignRepository {
    * Tách hai việc để repository không phải biết về bố cục mặc định.
    */
   findActiveLayout(): Promise<IHomeLayout | null>;
+
+  /**
+   * Xoá cứng một giao diện trang chủ — trừ khi nó đang phục vụ (bật và trong khung
+   * giờ). Kiểm và xoá trong MỘT câu lệnh, nên không có khe nào để nó vừa được bật.
+   */
+  deleteCampaign(globalId: string): Promise<'DELETED' | 'NOT_FOUND' | 'LIVE'>;
 }
 
 export const IHomeCampaignRepository = Symbol('IHomeCampaignRepository');
