@@ -1430,6 +1430,7 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 | `PATCH /groups/:groupId` | Sửa tên, mô tả, ảnh |
 | `GET /groups/:groupId/activities` | Dòng hoạt động |
 | `GET /groups/:groupId/invite` | Link mời + số người đã vào |
+| `GET /groups/:groupId/invite-link` | Như `/invite` — tên theo SRS 3.7A |
 | `GET /groups/:groupId/affiliate` | Điều kiện affiliate của nhóm |
 | `GET /groups/:groupId/members` | Danh sách thành viên |
 | `GET /groups/:groupId/sub-teams` | Danh sách tổ |
@@ -1437,9 +1438,34 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 | `DELETE /groups/:groupId/sub-teams/:subTeamId` | Xoá tổ |
 | `PATCH /groups/:groupId/members/:memberId` | Xếp vào tổ / đổi vai |
 
-Và bốn endpoint Admin: `GET /admin/groups/role-permissions`,
+Và các endpoint Admin: `GET /admin/groups/role-permissions`,
 `PUT /admin/groups/role-permissions/:role`, `GET /admin/groups/radius-policy`,
-`PUT /admin/groups/radius-policy`.
+`PUT /admin/groups/radius-policy`, `GET /admin/groups`, `GET /admin/groups/:groupId`,
+`GET /admin/groups/:groupId/members`, `POST /admin/groups/:groupId/dissolve`,
+`POST /admin/groups/:groupId/invite-link/rotate`.
+
+### SRS 3.7A — thay đổi ngày 16/10/2026
+
+- **`groupCreation: { canCreateGroup, reasonCode }`** ở `GET /groups/me` và `GET /me/entitlements`.
+  Cùng một lớp (`GroupCreationEligibility`) quyết định cho cả `POST /groups`, nên `reasonCode`
+  luôn là ĐÚNG mã lỗi `POST` sẽ trả: `PROFILE_INCOMPLETE` → `ONBOARDING_INCOMPLETE` →
+  `GROUP_CREATE_NOT_ALLOWED` → `GROUP_ALREADY_MEMBER` → `GROUP_DEFAULT_LOCATION_REQUIRED`.
+  Tên mã giữ nguyên (không đổi sang tên trong SRS) để không phá app đang chạy.
+- **Mã mời sai khi đăng ký** → `400 GROUP_INVITE_INVALID`, không tạo tài khoản (trước đó vẫn
+  đăng ký và bỏ nhóm). Xem mục dưới.
+- **Link mời:** Owner chỉ ĐỌC (`/invite` hoặc `/invite-link`); Phase 1 không có đường cho user
+  xoay link. Chỉ Admin đổi mã khi link bị lộ — `POST /admin/groups/:groupId/invite-link/rotate`
+  (`admin.manage`, lý do bắt buộc, audit `ROTATE_GROUP_INVITE` ghi cả mã cũ lẫn mã mới).
+- **Admin giải tán nhóm** — `POST /admin/groups/:groupId/dissolve` (`admin.manage`, lý do bắt
+  buộc, audit `DISSOLVE_GROUP`): cùng hiệu ứng với Owner xoá tài khoản; nhóm đã giải tán →
+  `409 GROUP_ALREADY_DISSOLVED`.
+- **Affiliate ngoài vùng / không toạ độ** ghi một dòng `affiliate_rewards` với
+  `reward_status = NOT_ELIGIBLE_GEO`, `point_delta = 0`, không bút toán, cho mỗi người lẽ ra
+  được chia (chặn bởi `maxBeneficiariesPerEvent`).
+- **`SUBTEAM_ADMIN` giữ nguyên** (mở rộng Bên A 24/09) — mặc định chỉ OWNER có quyền quản lý,
+  Admin hệ thống cấp thêm qua `/admin/groups/role-permissions`.
+- Acceptance của SRS 3.7A chạy ở `npm run test:group-acceptance` (use case + repository thật)
+  và `npm run test:affiliate` (bốn ca geo).
 
 ### Tâm và bán kính KHÔNG nhận từ body
 
@@ -1822,6 +1848,11 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `GET` | `/charity-deliveries/:id` | Hai bên | ✅ **Đã chạy.** Một lượt giao nhận; người ngoài nhận cùng lỗi với không tồn tại |
 | `POST` | `/charity-deliveries/:id/complete` | Organizer | ✅ **Đã chạy.** Xác nhận số THỰC NHẬN từng dòng; phần thiếu trở về nhu cầu |
 | `POST` | `/charity-deliveries/:id/cancel` | Hai bên | ✅ **Đã chạy.** Trả phần đã nhận về nhu cầu, không xoá đề nghị |
+| `GET` | `/admin/charity-campaigns/:id` | `campaign.read` | ✅ **Đã chạy (15/10).** Một hoạt động, mọi trạng thái duyệt |
+| `PATCH` | `/admin/charity-campaigns/:id` | `campaign.manage` | ✅ **Đã chạy (16/10).** Sửa nội dung (tiêu đề, mô tả, huy hiệu, mục tiêu, vị trí); không đụng slug/thời gian/loại/duyệt/media; lý do bắt buộc, audit trường đổi |
+| `DELETE` | `/admin/charity-campaigns/:id` | `campaign.manage` | ✅ **Đã chạy (16/10).** Xoá MỀM, chỉ khi chưa ai đăng ký/đóng góp/giao nhận/đánh giá — có thì `409 CHARITY_CAMPAIGN_HAS_ACTIVITY` (đóng hoặc tắt thay vì xoá) |
+
+Giao diện trang chủ (`/admin/campaigns`) có thêm `DELETE /admin/campaigns/:campaignId` (16/10, `campaign.manage`): xoá CỨNG, nhưng bản đang phục vụ (`isLive`) → `409 HOME_CAMPAIGN_LIVE` — tắt bằng `PUT … isActive: false` trước.
 
 - `POST /charity-campaigns` và `POST /admin/charity-campaigns` **không còn nhận `bannerUrl`**; gửi `media` (1–5 key) và `coverKey`. Response có thêm `media[]`; `bannerUrl` do server ghi từ ảnh bìa.
 - Luồng "tải trước, tạo sau":
