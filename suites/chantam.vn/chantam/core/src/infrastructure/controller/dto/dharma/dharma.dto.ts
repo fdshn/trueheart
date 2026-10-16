@@ -268,6 +268,15 @@ export class ListAdminDharmaContentsQueryDto {
   @QueryBoolean()
   @IsBoolean()
   includeDrafts?: boolean;
+
+  @ApiPropertyOptional({
+    enum: ['DRAFT', 'PUBLISHED'],
+    description:
+      '`DRAFT` là CHỈ bản nháp, `PUBLISHED` là chỉ bản đã xuất bản. Có thì thắng `includeDrafts`.',
+  })
+  @IsOptional()
+  @IsIn(['DRAFT', 'PUBLISHED'])
+  status?: 'DRAFT' | 'PUBLISHED';
 }
 
 export class DharmaContentIdParamDto {

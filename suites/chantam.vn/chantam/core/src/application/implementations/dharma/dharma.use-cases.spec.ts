@@ -19,6 +19,7 @@ import {
   CreateDharmaContentUseCase,
   GetAdminDharmaContentUseCase,
   GetDharmaHubUseCase,
+  ListAdminDharmaContentsUseCase,
   ListPublicDharmaContentsUseCase,
   StartRecitationUseCase,
   UpdateDharmaContentUseCase,
@@ -367,6 +368,41 @@ describe('GetDharmaHubUseCase', () => {
     await new GetDharmaHubUseCase(repository).handle({});
 
     expect(repository.listPublishedContents).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('ListAdminDharmaContentsUseCase', () => {
+  const list = async (command: {
+    includeDrafts: boolean;
+    status?: 'DRAFT' | 'PUBLISHED';
+  }) => {
+    const repository = makeRepository();
+    repository.listContentsForAdmin.mockResolvedValue({ items: [], total: 0 });
+    await new ListAdminDharmaContentsUseCase(
+      repository,
+      makeAdmin(true),
+    ).handle({ actorUserId: AdminId, limit: 20, offset: 0, ...command });
+    return repository.listContentsForAdmin.mock.calls[0][0];
+  };
+
+  it('status=DRAFT là CHỈ bản nháp', async () => {
+    expect(
+      (await list({ includeDrafts: true, status: 'DRAFT' })).isPublished,
+    ).toBe(false);
+  });
+
+  it('status thắng includeDrafts', async () => {
+    expect(
+      (await list({ includeDrafts: false, status: 'DRAFT' })).isPublished,
+    ).toBe(false);
+  });
+
+  it('không status: includeDrafts=false là chỉ bản đã xuất bản', async () => {
+    expect((await list({ includeDrafts: false })).isPublished).toBe(true);
+  });
+
+  it('không status: includeDrafts=true là không lọc', async () => {
+    expect((await list({ includeDrafts: true })).isPublished).toBeUndefined();
   });
 });
 

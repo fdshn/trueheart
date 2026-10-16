@@ -109,6 +109,8 @@ export interface IListAdminDharmaContentsCommand {
   readonly offset: number;
   readonly contentType?: DharmaContentType;
   readonly includeDrafts: boolean;
+  /** Có thì thắng `includeDrafts`: `DRAFT` là CHỈ bản nháp. */
+  readonly status?: 'DRAFT' | 'PUBLISHED';
 }
 
 export interface IListAdminDharmaContentsUseCase extends IUseCase<

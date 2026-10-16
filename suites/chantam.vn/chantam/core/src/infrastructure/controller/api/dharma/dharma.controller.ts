@@ -221,6 +221,7 @@ export class AdminDharmaController {
           offset: query.offset ?? 0,
           contentType: query.contentType as DharmaContentType | undefined,
           includeDrafts: query.includeDrafts ?? true,
+          status: query.status,
         }),
       )
       .build();

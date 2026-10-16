@@ -360,6 +360,43 @@ async function main(): Promise<void> {
       JSON.stringify(publicPage.items.map((i) => i.slug)),
     );
 
+    const drafts = await repository.listBlogs({
+      limit: 50,
+      offset: 0,
+      publishedOnly: false,
+      isPublished: false,
+    });
+    check(
+      'isPublished=false: chỉ bản nháp, total đếm cùng bộ lọc',
+      drafts.items.length > 0 &&
+        drafts.items.every((i) => !i.isPublished) &&
+        drafts.total === drafts.items.length,
+      `total=${drafts.total}`,
+    );
+    const [target] = page.items;
+    const byKeyword = await repository.listBlogs({
+      limit: 50,
+      offset: 0,
+      publishedOnly: false,
+      keyword: target.slug.slice(0, 5).toUpperCase(),
+    });
+    check(
+      'keyword khớp một đoạn slug, không phân biệt hoa thường',
+      byKeyword.items.some((i) => i.globalId === target.globalId),
+      `keyword=${target.slug.slice(0, 5).toUpperCase()}`,
+    );
+    const wildcard = await repository.listBlogs({
+      limit: 50,
+      offset: 0,
+      publishedOnly: false,
+      keyword: '%',
+    });
+    check(
+      'keyword "%" là ký tự thường, không phải "khớp tất cả"',
+      wildcard.total === 0,
+      `total=${wildcard.total}`,
+    );
+
     const byCategory = await repository.listBlogs({
       limit: 50,
       offset: 0,

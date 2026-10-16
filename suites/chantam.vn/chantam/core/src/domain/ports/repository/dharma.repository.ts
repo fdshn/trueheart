@@ -142,7 +142,8 @@ export interface IDharmaRepository {
     readonly limit: number;
     readonly offset: number;
     readonly contentType?: DharmaContentType;
-    readonly includeDrafts: boolean;
+    /** Lọc đúng một trạng thái; `undefined` là cả nháp lẫn đã xuất bản. */
+    readonly isPublished?: boolean;
   }): Promise<IDharmaContentPage>;
 
   updateContent(params: {

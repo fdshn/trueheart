@@ -725,6 +725,33 @@ async function main(): Promise<void> {
       adminPage.items.some((item) => item.globalId === draft.globalId) &&
         !adminPage.items.some((item) => item.globalId === temple.globalId),
     );
+    const draftsOnly = await listAdminUseCase.handle({
+      actorUserId: AdminId,
+      limit: 50,
+      offset: 0,
+      includeDrafts: true,
+      status: 'DRAFT',
+    });
+    check(
+      'status=DRAFT: chỉ bản nháp, có bản nháp đã tạo, total đếm cùng bộ lọc',
+      draftsOnly.items.length > 0 &&
+        draftsOnly.items.every((item) => !item.isPublished) &&
+        draftsOnly.items.some((item) => item.globalId === draft.globalId) &&
+        draftsOnly.total === draftsOnly.items.length,
+      `total=${draftsOnly.total}`,
+    );
+    const publishedOnly = await listAdminUseCase.handle({
+      actorUserId: AdminId,
+      limit: 50,
+      offset: 0,
+      includeDrafts: true,
+      status: 'PUBLISHED',
+    });
+    check(
+      'status=PUBLISHED: không còn bản nháp nào',
+      publishedOnly.items.length > 0 &&
+        publishedOnly.items.every((item) => item.isPublished),
+    );
     await expectThrow(
       'người không có dharma.read gọi danh sách Admin -> Forbidden',
       () =>

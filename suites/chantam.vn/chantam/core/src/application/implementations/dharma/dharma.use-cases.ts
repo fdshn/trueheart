@@ -323,7 +323,14 @@ export class ListAdminDharmaContentsUseCase implements IListAdminDharmaContentsU
       limit: command.limit,
       offset: command.offset,
       contentType: command.contentType,
-      includeDrafts: command.includeDrafts,
+      // `includeDrafts` chỉ nói "có gồm nháp không", nên không diễn đạt được "chỉ nháp".
+      // `status` là bộ lọc thật; giữ `includeDrafts` cho CMS đang chạy.
+      isPublished:
+        command.status !== undefined
+          ? command.status === 'PUBLISHED'
+          : command.includeDrafts
+            ? undefined
+            : true,
     });
   }
 }

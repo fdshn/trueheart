@@ -90,6 +90,11 @@ export class ListAdminBlogsUseCase implements IListAdminBlogsUseCase {
       category: command.category,
       // CMS thấy cả bản nháp — đó là nửa công việc của trang này.
       publishedOnly: false,
+      isPublished:
+        command.status === undefined
+          ? undefined
+          : command.status === 'PUBLISHED',
+      keyword: command.keyword?.trim() || undefined,
     });
 
     return { items: page.items.map(toSummaryView), total: page.total };

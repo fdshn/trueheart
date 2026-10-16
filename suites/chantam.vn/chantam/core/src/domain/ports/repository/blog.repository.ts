@@ -48,6 +48,10 @@ export interface IListBlogsQuery {
   category?: BlogCategory;
   /** `true` chỉ lấy bài đã xuất bản — đường công khai luôn truyền `true`. */
   publishedOnly: boolean;
+  /** Lọc đúng một trạng thái (CMS). `undefined` là không lọc. */
+  isPublished?: boolean;
+  /** Khớp một đoạn tiêu đề, slug hoặc tóm tắt, không phân biệt hoa thường. */
+  keyword?: string;
 }
 
 export interface IBlogRepository {

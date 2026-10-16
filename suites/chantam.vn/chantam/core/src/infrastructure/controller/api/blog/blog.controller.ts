@@ -45,6 +45,7 @@ import {
 import {
   BlogDetailResponseDto,
   DeleteBlogResponseDto,
+  ListAdminBlogsQueryDto,
   ListBlogsQueryDto,
   ListBlogsResponseDto,
   WriteBlogBodyDto,
@@ -83,7 +84,7 @@ export class AdminBlogController {
   @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
   public async list(
     @CurrentUser() principal: IAuthPrincipal,
-    @Query() query: ListBlogsQueryDto,
+    @Query() query: ListAdminBlogsQueryDto,
   ) {
     return ResponseDto.create()
       .succeed()
@@ -93,6 +94,8 @@ export class AdminBlogController {
           limit: query.limit ?? 20,
           offset: query.offset ?? 0,
           category: query.category,
+          keyword: query.keyword,
+          status: query.status,
         }),
       )
       .build();

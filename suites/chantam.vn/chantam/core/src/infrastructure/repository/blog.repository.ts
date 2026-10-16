@@ -111,9 +111,22 @@ export class BlogRepository implements IBlogRepository {
     const params: unknown[] = [];
 
     if (query.publishedOnly) conditions.push('is_published');
+    if (query.isPublished !== undefined) {
+      params.push(query.isPublished);
+      conditions.push(`is_published = $${params.length}`);
+    }
     if (query.category) {
       params.push(query.category);
       conditions.push(`category = $${params.length}`);
+    }
+    if (query.keyword) {
+      // Thoát `%`, `_` và `\`: Admin gõ "50%" thì là tìm chuỗi "50%", không phải
+      // "mọi bài bắt đầu bằng 50".
+      params.push(`%${query.keyword.replace(/[\\%_]/g, '\\$&')}%`);
+      const placeholder = `$${params.length}`;
+      conditions.push(
+        `(title ILIKE ${placeholder} OR slug ILIKE ${placeholder} OR summary ILIKE ${placeholder})`,
+      );
     }
     const where = conditions.join(' AND ');
 

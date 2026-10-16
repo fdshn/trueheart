@@ -37,6 +37,8 @@ export interface IListAdminBlogsCommand {
   limit: number;
   offset: number;
   category?: BlogCategory;
+  keyword?: string;
+  status?: 'DRAFT' | 'PUBLISHED';
 }
 
 export interface IBlogListResult {

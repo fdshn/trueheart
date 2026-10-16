@@ -107,6 +107,25 @@ export class ListBlogsQueryDto {
   category?: BlogCategory;
 }
 
+export class ListAdminBlogsQueryDto extends ListBlogsQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Khớp một đoạn tiêu đề, slug hoặc tóm tắt, không phân biệt hoa thường. `%` và `_` là ký tự thường.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  keyword?: string;
+
+  @ApiPropertyOptional({
+    enum: ['DRAFT', 'PUBLISHED'],
+    description: 'Bỏ trống là cả nháp lẫn đã xuất bản.',
+  })
+  @IsOptional()
+  @IsIn(['DRAFT', 'PUBLISHED'])
+  status?: 'DRAFT' | 'PUBLISHED';
+}
+
 export class BlogSummaryResponseDto {
   @ApiProperty()
   id: string;

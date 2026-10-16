@@ -327,6 +327,49 @@ describe('ListAdminBlogsUseCase / ListPublicBlogsUseCase', () => {
     });
   });
 
+  it('CMS lọc theo từ khoá (đã trim) và trạng thái nháp/đã xuất bản', async () => {
+    const deps = makeDeps();
+
+    await new ListAdminBlogsUseCase(
+      deps.repository as never,
+      deps.admin as never,
+    ).handle({
+      actorUserId: ActorId,
+      limit: 20,
+      offset: 0,
+      keyword: '  vu lan ',
+      status: 'DRAFT',
+    });
+
+    expect(deps.repository.listBlogs.mock.calls[0][0]).toMatchObject({
+      publishedOnly: false,
+      keyword: 'vu lan',
+      isPublished: false,
+    });
+  });
+
+  it('từ khoá toàn khoảng trắng coi như không lọc; PUBLISHED là isPublished true', async () => {
+    const deps = makeDeps();
+
+    await new ListAdminBlogsUseCase(
+      deps.repository as never,
+      deps.admin as never,
+    ).handle({
+      actorUserId: ActorId,
+      limit: 20,
+      offset: 0,
+      keyword: '   ',
+      status: 'PUBLISHED',
+    });
+
+    const query = deps.repository.listBlogs.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(query.keyword).toBeUndefined();
+    expect(query.isPublished).toBe(true);
+  });
+
   it('đường công khai CHỈ thấy bài đã xuất bản, và không hỏi quyền', async () => {
     const deps = makeDeps();
 

@@ -246,12 +246,15 @@ export class DharmaRepository implements IDharmaRepository {
     limit: number;
     offset: number;
     contentType?: DharmaContentType;
-    includeDrafts: boolean;
+    isPublished?: boolean;
   }): Promise<IDharmaContentPage> {
     const filters: string[] = ['deleted_at IS NULL'];
     const values: unknown[] = [];
 
-    if (!query.includeDrafts) filters.push('is_published');
+    if (query.isPublished !== undefined) {
+      values.push(query.isPublished);
+      filters.push(`is_published = $${values.length}`);
+    }
     if (query.contentType) {
       values.push(query.contentType);
       filters.push(`content_type = $${values.length}`);
