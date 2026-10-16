@@ -24,6 +24,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Inject,
   Param,
   Post,
@@ -153,6 +155,7 @@ export class AdminGroupListController {
   }
 
   @Post(':groupId/dissolve')
+  @HttpCode(HttpStatus.OK)
   @RequiresPermission('admin.manage')
   @ApiOperation({
     summary: 'Giải tán một nhóm',
@@ -189,6 +192,7 @@ export class AdminGroupListController {
   }
 
   @Post(':groupId/invite-link/rotate')
+  @HttpCode(HttpStatus.OK)
   @RequiresPermission('admin.manage')
   @ApiOperation({
     summary: 'Đổi mã mời của một nhóm (khi link bị lộ)',
