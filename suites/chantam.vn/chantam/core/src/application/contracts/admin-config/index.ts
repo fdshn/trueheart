@@ -8,6 +8,7 @@ export * from './admin-group-role.use-cases';
 export * from './admin-maintenance-policy.use-cases';
 export * from './admin-point-rule.use-cases';
 export * from './admin-rank-policy.use-cases';
+export * from './admin-role-definition.use-cases';
 export * from './admin-role.use-cases';
 export * from './admin-user.use-cases';
 export * from './allocation-policy.use-cases';

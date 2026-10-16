@@ -1,18 +1,27 @@
-import { LastSuperAdminException } from '@/domain/exceptions';
+import {
+  AdminPermissionUnknownException,
+  AdminRoleCodeConflictException,
+  AdminRoleNotFoundException,
+  AdminRoleSelfLockoutException,
+  LastSuperAdminException,
+} from '@/domain/exceptions';
 import {
   IAdminAccessSummary,
   IAdminAuditPage,
   IAdminAuditQuery,
   IAdminConfigRepository,
+  IAdminPermissionSummary,
   IAdminPointRule,
   IAdminRankTierPolicy,
   IAdminRoleAssignment,
   IAdminRoleSummary,
+  ICreateAdminRoleCommand,
   IPublishAdminMaintenancePolicyCommand,
   IPublishAdminPointRuleCommand,
   IPublishAdminRankPolicyCommand,
   IPublishSystemConfigCommand,
   ISystemConfigSummary,
+  IUpdateAdminRoleCommand,
 } from '@/domain/ports/repository';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
@@ -100,7 +109,16 @@ export class AdminConfigRepository implements IAdminConfigRepository {
     userId: string,
     permission: string,
   ): Promise<boolean> {
-    const rows = await this.manager.query<{ allowed: boolean }[]>(
+    return this.hasPermissionWith(this.manager, userId, permission);
+  }
+
+  /** Nhận `manager` để kiểm được cả trạng thái chưa commit trong transaction. */
+  private async hasPermissionWith(
+    manager: EntityManager,
+    userId: string,
+    permission: string,
+  ): Promise<boolean> {
+    const rows = await manager.query<{ allowed: boolean }[]>(
       `
         SELECT EXISTS (
           SELECT 1
@@ -465,7 +483,7 @@ export class AdminConfigRepository implements IAdminConfigRepository {
     >(
       `
         SELECT role.code, role.name, role.is_active,
-               ARRAY_REMOVE(ARRAY_AGG(permission.code), NULL) AS permissions
+               ARRAY_REMOVE(ARRAY_AGG(permission.code ORDER BY permission.code), NULL) AS permissions
         FROM admin_roles role
         LEFT JOIN admin_role_permissions role_permission
           ON role_permission.role_id = role.id
@@ -547,6 +565,197 @@ export class AdminConfigRepository implements IAdminConfigRepository {
 
       await this.writeRoleAudit(manager, 'REVOKE_ROLE', assignment);
     });
+  }
+
+  public async listPermissions(): Promise<IAdminPermissionSummary[]> {
+    return this.manager.query<IAdminPermissionSummary[]>(
+      `SELECT code, description FROM admin_permissions ORDER BY code ASC`,
+    );
+  }
+
+  public async createRole(command: ICreateAdminRoleCommand): Promise<void> {
+    await this.manager.transaction(async (manager) => {
+      await this.assertPermissionsExist(manager, command.permissions);
+
+      const [created] = await manager.query<{ id: string }[]>(
+        `
+          INSERT INTO admin_roles (code, name, is_active)
+          VALUES ($1, $2, true)
+          ON CONFLICT (code) DO NOTHING
+          RETURNING id
+        `,
+        [command.code, command.name],
+      );
+      if (!created) throw new AdminRoleCodeConflictException(command.code);
+
+      await this.insertRolePermissions(
+        manager,
+        created.id,
+        command.permissions,
+      );
+
+      await this.writeRoleDefinitionAudit(manager, {
+        actorUserId: command.actorUserId,
+        action: 'CREATE_ROLE',
+        code: command.code,
+        before: null,
+        after: {
+          name: command.name,
+          isActive: true,
+          permissions: [...command.permissions].sort(),
+        },
+        reason: command.reason,
+      });
+    });
+  }
+
+  public async updateRole(command: IUpdateAdminRoleCommand): Promise<void> {
+    await this.manager.transaction(async (manager) => {
+      // Khoá dòng role: hai lượt sửa song song cùng đọc bộ quyền cũ rồi cùng
+      // ghi đè, audit sẽ ghi hai "before" giống nhau mà chỉ một bản thắng.
+      const [role] = await manager.query<
+        { id: string; name: string; is_active: boolean }[]
+      >(
+        `SELECT id, name, is_active FROM admin_roles WHERE code = $1 FOR UPDATE`,
+        [command.code],
+      );
+      if (!role) throw new AdminRoleNotFoundException(command.code);
+
+      const before = {
+        name: role.name,
+        isActive: role.is_active,
+        permissions: await this.rolePermissionCodes(manager, role.id),
+      };
+
+      if (command.permissions !== undefined) {
+        await this.assertPermissionsExist(manager, command.permissions);
+        await manager.query(
+          `DELETE FROM admin_role_permissions WHERE role_id = $1`,
+          [role.id],
+        );
+        await this.insertRolePermissions(manager, role.id, command.permissions);
+      }
+
+      if (command.name !== undefined || command.isActive !== undefined)
+        await manager.query(
+          `
+            UPDATE admin_roles
+            SET name = COALESCE($2, name),
+                is_active = COALESCE($3, is_active)
+            WHERE id = $1
+          `,
+          [role.id, command.name ?? null, command.isActive ?? null],
+        );
+
+      // Kiểm trên trạng thái SAU thay đổi, trong cùng transaction: người sửa có
+      // thể giữ admin.manage qua nhiều role, tính trước bằng tay là đoán sai.
+      if (
+        !(await this.hasPermissionWith(
+          manager,
+          command.actorUserId,
+          'admin.manage',
+        ))
+      )
+        throw new AdminRoleSelfLockoutException();
+
+      const after = {
+        name: command.name ?? role.name,
+        isActive: command.isActive ?? role.is_active,
+        permissions: await this.rolePermissionCodes(manager, role.id),
+      };
+
+      // Gửi lại đúng trạng thái đang có: không đổi gì thì không ghi audit.
+      if (JSON.stringify(before) === JSON.stringify(after)) return;
+
+      await this.writeRoleDefinitionAudit(manager, {
+        actorUserId: command.actorUserId,
+        action: 'UPDATE_ROLE',
+        code: command.code,
+        before,
+        after,
+        reason: command.reason,
+      });
+    });
+  }
+
+  private async assertPermissionsExist(
+    manager: EntityManager,
+    codes: string[],
+  ): Promise<void> {
+    if (codes.length === 0) return;
+    const rows = await manager.query<{ code: string }[]>(
+      `SELECT code FROM admin_permissions WHERE code = ANY($1::text[])`,
+      [codes],
+    );
+    const known = new Set(rows.map((row) => row.code));
+    const unknown = codes.filter((code) => !known.has(code));
+    if (unknown.length > 0) throw new AdminPermissionUnknownException(unknown);
+  }
+
+  private async insertRolePermissions(
+    manager: EntityManager,
+    roleId: string,
+    codes: string[],
+  ): Promise<void> {
+    if (codes.length === 0) return;
+    await manager.query(
+      `
+        INSERT INTO admin_role_permissions (role_id, permission_id)
+        SELECT $1, permission.id
+        FROM admin_permissions permission
+        WHERE permission.code = ANY($2::text[])
+        ON CONFLICT DO NOTHING
+      `,
+      [roleId, codes],
+    );
+  }
+
+  private async rolePermissionCodes(
+    manager: EntityManager,
+    roleId: string,
+  ): Promise<string[]> {
+    const rows = await manager.query<{ code: string }[]>(
+      `
+        SELECT permission.code
+        FROM admin_role_permissions role_permission
+        INNER JOIN admin_permissions permission
+          ON permission.id = role_permission.permission_id
+        WHERE role_permission.role_id = $1
+        ORDER BY permission.code ASC
+      `,
+      [roleId],
+    );
+    return rows.map((row) => row.code);
+  }
+
+  private async writeRoleDefinitionAudit(
+    manager: EntityManager,
+    entry: {
+      actorUserId: string;
+      action: 'CREATE_ROLE' | 'UPDATE_ROLE';
+      code: string;
+      before: unknown;
+      after: unknown;
+      reason: string;
+    },
+  ): Promise<void> {
+    // `ADMIN_ROLE` đã dùng cho việc gán role (resource_id là user); định nghĩa
+    // role là tài nguyên khác, resource_id là mã role.
+    await manager.query(
+      `
+        INSERT INTO admin_audit_logs
+          (actor_user_id, action, resource_type, resource_id, before_json, after_json, reason)
+        VALUES ($1, $2, 'ADMIN_ROLE_DEFINITION', $3, $4::jsonb, $5::jsonb, $6)
+      `,
+      [
+        entry.actorUserId,
+        entry.action,
+        entry.code,
+        JSON.stringify(entry.before),
+        JSON.stringify(entry.after),
+        entry.reason,
+      ],
+    );
   }
 
   private async writeRoleAudit(

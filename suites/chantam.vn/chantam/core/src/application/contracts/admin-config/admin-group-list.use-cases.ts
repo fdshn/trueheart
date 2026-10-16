@@ -6,6 +6,7 @@ import {
 import { GroupStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import { IUseCase } from '@chantam/service.common-lib';
 import { PaginationMetaDto } from '@chantam/service.common-lib/dto';
+import { IGroupInviteLink } from '../group';
 
 export interface IListAdminGroupsCommand {
   readonly actorUserId: string;
@@ -27,6 +28,9 @@ export interface IListAdminGroupsUseCase extends IUseCase<
 
 export const IListAdminGroupsUseCase = Symbol('IListAdminGroupsUseCase');
 
+/** Chi tiết nhóm cho CMS, kèm link mời đầy đủ để Admin gửi lại cho Owner. */
+export type IAdminGroupDetailResult = IAdminGroupDetail & IGroupInviteLink;
+
 export interface IGetAdminGroupCommand {
   readonly actorUserId: string;
   readonly groupId: string;
@@ -34,7 +38,7 @@ export interface IGetAdminGroupCommand {
 
 export interface IGetAdminGroupUseCase extends IUseCase<
   IGetAdminGroupCommand,
-  { readonly group: IAdminGroupDetail }
+  { readonly group: IAdminGroupDetailResult }
 > {}
 
 export const IGetAdminGroupUseCase = Symbol('IGetAdminGroupUseCase');
@@ -68,7 +72,7 @@ export interface IDissolveAdminGroupCommand {
 
 export interface IDissolveAdminGroupUseCase extends IUseCase<
   IDissolveAdminGroupCommand,
-  { readonly group: IAdminGroupDetail }
+  { readonly group: IAdminGroupDetailResult }
 > {}
 
 export const IDissolveAdminGroupUseCase = Symbol('IDissolveAdminGroupUseCase');
@@ -81,7 +85,7 @@ export interface IRotateAdminGroupInviteCommand {
 
 export interface IRotateAdminGroupInviteUseCase extends IUseCase<
   IRotateAdminGroupInviteCommand,
-  { readonly group: IAdminGroupDetail }
+  { readonly group: IAdminGroupDetailResult }
 > {}
 
 export const IRotateAdminGroupInviteUseCase = Symbol(

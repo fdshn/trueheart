@@ -1,4 +1,5 @@
 import {
+  IAdminGroupDetailResult,
   IDissolveAdminGroupCommand,
   IDissolveAdminGroupUseCase,
   IGetAdminGroupCommand,
@@ -16,6 +17,7 @@ import {
   GroupAlreadyDissolvedException,
   GroupNotFoundException,
 } from '@/domain/exceptions';
+import { IConfig } from '@/domain/ports/config';
 import {
   IAdminConfigRepository,
   IAdminGroupDetail,
@@ -24,7 +26,7 @@ import {
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
-import { makeInviteCode } from '../group/group.use-cases';
+import { inviteLinkOf, makeInviteCode } from '../group/group.use-cases';
 
 /**
  * Hai màn CMS cần chọn nhóm: gửi thông báo hàng loạt (`notification.manage`) và
@@ -55,6 +57,16 @@ async function requireGroup(
   const group = await groups.findAdminDetail(groupId);
   if (!group) throw new GroupNotFoundException();
   return group;
+}
+
+function withInviteLink(
+  config: IConfig,
+  group: IAdminGroupDetail,
+): IAdminGroupDetailResult {
+  return {
+    ...group,
+    ...inviteLinkOf(config.web.publicBaseUrl, group.inviteCode),
+  };
 }
 
 /** Danh sách nhóm cho CMS chọn nhóm (CMS A5). */
@@ -94,13 +106,19 @@ export class GetAdminGroupUseCase implements IGetAdminGroupUseCase {
     @Inject(IAdminConfigRepository)
     private readonly permissions: IAdminConfigRepository,
     @Inject(IGroupRepository) private readonly groups: IGroupRepository,
+    @Inject(IConfig) private readonly config: IConfig,
   ) {}
 
   public async handle(
     command: IGetAdminGroupCommand,
-  ): Promise<{ group: IAdminGroupDetail }> {
+  ): Promise<{ group: IAdminGroupDetailResult }> {
     await assertCanReadGroups(this.permissions, command.actorUserId);
-    return { group: await requireGroup(this.groups, command.groupId) };
+    return {
+      group: withInviteLink(
+        this.config,
+        await requireGroup(this.groups, command.groupId),
+      ),
+    };
   }
 }
 
@@ -143,11 +161,12 @@ export class DissolveAdminGroupUseCase implements IDissolveAdminGroupUseCase {
     @Inject(IAdminConfigRepository)
     private readonly permissions: IAdminConfigRepository,
     @Inject(IGroupRepository) private readonly groups: IGroupRepository,
+    @Inject(IConfig) private readonly config: IConfig,
   ) {}
 
   public async handle(
     command: IDissolveAdminGroupCommand,
-  ): Promise<{ group: IAdminGroupDetail }> {
+  ): Promise<{ group: IAdminGroupDetailResult }> {
     if (
       !(await this.permissions.hasPermission(
         command.actorUserId,
@@ -172,7 +191,12 @@ export class DissolveAdminGroupUseCase implements IDissolveAdminGroupUseCase {
       reason: command.reason.trim(),
     });
 
-    return { group: await requireGroup(this.groups, command.groupId) };
+    return {
+      group: withInviteLink(
+        this.config,
+        await requireGroup(this.groups, command.groupId),
+      ),
+    };
   }
 }
 
@@ -189,11 +213,12 @@ export class RotateAdminGroupInviteUseCase implements IRotateAdminGroupInviteUse
     @Inject(IAdminConfigRepository)
     private readonly permissions: IAdminConfigRepository,
     @Inject(IGroupRepository) private readonly groups: IGroupRepository,
+    @Inject(IConfig) private readonly config: IConfig,
   ) {}
 
   public async handle(
     command: IRotateAdminGroupInviteCommand,
-  ): Promise<{ group: IAdminGroupDetail }> {
+  ): Promise<{ group: IAdminGroupDetailResult }> {
     if (
       !(await this.permissions.hasPermission(
         command.actorUserId,
@@ -222,6 +247,6 @@ export class RotateAdminGroupInviteUseCase implements IRotateAdminGroupInviteUse
       reason: command.reason.trim(),
     });
 
-    return { group: after };
+    return { group: withInviteLink(this.config, after) };
   }
 }

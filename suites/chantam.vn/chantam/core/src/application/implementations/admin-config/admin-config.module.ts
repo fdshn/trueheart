@@ -2,6 +2,7 @@ import {
   IAssignAdminRoleUseCase,
   IChangeAdminUserStatusUseCase,
   ICountPendingAdminCommentsUseCase,
+  ICreateAdminRoleUseCase,
   IDeleteAdminUserUseCase,
   IDissolveAdminGroupUseCase,
   IGetAdminAuditLogsUseCase,
@@ -24,6 +25,7 @@ import {
   IListAdminCommentsUseCase,
   IListAdminGroupMembersUseCase,
   IListAdminGroupsUseCase,
+  IListAdminPermissionsUseCase,
   IListAdminRolesUseCase,
   IListAdminUsersUseCase,
   IListNotificationTemplatesUseCase,
@@ -40,6 +42,7 @@ import {
   ISetAllocationPolicyUseCase,
   ISetCandidateSelectionUseCase,
   ISetTrustThresholdUseCase,
+  IUpdateAdminRoleUseCase,
   IUpdateNotificationChannelUseCase,
   IUpdateNotificationTemplateUseCase,
 } from '@/application/contracts/admin-config';
@@ -84,6 +87,11 @@ import {
   GetAdminRankPolicyUseCase,
   PublishAdminRankPolicyUseCase,
 } from './admin-rank-policy.use-cases';
+import {
+  CreateAdminRoleUseCase,
+  ListAdminPermissionsUseCase,
+  UpdateAdminRoleUseCase,
+} from './admin-role-definition.use-cases';
 import {
   AssignAdminRoleUseCase,
   ListAdminRolesUseCase,
@@ -236,6 +244,12 @@ import {
     },
     { provide: IListAdminRolesUseCase, useClass: ListAdminRolesUseCase },
     { provide: IAssignAdminRoleUseCase, useClass: AssignAdminRoleUseCase },
+    {
+      provide: IListAdminPermissionsUseCase,
+      useClass: ListAdminPermissionsUseCase,
+    },
+    { provide: ICreateAdminRoleUseCase, useClass: CreateAdminRoleUseCase },
+    { provide: IUpdateAdminRoleUseCase, useClass: UpdateAdminRoleUseCase },
     { provide: IListAdminUsersUseCase, useClass: ListAdminUsersUseCase },
     { provide: IGetAdminUserUseCase, useClass: GetAdminUserUseCase },
     {
@@ -302,6 +316,9 @@ import {
     IGetOwnAdminAccessUseCase,
     IListAdminRolesUseCase,
     IAssignAdminRoleUseCase,
+    IListAdminPermissionsUseCase,
+    ICreateAdminRoleUseCase,
+    IUpdateAdminRoleUseCase,
     IListAdminUsersUseCase,
     IGetAdminUserUseCase,
     IChangeAdminUserStatusUseCase,

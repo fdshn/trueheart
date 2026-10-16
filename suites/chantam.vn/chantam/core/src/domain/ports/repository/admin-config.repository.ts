@@ -55,6 +55,29 @@ export interface IAdminRoleSummary {
   readonly permissions: string[];
 }
 
+export interface IAdminPermissionSummary {
+  readonly code: string;
+  readonly description: string;
+}
+
+export interface ICreateAdminRoleCommand {
+  readonly actorUserId: string;
+  readonly code: string;
+  readonly name: string;
+  readonly permissions: string[];
+  readonly reason: string;
+}
+
+/** Trường `undefined` là giữ nguyên; `permissions` là trọn bộ quyền mới. */
+export interface IUpdateAdminRoleCommand {
+  readonly actorUserId: string;
+  readonly code: string;
+  readonly name?: string;
+  readonly isActive?: boolean;
+  readonly permissions?: string[];
+  readonly reason: string;
+}
+
 export interface IAdminAccessSummary {
   readonly roles: string[];
   readonly permissions: string[];
@@ -161,6 +184,14 @@ export interface IAdminConfigRepository {
    * cùng là không còn ai cấp lại quyền cho bất kỳ ai, kể cả chính mình.
    */
   revokeRole(assignment: IAdminRoleAssignment): Promise<void>;
+  listPermissions(): Promise<IAdminPermissionSummary[]>;
+  /** Ném khi trùng mã role hoặc có permission không tồn tại. */
+  createRole(command: ICreateAdminRoleCommand): Promise<void>;
+  /**
+   * Ném khi role không tồn tại, có permission lạ, hoặc khi sau thay đổi chính
+   * người sửa không còn `admin.manage` — kiểm trong cùng transaction.
+   */
+  updateRole(command: IUpdateAdminRoleCommand): Promise<void>;
   getRankPolicy(): Promise<IAdminRankTierPolicy[]>;
   publishRankPolicy(
     command: IPublishAdminRankPolicyCommand,

@@ -275,6 +275,22 @@ export class GroupInviteDto {
   @ApiProperty() inviteCode: string;
 
   @ApiProperty({
+    example: '/invite/ABCD2345EFGH6789',
+    description:
+      'Đường dẫn tương đối của trang mời — web và app cùng mở đường này. Luôn có.',
+  })
+  invitePath: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'https://chantam.vn/invite/ABCD2345EFGH6789',
+    description:
+      '`WEB_PUBLIC_BASE_URL` + `invitePath`. `null` khi môi trường chưa cấu hình web công khai — client hiện `inviteCode` thay thế.',
+  })
+  inviteUrl: string | null;
+
+  @ApiProperty({
     description:
       'Link KHÔNG tự hết hạn và KHÔNG giới hạn lượt dùng (BR-GRP-04). Chỉ thành false khi nhóm rời khỏi ACTIVE.',
   })

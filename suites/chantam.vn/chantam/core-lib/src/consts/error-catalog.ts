@@ -680,6 +680,46 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Không thể tự thay đổi quyền của chính mình',
   },
 
+  ADMIN_ROLE_NOT_FOUND: {
+    code: ErrorCodes.ADMIN_ROLE_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: (roleCode: string) => `Không tìm thấy role ${roleCode}`,
+    sample: ['CONTENT_EDITOR'],
+  },
+
+  ADMIN_ROLE_CODE_CONFLICT: {
+    code: ErrorCodes.ADMIN_ROLE_CODE_CONFLICT,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (roleCode: string) => `Mã role ${roleCode} đã tồn tại`,
+    sample: ['MODERATOR'],
+  },
+
+  ADMIN_ROLE_PROTECTED: {
+    code: ErrorCodes.ADMIN_ROLE_PROTECTED,
+    httpStatus: HttpStatus.CONFLICT,
+    // SUPER_ADMIN luôn có đủ quyền, quyền mới được migration gắn cho nó. Cho
+    // CMS sửa là mở đường tắt role gốc hoặc rút quyền khỏi người cấp quyền.
+    message: (roleCode: string) =>
+      `Role ${roleCode} do hệ thống quản lý, không sửa được từ CMS`,
+    sample: ['SUPER_ADMIN'],
+  },
+
+  ADMIN_PERMISSION_UNKNOWN: {
+    code: ErrorCodes.ADMIN_PERMISSION_UNKNOWN,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (codes: string[]) =>
+      `Permission không tồn tại: ${codes.join(', ')}`,
+    explains: (codes: string[]) => codes,
+    sample: [['post.fly']],
+  },
+
+  ADMIN_ROLE_SELF_LOCKOUT: {
+    code: ErrorCodes.ADMIN_ROLE_SELF_LOCKOUT,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Thay đổi này làm chính bạn mất quyền admin.manage. Nhờ một quản trị viên khác thực hiện',
+  },
+
   // ── 0x0A Chính sách quyền/quota theo rank ─────────────────────────────────
   ENTITLEMENT_POLICY_UNAVAILABLE: {
     code: ErrorCodes.ENTITLEMENT_POLICY_UNAVAILABLE,

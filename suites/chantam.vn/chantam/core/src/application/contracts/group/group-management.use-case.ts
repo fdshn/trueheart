@@ -106,8 +106,15 @@ export interface IGetGroupInviteCommand {
   readonly userId: string;
   readonly groupId: string;
 }
+export interface IGroupInviteLink {
+  /** `/invite/<mã>` — web và app cùng mở đường này. */
+  readonly invitePath: string;
+  /** `null` khi chưa cấu hình `WEB_PUBLIC_BASE_URL`. */
+  readonly inviteUrl: string | null;
+}
+
 export interface IGetGroupInviteResult {
-  readonly invite: IGroupInviteStats;
+  readonly invite: IGroupInviteStats & IGroupInviteLink;
 }
 export interface IGetGroupInviteUseCase extends IUseCase<
   IGetGroupInviteCommand,
