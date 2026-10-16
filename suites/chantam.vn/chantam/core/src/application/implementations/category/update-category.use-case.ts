@@ -4,8 +4,8 @@ import {
 } from '@/application/contracts/category';
 import {
   CategoryMergedCannotReopenException,
-  CategoryPostTypeInUseException,
   CategoryNotFoundException,
+  CategoryPostTypeInUseException,
   CategorySlugTakenException,
 } from '@/domain/exceptions';
 import {

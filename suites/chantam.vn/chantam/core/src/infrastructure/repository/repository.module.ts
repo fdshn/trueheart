@@ -18,8 +18,8 @@ import {
   IGroupRepository,
   IHomeCampaignRepository,
   ILunarHolidayRepository,
-  IMeritRepository,
   IMediaAssetRepository,
+  IMeritRepository,
   INotificationBroadcastRepository,
   INotificationChannelRepository,
   INotificationRepository,
@@ -63,8 +63,8 @@ import {
   BulkNotifyAudienceRepository,
   LunarHolidayRepository,
 } from './lunar-holiday.repository';
-import { MeritRepository } from './merit.repository';
 import { MediaAssetRepository } from './media-asset.repository';
+import { MeritRepository } from './merit.repository';
 import { NotificationBroadcastRepository } from './notification-broadcast.repository';
 import { NotificationChannelRepository } from './notification-channel.repository';
 import { NotificationTemplateRepository } from './notification-template.repository';

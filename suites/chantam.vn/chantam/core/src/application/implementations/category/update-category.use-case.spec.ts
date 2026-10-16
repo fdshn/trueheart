@@ -197,8 +197,14 @@ describe('UpdateCategoryUseCase', () => {
       };
     }
 
-    const run = (categories: ReturnType<typeof makeCategories>, postTypes: string[]) =>
-      new UpdateCategoryUseCase(categories as never, AdminConfig as never).handle({
+    const run = (
+      categories: ReturnType<typeof makeCategories>,
+      postTypes: string[],
+    ) =>
+      new UpdateCategoryUseCase(
+        categories as never,
+        AdminConfig as never,
+      ).handle({
         categoryId: CategoryId,
         userId: 'u',
         username: 'demo-admin',
@@ -241,4 +247,3 @@ describe('UpdateCategoryUseCase', () => {
     });
   });
 });
-
