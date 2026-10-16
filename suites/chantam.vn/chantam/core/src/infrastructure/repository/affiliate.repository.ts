@@ -134,6 +134,10 @@ export class AffiliateRepository implements IAffiliateRepository {
       const gaps = affiliatePolicyGaps(params.policy);
       if (gaps.length > 0) throw new ValidationFailedException(gaps);
 
+      // Bản đang hiệu lực đọc TRONG khoá: đọc ngoài là có thể ghi vào audit một
+      // "before" mà lượt publish song song vừa thay mất.
+      const before = await this.readActivePolicy(manager);
+
       const nextVersion = (currentVersion ?? 0) + 1;
       await manager.query(
         `INSERT INTO affiliate_policy_revisions
@@ -158,7 +162,20 @@ export class AffiliateRepository implements IAffiliateRepository {
         `SELECT ${PolicyColumns} FROM affiliate_policy_revisions WHERE version = $1`,
         [nextVersion],
       );
-      return toRevision(row);
+      const published = toRevision(row);
+
+      // Audit CÙNG transaction: ghi rời sau commit thì một lần ghi audit hỏng là
+      // một bản chính sách đang chạy mà không ai biết do ai đăng.
+      await writeAudit(manager, {
+        actorUserId: params.actorUserId,
+        action: 'PUBLISH_AFFILIATE_POLICY',
+        resourceType: 'AFFILIATE_POLICY',
+        resourceId: String(published.version),
+        before: before ?? null,
+        after: published,
+        reason: params.reason,
+      });
+      return published;
     });
   }
 
@@ -687,7 +704,47 @@ export class AffiliateRepository implements IAffiliateRepository {
         [event.id],
       );
 
-      return { reversedCount: updated.length, pointsReclaimed };
+      const result = { reversedCount: updated.length, pointsReclaimed };
+      // Cùng transaction với bút toán đảo: điểm đã rút khỏi người dùng thì phải có
+      // dòng ghi ai rút, không có thì cả lượt cuộn lại.
+      await writeAudit(manager, {
+        actorUserId: params.actorUserId,
+        action: 'REVERSE_AFFILIATE_EVENT',
+        resourceType: 'AFFILIATE_EVENT',
+        resourceId: params.eventGlobalId,
+        before: null,
+        after: result,
+        reason: params.reason,
+      });
+      return result;
     });
   }
+}
+
+async function writeAudit(
+  manager: EntityManager,
+  entry: {
+    actorUserId: string;
+    action: string;
+    resourceType: string;
+    resourceId: string;
+    before: unknown;
+    after: unknown;
+    reason: string;
+  },
+): Promise<void> {
+  await manager.query(
+    `INSERT INTO admin_audit_logs
+       (actor_user_id, action, resource_type, resource_id, before_json, after_json, reason)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7)`,
+    [
+      entry.actorUserId,
+      entry.action,
+      entry.resourceType,
+      entry.resourceId,
+      JSON.stringify(entry.before),
+      JSON.stringify(entry.after),
+      entry.reason,
+    ],
+  );
 }

@@ -163,6 +163,24 @@ async function main(): Promise<void> {
       reason: 'Kiểm chứng F56-F58',
     });
 
+  // Làm MỌI lượt INSERT vào admin_audit_logs ném lỗi — để chứng minh audit nằm
+  // trong cùng transaction với việc nó ghi lại, không phải một lượt ghi rời.
+  const breakAuditInserts = async () => {
+    await dataSource.query(`
+      CREATE OR REPLACE FUNCTION check_block_audit() RETURNS trigger AS $$
+      BEGIN RAISE EXCEPTION 'audit blocked'; END $$ LANGUAGE plpgsql
+    `);
+    await dataSource.query(
+      `CREATE TRIGGER check_block_audit BEFORE INSERT ON admin_audit_logs
+       FOR EACH ROW EXECUTE FUNCTION check_block_audit()`,
+    );
+  };
+  const restoreAuditInserts = async () => {
+    await dataSource.query(
+      `DROP TRIGGER IF EXISTS check_block_audit ON admin_audit_logs`,
+    );
+  };
+
   let eventSeq = 0;
   const fire = async (params: {
     eventType: 'POST_CREATED' | 'GIFT_COMPLETED';
@@ -547,6 +565,41 @@ async function main(): Promise<void> {
     const [insideEvent] = await dataSource.query<{ global_id: string }[]>(
       `SELECT global_id FROM affiliate_events WHERE reference_id = 'post-inside'`,
     );
+    // Audit hỏng thì CẢ lượt thu hồi phải cuộn lại: điểm đã rút khỏi người dùng mà
+    // không có dòng ai rút là thứ không bao giờ được xảy ra.
+    await breakAuditInserts();
+    let reverseError = 'không ném gì';
+    try {
+      await affiliate.reverseEvent({
+        eventGlobalId: insideEvent.global_id,
+        actorUserId: AdminId,
+        reason: 'Lượt sẽ cuộn lại',
+      });
+    } catch (error) {
+      reverseError = (error as Error).message;
+    }
+    await restoreAuditInserts();
+    const [{ count: stillAwarded }] = await dataSource.query<
+      { count: string }[]
+    >(
+      `SELECT COUNT(*) AS count FROM affiliate_rewards reward
+       INNER JOIN affiliate_events event ON event.id = reward.event_id
+       WHERE event.global_id = $1 AND reward.reward_status = 'AWARDED'`,
+      [insideEvent.global_id],
+    );
+    const [{ count: earlyReversals }] = await dataSource.query<
+      { count: string }[]
+    >(
+      `SELECT COUNT(*) AS count FROM point_ledger WHERE rule_code = 'GROUP_AFFILIATE_REVERSAL'`,
+    );
+    check(
+      'audit hỏng thì thu hồi cuộn lại: reward vẫn AWARDED, không bút toán đảo nào',
+      reverseError.includes('audit blocked') &&
+        Number(stillAwarded) === 3 &&
+        Number(earlyReversals) === 0,
+      `${reverseError} / awarded=${stillAwarded} / reversals=${earlyReversals}`,
+    );
+
     const reversal = await affiliate.reverseEvent({
       eventGlobalId: insideEvent.global_id,
       actorUserId: AdminId,
@@ -592,6 +645,61 @@ async function main(): Promise<void> {
       'thu hồi lần hai là vô hại, trả 0/0 thay vì ném',
       twice.reversedCount === 0 && twice.pointsReclaimed === 0,
       `${twice.reversedCount}/${twice.pointsReclaimed}`,
+    );
+    const reverseAudits = await dataSource.query<
+      { reason: string; after_json: { reversedCount: number } }[]
+    >(
+      `SELECT reason, after_json FROM admin_audit_logs
+       WHERE action = 'REVERSE_AFFILIATE_EVENT' AND resource_id = $1`,
+      [insideEvent.global_id],
+    );
+    check(
+      'đúng MỘT dòng audit thu hồi — lần hai không đổi gì nên không ghi',
+      reverseAudits.length === 1 &&
+        reverseAudits[0].reason === 'Xác minh là tài khoản ảo' &&
+        reverseAudits[0].after_json.reversedCount === 3,
+      `${reverseAudits.length} dòng`,
+    );
+
+    // ── 9. Publish và audit chung một transaction ──────────────────────────
+    console.log('\n9. Publish chính sách: audit cùng transaction');
+    const [{ revisions, audits }] = await dataSource.query<
+      { revisions: string; audits: string }[]
+    >(
+      `SELECT (SELECT COUNT(*) FROM affiliate_policy_revisions) AS revisions,
+              (SELECT COUNT(*) FROM admin_audit_logs
+                WHERE action = 'PUBLISH_AFFILIATE_POLICY') AS audits`,
+    );
+    check(
+      'mỗi bản chính sách đã publish có đúng một dòng audit',
+      Number(revisions) > 0 && revisions === audits,
+      `revisions=${revisions} audits=${audits}`,
+    );
+    const latestVersion = Number(revisions);
+    await breakAuditInserts();
+    let publishError = 'không ném gì';
+    try {
+      await publish({
+        expectedVersion: latestVersion,
+        enabled: false,
+        mode: 'SPLIT_POOL',
+        postPoints: 1,
+        giftPoints: 1,
+        dailyCap: 1,
+        maxBeneficiaries: 1,
+      });
+    } catch (error) {
+      publishError = (error as Error).message;
+    }
+    await restoreAuditInserts();
+    const [{ count: revisionsAfter }] = await dataSource.query<
+      { count: string }[]
+    >(`SELECT COUNT(*) AS count FROM affiliate_policy_revisions`);
+    check(
+      'audit hỏng thì bản chính sách mới KHÔNG được publish',
+      publishError.includes('audit blocked') &&
+        Number(revisionsAfter) === latestVersion,
+      `${publishError} / revisions=${revisionsAfter}`,
     );
   } finally {
     for (const source of opened.reverse())

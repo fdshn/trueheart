@@ -128,6 +128,10 @@ export interface IAffiliateRepository {
    * reward đổi sang `REVERSED` và `point_delta` về 0, còn dấu vết nằm ở `point_ledger`:
    * cả bút toán gốc và bút toán đảo đều ở đó.
    */
+  /**
+   * Thu hồi thưởng của một sự kiện. Ghi audit `REVERSE_AFFILIATE_EVENT` trong CÙNG
+   * transaction khi có dòng được thu hồi; audit hỏng thì cả lượt cuộn lại.
+   */
   reverseEvent(params: {
     eventGlobalId: string;
     actorUserId: string;

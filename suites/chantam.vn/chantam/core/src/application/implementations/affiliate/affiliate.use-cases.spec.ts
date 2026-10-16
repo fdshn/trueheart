@@ -194,30 +194,12 @@ describe(PublishAffiliatePolicyUseCase.name, () => {
       reason: ' lý do ',
     });
 
-    expect(deps.admin.appendAudit).toHaveBeenCalledTimes(1);
-    expect(deps.admin.appendAudit).toHaveBeenCalledWith({
-      actorUserId: ActorId,
-      action: 'PUBLISH_AFFILIATE_POLICY',
-      resourceType: 'AFFILIATE_POLICY',
-      resourceId: '4',
-      before: activeRevision,
-      after: publishedRevision,
-      reason: 'lý do',
-    });
-  });
-
-  it('chưa có bản cũ thì audit before null', async () => {
-    const deps = makeDeps();
-    deps.affiliate.getActivePolicy.mockResolvedValue(null);
-
-    await build(deps).handle({
-      actorUserId: ActorId,
-      policy: rawPolicy,
-      reason: 'lần đầu',
-    });
-
-    expect(deps.admin.appendAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ before: null }),
+    // Audit nằm TRONG transaction của repository (test:affiliate canh). Use case
+    // ghi thêm một dòng nữa là audit đôi, và là lượt ghi rời ngoài transaction.
+    expect(deps.admin.appendAudit).not.toHaveBeenCalled();
+    expect(deps.affiliate.getActivePolicy).not.toHaveBeenCalled();
+    expect(deps.affiliate.publishPolicy).toHaveBeenCalledWith(
+      expect.objectContaining({ actorUserId: ActorId, reason: 'lý do' }),
     );
   });
 
@@ -440,7 +422,7 @@ describe(ReverseAffiliateEventUseCase.name, () => {
     });
   });
 
-  it('thu hồi được thì ghi đúng một dòng audit kèm lý do và kết quả', async () => {
+  it('không tự ghi audit — repository ghi trong cùng transaction với bút toán đảo', async () => {
     const deps = makeDeps();
 
     await build(deps).handle({
@@ -449,19 +431,10 @@ describe(ReverseAffiliateEventUseCase.name, () => {
       reason: ' gian lận ',
     });
 
-    expect(deps.admin.appendAudit).toHaveBeenCalledTimes(1);
-    expect(deps.admin.appendAudit).toHaveBeenCalledWith({
-      actorUserId: ActorId,
-      action: 'REVERSE_AFFILIATE_EVENT',
-      resourceType: 'AFFILIATE_EVENT',
-      resourceId: EventId,
-      before: null,
-      after: { reversedCount: 2, pointsReclaimed: 40 },
-      reason: 'gian lận',
-    });
+    expect(deps.admin.appendAudit).not.toHaveBeenCalled();
   });
 
-  it('thu hồi lần hai (không còn reward AWARDED) trả 0/0 và không dựng thêm audit', async () => {
+  it('thu hồi lần hai (không còn reward AWARDED) trả 0/0 thay vì ném', async () => {
     const deps = makeDeps();
     deps.affiliate.reverseEvent
       .mockResolvedValueOnce({ reversedCount: 2, pointsReclaimed: 40 })
@@ -476,7 +449,6 @@ describe(ReverseAffiliateEventUseCase.name, () => {
     });
 
     expect(deps.affiliate.reverseEvent).toHaveBeenCalledTimes(2);
-    expect(deps.admin.appendAudit).toHaveBeenCalledTimes(1);
   });
 
   it('sự kiện không tồn tại thì lỗi từ repository nổi lên và không ghi audit', async () => {

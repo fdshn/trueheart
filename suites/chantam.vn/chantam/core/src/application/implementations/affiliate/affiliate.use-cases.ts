@@ -77,7 +77,7 @@ export class PublishAffiliatePolicyUseCase implements IPublishAffiliatePolicyUse
     if (!reason)
       throw new ValidationFailedException(['reason: phải nêu lý do thay đổi']);
 
-    const before = await this.affiliate.getActivePolicy();
+    // Audit ghi TRONG transaction của repository — xem `publishPolicy`.
     const policy = await this.affiliate.publishPolicy({
       actorUserId: command.actorUserId,
       expectedVersion: command.expectedVersion ?? null,
@@ -85,16 +85,6 @@ export class PublishAffiliatePolicyUseCase implements IPublishAffiliatePolicyUse
       effectiveAt: command.effectiveAt
         ? new Date(command.effectiveAt)
         : new Date(),
-      reason,
-    });
-
-    await this.admin.appendAudit({
-      actorUserId: command.actorUserId,
-      action: 'PUBLISH_AFFILIATE_POLICY',
-      resourceType: 'AFFILIATE_POLICY',
-      resourceId: String(policy.version),
-      before: before ?? null,
-      after: policy,
       reason,
     });
 
@@ -172,25 +162,12 @@ export class ReverseAffiliateEventUseCase implements IReverseAffiliateEventUseCa
     if (!reason)
       throw new ValidationFailedException(['reason: phải nêu lý do thu hồi']);
 
-    const result = await this.affiliate.reverseEvent({
+    // Audit ghi TRONG transaction của repository, và chỉ khi thật sự thu hồi được
+    // gì — lượt gọi lại không đổi gì thì không dựng thêm một dòng lịch sử.
+    return this.affiliate.reverseEvent({
       eventGlobalId: command.eventId,
       actorUserId: command.actorUserId,
       reason,
     });
-
-    // Ghi audit CHỈ KHI thật sự thu hồi được gì — cùng lối đã chọn ở `adjust`: một
-    // lượt gọi lại không đổi gì thì không được dựng thêm một dòng lịch sử.
-    if (result.reversedCount > 0)
-      await this.admin.appendAudit({
-        actorUserId: command.actorUserId,
-        action: 'REVERSE_AFFILIATE_EVENT',
-        resourceType: 'AFFILIATE_EVENT',
-        resourceId: command.eventId,
-        before: null,
-        after: result,
-        reason,
-      });
-
-    return result;
   }
 }
