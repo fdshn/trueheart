@@ -20,6 +20,11 @@ export interface IReportDto {
   targetType: ReportTargetTypes;
   targetId: string;
   targetLabel: string;
+  /**
+   * Phòng chứa tin bị báo — chỉ khi `targetType = CHAT_MESSAGE`, còn lại `null`.
+   * Cũng `null` khi tin đã bị dọn theo hạn lưu trữ.
+   */
+  targetRoomId: string | null;
   reason: ReportReasons;
   description: string;
   evidenceUrls: string[];

@@ -175,6 +175,14 @@ export class ReportDto implements IReportDto {
   @ApiProperty({ enum: ReportTargetTypes }) targetType: ReportTargetTypes;
   @ApiProperty({ format: 'uuid' }) targetId: string;
   @ApiProperty() targetLabel: string;
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Phòng chứa tin bị báo — chỉ khi `targetType = CHAT_MESSAGE`, đích khác luôn `null`. Mở hội thoại bằng `GET /admin/chat/rooms/:targetRoomId/messages?aroundMessageId=<targetId>`. `null` khi tin đã bị dọn theo hạn lưu trữ.',
+  })
+  targetRoomId: string | null;
   @ApiProperty({ enum: ReportReasons }) reason: ReportReasons;
   @ApiProperty() description: string;
   @ApiProperty({ type: [String] }) evidenceUrls: string[];

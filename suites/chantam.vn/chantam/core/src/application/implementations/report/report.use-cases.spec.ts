@@ -38,6 +38,7 @@ function reportDto(status = ReportStatuses.PENDING): IReportDto {
     targetType: ReportTargetTypes.POST,
     targetId: TargetId,
     targetLabel: 'Bài cần báo cáo',
+    targetRoomId: null,
     reason: ReportReasons.SCAM,
     description: 'Yêu cầu chuyển khoản ngoài nền tảng',
     evidenceUrls: [],

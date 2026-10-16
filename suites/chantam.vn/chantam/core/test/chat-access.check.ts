@@ -19,6 +19,8 @@ import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
+import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
+import { ReportRepository } from '../src/infrastructure/repository/report.repository';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -435,6 +437,58 @@ async function main(): Promise<void> {
         (message) =>
           message.messageId === recallId && message.recalledAt !== null,
       ),
+    );
+
+    // Báo xấu một TIN NHẮN phải mang theo phòng của nó: chỉ có id tin thì
+    // Admin không có đường nào mở hội thoại để đọc ngữ cảnh.
+    const reports = new ReportRepository(
+      entities.ReportEntity as never,
+      dataSource.manager,
+      new PointLedgerRepository(dataSource.manager),
+      new AdminConfigRepository(dataSource.manager),
+    );
+    const reportedMessage = moderationMessages[0];
+    await dataSource.query(
+      `INSERT INTO reports
+         (global_id, reporter_user_id, target_type, target_id, reason, description, status)
+       VALUES ($1, $2, 'CHAT_MESSAGE', $3, 'HARASSMENT', 'Tin quấy rối', 'PENDING')`,
+      [
+        '99999999-1111-4999-8999-99999999b101',
+        ReceiverId,
+        reportedMessage.messageId,
+      ],
+    );
+    const messageReport = await reports.findAdminByGlobalId(
+      '99999999-1111-4999-8999-99999999b101',
+    );
+    check(
+      'báo xấu CHAT_MESSAGE mang targetRoomId đúng phòng của tin',
+      messageReport?.targetRoomId === RoomId,
+      String(messageReport?.targetRoomId),
+    );
+    const userReport = await reports.findAdminByGlobalId(
+      '99999999-1111-4999-8999-99999999b100',
+    );
+    check(
+      'báo xấu đích khác thì targetRoomId là null',
+      userReport !== null && userReport.targetRoomId === null,
+      String(userReport?.targetRoomId),
+    );
+    const { items: adminQueue } = await reports.findAdminReports({
+      skip: 0,
+      take: 50,
+    });
+    check(
+      'hàng đợi Admin cũng mang targetRoomId',
+      adminQueue.some(
+        (report) =>
+          report.reportId === '99999999-1111-4999-8999-99999999b101' &&
+          report.targetRoomId === RoomId,
+      ),
+    );
+    await dataSource.query(
+      `UPDATE reports SET status = 'RESOLVED' WHERE global_id = $1`,
+      ['99999999-1111-4999-8999-99999999b101'],
     );
 
     await dataSource.query(

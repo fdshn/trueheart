@@ -32,6 +32,7 @@ interface IReportRow {
   target_type: ReportTargetTypes;
   target_id: string;
   target_label: string;
+  target_room_id: string | null;
   reason: IReportDto['reason'];
   description: string;
   evidence_urls: string[];
@@ -531,6 +532,10 @@ export class ReportRepository
                  'Tin nhắn đã bị dọn theo hạn lưu trữ'
                )
              END AS target_label,
+             -- Chỉ có id tin thì Admin không mở được hội thoại để đọc ngữ cảnh.
+             CASE WHEN report.target_type = 'CHAT_MESSAGE'
+               THEN target_message.room_id
+             END AS target_room_id,
              report.reason, report.description, report.evidence_urls, report.status,
              (SELECT COUNT(*) FROM reports related
               WHERE related.target_type = report.target_type
@@ -551,6 +556,7 @@ export class ReportRepository
       targetType: row.target_type,
       targetId: row.target_id,
       targetLabel: row.target_label,
+      targetRoomId: row.target_room_id,
       reason: row.reason,
       description: row.description,
       evidenceUrls: row.evidence_urls ?? [],

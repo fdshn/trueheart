@@ -1133,7 +1133,9 @@ Mỗi giao dịch đã duyệt có **đúng một** phòng chat, mở ngay trong
   không thì ai cũng gửi một báo xấu vu vơ để né hình phạt. Con số tính sống nên nó tự sửa lúc
   Admin kết luận, và tự quay lại nếu báo xấu bị bác.
 - **Báo xấu một tin nhắn** dùng `POST /reports` với `targetType: CHAT_MESSAGE`; hàng đợi Admin
-  hiện đoạn đầu nội dung kèm tên người gửi, và nói rõ khi tin đã bị thu hồi.
+  hiện đoạn đầu nội dung kèm tên người gửi, và nói rõ khi tin đã bị thu hồi. Mỗi báo xấu có
+  `targetRoomId` (phòng chứa tin; `null` với đích khác hoặc tin đã bị dọn). Mở hội thoại bằng
+  `GET /admin/chat/rooms/:targetRoomId/messages?aroundMessageId=<targetId>`.
 
 ### Lazy loading tin nhắn — con trỏ, không phải `page`
 
