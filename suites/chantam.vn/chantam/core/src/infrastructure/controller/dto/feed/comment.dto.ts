@@ -10,6 +10,10 @@ import {
   ICreateCommentBodyDto,
   IListCommentsResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
+import {
+  AllowedImageContentTypes,
+  MediaSizeLimits,
+} from '@chantam/service.storage-lib';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -197,8 +201,10 @@ export class ListRepliesQueryDto {
   after?: string;
 }
 
-const AllowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
-const MaxMediaBytes = 5 * 1024 * 1024;
+// Lấy từ storage-lib, nơi ký URL: chép tay ở đây là hai nơi khai một luật,
+// và lệch nhau thì DTO cho qua thứ storage từ chối.
+const AllowedImageTypes = [...AllowedImageContentTypes];
+const MaxMediaBytes = MediaSizeLimits.commentMedia;
 
 export class RequestCommentMediaUploadDto {
   @ApiProperty({ enum: AllowedImageTypes, example: 'image/webp' })
