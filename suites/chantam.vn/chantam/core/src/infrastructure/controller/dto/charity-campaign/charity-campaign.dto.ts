@@ -47,9 +47,11 @@ import {
   IsUUID,
   Length,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
+import { NotNullWhenPresent } from '../not-null-when-present';
 
 export class CharityBeneficiaryInputDto {
   @ApiProperty({ maxLength: 200, example: 'Nguyễn Thị B' })
@@ -556,6 +558,78 @@ export class DeleteCharityCampaignBodyDto {
 
 export class DeleteCharityCampaignResponseDto {
   @ApiProperty({ format: 'uuid' }) campaignId: string;
+}
+
+/**
+ * Admin sửa nội dung. Bỏ trống một trường là GIỮ NGUYÊN. `null` chỉ hợp lệ ở
+ * `locationLabel` và cặp `lat`/`lng` (xoá); ở các trường còn lại `null` → 400.
+ */
+export class UpdateAdminCharityCampaignDto {
+  @ApiPropertyOptional({ minLength: 3, maxLength: MaxCharityTitleLength })
+  @NotNullWhenPresent()
+  @IsString()
+  @MaxLength(MaxCharityTitleLength)
+  title?: string;
+
+  @ApiPropertyOptional({
+    minLength: 10,
+    maxLength: MaxCharityDescriptionLength,
+  })
+  @NotNullWhenPresent()
+  @IsString()
+  @MaxLength(MaxCharityDescriptionLength)
+  description?: string;
+
+  @ApiPropertyOptional({ maxLength: MaxCharityBadgeNameLength })
+  @NotNullWhenPresent()
+  @IsString()
+  @MaxLength(MaxCharityBadgeNameLength)
+  badgeName?: string;
+
+  @ApiPropertyOptional({ minimum: 0, description: '`0` = không đặt mục tiêu.' })
+  @NotNullWhenPresent()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  targetItemsCount?: number;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'Gửi CÙNG `lng`. Cả hai `null` là xoá vị trí.',
+  })
+  @IsOptional()
+  @IsLatitude()
+  lat?: number | null;
+
+  @ApiPropertyOptional({ type: Number, nullable: true })
+  @IsOptional()
+  @IsLongitude()
+  lng?: number | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 255 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  locationLabel?: string | null;
+
+  @ApiProperty({
+    minLength: 3,
+    maxLength: 500,
+    example: 'Sửa lỗi chính tả tiêu đề',
+    description: 'Bắt buộc — đi vào audit log.',
+  })
+  @IsString()
+  @Length(3, 500)
+  reason: string;
+}
+
+export class UpdateAdminCharityCampaignBodyDto {
+  @ApiProperty({ type: () => UpdateAdminCharityCampaignDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => UpdateAdminCharityCampaignDto)
+  campaign: UpdateAdminCharityCampaignDto;
 }
 
 export class CharityCampaignResponseDto {

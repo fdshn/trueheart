@@ -439,6 +439,21 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     readonly note: string | null;
   }): Promise<ICharityCampaign | null>;
 
+  /**
+   * Admin sửa NỘI DUNG (CMS) — giá trị đã gộp và đã kiểm ở tầng ứng dụng. Không đụng
+   * slug, thời gian, loại hoạt động hay trạng thái duyệt.
+   */
+  updateContent(params: {
+    readonly campaignId: string;
+    readonly title: string;
+    readonly description: string;
+    readonly badgeName: string;
+    readonly targetItemsCount: number;
+    readonly lat: number | null;
+    readonly lng: number | null;
+    readonly locationLabel: string | null;
+  }): Promise<ICharityCampaign | null>;
+
   /** Cập nhật con số LỜI KHAI. Xem `currentItemsCount`. */
   updateProgress(params: {
     readonly campaignId: string;

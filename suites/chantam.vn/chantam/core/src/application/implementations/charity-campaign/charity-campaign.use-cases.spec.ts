@@ -51,6 +51,7 @@ import {
   RequestCharityMediaUploadUseCase,
   ReviewCharityCampaignUseCase,
   SubmitCharityContributionUseCase,
+  UpdateAdminCharityCampaignUseCase,
   UpdateCharityContributionUseCase,
   UpdateCharityProgressUseCase,
 } from './charity-campaign.use-cases';
@@ -2104,5 +2105,73 @@ describe('DeleteCharityCampaignUseCase', () => {
     await expect(remove(repository, makeAdmin(true))).rejects.toThrow(
       CharityCampaignNotFoundException,
     );
+  });
+});
+
+describe('UpdateAdminCharityCampaignUseCase', () => {
+  function setup(granted = true) {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ lat: 10.77, lng: 106.69, locationLabel: 'Quận 1' }),
+    );
+    const updateContent = jest.fn(async (params: Record<string, unknown>) =>
+      campaign(params as never),
+    );
+    (repository as unknown as { updateContent: jest.Mock }).updateContent =
+      updateContent;
+    const appendAudit = jest.fn();
+    const admin = {
+      ...makeAdmin(granted),
+      appendAudit,
+    } as unknown as ReturnType<typeof makeAdmin>;
+    const useCase = new UpdateAdminCharityCampaignUseCase(repository, admin);
+    return { useCase, updateContent, appendAudit };
+  }
+  const base = { actorUserId: ActorId, campaignId: CampaignId, reason: 'Sửa' };
+
+  it('đòi campaign.manage', async () => {
+    const { useCase, updateContent } = setup(false);
+    await expect(useCase.handle({ ...base, title: 'Mới' })).rejects.toThrow(
+      ForbiddenException,
+    );
+    expect(updateContent).not.toHaveBeenCalled();
+  });
+
+  it('trường bỏ trống giữ nguyên; audit chỉ ghi trường đổi', async () => {
+    const { useCase, updateContent, appendAudit } = setup();
+    await useCase.handle({ ...base, title: '  Áo ấm vùng cao 2026  ' });
+
+    expect(updateContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Áo ấm vùng cao 2026',
+        lat: 10.77,
+        lng: 106.69,
+        locationLabel: 'Quận 1',
+      }),
+    );
+    const [[audit]] = appendAudit.mock.calls as unknown as [
+      [{ before: Record<string, unknown>; after: Record<string, unknown> }],
+    ];
+    expect(Object.keys(audit.after)).toEqual(['title']);
+  });
+
+  it('cặp lat/lng null là xoá vị trí; gửi lẻ một vế là 400', async () => {
+    const { useCase, updateContent } = setup();
+    await useCase.handle({ ...base, lat: null, lng: null });
+    expect(updateContent).toHaveBeenCalledWith(
+      expect.objectContaining({ lat: null, lng: null }),
+    );
+
+    await expect(useCase.handle({ ...base, lat: 10.8 })).rejects.toThrow(
+      ValidationFailedException,
+    );
+  });
+
+  it('luật của đường tạo vẫn áp: mô tả quá ngắn bị từ chối', async () => {
+    const { useCase, updateContent } = setup();
+    await expect(
+      useCase.handle({ ...base, description: 'ngắn' }),
+    ).rejects.toThrow(ValidationFailedException);
+    expect(updateContent).not.toHaveBeenCalled();
   });
 });

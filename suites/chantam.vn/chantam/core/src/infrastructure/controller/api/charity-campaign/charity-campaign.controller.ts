@@ -20,6 +20,7 @@ import {
   IReviewCharityCampaignUseCase,
   ISetCharityCampaignActiveUseCase,
   ISubmitCharityContributionUseCase,
+  IUpdateAdminCharityCampaignUseCase,
   IUpdateCharityProgressUseCase,
 } from '@/application/contracts/charity-campaign';
 import {
@@ -105,6 +106,7 @@ import {
   ReviewCharityCampaignBodyDto,
   SetCharityCampaignActiveBodyDto,
   SubmitCharityContributionBodyDto,
+  UpdateAdminCharityCampaignBodyDto,
   UpdateCharityProgressBodyDto,
   WriteCharityCampaignBodyDto,
 } from '../../dto/charity-campaign/charity-campaign.dto';
@@ -830,6 +832,8 @@ export class AdminCharityCampaignController {
     private readonly getUseCase: IGetAdminCharityCampaignUseCase,
     @Inject(IDeleteCharityCampaignUseCase)
     private readonly deleteUseCase: IDeleteCharityCampaignUseCase,
+    @Inject(IUpdateAdminCharityCampaignUseCase)
+    private readonly updateContentUseCase: IUpdateAdminCharityCampaignUseCase,
   ) {}
 
   @Get()
@@ -959,6 +963,40 @@ export class AdminCharityCampaignController {
       campaignId: param.id,
       approve: body.approval.approve,
       note: body.approval.note,
+    });
+
+    return ResponseDto.create().succeed().attach({ campaign }).build();
+  }
+
+  @Patch(':id')
+  @RequiresPermission('campaign.manage')
+  @ApiOperation({
+    summary: 'Admin sửa nội dung một hoạt động',
+    description:
+      'Sửa từng phần: `title`, `description`, `badgeName`, `targetItemsCount`, `locationLabel`, cặp `lat`/`lng`. Bỏ trống trường nào là GIỮ NGUYÊN trường đó; `null` ở `locationLabel` hoặc cả cặp `lat`/`lng` là xoá.\n\n' +
+      'KHÔNG sửa được: `slug` (link chia sẻ đã phát), thời gian (dùng `/extend`, `/close`), loại hoạt động, quan hệ người thụ hưởng, trạng thái duyệt, media. Kiểm bằng đúng luật của đường tạo trên giá trị sau khi gộp.\n\n' +
+      '`reason` bắt buộc; audit `UPDATE_CHARITY_CAMPAIGN_CONTENT` chỉ ghi trường thật sự đổi. Quyền `campaign.manage`.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    [ValidationFailedException, ['description phải có ít nhất 10 ký tự']],
+    CharityCampaignNotFoundException,
+  )
+  @ApiOkResponse({
+    type: ResponseDto.forApi(CharityCampaignWrapperResponseDto),
+  })
+  public async updateContent(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() param: CharityCampaignIdParamDto,
+    @Body() body: UpdateAdminCharityCampaignBodyDto,
+  ) {
+    const { reason, ...fields } = body.campaign;
+    const campaign = await this.updateContentUseCase.handle({
+      actorUserId: principal.userId,
+      campaignId: param.id,
+      ...fields,
+      reason,
     });
 
     return ResponseDto.create().succeed().attach({ campaign }).build();

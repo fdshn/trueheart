@@ -2188,6 +2188,46 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     return rows.length > 0 ? toCampaign(rows[0]) : null;
   }
 
+  public async updateContent(params: {
+    campaignId: string;
+    title: string;
+    description: string;
+    badgeName: string;
+    targetItemsCount: number;
+    lat: number | null;
+    lng: number | null;
+    locationLabel: string | null;
+  }): Promise<ICharityCampaign | null> {
+    const rows = await updateReturning<IRow>(
+      this.manager,
+      `WITH updated AS (
+         UPDATE campaigns
+            SET title = $2, description = $3, badge_name = $4,
+                target_items_count = $5,
+                location = CASE
+                  WHEN $6::float8 IS NULL THEN NULL
+                  ELSE ST_SetSRID(ST_MakePoint($7::float8, $6::float8), 4326)::geography
+                END,
+                location_label = $8,
+                updated_at = now()
+          WHERE global_id = $1 AND deleted_at IS NULL
+          RETURNING *
+       )
+       SELECT ${Columns} FROM updated AS campaigns`,
+      [
+        params.campaignId,
+        params.title,
+        params.description,
+        params.badgeName,
+        params.targetItemsCount,
+        params.lat,
+        params.lng,
+        params.locationLabel,
+      ],
+    );
+    return rows.length > 0 ? toCampaign(rows[0]) : null;
+  }
+
   public async updateProgress(params: {
     campaignId: string;
     currentItemsCount: number;
