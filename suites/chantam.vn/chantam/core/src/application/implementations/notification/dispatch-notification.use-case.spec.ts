@@ -261,10 +261,9 @@ describe('DispatchNotificationUseCase', () => {
     );
   });
 
-  // BUG: push() gửi command.title/command.body chứ không phải chữ đã render từ
-  // mẫu Admin (dispatch-notification.use-case.ts:130-131). Bật mẫu thì hộp thư
-  // hiện chữ mới nhưng điện thoại vẫn rung với chữ hardcode cũ.
-  it.skip('đẩy cùng chữ đã render từ mẫu như bản ghi trong hộp thư', async () => {
+  // Trước 16/10 push() gửi chữ của nơi gọi: bật mẫu thì hộp thư hiện chữ mới
+  // nhưng điện thoại vẫn rung với chữ hardcode cũ.
+  it('đẩy cùng chữ đã render từ mẫu như bản ghi trong hộp thư', async () => {
     const { useCase, pushSender } = makeUseCase({
       template: { title: 'Tiêu đề mẫu', body: 'Nội dung mẫu' },
     });

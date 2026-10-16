@@ -56,7 +56,12 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
     if (await this.isGroupMuted(command))
       return { created: true, pushedDevices: 0 };
 
-    const pushedDevices = await this.push(created.globalId, command);
+    // Đẩy ĐÚNG chữ vừa ghi vào hộp thư. Đẩy chữ của nơi gọi thì Admin sửa mẫu
+    // xong, hộp thư đổi mà điện thoại vẫn rung với chữ cũ.
+    const pushedDevices = await this.push(created.globalId, command, {
+      title,
+      body,
+    });
     return { created: true, pushedDevices };
   }
 
@@ -119,6 +124,7 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
   private async push(
     notificationId: string,
     command: IDispatchNotificationCommand,
+    content: { title: string; body: string },
   ): Promise<number> {
     try {
       if (!(await this.pushSender.canSend())) return 0;
@@ -127,8 +133,8 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
       if (tokens.length === 0) return 0;
 
       const pushed = await this.pushSender.send(tokens, {
-        title: command.title,
-        body: command.body,
+        title: content.title,
+        body: content.body,
         type: command.type,
         referenceType: command.referenceType ?? null,
         referenceId: command.referenceId ?? null,
