@@ -1,8 +1,10 @@
 import {
+  IAdminMeritDeclaration,
   IMeritDeclaration,
   IMeritLedgerEntry,
   IMeritUnit,
 } from '@/domain/ports/repository';
+import { MeritDeclarationStatus } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 
 /**
@@ -186,6 +188,45 @@ export interface ICompleteMeritDeclarationUseCase extends IUseCase<
 
 export const ICompleteMeritDeclarationUseCase = Symbol(
   'ICompleteMeritDeclarationUseCase',
+);
+
+export interface IGetAdminMeritUnitCommand {
+  readonly actorUserId: string;
+  readonly unitId: string;
+}
+
+export interface IGetAdminMeritUnitResult {
+  readonly unit: IMeritUnitView;
+}
+
+export interface IGetAdminMeritUnitUseCase extends IUseCase<
+  IGetAdminMeritUnitCommand,
+  IGetAdminMeritUnitResult
+> {}
+
+export const IGetAdminMeritUnitUseCase = Symbol('IGetAdminMeritUnitUseCase');
+
+export interface IListAdminMeritDeclarationsCommand {
+  readonly actorUserId: string;
+  readonly limit: number;
+  readonly offset: number;
+  readonly unitId?: string;
+  readonly status?: MeritDeclarationStatus;
+  readonly userId?: string;
+}
+
+export interface IListAdminMeritDeclarationsResult {
+  readonly items: IAdminMeritDeclaration[];
+  readonly total: number;
+}
+
+export interface IListAdminMeritDeclarationsUseCase extends IUseCase<
+  IListAdminMeritDeclarationsCommand,
+  IListAdminMeritDeclarationsResult
+> {}
+
+export const IListAdminMeritDeclarationsUseCase = Symbol(
+  'IListAdminMeritDeclarationsUseCase',
 );
 
 export interface IListOwnMeritDeclarationsCommand {

@@ -9,9 +9,15 @@ import {
   IDeleteMeritUnitCommand,
   IDeleteMeritUnitResult,
   IDeleteMeritUnitUseCase,
+  IGetAdminMeritUnitCommand,
+  IGetAdminMeritUnitResult,
+  IGetAdminMeritUnitUseCase,
   IGetMeritUnitCommand,
   IGetMeritUnitResult,
   IGetMeritUnitUseCase,
+  IListAdminMeritDeclarationsCommand,
+  IListAdminMeritDeclarationsResult,
+  IListAdminMeritDeclarationsUseCase,
   IListAdminMeritUnitsCommand,
   IListAdminMeritUnitsUseCase,
   IListOwnMeritDeclarationsCommand,
@@ -463,6 +469,59 @@ export class CompleteMeritDeclarationUseCase implements ICompleteMeritDeclaratio
       throw new MeritUnitNotFoundException();
 
     throw new MeritDeclarationAlreadyCompletedException();
+  }
+}
+
+/** Một đơn vị cho CMS — đọc được cả đơn vị đang tắt, khác đường công khai. */
+@Injectable()
+export class GetAdminMeritUnitUseCase implements IGetAdminMeritUnitUseCase {
+  public constructor(
+    @Inject(IMeritRepository) private readonly repository: IMeritRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: IGetAdminMeritUnitCommand,
+  ): Promise<IGetAdminMeritUnitResult> {
+    if (!(await this.admin.hasPermission(command.actorUserId, ReadPermission)))
+      throw new ForbiddenException();
+
+    const unit = await this.repository.findUnitByGlobalId(command.unitId);
+    if (!unit) throw new MeritUnitNotFoundException();
+
+    return { unit: await toView(this.repository, unit) };
+  }
+}
+
+/**
+ * Mọi lời khai cho CMS đối soát.
+ *
+ * Mang tên thật cả khi ẩn danh: ẩn danh là lựa chọn trên Sổ vàng công khai, còn đối
+ * soát phải biết ai khai mới hỏi lại được. Quyền `merit.read` — cùng nhóm người đã
+ * đọc được số tài khoản của đơn vị.
+ */
+@Injectable()
+export class ListAdminMeritDeclarationsUseCase implements IListAdminMeritDeclarationsUseCase {
+  public constructor(
+    @Inject(IMeritRepository) private readonly repository: IMeritRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: IListAdminMeritDeclarationsCommand,
+  ): Promise<IListAdminMeritDeclarationsResult> {
+    if (!(await this.admin.hasPermission(command.actorUserId, ReadPermission)))
+      throw new ForbiddenException();
+
+    return this.repository.listDeclarationsForAdmin({
+      limit: command.limit,
+      offset: command.offset,
+      unitId: command.unitId,
+      status: command.status,
+      userId: command.userId,
+    });
   }
 }
 

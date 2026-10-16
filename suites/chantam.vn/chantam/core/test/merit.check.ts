@@ -30,7 +30,9 @@ import {
   CreateMeritUnitUseCase,
   DeclareMeritUseCase,
   DeleteMeritUnitUseCase,
+  GetAdminMeritUnitUseCase,
   GetMeritUnitUseCase,
+  ListAdminMeritDeclarationsUseCase,
   ListAdminMeritUnitsUseCase,
   ListOwnMeritDeclarationsUseCase,
   SetMeritUnitActiveUseCase,
@@ -153,6 +155,14 @@ async function main(): Promise<void> {
     const declareUseCase = new DeclareMeritUseCase(repository);
     const completeUseCase = new CompleteMeritDeclarationUseCase(repository);
     const listOwnUseCase = new ListOwnMeritDeclarationsUseCase(repository);
+    const getAdminUseCase = new GetAdminMeritUnitUseCase(
+      repository,
+      adminConfig,
+    );
+    const listDeclarationsUseCase = new ListAdminMeritDeclarationsUseCase(
+      repository,
+      adminConfig,
+    );
 
     for (const [id, username, fullName] of [
       [AdminId, 'quantri', 'Quản Trị Viên'],
@@ -466,6 +476,88 @@ async function main(): Promise<void> {
       unitId: unit.globalId,
       isActive: true,
     });
+
+    console.log('\n5b. CMS đọc đơn vị và lời khai');
+
+    // Mục 5 đã bật lại đơn vị; tắt lại để đọc đúng ca đường công khai trả 404.
+    await setActiveUseCase.handle({
+      actorUserId: AdminId,
+      unitId: unit.globalId,
+      isActive: false,
+    });
+    const adminUnit = await getAdminUseCase.handle({
+      actorUserId: AdminId,
+      unitId: unit.globalId,
+    });
+    await setActiveUseCase.handle({
+      actorUserId: AdminId,
+      unitId: unit.globalId,
+      isActive: true,
+    });
+    check(
+      'Admin đọc được đơn vị ĐANG TẮT kèm tổng đã khai',
+      adminUnit.unit.isActive === false &&
+        adminUnit.unit.totalDeclaredAmount === 1_500_000,
+      `isActive=${String(adminUnit.unit.isActive)}`,
+    );
+    await expectThrow(
+      'người không có merit.read không đọc được',
+      () =>
+        getAdminUseCase.handle({
+          actorUserId: OutsiderId,
+          unitId: unit.globalId,
+        }),
+      'ForbiddenException',
+    );
+
+    const allDeclarations = await listDeclarationsUseCase.handle({
+      actorUserId: AdminId,
+      limit: 50,
+      offset: 0,
+    });
+    check(
+      'danh sách lời khai đủ hai dòng, mới nhất trước',
+      allDeclarations.total === 2 &&
+        allDeclarations.items[0].globalId ===
+          anonDeclaration.declaration.globalId,
+      `total=${allDeclarations.total}`,
+    );
+    const anonRow = allDeclarations.items.find(
+      (item) => item.globalId === anonDeclaration.declaration.globalId,
+    );
+    check(
+      'dòng ẩn danh vẫn mang username thật cho đối soát, kèm cờ isAnonymous',
+      anonRow?.username === 'anchim' &&
+        anonRow.isAnonymous &&
+        anonRow.unitName === 'Chùa Vĩnh Nghiêm',
+      `${String(anonRow?.username)}/${String(anonRow?.unitName)}`,
+    );
+    const filtered = await listDeclarationsUseCase.handle({
+      actorUserId: AdminId,
+      limit: 50,
+      offset: 0,
+      unitId: unit.globalId,
+      status: 'COMPLETED',
+      userId: DonorId,
+    });
+    check(
+      'ba bộ lọc cùng lúc: đúng một dòng, và total đếm theo cùng bộ lọc',
+      filtered.total === 1 &&
+        filtered.items.length === 1 &&
+        filtered.items[0].globalId === intended.declaration.globalId,
+      `total=${filtered.total} items=${filtered.items.length}`,
+    );
+    const paged = await listDeclarationsUseCase.handle({
+      actorUserId: AdminId,
+      limit: 1,
+      offset: 1,
+    });
+    check(
+      'limit/offset: trang thứ hai là dòng cũ hơn, total không đổi',
+      paged.total === 2 &&
+        paged.items.length === 1 &&
+        paged.items[0].globalId === intended.declaration.globalId,
+    );
 
     console.log('\n6. Sửa đơn vị — gồm số tài khoản ngân hàng');
 

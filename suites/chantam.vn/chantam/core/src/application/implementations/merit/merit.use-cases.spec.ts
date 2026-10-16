@@ -16,6 +16,8 @@ import {
   CompleteMeritDeclarationUseCase,
   CreateMeritUnitUseCase,
   DeclareMeritUseCase,
+  GetAdminMeritUnitUseCase,
+  ListAdminMeritDeclarationsUseCase,
   UpdateMeritUnitUseCase,
 } from './merit.use-cases';
 
@@ -80,6 +82,9 @@ function makeRepository(): jest.Mocked<IMeritRepository> {
     markDeclarationCompleted: jest.fn(),
     listLedger: jest.fn().mockResolvedValue({ items: [], total: 0 }),
     listOwnDeclarations: jest.fn(),
+    listDeclarationsForAdmin: jest
+      .fn()
+      .mockResolvedValue({ items: [], total: 0 }),
     getDeclaredTotals: jest
       .fn()
       .mockResolvedValue({ totalDeclaredAmount: 0, completedCount: 0 }),
@@ -437,5 +442,84 @@ describe('CompleteMeritDeclarationUseCase', () => {
         declarationId: 'khong-co',
       }),
     ).rejects.toThrow(MeritUnitNotFoundException);
+  });
+});
+
+describe('GetAdminMeritUnitUseCase', () => {
+  it('đòi merit.read', async () => {
+    const repository = makeRepository();
+    await expect(
+      new GetAdminMeritUnitUseCase(repository, makeAdmin(false)).handle({
+        actorUserId: AdminId,
+        unitId: 'unit-1',
+      }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(repository.findUnitByGlobalId).not.toHaveBeenCalled();
+  });
+
+  it('đọc được cả đơn vị ĐANG TẮT — đường công khai thì không', async () => {
+    const repository = makeRepository();
+    repository.findUnitByGlobalId.mockResolvedValue(unit({ isActive: false }));
+
+    const result = await new GetAdminMeritUnitUseCase(
+      repository,
+      makeAdmin(true),
+    ).handle({ actorUserId: AdminId, unitId: 'unit-1' });
+
+    expect(repository.findPublicUnitByIdOrSlug).not.toHaveBeenCalled();
+    expect(result.unit).toMatchObject({
+      globalId: 'unit-1',
+      isActive: false,
+      totalDeclaredAmount: 0,
+    });
+    expect(result.unit.vietQrUrl).toContain('970415-113366668888');
+  });
+
+  it('không có thì NotFound', async () => {
+    const repository = makeRepository();
+    repository.findUnitByGlobalId.mockResolvedValue(null);
+
+    await expect(
+      new GetAdminMeritUnitUseCase(repository, makeAdmin(true)).handle({
+        actorUserId: AdminId,
+        unitId: 'khong-co',
+      }),
+    ).rejects.toThrow(MeritUnitNotFoundException);
+  });
+});
+
+describe('ListAdminMeritDeclarationsUseCase', () => {
+  it('đòi merit.read và không đọc gì khi thiếu', async () => {
+    const repository = makeRepository();
+    await expect(
+      new ListAdminMeritDeclarationsUseCase(
+        repository,
+        makeAdmin(false),
+      ).handle({ actorUserId: AdminId, limit: 20, offset: 0 }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(repository.listDeclarationsForAdmin).not.toHaveBeenCalled();
+  });
+
+  it('chuyển đúng bộ lọc xuống repository', async () => {
+    const repository = makeRepository();
+    await new ListAdminMeritDeclarationsUseCase(
+      repository,
+      makeAdmin(true),
+    ).handle({
+      actorUserId: AdminId,
+      limit: 20,
+      offset: 40,
+      unitId: 'unit-1',
+      status: 'COMPLETED',
+      userId: DonorId,
+    });
+
+    expect(repository.listDeclarationsForAdmin).toHaveBeenCalledWith({
+      limit: 20,
+      offset: 40,
+      unitId: 'unit-1',
+      status: 'COMPLETED',
+      userId: DonorId,
+    });
   });
 });

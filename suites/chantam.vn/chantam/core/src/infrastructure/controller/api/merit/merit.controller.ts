@@ -3,6 +3,8 @@ import {
   ICreateMeritUnitUseCase,
   IDeclareMeritUseCase,
   IDeleteMeritUnitUseCase,
+  IGetAdminMeritUnitUseCase,
+  IListAdminMeritDeclarationsUseCase,
   IListAdminMeritUnitsUseCase,
   IListOwnMeritDeclarationsUseCase,
   ISetMeritUnitActiveUseCase,
@@ -12,6 +14,7 @@ import {
   MeritDeclarationAlreadyCompletedException,
   MeritUnitNotFoundException,
 } from '@/domain/exceptions';
+import { MeritDeclarationStatus } from '@chantam.vn/chantam.core-lib/models';
 import {
   ApiTokenErrors,
   CurrentUser,
@@ -45,6 +48,8 @@ import {
   DeclareMeritBodyDto,
   DeclareMeritResponseDto,
   DeleteMeritUnitResponseDto,
+  ListAdminMeritDeclarationsQueryDto,
+  ListAdminMeritDeclarationsResponseDto,
   ListAdminMeritUnitsQueryDto,
   ListMeritUnitsQueryDto,
   ListMeritUnitsResponseDto,
@@ -202,6 +207,10 @@ export class AdminMeritController {
     private readonly setActiveUseCase: ISetMeritUnitActiveUseCase,
     @Inject(IDeleteMeritUnitUseCase)
     private readonly deleteUseCase: IDeleteMeritUnitUseCase,
+    @Inject(IGetAdminMeritUnitUseCase)
+    private readonly getUseCase: IGetAdminMeritUnitUseCase,
+    @Inject(IListAdminMeritDeclarationsUseCase)
+    private readonly declarationsUseCase: IListAdminMeritDeclarationsUseCase,
   ) {}
 
   @Get()
@@ -226,6 +235,70 @@ export class AdminMeritController {
           limit: query.limit ?? 20,
           offset: query.offset ?? 0,
           includeInactive: query.includeInactive ?? false,
+        }),
+      )
+      .build();
+  }
+
+  // Đứng TRƯỚC `:id`: Fastify ưu tiên đoạn tĩnh, nhưng đặt cạnh nhau cho người đọc thấy
+  // `declarations` không phải một id.
+  @Get('declarations')
+  @RequiresPermission('merit.read')
+  @ApiOperation({
+    summary: 'Danh sách lời khai công đức (đối soát)',
+    description:
+      'Mọi lời khai, mới nhất trước; lọc theo `unitId`, `status`, `userId`. Mỗi dòng mang ' +
+      '`unitName` và `username` THẬT kể cả khi `isAnonymous` — ẩn danh là lựa chọn trên Sổ ' +
+      'vàng công khai, còn đối soát cần biết ai khai. Số tiền là LỜI KHAI, hệ thống không ' +
+      'đối chiếu với ngân hàng. Quyền `merit.read`.',
+  })
+  @ApiErrorResponses(...ApiTokenErrors, ForbiddenException)
+  @ApiOkResponse({
+    type: ResponseDto.forApi(ListAdminMeritDeclarationsResponseDto),
+  })
+  public async listDeclarations(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Query() query: ListAdminMeritDeclarationsQueryDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.declarationsUseCase.handle({
+          actorUserId: principal.userId,
+          limit: query.limit ?? 20,
+          offset: query.offset ?? 0,
+          unitId: query.unitId,
+          status: query.status as MeritDeclarationStatus | undefined,
+          userId: query.userId,
+        }),
+      )
+      .build();
+  }
+
+  @Get(':id')
+  @RequiresPermission('merit.read')
+  @ApiOperation({
+    summary: 'Một đơn vị Công đức cho CMS',
+    description:
+      'Đọc được cả đơn vị đang TẮT (đường công khai `GET /merit-units/:idOrSlug` thì không), ' +
+      'kèm `vietQrUrl` và tổng đã khai — dùng để điền form sửa. Chỉ nhận id. Quyền `merit.read`.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    MeritUnitNotFoundException,
+  )
+  @ApiOkResponse({ type: ResponseDto.forApi(MeritUnitWrapperResponseDto) })
+  public async getOne(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() param: MeritUnitIdParamDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.getUseCase.handle({
+          actorUserId: principal.userId,
+          unitId: param.id,
         }),
       )
       .build();

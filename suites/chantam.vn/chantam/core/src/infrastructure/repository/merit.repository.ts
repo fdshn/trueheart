@@ -1,4 +1,5 @@
 import {
+  IAdminMeritDeclaration,
   ICreateMeritUnitParams,
   IMeritDeclaration,
   IMeritLedgerEntry,
@@ -468,6 +469,59 @@ export class MeritRepository implements IMeritRepository {
     );
     return {
       items: (rows ?? []).map(toDeclaration),
+      total: Number(counted?.total ?? 0),
+    };
+  }
+
+  public async listDeclarationsForAdmin(query: {
+    limit: number;
+    offset: number;
+    unitId?: string;
+    status?: MeritDeclarationStatus;
+    userId?: string;
+  }): Promise<{ items: IAdminMeritDeclaration[]; total: number }> {
+    // Dựng điều kiện theo đúng những bộ lọc được truyền — ghép sẵn `= ''` cho bộ lọc bỏ
+    // trống là trả danh sách rỗng trong khi bảng vẫn có dữ liệu.
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    for (const [column, value] of [
+      ['declaration.unit_id', query.unitId],
+      ['declaration.status', query.status],
+      ['declaration.user_id', query.userId],
+    ] as const) {
+      if (value === undefined) continue;
+      values.push(value);
+      conditions.push(`${column} = $${values.length}`);
+    }
+    const where =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const rows = await this.manager.query<
+      (IDeclarationRow & { unit_name: string; username: string })[]
+    >(
+      `SELECT declaration.global_id, declaration.unit_id, declaration.user_id,
+              declaration.declared_amount, declaration.status,
+              declaration.is_anonymous, declaration.note,
+              declaration.declared_at, declaration.completed_at,
+              unit.name AS unit_name, declarer.username
+         FROM merit_declarations declaration
+         INNER JOIN merit_units unit ON unit.global_id = declaration.unit_id
+         INNER JOIN users declarer ON declarer.global_id = declaration.user_id
+         ${where}
+        ORDER BY declaration.declared_at DESC, declaration.id DESC
+        LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      [...values, query.limit, query.offset],
+    );
+    const [counted] = await this.manager.query<{ total: string }[]>(
+      `SELECT count(*)::text AS total FROM merit_declarations declaration ${where}`,
+      values,
+    );
+    return {
+      items: (rows ?? []).map((row) => ({
+        ...toDeclaration(row),
+        unitName: row.unit_name,
+        username: row.username,
+      })),
       total: Number(counted?.total ?? 0),
     };
   }

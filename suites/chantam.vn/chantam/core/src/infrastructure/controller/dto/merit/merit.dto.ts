@@ -271,6 +271,29 @@ export class ListAdminMeritUnitsQueryDto extends ListMeritUnitsQueryDto {
   includeInactive?: boolean;
 }
 
+export class ListAdminMeritDeclarationsQueryDto extends ListMeritUnitsQueryDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Chỉ lời khai vào đơn vị này.',
+  })
+  @IsOptional()
+  @IsUUID()
+  unitId?: string;
+
+  @ApiPropertyOptional({ enum: MeritDeclarationStatuses })
+  @IsOptional()
+  @IsIn(MeritDeclarationStatuses as readonly string[])
+  status?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Chỉ lời khai của người này.',
+  })
+  @IsOptional()
+  @IsUUID()
+  userId?: string;
+}
+
 export class MeritUnitIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
@@ -418,6 +441,23 @@ export class MeritDeclarationResponseDto {
   @ApiProperty({ nullable: true }) note: string | null;
   @ApiProperty() declaredAt: Date;
   @ApiProperty({ nullable: true }) completedAt: Date | null;
+}
+
+export class AdminMeritDeclarationResponseDto extends MeritDeclarationResponseDto {
+  @ApiProperty() unitName: string;
+
+  @ApiProperty({
+    description:
+      'Tên đăng nhập THẬT của người khai, kể cả khi `isAnonymous = true` — đối soát cần biết ai khai. CMS không được công bố tên khi cờ ẩn danh bật.',
+  })
+  username: string;
+}
+
+export class ListAdminMeritDeclarationsResponseDto {
+  @ApiProperty({ type: () => [AdminMeritDeclarationResponseDto] })
+  items: AdminMeritDeclarationResponseDto[];
+
+  @ApiProperty() total: number;
 }
 
 export class MeritUnitDetailResponseDto {

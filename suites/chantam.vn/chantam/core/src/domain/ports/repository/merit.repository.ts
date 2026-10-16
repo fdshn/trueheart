@@ -43,6 +43,17 @@ export interface IMeritDeclaration {
   readonly completedAt: Date | null;
 }
 
+/**
+ * Một lời khai cho CMS đối soát — mang tên thật cả khi ẩn danh.
+ *
+ * `isAnonymous` là lựa chọn hiển thị trên Sổ vàng CÔNG KHAI; Admin đối soát cần biết ai
+ * khai mới hỏi lại được. CMS phải đọc cờ này và không công bố tên.
+ */
+export interface IAdminMeritDeclaration extends IMeritDeclaration {
+  readonly unitName: string;
+  readonly username: string;
+}
+
 /** Một hàng Sổ vàng — đã bỏ tên khi người khai chọn ẩn danh. */
 export interface IMeritLedgerEntry {
   readonly globalId: string;
@@ -157,6 +168,18 @@ export interface IMeritRepository {
     readonly limit: number;
     readonly offset: number;
   }): Promise<{ readonly items: IMeritDeclaration[]; readonly total: number }>;
+
+  /** Mọi lời khai cho CMS, mới nhất trước; bộ lọc nào bỏ trống là không lọc. */
+  listDeclarationsForAdmin(query: {
+    readonly limit: number;
+    readonly offset: number;
+    readonly unitId?: string;
+    readonly status?: MeritDeclarationStatus;
+    readonly userId?: string;
+  }): Promise<{
+    readonly items: IAdminMeritDeclaration[];
+    readonly total: number;
+  }>;
 
   /**
    * Tổng số tiền ĐÃ KHAI của một đơn vị, kèm số lượt khai.
