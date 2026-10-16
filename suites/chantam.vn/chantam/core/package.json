@@ -113,7 +113,8 @@
     "test:merit": "ts-node -r tsconfig-paths/register test/merit.check.ts",
     "test:dharma": "ts-node -r tsconfig-paths/register test/dharma.check.ts",
     "test:dharma-forum": "ts-node -r tsconfig-paths/register test/dharma-forum.check.ts",
-    "test:admin-rbac": "ts-node -r tsconfig-paths/register test/admin-rbac.check.ts"
+    "test:admin-rbac": "ts-node -r tsconfig-paths/register test/admin-rbac.check.ts",
+    "test:permission-inventory": "ts-node -r tsconfig-paths/register test/permission-inventory.check.ts"
   },
   "dependencies": {
     "@chantam.vn/chantam.core-lib": "file:../core-lib",
