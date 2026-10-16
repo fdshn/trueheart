@@ -18,6 +18,7 @@ import {
   IGetNotificationChannelsUseCase,
   IGetOwnAdminAccessUseCase,
   IGetSystemLogsUseCase,
+  IGetTrustThresholdsUseCase,
   IListAdminCommentsUseCase,
   IListAdminGroupsUseCase,
   IListAdminRolesUseCase,
@@ -34,6 +35,7 @@ import {
   IReviewChatFlagUseCase,
   ISetAllocationPolicyUseCase,
   ISetCandidateSelectionUseCase,
+  ISetTrustThresholdUseCase,
   IUpdateNotificationChannelUseCase,
   IUpdateNotificationTemplateUseCase,
 } from '@/application/contracts/admin-config';
@@ -97,6 +99,10 @@ import {
   GetNotificationChannelsUseCase,
   UpdateNotificationChannelUseCase,
 } from './notification-channel.use-cases';
+import {
+  GetTrustThresholdsUseCase,
+  SetTrustThresholdUseCase,
+} from './trust-threshold.use-cases';
 
 import {
   ListNotificationTemplatesUseCase,
@@ -126,6 +132,14 @@ import {
     {
       provide: ISetAllocationPolicyUseCase,
       useClass: SetAllocationPolicyUseCase,
+    },
+    {
+      provide: IGetTrustThresholdsUseCase,
+      useClass: GetTrustThresholdsUseCase,
+    },
+    {
+      provide: ISetTrustThresholdUseCase,
+      useClass: SetTrustThresholdUseCase,
     },
     {
       provide: IGetCandidateSelectionUseCase,
@@ -238,6 +252,8 @@ import {
     IGetAdminConfigsUseCase,
     IGetAllocationPolicyUseCase,
     ISetAllocationPolicyUseCase,
+    IGetTrustThresholdsUseCase,
+    ISetTrustThresholdUseCase,
     IGetCandidateSelectionUseCase,
     ISetCandidateSelectionUseCase,
     IPublishAdminConfigUseCase,

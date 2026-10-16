@@ -18,6 +18,7 @@ import { AdminPointRuleController } from './admin-point-rule.controller';
 import { AdminRankPolicyController } from './admin-rank-policy.controller';
 import { AdminRoleController } from './admin-role.controller';
 import { AdminTransactionController } from './admin-transaction.controller';
+import { AdminTrustThresholdController } from './admin-trust-threshold.controller';
 import { AdminUserController } from './admin-user.controller';
 import { EntitlementPolicyController } from './entitlement-policy.controller';
 import { NotificationChannelController } from './notification-channel.controller';
@@ -28,6 +29,7 @@ import { NotificationTemplateController } from './notification-template.controll
     AdminConfigController,
     AdminChatFlagController,
     AdminGroupListController,
+    AdminTrustThresholdController,
     AdminGroupRadiusController,
     AdminGroupRoleController,
     AdminRankPolicyController,

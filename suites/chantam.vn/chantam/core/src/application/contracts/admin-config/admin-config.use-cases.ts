@@ -39,7 +39,9 @@ export const SupportedSystemConfigKeys = [
   'group.radius_meters.diamond',
   'affiliate.active_member_window_days',
   'rank.maintenance_period_months',
-  'accuracy.giver',
+  // `accuracy.giver` KHÔNG nằm ở đây dù trước kia có: nó là JSON, còn đường này chỉ
+  // nhận INTEGER — ghi một số trần đè lên là chỉ số rơi về mặc định mà không ai
+  // biết. Đổi qua `PUT /admin/config/trust-thresholds/giver-accuracy` (CMS A13).
   // Ngưỡng diện xem xét cho dấu vết đăng ký trùng (23 §23.7).
   //
   // Phải có ở đây, không chỉ ở `system_configs`: cả thiết kế dựa trên việc Bên A BẬT
