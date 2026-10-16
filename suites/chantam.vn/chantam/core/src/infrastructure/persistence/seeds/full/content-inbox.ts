@@ -118,6 +118,29 @@ export async function seedContentAndInbox(ctx: ISeedContext): Promise<void> {
       ],
     );
 
+  // Thư viện ảnh CMS (A2). Key dưới `seed/` chứ không `users/`: job dọn rác chỉ quét
+  // `users/`, và object seed vốn không tồn tại trên bucket.
+  const libraryImages: ReadonlyArray<[number, string]> = [
+    [1, 'bia-vu-lan-2026.png'],
+    [2, 'banner-ao-am-vung-cao.png'],
+  ];
+  for (const [n, fileName] of libraryImages)
+    await ctx.q(
+      `
+        INSERT INTO media_assets
+          (global_id, storage_key, public_url, content_type, file_name, uploaded_by)
+        VALUES ($1, $2, $3, 'image/png', $4, $5)
+        ON CONFLICT (storage_key) DO NOTHING
+      `,
+      [
+        seedId(SeedDomains.mediaAssets, n),
+        `seed/cms-media/${n}.png`,
+        Image,
+        fileName,
+        Personas.admin,
+      ],
+    );
+
   // Giao diện trang chủ: một bản nháp tắt, và một bản đang bật — chỉ bật khi database
   // CHƯA có bản nào đang bật, để không đè cấu hình trang chủ thật của môi trường.
   const theme = {

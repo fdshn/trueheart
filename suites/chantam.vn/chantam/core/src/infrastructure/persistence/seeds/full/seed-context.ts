@@ -53,6 +53,7 @@ export const SeedDomains = {
   campaignReviews: 0x21,
   checkInRuns: 0x22,
   affiliateEvents: 0x23,
+  mediaAssets: 0x24,
 } as const;
 
 /** Người dùng của seed demo cũ — giữ nguyên id để link/tài liệu cũ vẫn đúng. */
