@@ -62,10 +62,13 @@ describe(GetAdminDashboardUseCase.name, () => {
     expect(await windowFor(0.5)).toBe(1);
   });
 
-  // BUG: NaN lọt qua phép kẹp (Math.max/Math.min với NaN trả NaN) nên repository
-  // nhận NaN và gửi 'NaN' vào SQL. Đường HTTP có @IsInt chặn, nhưng use case tự
-  // nhận là còn đường gọi khác (CLI, job nền) không qua DTO.
-  it.skip('windowDays NaN rơi về mặc định thay vì đi thẳng xuống SQL', async () => {
+  // NaN lọt qua phép kẹp (Math.max/Math.min với NaN trả NaN) thì repository nhận
+  // NaN và gửi 'NaN' vào SQL. Đường HTTP có @IsInt chặn, CLI và job nền thì không.
+  it('windowDays NaN rơi về mặc định thay vì đi thẳng xuống SQL', async () => {
     expect(await windowFor(Number.NaN)).toBe(30);
+  });
+
+  it('Infinity cũng rơi về mặc định, không bị kẹp thành 365', async () => {
+    expect(await windowFor(Number.POSITIVE_INFINITY)).toBe(30);
   });
 });

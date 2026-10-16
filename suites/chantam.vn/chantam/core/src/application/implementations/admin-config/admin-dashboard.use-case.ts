@@ -39,9 +39,21 @@ export class GetAdminDashboardUseCase implements IGetAdminDashboardUseCase {
     // Kẹp thay vì ném: cửa sổ ngoài khoảng đến từ một ô nhập trên màn hình Admin,
     // và một con số 99999 do gõ nhầm không nên trả lỗi — nó nên trả số liệu của
     // cửa sổ dài nhất còn hợp lý.
+    //
+    // `NaN` phải rơi về mặc định TRƯỚC khi kẹp: `Math.min`/`Math.max` với NaN trả
+    // NaN, và chuỗi 'NaN' đi thẳng vào SQL. Đường HTTP có `@IsInt` chặn, nhưng
+    // CLI và job nền thì không qua DTO.
+    const requested = command.windowDays;
     const windowDays = Math.min(
       MaxDashboardWindowDays,
-      Math.max(1, Math.trunc(command.windowDays ?? DefaultDashboardWindowDays)),
+      Math.max(
+        1,
+        Math.trunc(
+          requested !== undefined && Number.isFinite(requested)
+            ? requested
+            : DefaultDashboardWindowDays,
+        ),
+      ),
     );
 
     return { dashboard: await this.dashboard.read(windowDays) };
