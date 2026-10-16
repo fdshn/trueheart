@@ -211,6 +211,24 @@ async function main(): Promise<void> {
       joined.joinedGroupId === groupId &&
         (await groups.findMine(NewcomerId))?.myRole === 'MEMBER',
     );
+    const joinAudit = await dataSource.query<
+      {
+        actor_user_id: string;
+        resource_id: string;
+        after_json: { inviteCode: string };
+      }[]
+    >(
+      `SELECT actor_user_id, resource_id, after_json FROM admin_audit_logs
+        WHERE action = 'GROUP_JOIN' AND actor_user_id = $1`,
+      [NewcomerId],
+    );
+    check(
+      'lượt vào nhóm có audit GROUP_JOIN kèm nhóm và mã mời đã dùng',
+      joinAudit.length === 1 &&
+        joinAudit[0].resource_id === groupId &&
+        joinAudit[0].after_json.inviteCode === code,
+      JSON.stringify(joinAudit),
+    );
     check(
       'Member không lấy được Invite Link',
       (await thrown(() =>
