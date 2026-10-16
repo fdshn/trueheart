@@ -54,6 +54,11 @@ export interface IHomeCampaignMutationResult {
    * thì bố cục cũ còn phục vụ tới một giờ. Nuốt im là để Admin tin đã đổi xong.
    */
   cacheInvalidated: boolean;
+  /**
+   * Ô nào bị chuẩn hoá ĐỔI hoặc BỎ, mỗi dòng bắt đầu bằng đường dẫn tới ô đó
+   * (`banners[2].deepLink: ...`). Rỗng khi lưu đúng nguyên văn (CMS B6).
+   */
+  warnings: string[];
 }
 
 export interface IListHomeCampaignsCommand {

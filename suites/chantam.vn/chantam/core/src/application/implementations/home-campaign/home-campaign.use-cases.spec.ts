@@ -213,6 +213,24 @@ describe('CreateHomeCampaignUseCase', () => {
     expect(result.cacheInvalidated).toBe(false);
   });
 
+  it('đầu vào sạch thì warnings rỗng; banner hỏng được LƯU bỏ và được KỂ (CMS B6)', async () => {
+    const deps = makeDeps();
+    const create = new CreateHomeCampaignUseCase(
+      deps.repository as never,
+      deps.cache as never,
+      deps.admin as never,
+    );
+
+    expect((await create.handle(ValidInput)).warnings).toEqual([]);
+
+    const result = await create.handle({
+      ...ValidInput,
+      banners: [{ id: 'b1', imageUrl: 'http://cdn.test/a.webp' }],
+    });
+    expect(deps.repository.createCampaign.mock.calls[1][0].banners).toEqual([]);
+    expect(result.warnings).toEqual([expect.stringMatching(/^banners\[0\]: /)]);
+  });
+
   it('thiếu quyền campaign.manage thì không ghi và không xoá đệm', async () => {
     const deps = makeDeps();
     deps.admin.hasPermission.mockResolvedValue(false);

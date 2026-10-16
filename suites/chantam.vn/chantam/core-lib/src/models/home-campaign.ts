@@ -350,6 +350,189 @@ export function normalizeHomeFloatingBanner(
   };
 }
 
+function isProvided(value: unknown): boolean {
+  return value !== undefined && value !== null;
+}
+
+function truncatedAt(value: unknown, maxLength: number): boolean {
+  return typeof value === 'string' && value.trim().length > maxLength;
+}
+
+/**
+ * Những ô mà bước chuẩn hoá đã ĐỔI hoặc BỎ, mỗi dòng mở đầu bằng đường dẫn tới ô đó
+ * (CMS B6).
+ *
+ * Chuẩn hoá vẫn là chủ ý — một ô màu sai không được làm mất cả bố cục vừa kéo thả
+ * (giữ nguyên quyết định cũ). Nhưng lặng lẽ thì Admin không biết banner mình vừa thêm
+ * đã bị bỏ; danh sách này trả kèm response để CMS hiện ngay cạnh ô đó.
+ *
+ * Đi theo ĐÚNG các phép kiểm của `normalizeHome*` ở trên, cùng thứ tự, nên không có ô
+ * nào bị đổi mà không được kể, và không có cảnh báo nào cho thứ không bị đổi. Ô bỏ
+ * trống (`undefined`/`null`) không phải lỗi, nên không cảnh báo.
+ */
+export function homeCampaignWarnings(input: {
+  readonly theme?: unknown;
+  readonly banners?: unknown;
+  readonly sectionsLayout?: unknown;
+  readonly popup?: unknown;
+  readonly floatingBanner?: unknown;
+}): string[] {
+  const warnings: string[] = [];
+  const warnDeepLink = (path: string, value: unknown) => {
+    if (isProvided(value) && !isHomeDeepLink(value))
+      warnings.push(
+        `${path}: bỏ vì chỉ nhận ${HomeDeepLinkScheme} hoặc ${HomeHttpsScheme}`,
+      );
+  };
+  const warnTruncated = (path: string, value: unknown, maxLength: number) => {
+    if (truncatedAt(value, maxLength))
+      warnings.push(`${path}: cắt còn ${maxLength} ký tự`);
+  };
+
+  // ── theme ────────────────────────────────────────────────────────────────
+  if (isProvided(input.theme) && typeof input.theme !== 'object')
+    warnings.push('theme: không phải object, dùng theme mặc định');
+  else if (isProvided(input.theme)) {
+    const theme = input.theme as Record<string, unknown>;
+    if (isProvided(theme.primaryColor) && !isHomeColor(theme.primaryColor))
+      warnings.push(
+        `theme.primaryColor: không phải mã màu #RGB/#RRGGBB, dùng ${DefaultHomeLayout.theme.primaryColor}`,
+      );
+    if (
+      isProvided(theme.backgroundPatternUrl) &&
+      !isHomeImageUrl(theme.backgroundPatternUrl)
+    )
+      warnings.push(
+        `theme.backgroundPatternUrl: bỏ vì ảnh phải là ${HomeHttpsScheme}`,
+      );
+    if (isProvided(theme.headerGradient)) {
+      if (!Array.isArray(theme.headerGradient))
+        warnings.push('theme.headerGradient: không phải mảng, bỏ dải màu');
+      else {
+        let kept = 0;
+        for (const [index, color] of theme.headerGradient.entries()) {
+          if (!isHomeColor(color))
+            warnings.push(
+              `theme.headerGradient[${index}]: bỏ vì không phải mã màu #RGB/#RRGGBB`,
+            );
+          else if (++kept > 4)
+            warnings.push(
+              `theme.headerGradient[${index}]: bỏ vì chỉ giữ 4 màu đầu`,
+            );
+        }
+      }
+    }
+    warnTruncated('theme.greetingIcon', theme.greetingIcon, 50);
+  }
+
+  // ── banners ──────────────────────────────────────────────────────────────
+  if (isProvided(input.banners) && !Array.isArray(input.banners))
+    warnings.push('banners: không phải mảng, bỏ toàn bộ');
+  else if (Array.isArray(input.banners)) {
+    const seen = new Set<string>();
+    let kept = 0;
+    for (const [index, item] of input.banners.entries()) {
+      const path = `banners[${index}]`;
+      if (typeof item !== 'object' || item === null) {
+        warnings.push(`${path}: bỏ vì không phải object`);
+        continue;
+      }
+      const banner = item as Record<string, unknown>;
+      if (!isHomeImageUrl(banner.imageUrl)) {
+        warnings.push(`${path}: bỏ vì imageUrl phải là ${HomeHttpsScheme}`);
+        continue;
+      }
+      const id = readText(banner.id, 40) ?? `b${index + 1}`;
+      if (seen.has(id)) {
+        warnings.push(`${path}: bỏ vì id "${id}" trùng banner trước`);
+        continue;
+      }
+      seen.add(id);
+      warnTruncated(`${path}.title`, banner.title, 200);
+      warnTruncated(`${path}.ctaText`, banner.ctaText, 50);
+      warnDeepLink(`${path}.deepLink`, banner.deepLink);
+
+      if (++kept >= MaxHomeBanners) {
+        const dropped = input.banners.length - index - 1;
+        if (dropped > 0)
+          warnings.push(
+            `banners: chỉ giữ ${MaxHomeBanners} banner hợp lệ đầu, bỏ ${dropped} mục sau`,
+          );
+        break;
+      }
+    }
+  }
+
+  // ── sectionsLayout ───────────────────────────────────────────────────────
+  if (isProvided(input.sectionsLayout) && !Array.isArray(input.sectionsLayout))
+    warnings.push('sectionsLayout: không phải mảng, dùng bố cục mặc định');
+  else if (Array.isArray(input.sectionsLayout)) {
+    const seen = new Set<string>();
+    let kept = 0;
+    for (const [index, item] of input.sectionsLayout.entries()) {
+      const path = `sectionsLayout[${index}]`;
+      if (typeof item !== 'object' || item === null) {
+        warnings.push(`${path}: bỏ vì không phải object`);
+        continue;
+      }
+      const section = item as Record<string, unknown>;
+      if (!HomeSectionTypes.includes(section.type as HomeSectionType)) {
+        warnings.push(
+          `${path}: bỏ vì type phải là một trong ${HomeSectionTypes.join(', ')}`,
+        );
+        continue;
+      }
+      const id = readText(section.id, 40);
+      if (id === null || !SectionIdPattern.test(id)) {
+        warnings.push(`${path}: bỏ vì id phải khớp [a-z0-9_-], 1–40 ký tự`);
+        continue;
+      }
+      if (seen.has(id)) {
+        warnings.push(`${path}: bỏ vì id "${id}" trùng khối trước`);
+        continue;
+      }
+      seen.add(id);
+      warnTruncated(`${path}.title`, section.title, 100);
+
+      if (++kept >= MaxHomeSections) {
+        const dropped = input.sectionsLayout.length - index - 1;
+        if (dropped > 0)
+          warnings.push(
+            `sectionsLayout: chỉ giữ ${MaxHomeSections} khối hợp lệ đầu, bỏ ${dropped} mục sau`,
+          );
+        break;
+      }
+    }
+    if (kept === 0)
+      warnings.push(
+        'sectionsLayout: không còn khối hợp lệ nào, dùng bố cục mặc định',
+      );
+  }
+
+  // ── popup & floatingBanner ───────────────────────────────────────────────
+  if (isProvided(input.popup)) {
+    const popup = input.popup as Record<string, unknown>;
+    if (typeof input.popup !== 'object' || !isHomeImageUrl(popup.imageUrl))
+      warnings.push(`popup: bỏ vì imageUrl phải là ${HomeHttpsScheme}`);
+    else warnDeepLink('popup.deepLink', popup.deepLink);
+  }
+
+  if (isProvided(input.floatingBanner)) {
+    const floating = input.floatingBanner as Record<string, unknown>;
+    if (
+      typeof input.floatingBanner !== 'object' ||
+      readText(floating.label, 80) === null
+    )
+      warnings.push('floatingBanner: bỏ vì label trống');
+    else {
+      warnTruncated('floatingBanner.label', floating.label, 80);
+      warnDeepLink('floatingBanner.deepLink', floating.deepLink);
+    }
+  }
+
+  return warnings;
+}
+
 /**
  * Những chỗ khiến một cấu hình KHÔNG bật được.
  *
