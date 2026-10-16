@@ -11,6 +11,7 @@ import { IAdminConfigRepository } from '@/domain/ports/repository';
 import {
   AllocationPolicyConfigKey,
   allocationPolicyGaps,
+  MaxAllocationSuggestions,
   normalizeAllocationPolicy,
 } from '@chantam.vn/chantam.core-lib/models';
 import {
@@ -76,6 +77,18 @@ export class SetAllocationPolicyUseCase implements ISetAllocationPolicyUseCase {
       ))
     )
       throw new ForbiddenException();
+
+    // `maxSuggestions` kiểm trên giá trị GỐC, trước khi chuẩn hoá kẹp nó vào 1..trần:
+    // đường HTTP đã trả 400 cho 0 hay 1000 (`@Min`/`@Max`/`@IsInt`), nên gọi thẳng use
+    // case mà âm thầm kẹp là hai đường gọi ra hai kết quả cho cùng một input.
+    if (
+      !Number.isInteger(command.maxSuggestions) ||
+      command.maxSuggestions < 1 ||
+      command.maxSuggestions > MaxAllocationSuggestions
+    )
+      throw new ValidationFailedException([
+        `maxSuggestions phải là số nguyên từ 1 đến ${MaxAllocationSuggestions}`,
+      ]);
 
     // Chuẩn hoá TRƯỚC khi kiểm và TRƯỚC khi ghi, cùng lối `SetCandidateSelectionUseCase`:
     // lưu đúng thứ sẽ chạy, nhờ vậy đọc config thô cũng thấy đúng chính sách và audit

@@ -137,12 +137,28 @@ describe(SetAllocationPolicyUseCase.name, () => {
     expect(repository.publishSystemConfig).not.toHaveBeenCalled();
   });
 
-  it('maxSuggestions ngoài khoảng được kẹp về 1–100 trước khi ghi', async () => {
+  it.each([0, -3, 101, 1000, 2.5, Number.NaN])(
+    'maxSuggestions = %p bị từ chối và không ghi gì — cùng luật với đường HTTP',
+    async (maxSuggestions) => {
+      // HTTP đã trả 400 nhờ @Min(1)/@Max/@IsInt. Gọi thẳng use case (CLI, job nền)
+      // mà âm thầm kẹp 0 thành 1 là hai đường gọi ra hai kết quả cho cùng một input.
+      const repository = makeRepository();
+
+      await expect(
+        new SetAllocationPolicyUseCase(repository as never).handle(
+          command({ maxSuggestions }),
+        ),
+      ).rejects.toThrow(ValidationFailedException);
+      expect(repository.publishSystemConfig).not.toHaveBeenCalled();
+    },
+  );
+
+  it('maxSuggestions ở hai biên 1 và 100 thì ghi đúng giá trị đó', async () => {
     const repository = makeRepository();
     const useCase = new SetAllocationPolicyUseCase(repository as never);
 
-    await useCase.handle(command({ maxSuggestions: 0 }));
-    await useCase.handle(command({ maxSuggestions: 1000 }));
+    await useCase.handle(command({ maxSuggestions: 1 }));
+    await useCase.handle(command({ maxSuggestions: 100 }));
 
     expect(
       repository.publishSystemConfig.mock.calls.map(
