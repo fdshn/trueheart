@@ -15,11 +15,15 @@ export interface IRegisterDto {
    * chính ràng buộc đó là hàng rào chặn việc một người nhảy vòng quanh các nhóm
    * để gom affiliate.
    *
-   * Mã sai hay nhóm đã giải tán thì đăng ký VẪN thành công, chỉ là không vào
-   * nhóm nào — bắt đăng ký lại vì một mã hỏng là phạt người dùng cho lỗi của
-   * người gửi link.
+   * Mã sai hay nhóm đã giải tán thì đăng ký THẤT BẠI (`GROUP_INVITE_INVALID`) và
+   * không tài khoản nào được tạo — quyết định 16/10/2026.
    */
   inviteCode?: string;
+  /**
+   * Cùng nghĩa với `inviteCode` — tên theo SRS 3.7A. Gửi một trong hai; gửi cả hai
+   * mà khác nhau là 400.
+   */
+  groupInviteToken?: string;
 }
 
 export interface IRegisterBodyDto {

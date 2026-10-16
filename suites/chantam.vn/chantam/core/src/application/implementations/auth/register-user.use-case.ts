@@ -10,6 +10,7 @@ import { IRequestThrottle } from '@/domain/ports/security';
 import { hashSignupFingerprint } from '@/infrastructure/security/signup-fingerprint';
 import { UserId } from '@chantam.vn/chantam.core-lib/values';
 import { IPasswordService } from '@chantam/service.auth-lib';
+import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { SessionIssuer } from './session-issuer';
 
@@ -33,6 +34,18 @@ export class RegisterUserUseCase implements IRegisterUserUseCase {
     const { registration } = command;
     const username = registration.username.trim();
 
+    // `inviteCode` (tên cũ, app đang dùng) và `groupInviteToken` (tên SRS 3.7A) là
+    // MỘT trường. Hai giá trị khác nhau thì không đoán người dùng định vào nhóm nào.
+    const [legacyCode, srsCode] = [
+      registration.inviteCode,
+      registration.groupInviteToken,
+    ].map((code) => code?.trim().toUpperCase() || undefined);
+    if (legacyCode && srsCode && legacyCode !== srsCode)
+      throw new ValidationFailedException([
+        'inviteCode và groupInviteToken là cùng một mã mời — gửi một trong hai',
+      ]);
+    const groupInviteCode = legacyCode ?? srsCode;
+
     // Trần theo nguồn gọi. Tài khoản mới ĐẺ RA ĐIỂM qua referral và affiliate,
     // nên tạo hàng loạt không chỉ là rác mà là một đường gian lận.
     await this.requestThrottle.assertWithinLimit({
@@ -53,8 +66,7 @@ export class RegisterUserUseCase implements IRegisterUserUseCase {
       referralCode: registration.referralCode,
       // Referral và mã mời nhóm kiểm ĐỘC LẬP: referral sai thì vẫn đăng ký (không
       // để lộ mã nào có thật), mã mời sai thì không — xem repository.
-      groupInviteCode:
-        registration.inviteCode?.trim().toUpperCase() || undefined,
+      groupInviteCode,
       // Dấu vết đăng ký, ghi cùng lúc tạo quan hệ giới thiệu. Trigger coi hai cột
       // này là bất biến, nên đây là lần duy nhất ghi được.
       //

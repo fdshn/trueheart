@@ -1,5 +1,6 @@
 import { GroupInviteInvalidException } from '@/domain/exceptions';
 import { IPasswordService } from '@chantam/service.auth-lib';
+import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { RegisterUserUseCase } from './register-user.use-case';
 
 const ClientIp = '203.0.113.7';
@@ -119,6 +120,45 @@ describe('RegisterUserUseCase group invite', () => {
     ).rejects.toThrow(GroupInviteInvalidException);
     expect(sessions.issue).not.toHaveBeenCalled();
     expect(requestThrottle.registerHit).not.toHaveBeenCalled();
+  });
+
+  it('groupInviteToken (tên SRS) đi cùng đường với inviteCode', async () => {
+    const { useCase, users } = buildUseCase();
+
+    await useCase.handle({
+      registration: { ...Registration, groupInviteToken: 'abcd2345efgh6789' },
+      clientIp: ClientIp,
+    });
+
+    expect(users.createWithReferral).toHaveBeenCalledWith(
+      expect.objectContaining({ groupInviteCode: 'ABCD2345EFGH6789' }),
+    );
+  });
+
+  it('gửi cả hai tên cùng một mã thì nhận; khác nhau thì 400, không tạo gì', async () => {
+    const same = buildUseCase();
+    await same.useCase.handle({
+      registration: {
+        ...Registration,
+        inviteCode: 'ABCD2345EFGH6789',
+        groupInviteToken: 'abcd2345efgh6789',
+      },
+      clientIp: ClientIp,
+    });
+    expect(same.users.createWithReferral).toHaveBeenCalled();
+
+    const different = buildUseCase();
+    await expect(
+      different.useCase.handle({
+        registration: {
+          ...Registration,
+          inviteCode: 'ABCD2345EFGH6789',
+          groupInviteToken: 'ZZZZ2345EFGH6789',
+        },
+        clientIp: ClientIp,
+      }),
+    ).rejects.toThrow(ValidationFailedException);
+    expect(different.users.createWithReferral).not.toHaveBeenCalled();
   });
 
   it('không có mã thì không gửi mã nào xuống', async () => {
