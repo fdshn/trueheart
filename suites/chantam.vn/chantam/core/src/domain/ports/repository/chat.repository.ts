@@ -5,6 +5,18 @@ import {
 import { IChatCursor } from '@chantam.vn/chantam.core-lib/models';
 import { EntityManager } from 'typeorm';
 
+export interface IModerationChatMessage {
+  /** Id tự tăng — chỉ để dựng con trỏ, không ra khỏi tầng ứng dụng. */
+  id: number;
+  messageId: string;
+  senderId: string;
+  senderUsername: string;
+  body: string;
+  mediaKeys: string[];
+  recalledAt: Date | null;
+  sentAt: Date;
+}
+
 /**
  * Kết quả Admin gỡ một tin. `roomId` để bắn realtime cho đúng phòng,
  * `mediaKeys` để xoá object trên storage SAU khi commit.
@@ -191,20 +203,23 @@ export interface IChatRepository {
     receiverId: string;
   } | null>;
 
-  listMessagesForModeration(
-    roomId: string,
-    limit: number,
-  ): Promise<
-    {
-      messageId: string;
-      senderId: string;
-      senderUsername: string;
-      body: string;
-      mediaKeys: string[];
-      recalledAt: Date | null;
-      sentAt: Date;
-    }[]
-  >;
+  /**
+   * Một cửa sổ tin của phòng cho Admin, CŨ NHẤT TRƯỚC, kể cả tin đã thu hồi.
+   *
+   * Ưu tiên `before` > `after` > `aroundMessageId`; không có gì thì là cửa sổ
+   * mới nhất. `aroundMessageId` không thuộc phòng thì coi như không truyền.
+   */
+  listMessagesForModeration(query: {
+    roomId: string;
+    limit: number;
+    before: IChatCursor | null;
+    after: IChatCursor | null;
+    aroundMessageId: string | null;
+  }): Promise<{
+    items: IModerationChatMessage[];
+    hasMoreBefore: boolean;
+    hasMoreAfter: boolean;
+  }>;
 
   /**
    * Bật/tắt thông báo của MỘT phía trong phòng.

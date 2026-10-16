@@ -1,4 +1,7 @@
-import { IAdminChatMessageDto } from '@/application/contracts/chat';
+import {
+  IAdminChatMessageDto,
+  IAdminChatMessageWindow,
+} from '@/application/contracts/chat';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -55,18 +58,71 @@ export class AdminChatRoomParamsDto {
 
 export class AdminChatRoomQueryDto {
   @ApiPropertyOptional({
-    default: 200,
+    default: 50,
     minimum: 1,
-    maximum: 500,
+    maximum: 200,
     description:
-      'Số tin tối đa. Trần 500 để một phòng dài không kéo sập response — một cuộc dài hơn thế thì Admin cần công cụ khác, không phải một trang JSON.',
+      'Số tin một lần tải. Phòng dài hơn thì tải tiếp bằng `before` / `after` — không kéo cả phòng về một response.',
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(500)
+  @Max(200)
   limit?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Tải các tin CŨ HƠN — truyền `window.oldestCursor` khi Admin cuộn lên đầu. Thắng `after` và `aroundMessageId`. Con trỏ hỏng coi như không truyền.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 128)
+  before?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Tải các tin MỚI HƠN — truyền `window.newestCursor` khi Admin cuộn xuống cuối. Thắng `aroundMessageId`.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 128)
+  after?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Mở cửa sổ quanh đúng tin này (nửa trước gồm chính nó, nửa sau). Dùng khi đi từ báo xấu `CHAT_MESSAGE`. Tin không thuộc phòng thì trả cửa sổ mới nhất.',
+  })
+  @IsOptional()
+  @IsUUID()
+  aroundMessageId?: string;
+}
+
+export class AdminChatMessageWindowDto implements IAdminChatMessageWindow {
+  @ApiProperty({ example: 50 }) limit: number;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Truyền vào `before` để tải tin cũ hơn. `null` khi cửa sổ rỗng.',
+  })
+  oldestCursor: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Truyền vào `after` để tải tin mới hơn. `null` khi cửa sổ rỗng.',
+  })
+  newestCursor: string | null;
+
+  @ApiProperty({ description: 'Còn tin cũ hơn cửa sổ này không.' })
+  hasMoreBefore: boolean;
+
+  @ApiProperty({ description: 'Còn tin mới hơn cửa sổ này không.' })
+  hasMoreAfter: boolean;
 }
 
 export class AdminChatMessageDto implements IAdminChatMessageDto {
@@ -109,6 +165,12 @@ export class AdminChatRoomResponseDto {
 
   @ApiProperty({ format: 'uuid' }) receiverId: string;
 
-  @ApiProperty({ type: () => [AdminChatMessageDto] })
+  @ApiProperty({
+    type: () => [AdminChatMessageDto],
+    description: 'Cũ nhất trước, bất kể tải theo hướng nào.',
+  })
   messages: IAdminChatMessageDto[];
+
+  @ApiProperty({ type: () => AdminChatMessageWindowDto })
+  window: IAdminChatMessageWindow;
 }

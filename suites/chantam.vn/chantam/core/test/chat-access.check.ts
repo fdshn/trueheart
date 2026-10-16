@@ -417,10 +417,13 @@ async function main(): Promise<void> {
       (await chat.findRoomForModeration(OtherRoomId)) === null,
     );
 
-    const moderationMessages = await chat.listMessagesForModeration(
-      RoomId,
-      200,
-    );
+    const { items: moderationMessages } = await chat.listMessagesForModeration({
+      roomId: RoomId,
+      limit: 200,
+      before: null,
+      after: null,
+      aroundMessageId: null,
+    });
     check(
       'đọc được tin trong phòng',
       moderationMessages.length > 0,

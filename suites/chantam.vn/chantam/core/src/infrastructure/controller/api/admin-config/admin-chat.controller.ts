@@ -88,7 +88,8 @@ export class AdminChatController {
   @ApiOperation({
     summary: 'Đọc một phòng chat để điều tra báo xấu',
     description:
-      'CHỈ mở được khi có một báo xấu **đang mở** trỏ vào phòng này — nhắm vào một trong hai người, vào bài của lượt trao, hoặc vào một tin nhắn trong chính phòng. Không có báo xấu nào thì trả 404 y như phòng không tồn tại, nên không ai dò được phòng nào có thật. Mỗi lần mở đều ghi audit `READ_CHAT_ROOM`: quyền đọc chỗ riêng tư mà không để lại vết là quyền không ai kiểm soát được. Trước 28/09 không endpoint nào đọc được phòng chat, kể cả Admin — nên người bị quấy rối báo xấu xong thì Admin không có gì để xem ngoài lời khai.',
+      'CHỈ mở được khi có một báo xấu **đang mở** trỏ vào phòng này — nhắm vào một trong hai người, vào bài của lượt trao, hoặc vào một tin nhắn trong chính phòng. Không có báo xấu nào thì trả 404 y như phòng không tồn tại, nên không ai dò được phòng nào có thật. Mỗi lần mở đều ghi audit `READ_CHAT_ROOM`: quyền đọc chỗ riêng tư mà không để lại vết là quyền không ai kiểm soát được. Trước 28/09 không endpoint nào đọc được phòng chat, kể cả Admin — nên người bị quấy rối báo xấu xong thì Admin không có gì để xem ngoài lời khai.\n\n' +
+      '**Tải dần (lazy loading).** Mặc định trả 50 tin MỚI NHẤT, cũ nhất trước. Cuộn lên: `before = window.oldestCursor`; cuộn xuống: `after = window.newestCursor`; dừng khi `hasMoreBefore` / `hasMoreAfter` là `false`. Đi từ báo xấu `CHAT_MESSAGE`: `aroundMessageId` mở cửa sổ quanh đúng tin bị báo. Con trỏ dựa trên (thời điểm, id) nên tin mới đến giữa chừng không làm lặp hay sót. Mỗi trang ghi một dòng audit.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(AdminChatRoomResponseDto) })
   @ApiErrorResponses(
@@ -107,7 +108,10 @@ export class AdminChatController {
         await this.readAdminChatRoomUseCase.handle({
           actorUserId: principal.userId,
           roomId: params.roomId,
-          limit: query.limit ?? 200,
+          limit: query.limit,
+          before: query.before,
+          after: query.after,
+          aroundMessageId: query.aroundMessageId,
         }),
       )
       .build();

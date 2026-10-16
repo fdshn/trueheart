@@ -1112,6 +1112,17 @@ Mỗi giao dịch đã duyệt có **đúng một** phòng chat, mở ngay trong
   phòng mà **cả người bị báo lẫn người báo** cùng có mặt — chỉ cần người bị báo có mặt là một
   báo xấu duy nhất mở toang mọi cuộc trò chuyện của họ. Không đủ điều kiện thì trả **404** y như
   phòng không tồn tại. Mỗi lần mở ghi audit `READ_CHAT_ROOM`.
+- **Admin đọc phòng theo cửa sổ (lazy loading).** `GET /admin/chat/rooms/:roomId/messages` mặc
+  định trả 50 tin **mới nhất**, sắp **cũ nhất trước**, kèm `window { limit, oldestCursor,
+  newestCursor, hasMoreBefore, hasMoreAfter }`. Trần `limit` là 200 (trước là 500).
+  - Cuộn lên: `?before=<oldestCursor>`. Cuộn xuống: `?after=<newestCursor>`. Ưu tiên `before` >
+    `after` > `aroundMessageId`. Con trỏ hỏng coi như không truyền.
+  - `?aroundMessageId=<uuid>` mở cửa sổ quanh đúng tin bị báo: nửa trước gồm chính tin đó, nửa
+    sau là các tin tiếp theo. Tin không thuộc phòng thì trả cửa sổ mới nhất.
+  - **Mỗi trang** ghi một dòng `READ_CHAT_ROOM`, có `after.direction` (`LATEST | BEFORE | AFTER |
+    AROUND`). Con trỏ tự dựng được, nên chỉ audit trang đầu là chừa đường đọc lén.
+  - Trước đây response là 200 tin **cũ nhất**. CMS cũ không truyền tham số sẽ thấy cửa sổ mới
+    nhất thay vì đầu phòng.
 - **Tắt thông báo KHÔNG phải chặn tin.** Tin vẫn tới nơi và vẫn vào danh sách hội thoại, chỉ là
   không kêu — với người vẫn muốn nhận món đồ thì đó đúng là thứ họ cần. Hai cột riêng cho hai
   phía: người tặng tắt không kéo theo người nhận.

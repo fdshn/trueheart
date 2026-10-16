@@ -23,7 +23,24 @@ export const IRecallChatMessageUseCase = Symbol('IRecallChatMessageUseCase');
 export interface IReadAdminChatRoomCommand {
   actorUserId: string;
   roomId: string;
+  /** Mặc định 50, trần 200. */
+  limit?: number;
+  /** Lấy các tin CŨ HƠN con trỏ — cuộn lên. Thắng `after` và `aroundMessageId`. */
+  before?: string;
+  /** Lấy các tin MỚI HƠN con trỏ — cuộn xuống. Thắng `aroundMessageId`. */
+  after?: string;
+  /** Mở cửa sổ quanh đúng tin này — đi thẳng từ báo xấu `CHAT_MESSAGE`. */
+  aroundMessageId?: string;
+}
+
+export interface IAdminChatMessageWindow {
   limit: number;
+  /** Truyền vào `before` để tải tin cũ hơn. `null` khi cửa sổ rỗng. */
+  oldestCursor: string | null;
+  /** Truyền vào `after` để tải tin mới hơn. `null` khi cửa sổ rỗng. */
+  newestCursor: string | null;
+  hasMoreBefore: boolean;
+  hasMoreAfter: boolean;
 }
 
 export interface IAdminChatMessageDto {
@@ -43,7 +60,9 @@ export interface IReadAdminChatRoomResult {
   postId: string;
   giverId: string;
   receiverId: string;
+  /** Cũ nhất trước — Admin đọc cuộc trao đổi từ trên xuống. */
   messages: IAdminChatMessageDto[];
+  window: IAdminChatMessageWindow;
 }
 
 export interface IReadAdminChatRoomUseCase extends IUseCase<

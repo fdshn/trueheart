@@ -7,6 +7,7 @@ import {
   IChatMessageListItem,
   IChatRepository,
   IChatRoomListItem,
+  IModerationChatMessage,
   IOpenChatRoomParams,
   IReviewChatFlagOutcome,
 } from '@/domain/ports/repository';
@@ -845,57 +846,139 @@ export class ChatRepository implements IChatRepository {
     };
   }
 
-  public async listMessagesForModeration(
-    roomId: string,
-    limit: number,
-  ): Promise<
-    {
-      messageId: string;
-      senderId: string;
-      senderUsername: string;
-      body: string;
-      mediaKeys: string[];
-      recalledAt: Date | null;
-      sentAt: Date;
-    }[]
-  > {
-    const rows = await this.manager.query<
-      {
-        global_id: string;
-        sender_id: string;
-        username: string;
-        body: string;
-        media_keys: string[] | null;
-        recalled_at: Date | null;
-        created_at: Date;
-      }[]
-    >(
-      `
-        SELECT m.global_id, m.sender_id, sender.username, m.body,
-               (SELECT array_agg(media.storage_key ORDER BY media.slot)
-                FROM chat_message_media media
-                WHERE media.message_id = m.global_id) AS media_keys,
-               m.recalled_at, m.created_at
-        FROM chat_messages m
-        INNER JOIN users sender ON sender.global_id = m.sender_id
-        WHERE m.room_id = $1
-        -- Cũ nhất trước: Admin đọc để hiểu chuyện đã diễn ra thế nào, và một
-        -- cuộc trao đổi phải đọc từ trên xuống.
-        ORDER BY m.created_at ASC, m.id ASC
-        LIMIT $2
-      `,
-      [roomId, limit],
-    );
+  public async listMessagesForModeration(query: {
+    roomId: string;
+    limit: number;
+    before: IChatCursor | null;
+    after: IChatCursor | null;
+    aroundMessageId: string | null;
+  }): Promise<{
+    items: IModerationChatMessage[];
+    hasMoreBefore: boolean;
+    hasMoreAfter: boolean;
+  }> {
+    // Một cửa sổ từ một mốc, theo một chiều. Hỏi thừa một dòng để biết còn
+    // nữa không — rẻ hơn hẳn một câu COUNT(*) quét cả phòng mỗi lần cuộn.
+    // Row-value `(created_at, id) < (…)` đi được index (room_id, created_at
+    // DESC, id DESC), cùng lối `listMessages` của app.
+    const slice = async (
+      comparison: '<' | '<=' | '>' | null,
+      anchor: IChatCursor | null,
+      take: number,
+    ) => {
+      const newer = comparison === '>';
+      const direction = newer ? 'ASC' : 'DESC';
+      const predicate =
+        comparison && anchor
+          ? `AND (m.created_at, m.id) ${comparison} ($2::timestamptz, $3::bigint)`
+          : '';
+      const parameters: unknown[] =
+        comparison && anchor
+          ? [query.roomId, anchor.createdAt, anchor.id, take + 1]
+          : [query.roomId, take + 1];
 
-    return rows.map((row) => ({
-      messageId: row.global_id,
-      senderId: row.sender_id,
-      senderUsername: row.username,
-      body: row.body,
-      mediaKeys: row.media_keys ?? [],
-      recalledAt: row.recalled_at,
-      sentAt: row.created_at,
-    }));
+      const rows = await this.manager.query<
+        {
+          id: string;
+          global_id: string;
+          sender_id: string;
+          username: string;
+          body: string;
+          media_keys: string[] | null;
+          recalled_at: Date | null;
+          created_at: Date;
+        }[]
+      >(
+        `
+          SELECT m.id, m.global_id, m.sender_id, sender.username, m.body,
+                 (SELECT array_agg(media.storage_key ORDER BY media.slot)
+                  FROM chat_message_media media
+                  WHERE media.message_id = m.global_id) AS media_keys,
+                 m.recalled_at, m.created_at
+          FROM chat_messages m
+          INNER JOIN users sender ON sender.global_id = m.sender_id
+          WHERE m.room_id = $1
+          ${predicate}
+          -- Cột id phá thế hoà khi hai tin cùng mốc thời gian, nếu không cửa
+          -- sổ sau có thể lặp hoặc bỏ sót dòng.
+          ORDER BY m.created_at ${direction}, m.id ${direction}
+          LIMIT $${parameters.length}
+        `,
+        parameters,
+      );
+
+      const hasExtra = rows.length > take;
+      const page = (hasExtra ? rows.slice(0, take) : rows).map((row) => ({
+        id: Number(row.id),
+        messageId: row.global_id,
+        senderId: row.sender_id,
+        senderUsername: row.username,
+        body: row.body,
+        mediaKeys: row.media_keys ?? [],
+        recalledAt: row.recalled_at,
+        sentAt: row.created_at,
+      }));
+
+      // Luôn trả CŨ NHẤT TRƯỚC: Admin đọc cuộc trao đổi từ trên xuống, và để
+      // giao diện tự đảo theo tham số là mời gọi lỗi hiển thị.
+      return { items: newer ? page : page.reverse(), hasExtra };
+    };
+
+    if (query.before) {
+      const older = await slice('<', query.before, query.limit);
+      return {
+        items: older.items,
+        hasMoreBefore: older.hasExtra,
+        hasMoreAfter: true,
+      };
+    }
+
+    if (query.after) {
+      const newer = await slice('>', query.after, query.limit);
+      return {
+        items: newer.items,
+        hasMoreBefore: true,
+        hasMoreAfter: newer.hasExtra,
+      };
+    }
+
+    const anchor = query.aroundMessageId
+      ? await this.findModerationAnchor(query.roomId, query.aroundMessageId)
+      : null;
+
+    if (anchor) {
+      // Nửa trên gồm cả chính tin được báo, để nó luôn có trong cửa sổ.
+      const olderTake = Math.ceil(query.limit / 2);
+      const [older, newer] = await Promise.all([
+        slice('<=', anchor, olderTake),
+        slice('>', anchor, query.limit - olderTake),
+      ]);
+      return {
+        items: [...older.items, ...newer.items],
+        hasMoreBefore: older.hasExtra,
+        hasMoreAfter: newer.hasExtra,
+      };
+    }
+
+    const latest = await slice(null, null, query.limit);
+    return {
+      items: latest.items,
+      hasMoreBefore: latest.hasExtra,
+      // Cửa sổ mới nhất theo định nghĩa đã chạm đáy phía mới.
+      hasMoreAfter: false,
+    };
+  }
+
+  /** Mốc của một tin — chỉ khi nó thuộc ĐÚNG phòng đang đọc. */
+  private async findModerationAnchor(
+    roomId: string,
+    messageId: string,
+  ): Promise<IChatCursor | null> {
+    const [row] = await this.manager.query<{ id: string; created_at: Date }[]>(
+      `SELECT id, created_at FROM chat_messages WHERE room_id = $1 AND global_id = $2`,
+      [roomId, messageId],
+    );
+    return row ? { createdAt: row.created_at, id: Number(row.id) } : null;
   }
 
   public async listMessages(params: {

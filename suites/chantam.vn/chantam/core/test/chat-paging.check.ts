@@ -338,6 +338,120 @@ async function main(): Promise<void> {
       !planText.includes('Sort'),
       planText.includes('Sort') ? 'vẫn phải Sort' : '',
     );
+
+    // ── 6. Cửa sổ của Admin: cuộn hai chiều và mở quanh một tin ─────────────
+    //
+    // Cùng dữ liệu mốc trùng theo cụm 4. Admin nhận CŨ NHẤT TRƯỚC, nên lỗi đảo
+    // chiều ở đây không làm truy vấn hỏng mà làm hội thoại đọc ngược.
+    console.log('\nAdmin đọc phòng theo cửa sổ:\n');
+
+    const [{ total }] = (await dataSource.query(
+      `SELECT COUNT(*)::int AS total FROM chat_messages WHERE room_id = $1`,
+      [RoomId],
+    )) as { total: number }[];
+    const moderation = (query: {
+      before?: { createdAt: Date; id: number } | null;
+      after?: { createdAt: Date; id: number } | null;
+      aroundMessageId?: string | null;
+      limit?: number;
+    }) =>
+      chat.listMessagesForModeration({
+        roomId: RoomId,
+        limit: query.limit ?? 25,
+        before: query.before ?? null,
+        after: query.after ?? null,
+        aroundMessageId: query.aroundMessageId ?? null,
+      });
+
+    const latestWindow = await moderation({});
+    check(
+      'cửa sổ đầu là mới nhất, cũ nhất trước, và đã chạm đáy phía mới',
+      latestWindow.items.length === 25 &&
+        latestWindow.items.every(
+          (item, index) =>
+            index === 0 || latestWindow.items[index - 1].id < item.id,
+        ) &&
+        !latestWindow.hasMoreAfter &&
+        latestWindow.hasMoreBefore,
+    );
+
+    // Cuộn lên tới đầu phòng.
+    const upward: number[] = [];
+    let upPage = latestWindow;
+    let upRounds = 1;
+    upward.unshift(...upPage.items.map((item) => item.id));
+    while (upPage.hasMoreBefore && upRounds <= 20) {
+      const head = upPage.items[0];
+      upPage = await moderation({
+        before: { createdAt: head.sentAt, id: head.id },
+      });
+      upward.unshift(...upPage.items.map((item) => item.id));
+      upRounds += 1;
+    }
+    check(
+      'cuộn lên lấy đủ cả phòng, không lặp, tăng dần liên tục',
+      upward.length === total &&
+        new Set(upward).size === upward.length &&
+        upward.every((id, index) => index === 0 || upward[index - 1] < id),
+      `${upward.length}/${total} tin, ${upRounds} vòng`,
+    );
+
+    // Cuộn xuống từ tin đầu tiên tới cuối.
+    const firstPage = upPage;
+    const downward: number[] = firstPage.items.map((item) => item.id);
+    let downPage = firstPage;
+    let downRounds = 0;
+    while (downRounds <= 20) {
+      const tail = downPage.items[downPage.items.length - 1];
+      downPage = await moderation({
+        after: { createdAt: tail.sentAt, id: tail.id },
+      });
+      downward.push(...downPage.items.map((item) => item.id));
+      downRounds += 1;
+      if (!downPage.hasMoreAfter) break;
+    }
+    check(
+      'cuộn xuống từ đầu phòng cũng đủ, không lặp, đúng thứ tự',
+      downward.length === total &&
+        new Set(downward).size === downward.length &&
+        downward.every((id, index) => index === 0 || downward[index - 1] < id),
+      `${downward.length}/${total} tin`,
+    );
+
+    // Mở quanh một tin giữa phòng — đường đi từ báo xấu CHAT_MESSAGE.
+    const middleId = upward[Math.floor(upward.length / 2)];
+    const [{ global_id: middleGlobalId }] = (await dataSource.query(
+      `SELECT global_id FROM chat_messages WHERE id = $1`,
+      [middleId],
+    )) as { global_id: string }[];
+    const around = await moderation({ aroundMessageId: middleGlobalId });
+    const aroundIds = around.items.map((item) => item.id);
+    check(
+      'mở quanh một tin: có chính tin đó, đủ 25, hai phía đều còn',
+      aroundIds.includes(middleId) &&
+        aroundIds.length === 25 &&
+        around.hasMoreBefore &&
+        around.hasMoreAfter,
+      `vị trí ${aroundIds.indexOf(middleId)}`,
+    );
+    check(
+      'và cửa sổ đó là một đoạn liền mạch của phòng',
+      JSON.stringify(aroundIds) ===
+        JSON.stringify(
+          upward.slice(
+            upward.indexOf(aroundIds[0]),
+            upward.indexOf(aroundIds[0]) + 25,
+          ),
+        ),
+    );
+    const strayAround = await moderation({
+      aroundMessageId: '00000000-0000-4000-8000-0000000000ff',
+    });
+    check(
+      'tin không thuộc phòng thì trả cửa sổ mới nhất',
+      JSON.stringify(strayAround.items.map((item) => item.id)) ===
+        JSON.stringify(latestWindow.items.map((item) => item.id)),
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();
