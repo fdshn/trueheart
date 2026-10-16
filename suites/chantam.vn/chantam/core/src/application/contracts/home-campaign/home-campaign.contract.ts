@@ -129,3 +129,21 @@ export interface IGetHomeLayoutUseCase extends IUseCase<
 > {}
 
 export const IGetHomeLayoutUseCase = Symbol('IGetHomeLayoutUseCase');
+
+export interface IDeleteHomeCampaignCommand {
+  actorUserId: string;
+  campaignId: string;
+}
+
+export interface IDeleteHomeCampaignResult {
+  campaignId: string;
+  /** Như ở POST/PUT: `false` khi đã xoá nhưng chưa xoá được đệm Redis. */
+  cacheInvalidated: boolean;
+}
+
+export interface IDeleteHomeCampaignUseCase extends IUseCase<
+  IDeleteHomeCampaignCommand,
+  IDeleteHomeCampaignResult
+> {}
+
+export const IDeleteHomeCampaignUseCase = Symbol('IDeleteHomeCampaignUseCase');

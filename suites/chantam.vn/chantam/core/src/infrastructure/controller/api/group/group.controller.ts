@@ -230,6 +230,25 @@ export class GroupController {
       .build();
   }
 
+  @Get(':groupId/invite-link')
+  @ApiOperation({
+    summary: 'Link mời của nhóm (tên theo SRS 3.7A)',
+    description:
+      'Cùng use case, cùng quyền, cùng response với `GET /groups/:groupId/invite` — đường cũ GIỮ NGUYÊN cho app đang chạy. Chỉ Owner (`group.invite.view`). `inviteCode` ỔN ĐỊNH suốt đời nhóm: không tự hết hạn, không xoay được ở Phase 1, và hết dùng được (`usable: false`) khi nhóm rời khỏi ACTIVE. Đăng ký kèm mã: `POST /auth/register` với `registration.inviteCode`.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    GroupNotFoundException,
+  )
+  @ApiOkResponse({ type: ResponseDto.forApi(GetGroupInviteResponseDto) })
+  public async getGroupInviteLink(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: GroupIdParamDto,
+  ): Promise<ResponseDto<GetGroupInviteResponseDto>> {
+    return this.getGroupInvite(principal, params);
+  }
+
   @Get(':groupId/affiliate')
   @ApiOperation({
     summary: 'Điều kiện affiliate của nhóm',

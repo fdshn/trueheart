@@ -266,6 +266,16 @@ async function main(): Promise<void> {
       offersWithoutCondition.length === 0,
       JSON.stringify(offersWithoutCondition),
     );
+    // Mã mời sai định dạng thì DTO đăng ký từ chối trước khi tới nhóm: link mời demo
+    // thành link chết mà không ai đoán ra vì sao (gặp 16/10 — mã seed dài 10 ký tự).
+    const badInviteCodes = await q<{ invite_code: string }>(
+      `SELECT invite_code FROM groups WHERE invite_code !~ '^[A-Z0-9]{16}$'`,
+    );
+    check(
+      'mã mời nhóm seed đúng định dạng DTO đăng ký nhận (16 ký tự A-Z0-9)',
+      badInviteCodes.length === 0,
+      JSON.stringify(badInviteCodes),
+    );
 
     console.log('\n4. Không để lại việc cho cron thật');
     const [{ live }] = await q<{ live: number }>(

@@ -8,3 +8,7 @@ export class HomeCampaignNotFoundException extends ExceptionFrom(
 export class HomeCampaignScheduleConflictException extends ExceptionFrom(
   CoreErrors.HOME_CAMPAIGN_SCHEDULE_CONFLICT,
 ) {}
+
+export class HomeCampaignLiveException extends ExceptionFrom(
+  CoreErrors.HOME_CAMPAIGN_LIVE,
+) {}

@@ -18,6 +18,8 @@ import {
   IDecideCharityContributionCommand,
   IDecideCharityContributionResult,
   IDecideCharityContributionUseCase,
+  IDeleteCharityCampaignCommand,
+  IDeleteCharityCampaignUseCase,
   IExtendCharityCampaignCommand,
   IExtendCharityCampaignUseCase,
   IGetAdminCharityCampaignCommand,
@@ -69,6 +71,8 @@ import {
   ISubmitCharityContributionCommand,
   ISubmitCharityContributionResult,
   ISubmitCharityContributionUseCase,
+  IUpdateAdminCharityCampaignCommand,
+  IUpdateAdminCharityCampaignUseCase,
   IUpdateCharityContributionCommand,
   IUpdateCharityContributionResult,
   IUpdateCharityContributionUseCase,
@@ -81,6 +85,7 @@ import {
   CharityBeneficiaryConsentRequiredException,
   CharityBeneficiaryNotApplicableException,
   CharityCampaignCreateNotAllowedException,
+  CharityCampaignHasActivityException,
   CharityCampaignNotFoundException,
   CharityCancelTooLateException,
   CharityContributionNotEditableException,
@@ -1575,6 +1580,153 @@ export class SetCharityCampaignActiveUseCase implements ISetCharityCampaignActiv
       isActive: command.isActive,
     });
     if (!updated) throw new CharityCampaignNotFoundException();
+
+    return toView(updated, null);
+  }
+}
+
+/**
+ * Xoá MỀM một hoạt động từ thiện (CMS).
+ *
+ * Chỉ khi CHƯA có ai đăng ký, đóng góp, giao nhận hay đánh giá — đúng ca "tạo nhầm",
+ * "trùng hồ sơ", "spam". Hoạt động đã có người tham gia thì đóng (`/close`) hoặc tắt
+ * (`/active`), vì xoá là làm mất lịch sử của họ ở mọi màn. Quyền `campaign.manage`,
+ * lý do bắt buộc, audit giữ bản ghi trước khi xoá.
+ */
+@Injectable()
+export class DeleteCharityCampaignUseCase implements IDeleteCharityCampaignUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: IDeleteCharityCampaignCommand,
+  ): Promise<{ campaignId: string }> {
+    if (!(await this.admin.hasPermission(command.actorUserId, WritePermission)))
+      throw new ForbiddenException();
+
+    const before = await this.repository.findByGlobalId(command.campaignId);
+    if (!before) throw new CharityCampaignNotFoundException();
+
+    const outcome = await this.repository.softDeleteIfUnused(
+      command.campaignId,
+    );
+    if (outcome === 'NOT_FOUND') throw new CharityCampaignNotFoundException();
+    if (outcome === 'HAS_ACTIVITY')
+      throw new CharityCampaignHasActivityException();
+
+    await this.admin.appendAudit({
+      actorUserId: command.actorUserId,
+      action: 'DELETE_CHARITY_CAMPAIGN',
+      resourceType: 'CHARITY_CAMPAIGN',
+      resourceId: command.campaignId,
+      before: {
+        title: before.title,
+        slug: before.slug,
+        approvalStatus: before.approvalStatus,
+        isActive: before.isActive,
+        createdBy: before.createdBy,
+      },
+      after: { deleted: true },
+      reason: command.reason.trim(),
+    });
+
+    return { campaignId: command.campaignId };
+  }
+}
+
+/**
+ * Admin sửa NỘI DUNG một hoạt động (CMS) — sửa lỗi chính tả, cập nhật mô tả, chỉnh
+ * vị trí. Không đụng slug (link chia sẻ đã phát), thời gian (`/extend`, `/close` có
+ * luật riêng), loại hoạt động hay quan hệ người thụ hưởng (quyết định có phải duyệt
+ * đồng ý hay không), cũng không đụng trạng thái duyệt.
+ *
+ * Kiểm bằng ĐÚNG `charityCampaignGaps` của đường tạo, trên giá trị đã gộp — sửa không
+ * được là cửa sau để có một hoạt động mà đường tạo sẽ từ chối.
+ */
+@Injectable()
+export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCampaignUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: IUpdateAdminCharityCampaignCommand,
+  ): Promise<ICharityCampaignView> {
+    if (!(await this.admin.hasPermission(command.actorUserId, WritePermission)))
+      throw new ForbiddenException();
+
+    const existing = await this.repository.findByGlobalId(command.campaignId);
+    if (!existing) throw new CharityCampaignNotFoundException();
+
+    const latGiven = command.lat !== undefined;
+    const lngGiven = command.lng !== undefined;
+    const gaps: string[] = [];
+    // Toạ độ đi theo CẶP, cả khi sửa: đổi mỗi vĩ độ là dời điểm sang chỗ không ai định.
+    if (
+      latGiven !== lngGiven ||
+      (latGiven && (command.lat === null) !== (command.lng === null))
+    )
+      gaps.push(
+        'lat và lng phải gửi cùng nhau (cùng số, hoặc cùng null để xoá vị trí)',
+      );
+
+    const next = {
+      title:
+        command.title === undefined
+          ? existing.title
+          : command.title.trim().slice(0, MaxCharityTitleLength),
+      description:
+        command.description === undefined
+          ? existing.description
+          : command.description.trim().slice(0, MaxCharityDescriptionLength),
+      badgeName:
+        command.badgeName === undefined
+          ? existing.badgeName
+          : command.badgeName.trim(),
+      targetItemsCount: command.targetItemsCount ?? existing.targetItemsCount,
+      lat: latGiven ? (command.lat ?? null) : existing.lat,
+      lng: lngGiven ? (command.lng ?? null) : existing.lng,
+      locationLabel:
+        command.locationLabel === undefined
+          ? existing.locationLabel
+          : command.locationLabel?.trim() || null,
+    };
+
+    gaps.push(
+      ...charityCampaignGaps({
+        ...next,
+        slug: existing.slug,
+        startTime: existing.startTime,
+        endTime: existing.endTime,
+      }),
+    );
+    if (gaps.length > 0) throw new ValidationFailedException(gaps);
+
+    const updated = await this.repository.updateContent({
+      campaignId: command.campaignId,
+      ...next,
+    });
+    if (!updated) throw new CharityCampaignNotFoundException();
+
+    // Audit chỉ ghi trường THẬT SỰ đổi, cả trước lẫn sau.
+    const keys = Object.keys(next) as (keyof typeof next)[];
+    const changed = keys.filter((key) => existing[key] !== next[key]);
+    await this.admin.appendAudit({
+      actorUserId: command.actorUserId,
+      action: 'UPDATE_CHARITY_CAMPAIGN_CONTENT',
+      resourceType: 'CHARITY_CAMPAIGN',
+      resourceId: command.campaignId,
+      before: Object.fromEntries(changed.map((key) => [key, existing[key]])),
+      after: Object.fromEntries(changed.map((key) => [key, next[key]])),
+      reason: command.reason.trim(),
+    });
 
     return toView(updated, null);
   }

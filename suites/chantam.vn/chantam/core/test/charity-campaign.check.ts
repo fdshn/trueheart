@@ -1046,6 +1046,77 @@ async function main(): Promise<void> {
       devBanner?.banner_url === 'http://localhost:19000/a.webp',
       devBanner?.banner_url,
     );
+
+    console.log('\nAdmin sửa nội dung (CMS)');
+    const edited = await repository.updateContent({
+      campaignId: target,
+      title: 'Tiêu đề đã sửa bởi Admin',
+      description: 'Mô tả mới đủ dài cho hoạt động đã có người đăng ký.',
+      badgeName: 'Huy hiệu mới',
+      targetItemsCount: 42,
+      lat: 21.0285,
+      lng: 105.8542,
+      locationLabel: 'Hoàn Kiếm, Hà Nội',
+    });
+    check(
+      'ghi đủ trường, toạ độ đi qua PostGIS đúng thứ tự lat/lng',
+      edited?.title === 'Tiêu đề đã sửa bởi Admin' &&
+        edited.targetItemsCount === 42 &&
+        Math.abs((edited.lat ?? 0) - 21.0285) < 1e-6 &&
+        Math.abs((edited.lng ?? 0) - 105.8542) < 1e-6 &&
+        edited.locationLabel === 'Hoàn Kiếm, Hà Nội',
+      JSON.stringify({ lat: edited?.lat, lng: edited?.lng }),
+    );
+    check(
+      'không đụng slug, thời gian, trạng thái duyệt hay người đăng ký',
+      edited?.slug === (await repository.findByGlobalId(target))?.slug &&
+        (edited?.participantCount ?? 0) >= 1,
+    );
+    const cleared = await repository.updateContent({
+      campaignId: target,
+      title: 'Tiêu đề đã sửa bởi Admin',
+      description: 'Mô tả mới đủ dài cho hoạt động đã có người đăng ký.',
+      badgeName: 'Huy hiệu mới',
+      targetItemsCount: 42,
+      lat: null,
+      lng: null,
+      locationLabel: null,
+    });
+    check(
+      'null là xoá vị trí',
+      cleared?.lat === null &&
+        cleared.lng === null &&
+        cleared.locationLabel === null,
+    );
+
+    console.log('\nXoá hoạt động (CMS): chỉ khi chưa có ai tham gia');
+    check(
+      'hoạt động đã có người đăng ký thì HAS_ACTIVITY, KHÔNG xoá',
+      (await repository.softDeleteIfUnused(target)) === 'HAS_ACTIVITY' &&
+        (await repository.findByGlobalId(target)) !== null,
+    );
+    check(
+      'hoạt động chưa ai đụng tới (chỉ có media) thì xoá được',
+      (await repository.softDeleteIfUnused(other.globalId)) === 'DELETED',
+    );
+    check(
+      'xoá xong biến khỏi mọi đường đọc, kể cả đường Admin',
+      (await repository.findByGlobalId(other.globalId)) === null &&
+        (await repository.findPublicByIdOrSlug(other.globalId)) === null,
+    );
+    const [softRow] = await dataSource.query<
+      { deleted_at: Date | null; is_active: boolean }[]
+    >(`SELECT deleted_at, is_active FROM campaigns WHERE global_id = $1`, [
+      other.globalId,
+    ]);
+    check(
+      'nhưng dòng VẪN nằm trong database (xoá mềm), đã tắt',
+      softRow?.deleted_at !== null && softRow?.is_active === false,
+    );
+    check(
+      'xoá lần hai trả NOT_FOUND',
+      (await repository.softDeleteIfUnused(other.globalId)) === 'NOT_FOUND',
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

@@ -1,11 +1,13 @@
 import {
   ICreateHomeCampaignUseCase,
+  IDeleteHomeCampaignUseCase,
   IGetHomeCampaignUseCase,
   IGetHomeLayoutUseCase,
   IListHomeCampaignsUseCase,
   IUpdateHomeCampaignUseCase,
 } from '@/application/contracts/home-campaign';
 import {
+  HomeCampaignLiveException,
   HomeCampaignNotFoundException,
   HomeCampaignScheduleConflictException,
 } from '@/domain/exceptions';
@@ -24,6 +26,7 @@ import {
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Inject,
   Param,
@@ -40,6 +43,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  DeleteHomeCampaignResponseDto,
   HomeCampaignMutationResponseDto,
   HomeCampaignResponseDto,
   HomeLayoutResponseDto,
@@ -62,6 +66,8 @@ export class AdminCampaignController {
     private readonly createUseCase: ICreateHomeCampaignUseCase,
     @Inject(IUpdateHomeCampaignUseCase)
     private readonly updateUseCase: IUpdateHomeCampaignUseCase,
+    @Inject(IDeleteHomeCampaignUseCase)
+    private readonly deleteUseCase: IDeleteHomeCampaignUseCase,
   ) {}
 
   @Get('campaigns')
@@ -212,6 +218,38 @@ export class AdminCampaignController {
           startTime: new Date(body.campaign.startTime),
           endTime: new Date(body.campaign.endTime),
           isActive: body.campaign.isActive,
+        }),
+      )
+      .build();
+  }
+
+  @Delete('campaigns/:campaignId')
+  @RequiresPermission('campaign.manage')
+  @ApiOperation({
+    summary: 'Xoá một giao diện trang chủ',
+    description:
+      'Xoá CỨNG (đây là cấu hình, không bảng nào trỏ tới). KHÔNG xoá được bản đang phục vụ ' +
+      '(`isLive`: bật và đang trong khung giờ) — `409 HOME_CAMPAIGN_LIVE`; tắt bằng `PUT` với ' +
+      '`isActive: false` trước. Bản nháp, bản đã hết hạn và bản hẹn giờ tương lai xoá được.\n\n' +
+      'Audit `DELETE_HOME_CAMPAIGN` giữ nguyên bản ghi trước khi xoá. Quyền `campaign.manage`.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(DeleteHomeCampaignResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    [HomeCampaignNotFoundException],
+    [HomeCampaignLiveException],
+  )
+  public async remove(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param('campaignId', ParseUUIDPipe) campaignId: string,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.deleteUseCase.handle({
+          actorUserId: principal.userId,
+          campaignId,
         }),
       )
       .build();

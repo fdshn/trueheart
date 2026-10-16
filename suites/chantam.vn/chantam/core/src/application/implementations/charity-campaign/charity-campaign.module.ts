@@ -7,6 +7,7 @@ import {
   ICreateCharityCampaignUseCase,
   IDecideCharityApprovalUseCase,
   IDecideCharityContributionUseCase,
+  IDeleteCharityCampaignUseCase,
   IExtendCharityCampaignUseCase,
   IGetAdminCharityCampaignUseCase,
   IGetCampaignNeedsUseCase,
@@ -28,6 +29,7 @@ import {
   IReviewCharityCampaignUseCase,
   ISetCharityCampaignActiveUseCase,
   ISubmitCharityContributionUseCase,
+  IUpdateAdminCharityCampaignUseCase,
   IUpdateCharityContributionUseCase,
   IUpdateCharityProgressUseCase,
 } from '@/application/contracts/charity-campaign';
@@ -41,6 +43,7 @@ import {
   CreateCharityCampaignUseCase,
   DecideCharityApprovalUseCase,
   DecideCharityContributionUseCase,
+  DeleteCharityCampaignUseCase,
   ExtendCharityCampaignUseCase,
   GetAdminCharityCampaignUseCase,
   GetCampaignNeedsUseCase,
@@ -62,6 +65,7 @@ import {
   ReviewCharityCampaignUseCase,
   SetCharityCampaignActiveUseCase,
   SubmitCharityContributionUseCase,
+  UpdateAdminCharityCampaignUseCase,
   UpdateCharityContributionUseCase,
   UpdateCharityProgressUseCase,
 } from './charity-campaign.use-cases';
@@ -196,6 +200,14 @@ import { CharityNotifier } from './charity.notifier';
       useClass: GetAdminCharityCampaignUseCase,
     },
     {
+      provide: IDeleteCharityCampaignUseCase,
+      useClass: DeleteCharityCampaignUseCase,
+    },
+    {
+      provide: IUpdateAdminCharityCampaignUseCase,
+      useClass: UpdateAdminCharityCampaignUseCase,
+    },
+    {
       provide: IDecideCharityApprovalUseCase,
       useClass: DecideCharityApprovalUseCase,
     },
@@ -234,6 +246,8 @@ import { CharityNotifier } from './charity.notifier';
     IUpdateCharityProgressUseCase,
     IListAdminCharityCampaignsUseCase,
     IGetAdminCharityCampaignUseCase,
+    IDeleteCharityCampaignUseCase,
+    IUpdateAdminCharityCampaignUseCase,
     IDecideCharityApprovalUseCase,
     ISetCharityCampaignActiveUseCase,
   ],

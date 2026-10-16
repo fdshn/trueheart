@@ -590,6 +590,47 @@ export const IGetAdminCharityCampaignUseCase = Symbol(
   'IGetAdminCharityCampaignUseCase',
 );
 
+/**
+ * Admin sửa nội dung (CMS). Trường bỏ trống (`undefined`) là GIỮ NGUYÊN; `null` ở
+ * `locationLabel` hay cặp `lat`/`lng` là XOÁ.
+ */
+export interface IUpdateAdminCharityCampaignCommand {
+  readonly actorUserId: string;
+  readonly campaignId: string;
+  readonly title?: string;
+  readonly description?: string;
+  readonly badgeName?: string;
+  readonly targetItemsCount?: number;
+  readonly lat?: number | null;
+  readonly lng?: number | null;
+  readonly locationLabel?: string | null;
+  readonly reason: string;
+}
+
+export interface IUpdateAdminCharityCampaignUseCase extends IUseCase<
+  IUpdateAdminCharityCampaignCommand,
+  ICharityCampaignView
+> {}
+
+export const IUpdateAdminCharityCampaignUseCase = Symbol(
+  'IUpdateAdminCharityCampaignUseCase',
+);
+
+export interface IDeleteCharityCampaignCommand {
+  readonly actorUserId: string;
+  readonly campaignId: string;
+  readonly reason: string;
+}
+
+export interface IDeleteCharityCampaignUseCase extends IUseCase<
+  IDeleteCharityCampaignCommand,
+  { readonly campaignId: string }
+> {}
+
+export const IDeleteCharityCampaignUseCase = Symbol(
+  'IDeleteCharityCampaignUseCase',
+);
+
 export interface IDecideCharityApprovalCommand {
   readonly actorUserId: string;
   readonly campaignId: string;

@@ -13,8 +13,20 @@ export async function seedCommunity(ctx: ISeedContext): Promise<void> {
   const groups: ReadonlyArray<
     [number, string, string, string, 'ACTIVE' | 'DISSOLVED']
   > = [
-    [1, Personas.groupOwner, 'Thiện nguyện Hà Đông', 'SEEDHADONG', 'ACTIVE'],
-    [2, Personas.giver2, 'Nhóm cũ đã giải tán', 'SEEDOLDGRP', 'DISSOLVED'],
+    [
+      1,
+      Personas.groupOwner,
+      'Thiện nguyện Hà Đông',
+      'SEEDHADONG234567',
+      'ACTIVE',
+    ],
+    [
+      2,
+      Personas.giver2,
+      'Nhóm cũ đã giải tán',
+      'SEEDOLDGRP234567',
+      'DISSOLVED',
+    ],
   ];
   for (const [n, owner, name, code, status] of groups)
     await ctx.q(

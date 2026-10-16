@@ -1,5 +1,6 @@
 import {
   ICreateHomeCampaignUseCase,
+  IDeleteHomeCampaignUseCase,
   IGetHomeCampaignUseCase,
   IGetHomeLayoutUseCase,
   IListHomeCampaignsUseCase,
@@ -8,6 +9,7 @@ import {
 import { Global, Module } from '@nestjs/common';
 import {
   CreateHomeCampaignUseCase,
+  DeleteHomeCampaignUseCase,
   GetHomeCampaignUseCase,
   GetHomeLayoutUseCase,
   ListHomeCampaignsUseCase,
@@ -38,6 +40,10 @@ import {
       provide: IUpdateHomeCampaignUseCase,
       useClass: UpdateHomeCampaignUseCase,
     },
+    {
+      provide: IDeleteHomeCampaignUseCase,
+      useClass: DeleteHomeCampaignUseCase,
+    },
     { provide: IGetHomeLayoutUseCase, useClass: GetHomeLayoutUseCase },
   ],
   exports: [
@@ -45,6 +51,7 @@ import {
     IGetHomeCampaignUseCase,
     ICreateHomeCampaignUseCase,
     IUpdateHomeCampaignUseCase,
+    IDeleteHomeCampaignUseCase,
     IGetHomeLayoutUseCase,
   ],
 })

@@ -2188,6 +2188,46 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     return rows.length > 0 ? toCampaign(rows[0]) : null;
   }
 
+  public async updateContent(params: {
+    campaignId: string;
+    title: string;
+    description: string;
+    badgeName: string;
+    targetItemsCount: number;
+    lat: number | null;
+    lng: number | null;
+    locationLabel: string | null;
+  }): Promise<ICharityCampaign | null> {
+    const rows = await updateReturning<IRow>(
+      this.manager,
+      `WITH updated AS (
+         UPDATE campaigns
+            SET title = $2, description = $3, badge_name = $4,
+                target_items_count = $5,
+                location = CASE
+                  WHEN $6::float8 IS NULL THEN NULL
+                  ELSE ST_SetSRID(ST_MakePoint($7::float8, $6::float8), 4326)::geography
+                END,
+                location_label = $8,
+                updated_at = now()
+          WHERE global_id = $1 AND deleted_at IS NULL
+          RETURNING *
+       )
+       SELECT ${Columns} FROM updated AS campaigns`,
+      [
+        params.campaignId,
+        params.title,
+        params.description,
+        params.badgeName,
+        params.targetItemsCount,
+        params.lat,
+        params.lng,
+        params.locationLabel,
+      ],
+    );
+    return rows.length > 0 ? toCampaign(rows[0]) : null;
+  }
+
   public async updateProgress(params: {
     campaignId: string;
     currentItemsCount: number;
@@ -2348,5 +2388,40 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       items: (rows ?? []).map(toReview),
       total: Number(counted?.total ?? 0),
     };
+  }
+
+  public async softDeleteIfUnused(
+    campaignId: string,
+  ): Promise<'DELETED' | 'NOT_FOUND' | 'HAS_ACTIVITY'> {
+    return this.manager.transaction(async (manager) => {
+      const [campaign] = await manager.query<{ id: string }[]>(
+        `SELECT id FROM campaigns
+          WHERE global_id = $1 AND deleted_at IS NULL
+          FOR UPDATE`,
+        [campaignId],
+      );
+      if (!campaign) return 'NOT_FOUND';
+
+      // Bất kỳ dòng nào — kể cả đăng ký đã huỷ hay đề nghị bị từ chối — là lịch sử của
+      // một người thật. Xoá hoạt động là làm mất lịch sử đó khỏi mọi màn của họ.
+      const [{ used }] = await manager.query<{ used: boolean }[]>(
+        `SELECT (
+            EXISTS (SELECT 1 FROM campaign_participations WHERE campaign_id = $1)
+            OR EXISTS (SELECT 1 FROM campaign_contributions WHERE campaign_id = $1)
+            OR EXISTS (SELECT 1 FROM campaign_deliveries WHERE campaign_id = $1)
+            OR EXISTS (SELECT 1 FROM campaign_external_contributions WHERE campaign_id = $1)
+            OR EXISTS (SELECT 1 FROM campaign_reviews WHERE campaign_id = $1)
+          ) AS used`,
+        [campaignId],
+      );
+      if (used) return 'HAS_ACTIVITY';
+
+      await manager.query(
+        `UPDATE campaigns SET deleted_at = now(), is_active = false, updated_at = now()
+          WHERE global_id = $1`,
+        [campaignId],
+      );
+      return 'DELETED';
+    });
   }
 }

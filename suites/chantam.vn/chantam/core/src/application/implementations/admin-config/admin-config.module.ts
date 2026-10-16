@@ -3,9 +3,11 @@ import {
   IChangeAdminUserStatusUseCase,
   ICountPendingAdminCommentsUseCase,
   IDeleteAdminUserUseCase,
+  IDissolveAdminGroupUseCase,
   IGetAdminAuditLogsUseCase,
   IGetAdminConfigsUseCase,
   IGetAdminDashboardUseCase,
+  IGetAdminGroupUseCase,
   IGetAdminPointRulesUseCase,
   IGetAdminRankPolicyUseCase,
   IGetAdminUserUseCase,
@@ -20,6 +22,7 @@ import {
   IGetSystemLogsUseCase,
   IGetTrustThresholdsUseCase,
   IListAdminCommentsUseCase,
+  IListAdminGroupMembersUseCase,
   IListAdminGroupsUseCase,
   IListAdminRolesUseCase,
   IListAdminUsersUseCase,
@@ -33,6 +36,7 @@ import {
   IReleaseVerifiedPhoneUseCase,
   IReplaceGroupRolePermissionsUseCase,
   IReviewChatFlagUseCase,
+  IRotateAdminGroupInviteUseCase,
   ISetAllocationPolicyUseCase,
   ISetCandidateSelectionUseCase,
   ISetTrustThresholdUseCase,
@@ -56,7 +60,13 @@ import {
   PublishAdminConfigUseCase,
 } from './admin-config.use-cases';
 import { GetAdminDashboardUseCase } from './admin-dashboard.use-case';
-import { ListAdminGroupsUseCase } from './admin-group-list.use-cases';
+import {
+  DissolveAdminGroupUseCase,
+  GetAdminGroupUseCase,
+  ListAdminGroupMembersUseCase,
+  ListAdminGroupsUseCase,
+  RotateAdminGroupInviteUseCase,
+} from './admin-group-list.use-cases';
 import {
   GetGroupRadiusPolicyUseCase,
   PublishGroupRadiusPolicyUseCase,
@@ -174,6 +184,19 @@ import {
       provide: IListAdminGroupsUseCase,
       useClass: ListAdminGroupsUseCase,
     },
+    { provide: IGetAdminGroupUseCase, useClass: GetAdminGroupUseCase },
+    {
+      provide: IListAdminGroupMembersUseCase,
+      useClass: ListAdminGroupMembersUseCase,
+    },
+    {
+      provide: IDissolveAdminGroupUseCase,
+      useClass: DissolveAdminGroupUseCase,
+    },
+    {
+      provide: IRotateAdminGroupInviteUseCase,
+      useClass: RotateAdminGroupInviteUseCase,
+    },
     {
       provide: IPublishGroupRadiusPolicyUseCase,
       useClass: PublishGroupRadiusPolicyUseCase,
@@ -264,6 +287,10 @@ import {
     IReviewChatFlagUseCase,
     IGetGroupRadiusPolicyUseCase,
     IListAdminGroupsUseCase,
+    IGetAdminGroupUseCase,
+    IListAdminGroupMembersUseCase,
+    IDissolveAdminGroupUseCase,
+    IRotateAdminGroupInviteUseCase,
     IGetGroupRolePermissionsUseCase,
     IPublishGroupRadiusPolicyUseCase,
     IReplaceGroupRolePermissionsUseCase,

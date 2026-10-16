@@ -24,3 +24,7 @@ export class GroupNotFoundException extends ExceptionFrom(
 export class AffiliatePolicyVersionConflictException extends ExceptionFrom(
   CoreErrors.AFFILIATE_POLICY_VERSION_CONFLICT,
 ) {}
+
+export class GroupAlreadyDissolvedException extends ExceptionFrom(
+  CoreErrors.GROUP_ALREADY_DISSOLVED,
+) {}

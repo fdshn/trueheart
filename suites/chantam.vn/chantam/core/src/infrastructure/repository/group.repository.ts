@@ -1,4 +1,5 @@
 import {
+  IAdminGroupDetail,
   IAdminGroupListItem,
   ICreateGroupParams,
   IGroupActivityItem,
@@ -1028,5 +1029,115 @@ export class GroupRepository
       })),
       total: Number(counted?.total ?? 0),
     };
+  }
+
+  public async findAdminDetail(
+    groupId: string,
+  ): Promise<IAdminGroupDetail | null> {
+    const [row] = await this.entityManager.query<
+      {
+        group_id: string;
+        name: string;
+        region_label: string;
+        status: GroupStatuses;
+        owner_id: string;
+        owner_username: string;
+        member_count: string;
+        created_at: Date;
+        description: string | null;
+        avatar_url: string | null;
+        cover_url: string | null;
+        center_lat: number;
+        center_lng: number;
+        radius_km: number;
+        invite_code: string;
+        activated_at: Date;
+        dissolved_at: Date | null;
+      }[]
+    >(
+      `SELECT team.global_id AS group_id, team.name, team.region_label, team.status,
+              team.owner_id, owner.username AS owner_username,
+              (SELECT COUNT(*)::text FROM group_memberships member
+               WHERE member.group_id = team.global_id
+                 AND member.status = $2) AS member_count,
+              team.created_at, team.description, team.avatar_url, team.cover_url,
+              ST_Y(team.center_location::geometry) AS center_lat,
+              ST_X(team.center_location::geometry) AS center_lng,
+              team.radius_km, team.invite_code, team.activated_at, team.dissolved_at
+       FROM groups team
+       INNER JOIN users owner ON owner.global_id = team.owner_id
+       WHERE team.global_id = $1 AND team.deleted_at IS NULL`,
+      [groupId, GroupMembershipStatuses.ACTIVE],
+    );
+    if (!row) return null;
+
+    return {
+      groupId: row.group_id,
+      name: row.name,
+      regionLabel: row.region_label,
+      status: row.status,
+      ownerId: row.owner_id,
+      ownerUsername: row.owner_username,
+      memberCount: Number(row.member_count),
+      createdAt: row.created_at,
+      description: row.description,
+      avatarUrl: row.avatar_url,
+      coverUrl: row.cover_url,
+      centerLat: Number(row.center_lat),
+      centerLng: Number(row.center_lng),
+      radiusKm: Number(row.radius_km),
+      inviteCode: row.invite_code,
+      activatedAt: row.activated_at,
+      dissolvedAt: row.dissolved_at,
+    };
+  }
+
+  public async dissolveById(groupId: string): Promise<boolean> {
+    // Cùng hai câu, cùng transaction như `dissolveOwnedBy` — xem lý do ở đó.
+    return this.entityManager.transaction(async (manager) => {
+      const result = await manager.query<unknown[]>(
+        `
+          UPDATE groups
+          SET status = $2, dissolved_at = now(), updated_at = now()
+          WHERE global_id = $1
+            AND status = $3
+            AND deleted_at IS NULL
+        `,
+        [groupId, GroupStatuses.DISSOLVED, GroupStatuses.ACTIVE],
+      );
+      // TypeORM bọc UPDATE thành `[rows, affected]`.
+      if (Number((result as unknown as [unknown[], number])[1] ?? 0) === 0)
+        return false;
+
+      await manager.query(
+        `
+          UPDATE group_memberships
+          SET status = $2, updated_at = now()
+          WHERE group_id = $1 AND status = $3
+        `,
+        [
+          groupId,
+          GroupMembershipStatuses.DISSOLVED,
+          GroupMembershipStatuses.ACTIVE,
+        ],
+      );
+      return true;
+    });
+  }
+
+  public async rotateInviteCode(params: {
+    groupId: string;
+    inviteCode: string;
+  }): Promise<boolean> {
+    const result = await this.entityManager.query<unknown[]>(
+      `
+        UPDATE groups
+        SET invite_code = $2, updated_at = now()
+        WHERE global_id = $1 AND status = $3 AND deleted_at IS NULL
+      `,
+      [params.groupId, params.inviteCode, GroupStatuses.ACTIVE],
+    );
+    // TypeORM bọc UPDATE thành `[rows, affected]`.
+    return Number((result as unknown as [unknown[], number])[1] ?? 0) > 0;
   }
 }

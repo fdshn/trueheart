@@ -28,6 +28,7 @@ import { DataSource } from 'typeorm';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { GroupRepository } from '../src/infrastructure/repository/group.repository';
+import { UserRepository } from '../src/infrastructure/repository/user.repository';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -783,6 +784,175 @@ async function main(): Promise<void> {
           take: 10,
         })
       ).total === firstPage.total,
+    );
+
+    console.log(
+      '\nP. Đăng ký kèm mã mời — kiểm và vào nhóm CÙNG transaction (SRS 3.7A)',
+    );
+    const users = new UserRepository(
+      entities.UserEntity as never,
+      dataSource.manager,
+    );
+    const register = (globalId: string, username: string, code?: string) =>
+      users.createWithReferral({
+        globalId,
+        username,
+        passwordHash: 'x',
+        groupInviteCode: code,
+      });
+    const InvitedId = '99999999-9999-4999-8999-9999999f1101';
+    const joined = await register(
+      InvitedId,
+      'moi-qua-link',
+      'ZZZZ2345EFGH6789',
+    );
+    check(
+      'mã của nhóm ACTIVE: tài khoản tạo xong ĐÃ là thành viên của đúng nhóm đó',
+      joined.joinedGroupId === OtherGroupId &&
+        (await groups.findMine(InvitedId))?.groupId === OtherGroupId,
+      `${joined.joinedGroupId}`,
+    );
+    check(
+      'vào với vai MEMBER, không phải vai nào khác',
+      (await groups.findMine(InvitedId))?.myRole === 'MEMBER',
+    );
+
+    const rejectsWith = async (globalId: string, code: string) => {
+      try {
+        await register(globalId, `tu-choi-${globalId.slice(-4)}`, code);
+        return 'không ném gì';
+      } catch (error) {
+        return (error as Error).constructor.name;
+      }
+    };
+    const accountExists = async (globalId: string) =>
+      (
+        await dataSource.query<{ total: string }[]>(
+          `SELECT count(*)::text AS total FROM users WHERE global_id = $1`,
+          [globalId],
+        )
+      )[0]?.total === '1';
+
+    const WrongCodeId = '99999999-9999-4999-8999-9999999f1102';
+    check(
+      'mã không tồn tại: GroupInviteInvalidException',
+      (await rejectsWith(WrongCodeId, 'KHONGCOMA0000000')) ===
+        'GroupInviteInvalidException',
+    );
+    check(
+      'và KHÔNG để lại tài khoản nào — cả lượt đăng ký rollback',
+      !(await accountExists(WrongCodeId)),
+    );
+    const DissolvedCodeId = '99999999-9999-4999-8999-9999999f1103';
+    check(
+      'mã của nhóm ĐÃ GIẢI TÁN cũng bị từ chối, không để lại tài khoản',
+      (await rejectsWith(DissolvedCodeId, 'ABCD2345EFGH6789')) ===
+        'GroupInviteInvalidException' &&
+        !(await accountExists(DissolvedCodeId)),
+    );
+    const PlainId = '99999999-9999-4999-8999-9999999f1104';
+    const plain = await register(PlainId, 'dang-ky-thuong');
+    check(
+      'không gửi mã thì đăng ký bình thường, không vào nhóm nào',
+      plain.user !== null &&
+        plain.joinedGroupId === null &&
+        (await groups.findMine(PlainId)) === null,
+    );
+    // Bốn id trên chung 12 ký tự đầu nên mã giới thiệu ứng viên đầu TRÙNG nhau —
+    // lần tạo thứ hai phải lùi sang ứng viên kế. Trước SAVEPOINT, đúng ca này nổ
+    // "current transaction is aborted" và đăng ký trả 500.
+    const codes = await dataSource.query<{ referral_code: string }[]>(
+      `SELECT referral_code FROM users WHERE global_id = ANY($1::uuid[])`,
+      [[InvitedId, PlainId]],
+    );
+    check(
+      'mã giới thiệu đầu trùng thì lùi sang ứng viên kế, không 500',
+      codes.length === 2 && codes[0].referral_code !== codes[1].referral_code,
+      codes.map((row) => row.referral_code).join(' / '),
+    );
+
+    console.log('\nQ. Admin: chi tiết nhóm và giải tán MỘT nhóm (SRS 3.7A)');
+    const detail = await groups.findAdminDetail(OtherGroupId);
+    check(
+      'chi tiết có tâm, bán kính, mã mời, owner và số thành viên đang hiệu lực',
+      detail?.groupId === OtherGroupId &&
+        typeof detail.centerLat === 'number' &&
+        detail.radiusKm > 0 &&
+        detail.inviteCode === 'ZZZZ2345EFGH6789' &&
+        detail.ownerUsername === 'chu-nhom-khac' &&
+        detail.memberCount >= 2 &&
+        detail.dissolvedAt === null,
+      JSON.stringify(detail),
+    );
+    check(
+      'nhóm không tồn tại thì null',
+      (await groups.findAdminDetail('00000000-0000-4000-8000-000000000000')) ===
+        null,
+    );
+    const membersBefore = Number(detail?.memberCount ?? 0);
+
+    check(
+      'giải tán nhóm ACTIVE trả true',
+      await groups.dissolveById(OtherGroupId),
+    );
+    const adminAfter = await groups.findAdminDetail(OtherGroupId);
+    check(
+      'nhóm sang DISSOLVED, có mốc giải tán, và vẫn đọc được để tra lại',
+      adminAfter?.status === 'DISSOLVED' && adminAfter.dissolvedAt !== null,
+      `${adminAfter?.status}`,
+    );
+    check(
+      'link mời chết ngay',
+      (await groups.findActiveByInviteCode('ZZZZ2345EFGH6789')) === null,
+    );
+    const [{ kept: adminKept }] = await dataSource.query<{ kept: string }[]>(
+      `SELECT count(*)::text AS kept FROM group_memberships
+        WHERE group_id = $1 AND status = 'DISSOLVED'`,
+      [OtherGroupId],
+    );
+    check(
+      'membership thôi hiệu lực nhưng Ở LẠI làm lịch sử',
+      Number(adminKept) === membersBefore && adminAfter?.memberCount === 0,
+      `adminKept=${adminKept} before=${membersBefore}`,
+    );
+    check(
+      'thành viên cũ không còn thuộc nhóm nào',
+      (await groups.findMine(InvitedId)) === null,
+    );
+    check(
+      'giải tán lần hai trả false, không đè mốc cũ',
+      !(await groups.dissolveById(OtherGroupId)) &&
+        (await groups.findAdminDetail(OtherGroupId))?.dissolvedAt?.getTime() ===
+          adminAfter?.dissolvedAt?.getTime(),
+    );
+
+    console.log('\nR. Admin đổi mã mời (SRS 3.7A, phương án C)');
+    const beforeRotate = await groups.findAdminDetail(RebornGroupId);
+    const NewCode = 'ROTATED234567890';
+    check(
+      'nhóm ACTIVE đổi được mã',
+      await groups.rotateInviteCode({
+        groupId: RebornGroupId,
+        inviteCode: NewCode,
+      }),
+    );
+    check(
+      'mã cũ chết ngay, mã mới tra ra đúng nhóm',
+      (await groups.findActiveByInviteCode(beforeRotate?.inviteCode ?? '')) ===
+        null &&
+        (await groups.findActiveByInviteCode(NewCode))?.groupId ===
+          RebornGroupId,
+    );
+    check(
+      'thành viên đã vào bằng mã cũ không bị ảnh hưởng',
+      (await groups.findMine(MemberId))?.groupId === RebornGroupId,
+    );
+    check(
+      'nhóm đã giải tán thì không đổi được mã',
+      !(await groups.rotateInviteCode({
+        groupId: OtherGroupId,
+        inviteCode: 'NEVERUSED2345678',
+      })),
     );
   } finally {
     for (const source of opened.reverse())

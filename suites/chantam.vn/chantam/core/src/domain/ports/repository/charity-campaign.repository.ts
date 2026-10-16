@@ -377,6 +377,15 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
   findByGlobalId(globalId: string): Promise<ICharityCampaign | null>;
 
   /**
+   * Xoá MỀM (`deleted_at`) — chỉ khi hoạt động chưa có người đăng ký, đóng góp, giao
+   * nhận, đóng góp ngoài app hay đánh giá. Kiểm dưới khoá dòng để không lọt một lượt
+   * đăng ký chen giữa.
+   */
+  softDeleteIfUnused(
+    campaignId: string,
+  ): Promise<'DELETED' | 'NOT_FOUND' | 'HAS_ACTIVITY'>;
+
+  /**
    * Đường công khai, nhận cả id lẫn slug.
    *
    * CHỈ trả hoạt động đã duyệt, còn bật, chưa xoá — kể cả khi tra bằng id. Một hồ sơ chờ
@@ -428,6 +437,21 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     readonly approverId: string;
     readonly approve: boolean;
     readonly note: string | null;
+  }): Promise<ICharityCampaign | null>;
+
+  /**
+   * Admin sửa NỘI DUNG (CMS) — giá trị đã gộp và đã kiểm ở tầng ứng dụng. Không đụng
+   * slug, thời gian, loại hoạt động hay trạng thái duyệt.
+   */
+  updateContent(params: {
+    readonly campaignId: string;
+    readonly title: string;
+    readonly description: string;
+    readonly badgeName: string;
+    readonly targetItemsCount: number;
+    readonly lat: number | null;
+    readonly lng: number | null;
+    readonly locationLabel: string | null;
   }): Promise<ICharityCampaign | null>;
 
   /** Cập nhật con số LỜI KHAI. Xem `currentItemsCount`. */

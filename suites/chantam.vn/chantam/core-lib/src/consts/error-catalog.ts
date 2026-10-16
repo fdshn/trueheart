@@ -815,6 +815,12 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Không tìm thấy nhóm',
   },
 
+  GROUP_ALREADY_DISSOLVED: {
+    code: ErrorCodes.GROUP_ALREADY_DISSOLVED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Nhóm đã giải tán từ trước',
+  },
+
   AFFILIATE_POLICY_VERSION_CONFLICT: {
     code: ErrorCodes.AFFILIATE_POLICY_VERSION_CONFLICT,
     httpStatus: HttpStatus.CONFLICT,
@@ -839,6 +845,13 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     // (isActive = false) trùng giờ thì vẫn lưu được.
     message: () =>
       'Đã có giao diện trang chủ khác đang bật trùng khung thời gian này — tắt bản kia hoặc đổi thời gian',
+  },
+
+  HOME_CAMPAIGN_LIVE: {
+    code: ErrorCodes.HOME_CAMPAIGN_LIVE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Giao diện này đang hiển thị trên trang chủ — tắt (isActive: false) rồi mới xoá được',
   },
 
   BLOG_NOT_FOUND: {
@@ -998,6 +1011,14 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     // Nói việc cần làm: bản đang có hiệu lực là bản THAY THẾ, không phải bản này.
     message: () =>
       'Bản ghi này đã bị huỷ hoặc đã được thay bằng bản điều chỉnh — hãy thao tác trên bản đang có hiệu lực',
+  },
+
+  CHARITY_CAMPAIGN_HAS_ACTIVITY: {
+    code: ErrorCodes.CHARITY_CAMPAIGN_HAS_ACTIVITY,
+    httpStatus: HttpStatus.CONFLICT,
+    // Xoá là mất lịch sử của người đã tham gia; đóng hoặc tắt thì không.
+    message: () =>
+      'Hoạt động đã có người đăng ký, đóng góp, giao nhận hoặc đánh giá — hãy đóng hoặc tắt thay vì xoá',
   },
 
   CHARITY_CAMPAIGN_NOT_EXTENDABLE: {

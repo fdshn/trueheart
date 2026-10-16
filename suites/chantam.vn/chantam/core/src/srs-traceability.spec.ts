@@ -836,12 +836,13 @@ const BrTrace: readonly BrTraceEntry[] = [
     id: 'BR-GEO-AFF-03',
     title:
       'Event ngoài vùng vẫn LƯU để audit với `reward_status = NOT_ELIGIBLE_GEO`, `point_delta = 0` và thông tin distance/radius',
-    status: 'PARTIAL',
+    status: 'IMPLEMENTED',
     where:
       '`affiliate_events` lưu MỌI sự kiện kèm `geo_status`, `location_source`, ' +
-      '`distance_meters` và `radius_meters`; `GET /admin/affiliate-events?geoStatus=NOT_ELIGIBLE_GEO` ' +
-      'đọc ra được. Tổng điểm 0 có ràng buộc database canh',
-    note: 'LỆCH một điểm có chủ ý: quy tắc nhắc `reward_status = NOT_ELIGIBLE_GEO`, tức ở tầng từng dòng reward. Ở đây sự kiện ngoài vùng KHÔNG sinh dòng reward cho từng thành viên — với nhóm 500 người thì mỗi sự kiện bị loại sinh 500 dòng 0 điểm, và bảng reward sẽ phình nhanh nhất đúng trên đường không phát điểm. Kết luận và số đo nằm ở hàng sự kiện, đủ trả lời "vì sao nhóm tôi không được điểm"',
+      '`distance_meters` và `radius_meters`; mỗi người lẽ ra được chia có MỘT dòng ' +
+      '`affiliate_rewards` với `reward_status = NOT_ELIGIBLE_GEO`, `point_delta = 0`, không ' +
+      'bút toán (16/10/2026). `GET /admin/affiliate-events?geoStatus=NOT_ELIGIBLE_GEO` đọc ra được',
+    note: 'Số dòng mỗi sự kiện bị loại bị chặn bởi cùng trần `maxBeneficiariesPerEvent` của đường phát điểm — không sinh dòng cho mọi thành viên. `test:affiliate` nhóm 4.',
   },
   {
     id: 'BR-PHONE-REWARD-01',

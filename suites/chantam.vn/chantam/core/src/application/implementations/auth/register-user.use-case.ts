@@ -5,13 +5,12 @@ import {
 } from '@/application/contracts/auth';
 import { UsernameTakenException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
-import { IGroupRepository, IUserRepository } from '@/domain/ports/repository';
+import { IUserRepository } from '@/domain/ports/repository';
 import { IRequestThrottle } from '@/domain/ports/security';
 import { hashSignupFingerprint } from '@/infrastructure/security/signup-fingerprint';
 import { UserId } from '@chantam.vn/chantam.core-lib/values';
 import { IPasswordService } from '@chantam/service.auth-lib';
 import { Inject, Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { SessionIssuer } from './session-issuer';
 
 @Injectable()
@@ -22,8 +21,6 @@ export class RegisterUserUseCase implements IRegisterUserUseCase {
     @Inject(IPasswordService)
     private readonly passwordService: IPasswordService,
     private readonly sessionIssuer: SessionIssuer,
-    @Inject(IGroupRepository)
-    private readonly groups: IGroupRepository,
     @Inject(IRequestThrottle)
     private readonly requestThrottle: IRequestThrottle,
     @Inject(IConfig)
@@ -54,6 +51,10 @@ export class RegisterUserUseCase implements IRegisterUserUseCase {
       username,
       passwordHash: await this.passwordService.hash(registration.password),
       referralCode: registration.referralCode,
+      // Referral và mã mời nhóm kiểm ĐỘC LẬP: referral sai thì vẫn đăng ký (không
+      // để lộ mã nào có thật), mã mời sai thì không — xem repository.
+      groupInviteCode:
+        registration.inviteCode?.trim().toUpperCase() || undefined,
       // Dấu vết đăng ký, ghi cùng lúc tạo quan hệ giới thiệu. Trigger coi hai cột
       // này là bất biến, nên đây là lần duy nhất ghi được.
       //
@@ -81,25 +82,6 @@ export class RegisterUserUseCase implements IRegisterUserUseCase {
       key: command.clientIp,
       windowSeconds: this.config.auth.registrationWindowSeconds,
     });
-
-    // Vào nhóm qua link mời (F54/BR-GRP-04). CHỈ ở đây, chỉ cho tài khoản vừa
-    // tạo: membership không sinh ra từ đường nào khác, và chính ràng buộc đó là
-    // hàng rào chặn việc một người nhảy vòng quanh các nhóm để gom affiliate.
-    //
-    // Mã sai hay nhóm đã giải tán thì BỎ QUA, không ném: tài khoản đã tạo xong
-    // rồi, và bắt họ đăng ký lại vì một mã hỏng là phạt người dùng cho lỗi của
-    // người gửi link.
-    if (registration.inviteCode) {
-      const invited = await this.groups.findActiveByInviteCode(
-        registration.inviteCode.trim().toUpperCase(),
-      );
-      if (invited)
-        await this.groups.addMember({
-          globalId: randomUUID(),
-          groupId: invited.groupId,
-          userId: globalId,
-        });
-    }
 
     // Đăng ký xong tự đăng nhập luôn (F01).
     return this.sessionIssuer.issue(

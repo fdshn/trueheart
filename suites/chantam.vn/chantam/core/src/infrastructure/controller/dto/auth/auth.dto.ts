@@ -218,7 +218,7 @@ export class RegisterDto implements IRegisterDto {
     minLength: 16,
     maxLength: 16,
     description:
-      'Mã mời nhóm. CHỈ dùng được lúc tạo tài khoản mới — tài khoản cũ không vào nhóm được. Mã sai hoặc nhóm đã giải tán thì đăng ký vẫn thành công, chỉ là không vào nhóm nào.',
+      'Mã mời nhóm. CHỈ dùng được lúc tạo tài khoản mới — tài khoản cũ không vào nhóm được. Mã sai hoặc nhóm đã giải tán thì đăng ký THẤT BẠI với `400 GROUP_INVITE_INVALID` và không tài khoản nào được tạo — người bấm link mời muốn vào đúng nhóm đó. Tài khoản tạo xong là thành viên nhóm ngay, cùng một transaction.',
   })
   @IsOptional()
   @IsString()
