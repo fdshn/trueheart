@@ -158,12 +158,32 @@ export class UserRepository
         );
         if (!group) throw new GroupInviteInvalidException();
 
-        await manager.query(
+        const [membership] = await manager.query<{ global_id: string }[]>(
           `
             INSERT INTO group_memberships (global_id, group_id, user_id, role)
             VALUES (gen_random_uuid(), $1, $2, 'MEMBER')
+            RETURNING global_id
           `,
           [group.global_id, params.globalId],
+        );
+        // Audit CÙNG transaction (SRS 3.7A): đăng ký rollback thì không để lại dòng
+        // audit nói một người đã vào nhóm. Ghi mã mời đã dùng — link nào dẫn người
+        // này vào là câu đầu tiên Owner hay Admin hỏi khi soát thành viên.
+        await manager.query(
+          `
+            INSERT INTO admin_audit_logs
+              (actor_user_id, action, resource_type, resource_id, before_json, after_json)
+            VALUES ($1, 'GROUP_JOIN', 'GROUP', $2, NULL, $3::jsonb)
+          `,
+          [
+            params.globalId,
+            group.global_id,
+            JSON.stringify({
+              membershipId: membership?.global_id ?? null,
+              via: 'INVITE_REGISTRATION',
+              inviteCode: params.groupInviteCode,
+            }),
+          ],
         );
         joinedGroupId = group.global_id;
       }

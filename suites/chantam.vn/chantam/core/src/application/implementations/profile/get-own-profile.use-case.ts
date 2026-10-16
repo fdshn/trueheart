@@ -97,6 +97,8 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
         point: point.point,
         rankProgress: rank.rank,
         entitlements: entitlements.entitlements,
+        // Cùng một lượt tính với `entitlements` — không hỏi database thêm lần nào.
+        groupCreation: entitlements.groupCreation,
         // Chính chủ thấy chỉ số của mình, KHÔNG thấy cờ `reviewRequired`. Cờ đó
         // là tín hiệu để Admin xem, không phải phán quyết — cho chính chủ thấy
         // "bạn đang bị đánh dấu xem xét" là kết tội trước khi có người nhìn qua.

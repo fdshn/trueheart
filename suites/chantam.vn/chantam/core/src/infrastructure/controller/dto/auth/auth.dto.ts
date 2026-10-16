@@ -224,6 +224,18 @@ export class RegisterDto implements IRegisterDto {
   @IsString()
   @Matches(/^[A-Z0-9]{16}$/)
   inviteCode?: string;
+
+  @ApiPropertyOptional({
+    example: 'ABCD2345EFGH6789',
+    minLength: 16,
+    maxLength: 16,
+    description:
+      'Cùng nghĩa với `inviteCode` — tên theo SRS 3.7A. Gửi MỘT trong hai; gửi cả hai mà khác nhau thì 400. App đang dùng `inviteCode` không phải đổi gì.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Z0-9]{16}$/)
+  groupInviteToken?: string;
 }
 
 export class RegisterBodyDto implements IRegisterBodyDto {

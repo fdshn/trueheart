@@ -49,6 +49,11 @@ export interface IOwnProfileDto {
   rankProgress?: IRankSummaryDto | null;
   /** Quyền và hạn mức theo hạng hiện tại. */
   entitlements?: IEntitlementsSummaryDto | null;
+  /**
+   * Tạo được nhóm chưa, và nếu chưa thì vì sao (SRS 3.7A) — trùng với
+   * `GET /me/entitlements` và `GET /groups/me`.
+   */
+  groupCreation?: { canCreateGroup: boolean; reasonCode: string | null } | null;
   /** Độ chính xác mô tả khi tặng (F43). `null` khi chưa đủ mẫu. */
   accuracy?: IGiverAccuracySummaryDto | null;
   /** Điểm sao 1–5 theo từng vai (F42). */
