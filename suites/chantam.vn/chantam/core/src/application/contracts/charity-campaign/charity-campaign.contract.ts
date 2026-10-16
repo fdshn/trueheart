@@ -424,6 +424,20 @@ export interface IGetCampaignNeedsUseCase extends IUseCase<
 
 export const IGetCampaignNeedsUseCase = Symbol('IGetCampaignNeedsUseCase');
 
+export interface IGetAdminCampaignNeedsCommand {
+  readonly actorUserId: string;
+  readonly campaignId: string;
+}
+
+export interface IGetAdminCampaignNeedsUseCase extends IUseCase<
+  IGetAdminCampaignNeedsCommand,
+  IGetCampaignNeedsResult
+> {}
+
+export const IGetAdminCampaignNeedsUseCase = Symbol(
+  'IGetAdminCampaignNeedsUseCase',
+);
+
 export interface ICreateCharityCampaignUseCase extends IUseCase<
   ICreateCharityCampaignCommand,
   ICharityCampaignView

@@ -22,6 +22,8 @@ import {
   IDeleteCharityCampaignUseCase,
   IExtendCharityCampaignCommand,
   IExtendCharityCampaignUseCase,
+  IGetAdminCampaignNeedsCommand,
+  IGetAdminCampaignNeedsUseCase,
   IGetAdminCharityCampaignCommand,
   IGetAdminCharityCampaignResult,
   IGetAdminCharityCampaignUseCase,
@@ -576,18 +578,54 @@ export class GetCampaignNeedsUseCase implements IGetCampaignNeedsUseCase {
     );
     if (!campaign) throw new CharityCampaignNotFoundException();
 
-    const needs = await this.repository.listNeeds(campaign.globalId);
-    // Chỉ dòng ĐANG BẬT vào phép tính tiến độ: một dòng đã tắt là nhu cầu người tổ
-    // chức rút lại, và để nó kéo tiến độ xuống là báo cáo một việc không còn ai cần.
-    // Nhưng vẫn TRẢ cả dòng đã tắt, vì nó là lịch sử của những đề nghị đã gửi.
-    const active = needs.filter((need) => need.isActive);
+    return needsViewOf(this.repository, campaign.globalId);
+  }
+}
 
-    return {
-      campaignId: campaign.globalId,
-      needs,
-      overallProgressPercent: overallNeedProgressPercent(active),
-      progressSource: needs.length > 0 ? 'NEED_ITEMS' : 'LEGACY_DECLARED',
-    };
+/** Bảng nhu cầu của một chiến dịch — chung cho đường công khai và đường Admin. */
+async function needsViewOf(
+  repository: ICharityCampaignRepository,
+  campaignId: string,
+): Promise<IGetCampaignNeedsResult> {
+  const needs = await repository.listNeeds(campaignId);
+  // Chỉ dòng ĐANG BẬT vào phép tính tiến độ: một dòng đã tắt là nhu cầu người tổ
+  // chức rút lại, và để nó kéo tiến độ xuống là báo cáo một việc không còn ai cần.
+  // Nhưng vẫn TRẢ cả dòng đã tắt, vì nó là lịch sử của những đề nghị đã gửi.
+  const active = needs.filter((need) => need.isActive);
+
+  return {
+    campaignId,
+    needs,
+    overallProgressPercent: overallNeedProgressPercent(active),
+    progressSource: needs.length > 0 ? 'NEED_ITEMS' : 'LEGACY_DECLARED',
+  };
+}
+
+/**
+ * Bảng nhu cầu cho CMS, MỌI trạng thái duyệt.
+ *
+ * Danh sách vật phẩm là phần chính của hồ sơ xin duyệt: Admin phải thấy nó TRƯỚC
+ * khi bấm duyệt, mà đường công khai chỉ trả chiến dịch đã duyệt.
+ */
+@Injectable()
+export class GetAdminCampaignNeedsUseCase implements IGetAdminCampaignNeedsUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(
+    command: IGetAdminCampaignNeedsCommand,
+  ): Promise<IGetCampaignNeedsResult> {
+    if (!(await this.admin.hasPermission(command.actorUserId, ReadPermission)))
+      throw new ForbiddenException();
+
+    const campaign = await this.repository.findByGlobalId(command.campaignId);
+    if (!campaign) throw new CharityCampaignNotFoundException();
+
+    return needsViewOf(this.repository, campaign.globalId);
   }
 }
 

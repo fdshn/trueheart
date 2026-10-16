@@ -1888,6 +1888,7 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `POST` | `/charity-deliveries/:id/complete` | Organizer | ✅ **Đã chạy.** Xác nhận số THỰC NHẬN từng dòng; phần thiếu trở về nhu cầu |
 | `POST` | `/charity-deliveries/:id/cancel` | Hai bên | ✅ **Đã chạy.** Trả phần đã nhận về nhu cầu, không xoá đề nghị |
 | `GET` | `/admin/charity-campaigns/:id` | `campaign.read` | ✅ **Đã chạy (15/10).** Một hoạt động, mọi trạng thái duyệt |
+| `GET` | `/admin/charity-campaigns/:id/needs` | `campaign.read` | ✅ **Đã chạy (16/10).** Bảng nhu cầu vật phẩm, **mọi trạng thái duyệt** — Admin xem trước khi duyệt. Cùng hình dạng với `GET /charity-campaigns/:idOrSlug/needs` |
 | `PATCH` | `/admin/charity-campaigns/:id` | `campaign.manage` | ✅ **Đã chạy (16/10).** Sửa nội dung (tiêu đề, mô tả, huy hiệu, mục tiêu, vị trí); không đụng slug/thời gian/loại/duyệt/media; lý do bắt buộc, audit trường đổi |
 | `DELETE` | `/admin/charity-campaigns/:id` | `campaign.manage` | ✅ **Đã chạy (16/10).** Xoá MỀM, chỉ khi chưa ai đăng ký/đóng góp/giao nhận/đánh giá — có thì `409 CHARITY_CAMPAIGN_HAS_ACTIVITY` (đóng hoặc tắt thay vì xoá) |
 

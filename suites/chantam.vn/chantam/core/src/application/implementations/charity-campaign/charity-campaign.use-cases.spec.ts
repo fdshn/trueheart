@@ -40,6 +40,7 @@ import {
   DecideCharityContributionUseCase,
   DeleteCharityCampaignUseCase,
   ExtendCharityCampaignUseCase,
+  GetAdminCampaignNeedsUseCase,
   GetAdminCharityCampaignUseCase,
   GetCampaignNeedsUseCase,
   GetCharityDeliveryUseCase,
@@ -2031,6 +2032,50 @@ describe('GetAdminCharityCampaignUseCase (CMS A4)', () => {
 
     await expect(
       new GetAdminCharityCampaignUseCase(repository, makeAdmin(true)).handle({
+        actorUserId: ActorId,
+        campaignId: CampaignId,
+      }),
+    ).rejects.toThrow(CharityCampaignNotFoundException);
+  });
+});
+
+describe('GetAdminCampaignNeedsUseCase', () => {
+  it('đòi campaign.read và không đọc gì khi thiếu', async () => {
+    const repository = makeRepository();
+    await expect(
+      new GetAdminCampaignNeedsUseCase(repository, makeAdmin(false)).handle({
+        actorUserId: ActorId,
+        campaignId: CampaignId,
+      }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(repository.findByGlobalId).not.toHaveBeenCalled();
+    expect(repository.listNeeds).not.toHaveBeenCalled();
+  });
+
+  it('đọc được nhu cầu của hồ sơ CHƯA duyệt — để Admin xem trước khi duyệt', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ approvalStatus: 'PENDING_APPROVAL' }),
+    );
+
+    const result = await new GetAdminCampaignNeedsUseCase(
+      repository,
+      makeAdmin(true),
+    ).handle({ actorUserId: ActorId, campaignId: CampaignId });
+
+    expect(repository.listNeeds).toHaveBeenCalledWith(CampaignId);
+    expect(result).toMatchObject({
+      campaignId: CampaignId,
+      progressSource: 'LEGACY_DECLARED',
+    });
+  });
+
+  it('không có thì 404', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(null);
+
+    await expect(
+      new GetAdminCampaignNeedsUseCase(repository, makeAdmin(true)).handle({
         actorUserId: ActorId,
         campaignId: CampaignId,
       }),

@@ -5,6 +5,7 @@ import {
   IDecideCharityApprovalUseCase,
   IDeleteCharityCampaignUseCase,
   IExtendCharityCampaignUseCase,
+  IGetAdminCampaignNeedsUseCase,
   IGetAdminCharityCampaignUseCase,
   IJoinCharityCampaignUseCase,
   IListAdminCharityCampaignsUseCase,
@@ -79,6 +80,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  CampaignNeedsResponseDto,
   CharityBeneficiaryInputDto,
   CharityBeneficiaryResponseDto,
   CharityCampaignIdParamDto,
@@ -830,6 +832,8 @@ export class AdminCharityCampaignController {
     private readonly progressUseCase: IUpdateCharityProgressUseCase,
     @Inject(IGetAdminCharityCampaignUseCase)
     private readonly getUseCase: IGetAdminCharityCampaignUseCase,
+    @Inject(IGetAdminCampaignNeedsUseCase)
+    private readonly needsUseCase: IGetAdminCampaignNeedsUseCase,
     @Inject(IDeleteCharityCampaignUseCase)
     private readonly deleteUseCase: IDeleteCharityCampaignUseCase,
     @Inject(IUpdateAdminCharityCampaignUseCase)
@@ -859,6 +863,36 @@ export class AdminCharityCampaignController {
           offset: query.offset ?? 0,
           approvalStatus: query.approvalStatus as
             CharityApprovalStatus | undefined,
+        }),
+      )
+      .build();
+  }
+
+  @Get(':id/needs')
+  @RequiresPermission('campaign.read')
+  @ApiOperation({
+    summary: 'Bảng nhu cầu vật phẩm cho CMS, mọi trạng thái duyệt',
+    description:
+      'Cùng hình dạng với `GET /charity-campaigns/:idOrSlug/needs` (công khai), nhưng đọc được cả hồ sơ ' +
+      '`PENDING_APPROVAL` và `REJECTED` — Admin phải xem danh sách vật phẩm TRƯỚC khi duyệt. ' +
+      'Chỉ nhận id. Quyền `campaign.read`.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    CharityCampaignNotFoundException,
+  )
+  @ApiOkResponse({ type: ResponseDto.forApi(CampaignNeedsResponseDto) })
+  public async getNeeds(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() param: CharityCampaignIdParamDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.needsUseCase.handle({
+          actorUserId: principal.userId,
+          campaignId: param.id,
         }),
       )
       .build();
