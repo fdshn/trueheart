@@ -32,6 +32,8 @@ export interface IAdminChatMessageDto {
   senderUsername: string;
   body: string;
   mediaKeys: string[];
+  /** URL mở được của từng ảnh, cùng thứ tự với `mediaKeys`. */
+  mediaUrls: string[];
   recalledAt: Date | null;
   sentAt: Date;
 }

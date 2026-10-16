@@ -4,6 +4,7 @@ import {
   IReadAdminChatRoomUseCase,
 } from '@/application/contracts/chat';
 import { ChatRoomNotFoundException } from '@/domain/exceptions';
+import { IConfig } from '@/domain/ports/config';
 import {
   IAdminConfigRepository,
   IChatRepository,
@@ -45,6 +46,7 @@ export class ReadAdminChatRoomUseCase implements IReadAdminChatRoomUseCase {
     @Inject(IAdminConfigRepository)
     private readonly permissions: IAdminConfigRepository,
     @InjectEntityManager() private readonly manager: EntityManager,
+    @Inject(IConfig) private readonly config: IConfig,
   ) {}
 
   public async handle(
@@ -83,12 +85,19 @@ export class ReadAdminChatRoomUseCase implements IReadAdminChatRoomUseCase {
       ],
     );
 
+    const base = this.config.storage.publicBaseUrl.replace(/\/$/, '');
+
     return {
       roomId: room.roomId,
       postId: room.postId,
       giverId: room.giverId,
       receiverId: room.receiverId,
-      messages,
+      // Key trần thì Admin không xem được ảnh — mà ảnh thường CHÍNH là bằng chứng.
+      // Cùng kiểu URL mà người dùng nhận lúc tải ảnh lên (CMS A11).
+      messages: messages.map((message) => ({
+        ...message,
+        mediaUrls: message.mediaKeys.map((key) => `${base}/${key}`),
+      })),
     };
   }
 }

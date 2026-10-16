@@ -82,6 +82,13 @@ export class AdminChatMessageDto implements IAdminChatMessageDto {
   @ApiProperty({ type: [String] }) mediaKeys: string[];
 
   @ApiProperty({
+    type: [String],
+    description:
+      'URL mở được của từng ảnh, cùng thứ tự với `mediaKeys` — cùng kiểu URL công khai (`storage.publicBaseUrl` + key) mà người gửi nhận lúc tải lên. Bucket là công khai nên đây KHÔNG phải URL ký có hạn. Rỗng khi tin không có ảnh hoặc đã bị gỡ.',
+  })
+  mediaUrls: string[];
+
+  @ApiProperty({
     type: String,
     format: 'date-time',
     nullable: true,
