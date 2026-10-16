@@ -18,6 +18,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { GroupCreationEligibilityDto } from './group-creation.dto';
 
 export class CreateGroupDto {
   @ApiProperty({ example: 'Chân Tâm Quận Cầu Giấy' })
@@ -110,6 +111,9 @@ export class GetOwnGroupResponseDto {
     description: 'null khi chưa thuộc nhóm nào — client hiện nút Tạo nhóm',
   })
   group: GroupSummaryDto | null;
+
+  @ApiProperty({ type: () => GroupCreationEligibilityDto })
+  groupCreation: GroupCreationEligibilityDto;
 }
 
 export class GroupIdParamDto {

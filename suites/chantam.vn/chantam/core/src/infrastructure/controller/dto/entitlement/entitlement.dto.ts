@@ -6,6 +6,7 @@ import {
 } from '@chantam.vn/chantam.core-lib/dto';
 import { CapabilityKinds } from '@chantam.vn/chantam.core-lib/models';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { GroupCreationEligibilityDto } from '../group/group-creation.dto';
 
 export class EntitlementDto implements IEntitlementDto {
   @ApiProperty({ example: 'POST_OPEN' })
@@ -53,4 +54,7 @@ export class EntitlementsSummaryDto implements IEntitlementsSummaryDto {
 export class GetOwnEntitlementsResponseDto implements IGetOwnEntitlementsResponseDto {
   @ApiProperty({ type: () => EntitlementsSummaryDto })
   entitlements: IEntitlementsSummaryDto;
+
+  @ApiProperty({ type: () => GroupCreationEligibilityDto })
+  groupCreation: GroupCreationEligibilityDto;
 }

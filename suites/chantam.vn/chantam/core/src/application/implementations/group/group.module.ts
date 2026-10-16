@@ -13,6 +13,7 @@ import {
   IUpdateGroupSettingsUseCase,
 } from '@/application/contracts/group';
 import { Global, Module } from '@nestjs/common';
+import { GroupCreationEligibility } from './group-creation-eligibility';
 import {
   AssignGroupMemberUseCase,
   CreateSubTeamUseCase,
@@ -30,6 +31,7 @@ import { CreateGroupUseCase, GetOwnGroupUseCase } from './group.use-cases';
 @Global()
 @Module({
   providers: [
+    GroupCreationEligibility,
     { provide: ICreateGroupUseCase, useClass: CreateGroupUseCase },
     { provide: IGetOwnGroupUseCase, useClass: GetOwnGroupUseCase },
     { provide: IListGroupMembersUseCase, useClass: ListGroupMembersUseCase },
@@ -50,6 +52,7 @@ import { CreateGroupUseCase, GetOwnGroupUseCase } from './group.use-cases';
     },
   ],
   exports: [
+    GroupCreationEligibility,
     ICreateGroupUseCase,
     IGetOwnGroupUseCase,
     IListGroupMembersUseCase,

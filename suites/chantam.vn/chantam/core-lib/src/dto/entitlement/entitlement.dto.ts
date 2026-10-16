@@ -40,6 +40,12 @@ export interface IEntitlementsSummaryDto {
 
 export interface IGetOwnEntitlementsResponseDto {
   entitlements: IEntitlementsSummaryDto;
+  /**
+   * Tạo được nhóm chưa, và nếu chưa thì vì sao (SRS 3.7A). `CREATE_GROUP.allowed`
+   * trong `capabilities` chỉ nói về HẠNG; phần này gộp cả hồ sơ, Vị trí mặc định và
+   * việc đã thuộc nhóm — đúng bộ luật `POST /groups` dùng.
+   */
+  groupCreation: { canCreateGroup: boolean; reasonCode: string | null };
 }
 
 /**
