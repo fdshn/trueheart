@@ -33,8 +33,9 @@ export interface IWriteMeritUnitInput {
   readonly description?: string | null;
   readonly coverUrl?: string | null;
   readonly addressLabel?: string | null;
-  readonly lat?: number;
-  readonly lng?: number;
+  /** `null` cùng `lng: null` là xoá vị trí (chỉ ở lượt sửa). */
+  readonly lat?: number | null;
+  readonly lng?: number | null;
   readonly bankBin: string;
   readonly bankAccountNumber: string;
   readonly bankAccountName: string;

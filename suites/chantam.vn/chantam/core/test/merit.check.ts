@@ -500,6 +500,27 @@ async function main(): Promise<void> {
       'ValidationFailedException',
     );
 
+    const unlocated = await updateUseCase.handle({
+      actorUserId: AdminId,
+      unitId: unit.globalId,
+      lat: null,
+      lng: null,
+    });
+    const [{ has_location: hasLocation }] = (await dataSource.query(
+      `SELECT location IS NOT NULL AS has_location FROM merit_units WHERE global_id = $1`,
+      [unit.globalId],
+    )) as { has_location: boolean }[];
+    check(
+      'lat/lng cùng null là xoá vị trí thật ở database',
+      unlocated.lat === null && unlocated.lng === null && !hasLocation,
+      `lat=${String(unlocated.lat)} location=${String(hasLocation)}`,
+    );
+    check(
+      'xoá vị trí không đụng tên hay tài khoản',
+      unlocated.name === 'Chùa Vĩnh Nghiêm' &&
+        unlocated.bankAccountNumber === '999988887777',
+    );
+
     console.log('\n7. Ràng buộc database — lớp cuối chặn SQL tay');
 
     await expectReject(

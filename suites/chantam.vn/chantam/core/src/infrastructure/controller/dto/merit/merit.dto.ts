@@ -180,15 +180,24 @@ export class PatchMeritUnitDto {
   @Length(0, 255)
   addressLabel?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description:
+      'Gửi CÙNG `lng`. `lat: null` + `lng: null` là xoá vị trí (gỡ ghim khỏi Map Discovery); một vế null một vế số hoặc bỏ trống → 400.',
+  })
   @IsOptional()
   @IsLatitude()
-  lat?: number;
+  lat?: number | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'Gửi CÙNG `lat`; `null` cùng `lat: null` là xoá vị trí.',
+  })
   @IsOptional()
   @IsLongitude()
-  lng?: number;
+  lng?: number | null;
 
   @ApiPropertyOptional({
     description:

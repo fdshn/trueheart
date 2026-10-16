@@ -219,6 +219,36 @@ describe('UpdateMeritUnitUseCase', () => {
     });
   });
 
+  it('lat và lng cùng null là XOÁ vị trí, như bên hoạt động từ thiện', async () => {
+    const repository = makeRepository();
+
+    await new UpdateMeritUnitUseCase(repository, makeAdmin(true)).handle({
+      actorUserId: AdminId,
+      unitId: 'unit-1',
+      lat: null,
+      lng: null,
+    });
+
+    expect(repository.updateUnit).toHaveBeenCalledWith({
+      unitId: 'unit-1',
+      changes: { lat: null, lng: null },
+    });
+  });
+
+  it('xoá một vế toạ độ mà giữ vế kia bị từ chối', async () => {
+    const repository = makeRepository();
+
+    await expect(
+      new UpdateMeritUnitUseCase(repository, makeAdmin(true)).handle({
+        actorUserId: AdminId,
+        unitId: 'unit-1',
+        lat: null,
+        lng: 106.6836,
+      }),
+    ).rejects.toThrow(ValidationFailedException);
+    expect(repository.updateUnit).not.toHaveBeenCalled();
+  });
+
   it('đơn vị không tồn tại thì NotFound', async () => {
     const repository = makeRepository();
     repository.updateUnit.mockResolvedValue(null);

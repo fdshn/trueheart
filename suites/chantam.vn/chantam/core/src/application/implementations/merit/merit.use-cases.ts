@@ -156,12 +156,19 @@ async function prepareUnitWrite(
 
   // Toạ độ phải đủ cặp — `ST_MakePoint` với một `NULL` cho ra `NULL`, tức đơn vị lặng lẽ
   // mất vị trí trên bản đồ thay vì người gửi biết mình gửi thiếu.
-  const hasLat = input.lat !== undefined && input.lat !== null;
-  const hasLng = input.lng !== undefined && input.lng !== null;
-  if (hasLat !== hasLng)
+  //
+  // `null` cùng nhau là XOÁ vị trí, như bên hoạt động từ thiện. Một vế `null` một vế
+  // bỏ trống thì cũng là gửi thiếu: trước đây cặp đó bị lặng lẽ bỏ qua, CMS tưởng đã
+  // xoá mà bản đồ vẫn còn ghim.
+  const latSent = input.lat !== undefined;
+  const lngSent = input.lng !== undefined;
+  if (latSent !== lngSent || (input.lat === null) !== (input.lng === null))
     throw new ValidationFailedException([
-      'lat và lng phải gửi cùng nhau, hoặc bỏ cả hai',
+      'lat và lng phải gửi cùng nhau (cùng null để xoá vị trí), hoặc bỏ cả hai',
     ]);
+  const hasLat = latSent && input.lat !== null;
+  const hasLng = lngSent && input.lng !== null;
+  const clearLocation = input.lat === null && input.lng === null;
 
   if (slug !== undefined && slug.length > 0) {
     // Hỏi trước khi ghi để trả thông báo đọc được thay vì để `UQ_merit_units_slug` ném 500.
@@ -196,6 +203,9 @@ async function prepareUnitWrite(
   if (hasLat && hasLng) {
     changes.lat = Number(input.lat);
     changes.lng = Number(input.lng);
+  } else if (clearLocation && options.partial) {
+    changes.lat = null;
+    changes.lng = null;
   }
 
   return changes as Partial<IWriteMeritUnitParams>;
