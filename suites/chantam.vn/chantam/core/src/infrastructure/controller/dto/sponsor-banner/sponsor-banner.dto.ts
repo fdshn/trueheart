@@ -66,7 +66,7 @@ export class WriteSponsorBannerDto {
     example: 'https://anlac.vn/vu-lan',
     maxLength: MaxBannerUrlLength,
     description:
-      'CTA / deep link. Chỉ nhận `https://` hoặc `chantam://`. Lược đồ khác bị từ chối ở ' +
+      'CTA / deep link. Nhận `https://`, `chantam://` hoặc `givingapp://` — hai tên lược đồ app được nhận như nhau cho tới khi mobile chốt một. Lược đồ khác bị từ chối ở ' +
       'cả DTO và ràng buộc database — một link do đối tác gửi là đúng nơi để thử chèn mã.',
   })
   @IsString()

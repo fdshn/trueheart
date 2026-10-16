@@ -38,6 +38,8 @@ describe('isBannerTargetUrl', () => {
   it('nhận https và deep link của app', () => {
     expect(isBannerTargetUrl('https://anlac.vn/vu-lan')).toBe(true);
     expect(isBannerTargetUrl('chantam://campaigns/vu-lan')).toBe(true);
+    // Cả hai tên lược đồ cho tới khi mobile chốt một (CMS B7).
+    expect(isBannerTargetUrl('givingapp://campaigns/vu-lan')).toBe(true);
   });
 
   it('từ chối javascript: và http:', () => {

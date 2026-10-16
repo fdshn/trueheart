@@ -81,7 +81,7 @@ export class HomeBannerDto {
   @ApiPropertyOptional({
     example: 'givingapp://campaign/vu-lan-2026',
     description:
-      'Chỉ nhận `givingapp://` hoặc `https://`. Giao thức khác về `null` — chuỗi này đi thẳng vào hàm mở link của app.',
+      'Nhận `givingapp://`, `chantam://` hoặc `https://` — hai tên lược đồ app được nhận như nhau cho tới khi mobile chốt một. Giao thức khác về `null` (kèm một dòng trong `warnings`) — chuỗi này đi thẳng vào hàm mở link của app.',
   })
   @IsOptional()
   deepLink?: string | null;

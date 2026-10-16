@@ -70,6 +70,9 @@ describe('kiểm giá trị', () => {
 
   it('deep link chỉ nhận givingapp:// hoặc https://', () => {
     expect(isHomeDeepLink('givingapp://category/cuu-tro')).toBe(true);
+    // Cả hai tên lược đồ cho tới khi mobile chốt một (CMS B7).
+    expect(isHomeDeepLink('chantam://category/cuu-tro')).toBe(true);
+    expect(isHomeDeepLink('javascript:alert("chantam://x")')).toBe(false);
     expect(isHomeDeepLink('https://chantam.vn/campaign/vu-lan')).toBe(true);
     // Đây là chỗ thiệt hại lan ra NGOÀI hệ thống nếu tài khoản Admin bị chiếm:
     // chuỗi này đi thẳng vào hàm mở link của app.

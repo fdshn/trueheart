@@ -11,6 +11,7 @@ export * from './check-in';
 export * from './classified';
 export * from './content-moderation';
 export * from './content-moderation.corpus';
+export * from './deep-link';
 export * from './dharma';
 export * from './dharma-forum';
 export * from './entitlement';

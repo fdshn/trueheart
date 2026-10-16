@@ -1,3 +1,5 @@
+import { AppDeepLinkSchemes, isAppDeepLink } from './deep-link';
+
 /**
  * Home động theo chiến dịch (SRS §6.2.11 `home_campaign_configs`, UC-ADM-03, F63).
  *
@@ -50,12 +52,12 @@ export type HomeSectionType = (typeof HomeSectionTypes)[number];
 /**
  * Giao thức được phép cho deep link và ảnh.
  *
- * `givingapp://` là deep link trong app; `https://` cho ảnh CDN và link web. Chặn mọi thứ
+ * `givingapp://` hoặc `chantam://` là deep link trong app (xem `AppDeepLinkSchemes`);
+ * `https://` cho ảnh CDN và link web. Chặn mọi thứ
  * khác là có chủ ý: một ô text tự do đi thẳng vào hàm mở link của app là đường để
  * `javascript:` hay `intent://` lọt xuống máy người dùng. Admin bị chiếm tài khoản thì đây
  * là chỗ thiệt hại lan ra ngoài hệ thống.
  */
-export const HomeDeepLinkScheme = 'givingapp://';
 export const HomeHttpsScheme = 'https://';
 
 export interface IHomeTheme {
@@ -194,12 +196,11 @@ export function isHomeImageUrl(value: unknown): value is string {
   );
 }
 
-/** Deep link chỉ nhận `givingapp://` hoặc `https://`. */
+/** Deep link nhận `givingapp://`, `chantam://` hoặc `https://`. */
 export function isHomeDeepLink(value: unknown): value is string {
   return (
     typeof value === 'string' &&
-    (value.startsWith(HomeDeepLinkScheme) ||
-      value.startsWith(HomeHttpsScheme)) &&
+    (isAppDeepLink(value) || value.startsWith(HomeHttpsScheme)) &&
     value.length <= 2_000
   );
 }
@@ -381,7 +382,7 @@ export function homeCampaignWarnings(input: {
   const warnDeepLink = (path: string, value: unknown) => {
     if (isProvided(value) && !isHomeDeepLink(value))
       warnings.push(
-        `${path}: bỏ vì chỉ nhận ${HomeDeepLinkScheme} hoặc ${HomeHttpsScheme}`,
+        `${path}: bỏ vì chỉ nhận ${[...AppDeepLinkSchemes, HomeHttpsScheme].join(', ')}`,
       );
   };
   const warnTruncated = (path: string, value: unknown, maxLength: number) => {
