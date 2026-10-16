@@ -66,13 +66,8 @@ export class RemoveChatMessageUseCase implements IRemoveChatMessageUseCase {
     if (outcome.status === 'NOT_FOUND')
       throw new ChatMessageNotFoundException();
 
-    await announceAdminRemoval(
-      this.storage,
-      this.realtime,
-      command.messageId,
-      outcome,
-    );
-
+    // Audit ngay khi tin ĐÃ gỡ trong database, trước xoá ảnh và báo realtime: xoá
+    // ảnh hỏng thì Admin vẫn nhận lỗi để bấm lại, nhưng thao tác đã diễn ra phải có vết.
     await this.manager.query(
       `
         INSERT INTO admin_audit_logs
@@ -89,6 +84,13 @@ export class RemoveChatMessageUseCase implements IRemoveChatMessageUseCase {
         }),
         command.reason,
       ],
+    );
+
+    await announceAdminRemoval(
+      this.storage,
+      this.realtime,
+      command.messageId,
+      outcome,
     );
 
     return { messageId: command.messageId, roomId: outcome.roomId };

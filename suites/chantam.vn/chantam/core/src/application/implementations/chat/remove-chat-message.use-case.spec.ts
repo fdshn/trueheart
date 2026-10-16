@@ -141,4 +141,17 @@ describe('RemoveChatMessageUseCase', () => {
     expect(result).toEqual({ messageId: MessageId, roomId: RoomId });
     expect(deps.manager.query).toHaveBeenCalledTimes(1);
   });
+
+  it('xoá ảnh trên storage lỗi: tin ĐÃ gỡ nên audit vẫn phải có', async () => {
+    // Tin đã gỡ trong database. Audit ghi sau bước xoá ảnh thì một lần storage
+    // hỏng là một thao tác kiểm duyệt không để lại vết.
+    const deps = makeDeps({ mediaKeys: ['a'] });
+    deps.storage.deleteObjects.mockRejectedValueOnce(new Error('s3 down'));
+
+    await expect(build(deps).handle(command)).rejects.toThrow('s3 down');
+    expect(deps.manager.query).toHaveBeenCalledTimes(1);
+    expect(String(deps.manager.query.mock.calls[0]![0])).toContain(
+      "'REMOVE_CHAT_MESSAGE'",
+    );
+  });
 });
