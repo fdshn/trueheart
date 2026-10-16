@@ -72,3 +72,18 @@ export interface IDissolveAdminGroupUseCase extends IUseCase<
 > {}
 
 export const IDissolveAdminGroupUseCase = Symbol('IDissolveAdminGroupUseCase');
+
+export interface IRotateAdminGroupInviteCommand {
+  readonly actorUserId: string;
+  readonly groupId: string;
+  readonly reason: string;
+}
+
+export interface IRotateAdminGroupInviteUseCase extends IUseCase<
+  IRotateAdminGroupInviteCommand,
+  { readonly group: IAdminGroupDetail }
+> {}
+
+export const IRotateAdminGroupInviteUseCase = Symbol(
+  'IRotateAdminGroupInviteUseCase',
+);

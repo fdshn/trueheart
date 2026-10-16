@@ -1124,4 +1124,20 @@ export class GroupRepository
       return true;
     });
   }
+
+  public async rotateInviteCode(params: {
+    groupId: string;
+    inviteCode: string;
+  }): Promise<boolean> {
+    const result = await this.entityManager.query<unknown[]>(
+      `
+        UPDATE groups
+        SET invite_code = $2, updated_at = now()
+        WHERE global_id = $1 AND status = $3 AND deleted_at IS NULL
+      `,
+      [params.groupId, params.inviteCode, GroupStatuses.ACTIVE],
+    );
+    // TypeORM bọc UPDATE thành `[rows, affected]`.
+    return Number((result as unknown as [unknown[], number])[1] ?? 0) > 0;
+  }
 }

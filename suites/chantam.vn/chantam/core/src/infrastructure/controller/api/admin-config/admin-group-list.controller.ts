@@ -3,6 +3,7 @@ import {
   IGetAdminGroupUseCase,
   IListAdminGroupMembersUseCase,
   IListAdminGroupsUseCase,
+  IRotateAdminGroupInviteUseCase,
 } from '@/application/contracts/admin-config';
 import {
   GroupAlreadyDissolvedException,
@@ -42,6 +43,7 @@ import {
   ListAdminGroupMembersResponseDto,
   ListAdminGroupsQueryDto,
   ListAdminGroupsResponseDto,
+  RotateAdminGroupInviteBodyDto,
 } from '../../dto/admin-config/admin-group-list.dto';
 import { RequiresPermission } from '../../guards';
 
@@ -58,6 +60,8 @@ export class AdminGroupListController {
     private readonly membersUseCase: IListAdminGroupMembersUseCase,
     @Inject(IDissolveAdminGroupUseCase)
     private readonly dissolveUseCase: IDissolveAdminGroupUseCase,
+    @Inject(IRotateAdminGroupInviteUseCase)
+    private readonly rotateUseCase: IRotateAdminGroupInviteUseCase,
   ) {}
 
   @Get()
@@ -179,6 +183,42 @@ export class AdminGroupListController {
           actorUserId: principal.userId,
           groupId: params.groupId,
           reason: body.dissolution.reason,
+        }),
+      )
+      .build();
+  }
+
+  @Post(':groupId/invite-link/rotate')
+  @RequiresPermission('admin.manage')
+  @ApiOperation({
+    summary: 'Đổi mã mời của một nhóm (khi link bị lộ)',
+    description:
+      'CHỈ Admin — Owner và thành viên không đổi được mã ở Phase 1. Mã cũ chết ngay; người đã vào nhóm bằng mã cũ không bị ảnh hưởng. Response trả chi tiết nhóm kèm `inviteCode` mới.\n\n' +
+      '`reason` bắt buộc, audit `ROTATE_GROUP_INVITE` ghi cả mã cũ lẫn mã mới. Nhóm không còn ACTIVE → `409 GROUP_ALREADY_DISSOLVED`. Quyền `admin.manage`.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ForbiddenException,
+    [
+      ValidationFailedException,
+      ['rotation.reason must be longer than or equal to 3 characters'],
+    ],
+    [GroupNotFoundException],
+    [GroupAlreadyDissolvedException],
+  )
+  @ApiOkResponse({ type: ResponseDto.forApi(AdminGroupDetailResponseDto) })
+  public async rotateInvite(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: AdminGroupIdParamDto,
+    @Body() body: RotateAdminGroupInviteBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.rotateUseCase.handle({
+          actorUserId: principal.userId,
+          groupId: params.groupId,
+          reason: body.rotation.reason,
         }),
       )
       .build();

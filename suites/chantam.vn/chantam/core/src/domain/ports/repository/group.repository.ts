@@ -358,6 +358,15 @@ export interface IGroupRepository {
    * `false` khi nhóm không còn ACTIVE (đã giải tán hoặc không tồn tại).
    */
   dissolveById(groupId: string): Promise<boolean>;
+
+  /**
+   * Admin đổi mã mời khi link bị lộ (SRS 3.7A, phương án C). Chỉ nhóm ACTIVE;
+   * `false` khi nhóm không còn ACTIVE. Mã cũ chết ngay trong cùng câu lệnh.
+   */
+  rotateInviteCode(params: {
+    groupId: string;
+    inviteCode: string;
+  }): Promise<boolean>;
 }
 
 export interface IAdminGroupDetail extends IAdminGroupListItem {

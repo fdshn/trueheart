@@ -168,3 +168,14 @@ export class DissolveAdminGroupBodyDto {
   @Type(() => DissolveAdminGroupDto)
   dissolution: DissolveAdminGroupDto;
 }
+
+export class RotateAdminGroupInviteBodyDto {
+  @ApiProperty({
+    type: () => DissolveAdminGroupDto,
+    description: 'Cùng dạng `{ reason }`.',
+  })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => DissolveAdminGroupDto)
+  rotation: DissolveAdminGroupDto;
+}

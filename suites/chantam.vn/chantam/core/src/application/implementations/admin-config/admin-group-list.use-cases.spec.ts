@@ -8,6 +8,7 @@ import {
   GetAdminGroupUseCase,
   ListAdminGroupMembersUseCase,
   ListAdminGroupsUseCase,
+  RotateAdminGroupInviteUseCase,
 } from './admin-group-list.use-cases';
 
 const ActorId = '10000000-0000-4000-8000-000000000001';
@@ -172,6 +173,73 @@ describe('Admin quản trị nhóm (SRS 3.7A)', () => {
         deps.permissions as never,
         deps.groups as never,
       ).handle({ actorUserId: ActorId, groupId: GroupId, reason: 'Lần hai' }),
+    ).rejects.toThrow(GroupAlreadyDissolvedException);
+    expect(deps.permissions.appendAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe('RotateAdminGroupInviteUseCase (SRS 3.7A, phương án C)', () => {
+  const GroupId = '20000000-0000-4000-8000-000000000002';
+
+  function rotateDeps(granted: string[], rotated = true) {
+    const details = [
+      { groupId: GroupId, inviteCode: 'OLDCODE234567890' },
+      { groupId: GroupId, inviteCode: 'NEWCODE234567890' },
+    ];
+    return {
+      permissions: {
+        hasPermission: jest.fn(async (_id: string, code: string) =>
+          granted.includes(code),
+        ),
+        appendAudit: jest.fn(async () => undefined),
+      },
+      groups: {
+        findAdminDetail: jest.fn(async () => details.shift() ?? null),
+        rotateInviteCode: jest.fn(async () => rotated),
+      },
+    };
+  }
+
+  it('chỉ admin.manage — Owner hay quyền đọc nhóm KHÔNG đổi được mã', async () => {
+    const deps = rotateDeps(['config.read']);
+    await expect(
+      new RotateAdminGroupInviteUseCase(
+        deps.permissions as never,
+        deps.groups as never,
+      ).handle({ actorUserId: ActorId, groupId: GroupId, reason: 'Lộ link' }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(deps.groups.rotateInviteCode).not.toHaveBeenCalled();
+  });
+
+  it('sinh mã mới 16 ký tự và ghi audit cả mã cũ lẫn mã mới', async () => {
+    const deps = rotateDeps(['admin.manage']);
+    const result = await new RotateAdminGroupInviteUseCase(
+      deps.permissions as never,
+      deps.groups as never,
+    ).handle({ actorUserId: ActorId, groupId: GroupId, reason: ' Lộ link ' });
+
+    const [[call]] = deps.groups.rotateInviteCode.mock.calls as unknown as [
+      [{ inviteCode: string }],
+    ];
+    expect(call.inviteCode).toMatch(/^[A-Z0-9]{16}$/);
+    expect(deps.permissions.appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'ROTATE_GROUP_INVITE',
+        before: { inviteCode: 'OLDCODE234567890' },
+        after: { inviteCode: 'NEWCODE234567890' },
+        reason: 'Lộ link',
+      }),
+    );
+    expect(result.group.inviteCode).toBe('NEWCODE234567890');
+  });
+
+  it('nhóm không còn ACTIVE thì 409, không audit', async () => {
+    const deps = rotateDeps(['admin.manage'], false);
+    await expect(
+      new RotateAdminGroupInviteUseCase(
+        deps.permissions as never,
+        deps.groups as never,
+      ).handle({ actorUserId: ActorId, groupId: GroupId, reason: 'Lộ link' }),
     ).rejects.toThrow(GroupAlreadyDissolvedException);
     expect(deps.permissions.appendAudit).not.toHaveBeenCalled();
   });

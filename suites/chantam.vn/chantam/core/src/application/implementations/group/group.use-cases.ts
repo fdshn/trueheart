@@ -36,7 +36,7 @@ import { GroupCreationEligibility } from './group-creation-eligibility';
  */
 const InviteAlphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
-function makeInviteCode(): string {
+export function makeInviteCode(): string {
   const bytes = randomBytes(GroupInviteCodeLength);
 
   return Array.from(bytes)

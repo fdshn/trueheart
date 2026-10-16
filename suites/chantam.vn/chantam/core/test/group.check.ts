@@ -925,6 +925,35 @@ async function main(): Promise<void> {
         (await groups.findAdminDetail(OtherGroupId))?.dissolvedAt?.getTime() ===
           adminAfter?.dissolvedAt?.getTime(),
     );
+
+    console.log('\nR. Admin đổi mã mời (SRS 3.7A, phương án C)');
+    const beforeRotate = await groups.findAdminDetail(RebornGroupId);
+    const NewCode = 'ROTATED234567890';
+    check(
+      'nhóm ACTIVE đổi được mã',
+      await groups.rotateInviteCode({
+        groupId: RebornGroupId,
+        inviteCode: NewCode,
+      }),
+    );
+    check(
+      'mã cũ chết ngay, mã mới tra ra đúng nhóm',
+      (await groups.findActiveByInviteCode(beforeRotate?.inviteCode ?? '')) ===
+        null &&
+        (await groups.findActiveByInviteCode(NewCode))?.groupId ===
+          RebornGroupId,
+    );
+    check(
+      'thành viên đã vào bằng mã cũ không bị ảnh hưởng',
+      (await groups.findMine(MemberId))?.groupId === RebornGroupId,
+    );
+    check(
+      'nhóm đã giải tán thì không đổi được mã',
+      !(await groups.rotateInviteCode({
+        groupId: OtherGroupId,
+        inviteCode: 'NEVERUSED2345678',
+      })),
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

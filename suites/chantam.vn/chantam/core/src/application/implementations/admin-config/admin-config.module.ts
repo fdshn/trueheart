@@ -36,6 +36,7 @@ import {
   IReleaseVerifiedPhoneUseCase,
   IReplaceGroupRolePermissionsUseCase,
   IReviewChatFlagUseCase,
+  IRotateAdminGroupInviteUseCase,
   ISetAllocationPolicyUseCase,
   ISetCandidateSelectionUseCase,
   ISetTrustThresholdUseCase,
@@ -64,6 +65,7 @@ import {
   GetAdminGroupUseCase,
   ListAdminGroupMembersUseCase,
   ListAdminGroupsUseCase,
+  RotateAdminGroupInviteUseCase,
 } from './admin-group-list.use-cases';
 import {
   GetGroupRadiusPolicyUseCase,
@@ -192,6 +194,10 @@ import {
       useClass: DissolveAdminGroupUseCase,
     },
     {
+      provide: IRotateAdminGroupInviteUseCase,
+      useClass: RotateAdminGroupInviteUseCase,
+    },
+    {
       provide: IPublishGroupRadiusPolicyUseCase,
       useClass: PublishGroupRadiusPolicyUseCase,
     },
@@ -284,6 +290,7 @@ import {
     IGetAdminGroupUseCase,
     IListAdminGroupMembersUseCase,
     IDissolveAdminGroupUseCase,
+    IRotateAdminGroupInviteUseCase,
     IGetGroupRolePermissionsUseCase,
     IPublishGroupRadiusPolicyUseCase,
     IReplaceGroupRolePermissionsUseCase,
