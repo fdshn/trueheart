@@ -1,4 +1,5 @@
 import {
+  CharityTransferStatuses,
   PostTypes,
   PublicDiscoveryPostType,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -146,6 +147,10 @@ export interface IAdminPostSummary {
   readonly mediaCount: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+  /** `null` khi chủ bài chưa từng xin chuyển về điểm từ thiện. */
+  readonly charityTransferStatus: CharityTransferStatuses | null;
+  readonly charityTransferRequestedAt: Date | null;
+  readonly charityTransferNote: string | null;
 }
 
 export interface IFindAdminPostsParams {
@@ -154,6 +159,7 @@ export interface IFindAdminPostsParams {
   readonly categoryId?: string;
   readonly authorId?: string;
   readonly keyword?: string;
+  readonly charityTransferStatus?: CharityTransferStatuses;
   readonly skip: number;
   readonly take: number;
 }

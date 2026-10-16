@@ -61,7 +61,8 @@ export class AdminPostController {
   @ApiOperation({
     summary: 'Hàng đợi bài đăng cho CMS',
     description:
-      'Không lọc sẵn theo trạng thái nào — bài lên thẳng nên không còn hàng đợi duyệt. Hỗ trợ lọc trạng thái, loại bài, category, author và keyword.',
+      'Không lọc sẵn theo trạng thái nào — bài lên thẳng nên không còn hàng đợi duyệt. Hỗ trợ lọc trạng thái, loại bài, category, author và keyword.\n\n' +
+      '**Hàng đợi chuyển về điểm từ thiện**: `charityTransferStatus=REQUESTED` — xếp theo lượt xin, chờ lâu nhất trước. Duyệt/từ chối qua `PATCH /posts/:postId/charity-transfer` (quyền `post.moderate`).',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(ListAdminPostsResponseDto) })
   @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
@@ -79,6 +80,7 @@ export class AdminPostController {
           categoryId: query.categoryId,
           authorId: query.authorId,
           keyword: query.keyword,
+          charityTransferStatus: query.charityTransferStatus,
           page: query.page,
           pageSize: query.pageSize,
         }),

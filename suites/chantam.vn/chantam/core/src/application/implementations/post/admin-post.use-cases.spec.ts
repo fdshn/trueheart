@@ -5,6 +5,7 @@ import {
   IPostRepository,
 } from '@/domain/ports/repository';
 import {
+  CharityTransferStatuses,
   GiftPostStatuses,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -37,6 +38,9 @@ function makeSummary(): IAdminPostSummary {
     mediaCount: 2,
     createdAt: new Date('2026-09-20T00:00:00Z'),
     updatedAt: new Date('2026-09-20T00:00:00Z'),
+    charityTransferStatus: null,
+    charityTransferRequestedAt: null,
+    charityTransferNote: null,
   };
 }
 
@@ -77,6 +81,21 @@ describe('ListAdminPostsUseCase', () => {
     );
     expect(result.posts).toHaveLength(1);
     expect(result.meta.total).toBe(1);
+  });
+
+  it('chuyển bộ lọc hàng đợi chuyển từ thiện xuống repository (CMS A8)', async () => {
+    const posts = {
+      findAdminPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+    } as unknown as jest.Mocked<IPostRepository>;
+
+    await new ListAdminPostsUseCase(posts, makeAdmin()).handle({
+      actorUserId: ActorId,
+      charityTransferStatus: CharityTransferStatuses.REQUESTED,
+    });
+
+    expect(posts.findAdminPosts).toHaveBeenCalledWith(
+      expect.objectContaining({ charityTransferStatus: 'REQUESTED' }),
+    );
   });
 
   it('từ chối trước khi query khi thiếu post.read', async () => {

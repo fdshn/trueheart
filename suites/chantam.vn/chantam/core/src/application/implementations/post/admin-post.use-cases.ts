@@ -63,6 +63,7 @@ export class ListAdminPostsUseCase implements IListAdminPostsUseCase {
       categoryId: command.categoryId,
       authorId: command.authorId,
       keyword: command.keyword?.trim() || undefined,
+      charityTransferStatus: command.charityTransferStatus,
       skip,
       take,
     });
