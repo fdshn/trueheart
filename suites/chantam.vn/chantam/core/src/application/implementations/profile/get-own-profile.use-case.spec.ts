@@ -66,7 +66,13 @@ function makeDeps(user: unknown) {
     pointUseCase: { handle: jest.fn(async () => ({ point: PointSummary })) },
     rankUseCase: { handle: jest.fn(async () => ({ rank: RankSummary })) },
     entitlementUseCase: {
-      handle: jest.fn(async () => ({ entitlements: Entitlements })),
+      handle: jest.fn(async () => ({
+        entitlements: Entitlements,
+        groupCreation: {
+          canCreateGroup: false,
+          reasonCode: 'GROUP_CREATE_NOT_ALLOWED',
+        },
+      })),
     },
     reviewRepository: {
       getAccuracy: jest.fn(async () => ({
@@ -160,6 +166,11 @@ describe('GetOwnProfileUseCase', () => {
           point: PointSummary,
           rankProgress: RankSummary,
           entitlements: Entitlements,
+          // SRS 3.7A: cùng lượt tính với entitlements, không hỏi thêm.
+          groupCreation: {
+            canCreateGroup: false,
+            reasonCode: 'GROUP_CREATE_NOT_ALLOWED',
+          },
         },
       },
     );

@@ -34,6 +34,7 @@ import {
 } from 'class-validator';
 import { EntitlementsSummaryDto } from '../entitlement';
 import { GeoPointDto } from '../geo-point.dto';
+import { GroupCreationEligibilityDto } from '../group/group-creation.dto';
 import { PointSummaryDto } from '../point';
 import { RankSummaryDto } from '../rank';
 import { ReferralSummaryDto } from '../referral';
@@ -205,6 +206,14 @@ export class OwnProfileDto implements IOwnProfileDto {
     description: 'Quyền và hạn mức theo hạng, trùng với /me/entitlements.',
   })
   entitlements?: IEntitlementsSummaryDto | null;
+
+  @ApiProperty({
+    type: () => GroupCreationEligibilityDto,
+    nullable: true,
+    description:
+      'Tạo được nhóm chưa, và nếu chưa thì vì sao — trùng với `GET /me/entitlements` và `GET /groups/me` (SRS 3.7A).',
+  })
+  groupCreation?: GroupCreationEligibilityDto | null;
 
   @ApiProperty({
     type: () => GiverAccuracySummaryDto,
