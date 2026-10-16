@@ -350,3 +350,75 @@ describe('StorageService.confirmCampaignMediaUpload', () => {
     ).rejects.toMatchObject({ name: 'NoSuchKey' });
   });
 });
+
+describe('StorageService · thư viện ảnh CMS (CMS A2)', () => {
+  const adminId = '22222222-2222-2222-2222-222222222222';
+
+  it('chỉ nhận ảnh, sinh key dưới users/<adminId>/cms-media/', async () => {
+    const { getSignedUrl } = jest.requireMock(
+      '@aws-sdk/s3-request-presigner',
+    ) as { getSignedUrl: jest.Mock };
+    getSignedUrl.mockResolvedValue('https://mock-storage.local/upload-url');
+    const storage = new StorageService(
+      {} as never,
+      {
+        bucket: 'chantam-test',
+        publicBaseUrl: 'https://cdn.chantam.test/',
+      } as never,
+    );
+
+    const result = await storage.createCmsMediaUpload({
+      userId: adminId,
+      contentType: 'image/png',
+      contentLength: 1000,
+    });
+    expect(result.key).toMatch(
+      /^users\/22222222-2222-2222-2222-222222222222\/cms-media\/[0-9a-f-]{36}\.png$/,
+    );
+    expect(result.publicUrl).toBe(`https://cdn.chantam.test/${result.key}`);
+
+    await expect(
+      storage.createCmsMediaUpload({
+        userId: adminId,
+        contentType: 'video/mp4',
+        contentLength: 1000,
+      }),
+    ).rejects.toMatchObject({ name: 'StorageValidationError' });
+    await expect(
+      storage.createCmsMediaUpload({
+        userId: adminId,
+        contentType: 'image/webp',
+        contentLength: 5 * 1024 * 1024 + 1,
+      }),
+    ).rejects.toMatchObject({ name: 'StorageValidationError' });
+  });
+
+  it('xác nhận: sai tiền tố từ chối trước HeadObject; ảnh hợp lệ trả URL', async () => {
+    const client = { send: jest.fn() };
+    const storage = new StorageService(
+      client as never,
+      {
+        bucket: 'chantam-test',
+        publicBaseUrl: 'https://cdn.chantam.test',
+      } as never,
+    );
+
+    await expect(
+      storage.confirmCmsMediaUpload(
+        adminId,
+        `users/${adminId}/campaign-media/a.webp`,
+      ),
+    ).rejects.toThrow();
+    expect(client.send).not.toHaveBeenCalled();
+
+    client.send.mockResolvedValueOnce({
+      ContentType: 'image/webp',
+      ContentLength: 1000,
+    });
+    const key = `users/${adminId}/cms-media/a.webp`;
+    await expect(storage.confirmCmsMediaUpload(adminId, key)).resolves.toEqual({
+      contentType: 'image/webp',
+      publicUrl: `https://cdn.chantam.test/${key}`,
+    });
+  });
+});

@@ -23,6 +23,10 @@ export interface ICampaignMediaConfirmation {
     mediaType: 'IMAGE' | 'VIDEO';
     publicUrl: string;
 }
+export interface ICmsMediaConfirmation {
+    contentType: string;
+    publicUrl: string;
+}
 export interface IChatMediaUploadRequest extends IStorageUploadRequest {
     roomId: string;
 }
@@ -39,6 +43,8 @@ export interface IObjectStorage {
     confirmChatMediaUpload(userId: string, roomId: string, key: string): Promise<void>;
     createCampaignMediaUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
     confirmCampaignMediaUpload(userId: string, key: string): Promise<ICampaignMediaConfirmation>;
+    createCmsMediaUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
+    confirmCmsMediaUpload(userId: string, key: string): Promise<ICmsMediaConfirmation>;
     deleteObjects(keys: readonly string[]): Promise<number>;
     listObjects(params: {
         prefix: string;

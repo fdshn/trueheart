@@ -43,6 +43,7 @@ exports.MediaSizeLimits = {
     transactionEvidence: 5 * Megabyte,
     chatMedia: 5 * Megabyte,
     commentMedia: 5 * Megabyte,
+    cmsMedia: 5 * Megabyte,
 };
 const MediaLabels = {
     avatar: 'Avatar',
@@ -51,6 +52,7 @@ const MediaLabels = {
     chatMedia: 'Ảnh trong chat',
     commentMedia: 'Ảnh bình luận',
     campaignMedia: 'Phương tiện hoạt động từ thiện',
+    cmsMedia: 'Ảnh thư viện CMS',
 };
 function getMediaExtension(contentType) {
     switch (contentType) {
@@ -199,6 +201,31 @@ let StorageService = class StorageService {
             key,
             uploadUrl,
             expiresInSeconds,
+            publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+        };
+    }
+    async createCmsMediaUpload(request) {
+        assertUploadPolicy('cmsMedia', request);
+        const extension = getMediaExtension(request.contentType);
+        const key = `users/${request.userId}/cms-media/${(0, node_crypto_1.randomUUID)()}.${extension}`;
+        const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
+        const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.client, new client_s3_1.PutObjectCommand({
+            Bucket: this.options.bucket,
+            Key: key,
+            ContentType: request.contentType,
+            ContentLength: request.contentLength,
+        }), { expiresIn: expiresInSeconds });
+        return {
+            key,
+            uploadUrl,
+            expiresInSeconds,
+            publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+        };
+    }
+    async confirmCmsMediaUpload(userId, key) {
+        const contentType = await this.verifyObject('cmsMedia', `users/${userId}/cms-media/`, key);
+        return {
+            contentType,
             publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
         };
     }

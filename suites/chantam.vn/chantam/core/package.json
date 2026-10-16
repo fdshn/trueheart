@@ -48,6 +48,7 @@
     "test:category": "ts-node -r tsconfig-paths/register test/category.check.ts",
     "test:referral": "ts-node -r tsconfig-paths/register test/referral.check.ts",
     "test:media-policy": "ts-node -r tsconfig-paths/register test/media-policy.check.ts",
+    "test:media-library": "ts-node -r tsconfig-paths/register test/media-library.check.ts",
     "test:phone-identity": "ts-node -r tsconfig-paths/register test/phone-identity.check.ts",
     "test:user-activity": "ts-node -r tsconfig-paths/register test/user-activity.check.ts",
     "test:feed-merge": "ts-node -r tsconfig-paths/register test/feed-merge.check.ts",

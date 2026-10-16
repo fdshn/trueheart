@@ -126,3 +126,4 @@ export * from './1800600000000-GrantCampaignManagerAdminAccess';
 export * from './1800700000000-AddPointReadPermission';
 export * from './1800800000000-AllowBothDeepLinkSchemesOnBanners';
 export * from './1800900000000-AddBroadcastLease';
+export * from './1801000000000-CreateMediaAssets';

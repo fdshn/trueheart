@@ -35,6 +35,11 @@ export interface ICampaignMediaConfirmation {
   publicUrl: string;
 }
 
+export interface ICmsMediaConfirmation {
+  contentType: string;
+  publicUrl: string;
+}
+
 export interface IChatMediaUploadRequest extends IStorageUploadRequest {
   /**
    * Khoá theo PHÒNG chứ không theo tin nhắn: chat chỉ ghi thêm, tin nhắn được
@@ -110,6 +115,20 @@ export interface IObjectStorage {
     userId: string,
     key: string,
   ): Promise<ICampaignMediaConfirmation>;
+  /**
+   * Ảnh thư viện chung của CMS — banner, bìa blog, ảnh chiến dịch Home, nội dung pháp.
+   *
+   * CHỈ ảnh: mọi chỗ CMS dùng ảnh là `https://` ảnh tĩnh, không chỗ nào phát video. Khoá
+   * theo người tải (`users/<adminId>/cms-media/`) để vẫn truy được ai đưa ảnh lên, và
+   * để job dọn rác quét được như mọi tiền tố khác.
+   */
+  createCmsMediaUpload(
+    request: IStorageUploadRequest,
+  ): Promise<IStorageUploadResult>;
+  confirmCmsMediaUpload(
+    userId: string,
+    key: string,
+  ): Promise<ICmsMediaConfirmation>;
   /**
    * Xoa object theo lo, kieu co-gang.
    *
