@@ -17,7 +17,9 @@
  */
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
+import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
+import { IDispatchNotificationCommand } from '../src/application/contracts/notification';
 import { GetLunarTodayUseCase } from '../src/application/implementations/lunar/lunar.use-cases';
 import { NotifyLunarObservanceUseCase } from '../src/application/implementations/lunar/notify-lunar-observance.use-case';
 import * as entities from '../src/infrastructure/entity';
@@ -26,6 +28,7 @@ import {
   BulkNotifyAudienceRepository,
   LunarHolidayRepository,
 } from '../src/infrastructure/repository/lunar-holiday.repository';
+import { NotificationRepository } from '../src/infrastructure/repository/notification.repository';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -357,23 +360,26 @@ async function main(): Promise<void> {
     }
 
     console.log('\n7. Thông báo ngày Rằm (mục mở L28)');
+    const notifications = new NotificationRepository(dataSource.manager);
     const notifier = new NotifyLunarObservanceUseCase(
       repository as never,
       new BulkNotifyAudienceRepository(dataSource.manager),
       {
-        handle: async (command: {
-          userId: string;
-          idempotencyKey?: string | null;
-        }) => {
-          const [row] = await dataSource.query<{ created: boolean }[]>(
-            `INSERT INTO notifications
-               (global_id, user_id, type, title, body, idempotency_key)
-             VALUES (gen_random_uuid(), $1, 'LUNAR_OBSERVANCE', 'x', 'y', $2)
-             ON CONFLICT (idempotency_key) DO NOTHING
-             RETURNING true AS created`,
-            [command.userId, command.idempotencyKey],
-          );
-          return { created: row !== undefined, pushedDevices: 0 };
+        // Ghi qua repository THẬT với đúng các trường use case gửi đi. Bản giả cũ chỉ
+        // chèn vài cột và bỏ `reference_id`, nên một `referenceId` không phải uuid
+        // (`"15/07"`) lọt qua đây mà ngoài production thì mọi dòng đều 22P02.
+        handle: async (command: IDispatchNotificationCommand) => {
+          const created = await notifications.create({
+            globalId: randomUUID(),
+            userId: command.userId,
+            type: command.type,
+            title: command.title,
+            body: command.body,
+            referenceType: command.referenceType ?? null,
+            referenceId: command.referenceId ?? null,
+            idempotencyKey: command.idempotencyKey ?? null,
+          });
+          return { created: created !== null, pushedDevices: 0 };
         },
       } as never,
     );

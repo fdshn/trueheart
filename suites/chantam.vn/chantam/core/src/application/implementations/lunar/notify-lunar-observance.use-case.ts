@@ -117,7 +117,9 @@ export class NotifyLunarObservanceUseCase implements INotifyLunarObservanceUseCa
             title,
             body,
             referenceType: 'LUNAR',
-            referenceId: lunarDate,
+            // `reference_id` là cột uuid: ngày âm "15/07" ghi vào đó là 22P02 cho MỌI người
+            // nhận. Ngày đã nằm trong `variables` và khoá chống trùng.
+            referenceId: null,
             // Khoá gắn NGÀY ÂM LỊCH và năm âm lịch: chạy lại trong cùng ngày không gửi
             // trùng, mà sang Rằm tháng sau thì vẫn gửi được.
             idempotencyKey: `LUNAR_OBSERVANCE:${lunar.year}:${lunar.month}:${lunar.day}:${user.globalId}`,
