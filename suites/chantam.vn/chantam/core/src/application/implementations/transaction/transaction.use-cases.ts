@@ -18,6 +18,7 @@ import {
   IListOwnGiftTransactionsUseCase,
 } from '@/application/contracts/transaction';
 import { GiftTransactionNotFoundException } from '@/domain/exceptions';
+import { IConfig } from '@/domain/ports/config';
 import {
   IAdminConfigRepository,
   IChatRepository,
@@ -27,11 +28,15 @@ import {
 } from '@/domain/ports/repository';
 import {
   CandidateSelectionConfigKey,
+  MaxEvidencePerKind,
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IGiftTransactionDto } from '@chantam.vn/chantam.core-lib/dto';
 import { pickNextCandidate } from '@chantam.vn/chantam.core-lib/models';
+import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { withStorageValidation } from '../shared/storage-error';
+import { toEvidenceItems } from './evidence-view';
 import { RefundRedemptionOnCloseService } from './refund-redemption-on-close.service';
 
 /**
@@ -139,6 +144,7 @@ export class GetGiftTransactionUseCase implements IGetGiftTransactionUseCase {
   public constructor(
     @Inject(IGiftTransactionRepository)
     private readonly transactions: IGiftTransactionRepository,
+    @Inject(IConfig) private readonly config: IConfig,
   ) {}
 
   public async handle(
@@ -157,7 +163,16 @@ export class GetGiftTransactionUseCase implements IGetGiftTransactionUseCase {
     )
       throw new GiftTransactionNotFoundException();
 
-    return { transaction: toDto(transaction) };
+    // Ảnh đọc SAU phép kiểm hai bên: người ngoài không được chạm tới bảng ảnh.
+    // Cả hai bên thấy ảnh của nhau — ảnh lúc trao chỉ tạo được thế bất đối xứng
+    // khi tranh chấp nếu người nhận XEM được nó.
+    const evidence = await this.transactions.listEvidence(
+      command.transactionId,
+    );
+    return {
+      transaction: toDto(transaction),
+      evidence: toEvidenceItems(this.config.storage.publicBaseUrl, evidence),
+    };
   }
 }
 
@@ -171,15 +186,29 @@ export class ConfirmGiftReceiptUseCase implements IConfirmGiftReceiptUseCase {
     @Inject(IChatRepository) private readonly chat: IChatRepository,
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatchNotification: IDispatchNotificationUseCase,
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
   ) {}
 
   public async handle(
     command: IConfirmGiftReceiptCommand,
   ): Promise<IConfirmGiftReceiptResult> {
+    // Cùng khuôn với bước trao đồ: xác nhận từng object CÓ THẬT trên storage, dưới
+    // tiền tố của chính người nhận và đúng lượt trao, TRƯỚC khi ghi. Không kiểm thì
+    // người nhận gắn được key của người khác — hoặc một key bịa — vào bằng chứng.
+    const keys = (command.evidenceKeys ?? []).slice(0, MaxEvidencePerKind);
+    for (const key of keys)
+      await withStorageValidation('evidenceKeys', () =>
+        this.storage.confirmTransactionEvidenceUpload(
+          command.userId,
+          command.transactionId,
+          key,
+        ),
+      );
+
     const transaction = await this.transactions.confirmReceipt(
       command.transactionId,
       command.userId,
-      command.evidenceKeys ?? [],
+      keys,
     );
 
     // Sau khi commit. Hai thông báo, hai chuyện khác nhau: một cái nói lượt trao

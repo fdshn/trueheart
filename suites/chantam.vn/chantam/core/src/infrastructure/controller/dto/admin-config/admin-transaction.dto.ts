@@ -1,4 +1,3 @@
-import { GiftEvidenceKinds } from '@chantam.vn/chantam.core-lib/consts';
 import {
   GiftTransactionStatusDto,
   IGiftTransactionDto,
@@ -20,7 +19,10 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { GiftTransactionDto } from '../transaction/transaction.dto';
+import {
+  GiftEvidenceItemDto,
+  GiftTransactionDto,
+} from '../transaction/transaction.dto';
 
 const AdminTransactionStatuses: GiftTransactionStatusDto[] = [
   'ACCEPTED',
@@ -127,19 +129,8 @@ export class ListAdminTransactionsResponseDto {
   meta: PaginationMetaDto;
 }
 
-export class AdminTransactionEvidenceDto {
-  @ApiProperty({ enum: GiftEvidenceKinds }) kind: GiftEvidenceKinds;
-  @ApiProperty({ minimum: 1, maximum: 3 }) slot: number;
-
-  @ApiProperty({
-    description:
-      'URL công khai (`storage.publicBaseUrl` + key) — cùng kiểu URL mà app dùng cho ảnh bài đăng. Bucket là công khai, nên đây KHÔNG phải URL ký có hạn.',
-  })
-  url: string;
-
-  @ApiProperty({ format: 'uuid' }) uploadedBy: string;
-  @ApiProperty({ type: String, format: 'date-time' }) createdAt: Date;
-}
+/** Cùng hình dạng với ảnh mà hai bên trong cuộc thấy ở `GET /transactions/:id`. */
+export class AdminTransactionEvidenceDto extends GiftEvidenceItemDto {}
 
 export class GetAdminTransactionResponseDto {
   @ApiProperty({ type: () => AdminTransactionDto })

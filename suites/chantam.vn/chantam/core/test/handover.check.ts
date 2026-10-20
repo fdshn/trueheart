@@ -20,8 +20,13 @@ import {
   ShipUnpaidPenaltyRuleCode,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
+import { StorageValidationError } from '@chantam/service.storage-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import {
+  ConfirmGiftReceiptUseCase,
+  GetGiftTransactionUseCase,
+} from '../src/application/implementations/transaction/transaction.use-cases';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
@@ -596,6 +601,143 @@ async function main(): Promise<void> {
       reason: 'Gọi lại',
     });
     check('gọi lại không đóng thêm gì', doneAgain.length === 0);
+
+    // ── Ảnh lúc NHẬN và hai bên xem lại ảnh ─────────────────────────────────
+    //
+    // Đi qua USE CASE thật, không gọi thẳng repository: thứ cần chứng minh là đường
+    // HTTP `POST /transactions/:id/confirm` giờ mang được ảnh xuống bảng, và
+    // `GET /transactions/:id` đọc lại được — tới 20/10 cả hai đều không có.
+    console.log('\nẢnh lúc nhận và hai bên xem lại ảnh:\n');
+
+    // Storage giả giữ ĐÚNG luật tiền tố của storage thật: key phải nằm dưới
+    // `users/{người gọi}/transactions/{lượt trao}/evidence/`.
+    const storage = {
+      confirmTransactionEvidenceUpload: async (
+        userId: string,
+        transactionId: string,
+        key: string,
+      ) => {
+        if (
+          !key.startsWith(
+            `users/${userId}/transactions/${transactionId}/evidence/`,
+          )
+        )
+          throw new StorageValidationError('key không thuộc người gọi');
+      },
+    };
+    const quietDispatch = {
+      handle: async () => ({ created: true, pushedDevices: 0 }),
+    };
+    const chatRepository = new ChatRepository(
+      dataSource.manager,
+      new AdminConfigRepository(dataSource.manager),
+    );
+    const confirmUseCase = new ConfirmGiftReceiptUseCase(
+      transactions,
+      chatRepository,
+      quietDispatch as never,
+      storage as never,
+    );
+    const getUseCase = new GetGiftTransactionUseCase(transactions, {
+      storage: { publicBaseUrl: 'https://cdn.chantam.test/' },
+    } as never);
+
+    const photoDeal = await acceptedTransaction();
+    const giverShot = `users/${GiverId}/transactions/${photoDeal}/evidence/trao.webp`;
+    await transactions.markHandedOver({
+      transactionId: photoDeal,
+      giverId: GiverId,
+      evidenceKeys: [giverShot],
+    });
+
+    let foreignError = 'không ném gì';
+    try {
+      await confirmUseCase.handle({
+        userId: ReceiverId,
+        transactionId: photoDeal,
+        // Key của NGƯỜI TẶNG gửi dưới tên người nhận — đúng thứ phép kiểm phải chặn.
+        evidenceKeys: [giverShot],
+      });
+    } catch (error) {
+      foreignError = (error as Error).constructor.name;
+    }
+    const [{ status: afterForeign }] = await dataSource.query<
+      { status: string }[]
+    >(`SELECT status FROM gift_transactions WHERE global_id = $1`, [photoDeal]);
+    check(
+      'gắn key không thuộc người nhận: 400 và lượt trao KHÔNG hoàn tất',
+      foreignError === 'ValidationFailedException' &&
+        afterForeign === 'DELIVERING',
+      `${foreignError} / ${afterForeign}`,
+    );
+
+    const receiverShots = ['a', 'b', 'c', 'd'].map(
+      (name) =>
+        `users/${ReceiverId}/transactions/${photoDeal}/evidence/nhan-${name}.webp`,
+    );
+    const confirmed = await confirmUseCase.handle({
+      userId: ReceiverId,
+      transactionId: photoDeal,
+      evidenceKeys: receiverShots,
+    });
+    check(
+      'xác nhận kèm ảnh: lượt trao COMPLETED',
+      confirmed.transaction.status === 'COMPLETED',
+      String(confirmed.transaction.status),
+    );
+    const receiptRows = (await transactions.listEvidence(photoDeal)).filter(
+      (item) => item.kind === GiftEvidenceKinds.RECEIPT,
+    );
+    check(
+      'gửi 4 ảnh thì chỉ 3 ảnh RECEIPT được ghi, đúng người tải',
+      receiptRows.length === 3 &&
+        receiptRows.every((item) => item.uploadedBy === ReceiverId),
+      `${receiptRows.length} ảnh`,
+    );
+
+    for (const [label, viewer] of [
+      ['người nhận', ReceiverId],
+      ['người tặng', GiverId],
+    ] as const) {
+      const view = await getUseCase.handle({
+        userId: viewer,
+        transactionId: photoDeal,
+      });
+      const kinds = view.evidence.map((item) => item.kind).join(',');
+      check(
+        `${label} xem được ảnh của CẢ HAI bên, kèm URL mở được`,
+        view.evidence.length === 4 &&
+          kinds === 'HANDOVER,RECEIPT,RECEIPT,RECEIPT' &&
+          view.evidence[0].url === `https://cdn.chantam.test/${giverShot}`,
+        kinds,
+      );
+    }
+
+    let outsiderError = 'không ném gì';
+    try {
+      await getUseCase.handle({
+        userId: '99999999-9999-4999-8999-99999999e0ff',
+        transactionId: photoDeal,
+      });
+    } catch (error) {
+      outsiderError = (error as Error).constructor.name;
+    }
+    check(
+      'người ngoài không xem được ảnh — 404 như lượt không tồn tại',
+      outsiderError === 'GiftTransactionNotFoundException',
+      outsiderError,
+    );
+
+    const plainDeal = await acceptedTransaction();
+    const plain = await confirmUseCase.handle({
+      userId: ReceiverId,
+      transactionId: plainDeal,
+    });
+    check(
+      'xác nhận KHÔNG ảnh vẫn chạy như trước — app cũ không vỡ',
+      plain.transaction.status === 'COMPLETED' &&
+        (await transactions.listEvidence(plainDeal)).length === 0,
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

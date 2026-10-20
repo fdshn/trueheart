@@ -17,6 +17,7 @@ import {
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
+import { toEvidenceItems } from './evidence-view';
 
 /**
  * Lượt trao gắn với một bài đăng, nên đọc nó cùng quyền với đọc bài quản trị.
@@ -94,20 +95,13 @@ export class GetAdminGiftTransactionUseCase implements IGetAdminGiftTransactionU
     );
     if (!transaction) throw new GiftTransactionNotFoundException();
 
-    const base = this.config.storage.publicBaseUrl.replace(/\/$/, '');
     const evidence = await this.transactions.listEvidence(
       command.transactionId,
     );
 
     return {
       transaction: toView(transaction),
-      evidence: evidence.map((item) => ({
-        kind: item.kind,
-        slot: item.slot,
-        url: `${base}/${item.storageKey}`,
-        uploadedBy: item.uploadedBy,
-        createdAt: item.createdAt,
-      })),
+      evidence: toEvidenceItems(this.config.storage.publicBaseUrl, evidence),
     };
   }
 }

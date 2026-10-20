@@ -2,9 +2,9 @@ import {
   GiftTransactionStatuses,
   IAdminGiftTransactionItem,
 } from '@/domain/ports/repository';
-import { GiftEvidenceKinds } from '@chantam.vn/chantam.core-lib/consts';
 import { IUseCase } from '@chantam/service.common-lib';
 import { PaginationMetaDto } from '@chantam/service.common-lib/dto';
+import { IGiftEvidenceItem } from './get-gift-transaction.use-case';
 
 /**
  * Cùng tên `transactionId` như `GiftTransactionDto` của đường người dùng, để FE
@@ -41,13 +41,8 @@ export const IListAdminGiftTransactionsUseCase = Symbol(
   'IListAdminGiftTransactionsUseCase',
 );
 
-export interface IAdminGiftEvidenceItem {
-  readonly kind: GiftEvidenceKinds;
-  readonly slot: number;
-  readonly url: string;
-  readonly uploadedBy: string;
-  readonly createdAt: Date;
-}
+/** Cùng hình dạng với ảnh mà hai bên trong cuộc thấy — xem `IGiftEvidenceItem`. */
+export type IAdminGiftEvidenceItem = IGiftEvidenceItem;
 
 export interface IGetAdminGiftTransactionCommand {
   readonly actorUserId: string;

@@ -32,6 +32,8 @@ import {
 } from '@nestjs/swagger';
 import {
   CancelGiftTransactionBodyDto,
+  ConfirmGiftReceiptBodyDto,
+  GetGiftTransactionResponseDto,
   GiftEvidenceParamsDto,
   GiftTransactionParamsDto,
   GiftTransactionResponseDto,
@@ -99,9 +101,9 @@ export class TransactionController {
   @ApiOperation({
     summary: 'Xem một lượt trao',
     description:
-      'Chỉ hai bên trong cuộc. Người ngoài nhận 404 chứ không phải 403 — 403 xác nhận rằng lượt trao đó có thật, và id đoán được thì đó là một kênh dò. Trước 28/09 chỉ có `/transactions/me`, trong khi mọi thông báo của luồng này mang `referenceType: GIFT_TRANSACTION` kèm `referenceId` — tức bấm vào thông báo thì không có đường nào mở đúng lượt đó.',
+      'Chỉ hai bên trong cuộc. Kèm `evidence[]`: ảnh bằng chứng của cả hai bên, có URL mở được. Người ngoài nhận 404 chứ không phải 403 — 403 xác nhận rằng lượt trao đó có thật, và id đoán được thì đó là một kênh dò. Trước 28/09 chỉ có `/transactions/me`, trong khi mọi thông báo của luồng này mang `referenceType: GIFT_TRANSACTION` kèm `referenceId` — tức bấm vào thông báo thì không có đường nào mở đúng lượt đó.',
   })
-  @ApiOkResponse({ type: ResponseDto.forApi(GiftTransactionResponseDto) })
+  @ApiOkResponse({ type: ResponseDto.forApi(GetGiftTransactionResponseDto) })
   @ApiErrorResponses(...ApiTokenErrors, [GiftTransactionNotFoundException])
   public async getTransaction(
     @CurrentUser() principal: IAuthPrincipal,
@@ -179,13 +181,16 @@ export class TransactionController {
   @ApiOperation({
     summary: 'Người nhận xác nhận đã nhận',
     description:
-      'Đây là mốc tính hoạt động cho rank. Quá 5 ngày mà chưa xác nhận thì job ngoài tiến trình tự hoàn tất.',
+      'Đây là mốc tính hoạt động cho rank. Quá 5 ngày mà chưa xác nhận thì job ngoài tiến trình tự hoàn tất. ' +
+      'Body **tuỳ chọn** `{ receipt: { evidenceKeys } }`: ảnh món đồ nhận được (mốc `RECEIPT`), tối đa 3. Gọi không có body vẫn chạy như trước. ' +
+      'Mỗi key phải thuộc chính người nhận và đúng lượt trao này, đã PUT xong — không thì 400 và lượt trao KHÔNG hoàn tất.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(GiftTransactionResponseDto) })
   @ApiErrorResponses(...ApiTokenErrors, ...ParticipantErrors)
   public async confirmGiftReceipt(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: GiftTransactionParamsDto,
+    @Body() body: ConfirmGiftReceiptBodyDto,
   ) {
     return ResponseDto.create()
       .succeed()
@@ -193,6 +198,7 @@ export class TransactionController {
         await this.confirmGiftReceiptUseCase.handle({
           userId: principal.userId,
           transactionId: params.transactionId,
+          evidenceKeys: body?.receipt?.evidenceKeys,
         }),
       )
       .build();

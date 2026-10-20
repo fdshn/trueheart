@@ -103,3 +103,30 @@ export class MarkGiftHandedOverBodyDto {
   @Type(() => MarkGiftHandedOverDto)
   handover: MarkGiftHandedOverDto;
 }
+
+export class ConfirmGiftReceiptDto {
+  @ApiPropertyOptional({
+    type: [String],
+    maxItems: MaxEvidencePerKind,
+    description:
+      'Key ảnh món đồ nhận được (từ `POST /transactions/:id/evidence/upload-url`), tối đa 3. TUỲ CHỌN. Mỗi key phải thuộc chính người nhận và đúng lượt trao này, đã PUT xong — không thì 400 và lượt trao KHÔNG hoàn tất.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MaxEvidencePerKind)
+  @IsString({ each: true })
+  @Length(1, 500, { each: true })
+  evidenceKeys?: string[];
+}
+
+/**
+ * Body TUỲ CHỌN: xác nhận không kèm ảnh vẫn là đường chính, nên `receipt` không bắt
+ * buộc — app đang gọi không có body phải chạy y như cũ.
+ */
+export class ConfirmGiftReceiptBodyDto {
+  @ApiPropertyOptional({ type: () => ConfirmGiftReceiptDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ConfirmGiftReceiptDto)
+  receipt?: ConfirmGiftReceiptDto;
+}

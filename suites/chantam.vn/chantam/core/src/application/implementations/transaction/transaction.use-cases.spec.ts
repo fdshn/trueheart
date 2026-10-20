@@ -1,8 +1,13 @@
 import { AutoCompleteAfterDays } from '@/application/contracts/transaction';
 import { GiftTransactionNotFoundException } from '@/domain/exceptions';
 import { IGiftTransactionSummary } from '@/domain/ports/repository';
-import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  GiftEvidenceKinds,
+  UserRanks,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
+import { ValidationFailedException } from '@chantam/service.common-lib/exception';
+import { StorageValidationError } from '@chantam/service.storage-lib';
 import {
   CancelGiftTransactionUseCase,
   CompleteDueGiftDeliveriesUseCase,
@@ -139,6 +144,15 @@ function makeRepository() {
       completedTransactions: [Summary, Summary, Summary],
     })),
     findByGlobalId: jest.fn(async () => Summary),
+    listEvidence: jest.fn(async (_transactionId: string) => [
+      {
+        kind: GiftEvidenceKinds.HANDOVER,
+        slot: 1,
+        storageKey: 'users/giver/transactions/t/evidence/a.webp',
+        uploadedBy: Summary.giverId,
+        createdAt: new Date('2026-10-20T00:00:00Z'),
+      },
+    ]),
     countCompletedByGiver: jest.fn(),
   };
 }
@@ -147,6 +161,17 @@ function makeRepository() {
  * Service hoàn điểm, dạng giả. Mặc định "không có gì để hoàn" — đó là đường PHỔ
  * BIẾN: phần lớn lượt trao không đến từ đổi điểm.
  */
+const WebConfig = { storage: { publicBaseUrl: 'https://cdn.chantam.test/' } };
+
+function makeStorage() {
+  return {
+    confirmTransactionEvidenceUpload: jest.fn(
+      async (_userId: string, _transactionId: string, _key: string) =>
+        undefined,
+    ),
+  };
+}
+
 function makeRefund(refunded = 0) {
   return { refundFor: jest.fn(async () => refunded) };
 }
@@ -154,7 +179,10 @@ function makeRefund(refunded = 0) {
 describe('Gift transaction use cases', () => {
   it('xem chi tiết một lượt trao, chỉ hai bên trong cuộc', async () => {
     const repository = makeRepository();
-    const useCase = new GetGiftTransactionUseCase(repository as never);
+    const useCase = new GetGiftTransactionUseCase(
+      repository as never,
+      WebConfig as never,
+    );
 
     const result = await useCase.handle({
       userId: Summary.giverId,
@@ -167,7 +195,10 @@ describe('Gift transaction use cases', () => {
   it('người ngoài cuộc nhận 404 chứ không phải 403', async () => {
     // 403 xác nhận rằng lượt trao đó CÓ THẬT. Id đoán được thì đó là một kênh dò.
     const repository = makeRepository();
-    const useCase = new GetGiftTransactionUseCase(repository as never);
+    const useCase = new GetGiftTransactionUseCase(
+      repository as never,
+      WebConfig as never,
+    );
 
     await expect(
       useCase.handle({
@@ -180,7 +211,10 @@ describe('Gift transaction use cases', () => {
   it('lượt trao không tồn tại cũng ra 404', async () => {
     const repository = makeRepository();
     repository.findByGlobalId = jest.fn(async () => null) as never;
-    const useCase = new GetGiftTransactionUseCase(repository as never);
+    const useCase = new GetGiftTransactionUseCase(
+      repository as never,
+      WebConfig as never,
+    );
 
     await expect(
       useCase.handle({ userId: UserId, transactionId: TransactionId }),
@@ -193,6 +227,7 @@ describe('Gift transaction use cases', () => {
       repository as never,
       makeChat() as never,
       makeNotifier() as never,
+      makeStorage() as never,
     );
 
     const result = await useCase.handle({
@@ -206,6 +241,95 @@ describe('Gift transaction use cases', () => {
       [],
     );
     expect(result.transaction.status).toBe('COMPLETED');
+  });
+
+  it('chi tiết lượt trao trả ảnh bằng chứng kèm URL mở được, cho cả hai bên', async () => {
+    // Ảnh lúc trao là thứ tạo thế bất đối xứng khi tranh chấp — người nhận phải
+    // XEM được nó, không chỉ Admin.
+    const repository = makeRepository();
+
+    for (const viewer of [Summary.giverId, Summary.receiverId]) {
+      const result = await new GetGiftTransactionUseCase(
+        repository as never,
+        WebConfig as never,
+      ).handle({ userId: viewer, transactionId: TransactionId });
+
+      expect(result.evidence).toEqual([
+        {
+          kind: GiftEvidenceKinds.HANDOVER,
+          slot: 1,
+          url: 'https://cdn.chantam.test/users/giver/transactions/t/evidence/a.webp',
+          uploadedBy: Summary.giverId,
+          createdAt: new Date('2026-10-20T00:00:00Z'),
+        },
+      ]);
+    }
+    expect(repository.listEvidence).toHaveBeenCalledWith(TransactionId);
+  });
+
+  it('người ngoài cuộc không được đọc ảnh — 404 trước khi chạm tới bảng ảnh', async () => {
+    const repository = makeRepository();
+
+    await expect(
+      new GetGiftTransactionUseCase(
+        repository as never,
+        WebConfig as never,
+      ).handle({
+        userId: '00000000-0000-4000-8000-000000000999',
+        transactionId: TransactionId,
+      }),
+    ).rejects.toBeInstanceOf(GiftTransactionNotFoundException);
+    expect(repository.listEvidence).not.toHaveBeenCalled();
+  });
+
+  it('xác nhận kèm ảnh: kiểm TỪNG ảnh trên storage dưới tên người nhận, tối đa 3', async () => {
+    const repository = makeRepository();
+    const storage = makeStorage();
+
+    await new ConfirmGiftReceiptUseCase(
+      repository as never,
+      makeChat() as never,
+      makeNotifier() as never,
+      storage as never,
+    ).handle({
+      userId: UserId,
+      transactionId: TransactionId,
+      evidenceKeys: ['k1', 'k2', 'k3', 'k4'],
+    });
+
+    expect(storage.confirmTransactionEvidenceUpload.mock.calls).toEqual([
+      [UserId, TransactionId, 'k1'],
+      [UserId, TransactionId, 'k2'],
+      [UserId, TransactionId, 'k3'],
+    ]);
+    expect(repository.confirmReceipt).toHaveBeenCalledWith(
+      TransactionId,
+      UserId,
+      ['k1', 'k2', 'k3'],
+    );
+  });
+
+  it('ảnh không thuộc người nhận / chưa tải lên thì 400 và KHÔNG hoàn tất', async () => {
+    // Không kiểm thì người nhận gắn được key của người khác vào bằng chứng.
+    const repository = makeRepository();
+    const storage = makeStorage();
+    storage.confirmTransactionEvidenceUpload.mockRejectedValueOnce(
+      new StorageValidationError('key không thuộc người dùng'),
+    );
+
+    await expect(
+      new ConfirmGiftReceiptUseCase(
+        repository as never,
+        makeChat() as never,
+        makeNotifier() as never,
+        storage as never,
+      ).handle({
+        userId: UserId,
+        transactionId: TransactionId,
+        evidenceKeys: ['users/khac/transactions/t/evidence/x.webp'],
+      }),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+    expect(repository.confirmReceipt).not.toHaveBeenCalled();
   });
 
   it('huỷ xong thì báo cho NGƯỜI CHO và ứng viên kế tiếp (F33)', async () => {

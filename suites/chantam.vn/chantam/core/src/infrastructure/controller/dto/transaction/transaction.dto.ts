@@ -1,4 +1,9 @@
 import {
+  IGetGiftTransactionResult,
+  IGiftEvidenceItem,
+} from '@/application/contracts/transaction';
+import { GiftEvidenceKinds } from '@chantam.vn/chantam.core-lib/consts';
+import {
   GiftTransactionStatusDto,
   ICancelGiftTransactionBodyDto,
   ICancelGiftTransactionDto,
@@ -119,6 +124,34 @@ export class GiftTransactionDto implements IGiftTransactionDto {
 export class GiftTransactionResponseDto implements IGiftTransactionResponseDto {
   @ApiProperty({ type: () => GiftTransactionDto })
   transaction: IGiftTransactionDto;
+}
+
+export class GiftEvidenceItemDto implements IGiftEvidenceItem {
+  @ApiProperty({ enum: GiftEvidenceKinds }) kind: GiftEvidenceKinds;
+  @ApiProperty({ minimum: 1, maximum: 3 }) slot: number;
+
+  @ApiProperty({
+    description:
+      'URL công khai (`storage.publicBaseUrl` + key) — cùng kiểu URL ảnh bài đăng. Bucket là công khai, nên đây KHÔNG phải URL ký có hạn.',
+  })
+  url: string;
+
+  @ApiProperty({ format: 'uuid', description: 'Người tải ảnh lên.' })
+  uploadedBy: string;
+
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt: Date;
+}
+
+export class GetGiftTransactionResponseDto implements IGetGiftTransactionResult {
+  @ApiProperty({ type: () => GiftTransactionDto })
+  transaction: IGiftTransactionDto;
+
+  @ApiProperty({
+    type: () => [GiftEvidenceItemDto],
+    description:
+      'Ảnh bằng chứng của CẢ HAI bên, theo mốc rồi theo slot: `HANDOVER` (người tặng lúc trao), `RECEIPT` (người nhận lúc nhận), `RETURNED` (người tặng lúc báo hàng quay về). Rỗng khi chưa ai chụp.',
+  })
+  evidence: IGiftEvidenceItem[];
 }
 
 export class ListGiftTransactionsResponseDto implements IListGiftTransactionsResponseDto {

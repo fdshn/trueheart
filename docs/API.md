@@ -1391,9 +1391,9 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
 | `GET` | `/transactions/me` | Bearer | Các lượt của chính mình, cả vai tặng lẫn vai nhận |
-| `GET` | `/transactions/:id` | Bearer (hai bên trong cuộc) | **Xem một lượt trao** — người ngoài nhận 404 |
+| `GET` | `/transactions/:id` | Bearer (hai bên trong cuộc) | **Xem một lượt trao**, kèm `evidence[]` ảnh của cả hai bên — người ngoài nhận 404 |
 | `PATCH` | `/admin/transactions/:id/reopen` | `admin.manage` | **Mở lại lượt đóng nhầm**, reason bắt buộc, ghi audit |
-| `POST` | `/transactions/:id/confirm` | Bearer (người nhận) | Xác nhận đã nhận |
+| `POST` | `/transactions/:id/confirm` | Bearer (người nhận) | Xác nhận đã nhận; body **tuỳ chọn** `{ receipt: { evidenceKeys } }` kèm ảnh lúc nhận |
 | `POST` | `/transactions/:id/cancel` | Bearer (cả hai vai) | Huỷ |
 | `POST` | `/transactions/:id/evidence/upload-url` | Bearer (cả hai bên) | Xin đường tải ảnh bằng chứng |
 | `POST` | `/transactions/:id/handover` | Bearer (**chỉ người tặng**) | Báo đã trao đồ → `DELIVERING` |
@@ -1447,6 +1447,18 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
   | `HANDOVER` | người tặng | Không — nhưng thiếu thì **mất quyền report** |
   | `RECEIPT` | người nhận | Không |
   | `RETURNED` | người tặng | **Có**, gửi kèm lúc báo |
+
+  Gửi ảnh ở đâu (20/10): `HANDOVER` trong `POST .../handover` (`handover.evidenceKeys`),
+  `RECEIPT` trong `POST .../confirm` (`receipt.evidenceKeys`, tuỳ chọn — gọi không body vẫn
+  chạy như trước), `RETURNED` trong `POST .../reports/ship-unpaid`. Ở cả ba chỗ mỗi key phải
+  thuộc CHÍNH người gửi và đúng lượt trao, đã PUT xong; sai thì **400 và không ghi gì** —
+  với `confirm` là lượt trao KHÔNG hoàn tất. Trước 20/10 `confirm` không nhận body nên mốc
+  `RECEIPT` không có đường nào ghi được.
+
+  **Xem lại ảnh:** `GET /transactions/:id` trả `evidence[]` (`kind`, `slot`, `url`,
+  `uploadedBy`, `createdAt`) của **cả hai bên** — người nhận phải thấy được ảnh lúc trao thì
+  thế bất đối xứng mới có nghĩa. Cùng hình dạng với `GET /admin/transactions/:id`. URL là
+  `storage.publicBaseUrl` + key (bucket công khai, không phải URL ký có hạn).
 
   Ảnh **không** chứng minh được nội dung gói hàng hay việc nó thật sự được gửi đi. Cái
   nó làm được là tạo thế bất đối xứng: ai có ảnh thì câu chuyện nhất quán, ai không
