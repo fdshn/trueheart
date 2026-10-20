@@ -3,6 +3,7 @@ import {
   IAutoSelectDueRecipientsUseCase,
   IBatchAcceptRequestsUseCase,
   ICreateGiftRequestUseCase,
+  IGetGiftRequestUseCase,
   IGetRedemptionQuoteUseCase,
   IListMyGiftRequestsUseCase,
   IListPostRequestsUseCase,
@@ -20,6 +21,7 @@ import { CloseOpenRequestsService } from './close-open-requests.service';
 import { CreateGiftRequestUseCase } from './create-gift-request.use-case';
 import { ListPostRequestsUseCase } from './list-post-requests.use-case';
 import {
+  GetGiftRequestUseCase,
   ListMyGiftRequestsUseCase,
   RejectGiftRequestUseCase,
 } from './my-gift-requests.use-cases';
@@ -40,6 +42,7 @@ import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
       useClass: ListMyGiftRequestsUseCase,
     },
     { provide: IRejectGiftRequestUseCase, useClass: RejectGiftRequestUseCase },
+    { provide: IGetGiftRequestUseCase, useClass: GetGiftRequestUseCase },
     { provide: ICreateGiftRequestUseCase, useClass: CreateGiftRequestUseCase },
     {
       provide: IAutoSelectDueRecipientsUseCase,
@@ -71,6 +74,7 @@ import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
   exports: [
     CloseOpenRequestsService,
     IListMyGiftRequestsUseCase,
+    IGetGiftRequestUseCase,
     IRejectGiftRequestUseCase,
     ICreateGiftRequestUseCase,
     IWithdrawGiftRequestUseCase,

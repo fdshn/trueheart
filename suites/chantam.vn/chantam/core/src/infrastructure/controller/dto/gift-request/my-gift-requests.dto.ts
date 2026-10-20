@@ -1,3 +1,4 @@
+import { IGiftRequestDetail } from '@/domain/ports/repository';
 import {
   GiftPostStatuses,
   GiftRequestStatuses,
@@ -75,6 +76,47 @@ export class ListMyGiftRequestsResponseDto implements IListMyGiftRequestsRespons
 
   @ApiProperty({ type: 'object', additionalProperties: true })
   meta: unknown;
+}
+
+export class GiftRequestIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  requestId: string;
+}
+
+export class GiftRequestDetailDto implements IGiftRequestDetail {
+  @ApiProperty({ format: 'uuid' }) requestId: string;
+
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Bài của yêu cầu — mở `GET /posts/:postId`.',
+  })
+  postId: string;
+
+  @ApiProperty({ format: 'uuid', description: 'Chủ bài.' }) ownerId: string;
+
+  @ApiProperty({ format: 'uuid', description: 'Người xin.' })
+  requesterId: string;
+
+  @ApiProperty({ enum: GiftRequestStatuses }) status: GiftRequestStatuses;
+
+  @ApiPropertyOptional({ type: String, nullable: true }) message: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt: Date;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Lượt trao gần nhất giữa chủ bài và người xin trên bài này — mở `GET /transactions/:transactionId`. `null` khi yêu cầu chưa được chấp nhận.',
+  })
+  transactionId: string | null;
+}
+
+export class GiftRequestDetailResponseDto {
+  @ApiProperty({ type: () => GiftRequestDetailDto })
+  request: GiftRequestDetailDto;
 }
 
 export class RejectGiftRequestParamDto {

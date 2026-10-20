@@ -9,6 +9,7 @@ import {
   IReportRepository,
 } from '@/domain/ports/repository';
 import {
+  NotificationTargetTypes,
   NotificationTypes,
   ReportReasons,
   ReportStatuses,
@@ -439,7 +440,11 @@ describe('ReviewReportUseCase', () => {
 
 describe('ReviewReportUseCase — thông báo', () => {
   function setup(
-    options: { status?: ReportStatuses; owner?: string | null } = {},
+    options: {
+      status?: ReportStatuses;
+      owner?: string | null;
+      location?: { type: NotificationTargetTypes; id: string } | null;
+    } = {},
   ) {
     const reports = {
       findAdminByGlobalId: jest.fn().mockResolvedValue({
@@ -453,6 +458,13 @@ describe('ReviewReportUseCase — thông báo', () => {
         .fn()
         .mockResolvedValue(
           options.owner === undefined ? 'owner-1' : options.owner,
+        ),
+      findContentLocation: jest
+        .fn()
+        .mockResolvedValue(
+          options.location === undefined
+            ? { type: NotificationTargetTypes.POST, id: TargetId }
+            : options.location,
         ),
     };
     const dispatch = {
@@ -484,6 +496,48 @@ describe('ReviewReportUseCase — thông báo', () => {
         type: NotificationTypes.REPORT_REVIEWED,
       }),
     );
+  });
+
+  it('reference là CHÍNH báo xấu, đích là nội dung bị báo — cho cả hai người nhận', async () => {
+    // Trước 20/10 REPORT_REVIEWED ghi referenceType REPORT mà referenceId lại là id
+    // NỘI DUNG — mobile không có cách nào biết id đó thuộc loại gì.
+    const { useCase, dispatch, reports } = setup();
+
+    await useCase.handle({
+      actorUserId: ActorId,
+      reportId: ReportId,
+      review: { status: ReportStatuses.RESOLVED, note: 'Đúng là lừa đảo' },
+    });
+
+    expect(reports.findContentLocation).toHaveBeenCalledWith(
+      ReportTargetTypes.POST,
+      TargetId,
+    );
+    const [reviewed, moderated] = dispatch.handle.mock.calls.map(
+      (call) => call[0],
+    );
+    expect(reviewed).toMatchObject({
+      type: NotificationTypes.REPORT_REVIEWED,
+      referenceType: 'REPORT',
+      referenceId: ReportId,
+      target: { type: NotificationTargetTypes.POST, id: TargetId },
+    });
+    expect(moderated).toMatchObject({
+      type: NotificationTypes.CONTENT_MODERATED,
+      target: { type: NotificationTargetTypes.POST, id: TargetId },
+    });
+  });
+
+  it('nội dung không có màn để mở (báo xấu một người) thì target null', async () => {
+    const { useCase, dispatch } = setup({ location: null });
+
+    await useCase.handle({
+      actorUserId: ActorId,
+      reportId: ReportId,
+      review: { status: ReportStatuses.DISMISSED, note: 'Không vi phạm' },
+    });
+
+    expect(dispatch.handle.mock.calls[0]![0].target).toBeNull();
   });
 
   it('cũng báo cho người gửi khi báo xấu bị bác', async () => {

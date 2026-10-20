@@ -1,3 +1,4 @@
+import { IGiftRequestDetail } from '@/domain/ports/repository';
 import { GiftRequestStatuses } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IGiftRequestDto,
@@ -25,6 +26,22 @@ export interface IListMyGiftRequestsUseCase extends IUseCase<
 > {}
 
 export const IListMyGiftRequestsUseCase = Symbol('IListMyGiftRequestsUseCase');
+
+export interface IGetGiftRequestCommand {
+  requestId: string;
+  viewerUserId: string;
+}
+
+export interface IGetGiftRequestResult {
+  request: IGiftRequestDetail;
+}
+
+export interface IGetGiftRequestUseCase extends IUseCase<
+  IGetGiftRequestCommand,
+  IGetGiftRequestResult
+> {}
+
+export const IGetGiftRequestUseCase = Symbol('IGetGiftRequestUseCase');
 
 export interface IRejectGiftRequestCommand {
   postId: string;

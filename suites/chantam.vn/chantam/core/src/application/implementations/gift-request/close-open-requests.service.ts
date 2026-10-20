@@ -45,6 +45,7 @@ export class CloseOpenRequestsService {
     for (const row of closed)
       await this.notifier.announceClosed({
         requesterId: row.requesterId,
+        postId: row.postId,
         postTitle: row.postTitle,
         requestId: row.requestId,
         reason: params.reason,

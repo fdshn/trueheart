@@ -276,6 +276,20 @@ export interface IGetCharityDeliveryUseCase extends IUseCase<
 
 export const IGetCharityDeliveryUseCase = Symbol('IGetCharityDeliveryUseCase');
 
+export interface IGetCharityContributionCommand {
+  readonly contributionId: string;
+  readonly viewerUserId: string;
+}
+
+export interface IGetCharityContributionUseCase extends IUseCase<
+  IGetCharityContributionCommand,
+  ICharityContribution
+> {}
+
+export const IGetCharityContributionUseCase = Symbol(
+  'IGetCharityContributionUseCase',
+);
+
 export interface IRecordExternalContributionCommand {
   readonly campaignId: string;
   readonly recordedBy: string;

@@ -1,5 +1,9 @@
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
-import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  INotificationTarget,
+  NotificationTargetTypes,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 /**
@@ -48,6 +52,7 @@ export class RequestLifecycleNotifier {
       body: `Một người vừa gửi yêu cầu xin nhận cho bài "${params.postTitle}".`,
       referenceType: 'GIFT_REQUEST',
       referenceId: params.requestId,
+      target: { type: NotificationTargetTypes.POST, id: params.postId },
       // Khoá theo YÊU CẦU: mỗi yêu cầu chỉ sinh một thông báo, kể cả khi người
       // xin rút rồi gửi lại — bản ghi cũ được dùng lại chứ không tạo mới.
       idempotencyKey: `GIFT_REQUEST_CREATED:${params.requestId}`,
@@ -57,6 +62,7 @@ export class RequestLifecycleNotifier {
   /** Báo người xin rằng chủ bài đã từ chối họ. */
   public async announceRejected(params: {
     requesterId: string;
+    postId: string;
     postTitle: string;
     requestId: string;
   }): Promise<void> {
@@ -67,6 +73,7 @@ export class RequestLifecycleNotifier {
       body: `Người tặng đã không chọn yêu cầu của bạn cho bài "${params.postTitle}".`,
       referenceType: 'GIFT_REQUEST',
       referenceId: params.requestId,
+      target: { type: NotificationTargetTypes.POST, id: params.postId },
       idempotencyKey: `GIFT_REQUEST_REJECTED:${params.requestId}`,
     });
   }
@@ -80,6 +87,7 @@ export class RequestLifecycleNotifier {
    */
   public async announceClosed(params: {
     requesterId: string;
+    postId: string;
     postTitle: string;
     requestId: string;
     reason: string;
@@ -91,6 +99,7 @@ export class RequestLifecycleNotifier {
       body: `${params.reason} nên yêu cầu xin nhận của bạn cho bài "${params.postTitle}" được đóng lại.`,
       referenceType: 'GIFT_REQUEST',
       referenceId: params.requestId,
+      target: { type: NotificationTargetTypes.POST, id: params.postId },
       idempotencyKey: `GIFT_REQUEST_CLOSED:${params.requestId}`,
     });
   }
@@ -102,6 +111,7 @@ export class RequestLifecycleNotifier {
     body: string;
     referenceType: string;
     referenceId: string;
+    target: INotificationTarget;
     idempotencyKey: string;
   }): Promise<void> {
     try {

@@ -12,6 +12,7 @@ import {
   IGetAdminCampaignNeedsUseCase,
   IGetAdminCharityCampaignUseCase,
   IGetCampaignNeedsUseCase,
+  IGetCharityContributionUseCase,
   IGetCharityDeliveryUseCase,
   IGetPublicCharityCampaignUseCase,
   IJoinCharityCampaignUseCase,
@@ -49,6 +50,7 @@ import {
   GetAdminCampaignNeedsUseCase,
   GetAdminCharityCampaignUseCase,
   GetCampaignNeedsUseCase,
+  GetCharityContributionUseCase,
   GetCharityDeliveryUseCase,
   GetPublicCharityCampaignUseCase,
   JoinCharityCampaignUseCase,
@@ -128,6 +130,10 @@ import { CharityNotifier } from './charity.notifier';
     {
       provide: IGetCharityDeliveryUseCase,
       useClass: GetCharityDeliveryUseCase,
+    },
+    {
+      provide: IGetCharityContributionUseCase,
+      useClass: GetCharityContributionUseCase,
     },
     {
       provide: IRecordExternalContributionUseCase,
@@ -236,6 +242,7 @@ import { CharityNotifier } from './charity.notifier';
     ICompleteCharityDeliveryUseCase,
     ICancelCharityDeliveryUseCase,
     IGetCharityDeliveryUseCase,
+    IGetCharityContributionUseCase,
     IRecordExternalContributionUseCase,
     IAmendExternalContributionUseCase,
     IListExternalContributionsUseCase,

@@ -2,6 +2,7 @@ import { IDispatchNotificationUseCase } from '@/application/contracts/notificati
 import { IRankChange, IRankRepository } from '@/domain/ports/repository';
 import {
   BusinessTimeZone,
+  NotificationTargetTypes,
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { Inject, Injectable, Logger } from '@nestjs/common';
@@ -88,6 +89,7 @@ export class RankChangeNotifier {
       body: `Bạn đã chuyển từ hạng ${change.fromRank} xuống ${change.toRank} vì số điểm hiện tại đã giảm dưới ngưỡng.`,
       referenceType: 'USER_RANK',
       referenceId: userId,
+      target: { type: NotificationTargetTypes.RANK, id: null },
       // Khoá theo CẶP bậc: tụt Vàng→Bạc rồi sau đó Bạc→Thành viên là hai sự
       // kiện khác nhau, và người dùng cần biết cả hai.
       idempotencyKey: `RANK_DEMOTED:${userId}:${change.fromRank}:${change.toRank}:${vietnamDateKey(new Date())}`,
@@ -109,6 +111,7 @@ export class RankChangeNotifier {
       body: `Bạn đã lên hạng ${change.toRank} từ ${change.fromRank}. Quyền lợi của bậc mới đã có hiệu lực ngay.`,
       referenceType: 'USER_RANK',
       referenceId: userId,
+      target: { type: NotificationTargetTypes.RANK, id: null },
       // Cùng khuôn khoá với tụt hạng: theo CẶP bậc và theo ngày. Lên Bạc rồi lên
       // Vàng là hai sự kiện khác nhau; còn ai dao động quanh đúng một ngưỡng thì
       // mốc ngày chặn lại ở một lần mỗi ngày cho mỗi cặp.
@@ -139,6 +142,7 @@ export class RankChangeNotifier {
       body: `Bạn còn ${summary.balancePoints} điểm, gần mốc ${summary.currentTier.thresholdPoints} điểm để giữ hạng ${summary.rank}. Tiêu thêm có thể làm bạn tụt hạng.`,
       referenceType: 'USER_RANK',
       referenceId: userId,
+      target: { type: NotificationTargetTypes.RANK, id: null },
       // MỘT lần mỗi ngày cho mỗi bậc. Không có mốc ngày thì mỗi lượt thả cảm
       // xúc kiếm 1 điểm rồi tiêu đi cũng đẻ một lời nhắc, và người dùng tắt
       // thông báo — từ đó mất luôn thông báo về lượt xin nhận.

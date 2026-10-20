@@ -2,7 +2,7 @@ import {
   IPaginationMetaDto,
   IPaginationQueryDto,
 } from '@chantam/service.common-lib/dto';
-import { NotificationTypes } from '../../consts';
+import { NotificationTargetTypes, NotificationTypes } from '../../consts';
 
 export interface INotificationDto {
   notificationId: string;
@@ -11,6 +11,8 @@ export interface INotificationDto {
   body: string;
   referenceType: string | null;
   referenceId: string | null;
+  targetType: NotificationTargetTypes | null;
+  targetId: string | null;
   readAt: Date | null;
   createdAt: Date;
 }

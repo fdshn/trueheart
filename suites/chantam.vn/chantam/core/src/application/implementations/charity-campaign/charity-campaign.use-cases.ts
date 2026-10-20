@@ -30,6 +30,8 @@ import {
   IGetCampaignNeedsCommand,
   IGetCampaignNeedsResult,
   IGetCampaignNeedsUseCase,
+  IGetCharityContributionCommand,
+  IGetCharityContributionUseCase,
   IGetCharityDeliveryCommand,
   IGetCharityDeliveryUseCase,
   IGetPublicCharityCampaignCommand,
@@ -112,6 +114,7 @@ import {
   ICharityCampaign,
   ICharityCampaignMediaParams,
   ICharityCampaignRepository,
+  ICharityContribution,
   ICharityDelivery,
   ICharityExternalContribution,
   ICloseCampaignResult,
@@ -954,6 +957,38 @@ export class GetCharityDeliveryUseCase implements IGetCharityDeliveryUseCase {
   }
 }
 
+/**
+ * Một lượt đóng góp — đích của thông báo `CHARITY_CONTRIBUTION_*`.
+ *
+ * Cùng luật đọc với lượt giao nhận: người đóng góp và người điều phối hoạt động.
+ * Người ngoài nhận cùng lỗi với lượt không tồn tại — phân biệt hai cái là để lộ ai
+ * đang đóng góp cho hoạt động nào.
+ */
+@Injectable()
+export class GetCharityContributionUseCase implements IGetCharityContributionUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly repository: ICharityCampaignRepository,
+  ) {}
+
+  public async handle(
+    command: IGetCharityContributionCommand,
+  ): Promise<ICharityContribution> {
+    const contribution = await this.repository.findContributionByGlobalId(
+      command.contributionId,
+    );
+    if (!contribution) throw new CharityContributionNotFoundException();
+    const allowed =
+      contribution.contributorId === command.viewerUserId ||
+      (await this.repository.isCampaignManager(
+        contribution.campaignId,
+        command.viewerUserId,
+      ));
+    if (!allowed) throw new CharityContributionNotFoundException();
+    return contribution;
+  }
+}
+
 @Injectable()
 export class RecordExternalContributionUseCase implements IRecordExternalContributionUseCase {
   public constructor(
@@ -1086,6 +1121,7 @@ export class CloseCharityCampaignUseCase implements ICloseCharityCampaignUseCase
         campaignTitle: campaign.title,
         contribution: {
           globalId: rejected.contributionId,
+          campaignId: campaign.globalId,
           contributorId: rejected.contributorId,
           status: 'REJECTED',
         },

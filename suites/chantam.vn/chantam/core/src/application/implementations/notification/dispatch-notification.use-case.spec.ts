@@ -1,5 +1,6 @@
 import {
   NotificationGroups,
+  NotificationTargetTypes,
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { DispatchNotificationUseCase } from './dispatch-notification.use-case';
@@ -274,5 +275,87 @@ describe('DispatchNotificationUseCase', () => {
       ['token-1'],
       expect.objectContaining({ title: 'Tiêu đề mẫu', body: 'Nội dung mẫu' }),
     );
+  });
+});
+
+describe('DispatchNotificationUseCase — đích điều hướng', () => {
+  const written = (
+    notifications: ReturnType<typeof makeUseCase>['notifications'],
+  ) =>
+    notifications.create.mock.calls[0]![0] as unknown as {
+      targetType: string | null;
+      targetId: string | null;
+    };
+
+  it('không truyền đích: reference là một màn (lượt trao) thì đích chính là nó', async () => {
+    const { useCase, notifications } = makeUseCase();
+
+    await useCase.handle(command);
+
+    expect(written(notifications)).toMatchObject({
+      targetType: NotificationTargetTypes.GIFT_TRANSACTION,
+      targetId: 'deal-1',
+    });
+  });
+
+  it('reference là đối tượng con (yêu cầu xin đồ) thì không tự đoán đích', async () => {
+    const { useCase, notifications } = makeUseCase();
+
+    await useCase.handle({
+      ...command,
+      type: NotificationTypes.GIFT_REQUEST_CREATED,
+      referenceType: 'GIFT_REQUEST',
+      referenceId: 'request-1',
+    });
+
+    expect(written(notifications)).toMatchObject({
+      targetType: null,
+      targetId: null,
+    });
+  });
+
+  it('đích truyền rõ được ghi nguyên', async () => {
+    const { useCase, notifications } = makeUseCase();
+
+    await useCase.handle({
+      ...command,
+      type: NotificationTypes.GIFT_REQUEST_CREATED,
+      referenceType: 'GIFT_REQUEST',
+      referenceId: 'request-1',
+      target: { type: NotificationTargetTypes.POST, id: 'post-1' },
+    });
+
+    expect(written(notifications)).toMatchObject({
+      targetType: NotificationTargetTypes.POST,
+      targetId: 'post-1',
+    });
+  });
+
+  it('đích không khai cho loại này bị bỏ, thông báo vẫn ghi', async () => {
+    // Đích sai là một nút bấm mở nhầm màn. Bỏ đích (mobile mở hộp thư) còn hơn, và
+    // KHÔNG được làm mất thông báo — người dùng vẫn đang chờ nó.
+    const { useCase, notifications } = makeUseCase();
+
+    const result = await useCase.handle({
+      ...command,
+      target: { type: NotificationTargetTypes.CHARITY_CAMPAIGN, id: 'c-1' },
+    });
+
+    expect(result.created).toBe(true);
+    expect(written(notifications)).toMatchObject({
+      targetType: null,
+      targetId: null,
+    });
+  });
+
+  it('target: null là chủ ý không có màn đích, kể cả khi reference là một màn', async () => {
+    const { useCase, notifications } = makeUseCase();
+
+    await useCase.handle({ ...command, target: null });
+
+    expect(written(notifications)).toMatchObject({
+      targetType: null,
+      targetId: null,
+    });
   });
 });

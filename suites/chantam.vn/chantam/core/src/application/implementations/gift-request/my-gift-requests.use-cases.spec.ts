@@ -5,6 +5,7 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import {
+  GetGiftRequestUseCase,
   ListMyGiftRequestsUseCase,
   RejectGiftRequestUseCase,
 } from './my-gift-requests.use-cases';
@@ -193,9 +194,58 @@ describe('RejectGiftRequestUseCase', () => {
     });
     expect(notifier.announceRejected).toHaveBeenCalledWith({
       requesterId: RequesterId,
+      postId: PostId,
       postTitle: 'Tặng nồi cơm điện',
       requestId: RequestId,
     });
     expect(result.request.status).toBe(GiftRequestStatuses.REJECTED);
+  });
+});
+
+describe('GetGiftRequestUseCase (đích của thông báo GIFT_REQUEST_*)', () => {
+  const Detail = {
+    requestId: RequestId,
+    postId: PostId,
+    ownerId: OwnerId,
+    requesterId: RequesterId,
+    status: GiftRequestStatuses.ACCEPTED,
+    message: 'Cho mình xin nhé',
+    createdAt: new Date('2026-10-20T00:00:00Z'),
+    transactionId: '55555555-5555-5555-5555-555555555555',
+  };
+  const build = (detail: typeof Detail | null) => {
+    const requests = { findDetail: jest.fn(async () => detail) };
+    return {
+      useCase: new GetGiftRequestUseCase(requests as never),
+      requests,
+    };
+  };
+
+  it('người xin và chủ bài đều đọc được, kèm bài và lượt trao', async () => {
+    for (const viewer of [RequesterId, OwnerId]) {
+      const { useCase, requests } = build(Detail);
+
+      await expect(
+        useCase.handle({ requestId: RequestId, viewerUserId: viewer }),
+      ).resolves.toEqual({ request: Detail });
+      expect(requests.findDetail).toHaveBeenCalledWith(RequestId);
+    }
+  });
+
+  it('người NGOÀI nhận cùng lỗi với yêu cầu không tồn tại', async () => {
+    // Phân biệt hai cái là để lộ ai đang xin đồ của ai.
+    const { useCase } = build(Detail);
+
+    await expect(
+      useCase.handle({ requestId: RequestId, viewerUserId: 'nguoi-ngoai' }),
+    ).rejects.toThrow(GiftRequestNotFoundException);
+  });
+
+  it('không tồn tại thì NotFound', async () => {
+    const { useCase } = build(null);
+
+    await expect(
+      useCase.handle({ requestId: RequestId, viewerUserId: RequesterId }),
+    ).rejects.toThrow(GiftRequestNotFoundException);
   });
 });

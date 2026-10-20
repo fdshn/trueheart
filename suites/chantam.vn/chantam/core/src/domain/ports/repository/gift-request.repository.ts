@@ -46,7 +46,24 @@ export interface IClosedRequestRow {
   readonly postTitle: string;
 }
 
+/** Một yêu cầu kèm bài và lượt trao của nó — đích của thông báo `GIFT_REQUEST_*`. */
+export interface IGiftRequestDetail {
+  readonly requestId: string;
+  readonly postId: string;
+  /** Tác giả bài. */
+  readonly ownerId: string;
+  readonly requesterId: string;
+  readonly status: GiftRequestStatuses;
+  readonly message: string | null;
+  readonly createdAt: Date;
+  /** Lượt trao GẦN NHẤT giữa chủ bài và người xin trên bài này; `null` khi chưa có. */
+  readonly transactionId: string | null;
+}
+
 export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
+  /** `null` khi không có hoặc đã xoá mềm. Không kiểm quyền — use case làm. */
+  findDetail(requestId: string): Promise<IGiftRequestDetail | null>;
+
   findByPostAndRequester(
     postId: string,
     requesterId: string,

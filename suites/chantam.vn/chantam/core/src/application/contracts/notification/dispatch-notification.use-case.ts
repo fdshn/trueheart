@@ -1,4 +1,7 @@
-import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  INotificationTarget,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { IUseCase } from '@chantam/service.common-lib';
 
 export interface IDispatchNotificationCommand {
@@ -8,6 +11,14 @@ export interface IDispatchNotificationCommand {
   body: string;
   referenceType?: string | null;
   referenceId?: string | null;
+  /**
+   * Màn mobile mở khi bấm (`NotificationTargetsByType`).
+   *
+   * Bỏ trống: nếu `reference` tự nó là một màn (bài, lượt trao, phòng chat…) thì đích
+   * là nó, không thì không có đích. Truyền rõ khi reference là đối tượng CON — yêu cầu
+   * xin đồ mở bài, lượt đóng góp mở hoạt động. `null` là chủ ý không có màn đích.
+   */
+  target?: INotificationTarget | null;
   /** Bỏ trống thì thông báo có thể trùng khi retry — hầu như luôn nên truyền. */
   idempotencyKey?: string | null;
   /**

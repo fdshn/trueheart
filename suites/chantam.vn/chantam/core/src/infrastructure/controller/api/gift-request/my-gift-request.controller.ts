@@ -1,4 +1,8 @@
-import { IListMyGiftRequestsUseCase } from '@/application/contracts/gift-request';
+import {
+  IGetGiftRequestUseCase,
+  IListMyGiftRequestsUseCase,
+} from '@/application/contracts/gift-request';
+import { GiftRequestNotFoundException } from '@/domain/exceptions';
 import {
   ApiTokenErrors,
   CurrentUser,
@@ -6,7 +10,7 @@ import {
 } from '@chantam/service.auth-lib';
 import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
-import { Controller, Get, Inject, Query } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -14,6 +18,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  GiftRequestDetailResponseDto,
+  GiftRequestIdParamDto,
   ListMyGiftRequestsQueryDto,
   ListMyGiftRequestsResponseDto,
 } from '../../dto/gift-request/my-gift-requests.dto';
@@ -31,6 +37,8 @@ export class MyGiftRequestController {
   public constructor(
     @Inject(IListMyGiftRequestsUseCase)
     private readonly listMyGiftRequestsUseCase: IListMyGiftRequestsUseCase,
+    @Inject(IGetGiftRequestUseCase)
+    private readonly getGiftRequestUseCase: IGetGiftRequestUseCase,
   ) {}
 
   @Get('me')
@@ -54,6 +62,34 @@ export class MyGiftRequestController {
           status: query.status,
           page: query.page ?? 1,
           pageSize: query.pageSize ?? 20,
+        }),
+      )
+      .build();
+  }
+
+  // Sau `me`: route-order-guard đòi route tĩnh đứng trước route tham số cùng độ sâu.
+  @Get(':requestId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Một yêu cầu xin nhận (đích phụ của thông báo GIFT_REQUEST_*)',
+    description:
+      'Chỉ NGƯỜI XIN và CHỦ BÀI đọc được; người khác nhận cùng `404 GIFT_REQUEST_NOT_FOUND` với yêu cầu không tồn tại. Trả `postId` (mở bài) và `transactionId` (lượt trao gần nhất giữa hai người trên bài này, `null` khi chưa được chấp nhận). Thông báo đã mang sẵn `targetType: POST` — endpoint này cho màn cần trạng thái yêu cầu.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(GiftRequestDetailResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, [
+    GiftRequestNotFoundException,
+    '7c3e0b18-2f44-4a91-9d2e-55b0a1f6c8d3',
+  ])
+  public async getOne(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: GiftRequestIdParamDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.getGiftRequestUseCase.handle({
+          requestId: params.requestId,
+          viewerUserId: principal.userId,
         }),
       )
       .build();

@@ -11,6 +11,8 @@ import {
 import {
   ContentViolationPenaltyRuleCode,
   GiftPostStatuses,
+  INotificationTarget,
+  NotificationTargetTypes,
   ReportStatuses,
   ReportTargetTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -102,6 +104,47 @@ export class ReportRepository
     );
 
     return row?.owner_id ?? null;
+  }
+
+  public async findContentLocation(
+    targetType: ReportTargetTypes,
+    targetId: string,
+  ): Promise<INotificationTarget | null> {
+    if (targetType === ReportTargetTypes.POST)
+      return { type: NotificationTargetTypes.POST, id: targetId };
+    if (targetType === ReportTargetTypes.DHARMA_THREAD)
+      return { type: NotificationTargetTypes.DHARMA_THREAD, id: targetId };
+
+    if (targetType === ReportTargetTypes.COMMENT) {
+      const [comment] = await this.manager.query<
+        { subject_type: string; subject_id: string }[]
+      >(
+        `SELECT subject_type::text AS subject_type, subject_id
+           FROM content_comments WHERE global_id = $1`,
+        [targetId],
+      );
+      if (comment?.subject_type === NotificationTargetTypes.POST)
+        return { type: NotificationTargetTypes.POST, id: comment.subject_id };
+      if (comment?.subject_type === NotificationTargetTypes.DHARMA_THREAD)
+        return {
+          type: NotificationTargetTypes.DHARMA_THREAD,
+          id: comment.subject_id,
+        };
+      return null;
+    }
+
+    if (targetType === ReportTargetTypes.CHAT_MESSAGE) {
+      const [message] = await this.manager.query<{ room_id: string }[]>(
+        `SELECT room_id FROM chat_messages WHERE global_id = $1`,
+        [targetId],
+      );
+      return message
+        ? { type: NotificationTargetTypes.CHAT_ROOM, id: message.room_id }
+        : null;
+    }
+
+    // Báo xấu một NGƯỜI: không có màn nào để mở.
+    return null;
   }
 
   public async findReporterStats(params: {

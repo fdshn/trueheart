@@ -1,4 +1,5 @@
 import {
+  INotificationTarget,
   ReportReasons,
   ReportStatuses,
   ReportTargetTypes,
@@ -56,6 +57,16 @@ export interface IReportRepository extends Repository<IReportEntity> {
     targetType: ReportTargetTypes,
     targetId: string,
   ): Promise<string | null>;
+
+  /**
+   * Màn mobile mở để xem nội dung bị báo: bài và chủ đề Phật pháp là chính nó, bình
+   * luận mở bài/chủ đề chứa nó, tin nhắn mở phòng. `null` khi đích là NGƯỜI (không có
+   * màn) hoặc nội dung đã biến mất.
+   */
+  findContentLocation(
+    targetType: ReportTargetTypes,
+    targetId: string,
+  ): Promise<INotificationTarget | null>;
 
   targetExists(
     targetType: ReportTargetTypes,

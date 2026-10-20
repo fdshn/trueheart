@@ -1,4 +1,7 @@
 import {
+  IGetGiftRequestCommand,
+  IGetGiftRequestResult,
+  IGetGiftRequestUseCase,
   IListMyGiftRequestsCommand,
   IListMyGiftRequestsResult,
   IListMyGiftRequestsUseCase,
@@ -83,6 +86,33 @@ export class ListMyGiftRequestsUseCase implements IListMyGiftRequestsUseCase {
 }
 
 /**
+ * Một yêu cầu xin nhận — chỉ NGƯỜI XIN và CHỦ BÀI đọc được.
+ *
+ * Người ngoài nhận cùng lỗi với yêu cầu không tồn tại: phân biệt hai cái là để lộ ai
+ * đang xin đồ của ai.
+ */
+@Injectable()
+export class GetGiftRequestUseCase implements IGetGiftRequestUseCase {
+  public constructor(
+    @Inject(IGiftRequestRepository)
+    private readonly requests: IGiftRequestRepository,
+  ) {}
+
+  public async handle(
+    command: IGetGiftRequestCommand,
+  ): Promise<IGetGiftRequestResult> {
+    const request = await this.requests.findDetail(command.requestId);
+    if (
+      !request ||
+      (request.requesterId !== command.viewerUserId &&
+        request.ownerId !== command.viewerUserId)
+    )
+      throw new GiftRequestNotFoundException(command.requestId);
+    return { request };
+  }
+}
+
+/**
  * Chủ bài chủ động từ chối một yêu cầu.
  *
  * Trước 28/09 không có đường nào làm việc này: `REJECTED` khai trong enum, lọc
@@ -121,6 +151,7 @@ export class RejectGiftRequestUseCase implements IRejectGiftRequestUseCase {
 
     await this.notifier.announceRejected({
       requesterId: rejected.requesterId,
+      postId: command.postId,
       postTitle: post.title,
       requestId: rejected.globalId,
     });

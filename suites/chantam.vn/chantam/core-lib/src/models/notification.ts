@@ -1,4 +1,4 @@
-import { NotificationTypes } from '../consts';
+import { NotificationTargetTypes, NotificationTypes } from '../consts';
 
 /**
  * Một thông báo trong app (F44).
@@ -15,6 +15,10 @@ export interface INotification {
   body: string;
   referenceType: string | null;
   referenceId: string | null;
+  /** Màn mobile mở khi bấm — xem `NotificationTargetTypes`. `null` là không có màn. */
+  targetType: NotificationTargetTypes | null;
+  /** Id cho endpoint chi tiết của `targetType`; `null` với màn "của tôi". */
+  targetId: string | null;
   idempotencyKey: string | null;
   readAt: Date | null;
   /**

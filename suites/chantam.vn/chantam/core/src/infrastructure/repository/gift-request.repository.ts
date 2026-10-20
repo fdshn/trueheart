@@ -10,6 +10,7 @@ import {
   ICandidateMetricsWithId,
   IChatRepository,
   IClosedRequestRow,
+  IGiftRequestDetail,
   IGiftRequestRepository,
   IMyGiftRequestRow,
   IPointLedgerRepository,
@@ -355,6 +356,53 @@ export class GiftRequestRepository
       })),
       total: Number(rows[0]?.total ?? 0),
     };
+  }
+
+  public async findDetail(
+    requestId: string,
+  ): Promise<IGiftRequestDetail | null> {
+    const [row] = await this.manager.query<
+      {
+        global_id: string;
+        post_id: string;
+        owner_id: string;
+        requester_id: string;
+        status: GiftRequestStatuses;
+        message: string | null;
+        created_at: Date;
+        transaction_id: string | null;
+      }[]
+    >(
+      `SELECT request.global_id, request.post_id, post.author_id AS owner_id,
+              request.requester_id, request.status, request.message,
+              request.created_at,
+              -- Lượt trao không lưu request_id: nó nối với yêu cầu qua cặp (bài,
+              -- ĐỐI PHƯƠNG), cùng luật với lúc duyệt. Người xin là receiver ở bài
+              -- Muốn Tặng nhưng là giver ở bài Muốn Nhận.
+              (SELECT deal.global_id FROM gift_transactions deal
+                WHERE deal.post_id = request.post_id
+                  AND (deal.receiver_id = request.requester_id
+                       OR deal.giver_id = request.requester_id)
+                ORDER BY deal.requested_at DESC, deal.id DESC
+                LIMIT 1) AS transaction_id
+         FROM gift_requests request
+         INNER JOIN posts post ON post.global_id = request.post_id
+        WHERE request.global_id = $1
+          AND request.deleted_at IS NULL`,
+      [requestId],
+    );
+    return row
+      ? {
+          requestId: row.global_id,
+          postId: row.post_id,
+          ownerId: row.owner_id,
+          requesterId: row.requester_id,
+          status: row.status,
+          message: row.message,
+          createdAt: row.created_at,
+          transactionId: row.transaction_id,
+        }
+      : null;
   }
 
   public async closeOpenForPosts(params: {

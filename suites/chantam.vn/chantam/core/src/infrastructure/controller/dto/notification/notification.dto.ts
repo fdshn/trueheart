@@ -1,5 +1,6 @@
 import {
   NotificationGroups,
+  NotificationTargetTypes,
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
@@ -42,11 +43,36 @@ export class NotificationDto implements INotificationDto {
   @ApiProperty()
   body: string;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Đối tượng SINH RA sự kiện (vd `GIFT_REQUEST`, `CHARITY_CONTRIBUTION`). Không dùng để điều hướng — dùng `targetType`.',
+  })
   referenceType: string | null;
 
-  @ApiPropertyOptional({ nullable: true, format: 'uuid' })
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'uuid',
+    description:
+      'Id của đối tượng sinh ra sự kiện. Màn đích có thể dùng nó để cuộn tới / tô sáng đúng dòng (vd lượt đóng góp trong màn hoạt động).',
+  })
   referenceId: string | null;
+
+  @ApiPropertyOptional({
+    enum: NotificationTargetTypes,
+    nullable: true,
+    description:
+      'Màn PHẢI mở khi bấm — mỗi giá trị ứng với một endpoint chi tiết: `POST` → `GET /posts/:targetId`, `GIFT_TRANSACTION` → `GET /transactions/:targetId`, `CHAT_ROOM` → `GET /chat/rooms/:targetId/messages`, `CHARITY_CAMPAIGN` → `GET /campaigns/:targetId`, `DHARMA_THREAD` → `GET /dharma/threads/:targetId`, `RANK` → `GET /ranks/me`, `REFERRAL` → `GET /referrals/me`. `null` là không có màn — mở hộp thư. Không suy loại id từ `type`.',
+  })
+  targetType: NotificationTargetTypes | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'uuid',
+    description:
+      'Id công khai (global UUID) để gọi endpoint chi tiết của `targetType`. `null` khi `targetType` là màn "của tôi" (`RANK`, `REFERRAL`) hoặc không có màn. Đích đã bị xoá hoặc người xem không còn quyền thì endpoint trả 404.',
+  })
+  targetId: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   readAt: Date | null;

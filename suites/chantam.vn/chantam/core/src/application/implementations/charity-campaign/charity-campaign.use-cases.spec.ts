@@ -43,6 +43,7 @@ import {
   GetAdminCampaignNeedsUseCase,
   GetAdminCharityCampaignUseCase,
   GetCampaignNeedsUseCase,
+  GetCharityContributionUseCase,
   GetCharityDeliveryUseCase,
   ListCampaignContributionsUseCase,
   ManageCharityBeneficiaryUseCase,
@@ -1268,6 +1269,75 @@ describe('Lát C — tầng ứng dụng (F65b §5–§6)', () => {
           viewerUserId: viewer,
         }),
       ).resolves.toMatchObject({ globalId: 'delivery-1' });
+  });
+});
+
+describe('GetCharityContributionUseCase (đích của thông báo đóng góp)', () => {
+  const ContributionId = 'contribution-1';
+  const contribution = {
+    globalId: ContributionId,
+    campaignId: CampaignId,
+    contributorId: ActorId,
+    status: 'PENDING_REVIEW' as const,
+    note: null,
+    contactNote: null,
+    decidedAt: null,
+    createdAt: new Date(),
+    items: [],
+    deliveryId: null,
+    deliveryStatus: null,
+  };
+
+  it('người đóng góp và người điều phối đều đọc được', async () => {
+    const repository = makeRepository();
+    repository.findContributionByGlobalId.mockResolvedValue(
+      contribution as never,
+    );
+    repository.isCampaignManager.mockImplementation(
+      async (_campaignId: string, userId: string) => userId === OrganizerId,
+    );
+
+    for (const viewer of [ActorId, OrganizerId])
+      await expect(
+        new GetCharityContributionUseCase(repository).handle({
+          contributionId: ContributionId,
+          viewerUserId: viewer,
+        }),
+      ).resolves.toMatchObject({
+        globalId: ContributionId,
+        campaignId: CampaignId,
+      });
+    expect(repository.isCampaignManager).toHaveBeenCalledWith(
+      CampaignId,
+      OrganizerId,
+    );
+  });
+
+  it('người NGOÀI nhận cùng lỗi với lượt không tồn tại', async () => {
+    // Phân biệt hai cái là để lộ ai đang đóng góp cho hoạt động nào.
+    const repository = makeRepository();
+    repository.findContributionByGlobalId.mockResolvedValue(
+      contribution as never,
+    );
+
+    await expect(
+      new GetCharityContributionUseCase(repository).handle({
+        contributionId: ContributionId,
+        viewerUserId: 'nguoi-ngoai',
+      }),
+    ).rejects.toBeInstanceOf(CharityContributionNotFoundException);
+  });
+
+  it('không tồn tại thì NotFound', async () => {
+    const repository = makeRepository();
+    repository.findContributionByGlobalId.mockResolvedValue(null);
+
+    await expect(
+      new GetCharityContributionUseCase(repository).handle({
+        contributionId: ContributionId,
+        viewerUserId: ActorId,
+      }),
+    ).rejects.toBeInstanceOf(CharityContributionNotFoundException);
   });
 });
 

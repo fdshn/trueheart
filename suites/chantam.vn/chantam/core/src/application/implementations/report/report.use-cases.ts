@@ -319,7 +319,11 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
     if (command.review.status === ReportStatuses.RESOLVED)
       await this.awardReporter(existing.reporterUserId, command.reportId);
 
-    await this.announceOutcome(existing, command.review.status, note);
+    await this.announceOutcome(
+      { ...existing, reportId: command.reportId },
+      command.review.status,
+      note,
+    );
 
     const report = await this.reports.findAdminByGlobalId(command.reportId);
     if (!report) throw new ReportNotFoundException();
@@ -387,6 +391,7 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
    */
   private async announceOutcome(
     report: {
+      reportId: string;
       reporterUserId: string;
       targetType: ReportTargetTypes;
       targetId: string;
@@ -397,13 +402,22 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
     const upheld = status === ReportStatuses.RESOLVED;
 
     try {
+      // Cả hai người nhận cùng mở NỘI DUNG bị báo — không có màn riêng cho một báo xấu.
+      const target = await this.reports.findContentLocation(
+        report.targetType,
+        report.targetId,
+      );
+
       await this.dispatchNotification.handle({
         userId: report.reporterUserId,
         type: NotificationTypes.REPORT_REVIEWED,
         title: 'Báo xấu của bạn đã được xem xét',
         body: `Kết luận: ${upheld ? 'đã xác minh và xử lý' : 'không vi phạm'}. Cảm ơn bạn đã báo.`,
+        // Reference là CHÍNH báo xấu. Trước 20/10 ghi id NỘI DUNG dưới nhãn REPORT,
+        // nên không ai biết id đó thuộc loại gì.
         referenceType: 'REPORT',
-        referenceId: report.targetId,
+        referenceId: report.reportId,
+        target,
         idempotencyKey: `REPORT_REVIEWED:${report.targetId}:${report.reporterUserId}:${status}`,
         variables: {
           outcome: upheld ? 'đã xác minh và xử lý' : 'không vi phạm',
@@ -428,6 +442,7 @@ export class ReviewReportUseCase implements IReviewReportUseCase {
         body: `Một nội dung của bạn bị xử lý sau khi được xem xét. Lý do: ${note}`,
         referenceType: report.targetType,
         referenceId: report.targetId,
+        target,
         idempotencyKey: `CONTENT_MODERATED:${report.targetType}:${report.targetId}`,
         variables: { action: 'xử lý', reason: note },
       });

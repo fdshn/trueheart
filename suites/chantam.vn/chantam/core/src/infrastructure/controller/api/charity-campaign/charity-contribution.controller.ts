@@ -1,5 +1,6 @@
 import {
   IDecideCharityContributionUseCase,
+  IGetCharityContributionUseCase,
   IListMyContributionsUseCase,
   IUpdateCharityContributionUseCase,
 } from '@/application/contracts/charity-campaign';
@@ -38,6 +39,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  CharityCampaignIdParamDto,
   CharityContributionDto,
   CharityContributionPageDto,
   DecideCharityContributionBodyDto,
@@ -67,6 +69,8 @@ export class CharityContributionController {
     private readonly updateUseCase: IUpdateCharityContributionUseCase,
     @Inject(IDecideCharityContributionUseCase)
     private readonly decideUseCase: IDecideCharityContributionUseCase,
+    @Inject(IGetCharityContributionUseCase)
+    private readonly getUseCase: IGetCharityContributionUseCase,
   ) {}
 
   @Get('me')
@@ -89,6 +93,31 @@ export class CharityContributionController {
           contributorId: principal.userId,
           limit: query.limit ?? 20,
           offset: query.offset ?? 0,
+        }),
+      )
+      .build();
+  }
+
+  // Sau `me`: route-order-guard đòi route tĩnh đứng trước route tham số cùng độ sâu.
+  @Get(':id')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Một đề nghị đóng góp (đích của thông báo CHARITY_CONTRIBUTION_*)',
+    description:
+      'Người đóng góp và người điều phối hoạt động (người tổ chức hoặc coordinator) đọc được. Người ngoài nhận cùng `404 CHARITY_CONTRIBUTION_NOT_FOUND` với lượt không tồn tại. Có `campaignId` để mở hoạt động, `items` kèm `acceptedQuantity` từng dòng.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(CharityContributionDto) })
+  @ApiErrorResponses(...ApiTokenErrors, CharityContributionNotFoundException)
+  public async getOne(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityCampaignIdParamDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.getUseCase.handle({
+          contributionId: params.id,
+          viewerUserId: principal.userId,
         }),
       )
       .build();

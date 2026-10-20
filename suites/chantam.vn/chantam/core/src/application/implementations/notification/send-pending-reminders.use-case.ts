@@ -10,7 +10,10 @@ import {
   IRankRepository,
   ITransactionReviewRepository,
 } from '@/domain/ports/repository';
-import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  NotificationTargetTypes,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   normalizeReviewGraceConfig,
   PostExpiryReminderDays,
@@ -142,6 +145,7 @@ export class SendPendingRemindersUseCase implements ISendPendingRemindersUseCase
           `Không đủ chỉ tiêu sẽ bị trừ ${cycle.penaltyPoints} điểm.`,
         referenceType: 'RANK_MAINTENANCE_CYCLE',
         referenceId: cycle.cycleId,
+        target: { type: NotificationTargetTypes.RANK, id: null },
         idempotencyKey: `RANK_MAINTENANCE_REMINDER:${cycle.cycleId}`,
         variables: {
           rank: cycle.rank,

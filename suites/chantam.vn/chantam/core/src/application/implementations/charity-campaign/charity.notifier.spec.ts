@@ -1,4 +1,7 @@
-import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  NotificationTargetTypes,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { CharityNotifier } from './charity.notifier';
 
 function build(failing = false) {
@@ -56,6 +59,7 @@ describe('CharityNotifier', () => {
       campaignTitle: 'Bếp cơm',
       contribution: {
         globalId: 'c-1',
+        campaignId: 'camp-1',
         contributorId: 'nguoi-tang',
         status: 'PARTIALLY_ACCEPTED',
       },
@@ -78,6 +82,7 @@ describe('CharityNotifier', () => {
       campaignTitle: 'Bếp cơm',
       contribution: {
         globalId: 'c-1',
+        campaignId: 'camp-1',
         contributorId: 'nguoi-tang',
         status: 'REJECTED',
       },
@@ -108,5 +113,39 @@ describe('CharityNotifier', () => {
     });
 
     expect(dispatch.handle).not.toHaveBeenCalled();
+  });
+
+  it('lượt đóng góp và giao nhận mở HOẠT ĐỘNG, reference vẫn là chính lượt đó', async () => {
+    // Mobile không có màn riêng cho một lượt đóng góp: phải mở hoạt động, và dùng
+    // referenceId để tô sáng đúng lượt.
+    const { notifier, dispatch } = build();
+
+    await notifier.contributionDecided({
+      campaignTitle: 'Bếp cơm',
+      contribution: {
+        globalId: 'c-1',
+        campaignId: 'camp-1',
+        contributorId: 'nguoi-tang',
+        status: 'ACCEPTED',
+      },
+    });
+    await notifier.deliveryCancelled({
+      campaignTitle: 'Bếp cơm',
+      delivery,
+      cancelledBy: 'nguoi-tang',
+    });
+
+    for (const [call] of dispatch.handle.mock.calls as unknown as [
+      { referenceId: string; target: unknown },
+    ][])
+      expect(call.target).toEqual({
+        type: NotificationTargetTypes.CHARITY_CAMPAIGN,
+        id: 'camp-1',
+      });
+    expect(
+      (
+        dispatch.handle.mock.calls as unknown as [{ referenceId: string }][]
+      ).map(([call]) => call.referenceId),
+    ).toEqual(['c-1', 'd-1']);
   });
 });

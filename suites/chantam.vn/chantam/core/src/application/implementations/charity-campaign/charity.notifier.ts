@@ -3,7 +3,10 @@ import {
   ICharityContribution,
   ICharityDelivery,
 } from '@/domain/ports/repository';
-import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  NotificationTargetTypes,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 /**
@@ -42,6 +45,10 @@ export class CharityNotifier {
       body: `"${params.campaignTitle}" vừa nhận một đề nghị gồm ${params.contribution.items.length} vật phẩm, đang chờ bạn xét.`,
       referenceType: 'CHARITY_CONTRIBUTION',
       referenceId: params.contribution.globalId,
+      target: {
+        type: NotificationTargetTypes.CHARITY_CAMPAIGN,
+        id: params.contribution.campaignId,
+      },
       idempotencyKey: `${NotificationTypes.CHARITY_CONTRIBUTION_SUBMITTED}:${params.contribution.globalId}`,
     });
   }
@@ -57,7 +64,7 @@ export class CharityNotifier {
     campaignTitle: string;
     contribution: Pick<
       ICharityContribution,
-      'globalId' | 'contributorId' | 'status'
+      'globalId' | 'campaignId' | 'contributorId' | 'status'
     >;
     /** `true` khi đề nghị bị từ chối vì hoạt động ĐÓNG, không vì người tổ chức chọn. */
     byClosing?: boolean;
@@ -78,6 +85,10 @@ export class CharityNotifier {
       body,
       referenceType: 'CHARITY_CONTRIBUTION',
       referenceId: contribution.globalId,
+      target: {
+        type: NotificationTargetTypes.CHARITY_CAMPAIGN,
+        id: contribution.campaignId,
+      },
       idempotencyKey: `${NotificationTypes.CHARITY_CONTRIBUTION_DECIDED}:${contribution.globalId}`,
     });
   }
@@ -93,6 +104,10 @@ export class CharityNotifier {
       body: `Người tổ chức "${params.campaignTitle}" đã xác nhận nhận được vật phẩm bạn góp. Cảm ơn tấm lòng của bạn.`,
       referenceType: 'CHARITY_DELIVERY',
       referenceId: params.delivery.globalId,
+      target: {
+        type: NotificationTargetTypes.CHARITY_CAMPAIGN,
+        id: params.delivery.campaignId,
+      },
       idempotencyKey: `${NotificationTypes.CHARITY_DELIVERY_COMPLETED}:${params.delivery.globalId}`,
     });
   }
@@ -115,6 +130,10 @@ export class CharityNotifier {
       body: `Lượt giao nhận vật phẩm cho "${params.campaignTitle}" đã bị huỷ. Lý do: ${delivery.cancelReason ?? 'không ghi'}.`,
       referenceType: 'CHARITY_DELIVERY',
       referenceId: delivery.globalId,
+      target: {
+        type: NotificationTargetTypes.CHARITY_CAMPAIGN,
+        id: delivery.campaignId,
+      },
       idempotencyKey: `${NotificationTypes.CHARITY_DELIVERY_CANCELLED}:${delivery.globalId}`,
     });
   }

@@ -1,4 +1,7 @@
-import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  NotificationTargetTypes,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { INotificationEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
   PostgresBaseEntity,
@@ -42,6 +45,14 @@ export class NotificationEntity
   @ApiProperty({ nullable: true })
   @Column({ name: 'reference_id', type: 'uuid', nullable: true })
   referenceId: string | null;
+
+  @ApiProperty({ enum: NotificationTargetTypes, nullable: true })
+  @Column({ name: 'target_type', type: 'varchar', length: 32, nullable: true })
+  targetType: NotificationTargetTypes | null;
+
+  @ApiProperty({ nullable: true })
+  @Column({ name: 'target_id', type: 'uuid', nullable: true })
+  targetId: string | null;
 
   @ApiProperty({ nullable: true })
   @Column({

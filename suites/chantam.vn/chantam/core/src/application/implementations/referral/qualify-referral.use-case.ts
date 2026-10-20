@@ -5,7 +5,10 @@ import {
   IQualifyReferralUseCase,
 } from '@/application/contracts/referral';
 import { IReferralRepository } from '@/domain/ports/repository';
-import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  NotificationTargetTypes,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { Inject, Injectable } from '@nestjs/common';
 import { RankChangeNotifier } from '../rank/rank-change.notifier';
 
@@ -47,6 +50,7 @@ export class QualifyReferralUseCase implements IQualifyReferralUseCase {
           : `Một người bạn giới thiệu đã hoàn tất onboarding. Bạn được +${result.awardedPoints} điểm.`,
       referenceType: 'REFERRAL',
       referenceId: command.refereeId,
+      target: { type: NotificationTargetTypes.REFERRAL, id: null },
       idempotencyKey: `REFERRAL_QUALIFIED:${command.refereeId}`,
       variables: {
         awardedPoints: String(result.awardedPoints ?? ''),

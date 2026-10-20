@@ -1,4 +1,7 @@
-import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  NotificationTargetTypes,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { RequestLifecycleNotifier } from './request-lifecycle.notifier';
 
 function makeNotifier(handle = jest.fn(async () => ({ created: true }))) {
@@ -30,6 +33,7 @@ describe('RequestLifecycleNotifier', () => {
         body: 'Một người vừa gửi yêu cầu xin nhận cho bài "Áo ấm".',
         referenceType: 'GIFT_REQUEST',
         referenceId: 'request-1',
+        target: { type: NotificationTargetTypes.POST, id: 'post-1' },
         idempotencyKey: 'GIFT_REQUEST_CREATED:request-1',
       });
     });
@@ -48,6 +52,7 @@ describe('RequestLifecycleNotifier', () => {
 
     await notifier.announceRejected({
       requesterId: 'requester-1',
+      postId: 'post-1',
       postTitle: 'Áo ấm',
       requestId: 'request-1',
     });
@@ -59,6 +64,7 @@ describe('RequestLifecycleNotifier', () => {
       body: 'Người tặng đã không chọn yêu cầu của bạn cho bài "Áo ấm".',
       referenceType: 'GIFT_REQUEST',
       referenceId: 'request-1',
+      target: { type: NotificationTargetTypes.POST, id: 'post-1' },
       idempotencyKey: 'GIFT_REQUEST_REJECTED:request-1',
     });
   });
@@ -68,6 +74,7 @@ describe('RequestLifecycleNotifier', () => {
 
     await notifier.announceClosed({
       requesterId: 'requester-1',
+      postId: 'post-1',
       postTitle: 'Áo ấm',
       requestId: 'request-1',
       reason: 'Bài đã hết hạn',
@@ -80,6 +87,7 @@ describe('RequestLifecycleNotifier', () => {
       body: 'Bài đã hết hạn nên yêu cầu xin nhận của bạn cho bài "Áo ấm" được đóng lại.',
       referenceType: 'GIFT_REQUEST',
       referenceId: 'request-1',
+      target: { type: NotificationTargetTypes.POST, id: 'post-1' },
       idempotencyKey: 'GIFT_REQUEST_CLOSED:request-1',
     });
   });
@@ -102,6 +110,7 @@ describe('RequestLifecycleNotifier', () => {
     await expect(
       notifier.announceRejected({
         requesterId: 'requester-1',
+        postId: 'post-1',
         postTitle: 'Áo ấm',
         requestId: 'request-1',
       }),
@@ -109,6 +118,7 @@ describe('RequestLifecycleNotifier', () => {
     await expect(
       notifier.announceClosed({
         requesterId: 'requester-1',
+        postId: 'post-1',
         postTitle: 'Áo ấm',
         requestId: 'request-1',
         reason: 'Bài đã gỡ',

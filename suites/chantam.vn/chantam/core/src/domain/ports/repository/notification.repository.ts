@@ -1,5 +1,6 @@
 import {
   NotificationGroups,
+  NotificationTargetTypes,
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { INotificationEntity } from '@chantam.vn/chantam.core-lib/entities';
@@ -13,6 +14,9 @@ export interface ICreateNotificationParams {
   body: string;
   referenceType?: string | null;
   referenceId?: string | null;
+  /** Màn mobile mở khi bấm; use case gửi đã kiểm cặp này hợp lệ cho `type`. */
+  targetType?: NotificationTargetTypes | null;
+  targetId?: string | null;
   /**
    * Khoá chống trùng. Cùng khoá thì lần ghi thứ hai bị **database** từ chối,
    * không phải được tầng ứng dụng bỏ qua — nên job chạy lại hay request bị

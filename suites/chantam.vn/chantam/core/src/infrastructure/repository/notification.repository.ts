@@ -27,8 +27,8 @@ export class NotificationRepository implements INotificationRepository {
       `
         INSERT INTO notifications
           (global_id, user_id, type, title, body,
-           reference_type, reference_id, idempotency_key)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           reference_type, reference_id, target_type, target_id, idempotency_key)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ON CONFLICT ("idempotency_key") DO NOTHING
         RETURNING global_id
       `,
@@ -40,6 +40,8 @@ export class NotificationRepository implements INotificationRepository {
         params.body,
         params.referenceType ?? null,
         params.referenceId ?? null,
+        params.targetType ?? null,
+        params.targetId ?? null,
         params.idempotencyKey ?? null,
       ],
     );

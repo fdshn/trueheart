@@ -8,7 +8,12 @@ import {
   INotificationRepository,
   INotificationTemplateRepository,
 } from '@/domain/ports/repository';
-import { NotificationGroupOf } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  INotificationTarget,
+  isValidNotificationTarget,
+  NotificationGroupOf,
+  NotificationTargetTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { renderNotificationTemplate } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -30,6 +35,7 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
     command: IDispatchNotificationCommand,
   ): Promise<IDispatchNotificationResult> {
     const { title, body } = await this.resolveContent(command);
+    const target = this.resolveTarget(command);
 
     const created = await this.notifications.create({
       // Chống trùng là việc của `idempotencyKey` (UNIQUE ở database), không
@@ -42,6 +48,8 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
       body,
       referenceType: command.referenceType ?? null,
       referenceId: command.referenceId ?? null,
+      targetType: target?.type ?? null,
+      targetId: target?.id ?? null,
       idempotencyKey: command.idempotencyKey ?? null,
     });
 
@@ -63,6 +71,29 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
       body,
     });
     return { created: true, pushedDevices };
+  }
+
+  /**
+   * Màn mobile mở khi bấm.
+   *
+   * Đích sai cặp thì BỎ đích chứ không ném: mở nhầm màn tệ hơn mở hộp thư, và một
+   * thông báo không được mất chỉ vì nơi gọi khai đích sai. Ghi cảnh báo để vận hành
+   * thấy — contract test bắt nó trước khi tới đây.
+   */
+  private resolveTarget(
+    command: IDispatchNotificationCommand,
+  ): INotificationTarget | null {
+    const target =
+      command.target !== undefined
+        ? command.target
+        : referenceAsTarget(command.referenceType, command.referenceId);
+    if (!target) return null;
+    if (isValidNotificationTarget(command.type, target)) return target;
+
+    this.logger.warn(
+      `Đích ${target.type}:${String(target.id)} không hợp lệ cho ${command.type}, bỏ đích`,
+    );
+    return null;
   }
 
   /**
@@ -150,4 +181,18 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
       return 0;
     }
   }
+}
+
+const TargetTypeValues: ReadonlySet<string> = new Set(
+  Object.values(NotificationTargetTypes),
+);
+
+/** Reference tự nó là một màn (bài, lượt trao, phòng chat…) thì đích chính là nó. */
+function referenceAsTarget(
+  referenceType: string | null | undefined,
+  referenceId: string | null | undefined,
+): INotificationTarget | null {
+  if (!referenceType || !referenceId || !TargetTypeValues.has(referenceType))
+    return null;
+  return { type: referenceType as NotificationTargetTypes, id: referenceId };
 }

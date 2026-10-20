@@ -11,6 +11,7 @@ export * from './gift-post-conditions';
 export * from './gift-post-statuses';
 export * from './gift-request-statuses';
 export * from './group';
+export * from './notification-targets';
 export * from './notification-types';
 export * from './onboarding-task-evidence';
 export * from './post-selection-modes';

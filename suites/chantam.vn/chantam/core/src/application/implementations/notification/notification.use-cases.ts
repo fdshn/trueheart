@@ -20,6 +20,8 @@ function toDto(notification: INotificationEntity): INotificationDto {
     body: notification.body,
     referenceType: notification.referenceType,
     referenceId: notification.referenceId,
+    targetType: notification.targetType,
+    targetId: notification.targetId,
     readAt: notification.readAt,
     createdAt: notification.createdAt,
   };

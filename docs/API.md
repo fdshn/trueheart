@@ -1308,6 +1308,42 @@ Quyền là `report.read` / `report.resolve` — cùng việc với xử báo x�
 | `GET` | `/notifications/me/preferences` | Bearer | **Cài đặt theo nhóm** — luôn trả đủ tám nhóm, kể cả nhóm chưa có loại nào |
 | `PATCH` | `/notifications/me/preferences` | Bearer | **Tắt/bật tiếng** một nhóm |
 
+- **Điều hướng khi bấm: đọc `targetType` / `targetId`, KHÔNG đoán từ `type`** (20/10).
+  `referenceType`/`referenceId` là đối tượng SINH RA sự kiện; `targetType`/`targetId` là
+  màn phải mở. Mỗi `targetType` ứng với một endpoint chi tiết:
+
+  | `targetType` | Mở | `targetId` |
+  | --- | --- | --- |
+  | `POST` | `GET /posts/:targetId` | id bài |
+  | `GIFT_TRANSACTION` | `GET /transactions/:targetId` | id lượt trao |
+  | `CHAT_ROOM` | `GET /chat/rooms/:targetId/messages` | id phòng |
+  | `CHARITY_CAMPAIGN` | `GET /campaigns/:targetId` | id hoạt động |
+  | `DHARMA_THREAD` | `GET /dharma/threads/:targetId` | id chủ đề |
+  | `RANK` | `GET /ranks/me` | luôn `null` |
+  | `REFERRAL` | `GET /referrals/me` | luôn `null` |
+  | `null` | hộp thư | `null` |
+
+  Đích theo từng loại thông báo nằm ở `NotificationTargetsByType` (core-lib). Những chỗ
+  `reference` KHÁC `target`:
+  - `GIFT_REQUEST_CREATED/REJECTED/CLOSED`: reference là yêu cầu, đích là **bài**.
+  - `CHARITY_CONTRIBUTION_*`, `CHARITY_DELIVERY_*`: reference là lượt đóng góp / giao nhận,
+    đích là **hoạt động** — dùng `referenceId` để tô sáng đúng lượt.
+  - `REPORT_REVIEWED`, `CONTENT_MODERATED`: đích là **nội dung bị báo** (bình luận mở bài
+    hoặc chủ đề chứa nó, tin nhắn mở phòng); báo xấu một người thì `null`.
+    `REPORT_REVIEWED` nay mang `referenceId` = id **báo xấu** (trước 20/10 là id nội dung).
+  - `GIFT_TRANSACTION_CLOSED`: người tặng mở lượt trao; người kế tiếp trong hàng đợi mở bài.
+  - `LUNAR_OBSERVANCE`, `SYSTEM_BROADCAST`: không có đích.
+
+  `targetId` luôn là id công khai. Đích đã bị xoá hoặc người xem không còn quyền thì
+  endpoint chi tiết trả **404**. Thông báo cũ được backfill theo đúng luật trên; dòng không
+  suy ra được (đối tượng đã biến mất) để `null`.
+- Hai endpoint chi tiết thêm cùng đợt:
+  - `GET /requests/:requestId` — chỉ người xin và chủ bài; trả `postId`, `ownerId`,
+    `requesterId`, `status`, `transactionId` (lượt trao gần nhất giữa hai người trên bài,
+    `null` khi chưa được chấp nhận). Người khác nhận `404 GIFT_REQUEST_NOT_FOUND`.
+  - `GET /charity-contributions/:id` — người đóng góp và người điều phối hoạt động; trả
+    `campaignId`, `contributorId`, `status`, `items`. Người khác nhận
+    `404 CHARITY_CONTRIBUTION_NOT_FOUND`.
 - `unreadCount` là **tổng** số chưa đọc, không phụ thuộc trang hay bộ lọc đang xem — mở
   trang 2 không được làm badge tụt xuống.
 - Id không thuộc người gọi đơn giản không khớp dòng nào; **không báo lỗi**, vì báo lỗi là
