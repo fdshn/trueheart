@@ -932,21 +932,24 @@ Cả hai đều áp quy tắc làm nhiễu toạ độ ở §1.
 cách không có thứ tự đảm bảo giữa hai lần chạy, và lật trang bằng `OFFSET` sẽ **lặp bài hoặc
 bỏ sót bài**.
 
-### Gốc toạ độ: GPS, rồi mới tới Vị trí mặc định
+### Gốc toạ độ: toạ độ gửi lên, hoặc Vị trí mặc định khi được YÊU CẦU
 
 `lat`/`lng` của `/posts/nearby` là **tuỳ chọn** ([F26](./FEATURES.md#f26--gps-hiện-tại--dự-phòng-default-location)):
 
 | Gửi gì | Server làm gì | `originSource` |
 | --- | --- | --- |
-| Cả `lat` và `lng` (kèm `radiusMeters`) | Dùng đúng toạ độ đó | `REQUEST` |
-| Không gửi, đã đăng nhập, có Vị trí mặc định | Lùi về Vị trí mặc định | `DEFAULT_LOCATION` |
-| Không gửi, chưa đăng nhập | **Trả toàn bộ**, không lọc bán kính | `ALL` |
-| Không gửi, đã đăng nhập, **chưa** đặt Vị trí mặc định | **Trả toàn bộ**, không lọc bán kính | `ALL` |
-| Chỉ một trong hai | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
+| Cả `lat` và `lng` (kèm `radiusMeters`) | Dùng đúng toạ độ đó (kể cả khi kèm `useDefaultLocation`) | `REQUEST` |
+| `useDefaultLocation=true`, đã đăng nhập, có Vị trí mặc định | Lọc quanh Vị trí mặc định; `radiusMeters` tuỳ chọn | `DEFAULT_LOCATION` |
+| `useDefaultLocation=true`, chưa đăng nhập hoặc **chưa** đặt Vị trí mặc định | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
+| Không gửi toạ độ, không gửi `useDefaultLocation` | **Trả toàn bộ**, không đọc hồ sơ, không lọc bán kính | `ALL` |
+| Chỉ một trong hai toạ độ | `DISCOVERY_ORIGIN_UNAVAILABLE` (400) | — |
 | Có toạ độ nhưng thiếu `radiusMeters` | `VALIDATION_FAILED` (400) | — |
 
-**Chặng `ALL` là chặng CUỐI** (chốt 27/09): chỉ tới khi không còn gốc toạ độ nào. Người đã
-đăng nhập và có Vị trí mặc định vẫn được quét quanh vị trí đó như cũ — F26 không đổi.
+> ⚠️ **Đổi hợp đồng API (21/10).** Trước đây server **tự** lùi về Vị trí mặc định khi người
+> đăng nhập không gửi toạ độ, nên cùng một lời gọi trả khác nhau tuỳ hồ sơ có đặt vị trí hay
+> chưa, và client không gửi gì vẫn bị lọc quanh một điểm nó không hề chọn. Giờ lọc quanh Vị
+> trí mặc định phải được **yêu cầu** bằng `useDefaultLocation=true`. Client đang dựa vào việc
+> tự lùi thì thêm cờ này; không thêm thì nhận `ALL`.
 
 Ở nhánh `ALL`:
 

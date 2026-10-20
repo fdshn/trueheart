@@ -111,11 +111,16 @@ export interface ICreatePostResponseDto {
 
 export interface IGetNearbyPostsQueryDto extends IPaginationQueryDto {
   /**
-   * Toạ độ quét. Bỏ trống thì server lùi về Vị trí mặc định của người đang
-   * đăng nhập (F26). Khách chưa đăng nhập bỏ trống thì không quét được.
+   * Toạ độ quét. Có cả hai thì gốc là `REQUEST`. Bỏ trống thì KHÔNG lọc theo vị
+   * trí (`ALL`) — server không tự lấy Vị trí mặc định nữa (21/10).
    */
   lat?: number;
   lng?: number;
+  /**
+   * `true` là YÊU CẦU lọc quanh Vị trí mặc định của người đang đăng nhập
+   * (`DEFAULT_LOCATION`). Bị bỏ qua khi đã có `lat`/`lng`.
+   */
+  useDefaultLocation?: boolean;
   /**
    * Bắt buộc KHI có `lat`/`lng`. Bỏ trống cùng với toạ độ thì không lọc theo
    * bán kính nữa — xem `originSource: 'ALL'`.

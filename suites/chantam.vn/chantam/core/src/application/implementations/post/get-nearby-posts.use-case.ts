@@ -124,10 +124,13 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
   /**
    * Chọn gốc toạ độ để quét (F26).
    *
-   * Ưu tiên toạ độ client gửi (thường là GPS), rồi tới Vị trí mặc định của
-   * người đang đăng nhập. Hết cả hai thì KHÔNG bịa ra một toạ độ mặc định —
-   * trả kết quả quanh một điểm người dùng không chọn là nói sai về thứ họ
-   * đang xem — mà bỏ hẳn bộ lọc bán kính và trả toàn bộ.
+   * - Có `lat` + `lng`: `REQUEST`.
+   * - `useDefaultLocation=true`: `DEFAULT_LOCATION` — chỉ khi client YÊU CẦU.
+   * - Không gì cả: `ALL`, không đọc hồ sơ.
+   *
+   * Tới 21/10 server tự lùi về Vị trí mặc định khi thiếu toạ độ: client không gửi
+   * gì mà kết quả bị lọc quanh một điểm nó không hề chọn, và cùng một lời gọi trả
+   * khác nhau tuỳ người đăng nhập có đặt vị trí hay chưa. Không bao giờ bịa toạ độ.
    */
   private async resolveOrigin(command: IGetNearbyPostsCommand): Promise<{
     origin?: { lat: number; lng: number };
@@ -145,12 +148,15 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
     if (command.lat !== undefined || command.lng !== undefined)
       throw new DiscoveryOriginUnavailableException();
 
-    if (!command.currentUserId) return { originSource: 'ALL' };
+    if (!command.useDefaultLocation) return { originSource: 'ALL' };
 
+    // Đã YÊU CẦU "quanh vị trí của tôi" thì không lặng lẽ trả toàn bộ khi không có
+    // vị trí nào: đó là một kết quả trái với thứ client vừa xin.
+    if (!command.currentUserId) throw new DiscoveryOriginUnavailableException();
     const user = await this.userRepository.findOneBy({
       globalId: command.currentUserId,
     });
-    if (!user?.defaultLocation) return { originSource: 'ALL' };
+    if (!user?.defaultLocation) throw new DiscoveryOriginUnavailableException();
 
     return {
       origin: user.defaultLocation,

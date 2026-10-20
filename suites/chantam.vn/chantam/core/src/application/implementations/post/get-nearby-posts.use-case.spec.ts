@@ -299,7 +299,7 @@ describe('GetNearbyPostsUseCase', () => {
     expect(result.posts[0].post.location).not.toEqual(ExactLocation);
   });
 
-  it('thiếu toạ độ thì lùi về Vị trí mặc định và nói rõ đã lùi', async () => {
+  it('useDefaultLocation=true thì lọc quanh Vị trí mặc định và nói rõ nguồn', async () => {
     const posts = {
       findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
     } as unknown as jest.Mocked<IPostRepository>;
@@ -315,6 +315,7 @@ describe('GetNearbyPostsUseCase', () => {
       makeConfig(),
       makeAdminConfig() as never,
     ).handle({
+      useDefaultLocation: true,
       radiusMeters: 5_000,
       postType: PostTypes.OFFER,
       page: 1,
@@ -325,7 +326,6 @@ describe('GetNearbyPostsUseCase', () => {
     expect(posts.findNearbyPosts).toHaveBeenCalledWith(
       expect.objectContaining({ origin: { lat: 21.0278, lng: 105.8342 } }),
     );
-    // Im lặng đổi gốc toạ độ là đổi kết quả sau lưng người dùng.
     expect(result.originSource).toBe('DEFAULT_LOCATION');
   });
 
@@ -487,18 +487,20 @@ describe('GetNearbyPostsUseCase', () => {
     expect(result.originSource).toBe('ALL');
   });
 
-  it('có Vị trí mặc định thì vẫn lùi về đó, KHÔNG rơi xuống trả toàn bộ', async () => {
-    // Chặng "trả toàn bộ" là chặng CUỐI. Nuốt mất nhánh Vị trí mặc định là bỏ
-    // hẳn F26 và đổi kết quả của mọi người đang đăng nhập.
+  it('có Vị trí mặc định nhưng KHÔNG yêu cầu thì trả TOÀN BỘ, không đọc hồ sơ', async () => {
+    // Tới 20/10 server tự lùi về Vị trí mặc định khi thiếu toạ độ — client không gửi
+    // gì mà kết quả lại bị lọc quanh một điểm nó không hề chọn. Giờ lọc quanh Vị trí
+    // mặc định phải được YÊU CẦU (`useDefaultLocation=true`).
     const posts = {
       findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
     } as unknown as jest.Mocked<IPostRepository>;
+    const users = makeUsers();
 
     const result = await new GetNearbyPostsUseCase(
       posts,
       makeMedia(),
       {} as unknown as jest.Mocked<IGiftRequestRepository>,
-      makeUsers(),
+      users,
       makeReactions(),
       makeConfig(),
       makeAdminConfig() as never,
@@ -510,13 +512,77 @@ describe('GetNearbyPostsUseCase', () => {
       currentUserId: '99999999-9999-9999-9999-999999999999',
     });
 
+    expect(users.findOneBy).not.toHaveBeenCalled();
     expect(posts.findNearbyPosts).toHaveBeenCalledWith(
-      expect.objectContaining({
-        origin: { lat: 21.0278, lng: 105.8342 },
-        radiusMeters: 5_000,
-      }),
+      expect.objectContaining({ origin: undefined, radiusMeters: undefined }),
     );
-    expect(result.originSource).toBe('DEFAULT_LOCATION');
+    expect(result.originSource).toBe('ALL');
+  });
+
+  it('yêu cầu Vị trí mặc định mà chưa đặt thì báo lỗi rõ, KHÔNG âm thầm trả toàn bộ', async () => {
+    // Client đã chủ động xin "quanh vị trí của tôi". Trả toàn bộ là đưa một kết quả
+    // trái với thứ nó vừa xin mà không nói gì.
+    const users = {
+      findOneBy: jest.fn().mockResolvedValue({
+        globalId: '99999999-9999-9999-9999-999999999999',
+        defaultLocation: null,
+      }),
+    } as unknown as jest.Mocked<IUserRepository>;
+    const posts = {
+      findNearbyPosts: jest.fn(),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const build = () =>
+      new GetNearbyPostsUseCase(
+        posts,
+        makeMedia(),
+        {} as unknown as jest.Mocked<IGiftRequestRepository>,
+        users,
+        makeReactions(),
+        makeConfig(),
+        makeAdminConfig() as never,
+      );
+
+    await expect(
+      build().handle({
+        useDefaultLocation: true,
+        page: 1,
+        pageSize: 20,
+        currentUserId: '99999999-9999-9999-9999-999999999999',
+      }),
+    ).rejects.toBeInstanceOf(DiscoveryOriginUnavailableException);
+    // Khách chưa đăng nhập thì không có hồ sơ nào để đọc.
+    await expect(
+      build().handle({ useDefaultLocation: true, page: 1, pageSize: 20 }),
+    ).rejects.toBeInstanceOf(DiscoveryOriginUnavailableException);
+    expect(posts.findNearbyPosts).not.toHaveBeenCalled();
+  });
+
+  it('có lat/lng thì dùng toạ độ đó, kể cả khi kèm useDefaultLocation', async () => {
+    const posts = {
+      findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+    } as unknown as jest.Mocked<IPostRepository>;
+    const users = makeUsers();
+
+    const result = await new GetNearbyPostsUseCase(
+      posts,
+      makeMedia(),
+      {} as unknown as jest.Mocked<IGiftRequestRepository>,
+      users,
+      makeReactions(),
+      makeConfig(),
+      makeAdminConfig() as never,
+    ).handle({
+      lat: 10.7724,
+      lng: 106.698,
+      radiusMeters: 5_000,
+      useDefaultLocation: true,
+      page: 1,
+      pageSize: 20,
+      currentUserId: '99999999-9999-9999-9999-999999999999',
+    });
+
+    expect(users.findOneBy).not.toHaveBeenCalled();
+    expect(result.originSource).toBe('REQUEST');
   });
 
   it('gửi một nửa toạ độ là lỗi client, không phải ý muốn lùi vị trí', async () => {

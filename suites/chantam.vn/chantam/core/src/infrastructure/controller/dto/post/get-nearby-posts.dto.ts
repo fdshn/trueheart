@@ -51,7 +51,7 @@ export class GetNearbyPostsQueryDto
   @ApiPropertyOptional({
     example: 10.7724,
     description:
-      'Bỏ trống thì lùi về Vị trí mặc định của người đang đăng nhập (F26). Phải gửi cùng lng.',
+      'Phải gửi cùng `lng`. Có cả hai thì lọc quanh toạ độ này (`originSource: REQUEST`). Bỏ trống thì KHÔNG lọc theo vị trí — muốn lọc quanh Vị trí mặc định thì gửi `useDefaultLocation=true`.',
   })
   @IsOptional()
   @Type(() => Number)
@@ -60,7 +60,7 @@ export class GetNearbyPostsQueryDto
 
   @ApiPropertyOptional({
     example: 106.698,
-    description: 'Bỏ trống thì lùi về Vị trí mặc định. Phải gửi cùng lat.',
+    description: 'Phải gửi cùng `lat`.',
   })
   @IsOptional()
   @Type(() => Number)
@@ -72,14 +72,16 @@ export class GetNearbyPostsQueryDto
     maximum: MaxSearchRadiusMeters,
     example: 5_000,
     description:
-      'BẮT BUỘC khi có `lat`/`lng`. Bỏ trống cùng với toạ độ thì không lọc ' +
-      'bán kính nữa và server trả toàn bộ (`originSource: ALL`).',
+      'BẮT BUỘC khi có `lat`/`lng`. Với `useDefaultLocation=true` thì tuỳ chọn — bỏ trống là bán kính mặc định. ' +
+      'Không có tâm (không toạ độ, không `useDefaultLocation`) thì không lọc gì và bị bỏ qua (`originSource: ALL`).',
   })
-  // Chỉ kiểm khi thực sự có tâm để quét. Không có tâm thì bán kính không lọc
-  // gì, và bắt gửi nó là bắt client bịa một con số server sẽ lờ đi.
+  // Kiểm khi có tâm từ toạ độ (lúc đó bắt buộc), hoặc khi client có gửi bán kính
+  // (lúc đó phải hợp lệ). Không gửi bán kính và không có toạ độ thì không có gì để kiểm.
   @ValidateIf(
     (query: GetNearbyPostsQueryDto) =>
-      query.lat !== undefined || query.lng !== undefined,
+      query.lat !== undefined ||
+      query.lng !== undefined ||
+      query.radiusMeters !== undefined,
   )
   @Type(() => Number)
   @IsDefined()
@@ -125,6 +127,18 @@ export class GetNearbyPostsQueryDto
   @Transform(toBoolean)
   @IsBoolean()
   isSos?: boolean;
+
+  @ApiPropertyOptional({
+    example: true,
+    description:
+      'YÊU CẦU lọc quanh Vị trí mặc định của người đang đăng nhập (`originSource: DEFAULT_LOCATION`). ' +
+      'Server KHÔNG tự lấy Vị trí mặc định khi thiếu toạ độ — không gửi cờ này và không gửi `lat`/`lng` là trả toàn bộ (`ALL`). ' +
+      'Bị bỏ qua khi đã có `lat`/`lng`. Khách chưa đăng nhập, hoặc chưa đặt Vị trí mặc định → `400 DISCOVERY_ORIGIN_UNAVAILABLE`.',
+  })
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  useDefaultLocation?: boolean;
 }
 
 /**
