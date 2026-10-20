@@ -1118,8 +1118,23 @@ export class PostRepository
       .andWhere('post.deletedAt IS NULL');
 
     if (currentUserId) {
+      // Ba lối xem: bài đang công khai, bài của chính mình, hoặc mình là MỘT TRONG HAI
+      // BÊN của một lượt trao trên bài (người tặng hoặc người nhận — ở bài Muốn Nhận
+      // người tặng là người phản hồi, không phải tác giả). Thiếu lối thứ ba thì lượt
+      // trao cuối xong, bài sang COMPLETED, và người còn lại mở lại món đồ mình vừa
+      // trao/nhận thì nhận 404 (UAT 20/10).
+      //
+      // Cùng ngưỡng trạng thái với `isReceiverOfPost` — ngưỡng đang mở toạ độ thật và
+      // thông tin liên lạc. Lượt đã huỷ không còn là quan hệ nào với bài.
       qb.andWhere(
-        '(post.status IN (:...statuses) OR post.authorId = :currentUserId)',
+        `(post.status IN (:...statuses)
+          OR post.authorId = :currentUserId
+          OR EXISTS (
+            SELECT 1 FROM gift_transactions deal
+             WHERE deal.post_id = post.global_id
+               AND (deal.giver_id = :currentUserId OR deal.receiver_id = :currentUserId)
+               AND deal.status IN ('ACCEPTED', 'DELIVERING', 'COMPLETED')
+          ))`,
         {
           statuses: [...PubliclyVisibleGiftPostStatuses],
           currentUserId,
