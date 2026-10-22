@@ -64,8 +64,9 @@ import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { withStorageValidation } from '../shared/storage-error';
-import { notifyComment } from './feed-notifications';
+import { isNotifiableSubject, notifyComment } from './feed-notifications';
 import { awardCommentPoint } from './feed-points';
+import { assertThreadReadable } from './thread-visibility';
 
 function toDto(
   comment: IContentComment,
@@ -286,15 +287,17 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
     });
 
     // Sau khi đã ghi xong. Thông báo hỏng thì bình luận vẫn còn nguyên.
-    await notifyComment(this.dispatchNotification, {
-      commentId: created.globalId,
-      postId: command.subjectId,
-      body: created.body,
-      status: created.status,
-      authorId: command.userId,
-      postAuthorId,
-      parentAuthorId,
-    });
+    if (isNotifiableSubject(command.subjectType))
+      await notifyComment(this.dispatchNotification, {
+        commentId: created.globalId,
+        subjectType: command.subjectType,
+        subjectId: command.subjectId,
+        body: created.body,
+        status: created.status,
+        authorId: command.userId,
+        postAuthorId,
+        parentAuthorId,
+      });
 
     // Đếm SAU khi ghi xong: đếm trước là trừ mất một suất cho một bình luận bị
     // bộ lọc chặn thẳng, tức phạt người dùng vì một thứ chưa từng đăng được.
@@ -400,11 +403,18 @@ export class ListCommentsUseCase implements IListCommentsUseCase {
   public constructor(
     @Inject(IContentCommentRepository)
     private readonly comments: IContentCommentRepository,
+    @Inject(IDharmaRepository) private readonly dharma: IDharmaRepository,
   ) {}
 
   public async handle(
     command: IListCommentsCommand,
   ): Promise<IListCommentsResult> {
+    await assertThreadReadable(
+      this.dharma,
+      command.subjectType,
+      command.subjectId,
+    );
+
     const limit = clampChatMessageLimit(command.limit);
     const page = await this.comments.listRoots({
       subjectType: command.subjectType,
@@ -443,11 +453,22 @@ export class ListCommentRepliesUseCase implements IListCommentRepliesUseCase {
   public constructor(
     @Inject(IContentCommentRepository)
     private readonly comments: IContentCommentRepository,
+    @Inject(IDharmaRepository) private readonly dharma: IDharmaRepository,
   ) {}
 
   public async handle(
     command: IListCommentRepliesCommand,
   ): Promise<IListCommentRepliesResult> {
+    // Đường trả lời không mang chủ thể, nên phải hỏi bình luận cha nó thuộc về đâu —
+    // không thì trả lời của một chủ đề đã ẩn vẫn đọc được ở đây.
+    const parent = await this.comments.findByGlobalId(command.commentId);
+    if (parent)
+      await assertThreadReadable(
+        this.dharma,
+        parent.subjectType,
+        parent.subjectId,
+      );
+
     const limit = clampChatMessageLimit(command.limit);
     const page = await this.comments.listReplies({
       parentId: command.commentId,

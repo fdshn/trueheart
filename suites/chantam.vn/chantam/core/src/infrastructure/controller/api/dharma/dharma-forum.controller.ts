@@ -108,9 +108,10 @@ export class DharmaForumPublicController {
     description:
       'Chủ đề chờ duyệt hoặc đã ẩn trả 404 trên đường này: nó chưa (hoặc không còn) hiện ra ' +
       'ngoài, nên sự tồn tại của nó cũng vậy.\n\n' +
-      'Thích và bình luận dùng ĐÚNG hai endpoint có sẵn với `subjectType=DHARMA_THREAD` — ' +
-      '`POST /content/reactions` và `POST /content/comments`. UC-DHARMA-03 nói tái sử dụng ' +
-      'cơ chế hiện có, và `content_subject_type_enum` đã có giá trị đó từ đầu.',
+      'Bình luận và cảm xúc: `GET|POST /dharma/threads/:id/comments`, ' +
+      '`GET /dharma/threads/:id/reactions`, `PUT|DELETE /dharma/threads/:id/reactions/me`. ' +
+      'Trả lời, sửa, gỡ bình luận đi chung `/comments/:commentId/...` với bài đăng. ' +
+      'UC-DHARMA-03 nói tái sử dụng cơ chế hiện có — cùng use case, chỉ khác `subjectType`.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(ThreadWrapperResponseDto) })
   @ApiErrorResponses([DharmaThreadNotFoundException])

@@ -85,10 +85,18 @@ export const NotificationTargetsByType: Readonly<
     NotificationTargetTypes.GIFT_TRANSACTION,
   ],
 
-  [NotificationTypes.CONTENT_COMMENT_CREATED]: [NotificationTargetTypes.POST],
-  [NotificationTypes.CONTENT_COMMENT_REPLIED]: [NotificationTargetTypes.POST],
+  // Bình luận và cảm xúc đến từ bài đăng HOẶC chủ đề Diễn đàn Phật Pháp.
+  [NotificationTypes.CONTENT_COMMENT_CREATED]: [
+    NotificationTargetTypes.POST,
+    NotificationTargetTypes.DHARMA_THREAD,
+  ],
+  [NotificationTypes.CONTENT_COMMENT_REPLIED]: [
+    NotificationTargetTypes.POST,
+    NotificationTargetTypes.DHARMA_THREAD,
+  ],
   [NotificationTypes.CONTENT_REACTION_FIRST_OF_DAY]: [
     NotificationTargetTypes.POST,
+    NotificationTargetTypes.DHARMA_THREAD,
   ],
   [NotificationTypes.POST_EXPIRING_SOON]: [NotificationTargetTypes.POST],
   [NotificationTypes.POST_EXPIRED]: [NotificationTargetTypes.POST],

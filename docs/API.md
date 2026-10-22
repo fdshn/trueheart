@@ -608,6 +608,24 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 | `DELETE` | `/comments/:commentId` | Bearer (chủ bình luận) | Gỡ — giữ chỗ trong cây, không trả nội dung lẫn ảnh |
 | `POST` | `/posts/:subjectId/shares` | Bearer | Ghi một lượt chia sẻ — **chờ 1 giờ cho mỗi bài** |
 
+**Chủ đề Diễn đàn Phật Pháp** dùng đúng cơ chế trên, chỉ khác chủ thể (thêm 22/10):
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `PUT` | `/dharma/threads/:subjectId/reactions/me` | `REACT_CONTENT` | Đặt hoặc đổi cảm xúc cho chủ đề — chủ đề **đã khoá bình luận vẫn nhận cảm xúc**. Không cộng điểm |
+| `DELETE` | `/dharma/threads/:subjectId/reactions/me` | Bearer | Gỡ cảm xúc của mình — không kiểm chủ đề, luôn rút lại được |
+| `GET` | `/dharma/threads/:subjectId/reactions` | Công khai | Ai đã bày tỏ với chủ đề |
+| `POST` | `/dharma/threads/:subjectId/comment-media/upload-url` | `COMMENT_CONTENT` | Presigned URL cho ảnh bình luận trong chủ đề |
+| `POST` | `/dharma/threads/:subjectId/comments` | `COMMENT_CONTENT` | Bình luận hoặc trả lời — chủ đề đã khoá trả `DHARMA_THREAD_LOCKED` |
+| `GET` | `/dharma/threads/:subjectId/comments` | Công khai | Bình luận gốc của chủ đề |
+
+- Trả lời, sửa, gỡ bình luận và cảm xúc trên bình luận đi chung `/comments/:commentId/...` —
+  các route đó không mang chủ thể nên phục vụ cả bài lẫn chủ đề.
+- Chủ đề **chờ duyệt, đã ẩn hoặc không có** trả `404 DHARMA_THREAD_NOT_FOUND` trên mọi đường
+  đọc và ghi ở trên, kể cả `GET /comments/:commentId/replies` của bình luận thuộc chủ đề đó.
+- Tác giả chủ đề nhận `CONTENT_COMMENT_CREATED` / `CONTENT_REACTION_FIRST_OF_DAY`, người được
+  trả lời nhận `CONTENT_COMMENT_REPLIED` — cả ba với `targetType=DHARMA_THREAD`.
+
 **Điều cần biết**
 
 - ⚠️ **Không còn `POST /posts/:postId/like`, `likeCount` hay `isLiked`** (đổi 26/09). Giao diện

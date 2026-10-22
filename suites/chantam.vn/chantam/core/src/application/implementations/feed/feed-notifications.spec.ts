@@ -1,9 +1,11 @@
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import {
   CommentStatuses,
+  ContentSubjectTypes,
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  NotifiableSubjectType,
   notifyComment,
   notifyFirstReactionOfDay,
   vietnamDateKey,
@@ -24,7 +26,8 @@ function makeDispatch(): jest.Mocked<IDispatchNotificationUseCase> {
 function commentParams(overrides = {}) {
   return {
     commentId: CommentId,
-    postId: PostId,
+    subjectType: ContentSubjectTypes.POST as NotifiableSubjectType,
+    subjectId: PostId,
     body: 'Món này còn không ạ?',
     status: CommentStatuses.VISIBLE,
     authorId: CommenterId,
@@ -142,7 +145,8 @@ describe('notifyComment', () => {
 
 describe('notifyFirstReactionOfDay', () => {
   const reactionParams = (overrides = {}) => ({
-    postId: PostId,
+    subjectType: ContentSubjectTypes.POST as NotifiableSubjectType,
+    subjectId: PostId,
     postAuthorId: PostAuthorId,
     actorId: CommenterId,
     isNewReaction: true,
@@ -199,6 +203,68 @@ describe('notifyFirstReactionOfDay', () => {
 
     const [first, second] = dispatch.handle.mock.calls;
     expect(first[0].idempotencyKey).toBe(second[0].idempotencyKey);
+  });
+});
+
+describe('thông báo cho chủ đề Diễn đàn Phật Pháp', () => {
+  // Trước 22/10 cả hai hàm ghi cứng `referenceType: 'POST'` — chủ đề gửi đi một
+  // thông báo bảo mobile mở `GET /posts/<id chủ đề>`, và người nhận gặp 404.
+  it('bình luận vào chủ đề: tham chiếu DHARMA_THREAD, chữ nói "chủ đề"', async () => {
+    const dispatch = makeDispatch();
+
+    await notifyComment(
+      dispatch,
+      commentParams({ subjectType: ContentSubjectTypes.DHARMA_THREAD }),
+    );
+
+    expect(dispatch.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: PostAuthorId,
+        type: NotificationTypes.CONTENT_COMMENT_CREATED,
+        title: 'Chủ đề của bạn có bình luận mới',
+        referenceType: 'DHARMA_THREAD',
+        referenceId: PostId,
+      }),
+    );
+  });
+
+  it('trả lời trong chủ đề cũng mở chủ đề', async () => {
+    const dispatch = makeDispatch();
+
+    await notifyComment(
+      dispatch,
+      commentParams({
+        subjectType: ContentSubjectTypes.DHARMA_THREAD,
+        parentAuthorId: ParentAuthorId,
+      }),
+    );
+
+    expect(dispatch.handle.mock.calls[0][0]).toMatchObject({
+      userId: ParentAuthorId,
+      type: NotificationTypes.CONTENT_COMMENT_REPLIED,
+      referenceType: 'DHARMA_THREAD',
+      referenceId: PostId,
+    });
+  });
+
+  it('cảm xúc đầu ngày cho chủ đề: tham chiếu DHARMA_THREAD', async () => {
+    const dispatch = makeDispatch();
+
+    await notifyFirstReactionOfDay(dispatch, {
+      subjectType: ContentSubjectTypes.DHARMA_THREAD,
+      subjectId: PostId,
+      postAuthorId: PostAuthorId,
+      actorId: CommenterId,
+      isNewReaction: true,
+    });
+
+    expect(dispatch.handle.mock.calls[0][0]).toMatchObject({
+      userId: PostAuthorId,
+      type: NotificationTypes.CONTENT_REACTION_FIRST_OF_DAY,
+      title: 'Chủ đề của bạn nhận được cảm xúc',
+      referenceType: 'DHARMA_THREAD',
+      referenceId: PostId,
+    });
   });
 });
 

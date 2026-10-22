@@ -2,6 +2,8 @@ import { IDispatchNotificationUseCase } from '@/application/contracts/notificati
 import {
   BusinessTimeZone,
   CommentStatuses,
+  ContentSubjectTypes,
+  NotificationTargetTypes,
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 
@@ -37,9 +39,52 @@ function excerpt(body: string, limit = 120): string {
   return trimmed.length > limit ? `${trimmed.slice(0, limit - 3)}...` : trimmed;
 }
 
+/**
+ * Bài đăng hay chủ đề Diễn đàn Phật Pháp — hai chủ thể nhận bình luận và cảm xúc
+ * có chủ để báo. Bình luận (chủ thể `COMMENT`) không nằm đây: cảm xúc cho bình
+ * luận không báo ai.
+ */
+export type NotifiableSubjectType =
+  ContentSubjectTypes.POST | ContentSubjectTypes.DHARMA_THREAD;
+
+export function isNotifiableSubject(
+  subjectType: ContentSubjectTypes,
+): subjectType is NotifiableSubjectType {
+  return (
+    subjectType === ContentSubjectTypes.POST ||
+    subjectType === ContentSubjectTypes.DHARMA_THREAD
+  );
+}
+
+/**
+ * Tham chiếu ĐÚNG loại chủ thể.
+ *
+ * Trước 22/10 cả hai hàm ghi cứng `'POST'`: bình luận vào chủ đề gửi đi một thông
+ * báo bảo mobile mở `GET /posts/<id chủ đề>`, và người nhận gặp 404.
+ *
+ * Đích ghi TƯỜNG MINH dù tham chiếu trùng loại: dispatch vẫn kiểm nó với
+ * `NotificationTargetsByType`, còn guard tĩnh không đọc được một tham chiếu tính lúc chạy.
+ */
+function subjectWording(subjectType: NotifiableSubjectType) {
+  return subjectType === ContentSubjectTypes.DHARMA_THREAD
+    ? {
+        referenceType: 'DHARMA_THREAD',
+        targetType: NotificationTargetTypes.DHARMA_THREAD,
+        noun: 'Chủ đề của bạn',
+        phrase: 'chủ đề của bạn',
+      }
+    : {
+        referenceType: 'POST',
+        targetType: NotificationTargetTypes.POST,
+        noun: 'Bài của bạn',
+        phrase: 'bài đăng của bạn',
+      };
+}
+
 export interface INotifyCommentParams {
   readonly commentId: string;
-  readonly postId: string;
+  readonly subjectType: NotifiableSubjectType;
+  readonly subjectId: string;
   readonly body: string;
   readonly status: CommentStatuses;
   readonly authorId: string;
@@ -68,6 +113,7 @@ export async function notifyComment(
 
   if (!recipient || recipient === params.authorId) return;
 
+  const wording = subjectWording(params.subjectType);
   await dispatch.handle({
     userId: recipient,
     type: isReply
@@ -75,10 +121,11 @@ export async function notifyComment(
       : NotificationTypes.CONTENT_COMMENT_CREATED,
     title: isReply
       ? 'Có người trả lời bình luận của bạn'
-      : 'Bài của bạn có bình luận mới',
+      : `${wording.noun} có bình luận mới`,
     body: excerpt(params.body),
-    referenceType: 'POST',
-    referenceId: params.postId,
+    referenceType: wording.referenceType,
+    referenceId: params.subjectId,
+    target: { type: wording.targetType, id: params.subjectId },
     idempotencyKey: `${
       isReply ? 'CONTENT_COMMENT_REPLY' : 'CONTENT_COMMENT'
     }:${params.commentId}`,
@@ -86,7 +133,8 @@ export async function notifyComment(
 }
 
 export interface INotifyReactionParams {
-  readonly postId: string;
+  readonly subjectType: NotifiableSubjectType;
+  readonly subjectId: string;
   readonly postAuthorId: string | null;
   readonly actorId: string;
   /** `false` khi người này chỉ đổi loại cảm xúc — không đáng một thông báo. */
@@ -106,13 +154,16 @@ export async function notifyFirstReactionOfDay(
   if (!params.isNewReaction) return;
   if (!params.postAuthorId || params.postAuthorId === params.actorId) return;
 
+  const wording = subjectWording(params.subjectType);
   await dispatch.handle({
     userId: params.postAuthorId,
     type: NotificationTypes.CONTENT_REACTION_FIRST_OF_DAY,
-    title: 'Bài của bạn nhận được cảm xúc',
-    body: 'Hôm nay có người bày tỏ cảm xúc với bài đăng của bạn.',
-    referenceType: 'POST',
-    referenceId: params.postId,
-    idempotencyKey: `CONTENT_REACTION_FIRST:${params.postId}:${vietnamDateKey()}`,
+    title: `${wording.noun} nhận được cảm xúc`,
+    body: `Hôm nay có người bày tỏ cảm xúc với ${wording.phrase}.`,
+    referenceType: wording.referenceType,
+    referenceId: params.subjectId,
+    target: { type: wording.targetType, id: params.subjectId },
+    // id bài và id chủ đề đều là UUID ngẫu nhiên nên dùng chung một không gian khoá.
+    idempotencyKey: `CONTENT_REACTION_FIRST:${params.subjectId}:${vietnamDateKey()}`,
   });
 }

@@ -225,7 +225,7 @@ export class ContentReactionRepository implements IContentReactionRepository {
           `,
           [subject.subjectId],
         )
-      : [{ total: 0 }];
+      : [];
 
     const rows = await this.manager.query<
       { kind: ReactionKinds; count: string }[]
@@ -242,6 +242,12 @@ export class ContentReactionRepository implements IContentReactionRepository {
     const breakdown: Partial<Record<ReactionKinds, number>> = {};
     for (const row of rows) breakdown[row.kind] = Number(row.count);
 
+    // Chủ thể không có cột đếm (chủ đề Diễn đàn) thì tổng là tổng các nhóm — trước 22/10
+    // nhánh này trả cứng 0, và chủ đề báo "0 người" ngay sau khi chính mình vừa bày tỏ.
+    const total = target
+      ? Number(counter?.total ?? 0)
+      : rows.reduce((sum, row) => sum + Number(row.count), 0);
+
     let myReaction: ReactionKinds | null = null;
     if (viewerId) {
       const [mine] = await this.manager.query<{ kind: ReactionKinds }[]>(
@@ -254,7 +260,7 @@ export class ContentReactionRepository implements IContentReactionRepository {
       myReaction = mine?.kind ?? null;
     }
 
-    return { total: Number(counter?.total ?? 0), breakdown, myReaction };
+    return { total, breakdown, myReaction };
   }
 
   public async findMyReactions(

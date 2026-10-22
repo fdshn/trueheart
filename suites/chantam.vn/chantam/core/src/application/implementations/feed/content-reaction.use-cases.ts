@@ -29,8 +29,12 @@ import { isPubliclyVisibleThread } from '@chantam.vn/chantam.core-lib/models';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
-import { notifyFirstReactionOfDay } from './feed-notifications';
+import {
+  isNotifiableSubject,
+  notifyFirstReactionOfDay,
+} from './feed-notifications';
 import { awardReactionPoint } from './feed-points';
+import { assertThreadReadable } from './thread-visibility';
 
 /**
  * Chủ thể phải CÓ THẬT trước khi nhận cảm xúc.
@@ -123,21 +127,24 @@ export class SetContentReactionUseCase implements ISetContentReactionUseCase {
       kind: command.kind,
     });
 
-    if (command.subjectType === ContentSubjectTypes.POST) {
+    if (isNotifiableSubject(command.subjectType))
       await notifyFirstReactionOfDay(this.dispatchNotification, {
-        postId: command.subjectId,
+        subjectType: command.subjectType,
+        subjectId: command.subjectId,
         postAuthorId: authorId,
         actorId: command.userId,
         isNewReaction: created,
       });
 
+    // Điểm chỉ cho bài đăng: luật `POST_REACTED` là luật của bài, chủ đề Diễn đàn
+    // không có luật điểm cảm xúc nào.
+    if (command.subjectType === ContentSubjectTypes.POST)
       await awardReactionPoint(this.points, {
         postId: command.subjectId,
         postAuthorId: authorId,
         actorId: command.userId,
         isNewReaction: created,
       });
-    }
 
     return {
       reaction: await this.reactions.summarize(
@@ -181,11 +188,18 @@ export class ListContentReactionsUseCase implements IListContentReactionsUseCase
   public constructor(
     @Inject(IContentReactionRepository)
     private readonly reactions: IContentReactionRepository,
+    @Inject(IDharmaRepository) private readonly dharma: IDharmaRepository,
   ) {}
 
   public async handle(
     command: IListContentReactionsCommand,
   ): Promise<IListContentReactionsResult> {
+    await assertThreadReadable(
+      this.dharma,
+      command.subjectType,
+      command.subjectId,
+    );
+
     const { skip, take } = toSkipTake(command);
     const subject = {
       subjectType: command.subjectType,

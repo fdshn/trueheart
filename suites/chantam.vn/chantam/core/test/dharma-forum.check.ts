@@ -39,14 +39,23 @@ import {
   ListPublicThreadsUseCase,
   ModerateThreadUseCase,
 } from '../src/application/implementations/dharma/dharma-forum.use-cases';
-import { CreateCommentUseCase } from '../src/application/implementations/feed/content-comment.use-cases';
-import { SetContentReactionUseCase } from '../src/application/implementations/feed/content-reaction.use-cases';
+import {
+  CreateCommentUseCase,
+  ListCommentRepliesUseCase,
+  ListCommentsUseCase,
+} from '../src/application/implementations/feed/content-comment.use-cases';
+import {
+  ListContentReactionsUseCase,
+  SetContentReactionUseCase,
+} from '../src/application/implementations/feed/content-reaction.use-cases';
+import { DispatchNotificationUseCase } from '../src/application/implementations/notification/dispatch-notification.use-case';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { ContentCommentRepository } from '../src/infrastructure/repository/content-comment.repository';
 import { ContentReactionRepository } from '../src/infrastructure/repository/content-reaction.repository';
 import { DharmaRepository } from '../src/infrastructure/repository/dharma.repository';
+import { NotificationRepository } from '../src/infrastructure/repository/notification.repository';
 import { publishConfigVersion } from './publish-config-version';
 
 loadEnvFile({ path: '.env.local' });
@@ -156,25 +165,58 @@ async function main(): Promise<void> {
       registerHit: async () => undefined,
     } as never;
 
+    // Thông báo đi qua dispatch THẬT vào bảng `notifications` thật: điều cần canh là đích
+    // `DHARMA_THREAD` có qua được `CHK_notifications_target` không — trước 22/10 hai hàm
+    // báo ghi cứng `POST` với id của chủ đề.
+    const dispatch = new DispatchNotificationUseCase(
+      new NotificationRepository(dataSource.manager),
+      { canSend: async () => false, send: async () => 0 } as never,
+      { findEnabled: async () => null } as never,
+    );
+    const commentRepository = new ContentCommentRepository(dataSource.manager);
+    const reactionRepository = new ContentReactionRepository(
+      dataSource.manager,
+    );
+
     const reactUseCase = new SetContentReactionUseCase(
-      new ContentReactionRepository(dataSource.manager) as never,
+      reactionRepository as never,
       allowAll,
       { findOneBy: async () => null } as never,
       repository,
-      noop,
+      dispatch,
       noop,
     );
     const commentUseCase = new CreateCommentUseCase(
-      new ContentCommentRepository(dataSource.manager) as never,
+      commentRepository as never,
       allowAll,
       { findOneBy: async () => null } as never,
       repository,
       adminConfig,
       { confirmCommentMediaUpload: async () => undefined } as never,
-      noop,
+      dispatch,
       freeThrottle,
       noop,
     );
+    const listComments = new ListCommentsUseCase(
+      commentRepository as never,
+      repository,
+    );
+    const listReplies = new ListCommentRepliesUseCase(
+      commentRepository as never,
+      repository,
+    );
+    const listReactions = new ListContentReactionsUseCase(
+      reactionRepository as never,
+      repository,
+    );
+    const notificationsOf = async (userId: string, type: string) =>
+      dataSource.query<
+        { target_type: string | null; target_id: string | null }[]
+      >(
+        `SELECT target_type, target_id FROM notifications
+          WHERE user_id = $1 AND type = $2`,
+        [userId, type],
+      );
 
     for (const [id, username, fullName] of [
       [AdminId, 'quantri', 'Quản Trị Viên'],
@@ -402,6 +444,125 @@ async function main(): Promise<void> {
     check(
       'đường HỢP LỆ vẫn đi qua — bình luận vào chủ đề đang hiện',
       realComment !== undefined,
+    );
+
+    console.log('\n3a. Thông báo và đường ĐỌC của bình luận/cảm xúc chủ đề');
+
+    const commentNotices = await notificationsOf(
+      AuthorId,
+      'CONTENT_COMMENT_CREATED',
+    );
+    check(
+      'tác giả chủ đề nhận thông báo bình luận, đích DHARMA_THREAD đúng id',
+      commentNotices.length === 1 &&
+        commentNotices[0].target_type === 'DHARMA_THREAD' &&
+        commentNotices[0].target_id === clean.thread.globalId,
+      JSON.stringify(commentNotices),
+    );
+
+    // AnonId chứ không phải tác giả chủ đề: nhóm 8 xoá tài khoản AuthorId, và bình luận
+    // giữ khoá ngoại tới tác giả của nó.
+    const reply = await commentUseCase.handle({
+      userId: AnonId,
+      subjectType: 'DHARMA_THREAD',
+      subjectId: clean.thread.globalId,
+      body: 'Cảm ơn đạo hữu đã chia sẻ.',
+      parentId: realComment.comment.commentId,
+    } as never);
+    const replyNotices = await notificationsOf(
+      OtherId,
+      'CONTENT_COMMENT_REPLIED',
+    );
+    check(
+      'trả lời trong chủ đề báo người được trả lời, đích DHARMA_THREAD',
+      replyNotices.length === 1 &&
+        replyNotices[0].target_type === 'DHARMA_THREAD' &&
+        replyNotices[0].target_id === clean.thread.globalId,
+      JSON.stringify(replyNotices),
+    );
+
+    const roots = await listComments.handle({
+      viewerId: null,
+      subjectType: 'DHARMA_THREAD',
+      subjectId: clean.thread.globalId,
+    } as never);
+    check(
+      'danh sách bình luận gốc của chủ đề có bình luận vừa gửi, KHÔNG có trả lời',
+      roots.comments.some(
+        (item) => item.commentId === realComment.comment.commentId,
+      ) &&
+        !roots.comments.some(
+          (item) => item.commentId === reply.comment.commentId,
+        ),
+    );
+    const replies = await listReplies.handle({
+      viewerId: null,
+      commentId: realComment.comment.commentId,
+    });
+    check(
+      'trả lời đọc được qua /comments/:id/replies',
+      replies.comments.length === 1 &&
+        replies.comments[0].commentId === reply.comment.commentId,
+    );
+
+    // AnonId chứ không OtherId: OtherId đã có một LIKE chèn thẳng ở trên, nên lượt của họ
+    // là ĐỔI loại — đúng là không đáng thông báo, và không chứng minh được gì ở đây.
+    await reactUseCase.handle({
+      userId: AnonId,
+      subjectType: 'DHARMA_THREAD',
+      subjectId: clean.thread.globalId,
+      kind: 'LIKE',
+    } as never);
+    const reactionNotices = await notificationsOf(
+      AuthorId,
+      'CONTENT_REACTION_FIRST_OF_DAY',
+    );
+    check(
+      'cảm xúc đầu ngày cho chủ đề báo tác giả, đích DHARMA_THREAD',
+      reactionNotices.length === 1 &&
+        reactionNotices[0].target_type === 'DHARMA_THREAD' &&
+        reactionNotices[0].target_id === clean.thread.globalId,
+      JSON.stringify(reactionNotices),
+    );
+    const reactionList = await listReactions.handle({
+      viewerId: AnonId,
+      subjectType: 'DHARMA_THREAD',
+      subjectId: clean.thread.globalId,
+    } as never);
+    check(
+      'danh sách cảm xúc chủ đề thấy người vừa bày tỏ, myReaction đúng',
+      reactionList.actors.some((actor) => actor.userId === AnonId) &&
+        reactionList.summary.myReaction === 'LIKE',
+      JSON.stringify(reactionList.summary),
+    );
+    // Chủ đề không có cột đếm. Trước 22/10 `summarize` đọc tổng từ cột đếm, và với chủ thể
+    // không có cột thì trả cứng 0 — `PUT /dharma/threads/:id/reactions/me` báo "0 người"
+    // ngay sau khi chính mình vừa bày tỏ.
+    check(
+      'tổng cảm xúc của chủ đề ĐẾM từ bảng, không phải 0',
+      reactionList.summary.total === 2 && reactionList.meta.total === 2,
+      JSON.stringify(reactionList.summary),
+    );
+
+    await expectThrow(
+      'đọc bình luận của chủ đề đang CHỜ DUYỆT -> 404',
+      () =>
+        listComments.handle({
+          viewerId: null,
+          subjectType: 'DHARMA_THREAD',
+          subjectId: flagged.thread.globalId,
+        } as never),
+      'DharmaThreadNotFoundException',
+    );
+    await expectThrow(
+      'đọc cảm xúc của chủ đề đang CHỜ DUYỆT -> 404',
+      () =>
+        listReactions.handle({
+          viewerId: null,
+          subjectType: 'DHARMA_THREAD',
+          subjectId: flagged.thread.globalId,
+        } as never),
+      'DharmaThreadNotFoundException',
     );
 
     console.log('\n3b. reports nhận DHARMA_THREAD sau lượt dựng lại enum');
@@ -740,9 +901,9 @@ async function main(): Promise<void> {
     );
     check(
       'bình luận của người khác dưới chủ đề đó vẫn còn',
-      // HAI: một chèn thẳng ở nhóm 2, một qua use case thật ở nhóm 3. Hàng `REMOVED` không
-      // tính — đó đúng là điều nhóm 2 đã đo.
-      orphan?.commentCount === 2,
+      // BA: một chèn thẳng ở nhóm 2, một qua use case thật ở nhóm 3, một trả lời ở nhóm 3a
+      // (đếm gồm cả trả lời). Hàng `REMOVED` không tính — đó đúng là điều nhóm 2 đã đo.
+      orphan?.commentCount === 3,
       `comment=${orphan?.commentCount}`,
     );
     check(

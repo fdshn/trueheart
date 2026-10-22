@@ -5,6 +5,7 @@ import {
   DharmaForumPublicController,
 } from './dharma-forum.controller';
 import { DharmaPublicController } from './dharma-public.controller';
+import { DharmaThreadInteractionController } from './dharma-thread-interaction.controller';
 import { AdminDharmaController, DharmaController } from './dharma.controller';
 
 @Module({
@@ -15,6 +16,7 @@ import { AdminDharmaController, DharmaController } from './dharma.controller';
     DharmaForumController,
     DharmaPublicController,
     DharmaForumPublicController,
+    DharmaThreadInteractionController,
   ],
 })
 export class DharmaControllerModule {}

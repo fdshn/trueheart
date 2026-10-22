@@ -47,6 +47,8 @@ const ExpectedPublicRoutes = [
   'GET /dharma/hub',
   'GET /dharma/threads',
   'GET /dharma/threads/:id',
+  'GET /dharma/threads/:subjectId/comments',
+  'GET /dharma/threads/:subjectId/reactions',
   'GET /merit-units',
   'GET /merit-units/:idOrSlug',
   'GET /banners',
