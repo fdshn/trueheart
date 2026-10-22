@@ -50,7 +50,7 @@ Mọi id cố định dạng `5eedTT00-0000-4000-8000-00000000NNNN`, `TT` là m�
 | Điểm danh | Chuỗi 9 ngày có một ngày **bù** (tiêu tín dụng), mốc 7 ngày, cohort tín dụng đã đóng + một cohort đang mở. |
 | Nhóm | Nhóm hoạt động có 2 đội con, đủ 3 vai trò; một nhóm đã giải tán. Affiliate: sự kiện trong bán kính chia điểm (một người chạm trần), sự kiện ngoài bán kính 0 điểm. |
 | Từ thiện F65b | 6 hoạt động phủ đủ §8: ACTIVE ×2, chờ duyệt, CLOSED (đã gia hạn), SUSPENDED (rút đồng ý), REJECTED. Đề nghị đủ 5 trạng thái, giao nhận hoàn tất/đang mở/huỷ, đóng góp ngoài có một lần sửa (dòng cũ `VOIDED`), coordinator, người thụ hưởng riêng tư. |
-| Dharma & công đức | Kinh/bài/giới thiệu chùa (một bản nháp), tụng xong và tụng dở, hồi hướng công khai/ẩn danh/riêng tư, diễn đàn ghim/khoá/ẩn/chờ duyệt. 4 đơn vị công đức (một ngừng), khai báo dự định/đã chuyển/ẩn danh. |
+| Dharma & công đức | 11 nội dung kinh, kiến thức thực hành và giới thiệu chùa (10 công khai, 1 bản nháp); tụng xong và tụng dở, hồi hướng công khai/ẩn danh/riêng tư, diễn đàn ghim/khoá/ẩn/chờ duyệt. 4 đơn vị công đức (một ngừng), khai báo dự định/đã chuyển/ẩn danh. |
 | Nội dung Admin | Blog 4 chuyên mục (một nháp), banner tài trợ đủ 3 trạng thái duyệt, giao diện trang chủ (một bật, một nháp), broadcast ALL/GROUP/AREA, báo xấu POST/USER/COMMENT đủ 4 trạng thái. |
 | Thông báo | Hộp thư đã đọc/chưa đọc của nhiều loại. |
 
