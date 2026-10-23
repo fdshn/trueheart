@@ -1134,7 +1134,7 @@ Ba bảng mỗi tháng, đếm **số lần**, không đếm điểm hay tiền.
 
 - **Xếp hạng:** con số lớn hơn đứng trên; bằng nhau thì ai **đạt con số đó sớm hơn** đứng trên.
   Hạng liền 1, 2, 3… không có hạng đồng.
-- **`status=LIVE`** là tháng chưa chốt — tính trực tiếp, trễ tối đa ~1 phút. **`status=CLOSED`**:
+- **`status=LIVE`** là tháng chưa chốt — tính trực tiếp, **thứ hạng** trễ tối đa ~1 phút; cài đặt ẩn danh thì có hiệu lực ngay. Tháng tương lai trả danh sách rỗng. `month` nhận năm 1970–2999. **`status=CLOSED`**:
   CLI `leaderboard:close-month` chốt lúc 00:05 ngày 1 giờ VN, và từ đó **không đổi nữa** — lượt
   trao bị mở lại hay người dùng đổi cài đặt ẩn danh sau đó không chạm vào tháng đã chốt.
 - **Ẩn danh:** người bật `leaderboardAnonymous` hiện `isAnonymous: true, user: null` — vẫn giữ
