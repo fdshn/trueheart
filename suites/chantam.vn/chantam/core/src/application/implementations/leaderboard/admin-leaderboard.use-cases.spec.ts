@@ -110,33 +110,16 @@ describe('CreateLeaderboardExclusionUseCase', () => {
     );
   });
 
-  it('tháng của bảng đã chốt thì từ chối, không ghi gì', async () => {
-    const deps = makeDeps({
-      findSnapshot: jest.fn(async () => ({
-        id: '1',
-        closedAt: new Date(),
-        badgesAwarded: true,
-      })),
-    });
+  it('tháng đã chốt (repository trả null dưới khoá) thì từ chối, không audit', async () => {
+    // Phép kiểm "đã chốt" nằm TRONG repository, dưới cùng khoá với lượt chốt — kiểm ở use
+    // case thì job có thể chốt ở khe giữa lúc kiểm và lúc ghi. `test:leaderboard` nhóm 11
+    // canh phần SQL, gồm cả ca loại "mọi bảng".
+    const deps = makeDeps({ createExclusion: jest.fn(async () => null) });
 
     await expect(create(deps).handle(command)).rejects.toBeInstanceOf(
       LeaderboardMonthClosedException,
     );
-    expect(deps.repository.createExclusion).not.toHaveBeenCalled();
-  });
-
-  it('loại khỏi MỌI bảng mà một bảng đã chốt thì cũng từ chối', async () => {
-    const deps = makeDeps({
-      findSnapshot: jest.fn(async (_month: string, board: string) =>
-        board === LeaderboardBoards.CONSISTENCY
-          ? { id: '1', closedAt: new Date(), badgesAwarded: true }
-          : null,
-      ),
-    });
-
-    await expect(
-      create(deps).handle({ ...command, board: null }),
-    ).rejects.toBeInstanceOf(LeaderboardMonthClosedException);
+    expect(deps.adminConfig.appendAudit).not.toHaveBeenCalled();
   });
 
   it('loại trùng (ràng buộc unique) thì 409 có nghĩa, không 500', async () => {
@@ -269,6 +252,39 @@ describe('GetAdminMonthlyLeaderboardUseCase', () => {
         excluded: true,
         isAnonymous: true,
         user: expect.objectContaining({ username: 'gian' }),
+      }),
+    );
+  });
+});
+
+describe('audit gỡ huy hiệu ghi đúng trạng thái TRƯỚC khi gỡ', () => {
+  it.each([
+    ['còn hạn', new Date('2099-01-01T00:00:00Z'), 'ACTIVE'],
+    ['đã hết hạn', new Date('2020-01-01T00:00:00Z'), 'EXPIRED'],
+  ])('huy hiệu %s → before.status %s', async (_label, expiresAt, status) => {
+    const deps = makeDeps();
+    deps.repository.revokeBadge.mockResolvedValue({
+      badgeId: 'b-1',
+      userId: Cheater,
+      board: LeaderboardBoards.GIVERS,
+      month: '2026-09-01',
+      rank: 1,
+      isAnonymous: false,
+      awardedAt: new Date('2026-10-01T00:00:00Z'),
+      expiresAt,
+      revokedAt: new Date(),
+      revokeReason: 'Gian lận',
+    } as never);
+
+    await new RevokeLeaderboardBadgeUseCase(
+      deps.repository as never,
+      deps.adminConfig as never,
+    ).handle({ actorUserId: Admin, badgeId: 'b-1', reason: 'Gian lận' });
+
+    expect(deps.adminConfig.appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        before: expect.objectContaining({ status, revokeReason: null }),
+        after: expect.objectContaining({ status: 'REVOKED' }),
       }),
     );
   });

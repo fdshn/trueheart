@@ -82,6 +82,15 @@ export class CloseLeaderboardMonthUseCase implements ICloseLeaderboardMonthUseCa
 
     const boards: ICloseLeaderboardMonthResult['boards'] = [];
     for (const board of Object.values(LeaderboardBoards)) {
+      // Đã chốt: không tính lại (bản chốt bất biến), nhưng gửi BÙ thông báo cho huy hiệu còn
+      // hiệu lực — tiến trình chết sau commit hay dispatch hỏng thì lượt chạy lại là cách duy
+      // nhất để người thắng biết. Khoá chống trùng giữ cho người đã nhận không nhận lần hai.
+      if (await this.repository.findSnapshot(month, board)) {
+        boards.push({ board, created: false, entries: 0, badges: 0 });
+        if (config.enabled) await this.reannounce(month, board, now);
+        continue;
+      }
+
       const rows = await this.repository.computeLive({
         month,
         board,
@@ -107,6 +116,22 @@ export class CloseLeaderboardMonthUseCase implements ICloseLeaderboardMonthUseCa
     }
 
     return { month: toLeaderboardMonthLabel(month), boards };
+  }
+
+  private async reannounce(
+    month: string,
+    board: LeaderboardBoards,
+    now: Date,
+  ): Promise<void> {
+    const { items } = await this.repository.listBadgesForAdmin({
+      month,
+      board,
+      skip: 0,
+      take: 1_000,
+    });
+    for (const badge of items)
+      if (!badge.revokedAt && badge.expiresAt > now)
+        await this.announce(month, board, badge.userId, badge.rank);
   }
 
   private async announce(

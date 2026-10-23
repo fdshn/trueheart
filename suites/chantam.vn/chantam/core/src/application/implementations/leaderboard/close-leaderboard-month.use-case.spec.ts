@@ -33,7 +33,17 @@ function make(
     dispatch?: jest.Mock;
   } = {},
 ) {
+  const alreadyClosed = options.created === false;
   const repository = {
+    findSnapshot: jest.fn(async () =>
+      alreadyClosed
+        ? { id: '9', closedAt: new Date(), badgesAwarded: true }
+        : null,
+    ),
+    listBadgesForAdmin: jest.fn(async () => ({
+      items: alreadyClosed ? existingBadges : [],
+      total: alreadyClosed ? existingBadges.length : 0,
+    })),
     computeLive: jest.fn(async () => [row(1, Winner)]),
     // Đúng hợp đồng của repository: không trao (`awardBadges: null`) hoặc đã chốt từ trước
     // thì không có huy hiệu mới nào.
@@ -60,6 +70,25 @@ function make(
   );
   return { useCase, repository, dispatch };
 }
+
+const badge = (userId: string, overrides: Record<string, unknown> = {}) => ({
+  badgeId: `b-${userId.slice(0, 4)}`,
+  userId,
+  board: LeaderboardBoards.GIVERS,
+  month: '2026-10-01',
+  rank: 1,
+  isAnonymous: false,
+  awardedAt: new Date('2026-10-31T17:05:00Z'),
+  expiresAt: new Date('2027-01-31T17:00:00Z'),
+  revokedAt: null,
+  revokeReason: null,
+  ...overrides,
+});
+const Revoked = '22222222-2222-4222-8222-222222222222';
+const existingBadges = [
+  badge(Winner),
+  badge(Revoked, { rank: 2, revokedAt: new Date(), revokeReason: 'Gian lận' }),
+];
 
 // 00:05 ngày 1/11 giờ Việt Nam.
 const firstOfNovember = new Date('2026-10-31T17:05:00Z');
@@ -156,12 +185,34 @@ describe('CloseLeaderboardMonthUseCase', () => {
     });
   });
 
-  it('đã chốt từ trước thì không gửi gì', async () => {
-    const { useCase, dispatch } = make({ created: false });
+  it('bảng đã chốt: KHÔNG tính lại, nhưng gửi bù thông báo cho huy hiệu còn hiệu lực', async () => {
+    // Tiến trình chết sau commit, hoặc dispatch hỏng, thì lượt chạy lại là cách duy nhất để
+    // người thắng biết. Khoá chống trùng giữ cho người đã nhận không nhận lần hai.
+    const { useCase, repository, dispatch } = make({ created: false });
 
     const result = await useCase.handle({ now: firstOfNovember });
 
     expect(result.boards.every((board) => !board.created)).toBe(true);
+    expect(repository.computeLive).not.toHaveBeenCalled();
+    expect(repository.closeBoard).not.toHaveBeenCalled();
+    expect(repository.listBadgesForAdmin).toHaveBeenCalledWith(
+      expect.objectContaining({ month: '2026-10-01' }),
+    );
+    const keys = dispatch.handle.mock.calls.map(
+      ([call]: [{ idempotencyKey: string }]) => call.idempotencyKey,
+    );
+    expect(keys).toContain(`LEADERBOARD_BADGE:GIVERS:2026-10:${Winner}`);
+    expect(keys.some((key: string) => key.endsWith(Revoked))).toBe(false);
+  });
+
+  it('bảng đã chốt mà tính năng đang tắt thì không gửi bù', async () => {
+    const { useCase, dispatch } = make({
+      created: false,
+      config: { [LeaderboardConfigKeys.ENABLED]: 0 },
+    });
+
+    await useCase.handle({ now: firstOfNovember });
+
     expect(dispatch.handle).not.toHaveBeenCalled();
   });
 

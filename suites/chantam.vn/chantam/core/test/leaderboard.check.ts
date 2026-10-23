@@ -12,6 +12,7 @@ import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import { CreateLeaderboardExclusionUseCase } from '../src/application/implementations/leaderboard/admin-leaderboard.use-cases';
 import { CloseLeaderboardMonthUseCase } from '../src/application/implementations/leaderboard/close-leaderboard-month.use-case';
+import { GetMonthlyLeaderboardUseCase } from '../src/application/implementations/leaderboard/leaderboard.use-cases';
 import { DispatchNotificationUseCase } from '../src/application/implementations/notification/dispatch-notification.use-case';
 import { GetOwnProfileUseCase } from '../src/application/implementations/profile/get-own-profile.use-case';
 import { GetPublicProfileUseCase } from '../src/application/implementations/profile/get-public-profile.use-case';
@@ -337,7 +338,7 @@ async function main(): Promise<void> {
       actorUserId: Admin,
     });
     await repository.removeExclusion({
-      exclusionId: restored.exclusionId,
+      exclusionId: restored!.exclusionId,
       actorUserId: Admin,
     });
     await repository.setAnonymous(Anon, true);
@@ -656,10 +657,19 @@ async function main(): Promise<void> {
     );
 
     console.log('\n6. Lượt loại');
+    // Tháng CHƯA chốt: tháng 10 đã chốt ở nhóm 4, và ở đó repository từ chối sớm bằng `null`
+    // (nhóm 11) chứ không đâm vào ràng buộc unique.
+    const firstNovemberExclusion = await repository.createExclusion({
+      month: November,
+      board: 'GIVERS' as never,
+      userId: Excluded,
+      reason: 'Loại lần đầu',
+      actorUserId: Admin,
+    });
     let duplicateRejected = false;
     try {
       await repository.createExclusion({
-        month: October,
+        month: November,
         board: 'GIVERS' as never,
         userId: Excluded,
         reason: 'Loại lần hai',
@@ -668,11 +678,14 @@ async function main(): Promise<void> {
     } catch {
       duplicateRejected = true;
     }
-    check('loại trùng bị database chặn', duplicateRejected);
+    check(
+      'loại trùng ở tháng chưa chốt bị database chặn',
+      firstNovemberExclusion !== null && duplicateRejected,
+    );
     check(
       'bỏ lượt loại đã bỏ trả null',
       (await repository.removeExclusion({
-        exclusionId: restored.exclusionId,
+        exclusionId: restored!.exclusionId,
         actorUserId: Admin,
       })) === null,
     );
@@ -723,8 +736,13 @@ async function main(): Promise<void> {
         WHERE type = 'LEADERBOARD_BADGE_AWARDED' ORDER BY user_id`,
     );
     check(
-      'người nhận huy hiệu từ thiện và chuyên cần được báo, đích LEADERBOARD không id',
-      notices.length === 2 &&
+      'bảng mới chốt được báo; GIVERS (chốt ở nhóm 4, chưa từng báo) được gửi BÙ — trừ huy hiệu đã gỡ',
+      // CHARITY: Contributor, CONSISTENCY: Steady (chốt lần đầu ở đây). GIVERS: Giver1 hạng 2
+      // và Anon hạng 3 gửi bù; Giver2 hạng 1 đã bị gỡ ở nhóm 5 nên không báo.
+      notices.length === 4 &&
+        !notices.some(
+          (notice: { user_id: string }) => notice.user_id === Giver2,
+        ) &&
         notices.every(
           (notice: { target_type: string; target_id: string | null }) =>
             notice.target_type === 'LEADERBOARD' && notice.target_id === null,
@@ -741,7 +759,10 @@ async function main(): Promise<void> {
       `SELECT count(*)::int AS total FROM notifications
         WHERE type = 'LEADERBOARD_BADGE_AWARDED'`,
     );
-    check('chạy lại cùng tháng không gửi thêm thông báo', noticeTotal === 2);
+    check(
+      'chạy lại cùng tháng không gửi thêm thông báo (khoá chống trùng)',
+      noticeTotal === 4,
+    );
     let currentMonthRejected = false;
     try {
       await closeMonth.handle({ month: '2026-11', now: firstOfNovember });
@@ -925,6 +946,131 @@ async function main(): Promise<void> {
     check(
       'danh sách rỗng không chạm database',
       (await repository.findLiveIdentities([])).size === 0,
+    );
+
+    console.log('\n11. Loại người và chốt sổ chạy chéo nhau');
+    // Job chốt tính bảng TRƯỚC rồi mới ghi. Lượt loại tạo ở khe giữa hai bước đó từng trả 201
+    // mà không có tác dụng. Nay bản chốt lọc lại danh sách loại lúc ghi, dưới cùng một khoá
+    // advisory với lượt loại.
+    const December = '2026-12-01';
+    const staleRows = [Giver2, Giver1, Anon].map((userId, index) => ({
+      rank: index + 1,
+      count: 3 - index,
+      reachedAt: new Date('2026-12-10T00:00:00Z'),
+      userId,
+      isAnonymous: false,
+      isInactive: false,
+      identity: null,
+    }));
+    await repository.createExclusion({
+      month: December,
+      board: 'GIVERS' as never,
+      userId: Giver1,
+      reason: 'Loại sau khi job đã tính bảng',
+      actorUserId: Admin,
+    });
+    await repository.closeBoard({
+      month: December,
+      board: 'GIVERS' as never,
+      rows: staleRows,
+      awardBadges: null,
+    });
+    const decemberSnapshot = await repository.findSnapshot(
+      December,
+      'GIVERS' as never,
+    );
+    const decemberRows = (
+      await repository.listSnapshotEntries({
+        snapshotId: decemberSnapshot!.id,
+        skip: 0,
+        take: 10,
+      })
+    ).items;
+    check(
+      'người bị loại sau khi bảng đã tính KHÔNG lọt vào bản chốt; hạng vẫn liền',
+      decemberRows.map((item) => `${item.rank}:${item.userId}`).join(' ') ===
+        `1:${Giver2} 2:${Anon}`,
+      ranking(decemberRows),
+    );
+    check(
+      'loại người ở bảng đã chốt: repository trả null, không ghi',
+      (await repository.createExclusion({
+        month: December,
+        board: 'GIVERS' as never,
+        userId: Giver2,
+        reason: 'Loại sau khi chốt',
+        actorUserId: Admin,
+      })) === null,
+    );
+    check(
+      'loại MỌI bảng khi một bảng của tháng đã chốt: cũng null',
+      (await repository.createExclusion({
+        month: December,
+        board: null,
+        userId: Giver2,
+        reason: 'Loại cả ba bảng sau khi một bảng đã chốt',
+        actorUserId: Admin,
+      })) === null,
+    );
+
+    console.log('\n12. Hai tiến trình chốt CÙNG LÚC');
+    const January = '2027-01-01';
+    const raced = await Promise.all(
+      [0, 1].map(() =>
+        repository.closeBoard({
+          month: January,
+          board: 'CHARITY' as never,
+          rows: staleRows.slice(0, 2),
+          awardBadges: {
+            ranks: 3,
+            expiresAt: new Date('2027-05-01T00:00:00Z'),
+          },
+        }),
+      ),
+    );
+    const [{ janEntries, janBadges }] = await sql(
+      `SELECT (SELECT count(*)::int FROM leaderboard_entries entry
+                 JOIN leaderboard_snapshots snap ON snap.id = entry.snapshot_id
+                WHERE snap.month = $1::date) AS "janEntries",
+              (SELECT count(*)::int FROM user_badges WHERE month = $1::date) AS "janBadges"`,
+      [January],
+    );
+    check(
+      'đúng MỘT tiến trình ghi; không nhân đôi dòng hay huy hiệu',
+      raced.filter((result) => result.created).length === 1 &&
+        janEntries === 2 &&
+        janBadges === 2,
+      `created=${raced.map((result) => result.created)} entries=${janEntries} badges=${janBadges}`,
+    );
+
+    console.log(
+      '\n13. `me` của người gọi không làm lộ người khác — đường đọc thật',
+    );
+    const readBoard = new GetMonthlyLeaderboardUseCase(
+      repository,
+      new AdminConfigRepository(dataSource.manager),
+      () => new Date('2026-11-02T00:00:00Z'),
+    );
+    const asGiver2 = await readBoard.handle({
+      viewerId: Giver2,
+      board: 'GIVERS' as never,
+      month: '2026-10',
+    });
+    const asGiver2Json = JSON.stringify(asGiver2);
+    check(
+      'gọi bằng token của Giver2: `me` là dòng của Giver2',
+      asGiver2.status === 'CLOSED' &&
+        asGiver2.me?.rank === 1 &&
+        asGiver2.me?.user?.username === 'lb_giver2',
+      JSON.stringify(asGiver2.me),
+    );
+    check(
+      'response không chứa username hay id của người ẩn danh lúc chốt',
+      !asGiver2Json.includes('lb_anon') && !asGiver2Json.includes(Anon),
+    );
+    check(
+      'response không chứa userId của BẤT KỲ ai, kể cả người gọi',
+      !asGiver2Json.includes(Giver2) && !asGiver2Json.includes(Giver1),
     );
   } finally {
     for (const source of opened.reverse())

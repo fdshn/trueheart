@@ -30,7 +30,6 @@ import {
   IUserRepository,
 } from '@/domain/ports/repository';
 import {
-  LeaderboardBoards,
   parseLeaderboardMonth,
   toLeaderboardMonthLabel,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -194,17 +193,10 @@ export class CreateLeaderboardExclusionUseCase implements ICreateLeaderboardExcl
   public async handle(command: ICreateLeaderboardExclusionCommand) {
     const month = requireMonth(command.month);
 
-    const boards = command.board
-      ? [command.board]
-      : Object.values(LeaderboardBoards);
-    for (const board of boards)
-      if (await this.repository.findSnapshot(month, board))
-        throw new LeaderboardMonthClosedException();
-
     const user = await this.users.findOneBy({ globalId: command.userId });
     if (!user || user.deletedAt) throw new UserNotFoundException();
 
-    let exclusion: ILeaderboardExclusion;
+    let exclusion: ILeaderboardExclusion | null;
     try {
       exclusion = await this.repository.createExclusion({
         month,
@@ -221,6 +213,8 @@ export class CreateLeaderboardExclusionUseCase implements ICreateLeaderboardExcl
         throw new LeaderboardExclusionExistsException();
       throw error;
     }
+    // Repository kiểm "tháng đã chốt" dưới cùng khoá với lượt chốt — xem `createExclusion`.
+    if (!exclusion) throw new LeaderboardMonthClosedException();
 
     const dto = toExclusionDto(exclusion);
     await this.adminConfig.appendAudit({
@@ -314,13 +308,19 @@ export class RevokeLeaderboardBadgeUseCase implements IRevokeLeaderboardBadgeUse
     });
     if (!revoked) throw new LeaderboardBadgeNotFoundException();
 
-    const dto = toAdminBadgeDto(revoked, new Date());
+    const now = new Date();
+    const dto = toAdminBadgeDto(revoked, now);
     await this.adminConfig.appendAudit({
       actorUserId: command.actorUserId,
       action: 'BADGE_REVOKE',
       resourceType: 'USER_BADGE',
       resourceId: revoked.badgeId,
-      before: { ...dto, status: 'ACTIVE', revokeReason: null },
+      // Trạng thái trước khi gỡ: gỡ một huy hiệu đã hết hạn không biến nó thành "từng còn hạn".
+      before: {
+        ...dto,
+        status: revoked.expiresAt <= now ? 'EXPIRED' : 'ACTIVE',
+        revokeReason: null,
+      },
       after: dto,
       reason: command.reason,
     });

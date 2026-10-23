@@ -136,14 +136,18 @@ export interface ILeaderboardRepository {
     reason: string;
   }): Promise<IUserBadge | null>;
 
-  /** Ném lỗi ràng buộc `UQ_leaderboard_exclusions_active` khi đã có lượt loại đang hiệu lực. */
+  /**
+   * `null` khi tháng đã chốt (bảng đó, hoặc bất kỳ bảng nào nếu `board` là `null`) — kiểm và
+   * ghi dưới cùng một khoá với `closeBoard`. Ném lỗi ràng buộc
+   * `UQ_leaderboard_exclusions_active` khi đã có lượt loại đang hiệu lực.
+   */
   createExclusion(params: {
     month: string;
     board: LeaderboardBoards | null;
     userId: string;
     reason: string;
     actorUserId: string;
-  }): Promise<ILeaderboardExclusion>;
+  }): Promise<ILeaderboardExclusion | null>;
 
   /** `null` khi không có hoặc đã bỏ. */
   removeExclusion(params: {

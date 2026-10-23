@@ -260,6 +260,11 @@ export class LeaderboardRepository implements ILeaderboardRepository {
     badges: { userId: string; rank: number }[];
   }> {
     return this.manager.transaction(async (manager) => {
+      // Cùng khoá với `createExclusion`: lượt loại và lượt chốt của MỘT tháng không chạy
+      // chéo nhau. Không có khoá thì lượt loại tạo giữa lúc job tính bảng và lúc job ghi trả
+      // 201 mà không có tác dụng.
+      await lockMonth(manager, params.month);
+
       // `UNIQUE (month, board)` — chốt lần hai, hay hai tiến trình chốt song song, rơi vào
       // đây và không ghi gì. Không phải một `SELECT` rồi `INSERT` có khe hở ở giữa.
       const [snapshot] = await manager.query<{ id: string }[]>(
@@ -274,10 +279,20 @@ export class LeaderboardRepository implements ILeaderboardRepository {
       await manager.query(
         `INSERT INTO leaderboard_entries
            (snapshot_id, user_id, rank, count, reached_at, is_anonymous)
-         SELECT $1::bigint, entry.user_id, entry.rank, entry.count, entry.reached_at,
+         SELECT $1::bigint, entry.user_id,
+                ROW_NUMBER() OVER (ORDER BY entry.rank), entry.count, entry.reached_at,
                 entry.is_anonymous
          FROM unnest($2::uuid[], $3::int[], $4::int[], $5::timestamptz[], $6::boolean[])
-           AS entry(user_id, rank, count, reached_at, is_anonymous)`,
+           AS entry(user_id, rank, count, reached_at, is_anonymous)
+         -- Lọc lại lượt loại NGAY LÚC GHI, dưới khoá: rows được tính trước khi vào đây, nên
+         -- một lượt loại vừa commit có thể chưa có trong đó. Hạng đánh lại để vẫn liền 1..n.
+         WHERE NOT EXISTS (
+           SELECT 1 FROM leaderboard_exclusions exclusion
+           WHERE exclusion.user_id = entry.user_id
+             AND exclusion.month = $7::date
+             AND (exclusion.board IS NULL OR exclusion.board = $8::text)
+             AND exclusion.removed_at IS NULL
+         )`,
         [
           snapshot.id,
           params.rows.map((row) => row.userId),
@@ -285,6 +300,8 @@ export class LeaderboardRepository implements ILeaderboardRepository {
           params.rows.map((row) => row.count),
           params.rows.map((row) => row.reachedAt),
           params.rows.map((row) => row.isAnonymous),
+          params.month,
+          params.board,
         ],
       );
 
@@ -391,21 +408,35 @@ export class LeaderboardRepository implements ILeaderboardRepository {
     userId: string;
     reason: string;
     actorUserId: string;
-  }): Promise<ILeaderboardExclusion> {
-    const [row] = await this.manager.query<IExclusionRecord[]>(
-      `INSERT INTO leaderboard_exclusions AS exclusion
-         (month, board, user_id, reason, created_by)
-       VALUES ($1::date, $2, $3, $4, $5)
-       RETURNING ${ExclusionColumns}`,
-      [
-        params.month,
-        params.board,
-        params.userId,
-        params.reason,
-        params.actorUserId,
-      ],
-    );
-    return toExclusion(row);
+  }): Promise<ILeaderboardExclusion | null> {
+    return this.manager.transaction(async (manager) => {
+      await lockMonth(manager, params.month);
+
+      // Kiểm và ghi dưới CÙNG khoá với `closeBoard` — kiểm ngoài khoá thì job có thể chốt ở
+      // khe giữa lúc kiểm và lúc ghi. Loại "mọi bảng" mà một bảng đã chốt cũng từ chối.
+      const [closed] = await manager.query(
+        `SELECT 1 FROM leaderboard_snapshots
+         WHERE month = $1::date AND ($2::text IS NULL OR board = $2::text)
+         LIMIT 1`,
+        [params.month, params.board],
+      );
+      if (closed) return null;
+
+      const [row] = await manager.query<IExclusionRecord[]>(
+        `INSERT INTO leaderboard_exclusions AS exclusion
+           (month, board, user_id, reason, created_by)
+         VALUES ($1::date, $2, $3, $4, $5)
+         RETURNING ${ExclusionColumns}`,
+        [
+          params.month,
+          params.board,
+          params.userId,
+          params.reason,
+          params.actorUserId,
+        ],
+      );
+      return toExclusion(row);
+    });
   }
 
   public async removeExclusion(params: {
@@ -484,6 +515,14 @@ export class LeaderboardRepository implements ILeaderboardRepository {
     );
     return row?.anonymous ?? false;
   }
+}
+
+/** Khoá advisory theo tháng, nhả khi transaction kết thúc. */
+async function lockMonth(manager: EntityManager, month: string): Promise<void> {
+  await manager.query(
+    `SELECT pg_advisory_xact_lock(hashtext('leaderboard:' || $1::text))`,
+    [month],
+  );
 }
 
 function toRow(row: IRowRecord, withExcluded: boolean): ILeaderboardRow {
