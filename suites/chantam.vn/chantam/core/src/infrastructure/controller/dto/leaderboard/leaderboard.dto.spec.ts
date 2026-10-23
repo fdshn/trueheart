@@ -1,5 +1,11 @@
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
+import {
+  CreateLeaderboardExclusionDto,
+  ListAdminBadgesQueryDto,
+  ListLeaderboardExclusionsQueryDto,
+  RevokeBadgeDto,
+} from './admin-leaderboard.dto';
 import { GetMonthlyLeaderboardQueryDto } from './leaderboard.dto';
 
 /**
@@ -33,5 +39,37 @@ describe('GetMonthlyLeaderboardQueryDto', () => {
     expect(errors({ board: 'NOPE' }).map((error) => error.property)).toEqual([
       'board',
     ]);
+  });
+});
+
+describe('tháng ở DTO Admin dùng chung khoảng năm với bảng công khai', () => {
+  it.each([
+    ['ListAdminBadgesQueryDto', ListAdminBadgesQueryDto],
+    ['ListLeaderboardExclusionsQueryDto', ListLeaderboardExclusionsQueryDto],
+  ] as const)('%s từ chối năm 0000', (_name, cls) => {
+    const errors = validateSync(plainToInstance(cls, { month: '0000-01' }));
+    expect(errors.map((error) => error.property)).toEqual(['month']);
+  });
+});
+
+describe('lý do của Admin không được toàn khoảng trắng', () => {
+  // Năm dấu cách qua được `@Length(5, 500)`, rồi đâm vào `CHK_leaderboard_exclusions_reason`
+  // thành một 500 — còn ở gỡ huy hiệu thì được lưu thẳng, tức "bắt buộc lý do" mà không có lý do.
+  it('lượt loại', () => {
+    const errors = validateSync(
+      plainToInstance(CreateLeaderboardExclusionDto, {
+        month: '2026-10',
+        userId: '11111111-1111-4111-8111-111111111111',
+        reason: '      ',
+      }),
+    );
+    expect(errors.map((error) => error.property)).toEqual(['reason']);
+  });
+
+  it('gỡ huy hiệu', () => {
+    const errors = validateSync(
+      plainToInstance(RevokeBadgeDto, { reason: '      ' }),
+    );
+    expect(errors.map((error) => error.property)).toEqual(['reason']);
   });
 });

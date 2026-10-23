@@ -1,5 +1,6 @@
 import {
   ILeaderboardExclusion,
+  ILeaderboardIdentity,
   ILeaderboardRepository,
   ILeaderboardRow,
   ILeaderboardSnapshot,
@@ -443,6 +444,30 @@ export class LeaderboardRepository implements ILeaderboardRepository {
       filters,
     );
     return { items: rows.map(toExclusion), total };
+  }
+
+  public async findLiveIdentities(
+    userIds: readonly string[],
+  ): Promise<
+    Map<string, { isAnonymous: boolean; identity: ILeaderboardIdentity | null }>
+  > {
+    if (userIds.length === 0) return new Map();
+    const rows = await this.manager.query<(IRowRecord & { user_id: string })[]>(
+      `SELECT u.global_id AS user_id, u.leaderboard_anonymous AS is_anonymous,
+              ${identityColumns("u.leaderboard_anonymous OR u.status <> 'ACTIVE'")}
+       FROM users u WHERE u.global_id = ANY($1::uuid[])`,
+      [userIds],
+    );
+    return new Map(
+      rows.map((row) => [
+        row.user_id,
+        {
+          isAnonymous: row.is_anonymous,
+          identity: toRow({ ...row, rank: 0, count: 0 } as never, false)
+            .identity,
+        },
+      ]),
+    );
   }
 
   public async setAnonymous(userId: string, value: boolean): Promise<void> {

@@ -158,6 +158,17 @@ export interface ILeaderboardRepository {
     take: number;
   }): Promise<{ items: ILeaderboardExclusion[]; total: number }>;
 
+  /**
+   * Cờ ẩn danh và danh tính HIỆN TẠI của một nhóm người — để trang của bảng trực tiếp không
+   * dùng danh tính đã cache. `identity` là `null` khi ẩn danh hoặc tài khoản không còn ACTIVE.
+   * Người không còn trong `users` thì vắng khỏi kết quả.
+   */
+  findLiveIdentities(
+    userIds: readonly string[],
+  ): Promise<
+    Map<string, { isAnonymous: boolean; identity: ILeaderboardIdentity | null }>
+  >;
+
   setAnonymous(userId: string, value: boolean): Promise<void>;
 
   isAnonymous(userId: string): Promise<boolean>;

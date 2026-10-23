@@ -16,12 +16,20 @@ describe('tháng của bảng thành tích', () => {
     expect(parseLeaderboardMonth('2027-01')).toBe('2027-01-01');
   });
 
-  it.each(['2026-13', '2026-00', '2026-1', 'abc', '', '2026-10-01'])(
-    'từ chối %p',
-    (value) => {
-      expect(parseLeaderboardMonth(value)).toBeNull();
-    },
-  );
+  it.each([
+    '2026-13',
+    '2026-00',
+    '2026-1',
+    'abc',
+    '',
+    '2026-10-01',
+    // Năm 0 làm Postgres từ chối `::date` (500); năm 0001–0099 bị `Date.UTC` đọc thành 19xx.
+    '0000-01',
+    '0050-01',
+    '1969-12',
+  ])('từ chối %p', (value) => {
+    expect(parseLeaderboardMonth(value)).toBeNull();
+  });
 
   it('cắt tháng theo giờ Việt Nam, không theo UTC', () => {
     // 00:30 ngày 1/11 giờ VN vẫn là 17:30 ngày 31/10 theo UTC.

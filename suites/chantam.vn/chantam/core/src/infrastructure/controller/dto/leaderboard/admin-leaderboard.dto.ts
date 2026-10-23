@@ -1,4 +1,7 @@
-import { LeaderboardBoards } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  LeaderboardBoards,
+  LeaderboardMonthPattern,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   IAdminBadgeDto,
   IAdminLeaderboardEntryDto,
@@ -29,8 +32,11 @@ import {
   ProfileBadgeDto,
 } from './leaderboard.dto';
 
-const MonthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
+// Cùng khoảng năm với `parseLeaderboardMonth` — năm 0000 là 500 ở `::date`.
+const MonthPattern = LeaderboardMonthPattern;
 const MonthMessage = 'month: phải có dạng YYYY-MM';
+/** Có ít nhất một ký tự không phải khoảng trắng — năm dấu cách không phải là lý do. */
+const NotBlankPattern = /\S/;
 
 // Trường khai trực tiếp trên từng lớp, KHÔNG trộn qua `Mixin`: ts-mixer chỉ chép decorator
 // bọc bằng `decorate()`, và trường mất decorator bị `whitelist` gạt đi (xem leaderboard.dto.spec).
@@ -100,6 +106,7 @@ export class CreateLeaderboardExclusionDto {
   @ApiProperty({ minLength: 5, maxLength: 500 })
   @IsString()
   @Length(5, 500)
+  @Matches(NotBlankPattern, { message: 'reason: không được để trống' })
   reason: string;
 }
 
@@ -115,6 +122,7 @@ export class RevokeBadgeDto {
   @ApiProperty({ minLength: 5, maxLength: 500 })
   @IsString()
   @Length(5, 500)
+  @Matches(NotBlankPattern, { message: 'reason: không được để trống' })
   reason: string;
 }
 

@@ -42,7 +42,13 @@ export const LeaderboardConfigDefaults: Readonly<
  */
 const VietnamOffsetMs = 7 * 60 * 60 * 1000;
 
-const MonthPattern = /^(\d{4})-(0[1-9]|1[0-2])$/;
+/**
+ * Năm 1970–2999. Không phải "4 chữ số bất kỳ": năm 0000 làm Postgres từ chối `::date` (ra
+ * 500 trên route công khai), và năm 0001–0099 bị `Date.UTC` hiểu thành 1901–1999 — bảng đếm
+ * dữ liệu năm 1950 dưới nhãn "0050-01".
+ */
+export const LeaderboardMonthPattern = /^(19[7-9]\d|2\d{3})-(0[1-9]|1[0-2])$/;
+const MonthPattern = LeaderboardMonthPattern;
 
 /**
  * Tháng trong DB là `date` ngày 1 (`'YYYY-MM-01'`); trong API là `'YYYY-MM'`.

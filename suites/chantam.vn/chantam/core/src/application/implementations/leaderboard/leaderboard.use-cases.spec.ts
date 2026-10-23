@@ -45,6 +45,7 @@ function makeRepository(overrides: Record<string, unknown> = {}) {
     listSnapshotEntries: jest.fn(async () => ({ items: [], total: 0 })),
     findSnapshotEntry: jest.fn(async () => null),
     listClosedMonths: jest.fn(async () => []),
+    findLiveIdentities: jest.fn(async () => new Map()),
     ...overrides,
   };
 }
@@ -322,5 +323,95 @@ describe('ListLeaderboardMonthsUseCase', () => {
     expect(
       await new ListLeaderboardMonthsUseCase(repository as never).handle({}),
     ).toEqual({ months: ['2026-10', '2026-09'] });
+  });
+});
+
+describe('tháng tương lai', () => {
+  // Mỗi `?month=` mới là một khoá cache mới — tháng tương lai không thể có dữ liệu, nên đếm
+  // nó là để một người gọi không cần đăng nhập ép database quét lại ba bảng tuỳ ý.
+  it('bảng: trả rỗng LIVE, không hỏi database', async () => {
+    const repository = makeRepository();
+
+    const result = await new GetMonthlyLeaderboardUseCase(
+      repository as never,
+      makeConfig() as never,
+      now,
+    ).handle({
+      viewerId: Me,
+      board: LeaderboardBoards.GIVERS,
+      month: '2027-05',
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        month: '2027-05',
+        status: 'LIVE',
+        entries: [],
+        me: null,
+      }),
+    );
+    expect(repository.findSnapshot).not.toHaveBeenCalled();
+    expect(repository.computeLive).not.toHaveBeenCalled();
+  });
+
+  it('vị trí của tôi: không hạng ở cả ba bảng, không hỏi database', async () => {
+    const repository = makeRepository();
+
+    const result = await new GetMyLeaderboardPositionsUseCase(
+      repository as never,
+      makeConfig() as never,
+      now,
+    ).handle({ userId: Me, month: '2027-05' });
+
+    expect(result.positions.every((position) => position.rank === null)).toBe(
+      true,
+    );
+    expect(repository.computeLive).not.toHaveBeenCalled();
+  });
+});
+
+describe('ẩn danh có hiệu lực NGAY, kể cả khi bảng đang trong cache', () => {
+  // Cache chỉ giữ THỨ HẠNG. Danh tính đọc mới cho đúng trang đang trả: người vừa bật "ẩn tên
+  // tôi" mà còn thấy tên mình trên bảng thêm một phút là cài đặt riêng tư không làm việc.
+  it('trang trả về dùng cờ ẩn danh HIỆN TẠI, không phải lúc tính bảng', async () => {
+    let anonymousNow = false;
+    const repository = makeRepository({
+      computeLive: jest.fn(async () => [row(1, 3, Hidden)]),
+      findLiveIdentities: jest.fn(
+        async (userIds: string[]) =>
+          new Map(
+            userIds.map((userId) => [
+              userId,
+              anonymousNow
+                ? { isAnonymous: true, identity: null }
+                : {
+                    isAnonymous: false,
+                    identity: {
+                      username: 'hien',
+                      fullName: null,
+                      avatarUrl: null,
+                      rank: UserRanks.MEMBER,
+                    },
+                  },
+            ]),
+          ),
+      ),
+    });
+    const useCase = new GetMonthlyLeaderboardUseCase(
+      repository as never,
+      makeConfig() as never,
+      now,
+    );
+    const read = () =>
+      useCase.handle({ viewerId: null, board: LeaderboardBoards.GIVERS });
+
+    expect((await read()).entries[0].user?.username).toBe('hien');
+    anonymousNow = true;
+    const after = await read();
+
+    expect(repository.computeLive).toHaveBeenCalledTimes(1);
+    expect(after.entries[0]).toEqual(
+      expect.objectContaining({ isAnonymous: true, user: null }),
+    );
   });
 });

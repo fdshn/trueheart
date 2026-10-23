@@ -129,3 +129,4 @@ export * from './1800900000000-AddBroadcastLease';
 export * from './1801000000000-CreateMediaAssets';
 export * from './1801100000000-AddNotificationTargets';
 export * from './1801200000000-CreateMonthlyLeaderboards';
+export * from './1801300000000-AddLeaderboardCountIndexes';

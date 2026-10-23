@@ -273,7 +273,55 @@ async function main(): Promise<void> {
 
     const repository = new LeaderboardRepository(dataSource.manager);
 
-    console.log('1. Người cho — đếm gì, tháng nào, xếp ra sao');
+    console.log('0. Truy vấn đếm theo tháng có index dùng được');
+    // Bảng tháng hiện tại tính lại sau mỗi lần cache hết hạn, và `check_in_entries` lớn thêm
+    // khoảng một dòng mỗi người mỗi ngày. Không index bắt đầu bằng cột thời gian thì mọi
+    // lần tính là quét cả bảng. Tắt seq scan để hỏi đúng câu "planner CÓ dùng được không".
+    const explainUses = async (query: string, index: string) => {
+      const runner = dataSource.createQueryRunner();
+      try {
+        await runner.query('SET enable_seqscan = off');
+        const plan = (await runner.query(`EXPLAIN ${query}`)) as {
+          'QUERY PLAN': string;
+        }[];
+        return plan
+          .map((line) => line['QUERY PLAN'])
+          .join(' ')
+          .includes(index);
+      } finally {
+        await runner.query('RESET enable_seqscan');
+        await runner.release();
+      }
+    };
+    check(
+      'gift_transactions: index theo completed_at cho lượt COMPLETED',
+      await explainUses(
+        `SELECT giver_id, count(*) FROM gift_transactions
+          WHERE status = 'COMPLETED' AND completed_at >= '2026-09-30T17:00Z'
+            AND completed_at < '2026-10-31T17:00Z' GROUP BY giver_id`,
+        'IDX_gift_transactions_completed_month',
+      ),
+    );
+    check(
+      'campaign_deliveries: index theo completed_at cho lượt COMPLETED',
+      await explainUses(
+        `SELECT contributor_id, count(*) FROM campaign_deliveries
+          WHERE status = 'COMPLETED' AND completed_at >= '2026-09-30T17:00Z'
+            AND completed_at < '2026-10-31T17:00Z' GROUP BY contributor_id`,
+        'IDX_campaign_deliveries_completed_month',
+      ),
+    );
+    check(
+      'check_in_entries: index theo policy_date cho ngày NORMAL',
+      await explainUses(
+        `SELECT user_id, count(*) FROM check_in_entries
+          WHERE kind = 'NORMAL' AND policy_date >= '2026-10-01'
+            AND policy_date < '2026-11-01' GROUP BY user_id`,
+        'IDX_check_in_entries_normal_month',
+      ),
+    );
+
+    console.log('\n1. Người cho — đếm gì, tháng nào, xếp ra sao');
     await repository.createExclusion({
       month: October,
       board: 'GIVERS' as never,
@@ -845,6 +893,38 @@ async function main(): Promise<void> {
       'loại ở tháng đã chốt bị từ chối',
       closedCode === 'LeaderboardMonthClosedException',
       closedCode,
+    );
+
+    console.log('\n10. Danh tính đọc MỚI cho trang của bảng trực tiếp');
+    // Trạng thái lúc này: Giver1 đã bật ẩn danh (nhóm 4), Anon đã tắt (nhóm 8), Locked bị khoá.
+    const live = await repository.findLiveIdentities([
+      Giver1,
+      Anon,
+      Locked,
+      '7a000000-0000-4000-8000-0000000000ff',
+    ]);
+    check(
+      'người vừa bật ẩn danh: isAnonymous, không danh tính',
+      live.get(Giver1)?.isAnonymous === true &&
+        live.get(Giver1)?.identity === null,
+      JSON.stringify(live.get(Giver1)),
+    );
+    check(
+      'người vừa tắt ẩn danh: có danh tính',
+      live.get(Anon)?.isAnonymous === false &&
+        live.get(Anon)?.identity?.username === 'lb_anon',
+    );
+    check(
+      'tài khoản bị khoá: không danh tính',
+      live.get(Locked)?.identity === null,
+    );
+    check(
+      'id không có trong users thì vắng khỏi kết quả',
+      !live.has('7a000000-0000-4000-8000-0000000000ff') && live.size === 3,
+    );
+    check(
+      'danh sách rỗng không chạm database',
+      (await repository.findLiveIdentities([])).size === 0,
     );
   } finally {
     for (const source of opened.reverse())

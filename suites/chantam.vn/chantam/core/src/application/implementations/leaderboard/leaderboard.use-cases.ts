@@ -100,7 +100,12 @@ export class LeaderboardReader {
     month: string,
     board: LeaderboardBoards,
     minCount: number,
+    now: Date,
   ): Promise<BoardSource> {
+    // Tháng tương lai chưa thể có dữ liệu. Không chặn ở đây thì mỗi `?month=` mới là một
+    // khoá cache mới, và người gọi không cần đăng nhập ép database quét lại tuỳ ý.
+    if (month > vietnamMonthOf(now)) return { status: 'LIVE', rows: [] };
+
     const snapshot = await this.repository.findSnapshot(month, board);
     if (snapshot)
       return {
@@ -115,6 +120,10 @@ export class LeaderboardReader {
       return { status: 'LIVE', rows: cached.rows };
 
     const rows = await this.repository.computeLive({ month, board, minCount });
+    // Dọn khoá hết hạn trước khi thêm: số khoá sống bị chặn bởi số (tháng đã qua × bảng × sàn)
+    // được hỏi trong một phút, không tích mãi theo thời gian chạy của tiến trình.
+    for (const [staleKey, entry] of this.cache)
+      if (entry.expiresAt <= Date.now()) this.cache.delete(staleKey);
     this.cache.set(key, { rows, expiresAt: Date.now() + LiveCacheMs });
     return { status: 'LIVE', rows };
   }
@@ -169,6 +178,7 @@ export class GetMonthlyLeaderboardUseCase implements IGetMonthlyLeaderboardUseCa
       month,
       command.board,
       config.minCount[command.board],
+      this.now(),
     );
 
     if (source.status === 'CLOSED') {
@@ -196,11 +206,21 @@ export class GetMonthlyLeaderboardUseCase implements IGetMonthlyLeaderboardUseCa
     const mine = command.viewerId
       ? source.rows.find((row) => row.userId === command.viewerId)
       : undefined;
+    // Cache chỉ giữ THỨ HẠNG; danh tính và cờ ẩn danh đọc mới cho đúng trang này — bật "ẩn
+    // tên tôi" phải có hiệu lực ngay, không đợi cache hết hạn.
+    const pageRows = source.rows.slice(skip, skip + take);
+    const fresh = await this.repository.findLiveIdentities(
+      pageRows.map((row) => row.userId),
+    );
+    const current = pageRows.map((row) => {
+      const now = fresh.get(row.userId);
+      return now ? { ...row, ...now } : row;
+    });
     return {
       ...base,
       status: 'LIVE',
       closedAt: null,
-      entries: source.rows.slice(skip, skip + take).map(toLeaderboardEntryDto),
+      entries: current.map(toLeaderboardEntryDto),
       meta: new PaginationMetaDto(page, take, source.rows.length),
       me: mine ? await this.withOwnIdentity(mine) : null,
     };
@@ -264,7 +284,7 @@ export class GetMyLeaderboardPositionsUseCase implements IGetMyLeaderboardPositi
         continue;
       }
 
-      const source = await this.reader.load(month, board, minCount);
+      const source = await this.reader.load(month, board, minCount, this.now());
       if (source.status === 'CLOSED') status = 'CLOSED';
       const lookup = await this.lookup(
         source,
