@@ -30,11 +30,17 @@ export enum NotificationTargetTypes {
   RANK = 'RANK',
   /** `GET /referrals/me` — màn của chính người dùng, `targetId` luôn `null`. */
   REFERRAL = 'REFERRAL',
+  /** `GET /leaderboards/monthly/me` — vị trí của tôi, `targetId` luôn `null`. */
+  LEADERBOARD = 'LEADERBOARD',
 }
 
 /** Màn "của tôi": không cần id, `targetId` luôn `null`. */
 export const SingletonNotificationTargets: ReadonlySet<NotificationTargetTypes> =
-  new Set([NotificationTargetTypes.RANK, NotificationTargetTypes.REFERRAL]);
+  new Set([
+    NotificationTargetTypes.RANK,
+    NotificationTargetTypes.REFERRAL,
+    NotificationTargetTypes.LEADERBOARD,
+  ]);
 
 /**
  * Loại màn mà từng loại thông báo ĐƯỢC PHÉP mở.
@@ -106,6 +112,9 @@ export const NotificationTargetsByType: Readonly<
   [NotificationTypes.RANK_PROMOTED]: [NotificationTargetTypes.RANK],
   [NotificationTypes.RANK_MAINTENANCE_REMINDER]: [NotificationTargetTypes.RANK],
   [NotificationTypes.REFERRAL_QUALIFIED]: [NotificationTargetTypes.REFERRAL],
+  [NotificationTypes.LEADERBOARD_BADGE_AWARDED]: [
+    NotificationTargetTypes.LEADERBOARD,
+  ],
 
   // Lượt đóng góp và lượt giao nhận không có màn riêng phía mobile: mở hoạt động.
   // `referenceId` vẫn là id lượt đó để màn hoạt động cuộn tới / tô sáng.

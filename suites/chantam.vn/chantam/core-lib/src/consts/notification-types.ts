@@ -172,6 +172,11 @@ export enum NotificationTypes {
    * báo không bắt buộc"*, và một tấm thông báo sự kiện cộng đồng đúng là không bắt buộc.
    */
   SYSTEM_BROADCAST = 'SYSTEM_BROADCAST',
+  /**
+   * Lọt top bảng thành tích tháng và nhận huy hiệu (thiết kế 24/10). Gửi lúc chốt sổ,
+   * một lần cho mỗi (bảng, tháng, người).
+   */
+  LEADERBOARD_BADGE_AWARDED = 'LEADERBOARD_BADGE_AWARDED',
 }
 
 /**
@@ -296,6 +301,7 @@ export const NotificationGroupOf: Record<
 
   // ── Thưởng: mốc đạt được ─────────────────────────────────────────────────
   [NotificationTypes.RANK_PROMOTED]: NotificationGroups.REWARD,
+  [NotificationTypes.LEADERBOARD_BADGE_AWARDED]: NotificationGroups.REWARD,
 
   // ── Cảnh báo: thứ người dùng cần biết vì nó bất lợi cho họ ───────────────
   [NotificationTypes.RANK_DEMOTION_WARNING]: NotificationGroups.WARNING,

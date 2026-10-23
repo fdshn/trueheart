@@ -90,3 +90,20 @@ describe('isValidNotificationTarget', () => {
     ).toBe(false);
   });
 });
+
+describe('huy hiệu bảng thành tích', () => {
+  it('mở bảng thành tích của tôi — màn "của tôi", không id', () => {
+    expect(
+      isValidNotificationTarget(NotificationTypes.LEADERBOARD_BADGE_AWARDED, {
+        type: NotificationTargetTypes.LEADERBOARD,
+        id: null,
+      }),
+    ).toBe(true);
+    expect(
+      isValidNotificationTarget(NotificationTypes.LEADERBOARD_BADGE_AWARDED, {
+        type: NotificationTargetTypes.LEADERBOARD,
+        id: 'x',
+      }),
+    ).toBe(false);
+  });
+});

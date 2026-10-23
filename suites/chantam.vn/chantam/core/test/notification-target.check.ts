@@ -44,6 +44,9 @@ loadEnvFile();
 
 const ScratchDatabase = 'chantam_notification_target_check';
 const NewMigration = 'AddNotificationTargets1801100000000';
+const NewMigrationTimestamp = 1801100000000;
+const migrationTimestamp = (name: string): number =>
+  Number(/(\d{13})$/.exec(name)?.[1] ?? Number.MAX_SAFE_INTEGER);
 
 /** Bảng chứa từng loại đích — để kiểm `targetId` trỏ tới một dòng có thật. */
 const TargetTables: Record<string, string> = {
@@ -101,8 +104,10 @@ async function main(): Promise<void> {
     url: scratchUri,
     // Chỉ entity để seed chạy được; thông báo cũ chèn bằng SQL tay.
     entities: resolveAllEntities(entities),
+    // Mọi migration có mốc TRƯỚC migration mới — không chỉ "bỏ đúng nó": migration sau nó
+    // (vd. bảng thành tích nới `CHK_notifications_target`) cần cột mà nó tạo.
     migrations: allMigrations.filter(
-      (migration) => migration.name !== NewMigration,
+      (migration) => migrationTimestamp(migration.name) < NewMigrationTimestamp,
     ) as never,
     migrationsTableName: 'migrations',
   });
@@ -285,8 +290,12 @@ async function main(): Promise<void> {
   try {
     const ran = await dataSource.runMigrations();
     check(
-      'pha 2 chỉ chạy đúng migration mới',
-      ran.length === 1 && ran[0].name === NewMigration,
+      'pha 2 chạy migration mới ĐẦU TIÊN, rồi chỉ những migration có mốc sau nó',
+      ran[0]?.name === NewMigration &&
+        ran.every(
+          (migration) =>
+            migrationTimestamp(migration.name) >= NewMigrationTimestamp,
+        ),
       ran.map((migration) => migration.name).join(', '),
     );
 
