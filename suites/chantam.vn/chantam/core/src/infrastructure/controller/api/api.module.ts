@@ -16,6 +16,7 @@ import { GiftPostControllerModule } from './gift-post/gift-post.module';
 import { GiftRequestApiModule } from './gift-request/gift-request-api.module';
 import { GroupControllerModule } from './group/group.module';
 import { HomeCampaignControllerModule } from './home-campaign/home-campaign.module';
+import { LeaderboardControllerModule } from './leaderboard/leaderboard.module';
 import { LunarControllerModule } from './lunar/lunar.module';
 import { MeritControllerModule } from './merit/merit.module';
 import { NotificationControllerModule } from './notification/notification.module';
@@ -39,6 +40,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
     SponsorBannerControllerModule,
     MeritControllerModule,
     DharmaControllerModule,
+    LeaderboardControllerModule,
     LunarControllerModule,
     HomeCampaignControllerModule,
     CheckInControllerModule,

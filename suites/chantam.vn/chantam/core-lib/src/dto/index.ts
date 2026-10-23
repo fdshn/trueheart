@@ -7,6 +7,7 @@ export * from './entitlement';
 export * from './feed';
 export * from './gift-post';
 export * from './gift-request';
+export * from './leaderboard';
 export * from './notification';
 export * from './onboarding';
 export * from './point';

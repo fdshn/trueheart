@@ -15,6 +15,7 @@ import { GiftPostModule } from './implementations/gift-post/gift-post.module';
 import { GiftRequestModule } from './implementations/gift-request/gift-request.module';
 import { GroupModule } from './implementations/group/group.module';
 import { HomeCampaignUseCaseModule } from './implementations/home-campaign/home-campaign.module';
+import { LeaderboardModule } from './implementations/leaderboard/leaderboard.module';
 import { LunarUseCaseModule } from './implementations/lunar/lunar.module';
 import { MediaModule } from './implementations/media/media.module';
 import { MeritUseCaseModule } from './implementations/merit/merit.module';
@@ -61,6 +62,7 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
     ReferralModule,
     ReportModule,
     RankModule,
+    LeaderboardModule,
     PostModule,
     TransactionModule,
     GroupModule,
