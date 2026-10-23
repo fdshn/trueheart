@@ -10,6 +10,7 @@
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { CreateLeaderboardExclusionUseCase } from '../src/application/implementations/leaderboard/admin-leaderboard.use-cases';
 import { CloseLeaderboardMonthUseCase } from '../src/application/implementations/leaderboard/close-leaderboard-month.use-case';
 import { DispatchNotificationUseCase } from '../src/application/implementations/notification/dispatch-notification.use-case';
 import { GetOwnProfileUseCase } from '../src/application/implementations/profile/get-own-profile.use-case';
@@ -772,6 +773,78 @@ async function main(): Promise<void> {
         giver1Public.profile.badges[0].board === 'GIVERS' &&
         giver1Public.profile.badges[0].rank === 2,
       JSON.stringify(giver1Public.profile.badges),
+    );
+
+    console.log('\n9. Admin loại người qua use case — database và audit THẬT');
+    const adminConfig = new AdminConfigRepository(dataSource.manager);
+    const exclude = new CreateLeaderboardExclusionUseCase(
+      repository,
+      adminConfig,
+      {
+        findOneBy: async () => ({ globalId: Giver3, deletedAt: null }),
+      } as never,
+    );
+    await exclude.handle({
+      actorUserId: Admin,
+      month: '2026-11',
+      board: null,
+      userId: Giver3,
+      reason: 'Nghi tự trao qua lại',
+    });
+    const novemberAfter = await repository.computeLive({
+      month: November,
+      board: 'GIVERS' as never,
+      minCount: 1,
+    });
+    check(
+      'loại khỏi mọi bảng của tháng 11 thì biến khỏi bảng trực tiếp',
+      novemberAfter.length === 0,
+      ranking(novemberAfter),
+    );
+    const [audit] = await sql(
+      `SELECT action, resource_type, reason FROM admin_audit_logs
+        WHERE actor_user_id = $1 AND action = 'LEADERBOARD_EXCLUDE'`,
+      [Admin],
+    );
+    check(
+      'lượt loại có dòng audit kèm lý do',
+      audit?.resource_type === 'LEADERBOARD_EXCLUSION' &&
+        audit?.reason === 'Nghi tự trao qua lại',
+      JSON.stringify(audit),
+    );
+    let duplicateCode = '';
+    try {
+      await exclude.handle({
+        actorUserId: Admin,
+        month: '2026-11',
+        board: null,
+        userId: Giver3,
+        reason: 'Loại lần hai',
+      });
+    } catch (error) {
+      duplicateCode = (error as Error).constructor.name;
+    }
+    check(
+      'loại trùng qua use case ra LeaderboardExclusionExistsException (409), không 500',
+      duplicateCode === 'LeaderboardExclusionExistsException',
+      duplicateCode,
+    );
+    let closedCode = '';
+    try {
+      await exclude.handle({
+        actorUserId: Admin,
+        month: '2026-10',
+        board: 'GIVERS' as never,
+        userId: Giver3,
+        reason: 'Loại tháng đã chốt',
+      });
+    } catch (error) {
+      closedCode = (error as Error).constructor.name;
+    }
+    check(
+      'loại ở tháng đã chốt bị từ chối',
+      closedCode === 'LeaderboardMonthClosedException',
+      closedCode,
     );
   } finally {
     for (const source of opened.reverse())

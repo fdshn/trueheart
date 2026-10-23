@@ -216,8 +216,12 @@ Nghiệp vụ Chân Tâm
 | `0x1604` | `5636` | 409 Conflict | `DHARMA_RECITATION_ALREADY_COMPLETED` | Lượt tụng này đã được đánh dấu hoàn tất |
 | `0x1605` | `5637` | 404 Not Found | `DHARMA_THREAD_NOT_FOUND` | Không tìm thấy chủ đề |
 | `0x1606` | `5638` | 409 Conflict | `DHARMA_THREAD_LOCKED` | Chủ đề này đã khoá bình luận |
+| `0x1701` | `5889` | 409 Conflict | `LEADERBOARD_MONTH_CLOSED` | Tháng này đã chốt sổ — không loại người được nữa; gỡ huy hiệu nếu cần |
+| `0x1702` | `5890` | 409 Conflict | `LEADERBOARD_EXCLUSION_EXISTS` | Người này đã bị loại khỏi bảng này trong tháng này |
+| `0x1703` | `5891` | 404 Not Found | `LEADERBOARD_EXCLUSION_NOT_FOUND` | Không tìm thấy lượt loại đang hiệu lực |
+| `0x1704` | `5892` | 404 Not Found | `LEADERBOARD_BADGE_NOT_FOUND` | Không tìm thấy huy hiệu đang hiệu lực |
 
 ---
 
-Tổng cộng **177 mã lỗi** trên 3 tầng.
+Tổng cộng **181 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

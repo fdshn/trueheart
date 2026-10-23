@@ -1200,4 +1200,29 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     httpStatus: HttpStatus.CONFLICT,
     message: () => 'Chủ đề này đã khoá bình luận',
   },
+
+  LEADERBOARD_MONTH_CLOSED: {
+    code: ErrorCodes.LEADERBOARD_MONTH_CLOSED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Tháng này đã chốt sổ — không loại người được nữa; gỡ huy hiệu nếu cần',
+  },
+
+  LEADERBOARD_EXCLUSION_EXISTS: {
+    code: ErrorCodes.LEADERBOARD_EXCLUSION_EXISTS,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Người này đã bị loại khỏi bảng này trong tháng này',
+  },
+
+  LEADERBOARD_EXCLUSION_NOT_FOUND: {
+    code: ErrorCodes.LEADERBOARD_EXCLUSION_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy lượt loại đang hiệu lực',
+  },
+
+  LEADERBOARD_BADGE_NOT_FOUND: {
+    code: ErrorCodes.LEADERBOARD_BADGE_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy huy hiệu đang hiệu lực',
+  },
 });

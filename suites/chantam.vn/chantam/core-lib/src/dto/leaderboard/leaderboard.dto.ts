@@ -80,3 +80,40 @@ export interface IProfileBadgeDto {
 export interface IListOwnBadgesResponseDto {
   badges: IProfileBadgeDto[];
 }
+
+/** Dòng trên bảng phía Admin: LUÔN có danh tính thật và `userId`. */
+export interface IAdminLeaderboardEntryDto extends ILeaderboardEntryDto {
+  userId: string;
+  /** Đang bị loại khỏi bảng này của tháng này (chỉ ở tháng chưa chốt). */
+  excluded: boolean;
+}
+
+export interface IAdminMonthlyLeaderboardDto {
+  month: string;
+  board: LeaderboardBoards;
+  status: LeaderboardStatus;
+  enabled: boolean;
+  closedAt: Date | null;
+  entries: IAdminLeaderboardEntryDto[];
+  meta: IPaginationMetaDto;
+}
+
+export interface ILeaderboardExclusionDto {
+  exclusionId: string;
+  /** `YYYY-MM` */
+  month: string;
+  /** `null` = mọi bảng. */
+  board: LeaderboardBoards | null;
+  userId: string;
+  reason: string;
+  createdBy: string;
+  createdAt: Date;
+  removedAt: Date | null;
+  removedBy: string | null;
+}
+
+export interface IAdminBadgeDto extends IProfileBadgeDto {
+  userId: string;
+  awardedAt: Date;
+  revokeReason: string | null;
+}

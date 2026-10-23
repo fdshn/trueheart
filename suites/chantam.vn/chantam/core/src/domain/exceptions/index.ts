@@ -15,6 +15,7 @@ export * from './gift-request.exception';
 export * from './gift-transaction.exception';
 export * from './group.exception';
 export * from './home-campaign.exception';
+export * from './leaderboard.exception';
 export * from './merit.exception';
 export * from './point.exception';
 export * from './post.exception';
