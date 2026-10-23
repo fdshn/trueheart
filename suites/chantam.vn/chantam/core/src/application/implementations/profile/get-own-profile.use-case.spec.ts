@@ -135,6 +135,7 @@ describe('GetOwnProfileUseCase', () => {
           username: 'alice',
           fullName: 'Alice',
           avatarUrl: 'https://cdn.example.com/avatar.png',
+          badges: [],
           email: 'alice@example.com',
           phone: '+84912345678',
           defaultLocation: null,

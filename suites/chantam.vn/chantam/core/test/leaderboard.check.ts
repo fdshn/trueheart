@@ -12,6 +12,8 @@ import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import { CloseLeaderboardMonthUseCase } from '../src/application/implementations/leaderboard/close-leaderboard-month.use-case';
 import { DispatchNotificationUseCase } from '../src/application/implementations/notification/dispatch-notification.use-case';
+import { GetOwnProfileUseCase } from '../src/application/implementations/profile/get-own-profile.use-case';
+import { GetPublicProfileUseCase } from '../src/application/implementations/profile/get-public-profile.use-case';
 import {
   ILeaderboardRow,
   IUserBadge,
@@ -698,6 +700,79 @@ async function main(): Promise<void> {
       currentMonthRejected = true;
     }
     check('không chốt được tháng đang chạy', currentMonthRejected);
+
+    console.log('\n8. Hồ sơ — huy hiệu ẩn danh không ra kênh công khai');
+    // Use case hồ sơ THẬT trên repository bảng thành tích THẬT; phần còn lại của hồ sơ
+    // (bài, điểm, đánh giá) stub vì không liên quan câu hỏi đang kiểm.
+    const findUser = async (userId: string) => {
+      const [found] = await sql(
+        `SELECT global_id AS "globalId", username, full_name AS "fullName",
+                avatar_url AS "avatarUrl", rank, status,
+                leaderboard_anonymous AS "leaderboardAnonymous"
+         FROM users WHERE global_id = $1`,
+        [userId],
+      );
+      return found;
+    };
+    const reviewStub = {
+      getAccuracy: async () => ({ percent: null, samples: 0 }),
+      getRating: async () => ({
+        asGiver: { average: null, samples: 0 },
+        asReceiver: { average: null, samples: 0 },
+      }),
+    };
+    const configStub = { getConfigValue: async () => null };
+    const publicProfile = (userId: string) =>
+      new GetPublicProfileUseCase(
+        { findActiveByUsername: async () => findUser(userId) } as never,
+        { countPublishedByAuthor: async () => 0 } as never,
+        { getSummary: async () => ({ balance: 0, lifetime: 0 }) } as never,
+        { web: { publicBaseUrl: '' } } as never,
+        reviewStub as never,
+        configStub as never,
+        repository,
+      ).handle({ username: 'x' });
+    const ownProfile = (userId: string) =>
+      new GetOwnProfileUseCase(
+        {
+          findOneBy: async () => findUser(userId),
+          query: async () => [],
+        } as never,
+        { getOwnSummary: async () => null } as never,
+        { handle: async () => ({ point: null }) } as never,
+        { handle: async () => ({ rank: null }) } as never,
+        {
+          handle: async () => ({ entitlements: null, groupCreation: null }),
+        } as never,
+        reviewStub as never,
+        configStub as never,
+        repository,
+      ).handle({ userId });
+
+    // Anon giành hạng 3 bảng Người cho lúc đang ẩn danh. Tắt ẩn danh rồi vẫn không lộ.
+    await repository.setAnonymous(Anon, false);
+    const anonPublicProfile = await publicProfile(Anon);
+    const anonOwnProfile = await ownProfile(Anon);
+    check(
+      'hồ sơ CÔNG KHAI của người giành huy hiệu lúc ẩn danh: không có huy hiệu, kể cả sau khi tắt ẩn danh',
+      anonPublicProfile.profile.badges.length === 0,
+      JSON.stringify(anonPublicProfile.profile.badges),
+    );
+    check(
+      'hồ sơ CỦA TÔI vẫn thấy huy hiệu đó, có đánh dấu ẩn danh',
+      anonOwnProfile.profile.badges?.length === 1 &&
+        anonOwnProfile.profile.badges[0].isAnonymous &&
+        anonOwnProfile.profile.badges[0].month === '2026-10',
+      JSON.stringify(anonOwnProfile.profile.badges),
+    );
+    const giver1Public = await publicProfile(Giver1);
+    check(
+      'huy hiệu giành lúc công khai hiện trên hồ sơ công khai',
+      giver1Public.profile.badges.length === 1 &&
+        giver1Public.profile.badges[0].board === 'GIVERS' &&
+        giver1Public.profile.badges[0].rank === 2,
+      JSON.stringify(giver1Public.profile.badges),
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

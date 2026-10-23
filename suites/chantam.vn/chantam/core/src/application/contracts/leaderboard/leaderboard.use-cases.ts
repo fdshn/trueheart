@@ -1,6 +1,7 @@
 import { LeaderboardBoards } from '@chantam.vn/chantam.core-lib/consts';
 import {
   ILeaderboardMonthsDto,
+  IListOwnBadgesResponseDto,
   IMonthlyLeaderboardDto,
   IMyLeaderboardPositionsDto,
 } from '@chantam.vn/chantam.core-lib/dto';
@@ -77,3 +78,14 @@ export interface ICloseLeaderboardMonthUseCase extends IUseCase<
 export const ICloseLeaderboardMonthUseCase = Symbol(
   'ICloseLeaderboardMonthUseCase',
 );
+
+export interface IListOwnBadgesCommand {
+  userId: string;
+}
+
+export interface IListOwnBadgesUseCase extends IUseCase<
+  IListOwnBadgesCommand,
+  IListOwnBadgesResponseDto
+> {}
+
+export const IListOwnBadgesUseCase = Symbol('IListOwnBadgesUseCase');

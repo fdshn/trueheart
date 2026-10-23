@@ -17,5 +17,6 @@ export function toOwnProfileDto(user: IUserEntity): IOwnProfileDto {
     phoneVerified: Boolean(user.phoneVerifiedAt),
     emailVerified: Boolean(user.emailVerifiedAt),
     profileComplete: isProfileComplete(user),
+    leaderboardAnonymous: user.leaderboardAnonymous,
   };
 }

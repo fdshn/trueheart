@@ -61,6 +61,15 @@ export class UserEntity
   @Column({ name: 'avatar_url', type: 'varchar', length: 500, nullable: true })
   avatarUrl: string | null;
 
+  @Exclude()
+  @Column({
+    name: 'leaderboard_anonymous',
+    type: 'boolean',
+    nullable: false,
+    default: false,
+  })
+  leaderboardAnonymous: boolean;
+
   /**
    * Vị trí mặc định (F11) — KHÁC vị trí GPS hiện tại.
    *

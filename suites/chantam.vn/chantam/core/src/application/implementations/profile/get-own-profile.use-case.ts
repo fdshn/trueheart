@@ -8,6 +8,7 @@ import { IGetOwnRankSummaryUseCase } from '@/application/contracts/rank';
 import { UserNotFoundException } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
+  ILeaderboardRepository,
   IReferralRepository,
   ITransactionReviewRepository,
   IUserRepository,
@@ -18,7 +19,8 @@ import {
   normalizeReviewRatingConfig,
   ReviewRatingConfigKey,
 } from '@chantam.vn/chantam.core-lib/models';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { toProfileBadgeDto } from '../leaderboard/badge.mapper';
 import { toOwnProfileDto } from './profile.mapper';
 
 @Injectable()
@@ -38,6 +40,11 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
     private readonly reviewRepository: ITransactionReviewRepository,
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
+    // Huy hiệu bảng thành tích. Tuỳ chọn để các bài kiểm dựng use case bằng tay không phải
+    // biết tới nó — thiếu thì hồ sơ không có huy hiệu, không lỗi.
+    @Optional()
+    @Inject(ILeaderboardRepository)
+    private readonly leaderboard?: ILeaderboardRepository,
   ) {}
 
   public async handle(command: IGetOwnProfileCommand) {
@@ -71,6 +78,7 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
       accuracyConfig,
       rating,
       ratingConfig,
+      badges,
     ] = await Promise.all([
       this.referralRepository.getOwnSummary(command.userId),
       this.getOwnPointSummaryUseCase.handle({ userId: command.userId }),
@@ -80,6 +88,11 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
       this.adminConfig.getConfigValue(GiverAccuracyConfigKey),
       this.reviewRepository.getRating(command.userId),
       this.adminConfig.getConfigValue(ReviewRatingConfigKey),
+      this.leaderboard?.listBadges({
+        userId: command.userId,
+        scope: 'OWN_ACTIVE',
+        now: new Date(),
+      }) ?? [],
     ]);
 
     return {
@@ -112,6 +125,7 @@ export class GetOwnProfileUseCase implements IGetOwnProfileUseCase {
           samples: accuracy.samples,
           minSamples: normalizeGiverAccuracyConfig(accuracyConfig).minSamples,
         },
+        badges: badges.map((badge) => toProfileBadgeDto(badge, new Date())),
       },
     };
   }

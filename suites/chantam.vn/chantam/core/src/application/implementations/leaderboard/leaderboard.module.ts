@@ -3,6 +3,7 @@ import {
   IGetMonthlyLeaderboardUseCase,
   IGetMyLeaderboardPositionsUseCase,
   IListLeaderboardMonthsUseCase,
+  IListOwnBadgesUseCase,
   LeaderboardClock,
 } from '@/application/contracts/leaderboard';
 import { Global, Module } from '@nestjs/common';
@@ -12,6 +13,7 @@ import {
   GetMyLeaderboardPositionsUseCase,
   ListLeaderboardMonthsUseCase,
 } from './leaderboard.use-cases';
+import { ListOwnBadgesUseCase } from './list-own-badges.use-case';
 
 @Global()
 @Module({
@@ -29,6 +31,7 @@ import {
       provide: IListLeaderboardMonthsUseCase,
       useClass: ListLeaderboardMonthsUseCase,
     },
+    { provide: IListOwnBadgesUseCase, useClass: ListOwnBadgesUseCase },
     {
       provide: ICloseLeaderboardMonthUseCase,
       useClass: CloseLeaderboardMonthUseCase,
@@ -40,6 +43,7 @@ import {
     IGetMyLeaderboardPositionsUseCase,
     IListLeaderboardMonthsUseCase,
     ICloseLeaderboardMonthUseCase,
+    IListOwnBadgesUseCase,
   ],
 })
 export class LeaderboardModule {}

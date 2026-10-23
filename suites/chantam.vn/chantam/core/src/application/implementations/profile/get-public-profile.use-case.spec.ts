@@ -65,6 +65,7 @@ describe('GetPublicProfileUseCase', () => {
       username: 'nguoi-demo',
       fullName: 'Người Demo',
       avatarUrl: 'https://cdn.example.com/avatar.png',
+      badges: [],
       rank: 'GOLD',
       publishedGiftPostCount: 2,
       lifetimePoints: 1792,

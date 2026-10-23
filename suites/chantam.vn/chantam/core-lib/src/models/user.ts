@@ -31,6 +31,12 @@ export interface IUser {
   status: UserStatuses;
 
   /**
+   * Hiện "Người ẩn danh" trên bảng thành tích tháng (thiết kế 24/10). Vẫn giữ hạng, vẫn
+   * nhận huy hiệu — nhưng huy hiệu giành lúc ẩn danh không hiện trên hồ sơ công khai.
+   */
+  leaderboardAnonymous: boolean;
+
+  /**
    * Thời điểm xác minh SĐT lần đầu.
    *
    * Dùng làm khoá cho sự kiện thưởng một lần `PHONE_VERIFIED_FIRST_TIME` (F09):

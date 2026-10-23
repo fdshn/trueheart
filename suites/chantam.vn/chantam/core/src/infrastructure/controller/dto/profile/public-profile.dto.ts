@@ -3,11 +3,13 @@ import {
   IGetPublicProfileParamsDto,
   IGetPublicProfileResponseDto,
   IGiverAccuracySummaryDto,
+  IProfileBadgeDto,
   IPublicProfileDto,
   IReviewRatingSummaryDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, Length, Matches } from 'class-validator';
+import { ProfileBadgeDto } from '../leaderboard/leaderboard.dto';
 import { GiverAccuracySummaryDto, ReviewRatingSummaryDto } from './profile.dto';
 
 const UsernamePattern = /^[a-zA-Z0-9_-]+$/;
@@ -56,6 +58,13 @@ export class PublicProfileDto implements IPublicProfileDto {
       'Điểm sao 1–5 theo từng vai (F42) — người đang chọn xin nhận cần con số khác với chủ bài đang duyệt.',
   })
   rating: IReviewRatingSummaryDto;
+
+  @ApiProperty({
+    type: () => [ProfileBadgeDto],
+    description:
+      'Huy hiệu bảng thành tích tháng còn hạn. KHÔNG gồm huy hiệu giành lúc ẩn danh — hiện nó là ghép được với dòng "Người ẩn danh" cùng hạng trên bảng.',
+  })
+  badges: IProfileBadgeDto[];
 }
 
 export class GetPublicProfileResponseDto implements IGetPublicProfileResponseDto {

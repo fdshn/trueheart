@@ -61,3 +61,22 @@ export interface ILeaderboardMonthsDto {
   /** Tháng đã chốt, `YYYY-MM`, mới nhất trước. */
   months: string[];
 }
+
+export type ProfileBadgeStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+
+/** Huy hiệu bảng thành tích trên hồ sơ. Chữ và biểu tượng do mobile dựng từ ba trường đầu. */
+export interface IProfileBadgeDto {
+  badgeId: string;
+  board: LeaderboardBoards;
+  /** `YYYY-MM` — tháng của bảng. */
+  month: string;
+  rank: number;
+  expiresAt: Date;
+  /** Giành được lúc đang ẩn danh — chỉ chính chủ thấy, không bao giờ hiện công khai. */
+  isAnonymous: boolean;
+  status: ProfileBadgeStatus;
+}
+
+export interface IListOwnBadgesResponseDto {
+  badges: IProfileBadgeDto[];
+}

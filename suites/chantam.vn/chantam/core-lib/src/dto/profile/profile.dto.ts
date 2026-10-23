@@ -1,6 +1,7 @@
 import { IGeoPoint } from '@chantam/service.persistency-lib/geo';
 import { UserRanks, UserStatuses } from '../../consts';
 import { IEntitlementsSummaryDto } from '../entitlement';
+import { IProfileBadgeDto } from '../leaderboard';
 import { IPointSummaryDto } from '../point';
 import { IRankSummaryDto } from '../rank';
 import { IReferralSummaryDto } from '../referral';
@@ -20,6 +21,8 @@ export interface IUpdateOwnProfileDto {
   phone?: string | null;
   /** Bỏ trống = giữ nguyên, `null` = xoá hẳn vị trí mặc định đang lưu. */
   defaultLocation?: IGeoPoint | null;
+  /** Hiện "Người ẩn danh" trên bảng thành tích tháng. Bỏ trống = giữ nguyên. */
+  leaderboardAnonymous?: boolean;
 }
 
 export interface IUpdateOwnProfileBodyDto {
@@ -58,6 +61,10 @@ export interface IOwnProfileDto {
   accuracy?: IGiverAccuracySummaryDto | null;
   /** Điểm sao 1–5 theo từng vai (F42). */
   rating?: IReviewRatingSummaryDto | null;
+  /** Cài đặt ẩn danh trên bảng thành tích tháng. */
+  leaderboardAnonymous?: boolean;
+  /** Huy hiệu bảng thành tích còn hạn — gồm cả huy hiệu giành lúc ẩn danh. */
+  badges?: IProfileBadgeDto[];
 }
 
 export interface IGetOwnProfileResponseDto {
@@ -89,6 +96,8 @@ export interface IPublicProfileDto {
   accuracy: IGiverAccuracySummaryDto | null;
   /** Điểm sao 1–5 theo từng vai (F42). Công khai từ 29/09. */
   rating: IReviewRatingSummaryDto;
+  /** Huy hiệu bảng thành tích còn hạn, KHÔNG gồm huy hiệu giành lúc ẩn danh. */
+  badges: IProfileBadgeDto[];
 }
 export interface IGetPublicProfileParamsDto {
   username: string;

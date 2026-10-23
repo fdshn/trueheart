@@ -6,10 +6,13 @@ import {
   ILeaderboardEntryDto,
   ILeaderboardMonthsDto,
   ILeaderboardUserDto,
+  IListOwnBadgesResponseDto,
   IMonthlyLeaderboardDto,
   IMyLeaderboardPositionDto,
   IMyLeaderboardPositionsDto,
+  IProfileBadgeDto,
   LeaderboardStatus,
+  ProfileBadgeStatus,
 } from '@chantam.vn/chantam.core-lib/dto';
 import {
   PaginationMetaDto,
@@ -172,4 +175,38 @@ export class MyLeaderboardPositionsDto implements IMyLeaderboardPositionsDto {
 export class LeaderboardMonthsDto implements ILeaderboardMonthsDto {
   @ApiProperty({ type: [String], example: ['2026-10', '2026-09'] })
   months: string[];
+}
+
+export class ProfileBadgeDto implements IProfileBadgeDto {
+  @ApiProperty({ format: 'uuid' })
+  badgeId: string;
+
+  @ApiProperty({ enum: LeaderboardBoards })
+  board: LeaderboardBoards;
+
+  @ApiProperty({ example: '2026-10', description: 'Tháng của bảng.' })
+  month: string;
+
+  @ApiProperty({ example: 1 })
+  rank: number;
+
+  @ApiProperty({
+    description:
+      'Thôi hiện từ lúc này: 00:00 ngày 1 của tháng thứ N+1 sau tháng của bảng (N = `leaderboard.badge_months`, mặc định 3).',
+  })
+  expiresAt: Date;
+
+  @ApiProperty({
+    description:
+      'Giành lúc đang ẩn danh — chỉ chính chủ thấy, KHÔNG BAO GIỜ hiện trên hồ sơ công khai, kể cả khi tắt ẩn danh sau đó.',
+  })
+  isAnonymous: boolean;
+
+  @ApiProperty({ enum: ['ACTIVE', 'EXPIRED', 'REVOKED'] })
+  status: ProfileBadgeStatus;
+}
+
+export class ListOwnBadgesResponseDto implements IListOwnBadgesResponseDto {
+  @ApiProperty({ type: () => [ProfileBadgeDto] })
+  badges: IProfileBadgeDto[];
 }

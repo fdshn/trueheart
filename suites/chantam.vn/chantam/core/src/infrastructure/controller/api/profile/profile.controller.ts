@@ -1,3 +1,4 @@
+import { IListOwnBadgesUseCase } from '@/application/contracts/leaderboard';
 import {
   IConfirmEmailVerificationResult,
   IConfirmEmailVerificationUseCase,
@@ -40,6 +41,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { ListOwnBadgesResponseDto } from '../../dto/leaderboard';
 import {
   ConfirmEmailVerificationBodyDto,
   ConfirmEmailVerificationResponseDto,
@@ -77,7 +79,26 @@ export class ProfileController {
     private readonly getPublicProfileUseCase: IGetPublicProfileUseCase,
     @Inject(IUpdateOwnProfileUseCase)
     private readonly updateOwnProfileUseCase: IUpdateOwnProfileUseCase,
+    @Inject(IListOwnBadgesUseCase)
+    private readonly listOwnBadgesUseCase: IListOwnBadgesUseCase,
   ) {}
+
+  @Get('me/badges')
+  @ApiOperation({
+    summary: 'Toàn bộ huy hiệu bảng thành tích của tôi',
+    description:
+      'Gồm cả huy hiệu đã hết hạn (`EXPIRED`) và đã bị Admin gỡ (`REVOKED`) — lịch sử của chính mình. `GET /profile/me` chỉ trả huy hiệu còn hạn.',
+  })
+  @ApiErrorResponses(...ApiTokenErrors)
+  @ApiOkResponse({ type: ResponseDto.forApi(ListOwnBadgesResponseDto) })
+  public async listOwnBadges(@CurrentUser() principal: IAuthPrincipal) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.listOwnBadgesUseCase.handle({ userId: principal.userId }),
+      )
+      .build();
+  }
 
   @Get('me')
   @ApiOperation({

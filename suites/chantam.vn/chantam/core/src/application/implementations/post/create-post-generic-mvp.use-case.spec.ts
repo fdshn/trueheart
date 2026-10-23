@@ -39,6 +39,7 @@ function makeUser(overrides: Partial<IUserEntity> = {}): IUserEntity {
     emailVerifiedAt: null,
     suspendedUntil: null,
     lastActiveAt: new Date(),
+    leaderboardAnonymous: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,

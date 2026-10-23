@@ -11,6 +11,7 @@ import {
   IGiverAccuracySummaryDto,
   IOwnProfileDto,
   IPointSummaryDto,
+  IProfileBadgeDto,
   IProfileReferrerDto,
   IRankSummaryDto,
   IRequestEmailVerificationResponseDto,
@@ -23,6 +24,7 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDefined,
   IsEmail,
   IsInt,
@@ -35,6 +37,7 @@ import {
 import { EntitlementsSummaryDto } from '../entitlement';
 import { GeoPointDto } from '../geo-point.dto';
 import { GroupCreationEligibilityDto } from '../group/group-creation.dto';
+import { ProfileBadgeDto } from '../leaderboard/leaderboard.dto';
 import { PointSummaryDto } from '../point';
 import { RankSummaryDto } from '../rank';
 import { ReferralSummaryDto } from '../referral';
@@ -107,6 +110,14 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
   @ValidateNested()
   @Type(() => GeoPointDto)
   defaultLocation?: GeoPointDto | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Hiện "Người ẩn danh" trên bảng thành tích tháng. Vẫn giữ hạng và vẫn nhận huy hiệu; huy hiệu giành lúc ẩn danh không hiện trên hồ sơ công khai.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  leaderboardAnonymous?: boolean;
 }
 
 export class UpdateOwnProfileBodyDto implements IUpdateOwnProfileBodyDto {
@@ -229,6 +240,18 @@ export class OwnProfileDto implements IOwnProfileDto {
     description: 'Điểm sao 1–5 theo từng vai (F42).',
   })
   rating?: IReviewRatingSummaryDto | null;
+
+  @ApiPropertyOptional({
+    description: 'Cài đặt ẩn danh trên bảng thành tích tháng.',
+  })
+  leaderboardAnonymous?: boolean;
+
+  @ApiPropertyOptional({
+    type: () => [ProfileBadgeDto],
+    description:
+      'Huy hiệu bảng thành tích còn hạn, GỒM cả huy hiệu giành lúc ẩn danh (`isAnonymous`). Toàn bộ lịch sử ở `GET /profile/me/badges`.',
+  })
+  badges?: IProfileBadgeDto[];
 }
 
 export class ReviewRatingSideDto {

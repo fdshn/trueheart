@@ -6,6 +6,7 @@ import { UserNotFoundException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
   IAdminConfigRepository,
+  ILeaderboardRepository,
   IPointLedgerRepository,
   IPostRepository,
   ITransactionReviewRepository,
@@ -17,7 +18,8 @@ import {
   normalizeReviewRatingConfig,
   ReviewRatingConfigKey,
 } from '@chantam.vn/chantam.core-lib/models';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { toProfileBadgeDto } from '../leaderboard/badge.mapper';
 
 @Injectable()
 export class GetPublicProfileUseCase implements IGetPublicProfileUseCase {
@@ -32,6 +34,11 @@ export class GetPublicProfileUseCase implements IGetPublicProfileUseCase {
     private readonly reviews: ITransactionReviewRepository,
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
+    // Huy hiệu bảng thành tích. Tuỳ chọn để các bài kiểm dựng use case bằng tay không phải
+    // biết tới nó — thiếu thì hồ sơ không có huy hiệu, không lỗi.
+    @Optional()
+    @Inject(ILeaderboardRepository)
+    private readonly leaderboard?: ILeaderboardRepository,
   ) {}
 
   public async handle(command: IGetPublicProfileCommand) {
@@ -47,6 +54,7 @@ export class GetPublicProfileUseCase implements IGetPublicProfileUseCase {
       rating,
       accuracyConfig,
       ratingConfig,
+      badges,
     ] = await Promise.all([
       this.postRepository.countPublishedByAuthor(user.globalId),
       this.pointLedgerRepository.getSummary(user.globalId),
@@ -54,6 +62,13 @@ export class GetPublicProfileUseCase implements IGetPublicProfileUseCase {
       this.reviews.getRating(user.globalId),
       this.adminConfig.getConfigValue(GiverAccuracyConfigKey),
       this.adminConfig.getConfigValue(ReviewRatingConfigKey),
+      // Chỉ huy hiệu giành lúc CÔNG KHAI: huy hiệu ẩn danh hiện ở đây là ghép được với
+      // dòng "Người ẩn danh" cùng hạng trên bảng.
+      this.leaderboard?.listBadges({
+        userId: user.globalId,
+        scope: 'PUBLIC_ACTIVE',
+        now: new Date(),
+      }) ?? [],
     ]);
 
     const base = this.config.web.publicBaseUrl;
@@ -88,6 +103,7 @@ export class GetPublicProfileUseCase implements IGetPublicProfileUseCase {
           asReceiver: rating.asReceiver,
           minSamples: normalizeReviewRatingConfig(ratingConfig).minSamples,
         },
+        badges: badges.map((badge) => toProfileBadgeDto(badge, new Date())),
       },
     };
   }

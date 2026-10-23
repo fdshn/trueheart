@@ -103,6 +103,9 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
       if (phone !== user.phone) update.phoneVerifiedAt = null;
     }
 
+    if (profileUpdate.leaderboardAnonymous !== undefined)
+      update.leaderboardAnonymous = profileUpdate.leaderboardAnonymous;
+
     await this.userRepository.update({ globalId: command.userId }, update);
 
     const profile = await this.userRepository.findOneByOrFail({
