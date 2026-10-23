@@ -50,3 +50,30 @@ export const IListLeaderboardMonthsUseCase = Symbol(
 /** Đồng hồ tiêm được — ranh giới tháng là thứ phải kiểm bằng một thời điểm cố định. */
 export const LeaderboardClock = Symbol('LeaderboardClock');
 export type LeaderboardClockFn = () => Date;
+
+export interface ICloseLeaderboardMonthCommand {
+  /** `YYYY-MM`; bỏ trống = tháng TRƯỚC tháng hiện tại theo giờ Việt Nam. */
+  month?: string;
+  /** Chỉ để kiểm thử và chạy bù có chủ đích; mặc định là bây giờ. */
+  now?: Date;
+}
+
+export interface ICloseLeaderboardMonthResult {
+  /** `YYYY-MM` */
+  month: string;
+  boards: {
+    board: LeaderboardBoards;
+    created: boolean;
+    entries: number;
+    badges: number;
+  }[];
+}
+
+export interface ICloseLeaderboardMonthUseCase extends IUseCase<
+  ICloseLeaderboardMonthCommand,
+  ICloseLeaderboardMonthResult
+> {}
+
+export const ICloseLeaderboardMonthUseCase = Symbol(
+  'ICloseLeaderboardMonthUseCase',
+);

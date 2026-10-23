@@ -84,6 +84,7 @@ DRY_RUN_CLIS=(
 
 PLAIN_CLIS=(
   chat-purge
+  leaderboard-close-month
   notification-purge
   point-reconcile
   post-expire

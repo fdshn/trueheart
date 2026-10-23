@@ -35,6 +35,13 @@ RUN=/home/deploy/chantam/deploy/cron/run-cli.sh
 # hạn của bài tính theo NGÀY.
 11 0 * * * deploy $RUN $CHANTAM_DIR post-expire
 
+# ── Hằng tháng ───────────────────────────────────────────────────────────────────
+#
+# Chốt sổ bảng thành tích tháng vừa qua và trao huy hiệu top N. 00:05 ngày 1 giờ VN:
+# tháng đã kết thúc theo đúng ranh giới bảng dùng. Lỡ một lần thì chạy bù tay với
+# `--month=YYYY-MM`; chạy lại cùng tháng không ghi và không gửi gì.
+5 0 1 * * deploy $RUN $CHANTAM_DIR leaderboard-close-month
+
 # Tự hoàn tất lượt trao quá hạn. Chạy TRƯỚC settle-rewards để lượt vừa đóng cũng
 # vào tầm ngắm của vòng trả thưởng cùng đêm.
 #

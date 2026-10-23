@@ -10,13 +10,17 @@
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { CloseLeaderboardMonthUseCase } from '../src/application/implementations/leaderboard/close-leaderboard-month.use-case';
+import { DispatchNotificationUseCase } from '../src/application/implementations/notification/dispatch-notification.use-case';
 import {
   ILeaderboardRow,
   IUserBadge,
 } from '../src/domain/ports/repository/leaderboard.repository';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
+import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { LeaderboardRepository } from '../src/infrastructure/repository/leaderboard.repository';
+import { NotificationRepository } from '../src/infrastructure/repository/notification.repository';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -631,6 +635,69 @@ async function main(): Promise<void> {
       exclusions.total === 2,
       String(exclusions.total),
     );
+
+    console.log(
+      '\n7. Chốt sổ cả tháng qua use case — cấu hình và thông báo THẬT',
+    );
+    // Cấu hình đọc từ `system_configs` mà migration đã seed; thông báo đi qua dispatch thật
+    // vào bảng `notifications` để `CHK_notifications_target` nói lời cuối về đích LEADERBOARD.
+    const closeMonth = new CloseLeaderboardMonthUseCase(
+      repository,
+      new AdminConfigRepository(dataSource.manager),
+      new DispatchNotificationUseCase(
+        new NotificationRepository(dataSource.manager),
+        { canSend: async () => false, send: async () => 0 } as never,
+        { findEnabled: async () => null } as never,
+      ),
+    );
+    const firstOfNovember = new Date('2026-10-31T17:05:00Z');
+    const monthResult = await closeMonth.handle({ now: firstOfNovember });
+    const byBoard = new Map(
+      monthResult.boards.map((board) => [board.board, board]),
+    );
+    check(
+      'mặc định chốt tháng 10; GIVERS đã chốt ở nhóm 4 nên bỏ qua',
+      monthResult.month === '2026-10' &&
+        byBoard.get('GIVERS' as never)?.created === false &&
+        byBoard.get('CHARITY' as never)?.created === true &&
+        byBoard.get('CONSISTENCY' as never)?.created === true,
+      JSON.stringify(monthResult.boards),
+    );
+    check(
+      'sàn Chuyên cần đọc từ cấu hình seed (10 ngày): chỉ người đủ 10 ngày lên bản chốt',
+      byBoard.get('CONSISTENCY' as never)?.entries === 1,
+    );
+    const notices = await sql(
+      `SELECT user_id, target_type, target_id, body FROM notifications
+        WHERE type = 'LEADERBOARD_BADGE_AWARDED' ORDER BY user_id`,
+    );
+    check(
+      'người nhận huy hiệu từ thiện và chuyên cần được báo, đích LEADERBOARD không id',
+      notices.length === 2 &&
+        notices.every(
+          (notice: { target_type: string; target_id: string | null }) =>
+            notice.target_type === 'LEADERBOARD' && notice.target_id === null,
+        ) &&
+        notices.some(
+          (notice: { user_id: string; body: string }) =>
+            notice.user_id === Steady &&
+            notice.body === 'Bạn đứng thứ 1 bảng Chuyên cần tháng 10/2026.',
+        ),
+      JSON.stringify(notices),
+    );
+    await closeMonth.handle({ month: '2026-10', now: firstOfNovember });
+    const [{ total: noticeTotal }] = await sql(
+      `SELECT count(*)::int AS total FROM notifications
+        WHERE type = 'LEADERBOARD_BADGE_AWARDED'`,
+    );
+    check('chạy lại cùng tháng không gửi thêm thông báo', noticeTotal === 2);
+    let currentMonthRejected = false;
+    try {
+      await closeMonth.handle({ month: '2026-11', now: firstOfNovember });
+    } catch {
+      currentMonthRejected = true;
+    }
+    check('không chốt được tháng đang chạy', currentMonthRejected);
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();
