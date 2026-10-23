@@ -229,13 +229,18 @@ thấy đúng chỗ mình đã ghim thì mới sửa cho khớp được.
 | `PATCH` | `/profile/me/phone-verification/confirm` | Bearer | Xác nhận OTP, đánh dấu SĐT đã xác minh |
 | `PATCH` | `/profile/me/email-verification/request` | Bearer | **Gửi OTP xác minh email hiện tại** |
 | `PATCH` | `/profile/me/email-verification/confirm` | Bearer | **Xác nhận OTP, đánh dấu email đã xác minh** |
+| `GET` | `/profile/me/badges` | Bearer | **Mọi huy hiệu bảng thành tích của tôi** — còn hạn, hết hạn, đã gỡ |
 | `GET` | `/profile/:username` | Công khai | Hồ sơ công khai tối thiểu |
 
 **Điều cần biết**
 
 - `GET /profile/:username` chạy theo **danh sách cho phép tường minh**, không phải danh sách
   cấm. Chỉ trả: `username`, `fullName`, `avatarUrl`, `rank`, `publishedGiftPostCount`,
-  `lifetimePoints`, `shareUrl`.
+  `lifetimePoints`, `shareUrl`, `accuracy`, `rating`, `badges`.
+- `badges` (thêm 24/10) là huy hiệu bảng thành tích **còn hạn**, và **không gồm huy hiệu giành
+  lúc ẩn danh** — xem mục "Bảng thành tích tháng". `GET /profile/me` trả cả huy hiệu ẩn danh
+  (`isAnonymous: true`) cùng cờ `leaderboardAnonymous`; `PATCH /profile/me` nhận
+  `profile.leaderboardAnonymous`.
 - Cố ý **không** trả `balance` — đó là điểm tiêu được của riêng chủ tài khoản, lộ ra kênh
   công khai là lộ sức mua của người ta. Chỉ `lifetime` (điểm tích luỹ) được công khai.
 - Cũng không bao giờ trả email, SĐT, vị trí mặc định hay ledger.
@@ -1103,6 +1108,50 @@ nghiệp vụ bảo vệ retry/đồng thời. Xem [quy tắc và trường resp
 
 ---
 
+### Bảng thành tích tháng (thêm 24/10)
+
+Ba bảng mỗi tháng, đếm **số lần**, không đếm điểm hay tiền. Tháng tính theo giờ Việt Nam.
+
+| `board` | Một lần được tính khi | Sàn mặc định |
+| --- | --- | --- |
+| `GIVERS` — Người cho | một lượt trao `COMPLETED` mà mình là **người tặng** (cả Muốn Tặng lẫn Muốn Nhận) | 1 lượt |
+| `CHARITY` — Tấm lòng từ thiện | một lượt giao nhận từ thiện `COMPLETED` **có ít nhất một món thực nhận** | 1 lượt |
+| `CONSISTENCY` — Chuyên cần | một ngày điểm danh thật — **ngày bù không tính** | 10 ngày |
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/leaderboards/monthly` | Công khai | `?board=&month=YYYY-MM&page=&pageSize=` — một bảng; kèm token thì có `me` |
+| `GET` | `/leaderboards/monthly/me` | Bearer | Vị trí của tôi trên cả ba bảng + khoảng cách tới huy hiệu |
+| `GET` | `/leaderboards/months` | Công khai | Các tháng đã chốt, mới nhất trước |
+| `GET` | `/admin/leaderboards/monthly` | `leaderboard.read` | Bảng với danh tính thật, cả người bị loại |
+| `GET` | `/admin/leaderboards/exclusions` | `leaderboard.read` | Lượt loại |
+| `POST` | `/admin/leaderboards/exclusions` | `leaderboard.moderate` | Loại một người khỏi bảng (hoặc cả ba) của tháng **chưa chốt**, bắt buộc `reason` |
+| `DELETE` | `/admin/leaderboards/exclusions/:exclusionId` | `leaderboard.moderate` | Bỏ lượt loại |
+| `GET` | `/admin/badges` | `leaderboard.read` | Huy hiệu đã trao |
+| `PATCH` | `/admin/badges/:badgeId/revoke` | `leaderboard.moderate` | Gỡ huy hiệu, bắt buộc `reason` — **không đôn hạng** |
+
+**Điều cần biết**
+
+- **Xếp hạng:** con số lớn hơn đứng trên; bằng nhau thì ai **đạt con số đó sớm hơn** đứng trên.
+  Hạng liền 1, 2, 3… không có hạng đồng.
+- **`status=LIVE`** là tháng chưa chốt — tính trực tiếp, trễ tối đa ~1 phút. **`status=CLOSED`**:
+  CLI `leaderboard:close-month` chốt lúc 00:05 ngày 1 giờ VN, và từ đó **không đổi nữa** — lượt
+  trao bị mở lại hay người dùng đổi cài đặt ẩn danh sau đó không chạm vào tháng đã chốt.
+- **Ẩn danh:** người bật `leaderboardAnonymous` hiện `isAnonymous: true, user: null` — vẫn giữ
+  đúng hạng, vẫn nhận huy hiệu. Không dòng nào mang `userId`. `isInactive: true` là tài khoản bị
+  khoá/xoá **sau** khi chốt: giữ hạng, không danh tính ("Tài khoản không còn hoạt động").
+- **Huy hiệu:** top 3 mỗi bảng (Admin chỉnh `leaderboard.badge_ranks`). Hiện trên hồ sơ **3
+  tháng** sau tháng của bảng (`leaderboard.badge_months`) — huy hiệu tháng 10 hiện đến hết
+  31/1. Huy hiệu giành lúc **ẩn danh không bao giờ hiện trên hồ sơ công khai**, kể cả khi tắt ẩn
+  danh sau đó: hiện ra là ghép được với dòng "Người ẩn danh" cùng hạng.
+- Lúc chốt, người nhận huy hiệu nhận thông báo `LEADERBOARD_BADGE_AWARDED` với
+  `targetType=LEADERBOARD`, `targetId=null` → mở `GET /leaderboards/monthly/me`.
+- **Admin tắt** (`leaderboard.enabled=0`): route công khai trả `enabled: false` và danh sách
+  rỗng; sổ vẫn chốt hằng tháng nhưng không trao huy hiệu. Route Admin vẫn xem được.
+- Cấu hình (`system_configs`, INTEGER): `leaderboard.enabled`, `leaderboard.min_givers`,
+  `leaderboard.min_charity`, `leaderboard.min_consistency_days`, `leaderboard.badge_ranks`,
+  `leaderboard.badge_months`.
+
 ## 8. Chat — `/chat` và Socket.io
 
 Mỗi giao dịch đã duyệt có **đúng một** phòng chat, mở ngay trong transaction duyệt
@@ -1342,6 +1391,7 @@ Quyền là `report.read` / `report.resolve` — cùng việc với xử báo x�
   | `DHARMA_THREAD` | `GET /dharma/threads/:targetId` | id chủ đề |
   | `RANK` | `GET /ranks/me` | luôn `null` |
   | `REFERRAL` | `GET /referrals/me` | luôn `null` |
+  | `LEADERBOARD` | `GET /leaderboards/monthly/me` | luôn `null` |
   | `null` | hộp thư | `null` |
 
   Đích theo từng loại thông báo nằm ở `NotificationTargetsByType` (core-lib). Những chỗ

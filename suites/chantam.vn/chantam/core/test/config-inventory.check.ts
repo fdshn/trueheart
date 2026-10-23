@@ -45,6 +45,7 @@ import {
   GroupDefaultRadiusConfigKey,
   GroupMaxRadiusConfigKey,
   GroupMinRadiusConfigKey,
+  LeaderboardConfigKeys,
   RankMaintenancePeriodConfigKey,
   UserRanks,
   groupRadiusConfigKeyForRank,
@@ -122,6 +123,8 @@ const RequiredKeys: readonly string[] = [
     UserRanks.GOLD,
     UserRanks.DIAMOND,
   ].map((rank) => groupRadiusConfigKeyForRank(rank)),
+  // Bảng thành tích tháng (24/10) — `readLeaderboardConfig` đọc cả sáu.
+  ...Object.values(LeaderboardConfigKeys),
 ];
 
 /**

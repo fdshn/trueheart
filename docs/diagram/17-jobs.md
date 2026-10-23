@@ -35,7 +35,7 @@ flowchart TD
 | Loại | Job | Không chạy thì sao |
 | --- | --- | --- |
 | **Dọn** | `chat:purge` · `notification:purge` · `media:sweep-orphans` | Database và bucket phình to. Chậm và tốn tiền, nhưng **không ai mất gì** |
-| **Trả & đối soát** | `gift:settle-rewards` · `point:reconcile` · `rank:evaluate` · `accuracy:reconcile` · `feed:reconcile-counts` | **Người dùng không nhận được điểm họ đã kiếm**, hạng không lên/tụt đúng. Đây là tiền |
+| **Trả & đối soát** | `gift:settle-rewards` · `point:reconcile` · `rank:evaluate` · `accuracy:reconcile` · `feed:reconcile-counts` · `leaderboard:close-month` | **Người dùng không nhận được điểm họ đã kiếm**, hạng không lên/tụt đúng. Đây là tiền |
 | **Đẩy vòng đời** | `post:expire` · `selection:auto-select` · `transaction:autocomplete` · `notify:reminders` | Bài hết hạn vẫn hiện, **đồng hồ 7 ngày hết mà không ai được chọn**, không ai được nhắc |
 
 Phân loại này quyết định canh alert cho cái nào: bảng chat to lên thì không ai thấy, còn người

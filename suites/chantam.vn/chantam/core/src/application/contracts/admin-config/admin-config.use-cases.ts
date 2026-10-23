@@ -57,6 +57,13 @@ export const SupportedSystemConfigKeys = [
   // 1.000.000.000đ cho ra 500.000 điểm — 279 lần ngưỡng Kim Cương. Một van an toàn chỉ
   // sửa được bằng SQL tay thì không ai dám xoay nó khi cần.
   'point.value_bonus_max_value_vnd',
+  // Bảng thành tích tháng (24/10). Cả sáu đều INTEGER — `leaderboard.enabled` là 0/1.
+  'leaderboard.enabled',
+  'leaderboard.min_givers',
+  'leaderboard.min_charity',
+  'leaderboard.min_consistency_days',
+  'leaderboard.badge_ranks',
+  'leaderboard.badge_months',
 ] as const;
 
 /**
@@ -90,6 +97,15 @@ export const SystemConfigValueRanges: Readonly<
   // cao hơn con số đó thì cái núm này không còn tác dụng gì, nên đây là cận CỨNG của
   // tầng dưới chứ không phải một khoảng tôi bịa ra thay Bên A.
   'point.value_bonus_max_value_vnd': { min: 0, max: 1_000_000_000 },
+  // Bảng thành tích: cận dưới là sàn mà `readLeaderboardConfig` dưới đó LẶNG LẼ dùng mặc
+  // định — lưu được mà không có tác dụng là đúng kiểu hỏng phép kiểm này sinh ra để chặn.
+  // Cận trên là cận cứng: công tắc 0/1, tháng có tối đa 31 ngày, và cột `int` của bảng.
+  'leaderboard.enabled': { min: 0, max: 1 },
+  'leaderboard.min_givers': { min: 1, max: 2_147_483_647 },
+  'leaderboard.min_charity': { min: 1, max: 2_147_483_647 },
+  'leaderboard.min_consistency_days': { min: 1, max: 31 },
+  'leaderboard.badge_ranks': { min: 0, max: 2_147_483_647 },
+  'leaderboard.badge_months': { min: 1, max: 2_147_483_647 },
 };
 
 export interface IPublishAdminConfigCommand {

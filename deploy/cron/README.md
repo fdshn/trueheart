@@ -38,6 +38,7 @@ người dùng lúc 3 giờ chiều, và `post:expire` cắt ngày lệch 7 ti�
 | --- | --- | --- |
 | `:19` mỗi giờ | `point:reconcile` | hằng giờ |
 | `:37` mỗi giờ | `selection:auto-select` | hằng giờ |
+| 00:05 ngày 1 | `leaderboard:close-month` | hằng tháng |
 | 00:11 | `post:expire` | hằng ngày |
 | 02:07 | `transaction:autocomplete` | hằng ngày |
 | 02:23 | `gift:settle-rewards` | hằng ngày |

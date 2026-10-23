@@ -136,3 +136,51 @@ describe('Admin config input validation', () => {
     );
   });
 });
+
+describe('cấu hình bảng thành tích tháng qua endpoint chung', () => {
+  // Seed sáu khoá mà KHÔNG nằm trong allowlist thì chỉ đổi được bằng SQL tay. Và mỗi khoá
+  // có một sàn mà `readLeaderboardConfig` dưới sàn thì lặng lẽ dùng mặc định — nên giá trị
+  // dưới sàn phải bị từ chối LÚC LƯU, không phải "lưu xong mà không có tác dụng".
+  const publish = async (key: string, value: number) => {
+    const repository = makeRepository(['config.write']);
+    const error = await new PublishAdminConfigUseCase(repository as never)
+      .handle({
+        actorUserId: ActorId,
+        systemConfig: {
+          key,
+          value,
+          valueType: 'INTEGER',
+          reason: 'Điều chỉnh bảng thành tích',
+        },
+      })
+      .then(() => null)
+      .catch((thrown: unknown) => thrown);
+    return { error, saved: repository.publishSystemConfig.mock.calls.length };
+  };
+
+  it.each([
+    ['leaderboard.enabled', 0],
+    ['leaderboard.enabled', 1],
+    ['leaderboard.min_givers', 1],
+    ['leaderboard.min_charity', 2],
+    ['leaderboard.min_consistency_days', 31],
+    ['leaderboard.badge_ranks', 0],
+    ['leaderboard.badge_ranks', 10],
+    ['leaderboard.badge_months', 6],
+  ])('nhận %s = %d', async (key, value) => {
+    expect(await publish(key, value)).toEqual({ error: null, saved: 1 });
+  });
+
+  it.each([
+    ['leaderboard.enabled', 2],
+    ['leaderboard.min_givers', 0],
+    ['leaderboard.min_charity', 0],
+    ['leaderboard.min_consistency_days', 0],
+    ['leaderboard.min_consistency_days', 32],
+    ['leaderboard.badge_months', 0],
+  ])('từ chối %s = %d, không lưu', async (key, value) => {
+    const { error, saved } = await publish(key, value);
+    expect(error).toBeInstanceOf(Error);
+    expect(saved).toBe(0);
+  });
+});
