@@ -17,6 +17,13 @@ import { ISeedContext, Personas } from './seed-context';
  * `GET /profile/me` của họ, không ở hồ sơ công khai — đúng ca mobile cần thử.
  */
 export async function seedLeaderboard(ctx: ISeedContext): Promise<void> {
+  // Script kiểm migration theo pha (vd. `test:notification-target`) seed trên schema TRƯỚC
+  // migration bảng thành tích. Chưa có bảng thì phần này chưa có gì để seed.
+  const [schema] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.leaderboard_snapshots') IS NOT NULL AS ready`,
+  );
+  if (!schema?.ready) return;
+
   const [seeded] = await ctx.q(`SELECT 1 FROM leaderboard_snapshots LIMIT 1`);
   if (seeded) return;
 
