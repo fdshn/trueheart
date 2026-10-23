@@ -17,6 +17,7 @@ import {
   IGiftTransactionRepository,
   IGroupRepository,
   IHomeCampaignRepository,
+  ILeaderboardRepository,
   ILunarHolidayRepository,
   IMediaAssetRepository,
   IMeritRepository,
@@ -59,6 +60,7 @@ import { GiftRequestRepository } from './gift-request.repository';
 import { GiftTransactionRepository } from './gift-transaction.repository';
 import { GroupRepository } from './group.repository';
 import { HomeCampaignRepository } from './home-campaign.repository';
+import { LeaderboardRepository } from './leaderboard.repository';
 import {
   BulkNotifyAudienceRepository,
   LunarHolidayRepository,
@@ -118,6 +120,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     },
     { provide: IMeritRepository, useClass: MeritRepository },
     { provide: IDharmaRepository, useClass: DharmaRepository },
+    { provide: ILeaderboardRepository, useClass: LeaderboardRepository },
     {
       provide: ILunarHolidayRepository,
       useClass: LunarHolidayRepository,
@@ -201,6 +204,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     ISponsorBannerRepository,
     IMeritRepository,
     IDharmaRepository,
+    ILeaderboardRepository,
     IHomeCampaignRepository,
     IBulkNotifyAudienceRepository,
     ILunarHolidayRepository,

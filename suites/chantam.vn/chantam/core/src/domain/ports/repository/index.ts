@@ -16,6 +16,7 @@ export * from './gift-request.repository';
 export * from './gift-transaction.repository';
 export * from './group.repository';
 export * from './home-campaign.repository';
+export * from './leaderboard.repository';
 export * from './lunar-holiday.repository';
 export * from './media-asset.repository';
 export * from './merit.repository';
