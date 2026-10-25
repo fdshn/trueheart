@@ -14,6 +14,7 @@ import {
   IGiftRequestRepository,
   IMyGiftRequestRow,
   IPointLedgerRepository,
+  IRecipientSelectionAudit,
   IRedemptionContext,
 } from '@/domain/ports/repository';
 import { GiftRequestEntity, UserEntity } from '@/infrastructure/entity';
@@ -47,6 +48,20 @@ const ClosedPostStatuses: readonly string[] = [
   GiftPostStatuses.COMPLETED,
   GiftPostStatuses.ARCHIVED,
 ];
+
+/**
+ * Người xin còn được hệ thống tự chọn (PR #46 §9): tài khoản chưa xoá, không bị khoá, và
+ * không đang trong hạn treo. Hạn treo xét LÚC DÙNG như đăng nhập (`suspended_until <= now()`
+ * là đã hết hạn) — không có job nào lật `SUSPENDED` về `ACTIVE`.
+ *
+ * Dùng cho CẢ câu quét bài tới hạn lẫn câu đọc ứng viên: lệch nhau thì một bài chỉ còn ứng
+ * viên bị khoá sẽ được quét mãi mà không bao giờ chọn được ai.
+ */
+const eligibleRequesterSql = (alias: string) => `(
+  ${alias}.deleted_at IS NULL
+  AND (${alias}.status = 'ACTIVE'
+       OR (${alias}.status = 'SUSPENDED' AND ${alias}.suspended_until <= now()))
+)`;
 
 interface IMyRequestRow {
   global_id: string;
@@ -544,9 +559,11 @@ export class GiftRequestRepository
           AND ($4::boolean OR post.post_type <> 'CLASSIFIED')
           AND EXISTS (
             SELECT 1 FROM gift_requests candidate
+            INNER JOIN users person ON person.global_id = candidate.requester_id
             WHERE candidate.post_id = post.global_id
               AND candidate.status = $2
               AND candidate.deleted_at IS NULL
+              AND ${eligibleRequesterSql('person')}
           )
         ORDER BY post.selection_deadline ASC
         LIMIT $3
@@ -642,6 +659,7 @@ export class GiftRequestRepository
         WHERE candidate.post_id = $1
           AND candidate.status = $2
           AND candidate.deleted_at IS NULL
+          AND ${eligibleRequesterSql('person')}
       `,
       [postId, GiftRequestStatuses.PENDING],
     );
@@ -684,6 +702,11 @@ export class GiftRequestRepository
       readonly idempotencyKey: string;
       readonly reason: string;
     };
+    /**
+     * Lý do hệ thống tự chọn người này (PR #46 §9). Ghi TRONG transaction này, nên lượt trao
+     * tự chọn và lý do của nó cùng commit hoặc cùng mất. Bỏ trống cho lượt chủ bài bấm duyệt.
+     */
+    readonly selectionAudit?: IRecipientSelectionAudit;
   }): Promise<{
     transactionId: string;
     /** Vai đã phân giải, để nơi gọi gửi thông báo mà khỏi tự đoán lại. */
@@ -869,6 +892,12 @@ export class GiftRequestRepository
           giverId: roles.giverId,
           receiverId: roles.receiverId,
         });
+        await this.recordSelectionAudit(manager, {
+          transactionId: existingTransaction.global_id,
+          postId: params.postId,
+          requestId: params.requestId,
+          audit: params.selectionAudit,
+        });
         return {
           transactionId: existingTransaction.global_id,
           ...roles,
@@ -893,9 +922,45 @@ export class GiftRequestRepository
         giverId: roles.giverId,
         receiverId: roles.receiverId,
       });
+      await this.recordSelectionAudit(manager, {
+        transactionId: params.transactionId,
+        postId: params.postId,
+        requestId: params.requestId,
+        audit: params.selectionAudit,
+      });
 
       return { transactionId: params.transactionId, ...roles, debit };
     });
+  }
+
+  private async recordSelectionAudit(
+    manager: EntityManager,
+    params: {
+      transactionId: string;
+      postId: string;
+      requestId: string;
+      audit: IRecipientSelectionAudit | undefined;
+    },
+  ): Promise<void> {
+    if (!params.audit) return;
+    const { audit } = params;
+    await manager.query(
+      `INSERT INTO recipient_selection_audits
+         (transaction_id, post_id, request_id, requester_id, trigger, deciding_criterion,
+          criteria_order, winner_metrics, runner_up_metrics, candidate_count)
+       VALUES ($1, $2, $3, $4, 'AUTOMATIC', $5, $6::jsonb, $7::jsonb, $8::jsonb, $9)`,
+      [
+        params.transactionId,
+        params.postId,
+        params.requestId,
+        audit.winner.requesterId,
+        audit.decidingCriterion,
+        JSON.stringify(audit.order),
+        JSON.stringify(audit.winner),
+        audit.runnerUp ? JSON.stringify(audit.runnerUp) : null,
+        audit.candidateCount,
+      ],
+    );
   }
 
   public async acceptRequestsBatch(params: {

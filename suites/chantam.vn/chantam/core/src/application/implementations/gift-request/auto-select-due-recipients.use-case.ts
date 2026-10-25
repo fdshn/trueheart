@@ -4,6 +4,7 @@ import {
   IAutoSelectDueRecipientsUseCase,
   IAutoSelectedRecipient,
 } from '@/application/contracts/gift-request';
+import { GiftRequestNotFoundException } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
   IGiftRequestRepository,
@@ -14,8 +15,8 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
   AllocationPolicyConfigKey,
+  explainCandidateSelection,
   normalizeAllocationPolicy,
-  pickNextCandidate,
 } from '@chantam.vn/chantam.core-lib/models';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable, Logger } from '@nestjs/common';
@@ -109,13 +110,14 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
         // rút hết. Bỏ qua chứ không coi là lỗi.
         if (candidates.length === 0) continue;
 
-        // `pickNextCandidate` nhận hình dạng thuần của `core-lib`; nó trả lại
-        // đúng phần tử trong mảng truyền vào, nên `requestGlobalId` còn nguyên.
-        const winner = pickNextCandidate(
+        // `explainCandidateSelection` nhận hình dạng thuần của `core-lib`; nó trả
+        // lại đúng phần tử trong mảng truyền vào, nên `requestGlobalId` còn nguyên.
+        const explained = explainCandidateSelection(
           candidates,
           configuredOrder as readonly unknown[] | null,
-        ) as (typeof candidates)[number] | null;
-        if (!winner) continue;
+        );
+        if (!explained) continue;
+        const winner = explained.winner as (typeof candidates)[number];
 
         if (command.dryRun === true) {
           selected.push({
@@ -123,6 +125,7 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
             requesterId: winner.requesterId,
             transactionId: null,
             candidates: candidates.length,
+            reason: explained.decidingCriterion,
           });
           continue;
         }
@@ -138,6 +141,7 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
           transactionId: makeGlobalId(
             `/transactions/${post.postId}/${winner.requesterId}`,
           ),
+          selectionAudit: { ...explained, candidateCount: candidates.length },
         });
 
         // Với auto-select, thông báo còn quan trọng hơn đường duyệt tay: người
@@ -159,8 +163,19 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
           requesterId: winner.requesterId,
           transactionId: accepted.transactionId,
           candidates: candidates.length,
+          reason: explained.decidingCriterion,
         });
       } catch (error) {
+        // Hai lượt chạy song song cùng nhắm một người: lượt sau chờ khoá hàng của lượt
+        // trước, rồi thấy yêu cầu không còn PENDING. Việc đã xong ở lượt kia (lượt trao,
+        // phòng chat, thông báo, audit) — đây là bỏ qua, không phải lỗi. Người xin rút
+        // yêu cầu đúng lúc đó cũng ra cùng ngoại lệ, và cũng nên bỏ qua như vậy.
+        if (error instanceof GiftRequestNotFoundException) {
+          this.logger.log(
+            `Bỏ qua ${post.postId}: yêu cầu đã được chốt hoặc rút ở lượt khác`,
+          );
+          continue;
+        }
         // Một bài hỏng không được làm dừng cả vòng: những bài còn lại cũng đang
         // để người xin chờ một đồng hồ đã reo.
         const reason = error instanceof Error ? error.message : String(error);

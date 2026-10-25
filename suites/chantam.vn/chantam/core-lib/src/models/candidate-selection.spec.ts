@@ -1,5 +1,6 @@
 import { CandidateSelectionCriteria, UserRanks } from '../consts';
 import {
+  explainCandidateSelection,
   ICandidateMetrics,
   normalizeCandidateSelectionOrder,
   pickNextCandidate,
@@ -174,5 +175,73 @@ describe('rankCandidates', () => {
 
   it('không có ứng viên nào thì không đề xuất ai', () => {
     expect(pickNextCandidate([], null)).toBeNull();
+  });
+});
+
+describe('explainCandidateSelection', () => {
+  it('nêu tiêu chí ĐẦU TIÊN tách người thắng khỏi người về nhì, kèm số đo hai người', () => {
+    const near = candidate('near', { distanceMeters: 200, requestId: 2 });
+    const far = candidate('far', { distanceMeters: 5_000, requestId: 1 });
+
+    const explained = explainCandidateSelection(
+      [far, near],
+      [CandidateSelectionCriteria.NEAREST],
+    );
+
+    expect(explained?.winner).toBe(near);
+    expect(explained?.runnerUp).toBe(far);
+    expect(explained?.decidingCriterion).toBe(
+      CandidateSelectionCriteria.NEAREST,
+    );
+    expect(explained?.order[0]).toBe(CandidateSelectionCriteria.NEAREST);
+    expect(explained?.order).toHaveLength(
+      Object.values(CandidateSelectionCriteria).length,
+    );
+  });
+
+  it('hoà tiêu chí đầu: tiêu chí sau mới là lý do', () => {
+    const fresh = candidate('fresh', { receivedCount: 0, requestId: 2 });
+    const often = candidate('often', { receivedCount: 4, requestId: 1 });
+
+    expect(
+      explainCandidateSelection(
+        [often, fresh],
+        [
+          CandidateSelectionCriteria.HIGHEST_RANK,
+          CandidateSelectionCriteria.FEWEST_RECEIVED,
+        ],
+      )?.decidingCriterion,
+    ).toBe(CandidateSelectionCriteria.FEWEST_RECEIVED);
+  });
+
+  it('hoà mọi tiêu chí: thứ tự yêu cầu quyết định', () => {
+    expect(
+      explainCandidateSelection(
+        [candidate('b', { requestId: 2 }), candidate('a', { requestId: 1 })],
+        null,
+      )?.decidingCriterion,
+    ).toBe('REQUEST_ORDER');
+  });
+
+  it('chỉ một ứng viên: không có người về nhì', () => {
+    const only = explainCandidateSelection([candidate('only')], null);
+    expect(only?.decidingCriterion).toBe('ONLY_CANDIDATE');
+    expect(only?.runnerUp).toBeNull();
+  });
+
+  it('không ai: null', () => {
+    expect(explainCandidateSelection([], null)).toBeNull();
+  });
+
+  it('người thắng trùng với pickNextCandidate', () => {
+    const list = [
+      candidate('x', { rank: UserRanks.DIAMOND, requestId: 3 }),
+      candidate('y', { distanceMeters: 10, requestId: 1 }),
+      candidate('z', { receivedCount: 9, requestId: 2 }),
+    ];
+    const order = [CandidateSelectionCriteria.HIGHEST_RANK];
+    expect(explainCandidateSelection(list, order)?.winner).toBe(
+      pickNextCandidate(list, order),
+    );
   });
 });

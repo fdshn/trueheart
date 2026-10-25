@@ -1,3 +1,4 @@
+import { CandidateSelectionReason } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib/use-case';
 
 export interface IAutoSelectDueRecipientsCommand {
@@ -11,6 +12,8 @@ export interface IAutoSelectedRecipient {
   readonly transactionId: string | null;
   /** Số ứng viên đã cân nhắc, để log nói được "chọn 1 trong 7". */
   readonly candidates: number;
+  /** Tiêu chí đã tách người thắng khỏi người về nhì — cũng là dòng audit (PR #46 §9). */
+  readonly reason: CandidateSelectionReason;
 }
 
 export interface IAutoSelectDueRecipientsResult {

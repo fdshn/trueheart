@@ -5,8 +5,16 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostRequestItemDto } from '@chantam.vn/chantam.core-lib/dto';
 import { IGiftRequestEntity } from '@chantam.vn/chantam.core-lib/entities';
-import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
+import {
+  ICandidateMetrics,
+  ICandidateSelectionExplanation,
+} from '@chantam.vn/chantam.core-lib/models';
 import { Repository } from 'typeorm';
+
+/** Lý do một lượt tự chọn (PR #46 §9) — bảng `recipient_selection_audits`. */
+export interface IRecipientSelectionAudit extends ICandidateSelectionExplanation {
+  candidateCount: number;
+}
 
 /**
  * Số đo của ứng viên, kèm khoá của chính bản ghi yêu cầu.
@@ -218,6 +226,11 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
       readonly idempotencyKey: string;
       readonly reason: string;
     };
+    /**
+     * Lý do hệ thống tự chọn người này (PR #46 §9). Ghi TRONG transaction này, nên lượt trao
+     * tự chọn và lý do của nó cùng commit hoặc cùng mất. Bỏ trống cho lượt chủ bài bấm duyệt.
+     */
+    readonly selectionAudit?: IRecipientSelectionAudit;
   }): Promise<{
     transactionId: string;
     giverId: string;
