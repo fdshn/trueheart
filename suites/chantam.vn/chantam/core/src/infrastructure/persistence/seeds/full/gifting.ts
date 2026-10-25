@@ -1,3 +1,4 @@
+import { DefaultCandidateSelectionOrder } from '@chantam.vn/chantam.core-lib/consts';
 import { TransactionReviewRoles } from '@chantam.vn/chantam.core-lib/models';
 import {
   Categories,
@@ -553,6 +554,35 @@ export async function seedGifting(ctx: ISeedContext): Promise<void> {
       `,
       [deal.id, deal.postId, deal.giver, deal.receiver, deal.status],
     );
+
+    // Lượt trao đầu tiên do HỆ THỐNG chọn khi hết đồng hồ (PR #46 §9), để có một dòng lý do
+    // thật trong `recipient_selection_audits`. Một ứng viên nên lý do là `ONLY_CANDIDATE`.
+    if (n === 1)
+      await ctx.q(
+        `
+          INSERT INTO recipient_selection_audits (
+            transaction_id, post_id, request_id, requester_id, trigger, deciding_criterion,
+            criteria_order, winner_metrics, runner_up_metrics, candidate_count, created_at
+          )
+          VALUES ($1, $2, $3, $4, 'AUTOMATIC', 'ONLY_CANDIDATE', $5::jsonb, $6::jsonb, NULL, 1,
+                  now() - interval '9 days')
+          ON CONFLICT (transaction_id) DO NOTHING
+        `,
+        [
+          deal.id,
+          deal.postId,
+          seedId(SeedDomains.giftRequests, 100 + n),
+          deal.receiver,
+          JSON.stringify(DefaultCandidateSelectionOrder),
+          JSON.stringify({
+            requesterId: deal.receiver,
+            rank: 'MEMBER',
+            distanceMeters: 1_200,
+            receivedCount: 0,
+            cancellationCount: 0,
+          }),
+        ],
+      );
 
     if (deal.status === 'CANCELLED') continue;
 
