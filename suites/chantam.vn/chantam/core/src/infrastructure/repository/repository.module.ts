@@ -11,6 +11,7 @@ import {
   IContentCommentRepository,
   IContentReactionRepository,
   IContentShareRepository,
+  IDharmaLeaderboardRepository,
   IDharmaRepository,
   IEntitlementRepository,
   IGiftRequestRepository,
@@ -54,6 +55,7 @@ import { CheckInRepository } from './check-in.repository';
 import { ContentCommentRepository } from './content-comment.repository';
 import { ContentReactionRepository } from './content-reaction.repository';
 import { ContentShareRepository } from './content-share.repository';
+import { DharmaLeaderboardRepository } from './dharma-leaderboard.repository';
 import { DharmaRepository } from './dharma.repository';
 import { EntitlementRepository } from './entitlement.repository';
 import { GiftRequestRepository } from './gift-request.repository';
@@ -120,6 +122,10 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     },
     { provide: IMeritRepository, useClass: MeritRepository },
     { provide: IDharmaRepository, useClass: DharmaRepository },
+    {
+      provide: IDharmaLeaderboardRepository,
+      useClass: DharmaLeaderboardRepository,
+    },
     { provide: ILeaderboardRepository, useClass: LeaderboardRepository },
     {
       provide: ILunarHolidayRepository,
@@ -204,6 +210,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     ISponsorBannerRepository,
     IMeritRepository,
     IDharmaRepository,
+    IDharmaLeaderboardRepository,
     ILeaderboardRepository,
     IHomeCampaignRepository,
     IBulkNotifyAudienceRepository,

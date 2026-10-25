@@ -122,6 +122,7 @@
     "test:post-share": "ts-node -r tsconfig-paths/register test/post-share.check.ts",
     "test:auto-select-audit": "ts-node -r tsconfig-paths/register test/auto-select-audit.check.ts",
     "test:presence": "ts-node -r tsconfig-paths/register test/presence.check.ts",
+    "test:dharma-leaderboard": "ts-node -r tsconfig-paths/register test/dharma-leaderboard.check.ts",
     "test:admin-rbac": "ts-node -r tsconfig-paths/register test/admin-rbac.check.ts",
     "test:permission-inventory": "ts-node -r tsconfig-paths/register test/permission-inventory.check.ts",
     "test:notification-target": "ts-node -r tsconfig-paths/register test/notification-target.check.ts",

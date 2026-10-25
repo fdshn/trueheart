@@ -3,6 +3,7 @@ export * from './author';
 export * from './category';
 export * from './chat';
 export * from './check-in';
+export * from './dharma';
 export * from './discovery';
 export * from './entitlement';
 export * from './feed';
