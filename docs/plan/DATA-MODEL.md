@@ -133,11 +133,16 @@ lúc sẽ lọt qua mọi phép kiểm ở tầng ứng dụng ([F30](../FEATURE
 
 | Bảng | Cột đáng chú ý |
 | --- | --- |
-| `chat_rooms` | `transaction_id` **UNIQUE** · `is_readonly` |
+| `chat_rooms` | `room_type` (`TRANSACTION` · `DIRECT_POST`) · `transaction_id` **UNIQUE**, NULL với `DIRECT_POST` · `UQ_chat_rooms_direct_post (post_id, receiver_id, giver_id)` · `is_readonly` |
 | `chat_messages` | `room_id` · `sender_id` · `body` · `created_at` |
 
-Phòng chat gắn 1-1 với giao dịch, **chỉ tạo khi giao dịch đạt `ACCEPTED`**. Không có chat với
-ứng viên trong hàng đợi.
+Phòng `TRANSACTION` gắn 1-1 với giao dịch, **chỉ tạo khi giao dịch đạt `ACCEPTED`**. Không có
+chat với ứng viên trong hàng đợi.
+
+Từ 25/10 (PR #46) có thêm phòng `DIRECT_POST` cho Rao vặt: không có giao dịch, mỗi bộ (bài,
+người mua, người bán) đúng một phòng; `giver_id` là người bán, `receiver_id` là người mua.
+`CHK_chat_rooms_type_transaction` buộc `TRANSACTION` có `transaction_id` và `DIRECT_POST` thì
+không.
 
 ---
 

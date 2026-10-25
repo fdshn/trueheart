@@ -42,16 +42,16 @@
 
 ## Tasks
 
-- [ ] **T1 (P0)** Author summary có `fullName` ở post list/detail/nearby/smart-match/comment/Dharma; `PROFILE_INCOMPLETE` trả `body.missingFields`, câu báo lỗi đúng ngữ cảnh; mã lỗi email `INVALID_EMAIL_FORMAT`, `EMAIL_ALREADY_USED`, `EMAIL_NOT_VERIFIED`, `EMAIL_REQUIRED`.
-- [ ] **T2 (P0)** Public profile mở rộng: slogan, todayThought(+updatedAt), clip giới thiệu (upload-url + key), `emailVisibility`/`phoneVisibility`, `contacts`, `monthlyStanding` (GIVERS tháng hiện tại); `GET /profile/:username/posts`.
-- [ ] **T3 (P0)** Chat `DIRECT_POST` song song `TRANSACTION`: room type, `transaction_id` nullable, unique `(post, buyer, seller)`, `POST /chat/direct-post/rooms`, summary mở rộng.
-- [ ] **T4 (P0)** `CLASSIFIED` không tạo request/transaction mới (`CLASSIFIED_TRANSACTION_NOT_SUPPORTED`); vòng đời ACTIVE→RESERVED→SOLD/HIDDEN do chủ bài đổi.
-- [ ] **T5 (P1)** Share code: `posts.share_code` unique không tuần tự + backfill, `shareUrl` trong DTO bài, `GET /posts/share/:shareCode`.
-- [ ] **T6 (P1)** Onboarding action metadata: `action {type,target,params}` theo allow-list.
-- [ ] **T7 (P1)** Recipient selection: ghi audit lý do chọn của job auto-select. Kiểm lại phần idempotent và chạy song song.
-- [ ] **T8 (P2)** Presence: `PUT /presence/me`, `GET /presence/surfaces/:surface`, Redis TTL 120 giây, dedupe theo user, rate limit 2 lần/phút.
-- [ ] **T9 (P2)** Dharma hub sections preview.
-- [ ] **T10 (P2)** Forum engagement leaderboard.
-- [ ] **T11 (P2)** Recitation-time leaderboard.
-- [ ] **T12 (P2)** Banner placements mới.
+- [x] **T1 (P0)** Author summary có `fullName` ở post list/detail/nearby/smart-match/comment/Dharma; `PROFILE_INCOMPLETE` trả `body.missingFields`, câu báo lỗi đúng ngữ cảnh; mã lỗi email `INVALID_EMAIL_FORMAT`, `EMAIL_ALREADY_USED`, `EMAIL_NOT_VERIFIED`, `EMAIL_REQUIRED`.
+- [x] **T2 (P0)** Public profile mở rộng: slogan, todayThought(+updatedAt), clip giới thiệu (upload-url + key), `emailVisibility`/`phoneVisibility`, `contacts`, `monthlyStanding` (GIVERS tháng hiện tại); `GET /profile/:username/posts`.
+- [x] **T3 (P0)** Chat `DIRECT_POST` song song `TRANSACTION`: room type, `transaction_id` nullable, unique `(post, buyer, seller)`, `POST /chat/direct-post/rooms`, summary mở rộng.
+- [x] **T4 (P0)** `CLASSIFIED` không tạo request/transaction mới (`CLASSIFIED_TRANSACTION_NOT_SUPPORTED`); vòng đời ACTIVE→RESERVED→SOLD/HIDDEN do chủ bài đổi.
+- [x] **T5 (P1)** Share code: `posts.share_code` unique không tuần tự + backfill, `shareUrl` trong DTO bài, `GET /posts/share/:shareCode`.
+- [x] **T6 (P1)** Onboarding action metadata: `action {type,target,params}` theo allow-list.
+- [x] **T7 (P1)** Recipient selection: ghi audit lý do chọn của job auto-select. Kiểm lại phần idempotent và chạy song song.
+- [x] **T8 (P2)** Presence: `PUT /presence/me`, `GET /presence/surfaces/:surface`, Redis TTL 120 giây, dedupe theo user, rate limit 2 lần/phút.
+- [x] **T9 (P2)** Dharma hub sections preview.
+- [x] **T10 (P2)** Forum engagement leaderboard.
+- [x] **T11 (P2)** Recitation-time leaderboard.
+- [x] **T12 (P2)** Banner placements mới.
 - [ ] **T13** Docs (`docs/API.md`), bàn giao mobile, kiểm tra toàn bộ, review cuối nhánh.
