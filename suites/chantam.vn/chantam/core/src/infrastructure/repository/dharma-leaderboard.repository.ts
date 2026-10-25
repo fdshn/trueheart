@@ -1,6 +1,7 @@
 import {
   IDharmaLeaderboardRepository,
   IForumEngagementRow,
+  IRecitationTimeRow,
 } from '@/domain/ports/repository';
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import { Injectable } from '@nestjs/common';
@@ -19,6 +20,17 @@ interface IForumEngagementSqlRow {
   thread_id: string;
   thread_title: string;
   thread_engagement: number;
+}
+
+interface IRecitationTimeSqlRow {
+  position: number;
+  total_seconds: number;
+  session_count: number;
+  is_anonymous: boolean;
+  username: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  user_rank: UserRanks;
 }
 
 @Injectable()
@@ -113,6 +125,94 @@ export class DharmaLeaderboardRepository implements IDharmaLeaderboardRepository
         id: row.thread_id,
         title: row.thread_title,
         engagementCount: row.thread_engagement,
+      },
+    }));
+  }
+
+  public async rankRecitationTime(params: {
+    start: Date;
+    end: Date;
+    limit: number;
+    sessionCapSeconds: number;
+    minimumSeconds: number;
+  }): Promise<IRecitationTimeRow[]> {
+    // Một phiên tính vào tháng của mốc HOÀN THÀNH — phiên bắt đầu 23:50 ngày 31 và xong
+    // 00:20 ngày 1 thuộc tháng sau, trọn vẹn.
+    //
+    // Gộp khoảng chồng nhau (gaps-and-islands): một phiên mở ra khi khoảng trước của cùng
+    // người đã KẾT THÚC thì bắt đầu một "đảo" mới; các phiên cùng đảo gộp thành [min, max].
+    // Không gộp thì mở ba bài kinh song song trong một giờ thành ba giờ tụng.
+    const rows = await this.manager.query<IRecitationTimeSqlRow[]>(
+      `
+        WITH sessions AS (
+          SELECT user_id, started_at AS from_at,
+                 LEAST(completed_at, started_at + make_interval(secs => $4)) AS to_at,
+                 completed_at
+            FROM dharma_recitations
+           WHERE completed_at IS NOT NULL
+             AND completed_at >= $1 AND completed_at < $2
+             AND duration_seconds >= $5
+        ),
+        ordered AS (
+          SELECT sessions.*,
+                 max(to_at) OVER (
+                   PARTITION BY user_id ORDER BY from_at, to_at
+                   ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                 ) AS previous_end
+            FROM sessions
+        ),
+        islands AS (
+          SELECT ordered.*,
+                 sum(CASE WHEN previous_end IS NULL OR from_at > previous_end THEN 1 ELSE 0 END)
+                   OVER (PARTITION BY user_id ORDER BY from_at, to_at) AS island
+            FROM ordered
+        ),
+        merged AS (
+          SELECT user_id, min(from_at) AS from_at, max(to_at) AS to_at,
+                 count(*)::int AS session_count, max(completed_at) AS last_at
+            FROM islands
+           GROUP BY user_id, island
+        ),
+        per_user AS (
+          SELECT user_id,
+                 floor(sum(EXTRACT(EPOCH FROM (to_at - from_at))))::int AS total_seconds,
+                 sum(session_count)::int AS session_count,
+                 max(last_at) AS last_at
+            FROM merged
+           GROUP BY user_id
+        )
+        SELECT (row_number() OVER (
+                  ORDER BY per_user.total_seconds DESC, per_user.last_at ASC,
+                           per_user.user_id ASC))::int AS position,
+               per_user.total_seconds, per_user.session_count,
+               person.leaderboard_anonymous AS is_anonymous,
+               person.username, person.full_name, person.avatar_url,
+               person.rank::text AS user_rank
+          FROM per_user
+          JOIN users person ON person.global_id = per_user.user_id
+                           AND person.status = 'ACTIVE' AND person.deleted_at IS NULL
+         ORDER BY position
+         LIMIT $3
+      `,
+      [
+        params.start,
+        params.end,
+        params.limit,
+        params.sessionCapSeconds,
+        params.minimumSeconds,
+      ],
+    );
+
+    return rows.map((row) => ({
+      position: row.position,
+      totalSeconds: row.total_seconds,
+      sessionCount: row.session_count,
+      isAnonymous: row.is_anonymous,
+      user: {
+        username: row.username,
+        fullName: row.full_name,
+        avatarUrl: row.avatar_url,
+        rank: row.user_rank,
       },
     }));
   }

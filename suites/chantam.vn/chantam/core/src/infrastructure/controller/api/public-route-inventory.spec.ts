@@ -34,6 +34,7 @@ const ExpectedPublicRoutes = [
   'GET /presence/surfaces/:surface',
   // Bảng xếp hạng Phật Pháp: không userId, tôn trọng ẩn danh (PR #46 §11).
   'GET /dharma/leaderboards/forum-engagement',
+  'GET /dharma/leaderboards/recitation-time',
   'GET /posts/:subjectId/comments',
   'GET /posts/:subjectId/reactions',
   'GET /comments/:commentId/replies',

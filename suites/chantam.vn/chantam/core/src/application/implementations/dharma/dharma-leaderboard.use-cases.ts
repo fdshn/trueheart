@@ -1,6 +1,7 @@
 import {
   IGetDharmaLeaderboardCommand,
   IGetForumEngagementLeaderboardUseCase,
+  IGetRecitationTimeLeaderboardUseCase,
 } from '@/application/contracts/dharma';
 import {
   LeaderboardClock,
@@ -16,6 +17,9 @@ import {
 import {
   DharmaLeaderboardPeriods,
   IForumEngagementLeaderboardResponseDto,
+  IRecitationTimeLeaderboardResponseDto,
+  RecitationMinimumSeconds,
+  RecitationSessionCapSeconds,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable, Optional } from '@nestjs/common';
@@ -85,6 +89,56 @@ export class GetForumEngagementLeaderboardUseCase implements IGetForumEngagement
           engagementCount: row.engagementCount,
           threadCount: row.threadCount,
           topThread: row.isAnonymous ? null : row.topThread,
+        })),
+      },
+    };
+  }
+}
+
+/**
+ * Người dành nhiều thời gian tụng kinh nhất trong tháng (PR #46 §11).
+ *
+ * Không nhận thời lượng từ client: chỉ cộng khoảng server đo giữa bắt đầu và hoàn thành. Hai
+ * luật chống bơm điểm nằm ở repository: phiên bỏ ngỏ cả ngày chỉ tính 2 giờ, và mở nhiều phiên
+ * song song chỉ tính một lần thời gian thực. Phiên dưới 60 giây là bấm thử, không phải tụng.
+ */
+@Injectable()
+export class GetRecitationTimeLeaderboardUseCase implements IGetRecitationTimeLeaderboardUseCase {
+  private readonly now: LeaderboardClockFn;
+
+  public constructor(
+    @Inject(IDharmaLeaderboardRepository)
+    private readonly repository: IDharmaLeaderboardRepository,
+    @Optional() @Inject(LeaderboardClock) clock?: LeaderboardClockFn,
+  ) {
+    this.now = clock ?? (() => new Date());
+  }
+
+  public async handle(
+    command: IGetDharmaLeaderboardCommand,
+  ): Promise<IRecitationTimeLeaderboardResponseDto> {
+    const { month, start, end } = resolveDharmaLeaderboardMonth(
+      command.month,
+      this.now(),
+    );
+    const rows = await this.repository.rankRecitationTime({
+      start,
+      end,
+      limit: clampDharmaLeaderboardLimit(command.limit),
+      sessionCapSeconds: RecitationSessionCapSeconds,
+      minimumSeconds: RecitationMinimumSeconds,
+    });
+
+    return {
+      leaderboard: {
+        period: DharmaLeaderboardPeriods.MONTH,
+        month: toLeaderboardMonthLabel(month),
+        entries: rows.map((row) => ({
+          position: row.position,
+          isAnonymous: row.isAnonymous,
+          user: row.isAnonymous ? null : row.user,
+          totalSeconds: row.totalSeconds,
+          sessionCount: row.sessionCount,
         })),
       },
     };

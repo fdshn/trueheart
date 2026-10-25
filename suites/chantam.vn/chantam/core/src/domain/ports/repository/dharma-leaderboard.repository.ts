@@ -10,6 +10,14 @@ export interface IForumEngagementRow {
   topThread: { id: string; title: string; engagementCount: number };
 }
 
+export interface IRecitationTimeRow {
+  position: number;
+  totalSeconds: number;
+  sessionCount: number;
+  isAnonymous: boolean;
+  user: IPublicAuthorSummaryDto;
+}
+
 /**
  * Bảng xếp hạng Phật Pháp (PR #46 §11), tính SỐNG từ bảng nguồn — không có snapshot như bảng
  * thành tích tháng, vì không có huy hiệu hay phần thưởng nào chốt theo nó.
@@ -26,6 +34,21 @@ export interface IDharmaLeaderboardRepository {
     end: Date;
     limit: number;
   }): Promise<IForumEngagementRow[]>;
+
+  /**
+   * Người tụng nhiều thời gian nhất, theo phiên HOÀN THÀNH trong `[start, end)`.
+   *
+   * Chỉ thời lượng server đo (`started_at`/`completed_at`); mỗi phiên cắt ở
+   * `sessionCapSeconds`, phiên ngắn hơn `minimumSeconds` bỏ qua, và các phiên chồng nhau của
+   * cùng một người gộp thành một khoảng.
+   */
+  rankRecitationTime(params: {
+    start: Date;
+    end: Date;
+    limit: number;
+    sessionCapSeconds: number;
+    minimumSeconds: number;
+  }): Promise<IRecitationTimeRow[]>;
 }
 
 export const IDharmaLeaderboardRepository = Symbol(

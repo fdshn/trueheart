@@ -17,7 +17,10 @@
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
-import { GetForumEngagementLeaderboardUseCase } from '../src/application/implementations/dharma/dharma-leaderboard.use-cases';
+import {
+  GetForumEngagementLeaderboardUseCase,
+  GetRecitationTimeLeaderboardUseCase,
+} from '../src/application/implementations/dharma/dharma-leaderboard.use-cases';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { DharmaLeaderboardRepository } from '../src/infrastructure/repository/dharma-leaderboard.repository';
@@ -239,6 +242,92 @@ async function main(): Promise<void> {
       november.leaderboard.entries.length === 1 &&
         november.leaderboard.entries[0].engagementCount === 1,
       JSON.stringify(november.leaderboard.entries),
+    );
+
+    console.log('\n3. Thời gian tụng kinh tháng 10/2026');
+    const [Reciter1, Reciter2, Reciter3] = [11, 12, 13].map(id);
+    for (const [userId, username] of [
+      [Reciter1, 'dl_tung_1'],
+      [Reciter2, 'dl_tung_2'],
+      [Reciter3, 'dl_tung_3'],
+    ])
+      await sql(
+        `INSERT INTO users (global_id, username, password_hash, rank, status)
+         VALUES ($1, $2, 'x', 'MEMBER', 'ACTIVE')`,
+        [userId, username],
+      );
+    const [content] = await sql(
+      `INSERT INTO dharma_contents (content_type, title, slug, body_text)
+       VALUES ('SUTRA', 'Kinh kiểm', 'kinh-kiem-bang-xep-hang', 'Như thị ngã văn.')
+       RETURNING global_id`,
+    );
+    const recite = (userId: string, from: string, to: string | null) =>
+      sql(
+        `INSERT INTO dharma_recitations (content_id, user_id, started_at, completed_at, duration_seconds)
+         VALUES ($1, $2, $3::timestamptz, $4::timestamptz,
+                 CASE WHEN $4::timestamptz IS NULL THEN NULL
+                      ELSE floor(EXTRACT(EPOCH FROM ($4::timestamptz - $3::timestamptz)))::int END)`,
+        [content.global_id, userId, from, to],
+      );
+    // Người tụng 1: 10:00–10:30 và 10:10–10:40 chồng nhau → gộp 40 phút; một phiên 3 giờ →
+    // cắt còn 2 giờ. Tổng 9.600 giây, 3 phiên. Phiên xong đúng 00:00 ngày 01/11 thuộc tháng sau.
+    await recite(Reciter1, '2026-10-05T03:00:00Z', '2026-10-05T03:30:00Z');
+    await recite(Reciter1, '2026-10-05T03:10:00Z', '2026-10-05T03:40:00Z');
+    await recite(Reciter1, '2026-10-06T05:00:00Z', '2026-10-06T08:00:00Z');
+    await recite(Reciter1, '2026-10-31T16:30:00Z', NovemberStartVn);
+    // Người tụng 2: phiên 59 giây bỏ qua; 2 giờ 40 → 2 giờ; thêm 30 phút. 9.000, xong cuối ngày 15.
+    await recite(Reciter2, '2026-10-14T01:00:00Z', '2026-10-14T01:00:59Z');
+    await recite(Reciter2, '2026-10-14T13:00:00Z', '2026-10-14T15:40:00Z');
+    await recite(Reciter2, '2026-10-15T16:00:00Z', '2026-10-15T16:30:00Z');
+    // Người tụng 3: cũng 9.000 nhưng xong sớm hơn (ngày 10) → đứng trên người tụng 2.
+    await recite(Reciter3, '2026-10-09T01:00:00Z', '2026-10-09T02:30:00Z');
+    await recite(Reciter3, '2026-10-10T01:00:00Z', '2026-10-10T02:00:00Z');
+    // Phiên chưa hoàn thành: không tính dù đã mở rất lâu.
+    await recite(Reciter3, '2026-10-01T01:00:00Z', null);
+    // Tài khoản bị khoá tụng nhiều nhất: vắng mặt.
+    await recite(Banned, '2026-10-02T01:00:00Z', '2026-10-02T03:00:00Z');
+    await recite(Banned, '2026-10-03T01:00:00Z', '2026-10-03T03:00:00Z');
+    // Người ẩn danh: 10 phút, cộng một phiên bắt đầu 23:50 ngày 30/09 và xong 00:20 ngày
+    // 01/10 giờ Việt Nam — tính trọn cho tháng 10 theo mốc hoàn thành.
+    await recite(Anon, '2026-10-20T01:00:00Z', '2026-10-20T01:10:00Z');
+    await recite(Anon, '2026-09-30T16:50:00Z', '2026-09-30T17:20:00Z');
+
+    const recitation = new GetRecitationTimeLeaderboardUseCase(
+      repository,
+      () => new Date('2026-10-25T00:00:00Z'),
+    );
+    const { leaderboard: time } = await recitation.handle({});
+    const ranking = time.entries.map(
+      (entry) =>
+        `${entry.position}:${entry.user?.username ?? 'ẩn danh'}=${entry.totalSeconds}/${entry.sessionCount}`,
+    );
+    check(
+      'gộp phiên chồng, cắt trần 2 giờ, bỏ phiên < 60 giây và phiên chưa xong; hoà thì xong sớm hơn đứng trước; tài khoản khoá vắng mặt',
+      JSON.stringify(ranking) ===
+        JSON.stringify([
+          '1:dl_tung_1=9600/3',
+          '2:dl_tung_3=9000/2',
+          '3:dl_tung_2=9000/2',
+          '4:ẩn danh=2400/2',
+        ]),
+      JSON.stringify(ranking),
+    );
+    check(
+      'người ẩn danh không lộ, response không có userId',
+      time.entries[3]?.user === null &&
+        !JSON.stringify(time).includes('userId') &&
+        !JSON.stringify(time).includes('dl_an_danh'),
+    );
+    const timeNovember = await recitation.handle({ month: '2026-11' });
+    check(
+      'phiên xong lúc 00:00 ngày 01/11 giờ Việt Nam thuộc tháng 11',
+      JSON.stringify(
+        timeNovember.leaderboard.entries.map((entry) => [
+          entry.user?.username,
+          entry.totalSeconds,
+        ]),
+      ) === JSON.stringify([['dl_tung_1', 1800]]),
+      JSON.stringify(timeNovember.leaderboard.entries),
     );
   } finally {
     for (const source of opened.reverse())

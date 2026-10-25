@@ -1,4 +1,7 @@
-import { IGetForumEngagementLeaderboardUseCase } from '@/application/contracts/dharma';
+import {
+  IGetForumEngagementLeaderboardUseCase,
+  IGetRecitationTimeLeaderboardUseCase,
+} from '@/application/contracts/dharma';
 import { Public } from '@chantam/service.auth-lib';
 import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
@@ -8,6 +11,7 @@ import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   DharmaLeaderboardQueryDto,
   ForumEngagementLeaderboardResponseDto,
+  RecitationTimeLeaderboardResponseDto,
 } from '../../dto/dharma/dharma-leaderboard.dto';
 
 /** `@ApiErrorResponses` dựng exception để lấy mã — exception này cần danh sách lỗi mẫu. */
@@ -25,7 +29,37 @@ export class DharmaLeaderboardController {
   public constructor(
     @Inject(IGetForumEngagementLeaderboardUseCase)
     private readonly forumEngagement: IGetForumEngagementLeaderboardUseCase,
+    @Inject(IGetRecitationTimeLeaderboardUseCase)
+    private readonly recitationTime: IGetRecitationTimeLeaderboardUseCase,
   ) {}
+
+  @Get('recitation-time')
+  @Public()
+  @ApiOperation({
+    summary: 'Người dành nhiều thời gian tụng kinh nhất trong tháng',
+    description:
+      'Chỉ thời lượng server đo giữa bắt đầu và hoàn thành phiên — không nhận thời lượng client khai. ' +
+      'Mỗi phiên tính tối đa 2 giờ, phiên dưới 60 giây bỏ qua, các phiên chồng nhau của cùng người gộp lại. ' +
+      'Phiên tính vào tháng (giờ Việt Nam) của mốc hoàn thành. Hoà thì ai hoàn thành phiên cuối sớm hơn đứng trước. ' +
+      'Chỉ tài khoản đang hoạt động; người bật ẩn danh trên bảng thành tích hiện không tên.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(RecitationTimeLeaderboardResponseDto),
+  })
+  @ApiErrorResponses([ValidationFailedException, MonthErrorSample])
+  public async recitationTimeLeaderboard(
+    @Query() query: DharmaLeaderboardQueryDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.recitationTime.handle({
+          month: query.month,
+          limit: query.limit,
+        }),
+      )
+      .build();
+  }
 
   @Get('forum-engagement')
   @Public()

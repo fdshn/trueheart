@@ -1,4 +1,7 @@
-import { IForumEngagementLeaderboardResponseDto } from '@chantam.vn/chantam.core-lib/dto';
+import {
+  IForumEngagementLeaderboardResponseDto,
+  IRecitationTimeLeaderboardResponseDto,
+} from '@chantam.vn/chantam.core-lib/dto';
 import { IUseCase } from '@chantam/service.common-lib';
 
 export interface IGetDharmaLeaderboardCommand {
@@ -14,4 +17,13 @@ export interface IGetForumEngagementLeaderboardUseCase extends IUseCase<
 
 export const IGetForumEngagementLeaderboardUseCase = Symbol(
   'IGetForumEngagementLeaderboardUseCase',
+);
+
+export interface IGetRecitationTimeLeaderboardUseCase extends IUseCase<
+  IGetDharmaLeaderboardCommand,
+  IRecitationTimeLeaderboardResponseDto
+> {}
+
+export const IGetRecitationTimeLeaderboardUseCase = Symbol(
+  'IGetRecitationTimeLeaderboardUseCase',
 );

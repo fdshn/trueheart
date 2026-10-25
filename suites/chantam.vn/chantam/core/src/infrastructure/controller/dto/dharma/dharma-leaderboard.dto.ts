@@ -5,6 +5,9 @@ import {
   IForumEngagementEntryDto,
   IForumEngagementLeaderboardDto,
   IForumEngagementLeaderboardResponseDto,
+  IRecitationTimeEntryDto,
+  IRecitationTimeLeaderboardDto,
+  IRecitationTimeLeaderboardResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -81,4 +84,41 @@ export class ForumEngagementLeaderboardDto implements IForumEngagementLeaderboar
 export class ForumEngagementLeaderboardResponseDto implements IForumEngagementLeaderboardResponseDto {
   @ApiProperty({ type: () => ForumEngagementLeaderboardDto })
   leaderboard: ForumEngagementLeaderboardDto;
+}
+
+export class RecitationTimeEntryDto implements IRecitationTimeEntryDto {
+  @ApiProperty({ example: 1 }) position: number;
+
+  @ApiProperty({
+    description: 'Người bật ẩn danh trên bảng thành tích: `user` là `null`.',
+  })
+  isAnonymous: boolean;
+
+  @ApiProperty({ type: () => PublicAuthorSummaryDto, nullable: true })
+  user: PublicAuthorSummaryDto | null;
+
+  @ApiProperty({
+    example: 5400,
+    description:
+      'Tổng giây server đo: mỗi phiên tối đa 2 giờ, phiên dưới 60 giây bỏ qua, phiên chồng nhau gộp lại.',
+  })
+  totalSeconds: number;
+
+  @ApiProperty({ description: 'Số phiên hoàn thành được tính trong tháng.' })
+  sessionCount: number;
+}
+
+export class RecitationTimeLeaderboardDto implements IRecitationTimeLeaderboardDto {
+  @ApiProperty({ enum: DharmaLeaderboardPeriods })
+  period: DharmaLeaderboardPeriods;
+
+  @ApiProperty({ example: '2026-10' }) month: string;
+
+  @ApiProperty({ type: () => [RecitationTimeEntryDto] })
+  entries: RecitationTimeEntryDto[];
+}
+
+export class RecitationTimeLeaderboardResponseDto implements IRecitationTimeLeaderboardResponseDto {
+  @ApiProperty({ type: () => RecitationTimeLeaderboardDto })
+  leaderboard: RecitationTimeLeaderboardDto;
 }

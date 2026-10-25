@@ -37,3 +37,33 @@ export interface IForumEngagementLeaderboardDto {
 export interface IForumEngagementLeaderboardResponseDto {
   leaderboard: IForumEngagementLeaderboardDto;
 }
+
+/**
+ * Luật tính thời gian tụng (PR #46 §11): chỉ thời lượng server đo, mỗi phiên tính tối đa 2
+ * giờ, phiên dưới 60 giây bỏ qua, và các phiên CHỒNG NHAU của cùng một người được gộp — mở ba
+ * phiên song song không thành ba lần thời gian.
+ */
+export const RecitationSessionCapSeconds = 2 * 60 * 60;
+export const RecitationMinimumSeconds = 60;
+
+export interface IRecitationTimeEntryDto {
+  position: number;
+  isAnonymous: boolean;
+  /** `null` khi người này bật ẩn danh trên bảng thành tích. */
+  user: IPublicAuthorSummaryDto | null;
+  /** Tổng giây đã gộp phiên chồng và cắt trần. */
+  totalSeconds: number;
+  /** Số phiên hoàn thành được tính trong tháng. */
+  sessionCount: number;
+}
+
+export interface IRecitationTimeLeaderboardDto {
+  period: DharmaLeaderboardPeriods;
+  /** `YYYY-MM` */
+  month: string;
+  entries: IRecitationTimeEntryDto[];
+}
+
+export interface IRecitationTimeLeaderboardResponseDto {
+  leaderboard: IRecitationTimeLeaderboardDto;
+}

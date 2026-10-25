@@ -8,6 +8,7 @@ import {
   IGetDharmaContentUseCase,
   IGetDharmaHubUseCase,
   IGetForumEngagementLeaderboardUseCase,
+  IGetRecitationTimeLeaderboardUseCase,
   IGetThreadUseCase,
   IListAdminDharmaContentsUseCase,
   IListAdminThreadsUseCase,
@@ -31,7 +32,10 @@ import {
   ListPublicThreadsUseCase,
   ModerateThreadUseCase,
 } from './dharma-forum.use-cases';
-import { GetForumEngagementLeaderboardUseCase } from './dharma-leaderboard.use-cases';
+import {
+  GetForumEngagementLeaderboardUseCase,
+  GetRecitationTimeLeaderboardUseCase,
+} from './dharma-leaderboard.use-cases';
 import {
   CompleteRecitationUseCase,
   CreateDharmaContentUseCase,
@@ -128,10 +132,15 @@ import {
       provide: IGetForumEngagementLeaderboardUseCase,
       useClass: GetForumEngagementLeaderboardUseCase,
     },
+    {
+      provide: IGetRecitationTimeLeaderboardUseCase,
+      useClass: GetRecitationTimeLeaderboardUseCase,
+    },
   ],
   exports: [
     IGetDharmaHubUseCase,
     IGetForumEngagementLeaderboardUseCase,
+    IGetRecitationTimeLeaderboardUseCase,
     ICreateDharmaContentUseCase,
     IUpdateDharmaContentUseCase,
     IListPublicDharmaContentsUseCase,

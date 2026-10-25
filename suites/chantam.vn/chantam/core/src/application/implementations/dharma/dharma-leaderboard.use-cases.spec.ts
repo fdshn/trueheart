@@ -1,5 +1,8 @@
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
-import { GetForumEngagementLeaderboardUseCase } from './dharma-leaderboard.use-cases';
+import {
+  GetForumEngagementLeaderboardUseCase,
+  GetRecitationTimeLeaderboardUseCase,
+} from './dharma-leaderboard.use-cases';
 
 const Author = {
   username: 'cu-si-minh',
@@ -117,5 +120,58 @@ describe('GetForumEngagementLeaderboardUseCase', () => {
     });
     expect(JSON.stringify(leaderboard)).not.toContain('an-danh');
     expect(JSON.stringify(leaderboard)).not.toContain('userId');
+  });
+});
+
+describe('GetRecitationTimeLeaderboardUseCase', () => {
+  it('truyền trần phiên 2 giờ và ngưỡng 60 giây xuống repository; ẩn danh không lộ người', async () => {
+    const repository = {
+      rankRecitationTime: jest.fn().mockResolvedValue([
+        {
+          position: 1,
+          totalSeconds: 5400,
+          sessionCount: 3,
+          isAnonymous: false,
+          user: Author,
+        },
+        {
+          position: 2,
+          totalSeconds: 600,
+          sessionCount: 1,
+          isAnonymous: true,
+          user: { ...Author, username: 'an-danh' },
+        },
+      ]),
+    };
+
+    const { leaderboard } = await new GetRecitationTimeLeaderboardUseCase(
+      repository as never,
+      clock,
+    ).handle({ month: '2026-10', limit: 5 });
+
+    expect(repository.rankRecitationTime).toHaveBeenCalledWith({
+      start: new Date('2026-09-30T17:00:00.000Z'),
+      end: new Date('2026-10-31T17:00:00.000Z'),
+      limit: 5,
+      sessionCapSeconds: 7200,
+      minimumSeconds: 60,
+    });
+    expect(leaderboard.month).toBe('2026-10');
+    expect(leaderboard.entries).toEqual([
+      {
+        position: 1,
+        isAnonymous: false,
+        user: Author,
+        totalSeconds: 5400,
+        sessionCount: 3,
+      },
+      {
+        position: 2,
+        isAnonymous: true,
+        user: null,
+        totalSeconds: 600,
+        sessionCount: 1,
+      },
+    ]);
   });
 });
