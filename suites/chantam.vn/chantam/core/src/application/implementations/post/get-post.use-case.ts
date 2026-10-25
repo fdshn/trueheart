@@ -24,6 +24,7 @@ import {
 import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { applyGeoJitter } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
+import { toPublicAuthor } from '../shared/public-author';
 
 @Injectable()
 export class GetPostUseCase implements IGetPostUseCase {
@@ -115,13 +116,7 @@ export class GetPostUseCase implements IGetPostUseCase {
         where: { globalId: post.authorId },
       });
       if (authorUser) {
-        author = {
-          id: authorUser.globalId,
-          username: authorUser.username,
-          avatarUrl: authorUser.avatarUrl,
-          rank: authorUser.rank,
-          joinedAt: authorUser.createdAt,
-        };
+        author = toPublicAuthor(authorUser);
       }
     }
 

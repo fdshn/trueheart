@@ -79,16 +79,19 @@ Nghiệp vụ Chân Tâm
 | `0x0302` | `770` | 403 Forbidden | `USER_SUSPENDED` | Tài khoản đang bị tạm khoá tới 2026-10-01T00:00:00.000Z |
 | `0x0303` | `771` | 403 Forbidden | `USER_BANNED` | Tài khoản đã bị khoá vĩnh viễn |
 | `0x0304` | `772` | 409 Conflict | `USERNAME_TAKEN` | Tên đăng nhập "nguoidung01" đã có người dùng |
-| `0x0305` | `773` | 409 Conflict | `EMAIL_TAKEN` | Email này đã được dùng cho tài khoản khác |
+| `0x0305` | `773` | 409 Conflict | `EMAIL_ALREADY_USED` | Email này đã được dùng cho tài khoản khác |
 | `0x0306` | `774` | 409 Conflict | `PHONE_TAKEN` | Số điện thoại này đã được dùng cho tài khoản khác |
 | `0x0307` | `775` | 401 Unauthorized | `INVALID_CREDENTIALS` | Tên đăng nhập hoặc mật khẩu không đúng |
-| `0x0308` | `776` | 403 Forbidden | `PROFILE_INCOMPLETE` | Cần bổ sung Avatar, Số điện thoại trước khi đăng bài |
+| `0x0308` | `776` | 403 Forbidden | `PROFILE_INCOMPLETE` | Cần bổ sung Avatar, SĐT để tiếp tục |
 | `0x0309` | `777` | 409 Conflict | `USER_HAS_OPEN_TRANSACTIONS` | Còn 2 giao dịch chưa hoàn tất, chưa thể xoá tài khoản |
 | `0x030a` | `778` | 429 Too Many Requests | `LOGIN_THROTTLED` | Sai quá nhiều lần. Thử lại sau 15 phút |
 | `0x030b` | `779` | 403 Forbidden | `ONBOARDING_INCOMPLETE` | Cần hoàn tất onboarding trước khi đăng bài |
 | `0x030c` | `780` | 409 Conflict | `PHONE_ALREADY_VERIFIED` | Số điện thoại này đã từng được xác minh cho một tài khoản khác. Dùng số khác, hoặc liên hệ hỗ trợ nếu đây đúng là số của bạn. |
 | `0x030d` | `781` | 404 Not Found | `VERIFIED_PHONE_NOT_FOUND` | Số này chưa từng được xác minh cho tài khoản nào |
 | `0x030e` | `782` | 409 Conflict | `VERIFIED_PHONE_IN_USE` | Số này đang do tài khoản "nguoidung01" giữ và vẫn còn hiệu lực xác minh. Xử lý tài khoản đó trước — đổi số hoặc khoá — rồi mới giải phóng. |
+| `0x030f` | `783` | 400 Bad Request | `INVALID_EMAIL_FORMAT` | Email không đúng định dạng |
+| `0x0310` | `784` | 409 Conflict | `EMAIL_NOT_VERIFIED` | Email chưa được xác minh |
+| `0x0311` | `785` | 409 Conflict | `EMAIL_REQUIRED` | Hồ sơ chưa có email — thêm email trước khi xác minh |
 | `0x0401` | `1025` | 404 Not Found | `SESSION_NOT_FOUND` | Không tìm thấy phiên đăng nhập |
 | `0x0402` | `1026` | 401 Unauthorized | `REFRESH_TOKEN_INVALID` | Phiên đăng nhập không còn hiệu lực, vui lòng đăng nhập lại |
 | `0x0403` | `1027` | 401 Unauthorized | `REFRESH_TOKEN_EXPIRED` | Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại |
@@ -223,5 +226,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **181 mã lỗi** trên 3 tầng.
+Tổng cộng **184 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

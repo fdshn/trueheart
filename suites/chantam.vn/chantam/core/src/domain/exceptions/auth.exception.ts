@@ -15,8 +15,20 @@ export class UsernameTakenException extends ExceptionFrom(
   CoreErrors.USERNAME_TAKEN,
 ) {}
 
-export class EmailTakenException extends ExceptionFrom(
-  CoreErrors.EMAIL_TAKEN,
+export class EmailAlreadyUsedException extends ExceptionFrom(
+  CoreErrors.EMAIL_ALREADY_USED,
+) {}
+
+export class InvalidEmailFormatException extends ExceptionFrom(
+  CoreErrors.INVALID_EMAIL_FORMAT,
+) {}
+
+export class EmailNotVerifiedException extends ExceptionFrom(
+  CoreErrors.EMAIL_NOT_VERIFIED,
+) {}
+
+export class EmailRequiredException extends ExceptionFrom(
+  CoreErrors.EMAIL_REQUIRED,
 ) {}
 
 export class PhoneTakenException extends ExceptionFrom(

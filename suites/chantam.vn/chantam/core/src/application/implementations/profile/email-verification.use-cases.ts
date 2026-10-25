@@ -7,6 +7,7 @@ import {
   IRequestEmailVerificationUseCase,
 } from '@/application/contracts/profile';
 import {
+  EmailRequiredException,
   OtpInvalidException,
   UserNotFoundException,
 } from '@/domain/exceptions';
@@ -53,8 +54,8 @@ export class RequestEmailVerificationUseCase implements IRequestEmailVerificatio
   ): Promise<IRequestEmailVerificationResult> {
     const user = await this.users.findOneBy({ globalId: command.userId });
 
-    if (!user || user.deletedAt || !user.email)
-      throw new UserNotFoundException();
+    if (!user || user.deletedAt) throw new UserNotFoundException();
+    if (!user.email) throw new EmailRequiredException();
 
     if (!(await this.sender.canSend(PasswordResetChannels.EMAIL)))
       throw new NotImplementedException('Kênh email chưa được cấu hình');

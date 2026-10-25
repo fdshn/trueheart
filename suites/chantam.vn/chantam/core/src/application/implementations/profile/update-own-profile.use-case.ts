@@ -4,7 +4,8 @@ import {
   IUpdateOwnProfileUseCase,
 } from '@/application/contracts/profile';
 import {
-  EmailTakenException,
+  EmailAlreadyUsedException,
+  InvalidEmailFormatException,
   PhoneTakenException,
   UserNotFoundException,
 } from '@/domain/exceptions';
@@ -17,6 +18,7 @@ import {
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
+import { isEmail } from 'class-validator';
 import { withStorageValidation } from '../shared/storage-error';
 import { toOwnProfileDto } from './profile.mapper';
 
@@ -61,12 +63,15 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
       const email = profileUpdate.email
         ? profileUpdate.email.trim().toLowerCase()
         : null;
+      // Kiểm ở đây chứ không ở DTO: DTO chỉ ra được VALIDATION_FAILED chung, còn mobile cần
+      // INVALID_EMAIL_FORMAT riêng để báo đúng ô (PR #46 §5).
+      if (email && !isEmail(email)) throw new InvalidEmailFormatException();
       if (
         email &&
         email !== user.email &&
         (await this.userRepository.isEmailTaken(email, user.globalId))
       )
-        throw new EmailTakenException();
+        throw new EmailAlreadyUsedException();
       update.email = email;
 
       // Đổi email đồng nghĩa bằng chứng sở hữu địa chỉ cũ không còn giá trị.

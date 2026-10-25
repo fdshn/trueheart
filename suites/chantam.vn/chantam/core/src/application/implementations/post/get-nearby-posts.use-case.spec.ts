@@ -842,6 +842,7 @@ describe('GetNearbyPostsUseCase', () => {
     expect(result.posts[0].author).toEqual({
       id: shared,
       username: 'sondeptrai',
+      fullName: null,
       avatarUrl: 'https://cdn/avatar.jpeg',
       rank: 'MEMBER',
       joinedAt: joined,
@@ -851,7 +852,7 @@ describe('GetNearbyPostsUseCase', () => {
   });
 
   it('KHÔNG lộ thông tin liên lạc của tác giả ra feed công khai', async () => {
-    // IPostAuthorDto cấm fullName/phone/address: feed là kênh công khai, khách
+    // IPostAuthorDto cấm phone/address (fullName công khai từ 25/10): feed là kênh công khai, khách
     // chưa đăng nhập cũng quét được, nên lộ ở đây là lộ cho cả internet.
     const post = makePost();
     const posts = {
@@ -897,8 +898,10 @@ describe('GetNearbyPostsUseCase', () => {
       pageSize: 20,
     });
 
+    // `fullName` công khai từ 25/10/2026 (chủ dự án đảo CHỐT-11). Liên hệ vẫn KHÔNG.
     expect(Object.keys(result.posts[0].author ?? {}).sort()).toEqual([
       'avatarUrl',
+      'fullName',
       'id',
       'joinedAt',
       'rank',

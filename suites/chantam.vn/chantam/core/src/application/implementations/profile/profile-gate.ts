@@ -6,7 +6,7 @@ import {
 import { IUserRepository } from '@/domain/ports/repository';
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
-import { missingProfileFields } from '@chantam.vn/chantam.core-lib/models';
+import { missingProfileFieldKeys } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 
 /**
@@ -36,7 +36,7 @@ export class ProfileGate {
     const user = await this.users.findOneBy({ globalId: userId });
     if (!user || user.deletedAt) throw new UserNotFoundException();
 
-    const missing = missingProfileFields(user);
+    const missing = missingProfileFieldKeys(user);
     if (missing.length > 0) throw new ProfileIncompleteException(missing);
 
     return user;

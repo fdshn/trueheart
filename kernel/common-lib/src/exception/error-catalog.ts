@@ -17,6 +17,14 @@ export interface IErrorDefinition<Args extends unknown[] = []> {
    */
   readonly explains?: (...args: Args) => string[] | undefined;
   /**
+   * Dữ liệu máy đọc được, đi vào `body` của response lỗi (ví dụ
+   * `{ missingFields: [...] }`). Bỏ trống thì `body` là `null` như mọi lỗi khác.
+   *
+   * Client đọc trường này thay vì tách chuỗi trong `message` — câu chữ là cho người
+   * đọc và được phép đổi, còn `details` là hợp đồng.
+   */
+  readonly details?: (...args: Args) => unknown;
+  /**
    * Bộ tham số mẫu để dựng câu ví dụ trong `docs/API-ERRORS.md`. Bắt buộc với
    * lỗi có tham số.
    *
@@ -101,6 +109,7 @@ export function ExceptionFrom<Args extends unknown[]>(
         definition.message(...args),
         definition.explains?.(...args),
         definition.origin,
+        definition.details?.(...args),
       );
     }
   }

@@ -30,6 +30,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { PublicAuthorSummaryDto } from '../public-author.dto';
 
 const MaxCommentPageSize = 50;
 
@@ -110,6 +111,13 @@ export class ContentCommentDto implements IContentCommentDto {
   @ApiProperty({ format: 'uuid' }) authorId: string;
   @ApiProperty() authorUsername: string;
   @ApiPropertyOptional({ nullable: true }) authorFullName: string | null;
+
+  @ApiProperty({
+    type: () => PublicAuthorSummaryDto,
+    description:
+      'Author summary chuẩn (dùng trường này). `authorUsername`/`authorFullName` giữ cho client cũ.',
+  })
+  author: PublicAuthorSummaryDto;
 
   @ApiProperty({
     description:

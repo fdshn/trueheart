@@ -14,7 +14,9 @@ import {
   IUpdateOwnProfileUseCase,
 } from '@/application/contracts/profile';
 import {
-  EmailTakenException,
+  EmailAlreadyUsedException,
+  EmailRequiredException,
+  InvalidEmailFormatException,
   OtpInvalidException,
   PhoneTakenException,
   UserNotFoundException,
@@ -198,7 +200,11 @@ export class ProfileController {
     description:
       'Gửi tới địa chỉ đã lưu trong hồ sơ, không nhận địa chỉ từ body. Cần xác minh thì email mới dùng được làm kênh khôi phục mật khẩu — email chưa xác minh khiến luồng quên mật khẩu rơi về ADMIN_SUPPORT. Chưa cấu hình kênh email thì trả 501 chứ KHÔNG âm thầm coi như đã gửi.',
   })
-  @ApiErrorResponses(...ApiTokenErrors, UserNotFoundException)
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    UserNotFoundException,
+    EmailRequiredException,
+  )
   @ApiOkResponse({
     type: ResponseDto.forApi(RequestEmailVerificationResponseDto),
   })
@@ -254,7 +260,8 @@ export class ProfileController {
   @ApiErrorResponses(
     ...ApiTokenErrors,
     [ValidationFailedException, ['profile.email: email không hợp lệ']],
-    EmailTakenException,
+    EmailAlreadyUsedException,
+    InvalidEmailFormatException,
     PhoneTakenException,
     UserNotFoundException,
   )

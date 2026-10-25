@@ -88,7 +88,8 @@ export enum ErrorCodes {
   USER_SUSPENDED = 0x03_02,
   USER_BANNED = 0x03_03,
   USERNAME_TAKEN = 0x03_04,
-  EMAIL_TAKEN = 0x03_05,
+  // Đổi tên từ EMAIL_TAKEN ngày 25/10 (PR #46 §5) — GIỮ NGUYÊN mã số, client cũ không đổi gì.
+  EMAIL_ALREADY_USED = 0x03_05,
   PHONE_TAKEN = 0x03_06,
   INVALID_CREDENTIALS = 0x03_07,
   /** Chưa đủ Họ tên / Avatar / SĐT / Email để đăng bài (F07). */
@@ -125,6 +126,10 @@ export enum ErrorCodes {
    * SIM — đúng thứ cả cơ chế này dựng ra để chặn.
    */
   VERIFIED_PHONE_IN_USE = 0x03_0e,
+  // Bốn mã email chuẩn hoá theo PR #46 §5 (cùng EMAIL_ALREADY_USED ở trên).
+  INVALID_EMAIL_FORMAT = 0x03_0f,
+  EMAIL_NOT_VERIFIED = 0x03_10,
+  EMAIL_REQUIRED = 0x03_11,
 
   // 0x05 — Danh mục
   CATEGORY_NOT_FOUND = 0x05_01,

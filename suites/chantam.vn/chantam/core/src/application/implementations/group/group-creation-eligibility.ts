@@ -15,16 +15,19 @@ import {
   IGroupRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
-import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  ProfileFieldKey,
+  UserRanks,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
-import { missingProfileFields } from '@chantam.vn/chantam.core-lib/models';
+import { missingProfileFieldKeys } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 
 export const CreateGroupCapability = 'CREATE_GROUP';
 
 interface IEvaluation extends IGroupCreationEligibility {
   readonly owner: IUserEntity;
-  readonly missingProfileFields: string[];
+  readonly missingProfileFields: ProfileFieldKey[];
 }
 
 /**
@@ -77,7 +80,7 @@ export class GroupCreationEligibility {
 
     const blocked = (
       reasonCode: GroupCreationBlockReason,
-      missing: string[] = [],
+      missing: ProfileFieldKey[] = [],
     ): IEvaluation => ({
       canCreateGroup: false,
       reasonCode,
@@ -85,7 +88,7 @@ export class GroupCreationEligibility {
       missingProfileFields: missing,
     });
 
-    const missing = missingProfileFields(owner);
+    const missing = missingProfileFieldKeys(owner);
     if (missing.length > 0) return blocked('PROFILE_INCOMPLETE', missing);
     if (owner.rank === UserRanks.VIEWER)
       return blocked('ONBOARDING_INCOMPLETE');

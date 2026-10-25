@@ -1,3 +1,4 @@
+import { IPublicAuthorSummaryDto } from '@chantam.vn/chantam.core-lib/dto';
 import {
   DharmaContentType,
   DharmaThreadStatus,
@@ -47,6 +48,8 @@ export interface IDharmaRecitation {
 export interface IDharmaThread {
   readonly globalId: string;
   readonly authorId: string | null;
+  /** Author summary chuẩn (PR #46 §3.4). `null` khi tác giả đã xoá tài khoản. */
+  readonly author: IPublicAuthorSummaryDto | null;
   readonly title: string;
   readonly bodyText: string;
   readonly category: string | null;

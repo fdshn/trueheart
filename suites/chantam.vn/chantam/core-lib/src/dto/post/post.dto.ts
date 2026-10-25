@@ -250,6 +250,8 @@ export interface IPublicPostMediaDto {
 export interface IPostAuthorDto {
   id: string;
   username: string;
+  /** Công khai từ 25/10/2026 (chủ dự án đảo CHỐT-11). `null` khi chưa khai. */
+  fullName?: string | null;
   avatarUrl?: string | null;
   rank?: string;
   /** Thời điểm tạo tài khoản — hiển thị "Tham gia tháng X năm Y". */

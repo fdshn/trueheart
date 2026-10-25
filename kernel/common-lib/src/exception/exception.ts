@@ -19,6 +19,8 @@ export class Exception extends Error {
     message: string,
     public readonly explains?: string[],
     public readonly origin: string = ErrorOrigin,
+    /** Dữ liệu máy đọc được cho `body` của response lỗi — xem `IErrorDefinition.details`. */
+    public readonly details?: unknown,
   ) {
     super(message);
     this.name = new.target.name;

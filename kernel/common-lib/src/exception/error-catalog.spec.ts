@@ -83,3 +83,30 @@ describe('ExceptionFrom', () => {
     expect(TakenException.name).toBe('TakenException');
   });
 });
+
+describe('lỗi mang dữ liệu máy đọc được', () => {
+  // PR #46 §5: `PROFILE_INCOMPLETE` trả `body.missingFields` để client đánh dấu đúng ô
+  // còn thiếu, thay vì phải tách chuỗi tiếng Việt trong `message`.
+  const Errors = defineErrorCatalog('test/lib', {
+    MISSING: {
+      code: 9,
+      httpStatus: 403,
+      message: (fields: string[]) => `thiếu ${fields.join(', ')}`,
+      details: (fields: string[]) => ({ missingFields: fields }),
+      sample: [['phone']],
+    },
+    PLAIN: { code: 10, httpStatus: 404, message: () => 'không thấy' },
+  });
+  class MissingException extends ExceptionFrom(Errors.MISSING) {}
+  class PlainException extends ExceptionFrom(Errors.PLAIN) {}
+
+  it('exception giữ `details` từ bản khai', () => {
+    expect(new MissingException(['phone', 'email']).details).toEqual({
+      missingFields: ['phone', 'email'],
+    });
+  });
+
+  it('lỗi không khai `details` thì không có', () => {
+    expect(new PlainException().details).toBeUndefined();
+  });
+});

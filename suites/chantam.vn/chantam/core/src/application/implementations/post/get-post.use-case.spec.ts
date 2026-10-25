@@ -156,7 +156,7 @@ describe('GetPostUseCase', () => {
       expect(result.canEdit).toBe(!live);
     },
   );
-  it('áp dụng geo jitter cho toạ độ trả ra qua kênh public và bảo vệ quyền riêng tư (không trả fullName)', async () => {
+  it('áp dụng geo jitter cho toạ độ trả ra qua kênh public và bảo vệ quyền riêng tư (họ tên công khai từ 25/10)', async () => {
     const postRepository = {
       findPublicByGlobalId: jest.fn().mockResolvedValue(makePost()),
     } as unknown as jest.Mocked<IPostRepository>;
@@ -190,11 +190,9 @@ describe('GetPostUseCase', () => {
     expect(result.requestCount).toBe(2);
     expect(result.myRequestStatus).toBe(GiftRequestStatuses.PENDING);
     expect(result.hasRequested).toBe(true);
-    // Privacy: author KHÔNG có fullName
+    // Họ tên công khai từ 25/10/2026 — chủ dự án đảo CHỐT-11 (PR #46 §3.4). Liên hệ vẫn ẩn.
     expect(result.author?.username).toBe('cu_si_minh_tue');
-    expect(
-      (result.author as unknown as Record<string, unknown>).fullName,
-    ).toBeUndefined();
+    expect(result.author?.fullName).toBe('Cư sĩ Minh Tuệ');
     expect(result.author?.joinedAt).toEqual(
       new Date('2026-01-01T00:00:00.000Z'),
     );

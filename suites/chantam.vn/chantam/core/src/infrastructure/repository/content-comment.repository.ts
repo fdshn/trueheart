@@ -8,6 +8,7 @@ import {
 import {
   CommentStatuses,
   ContentSubjectTypes,
+  UserRanks,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IKeysetCursor } from '@chantam.vn/chantam.core-lib/models';
 import { Injectable } from '@nestjs/common';
@@ -23,6 +24,8 @@ interface ICommentRow {
   author_id: string;
   username: string;
   full_name: string | null;
+  author_avatar_url: string | null;
+  author_rank: UserRanks;
   body: string;
   status: CommentStatuses;
   depth: number | string;
@@ -36,7 +39,8 @@ interface ICommentRow {
 
 const SelectColumns = `
   comment.id, comment.global_id, comment.subject_type, comment.subject_id,
-  comment.author_id, author.username, author.full_name, comment.body,
+  comment.author_id, author.username, author.full_name,
+  author.avatar_url AS author_avatar_url, author.rank AS author_rank, comment.body,
   comment.status, comment.depth, comment.parent_id, comment.reply_count,
   comment.reaction_count, comment.edited_at, comment.created_at,
   -- Gom ảnh ngay trong câu chính: một truy vấn phụ cho từng bình luận là N+1
@@ -57,6 +61,8 @@ function toComment(row: ICommentRow): IContentComment {
     authorId: row.author_id,
     authorUsername: row.username,
     authorFullName: row.full_name,
+    authorAvatarUrl: row.author_avatar_url,
+    authorRank: row.author_rank,
     body: row.body,
     status: row.status,
     depth: Number(row.depth),

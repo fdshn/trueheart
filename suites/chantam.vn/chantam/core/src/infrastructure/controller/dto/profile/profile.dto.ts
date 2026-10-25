@@ -26,7 +26,6 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDefined,
-  IsEmail,
   IsInt,
   IsOptional,
   IsString,
@@ -84,8 +83,9 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
       'Email dùng để đăng nhập và nhận mã khôi phục. Không phân biệt hoa thường.',
   })
   @IsOptional()
-  @IsEmail()
+  @IsString()
   @Length(1, 255)
+  // Định dạng kiểm ở use case để trả INVALID_EMAIL_FORMAT riêng (PR #46 §5).
   email?: string | null;
 
   @ApiPropertyOptional({

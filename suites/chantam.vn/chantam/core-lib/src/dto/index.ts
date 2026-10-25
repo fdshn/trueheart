@@ -1,4 +1,5 @@
 export * from './auth';
+export * from './author';
 export * from './category';
 export * from './chat';
 export * from './check-in';

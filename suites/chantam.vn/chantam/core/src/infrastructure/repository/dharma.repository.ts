@@ -1,3 +1,4 @@
+import { toPublicAuthorSummary } from '@/application/implementations/shared/public-author';
 import {
   ICreateDharmaContentParams,
   IDharmaContent,
@@ -10,6 +11,7 @@ import {
   IPublicDedication,
   IWriteDharmaContentParams,
 } from '@/domain/ports/repository';
+import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   DharmaContentType,
   DharmaThreadStatus,
@@ -719,12 +721,25 @@ const ThreadCountColumns = `(SELECT count(*) FROM content_comments comment
          WHERE reaction.subject_type = 'DHARMA_THREAD'
            AND reaction.subject_id = dharma_threads.global_id) AS reaction_count`;
 
+/**
+ * Author summary của chủ đề bằng câu con, không JOIN: các câu đọc chủ đề có nhiều hình dạng
+ * (danh sách, chi tiết, RETURNING sau ghi), một JOIN phải sửa ở từng chỗ.
+ */
+const ThreadAuthorColumns = ['username', 'full_name', 'avatar_url', 'rank']
+  .map(
+    (column) =>
+      `(SELECT author.${column}${column === 'rank' ? '::text' : ''} FROM users author
+         WHERE author.global_id = dharma_threads.author_id) AS author_${column}`,
+  )
+  .join(',\n       ');
+
 const ThreadColumns = `dharma_threads.global_id, dharma_threads.author_id,
        dharma_threads.title, dharma_threads.body_text, dharma_threads.category,
        dharma_threads.status, dharma_threads.flagged_terms, dharma_threads.is_locked,
        dharma_threads.is_pinned, dharma_threads.moderated_by, dharma_threads.moderated_at,
        dharma_threads.moderation_note, dharma_threads.created_at, dharma_threads.updated_at,
-       ${ThreadCountColumns}`;
+       ${ThreadCountColumns},
+       ${ThreadAuthorColumns}`;
 
 interface IThreadRow {
   global_id: string;
@@ -743,6 +758,10 @@ interface IThreadRow {
   updated_at: Date;
   comment_count: string | number;
   reaction_count: string | number;
+  author_username: string | null;
+  author_full_name: string | null;
+  author_avatar_url: string | null;
+  author_rank: UserRanks | null;
 }
 
 interface IDedicationRow {
@@ -763,6 +782,15 @@ function toThread(row: IThreadRow): IDharmaThread {
   return {
     globalId: row.global_id,
     authorId: row.author_id,
+    author:
+      row.author_username === null
+        ? null
+        : toPublicAuthorSummary({
+            username: row.author_username,
+            fullName: row.author_full_name,
+            avatarUrl: row.author_avatar_url,
+            rank: row.author_rank as UserRanks,
+          }),
     title: row.title,
     bodyText: row.body_text,
     category: row.category,
