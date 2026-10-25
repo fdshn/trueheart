@@ -242,9 +242,28 @@ Chat cần `online` và `lastSeenAt`. Khuyến nghị Redis TTL + socket heartbe
 
 Tái sử dụng board `GIVERS` hiện có và lấy top 3 qua API leaderboard. Không tạo bảng/thuật toán mới nếu contract hiện có đã đủ.
 
-### Thời gian diễn đàn
+### User có bài diễn đàn nhiều tương tác nhất
 
-Chưa implement cho tới khi chốt “thời gian” là foreground, active-reading heartbeat hay session đăng nhập. Không dùng đơn thuần chênh lệch login/logout.
+Thay yêu cầu tracking thời gian sử dụng diễn đàn bằng bảng xếp hạng tác giả có bài đăng nhận nhiều tương tác nhất. Không cần thu thập screen view, foreground time hoặc heartbeat cho nghiệp vụ này.
+
+Endpoint đề xuất:
+
+```http
+GET /api/v1/dharma/leaderboards/forum-engagement?period=MONTH&month=2026-10&limit=10
+```
+
+Quy tắc đề xuất:
+
+- Phạm vi mặc định là tháng hiện tại theo `BusinessTimeZone`; `month` có dạng `YYYY-MM`.
+- Chỉ tính thread đã publish và không bị xoá/ẩn do kiểm duyệt.
+- `engagementCount = reactionCount + commentCount`; reply được tính là comment nếu repository hiện lưu reply trong cùng cây comment.
+- Cộng tương tác của tất cả thread hợp lệ theo tác giả, sau đó xếp giảm dần theo `engagementCount`.
+- Không tính reaction/comment do chính tác giả tạo trên thread của mình để hạn chế tự tăng hạng.
+- Tie-break: thời điểm đạt tương tác cuối cùng sớm hơn, sau đó `userId` tăng dần để kết quả deterministic.
+- Response không trả `userId`; chỉ trả public author summary, `position`, `engagementCount`, `threadCount` và tối đa một `topThread` để Dharma Home hiển thị.
+- Tài khoản không còn `ACTIVE` và nội dung bị moderation loại khỏi kết quả live.
+
+Nếu việc loại self-interaction làm truy vấn hiện tại quá đắt, repository phải tính từ bảng interaction/comment nguồn; không lấy các counter tổng trên thread rồi giả định toàn bộ đều hợp lệ.
 
 ### Thời gian tụng kinh
 
@@ -305,8 +324,9 @@ Không tạo backend task cho các mục sau nếu contract hiện tại đã đ
 
 8. Presence/last seen.
 9. Dharma hub sections.
-10. Recitation leaderboard.
-11. Banner placements.
+10. Forum engagement leaderboard.
+11. Recitation leaderboard.
+12. Banner placements.
 
 ## 16. Acceptance criteria
 
@@ -323,6 +343,7 @@ Không tạo backend task cho các mục sau nếu contract hiện tại đã đ
 - [ ] Transaction Chat cũ không regression.
 - [ ] Auto-selection chạy lặp/đồng thời không tạo transaction trùng.
 - [ ] Presence tự offline sau TTL.
+- [ ] Forum engagement leaderboard chỉ tính thread hợp lệ, loại self-interaction và có tie-break deterministic.
 - [ ] Recitation leaderboard chỉ dùng thời lượng server-side.
 - [ ] Author summary nhất quán giữa list/detail/comment/Dharma comment.
 - [ ] Banner placement mới chỉ trả banner đang phục vụ.
