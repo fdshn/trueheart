@@ -39,8 +39,11 @@ export class DharmaPublicController {
   @Get('hub')
   @Public()
   @ApiOperation({
-    summary: 'Dharma Hub — bảy entry của Layer 1',
+    summary: 'Dharma Hub — bảy entry của Layer 1 và các section xem trước',
     description:
+      '`sections` (PR #46 §12): Nội dung nổi bật, Kinh tụng, Diễn đàn, Tự viện — mỗi section một ' +
+      'đến ba mục do server chọn và xếp, kèm `viewAllTarget` tới danh sách đầy đủ có phân trang. ' +
+      'Section rỗng vắng mặt.\n\n' +
       'UI-DHARMA-01: Phật Pháp là một Main Tab, và Layer 1 là Hub với các entry Kinh sách, ' +
       'Tụng kinh, Hồi hướng, Cúng/Công đức, Diễn đàn, Thông tin và Giới thiệu chùa.\n\n' +
       'Mỗi entry trả kèm `path` — đường API client gọi khi bấm. Trả từ server thay vì để ' +

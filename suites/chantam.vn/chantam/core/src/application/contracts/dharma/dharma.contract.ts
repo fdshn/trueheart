@@ -3,9 +3,11 @@ import {
   IDharmaContentSummary,
   IDharmaRecitation,
 } from '@/domain/ports/repository';
+import { IPublicAuthorSummaryDto } from '@chantam.vn/chantam.core-lib/dto';
 import {
   DharmaContentType,
   DharmaHubEntry,
+  DharmaHubSection,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 
@@ -29,8 +31,38 @@ export interface IGetDharmaHubCommand {
   readonly placeholder?: never;
 }
 
+/**
+ * Một mục xem trước. Một hình dạng cho cả nội dung lẫn chủ đề diễn đàn để mobile dựng MỘT
+ * thẻ; `kind` nói phải mở màn nào, `target` là đường chi tiết.
+ */
+export interface IDharmaHubPreviewItemDto {
+  readonly kind: 'CONTENT' | 'THREAD';
+  readonly id: string;
+  readonly title: string;
+  readonly summary: string | null;
+  readonly coverUrl: string | null;
+  /** Chỉ có ở `CONTENT`. */
+  readonly contentType: DharmaContentType | null;
+  /** Chỉ có ở `THREAD`; `null` khi tác giả đã xoá tài khoản. */
+  readonly author: IPublicAuthorSummaryDto | null;
+  readonly commentCount: number | null;
+  readonly reactionCount: number | null;
+  readonly target: string;
+}
+
+export interface IDharmaHubSectionDto {
+  readonly key: DharmaHubSection;
+  readonly title: string;
+  /** Một đến ba mục. Section không có mục nào thì không có mặt trong `sections`. */
+  readonly items: IDharmaHubPreviewItemDto[];
+  readonly totalCount: number;
+  readonly viewAllTarget: string;
+}
+
 export interface IGetDharmaHubResult {
   readonly entries: IDharmaHubEntryDto[];
+  /** PR #46 §12 — theo thứ tự hiển thị. */
+  readonly sections: IDharmaHubSectionDto[];
 }
 
 export interface IGetDharmaHubUseCase extends IUseCase<

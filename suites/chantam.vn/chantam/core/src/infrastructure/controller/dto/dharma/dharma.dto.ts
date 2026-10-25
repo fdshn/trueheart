@@ -1,6 +1,9 @@
 import {
+  DharmaContentType,
   DharmaContentTypes,
   DharmaHubEntries,
+  DharmaHubSection,
+  DharmaHubSections,
   MaxDharmaBodyLength,
   MaxDharmaCategoryLength,
   MaxDharmaSummaryLength,
@@ -21,6 +24,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { PublicAuthorSummaryDto } from '../public-author.dto';
 import { QueryBoolean } from '../query-boolean';
 
 export class WriteDharmaContentDto {
@@ -391,9 +395,90 @@ export class DharmaHubEntryResponseDto {
   itemCount: number | null;
 }
 
+export class DharmaHubPreviewItemDto {
+  @ApiProperty({
+    enum: ['CONTENT', 'THREAD'],
+    description: '`CONTENT` mở màn nội dung, `THREAD` mở chủ đề diễn đàn.',
+  })
+  kind: 'CONTENT' | 'THREAD';
+
+  @ApiProperty({ format: 'uuid' }) id: string;
+  @ApiProperty() title: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Tóm tắt nội dung; với chủ đề là 160 ký tự đầu.',
+  })
+  summary: string | null;
+
+  @ApiProperty({ type: String, nullable: true }) coverUrl: string | null;
+
+  @ApiProperty({
+    enum: DharmaContentTypes,
+    nullable: true,
+    description: 'Chỉ có ở `CONTENT`.',
+  })
+  contentType: DharmaContentType | null;
+
+  @ApiProperty({
+    type: () => PublicAuthorSummaryDto,
+    nullable: true,
+    description: 'Chỉ có ở `THREAD`.',
+  })
+  author: PublicAuthorSummaryDto | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Chỉ có ở `THREAD`.',
+  })
+  commentCount: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Chỉ có ở `THREAD`.',
+  })
+  reactionCount: number | null;
+
+  @ApiProperty({
+    example: '/dharma/contents/kinh-dia-tang',
+    description: 'Đường API chi tiết.',
+  })
+  target: string;
+}
+
+export class DharmaHubSectionDto {
+  @ApiProperty({ enum: DharmaHubSections }) key: DharmaHubSection;
+  @ApiProperty({ example: 'Kinh tụng' }) title: string;
+
+  @ApiProperty({
+    type: () => [DharmaHubPreviewItemDto],
+    description: 'Một đến ba mục do server chọn và xếp.',
+  })
+  items: DharmaHubPreviewItemDto[];
+
+  @ApiProperty({ description: 'Tổng số mục ở danh sách đầy đủ.' })
+  totalCount: number;
+
+  @ApiProperty({
+    example: '/dharma/contents?contentType=SUTRA',
+    description: 'Đường danh sách đầy đủ, có phân trang — nút "Xem tất cả".',
+  })
+  viewAllTarget: string;
+}
+
 export class DharmaHubResponseDto {
   @ApiProperty({ type: () => [DharmaHubEntryResponseDto] })
   entries: DharmaHubEntryResponseDto[];
+
+  @ApiProperty({
+    type: () => [DharmaHubSectionDto],
+    description:
+      'Section xem trước của Dharma Home theo thứ tự hiển thị (PR #46 §12). Section không có mục nào thì vắng mặt.',
+  })
+  sections: DharmaHubSectionDto[];
 }
 
 export class DeleteDharmaContentResponseDto {

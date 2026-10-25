@@ -8,6 +8,8 @@ import {
   IDeleteDharmaContentUseCase,
   IDharmaContentPageResult,
   IDharmaHubEntryDto,
+  IDharmaHubPreviewItemDto,
+  IDharmaHubSectionDto,
   IGetAdminDharmaContentCommand,
   IGetAdminDharmaContentUseCase,
   IGetDharmaContentCommand,
@@ -39,18 +41,25 @@ import {
 import {
   IAdminConfigRepository,
   IDharmaContent,
+  IDharmaContentSummary,
   IDharmaRepository,
+  IDharmaThread,
   IWriteDharmaContentParams,
 } from '@/domain/ports/repository';
 import {
+  dharmaContentGaps,
   DharmaContentType,
   DharmaContentTypeLabels,
   DharmaHubEntries,
   DharmaHubEntryPaths,
+  DharmaHubPreviewLimit,
+  DharmaHubSection,
+  DharmaHubSections,
+  DharmaHubSectionTitles,
+  DharmaHubSectionViewAllTargets,
+  isRecitableDharmaContent,
   MaxDharmaBodyLength,
   MaxDharmaSummaryLength,
-  dharmaContentGaps,
-  isRecitableDharmaContent,
   normalizeDharmaCategory,
   normalizeDharmaSlug,
   slugifyDharmaTitle,
@@ -186,17 +195,30 @@ export class GetDharmaHubUseCase implements IGetDharmaHubUseCase {
     // Đếm cho ba entry dựng từ `dharma_contents`. Ba entry còn lại (`RECITATION`,
     // `DEDICATION`, `MERIT`, `FORUM`) trả `null` thay vì `0`: `0` đọc ra "không có gì",
     // trong khi sự thật là con số đó phụ thuộc người đang xem hoặc thuộc phân hệ khác.
-    const counts = await Promise.all(
-      (['SUTRA', 'INFO', 'TEMPLE_INTRO'] as const).map(async (contentType) => {
-        const page = await this.repository.listPublishedContents({
-          limit: 1,
-          offset: 0,
-          contentType,
-        });
-        return [contentType, page.total] as const;
-      }),
+    //
+    // Cùng MỘT lượt đọc vừa cho số đếm vừa cho ba mục xem trước của section (PR #46 §12):
+    // `total` không phụ thuộc `limit`, nên đọc 3 thay vì 1 không tốn thêm truy vấn nào.
+    const preview = { limit: DharmaHubPreviewLimit, offset: 0 };
+    const [pages, featured, threads] = await Promise.all([
+      Promise.all(
+        (['SUTRA', 'INFO', 'TEMPLE_INTRO'] as const).map(
+          async (contentType) =>
+            [
+              contentType,
+              await this.repository.listPublishedContents({
+                ...preview,
+                contentType,
+              }),
+            ] as const,
+        ),
+      ),
+      this.repository.listPublishedContents({ ...preview, featuredOnly: true }),
+      this.repository.listPublicThreads(preview),
+    ]);
+    const pageByType = new Map(pages);
+    const countByType = new Map<string, number>(
+      pages.map(([contentType, page]) => [contentType, page.total]),
     );
-    const countByType = new Map<string, number>(counts);
 
     const entries: IDharmaHubEntryDto[] = DharmaHubEntries.map((entry) => ({
       entry,
@@ -205,8 +227,76 @@ export class GetDharmaHubUseCase implements IGetDharmaHubUseCase {
       itemCount: countByType.get(entry) ?? null,
     }));
 
-    return { entries };
+    const source: Readonly<
+      Record<
+        DharmaHubSection,
+        { items: IDharmaHubPreviewItemDto[]; total: number }
+      >
+    > = {
+      FEATURED: {
+        items: featured.items.map(contentPreview),
+        total: featured.total,
+      },
+      CHANTING: fromPage(pageByType.get('SUTRA')),
+      FORUM: { items: threads.items.map(threadPreview), total: threads.total },
+      MONASTERY: fromPage(pageByType.get('TEMPLE_INTRO')),
+    };
+    // Section rỗng không có mặt: một khung "Tự viện" trống trên trang chủ chỉ là chỗ trống.
+    // Entry tương ứng ở `entries` vẫn còn, nên vẫn vào được màn đầy đủ.
+    const sections: IDharmaHubSectionDto[] = DharmaHubSections.filter(
+      (key) => source[key].items.length > 0,
+    ).map((key) => ({
+      key,
+      title: DharmaHubSectionTitles[key],
+      items: source[key].items,
+      totalCount: source[key].total,
+      viewAllTarget: DharmaHubSectionViewAllTargets[key],
+    }));
+
+    return { entries, sections };
   }
+}
+
+/** Độ dài trích đoạn của chủ đề diễn đàn trên thẻ xem trước. */
+const ThreadExcerptLength = 160;
+
+function fromPage(
+  page: { items: IDharmaContentSummary[]; total: number } | undefined,
+): { items: IDharmaHubPreviewItemDto[]; total: number } {
+  return {
+    items: (page?.items ?? []).map(contentPreview),
+    total: page?.total ?? 0,
+  };
+}
+
+function contentPreview(item: IDharmaContentSummary): IDharmaHubPreviewItemDto {
+  return {
+    kind: 'CONTENT',
+    id: item.globalId,
+    title: item.title,
+    summary: item.summary,
+    coverUrl: item.coverUrl,
+    contentType: item.contentType,
+    author: null,
+    commentCount: null,
+    reactionCount: null,
+    target: `/dharma/contents/${item.slug}`,
+  };
+}
+
+function threadPreview(thread: IDharmaThread): IDharmaHubPreviewItemDto {
+  return {
+    kind: 'THREAD',
+    id: thread.globalId,
+    title: thread.title,
+    summary: thread.bodyText.slice(0, ThreadExcerptLength),
+    coverUrl: null,
+    contentType: null,
+    author: thread.author,
+    commentCount: thread.commentCount,
+    reactionCount: thread.reactionCount,
+    target: `/dharma/threads/${thread.globalId}`,
+  };
 }
 
 @Injectable()

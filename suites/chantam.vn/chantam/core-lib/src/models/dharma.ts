@@ -88,6 +88,43 @@ export const DharmaHubEntryPaths: Readonly<Record<DharmaHubEntry, string>> = {
   TEMPLE_INTRO: '/dharma/contents?contentType=TEMPLE_INTRO',
 };
 
+/**
+ * Section preview trên Dharma Home (PR #46 §12), theo thứ tự hiển thị — server quyết thứ tự
+ * và mục nào nổi bật, mobile không dựng dữ liệu giả.
+ *
+ * Cúng bái (`DHARMA_WORSHIP`) chưa có: phân hệ chưa được duyệt.
+ */
+export const DharmaHubSections = [
+  'FEATURED',
+  'CHANTING',
+  'FORUM',
+  'MONASTERY',
+] as const;
+
+export type DharmaHubSection = (typeof DharmaHubSections)[number];
+
+export const DharmaHubSectionTitles: Readonly<
+  Record<DharmaHubSection, string>
+> = {
+  FEATURED: 'Nội dung nổi bật',
+  CHANTING: 'Kinh tụng',
+  FORUM: 'Diễn đàn',
+  MONASTERY: 'Tự viện',
+};
+
+/** Đường danh sách ĐẦY ĐỦ (có phân trang) của từng section — nút "Xem tất cả". */
+export const DharmaHubSectionViewAllTargets: Readonly<
+  Record<DharmaHubSection, string>
+> = {
+  FEATURED: '/dharma/contents?featuredOnly=true',
+  CHANTING: '/dharma/contents?contentType=SUTRA',
+  FORUM: '/dharma/threads',
+  MONASTERY: '/dharma/contents?contentType=TEMPLE_INTRO',
+};
+
+/** Mỗi section tối đa ba mục xem trước. */
+export const DharmaHubPreviewLimit = 3;
+
 const VietnameseD = /[đĐ]/g;
 const NonSlugChars = /[^a-z0-9]+/g;
 const Diacritics = /[̀-ͯ]/g;
