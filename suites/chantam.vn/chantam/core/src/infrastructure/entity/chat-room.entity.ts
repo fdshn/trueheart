@@ -1,4 +1,7 @@
-import { ChatRoomStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  ChatRoomStatuses,
+  ChatRoomTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { IChatRoomEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
   PostgresAuditableEntity,
@@ -22,9 +25,23 @@ export class ChatRoomEntity
   )
   implements IChatRoomEntity
 {
-  @ApiProperty({ format: 'uuid' })
-  @Column({ name: 'transaction_id', type: 'uuid', unique: true })
-  transactionId: string;
+  @ApiProperty({ enum: ChatRoomTypes })
+  @Column({
+    name: 'room_type',
+    type: 'enum',
+    enum: ChatRoomTypes,
+    default: ChatRoomTypes.TRANSACTION,
+  })
+  roomType: ChatRoomTypes;
+
+  @ApiProperty({ format: 'uuid', nullable: true })
+  @Column({
+    name: 'transaction_id',
+    type: 'uuid',
+    unique: true,
+    nullable: true,
+  })
+  transactionId: string | null;
 
   @ApiProperty({ format: 'uuid' })
   @Column({ name: 'post_id', type: 'uuid' })

@@ -3,15 +3,20 @@ import {
   IListChatRoomsUseCase,
   IMarkChatRoomReadUseCase,
   IMuteChatRoomUseCase,
+  IOpenDirectPostRoomUseCase,
   IRecallChatMessageUseCase,
   IRequestChatMediaUploadUseCase,
   ISendChatMessageUseCase,
 } from '@/application/contracts/chat';
 import {
+  ChatDirectPostNotSupportedException,
+  ChatDirectPostSelfException,
   ChatMessageNotFoundException,
   ChatRecallWindowClosedException,
   ChatRoomNotFoundException,
   ChatRoomReadOnlyException,
+  PostNotFoundException,
+  ProfileIncompleteException,
 } from '@/domain/exceptions';
 import {
   IListChatMessagesResponseDto,
@@ -56,6 +61,8 @@ import {
   MarkChatRoomReadResponseDto,
   MuteChatRoomBodyDto,
   MuteChatRoomResponseDto,
+  OpenDirectPostRoomBodyDto,
+  OpenDirectPostRoomResponseDto,
   RecallChatMessageParamsDto,
   RecallChatMessageResponseDto,
   RequestChatMediaUploadBodyDto,
@@ -83,7 +90,43 @@ export class ChatController {
     private readonly sendChatMessageUseCase: ISendChatMessageUseCase,
     @Inject(IMarkChatRoomReadUseCase)
     private readonly markChatRoomReadUseCase: IMarkChatRoomReadUseCase,
+    @Inject(IOpenDirectPostRoomUseCase)
+    private readonly openDirectPostRoomUseCase: IOpenDirectPostRoomUseCase,
   ) {}
+
+  @Post('direct-post/rooms')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Mở phòng chat trực tiếp về một bài Rao vặt',
+    description:
+      'Người gọi là người mua, chủ bài là người bán. Không có giao dịch hay yêu cầu xin nhận — hệ thống chỉ nối hai người. ' +
+      'Phòng đã có thì trả lại phòng cũ (`created: false`); cùng hai người nhưng bài khác là phòng khác. ' +
+      'Tin nhắn, ảnh, đã đọc, tắt tiếng, thu hồi và realtime dùng đúng các route `/chat/rooms/:roomId/...` như chat giao dịch.',
+  })
+  @ApiCreatedResponse({
+    type: ResponseDto.forApi(OpenDirectPostRoomResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ProfileIncompleteException, ['phone']],
+    [PostNotFoundException, '00000000-0000-4000-8000-000000000000'],
+    ChatDirectPostSelfException,
+    ChatDirectPostNotSupportedException,
+  )
+  public async openDirectPostRoom(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: OpenDirectPostRoomBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.openDirectPostRoomUseCase.handle({
+          userId: principal.userId,
+          postId: body.room.postId,
+        }),
+      )
+      .build();
+  }
 
   @Get('rooms')
   @ApiBearerAuth()

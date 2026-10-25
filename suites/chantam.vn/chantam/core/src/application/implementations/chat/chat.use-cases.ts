@@ -32,6 +32,7 @@ import {
   ChatRoomNotFoundException,
   ChatRoomReadOnlyException,
 } from '@/domain/exceptions';
+import { IConfig } from '@/domain/ports/config';
 import { IChatRealtimePublisher } from '@/domain/ports/realtime';
 import {
   IAdminConfigRepository,
@@ -41,6 +42,7 @@ import {
 import { IRequestThrottle } from '@/domain/ports/security';
 import {
   ChatRecallWindowMinutes,
+  ChatRoomStatuses,
   MaxContentMediaPerItem,
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -65,15 +67,25 @@ import { randomUUID } from 'node:crypto';
 import { ProfileGate } from '../profile/profile-gate';
 import { withStorageValidation } from '../shared/storage-error';
 
-function toRoomSummary(item: IChatRoomListItem): IChatRoomSummaryDto {
+export function toRoomSummary(
+  item: IChatRoomListItem,
+  publicBaseUrl: string,
+): IChatRoomSummaryDto {
   return {
     roomId: item.room.globalId,
+    roomType: item.room.roomType,
     transactionId: item.room.transactionId,
     postId: item.room.postId,
     postTitle: item.postTitle,
+    postThumbnailUrl: item.postThumbnailKey
+      ? `${publicBaseUrl.replace(/\/$/, '')}/${item.postThumbnailKey}`
+      : null,
+    postPrice: item.postPrice,
     status: item.room.status,
+    readOnly: item.room.status !== ChatRoomStatuses.OPEN,
     counterpartUsername: item.counterpartUsername,
     counterpartFullName: item.counterpartFullName,
+    counterpartAvatarUrl: item.counterpartAvatarUrl,
     lastMessageAt: item.room.lastMessageAt,
     lastMessageBody: item.lastMessageBody,
     unreadCount: item.unreadCount,
@@ -87,6 +99,7 @@ function toRoomSummary(item: IChatRoomListItem): IChatRoomSummaryDto {
 export class ListChatRoomsUseCase implements IListChatRoomsUseCase {
   public constructor(
     @Inject(IChatRepository) private readonly chat: IChatRepository,
+    @Inject(IConfig) private readonly config: IConfig,
   ) {}
 
   public async handle(
@@ -100,7 +113,9 @@ export class ListChatRoomsUseCase implements IListChatRoomsUseCase {
     });
 
     return {
-      rooms: items.map(toRoomSummary),
+      rooms: items.map((item) =>
+        toRoomSummary(item, this.config.storage.publicBaseUrl),
+      ),
       meta: new PaginationMetaDto(Math.floor(skip / take) + 1, take, total),
     };
   }
@@ -110,6 +125,7 @@ export class ListChatRoomsUseCase implements IListChatRoomsUseCase {
 export class ListChatMessagesUseCase implements IListChatMessagesUseCase {
   public constructor(
     @Inject(IChatRepository) private readonly chat: IChatRepository,
+    @Inject(IConfig) private readonly config: IConfig,
   ) {}
 
   public async handle(
@@ -141,7 +157,7 @@ export class ListChatMessagesUseCase implements IListChatMessagesUseCase {
     const newest = items.at(0);
 
     return {
-      room: toRoomSummary(room),
+      room: toRoomSummary(room, this.config.storage.publicBaseUrl),
       messages: items.map(({ message, senderUsername, mediaKeys }) => ({
         messageId: message.globalId,
         roomId: message.roomId,

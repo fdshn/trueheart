@@ -469,6 +469,19 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: [5],
   },
 
+  CHAT_DIRECT_POST_NOT_SUPPORTED: {
+    code: ErrorCodes.CHAT_DIRECT_POST_NOT_SUPPORTED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Chỉ nhắn trực tiếp được với bài Rao vặt. Bài cho/nhận dùng nút xin nhận',
+  },
+
+  CHAT_DIRECT_POST_SELF: {
+    code: ErrorCodes.CHAT_DIRECT_POST_SELF,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Không thể nhắn tin với bài của chính mình',
+  },
+
   CHAT_FLAG_ALREADY_REVIEWED: {
     code: ErrorCodes.CHAT_FLAG_ALREADY_REVIEWED,
     httpStatus: HttpStatus.CONFLICT,

@@ -49,8 +49,13 @@ export interface IOpenChatRoomParams {
 export interface IChatRoomListItem {
   room: IChatRoomEntity;
   postTitle: string;
+  /** Key ảnh đầu của bài (theo `sort_order`); use case dựng URL. */
+  postThumbnailKey: string | null;
+  /** `details.price` của bài Rao vặt. */
+  postPrice: number | null;
   counterpartUsername: string;
   counterpartFullName: string | null;
+  counterpartAvatarUrl: string | null;
   lastMessageBody: string | null;
   unreadCount: number;
 }
@@ -261,6 +266,16 @@ export interface IChatRepository {
     skip: number;
     take: number;
   }): Promise<{ items: IChatRoomListItem[]; total: number }>;
+
+  /**
+   * Mở (hoặc trả lại) phòng `DIRECT_POST` cho (bài, người mua, người bán). Lặp lại hay chạy
+   * song song đều ra ĐÚNG một phòng — chốt bằng unique index, không phải đọc rồi ghi.
+   */
+  openDirectPostRoom(params: {
+    postId: string;
+    buyerId: string;
+    sellerId: string;
+  }): Promise<{ room: IChatRoomEntity; created: boolean }>;
 
   /**
    * Ghi một tin nhắn.

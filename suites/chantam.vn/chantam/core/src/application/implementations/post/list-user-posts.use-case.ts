@@ -14,6 +14,7 @@ import {
 } from '@/domain/ports/repository';
 import {
   ContentSubjectTypes,
+  PubliclyVisibleGiftPostStatuses,
   ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
@@ -25,7 +26,7 @@ import { toPublicAuthor } from '../shared/public-author';
  * Trạng thái người NGOÀI được thấy — đúng luật của `findPublicByGlobalId`. Bài đã xong, hết
  * hạn hay bị gỡ không lên hồ sơ của người khác.
  */
-const PublicStatuses = ['PUBLISHED', 'RESERVED'];
+const PublicStatuses: string[] = [...PubliclyVisibleGiftPostStatuses];
 
 /**
  * Bài của một người trên hồ sơ (PR #46 §3.4).

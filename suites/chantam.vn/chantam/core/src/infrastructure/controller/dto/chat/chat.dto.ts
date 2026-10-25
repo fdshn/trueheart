@@ -1,5 +1,6 @@
 import {
   ChatRoomStatuses,
+  ChatRoomTypes,
   MaxContentMediaPerItem,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
@@ -13,6 +14,9 @@ import {
   IListChatRoomsResponseDto,
   IMarkChatRoomReadParamsDto,
   IMarkChatRoomReadResponseDto,
+  IOpenDirectPostRoomBodyDto,
+  IOpenDirectPostRoomDto,
+  IOpenDirectPostRoomResponseDto,
   IRequestChatMediaUploadBodyDto,
   IRequestChatMediaUploadResponseDto,
   ISendChatMessageBodyDto,
@@ -55,8 +59,19 @@ export class ChatRoomSummaryDto implements IChatRoomSummaryDto {
   @ApiProperty({ format: 'uuid' })
   roomId: string;
 
-  @ApiProperty({ format: 'uuid' })
-  transactionId: string;
+  @ApiProperty({
+    enum: ChatRoomTypes,
+    description:
+      '`TRANSACTION`: chat của một lượt trao. `DIRECT_POST`: liên hệ trực tiếp về bài Rao vặt, không có giao dịch.',
+  })
+  roomType: ChatRoomTypes;
+
+  @ApiProperty({
+    format: 'uuid',
+    nullable: true,
+    description: '`null` với phòng `DIRECT_POST`.',
+  })
+  transactionId: string | null;
 
   @ApiProperty({ format: 'uuid' })
   postId: string;
@@ -64,8 +79,30 @@ export class ChatRoomSummaryDto implements IChatRoomSummaryDto {
   @ApiProperty()
   postTitle: string;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Ảnh đầu của bài.',
+  })
+  postThumbnailUrl: string | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Giá bán (VNĐ) của bài Rao vặt; `null` khi bài không có giá.',
+  })
+  postPrice: number | null;
+
   @ApiProperty({ enum: ChatRoomStatuses })
   status: ChatRoomStatuses;
+
+  @ApiProperty({
+    description: '`true` khi phòng đã khoá: chỉ đọc lịch sử, không gửi được.',
+  })
+  readOnly: boolean;
+
+  @ApiProperty({ type: String, nullable: true })
+  counterpartAvatarUrl: string | null;
 
   @ApiProperty()
   counterpartUsername: string;
@@ -360,4 +397,26 @@ export class MuteChatRoomResponseDto {
   @ApiProperty({ format: 'uuid' }) roomId: string;
 
   @ApiProperty() muted: boolean;
+}
+
+export class OpenDirectPostRoomDto implements IOpenDirectPostRoomDto {
+  @ApiProperty({ format: 'uuid', description: 'Bài Rao vặt muốn liên hệ.' })
+  @IsUUID()
+  postId: string;
+}
+
+export class OpenDirectPostRoomBodyDto implements IOpenDirectPostRoomBodyDto {
+  @ApiProperty({ type: () => OpenDirectPostRoomDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => OpenDirectPostRoomDto)
+  room: OpenDirectPostRoomDto;
+}
+
+export class OpenDirectPostRoomResponseDto implements IOpenDirectPostRoomResponseDto {
+  @ApiProperty({ type: () => ChatRoomSummaryDto })
+  room: ChatRoomSummaryDto;
+
+  @ApiProperty({ description: '`false` khi phòng đã có sẵn và được trả lại.' })
+  created: boolean;
 }

@@ -231,6 +231,10 @@ export enum ErrorCodes {
   NOTIFICATION_BROADCAST_ALREADY_COMPLETED = 0x0b_08,
   /** Đang có tiến trình khác giữ lượt gửi (cron, hoặc Admin khác vừa bấm). */
   NOTIFICATION_BROADCAST_IN_PROGRESS = 0x0b_09,
+  /** Chat trực tiếp chỉ dành cho bài Rao vặt (PR #46 §7). */
+  CHAT_DIRECT_POST_NOT_SUPPORTED = 0x0b_0a,
+  /** Chủ bài không tự mở phòng chat với bài của chính mình. */
+  CHAT_DIRECT_POST_SELF = 0x0b_0b,
 
   // 0x0F — Báo cáo vi phạm
   REPORT_NOT_FOUND = 0x0f_01,

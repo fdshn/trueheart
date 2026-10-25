@@ -14,6 +14,7 @@ import {
 import { ChatMessageEntity, ChatRoomEntity } from '@/infrastructure/entity';
 import {
   ChatRoomStatuses,
+  ChatRoomTypes,
   MaxContentMediaPerItem,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
@@ -256,13 +257,20 @@ export class ChatRepository implements IChatRepository {
    */
   private roomListQuery(where: string): string {
     return `
-      SELECT room.id, room.global_id, room.transaction_id, room.post_id,
+      SELECT room.id, room.global_id, room.room_type, room.transaction_id, room.post_id,
              room.giver_id, room.receiver_id, room.status,
              room.last_message_at, room.giver_read_at, room.receiver_read_at,
              room.locked_at, room.created_at, room.updated_at,
              post.title AS post_title,
+             (SELECT media.r2_key FROM post_media media
+               WHERE media.post_id = post.global_id
+               ORDER BY media.sort_order ASC, media.id ASC
+               LIMIT 1) AS post_thumbnail_key,
+             CASE WHEN jsonb_typeof(post.details -> 'price') = 'number'
+                  THEN (post.details ->> 'price')::bigint END AS post_price,
              counterpart.username AS counterpart_username,
              counterpart.full_name AS counterpart_full_name,
+             counterpart.avatar_url AS counterpart_avatar_url,
              (SELECT m.body FROM chat_messages m
                WHERE m.room_id = room.global_id
                ORDER BY m.created_at DESC, m.id DESC
@@ -285,7 +293,8 @@ export class ChatRepository implements IChatRepository {
       room: {
         id: Number(row.id),
         globalId: String(row.global_id),
-        transactionId: String(row.transaction_id),
+        roomType: row.room_type as ChatRoomTypes,
+        transactionId: (row.transaction_id as string | null) ?? null,
         postId: String(row.post_id),
         giverId: String(row.giver_id),
         receiverId: String(row.receiver_id),
@@ -298,8 +307,12 @@ export class ChatRepository implements IChatRepository {
         updatedAt: row.updated_at as Date,
       } as IChatRoomEntity,
       postTitle: String(row.post_title),
+      postThumbnailKey: (row.post_thumbnail_key as string | null) ?? null,
+      postPrice: row.post_price === null ? null : Number(row.post_price),
       counterpartUsername: String(row.counterpart_username),
       counterpartFullName: (row.counterpart_full_name as string | null) ?? null,
+      counterpartAvatarUrl:
+        (row.counterpart_avatar_url as string | null) ?? null,
       lastMessageBody: (row.last_message_body as string | null) ?? null,
       unreadCount: Number(row.unread_count),
     };
@@ -333,6 +346,39 @@ export class ChatRepository implements IChatRepository {
       items: rows.map((row) => this.toListItem(row)),
       total: Number(total),
     };
+  }
+
+  public async openDirectPostRoom(params: {
+    postId: string;
+    buyerId: string;
+    sellerId: string;
+  }): Promise<{ room: IChatRoomEntity; created: boolean }> {
+    // ON CONFLICT trên unique index một phần: hai lượt mở song song — bấm "Nhắn tin" hai lần —
+    // ra đúng một phòng, và lượt thua đọc lại phòng của lượt thắng.
+    const inserted = await this.manager.query<{ global_id: string }[]>(
+      `
+        INSERT INTO chat_rooms
+          (global_id, room_type, transaction_id, post_id, giver_id, receiver_id, status)
+        VALUES ($1, 'DIRECT_POST', NULL, $2, $3, $4, 'OPEN')
+        ON CONFLICT (post_id, receiver_id, giver_id) WHERE room_type = 'DIRECT_POST'
+        DO NOTHING
+        RETURNING global_id
+      `,
+      [randomUUID(), params.postId, params.sellerId, params.buyerId],
+    );
+    const room = await this.manager.findOne(ChatRoomEntity, {
+      where: {
+        roomType: ChatRoomTypes.DIRECT_POST,
+        postId: params.postId,
+        giverId: params.sellerId,
+        receiverId: params.buyerId,
+      },
+    });
+    if (!room)
+      throw new Error(
+        `Không mở được phòng chat trực tiếp cho bài ${params.postId}`,
+      );
+    return { room, created: inserted.length > 0 };
   }
 
   public async findPurgeSchedule(

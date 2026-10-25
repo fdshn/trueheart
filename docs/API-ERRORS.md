@@ -158,6 +158,8 @@ Nghiệp vụ Chân Tâm
 | `0x0b07` | `2823` | 404 Not Found | `NOTIFICATION_BROADCAST_NOT_FOUND` | Không tìm thấy lượt gửi thông báo hàng loạt |
 | `0x0b08` | `2824` | 409 Conflict | `NOTIFICATION_BROADCAST_ALREADY_COMPLETED` | Lượt gửi này đã xong. Muốn gửi lại nội dung đó thì tạo một lượt gửi mới |
 | `0x0b09` | `2825` | 409 Conflict | `NOTIFICATION_BROADCAST_IN_PROGRESS` | Lượt gửi này đang được gửi. Theo dõi tiến độ trong danh sách lượt gửi |
+| `0x0b0a` | `2826` | 409 Conflict | `CHAT_DIRECT_POST_NOT_SUPPORTED` | Chỉ nhắn trực tiếp được với bài Rao vặt. Bài cho/nhận dùng nút xin nhận |
+| `0x0b0b` | `2827` | 409 Conflict | `CHAT_DIRECT_POST_SELF` | Không thể nhắn tin với bài của chính mình |
 | `0x0e01` | `3585` | 422 | `CONTENT_BLOCKED_TERMS` | Nội dung có từ ngữ không được phép. Vui lòng viết lại |
 | `0x0e02` | `3586` | 404 Not Found | `CONTENT_COMMENT_NOT_FOUND` | Không tìm thấy bình luận |
 | `0x0e03` | `3587` | 409 Conflict | `CONTENT_EDIT_WINDOW_CLOSED` | Chỉ sửa được bình luận trong 15 phút đầu |
@@ -226,5 +228,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **184 mã lỗi** trên 3 tầng.
+Tổng cộng **186 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.
