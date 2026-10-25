@@ -163,7 +163,7 @@ export class PostRepository
   public async createPostWithinQuota(
     authorId: string,
     quota: number,
-    post: Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt'>,
+    post: Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt' | 'shareCode'>,
   ): Promise<boolean> {
     return this.manager.transaction(async (manager) => {
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
@@ -1131,6 +1131,18 @@ export class PostRepository
       .andWhere('post.deletedAt IS NULL')
       .andWhere('post.status = :status', { status: 'PUBLISHED' })
       .getCount();
+  }
+
+  public async findPublicByShareCode(
+    shareCode: string,
+    currentUserId?: string,
+  ): Promise<IPostEntity | null> {
+    // Đổi mã ra id rồi đi ĐÚNG đường xem bài: một ngưỡng quyền xem duy nhất, không chép.
+    const [row] = await this.manager.query<{ global_id: string }[]>(
+      `SELECT global_id FROM posts WHERE share_code = $1 AND deleted_at IS NULL`,
+      [shareCode],
+    );
+    return row ? this.findPublicByGlobalId(row.global_id, currentUserId) : null;
   }
 
   public async findPublicByGlobalId(

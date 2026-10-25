@@ -48,6 +48,7 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     charityTransferStatus: null,
     charityTransferRequestedAt: null,
     charityTransferNote: null,
+    shareCode: 'K7MQ2XRP9A',
     createdAt: new Date('2026-08-01T00:00:00.000Z'),
     updatedAt: new Date('2026-08-01T00:00:00.000Z'),
     deletedAt: null,
@@ -132,6 +133,30 @@ const makeReactions = () =>
   }) as unknown as jest.Mocked<IContentReactionRepository>;
 
 describe('GetPostUseCase', () => {
+  it('trả link chia sẻ bằng mã của bài (PR #46 §4)', async () => {
+    const config = makeConfig();
+    config.web.publicBaseUrl = 'https://chantam.vn/';
+    const result = await new GetPostUseCase(
+      {
+        findPublicByGlobalId: jest.fn().mockResolvedValue(makePost()),
+      } as unknown as IPostRepository,
+      {
+        listByPostId: jest.fn().mockResolvedValue([]),
+      } as unknown as IPostMediaRepository,
+      makeGiftRequestRepo(),
+      makeGiftTransactionRepo(),
+      makeUserRepo(),
+      makeReactions(),
+      config,
+    ).handle({ postId: PostId });
+
+    expect(result.share).toEqual({
+      shareCode: 'K7MQ2XRP9A',
+      sharePath: '/p/K7MQ2XRP9A',
+      shareUrl: 'https://chantam.vn/p/K7MQ2XRP9A',
+    });
+  });
+
   it.each([false, true])(
     'owner gets original coordinates and canEdit reflects live transaction=%s',
     async (live) => {

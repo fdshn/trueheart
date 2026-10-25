@@ -104,6 +104,20 @@ export class PostEntity
   @Column({ name: 'share_count', type: 'int', default: 0 })
   shareCount: number;
 
+  @ApiProperty({
+    description:
+      'Mã chia sẻ ngắn, không tuần tự (PR #46 §4) — mở bài qua `GET /posts/share/:shareCode`',
+  })
+  @Index('UQ_posts_share_code', { unique: true })
+  @Column({
+    name: 'share_code',
+    type: 'varchar',
+    length: 16,
+    default: () => 'gen_post_share_code()',
+    update: false,
+  })
+  shareCode: string;
+
   @ApiProperty({ description: 'Bài Cần gấp / SOS (F17)' })
   @Column({ name: 'is_sos', type: 'boolean', default: false })
   isSos: boolean;

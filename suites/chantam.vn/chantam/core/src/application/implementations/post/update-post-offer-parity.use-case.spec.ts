@@ -36,6 +36,7 @@ function makePost(postType = PostTypes.OFFER): IPostEntity {
     charityTransferStatus: null,
     charityTransferRequestedAt: null,
     charityTransferNote: null,
+    shareCode: 'K7MQ2XRP9A',
     selectionMode: PostSelectionModes.OPTIMAL,
     selectionDeadline: null,
     createdAt: new Date(),

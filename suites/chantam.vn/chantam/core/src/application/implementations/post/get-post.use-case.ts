@@ -24,6 +24,7 @@ import {
 import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { applyGeoJitter } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
+import { postShareLinkOf } from '../shared/post-share-link';
 import { toPublicAuthor } from '../shared/public-author';
 
 @Injectable()
@@ -161,6 +162,7 @@ export class GetPostUseCase implements IGetPostUseCase {
       shareCount: post.shareCount,
       myReaction: summary.myReaction,
       reactionBreakdown: summary.breakdown,
+      share: postShareLinkOf(this.config.web.publicBaseUrl, post.shareCode),
     };
   }
 }

@@ -133,3 +133,4 @@ export * from './1801300000000-AddLeaderboardCountIndexes';
 export * from './1801400000000-ExtendPublicProfile';
 export * from './1801500000000-AddDirectPostChat';
 export * from './1801600000000-ClassifiedListingLifecycle';
+export * from './1801700000000-AddPostShareCode';

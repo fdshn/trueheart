@@ -83,7 +83,7 @@ export function toCanonicalOffer(input: {
     areaLabel: string;
     totalQuantity?: number;
   };
-}): Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt'> {
+}): Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt' | 'shareCode'> {
   const totalQuantity = input.giftPost.totalQuantity ?? 1;
   return {
     globalId: input.globalId,

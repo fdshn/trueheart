@@ -54,6 +54,7 @@ function makePost(overrides: Partial<IPostEntity> = {}): IPostEntity {
     charityTransferStatus: null,
     charityTransferRequestedAt: null,
     charityTransferNote: null,
+    shareCode: 'K7MQ2XRP9A',
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,

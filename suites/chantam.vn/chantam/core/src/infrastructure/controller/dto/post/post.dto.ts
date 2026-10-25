@@ -1,5 +1,8 @@
 import {
+  GiftPostStatuses,
   GiftRequestStatuses,
+  PostShareCodeLength,
+  PostTypes,
   ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
@@ -7,11 +10,15 @@ import {
   IGetPostResponseDto,
   IPostAuthorDto,
   IPostContactInfoDto,
+  IPostShareLinkDto,
   IPublicPostMediaDto,
+  IResolvedPostShareDto,
+  IResolvePostShareParamsDto,
+  IResolvePostShareResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsUUID } from 'class-validator';
+import { IsString, IsUUID, MaxLength } from 'class-validator';
 import { PostEntity } from '../../../entity/post.entity';
 
 export class GetPostParamsDto implements IGetPostParamsDto {
@@ -21,6 +28,43 @@ export class GetPostParamsDto implements IGetPostParamsDto {
   })
   @IsUUID()
   postId: string;
+}
+
+export class PostShareLinkDto implements IPostShareLinkDto {
+  @ApiProperty({ example: 'K7MQ2XRP9A' }) shareCode: string;
+  @ApiProperty({
+    example: '/p/K7MQ2XRP9A',
+    description: 'Đường dẫn tương đối — app bắt cùng đường này làm deep link.',
+  })
+  sharePath: string;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'https://chantam.vn/p/K7MQ2XRP9A',
+    description: '`null` khi web công khai chưa cấu hình.',
+  })
+  shareUrl: string | null;
+}
+
+export class ResolvePostShareParamsDto implements IResolvePostShareParamsDto {
+  @ApiProperty({
+    example: 'K7MQ2XRP9A',
+    description: `Mã chia sẻ ${PostShareCodeLength} ký tự; không phân biệt hoa thường.`,
+  })
+  @IsString()
+  @MaxLength(32)
+  shareCode: string;
+}
+
+export class ResolvedPostShareDto implements IResolvedPostShareDto {
+  @ApiProperty({ format: 'uuid' }) postId: string;
+  @ApiProperty({ enum: PostTypes }) postType: PostTypes;
+  @ApiProperty({ enum: GiftPostStatuses }) status: GiftPostStatuses;
+}
+
+export class ResolvePostShareResponseDto implements IResolvePostShareResponseDto {
+  @ApiProperty({ type: () => ResolvedPostShareDto })
+  post: IResolvedPostShareDto;
 }
 
 export class PostAuthorDto implements IPostAuthorDto {
@@ -115,4 +159,7 @@ export class GetPostResponseDto implements IGetPostResponseDto {
     example: { LIKE: 8, LOVE: 4 },
   })
   reactionBreakdown: Partial<Record<ReactionKinds, number>>;
+
+  @ApiProperty({ type: () => PostShareLinkDto })
+  share: IPostShareLinkDto;
 }

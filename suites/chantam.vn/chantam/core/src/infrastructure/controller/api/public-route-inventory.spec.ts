@@ -28,6 +28,8 @@ const ExpectedPublicRoutes = [
   'GET /posts/map',
   'GET /posts/nearby',
   'GET /posts/sos-urgent',
+  // Link chia sẻ mở được khi chưa đăng nhập — cùng ngưỡng xem với chi tiết bài (PR #46 §4).
+  'GET /posts/share/:shareCode',
   'GET /posts/:subjectId/comments',
   'GET /posts/:subjectId/reactions',
   'GET /comments/:commentId/replies',

@@ -17,6 +17,7 @@ export * from './notification-targets';
 export * from './notification-types';
 export * from './onboarding-task-evidence';
 export * from './post-selection-modes';
+export * from './post-share';
 export * from './post-types';
 export * from './profile-fields';
 export * from './public-discovery-post-types';

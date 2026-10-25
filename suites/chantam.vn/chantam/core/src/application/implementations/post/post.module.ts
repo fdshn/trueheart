@@ -17,6 +17,7 @@ import {
   IReorderPostMediaUseCase,
   IRequestCharityTransferUseCase,
   IRequestPostMediaUploadUseCase,
+  IResolvePostShareUseCase,
   IReviewCharityTransferUseCase,
   IUpdateClassifiedStatusUseCase,
   IUpdatePostUseCase,
@@ -46,6 +47,7 @@ import { RemovePostMediaUseCase } from './remove-post-media.use-case';
 import { RenewPostUseCase } from './renew-post.use-case';
 import { ReorderPostMediaUseCase } from './reorder-post-media.use-case';
 import { RequestPostMediaUploadUseCase } from './request-post-media-upload.use-case';
+import { ResolvePostShareUseCase } from './resolve-post-share.use-case';
 import { UpdateClassifiedStatusUseCase } from './update-classified-status.use-case';
 import { UpdatePostUseCase } from './update-post.use-case';
 
@@ -99,6 +101,7 @@ import { UpdatePostUseCase } from './update-post.use-case';
     { provide: IReorderPostMediaUseCase, useClass: ReorderPostMediaUseCase },
     { provide: IRemovePostMediaUseCase, useClass: RemovePostMediaUseCase },
     { provide: IRenewPostUseCase, useClass: RenewPostUseCase },
+    { provide: IResolvePostShareUseCase, useClass: ResolvePostShareUseCase },
     {
       provide: IUpdateClassifiedStatusUseCase,
       useClass: UpdateClassifiedStatusUseCase,
@@ -125,6 +128,7 @@ import { UpdatePostUseCase } from './update-post.use-case';
     IReorderPostMediaUseCase,
     IRemovePostMediaUseCase,
     IRenewPostUseCase,
+    IResolvePostShareUseCase,
     IUpdateClassifiedStatusUseCase,
     IUpdatePostUseCase,
   ],

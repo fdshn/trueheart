@@ -12,6 +12,7 @@ import {
   IReorderPostMediaUseCase,
   IRequestCharityTransferUseCase,
   IRequestPostMediaUploadUseCase,
+  IResolvePostShareUseCase,
   IReviewCharityTransferUseCase,
   IUpdateClassifiedStatusUseCase,
   IUpdatePostUseCase,
@@ -101,6 +102,8 @@ import {
   RequestCharityTransferParamsDto,
   RequestCharityTransferResponseDto,
   RequestPostMediaUploadDto,
+  ResolvePostShareParamsDto,
+  ResolvePostShareResponseDto,
   ReviewCharityTransferBodyDto,
   ReviewCharityTransferParamsDto,
   ReviewCharityTransferResponseDto,
@@ -129,6 +132,8 @@ export class PostController {
     private readonly removePostMediaUseCase: IRemovePostMediaUseCase,
     @Inject(IRenewPostUseCase)
     private readonly renewPostUseCase: IRenewPostUseCase,
+    @Inject(IResolvePostShareUseCase)
+    private readonly resolvePostShareUseCase: IResolvePostShareUseCase,
     @Inject(IUpdateClassifiedStatusUseCase)
     private readonly updateClassifiedStatusUseCase: IUpdateClassifiedStatusUseCase,
     @Inject(IRequestCharityTransferUseCase)
@@ -663,6 +668,34 @@ export class PostController {
       .attach(result)
       .build();
   }
+  @Public()
+  @Get('share/:shareCode')
+  @ApiOperation({
+    summary: 'Mở bài từ mã chia sẻ',
+    description:
+      'Trả `postId`, `postType`, `status` để client điều hướng đúng màn (PR #46 §4). Cùng quyền xem với `GET /posts/:postId`; ' +
+      'bài Admin gỡ không mở qua mã, kể cả với chủ bài. Không tăng lượt chia sẻ — lượt chia sẻ ghi qua `POST /posts/:subjectId/shares`.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(ResolvePostShareResponseDto) })
+  @ApiErrorResponses(
+    [ValidationFailedException, ['shareCode: shareCode must be a string']],
+    [PostNotFoundException, 'K7MQ2XRP9A'],
+  )
+  public async resolvePostShare(
+    @Param() params: ResolvePostShareParamsDto,
+    @CurrentUser() principal?: IAuthPrincipal,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.resolvePostShareUseCase.handle({
+          shareCode: params.shareCode,
+          currentUserId: principal?.userId,
+        }),
+      )
+      .build();
+  }
+
   @Public()
   @Get(':postId')
   @ApiOperation({

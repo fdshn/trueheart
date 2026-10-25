@@ -250,7 +250,7 @@ export interface IPostRepository extends Repository<IPostEntity> {
   createPostWithinQuota(
     authorId: string,
     quota: number,
-    post: Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt'>,
+    post: Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt' | 'shareCode'>,
   ): Promise<boolean>;
   /**
    * Gom bài trong khung nhìn thành cụm theo ô lưới.
@@ -310,6 +310,11 @@ export interface IPostRepository extends Repository<IPostEntity> {
   ): Promise<IPostEntity | null>;
   findPublicByGlobalId(
     globalId: string,
+    currentUserId?: string,
+  ): Promise<IPostEntity | null>;
+  /** Như `findPublicByGlobalId`, tra theo mã chia sẻ (PR #46 §4). */
+  findPublicByShareCode(
+    shareCode: string,
     currentUserId?: string,
   ): Promise<IPostEntity | null>;
   countPublishedByAuthor(authorId: string): Promise<number>;

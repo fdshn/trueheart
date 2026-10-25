@@ -343,6 +343,31 @@ export interface IRedemptionQuoteResponseDto {
   quote: IRedemptionQuoteDto;
 }
 
+/**
+ * Link chia sẻ bài bằng mã (PR #46 §4). `sharePath` luôn có; `shareUrl` tuyệt đối chỉ có khi
+ * web công khai đã cấu hình — cùng lối `deepLinkPath`/`shareUrl` của lượt chia sẻ.
+ */
+export interface IPostShareLinkDto {
+  shareCode: string;
+  sharePath: string;
+  shareUrl: string | null;
+}
+
+export interface IResolvePostShareParamsDto {
+  shareCode: string;
+}
+
+/** Đủ để client điều hướng đúng màn — chi tiết bài đọc tiếp qua `GET /posts/:postId`. */
+export interface IResolvedPostShareDto {
+  postId: string;
+  postType: PostTypes;
+  status: GiftPostStatuses;
+}
+
+export interface IResolvePostShareResponseDto {
+  post: IResolvedPostShareDto;
+}
+
 export interface IGetPostResponseDto extends IPostFeedInteractionDto {
   /** Owner-only edit capability. Saving must still recheck under a row lock. */
   canEdit?: boolean;
@@ -363,6 +388,7 @@ export interface IGetPostResponseDto extends IPostFeedInteractionDto {
    * tổng số, hỏi breakdown cho 20 bài mỗi lần cuộn là tự làm nặng.
    */
   reactionBreakdown: Partial<Record<ReactionKinds, number>>;
+  share: IPostShareLinkDto;
 }
 
 export interface IGetPostMapQueryDto {
