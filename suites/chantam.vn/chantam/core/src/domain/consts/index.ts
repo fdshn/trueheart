@@ -4,6 +4,7 @@ export const ClosedGiftPostStatuses = [
   'CANCELLED',
   'EXPIRED',
   'ARCHIVED',
+  'SOLD',
 ] as const;
 
 export * from './discovery';

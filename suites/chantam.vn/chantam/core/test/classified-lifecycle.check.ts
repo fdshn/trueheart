@@ -31,6 +31,8 @@ const Classified = '7b200000-0000-4000-8000-000000000001';
 const Offer = '7b200000-0000-4000-8000-000000000002';
 const DueClassified = '7b200000-0000-4000-8000-000000000003';
 const DueOffer = '7b200000-0000-4000-8000-000000000004';
+const QuotaHidden = '7b200000-0000-4000-8000-000000000005';
+const QuotaNew = '7b200000-0000-4000-8000-000000000006';
 
 const failures: string[] = [];
 
@@ -183,6 +185,57 @@ async function main(): Promise<void> {
       'luồng cũ bật: Rao vặt tới hạn có mặt lại',
       JSON.stringify(dueIds(legacyDue)) ===
         JSON.stringify([DueClassified, DueOffer].sort()),
+    );
+
+    console.log('\n4. Quota đăng bài');
+    // Tin ẩn mở lại được mà không qua phép kiểm quota, nên nó phải chiếm suất ngay khi ẩn:
+    // không thì ẩn tin → đăng tin mới → mở lại là vượt quota.
+    const quotaAuthor = Buyer;
+    await addPost(QuotaHidden, 'CLASSIFIED');
+    await sql(
+      `UPDATE posts SET author_id = $1, status = 'HIDDEN' WHERE global_id = $2`,
+      [quotaAuthor, QuotaHidden],
+    );
+    const newPost = (globalId: string) => ({
+      globalId,
+      postType: 'CLASSIFIED' as never,
+      authorId: quotaAuthor,
+      categoryId: CategoryId,
+      title: 'Tin mới khi đang có tin ẩn',
+      description: 'Mô tả đủ dài cho tin mới khi đang có tin ẩn',
+      location: { lat: 10.7724, lng: 106.698 },
+      areaLabel: 'Quận 1',
+      status: 'PUBLISHED' as never,
+      totalQuantity: 1,
+      remainingQuantity: 1,
+      details: {},
+      expiresAt: null,
+      renewedCount: 0,
+      reactionCount: 0,
+      commentCount: 0,
+      shareCount: 0,
+      isSos: false,
+      deliveryMethod: null,
+      shipPayer: null,
+      charityTransferStatus: null,
+      charityTransferRequestedAt: null,
+      charityTransferNote: null,
+      selectionMode: 'OPTIMAL' as never,
+      selectionDeadline: null,
+      deletedAt: null,
+    });
+    check(
+      'tin ẩn chiếm suất: quota 1 thì không đăng thêm được',
+      (await posts.createPostWithinQuota(quotaAuthor, 1, newPost(QuotaNew))) ===
+        false,
+    );
+    await sql(`UPDATE posts SET status = 'SOLD' WHERE global_id = $1`, [
+      QuotaHidden,
+    ]);
+    check(
+      'tin đã bán trả suất: quota 1 đăng được tin mới',
+      (await posts.createPostWithinQuota(quotaAuthor, 1, newPost(QuotaNew))) ===
+        true,
     );
   } finally {
     for (const source of opened.reverse())

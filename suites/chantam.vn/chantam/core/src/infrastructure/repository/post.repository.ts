@@ -71,6 +71,9 @@ export const QuotaStatuses = [
   // nghĩa là một dòng sót sẽ KHÔNG ăn quota, tức tác giả được thêm một suất đăng
   // bài trong khi vẫn còn một nghĩa vụ chưa xong.
   'DELIVERING',
+  // Tin Rao vặt tạm ẩn: chủ bài mở lại bằng một cú bấm, KHÔNG qua phép kiểm quota — nên nó
+  // phải giữ suất ngay lúc ẩn, không thì ẩn tin → đăng tin mới → mở lại là vượt quota.
+  'HIDDEN',
 ];
 
 /**
