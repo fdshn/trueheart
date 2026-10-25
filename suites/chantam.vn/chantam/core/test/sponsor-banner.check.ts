@@ -22,6 +22,7 @@
  * `hasPermission`. Bài học từ `blog.check.ts`: một script tự gọi hộ phần cần kiểm thì xanh
  * mà không kiểm gì.
  */
+import { BannerPlacements } from '@chantam.vn/chantam.core-lib/models';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
@@ -296,6 +297,45 @@ async function main(): Promise<void> {
       ...bannerInput({ title: 'Trang Công đức', placement: 'MERIT_PAGE' }),
       actorUserId: AdminId,
     });
+
+    console.log('\n2b. Vị trí mới của Khám phá và Phật Pháp (PR #46 §13)');
+    const [constraint] = await dataSource.query<{ definition: string }[]>(
+      `SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint
+        WHERE conname = 'CHK_sponsor_banners_placement'`,
+    );
+    const allowedInDb = [...constraint.definition.matchAll(/'([A-Z_]+)'/g)].map(
+      (match) => match[1],
+    );
+    check(
+      'CHECK ở database khớp đúng BannerPlacements ở core-lib',
+      JSON.stringify([...allowedInDb].sort()) ===
+        JSON.stringify([...BannerPlacements].sort()),
+      allowedInDb.join(','),
+    );
+    const forum = await createUseCase.handle({
+      ...bannerInput({
+        title: 'Diễn đàn Phật Pháp',
+        placement: 'DHARMA_FORUM',
+      }),
+      actorUserId: AdminId,
+    });
+    const forumServed = await serveUseCase.handle({
+      placement: 'DHARMA_FORUM',
+      limit: 10,
+    });
+    const homeServed = await serveUseCase.handle({
+      placement: 'DHARMA_HOME',
+      limit: 10,
+    });
+    check(
+      'banner DHARMA_FORUM phục vụ ở đúng vị trí đó, không lẫn sang DHARMA_HOME',
+      forumServed.banners.length === 1 &&
+        forumServed.banners[0].globalId === forum.globalId &&
+        homeServed.banners.length === 0,
+    );
+    await dataSource.query(`DELETE FROM sponsor_banners WHERE global_id = $1`, [
+      forum.globalId,
+    ]);
 
     console.log('\n3. Chỉ banner ĐANG trong khung giờ được phục vụ');
 

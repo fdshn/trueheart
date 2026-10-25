@@ -135,3 +135,4 @@ export * from './1801500000000-AddDirectPostChat';
 export * from './1801600000000-ClassifiedListingLifecycle';
 export * from './1801700000000-AddPostShareCode';
 export * from './1801800000000-CreateRecipientSelectionAudits';
+export * from './1801900000000-AddBannerPlacements';
