@@ -232,9 +232,103 @@ Chưa implement `AUTO_RANKED` trước khi chốt:
 3. Xử lý khi không còn requester hợp lệ.
 4. `FIRST_COME_FIRST_SERVED` chọn tức thời hay có thời gian chờ.
 
-## 10. Presence và last seen
+## 10. Presence theo tab và trạng thái online
 
-Chat cần `online` và `lastSeenAt`. Khuyến nghị Redis TTL + socket heartbeat, không ghi database mỗi heartbeat. Chỉ participant được xem presence của nhau và cần privacy policy. Disconnect/background phải tự hết TTL.
+### 10.1. Phạm vi và lựa chọn kiến trúc
+
+Yêu cầu là hiển thị số người đang hoạt động tại một tab/surface, ví dụ “24 người đang hoạt động tại Diễn đàn”. Đây không phải analytics dài hạn và không cần realtime từng giây.
+
+Không mở rộng WebSocket thành kết nối presence toàn app. WebSocket hiện tại tiếp tục dành cho chat realtime. Presence theo tab dùng REST heartbeat + Redis và chấp nhận độ trễ 1–2 phút.
+
+Không dùng Firebase/Google Analytics làm nguồn presence vì event analytics có thể đến trễ, thiếu hoặc trùng. Firebase vẫn có thể được mobile sử dụng riêng cho product analytics như `tab_selected`, nhưng không tham gia contract nghiệp vụ này.
+
+### 10.2. Surface allow-list
+
+Contract dùng enum/allow-list, không nhận chuỗi màn hình tuỳ ý:
+
+```ts
+enum PresenceSurfaces {
+  DISCOVERY_GIVING = 'DISCOVERY_GIVING',
+  DISCOVERY_REQUEST = 'DISCOVERY_REQUEST',
+  DISCOVERY_CHARITY = 'DISCOVERY_CHARITY',
+  DISCOVERY_CLASSIFIED = 'DISCOVERY_CLASSIFIED',
+  DHARMA_HOME = 'DHARMA_HOME',
+  DHARMA_CHANTING = 'DHARMA_CHANTING',
+  DHARMA_FORUM = 'DHARMA_FORUM',
+  DHARMA_MONASTERY = 'DHARMA_MONASTERY',
+}
+```
+
+Không gửi hoặc lưu `resourceId`, thread đang đọc, bài đang xem hay nội dung chi tiết. Product chỉ cần biết surface cấp cao.
+
+### 10.3. Heartbeat API
+
+Khi vào tab và mỗi 60 giây trong lúc app foreground:
+
+```http
+PUT /api/v1/presence/me
+```
+
+```json
+{
+  "presence": {
+    "surface": "DHARMA_FORUM",
+    "sessionId": "uuid"
+  }
+}
+```
+
+Quy tắc:
+
+- App background thì ngừng heartbeat.
+- Heartbeat mới thay surface hiện tại của cùng session; không cần gọi leave đáng tin cậy khi app bị kill.
+- Rate limit mục tiêu: tối đa 2 heartbeat/phút/user/session.
+- `sessionId` phân biệt nhiều thiết bị/kết nối của cùng user.
+- User online nếu còn ít nhất một session chưa hết hạn.
+- `onlineCount` phải deduplicate theo `userId`, không đếm hai thiết bị thành hai người.
+
+Backend lưu Redis, không ghi PostgreSQL mỗi heartbeat. TTL mục tiêu 120 giây. Có thể dùng sorted set theo surface với score là heartbeat timestamp; khi đọc hoặc bằng job nhẹ, xoá member quá TTL.
+
+Không lưu lịch sử user từng xem tab nào. Dữ liệu hết TTL phải biến mất và không dùng cho điểm, huy hiệu, leaderboard hoặc moderation.
+
+### 10.4. API đọc presence
+
+```http
+GET /api/v1/presence/surfaces/:surface?limit=10
+```
+
+Phase 1 chỉ cần trả tổng số:
+
+```json
+{
+  "surface": "DHARMA_FORUM",
+  "onlineCount": 24,
+  "visibleUsers": []
+}
+```
+
+Mobile gọi khi mở tab, pull-to-refresh hoặc sau 60–120 giây nếu màn vẫn hiển thị. Không polling khi app background.
+
+### 10.5. Privacy khi hiển thị danh tính
+
+Khuyến nghị Phase 1 chỉ hiển thị `onlineCount`; khi đó không cần setting trạng thái online vì không công khai danh tính cụ thể.
+
+Nếu sản phẩm muốn hiển thị avatar/danh sách người online ở phase sau, bắt buộc thêm:
+
+```ts
+showOnlineStatus: boolean; // mặc định false
+```
+
+Quy tắc:
+
+- `onlineCount` vẫn là số user active đã deduplicate.
+- `visibleUsers` chỉ chứa user đang `ACTIVE` và đã bật `showOnlineStatus`.
+- Không trả chính người gọi trong `visibleUsers`.
+- Tắt setting phải xoá toàn bộ presence session hiện tại của user khỏi Redis và có hiệu lực ngay.
+- Public profile không hiển thị tab hiện tại hoặc lịch sử tab.
+- Không có endpoint công khai để truy vấn một user cụ thể đang ở surface nào.
+
+Chat online/last seen là phạm vi riêng: nếu triển khai, chỉ participant của phòng được xem và có thể tái sử dụng hạ tầng Redis nhưng không được làm lộ surface toàn app.
 
 ## 11. Leaderboard và thống kê
 
@@ -322,7 +416,7 @@ Không tạo backend task cho các mục sau nếu contract hiện tại đã đ
 
 ### P2
 
-8. Presence/last seen.
+8. Presence count theo tab bằng REST heartbeat + Redis.
 9. Dharma hub sections.
 10. Forum engagement leaderboard.
 11. Recitation leaderboard.
@@ -342,7 +436,8 @@ Không tạo backend task cho các mục sau nếu contract hiện tại đã đ
 - [ ] Người ngoài không đọc/gửi hoặc suy ra room tồn tại.
 - [ ] Transaction Chat cũ không regression.
 - [ ] Auto-selection chạy lặp/đồng thời không tạo transaction trùng.
-- [ ] Presence tự offline sau TTL.
+- [ ] Presence theo tab tự hết hạn sau TTL, deduplicate nhiều session theo user và không ghi lịch sử tab vào PostgreSQL.
+- [ ] Phase 1 chỉ trả `onlineCount`; nếu trả danh tính thì chỉ gồm user bật `showOnlineStatus`.
 - [ ] Forum engagement leaderboard chỉ tính thread hợp lệ, loại self-interaction và có tie-break deterministic.
 - [ ] Recitation leaderboard chỉ dùng thời lượng server-side.
 - [ ] Author summary nhất quán giữa list/detail/comment/Dharma comment.
