@@ -1,4 +1,8 @@
-import { UserRanks, UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  ContactVisibilities,
+  UserRanks,
+  UserStatuses,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
   GeoColumn,
@@ -69,6 +73,60 @@ export class UserEntity
     default: false,
   })
   leaderboardAnonymous: boolean;
+
+  @Column({ name: 'slogan', type: 'varchar', length: 120, nullable: true })
+  slogan: string | null;
+
+  @Column({
+    name: 'today_thought',
+    type: 'varchar',
+    length: 280,
+    nullable: true,
+  })
+  todayThought: string | null;
+
+  @Column({
+    name: 'today_thought_updated_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  todayThoughtUpdatedAt: Date | null;
+
+  @Column({
+    name: 'intro_video_url',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  introVideoUrl: string | null;
+
+  @Column({
+    name: 'intro_video_thumbnail_url',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  introVideoThumbnailUrl: string | null;
+
+  @Exclude()
+  @Column({
+    name: 'email_visibility',
+    type: 'varchar',
+    length: 10,
+    nullable: false,
+    default: ContactVisibilities.PRIVATE,
+  })
+  emailVisibility: ContactVisibilities;
+
+  @Exclude()
+  @Column({
+    name: 'phone_visibility',
+    type: 'varchar',
+    length: 10,
+    nullable: false,
+    default: ContactVisibilities.PRIVATE,
+  })
+  phoneVisibility: ContactVisibilities;
 
   /**
    * Vị trí mặc định (F11) — KHÁC vị trí GPS hiện tại.

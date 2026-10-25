@@ -35,6 +35,7 @@ const ExpectedPublicRoutes = [
   'GET /gift-posts/nearby',
   'GET /categories',
   'GET /profile/:username',
+  'GET /profile/:username/posts',
   // Nội dung biên tập công khai.
   'GET /blogs',
   'GET /blogs/:idOrSlug',

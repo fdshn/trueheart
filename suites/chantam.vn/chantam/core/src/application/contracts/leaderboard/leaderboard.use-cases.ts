@@ -188,3 +188,13 @@ export interface IRevokeLeaderboardBadgeUseCase extends IUseCase<
 export const IRevokeLeaderboardBadgeUseCase = Symbol(
   'IRevokeLeaderboardBadgeUseCase',
 );
+
+/** Vị trí tháng hiện tại của MỘT người trên bảng Người cho — cho hồ sơ công khai (PR #46 §3.1). */
+export interface ILeaderboardStandingReader {
+  /** `null` khi Admin đang tắt bảng thành tích. */
+  findGiversStanding(
+    userId: string,
+  ): Promise<{ month: string; rank: number | null; count: number } | null>;
+}
+
+export const ILeaderboardStandingReader = Symbol('ILeaderboardStandingReader');

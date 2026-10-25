@@ -5,6 +5,7 @@ import {
   IGetPublicProfileUseCase,
   IRequestAvatarUploadUseCase,
   IRequestEmailVerificationUseCase,
+  IRequestIntroVideoUploadUseCase,
   IRequestPhoneVerificationUseCase,
   IUpdateOwnProfileUseCase,
 } from '@/application/contracts/profile';
@@ -17,6 +18,7 @@ import {
 import { GetOwnProfileUseCase } from './get-own-profile.use-case';
 import { GetPublicProfileUseCase } from './get-public-profile.use-case';
 import { RequestAvatarUploadUseCase } from './request-avatar-upload.use-case';
+import { RequestIntroVideoUploadUseCase } from './request-intro-video-upload.use-case';
 import { RequestPhoneVerificationUseCase } from './request-phone-verification.use-case';
 import { UpdateOwnProfileUseCase } from './update-own-profile.use-case';
 
@@ -46,6 +48,10 @@ import { UpdateOwnProfileUseCase } from './update-own-profile.use-case';
     { provide: IGetOwnProfileUseCase, useClass: GetOwnProfileUseCase },
     { provide: IGetPublicProfileUseCase, useClass: GetPublicProfileUseCase },
     { provide: IUpdateOwnProfileUseCase, useClass: UpdateOwnProfileUseCase },
+    {
+      provide: IRequestIntroVideoUploadUseCase,
+      useClass: RequestIntroVideoUploadUseCase,
+    },
   ],
   exports: [
     IRequestAvatarUploadUseCase,
@@ -56,6 +62,7 @@ import { UpdateOwnProfileUseCase } from './update-own-profile.use-case';
     IGetOwnProfileUseCase,
     IGetPublicProfileUseCase,
     IUpdateOwnProfileUseCase,
+    IRequestIntroVideoUploadUseCase,
   ],
 })
 export class ProfileModule {}

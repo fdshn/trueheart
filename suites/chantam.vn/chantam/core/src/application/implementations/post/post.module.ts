@@ -10,6 +10,7 @@ import {
   IGetPostUseCase,
   IGetSmartMatchesUseCase,
   IListAdminPostsUseCase,
+  IListUserPostsUseCase,
   IModerateAdminPostUseCase,
   IRemovePostMediaUseCase,
   IRenewPostUseCase,
@@ -39,6 +40,7 @@ import { GetMyPostsUseCase } from './get-my-posts.use-case';
 import { GetNearbyPostsUseCase } from './get-nearby-posts.use-case';
 import { GetPostMapUseCase } from './get-post-map.use-case';
 import { GetPostUseCase } from './get-post.use-case';
+import { ListUserPostsUseCase } from './list-user-posts.use-case';
 import { RemovePostMediaUseCase } from './remove-post-media.use-case';
 import { RenewPostUseCase } from './renew-post.use-case';
 import { ReorderPostMediaUseCase } from './reorder-post-media.use-case';
@@ -83,6 +85,7 @@ import { UpdatePostUseCase } from './update-post.use-case';
     { provide: IDeletePostUseCase, useClass: DeletePostUseCase },
     { provide: IExpireDuePostsUseCase, useClass: ExpireDuePostsUseCase },
     { provide: IGetMyPostsUseCase, useClass: GetMyPostsUseCase },
+    { provide: IListUserPostsUseCase, useClass: ListUserPostsUseCase },
     { provide: IGetNearbyPostsUseCase, useClass: GetNearbyPostsUseCase },
     { provide: IGetSmartMatchesUseCase, useClass: GetSmartMatchesUseCase },
     { provide: IGetPostMapUseCase, useClass: GetPostMapUseCase },
@@ -107,6 +110,7 @@ import { UpdatePostUseCase } from './update-post.use-case';
     IReviewCharityTransferUseCase,
     IExpireDuePostsUseCase,
     IGetMyPostsUseCase,
+    IListUserPostsUseCase,
     IGetNearbyPostsUseCase,
     IGetSmartMatchesUseCase,
     IGetPostMapUseCase,

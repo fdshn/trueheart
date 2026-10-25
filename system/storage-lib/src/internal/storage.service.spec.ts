@@ -1,6 +1,8 @@
 import {
   assertAvatarUploadPolicy,
   assertCampaignMediaUploadPolicy,
+  assertIntroThumbnailUploadPolicy,
+  assertIntroVideoUploadPolicy,
   assertPostMediaUploadPolicy,
   StorageService,
 } from './storage.service';
@@ -420,5 +422,107 @@ describe('StorageService · thư viện ảnh CMS (CMS A2)', () => {
       contentType: 'image/webp',
       publicUrl: `https://cdn.chantam.test/${key}`,
     });
+  });
+});
+
+describe('clip giới thiệu trên hồ sơ (PR #46 §3.3)', () => {
+  const userId = '11111111-1111-1111-1111-111111111111';
+  const MB = 1024 * 1024;
+
+  it('chính sách: video mp4/quicktime tối đa 50 MB; ảnh bìa tối đa 2 MB', () => {
+    const video = (contentType: string, contentLength: number) => () =>
+      assertIntroVideoUploadPolicy({ userId, contentType, contentLength });
+    const cover = (contentType: string, contentLength: number) => () =>
+      assertIntroThumbnailUploadPolicy({ userId, contentType, contentLength });
+
+    expect(video('video/mp4', 50 * MB)).not.toThrow();
+    expect(video('video/quicktime', 10 * MB)).not.toThrow();
+    expect(video('video/webm', MB)).toThrow();
+    expect(video('image/jpeg', MB)).toThrow();
+    expect(video('video/mp4', 50 * MB + 1)).toThrow();
+    expect(cover('image/webp', 2 * MB)).not.toThrow();
+    expect(cover('image/webp', 2 * MB + 1)).toThrow();
+    expect(cover('video/mp4', MB)).toThrow();
+  });
+
+  it('xin đường tải: key nằm trong không gian của chính người đó, ký kích thước', async () => {
+    let captured: any = null;
+    const { getSignedUrl } = jest.requireMock(
+      '@aws-sdk/s3-request-presigner',
+    ) as { getSignedUrl: jest.Mock };
+    getSignedUrl.mockImplementation((_client: unknown, cmd: any) => {
+      captured = cmd;
+      return Promise.resolve('https://mock-storage.local/upload-url');
+    });
+    const storage = new StorageService(
+      {} as never,
+      { bucket: 'b', publicBaseUrl: 'https://cdn.test' } as never,
+    );
+
+    const video = await storage.createIntroVideoUpload({
+      userId,
+      contentType: 'video/mp4',
+      contentLength: 3 * MB,
+    });
+    expect(video.key).toMatch(
+      new RegExp(`^users/${userId}/intro-videos/[0-9a-f-]+\\.mp4$`),
+    );
+    expect(captured?.input?.ContentLength).toBe(3 * MB);
+
+    const cover = await storage.createIntroThumbnailUpload({
+      userId,
+      contentType: 'image/jpeg',
+      contentLength: 100_000,
+    });
+    expect(cover.key).toMatch(
+      new RegExp(`^users/${userId}/intro-thumbnails/[0-9a-f-]+\\.jpeg$`),
+    );
+  });
+
+  it('xác nhận: key của người khác bị từ chối trước HeadObject; object đúng trả URL công khai', async () => {
+    const client = { send: jest.fn() };
+    const storage = new StorageService(
+      client as never,
+      { bucket: 'b', publicBaseUrl: 'https://cdn.test/' } as never,
+    );
+
+    await expect(
+      storage.confirmIntroVideoUpload(
+        userId,
+        'users/99999999-9999-9999-9999-999999999999/intro-videos/a.mp4',
+      ),
+    ).rejects.toThrow();
+    expect(client.send).not.toHaveBeenCalled();
+
+    client.send.mockResolvedValueOnce({
+      ContentType: 'video/mp4',
+      ContentLength: 20 * MB,
+    });
+    await expect(
+      storage.confirmIntroVideoUpload(
+        userId,
+        `users/${userId}/intro-videos/a.mp4`,
+      ),
+    ).resolves.toBe(`https://cdn.test/users/${userId}/intro-videos/a.mp4`);
+  });
+
+  it('xác nhận: video lớn hơn 50 MB bị từ chối và xoá', async () => {
+    const client = { send: jest.fn() };
+    client.send.mockResolvedValueOnce({
+      ContentType: 'video/mp4',
+      ContentLength: 51 * MB,
+    });
+    client.send.mockResolvedValueOnce({ Errors: [] });
+    const storage = new StorageService(
+      client as never,
+      { bucket: 'b', publicBaseUrl: 'https://cdn.test' } as never,
+    );
+
+    await expect(
+      storage.confirmIntroVideoUpload(
+        userId,
+        `users/${userId}/intro-videos/a.mp4`,
+      ),
+    ).rejects.toThrow();
   });
 });

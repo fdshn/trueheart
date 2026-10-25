@@ -119,6 +119,8 @@ export interface IFindMyPostsParams {
   authorId: string;
   postType?: PostTypes;
   status?: string;
+  /** Chỉ trả bài ở các trạng thái này — hồ sơ công khai của người khác. Bỏ trống = mọi trạng thái. */
+  visibleStatuses?: string[];
   categoryId?: string;
   skip: number;
   take: number;

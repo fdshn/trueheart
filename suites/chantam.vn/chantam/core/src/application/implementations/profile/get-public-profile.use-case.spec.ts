@@ -66,6 +66,9 @@ describe('GetPublicProfileUseCase', () => {
       fullName: 'Người Demo',
       avatarUrl: 'https://cdn.example.com/avatar.png',
       badges: [],
+      // Liên hệ mặc định PRIVATE; không có bộ đọc bảng thành tích thì không có vị trí tháng.
+      contacts: { email: null, phone: null },
+      monthlyStanding: null,
       rank: 'GOLD',
       publishedGiftPostCount: 2,
       lifetimePoints: 1792,

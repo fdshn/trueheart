@@ -1,6 +1,7 @@
 export * from './candidate-selection-criteria';
 export * from './charity-transfer-statuses';
 export * from './chat-room-statuses';
+export * from './contact-visibility';
 export * from './delivery';
 export * from './error-catalog';
 export * from './error-codes';

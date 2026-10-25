@@ -12,6 +12,7 @@ import {
   IUserRepository,
 } from '@/domain/ports/repository';
 import {
+  ContactVisibilities,
   GenericMvpPostTypes,
   GiftPostConditions,
   GiftPostStatuses,
@@ -49,6 +50,13 @@ function makeUser(overrides: Partial<IUserEntity> = {}): IUserEntity {
     suspendedUntil: null,
     lastActiveAt: new Date(),
     leaderboardAnonymous: false,
+    slogan: null,
+    todayThought: null,
+    todayThoughtUpdatedAt: null,
+    introVideoUrl: null,
+    introVideoThumbnailUrl: null,
+    emailVisibility: ContactVisibilities.PRIVATE,
+    phoneVisibility: ContactVisibilities.PRIVATE,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,

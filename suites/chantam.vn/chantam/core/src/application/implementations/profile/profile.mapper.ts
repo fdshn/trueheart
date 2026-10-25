@@ -18,5 +18,12 @@ export function toOwnProfileDto(user: IUserEntity): IOwnProfileDto {
     emailVerified: Boolean(user.emailVerifiedAt),
     profileComplete: isProfileComplete(user),
     leaderboardAnonymous: user.leaderboardAnonymous,
+    slogan: user.slogan,
+    todayThought: user.todayThought,
+    todayThoughtUpdatedAt: user.todayThoughtUpdatedAt,
+    introVideoUrl: user.introVideoUrl,
+    introVideoThumbnailUrl: user.introVideoThumbnailUrl,
+    emailVisibility: user.emailVisibility,
+    phoneVisibility: user.phoneVisibility,
   };
 }

@@ -1,5 +1,6 @@
 import { IGeoPoint } from '@chantam/service.persistency-lib/geo';
 import {
+  ContactVisibilities,
   ProfileFieldKey,
   ProfileFieldLabels,
   UserRanks,
@@ -40,6 +41,16 @@ export interface IUser {
    * nhận huy hiệu — nhưng huy hiệu giành lúc ẩn danh không hiện trên hồ sơ công khai.
    */
   leaderboardAnonymous: boolean;
+
+  /** Hồ sơ công khai mở rộng (PR #46 §3). */
+  slogan: string | null;
+  todayThought: string | null;
+  todayThoughtUpdatedAt: Date | null;
+  /** URL đã xác nhận qua HeadObject — không bao giờ là URL client tự đưa. */
+  introVideoUrl: string | null;
+  introVideoThumbnailUrl: string | null;
+  emailVisibility: ContactVisibilities;
+  phoneVisibility: ContactVisibilities;
 
   /**
    * Thời điểm xác minh SĐT lần đầu.

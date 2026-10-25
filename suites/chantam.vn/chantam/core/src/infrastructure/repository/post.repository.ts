@@ -437,6 +437,10 @@ export class PostRepository
     // đang chờ duyệt và bài bị từ chối của mình.
     if (params.status)
       query.andWhere('post.status = :status', { status: params.status });
+    if (params.visibleStatuses)
+      query.andWhere('post.status IN (:...visibleStatuses)', {
+        visibleStatuses: params.visibleStatuses,
+      });
     if (params.categoryId)
       query.andWhere(categorySubtreeFilter(':categoryId'), {
         categoryId: params.categoryId,

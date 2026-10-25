@@ -34,6 +34,10 @@ export interface IObjectStorage {
     createAvatarUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
     createPostMediaUpload(request: IPostMediaUploadRequest): Promise<IStorageUploadResult>;
     confirmAvatarUpload(userId: string, key: string): Promise<string>;
+    createIntroVideoUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
+    createIntroThumbnailUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
+    confirmIntroVideoUpload(userId: string, key: string): Promise<string>;
+    confirmIntroThumbnailUpload(userId: string, key: string): Promise<string>;
     confirmPostMediaUpload(userId: string, postId: string, key: string): Promise<void>;
     createTransactionEvidenceUpload(request: ITransactionEvidenceUploadRequest): Promise<IStorageUploadResult>;
     confirmTransactionEvidenceUpload(userId: string, transactionId: string, key: string): Promise<void>;

@@ -130,3 +130,4 @@ export * from './1801000000000-CreateMediaAssets';
 export * from './1801100000000-AddNotificationTargets';
 export * from './1801200000000-CreateMonthlyLeaderboards';
 export * from './1801300000000-AddLeaderboardCountIndexes';
+export * from './1801400000000-ExtendPublicProfile';

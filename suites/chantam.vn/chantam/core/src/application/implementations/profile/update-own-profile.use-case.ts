@@ -1,3 +1,7 @@
+import {
+  LeaderboardClock,
+  LeaderboardClockFn,
+} from '@/application/contracts/leaderboard';
 import { IRecordOnboardingEvidenceUseCase } from '@/application/contracts/onboarding';
 import {
   IUpdateOwnProfileCommand,
@@ -17,7 +21,7 @@ import {
 } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { IObjectStorage } from '@chantam/service.storage-lib';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { isEmail } from 'class-validator';
 import { withStorageValidation } from '../shared/storage-error';
 import { toOwnProfileDto } from './profile.mapper';
@@ -31,6 +35,10 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
     private readonly storage: IObjectStorage,
     @Inject(IRecordOnboardingEvidenceUseCase)
     private readonly recordOnboardingEvidenceUseCase: IRecordOnboardingEvidenceUseCase,
+    // Mốc `todayThoughtUpdatedAt` phải kiểm được bằng một thời điểm cố định.
+    @Optional()
+    @Inject(LeaderboardClock)
+    private readonly now: LeaderboardClockFn = () => new Date(),
   ) {}
 
   public async handle(command: IUpdateOwnProfileCommand) {
@@ -111,6 +119,59 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
     if (profileUpdate.leaderboardAnonymous !== undefined)
       update.leaderboardAnonymous = profileUpdate.leaderboardAnonymous;
 
+    if (profileUpdate.slogan !== undefined)
+      update.slogan = blankToNull(profileUpdate.slogan);
+    if (profileUpdate.todayThought !== undefined) {
+      const thought = blankToNull(profileUpdate.todayThought);
+      // Gửi lại đúng chữ cũ (app lưu cả form) KHÔNG làm mới mốc: "cập nhật hôm nay" trên hồ sơ
+      // phải nói về lần người ta thật sự đổi suy nghĩ.
+      if (thought !== user.todayThought) {
+        update.todayThought = thought;
+        update.todayThoughtUpdatedAt = thought === null ? null : this.now();
+      }
+    }
+    if (profileUpdate.emailVisibility !== undefined)
+      update.emailVisibility = profileUpdate.emailVisibility;
+    if (profileUpdate.phoneVisibility !== undefined)
+      update.phoneVisibility = profileUpdate.phoneVisibility;
+
+    // Clip giới thiệu: chỉ nhận KEY, xác nhận qua HeadObject rồi lưu URL — y như avatar.
+    if (profileUpdate.introVideoKey === null) {
+      // Gỡ clip thì gỡ luôn ảnh bìa: ảnh bìa không có clip là một ô hỏng trên hồ sơ.
+      update.introVideoUrl = null;
+      update.introVideoThumbnailUrl = null;
+    } else if (profileUpdate.introVideoKey !== undefined) {
+      update.introVideoUrl = await withStorageValidation(
+        'profile.introVideoKey',
+        () =>
+          this.storage.confirmIntroVideoUpload(
+            user.globalId,
+            profileUpdate.introVideoKey as string,
+          ),
+      );
+    }
+    if (
+      profileUpdate.introVideoThumbnailKey !== undefined &&
+      profileUpdate.introVideoKey !== null
+    ) {
+      if (profileUpdate.introVideoThumbnailKey === null)
+        update.introVideoThumbnailUrl = null;
+      else {
+        if (!update.introVideoUrl && !user.introVideoUrl)
+          throw new ValidationFailedException([
+            'profile.introVideoThumbnailKey: hồ sơ chưa có clip giới thiệu',
+          ]);
+        update.introVideoThumbnailUrl = await withStorageValidation(
+          'profile.introVideoThumbnailKey',
+          () =>
+            this.storage.confirmIntroThumbnailUpload(
+              user.globalId,
+              profileUpdate.introVideoThumbnailKey as string,
+            ),
+        );
+      }
+    }
+
     await this.userRepository.update({ globalId: command.userId }, update);
 
     const profile = await this.userRepository.findOneByOrFail({
@@ -125,4 +186,10 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
 
     return { profile: toOwnProfileDto(profile) };
   }
+}
+
+/** Chuỗi trắng cũng là "xoá": ô slogan chỉ có dấu cách không phải một slogan. */
+function blankToNull(value: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
