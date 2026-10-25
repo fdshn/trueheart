@@ -1,4 +1,7 @@
-import { SelectRequesterNotAllowedException } from '@/domain/exceptions';
+import {
+  ClassifiedTransactionNotSupportedException,
+  SelectRequesterNotAllowedException,
+} from '@/domain/exceptions';
 import { IGiftRequestRepository } from '@/domain/ports/repository';
 import { MaxBatchAcceptRequests } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
@@ -12,8 +15,17 @@ const ReqB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const UserA = 'a1111111-1111-4111-8111-111111111111';
 const UserB = 'b1111111-1111-4111-8111-111111111111';
 
-function makeDeps(outcome?: unknown) {
+function makeDeps(outcome?: unknown, postType = 'OFFER') {
   return {
+    posts: {
+      findOneBy: jest.fn().mockResolvedValue({
+        globalId: PostId,
+        authorId: GiverId,
+        postType,
+        deletedAt: null,
+      }),
+    },
+    adminConfig: { getConfigValue: jest.fn().mockResolvedValue(0) },
     repo: {
       acceptRequestsBatch: jest.fn().mockResolvedValue(
         outcome ?? {
@@ -65,9 +77,24 @@ const build = (deps: ReturnType<typeof makeDeps>) =>
     deps.repo,
     deps.entitlements as never,
     deps.notifier,
+    deps.posts as never,
+    deps.adminConfig as never,
   );
 
 describe('BatchAcceptRequestsUseCase', () => {
+  it('Rao vặt: chặn như duyệt từng cái, không chạm tới lô (PR #46 §8)', async () => {
+    const deps = makeDeps(undefined, 'CLASSIFIED');
+
+    await expect(
+      build(deps).handle({
+        postId: PostId,
+        userId: GiverId,
+        requestIds: [ReqA],
+      }),
+    ).rejects.toBeInstanceOf(ClassifiedTransactionNotSupportedException);
+    expect(deps.repo.acceptRequestsBatch).not.toHaveBeenCalled();
+  });
+
   it('giao cả lô cho MỘT lượt gọi repository, không lặp từng cái', async () => {
     // Đây là toàn bộ lý do use case này tồn tại: một vòng lặp gọi `acceptRequest`
     // tự phá chính nó khi suất cuối cạn.
@@ -84,6 +111,7 @@ describe('BatchAcceptRequestsUseCase', () => {
       postId: PostId,
       actorUserId: GiverId,
       requestIds: [ReqA, ReqB],
+      allowClassified: true,
     });
     expect(result.accepted).toHaveLength(2);
     expect(result.remainingQuantity).toBe(3);

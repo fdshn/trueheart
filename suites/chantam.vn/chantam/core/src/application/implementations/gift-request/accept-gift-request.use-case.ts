@@ -22,6 +22,7 @@ import {
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { assertClassifiedTransactionsAllowed } from '../shared/classified-guard';
 import { AcceptedRequestNotifier } from './accepted-request.notifier';
 
 /**
@@ -41,7 +42,6 @@ import { AcceptedRequestNotifier } from './accepted-request.notifier';
  */
 const SelectRequesterCapability = 'SELECT_REQUESTER';
 
-import { assertClassifiedTransactionsAllowed } from '../shared/classified-guard';
 @Injectable()
 export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
   public constructor(
@@ -113,6 +113,8 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
         postId: command.postId,
         actorUserId: command.userId,
         transactionId,
+        // Guard ở trên đã ném nếu đây là Rao vặt mà luồng cũ đang tắt.
+        allowClassified: true,
       });
 
     // SAU khi lượt trao đã ghi. Người xin đang chờ biết mình có được chọn không.

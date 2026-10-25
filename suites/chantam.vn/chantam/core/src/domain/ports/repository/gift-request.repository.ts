@@ -231,6 +231,12 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
      * tự chọn và lý do của nó cùng commit hoặc cùng mất. Bỏ trống cho lượt chủ bài bấm duyệt.
      */
     readonly selectionAudit?: IRecipientSelectionAudit;
+    /**
+     * Rao vặt không tạo lượt trao mới (PR #46 §8). Chặn NGAY TẠI ĐÂY, dưới khoá hàng, để
+     * không đường gọi nào lách được — `true` chỉ khi nơi gọi đã kiểm Admin bật lại luồng cũ
+     * (`classified.legacy_transactions_enabled = 1`).
+     */
+    readonly allowClassified?: boolean;
   }): Promise<{
     transactionId: string;
     giverId: string;
@@ -269,6 +275,12 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
     actorUserId: string;
     /** Không trùng nhau, và đã kiểm số lượng ở tầng ứng dụng. */
     requestIds: readonly string[];
+    /**
+     * Rao vặt không tạo lượt trao mới (PR #46 §8). Chặn NGAY TẠI ĐÂY, dưới khoá hàng, để
+     * không đường gọi nào lách được — `true` chỉ khi nơi gọi đã kiểm Admin bật lại luồng cũ
+     * (`classified.legacy_transactions_enabled = 1`).
+     */
+    readonly allowClassified?: boolean;
   }): Promise<{
     accepted: {
       requestId: string;

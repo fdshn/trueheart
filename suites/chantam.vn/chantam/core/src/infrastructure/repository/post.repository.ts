@@ -63,6 +63,25 @@ const ModeratableStatuses: readonly string[] = [
   'PENDING_REVIEW',
 ];
 
+/**
+ * Tin Rao vặt chủ bài TỰ đặt "Đã giữ chỗ" hoặc "Tạm ẩn" (PR #46 §8) vẫn phải GỠ được: không
+ * thì người bán đặt RESERVED là có một tin công khai mà Admin và báo cáo không chạm tới, hoặc
+ * ẩn tạm trong lúc báo cáo được xét rồi mở lại. Lý do `RESERVED` bị loại ở trên (lượt trao
+ * đang diễn ra) chỉ đúng khi CÓ lượt trao sống — nên điều kiện kèm theo là không có lượt nào.
+ *
+ * Chỉ để GỠ: mở lại một tin chủ bài đã tự ẩn là quyết thay chủ bài.
+ */
+export const ClassifiedTakedownStatuses: readonly string[] = [
+  'RESERVED',
+  'HIDDEN',
+];
+
+/** Câu con dùng chung: bài có lượt trao còn sống không. `$1` là `global_id` của bài. */
+export const PostHasLiveTransactionSql = `EXISTS (
+  SELECT 1 FROM gift_transactions deal
+   WHERE deal.post_id = $1 AND deal.status IN ('ACCEPTED', 'DELIVERING')
+)`;
+
 export const QuotaStatuses = [
   'PENDING_REVIEW',
   'PUBLISHED',
@@ -472,6 +491,9 @@ export class PostRepository
           AND post_type = 'CLASSIFIED'
           AND deleted_at IS NULL
           AND status = ANY($3::gift_posts_status_enum[])
+          -- Lượt trao kiểu cũ còn sống thì trạng thái thuộc về nó: đổi tay ở đây là mở lại
+          -- một bài hết suất, rồi xoá được bài và huỷ lượt trao của người nhận.
+          AND NOT ${PostHasLiveTransactionSql}
         RETURNING global_id`,
       [params.postId, params.to, params.from],
     );
@@ -581,15 +603,24 @@ export class PostRepository
     command: IModeratePostByAdminCommand,
   ): Promise<IPostEntity | null> {
     return this.manager.transaction(async (manager) => {
-      const [current] = await manager.query<{ status: string }[]>(
+      const [current] = await manager.query<
+        { status: string; post_type: string; has_live: boolean }[]
+      >(
         `
-          SELECT status FROM posts
+          SELECT status, post_type, ${PostHasLiveTransactionSql} AS has_live
+          FROM posts
           WHERE global_id = $1 AND deleted_at IS NULL
           FOR UPDATE
         `,
         [command.postId],
       );
-      if (!current || !ModeratableStatuses.includes(current.status))
+      if (!current) return null;
+      const classifiedTakedown =
+        current.post_type === 'CLASSIFIED' &&
+        ClassifiedTakedownStatuses.includes(current.status) &&
+        !current.has_live &&
+        command.status === GiftPostStatuses.REJECTED;
+      if (!ModeratableStatuses.includes(current.status) && !classifiedTakedown)
         return null;
       // Gọi lại đúng quyết định cũ thì không ghi thêm một dòng audit nói rằng
       // có gì đó vừa đổi.

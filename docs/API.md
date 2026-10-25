@@ -2347,6 +2347,10 @@ Mỗi dòng của `GET /onboarding/tasks` và `POST /onboarding/tasks/evaluate` 
   - Bài hết hạn dùng gia hạn; bài Admin gỡ không tự mở lại.
 - Hai trạng thái bài mới: `SOLD`, `HIDDEN`. Tin `HIDDEN` vẫn **giữ suất đăng bài**, vì mở lại
   không qua phép kiểm quota.
+- Admin gỡ bài và lượt xử lý báo cáo **gỡ được** tin Rao vặt chủ bài tự đặt `RESERVED`/`HIDDEN`
+  (khi không có lượt trao còn sống); Admin không dùng nút kiểm duyệt để mở lại tin đã ẩn.
+- Bài còn lượt trao kiểu cũ đang chạy thì chủ bài không đổi trạng thái tay được
+  (`POST_HAS_LIVE_TRANSACTION`). Duyệt theo lô cũng bị chặn với Rao vặt như duyệt từng cái.
 - ⚠️ Rao vặt hết hạn **vẫn thành bài cho (`OFFER`)** theo CHỐT-05. PR #46 liệt kê `EXPIRED`
   trong vòng đời nhưng không nói bỏ CHỐT-05 — **đang chờ chủ dự án xác nhận**.
 

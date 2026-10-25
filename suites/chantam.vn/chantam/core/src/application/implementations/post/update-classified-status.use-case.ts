@@ -4,10 +4,14 @@ import {
   IUpdateClassifiedStatusUseCase,
 } from '@/application/contracts/post';
 import {
+  PostHasLiveTransactionException,
   PostInvalidStateException,
   PostNotFoundException,
 } from '@/domain/exceptions';
-import { IPostRepository } from '@/domain/ports/repository';
+import {
+  IGiftTransactionRepository,
+  IPostRepository,
+} from '@/domain/ports/repository';
 import {
   ClassifiedOwnerEditableStatuses,
   ClassifiedStatusActions,
@@ -28,6 +32,8 @@ import { Inject, Injectable } from '@nestjs/common';
 export class UpdateClassifiedStatusUseCase implements IUpdateClassifiedStatusUseCase {
   public constructor(
     @Inject(IPostRepository) private readonly posts: IPostRepository,
+    @Inject(IGiftTransactionRepository)
+    private readonly transactions: IGiftTransactionRepository,
   ) {}
 
   public async handle(
@@ -39,6 +45,10 @@ export class UpdateClassifiedStatusUseCase implements IUpdateClassifiedStatusUse
     if (post.authorId !== command.userId) throw new ForbiddenException();
     if (post.postType !== PostTypes.CLASSIFIED)
       throw new PostInvalidStateException();
+    // Bài còn lượt trao kiểu cũ đang chạy (từ trước PR #46): trạng thái do lượt trao quyết.
+    // Câu UPDATE cũng kiểm lại điều này, để một lượt trao vừa mở giữa hai bước không lọt.
+    if (await this.transactions.hasLiveForPost(post.globalId))
+      throw new PostHasLiveTransactionException();
 
     // Điều kiện "từ trạng thái nào" nằm TRONG câu UPDATE: đọc rồi ghi sẽ cho hai lượt bấm
     // song song (Đã bán và Ẩn) cùng thắng trên một bài vừa bị Admin gỡ ở giữa.

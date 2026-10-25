@@ -187,6 +187,99 @@ async function main(): Promise<void> {
         JSON.stringify([DueClassified, DueOffer].sort()),
     );
 
+    console.log('\n3b. Repository tự chặn — không đường gọi nào lách được');
+    const [pending] = await sql(
+      `SELECT global_id FROM gift_requests WHERE post_id = $1`,
+      [DueClassified],
+    );
+    const rejected = async (run: () => Promise<unknown>) => {
+      try {
+        await run();
+        return false;
+      } catch (error) {
+        return (
+          (error as { constructor: { name: string } }).constructor.name ===
+          'ClassifiedTransactionNotSupportedException'
+        );
+      }
+    };
+    check(
+      'duyệt từng cái trên Rao vặt mà không có allowClassified: bị từ chối',
+      await rejected(() =>
+        requests.acceptRequest({
+          requestId: pending.global_id,
+          postId: DueClassified,
+          actorUserId: Seller,
+          transactionId: '7b300000-0000-4000-8000-000000000001',
+        }),
+      ),
+    );
+    check(
+      'duyệt theo lô trên Rao vặt mà không có allowClassified: bị từ chối',
+      await rejected(() =>
+        requests.acceptRequestsBatch({
+          postId: DueClassified,
+          actorUserId: Seller,
+          requestIds: [pending.global_id],
+        }),
+      ),
+    );
+    const [deals] = await sql(
+      `SELECT count(*)::int AS n FROM gift_transactions WHERE post_id = $1`,
+      [DueClassified],
+    );
+    check('không có lượt trao nào được tạo', deals.n === 0);
+
+    console.log('\n3c. Gỡ bài và lượt trao kiểu cũ');
+    const [reservedNoDeal, hiddenNoDeal, reservedWithDeal] = [7, 8, 9].map(
+      (n) => `7b200000-0000-4000-8000-00000000000${n}`,
+    );
+    for (const [postId, status] of [
+      [reservedNoDeal, 'RESERVED'],
+      [hiddenNoDeal, 'HIDDEN'],
+      [reservedWithDeal, 'RESERVED'],
+    ]) {
+      await addPost(postId, 'CLASSIFIED');
+      await sql(`UPDATE posts SET status = $2 WHERE global_id = $1`, [
+        postId,
+        status,
+      ]);
+    }
+    await sql(
+      `INSERT INTO gift_transactions (global_id, post_id, giver_id, receiver_id, status, accepted_at)
+       VALUES (gen_random_uuid(), $1, $2, $3, 'ACCEPTED', now())`,
+      [reservedWithDeal, Seller, Buyer],
+    );
+    const moderate = (postId: string, status: GiftPostStatuses) =>
+      posts.moderateByAdmin({
+        postId,
+        status,
+        actorUserId: Seller,
+        reason: 'Kiểm gỡ tin Rao vặt',
+        expiresAt: null,
+      } as never);
+    check(
+      'Admin gỡ được tin chủ bài tự đặt Đã giữ chỗ / Tạm ẩn',
+      (await moderate(reservedNoDeal, GiftPostStatuses.REJECTED))?.status ===
+        'REJECTED' &&
+        (await moderate(hiddenNoDeal, GiftPostStatuses.REJECTED))?.status ===
+          'REJECTED',
+    );
+    await sql(`UPDATE posts SET status = 'HIDDEN' WHERE global_id = $1`, [
+      hiddenNoDeal,
+    ]);
+    check(
+      'Admin không mở lại thay chủ bài một tin đang tạm ẩn',
+      (await moderate(hiddenNoDeal, GiftPostStatuses.PUBLISHED)) === null,
+    );
+    check(
+      'tin còn lượt trao kiểu cũ: Admin không gỡ ngang, chủ bài không đổi tay',
+      (await moderate(reservedWithDeal, GiftPostStatuses.REJECTED)) === null &&
+        (await to(GiftPostStatuses.PUBLISHED, reservedWithDeal)) === null &&
+        (await posts.findOneBy({ globalId: reservedWithDeal }))?.status ===
+          'RESERVED',
+    );
+
     console.log('\n4. Quota đăng bài');
     // Tin ẩn mở lại được mà không qua phép kiểm quota, nên nó phải chiếm suất ngay khi ẩn:
     // không thì ẩn tin → đăng tin mới → mở lại là vượt quota.

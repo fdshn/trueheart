@@ -142,6 +142,7 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
             `/transactions/${post.postId}/${winner.requesterId}`,
           ),
           selectionAudit: { ...explained, candidateCount: candidates.length },
+          allowClassified: legacyClassified,
         });
 
         // Với auto-select, thông báo còn quan trọng hơn đường duyệt tay: người

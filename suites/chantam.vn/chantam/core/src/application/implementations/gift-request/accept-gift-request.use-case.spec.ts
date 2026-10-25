@@ -143,6 +143,7 @@ describe('AcceptGiftRequestUseCase', () => {
       postId: PostId,
       actorUserId: AuthorId,
       transactionId: expect.any(String),
+      allowClassified: true,
     });
   });
 

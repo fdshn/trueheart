@@ -1,5 +1,6 @@
 import { IAppendPointEntryResult } from '@/application/contracts/point';
 import {
+  ClassifiedTransactionNotSupportedException,
   GiftRequestNotFoundException,
   GiftTransactionInvalidStateException,
   GiftTransactionOutOfStockException,
@@ -709,6 +710,12 @@ export class GiftRequestRepository
      * tự chọn và lý do của nó cùng commit hoặc cùng mất. Bỏ trống cho lượt chủ bài bấm duyệt.
      */
     readonly selectionAudit?: IRecipientSelectionAudit;
+    /**
+     * Rao vặt không tạo lượt trao mới (PR #46 §8). Chặn NGAY TẠI ĐÂY, dưới khoá hàng, để
+     * không đường gọi nào lách được — `true` chỉ khi nơi gọi đã kiểm Admin bật lại luồng cũ
+     * (`classified.legacy_transactions_enabled = 1`).
+     */
+    readonly allowClassified?: boolean;
   }): Promise<{
     transactionId: string;
     /** Vai đã phân giải, để nơi gọi gửi thông báo mà khỏi tự đoán lại. */
@@ -800,6 +807,8 @@ export class GiftRequestRepository
       if (post.author_id !== params.actorUserId) {
         throw new ForbiddenException();
       }
+      if (post.post_type === PostTypes.CLASSIFIED && !params.allowClassified)
+        throw new ClassifiedTransactionNotSupportedException();
 
       // Vai suy từ LOẠI bài, không nhận từ nơi gọi — xem `giftTransactionRoles`.
       // Với bài Muốn Nhận hai vai ĐẢO lại: tác giả là người nhận.
@@ -970,6 +979,12 @@ export class GiftRequestRepository
     /** Người BẤM duyệt — tác giả bài. Vai suy trong hàm, xem `acceptRequest`. */
     actorUserId: string;
     requestIds: readonly string[];
+    /**
+     * Rao vặt không tạo lượt trao mới (PR #46 §8). Chặn NGAY TẠI ĐÂY, dưới khoá hàng, để
+     * không đường gọi nào lách được — `true` chỉ khi nơi gọi đã kiểm Admin bật lại luồng cũ
+     * (`classified.legacy_transactions_enabled = 1`).
+     */
+    readonly allowClassified?: boolean;
   }): Promise<{
     accepted: {
       requestId: string;
@@ -1049,6 +1064,8 @@ export class GiftRequestRepository
 
       const post = postRows[0];
       if (post.author_id !== params.actorUserId) throw new ForbiddenException();
+      if (post.post_type === PostTypes.CLASSIFIED && !params.allowClassified)
+        throw new ClassifiedTransactionNotSupportedException();
       if (post.status !== GiftPostStatuses.PUBLISHED)
         throw new PostInvalidStateException();
 

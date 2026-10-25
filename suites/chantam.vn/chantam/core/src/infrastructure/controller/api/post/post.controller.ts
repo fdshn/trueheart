@@ -397,6 +397,7 @@ export class PostController {
     [PostNotFoundException, 'a3f1c0de-0000-4000-8000-000000000000'],
     ForbiddenException,
     PostInvalidStateException,
+    PostHasLiveTransactionException,
   )
   public async updateClassifiedStatus(
     @CurrentUser() principal: IAuthPrincipal,

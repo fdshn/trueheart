@@ -334,7 +334,7 @@ export class ProfileController {
   @ApiOperation({
     summary: 'Hồ sơ công khai tối thiểu',
     description:
-      'Chạy theo danh sách CHO PHÉP tường minh: username, họ tên, avatar, hạng, số bài đã đăng, điểm tích luỹ và link chia sẻ. Cố ý không trả điểm khả dụng — đó là sức mua của người ta; cũng không trả email, SĐT hay vị trí.',
+      'Chạy theo danh sách CHO PHÉP tường minh: username, họ tên, avatar, hạng, số bài đã đăng, điểm tích luỹ và link chia sẻ. Từ 25/10 thêm slogan, suy nghĩ hôm nay, clip giới thiệu, vị trí bảng Người cho tháng này (`null` khi ẩn danh) và `contacts`. Cố ý không trả điểm khả dụng — đó là sức mua của người ta; không trả vị trí; email và SĐT chỉ có trong `contacts` khi chủ hồ sơ tự đặt `PUBLIC`.',
   })
   @ApiErrorResponses(UserNotFoundException)
   @ApiOkResponse({ type: ResponseDto.forApi(GetPublicProfileResponseDto) })

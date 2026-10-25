@@ -1,5 +1,6 @@
 import {
   ClassifiedTransactionNotSupportedException,
+  PostHasLiveTransactionException,
   PostInvalidStateException,
   PostNotFoundException,
 } from '@/domain/exceptions';
@@ -107,7 +108,11 @@ describe('Rao vặt không duyệt yêu cầu cũ thành lượt trao mới', ()
 });
 
 describe('UpdateClassifiedStatusUseCase', () => {
-  const make = (post: Record<string, unknown> | null = classified()) => {
+  const make = (
+    post: Record<string, unknown> | null = classified(),
+    hasLive = false,
+  ) => {
+    const transactions = { hasLiveForPost: jest.fn(async () => hasLive) };
     const posts = {
       findOneBy: jest.fn(async () => post),
       updateClassifiedStatus: jest.fn(
@@ -119,9 +124,24 @@ describe('UpdateClassifiedStatusUseCase', () => {
     };
     return {
       posts,
-      useCase: new UpdateClassifiedStatusUseCase(posts as never),
+      useCase: new UpdateClassifiedStatusUseCase(
+        posts as never,
+        transactions as never,
+      ),
     };
   };
+
+  it('còn lượt trao kiểu cũ đang chạy: trạng thái do lượt trao quyết, không đổi tay', async () => {
+    const { posts, useCase } = make(
+      classified({ status: GiftPostStatuses.RESERVED, remainingQuantity: 0 }),
+      true,
+    );
+
+    await expect(
+      useCase.handle({ userId: Seller, postId: PostId, status: 'ACTIVE' }),
+    ).rejects.toBeInstanceOf(PostHasLiveTransactionException);
+    expect(posts.updateClassifiedStatus).not.toHaveBeenCalled();
+  });
 
   it.each([
     ['ACTIVE', GiftPostStatuses.PUBLISHED],

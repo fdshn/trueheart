@@ -149,6 +149,10 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
             profileUpdate.introVideoKey as string,
           ),
       );
+      // Clip MỚI mà không kèm ảnh bìa mới: ảnh bìa cũ là khung hình của clip khác, nên bỏ
+      // nó đi. Kèm ảnh bìa thì khối dưới ghi đè.
+      if (update.introVideoUrl !== user.introVideoUrl)
+        update.introVideoThumbnailUrl = null;
     }
     if (
       profileUpdate.introVideoThumbnailKey !== undefined &&

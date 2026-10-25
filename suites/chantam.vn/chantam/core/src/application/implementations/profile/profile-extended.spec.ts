@@ -153,6 +153,23 @@ describe('cập nhật hồ sơ mở rộng (PR #46 §3)', () => {
     );
   });
 
+  it('clip mới không kèm ảnh bìa mới: bỏ ảnh bìa của clip cũ', async () => {
+    const { repository, useCase } = makeUpdate();
+
+    await useCase.handle({
+      userId: UserId,
+      profile: { introVideoKey: `users/${UserId}/intro-videos/v.mp4` },
+    });
+
+    expect(repository.update).toHaveBeenCalledWith(
+      { globalId: UserId },
+      {
+        introVideoUrl: `https://cdn.test/users/${UserId}/intro-videos/v.mp4`,
+        introVideoThumbnailUrl: null,
+      },
+    );
+  });
+
   it('gỡ clip (null) thì gỡ luôn ảnh bìa', async () => {
     const { repository, useCase } = makeUpdate();
 
