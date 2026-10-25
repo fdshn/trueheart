@@ -289,6 +289,44 @@ export const SeedPosts: readonly ISeedPost[] = [
     lat: 21.031,
     remaining: 0,
   },
+  // Rao vặt do chủ bài tự đổi trạng thái (PR #46 §8): đã bán là điểm cuối, tạm ẩn mở lại được.
+  {
+    id: post(18),
+    authorId: Personas.groupOwner,
+    type: 'CLASSIFIED',
+    status: 'SOLD',
+    title: 'Bán xe đạp mini Nhật cũ',
+    description:
+      'Xe đạp mini Nhật bãi, phanh và xích còn tốt. Chủ bài đã đánh dấu Đã bán — test trạng thái cuối của Rao vặt.',
+    categoryId: Categories.other,
+    area: 'Hà Đông, Hà Nội',
+    lng: 105.7772,
+    lat: 20.9731,
+    details: {
+      condition: 'USED',
+      price: 900_000,
+      marketPrice: 1_500_000,
+      negotiable: false,
+    },
+  },
+  {
+    id: post(19),
+    authorId: Personas.giver2,
+    type: 'CLASSIFIED',
+    status: 'HIDDEN',
+    title: 'Bán tủ lạnh Toshiba 180L',
+    description:
+      'Tủ lạnh chạy êm, ngăn đá đông tốt. Chủ bài tạm ẩn tin trong lúc đi vắng — test mở lại tin Rao vặt.',
+    categoryId: Categories.household,
+    area: 'Cầu Giấy, Hà Nội',
+    lng: 105.7951,
+    lat: 21.0341,
+    details: {
+      condition: 'USED',
+      price: 2_500_000,
+      negotiable: true,
+    },
+  },
 ];
 
 /** Giao dịch, đúng một cái cho mỗi trạng thái sống được của `gift_transactions`. */
