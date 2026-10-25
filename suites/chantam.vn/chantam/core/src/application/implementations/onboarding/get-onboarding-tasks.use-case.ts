@@ -8,6 +8,7 @@ import {
   IOnboardingTaskRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
+import { onboardingTaskActionOf } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 
 @Injectable()
@@ -25,9 +26,9 @@ export class GetOnboardingTasksUseCase implements IGetOnboardingTasksUseCase {
     const user = await this.users.findOneBy({ globalId: command.userId });
     if (!user || user.deletedAt) throw new UserNotFoundException();
 
-    const tasks = await this.onboardingTasks.findUserTaskProgress(
-      user.globalId,
-    );
+    const tasks = (
+      await this.onboardingTasks.findUserTaskProgress(user.globalId)
+    ).map((task) => ({ ...task, action: onboardingTaskActionOf(task, user) }));
     const requiredTasks = tasks.filter((t) => t.required);
     const completedRequired = requiredTasks.filter((t) => t.completed).length;
     const isAllCompleted =

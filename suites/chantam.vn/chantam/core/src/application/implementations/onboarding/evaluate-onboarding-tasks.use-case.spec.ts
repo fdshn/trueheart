@@ -125,6 +125,13 @@ describe('EvaluateOnboardingTasksUseCase', () => {
     expect(result.promotedToMember).toBe(true);
     expect(result.currentRank).toBe(UserRanks.MEMBER);
     expect(result.isAllCompleted).toBe(true);
+    // Mỗi dòng tiến độ mang `action` (PR #46 §6) — đã xong thì `null`.
+    expect(result.tasks.every((task) => 'action' in task)).toBe(true);
+    expect(
+      result.tasks
+        .filter((task) => task.completed)
+        .every((task) => task.action === null),
+    ).toBe(true);
   });
   it('rule điểm bị tắt VẪN thăng hạng, và thăng hạng đi TRƯỚC cộng điểm', async () => {
     // Lỗi chặn đã sửa 29/09: cộng điểm từng đứng trước thăng hạng và không nuốt

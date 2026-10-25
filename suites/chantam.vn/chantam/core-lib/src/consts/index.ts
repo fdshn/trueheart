@@ -15,6 +15,7 @@ export * from './group';
 export * from './leaderboard';
 export * from './notification-targets';
 export * from './notification-types';
+export * from './onboarding-task-actions';
 export * from './onboarding-task-evidence';
 export * from './post-selection-modes';
 export * from './post-share';
