@@ -405,7 +405,20 @@ export const SeedTransactions = [
 ] as const;
 
 export async function seedGifting(ctx: ISeedContext): Promise<void> {
+  // Script kiểm migration theo pha (vd. `test:notification-target`) seed trên schema CŨ — như
+  // `seedLeaderboard`: trạng thái bài và bảng chưa có ở schema đó thì bỏ qua phần của nó.
+  const statusRows = await ctx.q<{ label: string }>(
+    `SELECT e.enumlabel AS label FROM pg_enum e
+       JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'gift_posts_status_enum'`,
+  );
+  const knownStatuses = new Set(statusRows.map((row) => row.label));
+  const [auditTable] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.recipient_selection_audits') IS NOT NULL AS ready`,
+  );
+
   for (const item of SeedPosts) {
+    if (!knownStatuses.has(item.status)) continue;
     const total = item.total ?? 1;
     await ctx.q(
       `
@@ -557,7 +570,7 @@ export async function seedGifting(ctx: ISeedContext): Promise<void> {
 
     // Lượt trao đầu tiên do HỆ THỐNG chọn khi hết đồng hồ (PR #46 §9), để có một dòng lý do
     // thật trong `recipient_selection_audits`. Một ứng viên nên lý do là `ONLY_CANDIDATE`.
-    if (n === 1)
+    if (n === 1 && auditTable?.ready)
       await ctx.q(
         `
           INSERT INTO recipient_selection_audits (
