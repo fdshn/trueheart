@@ -10,6 +10,7 @@ import {
   SelectRequesterNotAllowedException,
 } from '@/domain/exceptions';
 import {
+  IAdminConfigRepository,
   IEntitlementRepository,
   IGiftRequestRepository,
   IPostRepository,
@@ -20,7 +21,7 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { AcceptedRequestNotifier } from './accepted-request.notifier';
 
 /**
@@ -40,6 +41,7 @@ import { AcceptedRequestNotifier } from './accepted-request.notifier';
  */
 const SelectRequesterCapability = 'SELECT_REQUESTER';
 
+import { assertClassifiedTransactionsAllowed } from '../shared/classified-guard';
 @Injectable()
 export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
   public constructor(
@@ -50,6 +52,9 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
     @Inject(IEntitlementRepository)
     private readonly entitlementRepository: IEntitlementRepository,
     private readonly acceptedNotifier: AcceptedRequestNotifier,
+    @Optional()
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig?: IAdminConfigRepository,
   ) {}
 
   public async handle(
@@ -66,6 +71,10 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
     if (post.authorId !== command.userId) {
       throw new ForbiddenException();
     }
+
+    // Duyệt yêu cầu là tạo lượt trao — Rao vặt không tạo lượt trao mới, kể cả từ yêu cầu
+    // còn tồn từ trước (PR #46 §8).
+    await assertClassifiedTransactionsAllowed(post, this.adminConfig);
 
     if (post.status !== GiftPostStatuses.PUBLISHED) {
       throw new PostInvalidStateException();

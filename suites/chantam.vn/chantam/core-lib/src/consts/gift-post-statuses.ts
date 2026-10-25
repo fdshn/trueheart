@@ -43,6 +43,10 @@ export enum GiftPostStatuses {
   CANCELLED = 'CANCELLED',
   EXPIRED = 'EXPIRED',
   ARCHIVED = 'ARCHIVED',
+  /** Rao vặt: chủ bài đánh dấu đã bán (PR #46 §8). Không còn hiện công khai. */
+  SOLD = 'SOLD',
+  /** Rao vặt: chủ bài tạm ẩn; mở lại được. Khác `ARCHIVED` (Kho Từ Thiện Chung). */
+  HIDDEN = 'HIDDEN',
 }
 
 /**
@@ -69,3 +73,40 @@ export const PubliclyVisibleGiftPostStatuses: readonly GiftPostStatuses[] = [
   GiftPostStatuses.PUBLISHED,
   GiftPostStatuses.RESERVED,
 ];
+
+/**
+ * Trạng thái Rao vặt chủ bài tự đổi (PR #46 §8). `ACTIVE` là `PUBLISHED` — giữ tên trạng thái
+ * chung của bài để bảng tin, bản đồ, hết hạn và gia hạn không phải biết thêm một tên.
+ */
+export enum ClassifiedStatusActions {
+  ACTIVE = 'ACTIVE',
+  RESERVED = 'RESERVED',
+  SOLD = 'SOLD',
+  HIDDEN = 'HIDDEN',
+}
+
+export const ClassifiedStatusByAction: Readonly<
+  Record<ClassifiedStatusActions, GiftPostStatuses>
+> = {
+  [ClassifiedStatusActions.ACTIVE]: GiftPostStatuses.PUBLISHED,
+  [ClassifiedStatusActions.RESERVED]: GiftPostStatuses.RESERVED,
+  [ClassifiedStatusActions.SOLD]: GiftPostStatuses.SOLD,
+  [ClassifiedStatusActions.HIDDEN]: GiftPostStatuses.HIDDEN,
+};
+
+/**
+ * Trạng thái mà từ đó chủ bài còn đổi được. `SOLD` là điểm cuối; hết hạn đi qua gia hạn, bài bị
+ * Admin gỡ (`REJECTED`) không tự mở lại được.
+ */
+export const ClassifiedOwnerEditableStatuses: readonly GiftPostStatuses[] = [
+  GiftPostStatuses.PUBLISHED,
+  GiftPostStatuses.RESERVED,
+  GiftPostStatuses.HIDDEN,
+];
+
+/**
+ * Bật lại luồng xin nhận/lượt trao cũ cho Rao vặt (INTEGER, 1 = bật). Mặc định 0: Rao vặt chỉ
+ * đăng tin và liên hệ qua chat `DIRECT_POST`.
+ */
+export const ClassifiedLegacyTransactionsConfigKey =
+  'classified.legacy_transactions_enabled';

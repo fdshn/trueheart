@@ -167,8 +167,13 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
     requesterId: string;
   }): Promise<IRedemptionContext | null>;
 
+  /**
+   * Bài đã hết đồng hồ chọn mà còn ứng viên. `includeClassified = false` (mặc định) bỏ qua bài
+   * Rao vặt: Rao vặt không tạo lượt trao mới (PR #46 §8) trừ khi Admin bật lại luồng cũ.
+   */
   findPostsDueForSelection(
     limit: number,
+    includeClassified?: boolean,
   ): Promise<{ postId: string; giverId: string }[]>;
 
   /**

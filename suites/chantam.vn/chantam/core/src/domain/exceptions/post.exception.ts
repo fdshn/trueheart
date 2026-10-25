@@ -54,3 +54,7 @@ export class PostSelectionModeInvalidException extends ExceptionFrom(
 export class PostHasLiveTransactionException extends ExceptionFrom(
   CoreErrors.POST_HAS_LIVE_TRANSACTION,
 ) {}
+
+export class ClassifiedTransactionNotSupportedException extends ExceptionFrom(
+  CoreErrors.CLASSIFIED_TRANSACTION_NOT_SUPPORTED,
+) {}

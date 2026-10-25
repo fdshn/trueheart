@@ -8,7 +8,10 @@ import {
   IAdminConfigRepository,
   IGiftRequestRepository,
 } from '@/domain/ports/repository';
-import { CandidateSelectionConfigKey } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  CandidateSelectionConfigKey,
+  ClassifiedLegacyTransactionsConfigKey,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   AllocationPolicyConfigKey,
   normalizeAllocationPolicy,
@@ -73,8 +76,15 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
       return { due: 0, selected: [], failed: [], skippedByPolicy: true };
     }
 
+    // Rao vặt không tạo lượt trao mới (PR #46 §8): yêu cầu tồn từ trước của bài Rao vặt không
+    // được job tự chốt thành lượt trao, trừ khi Admin bật lại luồng cũ.
+    const legacyClassified =
+      (await this.adminConfig.getConfigValue(
+        ClassifiedLegacyTransactionsConfigKey,
+      )) === 1;
     const due = await this.requests.findPostsDueForSelection(
       command.limit ?? DefaultLimit,
+      legacyClassified,
     );
 
     if (due.length === 0)

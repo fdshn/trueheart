@@ -529,6 +529,7 @@ export class GiftRequestRepository
 
   public async findPostsDueForSelection(
     limit: number,
+    includeClassified = false,
   ): Promise<{ postId: string; giverId: string }[]> {
     const rows = await this.manager.query<
       { post_id: string; giver_id: string }[]
@@ -540,6 +541,7 @@ export class GiftRequestRepository
           AND post.selection_deadline <= now()
           AND post.status = $1
           AND post.deleted_at IS NULL
+          AND ($4::boolean OR post.post_type <> 'CLASSIFIED')
           AND EXISTS (
             SELECT 1 FROM gift_requests candidate
             WHERE candidate.post_id = post.global_id
@@ -549,7 +551,12 @@ export class GiftRequestRepository
         ORDER BY post.selection_deadline ASC
         LIMIT $3
       `,
-      [GiftPostStatuses.PUBLISHED, GiftRequestStatuses.PENDING, limit],
+      [
+        GiftPostStatuses.PUBLISHED,
+        GiftRequestStatuses.PENDING,
+        limit,
+        includeClassified,
+      ],
     );
 
     return rows.map((row) => ({

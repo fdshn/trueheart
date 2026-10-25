@@ -39,6 +39,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager, EntitySchema, Repository } from 'typeorm';
 import { lockEditablePost } from './lock-editable-post';
+import { updateReturning } from './update-returning';
 
 /**
  * Những trạng thái tính vào hạn mức đăng bài.
@@ -453,6 +454,25 @@ export class PostRepository
       .getManyAndCount();
 
     return { items, total };
+  }
+
+  public async updateClassifiedStatus(params: {
+    postId: string;
+    to: GiftPostStatuses;
+    from: GiftPostStatuses[];
+  }): Promise<IPostEntity | null> {
+    const [row] = await updateReturning<{ global_id: string }>(
+      this.manager,
+      `UPDATE posts
+          SET status = $2::gift_posts_status_enum, updated_at = now()
+        WHERE global_id = $1
+          AND post_type = 'CLASSIFIED'
+          AND deleted_at IS NULL
+          AND status = ANY($3::gift_posts_status_enum[])
+        RETURNING global_id`,
+      [params.postId, params.to, params.from],
+    );
+    return row ? this.findOneBy({ globalId: row.global_id }) : null;
   }
 
   public async findAdminPosts(

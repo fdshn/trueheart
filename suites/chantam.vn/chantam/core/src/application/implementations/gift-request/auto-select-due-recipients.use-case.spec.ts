@@ -86,9 +86,10 @@ describe('AutoSelectDueRecipientsUseCase', () => {
       failed: [],
       skippedByPolicy: false,
     });
-    // Vẫn đọc MỘT khoá — `allocation.policy` để biết công tắc có bật không (L23). Khoá
-    // thứ tự ưu tiên thì chưa, vì không có bài nào để xếp.
-    expect(adminConfig.getConfigValue).toHaveBeenCalledTimes(1);
+    // Hai khoá — `allocation.policy` (công tắc, L23) và
+    // `classified.legacy_transactions_enabled` (Rao vặt có vào vòng quét không, PR #46 §8).
+    // Khoá thứ tự ưu tiên thì chưa, vì không có bài nào để xếp.
+    expect(adminConfig.getConfigValue).toHaveBeenCalledTimes(2);
     expect(requests.listCandidateMetrics).not.toHaveBeenCalled();
   });
 
@@ -104,9 +105,10 @@ describe('AutoSelectDueRecipientsUseCase', () => {
 
     await useCase.handle({});
 
-    // Hai lượt đọc: `allocation.policy` (công tắc) và `selection.candidate_priority`
-    // (thứ tự ưu tiên). Cái thứ hai là cái phải đọc MỘT lần cho cả vòng.
-    expect(adminConfig.getConfigValue).toHaveBeenCalledTimes(2);
+    // Ba lượt đọc: `allocation.policy` (công tắc), `classified.legacy_transactions_enabled`
+    // (Rao vặt) và `selection.candidate_priority` (thứ tự ưu tiên). Cái cuối là cái phải đọc
+    // MỘT lần cho cả vòng.
+    expect(adminConfig.getConfigValue).toHaveBeenCalledTimes(3);
   });
 
   it('duyệt đúng yêu cầu của người thắng, không phải id người dùng', async () => {

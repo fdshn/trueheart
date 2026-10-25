@@ -168,6 +168,8 @@ export enum ErrorCodes {
   POST_HAS_LIVE_TRANSACTION = 0x06_0f,
   /** Chủ bài không đủ hạng để chọn tay người nhận (CHỐT-10). */
   SELECT_REQUESTER_NOT_ALLOWED = 0x06_10,
+  /** Rao vặt không tạo yêu cầu xin nhận/lượt trao mới (PR #46 §8). */
+  CLASSIFIED_TRANSACTION_NOT_SUPPORTED = 0x06_11,
 
   // 0x07 — Point / Rank / Referral M4
   POINT_RULE_UNAVAILABLE = 0x07_01,

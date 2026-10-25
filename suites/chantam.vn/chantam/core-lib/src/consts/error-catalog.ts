@@ -408,6 +408,13 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: [3],
   },
 
+  CLASSIFIED_TRANSACTION_NOT_SUPPORTED: {
+    code: ErrorCodes.CLASSIFIED_TRANSACTION_NOT_SUPPORTED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Rao vặt không dùng xin nhận hay giao dịch — hãy nhắn tin trực tiếp cho người bán',
+  },
+
   POST_INVALID_STATE: {
     code: ErrorCodes.POST_INVALID_STATE,
     httpStatus: HttpStatus.CONFLICT,

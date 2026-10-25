@@ -13,6 +13,7 @@ import {
   IRequestCharityTransferUseCase,
   IRequestPostMediaUploadUseCase,
   IReviewCharityTransferUseCase,
+  IUpdateClassifiedStatusUseCase,
   IUpdatePostUseCase,
 } from '@/application/contracts/post';
 import {
@@ -103,6 +104,8 @@ import {
   ReviewCharityTransferBodyDto,
   ReviewCharityTransferParamsDto,
   ReviewCharityTransferResponseDto,
+  UpdateClassifiedStatusBodyDto,
+  UpdateClassifiedStatusResponseDto,
   UpdatePostBodyDto,
   UpdatePostParamsDto,
   UpdatePostResponseDto,
@@ -126,6 +129,8 @@ export class PostController {
     private readonly removePostMediaUseCase: IRemovePostMediaUseCase,
     @Inject(IRenewPostUseCase)
     private readonly renewPostUseCase: IRenewPostUseCase,
+    @Inject(IUpdateClassifiedStatusUseCase)
+    private readonly updateClassifiedStatusUseCase: IUpdateClassifiedStatusUseCase,
     @Inject(IRequestCharityTransferUseCase)
     private readonly requestCharityTransferUseCase: IRequestCharityTransferUseCase,
     @Inject(IReviewCharityTransferUseCase)
@@ -368,6 +373,40 @@ export class PostController {
     return ResponseDto.create<IUpdatePostResponseDto>()
       .succeed()
       .attach(result)
+      .build();
+  }
+
+  @Patch(':postId/classified-status')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Chủ bài đổi trạng thái tin Rao vặt',
+    description:
+      'Rao vặt chỉ đăng tin và liên hệ — hệ thống không quản lý mua bán, nên chủ bài tự đánh dấu: `ACTIVE` (đang bán, lưu là `PUBLISHED`), `RESERVED`, `SOLD`, `HIDDEN`. ' +
+      'Đổi được từ `PUBLISHED`/`RESERVED`/`HIDDEN`; `SOLD` là điểm cuối. Bài hết hạn dùng gia hạn; bài Admin gỡ không tự mở lại. Chỉ bài `CLASSIFIED`.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(UpdateClassifiedStatusResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [PostNotFoundException, 'a3f1c0de-0000-4000-8000-000000000000'],
+    ForbiddenException,
+    PostInvalidStateException,
+  )
+  public async updateClassifiedStatus(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: RenewPostParamsDto,
+    @Body() body: UpdateClassifiedStatusBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.updateClassifiedStatusUseCase.handle({
+          userId: principal.userId,
+          postId: params.postId,
+          status: body.post.status,
+        }),
+      )
       .build();
   }
 

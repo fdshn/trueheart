@@ -1,5 +1,6 @@
 import {
   CharityTransferStatuses,
+  GiftPostStatuses,
   PostTypes,
   PublicDiscoveryPostType,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -279,6 +280,15 @@ export interface IPostRepository extends Repository<IPostEntity> {
    * toàn bộ lý do endpoint này tồn tại tách khỏi discovery.
    */
   findMyPosts(params: IFindMyPostsParams): Promise<IFindMyPostsResult>;
+  /**
+   * Đổi trạng thái bài Rao vặt nếu nó ĐANG ở một trong `from` — kiểm và ghi trong một câu.
+   * `null` khi bài không còn ở trạng thái cho đổi (hoặc không phải Rao vặt, đã xoá).
+   */
+  updateClassifiedStatus(params: {
+    postId: string;
+    to: GiftPostStatuses;
+    from: GiftPostStatuses[];
+  }): Promise<IPostEntity | null>;
   findAdminPosts(params: IFindAdminPostsParams): Promise<IFindAdminPostsResult>;
   findAdminByGlobalId(globalId: string): Promise<IAdminPostSummary | null>;
   /**

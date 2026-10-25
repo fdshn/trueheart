@@ -16,4 +16,5 @@ export * from './remove-post-media.use-case';
 export * from './renew-post.use-case';
 export * from './reorder-post-media.use-case';
 export * from './request-post-media-upload.use-case';
+export * from './update-classified-status.use-case';
 export * from './update-post.use-case';
