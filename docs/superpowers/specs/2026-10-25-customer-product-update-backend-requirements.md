@@ -211,26 +211,25 @@ Chủ bài quản lý trạng thái; liên hệ dùng `DIRECT_POST`. Giữ các 
 
 Dữ liệu legacy không bị xoá. Giữ lịch sử request/transaction cũ, chặn tạo mới sau feature flag, và tài liệu hoá cách client đọc legacy data.
 
-## 9. Chính sách chọn người nhận bài tặng
+## 9. Chính sách chọn người nhận bài cho/nhận
 
-Không áp dụng cho `CLASSIFIED`. Chuẩn hoá các mode dự kiến:
+Không áp dụng cho `CLASSIFIED`. Giữ nguyên contract đã triển khai cho cả `OFFER` và `WANTED`, không tạo enum mới:
 
 ```ts
 enum RecipientSelectionModes {
-  FIRST_COME_FIRST_SERVED = 'FIRST_COME_FIRST_SERVED',
-  OWNER_REVIEW = 'OWNER_REVIEW',
-  AUTO_RANKED = 'AUTO_RANKED',
+  INSTANT = 'INSTANT',
+  OPTIMAL = 'OPTIMAL',
 }
 ```
 
+- `INSTANT`: phản hồi hợp lệ đầu tiên được ghép ngay, tạo transaction và mở Transaction Chat. Nếu chưa có phản hồi, bài vẫn đi qua mốc 7 ngày đầu rồi tự mở thêm 30 ngày.
+- `OPTIMAL`: mode mặc định. `selectionDeadline` được đặt khi bài công khai bằng `publishedAt + 7 ngày`. Hết hạn, backend tự chọn theo bộ tiêu chí Admin đã cấu hình; nếu chưa ghép được ai thì tự mở thêm 30 ngày.
+- `EXTENDED` đã bị loại bỏ. Giai đoạn mở rộng 30 ngày là hành vi tự động, không phải option trên form.
+- Chủ bài tự chọn người không phải một selection mode. Đây là capability `SELECT_REQUESTER`; hiện chủ bài hạng Kim Cương có thể chọn tay trong thời gian xét. Quyền xem danh sách và từ chối request không hợp lệ được kiểm tra riêng.
+
 Job auto-selection phải idempotent, an toàn khi chạy song song, lock để không vượt `remainingQuantity`, bỏ request/user không hợp lệ, tạo transaction + notification + Transaction Chat nhất quán và lưu audit lý do chọn.
 
-Chưa implement `AUTO_RANKED` trước khi chốt:
-
-1. Deadline mặc định/tối đa.
-2. Công thức scoring và tie-breaker.
-3. Xử lý khi không còn requester hợp lệ.
-4. `FIRST_COME_FIRST_SERVED` chọn tức thời hay có thời gian chờ.
+Mobile cần gửi `selectionMode` khi tạo/cập nhật bài `OFFER` hoặc `WANTED`, đồng thời đọc `selectionMode` và `selectionDeadline` trong response để hiển thị đúng trạng thái/countdown. Backend tiếp tục dùng giá trị mặc định `OPTIMAL` cho client cũ không gửi field này.
 
 ## 10. Presence theo tab và trạng thái online
 
