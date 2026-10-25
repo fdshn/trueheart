@@ -13,6 +13,7 @@ export * from './notification';
 export * from './onboarding';
 export * from './point';
 export * from './post';
+export * from './presence';
 export * from './profile';
 export * from './rank';
 export * from './referral';

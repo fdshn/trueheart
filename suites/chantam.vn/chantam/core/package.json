@@ -121,6 +121,7 @@
     "test:classified-lifecycle": "ts-node -r tsconfig-paths/register test/classified-lifecycle.check.ts",
     "test:post-share": "ts-node -r tsconfig-paths/register test/post-share.check.ts",
     "test:auto-select-audit": "ts-node -r tsconfig-paths/register test/auto-select-audit.check.ts",
+    "test:presence": "ts-node -r tsconfig-paths/register test/presence.check.ts",
     "test:admin-rbac": "ts-node -r tsconfig-paths/register test/admin-rbac.check.ts",
     "test:permission-inventory": "ts-node -r tsconfig-paths/register test/permission-inventory.check.ts",
     "test:notification-target": "ts-node -r tsconfig-paths/register test/notification-target.check.ts",

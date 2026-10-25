@@ -30,6 +30,8 @@ const ExpectedPublicRoutes = [
   'GET /posts/sos-urgent',
   // Link chia sẻ mở được khi chưa đăng nhập — cùng ngưỡng xem với chi tiết bài (PR #46 §4).
   'GET /posts/share/:shareCode',
+  // Số người đang ở một tab: chỉ con số, không danh tính (PR #46 §10).
+  'GET /presence/surfaces/:surface',
   'GET /posts/:subjectId/comments',
   'GET /posts/:subjectId/reactions',
   'GET /comments/:commentId/replies',

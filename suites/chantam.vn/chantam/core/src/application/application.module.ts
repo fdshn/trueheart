@@ -23,6 +23,7 @@ import { NotificationUseCaseModule } from './implementations/notification/notifi
 import { OnboardingModule } from './implementations/onboarding/onboarding.module';
 import { PointModule } from './implementations/point/point.module';
 import { PostModule } from './implementations/post/post.module';
+import { PresenceModule } from './implementations/presence/presence.module';
 import { ProfileGateModule } from './implementations/profile/profile-gate.module';
 import { ProfileModule } from './implementations/profile/profile.module';
 import { RankModule } from './implementations/rank/rank.module';
@@ -64,6 +65,7 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
     RankModule,
     LeaderboardModule,
     PostModule,
+    PresenceModule,
     TransactionModule,
     GroupModule,
     MediaModule,
