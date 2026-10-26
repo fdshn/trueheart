@@ -8,7 +8,9 @@ import {
   IGetNearbyPostsResponseDto,
   INearbyPostDto,
   IPostAuthorDto,
+  IPostRequesterPreviewDto,
   IPublicPostMediaDto,
+  NearbyRequesterPreviewLimit,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
@@ -153,6 +155,12 @@ export class GetSosUrgentPostsQueryDto extends OmitType(
   ['isSos'] as const,
 ) {}
 
+export class PostRequesterPreviewDto implements IPostRequesterPreviewDto {
+  @ApiProperty({ format: 'uuid' }) userId: string;
+  @ApiProperty({ example: 'cu-si-minh' }) username: string;
+  @ApiProperty({ type: String, nullable: true }) avatarUrl: string | null;
+}
+
 export class NearbyPostDto implements INearbyPostDto {
   @ApiProperty({ type: () => PostEntity })
   post: IPostEntity;
@@ -174,6 +182,14 @@ export class NearbyPostDto implements INearbyPostDto {
     description: 'Số lượng yêu cầu đang hoạt động',
   })
   requestCount?: number;
+
+  @ApiPropertyOptional({
+    type: () => [PostRequesterPreviewDto],
+    maxItems: NearbyRequesterPreviewLimit,
+    description:
+      'Tối đa 5 người trong CÙNG tập mà `requestCount` đếm, người xin gần nhất trước. Chưa ai xin thì `[]`.',
+  })
+  requesters?: PostRequesterPreviewDto[];
 
   @ApiPropertyOptional({
     enum: GiftRequestStatuses,

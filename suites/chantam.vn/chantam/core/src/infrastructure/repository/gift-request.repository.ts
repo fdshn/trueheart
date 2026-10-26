@@ -25,7 +25,10 @@ import {
   PostTypes,
   UserRanks,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { IPostRequestItemDto } from '@chantam.vn/chantam.core-lib/dto';
+import {
+  IPostRequesterPreviewDto,
+  IPostRequestItemDto,
+} from '@chantam.vn/chantam.core-lib/dto';
 import { IGiftRequestEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { giftTransactionRoles } from '@chantam.vn/chantam.core-lib/models';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
@@ -187,6 +190,65 @@ export class GiftRequestRepository
 
     for (const row of raw) {
       map.set(row.postId, Number(row.cnt));
+    }
+    return map;
+  }
+
+  public async listRecentRequestersByPostIds(
+    postIds: string[],
+    limitPerPost: number,
+  ): Promise<Map<string, IPostRequesterPreviewDto[]>> {
+    const map = new Map<string, IPostRequesterPreviewDto[]>();
+    if (postIds.length === 0) return map;
+
+    // CÙNG bộ lọc trạng thái với `countActiveByPostIds` — lệch nhau là dải avatar hiện người
+    // mà con số không đếm, hoặc ngược lại. Một người chỉ có một yêu cầu đang mở trên một bài,
+    // nên không cần khử trùng theo người.
+    const rows = await this.manager.query<
+      {
+        post_id: string;
+        user_id: string;
+        username: string;
+        avatar_url: string | null;
+      }[]
+    >(
+      `
+        SELECT ranked.post_id, ranked.user_id, ranked.username, ranked.avatar_url
+          FROM (
+            SELECT request.post_id, person.global_id AS user_id, person.username,
+                   person.avatar_url,
+                   row_number() OVER (
+                     PARTITION BY request.post_id
+                     ORDER BY request.created_at DESC, request.id DESC
+                   ) AS position
+              FROM gift_requests request
+              JOIN users person ON person.global_id = request.requester_id
+             WHERE request.post_id = ANY($1::uuid[])
+               AND request.deleted_at IS NULL
+               AND request.status <> ALL($2::gift_requests_status_enum[])
+          ) ranked
+         WHERE ranked.position <= $3
+         ORDER BY ranked.post_id, ranked.position
+      `,
+      [
+        postIds,
+        [
+          GiftRequestStatuses.WITHDRAWN,
+          GiftRequestStatuses.CANCELLED,
+          GiftRequestStatuses.REJECTED,
+        ],
+        limitPerPost,
+      ],
+    );
+
+    for (const row of rows) {
+      const list = map.get(row.post_id) ?? [];
+      list.push({
+        userId: row.user_id,
+        username: row.username,
+        avatarUrl: row.avatar_url,
+      });
+      map.set(row.post_id, list);
     }
     return map;
   }

@@ -229,6 +229,21 @@ describe('GetNearbyPostsUseCase', () => {
       countActiveByPostIds: jest
         .fn()
         .mockResolvedValue(new Map([[post.globalId, 3]])),
+      listRecentRequestersByPostIds: jest.fn().mockResolvedValue(
+        new Map([
+          [
+            post.globalId,
+            [
+              { userId: 'u-3', username: 'nguoi-xin-3', avatarUrl: null },
+              {
+                userId: 'u-2',
+                username: 'nguoi-xin-2',
+                avatarUrl: 'https://cdn.test/a.png',
+              },
+            ],
+          ],
+        ]),
+      ),
       findStatusesByPostIdsAndRequester: jest
         .fn()
         .mockResolvedValue(
@@ -270,6 +285,11 @@ describe('GetNearbyPostsUseCase', () => {
     expect(giftRequests.countActiveByPostIds).toHaveBeenCalledWith([
       post.globalId,
     ]);
+    // Danh sách người xin: MỘT truy vấn cho cả trang, tối đa 5 người mỗi bài.
+    expect(giftRequests.listRecentRequestersByPostIds).toHaveBeenCalledWith(
+      [post.globalId],
+      5,
+    );
     expect(giftRequests.findStatusesByPostIdsAndRequester).toHaveBeenCalledWith(
       [post.globalId],
       '99999999-9999-9999-9999-999999999999',
@@ -287,6 +307,14 @@ describe('GetNearbyPostsUseCase', () => {
           isLocationApproximate: true,
           post: { postType: PostTypes.WANTED },
           requestCount: 3,
+          requesters: [
+            { userId: 'u-3', username: 'nguoi-xin-3', avatarUrl: null },
+            {
+              userId: 'u-2',
+              username: 'nguoi-xin-2',
+              avatarUrl: 'https://cdn.test/a.png',
+            },
+          ],
           myRequestStatus: GiftRequestStatuses.PENDING,
           hasRequested: true,
           reactionCount: 5,
@@ -428,6 +456,7 @@ describe('GetNearbyPostsUseCase', () => {
     } as unknown as jest.Mocked<IPostRepository>;
     const giftRequests = {
       countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      listRecentRequestersByPostIds: jest.fn().mockResolvedValue(new Map()),
       findStatusesByPostIdsAndRequester: jest.fn(),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 
@@ -625,6 +654,7 @@ describe('GetNearbyPostsUseCase', () => {
     } as unknown as jest.Mocked<IPostRepository>;
     const giftRequests = {
       countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      listRecentRequestersByPostIds: jest.fn().mockResolvedValue(new Map()),
       findStatusesByPostIdsAndRequester: jest.fn(),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
     const reactions = makeReactions();
@@ -666,6 +696,7 @@ describe('GetNearbyPostsUseCase', () => {
     } as unknown as jest.Mocked<IPostRepository>;
     const giftRequests = {
       countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      listRecentRequestersByPostIds: jest.fn().mockResolvedValue(new Map()),
       findStatusesByPostIdsAndRequester: jest.fn(),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 
@@ -723,6 +754,7 @@ describe('GetNearbyPostsUseCase', () => {
     } as unknown as jest.Mocked<IPostRepository>;
     const giftRequests = {
       countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      listRecentRequestersByPostIds: jest.fn().mockResolvedValue(new Map()),
       findStatusesByPostIdsAndRequester: jest.fn(),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 
@@ -794,6 +826,7 @@ describe('GetNearbyPostsUseCase', () => {
     } as unknown as jest.Mocked<IPostRepository>;
     const giftRequests = {
       countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      listRecentRequestersByPostIds: jest.fn().mockResolvedValue(new Map()),
       findStatusesByPostIdsAndRequester: jest.fn(),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 
@@ -864,6 +897,7 @@ describe('GetNearbyPostsUseCase', () => {
     } as unknown as jest.Mocked<IPostRepository>;
     const giftRequests = {
       countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      listRecentRequestersByPostIds: jest.fn().mockResolvedValue(new Map()),
       findStatusesByPostIdsAndRequester: jest.fn(),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 
@@ -926,6 +960,7 @@ describe('GetNearbyPostsUseCase', () => {
     } as unknown as jest.Mocked<IPostRepository>;
     const giftRequests = {
       countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      listRecentRequestersByPostIds: jest.fn().mockResolvedValue(new Map()),
       findStatusesByPostIdsAndRequester: jest.fn(),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 
@@ -971,6 +1006,7 @@ describe('GetNearbyPostsUseCase', () => {
     } as unknown as jest.Mocked<IPostRepository>;
     const giftRequests = {
       countActiveByPostIds: jest.fn().mockResolvedValue(new Map()),
+      listRecentRequestersByPostIds: jest.fn().mockResolvedValue(new Map()),
       findStatusesByPostIdsAndRequester: jest.fn(),
     } as unknown as jest.Mocked<IGiftRequestRepository>;
 

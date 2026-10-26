@@ -916,6 +916,10 @@ cuộn feed.
             "rank": "MEMBER", "joinedAt": "2026-09-17T17:59:10.190Z" }
 ```
 
+- Mỗi bài có `requesters`: tối đa 5 người đã xin (`userId`, `username`, `avatarUrl`), lấy từ
+  CÙNG tập yêu cầu mà `requestCount` đếm (bỏ yêu cầu đã rút, huỷ, bị từ chối), người xin gần
+  nhất trước; chưa ai xin thì `[]`. Đây là kênh công khai, nên ai xem bảng tin cũng thấy những
+  người này đã xin (thêm 26/10).
 - **Không bao giờ có `phone` hay `address`.** Feed là kênh công khai, khách chưa đăng nhập
   cũng quét được — lộ ở đây là lộ cho cả internet. `fullName` thì **có** từ 25/10 (đảo CHỐT-11,
   mục 16). Thông tin liên lạc chỉ đi qua

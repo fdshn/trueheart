@@ -3,7 +3,10 @@ import {
   GiftPostStatuses,
   GiftRequestStatuses,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { IPostRequestItemDto } from '@chantam.vn/chantam.core-lib/dto';
+import {
+  IPostRequesterPreviewDto,
+  IPostRequestItemDto,
+} from '@chantam.vn/chantam.core-lib/dto';
 import { IGiftRequestEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
   ICandidateMetrics,
@@ -78,6 +81,14 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
   ): Promise<IGiftRequestEntity | null>;
 
   countActiveByPostIds(postIds: string[]): Promise<Map<string, number>>;
+  /**
+   * Tối đa `limitPerPost` người xin mỗi bài, cùng tập yêu cầu mà `countActiveByPostIds` đếm,
+   * người xin gần nhất trước. MỘT truy vấn cho cả trang.
+   */
+  listRecentRequestersByPostIds(
+    postIds: string[],
+    limitPerPost: number,
+  ): Promise<Map<string, IPostRequesterPreviewDto[]>>;
 
   findStatusesByPostIdsAndRequester(
     postIds: string[],

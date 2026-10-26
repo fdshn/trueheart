@@ -59,6 +59,9 @@ Tóm tắt những gì app phải đổi theo đợt backend 25/10. Chi tiết c
 - **Vì sao hệ thống chọn người nhận:** màn lượt trao gọi
   `GET /transactions/:transactionId/selection-reason`. Có `selection` thì hiện `reasonLabel`
   (câu dựng sẵn) kèm "trong N người xin"; `null` thì chủ bài tự chọn — không hiện gì.
+- **Dải người xin trên bảng tin:** mỗi bài của `GET /posts/nearby` có `requesters` (tối đa 5:
+  `userId`, `username`, `avatarUrl`, người xin gần nhất trước). Hiện "A, B và N người khác đã
+  xin" với N = `requestCount` − số phần tử.
 - **Banner:** tám vị trí mới cho bốn tab Khám phá và bốn màn Phật Pháp. Cùng
   `GET /banners?placement=` và đường click cũ.
 

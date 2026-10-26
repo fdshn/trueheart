@@ -26,7 +26,11 @@ import {
   GiftRequestStatuses,
   ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { IPostAuthorDto } from '@chantam.vn/chantam.core-lib/dto';
+import {
+  IPostAuthorDto,
+  IPostRequesterPreviewDto,
+  NearbyRequesterPreviewLimit,
+} from '@chantam.vn/chantam.core-lib/dto';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import {
@@ -193,6 +197,13 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
       postIds.length > 0
         ? await this.giftRequestRepository.countActiveByPostIds(postIds)
         : new Map<string, number>();
+    const requesters =
+      postIds.length > 0
+        ? await this.giftRequestRepository.listRecentRequestersByPostIds(
+            postIds,
+            NearbyRequesterPreviewLimit,
+          )
+        : new Map<string, IPostRequesterPreviewDto[]>();
     const myStatuses =
       postIds.length > 0 && command.currentUserId
         ? await this.giftRequestRepository.findStatusesByPostIdsAndRequester(
@@ -263,6 +274,7 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
           ),
           author: authorMap.get(post.authorId) ?? null,
           requestCount: requestCounts.get(post.globalId) ?? 0,
+          requesters: requesters.get(post.globalId) ?? [],
           myRequestStatus,
           hasRequested: Boolean(myRequestStatus),
           reactionCount: post.reactionCount,

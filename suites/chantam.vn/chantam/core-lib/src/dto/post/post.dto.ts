@@ -166,6 +166,16 @@ export interface IGetMyPostsResponseDto {
   meta: IPaginationMetaDto;
 }
 
+/** Số người xin hiện kèm mỗi bài trên bảng tin. */
+export const NearbyRequesterPreviewLimit = 5;
+
+/** Một người đã xin bài — đủ để dựng dải avatar "A, B và 3 người khác đã xin". */
+export interface IPostRequesterPreviewDto {
+  userId: string;
+  username: string;
+  avatarUrl: string | null;
+}
+
 export interface INearbyPostDto extends IPostFeedInteractionDto {
   post: IPostEntity;
   /**
@@ -175,6 +185,11 @@ export interface INearbyPostDto extends IPostFeedInteractionDto {
   distanceMeters: number | null;
   isLocationApproximate: true;
   requestCount?: number;
+  /**
+   * Tối đa `NearbyRequesterPreviewLimit` người trong CÙNG tập mà `requestCount` đếm (yêu cầu
+   * còn hoạt động), người xin gần nhất trước. Luôn là mảng; chưa ai xin thì `[]`.
+   */
+  requesters?: IPostRequesterPreviewDto[];
   myRequestStatus?: GiftRequestStatuses | null;
   hasRequested?: boolean;
   /**

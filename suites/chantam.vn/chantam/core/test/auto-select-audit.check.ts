@@ -442,6 +442,51 @@ async function main(): Promise<void> {
         ).selection === null,
     );
 
+    console.log('\n3c. Dải người xin trên bảng tin (nearby)');
+    // Bài 1: một người được chọn (ACCEPTED) + hai người STANDBY — cả ba còn hoạt động.
+    // Bài 2: rút một yêu cầu — người đó phải biến khỏi cả con số lẫn danh sách.
+    await sql(
+      `UPDATE gift_requests SET status = 'WITHDRAWN', withdrawn_at = now()
+        WHERE global_id = $1`,
+      [requestId(2, 0)],
+    );
+    const previewPosts = [postId(1), postId(2)];
+    const [previews, counts, limited] = await Promise.all([
+      requests.listRecentRequestersByPostIds(previewPosts, 5),
+      requests.countActiveByPostIds(previewPosts),
+      requests.listRecentRequestersByPostIds(previewPosts, 2),
+    ]);
+    const [expectedOrder] = await sql(
+      `SELECT array_agg(requester_id::text ORDER BY created_at DESC, id DESC) AS ids
+         FROM gift_requests
+        WHERE post_id = $1 AND status NOT IN ('WITHDRAWN', 'CANCELLED', 'REJECTED')`,
+      [postId(1)],
+    );
+    check(
+      'danh sách khớp con số requestCount ở từng bài, kể cả khi có người rút',
+      previewPosts.every(
+        (post) => (previews.get(post) ?? []).length === counts.get(post),
+      ) &&
+        !(previews.get(postId(2)) ?? []).some(
+          (item) => item.userId === Candidates[0][0],
+        ),
+      JSON.stringify([...counts]),
+    );
+    check(
+      'người xin gần nhất đứng trước, có username và avatarUrl',
+      JSON.stringify(
+        (previews.get(postId(1)) ?? []).map((item) => item.userId),
+      ) === JSON.stringify(expectedOrder.ids) &&
+        (previews.get(postId(1)) ?? []).every(
+          (item) => item.username.startsWith('as_') && 'avatarUrl' in item,
+        ),
+      JSON.stringify(previews.get(postId(1))),
+    );
+    check(
+      'giới hạn mỗi bài được áp riêng cho từng bài',
+      previewPosts.every((post) => (limited.get(post) ?? []).length === 2),
+    );
+
     console.log('\n4. Ràng buộc bảng audit');
     let constraintHeld = false;
     try {
