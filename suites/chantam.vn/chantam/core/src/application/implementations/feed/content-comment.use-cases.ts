@@ -63,6 +63,7 @@ import {
 import { IObjectStorage } from '@chantam/service.storage-lib';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { toPublicAuthorSummary } from '../shared/public-author';
 import { withStorageValidation } from '../shared/storage-error';
 import { isNotifiableSubject, notifyComment } from './feed-notifications';
 import { awardCommentPoint } from './feed-points';
@@ -82,6 +83,13 @@ function toDto(
     authorId: comment.authorId,
     authorUsername: comment.authorUsername,
     authorFullName: comment.authorFullName,
+    // Author summary chuẩn (PR #46 §3.4). Ba trường phẳng ở trên giữ cho client cũ.
+    author: toPublicAuthorSummary({
+      username: comment.authorUsername,
+      fullName: comment.authorFullName,
+      avatarUrl: comment.authorAvatarUrl,
+      rank: comment.authorRank,
+    }),
     // Bình luận đã gỡ giữ chỗ trong cây để chuỗi trả lời bên dưới không mất ngữ
     // cảnh, nhưng nội dung thì không được trả ra nữa.
     body: removed ? '' : comment.body,

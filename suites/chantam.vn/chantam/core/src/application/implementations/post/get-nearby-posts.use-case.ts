@@ -26,8 +26,11 @@ import {
   GiftRequestStatuses,
   ReactionKinds,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { IPostAuthorDto } from '@chantam.vn/chantam.core-lib/dto';
-import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
+import {
+  IPostAuthorDto,
+  IPostRequesterPreviewDto,
+  NearbyRequesterPreviewLimit,
+} from '@chantam.vn/chantam.core-lib/dto';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import {
@@ -37,23 +40,7 @@ import {
   bucketDistance,
 } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-
-/**
- * Bộ trường tác giả được phép ra kênh công khai.
- *
- * Repository trả NGUYÊN hàng user — có cả `email`, `phone`, `fullName`,
- * `passwordHash`. Trả thẳng nó ra feed là lộ hồ sơ của mọi người đăng bài cho
- * bất kỳ ai quét bản đồ. Hàm này là chỗ duy nhất quyết định cái gì đi ra.
- */
-function toPublicAuthor(user: IUserEntity): IPostAuthorDto {
-  return {
-    id: user.globalId,
-    username: user.username,
-    avatarUrl: user.avatarUrl,
-    rank: user.rank,
-    joinedAt: user.createdAt,
-  };
-}
+import { toPublicAuthor } from '../shared/public-author';
 
 @Injectable()
 export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
@@ -210,6 +197,13 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
       postIds.length > 0
         ? await this.giftRequestRepository.countActiveByPostIds(postIds)
         : new Map<string, number>();
+    const requesters =
+      postIds.length > 0
+        ? await this.giftRequestRepository.listRecentRequestersByPostIds(
+            postIds,
+            NearbyRequesterPreviewLimit,
+          )
+        : new Map<string, IPostRequesterPreviewDto[]>();
     const myStatuses =
       postIds.length > 0 && command.currentUserId
         ? await this.giftRequestRepository.findStatusesByPostIdsAndRequester(
@@ -280,6 +274,7 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
           ),
           author: authorMap.get(post.authorId) ?? null,
           requestCount: requestCounts.get(post.globalId) ?? 0,
+          requesters: requesters.get(post.globalId) ?? [],
           myRequestStatus,
           hasRequested: Boolean(myRequestStatus),
           reactionCount: post.reactionCount,

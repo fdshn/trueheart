@@ -166,6 +166,20 @@ export interface IGetMyPostsResponseDto {
   meta: IPaginationMetaDto;
 }
 
+/** Số người xin hiện kèm mỗi bài trên bảng tin. */
+export const NearbyRequesterPreviewLimit = 5;
+
+/**
+ * Một người đã xin bài — đủ để dựng dải avatar "A, B và 3 người khác đã xin".
+ *
+ * Cố ý KHÔNG có `userId`: bảng tin là kênh công khai. Mở hồ sơ người xin bằng
+ * `GET /profile/:username` — username là định danh công khai, id thì không.
+ */
+export interface IPostRequesterPreviewDto {
+  username: string;
+  avatarUrl: string | null;
+}
+
 export interface INearbyPostDto extends IPostFeedInteractionDto {
   post: IPostEntity;
   /**
@@ -175,6 +189,11 @@ export interface INearbyPostDto extends IPostFeedInteractionDto {
   distanceMeters: number | null;
   isLocationApproximate: true;
   requestCount?: number;
+  /**
+   * Tối đa `NearbyRequesterPreviewLimit` người trong CÙNG tập mà `requestCount` đếm (yêu cầu
+   * còn hoạt động), người xin gần nhất trước. Luôn là mảng; chưa ai xin thì `[]`.
+   */
+  requesters?: IPostRequesterPreviewDto[];
   myRequestStatus?: GiftRequestStatuses | null;
   hasRequested?: boolean;
   /**
@@ -250,6 +269,8 @@ export interface IPublicPostMediaDto {
 export interface IPostAuthorDto {
   id: string;
   username: string;
+  /** Công khai từ 25/10/2026 (chủ dự án đảo CHỐT-11). `null` khi chưa khai. */
+  fullName?: string | null;
   avatarUrl?: string | null;
   rank?: string;
   /** Thời điểm tạo tài khoản — hiển thị "Tham gia tháng X năm Y". */
@@ -341,6 +362,31 @@ export interface IRedemptionQuoteResponseDto {
   quote: IRedemptionQuoteDto;
 }
 
+/**
+ * Link chia sẻ bài bằng mã (PR #46 §4). `sharePath` luôn có; `shareUrl` tuyệt đối chỉ có khi
+ * web công khai đã cấu hình — cùng lối `deepLinkPath`/`shareUrl` của lượt chia sẻ.
+ */
+export interface IPostShareLinkDto {
+  shareCode: string;
+  sharePath: string;
+  shareUrl: string | null;
+}
+
+export interface IResolvePostShareParamsDto {
+  shareCode: string;
+}
+
+/** Đủ để client điều hướng đúng màn — chi tiết bài đọc tiếp qua `GET /posts/:postId`. */
+export interface IResolvedPostShareDto {
+  postId: string;
+  postType: PostTypes;
+  status: GiftPostStatuses;
+}
+
+export interface IResolvePostShareResponseDto {
+  post: IResolvedPostShareDto;
+}
+
 export interface IGetPostResponseDto extends IPostFeedInteractionDto {
   /** Owner-only edit capability. Saving must still recheck under a row lock. */
   canEdit?: boolean;
@@ -361,6 +407,7 @@ export interface IGetPostResponseDto extends IPostFeedInteractionDto {
    * tổng số, hỏi breakdown cho 20 bài mỗi lần cuộn là tự làm nặng.
    */
   reactionBreakdown: Partial<Record<ReactionKinds, number>>;
+  share: IPostShareLinkDto;
 }
 
 export interface IGetPostMapQueryDto {

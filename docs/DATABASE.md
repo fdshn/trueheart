@@ -192,7 +192,7 @@ phần dữ liệu riêng của từng loại nằm trong `details` (jsonb).
 | `description` | `text` | |
 | `location` | `geography(Point,4326)` NOT NULL | Index GiST — truy vấn bán kính |
 | `area_label` | `varchar(200)` | Nhãn khu vực hiển thị, làm mờ vị trí chính xác |
-| `status` | `gift_posts_status_enum` NOT NULL | Không có mặc định — use case phải đặt tường minh |
+| `status` | `gift_posts_status_enum` NOT NULL | Không có mặc định — use case phải đặt tường minh. Từ 25/10 có thêm `SOLD`, `HIDDEN` cho Rao vặt (chủ bài tự đổi; `HIDDEN` vẫn giữ suất quota, `SOLD` là điểm cuối) |
 | `total_quantity` | `integer` mặc định `1` | `CHECK > 0` |
 | `remaining_quantity` | `integer` mặc định `1` | `CHECK >= 0 AND <= total_quantity` |
 | `details` | `jsonb` mặc định `'{}'` | Trường riêng theo loại bài |
@@ -201,6 +201,7 @@ phần dữ liệu riêng của từng loại nằm trong `details` (jsonb).
 | `selection_mode` | `posts_selection_mode_enum` NOT NULL | Mặc định `OPTIMAL`. Chỉ có nghĩa với `OFFER` |
 | `selection_deadline` | `timestamptz` NULL | **Lúc đăng + 7 ngày**, đặt ngay khi bài công khai (CHỐT-10). Trước 11/10 chỉ set khi có request đầu tiên, nên bài không ai xin thì `NULL` vĩnh viễn. `NULL` nay nghĩa chưa công khai, hoặc đã ghép được người nên đồng hồ đã dừng |
 | `like_count` | `integer` mặc định `0` | Denormalized đếm từ `post_likes` |
+| `share_code` | `varchar(16)` NOT NULL UNIQUE | Mã chia sẻ 10 ký tự, không tuần tự (25/10). **Postgres sinh** bằng `DEFAULT gen_post_share_code()`, nên mọi lối INSERT có mã mà không phải nêu cột; kiểu tạo bài ở ứng dụng `Omit` trường này |
 
 Bốn index, mỗi cái phục vụ một truy vấn cụ thể:
 
@@ -636,6 +637,15 @@ Ba ràng buộc đáng chú ý, tất cả đặt ở schema chứ không chỉ 
 
 Ba index, mỗi cái cho một truy vấn thật: `(post_id, status)` cho màn hình bài,
 `(giver_id, completed_at)` cho bộ đếm rank, `(status, accepted_at)` cho job tự hoàn tất.
+
+### `recipient_selection_audits` (25/10)
+
+Lý do của mỗi lượt trao do job tự chọn (PR #46 §9). PK `transaction_id` → FK
+`gift_transactions(global_id)` ON DELETE CASCADE, ghi **trong cùng transaction** với lượt trao —
+có lượt trao tự chọn là có đúng một dòng lý do. Lưu `deciding_criterion` (tiêu chí đầu tiên
+tách người thắng khỏi người về nhì, hoặc `REQUEST_ORDER`/`ONLY_CANDIDATE`), `criteria_order`
+đã chuẩn hoá, số đo người thắng và người về nhì **tại thời điểm chọn** (jsonb), `candidate_count`.
+`CHK_recipient_selection_audits_runner_up`: không có người về nhì ⇔ `ONLY_CANDIDATE`.
 
 ---
 

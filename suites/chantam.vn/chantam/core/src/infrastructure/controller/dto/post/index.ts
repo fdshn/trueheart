@@ -1,4 +1,5 @@
 export * from './charity-transfer.dto';
+export * from './classified-status.dto';
 export * from './create-post.dto';
 export * from './get-my-posts.dto';
 export * from './get-nearby-posts.dto';

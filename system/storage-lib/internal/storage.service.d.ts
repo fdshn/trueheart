@@ -12,9 +12,14 @@ export declare const MediaSizeLimits: {
     readonly chatMedia: number;
     readonly commentMedia: number;
     readonly cmsMedia: number;
+    readonly introVideo: number;
+    readonly introThumbnail: number;
 };
+export declare const AllowedIntroVideoContentTypes: Set<string>;
 export declare function getMediaExtension(contentType: string): string;
 export declare function assertAvatarUploadPolicy(request: IStorageUploadRequest): void;
+export declare function assertIntroThumbnailUploadPolicy(request: IStorageUploadRequest): void;
+export declare function assertIntroVideoUploadPolicy(request: IStorageUploadRequest): void;
 export declare function assertPostMediaUploadPolicy(request: IPostMediaUploadRequest): void;
 export declare function assertCampaignMediaUploadPolicy(request: IStorageUploadRequest): void;
 export declare function assertTransactionEvidenceUploadPolicy(request: ITransactionEvidenceUploadRequest): void;
@@ -24,6 +29,8 @@ export declare class StorageService implements IObjectStorage {
     constructor(client: S3Client, options: IStorageModuleOptions);
     private verifyObject;
     confirmAvatarUpload(userId: string, key: string): Promise<string>;
+    confirmIntroVideoUpload(userId: string, key: string): Promise<string>;
+    confirmIntroThumbnailUpload(userId: string, key: string): Promise<string>;
     confirmPostMediaUpload(userId: string, postId: string, key: string): Promise<void>;
     createCampaignMediaUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
     createCmsMediaUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
@@ -35,6 +42,9 @@ export declare class StorageService implements IObjectStorage {
     createCommentMediaUpload(request: ICommentMediaUploadRequest): Promise<IStorageUploadResult>;
     createTransactionEvidenceUpload(request: ITransactionEvidenceUploadRequest): Promise<IStorageUploadResult>;
     createPostMediaUpload(request: IPostMediaUploadRequest): Promise<IStorageUploadResult>;
+    createIntroVideoUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
+    createIntroThumbnailUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
+    private signUpload;
     createAvatarUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
     createChatMediaUpload(request: IChatMediaUploadRequest): Promise<IStorageUploadResult>;
     deleteObjects(keys: readonly string[]): Promise<number>;

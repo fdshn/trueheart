@@ -3,10 +3,21 @@ import {
   GiftPostStatuses,
   GiftRequestStatuses,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { IPostRequestItemDto } from '@chantam.vn/chantam.core-lib/dto';
+import {
+  IPostRequesterPreviewDto,
+  IPostRequestItemDto,
+} from '@chantam.vn/chantam.core-lib/dto';
 import { IGiftRequestEntity } from '@chantam.vn/chantam.core-lib/entities';
-import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
+import {
+  ICandidateMetrics,
+  ICandidateSelectionExplanation,
+} from '@chantam.vn/chantam.core-lib/models';
 import { Repository } from 'typeorm';
+
+/** Lý do một lượt tự chọn (PR #46 §9) — bảng `recipient_selection_audits`. */
+export interface IRecipientSelectionAudit extends ICandidateSelectionExplanation {
+  candidateCount: number;
+}
 
 /**
  * Số đo của ứng viên, kèm khoá của chính bản ghi yêu cầu.
@@ -70,6 +81,14 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
   ): Promise<IGiftRequestEntity | null>;
 
   countActiveByPostIds(postIds: string[]): Promise<Map<string, number>>;
+  /**
+   * Tối đa `limitPerPost` người xin mỗi bài, cùng tập yêu cầu mà `countActiveByPostIds` đếm,
+   * người xin gần nhất trước. MỘT truy vấn cho cả trang.
+   */
+  listRecentRequestersByPostIds(
+    postIds: string[],
+    limitPerPost: number,
+  ): Promise<Map<string, IPostRequesterPreviewDto[]>>;
 
   findStatusesByPostIdsAndRequester(
     postIds: string[],
@@ -167,8 +186,13 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
     requesterId: string;
   }): Promise<IRedemptionContext | null>;
 
+  /**
+   * Bài đã hết đồng hồ chọn mà còn ứng viên. `includeClassified = false` (mặc định) bỏ qua bài
+   * Rao vặt: Rao vặt không tạo lượt trao mới (PR #46 §8) trừ khi Admin bật lại luồng cũ.
+   */
   findPostsDueForSelection(
     limit: number,
+    includeClassified?: boolean,
   ): Promise<{ postId: string; giverId: string }[]>;
 
   /**
@@ -213,6 +237,17 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
       readonly idempotencyKey: string;
       readonly reason: string;
     };
+    /**
+     * Lý do hệ thống tự chọn người này (PR #46 §9). Ghi TRONG transaction này, nên lượt trao
+     * tự chọn và lý do của nó cùng commit hoặc cùng mất. Bỏ trống cho lượt chủ bài bấm duyệt.
+     */
+    readonly selectionAudit?: IRecipientSelectionAudit;
+    /**
+     * Rao vặt không tạo lượt trao mới (PR #46 §8). Chặn NGAY TẠI ĐÂY, dưới khoá hàng, để
+     * không đường gọi nào lách được — `true` chỉ khi nơi gọi đã kiểm Admin bật lại luồng cũ
+     * (`classified.legacy_transactions_enabled = 1`).
+     */
+    readonly allowClassified?: boolean;
   }): Promise<{
     transactionId: string;
     giverId: string;
@@ -251,6 +286,12 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
     actorUserId: string;
     /** Không trùng nhau, và đã kiểm số lượng ở tầng ứng dụng. */
     requestIds: readonly string[];
+    /**
+     * Rao vặt không tạo lượt trao mới (PR #46 §8). Chặn NGAY TẠI ĐÂY, dưới khoá hàng, để
+     * không đường gọi nào lách được — `true` chỉ khi nơi gọi đã kiểm Admin bật lại luồng cũ
+     * (`classified.legacy_transactions_enabled = 1`).
+     */
+    readonly allowClassified?: boolean;
   }): Promise<{
     accepted: {
       requestId: string;

@@ -79,16 +79,19 @@ Nghiệp vụ Chân Tâm
 | `0x0302` | `770` | 403 Forbidden | `USER_SUSPENDED` | Tài khoản đang bị tạm khoá tới 2026-10-01T00:00:00.000Z |
 | `0x0303` | `771` | 403 Forbidden | `USER_BANNED` | Tài khoản đã bị khoá vĩnh viễn |
 | `0x0304` | `772` | 409 Conflict | `USERNAME_TAKEN` | Tên đăng nhập "nguoidung01" đã có người dùng |
-| `0x0305` | `773` | 409 Conflict | `EMAIL_TAKEN` | Email này đã được dùng cho tài khoản khác |
+| `0x0305` | `773` | 409 Conflict | `EMAIL_ALREADY_USED` | Email này đã được dùng cho tài khoản khác |
 | `0x0306` | `774` | 409 Conflict | `PHONE_TAKEN` | Số điện thoại này đã được dùng cho tài khoản khác |
 | `0x0307` | `775` | 401 Unauthorized | `INVALID_CREDENTIALS` | Tên đăng nhập hoặc mật khẩu không đúng |
-| `0x0308` | `776` | 403 Forbidden | `PROFILE_INCOMPLETE` | Cần bổ sung Avatar, Số điện thoại trước khi đăng bài |
+| `0x0308` | `776` | 403 Forbidden | `PROFILE_INCOMPLETE` | Cần bổ sung Avatar, SĐT để tiếp tục |
 | `0x0309` | `777` | 409 Conflict | `USER_HAS_OPEN_TRANSACTIONS` | Còn 2 giao dịch chưa hoàn tất, chưa thể xoá tài khoản |
 | `0x030a` | `778` | 429 Too Many Requests | `LOGIN_THROTTLED` | Sai quá nhiều lần. Thử lại sau 15 phút |
 | `0x030b` | `779` | 403 Forbidden | `ONBOARDING_INCOMPLETE` | Cần hoàn tất onboarding trước khi đăng bài |
 | `0x030c` | `780` | 409 Conflict | `PHONE_ALREADY_VERIFIED` | Số điện thoại này đã từng được xác minh cho một tài khoản khác. Dùng số khác, hoặc liên hệ hỗ trợ nếu đây đúng là số của bạn. |
 | `0x030d` | `781` | 404 Not Found | `VERIFIED_PHONE_NOT_FOUND` | Số này chưa từng được xác minh cho tài khoản nào |
 | `0x030e` | `782` | 409 Conflict | `VERIFIED_PHONE_IN_USE` | Số này đang do tài khoản "nguoidung01" giữ và vẫn còn hiệu lực xác minh. Xử lý tài khoản đó trước — đổi số hoặc khoá — rồi mới giải phóng. |
+| `0x030f` | `783` | 400 Bad Request | `INVALID_EMAIL_FORMAT` | Email không đúng định dạng |
+| `0x0310` | `784` | 409 Conflict | `EMAIL_NOT_VERIFIED` | Email chưa được xác minh |
+| `0x0311` | `785` | 409 Conflict | `EMAIL_REQUIRED` | Hồ sơ chưa có email — thêm email trước khi xác minh |
 | `0x0401` | `1025` | 404 Not Found | `SESSION_NOT_FOUND` | Không tìm thấy phiên đăng nhập |
 | `0x0402` | `1026` | 401 Unauthorized | `REFRESH_TOKEN_INVALID` | Phiên đăng nhập không còn hiệu lực, vui lòng đăng nhập lại |
 | `0x0403` | `1027` | 401 Unauthorized | `REFRESH_TOKEN_EXPIRED` | Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại |
@@ -119,6 +122,7 @@ Nghiệp vụ Chân Tâm
 | `0x060e` | `1550` | 403 Forbidden | `POST_CONTACT_INFO_RESTRICTED` | Thông tin liên hệ chỉ hiển thị với người nhận được chọn trong giai đoạn giao nhận |
 | `0x060f` | `1551` | 409 Conflict | `POST_HAS_LIVE_TRANSACTION` | Bài này đang có lượt trao chưa xong. Đóng lượt trao đó trước rồi mới sửa hoặc gỡ bài được. |
 | `0x0610` | `1552` | 403 Forbidden | `SELECT_REQUESTER_NOT_ALLOWED` | Thứ hạng hiện tại của bạn chưa được tự chọn người nhận. Hết hạn xét, hệ thống sẽ tự chọn theo tiêu chí Ban quản trị cấu hình; bạn vẫn xem được danh sách và từ chối yêu cầu không hợp lệ |
+| `0x0611` | `1553` | 409 Conflict | `CLASSIFIED_TRANSACTION_NOT_SUPPORTED` | Rao vặt không dùng xin nhận hay giao dịch — hãy nhắn tin trực tiếp cho người bán |
 | `0x0701` | `1793` | 409 Conflict | `POINT_RULE_UNAVAILABLE` | Point rule PHONE_VERIFIED_FIRST_TIME không khả dụng |
 | `0x0702` | `1794` | 500 Internal Server Error | `RANK_TIER_UNAVAILABLE` | Không tìm thấy cấu hình tier cho rank SILVER |
 | `0x0703` | `1795` | 409 Conflict | `POINT_DAILY_CAP_REACHED` | Đã đạt giới hạn 3 lần/ngày cho point rule REFERRAL_QUALIFIED |
@@ -155,6 +159,8 @@ Nghiệp vụ Chân Tâm
 | `0x0b07` | `2823` | 404 Not Found | `NOTIFICATION_BROADCAST_NOT_FOUND` | Không tìm thấy lượt gửi thông báo hàng loạt |
 | `0x0b08` | `2824` | 409 Conflict | `NOTIFICATION_BROADCAST_ALREADY_COMPLETED` | Lượt gửi này đã xong. Muốn gửi lại nội dung đó thì tạo một lượt gửi mới |
 | `0x0b09` | `2825` | 409 Conflict | `NOTIFICATION_BROADCAST_IN_PROGRESS` | Lượt gửi này đang được gửi. Theo dõi tiến độ trong danh sách lượt gửi |
+| `0x0b0a` | `2826` | 409 Conflict | `CHAT_DIRECT_POST_NOT_SUPPORTED` | Chỉ nhắn trực tiếp được với bài Rao vặt. Bài cho/nhận dùng nút xin nhận |
+| `0x0b0b` | `2827` | 409 Conflict | `CHAT_DIRECT_POST_SELF` | Không thể nhắn tin với bài của chính mình |
 | `0x0e01` | `3585` | 422 | `CONTENT_BLOCKED_TERMS` | Nội dung có từ ngữ không được phép. Vui lòng viết lại |
 | `0x0e02` | `3586` | 404 Not Found | `CONTENT_COMMENT_NOT_FOUND` | Không tìm thấy bình luận |
 | `0x0e03` | `3587` | 409 Conflict | `CONTENT_EDIT_WINDOW_CLOSED` | Chỉ sửa được bình luận trong 15 phút đầu |
@@ -223,5 +229,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **181 mã lỗi** trên 3 tầng.
+Tổng cộng **187 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

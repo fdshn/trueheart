@@ -1,3 +1,4 @@
+import { GiftRequestNotFoundException } from '@/domain/exceptions';
 import { CandidateSelectionCriteria } from '@chantam.vn/chantam.core-lib/consts';
 import { AutoSelectDueRecipientsUseCase } from './auto-select-due-recipients.use-case';
 
@@ -75,6 +76,53 @@ function makeUseCase(
 }
 
 describe('AutoSelectDueRecipientsUseCase', () => {
+  it('lưu lý do chọn TRONG lượt duyệt: tiêu chí quyết định, người về nhì, số ứng viên (PR #46 §9)', async () => {
+    const { useCase, requests } = makeUseCase({
+      order: [CandidateSelectionCriteria.NEAREST],
+      candidates: [
+        candidate({
+          requestGlobalId: 'req-far',
+          requesterId: 'far',
+          distanceMeters: 9_000,
+          requestId: 1,
+        }),
+        candidate({
+          requestGlobalId: 'req-near',
+          requesterId: 'near',
+          distanceMeters: 100,
+          requestId: 2,
+        }),
+      ],
+    });
+
+    const result = await useCase.handle({});
+
+    const [[accepted]] = requests.acceptRequest.mock.calls;
+    expect(accepted.requestId).toBe('req-near');
+    expect(accepted.selectionAudit).toMatchObject({
+      decidingCriterion: CandidateSelectionCriteria.NEAREST,
+      candidateCount: 2,
+      winner: { requesterId: 'near' },
+      runnerUp: { requesterId: 'far' },
+    });
+    expect(accepted.selectionAudit.order[0]).toBe(
+      CandidateSelectionCriteria.NEAREST,
+    );
+    expect(result.selected[0].reason).toBe(CandidateSelectionCriteria.NEAREST);
+  });
+
+  it('lượt chạy song song đã chốt yêu cầu này trước: bỏ qua, không phải lỗi, không báo trùng', async () => {
+    const { useCase, notifier } = makeUseCase({
+      acceptError: new GiftRequestNotFoundException('req-1'),
+    });
+
+    const result = await useCase.handle({});
+
+    expect(result.failed).toEqual([]);
+    expect(result.selected).toEqual([]);
+    expect(notifier.announce).not.toHaveBeenCalled();
+  });
+
   it('không có bài nào tới hạn thì không đọc gì thêm', async () => {
     const { useCase, requests, adminConfig } = makeUseCase({ due: [] });
 
@@ -86,9 +134,10 @@ describe('AutoSelectDueRecipientsUseCase', () => {
       failed: [],
       skippedByPolicy: false,
     });
-    // Vẫn đọc MỘT khoá — `allocation.policy` để biết công tắc có bật không (L23). Khoá
-    // thứ tự ưu tiên thì chưa, vì không có bài nào để xếp.
-    expect(adminConfig.getConfigValue).toHaveBeenCalledTimes(1);
+    // Hai khoá — `allocation.policy` (công tắc, L23) và
+    // `classified.legacy_transactions_enabled` (Rao vặt có vào vòng quét không, PR #46 §8).
+    // Khoá thứ tự ưu tiên thì chưa, vì không có bài nào để xếp.
+    expect(adminConfig.getConfigValue).toHaveBeenCalledTimes(2);
     expect(requests.listCandidateMetrics).not.toHaveBeenCalled();
   });
 
@@ -104,9 +153,10 @@ describe('AutoSelectDueRecipientsUseCase', () => {
 
     await useCase.handle({});
 
-    // Hai lượt đọc: `allocation.policy` (công tắc) và `selection.candidate_priority`
-    // (thứ tự ưu tiên). Cái thứ hai là cái phải đọc MỘT lần cho cả vòng.
-    expect(adminConfig.getConfigValue).toHaveBeenCalledTimes(2);
+    // Ba lượt đọc: `allocation.policy` (công tắc), `classified.legacy_transactions_enabled`
+    // (Rao vặt) và `selection.candidate_priority` (thứ tự ưu tiên). Cái cuối là cái phải đọc
+    // MỘT lần cho cả vòng.
+    expect(adminConfig.getConfigValue).toHaveBeenCalledTimes(3);
   });
 
   it('duyệt đúng yêu cầu của người thắng, không phải id người dùng', async () => {

@@ -12,7 +12,9 @@ import {
   IReorderPostMediaUseCase,
   IRequestCharityTransferUseCase,
   IRequestPostMediaUploadUseCase,
+  IResolvePostShareUseCase,
   IReviewCharityTransferUseCase,
+  IUpdateClassifiedStatusUseCase,
   IUpdatePostUseCase,
 } from '@/application/contracts/post';
 import {
@@ -100,9 +102,13 @@ import {
   RequestCharityTransferParamsDto,
   RequestCharityTransferResponseDto,
   RequestPostMediaUploadDto,
+  ResolvePostShareParamsDto,
+  ResolvePostShareResponseDto,
   ReviewCharityTransferBodyDto,
   ReviewCharityTransferParamsDto,
   ReviewCharityTransferResponseDto,
+  UpdateClassifiedStatusBodyDto,
+  UpdateClassifiedStatusResponseDto,
   UpdatePostBodyDto,
   UpdatePostParamsDto,
   UpdatePostResponseDto,
@@ -126,6 +132,10 @@ export class PostController {
     private readonly removePostMediaUseCase: IRemovePostMediaUseCase,
     @Inject(IRenewPostUseCase)
     private readonly renewPostUseCase: IRenewPostUseCase,
+    @Inject(IResolvePostShareUseCase)
+    private readonly resolvePostShareUseCase: IResolvePostShareUseCase,
+    @Inject(IUpdateClassifiedStatusUseCase)
+    private readonly updateClassifiedStatusUseCase: IUpdateClassifiedStatusUseCase,
     @Inject(IRequestCharityTransferUseCase)
     private readonly requestCharityTransferUseCase: IRequestCharityTransferUseCase,
     @Inject(IReviewCharityTransferUseCase)
@@ -368,6 +378,41 @@ export class PostController {
     return ResponseDto.create<IUpdatePostResponseDto>()
       .succeed()
       .attach(result)
+      .build();
+  }
+
+  @Patch(':postId/classified-status')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Chủ bài đổi trạng thái tin Rao vặt',
+    description:
+      'Rao vặt chỉ đăng tin và liên hệ — hệ thống không quản lý mua bán, nên chủ bài tự đánh dấu: `ACTIVE` (đang bán, lưu là `PUBLISHED`), `RESERVED`, `SOLD`, `HIDDEN`. ' +
+      'Đổi được từ `PUBLISHED`/`RESERVED`/`HIDDEN`; `SOLD` là điểm cuối. Bài hết hạn dùng gia hạn; bài Admin gỡ không tự mở lại. Chỉ bài `CLASSIFIED`.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(UpdateClassifiedStatusResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [PostNotFoundException, 'a3f1c0de-0000-4000-8000-000000000000'],
+    ForbiddenException,
+    PostInvalidStateException,
+    PostHasLiveTransactionException,
+  )
+  public async updateClassifiedStatus(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: RenewPostParamsDto,
+    @Body() body: UpdateClassifiedStatusBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.updateClassifiedStatusUseCase.handle({
+          userId: principal.userId,
+          postId: params.postId,
+          status: body.post.status,
+        }),
+      )
       .build();
   }
 
@@ -624,6 +669,34 @@ export class PostController {
       .attach(result)
       .build();
   }
+  @Public()
+  @Get('share/:shareCode')
+  @ApiOperation({
+    summary: 'Mở bài từ mã chia sẻ',
+    description:
+      'Trả `postId`, `postType`, `status` để client điều hướng đúng màn (PR #46 §4). Cùng quyền xem với `GET /posts/:postId`; ' +
+      'bài Admin gỡ không mở qua mã, kể cả với chủ bài. Không tăng lượt chia sẻ — lượt chia sẻ ghi qua `POST /posts/:subjectId/shares`.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(ResolvePostShareResponseDto) })
+  @ApiErrorResponses(
+    [ValidationFailedException, ['shareCode: shareCode must be a string']],
+    [PostNotFoundException, 'K7MQ2XRP9A'],
+  )
+  public async resolvePostShare(
+    @Param() params: ResolvePostShareParamsDto,
+    @CurrentUser() principal?: IAuthPrincipal,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.resolvePostShareUseCase.handle({
+          shareCode: params.shareCode,
+          currentUserId: principal?.userId,
+        }),
+      )
+      .build();
+  }
+
   @Public()
   @Get(':postId')
   @ApiOperation({

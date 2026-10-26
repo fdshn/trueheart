@@ -127,3 +127,80 @@ export function pickNextCandidate(
 ): ICandidateMetrics | null {
   return rankCandidates(candidates, configuredOrder)[0] ?? null;
 }
+
+/**
+ * Lý do một người được chọn — để lưu audit (PR #46 §9). `REQUEST_ORDER` khi mọi tiêu chí hoà
+ * và id yêu cầu phá thế hoà; `ONLY_CANDIDATE` khi không có ai để so.
+ */
+export type CandidateSelectionReason =
+  CandidateSelectionCriteria | 'REQUEST_ORDER' | 'ONLY_CANDIDATE';
+
+export interface ICandidateSelectionExplanation {
+  winner: ICandidateMetrics;
+  runnerUp: ICandidateMetrics | null;
+  /** Thứ tự tiêu chí ĐÃ chuẩn hoá — đúng thứ tự đã dùng, không phải bản Admin gõ. */
+  order: CandidateSelectionCriteria[];
+  decidingCriterion: CandidateSelectionReason;
+}
+
+/**
+ * Như `pickNextCandidate`, kèm tiêu chí đầu tiên tách người thắng khỏi người về nhì.
+ *
+ * So với người về NHÌ là đủ: thứ tự là một phép so sánh toàn phần, nên ai đứng sau người
+ * về nhì cũng thua người thắng ở cùng tiêu chí đó hoặc sớm hơn.
+ */
+export function explainCandidateSelection(
+  candidates: readonly ICandidateMetrics[],
+  configuredOrder: readonly unknown[] | null | undefined,
+): ICandidateSelectionExplanation | null {
+  const ranked = rankCandidates(candidates, configuredOrder);
+  const [winner, runnerUp] = ranked;
+  if (!winner) return null;
+
+  const order = normalizeCandidateSelectionOrder(configuredOrder);
+  if (!runnerUp)
+    return {
+      winner,
+      runnerUp: null,
+      order,
+      decidingCriterion: 'ONLY_CANDIDATE',
+    };
+
+  const deciding = order.find(
+    (criterion) => compareBy(criterion, winner, runnerUp) !== 0,
+  );
+  return {
+    winner,
+    runnerUp,
+    order,
+    decidingCriterion: deciding ?? 'REQUEST_ORDER',
+  };
+}
+
+/** Tên tiêu chí cho màn cấu hình và màn audit của Admin. */
+export const CandidateSelectionCriterionLabels: Readonly<
+  Record<CandidateSelectionCriteria, string>
+> = {
+  QUEUE_JOINED_EARLIEST: 'Xin sớm nhất',
+  HIGHEST_RANK: 'Hạng cao nhất',
+  NEAREST: 'Gần điểm hẹn nhất',
+  FEWEST_RECEIVED: 'Nhận ít quà nhất',
+  FEWEST_CANCELLATIONS: 'Ít huỷ lượt trao nhất',
+};
+
+/**
+ * Câu giải thích vì sao người này được chọn — CÙNG một câu cho CMS, người cho và người nhận,
+ * nên client không tự dịch mã. `Record` trên toàn bộ lý do: thêm tiêu chí mà quên câu là lỗi
+ * biên dịch.
+ */
+export const CandidateSelectionReasonLabels: Readonly<
+  Record<CandidateSelectionReason, string>
+> = {
+  QUEUE_JOINED_EARLIEST: 'Xin sớm nhất trong các ứng viên',
+  HIGHEST_RANK: 'Hạng thành viên cao nhất trong các ứng viên',
+  NEAREST: 'Ở gần điểm hẹn nhất trong các ứng viên',
+  FEWEST_RECEIVED: 'Nhận ít quà nhất trong các ứng viên',
+  FEWEST_CANCELLATIONS: 'Ít huỷ lượt trao nhất trong các ứng viên',
+  REQUEST_ORDER: 'Ngang nhau ở mọi tiêu chí — xét theo thứ tự gửi yêu cầu',
+  ONLY_CANDIDATE: 'Là người duy nhất xin nhận',
+};

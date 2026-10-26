@@ -25,3 +25,14 @@ export enum ChatRoomStatuses {
  * là bằng chứng khi có tranh chấp.
  */
 export const ChatRecallWindowMinutes = 5;
+
+/**
+ * Hai loại phòng chat độc lập (PR #46 §7).
+ *
+ * - `TRANSACTION`: mở khi một lượt trao được duyệt; có `transactionId`.
+ * - `DIRECT_POST`: người mua liên hệ người bán về một bài Rao vặt; KHÔNG có giao dịch.
+ */
+export enum ChatRoomTypes {
+  TRANSACTION = 'TRANSACTION',
+  DIRECT_POST = 'DIRECT_POST',
+}

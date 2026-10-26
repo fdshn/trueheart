@@ -1,6 +1,6 @@
 import { IOnboardingTaskRepository } from '@/domain/ports/repository';
 import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
-import { IOnboardingTaskProgressDto } from '@chantam.vn/chantam.core-lib/dto';
+import { IOnboardingTaskProgressRow } from '@chantam.vn/chantam.core-lib/dto';
 import { IOnboardingTaskEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
@@ -30,7 +30,7 @@ export class OnboardingTaskRepository
 
   public async findUserTaskProgress(
     userId: string,
-  ): Promise<IOnboardingTaskProgressDto[]> {
+  ): Promise<IOnboardingTaskProgressRow[]> {
     const rows = await this.manager.query<
       Array<{
         id: string;

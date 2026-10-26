@@ -1,5 +1,10 @@
 import { IGeoPoint } from '@chantam/service.persistency-lib/geo';
-import { UserRanks, UserStatuses } from '../../consts';
+import {
+  ContactVisibilities,
+  LeaderboardBoards,
+  UserRanks,
+  UserStatuses,
+} from '../../consts';
 import { IEntitlementsSummaryDto } from '../entitlement';
 import { IProfileBadgeDto } from '../leaderboard';
 import { IPointSummaryDto } from '../point';
@@ -23,6 +28,52 @@ export interface IUpdateOwnProfileDto {
   defaultLocation?: IGeoPoint | null;
   /** Hiện "Người ẩn danh" trên bảng thành tích tháng. Bỏ trống = giữ nguyên. */
   leaderboardAnonymous?: boolean;
+  /** Bỏ trống = giữ nguyên; `null` hoặc chuỗi trắng = xoá. */
+  slogan?: string | null;
+  /** Đổi chữ thì ghi lại `todayThoughtUpdatedAt`; gửi lại đúng chữ cũ thì mốc giữ nguyên. */
+  todayThought?: string | null;
+  emailVisibility?: ContactVisibilities;
+  phoneVisibility?: ContactVisibilities;
+  /** Key từ `POST /profile/me/intro-video/upload-url` (kind VIDEO). `null` = gỡ clip và ảnh bìa. */
+  introVideoKey?: string | null;
+  /** Key ảnh bìa (kind THUMBNAIL). Cần hồ sơ đang có — hoặc cùng lúc gửi — clip. */
+  introVideoThumbnailKey?: string | null;
+}
+
+/** Hồ sơ mở rộng (PR #46 §3) — dùng chung cho hồ sơ của tôi và hồ sơ công khai. */
+export interface IProfileShowcaseDto {
+  slogan: string | null;
+  todayThought: string | null;
+  todayThoughtUpdatedAt: Date | null;
+  introVideoUrl: string | null;
+  introVideoThumbnailUrl: string | null;
+}
+
+/** Vị trí tháng hiện tại trên bảng Người cho. `rank: null` khi chưa lên bảng. */
+export interface IPublicMonthlyStandingDto {
+  /** `YYYY-MM` */
+  month: string;
+  board: LeaderboardBoards.GIVERS;
+  rank: number | null;
+  count: number;
+}
+
+/** Liên hệ công khai — từng trường `null` trừ khi chủ hồ sơ đặt `PUBLIC`. */
+export interface IPublicContactsDto {
+  email: string | null;
+  phone: string | null;
+}
+
+export interface IRequestIntroVideoUploadDto {
+  kind: IntroVideoUploadKind;
+  contentType: string;
+  contentLength: number;
+}
+
+export type IntroVideoUploadKind = 'VIDEO' | 'THUMBNAIL';
+
+export interface IRequestIntroVideoUploadBodyDto {
+  upload: IRequestIntroVideoUploadDto;
 }
 
 export interface IUpdateOwnProfileBodyDto {
@@ -65,6 +116,13 @@ export interface IOwnProfileDto {
   leaderboardAnonymous?: boolean;
   /** Huy hiệu bảng thành tích còn hạn — gồm cả huy hiệu giành lúc ẩn danh. */
   badges?: IProfileBadgeDto[];
+  slogan?: string | null;
+  todayThought?: string | null;
+  todayThoughtUpdatedAt?: Date | null;
+  introVideoUrl?: string | null;
+  introVideoThumbnailUrl?: string | null;
+  emailVisibility?: ContactVisibilities;
+  phoneVisibility?: ContactVisibilities;
 }
 
 export interface IGetOwnProfileResponseDto {
@@ -98,6 +156,14 @@ export interface IPublicProfileDto {
   rating: IReviewRatingSummaryDto;
   /** Huy hiệu bảng thành tích còn hạn, KHÔNG gồm huy hiệu giành lúc ẩn danh. */
   badges: IProfileBadgeDto[];
+  slogan: string | null;
+  todayThought: string | null;
+  todayThoughtUpdatedAt: Date | null;
+  introVideoUrl: string | null;
+  introVideoThumbnailUrl: string | null;
+  /** `null` khi người này đang ẩn danh trên bảng thành tích. */
+  monthlyStanding: IPublicMonthlyStandingDto | null;
+  contacts: IPublicContactsDto;
 }
 export interface IGetPublicProfileParamsDto {
   username: string;

@@ -4,6 +4,7 @@ import {
   IGetAdminMonthlyLeaderboardUseCase,
   IGetMonthlyLeaderboardUseCase,
   IGetMyLeaderboardPositionsUseCase,
+  ILeaderboardStandingReader,
   IListAdminBadgesUseCase,
   IListLeaderboardExclusionsUseCase,
   IListLeaderboardMonthsUseCase,
@@ -22,6 +23,7 @@ import {
   RevokeLeaderboardBadgeUseCase,
 } from './admin-leaderboard.use-cases';
 import { CloseLeaderboardMonthUseCase } from './close-leaderboard-month.use-case';
+import { LeaderboardStandingReader } from './leaderboard-standing.reader';
 import {
   GetMonthlyLeaderboardUseCase,
   GetMyLeaderboardPositionsUseCase,
@@ -46,6 +48,10 @@ import { ListOwnBadgesUseCase } from './list-own-badges.use-case';
       useClass: ListLeaderboardMonthsUseCase,
     },
     { provide: IListOwnBadgesUseCase, useClass: ListOwnBadgesUseCase },
+    {
+      provide: ILeaderboardStandingReader,
+      useClass: LeaderboardStandingReader,
+    },
     {
       provide: IGetAdminMonthlyLeaderboardUseCase,
       useClass: GetAdminMonthlyLeaderboardUseCase,
@@ -79,6 +85,7 @@ import { ListOwnBadgesUseCase } from './list-own-badges.use-case';
     IListLeaderboardMonthsUseCase,
     ICloseLeaderboardMonthUseCase,
     IListOwnBadgesUseCase,
+    ILeaderboardStandingReader,
     IGetAdminMonthlyLeaderboardUseCase,
     IListLeaderboardExclusionsUseCase,
     ICreateLeaderboardExclusionUseCase,

@@ -38,6 +38,8 @@ const ClosedPostStatuses: readonly GiftPostStatuses[] = [
   GiftPostStatuses.REJECTED,
   GiftPostStatuses.COMPLETED,
   GiftPostStatuses.ARCHIVED,
+  // Rao vặt đã bán là điểm cuối (PR #46 §8).
+  GiftPostStatuses.SOLD,
 ];
 
 @Injectable()

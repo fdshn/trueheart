@@ -50,6 +50,16 @@ export const BannerPlacements = [
   'HOME_INLINE',
   'POST_LIST',
   'MERIT_PAGE',
+  // Bốn tab Khám phá và bốn màn Phật Pháp (PR #46 §13) — cùng tên với `PresenceSurfaces`.
+  // Cúng bái (`DHARMA_WORSHIP`) chưa có: phân hệ chưa được duyệt.
+  'DISCOVERY_GIVING',
+  'DISCOVERY_REQUEST',
+  'DISCOVERY_CHARITY',
+  'DISCOVERY_CLASSIFIED',
+  'DHARMA_HOME',
+  'DHARMA_CHANTING',
+  'DHARMA_FORUM',
+  'DHARMA_MONASTERY',
 ] as const;
 
 export type BannerPlacement = (typeof BannerPlacements)[number];
@@ -60,6 +70,14 @@ export const BannerPlacementLabels: Readonly<Record<BannerPlacement, string>> =
     HOME_INLINE: 'Chen giữa trang chủ',
     POST_LIST: 'Trong danh sách bài',
     MERIT_PAGE: 'Trang Công đức',
+    DISCOVERY_GIVING: 'Khám phá — Cho tặng',
+    DISCOVERY_REQUEST: 'Khám phá — Xin nhận',
+    DISCOVERY_CHARITY: 'Khám phá — Từ thiện',
+    DISCOVERY_CLASSIFIED: 'Khám phá — Rao vặt',
+    DHARMA_HOME: 'Phật Pháp — Trang chủ',
+    DHARMA_CHANTING: 'Phật Pháp — Kinh tụng',
+    DHARMA_FORUM: 'Phật Pháp — Diễn đàn',
+    DHARMA_MONASTERY: 'Phật Pháp — Tự viện',
   };
 
 /** Cùng ba trạng thái của hồ sơ Từ thiện — một lối duyệt cho mọi nội dung chờ duyệt. */

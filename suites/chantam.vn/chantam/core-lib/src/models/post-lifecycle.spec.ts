@@ -3,7 +3,6 @@ import {
   ExtensionWindowDays,
   PostLifetimeMonths,
   addMonthsClamped,
-  expiryConvertsToOffer,
   postExpiryDate,
   postExpiryDateFor,
   selectionDeadlineFrom,
@@ -61,21 +60,6 @@ describe('postExpiryDate', () => {
     expect(postExpiryDate(new Date(2026, 0, 15))).toEqual(
       addMonthsClamped(new Date(2026, 0, 15), PostLifetimeMonths),
     );
-  });
-});
-
-describe('expiryConvertsToOffer', () => {
-  it('chỉ tin rao vặt mới chuyển thành Muốn Tặng khi hết hạn', () => {
-    expect(expiryConvertsToOffer(PostTypes.CLASSIFIED)).toBe(true);
-  });
-
-  it.each([
-    PostTypes.OFFER,
-    PostTypes.WANTED,
-    PostTypes.CHARITY,
-    PostTypes.MERIT,
-  ])('%s thì hết hạn là hết hạn', (postType) => {
-    expect(expiryConvertsToOffer(postType)).toBe(false);
   });
 });
 

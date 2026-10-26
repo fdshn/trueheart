@@ -1,7 +1,9 @@
 export * from './auth';
+export * from './author';
 export * from './category';
 export * from './chat';
 export * from './check-in';
+export * from './dharma';
 export * from './discovery';
 export * from './entitlement';
 export * from './feed';
@@ -12,6 +14,7 @@ export * from './notification';
 export * from './onboarding';
 export * from './point';
 export * from './post';
+export * from './presence';
 export * from './profile';
 export * from './rank';
 export * from './referral';

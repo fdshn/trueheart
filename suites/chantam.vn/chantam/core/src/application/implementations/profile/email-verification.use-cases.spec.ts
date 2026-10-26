@@ -1,6 +1,6 @@
 import {
+  EmailRequiredException,
   OtpInvalidException,
-  UserNotFoundException,
 } from '@/domain/exceptions';
 import { PasswordResetChannels } from '@chantam.vn/chantam.core-lib/dto';
 import { NotImplementedException } from '@chantam/service.common-lib/exception';
@@ -83,7 +83,9 @@ describe('RequestEmailVerificationUseCase', () => {
     expect(deps.otp.issue).not.toHaveBeenCalled();
   });
 
-  it('hồ sơ chưa có email thì không xin mã được', async () => {
+  it('hồ sơ chưa có email thì EMAIL_REQUIRED, không phải "không tìm thấy người dùng"', async () => {
+    // PR #46 §5. Trước 25/10 trả USER_NOT_FOUND — người dùng đang đăng nhập được báo rằng
+    // chính họ không tồn tại.
     const deps = makeDeps({ user: { ...User, email: null } });
 
     await expect(
@@ -92,7 +94,7 @@ describe('RequestEmailVerificationUseCase', () => {
         deps.otp as never,
         deps.sender as never,
       ).handle({ userId: UserId }),
-    ).rejects.toBeInstanceOf(UserNotFoundException);
+    ).rejects.toBeInstanceOf(EmailRequiredException);
   });
 });
 

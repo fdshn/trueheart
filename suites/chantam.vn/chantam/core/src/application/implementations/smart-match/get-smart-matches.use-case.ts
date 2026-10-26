@@ -21,7 +21,6 @@ import {
   IPostAuthorDto,
   SmartMatchReason,
 } from '@chantam.vn/chantam.core-lib/dto';
-import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
   AllocationPolicyConfigKey,
   normalizeAllocationPolicy,
@@ -35,6 +34,7 @@ import {
   bucketDistance,
 } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { toPublicAuthor } from '../shared/public-author';
 import {
   buildSmartMatchReasons,
   extractSmartMatchKeywords,
@@ -46,23 +46,6 @@ const ComplementaryType: Partial<Record<PostTypes, PostTypes>> = {
   [PostTypes.OFFER]: PostTypes.WANTED,
   [PostTypes.WANTED]: PostTypes.OFFER,
 };
-
-/**
- * Bộ trường tác giả được phép ra kênh công khai.
- *
- * Repository trả NGUYÊN hàng user — có cả `email`, `phone`, `fullName`,
- * `passwordHash`. Trả thẳng nó ra feed là lộ hồ sơ của mọi người đăng bài cho
- * bất kỳ ai quét bản đồ. Hàm này là chỗ duy nhất quyết định cái gì đi ra.
- */
-function toPublicAuthor(user: IUserEntity): IPostAuthorDto {
-  return {
-    id: user.globalId,
-    username: user.username,
-    avatarUrl: user.avatarUrl,
-    rank: user.rank,
-    joinedAt: user.createdAt,
-  };
-}
 
 @Injectable()
 export class GetSmartMatchesUseCase implements IGetSmartMatchesUseCase {

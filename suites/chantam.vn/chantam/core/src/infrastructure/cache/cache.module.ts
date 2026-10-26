@@ -1,6 +1,7 @@
-import { IHomeLayoutCache } from '@/domain/ports/cache';
+import { IHomeLayoutCache, IPresenceStore } from '@/domain/ports/cache';
 import { Global, Module } from '@nestjs/common';
 import { HomeLayoutCache } from './home-layout-cache';
+import { PresenceStore } from './presence-store';
 
 /**
  * Đệm nghiệp vụ trên Redis.
@@ -11,7 +12,10 @@ import { HomeLayoutCache } from './home-layout-cache';
  */
 @Global()
 @Module({
-  providers: [{ provide: IHomeLayoutCache, useClass: HomeLayoutCache }],
-  exports: [IHomeLayoutCache],
+  providers: [
+    { provide: IHomeLayoutCache, useClass: HomeLayoutCache },
+    { provide: IPresenceStore, useClass: PresenceStore },
+  ],
+  exports: [IHomeLayoutCache, IPresenceStore],
 })
 export class CacheModule {}

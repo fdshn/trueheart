@@ -64,6 +64,8 @@ export const SupportedSystemConfigKeys = [
   'leaderboard.min_consistency_days',
   'leaderboard.badge_ranks',
   'leaderboard.badge_months',
+  // Rao vặt (PR #46 §8): 1 = bật lại xin nhận/lượt trao cũ cho bài CLASSIFIED.
+  'classified.legacy_transactions_enabled',
 ] as const;
 
 /**
@@ -106,6 +108,7 @@ export const SystemConfigValueRanges: Readonly<
   'leaderboard.min_consistency_days': { min: 1, max: 31 },
   'leaderboard.badge_ranks': { min: 0, max: 2_147_483_647 },
   'leaderboard.badge_months': { min: 1, max: 2_147_483_647 },
+  'classified.legacy_transactions_enabled': { min: 0, max: 1 },
 };
 
 export interface IPublishAdminConfigCommand {

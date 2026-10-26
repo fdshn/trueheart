@@ -1,4 +1,5 @@
 import { IListOwnBadgesUseCase } from '@/application/contracts/leaderboard';
+import { IListUserPostsUseCase } from '@/application/contracts/post';
 import {
   IConfirmEmailVerificationResult,
   IConfirmEmailVerificationUseCase,
@@ -9,12 +10,15 @@ import {
   IRequestAvatarUploadUseCase,
   IRequestEmailVerificationResult,
   IRequestEmailVerificationUseCase,
+  IRequestIntroVideoUploadUseCase,
   IRequestPhoneVerificationResult,
   IRequestPhoneVerificationUseCase,
   IUpdateOwnProfileUseCase,
 } from '@/application/contracts/profile';
 import {
-  EmailTakenException,
+  EmailAlreadyUsedException,
+  EmailRequiredException,
+  InvalidEmailFormatException,
   OtpInvalidException,
   PhoneTakenException,
   UserNotFoundException,
@@ -34,9 +38,19 @@ import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { IStorageUploadResult } from '@chantam/service.storage-lib';
-import { Body, Controller, Get, Inject, Param, Patch } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -50,9 +64,12 @@ import {
   GetOwnProfileResponseDto,
   GetPublicProfileParamsDto,
   GetPublicProfileResponseDto,
+  ListUserPostsQueryDto,
+  ListUserPostsResponseDto,
   RequestAvatarUploadDto,
   RequestAvatarUploadResponseDto,
   RequestEmailVerificationResponseDto,
+  RequestIntroVideoUploadBodyDto,
   RequestPhoneVerificationResponseDto,
   UpdateOwnProfileBodyDto,
   UpdateOwnProfileResponseDto,
@@ -81,6 +98,10 @@ export class ProfileController {
     private readonly updateOwnProfileUseCase: IUpdateOwnProfileUseCase,
     @Inject(IListOwnBadgesUseCase)
     private readonly listOwnBadgesUseCase: IListOwnBadgesUseCase,
+    @Inject(IRequestIntroVideoUploadUseCase)
+    private readonly requestIntroVideoUploadUseCase: IRequestIntroVideoUploadUseCase,
+    @Inject(IListUserPostsUseCase)
+    private readonly listUserPostsUseCase: IListUserPostsUseCase,
   ) {}
 
   @Get('me/badges')
@@ -141,6 +162,35 @@ export class ProfileController {
       .build();
   }
 
+  @Post('me/intro-video/upload-url')
+  @ApiOperation({
+    summary: 'Xin presigned URL tải clip giới thiệu hoặc ảnh bìa của nó',
+    description:
+      '`kind=VIDEO`: video/mp4 hoặc video/quicktime, tối đa 50 MB. `kind=THUMBNAIL`: ảnh bìa do app tạo (JPEG/PNG/WebP, tối đa 2 MB) — server không transcode nên không tự tạo ảnh bìa và không kiểm thời lượng; app tự giới hạn 60 giây. ' +
+      'PUT xong thì gửi `key` trong `PATCH /profile/me` (`introVideoKey`, `introVideoThumbnailKey`). Server không nhận URL tuỳ ý.',
+  })
+  @ApiErrorResponses(...ApiTokenErrors, [
+    ValidationFailedException,
+    ['upload: Clip giới thiệu chỉ nhận video/mp4 hoặc video/quicktime.'],
+  ])
+  @ApiCreatedResponse({
+    type: ResponseDto.forApi(RequestAvatarUploadResponseDto),
+  })
+  public async requestIntroVideoUpload(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: RequestIntroVideoUploadBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.requestIntroVideoUploadUseCase.handle({
+          userId: principal.userId,
+          ...body.upload,
+        }),
+      )
+      .build();
+  }
+
   @Patch('me/phone-verification/request')
   @ApiOperation({
     summary: 'Gửi OTP xác minh SĐT hiện tại',
@@ -198,7 +248,11 @@ export class ProfileController {
     description:
       'Gửi tới địa chỉ đã lưu trong hồ sơ, không nhận địa chỉ từ body. Cần xác minh thì email mới dùng được làm kênh khôi phục mật khẩu — email chưa xác minh khiến luồng quên mật khẩu rơi về ADMIN_SUPPORT. Chưa cấu hình kênh email thì trả 501 chứ KHÔNG âm thầm coi như đã gửi.',
   })
-  @ApiErrorResponses(...ApiTokenErrors, UserNotFoundException)
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    UserNotFoundException,
+    EmailRequiredException,
+  )
   @ApiOkResponse({
     type: ResponseDto.forApi(RequestEmailVerificationResponseDto),
   })
@@ -254,7 +308,8 @@ export class ProfileController {
   @ApiErrorResponses(
     ...ApiTokenErrors,
     [ValidationFailedException, ['profile.email: email không hợp lệ']],
-    EmailTakenException,
+    EmailAlreadyUsedException,
+    InvalidEmailFormatException,
     PhoneTakenException,
     UserNotFoundException,
   )
@@ -279,7 +334,7 @@ export class ProfileController {
   @ApiOperation({
     summary: 'Hồ sơ công khai tối thiểu',
     description:
-      'Chạy theo danh sách CHO PHÉP tường minh: username, họ tên, avatar, hạng, số bài đã đăng, điểm tích luỹ và link chia sẻ. Cố ý không trả điểm khả dụng — đó là sức mua của người ta; cũng không trả email, SĐT hay vị trí.',
+      'Chạy theo danh sách CHO PHÉP tường minh: username, họ tên, avatar, hạng, số bài đã đăng, điểm tích luỹ và link chia sẻ. Từ 25/10 thêm slogan, suy nghĩ hôm nay, clip giới thiệu, vị trí bảng Người cho tháng này (`null` khi ẩn danh) và `contacts`. Cố ý không trả điểm khả dụng — đó là sức mua của người ta; không trả vị trí; email và SĐT chỉ có trong `contacts` khi chủ hồ sơ tự đặt `PUBLIC`.',
   })
   @ApiErrorResponses(UserNotFoundException)
   @ApiOkResponse({ type: ResponseDto.forApi(GetPublicProfileResponseDto) })
@@ -290,6 +345,35 @@ export class ProfileController {
     return ResponseDto.create<IGetPublicProfileResponseDto>()
       .succeed()
       .attach(result)
+      .build();
+  }
+
+  @Public()
+  @Get(':username/posts')
+  @ApiOperation({
+    summary: 'Bài đăng trên hồ sơ của một người',
+    description:
+      'Người khác (kể cả khách) chỉ thấy bài `PUBLISHED`/`RESERVED`; chính chủ thấy mọi bài chưa xoá. Cùng hình dạng bảng tin quanh đây: vị trí đã làm nhiễu, `distanceMeters` luôn `null`, tác giả là author summary và KHÔNG có liên hệ. Mới nhất trước.',
+  })
+  @ApiErrorResponses(UserNotFoundException)
+  @ApiOkResponse({ type: ResponseDto.forApi(ListUserPostsResponseDto) })
+  public async listUserPosts(
+    @CurrentUser() principal: IAuthPrincipal | null,
+    @Param() params: GetPublicProfileParamsDto,
+    @Query() query: ListUserPostsQueryDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.listUserPostsUseCase.handle({
+          username: params.username,
+          viewerId: principal?.userId ?? null,
+          postType: query.postType,
+          status: query.status,
+          page: query.page,
+          pageSize: query.pageSize,
+        }),
+      )
       .build();
   }
 }

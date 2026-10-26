@@ -23,6 +23,7 @@ import { NotificationControllerModule } from './notification/notification.module
 import { OnboardingControllerModule } from './onboarding/onboarding.module';
 import { PointControllerModule } from './point/point.module';
 import { PostControllerModule } from './post/post.module';
+import { PresenceControllerModule } from './presence/presence.module';
 import { ProfileControllerModule } from './profile/profile.module';
 import { RankControllerModule } from './rank/rank.module';
 import { ReferralControllerModule } from './referral/referral.module';
@@ -41,6 +42,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
     MeritControllerModule,
     DharmaControllerModule,
     LeaderboardControllerModule,
+    PresenceControllerModule,
     LunarControllerModule,
     HomeCampaignControllerModule,
     CheckInControllerModule,

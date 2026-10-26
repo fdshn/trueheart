@@ -12,6 +12,11 @@
 > trong hạn chờ.
 > **CHỐT-10 xong cả năm mục** (mục 5 là `npm run test:acceptance`). Không dùng trang này làm
 > bằng chứng tính năng mới đã có; bằng chứng là lượt chạy xanh của script đó.
+>
+> **Cập nhật 25/10/2026 (PR #46):** họ tên công khai (đảo CHỐT-11), hồ sơ công khai mở rộng,
+> Rao vặt chỉ đăng tin và liên hệ, chat trực tiếp theo bài, mã chia sẻ bài, action onboarding,
+> presence theo tab, Dharma Home dạng section, hai bảng xếp hạng Phật Pháp và tám vị trí banner
+> mới — gom ở [mục 16](#16-cập-nhật-sản-phẩm-25102026-pr-46).
 
 Mô tả **các endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
 buộc mà chữ ký hàm không nói ra.
@@ -231,19 +236,23 @@ thấy đúng chỗ mình đã ghim thì mới sửa cho khớp được.
 | `PATCH` | `/profile/me/email-verification/confirm` | Bearer | **Xác nhận OTP, đánh dấu email đã xác minh** |
 | `GET` | `/profile/me/badges` | Bearer | **Mọi huy hiệu bảng thành tích của tôi** — còn hạn, hết hạn, đã gỡ |
 | `GET` | `/profile/:username` | Công khai | Hồ sơ công khai tối thiểu |
+| `GET` | `/profile/:username/posts` | Công khai | **Bài của một người** (mục 16) |
+| `POST` | `/profile/me/intro-video/upload-url` | Bearer | **Presigned URL clip giới thiệu / ảnh bìa** (mục 16) |
 
 **Điều cần biết**
 
 - `GET /profile/:username` chạy theo **danh sách cho phép tường minh**, không phải danh sách
   cấm. Chỉ trả: `username`, `fullName`, `avatarUrl`, `rank`, `publishedGiftPostCount`,
-  `lifetimePoints`, `shareUrl`, `accuracy`, `rating`, `badges`.
+  `lifetimePoints`, `shareUrl`, `accuracy`, `rating`, `badges`, và từ 25/10 thêm `slogan`,
+  `todayThought`, clip giới thiệu, `monthlyStanding`, `contacts` — xem mục 16.
 - `badges` (thêm 24/10) là huy hiệu bảng thành tích **còn hạn**, và **không gồm huy hiệu giành
   lúc ẩn danh** — xem mục "Bảng thành tích tháng". `GET /profile/me` trả cả huy hiệu ẩn danh
   (`isAnonymous: true`) cùng cờ `leaderboardAnonymous`; `PATCH /profile/me` nhận
   `profile.leaderboardAnonymous`.
 - Cố ý **không** trả `balance` — đó là điểm tiêu được của riêng chủ tài khoản, lộ ra kênh
   công khai là lộ sức mua của người ta. Chỉ `lifetime` (điểm tích luỹ) được công khai.
-- Cũng không bao giờ trả email, SĐT, vị trí mặc định hay ledger.
+- Không trả vị trí mặc định hay ledger. Email và SĐT chỉ hiện trong `contacts` khi chủ hồ sơ
+  tự đặt `PUBLIC` (mục 16) — mặc định `PRIVATE`.
 - `shareUrl` chỉ có giá trị khi cấu hình `WEB_PUBLIC_BASE_URL`; chưa cấu hình thì trả `null`
   chứ không bịa tên miền.
 - **SĐT được nắn về E.164 trước khi lưu và trước khi so trùng.** `0912345678`,
@@ -286,6 +295,8 @@ thấy đúng chỗ mình đã ghim thì mới sửa cho khớp được.
   ảo chỉ tốn công gõ, và mỗi tài khoản tự động nhận 224đ + lên hạng Thành viên + kích hoạt 56đ
   cho người mời.
 - ⚠️ **Hệ quả:** không có adapter SMS thì **không ai hoàn tất được onboarding**.
+- Mỗi dòng tiến độ có `action` (`type`, `target`, `params`) để app mở đúng màn — `null` khi
+  task đã xong; `target` thuộc allow-list (mục 16).
 - **Không cần gọi hai endpoint chấm điểm.** `PATCH /profile/me` và
   `PATCH /profile/me/phone-verification/confirm` đều tự ghi bằng chứng, và bằng chứng cuối
   cùng tự kích hoạt phần thưởng. Hai endpoint kia để client xem và chấm lại khi nghi lệch.
@@ -473,26 +484,24 @@ tách hai mốc ra.
 | --- | --- | --- | --- |
 | `POST` | `/posts/:postId/renew` | Bearer, chủ bài | Gia hạn thêm 3 tháng, **tối đa một lần** |
 
-Một lượt quét hết hạn (`npm run post:expire`, chạy từ lịch bên ngoài) làm hai việc khác nhau:
+Một lượt quét hết hạn (`npm run post:expire`, chạy từ lịch bên ngoài) đưa bài quá hạn sang
+`EXPIRED` — **mọi loại bài**, kể cả Rao vặt.
 
-| Loại bài | Khi quá hạn |
-| --- | --- |
-| `CLASSIFIED` | **Thành `OFFER`** kèm hạn mới (CHỐT-05). `price` chuyển thành `estimatedValue`, bỏ `negotiable` |
-| Còn lại | Sang `EXPIRED` |
+> **Đổi 26/10/2026:** chủ dự án bỏ CHỐT-05 cho Rao vặt. Trước đó Rao vặt hết hạn tự chuyển
+> thành bài Muốn Tặng (`OFFER`) và không gia hạn được; nay nó hết hạn và gia hạn như mọi bài,
+> giữ nguyên `price`, `negotiable`, `marketPrice`.
 
 **Những điều dễ hiểu nhầm**
 
-- Rao vặt hết hạn **không biến mất** — nó thành bài đem tặng. Client đang mở danh sách rao
-  vặt sẽ thấy bài "rơi khỏi" danh sách và xuất hiện ở tab Muốn Tặng; đó là đúng ý định.
-- Vòng quét **không đụng** bài `RESERVED`/`DELIVERING`. Hết hạn ngang là cắt ngang một lượt
-  trao đang diễn ra.
+- Vòng quét **không đụng** bài `RESERVED`/`DELIVERING` có lượt trao đang diễn ra — hết hạn
+  ngang là cắt ngang lượt trao. Riêng tin Rao vặt chủ bài **tự** đặt `RESERVED` hoặc `HIDDEN`
+  (không có lượt trao nào) thì vẫn hết hạn: không thì đó là cách giữ tin sống mãi.
 - `POST /posts/:postId/renew` trả **`404`** khi bài thuộc người khác, không phải `403` —
   phân biệt hai trường hợp là cho người lạ dò được id nào có thật.
 - Gia hạn **tính quota như bài mới** (CHỐT-07). Bài đang hiển thị thì không tự chặn mình,
   nhưng bài đã `EXPIRED` phải giành lại chỗ trong hạn mức, nên gia hạn có thể bị từ chối
   bằng `POST_QUOTA_EXCEEDED` dù trước đó bài vẫn sống.
-- Tin rao vặt **không gia hạn được** (`POST_NOT_RENEWABLE`): quy định đã định đoạt số phận
-  của nó theo hướng khác.
+- Tin Rao vặt **gia hạn được** như mọi bài (từ 26/10).
 - Yêu cầu xin nhận bị từ chối ngay khi bài quá `expires_at`, **kể cả khi trạng thái vẫn còn
   là `PUBLISHED`** vì vòng quét chưa chạy. Không có cửa sổ xin nhận trên bài đã chết.
 
@@ -585,7 +594,7 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 
 ### `GET /posts/:postId` — Chi tiết bài đăng & Quyền riêng tư tác giả
 
-- **Bảo mật tác giả ([F80](./FEATURES.md#f80--bảo-vệ-thông-tin-người-cho--contact-info-gating))**: `author` chỉ mang `id`, `username`, `avatarUrl`, `rank`, `joinedAt`. Tuyệt đối không trả `fullName`, `phone`, hay địa chỉ cụ thể ra kênh công khai.
+- **Bảo mật tác giả ([F80](./FEATURES.md#f80--bảo-vệ-thông-tin-người-cho--contact-info-gating))**: `author` mang `id`, `username`, `fullName`, `avatarUrl`, `rank`, `joinedAt`. **`fullName` công khai từ 25/10** — chủ dự án đảo CHỐT-11 (mục 16). Tuyệt đối không trả `phone` hay địa chỉ cụ thể ra kênh công khai.
 - **Thông tin liên lạc (`contactInfo`)**: Chứa `phone` và `address`. CHỈ hiển thị khi caller là chính tác giả (`authorId == currentUserId`) hoặc là người nhận (receiver) đã được duyệt chính thức trong giao dịch đang ở trạng thái `DELIVERING` hoặc `COMPLETED`. Mọi đối tượng khác nhận `contactInfo: null`.
 - **Thống kê tương tác**: Trả về `reactionCount` (tổng người đã bày tỏ, mọi loại), `myReaction` (loại của caller, `null` khi chưa bày tỏ hoặc chưa đăng nhập) và `reactionBreakdown` (số lượt từng loại, đủ để hiện mấy biểu tượng dẫn đầu như Facebook).
 - **Toạ độ cho chính chủ (chốt 28/09)**: Khi `currentUserId == authorId`, response trả **toạ độ
@@ -907,8 +916,13 @@ cuộn feed.
             "rank": "MEMBER", "joinedAt": "2026-09-17T17:59:10.190Z" }
 ```
 
-- **Không bao giờ có `fullName`, `phone` hay `address`.** Feed là kênh công khai, khách chưa
-  đăng nhập cũng quét được — lộ ở đây là lộ cho cả internet. Thông tin liên lạc chỉ đi qua
+- Mỗi bài có `requesters`: tối đa 5 người đã xin (`username`, `avatarUrl`), lấy từ CÙNG tập
+  yêu cầu mà `requestCount` đếm (bỏ yêu cầu đã rút, huỷ, bị từ chối), người xin gần nhất
+  trước; chưa ai xin thì `[]`. **Không có `userId`** — bảng tin là kênh công khai; mở hồ sơ
+  người xin bằng `GET /profile/:username` (công khai). Thêm 26/10.
+- **Không bao giờ có `phone` hay `address`.** Feed là kênh công khai, khách chưa đăng nhập
+  cũng quét được — lộ ở đây là lộ cho cả internet. `fullName` thì **có** từ 25/10 (đảo CHỐT-11,
+  mục 16). Thông tin liên lạc chỉ đi qua
   `contactInfo` của `/posts/{postId}`, và chỉ cho receiver đã được chọn.
 - Tác giả **đã xoá tài khoản vẫn hiện username**; `avatarUrl` về `null`. Xoá tài khoản là xoá
   mềm có ẩn danh, cố ý giữ username để không ai đăng ký đúng tên đó rồi mạo danh trong lịch sử
@@ -2244,3 +2258,196 @@ sẽ báo xanh trong khi mọi request đều lỗi.
 > proxy. `scripts/smoke-test.sh` có biến `SMOKE_DOCS_POLICY` (`public` | `basic` | `hidden`)
 > nhưng đó chỉ là **kỳ vọng của người chạy test**, dùng để kiểm chứng lớp proxy đó, không
 > phải công tắc của server.
+
+---
+
+## 16. Cập nhật sản phẩm 25/10/2026 (PR #46)
+
+Mục này gom mọi thay đổi contract của đợt cập nhật 25/10. Các mục cũ ở trên đã được sửa chỗ
+mâu thuẫn; chi tiết đầy đủ từng trường xem Swagger (`/docs`).
+
+### Đảo CHỐT-11: họ tên công khai
+
+Chủ dự án đảo CHỐT-11 ngày 25/10: **`fullName` công khai** trên mọi kênh đọc — chi tiết bài,
+bảng tin, bản đồ, Smart Match, bình luận, chủ đề Phật Pháp, hồ sơ công khai. Một hình dạng
+author summary dùng chung:
+
+```json
+"author": { "username": "cu-si-minh", "fullName": "Cư sĩ Minh", "avatarUrl": null, "rank": "MEMBER" }
+```
+
+Email, SĐT, địa chỉ **vẫn không bao giờ** nằm trong author summary. Bình luận và chủ đề Phật Pháp
+thêm object `author`, và **giữ** các trường phẳng cũ (`authorUsername`, `authorFullName`,
+`authorId`) để client cũ không vỡ.
+
+### Lỗi có `body` máy đọc được
+
+Từ đợt này, lỗi có thể mang `body` thay vì luôn `null`:
+
+| Mã | Khi nào | `body` |
+| --- | --- | --- |
+| `PROFILE_INCOMPLETE` | Thiếu hồ sơ để xin nhận, mở chat, tạo nhóm | `{ "missingFields": ["avatarUrl", "phone"] }` — cùng mã trường với `PATCH /profile/me` |
+| `INVALID_EMAIL_FORMAT` (0x030f) | `PATCH /profile/me` với email sai dạng | `null` |
+| `EMAIL_ALREADY_USED` (0x0305, đổi tên từ `EMAIL_TAKEN`) | Email đã thuộc tài khoản khác | `null` |
+| `EMAIL_REQUIRED` (0x0311) | Xin OTP xác minh email khi hồ sơ chưa có email | `null` |
+| `EMAIL_NOT_VERIFIED` (0x0310) | Khai sẵn, **chưa ném ở đâu** | — |
+
+### Hồ sơ công khai mở rộng
+
+`PATCH /profile/me` nhận thêm `slogan`, `todayThought`, `introVideoUrl`,
+`introVideoThumbnailUrl`, `emailVisibility`, `phoneVisibility` (`PRIVATE` mặc định | `PUBLIC`).
+
+`GET /profile/:username` trả thêm:
+
+- `slogan`, `todayThought`, `todayThoughtUpdatedAt`, `introVideoUrl`, `introVideoThumbnailUrl`;
+- `monthlyStanding` — vị trí trên bảng `GIVERS` tháng này; `null` khi người đó ẩn danh trên
+  bảng thành tích;
+- `contacts: { email, phone }` — mỗi trường chỉ có giá trị khi chủ hồ sơ để `PUBLIC`.
+
+Clip giới thiệu: `POST /profile/me/intro-video/upload-url` với
+`{ "upload": { "kind": "VIDEO" | "THUMBNAIL", "contentType", "contentLength" } }`. Video
+`video/mp4` hoặc `video/quicktime` tối đa 50 MB; ảnh bìa do client chụp, tối đa 2 MB. Server
+**không** kiểm thời lượng clip — app phải chặn.
+
+`GET /profile/:username/posts` — bài của một người, phân trang. Người khác chỉ thấy bài
+`PUBLISHED`/`RESERVED`; toạ độ luôn làm nhiễu, kể cả khi chủ hồ sơ tự xem (bản chính xác ở
+`/posts/me`).
+
+### Action cho task onboarding
+
+Mỗi dòng của `GET /onboarding/tasks` và `POST /onboarding/tasks/evaluate` có thêm `action`:
+
+```json
+"action": { "type": "APP_ROUTE", "target": "PROFILE_EDIT", "params": { "missingFields": "avatarUrl,phone" } }
+```
+
+- `type`: `APP_ROUTE` | `DEEP_LINK` | `API_ACTION` | `NONE` — hiện chỉ dùng `APP_ROUTE`.
+- `target` luôn thuộc allow-list: `PROFILE_EDIT`, `PHONE_VERIFICATION`.
+- `action` là `null` khi task đã xong.
+- Chưa có số điện thoại thì task xác thực SĐT dẫn về `PROFILE_EDIT` với `missingFields: "phone"`.
+
+### Mã chia sẻ bài
+
+- Mỗi bài có `post.shareCode` — 10 ký tự, không tuần tự, không có 0/O/1/I/L.
+- `GET /posts/:postId` có thêm `share: { shareCode, sharePath: "/p/<mã>", shareUrl }`.
+  `shareUrl` là `null` khi chưa cấu hình `WEB_PUBLIC_BASE_URL`.
+- `GET /posts/share/:shareCode` (công khai) trả `{ "post": { postId, postType, status } }` để
+  client điều hướng. Mã không phân biệt hoa thường.
+- Quyền xem như chi tiết bài. Bài bị Admin gỡ không mở qua mã, kể cả với chủ bài.
+- Mở link **không** tăng `shareCount`; lượt chia sẻ vẫn ghi qua `POST /posts/:subjectId/shares`.
+
+### Rao vặt: chỉ đăng tin và liên hệ
+
+- Bài `CLASSIFIED` **không** nhận yêu cầu xin nhận và không tạo lượt trao mới:
+  `POST /posts/:postId/requests` và duyệt yêu cầu trả `CLASSIFIED_TRANSACTION_NOT_SUPPORTED`
+  (0x0611, 409). Job tự chọn người nhận bỏ qua Rao vặt. Admin bật lại luồng cũ bằng
+  `classified.legacy_transactions_enabled = 1` (mặc định `0`).
+- Chủ bài tự đổi trạng thái: `PATCH /posts/:postId/classified-status` với
+  `{ "post": { "status": "ACTIVE" | "RESERVED" | "SOLD" | "HIDDEN" } }`.
+  - `ACTIVE` được lưu là `PUBLISHED`.
+  - Đổi được từ `PUBLISHED`/`RESERVED`/`HIDDEN`. `SOLD` là điểm cuối.
+  - Bài hết hạn dùng gia hạn; bài Admin gỡ không tự mở lại.
+- Hai trạng thái bài mới: `SOLD`, `HIDDEN`. Tin `HIDDEN` vẫn **giữ suất đăng bài**, vì mở lại
+  không qua phép kiểm quota.
+- Admin gỡ bài và lượt xử lý báo cáo **gỡ được** tin Rao vặt chủ bài tự đặt `RESERVED`/`HIDDEN`
+  (khi không có lượt trao còn sống); Admin không dùng nút kiểm duyệt để mở lại tin đã ẩn.
+- Tin chủ bài tự đặt `RESERVED`/`HIDDEN` vẫn **sửa, thêm/xoá ảnh và gỡ** được như tin đang bán;
+  `canEdit` ở chi tiết bài phản ánh đúng điều đó. `SOLD` không sửa được. (Bài cho/nhận giữ luật
+  cũ: `RESERVED` nghĩa là có lượt trao, chặn sửa/gỡ.)
+- Bài còn lượt trao kiểu cũ đang chạy thì chủ bài không đổi trạng thái, không sửa, không gỡ
+  được (`POST_HAS_LIVE_TRANSACTION`) — kiểm bằng bảng lượt trao, không suy từ trạng thái. Duyệt theo lô cũng bị chặn với Rao vặt như duyệt từng cái.
+- Rao vặt hết hạn thành `EXPIRED` và gia hạn như mọi bài — chủ dự án **bỏ CHỐT-05** cho Rao
+  vặt ngày 26/10. Tin chủ bài tự đặt `RESERVED`/`HIDDEN` cũng hết hạn.
+
+### Chat trực tiếp theo bài Rao vặt
+
+- `POST /chat/direct-post/rooms` với `{ "room": { "postId" } }` mở (hoặc trả lại) phòng giữa
+  người hỏi mua và người bán. Không cần lượt trao.
+- Mỗi cặp (bài, người mua, người bán) có đúng một phòng. Cùng hai người nhưng hai bài khác nhau
+  là hai phòng.
+- Chỉ mở được với bài `CLASSIFIED` đang công khai, không mở với bài của chính mình, và phải qua
+  cổng hồ sơ (`PROFILE_INCOMPLETE`).
+- Mã lỗi: `CHAT_DIRECT_POST_NOT_SUPPORTED` (0x0b0a), `CHAT_DIRECT_POST_SELF` (0x0b0b).
+- Danh sách phòng thêm các trường:
+  - `roomType`: `TRANSACTION` | `DIRECT_POST`;
+  - `transactionId`: `null` với phòng trực tiếp;
+  - `postThumbnailUrl`, `postPrice`, `counterpartAvatarUrl`, `readOnly`.
+- Trong phòng trực tiếp, `giverId` là người bán và `receiverId` là người mua.
+
+### Chọn người nhận: audit lý do và chạy song song
+
+- Mỗi lượt trao do job tạo có một dòng `recipient_selection_audits`, ghi **trong cùng
+  transaction**. Dòng đó gồm tiêu chí đã quyết định, thứ tự tiêu chí, số đo người thắng và người
+  về nhì, và số ứng viên.
+- API đọc (thêm 26/10):
+
+  | Method | Đường dẫn | Quyền | Trả |
+  | --- | --- | --- | --- |
+  | `GET` | `/admin/recipient-selections` | `post.read` | Danh sách, lọc `postId`, `userId` (người được chọn hoặc chủ bài), `decidingCriterion`, `from`/`to` (ISO, `[from, to)`), phân trang; mới nhất trước |
+  | `GET` | `/admin/recipient-selections/:transactionId` | `post.read` | Chi tiết: thứ tự tiêu chí có nhãn, số đo người được chọn và người về nhì **tại lúc chọn** (kèm username) |
+  | `GET` | `/transactions/:transactionId/selection-reason` | Bearer, hai bên của lượt trao | `{ selection: { trigger, decidingCriterion, reasonLabel, candidateCount, selectedAt } }` — **không** có số đo của ai |
+
+  - `reasonLabel` là câu tiếng Việt dựng sẵn (ví dụ "Ở gần điểm hẹn nhất trong các ứng viên"),
+    dùng chung cho CMS và app.
+  - `decidingCriterion` là một trong năm tiêu chí, hoặc `REQUEST_ORDER` (ngang nhau mọi tiêu
+    chí) hay `ONLY_CANDIDATE`.
+  - Lượt chủ bài tự chọn trả `selection: null`. Lượt trao không tồn tại, hoặc người gọi không
+    phải hai bên, nhận 404 `GIFT_TRANSACTION_NOT_FOUND`.
+- Hai lượt job chạy cùng lúc không tạo lượt trao trùng; lượt thua bỏ qua chứ không báo lỗi.
+- Ứng viên bị khoá, đang trong hạn treo hoặc đã xoá không được chọn.
+
+### Presence theo tab
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `PUT` | `/presence/me` | Bearer | Heartbeat `{ "presence": { "surface", "sessionId" } }` |
+| `GET` | `/presence/surfaces/:surface` | Công khai | `{ "presence": { surface, onlineCount, visibleUsers: [] } }` |
+
+- `surface` thuộc allow-list: `DISCOVERY_GIVING`, `DISCOVERY_REQUEST`, `DISCOVERY_CHARITY`,
+  `DISCOVERY_CLASSIFIED`, `DHARMA_HOME`, `DHARMA_CHANTING`, `DHARMA_FORUM`, `DHARMA_MONASTERY`.
+- Gửi khi vào tab và mỗi 60 giây khi app foreground; background thì ngừng, không cần gọi rời
+  tab. Hết 120 giây không heartbeat là tự rời.
+- Lặp **cùng** tab sớm hơn 30 giây thì bỏ qua êm (`refreshed: false`); đổi tab luôn được ghi.
+  Trần 30 heartbeat/phút/người → `TOO_MANY_REQUESTS`.
+- `onlineCount` gộp theo người, không đếm hai thiết bị thành hai người. Khách chưa đăng nhập
+  xem được con số nhưng không được đếm.
+- Phase 1 **không** công khai danh tính: `visibleUsers` luôn rỗng. Dữ liệu chỉ nằm trên Redis
+  có TTL; không ghi PostgreSQL, không lưu lịch sử.
+
+### Dharma Home dạng section
+
+`GET /dharma/hub` thêm `sections`, theo thứ tự hiển thị: `FEATURED` (Nội dung nổi bật),
+`CHANTING` (Kinh tụng), `FORUM` (Diễn đàn), `MONASTERY` (Tự viện).
+
+- Mỗi section có `key`, `title`, `items` (1–3 mục), `totalCount` và `viewAllTarget` — đường
+  danh sách đầy đủ có phân trang.
+- Mọi mục dùng một hình dạng thẻ chung: `kind` (`CONTENT` | `THREAD`), `id`, `title`,
+  `summary`, `coverUrl`, `contentType`, `author`, `commentCount`, `reactionCount`, `target`.
+- Server chọn và xếp: nổi bật theo cờ `isFeatured` của Admin, nội dung theo `displayOrder`, chủ
+  đề ghim trước rồi mới nhất.
+- Section rỗng vắng mặt. `entries` giữ nguyên.
+
+### Bảng xếp hạng Phật Pháp
+
+Cả hai đều công khai, nhận `?period=MONTH&month=YYYY-MM&limit=` (mặc định tháng hiện tại giờ
+Việt Nam, `limit` 1–50, mặc định 10), trả `{ "leaderboard": { period, month, entries } }`,
+**không có `userId`**.
+
+- **`GET /dharma/leaderboards/forum-engagement`**
+  - `engagementCount` = cảm xúc + bình luận (kể cả trả lời) người khác để lại trong tháng trên
+    chủ đề đang hiện. Tương tác của chính tác giả không tính; bình luận bị ẩn, gỡ hay chờ duyệt
+    không tính.
+  - Mỗi dòng có `position`, `author`, `engagementCount`, `threadCount`, `topThread`.
+  - Hoà điểm thì ai đạt tương tác cuối sớm hơn đứng trước.
+- **`GET /dharma/leaderboards/recitation-time`**
+  - Chỉ thời lượng server đo giữa bắt đầu và hoàn thành phiên.
+  - Mỗi phiên tính tối đa 2 giờ; phiên dưới 60 giây bỏ qua; phiên chồng nhau của cùng người được
+    gộp. Phiên tính vào tháng của mốc hoàn thành.
+  - Mỗi dòng có `position`, `user`, `totalSeconds`, `sessionCount`.
+- Chỉ tài khoản đang hoạt động. Người bật ẩn danh trên bảng thành tích hiện không tên; ở bảng
+  diễn đàn thì cũng không kèm `topThread`.
+
+### Vị trí banner mới
+
+`GET /banners?placement=` nhận thêm tám vị trí trùng tên với các surface presence ở trên. Không
+có API banner thứ hai, và không có `DHARMA_WORSHIP` vì phân hệ Cúng bái chưa được duyệt.

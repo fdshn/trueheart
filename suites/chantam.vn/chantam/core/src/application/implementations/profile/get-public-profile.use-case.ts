@@ -1,3 +1,4 @@
+import { ILeaderboardStandingReader } from '@/application/contracts/leaderboard';
 import {
   IGetPublicProfileCommand,
   IGetPublicProfileUseCase,
@@ -12,6 +13,10 @@ import {
   ITransactionReviewRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
+import {
+  ContactVisibilities,
+  LeaderboardBoards,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   GiverAccuracyConfigKey,
   normalizeGiverAccuracyConfig,
@@ -39,6 +44,9 @@ export class GetPublicProfileUseCase implements IGetPublicProfileUseCase {
     @Optional()
     @Inject(ILeaderboardRepository)
     private readonly leaderboard?: ILeaderboardRepository,
+    @Optional()
+    @Inject(ILeaderboardStandingReader)
+    private readonly standing?: ILeaderboardStandingReader,
   ) {}
 
   public async handle(command: IGetPublicProfileCommand) {
@@ -55,6 +63,7 @@ export class GetPublicProfileUseCase implements IGetPublicProfileUseCase {
       accuracyConfig,
       ratingConfig,
       badges,
+      standing,
     ] = await Promise.all([
       this.postRepository.countPublishedByAuthor(user.globalId),
       this.pointLedgerRepository.getSummary(user.globalId),
@@ -69,6 +78,11 @@ export class GetPublicProfileUseCase implements IGetPublicProfileUseCase {
         scope: 'PUBLIC_ACTIVE',
         now: new Date(),
       }) ?? [],
+      // Người ẩn danh trên bảng thành tích: vị trí của họ KHÔNG hiện ở hồ sơ — hiện ra là
+      // ghép được với dòng "Người ẩn danh" cùng hạng trên bảng.
+      user.leaderboardAnonymous
+        ? null
+        : (this.standing?.findGiversStanding(user.globalId) ?? null),
     ]);
 
     const base = this.config.web.publicBaseUrl;
@@ -104,6 +118,25 @@ export class GetPublicProfileUseCase implements IGetPublicProfileUseCase {
           minSamples: normalizeReviewRatingConfig(ratingConfig).minSamples,
         },
         badges: badges.map((badge) => toProfileBadgeDto(badge, new Date())),
+        slogan: user.slogan,
+        todayThought: user.todayThought,
+        todayThoughtUpdatedAt: user.todayThoughtUpdatedAt,
+        introVideoUrl: user.introVideoUrl,
+        introVideoThumbnailUrl: user.introVideoThumbnailUrl,
+        monthlyStanding: standing
+          ? { ...standing, board: LeaderboardBoards.GIVERS as const }
+          : null,
+        // Chỉ trường chủ hồ sơ đặt PUBLIC. Mobile không render KHÔNG phải hàng rào bảo mật.
+        contacts: {
+          email:
+            user.emailVisibility === ContactVisibilities.PUBLIC
+              ? user.email
+              : null,
+          phone:
+            user.phoneVisibility === ContactVisibilities.PUBLIC
+              ? user.phone
+              : null,
+        },
       },
     };
   }

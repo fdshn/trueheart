@@ -11,6 +11,7 @@ import {
   PostNotFoundException,
 } from '@/domain/exceptions';
 import {
+  IAdminConfigRepository,
   IEntitlementRepository,
   IGiftRequestRepository,
   IPostRepository,
@@ -27,8 +28,9 @@ import {
   usesSelectionLifecycle,
 } from '@chantam.vn/chantam.core-lib/models';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ProfileGate } from '../profile/profile-gate';
+import { assertClassifiedTransactionsAllowed } from '../shared/classified-guard';
 import { toGiftRequestDto } from './gift-request.mapper';
 import { RequestLifecycleNotifier } from './request-lifecycle.notifier';
 
@@ -43,6 +45,9 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     private readonly entitlements: IEntitlementRepository,
     private readonly profileGate: ProfileGate,
     private readonly notifier: RequestLifecycleNotifier,
+    @Optional()
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig?: IAdminConfigRepository,
   ) {}
 
   public async handle(
@@ -80,6 +85,9 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     if (post.authorId === command.requesterId) {
       throw new CannotRequestOwnPostException();
     }
+
+    // Rao vặt: liên hệ qua `POST /chat/direct-post/rooms`, không xin nhận (PR #46 §8).
+    await assertClassifiedTransactionsAllowed(post, this.adminConfig);
 
     if (post.status !== GiftPostStatuses.PUBLISHED) {
       throw new PostNotAcceptingRequestsException();

@@ -88,7 +88,8 @@ export enum ErrorCodes {
   USER_SUSPENDED = 0x03_02,
   USER_BANNED = 0x03_03,
   USERNAME_TAKEN = 0x03_04,
-  EMAIL_TAKEN = 0x03_05,
+  // Đổi tên từ EMAIL_TAKEN ngày 25/10 (PR #46 §5) — GIỮ NGUYÊN mã số, client cũ không đổi gì.
+  EMAIL_ALREADY_USED = 0x03_05,
   PHONE_TAKEN = 0x03_06,
   INVALID_CREDENTIALS = 0x03_07,
   /** Chưa đủ Họ tên / Avatar / SĐT / Email để đăng bài (F07). */
@@ -125,6 +126,10 @@ export enum ErrorCodes {
    * SIM — đúng thứ cả cơ chế này dựng ra để chặn.
    */
   VERIFIED_PHONE_IN_USE = 0x03_0e,
+  // Bốn mã email chuẩn hoá theo PR #46 §5 (cùng EMAIL_ALREADY_USED ở trên).
+  INVALID_EMAIL_FORMAT = 0x03_0f,
+  EMAIL_NOT_VERIFIED = 0x03_10,
+  EMAIL_REQUIRED = 0x03_11,
 
   // 0x05 — Danh mục
   CATEGORY_NOT_FOUND = 0x05_01,
@@ -163,6 +168,8 @@ export enum ErrorCodes {
   POST_HAS_LIVE_TRANSACTION = 0x06_0f,
   /** Chủ bài không đủ hạng để chọn tay người nhận (CHỐT-10). */
   SELECT_REQUESTER_NOT_ALLOWED = 0x06_10,
+  /** Rao vặt không tạo yêu cầu xin nhận/lượt trao mới (PR #46 §8). */
+  CLASSIFIED_TRANSACTION_NOT_SUPPORTED = 0x06_11,
 
   // 0x07 — Point / Rank / Referral M4
   POINT_RULE_UNAVAILABLE = 0x07_01,
@@ -226,6 +233,10 @@ export enum ErrorCodes {
   NOTIFICATION_BROADCAST_ALREADY_COMPLETED = 0x0b_08,
   /** Đang có tiến trình khác giữ lượt gửi (cron, hoặc Admin khác vừa bấm). */
   NOTIFICATION_BROADCAST_IN_PROGRESS = 0x0b_09,
+  /** Chat trực tiếp chỉ dành cho bài Rao vặt (PR #46 §7). */
+  CHAT_DIRECT_POST_NOT_SUPPORTED = 0x0b_0a,
+  /** Chủ bài không tự mở phòng chat với bài của chính mình. */
+  CHAT_DIRECT_POST_SELF = 0x0b_0b,
 
   // 0x0F — Báo cáo vi phạm
   REPORT_NOT_FOUND = 0x0f_01,

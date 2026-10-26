@@ -1,3 +1,4 @@
+import { IGetTransactionSelectionReasonUseCase } from '@/application/contracts/recipient-selection';
 import {
   ICancelGiftTransactionUseCase,
   IConfirmGiftReceiptUseCase,
@@ -30,6 +31,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { GetTransactionSelectionReasonResponseDto } from '../../dto/admin-config/recipient-selection.dto';
 import {
   CancelGiftTransactionBodyDto,
   ConfirmGiftReceiptBodyDto,
@@ -59,6 +61,8 @@ export class TransactionController {
   public constructor(
     @Inject(IGetGiftTransactionUseCase)
     private readonly getGiftTransactionUseCase: IGetGiftTransactionUseCase,
+    @Inject(IGetTransactionSelectionReasonUseCase)
+    private readonly selectionReasonUseCase: IGetTransactionSelectionReasonUseCase,
     @Inject(IConfirmGiftReceiptUseCase)
     private readonly confirmGiftReceiptUseCase: IConfirmGiftReceiptUseCase,
     @Inject(IReportShipUnpaidUseCase)
@@ -113,6 +117,32 @@ export class TransactionController {
       .succeed()
       .attach(
         await this.getGiftTransactionUseCase.handle({
+          userId: principal.userId,
+          transactionId: params.transactionId,
+        }),
+      )
+      .build();
+  }
+
+  @Get(':transactionId/selection-reason')
+  @ApiOperation({
+    summary: 'Vì sao hệ thống chọn người nhận này',
+    description:
+      'Cho hai bên của lượt trao khi hệ thống TỰ chọn người nhận lúc hết đồng hồ (PR #46 §9): tiêu chí quyết định, câu giải thích hiện thẳng cho người dùng, số ứng viên. ' +
+      'Không có số đo của người khác. `selection: null` khi chủ bài tự chọn. Người ngoài nhận 404 như `GET /transactions/:transactionId`.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(GetTransactionSelectionReasonResponseDto),
+  })
+  @ApiErrorResponses(...ApiTokenErrors, [GiftTransactionNotFoundException])
+  public async getSelectionReason(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: GiftTransactionParamsDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.selectionReasonUseCase.handle({
           userId: principal.userId,
           transactionId: params.transactionId,
         }),

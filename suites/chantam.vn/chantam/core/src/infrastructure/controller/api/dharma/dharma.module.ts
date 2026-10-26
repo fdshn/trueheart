@@ -4,6 +4,7 @@ import {
   DharmaForumController,
   DharmaForumPublicController,
 } from './dharma-forum.controller';
+import { DharmaLeaderboardController } from './dharma-leaderboard.controller';
 import { DharmaPublicController } from './dharma-public.controller';
 import { DharmaThreadInteractionController } from './dharma-thread-interaction.controller';
 import { AdminDharmaController, DharmaController } from './dharma.controller';
@@ -16,6 +17,7 @@ import { AdminDharmaController, DharmaController } from './dharma.controller';
     DharmaForumController,
     DharmaPublicController,
     DharmaForumPublicController,
+    DharmaLeaderboardController,
     DharmaThreadInteractionController,
   ],
 })

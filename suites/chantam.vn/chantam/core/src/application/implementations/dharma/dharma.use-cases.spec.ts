@@ -72,6 +72,7 @@ function makeRepository(): jest.Mocked<IDharmaRepository> {
     findContentByGlobalId: jest.fn().mockResolvedValue(content()),
     findPublishedContentByIdOrSlug: jest.fn().mockResolvedValue(content()),
     listPublishedContents: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+    listPublicThreads: jest.fn().mockResolvedValue({ items: [], total: 0 }),
     listContentsForAdmin: jest.fn(),
     updateContent: jest.fn().mockResolvedValue(content()),
     softDeleteContent: jest.fn(),
@@ -362,12 +363,90 @@ describe('GetDharmaHubUseCase', () => {
       ).toBeNull();
   });
 
-  it('chỉ đếm cho ba entry dựng từ dharma_contents', async () => {
+  it('một lượt đọc cho mỗi loại nội dung (đếm và preview chung) cộng một lượt nội dung nổi bật', async () => {
     const repository = makeRepository();
 
     await new GetDharmaHubUseCase(repository).handle({});
 
-    expect(repository.listPublishedContents).toHaveBeenCalledTimes(3);
+    expect(repository.listPublishedContents).toHaveBeenCalledTimes(4);
+    expect(repository.listPublishedContents).toHaveBeenCalledWith({
+      limit: 3,
+      offset: 0,
+      featuredOnly: true,
+    });
+    expect(repository.listPublicThreads).toHaveBeenCalledWith({
+      limit: 3,
+      offset: 0,
+    });
+  });
+
+  it('section preview (PR #46 §12): thứ tự do server quyết, tối đa 3 mục, kèm viewAllTarget; bỏ section rỗng', async () => {
+    const repository = makeRepository();
+    repository.listPublishedContents.mockImplementation(async (query) => {
+      if (query.featuredOnly)
+        return {
+          items: [
+            content({ globalId: 'f1', slug: 'noi-bat', isFeatured: true }),
+          ],
+          total: 1,
+        };
+      if (query.contentType === 'SUTRA')
+        return {
+          items: [
+            content({ globalId: 's1', slug: 'kinh-1' }),
+            content({ globalId: 's2', slug: 'kinh-2' }),
+            content({ globalId: 's3', slug: 'kinh-3' }),
+          ],
+          total: 12,
+        };
+      return { items: [], total: 0 };
+    });
+    repository.listPublicThreads.mockResolvedValue({
+      items: [
+        {
+          globalId: 't1',
+          authorId: 'u1',
+          author: {
+            username: 'cu-si',
+            fullName: 'Cư sĩ',
+            avatarUrl: null,
+            rank: 'MEMBER',
+          },
+          title: 'Hỏi về tụng kinh buổi sáng',
+          bodyText: 'Xin hỏi nên tụng kinh gì vào buổi sáng?',
+          category: null,
+          commentCount: 4,
+          reactionCount: 9,
+        },
+      ] as never,
+      total: 1,
+    });
+
+    const { sections } = await new GetDharmaHubUseCase(repository).handle({});
+
+    expect(sections.map((section) => section.key)).toEqual([
+      'FEATURED',
+      'CHANTING',
+      'FORUM',
+    ]);
+    const chanting = sections[1];
+    expect(chanting.items).toHaveLength(3);
+    expect(chanting.totalCount).toBe(12);
+    expect(chanting.viewAllTarget).toBe('/dharma/contents?contentType=SUTRA');
+    expect(chanting.items[0]).toMatchObject({
+      kind: 'CONTENT',
+      id: 's1',
+      target: '/dharma/contents/kinh-1',
+      author: null,
+    });
+    expect(sections[2].items[0]).toMatchObject({
+      kind: 'THREAD',
+      id: 't1',
+      target: '/dharma/threads/t1',
+      author: { username: 'cu-si' },
+      commentCount: 4,
+      reactionCount: 9,
+    });
   });
 });
 

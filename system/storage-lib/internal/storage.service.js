@@ -12,9 +12,11 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.StorageService = exports.MediaSizeLimits = exports.AllowedVideoContentTypes = exports.AllowedImageContentTypes = void 0;
+exports.StorageService = exports.AllowedIntroVideoContentTypes = exports.MediaSizeLimits = exports.AllowedVideoContentTypes = exports.AllowedImageContentTypes = void 0;
 exports.getMediaExtension = getMediaExtension;
 exports.assertAvatarUploadPolicy = assertAvatarUploadPolicy;
+exports.assertIntroThumbnailUploadPolicy = assertIntroThumbnailUploadPolicy;
+exports.assertIntroVideoUploadPolicy = assertIntroVideoUploadPolicy;
 exports.assertPostMediaUploadPolicy = assertPostMediaUploadPolicy;
 exports.assertCampaignMediaUploadPolicy = assertCampaignMediaUploadPolicy;
 exports.assertTransactionEvidenceUploadPolicy = assertTransactionEvidenceUploadPolicy;
@@ -44,7 +46,13 @@ exports.MediaSizeLimits = {
     chatMedia: 5 * Megabyte,
     commentMedia: 5 * Megabyte,
     cmsMedia: 5 * Megabyte,
+    introVideo: 50 * Megabyte,
+    introThumbnail: 2 * Megabyte,
 };
+exports.AllowedIntroVideoContentTypes = new Set([
+    'video/mp4',
+    'video/quicktime',
+]);
 const MediaLabels = {
     avatar: 'Avatar',
     postMedia: 'Phương tiện bài đăng',
@@ -53,6 +61,8 @@ const MediaLabels = {
     commentMedia: 'Ảnh bình luận',
     campaignMedia: 'Phương tiện hoạt động từ thiện',
     cmsMedia: 'Ảnh thư viện CMS',
+    introVideo: 'Clip giới thiệu',
+    introThumbnail: 'Ảnh bìa clip giới thiệu',
 };
 function getMediaExtension(contentType) {
     switch (contentType) {
@@ -112,6 +122,19 @@ function assertUploadPolicy(kind, request) {
 function assertAvatarUploadPolicy(request) {
     assertUploadPolicy('avatar', request);
 }
+function assertIntroThumbnailUploadPolicy(request) {
+    assertUploadPolicy('introThumbnail', request);
+}
+function assertIntroVideoUploadPolicy(request) {
+    const label = MediaLabels.introVideo;
+    const limit = exports.MediaSizeLimits.introVideo;
+    if (!exports.AllowedIntroVideoContentTypes.has(request.contentType))
+        throw new contracts_1.StorageValidationError(`${label} chỉ nhận video/mp4 hoặc video/quicktime.`);
+    if (!Number.isInteger(request.contentLength))
+        throw new contracts_1.StorageValidationError(`${label} phải khai kích thước thật.`);
+    if (request.contentLength < 1 || request.contentLength > limit)
+        throw new contracts_1.StorageValidationError(`${label} phải lớn hơn 0 và không quá ${Math.round(limit / Megabyte)} MB.`);
+}
 function assertPostMediaUploadPolicy(request) {
     assertMixedMediaPolicy('postMedia', request);
 }
@@ -148,7 +171,15 @@ let StorageService = class StorageService {
         });
         let badType = false;
         let badSize = false;
-        if (kind === 'postMedia' || kind === 'campaignMedia') {
+        if (kind === 'introVideo') {
+            badType =
+                !object.ContentType ||
+                    !exports.AllowedIntroVideoContentTypes.has(object.ContentType);
+            badSize =
+                !object.ContentLength ||
+                    object.ContentLength > exports.MediaSizeLimits.introVideo;
+        }
+        else if (kind === 'postMedia' || kind === 'campaignMedia') {
             const isImage = object.ContentType
                 ? exports.AllowedImageContentTypes.has(object.ContentType)
                 : false;
@@ -181,6 +212,14 @@ let StorageService = class StorageService {
     }
     async confirmAvatarUpload(userId, key) {
         await this.verifyObject('avatar', `users/${userId}/avatars/`, key);
+        return `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`;
+    }
+    async confirmIntroVideoUpload(userId, key) {
+        await this.verifyObject('introVideo', `users/${userId}/intro-videos/`, key);
+        return `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`;
+    }
+    async confirmIntroThumbnailUpload(userId, key) {
+        await this.verifyObject('introThumbnail', `users/${userId}/intro-thumbnails/`, key);
         return `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`;
     }
     async confirmPostMediaUpload(userId, postId, key) {
@@ -285,6 +324,29 @@ let StorageService = class StorageService {
         assertPostMediaUploadPolicy(request);
         const extension = getMediaExtension(request.contentType);
         const key = `users/${request.userId}/posts/${request.postId}/media/${(0, node_crypto_1.randomUUID)()}.${extension}`;
+        const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
+        const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.client, new client_s3_1.PutObjectCommand({
+            Bucket: this.options.bucket,
+            Key: key,
+            ContentType: request.contentType,
+            ContentLength: request.contentLength,
+        }), { expiresIn: expiresInSeconds });
+        return {
+            key,
+            uploadUrl,
+            expiresInSeconds,
+            publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+        };
+    }
+    async createIntroVideoUpload(request) {
+        assertIntroVideoUploadPolicy(request);
+        return this.signUpload(`users/${request.userId}/intro-videos/${(0, node_crypto_1.randomUUID)()}.${getMediaExtension(request.contentType)}`, request);
+    }
+    async createIntroThumbnailUpload(request) {
+        assertIntroThumbnailUploadPolicy(request);
+        return this.signUpload(`users/${request.userId}/intro-thumbnails/${(0, node_crypto_1.randomUUID)()}.${getMediaExtension(request.contentType)}`, request);
+    }
+    async signUpload(key, request) {
         const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
         const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.client, new client_s3_1.PutObjectCommand({
             Bucket: this.options.bucket,

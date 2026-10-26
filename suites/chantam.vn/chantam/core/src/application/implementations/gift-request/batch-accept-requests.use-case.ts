@@ -3,14 +3,20 @@ import {
   IBatchAcceptRequestsResult,
   IBatchAcceptRequestsUseCase,
 } from '@/application/contracts/gift-request';
-import { SelectRequesterNotAllowedException } from '@/domain/exceptions';
 import {
+  PostNotFoundException,
+  SelectRequesterNotAllowedException,
+} from '@/domain/exceptions';
+import {
+  IAdminConfigRepository,
   IEntitlementRepository,
   IGiftRequestRepository,
+  IPostRepository,
 } from '@/domain/ports/repository';
 import { MaxBatchAcceptRequests } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { assertClassifiedTransactionsAllowed } from '../shared/classified-guard';
 import { AcceptedRequestNotifier } from './accepted-request.notifier';
 
 /** Cùng mã capability mà `AcceptGiftRequestUseCase` đọc — xem docblock ở đó. */
@@ -36,6 +42,11 @@ export class BatchAcceptRequestsUseCase implements IBatchAcceptRequestsUseCase {
     @Inject(IEntitlementRepository)
     private readonly entitlementRepository: IEntitlementRepository,
     private readonly acceptedNotifier: AcceptedRequestNotifier,
+    @Inject(IPostRepository)
+    private readonly postRepository: IPostRepository,
+    @Optional()
+    @Inject(IAdminConfigRepository)
+    private readonly adminConfig?: IAdminConfigRepository,
   ) {}
 
   public async handle(
@@ -73,10 +84,20 @@ export class BatchAcceptRequestsUseCase implements IBatchAcceptRequestsUseCase {
         'requestIds: không được trùng nhau',
       ]);
 
+    // Cùng luật với duyệt từng cái: Rao vặt không tạo lượt trao mới (PR #46 §8). Repository
+    // còn chặn lần nữa dưới khoá hàng; ở đây để trả đúng mã lỗi trước khi mở transaction.
+    const post = await this.postRepository.findOneBy({
+      globalId: command.postId,
+    });
+    if (!post || post.deletedAt)
+      throw new PostNotFoundException(command.postId);
+    await assertClassifiedTransactionsAllowed(post, this.adminConfig);
+
     const outcome = await this.giftRequestRepository.acceptRequestsBatch({
       postId: command.postId,
       actorUserId: command.userId,
       requestIds,
+      allowClassified: true,
     });
 
     // SAU khi lô đã commit. `announce` không bao giờ ném (xem chú thích của nó),

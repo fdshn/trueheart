@@ -1,4 +1,5 @@
 import { CommentStatuses, ContentSubjectTypes } from '../../consts';
+import { IPublicAuthorSummaryDto } from '../author';
 
 export interface IContentCommentDto {
   commentId: string;
@@ -6,6 +7,8 @@ export interface IContentCommentDto {
   authorId: string;
   authorUsername: string;
   authorFullName: string | null;
+  /** Author summary chuẩn — dùng trường này; ba trường phẳng ở trên giữ cho client cũ. */
+  author: IPublicAuthorSummaryDto;
   /**
    * Rỗng khi bình luận đã bị gỡ hoặc bị ẩn.
    *

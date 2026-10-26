@@ -34,7 +34,7 @@ import {
 
 // Cùng khoảng năm với `parseLeaderboardMonth` — năm 0000 là 500 ở `::date`.
 const MonthPattern = LeaderboardMonthPattern;
-const MonthMessage = 'month: phải có dạng YYYY-MM';
+const MonthMessage = 'phải có dạng YYYY-MM';
 /** Có ít nhất một ký tự không phải khoảng trắng — năm dấu cách không phải là lý do. */
 const NotBlankPattern = /\S/;
 
@@ -106,7 +106,7 @@ export class CreateLeaderboardExclusionDto {
   @ApiProperty({ minLength: 5, maxLength: 500 })
   @IsString()
   @Length(5, 500)
-  @Matches(NotBlankPattern, { message: 'reason: không được để trống' })
+  @Matches(NotBlankPattern, { message: 'không được để trống' })
   reason: string;
 }
 
@@ -122,7 +122,7 @@ export class RevokeBadgeDto {
   @ApiProperty({ minLength: 5, maxLength: 500 })
   @IsString()
   @Length(5, 500)
-  @Matches(NotBlankPattern, { message: 'reason: không được để trống' })
+  @Matches(NotBlankPattern, { message: 'không được để trống' })
   reason: string;
 }
 

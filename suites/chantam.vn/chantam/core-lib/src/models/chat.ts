@@ -1,4 +1,4 @@
-import { ChatRoomStatuses } from '../consts';
+import { ChatRoomStatuses, ChatRoomTypes } from '../consts';
 
 /**
  * Phòng chat của một giao dịch (F37).
@@ -8,7 +8,9 @@ import { ChatRoomStatuses } from '../consts';
  */
 export interface IChatRoom {
   globalId: string;
-  transactionId: string;
+  roomType: ChatRoomTypes;
+  /** `null` với phòng `DIRECT_POST` — chat Rao vặt không có giao dịch. */
+  transactionId: string | null;
   postId: string;
   giverId: string;
   receiverId: string;

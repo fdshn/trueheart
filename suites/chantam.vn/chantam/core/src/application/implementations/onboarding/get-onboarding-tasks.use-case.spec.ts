@@ -1,5 +1,9 @@
 import { UserNotFoundException } from '@/domain/exceptions';
-import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  OnboardingActionTargets,
+  OnboardingActionTypes,
+  UserRanks,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { GetOnboardingTasksUseCase } from './get-onboarding-tasks.use-case';
 
 const UserId = '10000000-0000-4000-8000-000000000001';
@@ -53,6 +57,10 @@ describe('GetOnboardingTasksUseCase', () => {
       findOneBy: jest.fn(async () => ({
         globalId: UserId,
         rank: UserRanks.VIEWER,
+        fullName: 'Cư sĩ Minh Tuệ',
+        avatarUrl: 'https://cdn.test/a.png',
+        phone: '0901234567',
+        email: 'minhtue@example.com',
       })),
     };
     const onboardingTasksRepo = {
@@ -66,8 +74,19 @@ describe('GetOnboardingTasksUseCase', () => {
 
     const result = await useCase.handle({ userId: UserId });
 
+    // Task đã xong không còn hành động; task chưa xong mở đúng màn trong allow-list (PR #46 §6).
     expect(result).toEqual({
-      tasks: mockTasks,
+      tasks: [
+        { ...mockTasks[0], action: null },
+        {
+          ...mockTasks[1],
+          action: {
+            type: OnboardingActionTypes.APP_ROUTE,
+            target: OnboardingActionTargets.PHONE_VERIFICATION,
+            params: {},
+          },
+        },
+      ],
       totalRequired: 2,
       completedRequired: 1,
       isAllCompleted: false,

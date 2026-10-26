@@ -1,6 +1,7 @@
 import {
   CommentStatuses,
   ContentSubjectTypes,
+  UserRanks,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IKeysetCursor } from '@chantam.vn/chantam.core-lib/models';
 
@@ -11,6 +12,8 @@ export interface IContentComment {
   readonly authorId: string;
   readonly authorUsername: string;
   readonly authorFullName: string | null;
+  readonly authorAvatarUrl: string | null;
+  readonly authorRank: UserRanks;
   readonly body: string;
   readonly status: CommentStatuses;
   readonly depth: number;

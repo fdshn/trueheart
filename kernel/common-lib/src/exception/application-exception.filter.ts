@@ -70,14 +70,16 @@ export class ApplicationExceptionFilter implements ExceptionFilter {
       );
     else this.logger.debug(`${request.method} ${request.url} -> ${httpStatus}`);
 
-    void response
-      .status(httpStatus)
-      .send(
-        ResponseDto.Builder.create<null>()
-          .fail(errorCode, errorOrigin)
-          .notify(messages)
-          .attach(null)
-          .build(),
-      );
+    void response.status(httpStatus).send(
+      ResponseDto.Builder.create<unknown>()
+        .fail(errorCode, errorOrigin)
+        .notify(messages)
+        // Chỉ lỗi nghiệp vụ có khai `details` mới mang dữ liệu; lỗi framework và lỗi
+        // không lường trước luôn `null` — không bao giờ lộ stack hay chi tiết nội bộ.
+        .attach(
+          exception instanceof Exception ? (exception.details ?? null) : null,
+        )
+        .build(),
+    );
   }
 }

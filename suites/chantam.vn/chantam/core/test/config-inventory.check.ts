@@ -41,6 +41,7 @@ import {
 import {
   AffiliateActiveMemberWindowConfigKey,
   CandidateSelectionConfigKey,
+  ClassifiedLegacyTransactionsConfigKey,
   EmptyGroupPermissionSetMarker,
   GroupDefaultRadiusConfigKey,
   GroupMaxRadiusConfigKey,
@@ -125,6 +126,8 @@ const RequiredKeys: readonly string[] = [
   ].map((rank) => groupRadiusConfigKeyForRank(rank)),
   // Bảng thành tích tháng (24/10) — `readLeaderboardConfig` đọc cả sáu.
   ...Object.values(LeaderboardConfigKeys),
+  // Rao vặt (PR #46 §8) — `assertClassifiedTransactionsAllowed` đọc.
+  ClassifiedLegacyTransactionsConfigKey,
 ];
 
 /**

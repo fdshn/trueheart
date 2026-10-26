@@ -20,6 +20,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { PublicAuthorSummaryDto } from '../public-author.dto';
 
 export class CreateThreadDto {
   @ApiProperty({
@@ -214,6 +215,13 @@ export class CreateDedicationBodyDto {
 export class ThreadResponseDto {
   @ApiProperty() globalId: string;
   @ApiProperty({ nullable: true }) authorId: string | null;
+
+  @ApiProperty({
+    type: () => PublicAuthorSummaryDto,
+    nullable: true,
+    description: 'Author summary chuẩn. `null` khi tác giả đã xoá tài khoản.',
+  })
+  author: PublicAuthorSummaryDto | null;
   @ApiProperty() title: string;
   @ApiProperty() bodyText: string;
   @ApiProperty({ nullable: true }) category: string | null;

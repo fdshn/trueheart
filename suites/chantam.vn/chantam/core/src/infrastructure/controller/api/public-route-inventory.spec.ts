@@ -28,6 +28,13 @@ const ExpectedPublicRoutes = [
   'GET /posts/map',
   'GET /posts/nearby',
   'GET /posts/sos-urgent',
+  // Link chia sẻ mở được khi chưa đăng nhập — cùng ngưỡng xem với chi tiết bài (PR #46 §4).
+  'GET /posts/share/:shareCode',
+  // Số người đang ở một tab: chỉ con số, không danh tính (PR #46 §10).
+  'GET /presence/surfaces/:surface',
+  // Bảng xếp hạng Phật Pháp: không userId, tôn trọng ẩn danh (PR #46 §11).
+  'GET /dharma/leaderboards/forum-engagement',
+  'GET /dharma/leaderboards/recitation-time',
   'GET /posts/:subjectId/comments',
   'GET /posts/:subjectId/reactions',
   'GET /comments/:commentId/replies',
@@ -35,6 +42,7 @@ const ExpectedPublicRoutes = [
   'GET /gift-posts/nearby',
   'GET /categories',
   'GET /profile/:username',
+  'GET /profile/:username/posts',
   // Nội dung biên tập công khai.
   'GET /blogs',
   'GET /blogs/:idOrSlug',

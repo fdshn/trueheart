@@ -1,6 +1,7 @@
 import { defineErrorCatalog } from '@chantam/service.common-lib/exception';
 import { HttpStatus } from '@nestjs/common';
 import { ErrorCodes, ErrorOrigin } from './error-codes';
+import { ProfileFieldKey, ProfileFieldLabels } from './profile-fields';
 
 /**
  * Toàn bộ lỗi nghiệp vụ Chân Tâm: mã, mã HTTP và thông điệp, ở đúng một chỗ.
@@ -209,10 +210,30 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['nguoidung01'],
   },
 
-  EMAIL_TAKEN: {
-    code: ErrorCodes.EMAIL_TAKEN,
+  EMAIL_ALREADY_USED: {
+    code: ErrorCodes.EMAIL_ALREADY_USED,
     httpStatus: HttpStatus.CONFLICT,
     message: () => 'Email này đã được dùng cho tài khoản khác',
+  },
+
+  INVALID_EMAIL_FORMAT: {
+    code: ErrorCodes.INVALID_EMAIL_FORMAT,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: () => 'Email không đúng định dạng',
+  },
+
+  // Khai sẵn trong hợp đồng; hiện chưa luồng nào ném. Chỗ duy nhất cần email đã xác minh là
+  // quên mật khẩu, và ở đó cố ý KHÔNG phân biệt để không ai dò được tài khoản nào có email.
+  EMAIL_NOT_VERIFIED: {
+    code: ErrorCodes.EMAIL_NOT_VERIFIED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Email chưa được xác minh',
+  },
+
+  EMAIL_REQUIRED: {
+    code: ErrorCodes.EMAIL_REQUIRED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Hồ sơ chưa có email — thêm email trước khi xác minh',
   },
 
   PHONE_TAKEN: {
@@ -254,9 +275,12 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
   PROFILE_INCOMPLETE: {
     code: ErrorCodes.PROFILE_INCOMPLETE,
     httpStatus: HttpStatus.FORBIDDEN,
-    message: (missing: string[]) =>
-      `Cần bổ sung ${missing.join(', ')} trước khi đăng bài`,
-    sample: [['Avatar', 'Số điện thoại']],
+    // Nhận MÃ trường. Câu chữ dịch sang nhãn cho người đọc; `body.missingFields` giữ mã cho
+    // client. Không nói "đăng bài" — cổng này chặn cả xin nhận, chat và tạo Group.
+    message: (missing: ProfileFieldKey[]) =>
+      `Cần bổ sung ${missing.map((key) => ProfileFieldLabels[key]).join(', ')} để tiếp tục`,
+    details: (missing: ProfileFieldKey[]) => ({ missingFields: missing }),
+    sample: [['avatarUrl', 'phone']],
   },
 
   USER_HAS_OPEN_TRANSACTIONS: {
@@ -384,6 +408,13 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: [3],
   },
 
+  CLASSIFIED_TRANSACTION_NOT_SUPPORTED: {
+    code: ErrorCodes.CLASSIFIED_TRANSACTION_NOT_SUPPORTED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Rao vặt không dùng xin nhận hay giao dịch — hãy nhắn tin trực tiếp cho người bán',
+  },
+
   POST_INVALID_STATE: {
     code: ErrorCodes.POST_INVALID_STATE,
     httpStatus: HttpStatus.CONFLICT,
@@ -443,6 +474,19 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: (minutes: number) =>
       `Chỉ thu hồi được tin nhắn trong vòng ${minutes} phút sau khi gửi`,
     sample: [5],
+  },
+
+  CHAT_DIRECT_POST_NOT_SUPPORTED: {
+    code: ErrorCodes.CHAT_DIRECT_POST_NOT_SUPPORTED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Chỉ nhắn trực tiếp được với bài Rao vặt. Bài cho/nhận dùng nút xin nhận',
+  },
+
+  CHAT_DIRECT_POST_SELF: {
+    code: ErrorCodes.CHAT_DIRECT_POST_SELF,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Không thể nhắn tin với bài của chính mình',
   },
 
   CHAT_FLAG_ALREADY_REVIEWED: {

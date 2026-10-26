@@ -48,3 +48,11 @@ export class NotificationBroadcastAlreadyCompletedException extends ExceptionFro
 export class NotificationBroadcastInProgressException extends ExceptionFrom(
   CoreErrors.NOTIFICATION_BROADCAST_IN_PROGRESS,
 ) {}
+
+export class ChatDirectPostNotSupportedException extends ExceptionFrom(
+  CoreErrors.CHAT_DIRECT_POST_NOT_SUPPORTED,
+) {}
+
+export class ChatDirectPostSelfException extends ExceptionFrom(
+  CoreErrors.CHAT_DIRECT_POST_SELF,
+) {}

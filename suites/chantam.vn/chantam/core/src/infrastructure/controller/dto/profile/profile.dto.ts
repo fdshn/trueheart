@@ -1,4 +1,8 @@
-import { UserRanks, UserStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  ContactVisibilities,
+  UserRanks,
+  UserStatuses,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   IConfirmEmailVerificationBodyDto,
   IConfirmEmailVerificationDto,
@@ -9,12 +13,15 @@ import {
   IEntitlementsSummaryDto,
   IGetOwnProfileResponseDto,
   IGiverAccuracySummaryDto,
+  IntroVideoUploadKind,
   IOwnProfileDto,
   IPointSummaryDto,
   IProfileBadgeDto,
   IProfileReferrerDto,
   IRankSummaryDto,
   IRequestEmailVerificationResponseDto,
+  IRequestIntroVideoUploadBodyDto,
+  IRequestIntroVideoUploadDto,
   IRequestPhoneVerificationResponseDto,
   IReviewRatingSummaryDto,
   IUpdateOwnProfileBodyDto,
@@ -26,12 +33,15 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDefined,
-  IsEmail,
+  IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
   Length,
   Matches,
+  MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { EntitlementsSummaryDto } from '../entitlement';
@@ -84,8 +94,9 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
       'Email dùng để đăng nhập và nhận mã khôi phục. Không phân biệt hoa thường.',
   })
   @IsOptional()
-  @IsEmail()
+  @IsString()
   @Length(1, 255)
+  // Định dạng kiểm ở use case để trả INVALID_EMAIL_FORMAT riêng (PR #46 §5).
   email?: string | null;
 
   @ApiPropertyOptional({
@@ -118,6 +129,63 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
   @IsOptional()
   @IsBoolean()
   leaderboardAnonymous?: boolean;
+
+  @ApiPropertyOptional({
+    maxLength: 120,
+    nullable: true,
+    description: 'Slogan trên hồ sơ. `null` hoặc chuỗi trắng = xoá.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  slogan?: string | null;
+
+  @ApiPropertyOptional({
+    maxLength: 280,
+    nullable: true,
+    description:
+      'Suy nghĩ hôm nay. Đổi chữ thì `todayThoughtUpdatedAt` ghi lại; gửi lại đúng chữ cũ thì giữ mốc.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(280)
+  todayThought?: string | null;
+
+  @ApiPropertyOptional({
+    enum: ContactVisibilities,
+    description: 'Ai thấy email trên hồ sơ công khai. Mặc định PRIVATE.',
+  })
+  @IsOptional()
+  @IsEnum(ContactVisibilities)
+  emailVisibility?: ContactVisibilities;
+
+  @ApiPropertyOptional({
+    enum: ContactVisibilities,
+    description: 'Ai thấy SĐT trên hồ sơ công khai. Mặc định PRIVATE.',
+  })
+  @IsOptional()
+  @IsEnum(ContactVisibilities)
+  phoneVisibility?: ContactVisibilities;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Key từ `POST /profile/me/intro-video/upload-url` (kind VIDEO). `null` = gỡ clip và ảnh bìa.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  introVideoKey?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Key ảnh bìa (kind THUMBNAIL). Hồ sơ phải đang có — hoặc cùng lúc gửi — clip.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  introVideoThumbnailKey?: string | null;
 }
 
 export class UpdateOwnProfileBodyDto implements IUpdateOwnProfileBodyDto {
@@ -252,6 +320,48 @@ export class OwnProfileDto implements IOwnProfileDto {
       'Huy hiệu bảng thành tích còn hạn, GỒM cả huy hiệu giành lúc ẩn danh (`isAnonymous`). Toàn bộ lịch sử ở `GET /profile/me/badges`.',
   })
   badges?: IProfileBadgeDto[];
+
+  @ApiPropertyOptional({ type: String, nullable: true }) slogan?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  todayThought?: string | null;
+  @ApiPropertyOptional({ type: Date, nullable: true })
+  todayThoughtUpdatedAt?: Date | null;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  introVideoUrl?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  introVideoThumbnailUrl?: string | null;
+  @ApiPropertyOptional({ enum: ContactVisibilities })
+  emailVisibility?: ContactVisibilities;
+  @ApiPropertyOptional({ enum: ContactVisibilities })
+  phoneVisibility?: ContactVisibilities;
+}
+
+export class RequestIntroVideoUploadDto implements IRequestIntroVideoUploadDto {
+  @ApiProperty({
+    enum: ['VIDEO', 'THUMBNAIL'],
+    description:
+      '`VIDEO`: video/mp4 hoặc video/quicktime, tối đa 50 MB. `THUMBNAIL`: ảnh bìa do app tạo — JPEG/PNG/WebP, tối đa 2 MB.',
+  })
+  @IsIn(['VIDEO', 'THUMBNAIL'])
+  kind: IntroVideoUploadKind;
+
+  @ApiProperty({ example: 'video/mp4' })
+  @IsString()
+  contentType: string;
+
+  @ApiProperty({ example: 12_000_000, description: 'Kích thước byte thật.' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  contentLength: number;
+}
+
+export class RequestIntroVideoUploadBodyDto implements IRequestIntroVideoUploadBodyDto {
+  @ApiProperty({ type: () => RequestIntroVideoUploadDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => RequestIntroVideoUploadDto)
+  upload: RequestIntroVideoUploadDto;
 }
 
 export class ReviewRatingSideDto {

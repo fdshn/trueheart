@@ -1,3 +1,7 @@
+import {
+  EmailAlreadyUsedException,
+  InvalidEmailFormatException,
+} from '@/domain/exceptions';
 import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { StorageValidationError } from '@chantam/service.storage-lib';
@@ -136,13 +140,31 @@ describe('UpdateOwnProfileUseCase', () => {
         userId: UserId,
         profile: { email: '  OTHER@EXAMPLE.COM  ' },
       }),
-    ).rejects.toThrow();
+    ).rejects.toBeInstanceOf(EmailAlreadyUsedException);
     expect(repository.isEmailTaken).toHaveBeenCalledWith(
       'other@example.com',
       UserId,
     );
     expect(repository.update).not.toHaveBeenCalled();
   });
+
+  it.each(['khong-phai-email', 'a@', '@b.com', 'a b@c.com'])(
+    'email %p sai định dạng thì INVALID_EMAIL_FORMAT, không ghi gì',
+    async (email) => {
+      // PR #46 §5: mã riêng thay cho VALIDATION_FAILED chung, để mobile báo đúng ô.
+      const repository = makeRepository();
+      const useCase = new UpdateOwnProfileUseCase(
+        repository as never,
+        makeStorage() as never,
+        makeEvidence() as never,
+      );
+
+      await expect(
+        useCase.handle({ userId: UserId, profile: { email } }),
+      ).rejects.toBeInstanceOf(InvalidEmailFormatException);
+      expect(repository.update).not.toHaveBeenCalled();
+    },
+  );
 
   it('chỉ gắn avatar sau khi storage xác nhận key thuộc namespace user', async () => {
     const repository = makeRepository();

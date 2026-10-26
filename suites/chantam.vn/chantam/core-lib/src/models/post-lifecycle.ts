@@ -123,13 +123,3 @@ export function addMonthsClamped(from: Date, months: number): Date {
 export function postExpiryDate(publishedAt: Date): Date {
   return addMonthsClamped(publishedAt, PostLifetimeMonths);
 }
-
-/**
- * Bài rao vặt không "hết hạn" mà **chuyển thành Muốn Tặng** (CHỐT-05).
- *
- * Tách ra thành một hàm để nơi quét định kỳ và tài liệu cùng đọc một chỗ,
- * thay vì mỗi nơi tự nhớ một nửa quy định.
- */
-export function expiryConvertsToOffer(postType: PostTypes): boolean {
-  return postType === PostTypes.CLASSIFIED;
-}

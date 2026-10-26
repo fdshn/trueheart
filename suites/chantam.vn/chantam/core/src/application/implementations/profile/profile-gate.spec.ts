@@ -123,3 +123,24 @@ describe('ProfileGate', () => {
     });
   });
 });
+
+describe('PROFILE_INCOMPLETE mang danh sách trường thiếu máy đọc được', () => {
+  // PR #46 §5: client đánh dấu đúng ô còn thiếu bằng `body.missingFields`, không phải tách
+  // chuỗi tiếng Việt. Câu chữ cũng không được nói "đăng bài" khi người ta đang xin nhận.
+  it('details.missingFields là mã trường, theo thứ tự form', async () => {
+    const { gate } = makeGate({
+      ...completeProfile,
+      phone: null,
+      email: null,
+    });
+
+    const error = (await gate
+      .assertComplete('u-1')
+      .catch((thrown: unknown) => thrown)) as ProfileIncompleteException;
+
+    expect(error).toBeInstanceOf(ProfileIncompleteException);
+    expect(error.details).toEqual({ missingFields: ['phone', 'email'] });
+    expect(error.message).toContain('SĐT');
+    expect(error.message).not.toContain('đăng bài');
+  });
+});

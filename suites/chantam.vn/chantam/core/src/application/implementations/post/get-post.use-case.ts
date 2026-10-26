@@ -3,6 +3,7 @@ import {
   IGetPostResult,
   IGetPostUseCase,
 } from '@/application/contracts/post';
+import { isEditablePostStatus } from '@/domain/consts/post-edit-policy';
 import { PostNotFoundException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
@@ -24,6 +25,8 @@ import {
 import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { applyGeoJitter } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
+import { postShareLinkOf } from '../shared/post-share-link';
+import { toPublicAuthor } from '../shared/public-author';
 
 @Injectable()
 export class GetPostUseCase implements IGetPostUseCase {
@@ -115,13 +118,7 @@ export class GetPostUseCase implements IGetPostUseCase {
         where: { globalId: post.authorId },
       });
       if (authorUser) {
-        author = {
-          id: authorUser.globalId,
-          username: authorUser.username,
-          avatarUrl: authorUser.avatarUrl,
-          rank: authorUser.rank,
-          joinedAt: authorUser.createdAt,
-        };
+        author = toPublicAuthor(authorUser);
       }
     }
 
@@ -144,7 +141,7 @@ export class GetPostUseCase implements IGetPostUseCase {
     return {
       canEdit:
         isAuthor &&
-        ['DRAFT', 'PENDING_REVIEW', 'PUBLISHED'].includes(post.status) &&
+        isEditablePostStatus(post) &&
         (post.expiresAt === null || post.expiresAt > new Date()) &&
         !(await this.giftTransactionRepository.hasLiveForPost(post.globalId)),
       post,
@@ -166,6 +163,7 @@ export class GetPostUseCase implements IGetPostUseCase {
       shareCount: post.shareCount,
       myReaction: summary.myReaction,
       reactionBreakdown: summary.breakdown,
+      share: postShareLinkOf(this.config.web.publicBaseUrl, post.shareCode),
     };
   }
 }

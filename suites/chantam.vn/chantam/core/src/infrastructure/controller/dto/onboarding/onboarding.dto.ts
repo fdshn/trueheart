@@ -1,10 +1,39 @@
-import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  OnboardingActionTargets,
+  OnboardingActionTypes,
+  UserRanks,
+} from '@chantam.vn/chantam.core-lib/consts';
 import {
   IEvaluateOnboardingTasksResponseDto,
   IGetOnboardingTasksResponseDto,
+  IOnboardingTaskActionDto,
   IOnboardingTaskProgressDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export class OnboardingTaskActionDto implements IOnboardingTaskActionDto {
+  @ApiProperty({
+    enum: OnboardingActionTypes,
+    description: 'Hiện chỉ dùng `APP_ROUTE`.',
+  })
+  type: OnboardingActionTypes;
+
+  @ApiProperty({
+    enum: OnboardingActionTargets,
+    description:
+      'Màn app cần mở, luôn thuộc allow-list: `PROFILE_EDIT` (sửa hồ sơ), `PHONE_VERIFICATION` (xác thực số điện thoại).',
+  })
+  target: OnboardingActionTargets;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    example: { missingFields: 'avatarUrl,phone' },
+    description:
+      '`PROFILE_EDIT` có `missingFields`: mã trường còn thiếu, ngăn bằng dấu phẩy, cùng mã với `body.missingFields` của `PROFILE_INCOMPLETE`.',
+  })
+  params: Record<string, string>;
+}
 
 export class OnboardingTaskProgressDto implements IOnboardingTaskProgressDto {
   @ApiProperty({ example: '40000000-0000-4000-8000-000000000001' })
@@ -35,6 +64,14 @@ export class OnboardingTaskProgressDto implements IOnboardingTaskProgressDto {
 
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
   completedAt: Date | string | null;
+
+  @ApiProperty({
+    type: () => OnboardingTaskActionDto,
+    nullable: true,
+    description:
+      'Hành động app mở khi người dùng chạm vào task (PR #46 §6). `null` khi task đã xong.',
+  })
+  action: IOnboardingTaskActionDto | null;
 }
 
 export class GetOnboardingTasksResponseDto implements IGetOnboardingTasksResponseDto {

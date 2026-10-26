@@ -1,3 +1,4 @@
+import { DefaultCandidateSelectionOrder } from '@chantam.vn/chantam.core-lib/consts';
 import { TransactionReviewRoles } from '@chantam.vn/chantam.core-lib/models';
 import {
   Categories,
@@ -289,6 +290,44 @@ export const SeedPosts: readonly ISeedPost[] = [
     lat: 21.031,
     remaining: 0,
   },
+  // Rao vặt do chủ bài tự đổi trạng thái (PR #46 §8): đã bán là điểm cuối, tạm ẩn mở lại được.
+  {
+    id: post(18),
+    authorId: Personas.groupOwner,
+    type: 'CLASSIFIED',
+    status: 'SOLD',
+    title: 'Bán xe đạp mini Nhật cũ',
+    description:
+      'Xe đạp mini Nhật bãi, phanh và xích còn tốt. Chủ bài đã đánh dấu Đã bán — test trạng thái cuối của Rao vặt.',
+    categoryId: Categories.other,
+    area: 'Hà Đông, Hà Nội',
+    lng: 105.7772,
+    lat: 20.9731,
+    details: {
+      condition: 'USED',
+      price: 900_000,
+      marketPrice: 1_500_000,
+      negotiable: false,
+    },
+  },
+  {
+    id: post(19),
+    authorId: Personas.giver2,
+    type: 'CLASSIFIED',
+    status: 'HIDDEN',
+    title: 'Bán tủ lạnh Toshiba 180L',
+    description:
+      'Tủ lạnh chạy êm, ngăn đá đông tốt. Chủ bài tạm ẩn tin trong lúc đi vắng — test mở lại tin Rao vặt.',
+    categoryId: Categories.household,
+    area: 'Cầu Giấy, Hà Nội',
+    lng: 105.7951,
+    lat: 21.0341,
+    details: {
+      condition: 'USED',
+      price: 2_500_000,
+      negotiable: true,
+    },
+  },
 ];
 
 /** Giao dịch, đúng một cái cho mỗi trạng thái sống được của `gift_transactions`. */
@@ -366,7 +405,20 @@ export const SeedTransactions = [
 ] as const;
 
 export async function seedGifting(ctx: ISeedContext): Promise<void> {
+  // Script kiểm migration theo pha (vd. `test:notification-target`) seed trên schema CŨ — như
+  // `seedLeaderboard`: trạng thái bài và bảng chưa có ở schema đó thì bỏ qua phần của nó.
+  const statusRows = await ctx.q<{ label: string }>(
+    `SELECT e.enumlabel AS label FROM pg_enum e
+       JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'gift_posts_status_enum'`,
+  );
+  const knownStatuses = new Set(statusRows.map((row) => row.label));
+  const [auditTable] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.recipient_selection_audits') IS NOT NULL AS ready`,
+  );
+
   for (const item of SeedPosts) {
+    if (!knownStatuses.has(item.status)) continue;
     const total = item.total ?? 1;
     await ctx.q(
       `
@@ -515,6 +567,35 @@ export async function seedGifting(ctx: ISeedContext): Promise<void> {
       `,
       [deal.id, deal.postId, deal.giver, deal.receiver, deal.status],
     );
+
+    // Lượt trao đầu tiên do HỆ THỐNG chọn khi hết đồng hồ (PR #46 §9), để có một dòng lý do
+    // thật trong `recipient_selection_audits`. Một ứng viên nên lý do là `ONLY_CANDIDATE`.
+    if (n === 1 && auditTable?.ready)
+      await ctx.q(
+        `
+          INSERT INTO recipient_selection_audits (
+            transaction_id, post_id, request_id, requester_id, trigger, deciding_criterion,
+            criteria_order, winner_metrics, runner_up_metrics, candidate_count, created_at
+          )
+          VALUES ($1, $2, $3, $4, 'AUTOMATIC', 'ONLY_CANDIDATE', $5::jsonb, $6::jsonb, NULL, 1,
+                  now() - interval '9 days')
+          ON CONFLICT (transaction_id) DO NOTHING
+        `,
+        [
+          deal.id,
+          deal.postId,
+          seedId(SeedDomains.giftRequests, 100 + n),
+          deal.receiver,
+          JSON.stringify(DefaultCandidateSelectionOrder),
+          JSON.stringify({
+            requesterId: deal.receiver,
+            rank: 'MEMBER',
+            distanceMeters: 1_200,
+            receivedCount: 0,
+            cancellationCount: 0,
+          }),
+        ],
+      );
 
     if (deal.status === 'CANCELLED') continue;
 

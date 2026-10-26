@@ -1,5 +1,11 @@
 import { IGeoPoint } from '@chantam/service.persistency-lib/geo';
-import { UserRanks, UserStatuses } from '../consts';
+import {
+  ContactVisibilities,
+  ProfileFieldKey,
+  ProfileFieldLabels,
+  UserRanks,
+  UserStatuses,
+} from '../consts';
 
 /**
  * Tài khoản người dùng.
@@ -35,6 +41,16 @@ export interface IUser {
    * nhận huy hiệu — nhưng huy hiệu giành lúc ẩn danh không hiện trên hồ sơ công khai.
    */
   leaderboardAnonymous: boolean;
+
+  /** Hồ sơ công khai mở rộng (PR #46 §3). */
+  slogan: string | null;
+  todayThought: string | null;
+  todayThoughtUpdatedAt: Date | null;
+  /** URL đã xác nhận qua HeadObject — không bao giờ là URL client tự đưa. */
+  introVideoUrl: string | null;
+  introVideoThumbnailUrl: string | null;
+  emailVisibility: ContactVisibilities;
+  phoneVisibility: ContactVisibilities;
 
   /**
    * Thời điểm xác minh SĐT lần đầu.
@@ -91,10 +107,17 @@ export function isProfileComplete(
 export function missingProfileFields(
   user: Pick<IUser, 'fullName' | 'avatarUrl' | 'phone' | 'email'>,
 ): string[] {
-  return [
-    !user.fullName && 'Họ tên',
-    !user.avatarUrl && 'Avatar',
-    !user.phone && 'SĐT',
-    !user.email && 'Email',
-  ].filter((label): label is string => typeof label === 'string');
+  return missingProfileFieldKeys(user).map((key) => ProfileFieldLabels[key]);
+}
+
+/**
+ * Như `missingProfileFields` nhưng trả MÃ trường (PR #46 §5) — `body.missingFields` của
+ * `PROFILE_INCOMPLETE`. Một nguồn điều kiện cho cả hai: nhãn được dịch từ mã.
+ */
+export function missingProfileFieldKeys(
+  user: Pick<IUser, 'fullName' | 'avatarUrl' | 'phone' | 'email'>,
+): ProfileFieldKey[] {
+  return (['fullName', 'avatarUrl', 'phone', 'email'] as const).filter(
+    (key) => !user[key],
+  );
 }

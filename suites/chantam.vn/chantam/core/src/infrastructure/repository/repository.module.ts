@@ -11,6 +11,7 @@ import {
   IContentCommentRepository,
   IContentReactionRepository,
   IContentShareRepository,
+  IDharmaLeaderboardRepository,
   IDharmaRepository,
   IEntitlementRepository,
   IGiftRequestRepository,
@@ -30,6 +31,7 @@ import {
   IPostMediaRepository,
   IPostRepository,
   IRankRepository,
+  IRecipientSelectionAuditRepository,
   IReferralRepository,
   IReportRepository,
   ISponsorBannerRepository,
@@ -54,6 +56,7 @@ import { CheckInRepository } from './check-in.repository';
 import { ContentCommentRepository } from './content-comment.repository';
 import { ContentReactionRepository } from './content-reaction.repository';
 import { ContentShareRepository } from './content-share.repository';
+import { DharmaLeaderboardRepository } from './dharma-leaderboard.repository';
 import { DharmaRepository } from './dharma.repository';
 import { EntitlementRepository } from './entitlement.repository';
 import { GiftRequestRepository } from './gift-request.repository';
@@ -76,6 +79,7 @@ import { PointLedgerRepository } from './point-ledger.repository';
 import { PostMediaRepository } from './post-media.repository';
 import { PostRepository } from './post.repository';
 import { RankRepository } from './rank.repository';
+import { RecipientSelectionAuditRepository } from './recipient-selection-audit.repository';
 import { ReferralRepository } from './referral.repository';
 import { ReportRepository } from './report.repository';
 import { SponsorBannerRepository } from './sponsor-banner.repository';
@@ -120,6 +124,14 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     },
     { provide: IMeritRepository, useClass: MeritRepository },
     { provide: IDharmaRepository, useClass: DharmaRepository },
+    {
+      provide: IDharmaLeaderboardRepository,
+      useClass: DharmaLeaderboardRepository,
+    },
+    {
+      provide: IRecipientSelectionAuditRepository,
+      useClass: RecipientSelectionAuditRepository,
+    },
     { provide: ILeaderboardRepository, useClass: LeaderboardRepository },
     {
       provide: ILunarHolidayRepository,
@@ -204,6 +216,8 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     ISponsorBannerRepository,
     IMeritRepository,
     IDharmaRepository,
+    IDharmaLeaderboardRepository,
+    IRecipientSelectionAuditRepository,
     ILeaderboardRepository,
     IHomeCampaignRepository,
     IBulkNotifyAudienceRepository,

@@ -73,3 +73,32 @@ describe('lý do của Admin không được toàn khoảng trắng', () => {
     expect(errors.map((error) => error.property)).toEqual(['reason']);
   });
 });
+
+/**
+ * `flattenValidationErrors` ở kernel tự ghép "trường: thông báo". Thông báo tự mang tên trường
+ * thì response ra "month: month: phải có dạng YYYY-MM".
+ */
+describe('thông báo validate không tự lặp tên trường', () => {
+  const messagesOf = (target: new () => object, input: object) =>
+    validateSync(plainToInstance(target, input)).flatMap((error) =>
+      Object.values(error.constraints ?? {}).map((message) => ({
+        property: error.property,
+        message,
+      })),
+    );
+
+  it.each([
+    [ListAdminBadgesQueryDto, { month: '2026-13' }],
+    [ListLeaderboardExclusionsQueryDto, { month: 'tháng mười' }],
+    [
+      CreateLeaderboardExclusionDto,
+      { month: '2026-13', board: 'GIVERS', userId: 'x', reason: '   ' },
+    ],
+    [RevokeBadgeDto, { reason: '   ' }],
+  ])('%p', (target, input) => {
+    const messages = messagesOf(target as new () => object, input);
+    expect(messages.length).toBeGreaterThan(0);
+    for (const { property, message } of messages)
+      expect(message.startsWith(`${property}:`)).toBe(false);
+  });
+});

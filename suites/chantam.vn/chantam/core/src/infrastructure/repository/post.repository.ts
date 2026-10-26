@@ -29,16 +29,13 @@ import {
   PubliclyVisibleGiftPostStatuses,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
-import {
-  PostLifetimeMonths,
-  PostMaxRenewals,
-  expiryConvertsToOffer,
-} from '@chantam.vn/chantam.core-lib/models';
+import { PostMaxRenewals } from '@chantam.vn/chantam.core-lib/models';
 import { GeoQueryHelper } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager, EntitySchema, Repository } from 'typeorm';
 import { lockEditablePost } from './lock-editable-post';
+import { updateReturning } from './update-returning';
 
 /**
  * Những trạng thái tính vào hạn mức đăng bài.
@@ -62,6 +59,25 @@ const ModeratableStatuses: readonly string[] = [
   'PENDING_REVIEW',
 ];
 
+/**
+ * Tin Rao vặt chủ bài TỰ đặt "Đã giữ chỗ" hoặc "Tạm ẩn" (PR #46 §8) vẫn phải GỠ được: không
+ * thì người bán đặt RESERVED là có một tin công khai mà Admin và báo cáo không chạm tới, hoặc
+ * ẩn tạm trong lúc báo cáo được xét rồi mở lại. Lý do `RESERVED` bị loại ở trên (lượt trao
+ * đang diễn ra) chỉ đúng khi CÓ lượt trao sống — nên điều kiện kèm theo là không có lượt nào.
+ *
+ * Chỉ để GỠ: mở lại một tin chủ bài đã tự ẩn là quyết thay chủ bài.
+ */
+export const ClassifiedTakedownStatuses: readonly string[] = [
+  'RESERVED',
+  'HIDDEN',
+];
+
+/** Câu con dùng chung: bài có lượt trao còn sống không. `$1` là `global_id` của bài. */
+export const PostHasLiveTransactionSql = `EXISTS (
+  SELECT 1 FROM gift_transactions deal
+   WHERE deal.post_id = $1 AND deal.status IN ('ACCEPTED', 'DELIVERING')
+)`;
+
 export const QuotaStatuses = [
   'PENDING_REVIEW',
   'PUBLISHED',
@@ -70,6 +86,9 @@ export const QuotaStatuses = [
   // nghĩa là một dòng sót sẽ KHÔNG ăn quota, tức tác giả được thêm một suất đăng
   // bài trong khi vẫn còn một nghĩa vụ chưa xong.
   'DELIVERING',
+  // Tin Rao vặt tạm ẩn: chủ bài mở lại bằng một cú bấm, KHÔNG qua phép kiểm quota — nên nó
+  // phải giữ suất ngay lúc ẩn, không thì ẩn tin → đăng tin mới → mở lại là vượt quota.
+  'HIDDEN',
 ];
 
 /**
@@ -162,7 +181,7 @@ export class PostRepository
   public async createPostWithinQuota(
     authorId: string,
     quota: number,
-    post: Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt'>,
+    post: Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt' | 'shareCode'>,
   ): Promise<boolean> {
     return this.manager.transaction(async (manager) => {
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
@@ -437,6 +456,10 @@ export class PostRepository
     // đang chờ duyệt và bài bị từ chối của mình.
     if (params.status)
       query.andWhere('post.status = :status', { status: params.status });
+    if (params.visibleStatuses)
+      query.andWhere('post.status IN (:...visibleStatuses)', {
+        visibleStatuses: params.visibleStatuses,
+      });
     if (params.categoryId)
       query.andWhere(categorySubtreeFilter(':categoryId'), {
         categoryId: params.categoryId,
@@ -449,6 +472,28 @@ export class PostRepository
       .getManyAndCount();
 
     return { items, total };
+  }
+
+  public async updateClassifiedStatus(params: {
+    postId: string;
+    to: GiftPostStatuses;
+    from: GiftPostStatuses[];
+  }): Promise<IPostEntity | null> {
+    const [row] = await updateReturning<{ global_id: string }>(
+      this.manager,
+      `UPDATE posts
+          SET status = $2::gift_posts_status_enum, updated_at = now()
+        WHERE global_id = $1
+          AND post_type = 'CLASSIFIED'
+          AND deleted_at IS NULL
+          AND status = ANY($3::gift_posts_status_enum[])
+          -- Lượt trao kiểu cũ còn sống thì trạng thái thuộc về nó: đổi tay ở đây là mở lại
+          -- một bài hết suất, rồi xoá được bài và huỷ lượt trao của người nhận.
+          AND NOT ${PostHasLiveTransactionSql}
+        RETURNING global_id`,
+      [params.postId, params.to, params.from],
+    );
+    return row ? this.findOneBy({ globalId: row.global_id }) : null;
   }
 
   public async findAdminPosts(
@@ -554,15 +599,24 @@ export class PostRepository
     command: IModeratePostByAdminCommand,
   ): Promise<IPostEntity | null> {
     return this.manager.transaction(async (manager) => {
-      const [current] = await manager.query<{ status: string }[]>(
+      const [current] = await manager.query<
+        { status: string; post_type: string; has_live: boolean }[]
+      >(
         `
-          SELECT status FROM posts
+          SELECT status, post_type, ${PostHasLiveTransactionSql} AS has_live
+          FROM posts
           WHERE global_id = $1 AND deleted_at IS NULL
           FOR UPDATE
         `,
         [command.postId],
       );
-      if (!current || !ModeratableStatuses.includes(current.status))
+      if (!current) return null;
+      const classifiedTakedown =
+        current.post_type === 'CLASSIFIED' &&
+        ClassifiedTakedownStatuses.includes(current.status) &&
+        !current.has_live &&
+        command.status === GiftPostStatuses.REJECTED;
+      if (!ModeratableStatuses.includes(current.status) && !classifiedTakedown)
         return null;
       // Gọi lại đúng quyết định cũ thì không ghi thêm một dòng audit nói rằng
       // có gì đó vừa đổi.
@@ -812,8 +866,14 @@ export class PostRepository
 
   public async expireDuePosts(now: Date): Promise<IExpireDuePostsResult> {
     return this.manager.transaction(async (manager) => {
-      // SKIP LOCKED để hai lần chạy song song không tranh cùng một bài. Chỉ
-      // lấy PUBLISHED: bài RESERVED đang có giao dịch sống.
+      // SKIP LOCKED để hai lần chạy song song không tranh cùng một bài.
+      //
+      // Lấy `PUBLISHED`, cộng tin Rao vặt chủ bài TỰ đặt "Đã giữ chỗ"/"Tạm ẩn" (PR #46 §8):
+      // không có lượt trao nào kéo các trạng thái đó, nên bỏ chúng ra là cho người bán một
+      // cách giữ tin sống mãi. Bài có lượt trao còn sống thì không bao giờ bị cắt ngang.
+      //
+      // Rao vặt hết hạn là HẾT HẠN như mọi bài — từ 26/10 không còn tự chuyển thành bài Muốn
+      // Tặng (chủ dự án bỏ CHỐT-05 cho Rao vặt sau PR #46).
       const due = await manager.query<
         {
           global_id: string;
@@ -825,7 +885,16 @@ export class PostRepository
         `
           SELECT global_id, post_type, author_id, title
           FROM posts
-          WHERE status = 'PUBLISHED'
+          WHERE (
+                  status = 'PUBLISHED'
+                  OR (post_type = 'CLASSIFIED'
+                      AND status IN ('RESERVED', 'HIDDEN')
+                      AND NOT EXISTS (
+                        SELECT 1 FROM gift_transactions deal
+                         WHERE deal.post_id = posts.global_id
+                           AND deal.status IN ('ACCEPTED', 'DELIVERING')
+                      ))
+                )
             AND deleted_at IS NULL
             AND expires_at IS NOT NULL
             AND expires_at <= $1
@@ -835,73 +904,22 @@ export class PostRepository
         [now],
       );
 
-      if (due.length === 0)
-        return { expired: 0, convertedToOffer: 0, expiredPosts: [] };
+      if (due.length === 0) return { expired: 0, expiredPosts: [] };
 
-      const toOffer = due
-        .filter((row) => expiryConvertsToOffer(row.post_type as PostTypes))
-        .map((row) => row.global_id);
-      // Giữ cả HÀNG, không chỉ id: nơi gọi cần `author_id` và `title` để báo cho
-      // chủ bài. Lọc lại từ `toExpired` bằng `includes` cũng ra kết quả đó, nhưng
-      // đó là một vòng lặp lồng trên cùng một tập đã có sẵn ngay đây.
-      const toExpiredRows = due.filter(
-        (row) => !expiryConvertsToOffer(row.post_type as PostTypes),
+      await manager.query(
+        `
+          UPDATE posts
+          SET status = 'EXPIRED', updated_at = now()
+          WHERE global_id = ANY($1::uuid[])
+            AND status IN ('PUBLISHED', 'RESERVED', 'HIDDEN')
+        `,
+        [due.map((row) => row.global_id)],
       );
-      const toExpired = toExpiredRows.map((row) => row.global_id);
 
-      if (toExpired.length > 0)
-        await manager.query(
-          `
-            UPDATE posts
-            SET status = 'EXPIRED', updated_at = now()
-            WHERE global_id = ANY($1::uuid[]) AND status = 'PUBLISHED'
-          `,
-          [toExpired],
-        );
-
-      if (toOffer.length > 0)
-        // Rao vặt hết hạn thì THÀNH bài Muốn Tặng, không biến mất (CHỐT-05).
-        // Cờ thương lượng bỏ đi vì món đồ không còn được bán nữa.
-        //
-        // `estimatedValue` của bài Muốn Tặng nghĩa là "món này giá trị bao nhiêu", nên nó
-        // ưu tiên `marketPrice` — giá THỊ TRƯỜNG người bán khai — rồi mới lùi về `price`.
-        // Lấy `price` khi đã có `marketPrice` là ghi giá THANH LÝ thành giá trị món đồ, tức
-        // một món giá thị trường 3 triệu bán 500k sẽ thành món quà "trị giá 500k".
-        //
-        // `COALESCE` trên `jsonb` cần `details -> 'x'` (toán tử `->` trả `jsonb`), không
-        // phải `->>`: `->>` trả `text`, và `jsonb_build_object` sẽ bọc nó thành CHUỖI
-        // `"500000"` thay vì số. Khi đó mọi phép lọc khoảng giá trị ở phía đọc đều so chuỗi.
-        await manager.query(
-          `
-            UPDATE posts
-            SET post_type = 'OFFER',
-                expires_at = $2::timestamptz + make_interval(months => $3),
-                details = CASE
-                  WHEN jsonb_typeof(details -> 'marketPrice') = 'number'
-                    OR jsonb_exists(details, 'price')
-                    THEN (details - 'price' - 'negotiable' - 'marketPrice')
-                         || jsonb_build_object(
-                              'estimatedValue',
-                              COALESCE(
-                                CASE
-                                  WHEN jsonb_typeof(details -> 'marketPrice') = 'number'
-                                    THEN details -> 'marketPrice'
-                                END,
-                                details -> 'price'
-                              )
-                            )
-                  ELSE details - 'negotiable' - 'marketPrice'
-                END,
-                updated_at = now()
-            WHERE global_id = ANY($1::uuid[]) AND status = 'PUBLISHED'
-          `,
-          [toOffer, now, PostLifetimeMonths],
-        );
-
+      // Giữ cả HÀNG, không chỉ id: nơi gọi cần `author_id` và `title` để báo cho chủ bài.
       return {
-        expired: toExpired.length,
-        convertedToOffer: toOffer.length,
-        expiredPosts: toExpiredRows.map((row) => ({
+        expired: due.length,
+        expiredPosts: due.map((row) => ({
           postId: row.global_id,
           authorId: row.author_id,
           title: row.title,
@@ -937,10 +955,8 @@ export class PostRepository
 
       if (!post) return { status: 'NOT_FOUND' };
 
-      // Rao vặt không gia hạn: nó tự chuyển thành Muốn Tặng khi hết hạn, nên
-      // gia hạn sẽ kéo dài một trạng thái mà quy định đã định đoạt khác đi.
+      // Rao vặt gia hạn như mọi bài từ 26/10: nó hết hạn chứ không còn chuyển loại.
       if (
-        expiryConvertsToOffer(post.post_type as PostTypes) ||
         (post.status !== 'PUBLISHED' && post.status !== 'EXPIRED') ||
         Number(post.remaining_quantity) <= 0
       )
@@ -1107,6 +1123,18 @@ export class PostRepository
       .andWhere('post.deletedAt IS NULL')
       .andWhere('post.status = :status', { status: 'PUBLISHED' })
       .getCount();
+  }
+
+  public async findPublicByShareCode(
+    shareCode: string,
+    currentUserId?: string,
+  ): Promise<IPostEntity | null> {
+    // Đổi mã ra id rồi đi ĐÚNG đường xem bài: một ngưỡng quyền xem duy nhất, không chép.
+    const [row] = await this.manager.query<{ global_id: string }[]>(
+      `SELECT global_id FROM posts WHERE share_code = $1 AND deleted_at IS NULL`,
+      [shareCode],
+    );
+    return row ? this.findPublicByGlobalId(row.global_id, currentUserId) : null;
   }
 
   public async findPublicByGlobalId(

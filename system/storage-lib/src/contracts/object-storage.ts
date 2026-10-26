@@ -57,6 +57,17 @@ export interface IObjectStorage {
   ): Promise<IStorageUploadResult>;
   /** HeadObject + owner-prefix check before a profile can attach the avatar. */
   confirmAvatarUpload(userId: string, key: string): Promise<string>;
+  /** Clip giới thiệu trên hồ sơ (PR #46 §3.3): video mp4/quicktime ≤ 50 MB. */
+  createIntroVideoUpload(
+    request: IStorageUploadRequest,
+  ): Promise<IStorageUploadResult>;
+  /** Ảnh bìa của clip giới thiệu, do client tạo: ảnh ≤ 2 MB. */
+  createIntroThumbnailUpload(
+    request: IStorageUploadRequest,
+  ): Promise<IStorageUploadResult>;
+  /** Trả URL công khai sau khi HeadObject xác nhận đúng chủ, đúng loại, đúng trần. */
+  confirmIntroVideoUpload(userId: string, key: string): Promise<string>;
+  confirmIntroThumbnailUpload(userId: string, key: string): Promise<string>;
   /** HeadObject verifies both owner and canonical post before media attachment. */
   confirmPostMediaUpload(
     userId: string,

@@ -1,5 +1,6 @@
 import {
   CharityTransferStatuses,
+  GiftPostStatuses,
   PostTypes,
   PublicDiscoveryPostType,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -119,6 +120,8 @@ export interface IFindMyPostsParams {
   authorId: string;
   postType?: PostTypes;
   status?: string;
+  /** Chỉ trả bài ở các trạng thái này — hồ sơ công khai của người khác. Bỏ trống = mọi trạng thái. */
+  visibleStatuses?: string[];
   categoryId?: string;
   skip: number;
   take: number;
@@ -193,14 +196,11 @@ export interface ISmartMatchCandidate {
 export interface IExpireDuePostsResult {
   /** Bài đã chuyển sang EXPIRED. */
   expired: number;
-  /** Bài rao vặt đã chuyển thành Muốn Tặng thay vì hết hạn (CHỐT-05). */
-  convertedToOffer: number;
   /**
    * ID những bài vừa sang `EXPIRED`.
    *
    * Con số không đủ cho nơi gọi: yêu cầu còn treo dưới chúng phải được đóng và
-   * người xin phải được báo. Bài rao vặt chuyển thành Muốn Tặng KHÔNG nằm đây
-   * — nó vẫn mở, nên hàng đợi của nó vẫn còn giá trị.
+   * người xin phải được báo. Rao vặt cũng nằm đây: từ 26/10 nó hết hạn như mọi bài.
    */
   expiredPosts: { postId: string; authorId: string; title: string }[];
 }
@@ -247,7 +247,7 @@ export interface IPostRepository extends Repository<IPostEntity> {
   createPostWithinQuota(
     authorId: string,
     quota: number,
-    post: Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt'>,
+    post: Omit<IPostEntity, 'id' | 'createdAt' | 'updatedAt' | 'shareCode'>,
   ): Promise<boolean>;
   /**
    * Gom bài trong khung nhìn thành cụm theo ô lưới.
@@ -277,6 +277,15 @@ export interface IPostRepository extends Repository<IPostEntity> {
    * toàn bộ lý do endpoint này tồn tại tách khỏi discovery.
    */
   findMyPosts(params: IFindMyPostsParams): Promise<IFindMyPostsResult>;
+  /**
+   * Đổi trạng thái bài Rao vặt nếu nó ĐANG ở một trong `from` — kiểm và ghi trong một câu.
+   * `null` khi bài không còn ở trạng thái cho đổi (hoặc không phải Rao vặt, đã xoá).
+   */
+  updateClassifiedStatus(params: {
+    postId: string;
+    to: GiftPostStatuses;
+    from: GiftPostStatuses[];
+  }): Promise<IPostEntity | null>;
   findAdminPosts(params: IFindAdminPostsParams): Promise<IFindAdminPostsResult>;
   findAdminByGlobalId(globalId: string): Promise<IAdminPostSummary | null>;
   /**
@@ -298,6 +307,11 @@ export interface IPostRepository extends Repository<IPostEntity> {
   ): Promise<IPostEntity | null>;
   findPublicByGlobalId(
     globalId: string,
+    currentUserId?: string,
+  ): Promise<IPostEntity | null>;
+  /** Như `findPublicByGlobalId`, tra theo mã chia sẻ (PR #46 §4). */
+  findPublicByShareCode(
+    shareCode: string,
     currentUserId?: string,
   ): Promise<IPostEntity | null>;
   countPublishedByAuthor(authorId: string): Promise<number>;

@@ -1,5 +1,6 @@
 import { IAppendPointEntryResult } from '@/application/contracts/point';
 import {
+  ClassifiedTransactionNotSupportedException,
   GiftRequestNotFoundException,
   GiftTransactionInvalidStateException,
   GiftTransactionOutOfStockException,
@@ -14,6 +15,7 @@ import {
   IGiftRequestRepository,
   IMyGiftRequestRow,
   IPointLedgerRepository,
+  IRecipientSelectionAudit,
   IRedemptionContext,
 } from '@/domain/ports/repository';
 import { GiftRequestEntity, UserEntity } from '@/infrastructure/entity';
@@ -23,7 +25,10 @@ import {
   PostTypes,
   UserRanks,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { IPostRequestItemDto } from '@chantam.vn/chantam.core-lib/dto';
+import {
+  IPostRequesterPreviewDto,
+  IPostRequestItemDto,
+} from '@chantam.vn/chantam.core-lib/dto';
 import { IGiftRequestEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { giftTransactionRoles } from '@chantam.vn/chantam.core-lib/models';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
@@ -46,7 +51,23 @@ const ClosedPostStatuses: readonly string[] = [
   GiftPostStatuses.REJECTED,
   GiftPostStatuses.COMPLETED,
   GiftPostStatuses.ARCHIVED,
+  // Rao vặt đã bán là điểm cuối (PR #46 §8).
+  GiftPostStatuses.SOLD,
 ];
+
+/**
+ * Người xin còn được hệ thống tự chọn (PR #46 §9): tài khoản chưa xoá, không bị khoá, và
+ * không đang trong hạn treo. Hạn treo xét LÚC DÙNG như đăng nhập (`suspended_until <= now()`
+ * là đã hết hạn) — không có job nào lật `SUSPENDED` về `ACTIVE`.
+ *
+ * Dùng cho CẢ câu quét bài tới hạn lẫn câu đọc ứng viên: lệch nhau thì một bài chỉ còn ứng
+ * viên bị khoá sẽ được quét mãi mà không bao giờ chọn được ai.
+ */
+const eligibleRequesterSql = (alias: string) => `(
+  ${alias}.deleted_at IS NULL
+  AND (${alias}.status = 'ACTIVE'
+       OR (${alias}.status = 'SUSPENDED' AND ${alias}.suspended_until <= now()))
+)`;
 
 interface IMyRequestRow {
   global_id: string;
@@ -169,6 +190,63 @@ export class GiftRequestRepository
 
     for (const row of raw) {
       map.set(row.postId, Number(row.cnt));
+    }
+    return map;
+  }
+
+  public async listRecentRequestersByPostIds(
+    postIds: string[],
+    limitPerPost: number,
+  ): Promise<Map<string, IPostRequesterPreviewDto[]>> {
+    const map = new Map<string, IPostRequesterPreviewDto[]>();
+    if (postIds.length === 0) return map;
+
+    // CÙNG bộ lọc trạng thái với `countActiveByPostIds` — lệch nhau là dải avatar hiện người
+    // mà con số không đếm, hoặc ngược lại. Một người chỉ có một yêu cầu đang mở trên một bài,
+    // nên không cần khử trùng theo người.
+    const rows = await this.manager.query<
+      {
+        post_id: string;
+        username: string;
+        avatar_url: string | null;
+      }[]
+    >(
+      `
+        SELECT ranked.post_id, ranked.username, ranked.avatar_url
+          FROM (
+            SELECT request.post_id, person.username,
+                   person.avatar_url,
+                   row_number() OVER (
+                     PARTITION BY request.post_id
+                     ORDER BY request.created_at DESC, request.id DESC
+                   ) AS position
+              FROM gift_requests request
+              JOIN users person ON person.global_id = request.requester_id
+             WHERE request.post_id = ANY($1::uuid[])
+               AND request.deleted_at IS NULL
+               AND request.status <> ALL($2::gift_requests_status_enum[])
+          ) ranked
+         WHERE ranked.position <= $3
+         ORDER BY ranked.post_id, ranked.position
+      `,
+      [
+        postIds,
+        [
+          GiftRequestStatuses.WITHDRAWN,
+          GiftRequestStatuses.CANCELLED,
+          GiftRequestStatuses.REJECTED,
+        ],
+        limitPerPost,
+      ],
+    );
+
+    for (const row of rows) {
+      const list = map.get(row.post_id) ?? [];
+      list.push({
+        username: row.username,
+        avatarUrl: row.avatar_url,
+      });
+      map.set(row.post_id, list);
     }
     return map;
   }
@@ -529,6 +607,7 @@ export class GiftRequestRepository
 
   public async findPostsDueForSelection(
     limit: number,
+    includeClassified = false,
   ): Promise<{ postId: string; giverId: string }[]> {
     const rows = await this.manager.query<
       { post_id: string; giver_id: string }[]
@@ -540,16 +619,24 @@ export class GiftRequestRepository
           AND post.selection_deadline <= now()
           AND post.status = $1
           AND post.deleted_at IS NULL
+          AND ($4::boolean OR post.post_type <> 'CLASSIFIED')
           AND EXISTS (
             SELECT 1 FROM gift_requests candidate
+            INNER JOIN users person ON person.global_id = candidate.requester_id
             WHERE candidate.post_id = post.global_id
               AND candidate.status = $2
               AND candidate.deleted_at IS NULL
+              AND ${eligibleRequesterSql('person')}
           )
         ORDER BY post.selection_deadline ASC
         LIMIT $3
       `,
-      [GiftPostStatuses.PUBLISHED, GiftRequestStatuses.PENDING, limit],
+      [
+        GiftPostStatuses.PUBLISHED,
+        GiftRequestStatuses.PENDING,
+        limit,
+        includeClassified,
+      ],
     );
 
     return rows.map((row) => ({
@@ -635,6 +722,7 @@ export class GiftRequestRepository
         WHERE candidate.post_id = $1
           AND candidate.status = $2
           AND candidate.deleted_at IS NULL
+          AND ${eligibleRequesterSql('person')}
       `,
       [postId, GiftRequestStatuses.PENDING],
     );
@@ -677,6 +765,17 @@ export class GiftRequestRepository
       readonly idempotencyKey: string;
       readonly reason: string;
     };
+    /**
+     * Lý do hệ thống tự chọn người này (PR #46 §9). Ghi TRONG transaction này, nên lượt trao
+     * tự chọn và lý do của nó cùng commit hoặc cùng mất. Bỏ trống cho lượt chủ bài bấm duyệt.
+     */
+    readonly selectionAudit?: IRecipientSelectionAudit;
+    /**
+     * Rao vặt không tạo lượt trao mới (PR #46 §8). Chặn NGAY TẠI ĐÂY, dưới khoá hàng, để
+     * không đường gọi nào lách được — `true` chỉ khi nơi gọi đã kiểm Admin bật lại luồng cũ
+     * (`classified.legacy_transactions_enabled = 1`).
+     */
+    readonly allowClassified?: boolean;
   }): Promise<{
     transactionId: string;
     /** Vai đã phân giải, để nơi gọi gửi thông báo mà khỏi tự đoán lại. */
@@ -768,6 +867,8 @@ export class GiftRequestRepository
       if (post.author_id !== params.actorUserId) {
         throw new ForbiddenException();
       }
+      if (post.post_type === PostTypes.CLASSIFIED && !params.allowClassified)
+        throw new ClassifiedTransactionNotSupportedException();
 
       // Vai suy từ LOẠI bài, không nhận từ nơi gọi — xem `giftTransactionRoles`.
       // Với bài Muốn Nhận hai vai ĐẢO lại: tác giả là người nhận.
@@ -862,6 +963,12 @@ export class GiftRequestRepository
           giverId: roles.giverId,
           receiverId: roles.receiverId,
         });
+        await this.recordSelectionAudit(manager, {
+          transactionId: existingTransaction.global_id,
+          postId: params.postId,
+          requestId: params.requestId,
+          audit: params.selectionAudit,
+        });
         return {
           transactionId: existingTransaction.global_id,
           ...roles,
@@ -886,9 +993,45 @@ export class GiftRequestRepository
         giverId: roles.giverId,
         receiverId: roles.receiverId,
       });
+      await this.recordSelectionAudit(manager, {
+        transactionId: params.transactionId,
+        postId: params.postId,
+        requestId: params.requestId,
+        audit: params.selectionAudit,
+      });
 
       return { transactionId: params.transactionId, ...roles, debit };
     });
+  }
+
+  private async recordSelectionAudit(
+    manager: EntityManager,
+    params: {
+      transactionId: string;
+      postId: string;
+      requestId: string;
+      audit: IRecipientSelectionAudit | undefined;
+    },
+  ): Promise<void> {
+    if (!params.audit) return;
+    const { audit } = params;
+    await manager.query(
+      `INSERT INTO recipient_selection_audits
+         (transaction_id, post_id, request_id, requester_id, trigger, deciding_criterion,
+          criteria_order, winner_metrics, runner_up_metrics, candidate_count)
+       VALUES ($1, $2, $3, $4, 'AUTOMATIC', $5, $6::jsonb, $7::jsonb, $8::jsonb, $9)`,
+      [
+        params.transactionId,
+        params.postId,
+        params.requestId,
+        audit.winner.requesterId,
+        audit.decidingCriterion,
+        JSON.stringify(audit.order),
+        JSON.stringify(audit.winner),
+        audit.runnerUp ? JSON.stringify(audit.runnerUp) : null,
+        audit.candidateCount,
+      ],
+    );
   }
 
   public async acceptRequestsBatch(params: {
@@ -896,6 +1039,12 @@ export class GiftRequestRepository
     /** Người BẤM duyệt — tác giả bài. Vai suy trong hàm, xem `acceptRequest`. */
     actorUserId: string;
     requestIds: readonly string[];
+    /**
+     * Rao vặt không tạo lượt trao mới (PR #46 §8). Chặn NGAY TẠI ĐÂY, dưới khoá hàng, để
+     * không đường gọi nào lách được — `true` chỉ khi nơi gọi đã kiểm Admin bật lại luồng cũ
+     * (`classified.legacy_transactions_enabled = 1`).
+     */
+    readonly allowClassified?: boolean;
   }): Promise<{
     accepted: {
       requestId: string;
@@ -975,6 +1124,8 @@ export class GiftRequestRepository
 
       const post = postRows[0];
       if (post.author_id !== params.actorUserId) throw new ForbiddenException();
+      if (post.post_type === PostTypes.CLASSIFIED && !params.allowClassified)
+        throw new ClassifiedTransactionNotSupportedException();
       if (post.status !== GiftPostStatuses.PUBLISHED)
         throw new PostInvalidStateException();
 

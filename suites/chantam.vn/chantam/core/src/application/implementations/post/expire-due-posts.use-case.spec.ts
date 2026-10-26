@@ -10,7 +10,7 @@ const PostB = 'bbbbbbbb-bbbb-4bbb-8bbb-00000000000b';
 /**
  * Mock trả ĐỦ hình của `IExpireDuePostsResult`.
  *
- * Bản trước của file này trả `{ expired: 4, convertedToOffer: 2 }` — thiếu hẳn
+ * Bản trước của file này trả `{ expired: 4 }` kèm một số đếm — thiếu hẳn
  * mảng bài đã hết hạn — và vẫn xanh, vì `closeFor` giả bỏ qua đối số nên không ai
  * đọc tới trường thiếu. Một mock hẹp hơn contract là một phép kiểm đo chính cái
  * mock, không đo mã.
@@ -24,7 +24,6 @@ function makeRepository(
   return {
     expireDuePosts: jest.fn(async (_now: Date) => ({
       expired: expiredPosts.length,
-      convertedToOffer: 2,
       expiredPosts,
     })),
   } as unknown as jest.Mocked<IPostRepository>;
@@ -89,12 +88,13 @@ function build(
 }
 
 describe('ExpireDuePostsUseCase', () => {
-  it('trả về số bài đã đóng và số tin rao vặt đã chuyển', async () => {
+  it('trả về số bài đã đóng — Rao vặt hết hạn như mọi bài, không còn số chuyển loại', async () => {
     const { useCase } = build();
 
     const result = await useCase.handle({});
 
-    expect(result).toMatchObject({ expired: 2, convertedToOffer: 2 });
+    expect(result).toMatchObject({ expired: 2 });
+    expect(result).not.toHaveProperty('convertedToOffer');
   });
 
   it('mặc định lấy thời điểm hiện tại', async () => {

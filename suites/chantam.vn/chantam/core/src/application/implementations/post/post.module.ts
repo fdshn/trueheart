@@ -10,13 +10,16 @@ import {
   IGetPostUseCase,
   IGetSmartMatchesUseCase,
   IListAdminPostsUseCase,
+  IListUserPostsUseCase,
   IModerateAdminPostUseCase,
   IRemovePostMediaUseCase,
   IRenewPostUseCase,
   IReorderPostMediaUseCase,
   IRequestCharityTransferUseCase,
   IRequestPostMediaUploadUseCase,
+  IResolvePostShareUseCase,
   IReviewCharityTransferUseCase,
+  IUpdateClassifiedStatusUseCase,
   IUpdatePostUseCase,
 } from '@/application/contracts/post';
 import { Global, Module } from '@nestjs/common';
@@ -39,10 +42,13 @@ import { GetMyPostsUseCase } from './get-my-posts.use-case';
 import { GetNearbyPostsUseCase } from './get-nearby-posts.use-case';
 import { GetPostMapUseCase } from './get-post-map.use-case';
 import { GetPostUseCase } from './get-post.use-case';
+import { ListUserPostsUseCase } from './list-user-posts.use-case';
 import { RemovePostMediaUseCase } from './remove-post-media.use-case';
 import { RenewPostUseCase } from './renew-post.use-case';
 import { ReorderPostMediaUseCase } from './reorder-post-media.use-case';
 import { RequestPostMediaUploadUseCase } from './request-post-media-upload.use-case';
+import { ResolvePostShareUseCase } from './resolve-post-share.use-case';
+import { UpdateClassifiedStatusUseCase } from './update-classified-status.use-case';
 import { UpdatePostUseCase } from './update-post.use-case';
 
 @Global()
@@ -83,6 +89,7 @@ import { UpdatePostUseCase } from './update-post.use-case';
     { provide: IDeletePostUseCase, useClass: DeletePostUseCase },
     { provide: IExpireDuePostsUseCase, useClass: ExpireDuePostsUseCase },
     { provide: IGetMyPostsUseCase, useClass: GetMyPostsUseCase },
+    { provide: IListUserPostsUseCase, useClass: ListUserPostsUseCase },
     { provide: IGetNearbyPostsUseCase, useClass: GetNearbyPostsUseCase },
     { provide: IGetSmartMatchesUseCase, useClass: GetSmartMatchesUseCase },
     { provide: IGetPostMapUseCase, useClass: GetPostMapUseCase },
@@ -94,6 +101,11 @@ import { UpdatePostUseCase } from './update-post.use-case';
     { provide: IReorderPostMediaUseCase, useClass: ReorderPostMediaUseCase },
     { provide: IRemovePostMediaUseCase, useClass: RemovePostMediaUseCase },
     { provide: IRenewPostUseCase, useClass: RenewPostUseCase },
+    { provide: IResolvePostShareUseCase, useClass: ResolvePostShareUseCase },
+    {
+      provide: IUpdateClassifiedStatusUseCase,
+      useClass: UpdateClassifiedStatusUseCase,
+    },
     { provide: IUpdatePostUseCase, useClass: UpdatePostUseCase },
   ],
   exports: [
@@ -107,6 +119,7 @@ import { UpdatePostUseCase } from './update-post.use-case';
     IReviewCharityTransferUseCase,
     IExpireDuePostsUseCase,
     IGetMyPostsUseCase,
+    IListUserPostsUseCase,
     IGetNearbyPostsUseCase,
     IGetSmartMatchesUseCase,
     IGetPostMapUseCase,
@@ -115,6 +128,8 @@ import { UpdatePostUseCase } from './update-post.use-case';
     IReorderPostMediaUseCase,
     IRemovePostMediaUseCase,
     IRenewPostUseCase,
+    IResolvePostShareUseCase,
+    IUpdateClassifiedStatusUseCase,
     IUpdatePostUseCase,
   ],
 })

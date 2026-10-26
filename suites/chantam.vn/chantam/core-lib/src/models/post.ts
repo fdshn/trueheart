@@ -28,6 +28,8 @@ export interface IPost {
   reactionCount: number;
   commentCount: number;
   shareCount: number;
+  /** Mã chia sẻ ngắn, không tuần tự, duy nhất (PR #46 §4). Postgres sinh lúc tạo bài. */
+  shareCode: string;
   /** Bài Cần gấp / SOS — mở theo capability `POST_SOS` của Rank (F17). */
   isSos: boolean;
   /** Hình thức nhận hàng (F78). `null` khi người đăng chưa chọn. */

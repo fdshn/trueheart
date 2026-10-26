@@ -2,14 +2,23 @@ import {
   IPaginationMetaDto,
   IPaginationQueryDto,
 } from '@chantam/service.common-lib/dto';
-import { ChatRoomStatuses } from '../../consts';
+import { ChatRoomStatuses, ChatRoomTypes } from '../../consts';
 
 export interface IChatRoomSummaryDto {
   roomId: string;
-  transactionId: string;
+  roomType: ChatRoomTypes;
+  /** `null` với phòng `DIRECT_POST`. */
+  transactionId: string | null;
   postId: string;
   postTitle: string;
+  /** Ảnh đầu tiên của bài; `null` khi bài không có ảnh. */
+  postThumbnailUrl: string | null;
+  /** Giá bán (VNĐ) của bài Rao vặt; `null` với bài không có giá. */
+  postPrice: number | null;
   status: ChatRoomStatuses;
+  /** `true` khi phòng đã khoá — chỉ đọc lịch sử, không gửi được. */
+  readOnly: boolean;
+  counterpartAvatarUrl: string | null;
   /** Người còn lại trong phòng — giao diện cần tên để hiển thị hội thoại. */
   counterpartUsername: string;
   counterpartFullName: string | null;
@@ -152,4 +161,18 @@ export interface IMarkChatRoomReadResponseDto {
   roomId: string;
   readAt: Date;
   unreadCount: number;
+}
+
+export interface IOpenDirectPostRoomDto {
+  postId: string;
+}
+
+export interface IOpenDirectPostRoomBodyDto {
+  room: IOpenDirectPostRoomDto;
+}
+
+export interface IOpenDirectPostRoomResponseDto {
+  room: IChatRoomSummaryDto;
+  /** `false` khi phòng đã có sẵn và được trả lại. */
+  created: boolean;
 }

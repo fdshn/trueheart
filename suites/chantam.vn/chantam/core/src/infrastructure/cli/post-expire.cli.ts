@@ -10,7 +10,7 @@ export async function runPostExpiry(
     NestFactory,
   ),
   appModule: unknown = PostCliModule,
-): Promise<{ expired: number; convertedToOffer: number }> {
+): Promise<{ expired: number }> {
   const app: INestApplicationContext = await createApplicationContext(
     appModule as never,
   );
@@ -33,9 +33,7 @@ async function main(): Promise<void> {
   if (await selfCheckIfRequested(PostCliModule, IExpireDuePostsUseCase)) return;
 
   const result = await runPostExpiry();
-  console.log(
-    `Đã đóng ${result.expired} bài quá hạn và chuyển ${result.convertedToOffer} tin rao vặt thành bài Muốn Tặng.`,
-  );
+  console.log(`Đã đóng ${result.expired} bài quá hạn.`);
 }
 
 if (require.main === module) {

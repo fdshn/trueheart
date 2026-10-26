@@ -17,7 +17,10 @@ import {
   OnboardingTaskEvidenceTypes,
   UserRanks,
 } from '@chantam.vn/chantam.core-lib/consts';
-import { isProfileComplete } from '@chantam.vn/chantam.core-lib/models';
+import {
+  isProfileComplete,
+  onboardingTaskActionOf,
+} from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 import { appendPointIgnoringPolicy } from '../point/point-policy-errors';
 
@@ -84,9 +87,10 @@ export class EvaluateOnboardingTasksUseCase implements IEvaluateOnboardingTasksU
       }
     }
 
-    const tasks = await this.onboardingTasks.findUserTaskProgress(
-      user.globalId,
-    );
+    // Hồ sơ không đổi trong lượt đánh giá này, nên `user` đọc ở đầu vẫn đúng cho `action`.
+    const tasks = (
+      await this.onboardingTasks.findUserTaskProgress(user.globalId)
+    ).map((task) => ({ ...task, action: onboardingTaskActionOf(task, user) }));
     const requiredTasks = tasks.filter((t) => t.required);
     const completedRequired = requiredTasks.filter((t) => t.completed).length;
     const isAllCompleted =

@@ -25,6 +25,10 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager, EntitySchema, In, Repository } from 'typeorm';
+import {
+  ClassifiedTakedownStatuses,
+  PostHasLiveTransactionSql,
+} from './post.repository';
 import { updateReturning } from './update-returning';
 
 interface IReportRow {
@@ -483,19 +487,30 @@ export class ReportRepository
     },
   ): Promise<void> {
     const [post] = await manager.query<
-      { status: GiftPostStatuses; author_id: string }[]
+      {
+        status: GiftPostStatuses;
+        author_id: string;
+        post_type: string;
+        has_live: boolean;
+      }[]
     >(
-      `SELECT status, author_id
+      `SELECT status, author_id, post_type, ${PostHasLiveTransactionSql} AS has_live
        FROM posts
        WHERE global_id = $1 AND deleted_at IS NULL
        FOR UPDATE`,
       [command.postId],
     );
+    // Tin Rao vặt chủ bài tự đặt giữ chỗ/ẩn vẫn gỡ được — xem `ClassifiedTakedownStatuses`.
+    const classifiedTakedown =
+      post?.post_type === 'CLASSIFIED' &&
+      ClassifiedTakedownStatuses.includes(post.status) &&
+      !post.has_live;
     if (
       !post ||
-      ![GiftPostStatuses.PUBLISHED, GiftPostStatuses.PENDING_REVIEW].includes(
+      (![GiftPostStatuses.PUBLISHED, GiftPostStatuses.PENDING_REVIEW].includes(
         post.status,
-      )
+      ) &&
+        !classifiedTakedown)
     )
       return;
 

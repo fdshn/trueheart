@@ -253,6 +253,15 @@ async function main(): Promise<void> {
       clean.thread.status === 'VISIBLE' && clean.thread.flaggedTerms === null,
       clean.thread.status,
     );
+    // Author summary chuẩn (PR #46 §3.4) — họ tên công khai từ 25/10, không email/SĐT.
+    check(
+      'chủ đề mang author summary: username, họ tên, hạng',
+      clean.thread.author?.username === 'tacgia' &&
+        clean.thread.author?.fullName === 'Nguyễn Văn Tác Giả' &&
+        clean.thread.author?.rank === 'MEMBER' &&
+        !('email' in (clean.thread.author ?? {})),
+      JSON.stringify(clean.thread.author),
+    );
     check(
       'danh mục chuẩn hoá về slug',
       clean.thread.category === 'hoi-dap-giao-ly',
@@ -896,7 +905,7 @@ async function main(): Promise<void> {
     const orphan = await repository.findThreadByGlobalId(clean.thread.globalId);
     check(
       'chủ đề còn lại cho người khác đọc, chỉ mất tên tác giả',
-      orphan !== null && orphan.authorId === null,
+      orphan !== null && orphan.authorId === null && orphan.author === null,
       `authorId=${String(orphan?.authorId)}`,
     );
     check(
