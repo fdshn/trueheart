@@ -578,8 +578,16 @@ else
   fi
 fi
 
+# Từ 25/10 (PR #46) hồ sơ công khai LUÔN có `contacts: {email, phone}` — có giá trị chỉ khi
+# chủ hồ sơ tự đặt PUBLIC, mặc định PRIVATE nên cả hai là null. Vì vậy kiểm GIÁ TRỊ của người
+# này không lọt ra, chứ không kiểm tên khoá: grep `"email"` sẽ đỏ trên chính contract đúng.
+# SĐT smoke sinh từ chính username nên không grep được bằng chuỗi số; `contacts` toàn null đã
+# bắt việc lộ cả hai.
 call GET "/api/v1/profile/$PROFILE_USER"
-if [ "$RESP_CODE" = "200" ] && ! printf '%s' "$RESP_BODY" | grep -qE '"(email|phone|defaultLocation)"'; then
+if [ "$RESP_CODE" = "200" ] &&
+  ! printf '%s' "$RESP_BODY" | grep -qF "$PROFILE_EMAIL" &&
+  ! printf '%s' "$RESP_BODY" | grep -q '"defaultLocation"' &&
+  printf '%s' "$RESP_BODY" | grep -q '"contacts":{"email":null,"phone":null}'; then
   pass "hồ sơ công khai không lộ contact/vị trí"
 else
   fail "hồ sơ công khai làm lộ dữ liệu riêng" "HTTP $RESP_CODE — $RESP_BODY"
