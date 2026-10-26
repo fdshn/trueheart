@@ -31,6 +31,7 @@ import {
   IPostMediaRepository,
   IPostRepository,
   IRankRepository,
+  IRecipientSelectionAuditRepository,
   IReferralRepository,
   IReportRepository,
   ISponsorBannerRepository,
@@ -78,6 +79,7 @@ import { PointLedgerRepository } from './point-ledger.repository';
 import { PostMediaRepository } from './post-media.repository';
 import { PostRepository } from './post.repository';
 import { RankRepository } from './rank.repository';
+import { RecipientSelectionAuditRepository } from './recipient-selection-audit.repository';
 import { ReferralRepository } from './referral.repository';
 import { ReportRepository } from './report.repository';
 import { SponsorBannerRepository } from './sponsor-banner.repository';
@@ -125,6 +127,10 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     {
       provide: IDharmaLeaderboardRepository,
       useClass: DharmaLeaderboardRepository,
+    },
+    {
+      provide: IRecipientSelectionAuditRepository,
+      useClass: RecipientSelectionAuditRepository,
     },
     { provide: ILeaderboardRepository, useClass: LeaderboardRepository },
     {
@@ -211,6 +217,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     IMeritRepository,
     IDharmaRepository,
     IDharmaLeaderboardRepository,
+    IRecipientSelectionAuditRepository,
     ILeaderboardRepository,
     IHomeCampaignRepository,
     IBulkNotifyAudienceRepository,

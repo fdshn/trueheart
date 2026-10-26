@@ -16,6 +16,11 @@ import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import { AutoSelectDueRecipientsUseCase } from '../src/application/implementations/gift-request/auto-select-due-recipients.use-case';
+import {
+  GetAdminRecipientSelectionUseCase,
+  GetTransactionSelectionReasonUseCase,
+  ListAdminRecipientSelectionsUseCase,
+} from '../src/application/implementations/recipient-selection/recipient-selection.use-cases';
 import * as entities from '../src/infrastructure/entity';
 import { GiftRequestEntity } from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
@@ -23,6 +28,7 @@ import { AdminConfigRepository } from '../src/infrastructure/repository/admin-co
 import { ChatRepository } from '../src/infrastructure/repository/chat.repository';
 import { GiftRequestRepository } from '../src/infrastructure/repository/gift-request.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
+import { RecipientSelectionAuditRepository } from '../src/infrastructure/repository/recipient-selection-audit.repository';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -311,6 +317,129 @@ async function main(): Promise<void> {
       'job trao cho người hợp lệ dù họ xin muộn nhất',
       mixedDeal?.receiver_id === expired,
       JSON.stringify(mixedDeal),
+    );
+
+    console.log('\n3b. Đọc lý do (API Admin và API hai bên)');
+    const audits = new RecipientSelectionAuditRepository(dataSource.manager);
+    // Use case chỉ cần `findByGlobalId` của lượt trao — đọc thẳng bảng, không dựng cả cây phụ
+    // thuộc của `GiftTransactionRepository`.
+    const transactions = {
+      findByGlobalId: async (globalId: string) => {
+        const [row] = await sql(
+          `SELECT global_id AS "globalId", giver_id AS "giverId", receiver_id AS "receiverId"
+             FROM gift_transactions WHERE global_id = $1`,
+          [globalId],
+        );
+        return row ?? null;
+      },
+    };
+    const allowAll = { hasPermission: async () => true };
+    const listUseCase = new ListAdminRecipientSelectionsUseCase(
+      allowAll as never,
+      audits,
+    );
+    const page = await listUseCase.handle({
+      actorUserId: GiverId,
+      pageSize: 4,
+    });
+    check(
+      'danh sách: 10 vòng + 1 lượt ở phần lọc người không hợp lệ, phân trang 4, mới nhất trước',
+      page.meta.total === Rounds + 1 &&
+        page.selections.length === 4 &&
+        page.selections[0].selectedAt >= page.selections[3].selectedAt,
+      JSON.stringify(page.meta),
+    );
+    // Lượt có người về nhì — lượt mới nhất chỉ có một ứng viên.
+    const firstAudit = (
+      await listUseCase.handle({ actorUserId: GiverId, pageSize: 50 })
+    ).selections.find((item) => item.candidateCount > 1)!;
+    const byPost = await listUseCase.handle({
+      actorUserId: GiverId,
+      postId: firstAudit.postId,
+    });
+    const byGiver = await listUseCase.handle({
+      actorUserId: GiverId,
+      userId: GiverId,
+    });
+    const byCriterion = await listUseCase.handle({
+      actorUserId: GiverId,
+      decidingCriterion: firstAudit.decidingCriterion,
+    });
+    const future = await listUseCase.handle({
+      actorUserId: GiverId,
+      from: new Date(Date.now() + 60_000).toISOString(),
+    });
+    check(
+      'lọc theo bài, theo chủ bài (userId), theo tiêu chí và theo thời gian chạy đúng trên SQL thật',
+      byPost.meta.total === 1 &&
+        byGiver.meta.total === Rounds + 1 &&
+        byCriterion.selections.every(
+          (item) => item.decidingCriterion === firstAudit.decidingCriterion,
+        ) &&
+        future.meta.total === 0,
+      JSON.stringify([
+        byPost.meta.total,
+        byGiver.meta.total,
+        byCriterion.meta.total,
+        future.meta.total,
+      ]),
+    );
+    const { selection: detail } = await new GetAdminRecipientSelectionUseCase(
+      allowAll as never,
+      audits,
+      transactions as never,
+    ).handle({ actorUserId: GiverId, transactionId: firstAudit.transactionId });
+    check(
+      'chi tiết Admin: tên bài, chủ bài, username người được chọn và người về nhì, thứ tự tiêu chí có nhãn',
+      detail?.postTitle === 'Bài kiểm tự chọn' &&
+        detail.postAuthorUsername === 'as_nguoi_tang' &&
+        typeof detail.winner.username === 'string' &&
+        detail.winner.requestId !== null &&
+        typeof detail.runnerUp?.username === 'string' &&
+        detail.criteriaOrder.length === 5 &&
+        detail.criteriaOrder.every((item) => item.label.length > 0),
+      JSON.stringify(detail),
+    );
+
+    // Lượt trao chủ bài tự chọn: không có dòng audit.
+    const manualDeal = '7d400000-0000-4000-8000-000000000001';
+    await sql(
+      `INSERT INTO gift_transactions (global_id, post_id, giver_id, receiver_id, status, accepted_at)
+       VALUES ($1, $2, $3, $4, 'ACCEPTED', now())`,
+      [manualDeal, postId(91), GiverId, Candidates[0][0]],
+    );
+    const reasonUseCase = new GetTransactionSelectionReasonUseCase(
+      transactions as never,
+      audits,
+    );
+    const asReceiver = await reasonUseCase.handle({
+      userId: detail?.requesterId ?? '',
+      transactionId: firstAudit.transactionId,
+    });
+    check(
+      'người nhận thấy lý do, không thấy username hay id của người về nhì',
+      asReceiver.selection?.reasonLabel === firstAudit.reasonLabel &&
+        !JSON.stringify(asReceiver).includes(
+          detail?.runnerUp?.requesterId ?? '-',
+        ) &&
+        !JSON.stringify(asReceiver).includes(detail?.runnerUp?.username ?? '-'),
+      JSON.stringify(asReceiver),
+    );
+    check(
+      'lượt chủ bài tự chọn: selection null cho cả Admin lẫn hai bên',
+      (
+        await reasonUseCase.handle({
+          userId: GiverId,
+          transactionId: manualDeal,
+        })
+      ).selection === null &&
+        (
+          await new GetAdminRecipientSelectionUseCase(
+            allowAll as never,
+            audits,
+            transactions as never,
+          ).handle({ actorUserId: GiverId, transactionId: manualDeal })
+        ).selection === null,
     );
 
     console.log('\n4. Ràng buộc bảng audit');

@@ -17,6 +17,7 @@ import {
 } from './admin-point-ledger.controller';
 import { AdminPointRuleController } from './admin-point-rule.controller';
 import { AdminRankPolicyController } from './admin-rank-policy.controller';
+import { AdminRecipientSelectionController } from './admin-recipient-selection.controller';
 import { AdminRoleController } from './admin-role.controller';
 import { AdminTransactionController } from './admin-transaction.controller';
 import { AdminTrustThresholdController } from './admin-trust-threshold.controller';
@@ -48,6 +49,7 @@ import { NotificationTemplateController } from './notification-template.controll
     AdminDashboardController,
     AdminCommentController,
     AdminTransactionController,
+    AdminRecipientSelectionController,
     EntitlementPolicyController,
     NotificationChannelController,
   ],

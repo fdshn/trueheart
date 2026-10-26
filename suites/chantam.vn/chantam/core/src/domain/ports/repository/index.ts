@@ -30,6 +30,7 @@ export * from './point-ledger.repository';
 export * from './post-media.repository';
 export * from './post.repository';
 export * from './rank.repository';
+export * from './recipient-selection-audit.repository';
 export * from './referral.repository';
 export * from './report.repository';
 export * from './sponsor-banner.repository';

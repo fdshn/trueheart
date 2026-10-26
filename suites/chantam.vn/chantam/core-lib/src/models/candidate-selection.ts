@@ -176,3 +176,31 @@ export function explainCandidateSelection(
     decidingCriterion: deciding ?? 'REQUEST_ORDER',
   };
 }
+
+/** Tên tiêu chí cho màn cấu hình và màn audit của Admin. */
+export const CandidateSelectionCriterionLabels: Readonly<
+  Record<CandidateSelectionCriteria, string>
+> = {
+  QUEUE_JOINED_EARLIEST: 'Xin sớm nhất',
+  HIGHEST_RANK: 'Hạng cao nhất',
+  NEAREST: 'Gần điểm hẹn nhất',
+  FEWEST_RECEIVED: 'Nhận ít quà nhất',
+  FEWEST_CANCELLATIONS: 'Ít huỷ lượt trao nhất',
+};
+
+/**
+ * Câu giải thích vì sao người này được chọn — CÙNG một câu cho CMS, người cho và người nhận,
+ * nên client không tự dịch mã. `Record` trên toàn bộ lý do: thêm tiêu chí mà quên câu là lỗi
+ * biên dịch.
+ */
+export const CandidateSelectionReasonLabels: Readonly<
+  Record<CandidateSelectionReason, string>
+> = {
+  QUEUE_JOINED_EARLIEST: 'Xin sớm nhất trong các ứng viên',
+  HIGHEST_RANK: 'Hạng thành viên cao nhất trong các ứng viên',
+  NEAREST: 'Ở gần điểm hẹn nhất trong các ứng viên',
+  FEWEST_RECEIVED: 'Nhận ít quà nhất trong các ứng viên',
+  FEWEST_CANCELLATIONS: 'Ít huỷ lượt trao nhất trong các ứng viên',
+  REQUEST_ORDER: 'Ngang nhau ở mọi tiêu chí — xét theo thứ tự gửi yêu cầu',
+  ONLY_CANDIDATE: 'Là người duy nhất xin nhận',
+};

@@ -2371,7 +2371,21 @@ Mỗi dòng của `GET /onboarding/tasks` và `POST /onboarding/tasks/evaluate` 
 
 - Mỗi lượt trao do job tạo có một dòng `recipient_selection_audits`, ghi **trong cùng
   transaction**. Dòng đó gồm tiêu chí đã quyết định, thứ tự tiêu chí, số đo người thắng và người
-  về nhì, và số ứng viên. Chưa có API đọc.
+  về nhì, và số ứng viên.
+- API đọc (thêm 26/10):
+
+  | Method | Đường dẫn | Quyền | Trả |
+  | --- | --- | --- | --- |
+  | `GET` | `/admin/recipient-selections` | `post.read` | Danh sách, lọc `postId`, `userId` (người được chọn hoặc chủ bài), `decidingCriterion`, `from`/`to` (ISO, `[from, to)`), phân trang; mới nhất trước |
+  | `GET` | `/admin/recipient-selections/:transactionId` | `post.read` | Chi tiết: thứ tự tiêu chí có nhãn, số đo người được chọn và người về nhì **tại lúc chọn** (kèm username) |
+  | `GET` | `/transactions/:transactionId/selection-reason` | Bearer, hai bên của lượt trao | `{ selection: { trigger, decidingCriterion, reasonLabel, candidateCount, selectedAt } }` — **không** có số đo của ai |
+
+  - `reasonLabel` là câu tiếng Việt dựng sẵn (ví dụ "Ở gần điểm hẹn nhất trong các ứng viên"),
+    dùng chung cho CMS và app.
+  - `decidingCriterion` là một trong năm tiêu chí, hoặc `REQUEST_ORDER` (ngang nhau mọi tiêu
+    chí) hay `ONLY_CANDIDATE`.
+  - Lượt chủ bài tự chọn trả `selection: null`. Lượt trao không tồn tại, hoặc người gọi không
+    phải hai bên, nhận 404 `GIFT_TRANSACTION_NOT_FOUND`.
 - Hai lượt job chạy cùng lúc không tạo lượt trao trùng; lượt thua bỏ qua chứ không báo lỗi.
 - Ứng viên bị khoá, đang trong hạn treo hoặc đã xoá không được chọn.
 

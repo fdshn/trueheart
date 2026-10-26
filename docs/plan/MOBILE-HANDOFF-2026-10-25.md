@@ -55,6 +55,9 @@ Tóm tắt những gì app phải đổi theo đợt backend 25/10. Chi tiết c
   - Dòng `isAnonymous: true` không có tên: hiện "Người ẩn danh"; ở bảng diễn đàn thì cũng không
     có chủ đề.
   - Thời gian tụng trả theo **giây** — app tự đổi ra giờ/phút.
+- **Vì sao hệ thống chọn người nhận:** màn lượt trao gọi
+  `GET /transactions/:transactionId/selection-reason`. Có `selection` thì hiện `reasonLabel`
+  (câu dựng sẵn) kèm "trong N người xin"; `null` thì chủ bài tự chọn — không hiện gì.
 - **Banner:** tám vị trí mới cho bốn tab Khám phá và bốn màn Phật Pháp. Cùng
   `GET /banners?placement=` và đường click cũ.
 
