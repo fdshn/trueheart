@@ -279,6 +279,19 @@ async function main(): Promise<void> {
         (await posts.findOneBy({ globalId: reservedWithDeal }))?.status ===
           'RESERVED',
     );
+    await sql(
+      `UPDATE posts SET expires_at = now() - interval '1 day' WHERE global_id = ANY($1::uuid[])`,
+      [[reservedWithDeal, hiddenNoDeal]],
+    );
+    const swept = await posts.expireDuePosts(new Date());
+    check(
+      'hết hạn: tin tự ẩn thành EXPIRED, tin còn lượt trao kiểu cũ không bị cắt ngang',
+      swept.expiredPosts.some((post) => post.postId === hiddenNoDeal) &&
+        !swept.expiredPosts.some((post) => post.postId === reservedWithDeal) &&
+        (await posts.findOneBy({ globalId: reservedWithDeal }))?.status ===
+          'RESERVED',
+      JSON.stringify(swept.expiredPosts.map((post) => post.postId)),
+    );
 
     console.log('\n4. Quota đăng bài');
     // Tin ẩn mở lại được mà không qua phép kiểm quota, nên nó phải chiếm suất ngay khi ẩn:

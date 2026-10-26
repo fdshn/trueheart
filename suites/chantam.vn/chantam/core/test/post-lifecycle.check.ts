@@ -3,7 +3,7 @@
  *
  * Vì sao cần script riêng: unit test của hai use case này mock cả repository,
  * nên không câu SQL nào được thực thi. Toàn bộ phần khó — `FOR UPDATE SKIP
- * LOCKED`, phép biến đổi `jsonb` khi rao vặt thành bài tặng, `make_interval`,
+ * LOCKED`, `make_interval`,
  * và bộ đếm quota loại chính bài đang gia hạn — chỉ lộ ra khi gặp database.
  *
  *   npm run test:lifecycle
@@ -228,13 +228,29 @@ async function main(): Promise<void> {
         expiresInDays: -1,
         details: { price: 250000, marketPrice: null, condition: 'GOOD' },
       },
+      // Chủ bài tự đặt "Đã giữ chỗ" / "Tạm ẩn" — không có lượt trao nào kéo các trạng thái
+      // này, nên chúng vẫn phải hết hạn.
+      {
+        index: 13,
+        postType: 'CLASSIFIED',
+        status: 'RESERVED',
+        expiresInDays: -1,
+        details: { price: 100000, condition: 'GOOD' },
+      },
+      {
+        index: 14,
+        postType: 'CLASSIFIED',
+        status: 'HIDDEN',
+        expiresInDays: -1,
+        details: { price: 100000, condition: 'GOOD' },
+      },
     ]);
 
     const swept = await posts.expireDuePosts(new Date());
     check(
-      'đếm đúng số bài đã đóng và đã chuyển',
-      swept.expired === 1 && swept.convertedToOffer === 4,
-      JSON.stringify(swept),
+      'đếm đúng số bài đã đóng: 1 bài tặng + 4 Rao vặt đang bán + 2 Rao vặt chủ bài tự giữ chỗ/ẩn',
+      swept.expired === 7,
+      JSON.stringify({ expired: swept.expired }),
     );
 
     // `expiredPosts` mang theo `author_id` và `title` để nơi gọi báo cho chủ bài
@@ -254,11 +270,6 @@ async function main(): Promise<void> {
         ),
       JSON.stringify(swept.expiredPosts),
     );
-    check(
-      'và KHÔNG kèm bài rao vặt vừa chuyển thành Muốn Tặng',
-      swept.expiredPosts.length === 1,
-      `${swept.expiredPosts.length} bài — rao vặt chuyển loại thì không hết hạn`,
-    );
 
     check(
       'bài quá hạn chuyển sang EXPIRED',
@@ -273,7 +284,7 @@ async function main(): Promise<void> {
       (await readPost(dataSource, 3)).status === 'PUBLISHED',
     );
     check(
-      'bài RESERVED không bị cắt ngang giao dịch đang sống',
+      'bài tặng RESERVED không bị cắt ngang giao dịch đang sống',
       (await readPost(dataSource, 4)).status === 'RESERVED',
     );
     check(
@@ -281,70 +292,37 @@ async function main(): Promise<void> {
       (await readPost(dataSource, 5)).status === 'DELIVERING',
     );
 
-    const converted = await readPost(dataSource, 6);
-    check(
-      'rao vặt hết hạn THÀNH bài Muốn Tặng, không biến mất',
-      converted.post_type === 'OFFER' && converted.status === 'PUBLISHED',
-      `${converted.post_type}/${converted.status}`,
+    // Từ 26/10 chủ dự án bỏ CHỐT-05 cho Rao vặt: hết hạn là HẾT HẠN, không chuyển loại.
+    const classifiedExpired = await Promise.all(
+      [6, 7, 8, 9].map((index) => readPost(dataSource, index)),
     );
     check(
-      'giá đã khai chuyển thành giá trị tham khảo',
-      Number(converted.details.estimatedValue) === 250000,
-      JSON.stringify(converted.details),
+      'Rao vặt hết hạn thành EXPIRED, giữ nguyên loại CLASSIFIED',
+      classifiedExpired.every(
+        (post) => post.post_type === 'CLASSIFIED' && post.status === 'EXPIRED',
+      ),
+      JSON.stringify(
+        classifiedExpired.map((post) => `${post.post_type}/${post.status}`),
+      ),
+    );
+    const untouched = await readPost(dataSource, 6);
+    check(
+      'giá bán, cờ thương lượng giữ nguyên — không đổi sang estimatedValue',
+      untouched.details.price === 250000 &&
+        untouched.details.negotiable === true &&
+        !('estimatedValue' in untouched.details),
+      JSON.stringify(untouched.details),
     );
     check(
-      'không còn giá bán và cờ thương lượng trên bài tặng',
-      !('price' in converted.details) && !('negotiable' in converted.details),
-      JSON.stringify(converted.details),
-    );
-    check(
-      'giữ lại tình trạng món đồ khi chuyển loại',
-      converted.details.condition === 'LIKE_NEW',
-    );
-    check(
-      'bài chuyển loại được cấp hạn mới, không mang hạn cũ đã quá',
-      converted.expires_at !== null &&
-        new Date(converted.expires_at).getTime() > Date.now(),
-      String(converted.expires_at),
-    );
-
-    const convertedNoPrice = await readPost(dataSource, 7);
-    check(
-      'rao vặt thiếu giá vẫn chuyển được, không đẻ ra estimatedValue rỗng',
-      convertedNoPrice.post_type === 'OFFER' &&
-        !('estimatedValue' in convertedNoPrice.details),
-      JSON.stringify(convertedNoPrice.details),
-    );
-
-    // Giá trị món đồ = giá THỊ TRƯỜNG, không phải giá thanh lý.
-    const withMarket = await readPost(dataSource, 8);
-    check(
-      'có marketPrice thì estimatedValue lấy GIÁ THỊ TRƯỜNG, không lấy giá thanh lý',
-      Number(withMarket.details.estimatedValue) === 3000000,
-      JSON.stringify(withMarket.details),
-    );
-    check(
-      'estimatedValue là SỐ trong jsonb, không phải chuỗi',
-      typeof withMarket.details.estimatedValue === 'number',
-      typeof withMarket.details.estimatedValue,
-    );
-    check(
-      'không còn marketPrice trên bài tặng',
-      !('marketPrice' in withMarket.details),
-      JSON.stringify(withMarket.details),
-    );
-
-    const nullMarket = await readPost(dataSource, 9);
-    check(
-      'marketPrice null KHÔNG thắng giá bán khi tính estimatedValue',
-      Number(nullMarket.details.estimatedValue) === 250000,
-      JSON.stringify(nullMarket.details),
+      'Rao vặt chủ bài tự đặt Đã giữ chỗ / Tạm ẩn vẫn hết hạn',
+      (await readPost(dataSource, 13)).status === 'EXPIRED' &&
+        (await readPost(dataSource, 14)).status === 'EXPIRED',
     );
 
     const sweptAgain = await posts.expireDuePosts(new Date());
     check(
       'chạy lại vòng quét không đổi gì thêm',
-      sweptAgain.expired === 0 && sweptAgain.convertedToOffer === 0,
+      sweptAgain.expired === 0,
       JSON.stringify(sweptAgain),
     );
 
@@ -388,20 +366,23 @@ async function main(): Promise<void> {
       {
         index: 11,
         postType: 'CLASSIFIED',
-        status: 'PUBLISHED',
-        expiresInDays: 5,
+        status: 'EXPIRED',
+        expiresInDays: -1,
       },
     ]);
+    const classifiedRenew = await posts.renewPost({
+      postId: postId(11),
+      authorId: AuthorId,
+      quota: 3,
+      expiresAt: future,
+    });
+    const renewedClassified = await readPost(dataSource, 11);
     check(
-      'tin rao vặt không gia hạn được (nó tự chuyển loại khi hết hạn)',
-      (
-        await posts.renewPost({
-          postId: postId(11),
-          authorId: AuthorId,
-          quota: 3,
-          expiresAt: future,
-        })
-      ).status === 'NOT_RENEWABLE',
+      'tin Rao vặt hết hạn gia hạn được như mọi bài (bỏ CHỐT-05 từ 26/10)',
+      classifiedRenew.status === 'RENEWED' &&
+        renewedClassified.post_type === 'CLASSIFIED' &&
+        renewedClassified.status === 'PUBLISHED',
+      `${classifiedRenew.status} ${renewedClassified.post_type}/${renewedClassified.status}`,
     );
 
     await seed(dataSource, [

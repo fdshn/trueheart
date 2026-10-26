@@ -304,7 +304,10 @@ chức. Người dùng đăng ký hoặc huỷ trước khi sự kiện bắt đ
 Người bán tự khai **giá tham khảo** và **giá bán**. Hệ thống chỉ tính tỷ lệ chênh lệch;
 **không xác minh giá thật và không ép mức giảm tối thiểu**.
 
-Hết 3 tháng → **tự chuyển thành bài Muốn Tặng** kèm thông báo.
+Hết 3 tháng → **hết hạn (`EXPIRED`)** như mọi bài, gia hạn được.
+
+> 🔄 **Đổi 26/10/2026:** chủ dự án bỏ CHỐT-05 cho Rao vặt sau PR #46 — không còn tự chuyển
+> thành Muốn Tặng. Đoạn chốt bên dưới giữ lại làm lịch sử.
 
 > ✅ **Đã chốt chính thức (SRS v1.15.0 - CHỐT-05 & Mục 3.3.6):** Hệ thống không xác minh giá trị thực và không ép mức giảm tối thiểu; UI chỉ hiển thị giá tham khảo, giá bán và % chênh lệch. Nếu hết 3 tháng người dùng không huỷ/đóng bài, hệ thống **tự động chuyển sang Muốn Tặng** và gửi notification (không đòi hỏi xác nhận lại tại thời điểm chuyển). Thời hạn có thể được Admin cấu hình theo Rank.
 

@@ -196,14 +196,11 @@ export interface ISmartMatchCandidate {
 export interface IExpireDuePostsResult {
   /** Bài đã chuyển sang EXPIRED. */
   expired: number;
-  /** Bài rao vặt đã chuyển thành Muốn Tặng thay vì hết hạn (CHỐT-05). */
-  convertedToOffer: number;
   /**
    * ID những bài vừa sang `EXPIRED`.
    *
    * Con số không đủ cho nơi gọi: yêu cầu còn treo dưới chúng phải được đóng và
-   * người xin phải được báo. Bài rao vặt chuyển thành Muốn Tặng KHÔNG nằm đây
-   * — nó vẫn mở, nên hàng đợi của nó vẫn còn giá trị.
+   * người xin phải được báo. Rao vặt cũng nằm đây: từ 26/10 nó hết hạn như mọi bài.
    */
   expiredPosts: { postId: string; authorId: string; title: string }[];
 }

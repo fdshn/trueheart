@@ -29,11 +29,7 @@ import {
   PubliclyVisibleGiftPostStatuses,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
-import {
-  PostLifetimeMonths,
-  PostMaxRenewals,
-  expiryConvertsToOffer,
-} from '@chantam.vn/chantam.core-lib/models';
+import { PostMaxRenewals } from '@chantam.vn/chantam.core-lib/models';
 import { GeoQueryHelper } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
@@ -870,8 +866,14 @@ export class PostRepository
 
   public async expireDuePosts(now: Date): Promise<IExpireDuePostsResult> {
     return this.manager.transaction(async (manager) => {
-      // SKIP LOCKED để hai lần chạy song song không tranh cùng một bài. Chỉ
-      // lấy PUBLISHED: bài RESERVED đang có giao dịch sống.
+      // SKIP LOCKED để hai lần chạy song song không tranh cùng một bài.
+      //
+      // Lấy `PUBLISHED`, cộng tin Rao vặt chủ bài TỰ đặt "Đã giữ chỗ"/"Tạm ẩn" (PR #46 §8):
+      // không có lượt trao nào kéo các trạng thái đó, nên bỏ chúng ra là cho người bán một
+      // cách giữ tin sống mãi. Bài có lượt trao còn sống thì không bao giờ bị cắt ngang.
+      //
+      // Rao vặt hết hạn là HẾT HẠN như mọi bài — từ 26/10 không còn tự chuyển thành bài Muốn
+      // Tặng (chủ dự án bỏ CHỐT-05 cho Rao vặt sau PR #46).
       const due = await manager.query<
         {
           global_id: string;
@@ -883,7 +885,16 @@ export class PostRepository
         `
           SELECT global_id, post_type, author_id, title
           FROM posts
-          WHERE status = 'PUBLISHED'
+          WHERE (
+                  status = 'PUBLISHED'
+                  OR (post_type = 'CLASSIFIED'
+                      AND status IN ('RESERVED', 'HIDDEN')
+                      AND NOT EXISTS (
+                        SELECT 1 FROM gift_transactions deal
+                         WHERE deal.post_id = posts.global_id
+                           AND deal.status IN ('ACCEPTED', 'DELIVERING')
+                      ))
+                )
             AND deleted_at IS NULL
             AND expires_at IS NOT NULL
             AND expires_at <= $1
@@ -893,73 +904,22 @@ export class PostRepository
         [now],
       );
 
-      if (due.length === 0)
-        return { expired: 0, convertedToOffer: 0, expiredPosts: [] };
+      if (due.length === 0) return { expired: 0, expiredPosts: [] };
 
-      const toOffer = due
-        .filter((row) => expiryConvertsToOffer(row.post_type as PostTypes))
-        .map((row) => row.global_id);
-      // Giữ cả HÀNG, không chỉ id: nơi gọi cần `author_id` và `title` để báo cho
-      // chủ bài. Lọc lại từ `toExpired` bằng `includes` cũng ra kết quả đó, nhưng
-      // đó là một vòng lặp lồng trên cùng một tập đã có sẵn ngay đây.
-      const toExpiredRows = due.filter(
-        (row) => !expiryConvertsToOffer(row.post_type as PostTypes),
+      await manager.query(
+        `
+          UPDATE posts
+          SET status = 'EXPIRED', updated_at = now()
+          WHERE global_id = ANY($1::uuid[])
+            AND status IN ('PUBLISHED', 'RESERVED', 'HIDDEN')
+        `,
+        [due.map((row) => row.global_id)],
       );
-      const toExpired = toExpiredRows.map((row) => row.global_id);
 
-      if (toExpired.length > 0)
-        await manager.query(
-          `
-            UPDATE posts
-            SET status = 'EXPIRED', updated_at = now()
-            WHERE global_id = ANY($1::uuid[]) AND status = 'PUBLISHED'
-          `,
-          [toExpired],
-        );
-
-      if (toOffer.length > 0)
-        // Rao vặt hết hạn thì THÀNH bài Muốn Tặng, không biến mất (CHỐT-05).
-        // Cờ thương lượng bỏ đi vì món đồ không còn được bán nữa.
-        //
-        // `estimatedValue` của bài Muốn Tặng nghĩa là "món này giá trị bao nhiêu", nên nó
-        // ưu tiên `marketPrice` — giá THỊ TRƯỜNG người bán khai — rồi mới lùi về `price`.
-        // Lấy `price` khi đã có `marketPrice` là ghi giá THANH LÝ thành giá trị món đồ, tức
-        // một món giá thị trường 3 triệu bán 500k sẽ thành món quà "trị giá 500k".
-        //
-        // `COALESCE` trên `jsonb` cần `details -> 'x'` (toán tử `->` trả `jsonb`), không
-        // phải `->>`: `->>` trả `text`, và `jsonb_build_object` sẽ bọc nó thành CHUỖI
-        // `"500000"` thay vì số. Khi đó mọi phép lọc khoảng giá trị ở phía đọc đều so chuỗi.
-        await manager.query(
-          `
-            UPDATE posts
-            SET post_type = 'OFFER',
-                expires_at = $2::timestamptz + make_interval(months => $3),
-                details = CASE
-                  WHEN jsonb_typeof(details -> 'marketPrice') = 'number'
-                    OR jsonb_exists(details, 'price')
-                    THEN (details - 'price' - 'negotiable' - 'marketPrice')
-                         || jsonb_build_object(
-                              'estimatedValue',
-                              COALESCE(
-                                CASE
-                                  WHEN jsonb_typeof(details -> 'marketPrice') = 'number'
-                                    THEN details -> 'marketPrice'
-                                END,
-                                details -> 'price'
-                              )
-                            )
-                  ELSE details - 'negotiable' - 'marketPrice'
-                END,
-                updated_at = now()
-            WHERE global_id = ANY($1::uuid[]) AND status = 'PUBLISHED'
-          `,
-          [toOffer, now, PostLifetimeMonths],
-        );
-
+      // Giữ cả HÀNG, không chỉ id: nơi gọi cần `author_id` và `title` để báo cho chủ bài.
       return {
-        expired: toExpired.length,
-        convertedToOffer: toOffer.length,
-        expiredPosts: toExpiredRows.map((row) => ({
+        expired: due.length,
+        expiredPosts: due.map((row) => ({
           postId: row.global_id,
           authorId: row.author_id,
           title: row.title,
@@ -995,10 +955,8 @@ export class PostRepository
 
       if (!post) return { status: 'NOT_FOUND' };
 
-      // Rao vặt không gia hạn: nó tự chuyển thành Muốn Tặng khi hết hạn, nên
-      // gia hạn sẽ kéo dài một trạng thái mà quy định đã định đoạt khác đi.
+      // Rao vặt gia hạn như mọi bài từ 26/10: nó hết hạn chứ không còn chuyển loại.
       if (
-        expiryConvertsToOffer(post.post_type as PostTypes) ||
         (post.status !== 'PUBLISHED' && post.status !== 'EXPIRED') ||
         Number(post.remaining_quantity) <= 0
       )

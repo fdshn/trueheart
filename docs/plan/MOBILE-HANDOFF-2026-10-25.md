@@ -13,6 +13,7 @@ Tóm tắt những gì app phải đổi theo đợt backend 25/10. Chi tiết c
 | **Hiểu hai trạng thái bài mới** `SOLD`, `HIDDEN` ở mọi chỗ hiện `post.status` (Bài của tôi, chi tiết, bộ lọc) | Enum `GiftPostStatuses` có thêm hai giá trị — `switch` không có nhánh mặc định sẽ vỡ |
 | **Danh sách chat phân biệt `roomType`** (`TRANSACTION` / `DIRECT_POST`); `transactionId` nay **nullable** | Phòng trực tiếp không có lượt trao; mở màn "giao dịch" từ phòng này là 404 |
 | **Đổi tên mã lỗi** `EMAIL_TAKEN` → `EMAIL_ALREADY_USED` (cùng số 0x0305) | Client so theo tên sẽ không khớp |
+| **Rao vặt hết hạn là `EXPIRED`**, không còn thành bài Muốn Tặng; nút **Gia hạn** hiện cho tin Rao vặt hết hạn | Chủ dự án bỏ CHỐT-05 cho Rao vặt (26/10) — app từng ẩn nút gia hạn với Rao vặt |
 
 ## Nên dùng — có sẵn, thay cho hardcode
 
@@ -59,8 +60,6 @@ Tóm tắt những gì app phải đổi theo đợt backend 25/10. Chi tiết c
 
 ## Còn chờ quyết định
 
-- **Rao vặt hết hạn vẫn thành bài cho (`OFFER`)** theo CHỐT-05. PR #46 có nhắc `EXPIRED` trong
-  vòng đời Rao vặt nhưng không nói bỏ CHỐT-05. Backend giữ hành vi cũ tới khi chủ dự án xác nhận.
 - **Hiện danh sách người đang online** (avatar) — chưa làm. Phase 1 chỉ có con số; muốn hiện
   danh tính thì cần thêm cài đặt `showOnlineStatus` trước.
 - **Cúng bái** (`DHARMA_WORSHIP`) — chưa có section, surface hay vị trí banner, vì phân hệ chưa

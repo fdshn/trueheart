@@ -484,26 +484,24 @@ tách hai mốc ra.
 | --- | --- | --- | --- |
 | `POST` | `/posts/:postId/renew` | Bearer, chủ bài | Gia hạn thêm 3 tháng, **tối đa một lần** |
 
-Một lượt quét hết hạn (`npm run post:expire`, chạy từ lịch bên ngoài) làm hai việc khác nhau:
+Một lượt quét hết hạn (`npm run post:expire`, chạy từ lịch bên ngoài) đưa bài quá hạn sang
+`EXPIRED` — **mọi loại bài**, kể cả Rao vặt.
 
-| Loại bài | Khi quá hạn |
-| --- | --- |
-| `CLASSIFIED` | **Thành `OFFER`** kèm hạn mới (CHỐT-05). `price` chuyển thành `estimatedValue`, bỏ `negotiable`. ⚠️ Chờ xác nhận sau PR #46 — mục 16 |
-| Còn lại | Sang `EXPIRED` |
+> **Đổi 26/10/2026:** chủ dự án bỏ CHỐT-05 cho Rao vặt. Trước đó Rao vặt hết hạn tự chuyển
+> thành bài Muốn Tặng (`OFFER`) và không gia hạn được; nay nó hết hạn và gia hạn như mọi bài,
+> giữ nguyên `price`, `negotiable`, `marketPrice`.
 
 **Những điều dễ hiểu nhầm**
 
-- Rao vặt hết hạn **không biến mất** — nó thành bài đem tặng. Client đang mở danh sách rao
-  vặt sẽ thấy bài "rơi khỏi" danh sách và xuất hiện ở tab Muốn Tặng; đó là đúng ý định.
-- Vòng quét **không đụng** bài `RESERVED`/`DELIVERING`. Hết hạn ngang là cắt ngang một lượt
-  trao đang diễn ra.
+- Vòng quét **không đụng** bài `RESERVED`/`DELIVERING` có lượt trao đang diễn ra — hết hạn
+  ngang là cắt ngang lượt trao. Riêng tin Rao vặt chủ bài **tự** đặt `RESERVED` hoặc `HIDDEN`
+  (không có lượt trao nào) thì vẫn hết hạn: không thì đó là cách giữ tin sống mãi.
 - `POST /posts/:postId/renew` trả **`404`** khi bài thuộc người khác, không phải `403` —
   phân biệt hai trường hợp là cho người lạ dò được id nào có thật.
 - Gia hạn **tính quota như bài mới** (CHỐT-07). Bài đang hiển thị thì không tự chặn mình,
   nhưng bài đã `EXPIRED` phải giành lại chỗ trong hạn mức, nên gia hạn có thể bị từ chối
   bằng `POST_QUOTA_EXCEEDED` dù trước đó bài vẫn sống.
-- Tin rao vặt **không gia hạn được** (`POST_NOT_RENEWABLE`): quy định đã định đoạt số phận
-  của nó theo hướng khác.
+- Tin Rao vặt **gia hạn được** như mọi bài (từ 26/10).
 - Yêu cầu xin nhận bị từ chối ngay khi bài quá `expires_at`, **kể cả khi trạng thái vẫn còn
   là `PUBLISHED`** vì vòng quét chưa chạy. Không có cửa sổ xin nhận trên bài đã chết.
 
@@ -2351,8 +2349,8 @@ Mỗi dòng của `GET /onboarding/tasks` và `POST /onboarding/tasks/evaluate` 
   (khi không có lượt trao còn sống); Admin không dùng nút kiểm duyệt để mở lại tin đã ẩn.
 - Bài còn lượt trao kiểu cũ đang chạy thì chủ bài không đổi trạng thái tay được
   (`POST_HAS_LIVE_TRANSACTION`). Duyệt theo lô cũng bị chặn với Rao vặt như duyệt từng cái.
-- ⚠️ Rao vặt hết hạn **vẫn thành bài cho (`OFFER`)** theo CHỐT-05. PR #46 liệt kê `EXPIRED`
-  trong vòng đời nhưng không nói bỏ CHỐT-05 — **đang chờ chủ dự án xác nhận**.
+- Rao vặt hết hạn thành `EXPIRED` và gia hạn như mọi bài — chủ dự án **bỏ CHỐT-05** cho Rao
+  vặt ngày 26/10. Tin chủ bài tự đặt `RESERVED`/`HIDDEN` cũng hết hạn.
 
 ### Chat trực tiếp theo bài Rao vặt
 

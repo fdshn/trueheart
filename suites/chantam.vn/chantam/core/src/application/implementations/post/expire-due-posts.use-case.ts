@@ -10,8 +10,8 @@ import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 /**
- * Đóng vòng đời các bài đã quá hạn (F22), và chuyển bài rao vặt thành bài
- * Muốn Tặng thay vì cho hết hạn (F19 — CHỐT-05).
+ * Đóng vòng đời các bài đã quá hạn (F22). Rao vặt hết hạn như mọi bài từ 26/10 — chủ dự
+ * án bỏ CHỐT-05 (tự chuyển thành Muốn Tặng) cho Rao vặt sau PR #46.
  *
  * Chạy từ lịch bên ngoài qua CLI `post:expire`, KHÔNG dùng scheduler trong
  * tiến trình: deploy nhiều replica thì mỗi replica chạy một bản sao.
@@ -21,7 +21,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
  * CHỐT-10 đòi khi bài hết hạn thì **đóng các phản hồi còn mở, thông báo cho các
  * bên, và giữ lịch sử**. Ba việc nằm ở ba chỗ:
  *
- * 1. `expireDuePosts` đổi trạng thái (và chuyển `CLASSIFIED` thành `OFFER`);
+ * 1. `expireDuePosts` đổi trạng thái;
  * 2. `CloseOpenRequestsService` đóng yêu cầu về `CANCELLED` và báo cho từng
  *    **người xin** — lịch sử giữ nguyên vì dòng yêu cầu không bị xoá;
  * 3. lượt báo cho **chủ bài** ngay dưới đây.
