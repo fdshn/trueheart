@@ -169,9 +169,13 @@ export interface IGetMyPostsResponseDto {
 /** Số người xin hiện kèm mỗi bài trên bảng tin. */
 export const NearbyRequesterPreviewLimit = 5;
 
-/** Một người đã xin bài — đủ để dựng dải avatar "A, B và 3 người khác đã xin". */
+/**
+ * Một người đã xin bài — đủ để dựng dải avatar "A, B và 3 người khác đã xin".
+ *
+ * Cố ý KHÔNG có `userId`: bảng tin là kênh công khai. Mở hồ sơ người xin bằng
+ * `GET /profile/:username` — username là định danh công khai, id thì không.
+ */
 export interface IPostRequesterPreviewDto {
-  userId: string;
   username: string;
   avatarUrl: string | null;
 }

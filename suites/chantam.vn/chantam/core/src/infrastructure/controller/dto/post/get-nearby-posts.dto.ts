@@ -156,7 +156,6 @@ export class GetSosUrgentPostsQueryDto extends OmitType(
 ) {}
 
 export class PostRequesterPreviewDto implements IPostRequesterPreviewDto {
-  @ApiProperty({ format: 'uuid' }) userId: string;
   @ApiProperty({ example: 'cu-si-minh' }) username: string;
   @ApiProperty({ type: String, nullable: true }) avatarUrl: string | null;
 }
@@ -187,7 +186,7 @@ export class NearbyPostDto implements INearbyPostDto {
     type: () => [PostRequesterPreviewDto],
     maxItems: NearbyRequesterPreviewLimit,
     description:
-      'Tối đa 5 người trong CÙNG tập mà `requestCount` đếm, người xin gần nhất trước. Chưa ai xin thì `[]`.',
+      'Tối đa 5 người trong CÙNG tập mà `requestCount` đếm, người xin gần nhất trước. Chưa ai xin thì `[]`. Không có `userId` — mở hồ sơ bằng `GET /profile/:username`.',
   })
   requesters?: PostRequesterPreviewDto[];
 

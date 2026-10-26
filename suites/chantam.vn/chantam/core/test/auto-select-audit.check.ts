@@ -457,9 +457,11 @@ async function main(): Promise<void> {
       requests.listRecentRequestersByPostIds(previewPosts, 2),
     ]);
     const [expectedOrder] = await sql(
-      `SELECT array_agg(requester_id::text ORDER BY created_at DESC, id DESC) AS ids
-         FROM gift_requests
-        WHERE post_id = $1 AND status NOT IN ('WITHDRAWN', 'CANCELLED', 'REJECTED')`,
+      `SELECT array_agg(person.username ORDER BY request.created_at DESC, request.id DESC) AS names
+         FROM gift_requests request
+         JOIN users person ON person.global_id = request.requester_id
+        WHERE request.post_id = $1
+          AND request.status NOT IN ('WITHDRAWN', 'CANCELLED', 'REJECTED')`,
       [postId(1)],
     );
     check(
@@ -468,17 +470,19 @@ async function main(): Promise<void> {
         (post) => (previews.get(post) ?? []).length === counts.get(post),
       ) &&
         !(previews.get(postId(2)) ?? []).some(
-          (item) => item.userId === Candidates[0][0],
+          (item) => item.username === Candidates[0][1],
         ),
       JSON.stringify([...counts]),
     );
     check(
-      'người xin gần nhất đứng trước, có username và avatarUrl',
+      'người xin gần nhất đứng trước; chỉ username + avatarUrl, không lộ id',
       JSON.stringify(
-        (previews.get(postId(1)) ?? []).map((item) => item.userId),
-      ) === JSON.stringify(expectedOrder.ids) &&
+        (previews.get(postId(1)) ?? []).map((item) => item.username),
+      ) === JSON.stringify(expectedOrder.names) &&
         (previews.get(postId(1)) ?? []).every(
-          (item) => item.username.startsWith('as_') && 'avatarUrl' in item,
+          (item) =>
+            JSON.stringify(Object.keys(item).sort()) ===
+            JSON.stringify(['avatarUrl', 'username']),
         ),
       JSON.stringify(previews.get(postId(1))),
     );

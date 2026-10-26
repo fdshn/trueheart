@@ -207,15 +207,14 @@ export class GiftRequestRepository
     const rows = await this.manager.query<
       {
         post_id: string;
-        user_id: string;
         username: string;
         avatar_url: string | null;
       }[]
     >(
       `
-        SELECT ranked.post_id, ranked.user_id, ranked.username, ranked.avatar_url
+        SELECT ranked.post_id, ranked.username, ranked.avatar_url
           FROM (
-            SELECT request.post_id, person.global_id AS user_id, person.username,
+            SELECT request.post_id, person.username,
                    person.avatar_url,
                    row_number() OVER (
                      PARTITION BY request.post_id
@@ -244,7 +243,6 @@ export class GiftRequestRepository
     for (const row of rows) {
       const list = map.get(row.post_id) ?? [];
       list.push({
-        userId: row.user_id,
         username: row.username,
         avatarUrl: row.avatar_url,
       });

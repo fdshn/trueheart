@@ -234,9 +234,8 @@ describe('GetNearbyPostsUseCase', () => {
           [
             post.globalId,
             [
-              { userId: 'u-3', username: 'nguoi-xin-3', avatarUrl: null },
+              { username: 'nguoi-xin-3', avatarUrl: null },
               {
-                userId: 'u-2',
                 username: 'nguoi-xin-2',
                 avatarUrl: 'https://cdn.test/a.png',
               },
@@ -308,9 +307,8 @@ describe('GetNearbyPostsUseCase', () => {
           post: { postType: PostTypes.WANTED },
           requestCount: 3,
           requesters: [
-            { userId: 'u-3', username: 'nguoi-xin-3', avatarUrl: null },
+            { username: 'nguoi-xin-3', avatarUrl: null },
             {
-              userId: 'u-2',
               username: 'nguoi-xin-2',
               avatarUrl: 'https://cdn.test/a.png',
             },
@@ -326,6 +324,8 @@ describe('GetNearbyPostsUseCase', () => {
       meta: { page: 2, pageSize: 20, total: 41 },
     });
     expect(result.posts[0].post.location).not.toEqual(ExactLocation);
+    // Chỉ username + avatar: hồ sơ mở qua `GET /profile/:username`, không lộ id người xin.
+    expect(result.posts[0].requesters?.[0]).not.toHaveProperty('userId');
   });
 
   it('useDefaultLocation=true thì lọc quanh Vị trí mặc định và nói rõ nguồn', async () => {
