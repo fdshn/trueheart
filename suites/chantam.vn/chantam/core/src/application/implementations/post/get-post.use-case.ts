@@ -3,6 +3,7 @@ import {
   IGetPostResult,
   IGetPostUseCase,
 } from '@/application/contracts/post';
+import { isEditablePostStatus } from '@/domain/consts/post-edit-policy';
 import { PostNotFoundException } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import {
@@ -140,7 +141,7 @@ export class GetPostUseCase implements IGetPostUseCase {
     return {
       canEdit:
         isAuthor &&
-        ['DRAFT', 'PENDING_REVIEW', 'PUBLISHED'].includes(post.status) &&
+        isEditablePostStatus(post) &&
         (post.expiresAt === null || post.expiresAt > new Date()) &&
         !(await this.giftTransactionRepository.hasLiveForPost(post.globalId)),
       post,

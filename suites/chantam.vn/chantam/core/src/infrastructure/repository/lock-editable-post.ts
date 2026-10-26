@@ -1,4 +1,7 @@
-import { assertEditablePost } from '@/domain/consts/post-edit-policy';
+import {
+  assertEditablePost,
+  statusImpliesLiveTransaction,
+} from '@/domain/consts/post-edit-policy';
 import {
   PostHasLiveTransactionException,
   PostNotFoundException,
@@ -32,7 +35,7 @@ export async function lockEditablePost(
      ) AS exists`,
     [postId],
   );
-  if (live.exists || post.status === 'RESERVED')
+  if (live.exists || statusImpliesLiveTransaction(post))
     throw new PostHasLiveTransactionException();
   assertEditablePost(post);
   return post;

@@ -293,6 +293,37 @@ async function main(): Promise<void> {
       JSON.stringify(swept.expiredPosts.map((post) => post.postId)),
     );
 
+    console.log('\n3d. Chủ bài sửa tin đang tự đặt Đã giữ chỗ');
+    const selfReserved = '7b200000-0000-4000-8000-000000000010';
+    await addPost(selfReserved, 'CLASSIFIED');
+    await sql(`UPDATE posts SET status = 'RESERVED' WHERE global_id = $1`, [
+      selfReserved,
+    ]);
+    const editTitle = async (postId: string) => {
+      const current = await posts.findOneBy({ globalId: postId });
+      try {
+        const updated = await posts.updateOwnedContent({
+          postId,
+          authorId: Seller,
+          expectedUpdatedAt: current!.updatedAt,
+          changes: { title: 'Tiêu đề đã sửa khi giữ chỗ' },
+        });
+        return updated.title;
+      } catch (error) {
+        return (error as { constructor: { name: string } }).constructor.name;
+      }
+    };
+    check(
+      'tin tự đặt Đã giữ chỗ, không có lượt trao: sửa được, vẫn giữ RESERVED',
+      (await editTitle(selfReserved)) === 'Tiêu đề đã sửa khi giữ chỗ' &&
+        (await posts.findOneBy({ globalId: selfReserved }))?.status ===
+          'RESERVED',
+    );
+    check(
+      'tin còn lượt trao kiểu cũ: vẫn chặn sửa bằng POST_HAS_LIVE_TRANSACTION',
+      (await editTitle(reservedWithDeal)) === 'PostHasLiveTransactionException',
+    );
+
     console.log('\n4. Quota đăng bài');
     // Tin ẩn mở lại được mà không qua phép kiểm quota, nên nó phải chiếm suất ngay khi ẩn:
     // không thì ẩn tin → đăng tin mới → mở lại là vượt quota.

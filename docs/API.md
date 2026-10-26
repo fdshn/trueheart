@@ -2347,8 +2347,11 @@ Mỗi dòng của `GET /onboarding/tasks` và `POST /onboarding/tasks/evaluate` 
   không qua phép kiểm quota.
 - Admin gỡ bài và lượt xử lý báo cáo **gỡ được** tin Rao vặt chủ bài tự đặt `RESERVED`/`HIDDEN`
   (khi không có lượt trao còn sống); Admin không dùng nút kiểm duyệt để mở lại tin đã ẩn.
-- Bài còn lượt trao kiểu cũ đang chạy thì chủ bài không đổi trạng thái tay được
-  (`POST_HAS_LIVE_TRANSACTION`). Duyệt theo lô cũng bị chặn với Rao vặt như duyệt từng cái.
+- Tin chủ bài tự đặt `RESERVED`/`HIDDEN` vẫn **sửa, thêm/xoá ảnh và gỡ** được như tin đang bán;
+  `canEdit` ở chi tiết bài phản ánh đúng điều đó. `SOLD` không sửa được. (Bài cho/nhận giữ luật
+  cũ: `RESERVED` nghĩa là có lượt trao, chặn sửa/gỡ.)
+- Bài còn lượt trao kiểu cũ đang chạy thì chủ bài không đổi trạng thái, không sửa, không gỡ
+  được (`POST_HAS_LIVE_TRANSACTION`) — kiểm bằng bảng lượt trao, không suy từ trạng thái. Duyệt theo lô cũng bị chặn với Rao vặt như duyệt từng cái.
 - Rao vặt hết hạn thành `EXPIRED` và gia hạn như mọi bài — chủ dự án **bỏ CHỐT-05** cho Rao
   vặt ngày 26/10. Tin chủ bài tự đặt `RESERVED`/`HIDDEN` cũng hết hạn.
 

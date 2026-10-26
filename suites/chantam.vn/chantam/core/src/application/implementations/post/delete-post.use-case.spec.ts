@@ -126,6 +126,46 @@ describe('DeletePostUseCase', () => {
     ).rejects.toBeInstanceOf(PostNotFoundException);
   });
 
+  it.each([
+    ['không còn lượt trao', false, true],
+    ['còn lượt trao kiểu cũ đang chạy', true, false],
+  ])(
+    'Rao vặt chủ bài tự đặt Đã giữ chỗ, %s: gỡ được = %s',
+    async (_label, hasLive, removable) => {
+      const posts = {
+        findOneBy: jest.fn().mockResolvedValue(
+          makePost({
+            postType: PostTypes.CLASSIFIED,
+            status: 'RESERVED' as never,
+          }),
+        ),
+        update: jest.fn(),
+      } as unknown as jest.Mocked<IPostRepository>;
+      const deps = makeDeps();
+      const transactions = {
+        ...deps.transactions,
+        hasLiveForPost: jest.fn(async () => hasLive),
+      };
+
+      const run = new DeletePostUseCase(
+        posts,
+        transactions as never,
+        deps.notifications as never,
+        makeCloseOpenRequests(),
+      ).handle({ postId: PostId, userId: OwnerId });
+
+      if (removable) {
+        await run;
+        expect(posts.update).toHaveBeenCalled();
+      } else {
+        await expect(run).rejects.toBeInstanceOf(
+          PostHasLiveTransactionException,
+        );
+        expect(posts.update).not.toHaveBeenCalled();
+      }
+    },
+  );
+
   it('KHÔNG gỡ được bài đang có người nhận', async () => {
     // Gỡ ngang để lại bên kia một giao dịch trỏ vào bài không còn tồn tại —
     // đúng thứ mà xoá tài khoản và hậu kiểm của Admin đều đã chặn.

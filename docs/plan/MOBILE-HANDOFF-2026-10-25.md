@@ -10,6 +10,7 @@ Tóm tắt những gì app phải đổi theo đợt backend 25/10. Chi tiết c
 | --- | --- |
 | **Rao vặt: bỏ nút "Xin nhận"**, thay bằng "Nhắn người bán" → `POST /chat/direct-post/rooms` | `POST /posts/:id/requests` với bài `CLASSIFIED` nay trả `CLASSIFIED_TRANSACTION_NOT_SUPPORTED` (409) |
 | **Rao vặt: màn quản lý tin của chủ bài** dùng `PATCH /posts/:id/classified-status` (`ACTIVE`/`RESERVED`/`SOLD`/`HIDDEN`) | Không còn lượt trao nào kéo trạng thái tin Rao vặt |
+| **Rao vặt: hiện nút Sửa/Gỡ theo `canEdit`**, kể cả khi tin đang "Đã giữ chỗ" hoặc "Tạm ẩn" | Hai trạng thái này nay sửa/gỡ được; app không được tự ẩn nút theo `status` |
 | **Hiểu hai trạng thái bài mới** `SOLD`, `HIDDEN` ở mọi chỗ hiện `post.status` (Bài của tôi, chi tiết, bộ lọc) | Enum `GiftPostStatuses` có thêm hai giá trị — `switch` không có nhánh mặc định sẽ vỡ |
 | **Danh sách chat phân biệt `roomType`** (`TRANSACTION` / `DIRECT_POST`); `transactionId` nay **nullable** | Phòng trực tiếp không có lượt trao; mở màn "giao dịch" từ phòng này là 404 |
 | **Đổi tên mã lỗi** `EMAIL_TAKEN` → `EMAIL_ALREADY_USED` (cùng số 0x0305) | Client so theo tên sẽ không khớp |

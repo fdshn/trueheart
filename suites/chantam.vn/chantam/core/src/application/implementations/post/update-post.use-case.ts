@@ -10,7 +10,6 @@ import {
 import { assertEditablePost } from '@/domain/consts/post-edit-policy';
 import {
   CategoryNotFoundException,
-  PostHasLiveTransactionException,
   PostNotFoundException,
   PostSosNotAllowedException,
 } from '@/domain/exceptions';
@@ -21,8 +20,6 @@ import {
 } from '@/domain/ports/repository';
 import {
   DeliveryMethods,
-  GiftPostStatuses,
-  LiveTransactionGiftPostStatuses,
   PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
@@ -64,10 +61,8 @@ export class UpdatePostUseCase implements IUpdatePostUseCase {
       throw new PostNotFoundException(command.postId);
     if (post.authorId !== command.userId) throw new ForbiddenException();
 
-    if (
-      LiveTransactionGiftPostStatuses.includes(post.status as GiftPostStatuses)
-    )
-      throw new PostHasLiveTransactionException();
+    // Rao vặt "Đã giữ chỗ" do chủ bài tự đặt vẫn sửa được; lượt trao sống thật được kiểm lại
+    // dưới khoá hàng ở `lockEditablePost` khi ghi.
     assertEditablePost(post);
 
     const input = command.post;

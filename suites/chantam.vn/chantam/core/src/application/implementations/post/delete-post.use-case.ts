@@ -5,6 +5,7 @@ import {
   IDeletePostUseCase,
 } from '@/application/contracts/post';
 import { CloseOpenRequestsService } from '@/application/implementations/gift-request/close-open-requests.service';
+import { statusImpliesLiveTransaction } from '@/domain/consts/post-edit-policy';
 import {
   PostHasLiveTransactionException,
   PostNotFoundException,
@@ -15,8 +16,8 @@ import {
 } from '@/domain/ports/repository';
 import {
   GiftPostStatuses,
-  LiveTransactionGiftPostStatuses,
   NotificationTypes,
+  PostTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable, Logger } from '@nestjs/common';
@@ -47,8 +48,13 @@ export class DeletePostUseCase implements IDeletePostUseCase {
     // `countOpenForUser`, và hậu kiểm của Admin cũng từ chối đúng hai trạng
     // thái này. Chỉ riêng đường gỡ bài của tác giả trước đây không canh gì —
     // mà đó lại là nút dễ bấm nhất.
+    //
+    // Rao vặt "Đã giữ chỗ" do chủ bài TỰ đặt (PR #46 §8) không nói gì về lượt trao, nên với
+    // Rao vặt hỏi thẳng bảng lượt trao — còn lượt kiểu cũ đang chạy thì vẫn chặn.
     if (
-      LiveTransactionGiftPostStatuses.includes(post.status as GiftPostStatuses)
+      statusImpliesLiveTransaction(post) ||
+      (post.postType === PostTypes.CLASSIFIED &&
+        (await this.transactions.hasLiveForPost(post.globalId)))
     )
       throw new PostHasLiveTransactionException();
 
