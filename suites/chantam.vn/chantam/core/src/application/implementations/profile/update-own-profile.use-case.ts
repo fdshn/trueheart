@@ -13,6 +13,7 @@ import {
   PhoneTakenException,
   UserNotFoundException,
 } from '@/domain/exceptions';
+import { IPresenceStore } from '@/domain/ports/cache';
 import { IUserRepository } from '@/domain/ports/repository';
 import { OnboardingTaskEvidenceTypes } from '@chantam.vn/chantam.core-lib/consts';
 import {
@@ -39,6 +40,9 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
     @Optional()
     @Inject(LeaderboardClock)
     private readonly now: LeaderboardClockFn = () => new Date(),
+    @Optional()
+    @Inject(IPresenceStore)
+    private readonly presence?: IPresenceStore,
   ) {}
 
   public async handle(command: IUpdateOwnProfileCommand) {
@@ -118,6 +122,8 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
 
     if (profileUpdate.leaderboardAnonymous !== undefined)
       update.leaderboardAnonymous = profileUpdate.leaderboardAnonymous;
+    if (profileUpdate.showOnlineStatus !== undefined)
+      update.showOnlineStatus = profileUpdate.showOnlineStatus;
 
     if (profileUpdate.slogan !== undefined)
       update.slogan = blankToNull(profileUpdate.slogan);
@@ -177,6 +183,15 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
     }
 
     await this.userRepository.update({ globalId: command.userId }, update);
+
+    // Tắt hiện trạng thái online phải có hiệu lực NGAY (PR #46 §10.5): xoá mọi session của
+    // người này khỏi Redis, không chờ TTL 120 giây. Họ vẫn được đếm lại từ nhịp heartbeat sau,
+    // nhưng không còn trong danh sách hiện danh tính.
+    if (
+      profileUpdate.showOnlineStatus === false &&
+      user.showOnlineStatus === true
+    )
+      await this.presence?.clearUser(command.userId);
 
     const profile = await this.userRepository.findOneByOrFail({
       globalId: command.userId,

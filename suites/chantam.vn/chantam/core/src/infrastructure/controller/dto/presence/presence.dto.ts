@@ -75,8 +75,7 @@ export class PresenceSurfaceQueryDto implements IPresenceSurfaceQueryDto {
     minimum: 1,
     maximum: 50,
     default: 10,
-    description:
-      'Số người tối đa trong `visibleUsers` — Phase 1 luôn rỗng, khai sẵn cho phase sau.',
+    description: 'Số người tối đa trong `visibleUsers`.',
   })
   @IsOptional()
   @Type(() => Number)
@@ -99,7 +98,7 @@ export class SurfacePresenceDto implements ISurfacePresenceDto {
   @ApiProperty({
     type: () => [PublicAuthorSummaryDto],
     description:
-      'Phase 1 luôn rỗng — chưa công khai danh tính người đang online.',
+      'Người đã bật `showOnlineStatus`, tài khoản đang hoạt động, heartbeat gần nhất trước; không gồm người gọi.',
   })
   visibleUsers: PublicAuthorSummaryDto[];
 }

@@ -89,7 +89,9 @@ export class PresenceController {
     summary: 'Số người đang ở một tab',
     description:
       'Gọi khi mở tab, kéo làm mới, hoặc mỗi 60–120 giây khi màn còn hiển thị; không gọi khi app background. ' +
-      'Phase 1 chỉ trả `onlineCount` (đã gộp nhiều thiết bị của một người); `visibleUsers` luôn rỗng.',
+      '`onlineCount` đếm mọi người (gộp nhiều thiết bị của một người). `visibleUsers`: tối đa `limit` người (mặc định 10) ' +
+      'đã bật `showOnlineStatus` trong hồ sơ, tài khoản đang hoạt động, người heartbeat gần nhất trước — chỉ author summary, ' +
+      'không userId, và không bao giờ có chính người gọi (gửi kèm token để được loại).',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(SurfacePresenceResponseDto) })
   @ApiErrorResponses([
@@ -98,12 +100,18 @@ export class PresenceController {
   ])
   public async getSurface(
     @Param() params: PresenceSurfaceParamsDto,
-    // `limit` khai sẵn cho phase công khai danh tính; validate ngay để contract không đổi sau.
-    @Query() _query: PresenceSurfaceQueryDto,
+    @Query() query: PresenceSurfaceQueryDto,
+    @CurrentUser() principal?: IAuthPrincipal,
   ) {
     return ResponseDto.create()
       .succeed()
-      .attach(await this.getSurfaceUseCase.handle({ surface: params.surface }))
+      .attach(
+        await this.getSurfaceUseCase.handle({
+          surface: params.surface,
+          currentUserId: principal?.userId,
+          limit: query.limit,
+        }),
+      )
       .build();
   }
 }

@@ -41,6 +41,11 @@ export interface IUser {
    * nhận huy hiệu — nhưng huy hiệu giành lúc ẩn danh không hiện trên hồ sơ công khai.
    */
   leaderboardAnonymous: boolean;
+  /**
+   * Cho người khác thấy mình đang online ở tab nào (PR #46 §10.5). Mặc định tắt; tắt thì vẫn
+   * được đếm vào `onlineCount` nhưng không bao giờ có trong `visibleUsers`.
+   */
+  showOnlineStatus: boolean;
 
   /** Hồ sơ công khai mở rộng (PR #46 §3). */
   slogan: string | null;

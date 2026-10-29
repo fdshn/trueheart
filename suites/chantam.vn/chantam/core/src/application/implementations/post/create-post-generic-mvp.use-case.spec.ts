@@ -41,6 +41,7 @@ function makeUser(overrides: Partial<IUserEntity> = {}): IUserEntity {
     suspendedUntil: null,
     lastActiveAt: new Date(),
     leaderboardAnonymous: false,
+    showOnlineStatus: false,
     slogan: null,
     todayThought: null,
     todayThoughtUpdatedAt: null,

@@ -131,6 +131,14 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
   leaderboardAnonymous?: boolean;
 
   @ApiPropertyOptional({
+    description:
+      'Cho người khác thấy mình đang online ở từng tab (danh sách `visibleUsers` của presence). Mặc định tắt. Tắt là xoá ngay khỏi mọi danh sách, không chờ hết hạn.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  showOnlineStatus?: boolean;
+
+  @ApiPropertyOptional({
     maxLength: 120,
     nullable: true,
     description: 'Slogan trên hồ sơ. `null` hoặc chuỗi trắng = xoá.',
@@ -313,6 +321,12 @@ export class OwnProfileDto implements IOwnProfileDto {
     description: 'Cài đặt ẩn danh trên bảng thành tích tháng.',
   })
   leaderboardAnonymous?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Cài đặt hiện trạng thái online — chỉ chính chủ thấy, không có trên hồ sơ công khai.',
+  })
+  showOnlineStatus?: boolean;
 
   @ApiPropertyOptional({
     type: () => [ProfileBadgeDto],

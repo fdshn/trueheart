@@ -38,7 +38,8 @@ async function main(): Promise<void> {
   const redis = new Redis(uri, { maxRetriesPerRequest: 2 });
   const store = new PresenceStore(redis);
 
-  const [alice, bob] = [randomUUID(), randomUUID()];
+  const [alice, bob, carol] = [randomUUID(), randomUUID(), randomUUID()];
+  const carolPhone = randomUUID();
   const [phone, tablet, bobPhone] = [randomUUID(), randomUUID(), randomUUID()];
   const { DHARMA_FORUM: forum, DHARMA_HOME: home } = PresenceSurfaces;
   // Mốc giả lùi xa hiện tại: điểm của người thật trên cùng Redis luôn lớn hơn, nên phép
@@ -57,7 +58,8 @@ async function main(): Promise<void> {
     sessionId: string,
     surface: PresenceSurfaces,
     nowMs: number,
-  ) => store.heartbeat({ userId, sessionId, surface, nowMs });
+    visible = false,
+  ) => store.heartbeat({ userId, sessionId, surface, nowMs, visible });
 
   try {
     console.log('1. Gộp theo người');
@@ -122,10 +124,68 @@ async function main(): Promise<void> {
       ttls.every((ttl) => ttl > 0 && ttl <= 120_000),
       JSON.stringify(ttls),
     );
+
+    console.log('\n6. Hiện danh tính (showOnlineStatus)');
+    // Lấy rộng rồi lọc đúng người kiểm: Redis dùng chung có thể có người thật.
+    const visibleOn = async (surface: PresenceSurfaces, at: number) =>
+      ((await store.listVisible(surface, at, 1_000)) ?? []).filter((id) =>
+        ([alice, bob, carol] as string[]).includes(id),
+      );
+    await beat(carol, carolPhone, forum, t0 + 150_000, true);
+    check(
+      'người bật cờ có trong danh sách hiện, người không bật thì không — dù cả hai đều được đếm',
+      // Ở Diễn đàn lúc này: alice (t0+140s, không bật), bob (t0+33s, còn trong TTL), carol.
+      JSON.stringify(await visibleOn(forum, t0 + 151_000)) ===
+        JSON.stringify([carol]) && (await count(forum, t0 + 151_000)) === 3,
+      `${JSON.stringify(await visibleOn(forum, t0 + 151_000))} / ${await count(forum, t0 + 151_000)}`,
+    );
+    await beat(carol, carolPhone, home, t0 + 152_000, true);
+    check(
+      'đổi tab: rời danh sách hiện của tab cũ, có mặt ở tab mới',
+      (await visibleOn(forum, t0 + 153_000)).length === 0 &&
+        JSON.stringify(await visibleOn(home, t0 + 153_000)) ===
+          JSON.stringify([carol]),
+    );
+    await beat(carol, carolPhone, forum, t0 + 160_000, false);
+    check(
+      'heartbeat với cờ đã tắt: gỡ khỏi danh sách hiện, vẫn được đếm',
+      (await visibleOn(forum, t0 + 161_000)).length === 0 &&
+        (await visibleOn(home, t0 + 161_000)).length === 0 &&
+        (await count(forum, t0 + 161_000)) === 2,
+    );
+    check(
+      'quá 120 giây: rời danh sách hiện khi đọc',
+      (await visibleOn(home, t0 + 280_000)).length === 0,
+    );
+
+    console.log('\n7. Tắt cờ — xoá ngay');
+    await beat(carol, carolPhone, forum, t0 + 200_000, true);
+    const cleared = await store.clearUser(carol);
+    const [carolSessions, carolScores] = await Promise.all([
+      redis.exists(`presence:sessions:${carol}`),
+      Promise.all(
+        Object.values(PresenceSurfaces).flatMap((surface) => [
+          redis.zscore(`presence:surface:${surface}`, carol),
+          redis.zscore(`presence:visible:${surface}`, carol),
+        ]),
+      ),
+    ]);
+    check(
+      'clearUser xoá hash session và gỡ khỏi cả 16 tập — không chờ TTL',
+      cleared === true &&
+        carolSessions === 0 &&
+        carolScores.every((score) => score === null),
+    );
   } finally {
-    await redis.del(`presence:sessions:${alice}`, `presence:sessions:${bob}`);
-    for (const surface of Object.values(PresenceSurfaces))
-      await redis.zrem(`presence:surface:${surface}`, alice, bob);
+    await redis.del(
+      `presence:sessions:${alice}`,
+      `presence:sessions:${bob}`,
+      `presence:sessions:${carol}`,
+    );
+    for (const surface of Object.values(PresenceSurfaces)) {
+      await redis.zrem(`presence:surface:${surface}`, alice, bob, carol);
+      await redis.zrem(`presence:visible:${surface}`, alice, bob, carol);
+    }
     await redis.quit();
   }
 

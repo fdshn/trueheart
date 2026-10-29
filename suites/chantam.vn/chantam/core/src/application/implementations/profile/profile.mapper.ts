@@ -18,6 +18,7 @@ export function toOwnProfileDto(user: IUserEntity): IOwnProfileDto {
     emailVerified: Boolean(user.emailVerifiedAt),
     profileComplete: isProfileComplete(user),
     leaderboardAnonymous: user.leaderboardAnonymous,
+    showOnlineStatus: user.showOnlineStatus,
     slogan: user.slogan,
     todayThought: user.todayThought,
     todayThoughtUpdatedAt: user.todayThoughtUpdatedAt,

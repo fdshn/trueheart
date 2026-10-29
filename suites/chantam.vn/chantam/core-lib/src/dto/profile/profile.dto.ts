@@ -28,6 +28,8 @@ export interface IUpdateOwnProfileDto {
   defaultLocation?: IGeoPoint | null;
   /** Hiện "Người ẩn danh" trên bảng thành tích tháng. Bỏ trống = giữ nguyên. */
   leaderboardAnonymous?: boolean;
+  /** Cho người khác thấy mình online ở từng tab. Tắt là xoá ngay khỏi danh sách. Bỏ trống = giữ nguyên. */
+  showOnlineStatus?: boolean;
   /** Bỏ trống = giữ nguyên; `null` hoặc chuỗi trắng = xoá. */
   slogan?: string | null;
   /** Đổi chữ thì ghi lại `todayThoughtUpdatedAt`; gửi lại đúng chữ cũ thì mốc giữ nguyên. */
@@ -114,6 +116,8 @@ export interface IOwnProfileDto {
   rating?: IReviewRatingSummaryDto | null;
   /** Cài đặt ẩn danh trên bảng thành tích tháng. */
   leaderboardAnonymous?: boolean;
+  /** Cài đặt hiện trạng thái online (PR #46 §10.5) — chỉ chính chủ thấy. */
+  showOnlineStatus?: boolean;
   /** Huy hiệu bảng thành tích còn hạn — gồm cả huy hiệu giành lúc ẩn danh. */
   badges?: IProfileBadgeDto[];
   slogan?: string | null;

@@ -20,6 +20,10 @@ export const IPresenceHeartbeatUseCase = Symbol('IPresenceHeartbeatUseCase');
 
 export interface IGetSurfacePresenceCommand {
   surface: PresenceSurfaces;
+  /** Người gọi (nếu đã đăng nhập) — không bao giờ nằm trong `visibleUsers` của chính họ. */
+  currentUserId?: string;
+  /** Số người tối đa trong `visibleUsers`, 1–50; mặc định 10. */
+  limit?: number;
 }
 
 export interface IGetSurfacePresenceUseCase extends IUseCase<

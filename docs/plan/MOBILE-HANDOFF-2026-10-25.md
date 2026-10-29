@@ -63,12 +63,17 @@ Tóm tắt những gì app phải đổi theo đợt backend 25/10. Chi tiết c
   `username`, `avatarUrl`, người xin gần nhất trước — **không có `userId`**). Hiện "A, B và N
   người khác đã xin" với N = `requestCount` − số phần tử. Chạm vào một người thì mở
   `GET /profile/:username`.
+- **Hiện trạng thái online (thêm 29/10):**
+  - Màn cài đặt: công tắc đọc `profile.showOnlineStatus` từ `GET /profile/me`, ghi bằng
+    `PATCH /profile/me` với `{ profile: { showOnlineStatus } }`. Mặc định tắt.
+  - Dải avatar "đang ở đây": `GET /presence/surfaces/:surface?limit=10` → `visibleUsers`
+    (`username`, `fullName`, `avatarUrl`, `rank`). Gửi kèm token để không thấy chính mình. Chạm
+    vào một người thì mở `GET /profile/:username`.
+  - Con số "N người đang hoạt động" vẫn là `onlineCount` (đếm cả người không bật cờ).
 - **Banner:** tám vị trí mới cho bốn tab Khám phá và bốn màn Phật Pháp. Cùng
   `GET /banners?placement=` và đường click cũ.
 
 ## Còn chờ quyết định
 
-- **Hiện danh sách người đang online** (avatar) — chưa làm. Phase 1 chỉ có con số; muốn hiện
-  danh tính thì cần thêm cài đặt `showOnlineStatus` trước.
 - **Cúng bái** (`DHARMA_WORSHIP`) — chưa có section, surface hay vị trí banner, vì phân hệ chưa
   được duyệt.

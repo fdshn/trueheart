@@ -18,10 +18,28 @@ export interface IPresenceStore {
     sessionId: string;
     surface: PresenceSurfaces;
     nowMs: number;
+    /** Người này đã bật `showOnlineStatus` — có thì vào thêm tập hiện danh tính. */
+    visible: boolean;
   }): Promise<boolean | null>;
 
   /** Số người (đã gộp session) còn heartbeat trong TTL. */
   countOnline(surface: PresenceSurfaces, nowMs: number): Promise<number | null>;
+
+  /**
+   * Tối đa `count` userId đã bật `showOnlineStatus` còn heartbeat trong TTL, gần nhất trước.
+   * Chỉ là ứng viên — bên gọi lọc lại ở database (cờ còn bật, tài khoản còn hoạt động).
+   */
+  listVisible(
+    surface: PresenceSurfaces,
+    nowMs: number,
+    count: number,
+  ): Promise<string[] | null>;
+
+  /**
+   * Xoá NGAY mọi session của người này khỏi mọi surface (PR #46 §10.5 — tắt hiện trạng thái
+   * online phải có hiệu lực ngay). `false` khi Redis không trả lời.
+   */
+  clearUser(userId: string): Promise<boolean>;
 }
 
 export const IPresenceStore = Symbol('IPresenceStore');

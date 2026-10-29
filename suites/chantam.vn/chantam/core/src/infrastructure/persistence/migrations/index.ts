@@ -136,3 +136,4 @@ export * from './1801600000000-ClassifiedListingLifecycle';
 export * from './1801700000000-AddPostShareCode';
 export * from './1801800000000-CreateRecipientSelectionAudits';
 export * from './1801900000000-AddBannerPlacements';
+export * from './1802000000000-AddShowOnlineStatus';

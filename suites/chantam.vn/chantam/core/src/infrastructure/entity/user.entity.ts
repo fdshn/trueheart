@@ -74,6 +74,14 @@ export class UserEntity
   })
   leaderboardAnonymous: boolean;
 
+  @Column({
+    name: 'show_online_status',
+    type: 'boolean',
+    nullable: false,
+    default: false,
+  })
+  showOnlineStatus: boolean;
+
   @Column({ name: 'slogan', type: 'varchar', length: 120, nullable: true })
   slogan: string | null;
 

@@ -2401,7 +2401,7 @@ Mỗi dòng của `GET /onboarding/tasks` và `POST /onboarding/tasks/evaluate` 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
 | `PUT` | `/presence/me` | Bearer | Heartbeat `{ "presence": { "surface", "sessionId" } }` |
-| `GET` | `/presence/surfaces/:surface` | Công khai | `{ "presence": { surface, onlineCount, visibleUsers: [] } }` |
+| `GET` | `/presence/surfaces/:surface?limit=` | Công khai | `{ "presence": { surface, onlineCount, visibleUsers } }` |
 
 - `surface` thuộc allow-list: `DISCOVERY_GIVING`, `DISCOVERY_REQUEST`, `DISCOVERY_CHARITY`,
   `DISCOVERY_CLASSIFIED`, `DHARMA_HOME`, `DHARMA_CHANTING`, `DHARMA_FORUM`, `DHARMA_MONASTERY`.
@@ -2411,8 +2411,22 @@ Mỗi dòng của `GET /onboarding/tasks` và `POST /onboarding/tasks/evaluate` 
   Trần 30 heartbeat/phút/người → `TOO_MANY_REQUESTS`.
 - `onlineCount` gộp theo người, không đếm hai thiết bị thành hai người. Khách chưa đăng nhập
   xem được con số nhưng không được đếm.
-- Phase 1 **không** công khai danh tính: `visibleUsers` luôn rỗng. Dữ liệu chỉ nằm trên Redis
-  có TTL; không ghi PostgreSQL, không lưu lịch sử.
+- Dữ liệu chỉ nằm trên Redis có TTL; không ghi PostgreSQL, không lưu lịch sử.
+
+**Hiện trạng thái online — `showOnlineStatus` (thêm 29/10, PR #46 §10.5):**
+
+- Cài đặt riêng của mỗi người, **mặc định tắt**. `GET /profile/me` trả
+  `profile.showOnlineStatus`; `PATCH /profile/me` nhận `{ "profile": { "showOnlineStatus": true } }`.
+  Hồ sơ công khai **không** có trường này.
+- `visibleUsers`: tối đa `limit` người (1–50, mặc định 10) đang ở tab đó **đã bật cờ**, tài
+  khoản đang hoạt động, người heartbeat gần nhất trước. Mỗi phần tử là author summary
+  `{ username, fullName, avatarUrl, rank }` — không có `userId`. Gửi kèm token thì chính người
+  gọi không bao giờ có trong danh sách của mình.
+- `onlineCount` vẫn đếm **mọi** người, bật cờ hay không.
+- Bật cờ: có mặt trong danh sách từ nhịp heartbeat kế tiếp. Tắt cờ: xoá **ngay** mọi session
+  của người đó khỏi Redis trong lượt `PATCH`, không chờ TTL; họ được đếm lại từ nhịp heartbeat
+  sau nhưng không còn hiện danh tính.
+- Không có endpoint nào cho biết một người cụ thể đang ở tab nào.
 
 ### Dharma Home dạng section
 

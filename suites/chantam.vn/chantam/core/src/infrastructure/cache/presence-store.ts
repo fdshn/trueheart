@@ -18,12 +18,19 @@ const sessionsKey = (userId: string) =>
   `${PresenceKeyPrefix}sessions:${userId}`;
 const surfaceKey = (surface: PresenceSurfaces) =>
   `${PresenceKeyPrefix}surface:${surface}`;
+/**
+ * Cùng hình dạng với tập đếm, nhưng CHỈ người đã bật `showOnlineStatus` (PR #46 §10.5). Tách
+ * tập riêng để đọc danh sách không phải lọc qua cả nghìn người không muốn bị thấy.
+ */
+const visibleKey = (surface: PresenceSurfaces) =>
+  `${PresenceKeyPrefix}visible:${surface}`;
 
 /**
  * Một heartbeat, nguyên tử.
  *
  * KEYS[1] = hash session của người dùng (`sessionId` → `<chỉ số surface>|<ms>`),
- * KEYS[2..] = sorted set của TỪNG surface, member là userId, score là heartbeat mới nhất.
+ * KEYS[2..9] = sorted set đếm của TỪNG surface, member là userId, score là heartbeat mới nhất,
+ * KEYS[10..17] = sorted set hiện danh tính, cùng thứ tự surface — chỉ có người khi ARGV[7] = 1.
  *
  * Sau khi ghi session, script tính lại TỪ ĐẦU người này đang ở surface nào, dựa trên mọi
  * session còn sống của họ, rồi đặt/gỡ member ở cả tám sorted set. Tính lại chứ không "gỡ
@@ -38,6 +45,8 @@ local now = tonumber(ARGV[3])
 local ttl = tonumber(ARGV[4])
 local minInterval = tonumber(ARGV[5])
 local user = ARGV[6]
+local visible = ARGV[7] == '1'
+local surfaces = (#KEYS - 1) / 2
 
 local previous = redis.call('HGET', sessions, sessionId)
 if previous then
@@ -66,12 +75,21 @@ for i = 1, #all, 2 do
   end
 end
 
-for s = 1, #KEYS - 1 do
+for s = 1, surfaces do
+  local counted = KEYS[s + 1]
+  local shown = KEYS[s + 1 + surfaces]
   if latest[s] then
-    redis.call('ZADD', KEYS[s + 1], latest[s], user)
-    redis.call('PEXPIRE', KEYS[s + 1], ttl)
+    redis.call('ZADD', counted, latest[s], user)
+    redis.call('PEXPIRE', counted, ttl)
+    if visible then
+      redis.call('ZADD', shown, latest[s], user)
+      redis.call('PEXPIRE', shown, ttl)
+    else
+      redis.call('ZREM', shown, user)
+    end
   else
-    redis.call('ZREM', KEYS[s + 1], user)
+    redis.call('ZREM', counted, user)
+    redis.call('ZREM', shown, user)
   end
 end
 return 1
@@ -95,19 +113,22 @@ export class PresenceStore implements IPresenceStore {
     sessionId: string;
     surface: PresenceSurfaces;
     nowMs: number;
+    visible: boolean;
   }): Promise<boolean | null> {
     try {
       const written = await this.redis.eval(
         HeartbeatScript,
-        1 + Surfaces.length,
+        1 + Surfaces.length * 2,
         sessionsKey(params.userId),
         ...Surfaces.map(surfaceKey),
+        ...Surfaces.map(visibleKey),
         params.sessionId,
         Surfaces.indexOf(params.surface) + 1,
         params.nowMs,
         TtlMs,
         SameSurfaceIntervalMs,
         params.userId,
+        params.visible ? '1' : '0',
       );
       return written === 1;
     } catch (error) {
@@ -137,6 +158,49 @@ export class PresenceStore implements IPresenceStore {
     } catch (error) {
       this.logger.warn(`Không đọc được presence: ${String(error)}`);
       return null;
+    }
+  }
+
+  public async listVisible(
+    surface: PresenceSurfaces,
+    nowMs: number,
+    count: number,
+  ): Promise<string[] | null> {
+    try {
+      const key = visibleKey(surface);
+      const result = await this.redis
+        .multi()
+        .zremrangebyscore(key, '-inf', nowMs - TtlMs)
+        .zrevrange(key, 0, count - 1)
+        .exec();
+      const [, [rangeError, members]] = result as [
+        [Error | null, unknown],
+        [Error | null, unknown],
+      ];
+      if (rangeError) throw rangeError;
+      return (members as string[]) ?? [];
+    } catch (error) {
+      this.logger.warn(`Không đọc được danh sách online: ${String(error)}`);
+      return null;
+    }
+  }
+
+  public async clearUser(userId: string): Promise<boolean> {
+    try {
+      // Một MULTI: tắt hiện trạng thái mà còn sót người này ở một tab nào đó là lộ đúng thứ
+      // họ vừa yêu cầu ẩn.
+      const pipeline = this.redis.multi().del(sessionsKey(userId));
+      for (const surface of Surfaces)
+        pipeline
+          .zrem(surfaceKey(surface), userId)
+          .zrem(visibleKey(surface), userId);
+      await pipeline.exec();
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        `Không xoá được presence của người dùng: ${String(error)}`,
+      );
+      return false;
     }
   }
 }

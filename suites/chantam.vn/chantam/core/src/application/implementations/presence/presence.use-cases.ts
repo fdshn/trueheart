@@ -5,16 +5,20 @@ import {
   IPresenceHeartbeatUseCase,
 } from '@/application/contracts/presence';
 import { IPresenceStore } from '@/domain/ports/cache';
+import { IUserRepository } from '@/domain/ports/repository';
 import { IRequestThrottle } from '@/domain/ports/security';
 import {
   PresenceHeartbeatsPerUserPerMinute,
   PresenceTtlSeconds,
+  UserStatuses,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IPresenceHeartbeatResponseDto,
   ISurfacePresenceResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { Inject, Injectable } from '@nestjs/common';
+import { In } from 'typeorm';
+import { toPublicAuthorSummary } from '../shared/public-author';
 
 const HeartbeatBucket = 'presence:heartbeat';
 const HeartbeatWindowSeconds = 60;
@@ -33,6 +37,7 @@ export class PresenceHeartbeatUseCase implements IPresenceHeartbeatUseCase {
   public constructor(
     @Inject(IPresenceStore) private readonly store: IPresenceStore,
     @Inject(IRequestThrottle) private readonly throttle: IRequestThrottle,
+    @Inject(IUserRepository) private readonly users: IUserRepository,
   ) {}
 
   public async handle(
@@ -49,11 +54,15 @@ export class PresenceHeartbeatUseCase implements IPresenceHeartbeatUseCase {
       windowSeconds: HeartbeatWindowSeconds,
     });
 
+    // Đọc cờ mỗi heartbeat (một truy vấn theo khoá chính mỗi phút mỗi người): bật cờ thì tới
+    // nhịp kế tiếp là hiện; tắt cờ thì `PATCH /profile/me` đã xoá ngay, nhịp sau không thêm lại.
+    const user = await this.users.findOneBy({ globalId: command.userId });
     const refreshed = await this.store.heartbeat({
       userId: command.userId,
       sessionId: command.sessionId,
       surface: command.surface,
       nowMs: Date.now(),
+      visible: user?.showOnlineStatus === true,
     });
 
     return {
@@ -67,25 +76,63 @@ export class PresenceHeartbeatUseCase implements IPresenceHeartbeatUseCase {
   }
 }
 
+const DefaultVisibleLimit = 10;
+const MaxVisibleLimit = 50;
+
 /**
- * Số người đang ở một surface (PR #46 §10.4). Phase 1 KHÔNG trả danh tính: chưa có cài đặt
- * `showOnlineStatus`, nên `visibleUsers` luôn rỗng và không cần hỏi bảng người dùng.
+ * Số người đang ở một surface (PR #46 §10.4) và những người trong đó đã bật hiện trạng thái
+ * online (§10.5).
+ *
+ * `onlineCount` đếm MỌI người, bật cờ hay không. `visibleUsers` chỉ gồm người còn bật cờ và
+ * tài khoản còn hoạt động — Redis chỉ cho ứng viên, database quyết: cờ vừa tắt hay tài khoản
+ * vừa bị khoá giữa hai nhịp heartbeat thì không được lọt ra. Không bao giờ có chính người gọi,
+ * không có userId, không có gì về tab nào khác.
  */
 @Injectable()
 export class GetSurfacePresenceUseCase implements IGetSurfacePresenceUseCase {
   public constructor(
     @Inject(IPresenceStore) private readonly store: IPresenceStore,
+    @Inject(IUserRepository) private readonly users: IUserRepository,
   ) {}
 
   public async handle(
     command: IGetSurfacePresenceCommand,
   ): Promise<ISurfacePresenceResponseDto> {
-    // Redis không trả lời thì hiện 0 thay vì làm hỏng cả tab chỉ vì một con số trang trí.
-    const onlineCount =
-      (await this.store.countOnline(command.surface, Date.now())) ?? 0;
+    const now = Date.now();
+    const limit = Math.min(
+      Math.max(Math.trunc(command.limit ?? DefaultVisibleLimit), 1),
+      MaxVisibleLimit,
+    );
+    // Redis không trả lời thì hiện 0 người và danh sách rỗng, thay vì làm hỏng cả tab chỉ vì
+    // một phần trang trí.
+    const [onlineCount, candidates] = await Promise.all([
+      this.store.countOnline(command.surface, now),
+      // Lấy dư một chỗ cho chính người gọi, để bỏ họ ra vẫn đủ `limit`.
+      this.store.listVisible(command.surface, now, limit + 1),
+    ]);
+
+    const ids = (candidates ?? []).filter((id) => id !== command.currentUserId);
+    const rows =
+      ids.length > 0 ? await this.users.findBy({ globalId: In(ids) }) : [];
+    const byId = new Map(rows.map((row) => [row.globalId, row]));
+    const visibleUsers = ids
+      .map((id) => byId.get(id))
+      .filter(
+        (row): row is NonNullable<typeof row> =>
+          row !== undefined &&
+          row.showOnlineStatus === true &&
+          row.status === UserStatuses.ACTIVE &&
+          !row.deletedAt,
+      )
+      .slice(0, limit)
+      .map(toPublicAuthorSummary);
 
     return {
-      presence: { surface: command.surface, onlineCount, visibleUsers: [] },
+      presence: {
+        surface: command.surface,
+        onlineCount: onlineCount ?? 0,
+        visibleUsers,
+      },
     };
   }
 }
