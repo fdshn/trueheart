@@ -31,6 +31,7 @@ import { ReportControllerModule } from './report/report.module';
 import { ReviewControllerModule } from './review/review.module';
 import { SponsorBannerControllerModule } from './sponsor-banner/sponsor-banner.module';
 import { TransactionControllerModule } from './transaction/transaction.module';
+import { UserBlockControllerModule } from './user-block/user-block.module';
 
 /** Gom mọi controller module theo resource. */
 @Module({
@@ -43,6 +44,7 @@ import { TransactionControllerModule } from './transaction/transaction.module';
     DharmaControllerModule,
     LeaderboardControllerModule,
     PresenceControllerModule,
+    UserBlockControllerModule,
     LunarControllerModule,
     HomeCampaignControllerModule,
     CheckInControllerModule,

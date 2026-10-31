@@ -130,6 +130,8 @@ export enum ErrorCodes {
   INVALID_EMAIL_FORMAT = 0x03_0f,
   EMAIL_NOT_VERIFIED = 0x03_10,
   EMAIL_REQUIRED = 0x03_11,
+  /** Chặn chính mình. */
+  USER_BLOCK_SELF = 0x03_12,
 
   // 0x05 — Danh mục
   CATEGORY_NOT_FOUND = 0x05_01,
@@ -237,6 +239,13 @@ export enum ErrorCodes {
   CHAT_DIRECT_POST_NOT_SUPPORTED = 0x0b_0a,
   /** Chủ bài không tự mở phòng chat với bài của chính mình. */
   CHAT_DIRECT_POST_SELF = 0x0b_0b,
+  /** Mở phòng chat trực tiếp với chính mình. */
+  CHAT_DIRECT_USER_SELF = 0x0b_0c,
+  /**
+   * Không nhắn được cho người này — CỐ Ý một mã chung cho: bị chặn (hai chiều), tài khoản không
+   * hoạt động, người nhận tắt nhận tin người lạ. Phân biệt ra là lộ ai đã chặn mình.
+   */
+  CHAT_RECIPIENT_UNAVAILABLE = 0x0b_0d,
 
   // 0x0F — Báo cáo vi phạm
   REPORT_NOT_FOUND = 0x0f_01,

@@ -47,6 +47,12 @@ const person = (
   ...overrides,
 });
 
+function makeBlocks(related: string[] = []) {
+  return {
+    filterBlockRelations: jest.fn(async () => new Set(related)),
+  };
+}
+
 function makeUsers(
   rows: UserRow[] = [person(UserId, { showOnlineStatus: false })],
 ) {
@@ -156,6 +162,7 @@ describe('GetSurfacePresenceUseCase', () => {
     const result = await new GetSurfacePresenceUseCase(
       store as never,
       makeUsers([]) as never,
+      makeBlocks() as never,
     ).handle({
       surface: PresenceSurfaces.DHARMA_FORUM,
     });
@@ -176,6 +183,7 @@ describe('GetSurfacePresenceUseCase', () => {
         listVisible: jest.fn().mockResolvedValue(null),
       }) as never,
       makeUsers([]) as never,
+      makeBlocks() as never,
     ).handle({ surface: PresenceSurfaces.DHARMA_FORUM });
 
     expect(result.presence.onlineCount).toBe(0);
@@ -201,33 +209,78 @@ describe('GetSurfacePresenceUseCase', () => {
     const result = await new GetSurfacePresenceUseCase(
       store as never,
       users as never,
+      makeBlocks() as never,
     ).handle({
       surface: PresenceSurfaces.DHARMA_FORUM,
       currentUserId: c,
       limit: 2,
     });
 
-    // limit + 1 để còn đủ người sau khi bỏ chính người gọi.
+    // Lấy dư (2 × limit + 1) để còn đủ người sau khi bỏ người gọi và người có quan hệ chặn.
     expect(store.listVisible).toHaveBeenCalledWith(
       PresenceSurfaces.DHARMA_FORUM,
       expect.any(Number),
-      3,
+      5,
     );
+    // Người gọi đã đăng nhập: mỗi phần tử có `userId` để mở chat trực tiếp.
     expect(result.presence.visibleUsers).toEqual([
       {
+        userId: e,
         username: `u-${e.slice(-2)}`,
         fullName: null,
         avatarUrl: 'https://cdn.test/e.png',
         rank: 'MEMBER',
       },
       {
+        userId: a,
         username: `u-${a.slice(-2)}`,
         fullName: null,
         avatarUrl: null,
         rank: 'MEMBER',
       },
     ]);
-    expect(JSON.stringify(result)).not.toContain(e);
+  });
+
+  it('khách chưa đăng nhập: có danh sách nhưng KHÔNG có userId', async () => {
+    const id = '30000000-0000-4000-8000-000000000011';
+    const result = await new GetSurfacePresenceUseCase(
+      makeStore({ listVisible: jest.fn().mockResolvedValue([id]) }) as never,
+      makeUsers([person(id)]) as never,
+      makeBlocks() as never,
+    ).handle({ surface: PresenceSurfaces.DHARMA_FORUM });
+
+    expect(result.presence.visibleUsers).toHaveLength(1);
+    expect(result.presence.visibleUsers[0]).not.toHaveProperty('userId');
+    expect(JSON.stringify(result)).not.toContain(id);
+  });
+
+  it('người có quan hệ chặn (chiều nào cũng vậy) không thấy nhau', async () => {
+    const [blockedByMe, blockedMe, stranger] = ['21', '22', '23'].map(
+      (tail) => `30000000-0000-4000-8000-0000000000${tail}`,
+    );
+    const blocks = makeBlocks([blockedByMe, blockedMe]);
+    const result = await new GetSurfacePresenceUseCase(
+      makeStore({
+        listVisible: jest
+          .fn()
+          .mockResolvedValue([blockedByMe, blockedMe, stranger]),
+      }) as never,
+      makeUsers([
+        person(blockedByMe),
+        person(blockedMe),
+        person(stranger),
+      ]) as never,
+      blocks as never,
+    ).handle({ surface: PresenceSurfaces.DHARMA_FORUM, currentUserId: UserId });
+
+    expect(blocks.filterBlockRelations).toHaveBeenCalledWith(UserId, [
+      blockedByMe,
+      blockedMe,
+      stranger,
+    ]);
+    expect(result.presence.visibleUsers.map((user) => user.userId)).toEqual([
+      stranger,
+    ]);
   });
 });
 

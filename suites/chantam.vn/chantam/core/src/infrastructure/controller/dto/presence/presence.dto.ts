@@ -85,6 +85,15 @@ export class PresenceSurfaceQueryDto implements IPresenceSurfaceQueryDto {
   limit?: number;
 }
 
+export class PresenceVisibleUserDto extends PublicAuthorSummaryDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Chỉ có khi người gọi đã đăng nhập — dùng để mở phòng chat trực tiếp (`POST /chat/direct-user/rooms`).',
+  })
+  userId?: string;
+}
+
 export class SurfacePresenceDto implements ISurfacePresenceDto {
   @ApiProperty({ enum: PresenceSurfaces }) surface: PresenceSurfaces;
 
@@ -96,11 +105,11 @@ export class SurfacePresenceDto implements ISurfacePresenceDto {
   onlineCount: number;
 
   @ApiProperty({
-    type: () => [PublicAuthorSummaryDto],
+    type: () => [PresenceVisibleUserDto],
     description:
-      'Người đã bật `showOnlineStatus`, tài khoản đang hoạt động, heartbeat gần nhất trước; không gồm người gọi.',
+      'Người đã bật `showOnlineStatus`, tài khoản đang hoạt động, heartbeat gần nhất trước; không gồm người gọi và người có quan hệ chặn với người gọi.',
   })
-  visibleUsers: PublicAuthorSummaryDto[];
+  visibleUsers: PresenceVisibleUserDto[];
 }
 
 export class SurfacePresenceResponseDto implements ISurfacePresenceResponseDto {

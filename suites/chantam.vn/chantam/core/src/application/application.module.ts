@@ -33,6 +33,7 @@ import { ReportModule } from './implementations/report/report.module';
 import { ReviewModule } from './implementations/review/review.module';
 import { SponsorBannerUseCaseModule } from './implementations/sponsor-banner/sponsor-banner.module';
 import { TransactionModule } from './implementations/transaction/transaction.module';
+import { UserBlockModule } from './implementations/user-block/user-block.module';
 
 /**
  * Chỉ import feature module cấp resource. Không import module hạ tầng
@@ -68,6 +69,7 @@ import { TransactionModule } from './implementations/transaction/transaction.mod
     PostModule,
     PresenceModule,
     RecipientSelectionModule,
+    UserBlockModule,
     TransactionModule,
     GroupModule,
     MediaModule,

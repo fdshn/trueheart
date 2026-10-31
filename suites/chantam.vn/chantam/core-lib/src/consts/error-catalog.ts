@@ -186,6 +186,12 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Không tìm thấy tài khoản',
   },
 
+  USER_BLOCK_SELF: {
+    code: ErrorCodes.USER_BLOCK_SELF,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: () => 'Không thể chặn chính mình',
+  },
+
   USER_SUSPENDED: {
     code: ErrorCodes.USER_SUSPENDED,
     httpStatus: HttpStatus.FORBIDDEN,
@@ -487,6 +493,18 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     code: ErrorCodes.CHAT_DIRECT_POST_SELF,
     httpStatus: HttpStatus.CONFLICT,
     message: () => 'Không thể nhắn tin với bài của chính mình',
+  },
+
+  CHAT_DIRECT_USER_SELF: {
+    code: ErrorCodes.CHAT_DIRECT_USER_SELF,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Không thể nhắn tin với chính mình',
+  },
+
+  CHAT_RECIPIENT_UNAVAILABLE: {
+    code: ErrorCodes.CHAT_RECIPIENT_UNAVAILABLE,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () => 'Không thể nhắn tin cho người này',
   },
 
   CHAT_FLAG_ALREADY_REVIEWED: {

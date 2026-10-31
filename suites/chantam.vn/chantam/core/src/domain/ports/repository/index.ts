@@ -36,6 +36,7 @@ export * from './report.repository';
 export * from './sponsor-banner.repository';
 export * from './system-log.repository';
 export * from './transaction-review.repository';
+export * from './user-block.repository';
 export * from './user-onboarding-task-completion.repository';
 export * from './user-session.repository';
 export * from './user.repository';

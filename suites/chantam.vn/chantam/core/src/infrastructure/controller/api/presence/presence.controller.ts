@@ -90,8 +90,9 @@ export class PresenceController {
     description:
       'Gọi khi mở tab, kéo làm mới, hoặc mỗi 60–120 giây khi màn còn hiển thị; không gọi khi app background. ' +
       '`onlineCount` đếm mọi người (gộp nhiều thiết bị của một người). `visibleUsers`: tối đa `limit` người (mặc định 10) ' +
-      'đã bật `showOnlineStatus` trong hồ sơ, tài khoản đang hoạt động, người heartbeat gần nhất trước — chỉ author summary, ' +
-      'không userId, và không bao giờ có chính người gọi (gửi kèm token để được loại).',
+      'đã bật `showOnlineStatus` trong hồ sơ, tài khoản đang hoạt động, người heartbeat gần nhất trước. ' +
+      'Gửi kèm token thì mỗi người có thêm `userId` (để mở chat trực tiếp), không có chính người gọi và không có ai có quan hệ chặn với người gọi; ' +
+      'khách chưa đăng nhập không nhận `userId`.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(SurfacePresenceResponseDto) })
   @ApiErrorResponses([

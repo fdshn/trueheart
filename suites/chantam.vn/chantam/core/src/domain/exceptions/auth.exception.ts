@@ -103,3 +103,7 @@ export class UserHasOpenTransactionsException extends ExceptionFrom(
 export class TooManyRequestsException extends ExceptionFrom(
   CoreErrors.TOO_MANY_REQUESTS,
 ) {}
+
+export class UserBlockSelfException extends ExceptionFrom(
+  CoreErrors.USER_BLOCK_SELF,
+) {}

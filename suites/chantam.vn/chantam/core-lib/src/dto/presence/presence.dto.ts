@@ -34,12 +34,20 @@ export interface IPresenceSurfaceQueryDto {
   limit?: number;
 }
 
+/**
+ * Một người đang online đã bật `showOnlineStatus`. `userId` CHỈ có khi người gọi đã đăng nhập —
+ * để mở phòng chat trực tiếp; khách xem danh sách công khai không nhận id.
+ */
+export interface IPresenceVisibleUserDto extends IPublicAuthorSummaryDto {
+  userId?: string;
+}
+
 export interface ISurfacePresenceDto {
   surface: PresenceSurfaces;
   /** Số NGƯỜI (đã gộp nhiều thiết bị) còn heartbeat trong 120 giây qua. */
   onlineCount: number;
   /** Phase 1 luôn rỗng — chưa có cài đặt `showOnlineStatus` để công khai danh tính. */
-  visibleUsers: IPublicAuthorSummaryDto[];
+  visibleUsers: IPresenceVisibleUserDto[];
 }
 
 export interface ISurfacePresenceResponseDto {

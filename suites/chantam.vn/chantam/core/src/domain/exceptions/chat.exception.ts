@@ -56,3 +56,11 @@ export class ChatDirectPostNotSupportedException extends ExceptionFrom(
 export class ChatDirectPostSelfException extends ExceptionFrom(
   CoreErrors.CHAT_DIRECT_POST_SELF,
 ) {}
+
+export class ChatDirectUserSelfException extends ExceptionFrom(
+  CoreErrors.CHAT_DIRECT_USER_SELF,
+) {}
+
+export class ChatRecipientUnavailableException extends ExceptionFrom(
+  CoreErrors.CHAT_RECIPIENT_UNAVAILABLE,
+) {}

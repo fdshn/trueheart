@@ -92,6 +92,7 @@ Nghiệp vụ Chân Tâm
 | `0x030f` | `783` | 400 Bad Request | `INVALID_EMAIL_FORMAT` | Email không đúng định dạng |
 | `0x0310` | `784` | 409 Conflict | `EMAIL_NOT_VERIFIED` | Email chưa được xác minh |
 | `0x0311` | `785` | 409 Conflict | `EMAIL_REQUIRED` | Hồ sơ chưa có email — thêm email trước khi xác minh |
+| `0x0312` | `786` | 400 Bad Request | `USER_BLOCK_SELF` | Không thể chặn chính mình |
 | `0x0401` | `1025` | 404 Not Found | `SESSION_NOT_FOUND` | Không tìm thấy phiên đăng nhập |
 | `0x0402` | `1026` | 401 Unauthorized | `REFRESH_TOKEN_INVALID` | Phiên đăng nhập không còn hiệu lực, vui lòng đăng nhập lại |
 | `0x0403` | `1027` | 401 Unauthorized | `REFRESH_TOKEN_EXPIRED` | Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại |
@@ -161,6 +162,8 @@ Nghiệp vụ Chân Tâm
 | `0x0b09` | `2825` | 409 Conflict | `NOTIFICATION_BROADCAST_IN_PROGRESS` | Lượt gửi này đang được gửi. Theo dõi tiến độ trong danh sách lượt gửi |
 | `0x0b0a` | `2826` | 409 Conflict | `CHAT_DIRECT_POST_NOT_SUPPORTED` | Chỉ nhắn trực tiếp được với bài Rao vặt. Bài cho/nhận dùng nút xin nhận |
 | `0x0b0b` | `2827` | 409 Conflict | `CHAT_DIRECT_POST_SELF` | Không thể nhắn tin với bài của chính mình |
+| `0x0b0c` | `2828` | 409 Conflict | `CHAT_DIRECT_USER_SELF` | Không thể nhắn tin với chính mình |
+| `0x0b0d` | `2829` | 403 Forbidden | `CHAT_RECIPIENT_UNAVAILABLE` | Không thể nhắn tin cho người này |
 | `0x0e01` | `3585` | 422 | `CONTENT_BLOCKED_TERMS` | Nội dung có từ ngữ không được phép. Vui lòng viết lại |
 | `0x0e02` | `3586` | 404 Not Found | `CONTENT_COMMENT_NOT_FOUND` | Không tìm thấy bình luận |
 | `0x0e03` | `3587` | 409 Conflict | `CONTENT_EDIT_WINDOW_CLOSED` | Chỉ sửa được bình luận trong 15 phút đầu |
@@ -229,5 +232,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **187 mã lỗi** trên 3 tầng.
+Tổng cộng **190 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

@@ -37,6 +37,7 @@ import {
   ISponsorBannerRepository,
   ISystemLogRepository,
   ITransactionReviewRepository,
+  IUserBlockRepository,
   IUserOnboardingTaskCompletionRepository,
   IUserRepository,
   IUserSessionRepository,
@@ -85,6 +86,7 @@ import { ReportRepository } from './report.repository';
 import { SponsorBannerRepository } from './sponsor-banner.repository';
 import { SystemLogRepository } from './system-log.repository';
 import { TransactionReviewRepository } from './transaction-review.repository';
+import { UserBlockRepository } from './user-block.repository';
 import { UserOnboardingTaskCompletionRepository } from './user-onboarding-task-completion.repository';
 import { UserSessionRepository } from './user-session.repository';
 import { UserRepository } from './user.repository';
@@ -132,6 +134,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
       provide: IRecipientSelectionAuditRepository,
       useClass: RecipientSelectionAuditRepository,
     },
+    { provide: IUserBlockRepository, useClass: UserBlockRepository },
     { provide: ILeaderboardRepository, useClass: LeaderboardRepository },
     {
       provide: ILunarHolidayRepository,
@@ -218,6 +221,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     IDharmaRepository,
     IDharmaLeaderboardRepository,
     IRecipientSelectionAuditRepository,
+    IUserBlockRepository,
     ILeaderboardRepository,
     IHomeCampaignRepository,
     IBulkNotifyAudienceRepository,

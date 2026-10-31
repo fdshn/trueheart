@@ -5,7 +5,10 @@ import {
   IPresenceHeartbeatUseCase,
 } from '@/application/contracts/presence';
 import { IPresenceStore } from '@/domain/ports/cache';
-import { IUserRepository } from '@/domain/ports/repository';
+import {
+  IUserBlockRepository,
+  IUserRepository,
+} from '@/domain/ports/repository';
 import { IRequestThrottle } from '@/domain/ports/security';
 import {
   PresenceHeartbeatsPerUserPerMinute,
@@ -93,6 +96,8 @@ export class GetSurfacePresenceUseCase implements IGetSurfacePresenceUseCase {
   public constructor(
     @Inject(IPresenceStore) private readonly store: IPresenceStore,
     @Inject(IUserRepository) private readonly users: IUserRepository,
+    @Inject(IUserBlockRepository)
+    private readonly blocks: IUserBlockRepository,
   ) {}
 
   public async handle(
@@ -107,11 +112,20 @@ export class GetSurfacePresenceUseCase implements IGetSurfacePresenceUseCase {
     // một phần trang trí.
     const [onlineCount, candidates] = await Promise.all([
       this.store.countOnline(command.surface, now),
-      // Lấy dư một chỗ cho chính người gọi, để bỏ họ ra vẫn đủ `limit`.
-      this.store.listVisible(command.surface, now, limit + 1),
+      // Lấy dư để bỏ chính người gọi và người có quan hệ chặn ra vẫn đủ `limit`.
+      this.store.listVisible(command.surface, now, limit * 2 + 1),
     ]);
 
-    const ids = (candidates ?? []).filter((id) => id !== command.currentUserId);
+    let ids = (candidates ?? []).filter((id) => id !== command.currentUserId);
+    // Chặn có hiệu lực HAI chiều: không thấy người mình chặn, cũng không thấy người đã chặn
+    // mình — nếu không, người bị chặn suy ra được mình bị chặn khi thấy đối phương online.
+    if (command.currentUserId && ids.length > 0) {
+      const related = await this.blocks.filterBlockRelations(
+        command.currentUserId,
+        ids,
+      );
+      ids = ids.filter((id) => !related.has(id));
+    }
     const rows =
       ids.length > 0 ? await this.users.findBy({ globalId: In(ids) }) : [];
     const byId = new Map(rows.map((row) => [row.globalId, row]));
@@ -125,7 +139,13 @@ export class GetSurfacePresenceUseCase implements IGetSurfacePresenceUseCase {
           !row.deletedAt,
       )
       .slice(0, limit)
-      .map(toPublicAuthorSummary);
+      // `userId` chỉ cho người ĐÃ đăng nhập — để mở phòng chat trực tiếp. Khách xem danh sách
+      // công khai không nhận id, cùng lối các danh sách công khai khác.
+      .map((row) =>
+        command.currentUserId
+          ? { userId: row.globalId, ...toPublicAuthorSummary(row) }
+          : toPublicAuthorSummary(row),
+      );
 
     return {
       presence: {

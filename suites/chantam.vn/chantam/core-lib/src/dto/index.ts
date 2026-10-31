@@ -21,3 +21,4 @@ export * from './referral';
 export * from './report';
 export * from './review';
 export * from './transaction';
+export * from './user-block';
