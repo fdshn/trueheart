@@ -21,6 +21,8 @@ set -euo pipefail
 
 ENVIRONMENT="${1:-}"
 PUBLIC_HOST="${2:-}"
+# Hostname của môi trường KIA (tuỳ chọn) — để Swagger liệt kê cả hai, xem dưới.
+OTHER_HOST="${3:-}"
 
 case "$ENVIRONMENT" in
   # 3000 đang có dịch vụ khác trên server dev (EduStack), nên Chân Tâm dùng
@@ -28,20 +30,25 @@ case "$ENVIRONMENT" in
   staging) CORE_PORT=8080 ;;
   production) CORE_PORT=8085 ;;
   *)
-    echo "Dùng: bash bootstrap.sh <staging|production> [hostname-công-khai]" >&2
+    echo "Dùng: bash bootstrap.sh <staging|production> [hostname-công-khai] [hostname-môi-trường-kia]" >&2
     exit 2
     ;;
 esac
 
-# Mỗi server chỉ khai CHÍNH NÓ. Liệt kê môi trường khác ở đây là mời người mở
-# tài liệu production bấm "Try it out" nhầm sang staging và ngược lại.
+# Ô "Servers" của Swagger: CHÍNH môi trường này đứng ĐẦU (Swagger UI lấy mục đầu làm
+# mặc định, nên "Try it out" mặc định gọi đúng server đang đọc), môi trường kia đứng sau
+# nếu truyền hostname thứ ba (chủ dự án yêu cầu 01/11). Token không dùng chéo được vì
+# JWT_SECRET mỗi bên khác nhau.
 case "$ENVIRONMENT" in
-  staging) SERVER_LABEL=Staging ;;
-  production) SERVER_LABEL=Production ;;
+  staging) SERVER_LABEL=Staging; OTHER_LABEL=Production ;;
+  production) SERVER_LABEL=Production; OTHER_LABEL=Staging ;;
 esac
 
 if [ -n "$PUBLIC_HOST" ]; then
   API_SERVERS_VALUE="$SERVER_LABEL=https://$PUBLIC_HOST"
+  if [ -n "$OTHER_HOST" ]; then
+    API_SERVERS_VALUE="$API_SERVERS_VALUE,$OTHER_LABEL=https://$OTHER_HOST"
+  fi
 else
   API_SERVERS_VALUE=""
 fi
