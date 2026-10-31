@@ -29,6 +29,7 @@ import { IDispatchNotificationUseCase } from '@/application/contracts/notificati
 import {
   ChatMessageNotFoundException,
   ChatRecallWindowClosedException,
+  ChatRecipientUnavailableException,
   ChatRoomNotFoundException,
   ChatRoomReadOnlyException,
 } from '@/domain/exceptions';
@@ -83,6 +84,8 @@ export function toRoomSummary(
     postPrice: item.postPrice,
     status: item.room.status,
     readOnly: item.room.status !== ChatRoomStatuses.OPEN,
+    counterpartId: item.counterpartId,
+    blockedByMe: item.blockedByMe,
     counterpartUsername: item.counterpartUsername,
     counterpartFullName: item.counterpartFullName,
     counterpartAvatarUrl: item.counterpartAvatarUrl,
@@ -331,6 +334,9 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
     });
 
     if (outcome.status === 'READ_ONLY') throw new ChatRoomReadOnlyException();
+    // Lỗi chung, không nói "bị chặn": người bị chặn không được biết mình bị chặn.
+    if (outcome.status === 'BLOCKED')
+      throw new ChatRecipientUnavailableException();
     if (outcome.status !== 'APPENDED') throw new ChatRoomNotFoundException();
 
     // Thông báo là việc SAU khi tin đã lưu, và có khoá chống trùng theo id tin
@@ -350,6 +356,9 @@ export class SendChatMessageUseCase implements ISendChatMessageUseCase {
         referenceType: 'CHAT_ROOM',
         referenceId: command.roomId,
         idempotencyKey: `NEW_CHAT_MESSAGE:${outcome.message.globalId}`,
+        // Client điều hướng thẳng tới đúng kiểu màn chat (phòng trực tiếp không có thẻ bài)
+        // mà không phải gọi API trước khi mở.
+        pushData: { roomType: outcome.room.roomType },
       });
 
     const message: IChatMessageDto = {

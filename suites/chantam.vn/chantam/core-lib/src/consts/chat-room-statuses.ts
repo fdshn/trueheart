@@ -27,12 +27,15 @@ export enum ChatRoomStatuses {
 export const ChatRecallWindowMinutes = 5;
 
 /**
- * Hai loại phòng chat độc lập (PR #46 §7).
+ * Ba loại phòng chat độc lập (PR #46 §7, chat trực tiếp 30/10).
  *
  * - `TRANSACTION`: mở khi một lượt trao được duyệt; có `transactionId`.
  * - `DIRECT_POST`: người mua liên hệ người bán về một bài Rao vặt; KHÔNG có giao dịch.
+ * - `DIRECT_USER`: hai người nhắn thẳng cho nhau, mở từ danh sách online hoặc hồ sơ; KHÔNG
+ *   có giao dịch, KHÔNG có bài. Mỗi cặp người đúng một phòng, bất kể ai mở trước.
  */
 export enum ChatRoomTypes {
   TRANSACTION = 'TRANSACTION',
   DIRECT_POST = 'DIRECT_POST',
+  DIRECT_USER = 'DIRECT_USER',
 }

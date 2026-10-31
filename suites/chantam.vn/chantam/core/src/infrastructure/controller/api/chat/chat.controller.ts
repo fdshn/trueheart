@@ -4,6 +4,7 @@ import {
   IMarkChatRoomReadUseCase,
   IMuteChatRoomUseCase,
   IOpenDirectPostRoomUseCase,
+  IOpenDirectUserRoomUseCase,
   IRecallChatMessageUseCase,
   IRequestChatMediaUploadUseCase,
   ISendChatMessageUseCase,
@@ -11,12 +12,16 @@ import {
 import {
   ChatDirectPostNotSupportedException,
   ChatDirectPostSelfException,
+  ChatDirectUserSelfException,
   ChatMessageNotFoundException,
   ChatRecallWindowClosedException,
+  ChatRecipientUnavailableException,
   ChatRoomNotFoundException,
   ChatRoomReadOnlyException,
   PostNotFoundException,
   ProfileIncompleteException,
+  TooManyRequestsException,
+  UserNotFoundException,
 } from '@/domain/exceptions';
 import {
   IListChatMessagesResponseDto,
@@ -63,6 +68,8 @@ import {
   MuteChatRoomResponseDto,
   OpenDirectPostRoomBodyDto,
   OpenDirectPostRoomResponseDto,
+  OpenDirectUserRoomBodyDto,
+  OpenDirectUserRoomResponseDto,
   RecallChatMessageParamsDto,
   RecallChatMessageResponseDto,
   RequestChatMediaUploadBodyDto,
@@ -92,7 +99,51 @@ export class ChatController {
     private readonly markChatRoomReadUseCase: IMarkChatRoomReadUseCase,
     @Inject(IOpenDirectPostRoomUseCase)
     private readonly openDirectPostRoomUseCase: IOpenDirectPostRoomUseCase,
+    @Inject(IOpenDirectUserRoomUseCase)
+    private readonly openDirectUserRoomUseCase: IOpenDirectUserRoomUseCase,
   ) {}
+
+  @Post('direct-user/rooms')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Mở phòng chat trực tiếp với một người dùng',
+    description:
+      'Chỉ định người nhận bằng đúng một trong `userId` (danh sách online) hoặc `username` (hồ sơ công khai). ' +
+      'Mỗi cặp người đúng một phòng `DIRECT_USER`, dù ai mở trước; mở lại trả phòng cũ (`created: false`). ' +
+      'Phòng MỚI cần: hồ sơ đủ, không có quan hệ chặn (bất kể chiều), người nhận bật "Cho phép người lạ nhắn tin" hoặc hai người đã từng có phòng chat, ' +
+      'và còn suất trong ngày (`chat.direct_user_daily_limit`, mặc định 20 phòng mới / 24 giờ). ' +
+      'Bị chặn và không nhận tin người lạ trả CÙNG lỗi `CHAT_RECIPIENT_UNAVAILABLE`. ' +
+      'Tin nhắn, ảnh, đã đọc, tắt tiếng, thu hồi và realtime dùng đúng các route `/chat/rooms/:roomId/...`.',
+  })
+  @ApiCreatedResponse({
+    type: ResponseDto.forApi(OpenDirectUserRoomResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [
+      ValidationFailedException,
+      ['room: cần đúng một trong userId hoặc username'],
+    ],
+    [ProfileIncompleteException, ['phone']],
+    UserNotFoundException,
+    ChatDirectUserSelfException,
+    ChatRecipientUnavailableException,
+    [TooManyRequestsException, 3600],
+  )
+  public async openDirectUserRoom(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: OpenDirectUserRoomBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.openDirectUserRoomUseCase.handle({
+          userId: principal.userId,
+          target: body.room,
+        }),
+      )
+      .build();
+  }
 
   @Post('direct-post/rooms')
   @ApiBearerAuth()
@@ -188,7 +239,8 @@ export class ChatController {
   @ApiOperation({
     summary: 'Gửi tin nhắn',
     description:
-      'Chỉ gửi được khi phòng còn OPEN. Giao dịch kết thúc thì phòng thành chỉ đọc và trả CHAT_ROOM_READ_ONLY (F38). Người nhận được ghi một thông báo trong app, và đẩy push nếu đã cấu hình nhà cung cấp (F44).',
+      'Chỉ gửi được khi phòng còn OPEN. Giao dịch kết thúc thì phòng thành chỉ đọc và trả CHAT_ROOM_READ_ONLY (F38). Người nhận được ghi một thông báo trong app, và đẩy push nếu đã cấu hình nhà cung cấp (F44); `data` của push có thêm `roomType`, `targetType`, `targetId`. ' +
+      'Phòng `DIRECT_USER` của một cặp có quan hệ chặn (bất kể chiều nào) trả CHAT_RECIPIENT_UNAVAILABLE; phòng giao dịch và Rao vặt không bị ảnh hưởng bởi chặn.',
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(SendChatMessageResponseDto) })
   @ApiErrorResponses(
@@ -199,6 +251,7 @@ export class ChatController {
     ],
     ChatRoomNotFoundException,
     ChatRoomReadOnlyException,
+    ChatRecipientUnavailableException,
   )
   public async sendMessage(
     @CurrentUser() principal: IAuthPrincipal,

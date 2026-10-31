@@ -46,6 +46,12 @@ export interface IUser {
    * được đếm vào `onlineCount` nhưng không bao giờ có trong `visibleUsers`.
    */
   showOnlineStatus: boolean;
+  /**
+   * "Cho phép người lạ nhắn tin" (chat trực tiếp 30/10). Mặc định bật. Tắt thì chỉ người đã
+   * từng có phòng chat với mình (bất kỳ loại nào) mới mở được phòng `DIRECT_USER` mới; phòng
+   * đã có vẫn nhắn bình thường.
+   */
+  allowStrangerMessages: boolean;
 
   /** Hồ sơ công khai mở rộng (PR #46 §3). */
   slogan: string | null;

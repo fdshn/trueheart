@@ -57,7 +57,8 @@ export interface IAdminChatMessageDto {
 
 export interface IReadAdminChatRoomResult {
   roomId: string;
-  postId: string;
+  /** `null` với phòng `DIRECT_USER`. */
+  postId: string | null;
   giverId: string;
   receiverId: string;
   /** Cũ nhất trước — Admin đọc cuộc trao đổi từ trên xuống. */

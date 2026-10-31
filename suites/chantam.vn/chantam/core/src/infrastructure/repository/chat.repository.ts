@@ -10,6 +10,7 @@ import {
   IModerationChatMessage,
   IOpenChatRoomParams,
   IReviewChatFlagOutcome,
+  OpenDirectUserRoomOutcome,
 } from '@/domain/ports/repository';
 import { ChatMessageEntity, ChatRoomEntity } from '@/infrastructure/entity';
 import {
@@ -258,6 +259,7 @@ export class ChatRepository implements IChatRepository {
   private roomListQuery(where: string): string {
     return `
       SELECT room.id, room.global_id, room.room_type, room.transaction_id, room.post_id,
+             room.created_by,
              room.giver_id, room.receiver_id, room.status,
              room.last_message_at, room.giver_read_at, room.receiver_read_at,
              room.locked_at, room.created_at, room.updated_at,
@@ -268,6 +270,7 @@ export class ChatRepository implements IChatRepository {
                LIMIT 1) AS post_thumbnail_key,
              CASE WHEN jsonb_typeof(post.details -> 'price') = 'number'
                   THEN (post.details ->> 'price')::bigint END AS post_price,
+             counterpart.global_id AS counterpart_id,
              counterpart.username AS counterpart_username,
              counterpart.full_name AS counterpart_full_name,
              counterpart.avatar_url AS counterpart_avatar_url,
@@ -275,9 +278,13 @@ export class ChatRepository implements IChatRepository {
                WHERE m.room_id = room.global_id
                ORDER BY m.created_at DESC, m.id DESC
                LIMIT 1) AS last_message_body,
+             EXISTS (SELECT 1 FROM user_blocks ub
+                      WHERE ub.blocker_id = $2
+                        AND ub.blocked_id = counterpart.global_id) AS blocked_by_me,
              ${UnreadCountSql} AS unread_count
       FROM chat_rooms room
-      JOIN posts post ON post.global_id = room.post_id
+      -- LEFT: phòng DIRECT_USER không có bài; mọi cột post.* ra NULL.
+      LEFT JOIN posts post ON post.global_id = room.post_id
       -- Alias counterpart chứ không phải user: user là từ khoá reserved của
       -- Postgres, kể cả dạng AS user cũng là lỗi cú pháp.
       JOIN users counterpart
@@ -295,7 +302,8 @@ export class ChatRepository implements IChatRepository {
         globalId: String(row.global_id),
         roomType: row.room_type as ChatRoomTypes,
         transactionId: (row.transaction_id as string | null) ?? null,
-        postId: String(row.post_id),
+        postId: (row.post_id as string | null) ?? null,
+        createdBy: (row.created_by as string | null) ?? null,
         giverId: String(row.giver_id),
         receiverId: String(row.receiver_id),
         status: row.status as ChatRoomStatuses,
@@ -306,13 +314,15 @@ export class ChatRepository implements IChatRepository {
         createdAt: row.created_at as Date,
         updatedAt: row.updated_at as Date,
       } as IChatRoomEntity,
-      postTitle: String(row.post_title),
+      postTitle: (row.post_title as string | null) ?? null,
       postThumbnailKey: (row.post_thumbnail_key as string | null) ?? null,
       postPrice: row.post_price === null ? null : Number(row.post_price),
+      counterpartId: String(row.counterpart_id),
       counterpartUsername: String(row.counterpart_username),
       counterpartFullName: (row.counterpart_full_name as string | null) ?? null,
       counterpartAvatarUrl:
         (row.counterpart_avatar_url as string | null) ?? null,
+      blockedByMe: row.blocked_by_me === true,
       lastMessageBody: (row.last_message_body as string | null) ?? null,
       unreadCount: Number(row.unread_count),
     };
@@ -379,6 +389,112 @@ export class ChatRepository implements IChatRepository {
         `Không mở được phòng chat trực tiếp cho bài ${params.postId}`,
       );
     return { room, created: inserted.length > 0 };
+  }
+
+  public async openDirectUserRoom(params: {
+    initiatorId: string;
+    recipientId: string;
+    dailyLimit: number;
+  }): Promise<OpenDirectUserRoomOutcome> {
+    const findPairRoom = (manager: EntityManager) =>
+      manager
+        .createQueryBuilder(ChatRoomEntity, 'room')
+        .where('room.roomType = :type', { type: ChatRoomTypes.DIRECT_USER })
+        .andWhere(
+          '((room.giverId = :a AND room.receiverId = :b) OR (room.giverId = :b AND room.receiverId = :a))',
+          { a: params.initiatorId, b: params.recipientId },
+        )
+        .getOne();
+
+    // Đường nhanh, không khoá: phòng đã có thì trả lại — mở lại phòng cũ không tốn suất.
+    const existing = await findPairRoom(this.manager);
+    if (existing) return { status: 'OPENED', room: existing, created: false };
+
+    return this.manager.transaction(async (manager) => {
+      // Khoá theo NGƯỜI MỞ: hai lượt mở song song tới hai người khác nhau đều đếm cùng một
+      // giới hạn — thiếu khoá thì cả hai cùng thấy "còn 1 suất" và cùng lọt.
+      await manager.query(
+        `SELECT pg_advisory_xact_lock(hashtextextended('chat.direct_user:' || $1::text, 0))`,
+        [params.initiatorId],
+      );
+
+      // Đọc lại sau khoá: người kia có thể vừa mở phòng với mình.
+      const raced = await findPairRoom(manager);
+      if (raced) return { status: 'OPENED', room: raced, created: false };
+
+      const [gate] = await manager.query<
+        {
+          blocked: boolean;
+          recipient_open: boolean | null;
+          has_history: boolean;
+        }[]
+      >(
+        `
+          SELECT
+            EXISTS (SELECT 1 FROM user_blocks
+                     WHERE (blocker_id = $1 AND blocked_id = $2)
+                        OR (blocker_id = $2 AND blocked_id = $1)) AS blocked,
+            (SELECT allow_stranger_messages FROM users WHERE global_id = $2) AS recipient_open,
+            -- "Người quen" = đã từng có phòng chat BẤT KỲ loại nào với nhau.
+            EXISTS (SELECT 1 FROM chat_rooms
+                     WHERE (giver_id = $1 AND receiver_id = $2)
+                        OR (giver_id = $2 AND receiver_id = $1)) AS has_history
+        `,
+        [params.initiatorId, params.recipientId],
+      );
+      if (gate.blocked || (gate.recipient_open !== true && !gate.has_history))
+        return { status: 'RECIPIENT_UNAVAILABLE' };
+
+      const [usage] = await manager.query<
+        { used: number; oldest: Date | null }[]
+      >(
+        `
+          SELECT count(*)::int AS used, min(created_at) AS oldest
+          FROM chat_rooms
+          WHERE room_type = 'DIRECT_USER'
+            AND created_by = $1
+            AND created_at > now() - interval '24 hours'
+        `,
+        [params.initiatorId],
+      );
+      if (usage.used >= params.dailyLimit) {
+        // Suất sớm nhất trả lại khi phòng cũ nhất trong cửa sổ ra khỏi 24 giờ. Giới hạn `0`
+        // (Admin tắt hẳn) thì không có phòng nào để chờ — báo một ngày.
+        const retryAfterSeconds = usage.oldest
+          ? Math.max(
+              1,
+              Math.ceil(
+                (usage.oldest.getTime() + 86_400_000 - Date.now()) / 1000,
+              ),
+            )
+          : 86_400;
+        return { status: 'DAILY_LIMIT_REACHED', retryAfterSeconds };
+      }
+
+      // Lưu theo thứ tự chuẩn hoá (nhỏ hơn ở `giver_id`): hai cột không mang nghĩa người
+      // tặng/người nhận ở phòng loại này. ON CONFLICT vẫn cần — lượt của người KIA không
+      // giữ cùng khoá với mình.
+      const inserted = await manager.query<{ global_id: string }[]>(
+        `
+          INSERT INTO chat_rooms
+            (global_id, room_type, transaction_id, post_id, giver_id, receiver_id,
+             created_by, status)
+          VALUES ($1, 'DIRECT_USER', NULL, NULL, LEAST($2::uuid, $3::uuid),
+                  GREATEST($2::uuid, $3::uuid), $2::uuid, 'OPEN')
+          ON CONFLICT ((LEAST(giver_id, receiver_id)), (GREATEST(giver_id, receiver_id)))
+            WHERE room_type = 'DIRECT_USER'
+          DO NOTHING
+          RETURNING global_id
+        `,
+        [randomUUID(), params.initiatorId, params.recipientId],
+      );
+      const room = await findPairRoom(manager);
+      if (!room)
+        throw new Error(
+          `Không mở được phòng chat trực tiếp giữa ${params.initiatorId} và ${params.recipientId}`,
+        );
+      return { status: 'OPENED', room, created: inserted.length > 0 };
+    });
   }
 
   public async findPurgeSchedule(
@@ -627,6 +743,7 @@ export class ChatRepository implements IChatRepository {
       const [room] = await manager.query<
         {
           status: string;
+          room_type: string;
           giver_id: string;
           receiver_id: string;
           giver_muted_at: Date | null;
@@ -634,7 +751,7 @@ export class ChatRepository implements IChatRepository {
         }[]
       >(
         `
-          SELECT status, giver_id, receiver_id,
+          SELECT status, room_type, giver_id, receiver_id,
                  giver_muted_at, receiver_muted_at
           FROM chat_rooms
           WHERE global_id = $1
@@ -653,6 +770,20 @@ export class ChatRepository implements IChatRepository {
       if (!isParticipant) return { status: 'ROOM_NOT_FOUND' };
 
       if (room.status !== ChatRoomStatuses.OPEN) return { status: 'READ_ONLY' };
+
+      // Chặn chỉ đụng phòng DIRECT_USER: một lượt trao hay một cuộc mua bán Rao vặt đang dở
+      // không được đứng lại vì hai người giận nhau. Xét trong cùng transaction với lần ghi.
+      if (room.room_type === ChatRoomTypes.DIRECT_USER) {
+        const [blocked] = await manager.query<{ blocked: boolean }[]>(
+          `
+            SELECT EXISTS (SELECT 1 FROM user_blocks
+                            WHERE (blocker_id = $1 AND blocked_id = $2)
+                               OR (blocker_id = $2 AND blocked_id = $1)) AS blocked
+          `,
+          [room.giver_id, room.receiver_id],
+        );
+        if (blocked.blocked) return { status: 'BLOCKED' };
+      }
 
       // Chat chỉ ghi thêm — trigger chặn mọi UPDATE — nên ảnh phải đính trong
       // CÙNG lần ghi này, và `media_count` phải đúng ngay lúc INSERT vì ràng
@@ -838,14 +969,14 @@ export class ChatRepository implements IChatRepository {
 
   public async findRoomForModeration(roomId: string): Promise<{
     roomId: string;
-    postId: string;
+    postId: string | null;
     giverId: string;
     receiverId: string;
   } | null> {
     const [row] = await this.manager.query<
       {
         global_id: string;
-        post_id: string;
+        post_id: string | null;
         giver_id: string;
         receiver_id: string;
       }[]

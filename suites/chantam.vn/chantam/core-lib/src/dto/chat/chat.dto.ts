@@ -7,10 +7,12 @@ import { ChatRoomStatuses, ChatRoomTypes } from '../../consts';
 export interface IChatRoomSummaryDto {
   roomId: string;
   roomType: ChatRoomTypes;
-  /** `null` với phòng `DIRECT_POST`. */
+  /** `null` với phòng `DIRECT_POST` và `DIRECT_USER`. */
   transactionId: string | null;
-  postId: string;
-  postTitle: string;
+  /** `null` với phòng `DIRECT_USER`. */
+  postId: string | null;
+  /** `null` với phòng `DIRECT_USER`. */
+  postTitle: string | null;
   /** Ảnh đầu tiên của bài; `null` khi bài không có ảnh. */
   postThumbnailUrl: string | null;
   /** Giá bán (VNĐ) của bài Rao vặt; `null` với bài không có giá. */
@@ -19,6 +21,15 @@ export interface IChatRoomSummaryDto {
   /** `true` khi phòng đã khoá — chỉ đọc lịch sử, không gửi được. */
   readOnly: boolean;
   counterpartAvatarUrl: string | null;
+  /** Id người còn lại — để chặn (`POST /me/blocks`) hay mở hồ sơ ngay từ phòng. */
+  counterpartId: string;
+  /**
+   * CHÍNH người gọi đã chặn người còn lại chưa — để giao diện hiện "Bỏ chặn".
+   *
+   * Chỉ một chiều: người bị chặn không được biết mình bị chặn, nên không có trường "bị chặn
+   * bởi họ". Phòng `DIRECT_USER` của một cặp có quan hệ chặn không gửi được tin (cả hai phía).
+   */
+  blockedByMe: boolean;
   /** Người còn lại trong phòng — giao diện cần tên để hiển thị hội thoại. */
   counterpartUsername: string;
   counterpartFullName: string | null;
@@ -174,5 +185,21 @@ export interface IOpenDirectPostRoomBodyDto {
 export interface IOpenDirectPostRoomResponseDto {
   room: IChatRoomSummaryDto;
   /** `false` khi phòng đã có sẵn và được trả lại. */
+  created: boolean;
+}
+
+/** Người nhận: đúng một trong `userId` (danh sách online) hoặc `username` (hồ sơ công khai). */
+export interface IOpenDirectUserRoomDto {
+  userId?: string;
+  username?: string;
+}
+
+export interface IOpenDirectUserRoomBodyDto {
+  room: IOpenDirectUserRoomDto;
+}
+
+export interface IOpenDirectUserRoomResponseDto {
+  room: IChatRoomSummaryDto;
+  /** `false` khi hai người đã có phòng — dù ai mở trước — và phòng đó được trả lại. */
   created: boolean;
 }

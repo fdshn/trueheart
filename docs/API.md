@@ -2369,7 +2369,7 @@ Mỗi dòng của `GET /onboarding/tasks` và `POST /onboarding/tasks/evaluate` 
   cổng hồ sơ (`PROFILE_INCOMPLETE`).
 - Mã lỗi: `CHAT_DIRECT_POST_NOT_SUPPORTED` (0x0b0a), `CHAT_DIRECT_POST_SELF` (0x0b0b).
 - Danh sách phòng thêm các trường:
-  - `roomType`: `TRANSACTION` | `DIRECT_POST`;
+  - `roomType`: `TRANSACTION` | `DIRECT_POST` | `DIRECT_USER` (thêm 30/10, xem mục dưới);
   - `transactionId`: `null` với phòng trực tiếp;
   - `postThumbnailUrl`, `postPrice`, `counterpartAvatarUrl`, `readOnly`.
 - Trong phòng trực tiếp, `giverId` là người bán và `receiverId` là người mua.
@@ -2420,13 +2420,70 @@ Mỗi dòng của `GET /onboarding/tasks` và `POST /onboarding/tasks/evaluate` 
   Hồ sơ công khai **không** có trường này.
 - `visibleUsers`: tối đa `limit` người (1–50, mặc định 10) đang ở tab đó **đã bật cờ**, tài
   khoản đang hoạt động, người heartbeat gần nhất trước. Mỗi phần tử là author summary
-  `{ username, fullName, avatarUrl, rank }` — không có `userId`. Gửi kèm token thì chính người
-  gọi không bao giờ có trong danh sách của mình.
+  `{ username, fullName, avatarUrl, rank }`. Gửi kèm token (thêm 30/10) thì mỗi phần tử có thêm
+  `userId` để mở chat trực tiếp; khách chưa đăng nhập **không** nhận `userId`. Gửi kèm token thì
+  chính người gọi và những người có quan hệ chặn với người gọi (bất kể chiều) không bao giờ có
+  trong danh sách.
 - `onlineCount` vẫn đếm **mọi** người, bật cờ hay không.
 - Bật cờ: có mặt trong danh sách từ nhịp heartbeat kế tiếp. Tắt cờ: xoá **ngay** mọi session
   của người đó khỏi Redis trong lượt `PATCH`, không chờ TTL; họ được đếm lại từ nhịp heartbeat
   sau nhưng không còn hiện danh tính.
 - Không có endpoint nào cho biết một người cụ thể đang ở tab nào.
+
+### Chat trực tiếp với người dùng và chặn (30/10)
+
+**Mở phòng — `POST /chat/direct-user/rooms`** (Bearer)
+
+Body `{ "room": { "userId" } }` (từ danh sách online) hoặc `{ "room": { "username" } }` (từ hồ sơ
+công khai) — đúng một trong hai. Trả `{ room, created }` cùng hình với `direct-post/rooms`.
+
+- Mỗi cặp người đúng **một** phòng `DIRECT_USER`, dù ai mở trước: A mở với B rồi B mở với A ra
+  cùng phòng (`created: false`), kể cả khi bấm cùng lúc.
+- Phòng **mới** cần đủ bốn điều kiện:
+  1. Người mở qua cổng hồ sơ (`PROFILE_INCOMPLETE`).
+  2. Không có quan hệ chặn giữa hai người, bất kể ai chặn ai.
+  3. Người nhận bật "Cho phép người lạ nhắn tin", **hoặc** hai người đã từng có phòng chat
+     bất kỳ loại nào (giao dịch, Rao vặt, trực tiếp).
+  4. Người mở chưa mở đủ `chat.direct_user_daily_limit` phòng mới trong 24 giờ gần nhất (mặc
+     định 20, Admin chỉnh qua `POST /admin/system-configs`, `0` = tắt hẳn). Hết suất →
+     `TOO_MANY_REQUESTS` kèm số giây chờ. Mở lại phòng đã có không tốn suất.
+- Phòng **đã có** thì luôn trả lại, kể cả khi đang chặn — để đọc lịch sử.
+- Lỗi: `CHAT_DIRECT_USER_SELF` (0x0b0c, 409) nhắn chính mình; `USER_NOT_FOUND` khi người nhận
+  không có, đã xoá, đang treo hay bị khoá; `CHAT_RECIPIENT_UNAVAILABLE` (0x0b0d, 403) khi vướng
+  điều kiện 2 **hoặc** 3 — cố ý cùng một mã để người bị chặn không biết mình bị chặn.
+- Tin nhắn, ảnh, đã đọc, tắt tiếng, thu hồi, realtime dùng chung `/chat/rooms/:roomId/...`.
+- Phòng `DIRECT_USER` không có bài: `postId`, `postTitle`, `postThumbnailUrl`, `postPrice` là
+  `null`; `transactionId` là `null`. `giverId`/`receiverId` chỉ là hai người (lưu theo thứ tự
+  id), không mang nghĩa người tặng/người nhận.
+
+**Danh sách và chi tiết phòng** — mọi loại phòng thêm hai trường:
+
+- `counterpartId`: id người còn lại, để chặn ngay từ phòng.
+- `blockedByMe`: chính người gọi đã chặn người kia chưa (một chiều — không có trường "bị chặn
+  bởi họ").
+
+**Gửi tin** vào phòng `DIRECT_USER` của một cặp có quan hệ chặn (cả hai phía) →
+`CHAT_RECIPIENT_UNAVAILABLE`. Phòng `TRANSACTION` và `DIRECT_POST` **không** bị chặn ảnh hưởng.
+
+**Push tin nhắn mới** (`NEW_CHAT_MESSAGE`): `data` giữ `type`, `referenceType: "CHAT_ROOM"`,
+`referenceId` (roomId) và thêm `targetType`, `targetId`, `roomType`.
+
+**Cài đặt "Cho phép người lạ nhắn tin"** — `GET /profile/me` trả `profile.allowStrangerMessages`
+(mặc định `true`); `PATCH /profile/me` nhận `{ "profile": { "allowStrangerMessages": false } }`.
+Tắt không ảnh hưởng phòng đã có. Hồ sơ công khai **không** có trường này.
+
+**Chặn — `/me/blocks`** (Bearer)
+
+| Method | Đường dẫn | Mô tả |
+| --- | --- | --- |
+| `POST` | `/me/blocks` | `{ "block": { "userId" } }` hoặc `{ "block": { "username" } }`. Trả `{ block, created }`; chặn lại người đã chặn → `created: false` |
+| `GET` | `/me/blocks?page=&pageSize=` | Những người tôi đã chặn, mới nhất trước: `{ blocks: [{ userId, username, fullName, avatarUrl, rank, blockedAt }], meta }` |
+| `DELETE` | `/me/blocks/:userId` | Bỏ chặn; vốn không chặn → `unblocked: false` |
+
+- Hiệu lực **hai chiều**: không ai trong hai người mở được phòng `DIRECT_USER` mới hay gửi tin
+  vào phòng đã có; hai người không thấy nhau trong `visibleUsers`. Bỏ chặn là nhắn lại được.
+- Người bị chặn **không được báo**.
+- Lỗi: `USER_BLOCK_SELF` (0x0312, 400), `USER_NOT_FOUND`.
 
 ### Dharma Home dạng section
 

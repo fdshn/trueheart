@@ -283,10 +283,17 @@ function buildFcmMessage(
   token: string,
   message: IPushMessage,
 ): Record<string, unknown> {
-  const data: Record<string, string> = { type: message.type };
+  // Khoá thêm đi TRƯỚC để khoá chuẩn ghi đè lên: nơi gọi không được làm sai `type` hay
+  // `referenceId` mà client dựa vào để điều hướng.
+  const data: Record<string, string> = {
+    ...(message.extraData ?? {}),
+    type: message.type,
+  };
   if (message.referenceType !== null)
     data.referenceType = message.referenceType;
   if (message.referenceId !== null) data.referenceId = message.referenceId;
+  if (message.targetType) data.targetType = message.targetType;
+  if (message.targetId) data.targetId = message.targetId;
 
   return {
     token,

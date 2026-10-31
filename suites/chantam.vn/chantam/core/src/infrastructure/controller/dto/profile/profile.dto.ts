@@ -139,6 +139,14 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
   showOnlineStatus?: boolean;
 
   @ApiPropertyOptional({
+    description:
+      'Cho phép người lạ nhắn tin: người CHƯA từng có phòng chat nào với mình mở được phòng chat trực tiếp mới. Mặc định bật. Tắt không ảnh hưởng phòng đã có.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  allowStrangerMessages?: boolean;
+
+  @ApiPropertyOptional({
     maxLength: 120,
     nullable: true,
     description: 'Slogan trên hồ sơ. `null` hoặc chuỗi trắng = xoá.',
@@ -327,6 +335,12 @@ export class OwnProfileDto implements IOwnProfileDto {
       'Cài đặt hiện trạng thái online — chỉ chính chủ thấy, không có trên hồ sơ công khai.',
   })
   showOnlineStatus?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Cài đặt "Cho phép người lạ nhắn tin" — chỉ chính chủ thấy, không có trên hồ sơ công khai.',
+  })
+  allowStrangerMessages?: boolean;
 
   @ApiPropertyOptional({
     type: () => [ProfileBadgeDto],

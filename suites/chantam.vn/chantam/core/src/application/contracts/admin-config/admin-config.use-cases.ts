@@ -66,6 +66,8 @@ export const SupportedSystemConfigKeys = [
   'leaderboard.badge_months',
   // Rao vặt (PR #46 §8): 1 = bật lại xin nhận/lượt trao cũ cho bài CLASSIFIED.
   'classified.legacy_transactions_enabled',
+  // Chat trực tiếp với người dùng (30/10): số phòng MỚI một người mở được trong 24 giờ.
+  'chat.direct_user_daily_limit',
 ] as const;
 
 /**
@@ -108,6 +110,8 @@ export const SystemConfigValueRanges: Readonly<
   'leaderboard.min_consistency_days': { min: 1, max: 31 },
   'leaderboard.badge_ranks': { min: 0, max: 2_147_483_647 },
   'leaderboard.badge_months': { min: 1, max: 2_147_483_647 },
+  // `0` thì không ai mở được phòng trực tiếp mới — công tắc tắt khẩn khi bị spam.
+  'chat.direct_user_daily_limit': { min: 0, max: 10_000 },
   'classified.legacy_transactions_enabled': { min: 0, max: 1 },
 };
 

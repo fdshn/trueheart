@@ -124,6 +124,10 @@ describe('DispatchNotificationUseCase', () => {
       type: NotificationTypes.GIFT_REQUEST_ACCEPTED,
       referenceType: 'GIFT_TRANSACTION',
       referenceId: 'deal-1',
+      // Đích đã giải ra cũng đi theo push — client mở đúng màn mà không phải đoán.
+      targetType: 'GIFT_TRANSACTION',
+      targetId: 'deal-1',
+      extraData: undefined,
     });
     const createdId = (
       notifications.create.mock.calls[0][0] as unknown as { globalId: string }

@@ -43,9 +43,14 @@ export class ChatRoomEntity
   })
   transactionId: string | null;
 
-  @ApiProperty({ format: 'uuid' })
-  @Column({ name: 'post_id', type: 'uuid' })
-  postId: string;
+  @ApiProperty({ format: 'uuid', nullable: true })
+  @Column({ name: 'post_id', type: 'uuid', nullable: true })
+  postId: string | null;
+
+  /** Người bấm mở phòng `DIRECT_USER` — đếm giới hạn phòng mới mỗi ngày. `null` ở loại khác. */
+  @ApiProperty({ format: 'uuid', nullable: true })
+  @Column({ name: 'created_by', type: 'uuid', nullable: true })
+  createdBy: string | null;
 
   @ApiProperty({ format: 'uuid' })
   @Column({ name: 'giver_id', type: 'uuid' })

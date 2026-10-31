@@ -199,6 +199,35 @@ describe('FcmPushSender', () => {
       expect(body.message.data).not.toHaveProperty('referenceId');
     });
 
+    it('mang targetType/targetId và khoá thêm, nhưng khoá thêm không đè được khoá chuẩn', async () => {
+      fetchMock.mockImplementation(async (url: unknown) =>
+        String(url).includes('oauth2')
+          ? jsonResponse(200, { access_token: 'at-1', expires_in: 3600 })
+          : jsonResponse(200, {}),
+      );
+
+      const sender = new FcmPushSender(configWith(encode(ServiceAccount)));
+      await sender.send(['token-a'], {
+        ...Message,
+        targetType: 'CHAT_ROOM',
+        targetId: 'room-1',
+        extraData: { roomType: 'DIRECT_USER', type: 'GIA_MAO' },
+      });
+
+      const sendCall = fetchMock.mock.calls.find((call) =>
+        String(call[0]).includes('messages:send'),
+      );
+      const body = JSON.parse((sendCall?.[1] as { body: string }).body);
+      expect(body.message.data).toEqual({
+        type: Message.type,
+        referenceType: 'TRANSACTION',
+        referenceId: Message.referenceId,
+        targetType: 'CHAT_ROOM',
+        targetId: 'room-1',
+        roomType: 'DIRECT_USER',
+      });
+    });
+
     it('đếm đúng số thiết bị nhận được, và một token chết KHÔNG làm sập lượt gửi', async () => {
       fetchMock.mockImplementation(async (url: unknown, init: unknown) => {
         if (String(url).includes('oauth2'))

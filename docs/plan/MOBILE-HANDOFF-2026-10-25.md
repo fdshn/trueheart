@@ -12,7 +12,8 @@ Tóm tắt những gì app phải đổi theo đợt backend 25/10. Chi tiết c
 | **Rao vặt: màn quản lý tin của chủ bài** dùng `PATCH /posts/:id/classified-status` (`ACTIVE`/`RESERVED`/`SOLD`/`HIDDEN`) | Không còn lượt trao nào kéo trạng thái tin Rao vặt |
 | **Rao vặt: hiện nút Sửa/Gỡ theo `canEdit`**, kể cả khi tin đang "Đã giữ chỗ" hoặc "Tạm ẩn" | Hai trạng thái này nay sửa/gỡ được; app không được tự ẩn nút theo `status` |
 | **Hiểu hai trạng thái bài mới** `SOLD`, `HIDDEN` ở mọi chỗ hiện `post.status` (Bài của tôi, chi tiết, bộ lọc) | Enum `GiftPostStatuses` có thêm hai giá trị — `switch` không có nhánh mặc định sẽ vỡ |
-| **Danh sách chat phân biệt `roomType`** (`TRANSACTION` / `DIRECT_POST`); `transactionId` nay **nullable** | Phòng trực tiếp không có lượt trao; mở màn "giao dịch" từ phòng này là 404 |
+| **Danh sách chat phân biệt `roomType`** (`TRANSACTION` / `DIRECT_POST` / `DIRECT_USER`); `transactionId` nay **nullable** | Phòng trực tiếp không có lượt trao; mở màn "giao dịch" từ phòng này là 404 |
+| **`postId`, `postTitle` của phòng chat nay nullable** (thêm 30/10) — `null` với `DIRECT_USER`; ẩn thẻ bài khi `null` | Phòng nhắn trực tiếp giữa hai người không gắn bài nào |
 | **Đổi tên mã lỗi** `EMAIL_TAKEN` → `EMAIL_ALREADY_USED` (cùng số 0x0305) | Client so theo tên sẽ không khớp |
 | **Rao vặt hết hạn là `EXPIRED`**, không còn thành bài Muốn Tặng; nút **Gia hạn** hiện cho tin Rao vặt hết hạn | Chủ dự án bỏ CHỐT-05 cho Rao vặt (26/10) — app từng ẩn nút gia hạn với Rao vặt |
 
@@ -70,6 +71,24 @@ Tóm tắt những gì app phải đổi theo đợt backend 25/10. Chi tiết c
     (`username`, `fullName`, `avatarUrl`, `rank`). Gửi kèm token để không thấy chính mình. Chạm
     vào một người thì mở `GET /profile/:username`.
   - Con số "N người đang hoạt động" vẫn là `onlineCount` (đếm cả người không bật cờ).
+- **Chat trực tiếp với người dùng (thêm 30/10):**
+  - Nút "Nhắn tin" trên dải online và trên hồ sơ công khai → `POST /chat/direct-user/rooms` với
+    `{ room: { userId } }` (từ `visibleUsers[].userId` — chỉ có khi gọi kèm token) hoặc
+    `{ room: { username } }` (từ hồ sơ). Trả `{ room, created }`; mở thẳng màn chat với
+    `room.roomId`. Gửi tin dùng route `/chat/rooms/:roomId/messages` như cũ.
+  - `CHAT_RECIPIENT_UNAVAILABLE` → hiện "Không thể nhắn tin cho người này". Đừng đoán là bị
+    chặn hay người kia tắt nhận tin người lạ — server cố ý không phân biệt.
+  - `TOO_MANY_REQUESTS` → đã mở quá 20 cuộc trò chuyện mới trong 24 giờ; hiện số giờ chờ.
+  - `CHAT_DIRECT_USER_SELF` → ẩn nút "Nhắn tin" trên hồ sơ của chính mình.
+  - Push tin nhắn mới có thêm `data.roomType` — mở đúng kiểu màn chat mà không phải gọi API.
+- **Cài đặt "Cho phép người lạ nhắn tin":** công tắc đọc `profile.allowStrangerMessages` từ
+  `GET /profile/me`, ghi bằng `PATCH /profile/me`. Mặc định bật.
+- **Chặn người dùng:**
+  - Chặn từ phòng chat (dùng `room.counterpartId`), từ dải online (`userId`) hoặc từ hồ sơ
+    (`username`): `POST /me/blocks` với `{ block: { userId } }` hoặc `{ block: { username } }`.
+  - Màn "Người đã chặn": `GET /me/blocks`; bỏ chặn `DELETE /me/blocks/:userId`.
+  - Trong phòng chat, `room.blockedByMe: true` → hiện "Bạn đã chặn người này" và nút "Bỏ chặn"
+    thay cho ô nhập.
 - **Banner:** tám vị trí mới cho bốn tab Khám phá và bốn màn Phật Pháp. Cùng
   `GET /banners?placement=` và đường click cũ.
 

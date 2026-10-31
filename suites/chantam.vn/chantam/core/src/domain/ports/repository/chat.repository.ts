@@ -48,14 +48,18 @@ export interface IOpenChatRoomParams {
 
 export interface IChatRoomListItem {
   room: IChatRoomEntity;
-  postTitle: string;
+  /** `null` với phòng `DIRECT_USER`. */
+  postTitle: string | null;
   /** Key ảnh đầu của bài (theo `sort_order`); use case dựng URL. */
   postThumbnailKey: string | null;
   /** `details.price` của bài Rao vặt. */
   postPrice: number | null;
+  counterpartId: string;
   counterpartUsername: string;
   counterpartFullName: string | null;
   counterpartAvatarUrl: string | null;
+  /** Người xem đã chặn người còn lại — một chiều, xem `IChatRoomSummaryDto.blockedByMe`. */
+  blockedByMe: boolean;
   lastMessageBody: string | null;
   unreadCount: number;
 }
@@ -116,7 +120,20 @@ export type AppendChatMessageOutcome =
       counterpartMuted: boolean;
     }
   | { status: 'ROOM_NOT_FOUND' }
-  | { status: 'READ_ONLY' };
+  | { status: 'READ_ONLY' }
+  /** Phòng `DIRECT_USER` của một cặp có quan hệ chặn (bất kể chiều nào). */
+  | { status: 'BLOCKED' };
+
+export type OpenDirectUserRoomOutcome =
+  | { status: 'OPENED'; room: IChatRoomEntity; created: boolean }
+  /**
+   * Không mở được phòng MỚI: có quan hệ chặn, hoặc người nhận tắt "Cho phép người lạ nhắn
+   * tin" mà hai người chưa từng có phòng nào. Gộp một trạng thái để nơi gọi không thể lỡ
+   * tay cho người bị chặn biết mình bị chặn.
+   */
+  | { status: 'RECIPIENT_UNAVAILABLE' }
+  /** Đã mở đủ `dailyLimit` phòng mới trong 24 giờ; còn `retryAfterSeconds` nữa mới mở tiếp. */
+  | { status: 'DAILY_LIMIT_REACHED'; retryAfterSeconds: number };
 
 export interface IChatRepository {
   /**
@@ -203,7 +220,8 @@ export interface IChatRepository {
    */
   findRoomForModeration(roomId: string): Promise<{
     roomId: string;
-    postId: string;
+    /** `null` với phòng `DIRECT_USER`. */
+    postId: string | null;
     giverId: string;
     receiverId: string;
   } | null>;
@@ -276,6 +294,20 @@ export interface IChatRepository {
     buyerId: string;
     sellerId: string;
   }): Promise<{ room: IChatRoomEntity; created: boolean }>;
+
+  /**
+   * Mở (hoặc trả lại) phòng `DIRECT_USER` của một CẶP người — A mở với B và B mở với A ra
+   * cùng một phòng, kể cả khi bấm song song (unique index trên LEAST/GREATEST).
+   *
+   * Phòng đã có thì trả lại luôn, không xét chặn/người lạ/giới hạn: lịch sử phải đọc lại
+   * được, và gửi tin đã có `appendMessage` chặn. Chỉ phòng MỚI mới qua ba phép kiểm, trong
+   * một transaction có khoá theo người mở để hai lượt song song không cùng lọt giới hạn.
+   */
+  openDirectUserRoom(params: {
+    initiatorId: string;
+    recipientId: string;
+    dailyLimit: number;
+  }): Promise<OpenDirectUserRoomOutcome>;
 
   /**
    * Ghi một tin nhắn.

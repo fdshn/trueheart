@@ -9,9 +9,12 @@ import { ChatRoomStatuses, ChatRoomTypes } from '../consts';
 export interface IChatRoom {
   globalId: string;
   roomType: ChatRoomTypes;
-  /** `null` với phòng `DIRECT_POST` — chat Rao vặt không có giao dịch. */
+  /** `null` với phòng `DIRECT_POST` và `DIRECT_USER` — hai loại này không có giao dịch. */
   transactionId: string | null;
-  postId: string;
+  /** `null` với phòng `DIRECT_USER` — chat giữa hai người không gắn bài nào. */
+  postId: string | null;
+  /** Người mở phòng `DIRECT_USER`; `null` ở hai loại kia. */
+  createdBy: string | null;
   giverId: string;
   receiverId: string;
   status: ChatRoomStatuses;

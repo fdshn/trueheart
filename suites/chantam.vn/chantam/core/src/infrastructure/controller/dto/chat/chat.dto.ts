@@ -17,6 +17,9 @@ import {
   IOpenDirectPostRoomBodyDto,
   IOpenDirectPostRoomDto,
   IOpenDirectPostRoomResponseDto,
+  IOpenDirectUserRoomBodyDto,
+  IOpenDirectUserRoomDto,
+  IOpenDirectUserRoomResponseDto,
   IRequestChatMediaUploadBodyDto,
   IRequestChatMediaUploadResponseDto,
   ISendChatMessageBodyDto,
@@ -50,6 +53,7 @@ import {
   IsUUID,
   Length,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -62,22 +66,31 @@ export class ChatRoomSummaryDto implements IChatRoomSummaryDto {
   @ApiProperty({
     enum: ChatRoomTypes,
     description:
-      '`TRANSACTION`: chat của một lượt trao. `DIRECT_POST`: liên hệ trực tiếp về bài Rao vặt, không có giao dịch.',
+      '`TRANSACTION`: chat của một lượt trao. `DIRECT_POST`: liên hệ trực tiếp về bài Rao vặt, không có giao dịch. `DIRECT_USER`: hai người nhắn thẳng cho nhau, không giao dịch, không bài.',
   })
   roomType: ChatRoomTypes;
 
   @ApiProperty({
     format: 'uuid',
     nullable: true,
-    description: '`null` với phòng `DIRECT_POST`.',
+    description: '`null` với phòng `DIRECT_POST` và `DIRECT_USER`.',
   })
   transactionId: string | null;
 
-  @ApiProperty({ format: 'uuid' })
-  postId: string;
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: '`null` với phòng `DIRECT_USER`.',
+  })
+  postId: string | null;
 
-  @ApiProperty()
-  postTitle: string;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: '`null` với phòng `DIRECT_USER`.',
+  })
+  postTitle: string | null;
 
   @ApiProperty({
     type: String,
@@ -103,6 +116,19 @@ export class ChatRoomSummaryDto implements IChatRoomSummaryDto {
 
   @ApiProperty({ type: String, nullable: true })
   counterpartAvatarUrl: string | null;
+
+  @ApiProperty({
+    format: 'uuid',
+    description:
+      'Id người còn lại — dùng để chặn (`POST /me/blocks`) ngay từ phòng.',
+  })
+  counterpartId: string;
+
+  @ApiProperty({
+    description:
+      'Người gọi đã chặn người còn lại. Chỉ một chiều — người bị chặn không được biết. Phòng `DIRECT_USER` của cặp có quan hệ chặn (bất kể chiều nào) không gửi được tin.',
+  })
+  blockedByMe: boolean;
 
   @ApiProperty()
   counterpartUsername: string;
@@ -418,5 +444,46 @@ export class OpenDirectPostRoomResponseDto implements IOpenDirectPostRoomRespons
   room: ChatRoomSummaryDto;
 
   @ApiProperty({ description: '`false` khi phòng đã có sẵn và được trả lại.' })
+  created: boolean;
+}
+
+export class OpenDirectUserRoomDto implements IOpenDirectUserRoomDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Từ danh sách online (`visibleUsers[].userId`).',
+  })
+  @IsOptional()
+  @IsUUID()
+  userId?: string;
+
+  @ApiPropertyOptional({
+    example: 'cu-si-minh',
+    description: 'Từ hồ sơ công khai — nơi không có id.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  username?: string;
+}
+
+export class OpenDirectUserRoomBodyDto implements IOpenDirectUserRoomBodyDto {
+  @ApiProperty({
+    type: () => OpenDirectUserRoomDto,
+    description: 'Đúng một trong `userId` hoặc `username`.',
+  })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => OpenDirectUserRoomDto)
+  room: OpenDirectUserRoomDto;
+}
+
+export class OpenDirectUserRoomResponseDto implements IOpenDirectUserRoomResponseDto {
+  @ApiProperty({ type: () => ChatRoomSummaryDto })
+  room: ChatRoomSummaryDto;
+
+  @ApiProperty({
+    description:
+      '`false` khi hai người đã có phòng — dù ai mở trước — và phòng đó được trả lại.',
+  })
   created: boolean;
 }

@@ -4,6 +4,7 @@ import {
   IMarkChatRoomReadUseCase,
   IMuteChatRoomUseCase,
   IOpenDirectPostRoomUseCase,
+  IOpenDirectUserRoomUseCase,
   IPurgeExpiredChatsUseCase,
   IReadAdminChatRoomUseCase,
   IRecallChatMessageUseCase,
@@ -23,6 +24,7 @@ import {
   SendChatMessageUseCase,
 } from './chat.use-cases';
 import { OpenDirectPostRoomUseCase } from './open-direct-post-room.use-case';
+import { OpenDirectUserRoomUseCase } from './open-direct-user-room.use-case';
 import { ReadAdminChatRoomUseCase } from './read-admin-chat-room.use-case';
 import { RemoveChatMessageUseCase } from './remove-chat-message.use-case';
 
@@ -36,6 +38,10 @@ import { RemoveChatMessageUseCase } from './remove-chat-message.use-case';
     {
       provide: IOpenDirectPostRoomUseCase,
       useClass: OpenDirectPostRoomUseCase,
+    },
+    {
+      provide: IOpenDirectUserRoomUseCase,
+      useClass: OpenDirectUserRoomUseCase,
     },
     { provide: IListChatMessagesUseCase, useClass: ListChatMessagesUseCase },
     { provide: ISendChatMessageUseCase, useClass: SendChatMessageUseCase },
@@ -57,6 +63,7 @@ import { RemoveChatMessageUseCase } from './remove-chat-message.use-case';
     IRemoveChatMessageUseCase,
     IListChatRoomsUseCase,
     IOpenDirectPostRoomUseCase,
+    IOpenDirectUserRoomUseCase,
     IListChatMessagesUseCase,
     ISendChatMessageUseCase,
     IMarkChatRoomReadUseCase,

@@ -72,6 +72,7 @@ import {
 } from '@chantam.vn/chantam.core-lib/models';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { DirectUserDailyLimitConfigKey } from '../src/application/implementations/chat/open-direct-user-room.use-case';
 
 loadEnvFile({ path: '.env.local' });
 loadEnvFile();
@@ -128,6 +129,8 @@ const RequiredKeys: readonly string[] = [
   ...Object.values(LeaderboardConfigKeys),
   // Rao vặt (PR #46 §8) — `assertClassifiedTransactionsAllowed` đọc.
   ClassifiedLegacyTransactionsConfigKey,
+  // Chat trực tiếp (30/10) — `OpenDirectUserRoomUseCase` đọc.
+  DirectUserDailyLimitConfigKey,
 ];
 
 /**

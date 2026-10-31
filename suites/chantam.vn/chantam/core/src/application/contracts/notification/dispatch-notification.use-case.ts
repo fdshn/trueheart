@@ -28,6 +28,8 @@ export interface IDispatchNotificationCommand {
    * truyền vào được dùng nguyên văn, y như trước.
    */
   variables?: Readonly<Record<string, string>>;
+  /** Khoá thêm cho `data` của push (chỉ push, không lưu hộp thư) — xem `IPushMessage.extraData`. */
+  pushData?: Readonly<Record<string, string>>;
 }
 
 export interface IDispatchNotificationResult {

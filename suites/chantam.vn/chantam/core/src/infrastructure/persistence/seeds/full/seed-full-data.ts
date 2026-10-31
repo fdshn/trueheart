@@ -5,6 +5,7 @@ import { seedCheckIns } from './check-ins';
 import { seedCommunity } from './community';
 import { seedContentAndInbox } from './content-inbox';
 import { seedDharmaAndMerit } from './dharma-merit';
+import { seedDirectChat } from './direct-chat';
 import { seedFeed } from './feed';
 import { seedGifting } from './gifting';
 import { seedLeaderboard } from './leaderboard';
@@ -29,6 +30,7 @@ export const SeedSections: ReadonlyArray<
   ['nhóm, đội con, affiliate', seedCommunity],
   ['điểm danh và tín dụng bù', seedCheckIns],
   ['hoạt động từ thiện F65b', seedCharity],
+  ['chat trực tiếp, chặn, cài đặt người lạ', seedDirectChat],
   ['bảng thành tích tháng: bản chốt, huy hiệu, lượt loại', seedLeaderboard],
   // Cuối cùng: báo xấu và thông báo trỏ vào mọi thứ phía trên.
   ['nội dung Admin, báo xấu, thông báo', seedContentAndInbox],

@@ -69,6 +69,7 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
     const pushedDevices = await this.push(created.globalId, command, {
       title,
       body,
+      target: target ?? null,
     });
     return { created: true, pushedDevices };
   }
@@ -155,7 +156,11 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
   private async push(
     notificationId: string,
     command: IDispatchNotificationCommand,
-    content: { title: string; body: string },
+    content: {
+      title: string;
+      body: string;
+      target: { type: string; id: string | null } | null;
+    },
   ): Promise<number> {
     try {
       if (!(await this.pushSender.canSend())) return 0;
@@ -169,6 +174,9 @@ export class DispatchNotificationUseCase implements IDispatchNotificationUseCase
         type: command.type,
         referenceType: command.referenceType ?? null,
         referenceId: command.referenceId ?? null,
+        targetType: content.target?.type ?? null,
+        targetId: content.target?.id ?? null,
+        extraData: command.pushData,
       });
 
       if (pushed > 0) await this.notifications.markPushed([notificationId]);

@@ -123,6 +123,7 @@
     "test:auto-select-audit": "ts-node -r tsconfig-paths/register test/auto-select-audit.check.ts",
     "test:presence": "ts-node -r tsconfig-paths/register test/presence.check.ts",
     "test:user-block": "ts-node -r tsconfig-paths/register test/user-block.check.ts",
+    "test:direct-user-chat": "ts-node -r tsconfig-paths/register test/direct-user-chat.check.ts",
     "test:dharma-leaderboard": "ts-node -r tsconfig-paths/register test/dharma-leaderboard.check.ts",
     "test:admin-rbac": "ts-node -r tsconfig-paths/register test/admin-rbac.check.ts",
     "test:permission-inventory": "ts-node -r tsconfig-paths/register test/permission-inventory.check.ts",

@@ -82,6 +82,14 @@ export class UserEntity
   })
   showOnlineStatus: boolean;
 
+  @Column({
+    name: 'allow_stranger_messages',
+    type: 'boolean',
+    nullable: false,
+    default: true,
+  })
+  allowStrangerMessages: boolean;
+
   @Column({ name: 'slogan', type: 'varchar', length: 120, nullable: true })
   slogan: string | null;
 

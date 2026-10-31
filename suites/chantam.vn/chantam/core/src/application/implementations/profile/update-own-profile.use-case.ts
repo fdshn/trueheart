@@ -124,6 +124,8 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
       update.leaderboardAnonymous = profileUpdate.leaderboardAnonymous;
     if (profileUpdate.showOnlineStatus !== undefined)
       update.showOnlineStatus = profileUpdate.showOnlineStatus;
+    if (profileUpdate.allowStrangerMessages !== undefined)
+      update.allowStrangerMessages = profileUpdate.allowStrangerMessages;
 
     if (profileUpdate.slogan !== undefined)
       update.slogan = blankToNull(profileUpdate.slogan);

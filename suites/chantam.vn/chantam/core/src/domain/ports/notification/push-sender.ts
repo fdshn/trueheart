@@ -7,6 +7,14 @@ export interface IPushMessage {
   /** Để client điều hướng khi người dùng chạm vào thông báo. */
   referenceType: string | null;
   referenceId: string | null;
+  /** Màn mobile mở khi chạm — cùng cặp với `targetType`/`targetId` trong hộp thư. */
+  targetType?: string | null;
+  targetId?: string | null;
+  /**
+   * Khoá thêm cho `data` của push, chỉ giá trị chuỗi. Để client điều hướng mà không phải gọi
+   * API trước — vd. `roomType` của tin nhắn mới. Không ghi đè được khoá chuẩn ở trên.
+   */
+  extraData?: Readonly<Record<string, string>>;
 }
 
 /**

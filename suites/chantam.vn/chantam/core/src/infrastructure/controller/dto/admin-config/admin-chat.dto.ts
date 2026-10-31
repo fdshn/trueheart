@@ -159,7 +159,14 @@ export class AdminChatMessageDto implements IAdminChatMessageDto {
 export class AdminChatRoomResponseDto {
   @ApiProperty({ format: 'uuid' }) roomId: string;
 
-  @ApiProperty({ format: 'uuid' }) postId: string;
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      '`null` với phòng `DIRECT_USER`. Phòng loại này `giverId`/`receiverId` chỉ là hai người, không mang nghĩa người tặng/người nhận.',
+  })
+  postId: string | null;
 
   @ApiProperty({ format: 'uuid' }) giverId: string;
 

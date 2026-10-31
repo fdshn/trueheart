@@ -133,7 +133,8 @@ lúc sẽ lọt qua mọi phép kiểm ở tầng ứng dụng ([F30](../FEATURE
 
 | Bảng | Cột đáng chú ý |
 | --- | --- |
-| `chat_rooms` | `room_type` (`TRANSACTION` · `DIRECT_POST`) · `transaction_id` **UNIQUE**, NULL với `DIRECT_POST` · `UQ_chat_rooms_direct_post (post_id, receiver_id, giver_id)` · `is_readonly` |
+| `chat_rooms` | `room_type` (`TRANSACTION` · `DIRECT_POST` · `DIRECT_USER`) · `transaction_id` **UNIQUE**, NULL với hai loại trực tiếp · `post_id` NULL với `DIRECT_USER` · `created_by` (chỉ `DIRECT_USER`) · `UQ_chat_rooms_direct_post (post_id, receiver_id, giver_id)` · `UQ_chat_rooms_direct_user (LEAST, GREATEST)` · `is_readonly` |
+| `user_blocks` | PK `(blocker_id, blocked_id)` · `CHK_user_blocks_not_self` · hiệu lực xét hai chiều |
 | `chat_messages` | `room_id` · `sender_id` · `body` · `created_at` |
 
 Phòng `TRANSACTION` gắn 1-1 với giao dịch, **chỉ tạo khi giao dịch đạt `ACCEPTED`**. Không có
@@ -143,6 +144,14 @@ Từ 25/10 (PR #46) có thêm phòng `DIRECT_POST` cho Rao vặt: không có gia
 người mua, người bán) đúng một phòng; `giver_id` là người bán, `receiver_id` là người mua.
 `CHK_chat_rooms_type_transaction` buộc `TRANSACTION` có `transaction_id` và `DIRECT_POST` thì
 không.
+
+Từ 30/10 có thêm phòng `DIRECT_USER`: hai người nhắn thẳng, không giao dịch, không bài. Mỗi cặp
+người đúng một phòng (unique index trên `LEAST(giver_id, receiver_id)`,
+`GREATEST(giver_id, receiver_id)`); repository lưu id nhỏ ở `giver_id`. `CHK_chat_rooms_type_post`
+buộc `DIRECT_USER` không có `post_id` và loại khác thì có; `CHK_chat_rooms_direct_user_creator`
+buộc `created_by` có đúng ở `DIRECT_USER` — cột đếm giới hạn phòng mới mỗi ngày
+(`chat.direct_user_daily_limit`). `users.allow_stranger_messages` (mặc định `true`) là cài đặt
+"Cho phép người lạ nhắn tin".
 
 ---
 
