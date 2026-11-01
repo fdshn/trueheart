@@ -52,6 +52,42 @@ function parseDocsServers(raw: string | undefined):
   return servers.length > 0 ? servers : undefined;
 }
 
+/**
+ * Đọc `ATTRIBUTION_SIGNING_KEYS` dạng `kid:base64(PEM),kid:base64(PEM)`.
+ *
+ * PEM nhiều dòng không đi qua nổi một dòng `.env`, nên mỗi khoá là base64 của cả file PEM.
+ * Sinh: `openssl genpkey -algorithm ed25519 | base64 -w0`. Sai định dạng thì ném lúc khởi
+ * động — cùng lý lẽ với `API_SERVERS`.
+ */
+export function parseAttributionSigningKeys(
+  raw: string | undefined,
+): { kid: string; privateKeyPem: string }[] {
+  if (!raw?.trim()) return [];
+  const keys = raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const separator = entry.indexOf(':');
+      const kid = entry.slice(0, separator).trim();
+      const encoded = entry.slice(separator + 1).trim();
+      if (separator < 1 || !encoded || !/^[A-Za-z0-9_-]{1,32}$/.test(kid))
+        throw new Error(
+          `ATTRIBUTION_SIGNING_KEYS sai định dạng ở mục bắt đầu bằng "${entry.slice(0, 12)}". Đúng phải là: kid:base64(PEM)`,
+        );
+      const privateKeyPem = Buffer.from(encoded, 'base64').toString('utf8');
+      if (!privateKeyPem.includes('PRIVATE KEY'))
+        throw new Error(
+          `ATTRIBUTION_SIGNING_KEYS: khoá "${kid}" không phải base64 của một PEM private key`,
+        );
+      return { kid, privateKeyPem };
+    });
+  const kids = keys.map((key) => key.kid);
+  if (new Set(kids).size !== kids.length)
+    throw new Error('ATTRIBUTION_SIGNING_KEYS: trùng kid');
+  return keys;
+}
+
 export function loadConfig(): IConfig {
   const port = Number(process.env.PORT ?? 3000);
   return {
@@ -122,6 +158,12 @@ export function loadConfig(): IConfig {
     security: {
       secretEncryptionKey: process.env.CONFIG_ENCRYPTION_KEY ?? '',
       phoneHashPepper: process.env.PHONE_HASH_PEPPER ?? '',
+    },
+
+    attribution: {
+      signingKeys: parseAttributionSigningKeys(
+        process.env.ATTRIBUTION_SIGNING_KEYS,
+      ),
     },
 
     push: {

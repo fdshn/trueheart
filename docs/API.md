@@ -2522,3 +2522,123 @@ Việt Nam, `limit` 1–50, mặc định 10), trả `{ "leaderboard": { period,
 
 `GET /banners?placement=` nhận thêm tám vị trí trùng tên với các surface presence ở trên. Không
 có API banner thứ hai, và không có `DHARMA_WORSHIP` vì phân hệ Cúng bái chưa được duyệt.
+
+## 17. Link giới thiệu — deferred attribution (01/11/2026)
+
+Người nhận link chia sẻ chưa cài app: sau khi cài và đăng ký vẫn ghi nhận đúng người giới thiệu
+và mở đúng nội dung. Không OTP, không dùng IP làm định danh, app không tự đọc clipboard.
+
+```
+người giới thiệu ── POST /attribution/links ──────────▶ https://chantam.vn/a/{code}
+landing /a/{code} ── POST /attribution/clicks ────────▶ token → https://chantam.vn/dl?t=<token>
+                     (copy vào clipboard KHI người dùng bấm "Tải/Mở ứng dụng", rồi sang store)
+app mới cài ──────── POST /attribution/resolve ───────▶ claim token + deep link
+app sau đăng ký ──── POST /attribution/claim (Bearer) ▶ gắn người giới thiệu (chưa thưởng)
+```
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `POST` | `/attribution/links` | Bearer | `{ link: { targetType?, targetValue?, campaign?, source?, medium? } }` → `{ link: { code, url, deepLink, … }, created }`. Người giới thiệu = người gọi. Link đang sống y hệt thì trả lại |
+| `POST` | `/attribution/clicks` | Công khai | `{ click: { code } }` → `{ click: { token, expiresAt, deepLinkUrl, referrer, deepLink } }`. Mỗi lượt mở một token riêng |
+| `POST` | `/attribution/resolve` | Công khai | `{ token, installId, platform }` → `{ matched, attributionToken, referralCode, deepLink }` |
+| `POST` | `/attribution/claim` | Bearer | `{ attributionToken }` → `{ claimed, riskStatus }` |
+| `GET` | `/admin/attribution/claims?riskStatus=` | `report.read` | Các lượt claim, mới nhất trước |
+| `POST` | `/admin/attribution/claims/:claimId/review` | `report.resolve` | `{ review: { decision: APPROVE\|REJECT, note } }` |
+| `POST` | `/admin/attribution/revocations` | `report.resolve` | `{ revocation: { linkCode \| campaign \| referrerUserId, reason } }` → `{ revokedLinks }` |
+
+**Đích deep link** (`targetType` / `deepLink.type`):
+
+| type | value | App mở bằng |
+| --- | --- | --- |
+| `POST` | `share.shareCode` của bài | `GET /posts/share/:shareCode` |
+| `PROFILE` | username | `GET /profile/:username` |
+| `USER` | username (như `PROFILE`) | `GET /profile/:username` |
+| `GROUP_INVITE` | mã mời nhóm | `GET /groups/invites/:inviteCode`, rồi `groupInviteToken` khi đăng ký |
+
+Bỏ trống cả `targetType` lẫn `targetValue` là link mời chung (`deepLink: null`). Đích không tồn
+tại → `ATTRIBUTION_TARGET_NOT_FOUND`.
+
+**Token**
+
+- JWS compact, `alg: EdDSA` (Ed25519), có `kid` để xoay khoá. Payload **chỉ** có `jti`, `aud`,
+  `iat`, `exp`. Người giới thiệu, đích, chiến dịch nằm trong database, tra theo `jti` — token
+  ai cũng đọc được payload, nên không đặt id người dùng vào đó.
+- Token resolve: `aud: thientam-mobile-attribution`, sống 14 ngày.
+- Claim token: `aud: thientam-mobile-attribution-claim`, sống 24 giờ, dùng cho đúng một tài
+  khoản. Hai loại không dùng lẫn được.
+
+**Resolve**
+
+- `token` nhận cả token trần lẫn nguyên URL `…/dl?t=<token>`.
+- `installId`: UUID app sinh một lần, lưu trong secure storage. Server chỉ lưu HMAC của nó.
+- Kết quả theo loại token dán vào:
+
+  | Dán vào | Kết quả |
+  | --- | --- |
+  | Chuỗi không phải token của hệ thống, hoặc chữ ký sai | `matched: false` |
+  | Token thật nhưng hết hạn | `ATTRIBUTION_TOKEN_EXPIRED` |
+  | Link đã bị thu hồi, hoặc người giới thiệu bị khoá | `ATTRIBUTION_TOKEN_REVOKED` |
+  | Claim token dán nhầm vào resolve | `ATTRIBUTION_TOKEN_INVALID` |
+
+- Cùng token + cùng `installId` gọi lại ra **cùng** claim token (đổi IP/Wi-Fi/4G/VPN không ảnh
+  hưởng). Bản cài khác resolve cùng token nhận claim token khác — nhưng lượt mở đó vẫn chỉ claim
+  được cho một tài khoản.
+- `referralCode` chỉ để hiển thị; claim không đọc nó.
+
+**Claim**
+
+- Chỉ nhận tài khoản **tạo trong 7 ngày** và **chưa hoàn tất onboarding** (còn hạng `VIEWER`).
+- Mỗi tài khoản một người giới thiệu. Đã có người giới thiệu từ lúc đăng ký (nhập
+  `referralCode`):
+  - cùng người → `claimed: true`;
+  - khác người → `ATTRIBUTION_REFERRER_EXISTS`.
+- Gọi lại bởi đúng người đã claim → `claimed: true`, kể cả khi claim token đã quá hạn. Người
+  khác dùng token của một lượt mở đã claim → `ATTRIBUTION_ALREADY_CLAIMED`.
+- Tự giới thiệu, hoặc nhận giới thiệu từ chính người mình đã giới thiệu →
+  `ATTRIBUTION_SELF_REFERRAL`.
+- **Không phát thưởng.** Claim ghi một dòng `referrals`; người giới thiệu được thưởng khi người
+  được mời hoàn tất onboarding — đúng đường thưởng của giới thiệu bằng mã.
+- `riskStatus`:
+  - `QUALIFIED`: không vướng tín hiệu gì, đã ghi quan hệ giới thiệu.
+  - `PENDING_REVIEW`: cùng bản cài đã claim cho một tài khoản **khác** trong 30 ngày. Quan hệ
+    giới thiệu **chưa** được ghi, chờ Admin duyệt.
+
+  App không cần xử lý khác giữa hai giá trị này.
+
+**Chống gian lận**
+
+- Rate limit theo từng bước, đếm cả lượt hỏng; vượt trần → `TOO_MANY_REQUESTS`:
+
+  | Bước | Trần |
+  | --- | --- |
+  | Tạo link | 60/giờ/người |
+  | Mở link (landing) | 60/10 phút/IP |
+  | Resolve | 30/10 phút/IP và 20/10 phút/bản cài |
+  | Claim | 10/10 phút/người và 30/10 phút/IP |
+
+- IP và User-Agent chỉ lưu dạng HMAC, chỉ dùng xét gian lận, **không** dùng làm khoá attribution.
+- Mọi kết cục (kể cả bị từ chối) ghi vào `attribution_audit_events` kèm mã nghiệp vụ. Duyệt
+  claim và thu hồi link ghi thêm `admin_audit_logs`.
+- Thu hồi một link, cả chiến dịch, hoặc mọi link của một người: token đã phát từ link đó trả
+  `ATTRIBUTION_TOKEN_REVOKED` ở resolve và claim mới. Claim đã ghi trước đó không bị gỡ.
+
+**Cấu hình**
+
+- `ATTRIBUTION_SIGNING_KEYS` dạng `kid:base64(PEM)`, nhiều khoá cách nhau bởi dấu phẩy; khoá
+  **đầu** ký, mọi khoá xác minh. Sinh một khoá:
+
+  ```
+  echo "k202611:$(openssl genpkey -algorithm ed25519 | base64 -w0)"
+  ```
+
+  Xoay khoá: thêm khoá mới lên đầu, giữ khoá cũ ít nhất 14 ngày rồi mới bỏ. Bỏ trống thì
+  `/attribution/*` trả `ATTRIBUTION_NOT_CONFIGURED` (503).
+- `WEB_PUBLIC_BASE_URL` (ví dụ `https://chantam.vn`) để dựng `url` và `deepLinkUrl`; trống thì
+  hai trường đó là `null`.
+
+**Không thuộc backend**
+
+- Trang `chantam.vn/a/{code}` và `chantam.vn/dl`.
+- `/.well-known/apple-app-site-association` và `/.well-known/assetlinks.json`: trả 200, đúng
+  content type, không redirect; cần Team ID và bundle id iOS, package và SHA-256 chứng chỉ ký
+  Android.

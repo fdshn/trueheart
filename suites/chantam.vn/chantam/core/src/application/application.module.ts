@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AdminConfigModule } from './implementations/admin-config/admin-config.module';
 import { AffiliateModule } from './implementations/affiliate/affiliate.module';
+import { AttributionModule } from './implementations/attribution/attribution.module';
 import { AuthUseCaseModule } from './implementations/auth/auth.module';
 import { BlogUseCaseModule } from './implementations/blog/blog.module';
 import { CategoryModule } from './implementations/category/category.module';
@@ -69,6 +70,7 @@ import { UserBlockModule } from './implementations/user-block/user-block.module'
     PostModule,
     PresenceModule,
     RecipientSelectionModule,
+    AttributionModule,
     UserBlockModule,
     TransactionModule,
     GroupModule,

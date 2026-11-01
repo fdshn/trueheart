@@ -229,8 +229,20 @@ Nghiệp vụ Chân Tâm
 | `0x1702` | `5890` | 409 Conflict | `LEADERBOARD_EXCLUSION_EXISTS` | Người này đã bị loại khỏi bảng này trong tháng này |
 | `0x1703` | `5891` | 404 Not Found | `LEADERBOARD_EXCLUSION_NOT_FOUND` | Không tìm thấy lượt loại đang hiệu lực |
 | `0x1704` | `5892` | 404 Not Found | `LEADERBOARD_BADGE_NOT_FOUND` | Không tìm thấy huy hiệu đang hiệu lực |
+| `0x1801` | `6145` | 503 | `ATTRIBUTION_NOT_CONFIGURED` | Tính năng liên kết giới thiệu chưa được cấu hình |
+| `0x1802` | `6146` | 400 Bad Request | `ATTRIBUTION_TOKEN_INVALID` | Liên kết giới thiệu không hợp lệ |
+| `0x1803` | `6147` | 410 | `ATTRIBUTION_TOKEN_EXPIRED` | Liên kết giới thiệu đã hết hạn |
+| `0x1804` | `6148` | 410 | `ATTRIBUTION_TOKEN_REVOKED` | Liên kết giới thiệu đã bị thu hồi |
+| `0x1805` | `6149` | 409 Conflict | `ATTRIBUTION_ALREADY_CLAIMED` | Liên kết giới thiệu này đã được dùng cho tài khoản khác |
+| `0x1806` | `6150` | 409 Conflict | `ATTRIBUTION_REFERRER_EXISTS` | Tài khoản đã có người giới thiệu |
+| `0x1807` | `6151` | 409 Conflict | `ATTRIBUTION_SELF_REFERRAL` | Không thể nhận giới thiệu từ chính mình hoặc từ người mình đã giới thiệu |
+| `0x1808` | `6152` | 409 Conflict | `ATTRIBUTION_NOT_ELIGIBLE` | Chỉ tài khoản mới đăng ký mới nhận được liên kết giới thiệu |
+| `0x1809` | `6153` | 404 Not Found | `ATTRIBUTION_LINK_NOT_FOUND` | Không tìm thấy liên kết giới thiệu |
+| `0x180a` | `6154` | 404 Not Found | `ATTRIBUTION_TARGET_NOT_FOUND` | Không tìm thấy nội dung muốn chia sẻ |
+| `0x180b` | `6155` | 404 Not Found | `ATTRIBUTION_CLAIM_NOT_FOUND` | Không tìm thấy lượt ghi nhận giới thiệu |
+| `0x180c` | `6156` | 409 Conflict | `ATTRIBUTION_CLAIM_ALREADY_REVIEWED` | Lượt ghi nhận này đã được xử lý |
 
 ---
 
-Tổng cộng **190 mã lỗi** trên 3 tầng.
+Tổng cộng **202 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

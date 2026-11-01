@@ -2,6 +2,7 @@ export * from './admin-config.repository';
 export * from './admin-dashboard.repository';
 export * from './admin-user.repository';
 export * from './affiliate.repository';
+export * from './attribution.repository';
 export * from './blog.repository';
 export * from './category.repository';
 export * from './charity-campaign.repository';

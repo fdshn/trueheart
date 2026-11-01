@@ -139,6 +139,8 @@ else
   # chờ ai đó đọc tài liệu rồi nhớ ra.
   CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32)
   PHONE_HASH_PEPPER=$(openssl rand -base64 32)
+  # Khoá Ed25519 ký token link giới thiệu, base64 cả file PEM để nằm trên một dòng.
+  ATTRIBUTION_SIGNING_KEYS="k$(date +%Y%m):$(openssl genpkey -algorithm ed25519 | base64 -w0)"
 
   cat > "$APP_DIR/.env" << ENVFILE
 # Môi trường: $ENVIRONMENT
@@ -178,6 +180,10 @@ TRUST_PROXY=true
 CONFIG_ENCRYPTION_KEY=$CONFIG_ENCRYPTION_KEY
 PHONE_HASH_PEPPER=$PHONE_HASH_PEPPER
 
+# Khoá ký token link giới thiệu (kid:base64(PEM)). Xoay khoá: thêm khoá mới lên ĐẦU,
+# giữ khoá cũ ít nhất 14 ngày rồi mới bỏ — bỏ sớm là link đã phát chết.
+ATTRIBUTION_SIGNING_KEYS=$ATTRIBUTION_SIGNING_KEYS
+
 # Gốc web công khai cho link chia sẻ hồ sơ. Bỏ trống thì API trả shareUrl null.
 WEB_PUBLIC_BASE_URL=
 
@@ -192,7 +198,7 @@ ENVFILE
 
   chown "$DEPLOY_USER:$DEPLOY_USER" "$APP_DIR/.env"
   chmod 600 "$APP_DIR/.env"
-  echo "Đã sinh .env với mật khẩu database, JWT_SECRET, CONFIG_ENCRYPTION_KEY và PHONE_HASH_PEPPER ngẫu nhiên, cổng $CORE_PORT."
+  echo "Đã sinh .env với mật khẩu database, JWT_SECRET, CONFIG_ENCRYPTION_KEY, PHONE_HASH_PEPPER và ATTRIBUTION_SIGNING_KEYS ngẫu nhiên, cổng $CORE_PORT."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

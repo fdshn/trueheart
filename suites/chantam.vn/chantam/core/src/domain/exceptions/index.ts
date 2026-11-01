@@ -1,4 +1,5 @@
 export * from './admin-role.exception';
+export * from './attribution.exception';
 export * from './auth.exception';
 export * from './blog.exception';
 export * from './category.exception';

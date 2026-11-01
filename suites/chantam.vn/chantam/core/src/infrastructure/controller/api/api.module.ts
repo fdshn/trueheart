@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AdminConfigControllerModule } from './admin-config/admin-config.module';
 import { AdminPostControllerModule } from './admin-post/admin-post.module';
 import { AffiliateControllerModule } from './affiliate/affiliate.module';
+import { AttributionControllerModule } from './attribution/attribution.module';
 import { AuthControllerModule } from './auth/auth.module';
 import { BlogControllerModule } from './blog/blog.module';
 import { CategoryControllerModule } from './category/category.module';
@@ -44,6 +45,7 @@ import { UserBlockControllerModule } from './user-block/user-block.module';
     DharmaControllerModule,
     LeaderboardControllerModule,
     PresenceControllerModule,
+    AttributionControllerModule,
     UserBlockControllerModule,
     LunarControllerModule,
     HomeCampaignControllerModule,

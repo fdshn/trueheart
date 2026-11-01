@@ -2,6 +2,7 @@ import {
   IAdminConfigRepository,
   IAdminUserRepository,
   IAffiliateRepository,
+  IAttributionRepository,
   IBlogRepository,
   IBulkNotifyAudienceRepository,
   ICategoryRepository,
@@ -49,6 +50,7 @@ import { AdminConfigRepository } from './admin-config.repository';
 import { AdminDashboardRepository } from './admin-dashboard.repository';
 import { AdminUserRepository } from './admin-user.repository';
 import { AffiliateRepository } from './affiliate.repository';
+import { AttributionRepository } from './attribution.repository';
 import { BlogRepository } from './blog.repository';
 import { CategoryRepository } from './category.repository';
 import { CharityCampaignRepository } from './charity-campaign.repository';
@@ -109,6 +111,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
       useClass: NotificationTemplateRepository,
     },
     { provide: IAdminConfigRepository, useClass: AdminConfigRepository },
+    { provide: IAttributionRepository, useClass: AttributionRepository },
     { provide: IAdminUserRepository, useClass: AdminUserRepository },
     // Lớp cụ thể, không qua token: nó không có cài đặt thay thế nào và cũng không
     // cần — dựng một token chỉ để có đúng một cài đặt là thêm một lớp gián tiếp
@@ -212,6 +215,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     INotificationRepository,
     INotificationTemplateRepository,
     IAdminConfigRepository,
+    IAttributionRepository,
     IAdminUserRepository,
     IEntitlementRepository,
     IBlogRepository,

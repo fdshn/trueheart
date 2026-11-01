@@ -88,6 +88,11 @@ export const ConfigSchema = Joi.object({
   // Sinh bằng: openssl rand -base64 32
   PHONE_HASH_PEPPER: Joi.string().allow('').default(''),
 
+  // Khoá ký token link giới thiệu (deferred attribution), `kid:base64(PEM)` cách nhau bởi
+  // dấu phẩy, khoá đầu dùng để ký. Sinh: openssl genpkey -algorithm ed25519 | base64 -w0
+  // Bỏ trống thì `/attribution/*` trả ATTRIBUTION_NOT_CONFIGURED.
+  ATTRIBUTION_SIGNING_KEYS: Joi.string().allow('').default(''),
+
   // Service account JSON của dự án Firebase, mã hoá base64 (F44).
   // Sinh bằng: base64 -w0 service-account.json
   //

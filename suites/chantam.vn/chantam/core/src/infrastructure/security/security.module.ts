@@ -1,4 +1,5 @@
 import {
+  IAttributionTokenService,
   IHtmlSanitizer,
   ILoginThrottle,
   IOtpStore,
@@ -8,6 +9,7 @@ import {
 import { Global, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AesSecretCipher } from './aes-secret-cipher';
+import { Ed25519AttributionTokenService } from './attribution-token.service';
 import { GlobalRateLimitGuard } from './global-rate-limit.guard';
 import { LoginThrottle } from './login-throttle';
 import { OtpStore } from './otp-store';
@@ -17,6 +19,10 @@ import { SanitizeHtmlSanitizer } from './sanitize-html.sanitizer';
 @Global()
 @Module({
   providers: [
+    {
+      provide: IAttributionTokenService,
+      useClass: Ed25519AttributionTokenService,
+    },
     { provide: IHtmlSanitizer, useClass: SanitizeHtmlSanitizer },
     { provide: ILoginThrottle, useClass: LoginThrottle },
     { provide: IOtpStore, useClass: OtpStore },
@@ -32,6 +38,7 @@ import { SanitizeHtmlSanitizer } from './sanitize-html.sanitizer';
     { provide: APP_GUARD, useClass: GlobalRateLimitGuard },
   ],
   exports: [
+    IAttributionTokenService,
     IHtmlSanitizer,
     ILoginThrottle,
     IOtpStore,

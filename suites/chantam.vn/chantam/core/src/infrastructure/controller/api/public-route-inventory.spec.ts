@@ -22,6 +22,10 @@ const ExpectedPublicRoutes = [
   'POST /auth/password-reset/verify-otp',
   'POST /auth/refresh',
   'POST /auth/register',
+  // Link giới thiệu: landing (chưa đăng nhập) ghi lượt mở; app mới cài (chưa có tài khoản)
+  // resolve token. Không trả id người dùng nào; có rate limit theo IP và bản cài.
+  'POST /attribution/clicks',
+  'POST /attribution/resolve',
   // Khách chưa đăng nhập vẫn duyệt được bảng tin, bản đồ và bài đăng (toạ độ đã làm nhiễu).
   'GET /discovery/config',
   'GET /posts/:postId',

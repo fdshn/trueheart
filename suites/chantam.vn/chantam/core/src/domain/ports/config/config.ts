@@ -115,6 +115,19 @@ export interface IWebConfig {
   publicBaseUrl: string;
 }
 
+export interface IAttributionConfig {
+  /**
+   * Khoá ký token deferred attribution, Ed25519 dạng PEM PKCS#8. Khoá ĐẦU ký, mọi khoá
+   * xác minh — xoay khoá bằng cách thêm khoá mới lên đầu (xem
+   * `Ed25519AttributionTokenService`).
+   *
+   * Rỗng thì các endpoint `/attribution/*` trả `ATTRIBUTION_NOT_CONFIGURED`: một khoá tự
+   * sinh lúc khởi động sẽ đổi mỗi lần restart và khác nhau giữa các instance, làm mọi link
+   * đã phát chết lặng lẽ.
+   */
+  signingKeys: { kid: string; privateKeyPem: string }[];
+}
+
 export interface IAdminBootstrapConfig {
   /** Chỉ dùng để gán SUPER_ADMIN lúc khởi tạo; quyền vận hành nằm trong DB. */
   usernames: string[];
@@ -148,6 +161,7 @@ export interface IConfig {
   web: IWebConfig;
   security: ISecurityConfig;
   push: IPushConfig;
+  attribution: IAttributionConfig;
 
   /**
    * Môi trường cho ô chọn của Swagger. Mục đầu luôn trỏ về chính instance đang

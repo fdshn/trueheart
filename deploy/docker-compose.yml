@@ -107,6 +107,9 @@ services:
       # chống trùng vẫn chạy — nên nó hỏng hoàn toàn im lặng.
       PHONE_HASH_PEPPER: ${PHONE_HASH_PEPPER:-}
 
+      # Khoá ký token link giới thiệu. Trống thì /attribution/* fail-closed (503).
+      ATTRIBUTION_SIGNING_KEYS: ${ATTRIBUTION_SIGNING_KEYS:-}
+
       # Push FCM (F44). Trống thì fail-closed, không giả vờ đã gửi.
       FCM_SERVICE_ACCOUNT_BASE64: ${FCM_SERVICE_ACCOUNT_BASE64:-}
       # R2/S3 credential chỉ tồn tại trong .env server/environment secret, không

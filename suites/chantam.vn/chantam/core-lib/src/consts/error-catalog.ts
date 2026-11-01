@@ -1287,4 +1287,79 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     httpStatus: HttpStatus.NOT_FOUND,
     message: () => 'Không tìm thấy huy hiệu đang hiệu lực',
   },
+
+  // ── 0x18 Link giới thiệu (deferred attribution) ───────────────────────────
+  ATTRIBUTION_NOT_CONFIGURED: {
+    code: ErrorCodes.ATTRIBUTION_NOT_CONFIGURED,
+    httpStatus: HttpStatus.SERVICE_UNAVAILABLE,
+    message: () => 'Tính năng liên kết giới thiệu chưa được cấu hình',
+  },
+
+  ATTRIBUTION_TOKEN_INVALID: {
+    code: ErrorCodes.ATTRIBUTION_TOKEN_INVALID,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: () => 'Liên kết giới thiệu không hợp lệ',
+  },
+
+  ATTRIBUTION_TOKEN_EXPIRED: {
+    code: ErrorCodes.ATTRIBUTION_TOKEN_EXPIRED,
+    httpStatus: HttpStatus.GONE,
+    message: () => 'Liên kết giới thiệu đã hết hạn',
+  },
+
+  ATTRIBUTION_TOKEN_REVOKED: {
+    code: ErrorCodes.ATTRIBUTION_TOKEN_REVOKED,
+    httpStatus: HttpStatus.GONE,
+    message: () => 'Liên kết giới thiệu đã bị thu hồi',
+  },
+
+  ATTRIBUTION_ALREADY_CLAIMED: {
+    code: ErrorCodes.ATTRIBUTION_ALREADY_CLAIMED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Liên kết giới thiệu này đã được dùng cho tài khoản khác',
+  },
+
+  ATTRIBUTION_REFERRER_EXISTS: {
+    code: ErrorCodes.ATTRIBUTION_REFERRER_EXISTS,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Tài khoản đã có người giới thiệu',
+  },
+
+  ATTRIBUTION_SELF_REFERRAL: {
+    code: ErrorCodes.ATTRIBUTION_SELF_REFERRAL,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Không thể nhận giới thiệu từ chính mình hoặc từ người mình đã giới thiệu',
+  },
+
+  ATTRIBUTION_NOT_ELIGIBLE: {
+    code: ErrorCodes.ATTRIBUTION_NOT_ELIGIBLE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Chỉ tài khoản mới đăng ký mới nhận được liên kết giới thiệu',
+  },
+
+  ATTRIBUTION_LINK_NOT_FOUND: {
+    code: ErrorCodes.ATTRIBUTION_LINK_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy liên kết giới thiệu',
+  },
+
+  ATTRIBUTION_TARGET_NOT_FOUND: {
+    code: ErrorCodes.ATTRIBUTION_TARGET_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy nội dung muốn chia sẻ',
+  },
+
+  ATTRIBUTION_CLAIM_NOT_FOUND: {
+    code: ErrorCodes.ATTRIBUTION_CLAIM_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy lượt ghi nhận giới thiệu',
+  },
+
+  ATTRIBUTION_CLAIM_ALREADY_REVIEWED: {
+    code: ErrorCodes.ATTRIBUTION_CLAIM_ALREADY_REVIEWED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Lượt ghi nhận này đã được xử lý',
+  },
 });

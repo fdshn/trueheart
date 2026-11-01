@@ -1,5 +1,6 @@
 import { DataSource } from 'typeorm';
 import { seedDemoData } from '../seed-demo-data';
+import { seedAttribution } from './attribution';
 import { seedCharity } from './charity';
 import { seedCheckIns } from './check-ins';
 import { seedCommunity } from './community';
@@ -31,6 +32,7 @@ export const SeedSections: ReadonlyArray<
   ['điểm danh và tín dụng bù', seedCheckIns],
   ['hoạt động từ thiện F65b', seedCharity],
   ['chat trực tiếp, chặn, cài đặt người lạ', seedDirectChat],
+  ['link giới thiệu (deferred attribution)', seedAttribution],
   ['bảng thành tích tháng: bản chốt, huy hiệu, lượt loại', seedLeaderboard],
   // Cuối cùng: báo xấu và thông báo trỏ vào mọi thứ phía trên.
   ['nội dung Admin, báo xấu, thông báo', seedContentAndInbox],

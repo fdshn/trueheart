@@ -25,7 +25,7 @@ import { createHash, createHmac } from 'node:crypto';
  * `deviceId` trùng tình cờ với một địa chỉ IP sẽ đếm thành một cụm trùng.
  */
 export function hashSignupFingerprint(
-  kind: 'IP' | 'DEVICE',
+  kind: 'IP' | 'DEVICE' | 'INSTALL' | 'USER_AGENT',
   value: string | undefined | null,
   pepper: string,
 ): string | null {

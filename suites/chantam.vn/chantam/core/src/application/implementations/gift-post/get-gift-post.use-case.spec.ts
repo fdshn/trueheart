@@ -74,6 +74,7 @@ function makeConfig(): IConfig {
     adminBootstrap: { usernames: [] },
     web: { publicBaseUrl: '' },
     security: { secretEncryptionKey: '', phoneHashPepper: '' },
+    attribution: { signingKeys: [] },
     push: { serviceAccountBase64: '' },
     storage: {
       endpoint: '',
