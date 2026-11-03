@@ -44,8 +44,8 @@ erDiagram
 ```mermaid
 flowchart TD
     A["capability"] --> Q["QUOTA<br/>POST_OPEN · OPEN_REQUEST_QUOTA"]
-    A --> G["GATE<br/>POST_SOS · CREATE_GROUP · REACT_CONTENT<br/>COMMENT_CONTENT · SUBMIT_CHARITY_PROPOSAL"]
-    A --> V["VALUE<br/>DISCOVERY_RADIUS · SELECT_REQUESTER"]
+    A --> G["GATE<br/>POST_SOS · CREATE_GROUP · REACT_CONTENT<br/>COMMENT_CONTENT · SUBMIT_CHARITY_PROPOSAL<br/>SUBMIT_INDIVIDUAL_APPEAL · PUBLISH_CHARITY_WITHOUT_REVIEW<br/>SELECT_REQUESTER"]
+    A --> V["VALUE<br/>DISCOVERY_RADIUS"]
 
     Q --> Q1["limit · used · remaining<br/>đều có nghĩa"]
     G --> G1["chỉ allowed có nghĩa<br/>ba trường kia null"]
@@ -59,7 +59,7 @@ flowchart TD
 Chỉ `QUOTA` có **bộ đếm thật** ở tầng dưới, và bộ đếm đó phải là **đúng cái** mà đường
 chặn dùng — xem §24.6.
 
-## 24.3 Chín capability đang có
+## 24.3 Mười một capability đang có
 
 | Capability | Loại | Viewer | Thành viên | Bạc | Vàng | Kim Cương | Đọc ở |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -70,8 +70,10 @@ chặn dùng — xem §24.6.
 | `CREATE_GROUP` | GATE | ✗ | ✗ | ✗ | ✗ | ✓ | `group.use-cases` |
 | `REACT_CONTENT` | GATE | ✗ | ✓ | ✓ | ✓ | ✓ | `content-reaction.use-cases` |
 | `COMMENT_CONTENT` | GATE | ✗ | ✓ | ✓ | ✓ | ✓ | `content-comment.use-cases` |
-| `SELECT_REQUESTER` | VALUE | 0 | 1 | 3 | 5 | 10 | ⚠️ **chưa ai đọc** |
-| `SUBMIT_CHARITY_PROPOSAL` | GATE | ✗ | ✗ | ✗ | ✗ | ✓ | ⚠️ **chưa ai đọc** |
+| `SELECT_REQUESTER` — chọn tay người nhận | GATE | ✗ | ✗ | ✗ | ✗ | ✓ | `accept-gift-request`, `batch-accept-requests` |
+| `SUBMIT_CHARITY_PROPOSAL` — hoạt động có tổ chức | GATE | ✗ | ✗ | ✗ | ✗ | ✓ | `charity-campaign.use-cases` |
+| `SUBMIT_INDIVIDUAL_APPEAL` — kêu gọi cho cá nhân | GATE | ✗ | ✓ | ✓ | ✓ | ✓ | `charity-campaign.use-cases` |
+| `PUBLISH_CHARITY_WITHOUT_REVIEW` — public không chờ Admin | GATE | ✗ | ✗ | ✗ | ✗ | ✓ | `charity-campaign.use-cases` |
 
 > Bản bảng trước 01/10 liệt **4** dòng, gọi `POST_OPEN` là `POST_QUOTA`, đánh
 > `CREATE_GROUP` là ⛔ dù nó đã chạy, và thiếu hẳn năm capability. Mục "Chỗ cần soát"
@@ -79,8 +81,8 @@ chặn dùng — xem §24.6.
 > mà migration `1794300000000-MergePostQuotaIntoOne` đã gộp bỏ từ 26/09.
 >
 > `test:entitlement-inventory` nay canh chính bảng này: thêm capability vào database mà
-> không khai ở code thì phép kiểm đỏ. Hai dòng ⚠️ ở trên phải nêu tên kèm **lý do**
-> trong `DeclaredButUnread` mới không bị báo — xem §24.7.
+> không khai ở code thì phép kiểm đỏ. Mã nào khai mà chưa ai đọc phải nêu tên kèm **lý do**
+> trong `DeclaredButUnread` mới không bị báo — danh sách đó nay rỗng (`test/entitlement-inventory.check.ts`).
 
 ## 24.4 Luồng kiểm quyền
 
@@ -235,10 +237,10 @@ khi có người khiếu nại.
 
 1. ⚠️ **Mọi con số là giả định chờ Bên A** — quota bài, quota yêu cầu, ngưỡng SOS, bán
    kính theo bậc. Đổi không cần deploy, nhưng đang chạy bằng giả định.
-2. 🟡 **`SELECT_REQUESTER` khai mà chưa ai đọc**, hạn mức 1/3/5/10 theo bậc. Không ai biết
-   **đơn vị** của nó: mỗi bài được chọn mấy người, hay mỗi ngày? Nối nó đòi chốt nghiệp
-   vụ trước — đoán sai là đặt một cái trần người dùng không hiểu. Đang được
-   `test:entitlement-inventory` ghi là nợ, nên nó không lặng lẽ nằm đó nữa.
+2. ✅ **`SELECT_REQUESTER` nay là GATE và đã có chỗ đọc (11/10, CHỐT-10)** — migration
+   `1799500000000-SelectRequesterDiamondOnly` đặt `allowed` chỉ cho Kim Cương và `limit_value`
+   về 0 (hạn mức 1/3/5/10 cũ không ai biết đơn vị). `AcceptGiftRequestUseCase` và
+   `BatchAcceptRequestsUseCase` kiểm nó; thiếu quyền thì `SELECT_REQUESTER_NOT_ALLOWED`.
 3. ✅ **`SUBMIT_CHARITY_PROPOSAL` đã có chỗ đọc (03/10)** — `CreateCharityCampaignUseCase`
    dùng nó làm cổng BR-CHARITY-01 (chỉ Kim Cương gửi được hồ sơ hoạt động). Giá trị seed
    từ `1790100000000` đúng như cần, nên không phải thêm migration nào — và **không được**

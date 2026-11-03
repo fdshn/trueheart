@@ -16,11 +16,13 @@ có implementation**.
 | Đường dẫn import | Nội dung |
 | --- | --- |
 | `@chantam.vn/chantam.core-lib` | `CoreService` |
-| `.../consts` | `ErrorCodes`, `ErrorOrigin`, `GiftPostCategories`, `GiftPostConditions`, `GiftPostStatuses`, `PostTypes`, `PostSelectionModes` |
-| `.../models` | `IGiftPost`, `IPost`, `IPostMedia` |
-| `.../entities` | `IGiftPostEntity` + token DI, `IPostEntity` + token DI, `IPostMediaEntity` + token DI, `IPostLikeEntity` + token DI |
-| `.../values` | `GiftPostId` |
-| `.../dto` | Interface DTO theo từng resource: owner point summary/ledger, tóm tắt thứ hạng owner (`IGetOwnRankSummaryResponseDto`), referral (`IReferralSummaryDto`), quyền theo hạng (`IEntitlementsSummaryDto`) và vòng đời giao dịch (`IGiftTransactionDto`) |
+| `.../consts` | Enum và hằng nghiệp vụ: `ErrorCodes`/`ErrorOrigin`, trạng thái bài (`GiftPostStatuses`), `PostTypes`, `PostSelectionModes`, loại/trạng thái phòng chat, hạng, thông báo, bảng thành tích, presence, attribution… — mỗi chủ đề một file trong `src/consts/` |
+| `.../models` | Interface model (`IPost`, `IPostMedia`, `IGiftPost`…) và **hàm thuần** dùng chung cho cả service lẫn client: vòng đời bài (`post-lifecycle`), điểm danh, kiểm duyệt nội dung, phân bổ, deep link, Âm lịch… |
+| `.../entities` | Interface entity + token DI (`IPostEntity`, `IPostMediaEntity`, `IGiftPostEntity`, `IChatRoomEntity`, `IUserEntity`…) |
+| `.../values` | Value object `GiftPostId`, `UserId` |
+| `.../dto` | Interface DTO theo từng resource, mỗi resource một thư mục trong `src/dto/` (post, gift-request, transaction, chat, check-in, leaderboard, presence, user-block, attribution…) |
+
+Danh sách đầy đủ: xem `index.ts` của từng thư mục.
 
 ## Quy ước DTO
 
@@ -53,13 +55,20 @@ import { ErrorCodes, ErrorOrigin } from '@chantam.vn/chantam.core-lib/consts';
 ## Vòng đời bài đăng
 
 ```
-DRAFT ─▶ PENDING_REVIEW ─▶ PUBLISHED ─▶ RESERVED ─▶ DELIVERING ─▶ COMPLETED
-                 │              │           │            │
-                 ▼              ▼           ▼            ▼
-             REJECTED       EXPIRED     CANCELLED    CANCELLED
-                                │
-                                ▼
-                            ARCHIVED   (Kho Từ Thiện Chung)
+PUBLISHED ─▶ RESERVED ─▶ COMPLETED
+    │            │
+    ├─▶ EXPIRED  ▼
+    │     │    CANCELLED
+    │     ▼
+    │   ARCHIVED   (Kho Từ Thiện Chung)
+    │
+    └─▶ SOLD / HIDDEN   (chỉ Rao vặt, chủ bài tự đổi; HIDDEN mở lại được)
 ```
 
-`EXPIRED` ứng với quy định bài quá 3 tháng chưa có người nhận (được gia hạn tối đa 01 lần thêm 3 tháng theo SRS v1.15.0 - CHỐT-07).
+Bài mới tạo **thẳng ở `PUBLISHED`** — không còn duyệt trước, Admin gỡ về sau qua hậu kiểm.
+`DRAFT`, `PENDING_REVIEW`, `REJECTED` vẫn có trong enum nhưng đường tạo bài không ghi ra.
+`DELIVERING` đã ngừng ghi (chốt 29/09 giữ `RESERVED`), chỉ còn được đọc như lưới hứng dòng sót.
+
+Hạn `EXPIRED` theo `postExpiryDateFor` (`src/models/post-lifecycle.ts`): `OFFER`/`WANTED` sống
+7 ngày xét ứng viên + 30 ngày mở rộng = **37 ngày** từ lúc đăng (CHỐT-10); các loại khác
+**3 tháng**. Gia hạn tối đa 01 lần (CHỐT-07).

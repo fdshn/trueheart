@@ -65,12 +65,17 @@ Trên server, bằng `root`:
 # File chép từ Windows có thể dùng CRLF; chuẩn hoá trước khi Bash đọc.
 sed -i 's/\r$//' /tmp/docker-compose.yml /tmp/init.sql /tmp/bootstrap.sh
 
-bash /tmp/bootstrap.sh production api.<domain>
+bash /tmp/bootstrap.sh production api.<domain> api-staging.<domain>
 ```
 
-Tham số thứ hai là hostname công khai, dùng làm mục **Servers** của Swagger trên
-chính server này. Chỉ khai production, tuyệt đối không kèm staging vào danh sách
-— hai môi trường cùng xuất hiện là mời người ta bấm `Try it out` nhầm bên.
+Tham số thứ hai là hostname công khai, dùng làm mục **Servers** ĐẦU TIÊN của Swagger
+trên chính server này (`API_SERVERS`), nên `Try it out` mặc định gọi production. Tham số thứ
+ba (tuỳ chọn) là hostname staging: có nó thì Swagger liệt kê cả hai, môi trường hiện tại đứng
+đầu (chủ dự án yêu cầu 01/11). Token không dùng chéo được vì `JWT_SECRET` mỗi bên khác nhau.
+Host đã có `.env` thì sửa tay
+`API_SERVERS=Production=https://api.<domain>,Staging=https://api-staging.<domain>`.
+Lưu ý: Nginx production chặn `/docs` (mục 3), nên danh sách này chỉ hiện ra khi mở Swagger
+production; Swagger **staging** mới là nơi người ta thấy mục Production.
 
 Bootstrap tự làm:
 
@@ -78,7 +83,8 @@ Bootstrap tự làm:
 - tạo user `deploy`, thêm vào group `docker`;
 - tạo `/home/deploy/chantam-production`;
 - chép `docker-compose.yml` và `init.sql`;
-- sinh `.env` với `POSTGRES_PASSWORD` và `JWT_SECRET` ngẫu nhiên;
+- sinh `.env` với `POSTGRES_PASSWORD`, `JWT_SECRET`, `CONFIG_ENCRYPTION_KEY`, `PHONE_HASH_PEPPER`
+  và `ATTRIBUTION_SIGNING_KEYS` ngẫu nhiên, đặt `TRUST_PROXY=true`;
 - sinh SSH key CI lần đầu, thêm public key vào `deploy/.ssh/authorized_keys`.
 
 Kiểm đầu ra:
@@ -103,10 +109,11 @@ POSTGRES_DB=chantam
 > Không copy `.env` từ staging. `POSTGRES_PASSWORD` và đặc biệt `JWT_SECRET` phải riêng:
 > dùng chung JWT secret khiến token staging có thể được production chấp nhận.
 
-### Host dựng TRƯỚC 05/10 phải thêm ba dòng bằng tay
+### Host dựng trước đó phải thêm biến bằng tay
 
-`bootstrap.sh` cố ý **không ghi đè** `.env` đã tồn tại, nên một host dựng trước 05/10 sẽ không
-nhận ba biến thêm hôm đó. Cả ba thiếu đều hỏng **im lặng** — không có gì đỏ lúc khởi động:
+`bootstrap.sh` cố ý **không ghi đè** `.env` đã tồn tại, nên một host dựng trước sẽ không nhận
+các biến thêm sau này (ba biến 05/10, `ATTRIBUTION_SIGNING_KEYS` 01/11). Thiếu đều hỏng
+**im lặng** — không có gì đỏ lúc khởi động:
 
 ```bash
 cd /home/deploy/chantam-production
@@ -115,6 +122,10 @@ grep -qE '^CONFIG_ENCRYPTION_KEY=' .env ||
   echo "CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> .env
 grep -qE '^PHONE_HASH_PEPPER=' .env ||
   echo "PHONE_HASH_PEPPER=$(openssl rand -base64 32)" >> .env
+grep -qE '^ATTRIBUTION_SIGNING_KEYS=' .env ||
+  echo "ATTRIBUTION_SIGNING_KEYS=k$(date +%Y%m):$(openssl genpkey -algorithm ed25519 | base64 -w0)" >> .env
+grep -q 'ATTRIBUTION_SIGNING_KEYS' docker-compose.yml ||
+  echo 'docker-compose.yml cũ: chép lại deploy/docker-compose.yml mới lên server trước' >&2
 docker compose up -d core
 ```
 
@@ -123,10 +134,30 @@ docker compose up -d core
 | `TRUST_PROXY` | Mọi request mang IP của Nginx, nên trần gọi chung và trần đăng nhập/đăng ký theo IP dồn vào **một xô**: một người lụt là cả hệ bị 429 |
 | `CONFIG_ENCRYPTION_KEY` | Admin bấm lưu cấu hình SMTP/Zalo và nó fail closed. Lỗi chỉ hiện khi có người thử lưu |
 | `PHONE_HASH_PEPPER` | Vẫn băm số điện thoại nhưng **không có khoá**, và chống trùng vẫn chạy nên không ai thấy gì. Không gian số VN đủ nhỏ để kẻ đọc được database dò ngược hết bảng băm |
+| `ATTRIBUTION_SIGNING_KEYS` | `/attribution/*` trả `ATTRIBUTION_NOT_CONFIGURED`: link giới thiệu không sống sót qua bước cài app |
 
 **Đặt hai khoá kia MỘT LẦN rồi đừng đổi.** Đổi `CONFIG_ENCRYPTION_KEY` là không giải mã được
 secret Admin đã lưu; đổi `PHONE_HASH_PEPPER` là mọi băm cũ không khớp nữa, nên chống trùng mất
 sạch lịch sử.
+
+**`ATTRIBUTION_SIGNING_KEYS` thì xoay được, nhưng theo thứ tự:** thêm khoá mới lên ĐẦU danh sách
+(`kid:base64(PEM)`, ngăn bằng dấu phẩy — khoá đầu dùng để ký), giữ khoá cũ **ít nhất 14 ngày**
+(token sống 14 ngày) rồi mới bỏ. Bỏ sớm là link đã phát chết.
+
+Workflow deploy **không** đồng bộ `docker-compose.yml` lên server — nó chỉ ghi `IMAGE` vào `.env`
+rồi `docker compose up`. Compose trên server phải là bản có dòng
+`ATTRIBUTION_SIGNING_KEYS: ${ATTRIBUTION_SIGNING_KEYS:-}`; không thì biến nằm trong `.env` mà
+không vào container. Chép lại `deploy/docker-compose.yml` khi nó đổi.
+
+### Biến điền tay trong `.env`
+
+| Biến | Đặt thế nào |
+| --- | --- |
+| `WEB_PUBLIC_BASE_URL` | Gốc **web công khai/landing**, vd. `https://chantam.vn` — **không bao giờ** là trang admin. Nó dựng link chia sẻ `/p/{shareCode}`, `/posts/{id}`, `/u/{username}`, `/invite/{code}`, `/a/{code}`, `/dl?t=`. Trống thì API trả link `null` |
+| `FCM_SERVICE_ACCOUNT_BASE64` | `base64 -w0 service-account.json` của dự án Firebase production. Trống thì push fail-closed, thông báo trong app vẫn chạy |
+| `GLOBAL_RATE_LIMIT_PER_MINUTE` | Trần gọi chung theo IP, mặc định 600 (kẹp 60–100.000). Chỉ đổi khi đo được lý do |
+
+Toàn bộ biến: [`docs/CONFIG-INVENTORY.md`](../docs/CONFIG-INVENTORY.md) §1.
 
 Nếu bootstrap vừa in `SSH_PRIVATE_KEY`, lưu toàn bộ key vào GitHub Environment `production`, rồi xoá
 bản tạm trên server:

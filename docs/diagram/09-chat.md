@@ -3,21 +3,36 @@
 Trạng thái: ✅ **đã hiện thực** gồm realtime, ảnh, dọn tin quá hạn, và từ 28/09 thêm thu hồi
 tin, trần gửi, cùng đường điều tra cho Admin.
 
-**Tám endpoint:** danh sách phòng, đọc tin, gửi tin, xin link ảnh, đánh dấu đã đọc, thu hồi
-tin, **tắt thông báo phòng**, và Admin đọc phòng (có điều kiện).
+**Chín endpoint người dùng:** mở phòng trực tiếp về bài Rao vặt (`POST /chat/direct-post/rooms`),
+mở phòng trực tiếp với một người (`POST /chat/direct-user/rooms`), danh sách phòng, đọc tin, gửi
+tin, xin link ảnh, đánh dấu đã đọc, thu hồi tin, **tắt thông báo phòng**. Cộng **năm endpoint
+Admin:** đọc phòng (có điều kiện), hàng đợi cờ chat, đếm cờ chưa xem, xử một cờ, gỡ tin bị báo
+xấu. Chặn người dùng: `GET|POST /me/blocks`, `DELETE /me/blocks/:userId`. Danh sách route:
+[`API-ROUTES.md`](../API-ROUTES.md).
 
-## 9.1 Phòng chat sinh từ lượt trao
+## 9.1 Ba loại phòng chat
 
 ```mermaid
 flowchart LR
     A[Chủ bài chấp nhận yêu cầu] --> B[Tạo gift_transaction]
-    B --> C[Mở phòng chat<br/>đúng hai người]
+    B --> C["TRANSACTION<br/>Mở phòng chat đúng hai người<br/>có transactionId"]
+    A2["POST /chat/direct-post/rooms<br/>người mua liên hệ bài Rao vặt"] --> C2["DIRECT_POST<br/>KHÔNG có giao dịch"]
+    A3["POST /chat/direct-user/rooms<br/>từ danh sách online / hồ sơ"] --> C3["DIRECT_USER<br/>KHÔNG có bài, KHÔNG có giao dịch<br/>mỗi cặp người đúng MỘT phòng"]
     C --> D{Trạng thái phòng}
+    C2 --> D
+    C3 --> D
     D --> E["OPEN — gửi được"]
     D --> F["READ_ONLY — đọc được, không gửi<br/>(lượt trao đã đóng)"]
 
     style C fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
+
+> **Phòng `DIRECT_USER` mới phải qua:** hồ sơ đủ (F07) của người mở; không có quan hệ chặn hai
+> chiều; người nhận bật `users.allow_stranger_messages` **hoặc** hai người đã từng có phòng chat
+> bất kỳ loại nào; và còn suất trong ngày — đếm phòng `DIRECT_USER` có `created_by` là người mở
+> trong 24 giờ, trần `chat.direct_user_daily_limit` (mặc định 20, `0` = tắt hẳn), vượt thì 429.
+> Mở lại một cặp đã có phòng trả phòng cũ (`created: false`). Bị chặn và "không nhận tin người
+> lạ" ra cùng một lỗi `CHAT_RECIPIENT_UNAVAILABLE` — người bị chặn không được biết mình bị chặn.
 
 > **Vì sao phòng khoá lại thay vì xoá khi lượt trao đóng.** Lịch sử trao đổi là bằng chứng
 > khi có tranh chấp. Xoá đi thì hai bên chỉ còn lời khai.
@@ -37,18 +52,31 @@ sequenceDiagram
     A->>API: POST /chat/rooms/:roomId/messages
     API->>API: Cổng hồ sơ F07 ✅ đã gắn (chỉ ở đường GỬI)
     API->>API: Trần 30 tin/phút + 500 tin/24 giờ
+    API->>API: Sàng từ ngữ (screenText) — GẮN CỜ, không chặn
     API->>DB: Người này có trong phòng không?
     API->>DB: Phòng còn OPEN không?
+    opt Phòng DIRECT_USER và hai người có quan hệ chặn
+        API-->>A: CHAT_RECIPIENT_UNAVAILABLE
+    end
     API->>API: Mở transaction
-    API->>DB: INSERT chat_messages
+    API->>DB: INSERT chat_messages (+ cờ kiểm duyệt nếu khớp từ)
     API->>DB: Cập nhật last_message_at
     API->>API: COMMIT
+    opt Bên kia KHÔNG tắt thông báo phòng
+        API->>N: Ghi NEW_CHAT_MESSAGE<br/>pushData { roomType }
+    end
     Note over API,WS: Chỉ phát SAU KHI commit
     API->>WS: publishMessage(roomId, message)
     WS-->>A: Đẩy tới cả người gửi
     WS-->>B: Đẩy tới người nhận
-    API->>N: Ghi NEW_CHAT_MESSAGE
 ```
+
+> **Sàng từ ngữ gắn cờ chứ không chặn** (chốt Bên A 30/09). Tin khớp danh sách từ của
+> kiểm duyệt vẫn gửi được, nhưng sinh một cờ vào hàng đợi `GET /admin/chat/flags`. Chat là hội
+> thoại riêng, một dương tính giả mà chặn là làm đứng cả việc bàn giao.
+
+> **`pushData.roomType`** để client điều hướng thẳng tới đúng kiểu màn chat (phòng trực tiếp
+> không có thẻ bài) mà không phải gọi API trước khi mở.
 
 > **Vì sao phát tin chỉ sau khi commit.** Phát từ trong transaction rồi rollback là nói với
 > client về một tin nhắn không tồn tại — và không có cách nào rút lại lời đó.
@@ -190,8 +218,11 @@ flowchart TD
 > **Hai cột riêng cho hai phía.** Người tặng tắt không kéo theo người nhận — một cột chung sẽ
 > biến một lựa chọn riêng tư thành thao tác áp cho cả hai.
 
-> ⚠️ **Vẫn CHƯA có chặn ở mức nền tảng** (không xin nhận bài của nhau, ẩn khỏi feed của nhau).
-> Đó là một tính năng riêng với bề mặt riêng, và phần lớn chỗ đau đã được hai cửa trên xử.
+> ✅ **Đã có chặn người dùng** (`/me/blocks`). Chặn là hai chiều với phòng `DIRECT_USER`: không mở
+> được phòng mới, và gửi tin trong phòng sẵn có thì nhận `CHAT_RECIPIENT_UNAVAILABLE`. Danh sách
+> online (presence) cũng ẩn người có quan hệ chặn. Phòng `TRANSACTION` và `DIRECT_POST` **không
+> bị ảnh hưởng** — một lượt trao hay một cuộc mua bán đang dở không được đứng lại vì hai người
+> giận nhau; với chúng vẫn dùng hai cửa trên.
 
 ## 9.6 Dọn tin quá hạn lưu trữ
 
@@ -228,8 +259,8 @@ flowchart TD
    và hàng đợi Admin hiện đoạn đầu nội dung kèm tên người gửi.
 4. ✅ **Đã có trần gửi tin** (28/09) — 30/phút + 500/24 giờ.
 5. ✅ **Có hai cửa tự vệ** (28/09) — tắt thông báo phòng, và huỷ-để-tự-vệ không còn bị tính
-   vào `FEWEST_CANCELLATIONS`. Xem §9.5b. Chặn ở mức nền tảng thì chưa, và cố ý gác lại: nó là
-   một tính năng riêng, còn phần lớn chỗ đau đã được hai cửa này xử.
+   vào `FEWEST_CANCELLATIONS`. Xem §9.5b. ✅ Chặn người dùng nay đã có (`/me/blocks`), nhưng chỉ
+   áp cho phòng `DIRECT_USER` và presence.
 6. **Tin đã thu hồi vẫn nằm trong database cho tới kỳ dọn.** Với người dùng thì nó biến mất,
    nhưng Admin có báo xấu đang mở vẫn đọc được mốc `recalledAt`. Đó là chủ ý — chính việc thu
    hồi sau khi gửi bậy là thứ đáng biết — nhưng nên nói rõ trong chính sách riêng tư.

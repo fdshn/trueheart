@@ -1,12 +1,12 @@
 # 17 · Job nền & CLI
 
-Trạng thái: ✅ **cả mười hai CLI đã chạy được**, và từ 29/09 CI chạy thật cả mười hai mỗi
-lượt build — xem §17.6.
+Trạng thái: ✅ **cả mười lăm CLI đã chạy được**, và CI chạy thật cả mười lăm mỗi lượt build
+(`scripts/smoke-cli.sh`) — xem §17.6.
 
 `media:sweep-orphans` là CLI duy nhất **mặc định không làm gì** — nó xoá object không hoàn
 tác được, nên phải gõ rõ `--apply`. Lịch cron cũng chỉ chạy khô để báo con số.
 
-## 17.1 Mười hai lệnh
+## 17.1 Mười lăm lệnh
 
 ```mermaid
 flowchart TD
@@ -14,7 +14,7 @@ flowchart TD
     C --> B["point:reconcile<br/>vá thưởng MỐC một-lần bị treo:<br/>xác minh SĐT · onboarding · giới thiệu"]
     C --> D["post:expire<br/>đóng bài quá hạn, rao vặt thành bài tặng"]
     C --> E["rank:evaluate<br/>đánh giá chu kỳ duy trì rank"]
-    C --> F["transaction:autocomplete<br/>tự hoàn tất lượt trao quá hạn ⚠️"]
+    C --> F["transaction:autocomplete<br/>tự hoàn tất lượt trao quá hạn,<br/>giữ lượt đang tranh chấp"]
     C --> G["feed:reconcile-counts<br/>đối soát số đếm feed"]
     C --> H["accuracy:reconcile<br/>tính lại Giver Accuracy theo ngưỡng"]
     C --> I["gift:settle-rewards<br/>trả nốt thưởng lượt trao còn treo:<br/>hết hạn chờ · bị trần ngày chặn · phía người nhận"]
@@ -22,9 +22,11 @@ flowchart TD
     C --> K["selection:auto-select<br/>chốt người nhận khi hết đồng hồ 7 ngày"]
     C --> L["notification:purge<br/>dọn thông báo quá hạn lưu trữ"]
     C --> M["media:sweep-orphans<br/>báo object mồ côi — chạy KHÔ, xem đoạn trên"]
+    C --> N["leaderboard:close-month<br/>chốt bảng thành tích tháng, trao huy hiệu"]
+    C --> O["notify:broadcast<br/>gửi lượt thông báo hàng loạt Admin đã xếp hàng"]
+    C --> P["notify:lunar<br/>nhắc Rằm · Mùng Một · lễ âm lịch"]
 
     style C fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
-    style F fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
 > Core **cố ý không dựng scheduler nào trong tiến trình**. Hai bản sao service cùng chạy
@@ -36,7 +38,7 @@ flowchart TD
 | --- | --- | --- |
 | **Dọn** | `chat:purge` · `notification:purge` · `media:sweep-orphans` | Database và bucket phình to. Chậm và tốn tiền, nhưng **không ai mất gì** |
 | **Trả & đối soát** | `gift:settle-rewards` · `point:reconcile` · `rank:evaluate` · `accuracy:reconcile` · `feed:reconcile-counts` · `leaderboard:close-month` | **Người dùng không nhận được điểm họ đã kiếm**, hạng không lên/tụt đúng. Đây là tiền |
-| **Đẩy vòng đời** | `post:expire` · `selection:auto-select` · `transaction:autocomplete` · `notify:reminders` | Bài hết hạn vẫn hiện, **đồng hồ 7 ngày hết mà không ai được chọn**, không ai được nhắc |
+| **Đẩy vòng đời** | `post:expire` · `selection:auto-select` · `transaction:autocomplete` · `notify:reminders` · `notify:lunar` · `notify:broadcast` | Bài hết hạn vẫn hiện, **đồng hồ 7 ngày hết mà không ai được chọn**, không ai được nhắc |
 
 Phân loại này quyết định canh alert cho cái nào: bảng chat to lên thì không ai thấy, còn người
 tặng không được cộng điểm là thứ họ sẽ khiếu nại.
@@ -117,8 +119,10 @@ flowchart LR
 
 ## Chỗ cần soát
 
-1. ⚠️ **`transaction:autocomplete` đếm từ `accepted_at`** nên đóng lượt trao trước khi hàng
-   tới nơi, và **không kiểm tranh chấp** — xem [08-transaction](./08-transaction.md).
+1. ✅ **`transaction:autocomplete` đếm từ `COALESCE(handed_over_at, accepted_at)`** — tức từ lần
+   cuối có chuyện xảy ra, nên ship liên tỉnh không bị đóng trước khi hàng tới nơi — và **giữ lại
+   lượt đang tranh chấp** (báo xấu mở vào bài, hoặc người nhận báo xấu người tặng); có lượt bị giữ
+   thì thoát khác 0 để cron báo. Xem [08-transaction](./08-transaction.md).
 2. ✅ **KHÔNG cần job kiểm Active Member** — chốt 29/09. Mục này trước đây ghi ⛔, nhưng nó
    đang đòi một thứ mà thiết kế không cần.
    "Active Member" không phải một trạng thái được đánh dấu; nó là **điều kiện lọc lúc chia
@@ -137,9 +141,9 @@ flowchart LR
    ngày vẫn có thể không nhập mật khẩu lần nào suốt 90 ngày. Cột là `NOT NULL DEFAULT now()` nên
    người vừa đăng ký đã hoạt động ngay, không có cạnh biên NULL. Có `session-issuer.spec.ts` canh
    lời gọi và `test:user-activity` canh câu SQL trên Postgres thật.
-   `affiliate.active_member_window_days = 90` chưa ai đọc **không phải lỗ** — nó là cấu hình seed
-   trước cho tính năng sẽ đọc nó. Affiliate chưa có dòng code nào và còn chờ
-   [18-group](./18-group.md).
+   `affiliate.active_member_window_days = 90` nay được đọc ở `GET /groups/:groupId/affiliate`
+   (`group-management.use-cases.ts`). Bộ máy affiliate đã có (migration `1797400000000`, xem
+   [19-affiliate](./19-affiliate.md)).
 3. ✅ **`media:sweep-orphans` chính là job dọn object mồ côi**, đã xếp lịch hằng tuần
    (`29 5 * * 2`) và chạy **KHÔ** — không có `--apply`. Chỉ báo con số là lựa chọn đúng cho một
    job xoá thứ không hoàn tác được.
@@ -150,18 +154,13 @@ flowchart LR
    29/09). Nó được thêm ở đợt 10-notification, đưa vào sơ đồ lịch ở mốc 04:09, rồi không ai xếp
    lịch thật — nên ngoài production hộp thư chưa bao giờ được dọn, và tài liệu thì nói đã xếp.
    Dạng lỗi tệ hơn quên làm: nó **trông như đã làm**.
-6. ⛔ **Chưa nối alert vào kênh người thật đọc.** `run-cli.sh` làm đúng phần của nó — giữ exit
-   code, ghi stderr, nên chạy thành công thì **không** gửi gì và chỉ lượt đỏ mới báo. Nhưng
-   crontab không có `MAILTO`, nên thư vào hộp local của user `deploy`.
-   Đặt `MAILTO` một mình **không đủ**: cron luôn đi qua MTA cục bộ, mà một VPS chỉ chạy
-   docker-compose thường chưa cài MTA — lúc đó cron ghi "no MTA, discarding output" rồi bỏ. Gửi
-   tới Gmail còn cần SPF/DKIM, thiếu thì bị chặn im lặng: **có alert mà không biết mình không
-   nhận được alert**, kiểu hỏng tệ nhất cho một hệ báo động. Và credential SMTP sẽ tồn tại ở hai
-   nơi (app trong `system_configs`, hệ thống trong cấu hình MTA).
-   Hướng nhẹ hơn: một lượt `curl` trong `run-cli.sh` khi đỏ, URL trong env var — không MTA,
-   không SPF/DKIM, không nhân bản credential. Chờ Bên A chốt kênh.
+6. ✅ **Alert đã nối vào kênh người thật đọc.** `run-cli.sh` khi job đỏ gọi `send-alert.sh`
+   (một lượt `curl` tới `CHANTAM_CRON_ALERT_URL` — không MTA, không SPF/DKIM, không nhân bản
+   credential; gửi hỏng thì ghi `alerts-chua-gui-duoc.log`). Crontab có thêm **nhịp tim hằng tuần**
+   (`7 9 * * 1`) để im lặng trở thành tín hiệu, và `check-health.sh` mỗi 5 phút gọi healthcheck
+   NGOÀI tiến trình, chỉ báo sau 3 lượt hỏng liên tiếp. Xem [`deploy/cron/`](../../deploy/cron/README.md).
 
-## 17.6 CI chạy thật cả mười hai CLI
+## 17.6 CI chạy thật cả mười lăm CLI
 
 ```mermaid
 flowchart TD
@@ -169,7 +168,7 @@ flowchart TD
     B --> C["❌ không bao giờ chạy tham số mặc định<br/>.bind(NestFactory) — bẫy 1"]
     B --> D["❌ không bao giờ dựng cây DI thật<br/>module thiếu — bẫy 2"]
 
-    E["scripts/smoke-cli.sh"] --> F["chạy THẬT cả 12, Postgres thật"]
+    E["scripts/smoke-cli.sh"] --> F["chạy THẬT cả 15, Postgres thật"]
     F --> G["✅ bắt cả hai bẫy"]
     F --> H["✅ và canh: CLI mới phải có trong danh sách"]
 
@@ -214,10 +213,15 @@ gantt
     accuracy-reconcile     :04:13, 10m
     media-sweep-orphans    :05:29, 10m
     section Buổi sáng
+    notify-lunar           :06:43, 5m
     notify-reminders       :08:17, 10m
+    section Hằng tháng (ngày 1)
+    leaderboard-close-month :00:05, 5m
     section Mỗi giờ
     point-reconcile        :01:19, 3m
     selection-auto-select  :01:37, 4m
+    section Mỗi 5 phút
+    notify-broadcast       :00:00, 2m
 ```
 
 **Thứ tự trong chuỗi đêm là có lý do:**

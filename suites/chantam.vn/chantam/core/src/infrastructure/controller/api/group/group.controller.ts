@@ -253,7 +253,7 @@ export class GroupController {
   @ApiOperation({
     summary: 'Điều kiện affiliate của nhóm',
     description:
-      'Cần `group.affiliate.view` — chỉ Owner có; trưởng tổ KHÔNG xem được affiliate toàn nhóm. Đây KHÔNG phải số điểm đã chia: bộ máy chia thưởng chưa có dòng code nào, và `rewardEngineReady: false` nói thẳng điều đó thay vì im lặng trả 0. Những gì trả về là ĐẦU VÀO của bộ máy — bao nhiêu người đủ điều kiện nếu nó chạy hôm nay, tính trực tiếp từ `users.status` và `users.last_active_at` chứ không qua cột cờ nào.',
+      'Cần `group.affiliate.view` — chỉ Owner có; trưởng tổ KHÔNG xem được affiliate toàn nhóm. Đây KHÔNG phải số điểm đã chia. `rewardEngineReady` là `true` khi chính sách affiliate đang hiệu lực có `enabled: true` (`PUT /admin/affiliate-policy`); `false` nói thẳng là nhóm chưa được chia thưởng vì chính sách chưa bật, thay vì im lặng trả 0. Những gì trả về là ĐẦU VÀO của bộ máy — bao nhiêu người đủ điều kiện nếu nó chạy hôm nay, tính trực tiếp từ `users.status` và `users.last_active_at` chứ không qua cột cờ nào.',
   })
   @ApiErrorResponses(
     ...ApiTokenErrors,

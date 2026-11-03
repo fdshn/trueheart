@@ -15,6 +15,8 @@ flowchart TB
         AUTH["Xác thực ✅"]
         PROF["Hồ sơ & onboarding ✅"]
         MEDIA["Media S3 ✅"]
+        ATTR["Attribution — link giới thiệu sống qua bước cài app ✅"]
+        SOC["Presence · chặn người dùng ✅"]
     end
 
     subgraph T2["② Nội dung"]
@@ -35,22 +37,25 @@ flowchart TB
         RANK["Thứ hạng ✅"]
         REV["Đánh giá & Accuracy ✅"]
         RED["Đổi vật phẩm bằng điểm ✅"]
+        CHK["Check-in hằng ngày ✅"]
+        LB["Bảng thành tích tháng & huy hiệu ✅"]
     end
 
     subgraph T5["⑤ Vận hành"]
         REP["Báo xấu & kiểm duyệt ✅"]
         ADM["Admin CMS & RBAC ✅"]
-        JOB["12 CLI ✅"]
+        JOB["15 CLI ✅"]
         NOTI["Thông báo ✅🟡"]
     end
 
     subgraph T6["⑥ Nhóm & affiliate"]
         GRP["Group & Sub-team ✅"]
-        AFF["Affiliate — nền có, bộ máy chia thưởng ⛔"]
+        AFF["Affiliate — bộ máy chia thưởng ✅"]
     end
 
     subgraph T7["⑦ Nội dung & chiến dịch"]
         CMS["Campaign · Blog · Từ thiện · Dharma Hub ✅<br/>backend đủ, giao diện CMS ở repo khác"]
+        ADS["Banner quảng cáo · Công đức (merit) · Lịch âm & nhắc Rằm/Mùng Một ✅"]
     end
 
     AUTH --> PROF --> POST
@@ -79,6 +84,9 @@ flowchart TB
     JOB --> POST
     GRP --> AFF --> PT
     PROF --> GRP
+    ATTR --> PROF
+    CHK --> PT
+    PT --> LB
 
     style CMS fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style T4 fill:#dcb42826,stroke:#c9a227,stroke-width:1.5px
@@ -117,7 +125,7 @@ flowchart LR
         I5["GIFT_COMPLETED_GIVER +56 phẳng ✅<br/>+ GIFT_VALUE_BONUS_GIVER theo giá ✅"]
         I5b["GIFT_COMPLETED_RECEIVER ✅"]
         I6["POST_REACTED · POST_COMMENTED ✅"]
-        I7["Affiliate event ⛔"]
+        I7["Affiliate event ✅<br/>POST_CREATED · GIFT_COMPLETED"]
     end
 
     L[(point_ledger<br/>append-only<br/>idempotent)]
@@ -141,18 +149,16 @@ flowchart LR
 ```mermaid
 pie showData
     title Phân hệ theo trạng thái
-    "Đã chạy được (✅)" : 19
+    "Đã chạy được (✅)" : 28
     "Có code, chưa dùng thật (🟡)" : 1
     "Backend xong, chờ bên ngoài (🟠)" : 2
-    "Chưa có dòng nào (⛔)" : 1
 ```
 
 | Trạng thái | Phân hệ |
 | --- | --- |
-| ✅ | Xác thực · Hồ sơ · Media · Bài đăng · Feed · Tương tác · Xin nhận · Lượt trao · Chat · Đánh giá · Báo xấu · Admin CMS · CLI · Thứ hạng · Countdown chọn người nhận · Đổi vật phẩm bằng điểm · **Group & Sub-team** · **Dashboard KPI** · **Kiểm duyệt chat** |
+| ✅ | Xác thực · Hồ sơ · Media · Bài đăng · Feed · Tương tác · Xin nhận · Lượt trao · Chat · Đánh giá · Báo xấu · Admin CMS · CLI · Thứ hạng · Countdown chọn người nhận · Đổi vật phẩm bằng điểm · **Group & Sub-team** · **Dashboard KPI** · **Kiểm duyệt chat** · **Affiliate** · **Attribution** · **Bảng thành tích** · **Check-in** · **Presence & chặn** · **Công đức** · **Banner** · **Lịch âm** |
 | 🟡 | Xác minh SĐT (chưa có adapter SMS) — thông báo ĐẨY nằm ở hàng dưới |
 | 🟠 | Thông báo đẩy FCM (backend xong, đã gọi thật tới Google 05/10, chờ client mobile gửi `fcmToken` — hiện đếm được **0**) · Campaign/Blog/Từ thiện/Dharma Hub (backend xong, chờ **giao diện CMS** ở repo khác và UAT) |
-| ⛔ | Bộ máy chia thưởng affiliate — và chỉ còn đúng phần chia thưởng |
 
 > **Hàng ⚠️ đã bỏ.** Bản trước ghi *"Tự hoàn tất (sai mốc đếm, không kiểm tranh chấp)"*, trong
 > khi [21 §21.4](./21-open-issues.md) mục 2 và 3 nói cả hai đã sửa từ 25/09 — hai tài liệu nói
@@ -160,9 +166,8 @@ pie showData
 > `COALESCE(handed_over_at, accepted_at)`, và lượt có báo xấu đang mở bị giữ lại kèm exit code
 > khác 0.
 >
-> **Affiliate không còn là ⛔ trắng.** Nền đã có: `groups.center_location` + `radius_km`,
-> `last_active_at` ghi ở mọi lần cấp phiên, và `GET /groups/:id/affiliate` đếm được ai đủ điều
-> kiện. Thiếu đúng phần **chia thưởng** — mà phần đó chờ Bên A chốt cách chia, xem
+> **Affiliate đã ✅.** Bộ máy chia thưởng có từ migration `1797400000000` — cách chia là tham số
+> chính sách (`SPLIT_POOL` / `PER_MEMBER`), Bên A chỉ còn chọn giá trị và bật `enabled`, xem
 > [19](./19-affiliate.md) mục 4.
 
 > **Hai dòng sửa 07/10, vì bản trước nói sai trạng thái đo được.**

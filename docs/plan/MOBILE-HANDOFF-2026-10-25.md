@@ -78,7 +78,9 @@ Tóm tắt những gì app phải đổi theo đợt backend 25/10. Chi tiết c
     `room.roomId`. Gửi tin dùng route `/chat/rooms/:roomId/messages` như cũ.
   - `CHAT_RECIPIENT_UNAVAILABLE` → hiện "Không thể nhắn tin cho người này". Đừng đoán là bị
     chặn hay người kia tắt nhận tin người lạ — server cố ý không phân biệt.
-  - `TOO_MANY_REQUESTS` → đã mở quá 20 cuộc trò chuyện mới trong 24 giờ; hiện số giờ chờ.
+  - `TOO_MANY_REQUESTS` → đã mở quá số cuộc trò chuyện mới cho phép trong 24 giờ (mặc định 20,
+    Admin chỉnh bằng `chat.direct_user_daily_limit` — đừng ghi cứng số này trên app); hiện số
+    giờ chờ.
   - `CHAT_DIRECT_USER_SELF` → ẩn nút "Nhắn tin" trên hồ sơ của chính mình.
   - Push tin nhắn mới có thêm `data.roomType` — mở đúng kiểu màn chat mà không phải gọi API.
 - **Cài đặt "Cho phép người lạ nhắn tin":** công tắc đọc `profile.allowStrangerMessages` từ
@@ -89,6 +91,16 @@ Tóm tắt những gì app phải đổi theo đợt backend 25/10. Chi tiết c
   - Màn "Người đã chặn": `GET /me/blocks`; bỏ chặn `DELETE /me/blocks/:userId`.
   - Trong phòng chat, `room.blockedByMe: true` → hiện "Bạn đã chặn người này" và nút "Bỏ chặn"
     thay cho ô nhập.
+- **Link giới thiệu qua bước cài app (thêm 01/11):**
+  - Lần mở đầu sau khi cài, hiện nút "Dán liên kết giới thiệu" — app **không** tự đọc clipboard.
+    Người dùng dán → `POST /attribution/resolve` với `{ token, installId, platform }` (`token`
+    nhận cả nguyên URL `…/dl?t=<token>`; `installId` là UUID sinh một lần, giữ trong secure
+    storage). Giữ `attributionToken` và mở `deepLink` nếu có.
+  - Sau khi đăng ký xong: `POST /attribution/claim` (Bearer) với `{ attributionToken }`.
+  - Đã cài app thì link `https://chantam.vn/dl?t=<token>` mở thẳng app qua universal link /
+    App Link, rồi đi cùng đường resolve.
+  - Nút chia sẻ "mời bạn": `POST /attribution/links` → `link.url` (`/a/{code}`).
+  - Chi tiết, mã lỗi và đích deep link: `docs/API.md` §17.
 - **Banner:** tám vị trí mới cho bốn tab Khám phá và bốn màn Phật Pháp. Cùng
   `GET /banners?placement=` và đường click cũ.
 

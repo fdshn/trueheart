@@ -39,20 +39,23 @@ File chép từ Windows có thể là CRLF. Trên server root:
 
 ```bash
 sed -i 's/\r$//' /tmp/docker-compose.yml /tmp/init.sql /tmp/bootstrap.sh
-bash /tmp/bootstrap.sh staging api-staging.<domain>
+bash /tmp/bootstrap.sh staging api-staging.<domain> api.<domain>
 ```
 
-Tham số thứ hai là hostname công khai. Nó trở thành mục **Servers** của Swagger
-trên chính server này, nên `Try it out` gọi đúng API đang đọc. Bỏ trống thì
-Swagger chỉ còn `localhost` — trong trình duyệt người đọc, đó là máy của họ chứ
-không phải server này, nên nút đó vô dụng.
+Tham số thứ hai là hostname công khai. Nó trở thành mục **Servers** ĐẦU TIÊN của
+Swagger trên chính server này (`API_SERVERS`), nên `Try it out` mặc định gọi đúng API
+đang đọc. Bỏ trống thì Swagger chỉ còn `localhost` — trong trình duyệt người đọc, đó là
+máy của họ chứ không phải server này, nên nút đó vô dụng.
 
-Cố ý **chỉ khai môi trường này**, không liệt kê production: có cả hai trong một
-danh sách là mời người ta bấm `Try it out` nhầm sang dữ liệu thật.
+Tham số thứ ba (tuỳ chọn) là hostname của môi trường **kia** — production. Có nó thì
+Swagger liệt kê cả hai, môi trường hiện tại đứng đầu (chủ dự án yêu cầu 01/11). Token
+không dùng chéo được vì `JWT_SECRET` mỗi bên khác nhau. Stack đã có `.env` thì sửa tay
+dòng `API_SERVERS=Staging=https://api-staging.<domain>,Production=https://api.<domain>`.
 
 Script cài Docker nếu thiếu, tạo user `deploy`, thêm họ vào group Docker, tạo
-`/home/deploy/chantam-staging`, chép file Compose/SQL, sinh `.env` với password database và
-`JWT_SECRET` ngẫu nhiên, rồi sinh SSH key CI lần đầu.
+`/home/deploy/chantam-staging`, chép file Compose/SQL, sinh `.env` với password database,
+`JWT_SECRET`, `CONFIG_ENCRYPTION_KEY`, `PHONE_HASH_PEPPER` và `ATTRIBUTION_SIGNING_KEYS` ngẫu
+nhiên, đặt `TRUST_PROXY=true`, rồi sinh SSH key CI lần đầu.
 
 Vì server dev hiện có dịch vụ khác dùng 3000, staging dùng 8080:
 
@@ -66,10 +69,11 @@ ls -la /home/deploy/chantam-staging
 
 Kỳ vọng: `CORE_PORT=8080`, cùng `.env`, `docker-compose.yml`, `init.sql`.
 
-### Stack dựng TRƯỚC 05/10 phải thêm ba dòng bằng tay
+### Stack dựng trước đó phải thêm biến bằng tay
 
-`bootstrap.sh` cố ý **không ghi đè** `.env` đã tồn tại, nên staging đang chạy sẽ không nhận ba
-biến thêm hôm đó. Cả ba thiếu đều hỏng **im lặng** — service vẫn healthy, không gì đỏ:
+`bootstrap.sh` cố ý **không ghi đè** `.env` đã tồn tại, nên staging đang chạy sẽ không nhận
+các biến thêm sau này (ba biến 05/10, `ATTRIBUTION_SIGNING_KEYS` 01/11). Thiếu đều hỏng
+**im lặng** — service vẫn healthy, không gì đỏ:
 
 ```bash
 cd /home/deploy/chantam-staging
@@ -78,14 +82,34 @@ grep -qE '^CONFIG_ENCRYPTION_KEY=' .env ||
   echo "CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> .env
 grep -qE '^PHONE_HASH_PEPPER=' .env ||
   echo "PHONE_HASH_PEPPER=$(openssl rand -base64 32)" >> .env
+grep -qE '^ATTRIBUTION_SIGNING_KEYS=' .env ||
+  echo "ATTRIBUTION_SIGNING_KEYS=k$(date +%Y%m):$(openssl genpkey -algorithm ed25519 | base64 -w0)" >> .env
+grep -q 'ATTRIBUTION_SIGNING_KEYS' docker-compose.yml ||
+  echo 'docker-compose.yml cũ: chép lại deploy/docker-compose.yml mới lên server trước' >&2
 docker compose up -d core
 ```
 
 `TRUST_PROXY=true` vì staging có host Nginx đứng trước (mục 3). Thiếu nó thì mọi request mang IP
 của Nginx, nên trần gọi chung và trần đăng nhập/đăng ký theo IP dồn vào **một xô**.
 
+`ATTRIBUTION_SIGNING_KEYS` trống thì `/attribution/*` trả `ATTRIBUTION_NOT_CONFIGURED`. Workflow
+deploy **không** đồng bộ `docker-compose.yml` (chỉ ghi `IMAGE` vào `.env` rồi `compose up`), nên
+compose trên server phải là bản có dòng `ATTRIBUTION_SIGNING_KEYS` — không thì biến nằm trong
+`.env` mà không vào container. Xoay khoá: thêm khoá mới lên ĐẦU danh sách (dấu phẩy), giữ khoá
+cũ ít nhất 14 ngày rồi mới bỏ — bỏ sớm là link đã phát chết.
+
 Chi tiết hậu quả từng biến, và lý do đừng đổi hai khoá sau khi đã có dữ liệu: xem
 [`PRODUCTION.md`](./PRODUCTION.md).
+
+### Biến điền tay trong `.env`
+
+| Biến | Đặt thế nào |
+| --- | --- |
+| `WEB_PUBLIC_BASE_URL` | Gốc **web công khai/landing** của môi trường (vd. `https://staging.<domain>`), **không bao giờ** là trang admin. Nó dựng link chia sẻ `/p/{shareCode}`, `/u/{username}`, `/invite/{code}`, `/a/{code}`, `/dl?t=`. Trống thì API trả link `null` |
+| `FCM_SERVICE_ACCOUNT_BASE64` | `base64 -w0 service-account.json` của dự án Firebase. Trống thì push fail-closed, thông báo trong app vẫn chạy |
+| `GLOBAL_RATE_LIMIT_PER_MINUTE` | Trần gọi chung theo IP, mặc định 600. Chỉ đổi khi đo được lý do |
+
+Toàn bộ biến: [`docs/CONFIG-INVENTORY.md`](../docs/CONFIG-INVENTORY.md) §1.
 
 Nếu script vừa in `SSH_PRIVATE_KEY`, dán toàn bộ private key (BEGIN/END) vào GitHub Environment
 `staging`. Không dán key vào chat. Sau khi đã lưu GitHub:

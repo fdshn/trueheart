@@ -5,18 +5,25 @@
 > khoảng giữa `selection_deadline` và `expires_at`, không có cột trạng thái riêng. Sơ đồ dưới
 > đã sửa theo.
 >
-> **Còn lại:** áp cơ chế cho `WANTED`. Đó không phải việc bật một cờ — truy vấn tìm bài tới
-> hạn không lọc `post_type` và lấy `post.author_id` làm **người tặng**, mà với `WANTED` tác
-> giả là người muốn NHẬN. Phải đảo vai ở auto-select và `acceptRequest` trước. Xem
-> [đặc tả](../plan/GIVE-RECEIVE-2026-10-07.md).
+> ✅ **`WANTED` cũng đã áp cơ chế** (11/10, migration `1799600000000`). Vai người tặng / người
+> nhận nay suy từ `giftTransactionRoles` ở auto-select và `acceptRequest`, nên bài `WANTED` cũng
+> có `selection_deadline` và vòng đời 37 ngày; bài `WANTED` đăng trước 11/10 giữ hạn ba tháng.
+> Xem [đặc tả](../plan/GIVE-RECEIVE-2026-10-07.md).
 
 Trạng thái: ✅ **hàng đợi, countdown và auto-select đã chạy** (25/09), và từ 28/09 thì vòng
 đời yêu cầu đã khép kín: yêu cầu treo được đóng, người xin xem được yêu cầu của mình, chủ bài
 được báo và từ chối được. Hai script kiểm trên Postgres thật: `npm run test:selection` và
 `npm run test:request-lifecycle`.
 
-**Bảy endpoint:** gửi, rút, xem danh sách của bài, **xem danh sách của TÔI**, duyệt,
-**từ chối**, và đổi điểm chốt ngay.
+**Mười một endpoint:** gửi, rút, xem danh sách của bài, **xem danh sách của TÔI**, xem một
+yêu cầu (`GET /requests/:requestId`), duyệt, **duyệt nhiều người** (`batch-accept`), **từ
+chối**, xem trước đổi điểm (`redemption-quote`), đổi điểm chốt ngay, và chủ động tặng cho bài
+Muốn Nhận (`POST /posts/:wantedPostId/offer-gift`). Danh sách route: [`API-ROUTES.md`](../API-ROUTES.md).
+
+> **Rao vặt không xin nhận được.** Mọi đường tạo yêu cầu / lượt trao mới cho bài `CLASSIFIED` bị
+> chặn (`ClassifiedTransactionNotSupportedException`, `shared/classified-guard.ts`) — trừ khi
+> Admin bật lại luồng cũ bằng `classified.legacy_transactions_enabled = 1`. Thiếu cấu hình là
+> chặn.
 
 ## 7.1 Hai chế độ, một đồng hồ chung
 
@@ -76,7 +83,7 @@ sequenceDiagram
     API->>DB: request → ACCEPTED
     API->>DB: Các request khác → STANDBY
     Note over DB: STANDBY chứ không REJECTED —<br/>huỷ lượt trao thì họ vẫn còn trong hàng đợi
-    API->>DB: Tạo gift_transaction (REQUESTED)
+    API->>DB: Tạo gift_transaction (ACCEPTED)
     API->>DB: Bài → RESERVED
 ```
 
@@ -102,7 +109,7 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> Mở: Bài PUBLISHED
-    Mở --> ĐangĐếm: Yêu cầu đầu tiên<br/>selection_deadline = now + 7 ngày
+    Mở --> ĐangĐếm: Ngay lúc đăng (CHỐT-10)<br/>selection_deadline = lúc đăng + 7 ngày
 
     state ĐangĐếm {
         [*] --> ChờThêmỨngViên

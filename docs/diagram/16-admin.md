@@ -12,7 +12,7 @@ erDiagram
     users ||--o{ admin_user_roles : "nhận"
 ```
 
-17 quyền hiện có:
+30 quyền đã seed (đếm theo các migration `INSERT INTO admin_permissions`):
 
 | Nhóm | Quyền |
 | --- | --- |
@@ -21,13 +21,19 @@ erDiagram
 | Quyền hạn | `admin.manage` |
 | Kiểm toán | `audit.read` |
 | Số liệu | `dashboard.read` |
+| Bảng thành tích | `leaderboard.read` · `leaderboard.moderate` |
 | Danh mục | `category.read` · `category.manage` |
 | Bài đăng | `post.read` · `post.moderate` |
 | Báo xấu | `report.read` · `report.resolve` |
-| Điểm | `point.adjust` |
+| Điểm | `point.read` · `point.adjust` |
 | Hạng | `rank.operate` |
 | Đặc quyền | `entitlement.read` · `entitlement.write` |
 | Thông báo | `notification.manage` |
+| Từ thiện / Campaign | `campaign.read` · `campaign.manage` |
+| Blog | `blog.read` · `blog.manage` |
+| Quảng cáo | `banner.read` · `banner.manage` |
+| Công đức | `merit.read` · `merit.manage` |
+| Dharma Hub | `dharma.read` · `dharma.manage` |
 
 > `admin.access` là quyền CỔNG VÀO chính CMS (`get-own-admin-access.use-case.ts`), tách khỏi mọi
 > quyền nghiệp vụ: thu hồi nó là đóng cửa mà không phải gỡ từng quyền một.
@@ -95,7 +101,6 @@ Các khoá cấu hình đang có — bảng đầy đủ ở [CONFIG-INVENTORY.m
 | `moderation.blocked_terms` | Danh sách từ ngữ cho bộ lọc bình luận |
 | `point.redemption` | Tỷ lệ quy đổi VNĐ/điểm |
 | `review.grace` | Hạn chờ đánh giá và mức mặc định |
-| `rank.points_source` | Cột điểm quyết định hạng — `BALANCE` hay `LIFETIME` |
 | `chat.retention` | Hạn lưu trữ lịch sử chat |
 | `notification.retention` | Hạn lưu trữ hộp thư |
 | `selection.candidate_priority` | Thứ tự tiêu chí chọn người nhận — **cố ý chưa seed**, xem dưới |
@@ -131,7 +136,8 @@ flowchart TD
         A1["GET /admin/users"]
         A2["PATCH /admin/users/:id/status"]
         A3["POST hoặc DELETE /admin/users/:id/roles"]
-        A4["GET /admin/roles"]
+        A4["GET, POST /admin/roles · PATCH /admin/roles/:roleCode<br/>GET /admin/permissions"]
+        A5["GET /admin/groups · dissolve · invite-link/rotate"]
     end
     subgraph Nội["Nội dung"]
         B1["GET /admin/posts"]
@@ -147,6 +153,9 @@ flowchart TD
         C5["GET, PUT /admin/candidate-selection"]
         C6["GET, PUT /admin/notification-templates/:type"]
         C7["GET, PUT /admin/notification-channels/:channel"]
+        C8["GET /admin/config/trust-thresholds<br/>PUT …/giver-accuracy · report-abuse · review-rating"]
+        C9["GET, PUT /admin/config/allocation-policy"]
+        C10["GET, PUT /admin/affiliate-policy"]
     end
     subgraph Vận["Vận hành"]
         D1["POST /admin/points/ledger/:id/reversal"]
@@ -156,6 +165,9 @@ flowchart TD
         D5["GET /admin/dashboard — số liệu F59"]
         D6["GET /admin/reports/reporters — ai báo bừa"]
         D7["GET /admin/chat/rooms/:id/messages<br/>DELETE /admin/chat/messages/:id"]
+        D8["GET /admin/transactions · PATCH …/:id/reopen"]
+        D9["GET /admin/affiliate-events · POST …/:eventId/reversal"]
+        D10["GET, POST /admin/media · /admin/media/upload"]
     end
 ```
 
@@ -195,7 +207,9 @@ flowchart LR
    duyệt.
    Ghi chú: hàng đợi bình luận trước 29/09 luôn rỗng, không phải vì không ai viết bậy mà vì bộ
    lọc chưa có từ nào — xem §16.3.
-4. Bốn vai trò đã seed: `SUPER_ADMIN`, `MODERATOR`, `POLICY_ADMIN`, `AUDITOR`. Vai cho vận hành
+4. Năm vai trò dựng sẵn: `SUPER_ADMIN`, `MODERATOR`, `POLICY_ADMIN`, `AUDITOR`, `CAMPAIGN_MANAGER`.
+   Ngoài ra Admin tạo được vai trò tuỳ biến qua `POST /admin/roles` và sửa bộ quyền của nó qua
+   `PATCH /admin/roles/:roleCode` (`admin.manage`; danh mục quyền ở `GET /admin/permissions`). Vai cho vận hành
    Group (`GROUP_ADMIN` / `SUBTEAM_ADMIN`) là **hệ riêng, không dùng bảng này** — xem
    [18-group](./18-group.md).
 5. ⚠️ **Danh sách từ ngữ là bản KHỞI TẠO, cần Bên A soát.** 41 mục seed ở migration

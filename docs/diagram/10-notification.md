@@ -17,15 +17,17 @@ flowchart TD
         E2[Hạng: sắp tụt / đã tụt]
         E3[Lời nhắc theo lịch: đánh giá, nhiệm vụ duy trì]
         E4[Báo xấu: kết luận cho hai bên]
+        E5["Từ thiện: đề nghị / kết quả / giao nhận"]
+        E6[Bảng thành tích: huy hiệu tháng]
         D[Chat: sắp bị dọn]
     end
 
-    A & B & C & D & E2 & E3 & E4 --> E["IDispatchNotificationUseCase"]
-    E --> F{Có idempotency_key?}
+    A & B & C & D & E2 & E3 & E4 & E5 & E6 --> E["IDispatchNotificationUseCase"]
+    E --> I["Render nội dung từ MẪU Admin sửa được<br/>+ phân giải đích target_type / target_id"]
+    I --> F{Có idempotency_key?}
     F -->|Trùng| G[ON CONFLICT DO NOTHING<br/>trả created = false]
-    F -->|Mới| H[INSERT notifications]
-    H --> I[Render nội dung từ MẪU Admin sửa được]
-    I --> J[IPushSender]
+    F -->|Mới| H[INSERT notifications<br/>ĐÚNG chữ vừa render]
+    H --> J["IPushSender — đẩy cùng tiêu đề / nội dung"]
     J --> K{canSend?}
     K -->|Có| L["✅ FcmPushSender → FCM HTTP v1<br/>tự ký JWT RS256, bỏ token chết"]
     K -->|Không| M["🟡 LoggingPushSender<br/>production fail-closed"]
@@ -37,7 +39,14 @@ flowchart TD
     style N fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
-## 10.2 Hai mươi sáu loại, chia tám nhóm
+> **Đích điều hướng (deep link).** Mỗi thông báo mang `target_type` / `target_id` —
+> `POST`, `GIFT_TRANSACTION`, `CHAT_ROOM`, `CHARITY_CAMPAIGN`, `DHARMA_THREAD`, và ba màn "của tôi"
+> `RANK`, `REFERRAL`, `LEADERBOARD` (khi đó `target_id` luôn `null`). Không truyền đích thì suy
+> từ `referenceType`/`referenceId` nếu đó tự là một màn; đích không hợp lệ với loại thông báo thì
+> bỏ đích (log cảnh báo), không ném. Payload push mang `type`, `referenceType`, `referenceId`,
+> `targetType`, `targetId`, cộng dữ liệu riêng từng loại (vd. `roomType` của `NEW_CHAT_MESSAGE`).
+
+## 10.2 Ba mươi mốt loại, chia tám nhóm
 
 Nhóm là thứ người dùng tắt/bật được (§10.5). Mọi loại dưới đây đều **thật sự được gửi** —
 không còn loại nào khai mà nằm im.
@@ -76,6 +85,11 @@ không còn loại nào khai mà nằm im.
 | `REFERRAL_QUALIFIED` | POINT | Người được giới thiệu đủ điều kiện, điểm vào sổ | `REFERRAL_QUALIFIED:<userId>` |
 | `LUNAR_OBSERVANCE` | EVENT | Rằm, mùng một, đại lễ — qua `notify:lunar` | theo ngày ÂM lịch |
 | `SYSTEM_BROADCAST` | EVENT | Admin gửi thông báo diện rộng (F47) | theo broadcast + người |
+| `CHARITY_CONTRIBUTION_SUBMITTED` | STATUS | Người tổ chức: có đề nghị đóng góp mới cần xét | `CHARITY_CONTRIBUTION_SUBMITTED:<contributionId>` |
+| `CHARITY_CONTRIBUTION_DECIDED` | STATUS | Người tặng: kết quả xét đề nghị (đủ / một phần / không nhận) | `CHARITY_CONTRIBUTION_DECIDED:<contributionId>` |
+| `CHARITY_DELIVERY_COMPLETED` | STATUS | Người tặng: người tổ chức xác nhận đã nhận vật phẩm | `CHARITY_DELIVERY_COMPLETED:<deliveryId>` |
+| `CHARITY_DELIVERY_CANCELLED` | STATUS | Bên kia của lượt giao nhận bị huỷ | `CHARITY_DELIVERY_CANCELLED:<deliveryId>` |
+| `LEADERBOARD_BADGE_AWARDED` | REWARD | Lọt top bảng thành tích tháng | `LEADERBOARD_BADGE:<board>:<tháng>:<userId>` |
 
 > `notifications.idempotency_key` có UNIQUE. Cùng một sự kiện chạy lại bao nhiêu lần cũng chỉ
 > ra một thông báo — quan trọng vì job nền và retry mạng đều có thể gọi lại.
@@ -121,7 +135,7 @@ flowchart TD
     style D fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
 
-> **Nhóm chứ không phải từng loại.** Hai mươi sáu công tắc là một màn hình không ai đọc, và
+> **Nhóm chứ không phải từng loại.** Ba mươi mốt công tắc là một màn hình không ai đọc, và
 > người đang bị làm phiền cần tắt nhanh chứ không cần chính xác.
 >
 > Bên A chốt **tám** nhóm ngày 11/10 theo `BR-NOTI-01`, thay cho bốn. Tám vẫn còn đọc được một

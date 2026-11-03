@@ -2,7 +2,7 @@
 
 Trạng thái: ✅ **đã hiện thực đầy đủ**, trừ kênh gửi OTP qua SMS/Zalo.
 
-Chín endpoint:
+Mười endpoint:
 
 | Endpoint | Việc | Cần token |
 | --- | --- | --- |
@@ -10,7 +10,7 @@ Chín endpoint:
 | `POST /auth/login` | Đăng nhập | — |
 | `POST /auth/refresh` | Làm mới phiên | — |
 | `POST /auth/logout` | Đăng xuất một thiết bị | ✅ |
-| `POST /auth/password-reset/request` · `/confirm` | Quên mật khẩu | — |
+| `POST /auth/password-reset/request` · `/verify-otp` · `/confirm` | Quên mật khẩu | — |
 | `PATCH /auth/password` | **Đổi mật khẩu khi đang đăng nhập** | ✅ |
 | `DELETE /auth/account` | Xoá tài khoản | ✅ |
 | `GET /auth/me` | Danh tính của phiên hiện tại | ✅ |
@@ -48,10 +48,11 @@ sequenceDiagram
                 alt Có
                     API->>DB: INSERT group_memberships (MEMBER)
                 else Không — mã sai hoặc nhóm đã giải tán
-                    Note over API: BỎ QUA, không ném.<br/>Tài khoản đã tạo xong rồi.
+                    API->>DB: ROLLBACK — tài khoản KHÔNG được tạo
+                    API-->>U: 400 GROUP_INVITE_INVALID
                 end
             end
-            API->>R: Lưu refresh token
+            API->>DB: Lưu refresh token (user_sessions)
             API-->>U: accessToken + refreshToken + hồ sơ
         end
     end
@@ -95,7 +96,7 @@ sequenceDiagram
         API-->>U: 403 USER_SUSPENDED (kèm ngày hết treo) hoặc USER_BANNED
     else Đúng
         API->>DB: SessionIssuer đặt mốc last_active_at
-        API->>R: Lưu refresh token (có TTL), thu hồi phiên cũ CÙNG thiết bị
+        API->>DB: Lưu refresh token vào user_sessions, thu hồi phiên cũ CÙNG thiết bị
         API-->>U: accessToken (15 phút) + refreshToken (30 ngày)
     end
     end
@@ -221,8 +222,13 @@ sequenceDiagram
     end
     API-->>U: 200 — channel EMAIL / SMS / ADMIN_SUPPORT
 
-    U->>API: POST /auth/password-reset/confirm { identifier, otp, newPassword }
+    U->>API: POST /auth/password-reset/verify-otp { identifier, otp }
     API->>R: Đối chiếu OTP + purpose + số lần nhập sai
+    API->>R: Lưu resetToken dùng một lần (TTL 15 phút)
+    API-->>U: resetToken
+
+    U->>API: POST /auth/password-reset/confirm { resetToken, newPassword }<br/>(hoặc { identifier, otp, newPassword })
+    API->>R: Đối chiếu resetToken (xoá ngay) hoặc OTP
     alt Sai / hết hạn / quá 5 lần
         API-->>U: 400 — mã bị huỷ, phải xin mã mới
     else Đúng

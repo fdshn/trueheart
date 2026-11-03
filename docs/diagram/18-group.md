@@ -10,20 +10,24 @@ tác dụng**, đổi vai **âm thầm gỡ người khỏi tổ**, thành viên
 băng vĩnh viễn**, và ba endpoint nhóm **chưa hề được validate** vì thiếu decorator ở khoá bọc
 body.
 
-Mười hai endpoint nhóm: `POST /groups`, `GET /groups/me`, `GET|PATCH /groups/:groupId`,
-`GET /groups/:groupId/activities`, `GET /groups/:groupId/invite`,
+Mười bốn endpoint nhóm: `POST /groups`, `GET /groups/me`, `GET|PATCH /groups/:groupId`,
+`GET /groups/:groupId/activities`, `GET /groups/:groupId/invite` · `/invite-link`,
+`GET /groups/invites/:inviteCode` (công khai — xem trước nhóm theo mã mời),
 `GET /groups/:groupId/affiliate`, `GET /groups/:groupId/members`,
 `GET|POST /groups/:groupId/sub-teams`, `DELETE /groups/:groupId/sub-teams/:subTeamId`,
 `PATCH /groups/:groupId/members/:memberId` — chi tiết ở
 [API.md §11](../API.md#11-nhóm--groups).
 
-Và bốn endpoint Admin: `GET|PUT /admin/groups/role-permissions[/:role]` cho bộ quyền vai,
-`GET|PUT /admin/groups/radius-policy` cho thang bán kính.
+Và chín endpoint Admin: `GET|PUT /admin/groups/role-permissions[/:role]` cho bộ quyền vai,
+`GET|PUT /admin/groups/radius-policy` cho thang bán kính, `GET /admin/groups[/:groupId[/members]]`
+để tra cứu, `POST /admin/groups/:groupId/dissolve` và `/invite-link/rotate`. Danh sách đầy đủ ở
+[API-ROUTES.md](../API-ROUTES.md).
 
 ✅ **Mười trên mười quyền nhóm nay có người kiểm** — không còn mã nào seed mà không ai đọc.
 
-⛔ **Còn thiếu (Sprint 3, cần Bên A chốt):** affiliate event engine (F56) và điều kiện địa lý
-bắt buộc (F57) — xem [`19-affiliate.md`](./19-affiliate.md).
+✅ **Affiliate event engine (F56) và điều kiện địa lý (F57) đã có** — migration
+`1797400000000-CreateAffiliateEngine`, sự kiện ghi qua `recordEvent` từ repository bài đăng và
+giao dịch; xem [`19-affiliate.md`](./19-affiliate.md).
 
 ## 18.1 Tạo Group — ✅
 
@@ -242,7 +246,8 @@ flowchart TD
 1. ⚠️ **Trưởng nhóm là mở rộng ngoài SRS** — cần Bên A biết.
 2. **Bộ quyền khởi tạo cho `SUBTEAM_ADMIN`** mới là đề xuất, chưa ai duyệt — nhưng nay Bên A
    sửa được mà không cần deploy, xem §18.4. Bộ hiện tại là `group.subteam.member.view` +
-   `group.subteam.activity.view`, trong đó cái thứ hai còn là NỢ (chưa có endpoint hoạt động).
+   `group.subteam.activity.view` (cả hai đều có code kiểm — quyền thứ hai mở `GET /groups/:id/activities`
+   theo phạm vi tổ) và `group.overview.view` (thêm sau, migration `1796300000000`).
 3. ✅ **`SUBTEAM_ADMIN` nay xem được thành viên tổ mình** (30/09). Thực trạng trước đó nặng hơn
    câu cũ ở đây: **cả hai** quyền của vai này đều không dòng code nào đọc, nên phong vai đó cho
    ai cũng **không đổi một thứ gì**. Bảy trong mười quyền nhóm ở tình trạng đó, kể cả
@@ -299,10 +304,6 @@ flowchart TD
    ⚠️ Cột có `CHK_groups_radius CHECK (radius_km BETWEEN 1 AND 50)`, nên cấu hình **không nới
    rộng quá 50 km được**. Đường Admin từ chối thẳng giá trị ngoài khoảng, và
    `resolveGroupRadiusKm` còn kẹp một lần nữa — nới thật thì phải sửa CHECK trong một migration.
-
-   ⚠️ Cột có `CHK_groups_radius CHECK (radius_km BETWEEN 1 AND 50)`, nên cấu hình **không nới
-   rộng quá 50 km được**. Đường Admin từ chối thẳng giá trị ngoài khoảng, và
-   `resolveGroupRadiusKm` còn kẹp một lần nữa — nới thật thì phải sửa CHECK trong một migration.
 6. ✅ **Người bị `BANNED`: không cần làm gì trên membership** (trả lời 30/09). Ban một người là
    `users.status = BANNED`, và đường đó đã thu hồi **toàn bộ** phiên của họ
    (`revokeEverything`), trong khi `login` và `refresh` đều chặn `BANNED`. Họ không gọi được
@@ -342,13 +343,14 @@ flowchart TD
    | `GET /groups/:id/affiliate` | `group.affiliate.view` | **điều kiện**, không phải điểm đã chia |
    | `PATCH /groups/:id` | `group.settings.manage` | tên, mô tả, ảnh — **không** tâm và bán kính |
 
-   `GET /groups/:id/affiliate` trả `rewardEngineReady: false` và ba con số riêng: bao nhiêu người
+   `GET /groups/:id/affiliate` trả `rewardEngineReady` — `true` khi chính sách affiliate đang
+   hiệu lực có `enabled: true` (`PUT /admin/affiliate-policy`) — và ba con số riêng: bao nhiêu người
    đang hoạt động, bao nhiêu trong vùng, bao nhiêu thoả CẢ HAI. Ba số tách riêng vì chúng trả lời
    ba câu khác nhau khi Owner hỏi *"sao nhóm tôi ít người đủ điều kiện"*. Và cờ `false` thay cho
-   việc im lặng trả 0 điểm — Owner sẽ tưởng nhóm mình chưa làm được gì, trong khi chưa có gì chia.
+   việc im lặng trả 0 điểm khi chính sách chưa bật — Owner sẽ tưởng nhóm mình chưa làm được gì,
+   trong khi chưa có gì chia.
 
-   Endpoint này cũng là chỗ đọc `affiliate.active_member_window_days`, khoá vốn nằm im vì bộ máy
-   chia thưởng chưa có. Nó đọc `users.status` và `users.last_active_at` TRỰC TIẾP, không qua cột
+   Endpoint này cũng là chỗ đọc `affiliate.active_member_window_days`. Nó đọc `users.status` và `users.last_active_at` TRỰC TIẾP, không qua cột
    cờ nào: một job quét rồi ghi `is_active` sẽ tạo con số thứ hai nói về cùng một sự thật, và
    người mở app hôm qua vẫn mang cờ `false` từ lần job chạy tuần trước rồi mất phần chia.
 

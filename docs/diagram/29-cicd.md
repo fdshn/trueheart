@@ -4,29 +4,49 @@ Trạng thái: ✅ **pipeline đã chạy**. 🟡 Một số điều kiện prod
 
 ## 29.1 Pipeline CI
 
+`ci.yaml` có **ba job** chạy song song trên mỗi push / PR:
+
 ```mermaid
 flowchart LR
-    A[Push / PR] --> B[Cài đặt dependency]
-    B --> C[Lint]
-    C --> D[Kiểm tra định dạng]
-    D --> E[Build toàn bộ package]
-    E --> F[Unit test — 844 test]
-    F --> G["Bảng tra mã lỗi còn khớp mã nguồn"]
-    G --> H["Xác nhận build không làm bẩn working tree"]
+    subgraph V["verify — lint, build, unit test"]
+        V1[npm ci] --> V2["lint:check · format:check"]
+        V2 --> V3[Build toàn bộ package]
+        V3 --> V4["typecheck:checks<br/>script test/*.check.ts"]
+        V4 --> V5[Unit test]
+        V5 --> V6["smoke-cli.spec.sh<br/>hợp đồng chạy qua stdin"]
+        V6 --> V7["docs:errors:check<br/>bảng mã lỗi khớp nguồn"]
+        V7 --> V8["docs:routes:check<br/>API-ROUTES.md khớp controller"]
+        V8 --> V9["git diff --exit-code<br/>build không làm bẩn working tree"]
+    end
 
-    I[Job thứ hai] --> J[Khởi động MinIO]
-    J --> K[Chạy migration]
-    K --> L["Xác nhận schema do migration dựng<br/>khớp với entity"]
+    subgraph I["integration — PostGIS + Redis + MinIO thật"]
+        I1[Build · MinIO] --> I2["migration:run trên database trắng<br/>+ kiểm postgis & bảng migrations"]
+        I2 --> I3["migration:backfill-check"]
+        I3 --> I4["test:config-inventory"]
+        I4 --> I5["smoke-cli.sh — chạy THẬT 15 CLI"]
+        I5 --> I6["smoke-docs-policy · test:returning<br/>test:lifecycle · test:concurrency"]
+        I6 --> I7["MỌI script test:* còn lại<br/>danh sách tự lấy từ package.json"]
+        I7 --> I8["test-cron-alert.sh"]
+        I8 --> I9["seed demo → khởi động service<br/>→ test:chat-e2e → smoke-test.sh"]
+    end
 
-    style G fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
-    style L fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
+    subgraph D["docker — Dockerfile và image"]
+        D1["nginx -t thật"] --> D2["Dockerfile khớp cây dependency"]
+        D2 --> D3["Build image → chạy ở production<br/>tự migrate → /health"]
+        D3 --> D4["smoke-test.sh --read-only"]
+    end
+
+    style V8 fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
+    style I5 fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
 ```
 
 > **Vì sao có bước "build không làm bẩn working tree".** Nếu build sinh ra file mà không ai
 > commit, thì máy CI và máy lập trình viên đang chạy hai thứ khác nhau — và không ai biết.
 >
-> **Vì sao xác nhận schema khớp entity.** Sửa entity mà quên viết migration là lỗi im lặng:
-> local chạy được vì `synchronize` đã dựng cột, production thì không có cột đó.
+> **Vì sao migration chạy trên database TRẮNG.** Không tạo extension bằng tay: migration đầu
+> tiên phải tự dựng được postgis/unaccent/pg_trgm, nên bước này đồng thời là phép kiểm migration
+> đủ sức dựng schema từ số không. `backfill-check` thì dựng database nháp riêng có dữ liệu cũ để
+> câu backfill thật sự gặp dữ liệu.
 
 ## 29.2 Triển khai
 
@@ -37,7 +57,9 @@ sequenceDiagram
     participant GH as GitHub Actions
     participant V as VPS
 
-    D->>GH: Chạy deploy, chọn environment
+    D->>GH: Push main → staging · tag v* → production<br/>(hoặc workflow_dispatch chọn môi trường)
+    GH->>GH: release.yaml build + đẩy image lên GHCR
+    GH->>GH: gọi deploy.yaml (workflow_call)
     GH->>GH: Môi trường đã bật chưa?
     GH->>GH: Credential của môi trường có đủ?
     GH->>GH: Nạp khoá SSH
@@ -77,9 +99,9 @@ flowchart TB
 
 | Workflow | Làm gì |
 | --- | --- |
-| `ci.yaml` | Lint, format, build, test, **typecheck script kiểm**, migration, schema drift |
-| `deploy.yaml` | Triển khai có cổng kiểm tra và rollback |
-| `release.yaml` | Đóng gói bản phát hành |
+| `ci.yaml` | Ba job `verify` · `integration` · `docker` — xem §29.1 |
+| `deploy.yaml` | Workflow dùng lại (`workflow_call`): triển khai có cổng kiểm tra và rollback |
+| `release.yaml` | Build và đẩy image lên GHCR rồi **tự gọi** `deploy.yaml`: push `main` → staging, tag `v*` → production; `workflow_dispatch` chọn tay môi trường |
 | `codeql.yaml` | Quét bảo mật mã nguồn |
 | `security-audit.yaml` | Quét lỗ hổng dependency |
 | `mirror-images.yaml` | Sao ảnh hạ tầng của bên thứ ba về GHCR của chính repo. **Chạy tay**, cố ý không theo lịch — mirror là để ĐÓNG BĂNG một bản đã kiểm, không phải để lặng lẽ kéo bản mới về |
@@ -108,18 +130,15 @@ flowchart TD
     A --> E["⛔ SMS/Zalo adapter"]
     A --> F["⛔ R2 bucket/key/CORS/CDN"]
     A --> G["⛔ Backup RESTORE test"]
-    A --> H["⛔ Global rate limit"]
-    A --> I["⛔ Monitoring / alerting"]
-    A --> J["⛔ Chặn xoá tài khoản khi còn lượt trao"]
+    A --> H["✅ Global rate limit<br/>GlobalRateLimitGuard 600/phút theo IP"]
+    A --> I["✅ Monitoring / alerting<br/>send-alert · nhịp tim · check-health"]
+    A --> J["✅ Chặn xoá tài khoản khi còn lượt trao"]
     A --> K["⛔ Ledger cho MỌI đường cộng điểm"]
-    A --> L["✅ Lịch cron cho 12 CLI<br/>+ cảnh báo job đỏ"]
+    A --> L["✅ Lịch cron cho 15 CLI<br/>+ cảnh báo job đỏ"]
 
     style E fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
     style F fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
     style G fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
-    style H fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
-    style I fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
-    style J fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
     style K fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
 ```
 
@@ -151,7 +170,7 @@ flowchart TD
    `scripts/test-cron-alert.sh` canh cả bốn hành vi đó.
 3. ⛔ **Restore test chưa từng chạy.**
 4. ✅ **Đã đủ sâu 30/09.** Cổng nay có hai phần: `smoke-test.sh --read-only` qua HTTP, và tự
-   kiểm cây DI của cả 12 CLI trên host qua SSH.
+   kiểm cây DI của cả 15 CLI trên host qua SSH.
 
    Chốt cách chạy: **qua SSH trên host**, không ở runner — mã sống trong container ở đó, và
    `docker compose exec` cần chính máy đó. Script đẩy qua stdin nên không cần checkout trên host;

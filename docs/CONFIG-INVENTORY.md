@@ -85,19 +85,9 @@ Không phải biến môi trường — Admin sửa lúc chạy, có đánh phi�
 | `rating.display` | — | Số mẫu tối thiểu trước khi công bố điểm sao 1–5 |
 | `selection.candidate_priority` | ai xin trước | Thứ tự tiêu chí auto-select |
 | `notification.retention` | 90 ngày | Bao lâu thì dọn thông báo cũ khỏi hộp thư |
-| **`rank.points_source`** | `BALANCE` | **Xét hạng đọc cột điểm nào** |
-
-> **`rank.points_source` là quyết định sản phẩm, không phải kỹ thuật** — và nó đã bị đổi qua lại
-> một lần (24/09), nên nay đưa ra cấu hình thay vì chốt cứng trong mã.
->
-> - `BALANCE` — điểm **tiêu được**, kẹp ở 0. Tiêu điểm đổi vật phẩm làm tụt hạng, và khoản phạt
->   `SHIP_UNPAID_PENALTY` (−50) cũng làm tụt hạng. Thứ hạng là "đang giữ bao nhiêu".
-> - `LIFETIME` — điểm **tích luỹ**, chỉ tăng. Thứ hạng là bằng ghi nhận đã đóng góp, và không ai
->   mất hạng vì đã tiêu điểm mình kiếm được.
->
-> Mặc định `BALANCE` giữ **nguyên** hành vi đang chạy: một cấu hình mới không được lặng lẽ đổi
-> thứ hạng của tất cả mọi người ngay lúc deploy. Giá trị lạ thì lùi về mặc định chứ không ném —
-> một dòng cấu hình gõ sai không được làm chết cả vòng xét hạng.
+| `chat.direct_user_daily_limit` | 20 | Số phòng chat trực tiếp MỚI một người mở được trong 24 giờ. `0` = không ai mở được phòng mới (tắt khẩn khi bị spam) |
+| `leaderboard.*` | bật, ngưỡng 1/1/10 ngày, huy hiệu top 3 · 3 tháng | Bảng thành tích tháng — xem [§2.1](#21-system_configs--ghi-theo-copy-on-write) |
+| ~~`rank.points_source`~~ | *(ĐÃ XOÁ 02/10, migration `1797200000000`)* | Hạng chốt cứng theo **số dư** (BALANCE) — tiêu điểm và khoản phạt làm tụt hạng. Nhánh LIFETIME trái `BR-POINT-06`/`BR-PROF-RANK-06` của SRS, và khoá này chưa từng nằm trong `SupportedSystemConfigKeys` nên chỉ đổi được bằng SQL tay, không để lại audit |
 
 ### 1.3 Có mặc định hợp lý, chỉ đổi khi cần
 
@@ -113,7 +103,13 @@ Không phải biến môi trường — Admin sửa lúc chạy, có đánh phi�
 | `BCRYPT_ROUNDS` | 12 | Tăng là chậm đăng nhập, giảm là dễ dò mật khẩu |
 | `MAX_LOGIN_ATTEMPTS` · `LOGIN_LOCK_SECONDS` | 5 · 900 | Chống dò mật khẩu |
 | `GEO_JITTER_RADIUS_METERS` | — | Bán kính làm nhiễu toạ độ công khai |
-| `API_SERVERS` · `WEB_PUBLIC_BASE_URL` | — | Dựng link trong email, Swagger |
+| `API_SERVERS` | *(trống)* | Ô "Servers" của Swagger, dạng `Nhãn=url` ngăn bằng dấu phẩy; mục đầu là mặc định. Trống thì chỉ có instance đang mở |
+| `WEB_PUBLIC_BASE_URL` | *(trống)* | Gốc **web công khai** (landing, không phải trang admin) để dựng link chia sẻ: `/p/{shareCode}`, `/posts/{id}`, `/u/{username}`, `/invite/{code}`, `/a/{code}`, `/dl?t=`. Trống thì API trả `shareUrl`/link `null` |
+| `ATTRIBUTION_SIGNING_KEYS` | *(trống)* | Khoá Ed25519 ký token link giới thiệu, `kid:base64(PEM)` ngăn bằng dấu phẩy, khoá ĐẦU dùng để ký. Trống thì `/attribution/*` trả `ATTRIBUTION_NOT_CONFIGURED`. Xoay khoá: thêm khoá mới lên đầu, giữ khoá cũ ít nhất 14 ngày |
+| `FCM_SERVICE_ACCOUNT_BASE64` | *(trống)* | Service account Firebase, `base64 -w0`. Trống thì push fail-closed; thông báo trong app vẫn chạy |
+| `GLOBAL_RATE_LIMIT_PER_MINUTE` | 600 | Trần gọi chung mọi endpoint theo IP mỗi phút. Kẹp 60–100.000 |
+| `TRUST_PROXY` | `false` | Đặt `true` khi có Nginx đứng trước, nếu không mọi trần theo IP dồn vào IP của proxy. Bật khi KHÔNG có proxy thì ai cũng tự khai `X-Forwarded-For` |
+| `LOG_LEVEL` | `debug` ở dev · `info` ở production | `fatal`·`error`·`warn`·`info`·`debug`·`trace`. Smoke test cần `debug` để đọc OTP từ log |
 | `ADMIN_BOOTSTRAP_USERNAMES` | — | Gán `SUPER_ADMIN` lần đầu; sau đó quản trị bằng RBAC |
 
 > ⚠️ **`GEO_JITTER_RADIUS_METERS` là hằng cho cả nước.** Ở nông thôn, bán kính đủ cho thành
@@ -153,7 +149,6 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | `report.abuse` | `minSamples: 5`, `dismissedRatioPercent: 80` | Ngưỡng đưa người báo xấu vào diện Admin xem xét. Tính SỐNG từ bảng `reports` nên đổi ngưỡng có hiệu lực ngay, không cần job đối soát | `GET\|POST /admin/system-configs` |
 | `moderation.blocked_terms` | **66 mục** (66 sau chuẩn hoá) | Danh sách từ ngữ cho bộ lọc bình luận. Trước 29/09 khoá này không có dòng nào nên `screenText` trả ALLOW cho mọi nội dung và cả nhánh kiểm duyệt bình luận nằm im. Soát lại 30/09 bằng corpus: bỏ 4 mục bắt nhầm câu vô hại (`con chó` ở mức BLOCK chặn cả người cho đồ thú nuôi, `súng` khớp trong "sung túc", `giá rẻ` khớp câu người tặng hay viết, `súc vật` khớp "thức ăn cho súc vật"), bỏ 3 mục trùng sau chuẩn hoá, hạ `cút đi`/`im đi` xuống REVIEW, thêm 28 mục. `test:config-inventory` chạy corpus trên danh sách ĐANG NẰM trong database: 0 dương tính giả, 0 mục chết, 0 câu xấu lọt lưới | `GET\|POST /admin/system-configs` |
 | `chat.retention` | `value: 1`, `unit: WEEK` | Hạn lưu trữ lịch sử chat. Mốc xoá CHỐT theo cấu hình lúc phòng khoá | `GET\|POST /admin/system-configs` |
-| `rank.points_source` | `source: BALANCE` | Cột điểm quyết định hạng. BALANCE = tiêu điểm làm tụt hạng (chốt 24/09); LIFETIME = hạng là bằng ghi nhận đã đóng góp | `GET\|POST /admin/system-configs` |
 | `notification.retention` | `retentionDays: 90` | Hạn lưu trữ hộp thư | `GET\|POST /admin/system-configs` |
 | `selection.candidate_priority` | *(cố ý CHƯA seed)* | Thứ tự tiêu chí chọn người nhận. Không seed vì `isConfigured` tính bằng "có dòng hay không" — seed mặc định vào là nói với Admin rằng đã có người đặt, trong khi chưa ai đặt | `GET\|PUT /admin/candidate-selection` |
 | `group.default_radius_meters` · `min` · `max` | `10000` · `1000` · `50000` | Bán kính vùng nhóm, đơn vị MÉT. Khoá mặc định dùng khi bậc người tạo chưa có số riêng; `min`/`max` kẹp mọi giá trị. Tới 30/09 cả ba chỉ nằm trong allowlist mà **không ai đọc** — Admin sửa được và không gì thay đổi. Cột `groups.radius_km` có `CHECK (1..50)` nên đường ghi từ chối giá trị ngoài 1000–50000 | `GET\|POST /admin/system-configs` |
@@ -166,6 +161,9 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | `point.value_bonus_max_value_vnd` | `2000000` (INTEGER) | Trần giá trị dùng để tính `value_bonus` (CHỐT-14, 07/10). **Đây là van an toàn của một lỗ in điểm, không phải con số chính sách.** CHỐT-14 đưa giá người TỰ KHAI vào công thức tính điểm; không trần thì 1.000.000.000đ (`MaxClassifiedPrice`) chia tỷ lệ 2.000 ra **500.000 điểm** — 279 lần ngưỡng Kim Cương (1.792). Và không cần khai trần: 5.000.000đ cho một laptop cũ đã ra 2.500 điểm, tức vượt Kim Cương bằng MỘT giao dịch. `value_bonus` buộc đi qua `appendAdjustment` vì mức cơ sở của nó động, và đường đó **không kiểm trần ngày nào**, nên khoá này là van duy nhất. Mặc định cho tối đa 1.000 điểm một lượt. Kẹp 0–1.000.000.000; `0` nghĩa TẮT hẳn. INTEGER chứ không JSON vì API ghi chỉ nhận INTEGER — một van chỉ xoay được bằng SQL tay thì không ai dám xoay khi cần. Đọc bởi CLI `gift:settle-rewards` | `GET\|POST /admin/system-configs` |
 | `selection.candidate_priority` | *(chưa đặt → mặc định "ai xin trước")* | Thứ tự tiêu chí chọn người nhận (CH-1). **Đã nối vào auto-select** 25/09 | `GET\|PUT /admin/candidate-selection` |
 | `classified.legacy_transactions_enabled` | `0` (INTEGER, `0`/`1`) | Rao vặt chỉ đăng tin và liên hệ (PR #46 §8, 25/10). `0`: bài `CLASSIFIED` không nhận yêu cầu xin nhận, không duyệt yêu cầu tồn cũ thành lượt trao, và job tự chọn bỏ qua Rao vặt. `1`: bật lại luồng cũ. **Thiếu dòng cũng tính là tắt** — công tắc an toàn phải đóng khi không ai đặt | `GET\|POST /admin/system-configs` |
+| `chat.direct_user_daily_limit` | `20` (INTEGER) | Số phòng chat trực tiếp `DIRECT_USER` MỚI một người mở được trong 24 giờ (30/10). `20` là số giữ chỗ chống spam, không phải chính sách đã chốt. Kẹp 0–10.000; `0` = tắt mở phòng mới | `GET\|POST /admin/system-configs` |
+| `leaderboard.enabled` · `min_givers` · `min_charity` · `min_consistency_days` · `badge_ranks` · `badge_months` | `1` · `1` · `1` · `10` · `3` · `3` (INTEGER) | Bảng thành tích tháng (24/10). `enabled` là 0/1; ba khoá `min_*` là sàn để một hạng mục được công bố; `badge_ranks` = top mấy được huy hiệu, `badge_months` = huy hiệu giữ bao nhiêu tháng. Kẹp: `min_consistency_days` 1–31, `badge_ranks` từ 0, các khoá còn lại từ 1 | `GET\|POST /admin/system-configs` |
+| `referral.review_min_qualified` · `review_min_device_clusters` · `review_min_cluster_size` | `5` · `0` · `0` | Ngưỡng đưa người mời vào diện xem xét vì dấu vết đăng ký trùng (23 §23.7). `0` ở hai khoá cụm = TẮT có chủ đích, chờ Bên A chọn ngưỡng theo phân bố thật; `GET /admin/referrals/review` trả kèm `threshold` | `GET\|POST /admin/system-configs` |
 
 **Vì sao các con số này có giá trị đó:**
 

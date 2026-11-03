@@ -2,8 +2,10 @@
 
 Trạng thái: ✅ **đã hiện thực** (MinIO ở local/CI). 🟡 R2 staging/production chưa dựng.
 
-Năm đường tải đi chung một khuôn, mỗi loại một hạn mức riêng (`MediaSizeLimits`, hiện đều
-5 MB). Script kiểm trên MinIO thật: `npm run test:media-policy`.
+Các đường tải đi chung một khuôn, mỗi loại một hạn mức riêng (`MediaSizeLimits`): ảnh 5 MB
+(avatar, ảnh bài, chat, bình luận, bằng chứng, thư viện CMS), video bài đăng / hoạt động từ
+thiện 25 MB, clip giới thiệu hồ sơ 50 MB, ảnh bìa clip 2 MB. Script kiểm trên MinIO thật:
+`npm run test:media-policy`.
 
 ## 3.1 Vì sao không upload thẳng qua API
 
@@ -82,7 +84,7 @@ sequenceDiagram
 > lời khai, không phải bằng chứng. Không kiểm thì một người gửi key trỏ vào object của người
 > khác là gắn được ảnh của họ vào bài mình.
 
-## 3.3 Năm nơi dùng cùng một khuôn
+## 3.3 Những nơi dùng cùng một khuôn
 
 ```mermaid
 flowchart TD
@@ -91,7 +93,13 @@ flowchart TD
     M --> C["POST /chat/rooms/:roomId/message-media/upload-url<br/>Ảnh trong chat ✅"]
     M --> D["POST /posts/:subjectId/comment-media/upload-url<br/>Ảnh bình luận ✅"]
     M --> E["POST /transactions/:transactionId/evidence/upload-url<br/>Ảnh bằng chứng bàn giao ✅"]
+    M --> F["POST /profile/me/intro-video/upload-url<br/>Clip giới thiệu + ảnh bìa ✅"]
+    M --> G["POST /admin/media/upload → POST /admin/media<br/>Thư viện ảnh CMS ✅"]
+    M --> H["POST /charity-campaigns/media/upload<br/>Ảnh/video hoạt động từ thiện ✅"]
 ```
+
+> Danh sách route đầy đủ (gồm cả `/dharma/threads/:subjectId/comment-media/upload-url`): xem
+> [`docs/API-ROUTES.md`](../API-ROUTES.md).
 
 ## 3.4 Sắp xếp và xoá
 
@@ -122,7 +130,7 @@ flowchart LR
 ```mermaid
 flowchart TD
     A["npm run media:sweep-orphans<br/>MẶC ĐỊNH chạy khô"] --> B[Gom mọi key database đang trỏ tới]
-    B --> B1["post_media · chat_message_media<br/>content_comment_media · gift_transaction_evidence<br/>users.avatar_url · groups.avatar_url/cover_url<br/>reports.evidence_urls"]
+    B --> B1["post_media · campaign_media · media_assets<br/>chat_message_media · content_comment_media<br/>gift_transaction_evidence · users.avatar_url<br/>users.intro_video_url/intro_video_thumbnail_url<br/>groups.avatar_url/cover_url · reports.evidence_urls"]
     B1 --> C[Duyệt bucket dưới tiền tố users/]
     C --> D{Có trong tập đang dùng?}
     D -->|Có| E[Bỏ qua]
@@ -155,5 +163,5 @@ flowchart TD
 2. ✅ **Object mồ côi đã có job dọn** — `media:sweep-orphans`, chạy khô theo lịch.
 3. R2 staging/production chưa có bucket, key, CORS, CDN domain — hiện chỉ chạy MinIO.
 4. Chưa có giới hạn tổng dung lượng theo người dùng. Dashboard KPI (F59) có mục "dung lượng
-   lưu trữ" nhưng không có hạn mức nào chặn. Hạn mức theo TỪNG ảnh thì đã tách theo loại
-   (`MediaSizeLimits`), hiện đều 5 MB.
+   lưu trữ" nhưng không có hạn mức nào chặn. Hạn mức theo TỪNG file thì đã tách theo loại
+   (`MediaSizeLimits`): ảnh 5 MB, video bài 25 MB, clip giới thiệu 50 MB, ảnh bìa clip 2 MB.

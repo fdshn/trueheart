@@ -12,14 +12,14 @@ flowchart LR
         P3["+56đ, cap 3/ngày"]
         P4["Không cần Group"]
     end
-    subgraph A["Group Affiliate ⛔"]
+    subgraph A["Group Affiliate ✅ — xem 19"]
         A1["Sự kiện → toàn bộ Active Member"]
         A2["LẶP LẠI nhiều lần"]
         A3["Cần Group + điều kiện địa lý"]
     end
 
     style P fill:#3ca05021,stroke:#3f8f3f,stroke-width:1.5px
-    style A fill:#d2464621,stroke:#c0504d,stroke-width:1.5px
+    style A fill:#3ca05021,stroke:#3f8f3f,stroke-width:1.5px
 ```
 
 ## 23.2 Vòng đời một referral
@@ -27,6 +27,7 @@ flowchart LR
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING: Người mới đăng ký kèm referralCode
+    [*] --> PENDING: Claim link SAU đăng ký (POST /attribution/claim)
     PENDING --> QUALIFIED: Referee hoàn tất onboarding
     PENDING --> [*]: Referee bỏ giữa chừng
 
@@ -67,6 +68,26 @@ sequenceDiagram
     Note over L: idempotency_key theo referralId.<br/>Cap 3/ngày — chạm trần thì KHÔNG cộng,<br/>và KHÔNG báo lỗi ra ngoài
     API->>L: appendByRule('ONBOARDING_COMPLETED', +224đ) cho REFEREE
 ```
+
+### Gắn người giới thiệu SAU khi đăng ký — `POST /attribution/claim`
+
+Link giới thiệu sống sót qua bước cài app (deferred attribution): người mới bấm link
+(`POST /attribution/clicks`), cài app, app gọi `POST /attribution/resolve` rồi — sau khi đã có
+tài khoản — `POST /attribution/claim`. Claim chỉ được nhận khi:
+
+| Điều kiện | Không thoả thì |
+| --- | --- |
+| Tài khoản tạo trong **≤ 7 ngày** và vẫn là `VIEWER` (hoặc đã có đúng người giới thiệu đó) | `AttributionNotEligibleException` |
+| Chưa có người giới thiệu KHÁC | `AttributionReferrerExistsException` |
+| Không tự giới thiệu, không vòng (người được mời từng mời chính người mời mình) | `AttributionSelfReferralException` |
+| Token còn hạn, link chưa bị thu hồi | `…TokenExpired` / `…TokenRevoked` |
+
+Cùng bản cài vừa claim cho một tài khoản khác gần đây thì **không từ chối** mà ghi
+`PENDING_REVIEW` và **chưa** tạo dòng `referrals` — chờ Admin ở `GET /admin/attribution/claims`
+rồi `POST /admin/attribution/claims/:claimId/review`.
+
+**Claim KHÔNG phát thưởng.** Nó chỉ ghi `referrals` (PENDING); +56đ vẫn chỉ trả khi người được
+mời hoàn tất onboarding, đúng đường §23.3.
 
 ## 23.4 Trần theo ngày, và hai đường trả thưởng
 
@@ -307,10 +328,11 @@ niệm "nợ bằng hiện vật" là tạo ra thứ không ai bảo trì.
    dùng chung cho cả ba, và cách làm việc với hàng đợi là quyết định của Bên A — dựng một
    luồng chưa ai đồng ý là cách sinh ra bảng không ai dùng.
 
-3. **Nhiều khoá `system_configs` seed sẵn mà KHÔNG sửa được qua Admin.** Hiện 24 khoá có
-   dòng, `SupportedSystemConfigKeys` cho 16 — và đường ghi chỉ nhận `INTEGER`, nên mọi
-   khoá hình JSON (`report.abuse`, `accuracy.giver`, `moderation.blocked_terms`…) chỉ đổi
-   được bằng SQL tay. Không thuộc phân hệ này, nhưng phát hiện ở đây nên ghi lại.
+3. **Một phần khoá `system_configs` hình JSON vẫn KHÔNG sửa được qua Admin.** Đường chung
+   `POST /admin/system-configs` chỉ nhận `INTEGER`. Ba ngưỡng tin cậy (C2) nay đã có endpoint
+   riêng: `PUT /admin/config/trust-thresholds/{giver-accuracy,report-abuse,review-rating}`
+   (cho `accuracy.giver`, `report.abuse`, `rating.display`). Còn `moderation.blocked_terms`
+   thì vẫn chỉ đổi được bằng SQL tay. Không thuộc phân hệ này, nhưng phát hiện ở đây nên ghi lại.
 
 4. **Không có phân trang cho `invitees`** ở cả hai đường đọc. Trần cứng 50, mới nhất
    trước. Đủ cho trang tóm tắt; sẽ thiếu nếu về sau có người mời vài trăm người.

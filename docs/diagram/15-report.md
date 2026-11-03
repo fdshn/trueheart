@@ -2,7 +2,7 @@
 
 Trạng thái: ✅ **đã hiện thực**, gồm cả việc gộp hai bảng báo xấu trùng nhau.
 
-## 15.1 Bốn loại đích
+## 15.1 Năm loại đích
 
 ```mermaid
 flowchart LR
@@ -11,8 +11,9 @@ flowchart LR
     B --> D["USER — người dùng ✅"]
     B --> E["COMMENT — bình luận ✅"]
     B --> H["CHAT_MESSAGE — một tin nhắn ✅"]
+    B --> T["DHARMA_THREAD — chủ đề Diễn đàn Phật Pháp ✅"]
 
-    C & D & E & H --> F[(reports<br/>MỘT bảng duy nhất)]
+    C & D & E & H & T --> F[(reports<br/>MỘT bảng duy nhất)]
 
     G["❌ content_reports đã DROP<br/>bảng chết, không code nào chạm"] -.-> F
 
@@ -75,10 +76,17 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING: Người dùng gửi báo
-    PENDING --> IN_REVIEW: Admin nhận xử lý
-    IN_REVIEW --> RESOLVED: Xác minh ĐÚNG
-    IN_REVIEW --> DISMISSED: Xác minh SAI
-    PENDING --> DISMISSED: Bác thẳng
+    PENDING --> RESOLVED: Xác minh ĐÚNG
+    PENDING --> DISMISSED: Xác minh SAI / bác thẳng
+    IN_REVIEW --> RESOLVED: (dữ liệu cũ) Xác minh ĐÚNG
+    IN_REVIEW --> DISMISSED: (dữ liệu cũ) Xác minh SAI
+
+    note left of IN_REVIEW
+        Có trong enum và vẫn tính là ĐANG MỞ,
+        nhưng hiện KHÔNG đường nào ghi trạng thái này.
+        PATCH /admin/reports/:id/review nhận
+        RESOLVED/DISMISSED từ PENDING hoặc IN_REVIEW.
+    end note
 
     RESOLVED --> [*]
     DISMISSED --> [*]
@@ -99,13 +107,16 @@ sequenceDiagram
     participant API as PATCH /admin/reports/:id/review
     participant L as Point Ledger
 
-    A->>API: status = RESOLVED, kèm ghi chú
+    A->>API: status = RESOLVED, kèm ghi chú (+ enforcement?)
     API->>API: Kiểm quyền report.resolve
     API->>API: Mở transaction
     API->>API: Ghi kết quả xử lý + hành động lên đích
+    API->>API: Commit
+    opt enforcement = SUSPEND_USER / BAN_USER
+        API->>API: Đổi trạng thái chủ nội dung bị báo + thu hồi phiên<br/>(lỗi ở đây NỔI lên, không nuốt)
+    end
     API->>L: appendByRule('REPORT_UPHELD', +5đ)
     Note over L: idempotency_key theo reportId.<br/>Admin đổi trạng thái qua lại không cộng nhiều lần
-    API->>API: Commit
 ```
 
 > Nếu rule tắt hoặc đã chạm cap ngày, use case **nuốt đúng hai ngoại lệ đó** và vẫn xử lý
@@ -123,7 +134,7 @@ flowchart TD
     A[Admin xác minh đúng] --> B{Đích là gì}
     B --> C["Bài — PATCH /admin/posts/:id/moderation<br/>gỡ xuống REJECTED"]
     B --> D["Bình luận — chuyển REMOVED"]
-    B --> E["Người dùng — PATCH /admin/users/:id/status<br/>SUSPENDED hoặc BANNED"]
+    B --> E["Chủ nội dung bị báo — enforcement trong<br/>PATCH /admin/reports/:id/review<br/>SUSPEND_USER hoặc BAN_USER"]
 
     C & D & E --> F[Ghi admin_audit_logs]
 
@@ -145,8 +156,12 @@ Với đích `CHAT_MESSAGE`, Admin gỡ bằng `DELETE /admin/chat/messages/:mes
 Đây là một bước RIÊNG, không tự động theo kết luận: gỡ tin nhắn cần quyền `report.resolve` chứ
 không phải `report.read`, và một câu có thể đáng gỡ trong khi cả cuộc trò chuyện thì không.
 
-> **Đích `USER` CỐ Ý vẫn tách rời** — `PATCH /admin/users/:id/status`. Đình chỉ một người phải
-> là quyết định riêng, có cân nhắc; gỡ một dòng chữ và khoá một tài khoản không cùng mức hệ quả.
+> **Chế tài tài khoản đi CÙNG kết luận** (F49, mục mở L4). `PATCH /admin/reports/:id/review` nhận
+> thêm `enforcement`: `NONE` (mặc định, như đường cũ) · `SUSPEND_USER` (bắt buộc `suspendDays`,
+> 1–365) · `BAN_USER`. Chỉ hợp lệ khi kết luận là `RESOLVED`, áp lên tài khoản chủ nội dung bị
+> báo (không tự áp lên chính mình), thu hồi phiên như F60, và ghi lý do mang ghi chú của kết
+> luận. Response luôn trả `enforcement` kèm `revokedSessions`. `PATCH /admin/users/:id/status`
+> vẫn còn cho trường hợp Admin muốn xử riêng.
 
 > **Cửa thứ ba của việc báo xấu tin nhắn, mở 29/09.** Từ 28/09 đã có hai cửa: báo trỏ đúng một
 > dòng, và Admin đọc được phòng làm bằng chứng. Nhưng không có đường nào GỠ — nạn nhân báo
@@ -183,7 +198,7 @@ không phải `report.read`, và một câu có thể đáng gỡ trong khi cả
    Tính sống thì con số không bao giờ lệch được với nguồn, và đổi ngưỡng có hiệu lực ngay.
 5. Bình luận `PENDING_REVIEW` (do bộ lọc từ ngữ) **không nằm trong hàng đợi này** — xem
    [06-interaction](./06-interaction.md).
-6. ⚠️ **Chưa có gì nối kết luận báo xấu với việc đình chỉ người dùng.** Với `POST` và `COMMENT`
-   thì hành động đi cùng kết luận trong một transaction; với `USER` thì Admin phải sang
-   `PATCH /admin/users/:id/status`, và không bản ghi nào nối hai việc. Tách rời là **cố ý**,
-   nhưng nếu muốn tra "báo xấu nào dẫn tới lệnh đình chỉ nào" thì hiện không tra được.
+6. ✅ **Kết luận báo xấu đã nối với việc đình chỉ** — `enforcement` (`NONE` / `SUSPEND_USER` với
+   `suspendDays` ≤ 365 / `BAN_USER`) áp trong cùng lượt quyết định, xem §15.5. Chế tài chạy SAU
+   khi kết luận đã ghi và không nằm chung transaction: lỗi chế tài nổi lên, kết luận vẫn còn để
+   Admin thử lại qua `PATCH /admin/users/:id/status`.

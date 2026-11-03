@@ -124,11 +124,10 @@ flowchart TD
 > sắp mất hạng". Lên hạng thì gửi `RANK_PROMOTED` (thêm 29/09) và **không** kèm cảnh báo:
 > người vừa vượt ngưỡng lên trên thì không thể đang dưới mốc cảnh báo của bậc cũ.
 >
-> `GET /ranks/me` trả `warningPoints` + `demotionWarning`, và từ 29/09 trả thêm `rankPoints`
-> + `rankPointsSource`. **Client phải so với `rankPoints`, không phải `balancePoints`**: cấu
-> hình `rank.points_source` áp cho chỗ quyết hạng, nên đọc `balancePoints` là đúng hôm nay và
-> sai ngay lần Admin đổi nguồn sang LIFETIME — cảnh báo tính theo một con số còn tụt hạng tính
-> theo con số khác. Chính `RankChangeNotifier` trước đây mắc đúng lỗi đó.
+> `GET /ranks/me` trả `warningPoints` + `demotionWarning`, so với **`balancePoints`** — từ 02/10
+> đó là con số DUY NHẤT quyết định hạng. Hai trường `rankPoints`/`rankPointsSource` (thêm 29/09)
+> đã gỡ cùng cấu hình `rank.points_source` (xoá ở migration `1797200000000`): một trường chỉ mang
+> được một giá trị thì không nói gì thêm.
 
 ## 12.5 Hệ quả: càng lên cao càng khó tiêu
 

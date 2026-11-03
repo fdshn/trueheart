@@ -28,7 +28,7 @@ Package nằm ở ba root: `kernel/`, `system/`, `suites/<suite>/<product>/`.
 | `npm run lint:check` | ESLint **không** tự sửa — đúng bản CI chạy |
 | `npm run format:check` | Prettier chỉ kiểm tra — đúng bản CI chạy |
 | `npm run clean` / `npm run rebuild` | Xoá output build / xoá rồi build lại từ đầu |
-| `bash scripts/smoke-test.sh <url>` | 15 phép thử đầu-cuối, gồm cả truy vấn PostGIS |
+| `bash scripts/smoke-test.sh <url>` | ~60 phép thử đầu-cuối, gồm cả truy vấn PostGIS (cần service chạy `LOG_LEVEL=debug` để đọc OTP) |
 
 > Trước khi mở PR, chạy `npm run lint:check` và `npm run format:check` chứ không phải
 > `lint`/`format` — hai bản sau tự sửa file, còn CI thì không, nên chúng có thể xanh ở máy

@@ -15,8 +15,8 @@ flowchart TD
 
     O --> Q{Quota theo rank}
     W --> S{Bật SOS cần rank Bạc+}
-    C --> A["⚠️ KHÔNG có cổng riêng<br/>ai qua onboarding cũng đăng được<br/>và nó ăn quota POST_OFFER"]
-    L --> E[Tồn tại tối đa 3 tháng<br/>hết hạn → chuyển OFFER]
+    C --> A["⚠️ KHÔNG có cổng riêng<br/>ai qua onboarding cũng đăng được<br/>và nó ăn quota POST_OPEN"]
+    L --> E[Tồn tại tối đa 3 tháng<br/>hết hạn → EXPIRED như mọi bài]
     M --> A
 
     style P fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
@@ -25,7 +25,7 @@ flowchart TD
 
 > ⚠️ **Sơ đồ cũ ghi CHARITY cần "Kim Cương đề xuất → Admin duyệt" — trong mã KHÔNG có gì như
 > vậy.** Không cổng theo hạng, không bước duyệt. `CHARITY` và `MERIT` hiện chỉ khác `OFFER` ở
-> chỗ chúng không mang trường riêng nào, và cả hai đều ăn quota `POST_OFFER`. Cần Bên A chốt
+> chỗ chúng không mang trường riêng nào, và cả hai đều ăn quota `POST_OPEN`. Cần Bên A chốt
 > có muốn cổng thật không.
 
 > **Vì sao một endpoint chứ không năm.** Năm đường riêng thì năm chỗ kiểm quyền, năm chỗ kiểm
@@ -93,15 +93,23 @@ stateDiagram-v2
     PUBLISHED --> REJECTED: Admin HẬU KIỂM gỡ<br/>(quyền post.moderate)
     REJECTED --> PUBLISHED: Admin trả lại<br/>giữ nguyên hạn cũ
 
-    PUBLISHED --> EXPIRED: Quá 3 tháng<br/>(CLI post:expire)
-    EXPIRED --> PUBLISHED: Gia hạn 1 lần<br/>POST /posts/:postId/renew
+    PUBLISHED --> EXPIRED: Quá hạn — OFFER/WANTED 37 ngày<br/>loại khác 3 tháng (CLI post#58;expire)
+    EXPIRED --> PUBLISHED: Gia hạn 1 lần<br/>POST /posts/#58;postId/renew
+    PUBLISHED --> PUBLISHED: Gia hạn 1 lần khi còn hạn
+
+    PUBLISHED --> SOLD: CLASSIFIED — chủ bài đặt SOLD<br/>PATCH /posts/#58;postId/classified-status
+    PUBLISHED --> HIDDEN: CLASSIFIED — chủ bài tạm ẩn
+    HIDDEN --> PUBLISHED: CLASSIFIED — chủ bài đặt ACTIVE
+    RESERVED --> SOLD: CLASSIFIED — chủ bài đặt SOLD
+    RESERVED --> EXPIRED: CLASSIFIED RESERVED/HIDDEN quá hạn<br/>(không có lượt trao sống)
+    HIDDEN --> EXPIRED
     PUBLISHED --> CANCELLED: Người đăng gỡ
     COMPLETED --> ARCHIVED
     CANCELLED --> ARCHIVED
 
     note right of PUBLISHED
         Bài hiện trong /nearby NGAY khi đăng,
-        và đồng hồ ba tháng bắt đầu từ đó.
+        và đồng hồ hết hạn bắt đầu từ đó.
         author/type/status vẫn do SERVER quyết,
         không nhận từ client.
     end note
@@ -114,9 +122,16 @@ stateDiagram-v2
     end note
 
     note right of EXPIRED
-        CLASSIFIED hết hạn KHÔNG thành EXPIRED
-        mà tự chuyển sang OFFER (Muốn tặng).
-        CHỐT-05.
+        Từ 26/10 CLASSIFIED hết hạn cũng thành
+        EXPIRED như mọi loại (bỏ CHỐT-05 cho
+        Rao vặt) và gia hạn được như mọi bài.
+    end note
+
+    note right of SOLD
+        CLASSIFIED: chủ bài tự quản ACTIVE /
+        RESERVED / SOLD / HIDDEN, chỉ khi bài
+        đang PUBLISHED/RESERVED/HIDDEN và không
+        có lượt trao sống. SOLD là điểm cuối.
     end note
 ```
 
@@ -130,23 +145,19 @@ sequenceDiagram
     participant DB as Postgres
 
     CRON->>CLI: Chạy mỗi ngày
-    CLI->>DB: Quét bài PUBLISHED quá hạn
+    CLI->>DB: Quét bài PUBLISHED quá hạn<br/>+ CLASSIFIED RESERVED/HIDDEN không có lượt trao sống
     loop Mỗi bài
-        alt postType = CLASSIFIED
-            CLI->>DB: Chuyển thành OFFER, đặt lại hạn
-            Note over DB: CHỐT-05 — rao vặt hết hạn<br/>thành bài tặng, không biến mất
-        else Loại khác
-            CLI->>DB: status = EXPIRED
-        end
+        CLI->>DB: status = EXPIRED
+        Note over DB: Từ 26/10 rao vặt hết hạn như mọi bài,<br/>không còn tự chuyển thành OFFER
     end
-    CLI-->>CRON: "Đã đóng N bài, chuyển M tin rao vặt"
+    CLI-->>CRON: "Đã đóng N bài"
 ```
 
 ```mermaid
 flowchart TD
-    A["POST /posts/:postId/renew"] --> A1{Là tin rao vặt?}
-    A1 -->|Có| A2["❌ CLASSIFIED không gia hạn<br/>nó tự thành OFFER khi hết hạn"]
-    A1 -->|Không| B{Đã gia hạn lần nào chưa?}
+    A["POST /posts/:postId/renew"] --> A1{"Đang PUBLISHED hoặc EXPIRED<br/>và còn suất?"}
+    A1 -->|Không| A2["❌ POST_NOT_RENEWABLE"]
+    A1 -->|Có| B{Đã gia hạn lần nào chưa?}
     B -->|Rồi| C[❌ Chỉ được 1 lần — CHỐT-07]
     B -->|Chưa| D{Đã có người nhận?}
     D -->|Có| E[❌ Không gia hạn bài đã chốt người]
@@ -244,10 +255,17 @@ sequenceDiagram
     end
 ```
 
+## 4.7 Mã chia sẻ
+
+`GET /posts/share/:shareCode` (công khai) đổi mã chia sẻ ra `postId`, `postType`, `status` để
+client điều hướng đúng màn. Cùng quyền xem với `GET /posts/:postId`; bài Admin gỡ không mở qua
+mã, kể cả với chủ bài. Đường này **không** tăng lượt chia sẻ — lượt chia sẻ ghi qua
+`POST /posts/:subjectId/shares`.
+
 ## Chỗ cần soát
 
 1. ⚠️ **`CHARITY` và `MERIT` không có cổng nào.** Ai qua onboarding cũng đăng được, và cả hai
-   ăn quota `POST_OFFER`. Sơ đồ cũ hứa một cổng không tồn tại. F65 nói Admin quản lý đơn vị
+   ăn quota `POST_OPEN`. Sơ đồ cũ hứa một cổng không tồn tại. F65 nói Admin quản lý đơn vị
    Công đức — chưa có gì.
 2. **Quota đếm "bài đang mở"** — bài `EXPIRED` và `COMPLETED` không tính. Đúng ý chưa?
 3. **Gia hạn tính quota như bài mới**, nên người đang đầy quota không gia hạn được bài cũ dù

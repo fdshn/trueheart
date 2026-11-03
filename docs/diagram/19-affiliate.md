@@ -1,8 +1,11 @@
 # 19 · Group Affiliate & điều kiện địa lý
 
-Trạng thái: ⛔ **bộ máy chia thưởng chưa có dòng code nào** — không bảng sự kiện, không bảng
-hoa hồng. Nhưng **nền móng thì phần lớn đã có**, xem §Chỗ cần soát mục 1. Thiết kế theo SRS
-§3.7A (BR-AFF) và CHỐT-06.
+Trạng thái: ✅ **bộ máy chia thưởng đã hiện thực** — migration `1797400000000-CreateAffiliateEngine`
+dựng ba bảng `affiliate_policy_revisions` · `affiliate_events` · `affiliate_rewards`; sự kiện ghi
+qua `recordEvent` từ repository bài đăng (`POST_CREATED`) và giao dịch (`GIFT_COMPLETED`); cổng
+địa lý `ST_DWithin`, trần ngày theo người nhận và thu hồi đều có. Chỉ chia điểm khi chính sách
+đang hiệu lực có `enabled: true` (`PUT /admin/affiliate-policy`). Thiết kế theo SRS §3.7A
+(BR-AFF) và CHỐT-06.
 
 ## 19.1 Affiliate khác Personal Referral thế nào
 
@@ -13,14 +16,14 @@ flowchart LR
         P2["MỘT LẦN duy nhất"]
         P3["+56đ khi referee đủ điều kiện"]
     end
-    subgraph A["Group Affiliate ⛔ chưa có"]
+    subgraph A["Group Affiliate ✅ đã có"]
         A1["Sự kiện → TOÀN BỘ Active Member"]
         A2["LẶP LẠI nhiều lần"]
         A3["Điểm từng loại sự kiện do Admin cấu hình"]
     end
 
     style P fill:#3ca05021,stroke:#3f8f3f,stroke-width:1.5px
-    style A fill:#d2464621,stroke:#c0504d,stroke-width:1.5px
+    style A fill:#3ca05021,stroke:#3f8f3f,stroke-width:1.5px
 ```
 
 ## 19.2 Luồng xử lý một sự kiện affiliate
@@ -115,7 +118,7 @@ flowchart LR
 > dùng thì không lệch được, và đổi `affiliate.active_member_window_days` có hiệu lực ngay.
 >
 > **Tầng dữ liệu cho việc này đã xong và đã có canh** — xem [17-jobs](./17-jobs.md) §Chỗ cần soát
-> mục 2. Phần còn thiếu của phân hệ này là chính nó, không phải cái mốc hoạt động.
+> mục 2.
 
 ## 19.5 Chống gian lận
 
@@ -134,29 +137,27 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. ⚠️ **Bộ máy chưa có, nhưng nền móng thì phần lớn ĐÃ có** — câu "phụ thuộc 18-group cũng chưa
-   có" sai (sửa 30/09). Group đã có ba bảng (`groups`, `group_memberships`,
-   `group_role_permissions`), 6 endpoint, repository và hai file use case. Và quan trọng nhất:
-   `groups` đã có `center_location` + `radius_km`, tức **đúng hai thứ mà cổng địa lý §19.2 cần**.
-
-   Những thứ khác cũng sẵn: `last_active_at` ghi đúng ở mọi lần cấp phiên (xem
-   [17-jobs](./17-jobs.md) mục 2), `group_memberships` để lấy danh sách thành viên, và
-   `appendAdjustment` để ghi sổ với số điểm truyền vào. Phần thiếu là **bộ máy**, không phải nền.
-2. **Danh sách loại sự kiện affiliate chưa chốt cụ thể.** BR-AFF-02 liệt kê "đăng bài,
-   tặng/giao dịch hoàn tất, mời user mới hợp lệ, tham gia Event, giao dịch hợp lệ trong vùng"
-   — cần biến thành danh sách mã rule rõ ràng.
-3. **Điểm cho từng loại sự kiện chưa có con số nào.**
-4. ⚠️ **Cách chia thưởng chưa rõ, và đây là quyết định kinh tế lớn nhất còn treo của cả hệ**:
-   mỗi Active Member nhận đủ N điểm, hay N điểm chia đều cho số người? Nhóm 500 người thì hai
-   cách chênh nhau **500 lần**. Viết code trước khi chốt việc này là viết để bỏ.
-5. **Cơ chế thu hồi** (BR-AFF) chưa có thiết kế — thu hồi khi nào, ai bấm, ghi sổ thế nào.
-6. **Cap ngày cho affiliate chưa có.** Không có cap thì một nhóm lớn sinh điểm không giới hạn.
-   ⚠️ Và đừng seed thêm một khoá kiểu `affiliate.*_daily_cap`: `point.referral_daily_cap` với
-   `point.transaction_daily_cap` đã seed từ lâu mà **không ai đọc** — trần thật nằm ở
-   `point_rules.daily_cap`. Cap của affiliate nên đi cùng đường đó.
+1. ✅ **Bộ máy đã có** trên nền Group sẵn có (`groups.center_location` + `radius_km` cho cổng địa
+   lý, `last_active_at` cho Active Member). Chính sách có version ở `affiliate_policy_revisions`
+   (`GET|PUT /admin/affiliate-policy`); mỗi sự kiện gốc một dòng `affiliate_events` kèm
+   `geo_status`, nguồn vị trí, khoảng cách và bán kính đã áp; mỗi người nhận một dòng
+   `affiliate_rewards` với khoá chống trùng đúng bộ ba BR-AFF-04. Audit qua
+   `GET /admin/affiliate-events` và `/:eventId/rewards`.
+2. ⚠️ **Mới khai hai loại sự kiện có hook thật:** `POST_CREATED` và `GIFT_COMPLETED`
+   (`core-lib/src/models/affiliate.ts`). "Mời user mới hợp lệ" và "tham gia Event" của BR-AFF-02
+   **cố ý chưa khai** vì câu A2 của Bên A chưa có trả lời.
+3. **Điểm cho từng loại sự kiện là cấu hình** (`event_points_json` của chính sách) — chưa có
+   con số chốt từ Bên A.
+4. ✅ **Cách chia thưởng là tham số chính sách**: `distribution_mode` = `SPLIT_POOL` (chia đều)
+   hoặc `PER_MEMBER` (mỗi người đủ N), kèm `max_beneficiaries_per_event`. Bên A vẫn phải chọn
+   giá trị — nhóm 500 người thì hai cách chênh nhau **500 lần**.
+5. ✅ **Thu hồi đã có**: `POST /admin/affiliate-events/:eventId/reversal` (`point.adjust`) thu hồi
+   toàn bộ reward của một sự kiện; dòng `REVERSED` giữ nguyên số điểm gốc để đối soát.
+6. ✅ **Trần ngày đã có**: `daily_cap_per_beneficiary` trong chính sách — vượt trần thì dòng
+   reward ghi `CAPPED` với `point_delta = 0`. Không seed khoá `affiliate.*_daily_cap` riêng.
 7. ✅ **Ba khoá `group.*_radius_meters` nay được đọc thật** (30/09). Trước đó chúng chỉ nằm
    trong allowlist của Admin: sửa được, lưu được, và **không gì thay đổi** — tệ hơn khoá chưa
    seed, vì ở đó Admin không thấy ô nào, còn ở đây ô có và người ta tin là đã đổi.
    Đây là một họ lỗi: `test:config-inventory` nay canh cả hai chiều, và đang ghi **6 khoá còn
    là nợ** — bốn trong số đó bị hằng cứng trong code qua mặt (`discovery.default_radius_meters`,
-   `discovery.min_radius_meters`, `rank.maintenance_period_months`, và hai khoá cap ở mục 6).
+   `discovery.min_radius_meters`, `rank.maintenance_period_months`, và hai khoá `point.referral_daily_cap` · `point.transaction_daily_cap`).

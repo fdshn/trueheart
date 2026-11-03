@@ -96,17 +96,16 @@ engine không ghi gì — mọi lượt đăng bài và hoàn tất lượt trao
 
 Tất cả đã nằm trong cấu hình động nên đổi không cần deploy — nhưng **đang chạy bằng giả định**.
 
-### [24](./24-entitlement.md) · Entitlement — hai capability khai mà chưa ai đọc
+### [24](./24-entitlement.md) · Entitlement — không còn capability khai mà chưa ai đọc
 
 | # | Câu hỏi | Trạng thái |
 | --- | --- | --- |
-| E1 | `SELECT_REQUESTER` — hạn mức 1/3/5/10 theo bậc, **không ai đọc** | Không ai biết đơn vị của nó: mỗi bài được chọn mấy người, hay mỗi ngày? Nối nó đòi chốt nghiệp vụ trước — đoán sai là đặt một trần người dùng không hiểu |
+| E1 | ~~`SELECT_REQUESTER` — hạn mức 1/3/5/10 theo bậc, **không ai đọc**~~ | ✅ **ĐÓNG 11/10 (CHỐT-10)** — nay là GATE chỉ Kim Cương, `limit_value` về 0 (migration `1799500000000`); `AcceptGiftRequestUseCase` và `BatchAcceptRequestsUseCase` đọc nó |
 | E2 | ~~`SUBMIT_CHARITY_PROPOSAL` — **không ai đọc**~~ | ✅ **ĐÓNG 03/10** — `CreateCharityCampaignUseCase` (F65 phân hệ Từ thiện) đọc nó làm cổng BR-CHARITY-01. Bản đầu của lượt làm đó đặt một mã MỚI `CREATE_CHARITY_CAMPAIGN` và seed lại năm bậc — tức hai dòng cho cùng một quyết định trên màn Rank Config. Chính dòng E2 này chặn được lỗi đó |
 | E3 | Chat có nên đi qua capability để đặt trần theo bậc? | Hiện trần chat là hằng trong code (30/phút, 500/ngày), giống trần bình luận. Nếu không phân biệt theo bậc thì một hằng có tên vẫn tốt hơn một ô cấu hình không ai đổi |
 
-Cả hai mục đầu nay được `test:entitlement-inventory` ghi là **nợ đã biết** kèm lý do, nên
-chúng không còn lặng lẽ nằm đó — và thêm một capability vào database mà quên khai là phép
-kiểm đỏ.
+`DeclaredButUnread` của `test:entitlement-inventory` nay rỗng — và thêm một capability vào
+database mà quên khai là phép kiểm đỏ.
 
 ### [16](./16-admin.md) · Admin — danh sách từ kiểm duyệt
 
@@ -123,7 +122,7 @@ Xếp theo mức đáng làm trước.
 | --- | --- | --- | --- |
 | L1 | [02](./02-profile.md) | **Cổng F07 chỉ đòi CÓ email và SĐT, không đòi ĐÃ XÁC MINH** | "Đăng bài được" và "đã xác minh" là hai mức khác nhau mà cổng đang coi là một |
 | L2 | [07](./07-request.md) | **INSTANT auto-accept nuốt lỗi.** `acceptRequest` hỏng thì yêu cầu nằm lại `PENDING` | Người xin tưởng đã chốt ngay, thực tế đang treo, và không ai được báo |
-| L3 | [17](./17-jobs.md) | **`transaction:autocomplete` đếm từ `accepted_at`**, không từ `handed_over_at` | Đóng lượt trao trước khi hàng thật sự tới tay — ngược chiều với §8 vốn đếm từ `COALESCE(handed_over_at, accepted_at)` |
+| L3 | [17](./17-jobs.md) | ✅ **Đã đúng.** `transaction:autocomplete` đếm từ `COALESCE(handed_over_at, accepted_at)` và giữ lại lượt đang tranh chấp — dòng này ghi sai trạng thái | — |
 | L4 | [15](./15-report.md) | ✅ **Đã đóng 02/10.** `PATCH /admin/reports/:id/review` nhận thêm `enforcement` để treo hoặc khoá tài khoản ngay trong lượt kết luận | Một quyết định, một bản ghi audit. Chế tài gọi lại NGUYÊN `ChangeAdminUserStatusUseCase` nên tự kiểm `admin.manage` và tự thu hồi token — một MODERATOR chỉ có `report.resolve` vẫn kết luận được mà KHÔNG khoá được. Gỡ/ẩn bài viết vẫn ở `PATCH /admin/posts/:id/moderate`: bộ trạng thái của nó khác hẳn, gói vào enum chế tài là dựng bản thứ hai của cùng một luật |
 | L5 | [12](./12-rank.md) | **`reconcileNormalRank` gọi sau MỌI bút toán** | Một người nhận 50 thông báo/ngày kéo theo 50 lượt xét hạng. Chưa đau vì dữ liệu nhỏ |
 | L6 | [13](./13-review.md) | **`accuracy:reconcile` không chia lô** — quét mọi hồ sơ có mẫu rồi sửa tất cả trong MỘT transaction | Với vài nghìn hồ sơ là một transaction dài giữ lock; hỏng giữa chừng thì cuộn lại cả lượt |
@@ -143,7 +142,7 @@ Xếp theo mức đáng làm trước.
 | L21 | [11](./11-point.md) | **Không có công tắc tắt TOÀN BỘ cơ chế phát điểm** (`BR-ADM-POINT-06`). Chỉ tắt được từng rule qua `is_enabled` | Lúc cần nhất — đang có sự cố phát điểm sai — Admin phải tắt lần lượt từng rule, và quên một rule là rule đó vẫn phát |
 | L22 | [02](./02-profile.md) | **Vị trí mặc định chỉ có TOẠ ĐỘ, không có địa chỉ hiển thị** (`BR-PROF-LOC-01` đòi cả hai) | App phải tự geocode ngược, hoặc hiện toạ độ thô để người dùng xác nhận "đây là nhà bạn" |
 | L23 | SRS §6.2.14 | ✅ **Đã đóng 02/10.** `autoCreateTransaction` là công tắc của `AutoSelectDueRecipientsUseCase` — chỗ DUY NHẤT trong hệ mà hệ thống tạo giao dịch không do người dùng bấm | Bỏ cách hiểu "Smart Match tự tạo lượt trao": Smart Match sống ở một endpoint `GET`, và một `GET` không được ghi hàng nào. Mặc định BẬT (trái `DEFAULT false` của SRS) vì tắt sẵn là biến `selection_deadline` lại thành đồng hồ không bao giờ reo. Phép kiểm `từ chối autoCreateTransaction` đã đổi cùng ngày đúng như ghi chú cũ yêu cầu |
-| L24 | UC-ADM-03 | ⚠️ **Nửa đã đóng 02/10.** Vai `CAMPAIGN_MANAGER` đã seed với đúng 5 quyền nội dung (`campaign.*`, `blog.*`, `config.read`) và **KHÔNG** có `config.write` — `test:lunar` nhóm 6 canh cả năm quyền bị loại | Nửa CÒN LẠI: vẫn **không có API gán quyền cho VAI**, nên mỗi lần đổi mapping vai→quyền phải viết một migration. Dựng API đó cần nghĩ kỹ hơn — một endpoint sửa được mapping quyền là endpoint sửa được chính quyền của người đang gọi nó |
+| L24 | UC-ADM-03 | ✅ **Đã đóng.** Năm vai dựng sẵn (`SUPER_ADMIN`, `MODERATOR`, `POLICY_ADMIN`, `AUDITOR`, `CAMPAIGN_MANAGER` — vai cuối chỉ có quyền nội dung, **không** `config.write`). API gán quyền cho VAI đã có: `GET /admin/permissions`, `GET`·`POST /admin/roles`, `PATCH /admin/roles/:roleCode` (tên, bật/tắt, bộ quyền), tất cả cần `admin.manage`; vai dựng sẵn được bảo vệ (`AdminRoleProtectedException`) | Đổi mapping vai→quyền và tạo vai tuỳ biến không còn cần migration |
 | L25 | UC-ADM-03 §7.2.6 | **Hai khối Home chưa có nguồn dữ liệu.** `URGENT_CAMPAIGN_ITEMS` và `VIDEO_SHORTS_FEED` nằm trong hợp đồng `GET /config/home-layout` nhưng không endpoint nào trả nội dung cho chúng | Bố cục khai được khối, client dựng được khung, và khung đó rỗng. `URGENT_CAMPAIGN_ITEMS` tắt sẵn trong bố cục mặc định nên không lộ ra khi chưa có chiến dịch; `VIDEO_SHORTS_FEED` thì BẬT, vì nó không phụ thuộc chiến dịch — nhưng cũng chưa có nguồn |
 | L26 | SRS §7.2.x (mọi mục) | **Khoá bọc response trong SRS KHÁC khoá API thật trả về.** Đặc tả viết `{"status":"success","data":{…}}` ở 15–17 ví dụ; `ResponseDto` của repo trả `{"success":true,"errorCode":0,"message":[],"body":{…}}` | Ảnh hưởng **mọi** endpoint, không riêng một phân hệ. Một client dựng theo ví dụ trong SRS sẽ đọc `data` và nhận `undefined` ở khắp nơi. Phát hiện 02/10 khi gọi thử `GET /config/home-layout`. Không sửa phía backend — `ResponseDto` là bất biến của `common-lib` dùng cho mọi sản phẩm — nên việc cần làm là **sửa ví dụ trong SRS**, hoặc chốt với Bên A rằng client đọc `body` |
 | L27 | §6.2.12 `blogs` | **Không có cột `deleted_by`.** Xoá bài là xoá mềm (`deleted_at`), nhưng không truy được AI xoá | `softDeleteBlog` nhận `actorUserId` để chữ ký nói đúng việc, rồi bỏ đi. Rút một bài viết sai sự thật là một quyết định kiểm duyệt, nên nó đáng có dấu — cùng loại với `admin_audit_logs` cho lượt đổi cấu hình |
@@ -165,7 +164,7 @@ Xếp theo mức đáng làm trước.
 | T8 | [22](./22-category.md) | **Chưa có ảnh cho danh mục** (có `icon` dạng chuỗi tên); chưa có `GET /admin/categories/:id`; **gộp không có đường lùi** |
 | T9 | [25](./25-location-privacy.md) | **Bán kính jitter là MỘT con số CHUNG** cho cả thành phố lẫn nông thôn (300 m, qua `GEO_JITTER_RADIUS_METERS`) — ở vùng thưa vẫn có thể chỉ ra đúng một nhà. Và nó là biến môi trường nên đổi phải deploy. Chuyển sang cấu hình động cần một **sàn cứng** trước — một ô số hạ được lúc chạy thì cũng nâng lên 0 được lúc chạy, tức tắt sạch lớp bảo vệ. Sàn đó là con số Bên A phải chốt |
 | T10 | [26](./26-api-conventions.md) | Thông báo lỗi **chỉ có tiếng Việt**; chưa có kế hoạch cho API v2 |
-| T11 | [16](./16-admin.md) | Chưa có **vai cho vận hành** ngoài bốn vai đã seed |
+| T11 | [16](./16-admin.md) | ✅ **Đã đóng.** Năm vai dựng sẵn (thêm `CAMPAIGN_MANAGER`), và Admin tự tạo vai tuỳ biến qua `POST /admin/roles` — xem L24 |
 | T12 | [27](./27-database.md) | Chưa có **chiến lược phân vùng** cho `point_ledger` và `chat_messages` (cả hai chỉ tăng) |
 
 ---
@@ -175,7 +174,7 @@ Xếp theo mức đáng làm trước.
 | # | Mục | Vấn đề |
 | --- | --- | --- |
 | C1 | **`gift_posts` và `posts` cùng tồn tại** vì lớp tương thích; `/gift-posts` **chưa có hạn chót gỡ** | Không ai nói bao giờ gỡ, nên nó sẽ không bao giờ được gỡ. [25](./25-location-privacy.md) · [27](./27-database.md) |
-| C2 | **24 khoá `system_configs` có dòng, chỉ 16 sửa được qua Admin** — và đường ghi chỉ nhận `INTEGER`, nên mọi khoá hình JSON (`report.abuse`, `accuracy.giver`, `moderation.blocked_terms`…) chỉ đổi được bằng **SQL tay** | "Cấu hình động" mà phải vào database sửa thì không còn động. Phát hiện 01/10 khi làm [23](./23-referral.md) |
+| C2 | ⚠️ **Nửa đã đóng.** Đường chung `POST /admin/system-configs` vẫn chỉ nhận `INTEGER`, nhưng ba ngưỡng tin cậy hình JSON nay sửa được qua `PUT /admin/config/trust-thresholds/{giver-accuracy,report-abuse,review-rating}` (`accuracy.giver`, `report.abuse`, `rating.display`). **Còn lại:** `moderation.blocked_terms` vẫn chỉ đổi được bằng **SQL tay** | "Cấu hình động" mà phải vào database sửa thì không còn động. Phát hiện 01/10 khi làm [23](./23-referral.md) |
 | C3 | **Tin nhắn đã thu hồi vẫn nằm trong database** tới kỳ dọn | Với người dùng thì nó biến mất; với người đọc được database thì không. [09](./09-chat.md) |
 | C4 | **Đổi hợp đồng API chưa thông báo cho client**: `POST /posts/:postId/like` đã gỡ, `likeCount`/`isLiked` biến mất khỏi cả bốn endpoint đọc bài | Client cũ gọi vào sẽ 404 mà không có thông báo trước. [06](./06-interaction.md) |
 
@@ -238,23 +237,24 @@ Nên hoặc app ghép hai nguồn, hoặc endpoint này nhận thêm khoảng ng
 
 ---
 
-## Đối chiếu SRS — 16 lỗ endpoint còn lại và 16 quy tắc chưa soát
+## Đối chiếu SRS — 16 lỗ endpoint (nay đã có) và 16 quy tắc chưa soát
 
 Lập 01/10 khi rà `docs/software-requirement-specification/SRS_Chan_Tam_v1.15.0.md` sang mã nguồn.
 Con số đo bằng script, không ước lượng.
 
 ### Endpoint SRS đặt tên mà chưa có
 
-SRS nêu **52** cặp `(VERB, path)`. Đối chiếu OpenAPI đang chạy: 11 khớp y nguyên, 21 **đổi tên
+SRS nêu **52** cặp `(VERB, path)`. Đối chiếu OpenAPI lúc đó (01/10): 11 khớp y nguyên, 21 **đổi tên
 hoặc gộp nhưng CÓ**, và 20 thiếu thật. Bốn cái rời rạc đã làm 01/10 (xem dưới), còn **16 cái
-nằm trong bốn khối chưa từng bắt đầu**:
+nằm trong bốn khối chưa bắt đầu lúc đó** — nay cả bốn khối đều đã có phân hệ (danh sách route
+thật ở [API-ROUTES.md](../API-ROUTES.md)):
 
-| Khối | Số endpoint | UC | Ghi ở |
+| Khối | Số endpoint | UC | Trạng thái |
 | --- | --- | --- | --- |
-| Campaign & Home động | 5 | UC-ADM-03 | ⚪ phần tính năng thêm |
-| Blog / Tin tức | 5 | UC-BLOG-01 | ⚪ phần tính năng thêm |
-| Charity campaigns | 3 | — | ⚪ phần tính năng thêm |
-| Bộ máy chia thưởng Affiliate | 3 | — | 🟡 A1–A5 phía trên |
+| Campaign & Home động | 5 | UC-ADM-03 | ✅ `/admin/campaigns/*`, `/campaigns/*`, `/config/home-layout` |
+| Blog / Tin tức | 5 | UC-BLOG-01 | ✅ `/admin/blogs/*`, `/blogs/*` |
+| Charity campaigns | 3 | — | ✅ `/charity-campaigns/*`, `/admin/charity-campaigns/*` |
+| Bộ máy chia thưởng Affiliate | 3 | — | ✅ `/admin/affiliate-policy`, `/admin/affiliate-events/*` — còn A1–A4 phía trên |
 
 > Bốn cái rời rạc **đã đóng 01/10**: `GET /posts/sos-urgent`, `POST /admin/points/adjust`,
 > `POST /posts/{postId}/batch-accept`, `POST /posts/{wantedPostId}/offer-gift`.

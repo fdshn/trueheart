@@ -171,8 +171,10 @@ sequenceDiagram
    dựng một áp lực không tồn tại. Khoá chống trùng mang cả vai, nếu không người thứ hai sẽ
    không bao giờ được nhắc.
 2. ✅ **Hàng đợi Admin đã có** — `GET /admin/users?accuracyReviewRequired=true`.
-3. ⚠️ **Đánh giá không sửa được, không xoá được — và trigger database chặn**, không phải chỉ
-   thiếu endpoint (`test:reviews` canh cả hai). Chấm nhầm là chịu. Vẫn cần Bên A xác nhận đúng ý.
+3. ✅ **Đánh giá sửa được ĐÚNG MỘT LẦN** (12/10) qua `PATCH /transactions/:id/reviews/mine`,
+   trước `completed_at + review.grace.graceDays`. Lần sửa thứ hai và mọi lượt xoá vẫn bị trigger
+   `TRG_transaction_reviews_edit_once` chặn ở database (`test:reviews` canh), không phải chỉ
+   thiếu endpoint.
 4. Ngưỡng accuracy hiện là **75%** theo CHỐT-03, ngưỡng công bố điểm sao là **3 mẫu**
    (`rating.display`); cả hai là cấu hình động nên đổi không cần deploy.
 5. ⚠️ **Chưa có gì tổng hợp `comment`.** Bình luận được ghi, giới hạn 1000 ký tự, nhưng không

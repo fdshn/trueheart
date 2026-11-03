@@ -116,7 +116,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["Unit — jest, mock query<br/>584 test core · 125 core-lib"] --> A1["Bắt: logic nghiệp vụ sai"]
+    A["Unit — jest, mock query<br/>*.spec.ts ở core và core-lib"] --> A1["Bắt: logic nghiệp vụ sai"]
     A --> A2["❌ KHÔNG bắt được: SQL sai cú pháp,<br/>module thiếu export, DI hỏng"]
 
     B["Script Postgres thật<br/>test/*.check.ts"] --> B1["Bắt: SQL sai, ràng buộc, trigger,<br/>hành vi đồng thời"]
@@ -131,7 +131,7 @@ flowchart TD
 
 | Lệnh | Kiểm gì |
 | --- | --- |
-| `npm test` | Unit, 118 suite |
+| `npm test` | Unit — mọi `*.spec.ts` (đếm 03/11: 240 file ở core, 36 ở core-lib) |
 | `npm run test:returning` | Hợp đồng `UPDATE ... RETURNING` |
 | `npm run test:reviews` | Đánh giá + accuracy + reconcile |
 | `npm run test:feed-merge` | Gộp thích, hai cột đếm |
@@ -141,7 +141,7 @@ flowchart TD
 
 ## Chỗ cần soát
 
-1. ✅ **Đã có** — `scripts/smoke-cli.sh` chạy thật cả 12 CLI trong job `integration`. Nó bắt
+1. ✅ **Đã có** — `scripts/smoke-cli.sh` chạy thật cả 15 CLI trong job `integration`. Nó bắt
    được `post:expire` chết vì `PostModule` thiếu `GiftRequestModule` ngay lượt đầu, tức bài quá
    hạn không được đóng suốt từ lúc `CloseOpenRequestsService` ra đời.
 
@@ -149,7 +149,7 @@ flowchart TD
    `post:expire` chết lúc khởi động mà vẫn hiện xanh. Nay chỉ một allowlist `SIGNAL_CLIS` được
    phép thoát khác 0, kèm lý do từng cái.
 2. ✅ **Đã đủ 30/09.** `deploy.yaml` chạy `smoke-test.sh --read-only`, VÀ tự kiểm cây DI của
-   cả 12 CLI trên host.
+   cả 15 CLI trên host.
 
    Không chạy CLI ở chế độ thường được: sáu cái ghi dữ liệu thật — `chat-purge` xoá lịch sử chat,
    `notification-purge` xoá hộp thư — và một cổng kiểm tra mà xoá dữ liệu người dùng thì tệ hơn
@@ -162,7 +162,9 @@ flowchart TD
 
    Script đẩy qua stdin (`bash -s`) chứ không dựa vào cây mã nguồn trên host: deploy đẩy IMAGE
    chứ không đẩy source, nên một checkout cũ trên host sẽ kiểm bằng danh sách CLI lỗi thời.
-3. ✅ **Đã nằm trong pipeline 30/09.** Trước đó chỉ 5 trong 30 script chạy trong CI; nay cả 30.
+3. ✅ **Đã nằm trong pipeline 30/09.** Trước đó chỉ 5 trong 30 script chạy trong CI; nay mọi
+   script `test:*` của core đều chạy — CI tự lấy danh sách từ `package.json`, nên không ghi số
+   ở đây (đếm 03/11: 69 file `test/*.check.ts`).
    Lượt đầu bắt ngay hai lỗi, và cả hai do migration `1795700000000` seed thêm khoá cấu hình:
    một script nổ ràng buộc duy nhất, một script **hỏng lặng lẽ** vì `ON CONFLICT DO NOTHING`
    khiến lượt đặt cấu hình bị bỏ qua — nó xanh trong khi đo một thứ nó tưởng đã đặt.
@@ -175,4 +177,4 @@ flowchart TD
 
    Đáng nói là phủ KHÔNG phải thứ thiếu nhất ở đây: 910 unit test từng xanh trong lúc `post:expire`
    chết ba tháng và hai script kiểm chứng đo sai đối tượng. Thứ bắt được chúng là chạy thật trên
-   Postgres và tiến trình thật — nay cả 30 script đó đã nằm trong CI.
+   Postgres và tiến trình thật — nay mọi script đó đã nằm trong CI.

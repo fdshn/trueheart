@@ -20,81 +20,23 @@ Cần PostgreSQL có PostGIS và Redis đang chạy (`docker compose up -d` ở 
 
 ## Endpoint
 
-Bảng dưới là danh mục tra nhanh. Hành vi đầy đủ của từng endpoint — quyền truy cập, ràng
-buộc riêng tư, thứ tự kiểm tra — xem [`docs/API.md`](../../../../docs/API.md).
+Danh sách route đầy đủ (hơn 300 route, kèm mức truy cập) **sinh tự động** ở
+[`docs/API-ROUTES.md`](../../../../docs/API-ROUTES.md) — chạy `npm run docs:routes` ở gốc
+monorepo sau khi đổi controller, CI kiểm bằng `docs:routes:check`. Hành vi đầy đủ của từng
+endpoint — quyền truy cập, ràng buộc riêng tư, thứ tự kiểm tra — xem
+[`docs/API.md`](../../../../docs/API.md). Mọi route nằm dưới tiền tố `/api/v1` (trừ `/health`).
 
-F83 điểm danh, streak và lượt bù đang ở mức **đặc tả, chưa có endpoint**. Khi triển khai,
-thêm resource `check-in` theo ba lớp và cập nhật bảng endpoint này cùng Swagger.
-Xem [thiết kế F83](../../../../docs/plan/CHECK-IN-STREAK-DESIGN.md).
+Các nhóm chính, mỗi nhóm một thư mục trong `infrastructure/controller/api/`:
 
-| Method | Đường dẫn | Use case |
-| --- | --- | --- |
-| `POST` | `/api/v1/gift-posts` | `CreateGiftPostUseCase` |
-| `GET` | `/api/v1/gift-posts/nearby` | `GetNearbyGiftPostsUseCase` — truy vấn PostGIS |
-| `GET` | `/api/v1/gift-posts/:giftPostId` | `GetGiftPostUseCase` |
-| `PATCH` | `/api/v1/gift-posts/:giftPostId` | `UpdateGiftPostUseCase` |
-| `DELETE` | `/api/v1/gift-posts/:giftPostId` | `DeleteGiftPostUseCase` — xoá mềm |
-| `POST` | `/api/v1/posts` | `CreatePostUseCase` — một endpoint cho cả năm loại (`postType`), JWT/profile/category/quota gate, tạo ở `PENDING_REVIEW` |
-| `POST` | `/api/v1/posts/:postId/media/upload` | Presign upload ảnh owner/post scoped |
-| `POST` | `/api/v1/posts/:postId/media` | `HeadObject` xác minh rồi gắn media |
-| `PATCH` | `/api/v1/posts/:postId/media/order` | Owner thay toàn bộ thứ tự media |
-| `DELETE` | `/api/v1/posts/:postId/media/:mediaId` | Owner gỡ media, compact thứ tự |
-| `DELETE` | `/api/v1/posts/:postId` | Owner xoá mềm canonical post |
-| `POST` | `/api/v1/posts/:postId/renew` | `RenewPostUseCase` — gia hạn 3 tháng, tối đa một lần, tính quota như bài mới |
-| `POST` | `/api/v1/posts/:postId/charity-transfer` | `RequestCharityTransferUseCase` — chủ bài xin chuyển về điểm từ thiện |
-| `GET` | `/api/v1/chat/rooms` | `ListChatRoomsUseCase` — hội thoại của chính mình |
-| `GET` | `/api/v1/chat/rooms/:roomId/messages` | `ListChatMessagesUseCase` — lịch sử, mới nhất trước |
-| `POST` | `/api/v1/chat/rooms/:roomId/messages` | `SendChatMessageUseCase` — gửi tin, phát qua socket sau khi commit |
-| `PATCH` | `/api/v1/chat/rooms/:roomId/read` | `MarkChatRoomReadUseCase` — mốc đã đọc của chính người gọi |
-| `GET` | `/api/v1/notifications/me` | `ListNotificationsUseCase` — hộp thư trong app |
-| `PATCH` | `/api/v1/notifications/me/read` | `MarkNotificationsReadUseCase` |
-| `PATCH` | `/api/v1/posts/:postId/charity-transfer` | `ReviewCharityTransferUseCase` — Admin duyệt/từ chối; duyệt thì bài sang `ARCHIVED` |
-| `POST` | `/api/v1/charity-campaigns/media/upload` | `RequestCharityMediaUploadUseCase` — presign ảnh/video hoạt động từ thiện, key `users/<userId>/campaign-media/…` |
-| `PUT` | `/api/v1/charity-campaigns/:id/media` | `ReplaceCharityMediaUseCase` — người tạo thay cả bộ 1–5 media + bìa khi hồ sơ còn chờ duyệt |
-| `GET` | `/api/v1/posts/nearby` | `GetNearbyPostsUseCase` — guest radius scan canonical, required OFFER/WANTED filter, location jitter + bucketed distance |
-| `GET` | `/api/v1/posts/map` | `GetPostMapUseCase` — marker bbox public, location jitter, client-side cluster |
-| `GET` | `/api/v1/posts/:postId` | `GetPostUseCase` — chỉ PUBLISHED/RESERVED, toạ độ đã jitter, gating contactInfo |
-| `POST` | `/api/v1/posts/:postId/like` | `TogglePostLikeUseCase` — thích / bỏ thích bài đăng (atomic counter, idempotent) |
-| `GET` | `/api/v1/posts/me` | `GetMyPostsUseCase` — bài của chính mình, lọc postType/status/categoryId, phân trang, toạ độ thật |
-| `GET` | `/api/v1/posts/:postId/matches` | `GetSmartMatchesUseCase` — Smart Match rule-based, chỉ tác giả bài nguồn, chỉ gợi ý không tạo giao dịch |
-| `GET` | `/api/v1/discovery/config` | `GetDiscoveryConfigUseCase` — giới hạn radius/pagination và loại post public cho guest |
-| `GET` | `/api/v1/points/me` | `GetOwnPointSummaryUseCase` — số dư projection của chính chủ |
-| `GET` | `/api/v1/points/me/ledger?page=&pageSize=` | `GetOwnPointLedgerUseCase` — lịch sử ledger phân trang của chính chủ |
-| `GET` | `/api/v1/ranks/me` | `GetOwnRankSummaryUseCase` — điểm lifetime, tier hiện tại/tiếp theo và maintenance cycle của chính chủ |
-| `GET` | `/api/v1/me/entitlements` | Quyền và quota theo rank hiện tại; `used`/`remaining` đếm đúng số bài đang mở mà quota thật sự chặn |
-| `GET` | `/api/v1/referrals/me` | Mã giới thiệu, link chia sẻ và thống kê của chính chủ |
-| `GET` | `/api/v1/transactions/me` | Các lượt tặng/nhận của chính mình |
-| `POST` | `/api/v1/transactions` | Xin một suất từ bài đăng; người nhận lấy từ token |
-| `POST` | `/api/v1/transactions/:transactionId/accept` | Người tặng duyệt — trừ tồn kho nguyên tử |
-| `POST` | `/api/v1/transactions/:transactionId/confirm` | Người nhận xác nhận — mốc tính hoạt động cho rank |
-| `POST` | `/api/v1/transactions/:transactionId/cancel` | Huỷ và trả lại tồn kho nếu đã duyệt |
-| `GET` | `/api/v1/admin/system-configs` | System config đang hiệu lực, cần `config.read` |
-| `POST` | `/api/v1/admin/system-configs` | Publish config revision mới, cần `config.write` + audit |
-| `GET` | `/api/v1/admin/audit-logs` | Audit log Admin có filter actor/action/resource/thời gian, cần `audit.read` |
-| `GET` | `/api/v1/admin/system-logs?logType=` | Nhật ký ADMIN / POINT / RANK / TRANSACTION, đọc thẳng từ nguồn thật, cần `audit.read` |
-| `GET` | `/api/v1/admin/notification-channels` | Cấu hình kênh gửi; secret chỉ báo đã cấu hình hay chưa, cần `notification.manage` |
-| `PUT` | `/api/v1/admin/notification-channels/:channel` | Đổi cấu hình kênh; secret ghi vào được, không đọc ra được |
-| `GET` | `/api/v1/admin/entitlements` | Bảng quyền/quota theo rank đang hiệu lực, cần `entitlement.read` |
-| `POST` | `/api/v1/admin/entitlements` | Publish bản chính sách mới; chỉ gửi ô cần đổi, hiệu lực ngay, cần `entitlement.write` + audit |
-| `GET` | `/api/v1/admin/ranks/policy` | Chính sách thăng hạng và chỉ tiêu duy trì hiện tại, cần `config.read` |
-| `POST` | `/api/v1/admin/ranks/policy` | Cập nhật nguyên tử điều kiện thăng hạng của đủ 5 bậc, cần `config.write` + audit |
-| `GET` | `/api/v1/admin/points/rules` | Point rule đang hiệu lực theo version mới nhất, cần `config.read` |
-| `POST` | `/api/v1/admin/points/rules` | Publish version mới cho một point rule, cần `config.write` + audit |
-| `POST` | `/api/v1/admin/ranks/policy/maintenance` | Publish chỉ tiêu duy trì cho chu kỳ mở sau này; chu kỳ hiện tại giữ snapshot |
-| `GET` | `/api/v1/admin/roles` | Role và quyền kèm theo, cần `admin.manage` |
-| `GET` | `/api/v1/admin/me` | Role và permission hiện tại của phiên CMS, cần `admin.access` |
-| `POST\|DELETE` | `/api/v1/admin/users/:userId/roles` | Cấp/thu hồi role; không tự sửa mình, không thu hồi SUPER_ADMIN cuối cùng |
-| `GET` | `/api/v1/admin/users` | Tìm user, lọc theo username/email/SĐT/hạng/trạng thái/role/xác minh/thời gian đăng ký |
-| `GET` | `/api/v1/admin/users/:userId` | Chi tiết một user |
-| `PATCH` | `/api/v1/admin/users/:userId/status` | Đổi trạng thái; khoá/cấm sẽ thu hồi token và phiên ngay |
-| `DELETE` | `/api/v1/admin/users/:userId` | Xoá mềm kèm ẩn danh, giữ username để chống mạo danh |
-| `GET` | `/api/v1/admin/posts` | Hàng đợi bài đăng, mặc định `PENDING_REVIEW`, cần `post.read` |
-| `GET` | `/api/v1/admin/posts/:postId` | Chi tiết và media cho moderator, cần `post.read` |
-| `PATCH` | `/api/v1/admin/posts/:postId/moderation` | Duyệt/từ chối có lý do và audit nguyên tử, cần `post.moderate` |
-| `POST` | `/api/v1/reports` | Thành viên báo cáo bài hoặc người dùng, kèm tối đa 5 URL bằng chứng |
-| `GET` | `/api/v1/admin/reports` | Hàng đợi report, ưu tiên target có nhiều tín hiệu mở, cần `report.read` |
-| `GET` | `/api/v1/admin/reports/:reportId` | Chi tiết report và bằng chứng, cần `report.read` |
-| `PATCH` | `/api/v1/admin/reports/:reportId/review` | Kết luận/bác bỏ kèm ghi chú và audit nguyên tử; xác nhận report bài đăng sẽ gỡ bài, phạt chủ bài theo point rule, cần `report.resolve` |
+| Nhóm | Ví dụ |
+| --- | --- |
+| Bài đăng canonical | `POST /posts` cho cả năm loại (`postType`), tạo thẳng ở `PUBLISHED` — Admin hậu kiểm; media, gia hạn, `GET /posts/nearby`, `/posts/map`, `/posts/share/:shareCode` |
+| Xin nhận & lượt trao | `POST /posts/:postId/requests`, `POST /posts/:postId/requests/:requestId/accept`, `GET /transactions/me`, xác nhận/huỷ lượt trao |
+| Tương tác | `PUT\|DELETE /posts/:subjectId/reactions/me` (thay endpoint like cũ), bình luận, chia sẻ |
+| Chat & presence | `/chat/rooms/...`, `/chat/direct-post/rooms`, `/chat/direct-user/rooms`, `/presence/*`, `/me/blocks` |
+| Điểm, hạng, giới thiệu | `/points/me`, `/ranks/me`, `/check-ins/*` (F83), `/leaderboards/*`, `/referrals/me`, `/attribution/*` |
+| Admin | `/admin/*` — mỗi route khai quyền RBAC |
+| Tương thích cũ | `/gift-posts` — map vào `posts`, chỉ `OFFER` |
 
 > **Quyền Admin là fail-closed.** `AdminPermissionGuard` chặn MỌI route dưới
 > `/admin` không khai `@RequiresPermission(...)`. Thêm endpoint quản trị mà quên
@@ -124,8 +66,9 @@ The CLI loads `.env.local`, bootstraps the Nest application context without an H
 ## Ví dụ
 
 ```bash
-# Đăng bài
+# Đăng bài — cần access token; người tặng lấy từ token, không khai trong body
 curl -X POST http://localhost:3000/api/v1/gift-posts \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{ "giftPost": {
         "title": "Xe đạp cũ còn dùng tốt",
@@ -133,15 +76,11 @@ curl -X POST http://localhost:3000/api/v1/gift-posts \
         "category": "VEHICLE", "condition": "USED",
         "estimatedValue": 1500000,
         "location": { "lat": 10.7724, "lng": 106.698 },
-        "areaLabel": "Quận 1, TP.HCM",
-        "giverId": "9f1a2b3c-4d5e-4f60-8a7b-1c2d3e4f5a6b" } }'
+        "areaLabel": "Quận 1, TP.HCM" } }'
 
 # Quanh đây — sắp xếp gần → xa
 curl "http://localhost:3000/api/v1/gift-posts/nearby?lat=10.7724&lng=106.698&radiusMeters=5000"
 ```
-
-> `giverId` phải là UUID hợp lệ theo chuẩn RFC (nibble variant là `8`/`9`/`a`/`b`).
-> Chuỗi kiểu `22222222-2222-...` bị `@IsUUID()` từ chối.
 
 ## Guest discovery
 
@@ -193,26 +132,21 @@ commit. Detailed follow-up is in the Flutter repository's
 `documentation/post-edit-notifications.md`; notifications are intentionally deferred.
 
 `/api/v1/posts` là API canonical mới. Trong compatibility window, `/api/v1/gift-posts` vẫn tồn tại cho
-client cũ và đã map vào canonical `posts`; không ghi hai bảng song song. `POST /api/v1/posts` chỉ tạo `OFFER` ở
-`PENDING_REVIEW`; author/type/status do server quyết định. Operator tạm thời cấu hình bằng
-quyền `post.moderate` mới được gọi moderation sang `PUBLISHED` hoặc `REJECTED`.
+client cũ và đã map vào canonical `posts`; không ghi hai bảng song song. `POST /api/v1/gift-posts` chỉ tạo `OFFER`;
+author/status do server quyết định. Bài tạo thẳng ở `PUBLISHED`, không có bước duyệt trước —
+Admin có quyền `post.moderate` gỡ về sau qua hậu kiểm.
 
 Public detail chỉ nhìn thấy `PUBLISHED`/`RESERVED` và luôn nhận toạ độ đã jitter. Không dùng route
 public để lấy location thật.
 
-Bài đăng mới tạo ở trạng thái `PENDING_REVIEW` (SRS v1.15.0 - UC-POST-01: mọi bài phải qua kiểm
-duyệt), nên **chưa xuất hiện trong `/nearby`**. Chuyển sang `PUBLISHED` để kiểm thử:
-
-```bash
-curl -X PATCH http://localhost:3000/api/v1/gift-posts/<globalId> \
-  -H 'Content-Type: application/json' \
-  -d '{ "giftPost": { "status": "PUBLISHED" } }'
-```
+Bài đăng mới tạo ở trạng thái `PUBLISHED` nên hiện ngay trong `/nearby` (xem
+`create-post.use-case.ts`).
 
 ## Vòng đời bài đăng
 
-Hạn 3 tháng được đặt lúc **duyệt bài**, không phải lúc tạo — bài nằm trong
-`PENDING_REVIEW` bao lâu cũng không ăn vào tuổi thọ của nó.
+Hạn đặt lúc bài lên `PUBLISHED` (mà bài mới tạo là `PUBLISHED` ngay): `OFFER`/`WANTED`
+sống 7 + 30 = **37 ngày** (CHỐT-10), các loại khác **3 tháng** — xem
+`postExpiryDateFor` trong `core-lib/src/models/post-lifecycle.ts`.
 
 Đóng vòng đời chạy từ lịch bên ngoài, Core cố ý **không** dựng scheduler trong
 tiến trình vì deploy nhiều replica sẽ chạy trùng:
@@ -221,20 +155,15 @@ tiến trình vì deploy nhiều replica sẽ chạy trùng:
 npm run post:expire
 ```
 
-Một lượt quét làm hai việc khác nhau, tuỳ loại bài:
-
-| Loại | Khi quá hạn |
-| --- | --- |
-| `CLASSIFIED` | **Chuyển thành `OFFER`** và được cấp hạn mới (CHỐT-05). Giá đã khai thành `estimatedValue`, bỏ `price`/`negotiable` |
-| Các loại khác | Chuyển sang `EXPIRED` |
+Lượt quét chuyển bài quá hạn sang `EXPIRED`, đóng các yêu cầu còn treo và báo chủ bài.
+Từ 26/10 Rao vặt (`CLASSIFIED`) hết hạn như mọi bài, không còn tự chuyển thành `OFFER`.
 
 Vòng quét chỉ đụng vào bài `PUBLISHED`. Bài `RESERVED`/`DELIVERING` đang có giao
 dịch sống nên hết hạn ngang là cắt ngang một lượt trao đang diễn ra.
 
 Chủ bài gia hạn được **một lần** qua `POST /api/v1/posts/:postId/renew`: thêm 3
 tháng, bài `EXPIRED` quay lại `PUBLISHED`. Lượt gia hạn tính quota như một bài
-mới (CHỐT-07), nên bài đã hết hạn phải giành lại chỗ trong hạn mức. Tin rao vặt
-không gia hạn được vì nó đã có đường riêng ở trên.
+mới (CHỐT-07), nên bài đã hết hạn phải giành lại chỗ trong hạn mức.
 
 Yêu cầu xin nhận bị từ chối ngay khi bài quá `expires_at`, kể cả lúc vòng quét
 chưa kịp chạy — nếu không, khoảng trễ giữa hai lần quét sẽ thành cửa sổ xin nhận
@@ -327,7 +256,7 @@ Kiểm trên database thật: `npm run test:returning`.
 
 ## CLI chạy một lần
 
-Bảy lệnh, tất cả cùng một khuôn: nạp `.env.local`, dựng application context
+Mười lăm lệnh (`src/infrastructure/cli/*.cli.ts`), tất cả cùng một khuôn: nạp `.env.local`, dựng application context
 KHÔNG mở cổng HTTP, chạy một lượt rồi đóng. Gọi từ cron bên ngoài; Core cố ý
 không tự dựng scheduler nào trong tiến trình.
 
@@ -339,12 +268,22 @@ npm run rank:evaluate              # đánh giá chu kỳ duy trì rank
 npm run transaction:autocomplete   # tự hoàn tất lượt trao quá hạn
 npm run feed:reconcile-counts      # đối soát số đếm feed
 npm run accuracy:reconcile         # tính lại Giver Accuracy theo ngưỡng hiện hành
+npm run gift:settle-rewards        # trả thưởng chờ: review quá hạn, lượt bị trần ngày chặn
+npm run selection:auto-select      # tự chọn người nhận khi hết hạn xét
+npm run notify:reminders           # nhắc việc theo hạn
+npm run notify:lunar               # nhắc ngày lễ Âm lịch
+npm run notify:broadcast           # gửi thông báo hàng loạt đã lên lịch
+npm run notification:purge         # dọn thông báo quá hạn lưu trữ
+npm run media:sweep-orphans        # dọn ảnh mồ côi trên storage
+npm run leaderboard:close-month    # chốt bảng thành tích tháng, trao huy hiệu
 ```
+
+Lịch chạy thật trên server: `deploy/cron/`.
 
 Lệnh có số liệu lệch nhận thêm `--dry-run`: in ra chỗ lệch, không sửa, và
 thoát khác 0 để cron coi đó là chuyện cần biết.
 
-### Hai cái bẫy đã làm cả bảy CLI chết
+### Hai cái bẫy đã từng làm mọi CLI chết
 
 Cả hai chỉ lộ ra khi chạy thật, vì unit test tiêm sẵn hàm giả vào đúng chỗ
 hỏng và do đó không bao giờ chạm tới.
@@ -356,7 +295,7 @@ hỏng và do đó không bao giờ chạm tới.
 **2. Module CLI phải import `CliInfrastructureModule`, không liệt kê tay.**
 `@Global()` chỉ có hiệu lực SAU KHI module được import ở đâu đó — không import
 thì nó không tồn tại. Trước đây mỗi `*-cli.module.ts` tự đoán bốn module nó
-cần và cả bảy đều thiếu. Thêm một phụ thuộc vào bất kỳ repository nào là mọi
+cần và cả bảy CLI khi đó đều thiếu. Thêm một phụ thuộc vào bất kỳ repository nào là mọi
 CLI cùng chết trong im lặng.
 
 `RealtimeModule` là ngoại lệ có chủ ý: CLI dùng `NoopRealtimeModule` thay thế,
@@ -383,11 +322,11 @@ src/
 
 ## Lưu ý khi phát triển tiếp
 
-1. **Chưa có xác thực.** `giverId` đang nằm trong body và `canViewExactLocation` luôn
-   `false`. Khi `system/auth-lib` xong, cả hai lấy từ access token — client không bao giờ
-   được tự khai mình là ai.
-2. **`synchronize` bật ở development.** Phải thay bằng migration TypeORM trước khi có dữ
-   liệu thật.
+1. **Danh tính lấy từ access token.** Đường ghi dùng `@CurrentUser()` sau guard JWT; route
+   không cần đăng nhập phải khai `@Public()`. Client không bao giờ được tự khai mình là ai
+   (không có `giverId` trong body).
+2. **Schema đi bằng migration, `synchronize` tắt ở mọi môi trường.** Production tự chạy
+   migration còn thiếu lúc khởi động (`migrationsRun`); dev/CI chạy `npm run migration:run`.
 3. **Trừ tồn kho phải nguyên tử.** Khi hiện thực duyệt đơn (kịch bản M-to-N, SRS v1.15.0 - UC-TXN-01 / Chương 3), dùng `UPDATE ... WHERE remaining_quantity > 0 RETURNING`, không đọc-rồi-ghi.
 4. **Toạ độ.** Mọi đường ra công khai phải đi qua `applyGeoJitter()`. Xem `INVARIANTS.md`
    mục 10.

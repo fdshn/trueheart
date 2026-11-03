@@ -174,7 +174,7 @@ sequenceDiagram
 
     rect rgba(120, 180, 120, 0.14)
     Note over R,L: Đường 1 — lượt trao chuyển COMPLETED (đường CHÍNH từ 07/10)
-    R->>S: PATCH /transactions/:id/confirm-receipt
+    R->>S: POST /transactions/:id/confirm
     S->>L: TRONG transaction đóng lượt trao:<br/>56 phẳng cho người tặng + 28 cho người nhận,<br/>khoá GIFT_COMPLETED_GIVER:#lt;id#gt;
     Note over S,L: Cron tự hoàn tất đi qua ĐÚNG hàm này,<br/>nên bấm tay hay chờ cron đều cộng như nhau
     end

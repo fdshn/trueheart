@@ -28,8 +28,8 @@ Flutter (Android + iOS) · NestJS + PostgreSQL 16 + PostGIS · Redis · Socket.i
 | 3 | [Đăng tin & Nội dung](#3-đăng-tin--nội-dung) | F14–F24 | Bài chờ: 7 ngày + tự mở thêm 30 ngày nếu chưa ghép |
 | 4 | [Quanh Đây & Bản đồ GIS](#4-quanh-đây--bản-đồ-gis) | F25–F29 | Chỉ bản đồ toàn màn hình, không có feed |
 | 5 | [Giao dịch & FSM](#5-giao-dịch--fsm) | F30–F36 | Lõi nghiệp vụ |
-| 6 | [Chat Realtime 1-1](#6-chat-realtime-1-1) | F37–F38 | Text + ảnh (tối đa 3/tin) |
-| 7 | [Điểm, Review & Accuracy](#7-điểm-review--accuracy) | F39–F43, F83 | F83 điểm danh/streak là yêu cầu bổ sung 30/09, chưa triển khai |
+| 6 | [Chat Realtime 1-1](#6-chat-realtime-1-1) | F37–F38 | Text + ảnh (tối đa 3/tin); thêm chat trực tiếp, chặn người dùng, presence |
+| 7 | [Điểm, Review & Accuracy](#7-điểm-review--accuracy) | F39–F43, F83 | F83 điểm danh/streak (bổ sung 30/09) đã có backend, policy đang tắt chờ Bên A duyệt số; kèm bảng thành tích tháng |
 | 8 | [Thông báo & Lịch Âm](#8-thông-báo--lịch-âm) | F44–F47 | |
 | 9 | [Báo cáo & Chống gian lận](#9-báo-cáo--chống-gian-lận) | F48–F50 | |
 | 10 | [Group, Affiliate & Geo](#10-group-affiliate--geo) | F51–F58 | Toàn bộ event cần Geo Group (CHỐT-06) |
@@ -229,6 +229,14 @@ cho bản đồ tại thời điểm xem.
 ### F13 — Referral cá nhân, thưởng một lần
 Mã/link cá nhân **chỉ áp dụng cho tài khoản mới**. Thưởng đúng một lần khi người mới đăng ký
 thành công. Quan hệ referral là **bất biến** sau khi tạo — không sửa, không chuyển.
+
+### Bổ sung — Link giới thiệu qua bước cài app (deferred attribution, 01/11)
+Người nhận link chưa cài app vẫn được ghi đúng người giới thiệu và mở đúng nội dung sau khi cài
+và đăng ký. Người giới thiệu tạo link `POST /attribution/links` (`/a/{code}`); landing gọi
+`POST /attribution/clicks` lấy token (`/dl?t=`) và chép vào clipboard khi người dùng bấm tải app;
+app mới cài `POST /attribution/resolve` khi người dùng dán, rồi `POST /attribution/claim` sau
+đăng ký. Token ký Ed25519 (`ATTRIBUTION_SIGNING_KEYS`), không OTP, không dùng IP làm định danh.
+Admin duyệt claim và thu hồi link ở `/admin/attribution/*`. Chi tiết `docs/API.md` §17.
 
 ---
 
@@ -441,8 +449,13 @@ Nếu **5 ngày** sau `ACCEPTED` mà không có huỷ, không có tranh chấp v
 ## 6. Chat Realtime 1-1
 
 ### F37 — Chat text theo giao dịch
-**Chỉ tạo phòng chat khi giao dịch đạt `ACCEPTED`** — không có chat trước đó, kể cả với ứng
-viên trong hàng đợi.
+Phòng chat **theo giao dịch** chỉ tạo khi giao dịch đạt `ACCEPTED` — không có phòng giao dịch
+trước đó, kể cả với ứng viên trong hàng đợi.
+
+> **Nới 25–30/10 (PR #46).** Nay có thêm hai loại phòng mở **không cần giao dịch**:
+> `DIRECT_POST` — hỏi về một bài Rao vặt (`POST /chat/direct-post/rooms`), và `DIRECT_USER` —
+> nhắn trực tiếp một người (`POST /chat/direct-user/rooms`, xem mục bên dưới). Tin nhắn, ảnh và
+> realtime dùng chung `/chat/rooms/:roomId/...`.
 
 Phase 1 là **text và ảnh**: tối đa 3 ảnh mỗi tin nhắn, không file đính kèm khác, không chia
 sẻ vị trí. Màn chat hiển thị bối cảnh giao dịch và các hành động hợp lệ theo trạng thái.
@@ -461,6 +474,24 @@ sẻ vị trí. Màn chat hiển thị bối cảnh giao dịch và các hành �
 ### F38 — Lưu trữ & khoá chỉ đọc
 Tin nhắn **lưu bền vững trước hoặc đồng thời** với lúc phát realtime — không được phát đi rồi
 mới lưu. Khi giao dịch `COMPLETED`, lịch sử vẫn xem được nhưng ô soạn tin bị khoá.
+
+### Bổ sung — Chat trực tiếp với người dùng (30/10)
+Mỗi cặp người đúng **một** phòng `DIRECT_USER`, mở từ danh sách online hoặc hồ sơ công khai.
+Phòng mới cần: hồ sơ hoàn tất, không có quan hệ chặn, người nhận bật "Cho phép người lạ nhắn
+tin" (`allowStrangerMessages`, mặc định bật) **hoặc** hai người từng có phòng chat, và chưa vượt
+`chat.direct_user_daily_limit` phòng mới/24 giờ (mặc định 20, Admin chỉnh). Vướng chặn hay cài
+đặt người lạ cùng trả một mã lỗi để người bị chặn không biết mình bị chặn.
+
+### Bổ sung — Chặn người dùng (30/10)
+`GET|POST /me/blocks`, `DELETE /me/blocks/:userId`. Hiệu lực **hai chiều**: không mở phòng
+`DIRECT_USER` mới, không gửi tin vào phòng đã có, không thấy nhau trong danh sách online. Người
+bị chặn không được báo. Phòng giao dịch và Rao vặt **không** bị ảnh hưởng.
+
+### Bổ sung — Presence theo tab & `showOnlineStatus` (29–30/10)
+App heartbeat `PUT /presence/me` khi ở một tab (Khám phá, Phật Pháp…); `GET
+/presence/surfaces/:surface` trả `onlineCount` (đếm mọi người) và `visibleUsers` — chỉ những
+người **tự bật** `showOnlineStatus` (mặc định tắt). Kèm token thì mỗi người có `userId` để mở chat
+và người có quan hệ chặn bị loại. Dữ liệu chỉ nằm trên Redis có TTL, không lưu lịch sử.
 
 ---
 
@@ -616,8 +647,12 @@ Người nhận chấm mức chính xác của mô tả so với thực tế.
 
 ### F83 — Điểm danh ngày, streak và điểm danh bù (bổ sung 30/09/2026)
 
-**Trạng thái: ⬜ chưa triển khai.** Mã F83 là yêu cầu bổ sung, không thay đổi 72 chức
-năng của bảng phạm vi gốc. Chi tiết: [thiết kế điểm danh/streak](./plan/CHECK-IN-STREAK-DESIGN.md).
+**Trạng thái: ✅ backend đã triển khai (migration `1797100000000`), policy đang TẮT.** Mã F83
+là yêu cầu bổ sung, không thay đổi 72 chức năng của bảng phạm vi gốc. Route: `GET /check-ins/me`,
+`GET /check-ins/me/history`, `POST /check-ins`, `POST /check-ins/repairs`; Admin
+`GET|PUT /admin/check-in-policy`. Bản nháp policy seed sẵn với `enabled = false` nên mọi đường
+ghi trả `CHECK_IN_POLICY_UNAVAILABLE` tới khi Admin publish bản đã duyệt. Chi tiết:
+[thiết kế điểm danh/streak](./plan/CHECK-IN-STREAK-DESIGN.md), `docs/API.md` §7.
 
 - App đọc trạng thái và lịch sử điểm danh; user điểm danh tối đa một lần/ngày theo giờ Việt
   Nam. Streak tính theo **ngày liên tiếp**, không theo tuần lịch. Các mốc khởi đầu 7, 14,
@@ -628,6 +663,13 @@ năng của bảng phạm vi gốc. Chi tiết: [thiết kế điểm danh/strea
   được tính một giao dịch; mỗi cặp giao dịch/người chỉ tính một lần. Admin cấu hình số
   giao dịch đổi một lượt bù, thời hạn bù, điểm ngày và điểm ở từng mốc. Có version/audit.
 - Điểm thưởng qua Point Ledger; lịch, streak, lượt bù và mốc đều có khoá chống trùng.
+
+### Bổ sung — Bảng thành tích tháng (24/10)
+Ba bảng mỗi tháng theo giờ Việt Nam, đếm **số lần**: Người cho (lượt trao hoàn tất với vai người
+tặng), Tấm lòng từ thiện (lượt giao nhận từ thiện hoàn tất), Chuyên cần (ngày điểm danh thật,
+ngày bù không tính). `GET /leaderboards/monthly`, `/leaderboards/monthly/me`, `/leaderboards/months`;
+CLI `leaderboard:close-month` chốt tháng, trao huy hiệu top N. Có chế độ ẩn danh; Admin loại
+người, gỡ huy hiệu và chỉnh ngưỡng qua các khoá `leaderboard.*`. Chi tiết `docs/API.md` §7.
 
 ---
 
@@ -1011,6 +1053,11 @@ Một nút duy nhất, đúng kiểu Facebook: **chạm là `LIKE`, giữ thì h
 - **Chia sẻ** ghi một dòng append-only và tăng `share_count` trong cùng transaction, trả về đường dẫn tương đối để client tự ghép tên miền. `share_count` đếm theo **lượt**, không theo người; vì thế có **khoảng chờ 1 giờ** khoá theo cả người lẫn bài.
 - **Thông báo:** bình luận gốc báo chủ bài, trả lời báo tác giả bình luận cha (trùng nhau thì chỉ một), không tự báo mình, và bình luận chờ duyệt không báo. Cảm xúc chỉ báo **lần đầu trong ngày** theo giờ Việt Nam.
 
+### Bổ sung — Mã chia sẻ bài (25/10)
+Mỗi bài có `shareCode` 10 ký tự, không tuần tự. `GET /posts/:postId` trả `share: { shareCode,
+sharePath: "/p/<mã>", shareUrl }` (`shareUrl` null khi chưa cấu hình `WEB_PUBLIC_BASE_URL`);
+`GET /posts/share/:shareCode` (công khai) phân giải ra bài. Mở link không tăng `shareCount`.
+
 ---
 
 ## 13. Admin CMS, Campaign & Blog
@@ -1112,7 +1159,7 @@ liệu vận hành. Chuyển quyền quản trị và **thu hồi mọi quyền 
 
 ## 17. Đối chiếu giá trị cấu hình & Quyết định chính thức từ SRS v1.15.0
 
-Toàn bộ các điểm blocker trước đây đã được Bên A làm rõ và quy định chính thức trong [`../../SRS_Chan_Tam_v1.15.0.md`](../SRS_Chan_Tam_v1.15.0.md) (Mục 1.7 - CHỐT-01 đến CHỐT-07):
+Toàn bộ các điểm blocker trước đây đã được Bên A làm rõ và quy định chính thức trong [`SRS_Chan_Tam_v1.15.0.md`](./software-requirement-specification/SRS_Chan_Tam_v1.15.0.md) (Mục 1.7 - CHỐT-01 đến CHỐT-07):
 
 | # | Hạng mục | Trạng thái / Quyết định chính thức trong SRS v1.15.0 |
 |---|---|---|

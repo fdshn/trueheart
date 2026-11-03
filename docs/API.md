@@ -17,16 +17,24 @@
 > Rao vặt chỉ đăng tin và liên hệ, chat trực tiếp theo bài, mã chia sẻ bài, action onboarding,
 > presence theo tab, Dharma Home dạng section, hai bảng xếp hạng Phật Pháp và tám vị trí banner
 > mới — gom ở [mục 16](#16-cập-nhật-sản-phẩm-25102026-pr-46).
+>
+> **Từ 29/10–01/11:** hiện trạng thái online, chặn người dùng, chat trực tiếp `DIRECT_USER` (mục
+> 16) và link giới thiệu — deferred attribution (mục 17).
+>
+> File này **không** liệt kê mọi route: các route Admin như cấu hình phân bổ, ngưỡng tin cậy,
+> sổ điểm, hạng, mẫu thông báo, affiliate, blog, Phật Pháp, Công đức, banner, thư viện ảnh… và
+> nhiều route Từ thiện chỉ có trong [`API-ROUTES.md`](./API-ROUTES.md) và Swagger.
 
 Mô tả **các endpoint đang chạy thật** của `@chantam.vn/chantam.core`, kèm hành vi và ràng
 buộc mà chữ ký hàm không nói ra.
 
-Ba file bổ trợ nhau, đừng nhầm:
+Bốn nguồn bổ trợ nhau, đừng nhầm:
 
 | File | Nội dung | Cách cập nhật |
 | --- | --- | --- |
 | File này | Hành vi từng endpoint | Sửa tay khi thêm/đổi route |
 | [`API-ERRORS.md`](./API-ERRORS.md) | Bảng tra mã lỗi | **Sinh tự động** — `npm run docs:errors` |
+| [`API-ROUTES.md`](./API-ROUTES.md) | **Danh sách đầy đủ mọi route** (method, đường dẫn, mức truy cập, tóm tắt) | **Sinh tự động** — `npm run docs:routes` |
 | `GET /docs` (Swagger) | Schema request/response chính xác | Sinh từ decorator lúc chạy |
 
 Swagger là nguồn sự thật về **hình dạng dữ liệu**. File này giải thích **vì sao** endpoint
@@ -140,8 +148,10 @@ Bearer token ở header `Authorization`. Access token ngắn hạn, refresh toke
 | ~~Allowlist username qua biến môi trường~~ | Đã gỡ — mọi đường quản trị nay đọc `admin_permissions` | — | ✅ |
 | Chỉ chủ sở hữu | Kiểm trong use case | Sửa/xoá bài, media, hồ sơ | ❌ |
 
-Hai cơ chế dưới **không lộ ra ở tầng decorator**, nên Swagger không phản ánh điều kiện truy
-cập. Allowlist username là giải pháp tạm của M2, sẽ bị thay bằng RBAC ở M6.
+Ngoài `/admin`, vài route kiểm quyền RBAC **trong use case/controller** chứ không qua decorator:
+`category.manage` (tạo/sửa/gộp danh mục), `rank.operate` (`POST /ranks/maintenance/evaluate`),
+`post.moderate` (duyệt chuyển từ thiện). Kiểm chủ sở hữu cũng nằm trong use case. Swagger vì thế
+không phản ánh điều kiện truy cập của những route này.
 
 > **Khu `/admin` là fail-closed.** `AdminPermissionGuard` chặn MỌI route dưới `/admin` không
 > khai `@RequiresPermission(...)`. Thêm endpoint quản trị mà quên decorator thì nó khoá ngay
@@ -174,7 +184,8 @@ thấy đúng chỗ mình đã ghim thì mới sửa cho khớp được.
 | `POST` | `/auth/refresh` | Công khai | Refresh token cũ bị thu hồi ngay, trả cặp hoàn toàn mới |
 | `POST` | `/auth/logout` | Bearer | Thu hồi phiên và xoá FCM token của thiết bị đó |
 | `POST` | `/auth/password-reset/request` | Công khai | Xin mã đặt lại mật khẩu |
-| `POST` | `/auth/password-reset/confirm` | Công khai | Xác nhận mã và đặt mật khẩu mới |
+| `POST` | `/auth/password-reset/verify-otp` | Công khai | Kiểm mã OTP trước, trả `resetToken` dùng một lần |
+| `POST` | `/auth/password-reset/confirm` | Công khai | Đặt mật khẩu mới bằng `otp` **hoặc** `resetToken` |
 | `PATCH` | `/auth/password` | Bearer | **Đổi mật khẩu khi đang đăng nhập** |
 | `DELETE` | `/auth/account` | Bearer | Xoá mềm và ẩn danh dữ liệu cá nhân |
 | `GET` | `/auth/me` | Bearer | Danh tính phiên hiện tại, đọc thẳng từ token |
@@ -278,7 +289,11 @@ thấy đúng chỗ mình đã ghim thì mới sửa cho khớp được.
   hồi đăng nhập/đăng ký.
 - `GET /profile/me` trả thêm `accuracy` — độ chính xác mô tả khi tặng (F43) của **chính chủ**,
   gồm `percent`, `samples` và `minSamples`. **Không** có cờ `reviewRequired`: cờ đó là tín
-  hiệu để Admin nhìn qua, không phải phán quyết. Hồ sơ **công khai** không có gì về accuracy.
+  hiệu để Admin nhìn qua, không phải phán quyết. Hồ sơ **công khai** cũng trả `accuracy` (từ
+  29/09, xem danh sách ở trên) — chỉ con số, không có cờ xem xét.
+- `GET /profile/me` trả, `PATCH /profile/me` nhận hai cài đặt riêng tư: `showOnlineStatus` (hiện
+  danh tính trong danh sách online, mặc định tắt) và `allowStrangerMessages` (người lạ mở được chat
+  trực tiếp, mặc định bật). Hồ sơ công khai không có hai trường này — xem mục 16.
 - `avatarKey` không hợp lệ (không thuộc tài khoản, không phải ảnh, quá nặng) trả **400**, không
   còn là 500.
 
@@ -310,8 +325,9 @@ thấy đúng chỗ mình đã ghim thì mới sửa cho khớp được.
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
 | `GET` | `/categories` | Công khai | Cây danh mục đang hoạt động |
-| `POST` | `/categories` | Bearer + allowlist | Tạo danh mục |
-| `PATCH` | `/categories/:categoryId` | Bearer + allowlist | Sửa hoặc tắt danh mục |
+| `POST` | `/categories` | Bearer + `category.manage` | Tạo danh mục |
+| `PATCH` | `/categories/:categoryId` | Bearer + `category.manage` | Sửa hoặc tắt danh mục |
+| `POST` | `/categories/:categoryId/merge` | Bearer + `category.manage` | Gộp danh mục vào danh mục khác |
 
 **Điều cần biết**
 
@@ -340,6 +356,8 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 | `GET` | `/posts/sos-urgent` | Công khai | Danh sách cứu trợ SOS — đúng truy vấn của `/posts/nearby` với `isSos` ghim `true` (SRS §19) |
 | `GET` | `/posts/map` | Công khai | Marker trong khung bản đồ |
 | `GET` | `/posts/:postId` | Công khai | Chi tiết một bài công khai |
+| `GET` | `/posts/share/:shareCode` | Công khai | Phân giải mã chia sẻ → `{ post: { postId, postType, status } }` (mục 16) |
+| `PATCH` | `/posts/:postId/classified-status` | Bearer (chủ bài) | Rao vặt: đổi `ACTIVE`/`RESERVED`/`SOLD`/`HIDDEN` (mục 16) |
 | `GET` | `/posts/:postId/matches` | Bearer (chỉ tác giả) | Smart Match — gợi ý bài ghép đôi |
 | `PATCH` | `/posts/:postId` | Bearer (chủ bài) | Sửa nội dung, danh mục, số lượng, giao nhận, SOS — **cấm khi có giao dịch sống** |
 | `DELETE` | `/posts/:postId` | Bearer (chủ bài) | Xoá mềm — **cấm khi bài đang có lượt trao** |
@@ -383,6 +401,7 @@ Lưu trong `details` (JSONB). Mỗi loại chỉ mang đúng trường của mì
 | `OFFER` | `condition`, `estimatedValue`, `totalQuantity` | Không |
 | `CLASSIFIED` | `price` (VND), `condition` | **Có** |
 | `CLASSIFIED` | `negotiable` | Không — mặc định `false` |
+| `CLASSIFIED` | `marketPrice` (VND, giá thị trường tham khảo) | Không |
 | Còn lại | — | — |
 
 `isSos` nằm ở **thân bài**, không trong `details`, vì nó tham gia lọc và sắp xếp trên bảng
@@ -407,9 +426,9 @@ Vai do backend phân giải từ loại bài (`giftTransactionRoles`), không nh
 
 Bài `WANTED` đăng TRƯỚC 11/10 giữ hạn sống ba tháng đã hứa; chúng được cho một hạn xét nhưng không bị rút hạn sống.
 
-> **Quota hiện dùng chung một rổ.** `CLASSIFIED` đang tính vào capability `POST_OFFER`, và
-> bộ đếm quota đếm **mọi** bài đang mở bất kể loại. Muốn tách thì thêm capability
-> `POST_CLASSIFIED` — sau đó admin tự chỉnh số, không cần deploy.
+> **Quota dùng chung một rổ.** Mọi loại bài, kể cả `CLASSIFIED`, tính vào capability
+> `POST_OPEN` (cả lúc tạo lẫn gia hạn), và bộ đếm quota đếm **mọi** bài đang mở bất kể loại.
+> Muốn tách thì thêm capability riêng — sau đó admin tự chỉnh số, không cần deploy.
 
 **Hình thức nhận hàng** ([F78](./FEATURES.md#f78--hình-thức-vận-chuyển), CH-2):
 
@@ -435,7 +454,7 @@ nhau** — đọc kỹ chỗ này:
 | Đường | Chặn theo | Nghĩa là |
 | --- | --- | --- |
 | `PATCH /posts/:postId`, `POST /media`, `DELETE /media/:id`, `PATCH /media/order` | **Giao dịch thật** trên bài: có `gift_transactions` nào ở `ACCEPTED`/`DELIVERING` | Bài chia lô còn hàng, vẫn `PUBLISHED`, nhưng đã duyệt một người → **vẫn chặn** |
-| `DELETE /posts/:postId` | **Trạng thái bài** là `RESERVED`/`DELIVERING` | Giữ nguyên như 26/09 |
+| `DELETE /posts/:postId` | **Trạng thái bài** là `RESERVED`/`DELIVERING` — trừ Rao vặt, nơi `RESERVED` do chủ bài tự đặt; Rao vặt chỉ bị chặn khi còn lượt trao kiểu cũ đang chạy | Giữ nguyên như 26/09 |
 
 Vì sao `PATCH` phải siết hơn: bài `totalQuantity: 5` đã duyệt một người vẫn còn 4 suất nên
 trạng thái vẫn là `PUBLISHED`. Luật cũ nhìn trạng thái nên cho sửa — người đã được duyệt đồng
@@ -449,7 +468,8 @@ khi đã chốt người. Không bản ghi nào nói nội dung từng khác.
   hỏi giao dịch — cùng khoá mà cấp phát kho đang dùng. Không có nó thì duyệt-và-sửa chạy song
   song vẫn lọt qua khe.
 - **Trạng thái kết thúc và bài hết hạn** trả `POST_INVALID_STATE`. Chỉ `DRAFT`,
-  `PENDING_REVIEW`, `PUBLISHED` và còn hạn mới sửa được.
+  `PENDING_REVIEW`, `PUBLISHED` và còn hạn mới sửa được. Rao vặt sửa được thêm ở `RESERVED`
+  và `HIDDEN` (chủ bài tự đặt); `SOLD` là điểm cuối.
 - **`POST /posts/:postId/media/upload` chỉ kiểm trạng thái bài**, không khoá hàng và không hỏi
   giao dịch — nó mới chỉ cấp presigned URL. Cổng thật là bước gắn ảnh; xin được URL mà không
   gắn được thì cùng lắm sinh một object mồ côi, và `media:sweep-orphans` đã lo phần đó.
@@ -551,6 +571,8 @@ Ghép **Muốn Nhận ↔ Muốn Tặng** theo luật, không dùng học máy.
 | Trùng từ khoá | 0.3 |
 | Khoảng cách | 0.2 |
 
+Ba con số trên là **mặc định**; Admin đổi trọng số qua `PUT /admin/config/allocation-policy`.
+
 Điểm nằm trong `[0, 1]`, đọc được như phần trăm khớp. Mỗi gợi ý kèm `reasons`
 (`SAME_CATEGORY` / `KEYWORD_MATCH` / `NEARBY`) để giao diện nói được **vì sao** bài đó hiện
 ra — gợi ý không giải thích được thì người dùng không có cơ sở đánh giá.
@@ -604,6 +626,9 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
   `PUBLISHED`, chưa hết hạn, và **không có giao dịch `ACCEPTED`/`DELIVERING`** nào. Đây chỉ là
   gợi ý để client ẩn nút Sửa — **lúc lưu server vẫn kiểm lại dưới row lock**, vì giữa lúc mở
   màn hình và lúc bấm Lưu có thể đã có người được duyệt.
+- **`share`**: `{ shareCode, sharePath, shareUrl }` — `shareUrl` là `{WEB_PUBLIC_BASE_URL}/p/{shareCode}`,
+  `null` khi chưa cấu hình web công khai.
+- **`hasRequested`**: người gọi đã có yêu cầu xin nhận đang mở với bài này chưa.
 
 ### Tương tác — cảm xúc, bình luận, chia sẻ
 
@@ -705,6 +730,7 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 | `POST` | `/posts/:postId/requests` | Bearer | Gửi yêu cầu xin nhận, kèm lời nhắn tối đa 500 ký tự |
 | `POST` | `/posts/:postId/requests/withdraw` | Bearer | Rút yêu cầu của chính mình — được cả khi đang `STANDBY` |
 | `GET` | `/requests/me` | Bearer | **Yêu cầu của chính tôi**, kèm tiêu đề + ảnh + trạng thái bài |
+| `GET` | `/requests/:requestId` | Bearer (người xin hoặc chủ bài) | Một yêu cầu — đích mở từ thông báo (mục 9) |
 | `GET` | `/posts/:postId/requests` | Bearer (chỉ tác giả) | Danh sách người xin, có phân trang |
 | `POST` | `/posts/:postId/requests/:requestId/reject` | Bearer (chỉ tác giả) | **Từ chối** một yêu cầu đang `PENDING`/`STANDBY` |
 | `POST` | `/posts/:postId/requests/:requestId/accept` | Bearer (chỉ tác giả **và** đủ hạng) | Duyệt một người xin — xem khung dưới |
@@ -833,11 +859,11 @@ POST thành công trả `postId`, `transactionId`, `pointsSpent`, `balanceAfter`
 > có gì để hoàn, và đó là đường phổ biến nhất nên nó im lặng.
 >
 > Phản hồi của hai endpoint **không đổi**: nó không báo số điểm đã hoàn. Client đọc số dư mới
-> qua `GET /points/summary` hoặc sổ điểm. Thêm trường vào đây sẽ buộc nó phải chờ một bút toán
+> qua `GET /points/me` hoặc sổ điểm. Thêm trường vào đây sẽ buộc nó phải chờ một bút toán
 > ở transaction khác, và một lỗi khi hoàn sẽ làm lượt huỷ trông như thất bại.
 
-**Còn lại của mục 2:** quote stale do đổi giá/tỷ lệ phải bắt xác nhận lại, không âm thầm trừ
-giá mới. Xem [handoff và acceptance tests](./plan/REDEMPTION-REQUIREMENT-GAP.md).
+Quote đổi giá/tỷ lệ giữa chừng đã được chặn: client gửi `confirmedPoints`, lệch thì
+`REDEMPTION_QUOTE_STALE` (xem ở trên). Xem [handoff và acceptance tests](./plan/REDEMPTION-REQUIREMENT-GAP.md).
 
 #### Hàng đợi dự phòng
 
@@ -858,7 +884,7 @@ hàng đợi; ứng viên được đề xuất nhận thông báo *"đang đư�
 "đã được chọn", vì chưa ai chọn họ. Không có giao dịch nào được tạo tự động.
 
 **Ai được đề xuất là do Admin cấu hình** (CH-1), không cố định "ai xin trước". Xem
-[§11 Quản trị](#11-quản-trị--admin) cho endpoint đổi thứ tự ưu tiên.
+[§12 Quản trị](#12-quản-trị--admin) cho endpoint đổi thứ tự ưu tiên.
 
 Người đang `STANDBY` **rút được** yêu cầu, và **không** gửi lại được yêu cầu mới (trả
 `GIFT_REQUEST_DUPLICATED`): họ vẫn đang có một yêu cầu mở, và gửi lại sẽ reset thứ tự hàng
@@ -1042,15 +1068,15 @@ qua `PUT /admin/check-in-policy` thì tính năng mới chạy.
 | --- | --- | --- | --- |
 | `GET` | `/check-ins/me` | Bearer | Ngày nghiệp vụ, trạng thái hôm nay, streak, mốc tới, lượt bù và tiến độ giao dịch |
 | `GET` | `/check-ins/me/history?page=&pageSize=` | Bearer | Lịch phân trang của chính user, ngày thường/bù, điểm và khả năng bù |
-| `POST` | `/check-ins` | Bearer | Body `{ "checkIn": {} }`; điểm danh hôm nay, điểm ngày và thưởng mốc nếu đạt |
+| `POST` | `/check-ins` | Bearer | Không body; điểm danh hôm nay, điểm ngày và thưởng mốc nếu đạt |
 | `POST` | `/check-ins/repairs` | Bearer | Body `{ "repair": { "date": "YYYY-MM-DD" } }`; tiêu một lượt và nối streak |
 | `GET` | `/admin/check-in-policy` | `config.read` | Policy/version hiện hành |
 | `PUT` | `/admin/check-in-policy` | `config.write` | Body `{ "checkInPolicy": { ... } }`; publish version mới và audit |
 
 Một user/ngày chỉ có một điểm danh. Mốc 7/14/30/50 là **ngày liên tiếp**. Lượt bù
 được tích từ giao dịch tặng/nhận quà hoàn tất theo ngưỡng Admin cấu hình. Điểm mốc
-cộng thêm điểm ngày; ngày bù không nhận điểm ngày. `Idempotency-Key` và unique key
-nghiệp vụ bảo vệ retry/đồng thời. Xem [quy tắc và trường response đầy đủ](./plan/CHECK-IN-STREAK-DESIGN.md).
+cộng thêm điểm ngày; ngày bù không nhận điểm ngày. Unique key nghiệp vụ (người + ngày) bảo vệ
+retry/đồng thời — không có header `Idempotency-Key`. Xem [quy tắc và trường response đầy đủ](./plan/CHECK-IN-STREAK-DESIGN.md).
 
 ### API hiện có
 
@@ -1059,7 +1085,7 @@ nghiệp vụ bảo vệ retry/đồng thời. Xem [quy tắc và trường resp
 | `GET` | `/points/me` | Bearer | Số dư điểm của chính chủ |
 | `GET` | `/points/me/ledger` | Bearer | Lịch sử ledger, phân trang |
 | `GET` | `/ranks/me` | Bearer | Hạng hiện tại, hạng kế tiếp, chu kỳ duy trì |
-| `POST` | `/ranks/maintenance/evaluate` | Bearer + allowlist | Chạy đánh giá chu kỳ duy trì |
+| `POST` | `/ranks/maintenance/evaluate` | Bearer + `rank.operate` | Chạy đánh giá chu kỳ duy trì |
 | `GET` | `/referrals/me` | Bearer | Mã giới thiệu và thống kê |
 | `GET` | `/me/entitlements` | Bearer | Quyền và quota theo hạng hiện tại |
 
@@ -1106,8 +1132,10 @@ nghiệp vụ bảo vệ retry/đồng thời. Xem [quy tắc và trường resp
   kết quả một chu kỳ đang chạy.
 - `/referrals/me` trả `code`, `totalCount`, `qualifiedCount`, `rewardedCount` — ba con số
   khác nhau có chủ đích: đăng ký chưa phải là đủ điều kiện, và đủ điều kiện chưa chắc đã được
-  thưởng (còn trần theo ngày). Mã giới thiệu là **bất biến**, gắn lúc đăng ký, không có
-  endpoint gắn sau hay chuyển nhượng.
+  thưởng (còn trần theo ngày). Mã giới thiệu là **bất biến**. Người giới thiệu gắn lúc đăng ký
+  (`referralCode`), hoặc **sau đăng ký** qua link giới thiệu `POST /attribution/claim` — chỉ cho
+  tài khoản tạo trong 7 ngày, chưa xong onboarding, chưa có người giới thiệu (mục 17). Không có
+  đường chuyển nhượng.
 - `/me/entitlements` trả `used`/`remaining` đếm đúng số bài mà quota **thật sự** chặn — cùng
   một định nghĩa với chỗ chặn lúc đăng bài. Hai bên lệch nhau thì API nói một đằng, lúc đăng
   bài chặn một nẻo.
@@ -1168,12 +1196,21 @@ Ba bảng mỗi tháng, đếm **số lần**, không đếm điểm hay tiền.
 
 ## 8. Chat — `/chat` và Socket.io
 
-Mỗi giao dịch đã duyệt có **đúng một** phòng chat, mở ngay trong transaction duyệt
-([F34](./FEATURES.md#f34--chấp-nhận-giao-dịch--mở-chat)).
+Ba loại phòng (`roomType`):
+
+- `TRANSACTION` — mỗi giao dịch đã duyệt có **đúng một** phòng, mở ngay trong transaction duyệt
+  ([F34](./FEATURES.md#f34--chấp-nhận-giao-dịch--mở-chat)).
+- `DIRECT_POST` — người mua nhắn người bán về một bài Rao vặt, không có giao dịch (mục 16).
+- `DIRECT_USER` — hai người nhắn thẳng, không giao dịch, không bài; mỗi cặp một phòng (mục 16).
+
+Danh sách và chi tiết phòng trả `roomType`; `transactionId`, `postId`, `postTitle`,
+`postThumbnailUrl`, `postPrice` có thể `null` tuỳ loại; cùng `counterpartId` và `blockedByMe`.
 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
 | `GET` | `/chat/rooms` | Bearer | Danh sách hội thoại của chính mình, phân trang |
+| `POST` | `/chat/direct-post/rooms` | Bearer | Mở (hoặc trả lại) phòng `DIRECT_POST` về một bài Rao vặt |
+| `POST` | `/chat/direct-user/rooms` | Bearer | Mở (hoặc trả lại) phòng `DIRECT_USER` với một người |
 | `GET` | `/chat/rooms/:roomId/messages` | Bearer (trong phòng) | Lịch sử, mới nhất trước, **phân trang bằng con trỏ** |
 | `POST` | `/chat/rooms/:roomId/messages` | Bearer (trong phòng) | Gửi tin, tối đa 2000 ký tự — **30/phút và 500/24 giờ** |
 | `POST` | `/chat/rooms/:roomId/message-media/upload-url` | Bearer (trong phòng) | Xin presigned URL cho ảnh đính kèm |
@@ -1181,6 +1218,10 @@ Mỗi giao dịch đã duyệt có **đúng một** phòng chat, mở ngay trong
 | `PATCH` | `/chat/rooms/:roomId/mute` | Bearer (trong phòng) | **Tắt/bật thông báo** phòng này, chỉ cho chính mình |
 | `PATCH` | `/chat/rooms/:roomId/read` | Bearer (trong phòng) | Đánh dấu đã đọc tới hiện tại |
 | `GET` | `/admin/chat/rooms/:roomId/messages` | `report.read` | **Đọc phòng để điều tra** — chỉ khi có báo xấu đang mở |
+| `DELETE` | `/admin/chat/messages/:messageId` | `report.resolve` | Gỡ một tin vi phạm |
+
+Gửi tin vào phòng `DIRECT_USER` của một cặp có quan hệ chặn (bất kể chiều) trả
+`CHAT_RECIPIENT_UNAVAILABLE`. Chặn không ảnh hưởng phòng `TRANSACTION` và `DIRECT_POST`.
 
 **Điều cần biết**
 
@@ -1477,6 +1518,9 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 | --- | --- | --- | --- |
 | `GET` | `/transactions/me` | Bearer | Các lượt của chính mình, cả vai tặng lẫn vai nhận |
 | `GET` | `/transactions/:id` | Bearer (hai bên trong cuộc) | **Xem một lượt trao**, kèm `evidence[]` ảnh của cả hai bên — người ngoài nhận 404 |
+| `GET` | `/transactions/:transactionId/selection-reason` | Bearer (hai bên) | Vì sao hệ thống chọn người nhận (mục 16) |
+| `GET` | `/admin/transactions` | `post.read` | Danh sách lượt trao cho CMS |
+| `GET` | `/admin/transactions/:transactionId` | `post.read` | Chi tiết một lượt trao |
 | `PATCH` | `/admin/transactions/:id/reopen` | `admin.manage` | **Mở lại lượt đóng nhầm**, reason bắt buộc, ghi audit |
 | `POST` | `/transactions/:id/confirm` | Bearer (người nhận) | Xác nhận đã nhận; body **tuỳ chọn** `{ receipt: { evidenceKeys } }` kèm ảnh lúc nhận |
 | `POST` | `/transactions/:id/cancel` | Bearer (cả hai vai) | Huỷ |
@@ -1524,8 +1568,9 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
   bị cron đóng trước khi hàng tới nơi.
 - **Ảnh bằng chứng** đi qua presigned PUT như ảnh bài đăng — máy chủ không nhận file.
   Tối đa **3 tấm mỗi mốc**, và trần đó do **database** giữ (`slot` 1–3 + UNIQUE), không
-  phải một phép đếm ở tầng ứng dụng vốn thua cuộc khi hai request vào cùng lúc. Gửi
-  quá trần thì phần thừa bị bỏ, không báo lỗi.
+  phải một phép đếm ở tầng ứng dụng vốn thua cuộc khi hai request vào cùng lúc. Một request
+  gửi quá 3 `evidenceKeys` bị từ chối `VALIDATION_FAILED`; còn khi các lần gửi trước đã lấp đủ
+  3 ô thì ảnh dư bị bỏ, không báo lỗi.
 
   | Mốc | Ai | Bắt buộc? |
   | --- | --- | --- |
@@ -1577,7 +1622,7 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 | `GET /groups/:groupId/activities` | Dòng hoạt động |
 | `GET /groups/:groupId/invite` | Link mời + số người đã vào |
 | `GET /groups/:groupId/invite-link` | Như `/invite` — tên theo SRS 3.7A |
-| `GET /groups/invites/:inviteCode` | **Công khai**, không cần đăng nhập — xem trước nhóm cho trang `/invite/:code`: `name, regionLabel, description, avatarUrl, coverUrl, memberCount, ownerUsername`. Không có toạ độ hay id. Mã sai và nhóm đã giải tán cùng trả `400 GROUP_INVITE_INVALID` |
+| `GET /groups/invites/:inviteCode` | **Công khai**, không cần đăng nhập — xem trước nhóm cho trang `/invite/:code`: `name, regionLabel, description, avatarUrl, coverUrl, memberCount, ownerUsername`. Không có toạ độ hay id. Mã không đúng khuôn (16 ký tự `A-Z0-9`) trả `400 VALIDATION_FAILED`; mã đúng khuôn nhưng không có hoặc nhóm đã giải tán trả `400 GROUP_INVITE_INVALID` |
 | `GET /groups/:groupId/affiliate` | Điều kiện affiliate của nhóm |
 | `GET /groups/:groupId/members` | Danh sách thành viên |
 | `GET /groups/:groupId/sub-teams` | Danh sách tổ |
@@ -1588,7 +1633,7 @@ và `REJECTED` là hai giá trị enum không còn đường nào ghi — giữ 
 Và các endpoint Admin: `GET /admin/groups/role-permissions`,
 `PUT /admin/groups/role-permissions/:role`, `GET /admin/groups/radius-policy`,
 `PUT /admin/groups/radius-policy`, `GET /admin/groups`, `GET /admin/groups/:groupId`,
-`GET /admin/groups/:groupId/members`, `POST /admin/groups/:groupId/dissolve`,
+`GET /admin/groups/:groupId/members` (ba route đọc này cần `admin.access`), `POST /admin/groups/:groupId/dissolve`,
 `POST /admin/groups/:groupId/invite-link/rotate`.
 
 ### SRS 3.7A — thay đổi ngày 16/10/2026
@@ -1660,16 +1705,15 @@ Bốn endpoint quản lý đi qua `hasGroupPermission(userId, groupId, permissio
 | Vai | Quyền seed sẵn |
 | --- | --- |
 | `OWNER` | `group.overview.view`, `group.member.view`, `group.member.assign_role`, `group.subteam.manage`, `group.invite.view`, `group.activity.view`, `group.affiliate.view`, `group.settings.manage` |
-| `SUBTEAM_ADMIN` | `group.subteam.member.view` ✅, `group.subteam.activity.view` |
+| `SUBTEAM_ADMIN` | `group.overview.view`, `group.subteam.member.view`, `group.subteam.activity.view` |
 | `MEMBER` | `group.overview.view` |
 
-✅ = có dòng code thật sự kiểm. **Bốn trong mười quyền** ở trạng thái đó; sáu quyền còn lại canh
-những endpoint chưa tồn tại và `test:config-inventory` khai từng cái kèm lý do. Tới 30/09 cả hai
-quyền của `SUBTEAM_ADMIN` đều không ai đọc, nên phong vai đó cho ai cũng không đổi một thứ gì.
+Cả **mười** mã quyền đều có code thật sự kiểm (`EnforcedGroupPermissions`); thêm mã mới mà
+chưa ai kiểm thì `test:config-inventory` đỏ. `group.overview.view` được kiểm ở
+`GET /groups/:groupId`.
 
-Bảng `group_role_permissions` **không** hard-code trong code, nhưng cũng **chưa có endpoint
-Admin**: đổi bộ quyền hiện phải chạy SQL tay, bảng không có cột `version`, và `updated_by` chưa
-bao giờ được ghi.
+Bảng `group_role_permissions` có **version** và sửa qua Admin:
+`GET /admin/groups/role-permissions`, `PUT /admin/groups/role-permissions/:role` (xem dưới).
 
 ### `GET …/members` — hai quyền, hai phạm vi
 
@@ -1691,7 +1735,7 @@ sang tổ của nhóm khác. Phân biệt ba ca là để lộ cơ cấu nhóm n
 - **`subTeamId` bỏ trống = GIỮ tổ hiện tại. `null` tường minh = gỡ khỏi tổ.** `role` bỏ trống
   thì giữ nguyên vai. Hai thứ này phải khác nhau: gộp lại thì không có cách nào đổi vai mà giữ
   tổ, và phong `SUBTEAM_ADMIN` cho ai sẽ gỡ họ khỏi đúng cái tổ họ sắp quản.
-- **Không gửi trường nào thì `422`**, không phải `200`. Một `PATCH` không nói gì là lượt gọi sai;
+- **Không gửi trường nào thì `400 VALIDATION_FAILED`**, không phải `200`. Một `PATCH` không nói gì là lượt gọi sai;
   cho qua thì client gửi thiếu trường vẫn nhận `200` và tin là đã đổi.
 - **Không gán được `OWNER`.** Hai Owner trên một nhóm thì `groups.owner_id` và bảng membership
   nói hai chuyện khác nhau, và không có quy tắc nào phân xử.
@@ -1737,9 +1781,10 @@ phân biệt là cho người lạ dò xem id nào là một nhóm thật.
 | `GET /groups/:id/affiliate` | `group.affiliate.view` | chỉ Owner; trưởng tổ KHÔNG xem affiliate toàn nhóm |
 | `PATCH /groups/:id` | `group.settings.manage` | tên, mô tả, ảnh — **không** tâm và bán kính |
 
-`GET …/affiliate` trả **điều kiện**, không phải điểm đã chia: `rewardEngineReady: false` nói
-thẳng rằng bộ máy chia thưởng chưa có, thay cho việc im lặng trả 0 điểm — Owner sẽ tưởng nhóm
-mình chưa làm được gì. Ba con số tách riêng (`activeMemberCount`, `insideRadiusCount`,
+`GET …/affiliate` trả **điều kiện**, không phải điểm đã chia. `rewardEngineReady` là `true` khi
+và chỉ khi chính sách affiliate đang hiệu lực có `enabled: true` (`PUT /admin/affiliate-policy`)
+— `false` nói thẳng là nhóm chưa được chia thưởng vì chính sách chưa bật, thay cho việc im lặng
+trả 0 điểm. Ba con số tách riêng (`activeMemberCount`, `insideRadiusCount`,
 `eligibleCount`) vì chúng trả lời ba câu khác nhau khi Owner hỏi "sao nhóm tôi ít người đủ điều
 kiện": vắng mặt, ngoài vùng, hay cả hai. Cửa sổ đọc từ
 `affiliate.active_member_window_days`, và tính từ `users.status` + `users.last_active_at` trực
@@ -1747,7 +1792,7 @@ tiếp — không có cột cờ `is_active` nào, vì một job quét rồi ghi
 cùng một sự thật.
 
 `PATCH /groups/:id` cố ý không nhận tâm và bán kính (BR-GRP-03). Bỏ trống một trường là **giữ
-nguyên**; `null` tường minh mới xoá mô tả hoặc ảnh. Không gửi trường nào thì `422`. Nhóm đã giải
+nguyên**; `null` tường minh mới xoá mô tả hoặc ảnh. Không gửi trường nào thì `400 VALIDATION_FAILED`. Nhóm đã giải
 tán không sửa được gì.
 
 ### `GET|PUT /admin/groups/radius-policy` — cả thang một lượt
@@ -1783,8 +1828,7 @@ gán, tức tự tạo đúng loại "quyền seed mà không ai có".
   nhóm không ai xếp được người vào tổ, mà cũng không lấy lại được vì đường duy nhất để lấy lại
   là chính endpoint này.
 - **Mã quyền lạ bị từ chối**, không lưu im lặng. `GET` trả kèm `knownPermissions` và cờ
-  `effective` — một bộ quyền toàn mã mà code chưa kiểm thì gán vai đó không đổi một thứ gì, và
-  hôm nay `MEMBER` đúng ở trạng thái ấy.
+  `effective` — một bộ quyền toàn mã mà code chưa kiểm thì gán vai đó không đổi một thứ gì.
 
 ### Nhóm đã giải tán thì mọi quyền tắt theo
 
@@ -1799,6 +1843,9 @@ nhóm. Giữ nguyên nhóm đã chết ở đó là ẩn nút Tạo nhóm vĩnh 
 ---
 
 ## 12. Quản trị — `/admin`
+
+> Mục này giải thích những route Admin có hành vi cần nói rõ. **Danh sách đầy đủ** route Admin
+> và quyền của từng route (sinh từ code) ở [`API-ROUTES.md`](./API-ROUTES.md).
 
 Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit kèm lý do bắt buộc.
 
@@ -1914,7 +1961,7 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
   mở CMS mà không phải trả giá gì.
 - Tác giả **sửa** bài đã bị gỡ thì bài vẫn `REJECTED`. Cho nó tự hiện lại là để tác giả gỡ
   quyết định của Admin bằng cách sửa một dấu phẩy. Chỉ Admin trả lại được.
-- `POST /reports` nhận target `POST`, `USER` hoặc `COMMENT`, mô tả và tối đa 5 URL bằng
+- `POST /reports` nhận target `POST`, `USER`, `COMMENT`, `CHAT_MESSAGE` hoặc `DHARMA_THREAD`, mô tả và tối đa 5 URL bằng
   chứng. Nhiều report chỉ tăng độ ưu tiên; việc gửi report không tự động phạt. Khi Admin
   xác nhận report nhắm vào bài đăng, bài công khai bị chuyển sang `REJECTED`, chủ bài bị
   trừ điểm theo rule `CONTENT_VIOLATION_PENALTY` (mặc định −50, không giảm lifetime), và
@@ -1937,7 +1984,7 @@ Toàn bộ khu này fail-closed (xem §1). Mọi thao tác ghi đều ghi audit 
   đứng ở trần mãi mãi. Nay **cả ba** đường — tác giả gỡ, `post:expire`, Admin hậu kiểm — đều
   đóng yêu cầu treo và bắn `GIFT_REQUEST_CLOSED` cho từng người xin.
 - **Hai lớp bảo vệ, không phải một.** Ngoài đường đóng ở trên, `countOpenByRequester` nay JOIN
-  sang `posts` và bỏ qua yêu cầu dưới bài `EXPIRED`/`CANCELLED`/`REJECTED`/`COMPLETED`/`ARCHIVED`.
+  sang `posts` và bỏ qua yêu cầu dưới bài `EXPIRED`/`CANCELLED`/`REJECTED`/`COMPLETED`/`ARCHIVED`/`SOLD`.
   Mai này thêm một đường đóng bài mà quên gọi thì tệ nhất là con số hơi lệch, chứ không phải một
   người bị khoá mà không hiểu vì sao. `RESERVED`/`DELIVERING` **vẫn tính**: lượt trao đang chạy,
   và người đứng `STANDBY` dưới nó vẫn được xét tiếp nếu nó đổ.
@@ -1984,6 +2031,10 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 
 ## 13. Từ thiện — bảng nhu cầu và đề nghị đóng góp
 
+> Bảng dưới là các route chính của luồng đóng góp. Còn các route khác — `GET
+> /charity-contributions/:id`, tham gia/huỷ tham gia, đánh giá, cập nhật tiến độ, giao nhận, và
+> nhóm `/admin/charity-campaigns/*` — xem [`API-ROUTES.md`](./API-ROUTES.md).
+
 > **Mọi dòng dưới đây đã CHẠY từ 12/10**, đo bằng `npm run test:charity-contribution`. Tiến độ từng lát ở
 > [`CHARITY-CONTRIBUTION-DESIGN.md` §12](./plan/CHARITY-CONTRIBUTION-DESIGN.md#12-tiến-độ-triển-khai)
 > — đó là nguồn duy nhất, bảng này không kể lại. Endpoint nào chưa tick ở đó thì client không
@@ -2002,7 +2053,7 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `POST` | `/charity-campaigns` | Bearer + capability theo loại | ✅ **Đã chạy.** Tạo campaign kèm bảng nhu cầu; server tự quyết định chờ duyệt hay public ngay (`approval_status` + `is_active`) |
 | `GET` | `/campaigns/:idOrSlug/needs` | Công khai | ✅ **Đã chạy.** Nhu cầu, số đã chấp nhận/đã nhận/còn thiếu theo từng dòng; không trả PII beneficiary |
 | `POST` | `/charity-campaigns/:id/contributions` | Bearer | ✅ **Đã chạy.** Gửi đề nghị gồm nhiều vật phẩm và số lượng; đề nghị KHÔNG giữ chỗ |
-| `GET` | `/charity-campaigns/:id/contributions` | Organizer | ✅ **Đã chạy.** Danh sách đề nghị, lọc được theo trạng thái. Coordinator chưa có — xem lát C |
+| `GET` | `/charity-campaigns/:id/contributions` | Organizer hoặc Coordinator đang hoạt động | ✅ **Đã chạy.** Danh sách đề nghị, lọc được theo trạng thái |
 | `GET` | `/charity-contributions/me` | Bearer | ✅ **Đã chạy.** Đề nghị của chính mình, mọi hoạt động |
 | `PATCH` | `/charity-contributions/:id` | Bearer (chủ đề nghị) | ✅ **Đã chạy.** `action: REPLACE` thay trọn bộ dòng, `WITHDRAW` rút — chỉ khi chưa có phần nào được chấp nhận |
 | `POST` | `/charity-contributions/:id/decision` | Organizer | ✅ **Đã chạy.** Quyết **mọi** dòng trong một lượt, nguyên tử; chống vượt nhu cầu khi hai lượt cùng lúc; `decisionKey` chống trùng |
@@ -2063,8 +2114,8 @@ Giao diện trang chủ (`/admin/campaigns`) có thêm `DELETE /admin/campaigns/
   không trừ vào đây: giữ chỗ theo đề nghị thì một loạt đề nghị không thực hiện sẽ làm chiến dịch
   trông như đã đủ và chặn người tặng thật.
 
-  `pendingQuantity` **chưa có** trong phản hồi và sẽ xuất hiện cùng lát B, khi bảng đề nghị tồn
-  tại. Trả `0` bây giờ là đặt một con số không phải phép đo giữa những con số có thật.
+  `pendingQuantity` (số đang nằm trong đề nghị chưa quyết) có trong phản hồi từ lát B — tính từ
+  bảng đề nghị, không trừ vào `remainingQuantity`.
 
   Dòng `isActive = false` vẫn trả về (nó là lịch sử của những đề nghị đã gửi) nhưng không vào
   phép tính tiến độ.
@@ -2156,41 +2207,39 @@ Giao diện trang chủ (`/admin/campaigns`) có thêm `DELETE /admin/campaigns/
   `10` là số GIỮ CHỖ — Bên A chốt mức, Admin sửa rồi mới bật. Xem
   [§12](./plan/CHARITY-CONTRIBUTION-DESIGN.md#12-tiến-độ-triển-khai).
 
-Body tạo đề nghị luôn bọc khoá `contribution`:
+Body tạo đề nghị **không** bọc khoá ngoài (ngoại lệ của quy ước chung):
 
 ```json
 {
-  "contribution": {
-    "items": [
-      { "needItemId": "uuid", "offeredQuantity": 20, "condition": "NEW" },
-      { "needItemId": "uuid", "offeredQuantity": 5, "condition": "LIKE_NEW" }
-    ],
-    "deliveryMethod": "MEETUP",
-    "note": "Có thể giao chiều thứ bảy"
-  }
+  "items": [
+    { "needItemId": "uuid", "offeredQuantity": 20, "conditionNote": "Mới 90%" },
+    { "needItemId": "uuid", "offeredQuantity": 5 }
+  ],
+  "note": "Có thể giao chiều thứ bảy",
+  "contactNote": "Gọi trước 30 phút"
 }
 ```
 
-Body quyết định cho phép chấp nhận một phần và từ chối các dòng còn lại:
+Body quyết định (cũng không bọc) cho phép chấp nhận một phần và từ chối các dòng còn lại;
+`decisionKey` 8–100 ký tự chống trùng:
 
 ```json
 {
-  "decision": {
-    "idempotencyKey": "uuid",
-    "items": [
-      { "contributionItemId": "uuid-1", "acceptedQuantity": 15 },
-      {
-        "contributionItemId": "uuid-2",
-        "acceptedQuantity": 0,
-        "rejectionReason": "TARGET_REACHED"
-      }
-    ]
-  }
+  "decisionKey": "quyet-dinh-2026-11-03-01",
+  "decisions": [
+    { "contributionItemId": "uuid-1", "acceptedQuantity": 15 },
+    {
+      "contributionItemId": "uuid-2",
+      "acceptedQuantity": 0,
+      "rejectionReason": "TARGET_REACHED"
+    }
+  ]
 }
 ```
 
 Accept phải khoá và kiểm tra capacity trong cùng database transaction. Nếu capacity thay đổi,
-trả `409` kèm `needItemId`, `requestedQuantity` và `remainingQuantity`; không tự cắt số lượng.
+trả `409 CHARITY_NEED_EXCEEDED`; thông điệp nêu tên vật phẩm và số còn nhận được (không có
+`body` máy đọc). Không tự cắt số lượng.
 Địa chỉ giao nhận chính xác chỉ xuất hiện sau khi phần đóng góp được chấp nhận và chỉ trả cho
 hai bên transaction. Chi tiết tại
 [CHARITY-CONTRIBUTION-DESIGN](./plan/CHARITY-CONTRIBUTION-DESIGN.md).
@@ -2237,8 +2286,8 @@ hình dạng legacy cho response.
 Bảng `gift_posts` và toàn bộ migration lịch sử vẫn còn, nhưng **không còn đường code nào đọc
 nó**. Client mới nên dùng `/posts`.
 
-`GET /gift-posts/:giftPostId` luôn trả `canViewExactLocation: false` — kênh này không có khái
-niệm chủ sở hữu xem bài của mình.
+`GET /gift-posts/:giftPostId` trả `isLocationApproximate` (toạ độ đã làm nhiễu với người
+không phải chủ bài) — trường `canViewExactLocation` cũ không còn.
 
 ---
 
@@ -2294,8 +2343,10 @@ Từ đợt này, lỗi có thể mang `body` thay vì luôn `null`:
 
 ### Hồ sơ công khai mở rộng
 
-`PATCH /profile/me` nhận thêm `slogan`, `todayThought`, `introVideoUrl`,
-`introVideoThumbnailUrl`, `emailVisibility`, `phoneVisibility` (`PRIVATE` mặc định | `PUBLIC`).
+`PATCH /profile/me` nhận thêm `slogan`, `todayThought`, `introVideoKey`,
+`introVideoThumbnailKey` (key đã tải lên; `introVideoKey: null` gỡ clip), `emailVisibility`,
+`phoneVisibility` (`PRIVATE` mặc định | `PUBLIC`). Phản hồi trả `introVideoUrl`,
+`introVideoThumbnailUrl`.
 
 `GET /profile/:username` trả thêm:
 
@@ -2539,11 +2590,11 @@ app sau đăng ký ──── POST /attribution/claim (Bearer) ▶ gắn ngư�
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
 | `POST` | `/attribution/links` | Bearer | `{ link: { targetType?, targetValue?, campaign?, source?, medium? } }` → `{ link: { code, url, deepLink, … }, created }`. Người giới thiệu = người gọi. Link đang sống y hệt thì trả lại |
-| `POST` | `/attribution/clicks` | Công khai | `{ click: { code } }` → `{ click: { token, expiresAt, deepLinkUrl, referrer, deepLink } }`. Mỗi lượt mở một token riêng |
+| `POST` | `/attribution/clicks` | Công khai | `{ click: { code } }` → `{ click: { token, expiresAt, deepLinkUrl, referrer, deepLink } }`. Mỗi lượt mở một token riêng. Mã không có → `ATTRIBUTION_LINK_NOT_FOUND`; link đã thu hồi → `ATTRIBUTION_TOKEN_REVOKED` |
 | `POST` | `/attribution/resolve` | Công khai | `{ token, installId, platform }` → `{ matched, attributionToken, referralCode, deepLink }` |
 | `POST` | `/attribution/claim` | Bearer | `{ attributionToken }` → `{ claimed, riskStatus }` |
-| `GET` | `/admin/attribution/claims?riskStatus=` | `report.read` | Các lượt claim, mới nhất trước |
-| `POST` | `/admin/attribution/claims/:claimId/review` | `report.resolve` | `{ review: { decision: APPROVE\|REJECT, note } }` |
+| `GET` | `/admin/attribution/claims?riskStatus=&page=&pageSize=` | `report.read` | `{ claims, meta }`, mới nhất trước |
+| `POST` | `/admin/attribution/claims/:claimId/review` | `report.resolve` | `{ review: { decision: APPROVE\|REJECT, note } }`. Lỗi: `ATTRIBUTION_CLAIM_NOT_FOUND`, `ATTRIBUTION_CLAIM_ALREADY_REVIEWED`, `ATTRIBUTION_REFERRER_EXISTS` |
 | `POST` | `/admin/attribution/revocations` | `report.resolve` | `{ revocation: { linkCode \| campaign \| referrerUserId, reason } }` → `{ revokedLinks }` |
 
 **Đích deep link** (`targetType` / `deepLink.type`):
@@ -2602,8 +2653,11 @@ tại → `ATTRIBUTION_TARGET_NOT_FOUND`.
   - `QUALIFIED`: không vướng tín hiệu gì, đã ghi quan hệ giới thiệu.
   - `PENDING_REVIEW`: cùng bản cài đã claim cho một tài khoản **khác** trong 30 ngày. Quan hệ
     giới thiệu **chưa** được ghi, chờ Admin duyệt.
+  - `REJECTED`: Admin đã từ chối — chỉ gặp khi chính người đó claim lại sau quyết định.
 
-  App không cần xử lý khác giữa hai giá trị này.
+  App không cần xử lý khác giữa các giá trị này.
+- Tài khoản quá 7 ngày, đã xong onboarding, hoặc không còn hoạt động →
+  `ATTRIBUTION_NOT_ELIGIBLE` (409).
 
 **Chống gian lận**
 

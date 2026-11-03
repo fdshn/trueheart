@@ -3,16 +3,19 @@
 Trạng thái: ✅ đã hiện thực. Từ 28/09 thì hoàn tất lượt trao **có báo cho hai bên** ở cả hai
 đường, và cửa phụ tạo lượt trao đã gỡ.
 
-**Tám endpoint:** xem danh sách của mình, xem một lượt, xin link ảnh bằng chứng, bàn giao,
-xác nhận, báo bom ship, huỷ, và **mở lại** (Admin).
+**Chín endpoint:** xem danh sách của mình, xem một lượt, **vì sao hệ thống chọn người nhận
+này** (`GET /transactions/:id/selection-reason`), xin link ảnh bằng chứng, bàn giao, xác nhận,
+báo bom ship, huỷ, và **mở lại** (Admin). Đánh giá xem [13-review](./13-review.md); danh sách
+route: [`API-ROUTES.md`](../API-ROUTES.md).
 
 ## 8.1 Máy trạng thái
 
 ```mermaid
 stateDiagram-v2
-    [*] --> ACCEPTED: Chủ bài duyệt yêu cầu<br/>POST /posts/:id/requests/:reqId/accept
-    ACCEPTED --> DELIVERING: POST /transactions/:id/handover<br/>(người tặng bàn giao)<br/>🔔 báo người nhận
-    DELIVERING --> COMPLETED: POST /transactions/:id/confirm<br/>(người NHẬN xác nhận)
+    [*] --> ACCEPTED: Chủ bài duyệt yêu cầu<br/>POST /posts/#58;id/requests/#58;reqId/accept
+    ACCEPTED --> DELIVERING: POST /transactions/#58;id/handover<br/>(người tặng bàn giao)<br/>🔔 báo người nhận
+    DELIVERING --> COMPLETED: POST /transactions/#58;id/confirm<br/>(người NHẬN xác nhận)
+    ACCEPTED --> COMPLETED: POST /transactions/#58;id/confirm<br/>(người nhận xác nhận thẳng, chưa bàn giao)
 
     ACCEPTED --> COMPLETED: Tự hoàn tất sau 5 ngày
     DELIVERING --> COMPLETED: Tự hoàn tất sau 5 ngày
@@ -39,11 +42,13 @@ stateDiagram-v2
 > yêu cầu`, rồi `REQUESTED --> ACCEPTED`. Thực tế duyệt yêu cầu ở [07](./07-request.md) chèn
 > thẳng `status = 'ACCEPTED'`, không đi qua `REQUESTED` bao giờ.
 
-> **`REQUESTED` và `REJECTED` nay là hai trạng thái CHẾT.** `REQUESTED` chỉ sinh ra được từ
+> **`REQUESTED` và `REJECTED` không còn tồn tại** — ràng buộc `CHK_gift_transactions_live_status`
+> (migration `1794800000000`) chỉ cho bốn trạng thái sống, xem mục 6 của "Chỗ cần soát". Bối
+> cảnh lịch sử: `REQUESTED` chỉ sinh ra được từ
 > `POST /transactions` — cửa đã gỡ 28/09 (xem §8.6). `REJECTED` thì chưa đường nào ghi, dù sơ đồ
 > cũ vẽ `Chủ bài từ chối`: từ chối một **yêu cầu** là việc của
 > `POST /posts/:id/requests/:reqId/reject` ở luồng 07, và nó đụng `gift_requests` chứ không đụng
-> `gift_transactions`. Giá trị enum giữ lại cho dữ liệu cũ.
+> `gift_transactions`.
 
 Ràng buộc ở tầng schema, không chỉ ở tầng ứng dụng:
 
@@ -52,6 +57,7 @@ Ràng buộc ở tầng schema, không chỉ ở tầng ứng dụng:
 | `CHK_gift_transactions_not_self` | `giver_id <> receiver_id` — tự tặng mình là đường farm điểm rẻ nhất |
 | `CHK_gift_transactions_completed_at` | `COMPLETED` bắt buộc có `completed_at` |
 | `CHK_gift_transactions_quantity` | `quantity > 0` |
+| `CHK_gift_transactions_live_status` | Chỉ `ACCEPTED` / `DELIVERING` / `COMPLETED` / `CANCELLED` — `REQUESTED`, `REJECTED` bị từ chối |
 
 ## 8.2 Luồng đầy đủ
 
@@ -66,7 +72,7 @@ sequenceDiagram
     participant C as Chat
 
     G->>API: POST /posts/:postId/requests/:requestId/accept
-    API->>DB: Tạo transaction REQUESTED, bài → RESERVED
+    API->>DB: Tạo transaction ACCEPTED, bài → RESERVED
     API->>C: Mở phòng chat giữa hai bên
     API->>N: Báo người nhận (GIFT_REQUEST_ACCEPTED) ✅ từ 25/09
 
@@ -74,15 +80,16 @@ sequenceDiagram
     G->>API: POST /transactions/:id/handover { ảnh bằng chứng }
     API->>DB: → DELIVERING, ghi handed_over_at
 
-    R->>API: POST /transactions/:id/confirm
+    R->>API: POST /transactions/:id/confirm (từ DELIVERING hoặc ACCEPTED)
     API->>API: Mở transaction
     API->>DB: → COMPLETED, completed_at = now()
     API->>DB: Bài → COMPLETED, trừ tồn kho
+    API->>DB: Cộng điểm hoàn tất cho CẢ HAI bên (CHỐT-14)
     API->>API: Commit
     API->>N: Báo hai bên (GIFT_TRANSACTION_COMPLETED) ✅ từ 28/09
     API->>N: Báo lịch xoá phòng chat
     API->>API: Mở quyền đánh giá cho cả hai
-    Note over API: Điểm KHÔNG cộng ở đây — chờ người nhận<br/>chấm % chính xác, hoặc chờ hết 7 ngày.<br/>Xem 11-point §11.4
+    Note over API: Điểm hoàn tất cộng NGAY trong transaction trên (từ 07/10).<br/>Bị trần ngày chặn thì đánh giá hoặc job<br/>gift:settle-rewards trả nốt. Xem 11-point §11.4
 ```
 
 > ✅ **Thông báo hoàn tất — nối 28/09.** `GIFT_TRANSACTION_COMPLETED` có mẫu từ migration
@@ -277,8 +284,8 @@ flowchart TD
 > `content_reactions` đã gộp ở [06](./06-interaction.md).
 
 > **Gỡ được vì không ai dùng.** Lớp tương thích `/gift-posts` không gọi tới, smoke test không
-> gọi, không script kiểm nào gọi. Hàm `request()` ở repository cũng gỡ theo. `accept()` giữ lại
-> cho những dòng `REQUESTED` còn sót từ trước, nhưng không endpoint nào chạm tới nữa.
+> gọi, không script kiểm nào gọi. Hàm `request()` ở repository cũng gỡ theo, và `accept()` nay
+> cũng không còn — `REQUESTED` không còn tồn tại để mà duyệt.
 
 ## 8.7 Xem một lượt trao — ✅ 28/09
 
@@ -329,15 +336,14 @@ flowchart TD
 1. ✅ **Báo khi BÀN GIAO** (28/09) — `GIFT_TRANSACTION_HANDED_OVER` tới người nhận. Đó cũng là
    lúc đồng hồ tự hoàn tất được đặt lại, nên không báo là để cái đồng hồ đó chạy sau lưng họ.
    Chỉ báo người nhận: người tặng vừa tự bấm nút này.
-2. ✅ **Hoàn tất lượt trao nay sinh điểm** — nhưng **không ở bước `confirm`**: điểm chờ người
-   nhận chấm % chính xác, hoặc chờ hết 7 ngày rồi áp mức mặc định. Xem
-   [11-point §11.4](./11-point.md).
+2. ✅ **Hoàn tất lượt trao sinh điểm NGAY ở bước `confirm`** (CHỐT-14, từ 07/10):
+   `awardCompletionPoints` cộng cho cả hai bên trong cùng transaction đóng lượt trao, ở cả đường
+   xác nhận lẫn cron tự hoàn tất. Đánh giá và job `gift:settle-rewards` chỉ còn là đường trả nốt
+   khi trần ngày chặn. Xem [11-point §11.4](./11-point.md).
 3. ✅ **Đồng hồ đếm từ `COALESCE(handed_over_at, accepted_at)`** và ✅ **đã kiểm tranh chấp**
    (25/09). Còn lại: tìm API tính thời gian vận chuyển thật để khỏi dùng con số 5 ngày cố định.
-4. ✅ **Nguồn điểm xét hạng nay là cấu hình động** (28/09). Khoá `rank.points_source` nhận
-   `BALANCE` (mặc định, giữ nguyên hành vi) hoặc `LIFETIME`. Chọn `LIFETIME` thì khoản phạt ship
-   và việc tiêu điểm đổi vật phẩm không còn làm tụt hạng — thứ hạng trở lại là bằng ghi nhận đã
-   đóng góp. Để Admin chọn vì đây là quyết định sản phẩm, và nó đã bị đổi qua lại một lần.
+4. ~~Nguồn điểm xét hạng là cấu hình động~~ — khoá `rank.points_source` (thêm 28/09) **đã xoá**
+   ở migration `1797200000000`. Xem [12-rank](./12-rank.md).
 5. ✅ **Mở lại lượt đóng nhầm đã có** (28/09) — xem §8.5b.
 6. ✅ **`REQUESTED` và `REJECTED` đã dọn** (28/09). Cột `status` là `varchar` nên không có enum
    để drop, nhưng nó mang **DEFAULT `'REQUESTED'`** — một cái bẫy: câu INSERT nào quên truyền

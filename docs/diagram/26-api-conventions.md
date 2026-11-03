@@ -29,8 +29,9 @@ một **mảng** chuỗi; `body` là `null` khi lỗi.
 ### Bản đồ nhóm mã
 
 **Không ghi tổng số ở đây** — cùng bài học với số bảng ở [27](./27-database.md) và số route ở
-[30](./30-endpoint-matrix.md). Con số "66 mã, 9 nhóm" ở bản trước đã lạc hậu: riêng `core-lib`
-hiện có **14** nhóm, và `docs/API-ERRORS.md` — bản sinh tự động — tự in ra tổng trên cả ba tầng.
+[30](./30-endpoint-matrix.md). Con số "66 mã, 9 nhóm" ở bản trước đã lạc hậu, và "14 nhóm" của lần
+sửa sau cũng thế: đo lại 03/11, `core-lib/src/consts/error-codes.ts` có **22** nhóm (`0x01`–`0x0B`,
+`0x0E`–`0x18`). `docs/API-ERRORS.md` — bản sinh tự động — tự in ra tổng trên cả ba tầng.
 
 Trớ trêu là đoạn ghi chú ngay dưới đây vốn đã nói đúng lý do: *"viết tay thì nó lạc hậu ngay
 lần thêm mã thứ hai"*. Bảng ở trên nó thì viết tay.
@@ -51,6 +52,14 @@ lần thêm mã thứ hai"*. Bảng ở trên nó thì viết tay.
 | `0x0E` | Tương tác bảng tin |
 | `0x0F` | Báo cáo vi phạm |
 | `0x10` | Group, Sub-team và Affiliate (M5) |
+| `0x11` | Chiến dịch & Home động (F63) |
+| `0x12` | Blog / Tin tức (F64) |
+| `0x13` | Hoạt động Từ thiện (F65) |
+| `0x14` | Banner tài trợ / quảng cáo (F65) |
+| `0x15` | Công đức / Hồi hướng (F65) |
+| `0x16` | Phật pháp / Dharma Hub (F73) |
+| `0x17` | Bảng thành tích tháng |
+| `0x18` | Deferred attribution / link giới thiệu |
 
 Lấy danh sách thật và tổng số:
 

@@ -146,7 +146,9 @@ web/admin import trực tiếp để chia sẻ kiểu dữ liệu với backend.
   `TypeOrmModule` trực tiếp.
 - Repository không có method tuỳ biến thì khai báo qua `Repositories.create([...])`.
   Repository có method tuỳ biến thì viết class riêng `extends Repository<IXEntity>`.
-- `synchronize` chỉ được bật ở `development`. Production dùng migration.
+- `synchronize` tắt ở **mọi** môi trường (mặc định `false` trong `persistency-lib`). Schema chỉ
+  đổi qua migration TypeORM: production tự chạy migration còn thiếu lúc khởi động
+  (`migrationsRun`), dev/CI chạy `npm run migration:run`.
 
 ## 10. Dữ liệu không gian (PostGIS) — riêng của Chân Tâm
 

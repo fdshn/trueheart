@@ -16,6 +16,8 @@
     "dev": "lerna run dev --parallel",
     "docs:errors": "node bin/generate-error-docs.mjs",
     "docs:errors:check": "node bin/generate-error-docs.mjs --check",
+    "docs:routes": "node bin/generate-route-docs.mjs",
+    "docs:routes:check": "node bin/generate-route-docs.mjs --check",
     "format": "prettier --write \"{kernel,system,suites}/**/{src,test}/**/*.ts\"",
     "format:check": "prettier --check \"{kernel,system,suites}/**/{src,test}/**/*.ts\"",
     "lint": "eslint \"{kernel,system,suites}/**/{src,test}/**/*.ts\" --fix",

@@ -2,7 +2,7 @@
 
 Trạng thái: ✅ **đã hiện thực**, gồm cả tìm kiếm theo từ khoá (26/09).
 
-## 5.1 Bốn đường đọc bài
+## 5.1 Các đường đọc bài
 
 ```mermaid
 flowchart TD
@@ -10,6 +10,9 @@ flowchart TD
         G1["GET /discovery/config"] --> G2[Trả trần bán kính, cỡ trang<br/>và danh sách loại bài]
         N1["GET /posts/nearby"] --> N2["ST_DWithin theo bán kính<br/>+ lọc loại + TÌM KIẾM từ khoá"]
         M1["GET /posts/map"] --> M2["GOM CỤM theo ô lưới<br/>trả số đếm + tổng thật"]
+        S1["GET /posts/sos-urgent"] --> S2[Danh sách cứu trợ SOS quanh đây]
+        H1["GET /posts/share/:shareCode"] --> H2[Mở bài từ mã chia sẻ<br/>xem 04-post §4.7]
+        P1["GET /profile/:username/posts"] --> P2[Bài đăng trên hồ sơ một người]
     end
     subgraph Rieng["Cần token"]
         O1["GET /posts/me"] --> O2[Bài của chính mình<br/>mọi trạng thái]

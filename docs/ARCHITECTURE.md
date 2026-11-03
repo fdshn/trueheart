@@ -108,10 +108,8 @@ resource mới.
 
 | Giai đoạn | Package | Ghi chú |
 | --- | --- | --- |
-| Hiện tại | `kernel/*`, `core-lib`, `core` | Nền tảng + resource mẫu `gift-post` |
-| Kế tiếp | `system/auth-lib`, `system/otp-lib` | JWT + OTP qua Zalo ZNS |
-| Kế tiếp | resource `user`, `request`, `transaction` | Luồng xin → duyệt → mở khoá liên hệ |
-| Sau đó | `system/storage-lib`, `system/notification-lib` | Cloudflare R2 + FCM |
+| Đã có | `kernel/*`, `system/auth-lib`, `system/storage-lib`, `core-lib`, `core` | Nền tảng, JWT + guard, lưu trữ đối tượng (MinIO/Cloudflare R2). Mọi resource Phase 1 — user, xin nhận, lượt trao, chat, thông báo/FCM… — nằm trong `core` |
+| Chưa có | `system/otp-lib`, `system/notification-lib` | OTP và push FCM hiện nằm thẳng trong `core`; chưa cắm nhà cung cấp Zalo ZNS/SMS. Tách lib khi có service thứ hai cần dùng |
 | Sau đó | `system/ekyc-lib` | Tích hợp FPT.AI / VNPT |
 | Sau đó | `chat` (tách service), `worker` (BullMQ) | Khi tải thực tế đòi hỏi |
 | Sau đó | `apps/web`, `apps/admin` | Next.js, import `core-lib` để dùng chung kiểu dữ liệu |
@@ -123,10 +121,14 @@ resource mới.
 1. ~~`synchronize: true` ở môi trường dev.~~ **Đã đóng.** Toàn bộ schema do migration
    TypeORM dựng, `synchronize` tắt ở mọi môi trường. Production tự chạy migration còn
    thiếu lúc khởi động; dev và CI chạy tay bằng `npm run migration:run`.
-2. **`gift-post` vẫn đang mở.** `system/auth-lib` đã xong và guard mặc định khoá mọi
-   endpoint, nhưng resource mẫu `gift-post` được đánh dấu `@Public()` tạm thời vì nó dựng
-   trước khi có xác thực. Bỏ `@Public()` ở các endpoint ghi khi làm M2.
-3. **Chưa có rate limit.** Cần trước khi mở công khai (mục 4.2 đặc tả yêu cầu chống spam).
+2. ~~`gift-post` vẫn đang mở.~~ **Đã đóng.** Guard mặc định khoá mọi endpoint; ở
+   `gift-post` chỉ hai route ĐỌC (`GET /gift-posts/nearby`, `GET /gift-posts/:giftPostId`)
+   khai `@Public()`, còn đường ghi lấy danh tính từ JWT.
+3. ~~Chưa có rate limit.~~ **Đã đóng.** `GlobalRateLimitGuard`
+   (`core/src/infrastructure/security/global-rate-limit.guard.ts`) đặt trần gọi chung theo IP,
+   `GLOBAL_RATE_LIMIT_PER_MINUTE` (mặc định 600/phút). Thêm trần riêng theo hành động: đăng
+   nhập/đăng ký theo IP và tài khoản, bình luận, chia sẻ, chat, presence, báo cáo, attribution.
+   Sau Nginx phải đặt `TRUST_PROXY=true`, nếu không mọi trần theo IP dồn vào IP của proxy.
 4. ~~Dockerfile chưa được build thử.~~ **Đã đóng.** Job `docker` của CI build image, chạy
    nó, và gọi `/health` trên chính container đó mỗi lần có PR.
 
@@ -141,6 +143,7 @@ resource mới.
 | `deploy.yaml` | được `release.yaml` gọi | SSH + `docker compose up -d --wait`, cổng kiểm tra sau triển khai, tự rollback khi hỏng |
 | `codeql.yaml` | PR, push nhánh chính, hàng tuần | Phân tích bảo mật mã nguồn |
 | `security-audit.yaml` | PR đụng dependency, hàng tuần | `npm audit --omit=dev --audit-level=high` |
+| `mirror-images.yaml` | chạy tay (`workflow_dispatch`) | Sao ảnh hạ tầng bên thứ ba (MinIO) về registry của repo, để CI không đỏ khi kho gốc bị khoá |
 
 Điểm đáng chú ý về thiết kế: **`scripts/smoke-test.sh` được dùng ở cả hai đầu** — CI chạy
 đầy đủ (có ghi dữ liệu), cổng kiểm tra sau triển khai chạy `--read-only`. Nếu hai bên kiểm

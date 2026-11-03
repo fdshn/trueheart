@@ -162,8 +162,8 @@ CORE_PORT=$CORE_PORT
 GEO_JITTER_RADIUS_METERS=300
 OTP_TTL_SECONDS=300
 
-# Ô chọn "Servers" của Swagger — CHỈ môi trường này. Không liệt kê môi trường
-# khác, để không ai bấm "Try it out" nhầm sang bên kia.
+# Ô chọn "Servers" của Swagger: môi trường NÀY đứng đầu (mục mặc định), môi trường kia sau
+# nếu bootstrap được gọi kèm hostname thứ ba.
 API_SERVERS=$API_SERVERS_VALUE
 
 # Script này dựng môi trường CÓ host Nginx đứng trước, nên dòng này phải là true.

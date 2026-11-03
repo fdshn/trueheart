@@ -1,7 +1,11 @@
 # Mô hình dữ liệu
 
-~25 bảng, một database PostgreSQL + PostGIS. Đây là bản thiết kế để thống nhất trước khi
-code — DDL thật nằm trong migration.
+Một database PostgreSQL + PostGIS. Bản thiết kế đầu (15/09) dự kiến khoảng 25 bảng; schema
+thật nay đã lớn hơn nhiều (chat trực tiếp, feed, chiến dịch từ thiện, công đức, bảng xếp hạng,
+attribution…) — **không ghi số bảng ở đây**, đếm bằng câu SQL trong
+[`../DATABASE.md`](../DATABASE.md). Đây là bản thiết kế để thống nhất trước khi code — DDL thật
+nằm trong migration. Tên bảng/cột dưới đây đã được đối chiếu lại với migration tới
+`1802300000000-CreateAttribution` (03/11/2026).
 
 > Muốn biết **thật sự đang có bảng gì** sau khi migrate, xem
 > [`../DATABASE.md`](../DATABASE.md). File này là thiết kế, file kia là schema đang chạy.
@@ -22,21 +26,23 @@ cảnh báo gì.
 ```
 users ──┬──< posts ──< post_media
         │      │
-        │      └──< gift_requests ──┐
-        │                            │
-        ├──< transactions >──────────┘──< chat_rooms ──< chat_messages
-        │         │
-        │         └──< reviews
+        │      ├──< gift_requests          (chọn được người → use case tạo lượt trao)
+        │      │
+        │      └──< gift_transactions ──┬──< chat_rooms ──< chat_messages
+        │              │                 │   (TRANSACTION; thêm DIRECT_POST/DIRECT_USER không lượt trao)
+        │              ├──< transaction_reviews
+        │              └──  recipient_selection_audits (1–1)
         │
         ├──< point_ledger >── point_rules
-        ├──< referrals
+        ├──< referrals ──< attribution_claims
+        ├──< attribution_links ──< attribution_clicks ──< attribution_resolutions
         ├──< rank_maintenance_cycles
         ├──< notifications
         ├──< reports
         │
-        └──< group_members >── groups ──< sub_teams
-                                 │
-                                 └──< affiliate_events ──< affiliate_rewards
+        └──< group_memberships >── groups ──< sub_teams
+                                     │
+                                     └──< affiliate_events ──< affiliate_rewards
 ```
 
 ---
@@ -48,7 +54,8 @@ users ──┬──< posts ──< post_media
 | `users` | `global_id` · `username` · `password_hash` · `email?` · `phone?` · `full_name?` · `avatar_url?` · **`default_location` geography** · `rank` · `status` · `phone_verified_at` · `suspended_until` · `deleted_at` |
 | `user_sessions` | `refresh_token_hash` · `device_id` · **`fcm_token`** · `expires_at` · `revoked_at` |
 | `referrals` | `referrer_id` · `referee_id` **UNIQUE** · `code` — bản ghi **bất biến**, không sửa không xoá |
-| `rank_maintenance_cycles` | `user_id` · `rank` · `cycle_start` · `cycle_end` · `gifts_done` · `referrals_done` · `passed` |
+| `rank_maintenance_cycles` | `user_id` · `rank` · `cycle_start` · `cycle_end` · `gifts_done` · `referrals_done` · `status` · `required_gifts` · `required_referrals` · `policy_version` |
+| `attribution_links` · `attribution_clicks` · `attribution_resolutions` · `attribution_claims` · `attribution_audit_events` | Deferred attribution (`1802300000000`): link → lượt mở (token riêng) → resolve theo bản cài → claim gắn người giới thiệu. `attribution_claims.referred_user_id` **UNIQUE**; claim `QUALIFIED` ghi một dòng `referrals` chứ không tự phát thưởng. IP/UA/installId chỉ lưu dạng hash |
 
 **Gộp hồ sơ vào `users`, không tách bảng riêng.** Đây là monolith một database; tách ra chỉ
 thêm một join cho mọi truy vấn mà không đổi được gì.
@@ -62,8 +69,10 @@ xuất phải xoá token **của đúng thiết bị đó** ([F04](../FEATURES.m
 cần username (F01) nên phần lớn tài khoản bỏ trống hai cột này — ràng buộc duy nhất thường
 sẽ chặn tài khoản thứ hai có `NULL`.
 
-`accuracy_percent` và `accuracy_samples` **hoãn sang M4** cùng với Giver Accuracy — thêm cột
-chưa ai dùng chỉ làm migration dài ra.
+`accuracy_percent` và `accuracy_samples` từng **hoãn sang M4** cùng với Giver Accuracy — thêm cột
+chưa ai dùng chỉ làm migration dài ra. Nay đã có, tên thật là `users.giver_accuracy_percent` /
+`giver_accuracy_samples` / `accuracy_review_required` (thêm cùng `transaction_reviews`,
+`1792600000000`).
 
 ---
 
@@ -98,8 +107,14 @@ Phần riêng của từng loại để trong `details` jsonb:
 
 | Bảng | Cột đáng chú ý |
 | --- | --- |
-| `gift_requests` | `post_id` · `requester_id` · `message` · `status` — **UNIQUE(post_id, requester_id)** |
-| `transactions` | `global_id` · `post_id` · `giver_id` · `receiver_id` · `request_id` · `status` · `accepted_at` · **`auto_complete_at`** · `cancel_reason` |
+| `gift_requests` | `post_id` · `requester_id` · `message` · `status` · `queue_joined_at` · `offering_post_id?` — **UNIQUE(post_id, requester_id) WHERE deleted_at IS NULL** |
+| `gift_transactions` | `global_id` · `post_id` · `giver_id` · `receiver_id` · `quantity` · `status` · `accepted_at` · `handed_over_at` · `completed_at` · `closed_at` · `closed_by` · `close_reason` |
+| `recipient_selection_audits` | PK `transaction_id` (1–1 với lượt trao do job tự chọn) · `deciding_criterion` · `criteria_order` · `winner_metrics` · `runner_up_metrics` · `candidate_count` — lý do chọn, ghi cùng transaction với lượt trao |
+
+> Bản thiết kế gọi bảng lượt trao là `transactions` với `request_id`, `auto_complete_at`,
+> `cancel_reason`. Bảng thật là `gift_transactions`: **không** có `request_id` (không FK tới
+> `gift_requests`), **không** có `auto_complete_at` (job tự hoàn tất quét index
+> `(status, accepted_at)`), lý do đóng là `close_reason` + `closed_by`.
 
 **Bản thiết kế lịch sử và hiện trạng cần đối chiếu** ([F75](../FEATURES.md#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm)):
 
@@ -108,10 +123,11 @@ Phần riêng của từng loại để trong `details` jsonb:
 | `selection_deadline_at` | `posts` | Mốc hết countdown 7 ngày; cron quét `WHERE selection_deadline_at < now()` thay vì tính lại |
 | `reference_value_vnd` | `posts` | Giá trị tham khảo người cho khai, cơ sở tính số điểm cần |
 | `delivery_method` | `posts` | `SELF_PICKUP` hoặc `GIVER_SHIPS` |
-| `redeemed_by` · `redeemed_at` | `posts` hoặc `transactions` | Đánh dấu bài đã bị chốt bằng điểm, để auto-select **không** chạy nữa |
+| `redeemed_by` · `redeemed_at` | `posts` hoặc `gift_transactions` | Đánh dấu bài đã bị chốt bằng điểm, để auto-select **không** chạy nữa |
 
 > Tới `main` commit `0dee943`, `posts.selection_deadline` đã có (không phải
-> `selection_deadline_at`), giá nằm ở `posts.estimated_value`, và `delivery_method` đã có.
+> `selection_deadline_at`), giá nằm ở `posts.details ->> 'estimatedValue'` (bảng `posts` không có
+> cột `estimated_value`; cột đó chỉ còn ở bảng cũ `gift_posts`), và `delivery_method` đã có.
 > `redeemed_by`/`redeemed_at` **chưa có**; `selection_deadline = NULL` sau accept chỉ chứng
 > minh đồng hồ dừng, không ghi lý do chốt. Không tạo thêm các cột tên dự kiến ở bảng trên
 > một cách máy móc. Thiết kế dấu `REDEEMED` bền vững và cancellation policy trong
@@ -124,8 +140,9 @@ Phần riêng của từng loại để trong `details` jsonb:
 Ràng buộc UNIQUE đặt ở **tầng database**, không chỉ kiểm trong code — hai request gửi cùng
 lúc sẽ lọt qua mọi phép kiểm ở tầng ứng dụng ([F30](../FEATURES.md#f30--gửi-yêu-cầu-xin-nhận)).
 
-`auto_complete_at` = `accepted_at + 5 ngày`, lưu sẵn để cron chỉ cần quét
-`WHERE auto_complete_at < now()` — không phải tính lại mỗi lần.
+Thiết kế ban đầu: `auto_complete_at` = `accepted_at + 5 ngày`, lưu sẵn để cron chỉ cần quét
+`WHERE auto_complete_at < now()`. Bản dựng thật không có cột này — job tính hạn từ
+`accepted_at` và dựa vào index `(status, accepted_at)`.
 
 ---
 
@@ -133,9 +150,10 @@ lúc sẽ lọt qua mọi phép kiểm ở tầng ứng dụng ([F30](../FEATURE
 
 | Bảng | Cột đáng chú ý |
 | --- | --- |
-| `chat_rooms` | `room_type` (`TRANSACTION` · `DIRECT_POST` · `DIRECT_USER`) · `transaction_id` **UNIQUE**, NULL với hai loại trực tiếp · `post_id` NULL với `DIRECT_USER` · `created_by` (chỉ `DIRECT_USER`) · `UQ_chat_rooms_direct_post (post_id, receiver_id, giver_id)` · `UQ_chat_rooms_direct_user (LEAST, GREATEST)` · `is_readonly` |
+| `chat_rooms` | `room_type` (`TRANSACTION` · `DIRECT_POST` · `DIRECT_USER`) · `transaction_id` **UNIQUE**, NULL với hai loại trực tiếp · `post_id` NULL với `DIRECT_USER` · `created_by` (chỉ `DIRECT_USER`) · `UQ_chat_rooms_direct_post (post_id, receiver_id, giver_id)` · `UQ_chat_rooms_direct_user (LEAST, GREATEST)` · `status` (`OPEN` · `READ_ONLY`) |
 | `user_blocks` | PK `(blocker_id, blocked_id)` · `CHK_user_blocks_not_self` · hiệu lực xét hai chiều |
-| `chat_messages` | `room_id` · `sender_id` · `body` · `created_at` |
+| `chat_messages` | `room_id` · `sender_id` · `body` · `media_count` · `recalled_at` · `created_at` — append-only bằng trigger, trừ thu hồi và dọn theo hạn |
+| `chat_message_media` · `chat_message_flags` | Ảnh đính kèm (tối đa 3); cờ kiểm duyệt từ khoá chờ Admin xem |
 
 Phòng `TRANSACTION` gắn 1-1 với giao dịch, **chỉ tạo khi giao dịch đạt `ACCEPTED`**. Không có
 chat với ứng viên trong hàng đợi.
@@ -161,7 +179,7 @@ buộc `created_by` có đúng ở `DIRECT_USER` — cột đếm giới hạn p
 | --- | --- |
 | `point_rules` | `code` · `points` · `is_enabled` · `daily_cap` · **`version`** · `updated_by` |
 | `point_ledger` | `user_id` · `rule_code` · `delta` · `balance_after` · **`lifetime_after`** · `reference_type` · `reference_id` · **`idempotency_key` UNIQUE** · `actor` · `source` |
-| `reviews` | `transaction_id` · `reviewer_id` · `reviewee_id` · `quality_rating` · `value_percent` · `accuracy_percent` |
+| `transaction_reviews` | `transaction_id` · `reviewer_id` · `reviewee_id` · `reviewer_role` · `rating` (1–5) · `accuracy_percent` (chỉ người nhận) · `comment` · `edited_at` + `previous_*` (sửa đúng một lần) |
 
 **Đổi vật phẩm bằng điểm** ([F75](../FEATURES.md#f75--countdown-7-ngày--đổi-vật-phẩm-bằng-điểm),
 [F77](../FEATURES.md#f77--ledger-cho-giao-dịch-đổi-điểm)):
@@ -187,14 +205,14 @@ buộc `created_by` có đúng ở `DIRECT_USER` — cột đếm giới hạn p
 `version` trên `point_rules` là bắt buộc: khi Admin đổi rule, bút toán cũ phải tra được nó ra
 đời dưới phiên bản nào.
 
-**F83 — điểm danh/streak (chưa có migration):** thêm `check_in_entries` (UNIQUE
+**F83 — điểm danh/streak (đã dựng ở `1797100000000`):** `check_in_entries` (UNIQUE
 `user_id,policy_date`), `check_in_runs`, `check_in_milestone_awards` (UNIQUE
-`streak_run_id,milestone_days`), `repair_transaction_progress` (UNIQUE
+`run_id,milestone_days`), `repair_transaction_progress` (UNIQUE
 `user_id,transaction_id`), `repair_credit_cohorts`, `repair_credit_ledger` append-only và
 `check_in_policy_revisions`. `point_ledger` vẫn là nguồn sự thật cho điểm ngày/thưởng
 mốc; credit ledger chỉ theo dõi lượt bù. Xem [schema mục tiêu](../DATABASE.md#điểm-danh-streak-và-lượt-bù).
 
-Giver Accuracy: Người nhận chấm theo % (0–100%). Lưu vào bảng `reviews.accuracy_percent` và tính tổng hợp vào `users.accuracy_percent` (kèm `users.accuracy_samples`). Chỉ hiển thị và xét cảnh báo khi `accuracy_samples >= 5`; dưới 75% đưa vào `REVIEW_REQUIRED` (CHỐT-03).
+Giver Accuracy: Người nhận chấm theo % (0–100%). Lưu vào `transaction_reviews.accuracy_percent` và tính tổng hợp vào `users.giver_accuracy_percent` (kèm `users.giver_accuracy_samples`). Chỉ hiển thị và xét cảnh báo khi số mẫu `>= 5`; dưới 75% bật cờ `users.accuracy_review_required` (CHỐT-03).
 
 ---
 
@@ -202,23 +220,31 @@ Giver Accuracy: Người nhận chấm theo % (0–100%). Lưu vào bảng `revi
 
 | Bảng | Cột đáng chú ý |
 | --- | --- |
-| `groups` | `owner_id` · `name` · **`center` geography** · **`radius_meters`** · `status` |
-| `group_members` | `group_id` · `user_id` **UNIQUE toàn cục** · `sub_team_id?` · `joined_at` · **`last_activity_at`** · `status` |
-| `sub_teams` | `group_id` · `name` · `lead_id` |
-| `group_invites` | `group_id` · `token` · `created_by` · `expires_at` · `revoked_at` |
-| `affiliate_events` | `source_type` · `source_id` · `group_id` · `actor_id` · **`event_location`** · `geo_eligible` · **`distance_meters`** · **`radius_meters`** |
-| `affiliate_rewards` | `affiliate_event_id` · `beneficiary_id` · `point_ledger_id?` · `status` · `point_delta` |
+| `groups` | `owner_id` · `name` · **`center_location` geography** · **`radius_km`** (1–50) · **`invite_code` UNIQUE** · `status` |
+| `group_memberships` | `group_id` · `user_id` — **một dòng `ACTIVE` mỗi người** · `sub_team_id?` · `role` · `joined_at` · `status` |
+| `sub_teams` | `group_id` · `name` |
+| `group_role_permissions` | `role` · `permission` · `version` — quyền theo vai, có phiên bản |
+| `affiliate_policy_revisions` | `version` · `enabled` · `distribution_mode` · `event_points_json` · trần/ngày · trần người hưởng |
+| `affiliate_events` | `group_id` · `source_user_id` · `event_type` · `reference_type` · `reference_id` · `geo_status` · `location_source` · **`distance_meters`** · **`radius_meters`** · `policy_version` |
+| `affiliate_rewards` | `event_id` · `beneficiary_user_id` · `point_ledger_id?` · `reward_status` · `point_delta` · `idempotency_key` |
 
-`user_id` UNIQUE **toàn cục** (không phải unique theo group): mỗi người tối đa 1 Group
+> Thiết kế đầu có bảng `group_invites` riêng; bản dựng thật **không có** — mã mời là cột
+> `groups.invite_code`. `group_members` dựng thành `group_memberships`; `sub_teams` không có
+> `lead_id` (vai `SUBTEAM_ADMIN` nằm ở `group_memberships.role`). `affiliate_events` không lưu
+> toạ độ sự kiện mà lưu nguồn vị trí đã dùng (`location_source`) cùng khoảng cách/bán kính.
+
+`user_id` unique **toàn cục** (không phải unique theo group) trên các dòng `ACTIVE`
+(`UQ_group_memberships_one_active_per_user`): mỗi người tối đa 1 Group
 ([F51](../FEATURES.md#f51--quyền-tạo-group)).
 
-`center` và `radius_meters` là **bản chụp lúc tạo Group**, Owner không sửa được — nếu sửa
+`center_location` và `radius_km` là **bản chụp lúc tạo Group**, Owner không sửa được — nếu sửa
 được, người ta sẽ dời vùng theo nơi đang có nhiều sự kiện.
 
 `affiliate_events` lưu cả `distance_meters` lẫn `radius_meters` tại thời điểm xét. Không lưu
 thì tranh chấp về sau không có cách nào tra lại ([F58](../FEATURES.md#f58--thứ-tự-ưu-tiên-vị-trí--audit)).
 
-`last_activity_at` phục vụ [GĐ-2](./ASSUMPTIONS.md#gđ-2--active-member--group-affiliate-geo).
+Mốc hoạt động phục vụ [GĐ-2](./ASSUMPTIONS.md#gđ-2--active-member--group-affiliate-geo) là
+`users.last_active_at` (một cột cho mọi nơi), không phải `last_activity_at` trên thành viên nhóm.
 
 ---
 
@@ -226,20 +252,23 @@ thì tranh chấp về sau không có cách nào tra lại ([F58](../FEATURES.md
 
 | Bảng | Cột đáng chú ý |
 | --- | --- |
-| `notification_templates` | `code` · `title` · `body` · `audience_rule` jsonb |
-| `notifications` | `user_id` · `template_code` · `payload` · `read_at` |
-| `reports` | `reporter_id` · `target_type` · `target_id` · `reason` · `evidence_keys` · `status` |
-| `moderation_actions` | `admin_id` · `target_type` · `target_id` · `action` · `reason` |
-| `audit_logs` | `actor_id` · `action` · `entity_type` · `entity_id` · `before` · `after` |
-| `home_campaign_configs` | `banner_r2_key` · `cta` · `deep_link` · `section_order` · `starts_at` · `ends_at` |
-| `campaigns` | `campaign_type` (`INDIVIDUAL_APPEAL`/`ORGANIZED_CAMPAIGN`) · thông tin beneficiary riêng tư · organizer · trạng thái duyệt/vòng đời · thời hạn |
-| `campaign_need_items` | `campaign_id` · `category_id` · `item_name` · `unit` · `target_quantity` · projection `active_quantity`/`received_quantity` · `allow_alternative` |
+| `notification_templates` | `type` UNIQUE · `title` · `body` · `is_enabled` |
+| `notifications` | `user_id` · `type` · `title` · `body` · `target_type` · `target_id` · `idempotency_key` · `read_at` |
+| `notification_mutes` · `notification_broadcasts` | Nhóm thông báo người dùng đã tắt; Admin gửi hàng loạt (`ALL`/`GROUP`/`AREA`) |
+| `reports` | `reporter_user_id` · `target_type` · `target_id` · `reason` · `evidence_urls` · `status` · `reviewed_by_user_id` |
+| `admin_audit_logs` | `actor_user_id` · `action` · `resource_type` · `resource_id` · `before_json` · `after_json` · `reason` — append-only, gánh cả vai `moderation_actions`/`audit_logs` của thiết kế đầu |
+| `home_campaign_configs` | `campaign_name` · `theme_config` · `marquee_text` · `popup_config` · `floating_banner` · `banners` · `sections_order` · `start_time` · `end_time` · `is_active` |
+| `campaigns` | `campaign_type` (`INDIVIDUAL_APPEAL`/`ORGANIZED_CAMPAIGN`) · `beneficiary_relation` · `created_by` (organizer) · `approval_status` · `start_time`/`end_time` · `allow_over_target` |
+| `campaign_beneficiaries` | 1–1 với chiến dịch — thông tin người thụ hưởng **riêng tư**, bảng riêng để đường đọc công khai không lộ |
+| `campaign_need_items` | `campaign_id` · `category_id` · `item_name` · `unit` · `target_quantity` · projection `accepted_quantity`/`received_quantity` · `allow_alternative` |
 | `campaign_contributions` | `campaign_id` · `contributor_id` · `status` · giao nhận · ghi chú · timestamps |
 | `campaign_contribution_items` | `contribution_id` · `need_item_id` · `offered_quantity` · `accepted_quantity` · quyết định/lý do |
-| `campaign_transaction_items` | `transaction_id` · `need_item_id` · `accepted_quantity` · `received_quantity` |
-| `campaign_external_contributions` | `campaign_id` · `need_item_id` · `quantity` · `source_label` · `evidence_urls` · `received_at` · `recorded_by` · trạng thái/lý do điều chỉnh |
+| `campaign_deliveries` | `campaign_id` · `contribution_id` UNIQUE · `contributor_id` · `organizer_id` · `status` (`ACCEPTED`/`COMPLETED`/`CANCELLED`) |
+| `campaign_delivery_items` | `delivery_id` · `contribution_item_id` · `need_item_id` · `accepted_quantity` · `received_quantity` — thay cho `campaign_transaction_items` của thiết kế đầu (giao nhận chiến dịch **không** đi qua `gift_transactions`) |
+| `campaign_external_contributions` | `campaign_id` · `need_item_id` · `quantity` · `source_label` · `evidence_note` · `received_at` · `recorded_by` · `status` (`ACTIVE`/`VOIDED`) · `replaces_id` |
+| `campaign_media` · `campaign_participations` · `campaign_coordinators` · `campaign_schedule_changes` · `campaign_reviews` | Ảnh/video chiến dịch · đăng ký tham gia · người điều phối · lịch sử gia hạn (append-only) · đánh giá sau chiến dịch |
 | `point_ledger` (charity) | event `CHARITY_CONTRIBUTION_COMPLETED` · reference `campaign_contribution_id` UNIQUE theo user/event · rule version · delta cố định do Admin cấu hình |
-| `blog_posts` | `title` · `slug` · `cover_r2_key` · `body` · `published_at` |
+| `blogs` | `title` · `slug` · `category` · `thumbnail_url` · `content_html` · `is_published` · `published_at` |
 
 ---
 
@@ -271,12 +300,18 @@ PENDING ──┬──▶ SELECTED  (được chọn → sinh transaction)
 `STANDBY → SELECTED` **cần người cho xác nhận**, hệ thống chỉ gợi ý
 ([F33](../FEATURES.md#f33--hàng-đợi-dự-phòng)).
 
+> Enum thật `gift_requests_status_enum`: `PENDING` · `ACCEPTED` · `REJECTED` · `CANCELLED` ·
+> `WITHDRAWN` · `STANDBY` — "được chọn" ghi là `ACCEPTED`, không phải `SELECTED`.
+
 ### Giao dịch
 
 ```
 ACCEPTED ──┬──▶ COMPLETED   (người nhận xác nhận, HOẶC tự động sau 5 ngày)
            └──▶ CANCELLED   (người cho huỷ → mở lại hàng đợi)
 ```
+
+> Bảng thật `gift_transactions` còn trạng thái trung gian `DELIVERING`; `CHK_gift_transactions_live_status`
+> chỉ cho `ACCEPTED` · `DELIVERING` · `COMPLETED` · `CANCELLED`.
 
 ### Thứ hạng — theo [GĐ-3](./ASSUMPTIONS.md#gđ-3--cơ-chế-rank--tụt-hạng)
 
@@ -333,3 +368,4 @@ Không có cái nào hợp lệ thì **chưa đủ điều kiện** — không m
 | Ngày | Thay đổi |
 | --- | --- |
 | 2026-09-15 | Lập lần đầu — 25 bảng, 4 máy trạng thái |
+| 2026-11-03 | Đối chiếu tên bảng/cột với migration tới `1802300000000`: `transactions` → `gift_transactions`, `reviews` → `transaction_reviews`, `group_members` → `group_memberships`, bỏ `group_invites` (mã mời ở `groups.invite_code`), `moderation_actions`/`audit_logs` → `admin_audit_logs`, `blog_posts` → `blogs`, `campaign_transaction_items` → `campaign_deliveries` + `campaign_delivery_items`; thêm `attribution_*`, `recipient_selection_audits`; bỏ con số tổng bảng |

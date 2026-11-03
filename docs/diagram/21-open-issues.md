@@ -77,12 +77,12 @@ hình động:
 | 2 | ✅ **Đã có đáp án trong code: CỐ ĐỊNH theo bài.** `applyGeoJitter(point, seed, radius)` nhận `seed = post.globalId` và sinh số ngẫu nhiên tiền định từ đó, nên gọi bao nhiêu lần cũng ra cùng một điểm — phép lấy trung bình không thu được gì. `bucketDistance` còn làm tròn khoảng cách về bội số 100 m để chặn giải tam giác từ ba điểm. Câu hỏi này nằm treo trong tài liệu dù code đã trả lời | [25](./25-location-privacy.md) |
 | 3 | Bán kính jitter là hằng trong code; vùng nông thôn có thể vẫn chỉ ra đúng một nhà | [25](./25-location-privacy.md) |
 | 4 | Compatibility window của `/gift-posts` **chưa có hạn chót** | [25](./25-location-privacy.md) |
-| 5 | Hai bên trong lượt trao **không có endpoint lấy vị trí thật** — họ tự gõ địa chỉ qua chat | [25](./25-location-privacy.md) |
+| 5 | ✅ **Đã làm 01/10.** Người nhận đã được chọn thấy toạ độ thật trên `GET /posts/:postId`, cùng ngưỡng đã mở cho `contactInfo` | [25](./25-location-privacy.md) |
 | 6 | ✅ **Đã sửa 29/09, khép nốt 30/09.** Referral chạm cap ngày HOÃN chứ không mất, và lượt quét lại nay đi qua `QualifyReferralUseCase` nên CÓ thông báo — trước đó nó gọi thẳng repository và cộng điểm im lặng | [23](./23-referral.md) · [11](./11-point.md) |
 | 7 | ⚠️ **Ghi sai, sửa 30/09 — cơ chế xong 01/10.** Vòng tròn qua đường đăng ký là không thể theo cấu trúc; rủi ro thật là một người tạo nhiều tài khoản. Nay có `GET /admin/referrals/review` và đường thu hồi điểm nối tới được — **ba ngưỡng mặc định TẮT, cần Bên A chốt sau khi có dữ liệu** | [23 §23.7](./23-referral.md) |
 | 8 | ✅ **Đã xong 30/09.** Gộp danh mục (`POST /categories/:id/merge`) và trần độ sâu 4 tầng đã làm; "chưa sắp xếp thủ công" là **ghi sai** — `sort_order` được `ORDER BY` ở cả hai đường đọc từ trước | [22](./22-category.md) |
 | 9 | ❌ **Khẳng định này SAI.** `capability_policies.revision_id` trỏ `config_revisions`, và bảng đó giữ đủ lịch sử: hiện có hai bản, bản 1 `ARCHIVED` với `effective_to`, bản 2 `PUBLISHED` còn mở. Tra được lúc đó quota là bao nhiêu. ✅ **Endpoint đọc lịch sử đã có 01/10** — `GET /admin/entitlements/history`, kèm khung thời gian và số capability từng bản. Lần làm đó cũng phát hiện đường publish chỉ đặt `effective_to` mà giữ `PUBLISHED`, nên cột `status` nói sai — đã sửa và có migration dọn dữ liệu cũ | [24](./24-entitlement.md) |
-| 10 | ✅ **Đã có.** `scripts/smoke-cli.sh` chạy thật cả 12 CLI trong job `integration`, và nó bắt được `post:expire` chết vì `PostModule` thiếu `GiftRequestModule` ngay lượt đầu | [28](./28-architecture.md) · [29](./29-cicd.md) |
+| 10 | ✅ **Đã có.** `scripts/smoke-cli.sh` chạy thật cả 15 CLI trong job `integration`, và nó bắt được `post:expire` chết vì `PostModule` thiếu `GiftRequestModule` ngay lượt đầu | [28](./28-architecture.md) · [29](./29-cicd.md) |
 | 11 | ✅ **Đã chạy thật 30/09.** Trước đó chỉ 5 trong 30 script nằm trong CI; nay cả 30 chạy (25 ở một bước tuần tự, `chat-e2e` sau khi service lên, cộng `test-cron-alert.sh`). Lượt đầu bắt ngay **hai lỗi do migration `1795700000000` của chính tôi gây ra**: `chat-purge` nổ ràng buộc vì ghi cứng version 1, và `redemption` dùng `ON CONFLICT DO NOTHING` nên lượt đặt cấu hình bị bỏ qua LẶNG LẼ — phép kiểm "nguồn LIFETIME thì không cảnh báo tụt hạng" đo một thứ nó tưởng đã đặt. Kiểu thứ hai tệ hơn: nó xanh trong khi không kiểm gì. Sửa bằng `test/publish-config-version.ts` | [28](./28-architecture.md) |
 | 12 | Chưa có request id / trace id xuyên suốt | [26](./26-api-conventions.md) |
 | 13 | Thông báo lỗi chỉ có tiếng Việt, chưa có cơ chế đa ngữ | [26](./26-api-conventions.md) |
@@ -99,7 +99,7 @@ Dựng sổ truy vết `core/src/srs-traceability.spec.ts` nối từng quy tắ
 | 1 | **Bản kiểm kê quy tắc của tôi sai hai lần.** Báo cáo đầu nói 85 id (phép trích bắt cả biến môi trường và tên sự kiện), báo cáo sau nói 61 (regex bỏ sót mọi id BA ĐOẠN). Tổng thật là **92** | ✅ Đã sửa regex và khai đủ 92 dòng |
 | 2 | **`POST /admin/points/ledger/:id/reversal` không ghi `admin_audit_logs`** — và `BR-ADM-POINT-07` đòi mọi thao tác quản trị đổi điểm phải ghi CẢ ledger VÀ audit log, nên đây là **vi phạm đặc tả**, không phải thiếu sót tuỳ chọn | ✅ Đã vá 01/10, có spec canh |
 | 3 | **`BR-POST-TYPE-01` liệt kê SÁU nhóm bài, `PostTypes` chỉ có NĂM.** `GIỚI_THIỆU_QUẢNG_CÁO` không có giá trị nào tương ứng | 🟡 Cần Bên A xác nhận bỏ hay thêm |
-| 4 | **`BR-PROF-RANK-06` và `BR-POINT-06` là cùng một quy tắc mang hai id**, và cả hai nói rank KHÔNG dùng lifetime riêng — trong khi `rank.points_source` là cấu hình động bật được `LIFETIME` | 🟡 Cần Bên A chốt; sửa thì phải sửa cả hai chỗ trong SRS |
+| 4 | **`BR-PROF-RANK-06` và `BR-POINT-06` là cùng một quy tắc mang hai id**, và cả hai nói rank KHÔNG dùng lifetime riêng. Khoá `rank.points_source` từng cho bật `LIFETIME` nay đã gỡ (migration `1797200000000-DropRankPointsSourceConfig`) — code khớp SRS | ✅ Phía code đã khớp; SRS vẫn còn hai id cho một quy tắc |
 | 5 | **Hai hợp đồng mã lỗi không tương thích**: SRS đặt 14 tên chuỗi, [26](./26-api-conventions.md) bảo client khớp cặp số `(errorOrigin, errorCode)`. Chỉ 1 tên khớp | 🟡 Xem [31](./31-open-items.md) |
 | 6 | **`BR-ADM-CHECKIN-01` lọt qua phép kiểm trong im lặng** ở lần SRS lên bản mới đầu tiên sau khi dựng sổ — vì nó là id ba đoạn. Một phép kiểm bỏ sót mà vẫn xanh thì tệ hơn không có | ✅ Đã nới regex; `BR-ADM-POINT-*`, `BR-PROF-*`, `BR-REQ-QUEUE-*`, `BR-GEO-AFF-*` cũng nhờ đó mới vào sổ |
 | 7 | Thiếu thông báo mốc **70%** ngưỡng hạng (`BR-PROF-RANK-04` + `BR-NOTI-02`), thiếu **công tắc tắt toàn bộ** cơ chế phát điểm (`BR-ADM-POINT-06`), và Vị trí mặc định **không có địa chỉ hiển thị** (`BR-PROF-LOC-01`) | 🟠 L20/L21/L22 ở [31](./31-open-items.md) |
@@ -128,7 +128,7 @@ Dựng sổ truy vết `core/src/srs-traceability.spec.ts` nối từng quy tắ
 ```mermaid
 flowchart LR
     A["✅ Countdown 7 ngày + auto-select<br/>đã xong 25/09"] --> B["✅ Đổi vật phẩm bằng điểm<br/>đã xong 26/09"]
-    C["✅ Group & Sub-team<br/>F51–F55 — xong 30/09"] --> D["🟡 Affiliate & Geo F56–F58<br/>nền có, bộ máy chia thưởng chưa"]
+    C["✅ Group & Sub-team<br/>F51–F55 — xong 30/09"] --> D["✅ Affiliate & Geo F56–F58<br/>bộ máy chia thưởng đã có"]
     E["✅ Dashboard KPI — F59"]
     F["✅ Campaign & Home động — F63"]
     G["✅ Blog / Tin tức — F64"]
@@ -139,15 +139,14 @@ flowchart LR
     style B fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style C fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style E fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
-    style D fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
+    style D fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
     style I fill:#fff3cd,stroke:#b8860b,stroke-width:1.5px,color:#3d2f00
 ```
 
-> **Vì sao affiliate là 🟡 chứ không ⛔.** Nền đã có đủ: `groups.center_location` + `radius_km`,
-> `last_active_at` ghi ở mọi lần cấp phiên, `group_memberships` để lấy danh sách, và
-> `GET /groups/:id/affiliate` đếm được ai đủ điều kiện ngay hôm nay. Thiếu đúng phần **chia
-> thưởng**, và phần đó chờ Bên A chốt cách chia — mục 4 của [19](./19-affiliate.md) một mình đủ
-> làm lệch kinh tế điểm 500 lần với nhóm 500 người, nên viết trước khi chốt là viết để bỏ.
+> **Affiliate nay là ✅.** Bộ máy chia thưởng có từ migration `1797400000000`: sự kiện, reward,
+> cổng địa lý, trần ngày, thu hồi. Cách chia (`SPLIT_POOL` / `PER_MEMBER`) là tham số chính sách,
+> nên Bên A chỉ còn chọn giá trị và bật `enabled` qua `PUT /admin/affiliate-policy` — xem
+> [19](./19-affiliate.md) mục 4.
 
 ## 21.8 Hạ tầng chưa sẵn sàng production
 
@@ -157,7 +156,6 @@ flowchart LR
     Google. Chờ một thiết bị thật đăng ký token (hiện đếm được 0)
 [ ] R2 staging/prod: bucket, key, CORS, CDN domain
 [ ] Backup database VÀ restore test
-[ ] Global rate limit
 [x] Monitoring / alerting — cron đỏ và service chết đều có đường báo
     (`check-health.sh` mỗi 5 phút). ⚠️ Vẫn cần ĐIỀN `CHANTAM_CRON_ALERT_URL`
     và `CHANTAM_HEALTH_URL` — chưa điền thì mọi cảnh báo rơi vào
@@ -165,6 +163,6 @@ flowchart LR
 [x] Global rate limit (`GlobalRateLimitGuard`, 600/phút theo IP).
     ⚠️ Phải đặt `TRUST_PROXY=true` khi đứng sau proxy — để sai là trần chung
     đánh sập cả API vì mọi người dùng chung một bucket
-[x] Lịch cron thật cho 12 CLI
+[x] Lịch cron thật cho 15 CLI
 [ ] Queue / retry / dead-letter cho thông báo
 ```

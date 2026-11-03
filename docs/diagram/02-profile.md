@@ -204,11 +204,13 @@ stateDiagram-v2
 flowchart TD
     A["GET /profile/:username<br/>CÔNG KHAI, không cần token"] --> B{Tài khoản còn ACTIVE?}
     B -->|Không| C[404 — không phân biệt<br/>không có với đã khoá]
-    B -->|Có| D["Trả ĐÚNG 7 trường<br/>theo danh sách cho phép"]
+    B -->|Có| D["Trả ĐÚNG các trường<br/>theo danh sách cho phép"]
 
     D --> E["username · fullName · avatarUrl · rank<br/>publishedGiftPostCount · lifetimePoints · shareUrl"]
+    D --> E2["slogan · todayThought(+UpdatedAt)<br/>introVideoUrl · introVideoThumbnailUrl<br/>badges (không gồm huy hiệu ẩn danh)<br/>monthlyStanding (null khi ẩn danh)<br/>accuracy · rating (công khai từ 29/09)"]
+    D --> E3["contacts.email / contacts.phone<br/>CHỈ khi email_visibility / phone_visibility = PUBLIC"]
 
-    F["❌ KHÔNG BAO GIỜ trả:<br/>email · SĐT · vị trí mặc định<br/>balance · ledger · Giver Accuracy"] -.-> D
+    F["❌ KHÔNG BAO GIỜ trả:<br/>vị trí mặc định · balance · ledger<br/>cờ accuracy_review_required<br/>showOnlineStatus · allowStrangerMessages"] -.-> D
 
     style C fill:#f8d7da,stroke:#a52834,stroke-width:1.5px,color:#4a0d13
     style F fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
@@ -216,6 +218,10 @@ flowchart TD
 
 > **Danh sách CHO PHÉP, không phải danh sách cấm.** Thêm một cột vào `users` thì hồ sơ công
 > khai không tự đổi hình dạng — muốn lộ ra phải có người gõ thêm một dòng.
+
+> **Cài đặt riêng tư chỉ chính chủ thấy** (`GET`/`PATCH /profile/me`): `showOnlineStatus`
+> (hiện mình online theo tab — xem [09-chat](./09-chat.md)), `allowStrangerMessages` (cho người
+> lạ mở phòng `DIRECT_USER`), `leaderboardAnonymous`, `emailVisibility` / `phoneVisibility`.
 
 > **Vì sao chỉ `lifetime`, không có `balance`.** `balance` là điểm tiêu được của riêng chủ tài
 > khoản; lộ ra kênh công khai là lộ sức mua của người ta.
@@ -228,12 +234,12 @@ flowchart LR
 
     B --> C["GET /profile/me<br/>CHÍNH CHỦ"]
     B --> D["GET /admin/users<br/>?accuracyReviewRequired=true"]
-    B -.-> E["❌ GET /profile/:username<br/>KHÔNG có"]
+    B --> E["GET /profile/:username<br/>CÔNG KHAI từ 29/09"]
 
     C --> C1["percent · samples · minSamples<br/>KHÔNG có cờ xem xét"]
     D --> D1["kèm cả cờ — đây là HÀNG ĐỢI<br/>để người thật nhìn qua"]
+    E --> E1["percent · samples · minSamples<br/>null khi chưa có mẫu, KHÔNG có cờ"]
 
-    style E fill:#ffe6e6,stroke:#c0504d,stroke-width:1.5px,color:#4a1210
     style C1 fill:#e7f3ff,stroke:#3d7ab8,stroke-width:1.5px,color:#0d2a4a
     style D1 fill:#e6ffe6,stroke:#3f8f3f,stroke-width:1.5px,color:#0f3d12
 ```
@@ -242,8 +248,9 @@ flowchart LR
 > phán quyết. Nói với người ta "bạn đang bị đánh dấu xem xét" dựa trên năm lượt đánh giá là
 > kết tội trước khi có người thật xem.
 
-> **Vì sao công khai không thấy gì cả.** Gắn một con số "độ chính xác 62%" lên hồ sơ công khai
-> là một bản án vĩnh viễn dựng từ vài lượt đánh giá, và người bị chấm sai không có đường kháng.
+> **Vì sao công khai từ 29/09.** Trước đó công khai không thấy gì, nên người đang chọn xin nhận
+> giữa hai người tặng không có gì để so — trong khi cơ chế "đủ `minSamples` mới công bố" được
+> dựng ra chính là để con số này ĐƯỢC công bố mà không bôi nhọ ai. Cờ xem xét thì vẫn không lộ.
 
 > ✅ **Nối ra ngoài 26/09.** Trước đó chỉ số được tính, được lưu, rồi **nằm đó**: `getAccuracy()`
 > không nơi nào gọi, và cờ `accuracy_review_required` không hàng đợi nào đọc.

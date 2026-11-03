@@ -61,14 +61,14 @@ hệ thống đã làm xong những việc chưa ai viết một dòng code.
 | --- | --- | --- | --- |
 | 15 | [Báo xấu & kiểm duyệt](./15-report.md) | Báo bài/người/bình luận, hàng đợi Admin, thưởng người báo đúng | ✅ |
 | 16 | [Admin CMS & RBAC](./16-admin.md) | Quyền, cấu hình động copy-on-write, audit, mẫu thông báo | ✅ |
-| 17 | [Job nền & CLI](./17-jobs.md) | Mười hai CLI chạy một lần, lịch cron, đối soát, cảnh báo job đỏ | ✅ |
+| 17 | [Job nền & CLI](./17-jobs.md) | Mười lăm CLI chạy một lần, lịch cron, đối soát, cảnh báo job đỏ | ✅ |
 
 ### Tầng 6 — Nhóm
 
 | # | Sơ đồ | Nội dung | Trạng thái |
 | --- | --- | --- | --- |
 | 18 | [Group & Sub-team](./18-group.md) | Tạo nhóm, snapshot vùng theo bậc, link mời, RBAC nhóm, sub-team, hoạt động | ✅ |
-| 19 | [Group Affiliate](./19-affiliate.md) | Điều kiện địa lý và Active Member ✅ · bộ máy chia thưởng ⛔ | 🟡 |
+| 19 | [Group Affiliate](./19-affiliate.md) | Điều kiện địa lý, Active Member, bộ máy chia thưởng, trần ngày, thu hồi | ✅ |
 
 ### Tổng hợp
 
@@ -90,11 +90,11 @@ hệ thống đã làm xong những việc chưa ai viết một dòng code.
 
 | # | Sơ đồ | Nội dung | Trạng thái |
 | --- | --- | --- | --- |
-| 26 | [Quy ước API & lỗi](./26-api-conventions.md) | 66 mã lỗi, hai cái bẫy đã sửa, phân tầng kiểm | ✅ |
+| 26 | [Quy ước API & lỗi](./26-api-conventions.md) | Nhóm mã lỗi (bảng đầy đủ sinh tự động ở `docs/API-ERRORS.md`), hai cái bẫy đã sửa, phân tầng kiểm | ✅ |
 | 27 | [Lược đồ database](./27-database.md) | Bảng append-only, ràng buộc giữ bất biến (số bảng: đếm bằng SQL, đừng tin tài liệu) | ✅ |
-| 28 | [Kiến trúc & khởi động](./28-architecture.md) | Bốn tầng, DI bằng Symbol, ba tầng kiểm thử — cả 30 script kiểm chứng nay nằm trong CI | ✅ |
+| 28 | [Kiến trúc & khởi động](./28-architecture.md) | Bốn tầng, DI bằng Symbol, ba tầng kiểm thử — mọi script kiểm chứng nay nằm trong CI | ✅ |
 | 29 | [CI/CD & triển khai](./29-cicd.md) | Pipeline, rollback, điều kiện production-ready | ✅ 🟡 |
-| 30 | [Ma trận endpoint](./30-endpoint-matrix.md) | Endpoint × quyền × trạng thái, và cái chưa có | — |
+| 30 | [Ma trận endpoint](./30-endpoint-matrix.md) | Endpoint × quyền × trạng thái, gom nhóm — danh sách route đầy đủ ở [`docs/API-ROUTES.md`](../API-ROUTES.md) | — |
 | 31 | [Sổ treo theo phân hệ](./31-open-items.md) | Danh sách ĐANG còn treo, xếp theo phân hệ, mỗi mục ghi ai quyết và để treo thì mất gì | — |
 
 ## Cách soát

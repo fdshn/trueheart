@@ -176,7 +176,7 @@ jobs:
               bash scripts/smoke-test.sh "$HEALTH_URL" --read-only
           fi
 
-      - name: Tự kiểm cây DI của cả 12 CLI trên host
+      - name: Tự kiểm cây DI của mọi CLI trên host
         # Cổng ở trên chỉ gọi endpoint ĐỌC qua HTTP. Nó bắt được service không lên,
         # nhưng KHÔNG chạy CLI nào — mà hai cái bẫy từng làm cả bảy CLI chết
         # (`.bind(NestFactory)` ở tham số mặc định, và `@Global()` chỉ có hiệu lực
