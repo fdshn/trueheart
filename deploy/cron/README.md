@@ -37,6 +37,7 @@ người dùng lúc 3 giờ chiều, và `post:expire` cắt ngày lệch 7 ti�
 | Giờ | Lệnh | Tần suất |
 | --- | --- | --- |
 | `:19` mỗi giờ | `point:reconcile` | hằng giờ |
+| mỗi 5 phút | `notify:broadcast` | gửi hàng loạt Admin đã xếp hàng |
 | `:37` mỗi giờ | `selection:auto-select` | hằng giờ |
 | 00:05 ngày 1 | `leaderboard:close-month` | hằng tháng |
 | 00:11 | `post:expire` | hằng ngày |
@@ -45,6 +46,7 @@ người dùng lúc 3 giờ chiều, và `post:expire` cắt ngày lệch 7 ti�
 | 03:31 | `rank:evaluate` | hằng ngày |
 | 03:47 | `chat:purge` | hằng ngày |
 | 04:09 | `notification:purge` | hằng ngày |
+| 06:43 | `notify:lunar` | hằng ngày (tự bỏ qua ngày không phải mốc) |
 | 08:17 | `notify:reminders` | hằng ngày |
 | CN 04:41 | `feed:reconcile-counts` | hằng tuần |
 | T2 04:13 | `accuracy:reconcile` | hằng tuần |
@@ -213,6 +215,10 @@ chết** — và không ai biết.
   đăng nhập — thì đã đúng và đã có canh. Xem `docs/diagram/17-jobs.md` mục 2.
 
 ### Đã có, từng ghi thiếu ở đây
+
+- ✅ **`notify:broadcast` và `notify:lunar`** — thêm vào crontab 03/11/2026. Cả hai được viết
+  để cron gọi (mỗi vài phút / mỗi ngày) nhưng chưa bao giờ có dòng lịch: ngoài production,
+  gửi hàng loạt Admin bấm chỉ nằm trong hàng chờ, và nhắc Rằm/Mùng Một không bao giờ đi.
 
 - ✅ **Dọn object mồ côi** — `media:sweep-orphans`, hằng tuần `29 5 * * 2`, chạy
   **KHÔ** (không `--apply`). Chỉ báo con số là lựa chọn đúng cho một job xoá thứ

@@ -61,6 +61,16 @@ const LiveKeySources: readonly { sql: string; label: string }[] = [
     sql: 'SELECT avatar_url AS value FROM users WHERE avatar_url IS NOT NULL',
   },
   {
+    // Clip giới thiệu hồ sơ (PR #46 §3, `users/<id>/intro-videos|intro-thumbnails/`). Thiếu hai
+    // nguồn này thì `--apply` coi mọi clip đang hiển thị là mồ côi và xoá — phát hiện 03/11.
+    label: 'users.intro_video_url',
+    sql: 'SELECT intro_video_url AS value FROM users WHERE intro_video_url IS NOT NULL',
+  },
+  {
+    label: 'users.intro_video_thumbnail_url',
+    sql: 'SELECT intro_video_thumbnail_url AS value FROM users WHERE intro_video_thumbnail_url IS NOT NULL',
+  },
+  {
     label: 'groups.avatar_url',
     sql: 'SELECT avatar_url AS value FROM groups WHERE avatar_url IS NOT NULL',
   },

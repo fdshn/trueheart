@@ -91,6 +91,33 @@ describe('SweepOrphanMediaUseCase', () => {
     expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
   });
 
+  it('KHÔNG xoá clip giới thiệu hồ sơ (video và ảnh bìa)', async () => {
+    // `users.intro_video_url` / `intro_video_thumbnail_url` lưu URL công khai dưới
+    // `users/<id>/intro-videos|intro-thumbnails/`. Thiếu hai nguồn này thì `--apply` xoá
+    // mọi clip đang hiển thị trên hồ sơ — phát hiện 03/11/2026.
+    const deps = makeDeps({
+      rows: {
+        intro_video_thumbnail_url: [
+          { value: `${Base}/users/u1/intro-thumbnails/t.webp` },
+        ],
+        intro_video_url: [{ value: `${Base}/users/u1/intro-videos/v.mp4` }],
+      },
+      objects: [
+        { key: 'users/u1/intro-videos/v.mp4', lastModified: old, size: 10 },
+        {
+          key: 'users/u1/intro-thumbnails/t.webp',
+          lastModified: old,
+          size: 10,
+        },
+      ],
+    });
+
+    const result = await makeUseCase(deps).handle({ dryRun: false });
+
+    expect(result.orphans).toBe(0);
+    expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
+  });
+
   it('cắt tiền tố miền để so được URL với key', async () => {
     // `users.avatar_url` lưu URL công khai, `listObjects` trả key. Không cắt
     // thì mọi avatar bị coi là mồ côi.

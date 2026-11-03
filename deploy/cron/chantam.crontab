@@ -81,6 +81,18 @@ RUN=/home/deploy/chantam/deploy/cron/run-cli.sh
 # họ mở máy.
 17 8 * * * deploy $RUN $CHANTAM_DIR notify-reminders
 
+# Nhắc Rằm / Mùng Một / ngày lễ âm lịch. Chạy MỖI NGÀY: ngày không phải mốc thì CLI tự thoát
+# sớm, nên cron không cần biết lịch âm. Khoá chống trùng gắn ngày âm lịch — chạy lại trong
+# ngày không gửi hai lần. 06:43 để lời nhắc tới trước giờ đi chùa buổi sáng.
+43 6 * * * deploy $RUN $CHANTAM_DIR notify-lunar
+
+# ── Vài phút một lần ───────────────────────────────────────────────────────────
+#
+# Gửi hàng loạt do Admin bấm (`POST /admin/notifications/broadcasts/:id/send` chỉ xếp hàng).
+# Thiếu dòng này thì không lượt gửi nào được thực hiện. Hai lượt chồng nhau vô hại: lượt
+# nhận việc dùng `FOR UPDATE SKIP LOCKED`.
+*/5 * * * * deploy $RUN $CHANTAM_DIR notify-broadcast
+
 # ── Hằng tuần ──────────────────────────────────────────────────────────────────
 #
 # Đối soát số đếm feed. Hằng tuần là đủ: số đếm lệch chỉ xảy ra khi có lỗi ghi, và
