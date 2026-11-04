@@ -35,11 +35,12 @@ Ghi chú quản trị trong bảng yêu cầu:
 3. Mọi trang của sự kiện có **nút báo cáo màu đỏ** gửi về Admin (mô tả + ảnh/clip bằng chứng).
 4. App ghi nhận và thống kê: quan tâm, thích, bình luận, đăng ký tặng, đăng ký tham gia, báo cáo.
 5. Ban tổ chức đăng clip/ảnh, bình luận về tiến độ.
-6. Giai đoạn C: app **nhảy sang tab C theo mốc thời gian**; người tham gia và ban tổ chức đăng
-   bình luận có clip/ảnh — tối đa **5 clip + 5 ảnh / người / ngày**.
-7. Điểm: vật phẩm tặng tính khi ban tổ chức xác nhận, **10.000đ = 1 điểm**; clip/ảnh của
-   cộng tác viên sự kiện dùng hệ số cấu hình (Product gợi ý `2x`) và quota ngày; người tham
-   gia được ban tổ chức xác nhận nhận **100 điểm × mức hoàn thành (0–100)**.
+6. Giai đoạn C: app **nhảy sang tab C theo mốc thời gian**; BTC được hoãn/chuyển sớm thủ công
+   có lý do. Thành viên BTC và participant đã được xác nhận, check-in được đăng bình luận có
+   clip/ảnh — tối đa **5 clip + 5 ảnh / người / ngày**.
+7. Điểm: vật phẩm tặng tính khi ban tổ chức xác nhận, **10.000đ = 1 điểm**; media hợp lệ nhận
+   **3 điểm/clip, 2 điểm/ảnh**; participant nhận trực tiếp **100 điểm × mức hoàn thành
+   (0–100%)** do BTC đánh giá.
 
 ## 2. Hiện trạng backend (đối chiếu)
 
@@ -109,7 +110,9 @@ và thông báo người đã ủng hộ (quy tắc B3 checklist 01/11). Lưu ý
 | `bank_account_id` (nullable) | Tham chiếu `campaign_bank_accounts` |
 
 Đây là **thông tin công khai**, khác `campaign_coordinators` (quyền thao tác). Gợi ý: chọn
-`user_id` cho vai trò thì cho phép (không bắt buộc) cấp quyền coordinator trong cùng thao tác.
+`user_id` cho vai trò chỉ liên kết hồ sơ Chân Tâm, **không tự cấp quyền quản trị**. Owner phải
+thêm user vào BTC/coordinator bằng thao tác riêng. Thành viên không có tài khoản vẫn được lưu
+dưới dạng thông tin mô tả.
 
 **Tiến độ 4 bước** — bảng mới `campaign_phases`:
 
@@ -177,6 +180,9 @@ một câu hỏi" ở tài liệu đóng góp.
   thông báo). **Mobile không tự suy giai đoạn từ ngày** — backend trả thẳng.
 - Mỗi lần chuyển ghi append-only `campaign_stage_events` (`from_stage`, `to_stage`,
   `actor_id` | `SYSTEM`, `reason`, `created_at`).
+- Owner/BTC được hoãn `DISTRIBUTION.starts_at`, chuyển sang `EVENT` sớm hoặc chuyển thủ công
+  khi job trễ; bắt buộc lý do và notification người tham gia bị ảnh hưởng. Job và action thủ
+  công phải idempotent, không tạo hai stage event cho cùng một lần chuyển.
 - `is_active = false` (đóng/đình chỉ) vẫn ưu tiên: chiến dịch đình chỉ ở bất kỳ giai đoạn nào
   cũng không nhận thao tác mới.
 
@@ -187,8 +193,9 @@ Bảng append-only `campaign_revisions`: `campaign_id`, `entity` (`campaign` | `
 `new_value jsonb`, `changed_by`, `reason`, `created_at`.
 
 - Mọi `PATCH` kế hoạch sau khi `approval_status = APPROVED` ghi revision trong cùng transaction.
-- Detail trả `changedFields` (danh sách `entity.field` đã đổi kể từ lúc duyệt) để app tô đỏ, và
-  `GET :id/revisions` cho changelog công khai.
+- Detail trả `changedFields` (danh sách `entity.field` đã đổi kể từ lúc duyệt) để **cả workspace
+  và public UI tô đỏ**, và `GET :id/revisions` cho changelog công khai. Public chỉ nhận revision
+  đã publish, không thấy draft đang sửa.
 - Thay đổi quan trọng (thời gian `DISTRIBUTION`, địa điểm, tài khoản ngân hàng, mục tiêu, bên
   thụ hưởng) gửi thông báo người đã ủng hộ/tham gia (checklist 01/11 mục B3).
 - Không bắt duyệt lại mặc định (owner tự quản trị, Admin hậu kiểm — checklist B10).
@@ -213,8 +220,10 @@ Cột: `scheduled_at`, `work_note`, `remark`, `pic_name`, `pic_user_id`, `update
 `updated_at`. Organizer/coordinator cập nhật; mỗi lần đổi trạng thái ghi revision.
 
 **Nhắc 48 giờ**: tác vụ ngoài tiến trình `npm run charity:pre-event-notice` gửi notification
-(push + in-app) tới người đã đăng ký tham gia và người có đóng góp được chấp nhận, khi còn
-≤ 48 giờ tới `DISTRIBUTION.starts_at`; đánh dấu đã gửi để không gửi lại.
+(push + in-app) tới Owner/BTC và participant đã được duyệt, khi còn ≤ 48 giờ tới
+`DISTRIBUTION.starts_at`; đánh dấu đã gửi để không gửi lại. Mỗi đợt trao có checklist riêng.
+BTC xác nhận sẵn sàng hoặc ghi lý do chưa sẵn sàng; checklist chưa xong tạo cảnh báo nhưng
+không tự động hủy/chặn sự kiện. Nếu đổi thời gian sau khi đã gửi, hệ thống lập lịch nhắc lại.
 
 ### 3.5 Tab C — Sự kiện trao
 
@@ -231,12 +240,12 @@ realtime hiện có của chat (`infrastructure/realtime/chat.gateway.ts`) — c
 `stage` (lúc đăng), `body`, `created_at`, `deleted_at`; media con `campaign_post_media`
 (`storage_key`, `public_url`, `media_type` `IMAGE` | `VIDEO`, `duration_sec`, `size_bytes`).
 
-- Quyền đăng: organizer/coordinator ở mọi giai đoạn sau duyệt. Người dùng chỉ được cấp vai trò
-  `EVENT_CONTRIBUTOR` khi có hỗ trợ đã được xác nhận **và** đăng ký tham gia hợp lệ; quyền có
-  hiệu lực trong thời gian sự kiện. Chỉ `REGISTERED` là chưa đủ quyền đăng media.
-- **Quota 5 clip + 5 ảnh / người / ngày** kiểm ở bước ký đường tải (theo mẫu chat: kiểm quyền
-  trước khi ký), đếm theo ngày giờ Việt Nam. Cần chốt quota tính theo dự án hay toàn app, và
-  dung lượng/độ dài tối đa của clip.
+- Quyền đăng: Owner/BTC trong thời gian dự án; participant chỉ được đăng media sự kiện sau khi
+  BTC xác nhận đăng ký **và đã check-in**. Người chỉ đóng góp, đang chờ duyệt/waitlist, đã huỷ
+  hoặc no-show không có quyền. Không yêu cầu participant phải có contribution.
+- **Quota 5 clip + 5 ảnh / người / ngày / dự án** kiểm ở bước ký đường tải (theo mẫu chat:
+  kiểm quyền trước khi ký), đếm theo ngày giờ Việt Nam. Upload lỗi, retry trùng hoặc media bị
+  từ chối không sinh điểm; cần chốt dung lượng/độ dài tối đa của clip.
 - Có thể báo cáo vi phạm từng bài (§3.8) và Admin ẩn được.
 
 ### 3.6 Tab D — Tổng kết
@@ -246,8 +255,10 @@ realtime hiện có của chat (`infrastructure/realtime/chat.gateway.ts`) — c
   Công khai khi `published_at` có giá trị; sửa sau khi công khai ghi revision.
 - Bảng `campaign_participant_evaluations`: `campaign_id`, `participant_id`,
   `completion_score` (0–100), `note`, `evaluated_by`, `created_at`; sửa = bản ghi mới (giữ
-  lịch sử). Chỉ organizer/coordinator có capability chấm; chỉ ở `SUMMARY`. Điểm và ghi chú
-  đánh giá là **nội bộ**, chỉ organizer được cấp quyền và Admin xem, không trả qua public API.
+  lịch sử). Chỉ Owner/BTC được chấm participant đã check-in; chỉ ở `SUMMARY`. Điểm participant
+  được tính trực tiếp bằng `100 × completion_score / 100`. Sửa đánh giá tạo point adjustment,
+  không sửa ledger cũ. Điểm và ghi chú đánh giá là **nội bộ**, chỉ Owner/BTC và Admin xem,
+  không trả qua public API.
 
 Public summary tập trung cho quảng bá/tổng kết: media tiêu biểu, bình luận/lời cảm ơn được
 chọn, tổng người quan tâm/đóng góp/tham gia, số phần quà và tổng giá trị. Danh sách nickname
@@ -283,8 +294,8 @@ diễn giải và file sao kê/bằng chứng. Không được publish tổng k�
 | Rule | Mặc định theo bảng | Khi phát sinh |
 | --- | --- | --- |
 | `CHARITY_ITEM_VALUE` | 1 điểm / 10.000đ | Delivery `COMPLETED`, theo **giá trị ban tổ chức xác nhận** |
-| `CHARITY_POST_VIDEO` | Mức cơ sở × hệ số vai trò | Clip hợp lệ trong `campaign_posts` |
-| `CHARITY_POST_IMAGE` | Mức cơ sở × hệ số vai trò | Ảnh hợp lệ trong `campaign_posts` |
+| `CHARITY_POST_VIDEO` | 3 điểm/clip | Clip hợp lệ trong `campaign_posts`, trong quota |
+| `CHARITY_POST_IMAGE` | 2 điểm/ảnh | Ảnh hợp lệ trong `campaign_posts`, trong quota |
 | `CHARITY_PARTICIPATION` | 100 × `completion_score` / 100 | Khi có đánh giá ở `SUMMARY` |
 
 - Giá trị xác nhận: thêm `confirmed_value` (bigint) vào `campaign_delivery_items` khi organizer xác
@@ -307,7 +318,7 @@ diễn giải và file sao kê/bằng chứng. Không được publish tổng k�
 
 Cần thêm loại vào `notification-types.ts` và `notification-targets.ts`.
 
-### 3.11 Ba loại nhu cầu: tiền, hiện vật, nhân lực
+### 3.11 Nhu cầu tiền, hiện vật, nhân lực và hỗ trợ mở
 
 **Kêu gọi tiền** — bảng `campaign_funding_needs`: bên/người thụ hưởng, đơn vị nhận, tài khoản
 ngân hàng có phiên bản, mục tiêu, hạn nhận, số đăng ký, số xác nhận trong app, số nhập từ nguồn
@@ -318,15 +329,27 @@ biên nhận và đối soát.
 
 **Tuyển người** — bảng `campaign_volunteer_needs`: tên vị trí/nhiệm vụ, mô tả công việc, yêu
 cầu, số người cần, thời gian, địa điểm, số đăng ký, số xác nhận, số còn thiếu và trạng thái
-`OPEN` | `CLOSED` | `STARTED`. Chỉ người có ít nhất một hỗ trợ hợp lệ/được xác nhận mới được
-tham gia. Người đã đăng ký được hủy cả khi sự kiện diễn ra; sau khi bước trao bắt đầu thì không
-nhận đăng ký mới. Mọi thay đổi tạo audit.
+`OPEN` | `CLOSED` | `STARTED`. Đăng ký tham gia độc lập với contribution; không yêu cầu user
+phải ủng hộ trước. Hỗ trợ duyệt/từ chối/waitlist/xác nhận/check-in/completed/cancelled/no-show.
+Người đã đăng ký được hủy cả khi sự kiện diễn ra; sau khi bước trao bắt đầu thì không nhận đăng
+ký mới. Mọi thay đổi tạo audit.
+
+**Hỗ trợ mở** — bảng `campaign_other_support_needs` bổ sung, không thay thế ba nhóm khách đã
+yêu cầu: `support_type` (`TRANSPORT` | `LABOR` | `SKILL_SERVICE` | `VENUE` | `EQUIPMENT` |
+`MEAL_ACCOMMODATION` | `COMMUNICATION` | `OTHER`), tên, mô tả, đơn vị, mục tiêu, thời gian,
+địa điểm, yêu cầu, cách bàn giao, PIC và trạng thái mở/đóng. Dùng cho chuyến xe, phương tiện,
+giờ công, chuyên môn/dịch vụ, địa điểm, thiết bị, suất ăn và nhu cầu khác.
+
+Mọi nhóm nhu cầu dùng cùng cách tổng hợp: số đăng ký, được chấp nhận, thực nhận/hoàn thành,
+nguồn trong app, nguồn ngoài và còn thiếu. Một user có thể hỗ trợ một phần, nhiều lần hoặc
+nhiều hạng mục. Contribution và participation là hai vai trò độc lập; một user có thể có cả
+hai nhưng không tự trở thành BTC.
 
 ### 3.12 Workspace organizer và public projection
 
 - `GET :id/workspace`: toàn bộ section, draft, checklist, dữ liệu nội bộ, capabilities và lịch
   sử; chỉ organizer/coordinator/Admin.
-- `GET :id/public`: thông tin cơ bản, cover/cập nhật đã publish, reaction/comment, ba nhóm nhu
+- `GET :id/public`: thông tin cơ bản, cover/cập nhật đã publish, reaction/comment, các nhóm nhu
   cầu và tiến độ công khai, CTA `follow`/`support`/`join`/`report`.
 - Không dùng một DTO rồi để mobile tự ẩn field nhạy cảm. Backend phải enforce visibility.
 - Người xem được mở sâu từng section đã publish để xem chi tiết tiến độ; section chưa publish
@@ -345,6 +368,28 @@ Thêm cấu hình quảng bá do Admin quản trị: `featured_on_home`, `featur
 `featured_message`, `featured_media`, `featured_cta`, `featured_from`, `featured_until`,
 `featured_priority`. Organizer có thể đề xuất, Admin mới bật/tắt. Home chỉ nhận card ngắn để
 kêu gọi xem/ủng hộ/tham gia; không trả toàn bộ hồ sơ dự án.
+
+### 3.15 Các trường hợp vận hành bổ sung
+
+Các mục dưới đây bổ sung để tránh hở nghiệp vụ, không thay đổi form A/B/C/D của khách:
+
+- Một dự án có thể có nhiều đợt trao/địa điểm; mỗi đợt có timeline, checklist T-48h, participant
+  và phân bổ contribution riêng. Tổng dự án là số cộng có đối soát của các đợt.
+- Contribution hỗ trợ một phần, nhiều lần hoặc nhiều hạng mục; trạng thái tách rõ đăng ký,
+  được chấp nhận, thực nhận/hoàn thành, một phần, rút/hủy, từ chối và tranh chấp.
+- Nguồn ngoài app do BTC nhập phải có nguồn/bằng chứng, được tính tiến độ nhưng không tự sinh
+  điểm user; có khóa chống tính trùng với contribution trong app.
+- Hạng mục đã phát sinh contribution không xoá cứng. Giảm mục tiêu dưới số thực nhận hoặc đổi
+  mục đích sử dụng phần dư bắt buộc giải trình công khai và ghi revision.
+- Hoãn/hủy dự án hoặc một đợt phải ghi lý do, xử lý contribution đang chờ và thông báo người
+  bị ảnh hưởng; Admin tạm dừng không làm mất dữ liệu/audit.
+- Contributor chọn công khai nickname/avatar hoặc ẩn danh. Public projection che số điện thoại,
+  địa chỉ chi tiết, giấy tờ, số tài khoản/chứng từ nhạy cảm và dữ liệu beneficiary cần bảo vệ.
+- Không cho hoàn tất dự án khi còn contribution/giao nhận chưa đối soát, hạng mục còn mở, phần
+  dư chưa giải trình, báo cáo tài chính bắt buộc chưa có sao kê hoặc khiếu nại nghiêm trọng
+  chưa được xử lý.
+- Upload/check-in/cập nhật tại sự kiện phải idempotent để retry hoặc đồng bộ sau mất mạng không
+  tạo bản ghi, quota hay điểm trùng.
 
 ## 4. API đề xuất
 
@@ -371,15 +416,15 @@ khai đủ mã lỗi (INVARIANTS §6).
 | `POST`/`DELETE` | `/:id/reactions` | Thích |
 | `GET`/`POST` | `/:id/comments` | Bình luận |
 | `POST`/`DELETE` | `/:id/follow` | Quan tâm/bỏ quan tâm |
-| CRUD | `/:id/funding-needs` · `/:id/item-needs` · `/:id/volunteer-needs` | Ba nhóm nhu cầu |
-| `PUT` | `/:id/event-contributors/:userId` | Cấp/thu hồi quyền cộng tác viên sự kiện |
+| CRUD | `/:id/funding-needs` · `/:id/item-needs` · `/:id/volunteer-needs` · `/:id/other-support-needs` | Các nhóm nhu cầu |
+| `POST` | `/:id/participations/:participationId/check-in` | BTC xác nhận check-in và mở quyền media sự kiện |
 | `GET`/`PUT` | `/:id/financial-report` | Báo cáo tài chính và sao kê bắt buộc |
 | `GET` | `/:id/public-stats` · `/:id/internal-stats` | Thống kê theo đúng visibility |
 | `GET` | `/:id/export.pdf` | Bản in PDF theo snapshot |
 | `POST` | `/:id/share-links` | Tạo deep link công khai cho dự án/section |
 
 `GET /api/v1/campaigns/:idOrSlug` cũ giữ tương thích và trỏ về public projection. Public trả
-`operationStage`, section đã publish, ba nhóm nhu cầu với số trong app/ngoài app/còn thiếu,
+`operationStage`, section đã publish, các nhóm nhu cầu với số trong app/ngoài app/còn thiếu,
 `counters`, `isFollowing` và public capabilities. `workspace` mới trả thêm draft, parties,
 team, phases, bank accounts, changed fields và capabilities organizer (`canEditPlan`,
 `canAdvanceStage`, `canPost`, quota media, `canEvaluate`, `canExportPdf`, `canShare`). App hiển
@@ -398,7 +443,7 @@ thị theo capabilities, không tự suy luận theo rank.
 
 | Đợt | Backend | Mobile dùng được |
 | --- | --- | --- |
-| 1 | §3.1 hồ sơ/nháp/custom form, §3.2 stage, §3.11 ba nhóm nhu cầu, §3.12 workspace/public | Dashboard organizer, public detail và form A |
+| 1 | §3.1 hồ sơ/nháp/custom form, §3.2 stage, §3.11 các nhóm nhu cầu, §3.12 workspace/public | Dashboard organizer, public detail và form A |
 | 2 | §3.3 revisions, §3.4 checklist, §3.7 tương tác/thống kê, §3.8 báo cáo, §3.13 PDF/share | Changelog, tab B, CTA và công cụ chia sẻ |
 | 3 | §3.5 timeline + media/quota/event contributor | Tab C và cập nhật sự kiện |
 | 4 | §3.6 tổng kết/tài chính, §3.9 điểm, §3.14 Home promotion | Tab D, sổ điểm và card Home |
@@ -406,20 +451,35 @@ thị theo capabilities, không tự suy luận theo rank.
 Mỗi đợt: migration + entity + repository + use case + spec, cập nhật `DATA-MODEL.md`,
 `ROADMAP.md`, `README.md` của package và `docs/API.md` trong cùng PR (quy tắc docs/plan).
 
-## 7. Cần Product/Bên A chốt trước khi viết migration
+## 7. Quyết định Product đã chốt và phần còn mở
+
+Đã chốt ngày 05/11/2026:
+
+- Contribution và participation độc lập; bỏ điều kiện `hasSupported → canJoin`.
+- Hỗ trợ mở bổ sung chuyến xe/phương tiện, công sức, kỹ năng/dịch vụ và các loại khác mà không
+  thay thế form tiền/hiện vật/nhân lực của khách.
+- Media: 3 điểm/clip, 2 điểm/ảnh; quota 5 clip + 5 ảnh/người/ngày/dự án; participant phải được
+  BTC xác nhận và check-in, không cần có contribution.
+- Duyệt lần đầu giữ capability `PUBLISH_CHARITY_WITHOUT_REVIEW`; Mobile không suy theo tên rank.
+- B→C tự chuyển theo lịch nhưng Owner/BTC được hoãn, chuyển sớm hoặc chuyển thủ công có lý do.
+- Field sửa sau duyệt tô đỏ ở cả workspace và public projection; chỉ revision đã publish được public.
+- `completion_score` 0–100% trực tiếp quyết định tối đa 100 điểm participant.
+- Vai trò phân công vừa có thể là mô tả cá nhân/tổ chức, vừa liên kết tài khoản Chân Tâm; liên
+  kết không tự cấp quyền BTC.
+- Quyền hệ thống giữ đơn giản: Owner/BTC quản trị; contributor/participant thao tác dữ liệu của
+  mình; viewer tương tác public; Admin giám sát/can thiệp.
+
+Phần còn cần chốt trước khi viết migration:
 
 1. **Tên/nhãn 4 mục A/B/C/D**: contract theo 4 section; Product chốt nhãn UI cuối cùng.
 2. **Nháp**: có cần lưu nháp hồ sơ tab A không (đề xuất `submitted_at`, §3.1)?
-3. **Duyệt**: giữ capability `PUBLISH_CHARITY_WITHOUT_REVIEW`; cần chốt cấu hình rank/capability
-   do Admin quản trị ở đâu.
+3. **Duyệt**: vị trí cấu hình rank/capability `PUBLISH_CHARITY_WITHOUT_REVIEW` trong Admin.
 4. **Tiền**: đã chốt app không giữ tiền nhưng có hồ sơ kêu gọi/chuyển khoản/minh bạch; cần chốt
    một dự án được có bao nhiêu tài khoản nhận đồng thời.
 5. **Bên thụ hưởng**: hợp nhất `campaign_beneficiaries` với `campaign_parties.BENEFICIARY` hay
    giữ hai nơi?
-6. **Media**: quyền theo `EVENT_CONTRIBUTOR` đã chốt; còn cần chốt quota tính theo dự án hay
-   toàn app và dung lượng/thời lượng tối đa của clip.
+6. **Media**: dung lượng/thời lượng tối đa của clip và thời hạn được đăng sau khi sự kiện kết thúc.
 7. **Realtime tab C**: polling là đủ hay cần đẩy qua kênh realtime?
-8. **Điểm**: mức và hệ số là cấu hình; cần chốt trần theo ngày/chu kỳ và cơ chế khiếu nại đánh
-   giá hoàn thành.
+8. **Điểm**: trần theo ngày/chu kỳ và cơ chế khiếu nại đánh giá hoàn thành.
 9. **Danh sách nickname công khai**: opt-in riêng cho đóng góp và tham gia hay dùng một privacy
    setting chung của tài khoản?
