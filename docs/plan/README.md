@@ -12,6 +12,7 @@ Bốn tài liệu, mỗi cái trả lời một câu hỏi:
 | [`CHECK-IN-STREAK-DESIGN.md`](./CHECK-IN-STREAK-DESIGN.md) | F83 điểm danh, streak, lượt bù, API và UAT mục tiêu | Khi triển khai backend/app/CMS cho yêu cầu 30/09 |
 | [`../superpowers/specs/2026-10-25-customer-product-update-backend-requirements.md`](../superpowers/specs/2026-10-25-customer-product-update-backend-requirements.md) | Backend cần thay đổi gì sau buổi cập nhật sản phẩm 25/10/2026? | Trước khi làm public profile mới, direct chat, refactor Rao vặt và Dharma Home |
 | [`MOBILE-HANDOFF-2026-10-25.md`](./MOBILE-HANDOFF-2026-10-25.md) | App phải đổi gì theo đợt backend 25/10 (PR #46)? | Khi mobile bắt đầu đợt cập nhật 25/10 |
+| [`CHARITY-PROJECT-LIFECYCLE.md`](./CHARITY-PROJECT-LIFECYCLE.md) | Backend cần làm gì cho dự án từ thiện 4 giai đoạn (Kế hoạch → Triển khai → Sự kiện trao → Tổng kết) theo yêu cầu 04/11? | Trước khi mở rộng schema/endpoint chiến dịch; mục §7 cần Product chốt |
 
 ## Đang ở đâu
 
