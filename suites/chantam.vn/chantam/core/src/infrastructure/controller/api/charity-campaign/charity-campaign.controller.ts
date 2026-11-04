@@ -313,6 +313,7 @@ export class CharityCampaignController {
           note: body.note,
           contactNote: body.contactNote,
           items: body.items,
+          showNamePublicly: body.showNamePublicly,
         }),
       )
       .build();

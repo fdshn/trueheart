@@ -134,6 +134,11 @@ export interface ISubmitCharityContributionCommand {
   readonly note?: string;
   readonly contactNote?: string;
   readonly items: readonly ICharityContributionItemInput[];
+  /**
+   * Hiện nickname trong danh sách người ủng hộ công khai (CHARITY-PROJECT-LIFECYCLE §3.17).
+   * Bỏ trống = theo cài đặt chung `showInPublicSupporterLists` của tài khoản.
+   */
+  readonly showNamePublicly?: boolean;
 }
 
 export type ISubmitCharityContributionResult = ICharityContribution;

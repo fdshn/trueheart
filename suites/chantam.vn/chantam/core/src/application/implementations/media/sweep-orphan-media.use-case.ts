@@ -52,6 +52,15 @@ const LiveKeySources: readonly { sql: string; label: string }[] = [
           FROM campaign_parties WHERE jsonb_typeof(evidence_urls) = 'array'`,
   },
   {
+    // Tổng kết dự án (đợt 4): bằng chứng và sao kê tài chính.
+    label: 'campaign_summaries.evidence_urls',
+    sql: `SELECT jsonb_array_elements_text(evidence_urls) AS value FROM campaign_summaries`,
+  },
+  {
+    label: 'campaign_financial_reports.statement_urls',
+    sql: `SELECT jsonb_array_elements_text(statement_urls) AS value FROM campaign_financial_reports`,
+  },
+  {
     // Thư viện ảnh CMS (CMS A2). Ảnh ở đây được dán vào banner/blog/Home dưới dạng URL
     // tự do — bảng này là nơi DUY NHẤT nói chúng đang được giữ.
     label: 'media_assets',

@@ -17,6 +17,9 @@ export const CharityRevisionEntities = [
   'FUNDING_NEED',
   'VOLUNTEER_NEED',
   'TASK',
+  /** Đợt 4: tổng kết và báo cáo tài chính sửa SAU khi công khai. */
+  'SUMMARY',
+  'FINANCIAL_REPORT',
 ] as const;
 export type CharityRevisionEntity = (typeof CharityRevisionEntities)[number];
 
@@ -197,6 +200,31 @@ export const CharityRevisionPolicies: Readonly<
     fields: ['status', 'scheduledAt'],
     isPrivate: never,
     isImportant: never,
+  },
+  SUMMARY: {
+    fields: [
+      'summary',
+      'usageReport',
+      'thanksMessage',
+      'lessonsLearned',
+      'evidenceUrls',
+    ],
+    isPrivate: never,
+    isImportant: never,
+  },
+  FINANCIAL_REPORT: {
+    fields: [
+      'periodFrom',
+      'periodTo',
+      'totalIncome',
+      'totalExpense',
+      'explanation',
+      'statementUrls',
+    ],
+    isPrivate: never,
+    // Đổi số thu/chi sau khi đã công khai là chuyện người góp tiền phải biết.
+    isImportant: (field) =>
+      ['*', 'totalIncome', 'totalExpense'].includes(field),
   },
 };
 

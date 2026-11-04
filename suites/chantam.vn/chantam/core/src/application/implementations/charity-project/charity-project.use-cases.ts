@@ -67,6 +67,7 @@ import {
   ICharityEngagementRepository,
   ICharityEventRepository,
   ICharityProjectRepository,
+  ICharitySummaryRepository,
   IEntitlementRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
@@ -83,6 +84,7 @@ import {
   effectiveOperationStage,
   isPubliclyVisibleProject,
   isSuspendedProject,
+  MaxPublicSupporterNames,
   normalizeMaxBankAccounts,
   phaseScheduleGaps,
   stageRank,
@@ -1197,6 +1199,8 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
     private readonly engagement: ICharityEngagementRepository,
     @Inject(ICharityEventRepository)
     private readonly events: ICharityEventRepository,
+    @Inject(ICharitySummaryRepository)
+    private readonly summaries: ICharitySummaryRepository,
   ) {}
 
   public async handle(
@@ -1221,6 +1225,14 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
           : Promise.resolve(null),
         this.events.listEventSteps(id),
       ]);
+    const [summary, supporters] = await Promise.all([
+      this.summaries.getSummary(id),
+      this.summaries.publicSupporters(id, MaxPublicSupporterNames),
+    ]);
+    const publishedSummary = summary?.publishedAt ? summary : null;
+    const financialReports = publishedSummary
+      ? await this.summaries.listFinancialReports(id)
+      : [];
     const [
       profile,
       states,
@@ -1271,6 +1283,9 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
         ...step,
         label: CharityEventStepLabels[step.stepKey],
       })),
+      summary: publishedSummary,
+      financialReports,
+      supporters,
       counters,
       isFollowing,
       capabilities: {

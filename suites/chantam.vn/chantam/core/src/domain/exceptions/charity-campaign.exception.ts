@@ -239,3 +239,23 @@ export class CharityPostMediaInvalidException extends ExceptionFrom(
 export class CharityEventContributorNotEligibleException extends ExceptionFrom(
   CoreErrors.CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE,
 ) {}
+
+export class CharitySummaryNotOpenException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUMMARY_NOT_OPEN,
+) {}
+
+export class CharitySummaryFinancialRequiredException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUMMARY_FINANCIAL_REQUIRED,
+) {}
+
+export class CharitySummaryEmptyException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUMMARY_EMPTY,
+) {}
+
+export class CharityFinancialReportNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_FINANCIAL_REPORT_NOT_FOUND,
+) {}
+
+export class CharityEvaluationTargetInvalidException extends ExceptionFrom(
+  CoreErrors.CHARITY_EVALUATION_TARGET_INVALID,
+) {}

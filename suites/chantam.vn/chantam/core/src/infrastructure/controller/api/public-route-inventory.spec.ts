@@ -66,6 +66,8 @@ const ExpectedPublicRoutes = [
   'GET /charity-campaigns/:idOrSlug/posts',
   'GET /charity-campaigns/:id/posts/:postId/reactions',
   'GET /charity-campaigns/:id/posts/:postId/comments',
+  // Đợt 4a: card quảng bá dự án trên Home — chỉ card Admin bật, không có hồ sơ.
+  'GET /home/charity-cards',
   'GET /dharma/contents',
   'GET /dharma/contents/:idOrSlug',
   'GET /dharma/dedications',

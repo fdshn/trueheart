@@ -980,6 +980,14 @@ export class SubmitCharityContributionBodyDto {
   @IsString()
   @Length(1, MaxContributionContactNoteLength)
   contactNote?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Hiện nickname trong danh sách người ủng hộ công khai của dự án. Bỏ trống = theo cài đặt chung `showInPublicSupporterLists`. Đổi lại sau qua `PATCH /charity-campaigns/:id/contributions/:contributionId/public-name`.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  showNamePublicly?: boolean;
 }
 
 export class UpdateCharityContributionBodyDto {

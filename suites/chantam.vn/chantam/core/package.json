@@ -132,6 +132,7 @@
     "test:charity-project": "ts-node -r tsconfig-paths/register test/charity-project.check.ts",
     "test:charity-engagement": "ts-node -r tsconfig-paths/register test/charity-engagement.check.ts",
     "test:charity-event": "ts-node -r tsconfig-paths/register test/charity-event.check.ts",
+    "test:charity-summary": "ts-node -r tsconfig-paths/register test/charity-summary.check.ts",
     "test:dharma-leaderboard": "ts-node -r tsconfig-paths/register test/dharma-leaderboard.check.ts",
     "test:admin-rbac": "ts-node -r tsconfig-paths/register test/admin-rbac.check.ts",
     "test:permission-inventory": "ts-node -r tsconfig-paths/register test/permission-inventory.check.ts",

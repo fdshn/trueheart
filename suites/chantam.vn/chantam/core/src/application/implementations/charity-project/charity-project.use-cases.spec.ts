@@ -209,6 +209,16 @@ function make(
     ensureEventSteps: jest.fn(async (..._args: unknown[]) => undefined),
     listEventSteps: jest.fn(async () => []),
   };
+  const summaries = {
+    getSummary: jest.fn(async () => null),
+    listFinancialReports: jest.fn(async () => []),
+    publicSupporters: jest.fn(async () => ({
+      supporterCount: 0,
+      participantCount: 0,
+      supporters: [],
+      participants: [],
+    })),
+  };
   return {
     campaigns,
     admin,
@@ -217,6 +227,7 @@ function make(
     access,
     engagement,
     events,
+    summaries,
   };
 }
 
@@ -701,6 +712,7 @@ describe('Workspace và bản công khai', () => {
       deps.projects as never,
       deps.engagement as never,
       deps.events as never,
+      deps.summaries as never,
     ).handle({
       idOrSlug: 'mua-dong-am',
       userId: null,

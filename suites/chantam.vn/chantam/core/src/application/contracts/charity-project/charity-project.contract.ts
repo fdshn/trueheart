@@ -7,6 +7,7 @@ import {
   ICharityCustomSectionInput,
   ICharityEngagementCounters,
   ICharityEventStep,
+  ICharityFinancialReport,
   ICharityFundingNeed,
   ICharityFundingNeedInput,
   ICharityItemNeed,
@@ -15,7 +16,9 @@ import {
   ICharityPartyInput,
   ICharityPhase,
   ICharityProjectProfile,
+  ICharityPublicSupporters,
   ICharityStageEvent,
+  ICharitySummary,
   ICharityTask,
   ICharityTeamMember,
   ICharityTeamMemberInput,
@@ -118,6 +121,12 @@ export interface ICharityPublicProject {
   changedFields: ICharityChangedField[];
   /** Timeline SỐNG của sự kiện trao (§3.5). */
   eventSteps: (ICharityEventStep & { label: string })[];
+  /** Tổng kết ĐÃ công khai (§3.6); `null` khi chưa. */
+  summary: ICharitySummary | null;
+  /** Báo cáo tài chính — chỉ có khi tổng kết đã công khai. */
+  financialReports: ICharityFinancialReport[];
+  /** Nickname người cho phép hiện + con số tổng (§3.17). */
+  supporters: ICharityPublicSupporters;
   counters: ICharityEngagementCounters;
   /** `null` khi không đăng nhập. */
   isFollowing: boolean | null;

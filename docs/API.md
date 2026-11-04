@@ -2901,5 +2901,51 @@ hồ sơ dự án. Tệp ký mà không đăng bị job dọn media xoá sau 24 
 Nhiều instance core: Socket.io dùng Redis adapter (cả chat lẫn `/charity`); Redis không nối được
 lúc khởi động thì về chế độ một instance kèm cảnh báo.
 
-**Chưa có ở đợt 3:** tổng kết tab D, báo cáo tài chính, chấm mức hoàn thành, khiếu nại, điểm
-theo giá trị và theo ảnh/clip, card Home, nickname công khai (đợt 4).
+### 18.4 Đợt 4a — tổng kết, báo cáo tài chính, chấm mức hoàn thành, nickname, card Home
+
+| Method | Đường dẫn | Ai | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/charity-campaigns/:id/summary` | Người tạo, coordinator, Admin `campaign.read` | `{ summary, financialReports, financialReportRequired }` (cả nháp) |
+| `PUT` | `/charity-campaigns/:id/summary` | Người tạo, Admin | `{ summary: { summary, usageReport, thanksMessage, lessonsLearned, evidenceUrls } }` — chỉ khi ở Tổng kết (kể cả dự án đã đóng) |
+| `POST` | `/charity-campaigns/:id/summary/publish` | Người tạo, Admin | Cần nội dung; có nhận tiền thì cần ≥ 1 báo cáo tài chính |
+| `POST` | `/charity-campaigns/:id/financial-reports` | Người tạo, Admin | `{ report: { periodFrom, periodTo, totalIncome, totalExpense, explanation, statementUrls } }` — ngày `YYYY-MM-DD`, tiền VNĐ, sao kê ≥ 1 URL https |
+| `PUT` | `/charity-campaigns/:id/financial-reports/:reportId` | Người tạo, Admin | Sửa; tổng kết đã công khai thì ghi chữ đỏ |
+| `GET` | `/charity-campaigns/:id/evaluations` | Người tạo, coordinator, Admin `campaign.read` | Điểm hiện hành + người chưa chấm (NỘI BỘ) |
+| `PUT` | `/charity-campaigns/:id/evaluations/:userId` | Người tạo, coordinator, Admin | `{ evaluation: { completionScore (0–100), note? } }` — chỉ ở Tổng kết, chỉ người tham gia |
+| `GET` | `/charity-campaigns/:id/evaluations/me` | Bearer | Điểm của tôi (không có ghi chú) — `null` khi chưa chấm |
+| `PATCH` | `/charity-campaigns/:id/contributions/:contributionId/public-name` | Người góp | `{ publicName: { show } }` — `null` = theo cài đặt chung |
+| `PATCH` | `/charity-campaigns/:id/participation/public-name` | Người đăng ký | Như trên cho đăng ký tham gia |
+| `POST` | `/charity-campaigns/:id/promotion-request` | Người tạo | `{ promotion: { note? } }` — đề xuất lên Home |
+| `PATCH` | `/admin/charity-campaigns/:id/promotion` | `campaign.manage` | `{ promotion: { featuredOnHome, featuredTitle, featuredMessage, featuredMediaUrl, featuredCta, featuredFrom, featuredUntil, featuredPriority, reason } }` — audit |
+| `GET` | `/home/charity-cards` | Công khai | Card ngắn đang hiện (`?limit=`, mặc định 5) |
+
+**Tổng kết** (`campaign_summaries`, 1-1): mở khi dự án ở **Tổng kết**. Công khai lần đầu báo người
+tham gia, người góp, người quan tâm (`CHARITY_SUMMARY_PUBLISHED`, nhóm Sự kiện); công khai lại
+bản sửa không báo lần nữa. Sửa sau khi công khai ghi chữ đỏ (`entity: SUMMARY`) và phát realtime
+`SUMMARY`. Dự án **có nhận tiền** (tổng số tiền xác nhận + nhập ngoài của các hạng mục kêu gọi
+tiền > 0) thì phải có ít nhất một **báo cáo tài chính** đủ kỳ, tổng thu/chi, diễn giải, sao kê —
+không thì `CHARITY_SUMMARY_FINANCIAL_REQUIRED`. Số dư = thu − chi do database tính. Sửa báo cáo
+sau khi tổng kết công khai ghi chữ đỏ (`FINANCIAL_REPORT`); đổi tổng thu/chi là thay đổi quan
+trọng (báo người theo dõi).
+
+**Bản công khai** thêm `summary` (chỉ khi đã công khai), `financialReports` (chỉ khi tổng kết đã
+công khai) và `supporters: { supporterCount, participantCount, supporters[], participants[] }` —
+danh sách là **nickname** người cho phép hiện (tối đa 200), con số tổng gồm cả người ẩn.
+
+**Chấm mức hoàn thành** 0–100: người tạo/coordinator/Admin, chỉ ở Tổng kết, chỉ người tham gia
+(đăng ký tham gia còn hiệu lực, tuyển người không huỷ, cộng tác viên sự kiện). Chấm lại = lần chấm
+mới (append-only, giữ lịch sử). Điểm và ghi chú là **nội bộ** — không có trên đường công khai;
+người được chấm chỉ xem điểm của mình qua `evaluations/me`.
+
+**Nickname công khai** (phương án C): `GET|PATCH /profile/me` có `showInPublicSupporterLists`
+(mặc định `false`) làm mặc định; `POST /charity-campaigns/:id/contributions` nhận thêm
+`showNamePublicly` (bỏ trống = theo mặc định); đăng ký tham gia lấy theo mặc định; đổi lại từng
+lần bằng hai route `public-name`. Dữ liệu cũ: không hiện.
+
+**Card Home**: Admin bật (cần tiêu đề + CTA `VIEW`/`SUPPORT`/`JOIN`), khung giờ tuỳ chọn, ưu tiên
+cao đứng trước; dự án đã đóng/đình chỉ tự rơi khỏi Home. Bật xong thì đề xuất của ban tổ chức coi
+như đã xử lý. Card chỉ có tiêu đề, lời nhắn, ảnh (mặc định ảnh bìa), CTA — bấm vào mở
+`GET /charity-campaigns/:slug/public`.
+
+**Chưa có ở đợt 4a:** điểm theo giá trị vật phẩm, ảnh/clip và mức hoàn thành kèm trần, khiếu nại
+hai tầng (đợt 4b).

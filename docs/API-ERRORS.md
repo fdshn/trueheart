@@ -236,6 +236,11 @@ Nghiệp vụ Chân Tâm
 | `0x1334` | `4916` | 429 Too Many Requests | `CHARITY_POST_QUOTA_EXCEEDED` | Hôm nay bạn đã dùng hết 5 lượt clip cho dự án này — thử lại vào ngày mai |
 | `0x1335` | `4917` | 400 Bad Request | `CHARITY_POST_MEDIA_INVALID` | Ảnh/clip không hợp lệ — phải là tệp bạn vừa tải lên cho dự án này và chưa dùng ở bài khác |
 | `0x1336` | `4918` | 409 Conflict | `CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE` | Người này cần có đóng góp đã được chấp nhận và đăng ký tham gia hợp lệ mới cấp được quyền cộng tác viên sự kiện |
+| `0x1337` | `4919` | 409 Conflict | `CHARITY_SUMMARY_NOT_OPEN` | Tổng kết mở khi dự án sang giai đoạn Tổng kết |
+| `0x1338` | `4920` | 409 Conflict | `CHARITY_SUMMARY_FINANCIAL_REQUIRED` | Dự án có nhận tiền — cần ít nhất một báo cáo tài chính kèm sao kê trước khi công khai tổng kết |
+| `0x1339` | `4921` | 409 Conflict | `CHARITY_SUMMARY_EMPTY` | Tổng kết chưa có nội dung để công khai |
+| `0x133a` | `4922` | 404 Not Found | `CHARITY_FINANCIAL_REPORT_NOT_FOUND` | Không tìm thấy báo cáo tài chính |
+| `0x133b` | `4923` | 409 Conflict | `CHARITY_EVALUATION_TARGET_INVALID` | Người này không tham gia dự án nên không chấm được mức hoàn thành |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -267,5 +272,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **225 mã lỗi** trên 3 tầng.
+Tổng cộng **230 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

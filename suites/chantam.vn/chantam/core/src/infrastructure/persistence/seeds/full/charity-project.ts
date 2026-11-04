@@ -25,6 +25,7 @@ export async function seedCharityProject(ctx: ISeedContext): Promise<void> {
   if (!seeded) await seedProfile(ctx, campaignId);
   await seedEngagement(ctx, campaignId);
   await seedEvent(ctx, campaignId);
+  await seedSummary(ctx, seedId(SeedDomains.campaigns, 4));
 }
 
 async function seedProfile(
@@ -303,4 +304,59 @@ async function seedEvent(ctx: ISeedContext, campaignId: string): Promise<void> {
      VALUES ($1, $2, 'PARTICIPANT', 'EVENT', 'Các em nhận áo vui lắm!')`,
     [campaignId, Personas.giver],
   );
+}
+
+/**
+ * Đợt 4a (§3.6): chiến dịch mẫu 4 (đã sang Tổng kết) có tổng kết đã công khai, một báo cáo tài
+ * chính kèm sao kê, một người tham gia được chấm hai lần (giữ lịch sử).
+ */
+async function seedSummary(
+  ctx: ISeedContext,
+  campaignId: string,
+): Promise<void> {
+  const [schema] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.campaign_participant_evaluations') IS NOT NULL AS ready`,
+  );
+  if (!schema?.ready) return;
+  const [exists] = await ctx.q<{ ok: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM campaigns WHERE global_id = $1) AS ok`,
+    [campaignId],
+  );
+  if (!exists?.ok) return;
+  const [seeded] = await ctx.q(
+    `SELECT 1 FROM campaign_summaries WHERE campaign_id = $1`,
+    [campaignId],
+  );
+  if (seeded) return;
+
+  await ctx.q(
+    `INSERT INTO campaign_summaries
+       (campaign_id, summary, usage_report, thanks_message, lessons_learned, evidence_urls,
+        published_at, updated_by)
+     VALUES ($1, 'Đã trao 120 phần quà Trung thu cho các em xóm chạy thận.',
+             'Bánh, đèn lồng, sữa; chi tiết ở báo cáo tài chính.',
+             'Cảm ơn 30 nhà hảo tâm và 12 tình nguyện viên.',
+             'Cần chốt danh sách các em sớm hơn một tuần.',
+             '["https://placehold.co/800x600.png"]'::jsonb, now() - interval '2 days', $2)`,
+    [campaignId, Personas.organizer],
+  );
+  await ctx.q(
+    `INSERT INTO campaign_financial_reports
+       (campaign_id, period_from, period_to, total_income, total_expense, explanation,
+        statement_urls, updated_by)
+     VALUES ($1, (now() - interval '40 days')::date, (now() - interval '3 days')::date,
+             12000000, 11250000, 'Mua bánh, đèn lồng, sữa và thuê xe.',
+             '["https://placehold.co/600x800.png"]'::jsonb, $2)`,
+    [campaignId, Personas.organizer],
+  );
+  for (const [score, note] of [
+    [70, 'Đến muộn buổi sáng'],
+    [85, 'Chấm lại sau khi đối chiếu điểm danh'],
+  ] as const)
+    await ctx.q(
+      `INSERT INTO campaign_participant_evaluations
+         (campaign_id, participant_id, completion_score, note, evaluated_by)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [campaignId, Personas.giver, score, note, Personas.organizer],
+    );
 }

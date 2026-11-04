@@ -570,6 +570,8 @@ const ChangeLabels: Readonly<Record<CharityRevisionEntity, string>> = {
   FUNDING_NEED: 'mục tiêu kêu gọi tiền',
   VOLUNTEER_NEED: 'lịch/địa điểm tuyển người',
   TASK: 'checklist',
+  SUMMARY: 'tổng kết',
+  FINANCIAL_REPORT: 'báo cáo tài chính',
 };
 
 const VnDateTime = new Intl.DateTimeFormat('vi-VN', {

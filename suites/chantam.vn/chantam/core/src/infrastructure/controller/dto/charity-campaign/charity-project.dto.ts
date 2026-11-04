@@ -45,6 +45,11 @@ import {
   CharityTaskViewDto,
 } from './charity-engagement.dto';
 import { CharityEventStepViewDto } from './charity-event.dto';
+import {
+  CharityFinancialReportViewDto,
+  CharityPublicSupportersDto,
+  CharitySummaryViewDto,
+} from './charity-summary.dto';
 
 const OptionalText = (max: number) => [
   IsOptional(),
@@ -877,6 +882,19 @@ export class CharityPublicProjectDto {
     description: 'Timeline SỐNG của sự kiện trao',
   })
   eventSteps: CharityEventStepViewDto[];
+  @ApiProperty({
+    type: () => CharitySummaryViewDto,
+    nullable: true,
+    description: 'Tổng kết ĐÃ công khai; `null` khi chưa',
+  })
+  summary: CharitySummaryViewDto | null;
+  @ApiProperty({
+    type: () => [CharityFinancialReportViewDto],
+    description: 'Chỉ có khi tổng kết đã công khai',
+  })
+  financialReports: CharityFinancialReportViewDto[];
+  @ApiProperty({ type: () => CharityPublicSupportersDto })
+  supporters: CharityPublicSupportersDto;
   @ApiProperty({ type: () => CharityCountersDto })
   counters: CharityCountersDto;
   @ApiProperty({

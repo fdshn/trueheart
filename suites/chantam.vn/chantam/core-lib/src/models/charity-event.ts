@@ -129,6 +129,8 @@ export const CharityRealtimeSections = [
   'POSTS',
   'CHECKLIST',
   'CONTRIBUTORS',
+  /** Đợt 4: tổng kết / báo cáo tài chính vừa công khai hoặc sửa. */
+  'SUMMARY',
 ] as const;
 export type CharityRealtimeSection = (typeof CharityRealtimeSections)[number];
 

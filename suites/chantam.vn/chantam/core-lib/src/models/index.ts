@@ -7,6 +7,7 @@ export * from './charity-campaign';
 export * from './charity-engagement';
 export * from './charity-event';
 export * from './charity-project';
+export * from './charity-summary';
 export * from './chat';
 export * from './chat-cursor';
 export * from './chat-retention';

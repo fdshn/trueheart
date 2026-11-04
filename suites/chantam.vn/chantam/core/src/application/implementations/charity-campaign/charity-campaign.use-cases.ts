@@ -117,6 +117,7 @@ import {
   ICharityContribution,
   ICharityDelivery,
   ICharityExternalContribution,
+  ICharitySummaryRepository,
   ICloseCampaignResult,
   IEntitlementRepository,
 } from '@/domain/ports/repository';
@@ -675,6 +676,9 @@ export class SubmitCharityContributionUseCase implements ISubmitCharityContribut
     @Inject(ICharityCampaignRepository)
     private readonly repository: ICharityCampaignRepository,
     private readonly notifier: CharityNotifier,
+    // Tuỳ chọn để spec dựng tay không phải đổi; Nest luôn tiêm (§3.17).
+    @Inject(ICharitySummaryRepository)
+    private readonly summaries?: ICharitySummaryRepository,
   ) {}
 
   public async handle(
@@ -726,6 +730,14 @@ export class SubmitCharityContributionUseCase implements ISubmitCharityContribut
         offeredQuantity: item.offeredQuantity,
         conditionNote: item.conditionNote?.trim() ?? null,
       })),
+    });
+
+    // Lựa chọn hiện tên ở lượt này; bỏ trống thì theo cài đặt chung của tài khoản.
+    await this.summaries?.setContributionPublicName({
+      campaignId: campaign.globalId,
+      contributionId: contribution.globalId,
+      userId: command.contributorId,
+      show: command.showNamePublicly ?? null,
     });
 
     await this.notifier.contributionSubmitted({
@@ -1368,6 +1380,8 @@ export class JoinCharityCampaignUseCase implements IJoinCharityCampaignUseCase {
   public constructor(
     @Inject(ICharityCampaignRepository)
     private readonly repository: ICharityCampaignRepository,
+    @Inject(ICharitySummaryRepository)
+    private readonly summaries?: ICharitySummaryRepository,
   ) {}
 
   public async handle(
@@ -1389,6 +1403,13 @@ export class JoinCharityCampaignUseCase implements IJoinCharityCampaignUseCase {
       userId: command.actorUserId,
     });
     if (!created) throw new CharityAlreadyRegisteredException();
+    // Hiện tên trong danh sách người tham gia công khai theo cài đặt chung (§3.17); đổi lại
+    // qua `PATCH :id/participation/public-name`.
+    await this.summaries?.setParticipationPublicName({
+      campaignId: campaign.globalId,
+      userId: command.actorUserId,
+      show: null,
+    });
 
     // Đọc lại để `participantCount` trả về đã tính cả lượt vừa rồi. Cộng tay vào bản ghi
     // cũ sẽ ra số sai ngay khi có người khác đăng ký song song.

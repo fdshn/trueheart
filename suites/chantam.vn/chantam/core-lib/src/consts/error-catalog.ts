@@ -1263,6 +1263,37 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () =>
       'Người này cần có đóng góp đã được chấp nhận và đăng ký tham gia hợp lệ mới cấp được quyền cộng tác viên sự kiện',
   },
+  CHARITY_SUMMARY_NOT_OPEN: {
+    code: ErrorCodes.CHARITY_SUMMARY_NOT_OPEN,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Tổng kết mở khi dự án sang giai đoạn Tổng kết',
+  },
+
+  CHARITY_SUMMARY_FINANCIAL_REQUIRED: {
+    code: ErrorCodes.CHARITY_SUMMARY_FINANCIAL_REQUIRED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Dự án có nhận tiền — cần ít nhất một báo cáo tài chính kèm sao kê trước khi công khai tổng kết',
+  },
+
+  CHARITY_SUMMARY_EMPTY: {
+    code: ErrorCodes.CHARITY_SUMMARY_EMPTY,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Tổng kết chưa có nội dung để công khai',
+  },
+
+  CHARITY_FINANCIAL_REPORT_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_FINANCIAL_REPORT_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy báo cáo tài chính',
+  },
+
+  CHARITY_EVALUATION_TARGET_INVALID: {
+    code: ErrorCodes.CHARITY_EVALUATION_TARGET_INVALID,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Người này không tham gia dự án nên không chấm được mức hoàn thành',
+  },
 
   CHARITY_CAMPAIGN_HAS_ACTIVITY: {
     code: ErrorCodes.CHARITY_CAMPAIGN_HAS_ACTIVITY,

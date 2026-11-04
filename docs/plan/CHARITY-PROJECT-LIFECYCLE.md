@@ -1,7 +1,8 @@
 # Dự án Từ thiện theo vòng đời 4 giai đoạn — yêu cầu backend
 
-> Trạng thái: **đã chốt 9 điểm mở (§7); đợt 1–3 đã triển khai** (04–05/11/2026 — migration
-> `1802400000000`, `1802500000000`, `1802600000000`, API ở [API.md §18](../API.md)); đợt 4 chưa.
+> Trạng thái: **đã chốt 9 điểm mở (§7); đợt 1–3 và 4a đã triển khai** (04–05/11/2026 — migration
+> `1802400000000`…`1802700000000`, API ở [API.md §18](../API.md)); đợt 4b (§3.9 điểm + trần, §3.16
+> khiếu nại) chưa. Ghi chú đợt 4a: card Home ở `GET /home/charity-cards`.
 > Ghi chú đợt 3: quota tính ở lượt ký đường tải (`campaign_post_uploads`); realtime namespace
 > `/charity` + Redis adapter cho mọi namespace. Ghi chú triển
 > khai đợt 2: thông báo nhắc 48 giờ gộp vào job `charity:notify` (cùng outbox với các thông báo

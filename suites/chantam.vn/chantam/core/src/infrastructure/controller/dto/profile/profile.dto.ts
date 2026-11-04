@@ -140,6 +140,14 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
 
   @ApiPropertyOptional({
     description:
+      'Mặc định cho lựa chọn "hiện tên tôi trong danh sách công khai" khi đóng góp/đăng ký tham gia dự án từ thiện. Mặc định tắt. Từng lần vẫn chọn lại được (`showNamePublicly`).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  showInPublicSupporterLists?: boolean;
+
+  @ApiPropertyOptional({
+    description:
       'Cho phép người lạ nhắn tin: người CHƯA từng có phòng chat nào với mình mở được phòng chat trực tiếp mới. Mặc định bật. Tắt không ảnh hưởng phòng đã có.',
   })
   @IsOptional()
@@ -335,6 +343,12 @@ export class OwnProfileDto implements IOwnProfileDto {
       'Cài đặt hiện trạng thái online — chỉ chính chủ thấy, không có trên hồ sơ công khai.',
   })
   showOnlineStatus?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Cài đặt mặc định hiện tên trong danh sách công khai của dự án từ thiện — chỉ chính chủ thấy.',
+  })
+  showInPublicSupporterLists?: boolean;
 
   @ApiPropertyOptional({
     description:

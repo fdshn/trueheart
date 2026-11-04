@@ -13,6 +13,11 @@ import {
   AdminCharityProjectController,
   CharityProjectController,
 } from './charity-project.controller';
+import {
+  AdminCharityPromotionController,
+  CharityHomeController,
+  CharitySummaryController,
+} from './charity-summary.controller';
 
 @Module({
   controllers: [
@@ -25,6 +30,9 @@ import {
     CharityProjectController,
     CharityEngagementController,
     CharityEventController,
+    CharitySummaryController,
+    AdminCharityPromotionController,
+    CharityHomeController,
     AdminCharityProjectController,
   ],
 })
