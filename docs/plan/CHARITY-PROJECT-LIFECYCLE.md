@@ -1,11 +1,11 @@
 # Dự án Từ thiện theo vòng đời 4 giai đoạn — yêu cầu backend
 
-> Trạng thái: **đề xuất, chưa triển khai** (04/11/2026). Nguồn: bảng yêu cầu Product
+> Trạng thái: **đã chốt 9 điểm mở (§7), chưa triển khai** (04/11/2026). Nguồn: bảng yêu cầu Product
 > "Tên dự án / Kế hoạch mục tiêu / Triển khai / Sự kiện trao / Tổng kết" và phần làm rõ
 > workspace organizer/public viewer gửi đội mobile ngày 04/11. Tài liệu này **mở rộng**
 > [`CHARITY-CONTRIBUTION-DESIGN.md`](./CHARITY-CONTRIBUTION-DESIGN.md)
-> (bảng nhu cầu, đề nghị đóng góp, giao nhận — đã xong) chứ không thay thế nó. Mọi đề xuất
-> schema dưới đây là hướng đi để thảo luận; quyết định cuối ghi vào §7 trước khi viết migration.
+> (bảng nhu cầu, đề nghị đóng góp, giao nhận — đã xong) chứ không thay thế nó. Quyết định của
+> chủ dự án ngày 04/11 ghi ở §7; các mục §3.15–§3.17 là thiết kế đi kèm những quyết định đó.
 
 ## 1. Yêu cầu tóm tắt
 
@@ -89,15 +89,22 @@ ngắn trên Home.
 | `beneficiary_kind` | `INDIVIDUAL` \| `GROUP` — chỉ cho `role = BENEFICIARY` |
 | `evidence_urls jsonb` | Giấy phép/xác nhận (đơn vị cấp phép) — gắn với mục B6 checklist 01/11 |
 
-`campaign_beneficiaries` hiện có (đồng ý của người được kêu gọi hộ) giữ nguyên cho
-`INDIVIDUAL_APPEAL`; `BENEFICIARY` trong `campaign_parties` dùng cho `ORGANIZED_CAMPAIGN` có bên
-nhận tập thể. Cần chốt có hợp nhất hai nơi không (§7).
+**Gộp bên thụ hưởng (chốt §7.5):** `campaign_parties` với `role = BENEFICIARY` là nơi **duy
+nhất** lưu bên thụ hưởng cho mọi loại dự án. Thêm vào đó các cột còn thiếu từ
+`campaign_beneficiaries`: `relationship`, `consent_at`, `consent_evidence_urls`. Migration chép
+dữ liệu cũ sang rồi để `campaign_beneficiaries` thành bảng chỉ đọc, gỡ ở bản sau khi mọi đường
+đọc đã chuyển. `PUT :id/beneficiary` hiện có giữ nguyên contract nhưng ghi vào `campaign_parties`.
 
 **Tài khoản ngân hàng** — bảng mới `campaign_bank_accounts`, **có phiên bản** (không ghi đè):
 `campaign_id`, `party_role` hoặc `team_role`, `bank_name`, `account_no`, `account_name`,
 `valid_from`, `valid_to`, `created_by`. Đổi tài khoản = đóng bản cũ (`valid_to`) + tạo bản mới
-và thông báo người đã ủng hộ (quy tắc B3 checklist 01/11). Lưu ý: tài liệu đóng góp hiện ghi
-"luồng tiền không thuộc thiết kế này" — cần chốt phạm vi (§7).
+và thông báo người đã ủng hộ (quy tắc B3 checklist 01/11). App **không giữ tiền**; đây chỉ là
+hồ sơ minh bạch.
+
+**Số tài khoản nhận đồng thời (chốt §7.4):** khoá `system_configs`
+`charity.max_bank_accounts_per_campaign` (INTEGER, mặc định đề xuất 2) và cột ghi đè
+`campaigns.max_bank_accounts` (nullable, chỉ Admin đặt). Đếm tài khoản **đang hiệu lực**
+(`valid_to IS NULL`) lúc thêm, dưới khoá hàng dự án.
 
 **Ban tổ chức 6 vai trò** — bảng mới `campaign_team_members`:
 
@@ -141,11 +148,11 @@ xóa; organizer chỉ được đóng. Cho phép giảm mục tiêu thấp hơn 
 
 Endpoint chi tiết trả thêm tổng giá trị dự án (tổng các dòng).
 
-**Lưu nháp.** Form tab A rất dài; bảng yêu cầu ghi "lập dự án xong, Admin xét duyệt". Thiết
-kế hiện tại **đã bỏ `DRAFT`** vì schema không phân biệt được nháp với chờ duyệt. Đề xuất thêm
-`submitted_at timestamptz NULL`: `NULL` = nháp (chỉ chủ xem, Admin không thấy trong hàng đợi),
-có giá trị = đã gửi duyệt. Không thêm giá trị mới vào `approval_status` (giữ lập luận ở §8 tài
-liệu đóng góp). Cần chốt (§7).
+**Lưu nháp (chốt §7.2).** Form tab A rất dài; bảng yêu cầu ghi "lập dự án xong, Admin xét
+duyệt". Thiết kế hiện tại **đã bỏ `DRAFT`** vì schema không phân biệt được nháp với chờ duyệt.
+Thêm `submitted_at timestamptz NULL`: `NULL` = nháp (chỉ chủ xem, Admin không thấy trong hàng
+đợi, không hiện công khai), có giá trị = đã gửi duyệt. Không thêm giá trị mới vào
+`approval_status` (giữ lập luận ở §8 tài liệu đóng góp).
 
 **Trạng thái từng mục workspace.** Mỗi section A/B/C/D trả `completionStatus`
 (`EMPTY` | `DRAFT` | `READY` | `PUBLISHED`), `updatedAt`, `updatedBy` và capabilities
@@ -223,8 +230,7 @@ lập lịch sớm): `GATHER`, `BRIEFING`, `TRAVEL`, `REST_STOP`, `ARRIVE`, `MEE
 `MEET_RECIPIENTS`, `DISTRIBUTE`, `WRAP_UP`, `RETURN`. Cột: `planned_at`, `actual_at`, `status`
 (`PENDING` | `IN_PROGRESS` | `DONE`), `note`, `updated_by`.
 
-"Thời gian thực": tối thiểu là polling detail/timeline; nếu cần đẩy ngay thì phát qua kênh
-realtime hiện có của chat (`infrastructure/realtime/chat.gateway.ts`) — cần chốt (§7).
+"Thời gian thực": **chốt realtime** (§7.7) — thiết kế ở §3.15.
 
 **Bài đăng ảnh/clip** — bảng `campaign_posts` (cập nhật/bình luận có media trong dự án):
 `campaign_id`, `author_id`, `author_role` (`ORGANIZER` | `COORDINATOR` | `PARTICIPANT`),
@@ -234,9 +240,11 @@ realtime hiện có của chat (`infrastructure/realtime/chat.gateway.ts`) — c
 - Quyền đăng: organizer/coordinator ở mọi giai đoạn sau duyệt. Người dùng chỉ được cấp vai trò
   `EVENT_CONTRIBUTOR` khi có hỗ trợ đã được xác nhận **và** đăng ký tham gia hợp lệ; quyền có
   hiệu lực trong thời gian sự kiện. Chỉ `REGISTERED` là chưa đủ quyền đăng media.
-- **Quota 5 clip + 5 ảnh / người / ngày** kiểm ở bước ký đường tải (theo mẫu chat: kiểm quyền
-  trước khi ký), đếm theo ngày giờ Việt Nam. Cần chốt quota tính theo dự án hay toàn app, và
-  dung lượng/độ dài tối đa của clip.
+- **Quota 5 clip + 5 ảnh / người / ngày / dự án** (chốt §7.6 — tính **theo dự án**, không toàn
+  app) kiểm ở bước ký đường tải (theo mẫu chat: kiểm quyền trước khi ký), đếm theo ngày giờ
+  Việt Nam. Hai con số là khoá cấu hình Admin (`charity.post_daily_video_quota`,
+  `charity.post_daily_image_quota`). Dung lượng/độ dài clip dùng giới hạn video hiện có của
+  storage (25 MB) trừ khi Admin chỉnh.
 - Có thể báo cáo vi phạm từng bài (§3.8) và Admin ẩn được.
 
 ### 3.6 Tab D — Tổng kết
@@ -251,15 +259,16 @@ realtime hiện có của chat (`infrastructure/realtime/chat.gateway.ts`) — c
 
 Public summary tập trung cho quảng bá/tổng kết: media tiêu biểu, bình luận/lời cảm ơn được
 chọn, tổng người quan tâm/đóng góp/tham gia, số phần quà và tổng giá trị. Danh sách nickname
-người đóng góp/tham gia chỉ công khai khi người dùng cho phép.
+người đóng góp/tham gia chỉ công khai khi người dùng cho phép — quy tắc ở §3.17.
 
 Nếu có nhận tiền, `campaign_financial_reports` bắt buộc có kỳ báo cáo, tổng thu/chi, số dư,
 diễn giải và file sao kê/bằng chứng. Không được publish tổng kết tài chính khi thiếu sao kê.
 
 ### 3.7 Tương tác và thống kê
 
-- **Thích** và **bình luận** cho chiến dịch: mở rộng hệ reaction/comment hiện có (đang gắn với
-  `POST`) sang `CHARITY_CAMPAIGN`, hoặc bảng riêng nếu cấu trúc hiện tại không cho đa target.
+- **Thích** và **bình luận** cho chiến dịch: hệ reaction/comment hiện có **đã đa đối tượng**
+  qua `ContentSubjectTypes` (`POST`, `COMMENT`, `DHARMA_THREAD`) — thêm `CHARITY_CAMPAIGN` (và
+  `CHARITY_CAMPAIGN_POST` cho bài ảnh/clip) vào enum đó, không cần bảng riêng.
 - **Quan tâm**: là hành động theo dõi riêng, không đồng nghĩa lượt xem hoặc thích. Thêm
   `campaign_follows`; follower nhận thông báo thay đổi quan trọng, detail trả `followerCount`
   và `isFollowing`.
@@ -290,8 +299,11 @@ diễn giải và file sao kê/bằng chứng. Không được publish tổng k�
 - Giá trị xác nhận: thêm `confirmed_value` (bigint) vào `campaign_delivery_items` khi organizer xác
   nhận nhận hàng — gắn với quy tắc B4 checklist 01/11 (giá trị đã đối soát, % đạt yêu cầu, bút
   toán điều chỉnh âm/dương có audit, trần theo contribution và theo chu kỳ, snapshot policy).
-- Trần chống lạm dụng: điểm ảnh/clip theo quota ngày (§3.5); chấm lại đánh giá tạo bút toán
-  điều chỉnh, không sửa bút toán cũ.
+- **Trần điểm do Admin cấu hình (chốt §7.8):** cho từng loại (`CHARITY_ITEM_VALUE`,
+  `CHARITY_POST_*`, `CHARITY_PARTICIPATION`) theo ba cửa sổ — ngày, dự án, chu kỳ duy trì hạng.
+  Chạm trần thì **hoãn** chứ không bỏ (cùng cách `qualifyAndAward` của giới thiệu), để nâng trần
+  sau không mất phần đã phát sinh.
+- Chấm lại đánh giá — kể cả qua khiếu nại (§3.16) — tạo bút toán điều chỉnh, không sửa bút toán cũ.
 - `CHARITY_CONTRIBUTION_COMPLETED` (cố định 10, đang tắt) được thay bằng `CHARITY_ITEM_VALUE`.
 
 ### 3.10 Thông báo
@@ -346,6 +358,68 @@ Thêm cấu hình quảng bá do Admin quản trị: `featured_on_home`, `featur
 `featured_priority`. Organizer có thể đề xuất, Admin mới bật/tắt. Home chỉ nhận card ngắn để
 kêu gọi xem/ủng hộ/tham gia; không trả toàn bộ hồ sơ dự án.
 
+### 3.15 Realtime (chốt §7.7)
+
+Dùng lại hạ tầng Socket.io của chat, với sáu biện pháp kiểm soát rủi ro:
+
+| Rủi ro | Biện pháp |
+| --- | --- |
+| Nhiều instance core thì sự kiện phát ở instance này không tới socket ở instance kia (`IoAdapter` mặc định, chưa lộ vì production chạy 1 container) | Gắn **Socket.io Redis adapter** (Redis đã có). Sửa luôn rủi ro tương tự của chat |
+| Lộ dữ liệu nội bộ | Mỗi dự án hai phòng: `charity:{id}:public` và `charity:{id}:workspace`. Quyền đọc lại từ DB mỗi lần join (như `room:join` của chat). Payload chỉ là **tín hiệu** `{ section, version }`, không mang dữ liệu |
+| Mất sự kiện khi app ở nền/mất mạng | Realtime là **gợi ý**, REST là nguồn sự thật. Client thấy `version` lệch hoặc vừa nối lại thì gọi lại API. App ở nền nhận push như thường |
+| Bão sự kiện khi sự kiện đông người | Gộp tín hiệu theo dự án, tối đa 1 tín hiệu/giây; bình luận mới chỉ phát "có bài mới", không phát từng bài |
+| Khách chưa đăng nhập mở socket hàng loạt | Socket chỉ cho người **đã đăng nhập**; khách xem trang công khai polling 30–60 giây. Giới hạn số kết nối mỗi người |
+| Phát trước khi commit | Chỉ phát **sau** commit (như chat) |
+
+Cần kiểm khi triển khai: Nginx staging/production có cấu hình nâng cấp WebSocket cho
+`/socket.io/` (repo chưa có file cấu hình nào thể hiện điều này).
+
+### 3.16 Khiếu nại đánh giá (chốt §7.8)
+
+**Phạm vi:** hai thứ quyết định điểm — mức hoàn thành 0–100 (`campaign_participant_evaluations`)
+và giá trị vật phẩm ban tổ chức xác nhận (`campaign_delivery_items.confirmed_value`).
+
+```
+Người bị đánh giá gửi khiếu nại (trong N ngày)
+  → Tầng 1: Ban tổ chức xem lại (hạn M ngày)
+       ├─ Điều chỉnh → người khiếu nại đồng ý (hoặc im lặng K ngày) → ĐÓNG
+       ├─ Giữ nguyên (có lý do) → người khiếu nại chấp nhận → ĐÓNG
+       │                          └─ không chấp nhận → Tầng 2
+       └─ Quá hạn M ngày → TỰ CHUYỂN Tầng 2
+  → Tầng 2: Admin — GIỮ NGUYÊN / ĐIỀU CHỈNH / BÁC — quyết định cuối
+```
+
+1. **Ai:** chỉ chính người bị đánh giá, với đánh giá của mình.
+2. **Một khiếu nại cho mỗi lần đánh giá.** Đóng là xong, trừ khi Admin mở lại (lý do + audit).
+3. **Bằng chứng:** mô tả + ảnh/clip qua luồng tải bằng chứng của báo cáo vi phạm.
+4. **Xung đột lợi ích:** ở tầng 1, nếu ban tổ chức có người khác người đã chấm thì người đó xử
+   trước; tầng 2 luôn là Admin.
+5. **Điểm không bị treo:** phát lúc đánh giá; điều chỉnh ghi **bút toán chênh lệch** (cộng/trừ),
+   không sửa bút toán cũ — cùng cơ chế đảo bút toán đang có.
+6. **Minh bạch:** người khiếu nại thấy lý do từng quyết định; ghi chú nội bộ thì không.
+7. **Chống lạm dụng:** rate limit; Admin thấy số khiếu nại bị bác của mỗi người và số lần mỗi ban
+   tổ chức bị khiếu nại thành công — **không tự động phạt** (cùng triết lý báo xấu, Giver
+   Accuracy).
+8. **Thông báo** cả hai bên ở mọi bước; mọi quyết định ghi audit.
+
+Cấu hình Admin: `charity.appeal_window_days` (N, mặc định 7), `charity.appeal_organizer_sla_days`
+(M, 3), `charity.appeal_auto_close_days` (K, 3).
+
+Dữ liệu: `campaign_appeals` (đối tượng, tầng, trạng thái, hạn từng tầng, kết quả),
+`campaign_appeal_events` (append-only), job ngoài tiến trình `npm run charity:appeal-sla` để tự
+chuyển tầng/tự đóng khi quá hạn. Quyền Admin: dùng `report.resolve` hoặc thêm `charity.appeal.resolve`.
+
+### 3.17 Danh sách nickname công khai (chốt §7.9 — phương án C)
+
+- **Cài đặt chung của tài khoản:** `users.show_in_public_supporter_lists` (mặc định `false`),
+  đọc/ghi qua `GET/PATCH /profile/me` như `showOnlineStatus`. Đây là **giá trị mặc định**.
+- **Chọn tại từng lần:** cột `show_name_publicly` trên `campaign_contributions` và
+  `campaign_participations`, client điền sẵn theo cài đặt chung, người dùng đổi được ngay lúc
+  gửi đóng góp/đăng ký và sửa lại sau.
+- Public projection chỉ trả nickname của dòng `show_name_publicly = true`; còn lại chỉ vào con
+  số tổng. Ban tổ chức (workspace) luôn thấy đủ.
+- Tương thích: dữ liệu cũ `show_name_publicly = false`.
+
 ## 4. API đề xuất
 
 Đặt dưới `/api/v1/charity-campaigns` (theo controller hiện có). Body bọc dưới khoá resource,
@@ -377,6 +451,10 @@ khai đủ mã lỗi (INVARIANTS §6).
 | `GET` | `/:id/public-stats` · `/:id/internal-stats` | Thống kê theo đúng visibility |
 | `GET` | `/:id/export.pdf` | Bản in PDF theo snapshot |
 | `POST` | `/:id/share-links` | Tạo deep link công khai cho dự án/section |
+| `POST` | `/:id/appeals` | Gửi khiếu nại đánh giá/giá trị xác nhận (§3.16) |
+| `GET`/`PATCH` | `/:id/appeals` · `/:id/appeals/:appealId` | Ban tổ chức xem/xử tầng 1; người khiếu nại chấp nhận hoặc chuyển tầng 2 |
+| `GET`/`PATCH` | `/admin/charity-appeals` · `/admin/charity-appeals/:appealId` | Admin xử tầng 2 |
+| `PATCH` | `/admin/charity-campaigns/:id/limits` | Admin ghi đè số tài khoản nhận tiền và các trần riêng cho một dự án |
 
 `GET /api/v1/campaigns/:idOrSlug` cũ giữ tương thích và trỏ về public projection. Public trả
 `operationStage`, section đã publish, ba nhóm nhu cầu với số trong app/ngoài app/còn thiếu,
@@ -400,26 +478,22 @@ thị theo capabilities, không tự suy luận theo rank.
 | --- | --- | --- |
 | 1 | §3.1 hồ sơ/nháp/custom form, §3.2 stage, §3.11 ba nhóm nhu cầu, §3.12 workspace/public | Dashboard organizer, public detail và form A |
 | 2 | §3.3 revisions, §3.4 checklist, §3.7 tương tác/thống kê, §3.8 báo cáo, §3.13 PDF/share | Changelog, tab B, CTA và công cụ chia sẻ |
-| 3 | §3.5 timeline + media/quota/event contributor | Tab C và cập nhật sự kiện |
-| 4 | §3.6 tổng kết/tài chính, §3.9 điểm, §3.14 Home promotion | Tab D, sổ điểm và card Home |
+| 3 | §3.5 timeline + media/quota/event contributor, §3.15 realtime | Tab C và cập nhật sự kiện |
+| 4 | §3.6 tổng kết/tài chính, §3.9 điểm + trần, §3.16 khiếu nại, §3.17 nickname, §3.14 Home promotion | Tab D, sổ điểm, khiếu nại và card Home |
 
 Mỗi đợt: migration + entity + repository + use case + spec, cập nhật `DATA-MODEL.md`,
 `ROADMAP.md`, `README.md` của package và `docs/API.md` trong cùng PR (quy tắc docs/plan).
 
-## 7. Cần Product/Bên A chốt trước khi viết migration
+## 7. Quyết định đã chốt (chủ dự án, 04/11/2026)
 
-1. **Tên/nhãn 4 mục A/B/C/D**: contract theo 4 section; Product chốt nhãn UI cuối cùng.
-2. **Nháp**: có cần lưu nháp hồ sơ tab A không (đề xuất `submitted_at`, §3.1)?
-3. **Duyệt**: giữ capability `PUBLISH_CHARITY_WITHOUT_REVIEW`; cần chốt cấu hình rank/capability
-   do Admin quản trị ở đâu.
-4. **Tiền**: đã chốt app không giữ tiền nhưng có hồ sơ kêu gọi/chuyển khoản/minh bạch; cần chốt
-   một dự án được có bao nhiêu tài khoản nhận đồng thời.
-5. **Bên thụ hưởng**: hợp nhất `campaign_beneficiaries` với `campaign_parties.BENEFICIARY` hay
-   giữ hai nơi?
-6. **Media**: quyền theo `EVENT_CONTRIBUTOR` đã chốt; còn cần chốt quota tính theo dự án hay
-   toàn app và dung lượng/thời lượng tối đa của clip.
-7. **Realtime tab C**: polling là đủ hay cần đẩy qua kênh realtime?
-8. **Điểm**: mức và hệ số là cấu hình; cần chốt trần theo ngày/chu kỳ và cơ chế khiếu nại đánh
-   giá hoàn thành.
-9. **Danh sách nickname công khai**: opt-in riêng cho đóng góp và tham gia hay dùng một privacy
-   setting chung của tài khoản?
+| # | Câu hỏi | Quyết định |
+| --- | --- | --- |
+| 1 | Nhãn 4 mục A/B/C/D | Backend chọn: **Kế hoạch · Triển khai · Sự kiện trao · Tổng kết**; khoá `PLAN`/`EXECUTION`/`EVENT`/`SUMMARY`. Đổi chữ hiển thị sau không cần migration |
+| 2 | Lưu nháp | **Có** — `submitted_at` (§3.1) |
+| 3 | Cấu hình duyệt | Ở **Admin**: capability `PUBLISH_CHARITY_WITHOUT_REVIEW` gán theo hạng, Admin chỉnh qua `POST /admin/entitlements` (đã có) |
+| 4 | Số tài khoản nhận tiền | **Admin cấu hình được** cho các dự án: mặc định toàn hệ thống + ghi đè từng dự án (§3.1) |
+| 5 | Bên thụ hưởng | **Gộp** về `campaign_parties` (`BENEFICIARY`) (§3.1) |
+| 6 | Quota ảnh/clip | Tính **theo dự án** (5 clip + 5 ảnh / người / ngày / dự án, Admin chỉnh) (§3.5) |
+| 7 | Realtime tab C | **Realtime**, với sáu biện pháp kiểm soát ở §3.15 |
+| 8 | Điểm | Trần **Admin cấu hình** theo ngày/dự án/chu kỳ (§3.9); khiếu nại hai tầng ở §3.16 |
+| 9 | Nickname công khai | **Phương án C** — cài đặt chung làm mặc định + chọn tại từng lần (§3.17) |
