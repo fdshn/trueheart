@@ -120,7 +120,14 @@ async function main(): Promise<void> {
       );
 
     console.log('0. Migration gộp người thụ hưởng');
-    await dataSource.undoLastMigration();
+    // Lùi tới TRƯỚC migration đợt 1 — các migration sau nó (đợt 2…) lùi theo, rồi chạy lại cả.
+    for (;;) {
+      const [last] = await sql(
+        `SELECT name FROM migrations ORDER BY id DESC LIMIT 1`,
+      );
+      await dataSource.undoLastMigration();
+      if (last.name === 'CharityProjectProfile1802400000000') break;
+    }
     await sql(
       `INSERT INTO campaigns
          (global_id, title, slug, description, banner_url, badge_name, start_time, end_time,
@@ -439,6 +446,7 @@ async function main(): Promise<void> {
     const updatedItem = await projects.updateItemNeedProfile({
       campaignId: Live,
       needItemId: id('30'),
+      actorId: Owner,
       profile: {
         unitPrice: 150000,
         estimatedValue: null,

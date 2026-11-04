@@ -4,9 +4,19 @@ import {
   ICancelCharityVolunteerUseCase,
   ICloseCharityBankAccountUseCase,
   IConfirmCharityVolunteerUseCase,
+  ICreateCharityExportUseCase,
+  ICreateCharityShareLinkUseCase,
+  IFollowCharityProjectUseCase,
+  IGetCharityExportPdfUseCase,
+  IGetCharityInternalStatsUseCase,
   IGetCharityPublicProjectUseCase,
+  IGetCharityPublicStatsUseCase,
   IGetCharityWorkspaceUseCase,
+  IListCharityExportsUseCase,
+  IListCharityRevisionsUseCase,
+  IListCharityTasksUseCase,
   IMoveCharityStageUseCase,
+  IProcessCharityAnnouncementsUseCase,
   IPublishCharitySectionUseCase,
   IRegisterCharityVolunteerUseCase,
   IReplaceCharityCustomSectionsUseCase,
@@ -20,8 +30,22 @@ import {
   ISubmitCharityProjectUseCase,
   IUpdateCharityItemNeedUseCase,
   IUpdateCharityProfileUseCase,
+  IUpdateCharityTaskUseCase,
 } from '@/application/contracts/charity-project';
 import { Global, Module } from '@nestjs/common';
+import {
+  CreateCharityExportUseCase,
+  CreateCharityShareLinkUseCase,
+  FollowCharityProjectUseCase,
+  GetCharityExportPdfUseCase,
+  GetCharityInternalStatsUseCase,
+  GetCharityPublicStatsUseCase,
+  ListCharityExportsUseCase,
+  ListCharityRevisionsUseCase,
+  ListCharityTasksUseCase,
+  ProcessCharityAnnouncementsUseCase,
+  UpdateCharityTaskUseCase,
+} from './charity-engagement.use-cases';
 import {
   AddCharityBankAccountUseCase,
   AdvanceCharityStagesUseCase,
@@ -69,6 +93,18 @@ const bindings = [
   [IGetCharityWorkspaceUseCase, GetCharityWorkspaceUseCase],
   [IGetCharityPublicProjectUseCase, GetCharityPublicProjectUseCase],
   [ISetCharityLimitsUseCase, SetCharityLimitsUseCase],
+  // Đợt 2 (§3.3, §3.4, §3.7, §3.10, §3.13).
+  [IListCharityTasksUseCase, ListCharityTasksUseCase],
+  [IUpdateCharityTaskUseCase, UpdateCharityTaskUseCase],
+  [IListCharityRevisionsUseCase, ListCharityRevisionsUseCase],
+  [IFollowCharityProjectUseCase, FollowCharityProjectUseCase],
+  [IGetCharityPublicStatsUseCase, GetCharityPublicStatsUseCase],
+  [IGetCharityInternalStatsUseCase, GetCharityInternalStatsUseCase],
+  [ICreateCharityExportUseCase, CreateCharityExportUseCase],
+  [IListCharityExportsUseCase, ListCharityExportsUseCase],
+  [IGetCharityExportPdfUseCase, GetCharityExportPdfUseCase],
+  [ICreateCharityShareLinkUseCase, CreateCharityShareLinkUseCase],
+  [IProcessCharityAnnouncementsUseCase, ProcessCharityAnnouncementsUseCase],
 ] as const;
 
 /** `@Global()` như mọi feature module của tầng application — thiếu là DI hỏng lúc boot. */

@@ -19,6 +19,14 @@ export enum ReportTargetTypes {
    * Post/Comment/Like/Report/Moderation hiện có"*.
    */
   DHARMA_THREAD = 'DHARMA_THREAD',
+  /**
+   * Nút báo cáo đỏ trên mọi trang của dự án từ thiện (CHARITY-PROJECT-LIFECYCLE §3.8). Admin
+   * kết luận đúng thì dự án bị ĐÌNH CHỈ (`is_active = false`, giữ `end_time`) có audit và
+   * thông báo người tổ chức.
+   */
+  CHARITY_CAMPAIGN = 'CHARITY_CAMPAIGN',
+  /** Một bài ảnh/clip trong dự án (§3.5, đợt 3). Kết luận đúng thì bài bị ẩn. */
+  CHARITY_CAMPAIGN_POST = 'CHARITY_CAMPAIGN_POST',
 }
 
 export enum ReportReasons {

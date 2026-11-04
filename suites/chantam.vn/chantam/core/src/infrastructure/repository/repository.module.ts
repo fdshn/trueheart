@@ -7,6 +7,7 @@ import {
   IBulkNotifyAudienceRepository,
   ICategoryRepository,
   ICharityCampaignRepository,
+  ICharityEngagementRepository,
   ICharityProjectRepository,
   IChatRepository,
   ICheckInRepository,
@@ -55,6 +56,7 @@ import { AttributionRepository } from './attribution.repository';
 import { BlogRepository } from './blog.repository';
 import { CategoryRepository } from './category.repository';
 import { CharityCampaignRepository } from './charity-campaign.repository';
+import { CharityEngagementRepository } from './charity-engagement.repository';
 import { CharityProjectRepository } from './charity-project.repository';
 import { ChatRepository } from './chat.repository';
 import { CheckInRepository } from './check-in.repository';
@@ -126,6 +128,10 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
       useClass: CharityCampaignRepository,
     },
     { provide: ICharityProjectRepository, useClass: CharityProjectRepository },
+    {
+      provide: ICharityEngagementRepository,
+      useClass: CharityEngagementRepository,
+    },
     {
       provide: ISponsorBannerRepository,
       useClass: SponsorBannerRepository,
@@ -224,6 +230,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     IBlogRepository,
     ICharityCampaignRepository,
     ICharityProjectRepository,
+    ICharityEngagementRepository,
     ISponsorBannerRepository,
     IMeritRepository,
     IDharmaRepository,

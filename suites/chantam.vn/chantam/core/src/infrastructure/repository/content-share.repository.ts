@@ -26,6 +26,10 @@ const CounterTargets: Record<
   },
   [ContentSubjectTypes.COMMENT]: null,
   [ContentSubjectTypes.DHARMA_THREAD]: null,
+  // Dự án từ thiện và bài ảnh/clip của nó: đếm thẳng từ bảng gốc lúc đọc (như chủ đề Diễn
+  // đàn) — không có cột đếm nào để giữ.
+  [ContentSubjectTypes.CHARITY_CAMPAIGN]: null,
+  [ContentSubjectTypes.CHARITY_CAMPAIGN_POST]: null,
 };
 
 @Injectable()

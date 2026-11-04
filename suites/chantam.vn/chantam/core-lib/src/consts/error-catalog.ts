@@ -1189,14 +1189,38 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
   CHARITY_PROJECT_INACTIVE: {
     code: ErrorCodes.CHARITY_PROJECT_INACTIVE,
     httpStatus: HttpStatus.CONFLICT,
-    message: () =>
-      'Dự án đã đóng hoặc đang bị đình chỉ — không nhận thao tác mới',
+    message: () => 'Dự án đang bị đình chỉ — không nhận thao tác mới',
   },
 
   CHARITY_PROJECT_FORBIDDEN: {
     code: ErrorCodes.CHARITY_PROJECT_FORBIDDEN,
     httpStatus: HttpStatus.FORBIDDEN,
     message: () => 'Bạn không có quyền với mục này của dự án',
+  },
+
+  CHARITY_PROJECT_NOT_APPROVED: {
+    code: ErrorCodes.CHARITY_PROJECT_NOT_APPROVED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Dự án chưa được duyệt — chưa có việc triển khai để cập nhật',
+  },
+
+  CHARITY_TASK_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_TASK_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy việc trong checklist triển khai',
+  },
+
+  CHARITY_EXPORT_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_EXPORT_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy bản in',
+  },
+
+  CHARITY_SECTION_NOT_PUBLISHED: {
+    code: ErrorCodes.CHARITY_SECTION_NOT_PUBLISHED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Mục này chưa được công khai nên chưa chia sẻ được',
   },
 
   CHARITY_CAMPAIGN_HAS_ACTIVITY: {

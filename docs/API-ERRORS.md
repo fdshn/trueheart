@@ -224,8 +224,12 @@ Nghiệp vụ Chân Tâm
 | `0x1328` | `4904` | 409 Conflict | `CHARITY_VOLUNTEER_CLOSED` | Vị trí này không còn nhận đăng ký |
 | `0x1329` | `4905` | 404 Not Found | `CHARITY_VOLUNTEER_REGISTRATION_NOT_FOUND` | Không tìm thấy đăng ký tham gia |
 | `0x132a` | `4906` | 409 Conflict | `CHARITY_SECTION_EMPTY` | Mục này chưa có nội dung để công khai |
-| `0x132b` | `4907` | 409 Conflict | `CHARITY_PROJECT_INACTIVE` | Dự án đã đóng hoặc đang bị đình chỉ — không nhận thao tác mới |
+| `0x132b` | `4907` | 409 Conflict | `CHARITY_PROJECT_INACTIVE` | Dự án đang bị đình chỉ — không nhận thao tác mới |
 | `0x132c` | `4908` | 403 Forbidden | `CHARITY_PROJECT_FORBIDDEN` | Bạn không có quyền với mục này của dự án |
+| `0x132d` | `4909` | 409 Conflict | `CHARITY_PROJECT_NOT_APPROVED` | Dự án chưa được duyệt — chưa có việc triển khai để cập nhật |
+| `0x132e` | `4910` | 404 Not Found | `CHARITY_TASK_NOT_FOUND` | Không tìm thấy việc trong checklist triển khai |
+| `0x132f` | `4911` | 404 Not Found | `CHARITY_EXPORT_NOT_FOUND` | Không tìm thấy bản in |
+| `0x1330` | `4912` | 409 Conflict | `CHARITY_SECTION_NOT_PUBLISHED` | Mục này chưa được công khai nên chưa chia sẻ được |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -257,5 +261,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **215 mã lỗi** trên 3 tầng.
+Tổng cộng **219 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

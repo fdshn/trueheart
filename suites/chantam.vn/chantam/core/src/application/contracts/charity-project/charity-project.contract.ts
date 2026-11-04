@@ -2,8 +2,10 @@ import { ICharityCampaignView } from '@/application/contracts/charity-campaign';
 import {
   ICharityBankAccount,
   ICharityBankAccountInput,
+  ICharityChangedField,
   ICharityCustomSection,
   ICharityCustomSectionInput,
+  ICharityEngagementCounters,
   ICharityFundingNeed,
   ICharityFundingNeedInput,
   ICharityItemNeed,
@@ -13,6 +15,7 @@ import {
   ICharityPhase,
   ICharityProjectProfile,
   ICharityStageEvent,
+  ICharityTask,
   ICharityTeamMember,
   ICharityTeamMemberInput,
   ICharityVolunteerNeed,
@@ -50,6 +53,8 @@ export interface ICharityWorkspaceCapabilities {
   canSubmit: boolean;
   canAdvanceStage: boolean;
   canManageVolunteers: boolean;
+  canUpdateTasks: boolean;
+  canViewStats: boolean;
   canExportPdf: boolean;
   canShare: boolean;
 }
@@ -70,6 +75,11 @@ export interface ICharityWorkspace {
   stageEvents: ICharityStageEvent[];
   sections: ICharityProjectSectionView[];
   customSections: ICharityCustomSection[];
+  /** Checklist tab B — rỗng tới khi dự án được duyệt (§3.4). */
+  tasks: ICharityTask[];
+  /** Mọi field đã sửa kể từ lúc duyệt, kể cả field riêng tư (§3.3). */
+  changedFields: ICharityChangedField[];
+  counters: ICharityEngagementCounters;
   capabilities: ICharityWorkspaceCapabilities;
 }
 
@@ -101,10 +111,17 @@ export interface ICharityPublicProject {
   fundingNeeds: ICharityFundingNeed[];
   volunteerNeeds: ICharityVolunteerNeed[];
   myVolunteerRegistrations: ICharityVolunteerRegistration[] | null;
+  /** Field CÔNG KHAI đã sửa kể từ lúc duyệt — app tô đỏ (§3.3). */
+  changedFields: ICharityChangedField[];
+  counters: ICharityEngagementCounters;
+  /** `null` khi không đăng nhập. */
+  isFollowing: boolean | null;
   capabilities: {
     canJoinVolunteer: boolean;
     canContribute: boolean;
     canReport: boolean;
+    canFollow: boolean;
+    canComment: boolean;
   };
 }
 

@@ -1,7 +1,10 @@
 # Dự án Từ thiện theo vòng đời 4 giai đoạn — yêu cầu backend
 
-> Trạng thái: **đã chốt 9 điểm mở (§7); đợt 1 đã triển khai** (04/11/2026 — migration
-> `1802400000000`, API ở [API.md §18](../API.md)); đợt 2–4 chưa. Nguồn: bảng yêu cầu Product
+> Trạng thái: **đã chốt 9 điểm mở (§7); đợt 1–2 đã triển khai** (04/11/2026 — migration
+> `1802400000000`, `1802500000000`, API ở [API.md §18](../API.md)); đợt 3–4 chưa. Ghi chú triển
+> khai đợt 2: thông báo nhắc 48 giờ gộp vào job `charity:notify` (cùng outbox với các thông báo
+> theo dự án khác) thay cho `charity:pre-event-notice` riêng; số thích/bình luận đếm thẳng từ
+> bảng gốc, không có cột đếm trên `campaigns`. Nguồn: bảng yêu cầu Product
 > "Tên dự án / Kế hoạch mục tiêu / Triển khai / Sự kiện trao / Tổng kết" và phần làm rõ
 > workspace organizer/public viewer gửi đội mobile ngày 04/11. Tài liệu này **mở rộng**
 > [`CHARITY-CONTRIBUTION-DESIGN.md`](./CHARITY-CONTRIBUTION-DESIGN.md)
@@ -478,7 +481,7 @@ thị theo capabilities, không tự suy luận theo rank.
 | Đợt | Backend | Mobile dùng được |
 | --- | --- | --- |
 | 1 ✅ | §3.1 hồ sơ/nháp/custom form, §3.2 stage, §3.11 ba nhóm nhu cầu, §3.12 workspace/public | Dashboard organizer, public detail và form A |
-| 2 | §3.3 revisions, §3.4 checklist, §3.7 tương tác/thống kê, §3.8 báo cáo, §3.13 PDF/share | Changelog, tab B, CTA và công cụ chia sẻ |
+| 2 ✅ | §3.3 revisions, §3.4 checklist, §3.7 tương tác/thống kê, §3.8 báo cáo, §3.13 PDF/share | Changelog, tab B, CTA và công cụ chia sẻ |
 | 3 | §3.5 timeline + media/quota/event contributor, §3.15 realtime | Tab C và cập nhật sự kiện |
 | 4 | §3.6 tổng kết/tài chính, §3.9 điểm + trần, §3.16 khiếu nại, §3.17 nickname, §3.14 Home promotion | Tab D, sổ điểm, khiếu nại và card Home |
 

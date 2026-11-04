@@ -6,6 +6,7 @@ import {
 } from './charity-campaign.controller';
 import { CharityContributionController } from './charity-contribution.controller';
 import { CharityDeliveryController } from './charity-delivery.controller';
+import { CharityEngagementController } from './charity-engagement.controller';
 import { CharityExternalContributionController } from './charity-external-contribution.controller';
 import {
   AdminCharityProjectController,
@@ -21,6 +22,7 @@ import {
     CharityDeliveryController,
     CharityExternalContributionController,
     CharityProjectController,
+    CharityEngagementController,
     AdminCharityProjectController,
   ],
 })

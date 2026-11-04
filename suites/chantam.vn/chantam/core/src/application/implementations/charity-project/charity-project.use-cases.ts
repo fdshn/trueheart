@@ -63,6 +63,7 @@ import {
   ICharityCampaign,
   ICharityCampaignRepository,
   ICharityCustomSection,
+  ICharityEngagementRepository,
   ICharityProjectRepository,
   IEntitlementRepository,
   IUserRepository,
@@ -74,7 +75,11 @@ import {
   CharityOperationStageLabels,
   CharityOperationStages,
   CharitySectionCompletionStatus,
+  CharityTaskLabels,
+  defaultTaskSchedule,
   effectiveOperationStage,
+  isPubliclyVisibleProject,
+  isSuspendedProject,
   normalizeMaxBankAccounts,
   phaseScheduleGaps,
   stageRank,
@@ -141,7 +146,11 @@ export class CharityProjectAccess {
     const access = await this.resolve(command.campaignId, command.userId);
     if (!access.isOwner && !access.isAdminWriter)
       throw new CharityProjectForbiddenException();
-    if (!access.campaign.isActive && !access.isAdminWriter)
+    // Chỉ chặn dự án bị ĐÌNH CHỈ. Dự án đã đóng vẫn sửa được — tổng kết viết sau khi đóng.
+    if (
+      isSuspendedProject(access.campaign, new Date()) &&
+      !access.isAdminWriter
+    )
       throw new CharityProjectInactiveException();
     return access;
   }
@@ -153,7 +162,10 @@ export class CharityProjectAccess {
     const access = await this.resolve(command.campaignId, command.userId);
     if (!access.isOwner && !access.isCoordinator && !access.isAdminWriter)
       throw new CharityProjectForbiddenException();
-    if (!access.campaign.isActive && !access.isAdminWriter)
+    if (
+      isSuspendedProject(access.campaign, new Date()) &&
+      !access.isAdminWriter
+    )
       throw new CharityProjectInactiveException();
     return access;
   }
@@ -578,6 +590,7 @@ export class UpdateCharityItemNeedUseCase implements IUpdateCharityItemNeedUseCa
     const updated = await this.projects.updateItemNeedProfile({
       campaignId: campaign.globalId,
       needItemId: command.needItemId,
+      actorId: command.userId,
       profile: command.profile,
     });
     if (!updated) throw new CharityNeedItemInvalidException();
@@ -708,11 +721,7 @@ export class RegisterCharityVolunteerUseCase implements IRegisterCharityVoluntee
     command: ICharityVolunteerRegistrationCommand,
   ): Promise<{ registered: true }> {
     const campaign = await this.campaigns.findByGlobalId(command.campaignId);
-    if (
-      !campaign ||
-      campaign.approvalStatus !== 'APPROVED' ||
-      !campaign.isActive
-    )
+    if (!campaign || !isPubliclyVisibleProject(campaign, new Date()))
       throw new CharityCampaignNotFoundException();
     if (stageRank(campaign.operationStage) >= stageRank('EVENT'))
       throw new CharityVolunteerClosedException();
@@ -851,19 +860,35 @@ function publicCustomSections(
     }));
 }
 
-async function buildSectionSnapshot(
+export async function buildSectionSnapshot(
   projects: ICharityProjectRepository,
+  engagement: ICharityEngagementRepository,
   campaignId: string,
   sectionKey: CharityOperationStage,
 ): Promise<Record<string, unknown> | null> {
   if (sectionKey === 'PLAN') return buildPlanSnapshot(projects, campaignId);
-  // Đợt 1: mục B/C/D chỉ có form mở; checklist, timeline, tổng kết đến ở các đợt sau.
   const custom = publicCustomSections(
     await projects.listCustomSections(campaignId),
     sectionKey,
     false,
   );
-  return custom.length > 0 ? { customSections: custom } : null;
+  const content: Record<string, unknown> = {};
+  if (sectionKey === 'EXECUTION') {
+    // Checklist tab B công khai trạng thái, mốc, ghi chú công việc; `remark` là ghi chú nội
+    // bộ và người phụ trách là thông tin điều phối — không lên public.
+    const tasks = await engagement.listTasks(campaignId);
+    if (tasks.length > 0)
+      content.tasks = tasks.map((task) => ({
+        taskKey: task.taskKey,
+        label: CharityTaskLabels[task.taskKey],
+        status: task.status,
+        scheduledAt: task.scheduledAt,
+        workNote: task.workNote,
+        updateMode: task.updateMode,
+      }));
+  }
+  if (custom.length > 0) content.customSections = custom;
+  return Object.keys(content).length > 0 ? content : null;
 }
 
 function sectionViews(
@@ -892,15 +917,19 @@ function sectionViews(
 
 async function sectionContentFlags(
   projects: ICharityProjectRepository,
+  engagement: ICharityEngagementRepository,
   campaignId: string,
 ): Promise<Record<CharityOperationStage, boolean>> {
-  const custom = await projects.listCustomSections(campaignId);
+  const [custom, tasks] = await Promise.all([
+    projects.listCustomSections(campaignId),
+    engagement.listTasks(campaignId),
+  ]);
   const has = (key: CharityOperationStage) =>
     custom.some((section) => section.parentSection === key);
   // Mục Kế hoạch luôn có nội dung — tên, mô tả, thời gian đã có từ lúc tạo.
   return {
     PLAN: true,
-    EXECUTION: has('EXECUTION'),
+    EXECUTION: has('EXECUTION') || tasks.length > 0,
     EVENT: has('EVENT'),
     SUMMARY: has('SUMMARY'),
   };
@@ -912,6 +941,8 @@ export class SaveCharitySectionUseCase implements ISaveCharitySectionUseCase {
     private readonly access: CharityProjectAccess,
     @Inject(ICharityProjectRepository)
     private readonly projects: ICharityProjectRepository,
+    @Inject(ICharityEngagementRepository)
+    private readonly engagement: ICharityEngagementRepository,
   ) {}
 
   public async handle(
@@ -925,7 +956,11 @@ export class SaveCharitySectionUseCase implements ISaveCharitySectionUseCase {
     });
     const views = sectionViews(
       await this.projects.listSectionStates(campaign.globalId),
-      await sectionContentFlags(this.projects, campaign.globalId),
+      await sectionContentFlags(
+        this.projects,
+        this.engagement,
+        campaign.globalId,
+      ),
     );
     return views.find((view) => view.sectionKey === command.sectionKey)!;
   }
@@ -941,6 +976,8 @@ export class PublishCharitySectionUseCase implements IPublishCharitySectionUseCa
     private readonly access: CharityProjectAccess,
     @Inject(ICharityProjectRepository)
     private readonly projects: ICharityProjectRepository,
+    @Inject(ICharityEngagementRepository)
+    private readonly engagement: ICharityEngagementRepository,
   ) {}
 
   public async handle(
@@ -949,6 +986,7 @@ export class PublishCharitySectionUseCase implements IPublishCharitySectionUseCa
     const { campaign } = await this.access.forEdit(command);
     const snapshot = await buildSectionSnapshot(
       this.projects,
+      this.engagement,
       campaign.globalId,
       command.sectionKey,
     );
@@ -961,7 +999,11 @@ export class PublishCharitySectionUseCase implements IPublishCharitySectionUseCa
     });
     const views = sectionViews(
       await this.projects.listSectionStates(campaign.globalId),
-      await sectionContentFlags(this.projects, campaign.globalId),
+      await sectionContentFlags(
+        this.projects,
+        this.engagement,
+        campaign.globalId,
+      ),
     );
     return views.find((view) => view.sectionKey === command.sectionKey)!;
   }
@@ -1017,6 +1059,8 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
     private readonly access: CharityProjectAccess,
     @Inject(ICharityProjectRepository)
     private readonly projects: ICharityProjectRepository,
+    @Inject(ICharityEngagementRepository)
+    private readonly engagement: ICharityEngagementRepository,
   ) {}
 
   public async handle(
@@ -1028,6 +1072,22 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
     );
     const { campaign } = access;
     const id = campaign.globalId;
+    // Checklist tab B có từ khi dự án được duyệt (§3.4). Tạo ở lượt đọc đầu tiên thay vì ở
+    // từng đường duyệt (Admin, công khai ngay, gửi nháp): một chỗ idempotent thay vì ba chỗ
+    // phải nhớ.
+    if (campaign.approvalStatus === 'APPROVED')
+      await this.engagement.ensureTasks({
+        campaignId: id,
+        schedule: defaultTaskSchedule({
+          endTime: campaign.endTime,
+          ...(await this.engagement.taskScheduleInputs(id)),
+        }),
+      });
+    const [tasks, changedFields, counters] = await Promise.all([
+      this.engagement.listTasks(id),
+      this.engagement.listChangedFields({ campaignId: id, publicOnly: false }),
+      this.engagement.counters(id),
+    ]);
     const [
       profile,
       parties,
@@ -1055,12 +1115,13 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
       this.projects.listStageEvents(id),
       this.projects.listSectionStates(id),
       this.projects.listCustomSections(id),
-      sectionContentFlags(this.projects, id),
+      sectionContentFlags(this.projects, this.engagement, id),
     ]);
-    const canEdit =
-      (access.isOwner && campaign.isActive) || access.isAdminWriter;
+    const now = new Date();
+    const suspended = isSuspendedProject(campaign, now);
+    const canEdit = (access.isOwner && !suspended) || access.isAdminWriter;
     const canOperate =
-      (access.isOwner || access.isCoordinator) && campaign.isActive
+      (access.isOwner || access.isCoordinator) && !suspended
         ? true
         : access.isAdminWriter;
     // Người thụ hưởng của kêu gọi cá nhân là dữ liệu RIÊNG TƯ: chỉ chủ dự án và Admin.
@@ -1086,6 +1147,9 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
       stageEvents,
       sections: sectionViews(states, contentFlags),
       customSections,
+      tasks,
+      changedFields,
+      counters,
       capabilities: {
         canEdit,
         canSave: canEdit,
@@ -1093,9 +1157,10 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
         canSubmit: access.isOwner && campaign.submittedAt === null,
         canAdvanceStage: canOperate && campaign.approvalStatus === 'APPROVED',
         canManageVolunteers: canOperate,
-        // In PDF đến ở đợt 2 (§3.13).
-        canExportPdf: false,
-        canShare: campaign.approvalStatus === 'APPROVED' && campaign.isActive,
+        canUpdateTasks: canOperate && campaign.approvalStatus === 'APPROVED',
+        canViewStats: true,
+        canExportPdf: true,
+        canShare: isPubliclyVisibleProject(campaign, now),
       },
     };
   }
@@ -1112,16 +1177,30 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
     private readonly campaigns: ICharityCampaignRepository,
     @Inject(ICharityProjectRepository)
     private readonly projects: ICharityProjectRepository,
+    @Inject(ICharityEngagementRepository)
+    private readonly engagement: ICharityEngagementRepository,
   ) {}
 
   public async handle(
     command: IGetCharityPublicProjectCommand,
   ): Promise<ICharityPublicProject> {
-    const campaign = await this.campaigns.findPublicByIdOrSlug(
+    // Khác `GET /campaigns/:idOrSlug` cũ: dự án ĐÃ ĐÓNG vẫn hiện — tổng kết là lúc đó (§3.6).
+    // Đường cũ giữ nguyên nghĩa (§5).
+    const visibleId = await this.projects.findVisibleCampaignId(
       command.idOrSlug,
     );
+    const campaign = visibleId
+      ? await this.campaigns.findByGlobalId(visibleId)
+      : null;
     if (!campaign) throw new CharityCampaignNotFoundException();
     const id = campaign.globalId;
+    const [changedFields, counters, isFollowing] = await Promise.all([
+      this.engagement.listChangedFields({ campaignId: id, publicOnly: true }),
+      this.engagement.counters(id),
+      command.userId
+        ? this.engagement.isFollowing(id, command.userId)
+        : Promise.resolve(null),
+    ]);
     const [
       profile,
       states,
@@ -1167,6 +1246,9 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
       fundingNeeds,
       volunteerNeeds,
       myVolunteerRegistrations: mine,
+      changedFields,
+      counters,
+      isFollowing,
       capabilities: {
         canJoinVolunteer:
           Boolean(command.userId) &&
@@ -1177,6 +1259,8 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
         canContribute:
           Boolean(command.userId) && campaign.operationStage === 'EXECUTION',
         canReport: Boolean(command.userId),
+        canFollow: Boolean(command.userId) && campaign.isActive,
+        canComment: Boolean(command.userId),
       },
     };
   }

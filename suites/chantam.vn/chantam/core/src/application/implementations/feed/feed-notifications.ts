@@ -45,14 +45,17 @@ function excerpt(body: string, limit = 120): string {
  * luận không báo ai.
  */
 export type NotifiableSubjectType =
-  ContentSubjectTypes.POST | ContentSubjectTypes.DHARMA_THREAD;
+  | ContentSubjectTypes.POST
+  | ContentSubjectTypes.DHARMA_THREAD
+  | ContentSubjectTypes.CHARITY_CAMPAIGN;
 
 export function isNotifiableSubject(
   subjectType: ContentSubjectTypes,
 ): subjectType is NotifiableSubjectType {
   return (
     subjectType === ContentSubjectTypes.POST ||
-    subjectType === ContentSubjectTypes.DHARMA_THREAD
+    subjectType === ContentSubjectTypes.DHARMA_THREAD ||
+    subjectType === ContentSubjectTypes.CHARITY_CAMPAIGN
   );
 }
 
@@ -66,6 +69,13 @@ export function isNotifiableSubject(
  * `NotificationTargetsByType`, còn guard tĩnh không đọc được một tham chiếu tính lúc chạy.
  */
 function subjectWording(subjectType: NotifiableSubjectType) {
+  if (subjectType === ContentSubjectTypes.CHARITY_CAMPAIGN)
+    return {
+      referenceType: 'CHARITY_CAMPAIGN',
+      targetType: NotificationTargetTypes.CHARITY_CAMPAIGN,
+      noun: 'Dự án của bạn',
+      phrase: 'dự án của bạn',
+    };
   return subjectType === ContentSubjectTypes.DHARMA_THREAD
     ? {
         referenceType: 'DHARMA_THREAD',

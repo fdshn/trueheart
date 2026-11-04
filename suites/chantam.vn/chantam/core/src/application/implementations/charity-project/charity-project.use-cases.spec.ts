@@ -180,6 +180,22 @@ function make(
     listCustomSections: jest.fn(async () => [] as unknown[]),
     publishSection: jest.fn(async (..._args: unknown[]) => undefined),
     replaceCustomSections: jest.fn(async (..._args: unknown[]) => []),
+    findVisibleCampaignId: jest.fn(async () => current?.globalId ?? null),
+  };
+  const engagement = {
+    ensureTasks: jest.fn(async (..._args: unknown[]) => undefined),
+    taskScheduleInputs: jest.fn(async () => ({
+      earliestIntakeDeadline: null,
+      distributionStartsAt: null,
+    })),
+    listTasks: jest.fn(async () => [] as unknown[]),
+    listChangedFields: jest.fn(async () => []),
+    counters: jest.fn(async () => ({
+      reactionCount: 0,
+      commentCount: 0,
+      followerCount: 0,
+    })),
+    isFollowing: jest.fn(async () => false),
   };
   const entitlements = {
     getCapability: jest.fn(async (_user: string, code: string) =>
@@ -189,7 +205,7 @@ function make(
     ),
   };
   const access = new CharityProjectAccess(campaigns as never, admin as never);
-  return { campaigns, admin, projects, entitlements, access };
+  return { campaigns, admin, projects, entitlements, access, engagement };
 }
 
 describe('CharityProjectAccess', () => {
@@ -627,6 +643,7 @@ describe('Workspace và bản công khai', () => {
     const view = await new GetCharityWorkspaceUseCase(
       coordinator.access,
       coordinator.projects as never,
+      coordinator.engagement as never,
     ).handle({
       userId: Coordinator,
       campaignId: CampaignId,
@@ -639,6 +656,7 @@ describe('Workspace và bản công khai', () => {
     const mine = await new GetCharityWorkspaceUseCase(
       owner.access,
       owner.projects as never,
+      owner.engagement as never,
     ).handle({
       userId: Owner,
       campaignId: CampaignId,
@@ -667,6 +685,7 @@ describe('Workspace và bản công khai', () => {
     const view = await new GetCharityPublicProjectUseCase(
       deps.campaigns as never,
       deps.projects as never,
+      deps.engagement as never,
     ).handle({
       idOrSlug: 'mua-dong-am',
       userId: null,
@@ -691,6 +710,7 @@ describe('Workspace và bản công khai', () => {
     const useCase = new PublishCharitySectionUseCase(
       deps.access,
       deps.projects as never,
+      deps.engagement as never,
     );
     await useCase.handle({
       userId: Owner,
@@ -718,6 +738,7 @@ describe('Workspace và bản công khai', () => {
       new PublishCharitySectionUseCase(
         deps.access,
         deps.projects as never,
+        deps.engagement as never,
       ).handle({
         userId: Owner,
         campaignId: CampaignId,

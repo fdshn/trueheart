@@ -231,6 +231,11 @@ export type RegisterCharityVolunteerOutcome =
   | 'NOT_ELIGIBLE';
 
 export interface ICharityProjectRepository {
+  /**
+   * Id của dự án hiện ra ngoài theo id hoặc slug: đã duyệt, chưa xoá, đang chạy HOẶC đã đóng
+   * (không đình chỉ). Rộng hơn `findPublicByIdOrSlug` của chiến dịch (chỉ dự án còn bật).
+   */
+  findVisibleCampaignId(idOrSlug: string): Promise<string | null>;
   getProfile(campaignId: string): Promise<ICharityProjectProfile | null>;
   updateProfile(params: {
     campaignId: string;
@@ -324,6 +329,7 @@ export interface ICharityProjectRepository {
   updateItemNeedProfile(params: {
     campaignId: string;
     needItemId: string;
+    actorId: string;
     profile: ICharityNeedItemProfileInput;
   }): Promise<boolean>;
 

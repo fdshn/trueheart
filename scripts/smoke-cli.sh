@@ -74,6 +74,7 @@ SIGNAL_CLIS=(
 DRY_RUN_CLIS=(
   accuracy-reconcile
   charity-advance-stage
+  charity-notify
   feed-reconcile-counts
   gift-settle-rewards
   notify-broadcast

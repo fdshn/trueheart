@@ -55,6 +55,12 @@ const ExpectedPublicRoutes = [
   'GET /campaigns/:idOrSlug/needs',
   // Bản công khai của dự án 4 giai đoạn: chỉ dự án đã duyệt; mục chưa công khai không lộ nháp.
   'GET /charity-campaigns/:idOrSlug/public',
+  // Đợt 2 dự án từ thiện: changelog, thống kê tổng hợp, danh sách cảm xúc và bình luận —
+  // cùng quy tắc đọc với bản công khai (đã duyệt, không đình chỉ).
+  'GET /charity-campaigns/:idOrSlug/revisions',
+  'GET /charity-campaigns/:idOrSlug/public-stats',
+  'GET /charity-campaigns/:id/reactions',
+  'GET /charity-campaigns/:id/comments',
   'GET /dharma/contents',
   'GET /dharma/contents/:idOrSlug',
   'GET /dharma/dedications',

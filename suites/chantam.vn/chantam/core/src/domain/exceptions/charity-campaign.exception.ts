@@ -199,3 +199,19 @@ export class CharityProjectInactiveException extends ExceptionFrom(
 export class CharityProjectForbiddenException extends ExceptionFrom(
   CoreErrors.CHARITY_PROJECT_FORBIDDEN,
 ) {}
+
+export class CharityProjectNotApprovedException extends ExceptionFrom(
+  CoreErrors.CHARITY_PROJECT_NOT_APPROVED,
+) {}
+
+export class CharityTaskNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_TASK_NOT_FOUND,
+) {}
+
+export class CharityExportNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_EXPORT_NOT_FOUND,
+) {}
+
+export class CharitySectionNotPublishedException extends ExceptionFrom(
+  CoreErrors.CHARITY_SECTION_NOT_PUBLISHED,
+) {}

@@ -36,14 +36,19 @@ import {
   CharityPartyRole,
   CharityPhaseKey,
   CharityReportMode,
+  CharityRevisionEntity,
   CharitySupplySource,
   CharityTeamRole,
   CharityVolunteerNeedStatus,
   CharityVolunteerRegistrationStatus,
+  diffCharityRevisions,
+  ICharityRevisionRow,
+  stageRank,
 } from '@chantam.vn/chantam.core-lib/models';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { recordCharityRevisions } from './charity-revision.writer';
 import { updateReturning } from './update-returning';
 
 const num = (value: unknown): number => Number(value ?? 0);
@@ -204,9 +209,129 @@ const toVolunteer = (row: IVolunteerRow): ICharityVolunteerNeed => {
  */
 @Injectable()
 export class CharityProjectRepository implements ICharityProjectRepository {
+  /**
+   * `true` trên bản sao gắn với transaction của `tracked` — hàm ghi chạy thẳng, không bọc lần
+   * nữa. Không phải tham số constructor: Nest sẽ cố tiêm nó.
+   */
+  private untracked = false;
+
   public constructor(
     @InjectEntityManager() private readonly manager: EntityManager,
   ) {}
+
+  /**
+   * Bọc một lượt sửa kế hoạch để ghi lịch sử sửa (§3.3) trong CÙNG transaction.
+   *
+   * Khoá hàng dự án trước: hai lượt sửa song song không chen ảnh chụp của nhau. Dự án chưa
+   * duyệt (nháp, chờ duyệt) thì không ghi gì — trước khi duyệt chưa có "bản đã công bố" để tô
+   * đỏ phần khác. Hàm ghi chạy trên một bản sao gắn transaction này; `transaction` lồng bên
+   * trong nó thành SAVEPOINT nên vẫn nguyên khối.
+   */
+  private async tracked<T>(
+    entity: CharityRevisionEntity,
+    campaignId: string,
+    actorId: string,
+    write: (repo: CharityProjectRepository) => Promise<T>,
+  ): Promise<T> {
+    return this.manager.transaction(async (manager) => {
+      const scoped = new CharityProjectRepository(manager);
+      scoped.untracked = true;
+      const [campaign] = await manager.query<{ approval_status: string }[]>(
+        `SELECT approval_status FROM campaigns WHERE global_id = $1 FOR UPDATE`,
+        [campaignId],
+      );
+      const track = campaign?.approval_status === 'APPROVED';
+      const before = track ? await scoped.revisionRows(entity, campaignId) : [];
+      const result = await write(scoped);
+      if (track)
+        await recordCharityRevisions(manager, {
+          campaignId,
+          actorId,
+          reason: null,
+          drafts: diffCharityRevisions(
+            entity,
+            before,
+            await scoped.revisionRows(entity, campaignId),
+          ),
+        });
+      return result;
+    });
+  }
+
+  /** Ảnh chụp một loại entity để so (chính sách field ở `CharityRevisionPolicies`). */
+  private async revisionRows(
+    entity: CharityRevisionEntity,
+    campaignId: string,
+  ): Promise<ICharityRevisionRow[]> {
+    const rows = <T extends object>(items: T[], id: (item: T) => string) =>
+      items.map((item) => ({
+        id: id(item),
+        values: item as unknown as Record<string, unknown>,
+      }));
+    switch (entity) {
+      case 'CAMPAIGN': {
+        const profile = await this.getProfile(campaignId);
+        return profile
+          ? [
+              {
+                id: null,
+                values: profile as unknown as Record<string, unknown>,
+              },
+            ]
+          : [];
+      }
+      case 'PARTY':
+        // Người thụ hưởng của kêu gọi cá nhân đi đường riêng và là dữ liệu riêng tư.
+        return rows(
+          (await this.listParties(campaignId)).filter(
+            (party) => !party.isAppealSubject,
+          ),
+          (party) => party.partyId,
+        );
+      case 'TEAM':
+        return rows(
+          await this.listTeam(campaignId),
+          (member) => member.memberId,
+        );
+      case 'PHASE':
+        return rows(await this.listPhases(campaignId), (phase) => phase.phase);
+      case 'NEED_ITEM':
+        return rows(
+          await this.listItemNeeds(campaignId),
+          (need) => need.needItemId,
+        );
+      case 'BANK_ACCOUNT':
+        return rows(
+          await this.listBankAccounts(campaignId),
+          (account) => account.accountId,
+        );
+      case 'FUNDING_NEED':
+        return rows(
+          await this.listFundingNeeds(campaignId),
+          (need) => need.fundingNeedId,
+        );
+      case 'VOLUNTEER_NEED':
+        return rows(
+          await this.listVolunteerNeeds(campaignId),
+          (need) => need.volunteerNeedId,
+        );
+      default:
+        return [];
+    }
+  }
+
+  public async findVisibleCampaignId(idOrSlug: string): Promise<string | null> {
+    // `::text` như `findPublicByIdOrSlug`: slug không bao giờ là UUID hợp lệ và ngược lại.
+    const [row] = await this.manager.query<{ global_id: string }[]>(
+      `SELECT global_id FROM campaigns
+       WHERE (global_id::text = $1 OR slug = $1)
+         AND approval_status = 'APPROVED'
+         AND deleted_at IS NULL
+         AND (is_active OR end_time <= now())`,
+      [idOrSlug],
+    );
+    return row?.global_id ?? null;
+  }
 
   // ── Hồ sơ ───────────────────────────────────────────────────────────────
 
@@ -243,6 +368,13 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     actorId: string;
     profile: Omit<ICharityProjectProfile, 'maxBankAccounts'>;
   }): Promise<void> {
+    if (!this.untracked)
+      return this.tracked(
+        'CAMPAIGN',
+        params.campaignId,
+        params.actorId,
+        (repo) => repo.updateProfile(params),
+      );
     await this.manager.query(
       `UPDATE campaigns
        SET appeal_purpose = $2, appeal_audience = $3, appeal_circumstance = $4,
@@ -342,6 +474,13 @@ export class CharityProjectRepository implements ICharityProjectRepository {
        ), stage_event AS (
          INSERT INTO campaign_stage_events (campaign_id, from_stage, to_stage, actor_id, reason)
          SELECT global_id, $4, $5, $6::uuid, $7 FROM updated
+       ), announcement AS (
+         -- Sang Sự kiện trao / Tổng kết thì báo người tham gia, người góp, người quan tâm
+         -- (§3.10). Lùi giai đoạn không báo — đó là sửa sai, không phải tin mới.
+         INSERT INTO campaign_announcements (campaign_id, kind, payload, actor_id)
+         SELECT global_id, 'STAGE_CHANGED', jsonb_build_object('from', $8::text, 'to', $9::text),
+                $6::uuid
+         FROM updated WHERE $10::boolean
        )
        SELECT global_id FROM updated`,
       [
@@ -354,6 +493,10 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         params.to,
         params.actorId,
         params.reason,
+        params.from,
+        params.to,
+        stageRank(params.to) > stageRank(params.from) &&
+          (params.to === 'EVENT' || params.to === 'SUMMARY'),
       ],
     );
     return rows.length > 0 ? 'MOVED' : 'STALE';
@@ -443,6 +586,10 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     actorId: string;
     parties: ICharityPartyInput[];
   }): Promise<ICharityParty[]> {
+    if (!this.untracked)
+      return this.tracked('PARTY', params.campaignId, params.actorId, (repo) =>
+        repo.replaceParties(params),
+      );
     await this.manager.transaction(async (manager) => {
       const keep = params.parties
         .map((party) => party.partyId)
@@ -521,6 +668,13 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     replaceReason: string | null;
     limit: number;
   }): Promise<AddCharityBankAccountOutcome> {
+    if (!this.untracked)
+      return this.tracked(
+        'BANK_ACCOUNT',
+        params.campaignId,
+        params.actorId,
+        (repo) => repo.addBankAccount(params),
+      );
     return this.manager.transaction(async (manager) => {
       // Khoá HÀNG DỰ ÁN rồi mới đếm: hai lượt thêm song song không cùng lọt giới hạn.
       await manager.query(
@@ -575,6 +729,13 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     actorId: string;
     reason: string;
   }): Promise<boolean> {
+    if (!this.untracked)
+      return this.tracked(
+        'BANK_ACCOUNT',
+        params.campaignId,
+        params.actorId,
+        (repo) => repo.closeBankAccount(params),
+      );
     const rows = await updateReturning<{ global_id: string }>(
       this.manager,
       `UPDATE campaign_bank_accounts
@@ -631,6 +792,10 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     actorId: string;
     members: ICharityTeamMemberInput[];
   }): Promise<ICharityTeamMember[]> {
+    if (!this.untracked)
+      return this.tracked('TEAM', params.campaignId, params.actorId, (repo) =>
+        repo.replaceTeam(params),
+      );
     await this.manager.transaction(async (manager) => {
       const keep = params.members
         .map((member) => member.memberId)
@@ -717,6 +882,10 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     actorId: string;
     phases: ICharityPhase[];
   }): Promise<ICharityPhase[]> {
+    if (!this.untracked)
+      return this.tracked('PHASE', params.campaignId, params.actorId, (repo) =>
+        repo.replacePhases(params),
+      );
     await this.manager.transaction(async (manager) => {
       await manager.query(
         `DELETE FROM campaign_phases WHERE campaign_id = $1`,
@@ -832,8 +1001,16 @@ export class CharityProjectRepository implements ICharityProjectRepository {
   public async updateItemNeedProfile(params: {
     campaignId: string;
     needItemId: string;
+    actorId: string;
     profile: ICharityNeedItemProfileInput;
   }): Promise<boolean> {
+    if (!this.untracked)
+      return this.tracked(
+        'NEED_ITEM',
+        params.campaignId,
+        params.actorId,
+        (repo) => repo.updateItemNeedProfile(params),
+      );
     const profile = params.profile;
     const rows = await updateReturning<{ global_id: string }>(
       this.manager,
@@ -881,6 +1058,13 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     actorId: string;
     need: ICharityFundingNeedInput;
   }): Promise<ICharityFundingNeed> {
+    if (!this.untracked)
+      return this.tracked(
+        'FUNDING_NEED',
+        params.campaignId,
+        params.actorId,
+        (repo) => repo.createFundingNeed(params),
+      );
     const need = params.need;
     const [row] = await this.manager.query<IFundingRow[]>(
       `INSERT INTO campaign_funding_needs AS funding
@@ -913,6 +1097,13 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     externalAmount: number;
     status: CharityOpenClosedStatus;
   }): Promise<ICharityFundingNeed | null> {
+    if (!this.untracked)
+      return this.tracked(
+        'FUNDING_NEED',
+        params.campaignId,
+        params.actorId,
+        (repo) => repo.updateFundingNeed(params),
+      );
     const need = params.need;
     const rows = await updateReturning<IFundingRow>(
       this.manager,
@@ -973,6 +1164,13 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     actorId: string;
     need: ICharityVolunteerNeedInput;
   }): Promise<ICharityVolunteerNeed> {
+    if (!this.untracked)
+      return this.tracked(
+        'VOLUNTEER_NEED',
+        params.campaignId,
+        params.actorId,
+        (repo) => repo.createVolunteerNeed(params),
+      );
     const need = params.need;
     const [row] = await this.manager.query<{ global_id: string }[]>(
       `INSERT INTO campaign_volunteer_needs
@@ -1003,6 +1201,13 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     need: ICharityVolunteerNeedInput;
     status: CharityVolunteerNeedStatus;
   }): Promise<ICharityVolunteerNeed | null> {
+    if (!this.untracked)
+      return this.tracked(
+        'VOLUNTEER_NEED',
+        params.campaignId,
+        params.actorId,
+        (repo) => repo.updateVolunteerNeed(params),
+      );
     const need = params.need;
     const rows = await updateReturning<{ global_id: string }>(
       this.manager,

@@ -22,8 +22,14 @@ export async function seedCharityProject(ctx: ISeedContext): Promise<void> {
     `SELECT 1 FROM campaign_team_members WHERE campaign_id = $1 LIMIT 1`,
     [campaignId],
   );
-  if (seeded) return;
+  if (!seeded) await seedProfile(ctx, campaignId);
+  await seedEngagement(ctx, campaignId);
+}
 
+async function seedProfile(
+  ctx: ISeedContext,
+  campaignId: string,
+): Promise<void> {
   await ctx.q(
     `UPDATE campaigns
      SET appeal_purpose = 'Giúp 300 học sinh ba điểm trường có áo ấm trước mùa rét.',
@@ -136,6 +142,89 @@ export async function seedCharityProject(ctx: ISeedContext): Promise<void> {
        (campaign_id, section_key, saved_at, published_at, published_snapshot, updated_by)
      VALUES ($1, 'PLAN', now(), now(),
              jsonb_build_object('appealPurpose', 'Giúp 300 học sinh ba điểm trường có áo ấm trước mùa rét.'),
+             $2)`,
+    [campaignId, Personas.organizer],
+  );
+}
+
+/**
+ * Đợt 2 (§3.3, §3.4, §3.7, §3.10, §3.13): checklist tab B đang làm dở, hai revision (một quan
+ * trọng — đã báo qua outbox), một người quan tâm, một lượt thích + bình luận, một bản in.
+ */
+async function seedEngagement(
+  ctx: ISeedContext,
+  campaignId: string,
+): Promise<void> {
+  const [schema] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.campaign_exports') IS NOT NULL AS ready`,
+  );
+  if (!schema?.ready) return;
+  const [seeded] = await ctx.q(
+    `SELECT 1 FROM campaign_tasks WHERE campaign_id = $1 LIMIT 1`,
+    [campaignId],
+  );
+  if (seeded) return;
+
+  for (const [index, [key, status]] of [
+    ['LICENSING', 'DONE'],
+    ['PROMOTION', 'DONE'],
+    ['INTAKE', 'IN_PROGRESS'],
+    ['MONITORING', 'TODO'],
+    ['CLOSE_INTAKE', 'TODO'],
+    ['PACKING', 'TODO'],
+    ['PRE_EVENT_NOTICE', 'TODO'],
+  ].entries())
+    await ctx.q(
+      `INSERT INTO campaign_tasks (campaign_id, task_key, status, sort_order, work_note, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        campaignId,
+        key,
+        status,
+        index,
+        status === 'DONE' ? 'Đã xong' : null,
+        Personas.organizer,
+      ],
+    );
+
+  await ctx.q(
+    `INSERT INTO campaign_revisions
+       (campaign_id, entity, entity_id, field, old_value, new_value, is_public, is_important,
+        changed_by, created_at)
+     VALUES ($1, 'CAMPAIGN', NULL, 'appealAudience', '"Học sinh tiểu học"'::jsonb,
+             '"Học sinh tiểu học các điểm trường Lũng Cú, Sủng Là, Phố Bảng."'::jsonb,
+             true, false, $2, now() - interval '3 days'),
+            ($1, 'TASK', NULL, 'status', '"TODO"'::jsonb, '"DONE"'::jsonb, true, false, $2,
+             now() - interval '2 days')`,
+    [campaignId, Personas.organizer],
+  );
+  await ctx.q(
+    `INSERT INTO campaign_announcements
+       (campaign_id, kind, payload, actor_id, created_at, processed_at, recipient_count)
+     VALUES ($1, 'PLAN_CHANGED',
+             '{"changes":[{"entity":"PHASE","field":"startsAt"}]}'::jsonb, $2,
+             now() - interval '1 day', now() - interval '1 day', 1)`,
+    [campaignId, Personas.organizer],
+  );
+  await ctx.q(
+    `INSERT INTO campaign_follows (campaign_id, user_id) VALUES ($1, $2)`,
+    [campaignId, Personas.giver],
+  );
+  await ctx.q(
+    `INSERT INTO content_reactions (subject_type, subject_id, user_id, kind)
+     VALUES ('CHARITY_CAMPAIGN', $1, $2, 'LOVE')`,
+    [campaignId, Personas.giver],
+  );
+  await ctx.q(
+    `INSERT INTO content_comments (global_id, subject_type, subject_id, author_id, body, depth, status)
+     VALUES (gen_random_uuid(), 'CHARITY_CAMPAIGN', $1, $2,
+             'Mình góp được 10 áo size 10, tuần sau gửi nhé.', 1, 'VISIBLE')`,
+    [campaignId, Personas.giver],
+  );
+  await ctx.q(
+    `INSERT INTO campaign_exports (campaign_id, section_key, snapshot, generated_by)
+     VALUES ($1, 'PLAN',
+             jsonb_build_object('title', 'Áo ấm cho học sinh vùng cao', 'sections', '[]'::jsonb),
              $2)`,
     [campaignId, Personas.organizer],
   );

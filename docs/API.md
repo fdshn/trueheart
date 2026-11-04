@@ -2697,7 +2697,9 @@ tại → `ATTRIBUTION_TARGET_NOT_FOUND`.
   content type, không redirect; cần Team ID và bundle id iOS, package và SHA-256 chứng chỉ ký
   Android.
 
-## 18. Dự án từ thiện 4 giai đoạn — đợt 1 (04/11/2026)
+## 18. Dự án từ thiện 4 giai đoạn (04/11/2026)
+
+### 18.1 Đợt 1 — hồ sơ, nháp, giai đoạn, ba nhóm nhu cầu
 
 Thiết kế và 9 quyết định đã chốt ở
 [CHARITY-PROJECT-LIFECYCLE](./plan/CHARITY-PROJECT-LIFECYCLE.md). Đợt 1 gồm hồ sơ tab A, nháp,
@@ -2743,8 +2745,8 @@ của bước trao, `null` khi chưa lập) để app đếm ngược.
 | `PATCH` | `/admin/charity-campaigns/:id/limits` | `campaign.manage` | `{ limits: { maxBankAccounts, reason } }` — ghi đè số tài khoản nhận cho một dự án |
 
 **Quyền.** Sửa hồ sơ là người tạo hoặc Admin `campaign.manage` (coordinator điều phối, không đổi
-nội dung — đúng quy tắc sẵn có). Dự án đã đóng hoặc bị đình chỉ: chỉ Admin sửa
-(`CHARITY_PROJECT_INACTIVE`). Không có vai nào với dự án → `CHARITY_CAMPAIGN_NOT_FOUND` (không lộ
+nội dung — đúng quy tắc sẵn có). Dự án bị **đình chỉ** (tắt mà còn hạn): chỉ Admin sửa
+(`CHARITY_PROJECT_INACTIVE`); dự án đã đóng vẫn sửa được (xem §18.2). Không có vai nào với dự án → `CHARITY_CAMPAIGN_NOT_FOUND` (không lộ
 nháp của người khác). Có vai mà không đủ quyền → `CHARITY_PROJECT_FORBIDDEN`.
 
 **Giai đoạn.** Không quay về `PLAN`; tiến chỉ một bước; lùi phải có lý do và lịch hiện tại không
@@ -2775,14 +2777,79 @@ từ khi bước trao bắt đầu (`CHARITY_VOLUNTEER_CLOSED`). Suất cuối h
 khi có form mở (checklist, timeline, tổng kết đến ở đợt 2–4). Công khai mục rỗng →
 `CHARITY_SECTION_EMPTY`.
 
-**Bản công khai** (`GET /charity-campaigns/:idOrSlug/public`): chỉ dự án đã duyệt và đang hoạt
-động. Mục chưa công khai trả `published: false` (chưa cập nhật), không lộ nháp; mục đã công khai
+**Bản công khai** (`GET /charity-campaigns/:idOrSlug/public`): dự án đã duyệt, đang chạy hoặc
+đã đóng (đình chỉ → `404`). Mục chưa công khai trả `published: false` (chưa cập nhật), không lộ nháp; mục đã công khai
 trả **bản chụp** lúc publish. Mục Kế hoạch công khai gồm lời kêu gọi, đơn vị liên quan (bên thụ
 hưởng chỉ tên và loại), ban tổ chức, tiến độ, form mở `PUBLIC`. Số nhu cầu là số **sống**; chỉ
 tài khoản đang hiệu lực; không có người nhận hàng hay thông tin người thụ hưởng cá nhân. Gửi kèm
 token thì có `myVolunteerRegistrations`.
 
-**Chưa có ở đợt 1:** revisions chữ đỏ và changelog, checklist tab B, nhắc 48 giờ, timeline tab C,
-bài ảnh/clip và quota, tổng kết tab D, chấm mức hoàn thành, khiếu nại, thích/bình luận/quan tâm,
-báo cáo vi phạm chiến dịch, điểm theo giá trị, thông báo chuyển giai đoạn, in PDF, card Home,
-nickname công khai (§3.3–§3.10, §3.13–§3.17 của tài liệu thiết kế).
+### 18.2 Đợt 2 — chữ đỏ, checklist tab B, tương tác, thống kê, báo cáo, PDF/chia sẻ
+
+| Method | Đường dẫn | Ai | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/charity-campaigns/:idOrSlug/revisions` | Công khai | Changelog: field CÔNG KHAI đã sửa sau khi duyệt, mới nhất trước, `?before=&limit=` (con trỏ `nextBefore`). Không lộ người sửa |
+| `GET` | `/charity-campaigns/:id/workspace/revisions` | Người tạo, coordinator, Admin `campaign.read` | Đủ mọi field (cả riêng tư), có người sửa, gồm checklist |
+| `GET` | `/charity-campaigns/:id/tasks` | Như trên | Checklist 7 việc (rỗng tới khi duyệt) |
+| `PATCH` | `/charity-campaigns/:id/tasks/:taskId` | Người tạo, coordinator, Admin | `{ task: { status, scheduledAt, workNote, remark, picName, picUserId, updateMode } }` — bỏ trống giữ nguyên, `null` xoá |
+| `POST`/`DELETE` | `/charity-campaigns/:idOrSlug/follow` | Bearer | Quan tâm / bỏ quan tâm → `{ follow: { following, followerCount } }` |
+| `PUT`/`DELETE` | `/charity-campaigns/:id/reactions/me` | Bearer | Thích / gỡ (`{ reaction: { kind } }`, hệ cảm xúc chung) |
+| `GET` | `/charity-campaigns/:id/reactions` | Công khai | Ai đã bày tỏ |
+| `POST` | `/charity-campaigns/:id/comment-media/upload-url` | Bearer | Ảnh cho bình luận (tối đa 3) |
+| `GET`/`POST` | `/charity-campaigns/:id/comments` | Công khai / Bearer | Bình luận gốc; trả lời, sửa, gỡ đi `/comments/:commentId/...` chung |
+| `GET` | `/charity-campaigns/:idOrSlug/public-stats` | Công khai | Số tổng hợp: thích, bình luận, quan tâm, người ủng hộ, người tham gia, tổng nhu cầu |
+| `GET` | `/charity-campaigns/:id/internal-stats` | Người tạo, coordinator, Admin | Đề nghị theo trạng thái, tham gia/huỷ, tuyển người, báo cáo vi phạm, lượt chia sẻ, nhu cầu tách đăng ký/duyệt/nhận trong app/ngoài app/còn thiếu |
+| `POST` | `/charity-campaigns/:id/exports` | Người tạo, coordinator, Admin | `{ export: { sectionKey? } }` (body có thể trống) — chụp bản in |
+| `GET` | `/charity-campaigns/:id/exports` | Như trên | 50 bản in mới nhất |
+| `GET` | `/charity-campaigns/:id/exports/:exportId/pdf` | Như trên | Tải `application/pdf` (không bọc JSON) |
+| `POST` | `/charity-campaigns/:idOrSlug/share-links` | Bearer | `{ share: { sectionKey?, channel? } }` → `sharePath` `/c/{slug}[?section=]`, `shareUrl` |
+| `POST` | `/reports` | Bearer | Nút đỏ: `targetType: CHARITY_CAMPAIGN`, `targetId` = id dự án |
+
+**Chữ đỏ.** Sau khi dự án được duyệt, mọi lượt sửa hồ sơ (lời kêu gọi, đơn vị liên quan, ban tổ
+chức, tiến độ, hiện vật, tài khoản, nhu cầu tiền/người) ghi `campaign_revisions` trong cùng
+transaction — mỗi field đổi một dòng, thêm/xoá cả dòng là field `*`. Workspace và bản công khai
+trả `changedFields` (`entity`, `entityId`, `field`, `changedAt`) để app tô đỏ; bản công khai
+chỉ có field công khai (SĐT, người nhận hàng, địa chỉ bên thụ hưởng… không lộ). Số tiến độ
+(`confirmedAmount`, `externalAmount`) KHÔNG sinh revision. Không bắt duyệt lại.
+
+**Thông báo theo dự án** (job `charity:notify`, 5 phút/lần) gửi người tham gia, người có đóng
+góp được chấp nhận và người quan tâm (trừ người vừa gây ra thay đổi):
+`CHARITY_STAGE_CHANGED` (sang Sự kiện trao / Tổng kết — lùi thì không),
+`CHARITY_PLAN_CHANGED` (đổi giờ trao, tài khoản nhận, bên thụ hưởng, mục tiêu tiền, địa điểm/hạn
+nhận hiện vật, lịch/địa điểm tuyển người — câu thông báo nói phần nào đổi, không mang giá trị),
+`CHARITY_PRE_EVENT_NOTICE` (còn ≤ 48 giờ tới bước trao; dời giờ trao thì nhắc lại). Cả ba mở
+`targetType=CHARITY_CAMPAIGN`.
+
+**Checklist tab B**: 7 việc `LICENSING` · `PROMOTION` · `INTAKE` · `MONITORING` ·
+`CLOSE_INTAKE` · `PACKING` · `PRE_EVENT_NOTICE`, trạng thái `TODO` · `IN_PROGRESS` · `DONE` ·
+`SKIPPED`. Mốc gợi ý: kết thúc tiếp nhận = hạn nhận hiện vật sớm nhất (không có thì hết hạn dự
+án), tiền trạm = 48 giờ trước bước trao. `remark` là ghi chú nội bộ. Công khai mục Triển khai
+(`POST :id/sections/EXECUTION/publish`) chụp checklist (không có `remark`, người phụ trách) ra
+bản công khai.
+
+**Thích, bình luận** dùng hệ chung (`subjectType = CHARITY_CAMPAIGN`): dự án chưa duyệt hoặc bị
+đình chỉ → `404`; dự án đã đóng vẫn nhận (lời cảm ơn). Người tạo dự án nhận
+`CONTENT_COMMENT_CREATED` / `CONTENT_REACTION_FIRST_OF_DAY` với `targetType=CHARITY_CAMPAIGN`.
+Số đếm (`counters`) tính thẳng từ bảng gốc, chỉ bình luận đang hiện.
+
+**Báo cáo vi phạm**: Admin xử ở hàng đợi chung (`/admin/reports`, nhãn "Dự án: …"); kết luận
+đúng (`RESOLVED`) thì dự án bị **đình chỉ** (`is_active = false`, giữ `end_time`) trong cùng
+transaction, ghi audit `SUSPEND_CHARITY_CAMPAIGN`, người tạo nhận `CONTENT_MODERATED`. Dự án đã
+đóng không bị đụng; hai báo cáo cùng dự án chỉ một audit.
+
+**Dự án đã đóng vẫn hiện.** Từ đợt 2, bản công khai, changelog, thống kê, bình luận của dự án
+**đã đóng** (`POST :id/close`) vẫn đọc được; chỉ dự án bị **đình chỉ** (tắt mà còn hạn) mới
+`404`. Người tạo vẫn sửa được dự án đã đóng (tổng kết viết sau khi đóng);
+`CHARITY_PROJECT_INACTIVE` giờ chỉ dành cho dự án bị đình chỉ. `GET /campaigns/:idOrSlug` cũ giữ
+nguyên nghĩa.
+
+**Bản in** chụp nội dung công khai lúc tạo (cùng luật với công khai mục) + nhu cầu + tài khoản
+đang hiệu lực, lưu kèm mã revision cuối và người tạo; tải lại luôn ra đúng nội dung đó. PDF
+font DejaVu Sans (đủ dấu tiếng Việt).
+
+**Link chia sẻ** `/c/{slug}` (thêm `?section=` khi chia sẻ một mục ĐÃ công khai, chưa công
+khai → `CHARITY_SECTION_NOT_PUBLISHED`) — web landing cần phục vụ đường này. Mỗi lượt được đếm
+vào `internal-stats.shares`.
+
+**Chưa có ở đợt 2:** timeline tab C, bài ảnh/clip và quota, realtime (đợt 3); tổng kết tab D,
+chấm mức hoàn thành, khiếu nại, điểm theo giá trị, card Home, nickname công khai (đợt 4).

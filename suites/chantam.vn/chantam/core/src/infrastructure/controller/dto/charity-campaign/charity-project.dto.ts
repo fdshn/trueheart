@@ -39,6 +39,11 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { CharityCampaignResponseDto } from './charity-campaign.dto';
+import {
+  CharityChangedFieldDto,
+  CharityCountersDto,
+  CharityTaskViewDto,
+} from './charity-engagement.dto';
 
 const OptionalText = (max: number) => [
   IsOptional(),
@@ -753,6 +758,9 @@ export class CharityWorkspaceCapabilitiesDto {
   @ApiProperty() canSubmit: boolean;
   @ApiProperty() canAdvanceStage: boolean;
   @ApiProperty() canManageVolunteers: boolean;
+  @ApiProperty({ description: 'Cập nhật checklist tab B (dự án đã duyệt)' })
+  canUpdateTasks: boolean;
+  @ApiProperty() canViewStats: boolean;
   @ApiProperty() canExportPdf: boolean;
   @ApiProperty() canShare: boolean;
 }
@@ -785,6 +793,18 @@ export class CharityWorkspaceDto {
   sections: CharitySectionViewDto[];
   @ApiProperty({ type: () => [CharityCustomSectionViewDto] })
   customSections: CharityCustomSectionViewDto[];
+  @ApiProperty({
+    type: () => [CharityTaskViewDto],
+    description: 'Checklist tab B — rỗng tới khi dự án được duyệt',
+  })
+  tasks: CharityTaskViewDto[];
+  @ApiProperty({
+    type: () => [CharityChangedFieldDto],
+    description: 'Field đã sửa kể từ lúc duyệt (cả field riêng tư) — tô đỏ',
+  })
+  changedFields: CharityChangedFieldDto[];
+  @ApiProperty({ type: () => CharityCountersDto })
+  counters: CharityCountersDto;
   @ApiProperty({ type: () => CharityWorkspaceCapabilitiesDto })
   capabilities: CharityWorkspaceCapabilitiesDto;
 }
@@ -809,6 +829,9 @@ export class CharityPublicCapabilitiesDto {
   @ApiProperty() canJoinVolunteer: boolean;
   @ApiProperty() canContribute: boolean;
   @ApiProperty() canReport: boolean;
+  @ApiProperty({ description: 'Quan tâm được khi dự án còn chạy' })
+  canFollow: boolean;
+  @ApiProperty() canComment: boolean;
 }
 export class CharityPublicProjectDto {
   @ApiProperty({ type: () => CharityCampaignResponseDto })
@@ -838,6 +861,19 @@ export class CharityPublicProjectDto {
     description: '`null` khi chưa đăng nhập',
   })
   myVolunteerRegistrations: CharityVolunteerRegistrationViewDto[] | null;
+  @ApiProperty({
+    type: () => [CharityChangedFieldDto],
+    description: 'Field CÔNG KHAI đã sửa kể từ lúc duyệt — tô đỏ',
+  })
+  changedFields: CharityChangedFieldDto[];
+  @ApiProperty({ type: () => CharityCountersDto })
+  counters: CharityCountersDto;
+  @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description: '`null` khi không gửi token',
+  })
+  isFollowing: boolean | null;
   @ApiProperty({ type: () => CharityPublicCapabilitiesDto })
   capabilities: CharityPublicCapabilitiesDto;
 }

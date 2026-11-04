@@ -11,6 +11,7 @@ import { DataSource } from 'typeorm';
 import { CacheModule } from './cache/cache.module';
 import { ConfigModule } from './config/config.module';
 import { ControllerModule } from './controller/controller.module';
+import { DocumentModule } from './document/document.module';
 import { EntityModule } from './entity/entity.module';
 import { GiveActivityModule } from './give-activity/give-activity.module';
 import { NotificationModule } from './notification/notification.module';
@@ -34,6 +35,7 @@ import { RedisTokenDenyList } from './security/token-deny-list';
     CacheModule,
     SecurityModule,
     NotificationModule,
+    DocumentModule,
     StorageModule.forRootAsync({
       inject: [IConfig],
       useFactory: (config: IConfig) => config.storage,

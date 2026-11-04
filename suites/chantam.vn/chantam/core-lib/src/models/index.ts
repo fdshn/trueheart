@@ -4,6 +4,7 @@ export * from './blog';
 export * from './candidate-selection';
 export * from './category';
 export * from './charity-campaign';
+export * from './charity-engagement';
 export * from './charity-project';
 export * from './chat';
 export * from './chat-cursor';

@@ -6,6 +6,7 @@ export * from './attribution.repository';
 export * from './blog.repository';
 export * from './category.repository';
 export * from './charity-campaign.repository';
+export * from './charity-engagement.repository';
 export * from './charity-project.repository';
 export * from './chat.repository';
 export * from './check-in.repository';

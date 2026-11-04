@@ -148,6 +148,17 @@ export enum NotificationTypes {
   /** Lượt giao nhận bị huỷ — gửi cho BÊN KIA, không gửi cho người vừa bấm huỷ. */
   CHARITY_DELIVERY_CANCELLED = 'CHARITY_DELIVERY_CANCELLED',
   /**
+   * Dự án chuyển sang Sự kiện trao hoặc Tổng kết (CHARITY-PROJECT-LIFECYCLE §3.10). Gửi người
+   * tham gia, người có đóng góp được chấp nhận và người quan tâm.
+   */
+  CHARITY_STAGE_CHANGED = 'CHARITY_STAGE_CHANGED',
+  /** Kế hoạch đã duyệt có thay đổi quan trọng: giờ trao, tài khoản nhận, bên thụ hưởng… (§3.3). */
+  CHARITY_PLAN_CHANGED = 'CHARITY_PLAN_CHANGED',
+  /** Còn ≤ 48 giờ tới lúc trao (§3.4). */
+  CHARITY_PRE_EVENT_NOTICE = 'CHARITY_PRE_EVENT_NOTICE',
+  /** Tổng kết dự án được công khai (§3.6). */
+  CHARITY_SUMMARY_PUBLISHED = 'CHARITY_SUMMARY_PUBLISHED',
+  /**
    * Nhắc nhiệm vụ duy trì hạng, trước khi chu kỳ hết (SRS BR-PROF-RANK-03).
    *
    * Trượt chu kỳ nay bị trừ điểm và có thể tụt hạng, nên báo muộn hơn thời điểm
@@ -293,6 +304,9 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.CHARITY_CONTRIBUTION_DECIDED]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_DELIVERY_COMPLETED]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_DELIVERY_CANCELLED]: NotificationGroups.STATUS,
+  // Kế hoạch đổi là trạng thái của một việc người nhận đang theo (đã góp, đã đăng ký, bấm
+  // quan tâm) — cùng nhóm đóng góp. Ba loại còn lại của dự án nằm ở SỰ KIỆN và ĐIỀU KIỆN.
+  [NotificationTypes.CHARITY_PLAN_CHANGED]: NotificationGroups.STATUS,
 
   // ── Tích điểm: điểm vào sổ ───────────────────────────────────────────────
   // Giới thiệu hợp lệ xếp vào TÍCH ĐIỂM chứ không THƯỞNG: nội dung thông báo là
@@ -313,8 +327,14 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.RANK_MAINTENANCE_REMINDER]: NotificationGroups.CONDITION,
   [NotificationTypes.REVIEW_REMINDER]: NotificationGroups.CONDITION,
   [NotificationTypes.POST_EXPIRING_SOON]: NotificationGroups.CONDITION,
+  // Còn 48 giờ tới lúc trao: việc phải chuẩn bị trước một cái hạn.
+  [NotificationTypes.CHARITY_PRE_EVENT_NOTICE]: NotificationGroups.CONDITION,
 
   // ── Sự kiện ──────────────────────────────────────────────────────────────
   [NotificationTypes.LUNAR_OBSERVANCE]: NotificationGroups.EVENT,
+  // Dự án từ thiện bước sang Sự kiện trao / Tổng kết, hoặc tổng kết vừa công khai: diễn
+  // biến của một SỰ KIỆN người nhận đang theo, không phải việc họ phải làm.
+  [NotificationTypes.CHARITY_STAGE_CHANGED]: NotificationGroups.EVENT,
+  [NotificationTypes.CHARITY_SUMMARY_PUBLISHED]: NotificationGroups.EVENT,
   [NotificationTypes.SYSTEM_BROADCAST]: NotificationGroups.EVENT,
 };

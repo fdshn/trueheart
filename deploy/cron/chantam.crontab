@@ -57,6 +57,10 @@ RUN=/home/deploy/chantam/deploy/cron/run-cli.sh
 # Dự án từ thiện 4 giai đoạn: ghi xuống giai đoạn đã tới mốc (Triển khai → Sự kiện trao →
 # Tổng kết). Lượt đọc đã tính đúng kể cả khi job trễ — job để cột lưu và nhật ký bắt kịp.
 */10 * * * * deploy $RUN $CHANTAM_DIR charity-advance-stage
+# Thông báo theo dự án từ thiện: nhắc 48 giờ trước lúc trao + xả outbox (chuyển giai đoạn,
+# kế hoạch đổi điều quan trọng). Lệch 2 phút so với advance-stage để thông báo chuyển giai
+# đoạn đi trong vòng 5 phút sau khi được ghi.
+2-59/5 * * * * deploy $RUN $CHANTAM_DIR charity-notify
 
 # Trả thưởng cho lượt trao người nhận không bao giờ đánh giá. KHÔNG CHẠY LÀ ĐIỂM
 # CỦA NGƯỜI TẶNG TREO VÔ HẠN — đây là job cấp bách nhất trong file này.

@@ -167,7 +167,7 @@ export class CharityProjectController {
   @ApiOperation({
     summary: 'Bản công khai của dự án',
     description:
-      'Chỉ dự án đã duyệt và đang hoạt động. Mục chưa công khai trả `published: false` (chưa cập nhật), không lộ nháp. Nhu cầu hiện vật/tiền/người là số SỐNG; chỉ tài khoản nhận ĐANG hiệu lực; không có SĐT người nhận hàng hay thông tin riêng tư người thụ hưởng. Gửi kèm token thì có `myVolunteerRegistrations`.',
+      'Dự án đã duyệt, đang chạy hoặc ĐÃ ĐÓNG (tổng kết xem được sau khi đóng); đình chỉ thì `404`. Có `changedFields` (field công khai đã sửa sau duyệt — tô đỏ), `counters`, `isFollowing`. Mục chưa công khai trả `published: false` (chưa cập nhật), không lộ nháp. Nhu cầu hiện vật/tiền/người là số SỐNG; chỉ tài khoản nhận ĐANG hiệu lực; không có SĐT người nhận hàng hay thông tin riêng tư người thụ hưởng. Gửi kèm token thì có `myVolunteerRegistrations`.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(CharityPublicProjectResponseDto) })
   @ApiErrorResponses(CharityCampaignNotFoundException)
