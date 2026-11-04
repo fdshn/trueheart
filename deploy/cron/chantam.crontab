@@ -54,6 +54,10 @@ RUN=/home/deploy/chantam/deploy/cron/run-cli.sh
 # xảy ra.
 37 * * * * deploy $RUN $CHANTAM_DIR selection-auto-select
 
+# Dự án từ thiện 4 giai đoạn: ghi xuống giai đoạn đã tới mốc (Triển khai → Sự kiện trao →
+# Tổng kết). Lượt đọc đã tính đúng kể cả khi job trễ — job để cột lưu và nhật ký bắt kịp.
+*/10 * * * * deploy $RUN $CHANTAM_DIR charity-advance-stage
+
 # Trả thưởng cho lượt trao người nhận không bao giờ đánh giá. KHÔNG CHẠY LÀ ĐIỂM
 # CỦA NGƯỜI TẶNG TREO VÔ HẠN — đây là job cấp bách nhất trong file này.
 23 2 * * * deploy $RUN $CHANTAM_DIR gift-settle-rewards

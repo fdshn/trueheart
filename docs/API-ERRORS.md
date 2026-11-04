@@ -213,6 +213,19 @@ Nghiệp vụ Chân Tâm
 | `0x131d` | `4893` | 400 Bad Request | `CHARITY_MEDIA_INVALID` | Bộ ảnh/video gửi lên không hợp lệ |
 | `0x131e` | `4894` | 409 Conflict | `CHARITY_MEDIA_NOT_EDITABLE` | Chỉ sửa ảnh/video được khi hồ sơ còn đang chờ duyệt |
 | `0x131f` | `4895` | 409 Conflict | `CHARITY_CAMPAIGN_HAS_ACTIVITY` | Hoạt động đã có người đăng ký, đóng góp, giao nhận hoặc đánh giá — hãy đóng hoặc tắt thay vì xoá |
+| `0x1320` | `4896` | 409 Conflict | `CHARITY_PROJECT_NOT_DRAFT` | Dự án đã được gửi duyệt — không còn là bản nháp |
+| `0x1321` | `4897` | 409 Conflict | `CHARITY_STAGE_TRANSITION_INVALID` | Không chuyển được giai đoạn: chỉ được tiến một bước |
+| `0x1322` | `4898` | 409 Conflict | `CHARITY_STAGE_SCHEDULE_CONFLICT` | Theo lịch tiến độ hiện tại, dự án sẽ lập tức vượt qua giai đoạn này — hãy sửa thời gian bước trao trước |
+| `0x1323` | `4899` | 409 Conflict | `CHARITY_BANK_ACCOUNT_LIMIT` | Dự án đã có đủ 2 tài khoản nhận đang hiệu lực — đóng bớt hoặc thay tài khoản cũ |
+| `0x1324` | `4900` | 404 Not Found | `CHARITY_BANK_ACCOUNT_NOT_FOUND` | Không tìm thấy tài khoản nhận đang hiệu lực |
+| `0x1325` | `4901` | 404 Not Found | `CHARITY_FUNDING_NEED_NOT_FOUND` | Không tìm thấy hạng mục kêu gọi tiền |
+| `0x1326` | `4902` | 404 Not Found | `CHARITY_VOLUNTEER_NEED_NOT_FOUND` | Không tìm thấy vị trí tuyển người |
+| `0x1327` | `4903` | 403 Forbidden | `CHARITY_VOLUNTEER_NOT_ELIGIBLE` | Cần có ít nhất một đóng góp đã được ban tổ chức chấp nhận mới đăng ký tham gia được |
+| `0x1328` | `4904` | 409 Conflict | `CHARITY_VOLUNTEER_CLOSED` | Vị trí này không còn nhận đăng ký |
+| `0x1329` | `4905` | 404 Not Found | `CHARITY_VOLUNTEER_REGISTRATION_NOT_FOUND` | Không tìm thấy đăng ký tham gia |
+| `0x132a` | `4906` | 409 Conflict | `CHARITY_SECTION_EMPTY` | Mục này chưa có nội dung để công khai |
+| `0x132b` | `4907` | 409 Conflict | `CHARITY_PROJECT_INACTIVE` | Dự án đã đóng hoặc đang bị đình chỉ — không nhận thao tác mới |
+| `0x132c` | `4908` | 403 Forbidden | `CHARITY_PROJECT_FORBIDDEN` | Bạn không có quyền với mục này của dự án |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -244,5 +257,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **202 mã lỗi** trên 3 tầng.
+Tổng cộng **215 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

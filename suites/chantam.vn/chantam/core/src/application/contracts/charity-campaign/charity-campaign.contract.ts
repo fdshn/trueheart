@@ -82,6 +82,12 @@ export interface ICharityCampaignWriteInput {
 
 export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput {
   /**
+   * `false` = lưu NHÁP: chưa xét duyệt, không vào hàng đợi Admin, gửi sau bằng
+   * `POST /charity-campaigns/:id/submit`. Bỏ trống = `true` — đúng hành vi của app cũ
+   * (docs/plan/CHARITY-PROJECT-LIFECYCLE.md §3.1, §5).
+   */
+  readonly submit?: boolean;
+  /**
    * Loại hoạt động (F65b §1). Quyết định capability nào gác lượt tạo, và có phải
    * khai quan hệ với người thụ hưởng hay không.
    */

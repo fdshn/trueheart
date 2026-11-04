@@ -68,6 +68,9 @@ export const SupportedSystemConfigKeys = [
   'classified.legacy_transactions_enabled',
   // Chat trực tiếp với người dùng (30/10): số phòng MỚI một người mở được trong 24 giờ.
   'chat.direct_user_daily_limit',
+  // Dự án từ thiện 4 giai đoạn: số tài khoản nhận tiền đang hiệu lực tối đa mỗi dự án
+  // (Admin ghi đè từng dự án qua PATCH /admin/charity-campaigns/:id/limits).
+  'charity.max_bank_accounts_per_campaign',
 ] as const;
 
 /**
@@ -112,6 +115,8 @@ export const SystemConfigValueRanges: Readonly<
   'leaderboard.badge_months': { min: 1, max: 2_147_483_647 },
   // `0` thì không ai mở được phòng trực tiếp mới — công tắc tắt khẩn khi bị spam.
   'chat.direct_user_daily_limit': { min: 0, max: 10_000 },
+  // Cột ghi đè `campaigns.max_bank_accounts` có CHECK 1..20 — cùng khoảng.
+  'charity.max_bank_accounts_per_campaign': { min: 1, max: 20 },
   'classified.legacy_transactions_enabled': { min: 0, max: 1 },
 };
 

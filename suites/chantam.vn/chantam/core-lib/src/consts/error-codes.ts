@@ -343,6 +343,26 @@ export enum ErrorCodes {
   CHARITY_MEDIA_NOT_EDITABLE = 0x13_1e,
   /** Xoá hoạt động đã có người tham gia / đóng góp / giao nhận / đánh giá. */
   CHARITY_CAMPAIGN_HAS_ACTIVITY = 0x13_1f,
+  // Dự án 4 giai đoạn (docs/plan/CHARITY-PROJECT-LIFECYCLE.md)
+  /** Gửi duyệt một dự án không còn là nháp. */
+  CHARITY_PROJECT_NOT_DRAFT = 0x13_20,
+  /** Chuyển giai đoạn sai thứ tự, chưa duyệt, hoặc lùi mà thiếu lý do. */
+  CHARITY_STAGE_TRANSITION_INVALID = 0x13_21,
+  /** Lùi giai đoạn nhưng lịch các bước sẽ đẩy nó tới ngay. */
+  CHARITY_STAGE_SCHEDULE_CONFLICT = 0x13_22,
+  /** Vượt số tài khoản nhận đang hiệu lực Admin cho phép. */
+  CHARITY_BANK_ACCOUNT_LIMIT = 0x13_23,
+  CHARITY_BANK_ACCOUNT_NOT_FOUND = 0x13_24,
+  CHARITY_FUNDING_NEED_NOT_FOUND = 0x13_25,
+  CHARITY_VOLUNTEER_NEED_NOT_FOUND = 0x13_26,
+  /** Đăng ký tham gia khi chưa có hỗ trợ hợp lệ nào. */
+  CHARITY_VOLUNTEER_NOT_ELIGIBLE = 0x13_27,
+  /** Vị trí đã đóng, đã bắt đầu, đã đủ người, hoặc bước trao đã bắt đầu. */
+  CHARITY_VOLUNTEER_CLOSED = 0x13_28,
+  CHARITY_VOLUNTEER_REGISTRATION_NOT_FOUND = 0x13_29,
+  CHARITY_SECTION_EMPTY = 0x13_2a,
+  CHARITY_PROJECT_INACTIVE = 0x13_2b,
+  CHARITY_PROJECT_FORBIDDEN = 0x13_2c,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

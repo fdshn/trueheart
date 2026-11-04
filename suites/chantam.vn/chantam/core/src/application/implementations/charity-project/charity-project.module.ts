@@ -1,0 +1,83 @@
+import {
+  IAddCharityBankAccountUseCase,
+  IAdvanceCharityStagesUseCase,
+  ICancelCharityVolunteerUseCase,
+  ICloseCharityBankAccountUseCase,
+  IConfirmCharityVolunteerUseCase,
+  IGetCharityPublicProjectUseCase,
+  IGetCharityWorkspaceUseCase,
+  IMoveCharityStageUseCase,
+  IPublishCharitySectionUseCase,
+  IRegisterCharityVolunteerUseCase,
+  IReplaceCharityCustomSectionsUseCase,
+  IReplaceCharityPartiesUseCase,
+  IReplaceCharityPhasesUseCase,
+  IReplaceCharityTeamUseCase,
+  ISaveCharityFundingNeedUseCase,
+  ISaveCharitySectionUseCase,
+  ISaveCharityVolunteerNeedUseCase,
+  ISetCharityLimitsUseCase,
+  ISubmitCharityProjectUseCase,
+  IUpdateCharityItemNeedUseCase,
+  IUpdateCharityProfileUseCase,
+} from '@/application/contracts/charity-project';
+import { Global, Module } from '@nestjs/common';
+import {
+  AddCharityBankAccountUseCase,
+  AdvanceCharityStagesUseCase,
+  CancelCharityVolunteerUseCase,
+  CharityProjectAccess,
+  CloseCharityBankAccountUseCase,
+  ConfirmCharityVolunteerUseCase,
+  GetCharityPublicProjectUseCase,
+  GetCharityWorkspaceUseCase,
+  MoveCharityStageUseCase,
+  PublishCharitySectionUseCase,
+  RegisterCharityVolunteerUseCase,
+  ReplaceCharityCustomSectionsUseCase,
+  ReplaceCharityPartiesUseCase,
+  ReplaceCharityPhasesUseCase,
+  ReplaceCharityTeamUseCase,
+  SaveCharityFundingNeedUseCase,
+  SaveCharitySectionUseCase,
+  SaveCharityVolunteerNeedUseCase,
+  SetCharityLimitsUseCase,
+  SubmitCharityProjectUseCase,
+  UpdateCharityItemNeedUseCase,
+  UpdateCharityProfileUseCase,
+} from './charity-project.use-cases';
+
+const bindings = [
+  [ISubmitCharityProjectUseCase, SubmitCharityProjectUseCase],
+  [IMoveCharityStageUseCase, MoveCharityStageUseCase],
+  [IAdvanceCharityStagesUseCase, AdvanceCharityStagesUseCase],
+  [IUpdateCharityProfileUseCase, UpdateCharityProfileUseCase],
+  [IReplaceCharityPartiesUseCase, ReplaceCharityPartiesUseCase],
+  [IAddCharityBankAccountUseCase, AddCharityBankAccountUseCase],
+  [ICloseCharityBankAccountUseCase, CloseCharityBankAccountUseCase],
+  [IReplaceCharityTeamUseCase, ReplaceCharityTeamUseCase],
+  [IReplaceCharityPhasesUseCase, ReplaceCharityPhasesUseCase],
+  [IUpdateCharityItemNeedUseCase, UpdateCharityItemNeedUseCase],
+  [ISaveCharityFundingNeedUseCase, SaveCharityFundingNeedUseCase],
+  [ISaveCharityVolunteerNeedUseCase, SaveCharityVolunteerNeedUseCase],
+  [IRegisterCharityVolunteerUseCase, RegisterCharityVolunteerUseCase],
+  [ICancelCharityVolunteerUseCase, CancelCharityVolunteerUseCase],
+  [IConfirmCharityVolunteerUseCase, ConfirmCharityVolunteerUseCase],
+  [ISaveCharitySectionUseCase, SaveCharitySectionUseCase],
+  [IPublishCharitySectionUseCase, PublishCharitySectionUseCase],
+  [IReplaceCharityCustomSectionsUseCase, ReplaceCharityCustomSectionsUseCase],
+  [IGetCharityWorkspaceUseCase, GetCharityWorkspaceUseCase],
+  [IGetCharityPublicProjectUseCase, GetCharityPublicProjectUseCase],
+  [ISetCharityLimitsUseCase, SetCharityLimitsUseCase],
+] as const;
+
+/** `@Global()` như mọi feature module của tầng application — thiếu là DI hỏng lúc boot. */
+@Global()
+@Module({
+  providers: [
+    CharityProjectAccess,
+    ...bindings.map(([provide, useClass]) => ({ provide, useClass })),
+  ],
+  exports: bindings.map(([provide]) => provide),
+})
+export class CharityProjectModule {}

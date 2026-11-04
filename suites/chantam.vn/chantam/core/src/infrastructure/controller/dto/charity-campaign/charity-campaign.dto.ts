@@ -283,6 +283,15 @@ export class WriteCharityCampaignDto {
   allowOverTarget?: boolean;
 
   @ApiPropertyOptional({
+    default: true,
+    description:
+      '`false` = lưu NHÁP: chưa xét duyệt, không vào hàng đợi Admin, chỉ người tạo thấy; gửi duyệt sau bằng `POST /charity-campaigns/:id/submit`. Bỏ trống = gửi duyệt ngay (hành vi cũ). Đường Admin bỏ qua cờ này.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  submit?: boolean;
+
+  @ApiPropertyOptional({
     type: () => CharityBeneficiaryInputDto,
     description:
       'Người thụ hưởng — CHỈ cho `INDIVIDUAL_APPEAL` + `beneficiaryRelation = OTHER`. Dữ liệu này RIÊNG TƯ và không ra response công khai nào. Thiếu, hoặc đồng ý chưa `CONFIRMED`, thì hoạt động vào chờ duyệt.',
@@ -706,6 +715,39 @@ export class CharityCampaignResponseDto {
       'Chấp nhận đề nghị vượt mục tiêu từng dòng nhu cầu. Mặc định `false`.',
   })
   allowOverTarget: boolean;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: '`null` = NHÁP, chưa gửi duyệt.',
+  })
+  submittedAt: Date | null;
+
+  @ApiProperty({
+    enum: ['PLAN', 'EXECUTION', 'EVENT', 'SUMMARY'],
+    description:
+      'Giai đoạn vận hành HIỆU LỰC (Kế hoạch · Triển khai · Sự kiện trao · Tổng kết). Backend tính sẵn theo mốc thời gian — app không tự suy từ ngày.',
+  })
+  operationStage: string;
+
+  @ApiProperty({
+    enum: ['PLAN', 'EXECUTION', 'EVENT', 'SUMMARY'],
+    description:
+      'Giai đoạn đã GHI xuống DB. Có thể chậm hơn `operationStage` tới khi job `charity:advance-stage` chạy — app hiển thị theo `operationStage`.',
+  })
+  storedOperationStage: string;
+
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Khung thời gian bước trao (`DISTRIBUTION` trong tiến độ 4 bước): `startsAt` là mốc sang Sự kiện trao, `endsAt` là mốc sang Tổng kết. `null` khi chưa lập — khi đó dùng `endTime`.',
+    example: {
+      startsAt: '2026-11-20T01:00:00.000Z',
+      endsAt: '2026-11-20T10:00:00.000Z',
+    },
+  })
+  distribution: { startsAt: string; endsAt: string } | null;
 
   @ApiProperty({
     nullable: true,

@@ -418,12 +418,30 @@ export async function seedCharity(ctx: ISeedContext): Promise<void> {
     );
 
   // Người thụ hưởng — RIÊNG TƯ. Hoạt động 2 chưa đồng ý (chờ duyệt), 5 đã rút (đình chỉ).
+  //
+  // Từ migration 1802400000000 người thụ hưởng là dòng `is_appeal_subject` của
+  // `campaign_parties` (gộp bên thụ hưởng). Script kiểm migration theo pha seed trên schema
+  // CŨ hơn, nên ghi vào bảng nào đang tồn tại.
+  const [partiesTable] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.campaign_parties') IS NOT NULL AS ready`,
+  );
   for (const [campaignN, fullName, consent, organizer] of [
     [2, 'Nguyễn Thị B', 'PENDING', Personas.giver2],
     [5, 'Trần Văn C', 'PENDING', Personas.coordinator],
   ] as const)
     await ctx.q(
+      partiesTable?.ready
+        ? `
+        INSERT INTO campaign_parties (
+          campaign_id, name, relation_note, phone, address, consent_status,
+          verification_note, updated_by, role, beneficiary_kind, is_appeal_subject
+        )
+        VALUES ($1, $2, 'Hàng xóm, sống một mình', '0912000111', 'Hẻm 12, Quận 8',
+                $3, 'Đã gặp trực tiếp, có xác nhận của tổ dân phố', $4,
+                'BENEFICIARY', 'INDIVIDUAL', true)
+        ON CONFLICT (campaign_id) WHERE is_appeal_subject DO NOTHING
       `
+        : `
         INSERT INTO campaign_beneficiaries (
           campaign_id, full_name, relation_note, phone, address, consent_status,
           verification_note, updated_by

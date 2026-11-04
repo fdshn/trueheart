@@ -122,6 +122,7 @@ import {
 } from '@/domain/ports/repository';
 import {
   CharityApprovalStatus,
+  CharityCampaignType,
   CharityCapabilityByType,
   MaxCharityDescriptionLength,
   MaxCharityReviewCommentLength,
@@ -327,7 +328,18 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
     if (command.beneficiary && !forOther)
       throw new CharityBeneficiaryNotApplicableException();
 
-    let approvalStatus = await this.resolveApprovalStatus(command);
+    // Kiểm quyền TẠO trước, kể cả khi chỉ lưu nháp: người không được tạo thì cũng không
+    // được để lại hồ sơ nháp nào.
+    const resolvedStatus = await resolveCharityApprovalStatus(
+      this.entitlements,
+      this.admin,
+      command,
+    );
+    // Admin tạo trực tiếp thì không có nháp — họ là người duyệt.
+    const submitted = command.asAdmin || command.submit !== false;
+    let approvalStatus: CharityApprovalStatus = submitted
+      ? resolvedStatus
+      : 'PENDING_APPROVAL';
     // §2: kêu gọi cho người khác chưa có đồng ý CONFIRMED thì KHÔNG ra ngoài, kể cả với
     // người có quyền public ngay — quyền đó nói "nội dung của tôi không cần ai đọc
     // trước", không nói "tôi được đăng hoàn cảnh của người khác khi họ chưa đồng ý".
@@ -385,6 +397,7 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
         sortOrder: index,
       })),
       createdBy: command.actorUserId,
+      submitted,
       approvalStatus,
       // Admin tạo trực tiếp thì chính họ là người duyệt — `CHK_campaigns_approved_at` đòi
       // `approved_at` khác NULL khi trạng thái không còn chờ, nên để trống `approved_by`
@@ -394,47 +407,55 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
 
     return toView(campaign, false);
   }
+}
 
-  /**
-   * Ai được tạo, và hồ sơ vào trạng thái nào (BR-CHARITY-01).
-   *
-   * Hai đường, hai phép kiểm khác hẳn nhau: đường Admin hỏi `admin_role_permissions`,
-   * đường thành viên hỏi Rank Config. Không đường nào đọc `users.rank` trực tiếp.
-   */
-  private async resolveApprovalStatus(
-    command: ICreateCharityCampaignCommand,
-  ): Promise<CharityApprovalStatus> {
-    if (command.asAdmin) {
-      if (
-        !(await this.admin.hasPermission(command.actorUserId, WritePermission))
-      )
-        throw new ForbiddenException();
-      return 'APPROVED';
-    }
-
-    // Quyền TẠO khác nhau theo loại (F65b §2): kêu gọi cho cá nhân mở từ Thành
-    // viên, còn hoạt động có tổ chức chỉ Kim Cương. Tra bảng chứ không `if` theo
-    // rank — Rank là cấu hình động, một phép so rank trong mã là bản sao sẽ trôi.
-    const capability = await this.entitlements.getCapability(
-      command.actorUserId,
-      CharityCapabilityByType[command.campaignType],
-    );
-    // `null` là KHÔNG cho phép: thiếu hàng trong Rank Config nghĩa là chưa ai quyết định,
-    // và mặc định của một quyền chưa quyết định phải là đóng.
-    if (!capability?.allowed)
-      throw new CharityCampaignCreateNotAllowedException();
-
-    // Quyền PUBLIC NGAY là một câu hỏi khác: "nội dung có cần ai đọc trước khi ra
-    // ngoài không". Gộp nó vào quyền tạo là buộc mọi người được tạo cũng được
-    // public — và một kêu gọi quyên góp ra ngoài không qua ai đọc là đúng chỗ
-    // người ta lợi dụng.
-    const publishNow = await this.entitlements.getCapability(
-      command.actorUserId,
-      PublishCharityWithoutReviewCapability,
-    );
-
-    return publishNow?.allowed ? 'APPROVED' : 'PENDING_APPROVAL';
+/**
+ * Ai được tạo, và hồ sơ vào trạng thái nào (BR-CHARITY-01).
+ *
+ * Hai đường, hai phép kiểm khác hẳn nhau: đường Admin hỏi `admin_role_permissions`,
+ * đường thành viên hỏi Rank Config. Không đường nào đọc `users.rank` trực tiếp.
+ *
+ * Xuất ra để lượt GỬI DUYỆT bản nháp (`SubmitCharityCampaignUseCase`) quyết đúng một cách
+ * với lượt tạo — hai bản chép của phép kiểm này là chỗ để nháp được public ngay mà lượt tạo
+ * thì không.
+ */
+export async function resolveCharityApprovalStatus(
+  entitlements: IEntitlementRepository,
+  admin: IAdminConfigRepository,
+  command: {
+    actorUserId: string;
+    asAdmin: boolean;
+    campaignType: CharityCampaignType;
+  },
+): Promise<CharityApprovalStatus> {
+  if (command.asAdmin) {
+    if (!(await admin.hasPermission(command.actorUserId, WritePermission)))
+      throw new ForbiddenException();
+    return 'APPROVED';
   }
+
+  // Quyền TẠO khác nhau theo loại (F65b §2): kêu gọi cho cá nhân mở từ Thành
+  // viên, còn hoạt động có tổ chức chỉ Kim Cương. Tra bảng chứ không `if` theo
+  // rank — Rank là cấu hình động, một phép so rank trong mã là bản sao sẽ trôi.
+  const capability = await entitlements.getCapability(
+    command.actorUserId,
+    CharityCapabilityByType[command.campaignType],
+  );
+  // `null` là KHÔNG cho phép: thiếu hàng trong Rank Config nghĩa là chưa ai quyết định,
+  // và mặc định của một quyền chưa quyết định phải là đóng.
+  if (!capability?.allowed)
+    throw new CharityCampaignCreateNotAllowedException();
+
+  // Quyền PUBLIC NGAY là một câu hỏi khác: "nội dung có cần ai đọc trước khi ra
+  // ngoài không". Gộp nó vào quyền tạo là buộc mọi người được tạo cũng được
+  // public — và một kêu gọi quyên góp ra ngoài không qua ai đọc là đúng chỗ
+  // người ta lợi dụng.
+  const publishNow = await entitlements.getCapability(
+    command.actorUserId,
+    PublishCharityWithoutReviewCapability,
+  );
+
+  return publishNow?.allowed ? 'APPROVED' : 'PENDING_APPROVAL';
 }
 
 /**

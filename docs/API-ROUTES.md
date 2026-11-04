@@ -3,8 +3,8 @@
 > **File sinh tự động** bởi `npm run docs:routes` từ metadata của controller đã biên dịch.
 > Đừng sửa tay — sửa controller rồi chạy lại lệnh. CI chạy `docs:routes:check`.
 
-Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **332** route:
-47 công khai, 134 cần quyền Admin, 151 cần access token.
+Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **354** route:
+48 công khai, 135 cần quyền Admin, 171 cần access token.
 
 Mức truy cập: `Công khai` = không cần token; `Bearer` = cần access token (một số route còn
 kiểm chủ sở hữu hoặc quyền RBAC trong use case — xem `docs/API.md`); `perm:<mã>` = quyền Admin
@@ -101,6 +101,7 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `DELETE` | `/admin/charity-campaigns/:id` | perm:campaign.manage | Xoá một hoạt động từ thiện |
 | `PATCH` | `/admin/charity-campaigns/:id/active` | perm:campaign.manage | Bật hoặc tắt một hoạt động |
 | `PATCH` | `/admin/charity-campaigns/:id/approval` | perm:campaign.manage | Duyệt hoặc từ chối hồ sơ |
+| `PATCH` | `/admin/charity-campaigns/:id/limits` | perm:campaign.manage | Ghi đè giới hạn của một dự án |
 | `GET` | `/admin/charity-campaigns/:id/needs` | perm:campaign.read | Bảng nhu cầu vật phẩm cho CMS, mọi trạng thái duyệt |
 | `PATCH` | `/admin/charity-campaigns/:id/progress` | perm:campaign.manage | Admin cập nhật số phần quà đã trao |
 
@@ -399,6 +400,8 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | Method | Đường dẫn | Truy cập | Tóm tắt |
 | --- | --- | --- | --- |
 | `POST` | `/charity-campaigns` | Bearer | Gửi hồ sơ hoạt động từ thiện |
+| `POST` | `/charity-campaigns/:id/bank-accounts` | Bearer | Thêm (hoặc thay) tài khoản nhận |
+| `POST` | `/charity-campaigns/:id/bank-accounts/:accountId/close` | Bearer | Đóng tài khoản nhận |
 | `GET` | `/charity-campaigns/:id/beneficiary` | Bearer | Thông tin người thụ hưởng — RIÊNG TƯ (F65b §2) |
 | `PUT` | `/charity-campaigns/:id/beneficiary` | Bearer | Ghi thông tin người thụ hưởng (chỉ người tổ chức) |
 | `POST` | `/charity-campaigns/:id/close` | Bearer | Đóng hoạt động (người tổ chức hoặc Admin) — F65b §8 |
@@ -407,14 +410,33 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `GET` | `/charity-campaigns/:id/coordinators` | Bearer | Danh sách coordinator đang có hiệu lực |
 | `POST` | `/charity-campaigns/:id/coordinators` | Bearer | Giao quyền coordinator (chỉ người tổ chức) |
 | `DELETE` | `/charity-campaigns/:id/coordinators/:userId` | Bearer | Thu quyền coordinator (chỉ người tổ chức) |
+| `PUT` | `/charity-campaigns/:id/custom-sections` | Bearer | Thay form mở (mục và trường tuỳ biến) |
 | `POST` | `/charity-campaigns/:id/extend` | Bearer | Gia hạn hoạt động đang mở (người tổ chức hoặc Admin) — F65b §8 |
 | `GET` | `/charity-campaigns/:id/external-contributions` | Bearer | Lịch sử đóng góp ngoài app (người tổ chức) |
 | `POST` | `/charity-campaigns/:id/external-contributions` | Bearer | Ghi nhận vật phẩm nhận NGOÀI APP (F65b §7) |
+| `POST` | `/charity-campaigns/:id/funding-needs` | Bearer | Thêm hạng mục kêu gọi tiền |
+| `PATCH` | `/charity-campaigns/:id/funding-needs/:fundingNeedId` | Bearer | Sửa hạng mục kêu gọi tiền, ghi số đã nhận, đóng/mở |
+| `PATCH` | `/charity-campaigns/:id/item-needs/:needItemId` | Bearer | Đơn giá, tình trạng, nguồn cung, tiếp nhận của một dòng hiện vật |
 | `PUT` | `/charity-campaigns/:id/media` | Bearer | Thay cả bộ ảnh/video của hồ sơ đang chờ duyệt |
 | `POST` | `/charity-campaigns/:id/participation` | Bearer | Đăng ký tham gia |
 | `POST` | `/charity-campaigns/:id/participation/cancel` | Bearer | Huỷ đăng ký |
+| `PUT` | `/charity-campaigns/:id/parties` | Bearer | Thay danh sách đơn vị liên quan |
+| `PUT` | `/charity-campaigns/:id/phases` | Bearer | Thay tiến độ 4 bước |
+| `PUT` | `/charity-campaigns/:id/profile` | Bearer | Lời kêu gọi và loại kêu gọi tham gia |
 | `PATCH` | `/charity-campaigns/:id/progress` | Bearer | Cập nhật số phần quà đã trao |
 | `POST` | `/charity-campaigns/:id/reviews` | Bearer | Đánh giá sau hoạt động |
+| `PUT` | `/charity-campaigns/:id/sections/:sectionKey` | Bearer | Lưu một mục (A/B/C/D) |
+| `POST` | `/charity-campaigns/:id/sections/:sectionKey/publish` | Bearer | Công khai một mục |
+| `POST` | `/charity-campaigns/:id/stage` | Bearer | Chuyển giai đoạn |
+| `POST` | `/charity-campaigns/:id/submit` | Bearer | Gửi duyệt bản nháp |
+| `PUT` | `/charity-campaigns/:id/team` | Bearer | Thay ban tổ chức (6 vai trò) |
+| `POST` | `/charity-campaigns/:id/volunteer-needs` | Bearer | Thêm vị trí tuyển người |
+| `PATCH` | `/charity-campaigns/:id/volunteer-needs/:volunteerNeedId` | Bearer | Sửa vị trí tuyển người, đổi trạng thái OPEN/CLOSED/STARTED |
+| `POST` | `/charity-campaigns/:id/volunteer-needs/:volunteerNeedId/registrations` | Bearer | Đăng ký tham gia một vị trí |
+| `POST` | `/charity-campaigns/:id/volunteer-needs/:volunteerNeedId/registrations/:userId/confirm` | Bearer | Ban tổ chức xác nhận người tham gia |
+| `DELETE` | `/charity-campaigns/:id/volunteer-needs/:volunteerNeedId/registrations/me` | Bearer | Huỷ đăng ký của chính mình |
+| `GET` | `/charity-campaigns/:id/workspace` | Bearer | Workspace ban tổ chức |
+| `GET` | `/charity-campaigns/:idOrSlug/public` | Công khai | Bản công khai của dự án |
 | `GET` | `/charity-campaigns/joined` | Bearer | Hoạt động tôi đã đăng ký |
 | `POST` | `/charity-campaigns/media/upload` | Bearer | Xin URL tải ảnh/video cho hoạt động từ thiện |
 | `GET` | `/charity-campaigns/mine` | Bearer | Hồ sơ hoạt động tôi đã gửi |

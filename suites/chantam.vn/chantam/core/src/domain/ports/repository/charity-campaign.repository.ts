@@ -4,6 +4,7 @@ import {
   CharityCampaignType,
   CharityContributionStatus,
   CharityMediaType,
+  CharityOperationStage,
   CharityParticipationStatus,
   CharityRejectionReason,
   CharityReviewRole,
@@ -77,6 +78,20 @@ export interface ICharityCampaign {
   readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
   /** Lượt chấp nhận đề nghị được vượt mục tiêu từng dòng (§5). Mặc định `false`. */
   readonly allowOverTarget: boolean;
+  /**
+   * `null` = NHÁP (docs/plan/CHARITY-PROJECT-LIFECYCLE.md §3.1): chỉ người tạo thấy, Admin
+   * không thấy trong hàng đợi duyệt.
+   */
+  readonly submittedAt: Date | null;
+  /** Giai đoạn HIỆU LỰC lúc đọc (`effectiveOperationStage`) — mobile không tự suy từ ngày. */
+  readonly operationStage: CharityOperationStage;
+  /** Giai đoạn đã ghi xuống — job `charity:advance-stage` đưa cột này bắt kịp `operationStage`. */
+  readonly storedOperationStage: CharityOperationStage;
+  /** Bước trao (`campaign_phases.DISTRIBUTION`) — mốc nhảy sang EVENT và sang SUMMARY. */
+  readonly distribution: {
+    readonly startsAt: Date;
+    readonly endsAt: Date;
+  } | null;
 }
 
 /**
@@ -155,6 +170,8 @@ export interface ICreateCharityCampaignParams {
   readonly campaignType: CharityCampaignType;
   readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
   readonly allowOverTarget: boolean;
+  /** `false` = lưu NHÁP: `submitted_at` NULL, `approvalStatus` phải là PENDING_APPROVAL. */
+  readonly submitted: boolean;
   /** Người thụ hưởng, ghi cùng transaction. Chỉ có ở kêu gọi cho NGƯỜI KHÁC. */
   readonly beneficiary: ICharityBeneficiaryInput | null;
   /**

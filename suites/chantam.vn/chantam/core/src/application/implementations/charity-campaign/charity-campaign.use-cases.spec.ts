@@ -93,6 +93,10 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     campaignType: 'ORGANIZED_CAMPAIGN' as const,
     beneficiaryRelation: null,
     allowOverTarget: false,
+    submittedAt: new Date(),
+    operationStage: 'EXECUTION' as const,
+    storedOperationStage: 'EXECUTION' as const,
+    distribution: null,
     ...overrides,
   };
 }

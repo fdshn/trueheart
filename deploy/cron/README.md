@@ -38,6 +38,7 @@ người dùng lúc 3 giờ chiều, và `post:expire` cắt ngày lệch 7 ti�
 | --- | --- | --- |
 | `:19` mỗi giờ | `point:reconcile` | hằng giờ |
 | mỗi 5 phút | `notify:broadcast` | gửi hàng loạt Admin đã xếp hàng |
+| mỗi 10 phút | `charity:advance-stage` | ghi xuống giai đoạn dự án từ thiện đã tới mốc |
 | `:37` mỗi giờ | `selection:auto-select` | hằng giờ |
 | 00:05 ngày 1 | `leaderboard:close-month` | hằng tháng |
 | 00:11 | `post:expire` | hằng ngày |

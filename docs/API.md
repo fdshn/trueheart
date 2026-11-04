@@ -2696,3 +2696,93 @@ tại → `ATTRIBUTION_TARGET_NOT_FOUND`.
 - `/.well-known/apple-app-site-association` và `/.well-known/assetlinks.json`: trả 200, đúng
   content type, không redirect; cần Team ID và bundle id iOS, package và SHA-256 chứng chỉ ký
   Android.
+
+## 18. Dự án từ thiện 4 giai đoạn — đợt 1 (04/11/2026)
+
+Thiết kế và 9 quyết định đã chốt ở
+[CHARITY-PROJECT-LIFECYCLE](./plan/CHARITY-PROJECT-LIFECYCLE.md). Đợt 1 gồm hồ sơ tab A, nháp,
+giai đoạn vận hành, ba nhóm nhu cầu (tiền, hiện vật, người), trạng thái từng mục, form mở,
+workspace ban tổ chức và bản công khai. Danh sách route đầy đủ ở [`API-ROUTES.md`](./API-ROUTES.md)
+(nhóm `/charity-campaigns`).
+
+**Bốn mục / giai đoạn** (`operationStage`): `PLAN` Kế hoạch · `EXECUTION` Triển khai · `EVENT`
+Sự kiện trao · `SUMMARY` Tổng kết. **Backend tính sẵn** — app nhảy tab theo `operationStage`,
+không tự suy từ ngày:
+
+- được duyệt (hoặc công khai ngay) → `EXECUTION`;
+- tới `DISTRIBUTION.startsAt` của tiến độ 4 bước → `EVENT`;
+- qua `DISTRIBUTION.endsAt` (chưa lập bước trao thì `endTime`) → `SUMMARY`.
+
+Job `charity:advance-stage` (10 phút/lần) ghi xuống và lưu nhật ký; lượt đọc vẫn đúng khi job trễ.
+Mọi response chiến dịch có thêm `submittedAt` (`null` = nháp), `operationStage` (hiệu lực — dùng
+cái này), `storedOperationStage` (đã ghi, có thể chậm) và `distribution` (`{ startsAt, endsAt }`
+của bước trao, `null` khi chưa lập) để app đếm ngược.
+
+| Method | Đường dẫn | Ai | Mô tả |
+| --- | --- | --- | --- |
+| `POST` | `/charity-campaigns` | (như cũ) | Thêm `submit: false` để **lưu nháp**: chưa xét duyệt, không vào hàng đợi Admin. Bỏ trống = gửi ngay (app cũ không đổi) |
+| `POST` | `/charity-campaigns/:id/submit` | Người tạo | Gửi duyệt nháp: có `PUBLISH_CHARITY_WITHOUT_REVIEW` thì công khai ngay + `EXECUTION`, không thì chờ duyệt. Không còn là nháp → `CHARITY_PROJECT_NOT_DRAFT` |
+| `GET` | `/charity-campaigns/:id/workspace` | Người tạo, coordinator, Admin `campaign.read` | Mọi thứ nội bộ + `sections` (trạng thái từng mục) + `capabilities` |
+| `GET` | `/charity-campaigns/:idOrSlug/public` | Công khai | Bản công khai (xem dưới) |
+| `POST` | `/charity-campaigns/:id/stage` | Người tạo, coordinator, Admin | `{ stage: { to, reason? } }` — tiến **một** bước sớm hơn lịch, hoặc lùi (bắt buộc `reason`) |
+| `PUT` | `/charity-campaigns/:id/profile` | Người tạo, Admin | `{ profile: { appealPurpose, appealAudience, appealCircumstance, callToActions } }` |
+| `PUT` | `/charity-campaigns/:id/parties` | Người tạo, Admin | `{ parties: [...] }` — đơn vị tổ chức / thụ hưởng / cấp phép / truyền thông; dòng có `partyId` giữ id |
+| `POST` | `/charity-campaigns/:id/bank-accounts` | Người tạo, Admin | `{ bankAccount: { bankName, accountNo, accountName, label?, replacesAccountId?, replaceReason? } }` |
+| `POST` | `/charity-campaigns/:id/bank-accounts/:accountId/close` | Người tạo, Admin | `{ close: { reason } }` |
+| `PUT` | `/charity-campaigns/:id/team` | Người tạo, Admin | `{ team: [...] }` — ban tổ chức 6 vai trò |
+| `PUT` | `/charity-campaigns/:id/phases` | Người tạo, Admin | `{ phases: [...] }` — `PLANNING`→`PREPARATION`→`DISTRIBUTION`→`REPORTING`, không chồng |
+| `PATCH` | `/charity-campaigns/:id/item-needs/:needItemId` | Người tạo, Admin | `{ itemNeed: { unitPrice, itemCondition, supplySource, intakeDeadline, dropoffAddress, receiverName, intakeStatus, … } }` |
+| `POST`/`PATCH` | `/charity-campaigns/:id/funding-needs[/:fundingNeedId]` | Người tạo, Admin | `{ fundingNeed: { title, targetAmount, bankAccountId?, beneficiaryPartyId?, … } }`; PATCH nhận thêm `confirmedAmount`, `externalAmount`, `status` |
+| `POST`/`PATCH` | `/charity-campaigns/:id/volunteer-needs[/:volunteerNeedId]` | Người tạo, Admin | `{ volunteerNeed: { title, neededCount, … } }`; PATCH nhận `status` `OPEN`/`CLOSED`/`STARTED` |
+| `POST` | `/charity-campaigns/:id/volunteer-needs/:volunteerNeedId/registrations` | Bearer | Đăng ký tham gia (body tuỳ chọn `{ registration: { note } }`) |
+| `DELETE` | `…/registrations/me` | Bearer | Huỷ đăng ký của mình — được cả khi sự kiện đang diễn ra |
+| `POST` | `…/registrations/:userId/confirm` | Người tạo, coordinator, Admin | Xác nhận người tham gia |
+| `PUT` | `/charity-campaigns/:id/sections/:sectionKey` | Người tạo, Admin | Lưu một mục (`READY`) — **không** tự công khai |
+| `POST` | `/charity-campaigns/:id/sections/:sectionKey/publish` | Người tạo, Admin | Công khai: chụp nội dung công khai lúc này |
+| `PUT` | `/charity-campaigns/:id/custom-sections` | Người tạo, Admin | `{ customSections: [...] }` — form mở |
+| `PATCH` | `/admin/charity-campaigns/:id/limits` | `campaign.manage` | `{ limits: { maxBankAccounts, reason } }` — ghi đè số tài khoản nhận cho một dự án |
+
+**Quyền.** Sửa hồ sơ là người tạo hoặc Admin `campaign.manage` (coordinator điều phối, không đổi
+nội dung — đúng quy tắc sẵn có). Dự án đã đóng hoặc bị đình chỉ: chỉ Admin sửa
+(`CHARITY_PROJECT_INACTIVE`). Không có vai nào với dự án → `CHARITY_CAMPAIGN_NOT_FOUND` (không lộ
+nháp của người khác). Có vai mà không đủ quyền → `CHARITY_PROJECT_FORBIDDEN`.
+
+**Giai đoạn.** Không quay về `PLAN`; tiến chỉ một bước; lùi phải có lý do và lịch hiện tại không
+được đẩy dự án tới lại ngay (`CHARITY_STAGE_SCHEDULE_CONFLICT` — sửa bước trao trước). Hai người
+cùng chuyển → người sau nhận `CHARITY_STAGE_TRANSITION_INVALID`.
+
+**Bên thụ hưởng — đã gộp (chốt §7.5).** Một nơi lưu là `parties` với `role: BENEFICIARY`.
+Người thụ hưởng của kêu gọi cá nhân (có đồng ý, xác minh) vẫn quản lý qua
+`GET|PUT /charity-campaigns/:id/beneficiary` như cũ; trong `parties` nó là dòng
+`isAppealSubject: true` và `PUT :id/parties` không bao giờ chạm dòng đó. Coordinator không thấy
+dòng này trong workspace.
+
+**Tài khoản nhận.** App không giữ tiền. Không sửa số tài khoản tại chỗ: thay = gửi
+`replacesAccountId` (đóng cũ + tạo mới trong một lượt). Số tài khoản ĐANG hiệu lực tối đa:
+`charity.max_bank_accounts_per_campaign` (mặc định 2), Admin ghi đè từng dự án; vượt →
+`CHARITY_BANK_ACCOUNT_LIMIT`.
+
+**Hiện vật.** Mỗi dòng trả `registeredQuantity` (đề nghị chờ quyết), `approvedQuantity`,
+`receivedInAppQuantity`, `receivedExternalQuantity`, `remainingQuantity`.
+
+**Tuyển người.** Đăng ký cần ít nhất một đóng góp của dự án đã được chấp nhận
+(`CHARITY_VOLUNTEER_NOT_ELIGIBLE`). Không nhận đăng ký mới khi vị trí đóng/bắt đầu/đủ người hoặc
+từ khi bước trao bắt đầu (`CHARITY_VOLUNTEER_CLOSED`). Suất cuối hai người tranh song song thì
+đúng một người được.
+
+**Trạng thái từng mục** (`sections[]` trong workspace): `EMPTY` · `DRAFT` (có nội dung, chưa lưu)
+· `READY` (đã lưu) · `PUBLISHED`. Đợt 1, mục Kế hoạch luôn có nội dung; mục B/C/D chỉ có nội dung
+khi có form mở (checklist, timeline, tổng kết đến ở đợt 2–4). Công khai mục rỗng →
+`CHARITY_SECTION_EMPTY`.
+
+**Bản công khai** (`GET /charity-campaigns/:idOrSlug/public`): chỉ dự án đã duyệt và đang hoạt
+động. Mục chưa công khai trả `published: false` (chưa cập nhật), không lộ nháp; mục đã công khai
+trả **bản chụp** lúc publish. Mục Kế hoạch công khai gồm lời kêu gọi, đơn vị liên quan (bên thụ
+hưởng chỉ tên và loại), ban tổ chức, tiến độ, form mở `PUBLIC`. Số nhu cầu là số **sống**; chỉ
+tài khoản đang hiệu lực; không có người nhận hàng hay thông tin người thụ hưởng cá nhân. Gửi kèm
+token thì có `myVolunteerRegistrations`.
+
+**Chưa có ở đợt 1:** revisions chữ đỏ và changelog, checklist tab B, nhắc 48 giờ, timeline tab C,
+bài ảnh/clip và quota, tổng kết tab D, chấm mức hoàn thành, khiếu nại, thích/bình luận/quan tâm,
+báo cáo vi phạm chiến dịch, điểm theo giá trị, thông báo chuyển giai đoạn, in PDF, card Home,
+nickname công khai (§3.3–§3.10, §3.13–§3.17 của tài liệu thiết kế).

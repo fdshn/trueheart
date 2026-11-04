@@ -140,3 +140,4 @@ export * from './1802000000000-AddShowOnlineStatus';
 export * from './1802100000000-CreateUserBlocks';
 export * from './1802200000000-AddDirectUserChat';
 export * from './1802300000000-CreateAttribution';
+export * from './1802400000000-CharityProjectProfile';

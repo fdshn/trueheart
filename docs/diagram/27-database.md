@@ -67,7 +67,7 @@ flowchart TB
     end
     subgraph CP["Chiến dịch từ thiện"]
         CP1[campaigns]
-        CP2["campaign_need_items · campaign_media<br/>campaign_participations · campaign_coordinators<br/>campaign_beneficiaries"]
+        CP2["campaign_need_items · campaign_media<br/>campaign_participations · campaign_coordinators<br/>campaign_parties · campaign_bank_accounts · campaign_team_members<br/>campaign_phases · campaign_stage_events · campaign_funding_needs<br/>campaign_volunteer_needs · campaign_volunteer_registrations<br/>campaign_section_states · campaign_custom_sections · campaign_custom_fields"]
         CP3["campaign_contributions · campaign_contribution_items"]
         CP4["campaign_deliveries · campaign_delivery_items<br/>campaign_external_contributions"]
         CP5["campaign_schedule_changes · campaign_reviews"]

@@ -147,3 +147,55 @@ export class CharityMediaNotEditableException extends ExceptionFrom(
 export class CharityCampaignHasActivityException extends ExceptionFrom(
   CoreErrors.CHARITY_CAMPAIGN_HAS_ACTIVITY,
 ) {}
+
+export class CharityProjectNotDraftException extends ExceptionFrom(
+  CoreErrors.CHARITY_PROJECT_NOT_DRAFT,
+) {}
+
+export class CharityStageTransitionInvalidException extends ExceptionFrom(
+  CoreErrors.CHARITY_STAGE_TRANSITION_INVALID,
+) {}
+
+export class CharityStageScheduleConflictException extends ExceptionFrom(
+  CoreErrors.CHARITY_STAGE_SCHEDULE_CONFLICT,
+) {}
+
+export class CharityBankAccountLimitException extends ExceptionFrom(
+  CoreErrors.CHARITY_BANK_ACCOUNT_LIMIT,
+) {}
+
+export class CharityBankAccountNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_BANK_ACCOUNT_NOT_FOUND,
+) {}
+
+export class CharityFundingNeedNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_FUNDING_NEED_NOT_FOUND,
+) {}
+
+export class CharityVolunteerNeedNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_VOLUNTEER_NEED_NOT_FOUND,
+) {}
+
+export class CharityVolunteerNotEligibleException extends ExceptionFrom(
+  CoreErrors.CHARITY_VOLUNTEER_NOT_ELIGIBLE,
+) {}
+
+export class CharityVolunteerClosedException extends ExceptionFrom(
+  CoreErrors.CHARITY_VOLUNTEER_CLOSED,
+) {}
+
+export class CharityVolunteerRegistrationNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_VOLUNTEER_REGISTRATION_NOT_FOUND,
+) {}
+
+export class CharitySectionEmptyException extends ExceptionFrom(
+  CoreErrors.CHARITY_SECTION_EMPTY,
+) {}
+
+export class CharityProjectInactiveException extends ExceptionFrom(
+  CoreErrors.CHARITY_PROJECT_INACTIVE,
+) {}
+
+export class CharityProjectForbiddenException extends ExceptionFrom(
+  CoreErrors.CHARITY_PROJECT_FORBIDDEN,
+) {}

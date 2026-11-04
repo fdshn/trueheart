@@ -6,6 +6,7 @@ import { AuthUseCaseModule } from './implementations/auth/auth.module';
 import { BlogUseCaseModule } from './implementations/blog/blog.module';
 import { CategoryModule } from './implementations/category/category.module';
 import { CharityCampaignUseCaseModule } from './implementations/charity-campaign/charity-campaign.module';
+import { CharityProjectModule } from './implementations/charity-project/charity-project.module';
 import { ChatModule } from './implementations/chat/chat.module';
 import { CheckInModule } from './implementations/check-in/check-in.module';
 import { DharmaUseCaseModule } from './implementations/dharma/dharma.module';
@@ -51,6 +52,7 @@ import { UserBlockModule } from './implementations/user-block/user-block.module'
     ReviewModule,
     BlogUseCaseModule,
     CharityCampaignUseCaseModule,
+    CharityProjectModule,
     SponsorBannerUseCaseModule,
     MeritUseCaseModule,
     DharmaUseCaseModule,
