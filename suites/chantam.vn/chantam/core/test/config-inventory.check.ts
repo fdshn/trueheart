@@ -55,6 +55,8 @@ import {
   AbusiveModerationCorpus,
   AllocationPolicyConfigKey,
   CharityMaxBankAccountsConfigKey,
+  CharityPostDailyImageQuotaConfigKey,
+  CharityPostDailyVideoQuotaConfigKey,
   ChatRetentionConfigKey,
   GiftValueBonusMaxValueConfigKey,
   GiverAccuracyConfigKey,
@@ -134,6 +136,8 @@ const RequiredKeys: readonly string[] = [
   DirectUserDailyLimitConfigKey,
   // Dự án từ thiện — `CharityProjectAccess.maxBankAccounts` đọc.
   CharityMaxBankAccountsConfigKey,
+  CharityPostDailyImageQuotaConfigKey,
+  CharityPostDailyVideoQuotaConfigKey,
 ];
 
 /**

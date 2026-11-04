@@ -8,6 +8,7 @@ import {
   ICategoryRepository,
   ICharityCampaignRepository,
   ICharityEngagementRepository,
+  ICharityEventRepository,
   ICharityProjectRepository,
   IChatRepository,
   ICheckInRepository,
@@ -57,6 +58,7 @@ import { BlogRepository } from './blog.repository';
 import { CategoryRepository } from './category.repository';
 import { CharityCampaignRepository } from './charity-campaign.repository';
 import { CharityEngagementRepository } from './charity-engagement.repository';
+import { CharityEventRepository } from './charity-event.repository';
 import { CharityProjectRepository } from './charity-project.repository';
 import { ChatRepository } from './chat.repository';
 import { CheckInRepository } from './check-in.repository';
@@ -132,6 +134,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
       provide: ICharityEngagementRepository,
       useClass: CharityEngagementRepository,
     },
+    { provide: ICharityEventRepository, useClass: CharityEventRepository },
     {
       provide: ISponsorBannerRepository,
       useClass: SponsorBannerRepository,
@@ -231,6 +234,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     ICharityCampaignRepository,
     ICharityProjectRepository,
     ICharityEngagementRepository,
+    ICharityEventRepository,
     ISponsorBannerRepository,
     IMeritRepository,
     IDharmaRepository,

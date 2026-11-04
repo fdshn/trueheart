@@ -205,7 +205,19 @@ function make(
     ),
   };
   const access = new CharityProjectAccess(campaigns as never, admin as never);
-  return { campaigns, admin, projects, entitlements, access, engagement };
+  const events = {
+    ensureEventSteps: jest.fn(async (..._args: unknown[]) => undefined),
+    listEventSteps: jest.fn(async () => []),
+  };
+  return {
+    campaigns,
+    admin,
+    projects,
+    entitlements,
+    access,
+    engagement,
+    events,
+  };
 }
 
 describe('CharityProjectAccess', () => {
@@ -644,6 +656,7 @@ describe('Workspace và bản công khai', () => {
       coordinator.access,
       coordinator.projects as never,
       coordinator.engagement as never,
+      coordinator.events as never,
     ).handle({
       userId: Coordinator,
       campaignId: CampaignId,
@@ -657,6 +670,7 @@ describe('Workspace và bản công khai', () => {
       owner.access,
       owner.projects as never,
       owner.engagement as never,
+      owner.events as never,
     ).handle({
       userId: Owner,
       campaignId: CampaignId,
@@ -686,6 +700,7 @@ describe('Workspace và bản công khai', () => {
       deps.campaigns as never,
       deps.projects as never,
       deps.engagement as never,
+      deps.events as never,
     ).handle({
       idOrSlug: 'mua-dong-am',
       userId: null,

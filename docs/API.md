@@ -2851,5 +2851,55 @@ font DejaVu Sans (đủ dấu tiếng Việt).
 khai → `CHARITY_SECTION_NOT_PUBLISHED`) — web landing cần phục vụ đường này. Mỗi lượt được đếm
 vào `internal-stats.shares`.
 
-**Chưa có ở đợt 2:** timeline tab C, bài ảnh/clip và quota, realtime (đợt 3); tổng kết tab D,
-chấm mức hoàn thành, khiếu nại, điểm theo giá trị, card Home, nickname công khai (đợt 4).
+### 18.3 Đợt 3 — timeline sự kiện trao, bài ảnh/clip, quota, realtime
+
+| Method | Đường dẫn | Ai | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/charity-campaigns/:idOrSlug/event-steps` | Công khai | Timeline 10 bước **sống** (không phải bản chụp). Cũng có trong `workspace.eventSteps` và `public.eventSteps` |
+| `PATCH` | `/charity-campaigns/:id/event-steps/:stepId` | Người tạo, coordinator, Admin | `{ step: { status, plannedAt, actualAt, note } }` — `DONE` không gửi `actualAt` thì lấy giờ hiện tại |
+| `GET` | `/charity-campaigns/:id/event-contributors` | Người tạo, coordinator, Admin `campaign.read` | `{ contributors, candidates }` — `candidates` là người đủ điều kiện chưa được cấp |
+| `PUT` | `/charity-campaigns/:id/event-contributors/:userId` | Người tạo, coordinator, Admin | `{ contributor: { active } }` — cấp / thu hồi cộng tác viên sự kiện |
+| `GET` | `/charity-campaigns/:id/posts/quota` | Bearer | `{ quota: { role, canPost, image: { used, limit }, video: {…}, windowStartsAt } }` |
+| `POST` | `/charity-campaigns/:id/posts/media/upload` | Người đăng được | `{ upload: { contentType, contentLength } }` → `{ upload, quota }`. Kiểm quyền + quota TRƯỚC khi ký |
+| `POST` | `/charity-campaigns/:id/posts` | Người đăng được | `{ post: { body?, mediaKeys? } }` — cần nội dung hoặc ≥ 1 tệp, tối đa 10 tệp |
+| `GET` | `/charity-campaigns/:idOrSlug/posts` | Công khai | Mới nhất trước, `?before=&limit=`; bài gỡ/ẩn không hiện |
+| `DELETE` | `/charity-campaigns/:id/posts/:postId` | Tác giả; ban tổ chức, coordinator, Admin | Gỡ bài |
+| `PUT`/`DELETE` | `/charity-campaigns/:id/posts/:postId/reactions/me` | Bearer | Cảm xúc cho từng bài |
+| `GET` | `/charity-campaigns/:id/posts/:postId/reactions` | Công khai | |
+| `GET`/`POST` | `/charity-campaigns/:id/posts/:postId/comments` | Công khai / Bearer | Bình luận từng bài (+ `comment-media/upload-url`) |
+| `POST` | `/reports` | Bearer | `targetType: CHARITY_CAMPAIGN_POST` — kết luận đúng thì bài bị ẩn (audit `HIDE_CHARITY_CAMPAIGN_POST`) |
+
+**Ai đăng được bài.** Người tạo dự án, coordinator, Admin `campaign.manage`: mọi giai đoạn sau
+khi duyệt (`authorRole` `ORGANIZER`/`COORDINATOR`). Người dùng thường: chỉ khi ban tổ chức cấp
+**cộng tác viên sự kiện** — cấp được cho người có đóng góp được chấp nhận VÀ đăng ký tham gia còn
+hiệu lực — và chỉ khi dự án đang ở **Sự kiện trao** (`PARTICIPANT`). Dự án đình chỉ: không ai đăng.
+
+**Quota** (chốt §7.6): 5 clip + 5 ảnh / người / ngày (giờ Việt Nam) / **dự án**; Admin chỉnh
+`charity.post_daily_video_quota`, `charity.post_daily_image_quota` (0 = tắt loại đó). Mỗi lượt
+**ký đường tải** tính một suất (ký rồi bỏ cũng tính — không thì ký vô hạn để né); hết suất →
+`CHARITY_POST_QUOTA_EXCEEDED` (HTTP 429). Mỗi `key` chỉ dùng cho một bài, phải là lượt ký của
+chính người đăng cho chính dự án đó (`CHARITY_POST_MEDIA_INVALID`). Dung lượng/định dạng như ảnh
+hồ sơ dự án. Tệp ký mà không đăng bị job dọn media xoá sau 24 giờ.
+
+**Realtime** — Socket.io namespace **`/charity`** (cùng cổng HTTP, như `/chat`):
+
+1. Kết nối kèm access token (`auth: { token }` hoặc header `Authorization: Bearer`). Khách không
+   đăng nhập không nối được — trang công khai polling 30–60 giây. Tối đa 5 kết nối / người /
+   instance.
+2. `emit('project:join', { campaignId, scope: 'public' | 'workspace' })` → `{ joined }`.
+   `public`: dự án đang hiện ra ngoài. `workspace`: người tạo, coordinator, Admin `campaign.read`.
+   `project:leave` để rời.
+3. Nhận `project:changed` `{ campaignId, sections, version }` — `sections` ⊂ `STAGE` ·
+   `TIMELINE` · `POSTS` · `CHECKLIST` · `CONTRIBUTORS`. **Không mang dữ liệu**: gọi lại REST của
+   phần đó (`STAGE` → `public`/`workspace`, `TIMELINE` → `event-steps`, `POSTS` → `posts`,
+   `CHECKLIST` → `tasks`, `CONTRIBUTORS` → `event-contributors`). Gộp tối đa 1 tín hiệu / giây /
+   dự án; `CHECKLIST`, `CONTRIBUTORS` chỉ tới phòng workspace.
+4. Mất kết nối / app vào nền: nối lại xong thì gọi lại REST — tín hiệu là gợi ý, REST là nguồn
+   sự thật. Chuyển giai đoạn do job (`charity:advance-stage`) không phát tín hiệu; người theo
+   dõi nhận push `CHARITY_STAGE_CHANGED`.
+
+Nhiều instance core: Socket.io dùng Redis adapter (cả chat lẫn `/charity`); Redis không nối được
+lúc khởi động thì về chế độ một instance kèm cảnh báo.
+
+**Chưa có ở đợt 3:** tổng kết tab D, báo cáo tài chính, chấm mức hoàn thành, khiếu nại, điểm
+theo giá trị và theo ảnh/clip, card Home, nickname công khai (đợt 4).

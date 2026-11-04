@@ -146,7 +146,14 @@ async function main(): Promise<void> {
        VALUES (gen_random_uuid(), $1, 'CHARITY_CAMPAIGN', $2, 'SCAM', 'Báo thử trước khi lùi migration')`,
       [Giver, Live],
     );
-    await dataSource.undoLastMigration();
+    // Lùi tới TRƯỚC migration đợt 2 — các migration sau nó lùi theo.
+    for (;;) {
+      const [last] = await sql(
+        `SELECT name FROM migrations ORDER BY id DESC LIMIT 1`,
+      );
+      await dataSource.undoLastMigration();
+      if (last.name === 'CharityProjectEngagement1802500000000') break;
+    }
     const [{ reactions }] = await sql(
       `SELECT count(*)::int AS reactions FROM content_reactions`,
     );

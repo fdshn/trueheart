@@ -4,11 +4,11 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { IoAdapter } from '@nestjs/platform-socket.io';
 import { Logger } from 'nestjs-pino';
 import 'reflect-metadata';
 import { AppModule } from './app.module';
 import { IConfig } from './domain/ports/config';
+import { RedisIoAdapter } from './infrastructure/realtime/redis-io.adapter';
 
 /** Chữ ký callback của bộ phân tích content-type trong Fastify. */
 type DoneFn = (error: Error | null, body?: unknown) => void;
@@ -65,7 +65,12 @@ async function bootstrap(): Promise<void> {
   //
   // `setGlobalPrefix` KHÔNG áp cho WebSocket, nên namespace là `/chat` chứ
   // không phải `/api/v1/chat`.
-  app.useWebSocketAdapter(new IoAdapter(app));
+  //
+  // Redis adapter (CHARITY-PROJECT-LIFECYCLE §3.15): phát được tới socket ở MỌI instance.
+  // Redis không nối được thì adapter tự quay về chế độ một instance.
+  const socketAdapter = new RedisIoAdapter(app);
+  await socketAdapter.connect(app.get<IConfig>(IConfig).redis.uri);
+  app.useWebSocketAdapter(socketAdapter);
 
   // Trao instance ứng dụng cho DI container TRƯỚC khi listen — đây là cửa sổ
   // duy nhất mà SwaggerModule.setup() còn kịp gắn route.

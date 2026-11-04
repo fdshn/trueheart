@@ -6,6 +6,7 @@ import {
   ICharityCustomSection,
   ICharityCustomSectionInput,
   ICharityEngagementCounters,
+  ICharityEventStep,
   ICharityFundingNeed,
   ICharityFundingNeedInput,
   ICharityItemNeed,
@@ -77,6 +78,8 @@ export interface ICharityWorkspace {
   customSections: ICharityCustomSection[];
   /** Checklist tab B — rỗng tới khi dự án được duyệt (§3.4). */
   tasks: ICharityTask[];
+  /** Timeline tab C — rỗng tới khi dự án được duyệt (§3.5). */
+  eventSteps: (ICharityEventStep & { label: string })[];
   /** Mọi field đã sửa kể từ lúc duyệt, kể cả field riêng tư (§3.3). */
   changedFields: ICharityChangedField[];
   counters: ICharityEngagementCounters;
@@ -113,6 +116,8 @@ export interface ICharityPublicProject {
   myVolunteerRegistrations: ICharityVolunteerRegistration[] | null;
   /** Field CÔNG KHAI đã sửa kể từ lúc duyệt — app tô đỏ (§3.3). */
   changedFields: ICharityChangedField[];
+  /** Timeline SỐNG của sự kiện trao (§3.5). */
+  eventSteps: (ICharityEventStep & { label: string })[];
   counters: ICharityEngagementCounters;
   /** `null` khi không đăng nhập. */
   isFollowing: boolean | null;

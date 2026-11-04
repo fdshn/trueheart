@@ -61,6 +61,11 @@ const ExpectedPublicRoutes = [
   'GET /charity-campaigns/:idOrSlug/public-stats',
   'GET /charity-campaigns/:id/reactions',
   'GET /charity-campaigns/:id/comments',
+  // Đợt 3: timeline sống, bài ảnh/clip và tương tác từng bài — cùng quy tắc đọc.
+  'GET /charity-campaigns/:idOrSlug/event-steps',
+  'GET /charity-campaigns/:idOrSlug/posts',
+  'GET /charity-campaigns/:id/posts/:postId/reactions',
+  'GET /charity-campaigns/:id/posts/:postId/comments',
   'GET /dharma/contents',
   'GET /dharma/contents/:idOrSlug',
   'GET /dharma/dedications',

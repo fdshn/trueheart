@@ -24,6 +24,7 @@ export async function seedCharityProject(ctx: ISeedContext): Promise<void> {
   );
   if (!seeded) await seedProfile(ctx, campaignId);
   await seedEngagement(ctx, campaignId);
+  await seedEvent(ctx, campaignId);
 }
 
 async function seedProfile(
@@ -227,5 +228,79 @@ async function seedEngagement(
              jsonb_build_object('title', 'Áo ấm cho học sinh vùng cao', 'sections', '[]'::jsonb),
              $2)`,
     [campaignId, Personas.organizer],
+  );
+}
+
+/**
+ * Đợt 3 (§3.5): timeline đang chạy dở, một cộng tác viên sự kiện, hai bài (một của ban tổ chức
+ * có ảnh, một của cộng tác viên), một lượt ký đã dùng và một lượt ký bỏ dở.
+ */
+async function seedEvent(ctx: ISeedContext, campaignId: string): Promise<void> {
+  const [schema] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.campaign_post_uploads') IS NOT NULL AS ready`,
+  );
+  if (!schema?.ready) return;
+  const [seeded] = await ctx.q(
+    `SELECT 1 FROM campaign_event_steps WHERE campaign_id = $1 LIMIT 1`,
+    [campaignId],
+  );
+  if (seeded) return;
+
+  for (const [index, key] of [
+    'GATHER',
+    'BRIEFING',
+    'TRAVEL',
+    'REST_STOP',
+    'ARRIVE',
+    'MEET_LOCAL_AUTHORITY',
+    'MEET_RECIPIENTS',
+    'DISTRIBUTE',
+    'WRAP_UP',
+    'RETURN',
+  ].entries())
+    await ctx.q(
+      `INSERT INTO campaign_event_steps
+         (campaign_id, step_key, sort_order, status, actual_at, planned_at, updated_by)
+       VALUES ($1, $2, $3::smallint,
+               CASE WHEN $5::int < 3 THEN 'DONE' WHEN $5::int = 3 THEN 'IN_PROGRESS' ELSE 'PENDING' END,
+               CASE WHEN $5::int < 3 THEN now() - make_interval(hours => 5 - $5::int) END,
+               now() + make_interval(hours => $5::int - 3), $4)`,
+      [campaignId, key, index, Personas.organizer, index],
+    );
+
+  await ctx.q(
+    `INSERT INTO campaign_event_contributors (campaign_id, user_id, granted_by)
+     VALUES ($1, $2, $3)`,
+    [campaignId, Personas.giver, Personas.organizer],
+  );
+
+  const organizerKey = `users/${Personas.organizer}/campaign-media/seed-event-1.webp`;
+  const abandonedKey = `users/${Personas.giver}/campaign-media/seed-event-abandoned.webp`;
+  await ctx.q(
+    `INSERT INTO campaign_post_uploads (campaign_id, user_id, storage_key, media_type, consumed_at)
+     VALUES ($1, $2, $3, 'IMAGE', now()), ($1, $4, $5, 'IMAGE', NULL)`,
+    [
+      campaignId,
+      Personas.organizer,
+      organizerKey,
+      Personas.giver,
+      abandonedKey,
+    ],
+  );
+  const [post] = await ctx.q<{ global_id: string }>(
+    `INSERT INTO campaign_posts (campaign_id, author_id, author_role, stage, body)
+     VALUES ($1, $2, 'ORGANIZER', 'EVENT', 'Đoàn đã tập hợp đủ, chuẩn bị lên đường.')
+     RETURNING global_id`,
+    [campaignId, Personas.organizer],
+  );
+  await ctx.q(
+    `INSERT INTO campaign_post_media (post_id, storage_key, public_url, media_type, sort_order)
+     VALUES ($1, $2, 'https://placehold.co/800x600.png', 'IMAGE', 0)`,
+    [post.global_id, organizerKey],
+  );
+  await ctx.q(
+    `INSERT INTO campaign_posts (campaign_id, author_id, author_role, stage, body)
+     VALUES ($1, $2, 'PARTICIPANT', 'EVENT', 'Các em nhận áo vui lắm!')`,
+    [campaignId, Personas.giver],
   );
 }

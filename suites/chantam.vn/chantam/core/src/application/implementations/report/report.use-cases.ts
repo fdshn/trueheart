@@ -20,6 +20,7 @@ import {
 } from '@/application/contracts/report';
 import {
   CharityCampaignNotFoundException,
+  CharityPostNotFoundException,
   ContentCommentNotFoundException,
   PostNotFoundException,
   ReportDuplicatedException,
@@ -132,6 +133,8 @@ export class CreateReportUseCase implements ICreateReportUseCase {
         throw new ContentCommentNotFoundException();
       if (input.targetType === ReportTargetTypes.CHARITY_CAMPAIGN)
         throw new CharityCampaignNotFoundException();
+      if (input.targetType === ReportTargetTypes.CHARITY_CAMPAIGN_POST)
+        throw new CharityPostNotFoundException();
       throw new UserNotFoundException();
     }
     if (

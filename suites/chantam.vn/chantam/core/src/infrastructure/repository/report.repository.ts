@@ -80,6 +80,9 @@ export class ReportRepository
     LEFT JOIN campaigns target_campaign
       ON report.target_type = 'CHARITY_CAMPAIGN'
       AND target_campaign.global_id = report.target_id
+    LEFT JOIN campaign_posts target_campaign_post
+      ON report.target_type = 'CHARITY_CAMPAIGN_POST'
+      AND target_campaign_post.global_id = report.target_id
   `;
 
   public constructor(
@@ -99,6 +102,15 @@ export class ReportRepository
   ): Promise<string | null> {
     // Đích là NGƯỜI thì chính người đó là chủ — không tra bảng nào.
     if (targetType === ReportTargetTypes.USER) return targetId;
+
+    // Bài ảnh/clip trong dự án: chủ là người đăng (§3.5).
+    if (targetType === ReportTargetTypes.CHARITY_CAMPAIGN_POST) {
+      const [post] = await this.manager.query<{ owner_id: string | null }[]>(
+        `SELECT author_id AS owner_id FROM campaign_posts WHERE global_id = $1`,
+        [targetId],
+      );
+      return post?.owner_id ?? null;
+    }
 
     // Dự án từ thiện: chủ là người tạo (§3.8).
     if (targetType === ReportTargetTypes.CHARITY_CAMPAIGN) {
@@ -133,6 +145,19 @@ export class ReportRepository
       return { type: NotificationTargetTypes.DHARMA_THREAD, id: targetId };
     if (targetType === ReportTargetTypes.CHARITY_CAMPAIGN)
       return { type: NotificationTargetTypes.CHARITY_CAMPAIGN, id: targetId };
+    // Bài không có màn riêng phía mobile: mở dự án chứa nó.
+    if (targetType === ReportTargetTypes.CHARITY_CAMPAIGN_POST) {
+      const [post] = await this.manager.query<{ campaign_id: string }[]>(
+        `SELECT campaign_id FROM campaign_posts WHERE global_id = $1`,
+        [targetId],
+      );
+      return post
+        ? {
+            type: NotificationTargetTypes.CHARITY_CAMPAIGN,
+            id: post.campaign_id,
+          }
+        : null;
+    }
 
     if (targetType === ReportTargetTypes.COMMENT) {
       const [comment] = await this.manager.query<
@@ -154,6 +179,18 @@ export class ReportRepository
           type: NotificationTargetTypes.CHARITY_CAMPAIGN,
           id: comment.subject_id,
         };
+      if (comment?.subject_type === 'CHARITY_CAMPAIGN_POST') {
+        const [post] = await this.manager.query<{ campaign_id: string }[]>(
+          `SELECT campaign_id FROM campaign_posts WHERE global_id = $1`,
+          [comment.subject_id],
+        );
+        return post
+          ? {
+              type: NotificationTargetTypes.CHARITY_CAMPAIGN,
+              id: post.campaign_id,
+            }
+          : null;
+      }
       return null;
     }
 
@@ -301,6 +338,17 @@ export class ReportRepository
       return row?.exists === true;
     }
 
+    // Bài trong dự án: chưa bị tác giả/ban tổ chức gỡ. Bài đã bị Admin ẩn vẫn báo được.
+    if (targetType === ReportTargetTypes.CHARITY_CAMPAIGN_POST) {
+      const [row] = await this.manager.query<{ exists: boolean }[]>(
+        `SELECT EXISTS(
+           SELECT 1 FROM campaign_posts WHERE global_id = $1 AND deleted_at IS NULL
+         ) AS "exists"`,
+        [targetId],
+      );
+      return row?.exists === true;
+    }
+
     // Tin nhắn không có `deleted_at`: job dọn theo hạn XOÁ hẳn dòng. Nên chỉ
     // cần dòng còn đó là báo xấu được — kể cả tin đã thu hồi, vì chính việc
     // thu hồi sau khi gửi bậy là thứ Admin cần biết.
@@ -439,6 +487,16 @@ export class ReportRepository
 
       if (
         command.status === ReportStatuses.RESOLVED &&
+        current.target_type === ReportTargetTypes.CHARITY_CAMPAIGN_POST
+      )
+        await this.hideReportedCampaignPost(manager, {
+          actorUserId: command.actorUserId,
+          postId: current.target_id,
+          reason: command.note,
+        });
+
+      if (
+        command.status === ReportStatuses.RESOLVED &&
         current.target_type === ReportTargetTypes.CHARITY_CAMPAIGN
       )
         await this.suspendReportedCampaign(manager, {
@@ -493,6 +551,33 @@ export class ReportRepository
    * `status <> 'REMOVED'` để hai report cùng trỏ một bình luận không ghi audit hai
    * lần cho một lần gỡ.
    */
+  /** Ẩn bài ảnh/clip trong dự án (§3.5) — một audit cho một lần ẩn, như gỡ bình luận. */
+  private async hideReportedCampaignPost(
+    manager: EntityManager,
+    command: { actorUserId: string; postId: string; reason: string },
+  ): Promise<void> {
+    const hidden = await updateReturning<{ global_id: string }>(
+      manager,
+      `UPDATE campaign_posts SET hidden_at = now(), hidden_reason = $2
+       WHERE global_id = $1 AND hidden_at IS NULL AND deleted_at IS NULL
+       RETURNING global_id`,
+      [command.postId, command.reason],
+    );
+    if (hidden.length === 0) return;
+    await manager.query(
+      `INSERT INTO admin_audit_logs
+         (actor_user_id, action, resource_type, resource_id, before_json, after_json, reason)
+       VALUES ($1, 'HIDE_CHARITY_CAMPAIGN_POST', 'CHARITY_CAMPAIGN_POST', $2, $3::jsonb, $4::jsonb, $5)`,
+      [
+        command.actorUserId,
+        command.postId,
+        JSON.stringify({ hidden: false }),
+        JSON.stringify({ hidden: true }),
+        command.reason,
+      ],
+    );
+  }
+
   private async suspendReportedCampaign(
     manager: EntityManager,
     command: {
@@ -669,6 +754,9 @@ export class ReportRepository
                )
                WHEN 'CHARITY_CAMPAIGN' THEN COALESCE(
                  'Dự án: ' || target_campaign.title, 'Dự án đã xoá')
+               WHEN 'CHARITY_CAMPAIGN_POST' THEN COALESCE(
+                 'Bài trong dự án: ' || COALESCE(left(target_campaign_post.body, 77), '(ảnh/clip)'),
+                 'Bài đã xoá')
              END AS target_label,
              -- Chỉ có id tin thì Admin không mở được hội thoại để đọc ngữ cảnh.
              CASE WHEN report.target_type = 'CHAT_MESSAGE'

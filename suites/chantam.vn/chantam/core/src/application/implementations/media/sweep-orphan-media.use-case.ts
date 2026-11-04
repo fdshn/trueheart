@@ -39,6 +39,19 @@ const LiveKeySources: readonly { sql: string; label: string }[] = [
     sql: 'SELECT storage_key AS value FROM campaign_media',
   },
   {
+    // Bài ảnh/clip trong dự án từ thiện (`users/<id>/campaign-media/`, cùng tiền tố ảnh hồ sơ
+    // dự án). Lượt ký chưa đăng (`campaign_post_uploads`) CỐ Ý không nằm đây: tải mà không
+    // đăng là tệp bỏ, dọn sau 24 giờ như mọi tệp mồ côi khác.
+    label: 'campaign_post_media',
+    sql: 'SELECT storage_key AS value FROM campaign_post_media',
+  },
+  {
+    // Bằng chứng của đơn vị liên quan / bên thụ hưởng (đợt 1) là URL tải lên qua luồng media.
+    label: 'campaign_parties.evidence_urls',
+    sql: `SELECT jsonb_array_elements_text(evidence_urls) AS value
+          FROM campaign_parties WHERE jsonb_typeof(evidence_urls) = 'array'`,
+  },
+  {
     // Thư viện ảnh CMS (CMS A2). Ảnh ở đây được dán vào banner/blog/Home dưới dạng URL
     // tự do — bảng này là nơi DUY NHẤT nói chúng đang được giữ.
     label: 'media_assets',

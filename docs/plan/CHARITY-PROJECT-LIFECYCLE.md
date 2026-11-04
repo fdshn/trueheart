@@ -1,7 +1,9 @@
 # Dự án Từ thiện theo vòng đời 4 giai đoạn — yêu cầu backend
 
-> Trạng thái: **đã chốt 9 điểm mở (§7); đợt 1–2 đã triển khai** (04/11/2026 — migration
-> `1802400000000`, `1802500000000`, API ở [API.md §18](../API.md)); đợt 3–4 chưa. Ghi chú triển
+> Trạng thái: **đã chốt 9 điểm mở (§7); đợt 1–3 đã triển khai** (04–05/11/2026 — migration
+> `1802400000000`, `1802500000000`, `1802600000000`, API ở [API.md §18](../API.md)); đợt 4 chưa.
+> Ghi chú đợt 3: quota tính ở lượt ký đường tải (`campaign_post_uploads`); realtime namespace
+> `/charity` + Redis adapter cho mọi namespace. Ghi chú triển
 > khai đợt 2: thông báo nhắc 48 giờ gộp vào job `charity:notify` (cùng outbox với các thông báo
 > theo dự án khác) thay cho `charity:pre-event-notice` riêng; số thích/bình luận đếm thẳng từ
 > bảng gốc, không có cột đếm trên `campaigns`. Nguồn: bảng yêu cầu Product
@@ -375,8 +377,8 @@ Dùng lại hạ tầng Socket.io của chat, với sáu biện pháp kiểm so�
 | Khách chưa đăng nhập mở socket hàng loạt | Socket chỉ cho người **đã đăng nhập**; khách xem trang công khai polling 30–60 giây. Giới hạn số kết nối mỗi người |
 | Phát trước khi commit | Chỉ phát **sau** commit (như chat) |
 
-Cần kiểm khi triển khai: Nginx staging/production có cấu hình nâng cấp WebSocket cho
-`/socket.io/` (repo chưa có file cấu hình nào thể hiện điều này).
+Nginx: `deploy/nginx/chantam.conf.example` đã có `location ^~ /socket.io/` nâng cấp WebSocket
+cho cả staging và production — namespace `/charity` đi chung đường đó (kiểm lại 05/11).
 
 ### 3.16 Khiếu nại đánh giá (chốt §7.8)
 
@@ -482,7 +484,7 @@ thị theo capabilities, không tự suy luận theo rank.
 | --- | --- | --- |
 | 1 ✅ | §3.1 hồ sơ/nháp/custom form, §3.2 stage, §3.11 ba nhóm nhu cầu, §3.12 workspace/public | Dashboard organizer, public detail và form A |
 | 2 ✅ | §3.3 revisions, §3.4 checklist, §3.7 tương tác/thống kê, §3.8 báo cáo, §3.13 PDF/share | Changelog, tab B, CTA và công cụ chia sẻ |
-| 3 | §3.5 timeline + media/quota/event contributor, §3.15 realtime | Tab C và cập nhật sự kiện |
+| 3 ✅ | §3.5 timeline + media/quota/event contributor, §3.15 realtime | Tab C và cập nhật sự kiện |
 | 4 | §3.6 tổng kết/tài chính, §3.9 điểm + trần, §3.16 khiếu nại, §3.17 nickname, §3.14 Home promotion | Tab D, sổ điểm, khiếu nại và card Home |
 
 Mỗi đợt: migration + entity + repository + use case + spec, cập nhật `DATA-MODEL.md`,

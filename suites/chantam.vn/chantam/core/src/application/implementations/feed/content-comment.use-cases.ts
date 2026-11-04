@@ -31,6 +31,7 @@ import {
 import {
   IAdminConfigRepository,
   ICharityCampaignRepository,
+  ICharityEventRepository,
   IContentComment,
   IContentCommentRepository,
   IDharmaRepository,
@@ -191,6 +192,8 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
     // đổi; Nest luôn tiêm.
     @Inject(ICharityCampaignRepository)
     private readonly charityCampaigns?: ICharityCampaignRepository,
+    @Inject(ICharityEventRepository)
+    private readonly charityEvents?: ICharityEventRepository,
   ) {}
 
   public async handle(
@@ -246,7 +249,7 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
 
     // Dự án từ thiện (§3.7): phải đang hiện ra ngoài; chủ dự án nhận thông báo.
     const charity = await assertCharitySubjectVisible(
-      this.charityCampaigns,
+      { campaigns: this.charityCampaigns, events: this.charityEvents },
       command.subjectType,
       command.subjectId,
     );
@@ -430,6 +433,8 @@ export class ListCommentsUseCase implements IListCommentsUseCase {
     // đổi; Nest luôn tiêm.
     @Inject(ICharityCampaignRepository)
     private readonly charityCampaigns?: ICharityCampaignRepository,
+    @Inject(ICharityEventRepository)
+    private readonly charityEvents?: ICharityEventRepository,
   ) {}
 
   public async handle(
@@ -441,7 +446,7 @@ export class ListCommentsUseCase implements IListCommentsUseCase {
       command.subjectId,
     );
     await assertCharitySubjectVisible(
-      this.charityCampaigns,
+      { campaigns: this.charityCampaigns, events: this.charityEvents },
       command.subjectType,
       command.subjectId,
     );
@@ -489,6 +494,8 @@ export class ListCommentRepliesUseCase implements IListCommentRepliesUseCase {
     // đổi; Nest luôn tiêm.
     @Inject(ICharityCampaignRepository)
     private readonly charityCampaigns?: ICharityCampaignRepository,
+    @Inject(ICharityEventRepository)
+    private readonly charityEvents?: ICharityEventRepository,
   ) {}
 
   public async handle(
@@ -504,7 +511,7 @@ export class ListCommentRepliesUseCase implements IListCommentRepliesUseCase {
         parent.subjectId,
       );
       await assertCharitySubjectVisible(
-        this.charityCampaigns,
+        { campaigns: this.charityCampaigns, events: this.charityEvents },
         parent.subjectType,
         parent.subjectId,
       );

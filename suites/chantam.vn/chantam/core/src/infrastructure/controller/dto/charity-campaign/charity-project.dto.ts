@@ -44,6 +44,7 @@ import {
   CharityCountersDto,
   CharityTaskViewDto,
 } from './charity-engagement.dto';
+import { CharityEventStepViewDto } from './charity-event.dto';
 
 const OptionalText = (max: number) => [
   IsOptional(),
@@ -799,6 +800,11 @@ export class CharityWorkspaceDto {
   })
   tasks: CharityTaskViewDto[];
   @ApiProperty({
+    type: () => [CharityEventStepViewDto],
+    description: 'Timeline tab C — rỗng tới khi dự án được duyệt',
+  })
+  eventSteps: CharityEventStepViewDto[];
+  @ApiProperty({
     type: () => [CharityChangedFieldDto],
     description: 'Field đã sửa kể từ lúc duyệt (cả field riêng tư) — tô đỏ',
   })
@@ -866,6 +872,11 @@ export class CharityPublicProjectDto {
     description: 'Field CÔNG KHAI đã sửa kể từ lúc duyệt — tô đỏ',
   })
   changedFields: CharityChangedFieldDto[];
+  @ApiProperty({
+    type: () => [CharityEventStepViewDto],
+    description: 'Timeline SỐNG của sự kiện trao',
+  })
+  eventSteps: CharityEventStepViewDto[];
   @ApiProperty({ type: () => CharityCountersDto })
   counters: CharityCountersDto;
   @ApiProperty({

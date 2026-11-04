@@ -215,3 +215,27 @@ export class CharityExportNotFoundException extends ExceptionFrom(
 export class CharitySectionNotPublishedException extends ExceptionFrom(
   CoreErrors.CHARITY_SECTION_NOT_PUBLISHED,
 ) {}
+
+export class CharityEventStepNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_EVENT_STEP_NOT_FOUND,
+) {}
+
+export class CharityPostNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_POST_NOT_FOUND,
+) {}
+
+export class CharityPostForbiddenException extends ExceptionFrom(
+  CoreErrors.CHARITY_POST_FORBIDDEN,
+) {}
+
+export class CharityPostQuotaExceededException extends ExceptionFrom(
+  CoreErrors.CHARITY_POST_QUOTA_EXCEEDED,
+) {}
+
+export class CharityPostMediaInvalidException extends ExceptionFrom(
+  CoreErrors.CHARITY_POST_MEDIA_INVALID,
+) {}
+
+export class CharityEventContributorNotEligibleException extends ExceptionFrom(
+  CoreErrors.CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE,
+) {}

@@ -152,7 +152,8 @@ users ──┬──< user_sessions · verified_phones · user_blocks (blocker/
         │                ├──< campaign_team_members · campaign_phases · campaign_stage_events
         │                ├──< campaign_funding_needs · campaign_volunteer_needs ──< campaign_volunteer_registrations
         │                ├──< campaign_section_states · campaign_custom_sections ──< campaign_custom_fields
-        │                └──< campaign_revisions · campaign_tasks · campaign_follows · campaign_announcements · campaign_exports
+        │                ├──< campaign_revisions · campaign_tasks · campaign_follows · campaign_announcements · campaign_exports
+        │                └──< campaign_event_steps · campaign_event_contributors · campaign_posts ──< campaign_post_media · campaign_post_uploads
         ├──< merit_units (created_by) ──< merit_declarations
         └──< dharma_contents ──< dharma_recitations ──< dharma_dedications
              dharma_threads (author)
@@ -1057,6 +1058,11 @@ khai dùng chung danh sách cột).
 | `campaign_follows` | "Quan tâm": PK `(campaign_id, user_id)` — nhận thông báo theo dự án |
 | `campaign_announcements` | Outbox thông báo theo dự án: `kind` `STAGE_CHANGED`·`PLAN_CHANGED`·`PRE_EVENT`·`SUMMARY_PUBLISHED`, `payload` jsonb (chỉ tên field, không giá trị), `dedupe_key` (UNIQUE một phần cùng `campaign_id, kind` — nhắc 48 giờ theo mốc trao), `processed_at` cặp `recipient_count`. Job `charity:notify` khoá `FOR UPDATE SKIP LOCKED` |
 | `campaign_exports` | Bản in: `section_key` (NULL = cả dự án), `snapshot` jsonb (nội dung công khai lúc tạo), `last_revision_id`, `generated_by`, `generated_at` — PDF luôn dựng lại từ bản chụp |
+| `campaign_event_steps` | **Từ `1802600000000`.** Timeline tab C: UNIQUE `(campaign_id, step_key)` 10 bước, `planned_at`, `actual_at`, `status` `PENDING`·`IN_PROGRESS`·`DONE` (`DONE` bắt buộc có `actual_at`), `note` |
+| `campaign_event_contributors` | PK `(campaign_id, user_id)`, `granted_by`/`granted_at`, `revoked_by`/`revoked_at` (thu hồi giữ dòng; cấp lại xoá mốc thu hồi) |
+| `campaign_posts` | Bài ảnh/clip: `author_id`, `author_role` `ORGANIZER`·`COORDINATOR`·`PARTICIPANT`, `stage` lúc đăng, `body` ≤ 2000, `deleted_at`/`deleted_by` (gỡ), `hidden_at` cặp `hidden_reason` (Admin ẩn qua báo xấu). Index một phần cho bài đang hiện |
+| `campaign_post_media` | `post_id` (CASCADE), `storage_key` UNIQUE, `public_url`, `media_type` `IMAGE`/`VIDEO`, `sort_order` — nguồn khoá "đang dùng" của job dọn media |
+| `campaign_post_uploads` | Lượt ký đường tải = suất quota: `campaign_id`, `user_id`, `storage_key` UNIQUE, `media_type`, `created_at`, `consumed_at` (đăng bài thì tiêu, một lần). Đếm theo ngày giờ Việt Nam dưới khoá advisory người + dự án |
 | `campaign_media` | `campaign_id` (CASCADE), `storage_key` UNIQUE, `public_url`, `media_type` `IMAGE`/`VIDEO`, `sort_order` 0–4 (UNIQUE theo chiến dịch), `is_cover` (chỉ ảnh; `UQ_campaign_media_one_cover`) |
 | `campaign_schedule_changes` | `campaign_id`, `previous_end_time` < `new_end_time` (chỉ gia hạn), `changed_by`, `reason`, `created_at`. **Trigger append-only** |
 | `campaign_reviews` | `global_id`, `campaign_id`, `reviewer_id` ≠ `reviewee_id`, `reviewer_role` `ORGANIZER`/`PARTICIPANT`, `rating` 1–5, `comment`; UNIQUE `(campaign_id, reviewer_id, reviewee_id)` |

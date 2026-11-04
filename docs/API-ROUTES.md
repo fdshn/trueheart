@@ -3,8 +3,8 @@
 > **File sinh tự động** bởi `npm run docs:routes` từ metadata của controller đã biên dịch.
 > Đừng sửa tay — sửa controller rồi chạy lại lệnh. CI chạy `docs:routes:check`.
 
-Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **372** route:
-52 công khai, 135 cần quyền Admin, 185 cần access token.
+Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **387** route:
+56 công khai, 135 cần quyền Admin, 196 cần access token.
 
 Mức truy cập: `Công khai` = không cần token; `Bearer` = cần access token (một số route còn
 kiểm chủ sở hữu hoặc quyền RBAC trong use case — xem `docs/API.md`); `perm:<mã>` = quyền Admin
@@ -414,6 +414,9 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `POST` | `/charity-campaigns/:id/coordinators` | Bearer | Giao quyền coordinator (chỉ người tổ chức) |
 | `DELETE` | `/charity-campaigns/:id/coordinators/:userId` | Bearer | Thu quyền coordinator (chỉ người tổ chức) |
 | `PUT` | `/charity-campaigns/:id/custom-sections` | Bearer | Thay form mở (mục và trường tuỳ biến) |
+| `GET` | `/charity-campaigns/:id/event-contributors` | Bearer | Cộng tác viên sự kiện và người đủ điều kiện |
+| `PUT` | `/charity-campaigns/:id/event-contributors/:userId` | Bearer | Cấp / thu hồi quyền cộng tác viên sự kiện |
+| `PATCH` | `/charity-campaigns/:id/event-steps/:stepId` | Bearer | Cập nhật một bước của timeline |
 | `GET` | `/charity-campaigns/:id/exports` | Bearer | Các bản in đã tạo (50 bản mới nhất) |
 | `POST` | `/charity-campaigns/:id/exports` | Bearer | Tạo bản in PDF |
 | `GET` | `/charity-campaigns/:id/exports/:exportId/pdf` | Bearer | Tải bản in PDF |
@@ -429,6 +432,16 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `POST` | `/charity-campaigns/:id/participation/cancel` | Bearer | Huỷ đăng ký |
 | `PUT` | `/charity-campaigns/:id/parties` | Bearer | Thay danh sách đơn vị liên quan |
 | `PUT` | `/charity-campaigns/:id/phases` | Bearer | Thay tiến độ 4 bước |
+| `POST` | `/charity-campaigns/:id/posts` | Bearer | Đăng bài ảnh/clip vào dự án |
+| `DELETE` | `/charity-campaigns/:id/posts/:postId` | Bearer | Gỡ bài |
+| `POST` | `/charity-campaigns/:id/posts/:postId/comment-media/upload-url` | Bearer | Đường tải ảnh cho bình luận trong một bài |
+| `GET` | `/charity-campaigns/:id/posts/:postId/comments` | Công khai | Bình luận gốc của một bài |
+| `POST` | `/charity-campaigns/:id/posts/:postId/comments` | Bearer | Bình luận vào một bài |
+| `GET` | `/charity-campaigns/:id/posts/:postId/reactions` | Công khai | Ai đã bày tỏ cảm xúc với một bài |
+| `PUT` | `/charity-campaigns/:id/posts/:postId/reactions/me` | Bearer | Bày tỏ cảm xúc với một bài |
+| `DELETE` | `/charity-campaigns/:id/posts/:postId/reactions/me` | Bearer | Gỡ cảm xúc của mình khỏi một bài |
+| `POST` | `/charity-campaigns/:id/posts/media/upload` | Bearer | Ký đường tải ảnh/clip cho bài |
+| `GET` | `/charity-campaigns/:id/posts/quota` | Bearer | Quyền đăng và quota ảnh/clip hôm nay của tôi |
 | `PUT` | `/charity-campaigns/:id/profile` | Bearer | Lời kêu gọi và loại kêu gọi tham gia |
 | `PATCH` | `/charity-campaigns/:id/progress` | Bearer | Cập nhật số phần quà đã trao |
 | `GET` | `/charity-campaigns/:id/reactions` | Công khai | Ai đã bày tỏ cảm xúc với dự án |
@@ -449,8 +462,10 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `DELETE` | `/charity-campaigns/:id/volunteer-needs/:volunteerNeedId/registrations/me` | Bearer | Huỷ đăng ký của chính mình |
 | `GET` | `/charity-campaigns/:id/workspace` | Bearer | Workspace ban tổ chức |
 | `GET` | `/charity-campaigns/:id/workspace/revisions` | Bearer | Lịch sử sửa đầy đủ (workspace) |
+| `GET` | `/charity-campaigns/:idOrSlug/event-steps` | Công khai | Timeline sự kiện trao (SỐNG) |
 | `POST` | `/charity-campaigns/:idOrSlug/follow` | Bearer | Quan tâm dự án |
 | `DELETE` | `/charity-campaigns/:idOrSlug/follow` | Bearer | Bỏ quan tâm dự án |
+| `GET` | `/charity-campaigns/:idOrSlug/posts` | Công khai | Bài ảnh/clip của dự án |
 | `GET` | `/charity-campaigns/:idOrSlug/public` | Công khai | Bản công khai của dự án |
 | `GET` | `/charity-campaigns/:idOrSlug/public-stats` | Công khai | Thống kê công khai |
 | `GET` | `/charity-campaigns/:idOrSlug/revisions` | Công khai | Changelog công khai |

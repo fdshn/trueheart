@@ -58,17 +58,20 @@ import {
   CharityVolunteerNotEligibleException,
   CharityVolunteerRegistrationNotFoundException,
 } from '@/domain/exceptions';
+import { ICharityRealtimePublisher } from '@/domain/ports/realtime';
 import {
   IAdminConfigRepository,
   ICharityCampaign,
   ICharityCampaignRepository,
   ICharityCustomSection,
   ICharityEngagementRepository,
+  ICharityEventRepository,
   ICharityProjectRepository,
   IEntitlementRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
 import {
+  CharityEventStepLabels,
   CharityFieldVisibility,
   CharityMaxBankAccountsConfigKey,
   CharityOperationStage,
@@ -270,6 +273,9 @@ export class MoveCharityStageUseCase implements IMoveCharityStageUseCase {
     private readonly projects: ICharityProjectRepository,
     @Inject(ICharityCampaignRepository)
     private readonly campaigns: ICharityCampaignRepository,
+    // Tuỳ chọn để spec dựng tay không phải đổi; Nest luôn tiêm (noop ở CLI).
+    @Inject(ICharityRealtimePublisher)
+    private readonly realtime?: ICharityRealtimePublisher,
   ) {}
 
   public async handle(
@@ -333,6 +339,7 @@ export class MoveCharityStageUseCase implements IMoveCharityStageUseCase {
       throw new CharityStageTransitionInvalidException(
         'giai đoạn vừa đổi bởi người khác — tải lại rồi thử lại',
       );
+    this.realtime?.signal(campaign.globalId, ['STAGE'], 'public');
     return toView(
       (await this.campaigns.findByGlobalId(
         campaign.globalId,
@@ -1061,6 +1068,8 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
     private readonly projects: ICharityProjectRepository,
     @Inject(ICharityEngagementRepository)
     private readonly engagement: ICharityEngagementRepository,
+    @Inject(ICharityEventRepository)
+    private readonly events: ICharityEventRepository,
   ) {}
 
   public async handle(
@@ -1083,8 +1092,11 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
           ...(await this.engagement.taskScheduleInputs(id)),
         }),
       });
-    const [tasks, changedFields, counters] = await Promise.all([
+    if (campaign.approvalStatus === 'APPROVED')
+      await this.events.ensureEventSteps(id);
+    const [tasks, eventSteps, changedFields, counters] = await Promise.all([
       this.engagement.listTasks(id),
+      this.events.listEventSteps(id),
       this.engagement.listChangedFields({ campaignId: id, publicOnly: false }),
       this.engagement.counters(id),
     ]);
@@ -1148,6 +1160,10 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
       sections: sectionViews(states, contentFlags),
       customSections,
       tasks,
+      eventSteps: eventSteps.map((step) => ({
+        ...step,
+        label: CharityEventStepLabels[step.stepKey],
+      })),
       changedFields,
       counters,
       capabilities: {
@@ -1179,6 +1195,8 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
     private readonly projects: ICharityProjectRepository,
     @Inject(ICharityEngagementRepository)
     private readonly engagement: ICharityEngagementRepository,
+    @Inject(ICharityEventRepository)
+    private readonly events: ICharityEventRepository,
   ) {}
 
   public async handle(
@@ -1194,13 +1212,15 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
       : null;
     if (!campaign) throw new CharityCampaignNotFoundException();
     const id = campaign.globalId;
-    const [changedFields, counters, isFollowing] = await Promise.all([
-      this.engagement.listChangedFields({ campaignId: id, publicOnly: true }),
-      this.engagement.counters(id),
-      command.userId
-        ? this.engagement.isFollowing(id, command.userId)
-        : Promise.resolve(null),
-    ]);
+    const [changedFields, counters, isFollowing, eventSteps] =
+      await Promise.all([
+        this.engagement.listChangedFields({ campaignId: id, publicOnly: true }),
+        this.engagement.counters(id),
+        command.userId
+          ? this.engagement.isFollowing(id, command.userId)
+          : Promise.resolve(null),
+        this.events.listEventSteps(id),
+      ]);
     const [
       profile,
       states,
@@ -1247,6 +1267,10 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
       volunteerNeeds,
       myVolunteerRegistrations: mine,
       changedFields,
+      eventSteps: eventSteps.map((step) => ({
+        ...step,
+        label: CharityEventStepLabels[step.stepKey],
+      })),
       counters,
       isFollowing,
       capabilities: {

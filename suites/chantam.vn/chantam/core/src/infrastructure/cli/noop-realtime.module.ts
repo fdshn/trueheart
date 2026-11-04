@@ -1,4 +1,7 @@
-import { IChatRealtimePublisher } from '@/domain/ports/realtime';
+import {
+  ICharityRealtimePublisher,
+  IChatRealtimePublisher,
+} from '@/domain/ports/realtime';
 import { Global, Module } from '@nestjs/common';
 import { NoopChatRealtimePublisher } from './noop-chat-realtime.publisher';
 
@@ -18,7 +21,13 @@ import { NoopChatRealtimePublisher } from './noop-chat-realtime.publisher';
 @Module({
   providers: [
     { provide: IChatRealtimePublisher, useClass: NoopChatRealtimePublisher },
+    // Job CLI không giữ socket; tín hiệu dự án từ thiện là gợi ý — bỏ qua im lặng, client
+    // vẫn thấy thay đổi qua push và lần gọi REST kế tiếp.
+    {
+      provide: ICharityRealtimePublisher,
+      useValue: { signal: () => undefined },
+    },
   ],
-  exports: [IChatRealtimePublisher],
+  exports: [IChatRealtimePublisher, ICharityRealtimePublisher],
 })
 export class NoopRealtimeModule {}

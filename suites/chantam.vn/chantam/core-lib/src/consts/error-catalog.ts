@@ -1223,6 +1223,47 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Mục này chưa được công khai nên chưa chia sẻ được',
   },
 
+  CHARITY_EVENT_STEP_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_EVENT_STEP_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy bước trong timeline sự kiện',
+  },
+
+  CHARITY_POST_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_POST_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy bài đăng của dự án',
+  },
+
+  CHARITY_POST_FORBIDDEN: {
+    code: ErrorCodes.CHARITY_POST_FORBIDDEN,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () =>
+      'Bạn chưa được đăng ảnh/clip vào dự án này — cần là ban tổ chức, hoặc cộng tác viên sự kiện trong lúc sự kiện trao diễn ra',
+  },
+
+  CHARITY_POST_QUOTA_EXCEEDED: {
+    code: ErrorCodes.CHARITY_POST_QUOTA_EXCEEDED,
+    httpStatus: HttpStatus.TOO_MANY_REQUESTS,
+    message: (kind: string, limit: number) =>
+      `Hôm nay bạn đã dùng hết ${limit} lượt ${kind} cho dự án này — thử lại vào ngày mai`,
+    sample: ['clip', 5],
+  },
+
+  CHARITY_POST_MEDIA_INVALID: {
+    code: ErrorCodes.CHARITY_POST_MEDIA_INVALID,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: () =>
+      'Ảnh/clip không hợp lệ — phải là tệp bạn vừa tải lên cho dự án này và chưa dùng ở bài khác',
+  },
+
+  CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE: {
+    code: ErrorCodes.CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Người này cần có đóng góp đã được chấp nhận và đăng ký tham gia hợp lệ mới cấp được quyền cộng tác viên sự kiện',
+  },
+
   CHARITY_CAMPAIGN_HAS_ACTIVITY: {
     code: ErrorCodes.CHARITY_CAMPAIGN_HAS_ACTIVITY,
     httpStatus: HttpStatus.CONFLICT,

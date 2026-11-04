@@ -230,6 +230,12 @@ Nghiệp vụ Chân Tâm
 | `0x132e` | `4910` | 404 Not Found | `CHARITY_TASK_NOT_FOUND` | Không tìm thấy việc trong checklist triển khai |
 | `0x132f` | `4911` | 404 Not Found | `CHARITY_EXPORT_NOT_FOUND` | Không tìm thấy bản in |
 | `0x1330` | `4912` | 409 Conflict | `CHARITY_SECTION_NOT_PUBLISHED` | Mục này chưa được công khai nên chưa chia sẻ được |
+| `0x1331` | `4913` | 404 Not Found | `CHARITY_EVENT_STEP_NOT_FOUND` | Không tìm thấy bước trong timeline sự kiện |
+| `0x1332` | `4914` | 404 Not Found | `CHARITY_POST_NOT_FOUND` | Không tìm thấy bài đăng của dự án |
+| `0x1333` | `4915` | 403 Forbidden | `CHARITY_POST_FORBIDDEN` | Bạn chưa được đăng ảnh/clip vào dự án này — cần là ban tổ chức, hoặc cộng tác viên sự kiện trong lúc sự kiện trao diễn ra |
+| `0x1334` | `4916` | 429 Too Many Requests | `CHARITY_POST_QUOTA_EXCEEDED` | Hôm nay bạn đã dùng hết 5 lượt clip cho dự án này — thử lại vào ngày mai |
+| `0x1335` | `4917` | 400 Bad Request | `CHARITY_POST_MEDIA_INVALID` | Ảnh/clip không hợp lệ — phải là tệp bạn vừa tải lên cho dự án này và chưa dùng ở bài khác |
+| `0x1336` | `4918` | 409 Conflict | `CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE` | Người này cần có đóng góp đã được chấp nhận và đăng ký tham gia hợp lệ mới cấp được quyền cộng tác viên sự kiện |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -261,5 +267,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **219 mã lỗi** trên 3 tầng.
+Tổng cộng **225 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

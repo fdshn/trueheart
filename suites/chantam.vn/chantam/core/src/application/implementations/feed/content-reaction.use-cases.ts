@@ -17,6 +17,7 @@ import {
 } from '@/domain/exceptions';
 import {
   ICharityCampaignRepository,
+  ICharityEventRepository,
   IContentReactionRepository,
   IDharmaRepository,
   IEntitlementRepository,
@@ -55,6 +56,8 @@ class SubjectGuard {
     // đổi; Nest luôn tiêm.
     @Inject(ICharityCampaignRepository)
     private readonly charityCampaigns?: ICharityCampaignRepository,
+    @Inject(ICharityEventRepository)
+    private readonly charityEvents?: ICharityEventRepository,
   ) {}
 
   /** Trả chủ bài để bên gọi khỏi nạp lại bài lần nữa chỉ để gửi thông báo. */
@@ -85,7 +88,7 @@ class SubjectGuard {
     }
 
     const charity = await assertCharitySubjectVisible(
-      this.charityCampaigns,
+      { campaigns: this.charityCampaigns, events: this.charityEvents },
       subjectType,
       subjectId,
     );
@@ -117,6 +120,8 @@ export class SetContentReactionUseCase implements ISetContentReactionUseCase {
     // đổi; Nest luôn tiêm.
     @Inject(ICharityCampaignRepository)
     private readonly charityCampaigns?: ICharityCampaignRepository,
+    @Inject(ICharityEventRepository)
+    private readonly charityEvents?: ICharityEventRepository,
   ) {}
 
   public async handle(
@@ -134,6 +139,7 @@ export class SetContentReactionUseCase implements ISetContentReactionUseCase {
       this.posts,
       this.dharma,
       this.charityCampaigns,
+      this.charityEvents,
     ).assertExists(command.subjectType, command.subjectId);
 
     // `created` chỉ đúng khi đây là lượt bày tỏ MỚI. Đổi LIKE sang LOVE không
@@ -211,6 +217,8 @@ export class ListContentReactionsUseCase implements IListContentReactionsUseCase
     // đổi; Nest luôn tiêm.
     @Inject(ICharityCampaignRepository)
     private readonly charityCampaigns?: ICharityCampaignRepository,
+    @Inject(ICharityEventRepository)
+    private readonly charityEvents?: ICharityEventRepository,
   ) {}
 
   public async handle(
@@ -222,7 +230,7 @@ export class ListContentReactionsUseCase implements IListContentReactionsUseCase
       command.subjectId,
     );
     await assertCharitySubjectVisible(
-      this.charityCampaigns,
+      { campaigns: this.charityCampaigns, events: this.charityEvents },
       command.subjectType,
       command.subjectId,
     );

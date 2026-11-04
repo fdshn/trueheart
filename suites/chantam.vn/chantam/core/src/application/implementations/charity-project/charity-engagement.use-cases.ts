@@ -35,6 +35,7 @@ import {
 } from '@/domain/exceptions';
 import { IConfig } from '@/domain/ports/config';
 import { ICharityPdfRenderer } from '@/domain/ports/document';
+import { ICharityRealtimePublisher } from '@/domain/ports/realtime';
 import {
   ICharityAnnouncement,
   ICharityCampaign,
@@ -131,6 +132,9 @@ export class UpdateCharityTaskUseCase implements IUpdateCharityTaskUseCase {
     private readonly access: CharityProjectAccess,
     @Inject(ICharityEngagementRepository)
     private readonly engagement: ICharityEngagementRepository,
+    // Tuỳ chọn để spec dựng tay không phải đổi; Nest luôn tiêm (noop ở CLI).
+    @Inject(ICharityRealtimePublisher)
+    private readonly realtime?: ICharityRealtimePublisher,
   ) {}
 
   public async handle(
@@ -154,6 +158,7 @@ export class UpdateCharityTaskUseCase implements IUpdateCharityTaskUseCase {
       },
     });
     if (!task) throw new CharityTaskNotFoundException();
+    this.realtime?.signal(campaign.globalId, ['CHECKLIST'], 'workspace');
     return toTaskView(task);
   }
 }
