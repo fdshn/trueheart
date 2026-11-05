@@ -150,7 +150,8 @@ import {
   IObjectStorage,
   IStorageUploadResult,
 } from '@chantam/service.storage-lib';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { CharityPointsService } from '../charity-project/charity-points.service';
 import { withStorageValidation } from '../shared/storage-error';
 import { CharityNotifier } from './charity.notifier';
 
@@ -914,6 +915,9 @@ export class CompleteCharityDeliveryUseCase implements ICompleteCharityDeliveryU
     @Inject(ICharityCampaignRepository)
     private readonly repository: ICharityCampaignRepository,
     private readonly notifier: CharityNotifier,
+    // Điểm theo giá trị xác nhận (CHARITY-PROJECT-LIFECYCLE §3.9). Tuỳ chọn cho spec dựng tay.
+    @Optional()
+    private readonly points?: CharityPointsService,
   ) {}
 
   public async handle(
@@ -925,6 +929,7 @@ export class CompleteCharityDeliveryUseCase implements ICompleteCharityDeliveryU
       campaignTitle: campaign?.title ?? 'hoạt động từ thiện',
       delivery,
     });
+    await this.points?.awardItemValue(delivery.globalId);
     return delivery;
   }
 }

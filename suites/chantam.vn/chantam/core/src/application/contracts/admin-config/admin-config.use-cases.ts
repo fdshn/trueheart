@@ -73,6 +73,22 @@ export const SupportedSystemConfigKeys = [
   'charity.max_bank_accounts_per_campaign',
   'charity.post_daily_video_quota',
   'charity.post_daily_image_quota',
+  'charity.points_cap.charity_item_value.daily',
+  'charity.points_cap.charity_item_value.project',
+  'charity.points_cap.charity_item_value.cycle',
+  'charity.points_cap.charity_post_video.daily',
+  'charity.points_cap.charity_post_video.project',
+  'charity.points_cap.charity_post_video.cycle',
+  'charity.points_cap.charity_post_image.daily',
+  'charity.points_cap.charity_post_image.project',
+  'charity.points_cap.charity_post_image.cycle',
+  'charity.points_cap.charity_participation.daily',
+  'charity.points_cap.charity_participation.project',
+  'charity.points_cap.charity_participation.cycle',
+  'charity.post_points_participant_multiplier_percent',
+  'charity.appeal_window_days',
+  'charity.appeal_organizer_sla_days',
+  'charity.appeal_auto_close_days',
 ] as const;
 
 /**
@@ -122,6 +138,26 @@ export const SystemConfigValueRanges: Readonly<
   // 0 = tắt đăng loại media đó; khớp `normalizeCharityPostQuota`.
   'charity.post_daily_video_quota': { min: 0, max: 100 },
   'charity.post_daily_image_quota': { min: 0, max: 100 },
+  // Trần điểm dự án từ thiện (0 = không trần) — chạm trần thì HOÃN, không bỏ.
+  'charity.points_cap.charity_item_value.daily': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_item_value.project': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_item_value.cycle': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_post_video.daily': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_post_video.project': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_post_video.cycle': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_post_image.daily': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_post_image.project': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_post_image.cycle': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_participation.daily': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_participation.project': {
+    min: 0,
+    max: 1_000_000,
+  },
+  'charity.points_cap.charity_participation.cycle': { min: 0, max: 1_000_000 },
+  'charity.post_points_participant_multiplier_percent': { min: 0, max: 1000 },
+  'charity.appeal_window_days': { min: 1, max: 90 },
+  'charity.appeal_organizer_sla_days': { min: 1, max: 30 },
+  'charity.appeal_auto_close_days': { min: 1, max: 30 },
   'classified.legacy_transactions_enabled': { min: 0, max: 1 },
 };
 

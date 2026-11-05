@@ -1,4 +1,5 @@
 import {
+  IActOnCharityAppealUseCase,
   IAddCharityBankAccountUseCase,
   IAdvanceCharityStagesUseCase,
   ICancelCharityVolunteerUseCase,
@@ -7,9 +8,11 @@ import {
   ICreateCharityExportUseCase,
   ICreateCharityPostUseCase,
   ICreateCharityShareLinkUseCase,
+  IDecideAdminCharityAppealUseCase,
   IDeleteCharityPostUseCase,
   IEvaluateCharityParticipantUseCase,
   IFollowCharityProjectUseCase,
+  IGetCharityAppealUseCase,
   IGetCharityEventStepsUseCase,
   IGetCharityExportPdfUseCase,
   IGetCharityInternalStatsUseCase,
@@ -19,6 +22,8 @@ import {
   IGetCharitySummaryUseCase,
   IGetCharityWorkspaceUseCase,
   IGetMyCharityEvaluationUseCase,
+  IListAdminCharityAppealsUseCase,
+  IListCharityAppealsUseCase,
   IListCharityEvaluationsUseCase,
   IListCharityEventContributorsUseCase,
   IListCharityExportsUseCase,
@@ -26,8 +31,11 @@ import {
   IListCharityPostsUseCase,
   IListCharityRevisionsUseCase,
   IListCharityTasksUseCase,
+  IListMyCharityAppealsUseCase,
   IMoveCharityStageUseCase,
   IProcessCharityAnnouncementsUseCase,
+  IProcessCharityAppealSlaUseCase,
+  IProcessCharityPointsUseCase,
   IPublishCharitySectionUseCase,
   IPublishCharitySummaryUseCase,
   IRegisterCharityVolunteerUseCase,
@@ -46,6 +54,7 @@ import {
   ISetCharityLimitsUseCase,
   ISetCharityPromotionUseCase,
   ISetCharityPublicNameUseCase,
+  ISubmitCharityAppealUseCase,
   ISubmitCharityProjectUseCase,
   IUpdateCharityEventStepUseCase,
   IUpdateCharityItemNeedUseCase,
@@ -53,6 +62,19 @@ import {
   IUpdateCharityTaskUseCase,
 } from '@/application/contracts/charity-project';
 import { Global, Module } from '@nestjs/common';
+import {
+  ActOnCharityAppealUseCase,
+  CharityAppealNotifier,
+  CharityAppealValueApplier,
+  DecideAdminCharityAppealUseCase,
+  GetCharityAppealUseCase,
+  ListAdminCharityAppealsUseCase,
+  ListCharityAppealsUseCase,
+  ListMyCharityAppealsUseCase,
+  ProcessCharityAppealSlaUseCase,
+  ProcessCharityPointsUseCase,
+  SubmitCharityAppealUseCase,
+} from './charity-appeal.use-cases';
 import {
   CreateCharityExportUseCase,
   CreateCharityShareLinkUseCase,
@@ -78,6 +100,7 @@ import {
   SetCharityEventContributorUseCase,
   UpdateCharityEventStepUseCase,
 } from './charity-event.use-cases';
+import { CharityPointsService } from './charity-points.service';
 import {
   AddCharityBankAccountUseCase,
   AdvanceCharityStagesUseCase,
@@ -172,6 +195,16 @@ const bindings = [
   [IRequestCharityPromotionUseCase, RequestCharityPromotionUseCase],
   [ISetCharityPromotionUseCase, SetCharityPromotionUseCase],
   [IListCharityHomeCardsUseCase, ListCharityHomeCardsUseCase],
+  // Đợt 4b (§3.9, §3.16).
+  [ISubmitCharityAppealUseCase, SubmitCharityAppealUseCase],
+  [IListCharityAppealsUseCase, ListCharityAppealsUseCase],
+  [IListMyCharityAppealsUseCase, ListMyCharityAppealsUseCase],
+  [IGetCharityAppealUseCase, GetCharityAppealUseCase],
+  [IActOnCharityAppealUseCase, ActOnCharityAppealUseCase],
+  [IListAdminCharityAppealsUseCase, ListAdminCharityAppealsUseCase],
+  [IDecideAdminCharityAppealUseCase, DecideAdminCharityAppealUseCase],
+  [IProcessCharityAppealSlaUseCase, ProcessCharityAppealSlaUseCase],
+  [IProcessCharityPointsUseCase, ProcessCharityPointsUseCase],
 ] as const;
 
 /** `@Global()` như mọi feature module của tầng application — thiếu là DI hỏng lúc boot. */
@@ -180,8 +213,11 @@ const bindings = [
   providers: [
     CharityProjectAccess,
     CharityPostAccess,
+    CharityPointsService,
+    CharityAppealNotifier,
+    CharityAppealValueApplier,
     ...bindings.map(([provide, useClass]) => ({ provide, useClass })),
   ],
-  exports: bindings.map(([provide]) => provide),
+  exports: [CharityPointsService, ...bindings.map(([provide]) => provide)],
 })
 export class CharityProjectModule {}

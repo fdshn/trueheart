@@ -61,6 +61,10 @@ RUN=/home/deploy/chantam/deploy/cron/run-cli.sh
 # kế hoạch đổi điều quan trọng). Lệch 2 phút so với advance-stage để thông báo chuyển giai
 # đoạn đi trong vòng 5 phút sau khi được ghi.
 2-59/5 * * * * deploy $RUN $CHANTAM_DIR charity-notify
+# Điểm dự án từ thiện: ghi tiếp phần hoãn vì trần, vá award thiếu, trừ điểm bài đã gỡ/ẩn.
+4-59/15 * * * * deploy $RUN $CHANTAM_DIR charity-points
+# Hạn khiếu nại: ban tổ chức quá hạn → chuyển Admin; người khiếu nại im lặng quá hạn → đóng.
+17 * * * * deploy $RUN $CHANTAM_DIR charity-appeal-sla
 
 # Trả thưởng cho lượt trao người nhận không bao giờ đánh giá. KHÔNG CHẠY LÀ ĐIỂM
 # CỦA NGƯỜI TẶNG TREO VÔ HẠN — đây là job cấp bách nhất trong file này.

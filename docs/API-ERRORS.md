@@ -241,6 +241,13 @@ Nghiệp vụ Chân Tâm
 | `0x1339` | `4921` | 409 Conflict | `CHARITY_SUMMARY_EMPTY` | Tổng kết chưa có nội dung để công khai |
 | `0x133a` | `4922` | 404 Not Found | `CHARITY_FINANCIAL_REPORT_NOT_FOUND` | Không tìm thấy báo cáo tài chính |
 | `0x133b` | `4923` | 409 Conflict | `CHARITY_EVALUATION_TARGET_INVALID` | Người này không tham gia dự án nên không chấm được mức hoàn thành |
+| `0x133c` | `4924` | 404 Not Found | `CHARITY_APPEAL_NOT_FOUND` | Không tìm thấy khiếu nại |
+| `0x133d` | `4925` | 403 Forbidden | `CHARITY_APPEAL_NOT_ALLOWED` | Chỉ chính người được đánh giá mới khiếu nại được đánh giá của mình |
+| `0x133e` | `4926` | 409 Conflict | `CHARITY_APPEAL_DUPLICATED` | Lần đánh giá này đã có khiếu nại — mỗi lần đánh giá chỉ khiếu nại một lần |
+| `0x133f` | `4927` | 409 Conflict | `CHARITY_APPEAL_INVALID_STATE` | Khiếu nại đang ở trạng thái CLOSED, không thực hiện được bước này |
+| `0x1340` | `4928` | 403 Forbidden | `CHARITY_APPEAL_CONFLICT_OF_INTEREST` | Người đã chấm không tự xét khiếu nại khi ban tổ chức còn người khác |
+| `0x1341` | `4929` | 409 Conflict | `CHARITY_APPEAL_WINDOW_CLOSED` | Đã quá 7 ngày kể từ lúc đánh giá — hết hạn khiếu nại |
+| `0x1342` | `4930` | 429 Too Many Requests | `CHARITY_APPEAL_RATE_LIMITED` | Bạn gửi quá nhiều khiếu nại trong 24 giờ — thử lại sau |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -272,5 +279,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **230 mã lỗi** trên 3 tầng.
+Tổng cộng **237 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

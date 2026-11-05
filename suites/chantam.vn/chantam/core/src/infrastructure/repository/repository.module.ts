@@ -6,9 +6,11 @@ import {
   IBlogRepository,
   IBulkNotifyAudienceRepository,
   ICategoryRepository,
+  ICharityAppealRepository,
   ICharityCampaignRepository,
   ICharityEngagementRepository,
   ICharityEventRepository,
+  ICharityPointsRepository,
   ICharityProjectRepository,
   ICharitySummaryRepository,
   IChatRepository,
@@ -57,9 +59,11 @@ import { AffiliateRepository } from './affiliate.repository';
 import { AttributionRepository } from './attribution.repository';
 import { BlogRepository } from './blog.repository';
 import { CategoryRepository } from './category.repository';
+import { CharityAppealRepository } from './charity-appeal.repository';
 import { CharityCampaignRepository } from './charity-campaign.repository';
 import { CharityEngagementRepository } from './charity-engagement.repository';
 import { CharityEventRepository } from './charity-event.repository';
+import { CharityPointsRepository } from './charity-points.repository';
 import { CharityProjectRepository } from './charity-project.repository';
 import { CharitySummaryRepository } from './charity-summary.repository';
 import { ChatRepository } from './chat.repository';
@@ -138,6 +142,8 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     },
     { provide: ICharityEventRepository, useClass: CharityEventRepository },
     { provide: ICharitySummaryRepository, useClass: CharitySummaryRepository },
+    { provide: ICharityPointsRepository, useClass: CharityPointsRepository },
+    { provide: ICharityAppealRepository, useClass: CharityAppealRepository },
     {
       provide: ISponsorBannerRepository,
       useClass: SponsorBannerRepository,
@@ -239,6 +245,8 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     ICharityEngagementRepository,
     ICharityEventRepository,
     ICharitySummaryRepository,
+    ICharityPointsRepository,
+    ICharityAppealRepository,
     ISponsorBannerRepository,
     IMeritRepository,
     IDharmaRepository,

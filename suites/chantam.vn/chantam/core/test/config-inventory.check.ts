@@ -54,9 +54,14 @@ import {
 import {
   AbusiveModerationCorpus,
   AllocationPolicyConfigKey,
+  CharityAppealAutoCloseDaysConfigKey,
+  CharityAppealOrganizerSlaDaysConfigKey,
+  CharityAppealWindowDaysConfigKey,
   CharityMaxBankAccountsConfigKey,
+  CharityPointCapConfigKeys,
   CharityPostDailyImageQuotaConfigKey,
   CharityPostDailyVideoQuotaConfigKey,
+  CharityPostParticipantMultiplierConfigKey,
   ChatRetentionConfigKey,
   GiftValueBonusMaxValueConfigKey,
   GiverAccuracyConfigKey,
@@ -138,6 +143,11 @@ const RequiredKeys: readonly string[] = [
   CharityMaxBankAccountsConfigKey,
   CharityPostDailyImageQuotaConfigKey,
   CharityPostDailyVideoQuotaConfigKey,
+  ...CharityPointCapConfigKeys,
+  CharityPostParticipantMultiplierConfigKey,
+  CharityAppealWindowDaysConfigKey,
+  CharityAppealOrganizerSlaDaysConfigKey,
+  CharityAppealAutoCloseDaysConfigKey,
 ];
 
 /**

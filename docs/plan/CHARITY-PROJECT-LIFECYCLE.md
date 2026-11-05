@@ -1,8 +1,10 @@
 # Dự án Từ thiện theo vòng đời 4 giai đoạn — yêu cầu backend
 
-> Trạng thái: **đã chốt 9 điểm mở (§7); đợt 1–3 và 4a đã triển khai** (04–05/11/2026 — migration
-> `1802400000000`…`1802700000000`, API ở [API.md §18](../API.md)); đợt 4b (§3.9 điểm + trần, §3.16
-> khiếu nại) chưa. Ghi chú đợt 4a: card Home ở `GET /home/charity-cards`.
+> Trạng thái: **đã chốt 9 điểm mở (§7); đợt 1–4 đã triển khai đủ** (04–05/11/2026 — migration
+> `1802400000000`…`1802800000000`, API ở [API.md §18](../API.md)). Ghi chú đợt 4b: điểm đi qua
+> `campaign_point_awards` (đích − đã ghi, hoãn khi vướng trần, job `charity:points`); bốn rule seed
+> TẮT chờ chốt mức; khiếu nại giá trị xác nhận tính trên cả lượt giao nhận
+> (`confirmed_value_adjusted`). Ghi chú đợt 4a: card Home ở `GET /home/charity-cards`.
 > Ghi chú đợt 3: quota tính ở lượt ký đường tải (`campaign_post_uploads`); realtime namespace
 > `/charity` + Redis adapter cho mọi namespace. Ghi chú triển
 > khai đợt 2: thông báo nhắc 48 giờ gộp vào job `charity:notify` (cùng outbox với các thông báo
@@ -486,7 +488,7 @@ thị theo capabilities, không tự suy luận theo rank.
 | 1 ✅ | §3.1 hồ sơ/nháp/custom form, §3.2 stage, §3.11 ba nhóm nhu cầu, §3.12 workspace/public | Dashboard organizer, public detail và form A |
 | 2 ✅ | §3.3 revisions, §3.4 checklist, §3.7 tương tác/thống kê, §3.8 báo cáo, §3.13 PDF/share | Changelog, tab B, CTA và công cụ chia sẻ |
 | 3 ✅ | §3.5 timeline + media/quota/event contributor, §3.15 realtime | Tab C và cập nhật sự kiện |
-| 4 | §3.6 tổng kết/tài chính, §3.9 điểm + trần, §3.16 khiếu nại, §3.17 nickname, §3.14 Home promotion | Tab D, sổ điểm, khiếu nại và card Home |
+| 4 ✅ | §3.6 tổng kết/tài chính, §3.9 điểm + trần, §3.16 khiếu nại, §3.17 nickname, §3.14 Home promotion | Tab D, sổ điểm, khiếu nại và card Home |
 
 Mỗi đợt: migration + entity + repository + use case + spec, cập nhật `DATA-MODEL.md`,
 `ROADMAP.md`, `README.md` của package và `docs/API.md` trong cùng PR (quy tắc docs/plan).

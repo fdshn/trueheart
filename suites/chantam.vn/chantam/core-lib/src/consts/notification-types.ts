@@ -159,6 +159,11 @@ export enum NotificationTypes {
   /** Tổng kết dự án được công khai (§3.6). */
   CHARITY_SUMMARY_PUBLISHED = 'CHARITY_SUMMARY_PUBLISHED',
   /**
+   * Khiếu nại mức hoàn thành / giá trị xác nhận có bước mới (§3.16): gửi BÊN KIA — người
+   * khiếu nại khi ban tổ chức/Admin quyết, ban tổ chức khi có khiếu nại mới hoặc được chấp nhận.
+   */
+  CHARITY_APPEAL_UPDATED = 'CHARITY_APPEAL_UPDATED',
+  /**
    * Nhắc nhiệm vụ duy trì hạng, trước khi chu kỳ hết (SRS BR-PROF-RANK-03).
    *
    * Trượt chu kỳ nay bị trừ điểm và có thể tụt hạng, nên báo muộn hơn thời điểm
@@ -307,6 +312,7 @@ export const NotificationGroupOf: Record<
   // Kế hoạch đổi là trạng thái của một việc người nhận đang theo (đã góp, đã đăng ký, bấm
   // quan tâm) — cùng nhóm đóng góp. Ba loại còn lại của dự án nằm ở SỰ KIỆN và ĐIỀU KIỆN.
   [NotificationTypes.CHARITY_PLAN_CHANGED]: NotificationGroups.STATUS,
+  [NotificationTypes.CHARITY_APPEAL_UPDATED]: NotificationGroups.STATUS,
 
   // ── Tích điểm: điểm vào sổ ───────────────────────────────────────────────
   // Giới thiệu hợp lệ xếp vào TÍCH ĐIỂM chứ không THƯỞNG: nội dung thông báo là

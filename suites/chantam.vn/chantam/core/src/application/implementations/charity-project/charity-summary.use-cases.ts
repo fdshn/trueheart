@@ -48,7 +48,8 @@ import {
   summaryNeedsFinancialReport,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { CharityPointsService } from './charity-points.service';
 import { CharityProjectAccess } from './charity-project.use-cases';
 
 const WritePermission = 'campaign.manage';
@@ -265,6 +266,9 @@ export class EvaluateCharityParticipantUseCase implements IEvaluateCharityPartic
     private readonly access: CharityProjectAccess,
     @Inject(ICharitySummaryRepository)
     private readonly summaries: ICharitySummaryRepository,
+    // Tuỳ chọn để spec dựng tay không phải đổi; Nest luôn tiêm (§3.9).
+    @Optional()
+    private readonly points?: CharityPointsService,
   ) {}
 
   public async handle(command: IEvaluateCharityParticipantCommand) {
@@ -285,7 +289,7 @@ export class EvaluateCharityParticipantUseCase implements IEvaluateCharityPartic
       ))
     )
       throw new CharityEvaluationTargetInvalidException();
-    return this.summaries.addEvaluation({
+    const evaluation = await this.summaries.addEvaluation({
       campaignId: campaign.globalId,
       participantId: command.participantId,
       completionScore: command.completionScore,
@@ -293,6 +297,12 @@ export class EvaluateCharityParticipantUseCase implements IEvaluateCharityPartic
       evaluatedBy: command.userId,
       source: 'ORGANIZER',
     });
+    await this.points?.awardParticipation({
+      campaignId: campaign.globalId,
+      participantId: command.participantId,
+      completionScore: evaluation.completionScore,
+    });
+    return evaluation;
   }
 }
 

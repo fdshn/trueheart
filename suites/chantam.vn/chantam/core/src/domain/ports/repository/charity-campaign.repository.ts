@@ -615,7 +615,12 @@ export interface ICharityNeedsRepositoryPart {
   completeDelivery(params: {
     deliveryId: string;
     organizerId: string;
-    received: readonly { needItemId: string; receivedQuantity: number }[];
+    received: readonly {
+      needItemId: string;
+      receivedQuantity: number;
+      /** VNĐ ban tổ chức xác nhận (§3.9). Bỏ trống = số thực nhận × đơn giá của nhu cầu. */
+      confirmedValue?: number | null;
+    }[];
   }): Promise<ICharityDelivery>;
 
   /**

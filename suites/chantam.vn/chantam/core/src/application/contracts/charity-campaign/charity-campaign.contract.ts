@@ -248,6 +248,7 @@ export interface ICompleteCharityDeliveryCommand {
   readonly received: readonly {
     needItemId: string;
     receivedQuantity: number;
+    confirmedValue?: number | null;
   }[];
 }
 

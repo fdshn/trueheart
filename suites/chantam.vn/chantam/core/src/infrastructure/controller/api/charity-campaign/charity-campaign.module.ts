@@ -1,4 +1,9 @@
 import { Module } from '@nestjs/common';
+import {
+  AdminCharityAppealController,
+  CharityAppealController,
+  CharityProjectAppealController,
+} from './charity-appeal.controller';
 import { CharityCampaignPublicController } from './charity-campaign-public.controller';
 import {
   AdminCharityCampaignController,
@@ -33,6 +38,9 @@ import {
     CharitySummaryController,
     AdminCharityPromotionController,
     CharityHomeController,
+    CharityProjectAppealController,
+    CharityAppealController,
+    AdminCharityAppealController,
     AdminCharityProjectController,
   ],
 })

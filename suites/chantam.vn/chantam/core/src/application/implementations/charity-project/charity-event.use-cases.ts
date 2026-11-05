@@ -56,8 +56,9 @@ import {
 } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { IObjectStorage } from '@chantam/service.storage-lib';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { withStorageValidation } from '../shared/storage-error';
+import { CharityPointsService } from './charity-points.service';
 import { CharityProjectAccess } from './charity-project.use-cases';
 
 const WritePermission = 'campaign.manage';
@@ -360,6 +361,9 @@ export class CreateCharityPostUseCase implements ICreateCharityPostUseCase {
     @Inject(IObjectStorage) private readonly storage: IObjectStorage,
     @Inject(ICharityRealtimePublisher)
     private readonly realtime: ICharityRealtimePublisher,
+    // Tuỳ chọn để spec dựng tay không phải đổi; Nest luôn tiêm (§3.9).
+    @Optional()
+    private readonly points?: CharityPointsService,
   ) {}
 
   public async handle(
@@ -409,6 +413,14 @@ export class CreateCharityPostUseCase implements ICreateCharityPostUseCase {
     });
     if (post === 'MEDIA_INVALID') throw new CharityPostMediaInvalidException();
     this.realtime.signal(campaign.globalId, ['POSTS'], 'public');
+    await this.points?.awardPost({
+      postId: post.postId,
+      campaignId: campaign.globalId,
+      authorId: command.userId,
+      authorRole: role,
+      videoCount: media.filter((item) => item.mediaType === 'VIDEO').length,
+      imageCount: media.filter((item) => item.mediaType === 'IMAGE').length,
+    });
     return post;
   }
 }
@@ -448,6 +460,9 @@ export class DeleteCharityPostUseCase implements IDeleteCharityPostUseCase {
     private readonly events: ICharityEventRepository,
     @Inject(ICharityRealtimePublisher)
     private readonly realtime: ICharityRealtimePublisher,
+    // Tuỳ chọn để spec dựng tay không phải đổi; Nest luôn tiêm (§3.9).
+    @Optional()
+    private readonly points?: CharityPointsService,
   ) {}
 
   public async handle(
@@ -469,6 +484,7 @@ export class DeleteCharityPostUseCase implements IDeleteCharityPostUseCase {
     });
     if (!deleted) throw new CharityPostNotFoundException();
     this.realtime.signal(command.campaignId, ['POSTS'], 'public');
+    await this.points?.revokePost(command.postId);
     return { deleted: true };
   }
 }

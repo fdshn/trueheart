@@ -259,3 +259,31 @@ export class CharityFinancialReportNotFoundException extends ExceptionFrom(
 export class CharityEvaluationTargetInvalidException extends ExceptionFrom(
   CoreErrors.CHARITY_EVALUATION_TARGET_INVALID,
 ) {}
+
+export class CharityAppealNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_NOT_FOUND,
+) {}
+
+export class CharityAppealNotAllowedException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_NOT_ALLOWED,
+) {}
+
+export class CharityAppealDuplicatedException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_DUPLICATED,
+) {}
+
+export class CharityAppealInvalidStateException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_INVALID_STATE,
+) {}
+
+export class CharityAppealConflictOfInterestException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_CONFLICT_OF_INTEREST,
+) {}
+
+export class CharityAppealWindowClosedException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_WINDOW_CLOSED,
+) {}
+
+export class CharityAppealRateLimitedException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_RATE_LIMITED,
+) {}

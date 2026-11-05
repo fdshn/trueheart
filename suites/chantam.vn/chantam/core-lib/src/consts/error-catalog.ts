@@ -1294,6 +1294,54 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () =>
       'Người này không tham gia dự án nên không chấm được mức hoàn thành',
   },
+  CHARITY_APPEAL_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_APPEAL_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy khiếu nại',
+  },
+
+  CHARITY_APPEAL_NOT_ALLOWED: {
+    code: ErrorCodes.CHARITY_APPEAL_NOT_ALLOWED,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () =>
+      'Chỉ chính người được đánh giá mới khiếu nại được đánh giá của mình',
+  },
+
+  CHARITY_APPEAL_DUPLICATED: {
+    code: ErrorCodes.CHARITY_APPEAL_DUPLICATED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Lần đánh giá này đã có khiếu nại — mỗi lần đánh giá chỉ khiếu nại một lần',
+  },
+
+  CHARITY_APPEAL_INVALID_STATE: {
+    code: ErrorCodes.CHARITY_APPEAL_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (state: string) =>
+      `Khiếu nại đang ở trạng thái ${state}, không thực hiện được bước này`,
+    sample: ['CLOSED'],
+  },
+
+  CHARITY_APPEAL_CONFLICT_OF_INTEREST: {
+    code: ErrorCodes.CHARITY_APPEAL_CONFLICT_OF_INTEREST,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () =>
+      'Người đã chấm không tự xét khiếu nại khi ban tổ chức còn người khác',
+  },
+
+  CHARITY_APPEAL_WINDOW_CLOSED: {
+    code: ErrorCodes.CHARITY_APPEAL_WINDOW_CLOSED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (days: number) =>
+      `Đã quá ${days} ngày kể từ lúc đánh giá — hết hạn khiếu nại`,
+    sample: [7],
+  },
+
+  CHARITY_APPEAL_RATE_LIMITED: {
+    code: ErrorCodes.CHARITY_APPEAL_RATE_LIMITED,
+    httpStatus: HttpStatus.TOO_MANY_REQUESTS,
+    message: () => 'Bạn gửi quá nhiều khiếu nại trong 24 giờ — thử lại sau',
+  },
 
   CHARITY_CAMPAIGN_HAS_ACTIVITY: {
     code: ErrorCodes.CHARITY_CAMPAIGN_HAS_ACTIVITY,

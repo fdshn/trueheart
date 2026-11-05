@@ -2947,5 +2947,50 @@ cao đứng trước; dự án đã đóng/đình chỉ tự rơi khỏi Home. B
 như đã xử lý. Card chỉ có tiêu đề, lời nhắn, ảnh (mặc định ảnh bìa), CTA — bấm vào mở
 `GET /charity-campaigns/:slug/public`.
 
-**Chưa có ở đợt 4a:** điểm theo giá trị vật phẩm, ảnh/clip và mức hoàn thành kèm trần, khiếu nại
-hai tầng (đợt 4b).
+### 18.5 Đợt 4b — điểm theo giá trị kèm trần, khiếu nại hai tầng
+
+| Method | Đường dẫn | Ai | Mô tả |
+| --- | --- | --- | --- |
+| `POST` | `/charity-deliveries/:id/complete` (đã có) | Ban tổ chức | Mỗi dòng `received[]` nhận thêm `confirmedValue` (VNĐ, tuỳ chọn) — bỏ trống = thực nhận × đơn giá của nhu cầu |
+| `POST` | `/charity-campaigns/:id/appeals` | Người bị đánh giá | `{ appeal: { targetType: EVALUATION\|ITEM_VALUE, targetId, requestedValue?, description, evidenceUrls? } }` |
+| `GET` | `/charity-campaigns/:id/appeals` | Người tạo, coordinator, Admin `campaign.read` | Khiếu nại của dự án |
+| `GET` | `/me/charity-appeals` | Bearer | Khiếu nại tôi đã gửi |
+| `GET` | `/charity-appeals/:appealId` | Người khiếu nại, người có vai, Admin `report.read` | `{ appeal, events }` — nhật ký từng bước |
+| `PATCH` | `/charity-appeals/:appealId` | Ban tổ chức / người khiếu nại | `{ decision: { action, value?, reason? } }` — tầng 1 |
+| `GET` | `/admin/charity-appeals` | `report.read` | `?status=&page=&pageSize=` — kèm `appellantRejectedCount`, `organizerOverturnedCount` |
+| `PATCH` | `/admin/charity-appeals/:appealId` | `report.resolve` | `{ decision: { action: KEEP\|ADJUST\|REJECT\|REOPEN, value?, reason } }` |
+
+**Điểm** (`point_rules`, seed **TẮT** chờ chủ dự án bật — cùng lối `CHARITY_CONTRIBUTION_COMPLETED`):
+
+| Rule | Mức seed | Khi phát sinh |
+| --- | --- | --- |
+| `CHARITY_ITEM_VALUE` | 1 điểm / 10.000đ | Hoàn tất giao nhận, theo giá trị ban tổ chức xác nhận (`campaign_delivery_items.confirmed_value`, hoặc `campaign_deliveries.confirmed_value_adjusted` sau khiếu nại) |
+| `CHARITY_POST_VIDEO` | 2 / clip (giữ chỗ) | Đăng bài; cộng tác viên sự kiện × `charity.post_points_participant_multiplier_percent` (mặc định 200%) |
+| `CHARITY_POST_IMAGE` | 1 / ảnh (giữ chỗ) | Như trên |
+| `CHARITY_PARTICIPATION` | 100 × mức hoàn thành / 100 | Chấm mức hoàn thành (lần mới nhất) |
+
+Trần do Admin cấu hình: `charity.points_cap.<rule>.daily|project|cycle` (rule viết thường, ví dụ
+`charity.points_cap.charity_item_value.daily`), **0 = không trần**. Ngày theo giờ Việt Nam, chu kỳ
+là chu kỳ duy trì hạng đang mở. **Chạm trần thì HOÃN, không bỏ**: phần vướng trần nằm chờ và job
+`charity:points` (15 phút/lần) ghi tiếp khi có chỗ (ngày mới, Admin nâng trần). Chấm lại thấp hơn,
+bài bị gỡ hoặc Admin ẩn → bút toán TRỪ phần chênh, ghi ngay; không sửa bút toán cũ. Bút toán ghi với
+`referenceType = CHARITY_POINT_AWARD`.
+
+**Khiếu nại hai tầng** (§3.16): chỉ chính người bị đánh giá — mức hoàn thành (lần chấm **hiện
+hành**) hoặc giá trị xác nhận lượt giao nhận của mình — trong `charity.appeal_window_days` ngày (7);
+mỗi đối tượng **một** khiếu nại; tối đa 5 khiếu nại / 24 giờ.
+
+1. **Tầng 1** — `ORGANIZER_REVIEW`: ban tổ chức/coordinator/Admin `ADJUST` (giá trị mới có hiệu lực
+   **ngay**: lần chấm mới nguồn `APPEAL` hoặc giá trị giao nhận điều chỉnh, kèm bút toán chênh)
+   hoặc `KEEP`, bắt buộc lý do. Người đã chấm **không tự xét** nếu ban tổ chức còn người khác
+   (`CHARITY_APPEAL_CONFLICT_OF_INTEREST`). Quá `charity.appeal_organizer_sla_days` (3) ngày → tự
+   chuyển Admin.
+2. `AWAITING_APPELLANT`: người khiếu nại `ACCEPT` (đóng) hoặc `ESCALATE` (tầng 2); im lặng quá
+   `charity.appeal_auto_close_days` (3) ngày → tự đóng (`AUTO_CLOSED`).
+3. **Tầng 2** — `ADMIN_REVIEW`: Admin `KEEP` / `ADJUST` / `REJECT`, quyết cuối. Đóng là xong,
+   trừ khi Admin `REOPEN` (có lý do).
+
+Mọi bước ghi `campaign_appeal_events` (append-only) và báo bên kia `CHARITY_APPEAL_UPDATED` (mở dự
+án). Người khiếu nại thấy lý do mọi quyết định. Admin thấy số khiếu nại bị bác của người khiếu nại và
+số lần ban tổ chức bị khiếu nại thành công — **không tự động phạt**. Job `charity:appeal-sla` chạy
+mỗi giờ.

@@ -3,8 +3,8 @@
 > **File sinh tự động** bởi `npm run docs:routes` từ metadata của controller đã biên dịch.
 > Đừng sửa tay — sửa controller rồi chạy lại lệnh. CI chạy `docs:routes:check`.
 
-Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **400** route:
-57 công khai, 136 cần quyền Admin, 207 cần access token.
+Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **407** route:
+57 công khai, 138 cần quyền Admin, 212 cần access token.
 
 Mức truy cập: `Công khai` = không cần token; `Bearer` = cần access token (một số route còn
 kiểm chủ sở hữu hoặc quyền RBAC trong use case — xem `docs/API.md`); `perm:<mã>` = quyền Admin
@@ -89,6 +89,13 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | Method | Đường dẫn | Truy cập | Tóm tắt |
 | --- | --- | --- | --- |
 | `GET` | `/admin/categories` | perm:category.read | Cây danh mục gồm cả mục đã tắt |
+
+## `/admin/charity-appeals`
+
+| Method | Đường dẫn | Truy cập | Tóm tắt |
+| --- | --- | --- | --- |
+| `GET` | `/admin/charity-appeals` | perm:report.read | Hàng đợi khiếu nại dự án từ thiện |
+| `PATCH` | `/admin/charity-appeals/:appealId` | perm:report.resolve | Quyết định tầng 2 / mở lại |
 
 ## `/admin/charity-campaigns`
 
@@ -396,11 +403,20 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `PATCH` | `/categories/:categoryId` | Bearer | Sửa hoặc tắt danh mục |
 | `POST` | `/categories/:categoryId/merge` | Bearer | Gộp danh mục này vào danh mục khác |
 
+## `/charity-appeals`
+
+| Method | Đường dẫn | Truy cập | Tóm tắt |
+| --- | --- | --- | --- |
+| `GET` | `/charity-appeals/:appealId` | Bearer | Chi tiết khiếu nại và nhật ký từng bước |
+| `PATCH` | `/charity-appeals/:appealId` | Bearer | Xử khiếu nại tầng 1 |
+
 ## `/charity-campaigns`
 
 | Method | Đường dẫn | Truy cập | Tóm tắt |
 | --- | --- | --- | --- |
 | `POST` | `/charity-campaigns` | Bearer | Gửi hồ sơ hoạt động từ thiện |
+| `GET` | `/charity-campaigns/:id/appeals` | Bearer | Khiếu nại của dự án (ban tổ chức) |
+| `POST` | `/charity-campaigns/:id/appeals` | Bearer | Khiếu nại mức hoàn thành / giá trị xác nhận |
 | `POST` | `/charity-campaigns/:id/bank-accounts` | Bearer | Thêm (hoặc thay) tài khoản nhận |
 | `POST` | `/charity-campaigns/:id/bank-accounts/:accountId/close` | Bearer | Đóng tài khoản nhận |
 | `GET` | `/charity-campaigns/:id/beneficiary` | Bearer | Thông tin người thụ hưởng — RIÊNG TƯ (F65b §2) |
@@ -630,6 +646,7 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `GET` | `/me/blocks` | Bearer | Những người tôi đã chặn |
 | `POST` | `/me/blocks` | Bearer | Chặn một người |
 | `DELETE` | `/me/blocks/:userId` | Bearer | Bỏ chặn |
+| `GET` | `/me/charity-appeals` | Bearer | Khiếu nại tôi đã gửi |
 | `GET` | `/me/entitlements` | Bearer | Quyền và giới hạn hiện tại của chính chủ |
 
 ## `/merit-units`

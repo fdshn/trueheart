@@ -1224,7 +1224,11 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
   public async completeDelivery(params: {
     deliveryId: string;
     organizerId: string;
-    received: readonly { needItemId: string; receivedQuantity: number }[];
+    received: readonly {
+      needItemId: string;
+      receivedQuantity: number;
+      confirmedValue?: number | null;
+    }[];
   }): Promise<ICharityDelivery> {
     return this.manager.transaction(async (manager) => {
       const delivery = await this.lockDeliveryInOrder(
@@ -1259,7 +1263,9 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       // Xác nhận ĐỦ mọi dòng, mỗi dòng một lần, trong [0, accepted]. Bỏ sót một dòng
       // là để lại một phần đã chấp nhận không bao giờ được trả về nhu cầu.
       const received = new Map<string, number>();
+      const confirmedValues = new Map<string, number | null>();
       for (const line of params.received) {
+        confirmedValues.set(line.needItemId, line.confirmedValue ?? null);
         if (received.has(line.needItemId))
           throw new CharityLinesInvalidException(
             `Dòng ${line.needItemId} được xác nhận hai lần`,
@@ -1284,12 +1290,24 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
           );
       }
 
+      // Giá trị xác nhận (§3.9): ban tổ chức nhập thì lấy đúng số đó; bỏ trống thì số thực
+      // nhận × đơn giá của nhu cầu (chưa có đơn giá → NULL, không có điểm theo giá trị).
       await manager.query(
         `UPDATE campaign_delivery_items item
-         SET received_quantity = line.received_quantity
-         FROM UNNEST($2::uuid[], $3::int[]) AS line(need_item_id, received_quantity)
+         SET received_quantity = line.received_quantity,
+             confirmed_value = COALESCE(
+               line.confirmed_value,
+               (SELECT line.received_quantity * need.unit_price
+                  FROM campaign_need_items need WHERE need.global_id = item.need_item_id))
+         FROM UNNEST($2::uuid[], $3::int[], $4::bigint[])
+           AS line(need_item_id, received_quantity, confirmed_value)
          WHERE item.delivery_id = $1 AND item.need_item_id = line.need_item_id`,
-        [params.deliveryId, [...received.keys()], [...received.values()]],
+        [
+          params.deliveryId,
+          [...received.keys()],
+          [...received.values()],
+          [...received.keys()].map((key) => confirmedValues.get(key) ?? null),
+        ],
       );
 
       // Phần đã chấp nhận RỜI khỏi `accepted_quantity` theo đúng số đã chấp nhận,

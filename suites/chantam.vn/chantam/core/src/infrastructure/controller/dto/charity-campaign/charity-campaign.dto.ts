@@ -1192,6 +1192,20 @@ export class DeliveryReceiptLineDto {
   @Min(0)
   @Max(MaxNeedItemQuantity)
   receivedQuantity: number;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    nullable: true,
+    example: 1_500_000,
+    description:
+      'Giá trị (VNĐ) ban tổ chức xác nhận cho dòng này — căn cứ điểm `CHARITY_ITEM_VALUE` (1 điểm / 10.000đ). Bỏ trống = số thực nhận × đơn giá của nhu cầu. Người tặng khiếu nại được trong `charity.appeal_window_days` ngày.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000_000_000)
+  confirmedValue?: number | null;
 }
 
 export class CompleteCharityDeliveryBodyDto {

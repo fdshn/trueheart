@@ -359,4 +359,65 @@ async function seedSummary(
        VALUES ($1, $2, $3, $4, $5)`,
       [campaignId, Personas.giver, score, note, Personas.organizer],
     );
+  await seedPointsAndAppeal(ctx, campaignId);
+}
+
+/**
+ * Đợt 4b (§3.9, §3.16): một award điểm tham gia (rule đang TẮT nên 0/0 — seed KHÔNG phát điểm,
+ * không thì job `charity:points` sẽ ghi điểm thật trên môi trường dev) và một khiếu nại đã đóng
+ * đủ ba bước nhật ký.
+ */
+async function seedPointsAndAppeal(
+  ctx: ISeedContext,
+  campaignId: string,
+): Promise<void> {
+  const [schema] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.campaign_appeal_events') IS NOT NULL AS ready`,
+  );
+  if (!schema?.ready) return;
+  const [seeded] = await ctx.q(
+    `SELECT 1 FROM campaign_appeals WHERE campaign_id = $1`,
+    [campaignId],
+  );
+  if (seeded) return;
+  await ctx.q(
+    `INSERT INTO campaign_point_awards
+       (campaign_id, user_id, rule_code, reference_type, reference_id, target_points, reason)
+     VALUES ($1, $2, 'CHARITY_PARTICIPATION', 'CHARITY_PARTICIPATION', $3,
+             0, 'Tham gia dự án (rule đang tắt)')
+     ON CONFLICT DO NOTHING`,
+    [campaignId, Personas.giver, `${campaignId}:${Personas.giver}`],
+  );
+  const [evaluation] = await ctx.q<{ global_id: string }>(
+    `SELECT global_id FROM campaign_participant_evaluations
+     WHERE campaign_id = $1 AND participant_id = $2 ORDER BY id DESC LIMIT 1`,
+    [campaignId, Personas.giver],
+  );
+  if (!evaluation) return;
+  const [appeal] = await ctx.q<{ global_id: string }>(
+    `INSERT INTO campaign_appeals
+       (campaign_id, appellant_id, target_type, target_id, original_value, requested_value,
+        description, status, organizer_decision, organizer_value, organizer_reason,
+        organizer_decided_by, organizer_decided_at, outcome, organizer_due_at, closed_at)
+     VALUES ($1, $2, 'EVALUATION', $3, 85, 100, 'Tôi ở lại tới khi dọn xong sân trường.',
+             'CLOSED', 'KEEP', NULL, 'Điểm đã tính cả phần dọn dẹp.', $4, now() - interval '1 day',
+             'KEPT_ACCEPTED', now() + interval '2 days', now() - interval '12 hours')
+     RETURNING global_id`,
+    [campaignId, Personas.giver, evaluation.global_id, Personas.organizer],
+  );
+  for (const [actor, action, from, to] of [
+    [Personas.giver, 'SUBMIT', null, 'ORGANIZER_REVIEW'],
+    [
+      Personas.organizer,
+      'ORGANIZER_KEEP',
+      'ORGANIZER_REVIEW',
+      'AWAITING_APPELLANT',
+    ],
+    [Personas.giver, 'APPELLANT_ACCEPT', 'AWAITING_APPELLANT', 'CLOSED'],
+  ] as const)
+    await ctx.q(
+      `INSERT INTO campaign_appeal_events (appeal_id, actor_id, action, from_status, to_status)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [appeal.global_id, actor, action, from, to],
+    );
 }

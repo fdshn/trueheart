@@ -154,7 +154,8 @@ users ──┬──< user_sessions · verified_phones · user_blocks (blocker/
         │                ├──< campaign_section_states · campaign_custom_sections ──< campaign_custom_fields
         │                ├──< campaign_revisions · campaign_tasks · campaign_follows · campaign_announcements · campaign_exports
         │                ├──< campaign_event_steps · campaign_event_contributors · campaign_posts ──< campaign_post_media · campaign_post_uploads
-        │                └──  campaign_summaries (1–1) · campaign_financial_reports · campaign_participant_evaluations
+        │                ├──  campaign_summaries (1–1) · campaign_financial_reports · campaign_participant_evaluations
+        │                └──< campaign_point_awards · campaign_appeals ──< campaign_appeal_events
         ├──< merit_units (created_by) ──< merit_declarations
         └──< dharma_contents ──< dharma_recitations ──< dharma_dedications
              dharma_threads (author)
@@ -430,7 +431,10 @@ Seed ban đầu: `PHONE_VERIFIED_FIRST_TIME` = 28 điểm (không cap), `REFERRA
 (cap 3/ngày). Các migration sau thêm `GIFT_COMPLETED_GIVER` (56, cap 10), `GIFT_COMPLETED_RECEIVER`
 (28, cap 5), `ONBOARDING_COMPLETED` (224), `POST_REACTED`, `POST_COMMENTED`, `REPORT_UPHELD`, hai
 luật phạt `SHIP_UNPAID_PENALTY` / `CONTENT_VIOLATION_PENALTY` (−50) và
-`CHARITY_CONTRIBUTION_COMPLETED` (10, **tắt**). Danh sách đúng: `SELECT code, version, points,
+`CHARITY_CONTRIBUTION_COMPLETED` (10, **tắt**), và (`1802800000000`) bốn rule dự án từ thiện
+`CHARITY_ITEM_VALUE` (1 / 10.000đ), `CHARITY_POST_VIDEO` (2), `CHARITY_POST_IMAGE` (1),
+`CHARITY_PARTICIPATION` (100 × mức hoàn thành / 100) — đều **tắt**, trần ở `system_configs`
+`charity.points_cap.*`. Danh sách đúng: `SELECT code, version, points,
 daily_cap, is_enabled FROM point_rules`.
 
 ### `point_ledger` — sổ cái, **chỉ ghi thêm**
@@ -1068,11 +1072,14 @@ khai dùng chung danh sách cột).
 | `campaign_summaries` | **Từ `1802700000000`.** PK `campaign_id`: `summary`, `usage_report`, `thanks_message`, `lessons_learned`, `evidence_urls` jsonb (≤ 20), `published_at` (NULL = nháp) |
 | `campaign_financial_reports` | `period_from` ≤ `period_to` (date), `total_income`/`total_expense` ≥ 0 (VNĐ), `balance` cột sinh = thu − chi, `explanation` không trống, `statement_urls` jsonb 1–20 |
 | `campaign_participant_evaluations` | Chấm mức hoàn thành: `participant_id`, `completion_score` 0–100, `note` (nội bộ), `evaluated_by`, `source` `ORGANIZER`·`APPEAL`·`ADMIN`. **Trigger append-only** — dòng mới nhất là điểm hiện hành |
+| `campaign_point_awards` | **Từ `1802800000000`.** Điểm dự án "nên được" theo (rule, đối tượng, người): UNIQUE `(rule_code, reference_type, reference_id, user_id)`, `target_points`, `applied_points` (đã ghi sổ), `ledger_seq` (khoá chống trùng bút toán `CHARITY_AWARD:<id>:<seq>`), `reason`. Chênh ≠ 0 = đang hoãn / chờ ghi (index một phần) |
+| `campaign_appeals` | Khiếu nại: `appellant_id`, `target_type` `EVALUATION`/`ITEM_VALUE`, `target_id` (UNIQUE cùng loại — một khiếu nại mỗi đối tượng), `original_value`, `requested_value`, `description`, `evidence_urls`, `status` `ORGANIZER_REVIEW`·`AWAITING_APPELLANT`·`ADMIN_REVIEW`·`CLOSED` (đóng ⇔ có `closed_at` + `outcome`), `tier` 1/2, quyết định ban tổ chức (`organizer_*`) và Admin (`admin_*`), `organizer_due_at`, `appellant_due_at` |
+| `campaign_appeal_events` | Nhật ký khiếu nại: `actor_id` (NULL = job), `action`, `from_status` → `to_status`, `value`, `reason`. **Trigger append-only** |
 | `campaign_media` | `campaign_id` (CASCADE), `storage_key` UNIQUE, `public_url`, `media_type` `IMAGE`/`VIDEO`, `sort_order` 0–4 (UNIQUE theo chiến dịch), `is_cover` (chỉ ảnh; `UQ_campaign_media_one_cover`) |
 | `campaign_schedule_changes` | `campaign_id`, `previous_end_time` < `new_end_time` (chỉ gia hạn), `changed_by`, `reason`, `created_at`. **Trigger append-only** |
 | `campaign_reviews` | `global_id`, `campaign_id`, `reviewer_id` ≠ `reviewee_id`, `reviewer_role` `ORGANIZER`/`PARTICIPANT`, `rating` 1–5, `comment`; UNIQUE `(campaign_id, reviewer_id, reviewee_id)` |
 
-Điểm thưởng đóng góp đi qua `point_ledger` với rule `CHARITY_CONTRIBUTION_COMPLETED` (seed **tắt**).
+Điểm thưởng đóng góp đi qua `point_ledger` với rule `CHARITY_CONTRIBUTION_COMPLETED` (seed **tắt**). Từ `1802800000000`: `campaign_delivery_items.confirmed_value` (VNĐ ban tổ chức xác nhận, ≥ 0) và `campaign_deliveries.confirmed_value_adjusted` (tổng sau khiếu nại) — căn cứ `CHARITY_ITEM_VALUE`.
 
 ---
 
