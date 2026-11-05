@@ -799,6 +799,26 @@ async function main(): Promise<void> {
       `SELECT value_json FROM system_configs WHERE config_key = 'charity.post_max_video_seconds'`,
     );
     check('cấu hình mặc định 60 giây', Number(maxConfig?.value_json) === 60);
+    const beforeSummary = await events.summaryStartedAt(Live);
+    await projects.moveStage({
+      campaignId: Live,
+      from: 'EVENT',
+      to: 'SUMMARY',
+      actorId: Owner,
+      reason: 'Trao xong',
+    });
+    const [afterHours] = await sql(
+      `SELECT value_json FROM system_configs WHERE config_key = 'charity.post_after_event_hours'`,
+    );
+    const startedAt = await events.summaryStartedAt(Live);
+    check(
+      'mốc sang Tổng kết đọc từ nhật ký giai đoạn; cửa sổ đăng sau sự kiện mặc định 72 giờ',
+      beforeSummary === null &&
+        startedAt !== null &&
+        Math.abs(startedAt.getTime() - Date.now()) < 60_000 &&
+        Number(afterHours?.value_json) === 72,
+      String(startedAt),
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

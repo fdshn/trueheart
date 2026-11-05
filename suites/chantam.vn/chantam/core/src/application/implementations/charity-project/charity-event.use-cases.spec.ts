@@ -53,6 +53,10 @@ function make(
   };
   const events = {
     isAttendedParticipant: jest.fn(async () => options.attended ?? false),
+    // Sang Tổng kết 100 giờ trước — mock cấu hình trả 2 nên cửa sổ là 2 giờ (đã hết).
+    summaryStartedAt: jest.fn(
+      async (): Promise<Date | null> => new Date(Date.now() - 100 * 3_600_000),
+    ),
     ensureEventSteps: jest.fn(async () => undefined),
     updateEventStep: jest.fn(async (): Promise<unknown> => null),
     reserveUpload: jest.fn(
@@ -108,6 +112,24 @@ describe('CharityPostAccess', () => {
           campaign: campaign({ operationStage: 'SUMMARY' }),
         }).postAccess.resolve(CampaignId, Volunteer)
       ).role,
+    ).toBeNull();
+  });
+
+  it('Tổng kết: còn trong cửa sổ đăng sau sự kiện → PARTICIPANT; hết cửa sổ → null', async () => {
+    const deps = make({
+      attended: true,
+      campaign: campaign({ operationStage: 'SUMMARY' }),
+    });
+    deps.events.summaryStartedAt.mockResolvedValueOnce(
+      new Date(Date.now() - 3_600_000),
+    );
+    const inside = await deps.postAccess.resolve(CampaignId, Volunteer);
+    expect(inside.role).toBe('PARTICIPANT');
+    expect(inside.afterEventWindowEndsAt?.getTime()).toBeGreaterThan(
+      Date.now(),
+    );
+    expect(
+      (await deps.postAccess.resolve(CampaignId, Volunteer)).role,
     ).toBeNull();
   });
 

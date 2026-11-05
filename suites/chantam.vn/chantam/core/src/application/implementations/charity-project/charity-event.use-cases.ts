@@ -38,6 +38,7 @@ import {
 } from '@/domain/ports/repository';
 import {
   CharityEventStepLabels,
+  CharityPostAfterEventHoursConfigKey,
   CharityPostAuthorRole,
   CharityPostDailyImageQuotaConfigKey,
   CharityPostDailyVideoQuotaConfigKey,
@@ -45,9 +46,11 @@ import {
   CharityPostMediaType,
   MaxCharityPostBodyLength,
   MaxCharityPostMedia,
+  charityAfterEventWindowEndsAt,
   charityPostMediaTypeOf,
   charityPostRole,
   isSuspendedProject,
+  normalizeCharityPostAfterEventHours,
   normalizeCharityPostMaxVideoSeconds,
   normalizeCharityPostQuota,
   vietnamDayStart,
@@ -149,6 +152,8 @@ export class CharityPostAccess {
     campaign: ICharityCampaign;
     role: CharityPostAuthorRole | null;
     isModerator: boolean;
+    /** Hết cửa sổ participant đăng sau sự kiện — chỉ có khi dự án ở Tổng kết. */
+    afterEventWindowEndsAt: Date | null;
   }> {
     const campaign = await this.campaigns.findByGlobalId(campaignId);
     if (!campaign) throw new CharityCampaignNotFoundException();
@@ -161,6 +166,20 @@ export class CharityPostAccess {
         this.events.isAttendedParticipant(campaignId, userId),
       ]);
     const isOrganizer = campaign.createdBy === userId || isAdminWriter;
+    // Cửa sổ đăng sau sự kiện (§7.3): tính từ lúc sang Tổng kết — job trễ chưa ghi nhật ký thì
+    // lấy mốc hết bước trao, không có nữa thì hạn của dự án.
+    let afterEventWindowEndsAt: Date | null = null;
+    if (campaign.operationStage === 'SUMMARY') {
+      const [startedAt, hours] = await Promise.all([
+        this.events.summaryStartedAt(campaignId),
+        this.admin.getConfigValue(CharityPostAfterEventHoursConfigKey),
+      ]);
+      afterEventWindowEndsAt = charityAfterEventWindowEndsAt({
+        summaryStartedAt:
+          startedAt ?? campaign.distribution?.endsAt ?? campaign.endTime,
+        hours: normalizeCharityPostAfterEventHours(hours),
+      });
+    }
     const role = charityPostRole({
       approved: campaign.approvalStatus === 'APPROVED',
       suspended: isSuspendedProject(campaign, new Date()),
@@ -168,6 +187,9 @@ export class CharityPostAccess {
       isCoordinator,
       isAttendedParticipant,
       stage: campaign.operationStage,
+      withinAfterEventWindow:
+        afterEventWindowEndsAt !== null &&
+        afterEventWindowEndsAt.getTime() > Date.now(),
     });
     // Không có vai gì với một dự án chưa hiện ra ngoài: 404 như trang dự án.
     if (
@@ -177,7 +199,12 @@ export class CharityPostAccess {
       campaign.approvalStatus !== 'APPROVED'
     )
       throw new CharityCampaignNotFoundException();
-    return { campaign, role, isModerator: isOrganizer || isCoordinator };
+    return {
+      campaign,
+      role,
+      isModerator: isOrganizer || isCoordinator,
+      afterEventWindowEndsAt,
+    };
   }
 }
 
@@ -213,10 +240,8 @@ export class GetCharityPostQuotaUseCase implements IGetCharityPostQuotaUseCase {
   public async handle(
     command: ICharityProjectCommand,
   ): Promise<ICharityPostQuotaView> {
-    const { campaign, role } = await this.postAccess.resolve(
-      command.campaignId,
-      command.userId,
-    );
+    const { campaign, role, afterEventWindowEndsAt } =
+      await this.postAccess.resolve(command.campaignId, command.userId);
     const since = vietnamDayStart(new Date());
     const [limits, used, videoMaxSeconds] = await Promise.all([
       quotaLimits(this.admin),
@@ -233,6 +258,7 @@ export class GetCharityPostQuotaUseCase implements IGetCharityPostQuotaUseCase {
       image: { used: used.IMAGE, limit: limits.IMAGE },
       video: { used: used.VIDEO, limit: limits.VIDEO },
       videoMaxSeconds,
+      afterEventWindowEndsAt,
       windowStartsAt: since,
     };
   }

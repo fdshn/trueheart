@@ -270,8 +270,8 @@ lập lịch sớm): `GATHER`, `BRIEFING`, `TRAVEL`, `REST_STOP`, `ARRIVE`, `MEE
   kiểm quyền trước khi ký), đếm theo ngày giờ Việt Nam. Upload lỗi, retry trùng hoặc media bị
   từ chối không sinh điểm. Hai con số là khoá cấu hình Admin (`charity.post_daily_video_quota`,
   `charity.post_daily_image_quota`). Clip tối đa **60 giây** (Admin chỉnh
-  `charity.post_max_video_seconds`) trong trần 25 MB của storage; thời hạn được đăng sau khi sự
-  kiện kết thúc còn chờ chốt (§7.3).
+  `charity.post_max_video_seconds`) trong trần 25 MB của storage; participant đăng thêm được 72
+  giờ sau khi dự án sang Tổng kết (`charity.post_after_event_hours`, chốt §7.3).
 - Có thể báo cáo vi phạm từng bài (§3.8) và Admin ẩn được.
 
 ### 3.6 Tab D — Tổng kết
@@ -580,8 +580,8 @@ Mỗi đợt: migration + entity + repository + use case + spec, cập nhật `D
 - Quyền hệ thống giữ đơn giản: Owner/BTC quản trị; contributor/participant thao tác dữ liệu của
   mình; viewer tương tác public; Admin giám sát/can thiệp.
 
-### 7.3 Còn mở
+### 7.3 Đã chốt thêm (05/11)
 
 1. **Clip**: độ dài tối đa đã chốt **60 giây** (05/11 — khuyến nghị kỹ thuật: vừa 25 MB ở 720p
-   ~2,5–3 Mbps, tải được bằng 3G/4G yếu ở điểm trao; Admin chỉnh 10–600). Còn mở: thời hạn được
-   đăng ảnh/clip sau khi sự kiện kết thúc (hiện chỉ đăng được khi dự án ở Sự kiện trao).
+   ~2,5–3 Mbps, tải được bằng 3G/4G yếu ở điểm trao; Admin chỉnh 10–600). Đăng sau sự kiện đã chốt
+   **72 giờ** sau khi sang Tổng kết (Admin chỉnh 0–720). Không còn câu hỏi mở.

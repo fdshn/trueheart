@@ -45,6 +45,11 @@ export interface ICharityPostQuotaView {
   video: { used: number; limit: number };
   /** Độ dài clip tối đa (giây) — `charity.post_max_video_seconds`. */
   videoMaxSeconds: number;
+  /**
+   * Dự án đã sang Tổng kết: participant còn đăng được tới lúc này (`charity.post_after_event_hours`,
+   * mặc định 72 giờ). `null` khi chưa sang Tổng kết.
+   */
+  afterEventWindowEndsAt: Date | null;
   /** Đầu ngày (giờ Việt Nam) đang tính quota. */
   windowStartsAt: Date;
 }

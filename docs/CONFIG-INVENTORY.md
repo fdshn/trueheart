@@ -165,6 +165,7 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | `charity.appeal_window_days` | `7` (INTEGER) | N — số ngày được khiếu nại kể từ lúc chấm/xác nhận giá trị (§3.16). Kẹp 1–90 | `GET\|POST /admin/system-configs` |
 | `charity.appeal_organizer_sla_days` | `3` (INTEGER) | M — hạn ban tổ chức xét tầng 1; quá hạn tự chuyển Admin. Kẹp 1–30 | `GET\|POST /admin/system-configs` |
 | `charity.appeal_auto_close_days` | `3` (INTEGER) | K — người khiếu nại im lặng quá số ngày này sau quyết định tầng 1 thì đóng. Kẹp 1–30 | `GET\|POST /admin/system-configs` |
+| `charity.post_after_event_hours` | `72` (INTEGER) | Số giờ participant đã check-in còn đăng ảnh/clip sau khi dự án sang Tổng kết (chốt §7.3). Kẹp 0–720, 0 = tắt | `GET\|POST /admin/system-configs` |
 | `charity.post_max_video_seconds` | `60` (INTEGER) | Độ dài clip tối đa (giây) trong bài dự án từ thiện (chốt §7.3): vừa trần 25 MB của storage ở 720p ~2,5–3 Mbps, tải được bằng mạng yếu ở điểm trao. Client khai `durationSeconds` khi xin đường tải. Kẹp 10–600 | `GET\|POST /admin/system-configs` |
 | `charity.post_daily_image_quota` | `5` (INTEGER) | Số ảnh tối đa một người đăng vào MỘT dự án từ thiện mỗi ngày giờ Việt Nam (chốt §7.6). Mỗi lượt ký đường tải tính một suất. Kẹp 0–100, 0 = tắt | `GET\|POST /admin/system-configs` |
 | `charity.post_daily_video_quota` | `5` (INTEGER) | Như trên cho clip | `GET\|POST /admin/system-configs` |

@@ -142,6 +142,13 @@ export class CharityPostQuotaDto {
       'Độ dài clip tối đa (giây). Mobile cắt/nén clip về 720p trong giới hạn này trước khi tải (trần 25 MB).',
   })
   videoMaxSeconds: number;
+  @ApiProperty({
+    type: Date,
+    nullable: true,
+    description:
+      'Dự án đã sang Tổng kết: participant đã check-in còn đăng ảnh/clip được tới lúc này (mặc định 72 giờ sau khi sang Tổng kết). `null` khi chưa sang Tổng kết.',
+  })
+  afterEventWindowEndsAt: Date | null;
   @ApiProperty({ description: '0 giờ hôm nay theo giờ Việt Nam' })
   windowStartsAt: Date;
 }

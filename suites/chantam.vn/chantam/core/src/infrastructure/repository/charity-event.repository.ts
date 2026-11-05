@@ -192,6 +192,15 @@ export class CharityEventRepository implements ICharityEventRepository {
 
   // ── Quyền đăng của participant ────────────────────────────────────
 
+  public async summaryStartedAt(campaignId: string): Promise<Date | null> {
+    const [row] = await this.manager.query<{ at: Date | null }[]>(
+      `SELECT max(created_at) AS at FROM campaign_stage_events
+       WHERE campaign_id = $1 AND to_stage = 'SUMMARY'`,
+      [campaignId],
+    );
+    return row?.at ?? null;
+  }
+
   public async isAttendedParticipant(
     campaignId: string,
     userId: string,

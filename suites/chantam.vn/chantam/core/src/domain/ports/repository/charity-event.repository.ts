@@ -83,6 +83,8 @@ export interface ICharityEventRepository {
   // ── Quyền đăng của participant ────────────────────────────────────
   /** Đã check-in (hoặc đã hoàn thành) ở dự án — đủ điều kiện đăng ảnh/clip sự kiện. */
   isAttendedParticipant(campaignId: string, userId: string): Promise<boolean>;
+  /** Lần gần nhất dự án sang Tổng kết (nhật ký giai đoạn); `null` khi chưa ghi. */
+  summaryStartedAt(campaignId: string): Promise<Date | null>;
 
   // ── Quota và đường tải ────────────────────────────────────────────────
   /**

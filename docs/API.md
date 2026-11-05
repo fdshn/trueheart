@@ -3132,3 +3132,8 @@ bên kia `CHARITY_CONTRIBUTION_DISPUTE_UPDATED`. Đọc đóng góp có thêm `d
 - Mobile: quay/cắt clip trong trần, nén **720p H.264 ~2,5–3 Mbps** (60 giây ≈ 19–23 MB) trước
   khi xin đường tải.
 
+**Đăng sau sự kiện** (chốt §7.3): participant đã check-in đăng thêm ảnh/clip được **72 giờ** sau
+khi dự án sang Tổng kết (tính từ nhật ký giai đoạn; Admin chỉnh `charity.post_after_event_hours`
+0–720, 0 = tắt). `GET :id/posts/quota` trả `afterEventWindowEndsAt` (`null` khi chưa sang Tổng
+kết). Ban tổ chức, coordinator đăng mọi giai đoạn như cũ.
+

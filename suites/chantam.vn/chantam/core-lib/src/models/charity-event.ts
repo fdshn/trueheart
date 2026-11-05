@@ -104,7 +104,8 @@ export function vietnamDayStart(now: Date): Date {
  * Ai đăng bài được, với vai gì (§3.5):
  * - Người tổ chức, coordinator, Admin ghi: mọi giai đoạn SAU khi duyệt.
  * - Participant: chỉ khi ban tổ chức đã xác nhận VÀ đã check-in (hoặc đã hoàn thành), và dự án
- *   đang ở Sự kiện trao. Không cần có đóng góp.
+ *   đang ở Sự kiện trao — hoặc đã sang Tổng kết nhưng còn trong cửa sổ đăng sau sự kiện
+ *   (`withinAfterEventWindow`, chốt §7.3: 72 giờ). Không cần có đóng góp.
  * `null` = không được đăng.
  */
 export function charityPostRole(input: {
@@ -114,13 +115,46 @@ export function charityPostRole(input: {
   readonly isCoordinator: boolean;
   readonly isAttendedParticipant: boolean;
   readonly stage: CharityOperationStage;
+  readonly withinAfterEventWindow?: boolean;
 }): CharityPostAuthorRole | null {
   if (!input.approved || input.suspended) return null;
   if (input.isOrganizer) return 'ORGANIZER';
   if (input.isCoordinator) return 'COORDINATOR';
-  if (input.isAttendedParticipant && input.stage === 'EVENT')
+  if (
+    input.isAttendedParticipant &&
+    (input.stage === 'EVENT' ||
+      (input.stage === 'SUMMARY' && input.withinAfterEventWindow === true))
+  )
     return 'PARTICIPANT';
   return null;
+}
+
+export const CharityPostAfterEventHoursConfigKey =
+  'charity.post_after_event_hours';
+/**
+ * Chốt §7.3: participant đăng thêm ảnh/clip trong 72 giờ sau khi dự án sang Tổng kết — đủ để về
+ * tới nơi có mạng rồi mới tải. Admin chỉnh 0–720 (0 = tắt).
+ */
+export const DefaultCharityPostAfterEventHours = 72;
+
+export function normalizeCharityPostAfterEventHours(value: unknown): number {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : NaN;
+  if (!Number.isInteger(parsed)) return DefaultCharityPostAfterEventHours;
+  return Math.min(Math.max(parsed, 0), 720);
+}
+
+/** Hết cửa sổ đăng sau sự kiện lúc nào; `null` khi chưa sang Tổng kết. */
+export function charityAfterEventWindowEndsAt(input: {
+  readonly summaryStartedAt: Date | null;
+  readonly hours: number;
+}): Date | null {
+  if (!input.summaryStartedAt) return null;
+  return new Date(input.summaryStartedAt.getTime() + input.hours * 3_600_000);
 }
 
 // ── Realtime (§3.15) ────────────────────────────────────────────────────────

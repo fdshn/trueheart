@@ -148,3 +148,4 @@ export * from './1802800000000-CharityProjectPoints';
 export * from './1802900000000-CharityParticipantLifecycle';
 export * from './1803000000000-CharityOperations';
 export * from './1803100000000-CharityDisputesAndClipLength';
+export * from './1803200000000-CharityPostAfterEventWindow';

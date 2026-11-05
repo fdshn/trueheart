@@ -1,7 +1,9 @@
 import {
+  charityAfterEventWindowEndsAt,
   charityPostMediaTypeOf,
   charityPostRole,
   charityRealtimeRoom,
+  normalizeCharityPostAfterEventHours,
   normalizeCharityPostQuota,
   vietnamDayStart,
 } from './charity-event';
@@ -58,6 +60,28 @@ describe('charityPostRole', () => {
     expect(
       charityPostRole({ ...base, isOrganizer: true, suspended: true }),
     ).toBeNull();
+  });
+
+  it('participant ở Tổng kết: còn trong cửa sổ sau sự kiện thì được, hết thì thôi', () => {
+    const summary = {
+      ...base,
+      isAttendedParticipant: true,
+      stage: 'SUMMARY' as const,
+    };
+    expect(charityPostRole({ ...summary, withinAfterEventWindow: true })).toBe(
+      'PARTICIPANT',
+    );
+    expect(
+      charityPostRole({ ...summary, withinAfterEventWindow: false }),
+    ).toBeNull();
+    expect(
+      charityAfterEventWindowEndsAt({
+        summaryStartedAt: new Date('2026-11-05T00:00:00Z'),
+        hours: 72,
+      })?.toISOString(),
+    ).toBe('2026-11-08T00:00:00.000Z');
+    expect(normalizeCharityPostAfterEventHours('x')).toBe(72);
+    expect(normalizeCharityPostAfterEventHours(9999)).toBe(720);
   });
 
   it('cộng tác viên chỉ đăng được trong Sự kiện trao', () => {
