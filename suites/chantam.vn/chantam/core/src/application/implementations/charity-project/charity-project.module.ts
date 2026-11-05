@@ -7,6 +7,7 @@ import {
   ICheckCharityCompletionUseCase,
   ICheckInCharityParticipationUseCase,
   ICloseCharityBankAccountUseCase,
+  ICloseCharityDisputeUseCase,
   IConfirmCharityVolunteerUseCase,
   ICreateCharityExportUseCase,
   ICreateCharityPostUseCase,
@@ -31,6 +32,7 @@ import {
   IGetMyCharityParticipationUseCase,
   IListAdminCharityAppealsUseCase,
   IListCharityAppealsUseCase,
+  IListCharityDisputesUseCase,
   IListCharityEvaluationsUseCase,
   IListCharityExportsUseCase,
   IListCharityHomeCardsUseCase,
@@ -46,6 +48,7 @@ import {
   IManageCharitySupportNeedsUseCase,
   IMoveCharityStageUseCase,
   IOfferCharitySupportUseCase,
+  IOpenCharityDisputeUseCase,
   IPostponeCharityDistributionUseCase,
   IProcessCharityAnnouncementsUseCase,
   IProcessCharityAppealSlaUseCase,
@@ -93,6 +96,12 @@ import {
   ProcessCharityPointsUseCase,
   SubmitCharityAppealUseCase,
 } from './charity-appeal.use-cases';
+import {
+  CharityDisputeNotifier,
+  CloseCharityDisputeUseCase,
+  ListCharityDisputesUseCase,
+  OpenCharityDisputeUseCase,
+} from './charity-dispute.use-cases';
 import {
   CreateCharityExportUseCase,
   CreateCharityShareLinkUseCase,
@@ -267,6 +276,10 @@ const bindings = [
   [ISetCharityRoundReadinessUseCase, SetCharityRoundReadinessUseCase],
   [IAssignCharityRoundUseCase, AssignCharityRoundUseCase],
   [ICheckCharityCompletionUseCase, CheckCharityCompletionUseCase],
+  // Đợt 5c (bổ sung): tranh chấp đóng góp.
+  [IOpenCharityDisputeUseCase, OpenCharityDisputeUseCase],
+  [IListCharityDisputesUseCase, ListCharityDisputesUseCase],
+  [ICloseCharityDisputeUseCase, CloseCharityDisputeUseCase],
 ] as const;
 
 /** `@Global()` như mọi feature module của tầng application — thiếu là DI hỏng lúc boot. */
@@ -280,6 +293,7 @@ const bindings = [
     CharityAppealValueApplier,
     CharityParticipationNotifier,
     CharitySupportOfferNotifier,
+    CharityDisputeNotifier,
     ...bindings.map(([provide, useClass]) => ({ provide, useClass })),
   ],
   exports: [CharityPointsService, ...bindings.map(([provide]) => provide)],

@@ -22,6 +22,7 @@ import {
   CharityPostMediaInvalidException,
   CharityPostNotFoundException,
   CharityPostQuotaExceededException,
+  CharityPostVideoTooLongException,
   CharityProjectForbiddenException,
   CharityProjectNotApprovedException,
 } from '@/domain/exceptions';
@@ -40,12 +41,14 @@ import {
   CharityPostAuthorRole,
   CharityPostDailyImageQuotaConfigKey,
   CharityPostDailyVideoQuotaConfigKey,
+  CharityPostMaxVideoSecondsConfigKey,
   CharityPostMediaType,
   MaxCharityPostBodyLength,
   MaxCharityPostMedia,
   charityPostMediaTypeOf,
   charityPostRole,
   isSuspendedProject,
+  normalizeCharityPostMaxVideoSeconds,
   normalizeCharityPostQuota,
   vietnamDayStart,
 } from '@chantam.vn/chantam.core-lib/models';
@@ -191,6 +194,12 @@ async function quotaLimits(
   };
 }
 
+async function maxVideoSeconds(admin: IAdminConfigRepository): Promise<number> {
+  return normalizeCharityPostMaxVideoSeconds(
+    await admin.getConfigValue(CharityPostMaxVideoSecondsConfigKey),
+  );
+}
+
 @Injectable()
 export class GetCharityPostQuotaUseCase implements IGetCharityPostQuotaUseCase {
   public constructor(
@@ -209,19 +218,21 @@ export class GetCharityPostQuotaUseCase implements IGetCharityPostQuotaUseCase {
       command.userId,
     );
     const since = vietnamDayStart(new Date());
-    const [limits, used] = await Promise.all([
+    const [limits, used, videoMaxSeconds] = await Promise.all([
       quotaLimits(this.admin),
       this.events.usedUploads({
         campaignId: campaign.globalId,
         userId: command.userId,
         since,
       }),
+      maxVideoSeconds(this.admin),
     ]);
     return {
       role,
       canPost: role !== null,
       image: { used: used.IMAGE, limit: limits.IMAGE },
       video: { used: used.VIDEO, limit: limits.VIDEO },
+      videoMaxSeconds,
       windowStartsAt: since,
     };
   }
@@ -253,6 +264,22 @@ export class RequestCharityPostUploadUseCase implements IRequestCharityPostUploa
       throw new ValidationFailedException([
         'upload.contentType: chỉ nhận ảnh hoặc video',
       ]);
+    // Clip phải khai độ dài và không quá trần (mặc định 60 giây — §3.5, chốt §7.3). Trần
+    // 25 MB của storage giữ ở chữ ký đường tải là chặn cứng thứ hai.
+    let durationSeconds: number | null = null;
+    if (mediaType === 'VIDEO') {
+      if (
+        !Number.isInteger(command.durationSeconds) ||
+        (command.durationSeconds as number) < 1
+      )
+        throw new ValidationFailedException([
+          'upload.durationSeconds: bắt buộc với clip (số giây, ≥ 1)',
+        ]);
+      const max = await maxVideoSeconds(this.admin);
+      if ((command.durationSeconds as number) > max)
+        throw new CharityPostVideoTooLongException(max);
+      durationSeconds = command.durationSeconds as number;
+    }
     const limit = (await quotaLimits(this.admin))[mediaType];
     const reservation = await this.events.reserveUpload({
       campaignId: campaign.globalId,
@@ -260,6 +287,7 @@ export class RequestCharityPostUploadUseCase implements IRequestCharityPostUploa
       mediaType,
       since: vietnamDayStart(new Date()),
       quota: limit,
+      durationSeconds,
       sign: () =>
         withStorageValidation('upload', () =>
           this.storage.createCampaignMediaUpload({

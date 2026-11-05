@@ -136,6 +136,12 @@ export class CharityPostQuotaDto {
   image: CharityQuotaUsageDto;
   @ApiProperty({ type: () => CharityQuotaUsageDto })
   video: CharityQuotaUsageDto;
+  @ApiProperty({
+    example: 60,
+    description:
+      'Độ dài clip tối đa (giây). Mobile cắt/nén clip về 720p trong giới hạn này trước khi tải (trần 25 MB).',
+  })
+  videoMaxSeconds: number;
   @ApiProperty({ description: '0 giờ hôm nay theo giờ Việt Nam' })
   windowStartsAt: Date;
 }
@@ -189,6 +195,12 @@ class CharityPostMediaDto {
   @ApiProperty() publicUrl: string;
   @ApiProperty({ enum: CharityPostMediaTypes }) mediaType: string;
   @ApiProperty() sortOrder: number;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Độ dài clip (giây); `null` với ảnh',
+  })
+  durationSeconds: number | null;
 }
 export class CharityPostDto {
   @ApiProperty({ format: 'uuid' }) postId: string;

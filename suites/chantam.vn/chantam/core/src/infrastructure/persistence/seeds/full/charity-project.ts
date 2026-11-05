@@ -27,6 +27,51 @@ export async function seedCharityProject(ctx: ISeedContext): Promise<void> {
   await seedEvent(ctx, campaignId);
   await seedSummary(ctx, seedId(SeedDomains.campaigns, 4));
   await seedOperations(ctx, campaignId);
+  await seedDispute(ctx);
+}
+
+/**
+ * Đợt 5c (bổ sung): một tranh chấp đã giải quyết trên một đóng góp được chấp nhận — người góp
+ * mở, ban tổ chức kết luận. Không để tranh chấp MỞ: nó chặn hoàn tất dự án mẫu.
+ */
+async function seedDispute(ctx: ISeedContext): Promise<void> {
+  const [schema] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.campaign_contribution_disputes') IS NOT NULL AS ready`,
+  );
+  if (!schema?.ready) return;
+  const [seeded] = await ctx.q(
+    `SELECT 1 FROM campaign_contribution_disputes LIMIT 1`,
+  );
+  if (seeded) return;
+  const [contribution] = await ctx.q<{
+    global_id: string;
+    campaign_id: string;
+    contributor_id: string;
+    created_by: string;
+  }>(
+    `SELECT contribution.global_id, contribution.campaign_id, contribution.contributor_id,
+            campaign.created_by
+     FROM campaign_contributions contribution
+     JOIN campaigns campaign ON campaign.global_id = contribution.campaign_id
+     WHERE contribution.status IN ('ACCEPTED', 'PARTIALLY_ACCEPTED')
+     ORDER BY contribution.id LIMIT 1`,
+  );
+  if (!contribution) return;
+  await ctx.q(
+    `INSERT INTO campaign_contribution_disputes
+       (campaign_id, contribution_id, opened_by, opened_by_party, reason, description,
+        evidence_urls, status, resolution, closed_by, closed_at)
+     VALUES ($1, $2, $3, 'CONTRIBUTOR', 'QUANTITY_MISMATCH',
+             'Tôi gửi 20 áo nhưng biên nhận chỉ ghi 15 áo',
+             '["https://placehold.co/600x800.png"]'::jsonb, 'RESOLVED',
+             'Đếm lại kho: đủ 20 áo, đã sửa biên nhận', $4, now() - interval '1 day')`,
+    [
+      contribution.campaign_id,
+      contribution.global_id,
+      contribution.contributor_id,
+      contribution.created_by,
+    ],
+  );
 }
 
 /**

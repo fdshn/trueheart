@@ -4,6 +4,7 @@ import {
   CharityPostForbiddenException,
   CharityPostMediaInvalidException,
   CharityPostQuotaExceededException,
+  CharityPostVideoTooLongException,
   CharityProjectForbiddenException,
   CharityProjectNotApprovedException,
 } from '@/domain/exceptions';
@@ -146,6 +147,23 @@ describe('Ký đường tải bài', () => {
     await expect(
       build(make()).handle({ ...command, contentType: 'application/pdf' }),
     ).rejects.toThrow(ValidationFailedException);
+  });
+
+  it('clip: thiếu độ dài → 400; dài hơn trần cấu hình → CHARITY_POST_VIDEO_TOO_LONG; vừa trần → ký kèm độ dài', async () => {
+    // Mock cấu hình trả 2 cho mọi khoá → trần độ dài kẹp về tối thiểu 10 giây.
+    const deps = make();
+    const video = { ...command, contentType: 'video/mp4' };
+    await expect(build(deps).handle(video)).rejects.toThrow(
+      ValidationFailedException,
+    );
+    await expect(
+      build(deps).handle({ ...video, durationSeconds: 11 }),
+    ).rejects.toThrow(CharityPostVideoTooLongException);
+    expect(deps.storage.createCampaignMediaUpload).not.toHaveBeenCalled();
+    await build(deps).handle({ ...video, durationSeconds: 10 });
+    expect(deps.events.reserveUpload).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mediaType: 'VIDEO', durationSeconds: 10 }),
+    );
   });
 
   it('hết quota → lỗi kèm loại và giới hạn từ cấu hình', async () => {

@@ -22,6 +22,7 @@ import {
   CharityPostMediaInvalidException,
   CharityPostNotFoundException,
   CharityPostQuotaExceededException,
+  CharityPostVideoTooLongException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
   CharityProjectNotApprovedException,
@@ -213,7 +214,7 @@ export class CharityEventController {
   @ApiOperation({
     summary: 'Ký đường tải ảnh/clip cho bài',
     description:
-      'Kiểm quyền đăng rồi quota TRƯỚC khi ký. PUT tệp lên `uploadUrl`, rồi gửi `key` trong `post.mediaKeys`. Giới hạn dung lượng/định dạng như ảnh hồ sơ dự án.',
+      'Kiểm quyền đăng rồi quota TRƯỚC khi ký. PUT tệp lên `uploadUrl`, rồi gửi `key` trong `post.mediaKeys`. Giới hạn dung lượng/định dạng như ảnh hồ sơ dự án. Clip phải khai `durationSeconds` ≤ `charity.post_max_video_seconds` (mặc định 60 giây).',
   })
   @ApiCreatedResponse({
     type: ResponseDto.forApi(CharityPostUploadResponseDto),
@@ -223,6 +224,7 @@ export class CharityEventController {
     CharityCampaignNotFoundException,
     CharityPostForbiddenException,
     CharityPostQuotaExceededException,
+    CharityPostVideoTooLongException,
   )
   public async upload(
     @CurrentUser() principal: IAuthPrincipal,
@@ -235,6 +237,7 @@ export class CharityEventController {
         campaignId: params.id,
         contentType: body.upload.contentType,
         contentLength: body.upload.contentLength,
+        durationSeconds: body.upload.durationSeconds ?? null,
       }),
     );
   }

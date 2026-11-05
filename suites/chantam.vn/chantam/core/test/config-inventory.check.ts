@@ -61,6 +61,7 @@ import {
   CharityPointCapConfigKeys,
   CharityPostDailyImageQuotaConfigKey,
   CharityPostDailyVideoQuotaConfigKey,
+  CharityPostMaxVideoSecondsConfigKey,
   ChatRetentionConfigKey,
   GiftValueBonusMaxValueConfigKey,
   GiverAccuracyConfigKey,
@@ -144,6 +145,7 @@ const RequiredKeys: readonly string[] = [
   CharityPostDailyVideoQuotaConfigKey,
   ...CharityPointCapConfigKeys,
   CharityAppealWindowDaysConfigKey,
+  CharityPostMaxVideoSecondsConfigKey,
   CharityAppealOrganizerSlaDaysConfigKey,
   CharityAppealAutoCloseDaysConfigKey,
 ];

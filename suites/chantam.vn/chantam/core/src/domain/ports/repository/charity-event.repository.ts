@@ -42,6 +42,8 @@ export interface ICharityPostMedia {
   publicUrl: string;
   mediaType: CharityPostMediaType;
   sortOrder: number;
+  /** Độ dài clip (giây) client khai lúc xin đường tải; `null` với ảnh. */
+  durationSeconds: number | null;
 }
 
 export interface ICharityPost {
@@ -93,6 +95,8 @@ export interface ICharityEventRepository {
     mediaType: CharityPostMediaType;
     since: Date;
     quota: number;
+    /** Độ dài clip đã kiểm ở tầng trên — lưu để chép sang media của bài. */
+    durationSeconds?: number | null;
     sign: () => Promise<T>;
   }): Promise<CharityUploadReservation<T>>;
   usedUploads(params: {

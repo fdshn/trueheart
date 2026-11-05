@@ -3,8 +3,8 @@
 > **File sinh tự động** bởi `npm run docs:routes` từ metadata của controller đã biên dịch.
 > Đừng sửa tay — sửa controller rồi chạy lại lệnh. CI chạy `docs:routes:check`.
 
-Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **427** route:
-59 công khai, 138 cần quyền Admin, 230 cần access token.
+Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **431** route:
+59 công khai, 138 cần quyền Admin, 234 cần access token.
 
 Mức truy cập: `Công khai` = không cần token; `Bearer` = cần access token (một số route còn
 kiểm chủ sở hữu hoặc quyền RBAC trong use case — xem `docs/API.md`); `perm:<mã>` = quyền Admin
@@ -433,6 +433,7 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `POST` | `/charity-campaigns/:id/coordinators` | Bearer | Giao quyền coordinator (chỉ người tổ chức) |
 | `DELETE` | `/charity-campaigns/:id/coordinators/:userId` | Bearer | Thu quyền coordinator (chỉ người tổ chức) |
 | `PUT` | `/charity-campaigns/:id/custom-sections` | Bearer | Thay form mở (mục và trường tuỳ biến) |
+| `GET` | `/charity-campaigns/:id/disputes` | Bearer | Tranh chấp đóng góp của dự án |
 | `GET` | `/charity-campaigns/:id/evaluations` | Bearer | Mức hoàn thành của người tham gia (nội bộ) |
 | `PUT` | `/charity-campaigns/:id/evaluations/:userId` | Bearer | Chấm mức hoàn thành 0–100 |
 | `GET` | `/charity-campaigns/:id/evaluations/me` | Bearer | Mức hoàn thành của tôi |
@@ -529,6 +530,8 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `GET` | `/charity-contributions/:id` | Bearer | Một đề nghị đóng góp (đích của thông báo CHARITY_CONTRIBUTION_*) |
 | `PATCH` | `/charity-contributions/:id` | Bearer | Sửa hoặc rút đề nghị đóng góp |
 | `POST` | `/charity-contributions/:id/decision` | Bearer | Người tổ chức quyết mọi dòng của một đề nghị (F65b §5) |
+| `GET` | `/charity-contributions/:id/disputes` | Bearer | Tranh chấp của một đóng góp |
+| `POST` | `/charity-contributions/:id/disputes` | Bearer | Mở tranh chấp về một đóng góp |
 | `GET` | `/charity-contributions/me` | Bearer | Đề nghị đóng góp của chính tôi |
 
 ## `/charity-deliveries`
@@ -538,6 +541,12 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `GET` | `/charity-deliveries/:id` | Bearer | Một lượt giao nhận từ thiện |
 | `POST` | `/charity-deliveries/:id/cancel` | Bearer | Huỷ lượt giao nhận (người tặng hoặc người tổ chức) |
 | `POST` | `/charity-deliveries/:id/complete` | Bearer | Người tổ chức xác nhận đã nhận, kèm số thực nhận từng dòng |
+
+## `/charity-disputes`
+
+| Method | Đường dẫn | Truy cập | Tóm tắt |
+| --- | --- | --- | --- |
+| `PATCH` | `/charity-disputes/:disputeId` | Bearer | Giải quyết / rút tranh chấp |
 
 ## `/charity-external-contributions`
 

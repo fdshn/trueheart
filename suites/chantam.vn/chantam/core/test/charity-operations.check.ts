@@ -651,6 +651,154 @@ async function main(): Promise<void> {
       'lịch sử sửa của lần hoãn mang lý do',
       postponed?.reason === 'Mưa lũ',
     );
+
+    // ── 7. Tranh chấp đóng góp ────────────────────────────────────────────
+    console.log('\n7. Tranh chấp đóng góp');
+    const parties = await operations.findContributionParties(
+      contribution.global_id,
+    );
+    check(
+      'hai bên của đóng góp: người góp + người tạo dự án',
+      parties?.contributorId === Giver &&
+        parties.campaignCreatedBy === Owner &&
+        parties.status === 'ACCEPTED',
+      JSON.stringify(parties),
+    );
+    const opened = await operations.openDispute({
+      campaignId: Live,
+      contributionId: contribution.global_id,
+      openedBy: Giver,
+      party: 'CONTRIBUTOR',
+      reason: 'QUANTITY_MISMATCH',
+      description: 'Tôi gửi 5 áo nhưng biên nhận ghi 4',
+      evidenceUrls: ['https://cdn.test/bien-nhan.png'],
+    });
+    const again = await operations.openDispute({
+      campaignId: Live,
+      contributionId: contribution.global_id,
+      openedBy: Owner,
+      party: 'ORGANIZER',
+      reason: 'OTHER',
+      description: 'Mở thêm một tranh chấp nữa',
+      evidenceUrls: [],
+    });
+    const viewed = await campaigns.findContributionByGlobalId(
+      contribution.global_id,
+    );
+    check(
+      'mở được; tranh chấp thứ hai khi đang mở → ALREADY_OPEN; đóng góp hiện OPEN',
+      opened !== 'ALREADY_OPEN' &&
+        opened.openedByParty === 'CONTRIBUTOR' &&
+        again === 'ALREADY_OPEN' &&
+        viewed?.disputeStatus === 'OPEN',
+      JSON.stringify(viewed?.disputeStatus),
+    );
+    check(
+      'tranh chấp mở chặn hoàn tất dự án',
+      (await operations.completionBlockers(Live)).includes(
+        'CONTRIBUTIONS_DISPUTED',
+      ),
+    );
+    const disputeId = (opened as { disputeId: string }).disputeId;
+    check(
+      'database chặn giải quyết thiếu kết luận và đóng thiếu mốc',
+      (await rejects(() =>
+        sql(
+          `UPDATE campaign_contribution_disputes SET status = 'RESOLVED', closed_at = now() WHERE global_id = $1`,
+          [disputeId],
+        ),
+      )) &&
+        (await rejects(() =>
+          sql(
+            `UPDATE campaign_contribution_disputes SET status = 'WITHDRAWN' WHERE global_id = $1`,
+            [disputeId],
+          ),
+        )),
+    );
+    const [closeA, closeB] = await Promise.all(
+      [0, 1].map(() =>
+        operations.closeDispute({
+          disputeId,
+          to: 'RESOLVED',
+          actorId: Owner,
+          resolution: 'Đếm lại kho: đủ 5 áo, đã sửa biên nhận',
+        }),
+      ),
+    );
+    check(
+      'hai lượt giải quyết song song: một thắng; hết chặn hoàn tất',
+      [closeA, closeB].filter(Boolean).length === 1 &&
+        !(await operations.completionBlockers(Live)).includes(
+          'CONTRIBUTIONS_DISPUTED',
+        ),
+    );
+    const reopened = await operations.openDispute({
+      campaignId: Live,
+      contributionId: contribution.global_id,
+      openedBy: Owner,
+      party: 'ORGANIZER',
+      reason: 'QUALITY_ISSUE',
+      description: 'Phát hiện thêm 2 áo rách khi đóng gói',
+      evidenceUrls: [],
+    });
+    check(
+      'đóng rồi thì mở tranh chấp mới được; danh sách theo dự án đủ 2',
+      reopened !== 'ALREADY_OPEN' &&
+        (
+          await operations.listDisputes({
+            campaignId: Live,
+            contributionId: null,
+            status: null,
+          })
+        ).length === 2,
+    );
+
+    // ── 8. Độ dài clip ────────────────────────────────────────────────────
+    console.log('\n8. Độ dài clip');
+    await sql(
+      `UPDATE campaigns SET operation_stage = 'EVENT' WHERE global_id = $1`,
+      [Live],
+    );
+    const clip = await events.reserveUpload({
+      campaignId: Live,
+      userId: Owner,
+      mediaType: 'VIDEO',
+      since: new Date(Date.now() - 3_600_000),
+      quota: 5,
+      durationSeconds: 45,
+      sign: async () => ({ key: 'users/owner/campaign-media/clip-45.mp4' }),
+    });
+    const post = await events.createPost({
+      campaignId: Live,
+      authorId: Owner,
+      authorRole: 'ORGANIZER',
+      stage: 'EVENT',
+      body: null,
+      media: [
+        {
+          storageKey: 'users/owner/campaign-media/clip-45.mp4',
+          publicUrl: 'https://cdn.test/clip-45.mp4',
+          mediaType: 'VIDEO',
+        },
+      ],
+    });
+    check(
+      'độ dài khai lúc ký đi theo media của bài; database chặn > 3600 giây',
+      clip.status === 'RESERVED' &&
+        post !== 'MEDIA_INVALID' &&
+        post.media[0].durationSeconds === 45 &&
+        (await rejects(() =>
+          sql(
+            `UPDATE campaign_post_uploads SET duration_seconds = 4000 WHERE storage_key = $1`,
+            ['users/owner/campaign-media/clip-45.mp4'],
+          ),
+        )),
+      post === 'MEDIA_INVALID' ? post : JSON.stringify(post.media),
+    );
+    const [maxConfig] = await sql(
+      `SELECT value_json FROM system_configs WHERE config_key = 'charity.post_max_video_seconds'`,
+    );
+    check('cấu hình mặc định 60 giây', Number(maxConfig?.value_json) === 60);
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

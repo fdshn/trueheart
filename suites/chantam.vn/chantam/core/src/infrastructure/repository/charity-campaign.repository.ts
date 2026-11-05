@@ -131,6 +131,7 @@ interface IContributionRow {
   created_at: Date;
   delivery_id: string | null;
   delivery_status: string | null;
+  dispute_status?: string | null;
 }
 
 interface IContributionItemRow {
@@ -220,7 +221,10 @@ const ContributionColumns = `contribution.global_id, contribution.campaign_id,
        contribution.contributor_id, contribution.status, contribution.note,
        contribution.contact_note, contribution.decided_at,
        contribution.created_at,
-       delivery.global_id AS delivery_id, delivery.status AS delivery_status`;
+       delivery.global_id AS delivery_id, delivery.status AS delivery_status,
+       (SELECT dispute.status FROM campaign_contribution_disputes dispute
+         WHERE dispute.contribution_id = contribution.global_id
+         ORDER BY dispute.id DESC LIMIT 1) AS dispute_status`;
 
 /**
  * Nguồn FROM của mọi lượt đọc đề nghị. LEFT JOIN vì phần lớn đề nghị chưa có lượt
@@ -245,6 +249,8 @@ function toContribution(
     createdAt: row.created_at,
     deliveryId: row.delivery_id,
     deliveryStatus: row.delivery_status as CharityDeliveryStatus | null,
+    disputeStatus: (row.dispute_status ?? null) as
+      'OPEN' | 'RESOLVED' | 'WITHDRAWN' | null,
     items: items.map((item) => ({
       globalId: item.global_id,
       needItemId: item.need_item_id,

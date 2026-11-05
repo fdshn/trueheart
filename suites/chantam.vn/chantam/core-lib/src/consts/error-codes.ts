@@ -401,6 +401,14 @@ export enum ErrorCodes {
   CHARITY_PROJECT_COMPLETION_BLOCKED = 0x13_4c,
   /** Mã nguồn ngoài app trùng một dòng còn hiệu lực — chống đếm trùng. */
   CHARITY_EXTERNAL_SOURCE_DUPLICATED = 0x13_4d,
+  CHARITY_DISPUTE_NOT_FOUND = 0x13_4e,
+  /** Không phải một bên của đóng góp, hoặc đóng góp chưa được chấp nhận. */
+  CHARITY_DISPUTE_NOT_ALLOWED = 0x13_4f,
+  /** Đóng góp đã có tranh chấp đang mở. */
+  CHARITY_DISPUTE_ALREADY_OPEN = 0x13_50,
+  CHARITY_DISPUTE_INVALID_STATE = 0x13_51,
+  /** Clip dài hơn `charity.post_max_video_seconds`. */
+  CHARITY_POST_VIDEO_TOO_LONG = 0x13_52,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

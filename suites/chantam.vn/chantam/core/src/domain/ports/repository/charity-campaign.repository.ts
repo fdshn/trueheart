@@ -225,6 +225,11 @@ export interface ICharityContribution {
    */
   readonly deliveryId: string | null;
   readonly deliveryStatus: CharityDeliveryStatus | null;
+  /**
+   * Trạng thái tranh chấp mới nhất (§3.18, chốt 05/11): `OPEN` = đang tranh chấp — đóng góp
+   * không coi là xong cho tới khi giải quyết. `null` = chưa từng tranh chấp.
+   */
+  readonly disputeStatus?: 'OPEN' | 'RESOLVED' | 'WITHDRAWN' | null;
 }
 
 export type CharityDeliveryStatus = 'ACCEPTED' | 'COMPLETED' | 'CANCELLED';

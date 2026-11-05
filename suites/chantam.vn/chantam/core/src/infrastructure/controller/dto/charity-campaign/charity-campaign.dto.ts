@@ -334,6 +334,18 @@ export class RequestCharityMediaUploadDto {
   @IsInt()
   @Min(1)
   contentLength: number;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    example: 45,
+    description:
+      'Độ dài clip (giây). BẮT BUỘC khi tải clip cho bài dự án (`posts/media/upload`), tối đa `charity.post_max_video_seconds` (mặc định 60). Ảnh bỏ trống.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  durationSeconds?: number;
 }
 
 export class RequestCharityMediaUploadBodyDto {
@@ -1091,6 +1103,15 @@ export class CharityContributionDto {
     enum: ['ACCEPTED', 'COMPLETED', 'CANCELLED'],
   })
   deliveryStatus: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    enum: ['OPEN', 'RESOLVED', 'WITHDRAWN'],
+    description:
+      'Tranh chấp mới nhất (§3.18): `OPEN` = đang tranh chấp. `null` = chưa từng tranh chấp.',
+  })
+  disputeStatus?: string | null;
 }
 
 export class CharityContributionPageDto {

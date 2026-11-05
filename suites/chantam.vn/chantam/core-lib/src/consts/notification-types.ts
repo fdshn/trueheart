@@ -174,6 +174,11 @@ export enum NotificationTypes {
    */
   CHARITY_SUPPORT_OFFER_UPDATED = 'CHARITY_SUPPORT_OFFER_UPDATED',
   /**
+   * Tranh chấp về một đóng góp vừa mở, được giải quyết hoặc rút — báo bên kia (người đóng góp
+   * hoặc ban tổ chức). Đợt 5c.
+   */
+  CHARITY_CONTRIBUTION_DISPUTE_UPDATED = 'CHARITY_CONTRIBUTION_DISPUTE_UPDATED',
+  /**
    * Nhắc nhiệm vụ duy trì hạng, trước khi chu kỳ hết (SRS BR-PROF-RANK-03).
    *
    * Trượt chu kỳ nay bị trừ điểm và có thể tụt hạng, nên báo muộn hơn thời điểm
@@ -325,6 +330,8 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.CHARITY_APPEAL_UPDATED]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_PARTICIPATION_UPDATED]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_SUPPORT_OFFER_UPDATED]: NotificationGroups.STATUS,
+  [NotificationTypes.CHARITY_CONTRIBUTION_DISPUTE_UPDATED]:
+    NotificationGroups.STATUS,
 
   // ── Tích điểm: điểm vào sổ ───────────────────────────────────────────────
   // Giới thiệu hợp lệ xếp vào TÍCH ĐIỂM chứ không THƯỞNG: nội dung thông báo là

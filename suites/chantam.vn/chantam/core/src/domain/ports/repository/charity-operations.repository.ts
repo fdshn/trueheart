@@ -1,5 +1,8 @@
 import {
   CharityCompletionBlocker,
+  CharityDisputeParty,
+  CharityDisputeReason,
+  CharityDisputeStatus,
   CharityRoundReadiness,
   CharityRoundStatus,
   CharitySupportOfferStatus,
@@ -103,6 +106,35 @@ export interface ICharityRoundPreEventCandidate {
   roundId: string;
   title: string;
   startsAt: Date;
+}
+
+// ── Tranh chấp đóng góp (§3.18) ─────────────────────────────────────────────
+
+/** Hai bên của một đóng góp — để biết ai được mở / giải quyết tranh chấp. */
+export interface ICharityContributionParties {
+  contributionId: string;
+  campaignId: string;
+  campaignTitle: string;
+  campaignCreatedBy: string;
+  contributorId: string;
+  status: string;
+}
+
+export interface ICharityDispute {
+  disputeId: string;
+  campaignId: string;
+  contributionId: string;
+  contributorId: string;
+  openedBy: string;
+  openedByParty: CharityDisputeParty;
+  reason: CharityDisputeReason;
+  description: string;
+  evidenceUrls: string[];
+  status: CharityDisputeStatus;
+  resolution: string | null;
+  closedBy: string | null;
+  closedAt: Date | null;
+  createdAt: Date;
 }
 
 export interface ICharityOperationsRepository {
@@ -209,6 +241,34 @@ export interface ICharityOperationsRepository {
   }): Promise<ICharityRoundPreEventCandidate[]>;
   /** Có đợt trao nào chưa — có thì nhắc 48 giờ theo đợt, không theo bước trao chung. */
   hasRounds(campaignId: string): Promise<boolean>;
+
+  // Tranh chấp đóng góp
+  findContributionParties(
+    contributionId: string,
+  ): Promise<ICharityContributionParties | null>;
+  /** `ALREADY_OPEN` khi đóng góp đã có tranh chấp đang mở (index duy nhất một phần). */
+  openDispute(params: {
+    campaignId: string;
+    contributionId: string;
+    openedBy: string;
+    party: CharityDisputeParty;
+    reason: CharityDisputeReason;
+    description: string;
+    evidenceUrls: string[];
+  }): Promise<ICharityDispute | 'ALREADY_OPEN'>;
+  findDispute(disputeId: string): Promise<ICharityDispute | null>;
+  listDisputes(params: {
+    campaignId: string | null;
+    contributionId: string | null;
+    status: CharityDisputeStatus | null;
+  }): Promise<ICharityDispute[]>;
+  /** OPEN → RESOLVED / WITHDRAWN có điều kiện; `null` khi đã có người đóng trước. */
+  closeDispute(params: {
+    disputeId: string;
+    to: 'RESOLVED' | 'WITHDRAWN';
+    actorId: string;
+    resolution: string | null;
+  }): Promise<ICharityDispute | null>;
 
   // Hoàn tất dự án
   completionBlockers(campaignId: string): Promise<CharityCompletionBlocker[]>;

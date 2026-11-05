@@ -165,6 +165,7 @@ nên tra được một bút toán điểm ra đời dưới phiên bản cấu 
 | `charity.appeal_window_days` | `7` (INTEGER) | N — số ngày được khiếu nại kể từ lúc chấm/xác nhận giá trị (§3.16). Kẹp 1–90 | `GET\|POST /admin/system-configs` |
 | `charity.appeal_organizer_sla_days` | `3` (INTEGER) | M — hạn ban tổ chức xét tầng 1; quá hạn tự chuyển Admin. Kẹp 1–30 | `GET\|POST /admin/system-configs` |
 | `charity.appeal_auto_close_days` | `3` (INTEGER) | K — người khiếu nại im lặng quá số ngày này sau quyết định tầng 1 thì đóng. Kẹp 1–30 | `GET\|POST /admin/system-configs` |
+| `charity.post_max_video_seconds` | `60` (INTEGER) | Độ dài clip tối đa (giây) trong bài dự án từ thiện (chốt §7.3): vừa trần 25 MB của storage ở 720p ~2,5–3 Mbps, tải được bằng mạng yếu ở điểm trao. Client khai `durationSeconds` khi xin đường tải. Kẹp 10–600 | `GET\|POST /admin/system-configs` |
 | `charity.post_daily_image_quota` | `5` (INTEGER) | Số ảnh tối đa một người đăng vào MỘT dự án từ thiện mỗi ngày giờ Việt Nam (chốt §7.6). Mỗi lượt ký đường tải tính một suất. Kẹp 0–100, 0 = tắt | `GET\|POST /admin/system-configs` |
 | `charity.post_daily_video_quota` | `5` (INTEGER) | Như trên cho clip | `GET\|POST /admin/system-configs` |
 | `charity.max_bank_accounts_per_campaign` | `2` (INTEGER) | Số tài khoản nhận tiền ĐANG hiệu lực tối đa của một dự án từ thiện (chốt 04/11, §7.4 CHARITY-PROJECT-LIFECYCLE). Kẹp 1–20; Admin ghi đè từng dự án bằng `PATCH /admin/charity-campaigns/:id/limits` (cột `campaigns.max_bank_accounts`) | `GET\|POST /admin/system-configs` |

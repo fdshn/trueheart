@@ -3104,3 +3104,31 @@ cho participant và người có giao nhận gắn đợt (đợt chưa gắn ai
 `DELIVERIES_UNSETTLED`, `NEEDS_OPEN` (mọi nhóm nhu cầu còn mở), `SURPLUS_UNEXPLAINED`,
 `FINANCIAL_STATEMENT_MISSING`, `APPEALS_OPEN`, `SUPPORT_OFFERS_UNSETTLED`, `ROUNDS_UNSETTLED`.
 
+### 18.8 Đợt 5c (bổ sung) — tranh chấp đóng góp, độ dài clip
+
+**Tranh chấp đóng góp** (§3.18) — khi người góp và ban tổ chức không thống nhất về một đóng góp
+**đã được chấp nhận** (chưa giao / lệch số / sai chất lượng / sai giá trị). Khác khiếu nại (§18.5:
+chỉ mức hoàn thành và giá trị xác nhận, đi BTC → Admin).
+
+| Method | Đường dẫn | Ai | Mô tả |
+| --- | --- | --- | --- |
+| `POST` | `/charity-contributions/:id/disputes` | Người góp; người tạo / coordinator | `{ dispute: { reason: NOT_DELIVERED\|QUANTITY_MISMATCH\|QUALITY_ISSUE\|VALUE_MISMATCH\|OTHER, description (≥ 10), evidenceUrls?[https] } }` — mỗi đóng góp tối đa **một** tranh chấp đang mở |
+| `GET` | `/charity-contributions/:id/disputes` | Hai bên, Admin `campaign.read` | `?status=` |
+| `GET` | `/charity-campaigns/:id/disputes` | Người tạo, coordinator, Admin `campaign.read` | `?status=OPEN\|RESOLVED\|WITHDRAWN` |
+| `PATCH` | `/charity-disputes/:disputeId` | Xem dưới | `{ decision: { action: RESOLVE\|WITHDRAW, resolution? } }` |
+
+`RESOLVE` (bắt buộc `resolution`): **bên kia** của người mở (người góp ↔ ban tổ chức) hoặc Admin
+`report.resolve` — bên mở không tự kết luận cho mình. `WITHDRAW`: chỉ người mở. Mỗi bước báo
+bên kia `CHARITY_CONTRIBUTION_DISPUTE_UPDATED`. Đọc đóng góp có thêm `disputeStatus` (mới nhất:
+`OPEN` = đang tranh chấp). Tranh chấp mở chặn hoàn tất dự án (`CONTRIBUTIONS_DISPUTED`).
+
+**Độ dài clip** (chốt §7.3): tối đa **60 giây** mặc định — Admin chỉnh
+`charity.post_max_video_seconds` (10–600).
+
+- `POST :id/posts/media/upload` với clip **bắt buộc** `upload.durationSeconds`; dài hơn trần →
+  `CHARITY_POST_VIDEO_TOO_LONG` (400, chưa ký, không tốn suất quota). Trần 25 MB vẫn chặn cứng ở
+  chữ ký đường tải.
+- `GET :id/posts/quota` trả thêm `videoMaxSeconds`; media của bài trả `durationSeconds`.
+- Mobile: quay/cắt clip trong trần, nén **720p H.264 ~2,5–3 Mbps** (60 giây ≈ 19–23 MB) trước
+  khi xin đường tải.
+

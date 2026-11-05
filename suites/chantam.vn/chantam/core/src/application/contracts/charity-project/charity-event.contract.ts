@@ -43,6 +43,8 @@ export interface ICharityPostQuotaView {
   canPost: boolean;
   image: { used: number; limit: number };
   video: { used: number; limit: number };
+  /** Độ dài clip tối đa (giây) — `charity.post_max_video_seconds`. */
+  videoMaxSeconds: number;
   /** Đầu ngày (giờ Việt Nam) đang tính quota. */
   windowStartsAt: Date;
 }
@@ -57,6 +59,8 @@ export const IGetCharityPostQuotaUseCase = Symbol(
 export interface IRequestCharityPostUploadCommand extends ICharityProjectCommand {
   readonly contentType: string;
   readonly contentLength: number;
+  /** Bắt buộc với clip: độ dài (giây), không quá `charity.post_max_video_seconds`. */
+  readonly durationSeconds?: number | null;
 }
 export interface IRequestCharityPostUploadUseCase extends IUseCase<
   IRequestCharityPostUploadCommand,

@@ -1,4 +1,6 @@
 import {
+  ICharityContributionParties,
+  ICharityDispute,
   ICharityOperationsRepository,
   ICharityRound,
   ICharityRoundInput,
@@ -10,6 +12,9 @@ import {
 } from '@/domain/ports/repository';
 import {
   CharityCompletionBlocker,
+  CharityDisputeParty,
+  CharityDisputeReason,
+  CharityDisputeStatus,
   CharityEventStepKeys,
   CharityRoundReadiness,
   CharityRoundStatus,
@@ -21,7 +26,51 @@ import {
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { isUniqueViolationOn } from './unique-violation';
 import { updateReturning } from './update-returning';
+
+interface IDisputeRow {
+  global_id: string;
+  campaign_id: string;
+  contribution_id: string;
+  contributor_id: string;
+  opened_by: string;
+  opened_by_party: CharityDisputeParty;
+  reason: CharityDisputeReason;
+  description: string;
+  evidence_urls: string[];
+  status: CharityDisputeStatus;
+  resolution: string | null;
+  closed_by: string | null;
+  closed_at: Date | null;
+  created_at: Date;
+}
+
+const DisputeSelect = `
+  SELECT dispute.global_id, dispute.campaign_id, dispute.contribution_id,
+         contribution.contributor_id, dispute.opened_by, dispute.opened_by_party, dispute.reason,
+         dispute.description, dispute.evidence_urls, dispute.status, dispute.resolution,
+         dispute.closed_by, dispute.closed_at, dispute.created_at
+  FROM campaign_contribution_disputes dispute
+  JOIN campaign_contributions contribution
+    ON contribution.global_id = dispute.contribution_id`;
+
+const toDispute = (row: IDisputeRow): ICharityDispute => ({
+  disputeId: row.global_id,
+  campaignId: row.campaign_id,
+  contributionId: row.contribution_id,
+  contributorId: row.contributor_id,
+  openedBy: row.opened_by,
+  openedByParty: row.opened_by_party,
+  reason: row.reason,
+  description: row.description,
+  evidenceUrls: row.evidence_urls ?? [],
+  status: row.status,
+  resolution: row.resolution,
+  closedBy: row.closed_by,
+  closedAt: row.closed_at,
+  createdAt: row.created_at,
+});
 
 interface ISupportNeedRow {
   global_id: string;
@@ -702,6 +751,118 @@ export class CharityOperationsRepository implements ICharityOperationsRepository
     return row?.ok === true;
   }
 
+  // ── Tranh chấp đóng góp ───────────────────────────────────────────────
+
+  public async findContributionParties(
+    contributionId: string,
+  ): Promise<ICharityContributionParties | null> {
+    const [row] = await this.manager.query<
+      {
+        global_id: string;
+        campaign_id: string;
+        title: string;
+        created_by: string;
+        contributor_id: string;
+        status: string;
+      }[]
+    >(
+      `SELECT contribution.global_id, contribution.campaign_id, campaign.title,
+              campaign.created_by, contribution.contributor_id, contribution.status
+       FROM campaign_contributions contribution
+       JOIN campaigns campaign ON campaign.global_id = contribution.campaign_id
+       WHERE contribution.global_id = $1 AND campaign.deleted_at IS NULL`,
+      [contributionId],
+    );
+    return row
+      ? {
+          contributionId: row.global_id,
+          campaignId: row.campaign_id,
+          campaignTitle: row.title,
+          campaignCreatedBy: row.created_by,
+          contributorId: row.contributor_id,
+          status: row.status,
+        }
+      : null;
+  }
+
+  public async openDispute(params: {
+    campaignId: string;
+    contributionId: string;
+    openedBy: string;
+    party: CharityDisputeParty;
+    reason: CharityDisputeReason;
+    description: string;
+    evidenceUrls: string[];
+  }): Promise<ICharityDispute | 'ALREADY_OPEN'> {
+    try {
+      const [row] = await this.manager.query<{ global_id: string }[]>(
+        `INSERT INTO campaign_contribution_disputes
+           (campaign_id, contribution_id, opened_by, opened_by_party, reason, description,
+            evidence_urls)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+         RETURNING global_id`,
+        [
+          params.campaignId,
+          params.contributionId,
+          params.openedBy,
+          params.party,
+          params.reason,
+          params.description,
+          JSON.stringify(params.evidenceUrls),
+        ],
+      );
+      return (await this.findDispute(row.global_id)) as ICharityDispute;
+    } catch (error) {
+      if (isUniqueViolationOn(error, 'UQ_campaign_contribution_disputes_open'))
+        return 'ALREADY_OPEN';
+      throw error;
+    }
+  }
+
+  public async findDispute(disputeId: string): Promise<ICharityDispute | null> {
+    const [row] = await this.manager.query<IDisputeRow[]>(
+      `${DisputeSelect} WHERE dispute.global_id = $1`,
+      [disputeId],
+    );
+    return row ? toDispute(row) : null;
+  }
+
+  public async listDisputes(params: {
+    campaignId: string | null;
+    contributionId: string | null;
+    status: CharityDisputeStatus | null;
+  }): Promise<ICharityDispute[]> {
+    const rows = await this.manager.query<IDisputeRow[]>(
+      `${DisputeSelect}
+       WHERE ($1::uuid IS NULL OR dispute.campaign_id = $1::uuid)
+         AND ($2::uuid IS NULL OR dispute.contribution_id = $2::uuid)
+         AND ($3::varchar IS NULL OR dispute.status = $3::varchar)
+       ORDER BY dispute.created_at DESC, dispute.id DESC
+       LIMIT 1000`,
+      [params.campaignId, params.contributionId, params.status],
+    );
+    return rows.map(toDispute);
+  }
+
+  public async closeDispute(params: {
+    disputeId: string;
+    to: 'RESOLVED' | 'WITHDRAWN';
+    actorId: string;
+    resolution: string | null;
+  }): Promise<ICharityDispute | null> {
+    const rows = await updateReturning<{ global_id: string }>(
+      this.manager,
+      `UPDATE campaign_contribution_disputes
+          SET status = $2::varchar, resolution = $3, closed_by = $4, closed_at = now(),
+              updated_at = now()
+        WHERE global_id = $1 AND status = 'OPEN'
+        RETURNING global_id`,
+      [params.disputeId, params.to, params.resolution, params.actorId],
+    );
+    if (rows.length === 0) return null;
+    return this.findDispute(params.disputeId);
+  }
+
   // ── Hoàn tất dự án ────────────────────────────────────────────────────
 
   public async completionBlockers(
@@ -713,6 +874,8 @@ export class CharityOperationsRepository implements ICharityOperationsRepository
       `SELECT
          EXISTS (SELECT 1 FROM campaign_contributions
                   WHERE campaign_id = $1 AND status = 'PENDING_REVIEW') AS "CONTRIBUTIONS_PENDING",
+         EXISTS (SELECT 1 FROM campaign_contribution_disputes
+                  WHERE campaign_id = $1 AND status = 'OPEN') AS "CONTRIBUTIONS_DISPUTED",
          EXISTS (SELECT 1 FROM campaign_deliveries
                   WHERE campaign_id = $1 AND status = 'ACCEPTED') AS "DELIVERIES_UNSETTLED",
          (EXISTS (SELECT 1 FROM campaign_need_items

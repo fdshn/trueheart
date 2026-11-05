@@ -312,6 +312,26 @@ export class CharityExternalSourceDuplicatedException extends ExceptionFrom(
   CoreErrors.CHARITY_EXTERNAL_SOURCE_DUPLICATED,
 ) {}
 
+export class CharityDisputeNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_DISPUTE_NOT_FOUND,
+) {}
+
+export class CharityDisputeNotAllowedException extends ExceptionFrom(
+  CoreErrors.CHARITY_DISPUTE_NOT_ALLOWED,
+) {}
+
+export class CharityDisputeAlreadyOpenException extends ExceptionFrom(
+  CoreErrors.CHARITY_DISPUTE_ALREADY_OPEN,
+) {}
+
+export class CharityDisputeInvalidStateException extends ExceptionFrom(
+  CoreErrors.CHARITY_DISPUTE_INVALID_STATE,
+) {}
+
+export class CharityPostVideoTooLongException extends ExceptionFrom(
+  CoreErrors.CHARITY_POST_VIDEO_TOO_LONG,
+) {}
+
 export class CharityAppealConflictOfInterestException extends ExceptionFrom(
   CoreErrors.CHARITY_APPEAL_CONFLICT_OF_INTEREST,
 ) {}

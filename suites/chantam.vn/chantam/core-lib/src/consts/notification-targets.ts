@@ -154,6 +154,9 @@ export const NotificationTargetsByType: Readonly<
   [NotificationTypes.CHARITY_SUPPORT_OFFER_UPDATED]: [
     NotificationTargetTypes.CHARITY_CAMPAIGN,
   ],
+  [NotificationTypes.CHARITY_CONTRIBUTION_DISPUTE_UPDATED]: [
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
+  ],
 
   // Nội dung bị báo xấu: bài, phòng chat (tin nhắn), chủ đề Phật pháp. Bình luận mở
   // bài chứa nó. Báo xấu một NGƯỜI thì không có màn để mở.

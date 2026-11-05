@@ -21,8 +21,8 @@
 > khai** (`1803000000000` — hỗ trợ mở có đề nghị một phần, hoãn bước trao kèm lý do, chuyển giai
 > đoạn tay bắt buộc lý do, huỷ tham gia tới trước Tổng kết, nhiều đợt trao với timeline/checklist/
 > nhắc 48 giờ/người nhận riêng, điều kiện hoàn tất chặn công khai tổng kết, nguồn ngoài bắt buộc
-> bằng chứng + mã chứng từ, mục tiêu hạng mục kèm giải trình phần dư; API.md §18.7). Chưa làm:
-> trạng thái "tranh chấp" của đóng góp (§3.18 ý 2).
+> bằng chứng + mã chứng từ, mục tiêu hạng mục kèm giải trình phần dư; API.md §18.7), tranh
+> chấp đóng góp và độ dài clip 60 giây (`1803100000000`, API.md §18.8).
 
 ## 1. Yêu cầu tóm tắt
 
@@ -269,8 +269,9 @@ lập lịch sớm): `GATHER`, `BRIEFING`, `TRAVEL`, `REST_STOP`, `ARRIVE`, `MEE
 - **Quota 5 clip + 5 ảnh / người / ngày / dự án** kiểm ở bước ký đường tải (theo mẫu chat:
   kiểm quyền trước khi ký), đếm theo ngày giờ Việt Nam. Upload lỗi, retry trùng hoặc media bị
   từ chối không sinh điểm. Hai con số là khoá cấu hình Admin (`charity.post_daily_video_quota`,
-  `charity.post_daily_image_quota`). Dung lượng clip tạm dùng giới hạn video hiện có của storage
-  (25 MB); độ dài tối đa và thời hạn được đăng sau khi sự kiện kết thúc còn chờ chốt (§7.3).
+  `charity.post_daily_image_quota`). Clip tối đa **60 giây** (Admin chỉnh
+  `charity.post_max_video_seconds`) trong trần 25 MB của storage; thời hạn được đăng sau khi sự
+  kiện kết thúc còn chờ chốt (§7.3).
 - Có thể báo cáo vi phạm từng bài (§3.8) và Admin ẩn được.
 
 ### 3.6 Tab D — Tổng kết
@@ -581,5 +582,6 @@ Mỗi đợt: migration + entity + repository + use case + spec, cập nhật `D
 
 ### 7.3 Còn mở
 
-1. **Clip**: độ dài tối đa và thời hạn được đăng ảnh/clip sau khi sự kiện kết thúc (dung lượng
-   tạm theo giới hạn video 25 MB của storage).
+1. **Clip**: độ dài tối đa đã chốt **60 giây** (05/11 — khuyến nghị kỹ thuật: vừa 25 MB ở 720p
+   ~2,5–3 Mbps, tải được bằng 3G/4G yếu ở điểm trao; Admin chỉnh 10–600). Còn mở: thời hạn được
+   đăng ảnh/clip sau khi sự kiện kết thúc (hiện chỉ đăng được khi dự án ở Sự kiện trao).

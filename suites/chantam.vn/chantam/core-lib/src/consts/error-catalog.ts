@@ -1398,6 +1398,41 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['còn hạng mục nhu cầu đang mở, còn khiếu nại chưa đóng'],
   },
 
+  CHARITY_DISPUTE_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_DISPUTE_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy tranh chấp',
+  },
+
+  CHARITY_DISPUTE_NOT_ALLOWED: {
+    code: ErrorCodes.CHARITY_DISPUTE_NOT_ALLOWED,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: (detail: string) => `Không thực hiện được: ${detail}`,
+    sample: ['chỉ đóng góp đã được chấp nhận mới mở tranh chấp được'],
+  },
+
+  CHARITY_DISPUTE_ALREADY_OPEN: {
+    code: ErrorCodes.CHARITY_DISPUTE_ALREADY_OPEN,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Đóng góp này đang có tranh chấp chưa giải quyết',
+  },
+
+  CHARITY_DISPUTE_INVALID_STATE: {
+    code: ErrorCodes.CHARITY_DISPUTE_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (state: string) =>
+      `Tranh chấp đang ở trạng thái ${state}, không thực hiện được bước này`,
+    sample: ['RESOLVED'],
+  },
+
+  CHARITY_POST_VIDEO_TOO_LONG: {
+    code: ErrorCodes.CHARITY_POST_VIDEO_TOO_LONG,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (maxSeconds: number) =>
+      `Clip dài tối đa ${maxSeconds} giây — cắt ngắn rồi tải lại`,
+    sample: [60],
+  },
+
   CHARITY_EXTERNAL_SOURCE_DUPLICATED: {
     code: ErrorCodes.CHARITY_EXTERNAL_SOURCE_DUPLICATED,
     httpStatus: HttpStatus.CONFLICT,

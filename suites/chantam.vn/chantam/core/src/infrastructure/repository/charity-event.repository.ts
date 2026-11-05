@@ -53,7 +53,8 @@ const PostSelect = `
          post.created_at, post.deleted_at, post.hidden_at,
          COALESCE((SELECT jsonb_agg(jsonb_build_object(
                     'storageKey', media.storage_key, 'publicUrl', media.public_url,
-                    'mediaType', media.media_type, 'sortOrder', media.sort_order)
+                    'mediaType', media.media_type, 'sortOrder', media.sort_order,
+                    'durationSeconds', media.duration_seconds)
                     ORDER BY media.sort_order)
                    FROM campaign_post_media media WHERE media.post_id = post.global_id),
                   '[]'::jsonb) AS media,
@@ -212,6 +213,7 @@ export class CharityEventRepository implements ICharityEventRepository {
     mediaType: CharityPostMediaType;
     since: Date;
     quota: number;
+    durationSeconds?: number | null;
     sign: () => Promise<T>;
   }): Promise<CharityUploadReservation<T>> {
     return this.manager.transaction(async (manager) => {
@@ -226,9 +228,16 @@ export class CharityEventRepository implements ICharityEventRepository {
       if (used >= params.quota) return { status: 'QUOTA_EXCEEDED', used };
       const upload = await params.sign();
       await manager.query(
-        `INSERT INTO campaign_post_uploads (campaign_id, user_id, storage_key, media_type)
-         VALUES ($1, $2, $3, $4)`,
-        [params.campaignId, params.userId, upload.key, params.mediaType],
+        `INSERT INTO campaign_post_uploads
+           (campaign_id, user_id, storage_key, media_type, duration_seconds)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          params.campaignId,
+          params.userId,
+          upload.key,
+          params.mediaType,
+          params.durationSeconds ?? null,
+        ],
       );
       return { status: 'RESERVED', upload };
     });
@@ -310,14 +319,19 @@ export class CharityEventRepository implements ICharityEventRepository {
         );
         for (const [index, item] of params.media.entries())
           await manager.query(
-            `INSERT INTO campaign_post_media (post_id, storage_key, public_url, media_type, sort_order)
-             VALUES ($1, $2, $3, $4, $5)`,
+            `INSERT INTO campaign_post_media
+               (post_id, storage_key, public_url, media_type, sort_order, duration_seconds)
+             VALUES ($1, $2, $3, $4, $5,
+                     (SELECT duration_seconds FROM campaign_post_uploads
+                       WHERE storage_key = $6::text))`,
             [
               post.global_id,
               item.storageKey,
               item.publicUrl,
               item.mediaType,
               index,
+              // Tham số riêng cho câu con — dùng lại `$2` vừa ghi cột vừa so là 42P08.
+              item.storageKey,
             ],
           );
         return post.global_id;
