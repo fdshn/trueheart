@@ -359,7 +359,7 @@ export class CharityEngagementRepository implements ICharityEngagementRepository
            count(DISTINCT contribution.contributor_id) FILTER (
              WHERE contribution.status IN ('ACCEPTED', 'PARTIALLY_ACCEPTED')) AS accepted_contributors,
            (SELECT count(*) FROM campaign_participations
-             WHERE campaign_id = $1 AND status = 'REGISTERED') AS participants_registered,
+             WHERE campaign_id = $1 AND status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')) AS participants_registered,
            (SELECT count(*) FROM campaign_participations
              WHERE campaign_id = $1 AND status = 'CANCELLED') AS participants_cancelled,
            (SELECT count(*) FILTER (WHERE registration.status = 'REGISTERED')
@@ -519,12 +519,31 @@ export class CharityEngagementRepository implements ICharityEngagementRepository
   public async listAudience(params: {
     campaignId: string;
     excludeUserId: string | null;
+    scope?: 'ALL' | 'PRE_EVENT';
   }): Promise<string[]> {
+    if (params.scope === 'PRE_EVENT') {
+      const rows = await this.manager.query<{ user_id: string }[]>(
+        `SELECT DISTINCT audience.user_id
+         FROM (
+           SELECT created_by AS user_id FROM campaigns WHERE global_id = $1
+           UNION
+           SELECT user_id FROM campaign_coordinators
+            WHERE campaign_id = $1 AND revoked_at IS NULL
+           UNION
+           SELECT user_id FROM campaign_participations
+            WHERE campaign_id = $1 AND status IN ('CONFIRMED', 'CHECKED_IN')
+         ) audience
+         JOIN users ON users.global_id = audience.user_id AND users.deleted_at IS NULL
+         ORDER BY audience.user_id`,
+        [params.campaignId],
+      );
+      return rows.map((row) => row.user_id);
+    }
     const rows = await this.manager.query<{ user_id: string }[]>(
       `SELECT DISTINCT audience.user_id
        FROM (
          SELECT user_id FROM campaign_participations
-          WHERE campaign_id = $1 AND status = 'REGISTERED'
+          WHERE campaign_id = $1 AND status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')
          UNION
          SELECT registration.user_id
            FROM campaign_volunteer_registrations registration

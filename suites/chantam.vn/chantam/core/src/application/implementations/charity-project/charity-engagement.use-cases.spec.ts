@@ -443,6 +443,7 @@ describe('Thông báo theo dự án', () => {
     expect(deps.engagement.listAudience).toHaveBeenCalledWith({
       campaignId: CampaignId,
       excludeUserId: Owner,
+      scope: 'PRE_EVENT',
     });
     expect(sender.handle).toHaveBeenCalledWith(
       expect.objectContaining({

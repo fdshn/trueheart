@@ -162,64 +162,36 @@ async function main(): Promise<void> {
     }
     check('database chặn bước DONE thiếu giờ thực tế', doneTimeGuard);
 
-    // ── 2. Cộng tác viên ─────────────────────────────────────────────────
-    console.log('\n2. Cộng tác viên sự kiện');
+    // ── 2. Quyền đăng của participant ─────────────────────────────────────
+    console.log('\n2. Quyền đăng theo check-in (chốt 05/11)');
     await sql(
-      `INSERT INTO campaign_contributions (campaign_id, contributor_id, status)
-       VALUES ($1, $2, 'PENDING_REVIEW'), ($1, $3, 'PENDING_REVIEW')`,
+      `INSERT INTO campaign_participations (campaign_id, user_id, status)
+       VALUES ($1, $2, 'CONFIRMED'), ($1, $3, 'REGISTERED')`,
       [Live, Giver, Walker],
     );
+    const beforeCheckIn = await events.isAttendedParticipant(Live, Giver);
     await sql(
-      `UPDATE campaign_contributions SET status = 'ACCEPTED', decided_at = now(), decided_by = $2
-       WHERE campaign_id = $1 AND contributor_id = $3`,
-      [Live, Owner, Giver],
-    ).catch(() => undefined);
-    const [{ status: giverStatus }] = await sql(
-      `SELECT status FROM campaign_contributions WHERE campaign_id = $1 AND contributor_id = $2`,
-      [Live, Giver],
-    );
-    await sql(
-      `INSERT INTO campaign_participations (campaign_id, user_id, status) VALUES ($1, $2, 'REGISTERED'), ($1, $3, 'REGISTERED')`,
-      [Live, Giver, Walker],
+      `UPDATE campaign_participations
+          SET status = 'CHECKED_IN', checked_in_at = now(), checked_in_by = $3
+        WHERE campaign_id = $1 AND user_id = $2`,
+      [Live, Giver, Owner],
     );
     check(
-      'đóng góp được chấp nhận + đăng ký → đủ; chỉ đăng ký mà đóng góp chưa duyệt → không',
-      giverStatus === 'ACCEPTED' &&
-        (await events.isEligibleContributor(Live, Giver)) &&
-        !(await events.isEligibleContributor(Live, Walker)) &&
-        !(await events.isEligibleContributor(Second, Giver)),
-      `giver=${giverStatus}`,
+      'đã xác nhận mà chưa check-in → chưa đăng được; check-in → được; chờ duyệt / dự án khác → không',
+      !beforeCheckIn &&
+        (await events.isAttendedParticipant(Live, Giver)) &&
+        !(await events.isAttendedParticipant(Live, Walker)) &&
+        !(await events.isAttendedParticipant(Second, Giver)),
     );
-    const candidates = await events.listContributorCandidates(Live);
     check(
-      'danh sách đủ điều kiện có người tặng, không có người chưa được duyệt',
-      candidates.map((row) => row.userId).join() === Giver,
-    );
-    await events.setContributor({
-      campaignId: Live,
-      userId: Giver,
-      actorId: Owner,
-      active: true,
-    });
-    const revoked = await events.setContributor({
-      campaignId: Live,
-      userId: Giver,
-      actorId: Owner,
-      active: false,
-    });
-    const regranted = await events.setContributor({
-      campaignId: Live,
-      userId: Giver,
-      actorId: Owner,
-      active: true,
-    });
-    check(
-      'cấp → thu hồi (giữ dòng) → cấp lại; người đã cấp không còn là ứng viên',
-      revoked?.active === false &&
-        revoked.revokedAt !== null &&
-        regranted?.active === true &&
-        (await events.isActiveContributor(Live, Giver)) &&
-        (await events.listContributorCandidates(Live)).length === 0,
+      'database chặn CHECKED_IN thiếu mốc check-in',
+      await sql(
+        `UPDATE campaign_participations SET status = 'CHECKED_IN' WHERE campaign_id = $1 AND user_id = $2`,
+        [Live, Walker],
+      ).then(
+        () => false,
+        () => true,
+      ),
     );
 
     // ── 3. Quota ─────────────────────────────────────────────────────────

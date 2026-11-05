@@ -55,7 +55,6 @@ import {
   CharityStageTransitionInvalidException,
   CharityVolunteerClosedException,
   CharityVolunteerNeedNotFoundException,
-  CharityVolunteerNotEligibleException,
   CharityVolunteerRegistrationNotFoundException,
 } from '@/domain/exceptions';
 import { ICharityRealtimePublisher } from '@/domain/ports/realtime';
@@ -746,8 +745,6 @@ export class RegisterCharityVolunteerUseCase implements IRegisterCharityVoluntee
         return { registered: true };
       case 'NOT_FOUND':
         throw new CharityVolunteerNeedNotFoundException();
-      case 'NOT_ELIGIBLE':
-        throw new CharityVolunteerNotEligibleException();
       case 'CLOSED':
       case 'FULL':
         throw new CharityVolunteerClosedException();

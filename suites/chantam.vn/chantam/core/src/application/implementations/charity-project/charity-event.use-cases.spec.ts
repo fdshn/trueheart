@@ -1,6 +1,5 @@
 import {
   CharityCampaignNotFoundException,
-  CharityEventContributorNotEligibleException,
   CharityEventStepNotFoundException,
   CharityPostForbiddenException,
   CharityPostMediaInvalidException,
@@ -15,7 +14,6 @@ import {
   CreateCharityPostUseCase,
   DeleteCharityPostUseCase,
   RequestCharityPostUploadUseCase,
-  SetCharityEventContributorUseCase,
   UpdateCharityEventStepUseCase,
 } from './charity-event.use-cases';
 import { CharityProjectAccess } from './charity-project.use-cases';
@@ -41,7 +39,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
 }
 
 function make(
-  options: { campaign?: ICharityCampaign; contributor?: boolean } = {},
+  options: { campaign?: ICharityCampaign; attended?: boolean } = {},
 ) {
   const current = options.campaign ?? campaign();
   const campaigns = {
@@ -53,9 +51,7 @@ function make(
     getConfigValue: jest.fn(async () => 2),
   };
   const events = {
-    isActiveContributor: jest.fn(async () => options.contributor ?? false),
-    isEligibleContributor: jest.fn(async () => false),
-    setContributor: jest.fn(async () => null as unknown),
+    isAttendedParticipant: jest.fn(async () => options.attended ?? false),
     ensureEventSteps: jest.fn(async () => undefined),
     updateEventStep: jest.fn(async (): Promise<unknown> => null),
     reserveUpload: jest.fn(
@@ -92,26 +88,22 @@ function make(
 }
 
 describe('CharityPostAccess', () => {
-  it('người dùng thường không phải cộng tác viên: không đăng được (nhưng không 404 dự án đã duyệt)', async () => {
+  it('người chưa check-in: không đăng được (nhưng không 404 dự án đã duyệt)', async () => {
     const deps = make();
     await expect(
       deps.postAccess.resolve(CampaignId, Stranger),
     ).resolves.toMatchObject({ role: null, isModerator: false });
   });
 
-  it('cộng tác viên trong Sự kiện trao → PARTICIPANT; ngoài Sự kiện trao → null', async () => {
+  it('đã check-in, trong Sự kiện trao → PARTICIPANT; ngoài Sự kiện trao → null', async () => {
     expect(
-      (
-        await make({ contributor: true }).postAccess.resolve(
-          CampaignId,
-          Volunteer,
-        )
-      ).role,
+      (await make({ attended: true }).postAccess.resolve(CampaignId, Volunteer))
+        .role,
     ).toBe('PARTICIPANT');
     expect(
       (
         await make({
-          contributor: true,
+          attended: true,
           campaign: campaign({ operationStage: 'SUMMARY' }),
         }).postAccess.resolve(CampaignId, Volunteer)
       ).role,
@@ -277,32 +269,7 @@ describe('Gỡ bài', () => {
   });
 });
 
-describe('Cộng tác viên và timeline', () => {
-  it('cấp cho người không đủ điều kiện → lỗi; thu hồi người chưa từng cấp → lỗi', async () => {
-    const deps = make();
-    const useCase = new SetCharityEventContributorUseCase(
-      deps.access,
-      deps.events as never,
-      deps.realtime,
-    );
-    await expect(
-      useCase.handle({
-        userId: Owner,
-        campaignId: CampaignId,
-        targetUserId: Volunteer,
-        active: true,
-      }),
-    ).rejects.toThrow(CharityEventContributorNotEligibleException);
-    await expect(
-      useCase.handle({
-        userId: Owner,
-        campaignId: CampaignId,
-        targetUserId: Volunteer,
-        active: false,
-      }),
-    ).rejects.toThrow(CharityEventContributorNotEligibleException);
-  });
-
+describe('Timeline', () => {
   it('timeline: dự án chưa duyệt → lỗi; bước không có → 404; cập nhật phát TIMELINE', async () => {
     const pending = make({
       campaign: campaign({ approvalStatus: 'PENDING_APPROVAL' }),

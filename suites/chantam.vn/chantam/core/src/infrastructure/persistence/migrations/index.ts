@@ -145,3 +145,4 @@ export * from './1802500000000-CharityProjectEngagement';
 export * from './1802600000000-CharityProjectEvent';
 export * from './1802700000000-CharityProjectSummary';
 export * from './1802800000000-CharityProjectPoints';
+export * from './1802900000000-CharityParticipantLifecycle';

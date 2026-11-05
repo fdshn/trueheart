@@ -16,17 +16,10 @@ describe('tính điểm', () => {
     expect(itemValuePoints(100_000, 0)).toBe(0);
   });
 
-  it('ảnh/clip: cộng tác viên × hệ số, ban tổ chức mức cơ sở', () => {
-    const base = {
-      mediaCount: 3,
-      rulePoints: 5,
-      participantMultiplierPercent: 200,
-    };
-    expect(postMediaPoints({ ...base, participant: false })).toBe(15);
-    expect(postMediaPoints({ ...base, participant: true })).toBe(30);
-    expect(postMediaPoints({ ...base, mediaCount: 0, participant: true })).toBe(
-      0,
-    );
+  it('ảnh/clip: mức rule × số tệp, không hệ số theo vai', () => {
+    expect(postMediaPoints({ mediaCount: 3, rulePoints: 3 })).toBe(9);
+    expect(postMediaPoints({ mediaCount: 0, rulePoints: 3 })).toBe(0);
+    expect(postMediaPoints({ mediaCount: 2, rulePoints: 0 })).toBe(0);
   });
 
   it('tham gia: 100 × mức hoàn thành / 100', () => {

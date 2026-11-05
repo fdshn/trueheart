@@ -705,6 +705,7 @@ export class ProcessCharityAnnouncementsUseCase implements IProcessCharityAnnoun
         const audience = await this.engagement.listAudience({
           campaignId: campaign.globalId,
           excludeUserId: announcement.actorId,
+          scope: kind === 'PRE_EVENT' ? 'PRE_EVENT' : 'ALL',
         });
         let sent = 0;
         for (const userId of audience) {

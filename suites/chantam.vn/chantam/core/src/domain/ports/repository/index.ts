@@ -8,6 +8,7 @@ export * from './category.repository';
 export * from './charity-campaign.repository';
 export * from './charity-engagement.repository';
 export * from './charity-event.repository';
+export * from './charity-participation.repository';
 export * from './charity-points.repository';
 export * from './charity-project.repository';
 export * from './charity-summary.repository';

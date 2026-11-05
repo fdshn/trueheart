@@ -1,11 +1,9 @@
 import {
   CharityUploadReservation,
-  ICharityEventContributor,
   ICharityEventRepository,
   ICharityEventStep,
   ICharityEventStepPatch,
   ICharityPost,
-  ICharityUserBrief,
 } from '@/domain/ports/repository';
 import {
   CharityEventStepKey,
@@ -46,37 +44,6 @@ const toStep = (row: IStepRow): ICharityEventStep => ({
   updatedBy: row.updated_by,
   updatedAt: row.updated_at,
 });
-
-interface IUserRow {
-  user_id: string;
-  username: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-}
-
-const toUser = (row: IUserRow): ICharityUserBrief => ({
-  userId: row.user_id,
-  username: row.username,
-  fullName: row.full_name,
-  avatarUrl: row.avatar_url,
-});
-
-/** Có đóng góp được chấp nhận VÀ đăng ký tham gia còn hiệu lực trong dự án `$1`. */
-const EligibleWhere = (userColumn: string) => `
-  EXISTS (SELECT 1 FROM campaign_contributions contribution
-          WHERE contribution.campaign_id = $1
-            AND contribution.contributor_id = ${userColumn}
-            AND contribution.status IN ('ACCEPTED', 'PARTIALLY_ACCEPTED'))
-  AND (EXISTS (SELECT 1 FROM campaign_participations participation
-               WHERE participation.campaign_id = $1
-                 AND participation.user_id = ${userColumn}
-                 AND participation.status = 'REGISTERED')
-       OR EXISTS (SELECT 1 FROM campaign_volunteer_registrations registration
-                  JOIN campaign_volunteer_needs need
-                    ON need.global_id = registration.volunteer_need_id
-                  WHERE need.campaign_id = $1
-                    AND registration.user_id = ${userColumn}
-                    AND registration.status <> 'CANCELLED'))`;
 
 const PostSelect = `
   SELECT post.global_id, post.campaign_id, post.author_id, author.username,
@@ -211,102 +178,19 @@ export class CharityEventRepository implements ICharityEventRepository {
     return rows.length > 0 ? toStep(rows[0]) : null;
   }
 
-  // ── Cộng tác viên sự kiện ─────────────────────────────────────────────
+  // ── Quyền đăng của participant ────────────────────────────────────
 
-  public async listContributors(
-    campaignId: string,
-  ): Promise<ICharityEventContributor[]> {
-    const rows = await this.manager.query<
-      (IUserRow & {
-        granted_at: Date;
-        granted_by: string | null;
-        revoked_at: Date | null;
-      })[]
-    >(
-      `SELECT contributor.user_id, account.username, account.full_name, account.avatar_url,
-              contributor.granted_at, contributor.granted_by, contributor.revoked_at
-       FROM campaign_event_contributors contributor
-       JOIN users account ON account.global_id = contributor.user_id
-       WHERE contributor.campaign_id = $1
-       ORDER BY contributor.revoked_at NULLS FIRST, contributor.granted_at`,
-      [campaignId],
-    );
-    return rows.map((row) => ({
-      ...toUser(row),
-      grantedAt: row.granted_at,
-      grantedBy: row.granted_by,
-      revokedAt: row.revoked_at,
-      active: row.revoked_at === null,
-    }));
-  }
-
-  public async listContributorCandidates(
-    campaignId: string,
-  ): Promise<ICharityUserBrief[]> {
-    const rows = await this.manager.query<IUserRow[]>(
-      `SELECT account.global_id AS user_id, account.username, account.full_name,
-              account.avatar_url
-       FROM users account
-       WHERE account.deleted_at IS NULL
-         AND ${EligibleWhere('account.global_id')}
-         AND NOT EXISTS (SELECT 1 FROM campaign_event_contributors contributor
-                         WHERE contributor.campaign_id = $1
-                           AND contributor.user_id = account.global_id
-                           AND contributor.revoked_at IS NULL)
-       ORDER BY account.username
-       LIMIT 500`,
-      [campaignId],
-    );
-    return rows.map(toUser);
-  }
-
-  public async isEligibleContributor(
+  public async isAttendedParticipant(
     campaignId: string,
     userId: string,
   ): Promise<boolean> {
     const [row] = await this.manager.query<{ ok: boolean }[]>(
-      `SELECT (${EligibleWhere('$2::uuid')}) AS ok`,
+      `SELECT EXISTS (SELECT 1 FROM campaign_participations
+                      WHERE campaign_id = $1 AND user_id = $2
+                        AND status IN ('CHECKED_IN', 'COMPLETED')) AS ok`,
       [campaignId, userId],
     );
     return row?.ok === true;
-  }
-
-  public async isActiveContributor(
-    campaignId: string,
-    userId: string,
-  ): Promise<boolean> {
-    const [row] = await this.manager.query<{ ok: boolean }[]>(
-      `SELECT EXISTS (SELECT 1 FROM campaign_event_contributors
-                      WHERE campaign_id = $1 AND user_id = $2 AND revoked_at IS NULL) AS ok`,
-      [campaignId, userId],
-    );
-    return row?.ok === true;
-  }
-
-  public async setContributor(params: {
-    campaignId: string;
-    userId: string;
-    actorId: string;
-    active: boolean;
-  }): Promise<ICharityEventContributor | null> {
-    if (params.active)
-      await this.manager.query(
-        `INSERT INTO campaign_event_contributors (campaign_id, user_id, granted_by)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (campaign_id, user_id) DO UPDATE
-           SET granted_by = EXCLUDED.granted_by, granted_at = now(),
-               revoked_at = NULL, revoked_by = NULL
-           WHERE campaign_event_contributors.revoked_at IS NOT NULL`,
-        [params.campaignId, params.userId, params.actorId],
-      );
-    else
-      await this.manager.query(
-        `UPDATE campaign_event_contributors SET revoked_at = now(), revoked_by = $3
-         WHERE campaign_id = $1 AND user_id = $2 AND revoked_at IS NULL`,
-        [params.campaignId, params.userId, params.actorId],
-      );
-    const rows = await this.listContributors(params.campaignId);
-    return rows.find((row) => row.userId === params.userId) ?? null;
   }
 
   // ── Quota và đường tải ────────────────────────────────────────────────

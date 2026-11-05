@@ -348,7 +348,6 @@ async function main(): Promise<void> {
       postId: post.global_id,
       campaignId: Live,
       authorId: Walker,
-      authorRole: 'PARTICIPANT',
       videoCount: 0,
       imageCount: 2,
     });
@@ -360,7 +359,7 @@ async function main(): Promise<void> {
     await service.settlePending(50);
     const imageAfter = (await ledgerFor('CHARITY_POST_IMAGE')).total;
     check(
-      'cộng tác viên 2 ảnh × 1 × 200% = 4; bị ẩn → job trừ về 0',
+      '2 ảnh × 2 điểm (chốt 05/11, không hệ số) = 4; bị ẩn → job trừ về 0',
       imageBefore === 4 && imageAfter === 0,
       `before=${imageBefore} after=${imageAfter}`,
     );

@@ -269,11 +269,27 @@ async function seedEvent(ctx: ISeedContext, campaignId: string): Promise<void> {
       [campaignId, key, index, Personas.organizer, index],
     );
 
-  await ctx.q(
-    `INSERT INTO campaign_event_contributors (campaign_id, user_id, granted_by)
-     VALUES ($1, $2, $3)`,
-    [campaignId, Personas.giver, Personas.organizer],
+  // Participant đã check-in — được đăng ảnh/clip sự kiện (chốt 05/11, thay cộng tác viên).
+  // Schema giữa đợt 3 và 1802900000000 chưa có check-in: bỏ qua.
+  const [lifecycle] = await ctx.q<{ ready: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'campaign_participations'
+                      AND column_name = 'checked_in_at') AS ready`,
   );
+  if (lifecycle?.ready)
+    await ctx.q(
+      `INSERT INTO campaign_participations
+       (campaign_id, user_id, status, registered_at, status_changed_at, status_changed_by,
+        checked_in_at, checked_in_by)
+     VALUES ($1, $2, 'CHECKED_IN', now() - interval '3 days', now() - interval '2 hours', $3,
+             now() - interval '2 hours', $3)
+     ON CONFLICT (campaign_id, user_id) DO UPDATE
+       SET status = 'CHECKED_IN', cancelled_at = NULL,
+           status_changed_at = EXCLUDED.status_changed_at,
+           status_changed_by = EXCLUDED.status_changed_by,
+           checked_in_at = EXCLUDED.checked_in_at, checked_in_by = EXCLUDED.checked_in_by`,
+      [campaignId, Personas.giver, Personas.organizer],
+    );
 
   const organizerKey = `users/${Personas.organizer}/campaign-media/seed-event-1.webp`;
   const abandonedKey = `users/${Personas.giver}/campaign-media/seed-event-abandoned.webp`;

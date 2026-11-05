@@ -16,11 +16,6 @@ export type CharityPointRuleCode = (typeof CharityPointRuleCodes)[number];
 /** 10.000đ giá trị xác nhận = `point_rules.points` điểm (bảng Product: 1 điểm). */
 export const CharityItemValueUnitVnd = 10_000;
 
-export const CharityPostParticipantMultiplierConfigKey =
-  'charity.post_points_participant_multiplier_percent';
-/** Bảng Product gợi ý 2x cho ảnh/clip của cộng tác viên sự kiện. */
-export const DefaultCharityPostParticipantMultiplierPercent = 200;
-
 export const CharityPointCapWindows = ['daily', 'project', 'cycle'] as const;
 export type CharityPointCapWindow = (typeof CharityPointCapWindows)[number];
 
@@ -63,18 +58,16 @@ export function itemValuePoints(
   return Math.floor(confirmedValueVnd / CharityItemValueUnitVnd) * rulePoints;
 }
 
-/** Ảnh/clip: mức cơ sở × số tệp, × hệ số khi người đăng là cộng tác viên sự kiện. */
+/**
+ * Ảnh/clip: mức của rule × số tệp hợp lệ (chốt 05/11: 3 điểm/clip, 2 điểm/ảnh — như nhau cho
+ * mọi người đăng, không còn hệ số theo vai).
+ */
 export function postMediaPoints(input: {
   readonly mediaCount: number;
   readonly rulePoints: number;
-  readonly participant: boolean;
-  readonly participantMultiplierPercent: number;
 }): number {
   if (input.mediaCount <= 0 || input.rulePoints <= 0) return 0;
-  const base = input.mediaCount * input.rulePoints;
-  return input.participant
-    ? Math.floor((base * input.participantMultiplierPercent) / 100)
-    : base;
+  return input.mediaCount * input.rulePoints;
 }
 
 /** Tham gia: `point_rules.points` (Product: 100) × mức hoàn thành / 100. */

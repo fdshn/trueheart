@@ -176,10 +176,6 @@ export class CharityVolunteerNeedNotFoundException extends ExceptionFrom(
   CoreErrors.CHARITY_VOLUNTEER_NEED_NOT_FOUND,
 ) {}
 
-export class CharityVolunteerNotEligibleException extends ExceptionFrom(
-  CoreErrors.CHARITY_VOLUNTEER_NOT_ELIGIBLE,
-) {}
-
 export class CharityVolunteerClosedException extends ExceptionFrom(
   CoreErrors.CHARITY_VOLUNTEER_CLOSED,
 ) {}
@@ -236,10 +232,6 @@ export class CharityPostMediaInvalidException extends ExceptionFrom(
   CoreErrors.CHARITY_POST_MEDIA_INVALID,
 ) {}
 
-export class CharityEventContributorNotEligibleException extends ExceptionFrom(
-  CoreErrors.CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE,
-) {}
-
 export class CharitySummaryNotOpenException extends ExceptionFrom(
   CoreErrors.CHARITY_SUMMARY_NOT_OPEN,
 ) {}
@@ -274,6 +266,14 @@ export class CharityAppealDuplicatedException extends ExceptionFrom(
 
 export class CharityAppealInvalidStateException extends ExceptionFrom(
   CoreErrors.CHARITY_APPEAL_INVALID_STATE,
+) {}
+
+export class CharityParticipationNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_PARTICIPATION_NOT_FOUND,
+) {}
+
+export class CharityParticipationInvalidStateException extends ExceptionFrom(
+  CoreErrors.CHARITY_PARTICIPATION_INVALID_STATE,
 ) {}
 
 export class CharityAppealConflictOfInterestException extends ExceptionFrom(

@@ -220,7 +220,6 @@ Nghiệp vụ Chân Tâm
 | `0x1324` | `4900` | 404 Not Found | `CHARITY_BANK_ACCOUNT_NOT_FOUND` | Không tìm thấy tài khoản nhận đang hiệu lực |
 | `0x1325` | `4901` | 404 Not Found | `CHARITY_FUNDING_NEED_NOT_FOUND` | Không tìm thấy hạng mục kêu gọi tiền |
 | `0x1326` | `4902` | 404 Not Found | `CHARITY_VOLUNTEER_NEED_NOT_FOUND` | Không tìm thấy vị trí tuyển người |
-| `0x1327` | `4903` | 403 Forbidden | `CHARITY_VOLUNTEER_NOT_ELIGIBLE` | Cần có ít nhất một đóng góp đã được ban tổ chức chấp nhận mới đăng ký tham gia được |
 | `0x1328` | `4904` | 409 Conflict | `CHARITY_VOLUNTEER_CLOSED` | Vị trí này không còn nhận đăng ký |
 | `0x1329` | `4905` | 404 Not Found | `CHARITY_VOLUNTEER_REGISTRATION_NOT_FOUND` | Không tìm thấy đăng ký tham gia |
 | `0x132a` | `4906` | 409 Conflict | `CHARITY_SECTION_EMPTY` | Mục này chưa có nội dung để công khai |
@@ -235,7 +234,6 @@ Nghiệp vụ Chân Tâm
 | `0x1333` | `4915` | 403 Forbidden | `CHARITY_POST_FORBIDDEN` | Bạn chưa được đăng ảnh/clip vào dự án này — cần là ban tổ chức, hoặc cộng tác viên sự kiện trong lúc sự kiện trao diễn ra |
 | `0x1334` | `4916` | 429 Too Many Requests | `CHARITY_POST_QUOTA_EXCEEDED` | Hôm nay bạn đã dùng hết 5 lượt clip cho dự án này — thử lại vào ngày mai |
 | `0x1335` | `4917` | 400 Bad Request | `CHARITY_POST_MEDIA_INVALID` | Ảnh/clip không hợp lệ — phải là tệp bạn vừa tải lên cho dự án này và chưa dùng ở bài khác |
-| `0x1336` | `4918` | 409 Conflict | `CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE` | Người này cần có đóng góp đã được chấp nhận và đăng ký tham gia hợp lệ mới cấp được quyền cộng tác viên sự kiện |
 | `0x1337` | `4919` | 409 Conflict | `CHARITY_SUMMARY_NOT_OPEN` | Tổng kết mở khi dự án sang giai đoạn Tổng kết |
 | `0x1338` | `4920` | 409 Conflict | `CHARITY_SUMMARY_FINANCIAL_REQUIRED` | Dự án có nhận tiền — cần ít nhất một báo cáo tài chính kèm sao kê trước khi công khai tổng kết |
 | `0x1339` | `4921` | 409 Conflict | `CHARITY_SUMMARY_EMPTY` | Tổng kết chưa có nội dung để công khai |
@@ -248,6 +246,8 @@ Nghiệp vụ Chân Tâm
 | `0x1340` | `4928` | 403 Forbidden | `CHARITY_APPEAL_CONFLICT_OF_INTEREST` | Người đã chấm không tự xét khiếu nại khi ban tổ chức còn người khác |
 | `0x1341` | `4929` | 409 Conflict | `CHARITY_APPEAL_WINDOW_CLOSED` | Đã quá 7 ngày kể từ lúc đánh giá — hết hạn khiếu nại |
 | `0x1342` | `4930` | 429 Too Many Requests | `CHARITY_APPEAL_RATE_LIMITED` | Bạn gửi quá nhiều khiếu nại trong 24 giờ — thử lại sau |
+| `0x1343` | `4931` | 404 Not Found | `CHARITY_PARTICIPATION_NOT_FOUND` | Không tìm thấy lượt đăng ký tham gia |
+| `0x1344` | `4932` | 409 Conflict | `CHARITY_PARTICIPATION_INVALID_STATE` | Lượt tham gia đang ở trạng thái WAITLISTED, không thực hiện được bước này |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |

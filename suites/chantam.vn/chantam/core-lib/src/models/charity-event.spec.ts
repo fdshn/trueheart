@@ -46,7 +46,7 @@ describe('charityPostRole', () => {
     suspended: false,
     isOrganizer: false,
     isCoordinator: false,
-    isEventContributor: false,
+    isAttendedParticipant: false,
     stage: 'EXECUTION' as const,
   };
 
@@ -61,12 +61,18 @@ describe('charityPostRole', () => {
   });
 
   it('cộng tác viên chỉ đăng được trong Sự kiện trao', () => {
-    expect(charityPostRole({ ...base, isEventContributor: true })).toBeNull();
     expect(
-      charityPostRole({ ...base, isEventContributor: true, stage: 'EVENT' }),
+      charityPostRole({ ...base, isAttendedParticipant: true }),
+    ).toBeNull();
+    expect(
+      charityPostRole({ ...base, isAttendedParticipant: true, stage: 'EVENT' }),
     ).toBe('PARTICIPANT');
     expect(
-      charityPostRole({ ...base, isEventContributor: true, stage: 'SUMMARY' }),
+      charityPostRole({
+        ...base,
+        isAttendedParticipant: true,
+        stage: 'SUMMARY',
+      }),
     ).toBeNull();
   });
 

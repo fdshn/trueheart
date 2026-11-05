@@ -3,8 +3,8 @@
 > **File sinh tự động** bởi `npm run docs:routes` từ metadata của controller đã biên dịch.
 > Đừng sửa tay — sửa controller rồi chạy lại lệnh. CI chạy `docs:routes:check`.
 
-Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **407** route:
-57 công khai, 138 cần quyền Admin, 212 cần access token.
+Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **409** route:
+57 công khai, 138 cần quyền Admin, 214 cần access token.
 
 Mức truy cập: `Công khai` = không cần token; `Bearer` = cần access token (một số route còn
 kiểm chủ sở hữu hoặc quyền RBAC trong use case — xem `docs/API.md`); `perm:<mã>` = quyền Admin
@@ -435,8 +435,6 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `GET` | `/charity-campaigns/:id/evaluations` | Bearer | Mức hoàn thành của người tham gia (nội bộ) |
 | `PUT` | `/charity-campaigns/:id/evaluations/:userId` | Bearer | Chấm mức hoàn thành 0–100 |
 | `GET` | `/charity-campaigns/:id/evaluations/me` | Bearer | Mức hoàn thành của tôi |
-| `GET` | `/charity-campaigns/:id/event-contributors` | Bearer | Cộng tác viên sự kiện và người đủ điều kiện |
-| `PUT` | `/charity-campaigns/:id/event-contributors/:userId` | Bearer | Cấp / thu hồi quyền cộng tác viên sự kiện |
 | `PATCH` | `/charity-campaigns/:id/event-steps/:stepId` | Bearer | Cập nhật một bước của timeline |
 | `GET` | `/charity-campaigns/:id/exports` | Bearer | Các bản in đã tạo (50 bản mới nhất) |
 | `POST` | `/charity-campaigns/:id/exports` | Bearer | Tạo bản in PDF |
@@ -451,9 +449,13 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `GET` | `/charity-campaigns/:id/internal-stats` | Bearer | Thống kê nội bộ |
 | `PATCH` | `/charity-campaigns/:id/item-needs/:needItemId` | Bearer | Đơn giá, tình trạng, nguồn cung, tiếp nhận của một dòng hiện vật |
 | `PUT` | `/charity-campaigns/:id/media` | Bearer | Thay cả bộ ảnh/video của hồ sơ đang chờ duyệt |
+| `GET` | `/charity-campaigns/:id/participation` | Bearer | Lượt tham gia của tôi |
 | `POST` | `/charity-campaigns/:id/participation` | Bearer | Đăng ký tham gia |
 | `POST` | `/charity-campaigns/:id/participation/cancel` | Bearer | Huỷ đăng ký |
 | `PATCH` | `/charity-campaigns/:id/participation/public-name` | Bearer | Hiện / ẩn tên tôi trong danh sách người tham gia |
+| `GET` | `/charity-campaigns/:id/participations` | Bearer | Danh sách participant (ban tổ chức) |
+| `PATCH` | `/charity-campaigns/:id/participations/:participationId` | Bearer | Duyệt / danh sách chờ / từ chối / vắng mặt / hoàn thành |
+| `POST` | `/charity-campaigns/:id/participations/:participationId/check-in` | Bearer | Check-in participant tại sự kiện |
 | `PUT` | `/charity-campaigns/:id/parties` | Bearer | Thay danh sách đơn vị liên quan |
 | `PUT` | `/charity-campaigns/:id/phases` | Bearer | Thay tiến độ 4 bước |
 | `POST` | `/charity-campaigns/:id/posts` | Bearer | Đăng bài ảnh/clip vào dự án |

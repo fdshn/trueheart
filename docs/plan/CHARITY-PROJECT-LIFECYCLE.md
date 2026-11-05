@@ -15,7 +15,9 @@
 > [`CHARITY-CONTRIBUTION-DESIGN.md`](./CHARITY-CONTRIBUTION-DESIGN.md)
 > (bảng nhu cầu, đề nghị đóng góp, giao nhận — đã xong) chứ không thay thế nó. Quyết định của
 > chủ dự án ngày 04/11 ghi ở §7.1; các mục §3.15–§3.17 là thiết kế đi kèm những quyết định đó.
-> Quyết định Product ngày 05/11 (§7.2, §3.18) **chưa triển khai** — đợt 5.
+> Quyết định Product ngày 05/11 (§7.2, §3.18): **đợt 5a đã triển khai** (`1802900000000` — vòng
+> đời participant trên `campaign_participations`, check-in thay cộng tác viên sự kiện, tham gia
+> không cần đóng góp, điểm ảnh/clip 3/2, người nhận nhắc 48 giờ; API.md §18.6); 5b, 5c chưa.
 
 ## 1. Yêu cầu tóm tắt
 

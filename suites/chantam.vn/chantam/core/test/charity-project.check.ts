@@ -498,29 +498,24 @@ async function main(): Promise<void> {
         title: 'Bốc xếp',
         description: null,
         requirements: null,
-        neededCount: 1,
+        neededCount: 2,
         startsAt: null,
         endsAt: null,
         locationLabel: null,
         sortOrder: 0,
       },
     });
-    const notEligible = await projects.registerVolunteer({
+    // Chốt 05/11: tham gia độc lập với đóng góp — người chưa góp gì vẫn nhận vị trí được.
+    const withoutContribution = await projects.registerVolunteer({
       campaignId: Live,
       volunteerNeedId: volunteer.volunteerNeedId,
       userId: Giver,
       note: null,
     });
-    for (const [n, contributor] of [
-      [1, Giver],
-      [2, Racer1],
-      [3, Racer2],
-    ] as const)
-      await sql(
-        `INSERT INTO campaign_contributions (global_id, campaign_id, contributor_id, status, decided_at, decided_by)
-         VALUES ($1, $2, $3, 'ACCEPTED', now(), $4)`,
-        [id(`4${n}`), Live, contributor, Owner],
-      );
+    const [giverParticipation] = await sql(
+      `SELECT status FROM campaign_participations WHERE campaign_id = $1 AND user_id = $2`,
+      [Live, Giver],
+    );
     const race = await Promise.all(
       [Racer1, Racer2].map((userId) =>
         projects.registerVolunteer({
@@ -532,8 +527,28 @@ async function main(): Promise<void> {
       ),
     );
     check(
-      'chưa có đóng góp được chấp nhận → NOT_ELIGIBLE',
-      notEligible === 'NOT_ELIGIBLE',
+      'không cần đóng góp → REGISTERED, kèm lượt tham gia chờ duyệt',
+      withoutContribution === 'REGISTERED' &&
+        giverParticipation?.status === 'REGISTERED',
+      `${withoutContribution} / ${giverParticipation?.status}`,
+    );
+    const confirmedVolunteer = await projects.confirmVolunteer({
+      campaignId: Live,
+      volunteerNeedId: volunteer.volunteerNeedId,
+      userId: Giver,
+      actorId: Owner,
+    });
+    const [giverAfterConfirm] = await sql(
+      `SELECT status, status_changed_by FROM campaign_participations
+        WHERE campaign_id = $1 AND user_id = $2`,
+      [Live, Giver],
+    );
+    check(
+      'xác nhận vị trí → lượt tham gia CONFIRMED (ghi người xác nhận)',
+      confirmedVolunteer &&
+        giverAfterConfirm?.status === 'CONFIRMED' &&
+        giverAfterConfirm.status_changed_by === Owner,
+      JSON.stringify(giverAfterConfirm),
     );
     check(
       'hai người tranh suất cuối song song: một REGISTERED, một FULL',

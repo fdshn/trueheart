@@ -164,6 +164,11 @@ export enum NotificationTypes {
    */
   CHARITY_APPEAL_UPDATED = 'CHARITY_APPEAL_UPDATED',
   /**
+   * Lượt tham gia dự án từ thiện vừa đổi trạng thái do ban tổ chức (duyệt, danh sách chờ, từ
+   * chối, check-in, vắng mặt, hoàn thành) — báo chính participant. Đợt 5, chốt 05/11.
+   */
+  CHARITY_PARTICIPATION_UPDATED = 'CHARITY_PARTICIPATION_UPDATED',
+  /**
    * Nhắc nhiệm vụ duy trì hạng, trước khi chu kỳ hết (SRS BR-PROF-RANK-03).
    *
    * Trượt chu kỳ nay bị trừ điểm và có thể tụt hạng, nên báo muộn hơn thời điểm
@@ -313,6 +318,7 @@ export const NotificationGroupOf: Record<
   // quan tâm) — cùng nhóm đóng góp. Ba loại còn lại của dự án nằm ở SỰ KIỆN và ĐIỀU KIỆN.
   [NotificationTypes.CHARITY_PLAN_CHANGED]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_APPEAL_UPDATED]: NotificationGroups.STATUS,
+  [NotificationTypes.CHARITY_PARTICIPATION_UPDATED]: NotificationGroups.STATUS,
 
   // ── Tích điểm: điểm vào sổ ───────────────────────────────────────────────
   // Giới thiệu hợp lệ xếp vào TÍCH ĐIỂM chứ không THƯỞNG: nội dung thông báo là

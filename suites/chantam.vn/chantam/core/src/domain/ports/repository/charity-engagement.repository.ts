@@ -171,13 +171,18 @@ export interface ICharityEngagementRepository {
     handler: (announcement: ICharityAnnouncement) => Promise<number>,
   ): Promise<number>;
   /**
-   * Người nhận thông báo theo dự án: người tham gia (đăng ký tham gia hoặc tuyển người còn
-   * hiệu lực), người có đóng góp được chấp nhận, người quan tâm. Không trùng, không gồm
-   * `excludeUserId` (người vừa gây ra thay đổi).
+   * Người nhận thông báo theo dự án. Không trùng, bỏ tài khoản đã xoá.
+   *
+   * - `ALL`: người tham gia còn hiệu lực (kể cả tuyển người), người có đóng góp được chấp
+   *   nhận, người quan tâm — trừ `excludeUserId` (người vừa gây ra thay đổi).
+   * - `PRE_EVENT` (nhắc 48 giờ, §3.4 chốt 05/11): người tạo, coordinator còn quyền và
+   *   participant đã được duyệt (`CONFIRMED`/`CHECKED_IN`). Không loại ai — ban tổ chức cũng
+   *   phải nhận lời nhắc.
    */
   listAudience(params: {
     campaignId: string;
     excludeUserId: string | null;
+    scope?: 'ALL' | 'PRE_EVENT';
   }): Promise<string[]>;
 
   // ── Bản in ────────────────────────────────────────────────────────────

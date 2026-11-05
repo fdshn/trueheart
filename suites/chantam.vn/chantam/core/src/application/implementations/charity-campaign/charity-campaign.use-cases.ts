@@ -104,6 +104,7 @@ import {
   CharityNotOrganizerException,
   CharityNotRegisteredException,
   CharityParticipationClosedException,
+  CharityParticipationInvalidStateException,
   CharityReviewDuplicateException,
   CharityReviewNotPermittedException,
   CharityReviewTooEarlyException,
@@ -124,6 +125,7 @@ import {
 import {
   CharityApprovalStatus,
   CharityCampaignType,
+  CharityCancellableParticipationStatuses,
   CharityCapabilityByType,
   MaxCharityDescriptionLength,
   MaxCharityReviewCommentLength,
@@ -1442,7 +1444,12 @@ export class CancelCharityParticipationUseCase implements ICancelCharityParticip
       campaignId: campaign.globalId,
       userId: command.actorUserId,
     });
-    if (status !== 'REGISTERED') throw new CharityNotRegisteredException();
+    // Huỷ được khi còn hiệu lực và chưa hoàn thành (vòng đời chung, chốt 05/11).
+    if (!status || status === 'CANCELLED')
+      throw new CharityNotRegisteredException();
+    // Bị từ chối, vắng mặt, đã hoàn thành: có lượt nhưng không còn gì để huỷ.
+    if (!CharityCancellableParticipationStatuses.includes(status))
+      throw new CharityParticipationInvalidStateException(status);
 
     // BR-CHARITY-03: chỉ huỷ được khi CHƯA bắt đầu. Người tổ chức chốt số suất theo danh
     // sách đăng ký trước giờ khai mạc, nên một lượt huỷ giữa buổi không trả lại được gì.

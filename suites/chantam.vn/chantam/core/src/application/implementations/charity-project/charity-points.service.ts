@@ -6,9 +6,6 @@ import {
 import {
   CharityPointCapWindows,
   CharityPointRuleCode,
-  CharityPostAuthorRole,
-  CharityPostParticipantMultiplierConfigKey,
-  DefaultCharityPostParticipantMultiplierPercent,
   charityPointCapConfigKey,
   itemValuePoints,
   normalizeNonNegativeInt,
@@ -74,18 +71,10 @@ export class CharityPointsService {
     postId: string;
     campaignId: string;
     authorId: string;
-    authorRole: CharityPostAuthorRole;
     videoCount: number;
     imageCount: number;
   }): Promise<void> {
     await this.safely(`bài ${post.postId}`, async () => {
-      const multiplier = normalizeNonNegativeInt(
-        await this.admin.getConfigValue(
-          CharityPostParticipantMultiplierConfigKey,
-        ),
-        DefaultCharityPostParticipantMultiplierPercent,
-        1000,
-      );
       for (const [ruleCode, count, noun] of [
         ['CHARITY_POST_VIDEO', post.videoCount, 'clip'],
         ['CHARITY_POST_IMAGE', post.imageCount, 'ảnh'],
@@ -102,8 +91,6 @@ export class CharityPointsService {
           targetPoints: postMediaPoints({
             mediaCount: count,
             rulePoints: rule.points,
-            participant: post.authorRole === 'PARTICIPANT',
-            participantMultiplierPercent: multiplier,
           }),
           reason: `${count} ${noun} đăng vào dự án từ thiện`,
         });

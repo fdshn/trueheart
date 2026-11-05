@@ -2767,8 +2767,8 @@ dòng này trong workspace.
 **Hiện vật.** Mỗi dòng trả `registeredQuantity` (đề nghị chờ quyết), `approvedQuantity`,
 `receivedInAppQuantity`, `receivedExternalQuantity`, `remainingQuantity`.
 
-**Tuyển người.** Đăng ký cần ít nhất một đóng góp của dự án đã được chấp nhận
-(`CHARITY_VOLUNTEER_NOT_ELIGIBLE`). Không nhận đăng ký mới khi vị trí đóng/bắt đầu/đủ người hoặc
+**Tuyển người.** Không cần đóng góp (đợt 5a, §18.6); đăng ký vị trí tạo lượt tham gia chờ
+duyệt. Không nhận đăng ký mới khi vị trí đóng/bắt đầu/đủ người hoặc
 từ khi bước trao bắt đầu (`CHARITY_VOLUNTEER_CLOSED`). Suất cuối hai người tranh song song thì
 đúng một người được.
 
@@ -2857,8 +2857,6 @@ vào `internal-stats.shares`.
 | --- | --- | --- | --- |
 | `GET` | `/charity-campaigns/:idOrSlug/event-steps` | Công khai | Timeline 10 bước **sống** (không phải bản chụp). Cũng có trong `workspace.eventSteps` và `public.eventSteps` |
 | `PATCH` | `/charity-campaigns/:id/event-steps/:stepId` | Người tạo, coordinator, Admin | `{ step: { status, plannedAt, actualAt, note } }` — `DONE` không gửi `actualAt` thì lấy giờ hiện tại |
-| `GET` | `/charity-campaigns/:id/event-contributors` | Người tạo, coordinator, Admin `campaign.read` | `{ contributors, candidates }` — `candidates` là người đủ điều kiện chưa được cấp |
-| `PUT` | `/charity-campaigns/:id/event-contributors/:userId` | Người tạo, coordinator, Admin | `{ contributor: { active } }` — cấp / thu hồi cộng tác viên sự kiện |
 | `GET` | `/charity-campaigns/:id/posts/quota` | Bearer | `{ quota: { role, canPost, image: { used, limit }, video: {…}, windowStartsAt } }` |
 | `POST` | `/charity-campaigns/:id/posts/media/upload` | Người đăng được | `{ upload: { contentType, contentLength } }` → `{ upload, quota }`. Kiểm quyền + quota TRƯỚC khi ký |
 | `POST` | `/charity-campaigns/:id/posts` | Người đăng được | `{ post: { body?, mediaKeys? } }` — cần nội dung hoặc ≥ 1 tệp, tối đa 10 tệp |
@@ -2870,9 +2868,8 @@ vào `internal-stats.shares`.
 | `POST` | `/reports` | Bearer | `targetType: CHARITY_CAMPAIGN_POST` — kết luận đúng thì bài bị ẩn (audit `HIDE_CHARITY_CAMPAIGN_POST`) |
 
 **Ai đăng được bài.** Người tạo dự án, coordinator, Admin `campaign.manage`: mọi giai đoạn sau
-khi duyệt (`authorRole` `ORGANIZER`/`COORDINATOR`). Người dùng thường: chỉ khi ban tổ chức cấp
-**cộng tác viên sự kiện** — cấp được cho người có đóng góp được chấp nhận VÀ đăng ký tham gia còn
-hiệu lực — và chỉ khi dự án đang ở **Sự kiện trao** (`PARTICIPANT`). Dự án đình chỉ: không ai đăng.
+khi duyệt (`authorRole` `ORGANIZER`/`COORDINATOR`). Participant: chỉ khi **đã check-in** (đợt 5a,
+§18.6 — thay cho cộng tác viên sự kiện) và dự án đang ở **Sự kiện trao** (`PARTICIPANT`). Dự án đình chỉ: không ai đăng.
 
 **Quota** (chốt §7.6): 5 clip + 5 ảnh / người / ngày (giờ Việt Nam) / **dự án**; Admin chỉnh
 `charity.post_daily_video_quota`, `charity.post_daily_image_quota` (0 = tắt loại đó). Mỗi lượt
@@ -2890,10 +2887,10 @@ hồ sơ dự án. Tệp ký mà không đăng bị job dọn media xoá sau 24 
    `public`: dự án đang hiện ra ngoài. `workspace`: người tạo, coordinator, Admin `campaign.read`.
    `project:leave` để rời.
 3. Nhận `project:changed` `{ campaignId, sections, version }` — `sections` ⊂ `STAGE` ·
-   `TIMELINE` · `POSTS` · `CHECKLIST` · `CONTRIBUTORS`. **Không mang dữ liệu**: gọi lại REST của
+   `TIMELINE` · `POSTS` · `CHECKLIST` · `PARTICIPANTS` · `SUMMARY`. **Không mang dữ liệu**: gọi lại REST của
    phần đó (`STAGE` → `public`/`workspace`, `TIMELINE` → `event-steps`, `POSTS` → `posts`,
-   `CHECKLIST` → `tasks`, `CONTRIBUTORS` → `event-contributors`). Gộp tối đa 1 tín hiệu / giây /
-   dự án; `CHECKLIST`, `CONTRIBUTORS` chỉ tới phòng workspace.
+   `CHECKLIST` → `tasks`, `PARTICIPANTS` → `participations`). Gộp tối đa 1 tín hiệu / giây /
+   dự án; `CHECKLIST`, `PARTICIPANTS` chỉ tới phòng workspace.
 4. Mất kết nối / app vào nền: nối lại xong thì gọi lại REST — tín hiệu là gợi ý, REST là nguồn
    sự thật. Chuyển giai đoạn do job (`charity:advance-stage`) không phát tín hiệu; người theo
    dõi nhận push `CHARITY_STAGE_CHANGED`.
@@ -2932,8 +2929,8 @@ trọng (báo người theo dõi).
 công khai) và `supporters: { supporterCount, participantCount, supporters[], participants[] }` —
 danh sách là **nickname** người cho phép hiện (tối đa 200), con số tổng gồm cả người ẩn.
 
-**Chấm mức hoàn thành** 0–100: người tạo/coordinator/Admin, chỉ ở Tổng kết, chỉ người tham gia
-(đăng ký tham gia còn hiệu lực, tuyển người không huỷ, cộng tác viên sự kiện). Chấm lại = lần chấm
+**Chấm mức hoàn thành** 0–100: người tạo/coordinator/Admin, chỉ ở Tổng kết, chỉ participant **đã
+check-in** (hoặc đã hoàn thành — đợt 5a, §18.6). Chấm lại = lần chấm
 mới (append-only, giữ lịch sử). Điểm và ghi chú là **nội bộ** — không có trên đường công khai;
 người được chấm chỉ xem điểm của mình qua `evaluations/me`.
 
@@ -2965,8 +2962,8 @@ như đã xử lý. Card chỉ có tiêu đề, lời nhắn, ảnh (mặc đị
 | Rule | Mức seed | Khi phát sinh |
 | --- | --- | --- |
 | `CHARITY_ITEM_VALUE` | 1 điểm / 10.000đ | Hoàn tất giao nhận, theo giá trị ban tổ chức xác nhận (`campaign_delivery_items.confirmed_value`, hoặc `campaign_deliveries.confirmed_value_adjusted` sau khiếu nại) |
-| `CHARITY_POST_VIDEO` | 2 / clip (giữ chỗ) | Đăng bài; cộng tác viên sự kiện × `charity.post_points_participant_multiplier_percent` (mặc định 200%) |
-| `CHARITY_POST_IMAGE` | 1 / ảnh (giữ chỗ) | Như trên |
+| `CHARITY_POST_VIDEO` | 3 / clip (chốt 05/11) | Đăng bài — như nhau cho mọi người đăng |
+| `CHARITY_POST_IMAGE` | 2 / ảnh (chốt 05/11) | Như trên |
 | `CHARITY_PARTICIPATION` | 100 × mức hoàn thành / 100 | Chấm mức hoàn thành (lần mới nhất) |
 
 Trần do Admin cấu hình: `charity.points_cap.<rule>.daily|project|cycle` (rule viết thường, ví dụ
@@ -2994,3 +2991,50 @@ Mọi bước ghi `campaign_appeal_events` (append-only) và báo bên kia `CHAR
 án). Người khiếu nại thấy lý do mọi quyết định. Admin thấy số khiếu nại bị bác của người khiếu nại và
 số lần ban tổ chức bị khiếu nại thành công — **không tự động phạt**. Job `charity:appeal-sla` chạy
 mỗi giờ.
+
+### 18.6 Đợt 5a — vòng đời participant, check-in (quyết định Product 05/11)
+
+Tham gia **độc lập với đóng góp**. Một lượt tham gia mỗi (dự án, người) trên
+`campaign_participations`, đủ trạng thái:
+
+| Trạng thái | Nghĩa |
+| --- | --- |
+| `REGISTERED` | Đã đăng ký, **chờ ban tổ chức duyệt** (đăng ký cũ cũng thành chờ duyệt) |
+| `CONFIRMED` · `WAITLISTED` · `REJECTED` | Ban tổ chức xác nhận / đưa vào danh sách chờ / từ chối (có lý do) |
+| `CHECKED_IN` | Đã check-in tại sự kiện — **được đăng ảnh/clip sự kiện** và **được chấm mức hoàn thành** |
+| `COMPLETED` | Ban tổ chức ghi nhận hoàn thành (sau check-in) |
+| `NO_SHOW` | Đã xác nhận mà không đến (có lý do) |
+| `CANCELLED` | Người dùng tự huỷ — được cả khi đã check-in, trừ khi đã hoàn thành |
+
+| Method | Đường dẫn | Ai | Mô tả |
+| --- | --- | --- | --- |
+| `POST` | `/charity-campaigns/:id/participation` | Bearer | Đăng ký (đã có) — nay vào `REGISTERED` chờ duyệt; chỉ lượt `CANCELLED` được đăng ký lại |
+| `GET` | `/charity-campaigns/:id/participation` | Bearer | `{ participation }` của chính mình, `null` khi chưa đăng ký |
+| `GET` | `/charity-campaigns/:id/participations` | Người tạo, coordinator, Admin `campaign.read` | `?status=` — kèm `positions[]` (vị trí tuyển người đang nhận) |
+| `PATCH` | `/charity-campaigns/:id/participations/:participationId` | Người tạo, coordinator, Admin | `{ decision: { action: CONFIRM\|WAITLIST\|REJECT\|NO_SHOW\|COMPLETE, reason? } }` — `REJECT`/`NO_SHOW` bắt buộc lý do |
+| `POST` | `/charity-campaigns/:id/participations/:participationId/check-in` | Người tạo, coordinator, Admin | Chỉ từ `CONFIRMED`; gọi lại khi đã check-in trả nguyên trạng (an toàn khi gửi lại sau mất mạng) |
+
+Chuyển hợp lệ: `CONFIRM` ← chờ duyệt / danh sách chờ / đã từ chối; `WAITLIST` ← chờ duyệt / đã
+xác nhận; `REJECT` ← chờ duyệt / danh sách chờ / đã xác nhận; `NO_SHOW` ← đã xác nhận;
+`COMPLETE` ← đã check-in. Sai trạng thái → `CHARITY_PARTICIPATION_INVALID_STATE` (409); hai người
+bấm cùng lúc thì một người thắng. Participant nhận `CHARITY_PARTICIPATION_UPDATED` (kèm lý do);
+realtime phát `PARTICIPANTS` tới phòng workspace.
+
+**Tuyển người** nối vào vòng đời chung: đăng ký một vị trí tạo (hoặc hồi) lượt tham gia chờ duyệt;
+ban tổ chức xác nhận vị trí là xác nhận lượt tham gia. Không còn cần đóng góp
+(`CHARITY_VOLUNTEER_NOT_ELIGIBLE` bỏ).
+
+**Bỏ cộng tác viên sự kiện** (`/event-contributors`, `CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE`):
+participant đăng ảnh/clip khi đã check-in và dự án đang ở Sự kiện trao.
+
+**Điểm ảnh/clip** 3 / clip, 2 / ảnh, như nhau cho mọi người đăng — khoá hệ số
+`charity.post_points_participant_multiplier_percent` bị gỡ. Rule vẫn TẮT.
+
+**Nhắc 48 giờ** gửi người tạo, coordinator còn quyền và participant đã duyệt (`CONFIRMED` /
+`CHECKED_IN`) — không còn gửi người chờ duyệt, người quan tâm, người đóng góp. Các thông báo
+khác theo dự án vẫn gửi người tham gia còn hiệu lực, người có đóng góp được chấp nhận, người quan
+tâm.
+
+**Số đếm:** `participantCount` của chiến dịch và thống kê nội bộ đếm lượt còn hiệu lực (chờ
+duyệt, đã xác nhận, danh sách chờ, đã check-in, đã hoàn thành); danh sách nickname công khai và
+con số tham gia ở tổng kết chỉ gồm người đã được nhận (xác nhận / check-in / hoàn thành).

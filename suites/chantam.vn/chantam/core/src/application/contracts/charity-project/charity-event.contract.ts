@@ -1,9 +1,7 @@
 import {
-  ICharityEventContributor,
   ICharityEventStep,
   ICharityEventStepPatch,
   ICharityPost,
-  ICharityUserBrief,
 } from '@/domain/ports/repository';
 import {
   CharityPostAuthorRole,
@@ -37,31 +35,6 @@ export interface IUpdateCharityEventStepUseCase extends IUseCase<
 > {}
 export const IUpdateCharityEventStepUseCase = Symbol(
   'IUpdateCharityEventStepUseCase',
-);
-
-export interface ICharityContributorBoard {
-  contributors: ICharityEventContributor[];
-  /** Người đủ điều kiện mà chưa được cấp. */
-  candidates: ICharityUserBrief[];
-}
-export interface IListCharityEventContributorsUseCase extends IUseCase<
-  ICharityProjectCommand,
-  ICharityContributorBoard
-> {}
-export const IListCharityEventContributorsUseCase = Symbol(
-  'IListCharityEventContributorsUseCase',
-);
-
-export interface ISetCharityEventContributorCommand extends ICharityProjectCommand {
-  readonly targetUserId: string;
-  readonly active: boolean;
-}
-export interface ISetCharityEventContributorUseCase extends IUseCase<
-  ISetCharityEventContributorCommand,
-  ICharityEventContributor
-> {}
-export const ISetCharityEventContributorUseCase = Symbol(
-  'ISetCharityEventContributorUseCase',
 );
 
 export interface ICharityPostQuotaView {

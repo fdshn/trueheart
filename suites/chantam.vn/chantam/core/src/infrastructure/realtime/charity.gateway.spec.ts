@@ -94,7 +94,7 @@ describe('CharityGateway', () => {
   it('chỉ workspace: không phát phòng công khai', () => {
     jest.useFakeTimers();
     const { gateway, emitted } = makeGateway();
-    gateway.signal('c1', ['CONTRIBUTORS'], 'workspace');
+    gateway.signal('c1', ['PARTICIPANTS'], 'workspace');
     jest.advanceTimersByTime(1000);
     expect(emitted.map((row) => row.room)).toEqual(['charity:c1:workspace']);
   });

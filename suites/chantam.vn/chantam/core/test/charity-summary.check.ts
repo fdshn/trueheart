@@ -252,9 +252,20 @@ async function main(): Promise<void> {
       `INSERT INTO campaign_participations (campaign_id, user_id, status) VALUES ($1, $2, 'REGISTERED')`,
       [Live, Walker],
     );
+    const pendingIsCandidate = await summaries.isEvaluationCandidate(
+      Live,
+      Walker,
+    );
+    await sql(
+      `UPDATE campaign_participations
+          SET status = 'CHECKED_IN', checked_in_at = now(), checked_in_by = $3
+        WHERE campaign_id = $1 AND user_id = $2`,
+      [Live, Walker, Owner],
+    );
     check(
-      'người tham gia là ứng viên; người ngoài thì không',
-      (await summaries.isEvaluationCandidate(Live, Walker)) &&
+      'chỉ participant đã check-in là ứng viên (chốt 05/11); đăng ký chờ duyệt và người ngoài thì không',
+      !pendingIsCandidate &&
+        (await summaries.isEvaluationCandidate(Live, Walker)) &&
         !(await summaries.isEvaluationCandidate(Live, Shy)),
     );
     await summaries.addEvaluation({

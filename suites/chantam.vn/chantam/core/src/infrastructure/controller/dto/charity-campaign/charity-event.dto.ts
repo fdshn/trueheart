@@ -12,7 +12,6 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
-  IsBoolean,
   IsDate,
   IsDefined,
   IsIn,
@@ -31,10 +30,6 @@ import {
 export class CharityProjectStepParamsDto {
   @ApiProperty({ format: 'uuid' }) @IsUUID() id: string;
   @ApiProperty({ format: 'uuid' }) @IsUUID() stepId: string;
-}
-export class CharityProjectContributorParamsDto {
-  @ApiProperty({ format: 'uuid' }) @IsUUID() id: string;
-  @ApiProperty({ format: 'uuid' }) @IsUUID() userId: string;
 }
 export class CharityProjectPostParamsDto {
   @ApiProperty({ format: 'uuid' }) @IsUUID() id: string;
@@ -109,40 +104,6 @@ export class CharityUserBriefDto {
   @ApiProperty({ type: String, nullable: true }) fullName: string | null;
   @ApiProperty({ type: String, nullable: true }) avatarUrl: string | null;
 }
-export class CharityEventContributorDto extends CharityUserBriefDto {
-  @ApiProperty() grantedAt: Date;
-  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
-  grantedBy: string | null;
-  @ApiProperty({ type: Date, nullable: true }) revokedAt: Date | null;
-  @ApiProperty() active: boolean;
-}
-export class CharityContributorBoardResponseDto {
-  @ApiProperty({ type: () => [CharityEventContributorDto] })
-  contributors: CharityEventContributorDto[];
-  @ApiProperty({
-    type: () => [CharityUserBriefDto],
-    description:
-      'Đủ điều kiện (đóng góp được chấp nhận + đăng ký tham gia) mà chưa được cấp',
-  })
-  candidates: CharityUserBriefDto[];
-}
-export class CharityContributorSetDto {
-  @ApiProperty({ description: '`true` cấp, `false` thu hồi' })
-  @IsBoolean()
-  active: boolean;
-}
-export class CharityContributorSetBodyDto {
-  @ApiProperty({ type: () => CharityContributorSetDto })
-  @IsDefined()
-  @ValidateNested()
-  @Type(() => CharityContributorSetDto)
-  contributor: CharityContributorSetDto;
-}
-export class CharityContributorResponseDto {
-  @ApiProperty({ type: () => CharityEventContributorDto })
-  contributor: CharityEventContributorDto;
-}
-
 // ── Bài ảnh/clip ─────────────────────────────────────────────────────────
 
 class CharityQuotaUsageDto {

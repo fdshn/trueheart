@@ -116,7 +116,8 @@ interface IReviewRow {
  * phép tồn tại một lần.
  *
  * `participant_count` là CÂU CON, không phải cột. Xem docblock migration `1798200000000`.
- * Nó đếm trên `IDX_campaign_participations_campaign` (index phần, chỉ hàng `REGISTERED`).
+ * Nó đếm trên `IDX_campaign_participations_campaign` (index phần, chỉ hàng còn hiệu lực —
+ * `CharityActiveParticipationStatuses`).
  */
 interface IContributionRow {
   global_id: string;
@@ -277,7 +278,7 @@ const Columns = `campaigns.global_id, campaigns.title, campaigns.slug, campaigns
            AND phase.phase = 'DISTRIBUTION') AS distribution_ends_at,
        (SELECT count(*) FROM campaign_participations participation
          WHERE participation.campaign_id = campaigns.global_id
-           AND participation.status = 'REGISTERED') AS participant_count,
+           AND participation.status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')) AS participant_count,
        COALESCE(
          (SELECT json_agg(json_build_object(
                    'url', media.public_url,
@@ -2188,7 +2189,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         INNER JOIN campaign_participations AS joined
            ON joined.campaign_id = campaigns.global_id
           AND joined.user_id = $3
-          AND joined.status = 'REGISTERED'
+          AND joined.status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')
         WHERE campaigns.deleted_at IS NULL
         ORDER BY campaigns.start_time DESC, campaigns.id DESC
         LIMIT $1 OFFSET $2`,
@@ -2196,7 +2197,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     );
     const [counted] = await this.manager.query<{ total: string }[]>(
       `SELECT count(*)::text AS total FROM campaign_participations
-        WHERE user_id = $1 AND status = 'REGISTERED'`,
+        WHERE user_id = $1 AND status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')`,
       [query.userId],
     );
 
@@ -2359,7 +2360,9 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       `INSERT INTO campaign_participations (campaign_id, user_id, status, registered_at)
        VALUES ($1, $2, 'REGISTERED', now())
        ON CONFLICT (campaign_id, user_id) DO UPDATE
-         SET status = 'REGISTERED', registered_at = now(), cancelled_at = NULL
+         SET status = 'REGISTERED', registered_at = now(), cancelled_at = NULL,
+             status_changed_at = now(), status_changed_by = NULL, status_reason = NULL,
+             checked_in_at = NULL, checked_in_by = NULL
          WHERE campaign_participations.status = 'CANCELLED'
        RETURNING global_id`,
       [params.campaignId, params.userId],
@@ -2374,8 +2377,10 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     const rows = await updateReturning<{ global_id: string }>(
       this.manager,
       `UPDATE campaign_participations
-          SET status = 'CANCELLED', cancelled_at = now()
-        WHERE campaign_id = $1 AND user_id = $2 AND status = 'REGISTERED'
+          SET status = 'CANCELLED', cancelled_at = now(), status_changed_at = now(),
+              status_changed_by = $2, status_reason = NULL
+        WHERE campaign_id = $1 AND user_id = $2
+          AND status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN')
         RETURNING global_id`,
       [params.campaignId, params.userId],
     );
@@ -2397,7 +2402,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
   public async listRegisteredUserIds(campaignId: string): Promise<string[]> {
     const rows = await this.manager.query<{ user_id: string }[]>(
       `SELECT user_id FROM campaign_participations
-        WHERE campaign_id = $1 AND status = 'REGISTERED'
+        WHERE campaign_id = $1 AND status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')
         ORDER BY registered_at ASC`,
       [campaignId],
     );

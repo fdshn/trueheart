@@ -355,8 +355,7 @@ export enum ErrorCodes {
   CHARITY_BANK_ACCOUNT_NOT_FOUND = 0x13_24,
   CHARITY_FUNDING_NEED_NOT_FOUND = 0x13_25,
   CHARITY_VOLUNTEER_NEED_NOT_FOUND = 0x13_26,
-  /** Đăng ký tham gia khi chưa có hỗ trợ hợp lệ nào. */
-  CHARITY_VOLUNTEER_NOT_ELIGIBLE = 0x13_27,
+  // 0x13_27 (CHARITY_VOLUNTEER_NOT_ELIGIBLE) bỏ 05/11: tham gia không cần đóng góp. Không dùng lại.
   /** Vị trí đã đóng, đã bắt đầu, đã đủ người, hoặc bước trao đã bắt đầu. */
   CHARITY_VOLUNTEER_CLOSED = 0x13_28,
   CHARITY_VOLUNTEER_REGISTRATION_NOT_FOUND = 0x13_29,
@@ -372,7 +371,7 @@ export enum ErrorCodes {
   CHARITY_POST_FORBIDDEN = 0x13_33,
   CHARITY_POST_QUOTA_EXCEEDED = 0x13_34,
   CHARITY_POST_MEDIA_INVALID = 0x13_35,
-  CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE = 0x13_36,
+  // 0x13_36 (CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE) bỏ 05/11: quyền đăng theo check-in.
   CHARITY_SUMMARY_NOT_OPEN = 0x13_37,
   CHARITY_SUMMARY_FINANCIAL_REQUIRED = 0x13_38,
   CHARITY_SUMMARY_EMPTY = 0x13_39,
@@ -385,6 +384,9 @@ export enum ErrorCodes {
   CHARITY_APPEAL_CONFLICT_OF_INTEREST = 0x13_40,
   CHARITY_APPEAL_WINDOW_CLOSED = 0x13_41,
   CHARITY_APPEAL_RATE_LIMITED = 0x13_42,
+  CHARITY_PARTICIPATION_NOT_FOUND = 0x13_43,
+  /** Quyết định / check-in không hợp với trạng thái hiện tại của lượt tham gia. */
+  CHARITY_PARTICIPATION_INVALID_STATE = 0x13_44,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

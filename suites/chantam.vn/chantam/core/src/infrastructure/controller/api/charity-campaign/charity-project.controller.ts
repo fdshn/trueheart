@@ -35,7 +35,6 @@ import {
   CharityStageTransitionInvalidException,
   CharityVolunteerClosedException,
   CharityVolunteerNeedNotFoundException,
-  CharityVolunteerNotEligibleException,
   CharityVolunteerRegistrationNotFoundException,
 } from '@/domain/exceptions';
 import {
@@ -667,7 +666,6 @@ export class CharityProjectController {
     ...ApiTokenErrors,
     CharityCampaignNotFoundException,
     CharityVolunteerNeedNotFoundException,
-    CharityVolunteerNotEligibleException,
     CharityVolunteerClosedException,
   )
   public async register(

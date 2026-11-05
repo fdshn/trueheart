@@ -1,6 +1,7 @@
 /**
  * Dự án từ thiện 4 giai đoạn — đợt 3 (docs/plan/CHARITY-PROJECT-LIFECYCLE.md §3.5, §3.15):
- * timeline sự kiện trao, bài ảnh/clip có quota, cộng tác viên sự kiện, tín hiệu realtime.
+ * timeline sự kiện trao, bài ảnh/clip có quota, tín hiệu realtime. Quyền đăng của participant theo
+ * check-in (chốt 05/11) — thay cho vai "cộng tác viên sự kiện" cũ.
  */
 import { CharityOperationStage } from './charity-project';
 
@@ -102,7 +103,8 @@ export function vietnamDayStart(now: Date): Date {
 /**
  * Ai đăng bài được, với vai gì (§3.5):
  * - Người tổ chức, coordinator, Admin ghi: mọi giai đoạn SAU khi duyệt.
- * - Người dùng thường: chỉ khi được cấp cộng tác viên sự kiện VÀ dự án đang ở Sự kiện trao.
+ * - Participant: chỉ khi ban tổ chức đã xác nhận VÀ đã check-in (hoặc đã hoàn thành), và dự án
+ *   đang ở Sự kiện trao. Không cần có đóng góp.
  * `null` = không được đăng.
  */
 export function charityPostRole(input: {
@@ -110,13 +112,14 @@ export function charityPostRole(input: {
   readonly suspended: boolean;
   readonly isOrganizer: boolean;
   readonly isCoordinator: boolean;
-  readonly isEventContributor: boolean;
+  readonly isAttendedParticipant: boolean;
   readonly stage: CharityOperationStage;
 }): CharityPostAuthorRole | null {
   if (!input.approved || input.suspended) return null;
   if (input.isOrganizer) return 'ORGANIZER';
   if (input.isCoordinator) return 'COORDINATOR';
-  if (input.isEventContributor && input.stage === 'EVENT') return 'PARTICIPANT';
+  if (input.isAttendedParticipant && input.stage === 'EVENT')
+    return 'PARTICIPANT';
   return null;
 }
 
@@ -128,7 +131,8 @@ export const CharityRealtimeSections = [
   'TIMELINE',
   'POSTS',
   'CHECKLIST',
-  'CONTRIBUTORS',
+  /** Đợt 5: danh sách / trạng thái participant (duyệt, check-in) vừa đổi. */
+  'PARTICIPANTS',
   /** Đợt 4: tổng kết / báo cáo tài chính vừa công khai hoặc sửa. */
   'SUMMARY',
 ] as const;

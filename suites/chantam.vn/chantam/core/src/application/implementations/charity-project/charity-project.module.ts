@@ -3,12 +3,14 @@ import {
   IAddCharityBankAccountUseCase,
   IAdvanceCharityStagesUseCase,
   ICancelCharityVolunteerUseCase,
+  ICheckInCharityParticipationUseCase,
   ICloseCharityBankAccountUseCase,
   IConfirmCharityVolunteerUseCase,
   ICreateCharityExportUseCase,
   ICreateCharityPostUseCase,
   ICreateCharityShareLinkUseCase,
   IDecideAdminCharityAppealUseCase,
+  IDecideCharityParticipationUseCase,
   IDeleteCharityPostUseCase,
   IEvaluateCharityParticipantUseCase,
   IFollowCharityProjectUseCase,
@@ -22,12 +24,13 @@ import {
   IGetCharitySummaryUseCase,
   IGetCharityWorkspaceUseCase,
   IGetMyCharityEvaluationUseCase,
+  IGetMyCharityParticipationUseCase,
   IListAdminCharityAppealsUseCase,
   IListCharityAppealsUseCase,
   IListCharityEvaluationsUseCase,
-  IListCharityEventContributorsUseCase,
   IListCharityExportsUseCase,
   IListCharityHomeCardsUseCase,
+  IListCharityParticipationsUseCase,
   IListCharityPostsUseCase,
   IListCharityRevisionsUseCase,
   IListCharityTasksUseCase,
@@ -50,7 +53,6 @@ import {
   ISaveCharitySectionUseCase,
   ISaveCharitySummaryUseCase,
   ISaveCharityVolunteerNeedUseCase,
-  ISetCharityEventContributorUseCase,
   ISetCharityLimitsUseCase,
   ISetCharityPromotionUseCase,
   ISetCharityPublicNameUseCase,
@@ -94,12 +96,17 @@ import {
   DeleteCharityPostUseCase,
   GetCharityEventStepsUseCase,
   GetCharityPostQuotaUseCase,
-  ListCharityEventContributorsUseCase,
   ListCharityPostsUseCase,
   RequestCharityPostUploadUseCase,
-  SetCharityEventContributorUseCase,
   UpdateCharityEventStepUseCase,
 } from './charity-event.use-cases';
+import {
+  CharityParticipationNotifier,
+  CheckInCharityParticipationUseCase,
+  DecideCharityParticipationUseCase,
+  GetMyCharityParticipationUseCase,
+  ListCharityParticipationsUseCase,
+} from './charity-participation.use-cases';
 import { CharityPointsService } from './charity-points.service';
 import {
   AddCharityBankAccountUseCase,
@@ -176,8 +183,6 @@ const bindings = [
   // Đợt 3 (§3.5, §3.15).
   [IGetCharityEventStepsUseCase, GetCharityEventStepsUseCase],
   [IUpdateCharityEventStepUseCase, UpdateCharityEventStepUseCase],
-  [IListCharityEventContributorsUseCase, ListCharityEventContributorsUseCase],
-  [ISetCharityEventContributorUseCase, SetCharityEventContributorUseCase],
   [IGetCharityPostQuotaUseCase, GetCharityPostQuotaUseCase],
   [IRequestCharityPostUploadUseCase, RequestCharityPostUploadUseCase],
   [ICreateCharityPostUseCase, CreateCharityPostUseCase],
@@ -205,6 +210,11 @@ const bindings = [
   [IDecideAdminCharityAppealUseCase, DecideAdminCharityAppealUseCase],
   [IProcessCharityAppealSlaUseCase, ProcessCharityAppealSlaUseCase],
   [IProcessCharityPointsUseCase, ProcessCharityPointsUseCase],
+  // Đợt 5a (quyết định 05/11): vòng đời participant.
+  [IListCharityParticipationsUseCase, ListCharityParticipationsUseCase],
+  [IDecideCharityParticipationUseCase, DecideCharityParticipationUseCase],
+  [IGetMyCharityParticipationUseCase, GetMyCharityParticipationUseCase],
+  [ICheckInCharityParticipationUseCase, CheckInCharityParticipationUseCase],
 ] as const;
 
 /** `@Global()` như mọi feature module của tầng application — thiếu là DI hỏng lúc boot. */
@@ -216,6 +226,7 @@ const bindings = [
     CharityPointsService,
     CharityAppealNotifier,
     CharityAppealValueApplier,
+    CharityParticipationNotifier,
     ...bindings.map(([provide, useClass]) => ({ provide, useClass })),
   ],
   exports: [CharityPointsService, ...bindings.map(([provide]) => provide)],

@@ -44,6 +44,7 @@ import {
   CharityNotOrganizerException,
   CharityNotRegisteredException,
   CharityParticipationClosedException,
+  CharityParticipationInvalidStateException,
   CharityReviewDuplicateException,
   CharityReviewNotPermittedException,
   CharityReviewTooEarlyException,
@@ -714,6 +715,7 @@ export class CharityCampaignController {
     ...ApiTokenErrors,
     CharityCampaignNotFoundException,
     CharityNotRegisteredException,
+    CharityParticipationInvalidStateException,
     CharityCancelTooLateException,
   )
   @ApiOkResponse({

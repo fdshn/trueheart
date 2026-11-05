@@ -35,13 +35,6 @@ export interface ICharityUserBrief {
   avatarUrl: string | null;
 }
 
-export interface ICharityEventContributor extends ICharityUserBrief {
-  grantedAt: Date;
-  grantedBy: string | null;
-  revokedAt: Date | null;
-  active: boolean;
-}
-
 export interface ICharityPostMedia {
   storageKey: string;
   publicUrl: string;
@@ -79,21 +72,9 @@ export interface ICharityEventRepository {
     patch: ICharityEventStepPatch;
   }): Promise<ICharityEventStep | null>;
 
-  // ── Cộng tác viên sự kiện ─────────────────────────────────────────────
-  listContributors(campaignId: string): Promise<ICharityEventContributor[]>;
-  /**
-   * Người ĐỦ điều kiện mà chưa được cấp: có đóng góp được chấp nhận VÀ đăng ký tham gia
-   * còn hiệu lực (tham gia chung hoặc tuyển người).
-   */
-  listContributorCandidates(campaignId: string): Promise<ICharityUserBrief[]>;
-  isEligibleContributor(campaignId: string, userId: string): Promise<boolean>;
-  isActiveContributor(campaignId: string, userId: string): Promise<boolean>;
-  setContributor(params: {
-    campaignId: string;
-    userId: string;
-    actorId: string;
-    active: boolean;
-  }): Promise<ICharityEventContributor | null>;
+  // ── Quyền đăng của participant ────────────────────────────────────
+  /** Đã check-in (hoặc đã hoàn thành) ở dự án — đủ điều kiện đăng ảnh/clip sự kiện. */
+  isAttendedParticipant(campaignId: string, userId: string): Promise<boolean>;
 
   // ── Quota và đường tải ────────────────────────────────────────────────
   /**

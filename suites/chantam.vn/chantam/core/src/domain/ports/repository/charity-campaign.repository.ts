@@ -485,9 +485,10 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
   /**
    * Đăng ký tham gia.
    *
-   * `created: false` khi người đó đã đăng ký và vẫn đang `REGISTERED` — bên gọi đổi nó
-   * thành 409 thay vì im lặng coi như thành công. Một hàng `CANCELLED` thì được hồi lại
-   * `REGISTERED`, vì `UQ_campaign_participations_member` chỉ cho mỗi người một hàng.
+   * `created: false` khi người đó đã có lượt tham gia chưa huỷ (chờ duyệt, đã xác nhận, bị từ
+   * chối…) — bên gọi đổi nó thành 409 thay vì im lặng coi như thành công. Chỉ hàng `CANCELLED`
+   * được hồi lại `REGISTERED` (chờ duyệt), vì `UQ_campaign_participations_member` chỉ cho mỗi
+   * người một hàng.
    */
   register(params: {
     readonly campaignId: string;

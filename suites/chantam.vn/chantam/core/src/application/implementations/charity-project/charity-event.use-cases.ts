@@ -1,5 +1,4 @@
 import {
-  ICharityContributorBoard,
   ICharityEventStepView,
   ICharityPostQuotaView,
   ICharityProjectCommand,
@@ -9,19 +8,15 @@ import {
   IDeleteCharityPostUseCase,
   IGetCharityEventStepsUseCase,
   IGetCharityPostQuotaUseCase,
-  IListCharityEventContributorsUseCase,
   IListCharityPostsCommand,
   IListCharityPostsUseCase,
   IRequestCharityPostUploadCommand,
   IRequestCharityPostUploadUseCase,
-  ISetCharityEventContributorCommand,
-  ISetCharityEventContributorUseCase,
   IUpdateCharityEventStepCommand,
   IUpdateCharityEventStepUseCase,
 } from '@/application/contracts/charity-project';
 import {
   CharityCampaignNotFoundException,
-  CharityEventContributorNotEligibleException,
   CharityEventStepNotFoundException,
   CharityPostForbiddenException,
   CharityPostMediaInvalidException,
@@ -127,70 +122,6 @@ export class UpdateCharityEventStepUseCase implements IUpdateCharityEventStepUse
   }
 }
 
-// ── Cộng tác viên sự kiện ───────────────────────────────────────────────────
-
-@Injectable()
-export class ListCharityEventContributorsUseCase implements IListCharityEventContributorsUseCase {
-  public constructor(
-    private readonly access: CharityProjectAccess,
-    @Inject(ICharityEventRepository)
-    private readonly events: ICharityEventRepository,
-  ) {}
-
-  public async handle(
-    command: ICharityProjectCommand,
-  ): Promise<ICharityContributorBoard> {
-    const { campaign } = await this.access.resolve(
-      command.campaignId,
-      command.userId,
-    );
-    const [contributors, candidates] = await Promise.all([
-      this.events.listContributors(campaign.globalId),
-      this.events.listContributorCandidates(campaign.globalId),
-    ]);
-    return { contributors, candidates };
-  }
-}
-
-/**
- * Cấp / thu hồi quyền cộng tác viên sự kiện (§3.5): chỉ người có đóng góp được chấp nhận VÀ
- * đăng ký tham gia hợp lệ. Thu hồi luôn được.
- */
-@Injectable()
-export class SetCharityEventContributorUseCase implements ISetCharityEventContributorUseCase {
-  public constructor(
-    private readonly access: CharityProjectAccess,
-    @Inject(ICharityEventRepository)
-    private readonly events: ICharityEventRepository,
-    @Inject(ICharityRealtimePublisher)
-    private readonly realtime: ICharityRealtimePublisher,
-  ) {}
-
-  public async handle(command: ISetCharityEventContributorCommand) {
-    const { campaign } = await this.access.forOperate(command);
-    if (campaign.approvalStatus !== 'APPROVED')
-      throw new CharityProjectNotApprovedException();
-    if (
-      command.active &&
-      !(await this.events.isEligibleContributor(
-        campaign.globalId,
-        command.targetUserId,
-      ))
-    )
-      throw new CharityEventContributorNotEligibleException();
-    const result = await this.events.setContributor({
-      campaignId: campaign.globalId,
-      userId: command.targetUserId,
-      actorId: command.userId,
-      active: command.active,
-    });
-    // Thu hồi một người chưa từng được cấp: không có gì để trả.
-    if (!result) throw new CharityEventContributorNotEligibleException();
-    this.realtime.signal(campaign.globalId, ['CONTRIBUTORS'], 'workspace');
-    return result;
-  }
-}
-
 // ── Bài ảnh/clip ────────────────────────────────────────────────────────────
 
 /** Vai đăng bài của một người với một dự án lúc này — `null` là không đăng được. */
@@ -215,13 +146,13 @@ export class CharityPostAccess {
   }> {
     const campaign = await this.campaigns.findByGlobalId(campaignId);
     if (!campaign) throw new CharityCampaignNotFoundException();
-    const [isAdminWriter, isCoordinator, isEventContributor] =
+    const [isAdminWriter, isCoordinator, isAttendedParticipant] =
       await Promise.all([
         this.admin.hasPermission(userId, WritePermission),
         campaign.createdBy === userId
           ? Promise.resolve(false)
           : this.campaigns.isCampaignManager(campaignId, userId),
-        this.events.isActiveContributor(campaignId, userId),
+        this.events.isAttendedParticipant(campaignId, userId),
       ]);
     const isOrganizer = campaign.createdBy === userId || isAdminWriter;
     const role = charityPostRole({
@@ -229,7 +160,7 @@ export class CharityPostAccess {
       suspended: isSuspendedProject(campaign, new Date()),
       isOrganizer,
       isCoordinator,
-      isEventContributor,
+      isAttendedParticipant,
       stage: campaign.operationStage,
     });
     // Không có vai gì với một dự án chưa hiện ra ngoài: 404 như trang dự án.
@@ -417,7 +348,6 @@ export class CreateCharityPostUseCase implements ICreateCharityPostUseCase {
       postId: post.postId,
       campaignId: campaign.globalId,
       authorId: command.userId,
-      authorRole: role,
       videoCount: media.filter((item) => item.mediaType === 'VIDEO').length,
       imageCount: media.filter((item) => item.mediaType === 'IMAGE').length,
     });

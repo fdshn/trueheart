@@ -223,12 +223,7 @@ export type AddCharityBankAccountOutcome =
   | { status: 'REPLACED_NOT_FOUND' };
 
 export type RegisterCharityVolunteerOutcome =
-  | 'REGISTERED'
-  | 'ALREADY_REGISTERED'
-  | 'NOT_FOUND'
-  | 'CLOSED'
-  | 'FULL'
-  | 'NOT_ELIGIBLE';
+  'REGISTERED' | 'ALREADY_REGISTERED' | 'NOT_FOUND' | 'CLOSED' | 'FULL';
 
 export interface ICharityProjectRepository {
   /**

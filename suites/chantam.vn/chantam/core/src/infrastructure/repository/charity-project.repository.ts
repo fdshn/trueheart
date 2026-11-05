@@ -1262,17 +1262,6 @@ export class CharityProjectRepository implements ICharityProjectRepository {
       );
       if (existing) return 'ALREADY_REGISTERED';
 
-      // "Chỉ người có ít nhất một hỗ trợ hợp lệ/được xác nhận" (§3.11): một đóng góp của
-      // chính dự án này đã được ban tổ chức chấp nhận (toàn phần hay một phần).
-      const [eligible] = await manager.query<unknown[]>(
-        `SELECT 1 FROM campaign_contributions
-         WHERE campaign_id = $1 AND contributor_id = $2
-           AND status IN ('ACCEPTED', 'PARTIALLY_ACCEPTED')
-         LIMIT 1`,
-        [params.campaignId, params.userId],
-      );
-      if (!eligible) return 'NOT_ELIGIBLE';
-
       const [{ taken }] = await manager.query<{ taken: number }[]>(
         `SELECT count(*)::int AS taken FROM campaign_volunteer_registrations
          WHERE volunteer_need_id = $1 AND status <> 'CANCELLED'`,
@@ -1284,6 +1273,17 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         `INSERT INTO campaign_volunteer_registrations (volunteer_need_id, user_id, note)
          VALUES ($1, $2, $3)`,
         [params.volunteerNeedId, params.userId, params.note],
+      );
+      // Một vòng đời participant chung (chốt 05/11): nhận vị trí là đăng ký tham gia dự án —
+      // tạo lượt tham gia chờ duyệt, hoặc hồi lại lượt đã huỷ. Lượt đang có thì giữ nguyên.
+      await manager.query(
+        `INSERT INTO campaign_participations (campaign_id, user_id, status, registered_at)
+         VALUES ($1, $2, 'REGISTERED', now())
+         ON CONFLICT (campaign_id, user_id) DO UPDATE
+           SET status = 'REGISTERED', registered_at = now(), cancelled_at = NULL,
+               status_changed_at = now(), status_changed_by = NULL, status_reason = NULL
+           WHERE campaign_participations.status = 'CANCELLED'`,
+        [params.campaignId, params.userId],
       );
       return 'REGISTERED';
     });
@@ -1315,8 +1315,31 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     userId: string;
     actorId: string;
   }): Promise<boolean> {
+    return this.manager.transaction(async (manager) => {
+      if (!(await this.confirmVolunteerRow(manager, params))) return false;
+      // Xác nhận vị trí là xác nhận người đó tham gia dự án (vòng đời chung, chốt 05/11).
+      await manager.query(
+        `UPDATE campaign_participations
+            SET status = 'CONFIRMED', status_changed_at = now(), status_changed_by = $3,
+                status_reason = NULL
+          WHERE campaign_id = $1 AND user_id = $2 AND status IN ('REGISTERED', 'WAITLISTED')`,
+        [params.campaignId, params.userId, params.actorId],
+      );
+      return true;
+    });
+  }
+
+  private async confirmVolunteerRow(
+    manager: EntityManager,
+    params: {
+      campaignId: string;
+      volunteerNeedId: string;
+      userId: string;
+      actorId: string;
+    },
+  ): Promise<boolean> {
     const rows = await updateReturning<{ id: string }>(
-      this.manager,
+      manager,
       `UPDATE campaign_volunteer_registrations registration
        SET status = 'CONFIRMED', confirmed_at = now(), confirmed_by = $4
        FROM campaign_volunteer_needs need

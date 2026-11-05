@@ -117,17 +117,14 @@ const EvaluationSelect = `
   FROM campaign_participant_evaluations evaluation
   JOIN users account ON account.global_id = evaluation.participant_id`;
 
-/** Người tham gia của dự án `$1` (đăng ký còn hiệu lực, tuyển người không huỷ, cộng tác viên). */
+/**
+ * Người được chấm mức hoàn thành ở dự án `$1`: participant ĐÃ CHECK-IN (hoặc đã hoàn thành) —
+ * chốt 05/11 (§3.6). Đăng ký chưa check-in, vắng mặt, đã huỷ thì không.
+ */
 const CandidateWhere = (userColumn: string) => `(
   EXISTS (SELECT 1 FROM campaign_participations participation
           WHERE participation.campaign_id = $1 AND participation.user_id = ${userColumn}
-            AND participation.status = 'REGISTERED')
-  OR EXISTS (SELECT 1 FROM campaign_volunteer_registrations registration
-             JOIN campaign_volunteer_needs need ON need.global_id = registration.volunteer_need_id
-             WHERE need.campaign_id = $1 AND registration.user_id = ${userColumn}
-               AND registration.status <> 'CANCELLED')
-  OR EXISTS (SELECT 1 FROM campaign_event_contributors contributor
-             WHERE contributor.campaign_id = $1 AND contributor.user_id = ${userColumn}))`;
+            AND participation.status IN ('CHECKED_IN', 'COMPLETED')))`;
 
 interface IPromotionRow {
   featured_on_home: boolean;
@@ -499,7 +496,7 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
        SET show_name_publicly = COALESCE($3::boolean,
              (SELECT show_in_public_supporter_lists FROM users WHERE global_id = $2))
        WHERE participation.campaign_id = $1 AND participation.user_id = $2
-         AND participation.status = 'REGISTERED'
+         AND participation.status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')
        RETURNING participation.global_id`,
       [params.campaignId, params.userId, params.show],
     );
@@ -519,7 +516,8 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
          (SELECT count(DISTINCT contributor_id) FROM campaign_contributions
            WHERE campaign_id = $1 AND status IN ('ACCEPTED', 'PARTIALLY_ACCEPTED')) AS supporters,
          (SELECT count(*) FROM campaign_participations
-           WHERE campaign_id = $1 AND status = 'REGISTERED') AS participants`,
+           WHERE campaign_id = $1
+             AND status IN ('CONFIRMED', 'CHECKED_IN', 'COMPLETED')) AS participants`,
       [campaignId],
     );
     const supporters = await this.manager.query<{ username: string }[]>(
@@ -539,7 +537,8 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
       `SELECT account.username
        FROM campaign_participations participation
        JOIN users account ON account.global_id = participation.user_id
-       WHERE participation.campaign_id = $1 AND participation.status = 'REGISTERED'
+       WHERE participation.campaign_id = $1
+         AND participation.status IN ('CONFIRMED', 'CHECKED_IN', 'COMPLETED')
          AND participation.show_name_publicly AND account.deleted_at IS NULL
          AND account.username IS NOT NULL
        ORDER BY account.username

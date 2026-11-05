@@ -1161,13 +1161,6 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Không tìm thấy vị trí tuyển người',
   },
 
-  CHARITY_VOLUNTEER_NOT_ELIGIBLE: {
-    code: ErrorCodes.CHARITY_VOLUNTEER_NOT_ELIGIBLE,
-    httpStatus: HttpStatus.FORBIDDEN,
-    message: () =>
-      'Cần có ít nhất một đóng góp đã được ban tổ chức chấp nhận mới đăng ký tham gia được',
-  },
-
   CHARITY_VOLUNTEER_CLOSED: {
     code: ErrorCodes.CHARITY_VOLUNTEER_CLOSED,
     httpStatus: HttpStatus.CONFLICT,
@@ -1257,12 +1250,6 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
       'Ảnh/clip không hợp lệ — phải là tệp bạn vừa tải lên cho dự án này và chưa dùng ở bài khác',
   },
 
-  CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE: {
-    code: ErrorCodes.CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE,
-    httpStatus: HttpStatus.CONFLICT,
-    message: () =>
-      'Người này cần có đóng góp đã được chấp nhận và đăng ký tham gia hợp lệ mới cấp được quyền cộng tác viên sự kiện',
-  },
   CHARITY_SUMMARY_NOT_OPEN: {
     code: ErrorCodes.CHARITY_SUMMARY_NOT_OPEN,
     httpStatus: HttpStatus.CONFLICT,
@@ -1341,6 +1328,20 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     code: ErrorCodes.CHARITY_APPEAL_RATE_LIMITED,
     httpStatus: HttpStatus.TOO_MANY_REQUESTS,
     message: () => 'Bạn gửi quá nhiều khiếu nại trong 24 giờ — thử lại sau',
+  },
+
+  CHARITY_PARTICIPATION_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_PARTICIPATION_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy lượt đăng ký tham gia',
+  },
+
+  CHARITY_PARTICIPATION_INVALID_STATE: {
+    code: ErrorCodes.CHARITY_PARTICIPATION_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (state: string) =>
+      `Lượt tham gia đang ở trạng thái ${state}, không thực hiện được bước này`,
+    sample: ['WAITLISTED'],
   },
 
   CHARITY_CAMPAIGN_HAS_ACTIVITY: {

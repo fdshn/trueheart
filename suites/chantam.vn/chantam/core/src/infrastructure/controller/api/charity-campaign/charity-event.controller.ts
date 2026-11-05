@@ -3,10 +3,8 @@ import {
   IDeleteCharityPostUseCase,
   IGetCharityEventStepsUseCase,
   IGetCharityPostQuotaUseCase,
-  IListCharityEventContributorsUseCase,
   IListCharityPostsUseCase,
   IRequestCharityPostUploadUseCase,
-  ISetCharityEventContributorUseCase,
   IUpdateCharityEventStepUseCase,
 } from '@/application/contracts/charity-project';
 import {
@@ -19,7 +17,6 @@ import {
 } from '@/application/contracts/feed';
 import {
   CharityCampaignNotFoundException,
-  CharityEventContributorNotEligibleException,
   CharityEventStepNotFoundException,
   CharityPostForbiddenException,
   CharityPostMediaInvalidException,
@@ -61,9 +58,6 @@ import {
 } from '@nestjs/swagger';
 import { RequestCharityMediaUploadBodyDto } from '../../dto/charity-campaign/charity-campaign.dto';
 import {
-  CharityContributorBoardResponseDto,
-  CharityContributorResponseDto,
-  CharityContributorSetBodyDto,
   CharityDeletedResponseDto,
   CharityEventStepBodyDto,
   CharityEventStepResponseDto,
@@ -74,7 +68,6 @@ import {
   CharityPostUploadResponseDto,
   CharityPostsQueryDto,
   CharityPostsResponseDto,
-  CharityProjectContributorParamsDto,
   CharityProjectPostParamsDto,
   CharityProjectStepParamsDto,
 } from '../../dto/charity-campaign/charity-event.dto';
@@ -115,10 +108,6 @@ export class CharityEventController {
     private readonly stepsUseCase: IGetCharityEventStepsUseCase,
     @Inject(IUpdateCharityEventStepUseCase)
     private readonly updateStepUseCase: IUpdateCharityEventStepUseCase,
-    @Inject(IListCharityEventContributorsUseCase)
-    private readonly contributorsUseCase: IListCharityEventContributorsUseCase,
-    @Inject(ISetCharityEventContributorUseCase)
-    private readonly setContributorUseCase: ISetCharityEventContributorUseCase,
     @Inject(IGetCharityPostQuotaUseCase)
     private readonly quotaUseCase: IGetCharityPostQuotaUseCase,
     @Inject(IRequestCharityPostUploadUseCase)
@@ -185,60 +174,6 @@ export class CharityEventController {
         campaignId: params.id,
         stepId: params.stepId,
         patch: body.step,
-      }),
-    });
-  }
-
-  // ── Cộng tác viên sự kiện ─────────────────────────────────────────────
-
-  @Get(':id/event-contributors')
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Cộng tác viên sự kiện và người đủ điều kiện',
-    description:
-      'Người tạo, coordinator, Admin `campaign.read`. `candidates`: có đóng góp được chấp nhận VÀ đăng ký tham gia còn hiệu lực mà chưa được cấp.',
-  })
-  @ApiOkResponse({
-    type: ResponseDto.forApi(CharityContributorBoardResponseDto),
-  })
-  @ApiErrorResponses(...ApiTokenErrors, CharityCampaignNotFoundException)
-  public async contributors(
-    @CurrentUser() principal: IAuthPrincipal,
-    @Param() params: CharityProjectParamsDto,
-  ) {
-    return ok(
-      await this.contributorsUseCase.handle({
-        userId: principal.userId,
-        campaignId: params.id,
-      }),
-    );
-  }
-
-  @Put(':id/event-contributors/:userId')
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Cấp / thu hồi quyền cộng tác viên sự kiện',
-    description:
-      'Người tạo, coordinator, Admin. Cấp chỉ được cho người đủ điều kiện; quyền chỉ có hiệu lực khi dự án ở Sự kiện trao. Thu hồi giữ lịch sử.',
-  })
-  @ApiOkResponse({ type: ResponseDto.forApi(CharityContributorResponseDto) })
-  @ApiErrorResponses(
-    ...ApiTokenErrors,
-    ...ProjectErrors,
-    CharityProjectNotApprovedException,
-    CharityEventContributorNotEligibleException,
-  )
-  public async setContributor(
-    @CurrentUser() principal: IAuthPrincipal,
-    @Param() params: CharityProjectContributorParamsDto,
-    @Body() body: CharityContributorSetBodyDto,
-  ) {
-    return ok({
-      contributor: await this.setContributorUseCase.handle({
-        userId: principal.userId,
-        campaignId: params.id,
-        targetUserId: params.userId,
-        active: body.contributor.active,
       }),
     });
   }

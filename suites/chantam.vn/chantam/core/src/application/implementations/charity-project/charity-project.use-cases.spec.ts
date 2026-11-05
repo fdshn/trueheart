@@ -8,7 +8,6 @@ import {
   CharityStageScheduleConflictException,
   CharityStageTransitionInvalidException,
   CharityVolunteerClosedException,
-  CharityVolunteerNotEligibleException,
 } from '@/domain/exceptions';
 import { ICharityCampaign } from '@/domain/ports/repository';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
@@ -644,7 +643,6 @@ describe('Đăng ký tham gia', () => {
   });
 
   it.each([
-    ['NOT_ELIGIBLE', CharityVolunteerNotEligibleException],
     ['FULL', CharityVolunteerClosedException],
     ['CLOSED', CharityVolunteerClosedException],
   ])('%s → lỗi tương ứng', async (outcome, error) => {
