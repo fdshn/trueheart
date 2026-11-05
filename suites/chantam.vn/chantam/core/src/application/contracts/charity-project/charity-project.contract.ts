@@ -232,6 +232,10 @@ export const IReplaceCharityPhasesUseCase = Symbol(
 export interface IUpdateCharityItemNeedCommand extends ICharityProjectCommand {
   readonly needItemId: string;
   readonly profile: ICharityNeedItemProfileInput;
+  /** Mục tiêu mới; thấp hơn số đã nhận thì phải có `surplusExplanation` (§3.18). */
+  readonly targetQuantity?: number;
+  /** `undefined` giữ nguyên, `null` xoá. */
+  readonly surplusExplanation?: string | null;
 }
 export interface IUpdateCharityItemNeedUseCase extends IUseCase<
   IUpdateCharityItemNeedCommand,

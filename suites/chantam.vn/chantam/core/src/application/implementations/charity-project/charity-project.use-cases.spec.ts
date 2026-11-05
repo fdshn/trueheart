@@ -333,7 +333,7 @@ describe('MoveCharityStageUseCase', () => {
     );
   const cmd = (
     to: 'EXECUTION' | 'EVENT' | 'SUMMARY',
-    reason: string | null = null,
+    reason: string | null = 'Đủ đồ, chuyển sớm',
   ) => ({
     userId: Owner,
     campaignId: CampaignId,
@@ -372,14 +372,17 @@ describe('MoveCharityStageUseCase', () => {
     ).rejects.toThrow(CharityStageTransitionInvalidException);
   });
 
-  it('lùi phải có lý do', async () => {
+  it('chuyển tay (lùi hay tiến) phải có lý do — chốt 05/11', async () => {
     const deps = make({
       campaign: campaign({
         operationStage: 'EVENT',
         storedOperationStage: 'EVENT',
       }),
     });
-    await expect(build(deps).handle(cmd('EXECUTION'))).rejects.toThrow(
+    await expect(build(deps).handle(cmd('EXECUTION', null))).rejects.toThrow(
+      CharityStageTransitionInvalidException,
+    );
+    await expect(build(make()).handle(cmd('EVENT', '  '))).rejects.toThrow(
       CharityStageTransitionInvalidException,
     );
   });

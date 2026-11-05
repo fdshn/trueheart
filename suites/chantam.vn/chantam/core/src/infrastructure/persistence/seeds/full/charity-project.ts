@@ -26,6 +26,118 @@ export async function seedCharityProject(ctx: ISeedContext): Promise<void> {
   await seedEngagement(ctx, campaignId);
   await seedEvent(ctx, campaignId);
   await seedSummary(ctx, seedId(SeedDomains.campaigns, 4));
+  await seedOperations(ctx, campaignId);
+}
+
+/**
+ * Đợt 5b/5c (quyết định 05/11): một hạng mục hỗ trợ mở (chuyến xe) có ba đề nghị ở ba trạng
+ * thái và nguồn ngoài kèm bằng chứng; hai đợt trao — một sắp tới (đã gắn người tặng, checklist
+ * dở), một đã huỷ có lý do — mỗi đợt timeline riêng.
+ */
+async function seedOperations(
+  ctx: ISeedContext,
+  campaignId: string,
+): Promise<void> {
+  const [schema] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.campaign_distribution_rounds') IS NOT NULL AS ready`,
+  );
+  if (!schema?.ready) return;
+  const [seeded] = await ctx.q(
+    `SELECT 1 FROM campaign_other_support_needs WHERE campaign_id = $1 LIMIT 1`,
+    [campaignId],
+  );
+  if (seeded) return;
+
+  const [need] = await ctx.q<{ global_id: string }>(
+    `INSERT INTO campaign_other_support_needs
+       (campaign_id, support_type, title, description, unit, target_quantity, location_label,
+        handover_method, pic_name, pic_phone, external_quantity, external_evidence_urls,
+        external_note, created_by, updated_by)
+     VALUES ($1, 'TRANSPORT', 'Xe 16 chỗ chở quà lên điểm trường', 'Hai chiều, xuất phát 5 giờ sáng',
+             'chuyến', 4, 'Kho Cầu Giấy → Mèo Vạc', 'Đón tại kho', 'Anh Tư', '0900000004', 1,
+             '["https://placehold.co/600x400.png"]'::jsonb, 'Nhà xe Hùng Cường tặng một chuyến',
+             $2, $2)
+     RETURNING global_id`,
+    [campaignId, Personas.organizer],
+  );
+  for (const [userId, quantity, status] of [
+    [Personas.giver, 1, 'COMPLETED'],
+    [Personas.giver2, 1, 'ACCEPTED'],
+    [Personas.receiver, 1, 'PENDING'],
+  ] as const)
+    await ctx.q(
+      `INSERT INTO campaign_other_support_offers
+         (need_id, user_id, quantity, completed_quantity, status, decided_by, decided_at, note)
+       VALUES ($1, $2, $3::int, CASE WHEN $4::text = 'COMPLETED' THEN $3::int END, $4::text,
+               CASE WHEN $4::text <> 'PENDING' THEN $5::uuid END,
+               CASE WHEN $4::text <> 'PENDING' THEN now() - interval '1 day' END,
+               'Có xe riêng, chạy được đường núi')`,
+      [need.global_id, userId, quantity, status, Personas.organizer],
+    );
+
+  const [upcoming] = await ctx.q<{ global_id: string }>(
+    `INSERT INTO campaign_distribution_rounds
+       (campaign_id, title, location_label, address, starts_at, ends_at, readiness, checklist,
+        created_by, updated_by)
+     VALUES ($1, 'Đợt 1 — Điểm trường Sủng Trà', 'Mèo Vạc, Hà Giang', 'Thôn Sủng Trà',
+             now() + interval '30 hours', now() + interval '36 hours', 'PENDING',
+             '[{"key":"TRANSPORT","done":true,"note":null},{"key":"GOODS_PACKED","done":false,"note":"Còn 40 áo"}]'::jsonb,
+             $2, $2)
+     RETURNING global_id`,
+    [campaignId, Personas.organizer],
+  );
+  const [cancelled] = await ctx.q<{ global_id: string }>(
+    `INSERT INTO campaign_distribution_rounds
+       (campaign_id, title, location_label, starts_at, ends_at, status, status_reason,
+        created_by, updated_by)
+     VALUES ($1, 'Đợt 2 — Điểm trường Pải Lủng', 'Mèo Vạc, Hà Giang', now() + interval '10 days',
+             now() + interval '10 days 6 hours', 'CANCELLED', 'Địa phương đã có đoàn khác trao',
+             $2, $2)
+     RETURNING global_id`,
+    [campaignId, Personas.organizer],
+  );
+  for (const roundId of [upcoming.global_id, cancelled.global_id])
+    await ctx.q(
+      `INSERT INTO campaign_event_steps (campaign_id, round_id, step_key, sort_order)
+       SELECT $1, $2, step.key, step.sort_order
+       FROM unnest($3::text[], $4::int[]) AS step(key, sort_order)`,
+      [
+        campaignId,
+        roundId,
+        [
+          'GATHER',
+          'BRIEFING',
+          'TRAVEL',
+          'REST_STOP',
+          'ARRIVE',
+          'MEET_LOCAL_AUTHORITY',
+          'MEET_RECIPIENTS',
+          'DISTRIBUTE',
+          'WRAP_UP',
+          'RETURN',
+        ],
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      ],
+    );
+  await ctx.q(
+    `UPDATE campaign_participations SET round_id = $2
+      WHERE campaign_id = $1 AND user_id = $3`,
+    [campaignId, upcoming.global_id, Personas.giver],
+  );
+  await ctx.q(
+    `INSERT INTO campaign_announcements (campaign_id, kind, payload, actor_id)
+     VALUES ($1, 'ROUND_CHANGED', $2::jsonb, $3)`,
+    [
+      campaignId,
+      JSON.stringify({
+        roundId: cancelled.global_id,
+        roundTitle: 'Đợt 2 — Điểm trường Pải Lủng',
+        change: 'CANCELLED',
+        reason: 'Địa phương đã có đoàn khác trao',
+      }),
+      Personas.organizer,
+    ],
+  );
 }
 
 async function seedProfile(

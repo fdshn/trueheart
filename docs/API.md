@@ -2726,7 +2726,7 @@ của bước trao, `null` khi chưa lập) để app đếm ngược.
 | `POST` | `/charity-campaigns/:id/submit` | Người tạo | Gửi duyệt nháp: có `PUBLISH_CHARITY_WITHOUT_REVIEW` thì công khai ngay + `EXECUTION`, không thì chờ duyệt. Không còn là nháp → `CHARITY_PROJECT_NOT_DRAFT` |
 | `GET` | `/charity-campaigns/:id/workspace` | Người tạo, coordinator, Admin `campaign.read` | Mọi thứ nội bộ + `sections` (trạng thái từng mục) + `capabilities` |
 | `GET` | `/charity-campaigns/:idOrSlug/public` | Công khai | Bản công khai (xem dưới) |
-| `POST` | `/charity-campaigns/:id/stage` | Người tạo, coordinator, Admin | `{ stage: { to, reason? } }` — tiến **một** bước sớm hơn lịch, hoặc lùi (bắt buộc `reason`) |
+| `POST` | `/charity-campaigns/:id/stage` | Người tạo, coordinator, Admin | `{ stage: { to, reason } }` — tiến **một** bước sớm hơn lịch, hoặc lùi; `reason` bắt buộc từ đợt 5b (§18.7) |
 | `PUT` | `/charity-campaigns/:id/profile` | Người tạo, Admin | `{ profile: { appealPurpose, appealAudience, appealCircumstance, callToActions } }` |
 | `PUT` | `/charity-campaigns/:id/parties` | Người tạo, Admin | `{ parties: [...] }` — đơn vị tổ chức / thụ hưởng / cấp phép / truyền thông; dòng có `partyId` giữ id |
 | `POST` | `/charity-campaigns/:id/bank-accounts` | Người tạo, Admin | `{ bankAccount: { bankName, accountNo, accountName, label?, replacesAccountId?, replaceReason? } }` |
@@ -3038,3 +3038,69 @@ tâm.
 **Số đếm:** `participantCount` của chiến dịch và thống kê nội bộ đếm lượt còn hiệu lực (chờ
 duyệt, đã xác nhận, danh sách chờ, đã check-in, đã hoàn thành); danh sách nickname công khai và
 con số tham gia ở tổng kết chỉ gồm người đã được nhận (xác nhận / check-in / hoàn thành).
+
+### 18.7 Đợt 5b/5c — hỗ trợ mở, hoãn bước trao, nhiều đợt trao, hoàn tất dự án (quyết định 05/11)
+
+**Thay đổi hành vi cũ (mobile cần cập nhật):**
+
+- `POST :id/stage` — **mọi** lần chuyển tay (tiến sớm hay lùi) bắt buộc `reason`; người tham gia,
+  người góp, người quan tâm nhận `CHARITY_STAGE_CHANGED` kèm lý do (kể cả khi lùi).
+- `POST :id/participation/cancel` — huỷ được **cả khi sự kiện đang diễn ra**, tới khi dự án sang
+  Tổng kết (thay luật cũ "chỉ trước giờ bắt đầu"). Đã hoàn thành / bị từ chối / vắng mặt →
+  `CHARITY_PARTICIPATION_INVALID_STATE`.
+- `POST :id/external-contributions` — `evidenceNote` **bắt buộc**; thêm `sourceReference` (mã
+  chứng từ) — trùng một bản còn hiệu lực của dự án (không phân biệt hoa thường) →
+  `CHARITY_EXTERNAL_SOURCE_DUPLICATED`. Nguồn ngoài vẫn không sinh điểm.
+- `PATCH :id/item-needs/:needItemId` — thêm `targetQuantity` và `surplusExplanation` (công khai,
+  ghi lịch sử). Mục tiêu thấp hơn số đã nhận thì bắt buộc giải trình.
+- `POST :id/summary/publish` — công khai tổng kết là **hoàn tất dự án**: còn việc dở thì
+  `CHARITY_PROJECT_COMPLETION_BLOCKED` kèm danh sách (xem `GET :id/completion-check`).
+- `GET :idOrSlug/event-steps?roundId=` — timeline của một đợt trao; bỏ trống = timeline chung.
+
+**Hỗ trợ mở** (§3.11) — chuyến xe, công sức, kỹ năng/dịch vụ, địa điểm, thiết bị, suất ăn, truyền
+thông, khác; bổ sung cho tiền/hiện vật/nhân lực:
+
+| Method | Đường dẫn | Ai | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/charity-campaigns/:idOrSlug/other-support-needs` | Công khai | Kèm `pendingQuantity`, `acceptedQuantity`, `completedQuantity`, `external`, `remainingQuantity`; không có `picPhone` |
+| `GET` | `/charity-campaigns/:id/other-support-needs/manage` | Người tạo, coordinator, Admin `campaign.read` | Đủ trường |
+| `POST` | `/charity-campaigns/:id/other-support-needs` | Người tạo, Admin `campaign.manage` | `{ otherSupportNeed: { supportType, title, unit, targetQuantity, … } }` |
+| `PATCH` | `/charity-campaigns/:id/other-support-needs/:supportNeedId` | Người tạo, Admin | Thêm `external: { quantity, evidenceUrls[https], note }` (bằng chứng bắt buộc khi > 0), `status` |
+| `DELETE` | `/charity-campaigns/:id/other-support-needs/:supportNeedId` | Người tạo, Admin | Chỉ khi chưa ai nhận — có rồi → `CHARITY_SUPPORT_NEED_IN_USE`, hãy đóng |
+| `POST` | `/charity-campaigns/:id/other-support-needs/:supportNeedId/offers` | Bearer | `{ offer: { quantity, note? } }` — một phần, nhiều lần; không cần đóng góp/tham gia |
+| `GET` | `/charity-campaigns/:id/support-offers` | Bearer (`mine=true`) / ban tổ chức | `?supportNeedId=&mine=` |
+| `PATCH` | `/charity-campaigns/:id/support-offers/:offerId` | Người tạo, coordinator, Admin | `{ decision: { action: ACCEPT\|REJECT\|COMPLETE, reason?, completedQuantity? } }` — báo `CHARITY_SUPPORT_OFFER_UPDATED` |
+| `POST` | `/charity-campaigns/:id/support-offers/:offerId/withdraw` | Người hỗ trợ | Khi chờ xét / đã nhận |
+
+`remainingQuantity = max(0, mục tiêu − hoàn thành − nguồn ngoài)`.
+
+**Hoãn bước trao** (§3.2): `POST /charity-campaigns/:id/stage/postpone` `{ postpone: { startsAt,
+endsAt?, reason } }` — người tạo, coordinator, Admin; trước khi bước trao bắt đầu; mốc mới sau mốc
+cũ. Ghi lịch sử sửa (chữ đỏ) **kèm lý do**, báo `CHARITY_PLAN_CHANGED`; nhắc 48 giờ tự xếp lại.
+
+**Nhiều đợt trao** (§3.18) — dự án không tạo đợt thì chạy như một đợt (bước trao chung):
+
+| Method | Đường dẫn | Ai | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/charity-campaigns/:idOrSlug/rounds` | Công khai | Giờ, địa điểm, trạng thái, `stats` (participant, đã có mặt, giao nhận, giá trị đã xác nhận) |
+| `GET` | `/charity-campaigns/:id/rounds/manage` | Người tạo, coordinator, Admin `campaign.read` | Thêm `readiness`, `checklist`, `warnings` |
+| `POST` | `/charity-campaigns/:id/rounds` | Người tạo, coordinator, Admin | `{ round: { title, locationLabel?, address?, startsAt, endsAt } }` — kèm timeline 10 bước riêng |
+| `PATCH` | `/charity-campaigns/:id/rounds/:roundId` | Như trên | Đổi giờ / địa điểm khi dự án đã duyệt: bắt buộc `round.reason`, báo người của đợt |
+| `POST` | `/charity-campaigns/:id/rounds/:roundId/status` | Như trên | `{ status: { status: DONE\|CANCELLED, reason? } }` — huỷ bắt buộc lý do, báo người của đợt |
+| `PUT` | `/charity-campaigns/:id/rounds/:roundId/readiness` | Như trên | `{ readiness: { status: READY\|NOT_READY, note?, checklist?[] } }` — `NOT_READY` bắt buộc ghi chú |
+| `PUT` | `/charity-campaigns/:id/round-assignments` | Như trên | `{ assignments: { roundId\|null, participationIds[], deliveryIds[] } }` |
+
+Checklist trước 48 giờ: `TRANSPORT`, `GOODS_PACKED`, `LOCAL_AUTHORITY`, `RECIPIENT_LIST`,
+`TEAM_BRIEFED`, `BUDGET`. `warnings`: `READINESS_NOT_CONFIRMED` / `CHECKLIST_INCOMPLETE` (còn ≤ 48
+giờ), `NOT_READY` — **chỉ cảnh báo**, không tự huỷ hay chặn sự kiện.
+
+Thông báo theo đợt: nhắc 48 giờ **từng đợt** (`CHARITY_PRE_EVENT_NOTICE` gửi BTC + participant đã
+duyệt của đợt hoặc chưa phân đợt; khoá chống trùng theo đợt + mốc nên dời giờ thì nhắc lại); dự án
+đã chia đợt không nhắc theo bước trao chung. Đợt dời giờ / đổi chỗ / huỷ → `CHARITY_PLAN_CHANGED`
+cho participant và người có giao nhận gắn đợt (đợt chưa gắn ai thì cả dự án).
+
+**Hoàn tất dự án** (§3.18): `GET /charity-campaigns/:id/completion-check` →
+`{ canComplete, blockers: [{ code, label }] }`. Mã: `CONTRIBUTIONS_PENDING`,
+`DELIVERIES_UNSETTLED`, `NEEDS_OPEN` (mọi nhóm nhu cầu còn mở), `SURPLUS_UNEXPLAINED`,
+`FINANCIAL_STATEMENT_MISSING`, `APPEALS_OPEN`, `SUPPORT_OFFERS_UNSETTLED`, `ROUNDS_UNSETTLED`.
+

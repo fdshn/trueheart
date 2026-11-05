@@ -133,6 +133,8 @@ export interface ICharityItemNeed extends ICharityNeedItemProfileInput {
   receivedExternalQuantity: number;
   remainingQuantity: number;
   isActive: boolean;
+  /** Giải trình công khai phần dư / đổi mục đích phần dư (§3.18). */
+  surplusExplanation: string | null;
 }
 
 export interface ICharityFundingNeedInput {
@@ -318,6 +320,7 @@ export interface ICharityProjectRepository {
     campaignId: string;
     actorId: string;
     phases: ICharityPhase[];
+    reason?: string | null;
   }): Promise<ICharityPhase[]>;
 
   listItemNeeds(campaignId: string): Promise<ICharityItemNeed[]>;
@@ -326,6 +329,10 @@ export interface ICharityProjectRepository {
     needItemId: string;
     actorId: string;
     profile: ICharityNeedItemProfileInput;
+    /** `undefined` giữ nguyên. */
+    targetQuantity?: number;
+    /** `undefined` giữ nguyên, `null` xoá. */
+    surplusExplanation?: string | null;
   }): Promise<boolean>;
 
   listFundingNeeds(campaignId: string): Promise<ICharityFundingNeed[]>;

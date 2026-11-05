@@ -27,6 +27,7 @@ import {
   CharityEvaluationTargetInvalidException,
   CharityFinancialReportNotFoundException,
   CharityNotRegisteredException,
+  CharityProjectCompletionBlockedException,
   CharityProjectForbiddenException,
   CharityProjectNotApprovedException,
   CharitySummaryEmptyException,
@@ -37,12 +38,14 @@ import { ICharityRealtimePublisher } from '@/domain/ports/realtime';
 import {
   IAdminConfigRepository,
   ICharityCampaign,
+  ICharityOperationsRepository,
   ICharityProjectRepository,
   ICharitySummary,
   ICharitySummaryContent,
   ICharitySummaryRepository,
 } from '@/domain/ports/repository';
 import {
+  CharityCompletionBlockerLabels,
   CharityFeaturedCtas,
   stageRank,
   summaryNeedsFinancialReport,
@@ -158,6 +161,9 @@ export class PublishCharitySummaryUseCase implements IPublishCharitySummaryUseCa
     private readonly projects: ICharityProjectRepository,
     @Inject(ICharityRealtimePublisher)
     private readonly realtime: ICharityRealtimePublisher,
+    @Optional()
+    @Inject(ICharityOperationsRepository)
+    private readonly operations?: ICharityOperationsRepository,
   ) {}
 
   public async handle(
@@ -177,6 +183,14 @@ export class PublishCharitySummaryUseCase implements IPublishCharitySummaryUseCa
       throw new CharitySummaryEmptyException();
     if (summaryNeedsFinancialReport(funding) && reports.length === 0)
       throw new CharitySummaryFinancialRequiredException();
+    // Công khai tổng kết là hoàn tất dự án (§3.18): còn đề nghị chưa xử lý, giao nhận chưa
+    // đối soát, hạng mục mở, phần dư chưa giải trình, khiếu nại mở… thì chưa được.
+    const blockers =
+      (await this.operations?.completionBlockers(campaign.globalId)) ?? [];
+    if (blockers.length > 0)
+      throw new CharityProjectCompletionBlockedException(
+        blockers.map((code) => CharityCompletionBlockerLabels[code]).join(', '),
+      );
     const published = await this.summaries.publishSummary({
       campaignId: campaign.globalId,
       actorId: command.userId,

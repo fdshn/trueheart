@@ -402,16 +402,14 @@ export function charityMediaTypeGaps(input: {
 }
 
 /**
- * Được huỷ đăng ký khi hoạt động CHƯA bắt đầu (BR-CHARITY-03).
- *
- * So với `start_time`, không phải `end_time`: người tổ chức chốt số suất theo danh sách
- * đăng ký trước giờ khai mạc, nên một lượt huỷ giữa buổi không trả lại được gì.
+ * Được huỷ đăng ký tham gia cho tới khi dự án sang Tổng kết — kể cả khi sự kiện đang diễn ra
+ * (CHARITY-PROJECT-LIFECYCLE §3.11, chốt 05/11; thay luật cũ BR-CHARITY-03 "chỉ trước giờ bắt
+ * đầu"). Ở Tổng kết thì không còn gì để huỷ.
  */
 export function canCancelCharityParticipation(input: {
-  readonly startTime: Date;
-  readonly now: Date;
+  readonly operationStage: string;
 }): boolean {
-  return input.now.getTime() < input.startTime.getTime();
+  return input.operationStage !== 'SUMMARY';
 }
 
 /** Chỉ đánh giá được SAU khi hoạt động kết thúc (BR-CHARITY-03). */

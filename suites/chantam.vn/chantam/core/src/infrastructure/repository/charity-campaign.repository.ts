@@ -9,6 +9,7 @@ import {
   CharityDeliveryNotFoundException,
   CharityExternalContributionNotFoundException,
   CharityExternalContributionVoidedException,
+  CharityExternalSourceDuplicatedException,
   CharityLinesInvalidException,
   CharityMediaInvalidException,
   CharityMediaNotEditableException,
@@ -60,7 +61,7 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
-import { isUniqueViolation } from './unique-violation';
+import { isUniqueViolation, isUniqueViolationOn } from './unique-violation';
 import { updateReturning } from './update-returning';
 
 interface IRow {
@@ -176,6 +177,7 @@ interface IExternalRow {
   source_label: string;
   received_at: Date;
   evidence_note: string | null;
+  source_reference: string | null;
   recorded_by: string;
   status: string;
   replaces_id: string | null;
@@ -187,7 +189,7 @@ interface IExternalRow {
 const ExternalColumns = `external.global_id, external.campaign_id,
        external.need_item_id, need.item_name, need.unit, external.quantity,
        external.source_label, external.received_at, external.evidence_note,
-       external.recorded_by, external.status, external.replaces_id,
+       external.source_reference, external.recorded_by, external.status, external.replaces_id,
        external.voided_at, external.void_reason, external.created_at`;
 
 function toExternal(row: IExternalRow): ICharityExternalContribution {
@@ -201,6 +203,7 @@ function toExternal(row: IExternalRow): ICharityExternalContribution {
     sourceLabel: row.source_label,
     receivedAt: row.received_at,
     evidenceNote: row.evidence_note,
+    sourceReference: row.source_reference,
     recordedBy: row.recorded_by,
     status: row.status as 'ACTIVE' | 'VOIDED',
     replacesId: row.replaces_id,
@@ -1565,6 +1568,31 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     sourceLabel: string;
     receivedAt: Date;
     evidenceNote: string | null;
+    sourceReference?: string | null;
+  }): Promise<ICharityExternalContribution> {
+    try {
+      return await this.recordExternalWithin(params);
+    } catch (error) {
+      if (
+        isUniqueViolationOn(
+          error,
+          'UQ_campaign_external_contributions_reference',
+        )
+      )
+        throw new CharityExternalSourceDuplicatedException();
+      throw error;
+    }
+  }
+
+  private async recordExternalWithin(params: {
+    campaignId: string;
+    recordedBy: string;
+    needItemId: string;
+    quantity: number;
+    sourceLabel: string;
+    receivedAt: Date;
+    evidenceNote: string | null;
+    sourceReference?: string | null;
   }): Promise<ICharityExternalContribution> {
     return this.manager.transaction(async (manager) => {
       const { campaign, needs } = await this.lockCampaignAndNeeds(
@@ -1591,8 +1619,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       const [row] = await manager.query<{ global_id: string }[]>(
         `INSERT INTO campaign_external_contributions
            (campaign_id, need_item_id, quantity, source_label, received_at,
-            evidence_note, recorded_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+            evidence_note, recorded_by, source_reference)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING global_id`,
         [
           params.campaignId,
@@ -1602,6 +1630,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
           params.receivedAt,
           params.evidenceNote,
           params.recordedBy,
+          params.sourceReference ?? null,
         ],
       );
       await this.shiftNeedProjections(manager, [
@@ -1691,8 +1720,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       const [replacement] = await manager.query<{ global_id: string }[]>(
         `INSERT INTO campaign_external_contributions
            (campaign_id, need_item_id, quantity, source_label, received_at,
-            evidence_note, recorded_by, replaces_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            evidence_note, recorded_by, replaces_id, source_reference)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING global_id`,
         [
           current.campaign_id,
@@ -1703,6 +1732,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
           current.evidence_note,
           params.actorUserId,
           params.externalId,
+          // Bản thay thế giữ mã chứng từ — bản cũ đã huỷ ngay trước nên không trùng.
+          current.source_reference,
         ],
       );
       // Một lượt ghi cho chênh lệch, không hai lượt trừ-rồi-cộng: cùng một kết quả,

@@ -238,7 +238,7 @@ export class CharityProjectController {
   @ApiOperation({
     summary: 'Chuyển giai đoạn',
     description:
-      'Người tạo, coordinator, Admin. Tiến đúng một bước (sớm hơn lịch); lùi phải có `reason` và lịch tiến độ không được đẩy dự án tới lại ngay (`CHARITY_STAGE_SCHEDULE_CONFLICT` — sửa bước trao trước). Không về Kế hoạch.',
+      'Người tạo, coordinator, Admin. Tiến đúng một bước (sớm hơn lịch) hoặc lùi — luôn bắt buộc `reason` và báo người bị ảnh hưởng (chốt 05/11). Lùi thì lịch tiến độ không được đẩy dự án tới lại ngay (`CHARITY_STAGE_SCHEDULE_CONFLICT` — sửa bước trao trước). Không về Kế hoạch.',
   })
   @ApiOkResponse({
     type: ResponseDto.forApi(CharityCampaignWrapperResponseDto),
@@ -496,6 +496,8 @@ export class CharityProjectController {
           receiverPhone: input.receiverPhone ?? null,
           intakeStatus: input.intakeStatus ?? 'OPEN',
         },
+        targetQuantity: input.targetQuantity,
+        surplusExplanation: input.surplusExplanation,
       }),
     });
   }

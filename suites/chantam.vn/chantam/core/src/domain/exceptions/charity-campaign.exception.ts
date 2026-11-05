@@ -276,6 +276,42 @@ export class CharityParticipationInvalidStateException extends ExceptionFrom(
   CoreErrors.CHARITY_PARTICIPATION_INVALID_STATE,
 ) {}
 
+export class CharitySupportNeedNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUPPORT_NEED_NOT_FOUND,
+) {}
+
+export class CharitySupportNeedClosedException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUPPORT_NEED_CLOSED,
+) {}
+
+export class CharitySupportNeedInUseException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUPPORT_NEED_IN_USE,
+) {}
+
+export class CharitySupportOfferNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUPPORT_OFFER_NOT_FOUND,
+) {}
+
+export class CharitySupportOfferInvalidStateException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUPPORT_OFFER_INVALID_STATE,
+) {}
+
+export class CharityRoundNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_ROUND_NOT_FOUND,
+) {}
+
+export class CharityRoundInvalidStateException extends ExceptionFrom(
+  CoreErrors.CHARITY_ROUND_INVALID_STATE,
+) {}
+
+export class CharityProjectCompletionBlockedException extends ExceptionFrom(
+  CoreErrors.CHARITY_PROJECT_COMPLETION_BLOCKED,
+) {}
+
+export class CharityExternalSourceDuplicatedException extends ExceptionFrom(
+  CoreErrors.CHARITY_EXTERNAL_SOURCE_DUPLICATED,
+) {}
+
 export class CharityAppealConflictOfInterestException extends ExceptionFrom(
   CoreErrors.CHARITY_APPEAL_CONFLICT_OF_INTEREST,
 ) {}

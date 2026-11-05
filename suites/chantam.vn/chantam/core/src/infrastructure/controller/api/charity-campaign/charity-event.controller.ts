@@ -61,6 +61,7 @@ import {
   CharityDeletedResponseDto,
   CharityEventStepBodyDto,
   CharityEventStepResponseDto,
+  CharityEventStepsQueryDto,
   CharityEventStepsResponseDto,
   CharityPostCreateBodyDto,
   CharityPostQuotaResponseDto,
@@ -139,13 +140,19 @@ export class CharityEventController {
   @ApiOperation({
     summary: 'Timeline sự kiện trao (SỐNG)',
     description:
-      '10 bước: tập hợp → họp ngắn → di chuyển → nghỉ chân → đến nơi → làm việc với địa phương → gặp bên nhận → trao quà → tổng kết/cảm ơn → trở về. Không phải bản chụp: người xem theo dõi trực tiếp (thêm realtime `/charity`). Rỗng tới khi ban tổ chức mở timeline. Dự án đình chỉ → `404`.',
+      '10 bước: tập hợp → họp ngắn → di chuyển → nghỉ chân → đến nơi → làm việc với địa phương → gặp bên nhận → trao quà → tổng kết/cảm ơn → trở về. `?roundId=` lấy timeline của một đợt trao (§3.18). Không phải bản chụp: người xem theo dõi trực tiếp (thêm realtime `/charity`). Rỗng tới khi ban tổ chức mở timeline. Dự án đình chỉ → `404`.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(CharityEventStepsResponseDto) })
   @ApiErrorResponses(CharityCampaignNotFoundException)
-  public async eventSteps(@Param() params: CharityProjectIdOrSlugParamsDto) {
+  public async eventSteps(
+    @Param() params: CharityProjectIdOrSlugParamsDto,
+    @Query() query: CharityEventStepsQueryDto,
+  ) {
     return ok({
-      eventSteps: await this.stepsUseCase.handle({ idOrSlug: params.idOrSlug }),
+      eventSteps: await this.stepsUseCase.handle({
+        idOrSlug: params.idOrSlug,
+        roundId: query.roundId ?? null,
+      }),
     });
   }
 

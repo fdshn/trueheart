@@ -14,6 +14,7 @@ import { CharityDeliveryController } from './charity-delivery.controller';
 import { CharityEngagementController } from './charity-engagement.controller';
 import { CharityEventController } from './charity-event.controller';
 import { CharityExternalContributionController } from './charity-external-contribution.controller';
+import { CharityOperationsController } from './charity-operations.controller';
 import { CharityParticipationController } from './charity-participation.controller';
 import {
   AdminCharityProjectController,
@@ -44,6 +45,7 @@ import {
     AdminCharityAppealController,
     AdminCharityProjectController,
     CharityParticipationController,
+    CharityOperationsController,
   ],
 })
 export class CharityCampaignControllerModule {}

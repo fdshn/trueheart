@@ -42,6 +42,7 @@ import {
   ICharityCampaignRepository,
   ICharityEngagementRepository,
   ICharityExport,
+  ICharityOperationsRepository,
   ICharityProjectRepository,
   ICharityTask,
   IContentShareRepository,
@@ -62,7 +63,7 @@ import {
   defaultTaskSchedule,
   isPubliclyVisibleProject,
 } from '@chantam.vn/chantam.core-lib/models';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   CharityProjectAccess,
   buildSectionSnapshot,
@@ -588,16 +589,26 @@ function announcementMessage(
 ): { title: string; body: string } | null {
   const payload = announcement.payload;
   switch (announcement.kind) {
-    case 'STAGE_CHANGED':
-      return payload.to === 'EVENT'
-        ? {
-            title: 'Dự án bước sang Sự kiện trao',
-            body: `"${title}" đã tới lúc trao. Theo dõi cập nhật trực tiếp trong app.`,
-          }
-        : {
-            title: 'Dự án đã sang Tổng kết',
-            body: `"${title}" đã trao xong. Tổng kết sẽ hiện khi ban tổ chức công khai.`,
-          };
+    case 'STAGE_CHANGED': {
+      const reason =
+        typeof payload.reason === 'string' && payload.reason.trim()
+          ? ` Lý do: ${payload.reason.trim()}`
+          : '';
+      if (payload.to === 'EVENT')
+        return {
+          title: 'Dự án bước sang Sự kiện trao',
+          body: `"${title}" đã tới lúc trao. Theo dõi cập nhật trực tiếp trong app.${reason}`,
+        };
+      if (payload.to === 'SUMMARY')
+        return {
+          title: 'Dự án đã sang Tổng kết',
+          body: `"${title}" đã trao xong. Tổng kết sẽ hiện khi ban tổ chức công khai.${reason}`,
+        };
+      return {
+        title: 'Dự án lùi về Triển khai',
+        body: `Ban tổ chức đưa "${title}" về giai đoạn Triển khai.${reason}`,
+      };
+    }
     case 'PLAN_CHANGED': {
       const changes = Array.isArray(payload.changes)
         ? (payload.changes as { entity: CharityRevisionEntity }[])
@@ -612,9 +623,36 @@ function announcementMessage(
     }
     case 'PRE_EVENT': {
       const startsAt = new Date(String(payload.distributionStartsAt));
+      const round =
+        typeof payload.roundTitle === 'string'
+          ? ` — ${payload.roundTitle}`
+          : '';
       return {
         title: 'Sắp tới lúc trao',
-        body: `"${title}" sẽ trao lúc ${Number.isNaN(startsAt.getTime()) ? 'sắp tới' : VnDateTime.format(startsAt)}. Chuẩn bị cùng ban tổ chức nhé.`,
+        body: `"${title}"${round} sẽ trao lúc ${Number.isNaN(startsAt.getTime()) ? 'sắp tới' : VnDateTime.format(startsAt)}. Chuẩn bị cùng ban tổ chức nhé.`,
+      };
+    }
+    case 'ROUND_CHANGED': {
+      const startsAt = new Date(String(payload.startsAt));
+      const when = Number.isNaN(startsAt.getTime())
+        ? ''
+        : ` — trao lúc ${VnDateTime.format(startsAt)}`;
+      const reason =
+        typeof payload.reason === 'string' && payload.reason.trim()
+          ? ` Lý do: ${payload.reason.trim()}`
+          : '';
+      const round = String(payload.roundTitle ?? 'Đợt trao');
+      if (payload.change === 'CANCELLED')
+        return {
+          title: 'Đợt trao bị huỷ',
+          body: `"${title}": ${round} đã huỷ.${reason}`,
+        };
+      return {
+        title:
+          payload.change === 'POSTPONED'
+            ? 'Đợt trao được dời lịch'
+            : 'Đợt trao có thay đổi',
+        body: `"${title}": ${round}${when}.${reason}`,
       };
     }
     case 'SUMMARY_PUBLISHED':
@@ -643,6 +681,9 @@ export class ProcessCharityAnnouncementsUseCase implements IProcessCharityAnnoun
     private readonly engagement: ICharityEngagementRepository,
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatch: IDispatchNotificationUseCase,
+    @Optional()
+    @Inject(ICharityOperationsRepository)
+    private readonly operations?: ICharityOperationsRepository,
   ) {}
 
   public async handle(command: {
@@ -653,8 +694,18 @@ export class ProcessCharityAnnouncementsUseCase implements IProcessCharityAnnoun
       hours: CharityPreEventNoticeHours,
       limit: command.limit,
     });
+    // Dự án chia đợt: mỗi đợt một lời nhắc 48 giờ riêng (§3.4, §3.18).
+    const roundCandidates =
+      (await this.operations?.listRoundPreEventCandidates({
+        hours: CharityPreEventNoticeHours,
+        limit: command.limit,
+      })) ?? [];
     if (command.dryRun)
-      return { preEventQueued: candidates.length, processed: 0, notified: 0 };
+      return {
+        preEventQueued: candidates.length + roundCandidates.length,
+        processed: 0,
+        notified: 0,
+      };
 
     let preEventQueued = 0;
     for (const candidate of candidates)
@@ -666,6 +717,21 @@ export class ProcessCharityAnnouncementsUseCase implements IProcessCharityAnnoun
             distributionStartsAt: candidate.distributionStartsAt.toISOString(),
           },
           dedupeKey: String(candidate.distributionStartsAt.getTime()),
+          actorId: null,
+        })
+      )
+        preEventQueued += 1;
+    for (const round of roundCandidates)
+      if (
+        await this.engagement.enqueueAnnouncement({
+          campaignId: round.campaignId,
+          kind: 'PRE_EVENT',
+          payload: {
+            roundId: round.roundId,
+            roundTitle: round.title,
+            distributionStartsAt: round.startsAt.toISOString(),
+          },
+          dedupeKey: `round:${round.roundId}:${round.startsAt.getTime()}`,
           actorId: null,
         })
       )
@@ -692,9 +758,11 @@ export class ProcessCharityAnnouncementsUseCase implements IProcessCharityAnnoun
               ? NotificationTypes.CHARITY_STAGE_CHANGED
               : kind === 'PLAN_CHANGED'
                 ? NotificationTypes.CHARITY_PLAN_CHANGED
-                : kind === 'PRE_EVENT'
-                  ? NotificationTypes.CHARITY_PRE_EVENT_NOTICE
-                  : NotificationTypes.CHARITY_SUMMARY_PUBLISHED,
+                : kind === 'ROUND_CHANGED'
+                  ? NotificationTypes.CHARITY_PLAN_CHANGED
+                  : kind === 'PRE_EVENT'
+                    ? NotificationTypes.CHARITY_PRE_EVENT_NOTICE
+                    : NotificationTypes.CHARITY_SUMMARY_PUBLISHED,
           referenceType: 'CHARITY_CAMPAIGN',
           referenceId: campaign.globalId,
           target: {
@@ -706,6 +774,10 @@ export class ProcessCharityAnnouncementsUseCase implements IProcessCharityAnnoun
           campaignId: campaign.globalId,
           excludeUserId: announcement.actorId,
           scope: kind === 'PRE_EVENT' ? 'PRE_EVENT' : 'ALL',
+          roundId:
+            typeof announcement.payload.roundId === 'string'
+              ? announcement.payload.roundId
+              : null,
         });
         let sent = 0;
         for (const userId of audience) {

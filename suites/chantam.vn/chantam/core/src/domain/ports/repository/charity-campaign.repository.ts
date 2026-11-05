@@ -305,6 +305,8 @@ export interface ICharityExternalContribution {
   readonly sourceLabel: string;
   readonly receivedAt: Date;
   readonly evidenceNote: string | null;
+  /** Mã chứng từ — duy nhất giữa các bản ghi còn hiệu lực của dự án (§3.18). */
+  readonly sourceReference: string | null;
   readonly recordedBy: string;
   readonly status: 'ACTIVE' | 'VOIDED';
   /** Bản ghi mà bản này THAY THẾ, khi đây là một lượt điều chỉnh. */
@@ -651,6 +653,7 @@ export interface ICharityNeedsRepositoryPart {
     sourceLabel: string;
     receivedAt: Date;
     evidenceNote: string | null;
+    sourceReference?: string | null;
   }): Promise<ICharityExternalContribution>;
 
   /**

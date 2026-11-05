@@ -17,7 +17,12 @@
 > chủ dự án ngày 04/11 ghi ở §7.1; các mục §3.15–§3.17 là thiết kế đi kèm những quyết định đó.
 > Quyết định Product ngày 05/11 (§7.2, §3.18): **đợt 5a đã triển khai** (`1802900000000` — vòng
 > đời participant trên `campaign_participations`, check-in thay cộng tác viên sự kiện, tham gia
-> không cần đóng góp, điểm ảnh/clip 3/2, người nhận nhắc 48 giờ; API.md §18.6); 5b, 5c chưa.
+> không cần đóng góp, điểm ảnh/clip 3/2, người nhận nhắc 48 giờ; API.md §18.6), **5b/5c đã triển
+> khai** (`1803000000000` — hỗ trợ mở có đề nghị một phần, hoãn bước trao kèm lý do, chuyển giai
+> đoạn tay bắt buộc lý do, huỷ tham gia tới trước Tổng kết, nhiều đợt trao với timeline/checklist/
+> nhắc 48 giờ/người nhận riêng, điều kiện hoàn tất chặn công khai tổng kết, nguồn ngoài bắt buộc
+> bằng chứng + mã chứng từ, mục tiêu hạng mục kèm giải trình phần dư; API.md §18.7). Chưa làm:
+> trạng thái "tranh chấp" của đóng góp (§3.18 ý 2).
 
 ## 1. Yêu cầu tóm tắt
 
@@ -537,7 +542,7 @@ thị theo capabilities, không tự suy luận theo rank.
 | 2 ✅ | §3.3 revisions, §3.4 checklist, §3.7 tương tác/thống kê, §3.8 báo cáo, §3.13 PDF/share | Changelog, tab B, CTA và công cụ chia sẻ |
 | 3 ✅ | §3.5 timeline + media/quota/event contributor, §3.15 realtime | Tab C và cập nhật sự kiện |
 | 4 ✅ | §3.6 tổng kết/tài chính, §3.9 điểm + trần, §3.16 khiếu nại, §3.17 nickname, §3.14 Home promotion | Tab D, sổ điểm, khiếu nại và card Home |
-| 5 | Quyết định 05/11 (§7.2): tham gia độc lập với đóng góp, check-in thay quyền cộng tác viên sự kiện, trạng thái đăng ký đầy đủ, điểm media 3/2, người nhận nhắc 48 giờ, hỗ trợ mở (§3.11), hoãn/chuyển giai đoạn thủ công (§3.2), checklist sẵn sàng (§3.4), các trường hợp vận hành §3.18 | Tham gia không cần ủng hộ, check-in tại sự kiện, nhu cầu hỗ trợ mở |
+| 5 ✅ | Quyết định 05/11 (§7.2): tham gia độc lập với đóng góp, check-in thay quyền cộng tác viên sự kiện, trạng thái đăng ký đầy đủ, điểm media 3/2, người nhận nhắc 48 giờ, hỗ trợ mở (§3.11), hoãn/chuyển giai đoạn thủ công (§3.2), checklist sẵn sàng (§3.4), các trường hợp vận hành §3.18 | Tham gia không cần ủng hộ, check-in tại sự kiện, nhu cầu hỗ trợ mở |
 
 Mỗi đợt: migration + entity + repository + use case + spec, cập nhật `DATA-MODEL.md`,
 `ROADMAP.md`, `README.md` của package và `docs/API.md` trong cùng PR (quy tắc docs/plan).

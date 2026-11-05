@@ -36,6 +36,7 @@ import {
   CharityCampaignNotFoundException,
   CharityCancelTooLateException,
   CharityCoordinatorNotAllowedException,
+  CharityExternalSourceDuplicatedException,
   CharityLinesInvalidException,
   CharityMediaInvalidException,
   CharityMediaNotEditableException,
@@ -370,6 +371,7 @@ export class CharityCampaignController {
     CharityNotAcceptingContributionsException,
     CharityNeedItemInvalidException,
     CharityLinesInvalidException,
+    CharityExternalSourceDuplicatedException,
   )
   public async recordExternal(
     @CurrentUser() principal: IAuthPrincipal,

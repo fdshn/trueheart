@@ -310,6 +310,7 @@ export interface IRecordExternalContributionCommand {
   readonly sourceLabel: string;
   readonly receivedAt: string;
   readonly evidenceNote?: string;
+  readonly sourceReference?: string;
 }
 
 export interface IRecordExternalContributionUseCase extends IUseCase<

@@ -169,6 +169,11 @@ export enum NotificationTypes {
    */
   CHARITY_PARTICIPATION_UPDATED = 'CHARITY_PARTICIPATION_UPDATED',
   /**
+   * Đề nghị hỗ trợ mở (chuyến xe, công sức, kỹ năng…) được ban tổ chức nhận, từ chối hoặc ghi
+   * hoàn thành — báo người hỗ trợ. Đợt 5b.
+   */
+  CHARITY_SUPPORT_OFFER_UPDATED = 'CHARITY_SUPPORT_OFFER_UPDATED',
+  /**
    * Nhắc nhiệm vụ duy trì hạng, trước khi chu kỳ hết (SRS BR-PROF-RANK-03).
    *
    * Trượt chu kỳ nay bị trừ điểm và có thể tụt hạng, nên báo muộn hơn thời điểm
@@ -319,6 +324,7 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.CHARITY_PLAN_CHANGED]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_APPEAL_UPDATED]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_PARTICIPATION_UPDATED]: NotificationGroups.STATUS,
+  [NotificationTypes.CHARITY_SUPPORT_OFFER_UPDATED]: NotificationGroups.STATUS,
 
   // ── Tích điểm: điểm vào sổ ───────────────────────────────────────────────
   // Giới thiệu hợp lệ xếp vào TÍCH ĐIỂM chứ không THƯỞNG: nội dung thông báo là

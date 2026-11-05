@@ -387,6 +387,20 @@ export enum ErrorCodes {
   CHARITY_PARTICIPATION_NOT_FOUND = 0x13_43,
   /** Quyết định / check-in không hợp với trạng thái hiện tại của lượt tham gia. */
   CHARITY_PARTICIPATION_INVALID_STATE = 0x13_44,
+  // Đợt 5b/5c (quyết định 05/11): hỗ trợ mở, đợt trao, hoàn tất dự án.
+  CHARITY_SUPPORT_NEED_NOT_FOUND = 0x13_45,
+  /** Hạng mục hỗ trợ đã đóng, hoặc dự án không còn nhận hỗ trợ. */
+  CHARITY_SUPPORT_NEED_CLOSED = 0x13_46,
+  /** Hạng mục đã có người nhận hỗ trợ — không xoá được, chỉ đóng. */
+  CHARITY_SUPPORT_NEED_IN_USE = 0x13_47,
+  CHARITY_SUPPORT_OFFER_NOT_FOUND = 0x13_48,
+  CHARITY_SUPPORT_OFFER_INVALID_STATE = 0x13_49,
+  CHARITY_ROUND_NOT_FOUND = 0x13_4a,
+  CHARITY_ROUND_INVALID_STATE = 0x13_4b,
+  /** Công khai tổng kết (hoàn tất dự án) khi còn việc chưa xong (§3.18). */
+  CHARITY_PROJECT_COMPLETION_BLOCKED = 0x13_4c,
+  /** Mã nguồn ngoài app trùng một dòng còn hiệu lực — chống đếm trùng. */
+  CHARITY_EXTERNAL_SOURCE_DUPLICATED = 0x13_4d,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

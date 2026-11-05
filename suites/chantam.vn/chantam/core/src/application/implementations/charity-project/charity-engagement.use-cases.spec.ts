@@ -444,6 +444,7 @@ describe('Thông báo theo dự án', () => {
       campaignId: CampaignId,
       excludeUserId: Owner,
       scope: 'PRE_EVENT',
+      roundId: null,
     });
     expect(sender.handle).toHaveBeenCalledWith(
       expect.objectContaining({

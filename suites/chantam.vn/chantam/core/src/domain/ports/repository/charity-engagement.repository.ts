@@ -183,6 +183,11 @@ export interface ICharityEngagementRepository {
     campaignId: string;
     excludeUserId: string | null;
     scope?: 'ALL' | 'PRE_EVENT';
+    /**
+     * Đợt trao (§3.18): `PRE_EVENT` chỉ gồm participant của đợt (hoặc chưa phân đợt); `ALL`
+     * gồm participant và người có lượt giao nhận của đợt — đợt chưa gắn ai thì như cả dự án.
+     */
+    roundId?: string | null;
   }): Promise<string[]>;
 
   // ── Bản in ────────────────────────────────────────────────────────────

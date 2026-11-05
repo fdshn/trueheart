@@ -1005,7 +1005,7 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
   CHARITY_CANCEL_TOO_LATE: {
     code: ErrorCodes.CHARITY_CANCEL_TOO_LATE,
     httpStatus: HttpStatus.CONFLICT,
-    message: () => 'Hoạt động đã bắt đầu, không huỷ đăng ký được nữa',
+    message: () => 'Hoạt động đã kết thúc, không huỷ đăng ký được nữa',
   },
 
   CHARITY_REVIEW_TOO_EARLY: {
@@ -1342,6 +1342,67 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: (state: string) =>
       `Lượt tham gia đang ở trạng thái ${state}, không thực hiện được bước này`,
     sample: ['WAITLISTED'],
+  },
+
+  CHARITY_SUPPORT_NEED_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_SUPPORT_NEED_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy hạng mục hỗ trợ',
+  },
+
+  CHARITY_SUPPORT_NEED_CLOSED: {
+    code: ErrorCodes.CHARITY_SUPPORT_NEED_CLOSED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Hạng mục hỗ trợ đã đóng hoặc dự án không còn nhận hỗ trợ',
+  },
+
+  CHARITY_SUPPORT_NEED_IN_USE: {
+    code: ErrorCodes.CHARITY_SUPPORT_NEED_IN_USE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Hạng mục đã có người nhận hỗ trợ — không xoá được, hãy đóng hạng mục',
+  },
+
+  CHARITY_SUPPORT_OFFER_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_SUPPORT_OFFER_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy đề nghị hỗ trợ',
+  },
+
+  CHARITY_SUPPORT_OFFER_INVALID_STATE: {
+    code: ErrorCodes.CHARITY_SUPPORT_OFFER_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (state: string) =>
+      `Đề nghị hỗ trợ đang ở trạng thái ${state}, không thực hiện được bước này`,
+    sample: ['COMPLETED'],
+  },
+
+  CHARITY_ROUND_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_ROUND_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy đợt trao',
+  },
+
+  CHARITY_ROUND_INVALID_STATE: {
+    code: ErrorCodes.CHARITY_ROUND_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (state: string) =>
+      `Đợt trao đang ở trạng thái ${state}, không sửa được nữa`,
+    sample: ['CANCELLED'],
+  },
+
+  CHARITY_PROJECT_COMPLETION_BLOCKED: {
+    code: ErrorCodes.CHARITY_PROJECT_COMPLETION_BLOCKED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (reasons: string) => `Chưa hoàn tất được dự án: ${reasons}`,
+    sample: ['còn hạng mục nhu cầu đang mở, còn khiếu nại chưa đóng'],
+  },
+
+  CHARITY_EXTERNAL_SOURCE_DUPLICATED: {
+    code: ErrorCodes.CHARITY_EXTERNAL_SOURCE_DUPLICATED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Mã chứng từ nguồn ngoài này đã được ghi nhận trong dự án — tránh đếm trùng',
   },
 
   CHARITY_CAMPAIGN_HAS_ACTIVITY: {

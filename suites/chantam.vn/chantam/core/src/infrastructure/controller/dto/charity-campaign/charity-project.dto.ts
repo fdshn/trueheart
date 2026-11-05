@@ -103,7 +103,8 @@ export class CharityStageMoveDto {
 
   @ApiPropertyOptional({
     maxLength: 500,
-    description: 'Bắt buộc khi quay lại giai đoạn trước',
+    description:
+      'Bắt buộc với mọi lần chuyển tay — sớm hơn lịch hay lùi (chốt 05/11, §3.2); người bị ảnh hưởng nhận thông báo kèm lý do.',
   })
   @Text(500)
   reason?: string;
@@ -457,6 +458,27 @@ export class CharityItemNeedProfileDto {
   @IsOptional()
   @IsIn(CharityOpenClosed)
   intakeStatus?: (typeof CharityOpenClosed)[number];
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    description:
+      'Mục tiêu mới. Thấp hơn số đã nhận thì bắt buộc `surplusExplanation` (công khai, ghi lịch sử — §3.18). Bỏ trống giữ nguyên.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  targetQuantity?: number;
+
+  @ApiPropertyOptional({
+    maxLength: 2000,
+    nullable: true,
+    description:
+      'Giải trình công khai phần dư / đổi mục đích sử dụng phần dư. Bỏ trống giữ nguyên, `null` xoá.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  surplusExplanation?: string | null;
 }
 export class CharityItemNeedBodyDto {
   @ApiProperty({ type: () => CharityItemNeedProfileDto })
@@ -502,6 +524,8 @@ export class CharityItemNeedViewDto {
   })
   receiverPhone: string | null;
   @ApiProperty({ enum: CharityOpenClosed }) intakeStatus: string;
+  @ApiProperty({ type: String, nullable: true }) surplusExplanation:
+    string | null;
 }
 
 // ── Tiền ────────────────────────────────────────────────────────────────

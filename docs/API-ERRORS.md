@@ -187,7 +187,7 @@ Nghiệp vụ Chân Tâm
 | `0x1303` | `4867` | 409 Conflict | `CHARITY_PARTICIPATION_CLOSED` | Hoạt động đã đóng đăng ký |
 | `0x1304` | `4868` | 409 Conflict | `CHARITY_ALREADY_REGISTERED` | Bạn đã đăng ký hoạt động này |
 | `0x1305` | `4869` | 409 Conflict | `CHARITY_NOT_REGISTERED` | Bạn chưa đăng ký hoạt động này |
-| `0x1306` | `4870` | 409 Conflict | `CHARITY_CANCEL_TOO_LATE` | Hoạt động đã bắt đầu, không huỷ đăng ký được nữa |
+| `0x1306` | `4870` | 409 Conflict | `CHARITY_CANCEL_TOO_LATE` | Hoạt động đã kết thúc, không huỷ đăng ký được nữa |
 | `0x1307` | `4871` | 409 Conflict | `CHARITY_REVIEW_TOO_EARLY` | Chỉ đánh giá được sau khi hoạt động kết thúc |
 | `0x1308` | `4872` | 403 Forbidden | `CHARITY_REVIEW_NOT_PERMITTED` | Bạn không Ở trong hoạt động này nên không đánh giá được |
 | `0x1309` | `4873` | 409 Conflict | `CHARITY_REVIEW_DUPLICATE` | Bạn đã đánh giá người này trong hoạt động này |
@@ -248,6 +248,15 @@ Nghiệp vụ Chân Tâm
 | `0x1342` | `4930` | 429 Too Many Requests | `CHARITY_APPEAL_RATE_LIMITED` | Bạn gửi quá nhiều khiếu nại trong 24 giờ — thử lại sau |
 | `0x1343` | `4931` | 404 Not Found | `CHARITY_PARTICIPATION_NOT_FOUND` | Không tìm thấy lượt đăng ký tham gia |
 | `0x1344` | `4932` | 409 Conflict | `CHARITY_PARTICIPATION_INVALID_STATE` | Lượt tham gia đang ở trạng thái WAITLISTED, không thực hiện được bước này |
+| `0x1345` | `4933` | 404 Not Found | `CHARITY_SUPPORT_NEED_NOT_FOUND` | Không tìm thấy hạng mục hỗ trợ |
+| `0x1346` | `4934` | 409 Conflict | `CHARITY_SUPPORT_NEED_CLOSED` | Hạng mục hỗ trợ đã đóng hoặc dự án không còn nhận hỗ trợ |
+| `0x1347` | `4935` | 409 Conflict | `CHARITY_SUPPORT_NEED_IN_USE` | Hạng mục đã có người nhận hỗ trợ — không xoá được, hãy đóng hạng mục |
+| `0x1348` | `4936` | 404 Not Found | `CHARITY_SUPPORT_OFFER_NOT_FOUND` | Không tìm thấy đề nghị hỗ trợ |
+| `0x1349` | `4937` | 409 Conflict | `CHARITY_SUPPORT_OFFER_INVALID_STATE` | Đề nghị hỗ trợ đang ở trạng thái COMPLETED, không thực hiện được bước này |
+| `0x134a` | `4938` | 404 Not Found | `CHARITY_ROUND_NOT_FOUND` | Không tìm thấy đợt trao |
+| `0x134b` | `4939` | 409 Conflict | `CHARITY_ROUND_INVALID_STATE` | Đợt trao đang ở trạng thái CANCELLED, không sửa được nữa |
+| `0x134c` | `4940` | 409 Conflict | `CHARITY_PROJECT_COMPLETION_BLOCKED` | Chưa hoàn tất được dự án: còn hạng mục nhu cầu đang mở, còn khiếu nại chưa đóng |
+| `0x134d` | `4941` | 409 Conflict | `CHARITY_EXTERNAL_SOURCE_DUPLICATED` | Mã chứng từ nguồn ngoài này đã được ghi nhận trong dự án — tránh đếm trùng |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -279,5 +288,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **237 mã lỗi** trên 3 tầng.
+Tổng cộng **246 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

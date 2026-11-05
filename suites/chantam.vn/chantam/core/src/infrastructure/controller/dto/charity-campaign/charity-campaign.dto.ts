@@ -1317,11 +1317,24 @@ export class RecordExternalContributionBodyDto {
   @IsISO8601()
   receivedAt: string;
 
-  @ApiPropertyOptional({ maxLength: 1000 })
-  @IsOptional()
+  @ApiProperty({
+    maxLength: 1000,
+    description:
+      'Bằng chứng (mô tả, đường dẫn ảnh/chứng từ) — BẮT BUỘC từ 05/11: nguồn ngoài app tính vào tiến độ phải có bằng chứng (§3.18).',
+  })
   @IsString()
   @Length(1, 1000)
-  evidenceNote?: string;
+  evidenceNote: string;
+
+  @ApiPropertyOptional({
+    maxLength: 120,
+    description:
+      'Mã chứng từ / số biên nhận. Trùng một bản ghi còn hiệu lực của dự án → `CHARITY_EXTERNAL_SOURCE_DUPLICATED` (chống đếm trùng).',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 120)
+  sourceReference?: string;
 }
 
 export class AmendExternalContributionBodyDto {
@@ -1360,6 +1373,7 @@ export class CharityExternalContributionDto {
   @ApiProperty() sourceLabel: string;
   @ApiProperty({ type: String, format: 'date-time' }) receivedAt: Date;
   @ApiProperty({ type: String, nullable: true }) evidenceNote: string | null;
+  @ApiProperty({ type: String, nullable: true }) sourceReference: string | null;
   @ApiProperty({ format: 'uuid' }) recordedBy: string;
   @ApiProperty({
     enum: ['ACTIVE', 'VOIDED'],

@@ -628,7 +628,7 @@ async function main(): Promise<void> {
     );
 
     await expectThrow(
-      'Huỷ sau khi hoạt động đã bắt đầu -> CharityCancelTooLate',
+      'Huỷ khi hoạt động đã kết thúc (Tổng kết) -> CharityCancelTooLate',
       () => cancelUseCase.handle({ actorUserId: JoinerId, campaignId: target }),
       'CharityCancelTooLateException',
     );

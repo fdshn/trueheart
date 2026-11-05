@@ -1,6 +1,7 @@
 export * from './charity-appeal.contract';
 export * from './charity-engagement.contract';
 export * from './charity-event.contract';
+export * from './charity-operations.contract';
 export * from './charity-participation.contract';
 export * from './charity-project.contract';
 export * from './charity-summary.contract';

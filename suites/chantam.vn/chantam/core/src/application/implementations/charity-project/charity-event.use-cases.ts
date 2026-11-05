@@ -80,10 +80,13 @@ export class GetCharityEventStepsUseCase implements IGetCharityEventStepsUseCase
 
   public async handle(command: {
     idOrSlug: string;
+    roundId?: string | null;
   }): Promise<ICharityEventStepView[]> {
     const id = await this.projects.findVisibleCampaignId(command.idOrSlug);
     if (!id) throw new CharityCampaignNotFoundException();
-    return (await this.events.listEventSteps(id)).map(toStepView);
+    return (await this.events.listEventSteps(id, command.roundId ?? null)).map(
+      toStepView,
+    );
   }
 }
 

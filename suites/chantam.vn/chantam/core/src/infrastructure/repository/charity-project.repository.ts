@@ -232,6 +232,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     campaignId: string,
     actorId: string,
     write: (repo: CharityProjectRepository) => Promise<T>,
+    reason: string | null = null,
   ): Promise<T> {
     return this.manager.transaction(async (manager) => {
       const scoped = new CharityProjectRepository(manager);
@@ -247,7 +248,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         await recordCharityRevisions(manager, {
           campaignId,
           actorId,
-          reason: null,
+          reason,
           drafts: diffCharityRevisions(
             entity,
             before,
@@ -476,9 +477,10 @@ export class CharityProjectRepository implements ICharityProjectRepository {
          SELECT global_id, $4, $5, $6::uuid, $7 FROM updated
        ), announcement AS (
          -- Sang Sự kiện trao / Tổng kết thì báo người tham gia, người góp, người quan tâm
-         -- (§3.10). Lùi giai đoạn không báo — đó là sửa sai, không phải tin mới.
+         -- (§3.10). Ban tổ chức chuyển tay (kể cả lùi) cũng báo, kèm lý do (§3.2, chốt 05/11).
          INSERT INTO campaign_announcements (campaign_id, kind, payload, actor_id)
-         SELECT global_id, 'STAGE_CHANGED', jsonb_build_object('from', $8::text, 'to', $9::text),
+         SELECT global_id, 'STAGE_CHANGED',
+                jsonb_build_object('from', $8::text, 'to', $9::text, 'reason', $11::text),
                 $6::uuid
          FROM updated WHERE $10::boolean
        )
@@ -495,8 +497,10 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         params.reason,
         params.from,
         params.to,
-        stageRank(params.to) > stageRank(params.from) &&
-          (params.to === 'EVENT' || params.to === 'SUMMARY'),
+        params.actorId !== null ||
+          (stageRank(params.to) > stageRank(params.from) &&
+            (params.to === 'EVENT' || params.to === 'SUMMARY')),
+        params.reason,
       ],
     );
     return rows.length > 0 ? 'MOVED' : 'STALE';
@@ -881,10 +885,16 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     campaignId: string;
     actorId: string;
     phases: ICharityPhase[];
+    /** Lý do ghi vào lịch sử sửa (hoãn bước trao — §3.2). */
+    reason?: string | null;
   }): Promise<ICharityPhase[]> {
     if (!this.untracked)
-      return this.tracked('PHASE', params.campaignId, params.actorId, (repo) =>
-        repo.replacePhases(params),
+      return this.tracked(
+        'PHASE',
+        params.campaignId,
+        params.actorId,
+        (repo) => repo.replacePhases(params),
+        params.reason ?? null,
       );
     await this.manager.transaction(async (manager) => {
       await manager.query(
@@ -937,6 +947,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         receiver_name: string | null;
         receiver_phone: string | null;
         intake_status: CharityOpenClosedStatus;
+        surplus_explanation: string | null;
         pending_quantity: string | number;
         external_quantity: string | number;
       }[]
@@ -946,7 +957,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
               need.unit_price, need.estimated_value, need.item_condition,
               need.condition_note, need.supply_source, need.intake_deadline,
               need.dropoff_address, need.delivery_instruction, need.receiver_name,
-              need.receiver_phone, need.intake_status,
+              need.receiver_phone, need.intake_status, need.surplus_explanation,
               COALESCE((SELECT SUM(item.offered_quantity)
                 FROM campaign_contribution_items item
                 JOIN campaign_contributions contribution
@@ -994,6 +1005,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         receiverName: row.receiver_name,
         receiverPhone: row.receiver_phone,
         intakeStatus: row.intake_status,
+        surplusExplanation: row.surplus_explanation,
       };
     });
   }
@@ -1003,6 +1015,8 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     needItemId: string;
     actorId: string;
     profile: ICharityNeedItemProfileInput;
+    targetQuantity?: number;
+    surplusExplanation?: string | null;
   }): Promise<boolean> {
     if (!this.untracked)
       return this.tracked(
@@ -1018,7 +1032,10 @@ export class CharityProjectRepository implements ICharityProjectRepository {
        SET unit_price = $3, estimated_value = $4, item_condition = $5, condition_note = $6,
            supply_source = $7, intake_deadline = $8, dropoff_address = $9,
            delivery_instruction = $10, receiver_name = $11, receiver_phone = $12,
-           intake_status = $13, updated_at = now()
+           intake_status = $13,
+           target_quantity = COALESCE($14::int, target_quantity),
+           surplus_explanation = CASE WHEN $15::boolean THEN $16 ELSE surplus_explanation END,
+           updated_at = now()
        WHERE campaign_id = $1 AND global_id = $2
        RETURNING global_id`,
       [
@@ -1035,6 +1052,9 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         profile.receiverName,
         profile.receiverPhone,
         profile.intakeStatus,
+        params.targetQuantity ?? null,
+        params.surplusExplanation !== undefined,
+        params.surplusExplanation ?? null,
       ],
     );
     return rows.length > 0;

@@ -146,6 +146,8 @@ export const CharityRevisionPolicies: Readonly<
       'receiverPhone',
       'intakeStatus',
       'surplusExplanation',
+      // Đợt 5c (§3.18): giảm mục tiêu dưới số đã nhận phải giải trình — ghi lịch sử.
+      'targetQuantity',
     ],
     isPrivate: (field) => ['receiverName', 'receiverPhone'].includes(field),
     isImportant: (field) =>
@@ -391,6 +393,8 @@ export const CharityAnnouncementKinds = [
   'PRE_EVENT',
   /** Tổng kết được công khai (đợt 4). */
   'SUMMARY_PUBLISHED',
+  /** Một đợt trao bị hoãn, đổi giờ/địa điểm hoặc huỷ (đợt 5c, §3.18). */
+  'ROUND_CHANGED',
 ] as const;
 export type CharityAnnouncementKind = (typeof CharityAnnouncementKinds)[number];
 

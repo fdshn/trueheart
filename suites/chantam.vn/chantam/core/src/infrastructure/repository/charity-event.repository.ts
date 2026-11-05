@@ -18,11 +18,12 @@ import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
 import { updateReturning } from './update-returning';
 
-const StepColumns = `global_id, step_key, planned_at, actual_at, status, note, sort_order,
+const StepColumns = `global_id, round_id, step_key, planned_at, actual_at, status, note, sort_order,
   updated_by, updated_at`;
 
 interface IStepRow {
   global_id: string;
+  round_id: string | null;
   step_key: CharityEventStepKey;
   planned_at: Date | null;
   actual_at: Date | null;
@@ -35,6 +36,7 @@ interface IStepRow {
 
 const toStep = (row: IStepRow): ICharityEventStep => ({
   stepId: row.global_id,
+  roundId: row.round_id,
   stepKey: row.step_key,
   plannedAt: row.planned_at,
   actualAt: row.actual_at,
@@ -115,26 +117,35 @@ export class CharityEventRepository implements ICharityEventRepository {
 
   // ── Timeline ──────────────────────────────────────────────────────────
 
-  public async ensureEventSteps(campaignId: string): Promise<void> {
+  public async ensureEventSteps(
+    campaignId: string,
+    roundId: string | null = null,
+  ): Promise<void> {
+    // Khoá trùng là index biểu thức (dự án, đợt, bước) — `ON CONFLICT` phải nêu đúng biểu thức.
     await this.manager.query(
-      `INSERT INTO campaign_event_steps (campaign_id, step_key, sort_order)
-       SELECT $1, step.key, step.sort_order
+      `INSERT INTO campaign_event_steps (campaign_id, round_id, step_key, sort_order)
+       SELECT $1, $4::uuid, step.key, step.sort_order
        FROM unnest($2::text[], $3::int[]) AS step(key, sort_order)
-       ON CONFLICT (campaign_id, step_key) DO NOTHING`,
+       ON CONFLICT (campaign_id, (COALESCE(round_id, '00000000-0000-0000-0000-000000000000'::uuid)), step_key)
+       DO NOTHING`,
       [
         campaignId,
         [...CharityEventStepKeys],
         CharityEventStepKeys.map((_, index) => index),
+        roundId,
       ],
     );
   }
 
   public async listEventSteps(
     campaignId: string,
+    roundId: string | null = null,
   ): Promise<ICharityEventStep[]> {
     const rows = await this.manager.query<IStepRow[]>(
-      `SELECT ${StepColumns} FROM campaign_event_steps WHERE campaign_id = $1 ORDER BY sort_order`,
-      [campaignId],
+      `SELECT ${StepColumns} FROM campaign_event_steps
+       WHERE campaign_id = $1 AND round_id IS NOT DISTINCT FROM $2::uuid
+       ORDER BY sort_order`,
+      [campaignId, roundId],
     );
     return rows.map(toStep);
   }

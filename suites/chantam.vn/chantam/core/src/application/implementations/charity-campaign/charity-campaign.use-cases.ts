@@ -1047,6 +1047,13 @@ export class RecordExternalContributionUseCase implements IRecordExternalContrib
         'Ngày nhận phải là một mốc trong quá khứ',
       );
 
+    // Nguồn ngoài app tính vào tiến độ thì phải có bằng chứng (§3.18, chốt 05/11).
+    const evidenceNote = command.evidenceNote?.trim() || null;
+    if (!evidenceNote)
+      throw new CharityLinesInvalidException(
+        'Nguồn ngoài app phải kèm bằng chứng (evidenceNote)',
+      );
+
     return this.repository.recordExternalContribution({
       campaignId: command.campaignId,
       recordedBy: command.recordedBy,
@@ -1054,7 +1061,8 @@ export class RecordExternalContributionUseCase implements IRecordExternalContrib
       quantity: command.quantity,
       sourceLabel: command.sourceLabel.trim(),
       receivedAt,
-      evidenceNote: command.evidenceNote?.trim() ?? null,
+      evidenceNote,
+      sourceReference: command.sourceReference?.trim() || null,
     });
   }
 }
@@ -1451,12 +1459,10 @@ export class CancelCharityParticipationUseCase implements ICancelCharityParticip
     if (!CharityCancellableParticipationStatuses.includes(status))
       throw new CharityParticipationInvalidStateException(status);
 
-    // BR-CHARITY-03: chỉ huỷ được khi CHƯA bắt đầu. Người tổ chức chốt số suất theo danh
-    // sách đăng ký trước giờ khai mạc, nên một lượt huỷ giữa buổi không trả lại được gì.
+    // Huỷ được cả khi sự kiện đang diễn ra; sang Tổng kết thì thôi (chốt 05/11, §3.11).
     if (
       !canCancelCharityParticipation({
-        startTime: campaign.startTime,
-        now: new Date(),
+        operationStage: campaign.operationStage,
       })
     )
       throw new CharityCancelTooLateException();

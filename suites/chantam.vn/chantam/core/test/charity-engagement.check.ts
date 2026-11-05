@@ -471,13 +471,15 @@ async function main(): Promise<void> {
       reason: 'Lùi để sửa',
     });
     const stageAnnouncements = await sql(
-      `SELECT kind, payload FROM campaign_announcements WHERE campaign_id = $1`,
+      `SELECT kind, payload FROM campaign_announcements WHERE campaign_id = $1 ORDER BY id`,
       [Live],
     );
     check(
-      'tiến sang EVENT xếp STAGE_CHANGED; lùi lại không xếp',
-      stageAnnouncements.length === 1 &&
-        stageAnnouncements[0].payload.to === 'EVENT',
+      'chuyển tay (tiến hay lùi) đều xếp STAGE_CHANGED kèm lý do — chốt 05/11',
+      stageAnnouncements.length === 2 &&
+        stageAnnouncements[0].payload.to === 'EVENT' &&
+        stageAnnouncements[1].payload.to === 'EXECUTION' &&
+        stageAnnouncements[1].payload.reason === 'Lùi để sửa',
       JSON.stringify(stageAnnouncements),
     );
 

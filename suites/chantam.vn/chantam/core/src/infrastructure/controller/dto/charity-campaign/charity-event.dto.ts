@@ -74,8 +74,26 @@ export class CharityEventStepBodyDto {
   step: CharityEventStepPatchDto;
 }
 
+export class CharityEventStepsQueryDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Timeline của một đợt trao (§3.18). Bỏ trống = timeline chung của dự án.',
+  })
+  @IsOptional()
+  @IsUUID()
+  roundId?: string;
+}
+
 export class CharityEventStepViewDto {
   @ApiProperty({ format: 'uuid' }) stepId: string;
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Đợt trao; `null` = timeline chung',
+  })
+  roundId: string | null;
   @ApiProperty({ enum: CharityEventStepKeys }) stepKey: string;
   @ApiProperty({ example: 'Trao quà' }) label: string;
   @ApiProperty({ enum: CharityEventStepStatuses }) status: string;

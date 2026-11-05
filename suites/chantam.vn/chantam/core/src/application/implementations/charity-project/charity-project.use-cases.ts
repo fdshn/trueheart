@@ -300,12 +300,14 @@ export class MoveCharityStageUseCase implements IMoveCharityStageUseCase {
       throw new CharityStageTransitionInvalidException(
         'chỉ tiến từng bước một',
       );
+    // Chuyển tay — sớm hơn lịch, bắt kịp khi job trễ, hay lùi — đều phải có lý do và báo
+    // người bị ảnh hưởng (§3.2, chốt 05/11).
     const reason = trimmed(command.reason);
+    if (!reason)
+      throw new CharityStageTransitionInvalidException(
+        'chuyển giai đoạn thủ công phải có lý do',
+      );
     if (!forward) {
-      if (!reason)
-        throw new CharityStageTransitionInvalidException(
-          'quay lại phải có lý do',
-        );
       const wouldBe = effectiveOperationStage({
         stored: command.to,
         distribution: campaign.distribution,
@@ -595,11 +597,34 @@ export class UpdateCharityItemNeedUseCase implements IUpdateCharityItemNeedUseCa
 
   public async handle(command: IUpdateCharityItemNeedCommand) {
     const { campaign } = await this.access.forEdit(command);
+    const surplusExplanation =
+      command.surplusExplanation === undefined
+        ? undefined
+        : trimmed(command.surplusExplanation);
+    if (command.targetQuantity !== undefined) {
+      const current = (
+        await this.projects.listItemNeeds(campaign.globalId)
+      ).find((need) => need.needItemId === command.needItemId);
+      if (!current) throw new CharityNeedItemInvalidException();
+      const received =
+        current.receivedInAppQuantity + current.receivedExternalQuantity;
+      const explanation =
+        surplusExplanation === undefined
+          ? current.surplusExplanation
+          : surplusExplanation;
+      // Giảm mục tiêu dưới số đã nhận: phần dư phải giải trình công khai (§3.18).
+      if (command.targetQuantity < received && !explanation)
+        throw new ValidationFailedException([
+          `itemNeed.surplusExplanation: bắt buộc khi mục tiêu (${command.targetQuantity}) thấp hơn số đã nhận (${received})`,
+        ]);
+    }
     const updated = await this.projects.updateItemNeedProfile({
       campaignId: campaign.globalId,
       needItemId: command.needItemId,
       actorId: command.userId,
       profile: command.profile,
+      targetQuantity: command.targetQuantity,
+      surplusExplanation,
     });
     if (!updated) throw new CharityNeedItemInvalidException();
     const needs = await this.projects.listItemNeeds(campaign.globalId);
