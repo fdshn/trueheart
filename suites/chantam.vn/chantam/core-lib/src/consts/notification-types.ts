@@ -148,6 +148,37 @@ export enum NotificationTypes {
   /** Lượt giao nhận bị huỷ — gửi cho BÊN KIA, không gửi cho người vừa bấm huỷ. */
   CHARITY_DELIVERY_CANCELLED = 'CHARITY_DELIVERY_CANCELLED',
   /**
+   * Dự án chuyển sang Sự kiện trao hoặc Tổng kết (CHARITY-PROJECT-LIFECYCLE §3.10). Gửi người
+   * tham gia, người có đóng góp được chấp nhận và người quan tâm.
+   */
+  CHARITY_STAGE_CHANGED = 'CHARITY_STAGE_CHANGED',
+  /** Kế hoạch đã duyệt có thay đổi quan trọng: giờ trao, tài khoản nhận, bên thụ hưởng… (§3.3). */
+  CHARITY_PLAN_CHANGED = 'CHARITY_PLAN_CHANGED',
+  /** Còn ≤ 48 giờ tới lúc trao (§3.4). */
+  CHARITY_PRE_EVENT_NOTICE = 'CHARITY_PRE_EVENT_NOTICE',
+  /** Tổng kết dự án được công khai (§3.6). */
+  CHARITY_SUMMARY_PUBLISHED = 'CHARITY_SUMMARY_PUBLISHED',
+  /**
+   * Khiếu nại mức hoàn thành / giá trị xác nhận có bước mới (§3.16): gửi BÊN KIA — người
+   * khiếu nại khi ban tổ chức/Admin quyết, ban tổ chức khi có khiếu nại mới hoặc được chấp nhận.
+   */
+  CHARITY_APPEAL_UPDATED = 'CHARITY_APPEAL_UPDATED',
+  /**
+   * Lượt tham gia dự án từ thiện vừa đổi trạng thái do ban tổ chức (duyệt, danh sách chờ, từ
+   * chối, check-in, vắng mặt, hoàn thành) — báo chính participant. Đợt 5, chốt 05/11.
+   */
+  CHARITY_PARTICIPATION_UPDATED = 'CHARITY_PARTICIPATION_UPDATED',
+  /**
+   * Đề nghị hỗ trợ mở (chuyến xe, công sức, kỹ năng…) được ban tổ chức nhận, từ chối hoặc ghi
+   * hoàn thành — báo người hỗ trợ. Đợt 5b.
+   */
+  CHARITY_SUPPORT_OFFER_UPDATED = 'CHARITY_SUPPORT_OFFER_UPDATED',
+  /**
+   * Tranh chấp về một đóng góp vừa mở, được giải quyết hoặc rút — báo bên kia (người đóng góp
+   * hoặc ban tổ chức). Đợt 5c.
+   */
+  CHARITY_CONTRIBUTION_DISPUTE_UPDATED = 'CHARITY_CONTRIBUTION_DISPUTE_UPDATED',
+  /**
    * Nhắc nhiệm vụ duy trì hạng, trước khi chu kỳ hết (SRS BR-PROF-RANK-03).
    *
    * Trượt chu kỳ nay bị trừ điểm và có thể tụt hạng, nên báo muộn hơn thời điểm
@@ -293,6 +324,14 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.CHARITY_CONTRIBUTION_DECIDED]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_DELIVERY_COMPLETED]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_DELIVERY_CANCELLED]: NotificationGroups.STATUS,
+  // Kế hoạch đổi là trạng thái của một việc người nhận đang theo (đã góp, đã đăng ký, bấm
+  // quan tâm) — cùng nhóm đóng góp. Ba loại còn lại của dự án nằm ở SỰ KIỆN và ĐIỀU KIỆN.
+  [NotificationTypes.CHARITY_PLAN_CHANGED]: NotificationGroups.STATUS,
+  [NotificationTypes.CHARITY_APPEAL_UPDATED]: NotificationGroups.STATUS,
+  [NotificationTypes.CHARITY_PARTICIPATION_UPDATED]: NotificationGroups.STATUS,
+  [NotificationTypes.CHARITY_SUPPORT_OFFER_UPDATED]: NotificationGroups.STATUS,
+  [NotificationTypes.CHARITY_CONTRIBUTION_DISPUTE_UPDATED]:
+    NotificationGroups.STATUS,
 
   // ── Tích điểm: điểm vào sổ ───────────────────────────────────────────────
   // Giới thiệu hợp lệ xếp vào TÍCH ĐIỂM chứ không THƯỞNG: nội dung thông báo là
@@ -313,8 +352,14 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.RANK_MAINTENANCE_REMINDER]: NotificationGroups.CONDITION,
   [NotificationTypes.REVIEW_REMINDER]: NotificationGroups.CONDITION,
   [NotificationTypes.POST_EXPIRING_SOON]: NotificationGroups.CONDITION,
+  // Còn 48 giờ tới lúc trao: việc phải chuẩn bị trước một cái hạn.
+  [NotificationTypes.CHARITY_PRE_EVENT_NOTICE]: NotificationGroups.CONDITION,
 
   // ── Sự kiện ──────────────────────────────────────────────────────────────
   [NotificationTypes.LUNAR_OBSERVANCE]: NotificationGroups.EVENT,
+  // Dự án từ thiện bước sang Sự kiện trao / Tổng kết, hoặc tổng kết vừa công khai: diễn
+  // biến của một SỰ KIỆN người nhận đang theo, không phải việc họ phải làm.
+  [NotificationTypes.CHARITY_STAGE_CHANGED]: NotificationGroups.EVENT,
+  [NotificationTypes.CHARITY_SUMMARY_PUBLISHED]: NotificationGroups.EVENT,
   [NotificationTypes.SYSTEM_BROADCAST]: NotificationGroups.EVENT,
 };

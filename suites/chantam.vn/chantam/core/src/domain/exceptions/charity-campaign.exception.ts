@@ -147,3 +147,199 @@ export class CharityMediaNotEditableException extends ExceptionFrom(
 export class CharityCampaignHasActivityException extends ExceptionFrom(
   CoreErrors.CHARITY_CAMPAIGN_HAS_ACTIVITY,
 ) {}
+
+export class CharityProjectNotDraftException extends ExceptionFrom(
+  CoreErrors.CHARITY_PROJECT_NOT_DRAFT,
+) {}
+
+export class CharityStageTransitionInvalidException extends ExceptionFrom(
+  CoreErrors.CHARITY_STAGE_TRANSITION_INVALID,
+) {}
+
+export class CharityStageScheduleConflictException extends ExceptionFrom(
+  CoreErrors.CHARITY_STAGE_SCHEDULE_CONFLICT,
+) {}
+
+export class CharityBankAccountLimitException extends ExceptionFrom(
+  CoreErrors.CHARITY_BANK_ACCOUNT_LIMIT,
+) {}
+
+export class CharityBankAccountNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_BANK_ACCOUNT_NOT_FOUND,
+) {}
+
+export class CharityFundingNeedNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_FUNDING_NEED_NOT_FOUND,
+) {}
+
+export class CharityVolunteerNeedNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_VOLUNTEER_NEED_NOT_FOUND,
+) {}
+
+export class CharityVolunteerClosedException extends ExceptionFrom(
+  CoreErrors.CHARITY_VOLUNTEER_CLOSED,
+) {}
+
+export class CharityVolunteerRegistrationNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_VOLUNTEER_REGISTRATION_NOT_FOUND,
+) {}
+
+export class CharitySectionEmptyException extends ExceptionFrom(
+  CoreErrors.CHARITY_SECTION_EMPTY,
+) {}
+
+export class CharityProjectInactiveException extends ExceptionFrom(
+  CoreErrors.CHARITY_PROJECT_INACTIVE,
+) {}
+
+export class CharityProjectForbiddenException extends ExceptionFrom(
+  CoreErrors.CHARITY_PROJECT_FORBIDDEN,
+) {}
+
+export class CharityProjectNotApprovedException extends ExceptionFrom(
+  CoreErrors.CHARITY_PROJECT_NOT_APPROVED,
+) {}
+
+export class CharityTaskNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_TASK_NOT_FOUND,
+) {}
+
+export class CharityExportNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_EXPORT_NOT_FOUND,
+) {}
+
+export class CharitySectionNotPublishedException extends ExceptionFrom(
+  CoreErrors.CHARITY_SECTION_NOT_PUBLISHED,
+) {}
+
+export class CharityEventStepNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_EVENT_STEP_NOT_FOUND,
+) {}
+
+export class CharityPostNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_POST_NOT_FOUND,
+) {}
+
+export class CharityPostForbiddenException extends ExceptionFrom(
+  CoreErrors.CHARITY_POST_FORBIDDEN,
+) {}
+
+export class CharityPostQuotaExceededException extends ExceptionFrom(
+  CoreErrors.CHARITY_POST_QUOTA_EXCEEDED,
+) {}
+
+export class CharityPostMediaInvalidException extends ExceptionFrom(
+  CoreErrors.CHARITY_POST_MEDIA_INVALID,
+) {}
+
+export class CharitySummaryNotOpenException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUMMARY_NOT_OPEN,
+) {}
+
+export class CharitySummaryFinancialRequiredException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUMMARY_FINANCIAL_REQUIRED,
+) {}
+
+export class CharitySummaryEmptyException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUMMARY_EMPTY,
+) {}
+
+export class CharityFinancialReportNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_FINANCIAL_REPORT_NOT_FOUND,
+) {}
+
+export class CharityEvaluationTargetInvalidException extends ExceptionFrom(
+  CoreErrors.CHARITY_EVALUATION_TARGET_INVALID,
+) {}
+
+export class CharityAppealNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_NOT_FOUND,
+) {}
+
+export class CharityAppealNotAllowedException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_NOT_ALLOWED,
+) {}
+
+export class CharityAppealDuplicatedException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_DUPLICATED,
+) {}
+
+export class CharityAppealInvalidStateException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_INVALID_STATE,
+) {}
+
+export class CharityParticipationNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_PARTICIPATION_NOT_FOUND,
+) {}
+
+export class CharityParticipationInvalidStateException extends ExceptionFrom(
+  CoreErrors.CHARITY_PARTICIPATION_INVALID_STATE,
+) {}
+
+export class CharitySupportNeedNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUPPORT_NEED_NOT_FOUND,
+) {}
+
+export class CharitySupportNeedClosedException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUPPORT_NEED_CLOSED,
+) {}
+
+export class CharitySupportNeedInUseException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUPPORT_NEED_IN_USE,
+) {}
+
+export class CharitySupportOfferNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUPPORT_OFFER_NOT_FOUND,
+) {}
+
+export class CharitySupportOfferInvalidStateException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUPPORT_OFFER_INVALID_STATE,
+) {}
+
+export class CharityRoundNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_ROUND_NOT_FOUND,
+) {}
+
+export class CharityRoundInvalidStateException extends ExceptionFrom(
+  CoreErrors.CHARITY_ROUND_INVALID_STATE,
+) {}
+
+export class CharityProjectCompletionBlockedException extends ExceptionFrom(
+  CoreErrors.CHARITY_PROJECT_COMPLETION_BLOCKED,
+) {}
+
+export class CharityExternalSourceDuplicatedException extends ExceptionFrom(
+  CoreErrors.CHARITY_EXTERNAL_SOURCE_DUPLICATED,
+) {}
+
+export class CharityDisputeNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_DISPUTE_NOT_FOUND,
+) {}
+
+export class CharityDisputeNotAllowedException extends ExceptionFrom(
+  CoreErrors.CHARITY_DISPUTE_NOT_ALLOWED,
+) {}
+
+export class CharityDisputeAlreadyOpenException extends ExceptionFrom(
+  CoreErrors.CHARITY_DISPUTE_ALREADY_OPEN,
+) {}
+
+export class CharityDisputeInvalidStateException extends ExceptionFrom(
+  CoreErrors.CHARITY_DISPUTE_INVALID_STATE,
+) {}
+
+export class CharityPostVideoTooLongException extends ExceptionFrom(
+  CoreErrors.CHARITY_POST_VIDEO_TOO_LONG,
+) {}
+
+export class CharityAppealConflictOfInterestException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_CONFLICT_OF_INTEREST,
+) {}
+
+export class CharityAppealWindowClosedException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_WINDOW_CLOSED,
+) {}
+
+export class CharityAppealRateLimitedException extends ExceptionFrom(
+  CoreErrors.CHARITY_APPEAL_RATE_LIMITED,
+) {}

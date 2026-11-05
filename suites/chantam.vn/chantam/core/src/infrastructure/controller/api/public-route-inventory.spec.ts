@@ -53,6 +53,23 @@ const ExpectedPublicRoutes = [
   'GET /campaigns',
   'GET /campaigns/:idOrSlug',
   'GET /campaigns/:idOrSlug/needs',
+  // Bản công khai của dự án 4 giai đoạn: chỉ dự án đã duyệt; mục chưa công khai không lộ nháp.
+  'GET /charity-campaigns/:idOrSlug/public',
+  // Đợt 2 dự án từ thiện: changelog, thống kê tổng hợp, danh sách cảm xúc và bình luận —
+  // cùng quy tắc đọc với bản công khai (đã duyệt, không đình chỉ).
+  'GET /charity-campaigns/:idOrSlug/revisions',
+  'GET /charity-campaigns/:idOrSlug/public-stats',
+  'GET /charity-campaigns/:id/reactions',
+  'GET /charity-campaigns/:id/comments',
+  // Đợt 3: timeline sống, bài ảnh/clip và tương tác từng bài — cùng quy tắc đọc.
+  'GET /charity-campaigns/:idOrSlug/event-steps',
+  'GET /charity-campaigns/:idOrSlug/other-support-needs',
+  'GET /charity-campaigns/:idOrSlug/rounds',
+  'GET /charity-campaigns/:idOrSlug/posts',
+  'GET /charity-campaigns/:id/posts/:postId/reactions',
+  'GET /charity-campaigns/:id/posts/:postId/comments',
+  // Đợt 4a: card quảng bá dự án trên Home — chỉ card Admin bật, không có hồ sơ.
+  'GET /home/charity-cards',
   'GET /dharma/contents',
   'GET /dharma/contents/:idOrSlug',
   'GET /dharma/dedications',

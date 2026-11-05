@@ -42,6 +42,10 @@ const CounterTargets: Record<
   // Chưa có bảng — chỗ dành sẵn, và `null` ở đây khiến việc quên nối số đếm
   // trở thành một dòng đọc được thay vì một lỗi âm thầm.
   [ContentSubjectTypes.DHARMA_THREAD]: null,
+  // Dự án từ thiện và bài ảnh/clip của nó: đếm thẳng từ bảng gốc lúc đọc (như chủ đề Diễn
+  // đàn) — không có cột đếm nào để giữ.
+  [ContentSubjectTypes.CHARITY_CAMPAIGN]: null,
+  [ContentSubjectTypes.CHARITY_CAMPAIGN_POST]: null,
 };
 
 @Injectable()

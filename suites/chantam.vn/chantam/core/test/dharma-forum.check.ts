@@ -584,7 +584,14 @@ async function main(): Promise<void> {
              FROM pg_enum
             WHERE enumtypid = 'reports_target_type_enum'::regtype`,
         )
-      )[0].labels === 'CHAT_MESSAGE,COMMENT,DHARMA_THREAD,POST,USER',
+      )[0].labels
+        .split(',')
+        // Đủ các giá trị cũ cộng DHARMA_THREAD; migration sau (dự án từ thiện) thêm giá trị khác.
+        .filter((label) =>
+          ['CHAT_MESSAGE', 'COMMENT', 'DHARMA_THREAD', 'POST', 'USER'].includes(
+            label,
+          ),
+        ).length === 5,
       (
         await dataSource.query<{ labels: string }[]>(
           `SELECT string_agg(enumlabel, ',' ORDER BY enumlabel) AS labels

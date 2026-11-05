@@ -343,6 +343,72 @@ export enum ErrorCodes {
   CHARITY_MEDIA_NOT_EDITABLE = 0x13_1e,
   /** Xoá hoạt động đã có người tham gia / đóng góp / giao nhận / đánh giá. */
   CHARITY_CAMPAIGN_HAS_ACTIVITY = 0x13_1f,
+  // Dự án 4 giai đoạn (docs/plan/CHARITY-PROJECT-LIFECYCLE.md)
+  /** Gửi duyệt một dự án không còn là nháp. */
+  CHARITY_PROJECT_NOT_DRAFT = 0x13_20,
+  /** Chuyển giai đoạn sai thứ tự, chưa duyệt, hoặc lùi mà thiếu lý do. */
+  CHARITY_STAGE_TRANSITION_INVALID = 0x13_21,
+  /** Lùi giai đoạn nhưng lịch các bước sẽ đẩy nó tới ngay. */
+  CHARITY_STAGE_SCHEDULE_CONFLICT = 0x13_22,
+  /** Vượt số tài khoản nhận đang hiệu lực Admin cho phép. */
+  CHARITY_BANK_ACCOUNT_LIMIT = 0x13_23,
+  CHARITY_BANK_ACCOUNT_NOT_FOUND = 0x13_24,
+  CHARITY_FUNDING_NEED_NOT_FOUND = 0x13_25,
+  CHARITY_VOLUNTEER_NEED_NOT_FOUND = 0x13_26,
+  // 0x13_27 (CHARITY_VOLUNTEER_NOT_ELIGIBLE) bỏ 05/11: tham gia không cần đóng góp. Không dùng lại.
+  /** Vị trí đã đóng, đã bắt đầu, đã đủ người, hoặc bước trao đã bắt đầu. */
+  CHARITY_VOLUNTEER_CLOSED = 0x13_28,
+  CHARITY_VOLUNTEER_REGISTRATION_NOT_FOUND = 0x13_29,
+  CHARITY_SECTION_EMPTY = 0x13_2a,
+  CHARITY_PROJECT_INACTIVE = 0x13_2b,
+  CHARITY_PROJECT_FORBIDDEN = 0x13_2c,
+  CHARITY_PROJECT_NOT_APPROVED = 0x13_2d,
+  CHARITY_TASK_NOT_FOUND = 0x13_2e,
+  CHARITY_EXPORT_NOT_FOUND = 0x13_2f,
+  CHARITY_SECTION_NOT_PUBLISHED = 0x13_30,
+  CHARITY_EVENT_STEP_NOT_FOUND = 0x13_31,
+  CHARITY_POST_NOT_FOUND = 0x13_32,
+  CHARITY_POST_FORBIDDEN = 0x13_33,
+  CHARITY_POST_QUOTA_EXCEEDED = 0x13_34,
+  CHARITY_POST_MEDIA_INVALID = 0x13_35,
+  // 0x13_36 (CHARITY_EVENT_CONTRIBUTOR_NOT_ELIGIBLE) bỏ 05/11: quyền đăng theo check-in.
+  CHARITY_SUMMARY_NOT_OPEN = 0x13_37,
+  CHARITY_SUMMARY_FINANCIAL_REQUIRED = 0x13_38,
+  CHARITY_SUMMARY_EMPTY = 0x13_39,
+  CHARITY_FINANCIAL_REPORT_NOT_FOUND = 0x13_3a,
+  CHARITY_EVALUATION_TARGET_INVALID = 0x13_3b,
+  CHARITY_APPEAL_NOT_FOUND = 0x13_3c,
+  CHARITY_APPEAL_NOT_ALLOWED = 0x13_3d,
+  CHARITY_APPEAL_DUPLICATED = 0x13_3e,
+  CHARITY_APPEAL_INVALID_STATE = 0x13_3f,
+  CHARITY_APPEAL_CONFLICT_OF_INTEREST = 0x13_40,
+  CHARITY_APPEAL_WINDOW_CLOSED = 0x13_41,
+  CHARITY_APPEAL_RATE_LIMITED = 0x13_42,
+  CHARITY_PARTICIPATION_NOT_FOUND = 0x13_43,
+  /** Quyết định / check-in không hợp với trạng thái hiện tại của lượt tham gia. */
+  CHARITY_PARTICIPATION_INVALID_STATE = 0x13_44,
+  // Đợt 5b/5c (quyết định 05/11): hỗ trợ mở, đợt trao, hoàn tất dự án.
+  CHARITY_SUPPORT_NEED_NOT_FOUND = 0x13_45,
+  /** Hạng mục hỗ trợ đã đóng, hoặc dự án không còn nhận hỗ trợ. */
+  CHARITY_SUPPORT_NEED_CLOSED = 0x13_46,
+  /** Hạng mục đã có người nhận hỗ trợ — không xoá được, chỉ đóng. */
+  CHARITY_SUPPORT_NEED_IN_USE = 0x13_47,
+  CHARITY_SUPPORT_OFFER_NOT_FOUND = 0x13_48,
+  CHARITY_SUPPORT_OFFER_INVALID_STATE = 0x13_49,
+  CHARITY_ROUND_NOT_FOUND = 0x13_4a,
+  CHARITY_ROUND_INVALID_STATE = 0x13_4b,
+  /** Công khai tổng kết (hoàn tất dự án) khi còn việc chưa xong (§3.18). */
+  CHARITY_PROJECT_COMPLETION_BLOCKED = 0x13_4c,
+  /** Mã nguồn ngoài app trùng một dòng còn hiệu lực — chống đếm trùng. */
+  CHARITY_EXTERNAL_SOURCE_DUPLICATED = 0x13_4d,
+  CHARITY_DISPUTE_NOT_FOUND = 0x13_4e,
+  /** Không phải một bên của đóng góp, hoặc đóng góp chưa được chấp nhận. */
+  CHARITY_DISPUTE_NOT_ALLOWED = 0x13_4f,
+  /** Đóng góp đã có tranh chấp đang mở. */
+  CHARITY_DISPUTE_ALREADY_OPEN = 0x13_50,
+  CHARITY_DISPUTE_INVALID_STATE = 0x13_51,
+  /** Clip dài hơn `charity.post_max_video_seconds`. */
+  CHARITY_POST_VIDEO_TOO_LONG = 0x13_52,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

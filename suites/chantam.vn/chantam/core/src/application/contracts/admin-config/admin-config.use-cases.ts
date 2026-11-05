@@ -68,6 +68,28 @@ export const SupportedSystemConfigKeys = [
   'classified.legacy_transactions_enabled',
   // Chat trực tiếp với người dùng (30/10): số phòng MỚI một người mở được trong 24 giờ.
   'chat.direct_user_daily_limit',
+  // Dự án từ thiện 4 giai đoạn: số tài khoản nhận tiền đang hiệu lực tối đa mỗi dự án
+  // (Admin ghi đè từng dự án qua PATCH /admin/charity-campaigns/:id/limits).
+  'charity.max_bank_accounts_per_campaign',
+  'charity.post_daily_video_quota',
+  'charity.post_daily_image_quota',
+  'charity.points_cap.charity_item_value.daily',
+  'charity.points_cap.charity_item_value.project',
+  'charity.points_cap.charity_item_value.cycle',
+  'charity.points_cap.charity_post_video.daily',
+  'charity.points_cap.charity_post_video.project',
+  'charity.points_cap.charity_post_video.cycle',
+  'charity.points_cap.charity_post_image.daily',
+  'charity.points_cap.charity_post_image.project',
+  'charity.points_cap.charity_post_image.cycle',
+  'charity.points_cap.charity_participation.daily',
+  'charity.points_cap.charity_participation.project',
+  'charity.points_cap.charity_participation.cycle',
+  'charity.post_max_video_seconds',
+  'charity.post_after_event_hours',
+  'charity.appeal_window_days',
+  'charity.appeal_organizer_sla_days',
+  'charity.appeal_auto_close_days',
 ] as const;
 
 /**
@@ -112,6 +134,32 @@ export const SystemConfigValueRanges: Readonly<
   'leaderboard.badge_months': { min: 1, max: 2_147_483_647 },
   // `0` thì không ai mở được phòng trực tiếp mới — công tắc tắt khẩn khi bị spam.
   'chat.direct_user_daily_limit': { min: 0, max: 10_000 },
+  // Cột ghi đè `campaigns.max_bank_accounts` có CHECK 1..20 — cùng khoảng.
+  'charity.max_bank_accounts_per_campaign': { min: 1, max: 20 },
+  // 0 = tắt đăng loại media đó; khớp `normalizeCharityPostQuota`.
+  'charity.post_daily_video_quota': { min: 0, max: 100 },
+  'charity.post_daily_image_quota': { min: 0, max: 100 },
+  // Trần điểm dự án từ thiện (0 = không trần) — chạm trần thì HOÃN, không bỏ.
+  'charity.points_cap.charity_item_value.daily': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_item_value.project': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_item_value.cycle': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_post_video.daily': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_post_video.project': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_post_video.cycle': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_post_image.daily': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_post_image.project': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_post_image.cycle': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_participation.daily': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_participation.project': {
+    min: 0,
+    max: 1_000_000,
+  },
+  'charity.points_cap.charity_participation.cycle': { min: 0, max: 1_000_000 },
+  'charity.post_max_video_seconds': { min: 10, max: 600 },
+  'charity.post_after_event_hours': { min: 0, max: 720 },
+  'charity.appeal_window_days': { min: 1, max: 90 },
+  'charity.appeal_organizer_sla_days': { min: 1, max: 30 },
+  'charity.appeal_auto_close_days': { min: 1, max: 30 },
   'classified.legacy_transactions_enabled': { min: 0, max: 1 },
 };
 

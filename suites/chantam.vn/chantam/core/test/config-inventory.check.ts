@@ -54,6 +54,15 @@ import {
 import {
   AbusiveModerationCorpus,
   AllocationPolicyConfigKey,
+  CharityAppealAutoCloseDaysConfigKey,
+  CharityAppealOrganizerSlaDaysConfigKey,
+  CharityAppealWindowDaysConfigKey,
+  CharityMaxBankAccountsConfigKey,
+  CharityPointCapConfigKeys,
+  CharityPostAfterEventHoursConfigKey,
+  CharityPostDailyImageQuotaConfigKey,
+  CharityPostDailyVideoQuotaConfigKey,
+  CharityPostMaxVideoSecondsConfigKey,
   ChatRetentionConfigKey,
   GiftValueBonusMaxValueConfigKey,
   GiverAccuracyConfigKey,
@@ -131,6 +140,16 @@ const RequiredKeys: readonly string[] = [
   ClassifiedLegacyTransactionsConfigKey,
   // Chat trực tiếp (30/10) — `OpenDirectUserRoomUseCase` đọc.
   DirectUserDailyLimitConfigKey,
+  // Dự án từ thiện — `CharityProjectAccess.maxBankAccounts` đọc.
+  CharityMaxBankAccountsConfigKey,
+  CharityPostDailyImageQuotaConfigKey,
+  CharityPostDailyVideoQuotaConfigKey,
+  ...CharityPointCapConfigKeys,
+  CharityAppealWindowDaysConfigKey,
+  CharityPostAfterEventHoursConfigKey,
+  CharityPostMaxVideoSecondsConfigKey,
+  CharityAppealOrganizerSlaDaysConfigKey,
+  CharityAppealAutoCloseDaysConfigKey,
 ];
 
 /**

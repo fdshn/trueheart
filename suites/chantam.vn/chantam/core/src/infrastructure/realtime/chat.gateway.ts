@@ -24,6 +24,11 @@ function socketRoom(roomId: string): string {
 
 interface SocketData {
   principal: IAuthPrincipal;
+  /**
+   * Lượt xác thực lúc bắt tay. `room:join` gửi ngay khi nối có thể tới TRƯỚC khi xác thực
+   * (bất đồng bộ) xong — trước 05/11 lượt join đó bị trả `joined: false` tuỳ may rủi.
+   */
+  authenticated?: Promise<void>;
 }
 
 /**
@@ -66,7 +71,13 @@ export class ChatGateway
    * khẩu hay xoá tài khoản xong thì token cũ còn hạn nhưng phải chết ngay. Bỏ
    * bước tra danh sách thu hồi ở đây là mở một đường vào mà HTTP đã bịt.
    */
-  public async handleConnection(client: Socket): Promise<void> {
+  public handleConnection(client: Socket): Promise<void> {
+    const data = client.data as SocketData;
+    data.authenticated = this.authenticate(client);
+    return data.authenticated;
+  }
+
+  private async authenticate(client: Socket): Promise<void> {
     try {
       const token = this.extractToken(client);
       if (!token) return this.reject(client, 'thiếu access token');
@@ -100,6 +111,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { roomId?: unknown },
   ): Promise<{ joined: boolean }> {
+    await (client.data as SocketData).authenticated;
     const principal = (client.data as SocketData).principal;
     if (!principal) return { joined: false };
 

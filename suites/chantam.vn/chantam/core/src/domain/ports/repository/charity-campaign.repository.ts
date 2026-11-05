@@ -4,6 +4,7 @@ import {
   CharityCampaignType,
   CharityContributionStatus,
   CharityMediaType,
+  CharityOperationStage,
   CharityParticipationStatus,
   CharityRejectionReason,
   CharityReviewRole,
@@ -77,6 +78,20 @@ export interface ICharityCampaign {
   readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
   /** Lượt chấp nhận đề nghị được vượt mục tiêu từng dòng (§5). Mặc định `false`. */
   readonly allowOverTarget: boolean;
+  /**
+   * `null` = NHÁP (docs/plan/CHARITY-PROJECT-LIFECYCLE.md §3.1): chỉ người tạo thấy, Admin
+   * không thấy trong hàng đợi duyệt.
+   */
+  readonly submittedAt: Date | null;
+  /** Giai đoạn HIỆU LỰC lúc đọc (`effectiveOperationStage`) — mobile không tự suy từ ngày. */
+  readonly operationStage: CharityOperationStage;
+  /** Giai đoạn đã ghi xuống — job `charity:advance-stage` đưa cột này bắt kịp `operationStage`. */
+  readonly storedOperationStage: CharityOperationStage;
+  /** Bước trao (`campaign_phases.DISTRIBUTION`) — mốc nhảy sang EVENT và sang SUMMARY. */
+  readonly distribution: {
+    readonly startsAt: Date;
+    readonly endsAt: Date;
+  } | null;
 }
 
 /**
@@ -155,6 +170,8 @@ export interface ICreateCharityCampaignParams {
   readonly campaignType: CharityCampaignType;
   readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
   readonly allowOverTarget: boolean;
+  /** `false` = lưu NHÁP: `submitted_at` NULL, `approvalStatus` phải là PENDING_APPROVAL. */
+  readonly submitted: boolean;
   /** Người thụ hưởng, ghi cùng transaction. Chỉ có ở kêu gọi cho NGƯỜI KHÁC. */
   readonly beneficiary: ICharityBeneficiaryInput | null;
   /**
@@ -208,6 +225,11 @@ export interface ICharityContribution {
    */
   readonly deliveryId: string | null;
   readonly deliveryStatus: CharityDeliveryStatus | null;
+  /**
+   * Trạng thái tranh chấp mới nhất (§3.18, chốt 05/11): `OPEN` = đang tranh chấp — đóng góp
+   * không coi là xong cho tới khi giải quyết. `null` = chưa từng tranh chấp.
+   */
+  readonly disputeStatus?: 'OPEN' | 'RESOLVED' | 'WITHDRAWN' | null;
 }
 
 export type CharityDeliveryStatus = 'ACCEPTED' | 'COMPLETED' | 'CANCELLED';
@@ -288,6 +310,8 @@ export interface ICharityExternalContribution {
   readonly sourceLabel: string;
   readonly receivedAt: Date;
   readonly evidenceNote: string | null;
+  /** Mã chứng từ — duy nhất giữa các bản ghi còn hiệu lực của dự án (§3.18). */
+  readonly sourceReference: string | null;
   readonly recordedBy: string;
   readonly status: 'ACTIVE' | 'VOIDED';
   /** Bản ghi mà bản này THAY THẾ, khi đây là một lượt điều chỉnh. */
@@ -468,9 +492,10 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
   /**
    * Đăng ký tham gia.
    *
-   * `created: false` khi người đó đã đăng ký và vẫn đang `REGISTERED` — bên gọi đổi nó
-   * thành 409 thay vì im lặng coi như thành công. Một hàng `CANCELLED` thì được hồi lại
-   * `REGISTERED`, vì `UQ_campaign_participations_member` chỉ cho mỗi người một hàng.
+   * `created: false` khi người đó đã có lượt tham gia chưa huỷ (chờ duyệt, đã xác nhận, bị từ
+   * chối…) — bên gọi đổi nó thành 409 thay vì im lặng coi như thành công. Chỉ hàng `CANCELLED`
+   * được hồi lại `REGISTERED` (chờ duyệt), vì `UQ_campaign_participations_member` chỉ cho mỗi
+   * người một hàng.
    */
   register(params: {
     readonly campaignId: string;
@@ -598,7 +623,12 @@ export interface ICharityNeedsRepositoryPart {
   completeDelivery(params: {
     deliveryId: string;
     organizerId: string;
-    received: readonly { needItemId: string; receivedQuantity: number }[];
+    received: readonly {
+      needItemId: string;
+      receivedQuantity: number;
+      /** VNĐ ban tổ chức xác nhận (§3.9). Bỏ trống = số thực nhận × đơn giá của nhu cầu. */
+      confirmedValue?: number | null;
+    }[];
   }): Promise<ICharityDelivery>;
 
   /**
@@ -628,6 +658,7 @@ export interface ICharityNeedsRepositoryPart {
     sourceLabel: string;
     receivedAt: Date;
     evidenceNote: string | null;
+    sourceReference?: string | null;
   }): Promise<ICharityExternalContribution>;
 
   /**

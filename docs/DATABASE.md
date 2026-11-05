@@ -83,10 +83,10 @@ Ba hệ quả cần nhớ:
 | `chat_rooms_room_type_enum` | `TRANSACTION` · `DIRECT_POST` · `DIRECT_USER` |
 | `chat_rooms_status_enum` | `OPEN` · `READ_ONLY` |
 | `chat_flag_actions_enum` | `DISMISSED` · `MESSAGE_REMOVED` · `USER_WARNED` |
-| `content_subject_type_enum` | `POST` · `COMMENT` · `DHARMA_THREAD` |
+| `content_subject_type_enum` | `POST` · `COMMENT` · `DHARMA_THREAD` · `CHARITY_CAMPAIGN` · `CHARITY_CAMPAIGN_POST` |
 | `content_reaction_kind_enum` | `LIKE` · `LOVE` · `CARE` · `WOW` · `SAD` |
 | `content_comment_status_enum` | `VISIBLE` · `PENDING_REVIEW` · `HIDDEN` · `REMOVED` |
-| `reports_target_type_enum` | `POST` · `USER` · `COMMENT` · `CHAT_MESSAGE` · `DHARMA_THREAD` |
+| `reports_target_type_enum` | `POST` · `USER` · `COMMENT` · `CHAT_MESSAGE` · `DHARMA_THREAD` · `CHARITY_CAMPAIGN` · `CHARITY_CAMPAIGN_POST` |
 | `reports_reason_enum` | `SCAM` · `PROHIBITED_ITEM` · `INAPPROPRIATE_CONTENT` · `HARASSMENT` · `MISLEADING` · `OTHER` |
 | `reports_status_enum` | `PENDING` · `IN_REVIEW` · `RESOLVED` · `DISMISSED` |
 | `groups_status_enum` / `group_membership_statuses_enum` | `ACTIVE` · `DISSOLVED` |
@@ -148,7 +148,16 @@ users ──┬──< user_sessions · verified_phones · user_blocks (blocker/
         │                ├──< campaign_deliveries ──< campaign_delivery_items
         │                ├──< campaign_external_contributions · campaign_coordinators
         │                ├──< campaign_schedule_changes · campaign_reviews
-        │                └──  campaign_beneficiaries (1–1)
+        │                ├──< campaign_parties (gộp bên thụ hưởng) · campaign_bank_accounts
+        │                ├──< campaign_team_members · campaign_phases · campaign_stage_events
+        │                ├──< campaign_funding_needs · campaign_volunteer_needs ──< campaign_volunteer_registrations
+        │                ├──< campaign_section_states · campaign_custom_sections ──< campaign_custom_fields
+        │                ├──< campaign_revisions · campaign_tasks · campaign_follows · campaign_announcements · campaign_exports
+        │                ├──< campaign_event_steps · campaign_posts ──< campaign_post_media · campaign_post_uploads
+        │                ├──< campaign_distribution_rounds (participations/deliveries/event_steps.round_id)
+        │                ├──< campaign_other_support_needs ──< campaign_other_support_offers
+        │                ├──  campaign_summaries (1–1) · campaign_financial_reports · campaign_participant_evaluations
+        │                └──< campaign_point_awards · campaign_appeals ──< campaign_appeal_events
         ├──< merit_units (created_by) ──< merit_declarations
         └──< dharma_contents ──< dharma_recitations ──< dharma_dedications
              dharma_threads (author)
@@ -206,6 +215,7 @@ chỉ thêm một join cho mọi truy vấn.
 | `intro_video_url` / `intro_video_thumbnail_url` | `varchar(500)` NULL | `CHK_users_intro_video_thumbnail`: có thumbnail thì phải có video |
 | `email_visibility` / `phone_visibility` | `varchar(10)` NOT NULL mặc định `'PRIVATE'` | `CHK_users_email_visibility` / `CHK_users_phone_visibility`: `IN ('PRIVATE','PUBLIC')` |
 | `show_online_status` | `boolean` NOT NULL mặc định `false` | Cho người khác thấy đang online (`1802000000000`) |
+| `show_in_public_supporter_lists` | `boolean` NOT NULL mặc định `false` | Mặc định hiện nickname trong danh sách công khai của dự án từ thiện (`1802700000000`, §3.17) |
 | `allow_stranger_messages` | `boolean` NOT NULL mặc định `true` | "Cho phép người lạ nhắn tin" — chặn mở phòng `DIRECT_USER` từ người lạ (`1802200000000`) |
 
 **Chỉ mục danh tính dùng `LOWER()`**, không phải cột thô:
@@ -423,7 +433,11 @@ Seed ban đầu: `PHONE_VERIFIED_FIRST_TIME` = 28 điểm (không cap), `REFERRA
 (cap 3/ngày). Các migration sau thêm `GIFT_COMPLETED_GIVER` (56, cap 10), `GIFT_COMPLETED_RECEIVER`
 (28, cap 5), `ONBOARDING_COMPLETED` (224), `POST_REACTED`, `POST_COMMENTED`, `REPORT_UPHELD`, hai
 luật phạt `SHIP_UNPAID_PENALTY` / `CONTENT_VIOLATION_PENALTY` (−50) và
-`CHARITY_CONTRIBUTION_COMPLETED` (10, **tắt**). Danh sách đúng: `SELECT code, version, points,
+`CHARITY_CONTRIBUTION_COMPLETED` (10, **tắt**), và (`1802800000000`) bốn rule dự án từ thiện
+`CHARITY_ITEM_VALUE` (1 / 10.000đ), `CHARITY_POST_VIDEO` (3), `CHARITY_POST_IMAGE` (2 — mức chốt
+05/11, `1802900000000`),
+`CHARITY_PARTICIPATION` (100 × mức hoàn thành / 100) — đều **tắt**, trần ở `system_configs`
+`charity.points_cap.*`. Danh sách đúng: `SELECT code, version, points,
 daily_cap, is_enabled FROM point_rules`.
 
 ### `point_ledger` — sổ cái, **chỉ ghi thêm**
@@ -940,7 +954,7 @@ WHERE reviewed_at IS NULL` và `(sender_id, created_at DESC)`.
 | `id` / `global_id` | `SERIAL` PK / `uuid` UNIQUE | |
 | `created_at` / `updated_at` | `timestamptz` | |
 | `reporter_user_id` | `uuid` | FK → `users(global_id)` |
-| `target_type` / `target_id` | `reports_target_type_enum` / `uuid` | `POST` · `USER` · `COMMENT` · `CHAT_MESSAGE` · `DHARMA_THREAD`. **Không FK** |
+| `target_type` / `target_id` | `reports_target_type_enum` / `uuid` | `POST` · `USER` · `COMMENT` · `CHAT_MESSAGE` · `DHARMA_THREAD` · `CHARITY_CAMPAIGN` · `CHARITY_CAMPAIGN_POST`. **Không FK** |
 | `reason` | `reports_reason_enum` | |
 | `description` | `varchar(1000)` | |
 | `evidence_urls` | `jsonb` mặc định `'[]'` | `CK_reports_evidence_array`: phải là mảng |
@@ -955,7 +969,7 @@ mỗi đích. Index `(status, created_at)` và `(target_type, target_id, status)
 ## 11. Tương tác nội dung (feed)
 
 Bốn bảng `content_*` (`1791500000000`) dùng chung cho mọi "chủ thể" qua cặp
-`subject_type` (`content_subject_type_enum`: `POST` · `COMMENT` · `DHARMA_THREAD`) +
+`subject_type` (`content_subject_type_enum`: `POST` · `COMMENT` · `DHARMA_THREAD` · `CHARITY_CAMPAIGN` · `CHARITY_CAMPAIGN_POST`) +
 `subject_id` uuid — **đa hình, không có FK tới chủ thể**. Bộ đếm denormalized nằm ở
 `posts.*_count` và `content_comments.reply_count` / `reaction_count`.
 
@@ -1028,21 +1042,50 @@ khai dùng chung danh sách cột).
 
 | Bảng | Cột / ràng buộc chính |
 | --- | --- |
-| `campaigns` | `id`, `global_id`, `title`, `slug` UNIQUE (kebab-case), `description` (`>= 10` ký tự), `banner_url` (`https?://`), `badge_name`, `target_items_count` (0–1 000 000), `current_items_count`, `location` geography (GiST) + `location_label`, `start_time` < `end_time`, `is_active`, `approval_status` `PENDING_APPROVAL` · `APPROVED` · `REJECTED` (cặp với `approved_at`), `approval_note`, `approved_by`, `created_by` (FK SET NULL), `campaign_type` `INDIVIDUAL_APPEAL` · `ORGANIZED_CAMPAIGN`, `beneficiary_relation` (`SELF`/`OTHER`, chỉ và bắt buộc với `INDIVIDUAL_APPEAL`), `allow_over_target`, timestamps, `deleted_at` |
-| `campaign_need_items` | `global_id`, `campaign_id` (CASCADE), `category_id` (FK → `categories` SET NULL), `item_name`, `description`, `unit`, `target_quantity` (1–1 000 000), `allow_alternative`, projection `accepted_quantity` / `received_quantity`, `sort_order`, `is_active`; UNIQUE `(campaign_id, item_name, unit)` |
-| `campaign_contributions` | `global_id`, `campaign_id` (CASCADE), `contributor_id` (RESTRICT), `status` `PENDING_REVIEW` · `PARTIALLY_ACCEPTED` · `ACCEPTED` · `REJECTED` · `WITHDRAWN`, `note`, `contact_note`, `decided_at` / `decided_by` (có ⇔ đã quyết), `decision_key`, `withdrawn_at` (có ⇔ `WITHDRAWN`) |
+| `campaigns` | `id`, `global_id`, `title`, `slug` UNIQUE (kebab-case), `description` (`>= 10` ký tự), `banner_url` (`https?://`), `badge_name`, `target_items_count` (0–1 000 000), `current_items_count`, `location` geography (GiST) + `location_label`, `start_time` < `end_time`, `is_active`, `approval_status` `PENDING_APPROVAL` · `APPROVED` · `REJECTED` (cặp với `approved_at`), `approval_note`, `approved_by`, `created_by` (FK SET NULL), `campaign_type` `INDIVIDUAL_APPEAL` · `ORGANIZED_CAMPAIGN`, `beneficiary_relation` (`SELF`/`OTHER`, chỉ và bắt buộc với `INDIVIDUAL_APPEAL`), `allow_over_target`, timestamps, `deleted_at`. **Từ `1802400000000`:** `submitted_at` (NULL = nháp, mặc định `now()`; `CHK_campaigns_draft_undecided`: nháp luôn `PENDING_APPROVAL`), `operation_stage` `PLAN`·`EXECUTION`·`EVENT`·`SUMMARY` (`CHK_campaigns_stage_needs_approval`; **trigger `campaigns_operation_stage_sync`** đưa hàng đã duyệt mà còn `PLAN` sang `EXECUTION`, hàng chưa duyệt về `PLAN`), `appeal_purpose`/`appeal_audience`/`appeal_circumstance`, `call_to_actions text[]` (`LIKE`/`SUPPORT_AND_DONATE`/`JOIN`), `max_bank_accounts` (ghi đè của Admin, 1–20). `IDX_campaigns_pending` loại nháp. **Từ `1802700000000`:** card Home `featured_on_home` (bật cần `featured_title` + `featured_cta` `VIEW`·`SUPPORT`·`JOIN`), `featured_message`, `featured_media_url`, `featured_from` < `featured_until`, `featured_priority`; đề xuất `promotion_requested_at`, `promotion_request_note` |
+| `campaign_need_items` | `global_id`, `campaign_id` (CASCADE), `category_id` (FK → `categories` SET NULL), `item_name`, `description`, `unit`, `target_quantity` (1–1 000 000), `allow_alternative`, projection `accepted_quantity` / `received_quantity` (gộp cả nhập ngoài app), `sort_order`, `is_active`; UNIQUE `(campaign_id, item_name, unit)`. **Từ `1802400000000`:** `unit_price`, `estimated_value` (VNĐ), `item_condition` `NEW`·`USED`·`ANY`·`OTHER`, `condition_note`, `supply_source` `PURCHASE`·`DONATION`·`MIXED`, `intake_deadline`, `dropoff_address`, `delivery_instruction`, `receiver_name`/`receiver_phone` (không công khai), `intake_status` `OPEN`/`CLOSED`, `surplus_explanation` |
+| `campaign_contributions` | `global_id`, `campaign_id` (CASCADE), `contributor_id` (RESTRICT), `status` `PENDING_REVIEW` · `PARTIALLY_ACCEPTED` · `ACCEPTED` · `REJECTED` · `WITHDRAWN`, `note`, `contact_note`, `decided_at` / `decided_by` (có ⇔ đã quyết), `decision_key`, `withdrawn_at` (có ⇔ `WITHDRAWN`). **Từ `1802700000000`:** `show_name_publicly` (mặc định `false`, §3.17) |
 | `campaign_contribution_items` | `global_id`, `contribution_id` (CASCADE), `need_item_id` (RESTRICT), `offered_quantity`, `accepted_quantity` (≤ offered), `condition_note`, `rejection_reason` (7 mã, chỉ khi nhận thiếu); UNIQUE `(contribution_id, need_item_id)` |
 | `campaign_deliveries` | `global_id`, `campaign_id`, `contribution_id` **UNIQUE**, `contributor_id` ≠ `organizer_id`, `status` `ACCEPTED` · `COMPLETED` · `CANCELLED` (cặp với `completed_*` / `cancelled_*` + `cancel_reason`) |
 | `campaign_delivery_items` | `delivery_id` (CASCADE), `contribution_item_id`, `need_item_id`, `accepted_quantity > 0`, `received_quantity` (≤ accepted); UNIQUE `(delivery_id, need_item_id)` |
-| `campaign_external_contributions` | Đóng góp ngoài app do ban tổ chức ghi: `need_item_id`, `quantity`, `source_label`, `received_at`, `evidence_note`, `recorded_by`, `status` `ACTIVE`/`VOIDED` (+ `voided_*`, `void_reason`), `replaces_id` UNIQUE (tự tham chiếu). **Trigger `campaign_external_contributions_immutable`**: cấm DELETE, chỉ cho `ACTIVE → VOIDED` và chỉ đổi các cột huỷ |
-| `campaign_participations` | `global_id`, `campaign_id`, `user_id` (CASCADE), `status` `REGISTERED`/`CANCELLED` (cặp với `cancelled_at`), `registered_at`; UNIQUE `(campaign_id, user_id)` |
+| `campaign_external_contributions` | Đóng góp ngoài app do ban tổ chức ghi: `need_item_id`, `quantity`, `source_label`, `received_at`, `evidence_note`, `recorded_by`, `status` `ACTIVE`/`VOIDED` (+ `voided_*`, `void_reason`), `replaces_id` UNIQUE (tự tham chiếu). **Từ `1803000000000`:** `source_reference` (mã chứng từ) duy nhất theo `(campaign_id, lower(btrim()))` giữa dòng `ACTIVE`; bằng chứng bắt buộc ở tầng ứng dụng. **Trigger `campaign_external_contributions_immutable`**: cấm DELETE, chỉ cho `ACTIVE → VOIDED` và chỉ đổi các cột huỷ |
+| `campaign_participations` | `global_id`, `campaign_id`, `user_id` (CASCADE), `status` `REGISTERED`/`CANCELLED` (cặp với `cancelled_at`), `registered_at`; UNIQUE `(campaign_id, user_id)`. **Từ `1802700000000`:** `show_name_publicly` (mặc định `false`). **Từ `1802900000000`** (vòng đời participant, chốt 05/11): `status` thêm `CONFIRMED` · `WAITLISTED` · `REJECTED` · `CHECKED_IN` · `COMPLETED` · `NO_SHOW` (`REGISTERED` = chờ duyệt), `status_changed_at`/`_by`/`status_reason`, `checked_in_at`/`_by` (bắt buộc khi `CHECKED_IN`/`COMPLETED`); index phần theo trạng thái còn hiệu lực. `campaign_event_contributors` (đợt 3) bị gỡ — quyền đăng theo check-in |
 | `campaign_coordinators` | `campaign_id`, `user_id`, `granted_by` (≠ `user_id`), `granted_at`, `revoked_at` / `revoked_by`; `UQ_campaign_coordinators_active` một phần `WHERE revoked_at IS NULL` |
-| `campaign_beneficiaries` | PK `campaign_id` (1–1, CASCADE), `full_name`, `relation_note`, `phone`, `address`, `consent_status` `PENDING`/`CONFIRMED`, `verification_note`, `updated_by` — dữ liệu riêng tư |
+| ~~`campaign_beneficiaries`~~ | **Đã gộp vào `campaign_parties` và xoá** ở `1802400000000` (chốt §7.5 của CHARITY-PROJECT-LIFECYCLE). Người thụ hưởng của kêu gọi cá nhân là dòng `is_appeal_subject` |
+| `campaign_parties` | `global_id`, `campaign_id` (CASCADE), `role` `ORGANIZER`·`BENEFICIARY`·`LICENSING`·`MEDIA`, `name`, `address`, `phone`, `email`, `hotline`, `pic_name`/`pic_phone`/`pic_user_id`, `beneficiary_kind` `INDIVIDUAL`/`GROUP` (có ⇔ `BENEFICIARY`), `is_appeal_subject` (người thụ hưởng kêu gọi cá nhân — **riêng tư**; kèm `relation_note`, `consent_status`, `verification_note`; `UQ_campaign_parties_appeal_subject` một dòng mỗi chiến dịch), `evidence_urls` jsonb (≤ 10), `sort_order` |
+| `campaign_bank_accounts` | Có phiên bản — không sửa số tại chỗ: `global_id`, `campaign_id`, `label`, `bank_name`, `account_no`, `account_name`, `valid_from`, `valid_to` (NULL = đang hiệu lực; cặp với `close_reason`), `created_by`, `closed_by`. Số tài khoản đang hiệu lực ≤ `campaigns.max_bank_accounts` hoặc `charity.max_bank_accounts_per_campaign` (đếm dưới khoá hàng dự án) |
+| `campaign_team_members` | Ban tổ chức (công khai): `role` `GENERAL_LEAD`·`LIAISON_MEDIA`·`INTAKE_LOGISTICS`·`FINANCE`·`ADVANCE_TRANSPORT`·`REPORTING`, `display_name`, liên hệ, `position`, `user_id` (tài khoản Chân Tâm), `bank_account_id` |
+| `campaign_phases` | PK `(campaign_id, phase)` `PLANNING`·`PREPARATION`·`DISTRIBUTION`·`REPORTING`, `starts_at` < `ends_at`, `pic_*`, `hotline`, `delivery_method` (chỉ `DISTRIBUTION`), `report_mode` (chỉ `REPORTING`). `DISTRIBUTION.starts_at`/`ends_at` là mốc sang `EVENT`/`SUMMARY` |
+| `campaign_stage_events` | Nhật ký chuyển giai đoạn: `from_stage` ≠ `to_stage`, `actor_id` (NULL = hệ thống), `reason`, `created_at`. **Trigger append-only** |
+| `campaign_funding_needs` | Kêu gọi tiền (app không giữ tiền): `title`, `description`, `beneficiary_party_id` → `campaign_parties`, `receiving_unit`, `bank_account_id`, `target_amount` > 0, `confirmed_amount`, `external_amount`, `deadline`, `status` `OPEN`/`CLOSED` |
+| `campaign_volunteer_needs` | Tuyển người: `title`, `description`, `requirements`, `needed_count` 1–100 000, `starts_at`/`ends_at`, `location_label`, `status` `OPEN`·`CLOSED`·`STARTED` |
+| `campaign_volunteer_registrations` | `volunteer_need_id`, `user_id`, `status` `REGISTERED`·`CONFIRMED`·`CANCELLED` (cặp `confirmed_at` / `cancelled_at`), `note`; `UQ_campaign_volunteer_registrations_live` một phần `WHERE status <> 'CANCELLED'` |
+| `campaign_section_states` | PK `(campaign_id, section_key)` theo 4 mục, `saved_at`, `published_at` + `published_snapshot` jsonb (có cùng nhau) — bản công khai chỉ đọc bản chụp |
+| `campaign_custom_sections` / `campaign_custom_fields` | Form mở: mục (`parent_section`, `title`, `visibility` `PUBLIC`·`PARTICIPANT`·`ORGANIZER_ONLY`·`ADMIN_ONLY`) và trường (`label`, `field_type` 8 loại, `visibility`, `required`, `options` jsonb, `value` jsonb) |
+| `campaign_revisions` | **Từ `1802500000000`.** Lịch sử sửa sau khi duyệt (chữ đỏ, §3.3): `entity` 9 loại (`CAMPAIGN`·`PARTY`·`TEAM`·`PHASE`·`NEED_ITEM`·`BANK_ACCOUNT`·`FUNDING_NEED`·`VOLUNTEER_NEED`·`TASK`), `entity_id`, `field` (`*` = cả dòng thêm/xoá), `old_value`/`new_value` jsonb, `is_public` (changelog công khai lọc theo cờ này), `is_important` (đã báo người theo dõi), `changed_by`, `reason`. Ghi CÙNG transaction với lượt sửa. **Trigger append-only** |
+| `campaign_tasks` | Checklist tab B: UNIQUE `(campaign_id, task_key)` 7 việc, `scheduled_at`, `work_note`, `remark` (nội bộ), `pic_name`/`pic_user_id`, `update_mode` `ONLINE`/`ON_SITE`, `status` `TODO`·`IN_PROGRESS`·`DONE`·`SKIPPED`. Tạo idempotent ở lượt mở đầu tiên sau khi duyệt |
+| `campaign_follows` | "Quan tâm": PK `(campaign_id, user_id)` — nhận thông báo theo dự án |
+| `campaign_announcements` | Outbox thông báo theo dự án: `kind` `STAGE_CHANGED`·`PLAN_CHANGED`·`PRE_EVENT`·`SUMMARY_PUBLISHED`, `payload` jsonb (chỉ tên field, không giá trị), `dedupe_key` (UNIQUE một phần cùng `campaign_id, kind` — nhắc 48 giờ theo mốc trao), `processed_at` cặp `recipient_count`. Job `charity:notify` khoá `FOR UPDATE SKIP LOCKED` |
+| `campaign_exports` | Bản in: `section_key` (NULL = cả dự án), `snapshot` jsonb (nội dung công khai lúc tạo), `last_revision_id`, `generated_by`, `generated_at` — PDF luôn dựng lại từ bản chụp |
+| `campaign_event_steps` | **Từ `1802600000000`.** Timeline tab C: 10 bước, duy nhất theo `(campaign_id, COALESCE(round_id, 0…), step_key)` từ `1803000000000` (`round_id` = đợt trao, NULL = timeline chung), `planned_at`, `actual_at`, `status` `PENDING`·`IN_PROGRESS`·`DONE` (`DONE` bắt buộc có `actual_at`), `note` |
+| `campaign_posts` | Bài ảnh/clip: `author_id`, `author_role` `ORGANIZER`·`COORDINATOR`·`PARTICIPANT`, `stage` lúc đăng, `body` ≤ 2000, `deleted_at`/`deleted_by` (gỡ), `hidden_at` cặp `hidden_reason` (Admin ẩn qua báo xấu). Index một phần cho bài đang hiện |
+| `campaign_post_media` | `post_id` (CASCADE), `storage_key` UNIQUE, `public_url`, `media_type` `IMAGE`/`VIDEO`, `sort_order` — nguồn khoá "đang dùng" của job dọn media. **Từ `1803100000000`:** `duration_seconds` (1–3600, chép từ lượt ký) |
+| `campaign_post_uploads` | Lượt ký đường tải = suất quota: `campaign_id`, `user_id`, `storage_key` UNIQUE, `media_type`, `created_at`, `consumed_at` (đăng bài thì tiêu, một lần). Đếm theo ngày giờ Việt Nam dưới khoá advisory người + dự án. **Từ `1803100000000`:** `duration_seconds` — độ dài clip client khai, đã kiểm ≤ `charity.post_max_video_seconds` |
+| `campaign_summaries` | **Từ `1802700000000`.** PK `campaign_id`: `summary`, `usage_report`, `thanks_message`, `lessons_learned`, `evidence_urls` jsonb (≤ 20), `published_at` (NULL = nháp) |
+| `campaign_financial_reports` | `period_from` ≤ `period_to` (date), `total_income`/`total_expense` ≥ 0 (VNĐ), `balance` cột sinh = thu − chi, `explanation` không trống, `statement_urls` jsonb 1–20 |
+| `campaign_participant_evaluations` | Chấm mức hoàn thành: `participant_id`, `completion_score` 0–100, `note` (nội bộ), `evaluated_by`, `source` `ORGANIZER`·`APPEAL`·`ADMIN`. **Trigger append-only** — dòng mới nhất là điểm hiện hành |
+| `campaign_contribution_disputes` | **Từ `1803100000000`.** Tranh chấp đóng góp (§3.18): `contribution_id`, `opened_by`, `opened_by_party` `CONTRIBUTOR`/`ORGANIZER`, `reason` (`NOT_DELIVERED`·`QUANTITY_MISMATCH`·`QUALITY_ISSUE`·`VALUE_MISMATCH`·`OTHER`), `description` (≥ 10), `evidence_urls`, `status` `OPEN`·`RESOLVED`·`WITHDRAWN` (đóng ⇔ có `closed_at`; giải quyết bắt buộc `resolution`), `closed_by`. Index duy nhất một phần: mỗi đóng góp tối đa một tranh chấp `OPEN` |
+| `campaign_other_support_needs` | **Từ `1803000000000`.** Hỗ trợ mở (§3.11): `support_type` (`TRANSPORT`·`LABOR`·`SKILL_SERVICE`·`VENUE`·`EQUIPMENT`·`MEAL_ACCOMMODATION`·`COMMUNICATION`·`OTHER`), `title`, `unit`, `target_quantity ≥ 1`, thời gian, địa điểm, yêu cầu, `handover_method`, PIC (`pic_phone` riêng tư), `external_quantity` + `external_evidence_urls` (CHECK: > 0 thì phải có bằng chứng), `status` `OPEN`/`CLOSED` |
+| `campaign_other_support_offers` | **Từ `1803000000000`.** Một lần nhận hỗ trợ: `need_id`, `user_id`, `quantity`, `status` `PENDING`·`ACCEPTED`·`REJECTED`·`COMPLETED`·`WITHDRAWN`, `completed_quantity` (bắt buộc khi `COMPLETED`, ≤ `quantity`), `decided_*`, `decision_reason`. Có offer thì không xoá hạng mục |
+| `campaign_distribution_rounds` | **Từ `1803000000000`.** Đợt trao (§3.18): `title`, `location_label`, `address`, `starts_at`/`ends_at`, `status` `PLANNED`·`DONE`·`CANCELLED` (huỷ bắt buộc `status_reason`), `readiness` `PENDING`·`READY`·`NOT_READY` (chưa sẵn sàng bắt buộc `readiness_note`), `checklist jsonb`, `readiness_by/at`. `campaign_participations.round_id`, `campaign_deliveries.round_id` (SET NULL), `campaign_event_steps.round_id` (CASCADE). `campaign_announcements.kind` thêm `ROUND_CHANGED` |
+| `campaign_point_awards` | **Từ `1802800000000`.** Điểm dự án "nên được" theo (rule, đối tượng, người): UNIQUE `(rule_code, reference_type, reference_id, user_id)`, `target_points`, `applied_points` (đã ghi sổ), `ledger_seq` (khoá chống trùng bút toán `CHARITY_AWARD:<id>:<seq>`), `reason`. Chênh ≠ 0 = đang hoãn / chờ ghi (index một phần) |
+| `campaign_appeals` | Khiếu nại: `appellant_id`, `target_type` `EVALUATION`/`ITEM_VALUE`, `target_id` (UNIQUE cùng loại — một khiếu nại mỗi đối tượng), `original_value`, `requested_value`, `description`, `evidence_urls`, `status` `ORGANIZER_REVIEW`·`AWAITING_APPELLANT`·`ADMIN_REVIEW`·`CLOSED` (đóng ⇔ có `closed_at` + `outcome`), `tier` 1/2, quyết định ban tổ chức (`organizer_*`) và Admin (`admin_*`), `organizer_due_at`, `appellant_due_at` |
+| `campaign_appeal_events` | Nhật ký khiếu nại: `actor_id` (NULL = job), `action`, `from_status` → `to_status`, `value`, `reason`. **Trigger append-only** |
 | `campaign_media` | `campaign_id` (CASCADE), `storage_key` UNIQUE, `public_url`, `media_type` `IMAGE`/`VIDEO`, `sort_order` 0–4 (UNIQUE theo chiến dịch), `is_cover` (chỉ ảnh; `UQ_campaign_media_one_cover`) |
 | `campaign_schedule_changes` | `campaign_id`, `previous_end_time` < `new_end_time` (chỉ gia hạn), `changed_by`, `reason`, `created_at`. **Trigger append-only** |
 | `campaign_reviews` | `global_id`, `campaign_id`, `reviewer_id` ≠ `reviewee_id`, `reviewer_role` `ORGANIZER`/`PARTICIPANT`, `rating` 1–5, `comment`; UNIQUE `(campaign_id, reviewer_id, reviewee_id)` |
 
-Điểm thưởng đóng góp đi qua `point_ledger` với rule `CHARITY_CONTRIBUTION_COMPLETED` (seed **tắt**).
+Điểm thưởng đóng góp đi qua `point_ledger` với rule `CHARITY_CONTRIBUTION_COMPLETED` (seed **tắt**). Từ `1802800000000`: `campaign_delivery_items.confirmed_value` (VNĐ ban tổ chức xác nhận, ≥ 0) và `campaign_deliveries.confirmed_value_adjusted` (tổng sau khiếu nại) — căn cứ `CHARITY_ITEM_VALUE`.
 
 ---
 

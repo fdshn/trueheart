@@ -30,6 +30,8 @@ import {
 } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
+  ICharityCampaignRepository,
+  ICharityEventRepository,
   IContentComment,
   IContentCommentRepository,
   IDharmaRepository,
@@ -65,6 +67,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { toPublicAuthorSummary } from '../shared/public-author';
 import { withStorageValidation } from '../shared/storage-error';
+import { assertCharitySubjectVisible } from './charity-subject';
 import { isNotifiableSubject, notifyComment } from './feed-notifications';
 import { awardCommentPoint } from './feed-points';
 import { assertThreadReadable } from './thread-visibility';
@@ -185,6 +188,12 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
     private readonly throttle: IRequestThrottle,
     @Inject(IAppendPointEntryUseCase)
     private readonly points: IAppendPointEntryUseCase,
+    // Dự án từ thiện là chủ thể tương tác (§3.7). Tuỳ chọn để các spec dựng tay không phải
+    // đổi; Nest luôn tiêm.
+    @Inject(ICharityCampaignRepository)
+    private readonly charityCampaigns?: ICharityCampaignRepository,
+    @Inject(ICharityEventRepository)
+    private readonly charityEvents?: ICharityEventRepository,
   ) {}
 
   public async handle(
@@ -237,6 +246,14 @@ export class CreateCommentUseCase implements ICreateCommentUseCase {
         throw new DharmaThreadLockedException();
       postAuthorId = thread.authorId;
     }
+
+    // Dự án từ thiện (§3.7): phải đang hiện ra ngoài; chủ dự án nhận thông báo.
+    const charity = await assertCharitySubjectVisible(
+      { campaigns: this.charityCampaigns, events: this.charityEvents },
+      command.subjectType,
+      command.subjectId,
+    );
+    if (charity) postAuthorId = charity.authorId;
 
     // Trả lời phải trỏ vào một bình luận CÓ THẬT của ĐÚNG chủ thể này. Thiếu
     // phép kiểm thứ hai thì trả lời được xuyên bài: bình luận hiện dưới bài A
@@ -412,6 +429,12 @@ export class ListCommentsUseCase implements IListCommentsUseCase {
     @Inject(IContentCommentRepository)
     private readonly comments: IContentCommentRepository,
     @Inject(IDharmaRepository) private readonly dharma: IDharmaRepository,
+    // Dự án từ thiện là chủ thể tương tác (§3.7). Tuỳ chọn để các spec dựng tay không phải
+    // đổi; Nest luôn tiêm.
+    @Inject(ICharityCampaignRepository)
+    private readonly charityCampaigns?: ICharityCampaignRepository,
+    @Inject(ICharityEventRepository)
+    private readonly charityEvents?: ICharityEventRepository,
   ) {}
 
   public async handle(
@@ -419,6 +442,11 @@ export class ListCommentsUseCase implements IListCommentsUseCase {
   ): Promise<IListCommentsResult> {
     await assertThreadReadable(
       this.dharma,
+      command.subjectType,
+      command.subjectId,
+    );
+    await assertCharitySubjectVisible(
+      { campaigns: this.charityCampaigns, events: this.charityEvents },
       command.subjectType,
       command.subjectId,
     );
@@ -462,6 +490,12 @@ export class ListCommentRepliesUseCase implements IListCommentRepliesUseCase {
     @Inject(IContentCommentRepository)
     private readonly comments: IContentCommentRepository,
     @Inject(IDharmaRepository) private readonly dharma: IDharmaRepository,
+    // Dự án từ thiện là chủ thể tương tác (§3.7). Tuỳ chọn để các spec dựng tay không phải
+    // đổi; Nest luôn tiêm.
+    @Inject(ICharityCampaignRepository)
+    private readonly charityCampaigns?: ICharityCampaignRepository,
+    @Inject(ICharityEventRepository)
+    private readonly charityEvents?: ICharityEventRepository,
   ) {}
 
   public async handle(
@@ -470,12 +504,18 @@ export class ListCommentRepliesUseCase implements IListCommentRepliesUseCase {
     // Đường trả lời không mang chủ thể, nên phải hỏi bình luận cha nó thuộc về đâu —
     // không thì trả lời của một chủ đề đã ẩn vẫn đọc được ở đây.
     const parent = await this.comments.findByGlobalId(command.commentId);
-    if (parent)
+    if (parent) {
       await assertThreadReadable(
         this.dharma,
         parent.subjectType,
         parent.subjectId,
       );
+      await assertCharitySubjectVisible(
+        { campaigns: this.charityCampaigns, events: this.charityEvents },
+        parent.subjectType,
+        parent.subjectId,
+      );
+    }
 
     const limit = clampChatMessageLimit(command.limit);
     const page = await this.comments.listReplies({

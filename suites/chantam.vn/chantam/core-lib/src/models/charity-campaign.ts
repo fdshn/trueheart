@@ -72,11 +72,71 @@ export const CharityApprovalStatusLabels: Readonly<
  */
 export const CharityParticipationStatuses = [
   'REGISTERED',
+  'CONFIRMED',
+  'WAITLISTED',
+  'REJECTED',
+  'CHECKED_IN',
+  'COMPLETED',
+  'NO_SHOW',
   'CANCELLED',
 ] as const;
 
 export type CharityParticipationStatus =
   (typeof CharityParticipationStatuses)[number];
+
+/**
+ * Vòng đời participant (CHARITY-PROJECT-LIFECYCLE §3.11, chốt 05/11): `REGISTERED` là đã đăng
+ * ký, CHỜ ban tổ chức duyệt. Tham gia độc lập với đóng góp.
+ *
+ * "Còn hiệu lực" — đếm vào số người tham gia, nhận thông báo của dự án, hiện "đã tham gia".
+ * Từ chối, vắng mặt, đã huỷ thì không.
+ */
+export const CharityActiveParticipationStatuses: readonly CharityParticipationStatus[] =
+  ['REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED'];
+
+/** Cùng danh sách, viết sẵn cho `status IN (...)` trong SQL — hằng số, không nhận đầu vào. */
+export const CharityActiveParticipationStatusesSql =
+  CharityActiveParticipationStatuses.map((status) => `'${status}'`).join(', ');
+
+/** Đã có mặt tại sự kiện: được đăng ảnh/clip sự kiện và được chấm mức hoàn thành. */
+export const CharityAttendedParticipationStatuses: readonly CharityParticipationStatus[] =
+  ['CHECKED_IN', 'COMPLETED'];
+
+/** Huỷ được từ các trạng thái này — kể cả khi sự kiện đang diễn ra (§3.11). */
+export const CharityCancellableParticipationStatuses: readonly CharityParticipationStatus[] =
+  ['REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN'];
+
+/** Quyết định của ban tổ chức với một lượt tham gia. Check-in đi đường riêng. */
+export const CharityParticipationDecisions = [
+  'CONFIRM',
+  'WAITLIST',
+  'REJECT',
+  'NO_SHOW',
+  'COMPLETE',
+] as const;
+export type CharityParticipationDecision =
+  (typeof CharityParticipationDecisions)[number];
+
+/** Trạng thái đích và các trạng thái nguồn hợp lệ của từng quyết định. */
+export const CharityParticipationDecisionRules: Readonly<
+  Record<
+    CharityParticipationDecision,
+    {
+      readonly to: CharityParticipationStatus;
+      readonly from: readonly CharityParticipationStatus[];
+    }
+  >
+> = {
+  CONFIRM: { to: 'CONFIRMED', from: ['REGISTERED', 'WAITLISTED', 'REJECTED'] },
+  WAITLIST: { to: 'WAITLISTED', from: ['REGISTERED', 'CONFIRMED'] },
+  REJECT: { to: 'REJECTED', from: ['REGISTERED', 'WAITLISTED', 'CONFIRMED'] },
+  NO_SHOW: { to: 'NO_SHOW', from: ['CONFIRMED'] },
+  COMPLETE: { to: 'COMPLETED', from: ['CHECKED_IN'] },
+};
+
+/** Check-in chỉ cho người đã được xác nhận; lặp lại khi đã check-in là không đổi gì. */
+export const CharityCheckInFromStatuses: readonly CharityParticipationStatus[] =
+  ['CONFIRMED'];
 
 /** Vai của người viết đánh giá (BR-CHARITY-03 — đánh giá hai chiều). */
 export const CharityReviewRoles = ['ORGANIZER', 'PARTICIPANT'] as const;
@@ -342,16 +402,14 @@ export function charityMediaTypeGaps(input: {
 }
 
 /**
- * Được huỷ đăng ký khi hoạt động CHƯA bắt đầu (BR-CHARITY-03).
- *
- * So với `start_time`, không phải `end_time`: người tổ chức chốt số suất theo danh sách
- * đăng ký trước giờ khai mạc, nên một lượt huỷ giữa buổi không trả lại được gì.
+ * Được huỷ đăng ký tham gia cho tới khi dự án sang Tổng kết — kể cả khi sự kiện đang diễn ra
+ * (CHARITY-PROJECT-LIFECYCLE §3.11, chốt 05/11; thay luật cũ BR-CHARITY-03 "chỉ trước giờ bắt
+ * đầu"). Ở Tổng kết thì không còn gì để huỷ.
  */
 export function canCancelCharityParticipation(input: {
-  readonly startTime: Date;
-  readonly now: Date;
+  readonly operationStage: string;
 }): boolean {
-  return input.now.getTime() < input.startTime.getTime();
+  return input.operationStage !== 'SUMMARY';
 }
 
 /** Chỉ đánh giá được SAU khi hoạt động kết thúc (BR-CHARITY-03). */

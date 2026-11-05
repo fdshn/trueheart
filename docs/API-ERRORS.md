@@ -187,7 +187,7 @@ Nghiệp vụ Chân Tâm
 | `0x1303` | `4867` | 409 Conflict | `CHARITY_PARTICIPATION_CLOSED` | Hoạt động đã đóng đăng ký |
 | `0x1304` | `4868` | 409 Conflict | `CHARITY_ALREADY_REGISTERED` | Bạn đã đăng ký hoạt động này |
 | `0x1305` | `4869` | 409 Conflict | `CHARITY_NOT_REGISTERED` | Bạn chưa đăng ký hoạt động này |
-| `0x1306` | `4870` | 409 Conflict | `CHARITY_CANCEL_TOO_LATE` | Hoạt động đã bắt đầu, không huỷ đăng ký được nữa |
+| `0x1306` | `4870` | 409 Conflict | `CHARITY_CANCEL_TOO_LATE` | Hoạt động đã kết thúc, không huỷ đăng ký được nữa |
 | `0x1307` | `4871` | 409 Conflict | `CHARITY_REVIEW_TOO_EARLY` | Chỉ đánh giá được sau khi hoạt động kết thúc |
 | `0x1308` | `4872` | 403 Forbidden | `CHARITY_REVIEW_NOT_PERMITTED` | Bạn không Ở trong hoạt động này nên không đánh giá được |
 | `0x1309` | `4873` | 409 Conflict | `CHARITY_REVIEW_DUPLICATE` | Bạn đã đánh giá người này trong hoạt động này |
@@ -213,6 +213,55 @@ Nghiệp vụ Chân Tâm
 | `0x131d` | `4893` | 400 Bad Request | `CHARITY_MEDIA_INVALID` | Bộ ảnh/video gửi lên không hợp lệ |
 | `0x131e` | `4894` | 409 Conflict | `CHARITY_MEDIA_NOT_EDITABLE` | Chỉ sửa ảnh/video được khi hồ sơ còn đang chờ duyệt |
 | `0x131f` | `4895` | 409 Conflict | `CHARITY_CAMPAIGN_HAS_ACTIVITY` | Hoạt động đã có người đăng ký, đóng góp, giao nhận hoặc đánh giá — hãy đóng hoặc tắt thay vì xoá |
+| `0x1320` | `4896` | 409 Conflict | `CHARITY_PROJECT_NOT_DRAFT` | Dự án đã được gửi duyệt — không còn là bản nháp |
+| `0x1321` | `4897` | 409 Conflict | `CHARITY_STAGE_TRANSITION_INVALID` | Không chuyển được giai đoạn: chỉ được tiến một bước |
+| `0x1322` | `4898` | 409 Conflict | `CHARITY_STAGE_SCHEDULE_CONFLICT` | Theo lịch tiến độ hiện tại, dự án sẽ lập tức vượt qua giai đoạn này — hãy sửa thời gian bước trao trước |
+| `0x1323` | `4899` | 409 Conflict | `CHARITY_BANK_ACCOUNT_LIMIT` | Dự án đã có đủ 2 tài khoản nhận đang hiệu lực — đóng bớt hoặc thay tài khoản cũ |
+| `0x1324` | `4900` | 404 Not Found | `CHARITY_BANK_ACCOUNT_NOT_FOUND` | Không tìm thấy tài khoản nhận đang hiệu lực |
+| `0x1325` | `4901` | 404 Not Found | `CHARITY_FUNDING_NEED_NOT_FOUND` | Không tìm thấy hạng mục kêu gọi tiền |
+| `0x1326` | `4902` | 404 Not Found | `CHARITY_VOLUNTEER_NEED_NOT_FOUND` | Không tìm thấy vị trí tuyển người |
+| `0x1328` | `4904` | 409 Conflict | `CHARITY_VOLUNTEER_CLOSED` | Vị trí này không còn nhận đăng ký |
+| `0x1329` | `4905` | 404 Not Found | `CHARITY_VOLUNTEER_REGISTRATION_NOT_FOUND` | Không tìm thấy đăng ký tham gia |
+| `0x132a` | `4906` | 409 Conflict | `CHARITY_SECTION_EMPTY` | Mục này chưa có nội dung để công khai |
+| `0x132b` | `4907` | 409 Conflict | `CHARITY_PROJECT_INACTIVE` | Dự án đang bị đình chỉ — không nhận thao tác mới |
+| `0x132c` | `4908` | 403 Forbidden | `CHARITY_PROJECT_FORBIDDEN` | Bạn không có quyền với mục này của dự án |
+| `0x132d` | `4909` | 409 Conflict | `CHARITY_PROJECT_NOT_APPROVED` | Dự án chưa được duyệt — chưa có việc triển khai để cập nhật |
+| `0x132e` | `4910` | 404 Not Found | `CHARITY_TASK_NOT_FOUND` | Không tìm thấy việc trong checklist triển khai |
+| `0x132f` | `4911` | 404 Not Found | `CHARITY_EXPORT_NOT_FOUND` | Không tìm thấy bản in |
+| `0x1330` | `4912` | 409 Conflict | `CHARITY_SECTION_NOT_PUBLISHED` | Mục này chưa được công khai nên chưa chia sẻ được |
+| `0x1331` | `4913` | 404 Not Found | `CHARITY_EVENT_STEP_NOT_FOUND` | Không tìm thấy bước trong timeline sự kiện |
+| `0x1332` | `4914` | 404 Not Found | `CHARITY_POST_NOT_FOUND` | Không tìm thấy bài đăng của dự án |
+| `0x1333` | `4915` | 403 Forbidden | `CHARITY_POST_FORBIDDEN` | Bạn chưa được đăng ảnh/clip vào dự án này — cần là ban tổ chức, hoặc cộng tác viên sự kiện trong lúc sự kiện trao diễn ra |
+| `0x1334` | `4916` | 429 Too Many Requests | `CHARITY_POST_QUOTA_EXCEEDED` | Hôm nay bạn đã dùng hết 5 lượt clip cho dự án này — thử lại vào ngày mai |
+| `0x1335` | `4917` | 400 Bad Request | `CHARITY_POST_MEDIA_INVALID` | Ảnh/clip không hợp lệ — phải là tệp bạn vừa tải lên cho dự án này và chưa dùng ở bài khác |
+| `0x1337` | `4919` | 409 Conflict | `CHARITY_SUMMARY_NOT_OPEN` | Tổng kết mở khi dự án sang giai đoạn Tổng kết |
+| `0x1338` | `4920` | 409 Conflict | `CHARITY_SUMMARY_FINANCIAL_REQUIRED` | Dự án có nhận tiền — cần ít nhất một báo cáo tài chính kèm sao kê trước khi công khai tổng kết |
+| `0x1339` | `4921` | 409 Conflict | `CHARITY_SUMMARY_EMPTY` | Tổng kết chưa có nội dung để công khai |
+| `0x133a` | `4922` | 404 Not Found | `CHARITY_FINANCIAL_REPORT_NOT_FOUND` | Không tìm thấy báo cáo tài chính |
+| `0x133b` | `4923` | 409 Conflict | `CHARITY_EVALUATION_TARGET_INVALID` | Người này không tham gia dự án nên không chấm được mức hoàn thành |
+| `0x133c` | `4924` | 404 Not Found | `CHARITY_APPEAL_NOT_FOUND` | Không tìm thấy khiếu nại |
+| `0x133d` | `4925` | 403 Forbidden | `CHARITY_APPEAL_NOT_ALLOWED` | Chỉ chính người được đánh giá mới khiếu nại được đánh giá của mình |
+| `0x133e` | `4926` | 409 Conflict | `CHARITY_APPEAL_DUPLICATED` | Lần đánh giá này đã có khiếu nại — mỗi lần đánh giá chỉ khiếu nại một lần |
+| `0x133f` | `4927` | 409 Conflict | `CHARITY_APPEAL_INVALID_STATE` | Khiếu nại đang ở trạng thái CLOSED, không thực hiện được bước này |
+| `0x1340` | `4928` | 403 Forbidden | `CHARITY_APPEAL_CONFLICT_OF_INTEREST` | Người đã chấm không tự xét khiếu nại khi ban tổ chức còn người khác |
+| `0x1341` | `4929` | 409 Conflict | `CHARITY_APPEAL_WINDOW_CLOSED` | Đã quá 7 ngày kể từ lúc đánh giá — hết hạn khiếu nại |
+| `0x1342` | `4930` | 429 Too Many Requests | `CHARITY_APPEAL_RATE_LIMITED` | Bạn gửi quá nhiều khiếu nại trong 24 giờ — thử lại sau |
+| `0x1343` | `4931` | 404 Not Found | `CHARITY_PARTICIPATION_NOT_FOUND` | Không tìm thấy lượt đăng ký tham gia |
+| `0x1344` | `4932` | 409 Conflict | `CHARITY_PARTICIPATION_INVALID_STATE` | Lượt tham gia đang ở trạng thái WAITLISTED, không thực hiện được bước này |
+| `0x1345` | `4933` | 404 Not Found | `CHARITY_SUPPORT_NEED_NOT_FOUND` | Không tìm thấy hạng mục hỗ trợ |
+| `0x1346` | `4934` | 409 Conflict | `CHARITY_SUPPORT_NEED_CLOSED` | Hạng mục hỗ trợ đã đóng hoặc dự án không còn nhận hỗ trợ |
+| `0x1347` | `4935` | 409 Conflict | `CHARITY_SUPPORT_NEED_IN_USE` | Hạng mục đã có người nhận hỗ trợ — không xoá được, hãy đóng hạng mục |
+| `0x1348` | `4936` | 404 Not Found | `CHARITY_SUPPORT_OFFER_NOT_FOUND` | Không tìm thấy đề nghị hỗ trợ |
+| `0x1349` | `4937` | 409 Conflict | `CHARITY_SUPPORT_OFFER_INVALID_STATE` | Đề nghị hỗ trợ đang ở trạng thái COMPLETED, không thực hiện được bước này |
+| `0x134a` | `4938` | 404 Not Found | `CHARITY_ROUND_NOT_FOUND` | Không tìm thấy đợt trao |
+| `0x134b` | `4939` | 409 Conflict | `CHARITY_ROUND_INVALID_STATE` | Đợt trao đang ở trạng thái CANCELLED, không sửa được nữa |
+| `0x134c` | `4940` | 409 Conflict | `CHARITY_PROJECT_COMPLETION_BLOCKED` | Chưa hoàn tất được dự án: còn hạng mục nhu cầu đang mở, còn khiếu nại chưa đóng |
+| `0x134d` | `4941` | 409 Conflict | `CHARITY_EXTERNAL_SOURCE_DUPLICATED` | Mã chứng từ nguồn ngoài này đã được ghi nhận trong dự án — tránh đếm trùng |
+| `0x134e` | `4942` | 404 Not Found | `CHARITY_DISPUTE_NOT_FOUND` | Không tìm thấy tranh chấp |
+| `0x134f` | `4943` | 403 Forbidden | `CHARITY_DISPUTE_NOT_ALLOWED` | Không thực hiện được: chỉ đóng góp đã được chấp nhận mới mở tranh chấp được |
+| `0x1350` | `4944` | 409 Conflict | `CHARITY_DISPUTE_ALREADY_OPEN` | Đóng góp này đang có tranh chấp chưa giải quyết |
+| `0x1351` | `4945` | 409 Conflict | `CHARITY_DISPUTE_INVALID_STATE` | Tranh chấp đang ở trạng thái RESOLVED, không thực hiện được bước này |
+| `0x1352` | `4946` | 400 Bad Request | `CHARITY_POST_VIDEO_TOO_LONG` | Clip dài tối đa 60 giây — cắt ngắn rồi tải lại |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -244,5 +293,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **202 mã lỗi** trên 3 tầng.
+Tổng cộng **251 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

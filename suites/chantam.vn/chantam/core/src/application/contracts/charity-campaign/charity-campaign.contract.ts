@@ -82,6 +82,12 @@ export interface ICharityCampaignWriteInput {
 
 export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput {
   /**
+   * `false` = lưu NHÁP: chưa xét duyệt, không vào hàng đợi Admin, gửi sau bằng
+   * `POST /charity-campaigns/:id/submit`. Bỏ trống = `true` — đúng hành vi của app cũ
+   * (docs/plan/CHARITY-PROJECT-LIFECYCLE.md §3.1, §5).
+   */
+  readonly submit?: boolean;
+  /**
    * Loại hoạt động (F65b §1). Quyết định capability nào gác lượt tạo, và có phải
    * khai quan hệ với người thụ hưởng hay không.
    */
@@ -128,6 +134,11 @@ export interface ISubmitCharityContributionCommand {
   readonly note?: string;
   readonly contactNote?: string;
   readonly items: readonly ICharityContributionItemInput[];
+  /**
+   * Hiện nickname trong danh sách người ủng hộ công khai (CHARITY-PROJECT-LIFECYCLE §3.17).
+   * Bỏ trống = theo cài đặt chung `showInPublicSupporterLists` của tài khoản.
+   */
+  readonly showNamePublicly?: boolean;
 }
 
 export type ISubmitCharityContributionResult = ICharityContribution;
@@ -237,6 +248,7 @@ export interface ICompleteCharityDeliveryCommand {
   readonly received: readonly {
     needItemId: string;
     receivedQuantity: number;
+    confirmedValue?: number | null;
   }[];
 }
 
@@ -298,6 +310,7 @@ export interface IRecordExternalContributionCommand {
   readonly sourceLabel: string;
   readonly receivedAt: string;
   readonly evidenceNote?: string;
+  readonly sourceReference?: string;
 }
 
 export interface IRecordExternalContributionUseCase extends IUseCase<

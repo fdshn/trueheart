@@ -91,18 +91,21 @@ export const NotificationTargetsByType: Readonly<
     NotificationTargetTypes.GIFT_TRANSACTION,
   ],
 
-  // Bình luận và cảm xúc đến từ bài đăng HOẶC chủ đề Diễn đàn Phật Pháp.
+  // Bình luận và cảm xúc đến từ bài đăng, chủ đề Diễn đàn Phật Pháp, hoặc dự án từ thiện.
   [NotificationTypes.CONTENT_COMMENT_CREATED]: [
     NotificationTargetTypes.POST,
     NotificationTargetTypes.DHARMA_THREAD,
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
   ],
   [NotificationTypes.CONTENT_COMMENT_REPLIED]: [
     NotificationTargetTypes.POST,
     NotificationTargetTypes.DHARMA_THREAD,
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
   ],
   [NotificationTypes.CONTENT_REACTION_FIRST_OF_DAY]: [
     NotificationTargetTypes.POST,
     NotificationTargetTypes.DHARMA_THREAD,
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
   ],
   [NotificationTypes.POST_EXPIRING_SOON]: [NotificationTargetTypes.POST],
   [NotificationTypes.POST_EXPIRED]: [NotificationTargetTypes.POST],
@@ -130,6 +133,30 @@ export const NotificationTargetsByType: Readonly<
   [NotificationTypes.CHARITY_DELIVERY_CANCELLED]: [
     NotificationTargetTypes.CHARITY_CAMPAIGN,
   ],
+  [NotificationTypes.CHARITY_STAGE_CHANGED]: [
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
+  ],
+  [NotificationTypes.CHARITY_PLAN_CHANGED]: [
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
+  ],
+  [NotificationTypes.CHARITY_PRE_EVENT_NOTICE]: [
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
+  ],
+  [NotificationTypes.CHARITY_SUMMARY_PUBLISHED]: [
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
+  ],
+  [NotificationTypes.CHARITY_APPEAL_UPDATED]: [
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
+  ],
+  [NotificationTypes.CHARITY_PARTICIPATION_UPDATED]: [
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
+  ],
+  [NotificationTypes.CHARITY_SUPPORT_OFFER_UPDATED]: [
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
+  ],
+  [NotificationTypes.CHARITY_CONTRIBUTION_DISPUTE_UPDATED]: [
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
+  ],
 
   // Nội dung bị báo xấu: bài, phòng chat (tin nhắn), chủ đề Phật pháp. Bình luận mở
   // bài chứa nó. Báo xấu một NGƯỜI thì không có màn để mở.
@@ -137,11 +164,13 @@ export const NotificationTargetsByType: Readonly<
     NotificationTargetTypes.POST,
     NotificationTargetTypes.CHAT_ROOM,
     NotificationTargetTypes.DHARMA_THREAD,
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
   ],
   [NotificationTypes.CONTENT_MODERATED]: [
     NotificationTargetTypes.POST,
     NotificationTargetTypes.CHAT_ROOM,
     NotificationTargetTypes.DHARMA_THREAD,
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
   ],
 
   [NotificationTypes.LUNAR_OBSERVANCE]: [],

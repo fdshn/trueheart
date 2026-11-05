@@ -8,6 +8,7 @@ import { LoggerModule } from '@chantam/service.logger-lib';
 import { StorageModule } from '@chantam/service.storage-lib';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '../config/config.module';
+import { DocumentModule } from '../document/document.module';
 import { EntityModule } from '../entity/entity.module';
 import { GiveActivityModule } from '../give-activity/give-activity.module';
 import { NotificationModule } from '../notification/notification.module';
@@ -51,6 +52,7 @@ import { NoopRealtimeModule } from './noop-realtime.module';
     RedisModule,
     SecurityModule,
     NotificationModule,
+    DocumentModule,
     StorageModule.forRootAsync({
       inject: [IConfig],
       useFactory: (config: IConfig) => config.storage,
@@ -71,6 +73,7 @@ import { NoopRealtimeModule } from './noop-realtime.module';
     RedisModule,
     SecurityModule,
     NotificationModule,
+    DocumentModule,
     StorageModule,
     NotificationUseCaseModule,
     PointModule,

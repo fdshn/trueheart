@@ -36,6 +36,7 @@ import {
   CharityCampaignNotFoundException,
   CharityCancelTooLateException,
   CharityCoordinatorNotAllowedException,
+  CharityExternalSourceDuplicatedException,
   CharityLinesInvalidException,
   CharityMediaInvalidException,
   CharityMediaNotEditableException,
@@ -44,6 +45,7 @@ import {
   CharityNotOrganizerException,
   CharityNotRegisteredException,
   CharityParticipationClosedException,
+  CharityParticipationInvalidStateException,
   CharityReviewDuplicateException,
   CharityReviewNotPermittedException,
   CharityReviewTooEarlyException,
@@ -313,6 +315,7 @@ export class CharityCampaignController {
           note: body.note,
           contactNote: body.contactNote,
           items: body.items,
+          showNamePublicly: body.showNamePublicly,
         }),
       )
       .build();
@@ -368,6 +371,7 @@ export class CharityCampaignController {
     CharityNotAcceptingContributionsException,
     CharityNeedItemInvalidException,
     CharityLinesInvalidException,
+    CharityExternalSourceDuplicatedException,
   )
   public async recordExternal(
     @CurrentUser() principal: IAuthPrincipal,
@@ -713,6 +717,7 @@ export class CharityCampaignController {
     ...ApiTokenErrors,
     CharityCampaignNotFoundException,
     CharityNotRegisteredException,
+    CharityParticipationInvalidStateException,
     CharityCancelTooLateException,
   )
   @ApiOkResponse({

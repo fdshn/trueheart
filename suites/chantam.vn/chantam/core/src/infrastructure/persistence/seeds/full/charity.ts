@@ -418,12 +418,30 @@ export async function seedCharity(ctx: ISeedContext): Promise<void> {
     );
 
   // Người thụ hưởng — RIÊNG TƯ. Hoạt động 2 chưa đồng ý (chờ duyệt), 5 đã rút (đình chỉ).
+  //
+  // Từ migration 1802400000000 người thụ hưởng là dòng `is_appeal_subject` của
+  // `campaign_parties` (gộp bên thụ hưởng). Script kiểm migration theo pha seed trên schema
+  // CŨ hơn, nên ghi vào bảng nào đang tồn tại.
+  const [partiesTable] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.campaign_parties') IS NOT NULL AS ready`,
+  );
   for (const [campaignN, fullName, consent, organizer] of [
     [2, 'Nguyễn Thị B', 'PENDING', Personas.giver2],
     [5, 'Trần Văn C', 'PENDING', Personas.coordinator],
   ] as const)
     await ctx.q(
+      partiesTable?.ready
+        ? `
+        INSERT INTO campaign_parties (
+          campaign_id, name, relation_note, phone, address, consent_status,
+          verification_note, updated_by, role, beneficiary_kind, is_appeal_subject
+        )
+        VALUES ($1, $2, 'Hàng xóm, sống một mình', '0912000111', 'Hẻm 12, Quận 8',
+                $3, 'Đã gặp trực tiếp, có xác nhận của tổ dân phố', $4,
+                'BENEFICIARY', 'INDIVIDUAL', true)
+        ON CONFLICT (campaign_id) WHERE is_appeal_subject DO NOTHING
       `
+        : `
         INSERT INTO campaign_beneficiaries (
           campaign_id, full_name, relation_note, phone, address, consent_status,
           verification_note, updated_by
@@ -446,18 +464,48 @@ export async function seedCharity(ctx: ISeedContext): Promise<void> {
     [campaign(4), Personas.organizer],
   );
 
+  // Vòng đời participant (chốt 05/11, migration 1802900000000): người tặng đã check-in và
+  // hoàn thành (được chấm mức hoàn thành ở tổng kết), người nhận đã được xác nhận, một lượt đã
+  // huỷ. Script kiểm migration theo pha seed trên schema CŨ — khi đó chỉ có REGISTERED/CANCELLED.
+  const [lifecycle] = await ctx.q<{ ready: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'campaign_participations'
+                      AND column_name = 'checked_in_at') AS ready`,
+  );
   for (const [n, userId, status] of [
-    [1, Personas.giver, 'REGISTERED'],
-    [2, Personas.receiver, 'REGISTERED'],
+    [1, Personas.giver, lifecycle?.ready ? 'COMPLETED' : 'REGISTERED'],
+    [2, Personas.receiver, lifecycle?.ready ? 'CONFIRMED' : 'REGISTERED'],
     [3, Personas.giver2, 'CANCELLED'],
   ] as const)
     await ctx.q(
+      lifecycle?.ready
+        ? `
+        INSERT INTO campaign_participations
+          (global_id, campaign_id, user_id, status, cancelled_at, status_changed_at,
+           status_changed_by, checked_in_at, checked_in_by)
+        VALUES ($1, $2, $3, $4::text,
+                CASE WHEN $4::text = 'CANCELLED' THEN now() - interval '20 days' END,
+                CASE WHEN $4::text <> 'CANCELLED' THEN now() - interval '15 days' END,
+                CASE WHEN $4::text <> 'CANCELLED' THEN $5::uuid END,
+                CASE WHEN $4::text = 'COMPLETED' THEN now() - interval '14 days' END,
+                CASE WHEN $4::text = 'COMPLETED' THEN $5::uuid END)
+        ON CONFLICT DO NOTHING
       `
+        : `
         INSERT INTO campaign_participations (global_id, campaign_id, user_id, status, cancelled_at)
-        VALUES ($1, $2, $3, $4::text, CASE WHEN $4::text = 'CANCELLED' THEN now() - interval '20 days' END)
+        VALUES ($1, $2, $3, $4::text,
+                CASE WHEN $4::text = 'CANCELLED' THEN now() - interval '20 days' END)
         ON CONFLICT DO NOTHING
       `,
-      [seedId(SeedDomains.participations, n), campaign(4), userId, status],
+      lifecycle?.ready
+        ? [
+            seedId(SeedDomains.participations, n),
+            campaign(4),
+            userId,
+            status,
+            Personas.organizer,
+          ]
+        : [seedId(SeedDomains.participations, n), campaign(4), userId, status],
     );
 
   for (const [n, reviewer, reviewee, role, rating, text] of [

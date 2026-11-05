@@ -104,6 +104,7 @@ import {
   CharityNotOrganizerException,
   CharityNotRegisteredException,
   CharityParticipationClosedException,
+  CharityParticipationInvalidStateException,
   CharityReviewDuplicateException,
   CharityReviewNotPermittedException,
   CharityReviewTooEarlyException,
@@ -117,11 +118,14 @@ import {
   ICharityContribution,
   ICharityDelivery,
   ICharityExternalContribution,
+  ICharitySummaryRepository,
   ICloseCampaignResult,
   IEntitlementRepository,
 } from '@/domain/ports/repository';
 import {
   CharityApprovalStatus,
+  CharityCampaignType,
+  CharityCancellableParticipationStatuses,
   CharityCapabilityByType,
   MaxCharityDescriptionLength,
   MaxCharityReviewCommentLength,
@@ -148,7 +152,8 @@ import {
   IObjectStorage,
   IStorageUploadResult,
 } from '@chantam/service.storage-lib';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { CharityPointsService } from '../charity-project/charity-points.service';
 import { withStorageValidation } from '../shared/storage-error';
 import { CharityNotifier } from './charity.notifier';
 
@@ -327,7 +332,18 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
     if (command.beneficiary && !forOther)
       throw new CharityBeneficiaryNotApplicableException();
 
-    let approvalStatus = await this.resolveApprovalStatus(command);
+    // Kiểm quyền TẠO trước, kể cả khi chỉ lưu nháp: người không được tạo thì cũng không
+    // được để lại hồ sơ nháp nào.
+    const resolvedStatus = await resolveCharityApprovalStatus(
+      this.entitlements,
+      this.admin,
+      command,
+    );
+    // Admin tạo trực tiếp thì không có nháp — họ là người duyệt.
+    const submitted = command.asAdmin || command.submit !== false;
+    let approvalStatus: CharityApprovalStatus = submitted
+      ? resolvedStatus
+      : 'PENDING_APPROVAL';
     // §2: kêu gọi cho người khác chưa có đồng ý CONFIRMED thì KHÔNG ra ngoài, kể cả với
     // người có quyền public ngay — quyền đó nói "nội dung của tôi không cần ai đọc
     // trước", không nói "tôi được đăng hoàn cảnh của người khác khi họ chưa đồng ý".
@@ -385,6 +401,7 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
         sortOrder: index,
       })),
       createdBy: command.actorUserId,
+      submitted,
       approvalStatus,
       // Admin tạo trực tiếp thì chính họ là người duyệt — `CHK_campaigns_approved_at` đòi
       // `approved_at` khác NULL khi trạng thái không còn chờ, nên để trống `approved_by`
@@ -394,47 +411,55 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
 
     return toView(campaign, false);
   }
+}
 
-  /**
-   * Ai được tạo, và hồ sơ vào trạng thái nào (BR-CHARITY-01).
-   *
-   * Hai đường, hai phép kiểm khác hẳn nhau: đường Admin hỏi `admin_role_permissions`,
-   * đường thành viên hỏi Rank Config. Không đường nào đọc `users.rank` trực tiếp.
-   */
-  private async resolveApprovalStatus(
-    command: ICreateCharityCampaignCommand,
-  ): Promise<CharityApprovalStatus> {
-    if (command.asAdmin) {
-      if (
-        !(await this.admin.hasPermission(command.actorUserId, WritePermission))
-      )
-        throw new ForbiddenException();
-      return 'APPROVED';
-    }
-
-    // Quyền TẠO khác nhau theo loại (F65b §2): kêu gọi cho cá nhân mở từ Thành
-    // viên, còn hoạt động có tổ chức chỉ Kim Cương. Tra bảng chứ không `if` theo
-    // rank — Rank là cấu hình động, một phép so rank trong mã là bản sao sẽ trôi.
-    const capability = await this.entitlements.getCapability(
-      command.actorUserId,
-      CharityCapabilityByType[command.campaignType],
-    );
-    // `null` là KHÔNG cho phép: thiếu hàng trong Rank Config nghĩa là chưa ai quyết định,
-    // và mặc định của một quyền chưa quyết định phải là đóng.
-    if (!capability?.allowed)
-      throw new CharityCampaignCreateNotAllowedException();
-
-    // Quyền PUBLIC NGAY là một câu hỏi khác: "nội dung có cần ai đọc trước khi ra
-    // ngoài không". Gộp nó vào quyền tạo là buộc mọi người được tạo cũng được
-    // public — và một kêu gọi quyên góp ra ngoài không qua ai đọc là đúng chỗ
-    // người ta lợi dụng.
-    const publishNow = await this.entitlements.getCapability(
-      command.actorUserId,
-      PublishCharityWithoutReviewCapability,
-    );
-
-    return publishNow?.allowed ? 'APPROVED' : 'PENDING_APPROVAL';
+/**
+ * Ai được tạo, và hồ sơ vào trạng thái nào (BR-CHARITY-01).
+ *
+ * Hai đường, hai phép kiểm khác hẳn nhau: đường Admin hỏi `admin_role_permissions`,
+ * đường thành viên hỏi Rank Config. Không đường nào đọc `users.rank` trực tiếp.
+ *
+ * Xuất ra để lượt GỬI DUYỆT bản nháp (`SubmitCharityCampaignUseCase`) quyết đúng một cách
+ * với lượt tạo — hai bản chép của phép kiểm này là chỗ để nháp được public ngay mà lượt tạo
+ * thì không.
+ */
+export async function resolveCharityApprovalStatus(
+  entitlements: IEntitlementRepository,
+  admin: IAdminConfigRepository,
+  command: {
+    actorUserId: string;
+    asAdmin: boolean;
+    campaignType: CharityCampaignType;
+  },
+): Promise<CharityApprovalStatus> {
+  if (command.asAdmin) {
+    if (!(await admin.hasPermission(command.actorUserId, WritePermission)))
+      throw new ForbiddenException();
+    return 'APPROVED';
   }
+
+  // Quyền TẠO khác nhau theo loại (F65b §2): kêu gọi cho cá nhân mở từ Thành
+  // viên, còn hoạt động có tổ chức chỉ Kim Cương. Tra bảng chứ không `if` theo
+  // rank — Rank là cấu hình động, một phép so rank trong mã là bản sao sẽ trôi.
+  const capability = await entitlements.getCapability(
+    command.actorUserId,
+    CharityCapabilityByType[command.campaignType],
+  );
+  // `null` là KHÔNG cho phép: thiếu hàng trong Rank Config nghĩa là chưa ai quyết định,
+  // và mặc định của một quyền chưa quyết định phải là đóng.
+  if (!capability?.allowed)
+    throw new CharityCampaignCreateNotAllowedException();
+
+  // Quyền PUBLIC NGAY là một câu hỏi khác: "nội dung có cần ai đọc trước khi ra
+  // ngoài không". Gộp nó vào quyền tạo là buộc mọi người được tạo cũng được
+  // public — và một kêu gọi quyên góp ra ngoài không qua ai đọc là đúng chỗ
+  // người ta lợi dụng.
+  const publishNow = await entitlements.getCapability(
+    command.actorUserId,
+    PublishCharityWithoutReviewCapability,
+  );
+
+  return publishNow?.allowed ? 'APPROVED' : 'PENDING_APPROVAL';
 }
 
 /**
@@ -654,6 +679,9 @@ export class SubmitCharityContributionUseCase implements ISubmitCharityContribut
     @Inject(ICharityCampaignRepository)
     private readonly repository: ICharityCampaignRepository,
     private readonly notifier: CharityNotifier,
+    // Tuỳ chọn để spec dựng tay không phải đổi; Nest luôn tiêm (§3.17).
+    @Inject(ICharitySummaryRepository)
+    private readonly summaries?: ICharitySummaryRepository,
   ) {}
 
   public async handle(
@@ -705,6 +733,14 @@ export class SubmitCharityContributionUseCase implements ISubmitCharityContribut
         offeredQuantity: item.offeredQuantity,
         conditionNote: item.conditionNote?.trim() ?? null,
       })),
+    });
+
+    // Lựa chọn hiện tên ở lượt này; bỏ trống thì theo cài đặt chung của tài khoản.
+    await this.summaries?.setContributionPublicName({
+      campaignId: campaign.globalId,
+      contributionId: contribution.globalId,
+      userId: command.contributorId,
+      show: command.showNamePublicly ?? null,
     });
 
     await this.notifier.contributionSubmitted({
@@ -881,6 +917,9 @@ export class CompleteCharityDeliveryUseCase implements ICompleteCharityDeliveryU
     @Inject(ICharityCampaignRepository)
     private readonly repository: ICharityCampaignRepository,
     private readonly notifier: CharityNotifier,
+    // Điểm theo giá trị xác nhận (CHARITY-PROJECT-LIFECYCLE §3.9). Tuỳ chọn cho spec dựng tay.
+    @Optional()
+    private readonly points?: CharityPointsService,
   ) {}
 
   public async handle(
@@ -892,6 +931,7 @@ export class CompleteCharityDeliveryUseCase implements ICompleteCharityDeliveryU
       campaignTitle: campaign?.title ?? 'hoạt động từ thiện',
       delivery,
     });
+    await this.points?.awardItemValue(delivery.globalId);
     return delivery;
   }
 }
@@ -1007,6 +1047,13 @@ export class RecordExternalContributionUseCase implements IRecordExternalContrib
         'Ngày nhận phải là một mốc trong quá khứ',
       );
 
+    // Nguồn ngoài app tính vào tiến độ thì phải có bằng chứng (§3.18, chốt 05/11).
+    const evidenceNote = command.evidenceNote?.trim() || null;
+    if (!evidenceNote)
+      throw new CharityLinesInvalidException(
+        'Nguồn ngoài app phải kèm bằng chứng (evidenceNote)',
+      );
+
     return this.repository.recordExternalContribution({
       campaignId: command.campaignId,
       recordedBy: command.recordedBy,
@@ -1014,7 +1061,8 @@ export class RecordExternalContributionUseCase implements IRecordExternalContrib
       quantity: command.quantity,
       sourceLabel: command.sourceLabel.trim(),
       receivedAt,
-      evidenceNote: command.evidenceNote?.trim() ?? null,
+      evidenceNote,
+      sourceReference: command.sourceReference?.trim() || null,
     });
   }
 }
@@ -1347,6 +1395,8 @@ export class JoinCharityCampaignUseCase implements IJoinCharityCampaignUseCase {
   public constructor(
     @Inject(ICharityCampaignRepository)
     private readonly repository: ICharityCampaignRepository,
+    @Inject(ICharitySummaryRepository)
+    private readonly summaries?: ICharitySummaryRepository,
   ) {}
 
   public async handle(
@@ -1368,6 +1418,13 @@ export class JoinCharityCampaignUseCase implements IJoinCharityCampaignUseCase {
       userId: command.actorUserId,
     });
     if (!created) throw new CharityAlreadyRegisteredException();
+    // Hiện tên trong danh sách người tham gia công khai theo cài đặt chung (§3.17); đổi lại
+    // qua `PATCH :id/participation/public-name`.
+    await this.summaries?.setParticipationPublicName({
+      campaignId: campaign.globalId,
+      userId: command.actorUserId,
+      show: null,
+    });
 
     // Đọc lại để `participantCount` trả về đã tính cả lượt vừa rồi. Cộng tay vào bản ghi
     // cũ sẽ ra số sai ngay khi có người khác đăng ký song song.
@@ -1395,14 +1452,17 @@ export class CancelCharityParticipationUseCase implements ICancelCharityParticip
       campaignId: campaign.globalId,
       userId: command.actorUserId,
     });
-    if (status !== 'REGISTERED') throw new CharityNotRegisteredException();
+    // Huỷ được khi còn hiệu lực và chưa hoàn thành (vòng đời chung, chốt 05/11).
+    if (!status || status === 'CANCELLED')
+      throw new CharityNotRegisteredException();
+    // Bị từ chối, vắng mặt, đã hoàn thành: có lượt nhưng không còn gì để huỷ.
+    if (!CharityCancellableParticipationStatuses.includes(status))
+      throw new CharityParticipationInvalidStateException(status);
 
-    // BR-CHARITY-03: chỉ huỷ được khi CHƯA bắt đầu. Người tổ chức chốt số suất theo danh
-    // sách đăng ký trước giờ khai mạc, nên một lượt huỷ giữa buổi không trả lại được gì.
+    // Huỷ được cả khi sự kiện đang diễn ra; sang Tổng kết thì thôi (chốt 05/11, §3.11).
     if (
       !canCancelCharityParticipation({
-        startTime: campaign.startTime,
-        now: new Date(),
+        operationStage: campaign.operationStage,
       })
     )
       throw new CharityCancelTooLateException();

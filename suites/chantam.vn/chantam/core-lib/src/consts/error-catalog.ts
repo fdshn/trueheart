@@ -1005,7 +1005,7 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
   CHARITY_CANCEL_TOO_LATE: {
     code: ErrorCodes.CHARITY_CANCEL_TOO_LATE,
     httpStatus: HttpStatus.CONFLICT,
-    message: () => 'Hoạt động đã bắt đầu, không huỷ đăng ký được nữa',
+    message: () => 'Hoạt động đã kết thúc, không huỷ đăng ký được nữa',
   },
 
   CHARITY_REVIEW_TOO_EARLY: {
@@ -1113,6 +1113,331 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     // Nói việc cần làm: bản đang có hiệu lực là bản THAY THẾ, không phải bản này.
     message: () =>
       'Bản ghi này đã bị huỷ hoặc đã được thay bằng bản điều chỉnh — hãy thao tác trên bản đang có hiệu lực',
+  },
+
+  CHARITY_PROJECT_NOT_DRAFT: {
+    code: ErrorCodes.CHARITY_PROJECT_NOT_DRAFT,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Dự án đã được gửi duyệt — không còn là bản nháp',
+  },
+
+  CHARITY_STAGE_TRANSITION_INVALID: {
+    code: ErrorCodes.CHARITY_STAGE_TRANSITION_INVALID,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (detail: string) => `Không chuyển được giai đoạn: ${detail}`,
+    sample: ['chỉ được tiến một bước'],
+  },
+
+  CHARITY_STAGE_SCHEDULE_CONFLICT: {
+    code: ErrorCodes.CHARITY_STAGE_SCHEDULE_CONFLICT,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Theo lịch tiến độ hiện tại, dự án sẽ lập tức vượt qua giai đoạn này — hãy sửa thời gian bước trao trước',
+  },
+
+  CHARITY_BANK_ACCOUNT_LIMIT: {
+    code: ErrorCodes.CHARITY_BANK_ACCOUNT_LIMIT,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (limit: number) =>
+      `Dự án đã có đủ ${limit} tài khoản nhận đang hiệu lực — đóng bớt hoặc thay tài khoản cũ`,
+    sample: [2],
+  },
+
+  CHARITY_BANK_ACCOUNT_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_BANK_ACCOUNT_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy tài khoản nhận đang hiệu lực',
+  },
+
+  CHARITY_FUNDING_NEED_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_FUNDING_NEED_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy hạng mục kêu gọi tiền',
+  },
+
+  CHARITY_VOLUNTEER_NEED_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_VOLUNTEER_NEED_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy vị trí tuyển người',
+  },
+
+  CHARITY_VOLUNTEER_CLOSED: {
+    code: ErrorCodes.CHARITY_VOLUNTEER_CLOSED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Vị trí này không còn nhận đăng ký',
+  },
+
+  CHARITY_VOLUNTEER_REGISTRATION_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_VOLUNTEER_REGISTRATION_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy đăng ký tham gia',
+  },
+
+  CHARITY_SECTION_EMPTY: {
+    code: ErrorCodes.CHARITY_SECTION_EMPTY,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Mục này chưa có nội dung để công khai',
+  },
+
+  CHARITY_PROJECT_INACTIVE: {
+    code: ErrorCodes.CHARITY_PROJECT_INACTIVE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Dự án đang bị đình chỉ — không nhận thao tác mới',
+  },
+
+  CHARITY_PROJECT_FORBIDDEN: {
+    code: ErrorCodes.CHARITY_PROJECT_FORBIDDEN,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () => 'Bạn không có quyền với mục này của dự án',
+  },
+
+  CHARITY_PROJECT_NOT_APPROVED: {
+    code: ErrorCodes.CHARITY_PROJECT_NOT_APPROVED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Dự án chưa được duyệt — chưa có việc triển khai để cập nhật',
+  },
+
+  CHARITY_TASK_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_TASK_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy việc trong checklist triển khai',
+  },
+
+  CHARITY_EXPORT_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_EXPORT_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy bản in',
+  },
+
+  CHARITY_SECTION_NOT_PUBLISHED: {
+    code: ErrorCodes.CHARITY_SECTION_NOT_PUBLISHED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Mục này chưa được công khai nên chưa chia sẻ được',
+  },
+
+  CHARITY_EVENT_STEP_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_EVENT_STEP_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy bước trong timeline sự kiện',
+  },
+
+  CHARITY_POST_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_POST_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy bài đăng của dự án',
+  },
+
+  CHARITY_POST_FORBIDDEN: {
+    code: ErrorCodes.CHARITY_POST_FORBIDDEN,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () =>
+      'Bạn chưa được đăng ảnh/clip vào dự án này — cần là ban tổ chức, hoặc cộng tác viên sự kiện trong lúc sự kiện trao diễn ra',
+  },
+
+  CHARITY_POST_QUOTA_EXCEEDED: {
+    code: ErrorCodes.CHARITY_POST_QUOTA_EXCEEDED,
+    httpStatus: HttpStatus.TOO_MANY_REQUESTS,
+    message: (kind: string, limit: number) =>
+      `Hôm nay bạn đã dùng hết ${limit} lượt ${kind} cho dự án này — thử lại vào ngày mai`,
+    sample: ['clip', 5],
+  },
+
+  CHARITY_POST_MEDIA_INVALID: {
+    code: ErrorCodes.CHARITY_POST_MEDIA_INVALID,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: () =>
+      'Ảnh/clip không hợp lệ — phải là tệp bạn vừa tải lên cho dự án này và chưa dùng ở bài khác',
+  },
+
+  CHARITY_SUMMARY_NOT_OPEN: {
+    code: ErrorCodes.CHARITY_SUMMARY_NOT_OPEN,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Tổng kết mở khi dự án sang giai đoạn Tổng kết',
+  },
+
+  CHARITY_SUMMARY_FINANCIAL_REQUIRED: {
+    code: ErrorCodes.CHARITY_SUMMARY_FINANCIAL_REQUIRED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Dự án có nhận tiền — cần ít nhất một báo cáo tài chính kèm sao kê trước khi công khai tổng kết',
+  },
+
+  CHARITY_SUMMARY_EMPTY: {
+    code: ErrorCodes.CHARITY_SUMMARY_EMPTY,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Tổng kết chưa có nội dung để công khai',
+  },
+
+  CHARITY_FINANCIAL_REPORT_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_FINANCIAL_REPORT_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy báo cáo tài chính',
+  },
+
+  CHARITY_EVALUATION_TARGET_INVALID: {
+    code: ErrorCodes.CHARITY_EVALUATION_TARGET_INVALID,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Người này không tham gia dự án nên không chấm được mức hoàn thành',
+  },
+  CHARITY_APPEAL_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_APPEAL_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy khiếu nại',
+  },
+
+  CHARITY_APPEAL_NOT_ALLOWED: {
+    code: ErrorCodes.CHARITY_APPEAL_NOT_ALLOWED,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () =>
+      'Chỉ chính người được đánh giá mới khiếu nại được đánh giá của mình',
+  },
+
+  CHARITY_APPEAL_DUPLICATED: {
+    code: ErrorCodes.CHARITY_APPEAL_DUPLICATED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Lần đánh giá này đã có khiếu nại — mỗi lần đánh giá chỉ khiếu nại một lần',
+  },
+
+  CHARITY_APPEAL_INVALID_STATE: {
+    code: ErrorCodes.CHARITY_APPEAL_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (state: string) =>
+      `Khiếu nại đang ở trạng thái ${state}, không thực hiện được bước này`,
+    sample: ['CLOSED'],
+  },
+
+  CHARITY_APPEAL_CONFLICT_OF_INTEREST: {
+    code: ErrorCodes.CHARITY_APPEAL_CONFLICT_OF_INTEREST,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: () =>
+      'Người đã chấm không tự xét khiếu nại khi ban tổ chức còn người khác',
+  },
+
+  CHARITY_APPEAL_WINDOW_CLOSED: {
+    code: ErrorCodes.CHARITY_APPEAL_WINDOW_CLOSED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (days: number) =>
+      `Đã quá ${days} ngày kể từ lúc đánh giá — hết hạn khiếu nại`,
+    sample: [7],
+  },
+
+  CHARITY_APPEAL_RATE_LIMITED: {
+    code: ErrorCodes.CHARITY_APPEAL_RATE_LIMITED,
+    httpStatus: HttpStatus.TOO_MANY_REQUESTS,
+    message: () => 'Bạn gửi quá nhiều khiếu nại trong 24 giờ — thử lại sau',
+  },
+
+  CHARITY_PARTICIPATION_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_PARTICIPATION_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy lượt đăng ký tham gia',
+  },
+
+  CHARITY_PARTICIPATION_INVALID_STATE: {
+    code: ErrorCodes.CHARITY_PARTICIPATION_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (state: string) =>
+      `Lượt tham gia đang ở trạng thái ${state}, không thực hiện được bước này`,
+    sample: ['WAITLISTED'],
+  },
+
+  CHARITY_SUPPORT_NEED_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_SUPPORT_NEED_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy hạng mục hỗ trợ',
+  },
+
+  CHARITY_SUPPORT_NEED_CLOSED: {
+    code: ErrorCodes.CHARITY_SUPPORT_NEED_CLOSED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Hạng mục hỗ trợ đã đóng hoặc dự án không còn nhận hỗ trợ',
+  },
+
+  CHARITY_SUPPORT_NEED_IN_USE: {
+    code: ErrorCodes.CHARITY_SUPPORT_NEED_IN_USE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Hạng mục đã có người nhận hỗ trợ — không xoá được, hãy đóng hạng mục',
+  },
+
+  CHARITY_SUPPORT_OFFER_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_SUPPORT_OFFER_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy đề nghị hỗ trợ',
+  },
+
+  CHARITY_SUPPORT_OFFER_INVALID_STATE: {
+    code: ErrorCodes.CHARITY_SUPPORT_OFFER_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (state: string) =>
+      `Đề nghị hỗ trợ đang ở trạng thái ${state}, không thực hiện được bước này`,
+    sample: ['COMPLETED'],
+  },
+
+  CHARITY_ROUND_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_ROUND_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy đợt trao',
+  },
+
+  CHARITY_ROUND_INVALID_STATE: {
+    code: ErrorCodes.CHARITY_ROUND_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (state: string) =>
+      `Đợt trao đang ở trạng thái ${state}, không sửa được nữa`,
+    sample: ['CANCELLED'],
+  },
+
+  CHARITY_PROJECT_COMPLETION_BLOCKED: {
+    code: ErrorCodes.CHARITY_PROJECT_COMPLETION_BLOCKED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (reasons: string) => `Chưa hoàn tất được dự án: ${reasons}`,
+    sample: ['còn hạng mục nhu cầu đang mở, còn khiếu nại chưa đóng'],
+  },
+
+  CHARITY_DISPUTE_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_DISPUTE_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy tranh chấp',
+  },
+
+  CHARITY_DISPUTE_NOT_ALLOWED: {
+    code: ErrorCodes.CHARITY_DISPUTE_NOT_ALLOWED,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: (detail: string) => `Không thực hiện được: ${detail}`,
+    sample: ['chỉ đóng góp đã được chấp nhận mới mở tranh chấp được'],
+  },
+
+  CHARITY_DISPUTE_ALREADY_OPEN: {
+    code: ErrorCodes.CHARITY_DISPUTE_ALREADY_OPEN,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Đóng góp này đang có tranh chấp chưa giải quyết',
+  },
+
+  CHARITY_DISPUTE_INVALID_STATE: {
+    code: ErrorCodes.CHARITY_DISPUTE_INVALID_STATE,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (state: string) =>
+      `Tranh chấp đang ở trạng thái ${state}, không thực hiện được bước này`,
+    sample: ['RESOLVED'],
+  },
+
+  CHARITY_POST_VIDEO_TOO_LONG: {
+    code: ErrorCodes.CHARITY_POST_VIDEO_TOO_LONG,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (maxSeconds: number) =>
+      `Clip dài tối đa ${maxSeconds} giây — cắt ngắn rồi tải lại`,
+    sample: [60],
+  },
+
+  CHARITY_EXTERNAL_SOURCE_DUPLICATED: {
+    code: ErrorCodes.CHARITY_EXTERNAL_SOURCE_DUPLICATED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Mã chứng từ nguồn ngoài này đã được ghi nhận trong dự án — tránh đếm trùng',
   },
 
   CHARITY_CAMPAIGN_HAS_ACTIVITY: {

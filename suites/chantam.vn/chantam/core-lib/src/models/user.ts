@@ -47,6 +47,11 @@ export interface IUser {
    */
   showOnlineStatus: boolean;
   /**
+   * Mặc định có hiện nickname trong danh sách người ủng hộ/tham gia dự án từ thiện không
+   * (CHARITY-PROJECT-LIFECYCLE §3.17, phương án C). Từng lần góp/đăng ký vẫn chọn lại được.
+   */
+  showInPublicSupporterLists: boolean;
+  /**
    * "Cho phép người lạ nhắn tin" (chat trực tiếp 30/10). Mặc định bật. Tắt thì chỉ người đã
    * từng có phòng chat với mình (bất kỳ loại nào) mới mở được phòng `DIRECT_USER` mới; phòng
    * đã có vẫn nhắn bình thường.

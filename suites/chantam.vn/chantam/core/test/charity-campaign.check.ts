@@ -628,7 +628,7 @@ async function main(): Promise<void> {
     );
 
     await expectThrow(
-      'Huỷ sau khi hoạt động đã bắt đầu -> CharityCancelTooLate',
+      'Huỷ khi hoạt động đã kết thúc (Tổng kết) -> CharityCancelTooLate',
       () => cancelUseCase.handle({ actorUserId: JoinerId, campaignId: target }),
       'CharityCancelTooLateException',
     );
@@ -704,15 +704,31 @@ async function main(): Promise<void> {
       `current=${beforeProgress?.currentItemsCount}`,
     );
 
-    const [triggers] = await dataSource.query<{ total: string }[]>(
-      `SELECT count(*)::text AS total
-         FROM information_schema.triggers
-        WHERE event_object_table = 'campaigns'`,
+    // Trigger duy nhất được phép là `campaigns_operation_stage_sync` (migration
+    // 1802400000000) — chỉ đồng bộ giai đoạn vận hành theo trạng thái duyệt, KHÔNG
+    // chạm số phần quà.
+    const [triggers] = await dataSource.query<
+      { others: string; stageSyncTouchesCount: boolean | null }[]
+    >(
+      `SELECT (SELECT count(*)::text
+                 FROM pg_trigger
+                WHERE tgrelid = 'campaigns'::regclass
+                  AND NOT tgisinternal
+                  AND tgname <> 'campaigns_operation_stage_sync') AS others,
+              (SELECT pg_get_functiondef(t.tgfoid) ILIKE '%current_items_count%'
+                 FROM pg_trigger t
+                WHERE t.tgrelid = 'campaigns'::regclass
+                  AND t.tgname = 'campaigns_operation_stage_sync') AS "stageSyncTouchesCount"`,
     );
     check(
-      'Bảng campaigns KHÔNG có trigger nào',
-      triggers.total === '0',
-      `${triggers.total} trigger`,
+      'Bảng campaigns KHÔNG có trigger nào ngoài trigger đồng bộ giai đoạn',
+      triggers.others === '0',
+      `${triggers.others} trigger khác`,
+    );
+    check(
+      'Trigger đồng bộ giai đoạn KHÔNG chạm current_items_count',
+      triggers.stageSyncTouchesCount === false,
+      `${triggers.stageSyncTouchesCount}`,
     );
 
     const declared = await progressUseCase.handle({

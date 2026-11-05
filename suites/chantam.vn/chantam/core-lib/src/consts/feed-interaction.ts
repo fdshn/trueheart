@@ -12,6 +12,13 @@ export enum ContentSubjectTypes {
   COMMENT = 'COMMENT',
   /** Chưa dùng — chỗ dành sẵn cho Dharma Hub, để không phải migrate về sau. */
   DHARMA_THREAD = 'DHARMA_THREAD',
+  /**
+   * Dự án từ thiện (CHARITY-PROJECT-LIFECYCLE §3.7): thích và bình luận ngay trên trang dự án.
+   * Đối tượng phải đã duyệt và đang hiện ra ngoài (chạy hoặc đã đóng, không đình chỉ).
+   */
+  CHARITY_CAMPAIGN = 'CHARITY_CAMPAIGN',
+  /** Bài ảnh/clip trong dự án (§3.5, đợt 3). */
+  CHARITY_CAMPAIGN_POST = 'CHARITY_CAMPAIGN_POST',
 }
 
 /**

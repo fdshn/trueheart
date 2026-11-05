@@ -283,6 +283,15 @@ export class WriteCharityCampaignDto {
   allowOverTarget?: boolean;
 
   @ApiPropertyOptional({
+    default: true,
+    description:
+      '`false` = lưu NHÁP: chưa xét duyệt, không vào hàng đợi Admin, chỉ người tạo thấy; gửi duyệt sau bằng `POST /charity-campaigns/:id/submit`. Bỏ trống = gửi duyệt ngay (hành vi cũ). Đường Admin bỏ qua cờ này.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  submit?: boolean;
+
+  @ApiPropertyOptional({
     type: () => CharityBeneficiaryInputDto,
     description:
       'Người thụ hưởng — CHỈ cho `INDIVIDUAL_APPEAL` + `beneficiaryRelation = OTHER`. Dữ liệu này RIÊNG TƯ và không ra response công khai nào. Thiếu, hoặc đồng ý chưa `CONFIRMED`, thì hoạt động vào chờ duyệt.',
@@ -325,6 +334,18 @@ export class RequestCharityMediaUploadDto {
   @IsInt()
   @Min(1)
   contentLength: number;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    example: 45,
+    description:
+      'Độ dài clip (giây). BẮT BUỘC khi tải clip cho bài dự án (`posts/media/upload`), tối đa `charity.post_max_video_seconds` (mặc định 60). Ảnh bỏ trống.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  durationSeconds?: number;
 }
 
 export class RequestCharityMediaUploadBodyDto {
@@ -708,6 +729,39 @@ export class CharityCampaignResponseDto {
   allowOverTarget: boolean;
 
   @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: '`null` = NHÁP, chưa gửi duyệt.',
+  })
+  submittedAt: Date | null;
+
+  @ApiProperty({
+    enum: ['PLAN', 'EXECUTION', 'EVENT', 'SUMMARY'],
+    description:
+      'Giai đoạn vận hành HIỆU LỰC (Kế hoạch · Triển khai · Sự kiện trao · Tổng kết). Backend tính sẵn theo mốc thời gian — app không tự suy từ ngày.',
+  })
+  operationStage: string;
+
+  @ApiProperty({
+    enum: ['PLAN', 'EXECUTION', 'EVENT', 'SUMMARY'],
+    description:
+      'Giai đoạn đã GHI xuống DB. Có thể chậm hơn `operationStage` tới khi job `charity:advance-stage` chạy — app hiển thị theo `operationStage`.',
+  })
+  storedOperationStage: string;
+
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Khung thời gian bước trao (`DISTRIBUTION` trong tiến độ 4 bước): `startsAt` là mốc sang Sự kiện trao, `endsAt` là mốc sang Tổng kết. `null` khi chưa lập — khi đó dùng `endTime`.',
+    example: {
+      startsAt: '2026-11-20T01:00:00.000Z',
+      endsAt: '2026-11-20T10:00:00.000Z',
+    },
+  })
+  distribution: { startsAt: string; endsAt: string } | null;
+
+  @ApiProperty({
     nullable: true,
     description:
       '`null` trên đường công khai (không có ai để hỏi), `true`/`false` trên các đường ' +
@@ -938,6 +992,14 @@ export class SubmitCharityContributionBodyDto {
   @IsString()
   @Length(1, MaxContributionContactNoteLength)
   contactNote?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Hiện nickname trong danh sách người ủng hộ công khai của dự án. Bỏ trống = theo cài đặt chung `showInPublicSupporterLists`. Đổi lại sau qua `PATCH /charity-campaigns/:id/contributions/:contributionId/public-name`.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  showNamePublicly?: boolean;
 }
 
 export class UpdateCharityContributionBodyDto {
@@ -1041,6 +1103,15 @@ export class CharityContributionDto {
     enum: ['ACCEPTED', 'COMPLETED', 'CANCELLED'],
   })
   deliveryStatus: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    enum: ['OPEN', 'RESOLVED', 'WITHDRAWN'],
+    description:
+      'Tranh chấp mới nhất (§3.18): `OPEN` = đang tranh chấp. `null` = chưa từng tranh chấp.',
+  })
+  disputeStatus?: string | null;
 }
 
 export class CharityContributionPageDto {
@@ -1142,6 +1213,20 @@ export class DeliveryReceiptLineDto {
   @Min(0)
   @Max(MaxNeedItemQuantity)
   receivedQuantity: number;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    nullable: true,
+    example: 1_500_000,
+    description:
+      'Giá trị (VNĐ) ban tổ chức xác nhận cho dòng này — căn cứ điểm `CHARITY_ITEM_VALUE` (1 điểm / 10.000đ). Bỏ trống = số thực nhận × đơn giá của nhu cầu. Người tặng khiếu nại được trong `charity.appeal_window_days` ngày.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000_000_000)
+  confirmedValue?: number | null;
 }
 
 export class CompleteCharityDeliveryBodyDto {
@@ -1253,11 +1338,24 @@ export class RecordExternalContributionBodyDto {
   @IsISO8601()
   receivedAt: string;
 
-  @ApiPropertyOptional({ maxLength: 1000 })
-  @IsOptional()
+  @ApiProperty({
+    maxLength: 1000,
+    description:
+      'Bằng chứng (mô tả, đường dẫn ảnh/chứng từ) — BẮT BUỘC từ 05/11: nguồn ngoài app tính vào tiến độ phải có bằng chứng (§3.18).',
+  })
   @IsString()
   @Length(1, 1000)
-  evidenceNote?: string;
+  evidenceNote: string;
+
+  @ApiPropertyOptional({
+    maxLength: 120,
+    description:
+      'Mã chứng từ / số biên nhận. Trùng một bản ghi còn hiệu lực của dự án → `CHARITY_EXTERNAL_SOURCE_DUPLICATED` (chống đếm trùng).',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 120)
+  sourceReference?: string;
 }
 
 export class AmendExternalContributionBodyDto {
@@ -1296,6 +1394,7 @@ export class CharityExternalContributionDto {
   @ApiProperty() sourceLabel: string;
   @ApiProperty({ type: String, format: 'date-time' }) receivedAt: Date;
   @ApiProperty({ type: String, nullable: true }) evidenceNote: string | null;
+  @ApiProperty({ type: String, nullable: true }) sourceReference: string | null;
   @ApiProperty({ format: 'uuid' }) recordedBy: string;
   @ApiProperty({
     enum: ['ACTIVE', 'VOIDED'],

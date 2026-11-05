@@ -16,6 +16,8 @@ import {
   PostNotFoundException,
 } from '@/domain/exceptions';
 import {
+  ICharityCampaignRepository,
+  ICharityEventRepository,
   IContentReactionRepository,
   IDharmaRepository,
   IEntitlementRepository,
@@ -29,6 +31,7 @@ import { isPubliclyVisibleThread } from '@chantam.vn/chantam.core-lib/models';
 import { PaginationMetaDto, toSkipTake } from '@chantam/service.common-lib/dto';
 import { ForbiddenException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable } from '@nestjs/common';
+import { assertCharitySubjectVisible } from './charity-subject';
 import {
   isNotifiableSubject,
   notifyFirstReactionOfDay,
@@ -49,6 +52,12 @@ class SubjectGuard {
   public constructor(
     @Inject(IPostRepository) private readonly posts: IPostRepository,
     @Inject(IDharmaRepository) private readonly dharma: IDharmaRepository,
+    // Dự án từ thiện là chủ thể tương tác (§3.7). Tuỳ chọn để các spec dựng tay không phải
+    // đổi; Nest luôn tiêm.
+    @Inject(ICharityCampaignRepository)
+    private readonly charityCampaigns?: ICharityCampaignRepository,
+    @Inject(ICharityEventRepository)
+    private readonly charityEvents?: ICharityEventRepository,
   ) {}
 
   /** Trả chủ bài để bên gọi khỏi nạp lại bài lần nữa chỉ để gửi thông báo. */
@@ -78,6 +87,13 @@ class SubjectGuard {
       return { authorId: thread.authorId };
     }
 
+    const charity = await assertCharitySubjectVisible(
+      { campaigns: this.charityCampaigns, events: this.charityEvents },
+      subjectType,
+      subjectId,
+    );
+    if (charity) return charity;
+
     // `COMMENT` vẫn chưa kiểm — đó là nợ CÓ TỪ TRƯỚC, không phải thứ bản này tạo ra. Thả
     // cảm xúc vào một bình luận không có thật để lại một hàng mồ côi; không ai mất gì và
     // không con số nào trên bài sai, vì số đếm của bài tính theo `subject_type = 'POST'`.
@@ -100,6 +116,12 @@ export class SetContentReactionUseCase implements ISetContentReactionUseCase {
     private readonly dispatchNotification: IDispatchNotificationUseCase,
     @Inject(IAppendPointEntryUseCase)
     private readonly points: IAppendPointEntryUseCase,
+    // Dự án từ thiện là chủ thể tương tác (§3.7). Tuỳ chọn để các spec dựng tay không phải
+    // đổi; Nest luôn tiêm.
+    @Inject(ICharityCampaignRepository)
+    private readonly charityCampaigns?: ICharityCampaignRepository,
+    @Inject(ICharityEventRepository)
+    private readonly charityEvents?: ICharityEventRepository,
   ) {}
 
   public async handle(
@@ -116,6 +138,8 @@ export class SetContentReactionUseCase implements ISetContentReactionUseCase {
     const { authorId } = await new SubjectGuard(
       this.posts,
       this.dharma,
+      this.charityCampaigns,
+      this.charityEvents,
     ).assertExists(command.subjectType, command.subjectId);
 
     // `created` chỉ đúng khi đây là lượt bày tỏ MỚI. Đổi LIKE sang LOVE không
@@ -189,6 +213,12 @@ export class ListContentReactionsUseCase implements IListContentReactionsUseCase
     @Inject(IContentReactionRepository)
     private readonly reactions: IContentReactionRepository,
     @Inject(IDharmaRepository) private readonly dharma: IDharmaRepository,
+    // Dự án từ thiện là chủ thể tương tác (§3.7). Tuỳ chọn để các spec dựng tay không phải
+    // đổi; Nest luôn tiêm.
+    @Inject(ICharityCampaignRepository)
+    private readonly charityCampaigns?: ICharityCampaignRepository,
+    @Inject(ICharityEventRepository)
+    private readonly charityEvents?: ICharityEventRepository,
   ) {}
 
   public async handle(
@@ -196,6 +226,11 @@ export class ListContentReactionsUseCase implements IListContentReactionsUseCase
   ): Promise<IListContentReactionsResult> {
     await assertThreadReadable(
       this.dharma,
+      command.subjectType,
+      command.subjectId,
+    );
+    await assertCharitySubjectVisible(
+      { campaigns: this.charityCampaigns, events: this.charityEvents },
       command.subjectType,
       command.subjectId,
     );

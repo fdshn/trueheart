@@ -1,5 +1,9 @@
-import { IChatRealtimePublisher } from '@/domain/ports/realtime';
+import {
+  ICharityRealtimePublisher,
+  IChatRealtimePublisher,
+} from '@/domain/ports/realtime';
 import { Global, Module } from '@nestjs/common';
+import { CharityGateway } from './charity.gateway';
 import { ChatGateway } from './chat.gateway';
 
 /**
@@ -12,7 +16,9 @@ import { ChatGateway } from './chat.gateway';
   providers: [
     ChatGateway,
     { provide: IChatRealtimePublisher, useExisting: ChatGateway },
+    CharityGateway,
+    { provide: ICharityRealtimePublisher, useExisting: CharityGateway },
   ],
-  exports: [IChatRealtimePublisher],
+  exports: [IChatRealtimePublisher, ICharityRealtimePublisher],
 })
 export class RealtimeModule {}

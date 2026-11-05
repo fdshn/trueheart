@@ -125,20 +125,13 @@ describe('charityCampaignGaps', () => {
 });
 
 describe('canCancelCharityParticipation', () => {
-  const startTime = new Date('2026-08-20T01:00:00.000Z');
-
-  it('cho huỷ khi chưa tới giờ bắt đầu', () => {
-    expect(
-      canCancelCharityParticipation({
-        startTime,
-        now: new Date(startTime.getTime() - 1),
-      }),
-    ).toBe(true);
+  it('huỷ được ở mọi giai đoạn trước Tổng kết — cả khi sự kiện đang diễn ra (chốt 05/11)', () => {
+    for (const operationStage of ['PLAN', 'EXECUTION', 'EVENT'])
+      expect(canCancelCharityParticipation({ operationStage })).toBe(true);
   });
 
-  it('chặn huỷ ĐÚNG tại giây bắt đầu', () => {
-    // Biên là `<`, không phải `<=`: đúng lúc khai mạc thì danh sách đã chốt.
-    expect(canCancelCharityParticipation({ startTime, now: startTime })).toBe(
+  it('Tổng kết thì không huỷ được nữa', () => {
+    expect(canCancelCharityParticipation({ operationStage: 'SUMMARY' })).toBe(
       false,
     );
   });

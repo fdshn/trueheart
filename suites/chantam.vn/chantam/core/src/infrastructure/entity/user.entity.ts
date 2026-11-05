@@ -83,6 +83,14 @@ export class UserEntity
   showOnlineStatus: boolean;
 
   @Column({
+    name: 'show_in_public_supporter_lists',
+    type: 'boolean',
+    nullable: false,
+    default: false,
+  })
+  showInPublicSupporterLists: boolean;
+
+  @Column({
     name: 'allow_stranger_messages',
     type: 'boolean',
     nullable: false,

@@ -30,6 +30,8 @@ export interface IUpdateOwnProfileDto {
   leaderboardAnonymous?: boolean;
   /** Cho người khác thấy mình online ở từng tab. Tắt là xoá ngay khỏi danh sách. Bỏ trống = giữ nguyên. */
   showOnlineStatus?: boolean;
+  /** Mặc định hiện nickname trong danh sách người ủng hộ/tham gia dự án từ thiện. Bỏ trống = giữ nguyên. */
+  showInPublicSupporterLists?: boolean;
   /** Cho người chưa từng trò chuyện mở phòng chat trực tiếp với mình. Bỏ trống = giữ nguyên. */
   allowStrangerMessages?: boolean;
   /** Bỏ trống = giữ nguyên; `null` hoặc chuỗi trắng = xoá. */
@@ -120,6 +122,8 @@ export interface IOwnProfileDto {
   leaderboardAnonymous?: boolean;
   /** Cài đặt hiện trạng thái online (PR #46 §10.5) — chỉ chính chủ thấy. */
   showOnlineStatus?: boolean;
+  /** Mặc định hiện tên trong danh sách công khai của dự án từ thiện — chỉ chính chủ thấy. */
+  showInPublicSupporterLists?: boolean;
   /** Cài đặt "Cho phép người lạ nhắn tin" — chỉ chính chủ thấy. */
   allowStrangerMessages?: boolean;
   /** Huy hiệu bảng thành tích còn hạn — gồm cả huy hiệu giành lúc ẩn danh. */

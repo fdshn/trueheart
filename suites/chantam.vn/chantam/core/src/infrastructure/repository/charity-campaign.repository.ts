@@ -9,6 +9,7 @@ import {
   CharityDeliveryNotFoundException,
   CharityExternalContributionNotFoundException,
   CharityExternalContributionVoidedException,
+  CharityExternalSourceDuplicatedException,
   CharityLinesInvalidException,
   CharityMediaInvalidException,
   CharityMediaNotEditableException,
@@ -46,19 +47,21 @@ import {
   CharityBeneficiaryRelation,
   CharityCampaignType,
   CharityContributionStatus,
+  CharityOperationStage,
   CharityParticipationStatus,
   CharityRejectionReason,
   CharityReviewRole,
   charityProgressPercent,
   contributionDecisionProblem,
   contributionStatusFrom,
+  effectiveOperationStage,
   firstNeedOverflow,
   remainingNeedQuantity,
 } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
-import { isUniqueViolation } from './unique-violation';
+import { isUniqueViolation, isUniqueViolationOn } from './unique-violation';
 import { updateReturning } from './update-returning';
 
 interface IRow {
@@ -88,6 +91,10 @@ interface IRow {
   campaign_type: string;
   beneficiary_relation: string | null;
   allow_over_target: boolean;
+  submitted_at: Date | null;
+  operation_stage: string;
+  distribution_starts_at: Date | null;
+  distribution_ends_at: Date | null;
 }
 
 interface IReviewRow {
@@ -110,7 +117,8 @@ interface IReviewRow {
  * phép tồn tại một lần.
  *
  * `participant_count` là CÂU CON, không phải cột. Xem docblock migration `1798200000000`.
- * Nó đếm trên `IDX_campaign_participations_campaign` (index phần, chỉ hàng `REGISTERED`).
+ * Nó đếm trên `IDX_campaign_participations_campaign` (index phần, chỉ hàng còn hiệu lực —
+ * `CharityActiveParticipationStatuses`).
  */
 interface IContributionRow {
   global_id: string;
@@ -123,6 +131,7 @@ interface IContributionRow {
   created_at: Date;
   delivery_id: string | null;
   delivery_status: string | null;
+  dispute_status?: string | null;
 }
 
 interface IContributionItemRow {
@@ -169,6 +178,7 @@ interface IExternalRow {
   source_label: string;
   received_at: Date;
   evidence_note: string | null;
+  source_reference: string | null;
   recorded_by: string;
   status: string;
   replaces_id: string | null;
@@ -180,7 +190,7 @@ interface IExternalRow {
 const ExternalColumns = `external.global_id, external.campaign_id,
        external.need_item_id, need.item_name, need.unit, external.quantity,
        external.source_label, external.received_at, external.evidence_note,
-       external.recorded_by, external.status, external.replaces_id,
+       external.source_reference, external.recorded_by, external.status, external.replaces_id,
        external.voided_at, external.void_reason, external.created_at`;
 
 function toExternal(row: IExternalRow): ICharityExternalContribution {
@@ -194,6 +204,7 @@ function toExternal(row: IExternalRow): ICharityExternalContribution {
     sourceLabel: row.source_label,
     receivedAt: row.received_at,
     evidenceNote: row.evidence_note,
+    sourceReference: row.source_reference,
     recordedBy: row.recorded_by,
     status: row.status as 'ACTIVE' | 'VOIDED',
     replacesId: row.replaces_id,
@@ -210,7 +221,10 @@ const ContributionColumns = `contribution.global_id, contribution.campaign_id,
        contribution.contributor_id, contribution.status, contribution.note,
        contribution.contact_note, contribution.decided_at,
        contribution.created_at,
-       delivery.global_id AS delivery_id, delivery.status AS delivery_status`;
+       delivery.global_id AS delivery_id, delivery.status AS delivery_status,
+       (SELECT dispute.status FROM campaign_contribution_disputes dispute
+         WHERE dispute.contribution_id = contribution.global_id
+         ORDER BY dispute.id DESC LIMIT 1) AS dispute_status`;
 
 /**
  * Nguồn FROM của mọi lượt đọc đề nghị. LEFT JOIN vì phần lớn đề nghị chưa có lượt
@@ -235,6 +249,8 @@ function toContribution(
     createdAt: row.created_at,
     deliveryId: row.delivery_id,
     deliveryStatus: row.delivery_status as CharityDeliveryStatus | null,
+    disputeStatus: (row.dispute_status ?? null) as
+      'OPEN' | 'RESOLVED' | 'WITHDRAWN' | null,
     items: items.map((item) => ({
       globalId: item.global_id,
       needItemId: item.need_item_id,
@@ -262,9 +278,16 @@ const Columns = `campaigns.global_id, campaigns.title, campaigns.slug, campaigns
        campaigns.created_at, campaigns.updated_at,
        campaigns.campaign_type, campaigns.beneficiary_relation,
        campaigns.allow_over_target,
+       campaigns.submitted_at, campaigns.operation_stage,
+       (SELECT phase.starts_at FROM campaign_phases phase
+         WHERE phase.campaign_id = campaigns.global_id
+           AND phase.phase = 'DISTRIBUTION') AS distribution_starts_at,
+       (SELECT phase.ends_at FROM campaign_phases phase
+         WHERE phase.campaign_id = campaigns.global_id
+           AND phase.phase = 'DISTRIBUTION') AS distribution_ends_at,
        (SELECT count(*) FROM campaign_participations participation
          WHERE participation.campaign_id = campaigns.global_id
-           AND participation.status = 'REGISTERED') AS participant_count,
+           AND participation.status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')) AS participant_count,
        COALESCE(
          (SELECT json_agg(json_build_object(
                    'url', media.public_url,
@@ -284,6 +307,13 @@ const LocationExpression = `CASE
 END`;
 
 function toCampaign(row: IRow): ICharityCampaign {
+  const distribution =
+    row.distribution_starts_at && row.distribution_ends_at
+      ? {
+          startsAt: row.distribution_starts_at,
+          endsAt: row.distribution_ends_at,
+        }
+      : null;
   const targetItemsCount = Number(row.target_items_count);
   const currentItemsCount = Number(row.current_items_count);
 
@@ -321,6 +351,15 @@ function toCampaign(row: IRow): ICharityCampaign {
     // so sánh số ở đó đều sai một cách im lặng.
     participantCount: Number(row.participant_count),
     media: row.media ?? [],
+    submittedAt: row.submitted_at,
+    storedOperationStage: row.operation_stage as CharityOperationStage,
+    distribution,
+    operationStage: effectiveOperationStage({
+      stored: row.operation_stage as CharityOperationStage,
+      distribution,
+      endTime: row.end_time,
+      now: new Date(),
+    }),
   };
 }
 
@@ -425,11 +464,14 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
            (title, slug, description, banner_url, badge_name, target_items_count,
             location, location_label, start_time, end_time,
             created_by, approval_status, approved_by, approved_at,
-            campaign_type, beneficiary_relation, allow_over_target)
+            campaign_type, beneficiary_relation, allow_over_target,
+            submitted_at, operation_stage)
          VALUES ($1, $2, $3, $4, $5, $6, ${LocationExpression}, $8, $7, $11,
                  $12, $13, $14,
                  CASE WHEN $15 = 'PENDING_APPROVAL' THEN NULL ELSE now() END,
-                 $16, $17, $18)
+                 $16, $17, $18,
+                 CASE WHEN $19 THEN now() END,
+                 CASE WHEN $15 = 'APPROVED' THEN 'EXECUTION' ELSE 'PLAN' END)
          RETURNING *
        )
        SELECT ${Columns} FROM inserted AS campaigns`,
@@ -458,8 +500,17 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         params.campaignType,
         params.beneficiaryRelation,
         params.allowOverTarget,
+        params.submitted,
       ],
     );
+    // Công khai ngay lúc tạo (Admin, hoặc capability public-ngay) là một lần chuyển
+    // PLAN → EXECUTION — ghi vào nhật ký như mọi lần chuyển khác.
+    if (params.approvalStatus === 'APPROVED')
+      await manager.query(
+        `INSERT INTO campaign_stage_events (campaign_id, from_stage, to_stage, actor_id, reason)
+         VALUES ($1, 'PLAN', 'EXECUTION', $2, 'Công khai ngay lúc tạo')`,
+        [row.global_id, params.createdBy],
+      );
     return toCampaign(row);
   }
 
@@ -1183,7 +1234,11 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
   public async completeDelivery(params: {
     deliveryId: string;
     organizerId: string;
-    received: readonly { needItemId: string; receivedQuantity: number }[];
+    received: readonly {
+      needItemId: string;
+      receivedQuantity: number;
+      confirmedValue?: number | null;
+    }[];
   }): Promise<ICharityDelivery> {
     return this.manager.transaction(async (manager) => {
       const delivery = await this.lockDeliveryInOrder(
@@ -1218,7 +1273,9 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       // Xác nhận ĐỦ mọi dòng, mỗi dòng một lần, trong [0, accepted]. Bỏ sót một dòng
       // là để lại một phần đã chấp nhận không bao giờ được trả về nhu cầu.
       const received = new Map<string, number>();
+      const confirmedValues = new Map<string, number | null>();
       for (const line of params.received) {
+        confirmedValues.set(line.needItemId, line.confirmedValue ?? null);
         if (received.has(line.needItemId))
           throw new CharityLinesInvalidException(
             `Dòng ${line.needItemId} được xác nhận hai lần`,
@@ -1243,12 +1300,24 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
           );
       }
 
+      // Giá trị xác nhận (§3.9): ban tổ chức nhập thì lấy đúng số đó; bỏ trống thì số thực
+      // nhận × đơn giá của nhu cầu (chưa có đơn giá → NULL, không có điểm theo giá trị).
       await manager.query(
         `UPDATE campaign_delivery_items item
-         SET received_quantity = line.received_quantity
-         FROM UNNEST($2::uuid[], $3::int[]) AS line(need_item_id, received_quantity)
+         SET received_quantity = line.received_quantity,
+             confirmed_value = COALESCE(
+               line.confirmed_value,
+               (SELECT line.received_quantity * need.unit_price
+                  FROM campaign_need_items need WHERE need.global_id = item.need_item_id))
+         FROM UNNEST($2::uuid[], $3::int[], $4::bigint[])
+           AS line(need_item_id, received_quantity, confirmed_value)
          WHERE item.delivery_id = $1 AND item.need_item_id = line.need_item_id`,
-        [params.deliveryId, [...received.keys()], [...received.values()]],
+        [
+          params.deliveryId,
+          [...received.keys()],
+          [...received.values()],
+          [...received.keys()].map((key) => confirmedValues.get(key) ?? null),
+        ],
       );
 
       // Phần đã chấp nhận RỜI khỏi `accepted_quantity` theo đúng số đã chấp nhận,
@@ -1505,6 +1574,31 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     sourceLabel: string;
     receivedAt: Date;
     evidenceNote: string | null;
+    sourceReference?: string | null;
+  }): Promise<ICharityExternalContribution> {
+    try {
+      return await this.recordExternalWithin(params);
+    } catch (error) {
+      if (
+        isUniqueViolationOn(
+          error,
+          'UQ_campaign_external_contributions_reference',
+        )
+      )
+        throw new CharityExternalSourceDuplicatedException();
+      throw error;
+    }
+  }
+
+  private async recordExternalWithin(params: {
+    campaignId: string;
+    recordedBy: string;
+    needItemId: string;
+    quantity: number;
+    sourceLabel: string;
+    receivedAt: Date;
+    evidenceNote: string | null;
+    sourceReference?: string | null;
   }): Promise<ICharityExternalContribution> {
     return this.manager.transaction(async (manager) => {
       const { campaign, needs } = await this.lockCampaignAndNeeds(
@@ -1531,8 +1625,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       const [row] = await manager.query<{ global_id: string }[]>(
         `INSERT INTO campaign_external_contributions
            (campaign_id, need_item_id, quantity, source_label, received_at,
-            evidence_note, recorded_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+            evidence_note, recorded_by, source_reference)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING global_id`,
         [
           params.campaignId,
@@ -1542,6 +1636,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
           params.receivedAt,
           params.evidenceNote,
           params.recordedBy,
+          params.sourceReference ?? null,
         ],
       );
       await this.shiftNeedProjections(manager, [
@@ -1631,8 +1726,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       const [replacement] = await manager.query<{ global_id: string }[]>(
         `INSERT INTO campaign_external_contributions
            (campaign_id, need_item_id, quantity, source_label, received_at,
-            evidence_note, recorded_by, replaces_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            evidence_note, recorded_by, replaces_id, source_reference)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING global_id`,
         [
           current.campaign_id,
@@ -1643,6 +1738,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
           current.evidence_note,
           params.actorUserId,
           params.externalId,
+          // Bản thay thế giữ mã chứng từ — bản cũ đã huỷ ngay trước nên không trùng.
+          current.source_reference,
         ],
       );
       // Một lượt ghi cho chênh lệch, không hai lượt trừ-rồi-cộng: cùng một kết quả,
@@ -1837,13 +1934,16 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     actorUserId: string,
     beneficiary: ICharityBeneficiaryInput,
   ): Promise<void> {
+    // Người thụ hưởng của kêu gọi cá nhân là dòng `is_appeal_subject` của `campaign_parties`
+    // (gộp bên thụ hưởng — docs/plan/CHARITY-PROJECT-LIFECYCLE.md §7.5).
     await manager.query(
-      `INSERT INTO campaign_beneficiaries
-         (campaign_id, full_name, relation_note, phone, address,
-          consent_status, verification_note, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (campaign_id) DO UPDATE
-         SET full_name = EXCLUDED.full_name,
+      `INSERT INTO campaign_parties
+         (campaign_id, name, relation_note, phone, address,
+          consent_status, verification_note, updated_by,
+          role, beneficiary_kind, is_appeal_subject)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'BENEFICIARY', 'INDIVIDUAL', true)
+       ON CONFLICT (campaign_id) WHERE is_appeal_subject DO UPDATE
+         SET name = EXCLUDED.name,
              relation_note = EXCLUDED.relation_note,
              phone = EXCLUDED.phone,
              address = EXCLUDED.address,
@@ -1885,9 +1985,9 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         updated_at: Date;
       }[]
     >(
-      `SELECT full_name, relation_note, phone, address, consent_status,
+      `SELECT name AS full_name, relation_note, phone, address, consent_status,
               verification_note, updated_at
-       FROM campaign_beneficiaries WHERE campaign_id = $1`,
+       FROM campaign_parties WHERE campaign_id = $1 AND is_appeal_subject`,
       [campaignId],
     );
     if (!row) return null;
@@ -2084,7 +2184,10 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
 
     if (query.approvalStatus) {
       values.push(query.approvalStatus);
-      filter = `AND campaigns.approval_status = $${values.length}`;
+      // Hàng đợi chờ duyệt không chứa nháp — chủ dự án chưa gửi.
+      filter = `AND campaigns.approval_status = $${values.length}
+                AND (campaigns.approval_status <> 'PENDING_APPROVAL'
+                     OR campaigns.submitted_at IS NOT NULL)`;
     }
 
     const rows = await this.manager.query<IRow[]>(
@@ -2097,7 +2200,13 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     const [counted] = await this.manager.query<{ total: string }[]>(
       `SELECT count(*)::text AS total FROM campaigns
         WHERE campaigns.deleted_at IS NULL
-          ${query.approvalStatus ? 'AND campaigns.approval_status = $1' : ''}`,
+          ${
+            query.approvalStatus
+              ? `AND campaigns.approval_status = $1
+                 AND (campaigns.approval_status <> 'PENDING_APPROVAL'
+                      OR campaigns.submitted_at IS NOT NULL)`
+              : ''
+          }`,
       query.approvalStatus ? [query.approvalStatus] : [],
     );
 
@@ -2117,7 +2226,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         INNER JOIN campaign_participations AS joined
            ON joined.campaign_id = campaigns.global_id
           AND joined.user_id = $3
-          AND joined.status = 'REGISTERED'
+          AND joined.status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')
         WHERE campaigns.deleted_at IS NULL
         ORDER BY campaigns.start_time DESC, campaigns.id DESC
         LIMIT $1 OFFSET $2`,
@@ -2125,7 +2234,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     );
     const [counted] = await this.manager.query<{ total: string }[]>(
       `SELECT count(*)::text AS total FROM campaign_participations
-        WHERE user_id = $1 AND status = 'REGISTERED'`,
+        WHERE user_id = $1 AND status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')`,
       [query.userId],
     );
 
@@ -2168,19 +2277,27 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     // `AND approval_status = 'PENDING_APPROVAL'` nằm trong WHERE của chính câu UPDATE, chứ
     // không phải một lượt đọc trước đó: hai Admin bấm cùng lúc thì người sau phải thấy
     // xung đột, không phải ghi đè quyết định người trước.
+    // Nháp (`submitted_at` NULL) KHÔNG duyệt được: chủ dự án chưa gửi, Admin quyết là
+    // quyết thay họ. Duyệt thì chuyển PLAN → EXECUTION và ghi nhật ký trong CÙNG câu lệnh.
     const rows = await updateReturning<IRow>(
       this.manager,
       `WITH updated AS (
          UPDATE campaigns
             SET approval_status = CASE WHEN $3 THEN 'APPROVED' ELSE 'REJECTED' END,
+                operation_stage = CASE WHEN $3 THEN 'EXECUTION' ELSE 'PLAN' END,
                 approval_note = $4,
                 approved_by = $2,
                 approved_at = now(),
                 updated_at = now()
           WHERE global_id = $1
             AND approval_status = 'PENDING_APPROVAL'
+            AND submitted_at IS NOT NULL
             AND deleted_at IS NULL
           RETURNING *
+       ), stage_event AS (
+         INSERT INTO campaign_stage_events (campaign_id, from_stage, to_stage, actor_id, reason)
+         SELECT global_id, 'PLAN', 'EXECUTION', $2, 'Admin duyệt'
+         FROM updated WHERE $3
        )
        SELECT ${Columns} FROM updated AS campaigns`,
       [params.campaignId, params.approverId, params.approve, params.note],
@@ -2280,7 +2397,9 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       `INSERT INTO campaign_participations (campaign_id, user_id, status, registered_at)
        VALUES ($1, $2, 'REGISTERED', now())
        ON CONFLICT (campaign_id, user_id) DO UPDATE
-         SET status = 'REGISTERED', registered_at = now(), cancelled_at = NULL
+         SET status = 'REGISTERED', registered_at = now(), cancelled_at = NULL,
+             status_changed_at = now(), status_changed_by = NULL, status_reason = NULL,
+             checked_in_at = NULL, checked_in_by = NULL
          WHERE campaign_participations.status = 'CANCELLED'
        RETURNING global_id`,
       [params.campaignId, params.userId],
@@ -2295,8 +2414,10 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     const rows = await updateReturning<{ global_id: string }>(
       this.manager,
       `UPDATE campaign_participations
-          SET status = 'CANCELLED', cancelled_at = now()
-        WHERE campaign_id = $1 AND user_id = $2 AND status = 'REGISTERED'
+          SET status = 'CANCELLED', cancelled_at = now(), status_changed_at = now(),
+              status_changed_by = $2, status_reason = NULL
+        WHERE campaign_id = $1 AND user_id = $2
+          AND status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN')
         RETURNING global_id`,
       [params.campaignId, params.userId],
     );
@@ -2318,7 +2439,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
   public async listRegisteredUserIds(campaignId: string): Promise<string[]> {
     const rows = await this.manager.query<{ user_id: string }[]>(
       `SELECT user_id FROM campaign_participations
-        WHERE campaign_id = $1 AND status = 'REGISTERED'
+        WHERE campaign_id = $1 AND status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')
         ORDER BY registered_at ASC`,
       [campaignId],
     );
