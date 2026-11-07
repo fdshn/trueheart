@@ -167,7 +167,7 @@ flowchart TD
         D7["GET /admin/chat/rooms/:id/messages<br/>DELETE /admin/chat/messages/:id"]
         D8["GET /admin/transactions · PATCH …/:id/reopen"]
         D9["GET /admin/affiliate-events · POST …/:eventId/reversal"]
-        D10["GET, POST /admin/media · /admin/media/upload"]
+        D10["GET, POST /admin/media · /admin/media/upload · /admin/media/audio[/upload]"]
     end
 ```
 

@@ -16,7 +16,10 @@ import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { StorageService } from '@chantam/service.storage-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
-import { ConfirmCmsMediaUseCase } from '../src/application/implementations/media/cms-media.use-cases';
+import {
+  ConfirmCmsAudioUseCase,
+  ConfirmCmsMediaUseCase,
+} from '../src/application/implementations/media/cms-media.use-cases';
 import { SweepOrphanMediaUseCase } from '../src/application/implementations/media/sweep-orphan-media.use-case';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
@@ -224,7 +227,82 @@ async function main(): Promise<void> {
       `deleted=${sweptOther.deleted}`,
     );
 
-    await storage.deleteObjects([upload.key]);
+    console.log('\n5. Âm thanh Phật pháp và bằng chứng dự án từ thiện');
+    const audioUpload = await storage.createCmsAudioUpload({
+      userId: AdminId,
+      contentType: 'audio/mpeg',
+      contentLength: 2048,
+    });
+    await put(audioUpload.uploadUrl, Buffer.alloc(2048, 1), 'audio/mpeg');
+    const confirmedAudio = await new ConfirmCmsAudioUseCase(
+      { hasPermission: async () => true } as never,
+      storage,
+    ).handle({ actorUserId: AdminId, key: audioUpload.key });
+    // Một tệp khác giả làm bằng chứng tranh chấp (đường tải nào thì cũng nằm dưới users/<id>/).
+    const evidenceUpload = await storage.createCmsAudioUpload({
+      userId: AdminId,
+      contentType: 'audio/mpeg',
+      contentLength: 1024,
+    });
+    await put(evidenceUpload.uploadUrl, Buffer.alloc(1024, 2), 'audio/mpeg');
+    const strayUpload = await storage.createCmsAudioUpload({
+      userId: AdminId,
+      contentType: 'audio/mpeg',
+      contentLength: 1024,
+    });
+    await put(strayUpload.uploadUrl, Buffer.alloc(1024, 3), 'audio/mpeg');
+    await dataSource.query(
+      `INSERT INTO dharma_contents (content_type, title, slug, audio_url)
+       VALUES ('SUTRA', 'Kinh kiểm', 'kinh-kiem-audio', $1)`,
+      [`https://media.chantam.test/${confirmedAudio.audio.storageKey}`],
+    );
+    // Bảng tranh chấp có khoá ngoại dày — chỉ cần giá trị nằm trong cột jsonb được quét, nên
+    // ghi thẳng vào hạng mục hỗ trợ mở (cùng loại nguồn jsonb mới thêm).
+    const [{ campaign }] = await dataSource.query<{ campaign: string }[]>(
+      `INSERT INTO campaigns
+         (title, slug, description, banner_url, badge_name, start_time, end_time, created_by)
+       VALUES ('Dự án kiểm', 'du-an-kiem-media', 'Mô tả đủ dài cho dự án kiểm', 'https://cdn.test/a.jpg',
+               'Ấm', now(), now() + interval '10 days', $1)
+       RETURNING global_id AS campaign`,
+      [AdminId],
+    );
+    await dataSource.query(
+      `INSERT INTO campaign_other_support_needs
+         (campaign_id, support_type, title, unit, target_quantity, external_quantity,
+          external_evidence_urls)
+       VALUES ($1, 'TRANSPORT', 'Xe', 'chuyến', 2, 1, $2::jsonb)`,
+      [
+        campaign,
+        JSON.stringify([`https://media.chantam.test/${evidenceUpload.key}`]),
+      ],
+    );
+    // Cột ảnh/âm thanh đòi https: job thứ hai đọc gốc URL https để ánh xạ về key.
+    const httpsSweeper = new SweepOrphanMediaUseCase(
+      dataSource.manager,
+      storage,
+      {
+        storage: { publicBaseUrl: 'https://media.chantam.test' },
+      } as never,
+    );
+    const sweptAudio = await httpsSweeper.handle({
+      prefix: `users/${AdminId}/cms-audio/`,
+      minAgeHours: 0,
+      dryRun: false,
+    });
+    check(
+      'âm thanh đang dùng và bằng chứng nguồn ngoài KHÔNG bị dọn; tệp bỏ ngang thì bị dọn',
+      (await exists(audioUpload.key)) &&
+        (await exists(evidenceUpload.key)) &&
+        !(await exists(strayUpload.key)) &&
+        sweptAudio.deleted === 1,
+      `deleted=${sweptAudio.deleted}`,
+    );
+
+    await storage.deleteObjects([
+      upload.key,
+      audioUpload.key,
+      evidenceUpload.key,
+    ]);
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

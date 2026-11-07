@@ -2913,6 +2913,7 @@ lúc khởi động thì về chế độ một instance kèm cảnh báo.
 | `PATCH` | `/charity-campaigns/:id/contributions/:contributionId/public-name` | Người góp | `{ publicName: { show } }` — `null` = theo cài đặt chung |
 | `PATCH` | `/charity-campaigns/:id/participation/public-name` | Người đăng ký | Như trên cho đăng ký tham gia |
 | `POST` | `/charity-campaigns/:id/promotion-request` | Người tạo | `{ promotion: { note? } }` — đề xuất lên Home |
+| `GET` | `/admin/charity-campaigns/:id/promotion` | `campaign.read` | `{ promotion }` — cấu hình card hiện tại + đề xuất của ban tổ chức (`promotionRequestedAt`, `promotionRequestNote`) |
 | `PATCH` | `/admin/charity-campaigns/:id/promotion` | `campaign.manage` | `{ promotion: { featuredOnHome, featuredTitle, featuredMessage, featuredMediaUrl, featuredCta, featuredFrom, featuredUntil, featuredPriority, reason } }` — audit |
 | `GET` | `/home/charity-cards` | Công khai | Card ngắn đang hiện (`?limit=`, mặc định 5) |
 
@@ -3136,4 +3137,21 @@ bên kia `CHARITY_CONTRIBUTION_DISPUTE_UPDATED`. Đọc đóng góp có thêm `d
 khi dự án sang Tổng kết (tính từ nhật ký giai đoạn; Admin chỉnh `charity.post_after_event_hours`
 0–720, 0 = tắt). `GET :id/posts/quota` trả `afterEventWindowEndsAt` (`null` khi chưa sang Tổng
 kết). Ban tổ chức, coordinator đăng mọi giai đoạn như cũ.
+
+## 19. Thư viện media CMS (ảnh và âm thanh)
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `POST` | `/admin/media/upload` | `admin.access` + một trong `banner.manage`, `blog.manage`, `campaign.manage`, `dharma.manage`, `merit.manage` | Xin URL tải ảnh (JPEG/PNG/WebP ≤ 5 MB) |
+| `POST` | `/admin/media` | như trên | Xác nhận ảnh đã tải, đưa vào thư viện dùng chung |
+| `GET` | `/admin/media` | như trên | Thư viện ảnh (tìm theo tên tệp / người tải) |
+| `POST` | `/admin/media/audio/upload` | `admin.access` + `dharma.manage` | Xin URL tải âm thanh: `audio/mpeg` (mp3), `audio/mp4` / `audio/x-m4a` (m4a), `audio/aac`, ≤ 50 MB |
+| `POST` | `/admin/media/audio` | như trên | `{ audio: { key } }` → `{ audio: { storageKey, publicUrl, contentType } }`; đặt `publicUrl` vào `audioUrl` của nội dung Phật pháp |
+
+Ba bước như mọi đường tải: xin URL → `PUT` tệp kèm đúng `Content-Type` → xác nhận. Âm thanh không
+vào thư viện ảnh; tệp không được nội dung Phật pháp nào trỏ tới bị job `media:sweep-orphans` xoá
+sau 24 giờ. Từ 07/11/2026 job này giữ thêm: `dharma_contents.audio_url` / `cover_url`, bằng chứng
+khiếu nại (`campaign_appeals.evidence_urls`), tranh chấp (`campaign_contribution_disputes.evidence_urls`)
+và nguồn ngoài của hỗ trợ mở (`campaign_other_support_needs.external_evidence_urls`) — trước đó các
+bằng chứng này bị coi là mồ côi.
 

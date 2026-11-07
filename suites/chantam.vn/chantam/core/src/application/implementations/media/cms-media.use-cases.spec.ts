@@ -4,13 +4,16 @@ import {
 } from '@chantam/service.common-lib/exception';
 import { StorageValidationError } from '@chantam/service.storage-lib';
 import {
+  ConfirmCmsAudioUseCase,
   ConfirmCmsMediaUseCase,
   ListCmsMediaUseCase,
+  RequestCmsAudioUploadUseCase,
   RequestCmsMediaUploadUseCase,
 } from './cms-media.use-cases';
 
 const AdminId = '10000000-0000-4000-8000-000000000001';
 const Key = `users/${AdminId}/cms-media/a.webp`;
+const AudioKey = `users/${AdminId}/cms-audio/a.mp3`;
 
 function makeDeps(granted: string[] = ['blog.manage']) {
   return {
@@ -29,6 +32,16 @@ function makeDeps(granted: string[] = ['blog.manage']) {
       confirmCmsMediaUpload: jest.fn(async () => ({
         contentType: 'image/webp',
         publicUrl: `https://cdn.test/${Key}`,
+      })),
+      createCmsAudioUpload: jest.fn(async () => ({
+        key: AudioKey,
+        uploadUrl: 'https://r2.test/put',
+        expiresInSeconds: 300,
+        publicUrl: `https://cdn.test/${AudioKey}`,
+      })),
+      confirmCmsAudioUpload: jest.fn(async () => ({
+        contentType: 'audio/mpeg',
+        publicUrl: `https://cdn.test/${AudioKey}`,
       })),
     },
     assets: {
@@ -57,22 +70,25 @@ describe('CMS media library (CMS A2)', () => {
     expect(deps.storage.createCmsMediaUpload).not.toHaveBeenCalled();
   });
 
-  it.each(['banner.manage', 'blog.manage', 'campaign.manage', 'dharma.manage'])(
-    'một mình %s là đủ',
-    async (code) => {
-      const deps = makeDeps([code]);
-      await expect(
-        new RequestCmsMediaUploadUseCase(
-          deps.permissions as never,
-          deps.storage as never,
-        ).handle({
-          actorUserId: AdminId,
-          contentType: 'image/webp',
-          contentLength: 10,
-        }),
-      ).resolves.toMatchObject({ key: Key });
-    },
-  );
+  it.each([
+    'banner.manage',
+    'blog.manage',
+    'campaign.manage',
+    'dharma.manage',
+    'merit.manage',
+  ])('một mình %s là đủ', async (code) => {
+    const deps = makeDeps([code]);
+    await expect(
+      new RequestCmsMediaUploadUseCase(
+        deps.permissions as never,
+        deps.storage as never,
+      ).handle({
+        actorUserId: AdminId,
+        contentType: 'image/webp',
+        contentLength: 10,
+      }),
+    ).resolves.toMatchObject({ key: Key });
+  });
 
   it('lỗi chính sách của R2 thành 400, không phải 500', async () => {
     const deps = makeDeps();
@@ -145,5 +161,59 @@ describe('CMS media library (CMS A2)', () => {
       take: 10,
     });
     expect(result.meta).toMatchObject({ page: 2, total: 3 });
+  });
+});
+
+describe('Âm thanh CMS (Phật pháp)', () => {
+  it('chỉ dharma.manage — người quản lý blog bị 403, không chạm R2', async () => {
+    const deps = makeDeps(['blog.manage']);
+    await expect(
+      new RequestCmsAudioUploadUseCase(
+        deps.permissions as never,
+        deps.storage as never,
+      ).handle({
+        actorUserId: AdminId,
+        contentType: 'audio/mpeg',
+        contentLength: 10,
+      }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(deps.storage.createCmsAudioUpload).not.toHaveBeenCalled();
+  });
+
+  it('dharma.manage xin URL rồi xác nhận, nhận publicUrl', async () => {
+    const deps = makeDeps(['dharma.manage']);
+    const upload = await new RequestCmsAudioUploadUseCase(
+      deps.permissions as never,
+      deps.storage as never,
+    ).handle({
+      actorUserId: AdminId,
+      contentType: 'audio/mpeg',
+      contentLength: 10,
+    });
+    expect(upload.key).toBe(AudioKey);
+    const confirmed = await new ConfirmCmsAudioUseCase(
+      deps.permissions as never,
+      deps.storage as never,
+    ).handle({ actorUserId: AdminId, key: AudioKey });
+    expect(confirmed.audio).toEqual({
+      storageKey: AudioKey,
+      publicUrl: `https://cdn.test/${AudioKey}`,
+      contentType: 'audio/mpeg',
+    });
+  });
+
+  it('lỗi kiểm tệp của storage thành 400', async () => {
+    const deps = makeDeps(['dharma.manage']);
+    deps.storage.confirmCmsAudioUpload.mockRejectedValueOnce(
+      new StorageValidationError(
+        'Object âm thanh cms không có content type hợp lệ.',
+      ),
+    );
+    await expect(
+      new ConfirmCmsAudioUseCase(
+        deps.permissions as never,
+        deps.storage as never,
+      ).handle({ actorUserId: AdminId, key: AudioKey }),
+    ).rejects.toThrow(ValidationFailedException);
   });
 });

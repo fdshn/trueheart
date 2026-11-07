@@ -1,6 +1,7 @@
 import {
   assertAvatarUploadPolicy,
   assertCampaignMediaUploadPolicy,
+  assertCmsAudioUploadPolicy,
   assertIntroThumbnailUploadPolicy,
   assertIntroVideoUploadPolicy,
   assertPostMediaUploadPolicy,
@@ -422,6 +423,84 @@ describe('StorageService · thư viện ảnh CMS (CMS A2)', () => {
       contentType: 'image/webp',
       publicUrl: `https://cdn.chantam.test/${key}`,
     });
+  });
+});
+
+describe('StorageService · âm thanh CMS (Phật pháp)', () => {
+  const adminId = '33333333-3333-3333-3333-333333333333';
+  const MB = 1024 * 1024;
+
+  it('chính sách: mp3/m4a/aac tối đa 50 MB; ảnh, video, wav bị từ chối', () => {
+    const audio = (contentType: string, contentLength: number) => () =>
+      assertCmsAudioUploadPolicy({
+        userId: adminId,
+        contentType,
+        contentLength,
+      });
+    expect(audio('audio/mpeg', 50 * MB)).not.toThrow();
+    expect(audio('audio/mp4', MB)).not.toThrow();
+    expect(audio('audio/x-m4a', MB)).not.toThrow();
+    expect(audio('audio/aac', MB)).not.toThrow();
+    expect(audio('audio/mpeg', 50 * MB + 1)).toThrow();
+    expect(audio('audio/wav', MB)).toThrow();
+    expect(audio('image/png', MB)).toThrow();
+    expect(audio('video/mp4', MB)).toThrow();
+  });
+
+  it('key dưới users/<adminId>/cms-audio/ đúng đuôi; xác nhận kiểm tiền tố và loại', async () => {
+    const { getSignedUrl } = jest.requireMock(
+      '@aws-sdk/s3-request-presigner',
+    ) as { getSignedUrl: jest.Mock };
+    getSignedUrl.mockResolvedValue('https://mock-storage.local/upload-url');
+    const client = { send: jest.fn() };
+    const storage = new StorageService(
+      client as never,
+      {
+        bucket: 'chantam-test',
+        publicBaseUrl: 'https://cdn.chantam.test/',
+      } as never,
+    );
+    const mp3 = await storage.createCmsAudioUpload({
+      userId: adminId,
+      contentType: 'audio/mpeg',
+      contentLength: 1000,
+    });
+    expect(mp3.key).toMatch(
+      /^users\/33333333-3333-3333-3333-333333333333\/cms-audio\/[0-9a-f-]{36}\.mp3$/,
+    );
+    const m4a = await storage.createCmsAudioUpload({
+      userId: adminId,
+      contentType: 'audio/x-m4a',
+      contentLength: 1000,
+    });
+    expect(m4a.key.endsWith('.m4a')).toBe(true);
+
+    await expect(
+      storage.confirmCmsAudioUpload(
+        adminId,
+        `users/${adminId}/cms-media/a.mp3`,
+      ),
+    ).rejects.toThrow();
+    expect(client.send).not.toHaveBeenCalled();
+
+    client.send.mockResolvedValueOnce({
+      ContentType: 'audio/mpeg',
+      ContentLength: 1000,
+    });
+    await expect(
+      storage.confirmCmsAudioUpload(adminId, mp3.key),
+    ).resolves.toEqual({
+      contentType: 'audio/mpeg',
+      publicUrl: `https://cdn.chantam.test/${mp3.key}`,
+    });
+
+    // Tệp PUT lên với loại khác (ảnh) bị từ chối và xoá.
+    client.send
+      .mockResolvedValueOnce({ ContentType: 'image/png', ContentLength: 1000 })
+      .mockResolvedValueOnce({});
+    await expect(
+      storage.confirmCmsAudioUpload(adminId, m4a.key),
+    ).rejects.toThrow('không có content type hợp lệ');
   });
 });
 

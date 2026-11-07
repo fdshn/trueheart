@@ -1,6 +1,8 @@
 import {
+  IConfirmCmsAudioUseCase,
   IConfirmCmsMediaUseCase,
   IListCmsMediaUseCase,
+  IRequestCmsAudioUploadUseCase,
   IRequestCmsMediaUploadUseCase,
 } from '@/application/contracts/media';
 import {
@@ -23,17 +25,20 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  ConfirmCmsAudioBodyDto,
+  ConfirmCmsAudioResponseDto,
   ConfirmCmsMediaBodyDto,
   ConfirmCmsMediaResponseDto,
   ListCmsMediaQueryDto,
   ListCmsMediaResponseDto,
+  RequestCmsAudioUploadBodyDto,
   RequestCmsMediaUploadBodyDto,
   RequestCmsMediaUploadResponseDto,
 } from '../../dto/admin-config/admin-media.dto';
 import { RequiresPermission } from '../../guards';
 
 const PermissionNote =
-  'Cần MỘT trong `banner.manage`, `blog.manage`, `campaign.manage`, `dharma.manage` — ai soạn được nội dung có ảnh thì dùng được thư viện.';
+  'Cần MỘT trong `banner.manage`, `blog.manage`, `campaign.manage`, `dharma.manage`, `merit.manage` — ai soạn được nội dung có ảnh thì dùng được thư viện.';
 
 @ApiTags('Admin - Thư viện ảnh')
 @ApiBearerAuth()
@@ -46,7 +51,66 @@ export class AdminMediaController {
     private readonly confirmUseCase: IConfirmCmsMediaUseCase,
     @Inject(IListCmsMediaUseCase)
     private readonly listUseCase: IListCmsMediaUseCase,
+    @Inject(IRequestCmsAudioUploadUseCase)
+    private readonly requestAudioUseCase: IRequestCmsAudioUploadUseCase,
+    @Inject(IConfirmCmsAudioUseCase)
+    private readonly confirmAudioUseCase: IConfirmCmsAudioUseCase,
   ) {}
+
+  @Post('audio/upload')
+  @RequiresPermission('admin.access')
+  @ApiOperation({
+    summary: 'Xin URL tải âm thanh (Phật pháp)',
+    description:
+      'Như ảnh: (1) gọi đây lấy `uploadUrl` + `key`; (2) `PUT` tệp lên `uploadUrl` kèm đúng `Content-Type`; (3) `POST /admin/media/audio` với `key`, nhận `publicUrl` để đặt vào `audioUrl` của nội dung Phật pháp. mp3 / m4a / aac, tối đa 50 MB. Tệp không được nội dung nào dùng bị job dọn rác xoá sau 24 giờ. Cần `dharma.manage`.',
+  })
+  @ApiCreatedResponse({
+    type: ResponseDto.forApi(RequestCmsMediaUploadResponseDto),
+  })
+  @ApiErrorResponses(...ApiTokenErrors, ForbiddenException, [
+    ValidationFailedException,
+    [
+      'upload.contentType must be one of the following values: audio/mpeg, audio/mp4, audio/x-m4a, audio/aac',
+    ],
+  ])
+  public async requestAudioUpload(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: RequestCmsAudioUploadBodyDto,
+  ) {
+    const upload = await this.requestAudioUseCase.handle({
+      actorUserId: principal.userId,
+      contentType: body.upload.contentType,
+      contentLength: body.upload.contentLength,
+    });
+    return ResponseDto.create().succeed().attach({ upload }).build();
+  }
+
+  @Post('audio')
+  @RequiresPermission('admin.access')
+  @ApiOperation({
+    summary: 'Xác nhận âm thanh đã tải',
+    description:
+      'Kiểm object thật (tồn tại, đúng loại âm thanh, ≤ 50 MB) dưới tiền tố của CHÍNH người gọi; sai thì xoá ngay. Cần `dharma.manage`.',
+  })
+  @ApiCreatedResponse({ type: ResponseDto.forApi(ConfirmCmsAudioResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, ForbiddenException, [
+    ValidationFailedException,
+    ['audio.key: Key âm thanh cms không thuộc chủ thể hiện tại.'],
+  ])
+  public async confirmAudio(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Body() body: ConfirmCmsAudioBodyDto,
+  ) {
+    return ResponseDto.create()
+      .succeed()
+      .attach(
+        await this.confirmAudioUseCase.handle({
+          actorUserId: principal.userId,
+          key: body.audio.key,
+        }),
+      )
+      .build();
+  }
 
   @Post('upload')
   // Cổng chung vào CMS; use case đòi thêm một trong bốn quyền soạn nội dung.

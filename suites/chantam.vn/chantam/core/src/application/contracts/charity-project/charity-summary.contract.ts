@@ -136,6 +136,15 @@ export const ISetCharityPromotionUseCase = Symbol(
   'ISetCharityPromotionUseCase',
 );
 
+/** Admin `campaign.read` xem trạng thái card Home hiện tại (điền sẵn form bật/tắt). */
+export interface IGetCharityPromotionUseCase extends IUseCase<
+  ICharityProjectCommand,
+  ICharityPromotion
+> {}
+export const IGetCharityPromotionUseCase = Symbol(
+  'IGetCharityPromotionUseCase',
+);
+
 export interface IListCharityHomeCardsUseCase extends IUseCase<
   { limit: number },
   ICharityHomeCard[]

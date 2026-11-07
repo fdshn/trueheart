@@ -1,4 +1,5 @@
 import {
+  CharityCampaignNotFoundException,
   CharityEvaluationTargetInvalidException,
   CharityProjectForbiddenException,
   CharitySummaryEmptyException,
@@ -10,6 +11,7 @@ import { ValidationFailedException } from '@chantam/service.common-lib/exception
 import { CharityProjectAccess } from './charity-project.use-cases';
 import {
   EvaluateCharityParticipantUseCase,
+  GetCharityPromotionUseCase,
   GetMyCharityEvaluationUseCase,
   PublishCharitySummaryUseCase,
   SaveCharitySummaryUseCase,
@@ -212,5 +214,45 @@ describe('Card Home', () => {
         promotion,
       }),
     ).rejects.toThrow(ValidationFailedException);
+  });
+});
+
+describe('GetCharityPromotionUseCase', () => {
+  function build(canRead: boolean, promotion: unknown) {
+    const admin = { hasPermission: jest.fn(async () => canRead) };
+    const summaries = { getPromotion: jest.fn(async () => promotion) };
+    return {
+      admin,
+      summaries,
+      useCase: new GetCharityPromotionUseCase(
+        admin as never,
+        summaries as never,
+      ),
+    };
+  }
+
+  it('đòi campaign.read', async () => {
+    const { admin, summaries, useCase } = build(false, {});
+    await expect(
+      useCase.handle({ userId: Owner, campaignId: CampaignId }),
+    ).rejects.toThrow(CharityProjectForbiddenException);
+    expect(admin.hasPermission).toHaveBeenCalledWith(Owner, 'campaign.read');
+    expect(summaries.getPromotion).not.toHaveBeenCalled();
+  });
+
+  it('trả cấu hình card hiện tại; dự án không có thì 404', async () => {
+    const view = { featuredOnHome: true, featuredTitle: 'Áo ấm' };
+    await expect(
+      build(true, view).useCase.handle({
+        userId: Owner,
+        campaignId: CampaignId,
+      }),
+    ).resolves.toBe(view);
+    await expect(
+      build(true, null).useCase.handle({
+        userId: Owner,
+        campaignId: CampaignId,
+      }),
+    ).rejects.toThrow(CharityCampaignNotFoundException);
   });
 });

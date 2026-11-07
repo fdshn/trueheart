@@ -24,6 +24,7 @@ import {
   IGetCharityExportPdfUseCase,
   IGetCharityInternalStatsUseCase,
   IGetCharityPostQuotaUseCase,
+  IGetCharityPromotionUseCase,
   IGetCharityPublicProjectUseCase,
   IGetCharityPublicStatsUseCase,
   IGetCharitySummaryUseCase,
@@ -178,6 +179,7 @@ import {
 } from './charity-project.use-cases';
 import {
   EvaluateCharityParticipantUseCase,
+  GetCharityPromotionUseCase,
   GetCharitySummaryUseCase,
   GetMyCharityEvaluationUseCase,
   ListCharityEvaluationsUseCase,
@@ -243,6 +245,7 @@ const bindings = [
   [ISetCharityPublicNameUseCase, SetCharityPublicNameUseCase],
   [IRequestCharityPromotionUseCase, RequestCharityPromotionUseCase],
   [ISetCharityPromotionUseCase, SetCharityPromotionUseCase],
+  [IGetCharityPromotionUseCase, GetCharityPromotionUseCase],
   [IListCharityHomeCardsUseCase, ListCharityHomeCardsUseCase],
   // Đợt 4b (§3.9, §3.16).
   [ISubmitCharityAppealUseCase, SubmitCharityAppealUseCase],

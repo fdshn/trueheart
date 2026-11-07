@@ -3,8 +3,8 @@
 > **File sinh tự động** bởi `npm run docs:routes` từ metadata của controller đã biên dịch.
 > Đừng sửa tay — sửa controller rồi chạy lại lệnh. CI chạy `docs:routes:check`.
 
-Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **431** route:
-59 công khai, 138 cần quyền Admin, 234 cần access token.
+Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **434** route:
+59 công khai, 141 cần quyền Admin, 234 cần access token.
 
 Mức truy cập: `Công khai` = không cần token; `Bearer` = cần access token (một số route còn
 kiểm chủ sở hữu hoặc quyền RBAC trong use case — xem `docs/API.md`); `perm:<mã>` = quyền Admin
@@ -111,6 +111,7 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `PATCH` | `/admin/charity-campaigns/:id/limits` | perm:campaign.manage | Ghi đè giới hạn của một dự án |
 | `GET` | `/admin/charity-campaigns/:id/needs` | perm:campaign.read | Bảng nhu cầu vật phẩm cho CMS, mọi trạng thái duyệt |
 | `PATCH` | `/admin/charity-campaigns/:id/progress` | perm:campaign.manage | Admin cập nhật số phần quà đã trao |
+| `GET` | `/admin/charity-campaigns/:id/promotion` | perm:campaign.read | Trạng thái card Home của một dự án |
 | `PATCH` | `/admin/charity-campaigns/:id/promotion` | perm:campaign.manage | Bật / tắt card Home của một dự án |
 
 ## `/admin/chat`
@@ -217,6 +218,8 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | --- | --- | --- | --- |
 | `GET` | `/admin/media` | perm:admin.access | Thư viện ảnh dùng chung của CMS |
 | `POST` | `/admin/media` | perm:admin.access | Bước 3: xác nhận ảnh đã tải và đưa vào thư viện |
+| `POST` | `/admin/media/audio` | perm:admin.access | Xác nhận âm thanh đã tải |
+| `POST` | `/admin/media/audio/upload` | perm:admin.access | Xin URL tải âm thanh (Phật pháp) |
 | `POST` | `/admin/media/upload` | perm:admin.access | Bước 1: xin URL tải ảnh lên thư viện |
 
 ## `/admin/merit-units`

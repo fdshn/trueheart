@@ -141,6 +141,17 @@ export interface IObjectStorage {
     key: string,
   ): Promise<ICmsMediaConfirmation>;
   /**
+   * Âm thanh CMS (Phật pháp): `users/<adminId>/cms-audio/`, mp3/m4a/aac, tối đa 50 MB. Không vào
+   * thư viện ảnh — nội dung trỏ tới nó là thứ giữ nó khỏi job dọn rác.
+   */
+  createCmsAudioUpload(
+    request: IStorageUploadRequest,
+  ): Promise<IStorageUploadResult>;
+  confirmCmsAudioUpload(
+    userId: string,
+    key: string,
+  ): Promise<ICmsMediaConfirmation>;
+  /**
    * Xoa object theo lo, kieu co-gang.
    *
    * Dung khi xoa chat theo han: loi hua "tin nhan se duoc xoa" chi dung mot nua

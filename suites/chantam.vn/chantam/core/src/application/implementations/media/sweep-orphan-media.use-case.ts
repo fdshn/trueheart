@@ -105,6 +105,34 @@ const LiveKeySources: readonly { sql: string; label: string }[] = [
     sql: `SELECT jsonb_array_elements_text(evidence_urls) AS value
           FROM reports WHERE jsonb_typeof(evidence_urls) = 'array'`,
   },
+  {
+    // Bằng chứng khiếu nại (đợt 4b) và tranh chấp đóng góp (đợt 5c) — tải qua luồng bằng chứng.
+    label: 'campaign_appeals.evidence_urls',
+    sql: `SELECT jsonb_array_elements_text(evidence_urls) AS value
+          FROM campaign_appeals WHERE jsonb_typeof(evidence_urls) = 'array'`,
+  },
+  {
+    label: 'campaign_contribution_disputes.evidence_urls',
+    sql: `SELECT jsonb_array_elements_text(evidence_urls) AS value
+          FROM campaign_contribution_disputes WHERE jsonb_typeof(evidence_urls) = 'array'`,
+  },
+  {
+    // Bằng chứng nguồn ngoài app của hạng mục hỗ trợ mở (đợt 5b).
+    label: 'campaign_other_support_needs.external_evidence_urls',
+    sql: `SELECT jsonb_array_elements_text(external_evidence_urls) AS value
+          FROM campaign_other_support_needs
+          WHERE jsonb_typeof(external_evidence_urls) = 'array'`,
+  },
+  {
+    // Âm thanh Phật pháp tải qua `/admin/media/audio` (`users/<id>/cms-audio/`) không nằm trong
+    // thư viện ảnh — nội dung đang trỏ tới là nguồn duy nhất giữ nó lại.
+    label: 'dharma_contents.audio_url',
+    sql: 'SELECT audio_url AS value FROM dharma_contents WHERE audio_url IS NOT NULL',
+  },
+  {
+    label: 'dharma_contents.cover_url',
+    sql: 'SELECT cover_url AS value FROM dharma_contents WHERE cover_url IS NOT NULL',
+  },
 ];
 
 @Injectable()

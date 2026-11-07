@@ -1,5 +1,6 @@
 import {
   IEvaluateCharityParticipantUseCase,
+  IGetCharityPromotionUseCase,
   IGetCharitySummaryUseCase,
   IGetMyCharityEvaluationUseCase,
   IListCharityEvaluationsUseCase,
@@ -413,7 +414,34 @@ export class AdminCharityPromotionController {
   public constructor(
     @Inject(ISetCharityPromotionUseCase)
     private readonly promotionUseCase: ISetCharityPromotionUseCase,
+    @Inject(IGetCharityPromotionUseCase)
+    private readonly getPromotionUseCase: IGetCharityPromotionUseCase,
   ) {}
+
+  @Get(':id/promotion')
+  @RequiresPermission('campaign.read')
+  @ApiOperation({
+    summary: 'Trạng thái card Home của một dự án',
+    description:
+      'Cấu hình card hiện tại và đề xuất của ban tổ chức (`promotionRequestedAt`, `promotionRequestNote`) — để CMS điền sẵn form bật/tắt.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(CharityPromotionResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    CharityCampaignNotFoundException,
+  )
+  public async getPromotion(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectParamsDto,
+  ) {
+    return ok({
+      promotion: await this.getPromotionUseCase.handle({
+        userId: principal.userId,
+        campaignId: params.id,
+      }),
+    });
+  }
 
   @Patch(':id/promotion')
   @RequiresPermission('campaign.manage')

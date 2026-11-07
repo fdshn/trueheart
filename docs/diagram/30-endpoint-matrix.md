@@ -159,7 +159,8 @@ flowchart LR
 | `GET` · `PUT /admin/lunar-holidays` | `config.read` / `config.write` | ✅ |
 | `GET` · `PUT /admin/affiliate-policy` · `GET /admin/affiliate-events[/:eventId/rewards]` | `config.read` / `config.write` | ✅ |
 | `POST /admin/affiliate-events/:eventId/reversal` | `point.adjust` | ✅ thu hồi toàn bộ reward của sự kiện |
-| `GET /admin/media` · `POST /admin/media[/upload]` | `admin.access` | ✅ |
+| `GET /admin/media` · `POST /admin/media[/upload]` | `admin.access` + một quyền soạn nội dung (`banner`/`blog`/`campaign`/`dharma`/`merit.manage`) | ✅ |
+| `POST /admin/media/audio/upload` · `POST /admin/media/audio` | `admin.access` + `dharma.manage` | ✅ âm thanh Phật pháp mp3/m4a/aac ≤ 50 MB |
 | `GET /admin/groups[/:groupId[/members]]` | `admin.access` | ✅ |
 | `POST /admin/groups/:groupId/dissolve` · `/invite-link/rotate` | `admin.manage` | ✅ |
 | `GET /admin/transactions[/:transactionId]` · `GET /admin/recipient-selections[/:transactionId]` | `post.read` | ✅ |

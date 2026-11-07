@@ -49,6 +49,8 @@ export interface IObjectStorage {
     confirmCampaignMediaUpload(userId: string, key: string): Promise<ICampaignMediaConfirmation>;
     createCmsMediaUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
     confirmCmsMediaUpload(userId: string, key: string): Promise<ICmsMediaConfirmation>;
+    createCmsAudioUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
+    confirmCmsAudioUpload(userId: string, key: string): Promise<ICmsMediaConfirmation>;
     deleteObjects(keys: readonly string[]): Promise<number>;
     listObjects(params: {
         prefix: string;

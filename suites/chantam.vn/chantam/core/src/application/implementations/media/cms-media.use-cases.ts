@@ -1,9 +1,12 @@
 import {
+  ICmsAudio,
+  IConfirmCmsAudioUseCase,
   IConfirmCmsMediaCommand,
   IConfirmCmsMediaUseCase,
   IListCmsMediaCommand,
   IListCmsMediaResult,
   IListCmsMediaUseCase,
+  IRequestCmsAudioUploadUseCase,
   IRequestCmsMediaUploadCommand,
   IRequestCmsMediaUploadUseCase,
 } from '@/application/contracts/media';
@@ -31,6 +34,8 @@ const ContentManagePermissions = [
   'blog.manage',
   'campaign.manage',
   'dharma.manage',
+  // Đơn vị công đức có ô ảnh bìa — người quản lý chúng cũng phải tải được ảnh.
+  'merit.manage',
 ] as const;
 
 async function assertContentEditor(
@@ -122,6 +127,64 @@ export class ListCmsMediaUseCase implements IListCmsMediaUseCase {
     return {
       assets: items,
       meta: new PaginationMetaDto(Math.floor(skip / take) + 1, take, total),
+    };
+  }
+}
+
+/** Âm thanh chỉ dùng cho nội dung Phật pháp. */
+async function assertAudioEditor(
+  permissions: IAdminConfigRepository,
+  actorUserId: string,
+): Promise<void> {
+  if (!(await permissions.hasPermission(actorUserId, 'dharma.manage')))
+    throw new ForbiddenException();
+}
+
+@Injectable()
+export class RequestCmsAudioUploadUseCase implements IRequestCmsAudioUploadUseCase {
+  public constructor(
+    @Inject(IAdminConfigRepository)
+    private readonly permissions: IAdminConfigRepository,
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+  ) {}
+
+  public async handle(
+    command: IRequestCmsMediaUploadCommand,
+  ): Promise<IStorageUploadResult> {
+    await assertAudioEditor(this.permissions, command.actorUserId);
+    return withStorageValidation('upload', () =>
+      this.storage.createCmsAudioUpload({
+        userId: command.actorUserId,
+        contentType: command.contentType,
+        contentLength: command.contentLength,
+      }),
+    );
+  }
+}
+
+@Injectable()
+export class ConfirmCmsAudioUseCase implements IConfirmCmsAudioUseCase {
+  public constructor(
+    @Inject(IAdminConfigRepository)
+    private readonly permissions: IAdminConfigRepository,
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+  ) {}
+
+  public async handle(command: {
+    actorUserId: string;
+    key: string;
+  }): Promise<{ audio: ICmsAudio }> {
+    await assertAudioEditor(this.permissions, command.actorUserId);
+    // HeadObject kiểm tiền tố CỦA NGƯỜI GỌI, loại và cỡ; sai thì xoá ngay.
+    const confirmed = await withStorageValidation('audio.key', () =>
+      this.storage.confirmCmsAudioUpload(command.actorUserId, command.key),
+    );
+    return {
+      audio: {
+        storageKey: command.key,
+        publicUrl: confirmed.publicUrl,
+        contentType: confirmed.contentType,
+      },
     };
   }
 }

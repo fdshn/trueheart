@@ -12,8 +12,9 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.StorageService = exports.AllowedIntroVideoContentTypes = exports.MediaSizeLimits = exports.AllowedVideoContentTypes = exports.AllowedImageContentTypes = void 0;
+exports.StorageService = exports.AllowedIntroVideoContentTypes = exports.MediaSizeLimits = exports.AllowedAudioContentTypes = exports.AllowedVideoContentTypes = exports.AllowedImageContentTypes = void 0;
 exports.getMediaExtension = getMediaExtension;
+exports.assertCmsAudioUploadPolicy = assertCmsAudioUploadPolicy;
 exports.assertAvatarUploadPolicy = assertAvatarUploadPolicy;
 exports.assertIntroThumbnailUploadPolicy = assertIntroThumbnailUploadPolicy;
 exports.assertIntroVideoUploadPolicy = assertIntroVideoUploadPolicy;
@@ -36,6 +37,12 @@ exports.AllowedVideoContentTypes = new Set([
     'video/quicktime',
     'video/webm',
 ]);
+exports.AllowedAudioContentTypes = new Set([
+    'audio/mpeg',
+    'audio/mp4',
+    'audio/x-m4a',
+    'audio/aac',
+]);
 const Megabyte = 1024 * 1024;
 exports.MediaSizeLimits = {
     avatar: 5 * Megabyte,
@@ -46,6 +53,7 @@ exports.MediaSizeLimits = {
     chatMedia: 5 * Megabyte,
     commentMedia: 5 * Megabyte,
     cmsMedia: 5 * Megabyte,
+    cmsAudio: 50 * Megabyte,
     introVideo: 50 * Megabyte,
     introThumbnail: 2 * Megabyte,
 };
@@ -61,6 +69,7 @@ const MediaLabels = {
     commentMedia: 'Ảnh bình luận',
     campaignMedia: 'Phương tiện hoạt động từ thiện',
     cmsMedia: 'Ảnh thư viện CMS',
+    cmsAudio: 'Âm thanh CMS',
     introVideo: 'Clip giới thiệu',
     introThumbnail: 'Ảnh bìa clip giới thiệu',
 };
@@ -78,6 +87,13 @@ function getMediaExtension(contentType) {
             return 'mov';
         case 'video/webm':
             return 'webm';
+        case 'audio/mpeg':
+            return 'mp3';
+        case 'audio/mp4':
+        case 'audio/x-m4a':
+            return 'm4a';
+        case 'audio/aac':
+            return 'aac';
         default:
             return contentType.split('/')[1] || 'bin';
     }
@@ -118,6 +134,16 @@ function assertUploadPolicy(kind, request) {
         throw new contracts_1.StorageValidationError(`${label} phải khai kích thước thật.`);
     if (request.contentLength < 1 || request.contentLength > limit)
         throw new contracts_1.StorageValidationError(`${label} phải lớn hơn 0 và không quá ${Math.round(limit / Megabyte)} MB.`);
+}
+function assertCmsAudioUploadPolicy(request) {
+    const label = MediaLabels.cmsAudio;
+    if (!exports.AllowedAudioContentTypes.has(request.contentType))
+        throw new contracts_1.StorageValidationError(`${label} chỉ nhận audio/mpeg (mp3), audio/mp4 / audio/x-m4a (m4a) hoặc audio/aac.`);
+    if (!Number.isInteger(request.contentLength))
+        throw new contracts_1.StorageValidationError(`${label} phải khai kích thước thật.`);
+    if (request.contentLength < 1 ||
+        request.contentLength > exports.MediaSizeLimits.cmsAudio)
+        throw new contracts_1.StorageValidationError(`${label} phải lớn hơn 0 và không quá ${Math.round(exports.MediaSizeLimits.cmsAudio / Megabyte)} MB.`);
 }
 function assertAvatarUploadPolicy(request) {
     assertUploadPolicy('avatar', request);
@@ -171,7 +197,15 @@ let StorageService = class StorageService {
         });
         let badType = false;
         let badSize = false;
-        if (kind === 'introVideo') {
+        if (kind === 'cmsAudio') {
+            badType =
+                !object.ContentType ||
+                    !exports.AllowedAudioContentTypes.has(object.ContentType);
+            badSize =
+                !object.ContentLength ||
+                    object.ContentLength > exports.MediaSizeLimits.cmsAudio;
+        }
+        else if (kind === 'introVideo') {
             badType =
                 !object.ContentType ||
                     !exports.AllowedIntroVideoContentTypes.has(object.ContentType);
@@ -258,6 +292,31 @@ let StorageService = class StorageService {
             key,
             uploadUrl,
             expiresInSeconds,
+            publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+        };
+    }
+    async createCmsAudioUpload(request) {
+        assertCmsAudioUploadPolicy(request);
+        const extension = getMediaExtension(request.contentType);
+        const key = `users/${request.userId}/cms-audio/${(0, node_crypto_1.randomUUID)()}.${extension}`;
+        const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
+        const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.client, new client_s3_1.PutObjectCommand({
+            Bucket: this.options.bucket,
+            Key: key,
+            ContentType: request.contentType,
+            ContentLength: request.contentLength,
+        }), { expiresIn: expiresInSeconds });
+        return {
+            key,
+            uploadUrl,
+            expiresInSeconds,
+            publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+        };
+    }
+    async confirmCmsAudioUpload(userId, key) {
+        const contentType = await this.verifyObject('cmsAudio', `users/${userId}/cms-audio/`, key);
+        return {
+            contentType,
             publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
         };
     }

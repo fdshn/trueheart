@@ -148,3 +148,62 @@ export class ListCmsMediaResponseDto {
   @ApiProperty({ type: () => PaginationMetaDto })
   meta: PaginationMetaDto;
 }
+
+/** Âm thanh Phật pháp — khớp `AllowedAudioContentTypes` của storage-lib. */
+const CmsAudioContentTypes = [
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/x-m4a',
+  'audio/aac',
+];
+
+export class RequestCmsAudioUploadDto {
+  @ApiProperty({ enum: CmsAudioContentTypes, example: 'audio/mpeg' })
+  @IsIn(CmsAudioContentTypes)
+  contentType: string;
+
+  @ApiProperty({
+    minimum: 1,
+    example: 18_000_000,
+    description:
+      'Tối đa 50 MB. Được ký vào URL — PUT lệch một byte là hỏng chữ ký.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  contentLength: number;
+}
+
+export class RequestCmsAudioUploadBodyDto {
+  @ApiProperty({ type: () => RequestCmsAudioUploadDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => RequestCmsAudioUploadDto)
+  upload: RequestCmsAudioUploadDto;
+}
+
+export class ConfirmCmsAudioDto {
+  @ApiProperty({ example: 'users/<adminId>/cms-audio/<uuid>.mp3' })
+  @IsString()
+  @Length(1, 500)
+  key: string;
+}
+
+export class ConfirmCmsAudioBodyDto {
+  @ApiProperty({ type: () => ConfirmCmsAudioDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => ConfirmCmsAudioDto)
+  audio: ConfirmCmsAudioDto;
+}
+
+export class CmsAudioDto {
+  @ApiProperty() storageKey: string;
+  @ApiProperty({ description: 'Dán vào `audioUrl` của nội dung Phật pháp.' })
+  publicUrl: string;
+  @ApiProperty({ example: 'audio/mpeg' }) contentType: string;
+}
+
+export class ConfirmCmsAudioResponseDto {
+  @ApiProperty({ type: () => CmsAudioDto }) audio: CmsAudioDto;
+}

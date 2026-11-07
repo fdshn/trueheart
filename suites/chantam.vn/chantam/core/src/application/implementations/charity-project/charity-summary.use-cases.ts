@@ -4,6 +4,7 @@ import {
   ICharitySummaryBoard,
   IEvaluateCharityParticipantCommand,
   IEvaluateCharityParticipantUseCase,
+  IGetCharityPromotionUseCase,
   IGetCharitySummaryUseCase,
   IGetMyCharityEvaluationUseCase,
   IListCharityEvaluationsUseCase,
@@ -448,6 +449,24 @@ export class SetCharityPromotionUseCase implements ISetCharityPromotionUseCase {
     });
     if (!saved) throw new CharityCampaignNotFoundException();
     return saved;
+  }
+}
+
+@Injectable()
+export class GetCharityPromotionUseCase implements IGetCharityPromotionUseCase {
+  public constructor(
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+    @Inject(ICharitySummaryRepository)
+    private readonly summaries: ICharitySummaryRepository,
+  ) {}
+
+  public async handle(command: ICharityProjectCommand) {
+    if (!(await this.admin.hasPermission(command.userId, 'campaign.read')))
+      throw new CharityProjectForbiddenException();
+    const promotion = await this.summaries.getPromotion(command.campaignId);
+    if (!promotion) throw new CharityCampaignNotFoundException();
+    return promotion;
   }
 }
 

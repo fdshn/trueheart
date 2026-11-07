@@ -3,6 +3,7 @@ import { ICampaignMediaConfirmation, IChatMediaUploadRequest, ICmsMediaConfirmat
 import { IStorageModuleOptions } from './storage-options';
 export declare const AllowedImageContentTypes: Set<string>;
 export declare const AllowedVideoContentTypes: Set<string>;
+export declare const AllowedAudioContentTypes: Set<string>;
 export declare const MediaSizeLimits: {
     readonly avatar: number;
     readonly postMediaImage: number;
@@ -12,11 +13,13 @@ export declare const MediaSizeLimits: {
     readonly chatMedia: number;
     readonly commentMedia: number;
     readonly cmsMedia: number;
+    readonly cmsAudio: number;
     readonly introVideo: number;
     readonly introThumbnail: number;
 };
 export declare const AllowedIntroVideoContentTypes: Set<string>;
 export declare function getMediaExtension(contentType: string): string;
+export declare function assertCmsAudioUploadPolicy(request: IStorageUploadRequest): void;
 export declare function assertAvatarUploadPolicy(request: IStorageUploadRequest): void;
 export declare function assertIntroThumbnailUploadPolicy(request: IStorageUploadRequest): void;
 export declare function assertIntroVideoUploadPolicy(request: IStorageUploadRequest): void;
@@ -34,6 +37,8 @@ export declare class StorageService implements IObjectStorage {
     confirmPostMediaUpload(userId: string, postId: string, key: string): Promise<void>;
     createCampaignMediaUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
     createCmsMediaUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
+    createCmsAudioUpload(request: IStorageUploadRequest): Promise<IStorageUploadResult>;
+    confirmCmsAudioUpload(userId: string, key: string): Promise<ICmsMediaConfirmation>;
     confirmCmsMediaUpload(userId: string, key: string): Promise<ICmsMediaConfirmation>;
     confirmCampaignMediaUpload(userId: string, key: string): Promise<ICampaignMediaConfirmation>;
     confirmTransactionEvidenceUpload(userId: string, transactionId: string, key: string): Promise<void>;

@@ -38,6 +38,17 @@ export const AllowedVideoContentTypes = new Set([
   'video/webm',
 ]);
 
+/**
+ * Âm thanh CMS (bản tụng kinh, bài giảng Phật pháp). Bốn định dạng phát được trên cả iOS và
+ * Android; trình duyệt báo `.m4a` khi là `audio/mp4`, khi là `audio/x-m4a`.
+ */
+export const AllowedAudioContentTypes = new Set([
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/x-m4a',
+  'audio/aac',
+]);
+
 const Megabyte = 1024 * 1024;
 
 /**
@@ -52,6 +63,8 @@ export const MediaSizeLimits = {
   chatMedia: 5 * Megabyte,
   commentMedia: 5 * Megabyte,
   cmsMedia: 5 * Megabyte,
+  // Bản tụng/bài giảng dài 30–60 phút ở 64–128 kbps vẫn dưới trần này.
+  cmsAudio: 50 * Megabyte,
   // Clip giới thiệu trên hồ sơ (PR #46 §3.3). Server không transcode nên không kiểm được thời
   // lượng — trần dung lượng là thứ duy nhất giữ được ở đây; mobile tự giới hạn 60 giây.
   introVideo: 50 * Megabyte,
@@ -73,6 +86,7 @@ const MediaLabels = {
   commentMedia: 'Ảnh bình luận',
   campaignMedia: 'Phương tiện hoạt động từ thiện',
   cmsMedia: 'Ảnh thư viện CMS',
+  cmsAudio: 'Âm thanh CMS',
   introVideo: 'Clip giới thiệu',
   introThumbnail: 'Ảnh bìa clip giới thiệu',
 } as const;
@@ -93,6 +107,13 @@ export function getMediaExtension(contentType: string): string {
       return 'mov';
     case 'video/webm':
       return 'webm';
+    case 'audio/mpeg':
+      return 'mp3';
+    case 'audio/mp4':
+    case 'audio/x-m4a':
+      return 'm4a';
+    case 'audio/aac':
+      return 'aac';
     default:
       return contentType.split('/')[1] || 'bin';
   }
@@ -152,6 +173,26 @@ function assertUploadPolicy(
   if (request.contentLength < 1 || request.contentLength > limit)
     throw new StorageValidationError(
       `${label} phải lớn hơn 0 và không quá ${Math.round(limit / Megabyte)} MB.`,
+    );
+}
+
+/** Âm thanh CMS: chỉ bốn định dạng âm thanh, tối đa 50 MB. */
+export function assertCmsAudioUploadPolicy(
+  request: IStorageUploadRequest,
+): void {
+  const label = MediaLabels.cmsAudio;
+  if (!AllowedAudioContentTypes.has(request.contentType))
+    throw new StorageValidationError(
+      `${label} chỉ nhận audio/mpeg (mp3), audio/mp4 / audio/x-m4a (m4a) hoặc audio/aac.`,
+    );
+  if (!Number.isInteger(request.contentLength))
+    throw new StorageValidationError(`${label} phải khai kích thước thật.`);
+  if (
+    request.contentLength < 1 ||
+    request.contentLength > MediaSizeLimits.cmsAudio
+  )
+    throw new StorageValidationError(
+      `${label} phải lớn hơn 0 và không quá ${Math.round(MediaSizeLimits.cmsAudio / Megabyte)} MB.`,
     );
 }
 
@@ -253,7 +294,14 @@ export class StorageService implements IObjectStorage {
     let badType = false;
     let badSize = false;
 
-    if (kind === 'introVideo') {
+    if (kind === 'cmsAudio') {
+      badType =
+        !object.ContentType ||
+        !AllowedAudioContentTypes.has(object.ContentType);
+      badSize =
+        !object.ContentLength ||
+        object.ContentLength > MediaSizeLimits.cmsAudio;
+    } else if (kind === 'introVideo') {
       badType =
         !object.ContentType ||
         !AllowedIntroVideoContentTypes.has(object.ContentType);
@@ -384,6 +432,46 @@ export class StorageService implements IObjectStorage {
       key,
       uploadUrl,
       expiresInSeconds,
+      publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+    };
+  }
+
+  public async createCmsAudioUpload(
+    request: IStorageUploadRequest,
+  ): Promise<IStorageUploadResult> {
+    assertCmsAudioUploadPolicy(request);
+    const extension = getMediaExtension(request.contentType);
+    const key = `users/${request.userId}/cms-audio/${randomUUID()}.${extension}`;
+    const expiresInSeconds = this.options.uploadExpiresInSeconds ?? 300;
+    const uploadUrl = await getSignedUrl(
+      this.client,
+      new PutObjectCommand({
+        Bucket: this.options.bucket,
+        Key: key,
+        ContentType: request.contentType,
+        ContentLength: request.contentLength,
+      }),
+      { expiresIn: expiresInSeconds },
+    );
+    return {
+      key,
+      uploadUrl,
+      expiresInSeconds,
+      publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
+    };
+  }
+
+  public async confirmCmsAudioUpload(
+    userId: string,
+    key: string,
+  ): Promise<ICmsMediaConfirmation> {
+    const contentType = await this.verifyObject(
+      'cmsAudio',
+      `users/${userId}/cms-audio/`,
+      key,
+    );
+    return {
+      contentType,
       publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, '')}/${key}`,
     };
   }

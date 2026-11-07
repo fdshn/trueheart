@@ -56,3 +56,28 @@ export interface IListCmsMediaUseCase extends IUseCase<
 > {}
 
 export const IListCmsMediaUseCase = Symbol('IListCmsMediaUseCase');
+
+/**
+ * Âm thanh CMS (bản tụng kinh, bài giảng Phật pháp): cùng ba bước, tiền tố riêng
+ * `users/<adminId>/cms-audio/`, mp3/m4a/aac tối đa 50 MB. Không vào thư viện ảnh — URL đi
+ * thẳng vào `audioUrl` của nội dung Phật pháp, và chính nội dung đó giữ tệp khỏi job dọn rác.
+ * Chỉ `dharma.manage`.
+ */
+export interface IRequestCmsAudioUploadUseCase extends IUseCase<
+  IRequestCmsMediaUploadCommand,
+  IStorageUploadResult
+> {}
+export const IRequestCmsAudioUploadUseCase = Symbol(
+  'IRequestCmsAudioUploadUseCase',
+);
+
+export interface ICmsAudio {
+  readonly storageKey: string;
+  readonly publicUrl: string;
+  readonly contentType: string;
+}
+export interface IConfirmCmsAudioUseCase extends IUseCase<
+  { readonly actorUserId: string; readonly key: string },
+  { readonly audio: ICmsAudio }
+> {}
+export const IConfirmCmsAudioUseCase = Symbol('IConfirmCmsAudioUseCase');
