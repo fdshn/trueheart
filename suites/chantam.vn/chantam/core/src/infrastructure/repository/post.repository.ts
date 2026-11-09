@@ -26,6 +26,7 @@ import {
   CharityTransferStatuses,
   GiftPostStatuses,
   PostTypes,
+  PubliclyReadableGiftPostStatuses,
   PubliclyVisibleGiftPostStatuses,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
@@ -1175,13 +1176,13 @@ export class PostRepository
                AND deal.status IN ('ACCEPTED', 'DELIVERING', 'COMPLETED')
           ))`,
         {
-          statuses: [...PubliclyVisibleGiftPostStatuses],
+          statuses: [...PubliclyReadableGiftPostStatuses],
           currentUserId,
         },
       );
     } else {
       qb.andWhere('post.status IN (:...statuses)', {
-        statuses: [...PubliclyVisibleGiftPostStatuses],
+        statuses: [...PubliclyReadableGiftPostStatuses],
       });
     }
 

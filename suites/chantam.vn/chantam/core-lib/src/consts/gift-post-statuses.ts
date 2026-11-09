@@ -75,6 +75,18 @@ export const PubliclyVisibleGiftPostStatuses: readonly GiftPostStatuses[] = [
 ];
 
 /**
+ * Trạng thái mà AI CŨNG MỞ ĐƯỢC chi tiết bài (`GET /posts/:id`, link chia sẻ): bài còn nhận yêu
+ * cầu, cộng bài ĐÃ TRAO XONG. Từ 09/11 `GET /posts/nearby` trả cả bài `COMPLETED`; một thẻ hiện
+ * trên feed mà bấm vào ra 404 là lỗi. Bài huỷ / hết hạn / gỡ / ẩn vẫn không mở được.
+ *
+ * Mở chi tiết KHÔNG mở toạ độ thật hay liên lạc — hai thứ đó vẫn chỉ cho hai bên lượt trao.
+ */
+export const PubliclyReadableGiftPostStatuses: readonly GiftPostStatuses[] = [
+  ...PubliclyVisibleGiftPostStatuses,
+  GiftPostStatuses.COMPLETED,
+];
+
+/**
  * Trạng thái Rao vặt chủ bài tự đổi (PR #46 §8). `ACTIVE` là `PUBLISHED` — giữ tên trạng thái
  * chung của bài để bảng tin, bản đồ, hết hạn và gia hạn không phải biết thêm một tên.
  */

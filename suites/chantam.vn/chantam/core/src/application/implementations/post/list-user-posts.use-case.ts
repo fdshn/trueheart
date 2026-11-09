@@ -23,8 +23,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import { toPublicAuthor } from '../shared/public-author';
 
 /**
- * Trạng thái người NGOÀI được thấy — đúng luật của `findPublicByGlobalId`. Bài đã xong, hết
- * hạn hay bị gỡ không lên hồ sơ của người khác.
+ * Trạng thái người NGOÀI được thấy trên hồ sơ của người khác: chỉ bài còn nhận yêu cầu. Bài đã
+ * xong, hết hạn hay bị gỡ không lên danh sách này.
+ *
+ * Hẹp hơn `findPublicByGlobalId` (chi tiết bài) có chủ đích: từ 09/11 bài ĐÃ TRAO XONG mở được
+ * chi tiết vì `/posts/nearby` có trả nó, còn danh sách hồ sơ thì chưa đổi.
  */
 const PublicStatuses: string[] = [...PubliclyVisibleGiftPostStatuses];
 

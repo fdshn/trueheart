@@ -37,6 +37,8 @@ const WantedPost = '88888888-8888-4888-8888-88888888f002';
 const DeliveringPost = '88888888-8888-4888-8888-88888888f003';
 const DeletedPost = '88888888-8888-4888-8888-88888888f004';
 const PublishedPost = '88888888-8888-4888-8888-88888888f005';
+const CancelledPost = '88888888-8888-4888-8888-88888888f006';
+const ExpiredPost = '88888888-8888-4888-8888-88888888f007';
 
 const failures: string[] = [];
 
@@ -139,6 +141,10 @@ async function main(): Promise<void> {
     await addPost(DeletedPost, 'OFFER', 'COMPLETED', true);
     await addDeal(DeletedPost, AuthorId, CounterpartId, 'COMPLETED');
     await addPost(PublishedPost, 'OFFER', 'PUBLISHED');
+    // Bài bị huỷ, có một lượt trao đã huỷ; và bài hết hạn — cả hai vẫn ẩn với người ngoài.
+    await addPost(CancelledPost, 'OFFER', 'CANCELLED');
+    await addDeal(CancelledPost, AuthorId, CancelledId, 'CANCELLED');
+    await addPost(ExpiredPost, 'OFFER', 'EXPIRED');
 
     const posts = new PostRepository(PostEntity as never, dataSource.manager);
     const sees = async (postId: string, viewer?: string) =>
@@ -162,19 +168,29 @@ async function main(): Promise<void> {
       (await sees(OfferPost, AuthorId)) && (await sees(WantedPost, AuthorId)),
     );
 
-    console.log('\n2. Người ngoài vẫn không xem được');
+    // Đổi 09/11: nearby trả bài đã trao xong, nên chi tiết của nó phải mở được cho mọi người.
+    console.log('\n2. Bài ĐÃ TRAO XONG mở được cho mọi người (09/11)');
     check(
-      'người ngoài nhận 404 với bài COMPLETED',
-      !(await sees(OfferPost, OutsiderId)) &&
-        !(await sees(WantedPost, OutsiderId)),
+      'người ngoài xem được bài COMPLETED',
+      (await sees(OfferPost, OutsiderId)) &&
+        (await sees(WantedPost, OutsiderId)),
     );
     check(
-      'khách chưa đăng nhập nhận 404 với bài COMPLETED',
-      !(await sees(OfferPost)),
+      'khách chưa đăng nhập xem được bài COMPLETED',
+      (await sees(OfferPost)) && (await sees(WantedPost)),
+    );
+
+    console.log('\n2b. Bài huỷ / hết hạn vẫn không mở được');
+    check(
+      'người ngoài và khách nhận 404 với bài CANCELLED, EXPIRED',
+      !(await sees(CancelledPost, OutsiderId)) &&
+        !(await sees(CancelledPost)) &&
+        !(await sees(ExpiredPost, OutsiderId)) &&
+        !(await sees(ExpiredPost)),
     );
     check(
       'người chỉ có lượt trao ĐÃ HUỶ thì không còn quyền xem',
-      !(await sees(OfferPost, CancelledId)),
+      !(await sees(CancelledPost, CancelledId)),
     );
     check(
       'bài đã xoá mềm: kể cả người trong cuộc cũng 404',
@@ -199,7 +215,7 @@ async function main(): Promise<void> {
   console.log(
     `\n${
       failures.length === 0
-        ? 'Hiển thị bài: hai bên của lượt trao xem lại được bài đã xong ở cả Muốn Tặng lẫn Muốn Nhận, người ngoài và lượt đã huỷ vẫn 404'
+        ? 'Hiển thị bài: hai bên của lượt trao xem lại được bài đã xong ở cả Muốn Tặng lẫn Muốn Nhận, mọi người mở được bài đã trao xong, bài huỷ / hết hạn vẫn 404'
         : `${failures.length} phép kiểm thất bại`
     }`,
   );
