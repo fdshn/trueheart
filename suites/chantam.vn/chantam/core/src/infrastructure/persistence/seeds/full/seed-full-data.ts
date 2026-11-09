@@ -6,6 +6,7 @@ import { seedCharityProject } from './charity-project';
 import { seedCheckIns } from './check-ins';
 import { seedCommunity } from './community';
 import { seedContentAndInbox } from './content-inbox';
+import { seedDharmaLibrary } from './dharma-library';
 import { seedDharmaAndMerit } from './dharma-merit';
 import { seedDirectChat } from './direct-chat';
 import { seedFeed } from './feed';
@@ -27,6 +28,12 @@ export const SeedSections: ReadonlyArray<
   ['người dùng, vai trò, SĐT, giới thiệu, hạng', seedPeople],
   ['bài đăng, xin nhận, giao dịch, chat, đánh giá', seedGifting],
   ['Dharma Hub và công đức', seedDharmaAndMerit],
+  [
+    'thư viện Phật pháp: chùa chiền, kinh sách',
+    async (ctx) => {
+      await seedDharmaLibrary((sql, params) => ctx.q(sql, params));
+    },
+  ],
   // Sau Dharma: bình luận và cảm xúc treo vào cả chủ đề diễn đàn.
   ['bình luận, cảm xúc, chia sẻ', seedFeed],
   ['nhóm, đội con, affiliate', seedCommunity],

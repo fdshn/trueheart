@@ -13,6 +13,7 @@ import {
   CharityCampaignNotFoundException,
   CharityParticipationInvalidStateException,
   CharityParticipationNotFoundException,
+  CharityParticipationStageNotAllowedException,
   CharityProjectNotApprovedException,
 } from '@/domain/exceptions';
 import { ICharityRealtimePublisher } from '@/domain/ports/realtime';
@@ -28,6 +29,7 @@ import {
 import {
   CharityAttendedParticipationStatuses,
   CharityCheckInFromStatuses,
+  CharityParticipationActionStages,
   CharityParticipationDecisionRules,
   CharityParticipationStatus,
 } from '@chantam.vn/chantam.core-lib/models';
@@ -45,6 +47,35 @@ const StatusLabels: Readonly<Record<CharityParticipationStatus, string>> = {
   NO_SHOW: 'được ghi nhận vắng mặt',
   CANCELLED: 'đã huỷ',
 };
+
+const StageLabels: Readonly<Record<string, string>> = {
+  PLAN: 'Kế hoạch',
+  EXECUTION: 'Triển khai',
+  EVENT: 'Sự kiện trao',
+  SUMMARY: 'Tổng kết',
+};
+
+const ActionLabels: Readonly<Record<string, string>> = {
+  CONFIRM: 'xác nhận người tham gia',
+  WAITLIST: 'đưa vào danh sách chờ',
+  REJECT: 'từ chối người tham gia',
+  NO_SHOW: 'ghi nhận vắng mặt',
+  COMPLETE: 'ghi nhận hoàn thành',
+  CHECK_IN: 'check-in',
+};
+
+/** Chặn bước không hợp với giai đoạn HIỆU LỰC của dự án (vd check-in khi chưa tới Sự kiện trao). */
+function assertStageAllows(
+  action: keyof typeof CharityParticipationActionStages,
+  stage: string | undefined,
+): void {
+  const allowed = CharityParticipationActionStages[action];
+  if (stage && allowed.includes(stage)) return;
+  throw new CharityParticipationStageNotAllowedException(
+    ActionLabels[action],
+    allowed.map((key) => StageLabels[key] ?? key).join(' hoặc '),
+  );
+}
 
 /** Báo participant khi ban tổ chức đổi trạng thái lượt tham gia của họ. Lỗi gửi không chặn. */
 @Injectable()
@@ -133,6 +164,7 @@ export class DecideCharityParticipationUseCase implements IDecideCharityParticip
     const { campaign } = await this.access.forOperate(command);
     if (campaign.approvalStatus !== 'APPROVED')
       throw new CharityProjectNotApprovedException();
+    assertStageAllows(command.action, campaign.operationStage);
     const current = await this.participations.find(
       campaign.globalId,
       command.participationId,
@@ -193,8 +225,11 @@ export class CheckInCharityParticipationUseCase implements ICheckInCharityPartic
       command.participationId,
     );
     if (!current) throw new CharityParticipationNotFoundException();
+    // Gửi lại sau mất mạng vẫn trả nguyên trạng trước khi xét giai đoạn — đã check-in rồi thì
+    // không có gì để chặn.
     if (CharityAttendedParticipationStatuses.includes(current.status))
       return current;
+    assertStageAllows('CHECK_IN', campaign.operationStage);
     if (!CharityCheckInFromStatuses.includes(current.status))
       throw new CharityParticipationInvalidStateException(current.status);
 

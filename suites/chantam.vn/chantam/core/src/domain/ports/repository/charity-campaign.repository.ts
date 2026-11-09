@@ -200,6 +200,27 @@ export interface ICharityContributionItem {
   /** `null` khi organizer chưa quyết dòng này — KHÁC `0` là đã xem và không nhận. */
   readonly acceptedQuantity: number | null;
   readonly rejectionReason: CharityRejectionReason | null;
+  /**
+   * Số ban tổ chức xác nhận ĐÃ NHẬN ở lượt giao nhận. `null` = chưa xác nhận (chưa có
+   * giao nhận, hoặc giao nhận chưa hoàn tất); `0` = đã xác nhận và không nhận được.
+   */
+  readonly receivedQuantity?: number | null;
+}
+
+/** Người góp — chỉ ra ở danh sách của ban tổ chức và của chính người góp. */
+export interface ICharityContributorBrief {
+  readonly userId: string;
+  readonly username: string | null;
+  readonly fullName: string | null;
+  readonly avatarUrl: string | null;
+}
+
+/** Dự án của đóng góp — để màn "Tôi đã góp" mở được dự án mà không đọc thêm. */
+export interface ICharityContributionCampaignBrief {
+  readonly globalId: string;
+  readonly title: string;
+  readonly slug: string;
+  readonly bannerUrl: string | null;
 }
 
 export interface ICharityContribution {
@@ -230,6 +251,10 @@ export interface ICharityContribution {
    * không coi là xong cho tới khi giải quyết. `null` = chưa từng tranh chấp.
    */
   readonly disputeStatus?: 'OPEN' | 'RESOLVED' | 'WITHDRAWN' | null;
+  readonly contributor?: ICharityContributorBrief | null;
+  readonly campaign?: ICharityContributionCampaignBrief | null;
+  /** Lúc lượt giao nhận hoàn tất — "đóng góp thành công". `null` khi chưa. */
+  readonly deliveryCompletedAt?: Date | null;
 }
 
 export type CharityDeliveryStatus = 'ACCEPTED' | 'COMPLETED' | 'CANCELLED';
@@ -553,6 +578,8 @@ export interface ICharityNeedsRepositoryPart {
   listContributionsByCampaign(params: {
     campaignId: string;
     status?: CharityContributionStatus;
+    /** `COMPLETED` = chỉ đóng góp đã giao nhận xong (đóng góp thành công). */
+    deliveryStatus?: CharityDeliveryStatus;
     limit: number;
     offset: number;
   }): Promise<ICharityContributionPage>;
@@ -560,6 +587,8 @@ export interface ICharityNeedsRepositoryPart {
   /** Đề nghị của chính người gọi, mọi chiến dịch. */
   listContributionsByContributor(params: {
     contributorId: string;
+    status?: CharityContributionStatus;
+    deliveryStatus?: CharityDeliveryStatus;
     limit: number;
     offset: number;
   }): Promise<ICharityContributionPage>;

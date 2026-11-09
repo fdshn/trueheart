@@ -864,6 +864,72 @@ async function main(): Promise<void> {
       `${seen.length} bài, ${new Set(seen).size} khác nhau`,
     );
 
+    console.log('\nBài đã trao xong trên feed quanh đây:\n');
+    await seed(dataSource, [
+      { index: 100, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 30 },
+      { index: 101, postType: 'OFFER', status: 'COMPLETED', expiresInDays: 30 },
+      { index: 102, postType: 'OFFER', status: 'RESERVED', expiresInDays: 30 },
+      { index: 103, postType: 'OFFER', status: 'CANCELLED', expiresInDays: 30 },
+    ]);
+    // Bài ĐÃ XONG đứng GẦN NHẤT — nếu chỉ xếp theo khoảng cách nó sẽ lên đầu.
+    for (const [index, lng, lat] of [
+      [101, 106.698, 10.7724],
+      [100, 106.71, 10.78],
+      [102, 106.72, 10.79],
+      [103, 106.698, 10.7724],
+    ] as const)
+      await dataSource.query(
+        `UPDATE posts SET location = ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
+         WHERE global_id = $3`,
+        [lng, lat, postId(index)],
+      );
+
+    const withCompleted = await posts.findNearbyPosts({
+      origin,
+      radiusMeters: 50_000,
+      includeCompleted: true,
+      skip: 0,
+      take: 20,
+    });
+    const order = withCompleted.items.map((item) => item.post.globalId);
+    check(
+      'includeCompleted: có bài COMPLETED, không có bài CANCELLED',
+      withCompleted.total === 3 &&
+        order.includes(postId(101)) &&
+        !order.includes(postId(103)),
+      `${withCompleted.total} bài`,
+    );
+    check(
+      'bài đã xong xếp SAU bài còn nhận yêu cầu dù nó gần nhất',
+      order.join(',') === [postId(100), postId(102), postId(101)].join(','),
+      order.map((id) => id.slice(-3)).join(' → '),
+    );
+    const withoutCompleted = await posts.findNearbyPosts({
+      origin,
+      radiusMeters: 50_000,
+      skip: 0,
+      take: 20,
+    });
+    check(
+      'không bật cờ: như cũ, chỉ PUBLISHED/RESERVED',
+      withoutCompleted.total === 2 &&
+        !withoutCompleted.items.some(
+          (item) => item.post.globalId === postId(101),
+        ),
+      `${withoutCompleted.total} bài`,
+    );
+    const noOrigin = await posts.findNearbyPosts({
+      includeCompleted: true,
+      skip: 0,
+      take: 20,
+    });
+    check(
+      'không có toạ độ: bài đã xong vẫn đứng cuối (mới → cũ trong từng nhóm)',
+      noOrigin.items.at(-1)?.post.globalId === postId(101) &&
+        noOrigin.total === 3,
+      noOrigin.items.map((item) => item.post.globalId.slice(-3)).join(' → '),
+    );
+
     console.log('\nBản đồ gom cụm:\n');
     await seed(dataSource, [
       { index: 90, postType: 'OFFER', status: 'PUBLISHED', expiresInDays: 30 },

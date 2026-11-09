@@ -188,6 +188,8 @@ export class GetNearbyPostsUseCase implements IGetNearbyPostsUseCase {
       // `|| undefined` chứ không truyền thẳng: `false` xuống tầng repository là
       // một mệnh đề WHERE không ai yêu cầu.
       isSos: command.isSos || undefined,
+      // Mặc định có bài đã trao xong; lọc SOS thì mặc định không (đã xong là hết cần giúp).
+      includeCompleted: command.includeCompleted ?? !command.isSos,
       skip,
       take,
     });

@@ -778,6 +778,7 @@ export class ListCampaignContributionsUseCase implements IListCampaignContributi
     return this.repository.listContributionsByCampaign({
       campaignId: campaign.globalId,
       status: command.status,
+      deliveryStatus: command.deliveryStatus,
       limit: command.limit,
       offset: command.offset,
     });
@@ -796,6 +797,8 @@ export class ListMyContributionsUseCase implements IListMyContributionsUseCase {
   ): Promise<IListMyContributionsResult> {
     return this.repository.listContributionsByContributor({
       contributorId: command.contributorId,
+      status: command.status,
+      deliveryStatus: command.deliveryStatus,
       limit: command.limit,
       offset: command.offset,
     });

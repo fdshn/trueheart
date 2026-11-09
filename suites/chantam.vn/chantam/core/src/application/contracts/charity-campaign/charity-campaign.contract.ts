@@ -1,5 +1,6 @@
 import {
   CharityCampaignPhase,
+  CharityDeliveryStatus,
   ICharityBeneficiary,
   ICharityCampaign,
   ICharityContribution,
@@ -157,6 +158,8 @@ export interface IListCampaignContributionsCommand {
   /** Người gọi; phải là người tổ chức của chiến dịch này. */
   readonly actorUserId: string;
   readonly status?: CharityContributionStatus;
+  /** `COMPLETED` = chỉ người đã đóng góp thành công (giao nhận xong). */
+  readonly deliveryStatus?: CharityDeliveryStatus;
   readonly limit: number;
   readonly offset: number;
 }
@@ -174,6 +177,8 @@ export const IListCampaignContributionsUseCase = Symbol(
 
 export interface IListMyContributionsCommand {
   readonly contributorId: string;
+  readonly status?: CharityContributionStatus;
+  readonly deliveryStatus?: CharityDeliveryStatus;
   readonly limit: number;
   readonly offset: number;
 }

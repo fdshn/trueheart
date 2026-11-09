@@ -332,6 +332,10 @@ export class CharityPostVideoTooLongException extends ExceptionFrom(
   CoreErrors.CHARITY_POST_VIDEO_TOO_LONG,
 ) {}
 
+export class CharityParticipationStageNotAllowedException extends ExceptionFrom(
+  CoreErrors.CHARITY_PARTICIPATION_STAGE_NOT_ALLOWED,
+) {}
+
 export class CharityAppealConflictOfInterestException extends ExceptionFrom(
   CoreErrors.CHARITY_APPEAL_CONFLICT_OF_INTEREST,
 ) {}

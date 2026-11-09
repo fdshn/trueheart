@@ -147,6 +147,12 @@ export interface IGetNearbyPostsQueryDto extends IPaginationQueryDto {
    * biến mất mọi bài SOS khỏi feed chính.
    */
   isSos?: boolean;
+  /**
+   * Trả thêm bài ĐÃ TRAO XONG (`COMPLETED`), xếp sau mọi bài còn nhận yêu cầu.
+   * Bỏ trống = `true`, trừ khi lọc SOS (`isSos=true`) — bài cứu trợ đã xong thì
+   * không còn gì để giúp nên mặc định ẩn.
+   */
+  includeCompleted?: boolean;
 }
 
 export interface IGetMyPostsQueryDto extends IPaginationQueryDto {

@@ -327,7 +327,7 @@ export class CharityCampaignController {
     summary: 'Danh sách đề nghị của một hoạt động (người tổ chức)',
     description:
       'Chỉ người tổ chức hoạt động đọc được: danh sách này mang `contactNote` của người tặng, và §9 nói response công khai không trả contact.\n\n' +
-      'Lọc theo `status` để lấy riêng hàng chờ điều phối (`PENDING_REVIEW`).',
+      'Lọc theo `status` để lấy riêng hàng chờ điều phối (`PENDING_REVIEW`). `deliveryStatus=COMPLETED` là danh sách người đã đóng góp thành công (giao nhận xong), mỗi dòng có `contributor` (tên, ảnh) và `items[].receivedQuantity`.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(CharityContributionPageDto) })
   @ApiErrorResponses(
@@ -347,6 +347,7 @@ export class CharityCampaignController {
           campaignId: id,
           actorUserId: principal.userId,
           status: query.status,
+          deliveryStatus: query.deliveryStatus,
           limit: query.limit ?? 20,
           offset: query.offset ?? 0,
         }),

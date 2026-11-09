@@ -279,7 +279,9 @@ export class PostRepository
     const baseQuery = this.createQueryBuilder('post')
       .where('post.deletedAt IS NULL')
       .andWhere('post.status IN (:...statuses)', {
-        statuses: [...PubliclyVisibleGiftPostStatuses],
+        statuses: params.includeCompleted
+          ? [...PubliclyVisibleGiftPostStatuses, GiftPostStatuses.COMPLETED]
+          : [...PubliclyVisibleGiftPostStatuses],
       });
 
     // Bỏ trống loại bài là CỐ Ý: feed trộn cả năm loại. Bắt buộc chọn loại thì
@@ -326,6 +328,15 @@ export class PostRepository
 
     const listQuery = baseQuery.clone();
 
+    // Bài đã trao xong luôn xếp SAU bài còn nhận yêu cầu, rồi mới tới khoảng cách /
+    // thời gian. Trộn theo khoảng cách thuần thì một bài đã xong ngay cạnh đẩy bài
+    // còn quà xuống trang sau. Chuỗi hằng, không bind tham số trong ORDER BY.
+    if (params.includeCompleted)
+      listQuery.orderBy(
+        `CASE WHEN post.status = '${GiftPostStatuses.COMPLETED}' THEN 1 ELSE 0 END`,
+        'ASC',
+      );
+
     if (origin) {
       GeoQueryHelper.selectDistance(
         listQuery,
@@ -337,7 +348,7 @@ export class PostRepository
     } else {
       // Không có khoảng cách để xếp thì xếp theo thời gian — feed không có thứ
       // tự nào là feed xáo lại sau mỗi lần gọi.
-      listQuery.orderBy('post.createdAt', 'DESC');
+      listQuery.addOrderBy('post.createdAt', 'DESC');
     }
 
     // Chốt thứ tự bằng khoá chính. Thiếu nó thì hai bài cùng khoảng cách (cùng

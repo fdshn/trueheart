@@ -409,6 +409,8 @@ export enum ErrorCodes {
   CHARITY_DISPUTE_INVALID_STATE = 0x13_51,
   /** Clip dài hơn `charity.post_max_video_seconds`. */
   CHARITY_POST_VIDEO_TOO_LONG = 0x13_52,
+  /** Bước của lượt tham gia chưa (hoặc không còn) hợp với giai đoạn dự án — vd check-in trước Sự kiện trao. */
+  CHARITY_PARTICIPATION_STAGE_NOT_ALLOWED = 0x13_53,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

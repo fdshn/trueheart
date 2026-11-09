@@ -279,6 +279,7 @@ describe('GetNearbyPostsUseCase', () => {
       radiusMeters: 5_000,
       postType: PostTypes.WANTED,
       categoryId: '30000000-0000-4000-8000-000000000001',
+      includeCompleted: true,
       skip: 20,
       take: 20,
     });
@@ -385,6 +386,43 @@ describe('GetNearbyPostsUseCase', () => {
       expect.objectContaining({ isSos: true }),
     );
   });
+
+  it.each([
+    // [includeCompleted gửi lên, isSos, giá trị xuống repository]
+    [undefined, undefined, true],
+    [undefined, true, false],
+    [false, undefined, false],
+    [true, true, true],
+  ])(
+    'includeCompleted=%s, isSos=%s → repository nhận includeCompleted=%s',
+    async (includeCompleted, isSos, expected) => {
+      const posts = {
+        findNearbyPosts: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+      } as unknown as jest.Mocked<IPostRepository>;
+
+      await new GetNearbyPostsUseCase(
+        posts,
+        makeMedia(),
+        {} as unknown as jest.Mocked<IGiftRequestRepository>,
+        makeUsers(),
+        makeReactions(),
+        makeConfig(),
+        makeAdminConfig() as never,
+      ).handle({
+        lat: 10.77,
+        lng: 106.69,
+        radiusMeters: 5_000,
+        isSos,
+        includeCompleted,
+        page: 1,
+        pageSize: 20,
+      });
+
+      expect(posts.findNearbyPosts).toHaveBeenCalledWith(
+        expect.objectContaining({ includeCompleted: expected }),
+      );
+    },
+  );
 
   it('isSos=false và bỏ trống đều KHÔNG lọc', async () => {
     // "Cho tôi xem những bài KHÔNG gấp" không phải một nhu cầu có thật, và ép nó

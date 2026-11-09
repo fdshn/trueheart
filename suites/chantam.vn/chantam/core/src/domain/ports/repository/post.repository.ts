@@ -72,6 +72,11 @@ export interface IFindNearbyPostsParams {
    * "chỉ bài không gấp".
    */
   isSos?: boolean;
+  /**
+   * Thêm bài `COMPLETED` (đã trao xong) vào kết quả. Bài còn nhận yêu cầu luôn
+   * đứng trước, nên trang đầu không bị bài đã xong chen lấn.
+   */
+  includeCompleted?: boolean;
   skip: number;
   take: number;
 }

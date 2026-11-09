@@ -100,6 +100,8 @@
     "seed:demo": "cross-env SEED_DEMO_DATA=true ts-node -r tsconfig-paths/register src/infrastructure/persistence/seeds/seed-demo-data.cli.ts",
     "seed:demo:built": "cross-env SEED_DEMO_DATA=true node dist/infrastructure/persistence/seeds/seed-demo-data.cli.js",
     "seed:full": "cross-env SEED_DEMO_DATA=true ts-node -r tsconfig-paths/register src/infrastructure/persistence/seeds/seed-full-data.cli.ts",
+    "seed:dharma": "ts-node -r tsconfig-paths/register src/infrastructure/persistence/seeds/seed-dharma-library.cli.ts",
+    "seed:dharma:built": "node dist/infrastructure/persistence/seeds/seed-dharma-library.cli.js",
     "seed:full:built": "cross-env SEED_DEMO_DATA=true node dist/infrastructure/persistence/seeds/seed-full-data.cli.js",
     "prebuild": "rimraf dist",
     "start": "node dist/main",

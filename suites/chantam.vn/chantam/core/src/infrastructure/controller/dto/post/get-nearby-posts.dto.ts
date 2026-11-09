@@ -141,6 +141,18 @@ export class GetNearbyPostsQueryDto
   @Transform(toBoolean)
   @IsBoolean()
   useDefaultLocation?: boolean;
+
+  @ApiPropertyOptional({
+    example: true,
+    description:
+      'Trả thêm bài ĐÃ TRAO XONG (`post.status = COMPLETED`), luôn xếp sau mọi bài còn nhận yêu cầu ' +
+      '(trong từng nhóm vẫn gần → xa, hoặc mới → cũ khi không có toạ độ). ' +
+      'Bỏ trống = `true`, trừ khi `isSos=true` thì mặc định `false`. Gửi `false` để chỉ lấy bài còn nhận yêu cầu.',
+  })
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  includeCompleted?: boolean;
 }
 
 /**
@@ -152,7 +164,8 @@ export class GetNearbyPostsQueryDto
  */
 export class GetSosUrgentPostsQueryDto extends OmitType(
   GetNearbyPostsQueryDto,
-  ['isSos'] as const,
+  // Màn cứu trợ chỉ có bài còn cần giúp — bài đã xong không bật lại được ở đây.
+  ['isSos', 'includeCompleted'] as const,
 ) {}
 
 export class PostRequesterPreviewDto implements IPostRequesterPreviewDto {

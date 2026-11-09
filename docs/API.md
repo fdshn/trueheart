@@ -352,7 +352,7 @@ Một endpoint tạo bài cho **cả năm loại**, phân biệt bằng `postTyp
 | --- | --- | --- | --- |
 | `POST` | `/posts` | Bearer | Tạo bài — lên thẳng `PUBLISHED`, không chờ duyệt |
 | `GET` | `/posts/me` | Bearer | Bài của chính mình, lọc + phân trang |
-| `GET` | `/posts/nearby` | Công khai | Quét bài quanh một toạ độ — lọc loại, danh mục, và **tìm theo từ khoá** |
+| `GET` | `/posts/nearby` | Công khai | Quét bài quanh một toạ độ — lọc loại, danh mục, và **tìm theo từ khoá**. Từ 09/11 trả thêm bài **đã trao xong** (`post.status = COMPLETED`), luôn xếp sau bài còn nhận yêu cầu; `includeCompleted=false` để tắt. Lọc SOS (`isSos=true`) thì mặc định không kèm |
 | `GET` | `/posts/sos-urgent` | Công khai | Danh sách cứu trợ SOS — đúng truy vấn của `/posts/nearby` với `isSos` ghim `true` (SRS §19) |
 | `GET` | `/posts/map` | Công khai | Marker trong khung bản đồ |
 | `GET` | `/posts/:postId` | Công khai | Chi tiết một bài công khai |
@@ -2053,8 +2053,8 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `POST` | `/charity-campaigns` | Bearer + capability theo loại | ✅ **Đã chạy.** Tạo campaign kèm bảng nhu cầu; server tự quyết định chờ duyệt hay public ngay (`approval_status` + `is_active`) |
 | `GET` | `/campaigns/:idOrSlug/needs` | Công khai | ✅ **Đã chạy.** Nhu cầu, số đã chấp nhận/đã nhận/còn thiếu theo từng dòng; không trả PII beneficiary |
 | `POST` | `/charity-campaigns/:id/contributions` | Bearer | ✅ **Đã chạy.** Gửi đề nghị gồm nhiều vật phẩm và số lượng; đề nghị KHÔNG giữ chỗ |
-| `GET` | `/charity-campaigns/:id/contributions` | Organizer hoặc Coordinator đang hoạt động | ✅ **Đã chạy.** Danh sách đề nghị, lọc được theo trạng thái |
-| `GET` | `/charity-contributions/me` | Bearer | ✅ **Đã chạy.** Đề nghị của chính mình, mọi hoạt động |
+| `GET` | `/charity-campaigns/:id/contributions` | Organizer hoặc Coordinator đang hoạt động | ✅ **Đã chạy.** Danh sách đề nghị, lọc theo `status` và `deliveryStatus`. **`deliveryStatus=COMPLETED` = danh sách người đã đóng góp thành công**. Mỗi dòng có `contributor` (`userId`, `username`, `fullName`, `avatarUrl`), `deliveryCompletedAt` và `items[].receivedQuantity` (09/11) |
+| `GET` | `/charity-contributions/me` | Bearer | ✅ **Đã chạy.** Đề nghị của chính mình, mọi hoạt động — màn "Tôi đã góp". Mỗi dòng có `campaign` (`globalId`, `title`, `slug`, `bannerUrl`) để mở dự án, `items[].receivedQuantity`, `deliveryCompletedAt`; lọc `status` (trước 09/11 bị bỏ qua) và `deliveryStatus=COMPLETED` (09/11) |
 | `PATCH` | `/charity-contributions/:id` | Bearer (chủ đề nghị) | ✅ **Đã chạy.** `action: REPLACE` thay trọn bộ dòng, `WITHDRAW` rút — chỉ khi chưa có phần nào được chấp nhận |
 | `POST` | `/charity-contributions/:id/decision` | Organizer | ✅ **Đã chạy.** Quyết **mọi** dòng trong một lượt, nguyên tử; chống vượt nhu cầu khi hai lượt cùng lúc; `decisionKey` chống trùng |
 | `POST` | `/charity-campaigns/:id/external-contributions` | Organizer | ✅ **Đã chạy.** Ghi nhận vật phẩm nhận ngoài app; không gắn tài khoản nên không sinh điểm |
@@ -3018,7 +3018,18 @@ Tham gia **độc lập với đóng góp**. Một lượt tham gia mỗi (dự 
 Chuyển hợp lệ: `CONFIRM` ← chờ duyệt / danh sách chờ / đã từ chối; `WAITLIST` ← chờ duyệt / đã
 xác nhận; `REJECT` ← chờ duyệt / danh sách chờ / đã xác nhận; `NO_SHOW` ← đã xác nhận;
 `COMPLETE` ← đã check-in. Sai trạng thái → `CHARITY_PARTICIPATION_INVALID_STATE` (409); hai người
-bấm cùng lúc thì một người thắng. Participant nhận `CHARITY_PARTICIPATION_UPDATED` (kèm lý do);
+bấm cùng lúc thì một người thắng.
+
+**Theo giai đoạn dự án** (sửa 09/11 — trước đó check-in được cả khi dự án còn ở Kế hoạch):
+
+| Bước | Giai đoạn cho phép |
+| --- | --- |
+| `CONFIRM`, `WAITLIST`, `REJECT` | Kế hoạch, Triển khai, Sự kiện trao (không còn ở Tổng kết) |
+| Check-in, `NO_SHOW`, `COMPLETE` | Sự kiện trao, Tổng kết (ghi bù điểm danh) |
+
+Sai giai đoạn → `CHARITY_PARTICIPATION_STAGE_NOT_ALLOWED` (409), message nêu bước và giai đoạn
+được phép. Giai đoạn so là `operationStage` (tính theo lịch). Gửi lại check-in khi đã check-in vẫn trả
+nguyên trạng, không xét giai đoạn. Participant nhận `CHARITY_PARTICIPATION_UPDATED` (kèm lý do);
 realtime phát `PARTICIPANTS` tới phòng workspace.
 
 **Tuyển người** nối vào vòng đời chung: đăng ký một vị trí tạo (hoặc hồi) lượt tham gia chờ duyệt;

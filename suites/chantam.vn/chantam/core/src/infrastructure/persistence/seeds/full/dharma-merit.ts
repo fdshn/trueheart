@@ -1,3 +1,4 @@
+import { BatNhaTamKinh } from './dharma-library';
 import { ISeedContext, Personas, SeedDomains, seedId } from './seed-context';
 
 const content = (n: number) => seedId(SeedDomains.dharmaContents, n);
@@ -23,7 +24,7 @@ const Contents = [
     featured: true,
     published: true,
     audio: true,
-    body: 'Quán Tự Tại Bồ Tát hành thâm Bát Nhã Ba La Mật Đa thời, chiếu kiến ngũ uẩn giai không, độ nhất thiết khổ ách...',
+    body: BatNhaTamKinh,
   },
   {
     n: 2,

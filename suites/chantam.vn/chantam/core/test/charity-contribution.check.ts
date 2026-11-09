@@ -479,6 +479,88 @@ async function main(): Promise<void> {
       completed.items[0].receivedQuantity === 30,
     );
 
+    // ── 8b. Danh sách người đã đóng góp thành công ──────────────────────────
+    console.log(
+      '\n8b. Ai đã góp thành công — ban tổ chức và chính người góp đều thấy',
+    );
+
+    const succeeded = await repo.listContributionsByCampaign({
+      campaignId: diamond.globalId,
+      deliveryStatus: 'COMPLETED',
+      limit: 50,
+      offset: 0,
+    });
+    const doneRow = succeeded.items.find(
+      (row) => row.globalId === loser.globalId,
+    );
+    check(
+      'deliveryStatus=COMPLETED chỉ ra đóng góp đã giao xong, đếm khớp',
+      succeeded.items.length > 0 &&
+        succeeded.items.every((row) => row.deliveryStatus === 'COMPLETED') &&
+        succeeded.total === succeeded.items.length &&
+        doneRow !== undefined,
+      `${succeeded.items.length} dòng, total ${succeeded.total}`,
+    );
+    check(
+      'mỗi dòng có người góp (username) và mốc hoàn tất giao nhận',
+      Boolean(doneRow?.contributor?.username) &&
+        doneRow?.deliveryCompletedAt instanceof Date,
+      JSON.stringify(doneRow?.contributor),
+    );
+    check(
+      'số thực nhận từng dòng là 30 (đã chấp nhận 40)',
+      doneRow?.items[0]?.receivedQuantity === 30 &&
+        doneRow?.items[0]?.acceptedQuantity === 40,
+      JSON.stringify(doneRow?.items[0]),
+    );
+    const allOfCampaign = await repo.listContributionsByCampaign({
+      campaignId: diamond.globalId,
+      limit: 50,
+      offset: 0,
+    });
+    check(
+      'không lọc thì vẫn đủ mọi đề nghị như cũ (nhiều hơn danh sách đã xong)',
+      allOfCampaign.total > succeeded.total,
+      `${allOfCampaign.total} > ${succeeded.total}`,
+    );
+
+    const mineDone = await repo.listContributionsByContributor({
+      contributorId: loser === a ? GiverA : GiverB,
+      deliveryStatus: 'COMPLETED',
+      limit: 50,
+      offset: 0,
+    });
+    const mineRow = mineDone.items.find(
+      (row) => row.globalId === loser.globalId,
+    );
+    check(
+      '"Tôi đã góp": có tên + slug dự án để mở lại, và số thực nhận',
+      mineRow?.campaign?.title === diamond.title &&
+        mineRow?.campaign?.slug === diamond.slug &&
+        mineRow?.items[0]?.receivedQuantity === 30,
+      JSON.stringify(mineRow?.campaign),
+    );
+    const minePending = await repo.listContributionsByContributor({
+      contributorId: loser === a ? GiverA : GiverB,
+      status: 'PENDING_REVIEW',
+      limit: 50,
+      offset: 0,
+    });
+    check(
+      '"Tôi đã góp" lọc được theo status (trước đây bị bỏ qua)',
+      minePending.items.every((row) => row.status === 'PENDING_REVIEW') &&
+        !minePending.items.some((row) => row.globalId === loser.globalId),
+      `${minePending.items.length} dòng chờ duyệt`,
+    );
+    const pendingOnly = await repo.findContributionByGlobalId(winner.globalId);
+    check(
+      'đóng góp chưa giao xong: receivedQuantity null, deliveryCompletedAt null',
+      pendingOnly !== null &&
+        pendingOnly.deliveryCompletedAt === null &&
+        pendingOnly.items.every((item) => item.receivedQuantity === null),
+      JSON.stringify(pendingOnly?.items.map((item) => item.receivedQuantity)),
+    );
+
     // ── 12. Một bút toán cho mỗi đề nghị ────────────────────────────────────
     console.log('\n12. Một đề nghị chỉ sinh MỘT bút toán điểm');
 

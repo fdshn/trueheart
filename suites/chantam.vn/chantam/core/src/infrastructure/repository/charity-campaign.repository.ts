@@ -132,6 +132,13 @@ interface IContributionRow {
   delivery_id: string | null;
   delivery_status: string | null;
   dispute_status?: string | null;
+  delivery_completed_at?: Date | null;
+  contributor_username?: string | null;
+  contributor_full_name?: string | null;
+  contributor_avatar_url?: string | null;
+  campaign_title?: string | null;
+  campaign_slug?: string | null;
+  campaign_banner_url?: string | null;
 }
 
 interface IContributionItemRow {
@@ -144,6 +151,7 @@ interface IContributionItemRow {
   condition_note: string | null;
   accepted_quantity: string | number | null;
   rejection_reason: string | null;
+  received_quantity?: string | number | null;
 }
 
 interface INeedLockRow {
@@ -222,6 +230,13 @@ const ContributionColumns = `contribution.global_id, contribution.campaign_id,
        contribution.contact_note, contribution.decided_at,
        contribution.created_at,
        delivery.global_id AS delivery_id, delivery.status AS delivery_status,
+       delivery.completed_at AS delivery_completed_at,
+       contributor.username AS contributor_username,
+       contributor.full_name AS contributor_full_name,
+       contributor.avatar_url AS contributor_avatar_url,
+       contribution_campaign.title AS campaign_title,
+       contribution_campaign.slug AS campaign_slug,
+       contribution_campaign.banner_url AS campaign_banner_url,
        (SELECT dispute.status FROM campaign_contribution_disputes dispute
          WHERE dispute.contribution_id = contribution.global_id
          ORDER BY dispute.id DESC LIMIT 1) AS dispute_status`;
@@ -232,7 +247,30 @@ const ContributionColumns = `contribution.global_id, contribution.campaign_id,
  */
 const ContributionSource = `campaign_contributions contribution
        LEFT JOIN campaign_deliveries delivery
-         ON delivery.contribution_id = contribution.global_id`;
+         ON delivery.contribution_id = contribution.global_id
+       LEFT JOIN users contributor
+         ON contributor.global_id = contribution.contributor_id
+       LEFT JOIN campaigns contribution_campaign
+         ON contribution_campaign.global_id = contribution.campaign_id`;
+
+/**
+ * Số thực nhận từng dòng — chỉ tính khi lượt giao nhận ĐÃ hoàn tất; giao nhận đang chạy có
+ * thể đã ghi nháp `received_quantity` nhưng chưa phải con số chốt.
+ */
+const ReceivedQuantityColumn = `(SELECT delivery_item.received_quantity
+          FROM campaign_delivery_items delivery_item
+          JOIN campaign_deliveries item_delivery
+            ON item_delivery.global_id = delivery_item.delivery_id
+         WHERE delivery_item.contribution_item_id = item.global_id
+           AND item_delivery.status = 'COMPLETED') AS received_quantity`;
+
+/** Lọc đóng góp theo trạng thái giao nhận — EXISTS để câu đếm không cần JOIN. */
+const DeliveryStatusFilter = (
+  param: string,
+) => `($${param}::text IS NULL OR EXISTS (
+         SELECT 1 FROM campaign_deliveries filter_delivery
+          WHERE filter_delivery.contribution_id = contribution.global_id
+            AND filter_delivery.status::text = $${param}::text))`;
 
 function toContribution(
   row: IContributionRow,
@@ -263,7 +301,26 @@ function toContribution(
       acceptedQuantity:
         item.accepted_quantity === null ? null : Number(item.accepted_quantity),
       rejectionReason: item.rejection_reason as CharityRejectionReason | null,
+      receivedQuantity:
+        item.received_quantity === null || item.received_quantity === undefined
+          ? null
+          : Number(item.received_quantity),
     })),
+    deliveryCompletedAt: row.delivery_completed_at ?? null,
+    contributor: {
+      userId: row.contributor_id,
+      username: row.contributor_username ?? null,
+      fullName: row.contributor_full_name ?? null,
+      avatarUrl: row.contributor_avatar_url ?? null,
+    },
+    campaign: row.campaign_title
+      ? {
+          globalId: row.campaign_id,
+          title: row.campaign_title,
+          slug: row.campaign_slug ?? '',
+          bannerUrl: row.campaign_banner_url ?? null,
+        }
+      : null,
   };
 }
 
@@ -768,7 +825,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     const items = await manager.query<IContributionItemRow[]>(
       `SELECT item.global_id, item.need_item_id, need.item_name, need.unit,
               item.offered_quantity, item.condition_note,
-              item.accepted_quantity, item.rejection_reason
+              item.accepted_quantity, item.rejection_reason,
+              ${ReceivedQuantityColumn}
        FROM campaign_contribution_items item
        INNER JOIN campaign_need_items need
          ON need.global_id = item.need_item_id
@@ -789,13 +847,16 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
   public async listContributionsByCampaign(params: {
     campaignId: string;
     status?: CharityContributionStatus;
+    deliveryStatus?: CharityDeliveryStatus;
     limit: number;
     offset: number;
   }): Promise<ICharityContributionPage> {
     return this.listContributions({
       where: `contribution.campaign_id = $1
-              AND ($2::text IS NULL OR contribution.status = $2)`,
+              AND ($2::text IS NULL OR contribution.status = $2)
+              AND ${DeliveryStatusFilter('5')}`,
       values: [params.campaignId, params.status ?? null],
+      deliveryStatus: params.deliveryStatus ?? null,
       limit: params.limit,
       offset: params.offset,
     });
@@ -803,12 +864,17 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
 
   public async listContributionsByContributor(params: {
     contributorId: string;
+    status?: CharityContributionStatus;
+    deliveryStatus?: CharityDeliveryStatus;
     limit: number;
     offset: number;
   }): Promise<ICharityContributionPage> {
     return this.listContributions({
-      where: `contribution.contributor_id = $1 AND $2::text IS NULL`,
-      values: [params.contributorId, null],
+      where: `contribution.contributor_id = $1
+              AND ($2::text IS NULL OR contribution.status = $2)
+              AND ${DeliveryStatusFilter('5')}`,
+      values: [params.contributorId, params.status ?? null],
+      deliveryStatus: params.deliveryStatus ?? null,
       limit: params.limit,
       offset: params.offset,
     });
@@ -825,6 +891,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
   private async listContributions(params: {
     where: string;
     values: unknown[];
+    /** Luôn là `$5` trong `where` — `$3`/`$4` là LIMIT/OFFSET của câu đọc. */
+    deliveryStatus: string | null;
     limit: number;
     offset: number;
   }): Promise<ICharityContributionPage> {
@@ -834,13 +902,15 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
        WHERE ${params.where}
        ORDER BY contribution.created_at DESC, contribution.id DESC
        LIMIT $3 OFFSET $4`,
-      [...params.values, params.limit, params.offset],
+      [...params.values, params.limit, params.offset, params.deliveryStatus],
     );
+    // Câu đếm giữ đúng số thứ tự tham số ($5) bằng hai chỗ trống có kiểu cho $3/$4 —
+    // Postgres từ chối tham số được truyền mà không chỗ nào tham chiếu (42P18).
     const [count] = await this.manager.query<{ total: string }[]>(
       `SELECT COUNT(*) AS total
        FROM campaign_contributions contribution
-       WHERE ${params.where}`,
-      params.values,
+       WHERE ${params.where} AND $3::int IS NULL AND $4::int IS NULL`,
+      [...params.values, null, null, params.deliveryStatus],
     );
 
     if (rows.length === 0)
@@ -849,7 +919,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     const items = await this.manager.query<IContributionItemRow[]>(
       `SELECT item.contribution_id, item.global_id, item.need_item_id,
               need.item_name, need.unit, item.offered_quantity,
-              item.condition_note, item.accepted_quantity, item.rejection_reason
+              item.condition_note, item.accepted_quantity, item.rejection_reason,
+              ${ReceivedQuantityColumn}
        FROM campaign_contribution_items item
        INNER JOIN campaign_need_items need
          ON need.global_id = item.need_item_id

@@ -54,6 +54,22 @@ Mọi id cố định dạng `5eedTT00-0000-4000-8000-00000000NNNN`, `TT` là m�
 | Nội dung Admin | Blog 4 chuyên mục (một nháp), banner tài trợ đủ 3 trạng thái duyệt, giao diện trang chủ (một bật, một nháp), broadcast ALL/GROUP/AREA, báo xấu POST/USER/COMMENT đủ 4 trạng thái. |
 | Thông báo | Hộp thư đã đọc/chưa đọc của nhiều loại. |
 
+### Thư viện Phật pháp — `seed:dharma`
+
+16 ngôi chùa (`TEMPLE_INTRO`, danh mục `mien-bac` / `mien-trung` / `mien-nam`) và 13 bộ kinh, văn
+tụng (`SUTRA`, danh mục `kinh-tung` / `kinh-dai-thua` / `kinh-nguyen-thuy` / `kinh-bao-hieu`), tất
+cả đã xuất bản. Nguồn: `src/infrastructure/persistence/seeds/full/dharma-library.ts`.
+
+- Là **nội dung thật**, không tạo tài khoản nào → chạy riêng được trên staging/production:
+  `npm run seed:dharma` (dev) hoặc `npm run seed:dharma:built` (server đã build). `seed:full` cũng
+  gọi phần này.
+- Idempotent: nội dung đã có (theo id hoặc `slug`) được **giữ nguyên**, kể cả bản ban nội dung đã sửa
+  qua CMS.
+- Bát Nhã Tâm Kinh là **toàn văn** âm Hán-Việt. Các bộ kinh khác là **bài giới thiệu + đoạn trích**,
+  không phải toàn văn (bản dịch có bản quyền riêng) — ban nội dung thay qua CMS.
+- Ảnh bìa là ảnh **giữ chỗ** (`placehold.co`), không phải ảnh thật của chùa; chùa chưa có toạ độ
+  (bảng chưa có cột).
+
 ## Nguyên tắc thiết kế
 
 1. **Dữ liệu gốc bằng SQL, dữ liệu suy ra bằng code của app.** Sự kiện đã xảy ra (bài, giao

@@ -134,6 +134,27 @@ export const CharityParticipationDecisionRules: Readonly<
   COMPLETE: { to: 'COMPLETED', from: ['CHECKED_IN'] },
 };
 
+/**
+ * Giai đoạn dự án cho phép từng bước của ban tổ chức với lượt tham gia.
+ *
+ * - Duyệt / danh sách chờ / từ chối: từ Kế hoạch tới hết Sự kiện trao (nhận người tới phút chót),
+ *   không còn ở Tổng kết — sự kiện đã qua.
+ * - Check-in / vắng mặt / hoàn thành: chỉ khi sự kiện ĐÃ bắt đầu (Sự kiện trao), và ở Tổng kết để
+ *   ghi bù điểm danh. Trước đó chưa ai "có mặt" hay "vắng mặt" được.
+ *
+ * Giai đoạn so là giai đoạn HIỆU LỰC (`operationStage`, tính theo lịch), không phải cột đã ghi.
+ */
+export const CharityParticipationActionStages: Readonly<
+  Record<CharityParticipationDecision | 'CHECK_IN', readonly string[]>
+> = {
+  CONFIRM: ['PLAN', 'EXECUTION', 'EVENT'],
+  WAITLIST: ['PLAN', 'EXECUTION', 'EVENT'],
+  REJECT: ['PLAN', 'EXECUTION', 'EVENT'],
+  NO_SHOW: ['EVENT', 'SUMMARY'],
+  COMPLETE: ['EVENT', 'SUMMARY'],
+  CHECK_IN: ['EVENT', 'SUMMARY'],
+};
+
 /** Check-in chỉ cho người đã được xác nhận; lặp lại khi đã check-in là không đổi gì. */
 export const CharityCheckInFromStatuses: readonly CharityParticipationStatus[] =
   ['CONFIRMED'];

@@ -1433,6 +1433,14 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: [60],
   },
 
+  CHARITY_PARTICIPATION_STAGE_NOT_ALLOWED: {
+    code: ErrorCodes.CHARITY_PARTICIPATION_STAGE_NOT_ALLOWED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (action: string, allowed: string) =>
+      `Chưa thể ${action} ở giai đoạn hiện tại của dự án — chỉ làm được khi dự án ở ${allowed}`,
+    sample: ['check-in', 'Sự kiện trao hoặc Tổng kết'],
+  },
+
   CHARITY_EXTERNAL_SOURCE_DUPLICATED: {
     code: ErrorCodes.CHARITY_EXTERNAL_SOURCE_DUPLICATED,
     httpStatus: HttpStatus.CONFLICT,

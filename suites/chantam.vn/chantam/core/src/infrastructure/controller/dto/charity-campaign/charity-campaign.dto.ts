@@ -1061,6 +1061,29 @@ export class CharityContributionItemDto {
     description: 'Chỉ có khi nhận ít hơn số đề nghị.',
   })
   rejectionReason: string | null;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    example: 30,
+    description:
+      'Số ban tổ chức xác nhận ĐÃ NHẬN khi hoàn tất giao nhận. `null` = chưa hoàn tất giao nhận; `0` = đã xác nhận không nhận được.',
+  })
+  receivedQuantity?: number | null;
+}
+
+export class CharityContributorBriefDto {
+  @ApiProperty({ format: 'uuid' }) userId: string;
+  @ApiProperty({ type: String, nullable: true }) username: string | null;
+  @ApiProperty({ type: String, nullable: true }) fullName: string | null;
+  @ApiProperty({ type: String, nullable: true }) avatarUrl: string | null;
+}
+
+export class CharityContributionCampaignBriefDto {
+  @ApiProperty({ format: 'uuid' }) globalId: string;
+  @ApiProperty() title: string;
+  @ApiProperty() slug: string;
+  @ApiProperty({ type: String, nullable: true }) bannerUrl: string | null;
 }
 
 export class CharityContributionDto {
@@ -1112,6 +1135,31 @@ export class CharityContributionDto {
       'Tranh chấp mới nhất (§3.18): `OPEN` = đang tranh chấp. `null` = chưa từng tranh chấp.',
   })
   disputeStatus?: string | null;
+
+  @ApiPropertyOptional({
+    type: () => CharityContributorBriefDto,
+    nullable: true,
+    description:
+      'Người góp — chỉ ra ở danh sách của ban tổ chức và của chính người góp.',
+  })
+  contributor?: CharityContributorBriefDto | null;
+
+  @ApiPropertyOptional({
+    type: () => CharityContributionCampaignBriefDto,
+    nullable: true,
+    description:
+      'Dự án của đóng góp — màn "Tôi đã góp" mở thẳng dự án theo `slug`.',
+  })
+  campaign?: CharityContributionCampaignBriefDto | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Lúc giao nhận hoàn tất — đóng góp thành công. `null` khi chưa.',
+  })
+  deliveryCompletedAt?: Date | null;
 }
 
 export class CharityContributionPageDto {
@@ -1126,6 +1174,15 @@ export class ListContributionsQueryDto {
   @IsOptional()
   @IsIn(CharityContributionStatuses)
   status?: (typeof CharityContributionStatuses)[number];
+
+  @ApiPropertyOptional({
+    enum: ['ACCEPTED', 'COMPLETED', 'CANCELLED'],
+    description:
+      'Lọc theo lượt giao nhận. `COMPLETED` = chỉ đóng góp đã giao nhận xong — danh sách người đã đóng góp thành công.',
+  })
+  @IsOptional()
+  @IsIn(['ACCEPTED', 'COMPLETED', 'CANCELLED'])
+  deliveryStatus?: 'ACCEPTED' | 'COMPLETED' | 'CANCELLED';
 
   @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20 })
   @IsOptional()

@@ -78,7 +78,7 @@ export class CharityContributionController {
   @ApiOperation({
     summary: 'Đề nghị đóng góp của chính tôi',
     description:
-      'Mọi hoạt động, mới nhất trước. Mỗi dòng mang `acceptedQuantity`: `null` là người tổ chức chưa xét, `0` là đã xét và không nhận.',
+      'Mọi hoạt động, mới nhất trước. Mỗi dòng có `campaign` (tên, slug, ảnh bìa) để mở dự án, `acceptedQuantity` (`null` là người tổ chức chưa xét, `0` là đã xét và không nhận) và `receivedQuantity` khi giao nhận xong. `deliveryStatus=COMPLETED` = chỉ những gì tôi đã góp thành công.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(CharityContributionPageDto) })
   @ApiErrorResponses(...ApiTokenErrors)
@@ -91,6 +91,8 @@ export class CharityContributionController {
       .attach(
         await this.listMineUseCase.handle({
           contributorId: principal.userId,
+          status: query.status,
+          deliveryStatus: query.deliveryStatus,
           limit: query.limit ?? 20,
           offset: query.offset ?? 0,
         }),

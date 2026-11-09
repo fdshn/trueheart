@@ -1,6 +1,7 @@
 import {
   CharityParticipationInvalidStateException,
   CharityParticipationNotFoundException,
+  CharityParticipationStageNotAllowedException,
   CharityProjectForbiddenException,
 } from '@/domain/exceptions';
 import { ICharityCampaign } from '@/domain/ports/repository';
@@ -36,7 +37,7 @@ function participation(
   };
 }
 
-function make(current: string | null = 'REGISTERED') {
+function make(current: string | null = 'REGISTERED', stage = 'EVENT') {
   const campaign = {
     globalId: CampaignId,
     title: 'Mùa đông ấm',
@@ -44,7 +45,7 @@ function make(current: string | null = 'REGISTERED') {
     approvalStatus: 'APPROVED',
     isActive: true,
     endTime: new Date(Date.now() + 86_400_000),
-    operationStage: 'EVENT',
+    operationStage: stage,
   } as ICharityCampaign;
   const campaigns = {
     findByGlobalId: jest.fn(async () => campaign),
@@ -228,5 +229,75 @@ describe('Check-in', () => {
         participationId: 'p1',
       }),
     ).rejects.toThrow(CharityProjectForbiddenException);
+  });
+});
+
+describe('Bước của lượt tham gia theo giai đoạn dự án', () => {
+  it.each([
+    // [action, trạng thái hiện tại, giai đoạn bị chặn]
+    ['NO_SHOW', 'CONFIRMED', 'PLAN'],
+    ['NO_SHOW', 'CONFIRMED', 'EXECUTION'],
+    ['COMPLETE', 'CHECKED_IN', 'EXECUTION'],
+    ['CONFIRM', 'REGISTERED', 'SUMMARY'],
+    ['WAITLIST', 'REGISTERED', 'SUMMARY'],
+    ['REJECT', 'REGISTERED', 'SUMMARY'],
+  ] as const)(
+    '%s khi dự án ở %s→%s: 409, không ghi, không báo',
+    async (action, current, stage) => {
+      const deps = make(current, stage);
+      await expect(
+        decide(deps).handle({
+          userId: Owner,
+          campaignId: CampaignId,
+          participationId: 'p1',
+          action,
+          reason: 'lý do đủ dài',
+        }),
+      ).rejects.toThrow(CharityParticipationStageNotAllowedException);
+      expect(deps.participations.transition).not.toHaveBeenCalled();
+      expect(deps.notifier.notify).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['PLAN', 'EXECUTION'])(
+    'check-in khi dự án mới ở %s (chưa tới Sự kiện trao) → 409',
+    async (stage) => {
+      const deps = make('CONFIRMED', stage);
+      await expect(
+        checkIn(deps).handle({
+          userId: Owner,
+          campaignId: CampaignId,
+          participationId: 'p1',
+        }),
+      ).rejects.toThrow(CharityParticipationStageNotAllowedException);
+      expect(deps.participations.transition).not.toHaveBeenCalled();
+    },
+  );
+
+  it('check-in ở Tổng kết được (ghi bù điểm danh); duyệt người ở Kế hoạch được', async () => {
+    const late = await checkIn(make('CONFIRMED', 'SUMMARY')).handle({
+      userId: Owner,
+      campaignId: CampaignId,
+      participationId: 'p1',
+    });
+    expect(late.status).toBe('CHECKED_IN');
+    const early = await decide(make('REGISTERED', 'PLAN')).handle({
+      userId: Owner,
+      campaignId: CampaignId,
+      participationId: 'p1',
+      action: 'CONFIRM',
+      reason: null,
+    });
+    expect(early.status).toBe('CONFIRMED');
+  });
+
+  it('gửi lại check-in khi đã check-in vẫn trả nguyên trạng dù giai đoạn đã đổi', async () => {
+    const deps = make('CHECKED_IN', 'PLAN');
+    const result = await checkIn(deps).handle({
+      userId: Owner,
+      campaignId: CampaignId,
+      participationId: 'p1',
+    });
+    expect(result.status).toBe('CHECKED_IN');
   });
 });

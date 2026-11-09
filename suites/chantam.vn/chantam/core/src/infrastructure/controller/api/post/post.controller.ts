@@ -592,6 +592,7 @@ export class PostController {
     const result = await this.getNearbyPostsUseCase.handle({
       ...query,
       isSos: true,
+      includeCompleted: false,
       currentUserId: principal?.userId,
     });
 
