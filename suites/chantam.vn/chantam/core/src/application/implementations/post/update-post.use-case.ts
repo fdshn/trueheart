@@ -16,6 +16,7 @@ import {
 import {
   ICategoryRepository,
   IEntitlementRepository,
+  IGiftRequestRepository,
   IPostRepository,
 } from '@/domain/ports/repository';
 import {
@@ -27,7 +28,8 @@ import {
   ValidationFailedException,
 } from '@chantam/service.common-lib/exception';
 import { definedProps } from '@chantam/service.common-lib/utils';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { RequestLifecycleNotifier } from '../gift-request/request-lifecycle.notifier';
 
 /**
  * Sửa bài của chính mình.
@@ -51,6 +53,13 @@ export class UpdatePostUseCase implements IUpdatePostUseCase {
     private readonly categoryRepository: ICategoryRepository,
     @Inject(IEntitlementRepository)
     private readonly entitlementRepository: IEntitlementRepository,
+    // Optional: test cũ dựng use case không kèm repository này. Thiếu nó thì sửa số lượng vẫn
+    // chạy, chỉ không cân lại hàng chờ — nên mọi module thật phải cấp (GiftRequestModule global).
+    @Optional()
+    @Inject(IGiftRequestRepository)
+    private readonly giftRequestRepository?: IGiftRequestRepository,
+    @Optional()
+    private readonly lifecycleNotifier?: RequestLifecycleNotifier,
   ) {}
 
   public async handle(command: IUpdatePostCommand): Promise<IUpdatePostResult> {
@@ -188,6 +197,16 @@ export class UpdatePostUseCase implements IUpdatePostUseCase {
             },
       }),
     });
+
+    // Đổi tổng số lượng là đổi số còn lại: thêm hàng thì người đang STANDBY vừa đủ được về
+    // PENDING (giữ chỗ cũ); bớt hàng thì người xin quá số còn lại chuyển STANDBY kèm lý do.
+    // Không ai bị tự giảm số đã xin.
+    if (input.totalQuantity !== undefined && this.giftRequestRepository) {
+      const rebalanced = await this.giftRequestRepository.rebalanceOpenRequests(
+        command.postId,
+      );
+      await this.lifecycleNotifier?.announceRebalanced(rebalanced);
+    }
 
     return { post: updated };
   }

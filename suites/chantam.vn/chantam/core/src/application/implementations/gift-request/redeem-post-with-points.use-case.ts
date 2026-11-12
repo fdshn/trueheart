@@ -23,9 +23,10 @@ import {
   spendableWithoutDemotion,
 } from '@chantam.vn/chantam.core-lib/models';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { RankChangeNotifier } from '../rank/rank-change.notifier';
 import { AcceptedRequestNotifier } from './accepted-request.notifier';
+import { RequestLifecycleNotifier } from './request-lifecycle.notifier';
 
 /** Mã phân loại bút toán trừ điểm khi đổi vật phẩm (F77). */
 export const ItemRedemptionRuleCode = 'ITEM_REDEMPTION';
@@ -68,6 +69,8 @@ export class RedeemPostWithPointsUseCase implements IRedeemPostWithPointsUseCase
     private readonly ranks: IRankRepository,
     private readonly acceptedNotifier: AcceptedRequestNotifier,
     private readonly rankChange: RankChangeNotifier,
+    @Optional()
+    private readonly lifecycleNotifier?: RequestLifecycleNotifier,
   ) {}
 
   public async handle(
@@ -94,8 +97,14 @@ export class RedeemPostWithPointsUseCase implements IRedeemPostWithPointsUseCase
     const rate = normalizePointRedemptionConfig(
       await this.adminConfig.getConfigValue(PointRedemptionConfigKey),
     );
-    const quote = quoteRedemption(context.estimatedValueVnd, rate);
-    if (!quote.redeemable) throw new RedemptionPriceUnavailableException();
+    const unitQuote = quoteRedemption(context.estimatedValueVnd, rate);
+    if (!unitQuote.redeemable) throw new RedemptionPriceUnavailableException();
+    // Giá trị tham khảo là của MỘT món; xin N món thì đổi N lần giá (12/11). Cùng phép nhân với
+    // `GetRedemptionQuoteUseCase` — lệch nhau là báo giá một đằng, trừ điểm một nẻo.
+    const quote = {
+      ...unitQuote,
+      points: unitQuote.points * context.requestedQuantity,
+    };
 
     // CHỐT-10 mục 2: giá đổi giữa lúc xem trước và lúc bấm thì phải XÁC NHẬN LẠI.
     //
@@ -164,8 +173,10 @@ export class RedeemPostWithPointsUseCase implements IRedeemPostWithPointsUseCase
       requestId: context.requestGlobalId,
       postId: command.postId,
       actorUserId: context.giverId,
+      // Theo request, không theo cặp (bài, người): mỗi lần gửi lại là một request mới, và id dựng
+      // từ cặp sẽ trùng ở lần đổi thứ hai.
       transactionId: makeGlobalId(
-        `/transactions/${command.postId}/${command.requesterId}`,
+        `/transactions/${command.postId}/${command.requesterId}/${context.requestGlobalId}`,
       ),
       redemption: {
         requesterId: command.requesterId,
@@ -205,6 +216,7 @@ export class RedeemPostWithPointsUseCase implements IRedeemPostWithPointsUseCase
       // đã chọn bạn", một câu sai.
       trigger: 'REDEEMED',
     });
+    await this.lifecycleNotifier?.announceRebalanced(accepted.rebalanced ?? []);
 
     return {
       postId: command.postId,

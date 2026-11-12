@@ -6,6 +6,7 @@ import {
 import {
   CannotRequestOwnPostException,
   GiftRequestDuplicatedException,
+  GiftRequestQuantityExceedsStockException,
   OpenRequestQuotaExceededException,
   PostNotAcceptingRequestsException,
   PostNotFoundException,
@@ -29,6 +30,7 @@ import {
 } from '@chantam.vn/chantam.core-lib/models';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { ProfileGate } from '../profile/profile-gate';
 import { assertClassifiedTransactionsAllowed } from '../shared/classified-guard';
 import { toGiftRequestDto } from './gift-request.mapper';
@@ -117,59 +119,41 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     // phản hồi đầu tiên, tức một bài đăng hôm nay mà tới ngày thứ sáu mới có
     // người xin sẽ được xét tới ngày thứ mười ba.
 
-    const existing = await this.giftRequestRepository.findByPostAndRequester(
+    // Số món xin: không vượt số còn lại LÚC GỬI. Duyệt thì kiểm lại dưới khoá dòng — đây chỉ là
+    // chặn sớm để người dùng biết ngay, không phải chốt chặn cuối.
+    const requestedQuantity = command.requestedQuantity ?? 1;
+    if (requestedQuantity > post.remainingQuantity)
+      throw new GiftRequestQuantityExceedsStockException(
+        post.remainingQuantity,
+      );
+
+    // Mỗi lần gửi là MỘT request mới — rút / bị từ chối / lượt trước đã xong rồi gửi lại không
+    // ghi đè dòng cũ, nên lịch sử còn nguyên và process hiện tại không đọc nhầm trạng thái cũ.
+    // Chỉ chặn hai trường hợp:
+    // - đang có request CHỜ (PENDING / STANDBY) — STANDBY vẫn là đang mở: người đó còn trong hàng
+    //   và được xét tiếp (F33); gửi lại sẽ làm họ mất chỗ. Database cũng chặn
+    //   (`UQ_gift_requests_post_requester_open`) cho ca hai lần gửi đua nhau.
+    // - đang có lượt trao CÒN CHẠY trên bài — xong hoặc huỷ lượt đó trước.
+    const latest = await this.giftRequestRepository.findByPostAndRequester(
       command.postId,
       command.requesterId,
     );
+    if (
+      latest &&
+      (latest.status === GiftRequestStatuses.PENDING ||
+        latest.status === GiftRequestStatuses.STANDBY)
+    )
+      throw new GiftRequestDuplicatedException();
+    if (
+      await this.giftRequestRepository.hasLiveTransactionOnPost(
+        command.postId,
+        command.requesterId,
+      )
+    )
+      throw new GiftRequestDuplicatedException();
 
-    if (existing) {
-      // STANDBY cũng là yêu cầu ĐANG MỞ: người đó vẫn trong hàng đợi và được
-      // xét tiếp nếu lượt trao hiện tại bị huỷ (F33). Cho gửi lại sẽ đi vào
-      // nhánh dưới và reset `queueJoinedAt`, tức đẩy họ xuống cuối hàng — mất
-      // chỗ vì gửi thêm một lần là một hình phạt không ai nói trước.
-      if (
-        existing.status === GiftRequestStatuses.PENDING ||
-        existing.status === GiftRequestStatuses.STANDBY ||
-        existing.status === GiftRequestStatuses.ACCEPTED
-      ) {
-        throw new GiftRequestDuplicatedException();
-      }
-
-      existing.message = command.message;
-      existing.status = GiftRequestStatuses.PENDING;
-      existing.queueJoinedAt = new Date();
-      existing.withdrawnAt = null;
-      // Ghi đè, kể cả bằng `null`: gửi lại mà không kèm bài nào nghĩa là lời
-      // tặng lần này không trỏ sang bài nào: giữ lại bài của lần trước là để
-      // chủ bài xem một món người kia không còn mang ra nữa.
-      existing.offeringPostId = command.offeringPostId ?? null;
-
-      try {
-        await this.giftRequestRepository.save(existing);
-      } catch (error) {
-        if (isUniqueViolation(error)) {
-          throw new GiftRequestDuplicatedException();
-        }
-        throw error;
-      }
-      // Gửi lại sau khi đã rút vẫn là một yêu cầu MỚI với chủ bài: bản ghi
-      // được dùng lại chỉ là chi tiết lưu trữ, còn phía họ thì vừa có người
-      // quay lại xin. Khoá chống trùng theo id yêu cầu nên không báo hai lần
-      // cho cùng một lần gửi.
-      await this.notifier.announceCreated({
-        ownerId: post.authorId,
-        requesterId: command.requesterId,
-        postId: command.postId,
-        postTitle: post.title,
-        requestId: existing.globalId,
-      });
-
-      return { request: toGiftRequestDto(existing) };
-    }
-
-    const globalId = makeGlobalId(
-      `/gift-requests/${command.postId}/${command.requesterId}`,
-    );
+    // Id ngẫu nhiên: id dựng từ (bài, người xin) như trước sẽ trùng ở lần gửi thứ hai.
+    const globalId = randomUUID();
 
     // `insert()` chứ không phải `save()`: `save()` phải tự đoán tạo mới hay cập
     // nhật nên phát sinh thêm một câu SELECT, và đường này đã biết chắc là tạo
@@ -183,6 +167,8 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
         status: GiftRequestStatuses.PENDING,
         queueJoinedAt: new Date(),
         offeringPostId: command.offeringPostId ?? null,
+        requestedQuantity,
+        statusReason: null,
       } as never);
     } catch (error) {
       // Hai người xin cùng lúc thì cả hai đều không thấy bản ghi cũ và cùng
@@ -215,13 +201,14 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
         `/transactions/${command.postId}/${command.requesterId}/${Date.now()}`,
       );
       try {
-        await this.giftRequestRepository.acceptRequest({
+        const instant = await this.giftRequestRepository.acceptRequest({
           requestId: globalId,
           postId: command.postId,
           actorUserId: post.authorId,
           transactionId,
         });
         instantAccepted = true;
+        await this.notifier.announceRebalanced(instant?.rebalanced ?? []);
       } catch (acceptError) {
         // Log để monitoring phát hiện; request vẫn tồn tại ở PENDING.
         // Cron timeout hoặc admin có thể trigger lại accept thủ công.

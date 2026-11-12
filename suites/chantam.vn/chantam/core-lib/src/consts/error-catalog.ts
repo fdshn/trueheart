@@ -56,6 +56,21 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Bạn đã gửi yêu cầu cho bài đăng này rồi',
   },
 
+  GIFT_REQUEST_QUANTITY_EXCEEDS_STOCK: {
+    code: ErrorCodes.GIFT_REQUEST_QUANTITY_EXCEEDS_STOCK,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (remaining: number) =>
+      `Bài chỉ còn ${remaining} món — bạn xin tối đa ${remaining} món`,
+    sample: [2],
+  },
+
+  GIFT_REQUEST_INVALID_QUANTITY: {
+    code: ErrorCodes.GIFT_REQUEST_INVALID_QUANTITY,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (detail: string) => `Số lượng không hợp lệ: ${detail}`,
+    sample: ['chỉ được giảm số lượng'],
+  },
+
   CANNOT_REQUEST_OWN_POST: {
     code: ErrorCodes.CANNOT_REQUEST_OWN_POST,
     httpStatus: HttpStatus.FORBIDDEN,

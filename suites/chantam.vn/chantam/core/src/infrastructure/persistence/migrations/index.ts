@@ -149,3 +149,4 @@ export * from './1802900000000-CharityParticipantLifecycle';
 export * from './1803000000000-CharityOperations';
 export * from './1803100000000-CharityDisputesAndClipLength';
 export * from './1803200000000-CharityPostAfterEventWindow';
+export * from './1803300000000-GiftRequestQuantity';

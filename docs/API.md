@@ -727,8 +727,9 @@ không, `me` bị nuốt thành một `postId` và route tĩnh không bao giờ 
 
 | Method | Đường dẫn | Quyền | Mô tả |
 | --- | --- | --- | --- |
-| `POST` | `/posts/:postId/requests` | Bearer | Gửi yêu cầu xin nhận, kèm lời nhắn tối đa 500 ký tự |
+| `POST` | `/posts/:postId/requests` | Bearer | Gửi yêu cầu xin nhận, kèm lời nhắn tối đa 500 ký tự và **`requestedQuantity`** (mặc định 1, không vượt số còn lại — `GIFT_REQUEST_QUANTITY_EXCEEDS_STOCK`). Mỗi lần gửi là một request **mới** (12/11) |
 | `POST` | `/posts/:postId/requests/withdraw` | Bearer | Rút yêu cầu của chính mình — được cả khi đang `STANDBY` |
+| `PATCH` | `/posts/:postId/requests/me` | Bearer | `{ request: { requestedQuantity } }` — **giảm** số lượng request đang chờ (không cho tăng: `GIFT_REQUEST_INVALID_QUANTITY`). STANDBY mà số mới vừa số còn lại thì về `PENDING`, giữ chỗ trong hàng (12/11) |
 | `GET` | `/requests/me` | Bearer | **Yêu cầu của chính tôi**, kèm tiêu đề + ảnh + trạng thái bài |
 | `GET` | `/requests/:requestId` | Bearer (người xin hoặc chủ bài) | Một yêu cầu — đích mở từ thông báo (mục 9) |
 | `GET` | `/posts/:postId/requests` | Bearer (chỉ tác giả) | Danh sách người xin, có phân trang |
@@ -865,6 +866,53 @@ POST thành công trả `postId`, `transactionId`, `pointsSpent`, `balanceAfter`
 Quote đổi giá/tỷ lệ giữa chừng đã được chặn: client gửi `confirmedPoints`, lệch thì
 `REDEMPTION_QUOTE_STALE` (xem ở trên). Xem [handoff và acceptance tests](./plan/REDEMPTION-REQUIREMENT-GAP.md).
 
+#### Xin theo số lượng (12/11)
+
+Mỗi request có `requestedQuantity` (số món) và `statusReason` (mã lý do). Ba lớp trạng thái tách
+riêng:
+
+| Lớp | Trường | Phản ánh |
+| --- | --- | --- |
+| Bài | `post.status` | Vòng đời chung: `PUBLISHED` (còn hàng), `RESERVED` (kho về 0, còn lượt trao chạy), `COMPLETED` (đã trao hết), các trạng thái đóng. **Không** có `DELIVERING` ở mức bài (chốt 29/09) — "đang giao" là của từng lượt trao |
+| Request của tôi | `myLatestRequest`, `myActiveRequest`, `myRequestStatus` | `PENDING` · `STANDBY` · `ACCEPTED` · `REJECTED` · `WITHDRAWN` · `CANCELLED` |
+| Lượt trao của tôi | `myActiveTransaction`, `myTransactions[]` | Process line: `ACCEPTED` → `DELIVERING` → `COMPLETED` / `CANCELLED` |
+
+- **Duyệt đủ hoặc không duyệt.** Chủ bài duyệt request với ĐÚNG số người đó xin. Không duyệt một
+  phần, không tự giảm số người dùng đã đăng ký. Kiểm và trừ kho dưới khoá dòng trong cùng
+  transaction — hai lượt duyệt song song không vượt kho (`test:gift-request-quantity`, 25 vòng).
+- **STANDBY có lý do.** Sau mỗi lần kho đổi (duyệt, duyệt lô, huỷ / mở lại lượt trao, chủ bài sửa
+  tổng số lượng), request đang chờ được cân lại: vừa số còn lại → `PENDING`; xin nhiều hơn →
+  `STANDBY` với `statusReason = INSUFFICIENT_QUANTITY` (còn hàng nhưng thiếu) hoặc `OUT_OF_STOCK`
+  (kho về 0). Chuyển qua lại không đổi `queueJoinedAt` — không mất chỗ.
+- **Ví dụ.** Bài 10 món, A xin 8, B xin 8. Duyệt A → A đủ 8, còn 2; B sang `STANDBY` /
+  `INSUFFICIENT_QUANTITY`, vẫn xin 8. B chọn: giảm xuống ≤ 2 (`PATCH …/requests/me` → `PENDING`),
+  rút, hoặc chờ hàng hoàn về.
+- **Huỷ lượt trao** hoàn đúng `transaction.quantity`, request của lượt đó sang `CANCELLED` /
+  `TRANSACTION_CANCELLED`, rồi cân lại hàng chờ. **Hoàn tất** chỉ cập nhật tiến trình, không trừ
+  kho thêm; bài sang `COMPLETED` thì request còn chờ sang `CANCELLED` / `POST_COMPLETED` và
+  người xin nhận thông báo.
+- **Gửi lại.** Rút, bị từ chối, bị huỷ, hoặc lượt trước đã xong mà bài còn hàng thì gửi request
+  MỚI được (dòng cũ giữ làm lịch sử). Chặn khi đang có request chờ (`PENDING`/`STANDBY`) hoặc lượt
+  trao còn chạy trên bài (`GIFT_REQUEST_DUPLICATED`).
+- **Đổi điểm** (`redemption-quote`, `redeem`): giá một món × `requestedQuantity`.
+- **Chi tiết bài** `GET /posts/:postId` thêm `totalQuantity`, `remainingQuantity`,
+  `myActiveRequest`, `myLatestRequest`, `myActiveTransaction`, `myTransactions` (chỉ lượt của
+  người xem), `canRequest` và `cta`: `OWNER` · `REQUEST` · `WAITING` · `STANDBY` ·
+  `TRANSACTION` · `COMPLETED` · `UNAVAILABLE`.
+- Lượt trao ghi `request_id` (request sinh ra nó); dữ liệu cũ được điền lại khi migrate.
+- **Thông báo hàng chờ.** Người bị chuyển `STANDBY` nhận `GIFT_REQUEST_STANDBY` (nêu số còn lại, số
+  đã xin, việc làm được); người được xét lại nhận `GIFT_REQUEST_REOPENED`. Áp cho mọi đường làm kho
+  đổi: duyệt, duyệt lô, tự chọn, đổi điểm, INSTANT, huỷ lượt trao, chủ bài sửa số lượng. Ở đường
+  huỷ, ứng viên đề xuất chỉ nhận "đang được xét tiếp" (không nhận thêm `REOPENED`).
+- **Bài Muốn Nhận** (`POST /posts/:wantedPostId/offer-gift`) nhận `requestedQuantity` — số món người
+  tặng mang tới, cùng luật.
+- **Hàng lẻ vẫn được tự chọn.** Duyệt chỉ xoá `selection_deadline` khi kho về 0. Còn hàng thì tới
+  hạn job `gift:auto-select` chọn tiếp người vừa số — nhiều người cho một bài trong một lượt chạy
+  (trần 20) — tới khi hết hàng hoặc hết người vừa số.
+- **Nhắc người STANDBY.** Bài còn hàng mà không còn ai vừa số (đã quá hạn xét, hoặc bài chọn tay và
+  họ đã chờ quá 3 ngày): job nhắc người `STANDBY` / `INSUFFICIENT_QUANTITY` giảm số lượng — một lần
+  mỗi mốc số còn lại.
+
 #### Hàng đợi dự phòng
 
 Duyệt một người mà bài hết hàng thì những người còn lại chuyển sang **`STANDBY`**, không phải
@@ -875,8 +923,8 @@ Khi lượt trao bị huỷ:
 
 | Ai | Chuyện gì |
 | --- | --- |
-| Người đang `STANDBY` | Quay về `PENDING`, giữ nguyên `queueJoinedAt` nên **không mất chỗ** |
-| Người vừa bị huỷ | Sang `CANCELLED`, **không** quay lại hàng đợi |
+| Người đang `STANDBY` | Ai xin **vừa** số còn lại thì quay về `PENDING`, giữ nguyên `queueJoinedAt` nên **không mất chỗ**; ai xin nhiều hơn vẫn `STANDBY` / `INSUFFICIENT_QUANTITY` (12/11) |
+| Người vừa bị huỷ | Sang `CANCELLED` / `TRANSACTION_CANCELLED`, **không** quay lại hàng đợi (gửi request mới được) |
 | Người đã tự rút | Giữ `WITHDRAWN`, không bị kéo trở lại |
 
 **Hệ thống chỉ đề xuất, không tự trao.** Người cho nhận thông báo kèm số người còn trong

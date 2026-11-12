@@ -18,6 +18,7 @@ import { ValidationFailedException } from '@chantam/service.common-lib/exception
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { assertClassifiedTransactionsAllowed } from '../shared/classified-guard';
 import { AcceptedRequestNotifier } from './accepted-request.notifier';
+import { RequestLifecycleNotifier } from './request-lifecycle.notifier';
 
 /** Cùng mã capability mà `AcceptGiftRequestUseCase` đọc — xem docblock ở đó. */
 const SelectRequesterCapability = 'SELECT_REQUESTER';
@@ -47,6 +48,8 @@ export class BatchAcceptRequestsUseCase implements IBatchAcceptRequestsUseCase {
     @Optional()
     @Inject(IAdminConfigRepository)
     private readonly adminConfig?: IAdminConfigRepository,
+    @Optional()
+    private readonly lifecycleNotifier?: RequestLifecycleNotifier,
   ) {}
 
   public async handle(
@@ -114,6 +117,8 @@ export class BatchAcceptRequestsUseCase implements IBatchAcceptRequestsUseCase {
         // Chủ bài tự bấm, y như duyệt từng cái — nên KHÔNG báo lại cho họ.
         trigger: 'MANUAL',
       });
+
+    await this.lifecycleNotifier?.announceRebalanced(outcome.rebalanced ?? []);
 
     return {
       postId: command.postId,

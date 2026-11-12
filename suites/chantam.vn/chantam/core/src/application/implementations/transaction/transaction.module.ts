@@ -12,6 +12,7 @@ import {
   IRequestGiftEvidenceUploadUseCase,
 } from '@/application/contracts/transaction';
 import { Global, Module } from '@nestjs/common';
+import { GiftRequestModule } from '../gift-request/gift-request.module';
 import {
   GetAdminGiftTransactionUseCase,
   ListAdminGiftTransactionsUseCase,
@@ -35,6 +36,12 @@ import { RefundRedemptionOnCloseService } from './refund-redemption-on-close.ser
 
 @Global()
 @Module({
+  /**
+   * `GiftRequestModule` khai TƯỜNG MINH cho `CloseOpenRequestsService`: hoàn tất lượt trao cuối
+   * làm bài sang COMPLETED, và request còn chờ phải đóng kèm lý do. `@Global()` chỉ có hiệu lực
+   * khi được import ở đâu đó — `TransactionCliModule` (`transaction:autocomplete`) thì không.
+   */
+  imports: [GiftRequestModule],
   providers: [
     // Hoàn điểm khi lượt trao đổi-bằng-điểm bị huỷ (CHỐT-13). Dùng chung bởi cả
     // hai đường đóng lượt trao, nên nó là provider chứ không phải một hàm chép

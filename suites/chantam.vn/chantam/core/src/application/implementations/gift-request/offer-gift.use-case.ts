@@ -63,6 +63,9 @@ export class OfferGiftUseCase implements IOfferGiftUseCase {
       requesterId: command.offererId,
       message: command.message,
       offeringPostId: command.offeringPostId ?? null,
+      // Bài Muốn Nhận cần N món: người tặng khai mình mang được bao nhiêu (12/11). Cùng luật với
+      // xin nhận — không vượt số bài còn cần, chủ bài nhận đủ số đó hoặc không nhận.
+      requestedQuantity: command.requestedQuantity,
     });
   }
 

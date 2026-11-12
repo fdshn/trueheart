@@ -24,6 +24,7 @@ import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { assertClassifiedTransactionsAllowed } from '../shared/classified-guard';
 import { AcceptedRequestNotifier } from './accepted-request.notifier';
+import { RequestLifecycleNotifier } from './request-lifecycle.notifier';
 
 /**
  * Mã capability cho quyền CHỌN TAY người nhận (CHỐT-10).
@@ -55,6 +56,8 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
     @Optional()
     @Inject(IAdminConfigRepository)
     private readonly adminConfig?: IAdminConfigRepository,
+    @Optional()
+    private readonly lifecycleNotifier?: RequestLifecycleNotifier,
   ) {}
 
   public async handle(
@@ -107,7 +110,7 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
       `/transactions/${command.postId}/${targetRequest.requesterId}/${Date.now()}`,
     );
 
-    const { transactionId: finalTransactionId } =
+    const { transactionId: finalTransactionId, rebalanced } =
       await this.giftRequestRepository.acceptRequest({
         requestId: command.requestId,
         postId: command.postId,
@@ -126,6 +129,8 @@ export class AcceptGiftRequestUseCase implements IAcceptGiftRequestUseCase {
       // Chủ bài tự bấm, nên KHÔNG báo lại cho họ — xem `notifyGiverIfPassive`.
       trigger: 'MANUAL',
     });
+    // Người còn lại vừa bị chuyển STANDBY (thiếu hàng) — báo họ việc làm được.
+    await this.lifecycleNotifier?.announceRebalanced(rebalanced ?? []);
 
     return {
       requestId: command.requestId,

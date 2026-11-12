@@ -9,6 +9,14 @@ export class GiftRequestDuplicatedException extends ExceptionFrom(
   CoreErrors.GIFT_REQUEST_DUPLICATED,
 ) {}
 
+export class GiftRequestQuantityExceedsStockException extends ExceptionFrom(
+  CoreErrors.GIFT_REQUEST_QUANTITY_EXCEEDS_STOCK,
+) {}
+
+export class GiftRequestInvalidQuantityException extends ExceptionFrom(
+  CoreErrors.GIFT_REQUEST_INVALID_QUANTITY,
+) {}
+
 /**
  * Chủ bài không đủ hạng để chọn tay người nhận (CHỐT-10).
  *

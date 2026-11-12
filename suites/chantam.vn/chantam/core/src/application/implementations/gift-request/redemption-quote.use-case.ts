@@ -94,7 +94,12 @@ export class GetRedemptionQuoteUseCase implements IGetRedemptionQuoteUseCase {
         },
       };
 
-    const priced = quoteRedemption(context.estimatedValueVnd, config);
+    const unitPriced = quoteRedemption(context.estimatedValueVnd, config);
+    // Giá một món × số món của request — cùng phép tính với lúc đổi thật.
+    const priced = {
+      ...unitPriced,
+      points: unitPriced.points * context.requestedQuantity,
+    };
     if (!priced.redeemable)
       return {
         quote: {

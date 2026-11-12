@@ -1,4 +1,8 @@
-import { GiftRequestStatuses, PostTypes } from '../consts';
+import {
+  GiftRequestStatuses,
+  GiftRequestStatusReasons,
+  PostTypes,
+} from '../consts';
 
 export interface IGiftRequest {
   postId: string;
@@ -15,6 +19,13 @@ export interface IGiftRequest {
    * xoá bài đó — xem `ON DELETE SET NULL` ở migration `1797000000000`.
    */
   offeringPostId: string | null;
+  /**
+   * Số món người này xin. Không vượt `remainingQuantity` lúc tạo; chủ bài duyệt ĐỦ số này hoặc
+   * không duyệt — hệ thống không duyệt một phần và không tự giảm số người ta đã đăng ký.
+   */
+  requestedQuantity: number;
+  /** Mã lý do của `STANDBY` / `CANCELLED`, `null` ở trạng thái khác. */
+  statusReason: GiftRequestStatusReasons | null;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { IAppendPointEntryResult } from '@/application/contracts/point';
 import {
   ClassifiedTransactionNotSupportedException,
+  GiftRequestInvalidQuantityException,
   GiftRequestNotFoundException,
   GiftTransactionInvalidStateException,
   GiftTransactionOutOfStockException,
@@ -17,11 +18,13 @@ import {
   IPointLedgerRepository,
   IRecipientSelectionAudit,
   IRedemptionContext,
+  IStandbyNudgeRow,
 } from '@/domain/ports/repository';
 import { GiftRequestEntity, UserEntity } from '@/infrastructure/entity';
 import {
   GiftPostStatuses,
   GiftRequestStatuses,
+  GiftRequestStatusReasons,
   PostTypes,
   UserRanks,
 } from '@chantam.vn/chantam.core-lib/consts';
@@ -36,7 +39,11 @@ import { makeGlobalId } from '@chantam/service.common-lib/utils';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
-import { EntityManager, EntitySchema, In, Repository } from 'typeorm';
+import { EntityManager, EntitySchema, Repository } from 'typeorm';
+import {
+  IRebalancedRequest,
+  rebalanceOpenRequests,
+} from './gift-request-rebalance';
 import { updateReturning } from './update-returning';
 
 /**
@@ -78,6 +85,8 @@ interface IMyRequestRow {
   queue_joined_at: Date;
   withdrawn_at: Date | null;
   offering_post_id: string | null;
+  requested_quantity: number | string;
+  status_reason: GiftRequestStatusReasons | null;
   created_at: Date;
   updated_at: Date;
   post_title: string;
@@ -110,15 +119,113 @@ export class GiftRequestRepository
     super(target, manager);
   }
 
+  /**
+   * Request MỚI NHẤT của một người trên một bài. Mỗi lần gửi lại là một dòng mới (1803300000000),
+   * nên "request của tôi" luôn phải chỉ rõ là cái mới nhất — `findOne` không thứ tự trả một dòng
+   * bất kỳ trong lịch sử.
+   */
   public async findByPostAndRequester(
     postId: string,
     requesterId: string,
   ): Promise<IGiftRequestEntity | null> {
     return this.findOne({
-      where: {
-        postId,
-        requesterId,
-      } as never,
+      where: { postId, requesterId } as never,
+      order: { createdAt: 'DESC', id: 'DESC' } as never,
+    });
+  }
+
+  public async hasLiveTransactionOnPost(
+    postId: string,
+    requesterId: string,
+  ): Promise<boolean> {
+    const [row] = await this.manager.query<{ live: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1 FROM gift_transactions deal
+           JOIN posts post ON post.global_id = deal.post_id
+          WHERE deal.post_id = $1
+            AND deal.status IN ('ACCEPTED', 'DELIVERING')
+            -- Người xin là bên không phải tác giả: người nhận ở bài Muốn Tặng,
+            -- người tặng ở bài Muốn Nhận.
+            AND CASE WHEN deal.giver_id = post.author_id
+                     THEN deal.receiver_id ELSE deal.giver_id END = $2
+       ) AS live`,
+      [postId, requesterId],
+    );
+    return Boolean(row?.live);
+  }
+
+  /** Mọi request của một người trên một bài, mới nhất trước — lịch sử cho màn chi tiết. */
+  public async listByPostAndRequester(
+    postId: string,
+    requesterId: string,
+  ): Promise<IGiftRequestEntity[]> {
+    return this.find({
+      where: { postId, requesterId } as never,
+      order: { createdAt: 'DESC', id: 'DESC' } as never,
+    });
+  }
+
+  /**
+   * Chủ bài sửa tổng số lượng → số còn lại đổi → cân lại hàng chờ (thêm hàng thì người đang
+   * STANDBY vừa đủ được về PENDING; bớt hàng thì người xin quá số còn lại chuyển STANDBY).
+   */
+  public async rebalanceOpenRequests(
+    postId: string,
+  ): Promise<IRebalancedRequest[]> {
+    return this.manager.transaction(async (manager) => {
+      // Cùng thứ tự khoá với đường duyệt: request trước, bài sau.
+      await manager.query(
+        `SELECT global_id FROM gift_requests
+          WHERE post_id = $1 AND status IN ('PENDING', 'STANDBY') AND deleted_at IS NULL
+          ORDER BY global_id FOR UPDATE`,
+        [postId],
+      );
+      await manager.query(
+        `SELECT global_id FROM posts WHERE global_id = $1 FOR UPDATE`,
+        [postId],
+      );
+      return rebalanceOpenRequests(manager, postId);
+    });
+  }
+
+  /**
+   * Người xin GIẢM số lượng của request đang chờ. Không cho tăng: tăng là một cam kết khác — rút
+   * rồi gửi lại. Request STANDBY mà số mới vừa số còn lại thì về PENDING, giữ chỗ trong hàng.
+   */
+  public async updateRequestedQuantity(params: {
+    postId: string;
+    requesterId: string;
+    requestedQuantity: number;
+  }): Promise<IGiftRequestEntity> {
+    return this.manager.transaction(async (manager) => {
+      const [open] = await manager.query<
+        { global_id: string; requested_quantity: number | string }[]
+      >(
+        `SELECT global_id, requested_quantity FROM gift_requests
+          WHERE post_id = $1 AND requester_id = $2
+            AND status IN ('PENDING', 'STANDBY') AND deleted_at IS NULL
+          FOR UPDATE`,
+        [params.postId, params.requesterId],
+      );
+      if (!open) throw new GiftRequestNotFoundException(params.postId);
+      if (params.requestedQuantity >= Number(open.requested_quantity))
+        throw new GiftRequestInvalidQuantityException(
+          'chỉ được giảm số lượng — muốn xin nhiều hơn thì rút và gửi lại',
+        );
+      await manager.query(
+        `SELECT global_id FROM posts WHERE global_id = $1 FOR UPDATE`,
+        [params.postId],
+      );
+      await manager.query(
+        `UPDATE gift_requests SET requested_quantity = $2, updated_at = now()
+          WHERE global_id = $1`,
+        [open.global_id, params.requestedQuantity],
+      );
+      await rebalanceOpenRequests(manager, params.postId);
+      const updated = await manager.findOne(GiftRequestEntity, {
+        where: { globalId: open.global_id } as never,
+      });
+      return updated as IGiftRequestEntity;
     });
   }
 
@@ -142,7 +249,8 @@ export class GiftRequestRepository
     const rows = await updateReturning<{ global_id: string }>(
       this.manager,
       `UPDATE gift_requests
-       SET status = $1, withdrawn_at = now(), updated_at = now()
+       SET status = $1, withdrawn_at = now(), status_reason = NULL,
+           updated_at = now()
        WHERE post_id = $2 AND requester_id = $3
          AND status::text = ANY($4::text[]) AND deleted_at IS NULL
        RETURNING global_id`,
@@ -170,7 +278,9 @@ export class GiftRequestRepository
 
     const raw = await this.createQueryBuilder('gr')
       .select('gr.post_id', 'postId')
-      .addSelect('COUNT(*)', 'cnt')
+      // Đếm NGƯỜI, không đếm dòng: một người có request đã nhận xong (ACCEPTED) và một
+      // request mới đang chờ là hai dòng nhưng vẫn là một người quan tâm.
+      .addSelect('COUNT(DISTINCT gr.requester_id)', 'cnt')
       .where('gr.post_id IN (:...postIds)', { postIds })
       .andWhere('gr.deleted_at IS NULL')
       // REJECTED không còn hoạt động: đó là lúc người cho chủ động từ chối.
@@ -214,17 +324,24 @@ export class GiftRequestRepository
       `
         SELECT ranked.post_id, ranked.username, ranked.avatar_url
           FROM (
-            SELECT request.post_id, person.username,
-                   person.avatar_url,
+            SELECT latest.post_id, person.username, person.avatar_url,
                    row_number() OVER (
-                     PARTITION BY request.post_id
-                     ORDER BY request.created_at DESC, request.id DESC
+                     PARTITION BY latest.post_id
+                     ORDER BY latest.created_at DESC, latest.id DESC
                    ) AS position
-              FROM gift_requests request
-              JOIN users person ON person.global_id = request.requester_id
-             WHERE request.post_id = ANY($1::uuid[])
-               AND request.deleted_at IS NULL
-               AND request.status <> ALL($2::gift_requests_status_enum[])
+              FROM (
+                -- Một người một ô: request còn hoạt động MỚI NHẤT của họ trên bài.
+                SELECT DISTINCT ON (request.post_id, request.requester_id)
+                       request.post_id, request.requester_id,
+                       request.created_at, request.id
+                  FROM gift_requests request
+                 WHERE request.post_id = ANY($1::uuid[])
+                   AND request.deleted_at IS NULL
+                   AND request.status <> ALL($2::gift_requests_status_enum[])
+                 ORDER BY request.post_id, request.requester_id,
+                          request.created_at DESC, request.id DESC
+              ) latest
+              JOIN users person ON person.global_id = latest.requester_id
           ) ranked
          WHERE ranked.position <= $3
          ORDER BY ranked.post_id, ranked.position
@@ -258,16 +375,18 @@ export class GiftRequestRepository
     const map = new Map<string, GiftRequestStatuses>();
     if (postIds.length === 0 || !requesterId) return map;
 
-    const items = await this.find({
-      where: {
-        postId: In(postIds),
-        requesterId,
-      } as never,
-    });
-
-    for (const item of items) {
-      map.set(item.postId, item.status);
-    }
+    // Request MỚI NHẤT mỗi bài. Lặp qua mọi dòng rồi `map.set` là để dòng nào đến sau thắng —
+    // không có thứ tự thì trạng thái hiển thị có thể là của một lần gửi cũ.
+    const rows = await this.manager.query<
+      { post_id: string; status: GiftRequestStatuses }[]
+    >(
+      `SELECT DISTINCT ON (post_id) post_id, status
+         FROM gift_requests
+        WHERE post_id = ANY($1::uuid[]) AND requester_id = $2 AND deleted_at IS NULL
+        ORDER BY post_id, created_at DESC, id DESC`,
+      [postIds, requesterId],
+    );
+    for (const row of rows) map.set(row.post_id, row.status);
     return map;
   }
 
@@ -292,6 +411,8 @@ export class GiftRequestRepository
       .addSelect('gr.status', 'status')
       .addSelect('gr.queue_joined_at', 'queueJoinedAt')
       .addSelect('gr.created_at', 'createdAt')
+      .addSelect('gr.requested_quantity', 'requestedQuantity')
+      .addSelect('gr.status_reason', 'statusReason')
       .addSelect('u.global_id', 'user_id')
       .addSelect('u.username', 'user_username')
       .addSelect('u.full_name', 'user_full_name')
@@ -312,6 +433,8 @@ export class GiftRequestRepository
       status: row.status,
       queueJoinedAt: new Date(row.queueJoinedAt),
       createdAt: new Date(row.createdAt),
+      requestedQuantity: Number(row.requestedQuantity ?? 1),
+      statusReason: row.statusReason ?? null,
       requester: row.user_id
         ? {
             userId: row.user_id,
@@ -391,6 +514,7 @@ export class GiftRequestRepository
         SELECT request.global_id, request.post_id, request.requester_id,
                request.message, request.status, request.queue_joined_at,
                request.withdrawn_at, request.offering_post_id,
+               request.requested_quantity, request.status_reason,
                request.created_at, request.updated_at,
                post.title AS post_title, post.status AS post_status,
                media.r2_key AS post_thumbnail_key,
@@ -425,6 +549,8 @@ export class GiftRequestRepository
           queueJoinedAt: row.queue_joined_at,
           withdrawnAt: row.withdrawn_at,
           offeringPostId: row.offering_post_id,
+          requestedQuantity: Number(row.requested_quantity),
+          statusReason: row.status_reason,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
         } as IGiftRequestEntity,
@@ -454,15 +580,22 @@ export class GiftRequestRepository
       `SELECT request.global_id, request.post_id, post.author_id AS owner_id,
               request.requester_id, request.status, request.message,
               request.created_at,
-              -- Lượt trao không lưu request_id: nó nối với yêu cầu qua cặp (bài,
-              -- ĐỐI PHƯƠNG), cùng luật với lúc duyệt. Người xin là receiver ở bài
-              -- Muốn Tặng nhưng là giver ở bài Muốn Nhận.
-              (SELECT deal.global_id FROM gift_transactions deal
-                WHERE deal.post_id = request.post_id
-                  AND (deal.receiver_id = request.requester_id
-                       OR deal.giver_id = request.requester_id)
-                ORDER BY deal.requested_at DESC, deal.id DESC
-                LIMIT 1) AS transaction_id
+              -- Lượt trao ghi request_id từ 1803300000000. Dữ liệu cũ không nối được
+              -- thì lùi về cặp (bài, ĐỐI PHƯƠNG) — chỉ cho lượt chưa gắn request nào,
+              -- để request mới không nhặt nhầm lượt của lần gửi trước.
+              COALESCE(
+                (SELECT deal.global_id FROM gift_transactions deal
+                  WHERE deal.request_id = request.global_id
+                  ORDER BY deal.requested_at DESC, deal.id DESC
+                  LIMIT 1),
+                (SELECT deal.global_id FROM gift_transactions deal
+                  WHERE deal.request_id IS NULL
+                    AND deal.post_id = request.post_id
+                    AND (deal.receiver_id = request.requester_id
+                         OR deal.giver_id = request.requester_id)
+                  ORDER BY deal.requested_at DESC, deal.id DESC
+                  LIMIT 1)
+              ) AS transaction_id
          FROM gift_requests request
          INNER JOIN posts post ON post.global_id = request.post_id
         WHERE request.global_id = $1
@@ -486,6 +619,10 @@ export class GiftRequestRepository
   public async closeOpenForPosts(params: {
     postIds: string[];
     status: GiftRequestStatuses;
+    /** Mã lý do ghi kèm (vd `POST_COMPLETED`). */
+    statusReason?: GiftRequestStatusReasons | null;
+    /** Chỉ đóng khi bài ĐANG ở trạng thái này — vd chỉ khi bài đã `COMPLETED`. */
+    onlyIfPostStatus?: GiftPostStatuses;
   }): Promise<IClosedRequestRow[]> {
     if (params.postIds.length === 0) return [];
 
@@ -501,12 +638,13 @@ export class GiftRequestRepository
       this.manager,
       `
         UPDATE gift_requests request
-        SET status = $2, updated_at = now()
+        SET status = $2, status_reason = $4, updated_at = now()
         FROM posts post
         WHERE post.global_id = request.post_id
           AND request.post_id = ANY($1::uuid[])
           AND request.status::text = ANY($3::text[])
           AND request.deleted_at IS NULL
+          AND ($5::text IS NULL OR post.status::text = $5::text)
         RETURNING request.global_id, request.requester_id,
                   request.post_id, post.title AS post_title
       `,
@@ -514,6 +652,8 @@ export class GiftRequestRepository
         params.postIds,
         params.status,
         [GiftRequestStatuses.PENDING, GiftRequestStatuses.STANDBY],
+        params.statusReason ?? null,
+        params.onlyIfPostStatus ?? null,
       ],
     );
 
@@ -536,7 +676,7 @@ export class GiftRequestRepository
     const rows = await updateReturning<{ global_id: string }>(
       this.manager,
       `UPDATE gift_requests
-       SET status = $1, updated_at = now()
+       SET status = $1, status_reason = NULL, updated_at = now()
        WHERE global_id = $2 AND post_id = $3
          AND status::text = ANY($4::text[]) AND deleted_at IS NULL
        RETURNING global_id`,
@@ -563,6 +703,7 @@ export class GiftRequestRepository
     const [row] = await this.manager.query<
       {
         request_global_id: string;
+        requested_quantity: number | string;
         giver_id: string;
         post_status: string;
         selection_deadline: Date | null;
@@ -571,6 +712,7 @@ export class GiftRequestRepository
     >(
       `
         SELECT candidate.global_id AS request_global_id,
+               candidate.requested_quantity,
                post.author_id AS giver_id,
                post.status AS post_status,
                post.selection_deadline,
@@ -597,6 +739,7 @@ export class GiftRequestRepository
 
     return {
       requestGlobalId: row.request_global_id,
+      requestedQuantity: Number(row.requested_quantity),
       giverId: row.giver_id,
       postStatus: row.post_status,
       selectionDeadline: row.selection_deadline,
@@ -626,6 +769,7 @@ export class GiftRequestRepository
             WHERE candidate.post_id = post.global_id
               AND candidate.status = $2
               AND candidate.deleted_at IS NULL
+              AND candidate.requested_quantity <= post.remaining_quantity
               AND ${eligibleRequesterSql('person')}
           )
         ORDER BY post.selection_deadline ASC
@@ -642,6 +786,54 @@ export class GiftRequestRepository
     return rows.map((row) => ({
       postId: row.post_id,
       giverId: row.giver_id,
+    }));
+  }
+
+  public async findStandbyNudges(limit: number): Promise<IStandbyNudgeRow[]> {
+    const rows = await this.manager.query<
+      {
+        global_id: string;
+        requester_id: string;
+        post_id: string;
+        post_title: string;
+        remaining_quantity: number | string;
+        requested_quantity: number | string;
+      }[]
+    >(
+      `
+        SELECT request.global_id, request.requester_id, post.global_id AS post_id,
+               post.title AS post_title, post.remaining_quantity, request.requested_quantity
+          FROM gift_requests request
+          JOIN posts post ON post.global_id = request.post_id
+         WHERE request.status = 'STANDBY'
+           AND request.status_reason = 'INSUFFICIENT_QUANTITY'
+           AND request.deleted_at IS NULL
+           AND post.deleted_at IS NULL
+           AND post.status = 'PUBLISHED'
+           AND post.remaining_quantity > 0
+           -- Đã quá hạn xét; hoặc bài chọn tay (không có mốc) mà họ đã chờ quá 3 ngày — tránh
+           -- nhắc ngay sau thông báo chuyển STANDBY.
+           AND ((post.selection_deadline IS NOT NULL AND post.selection_deadline <= now())
+                OR (post.selection_deadline IS NULL
+                    AND request.updated_at <= now() - interval '3 days'))
+           -- Còn người vừa số thì chủ bài / job xét họ trước — chưa cần nhắc.
+           AND NOT EXISTS (
+             SELECT 1 FROM gift_requests fitting
+              WHERE fitting.post_id = post.global_id
+                AND fitting.status = 'PENDING'
+                AND fitting.deleted_at IS NULL)
+         ORDER BY request.queue_joined_at ASC, request.id ASC
+         LIMIT $1
+      `,
+      [limit],
+    );
+    return rows.map((row) => ({
+      requestId: row.global_id,
+      requesterId: row.requester_id,
+      postId: row.post_id,
+      postTitle: row.post_title,
+      remainingQuantity: Number(row.remaining_quantity),
+      requestedQuantity: Number(row.requested_quantity),
     }));
   }
 
@@ -722,6 +914,8 @@ export class GiftRequestRepository
         WHERE candidate.post_id = $1
           AND candidate.status = $2
           AND candidate.deleted_at IS NULL
+          -- Chỉ người vừa số còn lại: hệ thống duyệt ĐỦ số người ta xin, không duyệt một phần.
+          AND candidate.requested_quantity <= post.remaining_quantity
           AND ${eligibleRequesterSql('person')}
       `,
       [postId, GiftRequestStatuses.PENDING],
@@ -782,26 +976,34 @@ export class GiftRequestRepository
     giverId: string;
     receiverId: string;
     debit?: IAppendPointEntryResult;
+    rebalanced: IRebalancedRequest[];
   }> {
     return this.manager.transaction(async (manager) => {
-      const pendingRows = await manager.query<
+      // Khoá CẢ request STANDBY: cuối hàm `rebalanceOpenRequests` ghi lên chúng (đổi lý do,
+      // hoặc chuyển qua lại PENDING/STANDBY). Khoá thiếu là cửa cho deadlock với lượt duyệt khác.
+      const openRows = await manager.query<
         {
           global_id: string;
           post_id: string;
           requester_id: string;
           status: string;
+          requested_quantity: number | string;
         }[]
       >(
-        `SELECT global_id, post_id, requester_id, status
+        `SELECT global_id, post_id, requester_id, status, requested_quantity
          FROM gift_requests
-         WHERE post_id = $1 AND status = $2 AND deleted_at IS NULL
+         WHERE post_id = $1 AND status IN ('PENDING', 'STANDBY') AND deleted_at IS NULL
          ORDER BY global_id
          FOR UPDATE`,
-        [params.postId, GiftRequestStatuses.PENDING],
+        [params.postId],
       );
 
-      const targetRequest = pendingRows?.find(
-        (row) => row.global_id === params.requestId,
+      // Chỉ duyệt request PENDING. STANDBY nghĩa là không đủ hàng cho số người đó xin — duyệt
+      // nó là duyệt vượt kho, hoặc phải tự giảm số người ta đăng ký; cả hai đều cấm.
+      const targetRequest = openRows?.find(
+        (row) =>
+          row.global_id === params.requestId &&
+          row.status === GiftRequestStatuses.PENDING,
       );
 
       if (!targetRequest)
@@ -838,11 +1040,11 @@ export class GiftRequestRepository
           existingTransaction.status,
         );
 
-      // Nhận nuôi lượt cũ thì phải trừ đúng số lượng của nó: `close()` hoàn lại
-      // theo `quantity` đã ghi, trừ 1 mà hoàn N là tồn kho tự nở ra.
+      // Duyệt ĐỦ số người đó xin — không duyệt một phần. Nhận nuôi lượt cũ thì trừ đúng số của
+      // lượt đó: `close()` hoàn lại theo `quantity` đã ghi, trừ khác số là tồn kho tự nở ra.
       const quantity = existingTransaction
         ? Number(existingTransaction.quantity)
-        : 1;
+        : Number(targetRequest.requested_quantity);
 
       const postRows = await manager.query<
         {
@@ -923,39 +1125,31 @@ export class GiftRequestRepository
         // `selection_deadline = NULL`: đồng hồ chọn người nhận đã hết việc. Để
         // lại mốc cũ thì job tự chọn sẽ nhặt đúng bài này lên mỗi lần chạy và
         // cố chọn thêm một người nữa cho một bài đã có chủ.
+        // Đồng hồ tự chọn chỉ tắt khi kho về 0. Còn hàng lẻ thì GIỮ mốc — tới hạn job vẫn chọn
+        // tiếp người vừa số, thay vì phần còn lại chỉ chờ chủ bài nhớ vào duyệt tay (12/11).
         `UPDATE posts
          SET remaining_quantity = $1, status = $2,
-             selection_deadline = NULL, updated_at = now()
+             selection_deadline = CASE WHEN $1::int = 0 THEN NULL ELSE selection_deadline END,
+             updated_at = now()
          WHERE global_id = $3`,
         [newRemaining, newPostStatus, params.postId],
       );
 
       await manager.query(
-        `UPDATE gift_requests SET status = $1, updated_at = now() WHERE global_id = $2`,
+        `UPDATE gift_requests SET status = $1, status_reason = NULL, updated_at = now() WHERE global_id = $2`,
         [GiftRequestStatuses.ACCEPTED, params.requestId],
       );
 
-      if (newRemaining === 0) {
-        // STANDBY, KHÔNG phải REJECTED: hết hàng thì những người còn lại vẫn
-        // đang trong hàng đợi, và nếu lượt trao này bị huỷ thì họ được xét tiếp
-        // (F33). `REJECTED` để dành cho lúc người cho chủ động từ chối ai đó —
-        // dùng chung một trạng thái cho hai việc thì không phân biệt được
-        // "chưa tới lượt" với "đã bị loại".
-        await manager.query(
-          `UPDATE gift_requests SET status = $1, updated_at = now() WHERE post_id = $2 AND global_id != $3 AND status = $4`,
-          [
-            GiftRequestStatuses.STANDBY,
-            params.postId,
-            params.requestId,
-            GiftRequestStatuses.PENDING,
-          ],
-        );
-      }
+      // Người còn lại xin NHIỀU HƠN số vừa còn lại → STANDBY kèm lý do (`OUT_OF_STOCK` khi kho về
+      // 0, `INSUFFICIENT_QUANTITY` khi còn ít hơn số họ xin). STANDBY, KHÔNG phải REJECTED: họ vẫn
+      // trong hàng và được xét lại khi có hàng hoàn về (F33). Không ai bị tự giảm số đã xin.
+      const rebalanced = await rebalanceOpenRequests(manager, params.postId);
 
       if (existingTransaction) {
         await manager.query(
-          `UPDATE gift_transactions SET status = 'ACCEPTED', accepted_at = now() WHERE global_id = $1`,
-          [existingTransaction.global_id],
+          `UPDATE gift_transactions SET status = 'ACCEPTED', accepted_at = now(),
+                  request_id = COALESCE(request_id, $2) WHERE global_id = $1`,
+          [existingTransaction.global_id, params.requestId],
         );
         await this.openChatRoom(manager, {
           transactionId: existingTransaction.global_id,
@@ -973,17 +1167,19 @@ export class GiftRequestRepository
           transactionId: existingTransaction.global_id,
           ...roles,
           debit,
+          rebalanced,
         };
       }
 
       await manager.query(
-        `INSERT INTO gift_transactions (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at) VALUES ($1, $2, $3, $4, $5, 'ACCEPTED', now())`,
+        `INSERT INTO gift_transactions (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at, request_id) VALUES ($1, $2, $3, $4, $5, 'ACCEPTED', now(), $6)`,
         [
           params.transactionId,
           params.postId,
           roles.giverId,
           roles.receiverId,
           quantity,
+          params.requestId,
         ],
       );
 
@@ -1000,7 +1196,12 @@ export class GiftRequestRepository
         audit: params.selectionAudit,
       });
 
-      return { transactionId: params.transactionId, ...roles, debit };
+      return {
+        transactionId: params.transactionId,
+        ...roles,
+        debit,
+        rebalanced,
+      };
     });
   }
 
@@ -1055,24 +1256,40 @@ export class GiftRequestRepository
     }[];
     remainingQuantity: number;
     standbyCount: number;
+    rebalanced: IRebalancedRequest[];
   }> {
     return this.manager.transaction(async (manager) => {
       // Khoá đúng tập PENDING của bài, y như `acceptRequest`. `ORDER BY global_id`
       // để hai lô chạy song song trên cùng bài lấy khoá theo cùng thứ tự và
       // không deadlock nhau.
-      const pendingRows = await manager.query<
-        { global_id: string; requester_id: string }[]
+      // Khoá cả STANDBY như `acceptRequest` — phép cân lại cuối lô ghi lên chúng.
+      const openRows = await manager.query<
+        {
+          global_id: string;
+          requester_id: string;
+          status: string;
+          requested_quantity: number | string;
+        }[]
       >(
-        `SELECT global_id, requester_id
+        `SELECT global_id, requester_id, status, requested_quantity
          FROM gift_requests
-         WHERE post_id = $1 AND status = $2 AND deleted_at IS NULL
+         WHERE post_id = $1 AND status IN ('PENDING', 'STANDBY') AND deleted_at IS NULL
          ORDER BY global_id
          FOR UPDATE`,
-        [params.postId, GiftRequestStatuses.PENDING],
+        [params.postId],
       );
 
+      const pendingRows = (openRows ?? []).filter(
+        (row) => row.status === GiftRequestStatuses.PENDING,
+      );
       const pendingById = new Map(
-        (pendingRows ?? []).map((row) => [row.global_id, row.requester_id]),
+        pendingRows.map((row) => [row.global_id, row.requester_id]),
+      );
+      const quantityById = new Map(
+        pendingRows.map((row) => [
+          row.global_id,
+          Number(row.requested_quantity),
+        ]),
       );
 
       // Kiểm CẢ LÔ trước khi ghi bất cứ thứ gì. Một id sai trong lô làm cả lô
@@ -1129,10 +1346,13 @@ export class GiftRequestRepository
       if (post.status !== GiftPostStatuses.PUBLISHED)
         throw new PostInvalidStateException();
 
-      // Mỗi yêu cầu duyệt theo đường này ăn đúng MỘT suất: nhánh "nhận nuôi lượt
-      // cũ" của `acceptRequest` không tới được đây, vì mọi lượt còn sống đã bị
-      // chặn ở trên.
-      const needed = params.requestIds.length;
+      // Mỗi request ăn ĐỦ số nó xin; tổng lô vượt số còn lại thì cả lô dừng — không duyệt một
+      // phần lô, không duyệt một phần request. Nhánh "nhận nuôi lượt cũ" của `acceptRequest`
+      // không tới được đây, vì mọi lượt còn sống đã bị chặn ở trên.
+      const needed = params.requestIds.reduce(
+        (sum, requestId) => sum + (quantityById.get(requestId) ?? 1),
+        0,
+      );
       if (Number(post.remaining_quantity) < needed)
         throw new GiftTransactionOutOfStockException();
 
@@ -1140,38 +1360,28 @@ export class GiftRequestRepository
       const newPostStatus = newRemaining === 0 ? 'RESERVED' : 'PUBLISHED';
 
       await manager.query(
+        // Đồng hồ tự chọn chỉ tắt khi kho về 0. Còn hàng lẻ thì GIỮ mốc — tới hạn job vẫn chọn
+        // tiếp người vừa số, thay vì phần còn lại chỉ chờ chủ bài nhớ vào duyệt tay (12/11).
         `UPDATE posts
          SET remaining_quantity = $1, status = $2,
-             selection_deadline = NULL, updated_at = now()
+             selection_deadline = CASE WHEN $1::int = 0 THEN NULL ELSE selection_deadline END,
+             updated_at = now()
          WHERE global_id = $3`,
         [newRemaining, newPostStatus, params.postId],
       );
 
       await manager.query(
-        `UPDATE gift_requests SET status = $1, updated_at = now()
+        `UPDATE gift_requests SET status = $1, status_reason = NULL, updated_at = now()
          WHERE global_id = ANY($2::uuid[])`,
         [GiftRequestStatuses.ACCEPTED, [...params.requestIds]],
       );
 
-      // Quét STANDBY đúng MỘT lần, ở cuối. Đây là chỗ vòng lặp gọi
-      // `acceptRequest` sai: ở đó phép quét chạy ngay khi suất cạn, nên nó cướp
-      // luôn những yêu cầu còn lại TRONG CÙNG LÔ.
-      let standbyCount = 0;
-      if (newRemaining === 0) {
-        const swept = await updateReturning<{ global_id: string }>(
-          manager,
-          `UPDATE gift_requests SET status = $1, updated_at = now()
-           WHERE post_id = $2 AND status = $3 AND NOT (global_id = ANY($4::uuid[]))
-           RETURNING global_id`,
-          [
-            GiftRequestStatuses.STANDBY,
-            params.postId,
-            GiftRequestStatuses.PENDING,
-            [...params.requestIds],
-          ],
-        );
-        standbyCount = swept.length;
-      }
+      // Cân hàng chờ đúng MỘT lần, ở cuối — sau khi cả lô đã ACCEPTED, nên không cướp request
+      // nào TRONG lô. Đếm những người vừa bị chuyển từ PENDING sang STANDBY.
+      const rebalanced = await rebalanceOpenRequests(manager, params.postId);
+      const standbyCount = rebalanced.filter(
+        (row) => row.fromStatus === 'PENDING' && row.toStatus === 'STANDBY',
+      ).length;
 
       const accepted: {
         requestId: string;
@@ -1195,9 +1405,16 @@ export class GiftRequestRepository
 
         await manager.query(
           `INSERT INTO gift_transactions
-             (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at)
-           VALUES ($1, $2, $3, $4, 1, 'ACCEPTED', now())`,
-          [transactionId, params.postId, roles.giverId, roles.receiverId],
+             (global_id, post_id, giver_id, receiver_id, quantity, status, accepted_at, request_id)
+           VALUES ($1, $2, $3, $4, $5, 'ACCEPTED', now(), $6)`,
+          [
+            transactionId,
+            params.postId,
+            roles.giverId,
+            roles.receiverId,
+            quantityById.get(requestId) ?? 1,
+            requestId,
+          ],
         );
 
         await this.openChatRoom(manager, {
@@ -1210,7 +1427,12 @@ export class GiftRequestRepository
         accepted.push({ requestId, requesterId, transactionId, ...roles });
       }
 
-      return { accepted, remainingQuantity: newRemaining, standbyCount };
+      return {
+        accepted,
+        remainingQuantity: newRemaining,
+        standbyCount,
+        rebalanced,
+      };
     });
   }
 

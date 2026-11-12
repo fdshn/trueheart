@@ -104,6 +104,94 @@ export class RequestLifecycleNotifier {
     });
   }
 
+  /**
+   * Báo người xin khi hàng chờ được cân lại (12/11) — sau mỗi lần kho đổi:
+   *
+   * - PENDING → STANDBY, hoặc STANDBY đổi sang `INSUFFICIENT_QUANTITY`: nói rõ lý do và việc
+   *   họ làm được (giảm số lượng / rút / chờ). Không báo thì họ chỉ biết khi tự mở app.
+   * - STANDBY → PENDING: hàng đã về, họ lại đang chờ chủ bài xét.
+   *
+   * Người trong `excludeUserIds` bỏ qua — vd ứng viên đã nhận thông báo "đang được xét tiếp" ở
+   * đường huỷ lượt trao, không cần thêm một cái nữa. Khoá chống trùng gồm cả trạng thái, lý do
+   * và số còn lại: cùng một lần cân gọi lại không báo hai lần, còn lần cân sau có số khác thì báo.
+   */
+  public async announceRebalanced(
+    rows: readonly {
+      requestId: string;
+      requesterId: string;
+      fromStatus: 'PENDING' | 'STANDBY';
+      toStatus: 'PENDING' | 'STANDBY';
+      statusReason: 'OUT_OF_STOCK' | 'INSUFFICIENT_QUANTITY' | null;
+      postId: string;
+      postTitle: string;
+      remainingQuantity: number;
+      requestedQuantity: number;
+    }[],
+    options: { excludeUserIds?: readonly string[] } = {},
+  ): Promise<void> {
+    const excluded = new Set(options.excludeUserIds ?? []);
+    for (const row of rows) {
+      if (excluded.has(row.requesterId)) continue;
+      const key = `${row.requestId}:${row.toStatus}:${row.statusReason ?? '-'}:${row.remainingQuantity}`;
+
+      if (row.toStatus === 'PENDING') {
+        if (row.fromStatus !== 'STANDBY') continue;
+        await this.send({
+          userId: row.requesterId,
+          type: NotificationTypes.GIFT_REQUEST_REOPENED,
+          title: 'Bạn trở lại hàng chờ xét',
+          body: `Bài "${row.postTitle}" đã có lại hàng — yêu cầu ${row.requestedQuantity} món của bạn đang chờ người tặng xét.`,
+          referenceType: 'GIFT_REQUEST',
+          referenceId: row.requestId,
+          target: { type: NotificationTargetTypes.POST, id: row.postId },
+          idempotencyKey: `GIFT_REQUEST_REOPENED:${key}`,
+        });
+        continue;
+      }
+
+      // STANDBY: báo khi vừa vào hàng chờ, hoặc khi lý do đổi sang "còn hàng nhưng thiếu" —
+      // lúc đó giảm số lượng mới có tác dụng. Đổi sang OUT_OF_STOCK khi đã STANDBY thì không
+      // có gì mới để làm, khỏi báo.
+      const becameStandby = row.fromStatus === 'PENDING';
+      const nowActionable =
+        row.statusReason === 'INSUFFICIENT_QUANTITY' && !becameStandby;
+      if (!becameStandby && !nowActionable) continue;
+      await this.send({
+        userId: row.requesterId,
+        type: NotificationTypes.GIFT_REQUEST_STANDBY,
+        ...standbyCopy(row),
+        referenceType: 'GIFT_REQUEST',
+        referenceId: row.requestId,
+        target: { type: NotificationTargetTypes.POST, id: row.postId },
+        idempotencyKey: `GIFT_REQUEST_STANDBY:${key}`,
+      });
+    }
+  }
+
+  /**
+   * Nhắc người đang STANDBY vì thiếu hàng khi bài đã quá hạn xét mà không còn ai vừa số — nếu
+   * họ không giảm, phần còn lại không trao được cho ai. Một lần cho mỗi mốc số còn lại.
+   */
+  public async nudgeStandby(row: {
+    requestId: string;
+    requesterId: string;
+    postId: string;
+    postTitle: string;
+    remainingQuantity: number;
+    requestedQuantity: number;
+  }): Promise<void> {
+    await this.send({
+      userId: row.requesterId,
+      type: NotificationTypes.GIFT_REQUEST_STANDBY,
+      title: 'Bài vẫn còn hàng cho bạn',
+      body: `Bài "${row.postTitle}" còn ${row.remainingQuantity} món — bạn đang xin ${row.requestedQuantity}. Giảm số lượng xuống ${row.remainingQuantity} để được xét ngay.`,
+      referenceType: 'GIFT_REQUEST',
+      referenceId: row.requestId,
+      target: { type: NotificationTargetTypes.POST, id: row.postId },
+      idempotencyKey: `GIFT_REQUEST_STANDBY_NUDGE:${row.requestId}:${row.remainingQuantity}`,
+    });
+  }
+
   private async send(command: {
     userId: string;
     type: NotificationTypes;
@@ -122,4 +210,22 @@ export class RequestLifecycleNotifier {
       );
     }
   }
+}
+
+/** Câu chữ thông báo STANDBY theo lý do — hai lý do, hai việc khác nhau người xin làm được. */
+function standbyCopy(row: {
+  statusReason: 'OUT_OF_STOCK' | 'INSUFFICIENT_QUANTITY' | null;
+  postTitle: string;
+  remainingQuantity: number;
+  requestedQuantity: number;
+}): { title: string; body: string } {
+  if (row.statusReason === 'INSUFFICIENT_QUANTITY')
+    return {
+      title: 'Không đủ số lượng bạn xin',
+      body: `Bài "${row.postTitle}" chỉ còn ${row.remainingQuantity} món, ít hơn ${row.requestedQuantity} món bạn xin. Bạn có thể giảm số lượng, rút yêu cầu, hoặc tiếp tục chờ.`,
+    };
+  return {
+    title: 'Món đồ tạm hết',
+    body: `Bài "${row.postTitle}" vừa hết hàng. Yêu cầu của bạn được giữ trong hàng chờ — bạn sẽ được xét lại nếu có hàng hoàn về.`,
+  };
 }

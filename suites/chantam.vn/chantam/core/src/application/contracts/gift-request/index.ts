@@ -7,4 +7,5 @@ export * from './my-gift-requests.contract';
 export * from './offer-gift.contract';
 export * from './redeem-post-with-points.use-case';
 export * from './redemption-quote.use-case';
+export * from './update-gift-request.contract';
 export * from './withdraw-gift-request.contract';

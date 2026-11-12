@@ -488,7 +488,9 @@ export async function seedDemoData(executor: ISqlExecutor): Promise<void> {
           global_id, post_id, requester_id, message, status, queue_joined_at, created_at, updated_at
         )
         VALUES ($1, $2, $3, $4, $5::gift_requests_status_enum, now(), now(), now())
-        ON CONFLICT (post_id, requester_id) WHERE deleted_at IS NULL DO UPDATE SET
+        -- Theo id cố định của seed: từ 1803300000000 cặp (bài, người xin) không còn duy nhất
+        -- (mỗi lần gửi lại là một dòng mới), chỉ request ĐANG CHỜ mới duy nhất.
+        ON CONFLICT (global_id) DO UPDATE SET
           message = EXCLUDED.message,
           status = EXCLUDED.status,
           updated_at = now()

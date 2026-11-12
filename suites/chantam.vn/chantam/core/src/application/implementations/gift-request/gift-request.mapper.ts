@@ -11,6 +11,8 @@ export function toGiftRequestDto(entity: IGiftRequestEntity): IGiftRequestDto {
     queueJoinedAt: entity.queueJoinedAt,
     withdrawnAt: entity.withdrawnAt ?? null,
     offeringPostId: entity.offeringPostId ?? null,
+    requestedQuantity: Number(entity.requestedQuantity ?? 1),
+    statusReason: entity.statusReason ?? null,
     createdAt: entity.createdAt,
     updatedAt: entity.updatedAt,
   };

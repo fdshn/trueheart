@@ -637,6 +637,9 @@ async function main(): Promise<void> {
       chatRepository,
       quietDispatch as never,
       storage as never,
+      // Đóng request chờ khi bài hoàn tất — script này không kiểm phần đó (xem
+      // `test:gift-request-quantity`), nên một bản không làm gì là đủ.
+      { closeFor: async () => 0 } as never,
     );
     const getUseCase = new GetGiftTransactionUseCase(transactions, {
       storage: { publicBaseUrl: 'https://cdn.chantam.test/' },

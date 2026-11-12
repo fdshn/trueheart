@@ -1,4 +1,7 @@
-import { GiftRequestStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  GiftRequestStatuses,
+  GiftRequestStatusReasons,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { IGiftRequestEntity } from '@chantam.vn/chantam.core-lib/entities';
 import {
   PostgresAuditableEntity,
@@ -17,9 +20,10 @@ import { Column, Entity, Index } from 'typeorm';
 //
 // Cả ba đều `WHERE deleted_at IS NULL`: bản ghi đã xoá mềm không được chiếm chỗ
 // trong ràng buộc duy nhất, để người dùng xin lại được sau khi rút.
-@Index('UQ_gift_requests_post_requester', ['postId', 'requesterId'], {
+// Một request ĐANG CHỜ mỗi (bài, người xin) — lịch sử các lần gửi trước giữ nguyên (1803300000000).
+@Index('UQ_gift_requests_post_requester_open', ['postId', 'requesterId'], {
   unique: true,
-  where: '"deleted_at" IS NULL',
+  where: `"deleted_at" IS NULL AND "status" IN ('PENDING', 'STANDBY')`,
 })
 @Index('IDX_gift_requests_post_status', ['postId', 'status'], {
   where: '"deleted_at" IS NULL',
@@ -77,4 +81,21 @@ export class GiftRequestEntity
   })
   @Column({ name: 'offering_post_id', type: 'uuid', nullable: true })
   offeringPostId: string | null;
+
+  @ApiProperty({ minimum: 1, description: 'Số món xin' })
+  @Column({ name: 'requested_quantity', type: 'int', default: 1 })
+  requestedQuantity: number;
+
+  @ApiProperty({
+    enum: GiftRequestStatusReasons,
+    nullable: true,
+    description: 'Lý do của STANDBY / CANCELLED',
+  })
+  @Column({
+    name: 'status_reason',
+    type: 'varchar',
+    length: 40,
+    nullable: true,
+  })
+  statusReason: GiftRequestStatusReasons | null;
 }

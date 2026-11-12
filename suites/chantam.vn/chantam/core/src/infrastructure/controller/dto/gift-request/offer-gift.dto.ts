@@ -4,12 +4,16 @@ import {
   IOfferGiftResponseDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 import { GiftRequestDto } from './gift-request.dto';
 
@@ -42,6 +46,20 @@ export class OfferGiftBodyDto implements IOfferGiftBodyDto {
   @IsOptional()
   @IsUUID()
   offeringPostId?: string;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    default: 1,
+    example: 3,
+    description:
+      'Số món mang tới; bỏ trống = 1. Không vượt số bài còn cần (`GIFT_REQUEST_QUANTITY_EXCEEDS_STOCK`). Chủ bài nhận ĐỦ số này hoặc không nhận.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(10_000)
+  requestedQuantity?: number;
 }
 
 export class OfferGiftResponseDto implements IOfferGiftResponseDto {

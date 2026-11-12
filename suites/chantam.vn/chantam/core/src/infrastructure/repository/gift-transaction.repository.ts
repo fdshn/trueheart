@@ -33,6 +33,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
 import { EntityManager } from 'typeorm';
+import { rebalanceOpenRequests } from './gift-request-rebalance';
 import { updateReturning } from './update-returning';
 
 interface ITransactionRow {
@@ -46,11 +47,14 @@ interface ITransactionRow {
   accepted_at: Date | null;
   handed_over_at: Date | null;
   completed_at: Date | null;
+  request_id?: string | null;
+  closed_at?: Date | null;
 }
 
 const SelectColumns = `
   global_id, post_id, giver_id, receiver_id, quantity, status,
-  requested_at, accepted_at, handed_over_at, completed_at
+  requested_at, accepted_at, handed_over_at, completed_at,
+  request_id, closed_at
 `;
 
 function toSummary(row: ITransactionRow): IGiftTransactionSummary {
@@ -65,6 +69,8 @@ function toSummary(row: ITransactionRow): IGiftTransactionSummary {
     acceptedAt: row.accepted_at,
     handedOverAt: row.handed_over_at,
     completedAt: row.completed_at,
+    requestId: row.request_id ?? null,
+    closedAt: row.closed_at ?? null,
   };
 }
 
@@ -261,6 +267,22 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
     return row ? toSummary(row) : null;
   }
 
+  public async listForPostAndUser(
+    postId: string,
+    userId: string,
+  ): Promise<IGiftTransactionSummary[]> {
+    const rows = await this.manager.query<ITransactionRow[]>(
+      `
+        SELECT ${SelectColumns}
+        FROM gift_transactions
+        WHERE post_id = $1 AND (giver_id = $2 OR receiver_id = $2)
+        ORDER BY requested_at DESC, id DESC
+      `,
+      [postId, userId],
+    );
+    return rows.map(toSummary);
+  }
+
   public async listForUser(userId: string): Promise<IGiftTransactionSummary[]> {
     const rows = await this.manager.query<ITransactionRow[]>(
       `
@@ -390,6 +412,9 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
       );
 
       await this.syncPostStatus(manager, current.post_id);
+      // Mở lại lượt đã huỷ là trừ kho lần nữa: người đang chờ xin quá số mới còn lại → STANDBY.
+      if (current.status === 'CANCELLED')
+        await rebalanceOpenRequests(manager, current.post_id);
       await this.chat.reopenRoomWithinTransaction(
         manager,
         params.transactionId,
@@ -668,7 +693,9 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
 
       const queue = await this.reopenStandbyQueue(manager, {
         postId: current.post_id,
-        cancelledReceiverId: current.receiver_id,
+        transactionRequestId: current.request_id ?? null,
+        giverId: current.giver_id,
+        receiverId: current.receiver_id,
       });
 
       return { transaction: toSummary(updated), queue };
@@ -688,36 +715,57 @@ export class GiftTransactionRepository implements IGiftTransactionRepository {
    */
   private async reopenStandbyQueue(
     manager: EntityManager,
-    params: { postId: string; cancelledReceiverId: string },
+    params: {
+      postId: string;
+      /** `request_id` của lượt trao; `null` ở dữ liệu cũ — lùi về cặp (bài, người xin). */
+      transactionRequestId: string | null;
+      giverId: string;
+      receiverId: string;
+    },
   ): Promise<IReopenedQueue> {
     // `RETURNING global_id` chứ không bỏ trống: nơi gọi cần id của yêu cầu vừa bị
     // huỷ để hoàn điểm cho lượt trao đổi-bằng-điểm (CHỐT-13). Khoá chống trùng của
     // bút toán trừ là `ITEM_REDEMPTION:<requestId>`, và đây là chỗ duy nhất trong
     // đường huỷ còn biết `requestId` đó.
+    //
+    // Huỷ ĐÚNG request sinh ra lượt này (`request_id`). Dữ liệu cũ thì lùi về người xin —
+    // bên không phải tác giả bài, nên ở bài Muốn Nhận là người TẶNG (trước 12/11 câu này chỉ
+    // xét người nhận nên không bao giờ khớp ở bài Muốn Nhận).
     const cancelled = await updateReturning<{ global_id: string }>(
       manager,
       `
-        UPDATE gift_requests
-        SET status = 'CANCELLED', updated_at = now()
-        WHERE post_id = $1 AND requester_id = $2 AND status = 'ACCEPTED'
-        RETURNING global_id
+        UPDATE gift_requests request
+        SET status = 'CANCELLED', status_reason = 'TRANSACTION_CANCELLED',
+            updated_at = now()
+        FROM posts post
+        WHERE post.global_id = request.post_id
+          AND request.post_id = $1
+          AND request.status = 'ACCEPTED'
+          AND (
+            ($2::uuid IS NOT NULL AND request.global_id = $2::uuid)
+            OR ($2::uuid IS NULL AND request.requester_id = CASE
+                  WHEN post.author_id = $3::uuid THEN $4::uuid ELSE $3::uuid END)
+          )
+        RETURNING request.global_id
       `,
-      [params.postId, params.cancelledReceiverId],
+      [
+        params.postId,
+        params.transactionRequestId,
+        params.giverId,
+        params.receiverId,
+      ],
     );
 
-    const reopened = await updateReturning<{ requester_id: string }>(
-      manager,
-      `
-        UPDATE gift_requests
-        SET status = 'PENDING', updated_at = now()
-        WHERE post_id = $1 AND status = 'STANDBY' AND deleted_at IS NULL
-        RETURNING requester_id
-      `,
-      [params.postId],
+    // Kho vừa hoàn về → cân lại hàng chờ: chỉ người xin VỪA số còn lại về PENDING (giữ chỗ cũ),
+    // người xin nhiều hơn vẫn STANDBY với lý do `INSUFFICIENT_QUANTITY`. Không ai bị tự giảm.
+    const rebalanced = await rebalanceOpenRequests(manager, params.postId);
+    const reopened = rebalanced.filter(
+      (row) => row.fromStatus === 'STANDBY' && row.toStatus === 'PENDING',
     );
 
     return {
       reopenedCount: reopened.length,
+      rebalanced,
       candidates: await this.findCandidateMetrics(manager, params.postId),
       // `null` khi lượt trao không đến từ hàng đợi — ví dụ dữ liệu cũ, hoặc một
       // lượt dựng bằng SQL tay. Nơi gọi coi `null` là "không có gì để hoàn".

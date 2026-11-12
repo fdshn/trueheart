@@ -64,6 +64,9 @@ export const NotificationTargetsByType: Readonly<
   [NotificationTypes.GIFT_REQUEST_CREATED]: [NotificationTargetTypes.POST],
   [NotificationTypes.GIFT_REQUEST_REJECTED]: [NotificationTargetTypes.POST],
   [NotificationTypes.GIFT_REQUEST_CLOSED]: [NotificationTargetTypes.POST],
+  // Mở bài để giảm số lượng / rút / xem lại — request nằm trong detail bài.
+  [NotificationTypes.GIFT_REQUEST_STANDBY]: [NotificationTargetTypes.POST],
+  [NotificationTypes.GIFT_REQUEST_REOPENED]: [NotificationTargetTypes.POST],
   // Được chấp nhận là đã có lượt trao — mở thẳng lượt trao.
   [NotificationTypes.GIFT_REQUEST_ACCEPTED]: [
     NotificationTargetTypes.GIFT_TRANSACTION,

@@ -176,6 +176,9 @@ function makeRefund(refunded = 0) {
   return { refundFor: jest.fn(async () => refunded) };
 }
 
+/** Đóng request chờ khi bài hoàn tất — mock dùng chung, kiểm riêng ở test bên dưới. */
+const closeOpenRequests = { closeFor: jest.fn(async () => 0) };
+
 describe('Gift transaction use cases', () => {
   it('xem chi tiết một lượt trao, chỉ hai bên trong cuộc', async () => {
     const repository = makeRepository();
@@ -228,6 +231,7 @@ describe('Gift transaction use cases', () => {
       makeChat() as never,
       makeNotifier() as never,
       makeStorage() as never,
+      closeOpenRequests as never,
     );
 
     const result = await useCase.handle({
@@ -291,6 +295,7 @@ describe('Gift transaction use cases', () => {
       makeChat() as never,
       makeNotifier() as never,
       storage as never,
+      closeOpenRequests as never,
     ).handle({
       userId: UserId,
       transactionId: TransactionId,
@@ -323,6 +328,7 @@ describe('Gift transaction use cases', () => {
         makeChat() as never,
         makeNotifier() as never,
         storage as never,
+        closeOpenRequests as never,
       ).handle({
         userId: UserId,
         transactionId: TransactionId,
@@ -566,6 +572,7 @@ describe('Gift transaction use cases', () => {
       repository as never,
       makeChat() as never,
       makeNotifier() as never,
+      closeOpenRequests as never,
     );
 
     const result = await useCase.handle({});

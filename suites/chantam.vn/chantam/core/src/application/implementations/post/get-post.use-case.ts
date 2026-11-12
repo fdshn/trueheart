@@ -16,15 +16,24 @@ import {
 } from '@/domain/ports/repository';
 import {
   ContentSubjectTypes,
+  GiftPostStatuses,
   GiftRequestStatuses,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  IGiftRequestDto,
   IPostAuthorDto,
   IPostContactInfoDto,
+  IPostMyTransactionDto,
+  PostDetailCta,
 } from '@chantam.vn/chantam.core-lib/dto';
-import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
+import {
+  IGiftRequestEntity,
+  IPostEntity,
+  IUserEntity,
+} from '@chantam.vn/chantam.core-lib/entities';
 import { applyGeoJitter } from '@chantam/service.persistency-lib/geo';
 import { Inject, Injectable } from '@nestjs/common';
+import { toGiftRequestDto } from '../gift-request/gift-request.mapper';
 import { postShareLinkOf } from '../shared/post-share-link';
 import { toPublicAuthor } from '../shared/public-author';
 
@@ -101,6 +110,12 @@ export class GetPostUseCase implements IGetPostUseCase {
       : new Map<string, GiftRequestStatuses>();
     const myRequestStatus = myStatuses.get(post.globalId) ?? null;
 
+    const process = await this.loadMyProcess(
+      post,
+      command.currentUserId,
+      isAuthor,
+    );
+
     // Chi tiết một bài: hỏi breakdown một lần là chấp nhận được. Bảng tin thì
     // không — đó là lý do nearby/me chỉ trả tổng số đếm.
     const summary = await this.reactions.summarize(
@@ -157,6 +172,9 @@ export class GetPostUseCase implements IGetPostUseCase {
       requestCount: requestCounts.get(post.globalId) ?? 0,
       myRequestStatus,
       hasRequested: Boolean(myRequestStatus),
+      totalQuantity: post.totalQuantity,
+      remainingQuantity: post.remainingQuantity,
+      ...process,
       contactInfo,
       reactionCount: post.reactionCount,
       commentCount: post.commentCount,
@@ -164,6 +182,113 @@ export class GetPostUseCase implements IGetPostUseCase {
       myReaction: summary.myReaction,
       reactionBreakdown: summary.breakdown,
       share: postShareLinkOf(this.config.web.publicBaseUrl, post.shareCode),
+    };
+  }
+
+  /**
+   * Ba lớp trạng thái TÁCH RIÊNG cho người xem (12/11):
+   *
+   * - `post.status`: vòng đời chung của bài — không suy từ request của ai.
+   * - request của TÔI: `myLatestRequest` (mới nhất, mọi trạng thái) và `myActiveRequest` (đang
+   *   chờ, hoặc ACCEPTED khi lượt trao của nó còn chạy). Rút rồi gửi lại là request mới, nên
+   *   request cũ không bao giờ bị đọc nhầm thành process hiện tại.
+   * - lượt trao của TÔI: `myActiveTransaction` (process line) và `myTransactions` (lịch sử). KHÔNG
+   *   có lượt trao của người khác — lộ ra là lộ ai đã nhận đồ.
+   *
+   * `cta` do backend tính để app không tự ghép ba lớp và lệch với luật ở đây.
+   */
+  private async loadMyProcess(
+    post: IPostEntity,
+    currentUserId: string | undefined,
+    isAuthor: boolean,
+  ): Promise<{
+    myActiveRequest: IGiftRequestDto | null;
+    myLatestRequest: IGiftRequestDto | null;
+    myActiveTransaction: IPostMyTransactionDto | null;
+    myTransactions: IPostMyTransactionDto[];
+    canRequest: boolean;
+    cta: PostDetailCta;
+  }> {
+    const acceptsRequests =
+      post.status === GiftPostStatuses.PUBLISHED &&
+      post.remainingQuantity > 0 &&
+      (post.expiresAt === null || post.expiresAt.getTime() > Date.now());
+
+    if (isAuthor)
+      return {
+        myActiveRequest: null,
+        myLatestRequest: null,
+        myActiveTransaction: null,
+        myTransactions: [],
+        canRequest: false,
+        cta: 'OWNER',
+      };
+
+    const requests: IGiftRequestEntity[] = currentUserId
+      ? await this.giftRequestRepository.listByPostAndRequester(
+          post.globalId,
+          currentUserId,
+        )
+      : [];
+    const transactions = currentUserId
+      ? await this.giftTransactionRepository.listForPostAndUser(
+          post.globalId,
+          currentUserId,
+        )
+      : [];
+
+    const myTransactions: IPostMyTransactionDto[] = transactions.map(
+      (deal) => ({
+        transactionId: deal.globalId,
+        requestId: deal.requestId ?? null,
+        status: deal.status,
+        quantity: deal.quantity,
+        myRole: deal.giverId === currentUserId ? 'GIVER' : 'RECEIVER',
+        acceptedAt: deal.acceptedAt,
+        handedOverAt: deal.handedOverAt,
+        completedAt: deal.completedAt,
+        closedAt: deal.closedAt ?? null,
+      }),
+    );
+    const myActiveTransaction =
+      myTransactions.find(
+        (deal) => deal.status === 'ACCEPTED' || deal.status === 'DELIVERING',
+      ) ?? null;
+
+    const open = requests.find(
+      (request) =>
+        request.status === GiftRequestStatuses.PENDING ||
+        request.status === GiftRequestStatuses.STANDBY,
+    );
+    // ACCEPTED chỉ còn "đang hiệu lực" khi lượt trao của nó còn chạy. Nối theo `request_id`;
+    // dữ liệu cũ không có thì lượt đang chạy thuộc request ACCEPTED mới nhất.
+    const acceptedLive = myActiveTransaction
+      ? (requests.find(
+          (request) =>
+            request.status === GiftRequestStatuses.ACCEPTED &&
+            (myActiveTransaction.requestId === null ||
+              request.globalId === myActiveTransaction.requestId),
+        ) ?? null)
+      : null;
+    const active = open ?? acceptedLive;
+
+    const canRequest = acceptsRequests && !open && !myActiveTransaction;
+
+    let cta: PostDetailCta;
+    if (myActiveTransaction) cta = 'TRANSACTION';
+    else if (open?.status === GiftRequestStatuses.PENDING) cta = 'WAITING';
+    else if (open?.status === GiftRequestStatuses.STANDBY) cta = 'STANDBY';
+    else if (post.status === GiftPostStatuses.COMPLETED) cta = 'COMPLETED';
+    else if (canRequest) cta = 'REQUEST';
+    else cta = 'UNAVAILABLE';
+
+    return {
+      myActiveRequest: active ? toGiftRequestDto(active) : null,
+      myLatestRequest: requests[0] ? toGiftRequestDto(requests[0]) : null,
+      myActiveTransaction,
+      myTransactions,
+      canRequest,
+      cta,
     };
   }
 }

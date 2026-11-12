@@ -20,8 +20,8 @@ export class BatchAcceptRequestsBodyDto implements IBatchAcceptRequestsBodyDto {
     minItems: 1,
     maxItems: MaxBatchAcceptRequests,
     description:
-      'Các yêu cầu cần duyệt, KHÔNG được trùng nhau. Cả lô ăn cùng một quyết ' +
-      'định: thiếu suất cho đủ số này thì không ai được duyệt, để chủ bài chọn lại.',
+      'Các yêu cầu cần duyệt (chỉ PENDING), KHÔNG được trùng nhau. Mỗi yêu cầu ăn ĐỦ `requestedQuantity` ' +
+      'của nó; tổng lô vượt số còn lại thì không ai được duyệt (`GIFT_POST_OUT_OF_STOCK`), để chủ bài chọn lại.',
   })
   @IsArray()
   @ArrayMinSize(1)

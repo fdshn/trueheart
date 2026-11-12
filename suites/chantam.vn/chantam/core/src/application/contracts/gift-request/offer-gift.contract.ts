@@ -9,6 +9,8 @@ export interface IOfferGiftCommand {
   message: string;
   /** Bài Muốn Tặng mang ra, không bắt buộc. */
   offeringPostId?: string;
+  /** Số món mang tới; bỏ trống = 1. Không vượt số bài còn cần. */
+  requestedQuantity?: number;
 }
 
 export interface IOfferGiftResult {

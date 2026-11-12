@@ -1,6 +1,7 @@
 import {
   CannotRequestOwnPostException,
   GiftRequestDuplicatedException,
+  GiftRequestQuantityExceedsStockException,
   OpenRequestQuotaExceededException,
   PostNotAcceptingRequestsException,
   PostNotFoundException,
@@ -75,6 +76,8 @@ function makeRequest(
     queueJoinedAt: new Date(),
     withdrawnAt: null,
     offeringPostId: null,
+    requestedQuantity: 1,
+    statusReason: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -88,6 +91,7 @@ function makeGiftRequestRepo(
   return {
     countActiveByPostIds: jest.fn().mockResolvedValue(new Map([[PostId, 1]])),
     findByPostAndRequester: jest.fn().mockResolvedValue(null),
+    hasLiveTransactionOnPost: jest.fn().mockResolvedValue(false),
     insert: jest.fn().mockResolvedValue({ identifiers: [] }),
     findOneByOrFail: jest.fn().mockResolvedValue(makeRequest()),
     save: jest.fn().mockResolvedValue(makeRequest()),
@@ -178,12 +182,15 @@ describe('CreateGiftRequestUseCase', () => {
       queueJoinedAt: expect.any(Date),
       // Yêu cầu xin nhận thường KHÔNG trỏ sang bài nào; chỉ `offer-gift` mới có.
       offeringPostId: null,
+      // Bỏ trống số lượng là xin 1 món.
+      requestedQuantity: 1,
+      statusReason: null,
     });
     expect(result.request.id).toBe(created.globalId);
     expect(result.request.status).toBe(GiftRequestStatuses.PENDING);
   });
 
-  it('cho phép nộp lại nếu trước đó đã rút (WITHDRAWN)', async () => {
+  it('nộp lại sau khi đã rút (WITHDRAWN) là một request MỚI — dòng cũ giữ nguyên làm lịch sử', async () => {
     const postRepo = makePostRepo();
 
     const existingWithdrawn = makeRequest({
@@ -193,7 +200,6 @@ describe('CreateGiftRequestUseCase', () => {
 
     const giftRequestRepo = makeGiftRequestRepo({
       findByPostAndRequester: jest.fn().mockResolvedValue(existingWithdrawn),
-      save: jest.fn().mockResolvedValue(existingWithdrawn),
     });
 
     const useCase = new CreateGiftRequestUseCase(
@@ -203,17 +209,94 @@ describe('CreateGiftRequestUseCase', () => {
       makeProfileGate(),
       makeNotifier(),
     );
-    const result = await useCase.handle({
+    await useCase.handle({
       postId: PostId,
       requesterId: RequesterId,
       message: 'Nộp lại lần 2',
     });
 
-    expect(existingWithdrawn.status).toBe(GiftRequestStatuses.PENDING);
-    expect(existingWithdrawn.message).toBe('Nộp lại lần 2');
-    expect(existingWithdrawn.withdrawnAt).toBeNull();
-    expect(giftRequestRepo.save).toHaveBeenCalledWith(existingWithdrawn);
-    expect(result.request.status).toBe(GiftRequestStatuses.PENDING);
+    // Không ghi đè dòng cũ: rút xong gửi lại thì process mới không được đọc từ request cũ.
+    expect(existingWithdrawn.status).toBe(GiftRequestStatuses.WITHDRAWN);
+    expect(giftRequestRepo.save).not.toHaveBeenCalled();
+    const inserted = giftRequestRepo.insert.mock.calls[0][0] as unknown as {
+      globalId: string;
+      status: string;
+      message: string;
+    };
+    expect(inserted.globalId).not.toBe(existingWithdrawn.globalId);
+    expect(inserted.status).toBe(GiftRequestStatuses.PENDING);
+    expect(inserted.message).toBe('Nộp lại lần 2');
+  });
+
+  it.each([GiftRequestStatuses.PENDING, GiftRequestStatuses.STANDBY])(
+    'đang có request %s thì không gửi thêm được',
+    async (status) => {
+      const giftRequestRepo = makeGiftRequestRepo({
+        findByPostAndRequester: jest
+          .fn()
+          .mockResolvedValue(makeRequest({ status })),
+      });
+      await expect(
+        new CreateGiftRequestUseCase(
+          makePostRepo(),
+          giftRequestRepo,
+          makeEntitlements(),
+          makeProfileGate(),
+          makeNotifier(),
+        ).handle({
+          postId: PostId,
+          requesterId: RequesterId,
+          message: 'Lần 2',
+        }),
+      ).rejects.toThrow(GiftRequestDuplicatedException);
+      expect(giftRequestRepo.insert).not.toHaveBeenCalled();
+    },
+  );
+
+  it('đang có lượt trao còn chạy trên bài thì không gửi request mới được', async () => {
+    const giftRequestRepo = makeGiftRequestRepo({
+      findByPostAndRequester: jest
+        .fn()
+        .mockResolvedValue(
+          makeRequest({ status: GiftRequestStatuses.ACCEPTED }),
+        ),
+      hasLiveTransactionOnPost: jest.fn().mockResolvedValue(true),
+    });
+    await expect(
+      new CreateGiftRequestUseCase(
+        makePostRepo(),
+        giftRequestRepo,
+        makeEntitlements(),
+        makeProfileGate(),
+        makeNotifier(),
+      ).handle({ postId: PostId, requesterId: RequesterId, message: 'Lần 2' }),
+    ).rejects.toThrow(GiftRequestDuplicatedException);
+  });
+
+  it('xin nhiều hơn số còn lại thì chặn, nêu số còn lại', async () => {
+    const postRepo = makePostRepo({
+      findOneBy: jest
+        .fn()
+        .mockResolvedValue(
+          makePost({ totalQuantity: 10, remainingQuantity: 2 }),
+        ),
+    });
+    const giftRequestRepo = makeGiftRequestRepo();
+    await expect(
+      new CreateGiftRequestUseCase(
+        postRepo,
+        giftRequestRepo,
+        makeEntitlements(),
+        makeProfileGate(),
+        makeNotifier(),
+      ).handle({
+        postId: PostId,
+        requesterId: RequesterId,
+        message: 'Xin 8',
+        requestedQuantity: 8,
+      }),
+    ).rejects.toThrow(GiftRequestQuantityExceedsStockException);
+    expect(giftRequestRepo.insert).not.toHaveBeenCalled();
   });
 
   it('phản hồi đầu tiên KHÔNG còn dời hạn xét (CHỐT-10)', async () => {

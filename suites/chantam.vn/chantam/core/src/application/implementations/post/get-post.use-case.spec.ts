@@ -102,6 +102,7 @@ const makeGiftRequestRepo = () =>
     findStatusesByPostIdsAndRequester: jest
       .fn()
       .mockResolvedValue(new Map([[PostId, GiftRequestStatuses.PENDING]])),
+    listByPostAndRequester: jest.fn().mockResolvedValue([]),
   }) as unknown as jest.Mocked<IGiftRequestRepository>;
 
 const makeUserRepo = () =>
@@ -121,6 +122,7 @@ const makeGiftTransactionRepo = () =>
   ({
     hasLiveForPost: jest.fn().mockResolvedValue(false),
     isReceiverOfPost: jest.fn().mockResolvedValue(false),
+    listForPostAndUser: jest.fn().mockResolvedValue([]),
   }) as unknown as jest.Mocked<IGiftTransactionRepository>;
 
 const makeReactions = () =>
@@ -241,6 +243,7 @@ describe('GetPostUseCase', () => {
     const giftRequestRepository = makeGiftRequestRepo();
     const giftTransactionRepository = {
       isReceiverOfPost: jest.fn().mockResolvedValue(true),
+      listForPostAndUser: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<IGiftTransactionRepository>;
     const userRepository = makeUserRepo();
     const reactions = makeReactions();
@@ -279,6 +282,7 @@ describe('GetPostUseCase', () => {
     } as unknown as jest.Mocked<IPostRepository>;
     const giftTransactionRepository = {
       isReceiverOfPost: jest.fn().mockResolvedValue(true),
+      listForPostAndUser: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<IGiftTransactionRepository>;
 
     const result = await new GetPostUseCase(
@@ -471,5 +475,176 @@ describe('GetPostUseCase', () => {
     );
     expect(postMediaRepository.listByPostId).not.toHaveBeenCalled();
     expect(reactions.summarize).not.toHaveBeenCalled();
+  });
+});
+
+describe('GetPostUseCase — ba lớp trạng thái và CTA (12/11)', () => {
+  const Viewer = '99999999-9999-4999-8999-999999999999';
+
+  function request(
+    status: GiftRequestStatuses,
+    overrides: Record<string, unknown> = {},
+  ) {
+    return {
+      id: 1,
+      globalId: `req-${status}`,
+      postId: PostId,
+      requesterId: Viewer,
+      message: 'Xin ạ',
+      status,
+      queueJoinedAt: new Date(),
+      withdrawnAt: null,
+      offeringPostId: null,
+      requestedQuantity: 2,
+      statusReason: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+      ...overrides,
+    };
+  }
+
+  function deal(status: string, requestId: string | null) {
+    return {
+      globalId: `tx-${status}`,
+      postId: PostId,
+      giverId: '22222222-2222-2222-2222-222222222222',
+      receiverId: Viewer,
+      quantity: 2,
+      status,
+      requestedAt: new Date(),
+      acceptedAt: new Date(),
+      handedOverAt: null,
+      completedAt: status === 'COMPLETED' ? new Date() : null,
+      requestId,
+      closedAt: null,
+    };
+  }
+
+  async function detail(options: {
+    post?: Partial<IPostEntity>;
+    requests?: unknown[];
+    transactions?: unknown[];
+    viewer?: string;
+  }) {
+    const requests = makeGiftRequestRepo();
+    (requests.listByPostAndRequester as jest.Mock).mockResolvedValue(
+      options.requests ?? [],
+    );
+    const transactions = makeGiftTransactionRepo();
+    (transactions.listForPostAndUser as jest.Mock).mockResolvedValue(
+      options.transactions ?? [],
+    );
+    return new GetPostUseCase(
+      {
+        findPublicByGlobalId: jest
+          .fn()
+          .mockResolvedValue(makePost(options.post ?? {})),
+      } as unknown as IPostRepository,
+      {
+        listByPostId: jest.fn().mockResolvedValue([]),
+      } as unknown as IPostMediaRepository,
+      requests,
+      transactions,
+      makeUserRepo(),
+      makeReactions(),
+      makeConfig(),
+    ).handle({ postId: PostId, currentUserId: options.viewer ?? Viewer });
+  }
+
+  it('chưa từng xin, bài còn hàng → REQUEST, canRequest', async () => {
+    const result = await detail({
+      post: { totalQuantity: 10, remainingQuantity: 4 },
+    });
+    expect(result.cta).toBe('REQUEST');
+    expect(result.canRequest).toBe(true);
+    expect(result.totalQuantity).toBe(10);
+    expect(result.remainingQuantity).toBe(4);
+    expect(result.myActiveRequest).toBeNull();
+  });
+
+  it('request PENDING → WAITING; STANDBY → STANDBY (kèm lý do trong myActiveRequest)', async () => {
+    const waiting = await detail({
+      requests: [request(GiftRequestStatuses.PENDING)],
+    });
+    expect(waiting.cta).toBe('WAITING');
+    expect(waiting.canRequest).toBe(false);
+    const standby = await detail({
+      requests: [
+        request(GiftRequestStatuses.STANDBY, {
+          statusReason: 'INSUFFICIENT_QUANTITY',
+        }),
+      ],
+    });
+    expect(standby.cta).toBe('STANDBY');
+    expect(standby.myActiveRequest?.statusReason).toBe('INSUFFICIENT_QUANTITY');
+  });
+
+  it('lượt trao đang chạy → TRANSACTION; process lấy từ lượt trao, request ACCEPTED là active', async () => {
+    const accepted = request(GiftRequestStatuses.ACCEPTED);
+    const result = await detail({
+      requests: [accepted],
+      transactions: [deal('DELIVERING', accepted.globalId)],
+    });
+    expect(result.cta).toBe('TRANSACTION');
+    expect(result.myActiveTransaction?.status).toBe('DELIVERING');
+    expect(result.myActiveTransaction?.myRole).toBe('RECEIVER');
+    expect(result.myActiveRequest?.id).toBe(accepted.globalId);
+  });
+
+  it('rút rồi gửi lại: request cũ WITHDRAWN không thành process hiện tại', async () => {
+    const latest = request(GiftRequestStatuses.PENDING, {
+      globalId: 'req-new',
+    });
+    const old = request(GiftRequestStatuses.WITHDRAWN, { globalId: 'req-old' });
+    const result = await detail({ requests: [latest, old] });
+    expect(result.myLatestRequest?.id).toBe('req-new');
+    expect(result.myActiveRequest?.id).toBe('req-new');
+    expect(result.cta).toBe('WAITING');
+  });
+
+  it('bài đã trao xong cho người khác (remaining 0) → COMPLETED, không cho xin', async () => {
+    const result = await detail({
+      post: { status: GiftPostStatuses.COMPLETED, remainingQuantity: 0 },
+      requests: [
+        request(GiftRequestStatuses.CANCELLED, {
+          statusReason: 'POST_COMPLETED',
+        }),
+      ],
+    });
+    expect(result.cta).toBe('COMPLETED');
+    expect(result.canRequest).toBe(false);
+    expect(result.myActiveRequest).toBeNull();
+  });
+
+  it('bị từ chối / đã nhận xong mà bài còn hàng thì gửi lại được', async () => {
+    const rejected = await detail({
+      requests: [request(GiftRequestStatuses.REJECTED)],
+    });
+    expect(rejected.cta).toBe('REQUEST');
+    const doneBefore = request(GiftRequestStatuses.ACCEPTED);
+    const again = await detail({
+      post: { totalQuantity: 5, remainingQuantity: 3 },
+      requests: [doneBefore],
+      transactions: [deal('COMPLETED', doneBefore.globalId)],
+    });
+    expect(again.cta).toBe('REQUEST');
+    expect(again.myActiveRequest).toBeNull();
+    expect(again.myTransactions).toHaveLength(1);
+  });
+
+  it('bài RESERVED (hết hàng tạm thời) với người ngoài → UNAVAILABLE', async () => {
+    const result = await detail({
+      post: { status: GiftPostStatuses.RESERVED, remainingQuantity: 0 },
+    });
+    expect(result.cta).toBe('UNAVAILABLE');
+  });
+
+  it('chủ bài → OWNER, không có process của người xin', async () => {
+    const result = await detail({
+      viewer: '22222222-2222-2222-2222-222222222222',
+    });
+    expect(result.cta).toBe('OWNER');
+    expect(result.myTransactions).toEqual([]);
   });
 });

@@ -10,6 +10,7 @@ import {
   IOfferGiftUseCase,
   IRedeemPostWithPointsUseCase,
   IRejectGiftRequestUseCase,
+  IUpdateGiftRequestQuantityUseCase,
   IWithdrawGiftRequestUseCase,
 } from '@/application/contracts/gift-request';
 import { Global, Module } from '@nestjs/common';
@@ -29,6 +30,7 @@ import { OfferGiftUseCase } from './offer-gift.use-case';
 import { RedeemPostWithPointsUseCase } from './redeem-post-with-points.use-case';
 import { GetRedemptionQuoteUseCase } from './redemption-quote.use-case';
 import { RequestLifecycleNotifier } from './request-lifecycle.notifier';
+import { UpdateGiftRequestQuantityUseCase } from './update-gift-request-quantity.use-case';
 import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
 
 @Global()
@@ -60,6 +62,10 @@ import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
       provide: IWithdrawGiftRequestUseCase,
       useClass: WithdrawGiftRequestUseCase,
     },
+    {
+      provide: IUpdateGiftRequestQuantityUseCase,
+      useClass: UpdateGiftRequestQuantityUseCase,
+    },
     { provide: IListPostRequestsUseCase, useClass: ListPostRequestsUseCase },
     {
       provide: IAcceptGiftRequestUseCase,
@@ -73,11 +79,13 @@ import { WithdrawGiftRequestUseCase } from './withdraw-gift-request.use-case';
   ],
   exports: [
     CloseOpenRequestsService,
+    RequestLifecycleNotifier,
     IListMyGiftRequestsUseCase,
     IGetGiftRequestUseCase,
     IRejectGiftRequestUseCase,
     ICreateGiftRequestUseCase,
     IWithdrawGiftRequestUseCase,
+    IUpdateGiftRequestQuantityUseCase,
     IListPostRequestsUseCase,
     IAcceptGiftRequestUseCase,
     IBatchAcceptRequestsUseCase,
