@@ -189,6 +189,9 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
     // request vẫn tồn tại ở trạng thái PENDING — cron hoặc admin sẽ xử lý lại.
     // Không throw để tránh roll back việc tạo request.
     let instantAccepted = false;
+    let instantRebalanced: Parameters<
+      RequestLifecycleNotifier['announceRebalanced']
+    >[0] = [];
     if (
       // `WANTED` vào đây từ 11/10. Với bài Muốn Nhận, "chốt ngay người đầu tiên"
       // nghĩa là nhận ngay lời tặng đầu tiên — và vai do `acceptRequest` phân
@@ -208,7 +211,7 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
           transactionId,
         });
         instantAccepted = true;
-        await this.notifier.announceRebalanced(instant?.rebalanced ?? []);
+        instantRebalanced = instant?.rebalanced ?? [];
       } catch (acceptError) {
         // Log để monitoring phát hiện; request vẫn tồn tại ở PENDING.
         // Cron timeout hoặc admin có thể trigger lại accept thủ công.
@@ -218,6 +221,10 @@ export class CreateGiftRequestUseCase implements ICreateGiftRequestUseCase {
         );
       }
     }
+
+    // NGOÀI khối try của lượt duyệt: lỗi gửi thông báo không được làm một lượt duyệt đã commit
+    // bị ghi log thành "duyệt thất bại".
+    await this.notifier.announceRebalanced(instantRebalanced);
 
     // Báo SAU khi đã ghi xong, và sau cả nhánh INSTANT: ở chế độ đó người đầu
     // tiên được chốt luôn, nên chủ bài nhận thông báo "đã có người nhận" từ

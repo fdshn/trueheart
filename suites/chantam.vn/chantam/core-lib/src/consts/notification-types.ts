@@ -315,7 +315,10 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.GIFT_REQUEST_ACCEPTED]: NotificationGroups.STATUS,
   [NotificationTypes.GIFT_REQUEST_REJECTED]: NotificationGroups.STATUS,
   [NotificationTypes.GIFT_REQUEST_CLOSED]: NotificationGroups.STATUS,
-  [NotificationTypes.GIFT_REQUEST_STANDBY]: NotificationGroups.STATUS,
+  // CONDITION, không STATUS: thông báo này đòi người xin QUYẾT một việc — giảm số lượng, rút,
+  // hay chờ — và lời nhắc khi bài quá hạn cũng là nhắc việc. Để ở STATUS thì nhóm đó gom quá
+  // nửa số loại (`notification-template.spec.ts`).
+  [NotificationTypes.GIFT_REQUEST_STANDBY]: NotificationGroups.CONDITION,
   [NotificationTypes.GIFT_REQUEST_REOPENED]: NotificationGroups.STATUS,
   [NotificationTypes.GIFT_POST_RECEIVER_SELECTED]: NotificationGroups.STATUS,
   [NotificationTypes.GIFT_TRANSACTION_HANDED_OVER]: NotificationGroups.STATUS,

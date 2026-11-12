@@ -147,7 +147,10 @@ function makeEntitlements(limit = 10) {
  * rồi, ném ở đây chỉ khiến client tưởng thất bại và bấm lại.
  */
 function makeNotifier() {
-  return { announceCreated: jest.fn(async () => undefined) } as never;
+  return {
+    announceCreated: jest.fn(async () => undefined),
+    announceRebalanced: jest.fn(async () => undefined),
+  } as never;
 }
 
 describe('CreateGiftRequestUseCase', () => {
