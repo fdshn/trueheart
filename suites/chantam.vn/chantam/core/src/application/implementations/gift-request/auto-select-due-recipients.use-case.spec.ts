@@ -370,3 +370,58 @@ describe('AutoSelectDueRecipientsUseCase', () => {
     });
   });
 });
+
+describe('AutoSelectDueRecipientsUseCase — bài nhiều món (12/11)', () => {
+  it('chọn TIẾP trong cùng lượt tới khi hết người vừa số; id lượt trao theo request', async () => {
+    const { useCase, requests } = makeUseCase();
+    requests.listCandidateMetrics
+      .mockReset()
+      .mockResolvedValueOnce([
+        candidate({ requestGlobalId: 'req-1', requesterId: 'user-1' }),
+      ])
+      .mockResolvedValueOnce([
+        candidate({ requestGlobalId: 'req-2', requesterId: 'user-2' }),
+      ])
+      .mockResolvedValueOnce([]);
+    const result = await useCase.handle({});
+    expect(requests.acceptRequest).toHaveBeenCalledTimes(2);
+    const ids = requests.acceptRequest.mock.calls.map(
+      ([params]: [{ transactionId: string }]) => params.transactionId,
+    );
+    expect(new Set(ids).size).toBe(2);
+    expect(result.selected).toHaveLength(2);
+  });
+
+  it('người vừa chọn lại đứng đầu (trạng thái không đổi) thì dừng, không lặp', async () => {
+    const { useCase, requests } = makeUseCase();
+    const result = await useCase.handle({});
+    expect(requests.acceptRequest).toHaveBeenCalledTimes(1);
+    expect(result.selected).toHaveLength(1);
+  });
+
+  it('nhắc người STANDBY thiếu hàng sau lượt chọn', async () => {
+    const { requests, adminConfig, notifier } = makeUseCase();
+    const nudge = { nudgeStandby: jest.fn(), announceRebalanced: jest.fn() };
+    (
+      requests as unknown as { findStandbyNudges: jest.Mock }
+    ).findStandbyNudges = jest.fn().mockResolvedValue([
+      {
+        requestId: 'req-9',
+        requesterId: 'user-9',
+        postId: PostId,
+        postTitle: 'Gạo',
+        remainingQuantity: 2,
+        requestedQuantity: 8,
+      },
+    ]);
+    await new AutoSelectDueRecipientsUseCase(
+      requests as never,
+      adminConfig as never,
+      notifier as never,
+      nudge as never,
+    ).handle({});
+    expect(nudge.nudgeStandby).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: 'req-9', remainingQuantity: 2 }),
+    );
+  });
+});

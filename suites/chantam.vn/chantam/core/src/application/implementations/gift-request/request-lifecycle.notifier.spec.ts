@@ -127,3 +127,116 @@ describe('RequestLifecycleNotifier', () => {
     expect(handle).toHaveBeenCalledTimes(3);
   });
 });
+
+describe('RequestLifecycleNotifier.announceRebalanced (12/11)', () => {
+  const base = {
+    requestId: 'req-b',
+    requesterId: 'user-b',
+    postId: 'post-1',
+    postTitle: 'Gạo',
+    remainingQuantity: 2,
+    requestedQuantity: 8,
+  };
+
+  it('PENDING → STANDBY thiếu hàng: báo số còn lại, số đã xin và việc làm được', async () => {
+    const { notifier, handle } = makeNotifier();
+    await notifier.announceRebalanced([
+      {
+        ...base,
+        fromStatus: 'PENDING',
+        toStatus: 'STANDBY',
+        statusReason: 'INSUFFICIENT_QUANTITY',
+      },
+    ]);
+    expect(handle).toHaveBeenCalledTimes(1);
+    const sent = (handle.mock.calls[0] as unknown[])[0] as {
+      type: string;
+      body: string;
+      idempotencyKey: string;
+    };
+    expect(sent.type).toBe(NotificationTypes.GIFT_REQUEST_STANDBY);
+    expect(sent.body).toContain('chỉ còn 2 món');
+    expect(sent.body).toContain('8 món');
+    expect(sent.idempotencyKey).toBe(
+      'GIFT_REQUEST_STANDBY:req-b:STANDBY:INSUFFICIENT_QUANTITY:2',
+    );
+  });
+
+  it('PENDING → STANDBY hết hàng: báo đang giữ trong hàng chờ', async () => {
+    const { notifier, handle } = makeNotifier();
+    await notifier.announceRebalanced([
+      {
+        ...base,
+        remainingQuantity: 0,
+        fromStatus: 'PENDING',
+        toStatus: 'STANDBY',
+        statusReason: 'OUT_OF_STOCK',
+      },
+    ]);
+    const sent = (handle.mock.calls[0] as unknown[])[0] as { title: string };
+    expect(sent.title).toBe('Món đồ tạm hết');
+  });
+
+  it('STANDBY → PENDING: báo đã trở lại hàng chờ xét', async () => {
+    const { notifier, handle } = makeNotifier();
+    await notifier.announceRebalanced([
+      {
+        ...base,
+        remainingQuantity: 10,
+        fromStatus: 'STANDBY',
+        toStatus: 'PENDING',
+        statusReason: null,
+      },
+    ]);
+    const sent = (handle.mock.calls[0] as unknown[])[0] as { type: string };
+    expect(sent.type).toBe(NotificationTypes.GIFT_REQUEST_REOPENED);
+  });
+
+  it('STANDBY đổi lý do sang thiếu hàng thì báo (giảm số giờ có tác dụng); sang hết hàng thì không', async () => {
+    const { notifier, handle } = makeNotifier();
+    await notifier.announceRebalanced([
+      {
+        ...base,
+        fromStatus: 'STANDBY',
+        toStatus: 'STANDBY',
+        statusReason: 'INSUFFICIENT_QUANTITY',
+      },
+      {
+        ...base,
+        requestId: 'req-c',
+        remainingQuantity: 0,
+        fromStatus: 'STANDBY',
+        toStatus: 'STANDBY',
+        statusReason: 'OUT_OF_STOCK',
+      },
+    ]);
+    expect(handle).toHaveBeenCalledTimes(1);
+  });
+
+  it('bỏ qua người trong excludeUserIds (đã nhận "đang được xét tiếp")', async () => {
+    const { notifier, handle } = makeNotifier();
+    await notifier.announceRebalanced(
+      [
+        {
+          ...base,
+          fromStatus: 'STANDBY',
+          toStatus: 'PENDING',
+          statusReason: null,
+        },
+      ],
+      { excludeUserIds: ['user-b'] },
+    );
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  it('nudgeStandby: khoá theo request + số còn lại — mỗi mốc nhắc một lần', async () => {
+    const { notifier, handle } = makeNotifier();
+    await notifier.nudgeStandby(base);
+    const sent = (handle.mock.calls[0] as unknown[])[0] as {
+      idempotencyKey: string;
+      body: string;
+    };
+    expect(sent.idempotencyKey).toBe('GIFT_REQUEST_STANDBY_NUDGE:req-b:2');
+    expect(sent.body).toContain('Giảm số lượng xuống 2');
+  });
+});

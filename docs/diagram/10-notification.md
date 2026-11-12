@@ -64,6 +64,8 @@ không còn loại nào khai mà nằm im.
 | `GIFT_REQUEST_CREATED` | STATUS | Có người xin nhận bài của bạn | `GIFT_REQUEST_CREATED:<requestId>` |
 | `GIFT_REQUEST_REJECTED` | STATUS | Chủ bài từ chối yêu cầu | `GIFT_REQUEST_REJECTED:<requestId>` |
 | `GIFT_REQUEST_CLOSED` | STATUS | Bài đóng lại nên yêu cầu bị đóng theo | `GIFT_REQUEST_CLOSED:<requestId>` |
+| `GIFT_REQUEST_STANDBY` | CONDITION | Request sang hàng chờ vì thiếu hàng (12/11); cũng là lời nhắc giảm số lượng khi bài quá hạn | `GIFT_REQUEST_STANDBY:<requestId>:STANDBY:<reason>:<remaining>` · nhắc: `GIFT_REQUEST_STANDBY_NUDGE:<requestId>:<remaining>` |
+| `GIFT_REQUEST_REOPENED` | STATUS | Hàng hoàn về / bổ sung — request trở lại chờ xét (12/11) | `GIFT_REQUEST_REOPENED:<requestId>:PENDING:-:<remaining>` |
 | `GIFT_TRANSACTION_HANDED_OVER` | STATUS | Người tặng báo đã bàn giao | `…:<transactionId>` |
 | `GIFT_TRANSACTION_REOPENED` | STATUS | Admin mở lại lượt đóng nhầm | theo lượt + người + mốc |
 | `POST_EXPIRING_SOON` | CONDITION | Bài còn 7 ngày là hết hạn | `POST_EXPIRING_SOON:<postId>:<ngày hết hạn>` |

@@ -26,6 +26,14 @@ export enum NotificationTypes {
    * cả, món đồ chỉ là không còn nữa.
    */
   GIFT_REQUEST_CLOSED = 'GIFT_REQUEST_CLOSED',
+  /**
+   * Request chuyển sang hàng chờ (STANDBY) vì không đủ hàng — hết hẳn, hoặc còn ít hơn số người
+   * này xin (12/11). Có lời dặn việc họ làm được: giảm số lượng, rút, hoặc chờ. Cũng dùng để
+   * nhắc lại khi bài đã quá hạn xét mà họ vẫn đứng chờ.
+   */
+  GIFT_REQUEST_STANDBY = 'GIFT_REQUEST_STANDBY',
+  /** Hàng hoàn về / bổ sung — request STANDBY trở lại chờ chủ bài xét (12/11). */
+  GIFT_REQUEST_REOPENED = 'GIFT_REQUEST_REOPENED',
 
   /**
    * Bài của bạn đã có người nhận mà KHÔNG do bạn chọn.
@@ -307,6 +315,11 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.GIFT_REQUEST_ACCEPTED]: NotificationGroups.STATUS,
   [NotificationTypes.GIFT_REQUEST_REJECTED]: NotificationGroups.STATUS,
   [NotificationTypes.GIFT_REQUEST_CLOSED]: NotificationGroups.STATUS,
+  // CONDITION, không STATUS: thông báo này đòi người xin QUYẾT một việc — giảm số lượng, rút,
+  // hay chờ — và lời nhắc khi bài quá hạn cũng là nhắc việc. Để ở STATUS thì nhóm đó gom quá
+  // nửa số loại (`notification-template.spec.ts`).
+  [NotificationTypes.GIFT_REQUEST_STANDBY]: NotificationGroups.CONDITION,
+  [NotificationTypes.GIFT_REQUEST_REOPENED]: NotificationGroups.STATUS,
   [NotificationTypes.GIFT_POST_RECEIVER_SELECTED]: NotificationGroups.STATUS,
   [NotificationTypes.GIFT_TRANSACTION_HANDED_OVER]: NotificationGroups.STATUS,
   [NotificationTypes.GIFT_TRANSACTION_CLOSED]: NotificationGroups.STATUS,

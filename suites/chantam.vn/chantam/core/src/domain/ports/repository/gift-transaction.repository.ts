@@ -1,6 +1,7 @@
 import { GiftEvidenceKinds } from '@chantam.vn/chantam.core-lib/consts';
 import { ICandidateMetrics } from '@chantam.vn/chantam.core-lib/models';
 import { EntityManager } from 'typeorm';
+import type { IRebalancedRequestRow } from './gift-request.repository';
 
 /**
  * Bốn trạng thái còn sống.
@@ -34,6 +35,10 @@ export interface IGiftTransactionSummary {
   /** Mốc người tặng báo đã trao đồ — gửi đi, hoặc trao tận tay. */
   readonly handedOverAt: Date | null;
   readonly completedAt: Date | null;
+  /** Request sinh ra lượt trao (1803300000000); `null` ở dữ liệu cũ không nối được. */
+  readonly requestId?: string | null;
+  /** Lúc đóng (huỷ). `null` khi chưa đóng. */
+  readonly closedAt?: Date | null;
 }
 
 export interface IGiftEvidenceRef {
@@ -115,7 +120,12 @@ export interface IReopenedQueue {
    * còn biết id đó: `gift_transactions` không giữ tham chiếu tới yêu cầu.
    */
   readonly cancelledRequestId: string | null;
+  /** Người vừa được cân lại hàng chờ sau khi kho hoàn về — để báo (12/11). */
+  readonly rebalanced: readonly IRebalancedRequestRow[];
 }
+
+/** Lượt trao của MỘT người trên MỘT bài — lịch sử cho màn chi tiết bài. */
+export type IPostTransactionOfUser = IGiftTransactionSummary;
 
 export interface ICloseGiftTransactionResult {
   readonly transaction: IGiftTransactionSummary;
@@ -126,6 +136,11 @@ export interface IGiftTransactionRepository {
   hasLiveForPost(postId: string): Promise<boolean>;
   findByGlobalId(globalId: string): Promise<IGiftTransactionSummary | null>;
   listForUser(userId: string): Promise<IGiftTransactionSummary[]>;
+  /** Lượt trao của người này trên bài (họ là người tặng hoặc người nhận), mới nhất trước. */
+  listForPostAndUser(
+    postId: string,
+    userId: string,
+  ): Promise<IGiftTransactionSummary[]>;
   /**
    * Mở lại một lượt trao đã đóng nhầm.
    *

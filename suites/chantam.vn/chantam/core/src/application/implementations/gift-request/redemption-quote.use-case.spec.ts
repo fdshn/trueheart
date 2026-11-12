@@ -30,6 +30,7 @@ function makeUseCase(
       options.context === undefined
         ? {
             requestGlobalId: 'req-1',
+            requestedQuantity: 1,
             postStatus: 'PUBLISHED',
             estimatedValueVnd: 200_000,
             // Đồng hồ còn chạy: xem trước chỉ có nghĩa trong hạn xét.
@@ -87,6 +88,7 @@ describe('GetRedemptionQuoteUseCase · sàn giữ hạng (CHỐT-13)', () => {
       balance: 1000,
       context: {
         requestGlobalId: 'req-1',
+        requestedQuantity: 1,
         postStatus: 'PUBLISHED',
         estimatedValueVnd: 1_000_000,
         selectionDeadline: new Date(Date.now() + 3 * 86_400_000),

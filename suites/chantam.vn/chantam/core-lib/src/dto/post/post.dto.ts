@@ -17,6 +17,7 @@ import {
   ShipPayers,
 } from '../../consts';
 import { IPostEntity, IPostMediaEntity } from '../../entities';
+import { IGiftRequestDto } from '../gift-request/gift-request.dto';
 
 /**
  * Trường tương tác nhúng vào các endpoint đọc bài.
@@ -393,6 +394,41 @@ export interface IResolvePostShareResponseDto {
   post: IResolvedPostShareDto;
 }
 
+/** Một lượt trao CỦA NGƯỜI XEM trên bài — để app vẽ process line. */
+export interface IPostMyTransactionDto {
+  transactionId: string;
+  /** Request sinh ra lượt trao; `null` ở dữ liệu cũ không nối được. */
+  requestId: string | null;
+  status: 'ACCEPTED' | 'DELIVERING' | 'COMPLETED' | 'CANCELLED';
+  quantity: number;
+  /** Vai của người xem trong lượt này. */
+  myRole: 'GIVER' | 'RECEIVER';
+  acceptedAt: Date | null;
+  handedOverAt: Date | null;
+  completedAt: Date | null;
+  closedAt: Date | null;
+}
+
+/**
+ * Nút chính trên màn chi tiết — backend tính, app không tự suy từ ba lớp trạng thái.
+ *
+ * - `OWNER`: người xem là chủ bài (màn quản lý).
+ * - `REQUEST`: gửi request (khách chưa đăng nhập cũng nhận giá trị này — app mời đăng nhập).
+ * - `WAITING`: request đang chờ duyệt — cho rút / sửa số lượng.
+ * - `STANDBY`: request đang xếp chờ vì thiếu hàng — sửa số lượng, rút, hoặc chờ (xem `statusReason`).
+ * - `TRANSACTION`: có lượt trao đang chạy — mở process line.
+ * - `COMPLETED`: bài đã trao xong, không nhận request.
+ * - `UNAVAILABLE`: bài không nhận request (hết hàng tạm thời, hết hạn, đã gỡ…).
+ */
+export type PostDetailCta =
+  | 'OWNER'
+  | 'REQUEST'
+  | 'WAITING'
+  | 'STANDBY'
+  | 'TRANSACTION'
+  | 'COMPLETED'
+  | 'UNAVAILABLE';
+
 export interface IGetPostResponseDto extends IPostFeedInteractionDto {
   /** Owner-only edit capability. Saving must still recheck under a row lock. */
   canEdit?: boolean;
@@ -401,8 +437,27 @@ export interface IGetPostResponseDto extends IPostFeedInteractionDto {
   media: IPublicPostMediaDto[];
   isLocationApproximate: boolean;
   requestCount?: number;
+  /** Trạng thái request MỚI NHẤT của người xem (giữ cho client cũ). */
   myRequestStatus?: GiftRequestStatuses | null;
   hasRequested?: boolean;
+  /** Tổng số món của bài (`post.totalQuantity`), đưa ra ngoài cho dễ đọc. */
+  totalQuantity?: number;
+  /** Số món còn nhận request (`post.remainingQuantity`). */
+  remainingQuantity?: number;
+  /**
+   * Request đang có hiệu lực của người xem: `PENDING` / `STANDBY`, hoặc `ACCEPTED` khi lượt trao
+   * của nó còn chạy. `null` khi không có.
+   */
+  myActiveRequest?: IGiftRequestDto | null;
+  /** Request mới nhất của người xem (mọi trạng thái), `null` khi chưa từng gửi. */
+  myLatestRequest?: IGiftRequestDto | null;
+  /** Lượt trao đang chạy (`ACCEPTED` / `DELIVERING`) của người xem trên bài. */
+  myActiveTransaction?: IPostMyTransactionDto | null;
+  /** Mọi lượt trao của người xem trên bài, mới nhất trước. KHÔNG có lượt của người khác. */
+  myTransactions?: IPostMyTransactionDto[];
+  /** `true` khi người xem gửi được request mới ngay bây giờ. */
+  canRequest?: boolean;
+  cta?: PostDetailCta;
   /**
    * Thông tin liên lạc của người cho.
    * Chỉ có khi caller là receiver đã được chọn ở giao dịch DELIVERING/COMPLETED.

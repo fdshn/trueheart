@@ -1,4 +1,7 @@
-import { GiftRequestStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  GiftRequestStatuses,
+  GiftRequestStatusReasons,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { IGiftRequestDto } from '@chantam.vn/chantam.core-lib/dto';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -32,6 +35,22 @@ export class GiftRequestDto implements IGiftRequestDto {
       '`POST /posts/{wantedPostId}/offer-gift`. `null` ở yêu cầu xin nhận thường.',
   })
   offeringPostId: string | null;
+
+  @ApiProperty({
+    minimum: 1,
+    example: 2,
+    description:
+      'Số món xin. Duyệt là duyệt ĐỦ số này — không duyệt một phần, không tự giảm.',
+  })
+  requestedQuantity: number;
+
+  @ApiProperty({
+    enum: GiftRequestStatusReasons,
+    nullable: true,
+    description:
+      'Lý do của `STANDBY` (`OUT_OF_STOCK`, `INSUFFICIENT_QUANTITY`) hoặc `CANCELLED` (`POST_COMPLETED`, `TRANSACTION_CANCELLED`). `null` ở trạng thái khác.',
+  })
+  statusReason: GiftRequestStatusReasons | null;
 
   @ApiProperty()
   createdAt: Date;

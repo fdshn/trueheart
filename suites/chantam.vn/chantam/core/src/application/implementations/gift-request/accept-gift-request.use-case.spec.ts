@@ -74,6 +74,8 @@ function makeRequest(
     queueJoinedAt: new Date(),
     withdrawnAt: null,
     offeringPostId: null,
+    requestedQuantity: 1,
+    statusReason: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,

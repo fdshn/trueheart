@@ -1,5 +1,9 @@
 import { IGiftRequestRepository } from '@/domain/ports/repository';
-import { GiftRequestStatuses } from '@chantam.vn/chantam.core-lib/consts';
+import {
+  GiftPostStatuses,
+  GiftRequestStatuses,
+  GiftRequestStatusReasons,
+} from '@chantam.vn/chantam.core-lib/consts';
 import { Inject, Injectable } from '@nestjs/common';
 import { RequestLifecycleNotifier } from './request-lifecycle.notifier';
 
@@ -36,10 +40,16 @@ export class CloseOpenRequestsService {
   public async closeFor(params: {
     postIds: string[];
     reason: string;
+    /** Mã lý do ghi vào `status_reason` để app hiển thị. */
+    statusReason?: GiftRequestStatusReasons;
+    /** Chỉ đóng khi bài ĐANG ở trạng thái này (kiểm trong cùng câu ghi). */
+    onlyIfPostStatus?: GiftPostStatuses;
   }): Promise<number> {
     const closed = await this.giftRequestRepository.closeOpenForPosts({
       postIds: params.postIds,
       status: GiftRequestStatuses.CANCELLED,
+      statusReason: params.statusReason ?? null,
+      onlyIfPostStatus: params.onlyIfPostStatus,
     });
 
     for (const row of closed)

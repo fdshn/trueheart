@@ -7,12 +7,15 @@ import {
   IOfferGiftUseCase,
   IRedeemPostWithPointsUseCase,
   IRejectGiftRequestUseCase,
+  IUpdateGiftRequestQuantityUseCase,
   IWithdrawGiftRequestUseCase,
 } from '@/application/contracts/gift-request';
 import {
   CannotRequestOwnPostException,
   GiftRequestDuplicatedException,
+  GiftRequestInvalidQuantityException,
   GiftRequestNotFoundException,
+  GiftRequestQuantityExceedsStockException,
   GiftTransactionInvalidStateException,
   GiftTransactionOutOfStockException,
   OfferGiftSourceInvalidException,
@@ -52,6 +55,7 @@ import {
   Get,
   Inject,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -83,6 +87,7 @@ import {
   RedemptionQuoteResponseDto,
   RejectGiftRequestParamDto,
   RejectGiftRequestResponseDto,
+  UpdateGiftRequestBodyDto,
   WithdrawGiftRequestParamDto,
   WithdrawGiftRequestResponseDto,
 } from '../../dto/gift-request';
@@ -95,6 +100,8 @@ export class GiftRequestController {
     private readonly createGiftRequestUseCase: ICreateGiftRequestUseCase,
     @Inject(IWithdrawGiftRequestUseCase)
     private readonly withdrawGiftRequestUseCase: IWithdrawGiftRequestUseCase,
+    @Inject(IUpdateGiftRequestQuantityUseCase)
+    private readonly updateGiftRequestQuantityUseCase: IUpdateGiftRequestQuantityUseCase,
     @Inject(IListPostRequestsUseCase)
     private readonly listPostRequestsUseCase: IListPostRequestsUseCase,
     @Inject(IAcceptGiftRequestUseCase)
@@ -116,7 +123,8 @@ export class GiftRequestController {
   @ApiOperation({
     summary: 'Gửi yêu cầu xin nhận đồ',
     description:
-      'Người dùng gửi yêu cầu xin đồ (kèm lời nhắn tối đa 500 ký tự). Mỗi người chỉ có 1 yêu cầu hiệu lực cho 1 bài.',
+      'Người dùng gửi yêu cầu xin đồ (kèm lời nhắn tối đa 500 ký tự) với `requestedQuantity` món (mặc định 1, không vượt số còn lại). ' +
+      'Mỗi lần gửi là một request MỚI; chỉ chặn khi đang có request chờ (PENDING/STANDBY) hoặc lượt trao còn chạy trên bài.',
   })
   @ApiCreatedResponse({
     type: ResponseDto.forApi(CreateGiftRequestResponseDto),
@@ -136,6 +144,7 @@ export class GiftRequestController {
       PostNotAcceptingRequestsException,
       'Bài đăng hiện không tiếp nhận yêu cầu',
     ],
+    [GiftRequestQuantityExceedsStockException, 2],
     [GiftRequestDuplicatedException, 'Bạn đã gửi yêu cầu cho bài đăng này rồi'],
   )
   public async createGiftRequest(
@@ -147,6 +156,7 @@ export class GiftRequestController {
       postId: params.postId,
       requesterId: principal.userId,
       message: body.message,
+      requestedQuantity: body.requestedQuantity,
     });
 
     return ResponseDto.create<ICreateGiftRequestResponseDto>()
@@ -178,6 +188,42 @@ export class GiftRequestController {
     const result = await this.withdrawGiftRequestUseCase.handle({
       postId: params.postId,
       requesterId: principal.userId,
+    });
+
+    return ResponseDto.create<IWithdrawGiftRequestResponseDto>()
+      .succeed()
+      .attach(result)
+      .build();
+  }
+
+  @Patch(':postId/requests/me')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Giảm số lượng request đang chờ của tôi',
+    description:
+      'Chỉ request PENDING / STANDBY, chỉ được GIẢM (muốn xin nhiều hơn thì rút rồi gửi lại). ' +
+      'Request STANDBY vì `INSUFFICIENT_QUANTITY` mà số mới không vượt số còn lại thì quay về PENDING, ' +
+      'giữ nguyên vị trí trong hàng. Hệ thống không bao giờ tự giảm số người dùng đã đăng ký.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(WithdrawGiftRequestResponseDto) })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [GiftRequestNotFoundException, 'Không tìm thấy yêu cầu nhận quà'],
+    [GiftRequestInvalidQuantityException, 'chỉ được giảm số lượng'],
+    [
+      ValidationFailedException,
+      ['request.requestedQuantity: must not be less than 1'],
+    ],
+  )
+  public async updateMyGiftRequest(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: WithdrawGiftRequestParamDto,
+    @Body() body: UpdateGiftRequestBodyDto,
+  ): Promise<ResponseDto<IWithdrawGiftRequestResponseDto>> {
+    const result = await this.updateGiftRequestQuantityUseCase.handle({
+      postId: params.postId,
+      requesterId: principal.userId,
+      requestedQuantity: body.request.requestedQuantity,
     });
 
     return ResponseDto.create<IWithdrawGiftRequestResponseDto>()
@@ -286,6 +332,7 @@ export class GiftRequestController {
       offererId: principal.userId,
       message: body.message,
       offeringPostId: body.offeringPostId,
+      requestedQuantity: body.requestedQuantity,
     });
 
     return ResponseDto.create<IOfferGiftResponseDto>()

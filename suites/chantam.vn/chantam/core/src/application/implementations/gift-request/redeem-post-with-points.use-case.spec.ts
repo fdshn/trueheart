@@ -14,6 +14,7 @@ const GiverId = '99999999-9999-4999-8999-999999990001';
 function context(overrides: Record<string, unknown> = {}) {
   return {
     requestGlobalId: 'req-1',
+    requestedQuantity: 1,
     giverId: GiverId,
     postStatus: 'PUBLISHED',
     selectionDeadline: new Date(Date.now() + 3 * 24 * 3600 * 1000),

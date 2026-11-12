@@ -64,6 +64,8 @@ function makeRequestItem(
     message: 'Em xin món này ạ',
     status: GiftRequestStatuses.PENDING,
     queueJoinedAt: new Date(),
+    requestedQuantity: 1,
+    statusReason: null,
     createdAt: new Date(),
     requester: {
       userId: RequesterId,

@@ -28,13 +28,17 @@ import {
 } from '@/domain/ports/repository';
 import {
   CandidateSelectionConfigKey,
+  GiftPostStatuses,
+  GiftRequestStatusReasons,
   MaxEvidencePerKind,
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import { IGiftTransactionDto } from '@chantam.vn/chantam.core-lib/dto';
 import { pickNextCandidate } from '@chantam.vn/chantam.core-lib/models';
 import { IObjectStorage } from '@chantam/service.storage-lib';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { CloseOpenRequestsService } from '../gift-request/close-open-requests.service';
+import { RequestLifecycleNotifier } from '../gift-request/request-lifecycle.notifier';
 import { withStorageValidation } from '../shared/storage-error';
 import { toEvidenceItems } from './evidence-view';
 import { RefundRedemptionOnCloseService } from './refund-redemption-on-close.service';
@@ -176,6 +180,31 @@ export class GetGiftTransactionUseCase implements IGetGiftTransactionUseCase {
   }
 }
 
+/**
+ * Bài vừa trao hết và hoàn tất (`COMPLETED`, không còn bổ sung được) → request còn chờ đóng lại
+ * kèm lý do `POST_COMPLETED` và báo người xin. Điều kiện bài nằm TRONG câu ghi, nên bài còn hàng
+ * (vẫn `PUBLISHED`) không bị đụng tới. Lỗi ở đây không làm hỏng lượt hoàn tất đã commit.
+ */
+async function closeRequestsIfPostCompleted(
+  logger: Logger,
+  closeOpenRequests: CloseOpenRequestsService,
+  postIds: readonly string[],
+): Promise<void> {
+  if (postIds.length === 0) return;
+  try {
+    await closeOpenRequests.closeFor({
+      postIds: [...new Set(postIds)],
+      reason: 'Bài đã trao hết số lượng',
+      statusReason: GiftRequestStatusReasons.POST_COMPLETED,
+      onlyIfPostStatus: GiftPostStatuses.COMPLETED,
+    });
+  } catch (error) {
+    logger.warn(
+      `Không đóng được request chờ của bài đã hoàn tất: ${String(error)}`,
+    );
+  }
+}
+
 @Injectable()
 export class ConfirmGiftReceiptUseCase implements IConfirmGiftReceiptUseCase {
   private readonly logger = new Logger(ConfirmGiftReceiptUseCase.name);
@@ -187,6 +216,7 @@ export class ConfirmGiftReceiptUseCase implements IConfirmGiftReceiptUseCase {
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatchNotification: IDispatchNotificationUseCase,
     @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+    private readonly closeOpenRequests: CloseOpenRequestsService,
   ) {}
 
   public async handle(
@@ -210,6 +240,12 @@ export class ConfirmGiftReceiptUseCase implements IConfirmGiftReceiptUseCase {
       command.userId,
       keys,
     );
+
+    // Hoàn tất KHÔNG trừ kho thêm (kho đã trừ lúc duyệt). Chỉ khi đây là lượt cuối và bài sang
+    // COMPLETED thì đóng các request còn chờ.
+    await closeRequestsIfPostCompleted(this.logger, this.closeOpenRequests, [
+      transaction.postId,
+    ]);
 
     // Sau khi commit. Hai thông báo, hai chuyện khác nhau: một cái nói lượt trao
     // đã xong, một cái nói lịch sử trò chuyện sắp bị xoá.
@@ -243,6 +279,8 @@ export class CancelGiftTransactionUseCase implements ICancelGiftTransactionUseCa
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
     private readonly refundRedemption: RefundRedemptionOnCloseService,
+    @Optional()
+    private readonly lifecycleNotifier?: RequestLifecycleNotifier,
   ) {}
 
   public async handle(
@@ -264,7 +302,12 @@ export class CancelGiftTransactionUseCase implements ICancelGiftTransactionUseCa
       actorUserId: command.userId,
     });
 
-    await this.announceQueue(transaction, queue);
+    const proposed = await this.announceQueue(transaction, queue);
+    // Người vừa được xét lại (hàng hoàn về) — trừ ứng viên đề xuất, họ đã nhận thông báo "đang
+    // được xét tiếp" ở trên. Người vẫn STANDBY mà lý do đổi sang thiếu hàng cũng được báo.
+    await this.lifecycleNotifier?.announceRebalanced(queue.rebalanced ?? [], {
+      excludeUserIds: proposed ? [proposed] : [],
+    });
     // Huỷ cũng khoá phòng, nên đồng hồ xoá cũng bắt đầu chạy. Báo ở một đường mà
     // không báo ở đường kia là để một nửa người dùng bất ngờ khi lịch sử biến mất.
     await notifyChatPurgeSchedule(
@@ -289,8 +332,8 @@ export class CancelGiftTransactionUseCase implements ICancelGiftTransactionUseCa
   private async announceQueue(
     transaction: IGiftTransactionSummary,
     queue: IReopenedQueue,
-  ): Promise<void> {
-    if (queue.candidates.length === 0) return;
+  ): Promise<string | null> {
+    if (queue.candidates.length === 0) return null;
 
     // Thứ tự ưu tiên do Admin cấu hình (CH-1). Đọc ở đây chứ không cache: đổi
     // cấu hình phải có hiệu lực ngay, không đợi restart.
@@ -304,7 +347,7 @@ export class CancelGiftTransactionUseCase implements ICancelGiftTransactionUseCa
       queue.candidates,
       Array.isArray(configuredOrder) ? configuredOrder : null,
     );
-    if (!next) return;
+    if (!next) return null;
 
     await this.dispatchNotification.handle({
       userId: transaction.giverId,
@@ -325,6 +368,7 @@ export class CancelGiftTransactionUseCase implements ICancelGiftTransactionUseCa
       referenceId: transaction.postId,
       idempotencyKey: `QUEUE_REOPENED_CANDIDATE:${transaction.globalId}`,
     });
+    return next.requesterId;
   }
 }
 
@@ -354,6 +398,7 @@ export class CompleteDueGiftDeliveriesUseCase implements ICompleteDueGiftDeliver
     @Inject(IChatRepository) private readonly chat: IChatRepository,
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatchNotification: IDispatchNotificationUseCase,
+    private readonly closeOpenRequests: CloseOpenRequestsService,
   ) {}
 
   public async handle(
@@ -390,6 +435,12 @@ export class CompleteDueGiftDeliveriesUseCase implements ICompleteDueGiftDeliver
         );
       }
     }
+
+    await closeRequestsIfPostCompleted(
+      this.logger,
+      this.closeOpenRequests,
+      outcome.completedTransactions.map((transaction) => transaction.postId),
+    );
 
     return {
       completedTransactions: outcome.completed,

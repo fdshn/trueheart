@@ -1,7 +1,18 @@
-import { GiftPostStatuses, GiftRequestStatuses } from '../../consts';
+import {
+  GiftPostStatuses,
+  GiftRequestStatuses,
+  GiftRequestStatusReasons,
+} from '../../consts';
 
 export interface ICreateGiftRequestBodyDto {
   message: string;
+  /** Số món xin; bỏ trống = 1. Không vượt `remainingQuantity` của bài lúc gửi. */
+  requestedQuantity?: number;
+}
+
+/** Sửa request đang chờ — chỉ GIẢM số lượng. */
+export interface IUpdateGiftRequestBodyDto {
+  request: { requestedQuantity: number };
 }
 
 export interface IGiftRequestDto {
@@ -17,6 +28,13 @@ export interface IGiftRequestDto {
    * `POST /posts/{id}/offer-gift`. `null` ở yêu cầu xin nhận thường.
    */
   offeringPostId: string | null;
+  /** Số món xin. Duyệt là duyệt đủ số này, không duyệt một phần. */
+  requestedQuantity: number;
+  /**
+   * Lý do của `STANDBY` / `CANCELLED`: `OUT_OF_STOCK`, `INSUFFICIENT_QUANTITY`,
+   * `POST_COMPLETED`, `TRANSACTION_CANCELLED`. `null` ở trạng thái khác.
+   */
+  statusReason: GiftRequestStatusReasons | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -45,6 +63,8 @@ export interface IPostRequestItemDto {
   status: GiftRequestStatuses;
   queueJoinedAt: Date;
   createdAt: Date;
+  requestedQuantity: number;
+  statusReason: GiftRequestStatusReasons | null;
   requester?: IPostApplicantProfileDto;
 }
 
@@ -70,6 +90,8 @@ export interface IOfferGiftBodyDto {
    * đọc một dòng chữ.
    */
   offeringPostId?: string;
+  /** Số món mang tới; bỏ trống = 1. Không vượt số bài Muốn Nhận còn cần. */
+  requestedQuantity?: number;
 }
 
 export interface IOfferGiftResponseDto {

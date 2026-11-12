@@ -11,6 +11,7 @@ const PendingRequest = {
   post_id: PostId,
   requester_id: RequesterId,
   status: GiftRequestStatuses.PENDING,
+  requested_quantity: 1,
 };
 
 function postRow(remaining = 3, postType = 'OFFER') {
@@ -229,10 +230,12 @@ describe('GiftRequestRepository.acceptRequest — trạng thái bài', () => {
     // bài. Xem migration `1795200000000`.
     expect(postUpdate(query)?.[1]).toBe('RESERVED');
 
+    // Người còn lại đi qua phép cân hàng chờ dùng chung (12/11): xin quá số còn lại → STANDBY
+    // kèm lý do. Luật đo trên Postgres thật ở `test:gift-request-quantity`.
     const queueOthers = query.mock.calls.find(
-      ([sql, params]) =>
-        String(sql).includes('UPDATE gift_requests') &&
-        (params as unknown[])?.[0] === GiftRequestStatuses.STANDBY,
+      ([sql]) =>
+        String(sql).includes('UPDATE gift_requests request') &&
+        String(sql).includes("ELSE 'STANDBY'"),
     );
     expect(queueOthers).toBeDefined();
 
@@ -247,13 +250,16 @@ describe('GiftRequestRepository.acceptRequest — trạng thái bài', () => {
 });
 
 describe('GiftRequestRepository.acceptRequest — đồng hồ chọn người nhận', () => {
-  it('xoá selection_deadline khi đã chốt người nhận', async () => {
-    // Để lại mốc cũ thì job tự chọn (F75) nhặt đúng bài này lên mỗi lần chạy và
-    // cố chọn thêm một người nữa cho một bài đã có chủ.
+  it('chỉ xoá selection_deadline khi kho về 0 — còn hàng lẻ thì giữ để job chọn tiếp (12/11)', async () => {
+    // Trước 12/11 chốt MỘT người là xoá mốc, vì mỗi bài chỉ trao một lần. Nay bài nhiều món:
+    // xoá mốc khi còn hàng là để phần còn lại chỉ chờ chủ bài nhớ vào duyệt tay. Kho về 0 thì
+    // vẫn xoá — không còn gì để chọn.
     const query = makeQuery({});
     await makeRepository(query).acceptRequest(Params);
 
-    expect(postUpdateSql(query)).toMatch(/selection_deadline = NULL/);
+    expect(postUpdateSql(query)).toMatch(
+      /selection_deadline = CASE WHEN \$1::int = 0 THEN NULL ELSE selection_deadline END/,
+    );
   });
 });
 

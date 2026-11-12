@@ -59,6 +59,7 @@
     "test:notification": "ts-node -r tsconfig-paths/register test/notification.check.ts",
     "test:returning": "ts-node -r tsconfig-paths/register test/returning-contract.check.ts",
     "test:lifecycle": "ts-node -r tsconfig-paths/register test/post-lifecycle.check.ts",
+    "test:gift-request-quantity": "ts-node -r tsconfig-paths/register test/gift-request-quantity.check.ts",
     "test:concurrency": "ts-node -r tsconfig-paths/register test/gift-request-concurrency.check.ts",
     "migration:show": "npm run typeorm -- migration:show",
     "leaderboard:close-month": "ts-node -r tsconfig-paths/register src/infrastructure/cli/leaderboard-close-month.cli.ts",

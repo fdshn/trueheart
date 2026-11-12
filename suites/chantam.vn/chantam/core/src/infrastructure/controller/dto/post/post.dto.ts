@@ -8,18 +8,22 @@ import {
 import {
   IGetPostParamsDto,
   IGetPostResponseDto,
+  IGiftRequestDto,
   IPostAuthorDto,
   IPostContactInfoDto,
+  IPostMyTransactionDto,
   IPostShareLinkDto,
   IPublicPostMediaDto,
   IResolvedPostShareDto,
   IResolvePostShareParamsDto,
   IResolvePostShareResponseDto,
+  PostDetailCta,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IPostEntity } from '@chantam.vn/chantam.core-lib/entities';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsUUID, MaxLength } from 'class-validator';
 import { PostEntity } from '../../../entity/post.entity';
+import { GiftRequestDto } from '../gift-request/gift-request.dto';
 
 export class GetPostParamsDto implements IGetPostParamsDto {
   @ApiProperty({
@@ -88,6 +92,32 @@ export class PublicPostMediaDto implements IPublicPostMediaDto {
   @ApiProperty() sortOrder: number;
 }
 
+export class PostMyTransactionDto implements IPostMyTransactionDto {
+  @ApiProperty({ format: 'uuid' }) transactionId: string;
+  @ApiProperty({
+    format: 'uuid',
+    nullable: true,
+    description: 'Request sinh ra lượt trao. `null` ở dữ liệu cũ.',
+  })
+  requestId: string | null;
+  @ApiProperty({ enum: ['ACCEPTED', 'DELIVERING', 'COMPLETED', 'CANCELLED'] })
+  status: 'ACCEPTED' | 'DELIVERING' | 'COMPLETED' | 'CANCELLED';
+  @ApiProperty({ example: 2 }) quantity: number;
+  @ApiProperty({
+    enum: ['GIVER', 'RECEIVER'],
+    description: 'Vai của người xem',
+  })
+  myRole: 'GIVER' | 'RECEIVER';
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  acceptedAt: Date | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  handedOverAt: Date | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  completedAt: Date | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  closedAt: Date | null;
+}
+
 export class GetPostResponseDto implements IGetPostResponseDto {
   @ApiPropertyOptional({
     description: 'Quyền sửa của chủ bài theo trạng thái và giao dịch thực tế.',
@@ -125,6 +155,68 @@ export class GetPostResponseDto implements IGetPostResponseDto {
     description: 'Người dùng hiện tại đã gửi yêu cầu chưa',
   })
   hasRequested?: boolean;
+
+  @ApiPropertyOptional({ example: 10, description: 'Tổng số món của bài' })
+  totalQuantity?: number;
+
+  @ApiPropertyOptional({
+    example: 2,
+    description: 'Số món còn nhận request',
+  })
+  remainingQuantity?: number;
+
+  @ApiPropertyOptional({
+    type: () => GiftRequestDto,
+    nullable: true,
+    description:
+      'Request đang hiệu lực của người xem: PENDING / STANDBY, hoặc ACCEPTED khi lượt trao của nó còn chạy.',
+  })
+  myActiveRequest?: IGiftRequestDto | null;
+
+  @ApiPropertyOptional({
+    type: () => GiftRequestDto,
+    nullable: true,
+    description:
+      'Request MỚI NHẤT của người xem (mọi trạng thái). Rút rồi gửi lại là request mới.',
+  })
+  myLatestRequest?: IGiftRequestDto | null;
+
+  @ApiPropertyOptional({
+    type: () => PostMyTransactionDto,
+    nullable: true,
+    description:
+      'Lượt trao đang chạy (ACCEPTED / DELIVERING) của người xem — nguồn của process line.',
+  })
+  myActiveTransaction?: IPostMyTransactionDto | null;
+
+  @ApiPropertyOptional({
+    type: () => [PostMyTransactionDto],
+    description:
+      'Mọi lượt trao của người xem trên bài, mới nhất trước. Không có lượt của người khác.',
+  })
+  myTransactions?: IPostMyTransactionDto[];
+
+  @ApiPropertyOptional({
+    description: 'Người xem gửi được request mới ngay bây giờ.',
+  })
+  canRequest?: boolean;
+
+  @ApiPropertyOptional({
+    enum: [
+      'OWNER',
+      'REQUEST',
+      'WAITING',
+      'STANDBY',
+      'TRANSACTION',
+      'COMPLETED',
+      'UNAVAILABLE',
+    ],
+    description:
+      'Nút chính backend đã tính: OWNER (chủ bài), REQUEST (gửi request — khách thì mời đăng nhập), ' +
+      'WAITING (đang chờ duyệt — rút / giảm số lượng), STANDBY (thiếu hàng — giảm số lượng / rút / chờ, xem `myActiveRequest.statusReason`), ' +
+      'TRANSACTION (lượt trao đang chạy), COMPLETED (bài đã trao xong), UNAVAILABLE (không nhận request).',
+  })
+  cta?: PostDetailCta;
 
   @ApiPropertyOptional({
     type: () => PostContactInfoDto,

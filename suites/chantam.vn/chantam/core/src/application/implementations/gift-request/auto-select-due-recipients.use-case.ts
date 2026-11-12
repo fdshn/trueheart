@@ -19,8 +19,9 @@ import {
   normalizeAllocationPolicy,
 } from '@chantam.vn/chantam.core-lib/models';
 import { makeGlobalId } from '@chantam/service.common-lib/utils';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { AcceptedRequestNotifier } from './accepted-request.notifier';
+import { RequestLifecycleNotifier } from './request-lifecycle.notifier';
 
 const DefaultLimit = 200;
 
@@ -50,6 +51,9 @@ const DefaultLimit = 200;
  * Kiểm cờ TRƯỚC khi quét bài: quét rồi mới dừng là tốn một truy vấn cho một lượt chạy
  * không làm gì.
  */
+/** Trần số người job chọn cho MỘT bài trong một lượt chạy (bài nhiều món). */
+const MaxPicksPerPost = 20;
+
 @Injectable()
 export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsUseCase {
   private readonly logger = new Logger(AutoSelectDueRecipientsUseCase.name);
@@ -60,6 +64,8 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
     @Inject(IAdminConfigRepository)
     private readonly adminConfig: IAdminConfigRepository,
     private readonly acceptedNotifier: AcceptedRequestNotifier,
+    @Optional()
+    private readonly lifecycleNotifier?: RequestLifecycleNotifier,
   ) {}
 
   public async handle(
@@ -102,89 +108,116 @@ export class AutoSelectDueRecipientsUseCase implements IAutoSelectDueRecipientsU
     const failed: { postId: string; reason: string }[] = [];
 
     for (const post of due) {
-      try {
-        const candidates = await this.requests.listCandidateMetrics(
-          post.postId,
-        );
-        // Câu quét đã đòi có ứng viên, nhưng giữa lúc quét và lúc đọc họ có thể
-        // rút hết. Bỏ qua chứ không coi là lỗi.
-        if (candidates.length === 0) continue;
+      const pickedRequestIds = new Set<string>();
+      // Bài nhiều món: chọn TIẾP trong cùng lượt chạy tới khi hết hàng hoặc hết người vừa số
+      // (12/11). Trần vòng lặp để một bài lỗi không giữ job mãi.
+      for (let pick = 0; pick < MaxPicksPerPost; pick += 1) {
+        try {
+          const candidates = await this.requests.listCandidateMetrics(
+            post.postId,
+          );
+          // Câu quét đã đòi có ứng viên, nhưng giữa lúc quét và lúc đọc họ có thể
+          // rút hết. Bỏ qua chứ không coi là lỗi.
+          if (candidates.length === 0) break;
 
-        // `explainCandidateSelection` nhận hình dạng thuần của `core-lib`; nó trả
-        // lại đúng phần tử trong mảng truyền vào, nên `requestGlobalId` còn nguyên.
-        const explained = explainCandidateSelection(
-          candidates,
-          configuredOrder as readonly unknown[] | null,
-        );
-        if (!explained) continue;
-        const winner = explained.winner as (typeof candidates)[number];
+          // `explainCandidateSelection` nhận hình dạng thuần của `core-lib`; nó trả
+          // lại đúng phần tử trong mảng truyền vào, nên `requestGlobalId` còn nguyên.
+          const explained = explainCandidateSelection(
+            candidates,
+            configuredOrder as readonly unknown[] | null,
+          );
+          if (!explained) break;
+          const winner = explained.winner as (typeof candidates)[number];
+          // Phòng vệ: người vừa chọn lại đứng đầu nghĩa là lượt duyệt không đổi được trạng thái
+          // — dừng thay vì lặp vô ích.
+          if (pickedRequestIds.has(winner.requestGlobalId)) break;
+          pickedRequestIds.add(winner.requestGlobalId);
 
-        if (command.dryRun === true) {
+          if (command.dryRun === true) {
+            selected.push({
+              postId: post.postId,
+              requesterId: winner.requesterId,
+              transactionId: null,
+              candidates: candidates.length,
+              reason: explained.decidingCriterion,
+            });
+            // Chạy thử không ghi gì nên danh sách ứng viên không đổi — chọn tiếp sẽ ra lại
+            // đúng người này.
+            break;
+          }
+
+          // Đi qua chính đường duyệt của chủ bài, không viết đường riêng: nó đã lo
+          // khoá hàng, trừ tồn kho, chuyển ứng viên còn lại sang STANDBY, mở phòng
+          // chat và xoá `selection_deadline`. Một đường thứ hai là một chỗ nữa để
+          // quên một trong số đó.
+          const accepted = await this.requests.acceptRequest({
+            requestId: winner.requestGlobalId,
+            postId: post.postId,
+            actorUserId: post.giverId,
+            // Theo request: id dựng từ cặp (bài, người) trùng ở lần chọn thứ hai cho cùng người
+            // — mỗi lần gửi lại là một request mới (12/11).
+            transactionId: makeGlobalId(
+              `/transactions/${post.postId}/${winner.requesterId}/${winner.requestGlobalId}`,
+            ),
+            selectionAudit: { ...explained, candidateCount: candidates.length },
+            allowClassified: legacyClassified,
+          });
+
+          // Với auto-select, thông báo còn quan trọng hơn đường duyệt tay: người
+          // dùng không bấm gì cả, hệ thống quyết hộ họ. Không báo thì họ chỉ biết
+          // khi tình cờ mở app, trong khi người tặng đang chờ trả lời.
+          await this.acceptedNotifier.announce({
+            // Vai lấy từ KẾT QUẢ, không từ truy vấn. Truy vấn tìm bài tới hạn lấy
+            // `post.author_id AS giver_id`, và với bài Muốn Nhận tác giả là người
+            // NHẬN — nên đoán lại ở đây là nguồn của đúng cái lỗi đảo vai.
+            receiverId: accepted.receiverId,
+            giverId: accepted.giverId,
+            postId: post.postId,
+            transactionId: accepted.transactionId,
+            trigger: 'AUTOMATIC',
+          });
+          await this.lifecycleNotifier?.announceRebalanced(
+            accepted.rebalanced ?? [],
+          );
+
           selected.push({
             postId: post.postId,
             requesterId: winner.requesterId,
-            transactionId: null,
+            transactionId: accepted.transactionId,
             candidates: candidates.length,
             reason: explained.decidingCriterion,
           });
-          continue;
-        }
-
-        // Đi qua chính đường duyệt của chủ bài, không viết đường riêng: nó đã lo
-        // khoá hàng, trừ tồn kho, chuyển ứng viên còn lại sang STANDBY, mở phòng
-        // chat và xoá `selection_deadline`. Một đường thứ hai là một chỗ nữa để
-        // quên một trong số đó.
-        const accepted = await this.requests.acceptRequest({
-          requestId: winner.requestGlobalId,
-          postId: post.postId,
-          actorUserId: post.giverId,
-          transactionId: makeGlobalId(
-            `/transactions/${post.postId}/${winner.requesterId}`,
-          ),
-          selectionAudit: { ...explained, candidateCount: candidates.length },
-          allowClassified: legacyClassified,
-        });
-
-        // Với auto-select, thông báo còn quan trọng hơn đường duyệt tay: người
-        // dùng không bấm gì cả, hệ thống quyết hộ họ. Không báo thì họ chỉ biết
-        // khi tình cờ mở app, trong khi người tặng đang chờ trả lời.
-        await this.acceptedNotifier.announce({
-          // Vai lấy từ KẾT QUẢ, không từ truy vấn. Truy vấn tìm bài tới hạn lấy
-          // `post.author_id AS giver_id`, và với bài Muốn Nhận tác giả là người
-          // NHẬN — nên đoán lại ở đây là nguồn của đúng cái lỗi đảo vai.
-          receiverId: accepted.receiverId,
-          giverId: accepted.giverId,
-          postId: post.postId,
-          transactionId: accepted.transactionId,
-          trigger: 'AUTOMATIC',
-        });
-
-        selected.push({
-          postId: post.postId,
-          requesterId: winner.requesterId,
-          transactionId: accepted.transactionId,
-          candidates: candidates.length,
-          reason: explained.decidingCriterion,
-        });
-      } catch (error) {
-        // Hai lượt chạy song song cùng nhắm một người: lượt sau chờ khoá hàng của lượt
-        // trước, rồi thấy yêu cầu không còn PENDING. Việc đã xong ở lượt kia (lượt trao,
-        // phòng chat, thông báo, audit) — đây là bỏ qua, không phải lỗi. Người xin rút
-        // yêu cầu đúng lúc đó cũng ra cùng ngoại lệ, và cũng nên bỏ qua như vậy.
-        if (error instanceof GiftRequestNotFoundException) {
-          this.logger.log(
-            `Bỏ qua ${post.postId}: yêu cầu đã được chốt hoặc rút ở lượt khác`,
+        } catch (error) {
+          // Hai lượt chạy song song cùng nhắm một người: lượt sau chờ khoá hàng của lượt
+          // trước, rồi thấy yêu cầu không còn PENDING. Việc đã xong ở lượt kia (lượt trao,
+          // phòng chat, thông báo, audit) — đây là bỏ qua, không phải lỗi. Người xin rút
+          // yêu cầu đúng lúc đó cũng ra cùng ngoại lệ, và cũng nên bỏ qua như vậy.
+          if (error instanceof GiftRequestNotFoundException) {
+            this.logger.log(
+              `Bỏ qua ${post.postId}: yêu cầu đã được chốt hoặc rút ở lượt khác`,
+            );
+            break;
+          }
+          // Một bài hỏng không được làm dừng cả vòng: những bài còn lại cũng đang
+          // để người xin chờ một đồng hồ đã reo.
+          const reason = error instanceof Error ? error.message : String(error);
+          this.logger.error(
+            `Không chốt được người nhận cho ${post.postId}: ${reason}`,
           );
-          continue;
+          failed.push({ postId: post.postId, reason });
+          break;
         }
-        // Một bài hỏng không được làm dừng cả vòng: những bài còn lại cũng đang
-        // để người xin chờ một đồng hồ đã reo.
-        const reason = error instanceof Error ? error.message : String(error);
-        this.logger.error(
-          `Không chốt được người nhận cho ${post.postId}: ${reason}`,
-        );
-        failed.push({ postId: post.postId, reason });
       }
+    }
+
+    // Người đang STANDBY vì thiếu hàng trên bài đã quá hạn mà không còn ai vừa số: nhắc họ giảm
+    // số lượng — không thì phần còn lại không trao được cho ai. Một lần mỗi mốc số còn lại
+    // (khoá chống trùng của thông báo), nên chạy mỗi giờ không thành spam.
+    if (command.dryRun !== true && this.lifecycleNotifier) {
+      const nudges = await this.requests.findStandbyNudges(
+        command.limit ?? DefaultLimit,
+      );
+      for (const row of nudges) await this.lifecycleNotifier.nudgeStandby(row);
     }
 
     return { due: due.length, selected, failed, skippedByPolicy: false };

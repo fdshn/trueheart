@@ -2,6 +2,7 @@ import { IAppendPointEntryResult } from '@/application/contracts/point';
 import {
   GiftPostStatuses,
   GiftRequestStatuses,
+  GiftRequestStatusReasons,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
   IPostRequesterPreviewDto,
@@ -26,8 +27,33 @@ export interface IRecipientSelectionAudit extends ICandidateSelectionExplanation
  * biết gì về khoá database. Nhưng chỗ gọi cần `global_id` để duyệt đúng yêu cầu
  * đó — `requesterId` là id NGƯỜI, không phải id yêu cầu.
  */
+/** Request đang chờ vừa được cân lại (đổi PENDING ↔ STANDBY hoặc đổi lý do). */
+export interface IRebalancedRequestRow {
+  readonly requestId: string;
+  readonly requesterId: string;
+  readonly fromStatus: 'PENDING' | 'STANDBY';
+  readonly toStatus: 'PENDING' | 'STANDBY';
+  readonly statusReason: 'OUT_OF_STOCK' | 'INSUFFICIENT_QUANTITY' | null;
+  readonly postId: string;
+  readonly postTitle: string;
+  readonly remainingQuantity: number;
+  readonly requestedQuantity: number;
+}
+
+/** Người đang STANDBY vì thiếu hàng trên bài đã quá hạn xét — để nhắc giảm số lượng. */
+export interface IStandbyNudgeRow {
+  readonly requestId: string;
+  readonly requesterId: string;
+  readonly postId: string;
+  readonly postTitle: string;
+  readonly remainingQuantity: number;
+  readonly requestedQuantity: number;
+}
+
 export interface IRedemptionContext {
   readonly requestGlobalId: string;
+  /** Số món của request — giá đổi điểm nhân theo số này. */
+  readonly requestedQuantity: number;
   readonly giverId: string;
   readonly postStatus: string;
   /** `null` khi chưa ai xin — tức đồng hồ chưa mở. */
@@ -75,10 +101,39 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
   /** `null` khi không có hoặc đã xoá mềm. Không kiểm quyền — use case làm. */
   findDetail(requestId: string): Promise<IGiftRequestDetail | null>;
 
+  /** Request MỚI NHẤT của người này trên bài (mỗi lần gửi lại là một dòng mới). */
   findByPostAndRequester(
     postId: string,
     requesterId: string,
   ): Promise<IGiftRequestEntity | null>;
+
+  /**
+   * Người này đang có lượt trao CÒN CHẠY (`ACCEPTED` / `DELIVERING`) trên bài — họ là bên không
+   * phải tác giả. Khi đó không gửi request mới được: xong hoặc huỷ lượt đó trước.
+   */
+  hasLiveTransactionOnPost(
+    postId: string,
+    requesterId: string,
+  ): Promise<boolean>;
+
+  /** Mọi request của người này trên bài, mới nhất trước. */
+  listByPostAndRequester(
+    postId: string,
+    requesterId: string,
+  ): Promise<IGiftRequestEntity[]>;
+
+  /** Cân lại hàng chờ theo số còn lại hiện tại — sau khi chủ bài sửa số lượng. */
+  rebalanceOpenRequests(postId: string): Promise<IRebalancedRequestRow[]>;
+
+  /**
+   * Người xin GIẢM số lượng request đang chờ (không cho tăng). STANDBY vừa số còn lại thì về
+   * PENDING, giữ chỗ trong hàng. Ném `GiftRequestNotFound` khi không có request đang chờ.
+   */
+  updateRequestedQuantity(params: {
+    postId: string;
+    requesterId: string;
+    requestedQuantity: number;
+  }): Promise<IGiftRequestEntity>;
 
   countActiveByPostIds(postIds: string[]): Promise<Map<string, number>>;
   /**
@@ -153,6 +208,8 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
   closeOpenForPosts(params: {
     postIds: string[];
     status: GiftRequestStatuses;
+    statusReason?: GiftRequestStatusReasons | null;
+    onlyIfPostStatus?: GiftPostStatuses;
   }): Promise<IClosedRequestRow[]>;
 
   /**
@@ -194,6 +251,13 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
     limit: number,
     includeClassified?: boolean,
   ): Promise<{ postId: string; giverId: string }[]>;
+
+  /**
+   * Người đang STANDBY vì `INSUFFICIENT_QUANTITY` trên bài còn hàng mà KHÔNG còn ai vừa số —
+   * bài đã quá hạn xét, hoặc (chế độ chọn tay) họ đã chờ quá 3 ngày. Không giảm số thì phần còn
+   * lại không trao được cho ai — job nhắc họ.
+   */
+  findStandbyNudges(limit: number): Promise<IStandbyNudgeRow[]>;
 
   /**
    * Số đo của mọi ứng viên đang chờ trên một bài, đủ để xếp theo MỌI tiêu chí.
@@ -254,6 +318,8 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
     receiverId: string;
     /** Kết quả bút toán trừ điểm; chỉ có khi `redemption` được truyền. */
     debit?: IAppendPointEntryResult;
+    /** Người vừa bị cân lại hàng chờ — để báo (12/11). */
+    rebalanced: IRebalancedRequestRow[];
   }>;
 
   /**
@@ -305,6 +371,7 @@ export interface IGiftRequestRepository extends Repository<IGiftRequestEntity> {
     remainingQuantity: number;
     /** Số yêu cầu bị đẩy sang `STANDBY` vì bài đã hết suất. */
     standbyCount: number;
+    rebalanced: IRebalancedRequestRow[];
   }>;
 
   /**

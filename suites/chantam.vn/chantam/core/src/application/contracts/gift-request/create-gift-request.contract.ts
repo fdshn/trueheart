@@ -5,6 +5,8 @@ export interface ICreateGiftRequestCommand {
   postId: string;
   requesterId: string;
   message: string;
+  /** Số món xin; bỏ trống = 1. Không vượt số còn lại của bài lúc gửi. */
+  requestedQuantity?: number;
   /**
    * Bài Muốn Tặng mang ra, chỉ có khi lời tặng đi qua `OfferGiftUseCase`.
    *

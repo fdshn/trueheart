@@ -79,6 +79,10 @@ export enum ErrorCodes {
    * không bao giờ đổi nghĩa.
    */
   REDEMPTION_QUOTE_STALE = 0x02_10,
+  /** Số món xin lớn hơn số còn lại của bài lúc gửi (12/11). */
+  GIFT_REQUEST_QUANTITY_EXCEEDS_STOCK = 0x02_12,
+  /** Số lượng sửa không hợp lệ — vd muốn tăng số đã xin (chỉ được giảm). */
+  GIFT_REQUEST_INVALID_QUANTITY = 0x02_13,
 
   // 0x03 — Người dùng
   //

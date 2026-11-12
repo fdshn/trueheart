@@ -3,8 +3,8 @@
 > **File sinh tự động** bởi `npm run docs:routes` từ metadata của controller đã biên dịch.
 > Đừng sửa tay — sửa controller rồi chạy lại lệnh. CI chạy `docs:routes:check`.
 
-Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **434** route:
-59 công khai, 141 cần quyền Admin, 234 cần access token.
+Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **435** route:
+59 công khai, 141 cần quyền Admin, 235 cần access token.
 
 Mức truy cập: `Công khai` = không cần token; `Bearer` = cần access token (một số route còn
 kiểm chủ sở hữu hoặc quyền RBAC trong use case — xem `docs/API.md`); `perm:<mã>` = quyền Admin
@@ -739,6 +739,7 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `POST` | `/posts/:postId/requests` | Bearer | Gửi yêu cầu xin nhận đồ |
 | `POST` | `/posts/:postId/requests/:requestId/accept` | Bearer | Duyệt người xin nhận đồ (Chọn ứng viên) |
 | `POST` | `/posts/:postId/requests/:requestId/reject` | Bearer | Từ chối một yêu cầu xin nhận |
+| `PATCH` | `/posts/:postId/requests/me` | Bearer | Giảm số lượng request đang chờ của tôi |
 | `POST` | `/posts/:postId/requests/withdraw` | Bearer | Rút yêu cầu xin nhận đồ |
 | `POST` | `/posts/:subjectId/comment-media/upload-url` | Bearer | Đường tải ảnh cho bình luận |
 | `GET` | `/posts/:subjectId/comments` | Công khai | Bình luận gốc của một bài đăng |
