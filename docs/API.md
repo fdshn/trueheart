@@ -3291,3 +3291,28 @@ Mỗi banner thêm `sourceType`, `sourceId`, `displayType`, `startsAt`, `endsAt`
 điều kiện cũ và **thêm một**: banner nguồn `CAMPAIGN` chỉ hiện khi hoạt động nguồn vẫn đã duyệt,
 đang mở (`is_active`) và chưa xoá — **đóng, đình chỉ hay xoá hoạt động là banner rời app ngay**,
 mở lại thì tự hiện lại. `POST /banners/:id/click` dùng cùng bộ lọc.
+
+## 21. Điều kiện tham gia chiến dịch từ thiện (18/11/2026, PR #54)
+
+Chiến dịch có thêm hai điều kiện, trả ra ở **mọi** view chiến dịch (tạo, chi tiết công khai,
+workspace của chủ, Admin):
+
+| Trường | Kiểu | Ý nghĩa |
+| --- | --- | --- |
+| `minimumParticipants` | số nguyên 0–100.000 | Số người tham gia tối thiểu. `0` = không đặt |
+| `minimumParticipantRank` | `VIEWER` · `MEMBER` · `SILVER` · `GOLD` · `DIAMOND` · `null` | Hạng tối thiểu để **đăng ký tham gia**. `null` = không giới hạn |
+
+- **Đặt:** chủ chiến dịch gửi khi tạo (`POST /charity-campaigns`, không bắt buộc — bỏ trống là
+  `0` / `null`). Admin sửa qua `PATCH /admin/charity-campaigns/:id` (bỏ trống = giữ nguyên,
+  `minimumParticipantRank: null` = bỏ giới hạn). Giá trị âm, vượt trần, hạng ngoài enum → `400`.
+- **Đăng ký tham gia** (`POST /charity-campaigns/:id/participation`): server đọc hạng **hiện tại trong
+  database**, không tin hạng trong access token. Thiếu hạng → **`403 CHARITY_PARTICIPANT_RANK_TOO_LOW`**
+  (thông điệp nêu hạng yêu cầu), không ghi gì. Đủ hạng → `REGISTERED` như cũ, không tự check-in.
+  Chỉ áp cho đăng ký tham gia — đăng ký tình nguyện viên theo nhu cầu không bị chặn hạng.
+- **Nâng hạng tối thiểu** khi đã có người đăng ký: người đã đăng ký giữ nguyên, chỉ lượt đăng ký mới bị chặn.
+- **Tổng kết** (`GET /charity-campaigns/:id/summary` — bảng tổng kết của workspace) thêm
+  `participation: { registeredCount, checkedInCount, minimumParticipants, minimumParticipantsMet }`.
+  `registeredCount` = lượt còn hiệu lực; `checkedInCount` = đã `CHECKED_IN`/`COMPLETED`;
+  `minimumParticipantsMet` so theo **số đã check-in**. Chưa đạt chỉ là cảnh báo — không tự huỷ
+  chiến dịch, và số thực tế đếm từ bảng tham gia nên không sửa tay được.
+- Chiến dịch có sẵn trước 18/11 nhận `0` / `null` — giữ đúng hành vi cũ.

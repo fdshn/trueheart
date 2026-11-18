@@ -1,4 +1,5 @@
 import {
+  CharityAlreadyRegisteredException,
   CharityBeneficiaryConsentRequiredException,
   CharityBeneficiaryNotApplicableException,
   CharityCampaignCreateNotAllowedException,
@@ -14,6 +15,7 @@ import {
   CharityNeedItemInvalidException,
   CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
+  CharityParticipantRankTooLowException,
   CharityReviewNotPermittedException,
   CharitySelfContributionException,
 } from '@/domain/exceptions';
@@ -22,7 +24,9 @@ import {
   ICharityCampaign,
   ICharityCampaignRepository,
   IEntitlementRepository,
+  IUserRepository,
 } from '@/domain/ports/repository';
+import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   ForbiddenException,
   ValidationFailedException,
@@ -45,6 +49,7 @@ import {
   GetCampaignNeedsUseCase,
   GetCharityContributionUseCase,
   GetCharityDeliveryUseCase,
+  JoinCharityCampaignUseCase,
   ListCampaignContributionsUseCase,
   ManageCharityBeneficiaryUseCase,
   ManageCharityCoordinatorsUseCase,
@@ -93,6 +98,8 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     campaignType: 'ORGANIZED_CAMPAIGN' as const,
     beneficiaryRelation: null,
     allowOverTarget: false,
+    minimumParticipants: 0,
+    minimumParticipantRank: null,
     submittedAt: new Date(),
     operationStage: 'EXECUTION' as const,
     storedOperationStage: 'EXECUTION' as const,
@@ -2292,5 +2299,247 @@ describe('UpdateAdminCharityCampaignUseCase', () => {
       useCase.handle({ ...base, description: 'ngắn' }),
     ).rejects.toThrow(ValidationFailedException);
     expect(updateContent).not.toHaveBeenCalled();
+  });
+});
+
+describe('Điều kiện tham gia chiến dịch (PR #54)', () => {
+  describe('CreateCharityCampaignUseCase', () => {
+    const create = (
+      repository: ReturnType<typeof makeRepository>,
+      extra: Record<string, unknown> = {},
+    ) =>
+      new CreateCharityCampaignUseCase(
+        repository,
+        makeEntitlements(true),
+        makeAdmin(true),
+        makeStorage(),
+      ).handle({
+        ...writeInput(extra),
+        actorUserId: ActorId,
+        asAdmin: false,
+      } as never);
+
+    it('không gửi thì giữ hành vi cũ: 0 người tối thiểu, không giới hạn hạng', async () => {
+      const repository = makeRepository();
+      repository.create.mockResolvedValue(campaign());
+      await create(repository);
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          minimumParticipants: 0,
+          minimumParticipantRank: null,
+        }),
+      );
+    });
+
+    it('gửi kèm thì lưu đúng giá trị', async () => {
+      const repository = makeRepository();
+      repository.create.mockResolvedValue(campaign());
+      await create(repository, {
+        minimumParticipants: 20,
+        minimumParticipantRank: UserRanks.SILVER,
+      });
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          minimumParticipants: 20,
+          minimumParticipantRank: UserRanks.SILVER,
+        }),
+      );
+    });
+
+    it.each([
+      [{ minimumParticipants: -1 }],
+      [{ minimumParticipantRank: 'PLATINUM' }],
+    ])('giá trị sai %p -> 400, không ghi', async (extra) => {
+      const repository = makeRepository();
+      await expect(create(repository, extra)).rejects.toThrow(
+        ValidationFailedException,
+      );
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('UpdateAdminCharityCampaignUseCase', () => {
+    function setup(existing: Partial<ICharityCampaign> = {}) {
+      const repository = makeRepository();
+      repository.findByGlobalId.mockResolvedValue(campaign(existing));
+      const updateContent = jest.fn(async (params: Record<string, unknown>) =>
+        campaign(params as never),
+      );
+      (repository as unknown as { updateContent: jest.Mock }).updateContent =
+        updateContent;
+      const appendAudit = jest.fn();
+      const admin = {
+        ...makeAdmin(true),
+        appendAudit,
+      } as unknown as ReturnType<typeof makeAdmin>;
+      return {
+        useCase: new UpdateAdminCharityCampaignUseCase(repository, admin),
+        updateContent,
+        appendAudit,
+      };
+    }
+    const base = {
+      actorUserId: ActorId,
+      campaignId: CampaignId,
+      reason: 'Sửa',
+    };
+
+    it('Admin đặt điều kiện mới; audit ghi đúng hai trường đổi', async () => {
+      const { useCase, updateContent, appendAudit } = setup();
+      await useCase.handle({
+        ...base,
+        minimumParticipants: 30,
+        minimumParticipantRank: UserRanks.GOLD,
+      } as never);
+      expect(updateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          minimumParticipants: 30,
+          minimumParticipantRank: UserRanks.GOLD,
+        }),
+      );
+      const [[audit]] = appendAudit.mock.calls as unknown as [
+        [{ after: Record<string, unknown> }],
+      ];
+      expect(Object.keys(audit.after).sort()).toEqual([
+        'minimumParticipantRank',
+        'minimumParticipants',
+      ]);
+    });
+
+    it('bỏ trống thì giữ nguyên; gửi null là bỏ giới hạn hạng', async () => {
+      const { useCase, updateContent } = setup({
+        minimumParticipants: 10,
+        minimumParticipantRank: UserRanks.SILVER,
+      });
+      await useCase.handle({ ...base, title: 'Tên mới đủ dài' } as never);
+      expect(updateContent).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          minimumParticipants: 10,
+          minimumParticipantRank: UserRanks.SILVER,
+        }),
+      );
+
+      await useCase.handle({ ...base, minimumParticipantRank: null } as never);
+      expect(updateContent).toHaveBeenLastCalledWith(
+        expect.objectContaining({ minimumParticipantRank: null }),
+      );
+    });
+
+    it.each([
+      [{ minimumParticipants: 100_001 }],
+      [{ minimumParticipantRank: 'silver' }],
+    ])('giá trị sai %p -> 400', async (extra) => {
+      const { useCase, updateContent } = setup();
+      await expect(
+        useCase.handle({ ...base, ...extra } as never),
+      ).rejects.toThrow(ValidationFailedException);
+      expect(updateContent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('JoinCharityCampaignUseCase', () => {
+    function setup(
+      minimumParticipantRank: UserRanks | null,
+      currentRank: UserRanks | null,
+    ) {
+      const repository = makeRepository();
+      repository.findByGlobalId.mockResolvedValue(
+        campaign({
+          minimumParticipantRank,
+          endTime: new Date(Date.now() + 24 * Hour),
+        }),
+      );
+      repository.register.mockResolvedValue({ created: true } as never);
+      const users = {
+        findOneBy: jest.fn(async () =>
+          currentRank === null
+            ? null
+            : { globalId: ActorId, rank: currentRank, deletedAt: null },
+        ),
+      };
+      return {
+        useCase: new JoinCharityCampaignUseCase(
+          repository,
+          users as unknown as IUserRepository,
+        ),
+        repository,
+        users,
+      };
+    }
+    const join = (useCase: JoinCharityCampaignUseCase) =>
+      useCase.handle({ actorUserId: ActorId, campaignId: CampaignId });
+
+    it('không giới hạn hạng thì đăng ký được, không cần tra hạng', async () => {
+      const { useCase, repository, users } = setup(null, UserRanks.VIEWER);
+      await join(useCase);
+      expect(repository.register).toHaveBeenCalled();
+      expect(users.findOneBy).not.toHaveBeenCalled();
+    });
+
+    it.each([UserRanks.SILVER, UserRanks.DIAMOND])(
+      'đủ hạng (%s ≥ SILVER) thì đăng ký vào REGISTERED như cũ',
+      async (rank) => {
+        const { useCase, repository } = setup(UserRanks.SILVER, rank);
+        await join(useCase);
+        expect(repository.register).toHaveBeenCalledWith({
+          campaignId: CampaignId,
+          userId: ActorId,
+        });
+      },
+    );
+
+    it('thiếu hạng -> 403 CHARITY_PARTICIPANT_RANK_TOO_LOW, không ghi', async () => {
+      const { useCase, repository } = setup(UserRanks.SILVER, UserRanks.MEMBER);
+      await expect(join(useCase)).rejects.toThrow(
+        CharityParticipantRankTooLowException,
+      );
+      expect(repository.register).not.toHaveBeenCalled();
+    });
+
+    it('đọc hạng HIỆN TẠI từ database theo người gọi — lệnh không mang hạng nào từ token', async () => {
+      // Token cũ có thể vẫn ghi GOLD sau khi người dùng bị hạ xuống MEMBER; use case
+      // không có đường nào nhận hạng ngoài lượt đọc này.
+      const { useCase, users, repository } = setup(
+        UserRanks.GOLD,
+        UserRanks.MEMBER,
+      );
+      await expect(join(useCase)).rejects.toThrow(
+        CharityParticipantRankTooLowException,
+      );
+      expect(users.findOneBy).toHaveBeenCalledWith({ globalId: ActorId });
+      expect(repository.register).not.toHaveBeenCalled();
+    });
+
+    it('đã đăng ký và còn hiệu lực -> 409 đã đăng ký, KHÔNG báo thiếu hạng sau khi Admin nâng hạng', async () => {
+      // Admin nâng hạng tối thiểu sau khi người này đã đăng ký: lượt bấm lại phải nói "bạn
+      // đã đăng ký", không được nói "bạn không đủ điều kiện" với một người vẫn hợp lệ.
+      const { useCase, repository, users } = setup(
+        UserRanks.DIAMOND,
+        UserRanks.MEMBER,
+      );
+      repository.findParticipationStatus.mockResolvedValue('REGISTERED');
+      repository.register.mockResolvedValue({ created: false } as never);
+      await expect(join(useCase)).rejects.toThrow(
+        CharityAlreadyRegisteredException,
+      );
+      expect(users.findOneBy).not.toHaveBeenCalled();
+    });
+
+    it('đã huỷ rồi đăng ký lại thì vẫn phải qua cổng hạng', async () => {
+      const { useCase, repository } = setup(UserRanks.GOLD, UserRanks.MEMBER);
+      repository.findParticipationStatus.mockResolvedValue('CANCELLED');
+      await expect(join(useCase)).rejects.toThrow(
+        CharityParticipantRankTooLowException,
+      );
+      expect(repository.register).not.toHaveBeenCalled();
+    });
+
+    it('không tìm thấy tài khoản thì chặn (fail-closed)', async () => {
+      const { useCase, repository } = setup(UserRanks.MEMBER, null);
+      await expect(join(useCase)).rejects.toThrow(
+        CharityParticipantRankTooLowException,
+      );
+      expect(repository.register).not.toHaveBeenCalled();
+    });
   });
 });

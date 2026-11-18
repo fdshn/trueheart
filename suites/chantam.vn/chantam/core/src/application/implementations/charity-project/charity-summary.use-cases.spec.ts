@@ -12,6 +12,7 @@ import { CharityProjectAccess } from './charity-project.use-cases';
 import {
   EvaluateCharityParticipantUseCase,
   GetCharityPromotionUseCase,
+  GetCharitySummaryUseCase,
   GetMyCharityEvaluationUseCase,
   PublishCharitySummaryUseCase,
   SaveCharitySummaryUseCase,
@@ -51,6 +52,7 @@ function make(stage: 'EVENT' | 'SUMMARY' = 'SUMMARY', adminWrite = false) {
     addEvaluation: jest.fn(async () => ({ completionScore: 80 })),
     latestEvaluation: jest.fn(async (): Promise<unknown> => null),
     setPromotion: jest.fn(async () => ({ featuredOnHome: true })),
+    countParticipation: jest.fn(async () => ({ registered: 12, checkedIn: 7 })),
   };
   const projects = {
     listFundingNeeds: jest.fn(async () => [] as unknown[]),
@@ -254,5 +256,36 @@ describe('GetCharityPromotionUseCase', () => {
         campaignId: CampaignId,
       }),
     ).rejects.toThrow(CharityCampaignNotFoundException);
+  });
+});
+
+describe('Tổng kết · số người tham gia so với tối thiểu (PR #54)', () => {
+  const board = (minimumParticipants: number) => {
+    const deps = make();
+    (deps.campaign as { minimumParticipants: number }).minimumParticipants =
+      minimumParticipants;
+    return new GetCharitySummaryUseCase(
+      deps.access,
+      deps.summaries as never,
+      deps.projects as never,
+    ).handle({ userId: Owner, campaignId: CampaignId });
+  };
+
+  it('trả số đăng ký, số đã check-in và tối thiểu; chưa đạt chỉ là cờ cảnh báo', async () => {
+    expect((await board(10)).participation).toEqual({
+      registeredCount: 12,
+      checkedInCount: 7,
+      minimumParticipants: 10,
+      minimumParticipantsMet: false,
+    });
+  });
+
+  it('đối chiếu theo số ĐÃ check-in, không theo số đăng ký', async () => {
+    expect((await board(7)).participation.minimumParticipantsMet).toBe(true);
+    expect((await board(8)).participation.minimumParticipantsMet).toBe(false);
+  });
+
+  it('minimumParticipants = 0 là không đặt — luôn đạt', async () => {
+    expect((await board(0)).participation.minimumParticipantsMet).toBe(true);
   });
 });

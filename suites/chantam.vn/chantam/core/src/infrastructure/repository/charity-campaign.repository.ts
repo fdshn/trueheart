@@ -42,6 +42,7 @@ import {
   IDecideContributionResult,
   IPointLedgerRepository,
 } from '@/domain/ports/repository';
+import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   CharityApprovalStatus,
   CharityBeneficiaryRelation,
@@ -91,6 +92,8 @@ interface IRow {
   campaign_type: string;
   beneficiary_relation: string | null;
   allow_over_target: boolean;
+  minimum_participants: number;
+  minimum_participant_rank: string | null;
   submitted_at: Date | null;
   operation_stage: string;
   distribution_starts_at: Date | null;
@@ -335,6 +338,7 @@ const Columns = `campaigns.global_id, campaigns.title, campaigns.slug, campaigns
        campaigns.created_at, campaigns.updated_at,
        campaigns.campaign_type, campaigns.beneficiary_relation,
        campaigns.allow_over_target,
+       campaigns.minimum_participants, campaigns.minimum_participant_rank,
        campaigns.submitted_at, campaigns.operation_stage,
        (SELECT phase.starts_at FROM campaign_phases phase
          WHERE phase.campaign_id = campaigns.global_id
@@ -404,6 +408,8 @@ function toCampaign(row: IRow): ICharityCampaign {
     beneficiaryRelation:
       row.beneficiary_relation as CharityBeneficiaryRelation | null,
     allowOverTarget: row.allow_over_target,
+    minimumParticipants: Number(row.minimum_participants),
+    minimumParticipantRank: row.minimum_participant_rank as UserRanks | null,
     // `count(*)` về đây là CHUỖI. Trả thẳng ra API thì client nhận `"3"` và mọi phép
     // so sánh số ở đó đều sai một cách im lặng.
     participantCount: Number(row.participant_count),
@@ -522,13 +528,15 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
             location, location_label, start_time, end_time,
             created_by, approval_status, approved_by, approved_at,
             campaign_type, beneficiary_relation, allow_over_target,
-            submitted_at, operation_stage)
+            submitted_at, operation_stage,
+            minimum_participants, minimum_participant_rank)
          VALUES ($1, $2, $3, $4, $5, $6, ${LocationExpression}, $8, $7, $11,
                  $12, $13, $14,
                  CASE WHEN $15 = 'PENDING_APPROVAL' THEN NULL ELSE now() END,
                  $16, $17, $18,
                  CASE WHEN $19 THEN now() END,
-                 CASE WHEN $15 = 'APPROVED' THEN 'EXECUTION' ELSE 'PLAN' END)
+                 CASE WHEN $15 = 'APPROVED' THEN 'EXECUTION' ELSE 'PLAN' END,
+                 $20, $21)
          RETURNING *
        )
        SELECT ${Columns} FROM inserted AS campaigns`,
@@ -558,6 +566,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         params.beneficiaryRelation,
         params.allowOverTarget,
         params.submitted,
+        params.minimumParticipants,
+        params.minimumParticipantRank,
       ],
     );
     // Công khai ngay lúc tạo (Admin, hoặc capability public-ngay) là một lần chuyển
@@ -2385,6 +2395,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     lat: number | null;
     lng: number | null;
     locationLabel: string | null;
+    minimumParticipants: number;
+    minimumParticipantRank: UserRanks | null;
   }): Promise<ICharityCampaign | null> {
     const rows = await updateReturning<IRow>(
       this.manager,
@@ -2397,6 +2409,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
                   ELSE ST_SetSRID(ST_MakePoint($7::float8, $6::float8), 4326)::geography
                 END,
                 location_label = $8,
+                minimum_participants = $9,
+                minimum_participant_rank = $10,
                 updated_at = now()
           WHERE global_id = $1 AND deleted_at IS NULL
           RETURNING *
@@ -2411,6 +2425,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         params.lat,
         params.lng,
         params.locationLabel,
+        params.minimumParticipants,
+        params.minimumParticipantRank,
       ],
     );
     return rows.length > 0 ? toCampaign(rows[0]) : null;

@@ -1456,6 +1456,14 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['check-in', 'Sự kiện trao hoặc Tổng kết'],
   },
 
+  CHARITY_PARTICIPANT_RANK_TOO_LOW: {
+    code: ErrorCodes.CHARITY_PARTICIPANT_RANK_TOO_LOW,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: (requiredRank: string) =>
+      `Hoạt động này chỉ nhận người tham gia từ hạng ${requiredRank} trở lên`,
+    sample: ['SILVER'],
+  },
+
   CHARITY_EXTERNAL_SOURCE_DUPLICATED: {
     code: ErrorCodes.CHARITY_EXTERNAL_SOURCE_DUPLICATED,
     httpStatus: HttpStatus.CONFLICT,

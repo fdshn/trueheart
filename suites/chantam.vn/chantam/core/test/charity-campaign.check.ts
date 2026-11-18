@@ -66,8 +66,10 @@ import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
+import { CharitySummaryRepository } from '../src/infrastructure/repository/charity-summary.repository';
 import { EntitlementRepository } from '../src/infrastructure/repository/entitlement.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
+import { UserRepository } from '../src/infrastructure/repository/user.repository';
 import {
   fakeCampaignMediaStorage,
   freshMediaKey,
@@ -220,7 +222,10 @@ async function main(): Promise<void> {
       const key = freshMediaKey(command.actorUserId);
       return { media: [key], coverKey: key, ...command };
     };
-    const joinUseCase = new JoinCharityCampaignUseCase(repository);
+    const joinUseCase = new JoinCharityCampaignUseCase(
+      repository,
+      new UserRepository(entities.UserEntity as never, dataSource.manager),
+    );
     const cancelUseCase = new CancelCharityParticipationUseCase(repository);
     const reviewUseCase = new ReviewCharityCampaignUseCase(repository);
     const progressUseCase = new UpdateCharityProgressUseCase(
@@ -524,6 +529,121 @@ async function main(): Promise<void> {
           note: 'Đổi ý',
         }),
       'CharityApprovalAlreadyDecidedException',
+    );
+
+    console.log('\n4b. Điều kiện tham gia (PR #54) — hạng đọc từ database');
+
+    const gated = diamondPublished.globalId;
+    check(
+      'hoạt động tạo mới không khai gì -> 0 người tối thiểu, không giới hạn hạng',
+      diamondPublished.minimumParticipants === 0 &&
+        diamondPublished.minimumParticipantRank === null,
+      `${diamondPublished.minimumParticipants} / ${String(diamondPublished.minimumParticipantRank)}`,
+    );
+    await dataSource.query(
+      `UPDATE campaigns SET minimum_participants = 2, minimum_participant_rank = 'GOLD'
+        WHERE global_id = $1`,
+      [gated],
+    );
+    const gatedRow = await repository.findByGlobalId(gated);
+    check(
+      'repository đọc lại đúng hai cột mới',
+      gatedRow?.minimumParticipants === 2 &&
+        gatedRow.minimumParticipantRank === 'GOLD',
+      `${String(gatedRow?.minimumParticipants)} / ${String(gatedRow?.minimumParticipantRank)}`,
+    );
+
+    await expectThrow(
+      'MEMBER đăng ký hoạt động đòi GOLD -> CharityParticipantRankTooLow',
+      () => joinUseCase.handle({ actorUserId: MemberId, campaignId: gated }),
+      'CharityParticipantRankTooLowException',
+    );
+    const [blockedRows] = await dataSource.query<{ total: string }[]>(
+      `SELECT count(*)::text AS total FROM campaign_participations
+        WHERE campaign_id = $1 AND user_id = $2`,
+      [gated, MemberId],
+    );
+    check(
+      'bị chặn thì KHÔNG có hàng tham gia nào',
+      blockedRows.total === '0',
+      blockedRows.total,
+    );
+
+    // Hạng đổi SAU khi phát token: use case đọc bảng `users`, nên nâng hạng trong database là
+    // đủ — không cần token mới.
+    await dataSource.query(
+      `UPDATE users SET rank = 'GOLD' WHERE global_id = $1`,
+      [MemberId],
+    );
+    await joinUseCase.handle({ actorUserId: MemberId, campaignId: gated });
+    const [memberStatus] = await dataSource.query<{ status: string }[]>(
+      `SELECT status FROM campaign_participations
+        WHERE campaign_id = $1 AND user_id = $2`,
+      [gated, MemberId],
+    );
+    check(
+      'nâng hạng trong database -> đăng ký được, vào đúng REGISTERED (không tự check-in)',
+      memberStatus?.status === 'REGISTERED',
+      String(memberStatus?.status),
+    );
+
+    await dataSource.query(
+      `UPDATE campaigns SET minimum_participant_rank = 'DIAMOND' WHERE global_id = $1`,
+      [gated],
+    );
+    const [keptStatus] = await dataSource.query<{ status: string }[]>(
+      `SELECT status FROM campaign_participations
+        WHERE campaign_id = $1 AND user_id = $2`,
+      [gated, MemberId],
+    );
+    check(
+      'nâng hạng tối thiểu sau đó KHÔNG đụng người đã đăng ký',
+      keptStatus?.status === 'REGISTERED',
+      String(keptStatus?.status),
+    );
+
+    const summaries = new CharitySummaryRepository(dataSource.manager);
+    await joinUseCase.handle({ actorUserId: DiamondId, campaignId: gated });
+    await dataSource.query(
+      `UPDATE campaign_participations SET status = 'CHECKED_IN', checked_in_at = now()
+        WHERE campaign_id = $1 AND user_id = $2`,
+      [gated, DiamondId],
+    );
+    const counts = await summaries.countParticipation(gated);
+    check(
+      'tổng kết đếm 2 lượt còn hiệu lực, 1 đã check-in',
+      counts.registered === 2 && counts.checkedIn === 1,
+      JSON.stringify(counts),
+    );
+
+    await expectReject(
+      'CHECK: minimum_participants âm bị chặn',
+      () =>
+        dataSource.query(
+          `UPDATE campaigns SET minimum_participants = -1 WHERE global_id = $1`,
+          [gated],
+        ),
+      'CHK_campaigns_minimum_participants',
+    );
+    await expectReject(
+      'CHECK: hạng ngoài enum bị chặn',
+      () =>
+        dataSource.query(
+          `UPDATE campaigns SET minimum_participant_rank = 'PLATINUM' WHERE global_id = $1`,
+          [gated],
+        ),
+      'CHK_campaigns_minimum_participant_rank',
+    );
+
+    // Trả hoạt động và người dùng về như cũ cho các nhóm sau.
+    await dataSource.query(
+      `UPDATE campaigns SET minimum_participants = 0, minimum_participant_rank = NULL
+        WHERE global_id = $1`,
+      [gated],
+    );
+    await dataSource.query(
+      `UPDATE users SET rank = 'MEMBER' WHERE global_id = $1`,
+      [MemberId],
     );
 
     console.log('\n5. Đăng ký, huỷ, đăng ký lại — và BR-CHARITY-03');
@@ -1073,6 +1193,8 @@ async function main(): Promise<void> {
       lat: 21.0285,
       lng: 105.8542,
       locationLabel: 'Hoàn Kiếm, Hà Nội',
+      minimumParticipants: 0,
+      minimumParticipantRank: null,
     });
     check(
       'ghi đủ trường, toạ độ đi qua PostGIS đúng thứ tự lat/lng',
@@ -1097,6 +1219,8 @@ async function main(): Promise<void> {
       lat: null,
       lng: null,
       locationLabel: null,
+      minimumParticipants: 0,
+      minimumParticipantRank: null,
     });
     check(
       'null là xoá vị trí',

@@ -3,6 +3,7 @@ import {
   ICharityNeedItemInput,
 } from '@/application/contracts/charity-campaign';
 import { CharityCampaignPhases } from '@/domain/ports/repository';
+import { RankOrder, UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   CharityApprovalStatuses,
   CharityBeneficiaryRelations,
@@ -16,6 +17,7 @@ import {
   MaxCharityBadgeNameLength,
   MaxCharityDescriptionLength,
   MaxCharityMediaPerCampaign,
+  MaxCharityMinimumParticipants,
   MaxCharityReviewCommentLength,
   MaxCharitySlugLength,
   MaxCharityTargetItems,
@@ -281,6 +283,30 @@ export class WriteCharityCampaignDto {
   @IsOptional()
   @IsBoolean()
   allowOverTarget?: boolean;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: MaxCharityMinimumParticipants,
+    default: 0,
+    description:
+      'Số người tham gia tối thiểu (PR #54). `0` = không đặt. Tổng kết đối chiếu với số đã check-in; chưa đạt chỉ là cảnh báo, không tự huỷ hoạt động.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(MaxCharityMinimumParticipants)
+  minimumParticipants?: number;
+
+  @ApiPropertyOptional({
+    enum: RankOrder,
+    nullable: true,
+    description:
+      'Hạng tối thiểu để đăng ký tham gia (PR #54). Bỏ trống/`null` = không giới hạn. Server so với hạng HIỆN TẠI trong database lúc đăng ký — thiếu hạng là `403 CHARITY_PARTICIPANT_RANK_TOO_LOW`.',
+  })
+  @IsOptional()
+  @IsIn(RankOrder as readonly string[])
+  minimumParticipantRank?: UserRanks | null;
 
   @ApiPropertyOptional({
     default: true,
@@ -634,6 +660,28 @@ export class UpdateAdminCharityCampaignDto {
   @MaxLength(255)
   locationLabel?: string | null;
 
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: MaxCharityMinimumParticipants,
+    description: 'Số người tham gia tối thiểu (PR #54). Bỏ trống = giữ nguyên.',
+  })
+  @NotNullWhenPresent()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(MaxCharityMinimumParticipants)
+  minimumParticipants?: number;
+
+  @ApiPropertyOptional({
+    enum: RankOrder,
+    nullable: true,
+    description:
+      'Hạng tối thiểu để đăng ký (PR #54). Bỏ trống = giữ nguyên; `null` = bỏ giới hạn. Nâng hạng KHÔNG huỷ người đã đăng ký — chỉ chặn lượt đăng ký mới.',
+  })
+  @IsOptional()
+  @IsIn(RankOrder as readonly string[])
+  minimumParticipantRank?: UserRanks | null;
+
   @ApiProperty({
     minLength: 3,
     maxLength: 500,
@@ -727,6 +775,21 @@ export class CharityCampaignResponseDto {
       'Chấp nhận đề nghị vượt mục tiêu từng dòng nhu cầu. Mặc định `false`.',
   })
   allowOverTarget: boolean;
+
+  @ApiProperty({
+    minimum: 0,
+    description:
+      'Số người tham gia tối thiểu (PR #54). `0` = không đặt. Hoạt động trước 18/11 là `0`.',
+  })
+  minimumParticipants: number;
+
+  @ApiProperty({
+    enum: RankOrder,
+    nullable: true,
+    description:
+      'Hạng tối thiểu để đăng ký tham gia (PR #54). `null` = không giới hạn. App/Admin dùng giá trị enum này, không tự so tên hạng.',
+  })
+  minimumParticipantRank: UserRanks | null;
 
   @ApiProperty({
     type: String,

@@ -415,6 +415,8 @@ export enum ErrorCodes {
   CHARITY_POST_VIDEO_TOO_LONG = 0x13_52,
   /** Bước của lượt tham gia chưa (hoặc không còn) hợp với giai đoạn dự án — vd check-in trước Sự kiện trao. */
   CHARITY_PARTICIPATION_STAGE_NOT_ALLOWED = 0x13_53,
+  /** Hạng hiện tại (đọc từ database) thấp hơn hạng tối thiểu chiến dịch đặt cho người tham gia. */
+  CHARITY_PARTICIPANT_RANK_TOO_LOW = 0x13_54,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

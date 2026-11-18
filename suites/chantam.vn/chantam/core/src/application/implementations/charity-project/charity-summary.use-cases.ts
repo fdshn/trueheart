@@ -48,6 +48,7 @@ import {
 import {
   CharityCompletionBlockerLabels,
   CharityFeaturedCtas,
+  charityMinimumParticipantsMet,
   stageRank,
   summaryNeedsFinancialReport,
 } from '@chantam.vn/chantam.core-lib/models';
@@ -96,15 +97,26 @@ export class GetCharitySummaryUseCase implements IGetCharitySummaryUseCase {
       command.campaignId,
       command.userId,
     );
-    const [summary, financialReports, funding] = await Promise.all([
+    const [summary, financialReports, funding, counts] = await Promise.all([
       this.summaries.getSummary(campaign.globalId),
       this.summaries.listFinancialReports(campaign.globalId),
       this.projects.listFundingNeeds(campaign.globalId),
+      this.summaries.countParticipation(campaign.globalId),
     ]);
+    const minimumParticipants = campaign.minimumParticipants ?? 0;
     return {
       summary,
       financialReports,
       financialReportRequired: summaryNeedsFinancialReport(funding),
+      participation: {
+        registeredCount: counts.registered,
+        checkedInCount: counts.checkedIn,
+        minimumParticipants,
+        minimumParticipantsMet: charityMinimumParticipantsMet(
+          minimumParticipants,
+          counts.checkedIn,
+        ),
+      },
     };
   }
 }

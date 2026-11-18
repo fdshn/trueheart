@@ -1117,6 +1117,10 @@ Soạn thảo rich text/markdown, ảnh bìa trên R2, phân chuyên mục, publ
 chia sẻ trên mobile.
 
 ### F65 — Quản lý Từ thiện, Rao vặt, Quảng cáo, Công đức
+
+> ✅ **18/11 — điều kiện tham gia (PR #54).** Chiến dịch có `minimumParticipants` (số người tối
+> thiểu, chỉ để tổng kết cảnh báo) và `minimumParticipantRank` (hạng tối thiểu để đăng ký,
+> đọc hạng hiện tại từ database). Tổng kết trả số đăng ký / đã check-in so với số tối thiểu.
 Duyệt sự kiện do Kim Cương đề xuất; quản lý nội dung quảng cáo, đơn vị Công đức, và dữ liệu
 tham chiếu của Rao vặt.
 

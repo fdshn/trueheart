@@ -158,6 +158,28 @@ export class CharityFinancialReportResponseDto {
   @ApiProperty({ type: () => CharityFinancialReportViewDto })
   report: CharityFinancialReportViewDto;
 }
+export class CharitySummaryParticipationDto {
+  @ApiProperty({
+    description:
+      'Lượt tham gia còn hiệu lực (đăng ký, xác nhận, chờ, check-in, hoàn thành).',
+  })
+  registeredCount: number;
+
+  @ApiProperty({
+    description: 'Đã check-in hoặc hoàn thành — người thật sự có mặt.',
+  })
+  checkedInCount: number;
+
+  @ApiProperty({ description: 'Số tối thiểu của dự án. `0` = không đặt.' })
+  minimumParticipants: number;
+
+  @ApiProperty({
+    description:
+      'Đạt số tối thiểu chưa, so theo `checkedInCount`. Chỉ là cảnh báo — không tự huỷ dự án; số thực tế đếm từ bảng tham gia, không sửa tay được.',
+  })
+  minimumParticipantsMet: boolean;
+}
+
 export class CharitySummaryBoardResponseDto {
   @ApiProperty({ type: () => CharitySummaryViewDto, nullable: true })
   summary: CharitySummaryViewDto | null;
@@ -167,6 +189,8 @@ export class CharitySummaryBoardResponseDto {
     description: 'Có nhận tiền → cần ít nhất một báo cáo trước khi công khai',
   })
   financialReportRequired: boolean;
+  @ApiProperty({ type: () => CharitySummaryParticipationDto })
+  participation: CharitySummaryParticipationDto;
 }
 
 export class CharityPublicSupportersDto {

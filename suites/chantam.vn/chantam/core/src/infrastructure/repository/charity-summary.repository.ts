@@ -11,6 +11,8 @@ import {
   ICharityUserBrief,
 } from '@/domain/ports/repository';
 import {
+  CharityActiveParticipationStatusesSql,
+  CharityAttendedParticipationStatuses,
   CharityEvaluationSource,
   CharityFeaturedCta,
   diffCharityRevisions,
@@ -156,6 +158,14 @@ const toPromotion = (row: IPromotionRow): ICharityPromotion => ({
   promotionRequestNote: row.promotion_request_note,
 });
 
+/**
+ * Cùng danh sách với `CharityAttendedParticipationStatuses` — dựng từ hằng của core-lib để số
+ * đã check-in ở tổng kết không lệch khỏi định nghĩa "đã có mặt" khi danh sách đó đổi.
+ */
+const AttendedStatusesSql = CharityAttendedParticipationStatuses.map(
+  (status) => `'${status}'`,
+).join(', ');
+
 /** Dự án từ thiện — đợt 4a (CHARITY-PROJECT-LIFECYCLE §3.6, §3.14, §3.17). */
 @Injectable()
 export class CharitySummaryRepository implements ICharitySummaryRepository {
@@ -164,6 +174,29 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
   ) {}
 
   // ── Tổng kết ──────────────────────────────────────────────────────────
+
+  public async countParticipation(
+    campaignId: string,
+  ): Promise<{ registered: number; checkedIn: number }> {
+    // `count(*) FILTER` về đây là CHUỖI — đổi sang số trước khi trả ra.
+    const [row] = await this.manager.query<
+      { registered: string; checked_in: string }[]
+    >(
+      `SELECT count(*) FILTER (
+                WHERE status IN (${CharityActiveParticipationStatusesSql})
+              )::text AS registered,
+              count(*) FILTER (
+                WHERE status IN (${AttendedStatusesSql})
+              )::text AS checked_in
+         FROM campaign_participations
+        WHERE campaign_id = $1`,
+      [campaignId],
+    );
+    return {
+      registered: Number(row?.registered ?? 0),
+      checkedIn: Number(row?.checked_in ?? 0),
+    };
+  }
 
   public async getSummary(campaignId: string): Promise<ICharitySummary | null> {
     const [row] = await this.manager.query<ISummaryRow[]>(

@@ -347,3 +347,7 @@ export class CharityAppealWindowClosedException extends ExceptionFrom(
 export class CharityAppealRateLimitedException extends ExceptionFrom(
   CoreErrors.CHARITY_APPEAL_RATE_LIMITED,
 ) {}
+
+export class CharityParticipantRankTooLowException extends ExceptionFrom(
+  CoreErrors.CHARITY_PARTICIPANT_RANK_TOO_LOW,
+) {}

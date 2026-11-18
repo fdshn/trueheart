@@ -44,6 +44,7 @@ import {
   CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
   CharityNotRegisteredException,
+  CharityParticipantRankTooLowException,
   CharityParticipationClosedException,
   CharityParticipationInvalidStateException,
   CharityReviewDuplicateException,
@@ -687,6 +688,7 @@ export class CharityCampaignController {
     CharityCampaignNotFoundException,
     CharityParticipationClosedException,
     CharityAlreadyRegisteredException,
+    CharityParticipantRankTooLowException,
   )
   @ApiCreatedResponse({
     type: ResponseDto.forApi(CharityCampaignWrapperResponseDto),

@@ -103,6 +103,7 @@ import {
   CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
   CharityNotRegisteredException,
+  CharityParticipantRankTooLowException,
   CharityParticipationClosedException,
   CharityParticipationInvalidStateException,
   CharityReviewDuplicateException,
@@ -121,8 +122,11 @@ import {
   ICharitySummaryRepository,
   ICloseCampaignResult,
   IEntitlementRepository,
+  IUserRepository,
 } from '@/domain/ports/repository';
+import { hasRankAtLeast } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  CharityActiveParticipationStatuses,
   CharityApprovalStatus,
   CharityCampaignType,
   CharityCancellableParticipationStatuses,
@@ -138,6 +142,7 @@ import {
   charityCampaignGaps,
   charityMediaShapeGaps,
   charityMediaTypeGaps,
+  charityParticipationRequirementGaps,
   charityReviewRoleOf,
   isCharityReviewRating,
   normalizeCharitySlug,
@@ -354,6 +359,10 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       command.beneficiary?.consentStatus !== 'CONFIRMED'
     )
       approvalStatus = 'PENDING_APPROVAL';
+    // Điều kiện tham gia (PR #54) kiểm cùng lượt với nội dung, TRƯỚC lượt gọi R2.
+    const requirementGaps = charityParticipationRequirementGaps(command);
+    if (requirementGaps.length > 0)
+      throw new ValidationFailedException(requirementGaps);
     const prepared = await prepareWrite(this.repository, command);
     // SAU quyền và nội dung: người không được tạo, hoặc gửi hồ sơ thiếu, không tốn
     // lượt gọi R2 nào.
@@ -370,6 +379,9 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       media,
       campaignType: command.campaignType,
       allowOverTarget: command.allowOverTarget ?? false,
+      // Chiến dịch không khai gì giữ đúng hành vi cũ: không số tối thiểu, không giới hạn hạng.
+      minimumParticipants: command.minimumParticipants ?? 0,
+      minimumParticipantRank: command.minimumParticipantRank ?? null,
       beneficiary: command.beneficiary
         ? {
             fullName: command.beneficiary.fullName.trim(),
@@ -1398,6 +1410,9 @@ export class JoinCharityCampaignUseCase implements IJoinCharityCampaignUseCase {
   public constructor(
     @Inject(ICharityCampaignRepository)
     private readonly repository: ICharityCampaignRepository,
+    // BẮT BUỘC, không `@Optional()`: thiếu nó thì phép chặn hạng (PR #54) lặng lẽ biến mất.
+    @Inject(IUserRepository)
+    private readonly users: IUserRepository,
     @Inject(ICharitySummaryRepository)
     private readonly summaries?: ICharitySummaryRepository,
   ) {}
@@ -1415,6 +1430,31 @@ export class JoinCharityCampaignUseCase implements IJoinCharityCampaignUseCase {
     // HUỶ. Chặn ở `start_time` là tự thêm một luật đặc tả không nêu.
     if (!campaign.isActive || campaign.endTime.getTime() <= Date.now())
       throw new CharityParticipationClosedException();
+
+    // Hạng tối thiểu (PR #54): đọc hạng HIỆN TẠI từ database, không tin hạng trong access
+    // token — token sống tới hạn refresh nên người vừa bị hạ hạng vẫn mang hạng cũ. Không tìm
+    // thấy tài khoản thì chặn: không biết hạng là không chứng minh được đủ hạng.
+    const requiredRank = campaign.minimumParticipantRank;
+    // Người ĐÃ có lượt còn hiệu lực không qua cổng hạng: Admin nâng hạng sau khi họ đăng ký
+    // thì họ vẫn hợp lệ, và lượt bấm lại phải nhận "đã đăng ký" (409) chứ không phải "không
+    // đủ điều kiện" (403). Lượt đã huỷ thì đăng ký lại là đăng ký MỚI — vẫn qua cổng.
+    const existingStatus =
+      requiredRank === null
+        ? null
+        : await this.repository.findParticipationStatus({
+            campaignId: campaign.globalId,
+            userId: command.actorUserId,
+          });
+    const alreadyActive =
+      existingStatus !== null &&
+      CharityActiveParticipationStatuses.includes(existingStatus);
+    if (requiredRank !== null && !alreadyActive) {
+      const user = await this.users.findOneBy({
+        globalId: command.actorUserId,
+      });
+      if (!user || !hasRankAtLeast(user.rank, requiredRank))
+        throw new CharityParticipantRankTooLowException(requiredRank);
+    }
 
     const { created } = await this.repository.register({
       campaignId: campaign.globalId,
@@ -1834,8 +1874,17 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
         command.locationLabel === undefined
           ? existing.locationLabel
           : command.locationLabel?.trim() || null,
+      // Điều kiện tham gia (PR #54). Nâng hạng tối thiểu KHÔNG đụng người đã đăng ký — nó
+      // chỉ được đọc ở lượt đăng ký mới.
+      minimumParticipants:
+        command.minimumParticipants ?? existing.minimumParticipants,
+      minimumParticipantRank:
+        command.minimumParticipantRank === undefined
+          ? existing.minimumParticipantRank
+          : command.minimumParticipantRank,
     };
 
+    gaps.push(...charityParticipationRequirementGaps(command));
     gaps.push(
       ...charityCampaignGaps({
         ...next,

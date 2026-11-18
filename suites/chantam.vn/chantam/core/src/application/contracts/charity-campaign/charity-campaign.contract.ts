@@ -12,6 +12,7 @@ import {
   ICloseCampaignResult,
   IDecideContributionResult,
 } from '@/domain/ports/repository';
+import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   CharityApprovalStatus,
   CharityBeneficiaryRelation,
@@ -104,6 +105,10 @@ export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput 
   readonly needs?: readonly ICharityNeedItemInput[];
   /** Cho lượt chấp nhận đề nghị vượt mục tiêu từng dòng (§5). Mặc định `false`. */
   readonly allowOverTarget?: boolean;
+  /** Số người tham gia tối thiểu (PR #54), 0–100.000. Bỏ trống = `0` (không đặt). */
+  readonly minimumParticipants?: number;
+  /** Hạng tối thiểu để đăng ký tham gia (PR #54). Bỏ trống/`null` = không giới hạn. */
+  readonly minimumParticipantRank?: UserRanks | null;
   /**
    * Người thụ hưởng — CHỈ cho `INDIVIDUAL_APPEAL` + `OTHER`. Thiếu, hoặc đồng ý chưa
    * `CONFIRMED`, thì hoạt động vào `PENDING_APPROVAL` kể cả khi người tạo có quyền
@@ -650,6 +655,10 @@ export interface IUpdateAdminCharityCampaignCommand {
   readonly lat?: number | null;
   readonly lng?: number | null;
   readonly locationLabel?: string | null;
+  /** Bỏ trống = giữ nguyên (PR #54). */
+  readonly minimumParticipants?: number;
+  /** Bỏ trống = giữ nguyên; `null` = bỏ giới hạn hạng. Không đụng người ĐÃ đăng ký. */
+  readonly minimumParticipantRank?: UserRanks | null;
   readonly reason: string;
 }
 

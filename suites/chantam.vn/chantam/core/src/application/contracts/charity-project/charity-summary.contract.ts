@@ -18,6 +18,17 @@ export interface ICharitySummaryBoard {
   financialReports: ICharityFinancialReport[];
   /** Có nhận tiền → cần ít nhất một báo cáo tài chính trước khi công khai. */
   financialReportRequired: boolean;
+  /**
+   * Số người thực tế so với số tối thiểu (PR #54). Chưa đạt chỉ là CẢNH BÁO — không ai tự
+   * huỷ dự án theo nó, và số thực tế đếm từ bảng tham gia nên không sửa tay được.
+   */
+  participation: {
+    registeredCount: number;
+    checkedInCount: number;
+    minimumParticipants: number;
+    /** So theo số ĐÃ check-in (người thật sự có mặt). `minimumParticipants = 0` thì luôn đạt. */
+    minimumParticipantsMet: boolean;
+  };
 }
 
 export interface IGetCharitySummaryUseCase extends IUseCase<

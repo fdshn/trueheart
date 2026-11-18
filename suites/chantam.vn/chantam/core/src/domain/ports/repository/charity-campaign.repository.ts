@@ -1,3 +1,4 @@
+import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   CharityApprovalStatus,
   CharityBeneficiaryRelation,
@@ -78,6 +79,16 @@ export interface ICharityCampaign {
   readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
   /** Lượt chấp nhận đề nghị được vượt mục tiêu từng dòng (§5). Mặc định `false`. */
   readonly allowOverTarget: boolean;
+  /**
+   * Số người tham gia tối thiểu (PR #54). `0` = không đặt. Tổng kết đối chiếu với số đã
+   * check-in — chỉ cảnh báo, không tự huỷ.
+   */
+  readonly minimumParticipants: number;
+  /**
+   * Hạng tối thiểu để ĐĂNG KÝ tham gia (PR #54). `null` = không giới hạn. So với hạng hiện
+   * tại trong database, không theo token.
+   */
+  readonly minimumParticipantRank: UserRanks | null;
   /**
    * `null` = NHÁP (docs/plan/CHARITY-PROJECT-LIFECYCLE.md §3.1): chỉ người tạo thấy, Admin
    * không thấy trong hàng đợi duyệt.
@@ -170,6 +181,8 @@ export interface ICreateCharityCampaignParams {
   readonly campaignType: CharityCampaignType;
   readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
   readonly allowOverTarget: boolean;
+  readonly minimumParticipants: number;
+  readonly minimumParticipantRank: UserRanks | null;
   /** `false` = lưu NHÁP: `submitted_at` NULL, `approvalStatus` phải là PENDING_APPROVAL. */
   readonly submitted: boolean;
   /** Người thụ hưởng, ghi cùng transaction. Chỉ có ở kêu gọi cho NGƯỜI KHÁC. */
@@ -501,6 +514,8 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     readonly lat: number | null;
     readonly lng: number | null;
     readonly locationLabel: string | null;
+    readonly minimumParticipants: number;
+    readonly minimumParticipantRank: UserRanks | null;
   }): Promise<ICharityCampaign | null>;
 
   /** Cập nhật con số LỜI KHAI. Xem `currentItemsCount`. */

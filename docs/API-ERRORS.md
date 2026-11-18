@@ -265,6 +265,7 @@ Nghiệp vụ Chân Tâm
 | `0x1351` | `4945` | 409 Conflict | `CHARITY_DISPUTE_INVALID_STATE` | Tranh chấp đang ở trạng thái RESOLVED, không thực hiện được bước này |
 | `0x1352` | `4946` | 400 Bad Request | `CHARITY_POST_VIDEO_TOO_LONG` | Clip dài tối đa 60 giây — cắt ngắn rồi tải lại |
 | `0x1353` | `4947` | 409 Conflict | `CHARITY_PARTICIPATION_STAGE_NOT_ALLOWED` | Chưa thể check-in ở giai đoạn hiện tại của dự án — chỉ làm được khi dự án ở Sự kiện trao hoặc Tổng kết |
+| `0x1354` | `4948` | 403 Forbidden | `CHARITY_PARTICIPANT_RANK_TOO_LOW` | Hoạt động này chỉ nhận người tham gia từ hạng SILVER trở lên |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -300,5 +301,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **258 mã lỗi** trên 3 tầng.
+Tổng cộng **259 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

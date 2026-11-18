@@ -82,6 +82,14 @@ export interface ICharityHomeCard {
 export interface ICharitySummaryRepository {
   // ── Tổng kết ──────────────────────────────────────────────────────────
   getSummary(campaignId: string): Promise<ICharitySummary | null>;
+  /**
+   * Số người tham gia thực tế (PR #54): `registered` = lượt còn hiệu lực
+   * (`CharityActiveParticipationStatuses`), `checkedIn` = đã `CHECKED_IN` hoặc `COMPLETED`.
+   * Đếm từ bảng, không ai sửa tay được.
+   */
+  countParticipation(
+    campaignId: string,
+  ): Promise<{ readonly registered: number; readonly checkedIn: number }>;
   /** Đã công khai thì sửa ghi revision `SUMMARY` cùng transaction. */
   saveSummary(params: {
     campaignId: string;

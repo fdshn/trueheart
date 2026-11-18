@@ -52,6 +52,8 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     campaignType: 'ORGANIZED_CAMPAIGN',
     beneficiaryRelation: null,
     allowOverTarget: false,
+    minimumParticipants: 0,
+    minimumParticipantRank: null,
     submittedAt: new Date(),
     operationStage: 'EXECUTION',
     storedOperationStage: 'EXECUTION',
