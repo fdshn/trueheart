@@ -1,9 +1,12 @@
 import {
   CharityCompletionBlockers,
+  CharityDistributionMethods,
   CharityRoundChecklistKeys,
   CharityRoundReadinessStatuses,
   CharityRoundStatuses,
   CharityRoundWarningCodes,
+  CharityServiceChannels,
+  CharityShippingFeePayers,
   CharitySupportOfferDecisions,
   CharitySupportOfferStatuses,
   CharitySupportTypes,
@@ -354,6 +357,85 @@ export class CharityRoundInputDto {
   @MaxLength(500)
   address?: string;
 
+  @ApiPropertyOptional({ enum: CharityDistributionMethods })
+  @IsOptional()
+  @IsIn(CharityDistributionMethods)
+  distributionMethod?: (typeof CharityDistributionMethods)[number];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsIn(['MATERIAL', 'MONEY', 'SERVICE'], { each: true })
+  contributionTypes?: ('MATERIAL' | 'MONEY' | 'SERVICE')[];
+
+  @ApiPropertyOptional({ type: Number }) @IsOptional() lat?: number;
+  @ApiPropertyOptional({ type: Number }) @IsOptional() lng?: number;
+  @ApiPropertyOptional({ enum: CharitySupportTypes })
+  @IsOptional()
+  @IsIn(CharitySupportTypes)
+  serviceType?: (typeof CharitySupportTypes)[number];
+  @ApiPropertyOptional({ enum: CharityServiceChannels })
+  @IsOptional()
+  @IsIn(CharityServiceChannels)
+  serviceChannel?: (typeof CharityServiceChannels)[number];
+
+  @ApiPropertyOptional({ type: [String], maxItems: 20 })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @Matches(/^https:\/\/\S+$/, { each: true })
+  evidenceUrls?: string[];
+
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  recipientName?: string;
+  @ApiPropertyOptional({ maxLength: 30 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  recipientPhone?: string;
+  @ApiPropertyOptional({ maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  recipientAddress?: string;
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  coordinatorName?: string;
+  @ApiPropertyOptional({ maxLength: 30 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  coordinatorPhone?: string;
+  @ApiPropertyOptional({ maxLength: 120 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  carrier?: string;
+  @ApiPropertyOptional({ enum: CharityShippingFeePayers })
+  @IsOptional()
+  @IsIn(CharityShippingFeePayers)
+  shippingFeePayer?: (typeof CharityShippingFeePayers)[number];
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  estimatedShippingFee?: number;
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  trackingCode?: string;
+  @ApiPropertyOptional({ maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  transferContent?: string;
+
   @ApiProperty({ type: Date }) @Type(() => Date) @IsDate() startsAt: Date;
   @ApiProperty({ type: Date }) @Type(() => Date) @IsDate() endsAt: Date;
 
@@ -487,11 +569,38 @@ class CharityRoundStatsDto {
   confirmedValue: number;
 }
 
+export class CharityRoundPrivateDetailsDto {
+  @ApiProperty({ type: String, nullable: true }) recipientName: string | null;
+  @ApiProperty({ type: String, nullable: true }) recipientPhone: string | null;
+  @ApiProperty({ type: String, nullable: true }) recipientAddress:
+    string | null;
+  @ApiProperty({ type: String, nullable: true }) coordinatorName: string | null;
+  @ApiProperty({ type: String, nullable: true }) coordinatorPhone:
+    string | null;
+  @ApiProperty({ type: String, nullable: true }) carrier: string | null;
+  @ApiProperty({ enum: CharityShippingFeePayers, nullable: true })
+  shippingFeePayer: string | null;
+  @ApiProperty({ type: Number, nullable: true }) estimatedShippingFee:
+    number | null;
+  @ApiProperty({ type: String, nullable: true }) trackingCode: string | null;
+  @ApiProperty({ type: String, nullable: true }) transferContent: string | null;
+}
+
 export class CharityRoundPublicDto {
   @ApiProperty({ format: 'uuid' }) roundId: string;
   @ApiProperty({ format: 'uuid' }) campaignId: string;
   @ApiProperty() title: string;
   @ApiProperty({ type: String, nullable: true }) locationLabel: string | null;
+  @ApiProperty({ enum: CharityDistributionMethods, nullable: true })
+  distributionMethod: string | null;
+  @ApiProperty({ type: [String] }) contributionTypes: string[];
+  @ApiProperty({ type: [String] }) evidenceUrls: string[];
+  @ApiProperty({ enum: CharitySupportTypes, nullable: true }) serviceType:
+    string | null;
+  @ApiProperty({ enum: CharityServiceChannels, nullable: true })
+  serviceChannel: string | null;
+  @ApiProperty({ type: Number, nullable: true }) lat: number | null;
+  @ApiProperty({ type: Number, nullable: true }) lng: number | null;
   @ApiProperty({ type: String, nullable: true }) address: string | null;
   @ApiProperty() startsAt: Date;
   @ApiProperty() endsAt: Date;
@@ -502,6 +611,9 @@ export class CharityRoundPublicDto {
   @ApiProperty() updatedAt: Date;
 }
 export class CharityRoundDto extends CharityRoundPublicDto {
+  @ApiProperty() needsReview: boolean;
+  @ApiProperty({ type: () => CharityRoundPrivateDetailsDto, nullable: true })
+  privateDetails: CharityRoundPrivateDetailsDto | null;
   @ApiProperty({ enum: CharityRoundReadinessStatuses }) readiness: string;
   @ApiProperty({ type: String, nullable: true }) readinessNote: string | null;
   @ApiProperty({ type: String, nullable: true, format: 'uuid' })

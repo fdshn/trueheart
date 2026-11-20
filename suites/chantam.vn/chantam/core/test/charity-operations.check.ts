@@ -18,6 +18,7 @@
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { ListCharityRoundsUseCase } from '../src/application/implementations/charity-project/charity-operations.use-cases';
 import { ICharitySupportOffer } from '../src/domain/ports/repository';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
@@ -353,8 +354,8 @@ async function main(): Promise<void> {
         evidenceUrls: ['https://cdn.test/round-evidence.webp'],
         locationLabel: 'Xã A',
         address: null,
-        lat: null,
-        lng: null,
+        lat: 10.1234,
+        lng: 106.5678,
         needsReview: false,
         serviceType: null,
         serviceChannel: null,
@@ -456,6 +457,25 @@ async function main(): Promise<void> {
           [roundA.roundId],
         )
       )[0]?.recipient_phone === '0901234567',
+    );
+    check(
+      'toạ độ round round-trip đúng thứ tự lat/lng qua repository',
+      (await operations.findRound(Live, roundA.roundId))?.lat === 10.1234 &&
+        (await operations.findRound(Live, roundA.roundId))?.lng === 106.5678,
+    );
+    check(
+      'workspace repository trả recipientPhone trong privateDetails',
+      (await operations.findRound(Live, roundA.roundId))?.privateDetails
+        ?.recipientPhone === '0901234567',
+    );
+    const publicRounds = await new ListCharityRoundsUseCase(
+      { findVisibleCampaignId: async () => Live } as never,
+      operations,
+    ).handle({ idOrSlug: 'live' });
+    check(
+      'đường public không lộ phone hoặc địa chỉ recipient DIRECT/SHIPPING',
+      !JSON.stringify(publicRounds).includes('0901234567') &&
+        !JSON.stringify(publicRounds).includes('Địa chỉ nhận'),
     );
     check(
       'CHECK: evidence_urls vượt 20 phần tử bị chặn',

@@ -381,6 +381,7 @@ export class CharityPhaseDto {
   @ApiPropertyOptional({
     enum: CharityDeliveryMethods,
     description: 'Chỉ DISTRIBUTION',
+    deprecated: true,
   })
   @IsOptional()
   @IsIn(CharityDeliveryMethods)

@@ -19,9 +19,12 @@ import {
 import {
   CharityCampaignNotFoundException,
   CharityContributionTypeDisabledException,
+  CharityDistributionFieldRequiredException,
+  CharityDistributionMethodMismatchException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
   CharityProjectNotApprovedException,
+  CharityRoundEvidenceRequiredException,
   CharityRoundInvalidStateException,
   CharityRoundNotFoundException,
   CharityStageTransitionInvalidException,
@@ -465,10 +468,13 @@ export class CharityOperationsController {
       'Người tạo, coordinator, Admin. Mỗi đợt có timeline 10 bước riêng (`GET :idOrSlug/event-steps?roundId=`).',
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(CharityRoundResponseDto) })
-  @ApiErrorResponses(...ApiTokenErrors, ...ProjectErrors, [
-    ValidationFailedException,
-    ['round.endsAt: phải sau startsAt'],
-  ])
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ...ProjectErrors,
+    CharityDistributionFieldRequiredException,
+    CharityDistributionMethodMismatchException,
+    [ValidationFailedException, ['round.endsAt: phải sau startsAt']],
+  )
   public async createRound(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: CharityProjectParamsDto,
@@ -492,6 +498,8 @@ export class CharityOperationsController {
     ...ProjectErrors,
     CharityRoundNotFoundException,
     CharityRoundInvalidStateException,
+    CharityDistributionFieldRequiredException,
+    CharityDistributionMethodMismatchException,
     [
       ValidationFailedException,
       ['round.reason: bắt buộc khi đổi giờ / địa điểm đợt trao đã công khai'],
@@ -525,6 +533,7 @@ export class CharityOperationsController {
     ...ProjectErrors,
     CharityRoundNotFoundException,
     CharityRoundInvalidStateException,
+    CharityRoundEvidenceRequiredException,
   )
   public async roundStatus(
     @CurrentUser() principal: IAuthPrincipal,
@@ -682,27 +691,27 @@ export class CharityOperationsController {
       roundId,
       round: {
         title: input.title,
-        distributionMethod: null,
-        contributionTypes: [],
-        evidenceUrls: [],
+        distributionMethod: input.distributionMethod ?? null,
+        contributionTypes: input.contributionTypes ?? [],
+        evidenceUrls: input.evidenceUrls ?? [],
         locationLabel: input.locationLabel ?? null,
         address: input.address ?? null,
-        lat: null,
-        lng: null,
-        needsReview: false,
-        serviceType: null,
-        serviceChannel: null,
+        lat: input.lat ?? null,
+        lng: input.lng ?? null,
+        needsReview: true,
+        serviceType: input.serviceType ?? null,
+        serviceChannel: input.serviceChannel ?? null,
         privateDetails: {
-          recipientName: null,
-          recipientPhone: null,
-          recipientAddress: null,
-          coordinatorName: null,
-          coordinatorPhone: null,
-          carrier: null,
-          shippingFeePayer: null,
-          estimatedShippingFee: null,
-          trackingCode: null,
-          transferContent: null,
+          recipientName: input.recipientName ?? null,
+          recipientPhone: input.recipientPhone ?? null,
+          recipientAddress: input.recipientAddress ?? null,
+          coordinatorName: input.coordinatorName ?? null,
+          coordinatorPhone: input.coordinatorPhone ?? null,
+          carrier: input.carrier ?? null,
+          shippingFeePayer: input.shippingFeePayer ?? null,
+          estimatedShippingFee: input.estimatedShippingFee ?? null,
+          trackingCode: input.trackingCode ?? null,
+          transferContent: input.transferContent ?? null,
         },
         startsAt: input.startsAt,
         endsAt: input.endsAt,

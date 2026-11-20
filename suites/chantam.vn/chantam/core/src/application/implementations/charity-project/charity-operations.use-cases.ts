@@ -36,7 +36,10 @@ import { IDispatchNotificationUseCase } from '@/application/contracts/notificati
 import { assertContributionTypeAccepted } from '@/domain/charity-contribution-type';
 import {
   CharityCampaignNotFoundException,
+  CharityDistributionFieldRequiredException,
+  CharityDistributionMethodMismatchException,
   CharityProjectNotApprovedException,
+  CharityRoundEvidenceRequiredException,
   CharityRoundInvalidStateException,
   CharityRoundNotFoundException,
   CharityStageTransitionInvalidException,
@@ -61,14 +64,19 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
   CharityCompletionBlockerLabels,
+  charityDistributionFieldGaps,
+  charityDistributionMismatch,
+  charityRoundEvidenceGaps,
+  charityRoundWarnings,
   CharitySupportOfferDecisionRules,
   CharitySupportOfferStatus,
   CharitySupportOfferWithdrawableStatuses,
   ICharityRoundChecklistItem,
-  charityRoundWarnings,
   isPubliclyVisibleProject,
+  MaxCharityRoundEvidenceUrls,
   normalizeRoundChecklist,
   phaseScheduleGaps,
+  stripInapplicableDistributionFields,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable, Logger } from '@nestjs/common';
@@ -89,7 +97,18 @@ const toRoundPublic = (round: ICharityRound): ICharityRoundPublic => ({
   campaignId: round.campaignId,
   title: round.title,
   locationLabel: round.locationLabel,
-  address: round.address,
+  address:
+    round.distributionMethod === 'OTHER_LOCATION' ||
+    round.distributionMethod === null
+      ? round.address
+      : null,
+  distributionMethod: round.distributionMethod,
+  contributionTypes: round.contributionTypes,
+  evidenceUrls: round.evidenceUrls,
+  serviceType: round.serviceType,
+  serviceChannel: round.serviceChannel,
+  lat: round.distributionMethod === 'OTHER_LOCATION' ? round.lat : null,
+  lng: round.distributionMethod === 'OTHER_LOCATION' ? round.lng : null,
   startsAt: round.startsAt,
   endsAt: round.endsAt,
   status: round.status,
@@ -539,11 +558,50 @@ export class SaveCharityRoundUseCase implements ISaveCharityRoundUseCase {
 
   public async handle(command: ISaveCharityRoundCommand) {
     const { campaign } = await this.access.forOperate(command);
-    const round = {
-      ...command.round,
-      title: command.round.title.trim(),
+    const trimmedPrivateDetails = Object.fromEntries(
+      Object.entries(command.round.privateDetails).map(([key, value]) => [
+        key,
+        typeof value === 'string' ? trimmed(value) : value,
+      ]),
+    ) as typeof command.round.privateDetails;
+    const distribution = stripInapplicableDistributionFields({
+      distributionMethod: command.round.distributionMethod,
+      contributionTypes: command.round.contributionTypes,
       locationLabel: trimmed(command.round.locationLabel),
       address: trimmed(command.round.address),
+      lat: command.round.lat,
+      lng: command.round.lng,
+      serviceType: command.round.serviceType,
+      serviceChannel: command.round.serviceChannel,
+      privateDetails: trimmedPrivateDetails,
+    });
+    if (
+      distribution.distributionMethod === 'DIRECT_RECIPIENT' &&
+      distribution.privateDetails.recipientAddress === null
+    )
+      distribution.privateDetails.recipientAddress = trimmed(
+        command.round.address,
+      );
+    const evidenceUrls = [...command.round.evidenceUrls];
+    if (
+      evidenceUrls.length > MaxCharityRoundEvidenceUrls ||
+      evidenceUrls.some((url) => !isHttpsUrl(url)) ||
+      new Set(evidenceUrls).size !== evidenceUrls.length
+    )
+      throw new ValidationFailedException([
+        'round.evidenceUrls: https://, không trùng, tối đa 20',
+      ]);
+    const mismatch = charityDistributionMismatch(distribution);
+    if (mismatch)
+      throw new CharityDistributionMethodMismatchException(mismatch);
+    const gaps = charityDistributionFieldGaps(distribution);
+    if (gaps.length > 0)
+      throw new CharityDistributionFieldRequiredException(gaps.join(', '));
+    const round = {
+      ...command.round,
+      ...distribution,
+      evidenceUrls,
+      title: command.round.title.trim(),
     };
     const errors: string[] = [];
     if (!round.title) errors.push('round.title: bắt buộc');
@@ -615,6 +673,15 @@ export class SetCharityRoundStatusUseCase implements ISetCharityRoundStatusUseCa
     if (!current) throw new CharityRoundNotFoundException();
     if (current.status !== 'PLANNED')
       throw new CharityRoundInvalidStateException(current.status);
+    if (command.status === 'DONE') {
+      const gaps = charityRoundEvidenceGaps({
+        distributionMethod: current.distributionMethod,
+        evidenceUrls: current.evidenceUrls,
+        trackingCode: current.privateDetails?.trackingCode ?? null,
+      });
+      if (gaps.length > 0)
+        throw new CharityRoundEvidenceRequiredException(gaps.join(', '));
+    }
     const updated = await this.operations.setRoundStatus({
       campaignId: campaign.globalId,
       roundId: current.roundId,

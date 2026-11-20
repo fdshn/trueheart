@@ -152,15 +152,8 @@ export type ICharityRoundPublic = Omit<
   | 'readinessBy'
   | 'readinessAt'
   | 'checklist'
-  | 'distributionMethod'
-  | 'contributionTypes'
-  | 'evidenceUrls'
-  | 'needsReview'
-  | 'serviceType'
-  | 'serviceChannel'
-  | 'lat'
-  | 'lng'
   | 'privateDetails'
+  | 'needsReview'
 >;
 
 export interface IListCharityRoundsUseCase extends IUseCase<

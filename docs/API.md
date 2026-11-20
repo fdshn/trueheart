@@ -3164,11 +3164,11 @@ cũ. Ghi lịch sử sửa (chữ đỏ) **kèm lý do**, báo `CHARITY_PLAN_CHA
 
 | Method | Đường dẫn | Ai | Mô tả |
 | --- | --- | --- | --- |
-| `GET` | `/charity-campaigns/:idOrSlug/rounds` | Công khai | Giờ, địa điểm, trạng thái, `stats` (participant, đã có mặt, giao nhận, giá trị đã xác nhận) |
-| `GET` | `/charity-campaigns/:id/rounds/manage` | Người tạo, coordinator, Admin `campaign.read` | Thêm `readiness`, `checklist`, `warnings` |
-| `POST` | `/charity-campaigns/:id/rounds` | Người tạo, coordinator, Admin | `{ round: { title, locationLabel?, address?, startsAt, endsAt } }` — kèm timeline 10 bước riêng |
-| `PATCH` | `/charity-campaigns/:id/rounds/:roundId` | Như trên | Đổi giờ / địa điểm khi dự án đã duyệt: bắt buộc `round.reason`, báo người của đợt |
-| `POST` | `/charity-campaigns/:id/rounds/:roundId/status` | Như trên | `{ status: { status: DONE\|CANCELLED, reason? } }` — huỷ bắt buộc lý do, báo người của đợt |
+| `GET` | `/charity-campaigns/:idOrSlug/rounds` | Công khai | Chỉ trường công khai: giờ, địa điểm (chỉ `OTHER_LOCATION`/legacy), phương thức, loại đóng góp, bằng chứng, trạng thái, `stats`; không có `privateDetails` hay `needsReview` |
+| `GET` | `/charity-campaigns/:id/rounds/manage` | Người tạo, coordinator, Admin `campaign.read` | Bản workspace đầy đủ, gồm `privateDetails`, `needsReview`, `readiness`, `checklist`, `warnings` |
+| `POST` | `/charity-campaigns/:id/rounds` | Người tạo, coordinator, Admin | `{ round: { title, distributionMethod?, contributionTypes?, evidenceUrls?, locationLabel?, address?, lat?, lng?, serviceType?, serviceChannel?, private fields?, startsAt, endsAt } }`; PATCH là thay thế đầy đủ các trường phân phối — client gửi lại toàn bộ |
+| `PATCH` | `/charity-campaigns/:id/rounds/:roundId` | Như trên | Cùng body POST; đổi giờ / địa điểm khi dự án đã duyệt: bắt buộc `round.reason`, báo người của đợt |
+| `POST` | `/charity-campaigns/:id/rounds/:roundId/status` | Như trên | `{ status: { status: DONE\|CANCELLED, reason? } }`; huỷ cần lý do. DONE cần `evidenceUrls`, SHIPPING cần thêm `trackingCode`; legacy `distributionMethod: null` được miễn |
 | `PUT` | `/charity-campaigns/:id/rounds/:roundId/readiness` | Như trên | `{ readiness: { status: READY\|NOT_READY, note?, checklist?[] } }` — `NOT_READY` bắt buộc ghi chú |
 | `PUT` | `/charity-campaigns/:id/round-assignments` | Như trên | `{ assignments: { roundId\|null, participationIds[], deliveryIds[] } }` |
 
