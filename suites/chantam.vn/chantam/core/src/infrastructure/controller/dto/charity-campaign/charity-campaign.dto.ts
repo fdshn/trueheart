@@ -278,9 +278,14 @@ export class WriteCharityCampaignDto {
   @Type(() => CharityNeedItemInputDto)
   needs?: CharityNeedItemInputDto[];
 
-  @ApiPropertyOptional({ enum: CharityContributionTypes, isArray: true })
+  @ApiPropertyOptional({
+    enum: CharityContributionTypes,
+    isArray: true,
+    maxItems: MaxNeedItemsPerCampaign,
+  })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(MaxNeedItemsPerCampaign)
   @IsIn(CharityContributionTypes, { each: true })
   acceptedContributionTypes?: (typeof CharityContributionTypes)[number][];
 

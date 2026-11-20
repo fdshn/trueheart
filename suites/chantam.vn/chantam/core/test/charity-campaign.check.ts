@@ -415,7 +415,7 @@ async function main(): Promise<void> {
     );
     const rollbackSlug = `rollback-${Date.now()}`;
     await expectReject(
-      'trùng need name + unit rollback cả funding rows',
+      'support need sai mốc thời gian rollback cả funding rows',
       () =>
         createUseCase.handle(
           withMedia({
@@ -426,23 +426,33 @@ async function main(): Promise<void> {
             actorUserId: DiamondId,
             asAdmin: false,
             submit: false,
-            needs: [
-              { itemName: 'Gạo', unit: 'kg', targetQuantity: 1 },
-              { itemName: 'Gạo', unit: 'kg', targetQuantity: 2 },
-            ],
             fundingNeeds: [{ title: 'Không được còn', targetAmount: 1 }],
+            otherSupportNeeds: [
+              {
+                supportType: 'LABOR',
+                title: 'Nhân công lỗi',
+                unit: 'người',
+                targetQuantity: 1,
+                startsAt: new Date('2030-01-02T00:00:00.000Z'),
+                endsAt: new Date('2030-01-01T00:00:00.000Z'),
+              },
+            ],
           }),
         ),
-      'UQ_campaign_need_items_name_unit',
+      'CHK_campaign_other_support_needs_time',
     );
-    const [rolledBack] = await dataSource.query<{ count: string }[]>(
-      `SELECT count(*)::text AS count FROM campaign_funding_needs f JOIN campaigns c ON c.global_id = f.campaign_id WHERE c.slug = $1`,
+    const [rolledBack] = await dataSource.query<
+      { fundingCount: string; campaignCount: string }[]
+    >(
+      `SELECT
+        (SELECT count(*)::text FROM campaign_funding_needs f JOIN campaigns c ON c.global_id = f.campaign_id WHERE c.slug = $1) AS "fundingCount",
+        (SELECT count(*)::text FROM campaigns WHERE slug = $1) AS "campaignCount"`,
       [rollbackSlug],
     );
     check(
-      'rollback không để funding row theo slug lỗi',
-      rolledBack?.count === '0',
-      rolledBack?.count,
+      'support need lỗi sau funding insert rollback funding row và campaign',
+      rolledBack?.fundingCount === '0' && rolledBack?.campaignCount === '0',
+      JSON.stringify(rolledBack),
     );
 
     console.log('1. BR-CHARITY-01 — ai tạo được, và hồ sơ vào trạng thái nào');
