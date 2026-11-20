@@ -1,10 +1,10 @@
 # Staging · Runbook triển khai
 
-Staging là môi trường tự deploy mỗi lần push vào `main`. Dùng để kiểm đúng image, migration,
+Staging là môi trường tự deploy mỗi lần push/merge vào `develop`. Dùng để kiểm đúng image, migration,
 PostGIS, Redis, HTTPS và API trước khi quyết định phát hành production.
 
 ```text
-GitHub main → GHCR image sha-<commit> → server staging
+GitHub develop → GHCR image sha-<commit> → server staging
                                          └→ Nginx → https://api-staging.<domain>
 ```
 
@@ -268,7 +268,7 @@ Workflow fail-fast nếu thiếu `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `DEP
 
 ## 5. Deploy và kiểm
 
-- Push mới vào `main` tự build/push image GHCR rồi deploy staging.
+- Push/merge mới vào `develop` tự build/push image GHCR rồi deploy staging.
 - Hoặc **Actions → Release → Run workflow → staging** để chạy tay.
 
 Workflow deploy Core image SHA-pinned, tự kéo Postgres/PostGIS và Redis lần đầu, chạy migration,

@@ -1,9 +1,11 @@
 name: Release
 
+# Nhánh quyết định môi trường: `develop` → staging, `main` → production.
+# Tag `v*` không còn deploy; production chỉ lên khi merge vào `main` hoặc chạy
+# tay trên `main`.
 on:
   push:
-    branches: [main, master]
-    tags: ['v*']
+    branches: [main, develop]
   workflow_dispatch:
     inputs:
       environment:
@@ -39,8 +41,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Kiểm tra Dockerfile không lệch
-        # Lặp lại phép kiểm của CI. Release có thể chạy từ đường khác (tag,
-        # workflow_dispatch) mà chưa chắc đã qua CI, nên không được bỏ qua.
+        # Lặp lại phép kiểm của CI. Release có thể chạy từ workflow_dispatch
+        # mà chưa chắc đã qua CI, nên không được bỏ qua.
         working-directory: suites/chantam.vn/chantam/core
         run: |
           node ../../../../bin/make-dockerfile.mjs > Dockerfile
@@ -63,14 +65,12 @@ jobs:
           IMAGE_BASE=$(echo "$IMAGE_BASE" | tr '[:upper:]' '[:lower:]')
           SHORT_SHA="${GITHUB_SHA::7}"
 
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/}"
-            TAGS="${IMAGE_BASE}:${VERSION},${IMAGE_BASE}:latest,${IMAGE_BASE}:sha-${SHORT_SHA}"
-            PRIMARY="${IMAGE_BASE}:${VERSION}"
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            TAGS="${IMAGE_BASE}:latest,${IMAGE_BASE}:sha-${SHORT_SHA}"
           else
             TAGS="${IMAGE_BASE}:staging,${IMAGE_BASE}:sha-${SHORT_SHA}"
-            PRIMARY="${IMAGE_BASE}:sha-${SHORT_SHA}"
           fi
+          PRIMARY="${IMAGE_BASE}:sha-${SHORT_SHA}"
 
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
           # Deploy dùng tag sha-* chứ không dùng `staging`/`latest`: tag di động
@@ -100,7 +100,8 @@ jobs:
   staging:
     name: Staging
     needs: build-push
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    # push vào `develop` tự lên staging; chạy tay chọn staging được trên mọi nhánh.
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/develop') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
     uses: ./.github/workflows/deploy.yaml
     with:
       environment: staging
@@ -111,9 +112,10 @@ jobs:
   production:
     name: Production
     needs: build-push
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
-    # Nếu GitHub plan hỗ trợ Required reviewers, cấu hình ở Environment
-    # `production`; chi tiết vận hành/tag/rollback: deploy/PRODUCTION.md.
+    # Chỉ từ `main`: push/merge vào `main`, hoặc chạy tay chọn production trên
+    # `main`. Chạy tay từ nhánh khác bị bỏ qua để không đẩy code chưa duyệt lên
+    # production. Chi tiết vận hành/rollback: deploy/PRODUCTION.md.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.environment == 'production')
     uses: ./.github/workflows/deploy.yaml
     with:
       environment: production

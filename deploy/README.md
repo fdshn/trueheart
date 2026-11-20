@@ -10,8 +10,11 @@ Internet HTTPS → host Nginx → 127.0.0.1:8080 (staging Core)
 
 | Môi trường | Khi nào deploy | Stack | Hướng dẫn |
 | --- | --- | --- | --- |
-| Staging | Push `main` hoặc chạy Release tay | `/home/deploy/chantam-staging`, port 8080 | [STAGING.md](./STAGING.md) |
-| Production | Push tag `v*` | `/home/deploy/chantam-production`, port 8085 | [PRODUCTION.md](./PRODUCTION.md) |
+| Staging | Push/merge vào `develop` hoặc chạy Release tay | `/home/deploy/chantam-staging`, port 8080 | [STAGING.md](./STAGING.md) |
+| Production | Push/merge vào `main` hoặc chạy Release tay trên `main` | `/home/deploy/chantam-production`, port 8085 | [PRODUCTION.md](./PRODUCTION.md) |
+
+Quy trình nhánh: feature → PR vào `develop` → kiểm trên staging → PR `develop → main` →
+production. Không commit việc dở thẳng lên `main`: mỗi lần `main` đổi là một lần deploy production.
 
 Hai stack độc lập: project Compose, database, Redis, volume, network, `.env`, password database
 và `JWT_SECRET` riêng. Chúng có thể cùng chạy trên một VPS dev, nhưng chung CPU/RAM/đĩa; khi
@@ -26,7 +29,7 @@ có người dùng thật, production nên chuyển sang server khách riêng.
 | `bootstrap.sh` | Cài Docker (nếu thiếu), tạo stack `.env` và SSH key CI theo từng môi trường |
 | `nginx/chantam.conf.example` | Template hai vhost để host admin cài vào Nginx hiện hữu; staging Basic Auth Swagger, production 404 docs |
 | `STAGING.md` | Runbook dựng, deploy và kiểm staging |
-| `PRODUCTION.md` | Runbook server khách, release tag và rollback production |
+| `PRODUCTION.md` | Runbook server khách, release qua `main` và rollback production |
 
 ## Bất biến vận hành
 
