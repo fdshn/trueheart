@@ -34,6 +34,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     isActive: true,
     endTime: new Date(Date.now() + 30 * 24 * Hour),
     operationStage: 'EXECUTION',
+    acceptedContributionTypes: [],
     ...overrides,
   } as ICharityCampaign;
 }

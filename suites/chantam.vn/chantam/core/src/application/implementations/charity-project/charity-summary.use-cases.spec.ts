@@ -31,7 +31,8 @@ function make(stage: 'EVENT' | 'SUMMARY' = 'SUMMARY', adminWrite = false) {
     isActive: true,
     endTime: new Date(Date.now() + 86_400_000),
     operationStage: stage,
-  } as ICharityCampaign;
+    acceptedContributionTypes: [],
+  } as unknown as ICharityCampaign;
   const campaigns = {
     findByGlobalId: jest.fn(async () => campaign),
     isCampaignManager: jest.fn(async () => false),

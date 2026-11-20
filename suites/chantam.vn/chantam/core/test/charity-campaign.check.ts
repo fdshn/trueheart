@@ -293,6 +293,14 @@ async function main(): Promise<void> {
       // hoàn tất, nên một mock ở đây bỏ đúng chỗ cần kiểm.
       new PointLedgerRepository(dataSource.manager),
     );
+    const legacyMaterialCampaign =
+      await repository.findByGlobalId(LegacyMaterialId);
+    check(
+      'repository đọc loại tiếp nhận của chiến dịch cũ',
+      JSON.stringify(legacyMaterialCampaign?.acceptedContributionTypes) ===
+        JSON.stringify(['MATERIAL']),
+      JSON.stringify(legacyMaterialCampaign?.acceptedContributionTypes),
+    );
     // `EntitlementRepository` đòi một `IGiftRequestRepository` để đếm hạn mức đang dùng
     // của những capability CÓ bộ đếm. `SUBMIT_CHARITY_PROPOSAL` không có bộ đếm nào, nhưng
     // `getOwnEntitlements` trả MỌI capability của hạng đó và đếm cho từng cái có counter —
