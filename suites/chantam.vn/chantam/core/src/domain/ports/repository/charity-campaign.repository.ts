@@ -11,6 +11,8 @@ import {
   CharityRejectionReason,
   CharityReviewRole,
 } from '@chantam.vn/chantam.core-lib/models';
+import { ICharitySupportNeedInput } from './charity-operations.repository';
+import { ICharityFundingNeedInput } from './charity-project.repository';
 
 /** Lọc theo pha thời gian trên đường công khai. */
 export const CharityCampaignPhases = ['UPCOMING', 'ONGOING', 'ENDED'] as const;
@@ -182,6 +184,7 @@ export interface ICreateCharityCampaignParams {
   readonly approvedBy: string | null;
   readonly campaignType: CharityCampaignType;
   readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
+  readonly acceptedContributionTypes: readonly CharityContributionType[];
   readonly allowOverTarget: boolean;
   readonly minimumParticipants: number;
   readonly minimumParticipantRank: UserRanks | null;
@@ -200,6 +203,8 @@ export interface ICreateCharityCampaignParams {
    * và §10 nói giữ nguyên hành vi legacy cho những hoạt động đó.
    */
   readonly needs: readonly ICreateCharityNeedItemParams[];
+  readonly fundingNeeds: readonly ICharityFundingNeedInput[];
+  readonly supportNeeds: readonly ICharitySupportNeedInput[];
   /** Ghi TRONG CÙNG transaction với hoạt động — hồ sơ vào hàng chờ duyệt luôn đủ ảnh. */
   readonly media: readonly ICharityCampaignMediaParams[];
 }
@@ -518,6 +523,7 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     readonly locationLabel: string | null;
     readonly minimumParticipants: number;
     readonly minimumParticipantRank: UserRanks | null;
+    readonly acceptedContributionTypes: readonly CharityContributionType[];
   }): Promise<ICharityCampaign | null>;
 
   /** Cập nhật con số LỜI KHAI. Xem `currentItemsCount`. */

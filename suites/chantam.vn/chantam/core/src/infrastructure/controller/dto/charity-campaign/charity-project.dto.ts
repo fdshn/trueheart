@@ -1,6 +1,7 @@
 import {
   CharityBeneficiaryKinds,
   CharityCallToActions,
+  CharityContributionTypes,
   CharityCustomFieldTypes,
   CharityDeliveryMethods,
   CharityFieldVisibilities,
@@ -134,6 +135,11 @@ export class CharityProfileDto {
   @IsArray()
   @IsIn(CharityCallToActions, { each: true })
   callToActions?: (typeof CharityCallToActions)[number][];
+  @ApiPropertyOptional({ enum: CharityContributionTypes, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsIn(CharityContributionTypes, { each: true })
+  acceptedContributionTypes?: (typeof CharityContributionTypes)[number][];
 }
 export class CharityProfileBodyDto {
   @ApiProperty({ type: () => CharityProfileDto })
@@ -149,6 +155,8 @@ export class CharityProfileViewDto {
     string | null;
   @ApiProperty({ enum: CharityCallToActions, isArray: true })
   callToActions: string[];
+  @ApiProperty({ enum: CharityContributionTypes, isArray: true })
+  acceptedContributionTypes: string[];
   @ApiProperty({
     type: Number,
     nullable: true,

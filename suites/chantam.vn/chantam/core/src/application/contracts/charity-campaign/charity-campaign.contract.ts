@@ -7,8 +7,10 @@ import {
   ICharityContributionPage,
   ICharityDelivery,
   ICharityExternalContribution,
+  ICharityFundingNeedInput,
   ICharityNeedsView,
   ICharityReview,
+  ICharitySupportNeedInput,
   ICloseCampaignResult,
   IDecideContributionResult,
 } from '@/domain/ports/repository';
@@ -18,6 +20,7 @@ import {
   CharityBeneficiaryRelation,
   CharityCampaignType,
   CharityContributionStatus,
+  CharityContributionType,
   CharityRejectionReason,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
@@ -103,6 +106,43 @@ export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput 
    * vật phẩm nào, và §10 nói giữ nguyên hành vi legacy cho những hoạt động đó.
    */
   readonly needs?: readonly ICharityNeedItemInput[];
+  readonly acceptedContributionTypes?: readonly CharityContributionType[];
+  readonly fundingNeeds?: readonly (Omit<
+    ICharityFundingNeedInput,
+    | 'beneficiaryPartyId'
+    | 'bankAccountId'
+    | 'description'
+    | 'receivingUnit'
+    | 'deadline'
+    | 'sortOrder'
+  > & {
+    readonly beneficiaryPartyId?: string;
+    readonly bankAccountId?: string;
+    readonly description?: string;
+    readonly receivingUnit?: string;
+    readonly deadline?: Date;
+  })[];
+  readonly otherSupportNeeds?: readonly (Omit<
+    ICharitySupportNeedInput,
+    | 'description'
+    | 'startsAt'
+    | 'endsAt'
+    | 'locationLabel'
+    | 'requirements'
+    | 'handoverMethod'
+    | 'picName'
+    | 'picPhone'
+    | 'sortOrder'
+  > & {
+    readonly description?: string;
+    readonly startsAt?: Date;
+    readonly endsAt?: Date;
+    readonly locationLabel?: string;
+    readonly requirements?: string;
+    readonly handoverMethod?: string;
+    readonly picName?: string;
+    readonly picPhone?: string;
+  })[];
   /** Cho lượt chấp nhận đề nghị vượt mục tiêu từng dòng (§5). Mặc định `false`. */
   readonly allowOverTarget?: boolean;
   /** Số người tham gia tối thiểu (PR #54), 0–100.000. Bỏ trống = `0` (không đặt). */
@@ -659,6 +699,7 @@ export interface IUpdateAdminCharityCampaignCommand {
   readonly minimumParticipants?: number;
   /** Bỏ trống = giữ nguyên; `null` = bỏ giới hạn hạng. Không đụng người ĐÃ đăng ký. */
   readonly minimumParticipantRank?: UserRanks | null;
+  readonly acceptedContributionTypes?: readonly CharityContributionType[];
   readonly reason: string;
 }
 

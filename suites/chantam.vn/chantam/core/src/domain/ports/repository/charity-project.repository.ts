@@ -1,6 +1,7 @@
 import {
   CharityBeneficiaryKind,
   CharityCallToAction,
+  CharityContributionType,
   CharityCustomFieldType,
   CharityDeliveryMethod,
   CharityFieldVisibility,
@@ -29,6 +30,7 @@ export interface ICharityProjectProfile {
   appealAudience: string | null;
   appealCircumstance: string | null;
   callToActions: CharityCallToAction[];
+  acceptedContributionTypes: CharityContributionType[];
   /** Ghi đè của Admin; `null` = theo cấu hình toàn hệ thống. */
   maxBankAccounts: number | null;
 }

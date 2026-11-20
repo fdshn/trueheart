@@ -84,6 +84,7 @@ import {
   isPubliclyVisibleProject,
   isSuspendedProject,
   MaxPublicSupporterNames,
+  normalizeContributionTypes,
   normalizeMaxBankAccounts,
   phaseScheduleGaps,
   stageRank,
@@ -421,6 +422,12 @@ export class UpdateCharityProfileUseCase implements IUpdateCharityProfileUseCase
       callToActions: command.profile.callToActions
         ? [...new Set(command.profile.callToActions)]
         : current.callToActions,
+      acceptedContributionTypes:
+        command.profile.acceptedContributionTypes === undefined
+          ? current.acceptedContributionTypes
+          : normalizeContributionTypes(
+              command.profile.acceptedContributionTypes,
+            ),
     };
     await this.projects.updateProfile({
       campaignId: campaign.globalId,

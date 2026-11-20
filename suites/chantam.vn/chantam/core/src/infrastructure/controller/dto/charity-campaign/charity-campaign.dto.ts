@@ -55,6 +55,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { NotNullWhenPresent } from '../not-null-when-present';
+import { CharitySupportNeedInputDto } from './charity-operations.dto';
+import { CharityFundingNeedDto } from './charity-project.dto';
 
 export class CharityBeneficiaryInputDto {
   @ApiProperty({ maxLength: 200, example: 'Nguyễn Thị B' })
@@ -275,6 +277,34 @@ export class WriteCharityCampaignDto {
   @ValidateNested({ each: true })
   @Type(() => CharityNeedItemInputDto)
   needs?: CharityNeedItemInputDto[];
+
+  @ApiPropertyOptional({ enum: CharityContributionTypes, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsIn(CharityContributionTypes, { each: true })
+  acceptedContributionTypes?: (typeof CharityContributionTypes)[number][];
+
+  @ApiPropertyOptional({
+    type: () => [CharityFundingNeedDto],
+    maxItems: MaxNeedItemsPerCampaign,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MaxNeedItemsPerCampaign)
+  @ValidateNested({ each: true })
+  @Type(() => CharityFundingNeedDto)
+  fundingNeeds?: CharityFundingNeedDto[];
+
+  @ApiPropertyOptional({
+    type: () => [CharitySupportNeedInputDto],
+    maxItems: MaxNeedItemsPerCampaign,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MaxNeedItemsPerCampaign)
+  @ValidateNested({ each: true })
+  @Type(() => CharitySupportNeedInputDto)
+  otherSupportNeeds?: CharitySupportNeedInputDto[];
 
   @ApiPropertyOptional({
     default: false,
@@ -682,6 +712,12 @@ export class UpdateAdminCharityCampaignDto {
   @IsOptional()
   @IsIn(RankOrder as readonly string[])
   minimumParticipantRank?: UserRanks | null;
+
+  @ApiPropertyOptional({ enum: CharityContributionTypes, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsIn(CharityContributionTypes, { each: true })
+  acceptedContributionTypes?: (typeof CharityContributionTypes)[number][];
 
   @ApiProperty({
     minLength: 3,

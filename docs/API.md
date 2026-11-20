@@ -2790,12 +2790,12 @@ của bước trao, `null` khi chưa lập) và `acceptedContributionTypes` (m�
 
 | Method | Đường dẫn | Ai | Mô tả |
 | --- | --- | --- | --- |
-| `POST` | `/charity-campaigns` | (như cũ) | Thêm `submit: false` để **lưu nháp**: chưa xét duyệt, không vào hàng đợi Admin. Bỏ trống = gửi ngay (app cũ không đổi) |
+| `POST` | `/charity-campaigns` | (như cũ) | Nhận thêm `acceptedContributionTypes?`, `fundingNeeds?`, `otherSupportNeeds?` (mỗi mảng tối đa `MaxNeedItemsPerCampaign`) cùng `needs?`; bỏ `acceptedContributionTypes` thì server suy từ ba mảng. `fundingNeeds` cần `MONEY`; `beneficiaryPartyId`/`bankAccountId` lúc tạo → 400. `submit: false` lưu nháp. |
 | `POST` | `/charity-campaigns/:id/submit` | Người tạo | Gửi duyệt nháp: có `PUBLISH_CHARITY_WITHOUT_REVIEW` thì công khai ngay + `EXECUTION`, không thì chờ duyệt. Không còn là nháp → `CHARITY_PROJECT_NOT_DRAFT` |
 | `GET` | `/charity-campaigns/:id/workspace` | Người tạo, coordinator, Admin `campaign.read` | Mọi thứ nội bộ + `sections` (trạng thái từng mục) + `capabilities` |
 | `GET` | `/charity-campaigns/:idOrSlug/public` | Công khai | Bản công khai (xem dưới) |
 | `POST` | `/charity-campaigns/:id/stage` | Người tạo, coordinator, Admin | `{ stage: { to, reason } }` — tiến **một** bước sớm hơn lịch, hoặc lùi; `reason` bắt buộc từ đợt 5b (§18.7) |
-| `PUT` | `/charity-campaigns/:id/profile` | Người tạo, Admin | `{ profile: { appealPurpose, appealAudience, appealCircumstance, callToActions } }` |
+| `PUT` | `/charity-campaigns/:id/profile` | Người tạo, Admin | `{ profile: { appealPurpose, appealAudience, appealCircumstance, callToActions, acceptedContributionTypes? } }`; bỏ loại tiếp nhận giữ nguyên, gửi mảng thì thay toàn bộ theo thứ tự chuẩn |
 | `PUT` | `/charity-campaigns/:id/parties` | Người tạo, Admin | `{ parties: [...] }` — đơn vị tổ chức / thụ hưởng / cấp phép / truyền thông; dòng có `partyId` giữ id |
 | `POST` | `/charity-campaigns/:id/bank-accounts` | Người tạo, Admin | `{ bankAccount: { bankName, accountNo, accountName, label?, replacesAccountId?, replaceReason? } }` |
 | `POST` | `/charity-campaigns/:id/bank-accounts/:accountId/close` | Người tạo, Admin | `{ close: { reason } }` |
@@ -3304,7 +3304,7 @@ workspace của chủ, Admin):
 | `minimumParticipantRank` | `VIEWER` · `MEMBER` · `SILVER` · `GOLD` · `DIAMOND` · `null` | Hạng tối thiểu để **đăng ký tham gia**. `null` = không giới hạn |
 
 - **Đặt:** chủ chiến dịch gửi khi tạo (`POST /charity-campaigns`, không bắt buộc — bỏ trống là
-  `0` / `null`). Admin sửa qua `PATCH /admin/charity-campaigns/:id` (bỏ trống = giữ nguyên,
+  `0` / `null`). Admin sửa qua `PATCH /admin/charity-campaigns/:id` (gồm `acceptedContributionTypes`; bỏ trống = giữ nguyên,
   `minimumParticipantRank: null` = bỏ giới hạn). Giá trị âm, vượt trần, hạng ngoài enum → `400`.
 - **Đăng ký tham gia** (`POST /charity-campaigns/:id/participation`): server đọc hạng **hiện tại trong
   database**, không tin hạng trong access token. Thiếu hạng → **`403 CHARITY_PARTICIPANT_RANK_TOO_LOW`**

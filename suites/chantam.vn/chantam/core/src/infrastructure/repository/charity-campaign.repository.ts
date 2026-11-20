@@ -32,8 +32,10 @@ import {
   ICharityContributionPage,
   ICharityDelivery,
   ICharityExternalContribution,
+  ICharityFundingNeedInput,
   ICharityNeedItem,
   ICharityReview,
+  ICharitySupportNeedInput,
   ICloseCampaignResult,
   ICreateCharityCampaignParams,
   ICreateCharityContributionItemParams,
@@ -498,6 +500,18 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         const campaign = await this.insertCampaign(manager, params);
         if (params.needs.length > 0)
           await this.insertNeeds(manager, campaign.globalId, params.needs);
+        if (params.fundingNeeds.length > 0)
+          await this.insertFundingNeeds(
+            manager,
+            campaign.globalId,
+            params.fundingNeeds,
+          );
+        if (params.supportNeeds.length > 0)
+          await this.insertSupportNeeds(
+            manager,
+            campaign.globalId,
+            params.supportNeeds,
+          );
         if (params.beneficiary)
           await this.writeBeneficiary(
             manager,
@@ -533,14 +547,14 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
             created_by, approval_status, approved_by, approved_at,
             campaign_type, beneficiary_relation, allow_over_target,
             submitted_at, operation_stage,
-            minimum_participants, minimum_participant_rank)
+            minimum_participants, minimum_participant_rank, accepted_contribution_types)
          VALUES ($1, $2, $3, $4, $5, $6, ${LocationExpression}, $8, $7, $11,
                  $12, $13, $14,
                  CASE WHEN $15 = 'PENDING_APPROVAL' THEN NULL ELSE now() END,
                  $16, $17, $18,
                  CASE WHEN $19 THEN now() END,
                  CASE WHEN $15 = 'APPROVED' THEN 'EXECUTION' ELSE 'PLAN' END,
-                 $20, $21)
+                 $20, $21, $22::text[])
          RETURNING *
        )
        SELECT ${Columns} FROM inserted AS campaigns`,
@@ -572,6 +586,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         params.submitted,
         params.minimumParticipants,
         params.minimumParticipantRank,
+        params.acceptedContributionTypes,
       ],
     );
     // Công khai ngay lúc tạo (Admin, hoặc capability public-ngay) là một lần chuyển
@@ -618,6 +633,59 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         needs.map((need) => need.targetQuantity),
         needs.map((need) => need.allowAlternative),
         needs.map((need) => need.sortOrder),
+      ],
+    );
+  }
+
+  private async insertFundingNeeds(
+    manager: EntityManager,
+    campaignId: string,
+    needs: readonly ICharityFundingNeedInput[],
+  ): Promise<void> {
+    await manager.query(
+      `INSERT INTO campaign_funding_needs (campaign_id, title, description, beneficiary_party_id, receiving_unit, bank_account_id, target_amount, deadline, sort_order)
+       SELECT $1, item.title, item.description, item.beneficiary_party_id, item.receiving_unit, item.bank_account_id, item.target_amount, item.deadline, item.sort_order
+       FROM UNNEST($2::text[], $3::text[], $4::uuid[], $5::text[], $6::uuid[], $7::bigint[], $8::timestamptz[], $9::int[])
+       AS item(title, description, beneficiary_party_id, receiving_unit, bank_account_id, target_amount, deadline, sort_order)`,
+      [
+        campaignId,
+        needs.map((n) => n.title),
+        needs.map((n) => n.description),
+        needs.map((n) => n.beneficiaryPartyId),
+        needs.map((n) => n.receivingUnit),
+        needs.map((n) => n.bankAccountId),
+        needs.map((n) => n.targetAmount),
+        needs.map((n) => n.deadline),
+        needs.map((n) => n.sortOrder),
+      ],
+    );
+  }
+
+  private async insertSupportNeeds(
+    manager: EntityManager,
+    campaignId: string,
+    needs: readonly ICharitySupportNeedInput[],
+  ): Promise<void> {
+    await manager.query(
+      `INSERT INTO campaign_other_support_needs (campaign_id, support_type, title, description, unit, target_quantity, starts_at, ends_at, location_label, requirements, handover_method, pic_name, pic_phone, sort_order)
+       SELECT $1, item.support_type, item.title, item.description, item.unit, item.target_quantity, item.starts_at, item.ends_at, item.location_label, item.requirements, item.handover_method, item.pic_name, item.pic_phone, item.sort_order
+       FROM UNNEST($2::text[], $3::text[], $4::text[], $5::text[], $6::int[], $7::timestamptz[], $8::timestamptz[], $9::text[], $10::text[], $11::text[], $12::text[], $13::text[], $14::int[])
+       AS item(support_type, title, description, unit, target_quantity, starts_at, ends_at, location_label, requirements, handover_method, pic_name, pic_phone, sort_order)`,
+      [
+        campaignId,
+        needs.map((n) => n.supportType),
+        needs.map((n) => n.title),
+        needs.map((n) => n.description),
+        needs.map((n) => n.unit),
+        needs.map((n) => n.targetQuantity),
+        needs.map((n) => n.startsAt),
+        needs.map((n) => n.endsAt),
+        needs.map((n) => n.locationLabel),
+        needs.map((n) => n.requirements),
+        needs.map((n) => n.handoverMethod),
+        needs.map((n) => n.picName),
+        needs.map((n) => n.picPhone),
+        needs.map((n) => n.sortOrder),
       ],
     );
   }
@@ -2401,6 +2469,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     locationLabel: string | null;
     minimumParticipants: number;
     minimumParticipantRank: UserRanks | null;
+    acceptedContributionTypes: readonly CharityContributionType[];
   }): Promise<ICharityCampaign | null> {
     const rows = await updateReturning<IRow>(
       this.manager,
@@ -2415,6 +2484,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
                 location_label = $8,
                 minimum_participants = $9,
                 minimum_participant_rank = $10,
+                accepted_contribution_types = $11::text[],
                 updated_at = now()
           WHERE global_id = $1 AND deleted_at IS NULL
           RETURNING *
@@ -2431,6 +2501,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         params.locationLabel,
         params.minimumParticipants,
         params.minimumParticipantRank,
+        params.acceptedContributionTypes,
       ],
     );
     return rows.length > 0 ? toCampaign(rows[0]) : null;

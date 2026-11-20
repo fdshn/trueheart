@@ -27,6 +27,7 @@ import {
 import {
   CharityBeneficiaryKind,
   CharityCallToAction,
+  CharityContributionType,
   CharityCustomFieldType,
   CharityDeliveryMethod,
   CharityFieldVisibility,
@@ -345,10 +346,11 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         appeal_audience: string | null;
         appeal_circumstance: string | null;
         call_to_actions: CharityCallToAction[];
+        accepted_contribution_types: CharityContributionType[];
         max_bank_accounts: number | null;
       }[]
     >(
-      `SELECT appeal_purpose, appeal_audience, appeal_circumstance, call_to_actions,
+      `SELECT appeal_purpose, appeal_audience, appeal_circumstance, call_to_actions, accepted_contribution_types,
               max_bank_accounts
        FROM campaigns WHERE global_id = $1 AND deleted_at IS NULL`,
       [campaignId],
@@ -359,6 +361,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
           appealAudience: row.appeal_audience,
           appealCircumstance: row.appeal_circumstance,
           callToActions: row.call_to_actions ?? [],
+          acceptedContributionTypes: row.accepted_contribution_types ?? [],
           maxBankAccounts: row.max_bank_accounts,
         }
       : null;
@@ -379,7 +382,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     await this.manager.query(
       `UPDATE campaigns
        SET appeal_purpose = $2, appeal_audience = $3, appeal_circumstance = $4,
-           call_to_actions = $5::text[], updated_at = now()
+           call_to_actions = $5::text[], accepted_contribution_types = $6::text[], updated_at = now()
        WHERE global_id = $1 AND deleted_at IS NULL`,
       [
         params.campaignId,
@@ -387,6 +390,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         params.profile.appealAudience,
         params.profile.appealCircumstance,
         params.profile.callToActions,
+        params.profile.acceptedContributionTypes,
       ],
     );
   }

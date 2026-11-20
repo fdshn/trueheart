@@ -94,6 +94,7 @@ import {
   CharityCancelTooLateException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
+  CharityContributionTypeDisabledException,
   CharityCoordinatorNotAllowedException,
   CharityDeliveryNotFoundException,
   CharityLinesInvalidException,
@@ -119,7 +120,9 @@ import {
   ICharityContribution,
   ICharityDelivery,
   ICharityExternalContribution,
+  ICharityFundingNeedInput,
   ICharitySummaryRepository,
+  ICharitySupportNeedInput,
   ICloseCampaignResult,
   IEntitlementRepository,
   IUserRepository,
@@ -144,8 +147,10 @@ import {
   charityMediaTypeGaps,
   charityParticipationRequirementGaps,
   charityReviewRoleOf,
+  deriveAcceptedContributionTypes,
   isCharityReviewRating,
   normalizeCharitySlug,
+  normalizeContributionTypes,
   overallNeedProgressPercent,
   slugifyCharityTitle,
 } from '@chantam.vn/chantam.core-lib/models';
@@ -364,6 +369,30 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
     if (requirementGaps.length > 0)
       throw new ValidationFailedException(requirementGaps);
     const prepared = await prepareWrite(this.repository, command);
+    const fundingNeeds = command.fundingNeeds ?? [];
+    const supportNeeds = command.otherSupportNeeds ?? [];
+    const fieldErrors: string[] = [];
+    for (const [index, need] of fundingNeeds.entries()) {
+      if (
+        need.beneficiaryPartyId !== undefined ||
+        need.bankAccountId !== undefined
+      )
+        fieldErrors.push(
+          `fundingNeeds[${index}].bankAccountId: chưa có ở lượt tạo — thêm sau khi tạo`,
+        );
+    }
+    if (fieldErrors.length > 0)
+      throw new ValidationFailedException(fieldErrors);
+    const acceptedContributionTypes =
+      command.acceptedContributionTypes === undefined
+        ? deriveAcceptedContributionTypes({
+            materialNeeds: (command.needs ?? []).length,
+            fundingNeeds: fundingNeeds.length,
+            supportNeeds: supportNeeds.length,
+          })
+        : normalizeContributionTypes(command.acceptedContributionTypes);
+    if (fundingNeeds.length > 0 && !acceptedContributionTypes.includes('MONEY'))
+      throw new CharityContributionTypeDisabledException('MONEY');
     // SAU quyền và nội dung: người không được tạo, hoặc gửi hồ sơ thiếu, không tốn
     // lượt gọi R2 nào.
     const { media, bannerUrl } = await confirmCharityMedia(
@@ -400,6 +429,36 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
         command.campaignType === 'INDIVIDUAL_APPEAL'
           ? (command.beneficiaryRelation ?? null)
           : null,
+      acceptedContributionTypes,
+      fundingNeeds: fundingNeeds.map(
+        (need, index): ICharityFundingNeedInput => ({
+          title: need.title.trim(),
+          description: need.description?.trim() || null,
+          beneficiaryPartyId: null,
+          receivingUnit: need.receivingUnit?.trim() || null,
+          bankAccountId: null,
+          targetAmount: need.targetAmount,
+          deadline: need.deadline ?? null,
+          sortOrder: index,
+        }),
+      ),
+      supportNeeds: supportNeeds.map(
+        (need, index): ICharitySupportNeedInput => ({
+          supportType: need.supportType,
+          title: need.title.trim(),
+          description: need.description?.trim() || null,
+          unit: need.unit.trim(),
+          targetQuantity: need.targetQuantity,
+          startsAt: need.startsAt ?? null,
+          endsAt: need.endsAt ?? null,
+          locationLabel: need.locationLabel?.trim() || null,
+          requirements: need.requirements?.trim() || null,
+          handoverMethod: need.handoverMethod?.trim() || null,
+          picName: need.picName?.trim() || null,
+          picPhone: need.picPhone?.trim() || null,
+          sortOrder: index,
+        }),
+      ),
       needs: (command.needs ?? []).map((need, index) => ({
         categoryId: need.categoryId ?? null,
         itemName: need.itemName.trim(),
@@ -1882,6 +1941,10 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
         command.minimumParticipantRank === undefined
           ? existing.minimumParticipantRank
           : command.minimumParticipantRank,
+      acceptedContributionTypes:
+        command.acceptedContributionTypes === undefined
+          ? existing.acceptedContributionTypes
+          : normalizeContributionTypes(command.acceptedContributionTypes),
     };
 
     gaps.push(...charityParticipationRequirementGaps(command));

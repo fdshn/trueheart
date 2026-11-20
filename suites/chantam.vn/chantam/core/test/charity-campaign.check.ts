@@ -374,6 +374,77 @@ async function main(): Promise<void> {
       [AdminId],
     );
 
+    const intakeSlug = `intake-${Date.now()}`;
+    const intakeCampaign = await createUseCase.handle(
+      withMedia({
+        ...writeInput({ title: 'Tiếp nhận đủ ba nhóm', slug: intakeSlug }),
+        actorUserId: DiamondId,
+        asAdmin: false,
+        submit: false,
+        needs: [{ itemName: 'Gạo', unit: 'kg', targetQuantity: 1 }],
+        fundingNeeds: [{ title: 'Viện phí', targetAmount: 100_000 }],
+        otherSupportNeeds: [
+          {
+            supportType: 'LABOR',
+            title: 'Nhân công',
+            unit: 'người',
+            targetQuantity: 1,
+          },
+        ],
+      }),
+    );
+    const [intakeCounts] = await dataSource.query<
+      { material: string; funding: string; support: string; types: string[] }[]
+    >(
+      `SELECT
+        (SELECT count(*)::text FROM campaign_need_items WHERE campaign_id = $1) AS material,
+        (SELECT count(*)::text FROM campaign_funding_needs WHERE campaign_id = $1) AS funding,
+        (SELECT count(*)::text FROM campaign_other_support_needs WHERE campaign_id = $1) AS support,
+        accepted_contribution_types AS types
+       FROM campaigns WHERE global_id = $1`,
+      [intakeCampaign.globalId],
+    );
+    check(
+      'tạo đủ ba nhóm ghi một dòng mỗi bảng và đủ ba loại tiếp nhận',
+      intakeCounts?.material === '1' &&
+        intakeCounts?.funding === '1' &&
+        intakeCounts?.support === '1' &&
+        JSON.stringify(intakeCounts?.types) ===
+          JSON.stringify(['MATERIAL', 'MONEY', 'SERVICE']),
+      JSON.stringify(intakeCounts),
+    );
+    const rollbackSlug = `rollback-${Date.now()}`;
+    await expectReject(
+      'trùng need name + unit rollback cả funding rows',
+      () =>
+        createUseCase.handle(
+          withMedia({
+            ...writeInput({
+              title: 'Kiểm rollback intake',
+              slug: rollbackSlug,
+            }),
+            actorUserId: DiamondId,
+            asAdmin: false,
+            submit: false,
+            needs: [
+              { itemName: 'Gạo', unit: 'kg', targetQuantity: 1 },
+              { itemName: 'Gạo', unit: 'kg', targetQuantity: 2 },
+            ],
+            fundingNeeds: [{ title: 'Không được còn', targetAmount: 1 }],
+          }),
+        ),
+      'UQ_campaign_need_items_name_unit',
+    );
+    const [rolledBack] = await dataSource.query<{ count: string }[]>(
+      `SELECT count(*)::text AS count FROM campaign_funding_needs f JOIN campaigns c ON c.global_id = f.campaign_id WHERE c.slug = $1`,
+      [rollbackSlug],
+    );
+    check(
+      'rollback không để funding row theo slug lỗi',
+      rolledBack?.count === '0',
+      rolledBack?.count,
+    );
+
     console.log('1. BR-CHARITY-01 — ai tạo được, và hồ sơ vào trạng thái nào');
 
     const seededCapability = await entitlements.getCapability(
@@ -1302,6 +1373,7 @@ async function main(): Promise<void> {
       locationLabel: 'Hoàn Kiếm, Hà Nội',
       minimumParticipants: 0,
       minimumParticipantRank: null,
+      acceptedContributionTypes: ['MATERIAL'],
     });
     check(
       'ghi đủ trường, toạ độ đi qua PostGIS đúng thứ tự lat/lng',
@@ -1328,6 +1400,7 @@ async function main(): Promise<void> {
       locationLabel: null,
       minimumParticipants: 0,
       minimumParticipantRank: null,
+      acceptedContributionTypes: ['MATERIAL'],
     });
     check(
       'null là xoá vị trí',

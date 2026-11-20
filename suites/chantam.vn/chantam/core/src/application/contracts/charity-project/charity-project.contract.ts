@@ -28,6 +28,7 @@ import {
 } from '@/domain/ports/repository';
 import {
   CharityCallToAction,
+  CharityContributionType,
   CharityOpenClosedStatus,
   CharityOperationStage,
   CharitySectionCompletionStatus,
@@ -163,6 +164,7 @@ export interface IUpdateCharityProfileCommand extends ICharityProjectCommand {
     appealAudience?: string | null;
     appealCircumstance?: string | null;
     callToActions?: CharityCallToAction[];
+    acceptedContributionTypes?: CharityContributionType[];
   };
 }
 export interface IUpdateCharityProfileUseCase extends IUseCase<

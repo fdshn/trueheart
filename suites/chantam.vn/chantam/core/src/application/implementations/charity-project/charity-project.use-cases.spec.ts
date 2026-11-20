@@ -24,6 +24,7 @@ import {
   ReplaceCharityPartiesUseCase,
   ReplaceCharityPhasesUseCase,
   SubmitCharityProjectUseCase,
+  UpdateCharityProfileUseCase,
 } from './charity-project.use-cases';
 
 const Owner = '10000000-0000-4000-8000-000000000001';
@@ -103,8 +104,10 @@ function make(
       appealAudience: null,
       appealCircumstance: null,
       callToActions: [],
+      acceptedContributionTypes: [],
       maxBankAccounts: null,
     })),
+    updateProfile: jest.fn(async (..._args: unknown[]) => undefined),
     submitDraft: jest.fn(async (..._args: unknown[]) => 'SUBMITTED'),
     moveStage: jest.fn(async (..._args: unknown[]) => 'MOVED'),
     listStageCandidates: jest.fn(async () => [] as unknown[]),
@@ -469,6 +472,50 @@ describe('AdvanceCharityStagesUseCase', () => {
         from: 'EXECUTION',
         to: 'SUMMARY',
         actorId: null,
+      }),
+    );
+  });
+});
+
+describe('UpdateCharityProfileUseCase · loại tiếp nhận', () => {
+  it('acceptedContributionTypes undefined giữ nguyên, mảng thì thay chuẩn hoá', async () => {
+    const deps = make();
+    deps.projects.getProfile.mockResolvedValue({
+      appealPurpose: null,
+      appealAudience: null,
+      appealCircumstance: null,
+      callToActions: [],
+      acceptedContributionTypes: ['MONEY'] as never,
+      maxBankAccounts: null,
+    });
+    const useCase = new UpdateCharityProfileUseCase(
+      deps.access,
+      deps.projects as never,
+    );
+    await useCase.handle({
+      userId: Owner,
+      campaignId: CampaignId,
+      profile: {},
+    });
+    expect(deps.projects.updateProfile).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        profile: expect.objectContaining({
+          acceptedContributionTypes: ['MONEY'] as never,
+        }),
+      }),
+    );
+    await useCase.handle({
+      userId: Owner,
+      campaignId: CampaignId,
+      profile: {
+        acceptedContributionTypes: ['SERVICE', 'MATERIAL', 'SERVICE'],
+      },
+    });
+    expect(deps.projects.updateProfile).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        profile: expect.objectContaining({
+          acceptedContributionTypes: ['MATERIAL', 'SERVICE'],
+        }),
       }),
     );
   });

@@ -35,6 +35,7 @@ import {
   CharityCampaignNotExtendableException,
   CharityCampaignNotFoundException,
   CharityCancelTooLateException,
+  CharityContributionTypeDisabledException,
   CharityCoordinatorNotAllowedException,
   CharityExternalSourceDuplicatedException,
   CharityLinesInvalidException,
@@ -233,6 +234,7 @@ export class CharityCampaignController {
   @ApiErrorResponses(
     ...ApiTokenErrors,
     CharityCampaignCreateNotAllowedException,
+    CharityContributionTypeDisabledException,
     CharityMediaInvalidException,
     [ValidationFailedException, ['endTime phải sau startTime']],
   )
