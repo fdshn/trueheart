@@ -359,3 +359,15 @@ export class CharityContributionTypeDisabledException extends ExceptionFrom(
 export class CharitySubmitRequirementsUnmetException extends ExceptionFrom(
   CoreErrors.CHARITY_SUBMIT_REQUIREMENTS_UNMET,
 ) {}
+
+export class CharityDistributionFieldRequiredException extends ExceptionFrom(
+  CoreErrors.CHARITY_DISTRIBUTION_FIELD_REQUIRED,
+) {}
+
+export class CharityDistributionMethodMismatchException extends ExceptionFrom(
+  CoreErrors.CHARITY_DISTRIBUTION_METHOD_MISMATCH,
+) {}
+
+export class CharityRoundEvidenceRequiredException extends ExceptionFrom(
+  CoreErrors.CHARITY_ROUND_EVIDENCE_REQUIRED,
+) {}

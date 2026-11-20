@@ -421,6 +421,12 @@ export enum ErrorCodes {
   CHARITY_CONTRIBUTION_TYPE_DISABLED = 0x13_55,
   /** Gửi duyệt khi thiếu nhu cầu hoặc tài khoản nhận bắt buộc theo loại đóng góp đã bật. */
   CHARITY_SUBMIT_REQUIREMENTS_UNMET = 0x13_56,
+  /** Thiếu trường bắt buộc cho hình thức trao của một đợt. */
+  CHARITY_DISTRIBUTION_FIELD_REQUIRED = 0x13_57,
+  /** Hình thức trao không phù hợp với loại đóng góp của đợt. */
+  CHARITY_DISTRIBUTION_METHOD_MISMATCH = 0x13_58,
+  /** Chưa đủ bằng chứng bắt buộc để hoàn tất đợt trao. */
+  CHARITY_ROUND_EVIDENCE_REQUIRED = 0x13_59,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

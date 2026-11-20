@@ -4,6 +4,7 @@ export * from './blog';
 export * from './candidate-selection';
 export * from './category';
 export * from './charity-campaign';
+export * from './charity-distribution';
 export * from './charity-engagement';
 export * from './charity-event';
 export * from './charity-intake';

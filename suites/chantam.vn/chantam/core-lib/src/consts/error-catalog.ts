@@ -1478,6 +1478,28 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['MONEY: chưa có tài khoản nhận đang hiệu lực'],
   },
 
+  CHARITY_DISTRIBUTION_FIELD_REQUIRED: {
+    code: ErrorCodes.CHARITY_DISTRIBUTION_FIELD_REQUIRED,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (fields: string) =>
+      `Thiếu thông tin bắt buộc cho hình thức trao: ${fields}`,
+    sample: ['privateDetails.recipientAddress'],
+  },
+
+  CHARITY_DISTRIBUTION_METHOD_MISMATCH: {
+    code: ErrorCodes.CHARITY_DISTRIBUTION_METHOD_MISMATCH,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (reason: string) => `Hình thức trao không phù hợp: ${reason}`,
+    sample: ['BANK_TRANSFER requires MONEY contribution type'],
+  },
+
+  CHARITY_ROUND_EVIDENCE_REQUIRED: {
+    code: ErrorCodes.CHARITY_ROUND_EVIDENCE_REQUIRED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (missing: string) => `Chưa đủ bằng chứng đợt trao: ${missing}`,
+    sample: ['evidenceUrls'],
+  },
+
   CHARITY_EXTERNAL_SOURCE_DUPLICATED: {
     code: ErrorCodes.CHARITY_EXTERNAL_SOURCE_DUPLICATED,
     httpStatus: HttpStatus.CONFLICT,
