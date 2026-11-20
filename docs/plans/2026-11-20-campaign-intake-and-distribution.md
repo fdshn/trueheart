@@ -1,6 +1,6 @@
 # CR chiến dịch từ thiện — cách tiếp nhận quyên góp và hình thức trao tặng
 
-> Trạng thái: **đề xuất, chờ chốt**. Mở rộng [`CHARITY-PROJECT-LIFECYCLE.md`](../plan/CHARITY-PROJECT-LIFECYCLE.md)
+> Trạng thái: **đã chốt 3 điểm mở (§6, 20/11/2026), chờ triển khai**. Mở rộng [`CHARITY-PROJECT-LIFECYCLE.md`](../plan/CHARITY-PROJECT-LIFECYCLE.md)
 > (§3.1 tiến độ 4 bước, §3.11 các nhóm nhu cầu, §3.18 nhiều đợt trao) và không thay thế tài liệu đó.
 
 ## 1. Vấn đề
@@ -67,7 +67,7 @@ Khác so với bản đề xuất ban đầu:
    ra hai nguồn dữ liệu.
 4. **`BANK_TRANSFER` chỉ hợp lệ khi đợt có `MONEY`.** Tài khoản người thụ hưởng lưu ở bảng riêng
    `campaign_beneficiary_bank_accounts` (gắn `campaign_parties` role `BENEFICIARY`, có
-   `verified_at`/`verified_by`). Chỉ Admin hoặc owner xác thực, và không trộn với
+   `holder_type`, `verified_at`/`verified_by`; quy tắc ở §6.2), không trộn với
    `campaign_bank_accounts` công khai.
 5. **Không tích hợp đơn vị vận chuyển.** Mã vận đơn là text, giữ nguyên quyết định CH-2 ở
    `consts/delivery.ts`.
@@ -111,7 +111,7 @@ method/loại (ví dụ `BANK_TRANSFER` không có `MONEY`) trả `CHARITY_DISTR
 | Địa chỉ/GPS điểm trao `OTHER_LOCATION` | ✔ | ✔ | ✔ |
 | Địa chỉ nhà, SĐT người thụ hưởng, người nhận ship | ✘ | ✘ | ✔ |
 | Tài khoản người thụ hưởng, mã vận đơn, SĐT phụ trách nội bộ | ✘ | ✘ | ✔ |
-| Ảnh bằng chứng đã trao | Chỉ ảnh được owner chọn công khai, che thông tin cá nhân | Như public | ✔ |
+| Ảnh bằng chứng đã trao (mọi hình thức, kể cả tận nhà) | ✔ (§6.3) | ✔ | ✔ |
 
 Backend enforce ở DTO public/workspace. Client không tự ẩn field.
 
@@ -159,13 +159,22 @@ Backend enforce ở DTO public/workspace. Client không tự ẩn field.
   "chưa cập nhật".
 - `deliveryMethod` trên phases vẫn trả trong một bản phát hành, đánh dấu deprecated ở Swagger.
 
-## 6. Điểm cần chốt
+## 6. Quyết định đã chốt (20/11/2026)
 
-1. Một đợt trao có được nhiều hình thức không (ví dụ vừa trao tại điểm vừa ship cho người
-   không đến được)? Đề xuất: **không**, tách thành hai đợt.
-2. Ai được xác thực tài khoản người thụ hưởng: chỉ Admin, hay owner cũng được khi dự án
-   `INDIVIDUAL_APPEAL`?
-3. Ảnh bằng chứng trao tận nhà có được công khai không, khi có đồng ý của người thụ hưởng?
+1. **Mỗi đợt trao chỉ dùng một hình thức.** Cần hình thức khác (ví dụ ship cho người không
+   đến được điểm trao) thì tạo đợt riêng. Backend validate `distributionMethod` là một giá
+   trị đơn.
+2. **Tài khoản thụ hưởng là tài khoản của chủ dự án hoặc của chính người được từ thiện.**
+   `campaign_beneficiary_bank_accounts` có `holder_type` (`OWNER` | `BENEFICIARY`):
+   - `OWNER`: tên chủ tài khoản phải khớp tên đã xác minh của chủ dự án;
+   - `BENEFICIARY`: tên chủ tài khoản phải khớp bên thụ hưởng (`campaign_parties` role
+     `BENEFICIARY`).
+   Không nhận tài khoản của bên thứ ba. Admin kiểm tra tên khớp trong bước duyệt chiến dịch
+   (`verified_at`/`verified_by`). Mỗi lần đổi tài khoản phải duyệt lại.
+3. **Ảnh bằng chứng trao tặng được công khai, kể cả ảnh trao tận nhà.** Thông tin dạng text
+   (địa chỉ nhà, SĐT, tài khoản, mã vận đơn) vẫn riêng tư theo §3.4. Ảnh công khai dùng đồng ý
+   đã thu ở bên thụ hưởng (`consent_at`); BTC chịu trách nhiệm không để lộ số nhà/giấy tờ
+   trong ảnh, Admin ẩn được ảnh vi phạm qua báo cáo.
 
 ## 7. Tiêu chí nghiệm thu
 
@@ -173,7 +182,8 @@ Backend enforce ở DTO public/workspace. Client không tự ẩn field.
   workspace thấy đủ dữ liệu, không mất trường nào.
 - Public API không trả địa chỉ nhà, SĐT, tài khoản thụ hưởng, mã vận đơn.
 - Gọi API đóng góp tiền vào chiến dịch không bật `MONEY` bị từ chối.
-- Round `BANK_TRANSFER` không có `MONEY` bị từ chối. Round thiếu bằng chứng đúng hình thức
+- Round `BANK_TRANSFER` không có `MONEY` bị từ chối. Tài khoản thụ hưởng không phải của chủ dự
+  án hoặc người được từ thiện bị từ chối. Round thiếu bằng chứng đúng hình thức
   không chuyển `DONE` được.
 - Tổng kết hiển thị ba tổng riêng: hiện vật, tiền, dịch vụ.
 - Chiến dịch cũ sau migration vẫn mở/đọc được bình thường.
