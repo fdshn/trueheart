@@ -32,6 +32,8 @@ const AllowedEmpty: Record<string, string> = {
   gift_posts: 'bảng cũ đã thay bằng posts (M2.1), chỉ còn cho backfill',
   campaign_round_private_details:
     'chi tiết riêng tư chỉ sinh khi có đợt phân phối theo hình thức mới; seed không khai cột/bảng này',
+  campaign_beneficiary_bank_accounts:
+    'tài khoản thụ hưởng chỉ sinh qua luồng quản trị; seed không khai cột/bảng này',
 };
 
 const failures: string[] = [];

@@ -214,6 +214,7 @@ interface IRoundRow {
   service_type: ICharityRound['serviceType'];
   service_channel: ICharityRound['serviceChannel'];
   private_round_id: string | null;
+  beneficiary_bank_account_id: string | null;
   recipient_name: string | null;
   recipient_phone: string | null;
   recipient_address: string | null;
@@ -248,7 +249,8 @@ const RoundSelect = `
          round.contribution_types, round.evidence_urls, round.location_label, round.address,
          ST_Y(round.location::geometry) AS lat, ST_X(round.location::geometry) AS lng,
          round.needs_review, round.service_type, round.service_channel,
-         private.round_id AS private_round_id, private.recipient_name, private.recipient_phone,
+         private.round_id AS private_round_id, private.beneficiary_bank_account_id,
+         private.recipient_name, private.recipient_phone,
          private.recipient_address, private.coordinator_name, private.coordinator_phone,
          private.carrier, private.shipping_fee_payer, private.estimated_shipping_fee,
          private.tracking_code, private.transfer_content, private.updated_by AS private_updated_by,
@@ -294,6 +296,7 @@ const toRound = (row: IRoundRow): ICharityRound => ({
       : {
           roundId: row.private_round_id,
           campaignId: row.campaign_id,
+          beneficiaryBankAccountId: row.beneficiary_bank_account_id,
           recipientName: row.recipient_name,
           recipientPhone: row.recipient_phone,
           recipientAddress: row.recipient_address,
@@ -625,12 +628,13 @@ export class CharityOperationsRepository implements ICharityOperationsRepository
       );
       await manager.query(
         `INSERT INTO campaign_round_private_details
-           (round_id, campaign_id, recipient_name, recipient_phone, recipient_address,
-            coordinator_name, coordinator_phone, carrier, shipping_fee_payer,
+           (round_id, campaign_id, beneficiary_bank_account_id, recipient_name, recipient_phone,
+            recipient_address, coordinator_name, coordinator_phone, carrier, shipping_fee_payer,
             estimated_shipping_fee, tracking_code, transfer_content, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          ON CONFLICT (round_id) DO UPDATE
-           SET recipient_name = EXCLUDED.recipient_name,
+           SET beneficiary_bank_account_id = EXCLUDED.beneficiary_bank_account_id,
+               recipient_name = EXCLUDED.recipient_name,
                recipient_phone = EXCLUDED.recipient_phone,
                recipient_address = EXCLUDED.recipient_address,
                coordinator_name = EXCLUDED.coordinator_name,
@@ -644,6 +648,7 @@ export class CharityOperationsRepository implements ICharityOperationsRepository
         [
           params.roundId,
           params.campaignId,
+          params.round.privateDetails.beneficiaryBankAccountId,
           params.round.privateDetails.recipientName,
           params.round.privateDetails.recipientPhone,
           params.round.privateDetails.recipientAddress,

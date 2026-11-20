@@ -1500,6 +1500,20 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['evidenceUrls'],
   },
 
+  CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH: {
+    code: ErrorCodes.CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (expected: string) =>
+      `Tên chủ tài khoản không khớp tên bên thụ hưởng: ${expected}`,
+    sample: ['Nguyễn Văn Đức'],
+  },
+
+  CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED: {
+    code: ErrorCodes.CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Tài khoản thụ hưởng chưa được xác thực',
+  },
+
   CHARITY_EXTERNAL_SOURCE_DUPLICATED: {
     code: ErrorCodes.CHARITY_EXTERNAL_SOURCE_DUPLICATED,
     httpStatus: HttpStatus.CONFLICT,

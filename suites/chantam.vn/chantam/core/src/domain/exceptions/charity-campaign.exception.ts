@@ -371,3 +371,11 @@ export class CharityDistributionMethodMismatchException extends ExceptionFrom(
 export class CharityRoundEvidenceRequiredException extends ExceptionFrom(
   CoreErrors.CHARITY_ROUND_EVIDENCE_REQUIRED,
 ) {}
+
+export class CharityBeneficiaryAccountNameMismatchException extends ExceptionFrom(
+  CoreErrors.CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH,
+) {}
+
+export class CharityBeneficiaryAccountNotVerifiedException extends ExceptionFrom(
+  CoreErrors.CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED,
+) {}

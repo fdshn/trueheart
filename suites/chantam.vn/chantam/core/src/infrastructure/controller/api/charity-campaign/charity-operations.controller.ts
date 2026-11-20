@@ -702,6 +702,7 @@ export class CharityOperationsController {
         serviceType: input.serviceType ?? null,
         serviceChannel: input.serviceChannel ?? null,
         privateDetails: {
+          beneficiaryBankAccountId: null,
           recipientName: input.recipientName ?? null,
           recipientPhone: input.recipientPhone ?? null,
           recipientAddress: input.recipientAddress ?? null,

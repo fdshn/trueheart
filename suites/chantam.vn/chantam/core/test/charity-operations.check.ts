@@ -363,6 +363,7 @@ async function main(): Promise<void> {
         serviceType: null,
         serviceChannel: null,
         privateDetails: {
+          beneficiaryBankAccountId: null,
           recipientName: 'Người nhận',
           recipientPhone: '0901234567',
           recipientAddress: 'Địa chỉ nhận',
@@ -394,6 +395,7 @@ async function main(): Promise<void> {
         serviceType: null,
         serviceChannel: null,
         privateDetails: {
+          beneficiaryBankAccountId: null,
           recipientName: null,
           recipientPhone: null,
           recipientAddress: null,
@@ -425,6 +427,7 @@ async function main(): Promise<void> {
         serviceType: null,
         serviceChannel: null,
         privateDetails: {
+          beneficiaryBankAccountId: null,
           recipientName: null,
           recipientPhone: '0901888999',
           recipientAddress: 'Địa chỉ người nhận riêng',
@@ -456,6 +459,7 @@ async function main(): Promise<void> {
         serviceType: null,
         serviceChannel: null,
         privateDetails: {
+          beneficiaryBankAccountId: null,
           recipientName: null,
           recipientPhone: null,
           recipientAddress: null,
@@ -698,6 +702,7 @@ async function main(): Promise<void> {
         serviceType: roundA.serviceType,
         serviceChannel: roundA.serviceChannel,
         privateDetails: roundA.privateDetails ?? {
+          beneficiaryBankAccountId: null,
           recipientName: null,
           recipientPhone: null,
           recipientAddress: null,

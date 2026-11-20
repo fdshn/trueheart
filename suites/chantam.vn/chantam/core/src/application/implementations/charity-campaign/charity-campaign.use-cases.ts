@@ -395,6 +395,7 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
           serviceType: command.distribution.serviceType ?? null,
           serviceChannel: command.distribution.serviceChannel ?? null,
           privateDetails: {
+            beneficiaryBankAccountId: null,
             recipientName: command.distribution.recipientName ?? null,
             recipientPhone: command.distribution.recipientPhone ?? null,
             recipientAddress: command.distribution.recipientAddress ?? null,

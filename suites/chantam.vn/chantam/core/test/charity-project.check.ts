@@ -33,6 +33,7 @@ const Giver = id('03');
 const Other = id('04');
 const Racer1 = id('05');
 const Racer2 = id('06');
+const Verifier = id('07');
 const LegacyCampaign = id('10');
 const Draft = id('11');
 const Live = id('12');
@@ -81,6 +82,7 @@ async function main(): Promise<void> {
       [Other, 'cp_other'],
       [Racer1, 'cp_racer1'],
       [Racer2, 'cp_racer2'],
+      [Verifier, 'cp_verifier'],
     ])
       await sql(
         `INSERT INTO users (global_id, username, password_hash, rank, status)
@@ -680,6 +682,75 @@ async function main(): Promise<void> {
         return (error as { code?: string }).code ?? 'ERR';
       }
     };
+
+    console.log('\n7. Tài khoản thụ hưởng');
+    const firstBeneficiaryAccount = await projects.addBeneficiaryBankAccount({
+      campaignId: Live,
+      actorId: Owner,
+      account: {
+        holderType: 'OWNER',
+        partyId: null,
+        bankName: 'VCB',
+        accountNo: '12345678',
+        accountName: 'Nguyen Van A',
+      },
+      replacesAccountId: null,
+      replaceReason: null,
+    });
+    const firstBeneficiaryId =
+      firstBeneficiaryAccount.status === 'CREATED'
+        ? firstBeneficiaryAccount.account.accountId
+        : '';
+    await projects.verifyBeneficiaryBankAccount({
+      campaignId: Live,
+      accountId: firstBeneficiaryId,
+      actorId: Verifier,
+    });
+    const replacement = await projects.addBeneficiaryBankAccount({
+      campaignId: Live,
+      actorId: Owner,
+      account: {
+        holderType: 'OWNER',
+        partyId: null,
+        bankName: 'VCB',
+        accountNo: '87654321',
+        accountName: 'Nguyen Van B',
+      },
+      replacesAccountId: firstBeneficiaryId,
+      replaceReason: 'Đổi người nhận',
+    });
+    const beneficiaryAccounts =
+      await projects.listBeneficiaryBankAccounts(Live);
+    check(
+      'thay tài khoản thụ hưởng đóng bản cũ và bản mới luôn chưa xác thực',
+      replacement.status === 'CREATED' &&
+        beneficiaryAccounts.some(
+          (account) =>
+            account.accountId === firstBeneficiaryId &&
+            account.validTo !== null,
+        ) &&
+        replacement.account.verifiedAt === null &&
+        replacement.account.verifiedBy === null,
+    );
+    await sql(`DELETE FROM users WHERE global_id = $1`, [Verifier]);
+    const afterVerifierDeleted = (
+      await projects.listBeneficiaryBankAccounts(Live)
+    ).find((account) => account.accountId === firstBeneficiaryId);
+    check(
+      'xoá người xác thực giữ thời điểm xác thực và xoá người xác thực',
+      afterVerifierDeleted !== undefined &&
+        afterVerifierDeleted.verifiedAt !== null &&
+        afterVerifierDeleted.verifiedBy === null,
+    );
+    check(
+      'OWNER không được gắn party_id',
+      (await rejects(
+        `INSERT INTO campaign_beneficiary_bank_accounts
+           (campaign_id, holder_type, party_id, bank_name, account_no, account_name)
+         VALUES ($1, 'OWNER', $2, 'VCB', '11223344', 'Sai')`,
+        [Live, id('20')],
+      )) === '23514',
+    );
     check(
       'nháp không thể "đã duyệt" (CHK_campaigns_draft_undecided)',
       (await rejects(

@@ -271,6 +271,8 @@ Nghiệp vụ Chân Tâm
 | `0x1357` | `4951` | 400 Bad Request | `CHARITY_DISTRIBUTION_FIELD_REQUIRED` | Thiếu thông tin bắt buộc cho hình thức trao: privateDetails.recipientAddress |
 | `0x1358` | `4952` | 400 Bad Request | `CHARITY_DISTRIBUTION_METHOD_MISMATCH` | Hình thức trao không phù hợp: BANK_TRANSFER requires MONEY contribution type |
 | `0x1359` | `4953` | 409 Conflict | `CHARITY_ROUND_EVIDENCE_REQUIRED` | Chưa đủ bằng chứng đợt trao: evidenceUrls |
+| `0x135a` | `4954` | 400 Bad Request | `CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH` | Tên chủ tài khoản không khớp tên bên thụ hưởng: Nguyễn Văn Đức |
+| `0x135b` | `4955` | 409 Conflict | `CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED` | Tài khoản thụ hưởng chưa được xác thực |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -306,5 +308,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **264 mã lỗi** trên 3 tầng.
+Tổng cộng **266 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

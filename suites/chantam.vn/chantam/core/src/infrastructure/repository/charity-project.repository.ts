@@ -25,6 +25,7 @@ import {
   SubmitCharityDraftOutcome,
 } from '@/domain/ports/repository';
 import {
+  AddCharityBeneficiaryBankAccountOutcome,
   CharityBeneficiaryKind,
   CharityCallToAction,
   CharityContributionType,
@@ -43,6 +44,8 @@ import {
   CharityVolunteerNeedStatus,
   CharityVolunteerRegistrationStatus,
   diffCharityRevisions,
+  ICharityBeneficiaryBankAccount,
+  ICharityBeneficiaryBankAccountInput,
   ICharityIntakeCounts,
   ICharityRevisionRow,
   stageRank,
@@ -109,6 +112,39 @@ const toBank = (row: IBankRow): ICharityBankAccount => ({
   validFrom: row.valid_from,
   validTo: row.valid_to,
   closeReason: row.close_reason,
+});
+
+interface IBeneficiaryBankRow {
+  global_id: string;
+  holder_type: ICharityBeneficiaryBankAccount['holderType'];
+  party_id: string | null;
+  bank_name: string;
+  account_no: string;
+  account_name: string;
+  valid_from: Date;
+  valid_to: Date | null;
+  close_reason: string | null;
+  verified_at: Date | null;
+  verified_by: string | null;
+}
+
+const BeneficiaryBankColumns = `global_id, holder_type, party_id, bank_name, account_no,
+  account_name, valid_from, valid_to, close_reason, verified_at, verified_by`;
+
+const toBeneficiaryBank = (
+  row: IBeneficiaryBankRow,
+): ICharityBeneficiaryBankAccount => ({
+  accountId: row.global_id,
+  holderType: row.holder_type,
+  partyId: row.party_id,
+  bankName: row.bank_name,
+  accountNo: row.account_no,
+  accountName: row.account_name,
+  validFrom: row.valid_from,
+  validTo: row.valid_to,
+  closeReason: row.close_reason,
+  verifiedAt: row.verified_at,
+  verifiedBy: row.verified_by,
 });
 
 const FundingColumns = `funding.global_id, funding.title, funding.description,
@@ -782,6 +818,106 @@ export class CharityProjectRepository implements ICharityProjectRepository {
       [params.campaignId, params.accountId, params.reason, params.actorId],
     );
     return rows.length > 0;
+  }
+
+  // ── Tài khoản thụ hưởng ─────────────────────────────────────────────────
+
+  public async listBeneficiaryBankAccounts(
+    campaignId: string,
+  ): Promise<ICharityBeneficiaryBankAccount[]> {
+    const rows = await this.manager.query<IBeneficiaryBankRow[]>(
+      `SELECT ${BeneficiaryBankColumns} FROM campaign_beneficiary_bank_accounts
+       WHERE campaign_id = $1
+       ORDER BY (valid_to IS NULL) DESC, valid_from DESC, id DESC`,
+      [campaignId],
+    );
+    return rows.map(toBeneficiaryBank);
+  }
+
+  public async addBeneficiaryBankAccount(params: {
+    campaignId: string;
+    actorId: string;
+    account: ICharityBeneficiaryBankAccountInput;
+    replacesAccountId: string | null;
+    replaceReason: string | null;
+  }): Promise<AddCharityBeneficiaryBankAccountOutcome> {
+    return this.manager.transaction(async (manager) => {
+      if (params.replacesAccountId) {
+        const closed = await updateReturning<{ global_id: string }>(
+          manager,
+          `UPDATE campaign_beneficiary_bank_accounts
+           SET valid_to = now(), close_reason = $3, closed_by = $4
+           WHERE campaign_id = $1 AND global_id = $2 AND valid_to IS NULL
+           RETURNING global_id`,
+          [
+            params.campaignId,
+            params.replacesAccountId,
+            params.replaceReason ?? 'Thay bằng tài khoản mới',
+            params.actorId,
+          ],
+        );
+        if (closed.length === 0) return { status: 'REPLACED_NOT_FOUND' };
+      }
+      const [row] = await manager.query<IBeneficiaryBankRow[]>(
+        `INSERT INTO campaign_beneficiary_bank_accounts
+           (campaign_id, holder_type, party_id, bank_name, account_no, account_name, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING ${BeneficiaryBankColumns}`,
+        [
+          params.campaignId,
+          params.account.holderType,
+          params.account.partyId,
+          params.account.bankName,
+          params.account.accountNo,
+          params.account.accountName,
+          params.actorId,
+        ],
+      );
+      return { status: 'CREATED', account: toBeneficiaryBank(row) };
+    });
+  }
+
+  public async closeBeneficiaryBankAccount(params: {
+    campaignId: string;
+    accountId: string;
+    actorId: string;
+    reason: string;
+  }): Promise<boolean> {
+    const rows = await updateReturning<{ global_id: string }>(
+      this.manager,
+      `UPDATE campaign_beneficiary_bank_accounts
+       SET valid_to = now(), close_reason = $3, closed_by = $4
+       WHERE campaign_id = $1 AND global_id = $2 AND valid_to IS NULL
+       RETURNING global_id`,
+      [params.campaignId, params.accountId, params.reason, params.actorId],
+    );
+    return rows.length > 0;
+  }
+
+  public async verifyBeneficiaryBankAccount(params: {
+    campaignId: string;
+    accountId: string;
+    actorId: string;
+  }): Promise<ICharityBeneficiaryBankAccount | null> {
+    const rows = await updateReturning<IBeneficiaryBankRow>(
+      this.manager,
+      `UPDATE campaign_beneficiary_bank_accounts
+       SET verified_at = now(), verified_by = $3
+       WHERE campaign_id = $1 AND global_id = $2 AND valid_to IS NULL
+       RETURNING ${BeneficiaryBankColumns}`,
+      [params.campaignId, params.accountId, params.actorId],
+    );
+    return rows.length > 0 ? toBeneficiaryBank(rows[0]) : null;
+  }
+
+  public async findOwnerFullName(campaignId: string): Promise<string | null> {
+    const [row] = await this.manager.query<{ full_name: string | null }[]>(
+      `SELECT account.full_name FROM campaigns campaign
+       JOIN users account ON account.global_id = campaign.created_by
+       WHERE campaign.global_id = $1`,
+      [campaignId],
+    );
+    return row?.full_name ?? null;
   }
 
   // ── Ban tổ chức ────────────────────────────────────────────────────────

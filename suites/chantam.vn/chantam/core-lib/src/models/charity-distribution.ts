@@ -25,6 +25,7 @@ export type CharityShippingFeePayer = (typeof CharityShippingFeePayers)[number];
 export const MaxCharityRoundEvidenceUrls = 20;
 
 export interface ICharityRoundPrivateDetailsInput {
+  beneficiaryBankAccountId: string | null;
   recipientName: string | null;
   recipientPhone: string | null;
   recipientAddress: string | null;

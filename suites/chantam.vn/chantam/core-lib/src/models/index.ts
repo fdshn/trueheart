@@ -3,6 +3,7 @@ export * from './allocation';
 export * from './blog';
 export * from './candidate-selection';
 export * from './category';
+export * from './charity-beneficiary-account';
 export * from './charity-campaign';
 export * from './charity-distribution';
 export * from './charity-engagement';

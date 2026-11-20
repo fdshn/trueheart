@@ -49,13 +49,14 @@ export async function insertDistributionRound(
   );
   await manager.query(
     `INSERT INTO campaign_round_private_details
-       (round_id, campaign_id, recipient_name, recipient_phone, recipient_address,
-        coordinator_name, coordinator_phone, carrier, shipping_fee_payer,
+       (round_id, campaign_id, beneficiary_bank_account_id, recipient_name, recipient_phone,
+        recipient_address, coordinator_name, coordinator_phone, carrier, shipping_fee_payer,
         estimated_shipping_fee, tracking_code, transfer_content, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
     [
       created.global_id,
       params.campaignId,
+      round.privateDetails.beneficiaryBankAccountId,
       round.privateDetails.recipientName,
       round.privateDetails.recipientPhone,
       round.privateDetails.recipientAddress,

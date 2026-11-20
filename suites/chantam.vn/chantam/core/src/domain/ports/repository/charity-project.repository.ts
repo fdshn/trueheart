@@ -1,4 +1,5 @@
 import {
+  AddCharityBeneficiaryBankAccountOutcome,
   CharityBeneficiaryKind,
   CharityCallToAction,
   CharityContributionType,
@@ -15,6 +16,8 @@ import {
   CharityTeamRole,
   CharityVolunteerNeedStatus,
   CharityVolunteerRegistrationStatus,
+  ICharityBeneficiaryBankAccount,
+  ICharityBeneficiaryBankAccountInput,
   ICharityIntakeCounts,
 } from '@chantam.vn/chantam.core-lib/models';
 
@@ -311,6 +314,29 @@ export interface ICharityProjectRepository {
     actorId: string;
     reason: string;
   }): Promise<boolean>;
+
+  listBeneficiaryBankAccounts(
+    campaignId: string,
+  ): Promise<ICharityBeneficiaryBankAccount[]>;
+  addBeneficiaryBankAccount(params: {
+    campaignId: string;
+    actorId: string;
+    account: ICharityBeneficiaryBankAccountInput;
+    replacesAccountId: string | null;
+    replaceReason: string | null;
+  }): Promise<AddCharityBeneficiaryBankAccountOutcome>;
+  closeBeneficiaryBankAccount(params: {
+    campaignId: string;
+    accountId: string;
+    actorId: string;
+    reason: string;
+  }): Promise<boolean>;
+  verifyBeneficiaryBankAccount(params: {
+    campaignId: string;
+    accountId: string;
+    actorId: string;
+  }): Promise<ICharityBeneficiaryBankAccount | null>;
+  findOwnerFullName(campaignId: string): Promise<string | null>;
 
   listTeam(campaignId: string): Promise<ICharityTeamMember[]>;
   replaceTeam(params: {

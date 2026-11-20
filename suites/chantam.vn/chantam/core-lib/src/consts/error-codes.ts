@@ -427,6 +427,10 @@ export enum ErrorCodes {
   CHARITY_DISTRIBUTION_METHOD_MISMATCH = 0x13_58,
   /** Chưa đủ bằng chứng bắt buộc để hoàn tất đợt trao. */
   CHARITY_ROUND_EVIDENCE_REQUIRED = 0x13_59,
+  /** Tên chủ tài khoản thụ hưởng không khớp tên bên nhận dự kiến. */
+  CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH = 0x13_5a,
+  /** Tài khoản thụ hưởng được chọn chưa được xác thực. */
+  CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED = 0x13_5b,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

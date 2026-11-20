@@ -21,6 +21,7 @@ const completeInputs: Record<
     serviceType: null,
     serviceChannel: null,
     privateDetails: {
+      beneficiaryBankAccountId: null,
       recipientName: 'Nguyen Van A',
       recipientPhone: '0900000000',
       recipientAddress: '1 Duong A',
@@ -43,6 +44,7 @@ const completeInputs: Record<
     serviceType: null,
     serviceChannel: null,
     privateDetails: {
+      beneficiaryBankAccountId: null,
       recipientName: 'Nguyen Van A',
       recipientPhone: '0900000000',
       recipientAddress: '1 Duong A',
@@ -65,6 +67,7 @@ const completeInputs: Record<
     serviceType: null,
     serviceChannel: null,
     privateDetails: {
+      beneficiaryBankAccountId: null,
       recipientName: null,
       recipientPhone: null,
       recipientAddress: null,
@@ -87,6 +90,7 @@ const completeInputs: Record<
     serviceType: null,
     serviceChannel: null,
     privateDetails: {
+      beneficiaryBankAccountId: null,
       recipientName: null,
       recipientPhone: null,
       recipientAddress: null,
@@ -109,6 +113,7 @@ const completeInputs: Record<
     serviceType: 'LABOR',
     serviceChannel: 'IN_PERSON',
     privateDetails: {
+      beneficiaryBankAccountId: null,
       recipientName: null,
       recipientPhone: null,
       recipientAddress: null,
