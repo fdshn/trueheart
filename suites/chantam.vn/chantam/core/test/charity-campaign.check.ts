@@ -66,6 +66,7 @@ import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
+import { CharityOperationsRepository } from '../src/infrastructure/repository/charity-operations.repository';
 import { CharitySummaryRepository } from '../src/infrastructure/repository/charity-summary.repository';
 import { EntitlementRepository } from '../src/infrastructure/repository/entitlement.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
@@ -454,6 +455,22 @@ async function main(): Promise<void> {
        FROM campaign_phases phase
        WHERE phase.campaign_id = $1 AND phase.phase = 'DISTRIBUTION'`,
       [distributionCampaign.globalId],
+    );
+    const operations = new CharityOperationsRepository(dataSource.manager);
+    const createdRound = (
+      await operations.listRounds(distributionCampaign.globalId)
+    )[0];
+    check(
+      'workspace read-back giữ đủ dữ liệu distribution riêng tư và toạ độ đúng chiều',
+      createdRound?.locationLabel === 'Nhà văn hoá xã' &&
+        createdRound.address === 'Thôn 1, xã An Bình' &&
+        createdRound.lat === 10.7 &&
+        createdRound.lng === 106.6 &&
+        JSON.stringify(createdRound.contributionTypes) ===
+          JSON.stringify(['MATERIAL']) &&
+        createdRound.privateDetails?.coordinatorName === 'Điều phối viên' &&
+        createdRound.privateDetails?.coordinatorPhone === '0901000000',
+      JSON.stringify(createdRound),
     );
     const rereadDistribution = await repository.findByGlobalId(
       distributionCampaign.globalId,
