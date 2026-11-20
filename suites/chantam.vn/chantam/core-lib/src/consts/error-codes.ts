@@ -417,6 +417,10 @@ export enum ErrorCodes {
   CHARITY_PARTICIPATION_STAGE_NOT_ALLOWED = 0x13_53,
   /** Hạng hiện tại (đọc từ database) thấp hơn hạng tối thiểu chiến dịch đặt cho người tham gia. */
   CHARITY_PARTICIPANT_RANK_TOO_LOW = 0x13_54,
+  /** Chiến dịch không bật loại đóng góp này. */
+  CHARITY_CONTRIBUTION_TYPE_DISABLED = 0x13_55,
+  /** Gửi duyệt khi thiếu nhu cầu hoặc tài khoản nhận bắt buộc theo loại đóng góp đã bật. */
+  CHARITY_SUBMIT_REQUIREMENTS_UNMET = 0x13_56,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

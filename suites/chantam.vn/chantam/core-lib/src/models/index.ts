@@ -6,6 +6,7 @@ export * from './category';
 export * from './charity-campaign';
 export * from './charity-engagement';
 export * from './charity-event';
+export * from './charity-intake';
 export * from './charity-operations';
 export * from './charity-participation-requirements';
 export * from './charity-points';

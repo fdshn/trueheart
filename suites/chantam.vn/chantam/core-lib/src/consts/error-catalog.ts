@@ -1464,6 +1464,20 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['SILVER'],
   },
 
+  CHARITY_CONTRIBUTION_TYPE_DISABLED: {
+    code: ErrorCodes.CHARITY_CONTRIBUTION_TYPE_DISABLED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (type: string) => `Hoạt động này không nhận đóng góp loại ${type}`,
+    sample: ['MONEY'],
+  },
+
+  CHARITY_SUBMIT_REQUIREMENTS_UNMET: {
+    code: ErrorCodes.CHARITY_SUBMIT_REQUIREMENTS_UNMET,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (missing: string) => `Chưa thể gửi duyệt: ${missing}`,
+    sample: ['MONEY: chưa có tài khoản nhận đang hiệu lực'],
+  },
+
   CHARITY_EXTERNAL_SOURCE_DUPLICATED: {
     code: ErrorCodes.CHARITY_EXTERNAL_SOURCE_DUPLICATED,
     httpStatus: HttpStatus.CONFLICT,
