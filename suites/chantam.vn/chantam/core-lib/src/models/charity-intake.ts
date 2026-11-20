@@ -19,17 +19,17 @@ export function charitySubmitRequirementGaps(
 ): string[] {
   const gaps: string[] = [];
 
-  if (types.includes('MATERIAL') && counts.openMaterialNeeds === 0)
+  if (types.includes('MATERIAL') && counts.openMaterialNeeds < 1)
     gaps.push('MATERIAL: chưa có nhu cầu hiện vật đang mở');
 
   if (types.includes('MONEY')) {
-    if (counts.openFundingNeeds === 0)
+    if (counts.openFundingNeeds < 1)
       gaps.push('MONEY: chưa có nhu cầu tiền đang mở');
-    if (counts.liveBankAccounts === 0)
+    if (counts.liveBankAccounts < 1)
       gaps.push('MONEY: chưa có tài khoản nhận đang hiệu lực');
   }
 
-  if (types.includes('SERVICE') && counts.openSupportNeeds === 0)
+  if (types.includes('SERVICE') && counts.openSupportNeeds < 1)
     gaps.push('SERVICE: chưa có nhu cầu dịch vụ đang mở');
 
   return gaps;

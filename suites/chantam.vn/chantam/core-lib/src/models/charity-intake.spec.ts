@@ -44,6 +44,22 @@ describe('điều kiện tiếp nhận đóng góp chiến dịch', () => {
     ]);
   });
 
+  it('coi số âm là thiếu mọi điều kiện tiếp nhận đã bật', () => {
+    expect(
+      charitySubmitRequirementGaps(['MATERIAL', 'MONEY', 'SERVICE'], {
+        openMaterialNeeds: -1,
+        openFundingNeeds: -1,
+        openSupportNeeds: -1,
+        liveBankAccounts: -1,
+      }),
+    ).toEqual([
+      'MATERIAL: chưa có nhu cầu hiện vật đang mở',
+      'MONEY: chưa có nhu cầu tiền đang mở',
+      'MONEY: chưa có tài khoản nhận đang hiệu lực',
+      'SERVICE: chưa có nhu cầu dịch vụ đang mở',
+    ]);
+  });
+
   it('suy loại tiếp nhận theo các nhóm nhu cầu không rỗng ở thứ tự chuẩn', () => {
     expect(
       deriveAcceptedContributionTypes({
