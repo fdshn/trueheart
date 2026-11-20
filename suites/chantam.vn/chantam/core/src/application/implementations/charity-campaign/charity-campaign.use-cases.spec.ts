@@ -97,7 +97,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     participantCount: 0,
     media: [],
     campaignType: 'ORGANIZED_CAMPAIGN' as const,
-    acceptedContributionTypes: [],
+    acceptedContributionTypes: ['MATERIAL', 'MONEY', 'SERVICE'],
     beneficiaryRelation: null,
     allowOverTarget: false,
     minimumParticipants: 0,
@@ -902,11 +902,13 @@ describe('SubmitCharityContributionUseCase (F65b §4)', () => {
   }
 
   /** Hoạt động ĐANG nhận đề nghị: đã duyệt, còn bật, chưa tới hạn kết thúc. */
-  function activeCampaign() {
+  function activeCampaign(overrides: Partial<ICharityCampaign> = {}) {
     return campaign({
       approvalStatus: 'APPROVED' as const,
       isActive: true,
       endTime: new Date(Date.now() + 7 * 24 * Hour),
+      acceptedContributionTypes: ['MATERIAL'],
+      ...overrides,
     });
   }
 
@@ -920,6 +922,22 @@ describe('SubmitCharityContributionUseCase (F65b §4)', () => {
     Object.assign(repository, overrides);
     return repository;
   }
+
+  it('đóng góp hiện vật vào chiến dịch không bật MATERIAL → 409, không gọi createContribution', async () => {
+    const repository = makeSubmitRepo({
+      findByGlobalId: jest
+        .fn()
+        .mockResolvedValue(activeCampaign({ acceptedContributionTypes: [] })),
+    });
+    await expect(
+      new SubmitCharityContributionUseCase(repository, makeNotifier()).handle({
+        campaignId: CampaignId,
+        contributorId: ActorId,
+        items: [{ needItemId: Need, offeredQuantity: 50 }],
+      }),
+    ).rejects.toBeInstanceOf(CharityContributionTypeDisabledException);
+    expect(repository.createContribution).not.toHaveBeenCalled();
+  });
 
   it('gửi được, và ghi đúng dòng người tặng chọn', async () => {
     const repository = makeSubmitRepo();
@@ -1128,6 +1146,7 @@ describe('UpdateCharityContributionUseCase (F65b §4)', () => {
 
   function makeUpdateRepo(overrides: Record<string, unknown> = {}) {
     const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(campaign());
     repository.findContributionByGlobalId.mockResolvedValue(contribution());
     repository.listNeeds.mockResolvedValue([
       {
@@ -1153,6 +1172,20 @@ describe('UpdateCharityContributionUseCase (F65b §4)', () => {
     Object.assign(repository, overrides);
     return repository;
   }
+
+  it('rút đề nghị vẫn được khi đã tắt MATERIAL', async () => {
+    const repository = makeUpdateRepo();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ acceptedContributionTypes: [] }),
+    );
+    await expect(
+      new UpdateCharityContributionUseCase(repository).handle({
+        contributionId: ContributionId,
+        contributorId: ActorId,
+        action: 'WITHDRAW',
+      }),
+    ).resolves.toMatchObject({ status: 'WITHDRAWN' });
+  });
 
   it('đề nghị của NGƯỜI KHÁC trả cùng lỗi với không tồn tại', async () => {
     const repository = makeUpdateRepo({

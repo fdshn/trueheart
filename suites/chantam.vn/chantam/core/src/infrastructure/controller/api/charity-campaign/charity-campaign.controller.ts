@@ -302,6 +302,7 @@ export class CharityCampaignController {
     ...ApiTokenErrors,
     CharityCampaignNotFoundException,
     CharityNotAcceptingContributionsException,
+    CharityContributionTypeDisabledException,
     CharityNeedItemInvalidException,
   )
   public async submitContribution(

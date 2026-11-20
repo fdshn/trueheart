@@ -1,6 +1,7 @@
 import {
   CharityBankAccountLimitException,
   CharityCampaignNotFoundException,
+  CharityContributionTypeDisabledException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
   CharityProjectNotDraftException,
@@ -23,6 +24,7 @@ import {
   ReplaceCharityCustomSectionsUseCase,
   ReplaceCharityPartiesUseCase,
   ReplaceCharityPhasesUseCase,
+  SaveCharityFundingNeedUseCase,
   SubmitCharityProjectUseCase,
   UpdateCharityProfileUseCase,
 } from './charity-project.use-cases';
@@ -60,7 +62,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     participantCount: 0,
     media: [],
     campaignType: 'ORGANIZED_CAMPAIGN',
-    acceptedContributionTypes: [],
+    acceptedContributionTypes: ['MATERIAL', 'MONEY', 'SERVICE'],
     beneficiaryRelation: null,
     allowOverTarget: false,
     minimumParticipants: 0,
@@ -174,6 +176,8 @@ function make(
       },
     ]),
     listFundingNeeds: jest.fn(async () => []),
+    createFundingNeed: jest.fn(async () => ({})),
+    updateFundingNeed: jest.fn(async () => ({})),
     listVolunteerNeeds: jest.fn(async () => [
       { volunteerNeedId: 'v1', status: 'OPEN', remainingCount: 3 },
     ]),
@@ -556,6 +560,30 @@ describe('Hồ sơ tab A', () => {
     ).rejects.toThrow(ValidationFailedException);
   });
 
+  it('bank account: tắt MONEY → 409', async () => {
+    const deps = make({
+      campaign: campaign({ acceptedContributionTypes: [] }),
+    });
+    await expect(
+      new AddCharityBankAccountUseCase(
+        deps.access,
+        deps.projects as never,
+      ).handle({
+        userId: Owner,
+        campaignId: CampaignId,
+        account: {
+          label: null,
+          bankName: 'VCB',
+          accountNo: '0123',
+          accountName: 'CLB',
+        },
+        replacesAccountId: null,
+        replaceReason: null,
+      }),
+    ).rejects.toThrow(CharityContributionTypeDisabledException);
+    expect(deps.projects.addBankAccount).not.toHaveBeenCalled();
+  });
+
   it('bank account: hết suất → 409 kèm giới hạn; giới hạn lấy từ cấu hình khi không ghi đè', async () => {
     const deps = make();
     const useCase = new AddCharityBankAccountUseCase(
@@ -579,6 +607,34 @@ describe('Hồ sơ tab A', () => {
     expect(deps.projects.addBankAccount).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 2 }),
     );
+  });
+
+  it('funding need: tắt MONEY → 409', async () => {
+    const deps = make({
+      campaign: campaign({ acceptedContributionTypes: [] }),
+    });
+    const useCase = new SaveCharityFundingNeedUseCase(
+      deps.access,
+      deps.projects as never,
+    );
+    await expect(
+      useCase.handle({
+        userId: Owner,
+        campaignId: CampaignId,
+        fundingNeedId: null,
+        need: {
+          title: 'Viện phí',
+          description: null,
+          beneficiaryPartyId: null,
+          receivingUnit: null,
+          bankAccountId: null,
+          targetAmount: 100_000,
+          deadline: null,
+          sortOrder: 0,
+        },
+      }),
+    ).rejects.toThrow(CharityContributionTypeDisabledException);
+    expect(deps.projects.createFundingNeed).not.toHaveBeenCalled();
   });
 
   it('phases: chồng thời gian hoặc deliveryMethod sai bước → lỗi', async () => {
@@ -687,6 +743,15 @@ describe('Đăng ký tham gia', () => {
     volunteerNeedId: 'v1',
   };
 
+  it('đăng ký tình nguyện viên không bị chặn khi accepted = []', async () => {
+    const deps = make({
+      campaign: campaign({ acceptedContributionTypes: [] }),
+    });
+    await expect(build(deps).handle(cmd)).resolves.toEqual({
+      registered: true,
+    });
+  });
+
   it('bước trao đã bắt đầu → không nhận đăng ký mới', async () => {
     await expect(
       build(make({ campaign: campaign({ operationStage: 'EVENT' }) })).handle(
@@ -738,6 +803,24 @@ describe('Workspace và bản công khai', () => {
       campaignId: CampaignId,
     });
     expect(mine.parties).toHaveLength(2);
+  });
+
+  it('bản công khai: tắt MONEY ẩn bankAccounts và fundingNeeds', async () => {
+    const deps = make({
+      campaign: campaign({ acceptedContributionTypes: [] }),
+    });
+    deps.projects.listFundingNeeds.mockResolvedValue([
+      { fundingNeedId: 'f1' } as never,
+    ]);
+    const view = await new GetCharityPublicProjectUseCase(
+      deps.campaigns as never,
+      deps.projects as never,
+      deps.engagement as never,
+      deps.events as never,
+      deps.summaries as never,
+    ).handle({ idOrSlug: 'mua-dong-am', userId: null });
+    expect(view.bankAccounts).toEqual([]);
+    expect(view.fundingNeeds).toEqual([]);
   });
 
   it('bản công khai: chỉ tài khoản đang hiệu lực, không có SĐT người nhận hàng, mục chưa công khai không lộ nội dung', async () => {

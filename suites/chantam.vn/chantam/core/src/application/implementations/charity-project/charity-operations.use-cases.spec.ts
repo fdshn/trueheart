@@ -1,4 +1,5 @@
 import {
+  CharityContributionTypeDisabledException,
   CharityRoundInvalidStateException,
   CharityStageTransitionInvalidException,
   CharitySupportNeedClosedException,
@@ -34,7 +35,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     isActive: true,
     endTime: new Date(Date.now() + 30 * 24 * Hour),
     operationStage: 'EXECUTION',
-    acceptedContributionTypes: [],
+    acceptedContributionTypes: ['MATERIAL', 'MONEY', 'SERVICE'],
     ...overrides,
   } as ICharityCampaign;
 }
@@ -152,6 +153,23 @@ describe('Hỗ trợ mở', () => {
       external: { quantity: 1, evidenceUrls: ['https://x/a.png'], note: null },
     });
     expect(deps.operations.updateSupportNeed).toHaveBeenCalled();
+  });
+
+  it('nhận hỗ trợ khi tắt SERVICE → 409', async () => {
+    const deps = make(campaign({ acceptedContributionTypes: [] }));
+    await expect(
+      new OfferCharitySupportUseCase(
+        deps.campaigns as never,
+        deps.operations as never,
+      ).handle({
+        userId: Helper,
+        campaignId: CampaignId,
+        supportNeedId: 'n1',
+        quantity: 1,
+        note: null,
+      }),
+    ).rejects.toThrow(CharityContributionTypeDisabledException);
+    expect(deps.operations.createOffer).not.toHaveBeenCalled();
   });
 
   it('nhận hỗ trợ: hạng mục đóng / dự án ở Tổng kết → chặn', async () => {

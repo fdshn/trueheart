@@ -8,6 +8,7 @@ import {
   CharityContributionAlreadyDecidedException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
+  CharityContributionTypeDisabledException,
   CharityLinesInvalidException,
   CharityNeedExceededException,
   CharityNeedItemInvalidException,
@@ -179,6 +180,7 @@ export class CharityContributionController {
     ...ApiTokenErrors,
     CharityContributionNotFoundException,
     CharityContributionNotEditableException,
+    CharityContributionTypeDisabledException,
     CharityNeedItemInvalidException,
   )
   public async update(

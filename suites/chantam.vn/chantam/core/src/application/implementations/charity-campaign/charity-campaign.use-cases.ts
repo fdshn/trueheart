@@ -83,6 +83,7 @@ import {
   IUpdateCharityProgressCommand,
   IUpdateCharityProgressUseCase,
 } from '@/application/contracts/charity-campaign';
+import { assertContributionTypeAccepted } from '@/domain/charity-contribution-type';
 import {
   CharityAlreadyRegisteredException,
   CharityApprovalAlreadyDecidedException,
@@ -94,7 +95,6 @@ import {
   CharityCancelTooLateException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
-  CharityContributionTypeDisabledException,
   CharityCoordinatorNotAllowedException,
   CharityDeliveryNotFoundException,
   CharityLinesInvalidException,
@@ -391,8 +391,8 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
             supportNeeds: supportNeeds.length,
           })
         : normalizeContributionTypes(command.acceptedContributionTypes);
-    if (fundingNeeds.length > 0 && !acceptedContributionTypes.includes('MONEY'))
-      throw new CharityContributionTypeDisabledException('MONEY');
+    if (fundingNeeds.length > 0)
+      assertContributionTypeAccepted({ acceptedContributionTypes }, 'MONEY');
     // SAU quyền và nội dung: người không được tạo, hoặc gửi hồ sơ thiếu, không tốn
     // lượt gọi R2 nào.
     const { media, bannerUrl } = await confirmCharityMedia(
@@ -765,6 +765,7 @@ export class SubmitCharityContributionUseCase implements ISubmitCharityContribut
       throw new CharityCampaignNotFoundException();
     if (!acceptsContributions(campaign))
       throw new CharityNotAcceptingContributionsException();
+    assertContributionTypeAccepted(campaign, 'MATERIAL');
     // Người tổ chức không tặng vào chính hoạt động của mình. Chặn ở ĐÂY chứ không đợi
     // lượt quyết: tới đó `CHK_campaign_deliveries_not_self` mới bắt, và người dùng
     // nhận một lỗi 500 cho một đề nghị hệ thống đã nhận từ trước.
@@ -911,6 +912,10 @@ export class UpdateCharityContributionUseCase implements IUpdateCharityContribut
       if (!withdrawn) throw new CharityContributionNotEditableException();
       return withdrawn;
     }
+
+    const campaign = await this.repository.findByGlobalId(existing.campaignId);
+    if (!campaign) throw new CharityContributionNotFoundException();
+    assertContributionTypeAccepted(campaign, 'MATERIAL');
 
     const items = command.items ?? [];
     if (items.length === 0) throw new CharityNeedItemInvalidException();

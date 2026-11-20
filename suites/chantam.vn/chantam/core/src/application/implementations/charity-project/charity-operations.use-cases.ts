@@ -33,6 +33,7 @@ import {
   IWithdrawCharitySupportOfferUseCase,
 } from '@/application/contracts/charity-project';
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
+import { assertContributionTypeAccepted } from '@/domain/charity-contribution-type';
 import {
   CharityCampaignNotFoundException,
   CharityProjectNotApprovedException,
@@ -288,6 +289,7 @@ export class OfferCharitySupportUseCase implements IOfferCharitySupportUseCase {
       throw new CharityCampaignNotFoundException();
     if (!campaign.isActive || campaign.operationStage === 'SUMMARY')
       throw new CharitySupportNeedClosedException();
+    assertContributionTypeAccepted(campaign, 'SERVICE');
     const need = await this.operations.findSupportNeed(
       campaign.globalId,
       command.supportNeedId,

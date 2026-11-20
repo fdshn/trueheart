@@ -18,6 +18,7 @@ import {
 } from '@/application/contracts/charity-project';
 import {
   CharityCampaignNotFoundException,
+  CharityContributionTypeDisabledException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
   CharityProjectNotApprovedException,
@@ -278,6 +279,7 @@ export class CharityOperationsController {
   @ApiErrorResponses(
     ...ApiTokenErrors,
     CharityCampaignNotFoundException,
+    CharityContributionTypeDisabledException,
     CharitySupportNeedNotFoundException,
     CharitySupportNeedClosedException,
   )

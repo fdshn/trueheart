@@ -2797,12 +2797,12 @@ của bước trao, `null` khi chưa lập) và `acceptedContributionTypes` (m�
 | `POST` | `/charity-campaigns/:id/stage` | Người tạo, coordinator, Admin | `{ stage: { to, reason } }` — tiến **một** bước sớm hơn lịch, hoặc lùi; `reason` bắt buộc từ đợt 5b (§18.7) |
 | `PUT` | `/charity-campaigns/:id/profile` | Người tạo, Admin | `{ profile: { appealPurpose, appealAudience, appealCircumstance, callToActions, acceptedContributionTypes? } }`; bỏ loại tiếp nhận giữ nguyên, gửi mảng thì thay toàn bộ theo thứ tự chuẩn |
 | `PUT` | `/charity-campaigns/:id/parties` | Người tạo, Admin | `{ parties: [...] }` — đơn vị tổ chức / thụ hưởng / cấp phép / truyền thông; dòng có `partyId` giữ id |
-| `POST` | `/charity-campaigns/:id/bank-accounts` | Người tạo, Admin | `{ bankAccount: { bankName, accountNo, accountName, label?, replacesAccountId?, replaceReason? } }` |
+| `POST` | `/charity-campaigns/:id/bank-accounts` | Người tạo, Admin | `{ bankAccount: { bankName, accountNo, accountName, label?, replacesAccountId?, replaceReason? } }`; khi không nhận `MONEY` → `409 CHARITY_CONTRIBUTION_TYPE_DISABLED` |
 | `POST` | `/charity-campaigns/:id/bank-accounts/:accountId/close` | Người tạo, Admin | `{ close: { reason } }` |
 | `PUT` | `/charity-campaigns/:id/team` | Người tạo, Admin | `{ team: [...] }` — ban tổ chức 6 vai trò |
 | `PUT` | `/charity-campaigns/:id/phases` | Người tạo, Admin | `{ phases: [...] }` — `PLANNING`→`PREPARATION`→`DISTRIBUTION`→`REPORTING`, không chồng |
 | `PATCH` | `/charity-campaigns/:id/item-needs/:needItemId` | Người tạo, Admin | `{ itemNeed: { unitPrice, itemCondition, supplySource, intakeDeadline, dropoffAddress, receiverName, intakeStatus, … } }` |
-| `POST`/`PATCH` | `/charity-campaigns/:id/funding-needs[/:fundingNeedId]` | Người tạo, Admin | `{ fundingNeed: { title, targetAmount, bankAccountId?, beneficiaryPartyId?, … } }`; PATCH nhận thêm `confirmedAmount`, `externalAmount`, `status` |
+| `POST`/`PATCH` | `/charity-campaigns/:id/funding-needs[/:fundingNeedId]` | Người tạo, Admin | `{ fundingNeed: { title, targetAmount, bankAccountId?, beneficiaryPartyId?, … } }`; PATCH nhận thêm `confirmedAmount`, `externalAmount`, `status`; khi không nhận `MONEY` → `409 CHARITY_CONTRIBUTION_TYPE_DISABLED` |
 | `POST`/`PATCH` | `/charity-campaigns/:id/volunteer-needs[/:volunteerNeedId]` | Người tạo, Admin | `{ volunteerNeed: { title, neededCount, … } }`; PATCH nhận `status` `OPEN`/`CLOSED`/`STARTED` |
 | `POST` | `/charity-campaigns/:id/volunteer-needs/:volunteerNeedId/registrations` | Bearer | Đăng ký tham gia (body tuỳ chọn `{ registration: { note } }`) |
 | `DELETE` | `…/registrations/me` | Bearer | Huỷ đăng ký của mình — được cả khi sự kiện đang diễn ra |
@@ -2828,7 +2828,8 @@ Người thụ hưởng của kêu gọi cá nhân (có đồng ý, xác minh) v
 dòng này trong workspace.
 
 **Tài khoản nhận.** App không giữ tiền. Không sửa số tài khoản tại chỗ: thay = gửi
-`replacesAccountId` (đóng cũ + tạo mới trong một lượt). Số tài khoản ĐANG hiệu lực tối đa:
+`replacesAccountId` (đóng cũ + tạo mới trong một lượt). Chỉ thêm/thay tài khoản và ghi hạng mục
+kêu gọi tiền khi chiến dịch nhận `MONEY`; đóng tài khoản vẫn được phép. Số tài khoản ĐANG hiệu lực tối đa:
 `charity.max_bank_accounts_per_campaign` (mặc định 2), Admin ghi đè từng dự án; vượt →
 `CHARITY_BANK_ACCOUNT_LIMIT`.
 
@@ -2849,7 +2850,8 @@ khi có form mở (checklist, timeline, tổng kết đến ở đợt 2–4). C
 đã đóng (đình chỉ → `404`). Mục chưa công khai trả `published: false` (chưa cập nhật), không lộ nháp; mục đã công khai
 trả **bản chụp** lúc publish. Mục Kế hoạch công khai gồm lời kêu gọi, đơn vị liên quan (bên thụ
 hưởng chỉ tên và loại), ban tổ chức, tiến độ, form mở `PUBLIC`. Số nhu cầu là số **sống**; chỉ
-tài khoản đang hiệu lực; không có người nhận hàng hay thông tin người thụ hưởng cá nhân. Gửi kèm
+tài khoản đang hiệu lực hoặc hạng mục kêu gọi tiền. Khi `MONEY` bị tắt, `bankAccounts` và
+`fundingNeeds` luôn là mảng rỗng dù dữ liệu nội bộ vẫn còn. Gửi kèm
 token thì có `myVolunteerRegistrations`.
 
 ### 18.2 Đợt 2 — chữ đỏ, checklist tab B, tương tác, thống kê, báo cáo, PDF/chia sẻ

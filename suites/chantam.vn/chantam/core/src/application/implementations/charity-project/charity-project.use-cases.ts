@@ -41,6 +41,7 @@ import {
   IUpdateCharityProfileCommand,
   IUpdateCharityProfileUseCase,
 } from '@/application/contracts/charity-project';
+import { assertContributionTypeAccepted } from '@/domain/charity-contribution-type';
 import {
   CharityBankAccountLimitException,
   CharityBankAccountNotFoundException,
@@ -479,6 +480,7 @@ export class AddCharityBankAccountUseCase implements IAddCharityBankAccountUseCa
 
   public async handle(command: IAddCharityBankAccountCommand) {
     const { campaign } = await this.access.forEdit(command);
+    assertContributionTypeAccepted(campaign, 'MONEY');
     const profile = await this.projects.getProfile(campaign.globalId);
     const limit = await this.access.maxBankAccounts(
       campaign.globalId,
@@ -649,6 +651,7 @@ export class SaveCharityFundingNeedUseCase implements ISaveCharityFundingNeedUse
 
   public async handle(command: ISaveCharityFundingNeedCommand) {
     const { campaign } = await this.access.forEdit(command);
+    assertContributionTypeAccepted(campaign, 'MONEY');
     const need = command.need;
     const errors: string[] = [];
     if (need.beneficiaryPartyId) {
@@ -1299,12 +1302,16 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
         };
       }),
       // Chỉ tài khoản ĐANG hiệu lực: người chuyển khoản không được thấy số tài khoản đã đóng.
-      bankAccounts: bankAccounts.filter((account) => account.validTo === null),
+      bankAccounts: campaign.acceptedContributionTypes.includes('MONEY')
+        ? bankAccounts.filter((account) => account.validTo === null)
+        : [],
       itemNeeds: itemNeeds
         .filter((need) => need.isActive)
         // Người nhận hàng là thông tin điều phối, không công khai.
         .map((need) => ({ ...need, receiverName: null, receiverPhone: null })),
-      fundingNeeds,
+      fundingNeeds: campaign.acceptedContributionTypes.includes('MONEY')
+        ? fundingNeeds
+        : [],
       volunteerNeeds,
       myVolunteerRegistrations: mine,
       changedFields,

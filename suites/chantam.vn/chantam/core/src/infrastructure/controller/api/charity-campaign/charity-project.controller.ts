@@ -25,6 +25,7 @@ import {
   CharityBankAccountNotFoundException,
   CharityCampaignCreateNotAllowedException,
   CharityCampaignNotFoundException,
+  CharityContributionTypeDisabledException,
   CharityFundingNeedNotFoundException,
   CharityNeedItemInvalidException,
   CharityProjectForbiddenException,
@@ -341,6 +342,7 @@ export class CharityProjectController {
     ...ProjectErrors,
     [CharityBankAccountLimitException, 2],
     CharityBankAccountNotFoundException,
+    CharityContributionTypeDisabledException,
   )
   public async addBankAccount(
     @CurrentUser() principal: IAuthPrincipal,
@@ -510,12 +512,17 @@ export class CharityProjectController {
     description: 'App không giữ tiền — đây là hồ sơ minh bạch.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(CharityFundingNeedResponseDto) })
-  @ApiErrorResponses(...ApiTokenErrors, ...ProjectErrors, [
-    ValidationFailedException,
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ...ProjectErrors,
+    CharityContributionTypeDisabledException,
     [
-      'fundingNeed.bankAccountId: phải là tài khoản ĐANG hiệu lực của dự án này',
+      ValidationFailedException,
+      [
+        'fundingNeed.bankAccountId: phải là tài khoản ĐANG hiệu lực của dự án này',
+      ],
     ],
-  ])
+  )
   public async createFunding(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: CharityProjectParamsDto,
@@ -540,6 +547,7 @@ export class CharityProjectController {
   @ApiErrorResponses(
     ...ApiTokenErrors,
     ...ProjectErrors,
+    CharityContributionTypeDisabledException,
     CharityFundingNeedNotFoundException,
   )
   public async updateFunding(
