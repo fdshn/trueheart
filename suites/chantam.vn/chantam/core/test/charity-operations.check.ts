@@ -71,6 +71,55 @@ async function main(): Promise<void> {
   await admin.query(`DROP DATABASE IF EXISTS ${ScratchDatabase}`);
   await admin.query(`CREATE DATABASE ${ScratchDatabase}`);
 
+  const legacyMigrations = resolveAllEntities(migrations).filter(
+    (migration) => Number(migration.name.slice(-13)) < 1803800000000,
+  );
+  const legacyDataSource = new DataSource({
+    type: 'postgres',
+    url: scratchUri,
+    entities: resolveAllEntities(entities),
+    migrations: legacyMigrations,
+    migrationsTableName: 'migrations',
+    extra: { max: 12 },
+  });
+  await legacyDataSource.initialize();
+  opened.push(legacyDataSource);
+  await legacyDataSource.runMigrations();
+  for (const [campaignId, slug] of [
+    [id('20'), 'legacy-ship'],
+    [id('21'), 'legacy-on-site'],
+    [id('22'), 'legacy-transfer-many'],
+    [id('23'), 'legacy-no-method'],
+  ])
+    await legacyDataSource.query(
+      `INSERT INTO campaigns (global_id, title, slug, description, banner_url, badge_name, start_time, end_time)
+       VALUES ($1, 'Legacy distribution', $2, 'Mô tả đủ dài cho dự án cũ',
+               'https://cdn.test/a.jpg', 'Ấm', now(), now() + interval '20 days')`,
+      [campaignId, slug],
+    );
+  const legacyRound = async (campaignId: string, title: string) =>
+    legacyDataSource.query(
+      `INSERT INTO campaign_distribution_rounds (campaign_id, title, starts_at, ends_at)
+       VALUES ($1, $2, now(), now() + interval '1 hour')`,
+      [campaignId, title],
+    );
+  await legacyRound(id('20'), 'Ship');
+  await legacyRound(id('21'), 'On site');
+  await legacyRound(id('22'), 'Transfer 1');
+  await legacyRound(id('22'), 'Transfer 2');
+  await legacyRound(id('23'), 'No method');
+  for (const [campaignId, deliveryMethod] of [
+    [id('20'), 'SHIP'],
+    [id('21'), 'ON_SITE'],
+    [id('22'), 'TRANSFER'],
+  ])
+    await legacyDataSource.query(
+      `INSERT INTO campaign_phases (campaign_id, phase, starts_at, ends_at, delivery_method)
+       VALUES ($1, 'DISTRIBUTION', now(), now() + interval '1 hour', $2)`,
+      [campaignId, deliveryMethod],
+    );
+  await legacyDataSource.destroy();
+
   const dataSource = new DataSource({
     type: 'postgres',
     url: scratchUri,
@@ -93,6 +142,31 @@ async function main(): Promise<void> {
     const events = new CharityEventRepository(dataSource.manager);
     const operations = new CharityOperationsRepository(dataSource.manager);
     const projects = new CharityProjectRepository(dataSource.manager);
+
+    const legacyMethods = await sql(
+      `SELECT campaign_id, distribution_method, needs_review
+       FROM campaign_distribution_rounds
+       WHERE campaign_id = ANY($1::uuid[]) ORDER BY campaign_id, id`,
+      [[id('20'), id('21'), id('22'), id('23')]],
+    );
+    check(
+      'migration ánh xạ SHIP một đợt → SHIPPING không cần duyệt; ON_SITE → OTHER_LOCATION cần duyệt',
+      legacyMethods[0]?.distribution_method === 'SHIPPING' &&
+        legacyMethods[0]?.needs_review === false &&
+        legacyMethods[1]?.distribution_method === 'OTHER_LOCATION' &&
+        legacyMethods[1]?.needs_review === true,
+      JSON.stringify(legacyMethods),
+    );
+    check(
+      'migration để NULL khi TRANSFER có hai đợt hoặc phase không có method',
+      legacyMethods
+        .slice(2)
+        .every(
+          (row: { distribution_method: string | null }) =>
+            row.distribution_method === null,
+        ),
+      JSON.stringify(legacyMethods.slice(2)),
+    );
 
     for (const [userId, username] of [
       [Owner, 'cop_owner'],
@@ -274,8 +348,28 @@ async function main(): Promise<void> {
       actorId: Owner,
       round: {
         title: 'Đợt 1 — xã A',
+        distributionMethod: 'SHIPPING',
+        contributionTypes: ['MATERIAL'],
+        evidenceUrls: ['https://cdn.test/round-evidence.webp'],
         locationLabel: 'Xã A',
         address: null,
+        lat: null,
+        lng: null,
+        needsReview: false,
+        serviceType: null,
+        serviceChannel: null,
+        privateDetails: {
+          recipientName: 'Người nhận',
+          recipientPhone: '0901234567',
+          recipientAddress: 'Địa chỉ nhận',
+          coordinatorName: null,
+          coordinatorPhone: null,
+          carrier: 'Nhà xe',
+          shippingFeePayer: 'ORGANIZER',
+          estimatedShippingFee: 10000,
+          trackingCode: null,
+          transferContent: null,
+        },
         startsAt: soon,
         endsAt: new Date(soon.getTime() + 6 * 3_600_000),
       },
@@ -285,12 +379,96 @@ async function main(): Promise<void> {
       actorId: Owner,
       round: {
         title: 'Đợt 2 — xã B',
+        distributionMethod: null,
+        contributionTypes: [],
+        evidenceUrls: [],
         locationLabel: 'Xã B',
         address: null,
+        lat: null,
+        lng: null,
+        needsReview: false,
+        serviceType: null,
+        serviceChannel: null,
+        privateDetails: {
+          recipientName: null,
+          recipientPhone: null,
+          recipientAddress: null,
+          coordinatorName: null,
+          coordinatorPhone: null,
+          carrier: null,
+          shippingFeePayer: null,
+          estimatedShippingFee: null,
+          trackingCode: null,
+          transferContent: null,
+        },
         startsAt: new Date(Date.now() + 10 * 24 * 3_600_000),
         endsAt: new Date(Date.now() + 10 * 24 * 3_600_000 + 3_600_000),
       },
     });
+    const disposableRound = await operations.createRound({
+      campaignId: Live,
+      actorId: Owner,
+      round: {
+        title: 'Đợt xoá kiểm cascade',
+        distributionMethod: null,
+        contributionTypes: [],
+        evidenceUrls: [],
+        locationLabel: null,
+        address: null,
+        lat: null,
+        lng: null,
+        needsReview: false,
+        serviceType: null,
+        serviceChannel: null,
+        privateDetails: {
+          recipientName: null,
+          recipientPhone: null,
+          recipientAddress: null,
+          coordinatorName: null,
+          coordinatorPhone: null,
+          carrier: null,
+          shippingFeePayer: null,
+          estimatedShippingFee: null,
+          trackingCode: null,
+          transferContent: null,
+        },
+        startsAt: roundB.startsAt,
+        endsAt: roundB.endsAt,
+      },
+    });
+    await sql(`DELETE FROM campaign_distribution_rounds WHERE global_id = $1`, [
+      disposableRound.roundId,
+    ]);
+    check(
+      'xoá round cascade chi tiết riêng tư',
+      (
+        await sql(
+          `SELECT count(*)::int AS count FROM campaign_round_private_details WHERE round_id = $1`,
+          [disposableRound.roundId],
+        )
+      )[0]?.count === 0,
+    );
+    check(
+      'tạo đợt ghi chi tiết riêng tư',
+      (
+        await sql(
+          `SELECT recipient_phone FROM campaign_round_private_details WHERE round_id = $1`,
+          [roundA.roundId],
+        )
+      )[0]?.recipient_phone === '0901234567',
+    );
+    check(
+      'CHECK: evidence_urls vượt 20 phần tử bị chặn',
+      await rejects(() =>
+        sql(
+          `UPDATE campaign_distribution_rounds
+             SET evidence_urls = (SELECT jsonb_agg('https://cdn.test/' || series || '.webp')
+                                    FROM generate_series(1, 21) series)
+           WHERE global_id = $1`,
+          [roundA.roundId],
+        ),
+      ),
+    );
     check(
       'mỗi đợt 10 bước riêng, cùng tồn tại với timeline chung',
       (await events.listEventSteps(Live)).length === 10 &&
@@ -429,8 +607,28 @@ async function main(): Promise<void> {
       actorId: Owner,
       round: {
         title: roundA.title,
+        distributionMethod: roundA.distributionMethod,
+        contributionTypes: roundA.contributionTypes,
+        evidenceUrls: roundA.evidenceUrls,
         locationLabel: roundA.locationLabel,
         address: null,
+        lat: roundA.lat,
+        lng: roundA.lng,
+        needsReview: roundA.needsReview,
+        serviceType: roundA.serviceType,
+        serviceChannel: roundA.serviceChannel,
+        privateDetails: roundA.privateDetails ?? {
+          recipientName: null,
+          recipientPhone: null,
+          recipientAddress: null,
+          coordinatorName: null,
+          coordinatorPhone: null,
+          carrier: null,
+          shippingFeePayer: null,
+          estimatedShippingFee: null,
+          trackingCode: null,
+          transferContent: null,
+        },
         startsAt: new Date(soon.getTime() + 3_600_000),
         endsAt: new Date(soon.getTime() + 7 * 3_600_000),
       },

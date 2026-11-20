@@ -154,3 +154,4 @@ export * from './1803400000000-CampaignHomePromotion';
 export * from './1803500000000-PostShippingFee';
 export * from './1803600000000-CampaignParticipationRequirements';
 export * from './1803700000000-CampaignAcceptedContributionTypes';
+export * from './1803800000000-CampaignRoundDistributionMethods';

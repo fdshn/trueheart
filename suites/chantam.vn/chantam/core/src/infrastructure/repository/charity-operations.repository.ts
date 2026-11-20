@@ -15,7 +15,6 @@ import {
   CharityDisputeParty,
   CharityDisputeReason,
   CharityDisputeStatus,
-  CharityEventStepKeys,
   CharityRoundReadiness,
   CharityRoundStatus,
   CharitySupportOfferStatus,
@@ -26,6 +25,10 @@ import {
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import {
+  insertDistributionRound,
+  RoundConfirmedValueSql,
+} from './charity-round.sql';
 import { isUniqueViolationOn } from './unique-violation';
 import { updateReturning } from './update-returning';
 
@@ -200,8 +203,29 @@ interface IRoundRow {
   global_id: string;
   campaign_id: string;
   title: string;
+  distribution_method: ICharityRound['distributionMethod'];
+  contribution_types: ICharityRound['contributionTypes'];
+  evidence_urls: string[];
   location_label: string | null;
   address: string | null;
+  lat: string | number | null;
+  lng: string | number | null;
+  needs_review: boolean;
+  service_type: ICharityRound['serviceType'];
+  service_channel: ICharityRound['serviceChannel'];
+  private_round_id: string | null;
+  recipient_name: string | null;
+  recipient_phone: string | null;
+  recipient_address: string | null;
+  coordinator_name: string | null;
+  coordinator_phone: string | null;
+  carrier: string | null;
+  shipping_fee_payer: 'ORGANIZER' | 'RECIPIENT' | null;
+  estimated_shipping_fee: number | null;
+  tracking_code: string | null;
+  transfer_content: string | null;
+  private_updated_by: string | null;
+  private_updated_at: Date | null;
   starts_at: Date;
   ends_at: Date;
   status: CharityRoundStatus;
@@ -220,7 +244,15 @@ interface IRoundRow {
 }
 
 const RoundSelect = `
-  SELECT round.global_id, round.campaign_id, round.title, round.location_label, round.address,
+  SELECT round.global_id, round.campaign_id, round.title, round.distribution_method,
+         round.contribution_types, round.evidence_urls, round.location_label, round.address,
+         ST_Y(round.location::geometry) AS lat, ST_X(round.location::geometry) AS lng,
+         round.needs_review, round.service_type, round.service_channel,
+         private.round_id AS private_round_id, private.recipient_name, private.recipient_phone,
+         private.recipient_address, private.coordinator_name, private.coordinator_phone,
+         private.carrier, private.shipping_fee_payer, private.estimated_shipping_fee,
+         private.tracking_code, private.transfer_content, private.updated_by AS private_updated_by,
+         private.updated_at AS private_updated_at,
          round.starts_at, round.ends_at, round.status, round.status_reason, round.readiness,
          round.readiness_note, round.readiness_by, round.readiness_at, round.checklist,
          round.updated_at,
@@ -238,21 +270,43 @@ const RoundSelect = `
          (SELECT count(*) FROM campaign_deliveries delivery
            WHERE delivery.round_id = round.global_id AND delivery.status = 'COMPLETED')
            AS completed_delivery_count,
-         (SELECT COALESCE(SUM(COALESCE(delivery.confirmed_value_adjusted,
-                   (SELECT COALESCE(SUM(item.confirmed_value), 0)
-                      FROM campaign_delivery_items item
-                     WHERE item.delivery_id = delivery.global_id))), 0)
-            FROM campaign_deliveries delivery
-           WHERE delivery.round_id = round.global_id AND delivery.status = 'COMPLETED')
-           AS confirmed_value
-  FROM campaign_distribution_rounds round`;
+         ${RoundConfirmedValueSql} AS confirmed_value
+  FROM campaign_distribution_rounds round
+  LEFT JOIN campaign_round_private_details private ON private.round_id = round.global_id`;
 
 const toRound = (row: IRoundRow): ICharityRound => ({
   roundId: row.global_id,
   campaignId: row.campaign_id,
   title: row.title,
+  distributionMethod: row.distribution_method,
+  contributionTypes: row.contribution_types ?? [],
+  evidenceUrls: row.evidence_urls ?? [],
   locationLabel: row.location_label,
   address: row.address,
+  lat: row.lat === null ? null : Number(row.lat),
+  lng: row.lng === null ? null : Number(row.lng),
+  needsReview: row.needs_review,
+  serviceType: row.service_type,
+  serviceChannel: row.service_channel,
+  privateDetails:
+    row.private_round_id === null
+      ? null
+      : {
+          roundId: row.private_round_id,
+          campaignId: row.campaign_id,
+          recipientName: row.recipient_name,
+          recipientPhone: row.recipient_phone,
+          recipientAddress: row.recipient_address,
+          coordinatorName: row.coordinator_name,
+          coordinatorPhone: row.coordinator_phone,
+          carrier: row.carrier,
+          shippingFeePayer: row.shipping_fee_payer,
+          estimatedShippingFee: row.estimated_shipping_fee,
+          trackingCode: row.tracking_code,
+          transferContent: row.transfer_content,
+          updatedBy: row.private_updated_by,
+          updatedAt: row.private_updated_at as Date,
+        },
   startsAt: row.starts_at,
   endsAt: row.ends_at,
   status: row.status,
@@ -517,38 +571,9 @@ export class CharityOperationsRepository implements ICharityOperationsRepository
     actorId: string;
     round: ICharityRoundInput;
   }): Promise<ICharityRound> {
-    const roundId = await this.manager.transaction(async (manager) => {
-      const [row] = await manager.query<{ global_id: string }[]>(
-        `INSERT INTO campaign_distribution_rounds
-           (campaign_id, title, location_label, address, starts_at, ends_at, checklist,
-            created_by, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $8)
-         RETURNING global_id`,
-        [
-          params.campaignId,
-          params.round.title,
-          params.round.locationLabel,
-          params.round.address,
-          params.round.startsAt,
-          params.round.endsAt,
-          JSON.stringify(normalizeRoundChecklist([])),
-          params.actorId,
-        ],
-      );
-      // Mỗi đợt một timeline 10 bước riêng (§3.18).
-      await manager.query(
-        `INSERT INTO campaign_event_steps (campaign_id, round_id, step_key, sort_order)
-         SELECT $1, $2, step.key, step.sort_order
-         FROM unnest($3::text[], $4::int[]) AS step(key, sort_order)`,
-        [
-          params.campaignId,
-          row.global_id,
-          [...CharityEventStepKeys],
-          CharityEventStepKeys.map((_, index) => index),
-        ],
-      );
-      return row.global_id;
-    });
+    const roundId = await this.manager.transaction((manager) =>
+      insertDistributionRound(manager, params),
+    );
     return (await this.findRound(params.campaignId, roundId)) as ICharityRound;
   }
 
@@ -571,18 +596,64 @@ export class CharityOperationsRepository implements ICharityOperationsRepository
       if (!before) return false;
       await manager.query(
         `UPDATE campaign_distribution_rounds
-            SET title = $3, location_label = $4, address = $5, starts_at = $6, ends_at = $7,
-                status_reason = COALESCE($8, status_reason), updated_by = $9, updated_at = now()
+            SET title = $3, distribution_method = $4, contribution_types = $5::text[],
+                evidence_urls = $6::jsonb, location_label = $7, address = $8,
+                location = CASE WHEN $9::double precision IS NOT NULL AND $10::double precision IS NOT NULL
+                  THEN ST_SetSRID(ST_MakePoint($10, $9), 4326)::geography END,
+                needs_review = false, service_type = $11, service_channel = $12,
+                starts_at = $13, ends_at = $14, status_reason = COALESCE($15, status_reason),
+                updated_by = $16, updated_at = now()
           WHERE campaign_id = $1 AND global_id = $2`,
         [
           params.campaignId,
           params.roundId,
           params.round.title,
+          params.round.distributionMethod,
+          [...params.round.contributionTypes],
+          JSON.stringify(params.round.evidenceUrls),
           params.round.locationLabel,
           params.round.address,
+          params.round.lat,
+          params.round.lng,
+          params.round.serviceType,
+          params.round.serviceChannel,
           params.round.startsAt,
           params.round.endsAt,
           params.reason,
+          params.actorId,
+        ],
+      );
+      await manager.query(
+        `INSERT INTO campaign_round_private_details
+           (round_id, campaign_id, recipient_name, recipient_phone, recipient_address,
+            coordinator_name, coordinator_phone, carrier, shipping_fee_payer,
+            estimated_shipping_fee, tracking_code, transfer_content, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         ON CONFLICT (round_id) DO UPDATE
+           SET recipient_name = EXCLUDED.recipient_name,
+               recipient_phone = EXCLUDED.recipient_phone,
+               recipient_address = EXCLUDED.recipient_address,
+               coordinator_name = EXCLUDED.coordinator_name,
+               coordinator_phone = EXCLUDED.coordinator_phone,
+               carrier = EXCLUDED.carrier,
+               shipping_fee_payer = EXCLUDED.shipping_fee_payer,
+               estimated_shipping_fee = EXCLUDED.estimated_shipping_fee,
+               tracking_code = EXCLUDED.tracking_code,
+               transfer_content = EXCLUDED.transfer_content,
+               updated_by = EXCLUDED.updated_by, updated_at = now()`,
+        [
+          params.roundId,
+          params.campaignId,
+          params.round.privateDetails.recipientName,
+          params.round.privateDetails.recipientPhone,
+          params.round.privateDetails.recipientAddress,
+          params.round.privateDetails.coordinatorName,
+          params.round.privateDetails.coordinatorPhone,
+          params.round.privateDetails.carrier,
+          params.round.privateDetails.shippingFeePayer,
+          params.round.privateDetails.estimatedShippingFee,
+          params.round.privateDetails.trackingCode,
+          params.round.privateDetails.transferContent,
           params.actorId,
         ],
       );

@@ -46,6 +46,13 @@ const LiveKeySources: readonly { sql: string; label: string }[] = [
     sql: 'SELECT storage_key AS value FROM campaign_post_media',
   },
   {
+    // Ảnh bằng chứng của từng đợt trao.
+    label: 'campaign_distribution_rounds.evidence_urls',
+    sql: `SELECT jsonb_array_elements_text(evidence_urls) AS value
+          FROM campaign_distribution_rounds
+          WHERE jsonb_typeof(evidence_urls) = 'array'`,
+  },
+  {
     // Bằng chứng của đơn vị liên quan / bên thụ hưởng (đợt 1) là URL tải lên qua luồng media.
     label: 'campaign_parties.evidence_urls',
     sql: `SELECT jsonb_array_elements_text(evidence_urls) AS value

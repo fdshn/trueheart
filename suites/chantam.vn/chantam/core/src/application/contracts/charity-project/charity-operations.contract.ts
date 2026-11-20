@@ -147,7 +147,20 @@ export interface ICharityRoundView extends ICharityRound {
 /** Bản công khai: không có ghi chú sẵn sàng, checklist nội bộ, người xác nhận. */
 export type ICharityRoundPublic = Omit<
   ICharityRound,
-  'readiness' | 'readinessNote' | 'readinessBy' | 'readinessAt' | 'checklist'
+  | 'readiness'
+  | 'readinessNote'
+  | 'readinessBy'
+  | 'readinessAt'
+  | 'checklist'
+  | 'distributionMethod'
+  | 'contributionTypes'
+  | 'evidenceUrls'
+  | 'needsReview'
+  | 'serviceType'
+  | 'serviceChannel'
+  | 'lat'
+  | 'lng'
+  | 'privateDetails'
 >;
 
 export interface IListCharityRoundsUseCase extends IUseCase<

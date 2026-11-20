@@ -3,11 +3,14 @@ import {
   CharityDisputeParty,
   CharityDisputeReason,
   CharityDisputeStatus,
+  CharityDistributionMethod,
   CharityRoundReadiness,
   CharityRoundStatus,
+  CharityServiceChannel,
   CharitySupportOfferStatus,
   CharitySupportType,
   ICharityRoundChecklistItem,
+  ICharityRoundPrivateDetailsInput,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ICharityUserBrief } from './charity-event.repository';
 
@@ -70,10 +73,26 @@ export interface ICharitySupportOffer {
 
 export interface ICharityRoundInput {
   title: string;
+  distributionMethod: CharityDistributionMethod | null;
+  contributionTypes: readonly ('MATERIAL' | 'MONEY' | 'SERVICE')[];
+  evidenceUrls: readonly string[];
   locationLabel: string | null;
   address: string | null;
+  lat: number | null;
+  lng: number | null;
+  needsReview: boolean;
+  serviceType: CharitySupportType | null;
+  serviceChannel: CharityServiceChannel | null;
+  privateDetails: ICharityRoundPrivateDetailsInput;
   startsAt: Date;
   endsAt: Date;
+}
+
+export interface ICharityRoundPrivateDetails extends ICharityRoundPrivateDetailsInput {
+  roundId: string;
+  campaignId: string;
+  updatedBy: string | null;
+  updatedAt: Date;
 }
 
 export interface ICharityRoundStats {
@@ -87,9 +106,13 @@ export interface ICharityRoundStats {
   confirmedValue: number;
 }
 
-export interface ICharityRound extends ICharityRoundInput {
+export interface ICharityRound extends Omit<
+  ICharityRoundInput,
+  'privateDetails'
+> {
   roundId: string;
   campaignId: string;
+  privateDetails: ICharityRoundPrivateDetails | null;
   status: CharityRoundStatus;
   statusReason: string | null;
   readiness: CharityRoundReadiness;

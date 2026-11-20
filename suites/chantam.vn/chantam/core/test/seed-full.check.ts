@@ -30,6 +30,8 @@ const ScratchDatabase = 'chantam_seed_full_check';
 /** Bảng được phép trống, kèm lý do. Thêm vào đây phải có lý do, không phải để cho xanh. */
 const AllowedEmpty: Record<string, string> = {
   gift_posts: 'bảng cũ đã thay bằng posts (M2.1), chỉ còn cho backfill',
+  campaign_round_private_details:
+    'chi tiết riêng tư chỉ sinh khi có đợt phân phối theo hình thức mới; seed không khai cột/bảng này',
 };
 
 const failures: string[] = [];
