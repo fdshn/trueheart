@@ -33,6 +33,8 @@ import {
   CharityOperationStage,
   CharitySectionCompletionStatus,
   CharityVolunteerNeedStatus,
+  ICharityBeneficiaryBankAccount,
+  ICharityBeneficiaryBankAccountInput,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 
@@ -71,6 +73,7 @@ export interface ICharityWorkspace {
   maxBankAccountsEffective: number;
   parties: ICharityParty[];
   bankAccounts: ICharityBankAccount[];
+  beneficiaryBankAccounts: ICharityBeneficiaryBankAccount[];
   team: ICharityTeamMember[];
   phases: ICharityPhase[];
   itemNeeds: ICharityItemNeed[];
@@ -209,6 +212,42 @@ export interface ICloseCharityBankAccountUseCase extends IUseCase<
 > {}
 export const ICloseCharityBankAccountUseCase = Symbol(
   'ICloseCharityBankAccountUseCase',
+);
+
+export interface IAddCharityBeneficiaryBankAccountCommand extends ICharityProjectCommand {
+  readonly account: ICharityBeneficiaryBankAccountInput;
+  readonly replacesAccountId: string | null;
+  readonly replaceReason: string | null;
+}
+export interface IAddCharityBeneficiaryBankAccountUseCase extends IUseCase<
+  IAddCharityBeneficiaryBankAccountCommand,
+  ICharityBeneficiaryBankAccount
+> {}
+export const IAddCharityBeneficiaryBankAccountUseCase = Symbol(
+  'IAddCharityBeneficiaryBankAccountUseCase',
+);
+
+export interface ICloseCharityBeneficiaryBankAccountCommand extends ICharityProjectCommand {
+  readonly accountId: string;
+  readonly reason: string;
+}
+export interface ICloseCharityBeneficiaryBankAccountUseCase extends IUseCase<
+  ICloseCharityBeneficiaryBankAccountCommand,
+  { closed: true }
+> {}
+export const ICloseCharityBeneficiaryBankAccountUseCase = Symbol(
+  'ICloseCharityBeneficiaryBankAccountUseCase',
+);
+
+export interface IVerifyCharityBeneficiaryBankAccountCommand extends ICharityProjectCommand {
+  readonly accountId: string;
+}
+export interface IVerifyCharityBeneficiaryBankAccountUseCase extends IUseCase<
+  IVerifyCharityBeneficiaryBankAccountCommand,
+  ICharityBeneficiaryBankAccount
+> {}
+export const IVerifyCharityBeneficiaryBankAccountUseCase = Symbol(
+  'IVerifyCharityBeneficiaryBankAccountUseCase',
 );
 
 export interface IReplaceCharityTeamCommand extends ICharityProjectCommand {

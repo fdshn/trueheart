@@ -902,7 +902,8 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     const rows = await updateReturning<IBeneficiaryBankRow>(
       this.manager,
       `UPDATE campaign_beneficiary_bank_accounts
-       SET verified_at = now(), verified_by = $3
+       SET verified_at = COALESCE(verified_at, now()),
+           verified_by = CASE WHEN verified_at IS NULL THEN $3 ELSE verified_by END
        WHERE campaign_id = $1 AND global_id = $2 AND valid_to IS NULL
        RETURNING ${BeneficiaryBankColumns}`,
       [params.campaignId, params.accountId, params.actorId],

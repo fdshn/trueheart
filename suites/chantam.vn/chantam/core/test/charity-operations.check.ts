@@ -12,6 +12,8 @@
  * - Nguồn ngoài app: mã chứng từ trùng → lỗi nghiệp vụ.
  * - Mục tiêu hạng mục hiện vật: sửa kèm giải trình phần dư, ghi lịch sử.
  * - Hoãn bước trao: lịch sử sửa có lý do.
+ * - Đợt BANK_TRANSFER: chỉ gắn tài khoản thụ hưởng còn hiệu lực của dự án; DONE cần tài khoản đã
+ *   xác thực (thay tài khoản → bản mới chưa xác thực → DONE bị từ chối); bản công khai không lộ số.
  *
  *   npm run test:charity-operations
  */
@@ -21,7 +23,13 @@ import { DataSource } from 'typeorm';
 import {
   ListCharityRoundsUseCase,
   ManageCharityRoundsUseCase,
+  SaveCharityRoundUseCase,
+  SetCharityRoundStatusUseCase,
 } from '../src/application/implementations/charity-project/charity-operations.use-cases';
+import {
+  CharityProjectAccess,
+  GetCharityPublicProjectUseCase,
+} from '../src/application/implementations/charity-project/charity-project.use-cases';
 import { ICharitySupportOffer } from '../src/domain/ports/repository';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
@@ -30,6 +38,7 @@ import { CharityEngagementRepository } from '../src/infrastructure/repository/ch
 import { CharityEventRepository } from '../src/infrastructure/repository/charity-event.repository';
 import { CharityOperationsRepository } from '../src/infrastructure/repository/charity-operations.repository';
 import { CharityProjectRepository } from '../src/infrastructure/repository/charity-project.repository';
+import { CharitySummaryRepository } from '../src/infrastructure/repository/charity-summary.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 
 loadEnvFile({ path: '.env.local' });
@@ -1101,6 +1110,186 @@ async function main(): Promise<void> {
         Math.abs(startedAt.getTime() - Date.now()) < 60_000 &&
         Number(afterHours?.value_json) === 72,
       String(startedAt),
+    );
+
+    // ── 9. Đợt BANK_TRANSFER và tài khoản thụ hưởng ───────────────────────
+    console.log('\n9. Đợt BANK_TRANSFER và tài khoản thụ hưởng');
+    const access = new CharityProjectAccess(campaigns, {
+      hasPermission: async () => false,
+    } as never);
+    const saveRound = new SaveCharityRoundUseCase(access, operations, projects);
+    const roundStatus = new SetCharityRoundStatusUseCase(
+      access,
+      operations,
+      projects,
+    );
+    const addBeneficiaryAccount = async (
+      campaignId: string,
+      accountNo: string,
+      replacesAccountId: string | null = null,
+    ) => {
+      const outcome = await projects.addBeneficiaryBankAccount({
+        campaignId,
+        actorId: Owner,
+        account: {
+          holderType: 'OWNER',
+          partyId: null,
+          bankName: 'VCB',
+          accountNo,
+          accountName: 'NGUYEN VAN DUC',
+        },
+        replacesAccountId,
+        replaceReason: replacesAccountId ? 'Đổi tài khoản' : null,
+      });
+      if (outcome.status !== 'CREATED') throw new Error(outcome.status);
+      return outcome.account;
+    };
+    const firstPayout = await addBeneficiaryAccount(Other, '5550001111');
+    const foreignPayout = await addBeneficiaryAccount(Live, '5550002222');
+    await projects.verifyBeneficiaryBankAccount({
+      campaignId: Live,
+      accountId: foreignPayout.accountId,
+      actorId: Coordinator,
+    });
+    const verifiedFirst = await projects.verifyBeneficiaryBankAccount({
+      campaignId: Other,
+      accountId: firstPayout.accountId,
+      actorId: Coordinator,
+    });
+    const payoutStartsAt = new Date(Date.now() + 3 * 24 * 3_600_000);
+    const transferRound = (beneficiaryBankAccountId: string | null) => ({
+      title: 'Đợt chuyển khoản',
+      distributionMethod: 'BANK_TRANSFER' as const,
+      contributionTypes: ['MONEY' as const],
+      evidenceUrls: ['https://cdn.test/uy-nhiem-chi.webp'],
+      locationLabel: null,
+      address: null,
+      lat: null,
+      lng: null,
+      needsReview: false,
+      serviceType: null,
+      serviceChannel: null,
+      privateDetails: {
+        beneficiaryBankAccountId,
+        recipientName: null,
+        recipientPhone: null,
+        recipientAddress: null,
+        coordinatorName: null,
+        coordinatorPhone: null,
+        carrier: null,
+        shippingFeePayer: null,
+        estimatedShippingFee: null,
+        trackingCode: null,
+        transferContent: 'UNG HO DOT CHUYEN KHOAN',
+      },
+      startsAt: payoutStartsAt,
+      endsAt: new Date(payoutStartsAt.getTime() + 3_600_000),
+    });
+    const ownerCommand = { userId: Owner, campaignId: Other };
+    const saveMessage = (run: () => Promise<unknown>) =>
+      run().then(
+        () => '',
+        (error: unknown) => (error as Error).message,
+      );
+    check(
+      'lưu đợt gắn tài khoản của dự án khác → từ chối',
+      (
+        await saveMessage(() =>
+          saveRound.handle({
+            ...ownerCommand,
+            roundId: null,
+            reason: null,
+            round: transferRound(foreignPayout.accountId),
+          }),
+        )
+      ).startsWith('round.beneficiaryBankAccountId:'),
+    );
+    const payoutRound = await saveRound.handle({
+      ...ownerCommand,
+      roundId: null,
+      reason: null,
+      round: transferRound(firstPayout.accountId),
+    });
+    check(
+      'đợt BANK_TRANSFER lưu và đọc lại beneficiaryBankAccountId',
+      verifiedFirst?.verifiedAt !== null &&
+        (await operations.findRound(Other, payoutRound.roundId))?.privateDetails
+          ?.beneficiaryBankAccountId === firstPayout.accountId,
+    );
+    const replacedPayout = await addBeneficiaryAccount(
+      Other,
+      '5550003333',
+      firstPayout.accountId,
+    );
+    const markDone = () =>
+      roundStatus.handle({
+        ...ownerCommand,
+        roundId: payoutRound.roundId,
+        status: 'DONE',
+        reason: null,
+      });
+    const doneFailure = async () =>
+      markDone().then(
+        () => null,
+        (error: unknown) => (error as { code?: number }).code ?? -1,
+      );
+    const closedLinkCode = await doneFailure();
+    check(
+      'đợt còn gắn tài khoản đã bị thay → DONE bị từ chối 0x13_5b',
+      closedLinkCode === 0x13_5b,
+      String(closedLinkCode),
+    );
+    check(
+      'gắn lại tài khoản đã bị thay khi lưu đợt → từ chối',
+      (
+        await saveMessage(() =>
+          saveRound.handle({
+            ...ownerCommand,
+            roundId: payoutRound.roundId,
+            reason: null,
+            round: transferRound(firstPayout.accountId),
+          }),
+        )
+      ).startsWith('round.beneficiaryBankAccountId:'),
+    );
+    await saveRound.handle({
+      ...ownerCommand,
+      roundId: payoutRound.roundId,
+      reason: null,
+      round: transferRound(replacedPayout.accountId),
+    });
+    const unverifiedCode = await doneFailure();
+    check(
+      'tài khoản thay mới chưa xác thực → DONE bị từ chối 0x13_5b, đợt vẫn PLANNED',
+      replacedPayout.verifiedAt === null &&
+        unverifiedCode === 0x13_5b &&
+        (await operations.findRound(Other, payoutRound.roundId))?.status ===
+          'PLANNED',
+      String(unverifiedCode),
+    );
+    await projects.verifyBeneficiaryBankAccount({
+      campaignId: Other,
+      accountId: replacedPayout.accountId,
+      actorId: Coordinator,
+    });
+    check(
+      'xác thực tài khoản mới + đủ bằng chứng → DONE',
+      (await markDone()).status === 'DONE',
+    );
+    const publicProject = await new GetCharityPublicProjectUseCase(
+      campaigns,
+      projects,
+      engagement,
+      events,
+      new CharitySummaryRepository(dataSource.manager),
+    ).handle({ idOrSlug: 'cop-other', userId: null });
+    const publicJson = JSON.stringify(publicProject);
+    check(
+      'bản công khai thật không chứa số tài khoản thụ hưởng hay id gắn với đợt',
+      !publicJson.includes('5550001111') &&
+        !publicJson.includes('5550003333') &&
+        !publicJson.includes(replacedPayout.accountId) &&
+        !('beneficiaryBankAccounts' in publicProject),
     );
   } finally {
     for (const source of opened.reverse())

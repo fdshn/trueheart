@@ -155,7 +155,7 @@ const privateFieldsByMethod: Readonly<
     'trackingCode',
   ],
   OTHER_LOCATION: ['coordinatorName', 'coordinatorPhone'],
-  BANK_TRANSFER: ['transferContent'],
+  BANK_TRANSFER: ['transferContent', 'beneficiaryBankAccountId'],
   SERVICE: ['coordinatorName', 'coordinatorPhone'],
 };
 

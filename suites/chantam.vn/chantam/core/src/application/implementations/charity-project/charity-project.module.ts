@@ -1,12 +1,14 @@
 import {
   IActOnCharityAppealUseCase,
   IAddCharityBankAccountUseCase,
+  IAddCharityBeneficiaryBankAccountUseCase,
   IAdvanceCharityStagesUseCase,
   IAssignCharityRoundUseCase,
   ICancelCharityVolunteerUseCase,
   ICheckCharityCompletionUseCase,
   ICheckInCharityParticipationUseCase,
   ICloseCharityBankAccountUseCase,
+  ICloseCharityBeneficiaryBankAccountUseCase,
   ICloseCharityDisputeUseCase,
   IConfirmCharityVolunteerUseCase,
   ICreateCharityExportUseCase,
@@ -81,6 +83,7 @@ import {
   IUpdateCharityItemNeedUseCase,
   IUpdateCharityProfileUseCase,
   IUpdateCharityTaskUseCase,
+  IVerifyCharityBeneficiaryBankAccountUseCase,
   IWithdrawCharitySupportOfferUseCase,
 } from '@/application/contracts/charity-project';
 import { Global, Module } from '@nestjs/common';
@@ -155,10 +158,12 @@ import {
 import { CharityPointsService } from './charity-points.service';
 import {
   AddCharityBankAccountUseCase,
+  AddCharityBeneficiaryBankAccountUseCase,
   AdvanceCharityStagesUseCase,
   CancelCharityVolunteerUseCase,
   CharityProjectAccess,
   CloseCharityBankAccountUseCase,
+  CloseCharityBeneficiaryBankAccountUseCase,
   ConfirmCharityVolunteerUseCase,
   GetCharityPublicProjectUseCase,
   GetCharityWorkspaceUseCase,
@@ -176,6 +181,7 @@ import {
   SubmitCharityProjectUseCase,
   UpdateCharityItemNeedUseCase,
   UpdateCharityProfileUseCase,
+  VerifyCharityBeneficiaryBankAccountUseCase,
 } from './charity-project.use-cases';
 import {
   EvaluateCharityParticipantUseCase,
@@ -200,6 +206,18 @@ const bindings = [
   [IReplaceCharityPartiesUseCase, ReplaceCharityPartiesUseCase],
   [IAddCharityBankAccountUseCase, AddCharityBankAccountUseCase],
   [ICloseCharityBankAccountUseCase, CloseCharityBankAccountUseCase],
+  [
+    IAddCharityBeneficiaryBankAccountUseCase,
+    AddCharityBeneficiaryBankAccountUseCase,
+  ],
+  [
+    ICloseCharityBeneficiaryBankAccountUseCase,
+    CloseCharityBeneficiaryBankAccountUseCase,
+  ],
+  [
+    IVerifyCharityBeneficiaryBankAccountUseCase,
+    VerifyCharityBeneficiaryBankAccountUseCase,
+  ],
   [IReplaceCharityTeamUseCase, ReplaceCharityTeamUseCase],
   [IReplaceCharityPhasesUseCase, ReplaceCharityPhasesUseCase],
   [IUpdateCharityItemNeedUseCase, UpdateCharityItemNeedUseCase],

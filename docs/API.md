@@ -2799,9 +2799,11 @@ của bước trao, `null` khi chưa lập) và `acceptedContributionTypes` (m�
 | `GET` | `/charity-campaigns/:idOrSlug/public` | Công khai | Bản công khai (xem dưới) |
 | `POST` | `/charity-campaigns/:id/stage` | Người tạo, coordinator, Admin | `{ stage: { to, reason } }` — tiến **một** bước sớm hơn lịch, hoặc lùi; `reason` bắt buộc từ đợt 5b (§18.7) |
 | `PUT` | `/charity-campaigns/:id/profile` | Người tạo, Admin | `{ profile: { appealPurpose, appealAudience, appealCircumstance, callToActions, acceptedContributionTypes? } }`; bỏ loại tiếp nhận giữ nguyên, gửi mảng thì thay toàn bộ theo thứ tự chuẩn |
-| `PUT` | `/charity-campaigns/:id/parties` | Người tạo, Admin | `{ parties: [...] }` — đơn vị tổ chức / thụ hưởng / cấp phép / truyền thông; dòng có `partyId` giữ id |
+| `PUT` | `/charity-campaigns/:id/parties` | Người tạo, Admin | `{ parties: [...] }` — đơn vị tổ chức / thụ hưởng / cấp phép / truyền thông; dòng có `partyId` giữ id. Bỏ một bên còn tài khoản thụ hưởng đang hiệu lực → `400 VALIDATION_FAILED` (đóng tài khoản trước) |
 | `POST` | `/charity-campaigns/:id/bank-accounts` | Người tạo, Admin | `{ bankAccount: { bankName, accountNo, accountName, label?, replacesAccountId?, replaceReason? } }`; khi không nhận `MONEY` → `409 CHARITY_CONTRIBUTION_TYPE_DISABLED` |
 | `POST` | `/charity-campaigns/:id/bank-accounts/:accountId/close` | Người tạo, Admin | `{ close: { reason } }` |
+| `POST` | `/charity-campaigns/:id/beneficiary-bank-accounts` | Người tạo, Admin | `{ beneficiaryBankAccount: { holderType: OWNER\|BENEFICIARY, partyId?, bankName, accountNo, accountName, replacesAccountId?, replaceReason? } }` — tài khoản thụ hưởng **riêng tư** cho đợt `BANK_TRANSFER`; so tên chủ tài khoản (xem dưới); không nhận `MONEY` → `409 CHARITY_CONTRIBUTION_TYPE_DISABLED` |
+| `POST` | `/charity-campaigns/:id/beneficiary-bank-accounts/:accountId/close` | Người tạo, Admin | `{ close: { reason } }`; không còn hiệu lực / không thuộc dự án → `404 CHARITY_BANK_ACCOUNT_NOT_FOUND` |
 | `PUT` | `/charity-campaigns/:id/team` | Người tạo, Admin | `{ team: [...] }` — ban tổ chức 6 vai trò |
 | `PUT` | `/charity-campaigns/:id/phases` | Người tạo, Admin | `{ phases: [...] }` — `PLANNING`→`PREPARATION`→`DISTRIBUTION`→`REPORTING`, không chồng |
 | `PATCH` | `/charity-campaigns/:id/item-needs/:needItemId` | Người tạo, Admin | `{ itemNeed: { unitPrice, itemCondition, supplySource, intakeDeadline, dropoffAddress, receiverName, intakeStatus, … } }` |
@@ -2814,6 +2816,7 @@ của bước trao, `null` khi chưa lập) và `acceptedContributionTypes` (m�
 | `POST` | `/charity-campaigns/:id/sections/:sectionKey/publish` | Người tạo, Admin | Công khai: chụp nội dung công khai lúc này |
 | `PUT` | `/charity-campaigns/:id/custom-sections` | Người tạo, Admin | `{ customSections: [...] }` — form mở |
 | `PATCH` | `/admin/charity-campaigns/:id/limits` | `campaign.manage` | `{ limits: { maxBankAccounts, reason } }` — ghi đè số tài khoản nhận cho một dự án |
+| `POST` | `/admin/charity-campaigns/:id/beneficiary-bank-accounts/:accountId/verify` | `campaign.manage` | Xác thực tài khoản thụ hưởng (không body) — ghi `verifiedAt`/`verifiedBy`; xác thực lại giữ mốc ban đầu; không có / đã đóng / dự án khác → `404 CHARITY_BANK_ACCOUNT_NOT_FOUND` |
 
 **Quyền.** Sửa hồ sơ là người tạo hoặc Admin `campaign.manage` (coordinator điều phối, không đổi
 nội dung — đúng quy tắc sẵn có). Dự án bị **đình chỉ** (tắt mà còn hạn): chỉ Admin sửa
@@ -2835,6 +2838,16 @@ dòng này trong workspace.
 kêu gọi tiền khi chiến dịch nhận `MONEY`; đóng tài khoản vẫn được phép. Số tài khoản ĐANG hiệu lực tối đa:
 `charity.max_bank_accounts_per_campaign` (mặc định 2), Admin ghi đè từng dự án; vượt →
 `CHARITY_BANK_ACCOUNT_LIMIT`.
+
+**Tài khoản thụ hưởng** (khác tài khoản nhận: đây là tài khoản người thụ hưởng NHẬN tiền ở đợt
+trao `BANK_TRANSFER`). **Riêng tư**: chỉ có trong workspace (`beneficiaryBankAccounts`), bản công
+khai không bao giờ đọc bảng này. Chỉ thêm/thay khi dự án nhận `MONEY`. Tên chủ tài khoản phải
+khớp sau khi bỏ dấu, không phân biệt hoa thường, gộp khoảng trắng (`NGUYEN VAN DUC` khớp
+`Nguyễn Văn Đức`): `OWNER` so với họ tên chủ dự án (`users.full_name`; chưa khai → coi là lệch),
+`BENEFICIARY` cần `partyId` là bên `BENEFICIARY` của chính dự án (sai → `400 VALIDATION_FAILED`) và
+so với tên bên đó. Lệch → `400 CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH`. Thay = `replacesAccountId`
+(đóng cũ + tạo mới); tài khoản mới luôn **chưa xác thực** — Admin phải xác thực lại. Đổi tên bên
+thụ hưởng không làm mất xác thực; bỏ bên đó khỏi `parties` khi còn tài khoản hiệu lực thì bị chặn.
 
 **Hiện vật.** Mỗi dòng trả `registeredQuantity` (đề nghị chờ quyết), `approvedQuantity`,
 `receivedInAppQuantity`, `receivedExternalQuantity`, `remainingQuantity`.
@@ -3169,9 +3182,9 @@ cũ. Ghi lịch sử sửa (chữ đỏ) **kèm lý do**, báo `CHARITY_PLAN_CHA
 | --- | --- | --- | --- |
 | `GET` | `/charity-campaigns/:idOrSlug/rounds` | Công khai | Chỉ trường công khai: giờ, địa điểm (chỉ `OTHER_LOCATION`/legacy), phương thức, loại đóng góp, bằng chứng, trạng thái, `stats`; không có `privateDetails` hay `needsReview` |
 | `GET` | `/charity-campaigns/:id/rounds/manage` | Người tạo, coordinator, Admin `campaign.read` | Bản workspace đầy đủ, gồm `privateDetails`, `needsReview`, `readiness`, `checklist`, `warnings` |
-| `POST` | `/charity-campaigns/:id/rounds` | Người tạo, coordinator, Admin | `{ round: { title, distributionMethod?, contributionTypes?, evidenceUrls?, locationLabel?, address?, lat?, lng?, serviceType?, serviceChannel?, private fields?, startsAt, endsAt } }`; PATCH là thay thế đầy đủ các trường phân phối — client gửi lại toàn bộ |
+| `POST` | `/charity-campaigns/:id/rounds` | Người tạo, coordinator, Admin | `{ round: { title, distributionMethod?, contributionTypes?, evidenceUrls?, locationLabel?, address?, lat?, lng?, serviceType?, serviceChannel?, private fields?, startsAt, endsAt } }`; PATCH là thay thế đầy đủ các trường phân phối — client gửi lại toàn bộ. `BANK_TRANSFER` nhận thêm `beneficiaryBankAccountId?` (tuỳ chọn khi lưu; có thì phải là tài khoản thụ hưởng ĐANG hiệu lực của dự án, sai → `400 VALIDATION_FAILED`); nằm trong `privateDetails`, không có ở bản công khai |
 | `PATCH` | `/charity-campaigns/:id/rounds/:roundId` | Như trên | Cùng body POST; đổi giờ / địa điểm khi dự án đã duyệt: bắt buộc `round.reason`, báo người của đợt |
-| `POST` | `/charity-campaigns/:id/rounds/:roundId/status` | Như trên | `{ status: { status: DONE\|CANCELLED, reason? } }`; huỷ cần lý do. DONE cần `evidenceUrls`, SHIPPING cần thêm `trackingCode`; legacy `distributionMethod: null` được miễn |
+| `POST` | `/charity-campaigns/:id/rounds/:roundId/status` | Như trên | `{ status: { status: DONE\|CANCELLED, reason? } }`; huỷ cần lý do. DONE cần `evidenceUrls`, SHIPPING cần thêm `trackingCode`; BANK_TRANSFER cần `beneficiaryBankAccountId` trỏ tới tài khoản thụ hưởng còn hiệu lực của dự án và đã xác thực, không thì `409 CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED` (chưa gắn, chưa xác thực, đã bị thay/đóng); legacy `distributionMethod: null` được miễn |
 | `PUT` | `/charity-campaigns/:id/rounds/:roundId/readiness` | Như trên | `{ readiness: { status: READY\|NOT_READY, note?, checklist?[] } }` — `NOT_READY` bắt buộc ghi chú |
 | `PUT` | `/charity-campaigns/:id/round-assignments` | Như trên | `{ assignments: { roundId\|null, participationIds[], deliveryIds[] } }` |
 

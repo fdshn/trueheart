@@ -1,4 +1,5 @@
 import {
+  CharityBeneficiaryAccountNotVerifiedException,
   CharityContributionTypeDisabledException,
   CharityDistributionFieldRequiredException,
   CharityDistributionMethodMismatchException,
@@ -78,6 +79,7 @@ const round = (overrides: Record<string, unknown> = {}) => ({
   serviceType: null,
   serviceChannel: null,
   privateDetails: {
+    beneficiaryBankAccountId: null,
     recipientName: null,
     recipientPhone: null,
     recipientAddress: null,
@@ -131,6 +133,7 @@ function make(current = campaign()) {
       },
     ]),
     replacePhases: jest.fn(async (): Promise<unknown[]> => []),
+    listBeneficiaryBankAccounts: jest.fn(async (): Promise<unknown[]> => []),
   };
   const notifier = { notify: jest.fn(async () => undefined) };
   const access = new CharityProjectAccess(campaigns as never, admin as never);
@@ -366,6 +369,7 @@ describe('Đợt trao', () => {
     const createUseCase = new SaveCharityRoundUseCase(
       created.access,
       created.operations as never,
+      created.projects as never,
     );
     await createUseCase.handle({
       ...cmd,
@@ -383,6 +387,7 @@ describe('Đợt trao', () => {
     const updateUseCase = new SaveCharityRoundUseCase(
       updated.access,
       updated.operations as never,
+      updated.projects as never,
     );
     await updateUseCase.handle({
       ...cmd,
@@ -402,6 +407,7 @@ describe('Đợt trao', () => {
     const useCase = new SaveCharityRoundUseCase(
       deps.access,
       deps.operations as never,
+      deps.projects as never,
     );
     await useCase.handle({
       ...cmd,
@@ -457,6 +463,7 @@ describe('Đợt trao', () => {
     const useCase = new SaveCharityRoundUseCase(
       deps.access,
       deps.operations as never,
+      deps.projects as never,
     );
     const base = {
       ...cmd,
@@ -511,6 +518,7 @@ describe('Đợt trao', () => {
     const useCase = new SaveCharityRoundUseCase(
       deps.access,
       deps.operations as never,
+      deps.projects as never,
     );
     await useCase.handle({
       ...cmd,
@@ -547,6 +555,7 @@ describe('Đợt trao', () => {
     const useCase = new SaveCharityRoundUseCase(
       deps.access,
       deps.operations as never,
+      deps.projects as never,
     );
     const base = {
       ...cmd,
@@ -634,6 +643,7 @@ describe('Đợt trao', () => {
     const useCase = new SetCharityRoundStatusUseCase(
       deps.access,
       deps.operations as never,
+      deps.projects as never,
     );
     await expect(
       useCase.handle({ ...cmd, roundId: 'r1', status: 'DONE', reason: null }),
@@ -656,6 +666,7 @@ describe('Đợt trao', () => {
     const useCase = new SaveCharityRoundUseCase(
       deps.access,
       deps.operations as never,
+      deps.projects as never,
     );
     const moved = {
       ...cmd,
@@ -673,6 +684,7 @@ describe('Đợt trao', () => {
         serviceType: null,
         serviceChannel: null,
         privateDetails: {
+          beneficiaryBankAccountId: null,
           recipientName: null,
           recipientPhone: null,
           recipientAddress: null,
@@ -697,12 +709,128 @@ describe('Đợt trao', () => {
     );
   });
 
+  const bankRound = (beneficiaryBankAccountId: string | null) =>
+    round({
+      distributionMethod: 'BANK_TRANSFER',
+      contributionTypes: ['MONEY'],
+      evidenceUrls: ['https://e'],
+      privateDetails: {
+        ...round().privateDetails,
+        beneficiaryBankAccountId,
+        transferContent: 'CT',
+      },
+    });
+  const beneficiaryAccount = (overrides: Record<string, unknown> = {}) => ({
+    accountId: 'acc-1',
+    holderType: 'OWNER',
+    partyId: null,
+    bankName: 'VCB',
+    accountNo: '0123456789',
+    accountName: 'NGUYEN VAN DUC',
+    validFrom: new Date(),
+    validTo: null,
+    closeReason: null,
+    verifiedAt: null,
+    verifiedBy: null,
+    ...overrides,
+  });
+
+  it('lưu đợt BANK_TRANSFER: tài khoản gắn phải đang hiệu lực của dự án này', async () => {
+    const deps = make();
+    const useCase = new SaveCharityRoundUseCase(
+      deps.access,
+      deps.operations as never,
+      deps.projects as never,
+    );
+    const save = (beneficiaryBankAccountId: string | null) =>
+      useCase.handle({
+        ...cmd,
+        roundId: null,
+        reason: null,
+        round: bankRound(beneficiaryBankAccountId) as never,
+      });
+    deps.projects.listBeneficiaryBankAccounts.mockResolvedValue([
+      beneficiaryAccount({ accountId: 'closed', validTo: new Date() }),
+      beneficiaryAccount({ accountId: 'live' }),
+    ]);
+    for (const accountId of ['other-campaign', 'closed'])
+      await expect(save(accountId)).rejects.toThrow(ValidationFailedException);
+    expect(deps.operations.createRound).not.toHaveBeenCalled();
+    expect(deps.projects.listBeneficiaryBankAccounts).toHaveBeenCalledWith(
+      CampaignId,
+    );
+    await save('live');
+    await save(null);
+    expect(
+      deps.operations.createRound.mock.calls.map(
+        (call) =>
+          (call as unknown as [{ round: ReturnType<typeof round> }])[0].round
+            .privateDetails.beneficiaryBankAccountId,
+      ),
+    ).toEqual(['live', null]);
+  });
+
+  it('DONE BANK_TRANSFER: chưa gắn / chưa xác thực / tài khoản dự án khác / đã bị thay → 409 0x13_5b', async () => {
+    const deps = make();
+    const useCase = new SetCharityRoundStatusUseCase(
+      deps.access,
+      deps.operations as never,
+      deps.projects as never,
+    );
+    deps.projects.listBeneficiaryBankAccounts.mockResolvedValue([
+      beneficiaryAccount({ accountId: 'unverified' }),
+      beneficiaryAccount({
+        accountId: 'replaced',
+        validTo: new Date(),
+        closeReason: 'Đổi tài khoản',
+        verifiedAt: new Date(),
+        verifiedBy: Owner,
+      }),
+    ]);
+    for (const accountId of [
+      null,
+      'unverified',
+      'other-campaign',
+      'replaced',
+    ]) {
+      deps.operations.findRound.mockResolvedValueOnce(bankRound(accountId));
+      const failure = useCase
+        .handle({ ...cmd, roundId: 'r1', status: 'DONE', reason: null })
+        .catch((error: unknown) => error);
+      await expect(failure).resolves.toBeInstanceOf(
+        CharityBeneficiaryAccountNotVerifiedException,
+      );
+      await expect(failure).resolves.toMatchObject({ code: 0x13_5b });
+    }
+    expect(deps.operations.setRoundStatus).not.toHaveBeenCalled();
+    expect(deps.projects.listBeneficiaryBankAccounts).toHaveBeenCalledWith(
+      CampaignId,
+    );
+  });
+
+  it('DONE BANK_TRANSFER: tài khoản đã xác thực + đủ bằng chứng → DONE', async () => {
+    const deps = make();
+    deps.projects.listBeneficiaryBankAccounts.mockResolvedValue([
+      beneficiaryAccount({ verifiedAt: new Date(), verifiedBy: Owner }),
+    ]);
+    deps.operations.findRound.mockResolvedValueOnce(bankRound('acc-1'));
+    await new SetCharityRoundStatusUseCase(
+      deps.access,
+      deps.operations as never,
+      deps.projects as never,
+    ).handle({ ...cmd, roundId: 'r1', status: 'DONE', reason: null });
+    expect(deps.operations.setRoundStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'DONE' }),
+    );
+  });
+
   it('huỷ đợt thiếu lý do → 400; đợt đã huỷ → không sửa được', async () => {
     const deps = make();
     await expect(
       new SetCharityRoundStatusUseCase(
         deps.access,
         deps.operations as never,
+        deps.projects as never,
       ).handle({ ...cmd, roundId: 'r1', status: 'CANCELLED', reason: null }),
     ).rejects.toThrow(ValidationFailedException);
     deps.operations.findRound.mockResolvedValueOnce(

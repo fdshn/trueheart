@@ -308,6 +308,14 @@ Admin tạo trực tiếp. Member/Bạc/Vàng được tạo kêu gọi cho cá 
 **thành viên Kim Cương** được tạo và public trực tiếp cả kêu gọi cá nhân lẫn hoạt động có tổ
 chức. Người dùng đăng ký hoặc huỷ trước khi sự kiện bắt đầu; đánh giá sau khi kết thúc.
 
+> ✅ **21/11 — tài khoản thụ hưởng cho đợt trao chuyển khoản.** Đợt trao `BANK_TRANSFER` gắn
+> một **tài khoản thụ hưởng** (người nhận tiền: chủ dự án hoặc một bên thụ hưởng của dự án). Tên
+> chủ tài khoản phải khớp tên người đó (bỏ dấu, không phân biệt hoa thường). Tài khoản **riêng
+> tư** — chỉ ban tổ chức thấy trong workspace, trang công khai không bao giờ lộ. Admin xác thực
+> từng tài khoản; đợt chỉ ghi nhận xong khi tài khoản gắn với đợt còn hiệu lực và đã xác thực.
+> Thay tài khoản thì bản mới phải xác thực lại. Không bỏ được bên thụ hưởng còn tài khoản đang
+> hiệu lực — phải đóng tài khoản trước.
+
 ### F19 — Rao vặt giá rẻ
 Người bán tự khai **giá tham khảo** và **giá bán**. Hệ thống chỉ tính tỷ lệ chênh lệch;
 **không xác minh giá thật và không ép mức giảm tối thiểu**.

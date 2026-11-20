@@ -299,4 +299,17 @@ describe('quy tắc hình thức trao theo đợt', () => {
     expect(result.locationLabel).toBeNull();
     expect(result.serviceChannel).toBeNull();
   });
+
+  it('chỉ BANK_TRANSFER giữ tài khoản thụ hưởng gắn với đợt', () => {
+    const linked = (input: ICharityRoundDistributionInput) =>
+      stripInapplicableDistributionFields({
+        ...input,
+        privateDetails: {
+          ...input.privateDetails,
+          beneficiaryBankAccountId: 'acc-1',
+        },
+      }).privateDetails.beneficiaryBankAccountId;
+    expect(linked(completeInputs.BANK_TRANSFER)).toBe('acc-1');
+    expect(linked(completeInputs.SERVICE)).toBeNull();
+  });
 });

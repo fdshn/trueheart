@@ -441,6 +441,15 @@ export class CharityRoundInputDto {
   @IsString()
   @MaxLength(200)
   trackingCode?: string;
+  @ApiPropertyOptional({
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Tài khoản thụ hưởng ĐANG hiệu lực của dự án; cần được Admin xác thực trước khi hoàn tất BANK_TRANSFER',
+  })
+  @IsOptional()
+  @IsUUID()
+  beneficiaryBankAccountId?: string | null;
   @ApiPropertyOptional({ maxLength: 500 })
   @IsOptional()
   @IsString()
@@ -581,6 +590,14 @@ class CharityRoundStatsDto {
 }
 
 export class CharityRoundPrivateDetailsDto {
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Chỉ BANK_TRANSFER: tài khoản thụ hưởng (riêng tư) gắn với đợt; DONE cần tài khoản này còn hiệu lực và đã được Admin xác thực',
+  })
+  beneficiaryBankAccountId: string | null;
   @ApiProperty({ type: String, nullable: true }) recipientName: string | null;
   @ApiProperty({ type: String, nullable: true }) recipientPhone: string | null;
   @ApiProperty({ type: String, nullable: true }) recipientAddress:

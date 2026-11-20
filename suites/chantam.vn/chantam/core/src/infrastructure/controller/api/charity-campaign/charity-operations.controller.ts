@@ -17,6 +17,7 @@ import {
   IWithdrawCharitySupportOfferUseCase,
 } from '@/application/contracts/charity-project';
 import {
+  CharityBeneficiaryAccountNotVerifiedException,
   CharityCampaignNotFoundException,
   CharityContributionTypeDisabledException,
   CharityDistributionFieldRequiredException,
@@ -525,7 +526,7 @@ export class CharityOperationsController {
   @ApiOperation({
     summary: 'Ghi nhận xong / huỷ đợt trao',
     description:
-      '`DONE` hoặc `CANCELLED` (bắt buộc lý do, báo người của đợt). Gắn kết participant/giao nhận giữ nguyên để ban tổ chức chuyển sang đợt khác.',
+      '`DONE` hoặc `CANCELLED` (bắt buộc lý do, báo người của đợt). Gắn kết participant/giao nhận giữ nguyên để ban tổ chức chuyển sang đợt khác. `DONE` của đợt BANK_TRANSFER cần `privateDetails.beneficiaryBankAccountId` trỏ tới tài khoản thụ hưởng còn hiệu lực của dự án và đã được Admin xác thực.',
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(CharityRoundResponseDto) })
   @ApiErrorResponses(
@@ -534,6 +535,7 @@ export class CharityOperationsController {
     CharityRoundNotFoundException,
     CharityRoundInvalidStateException,
     CharityRoundEvidenceRequiredException,
+    CharityBeneficiaryAccountNotVerifiedException,
   )
   public async roundStatus(
     @CurrentUser() principal: IAuthPrincipal,
@@ -702,7 +704,7 @@ export class CharityOperationsController {
         serviceType: input.serviceType ?? null,
         serviceChannel: input.serviceChannel ?? null,
         privateDetails: {
-          beneficiaryBankAccountId: null,
+          beneficiaryBankAccountId: input.beneficiaryBankAccountId ?? null,
           recipientName: input.recipientName ?? null,
           recipientPhone: input.recipientPhone ?? null,
           recipientAddress: input.recipientAddress ?? null,

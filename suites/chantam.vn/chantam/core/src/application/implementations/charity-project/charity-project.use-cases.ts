@@ -2,6 +2,8 @@ import { ICharityCampaignView } from '@/application/contracts/charity-campaign';
 import {
   IAddCharityBankAccountCommand,
   IAddCharityBankAccountUseCase,
+  IAddCharityBeneficiaryBankAccountCommand,
+  IAddCharityBeneficiaryBankAccountUseCase,
   IAdvanceCharityStagesUseCase,
   ICancelCharityVolunteerUseCase,
   ICharityProjectCommand,
@@ -12,6 +14,8 @@ import {
   ICharityWorkspace,
   ICloseCharityBankAccountCommand,
   ICloseCharityBankAccountUseCase,
+  ICloseCharityBeneficiaryBankAccountCommand,
+  ICloseCharityBeneficiaryBankAccountUseCase,
   IConfirmCharityVolunteerUseCase,
   IGetCharityPublicProjectCommand,
   IGetCharityPublicProjectUseCase,
@@ -40,11 +44,14 @@ import {
   IUpdateCharityItemNeedUseCase,
   IUpdateCharityProfileCommand,
   IUpdateCharityProfileUseCase,
+  IVerifyCharityBeneficiaryBankAccountCommand,
+  IVerifyCharityBeneficiaryBankAccountUseCase,
 } from '@/application/contracts/charity-project';
 import { assertContributionTypeAccepted } from '@/domain/charity-contribution-type';
 import {
   CharityBankAccountLimitException,
   CharityBankAccountNotFoundException,
+  CharityBeneficiaryAccountNameMismatchException,
   CharityCampaignNotFoundException,
   CharityFundingNeedNotFoundException,
   CharityNeedItemInvalidException,
@@ -84,6 +91,7 @@ import {
   CharityTaskLabels,
   defaultTaskSchedule,
   effectiveOperationStage,
+  holderNameMatches,
   isPubliclyVisibleProject,
   isSuspendedProject,
   MaxPublicSupporterNames,
@@ -467,6 +475,25 @@ export class ReplaceCharityPartiesUseCase implements IReplaceCharityPartiesUseCa
         errors.push(`parties[${index}].evidenceUrls: phải là URL https`);
     }
     if (errors.length > 0) throw new ValidationFailedException(errors);
+    // Bỏ một bên còn giữ tài khoản thụ hưởng đang hiệu lực → phải đóng tài khoản trước.
+    // Đổi tên bên đó KHÔNG làm mất xác thực của tài khoản.
+    const kept = new Set(command.parties.map((party) => party.partyId));
+    const [previous, accounts] = await Promise.all([
+      this.projects.listParties(campaign.globalId),
+      this.projects.listBeneficiaryBankAccounts(campaign.globalId),
+    ]);
+    for (const party of previous)
+      if (
+        !kept.has(party.partyId) &&
+        accounts.some(
+          (account) =>
+            account.partyId === party.partyId && account.validTo === null,
+        )
+      )
+        errors.push(
+          `parties: bên thụ hưởng "${party.name}" còn tài khoản thụ hưởng đang hiệu lực — đóng tài khoản trước`,
+        );
+    if (errors.length > 0) throw new ValidationFailedException(errors);
     return this.projects.replaceParties({
       campaignId: campaign.globalId,
       actorId: command.userId,
@@ -535,6 +562,99 @@ export class CloseCharityBankAccountUseCase implements ICloseCharityBankAccountU
     });
     if (!closed) throw new CharityBankAccountNotFoundException();
     return { closed: true };
+  }
+}
+
+@Injectable()
+export class AddCharityBeneficiaryBankAccountUseCase implements IAddCharityBeneficiaryBankAccountUseCase {
+  public constructor(
+    private readonly access: CharityProjectAccess,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
+  ) {}
+
+  public async handle(command: IAddCharityBeneficiaryBankAccountCommand) {
+    const { campaign } = await this.access.forEdit(command);
+    assertContributionTypeAccepted(campaign, 'MONEY');
+    const account = command.account;
+    let expected: string | null;
+    if (account.holderType === 'OWNER') {
+      expected = await this.projects.findOwnerFullName(campaign.globalId);
+    } else {
+      const party = (await this.projects.listParties(campaign.globalId)).find(
+        (row) => row.partyId === account.partyId && row.role === 'BENEFICIARY',
+      );
+      if (!party)
+        throw new ValidationFailedException([
+          'beneficiaryBankAccount.partyId: phải là bên thụ hưởng của dự án này',
+        ]);
+      expected = party.name;
+    }
+    if (!holderNameMatches(account.accountName, expected))
+      throw new CharityBeneficiaryAccountNameMismatchException(
+        expected?.trim() || '(chủ dự án chưa khai họ tên)',
+      );
+    const outcome = await this.projects.addBeneficiaryBankAccount({
+      campaignId: campaign.globalId,
+      actorId: command.userId,
+      account: {
+        holderType: account.holderType,
+        partyId: account.holderType === 'OWNER' ? null : account.partyId,
+        bankName: account.bankName.trim(),
+        accountNo: account.accountNo.trim(),
+        accountName: account.accountName.trim(),
+      },
+      replacesAccountId: command.replacesAccountId,
+      replaceReason: trimmed(command.replaceReason),
+    });
+    if (outcome.status === 'REPLACED_NOT_FOUND')
+      throw new CharityBankAccountNotFoundException();
+    return outcome.account;
+  }
+}
+
+@Injectable()
+export class CloseCharityBeneficiaryBankAccountUseCase implements ICloseCharityBeneficiaryBankAccountUseCase {
+  public constructor(
+    private readonly access: CharityProjectAccess,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
+  ) {}
+
+  public async handle(
+    command: ICloseCharityBeneficiaryBankAccountCommand,
+  ): Promise<{ closed: true }> {
+    const { campaign } = await this.access.forEdit(command);
+    const closed = await this.projects.closeBeneficiaryBankAccount({
+      campaignId: campaign.globalId,
+      accountId: command.accountId,
+      actorId: command.userId,
+      reason: command.reason.trim(),
+    });
+    if (!closed) throw new CharityBankAccountNotFoundException();
+    return { closed: true };
+  }
+}
+
+@Injectable()
+export class VerifyCharityBeneficiaryBankAccountUseCase implements IVerifyCharityBeneficiaryBankAccountUseCase {
+  public constructor(
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
+  ) {}
+
+  public async handle(command: IVerifyCharityBeneficiaryBankAccountCommand) {
+    if (!(await this.admin.hasPermission(command.userId, WritePermission)))
+      throw new CharityProjectForbiddenException();
+    const account = await this.projects.verifyBeneficiaryBankAccount({
+      campaignId: command.campaignId,
+      accountId: command.accountId,
+      actorId: command.userId,
+    });
+    if (!account) throw new CharityBankAccountNotFoundException();
+    return account;
   }
 }
 
@@ -1146,6 +1266,7 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
       profile,
       parties,
       bankAccounts,
+      beneficiaryBankAccounts,
       team,
       phases,
       itemNeeds,
@@ -1160,6 +1281,7 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
       this.projects.getProfile(id),
       this.projects.listParties(id),
       this.projects.listBankAccounts(id),
+      this.projects.listBeneficiaryBankAccounts(id),
       this.projects.listTeam(id),
       this.projects.listPhases(id),
       this.projects.listItemNeeds(id),
@@ -1192,6 +1314,7 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
         ? parties
         : parties.filter((p) => !p.isAppealSubject),
       bankAccounts,
+      beneficiaryBankAccounts,
       team,
       phases,
       itemNeeds,

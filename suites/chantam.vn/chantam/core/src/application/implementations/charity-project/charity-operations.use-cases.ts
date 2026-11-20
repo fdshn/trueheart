@@ -35,6 +35,7 @@ import {
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import { assertContributionTypeAccepted } from '@/domain/charity-contribution-type';
 import {
+  CharityBeneficiaryAccountNotVerifiedException,
   CharityCampaignNotFoundException,
   CharityProjectNotApprovedException,
   CharityRoundEvidenceRequiredException,
@@ -111,6 +112,19 @@ const toRoundPublic = (round: ICharityRound): ICharityRoundPublic => ({
   stats: round.stats,
   updatedAt: round.updatedAt,
 });
+
+/** Tài khoản thụ hưởng ĐANG hiệu lực của chính dự án này (danh sách đã lọc theo dự án). */
+async function findLiveBeneficiaryAccount(
+  projects: ICharityProjectRepository,
+  campaignId: string,
+  accountId: string,
+) {
+  return (
+    (await projects.listBeneficiaryBankAccounts(campaignId)).find(
+      (row) => row.accountId === accountId && row.validTo === null,
+    ) ?? null
+  );
+}
 
 const toSupportPublic = ({
   picPhone: _phone,
@@ -549,11 +563,25 @@ export class SaveCharityRoundUseCase implements ISaveCharityRoundUseCase {
     private readonly access: CharityProjectAccess,
     @Inject(ICharityOperationsRepository)
     private readonly operations: ICharityOperationsRepository,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
   ) {}
 
   public async handle(command: ISaveCharityRoundCommand) {
     const { campaign } = await this.access.forOperate(command);
     const round = prepareCharityRoundDistribution(command.round);
+    const linkedAccountId = round.privateDetails.beneficiaryBankAccountId;
+    if (
+      linkedAccountId &&
+      !(await findLiveBeneficiaryAccount(
+        this.projects,
+        campaign.globalId,
+        linkedAccountId,
+      ))
+    )
+      throw new ValidationFailedException([
+        'round.beneficiaryBankAccountId: phải là tài khoản thụ hưởng ĐANG hiệu lực của dự án này',
+      ]);
 
     if (!command.roundId)
       return toRoundView(
@@ -603,6 +631,8 @@ export class SetCharityRoundStatusUseCase implements ISetCharityRoundStatusUseCa
     private readonly access: CharityProjectAccess,
     @Inject(ICharityOperationsRepository)
     private readonly operations: ICharityOperationsRepository,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
   ) {}
 
   public async handle(command: ISetCharityRoundStatusCommand) {
@@ -627,6 +657,19 @@ export class SetCharityRoundStatusUseCase implements ISetCharityRoundStatusUseCa
       });
       if (gaps.length > 0)
         throw new CharityRoundEvidenceRequiredException(gaps.join(', '));
+      if (current.distributionMethod === 'BANK_TRANSFER') {
+        // Tài khoản gắn với đợt phải còn hiệu lực, cùng dự án và đã được Admin xác thực.
+        const accountId = current.privateDetails?.beneficiaryBankAccountId;
+        const account = accountId
+          ? await findLiveBeneficiaryAccount(
+              this.projects,
+              campaign.globalId,
+              accountId,
+            )
+          : null;
+        if (!account || account.verifiedAt === null)
+          throw new CharityBeneficiaryAccountNotVerifiedException();
+      }
     }
     const updated = await this.operations.setRoundStatus({
       campaignId: campaign.globalId,
