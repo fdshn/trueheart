@@ -2119,10 +2119,10 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | --- | --- | --- | --- |
 | `POST` | `/charity-campaigns` | Bearer + capability theo loại | ✅ **Đã chạy.** Tạo campaign kèm bảng nhu cầu; server tự quyết định chờ duyệt hay public ngay (`approval_status` + `is_active`) |
 | `GET` | `/campaigns/:idOrSlug/needs` | Công khai | ✅ **Đã chạy.** Nhu cầu, số đã chấp nhận/đã nhận/còn thiếu theo từng dòng; không trả PII beneficiary |
-| `POST` | `/charity-campaigns/:id/contributions` | Bearer | ✅ **Đã chạy.** Gửi đề nghị gồm nhiều vật phẩm và số lượng; đề nghị KHÔNG giữ chỗ |
+| `POST` | `/charity-campaigns/:id/contributions` | Bearer | ✅ **Đã chạy.** Gửi đề nghị gồm nhiều vật phẩm và số lượng; đề nghị KHÔNG giữ chỗ. Khi chiến dịch chưa bật `MATERIAL` → `409 CHARITY_CONTRIBUTION_TYPE_DISABLED` |
 | `GET` | `/charity-campaigns/:id/contributions` | Organizer hoặc Coordinator đang hoạt động | ✅ **Đã chạy.** Danh sách đề nghị, lọc theo `status` và `deliveryStatus`. **`deliveryStatus=COMPLETED` = danh sách người đã đóng góp thành công**. Mỗi dòng có `contributor` (`userId`, `username`, `fullName`, `avatarUrl`), `deliveryCompletedAt` và `items[].receivedQuantity` (09/11) |
 | `GET` | `/charity-contributions/me` | Bearer | ✅ **Đã chạy.** Đề nghị của chính mình, mọi hoạt động — màn "Tôi đã góp". Mỗi dòng có `campaign` (`globalId`, `title`, `slug`, `bannerUrl`) để mở dự án, `items[].receivedQuantity`, `deliveryCompletedAt`; lọc `status` (trước 09/11 bị bỏ qua) và `deliveryStatus=COMPLETED` (09/11) |
-| `PATCH` | `/charity-contributions/:id` | Bearer (chủ đề nghị) | ✅ **Đã chạy.** `action: REPLACE` thay trọn bộ dòng, `WITHDRAW` rút — chỉ khi chưa có phần nào được chấp nhận |
+| `PATCH` | `/charity-contributions/:id` | Bearer (chủ đề nghị) | ✅ **Đã chạy.** `action: REPLACE` thay trọn bộ dòng, `WITHDRAW` rút — chỉ khi chưa có phần nào được chấp nhận. `REPLACE` khi chiến dịch chưa bật `MATERIAL` → `409 CHARITY_CONTRIBUTION_TYPE_DISABLED`; `WITHDRAW` không bao giờ bị chặn bởi loại tiếp nhận |
 | `POST` | `/charity-contributions/:id/decision` | Organizer | ✅ **Đã chạy.** Quyết **mọi** dòng trong một lượt, nguyên tử; chống vượt nhu cầu khi hai lượt cùng lúc; `decisionKey` chống trùng |
 | `POST` | `/charity-campaigns/:id/external-contributions` | Organizer | ✅ **Đã chạy.** Ghi nhận vật phẩm nhận ngoài app; không gắn tài khoản nên không sinh điểm |
 | `GET` | `/charity-campaigns/:id/external-contributions` | Organizer | ✅ **Đã chạy.** Lịch sử, gồm cả bản đã huỷ |
@@ -3149,7 +3149,7 @@ thông, khác; bổ sung cho tiền/hiện vật/nhân lực:
 | `POST` | `/charity-campaigns/:id/other-support-needs` | Người tạo, Admin `campaign.manage` | `{ otherSupportNeed: { supportType, title, unit, targetQuantity, … } }` |
 | `PATCH` | `/charity-campaigns/:id/other-support-needs/:supportNeedId` | Người tạo, Admin | Thêm `external: { quantity, evidenceUrls[https], note }` (bằng chứng bắt buộc khi > 0), `status` |
 | `DELETE` | `/charity-campaigns/:id/other-support-needs/:supportNeedId` | Người tạo, Admin | Chỉ khi chưa ai nhận — có rồi → `CHARITY_SUPPORT_NEED_IN_USE`, hãy đóng |
-| `POST` | `/charity-campaigns/:id/other-support-needs/:supportNeedId/offers` | Bearer | `{ offer: { quantity, note? } }` — một phần, nhiều lần; không cần đóng góp/tham gia |
+| `POST` | `/charity-campaigns/:id/other-support-needs/:supportNeedId/offers` | Bearer | `{ offer: { quantity, note? } }` — một phần, nhiều lần; không cần đóng góp/tham gia. Khi chiến dịch chưa bật `SERVICE` → `409 CHARITY_CONTRIBUTION_TYPE_DISABLED` |
 | `GET` | `/charity-campaigns/:id/support-offers` | Bearer (`mine=true`) / ban tổ chức | `?supportNeedId=&mine=` |
 | `PATCH` | `/charity-campaigns/:id/support-offers/:offerId` | Người tạo, coordinator, Admin | `{ decision: { action: ACCEPT\|REJECT\|COMPLETE, reason?, completedQuantity? } }` — báo `CHARITY_SUPPORT_OFFER_UPDATED` |
 | `POST` | `/charity-campaigns/:id/support-offers/:offerId/withdraw` | Người hỗ trợ | Khi chờ xét / đã nhận |

@@ -637,6 +637,34 @@ describe('Hồ sơ tab A', () => {
     expect(deps.projects.createFundingNeed).not.toHaveBeenCalled();
   });
 
+  it('funding need: tắt MONEY chặn sửa → 409', async () => {
+    const deps = make({
+      campaign: campaign({ acceptedContributionTypes: [] }),
+    });
+    const useCase = new SaveCharityFundingNeedUseCase(
+      deps.access,
+      deps.projects as never,
+    );
+    await expect(
+      useCase.handle({
+        userId: Owner,
+        campaignId: CampaignId,
+        fundingNeedId: 'f1',
+        need: {
+          title: 'Viện phí',
+          description: null,
+          beneficiaryPartyId: null,
+          receivingUnit: null,
+          bankAccountId: null,
+          targetAmount: 100_000,
+          deadline: null,
+          sortOrder: 0,
+        },
+      }),
+    ).rejects.toThrow(CharityContributionTypeDisabledException);
+    expect(deps.projects.updateFundingNeed).not.toHaveBeenCalled();
+  });
+
   it('phases: chồng thời gian hoặc deliveryMethod sai bước → lỗi', async () => {
     const deps = make();
     const useCase = new ReplaceCharityPhasesUseCase(
