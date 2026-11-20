@@ -190,6 +190,7 @@ async function main(): Promise<void> {
       campaignId: Draft,
       actorId: Owner,
       profile: {
+        acceptedContributionTypes: ['MATERIAL', 'MONEY', 'SERVICE'],
         appealPurpose: 'Nháp',
         appealAudience: null,
         appealCircumstance: null,
@@ -205,6 +206,7 @@ async function main(): Promise<void> {
       campaignId: Live,
       actorId: Owner,
       profile: {
+        acceptedContributionTypes: ['MATERIAL', 'MONEY', 'SERVICE'],
         appealPurpose: 'Giúp 300 em',
         appealAudience: null,
         appealCircumstance: null,
