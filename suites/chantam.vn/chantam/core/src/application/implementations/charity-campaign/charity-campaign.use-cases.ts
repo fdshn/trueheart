@@ -111,6 +111,7 @@ import {
   CharityReviewNotPermittedException,
   CharityReviewTooEarlyException,
   CharitySelfContributionException,
+  CharitySubmitRequirementsUnmetException,
 } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
@@ -147,6 +148,7 @@ import {
   charityMediaTypeGaps,
   charityParticipationRequirementGaps,
   charityReviewRoleOf,
+  charitySubmitRequirementGaps,
   deriveAcceptedContributionTypes,
   isCharityReviewRating,
   normalizeCharitySlug,
@@ -393,6 +395,17 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
         : normalizeContributionTypes(command.acceptedContributionTypes);
     if (fundingNeeds.length > 0)
       assertContributionTypeAccepted({ acceptedContributionTypes }, 'MONEY');
+    // Giữ tách biệt với kiểm field ở trên: Phase B sẽ thêm kiểm distribution TRƯỚC bước này.
+    if (submitted) {
+      const gaps = charitySubmitRequirementGaps(acceptedContributionTypes, {
+        openMaterialNeeds: (command.needs ?? []).length,
+        openFundingNeeds: fundingNeeds.length,
+        openSupportNeeds: supportNeeds.length,
+        liveBankAccounts: 0,
+      });
+      if (gaps.length > 0)
+        throw new CharitySubmitRequirementsUnmetException(gaps.join('; '));
+    }
     // SAU quyền và nội dung: người không được tạo, hoặc gửi hồ sơ thiếu, không tốn
     // lượt gọi R2 nào.
     const { media, bannerUrl } = await confirmCharityMedia(

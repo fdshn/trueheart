@@ -8,6 +8,7 @@ import {
   CharitySectionEmptyException,
   CharityStageScheduleConflictException,
   CharityStageTransitionInvalidException,
+  CharitySubmitRequirementsUnmetException,
   CharityVolunteerClosedException,
 } from '@/domain/exceptions';
 import { ICharityCampaign } from '@/domain/ports/repository';
@@ -111,6 +112,12 @@ function make(
     })),
     updateProfile: jest.fn(async (..._args: unknown[]) => undefined),
     submitDraft: jest.fn(async (..._args: unknown[]) => 'SUBMITTED'),
+    intakeCounts: jest.fn(async () => ({
+      openMaterialNeeds: 1,
+      openFundingNeeds: 1,
+      openSupportNeeds: 1,
+      liveBankAccounts: 1,
+    })),
     moveStage: jest.fn(async (..._args: unknown[]) => 'MOVED'),
     listStageCandidates: jest.fn(async () => [] as unknown[]),
     listParties: jest.fn(async () => [
@@ -288,6 +295,45 @@ describe('SubmitCharityProjectUseCase', () => {
     approvedAt: null,
     operationStage: 'PLAN',
     storedOperationStage: 'PLAN',
+  });
+
+  it('thiếu tài khoản nhận MONEY → 409, không gửi nháp', async () => {
+    const deps = make({ campaign: draft });
+    deps.projects.intakeCounts.mockResolvedValue({
+      openMaterialNeeds: 1,
+      openFundingNeeds: 1,
+      openSupportNeeds: 1,
+      liveBankAccounts: 0,
+    });
+    await expect(
+      build(deps).handle({ userId: Owner, campaignId: CampaignId }),
+    ).rejects.toThrow(CharitySubmitRequirementsUnmetException);
+    expect(deps.projects.submitDraft).not.toHaveBeenCalled();
+  });
+
+  it('đủ nhu cầu theo loại tiếp nhận thì gửi nháp', async () => {
+    const deps = make({ campaign: draft });
+    await build(deps).handle({ userId: Owner, campaignId: CampaignId });
+    expect(deps.projects.intakeCounts).toHaveBeenCalledWith(CampaignId);
+    expect(deps.projects.submitDraft).toHaveBeenCalled();
+  });
+
+  it('nhu cầu tình nguyện không tính là SERVICE', async () => {
+    const deps = make({
+      campaign: campaign({
+        ...draft,
+        acceptedContributionTypes: ['SERVICE'],
+      }),
+    });
+    deps.projects.intakeCounts.mockResolvedValue({
+      openMaterialNeeds: 0,
+      openFundingNeeds: 0,
+      openSupportNeeds: 0,
+      liveBankAccounts: 0,
+    });
+    await expect(
+      build(deps).handle({ userId: Owner, campaignId: CampaignId }),
+    ).rejects.toThrow(CharitySubmitRequirementsUnmetException);
   });
 
   it('có capability public ngay → gửi với APPROVED', async () => {

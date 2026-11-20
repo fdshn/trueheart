@@ -54,6 +54,7 @@ import {
   CharitySectionEmptyException,
   CharityStageScheduleConflictException,
   CharityStageTransitionInvalidException,
+  CharitySubmitRequirementsUnmetException,
   CharityVolunteerClosedException,
   CharityVolunteerNeedNotFoundException,
   CharityVolunteerRegistrationNotFoundException,
@@ -79,6 +80,7 @@ import {
   CharityOperationStageLabels,
   CharityOperationStages,
   CharitySectionCompletionStatus,
+  charitySubmitRequirementGaps,
   CharityTaskLabels,
   defaultTaskSchedule,
   effectiveOperationStage,
@@ -222,6 +224,12 @@ export class SubmitCharityProjectUseCase implements ISubmitCharityProjectUseCase
     if (!isOwner) throw new CharityProjectForbiddenException();
     if (campaign.submittedAt !== null)
       throw new CharityProjectNotDraftException();
+    const gaps = charitySubmitRequirementGaps(
+      campaign.acceptedContributionTypes,
+      await this.projects.intakeCounts(campaign.globalId),
+    );
+    if (gaps.length > 0)
+      throw new CharitySubmitRequirementsUnmetException(gaps.join('; '));
 
     let approvalStatus: 'APPROVED' | 'PENDING_APPROVAL' =
       (await resolveCharityApprovalStatus(this.entitlements, this.admin, {

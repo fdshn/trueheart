@@ -51,6 +51,7 @@ import {
   CharityReviewDuplicateException,
   CharityReviewNotPermittedException,
   CharityReviewTooEarlyException,
+  CharitySubmitRequirementsUnmetException,
 } from '@/domain/exceptions';
 import { CharityApprovalStatus } from '@chantam.vn/chantam.core-lib/models';
 import {
@@ -235,6 +236,7 @@ export class CharityCampaignController {
     ...ApiTokenErrors,
     CharityCampaignCreateNotAllowedException,
     CharityContributionTypeDisabledException,
+    CharitySubmitRequirementsUnmetException,
     CharityMediaInvalidException,
     [ValidationFailedException, ['endTime phải sau startTime']],
   )
@@ -958,6 +960,7 @@ export class AdminCharityCampaignController {
   @ApiErrorResponses(
     ...ApiTokenErrors,
     ForbiddenException,
+    CharitySubmitRequirementsUnmetException,
     CharityMediaInvalidException,
     [ValidationFailedException, ['endTime phải sau startTime']],
   )

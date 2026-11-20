@@ -19,6 +19,7 @@ import {
   CharityParticipantRankTooLowException,
   CharityReviewNotPermittedException,
   CharitySelfContributionException,
+  CharitySubmitRequirementsUnmetException,
 } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
@@ -709,6 +710,55 @@ describe('CreateCharityCampaignUseCase · loại tiếp nhận và ba nhóm nhu 
       asAdmin: false,
     } as never);
 
+  it('tạo submit mặc định bật SERVICE không có otherSupportNeeds → 409, không gọi storage', async () => {
+    const repository = makeRepository();
+    const storage = makeStorage();
+    await expect(
+      new CreateCharityCampaignUseCase(
+        repository,
+        makeEntitlements(true),
+        makeAdmin(true),
+        storage,
+      ).handle({
+        ...writeInput({ acceptedContributionTypes: ['SERVICE'] }),
+        actorUserId: ActorId,
+        asAdmin: false,
+      }),
+    ).rejects.toThrow(CharitySubmitRequirementsUnmetException);
+    expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('tạo nháp submit:false bật SERVICE rỗng → tạo được', async () => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    await create(repository, {
+      submit: false,
+      acceptedContributionTypes: ['SERVICE'],
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ submitted: false }),
+    );
+  });
+
+  it('Admin tạo bật MONEY → 409 vì chưa có tài khoản nhận', async () => {
+    const repository = makeRepository();
+    const storage = makeStorage();
+    await expect(
+      new CreateCharityCampaignUseCase(
+        repository,
+        makeEntitlements(true),
+        makeAdmin(true),
+        storage,
+      ).handle({
+        ...writeInput({ acceptedContributionTypes: ['MONEY'] }),
+        actorUserId: ActorId,
+        asAdmin: true,
+      }),
+    ).rejects.toThrow(CharitySubmitRequirementsUnmetException);
+    expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
+  });
+
   it('không gửi acceptedContributionTypes + có needs → MATERIAL', async () => {
     const repository = makeRepository();
     repository.create.mockResolvedValue(campaign());
@@ -723,6 +773,7 @@ describe('CreateCharityCampaignUseCase · loại tiếp nhận và ba nhóm nhu 
     const repository = makeRepository();
     repository.create.mockResolvedValue(campaign());
     await create(repository, {
+      submit: false,
       acceptedContributionTypes: ['SERVICE', 'MATERIAL', 'SERVICE'],
     });
     expect(repository.create).toHaveBeenCalledWith(
@@ -763,6 +814,7 @@ describe('CreateCharityCampaignUseCase · loại tiếp nhận và ba nhóm nhu 
     const repository = makeRepository();
     repository.create.mockResolvedValue(campaign());
     await create(repository, {
+      submit: false,
       fundingNeeds: [
         {
           title: '  Viện phí  ',

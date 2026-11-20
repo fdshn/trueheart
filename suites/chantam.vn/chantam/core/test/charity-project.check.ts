@@ -424,6 +424,46 @@ async function main(): Promise<void> {
         ),
     );
 
+    console.log('\n4b. Đếm điều kiện gửi duyệt');
+    await sql(
+      `INSERT INTO campaign_need_items (global_id, campaign_id, item_name, unit, target_quantity)
+       VALUES ($1, $2, 'Nhu cầu đã tắt', 'cái', 1)`,
+      [id('29'), Draft],
+    );
+    await sql(
+      `UPDATE campaign_need_items SET is_active = false WHERE global_id = $1`,
+      [id('29')],
+    );
+    const inactiveCounts = await projects.intakeCounts(Draft);
+    check(
+      'nhu cầu hiện vật không active không tính khi gửi duyệt',
+      inactiveCounts.openMaterialNeeds === 0,
+      JSON.stringify(inactiveCounts),
+    );
+    await sql(
+      `UPDATE campaign_need_items
+       SET is_active = true, intake_status = 'CLOSED' WHERE global_id = $1`,
+      [id('29')],
+    );
+    const closedCounts = await projects.intakeCounts(Draft);
+    check(
+      'nhu cầu hiện vật CLOSED không tính khi gửi duyệt',
+      closedCounts.openMaterialNeeds === 0,
+      JSON.stringify(closedCounts),
+    );
+    await sql(
+      `INSERT INTO campaign_bank_accounts
+         (campaign_id, bank_name, account_no, account_name, created_by, valid_to, close_reason, closed_by)
+       VALUES ($1, 'VCB', '0001', 'Dự án kiểm', $2, now(), 'Kiểm thử tài khoản đã đóng', $2)`,
+      [Draft, Owner],
+    );
+    const closedBankCounts = await projects.intakeCounts(Draft);
+    check(
+      'tài khoản đã đóng không tính khi gửi duyệt',
+      closedBankCounts.liveBankAccounts === 0,
+      JSON.stringify(closedBankCounts),
+    );
+
     console.log('\n5. Ba nhóm nhu cầu');
     await sql(
       `INSERT INTO campaign_need_items (global_id, campaign_id, item_name, unit, target_quantity, accepted_quantity, received_quantity)

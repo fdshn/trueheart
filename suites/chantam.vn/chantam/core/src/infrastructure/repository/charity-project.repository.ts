@@ -43,6 +43,7 @@ import {
   CharityVolunteerNeedStatus,
   CharityVolunteerRegistrationStatus,
   diffCharityRevisions,
+  ICharityIntakeCounts,
   ICharityRevisionRow,
   stageRank,
 } from '@chantam.vn/chantam.core-lib/models';
@@ -459,6 +460,34 @@ export class CharityProjectRepository implements ICharityProjectRepository {
       [params.campaignId, params.actorId, approved],
     );
     return rows.length > 0 ? 'SUBMITTED' : 'NOT_DRAFT';
+  }
+
+  public async intakeCounts(campaignId: string): Promise<ICharityIntakeCounts> {
+    const [row] = await this.manager.query<
+      {
+        open_material_needs: string | number;
+        open_funding_needs: string | number;
+        open_support_needs: string | number;
+        live_bank_accounts: string | number;
+      }[]
+    >(
+      `SELECT
+         (SELECT count(*) FROM campaign_need_items
+          WHERE campaign_id = $1 AND is_active AND intake_status = 'OPEN') AS open_material_needs,
+         (SELECT count(*) FROM campaign_funding_needs
+          WHERE campaign_id = $1 AND status = 'OPEN') AS open_funding_needs,
+         (SELECT count(*) FROM campaign_other_support_needs
+          WHERE campaign_id = $1 AND status = 'OPEN') AS open_support_needs,
+         (SELECT count(*) FROM campaign_bank_accounts
+          WHERE campaign_id = $1 AND valid_to IS NULL) AS live_bank_accounts`,
+      [campaignId],
+    );
+    return {
+      openMaterialNeeds: num(row?.open_material_needs),
+      openFundingNeeds: num(row?.open_funding_needs),
+      openSupportNeeds: num(row?.open_support_needs),
+      liveBankAccounts: num(row?.live_bank_accounts),
+    };
   }
 
   public async moveStage(params: {

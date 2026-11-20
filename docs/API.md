@@ -2790,8 +2790,8 @@ của bước trao, `null` khi chưa lập) và `acceptedContributionTypes` (m�
 
 | Method | Đường dẫn | Ai | Mô tả |
 | --- | --- | --- | --- |
-| `POST` | `/charity-campaigns` | (như cũ) | Nhận thêm `acceptedContributionTypes?`, `fundingNeeds?`, `otherSupportNeeds?` (mỗi mảng tối đa `MaxNeedItemsPerCampaign`) cùng `needs?`; bỏ `acceptedContributionTypes` thì server suy từ ba mảng. `fundingNeeds` cần `MONEY`; `beneficiaryPartyId`/`bankAccountId` lúc tạo → 400. `submit: false` lưu nháp. |
-| `POST` | `/charity-campaigns/:id/submit` | Người tạo | Gửi duyệt nháp: có `PUBLISH_CHARITY_WITHOUT_REVIEW` thì công khai ngay + `EXECUTION`, không thì chờ duyệt. Không còn là nháp → `CHARITY_PROJECT_NOT_DRAFT` |
+| `POST` | `/charity-campaigns` | (như cũ) | Nhận thêm `acceptedContributionTypes?`, `fundingNeeds?`, `otherSupportNeeds?` (mỗi mảng tối đa `MaxNeedItemsPerCampaign`) cùng `needs?`; bỏ `acceptedContributionTypes` thì server suy từ ba mảng. `fundingNeeds` cần `MONEY`; `beneficiaryPartyId`/`bankAccountId` lúc tạo → 400. `submit: false` lưu nháp. Khi gửi duyệt (mặc định) thì từng loại đang bật phải có nhu cầu đang mở tương ứng; `MONEY` còn cần một tài khoản nhận còn hiệu lực. Thiếu trả `409 CHARITY_SUBMIT_REQUIREMENTS_UNMET` với `detail` liệt kê các điều kiện thiếu. |
+| `POST` | `/charity-campaigns/:id/submit` | Người tạo | Gửi duyệt nháp: có `PUBLISH_CHARITY_WITHOUT_REVIEW` thì công khai ngay + `EXECUTION`, không thì chờ duyệt. Không còn là nháp → `CHARITY_PROJECT_NOT_DRAFT`. Kiểm cùng điều kiện tiếp nhận; muốn gửi `MONEY`, lưu nháp trước, thêm tài khoản nhận còn hiệu lực bằng `POST :id/bank-accounts`, rồi mới submit; thiếu trả `409 CHARITY_SUBMIT_REQUIREMENTS_UNMET` với `detail`. |
 | `GET` | `/charity-campaigns/:id/workspace` | Người tạo, coordinator, Admin `campaign.read` | Mọi thứ nội bộ + `sections` (trạng thái từng mục) + `capabilities` |
 | `GET` | `/charity-campaigns/:idOrSlug/public` | Công khai | Bản công khai (xem dưới) |
 | `POST` | `/charity-campaigns/:id/stage` | Người tạo, coordinator, Admin | `{ stage: { to, reason } }` — tiến **một** bước sớm hơn lịch, hoặc lùi; `reason` bắt buộc từ đợt 5b (§18.7) |

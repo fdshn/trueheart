@@ -15,6 +15,7 @@ import {
   CharityTeamRole,
   CharityVolunteerNeedStatus,
   CharityVolunteerRegistrationStatus,
+  ICharityIntakeCounts,
 } from '@chantam.vn/chantam.core-lib/models';
 
 /**
@@ -259,6 +260,7 @@ export interface ICharityProjectRepository {
     actorId: string;
     approvalStatus: 'APPROVED' | 'PENDING_APPROVAL';
   }): Promise<SubmitCharityDraftOutcome>;
+  intakeCounts(campaignId: string): Promise<ICharityIntakeCounts>;
 
   /** Đổi giai đoạn có điều kiện giai đoạn hiện tại = `from`, ghi nhật ký cùng lúc. */
   moveStage(params: {

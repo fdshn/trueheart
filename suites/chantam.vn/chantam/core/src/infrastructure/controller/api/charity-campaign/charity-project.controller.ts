@@ -34,6 +34,7 @@ import {
   CharitySectionEmptyException,
   CharityStageScheduleConflictException,
   CharityStageTransitionInvalidException,
+  CharitySubmitRequirementsUnmetException,
   CharityVolunteerClosedException,
   CharityVolunteerNeedNotFoundException,
   CharityVolunteerRegistrationNotFoundException,
@@ -219,6 +220,7 @@ export class CharityProjectController {
     ...ApiTokenErrors,
     ...ProjectErrors,
     CharityProjectNotDraftException,
+    CharitySubmitRequirementsUnmetException,
     CharityCampaignCreateNotAllowedException,
   )
   public async submit(
