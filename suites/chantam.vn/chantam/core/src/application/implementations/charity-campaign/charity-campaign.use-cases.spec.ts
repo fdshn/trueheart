@@ -10,6 +10,8 @@ import {
   CharityContributionTypeDisabledException,
   CharityCoordinatorNotAllowedException,
   CharityDeliveryNotFoundException,
+  CharityDistributionFieldRequiredException,
+  CharityDistributionMethodMismatchException,
   CharityLinesInvalidException,
   CharityMediaInvalidException,
   CharityMediaNotEditableException,
@@ -709,6 +711,115 @@ describe('CreateCharityCampaignUseCase · loại tiếp nhận và ba nhóm nhu 
       actorUserId: ActorId,
       asAdmin: false,
     } as never);
+
+  it('tạo có distribution OTHER_LOCATION đầy đủ chuyển thành đợt trao đầu tiên', async () => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    await create(repository, {
+      submit: false,
+      distribution: {
+        method: 'OTHER_LOCATION',
+        contributionTypes: ['MATERIAL'],
+        location: {
+          label: 'Nhà văn hoá xã',
+          address: 'Thôn 1, xã An Bình',
+          lat: 10.7,
+          lng: 106.6,
+        },
+        scheduledStart: '2026-12-20T01:00:00Z',
+        scheduledEnd: '2026-12-20T09:00:00Z',
+        coordinatorName: 'Điều phối viên',
+        coordinatorPhone: '0901000000',
+      },
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        distribution: expect.objectContaining({
+          round: expect.objectContaining({
+            title: 'Đợt trao 1',
+            distributionMethod: 'OTHER_LOCATION',
+            locationLabel: 'Nhà văn hoá xã',
+            address: 'Thôn 1, xã An Bình',
+            evidenceUrls: [],
+            needsReview: false,
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('distribution SHIPPING thiếu recipientPhone trả 400 trước storage', async () => {
+    const repository = makeRepository();
+    const storage = makeStorage();
+    await expect(
+      new CreateCharityCampaignUseCase(
+        repository,
+        makeEntitlements(true),
+        makeAdmin(true),
+        storage,
+      ).handle({
+        ...writeInput({
+          submit: false,
+          distribution: {
+            method: 'SHIPPING',
+            contributionTypes: ['MATERIAL'],
+            location: { address: 'Địa chỉ kín' },
+            scheduledStart: '2026-12-20T01:00:00Z',
+            scheduledEnd: '2026-12-20T09:00:00Z',
+            recipientName: 'Người nhận',
+            carrier: 'Nhà xe',
+            shippingFeePayer: 'ORGANIZER',
+            estimatedShippingFee: 10000,
+          },
+        }),
+        actorUserId: ActorId,
+        asAdmin: false,
+      } as never),
+    ).rejects.toThrow(CharityDistributionFieldRequiredException);
+    expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
+  });
+
+  it('distribution BANK_TRANSFER không có MONEY trả mã method mismatch', async () => {
+    await expect(
+      create(makeRepository(), {
+        submit: false,
+        distribution: {
+          method: 'BANK_TRANSFER',
+          contributionTypes: ['MATERIAL'],
+          scheduledStart: '2026-12-20T01:00:00Z',
+          scheduledEnd: '2026-12-20T09:00:00Z',
+          transferContent: 'Ung ho bep an',
+        },
+      }),
+    ).rejects.toThrow(CharityDistributionMethodMismatchException);
+  });
+
+  it('distribution 400 thắng submit requirements 409 và không gọi storage', async () => {
+    const repository = makeRepository();
+    const storage = makeStorage();
+    await expect(
+      new CreateCharityCampaignUseCase(
+        repository,
+        makeEntitlements(true),
+        makeAdmin(true),
+        storage,
+      ).handle({
+        ...writeInput({
+          acceptedContributionTypes: ['SERVICE'],
+          distribution: {
+            method: 'BANK_TRANSFER',
+            contributionTypes: ['MATERIAL'],
+            scheduledStart: '2026-12-20T01:00:00Z',
+            scheduledEnd: '2026-12-20T09:00:00Z',
+            transferContent: 'Ung ho bep an',
+          },
+        }),
+        actorUserId: ActorId,
+        asAdmin: false,
+      } as never),
+    ).rejects.toThrow(CharityDistributionMethodMismatchException);
+    expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
+  });
 
   it('tạo submit mặc định bật SERVICE không có otherSupportNeeds → 409, không gọi storage', async () => {
     const repository = makeRepository();

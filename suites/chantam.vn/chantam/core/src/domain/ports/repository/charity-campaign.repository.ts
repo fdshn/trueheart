@@ -11,7 +11,10 @@ import {
   CharityRejectionReason,
   CharityReviewRole,
 } from '@chantam.vn/chantam.core-lib/models';
-import { ICharitySupportNeedInput } from './charity-operations.repository';
+import {
+  ICharityRoundInput,
+  ICharitySupportNeedInput,
+} from './charity-operations.repository';
 import { ICharityFundingNeedInput } from './charity-project.repository';
 
 /** Lọc theo pha thời gian trên đường công khai. */
@@ -207,6 +210,11 @@ export interface ICreateCharityCampaignParams {
   readonly supportNeeds: readonly ICharitySupportNeedInput[];
   /** Ghi TRONG CÙNG transaction với hoạt động — hồ sơ vào hàng chờ duyệt luôn đủ ảnh. */
   readonly media: readonly ICharityCampaignMediaParams[];
+  readonly distribution: {
+    readonly round: ICharityRoundInput;
+    readonly startsAt: Date;
+    readonly endsAt: Date;
+  } | null;
 }
 
 export interface ICharityContributionItem {

@@ -36,8 +36,6 @@ import { IDispatchNotificationUseCase } from '@/application/contracts/notificati
 import { assertContributionTypeAccepted } from '@/domain/charity-contribution-type';
 import {
   CharityCampaignNotFoundException,
-  CharityDistributionFieldRequiredException,
-  CharityDistributionMethodMismatchException,
   CharityProjectNotApprovedException,
   CharityRoundEvidenceRequiredException,
   CharityRoundInvalidStateException,
@@ -64,8 +62,6 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
   CharityCompletionBlockerLabels,
-  charityDistributionFieldGaps,
-  charityDistributionMismatch,
   charityRoundEvidenceGaps,
   charityRoundWarnings,
   CharitySupportOfferDecisionRules,
@@ -73,14 +69,13 @@ import {
   CharitySupportOfferWithdrawableStatuses,
   ICharityRoundChecklistItem,
   isPubliclyVisibleProject,
-  MaxCharityRoundEvidenceUrls,
   normalizeRoundChecklist,
   phaseScheduleGaps,
-  stripInapplicableDistributionFields,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CharityProjectAccess } from './charity-project.use-cases';
+import { prepareCharityRoundDistribution } from './charity-round-distribution';
 
 const trimmed = (value: string | null | undefined): string | null =>
   value?.trim() || null;
@@ -558,58 +553,7 @@ export class SaveCharityRoundUseCase implements ISaveCharityRoundUseCase {
 
   public async handle(command: ISaveCharityRoundCommand) {
     const { campaign } = await this.access.forOperate(command);
-    const trimmedPrivateDetails = Object.fromEntries(
-      Object.entries(command.round.privateDetails).map(([key, value]) => [
-        key,
-        typeof value === 'string' ? trimmed(value) : value,
-      ]),
-    ) as typeof command.round.privateDetails;
-    const distribution = stripInapplicableDistributionFields({
-      distributionMethod: command.round.distributionMethod,
-      contributionTypes: command.round.contributionTypes,
-      locationLabel: trimmed(command.round.locationLabel),
-      address: trimmed(command.round.address),
-      lat: command.round.lat,
-      lng: command.round.lng,
-      serviceType: command.round.serviceType,
-      serviceChannel: command.round.serviceChannel,
-      privateDetails: trimmedPrivateDetails,
-    });
-    if (
-      (distribution.distributionMethod === 'DIRECT_RECIPIENT' ||
-        distribution.distributionMethod === 'SHIPPING') &&
-      distribution.privateDetails.recipientAddress === null
-    )
-      distribution.privateDetails.recipientAddress = trimmed(
-        command.round.address,
-      );
-    const evidenceUrls = [...command.round.evidenceUrls];
-    if (
-      evidenceUrls.length > MaxCharityRoundEvidenceUrls ||
-      evidenceUrls.some((url) => !isHttpsUrl(url)) ||
-      new Set(evidenceUrls).size !== evidenceUrls.length
-    )
-      throw new ValidationFailedException([
-        'round.evidenceUrls: https://, không trùng, tối đa 20',
-      ]);
-    const mismatch = charityDistributionMismatch(distribution);
-    if (mismatch)
-      throw new CharityDistributionMethodMismatchException(mismatch);
-    const gaps = charityDistributionFieldGaps(distribution);
-    if (gaps.length > 0)
-      throw new CharityDistributionFieldRequiredException(gaps.join(', '));
-    const round = {
-      ...command.round,
-      ...distribution,
-      evidenceUrls,
-      needsReview: false,
-      title: command.round.title.trim(),
-    };
-    const errors: string[] = [];
-    if (!round.title) errors.push('round.title: bắt buộc');
-    if (round.endsAt <= round.startsAt)
-      errors.push('round.endsAt: phải sau startsAt');
-    if (errors.length > 0) throw new ValidationFailedException(errors);
+    const round = prepareCharityRoundDistribution(command.round);
 
     if (!command.roundId)
       return toRoundView(

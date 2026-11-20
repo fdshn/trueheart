@@ -2146,6 +2146,7 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 
 Giao diện trang chủ (`/admin/campaigns`) có thêm `DELETE /admin/campaigns/:campaignId` (16/10, `campaign.manage`): xoá CỨNG, nhưng bản đang phục vụ (`isLive`) → `409 HOME_CAMPAIGN_LIVE` — tắt bằng `PUT … isActive: false` trước.
 
+- `POST /charity-campaigns` và `POST /admin/charity-campaigns` có thể nhận `campaign.distribution` khi tạo: server tạo trong cùng transaction đợt `'Đợt trao 1'`, 10 bước sự kiện và pha `DISTRIBUTION` theo `scheduledStart`/`scheduledEnd`. Dữ liệu riêng tư của đợt không xuất hiện ở mọi response public.
 - `POST /charity-campaigns` và `POST /admin/charity-campaigns` **không còn nhận `bannerUrl`**; gửi `media` (1–5 key) và `coverKey`. Response có thêm `media[]`; `bannerUrl` do server ghi từ ảnh bìa.
 - Luồng "tải trước, tạo sau":
   1. `POST /charity-campaigns/media/upload` — body `{ "upload": { "contentType": "image/webp", "contentLength": 512000 } }` → `{ "upload": { "key", "uploadUrl", "expiresInSeconds", "publicUrl" } }`.

@@ -413,6 +413,68 @@ async function main(): Promise<void> {
           JSON.stringify(['MATERIAL', 'MONEY', 'SERVICE']),
       JSON.stringify(intakeCounts),
     );
+    const distributionCampaign = await createUseCase.handle(
+      withMedia({
+        ...writeInput({
+          title: 'Đợt trao lúc tạo',
+          slug: `distribution-${Date.now()}`,
+        }),
+        actorUserId: DiamondId,
+        asAdmin: false,
+        submit: false,
+        distribution: {
+          method: 'OTHER_LOCATION',
+          contributionTypes: ['MATERIAL'],
+          location: {
+            label: 'Nhà văn hoá xã',
+            address: 'Thôn 1, xã An Bình',
+            lat: 10.7,
+            lng: 106.6,
+          },
+          scheduledStart: '2026-12-20T01:00:00.000Z',
+          scheduledEnd: '2026-12-20T09:00:00.000Z',
+          coordinatorName: 'Điều phối viên',
+          coordinatorPhone: '0901000000',
+        },
+      }),
+    );
+    const [distributionCounts] = await dataSource.query<
+      {
+        rounds: string;
+        steps: string;
+        starts_at: Date;
+        ends_at: Date;
+        delivery_method: string | null;
+      }[]
+    >(
+      `SELECT
+         (SELECT count(*)::text FROM campaign_distribution_rounds WHERE campaign_id = $1) AS rounds,
+         (SELECT count(*)::text FROM campaign_event_steps WHERE campaign_id = $1) AS steps,
+         phase.starts_at, phase.ends_at, phase.delivery_method
+       FROM campaign_phases phase
+       WHERE phase.campaign_id = $1 AND phase.phase = 'DISTRIBUTION'`,
+      [distributionCampaign.globalId],
+    );
+    const rereadDistribution = await repository.findByGlobalId(
+      distributionCampaign.globalId,
+    );
+    check(
+      'tạo distribution ghi 1 round, 10 bước, DISTRIBUTION phase và trả đúng startsAt',
+      distributionCounts?.rounds === '1' &&
+        distributionCounts?.steps === '10' &&
+        distributionCounts?.delivery_method === null &&
+        distributionCounts?.starts_at.toISOString() ===
+          '2026-12-20T01:00:00.000Z' &&
+        distributionCounts?.ends_at.toISOString() ===
+          '2026-12-20T09:00:00.000Z' &&
+        rereadDistribution?.distribution?.startsAt.toISOString() ===
+          '2026-12-20T01:00:00.000Z',
+      JSON.stringify({
+        distributionCounts,
+        distribution: rereadDistribution?.distribution,
+      }),
+    );
+
     const rollbackSlug = `rollback-${Date.now()}`;
     await expectReject(
       'support need sai mốc thời gian rollback cả funding rows',

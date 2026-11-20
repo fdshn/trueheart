@@ -65,6 +65,7 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { insertDistributionRound } from './charity-round.sql';
 import { isUniqueViolation, isUniqueViolationOn } from './unique-violation';
 import { updateReturning } from './update-returning';
 
@@ -519,6 +520,24 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
             params.createdBy,
             params.beneficiary,
           );
+        if (params.distribution) {
+          await manager.query(
+            `INSERT INTO campaign_phases
+               (campaign_id, phase, starts_at, ends_at, updated_by)
+             VALUES ($1, 'DISTRIBUTION', $2, $3, $4)`,
+            [
+              campaign.globalId,
+              params.distribution.startsAt,
+              params.distribution.endsAt,
+              params.createdBy,
+            ],
+          );
+          await insertDistributionRound(manager, {
+            campaignId: campaign.globalId,
+            actorId: params.createdBy,
+            round: params.distribution.round,
+          });
+        }
         if (params.media.length === 0) return campaign;
 
         await this.insertMedia(manager, campaign.globalId, params.media);

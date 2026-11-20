@@ -83,6 +83,7 @@ import {
   IUpdateCharityProgressCommand,
   IUpdateCharityProgressUseCase,
 } from '@/application/contracts/charity-campaign';
+import { prepareCharityRoundDistribution } from '@/application/implementations/charity-project/charity-round-distribution';
 import { assertContributionTypeAccepted } from '@/domain/charity-contribution-type';
 import {
   CharityAlreadyRegisteredException,
@@ -366,6 +367,50 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       command.beneficiary?.consentStatus !== 'CONFIRMED'
     )
       approvalStatus = 'PENDING_APPROVAL';
+    const distributionStartsAt = command.distribution
+      ? new Date(command.distribution.scheduledStart)
+      : null;
+    const distributionEndsAt = command.distribution
+      ? new Date(command.distribution.scheduledEnd)
+      : null;
+    if (
+      distributionStartsAt &&
+      distributionEndsAt &&
+      distributionEndsAt <= distributionStartsAt
+    )
+      throw new ValidationFailedException([
+        'distribution.scheduledEnd: phải sau scheduledStart',
+      ]);
+    const preparedDistribution = command.distribution
+      ? prepareCharityRoundDistribution({
+          title: 'Đợt trao 1',
+          distributionMethod: command.distribution.method,
+          contributionTypes: command.distribution.contributionTypes,
+          evidenceUrls: [],
+          locationLabel: command.distribution.location?.label ?? null,
+          address: command.distribution.location?.address ?? null,
+          lat: command.distribution.location?.lat ?? null,
+          lng: command.distribution.location?.lng ?? null,
+          needsReview: false,
+          serviceType: command.distribution.serviceType ?? null,
+          serviceChannel: command.distribution.serviceChannel ?? null,
+          privateDetails: {
+            recipientName: command.distribution.recipientName ?? null,
+            recipientPhone: command.distribution.recipientPhone ?? null,
+            recipientAddress: command.distribution.recipientAddress ?? null,
+            coordinatorName: command.distribution.coordinatorName ?? null,
+            coordinatorPhone: command.distribution.coordinatorPhone ?? null,
+            carrier: command.distribution.carrier ?? null,
+            shippingFeePayer: command.distribution.shippingFeePayer ?? null,
+            estimatedShippingFee:
+              command.distribution.estimatedShippingFee ?? null,
+            trackingCode: command.distribution.trackingCode ?? null,
+            transferContent: command.distribution.transferContent ?? null,
+          },
+          startsAt: distributionStartsAt!,
+          endsAt: distributionEndsAt!,
+        })
+      : null;
     // Điều kiện tham gia (PR #54) kiểm cùng lượt với nội dung, TRƯỚC lượt gọi R2.
     const requirementGaps = charityParticipationRequirementGaps(command);
     if (requirementGaps.length > 0)
@@ -419,6 +464,13 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       ...prepared,
       bannerUrl,
       media,
+      distribution: preparedDistribution
+        ? {
+            round: preparedDistribution,
+            startsAt: preparedDistribution.startsAt,
+            endsAt: preparedDistribution.endsAt,
+          }
+        : null,
       campaignType: command.campaignType,
       allowOverTarget: command.allowOverTarget ?? false,
       // Chiến dịch không khai gì giữ đúng hành vi cũ: không số tối thiểu, không giới hạn hạng.

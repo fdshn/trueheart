@@ -22,6 +22,8 @@ import {
   CharityContributionStatus,
   CharityContributionType,
   CharityRejectionReason,
+  CharityServiceChannel,
+  CharitySupportType,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 import { IStorageUploadResult } from '@chantam/service.storage-lib';
@@ -85,6 +87,36 @@ export interface ICharityCampaignWriteInput {
   readonly endTime: string;
 }
 
+export interface ICharityCampaignDistributionInput {
+  readonly method:
+    | 'DIRECT_RECIPIENT'
+    | 'SHIPPING'
+    | 'OTHER_LOCATION'
+    | 'BANK_TRANSFER'
+    | 'SERVICE';
+  readonly contributionTypes: readonly CharityContributionType[];
+  readonly location?: {
+    readonly label?: string;
+    readonly address?: string;
+    readonly lat?: number;
+    readonly lng?: number;
+  };
+  readonly scheduledStart: string;
+  readonly scheduledEnd: string;
+  readonly recipientName?: string;
+  readonly recipientPhone?: string;
+  readonly recipientAddress?: string;
+  readonly coordinatorName?: string;
+  readonly coordinatorPhone?: string;
+  readonly carrier?: string;
+  readonly shippingFeePayer?: 'ORGANIZER' | 'RECIPIENT';
+  readonly estimatedShippingFee?: number;
+  readonly trackingCode?: string;
+  readonly transferContent?: string;
+  readonly serviceType?: CharitySupportType;
+  readonly serviceChannel?: CharityServiceChannel;
+}
+
 export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput {
   /**
    * `false` = lưu NHÁP: chưa xét duyệt, không vào hàng đợi Admin, gửi sau bằng
@@ -143,6 +175,7 @@ export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput 
     readonly picName?: string;
     readonly picPhone?: string;
   })[];
+  readonly distribution?: ICharityCampaignDistributionInput;
   /** Cho lượt chấp nhận đề nghị vượt mục tiêu từng dòng (§5). Mặc định `false`. */
   readonly allowOverTarget?: boolean;
   /** Số người tham gia tối thiểu (PR #54), 0–100.000. Bỏ trống = `0` (không đặt). */
