@@ -18,7 +18,10 @@
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
-import { ListCharityRoundsUseCase } from '../src/application/implementations/charity-project/charity-operations.use-cases';
+import {
+  ListCharityRoundsUseCase,
+  ManageCharityRoundsUseCase,
+} from '../src/application/implementations/charity-project/charity-operations.use-cases';
 import { ICharitySupportOffer } from '../src/domain/ports/repository';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
@@ -406,6 +409,37 @@ async function main(): Promise<void> {
         endsAt: new Date(Date.now() + 10 * 24 * 3_600_000 + 3_600_000),
       },
     });
+    const directRecipientRound = await operations.createRound({
+      campaignId: Live,
+      actorId: Owner,
+      round: {
+        title: 'Đợt trao tận tay riêng tư',
+        distributionMethod: 'DIRECT_RECIPIENT',
+        contributionTypes: ['MATERIAL'],
+        evidenceUrls: [],
+        locationLabel: null,
+        address: 'Địa chỉ người nhận riêng',
+        lat: 10.5555,
+        lng: 106.6666,
+        needsReview: false,
+        serviceType: null,
+        serviceChannel: null,
+        privateDetails: {
+          recipientName: null,
+          recipientPhone: '0901888999',
+          recipientAddress: 'Địa chỉ người nhận riêng',
+          coordinatorName: 'Điều phối',
+          coordinatorPhone: '0901777888',
+          carrier: null,
+          shippingFeePayer: null,
+          estimatedShippingFee: null,
+          trackingCode: null,
+          transferContent: null,
+        },
+        startsAt: new Date(Date.now() + 11 * 24 * 3_600_000),
+        endsAt: new Date(Date.now() + 11 * 24 * 3_600_000 + 3_600_000),
+      },
+    });
     const disposableRound = await operations.createRound({
       campaignId: Live,
       actorId: Owner,
@@ -472,11 +506,37 @@ async function main(): Promise<void> {
       { findVisibleCampaignId: async () => Live } as never,
       operations,
     ).handle({ idOrSlug: 'live' });
-    check(
-      'đường public không lộ phone hoặc địa chỉ recipient DIRECT/SHIPPING',
-      !JSON.stringify(publicRounds).includes('0901234567') &&
-        !JSON.stringify(publicRounds).includes('Địa chỉ nhận'),
+    const publicDirectRecipient = publicRounds.find(
+      (round) => round.roundId === directRecipientRound.roundId,
     );
+    check(
+      'ListCharityRounds công khai không lộ phone/address DIRECT_RECIPIENT, lat/lng null',
+      !JSON.stringify(publicDirectRecipient).includes('0901888999') &&
+        !JSON.stringify(publicDirectRecipient).includes(
+          'Địa chỉ người nhận riêng',
+        ) &&
+        publicDirectRecipient?.lat === null &&
+        publicDirectRecipient.lng === null,
+    );
+    const manageRounds = await new ManageCharityRoundsUseCase(
+      { resolve: async () => ({ campaign: { globalId: Live } }) } as never,
+      operations,
+    ).handle({ userId: Owner, campaignId: Live });
+    const managedDirectRecipient = manageRounds.find(
+      (round) => round.roundId === directRecipientRound.roundId,
+    );
+    check(
+      'ManageCharityRounds trả phone và địa chỉ DIRECT_RECIPIENT',
+      managedDirectRecipient?.address === 'Địa chỉ người nhận riêng' &&
+        managedDirectRecipient.privateDetails?.recipientPhone === '0901888999',
+    );
+    await operations.setRoundStatus({
+      campaignId: Live,
+      roundId: directRecipientRound.roundId,
+      actorId: Owner,
+      status: 'DONE',
+      reason: null,
+    });
     check(
       'CHECK: evidence_urls vượt 20 phần tử bị chặn',
       await rejects(() =>

@@ -698,7 +698,7 @@ export class CharityOperationsController {
         address: input.address ?? null,
         lat: input.lat ?? null,
         lng: input.lng ?? null,
-        needsReview: true,
+        needsReview: false,
         serviceType: input.serviceType ?? null,
         serviceChannel: input.serviceChannel ?? null,
         privateDetails: {

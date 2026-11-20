@@ -21,6 +21,7 @@ import {
   IsDefined,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -368,8 +369,18 @@ export class CharityRoundInputDto {
   @IsIn(['MATERIAL', 'MONEY', 'SERVICE'], { each: true })
   contributionTypes?: ('MATERIAL' | 'MONEY' | 'SERVICE')[];
 
-  @ApiPropertyOptional({ type: Number }) @IsOptional() lat?: number;
-  @ApiPropertyOptional({ type: Number }) @IsOptional() lng?: number;
+  @ApiPropertyOptional({ type: Number })
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat?: number;
+  @ApiPropertyOptional({ type: Number })
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng?: number;
   @ApiPropertyOptional({ enum: CharitySupportTypes })
   @IsOptional()
   @IsIn(CharitySupportTypes)

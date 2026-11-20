@@ -576,7 +576,8 @@ export class SaveCharityRoundUseCase implements ISaveCharityRoundUseCase {
       privateDetails: trimmedPrivateDetails,
     });
     if (
-      distribution.distributionMethod === 'DIRECT_RECIPIENT' &&
+      (distribution.distributionMethod === 'DIRECT_RECIPIENT' ||
+        distribution.distributionMethod === 'SHIPPING') &&
       distribution.privateDetails.recipientAddress === null
     )
       distribution.privateDetails.recipientAddress = trimmed(
@@ -601,6 +602,7 @@ export class SaveCharityRoundUseCase implements ISaveCharityRoundUseCase {
       ...command.round,
       ...distribution,
       evidenceUrls,
+      needsReview: false,
       title: command.round.title.trim(),
     };
     const errors: string[] = [];

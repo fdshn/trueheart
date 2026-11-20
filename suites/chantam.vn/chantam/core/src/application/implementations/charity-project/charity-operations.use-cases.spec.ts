@@ -15,6 +15,7 @@ import { ValidationFailedException } from '@chantam/service.common-lib/exception
 import {
   DecideCharitySupportOfferUseCase,
   ListCharityRoundsUseCase,
+  ManageCharityRoundsUseCase,
   OfferCharitySupportUseCase,
   PostponeCharityDistributionUseCase,
   SaveCharityRoundUseCase,
@@ -360,6 +361,97 @@ describe('Hoãn bước trao', () => {
 });
 
 describe('Đợt trao', () => {
+  it('create and PATCH force needsReview false', async () => {
+    const created = make();
+    const createUseCase = new SaveCharityRoundUseCase(
+      created.access,
+      created.operations as never,
+    );
+    await createUseCase.handle({
+      ...cmd,
+      roundId: null,
+      reason: null,
+      round: { ...round(), needsReview: true },
+    });
+    expect(created.operations.createRound).toHaveBeenCalledWith(
+      expect.objectContaining({
+        round: expect.objectContaining({ needsReview: false }),
+      }),
+    );
+
+    const updated = make();
+    const updateUseCase = new SaveCharityRoundUseCase(
+      updated.access,
+      updated.operations as never,
+    );
+    await updateUseCase.handle({
+      ...cmd,
+      roundId: 'r1',
+      reason: null,
+      round: { ...round(), needsReview: true },
+    });
+    expect(updated.operations.updateRound).toHaveBeenCalledWith(
+      expect.objectContaining({
+        round: expect.objectContaining({ needsReview: false }),
+      }),
+    );
+  });
+
+  it('SHIPPING moves supplied address into private recipient address', async () => {
+    const deps = make();
+    const useCase = new SaveCharityRoundUseCase(
+      deps.access,
+      deps.operations as never,
+    );
+    await useCase.handle({
+      ...cmd,
+      roundId: null,
+      reason: null,
+      round: {
+        ...round(),
+        distributionMethod: 'SHIPPING',
+        contributionTypes: ['MATERIAL'],
+        address: 'Địa chỉ giao kín',
+        privateDetails: {
+          ...round().privateDetails,
+          recipientName: 'Người nhận',
+          recipientPhone: '0901',
+          recipientAddress: null,
+          carrier: 'Nhà xe',
+          shippingFeePayer: 'ORGANIZER',
+          estimatedShippingFee: 10_000,
+        },
+      },
+    });
+    expect(deps.operations.createRound).toHaveBeenCalledWith(
+      expect.objectContaining({
+        round: expect.objectContaining({
+          address: null,
+          privateDetails: expect.objectContaining({
+            recipientAddress: 'Địa chỉ giao kín',
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('workspace round view keeps private recipient phone', async () => {
+    const deps = make();
+    deps.operations.listRounds.mockResolvedValue([
+      round({
+        privateDetails: {
+          ...round().privateDetails,
+          recipientPhone: '0909876543',
+        },
+      }),
+    ]);
+    const [result] = await new ManageCharityRoundsUseCase(
+      deps.access,
+      deps.operations as never,
+    ).handle(cmd);
+    expect(result.privateDetails?.recipientPhone).toBe('0909876543');
+  });
+
   it('lưu hình thức trao: thiếu carrier SHIPPING / BANK_TRANSFER không có MONEY → mã nghiệp vụ 400', async () => {
     const deps = make();
     const useCase = new SaveCharityRoundUseCase(
