@@ -3,9 +3,8 @@ name: CI
 on:
   pull_request:
   push:
-    # Repo hiện ở nhánh `master`; khai cả `main` để không phải sửa workflow
-    # nếu sau này đổi tên nhánh chính.
-    branches: [main, master]
+    # `develop` = staging, `main` = production (xem release.yaml).
+    branches: [main, develop]
 
 # Push liên tiếp vào cùng một nhánh thì huỷ lượt chạy cũ — không có dòng này,
 # 5 lần push nhanh sẽ chiếm runner cho 5 lượt build đã lỗi thời.

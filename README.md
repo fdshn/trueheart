@@ -136,10 +136,10 @@ Mọi PR đều chạy ba job song song:
 | `integration` | Dựng PostGIS thật, chạy service, gọi `scripts/smoke-test.sh` — 15 phép thử đi qua `ST_DWithin` |
 | `docker` | Dockerfile không lệch cây dependency, image build được **và chạy được** |
 
-Triển khai: push nhánh chính → staging; gắn tag `v*` → production (cần người duyệt).
+Triển khai: merge vào `develop` → staging; merge `develop → main` → production.
 
 - [Runbook staging](./deploy/STAGING.md) — server dev, Nginx/Certbot, GitHub Environment, kiểm CD.
-- [Runbook production](./deploy/PRODUCTION.md) — server khách, tag release, rollback.
+- [Runbook production](./deploy/PRODUCTION.md) — server khách, release qua `main`, rollback.
 - [Tổng quan deploy](./deploy/README.md) — kiến trúc và bất biến vận hành.
 
 Chạy bộ smoke test tại máy:
