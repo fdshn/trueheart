@@ -21,6 +21,7 @@ import { DataSource } from 'typeorm';
 import {
   AddCharityBeneficiaryBankAccountUseCase,
   CharityProjectAccess,
+  ReplaceCharityPartiesUseCase,
 } from '../src/application/implementations/charity-project/charity-project.use-cases';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
@@ -864,6 +865,98 @@ async function main(): Promise<void> {
         ownerAccount.accountNo === '77778888' &&
         ownerAccount.verifiedAt === null,
       String(nullNameCode),
+    );
+    const replaceParties = new ReplaceCharityPartiesUseCase(
+      new CharityProjectAccess(campaigns, {
+        hasPermission: async () => false,
+      } as never),
+      projects,
+    );
+    const partiesNow = await projects.listParties(Live);
+    const keptOrganizer = partiesNow.find((p) => p.role === 'ORGANIZER')!;
+    const appealSubject = partiesNow.find((p) => p.isAppealSubject)!;
+    const withGroup = await replaceParties.handle({
+      userId: Owner,
+      campaignId: Live,
+      parties: [
+        keptOrganizer,
+        {
+          role: 'BENEFICIARY',
+          name: 'Nhóm Hoa',
+          address: null,
+          phone: null,
+          email: null,
+          hotline: null,
+          picName: null,
+          picPhone: null,
+          picUserId: null,
+          beneficiaryKind: 'GROUP',
+          evidenceUrls: [],
+        },
+      ],
+    });
+    const groupParty = withGroup.find((p) => p.name === 'Nhóm Hoa')!;
+    const beneficiaryOf = async (partyId: string, accountName: string) => {
+      const outcome = await projects.addBeneficiaryBankAccount({
+        campaignId: Live,
+        actorId: Owner,
+        account: {
+          holderType: 'BENEFICIARY',
+          partyId,
+          bankName: 'VCB',
+          accountNo: `3${partyId.slice(-7)}`,
+          accountName,
+        },
+        replacesAccountId: null,
+        replaceReason: null,
+      });
+      return outcome.status === 'CREATED' ? outcome.account.accountId : '';
+    };
+    const groupAccountId = await beneficiaryOf(groupParty.partyId, 'NHOM HOA');
+    const appealAccountId = await beneficiaryOf(
+      appealSubject.partyId,
+      'ONG TU',
+    );
+    const groupVerified = await projects.verifyBeneficiaryBankAccount({
+      campaignId: Live,
+      accountId: groupAccountId,
+      actorId: Admin,
+    });
+    const renamed = await replaceParties.handle({
+      userId: Owner,
+      campaignId: Live,
+      parties: [keptOrganizer, { ...groupParty, name: 'Nhóm Hoa (đổi tên)' }],
+    });
+    const afterRename = await projects.listBeneficiaryBankAccounts(Live);
+    const groupAfter = afterRename.find((a) => a.accountId === groupAccountId);
+    check(
+      'PUT parties bỏ dòng kêu gọi cá nhân (còn tài khoản) vẫn được; đổi tên bên thụ hưởng giữ verified_at',
+      renamed.some(
+        (p) =>
+          p.partyId === groupParty.partyId && p.name === 'Nhóm Hoa (đổi tên)',
+      ) &&
+        renamed.some((p) => p.partyId === appealSubject.partyId) &&
+        groupAfter?.validTo === null &&
+        groupAfter.verifiedAt?.getTime() ===
+          groupVerified?.verifiedAt?.getTime() &&
+        afterRename.some(
+          (a) => a.accountId === appealAccountId && a.validTo === null,
+        ),
+    );
+    const removeGroup = await replaceParties
+      .handle({ userId: Owner, campaignId: Live, parties: [keptOrganizer] })
+      .then(
+        () => '',
+        (error: unknown) => (error as Error).message,
+      );
+    check(
+      'PUT parties bỏ bên thụ hưởng thường còn tài khoản → 400, bên đó vẫn còn',
+      removeGroup ===
+        'parties: bên thụ hưởng "Nhóm Hoa (đổi tên)" còn tài khoản thụ hưởng đang hiệu lực — đóng tài khoản trước' &&
+        (await projects.listParties(Live)).some(
+          (p) => p.partyId === groupParty.partyId,
+        ),
+      removeGroup,
     );
     check(
       'OWNER không được gắn party_id',

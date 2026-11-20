@@ -851,10 +851,31 @@ describe('Hồ sơ tab A', () => {
     expect(deps.projects.listBeneficiaryBankAccounts).not.toHaveBeenCalled();
   });
 
-  it('PUT parties bỏ bên thụ hưởng còn tài khoản → 400; giữ (kể cả đổi tên) thì được', async () => {
+  it('PUT parties bỏ bên thụ hưởng thường còn tài khoản → 400; dòng kêu gọi cá nhân bỏ qua; giữ + đổi tên thì được', async () => {
     const deps = make();
+    const groupParty = {
+      partyId: 'p3',
+      role: 'BENEFICIARY',
+      isAppealSubject: false,
+      name: 'Nhóm C',
+      address: null,
+      phone: null,
+      email: null,
+      hotline: null,
+      beneficiaryKind: 'GROUP',
+    };
+    deps.projects.listParties.mockResolvedValue([
+      ...(await deps.projects.listParties()),
+      groupParty,
+    ] as never);
+    // p1 là người thụ hưởng kêu gọi cá nhân (replaceParties không bao giờ chạm dòng này).
     deps.projects.listBeneficiaryBankAccounts.mockResolvedValue([
       beneficiaryAccount({ holderType: 'BENEFICIARY', partyId: 'p1' }),
+      beneficiaryAccount({
+        accountId: 'acc-3',
+        holderType: 'BENEFICIARY',
+        partyId: 'p3',
+      }),
     ] as never);
     const useCase = new ReplaceCharityPartiesUseCase(
       deps.access,
@@ -866,7 +887,8 @@ describe('Hồ sơ tab A', () => {
     await expect(failure).resolves.toBeInstanceOf(ValidationFailedException);
     await expect(failure).resolves.toMatchObject({
       message:
-        'parties: bên thụ hưởng "Bà A" còn tài khoản thụ hưởng đang hiệu lực — đóng tài khoản trước',
+        'parties: bên thụ hưởng "Nhóm C" còn tài khoản thụ hưởng đang hiệu lực — đóng tài khoản trước',
+      explains: [],
     });
     expect(deps.projects.replaceParties).not.toHaveBeenCalled();
     await useCase.handle({
@@ -874,20 +896,44 @@ describe('Hồ sơ tab A', () => {
       campaignId: CampaignId,
       parties: [
         {
-          partyId: 'p1',
-          role: 'BENEFICIARY',
-          isAppealSubject: true,
-          name: 'Bà A (đổi tên)',
-          address: null,
-          phone: null,
-          email: null,
-          hotline: null,
-          beneficiaryKind: 'INDIVIDUAL',
+          ...groupParty,
+          name: 'Nhóm C (đổi tên)',
           evidenceUrls: [],
         } as never,
       ],
     });
     expect(deps.projects.replaceParties).toHaveBeenCalled();
+    expect(deps.projects.closeBeneficiaryBankAccount).not.toHaveBeenCalled();
+  });
+
+  it('workspace: coordinator không thấy tài khoản của người thụ hưởng kêu gọi cá nhân; chủ dự án thấy', async () => {
+    const accounts = [
+      beneficiaryAccount(),
+      beneficiaryAccount({
+        accountId: 'acc-appeal',
+        holderType: 'BENEFICIARY',
+        partyId: 'p1',
+      }),
+    ];
+    const run = async (
+      deps: ReturnType<typeof make>,
+      userId: string,
+    ): Promise<string[]> => {
+      deps.projects.listBeneficiaryBankAccounts.mockResolvedValue(
+        accounts as never,
+      );
+      const view = await new GetCharityWorkspaceUseCase(
+        deps.access,
+        deps.projects as never,
+        deps.engagement as never,
+        deps.events as never,
+      ).handle({ userId, campaignId: CampaignId });
+      return view.beneficiaryBankAccounts.map((a) => a.accountId);
+    };
+    await expect(
+      run(make({ coordinator: true }), Coordinator),
+    ).resolves.toEqual(['acc-1']);
+    await expect(run(make(), Owner)).resolves.toEqual(['acc-1', 'acc-appeal']);
   });
 
   it('bank account: tắt MONEY → 409', async () => {

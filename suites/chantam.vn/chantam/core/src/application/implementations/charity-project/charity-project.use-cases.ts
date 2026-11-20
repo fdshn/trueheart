@@ -482,8 +482,10 @@ export class ReplaceCharityPartiesUseCase implements IReplaceCharityPartiesUseCa
       this.projects.listParties(campaign.globalId),
       this.projects.listBeneficiaryBankAccounts(campaign.globalId),
     ]);
+    // Dòng người thụ hưởng của kêu gọi cá nhân không bao giờ bị `replaceParties` xoá — bỏ qua.
     for (const party of previous)
       if (
+        !party.isAppealSubject &&
         !kept.has(party.partyId) &&
         accounts.some(
           (account) =>
@@ -1303,6 +1305,12 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
     // Người thụ hưởng của kêu gọi cá nhân là dữ liệu RIÊNG TƯ: chỉ chủ dự án và Admin.
     const seesAppealSubject =
       access.isOwner || access.isAdminWriter || access.isAdminReader;
+    // Tài khoản của người thụ hưởng kêu gọi cá nhân ẩn cùng dòng của người đó.
+    const hiddenPartyIds = new Set(
+      seesAppealSubject
+        ? []
+        : parties.filter((p) => p.isAppealSubject).map((p) => p.partyId),
+    );
     return {
       campaign: toView(campaign),
       profile: profile!,
@@ -1314,7 +1322,10 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
         ? parties
         : parties.filter((p) => !p.isAppealSubject),
       bankAccounts,
-      beneficiaryBankAccounts,
+      beneficiaryBankAccounts: beneficiaryBankAccounts.filter(
+        (account) =>
+          account.partyId === null || !hiddenPartyIds.has(account.partyId),
+      ),
       team,
       phases,
       itemNeeds,
