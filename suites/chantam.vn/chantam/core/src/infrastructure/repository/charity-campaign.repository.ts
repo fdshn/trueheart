@@ -48,6 +48,7 @@ import {
   CharityBeneficiaryRelation,
   CharityCampaignType,
   CharityContributionStatus,
+  CharityContributionType,
   CharityOperationStage,
   CharityParticipationStatus,
   CharityRejectionReason,
@@ -90,6 +91,7 @@ interface IRow {
   participant_count: string | number;
   media: ICharityCampaignMedia[] | null;
   campaign_type: string;
+  accepted_contribution_types: string[];
   beneficiary_relation: string | null;
   allow_over_target: boolean;
   minimum_participants: number;
@@ -336,7 +338,7 @@ const Columns = `campaigns.global_id, campaigns.title, campaigns.slug, campaigns
        campaigns.is_active, campaigns.approval_status, campaigns.approval_note,
        campaigns.approved_at, campaigns.approved_by, campaigns.created_by,
        campaigns.created_at, campaigns.updated_at,
-       campaigns.campaign_type, campaigns.beneficiary_relation,
+       campaigns.campaign_type, campaigns.accepted_contribution_types, campaigns.beneficiary_relation,
        campaigns.allow_over_target,
        campaigns.minimum_participants, campaigns.minimum_participant_rank,
        campaigns.submitted_at, campaigns.operation_stage,
@@ -405,6 +407,8 @@ function toCampaign(row: IRow): ICharityCampaign {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     campaignType: row.campaign_type as CharityCampaignType,
+    acceptedContributionTypes:
+      row.accepted_contribution_types as CharityContributionType[],
     beneficiaryRelation:
       row.beneficiary_relation as CharityBeneficiaryRelation | null,
     allowOverTarget: row.allow_over_target,

@@ -96,6 +96,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     participantCount: 0,
     media: [],
     campaignType: 'ORGANIZED_CAMPAIGN' as const,
+    acceptedContributionTypes: [],
     beneficiaryRelation: null,
     allowOverTarget: false,
     minimumParticipants: 0,
@@ -615,6 +616,7 @@ describe('CreateCharityCampaignUseCase · hai loại hoạt động (F65b §2)',
     ).handle({
       ...writeInput({
         campaignType: 'ORGANIZED_CAMPAIGN',
+        acceptedContributionTypes: [],
         beneficiaryRelation: 'SELF',
       }),
       actorUserId: ActorId,

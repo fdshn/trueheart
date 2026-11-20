@@ -96,6 +96,10 @@ const DiamondId = 'c1000000-0000-4000-8000-0000000000d1';
 const OrganizerId = 'c1000000-0000-4000-8000-0000000000a9';
 const MemberId = 'c1000000-0000-4000-8000-0000000000e1';
 const AdminId = 'c1000000-0000-4000-8000-0000000000ad';
+const LegacyMaterialId = 'c1000000-0000-4000-8000-0000000000a1';
+const LegacyMoneyServiceId = 'c1000000-0000-4000-8000-0000000000a2';
+const LegacyEmptyId = 'c1000000-0000-4000-8000-0000000000a3';
+const DefaultContributionTypesId = 'c1000000-0000-4000-8000-0000000000a4';
 const JoinerId = 'c1000000-0000-4000-8000-0000000000b1';
 const OtherJoinerId = 'c1000000-0000-4000-8000-0000000000b2';
 const OutsiderId = 'c1000000-0000-4000-8000-0000000000ff';
@@ -174,6 +178,45 @@ async function main(): Promise<void> {
   await admin.query(`DROP DATABASE IF EXISTS ${ScratchDatabase}`);
   await admin.query(`CREATE DATABASE ${ScratchDatabase}`);
 
+  const legacyMigrations = resolveAllEntities(migrations).filter(
+    (migration) => Number(migration.name.slice(-13)) < 1803700000000,
+  );
+  const legacyDataSource = new DataSource({
+    type: 'postgres',
+    url: scratchUri,
+    entities: resolveAllEntities(entities),
+    migrations: legacyMigrations,
+    migrationsTableName: 'migrations',
+    extra: { max: 10 },
+  });
+  await legacyDataSource.initialize();
+  opened.push(legacyDataSource);
+  await legacyDataSource.runMigrations();
+  await legacyDataSource.query(
+    `INSERT INTO campaigns (global_id, title, slug, description, banner_url, badge_name, start_time, end_time)
+     VALUES
+       ($1, 'Legacy material', 'legacy-material', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour'),
+       ($2, 'Legacy money service', 'legacy-money-service', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour'),
+       ($3, 'Legacy empty', 'legacy-empty', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour')`,
+    [LegacyMaterialId, LegacyMoneyServiceId, LegacyEmptyId],
+  );
+  await legacyDataSource.query(
+    `INSERT INTO campaign_need_items (campaign_id, item_name, unit, target_quantity)
+     VALUES ($1, 'Gạo', 'kg', 1)`,
+    [LegacyMaterialId],
+  );
+  await legacyDataSource.query(
+    `INSERT INTO campaign_funding_needs (campaign_id, title, target_amount)
+     VALUES ($1, 'Chi phí', 100000)`,
+    [LegacyMoneyServiceId],
+  );
+  await legacyDataSource.query(
+    `INSERT INTO campaign_other_support_needs (campaign_id, support_type, title, unit, target_quantity)
+     VALUES ($1, 'LABOR', 'Nhân công', 'người', 1)`,
+    [LegacyMoneyServiceId],
+  );
+  await legacyDataSource.destroy();
+
   const dataSource = new DataSource({
     type: 'postgres',
     url: scratchUri,
@@ -188,6 +231,62 @@ async function main(): Promise<void> {
   console.log('Đã dựng schema trên database nháp\n');
 
   try {
+    const legacyCampaigns = await dataSource.query<
+      { global_id: string; accepted_contribution_types: string[] }[]
+    >(
+      `SELECT global_id, accepted_contribution_types FROM campaigns
+       WHERE global_id = ANY($1::uuid[])`,
+      [[LegacyEmptyId, LegacyMaterialId, LegacyMoneyServiceId]],
+    );
+    const emptyTypes = legacyCampaigns.find(
+      (campaign) => campaign.global_id === LegacyEmptyId,
+    )?.accepted_contribution_types;
+    const materialTypes = legacyCampaigns.find(
+      (campaign) => campaign.global_id === LegacyMaterialId,
+    )?.accepted_contribution_types;
+    const moneyServiceTypes = legacyCampaigns.find(
+      (campaign) => campaign.global_id === LegacyMoneyServiceId,
+    )?.accepted_contribution_types;
+    check(
+      'migration giữ mảng rỗng cho chiến dịch cũ không có nhu cầu',
+      JSON.stringify(emptyTypes) === JSON.stringify([]),
+      JSON.stringify(emptyTypes),
+    );
+    check(
+      'migration suy MATERIAL từ nhu cầu hiện vật cũ',
+      JSON.stringify(materialTypes) === JSON.stringify(['MATERIAL']),
+      JSON.stringify(materialTypes),
+    );
+    check(
+      'migration suy MONEY và SERVICE từ nhu cầu cũ',
+      JSON.stringify(moneyServiceTypes) ===
+        JSON.stringify(['MONEY', 'SERVICE']),
+      JSON.stringify(moneyServiceTypes),
+    );
+    await expectReject(
+      'CHECK: loại tiếp nhận ngoài enum bị chặn',
+      () =>
+        dataSource.query(
+          `UPDATE campaigns SET accepted_contribution_types = ARRAY['CASH'] WHERE global_id = $1`,
+          [LegacyMaterialId],
+        ),
+      'CHK_campaigns_accepted_contribution_types',
+    );
+    const [defaultContributionTypes] = await dataSource.query<
+      { accepted_contribution_types: string[] }[]
+    >(
+      `INSERT INTO campaigns (global_id, title, slug, description, banner_url, badge_name, start_time, end_time)
+       VALUES ($1, 'Default contribution types', 'default-contribution-types', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour')
+       RETURNING accepted_contribution_types`,
+      [DefaultContributionTypesId],
+    );
+    check(
+      'SQL chèn thiếu loại tiếp nhận nhận đủ ba loại mặc định',
+      JSON.stringify(defaultContributionTypes?.accepted_contribution_types) ===
+        JSON.stringify(['MATERIAL', 'MONEY', 'SERVICE']),
+      JSON.stringify(defaultContributionTypes),
+    );
+
     const repository = new CharityCampaignRepository(
       dataSource.manager,
       // Sổ điểm THẬT: bút toán của lượt giao nhận từ thiện ghi trong transaction

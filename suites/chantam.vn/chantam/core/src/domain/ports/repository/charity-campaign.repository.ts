@@ -4,6 +4,7 @@ import {
   CharityBeneficiaryRelation,
   CharityCampaignType,
   CharityContributionStatus,
+  CharityContributionType,
   CharityMediaType,
   CharityOperationStage,
   CharityParticipationStatus,
@@ -75,6 +76,7 @@ export interface ICharityCampaign {
    */
   readonly media: readonly ICharityCampaignMedia[];
   readonly campaignType: CharityCampaignType;
+  readonly acceptedContributionTypes: readonly CharityContributionType[];
   /** Chỉ `INDIVIDUAL_APPEAL` có; database canh bằng CHECK nối hai cột. */
   readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
   /** Lượt chấp nhận đề nghị được vượt mục tiêu từng dòng (§5). Mặc định `false`. */

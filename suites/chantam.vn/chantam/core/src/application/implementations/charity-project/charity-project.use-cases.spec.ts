@@ -59,6 +59,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     participantCount: 0,
     media: [],
     campaignType: 'ORGANIZED_CAMPAIGN',
+    acceptedContributionTypes: [],
     beneficiaryRelation: null,
     allowOverTarget: false,
     minimumParticipants: 0,

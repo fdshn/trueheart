@@ -9,6 +9,7 @@ import {
   CharityBeneficiaryRelations,
   CharityCampaignTypes,
   CharityContributionStatuses,
+  CharityContributionTypes,
   CharityMediaTypes,
   CharityRejectionReasons,
   CharityReviewRatingMax,
@@ -761,6 +762,9 @@ export class CharityCampaignResponseDto {
 
   @ApiProperty({ enum: CharityCampaignTypes })
   campaignType: (typeof CharityCampaignTypes)[number];
+
+  @ApiProperty({ enum: CharityContributionTypes, isArray: true })
+  acceptedContributionTypes: (typeof CharityContributionTypes)[number][];
 
   @ApiProperty({
     enum: CharityBeneficiaryRelations,

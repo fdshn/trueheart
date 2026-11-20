@@ -2784,8 +2784,9 @@ không tự suy từ ngày:
 
 Job `charity:advance-stage` (10 phút/lần) ghi xuống và lưu nhật ký; lượt đọc vẫn đúng khi job trễ.
 Mọi response chiến dịch có thêm `submittedAt` (`null` = nháp), `operationStage` (hiệu lực — dùng
-cái này), `storedOperationStage` (đã ghi, có thể chậm) và `distribution` (`{ startsAt, endsAt }`
-của bước trao, `null` khi chưa lập) để app đếm ngược.
+cái này), `storedOperationStage` (đã ghi, có thể chậm), `distribution` (`{ startsAt, endsAt }`
+của bước trao, `null` khi chưa lập) và `acceptedContributionTypes` (mảng `MATERIAL` · `MONEY` ·
+`SERVICE` mà chiến dịch nhận; có mặt trên mọi view chiến dịch) để app đếm ngược.
 
 | Method | Đường dẫn | Ai | Mô tả |
 | --- | --- | --- | --- |
