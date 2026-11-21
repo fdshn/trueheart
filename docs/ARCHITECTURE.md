@@ -138,8 +138,8 @@ resource mới.
 
 | Workflow | Khi nào chạy | Làm gì |
 | --- | --- | --- |
-| `ci.yaml` | mọi PR và push nhánh chính | 3 job song song: `verify` (lint/format/build/test), `integration` (PostGIS thật + smoke test), `docker` (chống lệch Dockerfile + build + chạy thử image) |
-| `release.yaml` | push nhánh chính → staging; tag `v*` → production | Build và đẩy image lên GHCR, rồi gọi `deploy.yaml` |
+| `ci.yaml` | mọi PR và push `develop`/`main` | 3 job song song: `verify` (lint/format/build/test), `integration` (PostGIS thật + smoke test), `docker` (chống lệch Dockerfile + build + chạy thử image) |
+| `release.yaml` | push `develop` → staging; push `main` → production; chạy tay | Build và đẩy image lên GHCR, rồi gọi `deploy.yaml` |
 | `deploy.yaml` | được `release.yaml` gọi | SSH + `docker compose up -d --wait`, cổng kiểm tra sau triển khai, tự rollback khi hỏng |
 | `codeql.yaml` | PR, push nhánh chính, hàng tuần | Phân tích bảo mật mã nguồn |
 | `security-audit.yaml` | PR đụng dependency, hàng tuần | `npm audit --omit=dev --audit-level=high` |
