@@ -1404,9 +1404,16 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
       this.summaries.publicSupporters(id, MaxPublicSupporterNames),
     ]);
     const publishedSummary = summary?.publishedAt ? summary : null;
-    const financialReports = publishedSummary
-      ? await this.summaries.listFinancialReports(id)
-      : [];
+    const [financialReports, totals] = publishedSummary
+      ? await Promise.all([
+          this.summaries.listFinancialReports(id),
+          this.summaries.intakeTotals(id),
+        ])
+      : [[], null];
+    const publicTotals =
+      totals && !campaign.acceptedContributionTypes.includes('MONEY')
+        ? { ...totals, money: null }
+        : totals;
     const [
       profile,
       states,
@@ -1463,6 +1470,7 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
       })),
       summary: publishedSummary,
       financialReports,
+      totals: publicTotals,
       supporters,
       counters,
       isFollowing,

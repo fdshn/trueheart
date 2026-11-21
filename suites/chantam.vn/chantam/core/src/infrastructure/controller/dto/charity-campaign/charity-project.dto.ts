@@ -48,6 +48,7 @@ import {
 import { CharityEventStepViewDto } from './charity-event.dto';
 import {
   CharityFinancialReportViewDto,
+  CharityIntakeTotalsDto,
   CharityPublicSupportersDto,
   CharitySummaryViewDto,
 } from './charity-summary.dto';
@@ -983,6 +984,13 @@ export class CharityPublicProjectDto {
     description: 'Chỉ có khi tổng kết đã công khai',
   })
   financialReports: CharityFinancialReportViewDto[];
+  @ApiProperty({
+    type: () => CharityIntakeTotalsDto,
+    nullable: true,
+    description:
+      'Ba tổng riêng; `null` tới khi tổng kết công khai; money `null` khi không nhận tiền',
+  })
+  totals: CharityIntakeTotalsDto | null;
   @ApiProperty({ type: () => CharityPublicSupportersDto })
   supporters: CharityPublicSupportersDto;
   @ApiProperty({ type: () => CharityCountersDto })

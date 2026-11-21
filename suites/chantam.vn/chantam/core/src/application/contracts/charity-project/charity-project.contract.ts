@@ -10,6 +10,7 @@ import {
   ICharityFinancialReport,
   ICharityFundingNeed,
   ICharityFundingNeedInput,
+  ICharityIntakeTotals,
   ICharityItemNeed,
   ICharityNeedItemProfileInput,
   ICharityParty,
@@ -129,6 +130,8 @@ export interface ICharityPublicProject {
   summary: ICharitySummary | null;
   /** Báo cáo tài chính — chỉ có khi tổng kết đã công khai. */
   financialReports: ICharityFinancialReport[];
+  /** Ba tổng riêng — `null` tới khi tổng kết công khai; tiền `null` khi dự án không nhận tiền. */
+  totals: ICharityIntakeTotals | null;
   /** Nickname người cho phép hiện + con số tổng (§3.17). */
   supporters: ICharityPublicSupporters;
   counters: ICharityEngagementCounters;

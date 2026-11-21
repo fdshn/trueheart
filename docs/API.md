@@ -2988,7 +2988,7 @@ lúc khởi động thì về chế độ một instance kèm cảnh báo.
 
 | Method | Đường dẫn | Ai | Mô tả |
 | --- | --- | --- | --- |
-| `GET` | `/charity-campaigns/:id/summary` | Người tạo, coordinator, Admin `campaign.read` | `{ summary, financialReports, financialReportRequired }` (cả nháp) |
+| `GET` | `/charity-campaigns/:id/summary` | Người tạo, coordinator, Admin `campaign.read` | `{ totals, summary, financialReports, financialReportRequired }` (cả nháp) |
 | `PUT` | `/charity-campaigns/:id/summary` | Người tạo, Admin | `{ summary: { summary, usageReport, thanksMessage, lessonsLearned, evidenceUrls } }` — chỉ khi ở Tổng kết (kể cả dự án đã đóng) |
 | `POST` | `/charity-campaigns/:id/summary/publish` | Người tạo, Admin | Cần nội dung; có nhận tiền thì cần ≥ 1 báo cáo tài chính |
 | `POST` | `/charity-campaigns/:id/financial-reports` | Người tạo, Admin | `{ report: { periodFrom, periodTo, totalIncome, totalExpense, explanation, statementUrls } }` — ngày `YYYY-MM-DD`, tiền VNĐ, sao kê ≥ 1 URL https |
@@ -3003,7 +3003,8 @@ lúc khởi động thì về chế độ một instance kèm cảnh báo.
 | `PATCH` | `/admin/charity-campaigns/:id/promotion` | `campaign.manage` | `{ promotion: { featuredOnHome, featuredTitle, featuredMessage, featuredMediaUrl, featuredCta, featuredFrom, featuredUntil, featuredPriority, reason } }` — audit |
 | `GET` | `/home/charity-cards` | Công khai | Card ngắn đang hiện (`?limit=`, mặc định 5) |
 
-**Tổng kết** (`campaign_summaries`, 1-1): mở khi dự án ở **Tổng kết**. Công khai lần đầu báo người
+**Tổng kết** (`campaign_summaries`, 1-1): bảng workspace luôn có `totals` ba khối riêng như trên, kể cả dự án không
+nhận tiền (khi đó khối `money` vẫn có số 0). Không có trường cộng chung tiền, hiện vật và dịch vụ. Mở khi dự án ở **Tổng kết**. Công khai lần đầu báo người
 tham gia, người góp, người quan tâm (`CHARITY_SUMMARY_PUBLISHED`, nhóm Sự kiện); công khai lại
 bản sửa không báo lần nữa. Sửa sau khi công khai ghi chữ đỏ (`entity: SUMMARY`) và phát realtime
 `SUMMARY`. Dự án **có nhận tiền** (tổng số tiền xác nhận + nhập ngoài của các hạng mục kêu gọi
@@ -3012,9 +3013,13 @@ không thì `CHARITY_SUMMARY_FINANCIAL_REQUIRED`. Số dư = thu − chi do data
 sau khi tổng kết công khai ghi chữ đỏ (`FINANCIAL_REPORT`); đổi tổng thu/chi là thay đổi quan
 trọng (báo người theo dõi).
 
-**Bản công khai** thêm `summary` (chỉ khi đã công khai), `financialReports` (chỉ khi tổng kết đã
-công khai) và `supporters: { supporterCount, participantCount, supporters[], participants[] }` —
-danh sách là **nickname** người cho phép hiện (tối đa 200), con số tổng gồm cả người ẩn.
+**Bản công khai** thêm `summary` (chỉ khi đã công khai), `financialReports` và `totals` (đều chỉ khi tổng kết đã
+công khai) và `supporters: { supporterCount, participantCount, supporters[], participants[] }` — `totals` luôn tách
+ba khối, không có tổng chung: `material: { lines[{unit, receivedQuantity}], confirmedValue }` (giá trị chỉ giao
+nhận trong app đã hoàn tất), `money: { confirmedAmount, externalAmount, totalAmount, reportedIncome }` (hoặc
+`null` nếu dự án không nhận MONEY; `totalAmount = confirmedAmount + externalAmount`), và
+`service: { lines[{supportType, unit, completedQuantity}] }`. Danh sách người ủng hộ là **nickname** người cho
+phép hiện (tối đa 200), con số tổng gồm cả người ẩn.
 
 **Chấm mức hoàn thành** 0–100: người tạo/coordinator/Admin, chỉ ở Tổng kết, chỉ participant **đã
 check-in** (hoặc đã hoàn thành — đợt 5a, §18.6). Chấm lại = lần chấm

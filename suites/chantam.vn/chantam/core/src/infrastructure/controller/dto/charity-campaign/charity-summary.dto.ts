@@ -1,6 +1,7 @@
 import {
   CharityEvaluationSources,
   CharityFeaturedCtas,
+  CharitySupportTypes,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -158,6 +159,41 @@ export class CharityFinancialReportResponseDto {
   @ApiProperty({ type: () => CharityFinancialReportViewDto })
   report: CharityFinancialReportViewDto;
 }
+export class CharityIntakeMaterialLineDto {
+  @ApiProperty() unit: string;
+  @ApiProperty() receivedQuantity: number;
+}
+export class CharityIntakeMaterialTotalsDto {
+  @ApiProperty({ type: () => [CharityIntakeMaterialLineDto] })
+  lines: CharityIntakeMaterialLineDto[];
+  @ApiProperty({ description: 'VNĐ; chỉ giao nhận trong app đã hoàn tất' })
+  confirmedValue: number;
+}
+export class CharityIntakeMoneyTotalsDto {
+  @ApiProperty({ description: 'VNĐ' }) confirmedAmount: number;
+  @ApiProperty({ description: 'VNĐ' }) externalAmount: number;
+  @ApiProperty({ description: 'VNĐ; confirmedAmount + externalAmount' })
+  totalAmount: number;
+  @ApiProperty({ description: 'VNĐ; tổng thu báo cáo' }) reportedIncome: number;
+}
+export class CharityIntakeServiceLineDto {
+  @ApiProperty({ enum: CharitySupportTypes }) supportType: string;
+  @ApiProperty() unit: string;
+  @ApiProperty() completedQuantity: number;
+}
+export class CharityIntakeServiceTotalsDto {
+  @ApiProperty({ type: () => [CharityIntakeServiceLineDto] })
+  lines: CharityIntakeServiceLineDto[];
+}
+export class CharityIntakeTotalsDto {
+  @ApiProperty({ type: () => CharityIntakeMaterialTotalsDto })
+  material: CharityIntakeMaterialTotalsDto;
+  @ApiProperty({ type: () => CharityIntakeMoneyTotalsDto, nullable: true })
+  money: CharityIntakeMoneyTotalsDto | null;
+  @ApiProperty({ type: () => CharityIntakeServiceTotalsDto })
+  service: CharityIntakeServiceTotalsDto;
+}
+
 export class CharitySummaryParticipationDto {
   @ApiProperty({
     description:
@@ -181,6 +217,8 @@ export class CharitySummaryParticipationDto {
 }
 
 export class CharitySummaryBoardResponseDto {
+  @ApiProperty({ type: () => CharityIntakeTotalsDto })
+  totals: CharityIntakeTotalsDto;
   @ApiProperty({ type: () => CharitySummaryViewDto, nullable: true })
   summary: CharitySummaryViewDto | null;
   @ApiProperty({ type: () => [CharityFinancialReportViewDto] })

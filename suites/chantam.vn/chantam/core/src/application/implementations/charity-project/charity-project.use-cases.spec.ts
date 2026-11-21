@@ -247,6 +247,16 @@ function make(
       supporters: [],
       participants: [],
     })),
+    intakeTotals: jest.fn(async () => ({
+      material: { lines: [], confirmedValue: 0 },
+      money: {
+        confirmedAmount: 0,
+        externalAmount: 0,
+        totalAmount: 0,
+        reportedIncome: 0,
+      },
+      service: { lines: [] },
+    })),
   };
   return {
     campaigns,
@@ -1207,6 +1217,35 @@ describe('Workspace và bản công khai', () => {
       campaignId: CampaignId,
     });
     expect(mine.parties).toHaveLength(2);
+  });
+
+  it('bản công khai: chưa công khai tổng kết → totals null', async () => {
+    const deps = make();
+    const view = await new GetCharityPublicProjectUseCase(
+      deps.campaigns as never,
+      deps.projects as never,
+      deps.engagement as never,
+      deps.events as never,
+      deps.summaries as never,
+    ).handle({ idOrSlug: 'mua-dong-am', userId: null });
+    expect(view.totals).toBeNull();
+  });
+
+  it('bản công khai: tắt MONEY → totals.money null', async () => {
+    const deps = make({
+      campaign: campaign({ acceptedContributionTypes: [] }),
+    });
+    deps.summaries.getSummary.mockResolvedValue({
+      publishedAt: new Date(),
+    } as never);
+    const view = await new GetCharityPublicProjectUseCase(
+      deps.campaigns as never,
+      deps.projects as never,
+      deps.engagement as never,
+      deps.events as never,
+      deps.summaries as never,
+    ).handle({ idOrSlug: 'mua-dong-am', userId: null });
+    expect(view.totals?.money).toBeNull();
   });
 
   it('bản công khai: tắt MONEY ẩn bankAccounts và fundingNeeds', async () => {

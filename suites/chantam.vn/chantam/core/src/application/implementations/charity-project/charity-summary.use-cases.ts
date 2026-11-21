@@ -97,14 +97,17 @@ export class GetCharitySummaryUseCase implements IGetCharitySummaryUseCase {
       command.campaignId,
       command.userId,
     );
-    const [summary, financialReports, funding, counts] = await Promise.all([
-      this.summaries.getSummary(campaign.globalId),
-      this.summaries.listFinancialReports(campaign.globalId),
-      this.projects.listFundingNeeds(campaign.globalId),
-      this.summaries.countParticipation(campaign.globalId),
-    ]);
+    const [summary, financialReports, funding, counts, totals] =
+      await Promise.all([
+        this.summaries.getSummary(campaign.globalId),
+        this.summaries.listFinancialReports(campaign.globalId),
+        this.projects.listFundingNeeds(campaign.globalId),
+        this.summaries.countParticipation(campaign.globalId),
+        this.summaries.intakeTotals(campaign.globalId),
+      ]);
     const minimumParticipants = campaign.minimumParticipants ?? 0;
     return {
+      totals,
       summary,
       financialReports,
       financialReportRequired: summaryNeedsFinancialReport(funding),

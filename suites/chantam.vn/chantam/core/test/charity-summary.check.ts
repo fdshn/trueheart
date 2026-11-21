@@ -181,8 +181,8 @@ async function main(): Promise<void> {
     const report = {
       periodFrom: '2026-10-01',
       periodTo: '2026-10-31',
-      totalIncome: 15_000_000,
-      totalExpense: 12_500_000,
+      totalIncome: 1_200_000,
+      totalExpense: 500_000,
       explanation: 'Mua áo và vận chuyển',
       statementUrls: ['https://cdn.test/sao-ke.png'],
     };
@@ -193,7 +193,7 @@ async function main(): Promise<void> {
     });
     check(
       'số dư database tính; ngày trả đúng YYYY-MM-DD',
-      created.balance === 2_500_000 && created.periodFrom === '2026-10-01',
+      created.balance === 700_000 && created.periodFrom === '2026-10-01',
       JSON.stringify(created),
     );
     const beforeUpdate = await revisions();
@@ -201,7 +201,7 @@ async function main(): Promise<void> {
       campaignId: Live,
       reportId: created.reportId,
       actorId: Owner,
-      report: { ...report, totalExpense: 13_000_000 },
+      report: { ...report, totalExpense: 600_000 },
     });
     const [important] = await sql(
       `SELECT field, is_important FROM campaign_revisions
@@ -244,6 +244,90 @@ async function main(): Promise<void> {
         actorId: Owner,
         report,
       })) === null,
+    );
+
+    // ── 2a. Ba tổng tiếp nhận ─────────────────────────────────────────────
+    console.log('\n2a. Ba tổng tiếp nhận');
+    const [needPiece] = await sql(
+      `INSERT INTO campaign_need_items (campaign_id, item_name, unit, target_quantity, received_quantity)
+       VALUES ($1, 'Áo ấm', 'chiếc', 10, 2) RETURNING global_id`,
+      [Live],
+    );
+    await sql(
+      `INSERT INTO campaign_need_items (campaign_id, item_name, unit, target_quantity, received_quantity)
+       VALUES ($1, 'Gạo', 'kg', 20, 3)`,
+      [Live],
+    );
+    const [contribution] = await sql(
+      `INSERT INTO campaign_contributions
+         (campaign_id, contributor_id, status, decided_at, decided_by)
+       VALUES ($1, $2, 'ACCEPTED', now(), $3) RETURNING global_id`,
+      [Live, Shy, Owner],
+    );
+    const [delivery] = await sql(
+      `INSERT INTO campaign_deliveries
+         (campaign_id, contribution_id, contributor_id, organizer_id, status, completed_at, completed_by)
+       VALUES ($1, $2, $3, $4, 'COMPLETED', now(), $4) RETURNING global_id`,
+      [Live, contribution.global_id, Shy, Owner],
+    );
+    await sql(
+      `INSERT INTO campaign_contribution_items (contribution_id, need_item_id, offered_quantity)
+       VALUES ($1, $2, 2)`,
+      [contribution.global_id, needPiece.global_id],
+    );
+    await sql(
+      `INSERT INTO campaign_delivery_items
+         (delivery_id, contribution_item_id, need_item_id, accepted_quantity, received_quantity, confirmed_value)
+       SELECT $1, item.global_id, item.need_item_id, 2, 2, 200000
+       FROM campaign_contribution_items item WHERE item.contribution_id = $2`,
+      [delivery.global_id, contribution.global_id],
+    );
+    await sql(
+      `INSERT INTO campaign_funding_needs (campaign_id, title, target_amount, confirmed_amount, external_amount)
+       VALUES ($1, 'Mua áo', 2000000, 1000000, 500000)`,
+      [Live],
+    );
+    const [supportNeed] = await sql(
+      `INSERT INTO campaign_other_support_needs
+         (campaign_id, support_type, title, unit, target_quantity, external_quantity,
+          external_evidence_urls)
+       VALUES ($1, 'LABOR', 'Bốc xếp', 'buổi', 10, 1, '["https://cdn.test/external"]')
+       RETURNING global_id`,
+      [Live],
+    );
+    await sql(
+      `INSERT INTO campaign_other_support_offers (need_id, user_id, quantity, completed_quantity, status)
+       VALUES ($1, $2, 2, 2, 'COMPLETED')`,
+      [supportNeed.global_id, Walker],
+    );
+    const totals = await summaries.intakeTotals(Live);
+    check(
+      'hiện vật nhóm theo đơn vị và giá trị chỉ tính giao nhận hoàn tất trong app',
+      totals.material.lines.length === 2 &&
+        totals.material.lines.some(
+          (line) => line.unit === 'chiếc' && line.receivedQuantity === 2,
+        ) &&
+        totals.material.lines.some(
+          (line) => line.unit === 'kg' && line.receivedQuantity === 3,
+        ) &&
+        totals.material.confirmedValue === 200000,
+      JSON.stringify(totals.material),
+    );
+    check(
+      'tiền xác nhận, ngoài app, tổng và tổng thu báo cáo tách riêng',
+      totals.money?.confirmedAmount === 1000000 &&
+        totals.money.externalAmount === 500000 &&
+        totals.money.totalAmount === 1500000 &&
+        totals.money.reportedIncome === 1200000,
+      JSON.stringify(totals.money),
+    );
+    check(
+      'dịch vụ gộp hoàn tất trong app và ngoài app theo loại, đơn vị',
+      totals.service.lines.length === 1 &&
+        totals.service.lines[0].supportType === 'LABOR' &&
+        totals.service.lines[0].unit === 'buổi' &&
+        totals.service.lines[0].completedQuantity === 3,
+      JSON.stringify(totals.service),
     );
 
     // ── 3. Chấm mức hoàn thành ───────────────────────────────────────────

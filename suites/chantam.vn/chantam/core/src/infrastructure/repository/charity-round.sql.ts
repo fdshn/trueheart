@@ -5,11 +5,14 @@ import {
 } from '@chantam.vn/chantam.core-lib/models';
 import { EntityManager } from 'typeorm';
 
+export const confirmedDeliveryValueSql = (deliveryAlias: string): string => `
+  COALESCE(${deliveryAlias}.confirmed_value_adjusted,
+    (SELECT COALESCE(SUM(item.confirmed_value), 0)
+       FROM campaign_delivery_items item
+      WHERE item.delivery_id = ${deliveryAlias}.global_id))`;
+
 export const RoundConfirmedValueSql = `
-  (SELECT COALESCE(SUM(COALESCE(delivery.confirmed_value_adjusted,
-                (SELECT COALESCE(SUM(item.confirmed_value), 0)
-                   FROM campaign_delivery_items item
-                  WHERE item.delivery_id = delivery.global_id))), 0)
+  (SELECT COALESCE(SUM(${confirmedDeliveryValueSql('delivery')}), 0)
      FROM campaign_deliveries delivery
     WHERE delivery.round_id = round.global_id AND delivery.status = 'COMPLETED')`;
 

@@ -3,6 +3,7 @@ import {
   ICharityFinancialReport,
   ICharityFinancialReportInput,
   ICharityHomeCard,
+  ICharityIntakeTotals,
   ICharityPromotion,
   ICharityPublicSupporters,
   ICharitySummary,
@@ -21,6 +22,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
 import { recordCharityRevisions } from './charity-revision.writer';
+import { confirmedDeliveryValueSql } from './charity-round.sql';
 import { updateReturning } from './update-returning';
 
 interface ISummaryRow {
@@ -195,6 +197,88 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
     return {
       registered: Number(row?.registered ?? 0),
       checkedIn: Number(row?.checked_in ?? 0),
+    };
+  }
+
+  public async intakeTotals(campaignId: string): Promise<ICharityIntakeTotals> {
+    const [material, money, service] = await Promise.all([
+      this.manager.query<
+        { unit: string; received_quantity: string | number }[]
+      >(
+        `SELECT need.unit, COALESCE(SUM(need.received_quantity), 0) AS received_quantity
+         FROM campaign_need_items need
+         WHERE need.campaign_id = $1
+         GROUP BY need.unit
+         ORDER BY need.unit`,
+        [campaignId],
+      ),
+      this.manager.query<
+        {
+          confirmed_amount: string | number;
+          external_amount: string | number;
+          reported_income: string | number;
+          confirmed_value: string | number;
+        }[]
+      >(
+        `SELECT
+           (SELECT COALESCE(SUM(need.confirmed_amount), 0)
+              FROM campaign_funding_needs need WHERE need.campaign_id = $1) AS confirmed_amount,
+           (SELECT COALESCE(SUM(need.external_amount), 0)
+              FROM campaign_funding_needs need WHERE need.campaign_id = $1) AS external_amount,
+           (SELECT COALESCE(SUM(report.total_income), 0)
+              FROM campaign_financial_reports report WHERE report.campaign_id = $1) AS reported_income,
+           COALESCE(SUM(${confirmedDeliveryValueSql('delivery')}), 0) AS confirmed_value
+         FROM campaign_deliveries delivery
+         WHERE delivery.campaign_id = $1 AND delivery.status = 'COMPLETED'`,
+        [campaignId],
+      ),
+      this.manager.query<
+        {
+          support_type: ICharityIntakeTotals['service']['lines'][number]['supportType'];
+          unit: string;
+          completed_quantity: string | number;
+        }[]
+      >(
+        `SELECT grouped.support_type, grouped.unit, SUM(grouped.completed_quantity) AS completed_quantity
+         FROM (
+           SELECT need.global_id, need.support_type, need.unit,
+                  COALESCE(SUM(offer.completed_quantity) FILTER (WHERE offer.status = 'COMPLETED'), 0)
+                    + need.external_quantity AS completed_quantity
+           FROM campaign_other_support_needs need
+           LEFT JOIN campaign_other_support_offers offer ON offer.need_id = need.global_id
+           WHERE need.campaign_id = $1
+           GROUP BY need.global_id, need.support_type, need.unit, need.external_quantity
+         ) grouped
+         WHERE grouped.completed_quantity > 0
+         GROUP BY grouped.support_type, grouped.unit
+         ORDER BY grouped.support_type, grouped.unit`,
+        [campaignId],
+      ),
+    ]);
+    const values = money[0];
+    const confirmedAmount = Number(values?.confirmed_amount ?? 0);
+    const externalAmount = Number(values?.external_amount ?? 0);
+    return {
+      material: {
+        lines: material.map((row) => ({
+          unit: row.unit,
+          receivedQuantity: Number(row.received_quantity),
+        })),
+        confirmedValue: Number(values?.confirmed_value ?? 0),
+      },
+      money: {
+        confirmedAmount,
+        externalAmount,
+        totalAmount: confirmedAmount + externalAmount,
+        reportedIncome: Number(values?.reported_income ?? 0),
+      },
+      service: {
+        lines: service.map((row) => ({
+          supportType: row.support_type,
+          unit: row.unit,
+          completedQuantity: Number(row.completed_quantity),
+        })),
+      },
     };
   }
 
