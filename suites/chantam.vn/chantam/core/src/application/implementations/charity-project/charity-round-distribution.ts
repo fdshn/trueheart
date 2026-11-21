@@ -7,6 +7,7 @@ import {
   charityDistributionFieldGaps,
   charityDistributionMismatch,
   MaxCharityRoundEvidenceUrls,
+  normalizeContributionTypes,
   stripInapplicableDistributionFields,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
@@ -26,7 +27,7 @@ export function prepareCharityRoundDistribution(
   ) as ICharityRoundInput['privateDetails'];
   const distribution = stripInapplicableDistributionFields({
     distributionMethod: input.distributionMethod,
-    contributionTypes: input.contributionTypes,
+    contributionTypes: normalizeContributionTypes(input.contributionTypes),
     locationLabel: trimmed(input.locationLabel),
     address: trimmed(input.address),
     lat: input.lat,

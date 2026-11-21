@@ -9,6 +9,7 @@ import {
 } from '@/domain/ports/repository';
 import {
   CharityCompletionBlocker,
+  CharityDistributionMethod,
   CharityRoundReadiness,
   CharityRoundWarningCode,
   CharitySupportOfferDecision,
@@ -172,7 +173,13 @@ export const IManageCharityRoundsUseCase = Symbol(
 
 export interface ISaveCharityRoundCommand extends ICharityProjectCommand {
   readonly roundId: string | null;
-  readonly round: ICharityRoundInput;
+  /**
+   * `distributionMethod` bỏ trống (undefined) khi PATCH = giữ nguyên mọi trường hình thức trao
+   * đã lưu (client cũ); `null` = đợt kiểu cũ, chỉ hợp lệ khi đợt chưa có hình thức.
+   */
+  readonly round: Omit<ICharityRoundInput, 'distributionMethod'> & {
+    readonly distributionMethod?: CharityDistributionMethod | null;
+  };
   /** Bắt buộc khi đổi giờ / địa điểm đợt của dự án đã duyệt (báo người bị ảnh hưởng). */
   readonly reason: string | null;
 }

@@ -231,6 +231,11 @@ export interface ICharityOperationsRepository {
     round: ICharityRoundInput;
     reason: string | null;
     announce: boolean;
+    /**
+     * true = chỉ ghi các trường kiểu cũ (tên, giờ, địa điểm); giữ nguyên hình thức trao, bằng chứng,
+     * chi tiết riêng và `needs_review` đã lưu.
+     */
+    keepDistribution?: boolean;
   }): Promise<ICharityRound | null>;
   /** PLANNED → DONE / CANCELLED (có lý do) — xếp `ROUND_CHANGED` khi huỷ. */
   setRoundStatus(params: {

@@ -1490,7 +1490,7 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     code: ErrorCodes.CHARITY_DISTRIBUTION_METHOD_MISMATCH,
     httpStatus: HttpStatus.BAD_REQUEST,
     message: (reason: string) => `Hình thức trao không phù hợp: ${reason}`,
-    sample: ['BANK_TRANSFER requires MONEY contribution type'],
+    sample: ['BANK_TRANSFER cần loại đóng góp MONEY'],
   },
 
   CHARITY_ROUND_EVIDENCE_REQUIRED: {
@@ -1504,7 +1504,7 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     code: ErrorCodes.CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH,
     httpStatus: HttpStatus.BAD_REQUEST,
     message: (expected: string) =>
-      `Tên chủ tài khoản không khớp tên bên thụ hưởng: ${expected}`,
+      `Tên chủ tài khoản không khớp tên đã đăng ký: ${expected}`,
     sample: ['Nguyễn Văn Đức'],
   },
 

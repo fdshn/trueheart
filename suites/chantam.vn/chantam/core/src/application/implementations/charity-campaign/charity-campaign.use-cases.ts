@@ -84,7 +84,10 @@ import {
   IUpdateCharityProgressUseCase,
 } from '@/application/contracts/charity-campaign';
 import { prepareCharityRoundDistribution } from '@/application/implementations/charity-project/charity-round-distribution';
-import { assertContributionTypeAccepted } from '@/domain/charity-contribution-type';
+import {
+  assertContributionTypeAccepted,
+  assertDistributionMethodAcceptedByCampaign,
+} from '@/domain/charity-contribution-type';
 import {
   CharityAlreadyRegisteredException,
   CharityApprovalAlreadyDecidedException,
@@ -420,15 +423,12 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
     const fundingNeeds = command.fundingNeeds ?? [];
     const supportNeeds = command.otherSupportNeeds ?? [];
     const fieldErrors: string[] = [];
-    for (const [index, need] of fundingNeeds.entries()) {
-      if (
-        need.beneficiaryPartyId !== undefined ||
-        need.bankAccountId !== undefined
-      )
-        fieldErrors.push(
-          `fundingNeeds[${index}].bankAccountId: chưa có ở lượt tạo — thêm sau khi tạo`,
-        );
-    }
+    for (const [index, need] of fundingNeeds.entries())
+      for (const field of ['beneficiaryPartyId', 'bankAccountId'] as const)
+        if (need[field] !== undefined)
+          fieldErrors.push(
+            `fundingNeeds[${index}].${field}: chưa có ở lượt tạo — thêm sau khi tạo`,
+          );
     if (fieldErrors.length > 0)
       throw new ValidationFailedException(fieldErrors);
     const acceptedContributionTypes =
@@ -441,13 +441,19 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
         : normalizeContributionTypes(command.acceptedContributionTypes);
     if (fundingNeeds.length > 0)
       assertContributionTypeAccepted({ acceptedContributionTypes }, 'MONEY');
+    assertDistributionMethodAcceptedByCampaign(
+      { acceptedContributionTypes },
+      preparedDistribution?.distributionMethod ?? null,
+    );
     // Giữ tách biệt với kiểm field ở trên: Phase B sẽ thêm kiểm distribution TRƯỚC bước này.
     if (submitted) {
       const gaps = charitySubmitRequirementGaps(acceptedContributionTypes, {
         openMaterialNeeds: (command.needs ?? []).length,
         openFundingNeeds: fundingNeeds.length,
         openSupportNeeds: supportNeeds.length,
-        liveBankAccounts: 0,
+        // Lượt tạo chưa thể có tài khoản nhận. Admin tự duyệt lượt tạo của mình nên được
+        // miễn riêng điều kiện này (thêm tài khoản sau khi tạo); thành viên gửi duyệt vẫn đủ luật.
+        liveBankAccounts: command.asAdmin ? 1 : 0,
       });
       if (gaps.length > 0)
         throw new CharitySubmitRequirementsUnmetException(gaps.join('; '));
@@ -2037,7 +2043,15 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
 
     // Audit chỉ ghi trường THẬT SỰ đổi, cả trước lẫn sau.
     const keys = Object.keys(next) as (keyof typeof next)[];
-    const changed = keys.filter((key) => existing[key] !== next[key]);
+    // Mảng so theo giá trị: gửi lại đúng các loại cũ không phải là một thay đổi.
+    const changed = keys.filter((key) => {
+      const before: unknown = existing[key];
+      const after: unknown = next[key];
+      return Array.isArray(before) && Array.isArray(after)
+        ? before.length !== after.length ||
+            before.some((value, index) => value !== after[index])
+        : before !== after;
+    });
     await this.admin.appendAudit({
       actorUserId: command.actorUserId,
       action: 'UPDATE_CHARITY_CAMPAIGN_CONTENT',

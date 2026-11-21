@@ -959,11 +959,13 @@ export class AdminCharityCampaignController {
       'là một hàng không truy được.\n\n' +
       'Dùng CHUNG use case với đường thành viên, nên đúng bộ phép kiểm nội dung. Quyền ' +
       '`campaign.manage`.' +
+      '\n\n**MONEY:** Admin tự duyệt lượt tạo nên được miễn riêng điều kiện "MONEY: chưa có tài khoản nhận đang hiệu lực" — bật MONEY kèm ít nhất một `fundingNeeds` là tạo được, thêm tài khoản nhận sau. Mọi điều kiện gửi duyệt khác vẫn áp.' +
       '\n\n**Media:** gửi `media` (1–5 key từ `POST /charity-campaigns/media/upload`) và `coverKey`. Không còn nhận `bannerUrl`.',
   })
   @ApiErrorResponses(
     ...ApiTokenErrors,
     ForbiddenException,
+    CharityContributionTypeDisabledException,
     CharityDistributionFieldRequiredException,
     CharityDistributionMethodMismatchException,
     CharitySubmitRequirementsUnmetException,

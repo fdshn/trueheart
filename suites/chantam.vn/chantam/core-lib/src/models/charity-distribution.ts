@@ -114,7 +114,7 @@ export function charityDistributionMismatch(
 ): string | null {
   return input.distributionMethod === 'BANK_TRANSFER' &&
     !input.contributionTypes.includes('MONEY')
-    ? 'BANK_TRANSFER requires MONEY contribution type'
+    ? 'BANK_TRANSFER cần loại đóng góp MONEY'
     : null;
 }
 

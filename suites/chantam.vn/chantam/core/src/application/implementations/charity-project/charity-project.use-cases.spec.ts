@@ -1023,32 +1023,99 @@ describe('Hồ sơ tab A', () => {
     expect(deps.projects.createFundingNeed).not.toHaveBeenCalled();
   });
 
-  it('funding need: tắt MONEY chặn sửa → 409', async () => {
-    const deps = make({
-      campaign: campaign({ acceptedContributionTypes: [] }),
+  describe('funding need khi MONEY đã tắt (F5)', () => {
+    const storedNeed = {
+      fundingNeedId: 'f1',
+      title: 'Viện phí',
+      description: null,
+      beneficiaryPartyId: null,
+      receivingUnit: null,
+      bankAccountId: 'acc-closed',
+      targetAmount: 100_000,
+      deadline: new Date('2026-12-31T00:00:00Z'),
+      sortOrder: 0,
+      confirmedAmount: 10_000,
+      externalAmount: 0,
+      remainingAmount: 90_000,
+      status: 'OPEN',
+    };
+    const needInput = {
+      title: 'Viện phí',
+      description: null,
+      beneficiaryPartyId: null,
+      receivingUnit: null,
+      bankAccountId: 'acc-closed',
+      targetAmount: 100_000,
+      deadline: new Date('2026-12-31T00:00:00Z'),
+      sortOrder: 0,
+    };
+    const setup = (stored: Record<string, unknown> = storedNeed) => {
+      const deps = make({
+        campaign: campaign({ acceptedContributionTypes: ['MATERIAL'] }),
+      });
+      deps.projects.listFundingNeeds.mockResolvedValue([stored] as never);
+      const useCase = new SaveCharityFundingNeedUseCase(
+        deps.access,
+        deps.projects as never,
+      );
+      const save = (extra: Record<string, unknown>) =>
+        useCase.handle({
+          userId: Owner,
+          campaignId: CampaignId,
+          fundingNeedId: 'f1',
+          need: needInput,
+          ...extra,
+        } as never);
+      return { deps, save };
+    };
+
+    it('đóng nhu cầu + ghi số tiền đã nhận, không đổi gì khác → được', async () => {
+      const { deps, save } = setup();
+      await save({
+        status: 'CLOSED',
+        confirmedAmount: 80_000,
+        externalAmount: 5_000,
+      });
+      expect(deps.projects.updateFundingNeed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'CLOSED',
+          confirmedAmount: 80_000,
+          externalAmount: 5_000,
+        }),
+      );
     });
-    const useCase = new SaveCharityFundingNeedUseCase(
-      deps.access,
-      deps.projects as never,
-    );
-    await expect(
-      useCase.handle({
-        userId: Owner,
-        campaignId: CampaignId,
-        fundingNeedId: 'f1',
-        need: {
-          title: 'Viện phí',
-          description: null,
-          beneficiaryPartyId: null,
-          receivingUnit: null,
-          bankAccountId: null,
-          targetAmount: 100_000,
-          deadline: null,
-          sortOrder: 0,
-        },
-      }),
-    ).rejects.toThrow(CharityContributionTypeDisabledException);
-    expect(deps.projects.updateFundingNeed).not.toHaveBeenCalled();
+
+    it('chỉ ghi số tiền đã nhận (giữ trạng thái) → được', async () => {
+      const { deps, save } = setup();
+      await save({ confirmedAmount: 50_000 });
+      expect(deps.projects.updateFundingNeed).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'OPEN', confirmedAmount: 50_000 }),
+      );
+    });
+
+    it.each([
+      ['đổi tiêu đề', { need: { ...needInput, title: 'Tiền xe' } }],
+      ['đổi số mục tiêu', { need: { ...needInput, targetAmount: 200_000 } }],
+      [
+        'đổi hạn',
+        { need: { ...needInput, deadline: new Date('2027-01-31T00:00:00Z') } },
+      ],
+      ['đổi tài khoản nhận', { need: { ...needInput, bankAccountId: null } }],
+    ])('%s → 409', async (_label, extra) => {
+      const { deps, save } = setup();
+      await expect(save({ status: 'CLOSED', ...extra })).rejects.toThrow(
+        CharityContributionTypeDisabledException,
+      );
+      expect(deps.projects.updateFundingNeed).not.toHaveBeenCalled();
+    });
+
+    it('mở lại nhu cầu đã đóng → 409', async () => {
+      const { deps, save } = setup({ ...storedNeed, status: 'CLOSED' });
+      await expect(save({ status: 'OPEN' })).rejects.toThrow(
+        CharityContributionTypeDisabledException,
+      );
+      expect(deps.projects.updateFundingNeed).not.toHaveBeenCalled();
+    });
   });
 
   it('phases: chồng thời gian hoặc deliveryMethod sai bước → lỗi', async () => {

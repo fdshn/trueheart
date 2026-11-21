@@ -1276,6 +1276,75 @@ async function main(): Promise<void> {
       'xác thực tài khoản mới + đủ bằng chứng → DONE',
       (await markDone()).status === 'DONE',
     );
+
+    // ── 10. PATCH kiểu cũ (không gửi distributionMethod) giữ hình thức trao ──
+    console.log('\n10. PATCH kiểu cũ giữ hình thức trao');
+    const shippingStartsAt = new Date(Date.now() + 4 * 24 * 3_600_000);
+    const shippingRound = await saveRound.handle({
+      ...ownerCommand,
+      roundId: null,
+      reason: null,
+      round: {
+        ...transferRound(null),
+        title: 'Đợt gửi hàng',
+        distributionMethod: 'SHIPPING',
+        contributionTypes: ['MATERIAL'],
+        evidenceUrls: ['https://cdn.test/van-don.webp'],
+        privateDetails: {
+          ...transferRound(null).privateDetails,
+          recipientName: 'Người nhận kín',
+          recipientPhone: '0907654321',
+          recipientAddress: 'Địa chỉ nhận kín',
+          carrier: 'Nhà xe',
+          shippingFeePayer: 'ORGANIZER',
+          estimatedShippingFee: 25000,
+          trackingCode: 'VD-777',
+          transferContent: null,
+        },
+        startsAt: shippingStartsAt,
+        endsAt: new Date(shippingStartsAt.getTime() + 3_600_000),
+      },
+    });
+    const { distributionMethod: _omitted, ...legacyBody } = {
+      ...transferRound(null),
+      title: 'Đợt gửi hàng (đổi tên)',
+      startsAt: shippingStartsAt,
+      endsAt: new Date(shippingStartsAt.getTime() + 3_600_000),
+    };
+    void _omitted;
+    await saveRound.handle({
+      ...ownerCommand,
+      roundId: shippingRound.roundId,
+      reason: null,
+      round: legacyBody,
+    });
+    const keptRound = await operations.findRound(Other, shippingRound.roundId);
+    check(
+      'PATCH chỉ đổi tên, không gửi distributionMethod → giữ hình thức, chi tiết riêng, bằng chứng',
+      keptRound?.title === 'Đợt gửi hàng (đổi tên)' &&
+        keptRound.distributionMethod === 'SHIPPING' &&
+        JSON.stringify(keptRound.contributionTypes) === '["MATERIAL"]' &&
+        JSON.stringify(keptRound.evidenceUrls) ===
+          '["https://cdn.test/van-don.webp"]' &&
+        keptRound.privateDetails?.recipientPhone === '0907654321' &&
+        keptRound.privateDetails.trackingCode === 'VD-777' &&
+        keptRound.privateDetails.estimatedShippingFee === 25000,
+      JSON.stringify(keptRound),
+    );
+    check(
+      'PATCH gửi distributionMethod null cho đợt SHIPPING → từ chối',
+      (
+        await saveMessage(() =>
+          saveRound.handle({
+            ...ownerCommand,
+            roundId: shippingRound.roundId,
+            reason: null,
+            round: { ...legacyBody, distributionMethod: null },
+          }),
+        )
+      ).includes('distributionMethod'),
+    );
+
     const publicProject = await new GetCharityPublicProjectUseCase(
       campaigns,
       projects,

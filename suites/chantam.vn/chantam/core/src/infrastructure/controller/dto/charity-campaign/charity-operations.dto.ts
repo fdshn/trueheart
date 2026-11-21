@@ -1,5 +1,6 @@
 import {
   CharityCompletionBlockers,
+  CharityContributionTypes,
   CharityDistributionMethods,
   CharityRoundChecklistKeys,
   CharityRoundReadinessStatuses,
@@ -363,11 +364,16 @@ export class CharityRoundInputDto {
   @IsIn(CharityDistributionMethods)
   distributionMethod?: (typeof CharityDistributionMethods)[number];
 
-  @ApiPropertyOptional({ type: [String] })
+  @ApiPropertyOptional({
+    enum: CharityContributionTypes,
+    isArray: true,
+    maxItems: CharityContributionTypes.length,
+  })
   @IsOptional()
   @IsArray()
-  @IsIn(['MATERIAL', 'MONEY', 'SERVICE'], { each: true })
-  contributionTypes?: ('MATERIAL' | 'MONEY' | 'SERVICE')[];
+  @ArrayMaxSize(CharityContributionTypes.length)
+  @IsIn(CharityContributionTypes, { each: true })
+  contributionTypes?: (typeof CharityContributionTypes)[number][];
 
   @ApiPropertyOptional({ type: Number })
   @IsOptional()
@@ -422,24 +428,25 @@ export class CharityRoundInputDto {
   @IsString()
   @MaxLength(30)
   coordinatorPhone?: string;
-  @ApiPropertyOptional({ maxLength: 120 })
+  @ApiPropertyOptional({ maxLength: 200 })
   @IsOptional()
   @IsString()
-  @MaxLength(120)
+  @MaxLength(200)
   carrier?: string;
   @ApiPropertyOptional({ enum: CharityShippingFeePayers })
   @IsOptional()
   @IsIn(CharityShippingFeePayers)
   shippingFeePayer?: (typeof CharityShippingFeePayers)[number];
-  @ApiPropertyOptional({ minimum: 0 })
+  @ApiPropertyOptional({ minimum: 0, maximum: 10_000_000 })
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(10_000_000)
   estimatedShippingFee?: number;
-  @ApiPropertyOptional({ maxLength: 200 })
+  @ApiPropertyOptional({ maxLength: 100 })
   @IsOptional()
   @IsString()
-  @MaxLength(200)
+  @MaxLength(100)
   trackingCode?: string;
   @ApiPropertyOptional({
     format: 'uuid',
@@ -450,10 +457,10 @@ export class CharityRoundInputDto {
   @IsOptional()
   @IsUUID()
   beneficiaryBankAccountId?: string | null;
-  @ApiPropertyOptional({ maxLength: 500 })
+  @ApiPropertyOptional({ maxLength: 200 })
   @IsOptional()
   @IsString()
-  @MaxLength(500)
+  @MaxLength(200)
   transferContent?: string;
 
   @ApiProperty({ type: Date }) @Type(() => Date) @IsDate() startsAt: Date;

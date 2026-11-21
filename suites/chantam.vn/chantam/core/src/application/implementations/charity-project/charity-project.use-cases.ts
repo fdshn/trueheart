@@ -781,7 +781,8 @@ export class SaveCharityFundingNeedUseCase implements ISaveCharityFundingNeedUse
 
   public async handle(command: ISaveCharityFundingNeedCommand) {
     const { campaign } = await this.access.forEdit(command);
-    assertContributionTypeAccepted(campaign, 'MONEY');
+    if (!campaign.acceptedContributionTypes.includes('MONEY'))
+      return this.closeWhileMoneyDisabled(campaign, command);
     const need = command.need;
     const errors: string[] = [];
     if (need.beneficiaryPartyId) {
@@ -828,6 +829,56 @@ export class SaveCharityFundingNeedUseCase implements ISaveCharityFundingNeedUse
       confirmedAmount: command.confirmedAmount ?? current.confirmedAmount,
       externalAmount: command.externalAmount ?? current.externalAmount,
       status: command.status ?? current.status,
+    });
+    if (!updated) throw new CharityFundingNeedNotFoundException();
+    return updated;
+  }
+
+  /**
+   * MONEY đã tắt: không tạo mới, nhưng vẫn cho đóng nhu cầu cũ và ghi số tiền đã nhận — nếu
+   * không, dự án kẹt ở điều kiện hoàn tất. Mọi thay đổi khác, hoặc mở lại, vẫn là 409.
+   */
+  private async closeWhileMoneyDisabled(
+    campaign: ICharityCampaign,
+    command: ISaveCharityFundingNeedCommand,
+  ) {
+    if (!command.fundingNeedId)
+      assertContributionTypeAccepted(campaign, 'MONEY');
+    const current = (
+      await this.projects.listFundingNeeds(campaign.globalId)
+    ).find((row) => row.fundingNeedId === command.fundingNeedId);
+    if (!current) throw new CharityFundingNeedNotFoundException();
+    const need = command.need;
+    const unchanged =
+      need.title.trim() === current.title &&
+      trimmed(need.description) === current.description &&
+      need.beneficiaryPartyId === current.beneficiaryPartyId &&
+      trimmed(need.receivingUnit) === current.receivingUnit &&
+      need.bankAccountId === current.bankAccountId &&
+      need.targetAmount === current.targetAmount &&
+      (need.deadline?.getTime() ?? null) ===
+        (current.deadline?.getTime() ?? null) &&
+      need.sortOrder === current.sortOrder;
+    const status = command.status ?? current.status;
+    if (!unchanged || (status !== current.status && status !== 'CLOSED'))
+      assertContributionTypeAccepted(campaign, 'MONEY');
+    const updated = await this.projects.updateFundingNeed({
+      campaignId: campaign.globalId,
+      fundingNeedId: current.fundingNeedId,
+      actorId: command.userId,
+      need: {
+        title: current.title,
+        description: current.description,
+        beneficiaryPartyId: current.beneficiaryPartyId,
+        receivingUnit: current.receivingUnit,
+        bankAccountId: current.bankAccountId,
+        targetAmount: current.targetAmount,
+        deadline: current.deadline,
+        sortOrder: current.sortOrder,
+      },
+      confirmedAmount: command.confirmedAmount ?? current.confirmedAmount,
+      externalAmount: command.externalAmount ?? current.externalAmount,
+      status,
     });
     if (!updated) throw new CharityFundingNeedNotFoundException();
     return updated;

@@ -852,22 +852,76 @@ describe('CreateCharityCampaignUseCase · loại tiếp nhận và ba nhóm nhu 
     );
   });
 
-  it('Admin tạo bật MONEY → 409 vì chưa có tài khoản nhận', async () => {
+  const adminCreate = (
+    repository: ReturnType<typeof makeRepository>,
+    storage: ReturnType<typeof makeStorage>,
+    extra: Record<string, unknown>,
+  ) =>
+    new CreateCharityCampaignUseCase(
+      repository,
+      makeEntitlements(true),
+      makeAdmin(true),
+      storage,
+    ).handle({
+      ...writeInput(extra),
+      actorUserId: ActorId,
+      asAdmin: true,
+    } as never);
+
+  it('Admin tạo, bật MONEY, có fundingNeeds → tạo được (tài khoản nhận thêm sau)', async () => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    await adminCreate(repository, makeStorage(), {
+      acceptedContributionTypes: ['MONEY'],
+      fundingNeeds: [{ title: 'Viện phí', targetAmount: 100_000 }],
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ acceptedContributionTypes: ['MONEY'] }),
+    );
+  });
+
+  it('Admin tạo bật MONEY không có fundingNeeds → vẫn 409 (thiếu nhu cầu tiền)', async () => {
     const repository = makeRepository();
     const storage = makeStorage();
-    await expect(
-      new CreateCharityCampaignUseCase(
-        repository,
-        makeEntitlements(true),
-        makeAdmin(true),
-        storage,
-      ).handle({
-        ...writeInput({ acceptedContributionTypes: ['MONEY'] }),
-        actorUserId: ActorId,
-        asAdmin: true,
-      }),
-    ).rejects.toThrow(CharitySubmitRequirementsUnmetException);
+    const failure = adminCreate(repository, storage, {
+      acceptedContributionTypes: ['MONEY'],
+    }).catch((error: unknown) => error);
+    await expect(failure).resolves.toBeInstanceOf(
+      CharitySubmitRequirementsUnmetException,
+    );
+    const message = ((await failure) as Error).message;
+    expect(message).toContain('nhu cầu tiền');
+    expect(message).not.toContain('tài khoản');
     expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
+  });
+
+  it('thành viên tạo + gửi duyệt bật MONEY có fundingNeeds → vẫn 409 (chưa có tài khoản nhận)', async () => {
+    const repository = makeRepository();
+    await expect(
+      create(repository, {
+        acceptedContributionTypes: ['MONEY'],
+        fundingNeeds: [{ title: 'Viện phí', targetAmount: 100_000 }],
+      }),
+    ).rejects.toThrow('tài khoản nhận');
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('distribution BANK_TRANSFER khi dự án không nhận MONEY → method mismatch', async () => {
+    const repository = makeRepository();
+    await expect(
+      create(repository, {
+        submit: false,
+        acceptedContributionTypes: ['MATERIAL'],
+        distribution: {
+          method: 'BANK_TRANSFER',
+          contributionTypes: ['MONEY'],
+          scheduledStart: '2026-12-20T01:00:00Z',
+          scheduledEnd: '2026-12-20T09:00:00Z',
+          transferContent: 'Ung ho bep an',
+        },
+      }),
+    ).rejects.toThrow(CharityDistributionMethodMismatchException);
+    expect(repository.create).not.toHaveBeenCalled();
   });
 
   it('không gửi acceptedContributionTypes + có needs → MATERIAL', async () => {
@@ -917,7 +971,7 @@ describe('CreateCharityCampaignUseCase · loại tiếp nhận và ba nhóm nhu 
             },
           ],
         }),
-      ).rejects.toThrow(ValidationFailedException);
+      ).rejects.toThrow(`fundingNeeds[0].${field}:`);
       expect(repository.create).not.toHaveBeenCalled();
     },
   );
@@ -2620,6 +2674,40 @@ describe('UpdateAdminCharityCampaignUseCase · loại tiếp nhận', () => {
     expect(repository.updateContent).toHaveBeenCalledWith(
       expect.objectContaining({ acceptedContributionTypes: ['MONEY'] }),
     );
+  });
+
+  it('gửi lại cùng các loại (khác thứ tự) → audit không ghi là đổi; đổi thật thì ghi', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ acceptedContributionTypes: ['MATERIAL', 'MONEY'] }),
+    );
+    (repository as unknown as { updateContent: jest.Mock }).updateContent =
+      jest.fn(async (params) => campaign(params));
+    const appendAudit = jest.fn();
+    const useCase = new UpdateAdminCharityCampaignUseCase(repository, {
+      ...makeAdmin(true),
+      appendAudit,
+    } as never);
+    const changedKeys = (call: number) =>
+      Object.keys(
+        (
+          appendAudit.mock.calls[call] as [{ after: Record<string, unknown> }]
+        )[0].after,
+      );
+    await useCase.handle({
+      actorUserId: ActorId,
+      campaignId: CampaignId,
+      reason: 'Sửa',
+      acceptedContributionTypes: ['MONEY', 'MATERIAL'],
+    });
+    expect(changedKeys(0)).not.toContain('acceptedContributionTypes');
+    await useCase.handle({
+      actorUserId: ActorId,
+      campaignId: CampaignId,
+      reason: 'Sửa',
+      acceptedContributionTypes: ['MATERIAL'],
+    });
+    expect(changedKeys(1)).toEqual(['acceptedContributionTypes']);
   });
 });
 

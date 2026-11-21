@@ -587,6 +587,7 @@ export class CharityOperationsRepository implements ICharityOperationsRepository
     round: ICharityRoundInput;
     reason: string | null;
     announce: boolean;
+    keepDistribution?: boolean;
   }): Promise<ICharityRound | null> {
     const updated = await this.manager.transaction(async (manager) => {
       const [before] = await manager.query<
@@ -597,71 +598,26 @@ export class CharityOperationsRepository implements ICharityOperationsRepository
         [params.campaignId, params.roundId],
       );
       if (!before) return false;
-      await manager.query(
-        `UPDATE campaign_distribution_rounds
-            SET title = $3, distribution_method = $4, contribution_types = $5::text[],
-                evidence_urls = $6::jsonb, location_label = $7, address = $8,
-                location = CASE WHEN $9::double precision IS NOT NULL AND $10::double precision IS NOT NULL
-                  THEN ST_SetSRID(ST_MakePoint($10, $9), 4326)::geography END,
-                needs_review = false, service_type = $11, service_channel = $12,
-                starts_at = $13, ends_at = $14, status_reason = COALESCE($15, status_reason),
-                updated_by = $16, updated_at = now()
-          WHERE campaign_id = $1 AND global_id = $2`,
-        [
-          params.campaignId,
-          params.roundId,
-          params.round.title,
-          params.round.distributionMethod,
-          [...params.round.contributionTypes],
-          JSON.stringify(params.round.evidenceUrls),
-          params.round.locationLabel,
-          params.round.address,
-          params.round.lat,
-          params.round.lng,
-          params.round.serviceType,
-          params.round.serviceChannel,
-          params.round.startsAt,
-          params.round.endsAt,
-          params.reason,
-          params.actorId,
-        ],
-      );
-      await manager.query(
-        `INSERT INTO campaign_round_private_details
-           (round_id, campaign_id, beneficiary_bank_account_id, recipient_name, recipient_phone,
-            recipient_address, coordinator_name, coordinator_phone, carrier, shipping_fee_payer,
-            estimated_shipping_fee, tracking_code, transfer_content, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-         ON CONFLICT (round_id) DO UPDATE
-           SET beneficiary_bank_account_id = EXCLUDED.beneficiary_bank_account_id,
-               recipient_name = EXCLUDED.recipient_name,
-               recipient_phone = EXCLUDED.recipient_phone,
-               recipient_address = EXCLUDED.recipient_address,
-               coordinator_name = EXCLUDED.coordinator_name,
-               coordinator_phone = EXCLUDED.coordinator_phone,
-               carrier = EXCLUDED.carrier,
-               shipping_fee_payer = EXCLUDED.shipping_fee_payer,
-               estimated_shipping_fee = EXCLUDED.estimated_shipping_fee,
-               tracking_code = EXCLUDED.tracking_code,
-               transfer_content = EXCLUDED.transfer_content,
-               updated_by = EXCLUDED.updated_by, updated_at = now()`,
-        [
-          params.roundId,
-          params.campaignId,
-          params.round.privateDetails.beneficiaryBankAccountId,
-          params.round.privateDetails.recipientName,
-          params.round.privateDetails.recipientPhone,
-          params.round.privateDetails.recipientAddress,
-          params.round.privateDetails.coordinatorName,
-          params.round.privateDetails.coordinatorPhone,
-          params.round.privateDetails.carrier,
-          params.round.privateDetails.shippingFeePayer,
-          params.round.privateDetails.estimatedShippingFee,
-          params.round.privateDetails.trackingCode,
-          params.round.privateDetails.transferContent,
-          params.actorId,
-        ],
-      );
+      if (params.keepDistribution)
+        // Client cũ không gửi hình thức trao: chỉ ghi trường kiểu cũ, giữ nguyên phần còn lại.
+        await manager.query(
+          `UPDATE campaign_distribution_rounds
+              SET title = $3, location_label = $4, address = $5, starts_at = $6, ends_at = $7,
+                  status_reason = COALESCE($8, status_reason), updated_by = $9, updated_at = now()
+            WHERE campaign_id = $1 AND global_id = $2`,
+          [
+            params.campaignId,
+            params.roundId,
+            params.round.title,
+            params.round.locationLabel,
+            params.round.address,
+            params.round.startsAt,
+            params.round.endsAt,
+            params.reason,
+            params.actorId,
+          ],
+        );
+      else await this.replaceRoundDistribution(manager, params);
       if (params.announce)
         await this.enqueueRoundChanged(manager, {
           campaignId: params.campaignId,
@@ -678,6 +634,84 @@ export class CharityOperationsRepository implements ICharityOperationsRepository
       return true;
     });
     return updated ? this.findRound(params.campaignId, params.roundId) : null;
+  }
+
+  /** Ghi đè toàn bộ hình thức trao + chi tiết riêng của đợt (client gửi `distributionMethod`). */
+  private async replaceRoundDistribution(
+    manager: EntityManager,
+    params: {
+      campaignId: string;
+      roundId: string;
+      actorId: string;
+      round: ICharityRoundInput;
+      reason: string | null;
+    },
+  ): Promise<void> {
+    await manager.query(
+      `UPDATE campaign_distribution_rounds
+          SET title = $3, distribution_method = $4, contribution_types = $5::text[],
+              evidence_urls = $6::jsonb, location_label = $7, address = $8,
+              location = CASE WHEN $9::double precision IS NOT NULL AND $10::double precision IS NOT NULL
+                THEN ST_SetSRID(ST_MakePoint($10, $9), 4326)::geography END,
+              needs_review = false, service_type = $11, service_channel = $12,
+              starts_at = $13, ends_at = $14, status_reason = COALESCE($15, status_reason),
+              updated_by = $16, updated_at = now()
+        WHERE campaign_id = $1 AND global_id = $2`,
+      [
+        params.campaignId,
+        params.roundId,
+        params.round.title,
+        params.round.distributionMethod,
+        [...params.round.contributionTypes],
+        JSON.stringify(params.round.evidenceUrls),
+        params.round.locationLabel,
+        params.round.address,
+        params.round.lat,
+        params.round.lng,
+        params.round.serviceType,
+        params.round.serviceChannel,
+        params.round.startsAt,
+        params.round.endsAt,
+        params.reason,
+        params.actorId,
+      ],
+    );
+    await manager.query(
+      `INSERT INTO campaign_round_private_details
+         (round_id, campaign_id, beneficiary_bank_account_id, recipient_name, recipient_phone,
+          recipient_address, coordinator_name, coordinator_phone, carrier, shipping_fee_payer,
+          estimated_shipping_fee, tracking_code, transfer_content, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       ON CONFLICT (round_id) DO UPDATE
+         SET beneficiary_bank_account_id = EXCLUDED.beneficiary_bank_account_id,
+             recipient_name = EXCLUDED.recipient_name,
+             recipient_phone = EXCLUDED.recipient_phone,
+             recipient_address = EXCLUDED.recipient_address,
+             coordinator_name = EXCLUDED.coordinator_name,
+             coordinator_phone = EXCLUDED.coordinator_phone,
+             carrier = EXCLUDED.carrier,
+             shipping_fee_payer = EXCLUDED.shipping_fee_payer,
+             estimated_shipping_fee = EXCLUDED.estimated_shipping_fee,
+             tracking_code = EXCLUDED.tracking_code,
+             transfer_content = EXCLUDED.transfer_content,
+             updated_by = EXCLUDED.updated_by, updated_at = now()`,
+      [
+        params.roundId,
+        params.campaignId,
+        params.round.privateDetails.beneficiaryBankAccountId,
+        params.round.privateDetails.recipientName,
+        params.round.privateDetails.recipientPhone,
+        params.round.privateDetails.recipientAddress,
+        params.round.privateDetails.coordinatorName,
+        params.round.privateDetails.coordinatorPhone,
+        params.round.privateDetails.carrier,
+        params.round.privateDetails.shippingFeePayer,
+        params.round.privateDetails.estimatedShippingFee,
+        params.round.privateDetails.trackingCode,
+        params.round.privateDetails.transferContent,
+        params.actorId,
+      ],
+    );
   }
 
   public async setRoundStatus(params: {

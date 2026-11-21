@@ -909,3 +909,144 @@ describe('Đợt trao', () => {
     ).toEqual(['NOT_READY']);
   });
 });
+
+describe('Đợt trao — PATCH giữ hình thức trao, BANK_TRANSFER cần MONEY của dự án', () => {
+  const shippingStored = () =>
+    round({
+      distributionMethod: 'SHIPPING',
+      contributionTypes: ['MATERIAL'],
+      evidenceUrls: ['https://e/1'],
+      locationLabel: null,
+      needsReview: true,
+      privateDetails: {
+        ...round().privateDetails,
+        recipientName: 'Người nhận',
+        recipientPhone: '0901',
+        recipientAddress: 'Địa chỉ kín',
+        carrier: 'Nhà xe',
+        shippingFeePayer: 'ORGANIZER',
+        estimatedShippingFee: 10_000,
+        trackingCode: 'VD123',
+      },
+    });
+  const legacyBody = (startsAt: Date, endsAt: Date) => {
+    const body = round({
+      title: '  Đợt 1 mới  ',
+      locationLabel: null,
+      startsAt,
+      endsAt,
+    });
+    delete (body as Record<string, unknown>).distributionMethod;
+    return body;
+  };
+
+  it('PATCH không gửi distributionMethod → giữ nguyên chi tiết riêng, bằng chứng, needs_review', async () => {
+    const deps = make();
+    const stored = shippingStored();
+    deps.operations.findRound.mockResolvedValue(stored);
+    await new SaveCharityRoundUseCase(
+      deps.access,
+      deps.operations as never,
+      deps.projects as never,
+    ).handle({
+      ...cmd,
+      roundId: 'r1',
+      reason: null,
+      round: legacyBody(stored.startsAt, stored.endsAt) as never,
+    });
+    const [[params]] = deps.operations.updateRound.mock.calls as unknown as [
+      [{ keepDistribution: boolean; round: Record<string, unknown> }],
+    ];
+    expect(params.keepDistribution).toBe(true);
+    expect(params.round).toEqual(
+      expect.objectContaining({
+        title: 'Đợt 1 mới',
+        distributionMethod: 'SHIPPING',
+        evidenceUrls: ['https://e/1'],
+        needsReview: true,
+        privateDetails: expect.objectContaining({
+          recipientPhone: '0901',
+          trackingCode: 'VD123',
+        }),
+      }),
+    );
+  });
+
+  it('PATCH gửi distributionMethod null cho đợt SHIPPING → 400', async () => {
+    const deps = make();
+    const stored = shippingStored();
+    deps.operations.findRound.mockResolvedValue(stored);
+    const failure = new SaveCharityRoundUseCase(
+      deps.access,
+      deps.operations as never,
+      deps.projects as never,
+    )
+      .handle({
+        ...cmd,
+        roundId: 'r1',
+        reason: null,
+        round: round({
+          distributionMethod: null,
+          startsAt: stored.startsAt,
+          endsAt: stored.endsAt,
+        }) as never,
+      })
+      .catch((error: unknown) => error);
+    await expect(failure).resolves.toBeInstanceOf(ValidationFailedException);
+    await expect(failure).resolves.toMatchObject({
+      message: expect.stringContaining('distributionMethod'),
+    });
+    expect(deps.operations.updateRound).not.toHaveBeenCalled();
+  });
+
+  it('đợt BANK_TRANSFER khi dự án không nhận MONEY → CharityDistributionMethodMismatchException', async () => {
+    const deps = make(campaign({ acceptedContributionTypes: ['MATERIAL'] }));
+    await expect(
+      new SaveCharityRoundUseCase(
+        deps.access,
+        deps.operations as never,
+        deps.projects as never,
+      ).handle({
+        ...cmd,
+        roundId: null,
+        reason: null,
+        round: round({
+          distributionMethod: 'BANK_TRANSFER',
+          contributionTypes: ['MONEY'],
+          privateDetails: { ...round().privateDetails, transferContent: 'CT' },
+        }) as never,
+      }),
+    ).rejects.toThrow(CharityDistributionMethodMismatchException);
+    expect(deps.operations.createRound).not.toHaveBeenCalled();
+  });
+
+  it('contributionTypes của đợt được khử trùng và xếp theo thứ tự chuẩn', async () => {
+    const deps = make();
+    await new SaveCharityRoundUseCase(
+      deps.access,
+      deps.operations as never,
+      deps.projects as never,
+    ).handle({
+      ...cmd,
+      roundId: null,
+      reason: null,
+      round: round({
+        distributionMethod: 'DIRECT_RECIPIENT',
+        contributionTypes: ['SERVICE', 'MATERIAL', 'SERVICE'],
+        privateDetails: {
+          ...round().privateDetails,
+          recipientAddress: 'Địa chỉ kín',
+          coordinatorName: 'Điều phối',
+          coordinatorPhone: '0902',
+        },
+      }) as never,
+    });
+    expect(deps.operations.createRound).toHaveBeenCalledWith(
+      expect.objectContaining({
+        round: expect.objectContaining({
+          contributionTypes: ['MATERIAL', 'SERVICE'],
+        }),
+      }),
+    );
+  });
+});

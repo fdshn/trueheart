@@ -165,8 +165,13 @@ export class CharityCampaignDistributionDto {
   @ApiProperty({ enum: CharityDistributionMethods })
   @IsIn(CharityDistributionMethods)
   method: (typeof CharityDistributionMethods)[number];
-  @ApiProperty({ enum: CharityContributionTypes, isArray: true })
+  @ApiProperty({
+    enum: CharityContributionTypes,
+    isArray: true,
+    maxItems: CharityContributionTypes.length,
+  })
   @IsArray()
+  @ArrayMaxSize(CharityContributionTypes.length)
   @IsIn(CharityContributionTypes, { each: true })
   contributionTypes: (typeof CharityContributionTypes)[number][];
   @ApiPropertyOptional({ type: () => CharityDistributionLocationDto })
@@ -201,29 +206,30 @@ export class CharityCampaignDistributionDto {
   @IsString()
   @MaxLength(30)
   coordinatorPhone?: string;
-  @ApiPropertyOptional({ maxLength: 120 })
+  @ApiPropertyOptional({ maxLength: 200 })
   @IsOptional()
   @IsString()
-  @MaxLength(120)
+  @MaxLength(200)
   carrier?: string;
   @ApiPropertyOptional({ enum: CharityShippingFeePayers })
   @IsOptional()
   @IsIn(CharityShippingFeePayers)
   shippingFeePayer?: (typeof CharityShippingFeePayers)[number];
-  @ApiPropertyOptional({ minimum: 0 })
+  @ApiPropertyOptional({ minimum: 0, maximum: 10_000_000 })
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(10_000_000)
   estimatedShippingFee?: number;
+  @ApiPropertyOptional({ maxLength: 100 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  trackingCode?: string;
   @ApiPropertyOptional({ maxLength: 200 })
   @IsOptional()
   @IsString()
   @MaxLength(200)
-  trackingCode?: string;
-  @ApiPropertyOptional({ maxLength: 500 })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
   transferContent?: string;
   @ApiPropertyOptional({ enum: CharitySupportTypes })
   @IsOptional()
@@ -385,11 +391,11 @@ export class WriteCharityCampaignDto {
   @ApiPropertyOptional({
     enum: CharityContributionTypes,
     isArray: true,
-    maxItems: MaxNeedItemsPerCampaign,
+    maxItems: CharityContributionTypes.length,
   })
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(MaxNeedItemsPerCampaign)
+  @ArrayMaxSize(CharityContributionTypes.length)
   @IsIn(CharityContributionTypes, { each: true })
   acceptedContributionTypes?: (typeof CharityContributionTypes)[number][];
 
@@ -828,9 +834,14 @@ export class UpdateAdminCharityCampaignDto {
   @IsIn(RankOrder as readonly string[])
   minimumParticipantRank?: UserRanks | null;
 
-  @ApiPropertyOptional({ enum: CharityContributionTypes, isArray: true })
+  @ApiPropertyOptional({
+    enum: CharityContributionTypes,
+    isArray: true,
+    maxItems: CharityContributionTypes.length,
+  })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(CharityContributionTypes.length)
   @IsIn(CharityContributionTypes, { each: true })
   acceptedContributionTypes?: (typeof CharityContributionTypes)[number][];
 

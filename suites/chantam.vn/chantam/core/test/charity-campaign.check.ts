@@ -101,6 +101,7 @@ const LegacyMaterialId = 'c1000000-0000-4000-8000-0000000000a1';
 const LegacyMoneyServiceId = 'c1000000-0000-4000-8000-0000000000a2';
 const LegacyEmptyId = 'c1000000-0000-4000-8000-0000000000a3';
 const DefaultContributionTypesId = 'c1000000-0000-4000-8000-0000000000a4';
+const LegacyBankOnlyId = 'c1000000-0000-4000-8000-0000000000a5';
 const JoinerId = 'c1000000-0000-4000-8000-0000000000b1';
 const OtherJoinerId = 'c1000000-0000-4000-8000-0000000000b2';
 const OutsiderId = 'c1000000-0000-4000-8000-0000000000ff';
@@ -198,8 +199,21 @@ async function main(): Promise<void> {
      VALUES
        ($1, 'Legacy material', 'legacy-material', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour'),
        ($2, 'Legacy money service', 'legacy-money-service', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour'),
-       ($3, 'Legacy empty', 'legacy-empty', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour')`,
-    [LegacyMaterialId, LegacyMoneyServiceId, LegacyEmptyId],
+       ($3, 'Legacy empty', 'legacy-empty', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour'),
+       ($4, 'Legacy bank only', 'legacy-bank-only', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour')`,
+    [LegacyMaterialId, LegacyMoneyServiceId, LegacyEmptyId, LegacyBankOnlyId],
+  );
+  // Chỉ có tài khoản nhận đang hiệu lực (không có nhu cầu tiền) → vẫn phải giữ MONEY.
+  await legacyDataSource.query(
+    `INSERT INTO campaign_bank_accounts (campaign_id, bank_name, account_no, account_name)
+     VALUES ($1, 'VCB', '0123456789', 'NGUYEN VAN A')`,
+    [LegacyBankOnlyId],
+  );
+  // Tài khoản đã đóng không tính: chiến dịch rỗng vẫn giữ mảng rỗng.
+  await legacyDataSource.query(
+    `INSERT INTO campaign_bank_accounts (campaign_id, bank_name, account_no, account_name, valid_to, close_reason)
+     VALUES ($1, 'VCB', '0123456780', 'NGUYEN VAN B', now(), 'Đã đóng')`,
+    [LegacyEmptyId],
   );
   await legacyDataSource.query(
     `INSERT INTO campaign_need_items (campaign_id, item_name, unit, target_quantity)
@@ -237,7 +251,22 @@ async function main(): Promise<void> {
     >(
       `SELECT global_id, accepted_contribution_types FROM campaigns
        WHERE global_id = ANY($1::uuid[])`,
-      [[LegacyEmptyId, LegacyMaterialId, LegacyMoneyServiceId]],
+      [
+        [
+          LegacyEmptyId,
+          LegacyMaterialId,
+          LegacyMoneyServiceId,
+          LegacyBankOnlyId,
+        ],
+      ],
+    );
+    const bankOnlyTypes = legacyCampaigns.find(
+      (campaign) => campaign.global_id === LegacyBankOnlyId,
+    )?.accepted_contribution_types;
+    check(
+      'migration suy MONEY từ tài khoản nhận đang hiệu lực dù không có nhu cầu tiền',
+      JSON.stringify(bankOnlyTypes) === JSON.stringify(['MONEY']),
+      JSON.stringify(bankOnlyTypes),
     );
     const emptyTypes = legacyCampaigns.find(
       (campaign) => campaign.global_id === LegacyEmptyId,

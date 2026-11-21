@@ -693,7 +693,7 @@ export class CharityOperationsController {
       roundId,
       round: {
         title: input.title,
-        distributionMethod: input.distributionMethod ?? null,
+        distributionMethod: input.distributionMethod,
         contributionTypes: input.contributionTypes ?? [],
         evidenceUrls: input.evidenceUrls ?? [],
         locationLabel: input.locationLabel ?? null,

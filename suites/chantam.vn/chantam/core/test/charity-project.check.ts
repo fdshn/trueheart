@@ -18,6 +18,7 @@
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { GetCharityPublicStatsUseCase } from '../src/application/implementations/charity-project/charity-engagement.use-cases';
 import {
   AddCharityBeneficiaryBankAccountUseCase,
   CharityProjectAccess,
@@ -26,6 +27,7 @@ import {
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
+import { CharityEngagementRepository } from '../src/infrastructure/repository/charity-engagement.repository';
 import { CharityProjectRepository } from '../src/infrastructure/repository/charity-project.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 
@@ -628,6 +630,39 @@ async function main(): Promise<void> {
       again === 'ALREADY_REGISTERED' &&
         cancelled &&
         reRegister === 'REGISTERED',
+    );
+
+    console.log('\n5b. Chỉ số công khai theo MONEY');
+    const publicStats = new GetCharityPublicStatsUseCase(
+      campaigns,
+      projects,
+      new CharityEngagementRepository(dataSource.manager),
+    );
+    const statsWithMoney = await publicStats.handle({
+      idOrSlug: 'dang-chay',
+      userId: null,
+    });
+    await sql(
+      `UPDATE campaigns SET accepted_contribution_types = ARRAY['MATERIAL', 'SERVICE']::text[] WHERE global_id = $1`,
+      [Live],
+    );
+    const statsWithoutMoney = await publicStats.handle({
+      idOrSlug: 'dang-chay',
+      userId: null,
+    });
+    await sql(
+      `UPDATE campaigns SET accepted_contribution_types = ARRAY['MATERIAL', 'MONEY', 'SERVICE']::text[] WHERE global_id = $1`,
+      [Live],
+    );
+    check(
+      'public-stats: nhận MONEY thì có tổng tiền; tắt MONEY thì funding null',
+      statsWithMoney.needs.funding?.target === 5_000_000 &&
+        statsWithoutMoney.needs.funding === null &&
+        !JSON.stringify(statsWithoutMoney).includes('5000000'),
+      JSON.stringify({
+        withMoney: statsWithMoney.needs.funding,
+        withoutMoney: statsWithoutMoney.needs.funding,
+      }),
     );
 
     console.log('\n6. Công khai mục + form mở');

@@ -139,9 +139,14 @@ export class CharityProfileDto {
   @IsArray()
   @IsIn(CharityCallToActions, { each: true })
   callToActions?: (typeof CharityCallToActions)[number][];
-  @ApiPropertyOptional({ enum: CharityContributionTypes, isArray: true })
+  @ApiPropertyOptional({
+    enum: CharityContributionTypes,
+    isArray: true,
+    maxItems: CharityContributionTypes.length,
+  })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(CharityContributionTypes.length)
   @IsIn(CharityContributionTypes, { each: true })
   acceptedContributionTypes?: (typeof CharityContributionTypes)[number][];
 }
