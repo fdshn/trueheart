@@ -7,8 +7,11 @@ import {
   CharityCampaignNotFoundException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
+  CharityContributionTypeDisabledException,
   CharityCoordinatorNotAllowedException,
   CharityDeliveryNotFoundException,
+  CharityDistributionFieldRequiredException,
+  CharityDistributionMethodMismatchException,
   CharityLinesInvalidException,
   CharityMediaInvalidException,
   CharityMediaNotEditableException,
@@ -18,6 +21,7 @@ import {
   CharityParticipantRankTooLowException,
   CharityReviewNotPermittedException,
   CharitySelfContributionException,
+  CharitySubmitRequirementsUnmetException,
 } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
@@ -96,6 +100,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     participantCount: 0,
     media: [],
     campaignType: 'ORGANIZED_CAMPAIGN' as const,
+    acceptedContributionTypes: ['MATERIAL', 'MONEY', 'SERVICE'],
     beneficiaryRelation: null,
     allowOverTarget: false,
     minimumParticipants: 0,
@@ -615,6 +620,7 @@ describe('CreateCharityCampaignUseCase · hai loại hoạt động (F65b §2)',
     ).handle({
       ...writeInput({
         campaignType: 'ORGANIZED_CAMPAIGN',
+        acceptedContributionTypes: [],
         beneficiaryRelation: 'SELF',
       }),
       actorUserId: ActorId,
@@ -687,6 +693,322 @@ describe('CreateCharityCampaignUseCase · hai loại hoạt động (F65b §2)',
     ).handle({ ...writeInput(), actorUserId: ActorId, asAdmin: false });
 
     expect(repository.create.mock.calls[0][0].needs).toEqual([]);
+  });
+});
+
+describe('CreateCharityCampaignUseCase · loại tiếp nhận và ba nhóm nhu cầu', () => {
+  const create = (
+    repository: ReturnType<typeof makeRepository>,
+    extra: Record<string, unknown> = {},
+  ) =>
+    new CreateCharityCampaignUseCase(
+      repository,
+      makeEntitlements(true),
+      makeAdmin(true),
+      makeStorage(),
+    ).handle({
+      ...writeInput(extra),
+      actorUserId: ActorId,
+      asAdmin: false,
+    } as never);
+
+  it('tạo có distribution OTHER_LOCATION đầy đủ chuyển thành đợt trao đầu tiên', async () => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    await create(repository, {
+      submit: false,
+      distribution: {
+        method: 'OTHER_LOCATION',
+        contributionTypes: ['MATERIAL'],
+        location: {
+          label: 'Nhà văn hoá xã',
+          address: 'Thôn 1, xã An Bình',
+          lat: 10.7,
+          lng: 106.6,
+        },
+        scheduledStart: '2026-12-20T01:00:00Z',
+        scheduledEnd: '2026-12-20T09:00:00Z',
+        coordinatorName: 'Điều phối viên',
+        coordinatorPhone: '0901000000',
+      },
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        distribution: expect.objectContaining({
+          round: expect.objectContaining({
+            title: 'Đợt trao 1',
+            distributionMethod: 'OTHER_LOCATION',
+            locationLabel: 'Nhà văn hoá xã',
+            address: 'Thôn 1, xã An Bình',
+            evidenceUrls: [],
+            needsReview: false,
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('distribution SHIPPING thiếu recipientPhone trả 400 trước storage', async () => {
+    const repository = makeRepository();
+    const storage = makeStorage();
+    await expect(
+      new CreateCharityCampaignUseCase(
+        repository,
+        makeEntitlements(true),
+        makeAdmin(true),
+        storage,
+      ).handle({
+        ...writeInput({
+          submit: false,
+          distribution: {
+            method: 'SHIPPING',
+            contributionTypes: ['MATERIAL'],
+            location: { address: 'Địa chỉ kín' },
+            scheduledStart: '2026-12-20T01:00:00Z',
+            scheduledEnd: '2026-12-20T09:00:00Z',
+            recipientName: 'Người nhận',
+            carrier: 'Nhà xe',
+            shippingFeePayer: 'ORGANIZER',
+            estimatedShippingFee: 10000,
+          },
+        }),
+        actorUserId: ActorId,
+        asAdmin: false,
+      } as never),
+    ).rejects.toThrow(CharityDistributionFieldRequiredException);
+    expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
+  });
+
+  it('distribution BANK_TRANSFER không có MONEY trả mã method mismatch', async () => {
+    await expect(
+      create(makeRepository(), {
+        submit: false,
+        distribution: {
+          method: 'BANK_TRANSFER',
+          contributionTypes: ['MATERIAL'],
+          scheduledStart: '2026-12-20T01:00:00Z',
+          scheduledEnd: '2026-12-20T09:00:00Z',
+          transferContent: 'Ung ho bep an',
+        },
+      }),
+    ).rejects.toThrow(CharityDistributionMethodMismatchException);
+  });
+
+  it('distribution 400 thắng submit requirements 409 và không gọi storage', async () => {
+    const repository = makeRepository();
+    const storage = makeStorage();
+    await expect(
+      new CreateCharityCampaignUseCase(
+        repository,
+        makeEntitlements(true),
+        makeAdmin(true),
+        storage,
+      ).handle({
+        ...writeInput({
+          acceptedContributionTypes: ['SERVICE'],
+          distribution: {
+            method: 'BANK_TRANSFER',
+            contributionTypes: ['MATERIAL'],
+            scheduledStart: '2026-12-20T01:00:00Z',
+            scheduledEnd: '2026-12-20T09:00:00Z',
+            transferContent: 'Ung ho bep an',
+          },
+        }),
+        actorUserId: ActorId,
+        asAdmin: false,
+      } as never),
+    ).rejects.toThrow(CharityDistributionMethodMismatchException);
+    expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
+  });
+
+  it('tạo submit mặc định bật SERVICE không có otherSupportNeeds → 409, không gọi storage', async () => {
+    const repository = makeRepository();
+    const storage = makeStorage();
+    await expect(
+      new CreateCharityCampaignUseCase(
+        repository,
+        makeEntitlements(true),
+        makeAdmin(true),
+        storage,
+      ).handle({
+        ...writeInput({ acceptedContributionTypes: ['SERVICE'] }),
+        actorUserId: ActorId,
+        asAdmin: false,
+      }),
+    ).rejects.toThrow(CharitySubmitRequirementsUnmetException);
+    expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('tạo nháp submit:false bật SERVICE rỗng → tạo được', async () => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    await create(repository, {
+      submit: false,
+      acceptedContributionTypes: ['SERVICE'],
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ submitted: false }),
+    );
+  });
+
+  const adminCreate = (
+    repository: ReturnType<typeof makeRepository>,
+    storage: ReturnType<typeof makeStorage>,
+    extra: Record<string, unknown>,
+  ) =>
+    new CreateCharityCampaignUseCase(
+      repository,
+      makeEntitlements(true),
+      makeAdmin(true),
+      storage,
+    ).handle({
+      ...writeInput(extra),
+      actorUserId: ActorId,
+      asAdmin: true,
+    } as never);
+
+  it('Admin tạo, bật MONEY, có fundingNeeds → tạo được (tài khoản nhận thêm sau)', async () => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    await adminCreate(repository, makeStorage(), {
+      acceptedContributionTypes: ['MONEY'],
+      fundingNeeds: [{ title: 'Viện phí', targetAmount: 100_000 }],
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ acceptedContributionTypes: ['MONEY'] }),
+    );
+  });
+
+  it('Admin tạo bật MONEY không có fundingNeeds → vẫn 409 (thiếu nhu cầu tiền)', async () => {
+    const repository = makeRepository();
+    const storage = makeStorage();
+    const failure = adminCreate(repository, storage, {
+      acceptedContributionTypes: ['MONEY'],
+    }).catch((error: unknown) => error);
+    await expect(failure).resolves.toBeInstanceOf(
+      CharitySubmitRequirementsUnmetException,
+    );
+    const message = ((await failure) as Error).message;
+    expect(message).toContain('nhu cầu tiền');
+    expect(message).not.toContain('tài khoản');
+    expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
+  });
+
+  it('thành viên tạo + gửi duyệt bật MONEY có fundingNeeds → vẫn 409 (chưa có tài khoản nhận)', async () => {
+    const repository = makeRepository();
+    await expect(
+      create(repository, {
+        acceptedContributionTypes: ['MONEY'],
+        fundingNeeds: [{ title: 'Viện phí', targetAmount: 100_000 }],
+      }),
+    ).rejects.toThrow('tài khoản nhận');
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('distribution BANK_TRANSFER khi dự án không nhận MONEY → method mismatch', async () => {
+    const repository = makeRepository();
+    await expect(
+      create(repository, {
+        submit: false,
+        acceptedContributionTypes: ['MATERIAL'],
+        distribution: {
+          method: 'BANK_TRANSFER',
+          contributionTypes: ['MONEY'],
+          scheduledStart: '2026-12-20T01:00:00Z',
+          scheduledEnd: '2026-12-20T09:00:00Z',
+          transferContent: 'Ung ho bep an',
+        },
+      }),
+    ).rejects.toThrow(CharityDistributionMethodMismatchException);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('không gửi acceptedContributionTypes + có needs → MATERIAL', async () => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    await create(repository, {
+      needs: [{ itemName: 'Gạo', unit: 'kg', targetQuantity: 1 }],
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ acceptedContributionTypes: ['MATERIAL'] }),
+    );
+  });
+  it('gửi SERVICE, MATERIAL, SERVICE → MATERIAL, SERVICE', async () => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    await create(repository, {
+      submit: false,
+      acceptedContributionTypes: ['SERVICE', 'MATERIAL', 'SERVICE'],
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        acceptedContributionTypes: ['MATERIAL', 'SERVICE'],
+      }),
+    );
+  });
+  it('fundingNeeds khi chưa bật MONEY → CharityContributionTypeDisabledException', async () => {
+    const repository = makeRepository();
+    await expect(
+      create(repository, {
+        acceptedContributionTypes: ['MATERIAL'],
+        fundingNeeds: [{ title: 'Viện phí', targetAmount: 100_000 }],
+      }),
+    ).rejects.toThrow(CharityContributionTypeDisabledException);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+  it.each(['bankAccountId', 'beneficiaryPartyId'] as const)(
+    'fundingNeeds có %s → ValidationFailedException',
+    async (field) => {
+      const repository = makeRepository();
+      await expect(
+        create(repository, {
+          fundingNeeds: [
+            {
+              title: 'Viện phí',
+              targetAmount: 100_000,
+              [field]: '10000000-0000-4000-8000-000000000004',
+            },
+          ],
+        }),
+      ).rejects.toThrow(`fundingNeeds[0].${field}:`);
+      expect(repository.create).not.toHaveBeenCalled();
+    },
+  );
+  it('fundingNeeds và otherSupportNeeds được trim, sortOrder theo thứ tự', async () => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    await create(repository, {
+      submit: false,
+      fundingNeeds: [
+        {
+          title: '  Viện phí  ',
+          description: '  Khám  ',
+          targetAmount: 100_000,
+        },
+        { title: ' Thuốc ', targetAmount: 200_000 },
+      ],
+      otherSupportNeeds: [
+        {
+          supportType: 'TRANSPORT',
+          title: '  Chở đồ ',
+          unit: ' chuyến ',
+          targetQuantity: 2,
+        },
+      ],
+    });
+    const params = repository.create.mock.calls[0][0];
+    expect(params.fundingNeeds[0]).toMatchObject({
+      title: 'Viện phí',
+      description: 'Khám',
+      sortOrder: 0,
+    });
+    expect(params.fundingNeeds[1].sortOrder).toBe(1);
+    expect(params.supportNeeds[0]).toMatchObject({
+      title: 'Chở đồ',
+      unit: 'chuyến',
+      sortOrder: 0,
+    });
   });
 });
 
@@ -797,11 +1119,13 @@ describe('SubmitCharityContributionUseCase (F65b §4)', () => {
   }
 
   /** Hoạt động ĐANG nhận đề nghị: đã duyệt, còn bật, chưa tới hạn kết thúc. */
-  function activeCampaign() {
+  function activeCampaign(overrides: Partial<ICharityCampaign> = {}) {
     return campaign({
       approvalStatus: 'APPROVED' as const,
       isActive: true,
       endTime: new Date(Date.now() + 7 * 24 * Hour),
+      acceptedContributionTypes: ['MATERIAL'],
+      ...overrides,
     });
   }
 
@@ -815,6 +1139,22 @@ describe('SubmitCharityContributionUseCase (F65b §4)', () => {
     Object.assign(repository, overrides);
     return repository;
   }
+
+  it('đóng góp hiện vật vào chiến dịch không bật MATERIAL → 409, không gọi createContribution', async () => {
+    const repository = makeSubmitRepo({
+      findByGlobalId: jest
+        .fn()
+        .mockResolvedValue(activeCampaign({ acceptedContributionTypes: [] })),
+    });
+    await expect(
+      new SubmitCharityContributionUseCase(repository, makeNotifier()).handle({
+        campaignId: CampaignId,
+        contributorId: ActorId,
+        items: [{ needItemId: Need, offeredQuantity: 50 }],
+      }),
+    ).rejects.toBeInstanceOf(CharityContributionTypeDisabledException);
+    expect(repository.createContribution).not.toHaveBeenCalled();
+  });
 
   it('gửi được, và ghi đúng dòng người tặng chọn', async () => {
     const repository = makeSubmitRepo();
@@ -1023,6 +1363,7 @@ describe('UpdateCharityContributionUseCase (F65b §4)', () => {
 
   function makeUpdateRepo(overrides: Record<string, unknown> = {}) {
     const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(campaign());
     repository.findContributionByGlobalId.mockResolvedValue(contribution());
     repository.listNeeds.mockResolvedValue([
       {
@@ -1048,6 +1389,20 @@ describe('UpdateCharityContributionUseCase (F65b §4)', () => {
     Object.assign(repository, overrides);
     return repository;
   }
+
+  it('rút đề nghị vẫn được khi đã tắt MATERIAL', async () => {
+    const repository = makeUpdateRepo();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ acceptedContributionTypes: [] }),
+    );
+    await expect(
+      new UpdateCharityContributionUseCase(repository).handle({
+        contributionId: ContributionId,
+        contributorId: ActorId,
+        action: 'WITHDRAW',
+      }),
+    ).resolves.toMatchObject({ status: 'WITHDRAWN' });
+  });
 
   it('đề nghị của NGƯỜI KHÁC trả cùng lỗi với không tồn tại', async () => {
     const repository = makeUpdateRepo({
@@ -2299,6 +2654,60 @@ describe('UpdateAdminCharityCampaignUseCase', () => {
       useCase.handle({ ...base, description: 'ngắn' }),
     ).rejects.toThrow(ValidationFailedException);
     expect(updateContent).not.toHaveBeenCalled();
+  });
+});
+
+describe('UpdateAdminCharityCampaignUseCase · loại tiếp nhận', () => {
+  it('acceptedContributionTypes undefined giữ nguyên', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ acceptedContributionTypes: ['MONEY'] }),
+    );
+    (repository as unknown as { updateContent: jest.Mock }).updateContent =
+      jest.fn(async (params) => campaign(params));
+    const admin = { ...makeAdmin(true), appendAudit: jest.fn() } as never;
+    await new UpdateAdminCharityCampaignUseCase(repository, admin).handle({
+      actorUserId: ActorId,
+      campaignId: CampaignId,
+      reason: 'Sửa',
+    });
+    expect(repository.updateContent).toHaveBeenCalledWith(
+      expect.objectContaining({ acceptedContributionTypes: ['MONEY'] }),
+    );
+  });
+
+  it('gửi lại cùng các loại (khác thứ tự) → audit không ghi là đổi; đổi thật thì ghi', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ acceptedContributionTypes: ['MATERIAL', 'MONEY'] }),
+    );
+    (repository as unknown as { updateContent: jest.Mock }).updateContent =
+      jest.fn(async (params) => campaign(params));
+    const appendAudit = jest.fn();
+    const useCase = new UpdateAdminCharityCampaignUseCase(repository, {
+      ...makeAdmin(true),
+      appendAudit,
+    } as never);
+    const changedKeys = (call: number) =>
+      Object.keys(
+        (
+          appendAudit.mock.calls[call] as [{ after: Record<string, unknown> }]
+        )[0].after,
+      );
+    await useCase.handle({
+      actorUserId: ActorId,
+      campaignId: CampaignId,
+      reason: 'Sửa',
+      acceptedContributionTypes: ['MONEY', 'MATERIAL'],
+    });
+    expect(changedKeys(0)).not.toContain('acceptedContributionTypes');
+    await useCase.handle({
+      actorUserId: ActorId,
+      campaignId: CampaignId,
+      reason: 'Sửa',
+      acceptedContributionTypes: ['MATERIAL'],
+    });
+    expect(changedKeys(1)).toEqual(['acceptedContributionTypes']);
   });
 });
 

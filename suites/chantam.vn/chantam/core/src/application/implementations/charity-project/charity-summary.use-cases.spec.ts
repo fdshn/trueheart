@@ -31,7 +31,8 @@ function make(stage: 'EVENT' | 'SUMMARY' = 'SUMMARY', adminWrite = false) {
     isActive: true,
     endTime: new Date(Date.now() + 86_400_000),
     operationStage: stage,
-  } as ICharityCampaign;
+    acceptedContributionTypes: [],
+  } as unknown as ICharityCampaign;
   const campaigns = {
     findByGlobalId: jest.fn(async () => campaign),
     isCampaignManager: jest.fn(async () => false),
@@ -53,6 +54,16 @@ function make(stage: 'EVENT' | 'SUMMARY' = 'SUMMARY', adminWrite = false) {
     latestEvaluation: jest.fn(async (): Promise<unknown> => null),
     setPromotion: jest.fn(async () => ({ featuredOnHome: true })),
     countParticipation: jest.fn(async () => ({ registered: 12, checkedIn: 7 })),
+    intakeTotals: jest.fn(async () => ({
+      material: { lines: [], confirmedValue: 0 },
+      money: {
+        confirmedAmount: 0,
+        externalAmount: 0,
+        totalAmount: 0,
+        reportedIncome: 0,
+      },
+      service: { lines: [] },
+    })),
   };
   const projects = {
     listFundingNeeds: jest.fn(async () => [] as unknown[]),
@@ -270,6 +281,20 @@ describe('Tổng kết · số người tham gia so với tối thiểu (PR #54)
       deps.projects as never,
     ).handle({ userId: Owner, campaignId: CampaignId });
   };
+
+  it('board totals có 3 khối riêng, không có trường tổng chung', async () => {
+    const deps = make();
+    const board = await new GetCharitySummaryUseCase(
+      deps.access,
+      deps.summaries as never,
+      deps.projects as never,
+    ).handle({ userId: Owner, campaignId: CampaignId });
+    expect(Object.keys(board.totals).sort()).toEqual([
+      'material',
+      'money',
+      'service',
+    ]);
+  });
 
   it('trả số đăng ký, số đã check-in và tối thiểu; chưa đạt chỉ là cờ cảnh báo', async () => {
     expect((await board(10)).participation).toEqual({

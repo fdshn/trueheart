@@ -1,7 +1,9 @@
 import {
   IAddCharityBankAccountUseCase,
+  IAddCharityBeneficiaryBankAccountUseCase,
   ICancelCharityVolunteerUseCase,
   ICloseCharityBankAccountUseCase,
+  ICloseCharityBeneficiaryBankAccountUseCase,
   IConfirmCharityVolunteerUseCase,
   IGetCharityPublicProjectUseCase,
   IGetCharityWorkspaceUseCase,
@@ -19,12 +21,15 @@ import {
   ISubmitCharityProjectUseCase,
   IUpdateCharityItemNeedUseCase,
   IUpdateCharityProfileUseCase,
+  IVerifyCharityBeneficiaryBankAccountUseCase,
 } from '@/application/contracts/charity-project';
 import {
   CharityBankAccountLimitException,
   CharityBankAccountNotFoundException,
+  CharityBeneficiaryAccountNameMismatchException,
   CharityCampaignCreateNotAllowedException,
   CharityCampaignNotFoundException,
+  CharityContributionTypeDisabledException,
   CharityFundingNeedNotFoundException,
   CharityNeedItemInvalidException,
   CharityProjectForbiddenException,
@@ -33,6 +38,7 @@ import {
   CharitySectionEmptyException,
   CharityStageScheduleConflictException,
   CharityStageTransitionInvalidException,
+  CharitySubmitRequirementsUnmetException,
   CharityVolunteerClosedException,
   CharityVolunteerNeedNotFoundException,
   CharityVolunteerRegistrationNotFoundException,
@@ -72,6 +78,8 @@ import { CharityCampaignWrapperResponseDto } from '../../dto/charity-campaign/ch
 import {
   CharityBankAccountBodyDto,
   CharityBankAccountResponseDto,
+  CharityBeneficiaryBankAccountBodyDto,
+  CharityBeneficiaryBankAccountResponseDto,
   CharityCloseBodyDto,
   CharityCustomSectionsBodyDto,
   CharityCustomSectionsResponseDto,
@@ -87,6 +95,7 @@ import {
   CharityProfileBodyDto,
   CharityProfileResponseDto,
   CharityProjectAccountParamsDto,
+  CharityProjectBeneficiaryAccountParamsDto,
   CharityProjectFundingParamsDto,
   CharityProjectIdOrSlugParamsDto,
   CharityProjectNeedItemParamsDto,
@@ -137,6 +146,10 @@ export class CharityProjectController {
     private readonly addBankUseCase: IAddCharityBankAccountUseCase,
     @Inject(ICloseCharityBankAccountUseCase)
     private readonly closeBankUseCase: ICloseCharityBankAccountUseCase,
+    @Inject(IAddCharityBeneficiaryBankAccountUseCase)
+    private readonly addBeneficiaryBankUseCase: IAddCharityBeneficiaryBankAccountUseCase,
+    @Inject(ICloseCharityBeneficiaryBankAccountUseCase)
+    private readonly closeBeneficiaryBankUseCase: ICloseCharityBeneficiaryBankAccountUseCase,
     @Inject(IReplaceCharityTeamUseCase)
     private readonly teamUseCase: IReplaceCharityTeamUseCase,
     @Inject(IReplaceCharityPhasesUseCase)
@@ -218,6 +231,7 @@ export class CharityProjectController {
     ...ApiTokenErrors,
     ...ProjectErrors,
     CharityProjectNotDraftException,
+    CharitySubmitRequirementsUnmetException,
     CharityCampaignCreateNotAllowedException,
   )
   public async submit(
@@ -341,6 +355,7 @@ export class CharityProjectController {
     ...ProjectErrors,
     [CharityBankAccountLimitException, 2],
     CharityBankAccountNotFoundException,
+    CharityContributionTypeDisabledException,
   )
   public async addBankAccount(
     @CurrentUser() principal: IAuthPrincipal,
@@ -383,6 +398,79 @@ export class CharityProjectController {
   ) {
     return ok(
       await this.closeBankUseCase.handle({
+        userId: principal.userId,
+        campaignId: params.id,
+        accountId: params.accountId,
+        reason: body.close.reason,
+      }),
+    );
+  }
+
+  @Post(':id/beneficiary-bank-accounts')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Thêm (hoặc thay) tài khoản thụ hưởng',
+    description:
+      'Tài khoản NHẬN tiền của người thụ hưởng cho đợt trao BANK_TRANSFER — RIÊNG TƯ, chỉ hiện trong workspace, bản công khai không bao giờ đọc. `holderType = OWNER`: tên chủ tài khoản phải khớp họ tên chủ dự án; `BENEFICIARY`: `partyId` phải là bên thụ hưởng của dự án và tên phải khớp tên bên đó (so sau khi bỏ dấu, không phân biệt hoa thường, gộp khoảng trắng). Có phiên bản: thay = gửi `replacesAccountId`; tài khoản mới CHƯA xác thực. Chỉ khi dự án nhận MONEY.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(CharityBeneficiaryBankAccountResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ...ProjectErrors,
+    [
+      ValidationFailedException,
+      ['beneficiaryBankAccount.partyId: phải là bên thụ hưởng của dự án này'],
+    ],
+    CharityBeneficiaryAccountNameMismatchException,
+    CharityBankAccountNotFoundException,
+    CharityContributionTypeDisabledException,
+  )
+  public async addBeneficiaryBankAccount(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectParamsDto,
+    @Body() body: CharityBeneficiaryBankAccountBodyDto,
+  ) {
+    const input = body.beneficiaryBankAccount;
+    return ok({
+      beneficiaryBankAccount: await this.addBeneficiaryBankUseCase.handle({
+        userId: principal.userId,
+        campaignId: params.id,
+        account: {
+          holderType: input.holderType,
+          partyId: input.partyId ?? null,
+          bankName: input.bankName,
+          accountNo: input.accountNo,
+          accountName: input.accountName,
+        },
+        replacesAccountId: input.replacesAccountId ?? null,
+        replaceReason: input.replaceReason ?? null,
+      }),
+    });
+  }
+
+  @Post(':id/beneficiary-bank-accounts/:accountId/close')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Đóng tài khoản thụ hưởng',
+    description:
+      'Giữ lịch sử. Đợt BANK_TRANSFER còn gắn tài khoản đã đóng sẽ không hoàn tất được (409) cho tới khi gắn tài khoản khác.',
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ...ProjectErrors,
+    CharityBankAccountNotFoundException,
+  )
+  public async closeBeneficiaryBankAccount(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectBeneficiaryAccountParamsDto,
+    @Body() body: CharityCloseBodyDto,
+  ) {
+    return ok(
+      await this.closeBeneficiaryBankUseCase.handle({
         userId: principal.userId,
         campaignId: params.id,
         accountId: params.accountId,
@@ -510,12 +598,17 @@ export class CharityProjectController {
     description: 'App không giữ tiền — đây là hồ sơ minh bạch.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(CharityFundingNeedResponseDto) })
-  @ApiErrorResponses(...ApiTokenErrors, ...ProjectErrors, [
-    ValidationFailedException,
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ...ProjectErrors,
+    CharityContributionTypeDisabledException,
     [
-      'fundingNeed.bankAccountId: phải là tài khoản ĐANG hiệu lực của dự án này',
+      ValidationFailedException,
+      [
+        'fundingNeed.bankAccountId: phải là tài khoản ĐANG hiệu lực của dự án này',
+      ],
     ],
-  ])
+  )
   public async createFunding(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: CharityProjectParamsDto,
@@ -540,6 +633,7 @@ export class CharityProjectController {
   @ApiErrorResponses(
     ...ApiTokenErrors,
     ...ProjectErrors,
+    CharityContributionTypeDisabledException,
     CharityFundingNeedNotFoundException,
   )
   public async updateFunding(
@@ -825,7 +919,38 @@ export class AdminCharityProjectController {
   public constructor(
     @Inject(ISetCharityLimitsUseCase)
     private readonly limitsUseCase: ISetCharityLimitsUseCase,
+    @Inject(IVerifyCharityBeneficiaryBankAccountUseCase)
+    private readonly verifyBeneficiaryBankUseCase: IVerifyCharityBeneficiaryBankAccountUseCase,
   ) {}
+
+  @Post(':id/beneficiary-bank-accounts/:accountId/verify')
+  @HttpCode(HttpStatus.OK)
+  @RequiresPermission('campaign.manage')
+  @ApiOperation({
+    summary: 'Admin xác thực tài khoản thụ hưởng',
+    description:
+      'Ghi `verifiedAt`/`verifiedBy`. Chỉ tài khoản ĐANG hiệu lực của đúng dự án; xác thực lại là idempotent (giữ mốc và người xác thực ban đầu). Đợt BANK_TRANSFER chỉ DONE được khi tài khoản gắn với đợt đã xác thực.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(CharityBeneficiaryBankAccountResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    CharityBankAccountNotFoundException,
+  )
+  public async verifyBeneficiaryBankAccount(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectBeneficiaryAccountParamsDto,
+  ) {
+    return ok({
+      beneficiaryBankAccount: await this.verifyBeneficiaryBankUseCase.handle({
+        userId: principal.userId,
+        campaignId: params.id,
+        accountId: params.accountId,
+      }),
+    });
+  }
 
   @Patch(':id/limits')
   @RequiresPermission('campaign.manage')

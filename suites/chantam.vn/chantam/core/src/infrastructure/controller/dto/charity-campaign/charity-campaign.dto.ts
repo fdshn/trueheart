@@ -9,11 +9,16 @@ import {
   CharityBeneficiaryRelations,
   CharityCampaignTypes,
   CharityContributionStatuses,
+  CharityContributionTypes,
+  CharityDistributionMethods,
   CharityMediaTypes,
   CharityRejectionReasons,
   CharityReviewRatingMax,
   CharityReviewRatingMin,
   CharityReviewRoles,
+  CharityServiceChannels,
+  CharityShippingFeePayers,
+  CharitySupportTypes,
   MaxCharityBadgeNameLength,
   MaxCharityDescriptionLength,
   MaxCharityMediaPerCampaign,
@@ -44,6 +49,7 @@ import {
   IsInt,
   IsLatitude,
   IsLongitude,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -54,6 +60,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { NotNullWhenPresent } from '../not-null-when-present';
+import { CharitySupportNeedInputDto } from './charity-operations.dto';
+import { CharityFundingNeedDto } from './charity-project.dto';
 
 export class CharityBeneficiaryInputDto {
   @ApiProperty({ maxLength: 200, example: 'Nguyễn Thị B' })
@@ -126,6 +134,111 @@ export class CharityBeneficiaryResponseDto {
       '`true` khi lượt ghi vừa ẨN hoạt động vì đồng ý không còn `CONFIRMED`.',
   })
   hidden: boolean;
+}
+
+export class CharityDistributionLocationDto {
+  @ApiPropertyOptional({ maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  label?: string;
+  @ApiPropertyOptional({ maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
+  @ApiPropertyOptional({ type: Number })
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat?: number;
+  @ApiPropertyOptional({ type: Number })
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng?: number;
+}
+
+export class CharityCampaignDistributionDto {
+  @ApiProperty({ enum: CharityDistributionMethods })
+  @IsIn(CharityDistributionMethods)
+  method: (typeof CharityDistributionMethods)[number];
+  @ApiProperty({
+    enum: CharityContributionTypes,
+    isArray: true,
+    maxItems: CharityContributionTypes.length,
+  })
+  @IsArray()
+  @ArrayMaxSize(CharityContributionTypes.length)
+  @IsIn(CharityContributionTypes, { each: true })
+  contributionTypes: (typeof CharityContributionTypes)[number][];
+  @ApiPropertyOptional({ type: () => CharityDistributionLocationDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CharityDistributionLocationDto)
+  location?: CharityDistributionLocationDto;
+  @ApiProperty() @IsISO8601() scheduledStart: string;
+  @ApiProperty() @IsISO8601() scheduledEnd: string;
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  recipientName?: string;
+  @ApiPropertyOptional({ maxLength: 30 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  recipientPhone?: string;
+  @ApiPropertyOptional({ maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  recipientAddress?: string;
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  coordinatorName?: string;
+  @ApiPropertyOptional({ maxLength: 30 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  coordinatorPhone?: string;
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  carrier?: string;
+  @ApiPropertyOptional({ enum: CharityShippingFeePayers })
+  @IsOptional()
+  @IsIn(CharityShippingFeePayers)
+  shippingFeePayer?: (typeof CharityShippingFeePayers)[number];
+  @ApiPropertyOptional({ minimum: 0, maximum: 10_000_000 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10_000_000)
+  estimatedShippingFee?: number;
+  @ApiPropertyOptional({ maxLength: 100 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  trackingCode?: string;
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  transferContent?: string;
+  @ApiPropertyOptional({ enum: CharitySupportTypes })
+  @IsOptional()
+  @IsIn(CharitySupportTypes)
+  serviceType?: (typeof CharitySupportTypes)[number];
+  @ApiPropertyOptional({ enum: CharityServiceChannels })
+  @IsOptional()
+  @IsIn(CharityServiceChannels)
+  serviceChannel?: (typeof CharityServiceChannels)[number];
 }
 
 export class WriteCharityCampaignDto {
@@ -276,6 +389,39 @@ export class WriteCharityCampaignDto {
   needs?: CharityNeedItemInputDto[];
 
   @ApiPropertyOptional({
+    enum: CharityContributionTypes,
+    isArray: true,
+    maxItems: CharityContributionTypes.length,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(CharityContributionTypes.length)
+  @IsIn(CharityContributionTypes, { each: true })
+  acceptedContributionTypes?: (typeof CharityContributionTypes)[number][];
+
+  @ApiPropertyOptional({
+    type: () => [CharityFundingNeedDto],
+    maxItems: MaxNeedItemsPerCampaign,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MaxNeedItemsPerCampaign)
+  @ValidateNested({ each: true })
+  @Type(() => CharityFundingNeedDto)
+  fundingNeeds?: CharityFundingNeedDto[];
+
+  @ApiPropertyOptional({
+    type: () => [CharitySupportNeedInputDto],
+    maxItems: MaxNeedItemsPerCampaign,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MaxNeedItemsPerCampaign)
+  @ValidateNested({ each: true })
+  @Type(() => CharitySupportNeedInputDto)
+  otherSupportNeeds?: CharitySupportNeedInputDto[];
+
+  @ApiPropertyOptional({
     default: false,
     description:
       'Cho lượt chấp nhận đề nghị VƯỢT mục tiêu từng dòng (F65b §5). Mặc định `false`: vượt thì `409 CHARITY_NEED_EXCEEDED`. Đóng góp ngoài app thì không bao giờ bị chặn vượt, bất kể cờ này.',
@@ -307,6 +453,12 @@ export class WriteCharityCampaignDto {
   @IsOptional()
   @IsIn(RankOrder as readonly string[])
   minimumParticipantRank?: UserRanks | null;
+
+  @ApiPropertyOptional({ type: () => CharityCampaignDistributionDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CharityCampaignDistributionDto)
+  distribution?: CharityCampaignDistributionDto;
 
   @ApiPropertyOptional({
     default: true,
@@ -682,6 +834,17 @@ export class UpdateAdminCharityCampaignDto {
   @IsIn(RankOrder as readonly string[])
   minimumParticipantRank?: UserRanks | null;
 
+  @ApiPropertyOptional({
+    enum: CharityContributionTypes,
+    isArray: true,
+    maxItems: CharityContributionTypes.length,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(CharityContributionTypes.length)
+  @IsIn(CharityContributionTypes, { each: true })
+  acceptedContributionTypes?: (typeof CharityContributionTypes)[number][];
+
   @ApiProperty({
     minLength: 3,
     maxLength: 500,
@@ -761,6 +924,9 @@ export class CharityCampaignResponseDto {
 
   @ApiProperty({ enum: CharityCampaignTypes })
   campaignType: (typeof CharityCampaignTypes)[number];
+
+  @ApiProperty({ enum: CharityContributionTypes, isArray: true })
+  acceptedContributionTypes: (typeof CharityContributionTypes)[number][];
 
   @ApiProperty({
     enum: CharityBeneficiaryRelations,

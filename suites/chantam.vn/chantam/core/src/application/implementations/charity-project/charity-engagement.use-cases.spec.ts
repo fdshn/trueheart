@@ -12,6 +12,7 @@ import {
   CreateCharityShareLinkUseCase,
   FollowCharityProjectUseCase,
   GetCharityExportPdfUseCase,
+  GetCharityPublicStatsUseCase,
   ListCharityRevisionsUseCase,
   ProcessCharityAnnouncementsUseCase,
   UpdateCharityTaskUseCase,
@@ -50,6 +51,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     participantCount: 0,
     media: [],
     campaignType: 'ORGANIZED_CAMPAIGN',
+    acceptedContributionTypes: ['MATERIAL', 'MONEY', 'SERVICE'],
     beneficiaryRelation: null,
     allowOverTarget: false,
     minimumParticipants: 0,
@@ -99,7 +101,15 @@ function make(current: ICharityCampaign | null = campaign()) {
         isActive: false,
       },
     ]),
-    listFundingNeeds: jest.fn(async () => []),
+    listFundingNeeds: jest.fn(async (): Promise<unknown[]> => [
+      {
+        title: 'Viện phí',
+        targetAmount: 1_000_000,
+        confirmedAmount: 200_000,
+        externalAmount: 100_000,
+        remainingAmount: 700_000,
+      },
+    ]),
     listVolunteerNeeds: jest.fn(async () => []),
     listBankAccounts: jest.fn(async () => [
       {
@@ -155,6 +165,14 @@ function make(current: ICharityCampaign | null = campaign()) {
       ) => 0,
     ),
     listAudience: jest.fn(async (..._args: unknown[]) => [Viewer, Owner]),
+    internalStats: jest.fn(async () => ({
+      reactionCount: 0,
+      commentCount: 0,
+      followerCount: 0,
+      contributions: { acceptedContributors: 0 },
+      participants: { registered: 0 },
+      volunteers: { confirmed: 0 },
+    })),
   };
   const access = new CharityProjectAccess(campaigns as never, admin as never);
   return { campaigns, admin, projects, engagement, access };
@@ -373,6 +391,22 @@ describe('Bản in', () => {
     );
   });
 
+  it('dự án tắt MONEY: bản chụp không có nhu cầu tiền và tài khoản nhận', async () => {
+    const deps = make(campaign({ acceptedContributionTypes: ['MATERIAL'] }));
+    await new CreateCharityExportUseCase(
+      deps.access,
+      deps.projects as never,
+      deps.engagement as never,
+    ).handle({ userId: Owner, campaignId: CampaignId, sectionKey: 'PLAN' });
+    const snapshot = (
+      deps.engagement.createExport.mock.calls[0][0] as {
+        snapshot: { fundingNeeds: unknown[]; bankAccounts: unknown[] };
+      }
+    ).snapshot;
+    expect(snapshot.fundingNeeds).toEqual([]);
+    expect(snapshot.bankAccounts).toEqual([]);
+  });
+
   it('tải bản in không có → 404', async () => {
     const deps = make();
     await expect(
@@ -516,5 +550,34 @@ describe('Thông báo theo dự án', () => {
       .body;
     expect(body).toContain('tài khoản nhận tiền');
     expect(body).toContain('thời gian trao');
+  });
+});
+
+describe('Chỉ số công khai', () => {
+  const stats = (current: ICharityCampaign) => {
+    const deps = make(current);
+    return new GetCharityPublicStatsUseCase(
+      deps.campaigns as never,
+      deps.projects as never,
+      deps.engagement as never,
+    ).handle({ idOrSlug: 'mua-dong-am', userId: null });
+  };
+
+  it('dự án nhận MONEY: có tổng tiền', async () => {
+    const result = await stats(campaign());
+    expect(result.needs.funding).toEqual({
+      target: 1_000_000,
+      confirmed: 200_000,
+      external: 100_000,
+      remaining: 700_000,
+    });
+  });
+
+  it('dự án tắt MONEY: funding null, không lộ số tiền', async () => {
+    const result = await stats(
+      campaign({ acceptedContributionTypes: ['MATERIAL', 'SERVICE'] }),
+    );
+    expect(result.needs.funding).toBeNull();
+    expect(JSON.stringify(result)).not.toContain('1000000');
   });
 });

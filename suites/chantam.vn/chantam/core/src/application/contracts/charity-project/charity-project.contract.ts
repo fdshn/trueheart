@@ -10,6 +10,7 @@ import {
   ICharityFinancialReport,
   ICharityFundingNeed,
   ICharityFundingNeedInput,
+  ICharityIntakeTotals,
   ICharityItemNeed,
   ICharityNeedItemProfileInput,
   ICharityParty,
@@ -28,10 +29,13 @@ import {
 } from '@/domain/ports/repository';
 import {
   CharityCallToAction,
+  CharityContributionType,
   CharityOpenClosedStatus,
   CharityOperationStage,
   CharitySectionCompletionStatus,
   CharityVolunteerNeedStatus,
+  ICharityBeneficiaryBankAccount,
+  ICharityBeneficiaryBankAccountInput,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 
@@ -70,6 +74,7 @@ export interface ICharityWorkspace {
   maxBankAccountsEffective: number;
   parties: ICharityParty[];
   bankAccounts: ICharityBankAccount[];
+  beneficiaryBankAccounts: ICharityBeneficiaryBankAccount[];
   team: ICharityTeamMember[];
   phases: ICharityPhase[];
   itemNeeds: ICharityItemNeed[];
@@ -125,6 +130,8 @@ export interface ICharityPublicProject {
   summary: ICharitySummary | null;
   /** Báo cáo tài chính — chỉ có khi tổng kết đã công khai. */
   financialReports: ICharityFinancialReport[];
+  /** Ba tổng riêng — `null` tới khi tổng kết công khai; tiền `null` khi dự án không nhận tiền. */
+  totals: ICharityIntakeTotals | null;
   /** Nickname người cho phép hiện + con số tổng (§3.17). */
   supporters: ICharityPublicSupporters;
   counters: ICharityEngagementCounters;
@@ -163,6 +170,7 @@ export interface IUpdateCharityProfileCommand extends ICharityProjectCommand {
     appealAudience?: string | null;
     appealCircumstance?: string | null;
     callToActions?: CharityCallToAction[];
+    acceptedContributionTypes?: CharityContributionType[];
   };
 }
 export interface IUpdateCharityProfileUseCase extends IUseCase<
@@ -207,6 +215,42 @@ export interface ICloseCharityBankAccountUseCase extends IUseCase<
 > {}
 export const ICloseCharityBankAccountUseCase = Symbol(
   'ICloseCharityBankAccountUseCase',
+);
+
+export interface IAddCharityBeneficiaryBankAccountCommand extends ICharityProjectCommand {
+  readonly account: ICharityBeneficiaryBankAccountInput;
+  readonly replacesAccountId: string | null;
+  readonly replaceReason: string | null;
+}
+export interface IAddCharityBeneficiaryBankAccountUseCase extends IUseCase<
+  IAddCharityBeneficiaryBankAccountCommand,
+  ICharityBeneficiaryBankAccount
+> {}
+export const IAddCharityBeneficiaryBankAccountUseCase = Symbol(
+  'IAddCharityBeneficiaryBankAccountUseCase',
+);
+
+export interface ICloseCharityBeneficiaryBankAccountCommand extends ICharityProjectCommand {
+  readonly accountId: string;
+  readonly reason: string;
+}
+export interface ICloseCharityBeneficiaryBankAccountUseCase extends IUseCase<
+  ICloseCharityBeneficiaryBankAccountCommand,
+  { closed: true }
+> {}
+export const ICloseCharityBeneficiaryBankAccountUseCase = Symbol(
+  'ICloseCharityBeneficiaryBankAccountUseCase',
+);
+
+export interface IVerifyCharityBeneficiaryBankAccountCommand extends ICharityProjectCommand {
+  readonly accountId: string;
+}
+export interface IVerifyCharityBeneficiaryBankAccountUseCase extends IUseCase<
+  IVerifyCharityBeneficiaryBankAccountCommand,
+  ICharityBeneficiaryBankAccount
+> {}
+export const IVerifyCharityBeneficiaryBankAccountUseCase = Symbol(
+  'IVerifyCharityBeneficiaryBankAccountUseCase',
 );
 
 export interface IReplaceCharityTeamCommand extends ICharityProjectCommand {

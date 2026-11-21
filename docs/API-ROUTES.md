@@ -3,8 +3,8 @@
 > **File sinh tự động** bởi `npm run docs:routes` từ metadata của controller đã biên dịch.
 > Đừng sửa tay — sửa controller rồi chạy lại lệnh. CI chạy `docs:routes:check`.
 
-Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **438** route:
-59 công khai, 141 cần quyền Admin, 238 cần access token.
+Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **441** route:
+59 công khai, 142 cần quyền Admin, 240 cần access token.
 
 Mức truy cập: `Công khai` = không cần token; `Bearer` = cần access token (một số route còn
 kiểm chủ sở hữu hoặc quyền RBAC trong use case — xem `docs/API.md`); `perm:<mã>` = quyền Admin
@@ -108,6 +108,7 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `DELETE` | `/admin/charity-campaigns/:id` | perm:campaign.manage | Xoá một hoạt động từ thiện |
 | `PATCH` | `/admin/charity-campaigns/:id/active` | perm:campaign.manage | Bật hoặc tắt một hoạt động |
 | `PATCH` | `/admin/charity-campaigns/:id/approval` | perm:campaign.manage | Duyệt hoặc từ chối hồ sơ |
+| `POST` | `/admin/charity-campaigns/:id/beneficiary-bank-accounts/:accountId/verify` | perm:campaign.manage | Admin xác thực tài khoản thụ hưởng |
 | `PATCH` | `/admin/charity-campaigns/:id/limits` | perm:campaign.manage | Ghi đè giới hạn của một dự án |
 | `GET` | `/admin/charity-campaigns/:id/needs` | perm:campaign.read | Bảng nhu cầu vật phẩm cho CMS, mọi trạng thái duyệt |
 | `PATCH` | `/admin/charity-campaigns/:id/progress` | perm:campaign.manage | Admin cập nhật số phần quà đã trao |
@@ -424,6 +425,8 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `POST` | `/charity-campaigns/:id/bank-accounts/:accountId/close` | Bearer | Đóng tài khoản nhận |
 | `GET` | `/charity-campaigns/:id/beneficiary` | Bearer | Thông tin người thụ hưởng — RIÊNG TƯ (F65b §2) |
 | `PUT` | `/charity-campaigns/:id/beneficiary` | Bearer | Ghi thông tin người thụ hưởng (chỉ người tổ chức) |
+| `POST` | `/charity-campaigns/:id/beneficiary-bank-accounts` | Bearer | Thêm (hoặc thay) tài khoản thụ hưởng |
+| `POST` | `/charity-campaigns/:id/beneficiary-bank-accounts/:accountId/close` | Bearer | Đóng tài khoản thụ hưởng |
 | `POST` | `/charity-campaigns/:id/close` | Bearer | Đóng hoạt động (người tổ chức hoặc Admin) — F65b §8 |
 | `POST` | `/charity-campaigns/:id/comment-media/upload-url` | Bearer | Đường tải ảnh cho bình luận trong dự án |
 | `GET` | `/charity-campaigns/:id/comments` | Công khai | Bình luận gốc của dự án |

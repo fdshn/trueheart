@@ -1,6 +1,7 @@
 import {
   CharityBeneficiaryKinds,
   CharityCallToActions,
+  CharityContributionTypes,
   CharityCustomFieldTypes,
   CharityDeliveryMethods,
   CharityFieldVisibilities,
@@ -47,6 +48,7 @@ import {
 import { CharityEventStepViewDto } from './charity-event.dto';
 import {
   CharityFinancialReportViewDto,
+  CharityIntakeTotalsDto,
   CharityPublicSupportersDto,
   CharitySummaryViewDto,
 } from './charity-summary.dto';
@@ -74,6 +76,9 @@ export class CharityProjectIdOrSlugParamsDto {
   idOrSlug: string;
 }
 export class CharityProjectAccountParamsDto extends CharityProjectParamsDto {
+  @ApiProperty({ format: 'uuid' }) @IsUUID() accountId: string;
+}
+export class CharityProjectBeneficiaryAccountParamsDto extends CharityProjectParamsDto {
   @ApiProperty({ format: 'uuid' }) @IsUUID() accountId: string;
 }
 export class CharityProjectNeedItemParamsDto extends CharityProjectParamsDto {
@@ -134,6 +139,16 @@ export class CharityProfileDto {
   @IsArray()
   @IsIn(CharityCallToActions, { each: true })
   callToActions?: (typeof CharityCallToActions)[number][];
+  @ApiPropertyOptional({
+    enum: CharityContributionTypes,
+    isArray: true,
+    maxItems: CharityContributionTypes.length,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(CharityContributionTypes.length)
+  @IsIn(CharityContributionTypes, { each: true })
+  acceptedContributionTypes?: (typeof CharityContributionTypes)[number][];
 }
 export class CharityProfileBodyDto {
   @ApiProperty({ type: () => CharityProfileDto })
@@ -149,6 +164,8 @@ export class CharityProfileViewDto {
     string | null;
   @ApiProperty({ enum: CharityCallToActions, isArray: true })
   callToActions: string[];
+  @ApiProperty({ enum: CharityContributionTypes, isArray: true })
+  acceptedContributionTypes: string[];
   @ApiProperty({
     type: Number,
     nullable: true,
@@ -293,6 +310,58 @@ export class CharityBankAccountViewDto {
   @ApiProperty({ type: String, nullable: true }) closeReason: string | null;
 }
 
+export class CharityBeneficiaryBankAccountDto {
+  @ApiProperty({ enum: ['OWNER', 'BENEFICIARY'] })
+  @IsIn(['OWNER', 'BENEFICIARY'])
+  holderType: 'OWNER' | 'BENEFICIARY';
+  @ApiPropertyOptional({
+    format: 'uuid',
+    nullable: true,
+    description: 'Bắt buộc khi holderType = BENEFICIARY',
+  })
+  @IsOptional()
+  @IsUUID()
+  partyId?: string | null;
+  @ApiProperty({ maxLength: 200 }) @IsString() @Length(1, 200) bankName: string;
+  @ApiProperty({ example: '0123456789' })
+  @IsString()
+  @Matches(/^[0-9A-Za-z-]{4,40}$/)
+  accountNo: string;
+  @ApiProperty({ maxLength: 200 })
+  @IsString()
+  @Length(1, 200)
+  accountName: string;
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  replacesAccountId?: string;
+  @ApiPropertyOptional({ maxLength: 500 }) @Text(500) replaceReason?: string;
+}
+export class CharityBeneficiaryBankAccountBodyDto {
+  @ApiProperty({ type: () => CharityBeneficiaryBankAccountDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => CharityBeneficiaryBankAccountDto)
+  beneficiaryBankAccount: CharityBeneficiaryBankAccountDto;
+}
+export class CharityBeneficiaryBankAccountViewDto {
+  @ApiProperty({ format: 'uuid' }) accountId: string;
+  @ApiProperty({ enum: ['OWNER', 'BENEFICIARY'] }) holderType: string;
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' }) partyId:
+    string | null;
+  @ApiProperty() bankName: string;
+  @ApiProperty() accountNo: string;
+  @ApiProperty() accountName: string;
+  @ApiProperty({ type: String, format: 'date-time' }) validFrom: Date;
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  validTo: Date | null;
+  @ApiProperty({ type: String, nullable: true }) closeReason: string | null;
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  verifiedAt: Date | null;
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' }) verifiedBy:
+    string | null;
+}
+
 // ── Ban tổ chức ──────────────────────────────────────────────────────────
 
 export class CharityTeamMemberDto {
@@ -373,6 +442,7 @@ export class CharityPhaseDto {
   @ApiPropertyOptional({
     enum: CharityDeliveryMethods,
     description: 'Chỉ DISTRIBUTION',
+    deprecated: true,
   })
   @IsOptional()
   @IsIn(CharityDeliveryMethods)
@@ -805,6 +875,8 @@ export class CharityWorkspaceDto {
   parties: CharityPartyViewDto[];
   @ApiProperty({ type: () => [CharityBankAccountViewDto] })
   bankAccounts: CharityBankAccountViewDto[];
+  @ApiProperty({ type: () => [CharityBeneficiaryBankAccountViewDto] })
+  beneficiaryBankAccounts: CharityBeneficiaryBankAccountViewDto[];
   @ApiProperty({ type: () => [CharityTeamMemberViewDto] })
   team: CharityTeamMemberViewDto[];
   @ApiProperty({ type: () => [CharityPhaseViewDto] })
@@ -917,6 +989,13 @@ export class CharityPublicProjectDto {
     description: 'Chỉ có khi tổng kết đã công khai',
   })
   financialReports: CharityFinancialReportViewDto[];
+  @ApiProperty({
+    type: () => CharityIntakeTotalsDto,
+    nullable: true,
+    description:
+      'Ba tổng riêng; `null` tới khi tổng kết công khai; money `null` khi không nhận tiền',
+  })
+  totals: CharityIntakeTotalsDto | null;
   @ApiProperty({ type: () => CharityPublicSupportersDto })
   supporters: CharityPublicSupportersDto;
   @ApiProperty({ type: () => CharityCountersDto })
@@ -978,6 +1057,10 @@ export class CharityPartiesResponseDto {
 export class CharityBankAccountResponseDto {
   @ApiProperty({ type: () => CharityBankAccountViewDto })
   bankAccount: CharityBankAccountViewDto;
+}
+export class CharityBeneficiaryBankAccountResponseDto {
+  @ApiProperty({ type: () => CharityBeneficiaryBankAccountViewDto })
+  beneficiaryBankAccount: CharityBeneficiaryBankAccountViewDto;
 }
 
 export class CharityTeamResponseDto {

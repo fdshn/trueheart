@@ -1,6 +1,8 @@
 import {
+  AddCharityBeneficiaryBankAccountOutcome,
   CharityBeneficiaryKind,
   CharityCallToAction,
+  CharityContributionType,
   CharityCustomFieldType,
   CharityDeliveryMethod,
   CharityFieldVisibility,
@@ -14,6 +16,9 @@ import {
   CharityTeamRole,
   CharityVolunteerNeedStatus,
   CharityVolunteerRegistrationStatus,
+  ICharityBeneficiaryBankAccount,
+  ICharityBeneficiaryBankAccountInput,
+  ICharityIntakeCounts,
 } from '@chantam.vn/chantam.core-lib/models';
 
 /**
@@ -29,6 +34,7 @@ export interface ICharityProjectProfile {
   appealAudience: string | null;
   appealCircumstance: string | null;
   callToActions: CharityCallToAction[];
+  acceptedContributionTypes: CharityContributionType[];
   /** Ghi đè của Admin; `null` = theo cấu hình toàn hệ thống. */
   maxBankAccounts: number | null;
 }
@@ -257,6 +263,7 @@ export interface ICharityProjectRepository {
     actorId: string;
     approvalStatus: 'APPROVED' | 'PENDING_APPROVAL';
   }): Promise<SubmitCharityDraftOutcome>;
+  intakeCounts(campaignId: string): Promise<ICharityIntakeCounts>;
 
   /** Đổi giai đoạn có điều kiện giai đoạn hiện tại = `from`, ghi nhật ký cùng lúc. */
   moveStage(params: {
@@ -307,6 +314,29 @@ export interface ICharityProjectRepository {
     actorId: string;
     reason: string;
   }): Promise<boolean>;
+
+  listBeneficiaryBankAccounts(
+    campaignId: string,
+  ): Promise<ICharityBeneficiaryBankAccount[]>;
+  addBeneficiaryBankAccount(params: {
+    campaignId: string;
+    actorId: string;
+    account: ICharityBeneficiaryBankAccountInput;
+    replacesAccountId: string | null;
+    replaceReason: string | null;
+  }): Promise<AddCharityBeneficiaryBankAccountOutcome>;
+  closeBeneficiaryBankAccount(params: {
+    campaignId: string;
+    accountId: string;
+    actorId: string;
+    reason: string;
+  }): Promise<boolean>;
+  verifyBeneficiaryBankAccount(params: {
+    campaignId: string;
+    accountId: string;
+    actorId: string;
+  }): Promise<ICharityBeneficiaryBankAccount | null>;
+  findOwnerFullName(campaignId: string): Promise<string | null>;
 
   listTeam(campaignId: string): Promise<ICharityTeamMember[]>;
   replaceTeam(params: {

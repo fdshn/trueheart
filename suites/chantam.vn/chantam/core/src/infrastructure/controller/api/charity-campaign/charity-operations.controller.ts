@@ -17,10 +17,15 @@ import {
   IWithdrawCharitySupportOfferUseCase,
 } from '@/application/contracts/charity-project';
 import {
+  CharityBeneficiaryAccountNotVerifiedException,
   CharityCampaignNotFoundException,
+  CharityContributionTypeDisabledException,
+  CharityDistributionFieldRequiredException,
+  CharityDistributionMethodMismatchException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
   CharityProjectNotApprovedException,
+  CharityRoundEvidenceRequiredException,
   CharityRoundInvalidStateException,
   CharityRoundNotFoundException,
   CharityStageTransitionInvalidException,
@@ -278,6 +283,7 @@ export class CharityOperationsController {
   @ApiErrorResponses(
     ...ApiTokenErrors,
     CharityCampaignNotFoundException,
+    CharityContributionTypeDisabledException,
     CharitySupportNeedNotFoundException,
     CharitySupportNeedClosedException,
   )
@@ -463,10 +469,13 @@ export class CharityOperationsController {
       'Người tạo, coordinator, Admin. Mỗi đợt có timeline 10 bước riêng (`GET :idOrSlug/event-steps?roundId=`).',
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(CharityRoundResponseDto) })
-  @ApiErrorResponses(...ApiTokenErrors, ...ProjectErrors, [
-    ValidationFailedException,
-    ['round.endsAt: phải sau startsAt'],
-  ])
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ...ProjectErrors,
+    CharityDistributionFieldRequiredException,
+    CharityDistributionMethodMismatchException,
+    [ValidationFailedException, ['round.endsAt: phải sau startsAt']],
+  )
   public async createRound(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: CharityProjectParamsDto,
@@ -490,6 +499,8 @@ export class CharityOperationsController {
     ...ProjectErrors,
     CharityRoundNotFoundException,
     CharityRoundInvalidStateException,
+    CharityDistributionFieldRequiredException,
+    CharityDistributionMethodMismatchException,
     [
       ValidationFailedException,
       ['round.reason: bắt buộc khi đổi giờ / địa điểm đợt trao đã công khai'],
@@ -515,7 +526,7 @@ export class CharityOperationsController {
   @ApiOperation({
     summary: 'Ghi nhận xong / huỷ đợt trao',
     description:
-      '`DONE` hoặc `CANCELLED` (bắt buộc lý do, báo người của đợt). Gắn kết participant/giao nhận giữ nguyên để ban tổ chức chuyển sang đợt khác.',
+      '`DONE` hoặc `CANCELLED` (bắt buộc lý do, báo người của đợt). Gắn kết participant/giao nhận giữ nguyên để ban tổ chức chuyển sang đợt khác. `DONE` của đợt BANK_TRANSFER cần `privateDetails.beneficiaryBankAccountId` trỏ tới tài khoản thụ hưởng còn hiệu lực của dự án và đã được Admin xác thực.',
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(CharityRoundResponseDto) })
   @ApiErrorResponses(
@@ -523,6 +534,8 @@ export class CharityOperationsController {
     ...ProjectErrors,
     CharityRoundNotFoundException,
     CharityRoundInvalidStateException,
+    CharityRoundEvidenceRequiredException,
+    CharityBeneficiaryAccountNotVerifiedException,
   )
   public async roundStatus(
     @CurrentUser() principal: IAuthPrincipal,
@@ -680,8 +693,29 @@ export class CharityOperationsController {
       roundId,
       round: {
         title: input.title,
+        distributionMethod: input.distributionMethod,
+        contributionTypes: input.contributionTypes ?? [],
+        evidenceUrls: input.evidenceUrls ?? [],
         locationLabel: input.locationLabel ?? null,
         address: input.address ?? null,
+        lat: input.lat ?? null,
+        lng: input.lng ?? null,
+        needsReview: false,
+        serviceType: input.serviceType ?? null,
+        serviceChannel: input.serviceChannel ?? null,
+        privateDetails: {
+          beneficiaryBankAccountId: input.beneficiaryBankAccountId ?? null,
+          recipientName: input.recipientName ?? null,
+          recipientPhone: input.recipientPhone ?? null,
+          recipientAddress: input.recipientAddress ?? null,
+          coordinatorName: input.coordinatorName ?? null,
+          coordinatorPhone: input.coordinatorPhone ?? null,
+          carrier: input.carrier ?? null,
+          shippingFeePayer: input.shippingFeePayer ?? null,
+          estimatedShippingFee: input.estimatedShippingFee ?? null,
+          trackingCode: input.trackingCode ?? null,
+          transferContent: input.transferContent ?? null,
+        },
         startsAt: input.startsAt,
         endsAt: input.endsAt,
       },

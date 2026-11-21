@@ -229,6 +229,19 @@ export class CharityNeedTotalsDto {
   volunteers: CharityVolunteerTotalsDto;
 }
 
+class CharityPublicNeedTotalsDto {
+  @ApiProperty({ type: () => CharityItemTotalsDto })
+  items: CharityItemTotalsDto;
+  @ApiProperty({
+    type: () => CharityFundingTotalsDto,
+    nullable: true,
+    description: '`null` khi dự án không nhận đóng góp tiền (MONEY tắt)',
+  })
+  funding: CharityFundingTotalsDto | null;
+  @ApiProperty({ type: () => CharityVolunteerTotalsDto })
+  volunteers: CharityVolunteerTotalsDto;
+}
+
 export class CharityPublicStatsDto extends CharityCountersDto {
   @ApiProperty({ description: 'Người có đóng góp được chấp nhận' })
   supporterCount: number;
@@ -236,8 +249,8 @@ export class CharityPublicStatsDto extends CharityCountersDto {
     description: 'Đăng ký tham gia còn hiệu lực + người tuyển đã xác nhận',
   })
   participantCount: number;
-  @ApiProperty({ type: () => CharityNeedTotalsDto })
-  needs: CharityNeedTotalsDto;
+  @ApiProperty({ type: () => CharityPublicNeedTotalsDto })
+  needs: CharityPublicNeedTotalsDto;
 }
 export class CharityPublicStatsResponseDto {
   @ApiProperty({ type: () => CharityPublicStatsDto })

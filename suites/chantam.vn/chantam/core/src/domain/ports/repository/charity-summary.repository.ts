@@ -1,6 +1,7 @@
 import {
   CharityEvaluationSource,
   CharityFeaturedCta,
+  CharitySupportType,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ICharityUserBrief } from './charity-event.repository';
 
@@ -79,6 +80,26 @@ export interface ICharityHomeCard {
   priority: number;
 }
 
+export interface ICharityIntakeTotals {
+  material: {
+    lines: { unit: string; receivedQuantity: number }[];
+    confirmedValue: number;
+  };
+  money: {
+    confirmedAmount: number;
+    externalAmount: number;
+    totalAmount: number;
+    reportedIncome: number;
+  } | null;
+  service: {
+    lines: {
+      supportType: CharitySupportType;
+      unit: string;
+      completedQuantity: number;
+    }[];
+  };
+}
+
 export interface ICharitySummaryRepository {
   // ── Tổng kết ──────────────────────────────────────────────────────────
   getSummary(campaignId: string): Promise<ICharitySummary | null>;
@@ -90,6 +111,7 @@ export interface ICharitySummaryRepository {
   countParticipation(
     campaignId: string,
   ): Promise<{ readonly registered: number; readonly checkedIn: number }>;
+  intakeTotals(campaignId: string): Promise<ICharityIntakeTotals>;
   /** Đã công khai thì sửa ghi revision `SUMMARY` cùng transaction. */
   saveSummary(params: {
     campaignId: string;

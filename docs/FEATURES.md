@@ -308,6 +308,32 @@ Admin tạo trực tiếp. Member/Bạc/Vàng được tạo kêu gọi cho cá 
 **thành viên Kim Cương** được tạo và public trực tiếp cả kêu gọi cá nhân lẫn hoạt động có tổ
 chức. Người dùng đăng ký hoặc huỷ trước khi sự kiện bắt đầu; đánh giá sau khi kết thúc.
 
+> ✅ **21/11 — loại tiếp nhận (Phase A).** Mỗi hoạt động khai mình nhận những gì: **hiện vật**
+> (`MATERIAL`), **tiền** (`MONEY`), **dịch vụ** (`SERVICE`). Gửi duyệt thì mỗi loại đang bật
+> phải có nhu cầu đang mở; nhận tiền còn cần một tài khoản nhận còn hiệu lực (Admin tạo trực tiếp
+> được miễn riêng điều kiện tài khoản này). Tắt tiền thì trang công khai, số liệu công khai và bản
+> in không còn hiện số tiền hay tài khoản nhận; nhu cầu tiền cũ vẫn đóng sổ được. App **không
+> giữ tiền** — không có chức năng góp tiền trong app, ban tổ chức tự ghi số tiền đã nhận.
+
+> ✅ **21/11 — hình thức trao theo từng đợt (Phase B).** Mỗi đợt trao chọn một hình thức: trao
+> tận tay, gửi hàng, trao tại điểm khác, chuyển khoản, hoặc dịch vụ. Mỗi hình thức đòi đúng thông
+> tin của nó (người nhận, nhà xe, địa điểm, nội dung chuyển khoản…); thông tin người nhận là
+> **riêng tư**, chỉ ban tổ chức thấy. Ghi nhận đợt xong cần ảnh bằng chứng, gửi hàng cần thêm mã
+> vận đơn. Chuyển khoản chỉ dùng được khi hoạt động nhận tiền. Ứng dụng bản cũ sửa đợt mà không
+> biết hình thức trao thì hình thức đã lưu được giữ nguyên.
+
+> ✅ **21/11 — ba tổng riêng (Phase D).** Tổng kết tách hẳn ba con số: hiện vật (số lượng theo
+> đơn vị và giá trị quy đổi), tiền (đã xác nhận, nguồn ngoài), dịch vụ (số lượng đã hoàn thành).
+> Không có con số cộng chung — giá trị quy đổi hiện vật không bao giờ là tiền.
+
+> ✅ **21/11 — tài khoản thụ hưởng cho đợt trao chuyển khoản.** Đợt trao `BANK_TRANSFER` gắn
+> một **tài khoản thụ hưởng** (người nhận tiền: chủ dự án hoặc một bên thụ hưởng của dự án). Tên
+> chủ tài khoản phải khớp tên người đó (bỏ dấu, không phân biệt hoa thường). Tài khoản **riêng
+> tư** — chỉ ban tổ chức thấy trong workspace, trang công khai không bao giờ lộ. Admin xác thực
+> từng tài khoản; đợt chỉ ghi nhận xong khi tài khoản gắn với đợt còn hiệu lực và đã xác thực.
+> Thay tài khoản thì bản mới phải xác thực lại. Không bỏ được bên thụ hưởng còn tài khoản đang
+> hiệu lực — phải đóng tài khoản trước.
+
 ### F19 — Rao vặt giá rẻ
 Người bán tự khai **giá tham khảo** và **giá bán**. Hệ thống chỉ tính tỷ lệ chênh lệch;
 **không xác minh giá thật và không ép mức giảm tối thiểu**.

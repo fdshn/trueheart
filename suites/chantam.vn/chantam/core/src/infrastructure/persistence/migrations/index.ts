@@ -153,3 +153,6 @@ export * from './1803300000000-GiftRequestQuantity';
 export * from './1803400000000-CampaignHomePromotion';
 export * from './1803500000000-PostShippingFee';
 export * from './1803600000000-CampaignParticipationRequirements';
+export * from './1803700000000-CampaignAcceptedContributionTypes';
+export * from './1803800000000-CampaignRoundDistributionMethods';
+export * from './1803900000000-CampaignBeneficiaryBankAccounts';

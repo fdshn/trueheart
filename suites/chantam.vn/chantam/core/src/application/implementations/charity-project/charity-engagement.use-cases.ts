@@ -314,7 +314,13 @@ export class GetCharityPublicStatsUseCase implements IGetCharityPublicStatsUseCa
       supporterCount: stats.contributions.acceptedContributors,
       participantCount:
         stats.participants.registered + stats.volunteers.confirmed,
-      needs,
+      // Dự án không nhận tiền thì đường công khai không hiện số tiền nào.
+      needs: {
+        ...needs,
+        funding: campaign.acceptedContributionTypes.includes('MONEY')
+          ? needs.funding
+          : null,
+      },
     };
   }
 }
@@ -398,11 +404,13 @@ export class CreateCharityExportUseCase implements ICreateCharityExportUseCase {
           sectionKey,
         ),
       });
+    // Dự án đã tắt MONEY: bản in không mang nhu cầu tiền hay tài khoản nhận.
+    const acceptsMoney = campaign.acceptedContributionTypes.includes('MONEY');
     const [items, funding, volunteers, accounts] = await Promise.all([
       this.projects.listItemNeeds(id),
-      this.projects.listFundingNeeds(id),
+      acceptsMoney ? this.projects.listFundingNeeds(id) : Promise.resolve([]),
       this.projects.listVolunteerNeeds(id),
-      this.projects.listBankAccounts(id),
+      acceptsMoney ? this.projects.listBankAccounts(id) : Promise.resolve([]),
     ]);
     const snapshot = {
       title: campaign.title,

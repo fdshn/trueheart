@@ -18,6 +18,9 @@ có implementation**.
 | `@chantam.vn/chantam.core-lib` | `CoreService` |
 | `.../consts` | Enum và hằng nghiệp vụ: `ErrorCodes`/`ErrorOrigin`, trạng thái bài (`GiftPostStatuses`), `PostTypes`, `PostSelectionModes`, loại/trạng thái phòng chat, hạng, thông báo, bảng thành tích, presence, attribution… — mỗi chủ đề một file trong `src/consts/` |
 | `.../models` | Interface model (`IPost`, `IPostMedia`, `IGiftPost`…) và **hàm thuần** dùng chung cho cả service lẫn client: vòng đời bài (`post-lifecycle`), điểm danh, kiểm duyệt nội dung, phân bổ, deep link, Âm lịch… |
+| `.../models` — charity beneficiary accounts | `CharityBeneficiaryAccountHolderTypes`/`CharityBeneficiaryAccountHolderType`, model nhập/đọc tài khoản thụ hưởng, và hai hàm thuần `normalizeHolderName`/`holderNameMatches` để so tên chủ tài khoản nhận tiền của đợt chuyển khoản. |
+| `.../models` — charity intake | `CharityContributionTypes`/`CharityContributionType`, `ICharityIntakeCounts`, `charitySubmitRequirementGaps`, `deriveAcceptedContributionTypes`, và `normalizeContributionTypes` cho loại tiếp nhận và điều kiện gửi duyệt chiến dịch. |
+| `.../models` — charity distribution | `CharityDistributionMethods`/`CharityDistributionMethod`, `CharityServiceChannels`/`CharityServiceChannel`, `CharityShippingFeePayers`/`CharityShippingFeePayer`, `MaxCharityRoundEvidenceUrls`, input types, và các hàm thuần `charityDistributionFieldGaps`, `charityDistributionMismatch`, `charityRoundEvidenceGaps`, `stripInapplicableDistributionFields` cho luật hình thức trao theo đợt. |
 | `.../entities` | Interface entity + token DI (`IPostEntity`, `IPostMediaEntity`, `IGiftPostEntity`, `IChatRoomEntity`, `IUserEntity`…) |
 | `.../values` | Value object `GiftPostId`, `UserId` |
 | `.../dto` | Interface DTO theo từng resource, mỗi resource một thư mục trong `src/dto/` (post, gift-request, transaction, chat, check-in, leaderboard, presence, user-block, attribution…) |
@@ -51,6 +54,14 @@ theo cặp `(errorOrigin, errorCode)`.
 ```typescript
 import { ErrorCodes, ErrorOrigin } from '@chantam.vn/chantam.core-lib/consts';
 ```
+
+`ErrorCodes` gồm cả `CHARITY_CONTRIBUTION_TYPE_DISABLED` (`0x13_55`) và
+`CHARITY_SUBMIT_REQUIREMENTS_UNMET` (`0x13_56`) cho các luồng tiếp nhận và gửi duyệt chiến dịch,
+và `CHARITY_DISTRIBUTION_FIELD_REQUIRED` (`0x13_57`),
+`CHARITY_DISTRIBUTION_METHOD_MISMATCH` (`0x13_58`),
+`CHARITY_ROUND_EVIDENCE_REQUIRED` (`0x13_59`) cho luật hình thức trao theo đợt, cùng
+`CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH` (`0x13_5a`) và
+`CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED` (`0x13_5b`) cho xác thực tài khoản thụ hưởng.
 
 ## Vòng đời bài đăng
 

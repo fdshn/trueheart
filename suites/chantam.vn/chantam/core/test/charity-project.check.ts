@@ -10,15 +10,24 @@
  * - Tài khoản nhận: giới hạn đúng cả khi thêm song song; thay = đóng + tạo trong một lượt.
  * - Hiện vật tách số nhận trong app / ngoài app; tiền; nhân lực (điều kiện, suất cuối song song).
  * - Công khai mục: bản chụp; form mở; ràng buộc database.
+ * - Tài khoản thụ hưởng: thay chỉ dòng còn hiệu lực của đúng dự án; xác thực idempotent, không
+ *   chạm dòng đã đóng / dự án khác; OWNER so tên với `users.full_name` (NULL → lệch tên).
  *
  *   npm run test:charity-project
  */
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { GetCharityPublicStatsUseCase } from '../src/application/implementations/charity-project/charity-engagement.use-cases';
+import {
+  AddCharityBeneficiaryBankAccountUseCase,
+  CharityProjectAccess,
+  ReplaceCharityPartiesUseCase,
+} from '../src/application/implementations/charity-project/charity-project.use-cases';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
+import { CharityEngagementRepository } from '../src/infrastructure/repository/charity-engagement.repository';
 import { CharityProjectRepository } from '../src/infrastructure/repository/charity-project.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 
@@ -33,6 +42,7 @@ const Giver = id('03');
 const Other = id('04');
 const Racer1 = id('05');
 const Racer2 = id('06');
+const Verifier = id('07');
 const LegacyCampaign = id('10');
 const Draft = id('11');
 const Live = id('12');
@@ -81,6 +91,7 @@ async function main(): Promise<void> {
       [Other, 'cp_other'],
       [Racer1, 'cp_racer1'],
       [Racer2, 'cp_racer2'],
+      [Verifier, 'cp_verifier'],
     ])
       await sql(
         `INSERT INTO users (global_id, username, password_hash, rank, status)
@@ -424,6 +435,46 @@ async function main(): Promise<void> {
         ),
     );
 
+    console.log('\n4b. Đếm điều kiện gửi duyệt');
+    await sql(
+      `INSERT INTO campaign_need_items (global_id, campaign_id, item_name, unit, target_quantity)
+       VALUES ($1, $2, 'Nhu cầu đã tắt', 'cái', 1)`,
+      [id('29'), Draft],
+    );
+    await sql(
+      `UPDATE campaign_need_items SET is_active = false WHERE global_id = $1`,
+      [id('29')],
+    );
+    const inactiveCounts = await projects.intakeCounts(Draft);
+    check(
+      'nhu cầu hiện vật không active không tính khi gửi duyệt',
+      inactiveCounts.openMaterialNeeds === 0,
+      JSON.stringify(inactiveCounts),
+    );
+    await sql(
+      `UPDATE campaign_need_items
+       SET is_active = true, intake_status = 'CLOSED' WHERE global_id = $1`,
+      [id('29')],
+    );
+    const closedCounts = await projects.intakeCounts(Draft);
+    check(
+      'nhu cầu hiện vật CLOSED không tính khi gửi duyệt',
+      closedCounts.openMaterialNeeds === 0,
+      JSON.stringify(closedCounts),
+    );
+    await sql(
+      `INSERT INTO campaign_bank_accounts
+         (campaign_id, bank_name, account_no, account_name, created_by, valid_to, close_reason, closed_by)
+       VALUES ($1, 'VCB', '0001', 'Dự án kiểm', $2, now(), 'Kiểm thử tài khoản đã đóng', $2)`,
+      [Draft, Owner],
+    );
+    const closedBankCounts = await projects.intakeCounts(Draft);
+    check(
+      'tài khoản đã đóng không tính khi gửi duyệt',
+      closedBankCounts.liveBankAccounts === 0,
+      JSON.stringify(closedBankCounts),
+    );
+
     console.log('\n5. Ba nhóm nhu cầu');
     await sql(
       `INSERT INTO campaign_need_items (global_id, campaign_id, item_name, unit, target_quantity, accepted_quantity, received_quantity)
@@ -581,6 +632,39 @@ async function main(): Promise<void> {
         reRegister === 'REGISTERED',
     );
 
+    console.log('\n5b. Chỉ số công khai theo MONEY');
+    const publicStats = new GetCharityPublicStatsUseCase(
+      campaigns,
+      projects,
+      new CharityEngagementRepository(dataSource.manager),
+    );
+    const statsWithMoney = await publicStats.handle({
+      idOrSlug: 'dang-chay',
+      userId: null,
+    });
+    await sql(
+      `UPDATE campaigns SET accepted_contribution_types = ARRAY['MATERIAL', 'SERVICE']::text[] WHERE global_id = $1`,
+      [Live],
+    );
+    const statsWithoutMoney = await publicStats.handle({
+      idOrSlug: 'dang-chay',
+      userId: null,
+    });
+    await sql(
+      `UPDATE campaigns SET accepted_contribution_types = ARRAY['MATERIAL', 'MONEY', 'SERVICE']::text[] WHERE global_id = $1`,
+      [Live],
+    );
+    check(
+      'public-stats: nhận MONEY thì có tổng tiền; tắt MONEY thì funding null',
+      statsWithMoney.needs.funding?.target === 5_000_000 &&
+        statsWithoutMoney.needs.funding === null &&
+        !JSON.stringify(statsWithoutMoney).includes('5000000'),
+      JSON.stringify({
+        withMoney: statsWithMoney.needs.funding,
+        withoutMoney: statsWithoutMoney.needs.funding,
+      }),
+    );
+
     console.log('\n6. Công khai mục + form mở');
     await projects.replaceCustomSections({
       campaignId: Live,
@@ -631,7 +715,6 @@ async function main(): Promise<void> {
         ),
     );
 
-    console.log('\n7. Ràng buộc');
     const rejects = async (query: string, params: unknown[]) => {
       try {
         await sql(query, params);
@@ -640,6 +723,286 @@ async function main(): Promise<void> {
         return (error as { code?: string }).code ?? 'ERR';
       }
     };
+
+    console.log('\n7. Tài khoản thụ hưởng');
+    const firstBeneficiaryAccount = await projects.addBeneficiaryBankAccount({
+      campaignId: Live,
+      actorId: Owner,
+      account: {
+        holderType: 'OWNER',
+        partyId: null,
+        bankName: 'VCB',
+        accountNo: '12345678',
+        accountName: 'Nguyen Van A',
+      },
+      replacesAccountId: null,
+      replaceReason: null,
+    });
+    const firstBeneficiaryId =
+      firstBeneficiaryAccount.status === 'CREATED'
+        ? firstBeneficiaryAccount.account.accountId
+        : '';
+    await projects.verifyBeneficiaryBankAccount({
+      campaignId: Live,
+      accountId: firstBeneficiaryId,
+      actorId: Verifier,
+    });
+    const replacement = await projects.addBeneficiaryBankAccount({
+      campaignId: Live,
+      actorId: Owner,
+      account: {
+        holderType: 'OWNER',
+        partyId: null,
+        bankName: 'VCB',
+        accountNo: '87654321',
+        accountName: 'Nguyen Van B',
+      },
+      replacesAccountId: firstBeneficiaryId,
+      replaceReason: 'Đổi người nhận',
+    });
+    const beneficiaryAccounts =
+      await projects.listBeneficiaryBankAccounts(Live);
+    check(
+      'thay tài khoản thụ hưởng đóng bản cũ và bản mới luôn chưa xác thực',
+      replacement.status === 'CREATED' &&
+        beneficiaryAccounts.some(
+          (account) =>
+            account.accountId === firstBeneficiaryId &&
+            account.validTo !== null,
+        ) &&
+        replacement.account.verifiedAt === null &&
+        replacement.account.verifiedBy === null,
+    );
+    await sql(`DELETE FROM users WHERE global_id = $1`, [Verifier]);
+    const afterVerifierDeleted = (
+      await projects.listBeneficiaryBankAccounts(Live)
+    ).find((account) => account.accountId === firstBeneficiaryId);
+    check(
+      'xoá người xác thực giữ thời điểm xác thực và xoá người xác thực',
+      afterVerifierDeleted !== undefined &&
+        afterVerifierDeleted.verifiedAt !== null &&
+        afterVerifierDeleted.verifiedBy === null,
+    );
+    const otherCampaignAccount = await projects.addBeneficiaryBankAccount({
+      campaignId: Draft,
+      actorId: Owner,
+      account: {
+        holderType: 'OWNER',
+        partyId: null,
+        bankName: 'ACB',
+        accountNo: '99990000',
+        accountName: 'Nguyen Van A',
+      },
+      replacesAccountId: null,
+      replaceReason: null,
+    });
+    const otherCampaignAccountId =
+      otherCampaignAccount.status === 'CREATED'
+        ? otherCampaignAccount.account.accountId
+        : '';
+    const replaceWith = (replacesAccountId: string) =>
+      projects.addBeneficiaryBankAccount({
+        campaignId: Live,
+        actorId: Owner,
+        account: {
+          holderType: 'OWNER',
+          partyId: null,
+          bankName: 'VCB',
+          accountNo: '55556666',
+          accountName: 'Nguyen Van C',
+        },
+        replacesAccountId,
+        replaceReason: 'Thử thay',
+      });
+    const replaceClosed = await replaceWith(firstBeneficiaryId);
+    const replaceForeign = await replaceWith(otherCampaignAccountId);
+    check(
+      'thay tài khoản thụ hưởng đã đóng / của dự án khác → REPLACED_NOT_FOUND, không tạo dòng',
+      replaceClosed.status === 'REPLACED_NOT_FOUND' &&
+        replaceForeign.status === 'REPLACED_NOT_FOUND' &&
+        !(await projects.listBeneficiaryBankAccounts(Live)).some(
+          (account) => account.accountNo === '55556666',
+        ),
+    );
+    const verifyClosed = await projects.verifyBeneficiaryBankAccount({
+      campaignId: Live,
+      accountId: firstBeneficiaryId,
+      actorId: Admin,
+    });
+    const verifyForeign = await projects.verifyBeneficiaryBankAccount({
+      campaignId: Live,
+      accountId: otherCampaignAccountId,
+      actorId: Admin,
+    });
+    check(
+      'xác thực dòng đã đóng / dòng của dự án khác → null, dự án kia vẫn chưa xác thực',
+      verifyClosed === null &&
+        verifyForeign === null &&
+        (await projects.listBeneficiaryBankAccounts(Draft))[0]?.verifiedAt ===
+          null,
+    );
+    const replacementId =
+      replacement.status === 'CREATED' ? replacement.account.accountId : '';
+    const firstVerify = await projects.verifyBeneficiaryBankAccount({
+      campaignId: Live,
+      accountId: replacementId,
+      actorId: Admin,
+    });
+    const secondVerify = await projects.verifyBeneficiaryBankAccount({
+      campaignId: Live,
+      accountId: replacementId,
+      actorId: Other,
+    });
+    check(
+      'xác thực lại idempotent: giữ verified_at và verified_by ban đầu',
+      firstVerify !== null &&
+        secondVerify !== null &&
+        firstVerify.verifiedBy === Admin &&
+        secondVerify.verifiedBy === Admin &&
+        secondVerify.verifiedAt?.getTime() ===
+          firstVerify.verifiedAt?.getTime(),
+    );
+    const addOwnerAccount = new AddCharityBeneficiaryBankAccountUseCase(
+      new CharityProjectAccess(campaigns, {
+        hasPermission: async () => false,
+      } as never),
+      projects,
+    );
+    const ownerAccountCommand = {
+      userId: Owner,
+      campaignId: Live,
+      account: {
+        holderType: 'OWNER' as const,
+        partyId: null,
+        bankName: 'VCB',
+        accountNo: '77778888',
+        accountName: 'NGUYEN VAN DUC',
+      },
+      replacesAccountId: null,
+      replaceReason: null,
+    };
+    const nullNameOwner = await projects.findOwnerFullName(Live);
+    const nullNameCode = await addOwnerAccount.handle(ownerAccountCommand).then(
+      () => null,
+      (error: unknown) => (error as { code?: number }).code ?? -1,
+    );
+    await sql(
+      `UPDATE users SET full_name = 'Nguyễn Văn Đức' WHERE global_id = $1`,
+      [Owner],
+    );
+    const ownerFullName = await projects.findOwnerFullName(Live);
+    const ownerAccount = await addOwnerAccount.handle(ownerAccountCommand);
+    check(
+      'findOwnerFullName: NULL → OWNER lệch tên 0x13_5a; có họ tên có dấu → tạo với tên không dấu',
+      nullNameOwner === null &&
+        nullNameCode === 0x13_5a &&
+        ownerFullName === 'Nguyễn Văn Đức' &&
+        ownerAccount.accountNo === '77778888' &&
+        ownerAccount.verifiedAt === null,
+      String(nullNameCode),
+    );
+    const replaceParties = new ReplaceCharityPartiesUseCase(
+      new CharityProjectAccess(campaigns, {
+        hasPermission: async () => false,
+      } as never),
+      projects,
+    );
+    const partiesNow = await projects.listParties(Live);
+    const keptOrganizer = partiesNow.find((p) => p.role === 'ORGANIZER')!;
+    const appealSubject = partiesNow.find((p) => p.isAppealSubject)!;
+    const withGroup = await replaceParties.handle({
+      userId: Owner,
+      campaignId: Live,
+      parties: [
+        keptOrganizer,
+        {
+          role: 'BENEFICIARY',
+          name: 'Nhóm Hoa',
+          address: null,
+          phone: null,
+          email: null,
+          hotline: null,
+          picName: null,
+          picPhone: null,
+          picUserId: null,
+          beneficiaryKind: 'GROUP',
+          evidenceUrls: [],
+        },
+      ],
+    });
+    const groupParty = withGroup.find((p) => p.name === 'Nhóm Hoa')!;
+    const beneficiaryOf = async (partyId: string, accountName: string) => {
+      const outcome = await projects.addBeneficiaryBankAccount({
+        campaignId: Live,
+        actorId: Owner,
+        account: {
+          holderType: 'BENEFICIARY',
+          partyId,
+          bankName: 'VCB',
+          accountNo: `3${partyId.slice(-7)}`,
+          accountName,
+        },
+        replacesAccountId: null,
+        replaceReason: null,
+      });
+      return outcome.status === 'CREATED' ? outcome.account.accountId : '';
+    };
+    const groupAccountId = await beneficiaryOf(groupParty.partyId, 'NHOM HOA');
+    const appealAccountId = await beneficiaryOf(
+      appealSubject.partyId,
+      'ONG TU',
+    );
+    const groupVerified = await projects.verifyBeneficiaryBankAccount({
+      campaignId: Live,
+      accountId: groupAccountId,
+      actorId: Admin,
+    });
+    const renamed = await replaceParties.handle({
+      userId: Owner,
+      campaignId: Live,
+      parties: [keptOrganizer, { ...groupParty, name: 'Nhóm Hoa (đổi tên)' }],
+    });
+    const afterRename = await projects.listBeneficiaryBankAccounts(Live);
+    const groupAfter = afterRename.find((a) => a.accountId === groupAccountId);
+    check(
+      'PUT parties bỏ dòng kêu gọi cá nhân (còn tài khoản) vẫn được; đổi tên bên thụ hưởng giữ verified_at',
+      renamed.some(
+        (p) =>
+          p.partyId === groupParty.partyId && p.name === 'Nhóm Hoa (đổi tên)',
+      ) &&
+        renamed.some((p) => p.partyId === appealSubject.partyId) &&
+        groupAfter?.validTo === null &&
+        groupAfter.verifiedAt?.getTime() ===
+          groupVerified?.verifiedAt?.getTime() &&
+        afterRename.some(
+          (a) => a.accountId === appealAccountId && a.validTo === null,
+        ),
+    );
+    const removeGroup = await replaceParties
+      .handle({ userId: Owner, campaignId: Live, parties: [keptOrganizer] })
+      .then(
+        () => '',
+        (error: unknown) => (error as Error).message,
+      );
+    check(
+      'PUT parties bỏ bên thụ hưởng thường còn tài khoản → 400, bên đó vẫn còn',
+      removeGroup ===
+        'parties: bên thụ hưởng "Nhóm Hoa (đổi tên)" còn tài khoản thụ hưởng đang hiệu lực — đóng tài khoản trước' &&
+        (await projects.listParties(Live)).some(
+          (p) => p.partyId === groupParty.partyId,
+        ),
+      removeGroup,
+    );
+    check(
+      'OWNER không được gắn party_id',
+      (await rejects(
+        `INSERT INTO campaign_beneficiary_bank_accounts
+           (campaign_id, holder_type, party_id, bank_name, account_no, account_name)
+         VALUES ($1, 'OWNER', $2, 'VCB', '11223344', 'Sai')`,
+        [Live, id('20')],
+      )) === '23514',
+    );
+    console.log('\n8. Ràng buộc');
     check(
       'nháp không thể "đã duyệt" (CHK_campaigns_draft_undecided)',
       (await rejects(

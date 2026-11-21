@@ -66,6 +66,7 @@ import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
+import { CharityOperationsRepository } from '../src/infrastructure/repository/charity-operations.repository';
 import { CharitySummaryRepository } from '../src/infrastructure/repository/charity-summary.repository';
 import { EntitlementRepository } from '../src/infrastructure/repository/entitlement.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
@@ -96,6 +97,11 @@ const DiamondId = 'c1000000-0000-4000-8000-0000000000d1';
 const OrganizerId = 'c1000000-0000-4000-8000-0000000000a9';
 const MemberId = 'c1000000-0000-4000-8000-0000000000e1';
 const AdminId = 'c1000000-0000-4000-8000-0000000000ad';
+const LegacyMaterialId = 'c1000000-0000-4000-8000-0000000000a1';
+const LegacyMoneyServiceId = 'c1000000-0000-4000-8000-0000000000a2';
+const LegacyEmptyId = 'c1000000-0000-4000-8000-0000000000a3';
+const DefaultContributionTypesId = 'c1000000-0000-4000-8000-0000000000a4';
+const LegacyBankOnlyId = 'c1000000-0000-4000-8000-0000000000a5';
 const JoinerId = 'c1000000-0000-4000-8000-0000000000b1';
 const OtherJoinerId = 'c1000000-0000-4000-8000-0000000000b2';
 const OutsiderId = 'c1000000-0000-4000-8000-0000000000ff';
@@ -174,6 +180,58 @@ async function main(): Promise<void> {
   await admin.query(`DROP DATABASE IF EXISTS ${ScratchDatabase}`);
   await admin.query(`CREATE DATABASE ${ScratchDatabase}`);
 
+  const legacyMigrations = resolveAllEntities(migrations).filter(
+    (migration) => Number(migration.name.slice(-13)) < 1803700000000,
+  );
+  const legacyDataSource = new DataSource({
+    type: 'postgres',
+    url: scratchUri,
+    entities: resolveAllEntities(entities),
+    migrations: legacyMigrations,
+    migrationsTableName: 'migrations',
+    extra: { max: 10 },
+  });
+  await legacyDataSource.initialize();
+  opened.push(legacyDataSource);
+  await legacyDataSource.runMigrations();
+  await legacyDataSource.query(
+    `INSERT INTO campaigns (global_id, title, slug, description, banner_url, badge_name, start_time, end_time)
+     VALUES
+       ($1, 'Legacy material', 'legacy-material', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour'),
+       ($2, 'Legacy money service', 'legacy-money-service', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour'),
+       ($3, 'Legacy empty', 'legacy-empty', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour'),
+       ($4, 'Legacy bank only', 'legacy-bank-only', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour')`,
+    [LegacyMaterialId, LegacyMoneyServiceId, LegacyEmptyId, LegacyBankOnlyId],
+  );
+  // Chỉ có tài khoản nhận đang hiệu lực (không có nhu cầu tiền) → vẫn phải giữ MONEY.
+  await legacyDataSource.query(
+    `INSERT INTO campaign_bank_accounts (campaign_id, bank_name, account_no, account_name)
+     VALUES ($1, 'VCB', '0123456789', 'NGUYEN VAN A')`,
+    [LegacyBankOnlyId],
+  );
+  // Tài khoản đã đóng không tính: chiến dịch rỗng vẫn giữ mảng rỗng.
+  await legacyDataSource.query(
+    `INSERT INTO campaign_bank_accounts (campaign_id, bank_name, account_no, account_name, valid_to, close_reason)
+     VALUES ($1, 'VCB', '0123456780', 'NGUYEN VAN B', now(), 'Đã đóng')`,
+    [LegacyEmptyId],
+  );
+  await legacyDataSource.query(
+    `INSERT INTO campaign_need_items (campaign_id, item_name, unit, target_quantity)
+     VALUES ($1, 'Gạo', 'kg', 1)`,
+    [LegacyMaterialId],
+  );
+  await legacyDataSource.query(
+    `INSERT INTO campaign_funding_needs (campaign_id, title, target_amount)
+     VALUES ($1, 'Chi phí', 100000)`,
+    [LegacyMoneyServiceId],
+  );
+  await legacyDataSource.query(
+    `INSERT INTO campaign_other_support_needs (campaign_id, support_type, title, unit, target_quantity)
+     VALUES ($1, 'LABOR', 'Nhân công', 'người', 1)`,
+    [LegacyMoneyServiceId],
+  );
+  await legacyDataSource.destroy();
+
   const dataSource = new DataSource({
     type: 'postgres',
     url: scratchUri,
@@ -188,11 +246,90 @@ async function main(): Promise<void> {
   console.log('Đã dựng schema trên database nháp\n');
 
   try {
+    const legacyCampaigns = await dataSource.query<
+      { global_id: string; accepted_contribution_types: string[] }[]
+    >(
+      `SELECT global_id, accepted_contribution_types FROM campaigns
+       WHERE global_id = ANY($1::uuid[])`,
+      [
+        [
+          LegacyEmptyId,
+          LegacyMaterialId,
+          LegacyMoneyServiceId,
+          LegacyBankOnlyId,
+        ],
+      ],
+    );
+    const bankOnlyTypes = legacyCampaigns.find(
+      (campaign) => campaign.global_id === LegacyBankOnlyId,
+    )?.accepted_contribution_types;
+    check(
+      'migration suy MONEY từ tài khoản nhận đang hiệu lực dù không có nhu cầu tiền',
+      JSON.stringify(bankOnlyTypes) === JSON.stringify(['MONEY']),
+      JSON.stringify(bankOnlyTypes),
+    );
+    const emptyTypes = legacyCampaigns.find(
+      (campaign) => campaign.global_id === LegacyEmptyId,
+    )?.accepted_contribution_types;
+    const materialTypes = legacyCampaigns.find(
+      (campaign) => campaign.global_id === LegacyMaterialId,
+    )?.accepted_contribution_types;
+    const moneyServiceTypes = legacyCampaigns.find(
+      (campaign) => campaign.global_id === LegacyMoneyServiceId,
+    )?.accepted_contribution_types;
+    check(
+      'migration giữ mảng rỗng cho chiến dịch cũ không có nhu cầu',
+      JSON.stringify(emptyTypes) === JSON.stringify([]),
+      JSON.stringify(emptyTypes),
+    );
+    check(
+      'migration suy MATERIAL từ nhu cầu hiện vật cũ',
+      JSON.stringify(materialTypes) === JSON.stringify(['MATERIAL']),
+      JSON.stringify(materialTypes),
+    );
+    check(
+      'migration suy MONEY và SERVICE từ nhu cầu cũ',
+      JSON.stringify(moneyServiceTypes) ===
+        JSON.stringify(['MONEY', 'SERVICE']),
+      JSON.stringify(moneyServiceTypes),
+    );
+    await expectReject(
+      'CHECK: loại tiếp nhận ngoài enum bị chặn',
+      () =>
+        dataSource.query(
+          `UPDATE campaigns SET accepted_contribution_types = ARRAY['CASH'] WHERE global_id = $1`,
+          [LegacyMaterialId],
+        ),
+      'CHK_campaigns_accepted_contribution_types',
+    );
+    const [defaultContributionTypes] = await dataSource.query<
+      { accepted_contribution_types: string[] }[]
+    >(
+      `INSERT INTO campaigns (global_id, title, slug, description, banner_url, badge_name, start_time, end_time)
+       VALUES ($1, 'Default contribution types', 'default-contribution-types', 'Mô tả đủ mười ký tự.', 'https://cdn.chantam.vn/a.jpg', 'Huy hiệu', now(), now() + interval '1 hour')
+       RETURNING accepted_contribution_types`,
+      [DefaultContributionTypesId],
+    );
+    check(
+      'SQL chèn thiếu loại tiếp nhận nhận đủ ba loại mặc định',
+      JSON.stringify(defaultContributionTypes?.accepted_contribution_types) ===
+        JSON.stringify(['MATERIAL', 'MONEY', 'SERVICE']),
+      JSON.stringify(defaultContributionTypes),
+    );
+
     const repository = new CharityCampaignRepository(
       dataSource.manager,
       // Sổ điểm THẬT: bút toán của lượt giao nhận từ thiện ghi trong transaction
       // hoàn tất, nên một mock ở đây bỏ đúng chỗ cần kiểm.
       new PointLedgerRepository(dataSource.manager),
+    );
+    const legacyMaterialCampaign =
+      await repository.findByGlobalId(LegacyMaterialId);
+    check(
+      'repository đọc loại tiếp nhận của chiến dịch cũ',
+      JSON.stringify(legacyMaterialCampaign?.acceptedContributionTypes) ===
+        JSON.stringify(['MATERIAL']),
+      JSON.stringify(legacyMaterialCampaign?.acceptedContributionTypes),
     );
     // `EntitlementRepository` đòi một `IGiftRequestRepository` để đếm hạn mức đang dùng
     // của những capability CÓ bộ đếm. `SUBMIT_CHARITY_PROPOSAL` không có bộ đếm nào, nhưng
@@ -265,6 +402,165 @@ async function main(): Promise<void> {
       `INSERT INTO admin_user_roles (user_id, role_id)
        SELECT $1, id FROM admin_roles WHERE code = 'SUPER_ADMIN'`,
       [AdminId],
+    );
+
+    const intakeSlug = `intake-${Date.now()}`;
+    const intakeCampaign = await createUseCase.handle(
+      withMedia({
+        ...writeInput({ title: 'Tiếp nhận đủ ba nhóm', slug: intakeSlug }),
+        actorUserId: DiamondId,
+        asAdmin: false,
+        submit: false,
+        needs: [{ itemName: 'Gạo', unit: 'kg', targetQuantity: 1 }],
+        fundingNeeds: [{ title: 'Viện phí', targetAmount: 100_000 }],
+        otherSupportNeeds: [
+          {
+            supportType: 'LABOR',
+            title: 'Nhân công',
+            unit: 'người',
+            targetQuantity: 1,
+          },
+        ],
+      }),
+    );
+    const [intakeCounts] = await dataSource.query<
+      { material: string; funding: string; support: string; types: string[] }[]
+    >(
+      `SELECT
+        (SELECT count(*)::text FROM campaign_need_items WHERE campaign_id = $1) AS material,
+        (SELECT count(*)::text FROM campaign_funding_needs WHERE campaign_id = $1) AS funding,
+        (SELECT count(*)::text FROM campaign_other_support_needs WHERE campaign_id = $1) AS support,
+        accepted_contribution_types AS types
+       FROM campaigns WHERE global_id = $1`,
+      [intakeCampaign.globalId],
+    );
+    check(
+      'tạo đủ ba nhóm ghi một dòng mỗi bảng và đủ ba loại tiếp nhận',
+      intakeCounts?.material === '1' &&
+        intakeCounts?.funding === '1' &&
+        intakeCounts?.support === '1' &&
+        JSON.stringify(intakeCounts?.types) ===
+          JSON.stringify(['MATERIAL', 'MONEY', 'SERVICE']),
+      JSON.stringify(intakeCounts),
+    );
+    const distributionCampaign = await createUseCase.handle(
+      withMedia({
+        ...writeInput({
+          title: 'Đợt trao lúc tạo',
+          slug: `distribution-${Date.now()}`,
+        }),
+        actorUserId: DiamondId,
+        asAdmin: false,
+        submit: false,
+        distribution: {
+          method: 'OTHER_LOCATION',
+          contributionTypes: ['MATERIAL'],
+          location: {
+            label: 'Nhà văn hoá xã',
+            address: 'Thôn 1, xã An Bình',
+            lat: 10.7,
+            lng: 106.6,
+          },
+          scheduledStart: '2026-12-20T01:00:00.000Z',
+          scheduledEnd: '2026-12-20T09:00:00.000Z',
+          coordinatorName: 'Điều phối viên',
+          coordinatorPhone: '0901000000',
+        },
+      }),
+    );
+    const [distributionCounts] = await dataSource.query<
+      {
+        rounds: string;
+        steps: string;
+        starts_at: Date;
+        ends_at: Date;
+        delivery_method: string | null;
+      }[]
+    >(
+      `SELECT
+         (SELECT count(*)::text FROM campaign_distribution_rounds WHERE campaign_id = $1) AS rounds,
+         (SELECT count(*)::text FROM campaign_event_steps WHERE campaign_id = $1) AS steps,
+         phase.starts_at, phase.ends_at, phase.delivery_method
+       FROM campaign_phases phase
+       WHERE phase.campaign_id = $1 AND phase.phase = 'DISTRIBUTION'`,
+      [distributionCampaign.globalId],
+    );
+    const operations = new CharityOperationsRepository(dataSource.manager);
+    const createdRound = (
+      await operations.listRounds(distributionCampaign.globalId)
+    )[0];
+    check(
+      'workspace read-back giữ đủ dữ liệu distribution riêng tư và toạ độ đúng chiều',
+      createdRound?.locationLabel === 'Nhà văn hoá xã' &&
+        createdRound.address === 'Thôn 1, xã An Bình' &&
+        createdRound.lat === 10.7 &&
+        createdRound.lng === 106.6 &&
+        JSON.stringify(createdRound.contributionTypes) ===
+          JSON.stringify(['MATERIAL']) &&
+        createdRound.privateDetails?.coordinatorName === 'Điều phối viên' &&
+        createdRound.privateDetails?.coordinatorPhone === '0901000000',
+      JSON.stringify(createdRound),
+    );
+    const rereadDistribution = await repository.findByGlobalId(
+      distributionCampaign.globalId,
+    );
+    check(
+      'tạo distribution ghi 1 round, 10 bước, DISTRIBUTION phase và trả đúng startsAt',
+      distributionCounts?.rounds === '1' &&
+        distributionCounts?.steps === '10' &&
+        distributionCounts?.delivery_method === null &&
+        distributionCounts?.starts_at.toISOString() ===
+          '2026-12-20T01:00:00.000Z' &&
+        distributionCounts?.ends_at.toISOString() ===
+          '2026-12-20T09:00:00.000Z' &&
+        rereadDistribution?.distribution?.startsAt.toISOString() ===
+          '2026-12-20T01:00:00.000Z',
+      JSON.stringify({
+        distributionCounts,
+        distribution: rereadDistribution?.distribution,
+      }),
+    );
+
+    const rollbackSlug = `rollback-${Date.now()}`;
+    await expectReject(
+      'support need sai mốc thời gian rollback cả funding rows',
+      () =>
+        createUseCase.handle(
+          withMedia({
+            ...writeInput({
+              title: 'Kiểm rollback intake',
+              slug: rollbackSlug,
+            }),
+            actorUserId: DiamondId,
+            asAdmin: false,
+            submit: false,
+            fundingNeeds: [{ title: 'Không được còn', targetAmount: 1 }],
+            otherSupportNeeds: [
+              {
+                supportType: 'LABOR',
+                title: 'Nhân công lỗi',
+                unit: 'người',
+                targetQuantity: 1,
+                startsAt: new Date('2030-01-02T00:00:00.000Z'),
+                endsAt: new Date('2030-01-01T00:00:00.000Z'),
+              },
+            ],
+          }),
+        ),
+      'CHK_campaign_other_support_needs_time',
+    );
+    const [rolledBack] = await dataSource.query<
+      { fundingCount: string; campaignCount: string }[]
+    >(
+      `SELECT
+        (SELECT count(*)::text FROM campaign_funding_needs f JOIN campaigns c ON c.global_id = f.campaign_id WHERE c.slug = $1) AS "fundingCount",
+        (SELECT count(*)::text FROM campaigns WHERE slug = $1) AS "campaignCount"`,
+      [rollbackSlug],
+    );
+    check(
+      'support need lỗi sau funding insert rollback funding row và campaign',
+      rolledBack?.fundingCount === '0' && rolledBack?.campaignCount === '0',
+      JSON.stringify(rolledBack),
     );
 
     console.log('1. BR-CHARITY-01 — ai tạo được, và hồ sơ vào trạng thái nào');
@@ -1195,6 +1491,7 @@ async function main(): Promise<void> {
       locationLabel: 'Hoàn Kiếm, Hà Nội',
       minimumParticipants: 0,
       minimumParticipantRank: null,
+      acceptedContributionTypes: ['MATERIAL'],
     });
     check(
       'ghi đủ trường, toạ độ đi qua PostGIS đúng thứ tự lat/lng',
@@ -1221,6 +1518,7 @@ async function main(): Promise<void> {
       locationLabel: null,
       minimumParticipants: 0,
       minimumParticipantRank: null,
+      acceptedContributionTypes: ['MATERIAL'],
     });
     check(
       'null là xoá vị trí',

@@ -247,6 +247,41 @@ async function main(): Promise<void> {
     const rice = needs.find((need) => need.unit === 'kg')!;
     const noodles = needs.find((need) => need.unit === 'thùng')!;
 
+    // ── A4. Loại tiếp nhận chặn đóng góp trên database thật ─────────────────
+    console.log('\nA4. Tắt MATERIAL chặn đóng góp, không ghi hàng mới');
+    const materialDisabled = await create.handle({
+      ...baseInput({
+        needs: [{ itemName: 'Áo ấm', unit: 'cái', targetQuantity: 1 }],
+      }),
+      actorUserId: DiamondId,
+      asAdmin: false,
+    });
+    const [materialNeed] = await repo.listNeeds(materialDisabled.globalId);
+    await q(
+      `UPDATE campaigns SET accepted_contribution_types = '{}' WHERE global_id = $1`,
+      [materialDisabled.globalId],
+    );
+    const [beforeDisabled] = await q(
+      `SELECT count(*)::int AS n FROM campaign_contributions WHERE campaign_id = $1`,
+      [materialDisabled.globalId],
+    );
+    check(
+      'tắt MATERIAL: use case từ chối và campaign_contributions không đổi',
+      (await errorName(
+        submit.handle({
+          campaignId: materialDisabled.globalId,
+          contributorId: GiverA,
+          items: [{ needItemId: materialNeed.globalId, offeredQuantity: 1 }],
+        }),
+      )) === 'CharityContributionTypeDisabledException' &&
+        (
+          await q(
+            `SELECT count(*)::int AS n FROM campaign_contributions WHERE campaign_id = $1`,
+            [materialDisabled.globalId],
+          )
+        )[0].n === beforeDisabled.n,
+    );
+
     async function contribute(
       giver: string,
       items: { needItemId: string; offeredQuantity: number }[],

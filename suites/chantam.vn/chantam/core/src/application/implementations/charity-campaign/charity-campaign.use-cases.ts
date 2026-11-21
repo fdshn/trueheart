@@ -83,6 +83,11 @@ import {
   IUpdateCharityProgressCommand,
   IUpdateCharityProgressUseCase,
 } from '@/application/contracts/charity-campaign';
+import { prepareCharityRoundDistribution } from '@/application/implementations/charity-project/charity-round-distribution';
+import {
+  assertContributionTypeAccepted,
+  assertDistributionMethodAcceptedByCampaign,
+} from '@/domain/charity-contribution-type';
 import {
   CharityAlreadyRegisteredException,
   CharityApprovalAlreadyDecidedException,
@@ -110,6 +115,7 @@ import {
   CharityReviewNotPermittedException,
   CharityReviewTooEarlyException,
   CharitySelfContributionException,
+  CharitySubmitRequirementsUnmetException,
 } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
@@ -119,7 +125,9 @@ import {
   ICharityContribution,
   ICharityDelivery,
   ICharityExternalContribution,
+  ICharityFundingNeedInput,
   ICharitySummaryRepository,
+  ICharitySupportNeedInput,
   ICloseCampaignResult,
   IEntitlementRepository,
   IUserRepository,
@@ -144,8 +152,11 @@ import {
   charityMediaTypeGaps,
   charityParticipationRequirementGaps,
   charityReviewRoleOf,
+  charitySubmitRequirementGaps,
+  deriveAcceptedContributionTypes,
   isCharityReviewRating,
   normalizeCharitySlug,
+  normalizeContributionTypes,
   overallNeedProgressPercent,
   slugifyCharityTitle,
 } from '@chantam.vn/chantam.core-lib/models';
@@ -359,11 +370,94 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       command.beneficiary?.consentStatus !== 'CONFIRMED'
     )
       approvalStatus = 'PENDING_APPROVAL';
+    const distributionStartsAt = command.distribution
+      ? new Date(command.distribution.scheduledStart)
+      : null;
+    const distributionEndsAt = command.distribution
+      ? new Date(command.distribution.scheduledEnd)
+      : null;
+    if (
+      distributionStartsAt &&
+      distributionEndsAt &&
+      distributionEndsAt <= distributionStartsAt
+    )
+      throw new ValidationFailedException([
+        'distribution.scheduledEnd: phải sau scheduledStart',
+      ]);
+    const preparedDistribution = command.distribution
+      ? prepareCharityRoundDistribution({
+          title: 'Đợt trao 1',
+          distributionMethod: command.distribution.method,
+          contributionTypes: command.distribution.contributionTypes,
+          evidenceUrls: [],
+          locationLabel: command.distribution.location?.label ?? null,
+          address: command.distribution.location?.address ?? null,
+          lat: command.distribution.location?.lat ?? null,
+          lng: command.distribution.location?.lng ?? null,
+          needsReview: false,
+          serviceType: command.distribution.serviceType ?? null,
+          serviceChannel: command.distribution.serviceChannel ?? null,
+          privateDetails: {
+            beneficiaryBankAccountId: null,
+            recipientName: command.distribution.recipientName ?? null,
+            recipientPhone: command.distribution.recipientPhone ?? null,
+            recipientAddress: command.distribution.recipientAddress ?? null,
+            coordinatorName: command.distribution.coordinatorName ?? null,
+            coordinatorPhone: command.distribution.coordinatorPhone ?? null,
+            carrier: command.distribution.carrier ?? null,
+            shippingFeePayer: command.distribution.shippingFeePayer ?? null,
+            estimatedShippingFee:
+              command.distribution.estimatedShippingFee ?? null,
+            trackingCode: command.distribution.trackingCode ?? null,
+            transferContent: command.distribution.transferContent ?? null,
+          },
+          startsAt: distributionStartsAt!,
+          endsAt: distributionEndsAt!,
+        })
+      : null;
     // Điều kiện tham gia (PR #54) kiểm cùng lượt với nội dung, TRƯỚC lượt gọi R2.
     const requirementGaps = charityParticipationRequirementGaps(command);
     if (requirementGaps.length > 0)
       throw new ValidationFailedException(requirementGaps);
     const prepared = await prepareWrite(this.repository, command);
+    const fundingNeeds = command.fundingNeeds ?? [];
+    const supportNeeds = command.otherSupportNeeds ?? [];
+    const fieldErrors: string[] = [];
+    for (const [index, need] of fundingNeeds.entries())
+      for (const field of ['beneficiaryPartyId', 'bankAccountId'] as const)
+        if (need[field] !== undefined)
+          fieldErrors.push(
+            `fundingNeeds[${index}].${field}: chưa có ở lượt tạo — thêm sau khi tạo`,
+          );
+    if (fieldErrors.length > 0)
+      throw new ValidationFailedException(fieldErrors);
+    const acceptedContributionTypes =
+      command.acceptedContributionTypes === undefined
+        ? deriveAcceptedContributionTypes({
+            materialNeeds: (command.needs ?? []).length,
+            fundingNeeds: fundingNeeds.length,
+            supportNeeds: supportNeeds.length,
+          })
+        : normalizeContributionTypes(command.acceptedContributionTypes);
+    if (fundingNeeds.length > 0)
+      assertContributionTypeAccepted({ acceptedContributionTypes }, 'MONEY');
+    assertDistributionMethodAcceptedByCampaign(
+      { acceptedContributionTypes },
+      preparedDistribution?.distributionMethod ?? null,
+    );
+    // Giữ tách biệt với kiểm field ở trên: Phase B sẽ thêm kiểm distribution TRƯỚC bước này.
+    if (submitted) {
+      const gaps = charitySubmitRequirementGaps(acceptedContributionTypes, {
+        openMaterialNeeds: (command.needs ?? []).length,
+        openFundingNeeds: fundingNeeds.length,
+        openSupportNeeds: supportNeeds.length,
+        // Lượt tạo chưa thể có tài khoản nhận. Admin tự duyệt lượt tạo của mình nên được
+        // miễn riêng điều kiện này (thêm tài khoản sau khi tạo); thành viên gửi duyệt vẫn đủ luật.
+        liveBankAccounts: command.asAdmin ? 1 : 0,
+      });
+      if (gaps.length > 0)
+        throw new CharitySubmitRequirementsUnmetException(gaps.join('; '));
+    }
     // SAU quyền và nội dung: người không được tạo, hoặc gửi hồ sơ thiếu, không tốn
     // lượt gọi R2 nào.
     const { media, bannerUrl } = await confirmCharityMedia(
@@ -377,6 +471,13 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       ...prepared,
       bannerUrl,
       media,
+      distribution: preparedDistribution
+        ? {
+            round: preparedDistribution,
+            startsAt: preparedDistribution.startsAt,
+            endsAt: preparedDistribution.endsAt,
+          }
+        : null,
       campaignType: command.campaignType,
       allowOverTarget: command.allowOverTarget ?? false,
       // Chiến dịch không khai gì giữ đúng hành vi cũ: không số tối thiểu, không giới hạn hạng.
@@ -400,6 +501,36 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
         command.campaignType === 'INDIVIDUAL_APPEAL'
           ? (command.beneficiaryRelation ?? null)
           : null,
+      acceptedContributionTypes,
+      fundingNeeds: fundingNeeds.map(
+        (need, index): ICharityFundingNeedInput => ({
+          title: need.title.trim(),
+          description: need.description?.trim() || null,
+          beneficiaryPartyId: null,
+          receivingUnit: need.receivingUnit?.trim() || null,
+          bankAccountId: null,
+          targetAmount: need.targetAmount,
+          deadline: need.deadline ?? null,
+          sortOrder: index,
+        }),
+      ),
+      supportNeeds: supportNeeds.map(
+        (need, index): ICharitySupportNeedInput => ({
+          supportType: need.supportType,
+          title: need.title.trim(),
+          description: need.description?.trim() || null,
+          unit: need.unit.trim(),
+          targetQuantity: need.targetQuantity,
+          startsAt: need.startsAt ?? null,
+          endsAt: need.endsAt ?? null,
+          locationLabel: need.locationLabel?.trim() || null,
+          requirements: need.requirements?.trim() || null,
+          handoverMethod: need.handoverMethod?.trim() || null,
+          picName: need.picName?.trim() || null,
+          picPhone: need.picPhone?.trim() || null,
+          sortOrder: index,
+        }),
+      ),
       needs: (command.needs ?? []).map((need, index) => ({
         categoryId: need.categoryId ?? null,
         itemName: need.itemName.trim(),
@@ -706,6 +837,7 @@ export class SubmitCharityContributionUseCase implements ISubmitCharityContribut
       throw new CharityCampaignNotFoundException();
     if (!acceptsContributions(campaign))
       throw new CharityNotAcceptingContributionsException();
+    assertContributionTypeAccepted(campaign, 'MATERIAL');
     // Người tổ chức không tặng vào chính hoạt động của mình. Chặn ở ĐÂY chứ không đợi
     // lượt quyết: tới đó `CHK_campaign_deliveries_not_self` mới bắt, và người dùng
     // nhận một lỗi 500 cho một đề nghị hệ thống đã nhận từ trước.
@@ -852,6 +984,10 @@ export class UpdateCharityContributionUseCase implements IUpdateCharityContribut
       if (!withdrawn) throw new CharityContributionNotEditableException();
       return withdrawn;
     }
+
+    const campaign = await this.repository.findByGlobalId(existing.campaignId);
+    if (!campaign) throw new CharityContributionNotFoundException();
+    assertContributionTypeAccepted(campaign, 'MATERIAL');
 
     const items = command.items ?? [];
     if (items.length === 0) throw new CharityNeedItemInvalidException();
@@ -1882,6 +2018,10 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
         command.minimumParticipantRank === undefined
           ? existing.minimumParticipantRank
           : command.minimumParticipantRank,
+      acceptedContributionTypes:
+        command.acceptedContributionTypes === undefined
+          ? existing.acceptedContributionTypes
+          : normalizeContributionTypes(command.acceptedContributionTypes),
     };
 
     gaps.push(...charityParticipationRequirementGaps(command));
@@ -1903,7 +2043,15 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
 
     // Audit chỉ ghi trường THẬT SỰ đổi, cả trước lẫn sau.
     const keys = Object.keys(next) as (keyof typeof next)[];
-    const changed = keys.filter((key) => existing[key] !== next[key]);
+    // Mảng so theo giá trị: gửi lại đúng các loại cũ không phải là một thay đổi.
+    const changed = keys.filter((key) => {
+      const before: unknown = existing[key];
+      const after: unknown = next[key];
+      return Array.isArray(before) && Array.isArray(after)
+        ? before.length !== after.length ||
+            before.some((value, index) => value !== after[index])
+        : before !== after;
+    });
     await this.admin.appendAudit({
       actorUserId: command.actorUserId,
       action: 'UPDATE_CHARITY_CAMPAIGN_CONTENT',

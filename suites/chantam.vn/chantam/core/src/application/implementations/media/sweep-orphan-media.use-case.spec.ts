@@ -55,6 +55,28 @@ describe('SweepOrphanMediaUseCase', () => {
     expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
   });
 
+  it('KHÔNG xoá ảnh bằng chứng đợt trao', async () => {
+    const deps = makeDeps({
+      rows: {
+        campaign_distribution_rounds: [
+          { value: 'users/u1/round-evidence/a.webp' },
+        ],
+      },
+      objects: [
+        {
+          key: 'users/u1/round-evidence/a.webp',
+          lastModified: old,
+          size: 10,
+        },
+      ],
+    });
+
+    const result = await makeUseCase(deps).handle({ dryRun: false });
+
+    expect(result.orphans).toBe(0);
+    expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
+  });
+
   it('KHÔNG xoá media của hoạt động từ thiện', async () => {
     // Thiếu `campaign_media` trong LiveKeySources là toàn bộ ảnh chiến dịch bị xoá
     // sau 24 giờ — đúng lỗi mà danh sách này sinh ra để chặn.

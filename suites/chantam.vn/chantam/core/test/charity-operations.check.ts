@@ -12,12 +12,24 @@
  * - Nguồn ngoài app: mã chứng từ trùng → lỗi nghiệp vụ.
  * - Mục tiêu hạng mục hiện vật: sửa kèm giải trình phần dư, ghi lịch sử.
  * - Hoãn bước trao: lịch sử sửa có lý do.
+ * - Đợt BANK_TRANSFER: chỉ gắn tài khoản thụ hưởng còn hiệu lực của dự án; DONE cần tài khoản đã
+ *   xác thực (thay tài khoản → bản mới chưa xác thực → DONE bị từ chối); bản công khai không lộ số.
  *
  *   npm run test:charity-operations
  */
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import {
+  ListCharityRoundsUseCase,
+  ManageCharityRoundsUseCase,
+  SaveCharityRoundUseCase,
+  SetCharityRoundStatusUseCase,
+} from '../src/application/implementations/charity-project/charity-operations.use-cases';
+import {
+  CharityProjectAccess,
+  GetCharityPublicProjectUseCase,
+} from '../src/application/implementations/charity-project/charity-project.use-cases';
 import { ICharitySupportOffer } from '../src/domain/ports/repository';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
@@ -26,6 +38,7 @@ import { CharityEngagementRepository } from '../src/infrastructure/repository/ch
 import { CharityEventRepository } from '../src/infrastructure/repository/charity-event.repository';
 import { CharityOperationsRepository } from '../src/infrastructure/repository/charity-operations.repository';
 import { CharityProjectRepository } from '../src/infrastructure/repository/charity-project.repository';
+import { CharitySummaryRepository } from '../src/infrastructure/repository/charity-summary.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 
 loadEnvFile({ path: '.env.local' });
@@ -71,6 +84,55 @@ async function main(): Promise<void> {
   await admin.query(`DROP DATABASE IF EXISTS ${ScratchDatabase}`);
   await admin.query(`CREATE DATABASE ${ScratchDatabase}`);
 
+  const legacyMigrations = resolveAllEntities(migrations).filter(
+    (migration) => Number(migration.name.slice(-13)) < 1803800000000,
+  );
+  const legacyDataSource = new DataSource({
+    type: 'postgres',
+    url: scratchUri,
+    entities: resolveAllEntities(entities),
+    migrations: legacyMigrations,
+    migrationsTableName: 'migrations',
+    extra: { max: 12 },
+  });
+  await legacyDataSource.initialize();
+  opened.push(legacyDataSource);
+  await legacyDataSource.runMigrations();
+  for (const [campaignId, slug] of [
+    [id('20'), 'legacy-ship'],
+    [id('21'), 'legacy-on-site'],
+    [id('22'), 'legacy-transfer-many'],
+    [id('23'), 'legacy-no-method'],
+  ])
+    await legacyDataSource.query(
+      `INSERT INTO campaigns (global_id, title, slug, description, banner_url, badge_name, start_time, end_time)
+       VALUES ($1, 'Legacy distribution', $2, 'Mô tả đủ dài cho dự án cũ',
+               'https://cdn.test/a.jpg', 'Ấm', now(), now() + interval '20 days')`,
+      [campaignId, slug],
+    );
+  const legacyRound = async (campaignId: string, title: string) =>
+    legacyDataSource.query(
+      `INSERT INTO campaign_distribution_rounds (campaign_id, title, starts_at, ends_at)
+       VALUES ($1, $2, now(), now() + interval '1 hour')`,
+      [campaignId, title],
+    );
+  await legacyRound(id('20'), 'Ship');
+  await legacyRound(id('21'), 'On site');
+  await legacyRound(id('22'), 'Transfer 1');
+  await legacyRound(id('22'), 'Transfer 2');
+  await legacyRound(id('23'), 'No method');
+  for (const [campaignId, deliveryMethod] of [
+    [id('20'), 'SHIP'],
+    [id('21'), 'ON_SITE'],
+    [id('22'), 'TRANSFER'],
+  ])
+    await legacyDataSource.query(
+      `INSERT INTO campaign_phases (campaign_id, phase, starts_at, ends_at, delivery_method)
+       VALUES ($1, 'DISTRIBUTION', now(), now() + interval '1 hour', $2)`,
+      [campaignId, deliveryMethod],
+    );
+  await legacyDataSource.destroy();
+
   const dataSource = new DataSource({
     type: 'postgres',
     url: scratchUri,
@@ -93,6 +155,31 @@ async function main(): Promise<void> {
     const events = new CharityEventRepository(dataSource.manager);
     const operations = new CharityOperationsRepository(dataSource.manager);
     const projects = new CharityProjectRepository(dataSource.manager);
+
+    const legacyMethods = await sql(
+      `SELECT campaign_id, distribution_method, needs_review
+       FROM campaign_distribution_rounds
+       WHERE campaign_id = ANY($1::uuid[]) ORDER BY campaign_id, id`,
+      [[id('20'), id('21'), id('22'), id('23')]],
+    );
+    check(
+      'migration ánh xạ SHIP một đợt → SHIPPING không cần duyệt; ON_SITE → OTHER_LOCATION cần duyệt',
+      legacyMethods[0]?.distribution_method === 'SHIPPING' &&
+        legacyMethods[0]?.needs_review === false &&
+        legacyMethods[1]?.distribution_method === 'OTHER_LOCATION' &&
+        legacyMethods[1]?.needs_review === true,
+      JSON.stringify(legacyMethods),
+    );
+    check(
+      'migration để NULL khi TRANSFER có hai đợt hoặc phase không có method',
+      legacyMethods
+        .slice(2)
+        .every(
+          (row: { distribution_method: string | null }) =>
+            row.distribution_method === null,
+        ),
+      JSON.stringify(legacyMethods.slice(2)),
+    );
 
     for (const [userId, username] of [
       [Owner, 'cop_owner'],
@@ -274,8 +361,29 @@ async function main(): Promise<void> {
       actorId: Owner,
       round: {
         title: 'Đợt 1 — xã A',
+        distributionMethod: 'SHIPPING',
+        contributionTypes: ['MATERIAL'],
+        evidenceUrls: ['https://cdn.test/round-evidence.webp'],
         locationLabel: 'Xã A',
         address: null,
+        lat: 10.1234,
+        lng: 106.5678,
+        needsReview: false,
+        serviceType: null,
+        serviceChannel: null,
+        privateDetails: {
+          beneficiaryBankAccountId: null,
+          recipientName: 'Người nhận',
+          recipientPhone: '0901234567',
+          recipientAddress: 'Địa chỉ nhận',
+          coordinatorName: null,
+          coordinatorPhone: null,
+          carrier: 'Nhà xe',
+          shippingFeePayer: 'ORGANIZER',
+          estimatedShippingFee: 10000,
+          trackingCode: null,
+          transferContent: null,
+        },
         startsAt: soon,
         endsAt: new Date(soon.getTime() + 6 * 3_600_000),
       },
@@ -285,12 +393,175 @@ async function main(): Promise<void> {
       actorId: Owner,
       round: {
         title: 'Đợt 2 — xã B',
+        distributionMethod: null,
+        contributionTypes: [],
+        evidenceUrls: [],
         locationLabel: 'Xã B',
         address: null,
+        lat: null,
+        lng: null,
+        needsReview: false,
+        serviceType: null,
+        serviceChannel: null,
+        privateDetails: {
+          beneficiaryBankAccountId: null,
+          recipientName: null,
+          recipientPhone: null,
+          recipientAddress: null,
+          coordinatorName: null,
+          coordinatorPhone: null,
+          carrier: null,
+          shippingFeePayer: null,
+          estimatedShippingFee: null,
+          trackingCode: null,
+          transferContent: null,
+        },
         startsAt: new Date(Date.now() + 10 * 24 * 3_600_000),
         endsAt: new Date(Date.now() + 10 * 24 * 3_600_000 + 3_600_000),
       },
     });
+    const directRecipientRound = await operations.createRound({
+      campaignId: Live,
+      actorId: Owner,
+      round: {
+        title: 'Đợt trao tận tay riêng tư',
+        distributionMethod: 'DIRECT_RECIPIENT',
+        contributionTypes: ['MATERIAL'],
+        evidenceUrls: [],
+        locationLabel: null,
+        address: 'Địa chỉ người nhận riêng',
+        lat: 10.5555,
+        lng: 106.6666,
+        needsReview: false,
+        serviceType: null,
+        serviceChannel: null,
+        privateDetails: {
+          beneficiaryBankAccountId: null,
+          recipientName: null,
+          recipientPhone: '0901888999',
+          recipientAddress: 'Địa chỉ người nhận riêng',
+          coordinatorName: 'Điều phối',
+          coordinatorPhone: '0901777888',
+          carrier: null,
+          shippingFeePayer: null,
+          estimatedShippingFee: null,
+          trackingCode: null,
+          transferContent: null,
+        },
+        startsAt: new Date(Date.now() + 11 * 24 * 3_600_000),
+        endsAt: new Date(Date.now() + 11 * 24 * 3_600_000 + 3_600_000),
+      },
+    });
+    const disposableRound = await operations.createRound({
+      campaignId: Live,
+      actorId: Owner,
+      round: {
+        title: 'Đợt xoá kiểm cascade',
+        distributionMethod: null,
+        contributionTypes: [],
+        evidenceUrls: [],
+        locationLabel: null,
+        address: null,
+        lat: null,
+        lng: null,
+        needsReview: false,
+        serviceType: null,
+        serviceChannel: null,
+        privateDetails: {
+          beneficiaryBankAccountId: null,
+          recipientName: null,
+          recipientPhone: null,
+          recipientAddress: null,
+          coordinatorName: null,
+          coordinatorPhone: null,
+          carrier: null,
+          shippingFeePayer: null,
+          estimatedShippingFee: null,
+          trackingCode: null,
+          transferContent: null,
+        },
+        startsAt: roundB.startsAt,
+        endsAt: roundB.endsAt,
+      },
+    });
+    await sql(`DELETE FROM campaign_distribution_rounds WHERE global_id = $1`, [
+      disposableRound.roundId,
+    ]);
+    check(
+      'xoá round cascade chi tiết riêng tư',
+      (
+        await sql(
+          `SELECT count(*)::int AS count FROM campaign_round_private_details WHERE round_id = $1`,
+          [disposableRound.roundId],
+        )
+      )[0]?.count === 0,
+    );
+    check(
+      'tạo đợt ghi chi tiết riêng tư',
+      (
+        await sql(
+          `SELECT recipient_phone FROM campaign_round_private_details WHERE round_id = $1`,
+          [roundA.roundId],
+        )
+      )[0]?.recipient_phone === '0901234567',
+    );
+    check(
+      'toạ độ round round-trip đúng thứ tự lat/lng qua repository',
+      (await operations.findRound(Live, roundA.roundId))?.lat === 10.1234 &&
+        (await operations.findRound(Live, roundA.roundId))?.lng === 106.5678,
+    );
+    check(
+      'workspace repository trả recipientPhone trong privateDetails',
+      (await operations.findRound(Live, roundA.roundId))?.privateDetails
+        ?.recipientPhone === '0901234567',
+    );
+    const publicRounds = await new ListCharityRoundsUseCase(
+      { findVisibleCampaignId: async () => Live } as never,
+      operations,
+    ).handle({ idOrSlug: 'live' });
+    const publicDirectRecipient = publicRounds.find(
+      (round) => round.roundId === directRecipientRound.roundId,
+    );
+    check(
+      'ListCharityRounds công khai không lộ phone/address DIRECT_RECIPIENT, lat/lng null',
+      !JSON.stringify(publicDirectRecipient).includes('0901888999') &&
+        !JSON.stringify(publicDirectRecipient).includes(
+          'Địa chỉ người nhận riêng',
+        ) &&
+        publicDirectRecipient?.lat === null &&
+        publicDirectRecipient.lng === null,
+    );
+    const manageRounds = await new ManageCharityRoundsUseCase(
+      { resolve: async () => ({ campaign: { globalId: Live } }) } as never,
+      operations,
+    ).handle({ userId: Owner, campaignId: Live });
+    const managedDirectRecipient = manageRounds.find(
+      (round) => round.roundId === directRecipientRound.roundId,
+    );
+    check(
+      'ManageCharityRounds trả phone và địa chỉ DIRECT_RECIPIENT',
+      managedDirectRecipient?.address === 'Địa chỉ người nhận riêng' &&
+        managedDirectRecipient.privateDetails?.recipientPhone === '0901888999',
+    );
+    await operations.setRoundStatus({
+      campaignId: Live,
+      roundId: directRecipientRound.roundId,
+      actorId: Owner,
+      status: 'DONE',
+      reason: null,
+    });
+    check(
+      'CHECK: evidence_urls vượt 20 phần tử bị chặn',
+      await rejects(() =>
+        sql(
+          `UPDATE campaign_distribution_rounds
+             SET evidence_urls = (SELECT jsonb_agg('https://cdn.test/' || series || '.webp')
+                                    FROM generate_series(1, 21) series)
+           WHERE global_id = $1`,
+          [roundA.roundId],
+        ),
+      ),
+    );
     check(
       'mỗi đợt 10 bước riêng, cùng tồn tại với timeline chung',
       (await events.listEventSteps(Live)).length === 10 &&
@@ -429,8 +700,29 @@ async function main(): Promise<void> {
       actorId: Owner,
       round: {
         title: roundA.title,
+        distributionMethod: roundA.distributionMethod,
+        contributionTypes: roundA.contributionTypes,
+        evidenceUrls: roundA.evidenceUrls,
         locationLabel: roundA.locationLabel,
         address: null,
+        lat: roundA.lat,
+        lng: roundA.lng,
+        needsReview: roundA.needsReview,
+        serviceType: roundA.serviceType,
+        serviceChannel: roundA.serviceChannel,
+        privateDetails: roundA.privateDetails ?? {
+          beneficiaryBankAccountId: null,
+          recipientName: null,
+          recipientPhone: null,
+          recipientAddress: null,
+          coordinatorName: null,
+          coordinatorPhone: null,
+          carrier: null,
+          shippingFeePayer: null,
+          estimatedShippingFee: null,
+          trackingCode: null,
+          transferContent: null,
+        },
         startsAt: new Date(soon.getTime() + 3_600_000),
         endsAt: new Date(soon.getTime() + 7 * 3_600_000),
       },
@@ -818,6 +1110,255 @@ async function main(): Promise<void> {
         Math.abs(startedAt.getTime() - Date.now()) < 60_000 &&
         Number(afterHours?.value_json) === 72,
       String(startedAt),
+    );
+
+    // ── 9. Đợt BANK_TRANSFER và tài khoản thụ hưởng ───────────────────────
+    console.log('\n9. Đợt BANK_TRANSFER và tài khoản thụ hưởng');
+    const access = new CharityProjectAccess(campaigns, {
+      hasPermission: async () => false,
+    } as never);
+    const saveRound = new SaveCharityRoundUseCase(access, operations, projects);
+    const roundStatus = new SetCharityRoundStatusUseCase(
+      access,
+      operations,
+      projects,
+    );
+    const addBeneficiaryAccount = async (
+      campaignId: string,
+      accountNo: string,
+      replacesAccountId: string | null = null,
+    ) => {
+      const outcome = await projects.addBeneficiaryBankAccount({
+        campaignId,
+        actorId: Owner,
+        account: {
+          holderType: 'OWNER',
+          partyId: null,
+          bankName: 'VCB',
+          accountNo,
+          accountName: 'NGUYEN VAN DUC',
+        },
+        replacesAccountId,
+        replaceReason: replacesAccountId ? 'Đổi tài khoản' : null,
+      });
+      if (outcome.status !== 'CREATED') throw new Error(outcome.status);
+      return outcome.account;
+    };
+    const firstPayout = await addBeneficiaryAccount(Other, '5550001111');
+    const foreignPayout = await addBeneficiaryAccount(Live, '5550002222');
+    await projects.verifyBeneficiaryBankAccount({
+      campaignId: Live,
+      accountId: foreignPayout.accountId,
+      actorId: Coordinator,
+    });
+    const verifiedFirst = await projects.verifyBeneficiaryBankAccount({
+      campaignId: Other,
+      accountId: firstPayout.accountId,
+      actorId: Coordinator,
+    });
+    const payoutStartsAt = new Date(Date.now() + 3 * 24 * 3_600_000);
+    const transferRound = (beneficiaryBankAccountId: string | null) => ({
+      title: 'Đợt chuyển khoản',
+      distributionMethod: 'BANK_TRANSFER' as const,
+      contributionTypes: ['MONEY' as const],
+      evidenceUrls: ['https://cdn.test/uy-nhiem-chi.webp'],
+      locationLabel: null,
+      address: null,
+      lat: null,
+      lng: null,
+      needsReview: false,
+      serviceType: null,
+      serviceChannel: null,
+      privateDetails: {
+        beneficiaryBankAccountId,
+        recipientName: null,
+        recipientPhone: null,
+        recipientAddress: null,
+        coordinatorName: null,
+        coordinatorPhone: null,
+        carrier: null,
+        shippingFeePayer: null,
+        estimatedShippingFee: null,
+        trackingCode: null,
+        transferContent: 'UNG HO DOT CHUYEN KHOAN',
+      },
+      startsAt: payoutStartsAt,
+      endsAt: new Date(payoutStartsAt.getTime() + 3_600_000),
+    });
+    const ownerCommand = { userId: Owner, campaignId: Other };
+    const saveMessage = (run: () => Promise<unknown>) =>
+      run().then(
+        () => '',
+        (error: unknown) => (error as Error).message,
+      );
+    check(
+      'lưu đợt gắn tài khoản của dự án khác → từ chối',
+      (
+        await saveMessage(() =>
+          saveRound.handle({
+            ...ownerCommand,
+            roundId: null,
+            reason: null,
+            round: transferRound(foreignPayout.accountId),
+          }),
+        )
+      ).startsWith('round.beneficiaryBankAccountId:'),
+    );
+    const payoutRound = await saveRound.handle({
+      ...ownerCommand,
+      roundId: null,
+      reason: null,
+      round: transferRound(firstPayout.accountId),
+    });
+    check(
+      'đợt BANK_TRANSFER lưu và đọc lại beneficiaryBankAccountId',
+      verifiedFirst?.verifiedAt !== null &&
+        (await operations.findRound(Other, payoutRound.roundId))?.privateDetails
+          ?.beneficiaryBankAccountId === firstPayout.accountId,
+    );
+    const replacedPayout = await addBeneficiaryAccount(
+      Other,
+      '5550003333',
+      firstPayout.accountId,
+    );
+    const markDone = () =>
+      roundStatus.handle({
+        ...ownerCommand,
+        roundId: payoutRound.roundId,
+        status: 'DONE',
+        reason: null,
+      });
+    const doneFailure = async () =>
+      markDone().then(
+        () => null,
+        (error: unknown) => (error as { code?: number }).code ?? -1,
+      );
+    const closedLinkCode = await doneFailure();
+    check(
+      'đợt còn gắn tài khoản đã bị thay → DONE bị từ chối 0x13_5b',
+      closedLinkCode === 0x13_5b,
+      String(closedLinkCode),
+    );
+    check(
+      'gắn lại tài khoản đã bị thay khi lưu đợt → từ chối',
+      (
+        await saveMessage(() =>
+          saveRound.handle({
+            ...ownerCommand,
+            roundId: payoutRound.roundId,
+            reason: null,
+            round: transferRound(firstPayout.accountId),
+          }),
+        )
+      ).startsWith('round.beneficiaryBankAccountId:'),
+    );
+    await saveRound.handle({
+      ...ownerCommand,
+      roundId: payoutRound.roundId,
+      reason: null,
+      round: transferRound(replacedPayout.accountId),
+    });
+    const unverifiedCode = await doneFailure();
+    check(
+      'tài khoản thay mới chưa xác thực → DONE bị từ chối 0x13_5b, đợt vẫn PLANNED',
+      replacedPayout.verifiedAt === null &&
+        unverifiedCode === 0x13_5b &&
+        (await operations.findRound(Other, payoutRound.roundId))?.status ===
+          'PLANNED',
+      String(unverifiedCode),
+    );
+    await projects.verifyBeneficiaryBankAccount({
+      campaignId: Other,
+      accountId: replacedPayout.accountId,
+      actorId: Coordinator,
+    });
+    check(
+      'xác thực tài khoản mới + đủ bằng chứng → DONE',
+      (await markDone()).status === 'DONE',
+    );
+
+    // ── 10. PATCH kiểu cũ (không gửi distributionMethod) giữ hình thức trao ──
+    console.log('\n10. PATCH kiểu cũ giữ hình thức trao');
+    const shippingStartsAt = new Date(Date.now() + 4 * 24 * 3_600_000);
+    const shippingRound = await saveRound.handle({
+      ...ownerCommand,
+      roundId: null,
+      reason: null,
+      round: {
+        ...transferRound(null),
+        title: 'Đợt gửi hàng',
+        distributionMethod: 'SHIPPING',
+        contributionTypes: ['MATERIAL'],
+        evidenceUrls: ['https://cdn.test/van-don.webp'],
+        privateDetails: {
+          ...transferRound(null).privateDetails,
+          recipientName: 'Người nhận kín',
+          recipientPhone: '0907654321',
+          recipientAddress: 'Địa chỉ nhận kín',
+          carrier: 'Nhà xe',
+          shippingFeePayer: 'ORGANIZER',
+          estimatedShippingFee: 25000,
+          trackingCode: 'VD-777',
+          transferContent: null,
+        },
+        startsAt: shippingStartsAt,
+        endsAt: new Date(shippingStartsAt.getTime() + 3_600_000),
+      },
+    });
+    const { distributionMethod: _omitted, ...legacyBody } = {
+      ...transferRound(null),
+      title: 'Đợt gửi hàng (đổi tên)',
+      startsAt: shippingStartsAt,
+      endsAt: new Date(shippingStartsAt.getTime() + 3_600_000),
+    };
+    void _omitted;
+    await saveRound.handle({
+      ...ownerCommand,
+      roundId: shippingRound.roundId,
+      reason: null,
+      round: legacyBody,
+    });
+    const keptRound = await operations.findRound(Other, shippingRound.roundId);
+    check(
+      'PATCH chỉ đổi tên, không gửi distributionMethod → giữ hình thức, chi tiết riêng, bằng chứng',
+      keptRound?.title === 'Đợt gửi hàng (đổi tên)' &&
+        keptRound.distributionMethod === 'SHIPPING' &&
+        JSON.stringify(keptRound.contributionTypes) === '["MATERIAL"]' &&
+        JSON.stringify(keptRound.evidenceUrls) ===
+          '["https://cdn.test/van-don.webp"]' &&
+        keptRound.privateDetails?.recipientPhone === '0907654321' &&
+        keptRound.privateDetails.trackingCode === 'VD-777' &&
+        keptRound.privateDetails.estimatedShippingFee === 25000,
+      JSON.stringify(keptRound),
+    );
+    check(
+      'PATCH gửi distributionMethod null cho đợt SHIPPING → từ chối',
+      (
+        await saveMessage(() =>
+          saveRound.handle({
+            ...ownerCommand,
+            roundId: shippingRound.roundId,
+            reason: null,
+            round: { ...legacyBody, distributionMethod: null },
+          }),
+        )
+      ).includes('distributionMethod'),
+    );
+
+    const publicProject = await new GetCharityPublicProjectUseCase(
+      campaigns,
+      projects,
+      engagement,
+      events,
+      new CharitySummaryRepository(dataSource.manager),
+    ).handle({ idOrSlug: 'cop-other', userId: null });
+    const publicJson = JSON.stringify(publicProject);
+    check(
+      'bản công khai thật không chứa số tài khoản thụ hưởng hay id gắn với đợt',
+      !publicJson.includes('5550001111') &&
+        !publicJson.includes('5550003333') &&
+        !publicJson.includes(replacedPayout.accountId) &&
+        !('beneficiaryBankAccounts' in publicProject),
     );
   } finally {
     for (const source of opened.reverse())

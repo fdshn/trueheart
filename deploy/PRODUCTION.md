@@ -1,7 +1,8 @@
 # Production · Runbook triển khai
 
 Production là một server riêng chạy toàn bộ **Core API + PostgreSQL/PostGIS + Redis**.
-GitHub chỉ deploy khi push tag `v*`; không có chuyện staging tự động đi tiếp sang production.
+GitHub deploy production khi `main` đổi (merge PR `develop → main`) hoặc chạy Release tay trên
+`main`. Staging chạy từ `develop`; code chỉ lên production khi được merge sang `main`.
 
 ```text
 Internet HTTPS
@@ -286,43 +287,32 @@ DEPLOY_ENABLED=true
 
 sau khi DNS, certificate và external `https://api.<domain>/health` đã gọi được.
 
-Nếu GitHub plan hỗ trợ, cấu hình thêm `Required reviewers` và giới hạn deployment branch/tag
-cho `v*`. Nếu không hỗ trợ, quy trình tag/release phải do người chịu trách nhiệm thực hiện thủ công.
+Giới hạn deployment branch của Environment `production` chỉ còn `main` (Settings → Environments
+→ production → Deployment branches). Nếu GitHub plan hỗ trợ, thêm `Required reviewers`.
 
 ---
 
 ## 5. Deploy production lần đầu
 
-Đảm bảo local sạch và đúng `main`:
+Production deploy khi `main` đổi. Đã kiểm trên staging (`develop`) thì mở PR `develop → main`:
 
 ```powershell
-cd "D:\works\freelancer_dev\true-heart"
-
-git checkout main
-git pull --ff-only origin main
-git status
+gh pr create --base main --head develop --title "release: <tóm tắt>"
 ```
 
-Tạo tag SemVer rồi push:
-
-```powershell
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-Tag `v*` chạy workflow Release:
+Merge PR đó (hoặc **Actions → Release → Run workflow** trên nhánh `main`, chọn `production`)
+chạy workflow Release:
 
 ```text
-1. Build Core image từ đúng commit được tag
-2. Push ghcr.io/fdshn/trueheart/core:v0.1.0
-3. Push ghcr.io/fdshn/trueheart/core:latest
-4. Push tag bất biến ghcr.io/fdshn/trueheart/core:sha-<commit>
-5. SSH server production bằng user deploy
-6. docker compose pull core
-7. docker compose up -d --wait --wait-timeout 180
-8. Core tự chạy TypeORM migration schema còn thiếu
-9. GitHub gọi read-only smoke test qua HEALTH_URL
-10. Nếu lỗi: pin lại SHA image trước đó, up --wait rollback
+1. Build Core image từ đúng commit của main
+2. Push ghcr.io/fdshn/trueheart/core:latest
+3. Push tag bất biến ghcr.io/fdshn/trueheart/core:sha-<commit>
+4. SSH server production bằng user deploy
+5. docker compose pull core
+6. docker compose up -d --wait --wait-timeout 180
+7. Core tự chạy TypeORM migration schema còn thiếu
+8. GitHub gọi read-only smoke test qua HEALTH_URL
+9. Nếu lỗi: pin lại SHA image trước đó, up --wait rollback
 ```
 
 Lần đầu server tự pull ba image:

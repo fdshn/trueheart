@@ -92,7 +92,10 @@ export interface ICharityPublicStats extends ICharityEngagementCounters {
   supporterCount: number;
   /** Đăng ký tham gia còn hiệu lực + người tuyển đã xác nhận. */
   participantCount: number;
-  needs: ICharityNeedTotals;
+  /** `funding` = null khi dự án không nhận MONEY — đường công khai không hiện số tiền. */
+  needs: Omit<ICharityNeedTotals, 'funding'> & {
+    funding: ICharityNeedTotals['funding'] | null;
+  };
 }
 
 export interface ICharityInternalStatsView extends ICharityInternalStats {

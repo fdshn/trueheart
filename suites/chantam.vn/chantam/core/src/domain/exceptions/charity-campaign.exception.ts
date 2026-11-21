@@ -351,3 +351,31 @@ export class CharityAppealRateLimitedException extends ExceptionFrom(
 export class CharityParticipantRankTooLowException extends ExceptionFrom(
   CoreErrors.CHARITY_PARTICIPANT_RANK_TOO_LOW,
 ) {}
+
+export class CharityContributionTypeDisabledException extends ExceptionFrom(
+  CoreErrors.CHARITY_CONTRIBUTION_TYPE_DISABLED,
+) {}
+
+export class CharitySubmitRequirementsUnmetException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUBMIT_REQUIREMENTS_UNMET,
+) {}
+
+export class CharityDistributionFieldRequiredException extends ExceptionFrom(
+  CoreErrors.CHARITY_DISTRIBUTION_FIELD_REQUIRED,
+) {}
+
+export class CharityDistributionMethodMismatchException extends ExceptionFrom(
+  CoreErrors.CHARITY_DISTRIBUTION_METHOD_MISMATCH,
+) {}
+
+export class CharityRoundEvidenceRequiredException extends ExceptionFrom(
+  CoreErrors.CHARITY_ROUND_EVIDENCE_REQUIRED,
+) {}
+
+export class CharityBeneficiaryAccountNameMismatchException extends ExceptionFrom(
+  CoreErrors.CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH,
+) {}
+
+export class CharityBeneficiaryAccountNotVerifiedException extends ExceptionFrom(
+  CoreErrors.CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED,
+) {}

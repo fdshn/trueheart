@@ -1464,6 +1464,56 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     sample: ['SILVER'],
   },
 
+  CHARITY_CONTRIBUTION_TYPE_DISABLED: {
+    code: ErrorCodes.CHARITY_CONTRIBUTION_TYPE_DISABLED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (type: string) => `Hoạt động này không nhận đóng góp loại ${type}`,
+    sample: ['MONEY'],
+  },
+
+  CHARITY_SUBMIT_REQUIREMENTS_UNMET: {
+    code: ErrorCodes.CHARITY_SUBMIT_REQUIREMENTS_UNMET,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (missing: string) => `Chưa thể gửi duyệt: ${missing}`,
+    sample: ['MONEY: chưa có tài khoản nhận đang hiệu lực'],
+  },
+
+  CHARITY_DISTRIBUTION_FIELD_REQUIRED: {
+    code: ErrorCodes.CHARITY_DISTRIBUTION_FIELD_REQUIRED,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (fields: string) =>
+      `Thiếu thông tin bắt buộc cho hình thức trao: ${fields}`,
+    sample: ['privateDetails.recipientAddress'],
+  },
+
+  CHARITY_DISTRIBUTION_METHOD_MISMATCH: {
+    code: ErrorCodes.CHARITY_DISTRIBUTION_METHOD_MISMATCH,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (reason: string) => `Hình thức trao không phù hợp: ${reason}`,
+    sample: ['BANK_TRANSFER cần loại đóng góp MONEY'],
+  },
+
+  CHARITY_ROUND_EVIDENCE_REQUIRED: {
+    code: ErrorCodes.CHARITY_ROUND_EVIDENCE_REQUIRED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (missing: string) => `Chưa đủ bằng chứng đợt trao: ${missing}`,
+    sample: ['evidenceUrls'],
+  },
+
+  CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH: {
+    code: ErrorCodes.CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (expected: string) =>
+      `Tên chủ tài khoản không khớp tên đã đăng ký: ${expected}`,
+    sample: ['Nguyễn Văn Đức'],
+  },
+
+  CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED: {
+    code: ErrorCodes.CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Tài khoản thụ hưởng chưa được xác thực',
+  },
+
   CHARITY_EXTERNAL_SOURCE_DUPLICATED: {
     code: ErrorCodes.CHARITY_EXTERNAL_SOURCE_DUPLICATED,
     httpStatus: HttpStatus.CONFLICT,

@@ -3,6 +3,7 @@ import {
   ICharityFinancialReport,
   ICharityFinancialReportInput,
   ICharityHomeCard,
+  ICharityIntakeTotals,
   ICharityPromotion,
   ICharitySummary,
   ICharitySummaryContent,
@@ -14,6 +15,7 @@ import { ICharityProjectCommand } from './charity-project.contract';
 /** Dự án từ thiện 4 giai đoạn — đợt 4a (CHARITY-PROJECT-LIFECYCLE §3.6, §3.14, §3.17). */
 
 export interface ICharitySummaryBoard {
+  totals: ICharityIntakeTotals;
   summary: ICharitySummary | null;
   financialReports: ICharityFinancialReport[];
   /** Có nhận tiền → cần ít nhất một báo cáo tài chính trước khi công khai. */

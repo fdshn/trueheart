@@ -417,6 +417,20 @@ export enum ErrorCodes {
   CHARITY_PARTICIPATION_STAGE_NOT_ALLOWED = 0x13_53,
   /** Hạng hiện tại (đọc từ database) thấp hơn hạng tối thiểu chiến dịch đặt cho người tham gia. */
   CHARITY_PARTICIPANT_RANK_TOO_LOW = 0x13_54,
+  /** Chiến dịch không bật loại đóng góp này. */
+  CHARITY_CONTRIBUTION_TYPE_DISABLED = 0x13_55,
+  /** Gửi duyệt khi thiếu nhu cầu hoặc tài khoản nhận bắt buộc theo loại đóng góp đã bật. */
+  CHARITY_SUBMIT_REQUIREMENTS_UNMET = 0x13_56,
+  /** Thiếu trường bắt buộc cho hình thức trao của một đợt. */
+  CHARITY_DISTRIBUTION_FIELD_REQUIRED = 0x13_57,
+  /** Hình thức trao không phù hợp với loại đóng góp của đợt. */
+  CHARITY_DISTRIBUTION_METHOD_MISMATCH = 0x13_58,
+  /** Chưa đủ bằng chứng bắt buộc để hoàn tất đợt trao. */
+  CHARITY_ROUND_EVIDENCE_REQUIRED = 0x13_59,
+  /** Tên chủ tài khoản thụ hưởng không khớp tên bên nhận dự kiến. */
+  CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH = 0x13_5a,
+  /** Tài khoản thụ hưởng được chọn chưa được xác thực. */
+  CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED = 0x13_5b,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

@@ -34,8 +34,14 @@ import {
 } from '@/application/contracts/charity-project';
 import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import {
+  assertContributionTypeAccepted,
+  assertDistributionMethodAcceptedByCampaign,
+} from '@/domain/charity-contribution-type';
+import {
+  CharityBeneficiaryAccountNotVerifiedException,
   CharityCampaignNotFoundException,
   CharityProjectNotApprovedException,
+  CharityRoundEvidenceRequiredException,
   CharityRoundInvalidStateException,
   CharityRoundNotFoundException,
   CharityStageTransitionInvalidException,
@@ -50,6 +56,7 @@ import {
   ICharityOperationsRepository,
   ICharityProjectRepository,
   ICharityRound,
+  ICharityRoundInput,
   ICharitySupportNeed,
   ICharitySupportNeedExternal,
   ICharitySupportOffer,
@@ -60,11 +67,12 @@ import {
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
   CharityCompletionBlockerLabels,
+  charityRoundEvidenceGaps,
+  charityRoundWarnings,
   CharitySupportOfferDecisionRules,
   CharitySupportOfferStatus,
   CharitySupportOfferWithdrawableStatuses,
   ICharityRoundChecklistItem,
-  charityRoundWarnings,
   isPubliclyVisibleProject,
   normalizeRoundChecklist,
   phaseScheduleGaps,
@@ -72,6 +80,7 @@ import {
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CharityProjectAccess } from './charity-project.use-cases';
+import { prepareCharityRoundDistribution } from './charity-round-distribution';
 
 const trimmed = (value: string | null | undefined): string | null =>
   value?.trim() || null;
@@ -88,7 +97,18 @@ const toRoundPublic = (round: ICharityRound): ICharityRoundPublic => ({
   campaignId: round.campaignId,
   title: round.title,
   locationLabel: round.locationLabel,
-  address: round.address,
+  address:
+    round.distributionMethod === 'OTHER_LOCATION' ||
+    round.distributionMethod === null
+      ? round.address
+      : null,
+  distributionMethod: round.distributionMethod,
+  contributionTypes: round.contributionTypes,
+  evidenceUrls: round.evidenceUrls,
+  serviceType: round.serviceType,
+  serviceChannel: round.serviceChannel,
+  lat: round.distributionMethod === 'OTHER_LOCATION' ? round.lat : null,
+  lng: round.distributionMethod === 'OTHER_LOCATION' ? round.lng : null,
   startsAt: round.startsAt,
   endsAt: round.endsAt,
   status: round.status,
@@ -96,6 +116,19 @@ const toRoundPublic = (round: ICharityRound): ICharityRoundPublic => ({
   stats: round.stats,
   updatedAt: round.updatedAt,
 });
+
+/** Tài khoản thụ hưởng ĐANG hiệu lực của chính dự án này (danh sách đã lọc theo dự án). */
+async function findLiveBeneficiaryAccount(
+  projects: ICharityProjectRepository,
+  campaignId: string,
+  accountId: string,
+) {
+  return (
+    (await projects.listBeneficiaryBankAccounts(campaignId)).find(
+      (row) => row.accountId === accountId && row.validTo === null,
+    ) ?? null
+  );
+}
 
 const toSupportPublic = ({
   picPhone: _phone,
@@ -288,6 +321,7 @@ export class OfferCharitySupportUseCase implements IOfferCharitySupportUseCase {
       throw new CharityCampaignNotFoundException();
     if (!campaign.isActive || campaign.operationStage === 'SUMMARY')
       throw new CharitySupportNeedClosedException();
+    assertContributionTypeAccepted(campaign, 'SERVICE');
     const need = await this.operations.findSupportNeed(
       campaign.globalId,
       command.supportNeedId,
@@ -533,23 +567,57 @@ export class SaveCharityRoundUseCase implements ISaveCharityRoundUseCase {
     private readonly access: CharityProjectAccess,
     @Inject(ICharityOperationsRepository)
     private readonly operations: ICharityOperationsRepository,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
   ) {}
 
   public async handle(command: ISaveCharityRoundCommand) {
     const { campaign } = await this.access.forOperate(command);
-    const round = {
-      ...command.round,
-      title: command.round.title.trim(),
-      locationLabel: trimmed(command.round.locationLabel),
-      address: trimmed(command.round.address),
-    };
-    const errors: string[] = [];
-    if (!round.title) errors.push('round.title: bắt buộc');
-    if (round.endsAt <= round.startsAt)
-      errors.push('round.endsAt: phải sau startsAt');
-    if (errors.length > 0) throw new ValidationFailedException(errors);
+    const current = command.roundId
+      ? await this.operations.findRound(campaign.globalId, command.roundId)
+      : null;
+    if (command.roundId) {
+      if (!current) throw new CharityRoundNotFoundException();
+      if (current.status !== 'PLANNED')
+        throw new CharityRoundInvalidStateException(current.status);
+    }
+    // PATCH không gửi distributionMethod (client cũ): giữ nguyên mọi trường hình thức trao đã lưu,
+    // chỉ sửa các trường kiểu cũ (tên, giờ, địa điểm) — §5 tương thích một bản phát hành.
+    const keepDistribution =
+      current !== null && command.round.distributionMethod === undefined;
+    if (
+      current?.distributionMethod &&
+      command.round.distributionMethod === null
+    )
+      throw new ValidationFailedException([
+        'distributionMethod: không được bỏ hình thức trao của đợt đã có hình thức',
+      ]);
+    const round = keepDistribution
+      ? keepStoredDistribution(current, command.round)
+      : prepareCharityRoundDistribution({
+          ...command.round,
+          distributionMethod: command.round.distributionMethod ?? null,
+        });
+    if (!keepDistribution) {
+      assertDistributionMethodAcceptedByCampaign(
+        campaign,
+        round.distributionMethod,
+      );
+      const linkedAccountId = round.privateDetails.beneficiaryBankAccountId;
+      if (
+        linkedAccountId &&
+        !(await findLiveBeneficiaryAccount(
+          this.projects,
+          campaign.globalId,
+          linkedAccountId,
+        ))
+      )
+        throw new ValidationFailedException([
+          'round.beneficiaryBankAccountId: phải là tài khoản thụ hưởng ĐANG hiệu lực của dự án này',
+        ]);
+    }
 
-    if (!command.roundId)
+    if (!current)
       return toRoundView(
         await this.operations.createRound({
           campaignId: campaign.globalId,
@@ -559,13 +627,6 @@ export class SaveCharityRoundUseCase implements ISaveCharityRoundUseCase {
         new Date(),
       );
 
-    const current = await this.operations.findRound(
-      campaign.globalId,
-      command.roundId,
-    );
-    if (!current) throw new CharityRoundNotFoundException();
-    if (current.status !== 'PLANNED')
-      throw new CharityRoundInvalidStateException(current.status);
     // Dời giờ / đổi chỗ của đợt đã công khai: phải có lý do và báo người của đợt (§3.18).
     const moved =
       current.startsAt.getTime() !== round.startsAt.getTime() ||
@@ -585,10 +646,54 @@ export class SaveCharityRoundUseCase implements ISaveCharityRoundUseCase {
       round,
       reason,
       announce,
+      keepDistribution,
     });
     if (!updated) throw new CharityRoundInvalidStateException('DONE');
     return toRoundView(updated, new Date());
   }
+}
+
+/** Ghép trường kiểu cũ của client với hình thức trao đã lưu (PATCH không gửi `distributionMethod`). */
+function keepStoredDistribution(
+  current: ICharityRound,
+  input: ISaveCharityRoundCommand['round'],
+): ICharityRoundInput {
+  const round: ICharityRoundInput = {
+    title: input.title.trim(),
+    distributionMethod: current.distributionMethod,
+    contributionTypes: current.contributionTypes,
+    evidenceUrls: current.evidenceUrls,
+    locationLabel: trimmed(input.locationLabel),
+    address: trimmed(input.address),
+    lat: current.lat,
+    lng: current.lng,
+    needsReview: current.needsReview,
+    serviceType: current.serviceType,
+    serviceChannel: current.serviceChannel,
+    privateDetails: {
+      beneficiaryBankAccountId:
+        current.privateDetails?.beneficiaryBankAccountId ?? null,
+      recipientName: current.privateDetails?.recipientName ?? null,
+      recipientPhone: current.privateDetails?.recipientPhone ?? null,
+      recipientAddress: current.privateDetails?.recipientAddress ?? null,
+      coordinatorName: current.privateDetails?.coordinatorName ?? null,
+      coordinatorPhone: current.privateDetails?.coordinatorPhone ?? null,
+      carrier: current.privateDetails?.carrier ?? null,
+      shippingFeePayer: current.privateDetails?.shippingFeePayer ?? null,
+      estimatedShippingFee:
+        current.privateDetails?.estimatedShippingFee ?? null,
+      trackingCode: current.privateDetails?.trackingCode ?? null,
+      transferContent: current.privateDetails?.transferContent ?? null,
+    },
+    startsAt: input.startsAt,
+    endsAt: input.endsAt,
+  };
+  const errors: string[] = [];
+  if (!round.title) errors.push('round.title: bắt buộc');
+  if (round.endsAt <= round.startsAt)
+    errors.push('round.endsAt: phải sau startsAt');
+  if (errors.length > 0) throw new ValidationFailedException(errors);
+  return round;
 }
 
 @Injectable()
@@ -597,6 +702,8 @@ export class SetCharityRoundStatusUseCase implements ISetCharityRoundStatusUseCa
     private readonly access: CharityProjectAccess,
     @Inject(ICharityOperationsRepository)
     private readonly operations: ICharityOperationsRepository,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
   ) {}
 
   public async handle(command: ISetCharityRoundStatusCommand) {
@@ -613,6 +720,28 @@ export class SetCharityRoundStatusUseCase implements ISetCharityRoundStatusUseCa
     if (!current) throw new CharityRoundNotFoundException();
     if (current.status !== 'PLANNED')
       throw new CharityRoundInvalidStateException(current.status);
+    if (command.status === 'DONE') {
+      const gaps = charityRoundEvidenceGaps({
+        distributionMethod: current.distributionMethod,
+        evidenceUrls: current.evidenceUrls,
+        trackingCode: current.privateDetails?.trackingCode ?? null,
+      });
+      if (gaps.length > 0)
+        throw new CharityRoundEvidenceRequiredException(gaps.join(', '));
+      if (current.distributionMethod === 'BANK_TRANSFER') {
+        // Tài khoản gắn với đợt phải còn hiệu lực, cùng dự án và đã được Admin xác thực.
+        const accountId = current.privateDetails?.beneficiaryBankAccountId;
+        const account = accountId
+          ? await findLiveBeneficiaryAccount(
+              this.projects,
+              campaign.globalId,
+              accountId,
+            )
+          : null;
+        if (!account || account.verifiedAt === null)
+          throw new CharityBeneficiaryAccountNotVerifiedException();
+      }
+    }
     const updated = await this.operations.setRoundStatus({
       campaignId: campaign.globalId,
       roundId: current.roundId,
