@@ -166,7 +166,10 @@ export class CharityIntakeMaterialLineDto {
 export class CharityIntakeMaterialTotalsDto {
   @ApiProperty({ type: () => [CharityIntakeMaterialLineDto] })
   lines: CharityIntakeMaterialLineDto[];
-  @ApiProperty({ description: 'VNĐ; chỉ giao nhận trong app đã hoàn tất' })
+  @ApiProperty({
+    description:
+      'Giá trị quy đổi hiện vật (VNĐ), không phải tiền đóng góp — chỉ giao nhận trong app đã hoàn tất; không cộng với money.confirmedAmount',
+  })
   confirmedValue: number;
 }
 export class CharityIntakeMoneyTotalsDto {

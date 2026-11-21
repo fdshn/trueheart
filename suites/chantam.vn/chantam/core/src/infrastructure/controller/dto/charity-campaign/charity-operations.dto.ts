@@ -592,7 +592,10 @@ class CharityRoundStatsDto {
   @ApiProperty() attendedCount: number;
   @ApiProperty() deliveryCount: number;
   @ApiProperty() completedDeliveryCount: number;
-  @ApiProperty({ description: 'VNĐ, lượt giao nhận đã hoàn tất' })
+  @ApiProperty({
+    description:
+      'Giá trị quy đổi hiện vật (VNĐ), không phải tiền đóng góp — tổng các lượt giao nhận đã hoàn tất',
+  })
   confirmedValue: number;
 }
 
