@@ -2,11 +2,14 @@ import {
   CharityBankAccountLimitException,
   CharityBankAccountNotFoundException,
   CharityBeneficiaryAccountNameMismatchException,
+  CharityBeneficiaryAccountNotVerifiedException,
   CharityCampaignNotFoundException,
   CharityContributionTypeDisabledException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
   CharityProjectNotDraftException,
+  CharityRehearsalNotReadyException,
+  CharityRoundEvidenceRequiredException,
   CharitySectionEmptyException,
   CharityStageScheduleConflictException,
   CharityStageTransitionInvalidException,
@@ -14,6 +17,7 @@ import {
   CharityVolunteerClosedException,
 } from '@/domain/exceptions';
 import { ICharityCampaign } from '@/domain/ports/repository';
+import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import {
   AddCharityBankAccountUseCase,
@@ -30,6 +34,7 @@ import {
   ReplaceCharityPartiesUseCase,
   ReplaceCharityPhasesUseCase,
   SaveCharityFundingNeedUseCase,
+  SaveCharityRehearsalUseCase,
   SubmitCharityProjectUseCase,
   UpdateCharityProfileUseCase,
   VerifyCharityBeneficiaryBankAccountUseCase,
@@ -77,6 +82,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     operationStage: 'EXECUTION',
     storedOperationStage: 'EXECUTION',
     distribution: null,
+    summaryPublishedAt: null,
     ...overrides,
   };
 }
@@ -124,7 +130,29 @@ function make(
       liveBankAccounts: 1,
     })),
     moveStage: jest.fn(async (..._args: unknown[]) => 'MOVED'),
+    getRehearsal: jest.fn(async (): Promise<unknown> => ({
+      campaignId: CampaignId,
+      checklist: [],
+      outcome: 'READY',
+      reason: null,
+      note: null,
+      decidedBy: Owner,
+      decidedAt: new Date(),
+      phase: null,
+    })),
+    saveRehearsal: jest.fn(async (params: Record<string, unknown>) => ({
+      campaignId: CampaignId,
+      ...params,
+    })),
+    distributionSettlement: jest.fn(async (): Promise<unknown> => ({
+      method: null,
+      evidenceUrls: [],
+      trackingCode: null,
+      beneficiaryAccount: null,
+    })),
     listStageCandidates: jest.fn(async () => [] as unknown[]),
+    listBlockedStageCampaigns: jest.fn(async () => [] as unknown[]),
+    listOverdueSummaries: jest.fn(async () => [] as unknown[]),
     listParties: jest.fn(async () => [
       {
         partyId: 'p1',
@@ -403,6 +431,146 @@ describe('SubmitCharityProjectUseCase', () => {
   });
 });
 
+describe('Tổng duyệt và cổng chuyển giai đoạn', () => {
+  const build = (deps: ReturnType<typeof make>) =>
+    new MoveCharityStageUseCase(
+      deps.access,
+      deps.projects as never,
+      deps.campaigns as never,
+    );
+  const move = (to: 'EVENT' | 'SUMMARY') => ({
+    userId: Owner,
+    campaignId: CampaignId,
+    to,
+    reason: 'Chuyển tay',
+  });
+  const atEvent = () =>
+    make({
+      campaign: campaign({
+        operationStage: 'EVENT',
+        storedOperationStage: 'EVENT',
+      }),
+    });
+
+  it('chuyển tay EXECUTION→EVENT khi tổng duyệt NOT_READY → 409 0x13_5f, moveStage không gọi', async () => {
+    const deps = make();
+    deps.projects.getRehearsal.mockResolvedValue({
+      campaignId: CampaignId,
+      checklist: [],
+      outcome: 'NOT_READY',
+      reason: 'Chưa có xe',
+      note: null,
+      decidedBy: Owner,
+      decidedAt: new Date(),
+      phase: null,
+    });
+    await expect(build(deps).handle(move('EVENT'))).rejects.toBeInstanceOf(
+      CharityRehearsalNotReadyException,
+    );
+    expect(deps.projects.moveStage).not.toHaveBeenCalled();
+  });
+
+  it('chưa có dòng tổng duyệt → 409 0x13_5f', async () => {
+    const deps = make();
+    deps.projects.getRehearsal.mockResolvedValue(null);
+    await expect(build(deps).handle(move('EVENT'))).rejects.toBeInstanceOf(
+      CharityRehearsalNotReadyException,
+    );
+  });
+
+  it('READY → chuyển được', async () => {
+    const deps = make();
+    await build(deps).handle(move('EVENT'));
+    expect(deps.projects.moveStage).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'EVENT' }),
+    );
+  });
+
+  it("EVENT→SUMMARY thiếu bằng chứng SHIPPING → 409 0x13_59 'trackingCode'", async () => {
+    const deps = atEvent();
+    deps.projects.distributionSettlement.mockResolvedValue({
+      method: 'SHIPPING',
+      evidenceUrls: ['https://cdn.test/a.jpg'],
+      trackingCode: null,
+      beneficiaryAccount: null,
+    });
+    const failure = build(deps).handle(move('SUMMARY'));
+    await expect(failure).rejects.toBeInstanceOf(
+      CharityRoundEvidenceRequiredException,
+    );
+    await expect(failure).rejects.toThrow(/trackingCode/);
+    expect(deps.projects.moveStage).not.toHaveBeenCalled();
+  });
+
+  it('BANK_TRANSFER tài khoản chưa xác thực → 409 0x13_5b', async () => {
+    const deps = atEvent();
+    deps.projects.distributionSettlement.mockResolvedValue({
+      method: 'BANK_TRANSFER',
+      evidenceUrls: ['https://cdn.test/a.jpg'],
+      trackingCode: null,
+      beneficiaryAccount: { verified: false, live: true, sameCampaign: true },
+    });
+    await expect(build(deps).handle(move('SUMMARY'))).rejects.toBeInstanceOf(
+      CharityBeneficiaryAccountNotVerifiedException,
+    );
+  });
+
+  it('method null → SUMMARY được', async () => {
+    const deps = atEvent();
+    await build(deps).handle(move('SUMMARY'));
+    expect(deps.projects.moveStage).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'SUMMARY' }),
+    );
+  });
+
+  it('PUT rehearsal NOT_READY không lý do → 400', async () => {
+    const deps = make();
+    await expect(
+      new SaveCharityRehearsalUseCase(
+        deps.access,
+        deps.projects as never,
+      ).handle({
+        userId: Owner,
+        campaignId: CampaignId,
+        rehearsal: {
+          checklist: [],
+          outcome: 'NOT_READY',
+          reason: '  ',
+          note: null,
+        },
+      }),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+    expect(deps.projects.saveRehearsal).not.toHaveBeenCalled();
+  });
+
+  it('checklist 3 mục → lưu đủ 7', async () => {
+    const deps = make();
+    await new SaveCharityRehearsalUseCase(
+      deps.access,
+      deps.projects as never,
+    ).handle({
+      userId: Owner,
+      campaignId: CampaignId,
+      rehearsal: {
+        checklist: [
+          { key: 'RECIPIENTS', status: 'DONE', note: null },
+          { key: 'TRANSPORT', status: 'DONE', note: 'Xe 16 chỗ' },
+          { key: 'STAFF', status: 'NOT_DONE', note: null },
+        ],
+        outcome: 'READY',
+        reason: null,
+        note: null,
+      },
+    });
+    const saved = deps.projects.saveRehearsal.mock.calls[0][0] as {
+      checklist: unknown[];
+      outcome: string;
+    };
+    expect(saved.checklist).toHaveLength(7);
+    expect(saved.outcome).toBe('READY');
+  });
+});
+
 describe('MoveCharityStageUseCase', () => {
   const build = (deps: ReturnType<typeof make>) =>
     new MoveCharityStageUseCase(
@@ -513,36 +681,124 @@ describe('MoveCharityStageUseCase', () => {
   });
 });
 
+describe('AdvanceCharityStagesUseCase · cổng và nhắc ban tổ chức', () => {
+  const dispatcher = () => ({
+    handle: jest.fn(async () => ({ created: true, pushedDevices: 0 })),
+  });
+
+  it('job: ứng viên chưa READY không chuyển, gửi nhắc REHEARSAL_NOT_READY một lần/ngày', async () => {
+    const deps = make();
+    deps.projects.listStageCandidates.mockResolvedValue([]);
+    deps.projects.listBlockedStageCampaigns.mockResolvedValue([
+      { campaignId: 'blocked', ownerId: Owner, reason: 'REHEARSAL_NOT_READY' },
+    ]);
+    const sender = dispatcher();
+    const result = await new AdvanceCharityStagesUseCase(
+      deps.projects as never,
+      sender as never,
+    ).handle({ limit: 10, dryRun: false });
+    expect(result).toEqual({ advanced: 0, checked: 0, reminded: 1 });
+    expect(deps.projects.moveStage).not.toHaveBeenCalled();
+    expect(sender.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: Owner,
+        type: NotificationTypes.CHARITY_ORGANIZER_REMINDER,
+        idempotencyKey: expect.stringMatching(
+          /^CHARITY_ORGANIZER_REMINDER:blocked:REHEARSAL_NOT_READY:/,
+        ),
+      }),
+    );
+  });
+
+  it('job nhắc SUMMARY_OVERDUE cho chiến dịch quá endTime chưa công khai tổng kết', async () => {
+    const deps = make();
+    deps.projects.listOverdueSummaries.mockResolvedValue([
+      { campaignId: 'overdue', ownerId: Owner },
+    ]);
+    const sender = dispatcher();
+    const result = await new AdvanceCharityStagesUseCase(
+      deps.projects as never,
+      sender as never,
+    ).handle({ limit: 10, dryRun: false });
+    expect(result.reminded).toBe(1);
+    expect(sender.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: Owner,
+        type: NotificationTypes.CHARITY_ORGANIZER_REMINDER,
+        idempotencyKey: expect.stringMatching(
+          /^CHARITY_ORGANIZER_REMINDER:overdue:SUMMARY_OVERDUE:/,
+        ),
+      }),
+    );
+  });
+
+  it('job không bao giờ EXECUTION→SUMMARY', async () => {
+    const deps = make();
+    deps.projects.listStageCandidates.mockResolvedValue([
+      {
+        campaignId: 'late',
+        stored: 'EXECUTION',
+        endTime: new Date(Date.now() - 48 * Hour),
+        distribution: {
+          startsAt: new Date(Date.now() - 72 * Hour),
+          endsAt: new Date(Date.now() - 60 * Hour),
+        },
+        rehearsalReady: true,
+        distributionSettled: true,
+      },
+    ]);
+    await new AdvanceCharityStagesUseCase(
+      deps.projects as never,
+      dispatcher() as never,
+    ).handle({ limit: 10, dryRun: false });
+    expect(deps.projects.moveStage).toHaveBeenCalledWith(
+      expect.objectContaining({ from: 'EXECUTION', to: 'EVENT' }),
+    );
+    expect(deps.projects.moveStage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'SUMMARY' }),
+    );
+  });
+});
+
 describe('AdvanceCharityStagesUseCase', () => {
   it('chỉ chuyển dự án đã tới mốc; chạy khô không ghi', async () => {
     const deps = make();
     deps.projects.listStageCandidates.mockResolvedValue([
       {
+        // EXECUTION không bao giờ nhảy thẳng SUMMARY (CR 22/11/2026): dự án đã ở EVENT.
         campaignId: 'a',
-        stored: 'EXECUTION',
+        stored: 'EVENT',
         endTime: new Date(Date.now() - Hour),
         distribution: null,
+        rehearsalReady: true,
+        distributionSettled: true,
       },
       {
         campaignId: 'b',
         stored: 'EXECUTION',
         endTime: new Date(Date.now() + Hour),
         distribution: null,
+        rehearsalReady: true,
+        distributionSettled: true,
       },
     ]);
-    const useCase = new AdvanceCharityStagesUseCase(deps.projects as never);
+    const useCase = new AdvanceCharityStagesUseCase(
+      deps.projects as never,
+      { handle: jest.fn() } as never,
+    );
     await expect(useCase.handle({ limit: 10, dryRun: true })).resolves.toEqual({
       advanced: 1,
       checked: 2,
+      reminded: 0,
     });
     expect(deps.projects.moveStage).not.toHaveBeenCalled();
     await expect(useCase.handle({ limit: 10, dryRun: false })).resolves.toEqual(
-      { advanced: 1, checked: 2 },
+      { advanced: 1, checked: 2, reminded: 0 },
     );
     expect(deps.projects.moveStage).toHaveBeenCalledWith(
       expect.objectContaining({
         campaignId: 'a',
-        from: 'EXECUTION',
+        from: 'EVENT',
         to: 'SUMMARY',
         actorId: null,
       }),
@@ -859,6 +1115,46 @@ describe('Hồ sơ tab A', () => {
     expect(view).not.toHaveProperty('beneficiaryBankAccounts');
     expect(JSON.stringify(view)).not.toContain('9988776655');
     expect(deps.projects.listBeneficiaryBankAccounts).not.toHaveBeenCalled();
+  });
+
+  it('public: hình thức trao đúng 5 khoá công khai, không có privateDetails', async () => {
+    const deps = make();
+    const operations = {
+      getDistribution: jest.fn(async () => ({
+        campaignId: CampaignId,
+        distributionMethod: 'SHIPPING',
+        contributionTypes: ['MATERIAL'],
+        serviceType: null,
+        serviceChannel: null,
+        evidenceUrls: ['https://cdn.test/e.jpg'],
+        privateDetails: {
+          recipientPhone: '0912345678',
+          recipientAddress: 'Số 9 ngõ kín',
+          trackingCode: 'VN999',
+        },
+        updatedAt: new Date(),
+      })),
+    };
+    const view = await new GetCharityPublicProjectUseCase(
+      deps.campaigns as never,
+      deps.projects as never,
+      deps.engagement as never,
+      deps.events as never,
+      deps.summaries as never,
+      operations as never,
+    ).handle({ idOrSlug: 'mua-dong-am', userId: null });
+    expect(Object.keys(view.distribution ?? {}).sort()).toEqual([
+      'contributionTypes',
+      'evidenceUrls',
+      'method',
+      'serviceChannel',
+      'serviceType',
+    ]);
+    expect(view.distribution?.method).toBe('SHIPPING');
+    const json = JSON.stringify(view);
+    expect(json).not.toContain('0912345678');
+    expect(json).not.toContain('Số 9 ngõ kín');
+    expect(json).not.toContain('VN999');
   });
 
   it('PUT parties bỏ bên thụ hưởng thường còn tài khoản → 400; dòng kêu gọi cá nhân bỏ qua; giữ + đổi tên thì được', async () => {

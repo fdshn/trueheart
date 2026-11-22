@@ -75,16 +75,16 @@ async function seedDispute(ctx: ISeedContext): Promise<void> {
 }
 
 /**
- * Đợt 5b/5c (quyết định 05/11): một hạng mục hỗ trợ mở (chuyến xe) có ba đề nghị ở ba trạng
- * thái và nguồn ngoài kèm bằng chứng; hai đợt trao — một sắp tới (đã gắn người tặng, checklist
- * dở), một đã huỷ có lý do — mỗi đợt timeline riêng.
+ * Đợt 5b (quyết định 05/11): một hạng mục hỗ trợ mở (chuyến xe) có ba đề nghị ở ba trạng thái
+ * và nguồn ngoài kèm bằng chứng. Trao ở cấp chiến dịch (CR 22/11/2026): hình thức, bằng chứng,
+ * chi tiết riêng tư và một tổng duyệt READY — mỗi khối có guard riêng theo schema.
  */
 async function seedOperations(
   ctx: ISeedContext,
   campaignId: string,
 ): Promise<void> {
   const [schema] = await ctx.q<{ ready: boolean }>(
-    `SELECT to_regclass('public.campaign_distribution_rounds') IS NOT NULL AS ready`,
+    `SELECT to_regclass('public.campaign_other_support_needs') IS NOT NULL AS ready`,
   );
   if (!schema?.ready) return;
   const [seeded] = await ctx.q(
@@ -120,69 +120,50 @@ async function seedOperations(
       [need.global_id, userId, quantity, status, Personas.organizer],
     );
 
-  const [upcoming] = await ctx.q<{ global_id: string }>(
-    `INSERT INTO campaign_distribution_rounds
-       (campaign_id, title, location_label, address, starts_at, ends_at, readiness, checklist,
-        created_by, updated_by)
-     VALUES ($1, 'Đợt 1 — Điểm trường Sủng Trà', 'Mèo Vạc, Hà Giang', 'Thôn Sủng Trà',
-             now() + interval '30 hours', now() + interval '36 hours', 'PENDING',
-             '[{"key":"TRANSPORT","done":true,"note":null},{"key":"GOODS_PACKED","done":false,"note":"Còn 40 áo"}]'::jsonb,
-             $2, $2)
-     RETURNING global_id`,
-    [campaignId, Personas.organizer],
+  await seedCampaignDistribution(ctx, campaignId);
+}
+
+async function seedCampaignDistribution(
+  ctx: ISeedContext,
+  campaignId: string,
+): Promise<void> {
+  const [columns] = await ctx.q<{ ready: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'campaigns' AND column_name = 'distribution_method'
+     ) AS ready`,
   );
-  const [cancelled] = await ctx.q<{ global_id: string }>(
-    `INSERT INTO campaign_distribution_rounds
-       (campaign_id, title, location_label, starts_at, ends_at, status, status_reason,
-        created_by, updated_by)
-     VALUES ($1, 'Đợt 2 — Điểm trường Pải Lủng', 'Mèo Vạc, Hà Giang', now() + interval '10 days',
-             now() + interval '10 days 6 hours', 'CANCELLED', 'Địa phương đã có đoàn khác trao',
-             $2, $2)
-     RETURNING global_id`,
-    [campaignId, Personas.organizer],
-  );
-  for (const roundId of [upcoming.global_id, cancelled.global_id])
+  if (columns?.ready) {
     await ctx.q(
-      `INSERT INTO campaign_event_steps (campaign_id, round_id, step_key, sort_order)
-       SELECT $1, $2, step.key, step.sort_order
-       FROM unnest($3::text[], $4::int[]) AS step(key, sort_order)`,
-      [
-        campaignId,
-        roundId,
-        [
-          'GATHER',
-          'BRIEFING',
-          'TRAVEL',
-          'REST_STOP',
-          'ARRIVE',
-          'MEET_LOCAL_AUTHORITY',
-          'MEET_RECIPIENTS',
-          'DISTRIBUTE',
-          'WRAP_UP',
-          'RETURN',
-        ],
-        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-      ],
+      `UPDATE campaigns
+          SET distribution_method = 'OTHER_LOCATION',
+              distribution_contribution_types = ARRAY['MATERIAL']::text[],
+              distribution_evidence_urls = '["https://placehold.co/600x400.png"]'::jsonb
+        WHERE global_id = $1`,
+      [campaignId],
     );
-  await ctx.q(
-    `UPDATE campaign_participations SET round_id = $2
-      WHERE campaign_id = $1 AND user_id = $3`,
-    [campaignId, upcoming.global_id, Personas.giver],
+    await ctx.q(
+      `INSERT INTO campaign_distribution_private_details
+         (campaign_id, coordinator_name, coordinator_phone, updated_by)
+       VALUES ($1, 'Anh Tư', '0900000004', $2)
+       ON CONFLICT (campaign_id) DO NOTHING`,
+      [campaignId, Personas.organizer],
+    );
+  }
+
+  const [rehearsals] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.campaign_rehearsals') IS NOT NULL AS ready`,
   );
-  await ctx.q(
-    `INSERT INTO campaign_announcements (campaign_id, kind, payload, actor_id)
-     VALUES ($1, 'ROUND_CHANGED', $2::jsonb, $3)`,
-    [
-      campaignId,
-      JSON.stringify({
-        roundId: cancelled.global_id,
-        roundTitle: 'Đợt 2 — Điểm trường Pải Lủng',
-        change: 'CANCELLED',
-        reason: 'Địa phương đã có đoàn khác trao',
-      }),
-      Personas.organizer,
-    ],
-  );
+  if (rehearsals?.ready)
+    await ctx.q(
+      `INSERT INTO campaign_rehearsals
+         (campaign_id, checklist, outcome, decided_by, decided_at, updated_by)
+       VALUES ($1,
+               '[{"key":"RECIPIENTS","status":"DONE","note":null},{"key":"TRANSPORT","status":"DONE","note":"Xe 16 chỗ"}]'::jsonb,
+               'READY', $2, now() - interval '2 days', $2)
+       ON CONFLICT (campaign_id) DO NOTHING`,
+      [campaignId, Personas.organizer],
+    );
 }
 
 async function seedProfile(

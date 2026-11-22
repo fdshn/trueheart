@@ -15,18 +15,21 @@
  *
  *   npm run test:charity-project
  */
+import { charityDistributionSettled } from '@chantam.vn/chantam.core-lib/models';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import { GetCharityPublicStatsUseCase } from '../src/application/implementations/charity-project/charity-engagement.use-cases';
 import {
   AddCharityBeneficiaryBankAccountUseCase,
+  AdvanceCharityStagesUseCase,
   CharityProjectAccess,
   ReplaceCharityPartiesUseCase,
 } from '../src/application/implementations/charity-project/charity-project.use-cases';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
+import { CampaignDistributionSettledSql } from '../src/infrastructure/repository/charity-distribution.sql';
 import { CharityEngagementRepository } from '../src/infrastructure/repository/charity-engagement.repository';
 import { CharityProjectRepository } from '../src/infrastructure/repository/charity-project.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
@@ -297,10 +300,33 @@ async function main(): Promise<void> {
         },
       ],
     });
+    const heldLive = await campaigns.findByGlobalId(Live);
+    const heldCandidates = await projects.listStageCandidates(50);
+    const heldBlocked = await projects.listBlockedStageCampaigns(50);
+    check(
+      'tới giờ trao nhưng tổng duyệt chưa READY: đọc ra vẫn EXECUTION, job không nhặt, vào danh sách nhắc',
+      heldLive?.operationStage === 'EXECUTION' &&
+        !heldCandidates.some((c) => c.campaignId === Live) &&
+        heldBlocked.some(
+          (row) =>
+            row.campaignId === Live &&
+            row.ownerId === Owner &&
+            row.reason === 'REHEARSAL_NOT_READY',
+        ),
+      `${heldLive?.operationStage} ${JSON.stringify(heldBlocked)}`,
+    );
+    await projects.saveRehearsal({
+      campaignId: Live,
+      actorId: Owner,
+      checklist: [],
+      outcome: 'READY',
+      reason: null,
+      note: null,
+    });
     const live = await campaigns.findByGlobalId(Live);
     const candidates = await projects.listStageCandidates(50);
     check(
-      'tới giờ trao: đọc ra EVENT dù cột vẫn EXECUTION; job nhặt dự án này',
+      'tổng duyệt READY + tới giờ trao: đọc ra EVENT dù cột vẫn EXECUTION; job nhặt dự án này',
       live?.operationStage === 'EVENT' &&
         live.storedOperationStage === 'EXECUTION' &&
         candidates.some((c) => c.campaignId === Live) &&
@@ -1050,6 +1076,314 @@ async function main(): Promise<void> {
          VALUES ($1, 'REPORTING', now(), now() + interval '1 day', 'SHIP')`,
         [Draft],
       )) === '23514',
+    );
+    // ── Tổng duyệt và điều kiện hoàn tất bước trao (CR 22/11/2026) ──────────
+    console.log('\n9. Tổng duyệt và bước trao cấp chiến dịch');
+    const savedRehearsal = await projects.saveRehearsal({
+      campaignId: Live,
+      actorId: Owner,
+      checklist: [
+        { key: 'RECIPIENTS', status: 'DONE', note: null },
+        { key: 'GOODS_AND_FUNDS', status: 'DONE', note: null },
+        { key: 'TRANSPORT', status: 'DONE', note: 'Xe 16 chỗ' },
+        { key: 'STAFF', status: 'DONE', note: null },
+        { key: 'SUPERVISORS', status: 'DONE', note: null },
+        { key: 'VENUE_AND_TIME', status: 'DONE', note: null },
+        { key: 'LOCAL_CONTACT', status: 'DONE', note: null },
+      ],
+      outcome: 'READY',
+      reason: null,
+      note: null,
+    });
+    check(
+      'ghi tổng duyệt READY ghi decided_at, đọc lại đủ 7 mục',
+      savedRehearsal.outcome === 'READY' &&
+        savedRehearsal.decidedAt instanceof Date &&
+        savedRehearsal.checklist.length === 7,
+      JSON.stringify(savedRehearsal),
+    );
+    const keptRehearsal = await projects.saveRehearsal({
+      campaignId: Live,
+      actorId: Owner,
+      checklist: [],
+      outcome: undefined,
+      reason: null,
+      note: 'Chỉ sửa ghi chú',
+    });
+    check(
+      'bỏ trống outcome giữ kết quả READY đã lưu',
+      keptRehearsal.outcome === 'READY' &&
+        keptRehearsal.note === 'Chỉ sửa ghi chú',
+      JSON.stringify(keptRehearsal),
+    );
+    const [closedAccount] = await sql(
+      `INSERT INTO campaign_beneficiary_bank_accounts
+         (campaign_id, holder_type, bank_name, account_no, account_name,
+          verified_at, verified_by, valid_to, close_reason, closed_by)
+       VALUES ($1, 'OWNER', 'VCB', '99887766', 'Chu du an', now(), $2,
+               now(), 'Đóng thử', $2)
+       RETURNING global_id`,
+      [Live, Owner],
+    );
+    await sql(
+      `UPDATE campaigns SET distribution_method = 'BANK_TRANSFER',
+              distribution_contribution_types = ARRAY['MONEY']::text[],
+              distribution_evidence_urls = '["https://cdn.test/bt.jpg"]'::jsonb
+        WHERE global_id = $1`,
+      [Live],
+    );
+    await sql(
+      `INSERT INTO campaign_distribution_private_details
+         (campaign_id, beneficiary_bank_account_id, transfer_content)
+       VALUES ($1, $2, 'Chuyen tien')
+       ON CONFLICT (campaign_id) DO UPDATE
+         SET beneficiary_bank_account_id = EXCLUDED.beneficiary_bank_account_id`,
+      [Live, closedAccount.global_id],
+    );
+    const settlement = await projects.distributionSettlement(Live);
+    check(
+      'BANK_TRANSFER gắn tài khoản đã đóng (dù đã xác thực) → live = false',
+      settlement.method === 'BANK_TRANSFER' &&
+        settlement.beneficiaryAccount?.live === false &&
+        settlement.beneficiaryAccount.verified === true &&
+        settlement.beneficiaryAccount.sameCampaign === true,
+      JSON.stringify(settlement),
+    );
+    const phasesWithRehearsal = await projects.replacePhases({
+      campaignId: Live,
+      actorId: Owner,
+      phases: [
+        {
+          phase: 'PREPARATION',
+          startsAt: new Date(Date.now() - 20 * Hour),
+          endsAt: new Date(Date.now() - 12 * Hour),
+          picName: null,
+          picUserId: null,
+          hotline: null,
+          deliveryMethod: null,
+          reportMode: null,
+        },
+        {
+          phase: 'REHEARSAL',
+          startsAt: new Date(Date.now() - 11 * Hour),
+          endsAt: new Date(Date.now() - 2 * Hour),
+          picName: 'Anh Tư',
+          picUserId: null,
+          hotline: null,
+          deliveryMethod: null,
+          reportMode: null,
+        },
+        {
+          phase: 'DISTRIBUTION',
+          startsAt: new Date(Date.now() - Hour),
+          endsAt: new Date(Date.now() + 5 * Hour),
+          picName: null,
+          picUserId: null,
+          hotline: null,
+          deliveryMethod: null,
+          reportMode: null,
+        },
+      ],
+    });
+    check(
+      'PUT phases nhận REHEARSAL nằm giữa PREPARATION và DISTRIBUTION, đọc ra đúng thứ tự',
+      JSON.stringify(
+        (phasesWithRehearsal ?? []).map((phase) => phase.phase),
+      ) === JSON.stringify(['PREPARATION', 'REHEARSAL', 'DISTRIBUTION']) &&
+        (await projects.getRehearsal(Live))?.phase?.picName === 'Anh Tư',
+      JSON.stringify(phasesWithRehearsal),
+    );
+
+    // ── Job có cổng: hàng bị giữ không chiếm LIMIT, nhắc ban tổ chức (CR 22/11/2026) ──
+    console.log('\n10. Job chuyển giai đoạn có cổng');
+    const Gated = [id('20'), id('21'), id('22'), id('23')];
+    const LateExecution = id('24');
+    const ShippingEvent = id('25');
+    const insertGated = async (
+      campaignId: string,
+      stage: string,
+      phaseStart: string,
+      phaseEnd: string,
+      endTime: string,
+    ) => {
+      await sql(
+        `INSERT INTO campaigns
+           (global_id, title, slug, description, banner_url, badge_name, start_time, end_time,
+            created_by, approval_status, approved_at, approved_by, campaign_type,
+            operation_stage)
+         VALUES ($1, $4, $5, 'Mô tả đủ dài cho chiến dịch có cổng',
+                 'https://cdn.test/a.jpg', 'Ấm', now() - interval '10 days', ${endTime},
+                 $2, 'APPROVED', now(), $2, 'ORGANIZED_CAMPAIGN', $3)`,
+        [campaignId, Owner, stage, `Cổng ${campaignId}`, `cong-${campaignId}`],
+      );
+      await sql(
+        `INSERT INTO campaign_phases (campaign_id, phase, starts_at, ends_at)
+         VALUES ($1, 'DISTRIBUTION', ${phaseStart}, ${phaseEnd})`,
+        [campaignId],
+      );
+    };
+    for (const campaignId of Gated)
+      await insertGated(
+        campaignId,
+        'EXECUTION',
+        "now() - interval '1 hour'",
+        "now() + interval '5 hours'",
+        "now() + interval '1 day'",
+      );
+    await projects.saveRehearsal({
+      campaignId: Gated[3],
+      actorId: Owner,
+      checklist: [],
+      outcome: 'READY',
+      reason: null,
+      note: null,
+    });
+    const allReady = await projects.listStageCandidates(1000);
+    const limited = await projects.listStageCandidates(allReady.length);
+    check(
+      '3 chiến dịch bị giữ (id nhỏ hơn) không chiếm LIMIT: chiến dịch READY vẫn được nhặt',
+      allReady.some((c) => c.campaignId === Gated[3]) &&
+        !allReady.some((c) => Gated.slice(0, 3).includes(c.campaignId)) &&
+        limited.some((c) => c.campaignId === Gated[3]) &&
+        limited.every((c) => c.rehearsalReady),
+      JSON.stringify(limited.map((c) => c.campaignId)),
+    );
+    const blockedRows = await projects.listBlockedStageCampaigns(1000);
+    check(
+      'danh sách nhắc có đúng 3 chiến dịch chưa READY với lý do REHEARSAL_NOT_READY',
+      Gated.slice(0, 3).every((campaignId) =>
+        blockedRows.some(
+          (row) =>
+            row.campaignId === campaignId &&
+            row.reason === 'REHEARSAL_NOT_READY',
+        ),
+      ) && !blockedRows.some((row) => row.campaignId === Gated[3]),
+      JSON.stringify(blockedRows),
+    );
+
+    await insertGated(
+      LateExecution,
+      'EXECUTION',
+      "now() - interval '3 days'",
+      "now() - interval '2 days'",
+      "now() - interval '1 day'",
+    );
+    const sent: { idempotencyKey?: string | null; userId: string }[] = [];
+    const job = new AdvanceCharityStagesUseCase(projects, {
+      handle: async (command: {
+        idempotencyKey?: string | null;
+        userId: string;
+      }) => {
+        sent.push(command);
+        return { created: true, pushedDevices: 0 };
+      },
+    } as never);
+    const jobResult = await job.handle({ limit: 1000, dryRun: false });
+    const lateAfter = await campaigns.findByGlobalId(LateExecution);
+    const readyAfter = await campaigns.findByGlobalId(Gated[3]);
+    check(
+      'EXECUTION quá giờ kết thúc mà chưa READY: job giữ nguyên EXECUTION, gửi nhắc REHEARSAL_NOT_READY',
+      lateAfter?.storedOperationStage === 'EXECUTION' &&
+        lateAfter.operationStage === 'EXECUTION' &&
+        sent.some(
+          (command) =>
+            command.userId === Owner &&
+            String(command.idempotencyKey).startsWith(
+              `CHARITY_ORGANIZER_REMINDER:${LateExecution}:REHEARSAL_NOT_READY:`,
+            ),
+        ) &&
+        jobResult.reminded >= 4,
+      `${lateAfter?.storedOperationStage} ${JSON.stringify(jobResult)}`,
+    );
+    check(
+      'chiến dịch READY tới giờ trao: job ghi EXECUTION → EVENT',
+      readyAfter?.storedOperationStage === 'EVENT',
+      String(readyAfter?.storedOperationStage),
+    );
+
+    const overdueRows = await projects.listOverdueSummaries(1000);
+    check(
+      'listOverdueSummaries: chiến dịch mở, quá end_time, chưa công khai tổng kết (job nhắc SUMMARY_OVERDUE)',
+      overdueRows.some(
+        (row) => row.campaignId === LateExecution && row.ownerId === Owner,
+      ) && !overdueRows.some((row) => row.campaignId === Gated[0]),
+      JSON.stringify(overdueRows),
+    );
+    await sql(
+      `INSERT INTO campaign_summaries (campaign_id, summary, published_at)
+       VALUES ($1, 'Xong', now())`,
+      [LateExecution],
+    );
+    check(
+      'công khai tổng kết -> rời danh sách quá hạn',
+      !(await projects.listOverdueSummaries(1000)).some(
+        (row) => row.campaignId === LateExecution,
+      ),
+    );
+
+    await insertGated(
+      ShippingEvent,
+      'EVENT',
+      "now() - interval '3 days'",
+      "now() - interval '2 days'",
+      "now() - interval '1 day'",
+    );
+    await sql(
+      `UPDATE campaigns SET distribution_method = 'SHIPPING',
+              distribution_contribution_types = ARRAY['MATERIAL']::text[],
+              distribution_evidence_urls = '["https://cdn.test/ship.jpg"]'::jsonb
+        WHERE global_id = $1`,
+      [ShippingEvent],
+    );
+    await sql(
+      `INSERT INTO campaign_distribution_private_details (campaign_id, carrier)
+       VALUES ($1, 'GHN')`,
+      [ShippingEvent],
+    );
+    const settledParity = async () => {
+      const stored = await projects.distributionSettlement(ShippingEvent);
+      const ts = charityDistributionSettled({
+        distributionMethod: stored.method,
+        evidenceUrls: stored.evidenceUrls,
+        trackingCode: stored.trackingCode,
+        beneficiaryAccount: stored.beneficiaryAccount,
+      }).settled;
+      const [row] = await sql(
+        `SELECT ${CampaignDistributionSettledSql('campaigns')} AS settled
+           FROM campaigns WHERE global_id = $1`,
+        [ShippingEvent],
+      );
+      return { ts, sql: row.settled === true };
+    };
+    const shippingHeld = await campaigns.findByGlobalId(ShippingEvent);
+    const parityHeld = await settledParity();
+    const shippingBlocked = await projects.listBlockedStageCampaigns(1000);
+    check(
+      'EVENT + SHIPPING chưa có mã vận đơn: đọc ra vẫn EVENT, nhắc DISTRIBUTION_EVIDENCE_MISSING, SQL = TS',
+      shippingHeld?.operationStage === 'EVENT' &&
+        shippingBlocked.some(
+          (row) =>
+            row.campaignId === ShippingEvent &&
+            row.reason === 'DISTRIBUTION_EVIDENCE_MISSING',
+        ) &&
+        parityHeld.ts === false &&
+        parityHeld.sql === false,
+      `${shippingHeld?.operationStage} ${JSON.stringify(parityHeld)}`,
+    );
+    await sql(
+      `UPDATE campaign_distribution_private_details SET tracking_code = 'GHN123'
+        WHERE campaign_id = $1`,
+      [ShippingEvent],
+    );
+    const shippingDone = await campaigns.findByGlobalId(ShippingEvent);
+    const parityDone = await settledParity();
+    check(
+      'thêm mã vận đơn: đọc ra SUMMARY ngay (đường đọc), SQL = TS',
+      shippingDone?.operationStage === 'SUMMARY' &&
+        shippingDone.storedOperationStage === 'EVENT' &&
+        parityDone.ts === true &&
+        parityDone.sql === true,
+      `${shippingDone?.operationStage} ${JSON.stringify(parityDone)}`,
     );
   } finally {
     for (const source of opened.reverse())

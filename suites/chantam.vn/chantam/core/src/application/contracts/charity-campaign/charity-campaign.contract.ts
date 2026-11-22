@@ -101,8 +101,9 @@ export interface ICharityCampaignDistributionInput {
     readonly lat?: number;
     readonly lng?: number;
   };
-  readonly scheduledStart: string;
-  readonly scheduledEnd: string;
+  /** Tuỳ chọn (alias một bản phát hành) — có đủ hai mốc mới ghi phase DISTRIBUTION. */
+  readonly scheduledStart?: string;
+  readonly scheduledEnd?: string;
   readonly recipientName?: string;
   readonly recipientPhone?: string;
   readonly recipientAddress?: string;
@@ -439,6 +440,12 @@ export const IListExternalContributionsUseCase = Symbol(
 export interface ICloseCharityCampaignCommand {
   readonly campaignId: string;
   readonly actorUserId: string;
+  /**
+   * Chỉ Admin: đóng dù chưa công khai tổng kết (CR 22/11/2026). Bắt buộc `reason`, ghi audit
+   * `CHARITY_CAMPAIGN_FORCE_CLOSE`. Chủ dự án gửi `force` không có tác dụng.
+   */
+  readonly force?: boolean;
+  readonly reason?: string;
 }
 
 export interface ICloseCharityCampaignUseCase extends IUseCase<
@@ -685,6 +692,8 @@ export interface IListAdminCharityCampaignsCommand {
   readonly limit: number;
   readonly offset: number;
   readonly approvalStatus?: CharityApprovalStatus;
+  /** Đang mở, đã qua `end_time`, chưa công khai tổng kết. */
+  readonly overdueSummary?: boolean;
 }
 
 export interface IListAdminCharityCampaignsUseCase extends IUseCase<

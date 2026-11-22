@@ -6,6 +6,7 @@ import {
   ICloseCharityBeneficiaryBankAccountUseCase,
   IConfirmCharityVolunteerUseCase,
   IGetCharityPublicProjectUseCase,
+  IGetCharityRehearsalUseCase,
   IGetCharityWorkspaceUseCase,
   IMoveCharityStageUseCase,
   IPublishCharitySectionUseCase,
@@ -15,6 +16,7 @@ import {
   IReplaceCharityPhasesUseCase,
   IReplaceCharityTeamUseCase,
   ISaveCharityFundingNeedUseCase,
+  ISaveCharityRehearsalUseCase,
   ISaveCharitySectionUseCase,
   ISaveCharityVolunteerNeedUseCase,
   ISetCharityLimitsUseCase,
@@ -27,6 +29,7 @@ import {
   CharityBankAccountLimitException,
   CharityBankAccountNotFoundException,
   CharityBeneficiaryAccountNameMismatchException,
+  CharityBeneficiaryAccountNotVerifiedException,
   CharityCampaignCreateNotAllowedException,
   CharityCampaignNotFoundException,
   CharityContributionTypeDisabledException,
@@ -35,6 +38,8 @@ import {
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
   CharityProjectNotDraftException,
+  CharityRehearsalNotReadyException,
+  CharityRoundEvidenceRequiredException,
   CharitySectionEmptyException,
   CharityStageScheduleConflictException,
   CharityStageTransitionInvalidException,
@@ -104,6 +109,8 @@ import {
   CharityProjectVolunteerParamsDto,
   CharityProjectVolunteerUserParamsDto,
   CharityPublicProjectResponseDto,
+  CharityRehearsalBodyDto,
+  CharityRehearsalResponseDto,
   CharitySectionResponseDto,
   CharityStageMoveBodyDto,
   CharityTeamBodyDto,
@@ -134,6 +141,10 @@ export class CharityProjectController {
     private readonly submitUseCase: ISubmitCharityProjectUseCase,
     @Inject(IMoveCharityStageUseCase)
     private readonly stageUseCase: IMoveCharityStageUseCase,
+    @Inject(IGetCharityRehearsalUseCase)
+    private readonly rehearsalGetUseCase: IGetCharityRehearsalUseCase,
+    @Inject(ISaveCharityRehearsalUseCase)
+    private readonly rehearsalSaveUseCase: ISaveCharityRehearsalUseCase,
     @Inject(IGetCharityWorkspaceUseCase)
     private readonly workspaceUseCase: IGetCharityWorkspaceUseCase,
     @Inject(IGetCharityPublicProjectUseCase)
@@ -252,7 +263,7 @@ export class CharityProjectController {
   @ApiOperation({
     summary: 'Chuyển giai đoạn',
     description:
-      'Người tạo, coordinator, Admin. Tiến đúng một bước (sớm hơn lịch) hoặc lùi — luôn bắt buộc `reason` và báo người bị ảnh hưởng (chốt 05/11). Lùi thì lịch tiến độ không được đẩy dự án tới lại ngay (`CHARITY_STAGE_SCHEDULE_CONFLICT` — sửa bước trao trước). Không về Kế hoạch.',
+      'Người tạo, coordinator, Admin. Tiến đúng một bước (sớm hơn lịch) hoặc lùi. Sang Sự kiện trao cần tổng duyệt `READY` (`409 CHARITY_REHEARSAL_NOT_READY`); sang Tổng kết cần bằng chứng trao đúng hình thức (`409 CHARITY_ROUND_EVIDENCE_REQUIRED`) và, với `BANK_TRANSFER`, tài khoản thụ hưởng đã xác thực (`409 CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED`) — luôn bắt buộc `reason` và báo người bị ảnh hưởng (chốt 05/11). Lùi thì lịch tiến độ không được đẩy dự án tới lại ngay (`CHARITY_STAGE_SCHEDULE_CONFLICT` — sửa bước trao trước). Không về Kế hoạch.',
   })
   @ApiOkResponse({
     type: ResponseDto.forApi(CharityCampaignWrapperResponseDto),
@@ -262,6 +273,9 @@ export class CharityProjectController {
     ...ProjectErrors,
     [CharityStageTransitionInvalidException, 'chỉ tiến từng bước một'],
     CharityStageScheduleConflictException,
+    CharityRehearsalNotReadyException,
+    CharityRoundEvidenceRequiredException,
+    CharityBeneficiaryAccountNotVerifiedException,
   )
   public async stage(
     @CurrentUser() principal: IAuthPrincipal,
@@ -274,6 +288,58 @@ export class CharityProjectController {
         campaignId: params.id,
         to: body.stage.to,
         reason: body.stage.reason ?? null,
+      }),
+    });
+  }
+
+  @Get(':id/rehearsal')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Tổng duyệt trước sự kiện trao',
+    description:
+      'Người tạo, coordinator, Admin. Checklist 7 mục (`RECIPIENTS`, `GOODS_AND_FUNDS`, `TRANSPORT`, `STAFF`, `SUPERVISORS`, `VENUE_AND_TIME`, `LOCAL_CONTACT`), kết quả `READY`/`NOT_READY`, và khung pha `REHEARSAL`. `null` khi chưa ghi.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(CharityRehearsalResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, ...ProjectErrors)
+  public async rehearsal(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectParamsDto,
+  ) {
+    return ok({
+      rehearsal: await this.rehearsalGetUseCase.handle({
+        userId: principal.userId,
+        campaignId: params.id,
+      }),
+    });
+  }
+
+  @Put(':id/rehearsal')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Ghi tổng duyệt',
+    description:
+      'Người tạo, coordinator, Admin. Checklist luôn được lưu đủ 7 mục (mục thiếu = `NOT_DONE`). Có `outcome` thì ghi người/giờ quyết định; bỏ trống `outcome` = giữ kết quả cũ. `NOT_READY` bắt buộc `reason`. Chỉ sang Sự kiện trao khi `READY`.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(CharityRehearsalResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, ...ProjectErrors, [
+    ValidationFailedException,
+    ['rehearsal.reason: bắt buộc khi tổng duyệt chưa sẵn sàng'],
+  ])
+  public async saveRehearsal(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectParamsDto,
+    @Body() body: CharityRehearsalBodyDto,
+  ) {
+    return ok({
+      rehearsal: await this.rehearsalSaveUseCase.handle({
+        userId: principal.userId,
+        campaignId: params.id,
+        rehearsal: {
+          checklist: body.rehearsal.checklist ?? [],
+          outcome: body.rehearsal.outcome ?? null,
+          reason: body.rehearsal.reason ?? null,
+          note: body.rehearsal.note ?? null,
+        },
       }),
     });
   }

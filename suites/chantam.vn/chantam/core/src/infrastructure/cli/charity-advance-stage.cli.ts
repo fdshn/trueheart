@@ -20,7 +20,7 @@ export async function runCharityAdvanceStage(
     NestFactory,
   ),
   appModule: unknown = CharityCliModule,
-): Promise<{ advanced: number; checked: number }> {
+): Promise<{ advanced: number; checked: number; reminded: number }> {
   const app: INestApplicationContext = await createApplicationContext(
     appModule as never,
   );
@@ -46,7 +46,7 @@ async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   const result = await runCharityAdvanceStage(dryRun);
   console.log(
-    `${dryRun ? '[chạy khô] ' : ''}Đã xét ${result.checked} dự án, chuyển giai đoạn ${result.advanced}.`,
+    `${dryRun ? '[chạy khô] ' : ''}Đã xét ${result.checked} dự án, chuyển giai đoạn ${result.advanced}, nhắc ban tổ chức ${result.reminded}.`,
   );
 }
 

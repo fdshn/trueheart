@@ -19,6 +19,7 @@ import {
   IConfirmCharityVolunteerUseCase,
   IGetCharityPublicProjectCommand,
   IGetCharityPublicProjectUseCase,
+  IGetCharityRehearsalUseCase,
   IGetCharityWorkspaceUseCase,
   IMoveCharityStageCommand,
   IMoveCharityStageUseCase,
@@ -34,6 +35,8 @@ import {
   IReplaceCharityTeamUseCase,
   ISaveCharityFundingNeedCommand,
   ISaveCharityFundingNeedUseCase,
+  ISaveCharityRehearsalCommand,
+  ISaveCharityRehearsalUseCase,
   ISaveCharitySectionUseCase,
   ISaveCharityVolunteerNeedCommand,
   ISaveCharityVolunteerNeedUseCase,
@@ -47,17 +50,21 @@ import {
   IVerifyCharityBeneficiaryBankAccountCommand,
   IVerifyCharityBeneficiaryBankAccountUseCase,
 } from '@/application/contracts/charity-project';
+import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import { assertContributionTypeAccepted } from '@/domain/charity-contribution-type';
 import {
   CharityBankAccountLimitException,
   CharityBankAccountNotFoundException,
   CharityBeneficiaryAccountNameMismatchException,
+  CharityBeneficiaryAccountNotVerifiedException,
   CharityCampaignNotFoundException,
   CharityFundingNeedNotFoundException,
   CharityNeedItemInvalidException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
   CharityProjectNotDraftException,
+  CharityRehearsalNotReadyException,
+  CharityRoundEvidenceRequiredException,
   CharitySectionEmptyException,
   CharityStageScheduleConflictException,
   CharityStageTransitionInvalidException,
@@ -74,18 +81,25 @@ import {
   ICharityCustomSection,
   ICharityEngagementRepository,
   ICharityEventRepository,
+  ICharityOperationsRepository,
   ICharityProjectRepository,
   ICharitySummaryRepository,
   IEntitlementRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
 import {
+  NotificationTargetTypes,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
+import {
+  charityDistributionSettled,
   CharityEventStepLabels,
   CharityFieldVisibility,
   CharityMaxBankAccountsConfigKey,
   CharityOperationStage,
   CharityOperationStageLabels,
   CharityOperationStages,
+  CharityOrganizerReminderReason,
   CharitySectionCompletionStatus,
   charitySubmitRequirementGaps,
   CharityTaskLabels,
@@ -97,11 +111,13 @@ import {
   MaxPublicSupporterNames,
   normalizeContributionTypes,
   normalizeMaxBankAccounts,
+  normalizeRehearsalChecklist,
   phaseScheduleGaps,
   stageRank,
+  vietnamDayStart,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { resolveCharityApprovalStatus } from '../charity-campaign/charity-campaign.use-cases';
 
 const ReadPermission = 'campaign.read';
@@ -284,6 +300,49 @@ export class SubmitCharityProjectUseCase implements ISubmitCharityProjectUseCase
  *   bước trao trước.
  * - Không về PLAN: PLAN là "chưa duyệt".
  */
+/** Tổng duyệt của chiến dịch (CR 22/11/2026 §8) — người vận hành dự án. */
+@Injectable()
+export class GetCharityRehearsalUseCase implements IGetCharityRehearsalUseCase {
+  public constructor(
+    private readonly access: CharityProjectAccess,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
+  ) {}
+
+  public async handle(command: ICharityProjectCommand) {
+    const { campaign } = await this.access.forOperate(command);
+    return this.projects.getRehearsal(campaign.globalId);
+  }
+}
+
+@Injectable()
+export class SaveCharityRehearsalUseCase implements ISaveCharityRehearsalUseCase {
+  public constructor(
+    private readonly access: CharityProjectAccess,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
+  ) {}
+
+  public async handle(command: ISaveCharityRehearsalCommand) {
+    const { campaign } = await this.access.forOperate(command);
+    const input = command.rehearsal;
+    const outcome = input.outcome ?? undefined;
+    const reason = trimmed(input.reason);
+    if (outcome === 'NOT_READY' && !reason)
+      throw new ValidationFailedException([
+        'rehearsal.reason: bắt buộc khi tổng duyệt chưa sẵn sàng',
+      ]);
+    return this.projects.saveRehearsal({
+      campaignId: campaign.globalId,
+      actorId: command.userId,
+      checklist: normalizeRehearsalChecklist(input.checklist),
+      outcome,
+      reason: outcome === 'READY' ? null : reason,
+      note: trimmed(input.note),
+    });
+  }
+}
+
 @Injectable()
 export class MoveCharityStageUseCase implements IMoveCharityStageUseCase {
   public constructor(
@@ -325,12 +384,48 @@ export class MoveCharityStageUseCase implements IMoveCharityStageUseCase {
       throw new CharityStageTransitionInvalidException(
         'chuyển giai đoạn thủ công phải có lý do',
       );
+    // Cổng chặn khi tiến (CR 22/11/2026): sang Sự kiện trao cần tổng duyệt READY; sang Tổng
+    // kết cần bước trao hoàn tất (bằng chứng đúng hình thức, tài khoản thụ hưởng hợp lệ).
+    if (forward && command.to === 'EVENT') {
+      const rehearsal = await this.projects.getRehearsal(campaign.globalId);
+      if (rehearsal?.outcome !== 'READY')
+        throw new CharityRehearsalNotReadyException();
+    }
+    if (forward && command.to === 'SUMMARY') {
+      const stored = await this.projects.distributionSettlement(
+        campaign.globalId,
+      );
+      const settlement = charityDistributionSettled({
+        distributionMethod: stored.method,
+        evidenceUrls: stored.evidenceUrls,
+        trackingCode: stored.trackingCode,
+        beneficiaryAccount: stored.beneficiaryAccount,
+      });
+      if (settlement.evidenceGaps.length > 0)
+        throw new CharityRoundEvidenceRequiredException(
+          settlement.evidenceGaps.join(', '),
+        );
+      if (!settlement.accountVerified)
+        throw new CharityBeneficiaryAccountNotVerifiedException();
+    }
     if (!forward) {
+      // Lùi chỉ hợp lệ khi lịch + cổng không tự đẩy dự án tiến lại ngay.
+      const [rehearsal, stored] = await Promise.all([
+        this.projects.getRehearsal(campaign.globalId),
+        this.projects.distributionSettlement(campaign.globalId),
+      ]);
       const wouldBe = effectiveOperationStage({
         stored: command.to,
         distribution: campaign.distribution,
         endTime: campaign.endTime,
         now: new Date(),
+        rehearsalReady: rehearsal?.outcome === 'READY',
+        distributionSettled: charityDistributionSettled({
+          distributionMethod: stored.method,
+          evidenceUrls: stored.evidenceUrls,
+          trackingCode: stored.trackingCode,
+          beneficiaryAccount: stored.beneficiaryAccount,
+        }).settled,
       });
       if (wouldBe !== command.to)
         throw new CharityStageScheduleConflictException();
@@ -369,7 +464,23 @@ export class MoveCharityStageUseCase implements IMoveCharityStageUseCase {
   }
 }
 
-/** Job ngoài tiến trình `charity:advance-stage` — ghi xuống giai đoạn đã tới mốc. */
+/** Lời nhắc ban tổ chức khi job bị cổng giữ lại (CR 22/11/2026 §3.17g). */
+const OrganizerReminderText: Record<CharityOrganizerReminderReason, string> = {
+  REHEARSAL_NOT_READY:
+    'đã tới giờ trao nhưng tổng duyệt chưa sẵn sàng — hoàn tất tổng duyệt để sang Sự kiện trao.',
+  DISTRIBUTION_EVIDENCE_MISSING:
+    'đã hết giờ trao nhưng còn thiếu bằng chứng trao — bổ sung ảnh (và mã vận đơn nếu gửi hàng) để sang Tổng kết.',
+  BENEFICIARY_ACCOUNT_NOT_VERIFIED:
+    'đã hết giờ trao nhưng tài khoản thụ hưởng chưa được xác thực — liên hệ Admin để xác thực.',
+  SUMMARY_OVERDUE:
+    'đã quá hạn đăng bài tổng kết — đăng tổng kết để đóng chiến dịch.',
+};
+
+/**
+ * Job ngoài tiến trình `charity:advance-stage` — ghi xuống giai đoạn đã tới mốc VÀ qua cổng
+ * (tổng duyệt READY, bước trao hoàn tất). Hàng bị giữ được nhắc chủ dự án mỗi ngày một lần
+ * cho từng lý do. Không bao giờ nhảy EXECUTION→SUMMARY trong một lần chạy.
+ */
 @Injectable()
 export class AdvanceCharityStagesUseCase implements IAdvanceCharityStagesUseCase {
   private readonly logger = new Logger(AdvanceCharityStagesUseCase.name);
@@ -377,21 +488,31 @@ export class AdvanceCharityStagesUseCase implements IAdvanceCharityStagesUseCase
   public constructor(
     @Inject(ICharityProjectRepository)
     private readonly projects: ICharityProjectRepository,
+    @Inject(IDispatchNotificationUseCase)
+    private readonly dispatch: IDispatchNotificationUseCase,
   ) {}
 
   public async handle(command: {
     limit: number;
     dryRun: boolean;
-  }): Promise<{ advanced: number; checked: number }> {
+  }): Promise<{ advanced: number; checked: number; reminded: number }> {
+    const now = new Date();
     const candidates = await this.projects.listStageCandidates(command.limit);
     let advanced = 0;
     for (const candidate of candidates) {
-      const target = effectiveOperationStage({
+      const reached = effectiveOperationStage({
         stored: candidate.stored,
         distribution: candidate.distribution,
         endTime: candidate.endTime,
-        now: new Date(),
+        now,
+        rehearsalReady: candidate.rehearsalReady,
+        distributionSettled: candidate.distributionSettled,
       });
+      // Một bước mỗi lần chạy: EXECUTION chỉ sang EVENT, kể cả khi đã quá giờ kết thúc.
+      const target =
+        candidate.stored === 'EXECUTION' && reached === 'SUMMARY'
+          ? 'EVENT'
+          : reached;
       if (target === candidate.stored) continue;
       if (command.dryRun) {
         advanced += 1;
@@ -407,7 +528,47 @@ export class AdvanceCharityStagesUseCase implements IAdvanceCharityStagesUseCase
       if (outcome === 'MOVED') advanced += 1;
       else this.logger.log(`Bỏ qua ${candidate.campaignId}: giai đoạn vừa đổi`);
     }
-    return { advanced, checked: candidates.length };
+
+    const blocked: {
+      campaignId: string;
+      ownerId: string;
+      reason: CharityOrganizerReminderReason;
+    }[] = [
+      ...(await this.projects.listBlockedStageCampaigns(command.limit)),
+      ...(await this.projects.listOverdueSummaries(command.limit)).map(
+        (row) => ({ ...row, reason: 'SUMMARY_OVERDUE' as const }),
+      ),
+    ];
+    let reminded = 0;
+    const day = vietnamDayStart(now).toISOString();
+    for (const row of blocked) {
+      if (command.dryRun) {
+        reminded += 1;
+        continue;
+      }
+      try {
+        await this.dispatch.handle({
+          userId: row.ownerId,
+          type: NotificationTypes.CHARITY_ORGANIZER_REMINDER,
+          title: 'Chiến dịch đang chờ bạn',
+          body: `Chiến dịch của bạn ${OrganizerReminderText[row.reason]}`,
+          referenceType: 'CHARITY_CAMPAIGN',
+          referenceId: row.campaignId,
+          target: {
+            type: NotificationTargetTypes.CHARITY_CAMPAIGN,
+            id: row.campaignId,
+          },
+          idempotencyKey: `CHARITY_ORGANIZER_REMINDER:${row.campaignId}:${row.reason}:${day}`,
+          pushData: { reason: row.reason },
+        });
+        reminded += 1;
+      } catch (error) {
+        this.logger.warn(
+          `Không gửi được nhắc ${row.reason} cho ${row.campaignId}: ${(error as Error).message}`,
+        );
+      }
+    }
+    return { advanced, checked: candidates.length, reminded };
   }
 }
 
@@ -1330,6 +1491,7 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
       states,
       customSections,
       contentFlags,
+      rehearsal,
     ] = await Promise.all([
       this.projects.getProfile(id),
       this.projects.listParties(id),
@@ -1345,6 +1507,7 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
       this.projects.listSectionStates(id),
       this.projects.listCustomSections(id),
       sectionContentFlags(this.projects, this.engagement, id),
+      this.projects.getRehearsal(id),
     ]);
     const now = new Date();
     const suspended = isSuspendedProject(campaign, now);
@@ -1377,6 +1540,7 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
         (account) =>
           account.partyId === null || !hiddenPartyIds.has(account.partyId),
       ),
+      rehearsal,
       team,
       phases,
       itemNeeds,
@@ -1426,7 +1590,25 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
     private readonly events: ICharityEventRepository,
     @Inject(ICharitySummaryRepository)
     private readonly summaries: ICharitySummaryRepository,
+    @Optional()
+    @Inject(ICharityOperationsRepository)
+    private readonly operations?: ICharityOperationsRepository,
   ) {}
+
+  /** Hình thức trao CÔNG KHAI: đúng 5 trường, không bao giờ có chi tiết riêng tư. */
+  private async publicDistribution(
+    campaignId: string,
+  ): Promise<ICharityPublicProject['distribution']> {
+    const distribution = await this.operations?.getDistribution(campaignId);
+    if (!distribution || distribution.distributionMethod === null) return null;
+    return {
+      method: distribution.distributionMethod,
+      contributionTypes: [...distribution.contributionTypes],
+      serviceType: distribution.serviceType,
+      serviceChannel: distribution.serviceChannel,
+      evidenceUrls: [...distribution.evidenceUrls],
+    };
+  }
 
   public async handle(
     command: IGetCharityPublicProjectCommand,
@@ -1522,6 +1704,7 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
       summary: publishedSummary,
       financialReports,
       totals: publicTotals,
+      distribution: await this.publicDistribution(campaign.globalId),
       supporters,
       counters,
       isFollowing,

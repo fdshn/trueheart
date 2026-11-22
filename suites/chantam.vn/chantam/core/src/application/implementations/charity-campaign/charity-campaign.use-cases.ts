@@ -83,7 +83,7 @@ import {
   IUpdateCharityProgressCommand,
   IUpdateCharityProgressUseCase,
 } from '@/application/contracts/charity-campaign';
-import { prepareCharityRoundDistribution } from '@/application/implementations/charity-project/charity-round-distribution';
+import { prepareCharityCampaignDistribution } from '@/application/implementations/charity-project/charity-campaign-distribution';
 import {
   assertContributionTypeAccepted,
   assertDistributionMethodAcceptedByCampaign,
@@ -96,6 +96,7 @@ import {
   CharityCampaignCreateNotAllowedException,
   CharityCampaignHasActivityException,
   CharityCampaignNotFoundException,
+  CharityCampaignSummaryNotPublishedException,
   CharityCancelTooLateException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
@@ -370,12 +371,22 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       command.beneficiary?.consentStatus !== 'CONFIRMED'
     )
       approvalStatus = 'PENDING_APPROVAL';
-    const distributionStartsAt = command.distribution
-      ? new Date(command.distribution.scheduledStart)
+    // Hình thức trao cấp chiến dịch (CR 22/11/2026): khung giờ trao là tuỳ chọn — có đủ
+    // scheduledStart + scheduledEnd mới ghi phase DISTRIBUTION.
+    const distribution = command.distribution ?? null;
+    const distributionStartsAt = distribution?.scheduledStart
+      ? new Date(distribution.scheduledStart)
       : null;
-    const distributionEndsAt = command.distribution
-      ? new Date(command.distribution.scheduledEnd)
+    const distributionEndsAt = distribution?.scheduledEnd
+      ? new Date(distribution.scheduledEnd)
       : null;
+    if (
+      distribution &&
+      (distributionStartsAt === null) !== (distributionEndsAt === null)
+    )
+      throw new ValidationFailedException([
+        'distribution.scheduledEnd: cần gửi cùng scheduledStart',
+      ]);
     if (
       distributionStartsAt &&
       distributionEndsAt &&
@@ -384,35 +395,25 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       throw new ValidationFailedException([
         'distribution.scheduledEnd: phải sau scheduledStart',
       ]);
-    const preparedDistribution = command.distribution
-      ? prepareCharityRoundDistribution({
-          title: 'Đợt trao 1',
-          distributionMethod: command.distribution.method,
-          contributionTypes: command.distribution.contributionTypes,
-          evidenceUrls: [],
-          locationLabel: command.distribution.location?.label ?? null,
-          address: command.distribution.location?.address ?? null,
-          lat: command.distribution.location?.lat ?? null,
-          lng: command.distribution.location?.lng ?? null,
-          needsReview: false,
-          serviceType: command.distribution.serviceType ?? null,
-          serviceChannel: command.distribution.serviceChannel ?? null,
+    const preparedDistribution = distribution
+      ? prepareCharityCampaignDistribution({
+          distributionMethod: distribution.method,
+          contributionTypes: distribution.contributionTypes,
+          serviceType: distribution.serviceType ?? null,
+          serviceChannel: distribution.serviceChannel ?? null,
           privateDetails: {
             beneficiaryBankAccountId: null,
-            recipientName: command.distribution.recipientName ?? null,
-            recipientPhone: command.distribution.recipientPhone ?? null,
-            recipientAddress: command.distribution.recipientAddress ?? null,
-            coordinatorName: command.distribution.coordinatorName ?? null,
-            coordinatorPhone: command.distribution.coordinatorPhone ?? null,
-            carrier: command.distribution.carrier ?? null,
-            shippingFeePayer: command.distribution.shippingFeePayer ?? null,
-            estimatedShippingFee:
-              command.distribution.estimatedShippingFee ?? null,
-            trackingCode: command.distribution.trackingCode ?? null,
-            transferContent: command.distribution.transferContent ?? null,
+            recipientName: distribution.recipientName ?? null,
+            recipientPhone: distribution.recipientPhone ?? null,
+            recipientAddress: distribution.recipientAddress ?? null,
+            coordinatorName: distribution.coordinatorName ?? null,
+            coordinatorPhone: distribution.coordinatorPhone ?? null,
+            carrier: distribution.carrier ?? null,
+            shippingFeePayer: distribution.shippingFeePayer ?? null,
+            estimatedShippingFee: distribution.estimatedShippingFee ?? null,
+            trackingCode: distribution.trackingCode ?? null,
+            transferContent: distribution.transferContent ?? null,
           },
-          startsAt: distributionStartsAt!,
-          endsAt: distributionEndsAt!,
         })
       : null;
     // Điều kiện tham gia (PR #54) kiểm cùng lượt với nội dung, TRƯỚC lượt gọi R2.
@@ -473,9 +474,11 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       media,
       distribution: preparedDistribution
         ? {
-            round: preparedDistribution,
-            startsAt: preparedDistribution.startsAt,
-            endsAt: preparedDistribution.endsAt,
+            input: preparedDistribution,
+            window:
+              distributionStartsAt && distributionEndsAt
+                ? { startsAt: distributionStartsAt, endsAt: distributionEndsAt }
+                : null,
           }
         : null,
       campaignType: command.campaignType,
@@ -1305,16 +1308,39 @@ export class CloseCharityCampaignUseCase implements ICloseCharityCampaignUseCase
     if (!campaign) throw new CharityCampaignNotFoundException();
 
     const isOrganizer = campaign.createdBy === command.actorUserId;
-    if (
+    const isAdmin =
       !isOrganizer &&
-      !(await this.admin.hasPermission(command.actorUserId, WritePermission))
-    )
-      throw new CharityNotOrganizerException();
+      (await this.admin.hasPermission(command.actorUserId, WritePermission));
+    if (!isOrganizer && !isAdmin) throw new CharityNotOrganizerException();
+
+    // Chỉ đóng khi tổng kết đã công khai (CR 22/11/2026). Admin được ép đóng, có lý do.
+    const forced = isAdmin && command.force === true;
+    const reason = command.reason?.trim() ?? '';
+    if (forced && !reason)
+      throw new ValidationFailedException([
+        'close.reason: bắt buộc khi Admin ép đóng',
+      ]);
+    if (!forced && campaign.summaryPublishedAt === null)
+      throw new CharityCampaignSummaryNotPublishedException();
 
     const result = await this.repository.closeCampaign({
       campaignId: campaign.globalId,
       actorUserId: command.actorUserId,
     });
+    if (forced)
+      await this.admin.appendAudit({
+        actorUserId: command.actorUserId,
+        action: 'CHARITY_CAMPAIGN_FORCE_CLOSE',
+        resourceType: 'CHARITY_CAMPAIGN',
+        resourceId: campaign.globalId,
+        before: {
+          isActive: campaign.isActive,
+          endTime: campaign.endTime,
+          summaryPublishedAt: campaign.summaryPublishedAt,
+        },
+        after: { isActive: false },
+        reason,
+      });
     for (const rejected of result.rejected)
       await this.notifier.contributionDecided({
         campaignTitle: campaign.title,
@@ -1794,6 +1820,7 @@ export class ListAdminCharityCampaignsUseCase implements IListAdminCharityCampai
         limit: command.limit,
         offset: command.offset,
         approvalStatus: command.approvalStatus,
+        overdueSummary: command.overdueSummary,
       }),
       null,
     );

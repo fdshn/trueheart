@@ -5,7 +5,7 @@ import {
   UpdateAdminCharityCampaignDto,
   WriteCharityCampaignDto,
 } from './charity-campaign.dto';
-import { CharityRoundInputDto } from './charity-operations.dto';
+import { CharityDistributionInputDto } from './charity-operations.dto';
 import {
   CharityBeneficiaryBankAccountDto,
   CharityProfileDto,
@@ -17,10 +17,9 @@ const failedFields = async (
 ) =>
   (await validate(plainToInstance(cls, input))).map((error) => error.property);
 
-const round = {
-  title: 'Đợt 1',
-  startsAt: '2026-12-20T01:00:00Z',
-  endsAt: '2026-12-20T09:00:00Z',
+const campaignDistribution = {
+  distributionMethod: 'SHIPPING',
+  contributionTypes: ['MATERIAL'],
 };
 const distribution = {
   method: 'SHIPPING',
@@ -43,7 +42,11 @@ const privateLimits: [string, number][] = [
 
 describe('Giới hạn DTO hình thức trao khớp cột database', () => {
   it.each([
-    ['CharityRoundInputDto', CharityRoundInputDto, round],
+    [
+      'CharityDistributionInputDto',
+      CharityDistributionInputDto,
+      campaignDistribution,
+    ],
     [
       'CharityCampaignDistributionDto',
       CharityCampaignDistributionDto,
@@ -64,7 +67,11 @@ describe('Giới hạn DTO hình thức trao khớp cột database', () => {
   );
 
   it.each([
-    ['CharityRoundInputDto', CharityRoundInputDto, round],
+    [
+      'CharityDistributionInputDto',
+      CharityDistributionInputDto,
+      campaignDistribution,
+    ],
     [
       'CharityCampaignDistributionDto',
       CharityCampaignDistributionDto,
@@ -85,7 +92,11 @@ describe('Giới hạn DTO hình thức trao khớp cột database', () => {
   );
 
   it.each([
-    ['CharityRoundInputDto', CharityRoundInputDto, round],
+    [
+      'CharityDistributionInputDto',
+      CharityDistributionInputDto,
+      campaignDistribution,
+    ],
     [
       'CharityCampaignDistributionDto',
       CharityCampaignDistributionDto,

@@ -65,7 +65,11 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
-import { insertDistributionRound } from './charity-round.sql';
+import {
+  CampaignDistributionSettledSql,
+  CampaignRehearsalReadySql,
+  writeCampaignDistribution,
+} from './charity-distribution.sql';
 import { isUniqueViolation, isUniqueViolationOn } from './unique-violation';
 import { updateReturning } from './update-returning';
 
@@ -103,6 +107,9 @@ interface IRow {
   operation_stage: string;
   distribution_starts_at: Date | null;
   distribution_ends_at: Date | null;
+  rehearsal_ready: boolean;
+  distribution_settled: boolean;
+  summary_published_at: Date | null;
 }
 
 interface IReviewRow {
@@ -351,6 +358,10 @@ const Columns = `campaigns.global_id, campaigns.title, campaigns.slug, campaigns
        (SELECT phase.ends_at FROM campaign_phases phase
          WHERE phase.campaign_id = campaigns.global_id
            AND phase.phase = 'DISTRIBUTION') AS distribution_ends_at,
+       ${CampaignRehearsalReadySql('campaigns')} AS rehearsal_ready,
+       ${CampaignDistributionSettledSql('campaigns')} AS distribution_settled,
+       (SELECT summary.published_at FROM campaign_summaries summary
+         WHERE summary.campaign_id = campaigns.global_id) AS summary_published_at,
        (SELECT count(*) FROM campaign_participations participation
          WHERE participation.campaign_id = campaigns.global_id
            AND participation.status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')) AS participant_count,
@@ -429,7 +440,11 @@ function toCampaign(row: IRow): ICharityCampaign {
       distribution,
       endTime: row.end_time,
       now: new Date(),
+      // Cổng (CR 22/11/2026): giai đoạn hiển thị không vượt cổng tổng duyệt/bước trao.
+      rehearsalReady: row.rehearsal_ready === true,
+      distributionSettled: row.distribution_settled === true,
     }),
+    summaryPublishedAt: row.summary_published_at ?? null,
   };
 }
 
@@ -446,12 +461,28 @@ function toReview(row: IReviewRow): ICharityReview {
   };
 }
 
+/**
+ * KẾT THÚC (CR 22/11/2026, cùng luật `isEndedProject` ở core-lib): đã công khai tổng kết, hoặc
+ * đã đóng (inactive và qua `end_time`). Qua `end_time` mà chưa công khai tổng kết thì vẫn đang
+ * tổng kết — chưa kết thúc. Đình chỉ (inactive, `end_time` còn ở tương lai) không phải kết thúc.
+ */
+const EndedSql = `(EXISTS (SELECT 1 FROM campaign_summaries summary
+                     WHERE summary.campaign_id = campaigns.global_id
+                       AND summary.published_at IS NOT NULL)
+       OR (NOT campaigns.is_active AND campaigns.end_time <= now()))`;
+
+/** Đang mở, đã qua `end_time`, chưa công khai tổng kết — Admin theo dõi / job nhắc. */
+const OverdueSummarySql = `(campaigns.is_active AND campaigns.end_time <= now()
+       AND NOT EXISTS (SELECT 1 FROM campaign_summaries summary
+                        WHERE summary.campaign_id = campaigns.global_id
+                          AND summary.published_at IS NOT NULL))`;
+
 /** Điều kiện lọc theo pha thời gian. Mốc là `now()` của database, không phải của Node. */
 function phaseFilter(phase: CharityCampaignPhase | undefined): string {
   if (phase === 'UPCOMING') return 'AND campaigns.start_time > now()';
   if (phase === 'ONGOING')
-    return 'AND campaigns.start_time <= now() AND campaigns.end_time > now()';
-  if (phase === 'ENDED') return 'AND campaigns.end_time <= now()';
+    return `AND campaigns.start_time <= now() AND NOT ${EndedSql}`;
+  if (phase === 'ENDED') return `AND ${EndedSql}`;
   return '';
 }
 
@@ -521,22 +552,23 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
             params.beneficiary,
           );
         if (params.distribution) {
-          await manager.query(
-            `INSERT INTO campaign_phases
-               (campaign_id, phase, starts_at, ends_at, updated_by)
-             VALUES ($1, 'DISTRIBUTION', $2, $3, $4)`,
-            [
-              campaign.globalId,
-              params.distribution.startsAt,
-              params.distribution.endsAt,
-              params.createdBy,
-            ],
-          );
-          await insertDistributionRound(manager, {
+          await writeCampaignDistribution(manager, {
             campaignId: campaign.globalId,
             actorId: params.createdBy,
-            round: params.distribution.round,
+            distribution: params.distribution.input,
           });
+          if (params.distribution.window)
+            await manager.query(
+              `INSERT INTO campaign_phases
+                 (campaign_id, phase, starts_at, ends_at, updated_by)
+               VALUES ($1, 'DISTRIBUTION', $2, $3, $4)`,
+              [
+                campaign.globalId,
+                params.distribution.window.startsAt,
+                params.distribution.window.endsAt,
+                params.createdBy,
+              ],
+            );
         }
         if (params.media.length === 0) return campaign;
 
@@ -1963,21 +1995,23 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     return this.manager.transaction(async (manager) => {
       await this.lockCampaignAndNeeds(manager, params.campaignId);
 
-      // `start_time = LEAST(...)`: đóng một chiến dịch CHƯA bắt đầu mà chỉ đặt
-      // `end_time = now()` sẽ vi phạm `CHK_campaigns_time_order`. Kéo `start_time` về
-      // trước đó một giây là hợp lý — với chiến dịch chưa bắt đầu, `start_time` là kế
-      // hoạch chứ chưa phải lịch sử. KHÔNG dời `end_time` ra sau `now()`: §8 phân biệt
-      // ĐÃ ĐÓNG với ĐÌNH CHỈ đúng bằng việc `end_time` đã qua hay chưa.
+      // `end_time = LEAST(end_time, now())`: chiến dịch thường đã qua `end_time` khi đóng
+      // (phải công khai tổng kết trước — CR 22/11/2026), khi đó KHÔNG dời mốc ra sau.
+      // `start_time = LEAST(...)`: đóng một chiến dịch CHƯA bắt đầu mà chỉ kéo `end_time`
+      // về `now()` sẽ vi phạm `CHK_campaigns_time_order`; với chiến dịch chưa bắt đầu,
+      // `start_time` là kế hoạch chứ chưa phải lịch sử. §8 phân biệt ĐÃ ĐÓNG với ĐÌNH CHỈ
+      // đúng bằng việc `end_time` đã qua hay chưa — nên chỉ chặn chiến dịch ĐÃ ĐÓNG.
       const closed = await updateReturning<{ global_id: string }>(
         manager,
         `UPDATE campaigns
          SET is_active = false,
-             end_time = now(),
-             start_time = LEAST(start_time, now() - interval '1 second'),
+             end_time = LEAST(end_time, now()),
+             start_time = LEAST(start_time,
+                                LEAST(end_time, now()) - interval '1 second'),
              updated_at = now()
          WHERE global_id = $1
            AND approval_status = 'APPROVED'
-           AND end_time > now()
+           AND (is_active OR end_time > now())
            AND deleted_at IS NULL
          RETURNING global_id`,
         [params.campaignId],
@@ -2350,6 +2384,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     limit: number;
     offset: number;
     approvalStatus?: CharityApprovalStatus;
+    overdueSummary?: boolean;
   }): Promise<ICharityCampaignPage> {
     const values: unknown[] = [query.limit, query.offset];
     let filter = '';
@@ -2361,6 +2396,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
                 AND (campaigns.approval_status <> 'PENDING_APPROVAL'
                      OR campaigns.submitted_at IS NOT NULL)`;
     }
+    const overdue = query.overdueSummary ? `AND ${OverdueSummarySql}` : '';
+    filter = `${filter} ${overdue}`;
 
     const rows = await this.manager.query<IRow[]>(
       `SELECT ${Columns} FROM campaigns
@@ -2378,7 +2415,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
                  AND (campaigns.approval_status <> 'PENDING_APPROVAL'
                       OR campaigns.submitted_at IS NOT NULL)`
               : ''
-          }`,
+          } ${overdue}`,
       query.approvalStatus ? [query.approvalStatus] : [],
     );
 

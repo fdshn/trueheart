@@ -300,6 +300,33 @@ async function main(): Promise<void> {
        VALUES ($1, $2, 2, 2, 'COMPLETED')`,
       [supportNeed.global_id, Walker],
     );
+    // Giá trị hiện vật tính theo cả chiến dịch (không còn đợt trao): lượt hoàn tất có giá trị
+    // điều chỉnh được cộng, lượt đã huỷ thì bỏ.
+    for (const [status, adjusted] of [
+      ['COMPLETED', 50000],
+      ['CANCELLED', 999999],
+    ] as const) {
+      const [extra] = await sql(
+        `INSERT INTO campaign_contributions
+           (campaign_id, contributor_id, status, decided_at, decided_by)
+         VALUES ($1, $2, 'ACCEPTED', now(), $3) RETURNING global_id`,
+        [Live, Shy, Owner],
+      );
+      await sql(
+        `INSERT INTO campaign_deliveries
+           (campaign_id, contribution_id, contributor_id, organizer_id, status,
+            completed_at, completed_by, cancelled_at, cancelled_by, cancel_reason,
+            confirmed_value_adjusted)
+         VALUES ($1, $2, $3, $4, $5::text,
+                 CASE WHEN $5::text = 'COMPLETED' THEN now() END,
+                 CASE WHEN $5::text = 'COMPLETED' THEN $4::uuid END,
+                 CASE WHEN $5::text = 'CANCELLED' THEN now() END,
+                 CASE WHEN $5::text = 'CANCELLED' THEN $4::uuid END,
+                 CASE WHEN $5::text = 'CANCELLED' THEN 'Huỷ thử' END,
+                 $6)`,
+        [Live, extra.global_id, Shy, Owner, status, adjusted],
+      );
+    }
     const totals = await summaries.intakeTotals(Live);
     check(
       'hiện vật nhóm theo đơn vị và giá trị chỉ tính giao nhận hoàn tất trong app',
@@ -310,7 +337,7 @@ async function main(): Promise<void> {
         totals.material.lines.some(
           (line) => line.unit === 'kg' && line.receivedQuantity === 3,
         ) &&
-        totals.material.confirmedValue === 200000,
+        totals.material.confirmedValue === 250000,
       JSON.stringify(totals.material),
     );
     check(

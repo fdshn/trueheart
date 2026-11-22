@@ -13,6 +13,7 @@ export * from './charity-operations';
 export * from './charity-participation-requirements';
 export * from './charity-points';
 export * from './charity-project';
+export * from './charity-rehearsal';
 export * from './charity-summary';
 export * from './chat';
 export * from './chat-cursor';

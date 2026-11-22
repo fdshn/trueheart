@@ -5,6 +5,7 @@ import {
   CharityCampaignCreateNotAllowedException,
   CharityCampaignHasActivityException,
   CharityCampaignNotFoundException,
+  CharityCampaignSummaryNotPublishedException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
   CharityContributionTypeDisabledException,
@@ -109,6 +110,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     operationStage: 'EXECUTION' as const,
     storedOperationStage: 'EXECUTION' as const,
     distribution: null,
+    summaryPublishedAt: null,
     ...overrides,
   };
 }
@@ -712,7 +714,7 @@ describe('CreateCharityCampaignUseCase · loại tiếp nhận và ba nhóm nhu 
       asAdmin: false,
     } as never);
 
-  it('tạo có distribution OTHER_LOCATION đầy đủ chuyển thành đợt trao đầu tiên', async () => {
+  it('tạo chiến dịch có distribution + scheduledStart/End → repository.create nhận window đúng', async () => {
     const repository = makeRepository();
     repository.create.mockResolvedValue(campaign());
     await create(repository, {
@@ -720,29 +722,50 @@ describe('CreateCharityCampaignUseCase · loại tiếp nhận và ba nhóm nhu 
       distribution: {
         method: 'OTHER_LOCATION',
         contributionTypes: ['MATERIAL'],
-        location: {
-          label: 'Nhà văn hoá xã',
-          address: 'Thôn 1, xã An Bình',
-          lat: 10.7,
-          lng: 106.6,
-        },
         scheduledStart: '2026-12-20T01:00:00Z',
         scheduledEnd: '2026-12-20T09:00:00Z',
-        coordinatorName: 'Điều phối viên',
+        coordinatorName: ' Điều phối viên ',
         coordinatorPhone: '0901000000',
       },
     });
     expect(repository.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        distribution: expect.objectContaining({
-          round: expect.objectContaining({
-            title: 'Đợt trao 1',
+        distribution: {
+          input: expect.objectContaining({
             distributionMethod: 'OTHER_LOCATION',
-            locationLabel: 'Nhà văn hoá xã',
-            address: 'Thôn 1, xã An Bình',
-            evidenceUrls: [],
-            needsReview: false,
+            contributionTypes: ['MATERIAL'],
+            privateDetails: expect.objectContaining({
+              coordinatorName: 'Điều phối viên',
+              coordinatorPhone: '0901000000',
+            }),
           }),
+          window: {
+            startsAt: new Date('2026-12-20T01:00:00Z'),
+            endsAt: new Date('2026-12-20T09:00:00Z'),
+          },
+        },
+      }),
+    );
+  });
+
+  it('không gửi scheduledStart → window null, vẫn lưu hình thức trao', async () => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    await create(repository, {
+      submit: false,
+      distribution: {
+        method: 'OTHER_LOCATION',
+        contributionTypes: ['MATERIAL'],
+        coordinatorName: 'Điều phối viên',
+      },
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        distribution: expect.objectContaining({
+          input: expect.objectContaining({
+            distributionMethod: 'OTHER_LOCATION',
+          }),
+          window: null,
         }),
       }),
     );
@@ -1713,7 +1736,7 @@ describe('Lát D — ngoài app và đóng chiến dịch (F65b §7–§8)', () 
   it('người tổ chức đóng được chiến dịch của mình mà không cần quyền Admin', async () => {
     const repository = makeRepository();
     repository.findByGlobalId.mockResolvedValue(
-      campaign({ createdBy: ActorId }),
+      campaign({ createdBy: ActorId, summaryPublishedAt: new Date() }),
     );
     repository.closeCampaign.mockResolvedValue({
       campaignId: CampaignId,
@@ -1742,7 +1765,7 @@ describe('Lát D — ngoài app và đóng chiến dịch (F65b §7–§8)', () 
   it('Admin có campaign.manage đóng được chiến dịch của người khác', async () => {
     const repository = makeRepository();
     repository.findByGlobalId.mockResolvedValue(
-      campaign({ createdBy: 'nguoi-khac' }),
+      campaign({ createdBy: 'nguoi-khac', summaryPublishedAt: new Date() }),
     );
     repository.closeCampaign.mockResolvedValue({
       campaignId: CampaignId,
@@ -1760,6 +1783,130 @@ describe('Lát D — ngoài app và đóng chiến dịch (F65b §7–§8)', () 
       actorUserId: ActorId,
     });
 
+    expect(repository.closeCampaign).toHaveBeenCalled();
+  });
+
+  it('đóng khi chưa công khai tổng kết → 409 0x13_65, closeCampaign không gọi', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: ActorId, summaryPublishedAt: null }),
+    );
+    await expect(
+      new CloseCharityCampaignUseCase(
+        repository,
+        makeAdmin(false),
+        makeNotifier(),
+      ).handle({ campaignId: CampaignId, actorUserId: ActorId }),
+    ).rejects.toBeInstanceOf(CharityCampaignSummaryNotPublishedException);
+    expect(repository.closeCampaign).not.toHaveBeenCalled();
+  });
+
+  it('Admin không force cũng cần tổng kết đã công khai', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: 'nguoi-khac', summaryPublishedAt: null }),
+    );
+    await expect(
+      new CloseCharityCampaignUseCase(
+        repository,
+        makeAdmin(true),
+        makeNotifier(),
+      ).handle({ campaignId: CampaignId, actorUserId: ActorId }),
+    ).rejects.toBeInstanceOf(CharityCampaignSummaryNotPublishedException);
+    expect(repository.closeCampaign).not.toHaveBeenCalled();
+  });
+
+  it('Admin force không lý do → 400', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: 'nguoi-khac', summaryPublishedAt: null }),
+    );
+    const admin = makeAdmin(true);
+    admin.appendAudit = jest.fn();
+    await expect(
+      new CloseCharityCampaignUseCase(repository, admin, makeNotifier()).handle(
+        {
+          campaignId: CampaignId,
+          actorUserId: ActorId,
+          force: true,
+          reason: '   ',
+        },
+      ),
+    ).rejects.toThrow(ValidationFailedException);
+    expect(repository.closeCampaign).not.toHaveBeenCalled();
+    expect(admin.appendAudit).not.toHaveBeenCalled();
+  });
+
+  it('Admin force có lý do → đóng + appendAudit', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: 'nguoi-khac', summaryPublishedAt: null }),
+    );
+    repository.closeCampaign.mockResolvedValue({
+      campaignId: CampaignId,
+      rejectedContributions: 0,
+      openDeliveries: 0,
+      rejected: [],
+    });
+    const admin = makeAdmin(true);
+    admin.appendAudit = jest.fn().mockResolvedValue(undefined);
+    await new CloseCharityCampaignUseCase(
+      repository,
+      admin,
+      makeNotifier(),
+    ).handle({
+      campaignId: CampaignId,
+      actorUserId: ActorId,
+      force: true,
+      reason: ' Ban tổ chức bỏ dở ',
+    });
+    expect(repository.closeCampaign).toHaveBeenCalled();
+    expect(admin.appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: ActorId,
+        action: 'CHARITY_CAMPAIGN_FORCE_CLOSE',
+        resourceType: 'CHARITY_CAMPAIGN',
+        resourceId: CampaignId,
+        reason: 'Ban tổ chức bỏ dở',
+      }),
+    );
+  });
+
+  it('chủ dự án gửi force không có tác dụng (force chỉ dành cho Admin)', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: ActorId, summaryPublishedAt: null }),
+    );
+    await expect(
+      new CloseCharityCampaignUseCase(
+        repository,
+        makeAdmin(false),
+        makeNotifier(),
+      ).handle({
+        campaignId: CampaignId,
+        actorUserId: ActorId,
+        force: true,
+        reason: 'muốn đóng',
+      }),
+    ).rejects.toBeInstanceOf(CharityCampaignSummaryNotPublishedException);
+  });
+
+  it('đã công khai → đóng được', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: ActorId, summaryPublishedAt: new Date() }),
+    );
+    repository.closeCampaign.mockResolvedValue({
+      campaignId: CampaignId,
+      rejectedContributions: 0,
+      openDeliveries: 0,
+      rejected: [],
+    });
+    await new CloseCharityCampaignUseCase(
+      repository,
+      makeAdmin(false),
+      makeNotifier(),
+    ).handle({ campaignId: CampaignId, actorUserId: ActorId });
     expect(repository.closeCampaign).toHaveBeenCalled();
   });
 
@@ -1874,7 +2021,7 @@ describe('Thông báo được NỐI vào đúng đường (F65b)', () => {
   it('đóng chiến dịch báo TỪNG người bị từ chối, đánh dấu là do đóng', async () => {
     const repository = makeRepository();
     repository.findByGlobalId.mockResolvedValue(
-      campaign({ createdBy: ActorId }),
+      campaign({ createdBy: ActorId, summaryPublishedAt: new Date() }),
     );
     repository.closeCampaign.mockResolvedValue({
       campaignId: CampaignId,

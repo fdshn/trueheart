@@ -5,12 +5,15 @@ import {
   CharityContributionType,
   CharityCustomFieldType,
   CharityDeliveryMethod,
+  CharityDistributionMethod,
   CharityFieldVisibility,
   CharityItemCondition,
   CharityOpenClosedStatus,
   CharityOperationStage,
+  CharityOrganizerReminderReason,
   CharityPartyRole,
   CharityPhaseKey,
+  CharityRehearsalOutcome,
   CharityReportMode,
   CharitySupplySource,
   CharityTeamRole,
@@ -19,6 +22,7 @@ import {
   ICharityBeneficiaryBankAccount,
   ICharityBeneficiaryBankAccountInput,
   ICharityIntakeCounts,
+  ICharityRehearsalChecklistItem,
 } from '@chantam.vn/chantam.core-lib/models';
 
 /**
@@ -233,6 +237,35 @@ export type AddCharityBankAccountOutcome =
 export type RegisterCharityVolunteerOutcome =
   'REGISTERED' | 'ALREADY_REGISTERED' | 'NOT_FOUND' | 'CLOSED' | 'FULL';
 
+/** Tổng duyệt trước sự kiện trao (CR 22/11/2026 §8). */
+export interface ICharityRehearsal {
+  campaignId: string;
+  checklist: ICharityRehearsalChecklistItem[];
+  outcome: CharityRehearsalOutcome | null;
+  reason: string | null;
+  note: string | null;
+  decidedBy: string | null;
+  decidedAt: Date | null;
+  phase: {
+    startsAt: Date;
+    endsAt: Date;
+    picName: string | null;
+    picUserId: string | null;
+  } | null;
+}
+
+/** Dữ liệu để xét bước trao đã hoàn tất chưa (`charityDistributionSettled`). */
+export interface ICharityDistributionSettlement {
+  method: CharityDistributionMethod | null;
+  evidenceUrls: string[];
+  trackingCode: string | null;
+  beneficiaryAccount: {
+    verified: boolean;
+    live: boolean;
+    sameCampaign: boolean;
+  } | null;
+}
+
 export interface ICharityProjectRepository {
   /**
    * Id của dự án hiện ra ngoài theo id hoặc slug: đã duyệt, chưa xoá, đang chạy HOẶC đã đóng
@@ -265,6 +298,21 @@ export interface ICharityProjectRepository {
   }): Promise<SubmitCharityDraftOutcome>;
   intakeCounts(campaignId: string): Promise<ICharityIntakeCounts>;
 
+  // Tổng duyệt (CR 22/11/2026 §8)
+  getRehearsal(campaignId: string): Promise<ICharityRehearsal | null>;
+  saveRehearsal(params: {
+    campaignId: string;
+    actorId: string;
+    checklist: ICharityRehearsalChecklistItem[];
+    /** `undefined` = giữ kết quả đã lưu. */
+    outcome: CharityRehearsalOutcome | undefined;
+    reason: string | null;
+    note: string | null;
+  }): Promise<ICharityRehearsal>;
+  distributionSettlement(
+    campaignId: string,
+  ): Promise<ICharityDistributionSettlement>;
+
   /** Đổi giai đoạn có điều kiện giai đoạn hiện tại = `from`, ghi nhật ký cùng lúc. */
   moveStage(params: {
     campaignId: string;
@@ -275,12 +323,30 @@ export interface ICharityProjectRepository {
   }): Promise<MoveCharityStageOutcome>;
   listStageEvents(campaignId: string): Promise<ICharityStageEvent[]>;
   /** Dự án có cột giai đoạn có thể đã trễ so với mốc thời gian — cho job. */
+  /** Chiến dịch QUA được cổng và tới mốc chuyển giai đoạn (hàng bị giữ không chiếm LIMIT). */
   listStageCandidates(limit: number): Promise<
     {
       campaignId: string;
       stored: CharityOperationStage;
       distribution: { startsAt: Date; endsAt: Date } | null;
       endTime: Date;
+      rehearsalReady: boolean;
+      distributionSettled: boolean;
+    }[]
+  >;
+  /**
+   * Chiến dịch đang mở, đã qua `end_time`, chưa công khai tổng kết — job nhắc `SUMMARY_OVERDUE`
+   * (cùng điều kiện với `overdueSummary` của danh sách Admin).
+   */
+  listOverdueSummaries(
+    limit: number,
+  ): Promise<{ campaignId: string; ownerId: string }[]>;
+  /** Chiến dịch tới mốc nhưng bị cổng giữ lại — job nhắc chủ dự án mỗi ngày một lần/lý do. */
+  listBlockedStageCampaigns(limit: number): Promise<
+    {
+      campaignId: string;
+      ownerId: string;
+      reason: CharityOrganizerReminderReason;
     }[]
   >;
 

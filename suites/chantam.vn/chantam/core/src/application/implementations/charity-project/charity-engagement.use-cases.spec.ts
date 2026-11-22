@@ -60,6 +60,7 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     operationStage: 'EXECUTION',
     storedOperationStage: 'EXECUTION',
     distribution: null,
+    summaryPublishedAt: null,
     ...overrides,
   } as ICharityCampaign;
 }
@@ -428,10 +429,48 @@ describe('Thông báo theo dự án', () => {
     }),
   });
 
+  it("notify: REHEARSAL và DISTRIBUTION là hai thông báo, dedupeKey 'REHEARSAL:<ms>' và 'DISTRIBUTION:<ms>'", async () => {
+    const deps = make();
+    const rehearsalAt = new Date('2026-12-19T01:00:00Z');
+    const distributionAt = new Date('2026-12-20T01:00:00Z');
+    deps.engagement.listPreEventCandidates.mockResolvedValueOnce([
+      { campaignId: CampaignId, milestone: 'REHEARSAL', startsAt: rehearsalAt },
+      {
+        campaignId: CampaignId,
+        milestone: 'DISTRIBUTION',
+        startsAt: distributionAt,
+      },
+    ]);
+    await new ProcessCharityAnnouncementsUseCase(
+      deps.campaigns as never,
+      deps.engagement as never,
+      dispatch() as never,
+    ).handle({ dryRun: false, limit: 10 });
+    const keys = deps.engagement.enqueueAnnouncement.mock.calls.map(
+      ([params]) => (params as { dedupeKey: string }).dedupeKey,
+    );
+    expect(keys).toEqual([
+      `REHEARSAL:${rehearsalAt.getTime()}`,
+      `DISTRIBUTION:${distributionAt.getTime()}`,
+    ]);
+    expect(deps.engagement.enqueueAnnouncement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          milestone: 'REHEARSAL',
+          startsAt: rehearsalAt.toISOString(),
+        },
+      }),
+    );
+  });
+
   it('chạy khô chỉ đếm, không xếp và không gửi', async () => {
     const deps = make();
     deps.engagement.listPreEventCandidates.mockResolvedValueOnce([
-      { campaignId: CampaignId, distributionStartsAt: new Date() },
+      {
+        campaignId: CampaignId,
+        milestone: 'DISTRIBUTION',
+        startsAt: new Date(),
+      },
     ]);
     const result = await new ProcessCharityAnnouncementsUseCase(
       deps.campaigns as never,
@@ -447,7 +486,7 @@ describe('Thông báo theo dự án', () => {
     const deps = make();
     const startsAt = new Date('2026-12-20T01:00:00Z');
     deps.engagement.listPreEventCandidates.mockResolvedValueOnce([
-      { campaignId: CampaignId, distributionStartsAt: startsAt },
+      { campaignId: CampaignId, milestone: 'DISTRIBUTION', startsAt },
     ]);
     deps.engagement.listAudience.mockResolvedValueOnce([Viewer, 'hỏng']);
     const sender = dispatch();
@@ -458,7 +497,10 @@ describe('Thông báo theo dự án', () => {
           announcementId: 'a1',
           campaignId: CampaignId,
           kind: 'PRE_EVENT',
-          payload: { distributionStartsAt: startsAt.toISOString() },
+          payload: {
+            milestone: 'DISTRIBUTION',
+            startsAt: startsAt.toISOString(),
+          },
           actorId: Owner,
           createdAt: new Date(),
         });
@@ -473,14 +515,13 @@ describe('Thông báo theo dự án', () => {
     expect(deps.engagement.enqueueAnnouncement).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: 'PRE_EVENT',
-        dedupeKey: String(startsAt.getTime()),
+        dedupeKey: `DISTRIBUTION:${startsAt.getTime()}`,
       }),
     );
     expect(deps.engagement.listAudience).toHaveBeenCalledWith({
       campaignId: CampaignId,
       excludeUserId: Owner,
       scope: 'PRE_EVENT',
-      roundId: null,
     });
     expect(sender.handle).toHaveBeenCalledWith(
       expect.objectContaining({

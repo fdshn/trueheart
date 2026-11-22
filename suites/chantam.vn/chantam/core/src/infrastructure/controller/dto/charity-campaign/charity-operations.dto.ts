@@ -2,10 +2,6 @@ import {
   CharityCompletionBlockers,
   CharityContributionTypes,
   CharityDistributionMethods,
-  CharityRoundChecklistKeys,
-  CharityRoundReadinessStatuses,
-  CharityRoundStatuses,
-  CharityRoundWarningCodes,
   CharityServiceChannels,
   CharityShippingFeePayers,
   CharitySupportOfferDecisions,
@@ -22,7 +18,6 @@ import {
   IsDefined,
   IsIn,
   IsInt,
-  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -49,10 +44,6 @@ export class CharitySupportNeedParamsDto {
 export class CharitySupportOfferParamsDto {
   @ApiProperty({ format: 'uuid' }) @IsUUID() id: string;
   @ApiProperty({ format: 'uuid' }) @IsUUID() offerId: string;
-}
-export class CharityRoundParamsDto {
-  @ApiProperty({ format: 'uuid' }) @IsUUID() id: string;
-  @ApiProperty({ format: 'uuid' }) @IsUUID() roundId: string;
 }
 export class CharitySupportOffersQueryDto {
   @ApiPropertyOptional({ format: 'uuid' })
@@ -339,30 +330,14 @@ export class CharityPostponeBodyDto {
   postpone: CharityPostponeDto;
 }
 
-// ── Đợt trao ────────────────────────────────────────────────────────────────
+// ── Hình thức trao cấp chiến dịch (CR 22/11/2026) ───────────────────────────
 
-export class CharityRoundInputDto {
-  @ApiProperty({ maxLength: 200, example: 'Đợt 1 — xã Pà Cò' })
-  @IsString()
-  @Length(1, 200)
-  title: string;
-
-  @ApiPropertyOptional({ maxLength: 500 })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  locationLabel?: string;
-
-  @ApiPropertyOptional({ maxLength: 500 })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  address?: string;
-
-  @ApiPropertyOptional({ enum: CharityDistributionMethods })
+/** Một hình thức trao cho cả chiến dịch; các trường riêng tư để phẳng như body tạo chiến dịch. */
+export class CharityDistributionInputDto {
+  @ApiProperty({ enum: CharityDistributionMethods, nullable: true })
   @IsOptional()
   @IsIn(CharityDistributionMethods)
-  distributionMethod?: (typeof CharityDistributionMethods)[number];
+  distributionMethod: (typeof CharityDistributionMethods)[number] | null;
 
   @ApiPropertyOptional({
     enum: CharityContributionTypes,
@@ -375,238 +350,119 @@ export class CharityRoundInputDto {
   @IsIn(CharityContributionTypes, { each: true })
   contributionTypes?: (typeof CharityContributionTypes)[number][];
 
-  @ApiPropertyOptional({ type: Number })
-  @IsOptional()
-  @IsNumber()
-  @Min(-90)
-  @Max(90)
-  lat?: number;
-  @ApiPropertyOptional({ type: Number })
-  @IsOptional()
-  @IsNumber()
-  @Min(-180)
-  @Max(180)
-  lng?: number;
   @ApiPropertyOptional({ enum: CharitySupportTypes })
   @IsOptional()
   @IsIn(CharitySupportTypes)
   serviceType?: (typeof CharitySupportTypes)[number];
+
   @ApiPropertyOptional({ enum: CharityServiceChannels })
   @IsOptional()
   @IsIn(CharityServiceChannels)
   serviceChannel?: (typeof CharityServiceChannels)[number];
-
-  @ApiPropertyOptional({ type: [String], maxItems: 20 })
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(20)
-  @Matches(/^https:\/\/\S+$/, { each: true })
-  evidenceUrls?: string[];
 
   @ApiPropertyOptional({ maxLength: 200 })
   @IsOptional()
   @IsString()
   @MaxLength(200)
   recipientName?: string;
+
   @ApiPropertyOptional({ maxLength: 30 })
   @IsOptional()
   @IsString()
   @MaxLength(30)
   recipientPhone?: string;
+
   @ApiPropertyOptional({ maxLength: 500 })
   @IsOptional()
   @IsString()
   @MaxLength(500)
   recipientAddress?: string;
+
   @ApiPropertyOptional({ maxLength: 200 })
   @IsOptional()
   @IsString()
   @MaxLength(200)
   coordinatorName?: string;
+
   @ApiPropertyOptional({ maxLength: 30 })
   @IsOptional()
   @IsString()
   @MaxLength(30)
   coordinatorPhone?: string;
+
   @ApiPropertyOptional({ maxLength: 200 })
   @IsOptional()
   @IsString()
   @MaxLength(200)
   carrier?: string;
+
   @ApiPropertyOptional({ enum: CharityShippingFeePayers })
   @IsOptional()
   @IsIn(CharityShippingFeePayers)
   shippingFeePayer?: (typeof CharityShippingFeePayers)[number];
+
   @ApiPropertyOptional({ minimum: 0, maximum: 10_000_000 })
   @IsOptional()
   @IsInt()
   @Min(0)
   @Max(10_000_000)
   estimatedShippingFee?: number;
+
   @ApiPropertyOptional({ maxLength: 100 })
   @IsOptional()
   @IsString()
   @MaxLength(100)
   trackingCode?: string;
-  @ApiPropertyOptional({
-    format: 'uuid',
-    nullable: true,
-    description:
-      'Tài khoản thụ hưởng ĐANG hiệu lực của dự án; cần được Admin xác thực trước khi hoàn tất BANK_TRANSFER',
-  })
-  @IsOptional()
-  @IsUUID()
-  beneficiaryBankAccountId?: string | null;
+
   @ApiPropertyOptional({ maxLength: 200 })
   @IsOptional()
   @IsString()
   @MaxLength(200)
   transferContent?: string;
 
-  @ApiProperty({ type: Date }) @Type(() => Date) @IsDate() startsAt: Date;
-  @ApiProperty({ type: Date }) @Type(() => Date) @IsDate() endsAt: Date;
-
   @ApiPropertyOptional({
-    maxLength: 500,
-    description:
-      'Bắt buộc khi đổi giờ / địa điểm đợt của dự án đã duyệt — người của đợt nhận thông báo kèm lý do',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  reason?: string;
-}
-export class CharityRoundBodyDto {
-  @ApiProperty({ type: () => CharityRoundInputDto })
-  @IsDefined()
-  @ValidateNested()
-  @Type(() => CharityRoundInputDto)
-  round: CharityRoundInputDto;
-}
-
-export class CharityRoundStatusDto {
-  @ApiProperty({ enum: ['DONE', 'CANCELLED'] })
-  @IsIn(['DONE', 'CANCELLED'])
-  status: 'DONE' | 'CANCELLED';
-
-  @ApiPropertyOptional({ maxLength: 500, description: 'Bắt buộc khi huỷ' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  reason?: string;
-}
-export class CharityRoundStatusBodyDto {
-  @ApiProperty({ type: () => CharityRoundStatusDto })
-  @IsDefined()
-  @ValidateNested()
-  @Type(() => CharityRoundStatusDto)
-  status: CharityRoundStatusDto;
-}
-
-class CharityRoundChecklistItemDto {
-  @ApiProperty({ enum: CharityRoundChecklistKeys })
-  @IsIn(CharityRoundChecklistKeys)
-  key: (typeof CharityRoundChecklistKeys)[number];
-
-  @ApiProperty() @IsBoolean() done: boolean;
-
-  @ApiPropertyOptional({ maxLength: 500, nullable: true })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  note?: string | null;
-}
-
-export class CharityRoundReadinessDto {
-  @ApiProperty({ enum: ['READY', 'NOT_READY'] })
-  @IsIn(['READY', 'NOT_READY'])
-  status: 'READY' | 'NOT_READY';
-
-  @ApiPropertyOptional({
-    maxLength: 1000,
-    description: 'Bắt buộc khi `NOT_READY`',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(1000)
-  note?: string;
-
-  @ApiPropertyOptional({
-    type: () => [CharityRoundChecklistItemDto],
-    description: 'Mục không gửi giữ nguyên',
-  })
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(CharityRoundChecklistKeys.length)
-  @ValidateNested({ each: true })
-  @Type(() => CharityRoundChecklistItemDto)
-  checklist?: CharityRoundChecklistItemDto[];
-}
-export class CharityRoundReadinessBodyDto {
-  @ApiProperty({ type: () => CharityRoundReadinessDto })
-  @IsDefined()
-  @ValidateNested()
-  @Type(() => CharityRoundReadinessDto)
-  readiness: CharityRoundReadinessDto;
-}
-
-export class CharityRoundAssignmentsDto {
-  @ApiProperty({
-    type: String,
-    format: 'uuid',
-    nullable: true,
-    description: '`null` = gỡ khỏi đợt',
-  })
-  @IsOptional()
-  @Matches(/^[0-9a-f-]{36}$/i)
-  roundId: string | null;
-
-  @ApiPropertyOptional({ type: [String], maxItems: 500 })
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(500)
-  @IsUUID('all', { each: true })
-  participationIds?: string[];
-
-  @ApiPropertyOptional({ type: [String], maxItems: 500 })
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(500)
-  @IsUUID('all', { each: true })
-  deliveryIds?: string[];
-}
-export class CharityRoundAssignmentsBodyDto {
-  @ApiProperty({ type: () => CharityRoundAssignmentsDto })
-  @IsDefined()
-  @ValidateNested()
-  @Type(() => CharityRoundAssignmentsDto)
-  assignments: CharityRoundAssignmentsDto;
-}
-export class CharityRoundAssignmentsResponseDto {
-  @ApiProperty() participations: number;
-  @ApiProperty() deliveries: number;
-}
-
-class CharityRoundStatsDto {
-  @ApiProperty() participantCount: number;
-  @ApiProperty() attendedCount: number;
-  @ApiProperty() deliveryCount: number;
-  @ApiProperty() completedDeliveryCount: number;
-  @ApiProperty({
-    description:
-      'Giá trị quy đổi hiện vật (VNĐ), không phải tiền đóng góp — tổng các lượt giao nhận đã hoàn tất',
-  })
-  confirmedValue: number;
-}
-
-export class CharityRoundPrivateDetailsDto {
-  @ApiProperty({
-    type: String,
     format: 'uuid',
     nullable: true,
     description:
-      'Chỉ BANK_TRANSFER: tài khoản thụ hưởng (riêng tư) gắn với đợt; DONE cần tài khoản này còn hiệu lực và đã được Admin xác thực',
+      'Tài khoản thụ hưởng ĐANG hiệu lực của chiến dịch; cần Admin xác thực trước khi hoàn tất BANK_TRANSFER',
   })
+  @IsOptional()
+  @IsUUID()
+  beneficiaryBankAccountId?: string | null;
+}
+
+export class CharityDistributionBodyDto {
+  @ApiProperty({ type: () => CharityDistributionInputDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => CharityDistributionInputDto)
+  distribution: CharityDistributionInputDto;
+}
+
+export class CharityDistributionEvidenceInputDto {
+  @ApiProperty({
+    type: [String],
+    maxItems: 20,
+    example: ['https://cdn.example.com/a.jpg'],
+  })
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(1000, { each: true })
+  @Matches(/^https:\/\/\S+$/, { each: true })
+  urls: string[];
+}
+
+export class CharityDistributionEvidenceBodyDto {
+  @ApiProperty({ type: () => CharityDistributionEvidenceInputDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => CharityDistributionEvidenceInputDto)
+  evidence: CharityDistributionEvidenceInputDto;
+}
+
+export class CharityDistributionPrivateDetailsDto {
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
   beneficiaryBankAccountId: string | null;
   @ApiProperty({ type: String, nullable: true }) recipientName: string | null;
   @ApiProperty({ type: String, nullable: true }) recipientPhone: string | null;
@@ -618,63 +474,49 @@ export class CharityRoundPrivateDetailsDto {
   @ApiProperty({ type: String, nullable: true }) carrier: string | null;
   @ApiProperty({ enum: CharityShippingFeePayers, nullable: true })
   shippingFeePayer: string | null;
-  @ApiProperty({ type: Number, nullable: true }) estimatedShippingFee:
-    number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  estimatedShippingFee: number | null;
   @ApiProperty({ type: String, nullable: true }) trackingCode: string | null;
   @ApiProperty({ type: String, nullable: true }) transferContent: string | null;
 }
 
-export class CharityRoundPublicDto {
-  @ApiProperty({ format: 'uuid' }) roundId: string;
-  @ApiProperty({ format: 'uuid' }) campaignId: string;
-  @ApiProperty() title: string;
-  @ApiProperty({ type: String, nullable: true }) locationLabel: string | null;
+/** Bản công khai: chỉ 5 trường, không có chi tiết riêng tư. */
+export class CharityDistributionPublicDto {
   @ApiProperty({ enum: CharityDistributionMethods, nullable: true })
-  distributionMethod: string | null;
-  @ApiProperty({ type: [String] }) contributionTypes: string[];
-  @ApiProperty({ type: [String] }) evidenceUrls: string[];
-  @ApiProperty({ enum: CharitySupportTypes, nullable: true }) serviceType:
-    string | null;
+  method: string | null;
+  @ApiProperty({ enum: CharityContributionTypes, isArray: true })
+  contributionTypes: string[];
+  @ApiProperty({ enum: CharitySupportTypes, nullable: true })
+  serviceType: string | null;
   @ApiProperty({ enum: CharityServiceChannels, nullable: true })
   serviceChannel: string | null;
-  @ApiProperty({ type: Number, nullable: true }) lat: number | null;
-  @ApiProperty({ type: Number, nullable: true }) lng: number | null;
-  @ApiProperty({ type: String, nullable: true }) address: string | null;
-  @ApiProperty() startsAt: Date;
-  @ApiProperty() endsAt: Date;
-  @ApiProperty({ enum: CharityRoundStatuses }) status: string;
-  @ApiProperty({ type: String, nullable: true }) statusReason: string | null;
-  @ApiProperty({ type: () => CharityRoundStatsDto })
-  stats: CharityRoundStatsDto;
-  @ApiProperty() updatedAt: Date;
-}
-export class CharityRoundDto extends CharityRoundPublicDto {
-  @ApiProperty() needsReview: boolean;
-  @ApiProperty({ type: () => CharityRoundPrivateDetailsDto, nullable: true })
-  privateDetails: CharityRoundPrivateDetailsDto | null;
-  @ApiProperty({ enum: CharityRoundReadinessStatuses }) readiness: string;
-  @ApiProperty({ type: String, nullable: true }) readinessNote: string | null;
-  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
-  readinessBy: string | null;
-  @ApiProperty({ type: Date, nullable: true }) readinessAt: Date | null;
-  @ApiProperty({ type: () => [CharityRoundChecklistItemDto] })
-  checklist: CharityRoundChecklistItemDto[];
   @ApiProperty({
-    enum: CharityRoundWarningCodes,
-    isArray: true,
-    description: 'Cảnh báo trước 48 giờ — không chặn sự kiện',
+    type: [String],
+    description: 'Ảnh bằng chứng trao (công khai)',
   })
-  warnings: string[];
+  evidenceUrls: string[];
 }
-export class CharityRoundResponseDto {
-  @ApiProperty({ type: () => CharityRoundDto }) round: CharityRoundDto;
+
+/** Bản workspace: đủ chi tiết riêng tư. */
+export class CharityDistributionDto {
+  @ApiProperty({ format: 'uuid' }) campaignId: string;
+  @ApiProperty({ enum: CharityDistributionMethods, nullable: true })
+  distributionMethod: string | null;
+  @ApiProperty({ enum: CharityContributionTypes, isArray: true })
+  contributionTypes: string[];
+  @ApiProperty({ enum: CharitySupportTypes, nullable: true })
+  serviceType: string | null;
+  @ApiProperty({ enum: CharityServiceChannels, nullable: true })
+  serviceChannel: string | null;
+  @ApiProperty({ type: [String] }) evidenceUrls: string[];
+  @ApiProperty({ type: () => CharityDistributionPrivateDetailsDto })
+  privateDetails: CharityDistributionPrivateDetailsDto;
+  @ApiProperty({ type: Date, nullable: true }) updatedAt: Date | null;
 }
-export class CharityRoundsResponseDto {
-  @ApiProperty({ type: () => [CharityRoundDto] }) rounds: CharityRoundDto[];
-}
-export class CharityPublicRoundsResponseDto {
-  @ApiProperty({ type: () => [CharityRoundPublicDto] })
-  rounds: CharityRoundPublicDto[];
+
+export class CharityDistributionResponseDto {
+  @ApiProperty({ type: () => CharityDistributionDto, nullable: true })
+  distribution: CharityDistributionDto | null;
 }
 
 // ── Hoàn tất dự án ──────────────────────────────────────────────────────────

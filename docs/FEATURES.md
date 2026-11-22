@@ -315,12 +315,22 @@ chức. Người dùng đăng ký hoặc huỷ trước khi sự kiện bắt đ
 > in không còn hiện số tiền hay tài khoản nhận; nhu cầu tiền cũ vẫn đóng sổ được. App **không
 > giữ tiền** — không có chức năng góp tiền trong app, ban tổ chức tự ghi số tiền đã nhận.
 
-> ✅ **21/11 — hình thức trao theo từng đợt (Phase B).** Mỗi đợt trao chọn một hình thức: trao
+> ✅ **21/11 — hình thức trao theo từng đợt (Phase B).** *(Đã thay ở CR 22/11/2026: bỏ nhiều đợt trao, hình thức trao chuyển lên cấp chiến dịch — mỗi chiến dịch một lần đi trao.)* Mỗi đợt trao chọn một hình thức: trao
 > tận tay, gửi hàng, trao tại điểm khác, chuyển khoản, hoặc dịch vụ. Mỗi hình thức đòi đúng thông
 > tin của nó (người nhận, nhà xe, địa điểm, nội dung chuyển khoản…); thông tin người nhận là
 > **riêng tư**, chỉ ban tổ chức thấy. Ghi nhận đợt xong cần ảnh bằng chứng, gửi hàng cần thêm mã
 > vận đơn. Chuyển khoản chỉ dùng được khi hoạt động nhận tiền. Ứng dụng bản cũ sửa đợt mà không
 > biết hình thức trao thì hình thức đã lưu được giữ nguyên.
+
+> ✅ **22/11 — một lần đi trao cho mỗi chiến dịch (CR 22/11/2026).** Bỏ cơ chế nhiều đợt trao vì
+> quá nặng cho ban tổ chức. Hình thức trao, ảnh bằng chứng và thông tin riêng tư (người nhận, mã
+> vận đơn, tài khoản thụ hưởng) nằm ở cấp chiến dịch; chiến dịch có một timeline 10 bước và một
+> bước tổng duyệt trước khi đi trao. Chưa tổng duyệt xong thì chiến dịch không tự sang Sự kiện
+> trao; chưa đủ bằng chứng trao thì không tự sang Tổng kết — ban tổ chức được nhắc mỗi ngày một
+> lần cho tới khi xong. Nhắc 48 giờ trước cả buổi tổng duyệt lẫn lúc đi trao.
+> Chiến dịch chỉ **kết thúc / đóng được** khi bài tổng kết đã công khai; quá hạn mà chưa đăng
+> tổng kết thì vẫn hiện là đang diễn ra, Admin có danh sách theo dõi riêng và ban tổ chức được
+> nhắc mỗi ngày. Admin có thể ép đóng, bắt buộc ghi lý do.
 
 > ✅ **21/11 — ba tổng riêng (Phase D).** Tổng kết tách hẳn ba con số: hiện vật (số lượng theo
 > đơn vị và giá trị quy đổi), tiền (đã xác nhận, nguồn ngoài), dịch vụ (số lượng đã hoàn thành).

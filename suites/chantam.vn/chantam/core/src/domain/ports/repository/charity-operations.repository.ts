@@ -1,16 +1,14 @@
 import {
   CharityCompletionBlocker,
+  CharityContributionType,
   CharityDisputeParty,
   CharityDisputeReason,
   CharityDisputeStatus,
   CharityDistributionMethod,
-  CharityRoundReadiness,
-  CharityRoundStatus,
   CharityServiceChannel,
   CharitySupportOfferStatus,
   CharitySupportType,
-  ICharityRoundChecklistItem,
-  ICharityRoundPrivateDetailsInput,
+  ICharityDistributionPrivateDetailsInput,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ICharityUserBrief } from './charity-event.repository';
 
@@ -69,66 +67,23 @@ export interface ICharitySupportOffer {
   createdAt: Date;
 }
 
-// ── Đợt trao (§3.18) ────────────────────────────────────────────────────────
+// ── Hình thức trao cấp chiến dịch (CR 22/11/2026) ───────────────────────
 
-export interface ICharityRoundInput {
-  title: string;
+export interface ICharityCampaignDistributionInput {
   distributionMethod: CharityDistributionMethod | null;
-  contributionTypes: readonly ('MATERIAL' | 'MONEY' | 'SERVICE')[];
-  evidenceUrls: readonly string[];
-  locationLabel: string | null;
-  address: string | null;
-  lat: number | null;
-  lng: number | null;
-  needsReview: boolean;
+  contributionTypes: readonly CharityContributionType[];
   serviceType: CharitySupportType | null;
   serviceChannel: CharityServiceChannel | null;
-  privateDetails: ICharityRoundPrivateDetailsInput;
-  startsAt: Date;
-  endsAt: Date;
+  privateDetails: ICharityDistributionPrivateDetailsInput & {
+    beneficiaryBankAccountId: string | null;
+  };
 }
 
-export interface ICharityRoundPrivateDetails extends ICharityRoundPrivateDetailsInput {
-  roundId: string;
+export interface ICharityCampaignDistribution extends ICharityCampaignDistributionInput {
   campaignId: string;
-  updatedBy: string | null;
-  updatedAt: Date;
-}
-
-export interface ICharityRoundStats {
-  /** Participant còn hiệu lực gắn với đợt. */
-  participantCount: number;
-  /** Đã check-in / hoàn thành. */
-  attendedCount: number;
-  deliveryCount: number;
-  completedDeliveryCount: number;
-  /** Tổng giá trị ban tổ chức xác nhận của các lượt giao nhận đã hoàn tất (VNĐ). */
-  confirmedValue: number;
-}
-
-export interface ICharityRound extends Omit<
-  ICharityRoundInput,
-  'privateDetails'
-> {
-  roundId: string;
-  campaignId: string;
-  privateDetails: ICharityRoundPrivateDetails | null;
-  status: CharityRoundStatus;
-  statusReason: string | null;
-  readiness: CharityRoundReadiness;
-  readinessNote: string | null;
-  readinessBy: string | null;
-  readinessAt: Date | null;
-  checklist: ICharityRoundChecklistItem[];
-  stats: ICharityRoundStats;
-  updatedAt: Date;
-}
-
-export interface ICharityRoundPreEventCandidate {
-  campaignId: string;
-  roundId: string;
-  title: string;
-  startsAt: Date;
+  /** Ảnh bằng chứng trao — CÔNG KHAI. */
+  evidenceUrls: string[];
+  updatedAt: Date | null;
 }
 
 // ── Tranh chấp đóng góp (§3.18) ─────────────────────────────────────────────
@@ -211,64 +166,21 @@ export interface ICharityOperationsRepository {
     completedQuantity: number | null;
   }): Promise<ICharitySupportOffer | null>;
 
-  // Đợt trao
-  listRounds(campaignId: string): Promise<ICharityRound[]>;
-  findRound(campaignId: string, roundId: string): Promise<ICharityRound | null>;
-  /** Tạo đợt kèm 10 bước timeline riêng của đợt. */
-  createRound(params: {
+  // Hình thức trao cấp chiến dịch
+  getDistribution(
+    campaignId: string,
+  ): Promise<ICharityCampaignDistribution | null>;
+  /** Ghi cột hình thức trên `campaigns` + dòng riêng tư 1-1 (upsert) trong một transaction. */
+  saveDistribution(params: {
     campaignId: string;
     actorId: string;
-    round: ICharityRoundInput;
-  }): Promise<ICharityRound>;
-  /**
-   * Sửa đợt. Đổi giờ / địa điểm của dự án đã duyệt thì xếp thông báo `ROUND_CHANGED` cho người
-   * bị ảnh hưởng (cùng transaction), kèm lý do.
-   */
-  updateRound(params: {
+    distribution: ICharityCampaignDistributionInput;
+  }): Promise<ICharityCampaignDistribution>;
+  saveDistributionEvidence(params: {
     campaignId: string;
-    roundId: string;
     actorId: string;
-    round: ICharityRoundInput;
-    reason: string | null;
-    announce: boolean;
-    /**
-     * true = chỉ ghi các trường kiểu cũ (tên, giờ, địa điểm); giữ nguyên hình thức trao, bằng chứng,
-     * chi tiết riêng và `needs_review` đã lưu.
-     */
-    keepDistribution?: boolean;
-  }): Promise<ICharityRound | null>;
-  /** PLANNED → DONE / CANCELLED (có lý do) — xếp `ROUND_CHANGED` khi huỷ. */
-  setRoundStatus(params: {
-    campaignId: string;
-    roundId: string;
-    actorId: string;
-    status: 'DONE' | 'CANCELLED';
-    reason: string | null;
-  }): Promise<ICharityRound | null>;
-  setRoundReadiness(params: {
-    campaignId: string;
-    roundId: string;
-    actorId: string;
-    readiness: CharityRoundReadiness;
-    note: string | null;
-    checklist: ICharityRoundChecklistItem[];
-  }): Promise<ICharityRound | null>;
-  /**
-   * Gắn participant / lượt giao nhận vào đợt (`roundId` null = gỡ khỏi đợt). Chỉ dòng của chính
-   * dự án; trả số dòng đã gắn.
-   */
-  assignToRound(params: {
-    campaignId: string;
-    roundId: string | null;
-    participationIds: string[];
-    deliveryIds: string[];
-  }): Promise<{ participations: number; deliveries: number }>;
-  listRoundPreEventCandidates(params: {
-    hours: number;
-    limit: number;
-  }): Promise<ICharityRoundPreEventCandidate[]>;
-  /** Có đợt trao nào chưa — có thì nhắc 48 giờ theo đợt, không theo bước trao chung. */
-  hasRounds(campaignId: string): Promise<boolean>;
+    evidenceUrls: string[];
+  }): Promise<ICharityCampaignDistribution>;
 
   // Tranh chấp đóng góp
   findContributionParties(

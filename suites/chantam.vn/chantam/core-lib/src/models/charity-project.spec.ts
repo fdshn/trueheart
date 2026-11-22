@@ -1,4 +1,5 @@
 import {
+  CharityPhaseKeys,
   effectiveOperationStage,
   normalizeMaxBankAccounts,
   phaseScheduleGaps,
@@ -12,6 +13,8 @@ const distribution = {
 };
 
 describe('effectiveOperationStage', () => {
+  const gated = { rehearsalReady: true, distributionSettled: true };
+
   it('PLAN và SUMMARY không tự đổi theo thời gian', () => {
     for (const stored of ['PLAN', 'SUMMARY'] as const)
       expect(
@@ -20,17 +23,19 @@ describe('effectiveOperationStage', () => {
           distribution,
           endTime,
           now: at('2027-06-01T00:00:00Z'),
+          ...gated,
         }),
       ).toBe(stored);
   });
 
-  it('EXECUTION → EVENT khi tới giờ trao', () => {
+  it('EXECUTION → EVENT khi tới giờ trao và tổng duyệt READY', () => {
     expect(
       effectiveOperationStage({
         stored: 'EXECUTION',
         distribution,
         endTime,
         now: at('2026-11-30T23:59:59Z'),
+        ...gated,
       }),
     ).toBe('EXECUTION');
     expect(
@@ -39,45 +44,78 @@ describe('effectiveOperationStage', () => {
         distribution,
         endTime,
         now: at('2026-12-01T00:00:00Z'),
+        ...gated,
       }),
     ).toBe('EVENT');
   });
 
-  it('EXECUTION/EVENT → SUMMARY khi qua giờ kết thúc trao (job trễ vẫn đúng)', () => {
-    for (const stored of ['EXECUTION', 'EVENT'] as const)
-      expect(
-        effectiveOperationStage({
-          stored,
-          distribution,
-          endTime,
-          now: at('2026-12-02T00:00:00Z'),
-        }),
-      ).toBe('SUMMARY');
-  });
-
-  it('chưa lập bước trao: không vào EVENT theo giờ, SUMMARY theo endTime', () => {
+  it('EXECUTION quá endTime mà chưa READY vẫn ở EXECUTION', () => {
     expect(
       effectiveOperationStage({
         stored: 'EXECUTION',
-        distribution: null,
+        distribution,
         endTime,
-        now: at('2026-12-15T00:00:00Z'),
+        now: at('2027-01-15T00:00:00Z'),
+        rehearsalReady: false,
+        distributionSettled: true,
       }),
     ).toBe('EXECUTION');
+  });
+
+  it('EXECUTION tới giờ trao + READY + đã qua endsAt + chưa đủ bằng chứng → EVENT (không nhảy SUMMARY)', () => {
+    expect(
+      effectiveOperationStage({
+        stored: 'EXECUTION',
+        distribution,
+        endTime,
+        now: at('2026-12-05T00:00:00Z'),
+        rehearsalReady: true,
+        distributionSettled: false,
+      }),
+    ).toBe('EVENT');
+  });
+
+  it('EXECUTION không bao giờ nhảy thẳng SUMMARY', () => {
     expect(
       effectiveOperationStage({
         stored: 'EXECUTION',
         distribution: null,
         endTime,
-        now: endTime,
+        now: at('2027-06-01T00:00:00Z'),
+        ...gated,
+      }),
+    ).toBe('EXECUTION');
+  });
+
+  it('EVENT qua endsAt + settled → SUMMARY', () => {
+    expect(
+      effectiveOperationStage({
+        stored: 'EVENT',
+        distribution,
+        endTime,
+        now: at('2026-12-02T00:00:00Z'),
+        ...gated,
       }),
     ).toBe('SUMMARY');
+  });
+
+  it('EVENT qua endsAt + chưa settled → EVENT', () => {
+    expect(
+      effectiveOperationStage({
+        stored: 'EVENT',
+        distribution,
+        endTime,
+        now: at('2026-12-02T00:00:00Z'),
+        rehearsalReady: true,
+        distributionSettled: false,
+      }),
+    ).toBe('EVENT');
   });
 });
 
 describe('phaseScheduleGaps', () => {
   const phase = (
-    key: 'PLANNING' | 'PREPARATION' | 'DISTRIBUTION' | 'REPORTING',
+    key: (typeof CharityPhaseKeys)[number],
     from: string,
     to: string,
   ) => ({ phase: key, startsAt: at(from), endsAt: at(to) });
@@ -109,6 +147,16 @@ describe('phaseScheduleGaps', () => {
         phase('PLANNING', '2026-11-03T00:00:00Z', '2026-11-04T00:00:00Z'),
       ]).some((gap) => gap.includes('hai lần')),
     ).toBe(true);
+  });
+
+  it('REHEARSAL đứng thứ 3 và không được chồng lên DISTRIBUTION', () => {
+    expect(CharityPhaseKeys.indexOf('REHEARSAL')).toBe(2);
+    expect(
+      phaseScheduleGaps([
+        phase('REHEARSAL', '2026-11-28T00:00:00Z', '2026-12-01T12:00:00Z'),
+        phase('DISTRIBUTION', '2026-12-01T00:00:00Z', '2026-12-02T00:00:00Z'),
+      ]),
+    ).toHaveLength(1);
   });
 });
 

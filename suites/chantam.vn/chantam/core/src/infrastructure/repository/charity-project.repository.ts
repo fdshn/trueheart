@@ -4,6 +4,7 @@ import {
   ICharityBankAccountInput,
   ICharityCustomSection,
   ICharityCustomSectionInput,
+  ICharityDistributionSettlement,
   ICharityFundingNeed,
   ICharityFundingNeedInput,
   ICharityItemNeed,
@@ -13,6 +14,7 @@ import {
   ICharityPhase,
   ICharityProjectProfile,
   ICharityProjectRepository,
+  ICharityRehearsal,
   ICharitySectionState,
   ICharityStageEvent,
   ICharityTeamMember,
@@ -31,12 +33,15 @@ import {
   CharityContributionType,
   CharityCustomFieldType,
   CharityDeliveryMethod,
+  CharityDistributionMethod,
   CharityFieldVisibility,
   CharityItemCondition,
   CharityOpenClosedStatus,
   CharityOperationStage,
+  CharityOrganizerReminderReason,
   CharityPartyRole,
   CharityPhaseKey,
+  CharityRehearsalOutcome,
   CharityReportMode,
   CharityRevisionEntity,
   CharitySupplySource,
@@ -47,12 +52,19 @@ import {
   ICharityBeneficiaryBankAccount,
   ICharityBeneficiaryBankAccountInput,
   ICharityIntakeCounts,
+  ICharityRehearsalChecklistItem,
   ICharityRevisionRow,
+  normalizeRehearsalChecklist,
   stageRank,
 } from '@chantam.vn/chantam.core-lib/models';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import {
+  CampaignDistributionEvidenceOkSql,
+  CampaignDistributionSettledSql,
+  CampaignRehearsalReadySql,
+} from './charity-distribution.sql';
 import { recordCharityRevisions } from './charity-revision.writer';
 import { updateReturning } from './update-returning';
 
@@ -245,6 +257,49 @@ const toVolunteer = (row: IVolunteerRow): ICharityVolunteerNeed => {
  * Dự án từ thiện 4 giai đoạn — đợt 1 (docs/plan/CHARITY-PROJECT-LIFECYCLE.md §3.1, §3.2,
  * §3.11, §3.12). Khung chiến dịch vẫn ở `CharityCampaignRepository`.
  */
+interface IRehearsalRow {
+  campaign_id: string;
+  checklist: Partial<ICharityRehearsalChecklistItem>[] | null;
+  outcome: CharityRehearsalOutcome | null;
+  reason: string | null;
+  note: string | null;
+  decided_by: string | null;
+  decided_at: Date | null;
+  phase_starts_at: Date | null;
+  phase_ends_at: Date | null;
+  pic_name: string | null;
+  pic_user_id: string | null;
+}
+
+const toRehearsal = (row: IRehearsalRow): ICharityRehearsal => ({
+  campaignId: row.campaign_id,
+  checklist: normalizeRehearsalChecklist(row.checklist),
+  outcome: row.outcome,
+  reason: row.reason,
+  note: row.note,
+  decidedBy: row.decided_by,
+  decidedAt: row.decided_at,
+  phase:
+    row.phase_starts_at && row.phase_ends_at
+      ? {
+          startsAt: row.phase_starts_at,
+          endsAt: row.phase_ends_at,
+          picName: row.pic_name,
+          picUserId: row.pic_user_id,
+        }
+      : null,
+});
+
+interface ISettlementRow {
+  distribution_method: CharityDistributionMethod | null;
+  distribution_evidence_urls: string[] | null;
+  tracking_code: string | null;
+  account_id: string | null;
+  verified: boolean | null;
+  live: boolean | null;
+  same_campaign: boolean | null;
+}
+
 @Injectable()
 export class CharityProjectRepository implements ICharityProjectRepository {
   /**
@@ -526,6 +581,99 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     };
   }
 
+  // ── Tổng duyệt (CR 22/11/2026 §8) ──────────────────────────────────────
+
+  public async getRehearsal(
+    campaignId: string,
+  ): Promise<ICharityRehearsal | null> {
+    const [row] = await this.manager.query<IRehearsalRow[]>(
+      `SELECT rehearsal.campaign_id, rehearsal.checklist, rehearsal.outcome,
+              rehearsal.reason, rehearsal.note, rehearsal.decided_by, rehearsal.decided_at,
+              phase.starts_at AS phase_starts_at, phase.ends_at AS phase_ends_at,
+              phase.pic_name, phase.pic_user_id
+         FROM campaign_rehearsals rehearsal
+         LEFT JOIN campaign_phases phase
+           ON phase.campaign_id = rehearsal.campaign_id AND phase.phase = 'REHEARSAL'
+        WHERE rehearsal.campaign_id = $1`,
+      [campaignId],
+    );
+    return row ? toRehearsal(row) : null;
+  }
+
+  public async saveRehearsal(params: {
+    campaignId: string;
+    actorId: string;
+    checklist: ICharityRehearsalChecklistItem[];
+    outcome: CharityRehearsalOutcome | undefined;
+    reason: string | null;
+    note: string | null;
+  }): Promise<ICharityRehearsal> {
+    const decide = params.outcome !== undefined;
+    await this.manager.query(
+      `INSERT INTO campaign_rehearsals
+         (campaign_id, checklist, outcome, reason, note, decided_by, decided_at,
+          updated_by, updated_at)
+       VALUES ($1, $2::jsonb, $3::varchar, $4, $5,
+               CASE WHEN $7::boolean THEN $6::uuid END,
+               CASE WHEN $7::boolean THEN now() END, $6::uuid, now())
+       ON CONFLICT (campaign_id) DO UPDATE
+         SET checklist = EXCLUDED.checklist,
+             outcome = CASE WHEN $7::boolean THEN EXCLUDED.outcome
+                            ELSE campaign_rehearsals.outcome END,
+             reason = CASE WHEN $7::boolean THEN EXCLUDED.reason
+                           ELSE campaign_rehearsals.reason END,
+             note = EXCLUDED.note,
+             decided_by = CASE WHEN $7::boolean THEN EXCLUDED.decided_by
+                               ELSE campaign_rehearsals.decided_by END,
+             decided_at = CASE WHEN $7::boolean THEN EXCLUDED.decided_at
+                               ELSE campaign_rehearsals.decided_at END,
+             updated_by = EXCLUDED.updated_by,
+             updated_at = now()`,
+      [
+        params.campaignId,
+        JSON.stringify(params.checklist),
+        params.outcome ?? null,
+        params.reason,
+        params.note,
+        params.actorId,
+        decide,
+      ],
+    );
+    return (await this.getRehearsal(params.campaignId)) as ICharityRehearsal;
+  }
+
+  public async distributionSettlement(
+    campaignId: string,
+  ): Promise<ICharityDistributionSettlement> {
+    const [row] = await this.manager.query<ISettlementRow[]>(
+      `SELECT campaign.distribution_method, campaign.distribution_evidence_urls,
+              detail.tracking_code,
+              account.global_id AS account_id,
+              account.verified_at IS NOT NULL AS verified,
+              account.valid_to IS NULL AS live,
+              account.campaign_id = campaign.global_id AS same_campaign
+         FROM campaigns campaign
+         LEFT JOIN campaign_distribution_private_details detail
+           ON detail.campaign_id = campaign.global_id
+         LEFT JOIN campaign_beneficiary_bank_accounts account
+           ON account.global_id = detail.beneficiary_bank_account_id
+        WHERE campaign.global_id = $1`,
+      [campaignId],
+    );
+    return {
+      method: row?.distribution_method ?? null,
+      evidenceUrls: row?.distribution_evidence_urls ?? [],
+      trackingCode: row?.tracking_code ?? null,
+      beneficiaryAccount: row?.account_id
+        ? {
+            verified: row.verified === true,
+            live: row.live === true,
+            sameCampaign: row.same_campaign === true,
+          }
+        : null,
+    };
+  }
+
   public async moveStage(params: {
     campaignId: string;
     from: CharityOperationStage;
@@ -606,8 +754,12 @@ export class CharityProjectRepository implements ICharityProjectRepository {
       stored: CharityOperationStage;
       distribution: { startsAt: Date; endsAt: Date } | null;
       endTime: Date;
+      rehearsalReady: boolean;
+      distributionSettled: boolean;
     }[]
   > {
+    // Chỉ hàng QUA được cổng mới chiếm chỗ trong LIMIT — hàng bị giữ (chưa READY, thiếu bằng
+    // chứng) không bao giờ chặn hàng khác (CR 22/11/2026 §3.17g).
     const rows = await this.manager.query<
       {
         global_id: string;
@@ -615,17 +767,27 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         end_time: Date;
         starts_at: Date | null;
         ends_at: Date | null;
+        rehearsal_ready: boolean;
+        distribution_settled: boolean;
       }[]
     >(
       `SELECT campaign.global_id, campaign.operation_stage, campaign.end_time,
-              phase.starts_at, phase.ends_at
+              phase.starts_at, phase.ends_at,
+              ${CampaignRehearsalReadySql('campaign')} AS rehearsal_ready,
+              ${CampaignDistributionSettledSql('campaign')} AS distribution_settled
        FROM campaigns campaign
        LEFT JOIN campaign_phases phase
          ON phase.campaign_id = campaign.global_id AND phase.phase = 'DISTRIBUTION'
-       WHERE campaign.operation_stage IN ('EXECUTION', 'EVENT')
-         AND campaign.deleted_at IS NULL
-         AND (COALESCE(phase.ends_at, campaign.end_time) <= now()
-              OR (campaign.operation_stage = 'EXECUTION' AND phase.starts_at <= now()))
+       WHERE campaign.deleted_at IS NULL
+         AND (
+           (campaign.operation_stage = 'EXECUTION'
+              AND phase.starts_at <= now()
+              AND ${CampaignRehearsalReadySql('campaign')})
+           OR
+           (campaign.operation_stage = 'EVENT'
+              AND COALESCE(phase.ends_at, campaign.end_time) <= now()
+              AND ${CampaignDistributionSettledSql('campaign')})
+         )
        ORDER BY campaign.id
        LIMIT $1`,
       [limit],
@@ -638,6 +800,81 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         row.starts_at && row.ends_at
           ? { startsAt: row.starts_at, endsAt: row.ends_at }
           : null,
+      rehearsalReady: row.rehearsal_ready === true,
+      distributionSettled: row.distribution_settled === true,
+    }));
+  }
+
+  public async listOverdueSummaries(
+    limit: number,
+  ): Promise<{ campaignId: string; ownerId: string }[]> {
+    const rows = await this.manager.query<
+      { global_id: string; created_by: string }[]
+    >(
+      `SELECT campaign.global_id, campaign.created_by
+       FROM campaigns campaign
+       WHERE campaign.deleted_at IS NULL
+         AND campaign.approval_status = 'APPROVED'
+         AND campaign.is_active
+         AND campaign.end_time <= now()
+         AND campaign.created_by IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM campaign_summaries summary
+                          WHERE summary.campaign_id = campaign.global_id
+                            AND summary.published_at IS NOT NULL)
+       ORDER BY campaign.id
+       LIMIT $1`,
+      [limit],
+    );
+    return rows.map((row) => ({
+      campaignId: row.global_id,
+      ownerId: row.created_by,
+    }));
+  }
+
+  public async listBlockedStageCampaigns(limit: number): Promise<
+    {
+      campaignId: string;
+      ownerId: string;
+      reason: CharityOrganizerReminderReason;
+    }[]
+  > {
+    const rows = await this.manager.query<
+      {
+        global_id: string;
+        created_by: string;
+        reason: CharityOrganizerReminderReason;
+      }[]
+    >(
+      `SELECT campaign.global_id, campaign.created_by,
+              CASE
+                WHEN campaign.operation_stage = 'EXECUTION' THEN 'REHEARSAL_NOT_READY'
+                WHEN NOT ${CampaignDistributionEvidenceOkSql('campaign')}
+                  THEN 'DISTRIBUTION_EVIDENCE_MISSING'
+                ELSE 'BENEFICIARY_ACCOUNT_NOT_VERIFIED'
+              END AS reason
+       FROM campaigns campaign
+       LEFT JOIN campaign_phases phase
+         ON phase.campaign_id = campaign.global_id AND phase.phase = 'DISTRIBUTION'
+       WHERE campaign.deleted_at IS NULL
+         AND campaign.is_active
+         AND campaign.created_by IS NOT NULL
+         AND (
+           (campaign.operation_stage = 'EXECUTION'
+              AND phase.starts_at <= now()
+              AND NOT ${CampaignRehearsalReadySql('campaign')})
+           OR
+           (campaign.operation_stage = 'EVENT'
+              AND COALESCE(phase.ends_at, campaign.end_time) <= now()
+              AND NOT ${CampaignDistributionSettledSql('campaign')})
+         )
+       ORDER BY campaign.id
+       LIMIT $1`,
+      [limit],
+    );
+    return rows.map((row) => ({
+      campaignId: row.global_id,
+      ownerId: row.created_by,
+      reason: row.reason,
     }));
   }
 
@@ -1036,7 +1273,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
       `SELECT phase, starts_at, ends_at, pic_name, pic_user_id, hotline, delivery_method,
               report_mode
        FROM campaign_phases WHERE campaign_id = $1
-       ORDER BY array_position(ARRAY['PLANNING', 'PREPARATION', 'DISTRIBUTION', 'REPORTING'], phase::text)`,
+       ORDER BY array_position(ARRAY['PLANNING', 'PREPARATION', 'REHEARSAL', 'DISTRIBUTION', 'REPORTING'], phase::text)`,
       [campaignId],
     );
     return rows.map((row) => ({

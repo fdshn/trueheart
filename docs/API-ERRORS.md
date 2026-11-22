@@ -273,6 +273,16 @@ Nghiệp vụ Chân Tâm
 | `0x1359` | `4953` | 409 Conflict | `CHARITY_ROUND_EVIDENCE_REQUIRED` | Chưa đủ bằng chứng đợt trao: evidenceUrls |
 | `0x135a` | `4954` | 400 Bad Request | `CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH` | Tên chủ tài khoản không khớp tên đã đăng ký: Nguyễn Văn Đức |
 | `0x135b` | `4955` | 409 Conflict | `CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED` | Tài khoản thụ hưởng chưa được xác thực |
+| `0x135c` | `4956` | 400 Bad Request | `CHARITY_BENEFICIARY_DISTRIBUTION_TIME_OUT_OF_RANGE` | Ngày giờ trao nằm ngoài khung trao dự kiến: Trường A |
+| `0x135d` | `4957` | 400 Bad Request | `CHARITY_NEED_BELOW_ESTIMATED_PORTIONS` | Số lượng vật phẩm thấp hơn mức tối thiểu theo số suất: Áo (tối thiểu 300) |
+| `0x135e` | `4958` | 400 Bad Request | `CHARITY_FUNDING_BELOW_ESTIMATED_AMOUNT` | Tổng mục tiêu tiền 20000000 thấp hơn tổng tiền ước tính 30000000 của các đơn vị nhận |
+| `0x135f` | `4959` | 409 Conflict | `CHARITY_REHEARSAL_NOT_READY` | Tổng duyệt chưa sẵn sàng (READY) nên chưa sang sự kiện trao được |
+| `0x1360` | `4960` | 409 Conflict | `CHARITY_INTAKE_CLOSED` | Chiến dịch đã hết thời gian tiếp nhận |
+| `0x1361` | `4961` | 409 Conflict | `CHARITY_SUPERVISOR_CONFLICT` | Chủ dự án hoặc điều phối viên không được làm giám sát viên của chính chiến dịch |
+| `0x1362` | `4962` | 400 Bad Request | `CHARITY_SCHEDULE_INVALID` | Khung thời gian chưa hợp lệ: intakeEndsAt phải ≤ distributionStartsAt |
+| `0x1363` | `4963` | 409 Conflict | `CHARITY_REVISION_PENDING_EXISTS` | Chiến dịch đang có bản sửa chờ duyệt — sửa hoặc rút bản đó trước |
+| `0x1364` | `4964` | 409 Conflict | `CHARITY_CHANGE_REQUIRES_REVIEW` | Các trường sau chỉ sửa được qua bản sửa chờ Admin duyệt: pointBonusPercent, beneficiaries |
+| `0x1365` | `4965` | 409 Conflict | `CHARITY_CAMPAIGN_SUMMARY_NOT_PUBLISHED` | Chưa công khai tổng kết nên chưa đóng chiến dịch được |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -308,5 +318,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **266 mã lỗi** trên 3 tầng.
+Tổng cộng **276 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

@@ -12,7 +12,7 @@ import {
   CharityReviewRole,
 } from '@chantam.vn/chantam.core-lib/models';
 import {
-  ICharityRoundInput,
+  ICharityCampaignDistributionInput,
   ICharitySupportNeedInput,
 } from './charity-operations.repository';
 import { ICharityFundingNeedInput } from './charity-project.repository';
@@ -110,6 +110,11 @@ export interface ICharityCampaign {
     readonly startsAt: Date;
     readonly endsAt: Date;
   } | null;
+  /**
+   * Lúc công khai bài tổng kết (`campaign_summaries.published_at`), `null` = chưa công khai.
+   * Chiến dịch chỉ đóng được — và chỉ tính là KẾT THÚC — khi đã công khai (CR 22/11/2026).
+   */
+  readonly summaryPublishedAt: Date | null;
 }
 
 /**
@@ -210,10 +215,13 @@ export interface ICreateCharityCampaignParams {
   readonly supportNeeds: readonly ICharitySupportNeedInput[];
   /** Ghi TRONG CÙNG transaction với hoạt động — hồ sơ vào hàng chờ duyệt luôn đủ ảnh. */
   readonly media: readonly ICharityCampaignMediaParams[];
+  /**
+   * Hình thức trao cấp chiến dịch + chi tiết riêng tư (CR 22/11/2026). `window` có thì ghi phase
+   * `DISTRIBUTION` cùng transaction.
+   */
   readonly distribution: {
-    readonly round: ICharityRoundInput;
-    readonly startsAt: Date;
-    readonly endsAt: Date;
+    readonly input: ICharityCampaignDistributionInput;
+    readonly window: { readonly startsAt: Date; readonly endsAt: Date } | null;
   } | null;
 }
 
@@ -480,6 +488,8 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     readonly limit: number;
     readonly offset: number;
     readonly approvalStatus?: CharityApprovalStatus;
+    /** Đang mở, đã qua `end_time`, chưa công khai tổng kết. */
+    readonly overdueSummary?: boolean;
   }): Promise<ICharityCampaignPage>;
 
   /**

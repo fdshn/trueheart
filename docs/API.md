@@ -2127,7 +2127,7 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 | `POST` | `/charity-campaigns/:id/external-contributions` | Organizer | ✅ **Đã chạy.** Ghi nhận vật phẩm nhận ngoài app; không gắn tài khoản nên không sinh điểm |
 | `GET` | `/charity-campaigns/:id/external-contributions` | Organizer | ✅ **Đã chạy.** Lịch sử, gồm cả bản đã huỷ |
 | `PATCH` | `/charity-external-contributions/:id` | Organizer | ✅ **Đã chạy.** `VOID` huỷ, `ADJUST` huỷ + tạo bản thay thế; luôn kèm lý do, không sửa tại chỗ |
-| `POST` | `/charity-campaigns/:id/close` | Organizer/Admin | ✅ **Đã chạy.** Chặn đề nghị mới, từ chối hàng đợi với `CAMPAIGN_CLOSED`, giữ lượt giao đang chạy |
+| `POST` | `/charity-campaigns/:id/close` | Organizer/Admin | ✅ **Đã chạy.** Chỉ khi tổng kết đã công khai (Admin ép đóng `{ close: { force, reason } }`). Chặn đề nghị mới, từ chối hàng đợi với `CAMPAIGN_CLOSED`, giữ lượt giao đang chạy |
 | `POST` | `/charity-campaigns/:id/extend` | Organizer/Admin | ✅ **Đã chạy.** Gia hạn hoạt động đang mở, chỉ dời ra sau, mỗi lần một hàng audit |
 | `POST` | `/charity-campaigns/:id/coordinators` | Organizer | ✅ **Đã chạy.** Giao quyền điều phối (chỉ hoạt động có tổ chức) |
 | `GET` | `/charity-campaigns/:id/coordinators` | Organizer/coordinator | ✅ **Đã chạy.** Coordinator đang có hiệu lực |
@@ -2146,9 +2146,27 @@ Năm tiêu chí: `QUEUE_JOINED_EARLIEST`, `HIGHEST_RANK`, `NEAREST`, `FEWEST_REC
 
 Giao diện trang chủ (`/admin/campaigns`) có thêm `DELETE /admin/campaigns/:campaignId` (16/10, `campaign.manage`): xoá CỨNG, nhưng bản đang phục vụ (`isLive`) → `409 HOME_CAMPAIGN_LIVE` — tắt bằng `PUT … isActive: false` trước.
 
-- `POST /charity-campaigns` và `POST /admin/charity-campaigns` có thể nhận `campaign.distribution` để tạo trong cùng transaction đợt `'Đợt trao 1'`, 10 bước sự kiện và pha `DISTRIBUTION`. Body gồm `method`, `contributionTypes`, `location { label, address, lat, lng }`, `scheduledStart`, `scheduledEnd`, `coordinatorName`, `coordinatorPhone`, cùng các field riêng tư phẳng của đợt: `recipientName`, `recipientPhone`, `recipientAddress`, `carrier`, `shippingFeePayer`, `estimatedShippingFee`, `trackingCode`, `transferContent`, `serviceType`, `serviceChannel`.
+- `POST /charity-campaigns` và `POST /admin/charity-campaigns` có thể nhận `campaign.distribution`: **hình thức trao của cả chiến dịch** (CR 22/11/2026 — đã bỏ đợt trao). Body gồm `method`, `contributionTypes`, `scheduledStart`/`scheduledEnd` (tuỳ chọn, alias một bản phát hành; gửi đủ cả hai thì ghi khung pha `DISTRIBUTION`), `coordinatorName`, `coordinatorPhone`, cùng các field riêng tư phẳng: `recipientName`, `recipientPhone`, `recipientAddress`, `carrier`, `shippingFeePayer`, `estimatedShippingFee`, `trackingCode`, `transferContent`, `serviceType`, `serviceChannel`. `location` đã ngưng dùng (địa điểm trao là địa chỉ của đơn vị nhận / điểm tiếp nhận).
+  Trường bắt buộc theo `method`: `DIRECT_RECIPIENT` cần `recipientAddress` + coordinator; `SHIPPING` cần thông tin người nhận, carrier, bên/trị giá phí ship; `OTHER_LOCATION` chỉ cần `coordinatorName`; `BANK_TRANSFER` cần `MONEY` trong `contributionTypes` và `transferContent`; `SERVICE` cần `serviceType`, `serviceChannel`, coordinator. Thiếu → `400 CHARITY_DISTRIBUTION_FIELD_REQUIRED`; sai cặp → `400 CHARITY_DISTRIBUTION_METHOD_MISMATCH`; `scheduledEnd` không sau `scheduledStart` hoặc chỉ gửi một mốc → `400 VALIDATION_FAILED`. Response tạo chỉ trả `distribution { startsAt, endsAt }`; chi tiết riêng tư không xuất hiện ở bất kỳ response công khai nào.
 
-  Các trường bắt buộc theo `method` giống body đợt trao (`POST/PUT /charity-campaigns/:id/rounds`): `DIRECT_RECIPIENT` cần địa chỉ người nhận và coordinator; `SHIPPING` cần thông tin người nhận, carrier, bên/trị giá phí ship; `OTHER_LOCATION` cần `location.label`, cùng `location.address` hoặc đủ `lat`/`lng`, và coordinator; `BANK_TRANSFER` cần `MONEY` trong `contributionTypes` và `transferContent`; `SERVICE` cần `serviceType`, `serviceChannel`, coordinator. `scheduledEnd` phải sau `scheduledStart`, sai trả `400 VALIDATION_FAILED`. Response tạo campaign vẫn chỉ trả `distribution { startsAt, endsAt }`; mọi private fields của đợt không xuất hiện ở public response.
+**Hình thức trao cấp chiến dịch** (CR 22/11/2026):
+
+| Method | Đường dẫn | Ai | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/charity-campaigns/:id/distribution` | Người tạo, coordinator, Admin `campaign.read` | Workspace: `distributionMethod`, `contributionTypes`, `serviceType`, `serviceChannel`, `evidenceUrls`, `privateDetails` (người nhận, mã vận đơn, nội dung chuyển khoản, `beneficiaryBankAccountId`) |
+| `PUT` | `/charity-campaigns/:id/distribution` | Người tạo, coordinator, Admin | `{ distribution: { distributionMethod, contributionTypes?, serviceType?, serviceChannel?, <field riêng tư phẳng>?, beneficiaryBankAccountId? } }` — cùng luật bắt buộc như trên; `beneficiaryBankAccountId` phải là tài khoản thụ hưởng đang hiệu lực của chiến dịch (sai → `400 VALIDATION_FAILED`) |
+| `PUT` | `/charity-campaigns/:id/distribution/evidence` | Như trên | `{ evidence: { urls[] } }` — thay cả danh sách; https, không trùng, tối đa 20; ảnh bằng chứng là CÔNG KHAI |
+
+Công khai (`GET /charity-campaigns/:idOrSlug/public`) trả `distribution { method, contributionTypes, serviceType, serviceChannel, evidenceUrls }` — đúng 5 trường, không có `privateDetails`; `null` khi chưa chọn hình thức.
+
+**Tổng duyệt** (CR 22/11/2026 §8) — bước `REHEARSAL` trong tiến độ (`PLANNING → PREPARATION → REHEARSAL → DISTRIBUTION → REPORTING`; khung giờ + người phụ trách ghi qua `PUT :id/phases`):
+
+| Method | Đường dẫn | Ai | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/charity-campaigns/:id/rehearsal` | Người tạo, coordinator, Admin `campaign.read` | `{ rehearsal: { checklist[7], outcome, reason, note, decidedBy, decidedAt, phase } \| null }` |
+| `PUT` | `/charity-campaigns/:id/rehearsal` | Như trên | `{ rehearsal: { checklist[], outcome?, reason?, note? } }` — checklist luôn lưu đủ 7 mục (`RECIPIENTS`, `GOODS_AND_FUNDS`, `TRANSPORT`, `STAFF`, `SUPERVISORS`, `VENUE_AND_TIME`, `LOCAL_CONTACT`; mục thiếu = `NOT_DONE`); có `outcome` thì ghi người/giờ quyết định, bỏ trống = giữ kết quả cũ; `NOT_READY` bắt buộc `reason` (`400 VALIDATION_FAILED`) |
+
+Cổng trên `POST /charity-campaigns/:id/stage` (chỉ khi TIẾN): sang `EVENT` cần tổng duyệt `READY` (`409 CHARITY_REHEARSAL_NOT_READY`); sang `SUMMARY` cần bằng chứng trao đúng hình thức (`409 CHARITY_ROUND_EVIDENCE_REQUIRED`, nêu trường thiếu) và, với `BANK_TRANSFER`, tài khoản thụ hưởng gắn với chiến dịch còn hiệu lực, đã xác thực (`409 CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED`). Chiến dịch chưa chọn hình thức (cũ) được miễn. Lùi giai đoạn không đổi.
 - `POST /charity-campaigns` và `POST /admin/charity-campaigns` **không còn nhận `bannerUrl`**; gửi `media` (1–5 key) và `coverKey`. Response có thêm `media[]`; `bannerUrl` do server ghi từ ảnh bìa.
 - Luồng "tải trước, tạo sau":
   1. `POST /charity-campaigns/media/upload` — body `{ "upload": { "contentType": "image/webp", "contentLength": 512000 } }` → `{ "upload": { "key", "uploadUrl", "expiresInSeconds", "publicUrl" } }`.
@@ -2253,10 +2271,21 @@ Giao diện trang chủ (`/admin/campaigns`) có thêm `DELETE /admin/campaigns/
   dòng; `remainingQuantity` vẫn kẹp ở 0. **Gia hạn** (`POST .../extend`): chỉ dời mốc kết thúc
   ra sau, chỉ khi đang mở, mỗi lần ghi một hàng audit không sửa được.
 
-- **Đóng chiến dịch** (`POST .../close`): người tổ chức hoặc Admin có `campaign.manage`.
+- **Đóng chiến dịch** (`POST .../close`): người tổ chức hoặc Admin có `campaign.manage`, và
+  **chỉ khi bài tổng kết đã công khai** (CR 22/11/2026) — chưa công khai →
+  `409 CHARITY_CAMPAIGN_SUMMARY_NOT_PUBLISHED`. Admin ép đóng bằng body
+  `{ close: { force: true, reason } }` (thiếu `reason` → `400`; ghi audit
+  `CHARITY_CAMPAIGN_FORCE_CLOSE`); chủ dự án gửi `force` không có tác dụng. Body tuỳ chọn —
+  app cũ gọi không body vẫn chạy. `end_time` đã qua thì giữ nguyên (không dời ra sau).
   `approval_status` **giữ** `APPROVED`; "đã đóng" là `is_active = false` cộng `end_time` đã
   qua — đó cũng là thứ phân biệt nó với "đình chỉ". Đề nghị đang chờ bị từ chối với
   `CAMPAIGN_CLOSED`; lượt giao nhận đang chạy **không** bị huỷ và vẫn hoàn tất được.
+- **Kết thúc** (`phase=ENDED` của danh sách công khai, `summaryPublishedAt` trên mọi view
+  chiến dịch): đã công khai tổng kết, **hoặc** đã đóng. Qua `endTime` mà chưa công khai tổng
+  kết thì vẫn là `ONGOING` (đang tổng kết); đình chỉ không phải kết thúc. Admin lọc
+  `GET /admin/charity-campaigns?overdueSummary=true` ra chiến dịch đang mở, quá `endTime`, chưa
+  công khai tổng kết; job `charity:advance-stage` nhắc chủ dự án mỗi ngày
+  (`CHARITY_ORGANIZER_REMINDER`, `reason = SUMMARY_OVERDUE`).
 
 - **Thông báo** (nhóm `STATUS`, tắt được cùng vòng đời yêu cầu xin đồ): người tổ chức nhận
   `CHARITY_CONTRIBUTION_SUBMITTED`; người tặng nhận `CHARITY_CONTRIBUTION_DECIDED` (kể cả khi
@@ -2782,10 +2811,18 @@ Sự kiện trao · `SUMMARY` Tổng kết. **Backend tính sẵn** — app nh�
 không tự suy từ ngày:
 
 - được duyệt (hoặc công khai ngay) → `EXECUTION`;
-- tới `DISTRIBUTION.startsAt` của tiến độ 4 bước → `EVENT`;
-- qua `DISTRIBUTION.endsAt` (chưa lập bước trao thì `endTime`) → `SUMMARY`.
+- tới `DISTRIBUTION.startsAt` của tiến độ **và** tổng duyệt `READY` → `EVENT`;
+- qua `DISTRIBUTION.endsAt` (chưa lập bước trao thì `endTime`) **và** bước trao hoàn tất (bằng
+  chứng đúng hình thức; `BANK_TRANSFER` cần tài khoản thụ hưởng đã xác thực) → `SUMMARY`.
 
-Job `charity:advance-stage` (10 phút/lần) ghi xuống và lưu nhật ký; lượt đọc vẫn đúng khi job trễ.
+Chưa qua cổng thì `operationStage` **đứng yên** dù đã tới mốc (CR 22/11/2026); `EXECUTION` không
+bao giờ nhảy thẳng `SUMMARY`. Job `charity:advance-stage` (10 phút/lần) chỉ nhặt chiến dịch đã
+qua cổng (chiến dịch bị giữ không chiếm chỗ trong lô), ghi xuống và lưu nhật ký; lượt đọc vẫn đúng
+khi job trễ. Chiến dịch bị giữ được nhắc chủ dự án bằng thông báo `CHARITY_ORGANIZER_REMINDER`
+(đích `CHARITY_CAMPAIGN`, `pushData.reason` = `REHEARSAL_NOT_READY` ·
+`DISTRIBUTION_EVIDENCE_MISSING` · `BENEFICIARY_ACCOUNT_NOT_VERIFIED` · `SUMMARY_OVERDUE`), mỗi lý do tối đa một lần
+mỗi ngày (giờ Việt Nam). Nhắc 48 giờ (`CHARITY_PRE_EVENT_NOTICE`) nay có hai mốc: bắt đầu tổng
+duyệt và bắt đầu trao — payload `{ milestone: 'REHEARSAL' | 'DISTRIBUTION', startsAt }`.
 Mọi response chiến dịch có thêm `submittedAt` (`null` = nháp), `operationStage` (hiệu lực — dùng
 cái này), `storedOperationStage` (đã ghi, có thể chậm), `distribution` (`{ startsAt, endsAt }`
 của bước trao, `null` khi chưa lập) và `acceptedContributionTypes` (mảng `MATERIAL` · `MONEY` ·
@@ -3170,7 +3207,6 @@ con số tham gia ở tổng kết chỉ gồm người đã được nhận (x�
   ghi lịch sử). Mục tiêu thấp hơn số đã nhận thì bắt buộc giải trình.
 - `POST :id/summary/publish` — công khai tổng kết là **hoàn tất dự án**: còn việc dở thì
   `CHARITY_PROJECT_COMPLETION_BLOCKED` kèm danh sách (xem `GET :id/completion-check`).
-- `GET :idOrSlug/event-steps?roundId=` — timeline của một đợt trao; bỏ trống = timeline chung.
 
 **Hỗ trợ mở** (§3.11) — chuyến xe, công sức, kỹ năng/dịch vụ, địa điểm, thiết bị, suất ăn, truyền
 thông, khác; bổ sung cho tiền/hiện vật/nhân lực:
@@ -3193,26 +3229,14 @@ thông, khác; bổ sung cho tiền/hiện vật/nhân lực:
 endsAt?, reason } }` — người tạo, coordinator, Admin; trước khi bước trao bắt đầu; mốc mới sau mốc
 cũ. Ghi lịch sử sửa (chữ đỏ) **kèm lý do**, báo `CHARITY_PLAN_CHANGED`; nhắc 48 giờ tự xếp lại.
 
-**Nhiều đợt trao** (§3.18) — dự án không tạo đợt thì chạy như một đợt (bước trao chung):
-
-| Method | Đường dẫn | Ai | Mô tả |
-| --- | --- | --- | --- |
-| `GET` | `/charity-campaigns/:idOrSlug/rounds` | Công khai | Chỉ trường công khai: giờ, địa điểm (chỉ `OTHER_LOCATION`/legacy), phương thức, loại đóng góp, bằng chứng, trạng thái, `stats`; không có `privateDetails` hay `needsReview` |
-| `GET` | `/charity-campaigns/:id/rounds/manage` | Người tạo, coordinator, Admin `campaign.read` | Bản workspace đầy đủ, gồm `privateDetails`, `needsReview`, `readiness`, `checklist`, `warnings` |
-| `POST` | `/charity-campaigns/:id/rounds` | Người tạo, coordinator, Admin | `{ round: { title, distributionMethod?, contributionTypes?, evidenceUrls?, locationLabel?, address?, lat?, lng?, serviceType?, serviceChannel?, private fields?, startsAt, endsAt } }`; `contributionTypes` tối đa 3, server khử trùng và xếp theo thứ tự chuẩn. `BANK_TRANSFER` khi dự án không nhận `MONEY` → `400 CHARITY_DISTRIBUTION_METHOD_MISMATCH`. `BANK_TRANSFER` nhận thêm `beneficiaryBankAccountId?` (tuỳ chọn khi lưu; có thì phải là tài khoản thụ hưởng ĐANG hiệu lực của dự án, sai → `400 VALIDATION_FAILED`); nằm trong `privateDetails`, không có ở bản công khai |
-| `PATCH` | `/charity-campaigns/:id/rounds/:roundId` | Như trên | Cùng body POST; đổi giờ / địa điểm khi dự án đã duyệt: bắt buộc `round.reason`, báo người của đợt. **Có gửi `distributionMethod`** → thay thế đầy đủ các trường phân phối (client gửi lại toàn bộ). **Không gửi `distributionMethod`** (client cũ) → giữ nguyên mọi trường phân phối đã lưu (`distributionMethod`, `contributionTypes`, `evidenceUrls`, toạ độ, dịch vụ, `privateDetails` kể cả `beneficiaryBankAccountId`, `needsReview`), chỉ sửa tên, giờ, `locationLabel`, `address`. Gửi `distributionMethod: null` cho đợt đã có hình thức → `400 VALIDATION_FAILED` |
-| `POST` | `/charity-campaigns/:id/rounds/:roundId/status` | Như trên | `{ status: { status: DONE\|CANCELLED, reason? } }`; huỷ cần lý do. DONE cần `evidenceUrls`, SHIPPING cần thêm `trackingCode`; BANK_TRANSFER cần `beneficiaryBankAccountId` trỏ tới tài khoản thụ hưởng còn hiệu lực của dự án và đã xác thực, không thì `409 CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED` (chưa gắn, chưa xác thực, đã bị thay/đóng); legacy `distributionMethod: null` được miễn |
-| `PUT` | `/charity-campaigns/:id/rounds/:roundId/readiness` | Như trên | `{ readiness: { status: READY\|NOT_READY, note?, checklist?[] } }` — `NOT_READY` bắt buộc ghi chú |
-| `PUT` | `/charity-campaigns/:id/round-assignments` | Như trên | `{ assignments: { roundId\|null, participationIds[], deliveryIds[] } }` |
-
-Checklist trước 48 giờ: `TRANSPORT`, `GOODS_PACKED`, `LOCAL_AUTHORITY`, `RECIPIENT_LIST`,
-`TEAM_BRIEFED`, `BUDGET`. `warnings`: `READINESS_NOT_CONFIRMED` / `CHECKLIST_INCOMPLETE` (còn ≤ 48
-giờ), `NOT_READY` — **chỉ cảnh báo**, không tự huỷ hay chặn sự kiện.
-
-Thông báo theo đợt: nhắc 48 giờ **từng đợt** (`CHARITY_PRE_EVENT_NOTICE` gửi BTC + participant đã
-duyệt của đợt hoặc chưa phân đợt; khoá chống trùng theo đợt + mốc nên dời giờ thì nhắc lại); dự án
-đã chia đợt không nhắc theo bước trao chung. Đợt dời giờ / đổi chỗ / huỷ → `CHARITY_PLAN_CHANGED`
-cho participant và người có giao nhận gắn đợt (đợt chưa gắn ai thì cả dự án).
+**Đã bỏ nhiều đợt trao (CR 22/11/2026, migration `1804000000000`).** Mỗi chiến dịch có **một lần đi
+trao**: hình thức trao, bằng chứng và chi tiết riêng tư ở cấp chiến dịch; một timeline 10 bước; nhắc
+48 giờ theo bước trao (và mốc tổng duyệt) của chiến dịch. Đã gỡ 7 route:
+`GET /charity-campaigns/:idOrSlug/rounds`, `GET /charity-campaigns/:id/rounds/manage`,
+`POST /charity-campaigns/:id/rounds`, `PATCH /charity-campaigns/:id/rounds/:roundId`,
+`POST /charity-campaigns/:id/rounds/:roundId/status`, `PUT /charity-campaigns/:id/rounds/:roundId/readiness`,
+`PUT /charity-campaigns/:id/round-assignments`. `GET :idOrSlug/event-steps` không còn `?roundId=`;
+thông báo `ROUND_CHANGED` không còn.
 
 **Hoàn tất dự án** (§3.18): `GET /charity-campaigns/:id/completion-check` →
 `{ canComplete, blockers: [{ code, label }] }`. Mã: `CONTRIBUTIONS_PENDING`,

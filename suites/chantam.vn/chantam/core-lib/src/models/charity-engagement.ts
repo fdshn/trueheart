@@ -129,8 +129,9 @@ export const CharityRevisionPolicies: Readonly<
     ],
     isPrivate: (field) => ['picName', 'picPhone', 'picUserId'].includes(field),
     isImportant: (field, row) =>
-      row.phase === 'DISTRIBUTION' &&
-      ['*', 'startsAt', 'endsAt', 'deliveryMethod'].includes(field),
+      (row.phase === 'DISTRIBUTION' &&
+        ['*', 'startsAt', 'endsAt', 'deliveryMethod'].includes(field)) ||
+      (row.phase === 'REHEARSAL' && ['*', 'startsAt'].includes(field)),
   },
   NEED_ITEM: {
     fields: [
@@ -393,8 +394,6 @@ export const CharityAnnouncementKinds = [
   'PRE_EVENT',
   /** Tổng kết được công khai (đợt 4). */
   'SUMMARY_PUBLISHED',
-  /** Một đợt trao bị hoãn, đổi giờ/địa điểm hoặc huỷ (đợt 5c, §3.18). */
-  'ROUND_CHANGED',
 ] as const;
 export type CharityAnnouncementKind = (typeof CharityAnnouncementKinds)[number];
 
@@ -444,4 +443,21 @@ export function charityShareLink(
     (sectionKey ? `?section=${sectionKey}` : '');
   const base = webPublicBaseUrl.replace(/\/+$/, '');
   return { sharePath, shareUrl: base ? `${base}${sharePath}` : null };
+}
+
+/**
+ * Chiến dịch đã KẾT THÚC chưa (CR 22/11/2026 §3.17c): tổng kết đã công khai, hoặc Admin đã
+ * đóng (inactive và qua `endTime`). Quá `endTime` mà chưa công khai tổng kết thì vẫn đang tổng
+ * kết, không tính là kết thúc.
+ */
+export function isEndedProject(
+  input: {
+    readonly isActive: boolean;
+    readonly endTime: Date;
+    readonly summaryPublishedAt: Date | null;
+  },
+  now: Date,
+): boolean {
+  if (input.summaryPublishedAt !== null) return true;
+  return !input.isActive && input.endTime.getTime() <= now.getTime();
 }

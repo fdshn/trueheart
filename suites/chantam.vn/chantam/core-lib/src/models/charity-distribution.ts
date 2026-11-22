@@ -22,9 +22,9 @@ export type CharityServiceChannel = (typeof CharityServiceChannels)[number];
 export const CharityShippingFeePayers = ['ORGANIZER', 'RECIPIENT'] as const;
 export type CharityShippingFeePayer = (typeof CharityShippingFeePayers)[number];
 
-export const MaxCharityRoundEvidenceUrls = 20;
+export const MaxCharityDistributionEvidenceUrls = 20;
 
-export interface ICharityRoundPrivateDetailsInput {
+export interface ICharityDistributionPrivateDetailsInput {
   beneficiaryBankAccountId: string | null;
   recipientName: string | null;
   recipientPhone: string | null;
@@ -38,7 +38,7 @@ export interface ICharityRoundPrivateDetailsInput {
   transferContent: string | null;
 }
 
-export interface ICharityRoundDistributionInput {
+export interface ICharityDistributionInput {
   distributionMethod: CharityDistributionMethod | null;
   contributionTypes: readonly CharityContributionType[];
   locationLabel: string | null;
@@ -47,7 +47,7 @@ export interface ICharityRoundDistributionInput {
   lng: number | null;
   serviceType: CharitySupportType | null;
   serviceChannel: CharityServiceChannel | null;
-  privateDetails: ICharityRoundPrivateDetailsInput;
+  privateDetails: ICharityDistributionPrivateDetailsInput;
 }
 
 function isMissing(value: string | number | null): boolean {
@@ -55,21 +55,23 @@ function isMissing(value: string | number | null): boolean {
 }
 
 function privateFieldMissing(
-  input: ICharityRoundDistributionInput,
-  field: keyof ICharityRoundPrivateDetailsInput,
+  input: ICharityDistributionInput,
+  field: keyof ICharityDistributionPrivateDetailsInput,
 ): boolean {
   return isMissing(input.privateDetails[field]);
 }
 
 export function charityDistributionFieldGaps(
-  input: ICharityRoundDistributionInput,
+  input: ICharityDistributionInput,
 ): string[] {
   if (input.distributionMethod === null) return [];
 
   const gaps: string[] = [];
   if (input.contributionTypes.length === 0) gaps.push('contributionTypes');
 
-  const addPrivateGap = (field: keyof ICharityRoundPrivateDetailsInput) => {
+  const addPrivateGap = (
+    field: keyof ICharityDistributionPrivateDetailsInput,
+  ) => {
     if (privateFieldMissing(input, field)) gaps.push(`privateDetails.${field}`);
   };
 
@@ -88,12 +90,8 @@ export function charityDistributionFieldGaps(
       addPrivateGap('estimatedShippingFee');
       break;
     case 'OTHER_LOCATION':
-      if (isMissing(input.locationLabel)) gaps.push('locationLabel');
-      if (
-        isMissing(input.address) &&
-        (input.lat === null || input.lng === null)
-      )
-        gaps.push('address');
+      // Cấp chiến dịch (CR 22/11/2026): điểm trao là địa chỉ của đơn vị nhận / điểm tiếp
+      // nhận nên không còn bắt buộc nhãn hay địa chỉ riêng.
       addPrivateGap('coordinatorName');
       break;
     case 'BANK_TRANSFER':
@@ -110,7 +108,7 @@ export function charityDistributionFieldGaps(
 }
 
 export function charityDistributionMismatch(
-  input: ICharityRoundDistributionInput,
+  input: ICharityDistributionInput,
 ): string | null {
   return input.distributionMethod === 'BANK_TRANSFER' &&
     !input.contributionTypes.includes('MONEY')
@@ -118,7 +116,7 @@ export function charityDistributionMismatch(
     : null;
 }
 
-export function charityRoundEvidenceGaps(input: {
+export function charityDistributionEvidenceGaps(input: {
   readonly distributionMethod: CharityDistributionMethod | null;
   readonly evidenceUrls: readonly string[];
   readonly trackingCode: string | null;
@@ -132,10 +130,40 @@ export function charityRoundEvidenceGaps(input: {
   return gaps;
 }
 
+/**
+ * Bước trao của chiến dịch đã hoàn tất chưa: đủ bằng chứng đúng hình thức, và với
+ * `BANK_TRANSFER` thì tài khoản thụ hưởng còn hiệu lực, cùng chiến dịch, đã xác thực.
+ * Chiến dịch cũ không có hình thức luôn coi là xong.
+ */
+export function charityDistributionSettled(input: {
+  readonly distributionMethod: CharityDistributionMethod | null;
+  readonly evidenceUrls: readonly string[];
+  readonly trackingCode: string | null;
+  readonly beneficiaryAccount: {
+    readonly verified: boolean;
+    readonly live: boolean;
+    readonly sameCampaign: boolean;
+  } | null;
+}): { settled: boolean; evidenceGaps: string[]; accountVerified: boolean } {
+  const evidenceGaps = charityDistributionEvidenceGaps(input);
+  const account = input.beneficiaryAccount;
+  const accountVerified =
+    input.distributionMethod !== 'BANK_TRANSFER' ||
+    (account !== null &&
+      account.verified &&
+      account.live &&
+      account.sameCampaign);
+  return {
+    settled: evidenceGaps.length === 0 && accountVerified,
+    evidenceGaps,
+    accountVerified,
+  };
+}
+
 const privateFieldsByMethod: Readonly<
   Record<
     CharityDistributionMethod,
-    readonly (keyof ICharityRoundPrivateDetailsInput)[]
+    readonly (keyof ICharityDistributionPrivateDetailsInput)[]
   >
 > = {
   DIRECT_RECIPIENT: [
@@ -160,8 +188,8 @@ const privateFieldsByMethod: Readonly<
 };
 
 export function stripInapplicableDistributionFields(
-  input: ICharityRoundDistributionInput,
-): ICharityRoundDistributionInput {
+  input: ICharityDistributionInput,
+): ICharityDistributionInput {
   if (input.distributionMethod === null) return input;
 
   const allowedPrivateFields = privateFieldsByMethod[input.distributionMethod];
@@ -169,12 +197,12 @@ export function stripInapplicableDistributionFields(
     Object.entries(input.privateDetails).map(([field, value]) => [
       field,
       allowedPrivateFields.includes(
-        field as keyof ICharityRoundPrivateDetailsInput,
+        field as keyof ICharityDistributionPrivateDetailsInput,
       )
         ? value
         : null,
     ]),
-  ) as ICharityRoundPrivateDetailsInput;
+  ) as ICharityDistributionPrivateDetailsInput;
 
   return {
     distributionMethod: input.distributionMethod,

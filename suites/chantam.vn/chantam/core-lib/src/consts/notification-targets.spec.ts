@@ -32,6 +32,12 @@ describe('NotificationTargetsByType', () => {
     ).toEqual([NotificationTargetTypes.CHARITY_CAMPAIGN]);
   });
 
+  it('nhắc ban tổ chức mở màn chiến dịch', () => {
+    expect(
+      NotificationTargetsByType[NotificationTypes.CHARITY_ORGANIZER_REMINDER],
+    ).toEqual([NotificationTargetTypes.CHARITY_CAMPAIGN]);
+  });
+
   it('thông báo không có màn đích khai mảng rỗng', () => {
     expect(
       NotificationTargetsByType[NotificationTypes.SYSTEM_BROADCAST],

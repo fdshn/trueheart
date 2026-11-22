@@ -18,7 +18,7 @@ export interface ICharityEventStepView extends ICharityEventStep {
 }
 
 export interface IGetCharityEventStepsUseCase extends IUseCase<
-  { idOrSlug: string; roundId?: string | null },
+  { idOrSlug: string },
   ICharityEventStepView[]
 > {}
 export const IGetCharityEventStepsUseCase = Symbol(

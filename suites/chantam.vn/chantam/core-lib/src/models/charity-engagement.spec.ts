@@ -1,7 +1,9 @@
 import {
+  CharityAnnouncementKinds,
   charityShareLink,
   defaultTaskSchedule,
   diffCharityRevisions,
+  isEndedProject,
   isPubliclyVisibleProject,
   isSuspendedProject,
 } from './charity-engagement';
@@ -112,6 +114,14 @@ describe('diffCharityRevisions', () => {
       diffCharityRevisions('PHASE', [at('PLANNING', 1)], [at('PLANNING', 2)])[0]
         .isImportant,
     ).toBe(false);
+    // Đổi mốc bắt đầu tổng duyệt cũng là quan trọng (CR 22/11/2026 §8).
+    expect(
+      diffCharityRevisions(
+        'PHASE',
+        [at('REHEARSAL', 1)],
+        [at('REHEARSAL', 2)],
+      )[0].isImportant,
+    ).toBe(true);
   });
 
   it('số tiến độ của nhu cầu tiền không sinh revision', () => {
@@ -221,5 +231,43 @@ describe('charityShareLink', () => {
       sharePath: '/c/ao-am',
       shareUrl: null,
     });
+  });
+});
+
+describe('isEndedProject và thông báo đợt trao đã bỏ', () => {
+  const past = new Date('2026-01-01T00:00:00Z');
+  const now = new Date('2026-06-01T00:00:00Z');
+
+  it('quá endTime mà chưa công khai tổng kết thì chưa kết thúc', () => {
+    expect(
+      isEndedProject(
+        { isActive: true, endTime: past, summaryPublishedAt: null },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it('đã công khai tổng kết thì kết thúc', () => {
+    expect(
+      isEndedProject(
+        { isActive: true, endTime: now, summaryPublishedAt: past },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it('Admin đã đóng (inactive, qua endTime) thì kết thúc', () => {
+    expect(
+      isEndedProject(
+        { isActive: false, endTime: past, summaryPublishedAt: null },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it('không còn thông báo ROUND_CHANGED', () => {
+    expect(CharityAnnouncementKinds as readonly string[]).not.toContain(
+      'ROUND_CHANGED',
+    );
   });
 });

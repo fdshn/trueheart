@@ -34,6 +34,7 @@ import {
   CharityCampaignNotClosableException,
   CharityCampaignNotExtendableException,
   CharityCampaignNotFoundException,
+  CharityCampaignSummaryNotPublishedException,
   CharityCancelTooLateException,
   CharityContributionTypeDisabledException,
   CharityCoordinatorNotAllowedException,
@@ -97,6 +98,7 @@ import {
   CharityCoordinatorListDto,
   CharityExternalContributionDto,
   CharityExternalContributionListDto,
+  CloseCharityCampaignBodyDto,
   CloseCharityCampaignResponseDto,
   DecideCharityApprovalBodyDto,
   DeleteCharityCampaignBodyDto,
@@ -436,7 +438,7 @@ export class CharityCampaignController {
   @ApiOperation({
     summary: 'Đóng hoạt động (người tổ chức hoặc Admin) — F65b §8',
     description:
-      'Chặn đề nghị mới, từ chối hàng loạt đề nghị đang chờ với lý do `CAMPAIGN_CLOSED`, và **giữ nguyên** lượt giao nhận đang chạy — chúng vẫn hoàn tất được. `approval_status` giữ `APPROVED`; trạng thái "đã đóng" là `is_active = false` cộng `end_time` đã qua. Chưa có đường gia hạn.',
+      'Chỉ đóng được khi **bài tổng kết đã công khai** (`409 CHARITY_CAMPAIGN_SUMMARY_NOT_PUBLISHED`). Admin có `campaign.manage` ép đóng bằng `{ close: { force: true, reason } }` (bắt buộc `reason`, ghi audit `CHARITY_CAMPAIGN_FORCE_CLOSE`); chủ dự án gửi `force` không có tác dụng. Chặn đề nghị mới, từ chối hàng loạt đề nghị đang chờ với lý do `CAMPAIGN_CLOSED`, và **giữ nguyên** lượt giao nhận đang chạy — chúng vẫn hoàn tất được. `approval_status` giữ `APPROVED`; trạng thái "đã đóng" là `is_active = false` cộng `end_time` đã qua (`end_time` không bị dời ra sau nếu đã qua). Body tuỳ chọn.',
   })
   @ApiOkResponse({ type: ResponseDto.forApi(CloseCharityCampaignResponseDto) })
   @ApiErrorResponses(
@@ -444,10 +446,13 @@ export class CharityCampaignController {
     CharityCampaignNotFoundException,
     CharityNotOrganizerException,
     CharityCampaignNotClosableException,
+    CharityCampaignSummaryNotPublishedException,
+    [ValidationFailedException, ['close.reason: bắt buộc khi Admin ép đóng']],
   )
   public async close(
     @CurrentUser() principal: IAuthPrincipal,
     @Param('id') id: string,
+    @Body() body: CloseCharityCampaignBodyDto = {},
   ) {
     return ResponseDto.create()
       .succeed()
@@ -455,6 +460,8 @@ export class CharityCampaignController {
         await this.closeUseCase.handle({
           campaignId: id,
           actorUserId: principal.userId,
+          force: body?.close?.force === true,
+          reason: body?.close?.reason,
         }),
       )
       .build();
@@ -863,7 +870,8 @@ export class AdminCharityCampaignController {
     summary: 'Danh sách hoạt động (mọi trạng thái)',
     description:
       'Lọc `approvalStatus=PENDING_APPROVAL` để ra hàng đợi duyệt, cũ nhất trước — ' +
-      '`IDX_campaigns_pending` phục vụ đúng câu đó. Quyền `campaign.read`.',
+      '`IDX_campaigns_pending` phục vụ đúng câu đó. `overdueSummary=true`: chiến dịch đang mở, ' +
+      'đã qua `endTime`, chưa công khai tổng kết. Quyền `campaign.read`.',
   })
   @ApiErrorResponses(...ApiTokenErrors, ForbiddenException)
   @ApiOkResponse({ type: ResponseDto.forApi(ListCharityCampaignsResponseDto) })
@@ -880,6 +888,7 @@ export class AdminCharityCampaignController {
           offset: query.offset ?? 0,
           approvalStatus: query.approvalStatus as
             CharityApprovalStatus | undefined,
+          overdueSummary: query.overdueSummary === true,
         }),
       )
       .build();

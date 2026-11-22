@@ -60,6 +60,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { NotNullWhenPresent } from '../not-null-when-present';
+import { QueryBoolean } from '../query-boolean';
 import { CharitySupportNeedInputDto } from './charity-operations.dto';
 import { CharityFundingNeedDto } from './charity-project.dto';
 
@@ -174,13 +175,29 @@ export class CharityCampaignDistributionDto {
   @ArrayMaxSize(CharityContributionTypes.length)
   @IsIn(CharityContributionTypes, { each: true })
   contributionTypes: (typeof CharityContributionTypes)[number][];
-  @ApiPropertyOptional({ type: () => CharityDistributionLocationDto })
+  @ApiPropertyOptional({
+    type: () => CharityDistributionLocationDto,
+    deprecated: true,
+    description:
+      'Không còn dùng (CR 22/11/2026): địa điểm trao là địa chỉ của đơn vị nhận / điểm tiếp nhận.',
+  })
   @IsOptional()
   @ValidateNested()
   @Type(() => CharityDistributionLocationDto)
   location?: CharityDistributionLocationDto;
-  @ApiProperty() @IsISO8601() scheduledStart: string;
-  @ApiProperty() @IsISO8601() scheduledEnd: string;
+  @ApiPropertyOptional({
+    description:
+      'Tuỳ chọn (alias một bản phát hành của distributionStartsAt). Gửi cùng scheduledEnd thì ghi khung bước trao.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  scheduledStart?: string;
+  @ApiPropertyOptional({
+    description: 'Tuỳ chọn, đi cùng scheduledStart.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  scheduledEnd?: string;
   @ApiPropertyOptional({ maxLength: 200 })
   @IsOptional()
   @IsString()
@@ -627,6 +644,16 @@ export class ListAdminCharityCampaignsQueryDto {
   @IsOptional()
   @IsIn(CharityApprovalStatuses as readonly string[])
   approvalStatus?: string;
+
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      'Chỉ chiến dịch đang mở, đã qua `endTime`, chưa công khai tổng kết (CR 22/11/2026).',
+  })
+  @IsOptional()
+  @QueryBoolean()
+  @IsBoolean()
+  overdueSummary?: boolean;
 }
 
 export class CharityCampaignIdParamDto {
@@ -989,6 +1016,14 @@ export class CharityCampaignResponseDto {
     },
   })
   distribution: { startsAt: string; endsAt: string } | null;
+
+  @ApiProperty({
+    type: Date,
+    nullable: true,
+    description:
+      'Lúc công khai bài tổng kết; `null` = chưa. Chỉ đóng được — và chỉ tính là kết thúc — khi đã công khai.',
+  })
+  summaryPublishedAt: Date | null;
 
   @ApiProperty({
     nullable: true,
@@ -1703,6 +1738,33 @@ export class CharityExternalContributionDto {
 export class CharityExternalContributionListDto {
   @ApiProperty({ type: () => [CharityExternalContributionDto] })
   items: CharityExternalContributionDto[];
+}
+
+export class CloseCharityCampaignInputDto {
+  @ApiPropertyOptional({
+    description:
+      'Chỉ Admin: đóng dù chưa công khai tổng kết. Chủ dự án gửi cũng không có tác dụng.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  force?: boolean;
+
+  @ApiPropertyOptional({
+    maxLength: 1000,
+    description: 'Bắt buộc khi `force`.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string;
+}
+
+export class CloseCharityCampaignBodyDto {
+  @ApiPropertyOptional({ type: () => CloseCharityCampaignInputDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CloseCharityCampaignInputDto)
+  close?: CloseCharityCampaignInputDto;
 }
 
 export class CloseCharityCampaignResponseDto {

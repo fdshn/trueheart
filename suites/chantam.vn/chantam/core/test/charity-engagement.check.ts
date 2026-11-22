@@ -628,7 +628,7 @@ async function main(): Promise<void> {
       due.length === 1 && due[0].campaignId === Soon,
       JSON.stringify(due),
     );
-    const key = String(due[0].distributionStartsAt.getTime());
+    const key = `${due[0].milestone}:${due[0].startsAt.getTime()}`;
     const queued = await engagement.enqueueAnnouncement({
       campaignId: Soon,
       kind: 'PRE_EVENT',
@@ -659,6 +659,37 @@ async function main(): Promise<void> {
       'dời giờ trao → nhắc lại cho mốc mới',
       (await engagement.listPreEventCandidates({ hours: 48, limit: 10 }))
         .length === 1,
+    );
+
+    const movedStart = new Date(soonStart.getTime() + 2 * Hour);
+    const rehearsalStart = new Date(soonStart.getTime() - 4 * Hour);
+    await projects.replacePhases({
+      campaignId: Soon,
+      actorId: Owner,
+      phases: [
+        {
+          phase: 'REHEARSAL' as const,
+          startsAt: rehearsalStart,
+          endsAt: new Date(rehearsalStart.getTime() + 2 * Hour),
+          picName: null,
+          picUserId: null,
+          hotline: null,
+          deliveryMethod: null,
+          reportMode: null,
+        },
+        ...phases(movedStart),
+      ],
+    });
+    const milestones = (
+      await engagement.listPreEventCandidates({ hours: 48, limit: 10 })
+    ).filter((candidate) => candidate.campaignId === Soon);
+    check(
+      'mốc tổng duyệt trong ≤ 48 giờ: thêm một ứng viên REHEARSAL riêng, khác DISTRIBUTION',
+      milestones.length === 2 &&
+        milestones[0].milestone === 'REHEARSAL' &&
+        milestones[0].startsAt.getTime() === rehearsalStart.getTime() &&
+        milestones[1].milestone === 'DISTRIBUTION',
+      JSON.stringify(milestones),
     );
 
     // ── 6. Outbox song song ──────────────────────────────────────────────

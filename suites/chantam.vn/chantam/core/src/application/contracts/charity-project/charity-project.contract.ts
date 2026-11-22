@@ -18,6 +18,7 @@ import {
   ICharityPhase,
   ICharityProjectProfile,
   ICharityPublicSupporters,
+  ICharityRehearsal,
   ICharityStageEvent,
   ICharitySummary,
   ICharityTask,
@@ -30,12 +31,17 @@ import {
 import {
   CharityCallToAction,
   CharityContributionType,
+  CharityDistributionMethod,
   CharityOpenClosedStatus,
   CharityOperationStage,
+  CharityRehearsalOutcome,
   CharitySectionCompletionStatus,
+  CharityServiceChannel,
+  CharitySupportType,
   CharityVolunteerNeedStatus,
   ICharityBeneficiaryBankAccount,
   ICharityBeneficiaryBankAccountInput,
+  ICharityRehearsalChecklistItem,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 
@@ -75,6 +81,8 @@ export interface ICharityWorkspace {
   parties: ICharityParty[];
   bankAccounts: ICharityBankAccount[];
   beneficiaryBankAccounts: ICharityBeneficiaryBankAccount[];
+  /** Tổng duyệt (CR 22/11/2026 §8); `null` khi chưa ghi. */
+  rehearsal: ICharityRehearsal | null;
   team: ICharityTeamMember[];
   phases: ICharityPhase[];
   itemNeeds: ICharityItemNeed[];
@@ -132,6 +140,17 @@ export interface ICharityPublicProject {
   financialReports: ICharityFinancialReport[];
   /** Ba tổng riêng — `null` tới khi tổng kết công khai; tiền `null` khi dự án không nhận tiền. */
   totals: ICharityIntakeTotals | null;
+  /**
+   * Hình thức trao CÔNG KHAI (CR 22/11/2026): đúng 5 trường; chi tiết riêng tư chỉ ở
+   * `GET :id/distribution`. `null` khi chưa chọn hình thức.
+   */
+  distribution: {
+    method: CharityDistributionMethod;
+    contributionTypes: CharityContributionType[];
+    serviceType: CharitySupportType | null;
+    serviceChannel: CharityServiceChannel | null;
+    evidenceUrls: string[];
+  } | null;
   /** Nickname người cho phép hiện + con số tổng (§3.17). */
   supporters: ICharityPublicSupporters;
   counters: ICharityEngagementCounters;
@@ -163,6 +182,33 @@ export interface IMoveCharityStageUseCase extends IUseCase<
   ICharityCampaignView
 > {}
 export const IMoveCharityStageUseCase = Symbol('IMoveCharityStageUseCase');
+
+// ── Tổng duyệt (CR 22/11/2026 §8) ───────────────────────────────────────────
+
+export interface IGetCharityRehearsalUseCase extends IUseCase<
+  ICharityProjectCommand,
+  ICharityRehearsal | null
+> {}
+export const IGetCharityRehearsalUseCase = Symbol(
+  'IGetCharityRehearsalUseCase',
+);
+
+export interface ISaveCharityRehearsalCommand extends ICharityProjectCommand {
+  readonly rehearsal: {
+    readonly checklist: readonly Partial<ICharityRehearsalChecklistItem>[];
+    /** Bỏ trống = giữ kết quả đã lưu. */
+    readonly outcome?: CharityRehearsalOutcome | null;
+    readonly reason?: string | null;
+    readonly note?: string | null;
+  };
+}
+export interface ISaveCharityRehearsalUseCase extends IUseCase<
+  ISaveCharityRehearsalCommand,
+  ICharityRehearsal
+> {}
+export const ISaveCharityRehearsalUseCase = Symbol(
+  'ISaveCharityRehearsalUseCase',
+);
 
 export interface IUpdateCharityProfileCommand extends ICharityProjectCommand {
   readonly profile: {
@@ -405,7 +451,7 @@ export const ISetCharityLimitsUseCase = Symbol('ISetCharityLimitsUseCase');
 
 export interface IAdvanceCharityStagesUseCase extends IUseCase<
   { limit: number; dryRun: boolean },
-  { advanced: number; checked: number }
+  { advanced: number; checked: number; reminded: number }
 > {}
 export const IAdvanceCharityStagesUseCase = Symbol(
   'IAdvanceCharityStagesUseCase',

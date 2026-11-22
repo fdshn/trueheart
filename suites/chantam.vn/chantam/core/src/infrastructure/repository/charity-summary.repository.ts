@@ -21,8 +21,8 @@ import {
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
+import { confirmedDeliveryValueSql } from './charity-distribution.sql';
 import { recordCharityRevisions } from './charity-revision.writer';
-import { confirmedDeliveryValueSql } from './charity-round.sql';
 import { updateReturning } from './update-returning';
 
 interface ISummaryRow {

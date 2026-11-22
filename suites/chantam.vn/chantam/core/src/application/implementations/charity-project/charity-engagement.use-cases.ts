@@ -42,7 +42,6 @@ import {
   ICharityCampaignRepository,
   ICharityEngagementRepository,
   ICharityExport,
-  ICharityOperationsRepository,
   ICharityProjectRepository,
   ICharityTask,
   IContentShareRepository,
@@ -63,7 +62,7 @@ import {
   defaultTaskSchedule,
   isPubliclyVisibleProject,
 } from '@chantam.vn/chantam.core-lib/models';
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   CharityProjectAccess,
   buildSectionSnapshot,
@@ -630,37 +629,21 @@ function announcementMessage(
       };
     }
     case 'PRE_EVENT': {
-      const startsAt = new Date(String(payload.distributionStartsAt));
-      const round =
-        typeof payload.roundTitle === 'string'
-          ? ` — ${payload.roundTitle}`
-          : '';
-      return {
-        title: 'Sắp tới lúc trao',
-        body: `"${title}"${round} sẽ trao lúc ${Number.isNaN(startsAt.getTime()) ? 'sắp tới' : VnDateTime.format(startsAt)}. Chuẩn bị cùng ban tổ chức nhé.`,
-      };
-    }
-    case 'ROUND_CHANGED': {
-      const startsAt = new Date(String(payload.startsAt));
+      // Dòng cũ (trước CR 22/11/2026) chỉ có `distributionStartsAt`.
+      const startsAt = new Date(
+        String(payload.startsAt ?? payload.distributionStartsAt),
+      );
       const when = Number.isNaN(startsAt.getTime())
-        ? ''
-        : ` — trao lúc ${VnDateTime.format(startsAt)}`;
-      const reason =
-        typeof payload.reason === 'string' && payload.reason.trim()
-          ? ` Lý do: ${payload.reason.trim()}`
-          : '';
-      const round = String(payload.roundTitle ?? 'Đợt trao');
-      if (payload.change === 'CANCELLED')
+        ? 'sắp tới'
+        : VnDateTime.format(startsAt);
+      if (payload.milestone === 'REHEARSAL')
         return {
-          title: 'Đợt trao bị huỷ',
-          body: `"${title}": ${round} đã huỷ.${reason}`,
+          title: 'Sắp tới buổi tổng duyệt',
+          body: `"${title}" tổng duyệt lúc ${when}. Chốt lại người nhận, hàng, xe và nhân sự cùng ban tổ chức nhé.`,
         };
       return {
-        title:
-          payload.change === 'POSTPONED'
-            ? 'Đợt trao được dời lịch'
-            : 'Đợt trao có thay đổi',
-        body: `"${title}": ${round}${when}.${reason}`,
+        title: 'Sắp tới lúc trao',
+        body: `"${title}" sẽ trao lúc ${when}. Chuẩn bị cùng ban tổ chức nhé.`,
       };
     }
     case 'SUMMARY_PUBLISHED':
@@ -689,9 +672,6 @@ export class ProcessCharityAnnouncementsUseCase implements IProcessCharityAnnoun
     private readonly engagement: ICharityEngagementRepository,
     @Inject(IDispatchNotificationUseCase)
     private readonly dispatch: IDispatchNotificationUseCase,
-    @Optional()
-    @Inject(ICharityOperationsRepository)
-    private readonly operations?: ICharityOperationsRepository,
   ) {}
 
   public async handle(command: {
@@ -702,15 +682,9 @@ export class ProcessCharityAnnouncementsUseCase implements IProcessCharityAnnoun
       hours: CharityPreEventNoticeHours,
       limit: command.limit,
     });
-    // Dự án chia đợt: mỗi đợt một lời nhắc 48 giờ riêng (§3.4, §3.18).
-    const roundCandidates =
-      (await this.operations?.listRoundPreEventCandidates({
-        hours: CharityPreEventNoticeHours,
-        limit: command.limit,
-      })) ?? [];
     if (command.dryRun)
       return {
-        preEventQueued: candidates.length + roundCandidates.length,
+        preEventQueued: candidates.length,
         processed: 0,
         notified: 0,
       };
@@ -722,29 +696,14 @@ export class ProcessCharityAnnouncementsUseCase implements IProcessCharityAnnoun
           campaignId: candidate.campaignId,
           kind: 'PRE_EVENT',
           payload: {
-            distributionStartsAt: candidate.distributionStartsAt.toISOString(),
+            milestone: candidate.milestone,
+            startsAt: candidate.startsAt.toISOString(),
           },
-          dedupeKey: String(candidate.distributionStartsAt.getTime()),
+          dedupeKey: `${candidate.milestone}:${candidate.startsAt.getTime()}`,
           actorId: null,
         })
       )
         preEventQueued += 1;
-    for (const round of roundCandidates)
-      if (
-        await this.engagement.enqueueAnnouncement({
-          campaignId: round.campaignId,
-          kind: 'PRE_EVENT',
-          payload: {
-            roundId: round.roundId,
-            roundTitle: round.title,
-            distributionStartsAt: round.startsAt.toISOString(),
-          },
-          dedupeKey: `round:${round.roundId}:${round.startsAt.getTime()}`,
-          actorId: null,
-        })
-      )
-        preEventQueued += 1;
-
     let notified = 0;
     const processed = await this.engagement.processPendingAnnouncements(
       command.limit,
@@ -766,11 +725,9 @@ export class ProcessCharityAnnouncementsUseCase implements IProcessCharityAnnoun
               ? NotificationTypes.CHARITY_STAGE_CHANGED
               : kind === 'PLAN_CHANGED'
                 ? NotificationTypes.CHARITY_PLAN_CHANGED
-                : kind === 'ROUND_CHANGED'
-                  ? NotificationTypes.CHARITY_PLAN_CHANGED
-                  : kind === 'PRE_EVENT'
-                    ? NotificationTypes.CHARITY_PRE_EVENT_NOTICE
-                    : NotificationTypes.CHARITY_SUMMARY_PUBLISHED,
+                : kind === 'PRE_EVENT'
+                  ? NotificationTypes.CHARITY_PRE_EVENT_NOTICE
+                  : NotificationTypes.CHARITY_SUMMARY_PUBLISHED,
           referenceType: 'CHARITY_CAMPAIGN',
           referenceId: campaign.globalId,
           target: {
@@ -782,10 +739,6 @@ export class ProcessCharityAnnouncementsUseCase implements IProcessCharityAnnoun
           campaignId: campaign.globalId,
           excludeUserId: announcement.actorId,
           scope: kind === 'PRE_EVENT' ? 'PRE_EVENT' : 'ALL',
-          roundId:
-            typeof announcement.payload.roundId === 'string'
-              ? announcement.payload.roundId
-              : null,
         });
         let sent = 0;
         for (const userId of audience) {

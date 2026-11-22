@@ -10,6 +10,9 @@ import {
   CharityOperationStages,
   CharityPartyRoles,
   CharityPhaseKeys,
+  CharityRehearsalChecklistKeys,
+  CharityRehearsalItemStatuses,
+  CharityRehearsalOutcomes,
   CharityReportModes,
   CharitySectionCompletionStatuses,
   CharitySupplySources,
@@ -46,6 +49,7 @@ import {
   CharityTaskViewDto,
 } from './charity-engagement.dto';
 import { CharityEventStepViewDto } from './charity-event.dto';
+import { CharityDistributionPublicDto } from './charity-operations.dto';
 import {
   CharityFinancialReportViewDto,
   CharityIntakeTotalsDto,
@@ -996,6 +1000,13 @@ export class CharityPublicProjectDto {
       'Ba tổng riêng; `null` tới khi tổng kết công khai; money `null` khi không nhận tiền',
   })
   totals: CharityIntakeTotalsDto | null;
+  @ApiProperty({
+    type: () => CharityDistributionPublicDto,
+    nullable: true,
+    description:
+      'Hình thức trao công khai (5 trường). Chi tiết riêng tư chỉ ở GET :id/distribution.',
+  })
+  distribution: CharityDistributionPublicDto | null;
   @ApiProperty({ type: () => CharityPublicSupportersDto })
   supporters: CharityPublicSupportersDto;
   @ApiProperty({ type: () => CharityCountersDto })
@@ -1096,4 +1107,79 @@ export class CharitySectionResponseDto {
 export class CharityCustomSectionsResponseDto {
   @ApiProperty({ type: () => [CharityCustomSectionViewDto] })
   customSections: CharityCustomSectionViewDto[];
+}
+
+// ── Tổng duyệt (CR 22/11/2026 §8) ───────────────────────────────────────────
+
+export class CharityRehearsalChecklistItemDto {
+  @ApiProperty({ enum: CharityRehearsalChecklistKeys })
+  @IsIn(CharityRehearsalChecklistKeys)
+  key: (typeof CharityRehearsalChecklistKeys)[number];
+  @ApiProperty({ enum: CharityRehearsalItemStatuses })
+  @IsIn(CharityRehearsalItemStatuses)
+  status: (typeof CharityRehearsalItemStatuses)[number];
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string | null;
+}
+
+export class CharityRehearsalInputDto {
+  @ApiProperty({ type: () => [CharityRehearsalChecklistItemDto] })
+  @IsArray()
+  @ArrayMaxSize(CharityRehearsalChecklistKeys.length)
+  @ValidateNested({ each: true })
+  @Type(() => CharityRehearsalChecklistItemDto)
+  checklist: CharityRehearsalChecklistItemDto[];
+  @ApiPropertyOptional({ enum: CharityRehearsalOutcomes, nullable: true })
+  @IsOptional()
+  @IsIn(CharityRehearsalOutcomes)
+  outcome?: (typeof CharityRehearsalOutcomes)[number] | null;
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 1000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 2000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  note?: string | null;
+}
+
+export class CharityRehearsalBodyDto {
+  @ApiProperty({ type: () => CharityRehearsalInputDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => CharityRehearsalInputDto)
+  rehearsal: CharityRehearsalInputDto;
+}
+
+export class CharityRehearsalPhaseDto {
+  @ApiProperty({ type: Date }) startsAt: Date;
+  @ApiProperty({ type: Date }) endsAt: Date;
+  @ApiProperty({ type: String, nullable: true }) picName: string | null;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  picUserId: string | null;
+}
+
+export class CharityRehearsalDto {
+  @ApiProperty({ format: 'uuid' }) campaignId: string;
+  @ApiProperty({ type: () => [CharityRehearsalChecklistItemDto] })
+  checklist: CharityRehearsalChecklistItemDto[];
+  @ApiProperty({ enum: CharityRehearsalOutcomes, nullable: true })
+  outcome: string | null;
+  @ApiProperty({ type: String, nullable: true }) reason: string | null;
+  @ApiProperty({ type: String, nullable: true }) note: string | null;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  decidedBy: string | null;
+  @ApiProperty({ type: Date, nullable: true }) decidedAt: Date | null;
+  @ApiProperty({ type: () => CharityRehearsalPhaseDto, nullable: true })
+  phase: CharityRehearsalPhaseDto | null;
+}
+
+export class CharityRehearsalResponseDto {
+  @ApiProperty({ type: () => CharityRehearsalDto, nullable: true })
+  rehearsal: CharityRehearsalDto | null;
 }

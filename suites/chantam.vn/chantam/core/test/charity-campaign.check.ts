@@ -53,6 +53,7 @@ import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import {
   CancelCharityParticipationUseCase,
+  CloseCharityCampaignUseCase,
   CreateCharityCampaignUseCase,
   DecideCharityApprovalUseCase,
   JoinCharityCampaignUseCase,
@@ -61,12 +62,12 @@ import {
   ReviewCharityCampaignUseCase,
   UpdateCharityProgressUseCase,
 } from '../src/application/implementations/charity-campaign/charity-campaign.use-cases';
+import { CharityNotifier } from '../src/application/implementations/charity-campaign/charity.notifier';
 import { IGiftRequestRepository } from '../src/domain/ports/repository';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
-import { CharityOperationsRepository } from '../src/infrastructure/repository/charity-operations.repository';
 import { CharitySummaryRepository } from '../src/infrastructure/repository/charity-summary.repository';
 import { EntitlementRepository } from '../src/infrastructure/repository/entitlement.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
@@ -453,62 +454,31 @@ async function main(): Promise<void> {
         asAdmin: false,
         submit: false,
         distribution: {
-          method: 'OTHER_LOCATION',
+          method: 'DIRECT_RECIPIENT',
           contributionTypes: ['MATERIAL'],
-          location: {
-            label: 'Nhà văn hoá xã',
-            address: 'Thôn 1, xã An Bình',
-            lat: 10.7,
-            lng: 106.6,
-          },
           scheduledStart: '2026-12-20T01:00:00.000Z',
           scheduledEnd: '2026-12-20T09:00:00.000Z',
+          recipientPhone: '0977000111',
+          recipientAddress: 'Số 12 ngõ riêng, xã An Bình',
           coordinatorName: 'Điều phối viên',
           coordinatorPhone: '0901000000',
         },
       }),
     );
     const [distributionCounts] = await dataSource.query<
-      {
-        rounds: string;
-        steps: string;
-        starts_at: Date;
-        ends_at: Date;
-        delivery_method: string | null;
-      }[]
+      { starts_at: Date; ends_at: Date; delivery_method: string | null }[]
     >(
-      `SELECT
-         (SELECT count(*)::text FROM campaign_distribution_rounds WHERE campaign_id = $1) AS rounds,
-         (SELECT count(*)::text FROM campaign_event_steps WHERE campaign_id = $1) AS steps,
-         phase.starts_at, phase.ends_at, phase.delivery_method
+      `SELECT phase.starts_at, phase.ends_at, phase.delivery_method
        FROM campaign_phases phase
        WHERE phase.campaign_id = $1 AND phase.phase = 'DISTRIBUTION'`,
       [distributionCampaign.globalId],
-    );
-    const operations = new CharityOperationsRepository(dataSource.manager);
-    const createdRound = (
-      await operations.listRounds(distributionCampaign.globalId)
-    )[0];
-    check(
-      'workspace read-back giữ đủ dữ liệu distribution riêng tư và toạ độ đúng chiều',
-      createdRound?.locationLabel === 'Nhà văn hoá xã' &&
-        createdRound.address === 'Thôn 1, xã An Bình' &&
-        createdRound.lat === 10.7 &&
-        createdRound.lng === 106.6 &&
-        JSON.stringify(createdRound.contributionTypes) ===
-          JSON.stringify(['MATERIAL']) &&
-        createdRound.privateDetails?.coordinatorName === 'Điều phối viên' &&
-        createdRound.privateDetails?.coordinatorPhone === '0901000000',
-      JSON.stringify(createdRound),
     );
     const rereadDistribution = await repository.findByGlobalId(
       distributionCampaign.globalId,
     );
     check(
-      'tạo distribution ghi 1 round, 10 bước, DISTRIBUTION phase và trả đúng startsAt',
-      distributionCounts?.rounds === '1' &&
-        distributionCounts?.steps === '10' &&
-        distributionCounts?.delivery_method === null &&
+      'tạo distribution ghi khung DISTRIBUTION phase và trả đúng startsAt (không còn đợt trao)',
+      distributionCounts?.delivery_method === null &&
         distributionCounts?.starts_at.toISOString() ===
           '2026-12-20T01:00:00.000Z' &&
         distributionCounts?.ends_at.toISOString() ===
@@ -520,6 +490,28 @@ async function main(): Promise<void> {
         distribution: rereadDistribution?.distribution,
       }),
     );
+
+    const [privateRow] = await dataSource.query<
+      { recipient_phone: string; coordinator_name: string; method: string }[]
+    >(
+      `SELECT detail.recipient_phone, detail.coordinator_name,
+              campaign.distribution_method AS method
+         FROM campaign_distribution_private_details detail
+         JOIN campaigns campaign ON campaign.global_id = detail.campaign_id
+        WHERE detail.campaign_id = $1`,
+      [distributionCampaign.globalId],
+    );
+    check(
+      'tạo distribution DIRECT_RECIPIENT ghi hình thức lên chiến dịch + dòng riêng tư 1-1',
+      privateRow?.method === 'DIRECT_RECIPIENT' &&
+        privateRow.recipient_phone === '0977000111' &&
+        privateRow.coordinator_name === 'Điều phối viên',
+      JSON.stringify(privateRow),
+    );
+    const [noRounds] = await dataSource.query<{ gone: boolean }[]>(
+      `SELECT to_regclass('public.campaign_distribution_rounds') IS NULL AS gone`,
+    );
+    check('không còn bảng đợt trao nào để ghi', noRounds?.gone === true);
 
     const rollbackSlug = `rollback-${Date.now()}`;
     await expectReject(
@@ -1038,7 +1030,10 @@ async function main(): Promise<void> {
     await dataSource.query(
       `UPDATE campaigns
           SET start_time = now() - interval '2 hours',
-              end_time   = now() - interval '1 hour'
+              end_time   = now() - interval '1 hour',
+              -- Quá endTime không còn tự sang Tổng kết (CR 22/11/2026: EXECUTION không nhảy
+              -- cóc SUMMARY), nên đặt thẳng giai đoạn đang kiểm.
+              operation_stage = 'SUMMARY'
         WHERE global_id = $1`,
       [target],
     );
@@ -1239,27 +1234,141 @@ async function main(): Promise<void> {
       `lng=${String(located?.lng)}`,
     );
 
-    console.log('\n10. Lọc theo pha thời gian');
+    console.log('\n10. Lọc theo pha thời gian, đóng khi tổng kết đã công khai');
 
-    const ended = await repository.listPublic({
+    // `target` đã qua `end_time`, vẫn mở, chưa có tổng kết → đang Tổng kết, CHƯA kết thúc.
+    const listPhase = (phase: 'ENDED' | 'ONGOING' | 'UPCOMING') =>
+      repository.listPublic({ limit: 50, offset: 0, phase });
+    const endedBefore = await listPhase('ENDED');
+    const ongoingBefore = await listPhase('ONGOING');
+    const overdue = await repository.listForAdmin({
       limit: 50,
       offset: 0,
-      phase: 'ENDED',
+      overdueSummary: true,
     });
+    const [targetRowBefore] = await dataSource.query<
+      { is_active: boolean; end_time: Date }[]
+    >(`SELECT is_active, end_time FROM campaigns WHERE global_id = $1`, [
+      target,
+    ]);
     check(
-      'phase=ENDED chỉ trả hoạt động đã kết thúc',
-      ended.items.length === 1 && ended.items[0].globalId === target,
-      `${ended.items.length} hàng`,
+      'qua endTime, chưa công khai tổng kết: thuộc ONGOING, KHÔNG thuộc ENDED, is_active vẫn true',
+      !endedBefore.items.some((item) => item.globalId === target) &&
+        ongoingBefore.items.some((item) => item.globalId === target) &&
+        targetRowBefore?.is_active === true,
+      `ended=${endedBefore.items.length} ongoing=${ongoingBefore.items.length}`,
     );
-    const upcoming = await repository.listPublic({
-      limit: 50,
-      offset: 0,
-      phase: 'UPCOMING',
-    });
+    check(
+      'overdueSummary=true liệt kê chiến dịch quá hạn tổng kết (và chỉ chúng)',
+      overdue.items.some((item) => item.globalId === target) &&
+        overdue.total === overdue.items.length &&
+        overdue.items.every(
+          (item) =>
+            item.isActive &&
+            item.endTime.getTime() <= Date.now() &&
+            item.summaryPublishedAt === null,
+        ),
+      `${overdue.total} hàng`,
+    );
+
+    const closeUseCase = new CloseCharityCampaignUseCase(
+      repository,
+      adminConfig,
+      new CharityNotifier({
+        handle: async () => ({ created: true, pushedDevices: 0 }),
+      } as never),
+    );
+    await expectThrow(
+      'đóng khi chưa công khai tổng kết -> CharityCampaignSummaryNotPublished',
+      () =>
+        closeUseCase.handle({ campaignId: target, actorUserId: OrganizerId }),
+      'CharityCampaignSummaryNotPublishedException',
+    );
+
+    await dataSource.query(
+      `INSERT INTO campaign_summaries (campaign_id, summary, published_at, updated_by)
+       VALUES ($1, 'Đã trao xong', now(), $2)`,
+      [target, OrganizerId],
+    );
+    const endedAfter = await listPhase('ENDED');
+    check(
+      'công khai tổng kết -> thuộc ENDED, rời ONGOING và danh sách quá hạn',
+      endedAfter.items.some((item) => item.globalId === target) &&
+        !(await listPhase('ONGOING')).items.some(
+          (item) => item.globalId === target,
+        ) &&
+        !(
+          await repository.listForAdmin({
+            limit: 50,
+            offset: 0,
+            overdueSummary: true,
+          })
+        ).items.some((item) => item.globalId === target),
+      `${endedAfter.items.length} hàng`,
+    );
+    const upcoming = await listPhase('UPCOMING');
     check(
       'phase=UPCOMING không chứa hoạt động đã kết thúc',
       upcoming.items.every((item) => item.globalId !== target),
       `${upcoming.items.length} hàng`,
+    );
+
+    const closedTarget = await closeUseCase.handle({
+      campaignId: target,
+      actorUserId: OrganizerId,
+    });
+    const [targetRowAfter] = await dataSource.query<
+      { is_active: boolean; end_time: Date }[]
+    >(`SELECT is_active, end_time FROM campaigns WHERE global_id = $1`, [
+      target,
+    ]);
+    check(
+      'đóng thật thành công dù end_time đã qua; end_time KHÔNG bị dời ra sau',
+      closedTarget.campaignId === target &&
+        targetRowAfter?.is_active === false &&
+        targetRowAfter.end_time.getTime() ===
+          targetRowBefore.end_time.getTime(),
+      `${String(targetRowBefore?.end_time)} -> ${String(targetRowAfter?.end_time)}`,
+    );
+    await expectThrow(
+      'đóng lần hai -> CharityCampaignNotClosable',
+      () =>
+        closeUseCase.handle({ campaignId: target, actorUserId: OrganizerId }),
+      'CharityCampaignNotClosableException',
+    );
+
+    // Đình chỉ (inactive, end_time còn ở tương lai) không phải kết thúc.
+    const [suspendedCandidate] = await dataSource.query<
+      { global_id: string }[]
+    >(
+      `SELECT global_id FROM campaigns
+        WHERE approval_status = 'APPROVED' AND is_active AND deleted_at IS NULL
+          AND end_time > now() AND global_id <> $1
+        ORDER BY id LIMIT 1`,
+      [target],
+    );
+    await dataSource.query(
+      `UPDATE campaigns SET is_active = false WHERE global_id = $1`,
+      [suspendedCandidate.global_id],
+    );
+    const [suspendedEnded] = await dataSource.query<{ ended: boolean }[]>(
+      `SELECT (EXISTS (SELECT 1 FROM campaign_summaries summary
+                        WHERE summary.campaign_id = campaigns.global_id
+                          AND summary.published_at IS NOT NULL)
+               OR (NOT campaigns.is_active AND campaigns.end_time <= now())) AS ended
+         FROM campaigns WHERE global_id = $1`,
+      [suspendedCandidate.global_id],
+    );
+    check(
+      'chiến dịch đình chỉ (end_time tương lai, inactive) KHÔNG phải ENDED',
+      suspendedEnded.ended === false &&
+        !(await listPhase('ENDED')).items.some(
+          (item) => item.globalId === suspendedCandidate.global_id,
+        ),
+    );
+    await dataSource.query(
+      `UPDATE campaigns SET is_active = true WHERE global_id = $1`,
+      [suspendedCandidate.global_id],
     );
 
     console.log('\n11. Media chiến dịch — ràng buộc thật và luồng thay cả bộ');
