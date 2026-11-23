@@ -5,9 +5,13 @@ import {
   ICloseCharityBankAccountUseCase,
   ICloseCharityBeneficiaryBankAccountUseCase,
   IConfirmCharityVolunteerUseCase,
+  IDecideCharityChangeRequestUseCase,
+  IGetAdminCharityChangeRequestUseCase,
+  IGetCharityChangeRequestUseCase,
   IGetCharityPublicProjectUseCase,
   IGetCharityRehearsalUseCase,
   IGetCharityWorkspaceUseCase,
+  IListCharityChangeRequestsUseCase,
   IMoveCharityStageUseCase,
   IPublishCharitySectionUseCase,
   IRegisterCharityVolunteerUseCase,
@@ -16,6 +20,7 @@ import {
   IReplaceCharityPartiesUseCase,
   IReplaceCharityPhasesUseCase,
   IReplaceCharityTeamUseCase,
+  ISaveCharityChangeRequestUseCase,
   ISaveCharityFundingNeedUseCase,
   ISaveCharityRehearsalUseCase,
   ISaveCharityScheduleUseCase,
@@ -26,6 +31,7 @@ import {
   IUpdateCharityItemNeedUseCase,
   IUpdateCharityProfileUseCase,
   IVerifyCharityBeneficiaryBankAccountUseCase,
+  IWithdrawCharityChangeRequestUseCase,
 } from '@/application/contracts/charity-project';
 import {
   CharityBankAccountLimitException,
@@ -36,11 +42,15 @@ import {
   CharityCampaignCreateNotAllowedException,
   CharityCampaignNotFoundException,
   CharityContributionTypeDisabledException,
+  CharityFundingBelowEstimatedAmountException,
   CharityFundingNeedNotFoundException,
   CharityIntakeClosedException,
+  CharityMediaInvalidException,
+  CharityNeedBelowEstimatedPortionsException,
   CharityNeedItemInvalidException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
+  CharityProjectNotApprovedException,
   CharityProjectNotDraftException,
   CharityRehearsalNotReadyException,
   CharityRoundEvidenceRequiredException,
@@ -77,6 +87,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -86,10 +97,16 @@ import {
 } from '@nestjs/swagger';
 import { CharityCampaignWrapperResponseDto } from '../../dto/charity-campaign/charity-campaign.dto';
 import {
+  AdminCharityChangeRequestResponseDto,
   CharityBankAccountBodyDto,
   CharityBankAccountResponseDto,
   CharityBeneficiaryBankAccountBodyDto,
   CharityBeneficiaryBankAccountResponseDto,
+  CharityChangeRequestBodyDto,
+  CharityChangeRequestListResponseDto,
+  CharityChangeRequestResponseDto,
+  CharityChangeRequestsQueryDto,
+  CharityChangeRequestWithdrawnResponseDto,
   CharityCloseBodyDto,
   CharityCustomSectionsBodyDto,
   CharityCustomSectionsResponseDto,
@@ -127,6 +144,8 @@ import {
   CharityVolunteerNeedResponseDto,
   CharityVolunteerRegistrationBodyDto,
   CharityWorkspaceResponseDto,
+  DecideCharityChangeRequestBodyDto,
+  DecidedCharityChangeRequestResponseDto,
 } from '../../dto/charity-campaign/charity-project.dto';
 import { RequiresPermission } from '../../guards';
 
@@ -153,6 +172,12 @@ export class CharityProjectController {
     private readonly intakeLocationsUseCase: IReplaceCharityIntakeLocationsUseCase,
     @Inject(ISaveCharityScheduleUseCase)
     private readonly scheduleUseCase: ISaveCharityScheduleUseCase,
+    @Inject(IGetCharityChangeRequestUseCase)
+    private readonly getRevisionUseCase: IGetCharityChangeRequestUseCase,
+    @Inject(ISaveCharityChangeRequestUseCase)
+    private readonly saveRevisionUseCase: ISaveCharityChangeRequestUseCase,
+    @Inject(IWithdrawCharityChangeRequestUseCase)
+    private readonly withdrawRevisionUseCase: IWithdrawCharityChangeRequestUseCase,
     @Inject(IGetCharityRehearsalUseCase)
     private readonly rehearsalGetUseCase: IGetCharityRehearsalUseCase,
     @Inject(ISaveCharityRehearsalUseCase)
@@ -390,6 +415,86 @@ export class CharityProjectController {
         })),
       }),
     });
+  }
+
+  @Get(':id/revision')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Bản sửa đang chờ duyệt (workspace)',
+    description:
+      'Người tạo, coordinator, Admin `campaign.read`. `{ request: null }` khi không có bản nào đang chờ. Đường công khai không bao giờ thấy bản sửa.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(CharityChangeRequestResponseDto),
+  })
+  @ApiErrorResponses(...ApiTokenErrors, ...ProjectErrors)
+  public async getRevision(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectParamsDto,
+  ) {
+    return ok(
+      await this.getRevisionUseCase.handle({
+        userId: principal.userId,
+        campaignId: params.id,
+      }),
+    );
+  }
+
+  @Put(':id/revision')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Gửi bản sửa chờ duyệt',
+    description:
+      'Người tạo, Admin. Chỉ chiến dịch ĐÃ DUYỆT (`409 CHARITY_PROJECT_NOT_APPROVED`). Sáu trường cần duyệt: `title`, `description`, `media`, `beneficiaries` (thay cả bộ), `acceptedContributionTypes`, `pointBonusPercent`. Gửi khoá nào là đề xuất đổi khoá đó; không khác bản đang chạy → `400`. Media được xác nhận với kho lưu trữ ngay nhưng chỉ gắn khi Admin duyệt. Gửi lại khi đang chờ = thay nội dung (giữ `base` lần đầu). Chiến dịch vẫn chạy theo bản đã duyệt tới khi Admin duyệt bản sửa.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(CharityChangeRequestResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ...ProjectErrors,
+    CharityProjectNotApprovedException,
+    CharityMediaInvalidException,
+    [
+      ValidationFailedException,
+      ['revision: không có thay đổi nào so với bản đã duyệt'],
+    ],
+  )
+  public async saveRevision(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectParamsDto,
+    @Body() body: CharityChangeRequestBodyDto,
+  ) {
+    return ok(
+      await this.saveRevisionUseCase.handle({
+        userId: principal.userId,
+        campaignId: params.id,
+        revision: body.revision as never,
+      }),
+    );
+  }
+
+  @Delete(':id/revision')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Rút bản sửa đang chờ',
+    description: 'Chỉ người tạo. Không có bản nào đang chờ → `404`.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(CharityChangeRequestWithdrawnResponseDto),
+  })
+  @ApiErrorResponses(...ApiTokenErrors, ...ProjectErrors)
+  public async withdrawRevision(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectParamsDto,
+  ) {
+    return ok(
+      await this.withdrawRevisionUseCase.handle({
+        userId: principal.userId,
+        campaignId: params.id,
+      }),
+    );
   }
 
   @Put(':id/schedule')
@@ -1085,9 +1190,108 @@ export class AdminCharityProjectController {
   public constructor(
     @Inject(ISetCharityLimitsUseCase)
     private readonly limitsUseCase: ISetCharityLimitsUseCase,
+    @Inject(IListCharityChangeRequestsUseCase)
+    private readonly listRevisionsUseCase: IListCharityChangeRequestsUseCase,
+    @Inject(IGetAdminCharityChangeRequestUseCase)
+    private readonly adminRevisionUseCase: IGetAdminCharityChangeRequestUseCase,
+    @Inject(IDecideCharityChangeRequestUseCase)
+    private readonly decideRevisionUseCase: IDecideCharityChangeRequestUseCase,
     @Inject(IVerifyCharityBeneficiaryBankAccountUseCase)
     private readonly verifyBeneficiaryBankUseCase: IVerifyCharityBeneficiaryBankAccountUseCase,
   ) {}
+
+  // Route TĨNH khai trước mọi route `:id` của controller này (route-order guard).
+  @Get('revisions')
+  @RequiresPermission('campaign.read')
+  @ApiOperation({
+    summary: 'Hàng đợi bản sửa chờ duyệt',
+    description:
+      'Bản sửa của mọi chiến dịch, cũ trước. `status` lọc theo trạng thái (bỏ trống = tất cả).',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(CharityChangeRequestListResponseDto),
+  })
+  @ApiErrorResponses(...ApiTokenErrors, [ForbiddenException])
+  public async listRevisions(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Query() query: CharityChangeRequestsQueryDto,
+  ) {
+    return ok(
+      await this.listRevisionsUseCase.handle({
+        actorUserId: principal.userId,
+        status: query.status ?? null,
+        limit: query.limit ?? 20,
+        offset: query.offset ?? 0,
+      }),
+    );
+  }
+
+  @Get(':id/revision')
+  @RequiresPermission('campaign.read')
+  @ApiOperation({
+    summary: 'Bản sửa đang chờ của một chiến dịch',
+    description:
+      '`request` (gồm `base` lúc gửi đầu và `proposed`) cạnh `current` — giá trị đang chạy đọc lúc gọi. Không có bản chờ → `404`.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(AdminCharityChangeRequestResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    CharityCampaignNotFoundException,
+  )
+  public async adminRevision(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectParamsDto,
+  ) {
+    return ok(
+      await this.adminRevisionUseCase.handle({
+        actorUserId: principal.userId,
+        campaignId: params.id,
+      }),
+    );
+  }
+
+  @Patch(':id/revision')
+  @RequiresPermission('campaign.manage')
+  @ApiOperation({
+    summary: 'Duyệt hoặc từ chối bản sửa',
+    description:
+      'Duyệt: kiểm sàn số suất/tiền (`400 CHARITY_NEED_BELOW_ESTIMATED_PORTIONS` / `CHARITY_FUNDING_BELOW_ESTIMATED_AMOUNT`) và khung trao của đơn vị mới (`400 CHARITY_BENEFICIARY_DISTRIBUTION_TIME_OUT_OF_RANGE`) — vi phạm thì bản sửa vẫn chờ; xong thì áp trong MỘT transaction (chiến dịch, media, đơn vị nhận, lịch sử sửa, một thông báo thay đổi cho người theo dõi). Từ chối: bắt buộc `reason`, không áp gì. Cả hai ghi audit `CHARITY_CHANGE_REQUEST_APPROVE|REJECT` và báo chủ dự án.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(DecidedCharityChangeRequestResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    [ForbiddenException],
+    CharityCampaignNotFoundException,
+    [
+      CharityNeedBelowEstimatedPortionsException,
+      [[{ index: 0, needItemId: null, itemName: 'Áo', minimumQuantity: 300 }]],
+    ],
+    [CharityFundingBelowEstimatedAmountException, [20000000, 30000000]],
+    [
+      CharityBeneficiaryDistributionTimeOutOfRangeException,
+      [[{ index: 0, name: 'Xã mới', distributionAt: '2026-12-20T01:00:00Z' }]],
+    ],
+    [ValidationFailedException, ['decision.reason: bắt buộc khi từ chối']],
+  )
+  public async decideRevision(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectParamsDto,
+    @Body() body: DecideCharityChangeRequestBodyDto,
+  ) {
+    return ok(
+      await this.decideRevisionUseCase.handle({
+        actorUserId: principal.userId,
+        campaignId: params.id,
+        approve: body.decision.approve,
+        reason: body.decision.reason,
+      }),
+    );
+  }
 
   @Post(':id/beneficiary-bank-accounts/:accountId/verify')
   @HttpCode(HttpStatus.OK)

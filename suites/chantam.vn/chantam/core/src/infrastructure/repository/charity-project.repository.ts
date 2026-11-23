@@ -336,6 +336,18 @@ export class CharityProjectRepository implements ICharityProjectRepository {
   ) {}
 
   /**
+   * Bản ghi THẲNG trong transaction của bên gọi — KHÔNG tự ghi lịch sử sửa. Dành cho bên gọi tự
+   * gom lịch sử của nhiều loại entity thành một lượt (áp bản sửa đã duyệt, CR 22/11/2026).
+   */
+  public static untrackedWithin(
+    manager: EntityManager,
+  ): CharityProjectRepository {
+    const repository = new CharityProjectRepository(manager);
+    repository.untracked = true;
+    return repository;
+  }
+
+  /**
    * Bọc một lượt sửa kế hoạch để ghi lịch sử sửa (§3.3) trong CÙNG transaction.
    *
    * Khoá hàng dự án trước: hai lượt sửa song song không chen ảnh chụp của nhau. Dự án chưa

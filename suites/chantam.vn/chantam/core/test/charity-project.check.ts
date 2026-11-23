@@ -15,23 +15,33 @@
  *
  *   npm run test:charity-project
  */
-import { charityDistributionSettled } from '@chantam.vn/chantam.core-lib/models';
+import {
+  charityDistributionSettled,
+  isPubliclyVisibleProject,
+} from '@chantam.vn/chantam.core-lib/models';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { SubmitCharityContributionUseCase } from '../src/application/implementations/charity-campaign/charity-campaign.use-cases';
 import { GetCharityPublicStatsUseCase } from '../src/application/implementations/charity-project/charity-engagement.use-cases';
 import {
   AddCharityBeneficiaryBankAccountUseCase,
   AdvanceCharityStagesUseCase,
   CharityProjectAccess,
+  DecideCharityChangeRequestUseCase,
+  GetCharityPublicProjectUseCase,
   ReplaceCharityPartiesUseCase,
+  SaveCharityChangeRequestUseCase,
 } from '../src/application/implementations/charity-project/charity-project.use-cases';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
+import { CharityChangeRequestRepository } from '../src/infrastructure/repository/charity-change-request.repository';
 import { CampaignDistributionSettledSql } from '../src/infrastructure/repository/charity-distribution.sql';
 import { CharityEngagementRepository } from '../src/infrastructure/repository/charity-engagement.repository';
+import { CharityEventRepository } from '../src/infrastructure/repository/charity-event.repository';
 import { CharityProjectRepository } from '../src/infrastructure/repository/charity-project.repository';
+import { CharitySummaryRepository } from '../src/infrastructure/repository/charity-summary.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 
 loadEnvFile({ path: '.env.local' });
@@ -1533,6 +1543,373 @@ async function main(): Promise<void> {
         parityDone.ts === true &&
         parityDone.sql === true,
       `${shippingDone?.operationStage} ${JSON.stringify(parityDone)}`,
+    );
+
+    // ── 11. Bản sửa chờ duyệt — bảng và repository (CR 22/11/2026, migration 1804400000000) ──
+    console.log('\n11. Bản sửa chờ duyệt: một bản PENDING mỗi chiến dịch');
+    const changeRequests = new CharityChangeRequestRepository(
+      dataSource.manager,
+    );
+    const secondPending = await sql(
+      `INSERT INTO campaign_change_requests (campaign_id, proposed, base, submitted_by)
+       VALUES ($1, '{"title":"A"}', '{"title":"0"}', $2),
+              ($1, '{"title":"B"}', '{"title":"0"}', $2)`,
+      [Live, Owner],
+    ).then(
+      () => 'nhận',
+      (error: Error) => error.message,
+    );
+    check(
+      'hai bản PENDING cùng chiến dịch bằng SQL → UQ_campaign_change_requests_pending chặn',
+      secondPending.includes('UQ_campaign_change_requests_pending'),
+      secondPending,
+    );
+    const firstRequest = await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: { title: 'Tiêu đề đề xuất 1' },
+      base: { title: 'Tiêu đề gốc' },
+    });
+    const secondRequest = await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: { title: 'Tiêu đề đề xuất 2' },
+      base: { title: 'KHÔNG được ghi đè base' },
+    });
+    const [{ n: pendingRows }] = await sql(
+      `SELECT count(*)::int AS n FROM campaign_change_requests
+        WHERE campaign_id = $1 AND status = 'PENDING'`,
+      [Live],
+    );
+    check(
+      'upsertPending hai lần: một hàng, nội dung mới, base giữ từ lần đầu',
+      pendingRows === 1 &&
+        secondRequest.requestId === firstRequest.requestId &&
+        secondRequest.proposed.title === 'Tiêu đề đề xuất 2' &&
+        secondRequest.base.title === 'Tiêu đề gốc',
+      JSON.stringify(secondRequest),
+    );
+    const withdrawn = await changeRequests.withdraw({
+      campaignId: Live,
+      actorId: Owner,
+    });
+    const third = await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: { title: 'Bản mới sau khi rút' },
+      base: { title: 'Tiêu đề gốc' },
+    });
+    const [withdrawnRow] = await sql(
+      `SELECT status, decided_at FROM campaign_change_requests WHERE global_id = $1`,
+      [firstRequest.requestId],
+    );
+    check(
+      'rút → WITHDRAWN có decided_at; upsertPending sau đó tạo hàng mới',
+      withdrawn === true &&
+        withdrawnRow?.status === 'WITHDRAWN' &&
+        withdrawnRow.decided_at !== null &&
+        third.requestId !== firstRequest.requestId &&
+        (await changeRequests.findPending(Live))?.requestId === third.requestId,
+      JSON.stringify(withdrawnRow),
+    );
+    const decided = await changeRequests.decide({
+      requestId: third.requestId,
+      actorId: Admin,
+      status: 'REJECTED',
+      reason: 'Chưa đủ thông tin',
+    });
+    const decidedAgain = await changeRequests.decide({
+      requestId: third.requestId,
+      actorId: Admin,
+      status: 'APPROVED',
+      reason: null,
+    });
+    check(
+      'decide có điều kiện PENDING: lần đầu REJECTED, lần hai null; listByStatus thấy đúng',
+      decided?.status === 'REJECTED' &&
+        decidedAgain === null &&
+        (
+          await changeRequests.listByStatus({
+            status: 'REJECTED',
+            limit: 10,
+            offset: 0,
+          })
+        ).some((row) => row.requestId === third.requestId),
+      JSON.stringify(decided),
+    );
+
+    // ── 12. Bản sửa đang chờ không lộ ra công khai, chiến dịch vẫn chạy (Review Focus 5) ──
+    console.log('\n12. Bản sửa PENDING: công khai vẫn theo bản đã duyệt');
+    const approvedTitle = (await campaigns.findByGlobalId(Live))!.title;
+    const beneficiariesBefore = (await campaigns.listBeneficiaryPlans(Live))
+      .length;
+    const saveRevision = new SaveCharityChangeRequestUseCase(
+      new CharityProjectAccess(campaigns, fakeAdmin, {
+        getCapability: async () => ({ allowed: false }),
+      } as never),
+      projects,
+      changeRequests,
+      {} as never,
+    );
+    await saveRevision.handle({
+      userId: Owner,
+      campaignId: Live,
+      revision: { title: 'TIÊU ĐỀ ĐỀ XUẤT CHƯA DUYỆT' },
+    });
+    // Media và đơn vị nhận mới ghi thẳng vào bản đang chờ (không cần kho lưu trữ ở phép đo này).
+    await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: {
+        title: 'TIÊU ĐỀ ĐỀ XUẤT CHƯA DUYỆT',
+        media: {
+          keys: ['users/x/campaign-media/de-xuat.webp'],
+          coverKey: 'users/x/campaign-media/de-xuat.webp',
+        },
+        beneficiaries: [
+          {
+            name: 'Đơn vị đề xuất mới',
+            beneficiaryKind: 'GROUP',
+            estimatedPortions: 5,
+            estimatedAmount: 0,
+          },
+        ],
+      },
+      base: {},
+    });
+    const pendingNow = await changeRequests.findPending(Live);
+    const liveAfter = (await campaigns.findByGlobalId(Live))!;
+    const publicView = await new GetCharityPublicProjectUseCase(
+      campaigns,
+      projects,
+      new CharityEngagementRepository(dataSource.manager),
+      new CharityEventRepository(dataSource.manager),
+      new CharitySummaryRepository(dataSource.manager),
+    ).handle({ idOrSlug: Live, userId: null });
+    const publicJson = JSON.stringify(publicView);
+    check(
+      'có bản PENDING; dự án công khai vẫn tiêu đề/media/số đơn vị nhận đã duyệt, JSON không có nội dung đề xuất',
+      pendingNow?.proposed.title === 'TIÊU ĐỀ ĐỀ XUẤT CHƯA DUYỆT' &&
+        liveAfter.title === approvedTitle &&
+        publicView.campaign.title === approvedTitle &&
+        publicView.beneficiaries.length === beneficiariesBefore &&
+        !publicJson.includes('ĐỀ XUẤT CHƯA DUYỆT') &&
+        !publicJson.includes('de-xuat.webp') &&
+        !publicJson.includes('Đơn vị đề xuất mới'),
+      `${publicView.campaign.title} / ${publicView.beneficiaries.length}`,
+    );
+    check(
+      'isPubliclyVisibleProject vẫn true khi có bản PENDING',
+      isPubliclyVisibleProject(liveAfter, new Date()),
+    );
+    await sql(
+      `UPDATE campaigns SET accepted_contribution_types = '{MATERIAL}', intake_ends_at = NULL
+        WHERE global_id = $1`,
+      [Live],
+    );
+    const [revisionNeed] = await sql(
+      `INSERT INTO campaign_need_items (campaign_id, item_name, unit, target_quantity)
+       VALUES ($1, 'Gạo cho phép đo bản sửa', 'kg', 1000) RETURNING global_id`,
+      [Live],
+    );
+    const contributed = await new SubmitCharityContributionUseCase(campaigns, {
+      contributionSubmitted: async () => undefined,
+    } as never).handle({
+      campaignId: Live,
+      contributorId: Giver,
+      items: [{ needItemId: revisionNeed.global_id, offeredQuantity: 1 }],
+    });
+    check(
+      'POST :id/contributions vẫn thành công khi có bản PENDING',
+      Boolean(contributed),
+    );
+
+    // ── 13. Admin duyệt bản sửa: áp trong một transaction (CR 22/11/2026, Review Focus 2) ──
+    console.log(
+      '\n13. Admin duyệt bản sửa — lịch sử, riêng tư địa chỉ, thông báo, sàn',
+    );
+    await changeRequests.withdraw({ campaignId: Live, actorId: Owner });
+    const audits: string[] = [];
+    const notified: boolean[] = [];
+    const decideRevision = new DecideCharityChangeRequestUseCase(
+      campaigns,
+      projects,
+      changeRequests,
+      {
+        hasPermission: async () => true,
+        getConfigValue: async () => null,
+        appendAudit: async (entry: { action: string }) => {
+          audits.push(entry.action);
+        },
+      } as never,
+      {} as never,
+      {
+        changeRequestDecided: async (params: { approved: boolean }) => {
+          notified.push(params.approved);
+        },
+      } as never,
+    );
+    const beneficiaryUnits = async () =>
+      (await projects.listParties(Live))
+        .filter(
+          (party) => party.role === 'BENEFICIARY' && !party.isAppealSubject,
+        )
+        .map((party) => ({
+          partyId: party.partyId,
+          name: party.name,
+          beneficiaryKind: party.beneficiaryKind ?? 'GROUP',
+          estimatedPortions: party.estimatedPortions,
+          estimatedAmount: party.estimatedAmount,
+          address: party.address,
+        }));
+    const announcements = async () =>
+      (
+        await sql(
+          `SELECT count(*)::int AS n FROM campaign_announcements
+            WHERE campaign_id = $1 AND kind = 'PLAN_CHANGED'`,
+          [Live],
+        )
+      )[0].n as number;
+    const unitsBefore = await beneficiaryUnits();
+    const announcementsBefore = await announcements();
+    const firstApproval = await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: {
+        title: 'Tiêu đề đã duyệt qua bản sửa',
+        beneficiaries: [
+          ...unitsBefore.map((unit) => ({
+            ...unit,
+            estimatedPortions: unit.estimatedPortions + 1,
+          })),
+          {
+            name: 'Bà Năm',
+            beneficiaryKind: 'INDIVIDUAL' as const,
+            estimatedPortions: 1,
+            estimatedAmount: 0,
+            address: 'Ngõ Bí Mật 9',
+          },
+        ],
+      },
+      base: {},
+    });
+    await decideRevision.handle({
+      actorUserId: Admin,
+      campaignId: Live,
+      approve: true,
+    });
+    const liveApproved = (await campaigns.findByGlobalId(Live))!;
+    const [approvedRow] = await sql(
+      `SELECT status FROM campaign_change_requests WHERE global_id = $1`,
+      [firstApproval.requestId],
+    );
+    const titleRevision = await sql(
+      `SELECT is_public FROM campaign_revisions
+        WHERE campaign_id = $1 AND entity = 'CAMPAIGN' AND field = 'title'`,
+      [Live],
+    );
+    const portionRevisions = await sql(
+      `SELECT count(*)::int AS n FROM campaign_revisions
+        WHERE campaign_id = $1 AND entity = 'PARTY' AND field = 'estimatedPortions'`,
+      [Live],
+    );
+    check(
+      'duyệt qua use case thật: tiêu đề đổi, revision CAMPAIGN.title công khai, PARTY.estimatedPortions có, bản sửa APPROVED, đúng một PLAN_CHANGED, audit APPROVE, báo chủ',
+      liveApproved.title === 'Tiêu đề đã duyệt qua bản sửa' &&
+        titleRevision.length === 1 &&
+        titleRevision[0].is_public === true &&
+        portionRevisions[0].n >= unitsBefore.length &&
+        approvedRow?.status === 'APPROVED' &&
+        (await announcements()) === announcementsBefore + 1 &&
+        audits.includes('CHARITY_CHANGE_REQUEST_APPROVE') &&
+        notified[0] === true,
+      JSON.stringify({
+        title: liveApproved.title,
+        titleRevision,
+        portions: portionRevisions[0].n,
+        status: approvedRow?.status,
+        audits,
+      }),
+    );
+
+    const unitsNow = await beneficiaryUnits();
+    const grandma = unitsNow.find((unit) => unit.name === 'Bà Năm')!;
+    const group = unitsNow.find((unit) => unit.beneficiaryKind === 'GROUP');
+    await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: {
+        beneficiaries: unitsNow.map((unit) =>
+          unit.partyId === grandma.partyId
+            ? { ...unit, address: 'Ngõ Bí Mật 10' }
+            : unit.partyId === group?.partyId
+              ? { ...unit, address: 'Nhà văn hoá thôn mới' }
+              : unit,
+        ),
+      },
+      base: {},
+    });
+    await decideRevision.handle({
+      actorUserId: Admin,
+      campaignId: Live,
+      approve: true,
+    });
+    const addressRevisions = (await sql(
+      `SELECT entity_id::text AS entity_id, is_public FROM campaign_revisions
+        WHERE campaign_id = $1 AND entity = 'PARTY' AND field = 'address'`,
+      [Live],
+    )) as { entity_id: string; is_public: boolean }[];
+    const grandmaAddress = addressRevisions.find(
+      (row) => row.entity_id === grandma.partyId,
+    );
+    const groupAddress = addressRevisions.find(
+      (row) => row.entity_id === group?.partyId,
+    );
+    check(
+      'PARTY.address: cá nhân (INDIVIDUAL) is_public = false, tập thể (GROUP) is_public = true',
+      grandmaAddress?.is_public === false &&
+        (group ? groupAddress?.is_public === true : true),
+      JSON.stringify(addressRevisions),
+    );
+
+    const titleBeforeViolation = (await campaigns.findByGlobalId(Live))!.title;
+    const violating = await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: {
+        title: 'Không được áp vì vượt sàn',
+        beneficiaries: [
+          ...(await beneficiaryUnits()),
+          {
+            name: 'Xã quá nhiều suất',
+            beneficiaryKind: 'GROUP' as const,
+            estimatedPortions: 50_000,
+            estimatedAmount: 0,
+          },
+        ],
+      },
+      base: {},
+    });
+    let violationCode = 0;
+    try {
+      await decideRevision.handle({
+        actorUserId: Admin,
+        campaignId: Live,
+        approve: true,
+      });
+    } catch (error) {
+      violationCode = Number((error as { code?: number }).code);
+    }
+    const [violatingRow] = await sql(
+      `SELECT status FROM campaign_change_requests WHERE global_id = $1`,
+      [violating.requestId],
+    );
+    check(
+      'duyệt vi phạm sàn → 400 0x13_5d, bản sửa vẫn PENDING, tiêu đề không đổi',
+      violationCode === 0x13_5d &&
+        violatingRow?.status === 'PENDING' &&
+        (await campaigns.findByGlobalId(Live))!.title === titleBeforeViolation,
+      `${violationCode} ${violatingRow?.status}`,
     );
   } finally {
     for (const source of opened.reverse())

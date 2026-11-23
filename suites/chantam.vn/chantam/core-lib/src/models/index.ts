@@ -6,6 +6,7 @@ export * from './category';
 export * from './charity-beneficiary-account';
 export * from './charity-beneficiary-plan';
 export * from './charity-campaign';
+export * from './charity-change-request';
 export * from './charity-distribution';
 export * from './charity-engagement';
 export * from './charity-event';

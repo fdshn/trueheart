@@ -202,11 +202,15 @@ async function main(): Promise<void> {
       (await revisionCount(Draft)) === 0,
     );
 
+    // Giữ nguyên loại tiếp nhận đang lưu: từ CR 22/11/2026 đổi nó cũng là một revision
+    // (trường cần duyệt) — phép kiểm này chỉ đo appealPurpose.
+    const liveTypes = (await projects.getProfile(Live))!
+      .acceptedContributionTypes;
     await projects.updateProfile({
       campaignId: Live,
       actorId: Owner,
       profile: {
-        acceptedContributionTypes: ['MATERIAL', 'MONEY', 'SERVICE'],
+        acceptedContributionTypes: [...liveTypes],
         appealPurpose: 'Giúp 300 em',
         appealAudience: null,
         appealCircumstance: null,

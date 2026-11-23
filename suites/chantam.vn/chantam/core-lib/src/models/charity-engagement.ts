@@ -74,9 +74,18 @@ export const CharityRevisionPolicies: Readonly<
       'appealAudience',
       'appealCircumstance',
       'callToActions',
+      // Trường cần duyệt (CR 22/11/2026 §3.17): ghi khi Admin duyệt bản sửa.
+      'title',
+      'description',
+      'media',
+      'pointBonusPercent',
+      'acceptedContributionTypes',
     ],
     isPrivate: never,
-    isImportant: never,
+    isImportant: (field) =>
+      ['pointBonusPercent', 'media', 'acceptedContributionTypes'].includes(
+        field,
+      ),
   },
   PARTY: {
     fields: [

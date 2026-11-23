@@ -271,3 +271,47 @@ describe('isEndedProject và thông báo đợt trao đã bỏ', () => {
     );
   });
 });
+
+describe('CharityRevisionPolicies.CAMPAIGN — trường cần duyệt (CR 22/11/2026)', () => {
+  it('đổi tiêu đề → lịch sử công khai, không quan trọng; đổi hệ số/media/loại tiếp nhận → quan trọng', () => {
+    const drafts = diffCharityRevisions(
+      'CAMPAIGN',
+      [
+        {
+          id: null,
+          values: {
+            title: 'Cũ',
+            pointBonusPercent: 0,
+            media: ['a'],
+            acceptedContributionTypes: ['MATERIAL'],
+          },
+        },
+      ],
+      [
+        {
+          id: null,
+          values: {
+            title: 'Mới',
+            pointBonusPercent: 50,
+            media: ['b'],
+            acceptedContributionTypes: ['MATERIAL', 'MONEY'],
+          },
+        },
+      ],
+    );
+    const byField = new Map(drafts.map((draft) => [draft.field, draft]));
+    expect(byField.get('title')).toMatchObject({
+      isPublic: true,
+      isImportant: false,
+    });
+    for (const field of [
+      'pointBonusPercent',
+      'media',
+      'acceptedContributionTypes',
+    ])
+      expect(byField.get(field)).toMatchObject({
+        isPublic: true,
+        isImportant: true,
+      });
+  });
+});

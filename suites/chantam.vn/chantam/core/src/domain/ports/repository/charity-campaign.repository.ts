@@ -526,6 +526,8 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     actorUserId: string;
     media: readonly ICharityCampaignMediaParams[];
     bannerUrl: string;
+    /** Hồ sơ ĐÃ DUYỆT cũng thay được (người được sửa thẳng, hoặc áp bản sửa đã duyệt). */
+    allowApproved?: boolean;
   }): Promise<ICharityCampaign>;
 
   slugTaken(slug: string): Promise<boolean>;

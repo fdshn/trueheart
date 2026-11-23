@@ -2214,6 +2214,44 @@ theo `distributionAt` (chưa hẹn để cuối). **Không bao giờ** có SĐT 
 (`INDIVIDUAL`) luôn `address: null, location: null`. Nhu cầu tiền bỏ `receivingUnit` (DTO nhập vẫn
 nhận nhưng bỏ qua).
 
+**Bản sửa chờ duyệt — chủ dự án (CR 22/11/2026 §3.17, migration `1804400000000`).** Sau khi
+chiến dịch được duyệt, sáu trường cần duyệt chỉ đổi qua một bản sửa Admin duyệt: `title`,
+`description`, `media`, `beneficiaries` (thêm/bỏ đơn vị, số suất, tiền ước tính),
+`acceptedContributionTypes`, `pointBonusPercent`. Chiến dịch **vẫn chạy theo bản đã duyệt** (công
+khai, nhận đóng góp) cho tới khi Admin duyệt; đường công khai không bao giờ đọc bản sửa.
+
+| Method | Đường dẫn | Ai | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/charity-campaigns/:id/revision` | Người tạo, coordinator, Admin `campaign.read` | `{ request: { requestId, status, proposed, base, submittedAt, … } \| null }` |
+| `PUT` | `/charity-campaigns/:id/revision` | Người tạo, Admin | `{ revision: { title?, description?, media?: { keys, coverKey }, beneficiaries?, acceptedContributionTypes?, pointBonusPercent? } }` → 200. Chưa duyệt → `409 CHARITY_PROJECT_NOT_APPROVED`; không khác bản đang chạy → `400`; media xác nhận với kho lưu trữ ngay (`400 CHARITY_MEDIA_INVALID`) nhưng chỉ gắn khi Admin duyệt. Gửi lại khi đang chờ = thay nội dung, `base` giữ từ lần đầu. |
+| `DELETE` | `/charity-campaigns/:id/revision` | Người tạo | Rút bản đang chờ → `{ withdrawn: true }`; không có → `404`. |
+
+Sửa thẳng sau duyệt bằng route cũ: `PUT :id/media`, đổi `acceptedContributionTypes` qua
+`PUT :id/profile`, đổi số suất/thêm bớt đơn vị qua `PUT :id/parties` → `409
+CHARITY_CHANGE_REQUIRES_REVIEW` (`details` nêu trường), **trừ** Admin `campaign.manage` và người có
+quyền đăng không cần duyệt (áp ngay). `pointBonusPercent` luôn phải qua bản sửa với chủ dự án.
+
+**Bản sửa chờ duyệt — Admin.**
+
+| Method | Đường dẫn | Quyền | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/admin/charity-campaigns/revisions?status=&limit=&offset=` | `campaign.read` | Hàng đợi bản sửa (cũ trước); `status` bỏ trống = mọi trạng thái |
+| `GET` | `/admin/charity-campaigns/:id/revision` | `campaign.read` | `{ request: { base, proposed, … }, current }` — `current` là giá trị đang chạy đọc lúc gọi; không có bản chờ → `404` |
+| `PATCH` | `/admin/charity-campaigns/:id/revision` | `campaign.manage` | `{ decision: { approve, reason? } }` |
+
+- **Duyệt:** kiểm sàn với bộ đơn vị đề xuất (`400 CHARITY_NEED_BELOW_ESTIMATED_PORTIONS` /
+  `CHARITY_FUNDING_BELOW_ESTIMATED_AMOUNT`) và khung trao của đơn vị mới
+  (`400 CHARITY_BENEFICIARY_DISTRIBUTION_TIME_OUT_OF_RANGE`) — vi phạm thì bản sửa **vẫn chờ**. Rồi áp
+  trong MỘT transaction: tiêu đề/mô tả/hệ số (cả `pointBonusPercent` lẫn `requestedPointBonusPercent`)/
+  loại tiếp nhận, thay media, thay bộ đơn vị nhận theo `partyId`, ghi lịch sử sửa (`CAMPAIGN.title`…
+  công khai; `PARTY.address` của cá nhân riêng tư, của tập thể công khai) kèm **một** thông báo
+  `PLAN_CHANGED` cho người theo dõi nếu có thay đổi quan trọng, và chốt `APPROVED`.
+- **Từ chối:** bắt buộc `reason` (`400`), không áp gì.
+- Cả hai ghi audit `CHARITY_CHANGE_REQUEST_APPROVE` / `_REJECT` (`before` = `base`, `after` = `proposed`)
+  và báo chủ dự án (`CHARITY_PLAN_CHANGED`, `pushData.changeRequest = APPROVED|REJECTED`).
+- Khi đang có bản chờ, `PATCH /admin/charity-campaigns/:id` đổi `title`/`description`/
+  `acceptedContributionTypes`/`pointBonusPercent` → `409 CHARITY_REVISION_PENDING_EXISTS`.
+
 **Người tổ chức và thành viên công khai (CR 22/11/2026 §6).**
 
 - `GET /campaigns/:idOrSlug` và `GET /charity-campaigns/:idOrSlug/public` có thêm

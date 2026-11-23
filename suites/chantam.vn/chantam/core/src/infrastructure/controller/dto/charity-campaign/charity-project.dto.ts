@@ -1,6 +1,7 @@
 import {
   CharityBeneficiaryKinds,
   CharityCallToActions,
+  CharityChangeRequestStatuses,
   CharityContributionTypes,
   CharityCustomFieldTypes,
   CharityDeliveryMethods,
@@ -10,6 +11,7 @@ import {
   CharityOperationStages,
   CharityPartyRoles,
   CharityPhaseKeys,
+  CharityPointBonusPercents,
   CharityRehearsalChecklistKeys,
   CharityRehearsalItemStatuses,
   CharityRehearsalOutcomes,
@@ -19,6 +21,8 @@ import {
   CharityTeamRoles,
   CharityVolunteerNeedStatuses,
   CharityVolunteerRegistrationStatuses,
+  MaxCharityDescriptionLength,
+  MaxCharityTitleLength,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -1336,4 +1340,229 @@ export class CharityScheduleBodyDto {
   @ValidateNested()
   @Type(() => CharityScheduleDto)
   schedule: CharityScheduleDto;
+}
+
+// ── Bản sửa chờ duyệt (CR 22/11/2026, đợt 5) ────────────────────────────────
+
+export class CharityChangeRequestMediaInputDto {
+  @ApiProperty({
+    type: [String],
+    description:
+      'Key R2 đã upload (như `POST /charity-campaigns`), thứ tự hiển thị.',
+  })
+  @IsArray()
+  @ArrayMaxSize(5)
+  @IsString({ each: true })
+  keys: string[];
+
+  @ApiProperty({ description: 'Một key trong `keys`, phải là ảnh.' })
+  @IsString()
+  coverKey: string;
+}
+
+export class CharityChangeRequestBeneficiaryInputDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Có = sửa đơn vị đang có; bỏ trống = thêm mới.',
+  })
+  @IsOptional()
+  @IsUUID()
+  partyId?: string;
+
+  @ApiProperty({ maxLength: 200 })
+  @IsString()
+  @Length(1, 200)
+  name: string;
+
+  @ApiProperty({ enum: CharityBeneficiaryKinds })
+  @IsIn(CharityBeneficiaryKinds)
+  beneficiaryKind: (typeof CharityBeneficiaryKinds)[number];
+
+  @ApiProperty({ minimum: 0 })
+  @IsInt()
+  @Min(0)
+  estimatedPortions: number;
+
+  @ApiProperty({ minimum: 0 })
+  @IsInt()
+  @Min(0)
+  estimatedAmount: number;
+
+  @ApiPropertyOptional({ maxLength: 500, nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string | null;
+
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  @IsOptional()
+  @IsString()
+  distributionAt?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsLatitude()
+  lat?: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsLongitude()
+  lng?: number | null;
+}
+
+/** Sáu trường cần duyệt — gửi khoá nào thì đề xuất đổi khoá đó. */
+export class CharityChangeRequestInputDto {
+  @ApiPropertyOptional({ maxLength: MaxCharityTitleLength })
+  @IsOptional()
+  @IsString()
+  @Length(3, MaxCharityTitleLength)
+  title?: string;
+
+  @ApiPropertyOptional({ maxLength: MaxCharityDescriptionLength })
+  @IsOptional()
+  @IsString()
+  @Length(10, MaxCharityDescriptionLength)
+  description?: string;
+
+  @ApiPropertyOptional({ type: () => CharityChangeRequestMediaInputDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CharityChangeRequestMediaInputDto)
+  media?: CharityChangeRequestMediaInputDto;
+
+  @ApiPropertyOptional({
+    type: () => [CharityChangeRequestBeneficiaryInputDto],
+    description: 'Thay CẢ bộ đơn vị nhận.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => CharityChangeRequestBeneficiaryInputDto)
+  beneficiaries?: CharityChangeRequestBeneficiaryInputDto[];
+
+  @ApiPropertyOptional({ enum: CharityContributionTypes, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsIn(CharityContributionTypes, { each: true })
+  acceptedContributionTypes?: (typeof CharityContributionTypes)[number][];
+
+  @ApiPropertyOptional({ enum: CharityPointBonusPercents })
+  @IsOptional()
+  @IsIn(CharityPointBonusPercents)
+  pointBonusPercent?: (typeof CharityPointBonusPercents)[number];
+}
+
+export class CharityChangeRequestBodyDto {
+  @ApiProperty({ type: () => CharityChangeRequestInputDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => CharityChangeRequestInputDto)
+  revision: CharityChangeRequestInputDto;
+}
+
+export class CharityChangeRequestDto {
+  @ApiProperty({ format: 'uuid' }) requestId: string;
+  @ApiProperty({ format: 'uuid' }) campaignId: string;
+  @ApiProperty({ enum: CharityChangeRequestStatuses }) status: string;
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    description: 'Các khoá đề xuất (cùng hình dạng với body `revision`).',
+  })
+  proposed: Record<string, unknown>;
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    description:
+      'Ảnh chụp bản đã duyệt lúc gửi LẦN ĐẦU (media ghi bằng URL công khai).',
+  })
+  base: Record<string, unknown>;
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
+  submittedBy: string | null;
+  @ApiProperty() submittedAt: Date;
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
+  decidedBy: string | null;
+  @ApiProperty({ type: Date, nullable: true }) decidedAt: Date | null;
+  @ApiProperty({ type: String, nullable: true })
+  decisionReason: string | null;
+}
+
+export class CharityChangeRequestResponseDto {
+  @ApiProperty({ type: () => CharityChangeRequestDto, nullable: true })
+  request: CharityChangeRequestDto | null;
+}
+
+export class CharityChangeRequestWithdrawnResponseDto {
+  @ApiProperty({ enum: [true] }) withdrawn: true;
+}
+
+export class CharityChangeRequestsQueryDto {
+  @ApiPropertyOptional({
+    enum: CharityChangeRequestStatuses,
+    description: 'Bỏ trống = mọi trạng thái.',
+  })
+  @IsOptional()
+  @IsIn(CharityChangeRequestStatuses)
+  status?: (typeof CharityChangeRequestStatuses)[number];
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional({ minimum: 0, default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number;
+}
+
+export class CharityChangeRequestListResponseDto {
+  @ApiProperty({ type: () => [CharityChangeRequestDto] })
+  requests: CharityChangeRequestDto[];
+}
+
+export class AdminCharityChangeRequestResponseDto {
+  @ApiProperty({ type: () => CharityChangeRequestDto })
+  request: CharityChangeRequestDto;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    description: 'Giá trị ĐANG CHẠY của sáu trường cần duyệt, đọc lúc gọi.',
+  })
+  current: Record<string, unknown>;
+}
+
+export class DecideCharityChangeRequestDto {
+  @ApiProperty({ description: '`true` duyệt và áp; `false` từ chối.' })
+  @IsBoolean()
+  approve: boolean;
+
+  @ApiPropertyOptional({
+    maxLength: 1000,
+    description: 'Bắt buộc khi từ chối — chủ dự án nhận lý do này.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string;
+}
+
+export class DecideCharityChangeRequestBodyDto {
+  @ApiProperty({ type: () => DecideCharityChangeRequestDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => DecideCharityChangeRequestDto)
+  decision: DecideCharityChangeRequestDto;
+}
+
+export class DecidedCharityChangeRequestResponseDto {
+  @ApiProperty({ type: () => CharityChangeRequestDto })
+  request: CharityChangeRequestDto;
 }

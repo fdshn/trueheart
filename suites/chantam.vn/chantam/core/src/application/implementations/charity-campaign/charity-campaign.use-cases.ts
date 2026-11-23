@@ -99,6 +99,7 @@ import {
   CharityCampaignNotFoundException,
   CharityCampaignSummaryNotPublishedException,
   CharityCancelTooLateException,
+  CharityChangeRequiresReviewException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
   CharityCoordinatorNotAllowedException,
@@ -117,6 +118,7 @@ import {
   CharityReviewDuplicateException,
   CharityReviewNotPermittedException,
   CharityReviewTooEarlyException,
+  CharityRevisionPendingExistsException,
   CharityScheduleInvalidException,
   CharitySelfContributionException,
   CharitySubmitRequirementsUnmetException,
@@ -127,6 +129,7 @@ import {
   ICharityCampaign,
   ICharityCampaignMediaParams,
   ICharityCampaignRepository,
+  ICharityChangeRequestRepository,
   ICharityContribution,
   ICharityDelivery,
   ICharityExternalContribution,
@@ -187,6 +190,7 @@ import {
   IStorageUploadResult,
 } from '@chantam/service.storage-lib';
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { directChangeAllowed } from '../charity-project/charity-change-review';
 import { CharityPointsService } from '../charity-project/charity-points.service';
 import { assertPortionFloors } from '../charity-project/charity-portion-guard';
 import { toPublicUserProfile } from '../shared/public-author';
@@ -323,7 +327,7 @@ async function prepareWrite(
  * kiểm TRƯỚC khi hỏi R2; loại (ảnh hay video) chỉ biết SAU HeadObject — lấy từ content
  * type thật của object chứ không tin lời khai lúc xin URL.
  */
-async function confirmCharityMedia(
+export async function confirmCharityMedia(
   storage: IObjectStorage,
   userId: string,
   keys: readonly string[],
@@ -891,6 +895,14 @@ export class ReplaceCharityMediaUseCase implements IReplaceCharityMediaUseCase {
     @Inject(ICharityCampaignRepository)
     private readonly repository: ICharityCampaignRepository,
     @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+    // Tuỳ chọn để spec cũ dựng tay không phải đổi; Nest luôn tiêm. Thiếu = không có quyền
+    // sửa thẳng sau duyệt.
+    @Optional()
+    @Inject(IAdminConfigRepository)
+    private readonly admin?: IAdminConfigRepository,
+    @Optional()
+    @Inject(IEntitlementRepository)
+    private readonly entitlements?: IEntitlementRepository,
   ) {}
 
   public async handle(
@@ -900,7 +912,18 @@ export class ReplaceCharityMediaUseCase implements IReplaceCharityMediaUseCase {
     if (!campaign) throw new CharityCampaignNotFoundException();
     if (campaign.createdBy !== command.actorUserId)
       throw new CharityNotOrganizerException();
-    if (campaign.approvalStatus !== 'PENDING_APPROVAL')
+    // Sau duyệt (CR 22/11/2026 §3.17b): media là trường cần duyệt — đi bản sửa, trừ người có
+    // quyền đăng không cần duyệt (áp ngay). Bị từ chối thì vẫn không sửa được như cũ.
+    const allowApproved =
+      campaign.approvalStatus === 'APPROVED' &&
+      this.admin !== undefined &&
+      (await directChangeAllowed(
+        { admin: this.admin, entitlements: this.entitlements },
+        { campaign, actorUserId: command.actorUserId, asAdmin: false },
+      ));
+    if (campaign.approvalStatus === 'APPROVED' && !allowApproved)
+      throw new CharityChangeRequiresReviewException('media');
+    if (campaign.approvalStatus !== 'PENDING_APPROVAL' && !allowApproved)
       throw new CharityMediaNotEditableException();
 
     const { media, bannerUrl } = await confirmCharityMedia(
@@ -916,6 +939,7 @@ export class ReplaceCharityMediaUseCase implements IReplaceCharityMediaUseCase {
         actorUserId: command.actorUserId,
         media,
         bannerUrl,
+        ...(allowApproved ? { allowApproved: true } : {}),
       }),
       // Cùng giá trị với lượt tạo: người gọi là chính người tạo, và hồ sơ chờ duyệt thì
       // chưa ai đăng ký tham gia được — `null` dành cho đường công khai không biết ai gọi.
@@ -2304,6 +2328,10 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
     private readonly repository: ICharityCampaignRepository,
     @Inject(IAdminConfigRepository)
     private readonly admin: IAdminConfigRepository,
+    // Tuỳ chọn để spec cũ dựng tay không phải đổi; Nest luôn tiêm.
+    @Optional()
+    @Inject(ICharityChangeRequestRepository)
+    private readonly changeRequests?: ICharityChangeRequestRepository,
   ) {}
 
   public async handle(
@@ -2314,6 +2342,16 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
 
     const existing = await this.repository.findByGlobalId(command.campaignId);
     if (!existing) throw new CharityCampaignNotFoundException();
+    // Đang có bản sửa chờ duyệt: Admin sửa thẳng trường cần duyệt sẽ ghi đè lẫn nhau với bản
+    // sửa — duyệt/từ chối bản sửa trước (CR 22/11/2026).
+    if (
+      (command.title !== undefined ||
+        command.description !== undefined ||
+        command.acceptedContributionTypes !== undefined ||
+        command.pointBonusPercent !== undefined) &&
+      (await this.changeRequests?.findPending(existing.globalId))
+    )
+      throw new CharityRevisionPendingExistsException();
 
     const latGiven = command.lat !== undefined;
     const lngGiven = command.lng !== undefined;

@@ -943,6 +943,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     actorUserId: string;
     media: readonly ICharityCampaignMediaParams[];
     bannerUrl: string;
+    allowApproved?: boolean;
   }): Promise<ICharityCampaign> {
     try {
       return await this.manager.transaction(async (manager) => {
@@ -957,7 +958,10 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         if (!locked) throw new CharityCampaignNotFoundException();
         if (locked.created_by !== params.actorUserId)
           throw new CharityNotOrganizerException();
-        if (locked.approval_status !== 'PENDING_APPROVAL')
+        if (
+          locked.approval_status !== 'PENDING_APPROVAL' &&
+          !(params.allowApproved && locked.approval_status === 'APPROVED')
+        )
           throw new CharityMediaNotEditableException();
 
         await manager.query(

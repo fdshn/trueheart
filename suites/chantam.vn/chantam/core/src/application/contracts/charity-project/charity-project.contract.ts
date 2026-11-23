@@ -3,6 +3,7 @@ import {
   ICharityBankAccount,
   ICharityBankAccountInput,
   ICharityChangedField,
+  ICharityChangeRequest,
   ICharityCustomSection,
   ICharityCustomSectionInput,
   ICharityEngagementCounters,
@@ -33,6 +34,7 @@ import {
 import { IPublicUserProfileDto } from '@chantam.vn/chantam.core-lib/dto';
 import {
   CharityCallToAction,
+  CharityChangeRequestStatus,
   CharityContributionType,
   CharityDistributionMethod,
   CharityOpenClosedStatus,
@@ -46,6 +48,7 @@ import {
   ICharityBeneficiaryBankAccountInput,
   ICharityPublicBeneficiary,
   ICharityRehearsalChecklistItem,
+  ICharityReviewedFields,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 
@@ -498,4 +501,87 @@ export interface IAdvanceCharityStagesUseCase extends IUseCase<
 > {}
 export const IAdvanceCharityStagesUseCase = Symbol(
   'IAdvanceCharityStagesUseCase',
+);
+
+// ── Bản sửa chờ duyệt (CR 22/11/2026, đợt 5) ────────────────────────────────
+
+export interface ISaveCharityChangeRequestCommand extends ICharityProjectCommand {
+  /** Chỉ các khoá cần đổi. */
+  readonly revision: ICharityReviewedFields;
+}
+
+export interface ICharityChangeRequestResult {
+  request: ICharityChangeRequest | null;
+}
+
+/** Workspace xem bản sửa đang chờ duyệt. */
+export interface IGetCharityChangeRequestUseCase extends IUseCase<
+  ICharityProjectCommand,
+  ICharityChangeRequestResult
+> {}
+export const IGetCharityChangeRequestUseCase = Symbol(
+  'IGetCharityChangeRequestUseCase',
+);
+
+/** Gửi (hoặc thay) bản sửa chờ duyệt — chiến dịch vẫn chạy theo bản đã duyệt. */
+export interface ISaveCharityChangeRequestUseCase extends IUseCase<
+  ISaveCharityChangeRequestCommand,
+  ICharityChangeRequestResult
+> {}
+export const ISaveCharityChangeRequestUseCase = Symbol(
+  'ISaveCharityChangeRequestUseCase',
+);
+
+/** Chủ dự án rút bản sửa đang chờ. */
+export interface IWithdrawCharityChangeRequestUseCase extends IUseCase<
+  ICharityProjectCommand,
+  { withdrawn: true }
+> {}
+export const IWithdrawCharityChangeRequestUseCase = Symbol(
+  'IWithdrawCharityChangeRequestUseCase',
+);
+
+export interface IListCharityChangeRequestsCommand {
+  readonly actorUserId: string;
+  readonly status: CharityChangeRequestStatus | null;
+  readonly limit: number;
+  readonly offset: number;
+}
+
+/** Hàng đợi bản sửa cho Admin. */
+export interface IListCharityChangeRequestsUseCase extends IUseCase<
+  IListCharityChangeRequestsCommand,
+  { requests: ICharityChangeRequest[] }
+> {}
+export const IListCharityChangeRequestsUseCase = Symbol(
+  'IListCharityChangeRequestsUseCase',
+);
+
+export interface IAdminCharityChangeRequestCommand {
+  readonly actorUserId: string;
+  readonly campaignId: string;
+}
+
+/** Admin xem bản sửa đang chờ cạnh giá trị đang chạy. */
+export interface IGetAdminCharityChangeRequestUseCase extends IUseCase<
+  IAdminCharityChangeRequestCommand,
+  { request: ICharityChangeRequest; current: ICharityReviewedFields }
+> {}
+export const IGetAdminCharityChangeRequestUseCase = Symbol(
+  'IGetAdminCharityChangeRequestUseCase',
+);
+
+export interface IDecideCharityChangeRequestCommand extends IAdminCharityChangeRequestCommand {
+  readonly approve: boolean;
+  /** Bắt buộc khi từ chối. */
+  readonly reason?: string;
+}
+
+/** Admin duyệt (áp trong một transaction) hoặc từ chối bản sửa. */
+export interface IDecideCharityChangeRequestUseCase extends IUseCase<
+  IDecideCharityChangeRequestCommand,
+  { request: ICharityChangeRequest }
+> {}
+export const IDecideCharityChangeRequestUseCase = Symbol(
+  'IDecideCharityChangeRequestUseCase',
 );

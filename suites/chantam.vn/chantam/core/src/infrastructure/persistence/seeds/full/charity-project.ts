@@ -29,6 +29,44 @@ export async function seedCharityProject(ctx: ISeedContext): Promise<void> {
   await seedOperations(ctx, campaignId);
   await seedBeneficiaryPlan(ctx, campaignId);
   await seedDispute(ctx);
+  await seedChangeRequest(ctx, campaignId);
+}
+
+/**
+ * CR 22/11/2026 đợt 5: một bản sửa ĐANG CHỜ duyệt (đổi tiêu đề) để Admin CMS có dữ liệu thử.
+ * Rào schema — chạy được trên database chưa có migration 1804400000000. Idempotent.
+ */
+async function seedChangeRequest(
+  ctx: ISeedContext,
+  campaignId: string,
+): Promise<void> {
+  const [schema] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.campaign_change_requests') IS NOT NULL AS ready`,
+  );
+  if (!schema?.ready) return;
+  const [seeded] = await ctx.q(
+    `SELECT 1 FROM campaign_change_requests WHERE campaign_id = $1 LIMIT 1`,
+    [campaignId],
+  );
+  if (seeded) return;
+  const [campaign] = await ctx.q<{ title: string; description: string }>(
+    `SELECT title, description FROM campaigns WHERE global_id = $1`,
+    [campaignId],
+  );
+  if (!campaign) return;
+  await ctx.q(
+    `INSERT INTO campaign_change_requests (campaign_id, proposed, base, submitted_by)
+     VALUES ($1, $2::jsonb, $3::jsonb, $4)`,
+    [
+      campaignId,
+      JSON.stringify({ title: `${campaign.title} (bổ sung điểm trao)` }),
+      JSON.stringify({
+        title: campaign.title,
+        description: campaign.description,
+      }),
+      Personas.organizer,
+    ],
+  );
 }
 
 /**

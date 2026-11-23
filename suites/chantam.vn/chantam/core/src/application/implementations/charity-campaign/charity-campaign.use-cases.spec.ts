@@ -7,6 +7,7 @@ import {
   CharityCampaignHasActivityException,
   CharityCampaignNotFoundException,
   CharityCampaignSummaryNotPublishedException,
+  CharityChangeRequiresReviewException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
   CharityContributionTypeDisabledException,
@@ -26,6 +27,7 @@ import {
   CharityParticipantRankTooLowException,
   CharityParticipationInvalidStateException,
   CharityReviewNotPermittedException,
+  CharityRevisionPendingExistsException,
   CharityScheduleInvalidException,
   CharitySelfContributionException,
   CharitySubmitRequirementsUnmetException,
@@ -2580,23 +2582,22 @@ describe('ReplaceCharityMediaUseCase', () => {
     expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
   });
 
-  it.each(['APPROVED', 'REJECTED'] as const)(
-    'hồ sơ %s thì NotEditable',
-    async (status) => {
-      const repository = makeRepository();
-      repository.findByGlobalId.mockResolvedValue({
-        ...pending(),
-        approvalStatus: status,
-      });
+  it.each([
+    // Đã duyệt: media là trường cần duyệt — đi bản sửa (CR 22/11/2026 §3.17b).
+    ['APPROVED', CharityChangeRequiresReviewException],
+    ['REJECTED', CharityMediaNotEditableException],
+  ] as const)('hồ sơ %s thì không sửa thẳng được', async (status, error) => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue({
+      ...pending(),
+      approvalStatus: status,
+    });
 
-      await expect(
-        new ReplaceCharityMediaUseCase(repository, makeStorage()).handle(
-          command,
-        ),
-      ).rejects.toThrow(CharityMediaNotEditableException);
-      expect(repository.replaceMedia).not.toHaveBeenCalled();
-    },
-  );
+    await expect(
+      new ReplaceCharityMediaUseCase(repository, makeStorage()).handle(command),
+    ).rejects.toThrow(error);
+    expect(repository.replaceMedia).not.toHaveBeenCalled();
+  });
 });
 
 describe('GetAdminCharityCampaignUseCase (CMS A4)', () => {
@@ -3892,5 +3893,90 @@ describe('Hệ số tăng điểm chiến dịch (CR 22/11/2026)', () => {
         pointBonusPercent: 30,
       } as never),
     ).rejects.toThrow(ValidationFailedException);
+  });
+});
+
+describe('ReplaceCharityMediaUseCase sau duyệt (CR 22/11/2026)', () => {
+  const approved = () => campaign({ createdBy: ActorId });
+  const command = {
+    campaignId: 'campaign-1',
+    actorUserId: ActorId,
+    media: [MediaKey],
+    coverKey: MediaKey,
+  };
+
+  it('PUT :id/media sau duyệt (owner thường) → 409 0x13_64, không gọi R2', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(approved());
+    const storage = makeStorage();
+    await expect(
+      new ReplaceCharityMediaUseCase(
+        repository,
+        storage,
+        makeAdmin(false),
+        makeEntitlements(true, false),
+      ).handle(command),
+    ).rejects.toThrow(CharityChangeRequiresReviewException);
+    expect(storage.confirmCampaignMediaUpload).not.toHaveBeenCalled();
+    expect(repository.replaceMedia).not.toHaveBeenCalled();
+  });
+
+  it('owner có quyền đăng không cần duyệt đổi media → áp ngay', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(approved());
+    repository.replaceMedia.mockResolvedValue(approved());
+    await new ReplaceCharityMediaUseCase(
+      repository,
+      makeStorage(),
+      makeAdmin(false),
+      makeEntitlements(true, true),
+    ).handle(command);
+    expect(repository.replaceMedia).toHaveBeenCalledWith(
+      expect.objectContaining({ allowApproved: true }),
+    );
+  });
+});
+
+describe('UpdateAdminCharityCampaignUseCase khi có bản sửa PENDING (CR 22/11/2026)', () => {
+  const setup = (pending: boolean) => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(campaign());
+    const updateContent = jest.fn(async (params: Record<string, unknown>) =>
+      campaign(params as never),
+    );
+    (repository as unknown as { updateContent: jest.Mock }).updateContent =
+      updateContent;
+    const changeRequests = {
+      findPending: jest.fn(async () => (pending ? { requestId: 'r1' } : null)),
+    };
+    const useCase = new UpdateAdminCharityCampaignUseCase(
+      repository,
+      { ...makeAdmin(true), appendAudit: jest.fn() } as unknown as ReturnType<
+        typeof makeAdmin
+      >,
+      changeRequests as never,
+    );
+    return { useCase, updateContent };
+  };
+  const base = { actorUserId: ActorId, campaignId: CampaignId, reason: 'Sửa' };
+
+  it('Admin PATCH title khi có PENDING → 409 0x13_63', async () => {
+    const { useCase, updateContent } = setup(true);
+    await expect(
+      useCase.handle({ ...base, title: 'Tiêu đề Admin' } as never),
+    ).rejects.toThrow(CharityRevisionPendingExistsException);
+    expect(updateContent).not.toHaveBeenCalled();
+  });
+
+  it('Admin PATCH trường không cần duyệt khi có PENDING → được', async () => {
+    const { useCase, updateContent } = setup(true);
+    await useCase.handle({ ...base, targetItemsCount: 99 } as never);
+    expect(updateContent).toHaveBeenCalled();
+  });
+
+  it('không có PENDING → PATCH title được', async () => {
+    const { useCase, updateContent } = setup(false);
+    await useCase.handle({ ...base, title: 'Tiêu đề Admin' } as never);
+    expect(updateContent).toHaveBeenCalled();
   });
 });

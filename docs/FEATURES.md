@@ -1169,6 +1169,11 @@ chia sẻ trên mobile.
 > đọc hạng hiện tại từ database). Tổng kết trả số đăng ký / đã check-in so với số tối thiểu.
 > *(CR 22/11/2026: hai điều kiện này chuyển sang giám sát viên — xem bên dưới.)*
 >
+> ✅ **23/11 — bản sửa chờ duyệt (CR 22/11/2026).** Sau khi chiến dịch được duyệt, muốn đổi tiêu
+> đề, mô tả, ảnh/clip, đơn vị nhận, loại tiếp nhận hay hệ số điểm thì chủ dự án gửi một bản sửa;
+> chiến dịch vẫn chạy theo bản đã duyệt cho tới khi Admin duyệt bản sửa. Người có quyền đăng không
+> cần duyệt sửa thẳng được (trừ hệ số điểm).
+>
 > ✅ **23/11 — hệ số điểm và bảng tin điểm (CR 22/11/2026).** Chủ chiến dịch đề xuất hệ số tăng
 > điểm 0/20/50/100%, Admin chốt khi duyệt (chỉ được hạ). Mỗi lần người dùng được cộng điểm từ dự án,
 > sổ điểm ghi thêm một khoản thưởng riêng theo hệ số, tính chung trần với điểm gốc. Trang "bảng tin

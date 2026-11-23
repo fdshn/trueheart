@@ -12,6 +12,7 @@ import {
   CharityNeedBelowEstimatedPortionsException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
+  CharityProjectNotApprovedException,
   CharityProjectNotDraftException,
   CharityRehearsalNotReadyException,
   CharityRoundEvidenceRequiredException,
@@ -31,6 +32,8 @@ import {
   AdvanceCharityStagesUseCase,
   CharityProjectAccess,
   CloseCharityBeneficiaryBankAccountUseCase,
+  DecideCharityChangeRequestUseCase,
+  GetCharityChangeRequestUseCase,
   GetCharityPublicProjectUseCase,
   GetCharityWorkspaceUseCase,
   MoveCharityStageUseCase,
@@ -39,12 +42,14 @@ import {
   ReplaceCharityCustomSectionsUseCase,
   ReplaceCharityPartiesUseCase,
   ReplaceCharityPhasesUseCase,
+  SaveCharityChangeRequestUseCase,
   SaveCharityFundingNeedUseCase,
   SaveCharityRehearsalUseCase,
   SaveCharityScheduleUseCase,
   SubmitCharityProjectUseCase,
   UpdateCharityProfileUseCase,
   VerifyCharityBeneficiaryBankAccountUseCase,
+  WithdrawCharityChangeRequestUseCase,
 } from './charity-project.use-cases';
 
 const Owner = '10000000-0000-4000-8000-000000000001';
@@ -865,7 +870,8 @@ describe('AdvanceCharityStagesUseCase', () => {
 
 describe('UpdateCharityProfileUseCase · loại tiếp nhận', () => {
   it('acceptedContributionTypes undefined giữ nguyên, mảng thì thay chuẩn hoá', async () => {
-    const deps = make();
+    // Người có quyền đăng không cần duyệt: đổi loại tiếp nhận sau duyệt áp ngay (CR 22/11/2026).
+    const deps = make({ capability: { publishNow: true } });
     deps.projects.getProfile.mockResolvedValue({
       appealPurpose: null,
       appealAudience: null,
@@ -2044,5 +2050,311 @@ describe('SaveCharityScheduleUseCase · ba khung (CR 22/11/2026)', () => {
         deps.projects as never,
       ).handle({ userId: Owner, campaignId: CampaignId, schedule }),
     ).rejects.toBeInstanceOf(CharityScheduleInvalidException);
+  });
+});
+
+describe('Bản sửa chờ duyệt — chủ dự án (CR 22/11/2026, Task 5.2)', () => {
+  const requests = () => ({
+    findPending: jest.fn(async (): Promise<unknown> => null),
+    upsertPending: jest.fn(async (params: Record<string, unknown>) => ({
+      requestId: 'r1',
+      status: 'PENDING',
+      ...params,
+    })),
+    withdraw: jest.fn(async () => true),
+  });
+  const storage = () => ({
+    confirmCampaignMediaUpload: jest.fn(async (key: string) => ({
+      key,
+      contentType: key.endsWith('.mp4') ? 'video/mp4' : 'image/webp',
+      publicUrl: `https://cdn.test/${key}`,
+    })),
+  });
+  const save = (
+    deps: ReturnType<typeof make>,
+    changeRequests: ReturnType<typeof requests>,
+    revision: Record<string, unknown>,
+  ) =>
+    new SaveCharityChangeRequestUseCase(
+      deps.access,
+      deps.projects as never,
+      changeRequests as never,
+      storage() as never,
+    ).handle({ userId: Owner, campaignId: CampaignId, revision } as never);
+
+  it('PUT revision trước khi duyệt → 409', async () => {
+    const deps = make({
+      campaign: campaign({
+        approvalStatus: 'PENDING_APPROVAL',
+        approvedAt: null,
+        operationStage: 'PLAN',
+        storedOperationStage: 'PLAN',
+      }),
+    });
+    const changeRequests = requests();
+    await expect(
+      save(deps, changeRequests, { title: 'Tiêu đề mới' }),
+    ).rejects.toThrow(CharityProjectNotApprovedException);
+    expect(changeRequests.upsertPending).not.toHaveBeenCalled();
+  });
+
+  it('không đổi gì so với bản đã duyệt → 400', async () => {
+    const deps = make();
+    const changeRequests = requests();
+    await expect(
+      save(deps, changeRequests, { title: campaign().title }),
+    ).rejects.toThrow(ValidationFailedException);
+  });
+
+  it('PUT revision: chỉ giữ khoá được gửi; base = ảnh chụp bản đã duyệt', async () => {
+    const deps = make();
+    const changeRequests = requests();
+    await save(deps, changeRequests, {
+      title: 'Tiêu đề mới',
+      pointBonusPercent: 50,
+    });
+    const sent = changeRequests.upsertPending.mock.calls[0][0] as {
+      proposed: Record<string, unknown>;
+      base: Record<string, unknown>;
+    };
+    expect(sent.proposed).toEqual({
+      title: 'Tiêu đề mới',
+      pointBonusPercent: 50,
+    });
+    expect(sent.base).toMatchObject({
+      title: campaign().title,
+      pointBonusPercent: 0,
+    });
+  });
+
+  it('PUT revision lần hai thay nội dung (repository giữ base)', async () => {
+    const deps = make();
+    const changeRequests = requests();
+    await save(deps, changeRequests, { title: 'Lần 1' });
+    await save(deps, changeRequests, { title: 'Lần 2' });
+    expect(changeRequests.upsertPending).toHaveBeenCalledTimes(2);
+    expect(
+      (changeRequests.upsertPending.mock.calls[1][0] as { proposed: unknown })
+        .proposed,
+    ).toEqual({ title: 'Lần 2' });
+  });
+
+  it('hệ số 30 → 400', async () => {
+    const deps = make();
+    await expect(
+      save(deps, requests(), { pointBonusPercent: 30 }),
+    ).rejects.toThrow(ValidationFailedException);
+  });
+
+  it('DELETE revision: không có bản chờ → 404; người không phải chủ → 403', async () => {
+    const deps = make();
+    const changeRequests = requests();
+    changeRequests.withdraw.mockResolvedValueOnce(false);
+    const withdraw = new WithdrawCharityChangeRequestUseCase(
+      deps.access,
+      changeRequests as never,
+    );
+    await expect(
+      withdraw.handle({ userId: Owner, campaignId: CampaignId }),
+    ).rejects.toThrow(CharityCampaignNotFoundException);
+    await expect(
+      withdraw.handle({ userId: Stranger, campaignId: CampaignId }),
+    ).rejects.toThrow();
+  });
+
+  it('GET revision: workspace thấy bản đang chờ', async () => {
+    const deps = make();
+    const changeRequests = requests();
+    changeRequests.findPending.mockResolvedValueOnce({ requestId: 'r9' });
+    const result = await new GetCharityChangeRequestUseCase(
+      deps.access,
+      changeRequests as never,
+    ).handle({ userId: Owner, campaignId: CampaignId });
+    expect(result).toEqual({ request: { requestId: 'r9' } });
+  });
+
+  it('PUT profile acceptedContributionTypes sau duyệt → 409 0x13_64; giữ nguyên giá trị thì được', async () => {
+    const deps = make();
+    deps.projects.getProfile.mockResolvedValue({
+      appealPurpose: null,
+      appealAudience: null,
+      appealCircumstance: null,
+      callToActions: [],
+      acceptedContributionTypes: ['MONEY'] as never,
+      maxBankAccounts: null,
+    });
+    const useCase = new UpdateCharityProfileUseCase(
+      deps.access,
+      deps.projects as never,
+    );
+    await expect(
+      useCase.handle({
+        userId: Owner,
+        campaignId: CampaignId,
+        profile: { acceptedContributionTypes: ['MATERIAL'] },
+      }),
+    ).rejects.toThrow(CharityChangeRequiresReviewException);
+    await useCase.handle({
+      userId: Owner,
+      campaignId: CampaignId,
+      profile: { acceptedContributionTypes: ['MONEY'] },
+    });
+    expect(deps.projects.updateProfile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Bản sửa chờ duyệt — Admin duyệt (CR 22/11/2026, Task 5.3)', () => {
+  const pendingRequest = (proposed: Record<string, unknown>) => ({
+    requestId: 'r1',
+    campaignId: CampaignId,
+    status: 'PENDING',
+    proposed,
+    base: { title: campaign().title },
+    submittedBy: Owner,
+    submittedAt: new Date(),
+    decidedBy: null,
+    decidedAt: null,
+    decisionReason: null,
+  });
+  const build = (proposed: Record<string, unknown>) => {
+    const deps = make({ adminWrite: true });
+    const changeRequests = {
+      findPending: jest.fn(async (): Promise<unknown> =>
+        pendingRequest(proposed),
+      ),
+      decide: jest.fn(async (params: { status: string }) => ({
+        ...pendingRequest(proposed),
+        status: params.status,
+      })),
+      applyApproved: jest.fn(async () => ({
+        ...pendingRequest(proposed),
+        status: 'APPROVED',
+      })),
+    };
+    const appendAudit = jest.fn(async () => undefined);
+    const admin = {
+      hasPermission: jest.fn(async () => true),
+      getConfigValue: jest.fn(async () => null),
+      appendAudit,
+    };
+    const notifier = { changeRequestDecided: jest.fn(async () => undefined) };
+    const useCase = new DecideCharityChangeRequestUseCase(
+      deps.campaigns as never,
+      deps.projects as never,
+      changeRequests as never,
+      admin as never,
+      { confirmCampaignMediaUpload: jest.fn() } as never,
+      notifier as never,
+    );
+    return { deps, changeRequests, appendAudit, notifier, useCase };
+  };
+  const unit = (estimatedPortions: number, partyId?: string) => ({
+    ...(partyId ? { partyId } : {}),
+    name: partyId ? `Đơn vị ${partyId}` : 'Đơn vị mới',
+    beneficiaryKind: 'GROUP',
+    estimatedPortions,
+    estimatedAmount: 0,
+  });
+
+  it('duyệt bản sửa làm tổng suất 300→400 khi áo 300 → 400 0x13_5d, bản sửa vẫn PENDING, không appendAudit', async () => {
+    const { deps, changeRequests, appendAudit, useCase } = build({
+      beneficiaries: [unit(300, 'pa'), unit(100)],
+    });
+    deps.projects.listItemNeeds.mockResolvedValue([
+      {
+        needItemId: 'n1',
+        itemName: 'Áo ấm',
+        isActive: true,
+        targetQuantity: 300,
+        quantityPerPortion: 1,
+      },
+    ] as never);
+    await expect(
+      useCase.handle({
+        actorUserId: Stranger,
+        campaignId: CampaignId,
+        approve: true,
+      }),
+    ).rejects.toThrow(CharityNeedBelowEstimatedPortionsException);
+    expect(changeRequests.applyApproved).not.toHaveBeenCalled();
+    expect(changeRequests.decide).not.toHaveBeenCalled();
+    expect(appendAudit).not.toHaveBeenCalled();
+  });
+
+  it('duyệt hợp lệ → applyApproved, appendAudit APPROVE, notifier gọi owner', async () => {
+    const { changeRequests, appendAudit, notifier, useCase } = build({
+      title: 'Tiêu đề mới',
+      pointBonusPercent: 50,
+    });
+    await useCase.handle({
+      actorUserId: Stranger,
+      campaignId: CampaignId,
+      approve: true,
+    });
+    expect(changeRequests.applyApproved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: Stranger,
+        campaign: expect.objectContaining({
+          title: 'Tiêu đề mới',
+          pointBonusPercent: 50,
+        }),
+      }),
+    );
+    expect(appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'CHARITY_CHANGE_REQUEST_APPROVE' }),
+    );
+    expect(notifier.changeRequestDecided).toHaveBeenCalledWith(
+      expect.objectContaining({ ownerId: Owner, approved: true }),
+    );
+  });
+
+  it('từ chối không lý do → 400', async () => {
+    const { changeRequests, useCase } = build({ title: 'X mới' });
+    await expect(
+      useCase.handle({
+        actorUserId: Stranger,
+        campaignId: CampaignId,
+        approve: false,
+        reason: '   ',
+      }),
+    ).rejects.toThrow(ValidationFailedException);
+    expect(changeRequests.decide).not.toHaveBeenCalled();
+  });
+
+  it('từ chối → không áp, audit REJECT, báo owner kèm lý do', async () => {
+    const { changeRequests, appendAudit, notifier, useCase } = build({
+      title: 'X mới',
+    });
+    await useCase.handle({
+      actorUserId: Stranger,
+      campaignId: CampaignId,
+      approve: false,
+      reason: 'Tiêu đề chưa rõ',
+    });
+    expect(changeRequests.applyApproved).not.toHaveBeenCalled();
+    expect(changeRequests.decide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'REJECTED',
+        reason: 'Tiêu đề chưa rõ',
+      }),
+    );
+    expect(appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'CHARITY_CHANGE_REQUEST_REJECT' }),
+    );
+    expect(notifier.changeRequestDecided).toHaveBeenCalledWith(
+      expect.objectContaining({ approved: false, reason: 'Tiêu đề chưa rõ' }),
+    );
+  });
+
+  it('không có bản chờ → 404', async () => {
+    const { changeRequests, useCase } = build({});
+    changeRequests.findPending.mockResolvedValueOnce(null);
+    await expect(
+      useCase.handle({
+        actorUserId: Stranger,
+        campaignId: CampaignId,
+        approve: true,
+      }),
+    ).rejects.toThrow(CharityCampaignNotFoundException);
   });
 });

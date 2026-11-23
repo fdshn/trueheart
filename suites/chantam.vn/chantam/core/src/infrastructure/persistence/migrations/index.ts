@@ -160,3 +160,4 @@ export * from './1804000000000-CharityCampaignLevelDistribution';
 export * from './1804100000000-CharityBeneficiaryPlanAndSchedule';
 export * from './1804200000000-CharitySupervisorRole';
 export * from './1804300000000-CharityPointBonusAndFeed';
+export * from './1804400000000-CharityChangeRequests';
