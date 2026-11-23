@@ -27,7 +27,71 @@ export async function seedCharityProject(ctx: ISeedContext): Promise<void> {
   await seedEvent(ctx, campaignId);
   await seedSummary(ctx, seedId(SeedDomains.campaigns, 4));
   await seedOperations(ctx, campaignId);
+  await seedBeneficiaryPlan(ctx, campaignId);
   await seedDispute(ctx);
+}
+
+/**
+ * CR 22/11/2026 đợt 2: kế hoạch trao của đơn vị nhận, hai điểm tiếp nhận, khung tiếp nhận.
+ * Có rào schema — seed chạy được trên database chưa có migration 1804100000000. Idempotent.
+ */
+async function seedBeneficiaryPlan(
+  ctx: ISeedContext,
+  campaignId: string,
+): Promise<void> {
+  const [schema] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.campaign_intake_locations') IS NOT NULL AS ready`,
+  );
+  if (!schema?.ready) return;
+  await ctx.q(
+    `UPDATE campaign_parties
+        SET estimated_portions = 50,
+            estimated_amount = 5000000,
+            address = COALESCE(address, 'Điểm trường Lũng Cú, Đồng Văn, Hà Giang'),
+            location = COALESCE(location,
+              ST_SetSRID(ST_MakePoint(105.316, 23.364), 4326)::geography),
+            distribution_at = COALESCE(distribution_at,
+              (SELECT phase.starts_at + interval '2 hours' FROM campaign_phases phase
+                WHERE phase.campaign_id = $1 AND phase.phase = 'DISTRIBUTION'))
+      WHERE campaign_id = $1 AND role = 'BENEFICIARY' AND estimated_portions = 0`,
+    [campaignId],
+  );
+  for (const [position, label, address, lng, lat, note] of [
+    [
+      0,
+      'Chùa Bửu Long',
+      '81 Nguyễn Xiển, TP Thủ Đức',
+      106.832,
+      10.877,
+      '8:00–17:00 hằng ngày',
+    ],
+    [
+      1,
+      'Nhà văn hoá phường',
+      '12 Lê Văn Việt, TP Thủ Đức',
+      106.789,
+      10.845,
+      'Thứ 7, Chủ nhật',
+    ],
+  ] as const)
+    await ctx.q(
+      `INSERT INTO campaign_intake_locations
+         (campaign_id, position, label, address, location, schedule_note,
+          contact_name, contact_phone)
+       VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($5, $6), 4326)::geography, $7,
+               'Anh Tư', '0900000004')
+       ON CONFLICT (campaign_id, position) DO NOTHING`,
+      [campaignId, position, label, address, lng, lat, note],
+    );
+  await ctx.q(
+    `UPDATE campaigns
+        SET intake_ends_at = COALESCE(intake_ends_at,
+              (SELECT phase.starts_at FROM campaign_phases phase
+                WHERE phase.campaign_id = $1 AND phase.phase = 'DISTRIBUTION'),
+              end_time)
+      WHERE global_id = $1`,
+    [campaignId],
+  );
 }
 
 /**
@@ -247,9 +311,9 @@ async function seedProfile(
 
   await ctx.q(
     `INSERT INTO campaign_funding_needs
-       (campaign_id, title, receiving_unit, bank_account_id, target_amount, confirmed_amount,
+       (campaign_id, title, bank_account_id, target_amount, confirmed_amount,
         external_amount, deadline, updated_by)
-     VALUES ($1, 'Chi phí vận chuyển', 'CLB Trái tim vàng', $2, 15000000, 6000000, 2000000,
+     VALUES ($1, 'Chi phí vận chuyển', $2, 15000000, 6000000, 2000000,
              now() + interval '9 days', $3)`,
     [campaignId, account.global_id, Personas.organizer],
   );

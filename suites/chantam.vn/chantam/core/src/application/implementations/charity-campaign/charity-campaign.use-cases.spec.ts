@@ -1,6 +1,7 @@
 import {
   CharityAlreadyRegisteredException,
   CharityBeneficiaryConsentRequiredException,
+  CharityBeneficiaryDistributionTimeOutOfRangeException,
   CharityBeneficiaryNotApplicableException,
   CharityCampaignCreateNotAllowedException,
   CharityCampaignHasActivityException,
@@ -13,14 +14,18 @@ import {
   CharityDeliveryNotFoundException,
   CharityDistributionFieldRequiredException,
   CharityDistributionMethodMismatchException,
+  CharityFundingBelowEstimatedAmountException,
+  CharityIntakeClosedException,
   CharityLinesInvalidException,
   CharityMediaInvalidException,
   CharityMediaNotEditableException,
+  CharityNeedBelowEstimatedPortionsException,
   CharityNeedItemInvalidException,
   CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
   CharityParticipantRankTooLowException,
   CharityReviewNotPermittedException,
+  CharityScheduleInvalidException,
   CharitySelfContributionException,
   CharitySubmitRequirementsUnmetException,
 } from '@/domain/exceptions';
@@ -111,6 +116,11 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     storedOperationStage: 'EXECUTION' as const,
     distribution: null,
     summaryPublishedAt: null,
+    intakeStartsAt: new Date(),
+    intakeEndsAt: null,
+    totalEstimatedPortions: 0,
+    totalEstimatedAmount: 0,
+    intakeLocations: [],
     ...overrides,
   };
 }
@@ -159,6 +169,7 @@ function makeRepository(): jest.Mocked<ICharityCampaignRepository> {
     findBeneficiary: jest.fn().mockResolvedValue(null),
     upsertBeneficiary: jest.fn(),
     listReviews: jest.fn(),
+    listBeneficiaryPlans: jest.fn(async () => []),
   } as unknown as jest.Mocked<ICharityCampaignRepository>;
 }
 
@@ -194,6 +205,8 @@ function makeNotifier() {
 function makeAdmin(granted: boolean) {
   return {
     hasPermission: jest.fn().mockResolvedValue(granted),
+    // `null` = chưa cấu hình → giá trị mặc định của từng khoá.
+    getConfigValue: jest.fn().mockResolvedValue(null),
   } as unknown as jest.Mocked<IAdminConfigRepository>;
 }
 
@@ -229,7 +242,9 @@ function writeInput(overrides: Record<string, unknown> = {}) {
     coverKey: MediaKey,
     badgeName: 'Tấm lòng Vu Lan',
     startTime: start.toISOString(),
-    endTime: new Date(start.getTime() + 8 * Hour).toISOString(),
+    // Đủ xa để khung trao cố định trong các phép kiểm (2026-12-20) nằm trước kết thúc —
+    // CR 22/11/2026: khung trao phải ≤ endTime.
+    endTime: new Date(start.getTime() + 200 * 24 * Hour).toISOString(),
     ...overrides,
   };
 }
@@ -645,6 +660,7 @@ describe('CreateCharityCampaignUseCase · hai loại hoạt động (F65b §2)',
       makeStorage(),
     ).handle({
       ...writeInput({
+        locationLabel: 'Chùa Vĩnh Nghiêm',
         needs: [
           { itemName: '  Gạo tẻ  ', unit: ' kg ', targetQuantity: 100 },
           {
@@ -668,6 +684,7 @@ describe('CreateCharityCampaignUseCase · hai loại hoạt động (F65b §2)',
         targetQuantity: 100,
         allowAlternative: false,
         sortOrder: 0,
+        quantityPerPortion: 1,
       },
       {
         categoryId: null,
@@ -677,6 +694,7 @@ describe('CreateCharityCampaignUseCase · hai loại hoạt động (F65b §2)',
         targetQuantity: 10,
         allowAlternative: true,
         sortOrder: 1,
+        quantityPerPortion: 1,
       },
     ]);
   });
@@ -952,6 +970,7 @@ describe('CreateCharityCampaignUseCase · loại tiếp nhận và ba nhóm nhu 
     repository.create.mockResolvedValue(campaign());
     await create(repository, {
       needs: [{ itemName: 'Gạo', unit: 'kg', targetQuantity: 1 }],
+      locationLabel: 'Chùa Vĩnh Nghiêm',
     });
     expect(repository.create).toHaveBeenCalledWith(
       expect.objectContaining({ acceptedContributionTypes: ['MATERIAL'] }),
@@ -3097,5 +3116,386 @@ describe('Điều kiện tham gia chiến dịch (PR #54)', () => {
       );
       expect(repository.register).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('CreateCharityCampaignUseCase · đơn vị nhận và sàn suất (CR 22/11/2026)', () => {
+  const unit = (
+    name: string,
+    estimatedPortions: number,
+    estimatedAmount = 0,
+  ) => ({
+    name,
+    beneficiaryKind: 'GROUP' as const,
+    estimatedPortions,
+    estimatedAmount,
+    address: `${name} — thôn 1`,
+  });
+  const adminWithMax = (max: number) => {
+    const admin = makeAdmin(false);
+    (admin as unknown as { getConfigValue: jest.Mock }).getConfigValue = jest
+      .fn()
+      .mockResolvedValue(max);
+    return admin;
+  };
+  const run = (overrides: Record<string, unknown>, max = 20) => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    const promise = new CreateCharityCampaignUseCase(
+      repository,
+      makeEntitlements(true),
+      adminWithMax(max),
+      makeStorage(),
+    ).handle({
+      ...writeInput({ submit: false, ...overrides }),
+      actorUserId: ActorId,
+      asAdmin: false,
+    } as never);
+    return { repository, promise };
+  };
+
+  it('ORGANIZED_CAMPAIGN gửi beneficiaries[] → tạo, không ném NotApplicable', async () => {
+    const { repository, promise } = run({
+      beneficiaries: [unit('Xã A', 200), unit('Xã B', 100)],
+    });
+    await promise;
+    const params = repository.create.mock.calls[0][0] as unknown as {
+      beneficiaries: { name: string; estimatedPortions: number }[];
+    };
+    expect(params.beneficiaries.map((row) => row.name)).toEqual([
+      'Xã A',
+      'Xã B',
+    ]);
+  });
+
+  it('vượt charity.max_beneficiaries_per_campaign (cấu hình 2, gửi 3) → 400', async () => {
+    const { repository, promise } = run(
+      { beneficiaries: [unit('A', 1), unit('B', 1), unit('C', 1)] },
+      2,
+    );
+    await expect(promise).rejects.toThrow(ValidationFailedException);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('A 200 + B 100, áo quantityPerPortion 1 target 299 → 400 0x13_5d details.items[0].minimumQuantity = 300', async () => {
+    const { repository, promise } = run({
+      beneficiaries: [unit('A', 200), unit('B', 100)],
+      needs: [
+        {
+          itemName: 'Áo ấm',
+          unit: 'cái',
+          targetQuantity: 299,
+          quantityPerPortion: 1,
+        },
+      ],
+    });
+    const error = await promise.catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(CharityNeedBelowEstimatedPortionsException);
+    expect(
+      (error as { details: { items: { minimumQuantity: number }[] } }).details
+        .items[0].minimumQuantity,
+    ).toBe(300);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('300 → tạo', async () => {
+    const { repository, promise } = run({
+      beneficiaries: [unit('A', 200), unit('B', 100)],
+      needs: [
+        {
+          itemName: 'Áo ấm',
+          unit: 'cái',
+          targetQuantity: 300,
+          quantityPerPortion: 1,
+        },
+      ],
+    });
+    await promise;
+    expect(repository.create).toHaveBeenCalled();
+  });
+
+  it('tổng tiền mục tiêu < tổng ước tính → 400 0x13_5e', async () => {
+    const { promise } = run({
+      acceptedContributionTypes: ['MONEY'],
+      beneficiaries: [unit('A', 0, 3_000_000)],
+      fundingNeeds: [{ title: 'Tiền gạo', targetAmount: 2_000_000 }],
+    });
+    await expect(promise).rejects.toBeInstanceOf(
+      CharityFundingBelowEstimatedAmountException,
+    );
+  });
+});
+
+describe('CreateCharityCampaignUseCase · điểm tiếp nhận và ba khung (CR 22/11/2026)', () => {
+  const at = (day: number) => new Date(Date.UTC(2027, 0, day)).toISOString();
+  const adminWithMax = (max: number) => {
+    const admin = makeAdmin(false);
+    (admin as unknown as { getConfigValue: jest.Mock }).getConfigValue = jest
+      .fn()
+      .mockResolvedValue(max);
+    return admin;
+  };
+  const point = (label: string, lat?: number, lng?: number) => ({
+    label,
+    ...(lat === undefined ? {} : { lat, lng }),
+  });
+  const run = (overrides: Record<string, unknown>, max = 10) => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    const promise = new CreateCharityCampaignUseCase(
+      repository,
+      makeEntitlements(true),
+      adminWithMax(max),
+      makeStorage(),
+    ).handle({
+      ...writeInput({
+        submit: false,
+        startTime: at(1),
+        endTime: at(20),
+        ...overrides,
+      }),
+      actorUserId: ActorId,
+      asAdmin: false,
+    } as never);
+    return { repository, promise };
+  };
+  const params = (repository: ReturnType<typeof makeRepository>) =>
+    repository.create.mock.calls[0][0] as unknown as {
+      intakeLocations: { label: string; lat: number | null }[];
+      intakeEndsAt: Date | null;
+      distributionWindow: { startsAt: Date; endsAt: Date } | null;
+      beneficiaries: unknown[];
+    };
+
+  it('tạo với 3 intakeLocations + ba khung + 3 đơn vị trong một lần gọi → repository.create nhận đủ', async () => {
+    const { repository, promise } = run({
+      intakeLocations: [
+        point('Chùa A', 10.8, 106.7),
+        point('Nhà B'),
+        point('Kho C'),
+      ],
+      intakeEndsAt: at(10),
+      distributionStartsAt: at(12),
+      distributionEndsAt: at(13),
+      beneficiaries: ['A', 'B', 'C'].map((name) => ({
+        name,
+        beneficiaryKind: 'GROUP',
+        estimatedPortions: 1,
+        estimatedAmount: 0,
+        distributionAt: at(12),
+      })),
+    });
+    await promise;
+    const sent = params(repository);
+    expect(sent.intakeLocations.map((row) => row.label)).toEqual([
+      'Chùa A',
+      'Nhà B',
+      'Kho C',
+    ]);
+    expect(sent.intakeEndsAt?.toISOString()).toBe(at(10));
+    expect(sent.distributionWindow?.startsAt.toISOString()).toBe(at(12));
+    expect(sent.beneficiaries).toHaveLength(3);
+  });
+
+  it('intakeEndsAt > distributionStartsAt → 400 0x13_62', async () => {
+    const { promise } = run({
+      intakeLocations: [point('Chùa A')],
+      intakeEndsAt: at(14),
+      distributionStartsAt: at(12),
+      distributionEndsAt: at(13),
+    });
+    await expect(promise).rejects.toBeInstanceOf(
+      CharityScheduleInvalidException,
+    );
+  });
+
+  it('đơn vị distributionAt ngoài khung trao → 400 0x13_5c details.beneficiaries[0].name', async () => {
+    const { promise } = run({
+      intakeLocations: [point('Chùa A')],
+      intakeEndsAt: at(10),
+      distributionStartsAt: at(12),
+      distributionEndsAt: at(13),
+      beneficiaries: [
+        {
+          name: 'Xã Trễ',
+          beneficiaryKind: 'GROUP',
+          estimatedPortions: 0,
+          estimatedAmount: 0,
+          distributionAt: at(15),
+        },
+      ],
+    });
+    const error = await promise.catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(
+      CharityBeneficiaryDistributionTimeOutOfRangeException,
+    );
+    expect(
+      (error as { details: { beneficiaries: { name: string }[] } }).details
+        .beneficiaries[0].name,
+    ).toBe('Xã Trễ');
+  });
+
+  it('không gửi intakeLocations nhưng có lat/lng/locationLabel → một điểm', async () => {
+    const { repository, promise } = run({
+      lat: 10.78,
+      lng: 106.69,
+      locationLabel: 'Chùa Vĩnh Nghiêm',
+    });
+    await promise;
+    expect(params(repository).intakeLocations).toEqual([
+      expect.objectContaining({ label: 'Chùa Vĩnh Nghiêm', lat: 10.78 }),
+    ]);
+  });
+
+  it('không có gì → 400 (chiến dịch nhận hiện vật, gửi duyệt)', async () => {
+    const { repository, promise } = run({
+      submit: true,
+      needs: [{ itemName: 'Gạo', unit: 'kg', targetQuantity: 10 }],
+    });
+    await expect(promise).rejects.toThrow(ValidationFailedException);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('intakeLocations 11 với cấu hình 10 → 400', async () => {
+    const { repository, promise } = run({
+      intakeLocations: Array.from({ length: 11 }, (_, index) =>
+        point(`Điểm ${index}`),
+      ),
+    });
+    await expect(promise).rejects.toThrow(ValidationFailedException);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('Hết tiếp nhận và điều kiện gửi duyệt của đơn vị nhận (CR 22/11/2026 §3.9, §5.4)', () => {
+  const Need = '99999999-9999-4999-8999-99999999aaaa';
+  const closed = { intakeEndsAt: new Date(Date.now() - 60_000) };
+
+  it('sau intakeEndsAt: đóng góp mới → 409 0x13_60, không ghi', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({
+        approvalStatus: 'APPROVED',
+        isActive: true,
+        endTime: new Date(Date.now() + 7 * 24 * Hour),
+        acceptedContributionTypes: ['MATERIAL'],
+        ...closed,
+      }),
+    );
+    repository.listNeeds.mockResolvedValue([
+      { globalId: Need, isActive: true } as never,
+    ]);
+    await expect(
+      new SubmitCharityContributionUseCase(repository, makeNotifier()).handle({
+        campaignId: CampaignId,
+        contributorId: ActorId,
+        items: [{ needItemId: Need, offeredQuantity: 1 }],
+      }),
+    ).rejects.toBeInstanceOf(CharityIntakeClosedException);
+    expect(repository.createContribution).not.toHaveBeenCalled();
+  });
+
+  it('sau intakeEndsAt: rút đóng góp → được', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(campaign(closed));
+    repository.findContributionByGlobalId.mockResolvedValue({
+      globalId: 'contribution-1',
+      campaignId: CampaignId,
+      contributorId: ActorId,
+      status: 'PENDING_REVIEW',
+      items: [],
+    } as never);
+    repository.withdrawContribution.mockResolvedValue({
+      status: 'WITHDRAWN',
+    } as never);
+    await expect(
+      new UpdateCharityContributionUseCase(repository).handle({
+        contributionId: 'contribution-1',
+        contributorId: ActorId,
+        action: 'WITHDRAW',
+      }),
+    ).resolves.toMatchObject({ status: 'WITHDRAWN' });
+  });
+
+  it('sau intakeEndsAt: đăng ký tham gia → 409 0x13_60', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ endTime: new Date(Date.now() + 24 * Hour), ...closed }),
+    );
+    repository.register.mockResolvedValue({ created: true } as never);
+    await expect(
+      new JoinCharityCampaignUseCase(repository, {
+        findOneBy: jest.fn(),
+      } as unknown as IUserRepository).handle({
+        actorUserId: ActorId,
+        campaignId: CampaignId,
+      }),
+    ).rejects.toBeInstanceOf(CharityIntakeClosedException);
+    expect(repository.register).not.toHaveBeenCalled();
+  });
+
+  const at = (day: number) => new Date(Date.UTC(2027, 0, day)).toISOString();
+  const create = (overrides: Record<string, unknown>, asAdmin = false) => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    const admin = makeAdmin(asAdmin);
+    (admin as unknown as { getConfigValue: jest.Mock }).getConfigValue = jest
+      .fn()
+      .mockResolvedValue(20);
+    const promise = new CreateCharityCampaignUseCase(
+      repository,
+      makeEntitlements(true),
+      admin,
+      makeStorage(),
+    ).handle({
+      ...writeInput({
+        startTime: at(1),
+        endTime: at(20),
+        acceptedContributionTypes: ['SERVICE'],
+        otherSupportNeeds: [
+          {
+            supportType: 'TRANSPORT',
+            title: 'Chở đồ',
+            unit: 'chuyến',
+            targetQuantity: 1,
+          },
+        ],
+        beneficiaries: [
+          {
+            name: 'Xã A',
+            beneficiaryKind: 'GROUP',
+            estimatedPortions: 0,
+            estimatedAmount: 0,
+            address: 'Thôn 1',
+          },
+        ],
+        ...overrides,
+      }),
+      actorUserId: ActorId,
+      asAdmin,
+    } as never);
+    return { repository, promise };
+  };
+
+  it.each([
+    ['tạo kèm gửi duyệt', { submit: true }, false],
+    ['Admin tạo', {}, true],
+  ])(
+    '%s khi đơn vị thiếu distributionAt → 409 0x13_56 beneficiaries[0].distributionAt',
+    async (_label, overrides, asAdmin) => {
+      const { repository, promise } = create(overrides, asAdmin);
+      const error = await promise.catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(CharitySubmitRequirementsUnmetException);
+      expect((error as Error).message).toContain(
+        'beneficiaries[0].distributionAt',
+      );
+      expect(repository.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('nháp submit:false không kiểm', async () => {
+    const { repository, promise } = create({ submit: false });
+    await promise;
+    expect(repository.create).toHaveBeenCalled();
   });
 });

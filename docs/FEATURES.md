@@ -331,6 +331,16 @@ chức. Người dùng đăng ký hoặc huỷ trước khi sự kiện bắt đ
 > Chiến dịch chỉ **kết thúc / đóng được** khi bài tổng kết đã công khai; quá hạn mà chưa đăng
 > tổng kết thì vẫn hiện là đang diễn ra, Admin có danh sách theo dõi riêng và ban tổ chức được
 > nhắc mỗi ngày. Admin có thể ép đóng, bắt buộc ghi lý do.
+>
+> **Đơn vị nhận.** Chiến dịch khai các đơn vị nhận với số suất, tiền ước tính, địa chỉ và giờ
+> trao. Số lượng mục tiêu của mỗi món không được thấp hơn tổng suất × số lượng mỗi suất, và mục
+> tiêu tiền không thấp hơn tổng tiền ước tính — hệ thống chỉ rõ món nào cần nâng. Trang công khai
+> hiện các đơn vị nhận nhưng không bao giờ lộ số điện thoại; cá nhân không lộ địa chỉ. Sau khi
+> duyệt, thêm/bỏ đơn vị nhận hay đổi số suất phải chờ Admin duyệt (trừ người được đăng thẳng).
+> Gửi duyệt cần mọi đơn vị nhận có địa chỉ và giờ trao.
+>
+> **Hết tiếp nhận.** Từ mốc hết tiếp nhận, chiến dịch không nhận đóng góp hiện vật, nhận hỗ trợ
+> dịch vụ, đăng ký tham gia hay đăng ký tuyển công sức mới; rút hoặc sửa đóng góp đã gửi vẫn được.
 
 > ✅ **21/11 — ba tổng riêng (Phase D).** Tổng kết tách hẳn ba con số: hiện vật (số lượng theo
 > đơn vị và giá trị quy đổi), tiền (đã xác nhận, nguồn ngoài), dịch vụ (số lượng đã hoàn thành).

@@ -12,11 +12,13 @@ import {
   IPublishCharitySectionUseCase,
   IRegisterCharityVolunteerUseCase,
   IReplaceCharityCustomSectionsUseCase,
+  IReplaceCharityIntakeLocationsUseCase,
   IReplaceCharityPartiesUseCase,
   IReplaceCharityPhasesUseCase,
   IReplaceCharityTeamUseCase,
   ISaveCharityFundingNeedUseCase,
   ISaveCharityRehearsalUseCase,
+  ISaveCharityScheduleUseCase,
   ISaveCharitySectionUseCase,
   ISaveCharityVolunteerNeedUseCase,
   ISetCharityLimitsUseCase,
@@ -30,16 +32,19 @@ import {
   CharityBankAccountNotFoundException,
   CharityBeneficiaryAccountNameMismatchException,
   CharityBeneficiaryAccountNotVerifiedException,
+  CharityBeneficiaryDistributionTimeOutOfRangeException,
   CharityCampaignCreateNotAllowedException,
   CharityCampaignNotFoundException,
   CharityContributionTypeDisabledException,
   CharityFundingNeedNotFoundException,
+  CharityIntakeClosedException,
   CharityNeedItemInvalidException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
   CharityProjectNotDraftException,
   CharityRehearsalNotReadyException,
   CharityRoundEvidenceRequiredException,
+  CharityScheduleInvalidException,
   CharitySectionEmptyException,
   CharityStageScheduleConflictException,
   CharityStageTransitionInvalidException,
@@ -90,6 +95,8 @@ import {
   CharityCustomSectionsResponseDto,
   CharityFundingNeedBodyDto,
   CharityFundingNeedResponseDto,
+  CharityIntakeLocationsBodyDto,
+  CharityIntakeLocationsResponseDto,
   CharityItemNeedBodyDto,
   CharityItemNeedResponseDto,
   CharityLimitsBodyDto,
@@ -111,6 +118,7 @@ import {
   CharityPublicProjectResponseDto,
   CharityRehearsalBodyDto,
   CharityRehearsalResponseDto,
+  CharityScheduleBodyDto,
   CharitySectionResponseDto,
   CharityStageMoveBodyDto,
   CharityTeamBodyDto,
@@ -141,6 +149,10 @@ export class CharityProjectController {
     private readonly submitUseCase: ISubmitCharityProjectUseCase,
     @Inject(IMoveCharityStageUseCase)
     private readonly stageUseCase: IMoveCharityStageUseCase,
+    @Inject(IReplaceCharityIntakeLocationsUseCase)
+    private readonly intakeLocationsUseCase: IReplaceCharityIntakeLocationsUseCase,
+    @Inject(ISaveCharityScheduleUseCase)
+    private readonly scheduleUseCase: ISaveCharityScheduleUseCase,
     @Inject(IGetCharityRehearsalUseCase)
     private readonly rehearsalGetUseCase: IGetCharityRehearsalUseCase,
     @Inject(ISaveCharityRehearsalUseCase)
@@ -344,6 +356,86 @@ export class CharityProjectController {
     });
   }
 
+  @Put(':id/intake-locations')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Thay cả bộ điểm tiếp nhận',
+    description:
+      'Người tạo, Admin. Thứ tự gửi = `position`. Tối đa `charity.max_intake_locations` (mặc định 10); chiến dịch nhận hiện vật cần ít nhất 1 điểm. Điểm đầu tiên có toạ độ thành `lat`/`lng`/`locationLabel` của chiến dịch (tìm quanh đây). Công khai đầy đủ trên trang chiến dịch. Áp ngay cả sau duyệt.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(CharityIntakeLocationsResponseDto),
+  })
+  @ApiErrorResponses(...ApiTokenErrors, ...ProjectErrors, [
+    ValidationFailedException,
+    ['intakeLocations: tối thiểu 1'],
+  ])
+  public async intakeLocations(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectParamsDto,
+    @Body() body: CharityIntakeLocationsBodyDto,
+  ) {
+    return ok({
+      intakeLocations: await this.intakeLocationsUseCase.handle({
+        userId: principal.userId,
+        campaignId: params.id,
+        intakeLocations: body.intakeLocations.map((location) => ({
+          label: location.label,
+          address: location.address ?? null,
+          lat: location.lat ?? null,
+          lng: location.lng ?? null,
+          scheduleNote: location.scheduleNote ?? null,
+          contactName: location.contactName ?? null,
+          contactPhone: location.contactPhone ?? null,
+        })),
+      }),
+    });
+  }
+
+  @Put(':id/schedule')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Ghi ba khung thời gian',
+    description:
+      'Người tạo, Admin. Bắt đầu/hết tiếp nhận, khung trao (phase DISTRIBUTION), kết thúc — một transaction, áp ngay cả sau duyệt. Thứ tự `intakeStartsAt ≤ intakeEndsAt ≤ distributionStartsAt ≤ distributionEndsAt ≤ endTime` (`400 CHARITY_SCHEDULE_INVALID`); đơn vị nhận có giờ trao ngoài khung trao mới → `400 CHARITY_BENEFICIARY_DISTRIBUTION_TIME_OUT_OF_RANGE`; nhu cầu có hạn nộp sau khi hết tiếp nhận → `400 CHARITY_SCHEDULE_INVALID`.',
+  })
+  @ApiOkResponse({
+    type: ResponseDto.forApi(CharityCampaignWrapperResponseDto),
+  })
+  @ApiErrorResponses(
+    ...ApiTokenErrors,
+    ...ProjectErrors,
+    [
+      CharityScheduleInvalidException,
+      ['schedule.intakeEndsAt: phải ≤ distributionStartsAt'],
+    ],
+    [
+      CharityBeneficiaryDistributionTimeOutOfRangeException,
+      [
+        [
+          {
+            index: 0,
+            name: 'Trường A',
+            distributionAt: '2026-12-20T01:00:00Z',
+          },
+        ],
+      ],
+    ],
+  )
+  public async schedule(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectParamsDto,
+    @Body() body: CharityScheduleBodyDto,
+  ) {
+    return ok({
+      campaign: await this.scheduleUseCase.handle({
+        userId: principal.userId,
+        campaignId: params.id,
+        schedule: body.schedule,
+      }),
+    });
+  }
+
   @Put(':id/profile')
   @ApiBearerAuth()
   @ApiOperation({
@@ -402,6 +494,13 @@ export class CharityProjectController {
           picUserId: party.picUserId ?? null,
           beneficiaryKind: party.beneficiaryKind ?? null,
           evidenceUrls: party.evidenceUrls ?? [],
+          // `undefined` = app cũ không gửi → repository giữ giá trị đang lưu.
+          estimatedPortions: party.estimatedPortions,
+          estimatedAmount: party.estimatedAmount,
+          lat: party.lat,
+          lng: party.lng,
+          distributionAt: party.distributionAt,
+          consentStatus: party.consentStatus,
         })),
       }),
     });
@@ -651,6 +750,7 @@ export class CharityProjectController {
           intakeStatus: input.intakeStatus ?? 'OPEN',
         },
         targetQuantity: input.targetQuantity,
+        quantityPerPortion: input.quantityPerPortion,
         surplusExplanation: input.surplusExplanation,
       }),
     });
@@ -732,7 +832,6 @@ export class CharityProjectController {
         title: input.title,
         description: input.description ?? null,
         beneficiaryPartyId: input.beneficiaryPartyId ?? null,
-        receivingUnit: input.receivingUnit ?? null,
         bankAccountId: input.bankAccountId ?? null,
         targetAmount: input.targetAmount,
         deadline: input.deadline ?? null,
@@ -829,6 +928,7 @@ export class CharityProjectController {
     CharityCampaignNotFoundException,
     CharityVolunteerNeedNotFoundException,
     CharityVolunteerClosedException,
+    CharityIntakeClosedException,
   )
   public async register(
     @CurrentUser() principal: IAuthPrincipal,

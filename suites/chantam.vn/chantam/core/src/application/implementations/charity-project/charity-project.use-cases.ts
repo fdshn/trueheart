@@ -27,6 +27,8 @@ import {
   IRegisterCharityVolunteerUseCase,
   IReplaceCharityCustomSectionsCommand,
   IReplaceCharityCustomSectionsUseCase,
+  IReplaceCharityIntakeLocationsCommand,
+  IReplaceCharityIntakeLocationsUseCase,
   IReplaceCharityPartiesCommand,
   IReplaceCharityPartiesUseCase,
   IReplaceCharityPhasesCommand,
@@ -37,6 +39,8 @@ import {
   ISaveCharityFundingNeedUseCase,
   ISaveCharityRehearsalCommand,
   ISaveCharityRehearsalUseCase,
+  ISaveCharityScheduleCommand,
+  ISaveCharityScheduleUseCase,
   ISaveCharitySectionUseCase,
   ISaveCharityVolunteerNeedCommand,
   ISaveCharityVolunteerNeedUseCase,
@@ -57,14 +61,18 @@ import {
   CharityBankAccountNotFoundException,
   CharityBeneficiaryAccountNameMismatchException,
   CharityBeneficiaryAccountNotVerifiedException,
+  CharityBeneficiaryDistributionTimeOutOfRangeException,
   CharityCampaignNotFoundException,
+  CharityChangeRequiresReviewException,
   CharityFundingNeedNotFoundException,
+  CharityIntakeClosedException,
   CharityNeedItemInvalidException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
   CharityProjectNotDraftException,
   CharityRehearsalNotReadyException,
   CharityRoundEvidenceRequiredException,
+  CharityScheduleInvalidException,
   CharitySectionEmptyException,
   CharityStageScheduleConflictException,
   CharityStageTransitionInvalidException,
@@ -82,6 +90,8 @@ import {
   ICharityEngagementRepository,
   ICharityEventRepository,
   ICharityOperationsRepository,
+  ICharityParty,
+  ICharityPartyInput,
   ICharityProjectRepository,
   ICharitySummaryRepository,
   IEntitlementRepository,
@@ -92,33 +102,44 @@ import {
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  beneficiariesOutsideWindow,
+  beneficiarySubmitGaps,
   charityDistributionSettled,
   CharityEventStepLabels,
   CharityFieldVisibility,
   CharityMaxBankAccountsConfigKey,
+  CharityMaxBeneficiariesConfigKey,
+  CharityMaxIntakeLocationsConfigKey,
   CharityOperationStage,
   CharityOperationStageLabels,
   CharityOperationStages,
   CharityOrganizerReminderReason,
+  charityScheduleGaps,
   CharitySectionCompletionStatus,
   charitySubmitRequirementGaps,
   CharityTaskLabels,
   defaultTaskSchedule,
   effectiveOperationStage,
   holderNameMatches,
+  isIntakeClosed,
   isPubliclyVisibleProject,
   isSuspendedProject,
   MaxPublicSupporterNames,
   normalizeContributionTypes,
   normalizeMaxBankAccounts,
+  normalizeMaxBeneficiaries,
+  normalizeMaxIntakeLocations,
   normalizeRehearsalChecklist,
   phaseScheduleGaps,
   stageRank,
+  toPublicBeneficiary,
   vietnamDayStart,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { resolveCharityApprovalStatus } from '../charity-campaign/charity-campaign.use-cases';
+import { directChangeAllowed } from './charity-change-review';
+import { assertPortionFloors } from './charity-portion-guard';
 
 const ReadPermission = 'campaign.read';
 const WritePermission = 'campaign.manage';
@@ -150,7 +171,31 @@ export class CharityProjectAccess {
     private readonly campaigns: ICharityCampaignRepository,
     @Inject(IAdminConfigRepository)
     private readonly admin: IAdminConfigRepository,
+    @Optional()
+    @Inject(IEntitlementRepository)
+    private readonly entitlements?: IEntitlementRepository,
   ) {}
+
+  /** Trường quan trọng sửa được NGAY không, hay phải đi bản sửa chờ duyệt (§3.17b). */
+  public directChangeAllowed(
+    access: IProjectAccess,
+    userId: string,
+  ): Promise<boolean> {
+    return directChangeAllowed(
+      { admin: this.admin, entitlements: this.entitlements },
+      {
+        campaign: access.campaign,
+        actorUserId: userId,
+        asAdmin: access.isAdminWriter,
+      },
+    );
+  }
+
+  public async maxBeneficiaries(): Promise<number> {
+    return normalizeMaxBeneficiaries(
+      await this.admin.getConfigValue(CharityMaxBeneficiariesConfigKey),
+    );
+  }
 
   public async resolve(
     campaignId: string,
@@ -248,10 +293,16 @@ export class SubmitCharityProjectUseCase implements ISubmitCharityProjectUseCase
     if (!isOwner) throw new CharityProjectForbiddenException();
     if (campaign.submittedAt !== null)
       throw new CharityProjectNotDraftException();
-    const gaps = charitySubmitRequirementGaps(
-      campaign.acceptedContributionTypes,
-      await this.projects.intakeCounts(campaign.globalId),
-    );
+    const gaps = [
+      ...charitySubmitRequirementGaps(
+        campaign.acceptedContributionTypes,
+        await this.projects.intakeCounts(campaign.globalId),
+      ),
+      // Mỗi đơn vị nhận cần địa chỉ và giờ trao khi gửi duyệt (CR 22/11/2026 §5.4).
+      ...beneficiarySubmitGaps(
+        await this.campaigns.listBeneficiaryPlans(campaign.globalId),
+      ),
+    ];
     if (gaps.length > 0)
       throw new CharitySubmitRequirementsUnmetException(gaps.join('; '));
 
@@ -625,8 +676,19 @@ export class ReplaceCharityPartiesUseCase implements IReplaceCharityPartiesUseCa
   ) {}
 
   public async handle(command: IReplaceCharityPartiesCommand) {
-    const { campaign } = await this.access.forEdit(command);
+    const access = await this.access.forEdit(command);
+    const { campaign } = access;
     const errors: string[] = [];
+    const beneficiaryCount = command.parties.filter(
+      (party) => party.role === 'BENEFICIARY',
+    ).length;
+    if (beneficiaryCount > 0) {
+      const max = await this.access.maxBeneficiaries();
+      if (beneficiaryCount > max)
+        errors.push(
+          `parties: tối đa ${max} đơn vị nhận (charity.max_beneficiaries_per_campaign)`,
+        );
+    }
     for (const [index, party] of command.parties.entries()) {
       if ((party.role === 'BENEFICIARY') !== (party.beneficiaryKind !== null))
         errors.push(
@@ -657,6 +719,52 @@ export class ReplaceCharityPartiesUseCase implements IReplaceCharityPartiesUseCa
           `parties: bên thụ hưởng "${party.name}" còn tài khoản thụ hưởng đang hiệu lực — đóng tài khoản trước`,
         );
     if (errors.length > 0) throw new ValidationFailedException(errors);
+
+    // Sau duyệt (CR 22/11/2026 §3.17b): thêm/bỏ đơn vị nhận, đổi số suất hoặc tiền ước tính
+    // phải qua bản sửa chờ duyệt. Trường khác (SĐT, người phụ trách…) áp ngay.
+    const previousById = new Map(
+      previous
+        .filter((party) => !party.isAppealSubject)
+        .map((party) => [party.partyId, party]),
+    );
+    if (
+      charityBeneficiaryPlanChanged(previous, command.parties) &&
+      !(await this.access.directChangeAllowed(access, command.userId))
+    )
+      throw new CharityChangeRequiresReviewException('beneficiaries');
+
+    // Sàn hai chiều: tổng suất/tiền mới vẫn phải nằm dưới mục tiêu nhu cầu hiện có.
+    const plans = command.parties
+      .filter((party) => party.role === 'BENEFICIARY')
+      .map((party) => {
+        const before = party.partyId
+          ? previousById.get(party.partyId)
+          : undefined;
+        return {
+          estimatedPortions:
+            party.estimatedPortions ?? before?.estimatedPortions ?? 0,
+          estimatedAmount:
+            party.estimatedAmount ?? before?.estimatedAmount ?? 0,
+        };
+      });
+    await assertCampaignPortionFloors(this.projects, campaign, { plans });
+    await assertBeneficiariesInsideWindow(
+      this.projects,
+      campaign.globalId,
+      campaign.distribution,
+      command.parties
+        .filter((party) => party.role === 'BENEFICIARY')
+        .map((party) => ({
+          name: party.name.trim(),
+          distributionAt:
+            party.distributionAt !== undefined
+              ? party.distributionAt
+              : ((party.partyId
+                  ? previousById.get(party.partyId)?.distributionAt
+                  : null) ?? null),
+        })),
+    );
+
     return this.projects.replaceParties({
       campaignId: campaign.globalId,
       actorId: command.userId,
@@ -666,6 +774,110 @@ export class ReplaceCharityPartiesUseCase implements IReplaceCharityPartiesUseCa
       })),
     });
   }
+}
+
+/**
+ * Thêm/bỏ một đơn vị nhận, hoặc đổi số suất / tiền ước tính của nó — các thay đổi cần duyệt
+ * sau khi chiến dịch đã duyệt. `undefined` (app cũ không gửi) không tính là đổi.
+ */
+function charityBeneficiaryPlanChanged(
+  previous: readonly ICharityParty[],
+  next: readonly ICharityPartyInput[],
+): boolean {
+  const before = previous.filter(
+    (party) => !party.isAppealSubject && party.role === 'BENEFICIARY',
+  );
+  const after = next.filter((party) => party.role === 'BENEFICIARY');
+  const beforeIds = new Set(before.map((party) => party.partyId));
+  const afterIds = new Set(
+    after.map((party) => party.partyId).filter((id): id is string => !!id),
+  );
+  if (after.some((party) => !party.partyId || !beforeIds.has(party.partyId)))
+    return true;
+  if (before.some((party) => !afterIds.has(party.partyId))) return true;
+  return after.some((party) => {
+    const old = before.find((row) => row.partyId === party.partyId)!;
+    return (
+      (party.estimatedPortions !== undefined &&
+        party.estimatedPortions !== old.estimatedPortions) ||
+      (party.estimatedAmount !== undefined &&
+        party.estimatedAmount !== old.estimatedAmount)
+    );
+  });
+}
+
+/**
+ * Kiểm sàn số suất/tiền của MỘT chiến dịch với dữ liệu đang lưu, thay từng phần bằng giá trị
+ * sắp ghi (`plans` = đơn vị nhận mới, `needOverride` = một nhu cầu sắp sửa, `fundingOverride`
+ * = một nhu cầu tiền sắp lưu).
+ */
+async function assertCampaignPortionFloors(
+  projects: ICharityProjectRepository,
+  campaign: ICharityCampaign,
+  overrides: {
+    plans?: { estimatedPortions: number; estimatedAmount: number }[];
+    needOverride?: {
+      needItemId: string;
+      targetQuantity: number;
+      quantityPerPortion: number;
+    };
+    fundingOverride?: {
+      fundingNeedId: string | null;
+      targetAmount: number;
+      closed: boolean;
+    };
+  },
+): Promise<void> {
+  const [parties, needs, funding] = await Promise.all([
+    overrides.plans
+      ? Promise.resolve(null)
+      : projects.listParties(campaign.globalId),
+    projects.listItemNeeds(campaign.globalId),
+    projects.listFundingNeeds(campaign.globalId),
+  ]);
+  const plans =
+    overrides.plans ??
+    (parties ?? [])
+      .filter((party) => party.role === 'BENEFICIARY')
+      .map((party) => ({
+        estimatedPortions: party.estimatedPortions ?? 0,
+        estimatedAmount: party.estimatedAmount ?? 0,
+      }));
+  const needRows = needs
+    .filter((need) => need.isActive)
+    .map((need, index) => {
+      const override =
+        overrides.needOverride?.needItemId === need.needItemId
+          ? overrides.needOverride
+          : null;
+      return {
+        index,
+        needItemId: need.needItemId,
+        itemName: need.itemName,
+        targetQuantity: override?.targetQuantity ?? need.targetQuantity,
+        quantityPerPortion:
+          override?.quantityPerPortion ?? need.quantityPerPortion ?? 1,
+      };
+    });
+  const fundingRows = funding
+    .filter(
+      (row) =>
+        row.fundingNeedId !== overrides.fundingOverride?.fundingNeedId &&
+        row.status !== 'CLOSED',
+    )
+    .map((row) => row.targetAmount);
+  if (overrides.fundingOverride && !overrides.fundingOverride.closed)
+    fundingRows.push(overrides.fundingOverride.targetAmount);
+  assertPortionFloors({
+    needs: needRows,
+    // Tiền chỉ có nghĩa khi chiến dịch nhận tiền.
+    fundingTargets: campaign.acceptedContributionTypes.includes('MONEY')
+      ? fundingRows
+      : [],
+    beneficiaries: campaign.acceptedContributionTypes.includes('MONEY')
+      ? plans
+      : plans.map((plan) => ({ ...plan, estimatedAmount: 0 })),
+  });
 }
 
 @Injectable()
@@ -879,11 +1091,173 @@ export class ReplaceCharityPhasesUseCase implements IReplaceCharityPhasesUseCase
         errors.push(`phases: reportMode chỉ dùng cho REPORTING`);
     }
     if (errors.length > 0) throw new ValidationFailedException(errors);
+    const distribution = command.phases.find(
+      (phase) => phase.phase === 'DISTRIBUTION',
+    );
+    await assertBeneficiariesInsideWindow(
+      this.projects,
+      campaign.globalId,
+      distribution
+        ? { startsAt: distribution.startsAt, endsAt: distribution.endsAt }
+        : null,
+    );
     return this.projects.replacePhases({
       campaignId: campaign.globalId,
       actorId: command.userId,
       phases: command.phases,
     });
+  }
+}
+
+/**
+ * Đơn vị nhận có giờ trao nằm ngoài khung trao → 400 0x13_5c (CR 22/11/2026 §3.17d).
+ * `parties` bỏ trống = đọc đơn vị nhận đang lưu.
+ */
+async function assertBeneficiariesInsideWindow(
+  projects: ICharityProjectRepository,
+  campaignId: string,
+  window: { startsAt: Date; endsAt: Date } | null,
+  parties?: readonly { name: string; distributionAt: Date | null }[],
+): Promise<void> {
+  if (!window) return;
+  const list =
+    parties ??
+    (await projects.listParties(campaignId))
+      .filter((party) => party.role === 'BENEFICIARY' && !party.isAppealSubject)
+      .map((party) => ({
+        name: party.name,
+        distributionAt: party.distributionAt ?? null,
+      }));
+  const outside = beneficiariesOutsideWindow(list, window);
+  if (outside.length > 0)
+    throw new CharityBeneficiaryDistributionTimeOutOfRangeException(
+      outside.map((row) => ({
+        index: row.index,
+        name: row.name,
+        distributionAt: row.distributionAt.toISOString(),
+      })),
+    );
+}
+
+/** Nhu cầu có hạn nộp sau khi hết tiếp nhận → 400 0x13_62. */
+function assertIntakeDeadlines(
+  needs: readonly {
+    itemName: string;
+    isActive: boolean;
+    intakeDeadline: Date | null;
+  }[],
+  intakeEndsAt: Date | null,
+): void {
+  if (!intakeEndsAt) return;
+  const late = needs.filter(
+    (need) =>
+      need.isActive &&
+      need.intakeDeadline &&
+      need.intakeDeadline.getTime() > intakeEndsAt.getTime(),
+  );
+  if (late.length > 0)
+    throw new CharityScheduleInvalidException(
+      late
+        .map(
+          (need) =>
+            `itemNeeds.intakeDeadline (${need.itemName}): phải ≤ intakeEndsAt`,
+        )
+        .join('; '),
+    );
+}
+
+/** `PUT :id/intake-locations` (CR 22/11/2026 §3.17c). */
+@Injectable()
+export class ReplaceCharityIntakeLocationsUseCase implements IReplaceCharityIntakeLocationsUseCase {
+  public constructor(
+    private readonly access: CharityProjectAccess,
+    @Inject(ICharityCampaignRepository)
+    private readonly campaigns: ICharityCampaignRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(command: IReplaceCharityIntakeLocationsCommand) {
+    const { campaign } = await this.access.forEdit(command);
+    const locations = command.intakeLocations.map((location) => ({
+      label: location.label.trim(),
+      address: trimmed(location.address),
+      lat: location.lat ?? null,
+      lng: location.lng ?? null,
+      scheduleNote: trimmed(location.scheduleNote),
+      contactName: trimmed(location.contactName),
+      contactPhone: trimmed(location.contactPhone),
+    }));
+    const max = normalizeMaxIntakeLocations(
+      await this.admin.getConfigValue(CharityMaxIntakeLocationsConfigKey),
+    );
+    const errors: string[] = [];
+    if (locations.length > max)
+      errors.push(
+        `intakeLocations: tối đa ${max} điểm (charity.max_intake_locations)`,
+      );
+    if (
+      locations.length === 0 &&
+      campaign.acceptedContributionTypes.includes('MATERIAL')
+    )
+      errors.push('intakeLocations: tối thiểu 1');
+    for (const [index, location] of locations.entries()) {
+      if (!location.label)
+        errors.push(`intakeLocations[${index}].label: bắt buộc`);
+      if ((location.lat === null) !== (location.lng === null))
+        errors.push(`intakeLocations[${index}].lng: cần gửi cùng lat`);
+    }
+    if (errors.length > 0) throw new ValidationFailedException(errors);
+    return this.campaigns.replaceIntakeLocations({
+      campaignId: campaign.globalId,
+      actorId: command.userId,
+      locations,
+    });
+  }
+}
+
+/**
+ * `PUT :id/schedule` (CR 22/11/2026 §3.17b) — áp ngay cả sau duyệt. Thứ tự: khung hợp lệ →
+ * đơn vị nhận trong khung trao → hạn nộp của nhu cầu không sau khi hết tiếp nhận.
+ */
+@Injectable()
+export class SaveCharityScheduleUseCase implements ISaveCharityScheduleUseCase {
+  public constructor(
+    private readonly access: CharityProjectAccess,
+    @Inject(ICharityCampaignRepository)
+    private readonly campaigns: ICharityCampaignRepository,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
+  ) {}
+
+  public async handle(command: ISaveCharityScheduleCommand) {
+    const { campaign } = await this.access.forEdit(command);
+    const schedule = command.schedule;
+    const gaps = charityScheduleGaps(schedule);
+    if (schedule.distributionEndsAt <= schedule.distributionStartsAt)
+      gaps.push('schedule.distributionEndsAt: phải sau distributionStartsAt');
+    if (schedule.endTime <= schedule.intakeStartsAt)
+      gaps.push('schedule.endTime: phải sau intakeStartsAt');
+    if (gaps.length > 0)
+      throw new CharityScheduleInvalidException(gaps.join('; '));
+    await assertBeneficiariesInsideWindow(this.projects, campaign.globalId, {
+      startsAt: schedule.distributionStartsAt,
+      endsAt: schedule.distributionEndsAt,
+    });
+    assertIntakeDeadlines(
+      await this.projects.listItemNeeds(campaign.globalId),
+      schedule.intakeEndsAt,
+    );
+    await this.campaigns.saveSchedule({
+      campaignId: campaign.globalId,
+      actorId: command.userId,
+      ...schedule,
+    });
+    return toView(
+      (await this.campaigns.findByGlobalId(
+        campaign.globalId,
+      )) as ICharityCampaign,
+    );
   }
 }
 
@@ -918,12 +1292,41 @@ export class UpdateCharityItemNeedUseCase implements IUpdateCharityItemNeedUseCa
           `itemNeed.surplusExplanation: bắt buộc khi mục tiêu (${command.targetQuantity}) thấp hơn số đã nhận (${received})`,
         ]);
     }
+    // Sàn theo số suất (CR 22/11/2026): mục tiêu không được thấp hơn tổng suất × mỗi suất.
+    if (
+      command.targetQuantity !== undefined ||
+      command.quantityPerPortion !== undefined
+    ) {
+      const current = (
+        await this.projects.listItemNeeds(campaign.globalId)
+      ).find((need) => need.needItemId === command.needItemId);
+      if (!current) throw new CharityNeedItemInvalidException();
+      await assertCampaignPortionFloors(this.projects, campaign, {
+        needOverride: {
+          needItemId: current.needItemId,
+          targetQuantity: command.targetQuantity ?? current.targetQuantity,
+          quantityPerPortion:
+            command.quantityPerPortion ?? current.quantityPerPortion,
+        },
+      });
+    }
+    assertIntakeDeadlines(
+      [
+        {
+          itemName: 'itemNeed',
+          isActive: true,
+          intakeDeadline: command.profile.intakeDeadline,
+        },
+      ],
+      campaign.intakeEndsAt,
+    );
     const updated = await this.projects.updateItemNeedProfile({
       campaignId: campaign.globalId,
       needItemId: command.needItemId,
       actorId: command.userId,
       profile: command.profile,
       targetQuantity: command.targetQuantity,
+      quantityPerPortion: command.quantityPerPortion,
       surplusExplanation,
     });
     if (!updated) throw new CharityNeedItemInvalidException();
@@ -969,8 +1372,16 @@ export class SaveCharityFundingNeedUseCase implements ISaveCharityFundingNeedUse
       ...need,
       title: need.title.trim(),
       description: trimmed(need.description),
-      receivingUnit: trimmed(need.receivingUnit),
     };
+
+    // Sàn tiền (CR 22/11/2026): tổng mục tiêu tiền đang mở ≥ tổng tiền ước tính.
+    await assertCampaignPortionFloors(this.projects, campaign, {
+      fundingOverride: {
+        fundingNeedId: command.fundingNeedId ?? null,
+        targetAmount: normalized.targetAmount,
+        closed: command.status === 'CLOSED',
+      },
+    });
 
     if (!command.fundingNeedId)
       return this.projects.createFundingNeed({
@@ -1014,7 +1425,6 @@ export class SaveCharityFundingNeedUseCase implements ISaveCharityFundingNeedUse
       need.title.trim() === current.title &&
       trimmed(need.description) === current.description &&
       need.beneficiaryPartyId === current.beneficiaryPartyId &&
-      trimmed(need.receivingUnit) === current.receivingUnit &&
       need.bankAccountId === current.bankAccountId &&
       need.targetAmount === current.targetAmount &&
       (need.deadline?.getTime() ?? null) ===
@@ -1031,7 +1441,6 @@ export class SaveCharityFundingNeedUseCase implements ISaveCharityFundingNeedUse
         title: current.title,
         description: current.description,
         beneficiaryPartyId: current.beneficiaryPartyId,
-        receivingUnit: current.receivingUnit,
         bankAccountId: current.bankAccountId,
         targetAmount: current.targetAmount,
         deadline: current.deadline,
@@ -1110,6 +1519,9 @@ export class RegisterCharityVolunteerUseCase implements IRegisterCharityVoluntee
       throw new CharityCampaignNotFoundException();
     if (stageRank(campaign.operationStage) >= stageRank('EVENT'))
       throw new CharityVolunteerClosedException();
+    // Hết tiếp nhận (CR 22/11/2026 §3.9): đăng ký qua tuyển công sức là vai PARTICIPANT.
+    if (isIntakeClosed(campaign, new Date()))
+      throw new CharityIntakeClosedException();
     const outcome = await this.projects.registerVolunteer({
       campaignId: campaign.globalId,
       volunteerNeedId: command.volunteerNeedId,
@@ -1705,6 +2117,9 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
       financialReports,
       totals: publicTotals,
       distribution: await this.publicDistribution(campaign.globalId),
+      beneficiaries: (await this.campaigns.listBeneficiaryPlans(id)).map(
+        toPublicBeneficiary,
+      ),
       supporters,
       counters,
       isFollowing,

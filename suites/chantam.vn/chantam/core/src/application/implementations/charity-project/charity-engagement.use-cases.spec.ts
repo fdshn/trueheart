@@ -61,6 +61,11 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     storedOperationStage: 'EXECUTION',
     distribution: null,
     summaryPublishedAt: null,
+    intakeStartsAt: new Date(),
+    intakeEndsAt: null,
+    totalEstimatedPortions: 0,
+    totalEstimatedAmount: 0,
+    intakeLocations: [],
     ...overrides,
   } as ICharityCampaign;
 }

@@ -41,6 +41,7 @@ import {
   CharityDistributionFieldRequiredException,
   CharityDistributionMethodMismatchException,
   CharityExternalSourceDuplicatedException,
+  CharityIntakeClosedException,
   CharityLinesInvalidException,
   CharityMediaInvalidException,
   CharityMediaNotEditableException,
@@ -312,6 +313,7 @@ export class CharityCampaignController {
     CharityNotAcceptingContributionsException,
     CharityContributionTypeDisabledException,
     CharityNeedItemInvalidException,
+    CharityIntakeClosedException,
   )
   public async submitContribution(
     @CurrentUser() principal: IAuthPrincipal,
@@ -705,6 +707,7 @@ export class CharityCampaignController {
     CharityParticipationClosedException,
     CharityAlreadyRegisteredException,
     CharityParticipantRankTooLowException,
+    CharityIntakeClosedException,
   )
   @ApiCreatedResponse({
     type: ResponseDto.forApi(CharityCampaignWrapperResponseDto),

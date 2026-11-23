@@ -256,10 +256,11 @@ async function main(): Promise<void> {
       [Live],
     );
     check(
-      'thêm bên thụ hưởng: một revision `*` quan trọng, không mang địa chỉ/SĐT',
+      'thêm bên thụ hưởng tập thể: một revision `*` quan trọng, mang địa chỉ, không mang SĐT',
       party?.field === '*' &&
         party.is_important &&
-        !JSON.stringify(party.new_value).includes('Thôn 3') &&
+        // Tập thể (GROUP): địa chỉ CÔNG KHAI (CR 22/11/2026 §3.17d); SĐT luôn riêng tư.
+        JSON.stringify(party.new_value).includes('Thôn 3') &&
         !JSON.stringify(party.new_value).includes('0901'),
       JSON.stringify(party),
     );
@@ -321,7 +322,6 @@ async function main(): Promise<void> {
         title: 'Xăng xe',
         description: null,
         beneficiaryPartyId: null,
-        receivingUnit: null,
         bankAccountId: null,
         targetAmount: 5_000_000,
         deadline: null,
@@ -337,7 +337,6 @@ async function main(): Promise<void> {
         title: 'Xăng xe',
         description: null,
         beneficiaryPartyId: null,
-        receivingUnit: null,
         bankAccountId: null,
         targetAmount: 5_000_000,
         deadline: null,

@@ -194,6 +194,105 @@ async function main(): Promise<void> {
       readBack?.fullName === 'Bà Ba',
     );
 
+    console.log(
+      '\n0b. Migration 1804100000000: đơn vị nhận, suất, điểm tiếp nhận',
+    );
+    for (;;) {
+      const [last] = await sql(
+        `SELECT name FROM migrations ORDER BY id DESC LIMIT 1`,
+      );
+      await dataSource.undoLastMigration();
+      if (last.name === 'CharityBeneficiaryPlanAndSchedule1804100000000') break;
+    }
+    const IntakePrep = id('30');
+    const IntakeDist = id('31');
+    const IntakeNone = id('32');
+    for (const [campaignId, slug, label] of [
+      [IntakePrep, 'intake-prep', 'Chùa Bửu Long'],
+      [IntakeDist, 'intake-dist', null],
+      [IntakeNone, 'intake-none', null],
+    ] as const)
+      await sql(
+        `INSERT INTO campaigns
+           (global_id, title, slug, description, banner_url, badge_name, start_time, end_time,
+            created_by, location_label, location)
+         VALUES ($1, 'Lịch cũ', $2, 'Mô tả đủ dài cho lịch cũ', 'https://cdn.test/a.jpg', 'Ấm',
+                 '2026-12-01T00:00:00Z', '2026-12-31T00:00:00Z', $3, $4::text,
+                 CASE WHEN $4::text IS NULL THEN NULL
+                      ELSE ST_SetSRID(ST_MakePoint(106.7, 10.8), 4326)::geography END)`,
+        [campaignId, slug, Owner, label],
+      );
+    await sql(
+      `INSERT INTO campaign_phases (campaign_id, phase, starts_at, ends_at) VALUES
+         ($1, 'PREPARATION', '2026-12-02T00:00:00Z', '2026-12-10T00:00:00Z'),
+         ($1, 'DISTRIBUTION', '2026-12-12T00:00:00Z', '2026-12-13T00:00:00Z'),
+         ($2, 'DISTRIBUTION', '2026-12-14T00:00:00Z', '2026-12-15T00:00:00Z')`,
+      [IntakePrep, IntakeDist],
+    );
+    await dataSource.runMigrations();
+    const intakeRows = await sql(
+      `SELECT global_id, intake_ends_at FROM campaigns
+        WHERE global_id = ANY($1::uuid[])`,
+      [[IntakePrep, IntakeDist, IntakeNone]],
+    );
+    const intakeEnd = (campaignId: string) =>
+      new Date(
+        intakeRows.find(
+          (row: { global_id: string }) => row.global_id === campaignId,
+        ).intake_ends_at,
+      ).toISOString();
+    check(
+      'intake_ends_at: PREPARATION.ends_at → DISTRIBUTION.starts_at → end_time',
+      intakeEnd(IntakePrep) === '2026-12-10T00:00:00.000Z' &&
+        intakeEnd(IntakeDist) === '2026-12-14T00:00:00.000Z' &&
+        intakeEnd(IntakeNone) === '2026-12-31T00:00:00.000Z',
+      JSON.stringify(intakeRows),
+    );
+    const intakeLocations = await sql(
+      `SELECT campaign_id, position, label,
+              ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng
+         FROM campaign_intake_locations
+        WHERE campaign_id = ANY($1::uuid[])`,
+      [[IntakePrep, IntakeDist, IntakeNone]],
+    );
+    check(
+      'location_label cũ thành điểm tiếp nhận position 0, cùng toạ độ; dự án không có địa điểm thì không có điểm',
+      intakeLocations.length === 1 &&
+        intakeLocations[0].campaign_id === IntakePrep &&
+        intakeLocations[0].position === 0 &&
+        intakeLocations[0].label === 'Chùa Bửu Long' &&
+        Math.abs(intakeLocations[0].lat - 10.8) < 1e-6 &&
+        Math.abs(intakeLocations[0].lng - 106.7) < 1e-6,
+      JSON.stringify(intakeLocations),
+    );
+    const rejected = async (query: string, params: unknown[]) => {
+      try {
+        await sql(query, params);
+        return false;
+      } catch (error) {
+        return String((error as { code?: string }).code) === '23514';
+      }
+    };
+    check(
+      'quantity_per_portion = 0 bị chặn; estimated_portions = -1 bị chặn',
+      (await rejected(
+        `INSERT INTO campaign_need_items (campaign_id, item_name, unit, target_quantity, quantity_per_portion)
+         VALUES ($1, 'Gạo', 'kg', 10, 0)`,
+        [IntakePrep],
+      )) &&
+        (await rejected(
+          `INSERT INTO campaign_parties (campaign_id, role, name, estimated_portions)
+           VALUES ($1, 'BENEFICIARY', 'Xã A', -1)`,
+          [IntakePrep],
+        )),
+    );
+    const [configs] = await sql(
+      `SELECT count(*)::int AS total FROM system_configs
+        WHERE config_key IN ('charity.max_beneficiaries_per_campaign',
+                             'charity.max_intake_locations')`,
+    );
+    check('hai khoá cấu hình mới đã gieo', configs.total === 2);
+
     console.log('\n1. Nháp và gửi duyệt');
     await insertCampaign(Draft, 'nhap', 'PENDING_APPROVAL', false, 'PLAN');
     const decidedDraft = await campaigns.decideApproval({
@@ -408,6 +507,30 @@ async function main(): Promise<void> {
       JSON.stringify(second.map((p) => p.name)),
     );
 
+    await sql(
+      `INSERT INTO campaign_parties (campaign_id, role, name, beneficiary_kind,
+                                     estimated_portions, estimated_amount)
+       VALUES ($1, 'BENEFICIARY', 'Xã A', 'GROUP', 200, 3000000),
+              ($1, 'BENEFICIARY', 'Xã B', 'GROUP', 100, 1000000),
+              ($1, 'ORGANIZER', 'UBND', NULL, 999, 999)`,
+      [IntakePrep],
+    );
+    const planned = await campaigns.findByGlobalId(IntakePrep);
+    check(
+      'findByGlobalId: totalEstimatedPortions/Amount = tổng các đơn vị BENEFICIARY; có intakeLocations, intakeEndsAt',
+      planned?.totalEstimatedPortions === 300 &&
+        planned.totalEstimatedAmount === 4000000 &&
+        planned.intakeLocations.length === 1 &&
+        planned.intakeLocations[0].label === 'Chùa Bửu Long' &&
+        planned.intakeEndsAt?.toISOString() === '2026-12-10T00:00:00.000Z' &&
+        planned.intakeStartsAt.getTime() === planned.startTime.getTime(),
+      JSON.stringify({
+        portions: planned?.totalEstimatedPortions,
+        amount: planned?.totalEstimatedAmount,
+        locations: planned?.intakeLocations,
+      }),
+    );
+
     console.log('\n4. Tài khoản nhận');
     const adds = await Promise.all(
       ['0001', '0002', '0003'].map((no) =>
@@ -547,7 +670,6 @@ async function main(): Promise<void> {
         title: 'Tiền xe',
         description: null,
         beneficiaryPartyId: null,
-        receivingUnit: null,
         bankAccountId: null,
         targetAmount: 5_000_000,
         deadline: null,
@@ -891,6 +1013,7 @@ async function main(): Promise<void> {
     const addOwnerAccount = new AddCharityBeneficiaryBankAccountUseCase(
       new CharityProjectAccess(campaigns, {
         hasPermission: async () => false,
+        getConfigValue: async () => null,
       } as never),
       projects,
     );
@@ -927,34 +1050,58 @@ async function main(): Promise<void> {
         ownerAccount.verifiedAt === null,
       String(nullNameCode),
     );
-    const replaceParties = new ReplaceCharityPartiesUseCase(
-      new CharityProjectAccess(campaigns, {
-        hasPermission: async () => false,
-      } as never),
-      projects,
-    );
+    const fakeAdmin = {
+      hasPermission: async () => false,
+      getConfigValue: async () => null,
+    } as never;
     const partiesNow = await projects.listParties(Live);
     const keptOrganizer = partiesNow.find((p) => p.role === 'ORGANIZER')!;
     const appealSubject = partiesNow.find((p) => p.isAppealSubject)!;
+    const groupInput = {
+      role: 'BENEFICIARY' as const,
+      name: 'Nhóm Hoa',
+      address: null,
+      phone: null,
+      email: null,
+      hotline: null,
+      picName: null,
+      picPhone: null,
+      picUserId: null,
+      beneficiaryKind: 'GROUP' as const,
+      evidenceUrls: [],
+    };
+    // Sau duyệt, chủ dự án KHÔNG có quyền đăng không cần duyệt thêm đơn vị nhận → 409.
+    let reviewCode = 0;
+    try {
+      await new ReplaceCharityPartiesUseCase(
+        new CharityProjectAccess(campaigns, fakeAdmin, {
+          getCapability: async () => ({ allowed: false }),
+        } as never),
+        projects,
+      ).handle({
+        userId: Owner,
+        campaignId: Live,
+        parties: [keptOrganizer, groupInput],
+      });
+    } catch (error) {
+      reviewCode = Number((error as { code?: number }).code);
+    }
+    check(
+      'sau duyệt: chủ dự án thường thêm đơn vị nhận → 409 CHARITY_CHANGE_REQUIRES_REVIEW, không ghi',
+      reviewCode === 0x13_64 &&
+        !(await projects.listParties(Live)).some((p) => p.name === 'Nhóm Hoa'),
+      String(reviewCode),
+    );
+    const replaceParties = new ReplaceCharityPartiesUseCase(
+      new CharityProjectAccess(campaigns, fakeAdmin, {
+        getCapability: async () => ({ allowed: true }),
+      } as never),
+      projects,
+    );
     const withGroup = await replaceParties.handle({
       userId: Owner,
       campaignId: Live,
-      parties: [
-        keptOrganizer,
-        {
-          role: 'BENEFICIARY',
-          name: 'Nhóm Hoa',
-          address: null,
-          phone: null,
-          email: null,
-          hotline: null,
-          picName: null,
-          picPhone: null,
-          picUserId: null,
-          beneficiaryKind: 'GROUP',
-          evidenceUrls: [],
-        },
-      ],
+      parties: [keptOrganizer, groupInput],
     });
     const groupParty = withGroup.find((p) => p.name === 'Nhóm Hoa')!;
     const beneficiaryOf = async (partyId: string, accountName: string) => {

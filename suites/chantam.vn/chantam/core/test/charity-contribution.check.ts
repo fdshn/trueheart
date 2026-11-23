@@ -177,6 +177,8 @@ async function main(): Promise<void> {
       startTime: start.toISOString(),
       endTime: new Date(start.getTime() + 30 * 24 * Hour).toISOString(),
       campaignType: 'ORGANIZED_CAMPAIGN' as const,
+      // Chiến dịch nhận hiện vật gửi duyệt cần ít nhất một điểm tiếp nhận (CR 22/11/2026).
+      intakeLocations: [{ label: 'Chùa Vĩnh Nghiêm' }],
       ...overrides,
     });
 
@@ -280,6 +282,44 @@ async function main(): Promise<void> {
             [materialDisabled.globalId],
           )
         )[0].n === beforeDisabled.n,
+    );
+
+    // ── A5. Hết tiếp nhận chặn đóng góp mới (CR 22/11/2026 §3.9) ────────────
+    console.log(
+      '\nA5. Sau intakeEndsAt: đóng góp mới bị chặn, không ghi hàng mới',
+    );
+    const intakeClosed = await create.handle({
+      ...baseInput({
+        needs: [{ itemName: 'Chăn', unit: 'cái', targetQuantity: 1 }],
+      }),
+      actorUserId: DiamondId,
+      asAdmin: false,
+    });
+    const [closedNeed] = await repo.listNeeds(intakeClosed.globalId);
+    await q(
+      `UPDATE campaigns SET intake_ends_at = now() - interval '1 minute' WHERE global_id = $1`,
+      [intakeClosed.globalId],
+    );
+    const [beforeClosed] = await q(
+      `SELECT count(*)::int AS n FROM campaign_contributions WHERE campaign_id = $1`,
+      [intakeClosed.globalId],
+    );
+    const closedError = await errorName(
+      submit.handle({
+        campaignId: intakeClosed.globalId,
+        contributorId: GiverA,
+        items: [{ needItemId: closedNeed.globalId, offeredQuantity: 1 }],
+      }),
+    );
+    const [afterClosed] = await q(
+      `SELECT count(*)::int AS n FROM campaign_contributions WHERE campaign_id = $1`,
+      [intakeClosed.globalId],
+    );
+    check(
+      'intake_ends_at đã qua: use case từ chối CharityIntakeClosedException và campaign_contributions không đổi',
+      closedError === 'CharityIntakeClosedException' &&
+        afterClosed.n === beforeClosed.n,
+      `${closedError}, ${beforeClosed.n} → ${afterClosed.n}`,
     );
 
     async function contribute(

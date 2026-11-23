@@ -16,6 +16,7 @@
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { JoinCharityCampaignUseCase } from '../src/application/implementations/charity-campaign/charity-campaign.use-cases';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
@@ -343,6 +344,35 @@ async function main(): Promise<void> {
         confirmedRow?.positions.length === 1 &&
         confirmedRow.positions[0].title === 'Bốc xếp',
       JSON.stringify(confirmedRow?.positions),
+    );
+
+    // ── 6. Hết tiếp nhận chặn đăng ký mới (CR 22/11/2026 §3.9) ──────────────
+    console.log('\n6. Sau intakeEndsAt: đăng ký tham gia bị chặn');
+    await sql(
+      `UPDATE campaigns SET intake_ends_at = now() - interval '1 minute' WHERE global_id = $1`,
+      [Live],
+    );
+    const join = new JoinCharityCampaignUseCase(campaigns, {
+      findOneBy: async () => null,
+    } as never);
+    const [{ n: beforeJoin }] = await sql(
+      `SELECT count(*)::int AS n FROM campaign_participations WHERE campaign_id = $1`,
+      [Live],
+    );
+    let joinError: string | null = null;
+    try {
+      await join.handle({ actorUserId: Follower, campaignId: Live });
+    } catch (error) {
+      joinError = (error as Error).constructor.name;
+    }
+    const [{ n: afterJoin }] = await sql(
+      `SELECT count(*)::int AS n FROM campaign_participations WHERE campaign_id = $1`,
+      [Live],
+    );
+    check(
+      'JoinCharityCampaignUseCase thật → CharityIntakeClosedException, không thêm lượt',
+      joinError === 'CharityIntakeClosedException' && afterJoin === beforeJoin,
+      `${joinError}, ${beforeJoin} → ${afterJoin}`,
     );
   } finally {
     for (const source of opened.reverse())

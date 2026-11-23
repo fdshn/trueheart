@@ -31,6 +31,8 @@ import {
   IsEmail,
   IsIn,
   IsInt,
+  IsLatitude,
+  IsLongitude,
   IsOptional,
   IsString,
   IsUrl,
@@ -42,7 +44,12 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { CharityCampaignResponseDto } from './charity-campaign.dto';
+import {
+  CharityCampaignResponseDto,
+  CharityIntakeLocationDto,
+  CharityIntakeLocationInputDto,
+  CharityPublicBeneficiaryDto,
+} from './charity-campaign.dto';
 import {
   CharityChangedFieldDto,
   CharityCountersDto,
@@ -223,6 +230,51 @@ export class CharityPartyDto {
   @ArrayMaxSize(10)
   @IsUrl({ protocols: ['https'], require_protocol: true }, { each: true })
   evidenceUrls?: string[];
+  @ApiPropertyOptional({
+    minimum: 0,
+    description:
+      'Đơn vị nhận: số suất ước tính. Bỏ trống = giữ nguyên. Sau duyệt, đổi giá trị này (hoặc thêm/bỏ đơn vị nhận) cần bản sửa chờ duyệt (`409 CHARITY_CHANGE_REQUIRES_REVIEW`).',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10_000_000)
+  estimatedPortions?: number;
+  @ApiPropertyOptional({
+    minimum: 0,
+    description: 'Đơn vị nhận: tiền ước tính (VND). Bỏ trống = giữ nguyên.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000_000_000)
+  estimatedAmount?: number;
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'Gửi cùng `lng`; cả hai `null` = xoá toạ độ',
+  })
+  @IsOptional()
+  @IsLatitude()
+  lat?: number | null;
+  @ApiPropertyOptional({ type: Number, nullable: true })
+  @IsOptional()
+  @IsLongitude()
+  lng?: number | null;
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Giờ trao cho đơn vị này; `null` = xoá, bỏ trống = giữ nguyên',
+  })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  distributionAt?: Date | null;
+  @ApiPropertyOptional({ enum: ['PENDING', 'CONFIRMED'], nullable: true })
+  @IsOptional()
+  @IsIn(['PENDING', 'CONFIRMED'])
+  consentStatus?: 'PENDING' | 'CONFIRMED' | null;
 }
 export class CharityPartiesBodyDto {
   @ApiProperty({ type: () => [CharityPartyDto], maxItems: 50 })
@@ -253,6 +305,22 @@ export class CharityPartyViewDto {
   isAppealSubject: boolean;
   @ApiProperty({ type: [String] }) evidenceUrls: string[];
   @ApiProperty({ type: String, format: 'date-time' }) updatedAt: Date;
+  @ApiProperty({ description: 'Số suất ước tính (đơn vị nhận)' })
+  estimatedPortions: number;
+  @ApiProperty({ description: 'Số tiền ước tính (VND, đơn vị nhận)' })
+  estimatedAmount: number;
+  @ApiProperty({ type: Number, nullable: true }) lat: number | null;
+  @ApiProperty({ type: Number, nullable: true }) lng: number | null;
+  @ApiProperty({
+    nullable: true,
+    example: { lat: 10.8, lng: 106.7 },
+    description: 'Gộp `lat`/`lng`',
+  })
+  location: { lat: number; lng: number } | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  distributionAt: Date | null;
+  @ApiProperty({ type: String, nullable: true, enum: ['PENDING', 'CONFIRMED'] })
+  consentStatus: string | null;
 }
 
 // ── Tài khoản ngân hàng ──────────────────────────────────────────────────
@@ -553,6 +621,17 @@ export class CharityItemNeedProfileDto {
   @IsString()
   @MaxLength(2000)
   surplusExplanation?: string | null;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    description:
+      'Số lượng mỗi suất. Mục tiêu không được thấp hơn tổng suất của đơn vị nhận × giá trị này (`400 CHARITY_NEED_BELOW_ESTIMATED_PORTIONS`). Bỏ trống giữ nguyên.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100_000)
+  quantityPerPortion?: number;
 }
 export class CharityItemNeedBodyDto {
   @ApiProperty({ type: () => CharityItemNeedProfileDto })
@@ -600,6 +679,13 @@ export class CharityItemNeedViewDto {
   @ApiProperty({ enum: CharityOpenClosed }) intakeStatus: string;
   @ApiProperty({ type: String, nullable: true }) surplusExplanation:
     string | null;
+  @ApiProperty({ description: 'Số lượng mỗi suất (≥ 1)' })
+  quantityPerPortion: number;
+  @ApiProperty({
+    description:
+      'Sàn mục tiêu = tổng suất của các đơn vị nhận × `quantityPerPortion`; 0 khi chưa có suất',
+  })
+  minimumQuantity: number;
 }
 
 // ── Tiền ────────────────────────────────────────────────────────────────
@@ -614,7 +700,14 @@ export class CharityFundingNeedDto {
   @IsOptional()
   @IsUUID()
   beneficiaryPartyId?: string;
-  @ApiPropertyOptional({ maxLength: 200 }) @Text(200) receivingUnit?: string;
+  @ApiPropertyOptional({
+    maxLength: 200,
+    deprecated: true,
+    description:
+      'Bỏ qua (CR 22/11/2026) — đơn vị nhận khai ở `PUT :id/parties` (role `BENEFICIARY`).',
+  })
+  @Text(200)
+  receivingUnit?: string;
   @ApiPropertyOptional({
     format: 'uuid',
     description: 'Tài khoản nhận ĐANG hiệu lực của dự án',
@@ -669,7 +762,6 @@ export class CharityFundingNeedViewDto {
   @ApiProperty({ type: String, nullable: true }) description: string | null;
   @ApiProperty({ type: String, nullable: true, format: 'uuid' })
   beneficiaryPartyId: string | null;
-  @ApiProperty({ type: String, nullable: true }) receivingUnit: string | null;
   @ApiProperty({ type: String, nullable: true, format: 'uuid' }) bankAccountId:
     string | null;
   @ApiProperty() targetAmount: number;
@@ -1007,6 +1099,12 @@ export class CharityPublicProjectDto {
       'Hình thức trao công khai (5 trường). Chi tiết riêng tư chỉ ở GET :id/distribution.',
   })
   distribution: CharityDistributionPublicDto | null;
+  @ApiProperty({
+    type: () => [CharityPublicBeneficiaryDto],
+    description:
+      'Đơn vị nhận công khai, theo giờ trao (chưa hẹn để cuối). Không bao giờ có SĐT/người phụ trách; cá nhân không có địa chỉ/toạ độ.',
+  })
+  beneficiaries: CharityPublicBeneficiaryDto[];
   @ApiProperty({ type: () => CharityPublicSupportersDto })
   supporters: CharityPublicSupportersDto;
   @ApiProperty({ type: () => CharityCountersDto })
@@ -1182,4 +1280,51 @@ export class CharityRehearsalDto {
 export class CharityRehearsalResponseDto {
   @ApiProperty({ type: () => CharityRehearsalDto, nullable: true })
   rehearsal: CharityRehearsalDto | null;
+}
+
+// ── Điểm tiếp nhận và ba khung (CR 22/11/2026) ─────────────────────────────
+
+export class CharityIntakeLocationsBodyDto {
+  @ApiProperty({ type: () => [CharityIntakeLocationInputDto], maxItems: 50 })
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => CharityIntakeLocationInputDto)
+  intakeLocations: CharityIntakeLocationInputDto[];
+}
+
+export class CharityIntakeLocationsResponseDto {
+  @ApiProperty({ type: () => [CharityIntakeLocationDto] })
+  intakeLocations: CharityIntakeLocationDto[];
+}
+
+export class CharityScheduleDto {
+  @ApiProperty({ type: String, format: 'date-time' })
+  @Type(() => Date)
+  @IsDate()
+  intakeStartsAt: Date;
+  @ApiProperty({ type: String, format: 'date-time' })
+  @Type(() => Date)
+  @IsDate()
+  intakeEndsAt: Date;
+  @ApiProperty({ type: String, format: 'date-time' })
+  @Type(() => Date)
+  @IsDate()
+  distributionStartsAt: Date;
+  @ApiProperty({ type: String, format: 'date-time' })
+  @Type(() => Date)
+  @IsDate()
+  distributionEndsAt: Date;
+  @ApiProperty({ type: String, format: 'date-time' })
+  @Type(() => Date)
+  @IsDate()
+  endTime: Date;
+}
+
+export class CharityScheduleBodyDto {
+  @ApiProperty({ type: () => CharityScheduleDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => CharityScheduleDto)
+  schedule: CharityScheduleDto;
 }

@@ -66,10 +66,31 @@ export interface ICharityPartyInput {
   picUserId: string | null;
   beneficiaryKind: CharityBeneficiaryKind | null;
   evidenceUrls: string[];
+  /**
+   * Kế hoạch trao của đơn vị nhận (CR 22/11/2026 §3.17d). Bỏ trống (`undefined`) = giữ giá trị
+   * đang lưu khi cập nhật, mặc định khi tạo (0 / `null`).
+   */
+  estimatedPortions?: number;
+  estimatedAmount?: number;
+  /** Toạ độ: cả hai `null` = xoá; chỉ ghi khi có đủ cả hai. */
+  lat?: number | null;
+  lng?: number | null;
+  distributionAt?: Date | null;
+  consentStatus?: CharityPartyConsentStatus | null;
 }
+
+export type CharityPartyConsentStatus = 'PENDING' | 'CONFIRMED';
 
 export interface ICharityParty extends ICharityPartyInput {
   partyId: string;
+  estimatedPortions: number;
+  estimatedAmount: number;
+  lat: number | null;
+  lng: number | null;
+  /** Gộp `lat`/`lng` — trường theo dõi sửa đổi `PARTY.location`. */
+  location: { lat: number; lng: number } | null;
+  distributionAt: Date | null;
+  consentStatus: CharityPartyConsentStatus | null;
   /** Người thụ hưởng của kêu gọi cá nhân — quản lý qua `PUT :id/beneficiary`, riêng tư. */
   isAppealSubject: boolean;
   updatedAt: Date;
@@ -145,13 +166,16 @@ export interface ICharityItemNeed extends ICharityNeedItemProfileInput {
   isActive: boolean;
   /** Giải trình công khai phần dư / đổi mục đích phần dư (§3.18). */
   surplusExplanation: string | null;
+  /** Số lượng mỗi suất (≥ 1) — sàn mục tiêu = tổng suất × giá trị này (CR 22/11/2026). */
+  quantityPerPortion: number;
+  /** `minimumQuantityFor(tổng suất của các đơn vị nhận, quantityPerPortion)`. */
+  minimumQuantity: number;
 }
 
 export interface ICharityFundingNeedInput {
   title: string;
   description: string | null;
   beneficiaryPartyId: string | null;
-  receivingUnit: string | null;
   bankAccountId: string | null;
   targetAmount: number;
   deadline: Date | null;
@@ -427,6 +451,8 @@ export interface ICharityProjectRepository {
     profile: ICharityNeedItemProfileInput;
     /** `undefined` giữ nguyên. */
     targetQuantity?: number;
+    /** `undefined` giữ nguyên (≥ 1). */
+    quantityPerPortion?: number;
     /** `undefined` giữ nguyên, `null` xoá. */
     surplusExplanation?: string | null;
   }): Promise<boolean>;

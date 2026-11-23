@@ -84,6 +84,7 @@ export const CharityRevisionPolicies: Readonly<
       'name',
       'beneficiaryKind',
       'address',
+      'location',
       'hotline',
       'email',
       'phone',
@@ -91,14 +92,27 @@ export const CharityRevisionPolicies: Readonly<
       'picPhone',
       'picUserId',
       'evidenceUrls',
+      'estimatedPortions',
+      'estimatedAmount',
+      'distributionAt',
     ],
-    // Bên thụ hưởng chỉ công khai tên và loại; đơn vị khác công khai địa chỉ/hotline/email.
-    isPrivate: (field, row) =>
-      ['phone', 'picName', 'picPhone', 'picUserId', 'evidenceUrls'].includes(
-        field,
-      ) ||
-      (row.role === 'BENEFICIARY' &&
-        ['address', 'hotline', 'email'].includes(field)),
+    // Không bao giờ công khai: số điện thoại, người phụ trách, ảnh hồ sơ. Địa chỉ/toạ độ: riêng
+    // tư với cá nhân (`INDIVIDUAL`), công khai với tập thể (`GROUP`) — CR 22/11/2026 §3.17d.
+    // Bên thụ hưởng giữ hotline/email riêng tư như trước.
+    isPrivate: (field, row) => {
+      if (
+        ['phone', 'picName', 'picPhone', 'picUserId', 'evidenceUrls'].includes(
+          field,
+        )
+      )
+        return true;
+      if (field === 'address' || field === 'location')
+        return (
+          row.beneficiaryKind === 'INDIVIDUAL' ||
+          (row.role === 'BENEFICIARY' && row.beneficiaryKind !== 'GROUP')
+        );
+      return row.role === 'BENEFICIARY' && ['hotline', 'email'].includes(field);
+    },
     isImportant: (_field, row) => row.role === 'BENEFICIARY',
   },
   TEAM: {
@@ -173,7 +187,6 @@ export const CharityRevisionPolicies: Readonly<
       'title',
       'description',
       'beneficiaryPartyId',
-      'receivingUnit',
       'bankAccountId',
       'targetAmount',
       'deadline',

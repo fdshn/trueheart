@@ -2,6 +2,7 @@ import {
   CharityContributionTypeDisabledException,
   CharityDistributionFieldRequiredException,
   CharityDistributionMethodMismatchException,
+  CharityIntakeClosedException,
   CharityStageTransitionInvalidException,
   CharitySupportNeedClosedException,
   CharitySupportOfferInvalidStateException,
@@ -91,6 +92,7 @@ function make(current = campaign()) {
     findVisibleCampaignId: jest.fn(
       async (): Promise<string | null> => CampaignId,
     ),
+    listParties: jest.fn(async (): Promise<unknown[]> => []),
     listPhases: jest.fn(async (): Promise<unknown[]> => [
       {
         phase: 'DISTRIBUTION',
@@ -193,6 +195,25 @@ describe('Hỗ trợ mở', () => {
         summary.operations as never,
       ).handle(offerCmd),
     ).rejects.toThrow(CharitySupportNeedClosedException);
+  });
+
+  it('sau intakeEndsAt: nhận hỗ trợ → 409 0x13_60, không ghi', async () => {
+    const deps = make(
+      campaign({ intakeEndsAt: new Date(Date.now() - 60_000) }),
+    );
+    await expect(
+      new OfferCharitySupportUseCase(
+        deps.campaigns as never,
+        deps.operations as never,
+      ).handle({
+        userId: Helper,
+        campaignId: CampaignId,
+        supportNeedId: 'n1',
+        quantity: 1,
+        note: null,
+      }),
+    ).rejects.toThrow(CharityIntakeClosedException);
+    expect(deps.operations.createOffer).not.toHaveBeenCalled();
   });
 
   it('ghi hoàn thành: mặc định đủ số; vượt số đã nhận → 400; từ chối thiếu lý do → 400', async () => {

@@ -56,6 +56,7 @@ import {
   CloseCharityCampaignUseCase,
   CreateCharityCampaignUseCase,
   DecideCharityApprovalUseCase,
+  GetPublicCharityCampaignUseCase,
   JoinCharityCampaignUseCase,
   ListJoinedCharityCampaignsUseCase,
   ReplaceCharityMediaUseCase,
@@ -63,11 +64,19 @@ import {
   UpdateCharityProgressUseCase,
 } from '../src/application/implementations/charity-campaign/charity-campaign.use-cases';
 import { CharityNotifier } from '../src/application/implementations/charity-campaign/charity.notifier';
+import {
+  CharityProjectAccess,
+  GetCharityPublicProjectUseCase,
+  ReplaceCharityPartiesUseCase,
+} from '../src/application/implementations/charity-project/charity-project.use-cases';
 import { IGiftRequestRepository } from '../src/domain/ports/repository';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
+import { CharityEngagementRepository } from '../src/infrastructure/repository/charity-engagement.repository';
+import { CharityEventRepository } from '../src/infrastructure/repository/charity-event.repository';
+import { CharityProjectRepository } from '../src/infrastructure/repository/charity-project.repository';
 import { CharitySummaryRepository } from '../src/infrastructure/repository/charity-summary.repository';
 import { EntitlementRepository } from '../src/infrastructure/repository/entitlement.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
@@ -162,7 +171,8 @@ function writeInput(overrides: Record<string, unknown> = {}) {
     lng: 106.699,
     locationLabel: 'Chùa Vĩnh Nghiêm, Quận 3',
     startTime: start.toISOString(),
-    endTime: new Date(start.getTime() + 8 * Hour).toISOString(),
+    // Đủ xa để khung trao cố định (2026-12) nằm trước kết thúc — CR 22/11/2026.
+    endTime: new Date(start.getTime() + 200 * 24 * Hour).toISOString(),
     ...overrides,
   };
 }
@@ -1663,6 +1673,188 @@ async function main(): Promise<void> {
     check(
       'xoá lần hai trả NOT_FOUND',
       (await repository.softDeleteIfUnused(other.globalId)) === 'NOT_FOUND',
+    );
+
+    // ── Đơn vị nhận lúc tạo + bản công khai không lộ cá nhân (CR 22/11/2026, Review Focus 2) ──
+    console.log('\n13. Đơn vị nhận khi tạo và bản công khai');
+    // Gửi duyệt cần mọi đơn vị có địa chỉ và giờ trao (CR 22/11/2026 §5.4).
+    const giveAt = new Date(Date.now() + 10 * 24 * Hour).toISOString();
+    const planned = await createUseCase.handle(
+      withMedia({
+        ...writeInput({
+          title: 'Áo ấm cho ba điểm trường',
+          acceptedContributionTypes: ['MATERIAL'],
+          needs: [
+            {
+              itemName: 'Áo ấm',
+              unit: 'cái',
+              targetQuantity: 300,
+              quantityPerPortion: 1,
+            },
+          ],
+          beneficiaries: [
+            {
+              name: 'Điểm trường Lũng Cú',
+              beneficiaryKind: 'GROUP',
+              estimatedPortions: 150,
+              estimatedAmount: 0,
+              address: 'Thôn Lũng Cú, Đồng Văn',
+              distributionAt: giveAt,
+              lat: 23.364,
+              lng: 105.316,
+            },
+            {
+              name: 'Điểm trường Sủng Là',
+              beneficiaryKind: 'GROUP',
+              estimatedPortions: 149,
+              estimatedAmount: 0,
+              address: 'Thôn Sủng Là, Đồng Văn',
+              distributionAt: giveAt,
+            },
+            {
+              name: 'Bà Tư',
+              beneficiaryKind: 'INDIVIDUAL',
+              estimatedPortions: 1,
+              estimatedAmount: 0,
+              address: 'Số 12 ngõ 3, Hẻm Riêng',
+              phone: '0987654321',
+              distributionAt: giveAt,
+              lat: 21.0123,
+              lng: 105.8456,
+            },
+          ],
+        }),
+        actorUserId: AdminId,
+        asAdmin: true,
+      }) as never,
+    );
+    const plannedRows = await dataSource.query<{ name: string }[]>(
+      `SELECT name FROM campaign_parties
+        WHERE campaign_id = $1 AND role = 'BENEFICIARY' ORDER BY sort_order`,
+      [planned.globalId],
+    );
+    check(
+      'tạo với 3 đơn vị nhận -> 3 dòng BENEFICIARY theo thứ tự gửi; tổng suất 300',
+      plannedRows.length === 3 &&
+        plannedRows[2].name === 'Bà Tư' &&
+        planned.totalEstimatedPortions === 300,
+      JSON.stringify(plannedRows),
+    );
+    const projectRepository = new CharityProjectRepository(dataSource.manager);
+    const engagementRepository = new CharityEngagementRepository(
+      dataSource.manager,
+    );
+    const publicCampaign = await new GetPublicCharityCampaignUseCase(
+      repository,
+    ).handle({ idOrSlug: planned.globalId });
+    const publicProject = await new GetCharityPublicProjectUseCase(
+      repository,
+      projectRepository,
+      engagementRepository,
+      new CharityEventRepository(dataSource.manager),
+      new CharitySummaryRepository(dataSource.manager),
+    ).handle({ idOrSlug: planned.globalId, userId: null });
+    const leaked = (value: unknown) => {
+      const text = JSON.stringify(value);
+      return (
+        text.includes('Hẻm Riêng') ||
+        text.includes('21.0123') ||
+        text.includes('0987654321')
+      );
+    };
+    check(
+      'GET /campaigns/:idOrSlug và /project: có 3 đơn vị nhận, KHÔNG có địa chỉ/toạ độ/SĐT của cá nhân',
+      publicCampaign.beneficiaries.length === 3 &&
+        publicProject.beneficiaries.length === 3 &&
+        publicProject.beneficiaries.some(
+          (row) => row.address === 'Thôn Lũng Cú, Đồng Văn',
+        ) &&
+        !leaked(publicCampaign) &&
+        !leaked(publicProject),
+      JSON.stringify(publicProject.beneficiaries),
+    );
+    const parties = await projectRepository.listParties(planned.globalId);
+    await new ReplaceCharityPartiesUseCase(
+      new CharityProjectAccess(repository, adminConfig),
+      projectRepository,
+    ).handle({
+      userId: AdminId,
+      campaignId: planned.globalId,
+      parties: parties.map((party) => ({
+        ...party,
+        address:
+          party.beneficiaryKind === 'INDIVIDUAL'
+            ? 'Số 99 ngõ 7, Hẻm Riêng Mới'
+            : party.address,
+      })),
+    });
+    const changedPublic = await engagementRepository.listChangedFields({
+      campaignId: planned.globalId,
+      publicOnly: true,
+    });
+    const [privateRevision] = await dataSource.query<{ is_public: boolean }[]>(
+      `SELECT is_public FROM campaign_revisions
+        WHERE campaign_id = $1 AND entity = 'PARTY' AND field = 'address'`,
+      [planned.globalId],
+    );
+    check(
+      'PUT parties đổi địa chỉ cá nhân -> revision RIÊNG TƯ, không có trong listChangedFields công khai',
+      privateRevision?.is_public === false &&
+        !changedPublic.some(
+          (row) => row.entity === 'PARTY' && row.field === 'address',
+        ) &&
+        !leaked(changedPublic),
+      JSON.stringify(changedPublic),
+    );
+
+    console.log('\n14. Điểm tiếp nhận đồng bộ toạ độ chiến dịch');
+    const synced = await repository.replaceIntakeLocations({
+      campaignId: planned.globalId,
+      actorId: AdminId,
+      locations: [
+        {
+          label: 'Điểm không toạ độ',
+          address: null,
+          lat: null,
+          lng: null,
+          scheduleNote: null,
+          contactName: null,
+          contactPhone: null,
+        },
+        {
+          label: 'Chùa Bửu Long',
+          address: '81 Nguyễn Xiển',
+          lat: 10.877,
+          lng: 106.832,
+          scheduleNote: '8:00–17:00',
+          contactName: 'Anh Tư',
+          contactPhone: '0900000004',
+        },
+      ],
+    });
+    const syncedCampaign = await repository.findByGlobalId(planned.globalId);
+    const [nearby] = await dataSource.query<{ found: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1 FROM campaigns
+          WHERE global_id = $1
+            AND ST_DWithin(location,
+                  ST_SetSRID(ST_MakePoint(106.832, 10.877), 4326)::geography, 500)
+       ) AS found`,
+      [planned.globalId],
+    );
+    check(
+      'replaceIntakeLocations [không toạ độ, toạ độ X] -> campaigns.location = X, location_label = điểm thứ hai; tìm quanh X vẫn thấy',
+      synced.length === 2 &&
+        synced[0].position === 0 &&
+        synced[1].label === 'Chùa Bửu Long' &&
+        Math.abs((syncedCampaign?.lat ?? 0) - 10.877) < 1e-6 &&
+        Math.abs((syncedCampaign?.lng ?? 0) - 106.832) < 1e-6 &&
+        syncedCampaign?.locationLabel === 'Chùa Bửu Long' &&
+        nearby.found,
+      JSON.stringify({
+        lat: syncedCampaign?.lat,
+        label: syncedCampaign?.locationLabel,
+      }),
     );
   } finally {
     for (const source of opened.reverse())

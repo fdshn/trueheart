@@ -10,6 +10,8 @@ import {
   ICharityFinancialReport,
   ICharityFundingNeed,
   ICharityFundingNeedInput,
+  ICharityIntakeLocation,
+  ICharityIntakeLocationInput,
   ICharityIntakeTotals,
   ICharityItemNeed,
   ICharityNeedItemProfileInput,
@@ -41,6 +43,7 @@ import {
   CharityVolunteerNeedStatus,
   ICharityBeneficiaryBankAccount,
   ICharityBeneficiaryBankAccountInput,
+  ICharityPublicBeneficiary,
   ICharityRehearsalChecklistItem,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
@@ -144,6 +147,11 @@ export interface ICharityPublicProject {
    * Hình thức trao CÔNG KHAI (CR 22/11/2026): đúng 5 trường; chi tiết riêng tư chỉ ở
    * `GET :id/distribution`. `null` khi chưa chọn hình thức.
    */
+  /**
+   * Đơn vị nhận CÔNG KHAI (CR 22/11/2026 §3.17d) — qua `toPublicBeneficiary`: không bao giờ có
+   * SĐT/người phụ trách; cá nhân không có địa chỉ/toạ độ. Theo giờ trao, chưa hẹn để cuối.
+   */
+  beneficiaries: ICharityPublicBeneficiary[];
   distribution: {
     method: CharityDistributionMethod;
     contributionTypes: CharityContributionType[];
@@ -308,6 +316,36 @@ export interface IReplaceCharityTeamUseCase extends IUseCase<
 > {}
 export const IReplaceCharityTeamUseCase = Symbol('IReplaceCharityTeamUseCase');
 
+/** `PUT :id/intake-locations` — thay cả bộ điểm tiếp nhận (CR 22/11/2026 §3.17c). */
+export interface IReplaceCharityIntakeLocationsCommand extends ICharityProjectCommand {
+  readonly intakeLocations: readonly ICharityIntakeLocationInput[];
+}
+export interface IReplaceCharityIntakeLocationsUseCase extends IUseCase<
+  IReplaceCharityIntakeLocationsCommand,
+  ICharityIntakeLocation[]
+> {}
+export const IReplaceCharityIntakeLocationsUseCase = Symbol(
+  'IReplaceCharityIntakeLocationsUseCase',
+);
+
+/** `PUT :id/schedule` — ba khung, áp ngay cả sau duyệt (CR 22/11/2026 §3.17b). */
+export interface ISaveCharityScheduleCommand extends ICharityProjectCommand {
+  readonly schedule: {
+    readonly intakeStartsAt: Date;
+    readonly intakeEndsAt: Date;
+    readonly distributionStartsAt: Date;
+    readonly distributionEndsAt: Date;
+    readonly endTime: Date;
+  };
+}
+export interface ISaveCharityScheduleUseCase extends IUseCase<
+  ISaveCharityScheduleCommand,
+  ICharityCampaignView
+> {}
+export const ISaveCharityScheduleUseCase = Symbol(
+  'ISaveCharityScheduleUseCase',
+);
+
 export interface IReplaceCharityPhasesCommand extends ICharityProjectCommand {
   readonly phases: ICharityPhase[];
 }
@@ -324,6 +362,8 @@ export interface IUpdateCharityItemNeedCommand extends ICharityProjectCommand {
   readonly profile: ICharityNeedItemProfileInput;
   /** Mục tiêu mới; thấp hơn số đã nhận thì phải có `surplusExplanation` (§3.18). */
   readonly targetQuantity?: number;
+  /** Số lượng mỗi suất (≥ 1); `undefined` giữ nguyên. Sàn = tổng suất × giá trị này. */
+  readonly quantityPerPortion?: number;
   /** `undefined` giữ nguyên, `null` xoá. */
   readonly surplusExplanation?: string | null;
 }

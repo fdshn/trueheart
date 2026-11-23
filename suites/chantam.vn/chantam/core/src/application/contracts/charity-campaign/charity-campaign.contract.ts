@@ -17,6 +17,7 @@ import {
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   CharityApprovalStatus,
+  CharityBeneficiaryKind,
   CharityBeneficiaryRelation,
   CharityCampaignType,
   CharityContributionStatus,
@@ -24,6 +25,7 @@ import {
   CharityRejectionReason,
   CharityServiceChannel,
   CharitySupportType,
+  ICharityPublicBeneficiary,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 import { IStorageUploadResult } from '@chantam/service.storage-lib';
@@ -65,6 +67,24 @@ export interface ICharityNeedItemInput {
   readonly unit: string;
   readonly targetQuantity: number;
   readonly allowAlternative?: boolean;
+  /** Số lượng mỗi suất (≥ 1, mặc định 1) — sàn = tổng suất × giá trị này (CR 22/11/2026). */
+  readonly quantityPerPortion?: number;
+}
+
+/** Một đơn vị nhận khai lúc tạo chiến dịch (CR 22/11/2026 §3.17d). */
+export interface ICharityBeneficiaryUnitInput {
+  readonly name: string;
+  readonly beneficiaryKind: CharityBeneficiaryKind;
+  readonly address?: string;
+  readonly phone?: string;
+  readonly picName?: string;
+  readonly picPhone?: string;
+  readonly consentStatus?: 'PENDING' | 'CONFIRMED';
+  readonly estimatedPortions: number;
+  readonly estimatedAmount: number;
+  readonly lat?: number;
+  readonly lng?: number;
+  readonly distributionAt?: string;
 }
 
 export interface ICharityCampaignWriteInput {
@@ -145,13 +165,13 @@ export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput 
     | 'beneficiaryPartyId'
     | 'bankAccountId'
     | 'description'
-    | 'receivingUnit'
     | 'deadline'
     | 'sortOrder'
   > & {
     readonly beneficiaryPartyId?: string;
     readonly bankAccountId?: string;
     readonly description?: string;
+    /** @deprecated CR 22/11/2026 — bỏ qua; đơn vị nhận là `campaign_parties`. */
     readonly receivingUnit?: string;
     readonly deadline?: Date;
   })[];
@@ -189,6 +209,33 @@ export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput 
    * public ngay (§2).
    */
   readonly beneficiary?: ICharityBeneficiaryCommandInput;
+  /**
+   * Đơn vị nhận của chiến dịch có tổ chức (CR 22/11/2026): tối đa
+   * `charity.max_beneficiaries_per_campaign`. Kêu gọi cá nhân dùng `beneficiary`.
+   */
+  readonly beneficiaries?: readonly ICharityBeneficiaryUnitInput[];
+  /**
+   * Điểm tiếp nhận (CR 22/11/2026 §3.17c), tối đa `charity.max_intake_locations`. Bỏ trống mà có
+   * `lat`/`lng`/`locationLabel` (cũ) thì thành một điểm. Chiến dịch nhận hiện vật gửi duyệt cần
+   * ít nhất một điểm.
+   */
+  readonly intakeLocations?: readonly ICharityIntakeLocationCommandInput[];
+  /** Bắt đầu tiếp nhận — bí danh của `startTime` (giữ một bản phát hành). */
+  readonly intakeStartsAt?: string;
+  readonly intakeEndsAt?: string;
+  /** Khung trao → phase DISTRIBUTION (thay `distribution.scheduledStart/End`). */
+  readonly distributionStartsAt?: string;
+  readonly distributionEndsAt?: string;
+}
+
+export interface ICharityIntakeLocationCommandInput {
+  readonly label: string;
+  readonly address?: string;
+  readonly lat?: number;
+  readonly lng?: number;
+  readonly scheduleNote?: string;
+  readonly contactName?: string;
+  readonly contactPhone?: string;
 }
 
 export interface ICreateCharityCampaignCommand extends ICreateCharityCampaignInput {
@@ -587,6 +634,8 @@ export interface IGetPublicCharityCampaignResult {
   readonly campaign: ICharityCampaignView;
   readonly reviews: ICharityReview[];
   readonly reviewTotal: number;
+  /** Đơn vị nhận công khai — cùng hình dạng với `GET /charity-campaigns/:idOrSlug/project`. */
+  readonly beneficiaries: ICharityPublicBeneficiary[];
 }
 
 export interface IGetPublicCharityCampaignUseCase extends IUseCase<

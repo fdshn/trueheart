@@ -18,6 +18,7 @@ import {
   CharityContributionTypeDisabledException,
   CharityDistributionFieldRequiredException,
   CharityDistributionMethodMismatchException,
+  CharityIntakeClosedException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
   CharityProjectNotApprovedException,
@@ -267,6 +268,7 @@ export class CharityOperationsController {
     CharityContributionTypeDisabledException,
     CharitySupportNeedNotFoundException,
     CharitySupportNeedClosedException,
+    CharityIntakeClosedException,
   )
   public async offer(
     @CurrentUser() principal: IAuthPrincipal,

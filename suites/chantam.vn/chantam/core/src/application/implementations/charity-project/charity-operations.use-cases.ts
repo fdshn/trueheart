@@ -31,7 +31,9 @@ import {
   assertDistributionMethodAcceptedByCampaign,
 } from '@/domain/charity-contribution-type';
 import {
+  CharityBeneficiaryDistributionTimeOutOfRangeException,
   CharityCampaignNotFoundException,
+  CharityIntakeClosedException,
   CharityProjectNotApprovedException,
   CharityStageTransitionInvalidException,
   CharitySupportNeedClosedException,
@@ -53,10 +55,12 @@ import {
   NotificationTypes,
 } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  beneficiariesOutsideWindow,
   CharityCompletionBlockerLabels,
   CharitySupportOfferDecisionRules,
   CharitySupportOfferStatus,
   CharitySupportOfferWithdrawableStatuses,
+  isIntakeClosed,
   isPubliclyVisibleProject,
   MaxCharityDistributionEvidenceUrls,
   phaseScheduleGaps,
@@ -276,6 +280,9 @@ export class OfferCharitySupportUseCase implements IOfferCharitySupportUseCase {
     if (!campaign.isActive || campaign.operationStage === 'SUMMARY')
       throw new CharitySupportNeedClosedException();
     assertContributionTypeAccepted(campaign, 'SERVICE');
+    // Hết tiếp nhận (CR 22/11/2026 §3.9) chặn nhận hỗ trợ mới; rút lượt đã nhận vẫn được.
+    if (isIntakeClosed(campaign, new Date()))
+      throw new CharityIntakeClosedException();
     const need = await this.operations.findSupportNeed(
       campaign.globalId,
       command.supportNeedId,
@@ -468,6 +475,26 @@ export class PostponeCharityDistributionUseCase implements IPostponeCharityDistr
     );
     const errors = phaseScheduleGaps(next);
     if (errors.length > 0) throw new ValidationFailedException(errors);
+    // Hoãn làm đơn vị nhận rơi ra ngoài khung trao mới → phải dời giờ trao của họ trước.
+    const outside = beneficiariesOutsideWindow(
+      (await this.projects.listParties(campaign.globalId))
+        .filter(
+          (party) => party.role === 'BENEFICIARY' && !party.isAppealSubject,
+        )
+        .map((party) => ({
+          name: party.name,
+          distributionAt: party.distributionAt ?? null,
+        })),
+      { startsAt: command.startsAt, endsAt },
+    );
+    if (outside.length > 0)
+      throw new CharityBeneficiaryDistributionTimeOutOfRangeException(
+        outside.map((row) => ({
+          index: row.index,
+          name: row.name,
+          distributionAt: row.distributionAt.toISOString(),
+        })),
+      );
     return this.projects.replacePhases({
       campaignId: campaign.globalId,
       actorId: command.userId,

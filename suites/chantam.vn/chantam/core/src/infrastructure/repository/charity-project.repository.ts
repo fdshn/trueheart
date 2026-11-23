@@ -1,5 +1,6 @@
 import {
   AddCharityBankAccountOutcome,
+  CharityPartyConsentStatus,
   ICharityBankAccount,
   ICharityBankAccountInput,
   ICharityCustomSection,
@@ -54,6 +55,7 @@ import {
   ICharityIntakeCounts,
   ICharityRehearsalChecklistItem,
   ICharityRevisionRow,
+  minimumQuantityFor,
   normalizeRehearsalChecklist,
   stageRank,
 } from '@chantam.vn/chantam.core-lib/models';
@@ -85,7 +87,19 @@ interface IPartyRow {
   is_appeal_subject: boolean;
   evidence_urls: string[];
   updated_at: Date;
+  estimated_portions: number;
+  estimated_amount: string | number;
+  lat: number | null;
+  lng: number | null;
+  distribution_at: Date | null;
+  consent_status: CharityPartyConsentStatus | null;
 }
+
+const PartyColumns = `global_id, role, name, address, phone, email, hotline, pic_name, pic_phone,
+  pic_user_id, beneficiary_kind, is_appeal_subject, evidence_urls, updated_at,
+  estimated_portions, estimated_amount,
+  ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng,
+  distribution_at, consent_status`;
 
 const toParty = (row: IPartyRow): ICharityParty => ({
   partyId: row.global_id,
@@ -102,6 +116,17 @@ const toParty = (row: IPartyRow): ICharityParty => ({
   isAppealSubject: row.is_appeal_subject,
   evidenceUrls: row.evidence_urls ?? [],
   updatedAt: row.updated_at,
+  estimatedPortions: Number(row.estimated_portions),
+  // bigint về đây là CHUỖI.
+  estimatedAmount: num(row.estimated_amount),
+  lat: row.lat,
+  lng: row.lng,
+  location:
+    row.lat !== null && row.lng !== null
+      ? { lat: row.lat, lng: row.lng }
+      : null,
+  distributionAt: row.distribution_at,
+  consentStatus: row.consent_status,
 });
 
 interface IBankRow {
@@ -160,7 +185,7 @@ const toBeneficiaryBank = (
 });
 
 const FundingColumns = `funding.global_id, funding.title, funding.description,
-  funding.beneficiary_party_id, funding.receiving_unit, funding.bank_account_id,
+  funding.beneficiary_party_id, funding.bank_account_id,
   funding.target_amount, funding.confirmed_amount, funding.external_amount, funding.deadline,
   funding.status, funding.sort_order, funding.updated_at`;
 
@@ -169,7 +194,6 @@ interface IFundingRow {
   title: string;
   description: string | null;
   beneficiary_party_id: string | null;
-  receiving_unit: string | null;
   bank_account_id: string | null;
   target_amount: string | number;
   confirmed_amount: string | number;
@@ -189,7 +213,6 @@ const toFunding = (row: IFundingRow): ICharityFundingNeed => {
     title: row.title,
     description: row.description,
     beneficiaryPartyId: row.beneficiary_party_id,
-    receivingUnit: row.receiving_unit,
     bankAccountId: row.bank_account_id,
     targetAmount,
     confirmedAmount,
@@ -882,8 +905,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
 
   public async listParties(campaignId: string): Promise<ICharityParty[]> {
     const rows = await this.manager.query<IPartyRow[]>(
-      `SELECT global_id, role, name, address, phone, email, hotline, pic_name, pic_phone,
-              pic_user_id, beneficiary_kind, is_appeal_subject, evidence_urls, updated_at
+      `SELECT ${PartyColumns}
        FROM campaign_parties WHERE campaign_id = $1
        ORDER BY role, sort_order, id`,
       [campaignId],
@@ -928,6 +950,16 @@ export class CharityProjectRepository implements ICharityProjectRepository {
           JSON.stringify(party.evidenceUrls),
           index,
           params.actorId,
+          // $15…$23: kế hoạch trao — `undefined` giữ giá trị đang lưu (app cũ không gửi).
+          party.estimatedPortions ?? null,
+          party.estimatedAmount ?? null,
+          party.distributionAt !== undefined,
+          party.distributionAt ?? null,
+          party.lat !== undefined || party.lng !== undefined,
+          party.lat ?? null,
+          party.lng ?? null,
+          party.consentStatus !== undefined,
+          party.consentStatus ?? null,
         ];
         if (party.partyId) {
           const updated = await updateReturning<{ global_id: string }>(
@@ -936,8 +968,18 @@ export class CharityProjectRepository implements ICharityProjectRepository {
              SET role = $2, name = $3, address = $4, phone = $5, email = $6, hotline = $7,
                  pic_name = $8, pic_phone = $9, pic_user_id = $10, beneficiary_kind = $11,
                  evidence_urls = $12::jsonb, sort_order = $13, updated_by = $14,
+                 estimated_portions = COALESCE($15::int, estimated_portions),
+                 estimated_amount = COALESCE($16::bigint, estimated_amount),
+                 distribution_at = CASE WHEN $17::boolean THEN $18::timestamptz
+                                        ELSE distribution_at END,
+                 location = CASE WHEN $19::boolean THEN
+                              CASE WHEN $20::float8 IS NULL OR $21::float8 IS NULL THEN NULL
+                                   ELSE ST_SetSRID(ST_MakePoint($21::float8, $20::float8), 4326)::geography END
+                            ELSE location END,
+                 consent_status = CASE WHEN $22::boolean THEN $23::varchar
+                                       ELSE consent_status END,
                  updated_at = now()
-             WHERE campaign_id = $1 AND global_id = $15 AND NOT is_appeal_subject
+             WHERE campaign_id = $1 AND global_id = $24 AND NOT is_appeal_subject
              RETURNING global_id`,
             [...values, party.partyId],
           );
@@ -946,8 +988,14 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         await manager.query(
           `INSERT INTO campaign_parties
              (campaign_id, role, name, address, phone, email, hotline, pic_name, pic_phone,
-              pic_user_id, beneficiary_kind, evidence_urls, sort_order, updated_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14)`,
+              pic_user_id, beneficiary_kind, evidence_urls, sort_order, updated_by,
+              estimated_portions, estimated_amount, distribution_at, location, consent_status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14,
+                   COALESCE($15::int, 0), COALESCE($16::bigint, 0),
+                   CASE WHEN $17::boolean THEN $18::timestamptz END,
+                   CASE WHEN $19::boolean AND $20::float8 IS NOT NULL AND $21::float8 IS NOT NULL
+                        THEN ST_SetSRID(ST_MakePoint($21::float8, $20::float8), 4326)::geography END,
+                   CASE WHEN $22::boolean THEN $23::varchar END)`,
           values,
         );
       }
@@ -1355,6 +1403,8 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         receiver_phone: string | null;
         intake_status: CharityOpenClosedStatus;
         surplus_explanation: string | null;
+        quantity_per_portion: number;
+        total_portions: string | number;
         pending_quantity: string | number;
         external_quantity: string | number;
       }[]
@@ -1365,6 +1415,10 @@ export class CharityProjectRepository implements ICharityProjectRepository {
               need.condition_note, need.supply_source, need.intake_deadline,
               need.dropoff_address, need.delivery_instruction, need.receiver_name,
               need.receiver_phone, need.intake_status, need.surplus_explanation,
+              need.quantity_per_portion,
+              (SELECT COALESCE(SUM(party.estimated_portions), 0) FROM campaign_parties party
+                WHERE party.campaign_id = need.campaign_id
+                  AND party.role = 'BENEFICIARY') AS total_portions,
               COALESCE((SELECT SUM(item.offered_quantity)
                 FROM campaign_contribution_items item
                 JOIN campaign_contributions contribution
@@ -1413,6 +1467,11 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         receiverPhone: row.receiver_phone,
         intakeStatus: row.intake_status,
         surplusExplanation: row.surplus_explanation,
+        quantityPerPortion: Number(row.quantity_per_portion),
+        minimumQuantity: minimumQuantityFor(
+          num(row.total_portions),
+          Number(row.quantity_per_portion),
+        ),
       };
     });
   }
@@ -1423,6 +1482,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     actorId: string;
     profile: ICharityNeedItemProfileInput;
     targetQuantity?: number;
+    quantityPerPortion?: number;
     surplusExplanation?: string | null;
   }): Promise<boolean> {
     if (!this.untracked)
@@ -1442,6 +1502,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
            intake_status = $13,
            target_quantity = COALESCE($14::int, target_quantity),
            surplus_explanation = CASE WHEN $15::boolean THEN $16 ELSE surplus_explanation END,
+           quantity_per_portion = COALESCE($17::int, quantity_per_portion),
            updated_at = now()
        WHERE campaign_id = $1 AND global_id = $2
        RETURNING global_id`,
@@ -1462,6 +1523,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         params.targetQuantity ?? null,
         params.surplusExplanation !== undefined,
         params.surplusExplanation ?? null,
+        params.quantityPerPortion ?? null,
       ],
     );
     return rows.length > 0;
@@ -1495,16 +1557,15 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     const need = params.need;
     const [row] = await this.manager.query<IFundingRow[]>(
       `INSERT INTO campaign_funding_needs AS funding
-         (campaign_id, title, description, beneficiary_party_id, receiving_unit,
+         (campaign_id, title, description, beneficiary_party_id,
           bank_account_id, target_amount, deadline, sort_order, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING ${FundingColumns}`,
       [
         params.campaignId,
         need.title,
         need.description,
         need.beneficiaryPartyId,
-        need.receivingUnit,
         need.bankAccountId,
         need.targetAmount,
         need.deadline,
@@ -1535,10 +1596,10 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     const rows = await updateReturning<IFundingRow>(
       this.manager,
       `UPDATE campaign_funding_needs AS funding
-       SET title = $3, description = $4, beneficiary_party_id = $5, receiving_unit = $6,
-           bank_account_id = $7, target_amount = $8, deadline = $9, sort_order = $10,
-           confirmed_amount = $11, external_amount = $12, status = $13,
-           updated_by = $14, updated_at = now()
+       SET title = $3, description = $4, beneficiary_party_id = $5,
+           bank_account_id = $6, target_amount = $7, deadline = $8, sort_order = $9,
+           confirmed_amount = $10, external_amount = $11, status = $12,
+           updated_by = $13, updated_at = now()
        WHERE funding.campaign_id = $1 AND funding.global_id = $2
        RETURNING ${FundingColumns}`,
       [
@@ -1547,7 +1608,6 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         need.title,
         need.description,
         need.beneficiaryPartyId,
-        need.receivingUnit,
         need.bankAccountId,
         need.targetAmount,
         need.deadline,

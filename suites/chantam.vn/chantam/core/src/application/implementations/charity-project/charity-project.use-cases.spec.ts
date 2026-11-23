@@ -3,13 +3,19 @@ import {
   CharityBankAccountNotFoundException,
   CharityBeneficiaryAccountNameMismatchException,
   CharityBeneficiaryAccountNotVerifiedException,
+  CharityBeneficiaryDistributionTimeOutOfRangeException,
   CharityCampaignNotFoundException,
+  CharityChangeRequiresReviewException,
   CharityContributionTypeDisabledException,
+  CharityFundingBelowEstimatedAmountException,
+  CharityIntakeClosedException,
+  CharityNeedBelowEstimatedPortionsException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
   CharityProjectNotDraftException,
   CharityRehearsalNotReadyException,
   CharityRoundEvidenceRequiredException,
+  CharityScheduleInvalidException,
   CharitySectionEmptyException,
   CharityStageScheduleConflictException,
   CharityStageTransitionInvalidException,
@@ -35,6 +41,7 @@ import {
   ReplaceCharityPhasesUseCase,
   SaveCharityFundingNeedUseCase,
   SaveCharityRehearsalUseCase,
+  SaveCharityScheduleUseCase,
   SubmitCharityProjectUseCase,
   UpdateCharityProfileUseCase,
   VerifyCharityBeneficiaryBankAccountUseCase,
@@ -83,6 +90,11 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     storedOperationStage: 'EXECUTION',
     distribution: null,
     summaryPublishedAt: null,
+    intakeStartsAt: new Date(),
+    intakeEndsAt: null,
+    totalEstimatedPortions: 0,
+    totalEstimatedAmount: 0,
+    intakeLocations: [],
     ...overrides,
   };
 }
@@ -103,6 +115,9 @@ function make(
     findPublicByIdOrSlug: jest.fn(async () => current),
     isCampaignManager: jest.fn(async () => options.coordinator ?? false),
     findBeneficiary: jest.fn(async () => null),
+    listBeneficiaryPlans: jest.fn(async () => [] as unknown[]),
+    saveSchedule: jest.fn(async (..._args: unknown[]) => undefined),
+    replaceIntakeLocations: jest.fn(async (..._args: unknown[]) => []),
   };
   const admin = {
     hasPermission: jest.fn(async (_user: string, permission: string) =>
@@ -261,7 +276,11 @@ function make(
         : { allowed: true },
     ),
   };
-  const access = new CharityProjectAccess(campaigns as never, admin as never);
+  const access = new CharityProjectAccess(
+    campaigns as never,
+    admin as never,
+    entitlements as never,
+  );
   const events = {
     ensureEventSteps: jest.fn(async (..._args: unknown[]) => undefined),
     listEventSteps: jest.fn(async () => []),
@@ -359,6 +378,33 @@ describe('SubmitCharityProjectUseCase', () => {
     await expect(
       build(deps).handle({ userId: Owner, campaignId: CampaignId }),
     ).rejects.toThrow(CharitySubmitRequirementsUnmetException);
+    expect(deps.projects.submitDraft).not.toHaveBeenCalled();
+  });
+
+  it('đơn vị nhận thiếu distributionAt → 409 0x13_56 beneficiaries[0].distributionAt, không gửi nháp', async () => {
+    const deps = make({ campaign: draft });
+    deps.campaigns.listBeneficiaryPlans.mockResolvedValue([
+      {
+        name: 'Xã A',
+        beneficiaryKind: 'GROUP',
+        estimatedPortions: 10,
+        estimatedAmount: 0,
+        distributionAt: null,
+        address: 'Thôn 1',
+        lat: null,
+        lng: null,
+      },
+    ]);
+    const error = await build(deps)
+      .handle({ userId: Owner, campaignId: CampaignId })
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(CharitySubmitRequirementsUnmetException);
+    expect((error as Error).message).toContain(
+      'beneficiaries[0].distributionAt',
+    );
+    expect(deps.campaigns.listBeneficiaryPlans).toHaveBeenCalledWith(
+      CampaignId,
+    );
     expect(deps.projects.submitDraft).not.toHaveBeenCalled();
   });
 
@@ -1308,7 +1354,6 @@ describe('Hồ sơ tab A', () => {
           title: 'Viện phí',
           description: null,
           beneficiaryPartyId: null,
-          receivingUnit: null,
           bankAccountId: null,
           targetAmount: 100_000,
           deadline: null,
@@ -1325,7 +1370,6 @@ describe('Hồ sơ tab A', () => {
       title: 'Viện phí',
       description: null,
       beneficiaryPartyId: null,
-      receivingUnit: null,
       bankAccountId: 'acc-closed',
       targetAmount: 100_000,
       deadline: new Date('2026-12-31T00:00:00Z'),
@@ -1339,7 +1383,6 @@ describe('Hồ sơ tab A', () => {
       title: 'Viện phí',
       description: null,
       beneficiaryPartyId: null,
-      receivingUnit: null,
       bankAccountId: 'acc-closed',
       targetAmount: 100_000,
       deadline: new Date('2026-12-31T00:00:00Z'),
@@ -1546,6 +1589,16 @@ describe('Đăng ký tham gia', () => {
     await expect(build(deps).handle(cmd)).rejects.toThrow(error);
   });
 
+  it('sau intakeEndsAt: đăng ký tuyển công sức → 409 0x13_60', async () => {
+    const deps = make({
+      campaign: campaign({ intakeEndsAt: new Date(Date.now() - 60_000) }),
+    });
+    await expect(build(deps).handle(cmd)).rejects.toThrow(
+      CharityIntakeClosedException,
+    );
+    expect(deps.projects.registerVolunteer).not.toHaveBeenCalled();
+  });
+
   it('dự án chưa duyệt hoặc đình chỉ → 404', async () => {
     await expect(
       build(make({ campaign: campaign({ isActive: false }) })).handle(cmd),
@@ -1712,5 +1765,254 @@ describe('Workspace và bản công khai', () => {
         sectionKey: 'SUMMARY',
       }),
     ).rejects.toThrow(CharitySectionEmptyException);
+  });
+});
+
+describe('PUT parties · đơn vị nhận, sàn suất, sửa sau duyệt (CR 22/11/2026)', () => {
+  const party = (
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> => ({
+    role: 'BENEFICIARY' as const,
+    name: 'Xã A',
+    address: 'Thôn 1',
+    phone: null,
+    email: null,
+    hotline: null,
+    picName: null,
+    picPhone: null,
+    picUserId: null,
+    beneficiaryKind: 'GROUP' as const,
+    evidenceUrls: [],
+    estimatedPortions: 0,
+    estimatedAmount: 0,
+    ...overrides,
+  });
+  const stored = (overrides: Record<string, unknown> = {}) => ({
+    ...party(overrides),
+    isAppealSubject: false,
+    lat: null,
+    lng: null,
+    location: null,
+    distributionAt: null,
+    consentStatus: null,
+    updatedAt: new Date(),
+  });
+  const run = (
+    deps: ReturnType<typeof make>,
+    parties: Record<string, unknown>[],
+  ) =>
+    new ReplaceCharityPartiesUseCase(
+      deps.access,
+      deps.projects as never,
+    ).handle({
+      userId: Owner,
+      campaignId: CampaignId,
+      parties: parties as never,
+    });
+  const shirts = (targetQuantity: number) => [
+    {
+      needItemId: 'n1',
+      itemName: 'Áo ấm',
+      isActive: true,
+      targetQuantity,
+      quantityPerPortion: 1,
+    },
+  ];
+
+  it('PUT parties A lên 250 khi áo 300 → 400 0x13_5d', async () => {
+    const deps = make({
+      campaign: campaign({ approvalStatus: 'PENDING_APPROVAL' }),
+    });
+    deps.projects.listParties.mockResolvedValue([] as never);
+    deps.projects.listItemNeeds.mockResolvedValue(shirts(300) as never);
+    await expect(
+      run(deps, [
+        party({ name: 'A', estimatedPortions: 250 }),
+        party({ name: 'B', estimatedPortions: 100 }),
+      ]),
+    ).rejects.toBeInstanceOf(CharityNeedBelowEstimatedPortionsException);
+    expect(deps.projects.replaceParties).not.toHaveBeenCalled();
+  });
+
+  it('tổng tiền mục tiêu < tổng ước tính → 400 0x13_5e', async () => {
+    const deps = make({
+      campaign: campaign({ approvalStatus: 'PENDING_APPROVAL' }),
+    });
+    deps.projects.listParties.mockResolvedValue([] as never);
+    deps.projects.listItemNeeds.mockResolvedValue([] as never);
+    deps.projects.listFundingNeeds.mockResolvedValue([
+      { fundingNeedId: 'f1', targetAmount: 1_000_000, status: 'OPEN' },
+    ] as never);
+    await expect(
+      run(deps, [party({ estimatedAmount: 2_000_000 })]),
+    ).rejects.toBeInstanceOf(CharityFundingBelowEstimatedAmountException);
+  });
+
+  it('sau duyệt, owner thường đổi estimatedPortions → 409 0x13_64; đổi phone → áp ngay', async () => {
+    const deps = make();
+    deps.projects.listParties.mockResolvedValue([
+      stored({ partyId: 'pa', estimatedPortions: 200 }),
+    ] as never);
+    deps.projects.listItemNeeds.mockResolvedValue([] as never);
+    await expect(
+      run(deps, [party({ partyId: 'pa', estimatedPortions: 250 })]),
+    ).rejects.toBeInstanceOf(CharityChangeRequiresReviewException);
+    expect(deps.projects.replaceParties).not.toHaveBeenCalled();
+    await run(deps, [
+      party({ partyId: 'pa', estimatedPortions: 200, phone: '0912' }),
+    ]);
+    expect(deps.projects.replaceParties).toHaveBeenCalled();
+  });
+
+  it('sau duyệt, thêm hoặc bỏ một đơn vị nhận → 409 0x13_64', async () => {
+    const deps = make();
+    deps.projects.listParties.mockResolvedValue([
+      stored({ partyId: 'pa', estimatedPortions: 200 }),
+    ] as never);
+    deps.projects.listItemNeeds.mockResolvedValue([] as never);
+    await expect(
+      run(deps, [
+        party({ partyId: 'pa', estimatedPortions: 200 }),
+        party({ name: 'Xã mới' }),
+      ]),
+    ).rejects.toBeInstanceOf(CharityChangeRequiresReviewException);
+    await expect(run(deps, [])).rejects.toBeInstanceOf(
+      CharityChangeRequiresReviewException,
+    );
+  });
+
+  it('owner có quyền đăng không cần duyệt đổi estimatedPortions → áp ngay', async () => {
+    const deps = make({ capability: { publishNow: true } });
+    deps.projects.listParties.mockResolvedValue([
+      stored({ partyId: 'pa', estimatedPortions: 200 }),
+    ] as never);
+    deps.projects.listItemNeeds.mockResolvedValue([] as never);
+    await run(deps, [party({ partyId: 'pa', estimatedPortions: 250 })]);
+    expect(deps.projects.replaceParties).toHaveBeenCalled();
+  });
+
+  it('public: INDIVIDUAL address null, GROUP có address', async () => {
+    const deps = make();
+    deps.campaigns.listBeneficiaryPlans.mockResolvedValue([
+      {
+        name: 'Bà Tư',
+        beneficiaryKind: 'INDIVIDUAL',
+        estimatedPortions: 1,
+        estimatedAmount: 0,
+        distributionAt: null,
+        address: 'Số 12 ngõ 3, Hẻm Riêng',
+        lat: 21.0123,
+        lng: 105.8,
+      },
+      {
+        name: 'Xã A',
+        beneficiaryKind: 'GROUP',
+        estimatedPortions: 100,
+        estimatedAmount: 0,
+        distributionAt: null,
+        address: 'UBND xã A',
+        lat: 10.1,
+        lng: 106.2,
+      },
+    ]);
+    const view = await new GetCharityPublicProjectUseCase(
+      deps.campaigns as never,
+      deps.projects as never,
+      deps.engagement as never,
+      deps.events as never,
+      deps.summaries as never,
+    ).handle({ idOrSlug: 'mua-dong-am', userId: null });
+    expect(view.beneficiaries.map((row) => row.address)).toEqual([
+      null,
+      'UBND xã A',
+    ]);
+    expect(JSON.stringify(view)).not.toContain('Hẻm Riêng');
+    expect(JSON.stringify(view)).not.toContain('21.0123');
+  });
+});
+
+describe('SaveCharityScheduleUseCase · ba khung (CR 22/11/2026)', () => {
+  const at = (day: number) => new Date(Date.UTC(2027, 0, day));
+  const schedule = {
+    intakeStartsAt: at(1),
+    intakeEndsAt: at(10),
+    distributionStartsAt: at(12),
+    distributionEndsAt: at(13),
+    endTime: at(20),
+  };
+  const beneficiary = (name: string, distributionAt: Date) => ({
+    partyId: name,
+    role: 'BENEFICIARY',
+    name,
+    beneficiaryKind: 'GROUP',
+    isAppealSubject: false,
+    estimatedPortions: 0,
+    estimatedAmount: 0,
+    distributionAt,
+  });
+
+  it('PUT schedule rút khung trao làm đơn vị B ra ngoài → 400 0x13_5c, saveSchedule không gọi', async () => {
+    const deps = make();
+    deps.projects.listParties.mockResolvedValue([
+      beneficiary('A', at(12)),
+      beneficiary('B', new Date(at(13).getTime() + 3_600_000)),
+    ] as never);
+    const error = await new SaveCharityScheduleUseCase(
+      deps.access,
+      deps.campaigns as never,
+      deps.projects as never,
+    )
+      .handle({ userId: Owner, campaignId: CampaignId, schedule })
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(
+      CharityBeneficiaryDistributionTimeOutOfRangeException,
+    );
+    expect(
+      (
+        error as { details: { beneficiaries: { name: string }[] } }
+      ).details.beneficiaries.map((row) => row.name),
+    ).toEqual(['B']);
+    expect(deps.campaigns.saveSchedule).not.toHaveBeenCalled();
+  });
+
+  it('khung ngược thứ tự → 400 0x13_62; hợp lệ → saveSchedule ngay cả sau duyệt', async () => {
+    const deps = make();
+    deps.projects.listParties.mockResolvedValue([] as never);
+    const useCase = new SaveCharityScheduleUseCase(
+      deps.access,
+      deps.campaigns as never,
+      deps.projects as never,
+    );
+    await expect(
+      useCase.handle({
+        userId: Owner,
+        campaignId: CampaignId,
+        schedule: { ...schedule, intakeEndsAt: at(14) },
+      }),
+    ).rejects.toBeInstanceOf(CharityScheduleInvalidException);
+    await useCase.handle({ userId: Owner, campaignId: CampaignId, schedule });
+    expect(deps.campaigns.saveSchedule).toHaveBeenCalledWith(
+      expect.objectContaining({ campaignId: CampaignId, ...schedule }),
+    );
+  });
+
+  it('hạn nộp của một nhu cầu sau intakeEndsAt → 400 0x13_62', async () => {
+    const deps = make();
+    deps.projects.listParties.mockResolvedValue([] as never);
+    deps.projects.listItemNeeds.mockResolvedValue([
+      {
+        needItemId: 'n1',
+        itemName: 'Gạo',
+        isActive: true,
+        intakeDeadline: at(11),
+      },
+    ] as never);
+    await expect(
+      new SaveCharityScheduleUseCase(
+        deps.access,
+        deps.campaigns as never,
+        deps.projects as never,
+      ).handle({ userId: Owner, campaignId: CampaignId, schedule }),
+    ).rejects.toBeInstanceOf(CharityScheduleInvalidException);
   });
 });

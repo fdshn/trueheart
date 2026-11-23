@@ -137,6 +137,34 @@ export function normalizeMaxBankAccounts(value: unknown): number {
     : DefaultCharityMaxBankAccounts;
 }
 
+/** Khoá cấu hình: số đơn vị nhận tối đa mỗi chiến dịch (CR 22/11/2026 §3.17d). */
+export const CharityMaxBeneficiariesConfigKey =
+  'charity.max_beneficiaries_per_campaign';
+export const DefaultCharityMaxBeneficiaries = 20;
+
+export function normalizeMaxBeneficiaries(value: unknown): number {
+  return typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 100
+    ? value
+    : DefaultCharityMaxBeneficiaries;
+}
+
+/** Khoá cấu hình: số điểm tiếp nhận tối đa mỗi chiến dịch (CR 22/11/2026 §3.17c). */
+export const CharityMaxIntakeLocationsConfigKey =
+  'charity.max_intake_locations';
+export const DefaultCharityMaxIntakeLocations = 10;
+
+export function normalizeMaxIntakeLocations(value: unknown): number {
+  return typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 50
+    ? value
+    : DefaultCharityMaxIntakeLocations;
+}
+
 const StageRank: Readonly<Record<CharityOperationStage, number>> = {
   PLAN: 0,
   EXECUTION: 1,

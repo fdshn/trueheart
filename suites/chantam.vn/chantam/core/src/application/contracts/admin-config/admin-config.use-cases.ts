@@ -71,6 +71,9 @@ export const SupportedSystemConfigKeys = [
   // Dự án từ thiện 4 giai đoạn: số tài khoản nhận tiền đang hiệu lực tối đa mỗi dự án
   // (Admin ghi đè từng dự án qua PATCH /admin/charity-campaigns/:id/limits).
   'charity.max_bank_accounts_per_campaign',
+  // CR 22/11/2026: số đơn vị nhận / điểm tiếp nhận tối đa mỗi chiến dịch.
+  'charity.max_beneficiaries_per_campaign',
+  'charity.max_intake_locations',
   // Đề xuất chiến dịch lên trang chủ (15/11): số đề xuất "đang mở" tối đa mỗi hoạt động.
   'banner.campaign_promotion.max_open_per_campaign',
   'charity.post_daily_video_quota',
@@ -138,6 +141,9 @@ export const SystemConfigValueRanges: Readonly<
   'chat.direct_user_daily_limit': { min: 0, max: 10_000 },
   // Cột ghi đè `campaigns.max_bank_accounts` có CHECK 1..20 — cùng khoảng.
   'charity.max_bank_accounts_per_campaign': { min: 1, max: 20 },
+  // Khớp `normalizeMaxBeneficiaries` / `normalizeMaxIntakeLocations`.
+  'charity.max_beneficiaries_per_campaign': { min: 1, max: 100 },
+  'charity.max_intake_locations': { min: 1, max: 50 },
   // Khớp `normalizeCampaignPromotionMaxOpen` — ngoài 1..20 nó lặng lẽ về 3.
   'banner.campaign_promotion.max_open_per_campaign': { min: 1, max: 20 },
   // 0 = tắt đăng loại media đó; khớp `normalizeCharityPostQuota`.

@@ -3,8 +3,8 @@
 > **File sinh tự động** bởi `npm run docs:routes` từ metadata của controller đã biên dịch.
 > Đừng sửa tay — sửa controller rồi chạy lại lệnh. CI chạy `docs:routes:check`.
 
-Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **439** route:
-58 công khai, 142 cần quyền Admin, 239 cần access token.
+Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **441** route:
+58 công khai, 142 cần quyền Admin, 241 cần access token.
 
 Mức truy cập: `Công khai` = không cần token; `Bearer` = cần access token (một số route còn
 kiểm chủ sở hữu hoặc quyền RBAC trong use case — xem `docs/API.md`); `perm:<mã>` = quyền Admin
@@ -457,6 +457,7 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `PUT` | `/charity-campaigns/:id/financial-reports/:reportId` | Bearer | Sửa báo cáo tài chính |
 | `POST` | `/charity-campaigns/:id/funding-needs` | Bearer | Thêm hạng mục kêu gọi tiền |
 | `PATCH` | `/charity-campaigns/:id/funding-needs/:fundingNeedId` | Bearer | Sửa hạng mục kêu gọi tiền, ghi số đã nhận, đóng/mở |
+| `PUT` | `/charity-campaigns/:id/intake-locations` | Bearer | Thay cả bộ điểm tiếp nhận |
 | `GET` | `/charity-campaigns/:id/internal-stats` | Bearer | Thống kê nội bộ |
 | `PATCH` | `/charity-campaigns/:id/item-needs/:needItemId` | Bearer | Đơn giá, tình trạng, nguồn cung, tiếp nhận của một dòng hiện vật |
 | `PUT` | `/charity-campaigns/:id/media` | Bearer | Thay cả bộ ảnh/video của hồ sơ đang chờ duyệt |
@@ -496,6 +497,7 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `GET` | `/charity-campaigns/:id/rehearsal` | Bearer | Tổng duyệt trước sự kiện trao |
 | `PUT` | `/charity-campaigns/:id/rehearsal` | Bearer | Ghi tổng duyệt |
 | `POST` | `/charity-campaigns/:id/reviews` | Bearer | Đánh giá sau hoạt động |
+| `PUT` | `/charity-campaigns/:id/schedule` | Bearer | Ghi ba khung thời gian |
 | `PUT` | `/charity-campaigns/:id/sections/:sectionKey` | Bearer | Lưu một mục (A/B/C/D) |
 | `POST` | `/charity-campaigns/:id/sections/:sectionKey/publish` | Bearer | Công khai một mục |
 | `POST` | `/charity-campaigns/:id/stage` | Bearer | Chuyển giai đoạn |

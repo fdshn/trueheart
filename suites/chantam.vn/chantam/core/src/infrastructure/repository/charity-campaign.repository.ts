@@ -33,6 +33,8 @@ import {
   ICharityDelivery,
   ICharityExternalContribution,
   ICharityFundingNeedInput,
+  ICharityIntakeLocation,
+  ICharityIntakeLocationInput,
   ICharityNeedItem,
   ICharityReview,
   ICharitySupportNeedInput,
@@ -47,6 +49,7 @@ import {
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   CharityApprovalStatus,
+  CharityBeneficiaryKind,
   CharityBeneficiaryRelation,
   CharityCampaignType,
   CharityContributionStatus,
@@ -55,6 +58,7 @@ import {
   CharityParticipationStatus,
   CharityRejectionReason,
   CharityReviewRole,
+  ICharityBeneficiaryPartyLike,
   charityProgressPercent,
   contributionDecisionProblem,
   contributionStatusFrom,
@@ -110,6 +114,22 @@ interface IRow {
   rehearsal_ready: boolean;
   distribution_settled: boolean;
   summary_published_at: Date | null;
+  intake_ends_at: Date | null;
+  total_estimated_portions: string | number;
+  total_estimated_amount: string | number;
+  intake_locations: IIntakeLocationJson[] | null;
+}
+
+interface IIntakeLocationJson {
+  locationId: string;
+  position: number;
+  label: string;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+  scheduleNote: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
 }
 
 interface IReviewRow {
@@ -362,6 +382,25 @@ const Columns = `campaigns.global_id, campaigns.title, campaigns.slug, campaigns
        ${CampaignDistributionSettledSql('campaigns')} AS distribution_settled,
        (SELECT summary.published_at FROM campaign_summaries summary
          WHERE summary.campaign_id = campaigns.global_id) AS summary_published_at,
+       campaigns.intake_ends_at,
+       (SELECT COALESCE(SUM(party.estimated_portions), 0) FROM campaign_parties party
+         WHERE party.campaign_id = campaigns.global_id
+           AND party.role = 'BENEFICIARY') AS total_estimated_portions,
+       (SELECT COALESCE(SUM(party.estimated_amount), 0) FROM campaign_parties party
+         WHERE party.campaign_id = campaigns.global_id
+           AND party.role = 'BENEFICIARY') AS total_estimated_amount,
+       (SELECT json_agg(json_build_object(
+                 'locationId', intake.global_id,
+                 'position', intake.position,
+                 'label', intake.label,
+                 'address', intake.address,
+                 'lat', ST_Y(intake.location::geometry),
+                 'lng', ST_X(intake.location::geometry),
+                 'scheduleNote', intake.schedule_note,
+                 'contactName', intake.contact_name,
+                 'contactPhone', intake.contact_phone) ORDER BY intake.position)
+          FROM campaign_intake_locations intake
+         WHERE intake.campaign_id = campaigns.global_id) AS intake_locations,
        (SELECT count(*) FROM campaign_participations participation
          WHERE participation.campaign_id = campaigns.global_id
            AND participation.status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')) AS participant_count,
@@ -445,6 +484,12 @@ function toCampaign(row: IRow): ICharityCampaign {
       distributionSettled: row.distribution_settled === true,
     }),
     summaryPublishedAt: row.summary_published_at ?? null,
+    intakeStartsAt: row.start_time,
+    intakeEndsAt: row.intake_ends_at ?? null,
+    // SUM(bigint) về đây là CHUỖI.
+    totalEstimatedPortions: Number(row.total_estimated_portions ?? 0),
+    totalEstimatedAmount: Number(row.total_estimated_amount ?? 0),
+    intakeLocations: row.intake_locations ?? [],
   };
 }
 
@@ -459,6 +504,56 @@ function toReview(row: IReviewRow): ICharityReview {
     comment: row.comment,
     createdAt: row.created_at,
   };
+}
+
+/**
+ * Ghi điểm tiếp nhận theo thứ tự (`position = index`) rồi đồng bộ `campaigns.location` /
+ * `location_label` theo điểm ĐẦU TIÊN có toạ độ — `/nearby` và mọi đường đọc cũ vẫn đúng.
+ * Không điểm nào có toạ độ: giữ nhãn điểm đầu, bỏ toạ độ.
+ */
+async function writeIntakeLocations(
+  manager: EntityManager,
+  campaignId: string,
+  locations: readonly ICharityIntakeLocationInput[],
+): Promise<void> {
+  for (const [index, location] of locations.entries())
+    await manager.query(
+      `INSERT INTO campaign_intake_locations
+         (campaign_id, position, label, address, location, schedule_note,
+          contact_name, contact_phone)
+       VALUES ($1, $2, $3, $4,
+               CASE WHEN $5::float8 IS NULL OR $6::float8 IS NULL THEN NULL
+                    ELSE ST_SetSRID(ST_MakePoint($6::float8, $5::float8), 4326)::geography END,
+               $7, $8, $9)`,
+      [
+        campaignId,
+        index,
+        location.label,
+        location.address,
+        location.lat,
+        location.lng,
+        location.scheduleNote,
+        location.contactName,
+        location.contactPhone,
+      ],
+    );
+  if (locations.length === 0) return;
+  const located = locations.find(
+    (location) => location.lat !== null && location.lng !== null,
+  );
+  await manager.query(
+    `UPDATE campaigns
+        SET location = CASE WHEN $2::float8 IS NULL OR $3::float8 IS NULL THEN NULL
+                            ELSE ST_SetSRID(ST_MakePoint($3::float8, $2::float8), 4326)::geography END,
+            location_label = $4
+      WHERE global_id = $1`,
+    [
+      campaignId,
+      located?.lat ?? null,
+      located?.lng ?? null,
+      (located ?? locations[0]).label,
+    ],
+  );
 }
 
 /**
@@ -544,6 +639,34 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
             campaign.globalId,
             params.supportNeeds,
           );
+        for (const [index, unit] of (params.beneficiaries ?? []).entries())
+          await manager.query(
+            `INSERT INTO campaign_parties
+               (campaign_id, role, name, beneficiary_kind, address, phone, pic_name, pic_phone,
+                consent_status, estimated_portions, estimated_amount, location,
+                distribution_at, sort_order, updated_by)
+             VALUES ($1, 'BENEFICIARY', $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                     CASE WHEN $11::float8 IS NULL OR $12::float8 IS NULL THEN NULL
+                          ELSE ST_SetSRID(ST_MakePoint($12::float8, $11::float8), 4326)::geography END,
+                     $13, $14, $15)`,
+            [
+              campaign.globalId,
+              unit.name,
+              unit.beneficiaryKind,
+              unit.address,
+              unit.phone,
+              unit.picName,
+              unit.picPhone,
+              unit.consentStatus,
+              unit.estimatedPortions,
+              unit.estimatedAmount,
+              unit.lat,
+              unit.lng,
+              unit.distributionAt,
+              index,
+              params.createdBy,
+            ],
+          );
         if (params.beneficiary)
           await this.writeBeneficiary(
             manager,
@@ -551,13 +674,36 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
             params.createdBy,
             params.beneficiary,
           );
+        if ((params.intakeLocations ?? []).length > 0)
+          await writeIntakeLocations(
+            manager,
+            campaign.globalId,
+            params.intakeLocations,
+          );
+        if (params.intakeEndsAt)
+          await manager.query(
+            `UPDATE campaigns SET intake_ends_at = $2 WHERE global_id = $1`,
+            [campaign.globalId, params.intakeEndsAt],
+          );
+        if (params.distributionWindow)
+          await manager.query(
+            `INSERT INTO campaign_phases
+               (campaign_id, phase, starts_at, ends_at, updated_by)
+             VALUES ($1, 'DISTRIBUTION', $2, $3, $4)`,
+            [
+              campaign.globalId,
+              params.distributionWindow.startsAt,
+              params.distributionWindow.endsAt,
+              params.createdBy,
+            ],
+          );
         if (params.distribution) {
           await writeCampaignDistribution(manager, {
             campaignId: campaign.globalId,
             actorId: params.createdBy,
             distribution: params.distribution.input,
           });
-          if (params.distribution.window)
+          if (params.distribution.window && !params.distributionWindow)
             await manager.query(
               `INSERT INTO campaign_phases
                  (campaign_id, phase, starts_at, ends_at, updated_by)
@@ -667,14 +813,15 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     await manager.query(
       `INSERT INTO campaign_need_items
          (campaign_id, category_id, item_name, description, unit,
-          target_quantity, allow_alternative, sort_order)
+          target_quantity, allow_alternative, sort_order, quantity_per_portion)
        SELECT $1, item.category_id, item.item_name, item.description, item.unit,
-              item.target_quantity, item.allow_alternative, item.sort_order
+              item.target_quantity, item.allow_alternative, item.sort_order,
+              item.quantity_per_portion
        FROM UNNEST(
          $2::uuid[], $3::text[], $4::text[], $5::text[],
-         $6::int[], $7::boolean[], $8::int[]
+         $6::int[], $7::boolean[], $8::int[], $9::int[]
        ) AS item(category_id, item_name, description, unit,
-                 target_quantity, allow_alternative, sort_order)`,
+                 target_quantity, allow_alternative, sort_order, quantity_per_portion)`,
       [
         campaignId,
         needs.map((need) => need.categoryId),
@@ -684,6 +831,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         needs.map((need) => need.targetQuantity),
         needs.map((need) => need.allowAlternative),
         needs.map((need) => need.sortOrder),
+        needs.map((need) => need.quantityPerPortion ?? 1),
       ],
     );
   }
@@ -694,16 +842,15 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     needs: readonly ICharityFundingNeedInput[],
   ): Promise<void> {
     await manager.query(
-      `INSERT INTO campaign_funding_needs (campaign_id, title, description, beneficiary_party_id, receiving_unit, bank_account_id, target_amount, deadline, sort_order)
-       SELECT $1, item.title, item.description, item.beneficiary_party_id, item.receiving_unit, item.bank_account_id, item.target_amount, item.deadline, item.sort_order
-       FROM UNNEST($2::text[], $3::text[], $4::uuid[], $5::text[], $6::uuid[], $7::bigint[], $8::timestamptz[], $9::int[])
-       AS item(title, description, beneficiary_party_id, receiving_unit, bank_account_id, target_amount, deadline, sort_order)`,
+      `INSERT INTO campaign_funding_needs (campaign_id, title, description, beneficiary_party_id, bank_account_id, target_amount, deadline, sort_order)
+       SELECT $1, item.title, item.description, item.beneficiary_party_id, item.bank_account_id, item.target_amount, item.deadline, item.sort_order
+       FROM UNNEST($2::text[], $3::text[], $4::uuid[], $5::uuid[], $6::bigint[], $7::timestamptz[], $8::int[])
+       AS item(title, description, beneficiary_party_id, bank_account_id, target_amount, deadline, sort_order)`,
       [
         campaignId,
         needs.map((n) => n.title),
         needs.map((n) => n.description),
         needs.map((n) => n.beneficiaryPartyId),
-        needs.map((n) => n.receivingUnit),
         needs.map((n) => n.bankAccountId),
         needs.map((n) => n.targetAmount),
         needs.map((n) => n.deadline),
@@ -1986,6 +2133,101 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     );
     if (!row) throw new CharityExternalContributionNotFoundException();
     return toExternal(row);
+  }
+
+  public async replaceIntakeLocations(params: {
+    campaignId: string;
+    actorId: string;
+    locations: readonly ICharityIntakeLocationInput[];
+  }): Promise<ICharityIntakeLocation[]> {
+    await this.manager.transaction(async (manager) => {
+      await manager.query(
+        `SELECT 1 FROM campaigns WHERE global_id = $1 FOR UPDATE`,
+        [params.campaignId],
+      );
+      await manager.query(
+        `DELETE FROM campaign_intake_locations WHERE campaign_id = $1`,
+        [params.campaignId],
+      );
+      await writeIntakeLocations(manager, params.campaignId, params.locations);
+      await manager.query(
+        `UPDATE campaigns SET updated_at = now() WHERE global_id = $1`,
+        [params.campaignId],
+      );
+    });
+    const campaign = await this.findByGlobalId(params.campaignId);
+    return campaign?.intakeLocations ?? [];
+  }
+
+  public async saveSchedule(params: {
+    campaignId: string;
+    actorId: string;
+    intakeStartsAt: Date;
+    intakeEndsAt: Date;
+    distributionStartsAt: Date;
+    distributionEndsAt: Date;
+    endTime: Date;
+  }): Promise<void> {
+    await this.manager.transaction(async (manager) => {
+      await manager.query(
+        `UPDATE campaigns
+            SET start_time = $2, intake_ends_at = $3, end_time = $4, updated_at = now()
+          WHERE global_id = $1`,
+        [
+          params.campaignId,
+          params.intakeStartsAt,
+          params.intakeEndsAt,
+          params.endTime,
+        ],
+      );
+      await manager.query(
+        `INSERT INTO campaign_phases (campaign_id, phase, starts_at, ends_at, updated_by)
+         VALUES ($1, 'DISTRIBUTION', $2, $3, $4)
+         ON CONFLICT (campaign_id, phase) DO UPDATE
+           SET starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at,
+               updated_by = EXCLUDED.updated_by, updated_at = now()`,
+        [
+          params.campaignId,
+          params.distributionStartsAt,
+          params.distributionEndsAt,
+          params.actorId,
+        ],
+      );
+    });
+  }
+
+  public async listBeneficiaryPlans(
+    campaignId: string,
+  ): Promise<ICharityBeneficiaryPartyLike[]> {
+    const rows = await this.manager.query<
+      {
+        name: string;
+        beneficiary_kind: CharityBeneficiaryKind;
+        estimated_portions: number;
+        estimated_amount: string | number;
+        distribution_at: Date | null;
+        address: string | null;
+        lat: number | null;
+        lng: number | null;
+      }[]
+    >(
+      `SELECT name, beneficiary_kind, estimated_portions, estimated_amount, distribution_at,
+              address, ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng
+         FROM campaign_parties
+        WHERE campaign_id = $1 AND role = 'BENEFICIARY' AND NOT is_appeal_subject
+        ORDER BY distribution_at ASC NULLS LAST, sort_order, id`,
+      [campaignId],
+    );
+    return rows.map((row) => ({
+      name: row.name,
+      beneficiaryKind: row.beneficiary_kind,
+      estimatedPortions: Number(row.estimated_portions),
+      estimatedAmount: Number(row.estimated_amount),
+      distributionAt: row.distribution_at,
+      address: row.address,
+      lat: row.lat,
+      lng: row.lng,
+    }));
   }
 
   public async closeCampaign(params: {
