@@ -183,9 +183,13 @@ export class CharityPointsService {
     const pending = await this.points.listUnsettled(limit);
     for (const award of pending) {
       if (!isCharityPointBaseRule(award.ruleCode)) continue;
-      const result = await this.settle(award.awardId, award.ruleCode);
-      applied += result.applied;
-      deferred += result.deferred;
+      const rule = award.ruleCode;
+      // Một award hỏng không được chặn cả lượt job (và mọi award sau nó, của mọi người).
+      await this.safely(`award ${award.awardId}`, async () => {
+        const result = await this.settle(award.awardId, rule);
+        applied += result.applied;
+        deferred += result.deferred;
+      });
     }
     return {
       backfilled: missing.length,

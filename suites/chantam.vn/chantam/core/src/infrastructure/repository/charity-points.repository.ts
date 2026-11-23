@@ -234,12 +234,15 @@ export class CharityPointsRepository implements ICharityPointsRepository {
                 target_points, reason, base_award_id)
              VALUES ($1, $2, $3, $4, $5, 0, $6, $7)
              RETURNING ${AwardColumns}`,
+            // Tham chiếu CHÍNH award gốc (không chép tham chiếu của gốc): một bài có cả clip
+            // lẫn ảnh có hai award gốc cùng tham chiếu bài — chép thì hai award thưởng đụng
+            // UQ_campaign_point_awards_reference.
             [
               award.campaign_id,
               award.user_id,
               CharityCampaignBonusRuleCode,
-              award.reference_type,
-              award.reference_id,
+              'CHARITY_POINT_AWARD',
+              award.global_id,
               `Thưởng hệ số chiến dịch: ${award.reason}`.slice(0, 300),
               award.global_id,
             ],
@@ -247,14 +250,13 @@ export class CharityPointsRepository implements ICharityPointsRepository {
         bonus.target_points += wanted;
       }
     } else if (input.baseApplied < 0 && bonus) {
-      bonus.target_points = Math.min(
-        bonus.target_points,
-        bonusAdjustmentTarget({
-          bonusApplied: bonus.applied_points,
-          baseAppliedBefore: award.applied_points,
-          baseAppliedAfter: award.applied_points + input.baseApplied,
-        }),
-      );
+      // Co MỤC TIÊU thưởng theo tỉ lệ gốc (không co theo phần đã ghi): phần thưởng đang hoãn vì
+      // trần không bị mất khi gốc chỉ giảm một phần.
+      bonus.target_points = bonusAdjustmentTarget({
+        bonusApplied: bonus.target_points,
+        baseAppliedBefore: award.applied_points,
+        baseAppliedAfter: award.applied_points + input.baseApplied,
+      });
     }
     if (!bonus) return 0;
 

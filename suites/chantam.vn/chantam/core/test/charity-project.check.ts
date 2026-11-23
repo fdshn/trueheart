@@ -1911,6 +1911,38 @@ async function main(): Promise<void> {
         (await campaigns.findByGlobalId(Live))!.title === titleBeforeViolation,
       `${violationCode} ${violatingRow?.status}`,
     );
+
+    // ── 14. Đổi lịch sau duyệt ghi lịch sử + thông báo (review I8) ─────────
+    console.log(
+      '\n14. PUT :id/schedule sau duyệt: lịch sử PHASE + PLAN_CHANGED',
+    );
+    const scheduleAnnouncementsBefore = await announcements();
+    const startsAtRevisions = async () =>
+      (
+        await sql(
+          `SELECT count(*)::int AS n FROM campaign_revisions
+            WHERE campaign_id = $1 AND entity = 'PHASE' AND entity_id = 'DISTRIBUTION'
+              AND field = 'startsAt' AND is_public AND is_important`,
+          [Live],
+        )
+      )[0].n as number;
+    const startsAtBefore = await startsAtRevisions();
+    const movedStart = new Date(Date.now() + 40 * 24 * Hour);
+    await campaigns.saveSchedule({
+      campaignId: Live,
+      actorId: Owner,
+      intakeStartsAt: new Date(Date.now() - 5 * 24 * Hour),
+      intakeEndsAt: new Date(Date.now() + 30 * 24 * Hour),
+      distributionStartsAt: movedStart,
+      distributionEndsAt: new Date(movedStart.getTime() + 2 * Hour),
+      endTime: new Date(Date.now() + 60 * 24 * Hour),
+    });
+    check(
+      'dời khung trao sau duyệt → thêm revision PHASE.DISTRIBUTION.startsAt công khai + quan trọng, thêm một PLAN_CHANGED',
+      (await startsAtRevisions()) === startsAtBefore + 1 &&
+        (await announcements()) === scheduleAnnouncementsBefore + 1,
+      `${startsAtBefore} → ${await startsAtRevisions()}`,
+    );
   } finally {
     for (const source of opened.reverse())
       if (source.isInitialized) await source.destroy();

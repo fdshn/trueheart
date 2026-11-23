@@ -387,6 +387,14 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     });
   }
 
+  /** Ảnh chụp công khai cho bên gọi tự ghi lịch sử trong transaction của mình. */
+  public revisionSnapshot(
+    entity: CharityRevisionEntity,
+    campaignId: string,
+  ): Promise<ICharityRevisionRow[]> {
+    return this.revisionRows(entity, campaignId);
+  }
+
   /** Ảnh chụp một loại entity để so (chính sách field ở `CharityRevisionPolicies`). */
   private async revisionRows(
     entity: CharityRevisionEntity,
@@ -816,7 +824,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
        WHERE campaign.deleted_at IS NULL
          AND (
            (campaign.operation_stage = 'EXECUTION'
-              AND phase.starts_at <= now()
+              AND COALESCE(phase.starts_at, campaign.end_time) <= now()
               AND ${CampaignRehearsalReadySql('campaign')})
            OR
            (campaign.operation_stage = 'EVENT'
@@ -895,7 +903,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
          AND campaign.created_by IS NOT NULL
          AND (
            (campaign.operation_stage = 'EXECUTION'
-              AND phase.starts_at <= now()
+              AND COALESCE(phase.starts_at, campaign.end_time) <= now()
               AND NOT ${CampaignRehearsalReadySql('campaign')})
            OR
            (campaign.operation_stage = 'EVENT'

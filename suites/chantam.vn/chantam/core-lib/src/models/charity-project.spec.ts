@@ -75,7 +75,7 @@ describe('effectiveOperationStage', () => {
     ).toBe('EVENT');
   });
 
-  it('EXECUTION không bao giờ nhảy thẳng SUMMARY', () => {
+  it('EXECUTION không bao giờ nhảy thẳng SUMMARY (không khung trao: chỉ lên EVENT trong một lượt)', () => {
     expect(
       effectiveOperationStage({
         stored: 'EXECUTION',
@@ -84,7 +84,7 @@ describe('effectiveOperationStage', () => {
         now: at('2027-06-01T00:00:00Z'),
         ...gated,
       }),
-    ).toBe('EXECUTION');
+    ).toBe('EVENT');
   });
 
   it('EVENT qua endsAt + settled → SUMMARY', () => {
@@ -169,5 +169,37 @@ describe('normalizeMaxBankAccounts', () => {
     [2.5, 2],
   ])('%p → %p', (value, expected) => {
     expect(normalizeMaxBankAccounts(value)).toBe(expected);
+  });
+});
+
+describe('effectiveOperationStage — chiến dịch chưa có khung trao (review I5)', () => {
+  const endTime = new Date('2027-01-10T00:00:00Z');
+  it('EXECUTION, không có khung trao, đã qua endTime và tổng duyệt READY → EVENT (mốc trao mặc định = endTime)', () => {
+    expect(
+      effectiveOperationStage({
+        stored: 'EXECUTION',
+        distribution: null,
+        endTime,
+        now: new Date('2027-01-11T00:00:00Z'),
+        rehearsalReady: true,
+        distributionSettled: false,
+      }),
+    ).toBe('EVENT');
+  });
+  it('chưa tới endTime → giữ EXECUTION; chưa READY → giữ EXECUTION', () => {
+    for (const [now, ready] of [
+      [new Date('2027-01-09T00:00:00Z'), true],
+      [new Date('2027-01-11T00:00:00Z'), false],
+    ] as const)
+      expect(
+        effectiveOperationStage({
+          stored: 'EXECUTION',
+          distribution: null,
+          endTime,
+          now,
+          rehearsalReady: ready,
+          distributionSettled: true,
+        }),
+      ).toBe('EXECUTION');
   });
 });

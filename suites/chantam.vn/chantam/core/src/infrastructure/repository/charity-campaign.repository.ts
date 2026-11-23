@@ -66,6 +66,7 @@ import {
   charityProgressPercent,
   contributionDecisionProblem,
   contributionStatusFrom,
+  diffCharityRevisions,
   effectiveOperationStage,
   firstNeedOverflow,
   remainingNeedQuantity,
@@ -78,6 +79,8 @@ import {
   CampaignRehearsalReadySql,
   writeCampaignDistribution,
 } from './charity-distribution.sql';
+import { CharityProjectRepository } from './charity-project.repository';
+import { recordCharityRevisions } from './charity-revision.writer';
 import { isUniqueViolation, isUniqueViolationOn } from './unique-violation';
 import { updateReturning } from './update-returning';
 
@@ -2216,6 +2219,17 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     endTime: Date;
   }): Promise<void> {
     await this.manager.transaction(async (manager) => {
+      // Sau duyệt: dời khung trao là thay đổi quan trọng — ghi lịch sử PHASE và một thông báo
+      // PLAN_CHANGED cho người theo dõi, như PUT :id/phases (review I8).
+      const [campaign] = await manager.query<{ approval_status: string }[]>(
+        `SELECT approval_status FROM campaigns WHERE global_id = $1 FOR UPDATE`,
+        [params.campaignId],
+      );
+      const track = campaign?.approval_status === 'APPROVED';
+      const projects = CharityProjectRepository.untrackedWithin(manager);
+      const before = track
+        ? await projects.revisionSnapshot('PHASE', params.campaignId)
+        : [];
       await manager.query(
         `UPDATE campaigns
             SET start_time = $2, intake_ends_at = $3, end_time = $4, updated_at = now()
@@ -2240,6 +2254,17 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
           params.actorId,
         ],
       );
+      if (track)
+        await recordCharityRevisions(manager, {
+          campaignId: params.campaignId,
+          actorId: params.actorId,
+          reason: null,
+          drafts: diffCharityRevisions(
+            'PHASE',
+            before,
+            await projects.revisionSnapshot('PHASE', params.campaignId),
+          ),
+        });
     });
   }
 

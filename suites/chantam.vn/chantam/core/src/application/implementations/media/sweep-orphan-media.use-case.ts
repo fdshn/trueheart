@@ -33,6 +33,15 @@ const DefaultMinAgeHours = 24;
  * bị xoá sạch — nên thêm bảng mới có lưu key thì PHẢI thêm vào đây.
  */
 const LiveKeySources: readonly { sql: string; label: string }[] = [
+  {
+    // Media đề xuất trong bản sửa đang chờ duyệt (CR 22/11/2026): chưa gắn vào chiến dịch nhưng
+    // sẽ được gắn khi Admin duyệt — xoá là bản sửa không duyệt được nữa.
+    label: 'campaign_change_requests.proposed.media',
+    sql: `SELECT jsonb_array_elements_text(proposed->'media'->'keys') AS value
+          FROM campaign_change_requests
+          WHERE status = 'PENDING'
+            AND jsonb_typeof(proposed->'media'->'keys') = 'array'`,
+  },
   { label: 'post_media', sql: 'SELECT r2_key AS value FROM post_media' },
   {
     label: 'campaign_media',

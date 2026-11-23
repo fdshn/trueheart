@@ -47,16 +47,38 @@ export function pointFeedListSql(options: {
       LEFT JOIN LATERAL (
         SELECT campaign.global_id, campaign.title, campaign.point_bonus_percent,
                (campaign.approval_status = 'APPROVED' AND campaign.deleted_at IS NULL
-                AND (campaign.is_active OR campaign.end_time <= now())) AS is_public
-          FROM campaigns campaign
-         WHERE campaign.global_id = CASE entry.reference_type
-                 WHEN 'CHARITY_POINT_AWARD' THEN
-                   (SELECT award.campaign_id FROM campaign_point_awards award
-                     WHERE award.global_id::text = entry.reference_id)
-                 WHEN 'CHARITY_CONTRIBUTION' THEN
-                   (SELECT contribution.campaign_id FROM campaign_contributions contribution
-                     WHERE contribution.global_id::text = entry.reference_id)
-               END
+                AND (campaign.is_active OR campaign.end_time <= now())
+                AND source.name_public) AS is_public
+          FROM (
+            -- Nguồn của bút toán và người đó có cho hiện tên ở chiến dịch không (review I6):
+            -- không cho thì dòng điểm vẫn hiện nhưng không kèm chiến dịch.
+            SELECT award.campaign_id,
+                   CASE award.reference_type
+                     WHEN 'CHARITY_CAMPAIGN_POST' THEN true
+                     WHEN 'CHARITY_PARTICIPATION' THEN COALESCE(
+                       (SELECT participation.show_name_publicly
+                          FROM campaign_participations participation
+                         WHERE participation.campaign_id = award.campaign_id
+                           AND participation.user_id = award.user_id), false)
+                     WHEN 'CHARITY_DELIVERY' THEN COALESCE(
+                       (SELECT contribution.show_name_publicly
+                          FROM campaign_deliveries delivery
+                          JOIN campaign_contributions contribution
+                            ON contribution.global_id = delivery.contribution_id
+                         WHERE delivery.global_id::text = award.reference_id), false)
+                     ELSE false
+                   END AS name_public
+              FROM campaign_point_awards award
+             WHERE entry.reference_type = 'CHARITY_POINT_AWARD'
+               AND award.global_id::text = entry.reference_id
+            UNION ALL
+            SELECT contribution.campaign_id, contribution.show_name_publicly
+              FROM campaign_contributions contribution
+             WHERE entry.reference_type = 'CHARITY_CONTRIBUTION'
+               AND contribution.global_id::text = entry.reference_id
+          ) source
+          JOIN campaigns campaign ON campaign.global_id = source.campaign_id
+         LIMIT 1
       ) context ON true
      WHERE entry.delta > 0
        AND entry.rule_code <> ALL($5::text[])

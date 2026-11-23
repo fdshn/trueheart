@@ -77,6 +77,32 @@ describe('SweepOrphanMediaUseCase', () => {
     expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
   });
 
+  it('KHÔNG xoá media đề xuất trong bản sửa đang chờ duyệt (review I1)', async () => {
+    const deps = makeDeps({
+      rows: {
+        campaign_change_requests: [
+          { value: 'users/u1/campaign-media/de-xuat.webp' },
+        ],
+      },
+      objects: [
+        {
+          key: 'users/u1/campaign-media/de-xuat.webp',
+          lastModified: old,
+          size: 10,
+        },
+      ],
+    });
+
+    const result = await makeUseCase(deps).handle({ dryRun: false });
+
+    expect(result.orphans).toBe(0);
+    expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
+    const sql = deps.manager.query.mock.calls
+      .map((call) => String(call[0]))
+      .find((text) => text.includes('campaign_change_requests'));
+    expect(sql).toContain("status = 'PENDING'");
+  });
+
   it('không còn nguồn key nào đọc bảng đợt trao đã bỏ', async () => {
     const deps = makeDeps({});
 

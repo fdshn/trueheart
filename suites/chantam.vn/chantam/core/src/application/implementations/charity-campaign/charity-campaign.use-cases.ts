@@ -903,6 +903,9 @@ export class ReplaceCharityMediaUseCase implements IReplaceCharityMediaUseCase {
     @Optional()
     @Inject(IEntitlementRepository)
     private readonly entitlements?: IEntitlementRepository,
+    @Optional()
+    @Inject(ICharityChangeRequestRepository)
+    private readonly changeRequests?: ICharityChangeRequestRepository,
   ) {}
 
   public async handle(
@@ -923,6 +926,12 @@ export class ReplaceCharityMediaUseCase implements IReplaceCharityMediaUseCase {
       ));
     if (campaign.approvalStatus === 'APPROVED' && !allowApproved)
       throw new CharityChangeRequiresReviewException('media');
+    // Có bản sửa chờ duyệt: sửa thẳng media sẽ bị bản sửa ghi đè khi Admin duyệt (review I2).
+    if (
+      allowApproved &&
+      (await this.changeRequests?.findPending(campaign.globalId))
+    )
+      throw new CharityRevisionPendingExistsException();
     if (campaign.approvalStatus !== 'PENDING_APPROVAL' && !allowApproved)
       throw new CharityMediaNotEditableException();
 

@@ -2180,7 +2180,10 @@ Công khai (`GET /charity-campaigns/:idOrSlug/public`) trả `distribution { met
   `intakeStartsAt ≤ intakeEndsAt ≤ distributionStartsAt ≤ distributionEndsAt ≤ endTime`, bằng
   nhau được phép → sai thì `400 CHARITY_SCHEDULE_INVALID`. `PUT /charity-campaigns/:id/schedule`
   `{ schedule: { intakeStartsAt, intakeEndsAt, distributionStartsAt, distributionEndsAt, endTime } }`
-  ghi cả ba khung trong một transaction, áp ngay cả sau duyệt.
+  ghi cả ba khung trong một transaction, áp ngay cả sau duyệt; sau duyệt, dời khung trao ghi lịch sử
+  sửa `PHASE.DISTRIBUTION` và một thông báo `PLAN_CHANGED` cho người theo dõi.
+- **Chưa lập khung trao:** job tiến độ coi mốc bắt đầu trao là `endTime` — qua `endTime` và tổng duyệt
+  `READY` thì sang `EVENT` (lượt sau mới xét `SUMMARY`), không kẹt mãi ở `EXECUTION`.
 - **Giờ trao của đơn vị nhận** phải nằm trong khung trao — khi tạo, `PUT :id/parties`, `PUT :id/phases`,
   `PUT :id/schedule`, hoãn bước trao → `400 CHARITY_BENEFICIARY_DISTRIBUTION_TIME_OUT_OF_RANGE`,
   `details.beneficiaries[] = { index, name, distributionAt }`. Hạn nộp (`intakeDeadline`) của nhu cầu
@@ -2230,6 +2233,10 @@ Sửa thẳng sau duyệt bằng route cũ: `PUT :id/media`, đổi `acceptedCon
 `PUT :id/profile`, đổi số suất/thêm bớt đơn vị qua `PUT :id/parties` → `409
 CHARITY_CHANGE_REQUIRES_REVIEW` (`details` nêu trường), **trừ** Admin `campaign.manage` và người có
 quyền đăng không cần duyệt (áp ngay). `pointBonusPercent` luôn phải qua bản sửa với chủ dự án.
+Khi đang có bản sửa chờ, sửa thẳng các trường cần duyệt (kể cả người được sửa thẳng) →
+`409 CHARITY_REVISION_PENDING_EXISTS` — rút bản sửa hoặc đợi Admin quyết trước. Ảnh/clip đề xuất trong
+bản chờ không bị job dọn media xoá. Duyệt bản sửa bỏ một đơn vị còn tài khoản thụ hưởng đang hiệu lực →
+`400` (đóng tài khoản trước); giờ trao của MỌI đơn vị đề xuất phải nằm trong khung trao.
 
 **Bản sửa chờ duyệt — Admin.**
 
@@ -3494,7 +3501,8 @@ mở lại thì tự hiện lại. `POST /banners/:id/click` dùng cùng bộ l�
   `delta` = gốc + thưởng, `bonusPercent` = hệ số của chiến dịch (null khi không có thưởng).
 - Feed chung chỉ hiện dòng có `delta` ≥ `point.feed_min_delta` (10), người `ACTIVE`, chưa khoá, chưa
   xoá, bật `showInPublicPointFeed`. `context` chỉ có khi bút toán gắn với chiến dịch từ thiện đang
-  công khai.
+  công khai **và** người đó cho hiện tên ở chiến dịch đó (`showNamePublicly` của lượt tham gia/đóng
+  góp; bài ảnh/clip luôn công khai) — ẩn tên thì dòng điểm vẫn hiện nhưng `context: null`.
 - **Polling:** lần đầu bỏ `afterId` (các dòng mới nhất); sau đó gửi `afterId = latestId` mỗi
   `pollAfterSeconds` giây (`point.feed_poll_seconds`, 15) và hiện từng dòng cách nhau
   `displayIntervalMs` (`point.feed_display_interval_ms`, 2000). Không có gì mới → `entries: []` kèm

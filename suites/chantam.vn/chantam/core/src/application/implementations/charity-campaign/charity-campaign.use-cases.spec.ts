@@ -3921,6 +3921,21 @@ describe('ReplaceCharityMediaUseCase sau duyệt (CR 22/11/2026)', () => {
     expect(repository.replaceMedia).not.toHaveBeenCalled();
   });
 
+  it('người được sửa thẳng đổi media khi có bản sửa PENDING → 409 0x13_63 (review I2)', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(approved());
+    await expect(
+      new ReplaceCharityMediaUseCase(
+        repository,
+        makeStorage(),
+        makeAdmin(false),
+        makeEntitlements(true, true),
+        { findPending: jest.fn(async () => ({ requestId: 'r1' })) } as never,
+      ).handle(command),
+    ).rejects.toThrow(CharityRevisionPendingExistsException);
+    expect(repository.replaceMedia).not.toHaveBeenCalled();
+  });
+
   it('owner có quyền đăng không cần duyệt đổi media → áp ngay', async () => {
     const repository = makeRepository();
     repository.findByGlobalId.mockResolvedValue(approved());

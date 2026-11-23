@@ -200,13 +200,19 @@ export function effectiveOperationStage(input: {
   if (stored !== 'EXECUTION' && stored !== 'EVENT') return stored;
 
   let stage: CharityOperationStage = stored;
+  // Chưa lập khung trao: mốc bắt đầu trao mặc định là `endTime` — chiến dịch không kẹt mãi ở
+  // EXECUTION (vẫn phải qua cổng tổng duyệt READY).
+  const distributionAt = distribution?.startsAt ?? endTime;
   if (
     stage === 'EXECUTION' &&
-    distribution &&
-    distribution.startsAt.getTime() <= now.getTime() &&
+    distributionAt.getTime() <= now.getTime() &&
     input.rehearsalReady
-  )
+  ) {
     stage = 'EVENT';
+    // Không có khung trao: dừng ở EVENT trong lượt này — ban tổ chức còn cần bước trao để ghi
+    // bằng chứng; lượt sau mới xét sang SUMMARY.
+    if (!distribution) return stage;
+  }
 
   const summaryAt = distribution?.endsAt ?? endTime;
   if (

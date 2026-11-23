@@ -737,6 +737,75 @@ async function main(): Promise<void> {
       String(zeroBonusAwards),
     );
 
+    // Review C1: một bài vừa có clip vừa có ảnh → hai award gốc cùng tham chiếu bài; mỗi award có
+    // award thưởng RIÊNG, không đụng khoá duy nhất; job không dừng giữa chừng.
+    const U8 = id('48');
+    await sql(
+      `INSERT INTO users (global_id, username, password_hash, rank, status)
+       VALUES ($1, 'cpt_u8', 'x', 'MEMBER', 'ACTIVE')`,
+      [U8],
+    );
+    await sql(
+      `UPDATE campaigns SET point_bonus_percent = 100 WHERE global_id = $1`,
+      [BonusCamp],
+    );
+    await setRule('CHARITY_POST_VIDEO', true);
+    await setRule('CHARITY_POST_IMAGE', true);
+    const [mixedPost] = await sql(
+      `INSERT INTO campaign_posts (campaign_id, author_id, author_role, stage, body)
+       VALUES ($1, $2, 'PARTICIPANT', 'EVENT', 'Clip và ảnh') RETURNING global_id`,
+      [BonusCamp, U8],
+    );
+    await service.awardPost({
+      postId: mixedPost.global_id,
+      campaignId: BonusCamp,
+      authorId: U8,
+      videoCount: 1,
+      imageCount: 2,
+    });
+    const pendingAfterMixed = await service.settlePending(200);
+    const mixedRows = await entriesOf(U8);
+    const mixedVideo = sumOf(mixedRows, 'CHARITY_POST_VIDEO');
+    const mixedImage = sumOf(mixedRows, 'CHARITY_POST_IMAGE');
+    check(
+      'bài có clip + ảnh ở hệ số 100: cả hai điểm gốc ghi đủ, thưởng = tổng gốc, job không lỗi',
+      mixedVideo > 0 &&
+        mixedImage > 0 &&
+        sumOf(mixedRows, 'CHARITY_CAMPAIGN_BONUS') ===
+          mixedVideo + mixedImage &&
+        typeof pendingAfterMixed.applied === 'number',
+      JSON.stringify(mixedRows.map((row) => [row.rule_code, row.delta])),
+    );
+    await sql(
+      `UPDATE campaigns SET point_bonus_percent = 50 WHERE global_id = $1`,
+      [BonusCamp],
+    );
+
+    // Review I7: chấm lại GIẢM khi phần thưởng còn hoãn → mục tiêu thưởng co theo MỤC TIÊU, không
+    // theo phần đã ghi (không mất phần hoãn).
+    const U9 = id('49');
+    await sql(
+      `INSERT INTO users (global_id, username, password_hash, rank, status)
+       VALUES ($1, 'cpt_u9', 'x', 'MEMBER', 'ACTIVE')`,
+      [U9],
+    );
+    await setConfig(CapKey, 20);
+    await score(U9, 15);
+    await score(U9, 10);
+    const [u9Bonus] = await sql(
+      `SELECT bonus.target_points, bonus.applied_points
+         FROM campaign_point_awards bonus
+         JOIN campaign_point_awards base ON base.global_id = bonus.base_award_id
+        WHERE base.user_id = $1`,
+      [U9],
+    );
+    check(
+      'gốc 15 (thưởng 7: ghi 5, hoãn 2) chấm lại 10 → mục tiêu thưởng floor(7×10/15) = 4, đã ghi 4',
+      u9Bonus?.target_points === 4 && u9Bonus?.applied_points === 4,
+      JSON.stringify(u9Bonus),
+    );
+    await setConfig(CapKey, 0);
+
     await setRule('CHARITY_CONTRIBUTION_COMPLETED', true);
     const bonusDelivery = await makeDelivery(BonusCamp, 'T');
     await campaigns.completeDelivery({
@@ -784,7 +853,25 @@ async function main(): Promise<void> {
          VALUES ($1, $2, 'x', 'MEMBER', 'ACTIVE', 'Người Thử')`,
         [userId, username],
       );
+    // FeedU cho hiện tên ở chiến dịch; FeedHidden tham gia nhưng ẩn tên (review I6).
+    const FeedHidden = id('54');
+    await sql(
+      `INSERT INTO users (global_id, username, password_hash, rank, status)
+       VALUES ($1, 'cpt_feed_hidden', 'x', 'MEMBER', 'ACTIVE')`,
+      [FeedHidden],
+    );
+    for (const [userId, show] of [
+      [FeedU, true],
+      [FeedHidden, false],
+    ] as const)
+      await sql(
+        `INSERT INTO campaign_participations
+           (campaign_id, user_id, status, checked_in_at, checked_in_by, show_name_publicly)
+         VALUES ($1, $2, 'CHECKED_IN', now(), $3, $4)`,
+        [BonusCamp, userId, Owner, show],
+      );
     await score(FeedU, 60);
+    await score(FeedHidden, 40);
     const adjust = (
       userId: string,
       ruleCode: string,
@@ -886,6 +973,14 @@ async function main(): Promise<void> {
     check(
       'người bị khoá (suspended_until tương lai) → không có trên feed chung',
       !general.entries.some((entry) => entry.user.userId === FeedSuspended),
+    );
+    const hiddenEntry = general.entries.find(
+      (entry) => entry.user.userId === FeedHidden,
+    );
+    check(
+      'người tham gia ẩn tên ở chiến dịch: dòng điểm vẫn có nhưng KHÔNG kèm ngữ cảnh chiến dịch (review I6)',
+      hiddenEntry !== undefined && hiddenEntry.context === null,
+      JSON.stringify(hiddenEntry),
     );
     await sql(
       `UPDATE users SET show_in_public_point_feed = false WHERE global_id = $1`,

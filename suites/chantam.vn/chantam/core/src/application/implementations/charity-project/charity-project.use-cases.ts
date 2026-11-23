@@ -82,6 +82,7 @@ import {
   CharityProjectNotApprovedException,
   CharityProjectNotDraftException,
   CharityRehearsalNotReadyException,
+  CharityRevisionPendingExistsException,
   CharityRoundEvidenceRequiredException,
   CharityScheduleInvalidException,
   CharitySectionEmptyException,
@@ -201,7 +202,19 @@ export class CharityProjectAccess {
     @Optional()
     @Inject(IEntitlementRepository)
     private readonly entitlements?: IEntitlementRepository,
+    @Optional()
+    @Inject(ICharityChangeRequestRepository)
+    private readonly changeRequests?: ICharityChangeRequestRepository,
   ) {}
+
+  /**
+   * Đang có bản sửa chờ duyệt thì KHÔNG sửa thẳng trường cần duyệt — kể cả người được sửa
+   * thẳng: duyệt bản sửa sau đó sẽ âm thầm ghi đè sửa đổi này (review I2, ruling Q7).
+   */
+  public async assertNoPendingRevision(campaignId: string): Promise<void> {
+    if (await this.changeRequests?.findPending(campaignId))
+      throw new CharityRevisionPendingExistsException();
+  }
 
   /** Trường quan trọng sửa được NGAY không, hay phải đi bản sửa chờ duyệt (§3.17b). */
   public directChangeAllowed(
@@ -676,12 +689,14 @@ export class UpdateCharityProfileUseCase implements IUpdateCharityProfileUseCase
             command.profile.acceptedContributionTypes,
           ),
         },
-      ).length > 0 &&
-      !(await this.access.directChangeAllowed(access, command.userId))
-    )
-      throw new CharityChangeRequiresReviewException(
-        'acceptedContributionTypes',
-      );
+      ).length > 0
+    ) {
+      await this.access.assertNoPendingRevision(campaign.globalId);
+      if (!(await this.access.directChangeAllowed(access, command.userId)))
+        throw new CharityChangeRequiresReviewException(
+          'acceptedContributionTypes',
+        );
+    }
     const next = {
       appealPurpose: pick(command.profile.appealPurpose, current.appealPurpose),
       appealAudience: pick(
@@ -771,11 +786,11 @@ export class ReplaceCharityPartiesUseCase implements IReplaceCharityPartiesUseCa
         .filter((party) => !party.isAppealSubject)
         .map((party) => [party.partyId, party]),
     );
-    if (
-      charityBeneficiaryPlanChanged(previous, command.parties) &&
-      !(await this.access.directChangeAllowed(access, command.userId))
-    )
-      throw new CharityChangeRequiresReviewException('beneficiaries');
+    if (charityBeneficiaryPlanChanged(previous, command.parties)) {
+      await this.access.assertNoPendingRevision(campaign.globalId);
+      if (!(await this.access.directChangeAllowed(access, command.userId)))
+        throw new CharityChangeRequiresReviewException('beneficiaries');
+    }
 
     // Sàn hai chiều: tổng suất/tiền mới vẫn phải nằm dưới mục tiêu nhu cầu hiện có.
     const plans = command.parties
@@ -2541,19 +2556,48 @@ export class DecideCharityChangeRequestUseCase implements IDecideCharityChangeRe
           estimatedAmount: unit.estimatedAmount,
         })),
       });
+      // Mọi đơn vị trong bộ đề xuất — kể cả đơn vị đang có bị dời giờ trao (review I4).
       await assertBeneficiariesInsideWindow(
         this.projects,
         campaign.globalId,
         campaign.distribution,
-        proposed.beneficiaries
-          .filter((unit) => !unit.partyId)
-          .map((unit) => ({
-            name: unit.name,
-            distributionAt: unit.distributionAt
-              ? new Date(unit.distributionAt)
-              : null,
-          })),
+        proposed.beneficiaries.map((unit) => ({
+          name: unit.name,
+          distributionAt: unit.distributionAt
+            ? new Date(unit.distributionAt)
+            : null,
+        })),
       );
+    }
+    if (proposed.beneficiaries) {
+      // Cùng luật với PUT :id/parties: không bỏ đơn vị còn tài khoản thụ hưởng đang hiệu lực —
+      // tài khoản đã xác thực sẽ mồ côi (review I3). Bản sửa vẫn chờ.
+      const kept = new Set(
+        proposed.beneficiaries
+          .map((unit) => unit.partyId)
+          .filter((id): id is string => Boolean(id)),
+      );
+      const [current, accounts] = await Promise.all([
+        this.projects.listParties(campaign.globalId),
+        this.projects.listBeneficiaryBankAccounts(campaign.globalId),
+      ]);
+      const blocked = current.filter(
+        (party) =>
+          party.role === 'BENEFICIARY' &&
+          !party.isAppealSubject &&
+          !kept.has(party.partyId) &&
+          accounts.some(
+            (account) =>
+              account.partyId === party.partyId && account.validTo === null,
+          ),
+      );
+      if (blocked.length > 0)
+        throw new ValidationFailedException(
+          blocked.map(
+            (party) =>
+              `revision.beneficiaries: đơn vị "${party.name}" còn tài khoản thụ hưởng đang hiệu lực — đóng tài khoản trước`,
+          ),
+        );
     }
     const media = proposed.media
       ? await confirmCharityMedia(
