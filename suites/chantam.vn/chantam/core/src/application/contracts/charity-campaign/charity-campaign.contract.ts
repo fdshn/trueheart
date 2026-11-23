@@ -15,6 +15,7 @@ import {
   IDecideContributionResult,
 } from '@/domain/ports/repository';
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+import { IPublicUserProfileDto } from '@chantam.vn/chantam.core-lib/dto';
 import {
   CharityApprovalStatus,
   CharityBeneficiaryKind,
@@ -22,6 +23,7 @@ import {
   CharityCampaignType,
   CharityContributionStatus,
   CharityContributionType,
+  CharityParticipationRole,
   CharityRejectionReason,
   CharityServiceChannel,
   CharitySupportType,
@@ -200,9 +202,9 @@ export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput 
   /** Cho lượt chấp nhận đề nghị vượt mục tiêu từng dòng (§5). Mặc định `false`. */
   readonly allowOverTarget?: boolean;
   /** Số người tham gia tối thiểu (PR #54), 0–100.000. Bỏ trống = `0` (không đặt). */
-  readonly minimumParticipants?: number;
+  readonly minimumSupervisors?: number;
   /** Hạng tối thiểu để đăng ký tham gia (PR #54). Bỏ trống/`null` = không giới hạn. */
-  readonly minimumParticipantRank?: UserRanks | null;
+  readonly minimumSupervisorRank?: UserRanks | null;
   /**
    * Người thụ hưởng — CHỈ cho `INDIVIDUAL_APPEAL` + `OTHER`. Thiếu, hoặc đồng ý chưa
    * `CONFIRMED`, thì hoạt động vào `PENDING_APPROVAL` kể cả khi người tạo có quyền
@@ -636,6 +638,8 @@ export interface IGetPublicCharityCampaignResult {
   readonly reviewTotal: number;
   /** Đơn vị nhận công khai — cùng hình dạng với `GET /charity-campaigns/:idOrSlug/project`. */
   readonly beneficiaries: ICharityPublicBeneficiary[];
+  /** Người tổ chức (CR 22/11/2026) — năm trường công khai; `null` khi tài khoản đã xoá. */
+  readonly organizer: IPublicUserProfileDto | null;
 }
 
 export interface IGetPublicCharityCampaignUseCase extends IUseCase<
@@ -674,6 +678,8 @@ export const IListJoinedCharityCampaignsUseCase = Symbol(
 export interface IJoinCharityCampaignCommand {
   readonly actorUserId: string;
   readonly campaignId: string;
+  /** Vai đăng ký (CR 22/11/2026 §6); bỏ trống = `PARTICIPANT`. */
+  readonly role?: CharityParticipationRole;
 }
 
 export interface IJoinCharityCampaignResult {
@@ -787,9 +793,9 @@ export interface IUpdateAdminCharityCampaignCommand {
   readonly lng?: number | null;
   readonly locationLabel?: string | null;
   /** Bỏ trống = giữ nguyên (PR #54). */
-  readonly minimumParticipants?: number;
+  readonly minimumSupervisors?: number;
   /** Bỏ trống = giữ nguyên; `null` = bỏ giới hạn hạng. Không đụng người ĐÃ đăng ký. */
-  readonly minimumParticipantRank?: UserRanks | null;
+  readonly minimumSupervisorRank?: UserRanks | null;
   readonly acceptedContributionTypes?: readonly CharityContributionType[];
   readonly reason: string;
 }

@@ -137,7 +137,10 @@ import {
 } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { resolveCharityApprovalStatus } from '../charity-campaign/charity-campaign.use-cases';
+import {
+  publicOrganizer,
+  resolveCharityApprovalStatus,
+} from '../charity-campaign/charity-campaign.use-cases';
 import { directChangeAllowed } from './charity-change-review';
 import { assertPortionFloors } from './charity-portion-guard';
 
@@ -2120,6 +2123,7 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
       beneficiaries: (await this.campaigns.listBeneficiaryPlans(id)).map(
         toPublicBeneficiary,
       ),
+      organizer: await publicOrganizer(this.campaigns, id),
       supporters,
       counters,
       isFollowing,

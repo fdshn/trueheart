@@ -834,26 +834,31 @@ async function main(): Promise<void> {
     const gated = diamondPublished.globalId;
     check(
       'hoạt động tạo mới không khai gì -> 0 người tối thiểu, không giới hạn hạng',
-      diamondPublished.minimumParticipants === 0 &&
-        diamondPublished.minimumParticipantRank === null,
-      `${diamondPublished.minimumParticipants} / ${String(diamondPublished.minimumParticipantRank)}`,
+      diamondPublished.minimumSupervisors === 0 &&
+        diamondPublished.minimumSupervisorRank === null,
+      `${diamondPublished.minimumSupervisors} / ${String(diamondPublished.minimumSupervisorRank)}`,
     );
     await dataSource.query(
-      `UPDATE campaigns SET minimum_participants = 2, minimum_participant_rank = 'GOLD'
+      `UPDATE campaigns SET minimum_supervisors = 2, minimum_supervisor_rank = 'GOLD'
         WHERE global_id = $1`,
       [gated],
     );
     const gatedRow = await repository.findByGlobalId(gated);
     check(
       'repository đọc lại đúng hai cột mới',
-      gatedRow?.minimumParticipants === 2 &&
-        gatedRow.minimumParticipantRank === 'GOLD',
-      `${String(gatedRow?.minimumParticipants)} / ${String(gatedRow?.minimumParticipantRank)}`,
+      gatedRow?.minimumSupervisors === 2 &&
+        gatedRow.minimumSupervisorRank === 'GOLD',
+      `${String(gatedRow?.minimumSupervisors)} / ${String(gatedRow?.minimumSupervisorRank)}`,
     );
 
     await expectThrow(
-      'MEMBER đăng ký hoạt động đòi GOLD -> CharityParticipantRankTooLow',
-      () => joinUseCase.handle({ actorUserId: MemberId, campaignId: gated }),
+      'MEMBER đăng ký GIÁM SÁT VIÊN ở hoạt động đòi GOLD -> CharityParticipantRankTooLow (CR 22/11: cổng hạng chỉ cho giám sát viên)',
+      () =>
+        joinUseCase.handle({
+          actorUserId: MemberId,
+          campaignId: gated,
+          role: 'SUPERVISOR',
+        }),
       'CharityParticipantRankTooLowException',
     );
     const [blockedRows] = await dataSource.query<{ total: string }[]>(
@@ -873,7 +878,11 @@ async function main(): Promise<void> {
       `UPDATE users SET rank = 'GOLD' WHERE global_id = $1`,
       [MemberId],
     );
-    await joinUseCase.handle({ actorUserId: MemberId, campaignId: gated });
+    await joinUseCase.handle({
+      actorUserId: MemberId,
+      campaignId: gated,
+      role: 'SUPERVISOR',
+    });
     const [memberStatus] = await dataSource.query<{ status: string }[]>(
       `SELECT status FROM campaign_participations
         WHERE campaign_id = $1 AND user_id = $2`,
@@ -886,7 +895,7 @@ async function main(): Promise<void> {
     );
 
     await dataSource.query(
-      `UPDATE campaigns SET minimum_participant_rank = 'DIAMOND' WHERE global_id = $1`,
+      `UPDATE campaigns SET minimum_supervisor_rank = 'DIAMOND' WHERE global_id = $1`,
       [gated],
     );
     const [keptStatus] = await dataSource.query<{ status: string }[]>(
@@ -901,7 +910,10 @@ async function main(): Promise<void> {
     );
 
     const summaries = new CharitySummaryRepository(dataSource.manager);
-    await joinUseCase.handle({ actorUserId: DiamondId, campaignId: gated });
+    await joinUseCase.handle({
+      actorUserId: DiamondId,
+      campaignId: gated,
+    });
     await dataSource.query(
       `UPDATE campaign_participations SET status = 'CHECKED_IN', checked_in_at = now()
         WHERE campaign_id = $1 AND user_id = $2`,
@@ -915,27 +927,27 @@ async function main(): Promise<void> {
     );
 
     await expectReject(
-      'CHECK: minimum_participants âm bị chặn',
+      'CHECK: minimum_supervisors âm bị chặn',
       () =>
         dataSource.query(
-          `UPDATE campaigns SET minimum_participants = -1 WHERE global_id = $1`,
+          `UPDATE campaigns SET minimum_supervisors = -1 WHERE global_id = $1`,
           [gated],
         ),
-      'CHK_campaigns_minimum_participants',
+      'CHK_campaigns_minimum_supervisors',
     );
     await expectReject(
       'CHECK: hạng ngoài enum bị chặn',
       () =>
         dataSource.query(
-          `UPDATE campaigns SET minimum_participant_rank = 'PLATINUM' WHERE global_id = $1`,
+          `UPDATE campaigns SET minimum_supervisor_rank = 'PLATINUM' WHERE global_id = $1`,
           [gated],
         ),
-      'CHK_campaigns_minimum_participant_rank',
+      'CHK_campaigns_minimum_supervisor_rank',
     );
 
     // Trả hoạt động và người dùng về như cũ cho các nhóm sau.
     await dataSource.query(
-      `UPDATE campaigns SET minimum_participants = 0, minimum_participant_rank = NULL
+      `UPDATE campaigns SET minimum_supervisors = 0, minimum_supervisor_rank = NULL
         WHERE global_id = $1`,
       [gated],
     );
@@ -1608,8 +1620,8 @@ async function main(): Promise<void> {
       lat: 21.0285,
       lng: 105.8542,
       locationLabel: 'Hoàn Kiếm, Hà Nội',
-      minimumParticipants: 0,
-      minimumParticipantRank: null,
+      minimumSupervisors: 0,
+      minimumSupervisorRank: null,
       acceptedContributionTypes: ['MATERIAL'],
     });
     check(
@@ -1635,8 +1647,8 @@ async function main(): Promise<void> {
       lat: null,
       lng: null,
       locationLabel: null,
-      minimumParticipants: 0,
-      minimumParticipantRank: null,
+      minimumSupervisors: 0,
+      minimumSupervisorRank: null,
       acceptedContributionTypes: ['MATERIAL'],
     });
     check(

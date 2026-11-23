@@ -1,35 +1,35 @@
 import { UserRanks } from '../consts';
 import {
-  MaxCharityMinimumParticipants,
-  charityMinimumParticipantsMet,
-  charityParticipationRequirementGaps,
+  MaxCharityMinimumSupervisors,
+  charityMinimumSupervisorsMet,
+  charitySupervisorRequirementGaps,
 } from './charity-participation-requirements';
 
 describe('điều kiện tham gia chiến dịch (PR #54, 18/11)', () => {
   it('trần số người tối thiểu là 100.000', () => {
-    expect(MaxCharityMinimumParticipants).toBe(100_000);
+    expect(MaxCharityMinimumSupervisors).toBe(100_000);
   });
 
   it.each([
     [{}],
-    [{ minimumParticipants: 0 }],
-    [{ minimumParticipants: 100_000 }],
-    [{ minimumParticipantRank: null }],
-    [{ minimumParticipantRank: UserRanks.SILVER }],
-    [{ minimumParticipantRank: 'DIAMOND' }],
+    [{ minimumSupervisors: 0 }],
+    [{ minimumSupervisors: 100_000 }],
+    [{ minimumSupervisorRank: null }],
+    [{ minimumSupervisorRank: UserRanks.SILVER }],
+    [{ minimumSupervisorRank: 'DIAMOND' }],
   ])('hợp lệ: %p', (input) => {
-    expect(charityParticipationRequirementGaps(input)).toEqual([]);
+    expect(charitySupervisorRequirementGaps(input)).toEqual([]);
   });
 
   it.each([
-    [{ minimumParticipants: -1 }],
-    [{ minimumParticipants: 1.5 }],
-    [{ minimumParticipants: 100_001 }],
-    [{ minimumParticipants: '5' }],
-    [{ minimumParticipantRank: 'PLATINUM' }],
-    [{ minimumParticipantRank: 'silver' }],
+    [{ minimumSupervisors: -1 }],
+    [{ minimumSupervisors: 1.5 }],
+    [{ minimumSupervisors: 100_001 }],
+    [{ minimumSupervisors: '5' }],
+    [{ minimumSupervisorRank: 'PLATINUM' }],
+    [{ minimumSupervisorRank: 'silver' }],
   ])('không hợp lệ: %p', (input) => {
-    expect(charityParticipationRequirementGaps(input)).not.toEqual([]);
+    expect(charitySupervisorRequirementGaps(input)).not.toEqual([]);
   });
 
   it.each([
@@ -38,6 +38,6 @@ describe('điều kiện tham gia chiến dịch (PR #54, 18/11)', () => {
     [3, 2, false],
     [3, 3, true],
   ])('tối thiểu %p, đã check-in %p -> đạt = %p', (minimum, checkedIn, met) => {
-    expect(charityMinimumParticipantsMet(minimum, checkedIn)).toBe(met);
+    expect(charityMinimumSupervisorsMet(minimum, checkedIn)).toBe(met);
   });
 });

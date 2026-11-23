@@ -120,6 +120,7 @@ import {
   CharityScheduleInvalidException,
   CharitySelfContributionException,
   CharitySubmitRequirementsUnmetException,
+  CharitySupervisorConflictException,
 } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
@@ -137,6 +138,7 @@ import {
   IUserRepository,
 } from '@/domain/ports/repository';
 import { hasRankAtLeast } from '@chantam.vn/chantam.core-lib/consts';
+import { IPublicUserProfileDto } from '@chantam.vn/chantam.core-lib/dto';
 import {
   CharityActiveParticipationStatuses,
   CharityApprovalStatus,
@@ -158,10 +160,10 @@ import {
   charityCampaignGaps,
   charityMediaShapeGaps,
   charityMediaTypeGaps,
-  charityParticipationRequirementGaps,
   charityReviewRoleOf,
   charityScheduleGaps,
   charitySubmitRequirementGaps,
+  charitySupervisorRequirementGaps,
   deriveAcceptedContributionTypes,
   isCharityReviewRating,
   isIntakeClosed,
@@ -184,8 +186,18 @@ import {
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { CharityPointsService } from '../charity-project/charity-points.service';
 import { assertPortionFloors } from '../charity-project/charity-portion-guard';
+import { toPublicUserProfile } from '../shared/public-author';
 import { withStorageValidation } from '../shared/storage-error';
 import { CharityNotifier } from './charity.notifier';
+
+/** Người tổ chức cho bản công khai — chọn tường minh năm trường (CR 22/11/2026). */
+export async function publicOrganizer(
+  repository: Pick<ICharityCampaignRepository, 'findOrganizerProfile'>,
+  campaignId: string,
+): Promise<IPublicUserProfileDto | null> {
+  const organizer = await repository.findOrganizerProfile(campaignId);
+  return organizer ? toPublicUserProfile(organizer) : null;
+}
 
 /**
  * Quyền Admin đọc và quyền Admin ghi.
@@ -566,7 +578,7 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
         })
       : null;
     // Điều kiện tham gia (PR #54) kiểm cùng lượt với nội dung, TRƯỚC lượt gọi R2.
-    const requirementGaps = charityParticipationRequirementGaps(command);
+    const requirementGaps = charitySupervisorRequirementGaps(command);
     if (requirementGaps.length > 0)
       throw new ValidationFailedException(requirementGaps);
     const prepared = await prepareWrite(
@@ -675,8 +687,8 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       campaignType: command.campaignType,
       allowOverTarget: command.allowOverTarget ?? false,
       // Chiến dịch không khai gì giữ đúng hành vi cũ: không số tối thiểu, không giới hạn hạng.
-      minimumParticipants: command.minimumParticipants ?? 0,
-      minimumParticipantRank: command.minimumParticipantRank ?? null,
+      minimumSupervisors: command.minimumSupervisors ?? 0,
+      minimumSupervisorRank: command.minimumSupervisorRank ?? null,
       intakeLocations,
       intakeEndsAt,
       distributionWindow,
@@ -932,6 +944,7 @@ export class GetPublicCharityCampaignUseCase implements IGetPublicCharityCampaig
       beneficiaries: (
         await this.repository.listBeneficiaryPlans(campaign.globalId)
       ).map(toPublicBeneficiary),
+      organizer: await publicOrganizer(this.repository, campaign.globalId),
     };
   }
 }
@@ -1646,13 +1659,23 @@ export class ManageCharityCoordinatorsUseCase implements IManageCharityCoordinat
       if (target === command.actorUserId)
         throw new CharityCoordinatorNotAllowedException();
 
-      if (command.action === 'GRANT')
+      if (command.action === 'GRANT') {
+        // Giám sát viên đang hiệu lực không kiêm điều phối (CR 22/11/2026 §6).
+        const participation = await this.repository.findParticipation({
+          campaignId: campaign.globalId,
+          userId: target,
+        });
+        if (
+          participation?.role === 'SUPERVISOR' &&
+          CharityActiveParticipationStatuses.includes(participation.status)
+        )
+          throw new CharitySupervisorConflictException();
         await this.repository.grantCoordinator({
           campaignId: campaign.globalId,
           userId: target,
           grantedBy: command.actorUserId,
         });
-      else
+      } else
         await this.repository.revokeCoordinator({
           campaignId: campaign.globalId,
           userId: target,
@@ -1808,27 +1831,53 @@ export class JoinCharityCampaignUseCase implements IJoinCharityCampaignUseCase {
     // HUỶ. Chặn ở `start_time` là tự thêm một luật đặc tả không nêu.
     if (!campaign.isActive || campaign.endTime.getTime() <= Date.now())
       throw new CharityParticipationClosedException();
-    // Hết tiếp nhận (CR 22/11/2026 §3.9) chặn đăng ký tham gia mới.
-    if (isIntakeClosed(campaign, new Date()))
+    const role = command.role ?? 'PARTICIPANT';
+    const now = new Date();
+
+    // Giám sát viên không phải người tổ chức hay điều phối của chính chiến dịch (CR §6).
+    if (
+      role === 'SUPERVISOR' &&
+      (campaign.createdBy === command.actorUserId ||
+        (await this.repository.isCampaignManager(
+          campaign.globalId,
+          command.actorUserId,
+        )))
+    )
+      throw new CharitySupervisorConflictException();
+
+    // Hết tiếp nhận (CR 22/11/2026 §3.9): người tham gia đóng ở `intakeEndsAt`; giám sát viên
+    // còn đăng ký được tới lúc bắt đầu trao (chưa có khung trao thì tới `endTime`, đã chặn ở trên).
+    if (role === 'PARTICIPANT' && isIntakeClosed(campaign, now))
+      throw new CharityIntakeClosedException();
+    if (
+      role === 'SUPERVISOR' &&
+      campaign.distribution &&
+      campaign.distribution.startsAt.getTime() <= now.getTime()
+    )
       throw new CharityIntakeClosedException();
 
-    // Hạng tối thiểu (PR #54): đọc hạng HIỆN TẠI từ database, không tin hạng trong access
-    // token — token sống tới hạn refresh nên người vừa bị hạ hạng vẫn mang hạng cũ. Không tìm
-    // thấy tài khoản thì chặn: không biết hạng là không chứng minh được đủ hạng.
-    const requiredRank = campaign.minimumParticipantRank;
-    // Người ĐÃ có lượt còn hiệu lực không qua cổng hạng: Admin nâng hạng sau khi họ đăng ký
-    // thì họ vẫn hợp lệ, và lượt bấm lại phải nhận "đã đăng ký" (409) chứ không phải "không
-    // đủ điều kiện" (403). Lượt đã huỷ thì đăng ký lại là đăng ký MỚI — vẫn qua cổng.
-    const existingStatus =
-      requiredRank === null
-        ? null
-        : await this.repository.findParticipationStatus({
-            campaignId: campaign.globalId,
-            userId: command.actorUserId,
-          });
+    const existing =
+      (await this.repository.findParticipation({
+        campaignId: campaign.globalId,
+        userId: command.actorUserId,
+      })) ?? null;
     const alreadyActive =
-      existingStatus !== null &&
-      CharityActiveParticipationStatuses.includes(existingStatus);
+      existing !== null &&
+      CharityActiveParticipationStatuses.includes(existing.status);
+    // Một người một vai: đổi vai = huỷ rồi đăng ký lại, chỉ khi lượt cũ chưa check-in.
+    if (
+      existing !== null &&
+      !alreadyActive &&
+      existing.role !== role &&
+      existing.checkedInAt !== null
+    )
+      throw new CharityParticipationInvalidStateException('CHECKED_IN');
+
+    // Hạng tối thiểu (PR #54) nay chỉ áp cho GIÁM SÁT VIÊN (CR §6): đọc hạng HIỆN TẠI từ
+    // database, không tin hạng trong access token. Không tìm thấy tài khoản thì chặn. Người ĐÃ
+    // có lượt còn hiệu lực không qua cổng — lượt bấm lại phải nhận "đã đăng ký" (409).
+    const requiredRank =
+      role === 'SUPERVISOR' ? campaign.minimumSupervisorRank : null;
     if (requiredRank !== null && !alreadyActive) {
       const user = await this.users.findOneBy({
         globalId: command.actorUserId,
@@ -1840,6 +1889,7 @@ export class JoinCharityCampaignUseCase implements IJoinCharityCampaignUseCase {
     const { created } = await this.repository.register({
       campaignId: campaign.globalId,
       userId: command.actorUserId,
+      role,
     });
     if (!created) throw new CharityAlreadyRegisteredException();
     // Hiện tên trong danh sách người tham gia công khai theo cài đặt chung (§3.17); đổi lại
@@ -2258,19 +2308,19 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
           : command.locationLabel?.trim() || null,
       // Điều kiện tham gia (PR #54). Nâng hạng tối thiểu KHÔNG đụng người đã đăng ký — nó
       // chỉ được đọc ở lượt đăng ký mới.
-      minimumParticipants:
-        command.minimumParticipants ?? existing.minimumParticipants,
-      minimumParticipantRank:
-        command.minimumParticipantRank === undefined
-          ? existing.minimumParticipantRank
-          : command.minimumParticipantRank,
+      minimumSupervisors:
+        command.minimumSupervisors ?? existing.minimumSupervisors,
+      minimumSupervisorRank:
+        command.minimumSupervisorRank === undefined
+          ? existing.minimumSupervisorRank
+          : command.minimumSupervisorRank,
       acceptedContributionTypes:
         command.acceptedContributionTypes === undefined
           ? existing.acceptedContributionTypes
           : normalizeContributionTypes(command.acceptedContributionTypes),
     };
 
-    gaps.push(...charityParticipationRequirementGaps(command));
+    gaps.push(...charitySupervisorRequirementGaps(command));
     gaps.push(
       ...charityCampaignGaps({
         ...next,

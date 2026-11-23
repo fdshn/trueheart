@@ -83,8 +83,8 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     acceptedContributionTypes: ['MATERIAL', 'MONEY', 'SERVICE'],
     beneficiaryRelation: null,
     allowOverTarget: false,
-    minimumParticipants: 0,
-    minimumParticipantRank: null,
+    minimumSupervisors: 0,
+    minimumSupervisorRank: null,
     submittedAt: new Date(),
     operationStage: 'EXECUTION',
     storedOperationStage: 'EXECUTION',
@@ -116,6 +116,15 @@ function make(
     isCampaignManager: jest.fn(async () => options.coordinator ?? false),
     findBeneficiary: jest.fn(async () => null),
     listBeneficiaryPlans: jest.fn(async () => [] as unknown[]),
+    findOrganizerProfile: jest.fn(async (): Promise<unknown> => ({
+      globalId: Owner,
+      username: 'chu-du-an',
+      fullName: 'Chủ Dự Án',
+      avatarUrl: null,
+      rank: 'GOLD',
+      email: 'owner@private.test',
+      phone: '0900000001',
+    })),
     saveSchedule: jest.fn(async (..._args: unknown[]) => undefined),
     replaceIntakeLocations: jest.fn(async (..._args: unknown[]) => []),
   };
@@ -1161,6 +1170,25 @@ describe('Hồ sơ tab A', () => {
     expect(view).not.toHaveProperty('beneficiaryBankAccounts');
     expect(JSON.stringify(view)).not.toContain('9988776655');
     expect(deps.projects.listBeneficiaryBankAccounts).not.toHaveBeenCalled();
+  });
+
+  it('public: organizer đúng năm trường, không có phone/email', async () => {
+    const deps = make();
+    const view = await new GetCharityPublicProjectUseCase(
+      deps.campaigns as never,
+      deps.projects as never,
+      deps.engagement as never,
+      deps.events as never,
+      deps.summaries as never,
+    ).handle({ idOrSlug: 'mua-dong-am', userId: null });
+    expect(view.organizer).toEqual({
+      userId: Owner,
+      username: 'chu-du-an',
+      displayName: 'Chủ Dự Án',
+      avatarUrl: null,
+      rank: 'GOLD',
+    });
+    expect(JSON.stringify(view)).not.toMatch(/owner@private|0900000001/);
   });
 
   it('public: hình thức trao đúng 5 khoá công khai, không có privateDetails', async () => {

@@ -12,3 +12,16 @@ export interface IPublicAuthorSummaryDto {
   avatarUrl: string | null;
   rank: UserRanks;
 }
+
+/**
+ * Hồ sơ công khai rút gọn của một người dùng (CR 22/11/2026): người tổ chức chiến dịch và danh
+ * sách thành viên công khai. Đúng năm trường — không email, SĐT, vị trí.
+ * `displayName` = họ tên, trống thì `username`.
+ */
+export interface IPublicUserProfileDto {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  rank: UserRanks;
+}

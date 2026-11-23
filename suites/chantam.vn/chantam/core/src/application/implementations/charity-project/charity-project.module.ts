@@ -40,6 +40,7 @@ import {
   IListCharityEvaluationsUseCase,
   IListCharityExportsUseCase,
   IListCharityHomeCardsUseCase,
+  IListCharityMembersUseCase,
   IListCharityParticipationsUseCase,
   IListCharityPostsUseCase,
   IListCharityRevisionsUseCase,
@@ -192,6 +193,7 @@ import {
   GetMyCharityEvaluationUseCase,
   ListCharityEvaluationsUseCase,
   ListCharityHomeCardsUseCase,
+  ListCharityMembersUseCase,
   PublishCharitySummaryUseCase,
   RequestCharityPromotionUseCase,
   SaveCharityFinancialReportUseCase,
@@ -271,6 +273,7 @@ const bindings = [
   [ISetCharityPromotionUseCase, SetCharityPromotionUseCase],
   [IGetCharityPromotionUseCase, GetCharityPromotionUseCase],
   [IListCharityHomeCardsUseCase, ListCharityHomeCardsUseCase],
+  [IListCharityMembersUseCase, ListCharityMembersUseCase],
   // Đợt 4b (§3.9, §3.16).
   [ISubmitCharityAppealUseCase, SubmitCharityAppealUseCase],
   [IListCharityAppealsUseCase, ListCharityAppealsUseCase],

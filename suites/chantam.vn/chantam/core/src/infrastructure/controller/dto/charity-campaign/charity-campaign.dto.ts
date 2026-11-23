@@ -12,6 +12,8 @@ import {
   CharityContributionTypes,
   CharityDistributionMethods,
   CharityMediaTypes,
+  CharityParticipationRole,
+  CharityParticipationRoles,
   CharityRejectionReasons,
   CharityReviewRatingMax,
   CharityReviewRatingMin,
@@ -22,7 +24,7 @@ import {
   MaxCharityBadgeNameLength,
   MaxCharityDescriptionLength,
   MaxCharityMediaPerCampaign,
-  MaxCharityMinimumParticipants,
+  MaxCharityMinimumSupervisors,
   MaxCharityReviewCommentLength,
   MaxCharitySlugLength,
   MaxCharityTargetItems,
@@ -449,7 +451,7 @@ export class WriteCharityCampaignDto {
 
   @ApiPropertyOptional({
     minimum: 0,
-    maximum: MaxCharityMinimumParticipants,
+    maximum: MaxCharityMinimumSupervisors,
     default: 0,
     description:
       'Số người tham gia tối thiểu (PR #54). `0` = không đặt. Tổng kết đối chiếu với số đã check-in; chưa đạt chỉ là cảnh báo, không tự huỷ hoạt động.',
@@ -458,8 +460,8 @@ export class WriteCharityCampaignDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  @Max(MaxCharityMinimumParticipants)
-  minimumParticipants?: number;
+  @Max(MaxCharityMinimumSupervisors)
+  minimumSupervisors?: number;
 
   @ApiPropertyOptional({
     enum: RankOrder,
@@ -469,7 +471,7 @@ export class WriteCharityCampaignDto {
   })
   @IsOptional()
   @IsIn(RankOrder as readonly string[])
-  minimumParticipantRank?: UserRanks | null;
+  minimumSupervisorRank?: UserRanks | null;
 
   @ApiPropertyOptional({ type: () => CharityCampaignDistributionDto })
   @IsOptional()
@@ -940,15 +942,15 @@ export class UpdateAdminCharityCampaignDto {
 
   @ApiPropertyOptional({
     minimum: 0,
-    maximum: MaxCharityMinimumParticipants,
+    maximum: MaxCharityMinimumSupervisors,
     description: 'Số người tham gia tối thiểu (PR #54). Bỏ trống = giữ nguyên.',
   })
   @NotNullWhenPresent()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  @Max(MaxCharityMinimumParticipants)
-  minimumParticipants?: number;
+  @Max(MaxCharityMinimumSupervisors)
+  minimumSupervisors?: number;
 
   @ApiPropertyOptional({
     enum: RankOrder,
@@ -958,7 +960,7 @@ export class UpdateAdminCharityCampaignDto {
   })
   @IsOptional()
   @IsIn(RankOrder as readonly string[])
-  minimumParticipantRank?: UserRanks | null;
+  minimumSupervisorRank?: UserRanks | null;
 
   @ApiPropertyOptional({
     enum: CharityContributionTypes,
@@ -1073,7 +1075,7 @@ export class CharityCampaignResponseDto {
     description:
       'Số người tham gia tối thiểu (PR #54). `0` = không đặt. Hoạt động trước 18/11 là `0`.',
   })
-  minimumParticipants: number;
+  minimumSupervisors: number;
 
   @ApiProperty({
     enum: RankOrder,
@@ -1081,7 +1083,7 @@ export class CharityCampaignResponseDto {
     description:
       'Hạng tối thiểu để đăng ký tham gia (PR #54). `null` = không giới hạn. App/Admin dùng giá trị enum này, không tự so tên hạng.',
   })
-  minimumParticipantRank: UserRanks | null;
+  minimumSupervisorRank: UserRanks | null;
 
   @ApiProperty({
     type: String,
@@ -1184,6 +1186,14 @@ export class CharityCampaignDetailResponseDto {
       'Đơn vị nhận công khai (CR 22/11/2026) — cùng hình dạng với `/project`',
   })
   beneficiaries: CharityPublicBeneficiaryDto[];
+
+  @ApiProperty({
+    type: () => PublicUserProfileDto,
+    nullable: true,
+    description:
+      'Người tổ chức (CR 22/11/2026) — đúng năm trường công khai; `null` khi tài khoản đã xoá.',
+  })
+  organizer: PublicUserProfileDto | null;
 }
 
 export class ListCharityCampaignsResponseDto {
@@ -1270,6 +1280,15 @@ export class CharityNeedItemInputDto implements ICharityNeedItemInput {
   @Min(1)
   @Max(100_000)
   quantityPerPortion?: number;
+}
+
+export class PublicUserProfileDto {
+  @ApiProperty({ format: 'uuid' }) userId: string;
+  @ApiProperty() username: string;
+  @ApiProperty({ description: 'Họ tên; trống thì là `username`.' })
+  displayName: string;
+  @ApiProperty({ type: String, nullable: true }) avatarUrl: string | null;
+  @ApiProperty({ enum: UserRanks }) rank: UserRanks;
 }
 
 export class CharityPublicBeneficiaryDto {
@@ -2000,6 +2019,26 @@ export class CloseCharityCampaignInputDto {
   @IsString()
   @MaxLength(1000)
   reason?: string;
+}
+
+export class JoinCharityCampaignInputDto {
+  @ApiPropertyOptional({
+    enum: CharityParticipationRoles,
+    default: 'PARTICIPANT',
+    description:
+      '`PARTICIPANT` (mặc định) đóng ở `intakeEndsAt`; `SUPERVISOR` còn đăng ký được tới lúc bắt đầu trao, phải đủ `minimumSupervisorRank`, và không được là chủ dự án/điều phối viên.',
+  })
+  @IsOptional()
+  @IsIn(CharityParticipationRoles)
+  role?: CharityParticipationRole;
+}
+
+export class JoinCharityCampaignBodyDto {
+  @ApiPropertyOptional({ type: () => JoinCharityCampaignInputDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => JoinCharityCampaignInputDto)
+  participation?: JoinCharityCampaignInputDto;
 }
 
 export class CloseCharityCampaignBodyDto {

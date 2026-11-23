@@ -158,3 +158,4 @@ export * from './1803800000000-CampaignRoundDistributionMethods';
 export * from './1803900000000-CampaignBeneficiaryBankAccounts';
 export * from './1804000000000-CharityCampaignLevelDistribution';
 export * from './1804100000000-CharityBeneficiaryPlanAndSchedule';
+export * from './1804200000000-CharitySupervisorRole';

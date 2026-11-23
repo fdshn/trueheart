@@ -9,6 +9,9 @@ import {
   IGetMyCharityEvaluationUseCase,
   IListCharityEvaluationsUseCase,
   IListCharityHomeCardsUseCase,
+  IListCharityMembersCommand,
+  IListCharityMembersResult,
+  IListCharityMembersUseCase,
   IMyCharityEvaluation,
   IPublishCharitySummaryUseCase,
   IRequestCharityPromotionCommand,
@@ -48,12 +51,13 @@ import {
 import {
   CharityCompletionBlockerLabels,
   CharityFeaturedCtas,
-  charityMinimumParticipantsMet,
+  charityMinimumSupervisorsMet,
   stageRank,
   summaryNeedsFinancialReport,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { toPublicUserProfile } from '../shared/public-author';
 import { CharityPointsService } from './charity-points.service';
 import { CharityProjectAccess } from './charity-project.use-cases';
 
@@ -105,7 +109,7 @@ export class GetCharitySummaryUseCase implements IGetCharitySummaryUseCase {
         this.summaries.countParticipation(campaign.globalId),
         this.summaries.intakeTotals(campaign.globalId),
       ]);
-    const minimumParticipants = campaign.minimumParticipants ?? 0;
+    const minimumSupervisors = campaign.minimumSupervisors ?? 0;
     return {
       totals,
       summary,
@@ -114,10 +118,13 @@ export class GetCharitySummaryUseCase implements IGetCharitySummaryUseCase {
       participation: {
         registeredCount: counts.registered,
         checkedInCount: counts.checkedIn,
-        minimumParticipants,
-        minimumParticipantsMet: charityMinimumParticipantsMet(
-          minimumParticipants,
-          counts.checkedIn,
+      },
+      supervisors: {
+        checkedIn: counts.supervisorsCheckedIn,
+        minimumSupervisors,
+        met: charityMinimumSupervisorsMet(
+          minimumSupervisors,
+          counts.supervisorsCheckedIn,
         ),
       },
     };
@@ -497,4 +504,71 @@ export class ListCharityHomeCardsUseCase implements IListCharityHomeCardsUseCase
       Math.min(Math.max(command.limit, 1), 20),
     );
   }
+}
+
+/**
+ * Thành viên công khai (CR 22/11/2026): người đóng góp, người tham gia, giám sát viên — chỉ
+ * người cho hiện tên; phân trang theo con trỏ `joinedAt|userId`.
+ */
+@Injectable()
+export class ListCharityMembersUseCase implements IListCharityMembersUseCase {
+  public constructor(
+    @Inject(ICharitySummaryRepository)
+    private readonly summaries: ICharitySummaryRepository,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
+  ) {}
+
+  public async handle(
+    command: IListCharityMembersCommand,
+  ): Promise<IListCharityMembersResult> {
+    const cursor = command.cursor ? decodeMemberCursor(command.cursor) : null;
+    const campaignId = await this.projects.findVisibleCampaignId(
+      command.idOrSlug,
+    );
+    if (!campaignId) throw new CharityCampaignNotFoundException();
+    const limit = Math.min(Math.max(command.limit, 1), 50);
+    const { rows, anonymousCount } = await this.summaries.listPublicMembers({
+      campaignId,
+      type: command.type,
+      cursor,
+      limit: limit + 1,
+    });
+    const page = rows.slice(0, limit);
+    const last = page[page.length - 1];
+    return {
+      members: page.map((row) => ({
+        user: toPublicUserProfile(row.user),
+        joinedAt: row.joinedAt,
+        ...(command.type === 'CONTRIBUTOR'
+          ? { contributionTypes: row.contributionTypes ?? [] }
+          : {}),
+      })),
+      anonymousCount,
+      nextCursor:
+        rows.length > limit && last
+          ? Buffer.from(
+              `${last.joinedAt.toISOString()}|${last.user.globalId}`,
+            ).toString('base64url')
+          : null,
+    };
+  }
+}
+
+function decodeMemberCursor(cursor: string): {
+  joinedAt: Date;
+  userId: string;
+} {
+  const [iso, userId, extra] = Buffer.from(cursor, 'base64url')
+    .toString('utf8')
+    .split('|');
+  const joinedAt = new Date(iso ?? '');
+  if (
+    extra !== undefined ||
+    !userId ||
+    Number.isNaN(joinedAt.getTime()) ||
+    !/^[0-9a-f-]{1,36}$/i.test(userId)
+  )
+    throw new ValidationFailedException(['cursor: không hợp lệ']);
+  return { joinedAt, userId };
 }

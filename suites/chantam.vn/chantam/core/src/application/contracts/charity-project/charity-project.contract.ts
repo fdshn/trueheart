@@ -30,6 +30,7 @@ import {
   ICharityVolunteerNeedInput,
   ICharityVolunteerRegistration,
 } from '@/domain/ports/repository';
+import { IPublicUserProfileDto } from '@chantam.vn/chantam.core-lib/dto';
 import {
   CharityCallToAction,
   CharityContributionType,
@@ -152,6 +153,8 @@ export interface ICharityPublicProject {
    * SĐT/người phụ trách; cá nhân không có địa chỉ/toạ độ. Theo giờ trao, chưa hẹn để cuối.
    */
   beneficiaries: ICharityPublicBeneficiary[];
+  /** Người tổ chức (CR 22/11/2026) — năm trường công khai; `null` khi tài khoản đã xoá. */
+  organizer: IPublicUserProfileDto | null;
   distribution: {
     method: CharityDistributionMethod;
     contributionTypes: CharityContributionType[];

@@ -5,17 +5,20 @@ import {
   ICharityHomeCard,
   ICharityIntakeTotals,
   ICharityPromotion,
+  ICharityPublicMemberRow,
   ICharityPublicSupporters,
   ICharitySummary,
   ICharitySummaryContent,
   ICharitySummaryRepository,
   ICharityUserBrief,
 } from '@/domain/ports/repository';
+import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   CharityActiveParticipationStatusesSql,
   CharityAttendedParticipationStatuses,
   CharityEvaluationSource,
   CharityFeaturedCta,
+  CharityMemberType,
   diffCharityRevisions,
 } from '@chantam.vn/chantam.core-lib/models';
 import { Injectable } from '@nestjs/common';
@@ -177,19 +180,28 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
 
   // ── Tổng kết ──────────────────────────────────────────────────────────
 
-  public async countParticipation(
-    campaignId: string,
-  ): Promise<{ registered: number; checkedIn: number }> {
+  public async countParticipation(campaignId: string): Promise<{
+    registered: number;
+    checkedIn: number;
+    supervisorsCheckedIn: number;
+  }> {
     // `count(*) FILTER` về đây là CHUỖI — đổi sang số trước khi trả ra.
     const [row] = await this.manager.query<
-      { registered: string; checked_in: string }[]
+      {
+        registered: string;
+        checked_in: string;
+        supervisors_checked_in: string;
+      }[]
     >(
       `SELECT count(*) FILTER (
                 WHERE status IN (${CharityActiveParticipationStatusesSql})
               )::text AS registered,
               count(*) FILTER (
                 WHERE status IN (${AttendedStatusesSql})
-              )::text AS checked_in
+              )::text AS checked_in,
+              count(*) FILTER (
+                WHERE status IN (${AttendedStatusesSql}) AND role = 'SUPERVISOR'
+              )::text AS supervisors_checked_in
          FROM campaign_participations
         WHERE campaign_id = $1`,
       [campaignId],
@@ -197,6 +209,7 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
     return {
       registered: Number(row?.registered ?? 0),
       checkedIn: Number(row?.checked_in ?? 0),
+      supervisorsCheckedIn: Number(row?.supervisors_checked_in ?? 0),
     };
   }
 
@@ -667,6 +680,107 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
       participantCount: Number(counts?.participants ?? 0),
       supporters: supporters.map((row) => row.username),
       participants: participants.map((row) => row.username),
+    };
+  }
+
+  public async listPublicMembers(params: {
+    campaignId: string;
+    type: CharityMemberType;
+    cursor: { joinedAt: Date; userId: string } | null;
+    limit: number;
+  }): Promise<{ rows: ICharityPublicMemberRow[]; anonymousCount: number }> {
+    // Ai đủ điều kiện, mốc tham gia và có cho hiện tên — gộp theo người.
+    const eligible =
+      params.type === 'CONTRIBUTOR'
+        ? `SELECT source.user_id, MIN(source.created_at) AS joined_at,
+                  bool_or(source.visible) AS visible,
+                  array_agg(DISTINCT source.kind ORDER BY source.kind) AS kinds
+             FROM (
+               SELECT contribution.contributor_id AS user_id, contribution.created_at,
+                      contribution.show_name_publicly AS visible, 'MATERIAL' AS kind
+                 FROM campaign_contributions contribution
+                WHERE contribution.campaign_id = $1
+                  AND contribution.status IN ('ACCEPTED', 'PARTIALLY_ACCEPTED')
+               UNION ALL
+               SELECT offer.user_id, offer.created_at,
+                      offerer.show_in_public_supporter_lists AS visible, 'SERVICE' AS kind
+                 FROM campaign_other_support_offers offer
+                 JOIN campaign_other_support_needs need ON need.global_id = offer.need_id
+                 JOIN users offerer ON offerer.global_id = offer.user_id
+                WHERE need.campaign_id = $1
+                  AND offer.status IN ('ACCEPTED', 'COMPLETED')
+             ) source
+            GROUP BY source.user_id`
+        : `SELECT participation.user_id, participation.registered_at AS joined_at,
+                  participation.show_name_publicly AS visible, NULL::text[] AS kinds
+             FROM campaign_participations participation
+            WHERE participation.campaign_id = $1
+              AND participation.role = $2
+              AND participation.status IN ('CONFIRMED', 'CHECKED_IN', 'COMPLETED')`;
+    const role = params.type === 'SUPERVISOR' ? 'SUPERVISOR' : 'PARTICIPANT';
+    const base = `
+      WITH eligible AS (${eligible})
+      SELECT eligible.user_id,
+             -- Cắt về mili giây: con trỏ đi qua Date của JS (ms) — giữ micro giây thì dòng
+             -- cuối trang trước luôn "lớn hơn" con trỏ và bị trả lại ở trang sau.
+             date_trunc('milliseconds', eligible.joined_at) AS joined_at,
+             eligible.visible, eligible.kinds,
+             account.username, account.full_name, account.avatar_url, account.rank
+        FROM eligible
+        JOIN users account ON account.global_id = eligible.user_id
+       WHERE account.deleted_at IS NULL`;
+    const baseParams: unknown[] =
+      params.type === 'CONTRIBUTOR'
+        ? [params.campaignId]
+        : [params.campaignId, role];
+    const next = baseParams.length + 1;
+    const rows = await this.manager.query<
+      {
+        user_id: string;
+        joined_at: Date;
+        kinds: string[] | null;
+        username: string;
+        full_name: string | null;
+        avatar_url: string | null;
+        rank: UserRanks;
+      }[]
+    >(
+      `SELECT * FROM (${base}) member
+        WHERE member.visible
+          AND ($${next}::timestamptz IS NULL
+               OR (member.joined_at, member.user_id) > ($${next}::timestamptz, $${next + 1}::uuid))
+        ORDER BY member.joined_at ASC, member.user_id ASC
+        LIMIT $${next + 2}`,
+      [
+        ...baseParams,
+        params.cursor?.joinedAt ?? null,
+        params.cursor?.userId ?? null,
+        params.limit,
+      ],
+    );
+    const [hidden] = await this.manager.query<{ n: string }[]>(
+      `SELECT count(*)::text AS n FROM (${base}) member WHERE NOT member.visible`,
+      baseParams,
+    );
+    return {
+      rows: rows.map((row) => ({
+        user: {
+          globalId: row.user_id,
+          username: row.username,
+          fullName: row.full_name,
+          avatarUrl: row.avatar_url,
+          rank: row.rank,
+        },
+        joinedAt: row.joined_at,
+        ...(params.type === 'CONTRIBUTOR'
+          ? {
+              contributionTypes: (row.kinds ?? []) as (
+                'MATERIAL' | 'SERVICE'
+              )[],
+            }
+          : {}),
+      })),
+      anonymousCount: Number(hidden?.n ?? 0),
     };
   }
 

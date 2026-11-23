@@ -59,6 +59,8 @@ const ExpectedPublicRoutes = [
   // cùng quy tắc đọc với bản công khai (đã duyệt, không đình chỉ).
   'GET /charity-campaigns/:idOrSlug/revisions',
   'GET /charity-campaigns/:idOrSlug/public-stats',
+  // CR 22/11/2026: thành viên công khai — chỉ người cho hiện tên, không SĐT/số lượng/số tiền.
+  'GET /charity-campaigns/:idOrSlug/members',
   'GET /charity-campaigns/:id/reactions',
   'GET /charity-campaigns/:id/comments',
   // Đợt 3: timeline sống, bài ảnh/clip và tương tác từng bài — cùng quy tắc đọc.

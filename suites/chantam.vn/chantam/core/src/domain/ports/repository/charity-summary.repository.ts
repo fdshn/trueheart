@@ -1,6 +1,9 @@
+import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
+  CharityContributionType,
   CharityEvaluationSource,
   CharityFeaturedCta,
+  CharityMemberType,
   CharitySupportType,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ICharityUserBrief } from './charity-event.repository';
@@ -105,12 +108,15 @@ export interface ICharitySummaryRepository {
   getSummary(campaignId: string): Promise<ICharitySummary | null>;
   /**
    * Số người tham gia thực tế (PR #54): `registered` = lượt còn hiệu lực
-   * (`CharityActiveParticipationStatuses`), `checkedIn` = đã `CHECKED_IN` hoặc `COMPLETED`.
+   * (`CharityActiveParticipationStatuses`), `checkedIn` = đã `CHECKED_IN` hoặc `COMPLETED`,
+   * `supervisorsCheckedIn` = như `checkedIn` nhưng chỉ vai `SUPERVISOR` (CR 22/11/2026).
    * Đếm từ bảng, không ai sửa tay được.
    */
-  countParticipation(
-    campaignId: string,
-  ): Promise<{ readonly registered: number; readonly checkedIn: number }>;
+  countParticipation(campaignId: string): Promise<{
+    readonly registered: number;
+    readonly checkedIn: number;
+    readonly supervisorsCheckedIn: number;
+  }>;
   intakeTotals(campaignId: string): Promise<ICharityIntakeTotals>;
   /** Đã công khai thì sửa ghi revision `SUMMARY` cùng transaction. */
   saveSummary(params: {
@@ -181,6 +187,17 @@ export interface ICharitySummaryRepository {
     campaignId: string,
     limit: number,
   ): Promise<ICharityPublicSupporters>;
+  /**
+   * Thành viên công khai (CR 22/11/2026) theo `joinedAt ASC, userId ASC`, sau `cursor`.
+   * Chỉ người cho hiện tên; `anonymousCount` = người đủ điều kiện nhưng ẩn tên. Tài khoản đã
+   * xoá không vào cả hai.
+   */
+  listPublicMembers(params: {
+    campaignId: string;
+    type: CharityMemberType;
+    cursor: { joinedAt: Date; userId: string } | null;
+    limit: number;
+  }): Promise<{ rows: ICharityPublicMemberRow[]; anonymousCount: number }>;
 
   // ── Card Home ─────────────────────────────────────────────────────────
   getPromotion(campaignId: string): Promise<ICharityPromotion | null>;
@@ -202,3 +219,20 @@ export interface ICharitySummaryRepository {
 }
 
 export const ICharitySummaryRepository = Symbol('ICharitySummaryRepository');
+
+/** Một dòng thành viên công khai — DỮ LIỆU THÔ, nơi gọi dựng qua `toPublicUserProfile`. */
+export interface ICharityPublicMemberRow {
+  user: {
+    globalId: string;
+    username: string;
+    fullName: string | null;
+    avatarUrl: string | null;
+    rank: UserRanks;
+  };
+  joinedAt: Date;
+  /** Chỉ nhóm `CONTRIBUTOR`: hiện vật và/hoặc dịch vụ — không có số lượng hay số tiền. */
+  contributionTypes?: Extract<
+    CharityContributionType,
+    'MATERIAL' | 'SERVICE'
+  >[];
+}

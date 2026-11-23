@@ -2214,6 +2214,24 @@ theo `distributionAt` (chưa hẹn để cuối). **Không bao giờ** có SĐT 
 (`INDIVIDUAL`) luôn `address: null, location: null`. Nhu cầu tiền bỏ `receivingUnit` (DTO nhập vẫn
 nhận nhưng bỏ qua).
 
+**Người tổ chức và thành viên công khai (CR 22/11/2026 §6).**
+
+- `GET /campaigns/:idOrSlug` và `GET /charity-campaigns/:idOrSlug/public` có thêm
+  `organizer: { userId, username, displayName, avatarUrl, rank } | null` — đúng năm trường,
+  `displayName` = họ tên (trống thì `username`); `null` khi tài khoản người tạo đã xoá.
+- `GET /charity-campaigns/:idOrSlug/members?type=CONTRIBUTOR|PARTICIPANT|SUPERVISOR&cursor=&limit=`
+  (công khai, `limit` 1–50, mặc định 20) → `{ members[], anonymousCount, nextCursor }`, mỗi dòng
+  `{ user: <năm trường như organizer>, joinedAt, contributionTypes? }`.
+  - `CONTRIBUTOR`: đóng góp hiện vật `ACCEPTED`/`PARTIALLY_ACCEPTED` (hiện tên khi bất kỳ đóng góp
+    nào bật `show_name_publicly`) và lượt nhận hỗ trợ `ACCEPTED`/`COMPLETED` (hiện tên theo
+    `users.show_in_public_supporter_lists`), gộp theo người; `joinedAt` = lần sớm nhất;
+    `contributionTypes` ⊂ `MATERIAL`·`SERVICE`. Không có số lượng hay số tiền.
+  - `PARTICIPANT`/`SUPERVISOR`: lượt vai đó ở `CONFIRMED`/`CHECKED_IN`/`COMPLETED`, hiện tên theo
+    lượt; `joinedAt` = lúc đăng ký.
+  - Thứ tự `joinedAt ASC, userId ASC`; `nextCursor` = base64url của `joinedAt|userId` (mốc tính tới
+    mili giây), `null` ở trang cuối; cursor hỏng → `400 VALIDATION_FAILED`. Người ẩn tên chỉ được
+    đếm ở `anonymousCount`; tài khoản đã xoá không tính. Dự án chưa công khai/đình chỉ → `404`.
+
 Cổng trên `POST /charity-campaigns/:id/stage` (chỉ khi TIẾN): sang `EVENT` cần tổng duyệt `READY` (`409 CHARITY_REHEARSAL_NOT_READY`); sang `SUMMARY` cần bằng chứng trao đúng hình thức (`409 CHARITY_ROUND_EVIDENCE_REQUIRED`, nêu trường thiếu) và, với `BANK_TRANSFER`, tài khoản thụ hưởng gắn với chiến dịch còn hiệu lực, đã xác thực (`409 CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED`). Chiến dịch chưa chọn hình thức (cũ) được miễn. Lùi giai đoạn không đổi.
 - `POST /charity-campaigns` và `POST /admin/charity-campaigns` **không còn nhận `bannerUrl`**; gửi `media` (1–5 key) và `coverKey`. Response có thêm `media[]`; `bannerUrl` do server ghi từ ảnh bìa.
 - Luồng "tải trước, tạo sau":
@@ -3424,3 +3442,21 @@ workspace của chủ, Admin):
   `minimumParticipantsMet` so theo **số đã check-in**. Chưa đạt chỉ là cảnh báo — không tự huỷ
   chiến dịch, và số thực tế đếm từ bảng tham gia nên không sửa tay được.
 - Chiến dịch có sẵn trước 18/11 nhận `0` / `null` — giữ đúng hành vi cũ.
+
+> **CR 22/11/2026 (migration `1804200000000`) — giám sát viên.** Hai trường đổi tên thành
+> `minimumSupervisors` / `minimumSupervisorRank` và nay áp cho **giám sát viên**, không cho người
+> tham gia (các mô tả `minimumParticipants*` ở trên là lịch sử).
+>
+> - `POST /charity-campaigns/:id/participation` nhận body tuỳ chọn `{ participation: { role } }`,
+>   `role` `PARTICIPANT` (mặc định) · `SUPERVISOR`. Lượt tham gia trả thêm `role`.
+> - Thứ tự kiểm: chiến dịch công khai, còn mở → `SUPERVISOR` là chủ dự án/điều phối viên →
+>   `409 CHARITY_SUPERVISOR_CONFLICT` → `PARTICIPANT` sau `intakeEndsAt`, `SUPERVISOR` từ lúc bắt
+>   đầu trao (chưa có khung trao thì tới `endTime`) → `409 CHARITY_INTAKE_CLOSED` → chỉ
+>   `SUPERVISOR` qua cổng hạng `minimumSupervisorRank` (`403 CHARITY_PARTICIPANT_RANK_TOO_LOW`).
+> - Mỗi người một vai: đang có lượt còn hiệu lực (vai nào cũng vậy) → `409` đã đăng ký. Đổi vai =
+>   huỷ rồi đăng ký lại; lượt cũ đã check-in → `409 CHARITY_PARTICIPATION_INVALID_STATE`.
+> - Thêm điều phối viên (`POST :id/coordinators`) là người đang làm giám sát viên →
+>   `409 CHARITY_SUPERVISOR_CONFLICT`.
+> - Bảng tổng kết: `participation: { registeredCount, checkedInCount }` (mọi vai) và
+>   `supervisors: { checkedIn, minimumSupervisors, met }` — `met` so theo giám sát viên đã
+>   check-in/hoàn thành; chưa đạt chỉ là cảnh báo.

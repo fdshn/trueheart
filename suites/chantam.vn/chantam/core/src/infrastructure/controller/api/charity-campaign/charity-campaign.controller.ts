@@ -56,6 +56,7 @@ import {
   CharityReviewNotPermittedException,
   CharityReviewTooEarlyException,
   CharitySubmitRequirementsUnmetException,
+  CharitySupervisorConflictException,
 } from '@/domain/exceptions';
 import { CharityApprovalStatus } from '@chantam.vn/chantam.core-lib/models';
 import {
@@ -107,6 +108,7 @@ import {
   ExtendCharityCampaignBodyDto,
   ExtendCharityCampaignResponseDto,
   GrantCharityCoordinatorBodyDto,
+  JoinCharityCampaignBodyDto,
   ListAdminCharityCampaignsQueryDto,
   ListCharityCampaignsQueryDto,
   ListCharityCampaignsResponseDto,
@@ -515,6 +517,7 @@ export class CharityCampaignController {
     CharityCampaignNotFoundException,
     CharityNotOrganizerException,
     CharityCoordinatorNotAllowedException,
+    CharitySupervisorConflictException,
   )
   public async grantCoordinator(
     @CurrentUser() principal: IAuthPrincipal,
@@ -699,7 +702,12 @@ export class CharityCampaignController {
       'ngày vẫn nhận người đến giữa buổi, và BR-CHARITY-03 chỉ gắn `startTime` vào lượt ' +
       'HUỶ.\n\n' +
       'Đăng ký lại sau khi đã huỷ thì được — hàng cũ hồi về `REGISTERED`. Bấm hai lần ' +
-      'liên tiếp thì lần thứ hai trả 409, không im lặng coi như thành công.',
+      'liên tiếp thì lần thứ hai trả 409, không im lặng coi như thành công.\n\n' +
+      'Body tuỳ chọn `{ participation: { role } }` (CR 22/11/2026): `PARTICIPANT` (mặc định) ' +
+      'đóng ở `intakeEndsAt` (`409 CHARITY_INTAKE_CLOSED`); `SUPERVISOR` đóng lúc bắt đầu trao, ' +
+      'phải đủ `minimumSupervisorRank` (`403`) và không phải chủ dự án/điều phối viên ' +
+      '(`409 CHARITY_SUPERVISOR_CONFLICT`). Mỗi người một vai — đang có lượt vai khác → 409 ' +
+      'đã đăng ký; đổi vai = huỷ rồi đăng ký lại, chỉ khi lượt cũ chưa check-in.',
   })
   @ApiErrorResponses(
     ...ApiTokenErrors,
@@ -708,6 +716,8 @@ export class CharityCampaignController {
     CharityAlreadyRegisteredException,
     CharityParticipantRankTooLowException,
     CharityIntakeClosedException,
+    CharitySupervisorConflictException,
+    CharityParticipationInvalidStateException,
   )
   @ApiCreatedResponse({
     type: ResponseDto.forApi(CharityCampaignWrapperResponseDto),
@@ -715,6 +725,7 @@ export class CharityCampaignController {
   public async join(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() param: CharityCampaignIdParamDto,
+    @Body() body: JoinCharityCampaignBodyDto = {},
   ) {
     return ResponseDto.create()
       .succeed()
@@ -722,6 +733,7 @@ export class CharityCampaignController {
         await this.joinUseCase.handle({
           actorUserId: principal.userId,
           campaignId: param.id,
+          role: body?.participation?.role,
         }),
       )
       .build();

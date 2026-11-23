@@ -2,7 +2,10 @@ import {
   ICharityParticipation,
   ICharityParticipationRepository,
 } from '@/domain/ports/repository';
-import { CharityParticipationStatus } from '@chantam.vn/chantam.core-lib/models';
+import {
+  CharityParticipationRole,
+  CharityParticipationStatus,
+} from '@chantam.vn/chantam.core-lib/models';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
@@ -16,6 +19,7 @@ interface IParticipationRow {
   full_name: string | null;
   avatar_url: string | null;
   status: CharityParticipationStatus;
+  role: CharityParticipationRole;
   registered_at: Date;
   status_changed_at: Date | null;
   status_changed_by: string | null;
@@ -33,7 +37,7 @@ interface IParticipationRow {
 const Select = `
   SELECT participation.global_id, participation.campaign_id, participation.user_id,
          account.username, account.full_name, account.avatar_url, participation.status,
-         participation.registered_at, participation.status_changed_at,
+         participation.role, participation.registered_at, participation.status_changed_at,
          participation.status_changed_by, participation.status_reason,
          participation.checked_in_at, participation.checked_in_by, participation.cancelled_at,
          COALESCE((SELECT jsonb_agg(jsonb_build_object(
@@ -58,6 +62,7 @@ const toParticipation = (row: IParticipationRow): ICharityParticipation => ({
     avatarUrl: row.avatar_url,
   },
   status: row.status,
+  role: row.role,
   registeredAt: row.registered_at,
   statusChangedAt: row.status_changed_at,
   statusChangedBy: row.status_changed_by,

@@ -1167,6 +1167,17 @@ chia sẻ trên mobile.
 > ✅ **18/11 — điều kiện tham gia (PR #54).** Chiến dịch có `minimumParticipants` (số người tối
 > thiểu, chỉ để tổng kết cảnh báo) và `minimumParticipantRank` (hạng tối thiểu để đăng ký,
 > đọc hạng hiện tại từ database). Tổng kết trả số đăng ký / đã check-in so với số tối thiểu.
+> *(CR 22/11/2026: hai điều kiện này chuyển sang giám sát viên — xem bên dưới.)*
+>
+> ✅ **23/11 — giám sát viên (CR 22/11/2026).** Người dùng đăng ký tham gia chiến dịch với vai
+> **người tham gia** hoặc **giám sát viên** — mỗi người một vai. Chủ dự án và điều phối viên không
+> làm giám sát viên. Giám sát viên phải đủ hạng tối thiểu của chiến dịch và còn đăng ký được sau
+> khi hết tiếp nhận, tới lúc bắt đầu trao. Tổng kết so số giám sát viên đã có mặt với số tối
+> thiểu (chỉ cảnh báo).
+>
+> Trang chiến dịch hiện **người tổ chức** (tên hiển thị, ảnh, hạng) và **danh sách thành viên**
+> công khai theo ba nhóm: người đóng góp (hiện vật/dịch vụ, không kèm số lượng hay số tiền), người
+> tham gia, giám sát viên. Ai chọn ẩn tên chỉ được đếm là "ẩn danh"; không bao giờ lộ SĐT, email.
 Duyệt sự kiện do Kim Cương đề xuất; quản lý nội dung quảng cáo, đơn vị Công đức, và dữ liệu
 tham chiếu của Rao vặt.
 

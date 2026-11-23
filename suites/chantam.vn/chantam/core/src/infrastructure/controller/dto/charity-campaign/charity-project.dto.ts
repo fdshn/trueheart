@@ -49,6 +49,7 @@ import {
   CharityIntakeLocationDto,
   CharityIntakeLocationInputDto,
   CharityPublicBeneficiaryDto,
+  PublicUserProfileDto,
 } from './charity-campaign.dto';
 import {
   CharityChangedFieldDto,
@@ -1105,6 +1106,14 @@ export class CharityPublicProjectDto {
       'Đơn vị nhận công khai, theo giờ trao (chưa hẹn để cuối). Không bao giờ có SĐT/người phụ trách; cá nhân không có địa chỉ/toạ độ.',
   })
   beneficiaries: CharityPublicBeneficiaryDto[];
+
+  @ApiProperty({
+    type: () => PublicUserProfileDto,
+    nullable: true,
+    description:
+      'Người tổ chức (CR 22/11/2026) — đúng năm trường công khai; `null` khi tài khoản đã xoá.',
+  })
+  organizer: PublicUserProfileDto | null;
   @ApiProperty({ type: () => CharityPublicSupportersDto })
   supporters: CharityPublicSupportersDto;
   @ApiProperty({ type: () => CharityCountersDto })

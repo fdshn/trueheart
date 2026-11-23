@@ -24,6 +24,8 @@ có implementation**.
 | `.../models` — charity rehearsal | `CharityRehearsalOutcomes`, `CharityRehearsalChecklistKeys`/`Labels`, `ICharityRehearsalChecklistItem`, `normalizeRehearsalChecklist`, `CharityPreEventMilestones`, `CharityOrganizerReminderReasons` cho bước tổng duyệt; `isEndedProject` (charity engagement) và `effectiveOperationStage` có cổng tổng duyệt/bước trao. |
 | `.../entities` | Interface entity + token DI (`IPostEntity`, `IPostMediaEntity`, `IGiftPostEntity`, `IChatRoomEntity`, `IUserEntity`…) |
 | `.../values` | Value object `GiftPostId`, `UserId` |
+| `.../dto` — author | `IPostAuthorDto`, `IPublicAuthorSummaryDto`, và `IPublicUserProfileDto` (`userId`, `username`, `displayName`, `avatarUrl`, `rank` — người tổ chức và thành viên công khai của chiến dịch, CR 22/11/2026). |
+| `.../models` — charity members | `CharityParticipationRoles`/`CharityParticipationRole` (`PARTICIPANT`·`SUPERVISOR`), `CharityMemberTypes`/`CharityMemberType`, `isIntakeClosed`; điều kiện tham gia đổi tên `MaxCharityMinimumSupervisors`, `charitySupervisorRequirementGaps`, `charityMinimumSupervisorsMet`. |
 | `.../dto` | Interface DTO theo từng resource, mỗi resource một thư mục trong `src/dto/` (post, gift-request, transaction, chat, check-in, leaderboard, presence, user-block, attribution…) |
 
 Danh sách đầy đủ: xem `index.ts` của từng thư mục.

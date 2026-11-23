@@ -3,52 +3,52 @@ import { RankOrder, UserRanks } from '../consts';
 /**
  * Điều kiện tham gia chiến dịch từ thiện (PR #54, chốt 18/11).
  *
- * - `minimumParticipants`: số người tham gia tối thiểu chủ chiến dịch mong muốn. `0` = không
+ * - `minimumSupervisors`: số GIÁM SÁT VIÊN tối thiểu chủ chiến dịch mong muốn (CR 22/11/2026). `0` = không
  *   đặt. Chỉ là CẢNH BÁO ở tổng kết — chưa đạt thì không tự huỷ chiến dịch.
- * - `minimumParticipantRank`: hạng tối thiểu để ĐĂNG KÝ tham gia. `null` = không giới hạn. Chỉ
+ * - `minimumSupervisorRank`: hạng tối thiểu để ĐĂNG KÝ vai giám sát viên. `null` = không giới hạn. Chỉ
  *   chặn lượt đăng ký MỚI; người đã đăng ký giữ nguyên khi Admin nâng hạng sau đó.
  *
  * Hạng so theo `RankOrder` (enum backend), không so chuỗi tên hạng.
  */
-export const MaxCharityMinimumParticipants = 100_000;
+export const MaxCharityMinimumSupervisors = 100_000;
 
-export function charityParticipationRequirementGaps(input: {
-  readonly minimumParticipants?: unknown;
-  readonly minimumParticipantRank?: unknown;
+export function charitySupervisorRequirementGaps(input: {
+  readonly minimumSupervisors?: unknown;
+  readonly minimumSupervisorRank?: unknown;
 }): string[] {
   const gaps: string[] = [];
-  const minimum = input.minimumParticipants;
+  const minimum = input.minimumSupervisors;
   if (
     minimum !== undefined &&
     !(
       typeof minimum === 'number' &&
       Number.isInteger(minimum) &&
       minimum >= 0 &&
-      minimum <= MaxCharityMinimumParticipants
+      minimum <= MaxCharityMinimumSupervisors
     )
   )
     gaps.push(
-      `minimumParticipants phải là số nguyên từ 0 tới ${MaxCharityMinimumParticipants}`,
+      `minimumSupervisors phải là số nguyên từ 0 tới ${MaxCharityMinimumSupervisors}`,
     );
 
-  const rank = input.minimumParticipantRank;
+  const rank = input.minimumSupervisorRank;
   if (
     rank !== undefined &&
     rank !== null &&
     !RankOrder.includes(rank as UserRanks)
   )
     gaps.push(
-      `minimumParticipantRank phải là null hoặc một trong: ${RankOrder.join(', ')}`,
+      `minimumSupervisorRank phải là null hoặc một trong: ${RankOrder.join(', ')}`,
     );
 
   return gaps;
 }
 
 /**
- * Đạt số người tối thiểu chưa — tính theo người ĐÃ CHECK-IN (thật sự có mặt), chốt 18/11.
+ * Đạt số giám sát viên tối thiểu chưa — tính theo người ĐÃ CHECK-IN (thật sự có mặt), chốt 18/11.
  * `minimum = 0` nghĩa là không đặt, nên luôn đạt.
  */
-export function charityMinimumParticipantsMet(
+export function charityMinimumSupervisorsMet(
   minimum: number,
   checkedInCount: number,
 ): boolean {

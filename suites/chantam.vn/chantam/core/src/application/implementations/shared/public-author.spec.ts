@@ -1,5 +1,9 @@
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
-import { toPublicAuthor, toPublicAuthorSummary } from './public-author';
+import {
+  toPublicAuthor,
+  toPublicAuthorSummary,
+  toPublicUserProfile,
+} from './public-author';
 
 const user = {
   globalId: '10000000-0000-4000-8000-000000000001',
@@ -52,5 +56,35 @@ describe('author summary công khai', () => {
     ]);
     for (const secret of ['private@example.com', '+84912345678', 'hash', '106'])
       expect(json).not.toContain(secret);
+  });
+});
+
+describe('hồ sơ công khai của người dùng (CR 22/11/2026 — organizer, members)', () => {
+  it('organizer có userId, displayName = fullName, không có phone/email', () => {
+    const profile = toPublicUserProfile(user as never);
+    expect(Object.keys(profile).sort()).toEqual([
+      'avatarUrl',
+      'displayName',
+      'rank',
+      'userId',
+      'username',
+    ]);
+    expect(profile).toEqual({
+      userId: user.globalId,
+      username: 'nguoi-demo',
+      displayName: 'Người Demo',
+      avatarUrl: 'https://cdn.example.com/a.png',
+      rank: UserRanks.GOLD,
+    });
+    expect(JSON.stringify(profile)).not.toMatch(/private@|\+849|hash/);
+  });
+
+  it('fullName trống → displayName = username', () => {
+    expect(
+      toPublicUserProfile({ ...user, fullName: '  ' } as never).displayName,
+    ).toBe('nguoi-demo');
+    expect(
+      toPublicUserProfile({ ...user, fullName: null } as never).displayName,
+    ).toBe('nguoi-demo');
   });
 });

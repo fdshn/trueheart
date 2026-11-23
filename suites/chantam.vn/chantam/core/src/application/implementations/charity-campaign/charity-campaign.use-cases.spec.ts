@@ -24,10 +24,12 @@ import {
   CharityNotAcceptingContributionsException,
   CharityNotOrganizerException,
   CharityParticipantRankTooLowException,
+  CharityParticipationInvalidStateException,
   CharityReviewNotPermittedException,
   CharityScheduleInvalidException,
   CharitySelfContributionException,
   CharitySubmitRequirementsUnmetException,
+  CharitySupervisorConflictException,
 } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
@@ -59,6 +61,7 @@ import {
   GetCampaignNeedsUseCase,
   GetCharityContributionUseCase,
   GetCharityDeliveryUseCase,
+  GetPublicCharityCampaignUseCase,
   JoinCharityCampaignUseCase,
   ListCampaignContributionsUseCase,
   ManageCharityBeneficiaryUseCase,
@@ -109,8 +112,8 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     acceptedContributionTypes: ['MATERIAL', 'MONEY', 'SERVICE'],
     beneficiaryRelation: null,
     allowOverTarget: false,
-    minimumParticipants: 0,
-    minimumParticipantRank: null,
+    minimumSupervisors: 0,
+    minimumSupervisorRank: null,
     submittedAt: new Date(),
     operationStage: 'EXECUTION' as const,
     storedOperationStage: 'EXECUTION' as const,
@@ -142,6 +145,7 @@ function makeRepository(): jest.Mocked<ICharityCampaignRepository> {
     register: jest.fn(),
     cancelParticipation: jest.fn(),
     findParticipationStatus: jest.fn(),
+    findParticipation: jest.fn().mockResolvedValue(null),
     listRegisteredUserIds: jest.fn(),
     createReview: jest.fn(),
     reviewExists: jest.fn().mockResolvedValue(false),
@@ -170,6 +174,7 @@ function makeRepository(): jest.Mocked<ICharityCampaignRepository> {
     upsertBeneficiary: jest.fn(),
     listReviews: jest.fn(),
     listBeneficiaryPlans: jest.fn(async () => []),
+    findOrganizerProfile: jest.fn().mockResolvedValue(null),
   } as unknown as jest.Mocked<ICharityCampaignRepository>;
 }
 
@@ -2900,8 +2905,8 @@ describe('Điều kiện tham gia chiến dịch (PR #54)', () => {
       await create(repository);
       expect(repository.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          minimumParticipants: 0,
-          minimumParticipantRank: null,
+          minimumSupervisors: 0,
+          minimumSupervisorRank: null,
         }),
       );
     });
@@ -2910,20 +2915,20 @@ describe('Điều kiện tham gia chiến dịch (PR #54)', () => {
       const repository = makeRepository();
       repository.create.mockResolvedValue(campaign());
       await create(repository, {
-        minimumParticipants: 20,
-        minimumParticipantRank: UserRanks.SILVER,
+        minimumSupervisors: 20,
+        minimumSupervisorRank: UserRanks.SILVER,
       });
       expect(repository.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          minimumParticipants: 20,
-          minimumParticipantRank: UserRanks.SILVER,
+          minimumSupervisors: 20,
+          minimumSupervisorRank: UserRanks.SILVER,
         }),
       );
     });
 
     it.each([
-      [{ minimumParticipants: -1 }],
-      [{ minimumParticipantRank: 'PLATINUM' }],
+      [{ minimumSupervisors: -1 }],
+      [{ minimumSupervisorRank: 'PLATINUM' }],
     ])('giá trị sai %p -> 400, không ghi', async (extra) => {
       const repository = makeRepository();
       await expect(create(repository, extra)).rejects.toThrow(
@@ -2963,46 +2968,46 @@ describe('Điều kiện tham gia chiến dịch (PR #54)', () => {
       const { useCase, updateContent, appendAudit } = setup();
       await useCase.handle({
         ...base,
-        minimumParticipants: 30,
-        minimumParticipantRank: UserRanks.GOLD,
+        minimumSupervisors: 30,
+        minimumSupervisorRank: UserRanks.GOLD,
       } as never);
       expect(updateContent).toHaveBeenCalledWith(
         expect.objectContaining({
-          minimumParticipants: 30,
-          minimumParticipantRank: UserRanks.GOLD,
+          minimumSupervisors: 30,
+          minimumSupervisorRank: UserRanks.GOLD,
         }),
       );
       const [[audit]] = appendAudit.mock.calls as unknown as [
         [{ after: Record<string, unknown> }],
       ];
       expect(Object.keys(audit.after).sort()).toEqual([
-        'minimumParticipantRank',
-        'minimumParticipants',
+        'minimumSupervisorRank',
+        'minimumSupervisors',
       ]);
     });
 
     it('bỏ trống thì giữ nguyên; gửi null là bỏ giới hạn hạng', async () => {
       const { useCase, updateContent } = setup({
-        minimumParticipants: 10,
-        minimumParticipantRank: UserRanks.SILVER,
+        minimumSupervisors: 10,
+        minimumSupervisorRank: UserRanks.SILVER,
       });
       await useCase.handle({ ...base, title: 'Tên mới đủ dài' } as never);
       expect(updateContent).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          minimumParticipants: 10,
-          minimumParticipantRank: UserRanks.SILVER,
+          minimumSupervisors: 10,
+          minimumSupervisorRank: UserRanks.SILVER,
         }),
       );
 
-      await useCase.handle({ ...base, minimumParticipantRank: null } as never);
+      await useCase.handle({ ...base, minimumSupervisorRank: null } as never);
       expect(updateContent).toHaveBeenLastCalledWith(
-        expect.objectContaining({ minimumParticipantRank: null }),
+        expect.objectContaining({ minimumSupervisorRank: null }),
       );
     });
 
     it.each([
-      [{ minimumParticipants: 100_001 }],
-      [{ minimumParticipantRank: 'silver' }],
+      [{ minimumSupervisors: 100_001 }],
+      [{ minimumSupervisorRank: 'silver' }],
     ])('giá trị sai %p -> 400', async (extra) => {
       const { useCase, updateContent } = setup();
       await expect(
@@ -3014,13 +3019,13 @@ describe('Điều kiện tham gia chiến dịch (PR #54)', () => {
 
   describe('JoinCharityCampaignUseCase', () => {
     function setup(
-      minimumParticipantRank: UserRanks | null,
+      minimumSupervisorRank: UserRanks | null,
       currentRank: UserRanks | null,
     ) {
       const repository = makeRepository();
       repository.findByGlobalId.mockResolvedValue(
         campaign({
-          minimumParticipantRank,
+          minimumSupervisorRank,
           endTime: new Date(Date.now() + 24 * Hour),
         }),
       );
@@ -3041,8 +3046,13 @@ describe('Điều kiện tham gia chiến dịch (PR #54)', () => {
         users,
       };
     }
+    // Cổng hạng chỉ áp cho vai giám sát viên (CR 22/11/2026 §6).
     const join = (useCase: JoinCharityCampaignUseCase) =>
-      useCase.handle({ actorUserId: ActorId, campaignId: CampaignId });
+      useCase.handle({
+        actorUserId: ActorId,
+        campaignId: CampaignId,
+        role: 'SUPERVISOR',
+      });
 
     it('không giới hạn hạng thì đăng ký được, không cần tra hạng', async () => {
       const { useCase, repository, users } = setup(null, UserRanks.VIEWER);
@@ -3059,6 +3069,7 @@ describe('Điều kiện tham gia chiến dịch (PR #54)', () => {
         expect(repository.register).toHaveBeenCalledWith({
           campaignId: CampaignId,
           userId: ActorId,
+          role: 'SUPERVISOR',
         });
       },
     );
@@ -3092,7 +3103,11 @@ describe('Điều kiện tham gia chiến dịch (PR #54)', () => {
         UserRanks.DIAMOND,
         UserRanks.MEMBER,
       );
-      repository.findParticipationStatus.mockResolvedValue('REGISTERED');
+      repository.findParticipation.mockResolvedValue({
+        status: 'REGISTERED',
+        role: 'SUPERVISOR',
+        checkedInAt: null,
+      });
       repository.register.mockResolvedValue({ created: false } as never);
       await expect(join(useCase)).rejects.toThrow(
         CharityAlreadyRegisteredException,
@@ -3102,7 +3117,11 @@ describe('Điều kiện tham gia chiến dịch (PR #54)', () => {
 
     it('đã huỷ rồi đăng ký lại thì vẫn phải qua cổng hạng', async () => {
       const { useCase, repository } = setup(UserRanks.GOLD, UserRanks.MEMBER);
-      repository.findParticipationStatus.mockResolvedValue('CANCELLED');
+      repository.findParticipation.mockResolvedValue({
+        status: 'CANCELLED',
+        role: 'SUPERVISOR',
+        checkedInAt: null,
+      });
       await expect(join(useCase)).rejects.toThrow(
         CharityParticipantRankTooLowException,
       );
@@ -3497,5 +3516,235 @@ describe('Hết tiếp nhận và điều kiện gửi duyệt của đơn vị 
     const { repository, promise } = create({ submit: false });
     await promise;
     expect(repository.create).toHaveBeenCalled();
+  });
+});
+
+describe('Giám sát viên trong luồng tham gia (CR 22/11/2026 §6)', () => {
+  const Coordinator = '99999999-9999-4999-8999-99999999c00d';
+  const distributionStartsAt = new Date(Date.now() + 2 * 24 * Hour);
+  function setup(
+    overrides: Partial<ICharityCampaign> = {},
+    rank: UserRanks = UserRanks.MEMBER,
+  ) {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({
+        createdBy: 'nguoi-tao',
+        endTime: new Date(Date.now() + 5 * 24 * Hour),
+        distribution: {
+          startsAt: distributionStartsAt,
+          endsAt: new Date(distributionStartsAt.getTime() + Hour),
+        },
+        ...overrides,
+      }),
+    );
+    repository.register.mockResolvedValue({ created: true } as never);
+    const users = {
+      findOneBy: jest.fn(async () => ({
+        globalId: ActorId,
+        rank,
+        deletedAt: null,
+      })),
+    };
+    const useCase = new JoinCharityCampaignUseCase(
+      repository,
+      users as unknown as IUserRepository,
+    );
+    return { repository, users, useCase };
+  }
+  const join = (
+    useCase: JoinCharityCampaignUseCase,
+    role?: 'PARTICIPANT' | 'SUPERVISOR',
+  ) =>
+    useCase.handle({
+      actorUserId: ActorId,
+      campaignId: CampaignId,
+      ...(role ? { role } : {}),
+    });
+
+  it('SUPERVISOR hạng thấp hơn minimumSupervisorRank (đọc DB) → 403 0x13_54', async () => {
+    const { useCase, repository, users } = setup(
+      { minimumSupervisorRank: UserRanks.GOLD },
+      UserRanks.SILVER,
+    );
+    await expect(join(useCase, 'SUPERVISOR')).rejects.toThrow(
+      CharityParticipantRankTooLowException,
+    );
+    expect(users.findOneBy).toHaveBeenCalledWith({ globalId: ActorId });
+    expect(repository.register).not.toHaveBeenCalled();
+  });
+
+  it('PARTICIPANT không bị chặn hạng', async () => {
+    const { useCase, repository, users } = setup(
+      { minimumSupervisorRank: UserRanks.DIAMOND },
+      UserRanks.VIEWER,
+    );
+    await join(useCase);
+    expect(users.findOneBy).not.toHaveBeenCalled();
+    expect(repository.register).toHaveBeenCalledWith({
+      campaignId: CampaignId,
+      userId: ActorId,
+      role: 'PARTICIPANT',
+    });
+  });
+
+  it('owner đăng ký SUPERVISOR → 409 0x13_61', async () => {
+    const { useCase, repository } = setup({ createdBy: ActorId });
+    await expect(join(useCase, 'SUPERVISOR')).rejects.toThrow(
+      CharitySupervisorConflictException,
+    );
+    expect(repository.register).not.toHaveBeenCalled();
+  });
+
+  it('coordinator → 409 0x13_61', async () => {
+    const { useCase, repository } = setup();
+    repository.isCampaignManager.mockResolvedValue(true);
+    await expect(join(useCase, 'SUPERVISOR')).rejects.toThrow(
+      CharitySupervisorConflictException,
+    );
+    expect(repository.register).not.toHaveBeenCalled();
+  });
+
+  it('thêm coordinator là giám sát viên đang hiệu lực → 409 0x13_61', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: ActorId, campaignType: 'ORGANIZED_CAMPAIGN' }),
+    );
+    repository.findParticipation.mockResolvedValue({
+      status: 'CONFIRMED',
+      role: 'SUPERVISOR',
+      checkedInAt: null,
+    });
+    await expect(
+      new ManageCharityCoordinatorsUseCase(repository).handle({
+        campaignId: CampaignId,
+        actorUserId: ActorId,
+        action: 'GRANT',
+        userId: Coordinator,
+      }),
+    ).rejects.toThrow(CharitySupervisorConflictException);
+    expect(repository.grantCoordinator).not.toHaveBeenCalled();
+  });
+
+  it('thêm coordinator từng là giám sát viên nhưng đã huỷ → được', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({ createdBy: ActorId, campaignType: 'ORGANIZED_CAMPAIGN' }),
+    );
+    repository.findParticipation.mockResolvedValue({
+      status: 'CANCELLED',
+      role: 'SUPERVISOR',
+      checkedInAt: null,
+    });
+    await new ManageCharityCoordinatorsUseCase(repository).handle({
+      campaignId: CampaignId,
+      actorUserId: ActorId,
+      action: 'GRANT',
+      userId: Coordinator,
+    });
+    expect(repository.grantCoordinator).toHaveBeenCalled();
+  });
+
+  describe('sau intakeEndsAt', () => {
+    const closed = { intakeEndsAt: new Date(Date.now() - 60_000) };
+
+    it('PARTICIPANT → 409 0x13_60', async () => {
+      const { useCase } = setup(closed);
+      await expect(join(useCase, 'PARTICIPANT')).rejects.toThrow(
+        CharityIntakeClosedException,
+      );
+    });
+
+    it('SUPERVISOR trước distributionStartsAt → được', async () => {
+      const { useCase, repository } = setup(closed);
+      await join(useCase, 'SUPERVISOR');
+      expect(repository.register).toHaveBeenCalledWith(
+        expect.objectContaining({ role: 'SUPERVISOR' }),
+      );
+    });
+
+    it('SUPERVISOR sau distributionStartsAt → 409 0x13_60', async () => {
+      const { useCase, repository } = setup({
+        ...closed,
+        distribution: {
+          startsAt: new Date(Date.now() - 60_000),
+          endsAt: new Date(Date.now() + Hour),
+        },
+      });
+      await expect(join(useCase, 'SUPERVISOR')).rejects.toThrow(
+        CharityIntakeClosedException,
+      );
+      expect(repository.register).not.toHaveBeenCalled();
+    });
+
+    it('SUPERVISOR khi chưa có khung trao: đóng theo endTime (còn hạn → được)', async () => {
+      const { useCase, repository } = setup({ ...closed, distribution: null });
+      await join(useCase, 'SUPERVISOR');
+      expect(repository.register).toHaveBeenCalled();
+    });
+  });
+
+  it('đang là PARTICIPANT đăng ký SUPERVISOR → 409 đã đăng ký', async () => {
+    const { useCase, repository } = setup();
+    repository.findParticipation.mockResolvedValue({
+      status: 'CONFIRMED',
+      role: 'PARTICIPANT',
+      checkedInAt: null,
+    });
+    repository.register.mockResolvedValue({ created: false } as never);
+    await expect(join(useCase, 'SUPERVISOR')).rejects.toThrow(
+      CharityAlreadyRegisteredException,
+    );
+  });
+
+  it('đổi vai sau khi lượt cũ đã check-in rồi huỷ → 409 trạng thái lượt tham gia', async () => {
+    const { useCase, repository } = setup();
+    repository.findParticipation.mockResolvedValue({
+      status: 'CANCELLED',
+      role: 'PARTICIPANT',
+      checkedInAt: new Date(),
+    });
+    await expect(join(useCase, 'SUPERVISOR')).rejects.toThrow(
+      CharityParticipationInvalidStateException,
+    );
+    expect(repository.register).not.toHaveBeenCalled();
+  });
+});
+
+describe('GetPublicCharityCampaignUseCase · organizer (CR 22/11/2026)', () => {
+  it('organizer có userId, displayName = fullName, không có phone/email', async () => {
+    const repository = makeRepository();
+    repository.findPublicByIdOrSlug.mockResolvedValue(campaign());
+    repository.listReviews.mockResolvedValue({ items: [], total: 0 } as never);
+    repository.findOrganizerProfile.mockResolvedValue({
+      globalId: ActorId,
+      username: 'chu-du-an',
+      fullName: 'Chủ Dự Án',
+      avatarUrl: null,
+      rank: UserRanks.GOLD,
+      email: 'owner@private.test',
+      phone: '0900000001',
+    } as never);
+    const result = await new GetPublicCharityCampaignUseCase(repository).handle(
+      { idOrSlug: CampaignId },
+    );
+    expect(result.organizer).toEqual({
+      userId: ActorId,
+      username: 'chu-du-an',
+      displayName: 'Chủ Dự Án',
+      avatarUrl: null,
+      rank: UserRanks.GOLD,
+    });
+    expect(JSON.stringify(result)).not.toMatch(/owner@private|0900000001/);
+  });
+
+  it('người tổ chức đã xoá tài khoản → organizer null', async () => {
+    const repository = makeRepository();
+    repository.findPublicByIdOrSlug.mockResolvedValue(campaign());
+    repository.listReviews.mockResolvedValue({ items: [], total: 0 } as never);
+    const result = await new GetPublicCharityCampaignUseCase(repository).handle(
+      { idOrSlug: CampaignId },
+    );
+    expect(result.organizer).toBeNull();
   });
 });
