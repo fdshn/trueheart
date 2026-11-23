@@ -453,6 +453,8 @@ export class PointLedgerRepository implements IPointLedgerRepository {
       actor: string;
       source: string;
       reason: string;
+      affectsLifetime?: boolean;
+      bonusPercent?: number | null;
     },
   ): Promise<IAppendPointEntryResult> {
     if (command.delta === 0)
@@ -501,15 +503,24 @@ export class PointLedgerRepository implements IPointLedgerRepository {
       // Khoản trừ KHÔNG hạ lifetime: đó là một sự kiện có thật, không phải lời
       // phủ nhận một khoản cộng trước đó.
       const nextLifetime =
-        Number(balance?.lifetime ?? 0) + Math.max(0, command.delta);
+        Number(balance?.lifetime ?? 0) +
+        (command.affectsLifetime === false ? 0 : Math.max(0, command.delta));
 
+      const withBonusPercent =
+        command.bonusPercent !== undefined && command.bonusPercent !== null;
       const [{ id }] = await manager.query<{ id: string }[]>(
         `
           INSERT INTO point_ledger (
             user_id, rule_code, rule_version, delta, balance_after,
             raw_balance_after, lifetime_after,
-            reference_type, reference_id, idempotency_key, actor, source, reason
-          ) VALUES ($1, $2, 0, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            reference_type, reference_id, idempotency_key, actor, source, reason${
+              // Chỉ bút toán thưởng mới ghi cột này — seed/đường cũ chạy được cả trên schema
+              // chưa có migration 1804500000000.
+              withBonusPercent ? ', bonus_percent' : ''
+            }
+          ) VALUES ($1, $2, 0, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12${
+            withBonusPercent ? ', $13' : ''
+          })
           RETURNING id
         `,
         [
@@ -527,6 +538,7 @@ export class PointLedgerRepository implements IPointLedgerRepository {
           // Lý do nghiệp vụ TRƯỚC, rồi tới câu số học dựng ở máy chủ. Người bị
           // trừ điểm cần biết vì sao, không chỉ biết còn bao nhiêu.
           `${command.reason} — ${formatPointLogNote(command.delta, nextRawBalance)}`,
+          ...(withBonusPercent ? [command.bonusPercent] : []),
         ],
       );
       notePointAward({

@@ -18,6 +18,7 @@
 import {
   charityDistributionSettled,
   isPubliclyVisibleProject,
+  vietnamDayStart,
 } from '@chantam.vn/chantam.core-lib/models';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
@@ -413,7 +414,10 @@ async function main(): Promise<void> {
     });
     const heldLive = await campaigns.findByGlobalId(Live);
     const heldCandidates = await projects.listStageCandidates(50);
-    const heldBlocked = await projects.listBlockedStageCampaigns(50);
+    const heldBlocked = await projects.listBlockedStageCampaigns(
+      50,
+      'chua-nhac',
+    );
     check(
       'tới giờ trao nhưng tổng duyệt chưa READY: đọc ra vẫn EXECUTION, job không nhặt, vào danh sách nhắc',
       heldLive?.operationStage === 'EXECUTION' &&
@@ -1407,7 +1411,10 @@ async function main(): Promise<void> {
         limited.every((c) => c.rehearsalReady),
       JSON.stringify(limited.map((c) => c.campaignId)),
     );
-    const blockedRows = await projects.listBlockedStageCampaigns(1000);
+    const blockedRows = await projects.listBlockedStageCampaigns(
+      1000,
+      vietnamDayStart(new Date()).toISOString(),
+    );
     check(
       'danh sách nhắc có đúng 3 chiến dịch chưa READY với lý do REHEARSAL_NOT_READY',
       Gated.slice(0, 3).every((campaignId) =>
@@ -1418,6 +1425,26 @@ async function main(): Promise<void> {
         ),
       ) && !blockedRows.some((row) => row.campaignId === Gated[3]),
       JSON.stringify(blockedRows),
+    );
+    // Review M5: chiến dịch đã được nhắc HÔM NAY không chiếm LIMIT của các lượt job sau trong
+    // ngày — chiến dịch kế tiếp được nhắc thay vì bị bỏ đói.
+    const reminderDay = vietnamDayStart(new Date()).toISOString();
+    await sql(
+      `INSERT INTO notifications (global_id, user_id, type, title, body, idempotency_key)
+       VALUES (gen_random_uuid(), $1, 'CHARITY_ORGANIZER_REMINDER', 'Nhắc', 'Nhắc', $2)`,
+      [
+        Owner,
+        `CHARITY_ORGANIZER_REMINDER:${Gated[0]}:REHEARSAL_NOT_READY:${reminderDay}`,
+      ],
+    );
+    const afterReminded = await projects.listBlockedStageCampaigns(
+      1,
+      reminderDay,
+    );
+    check(
+      'đã nhắc Gated[0] hôm nay → lượt LIMIT 1 kế tiếp nhặt chiến dịch khác (review M5)',
+      afterReminded.length === 1 && afterReminded[0].campaignId !== Gated[0],
+      JSON.stringify(afterReminded),
     );
 
     await insertGated(
@@ -1460,7 +1487,7 @@ async function main(): Promise<void> {
       String(readyAfter?.storedOperationStage),
     );
 
-    const overdueRows = await projects.listOverdueSummaries(1000);
+    const overdueRows = await projects.listOverdueSummaries(1000, 'chua-nhac');
     check(
       'listOverdueSummaries: chiến dịch mở, quá end_time, chưa công khai tổng kết (job nhắc SUMMARY_OVERDUE)',
       overdueRows.some(
@@ -1475,7 +1502,7 @@ async function main(): Promise<void> {
     );
     check(
       'công khai tổng kết -> rời danh sách quá hạn',
-      !(await projects.listOverdueSummaries(1000)).some(
+      !(await projects.listOverdueSummaries(1000, 'chua-nhac')).some(
         (row) => row.campaignId === LateExecution,
       ),
     );
@@ -1516,7 +1543,10 @@ async function main(): Promise<void> {
     };
     const shippingHeld = await campaigns.findByGlobalId(ShippingEvent);
     const parityHeld = await settledParity();
-    const shippingBlocked = await projects.listBlockedStageCampaigns(1000);
+    const shippingBlocked = await projects.listBlockedStageCampaigns(
+      1000,
+      'chua-nhac',
+    );
     check(
       'EVENT + SHIPPING chưa có mã vận đơn: đọc ra vẫn EVENT, nhắc DISTRIBUTION_EVIDENCE_MISSING, SQL = TS',
       shippingHeld?.operationStage === 'EVENT' &&

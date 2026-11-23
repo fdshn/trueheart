@@ -1737,9 +1737,15 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
           // Thưởng hệ số chiến dịch (CR 22/11/2026): ghi thẳng ngay sau bút toán gốc, cùng
           // transaction — rule này không có award/trần nên thưởng cũng không.
           if (base.applied && base.delta > 0) {
-            const [campaign] = await manager.query<{ percent: number }[]>(
-              `SELECT point_bonus_percent AS percent FROM campaigns WHERE global_id = $1`,
-              [delivery.campaign_id],
+            const [campaign] = await manager.query<
+              { percent: number; affects_lifetime: boolean | null }[]
+            >(
+              `SELECT point_bonus_percent AS percent,
+                      (SELECT rule.affects_lifetime FROM point_rules rule
+                        WHERE rule.code = $2 ORDER BY rule.version DESC LIMIT 1)
+                        AS affects_lifetime
+                 FROM campaigns WHERE global_id = $1`,
+              [delivery.campaign_id, CharityContributionCompletedRuleCode],
             );
             const bonus = bonusPoints(
               base.delta,
@@ -1756,6 +1762,9 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
                 actor: 'SYSTEM',
                 source: 'CHARITY_DELIVERY',
                 reason: 'Thưởng hệ số chiến dịch: đóng góp từ thiện hoàn tất',
+                // Thưởng theo đúng rule gốc: rule không tính lifetime thì thưởng cũng không.
+                affectsLifetime: campaign?.affects_lifetime !== false,
+                bonusPercent: Number(campaign?.percent ?? 0),
               });
           }
         } catch (error) {

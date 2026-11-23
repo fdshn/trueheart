@@ -6,6 +6,7 @@ import { EntityManager } from 'typeorm';
 
 interface IListParams {
   afterId: number | null;
+  upToId: number | null;
   limit: number;
   userId: string | null;
   minDelta: number;
@@ -35,11 +36,15 @@ export function pointFeedListSql(options: {
            account.avatar_url, account.rank, entry.rule_code, entry.delta, entry.created_at,
            COALESCE(bonus.total, 0)::int AS bonus_delta,
            context.global_id AS campaign_id, context.title AS campaign_title,
-           context.point_bonus_percent, COALESCE(context.is_public, false) AS campaign_public
+           bonus.percent AS point_bonus_percent,
+           COALESCE(context.is_public, false) AS campaign_public
       FROM point_ledger entry
       JOIN users account ON account.global_id = entry.user_id
       LEFT JOIN LATERAL (
-        SELECT SUM(merged.delta) AS total FROM point_ledger merged
+        SELECT SUM(merged.delta) AS total,
+               -- Hệ số LÚC GHI (review M6), không phải hệ số hiện tại của chiến dịch.
+               MAX(merged.bonus_percent) AS percent
+          FROM point_ledger merged
          WHERE merged.rule_code = ANY($6::text[])
            AND merged.reference_type = 'POINT_LEDGER'
            AND merged.reference_id = entry.id::text
@@ -86,6 +91,7 @@ export function pointFeedListSql(options: {
        AND account.username IS NOT NULL
        AND ${options.userScoped ? 'entry.user_id = $3::uuid' : `$3::uuid IS NULL AND ${VisibleAccountSql}`}
        AND ($1::bigint IS NULL OR entry.id > $1::bigint)
+       AND ($7::bigint IS NULL OR entry.id <= $7::bigint)
        AND entry.delta + COALESCE(bonus.total, 0) >= $4::int
      ORDER BY entry.id ${options.ascending ? 'ASC' : 'DESC'}
      LIMIT $2`;
@@ -98,6 +104,7 @@ export function pointFeedListSql(options: {
       input.minDelta,
       [...input.excludedRuleCodes],
       [...input.mergedRuleCodes],
+      input.upToId,
     ],
   };
 }

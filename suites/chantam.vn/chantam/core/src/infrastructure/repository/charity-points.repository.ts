@@ -217,15 +217,13 @@ export class CharityPointsRepository implements ICharityPointsRepository {
         WHERE base_award_id = $1 FOR UPDATE`,
       [award.global_id],
     );
+    const [campaign] = await manager.query<{ percent: number }[]>(
+      `SELECT point_bonus_percent AS percent FROM campaigns WHERE global_id = $1`,
+      [award.campaign_id],
+    );
+    const percent = Number(campaign?.percent ?? 0);
     if (input.baseApplied > 0) {
-      const [campaign] = await manager.query<{ percent: number }[]>(
-        `SELECT point_bonus_percent AS percent FROM campaigns WHERE global_id = $1`,
-        [award.campaign_id],
-      );
-      const wanted = bonusPoints(
-        input.baseApplied,
-        Number(campaign?.percent ?? 0),
-      );
+      const wanted = bonusPoints(input.baseApplied, percent);
       if (wanted > 0) {
         if (!bonus)
           [bonus] = await manager.query<IAwardRow[]>(
@@ -285,6 +283,8 @@ export class CharityPointsRepository implements ICharityPointsRepository {
         actor: 'SYSTEM',
         source: 'CHARITY_PROJECT',
         reason: applied < 0 ? `Điều chỉnh giảm: ${bonus.reason}` : bonus.reason,
+        // Hệ số LÚC GHI cho bảng tin điểm (review M6); bút toán trừ không mang hệ số.
+        bonusPercent: applied > 0 && percent > 0 ? percent : null,
       });
       bonus.applied_points += applied;
       bonus.ledger_seq = seq;

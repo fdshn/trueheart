@@ -2165,6 +2165,22 @@ describe('Bản sửa chờ duyệt — chủ dự án (CR 22/11/2026, Task 5.2)
     ).toEqual({ title: 'Lần 2' });
   });
 
+  it('quá charity.max_beneficiaries_per_campaign (mặc định 20) → 400, không lưu (review M3)', async () => {
+    const deps = make();
+    const changeRequests = requests();
+    await expect(
+      save(deps, changeRequests, {
+        beneficiaries: Array.from({ length: 21 }, (_, index) => ({
+          name: `Xã ${index}`,
+          beneficiaryKind: 'GROUP',
+          estimatedPortions: 1,
+          estimatedAmount: 0,
+        })),
+      }),
+    ).rejects.toThrow(ValidationFailedException);
+    expect(changeRequests.upsertPending).not.toHaveBeenCalled();
+  });
+
   it('hệ số 30 → 400', async () => {
     const deps = make();
     await expect(
@@ -2332,6 +2348,19 @@ describe('Bản sửa chờ duyệt — Admin duyệt (CR 22/11/2026, Task 5.3)'
     expect(notifier.changeRequestDecided).toHaveBeenCalledWith(
       expect.objectContaining({ ownerId: Owner, approved: true }),
     );
+  });
+
+  it('audit lỗi SAU khi đã áp → vẫn trả bản sửa APPROVED (không 500), vẫn báo chủ (review M4)', async () => {
+    const { appendAudit, notifier, useCase } = build({ title: 'Tiêu đề mới' });
+    appendAudit.mockRejectedValueOnce(new Error('mất kết nối audit'));
+    await expect(
+      useCase.handle({
+        actorUserId: Stranger,
+        campaignId: CampaignId,
+        approve: true,
+      }),
+    ).resolves.toMatchObject({ request: { status: 'APPROVED' } });
+    expect(notifier.changeRequestDecided).toHaveBeenCalled();
   });
 
   it('từ chối không lý do → 400', async () => {

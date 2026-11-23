@@ -458,6 +458,7 @@ daily_cap, is_enabled FROM point_rules`.
 | `actor` / `source` | `varchar(100)` | Ai/cái gì gây ra |
 | `reason` | `varchar(500)` NULL | |
 | `created_at` | `timestamptz` | Index `(user_id, created_at DESC)` |
+| `bonus_percent` | `smallint` NULL | **Từ `1804500000000`.** Chỉ bút toán thưởng `CHARITY_CAMPAIGN_BONUS` dương: hệ số chiến dịch (%) LÚC GHI, `CHECK` ∈ {20, 50, 100}; bảng tin điểm hiện giá trị này |
 
 **Trigger `prevent_point_ledger_mutation`** chặn mọi `UPDATE` và `DELETE` ở tầng database.
 Sai sót thì ghi bút toán đảo, không sửa lịch sử. FK dùng `RESTRICT` chứ không `CASCADE`:

@@ -99,16 +99,19 @@ export class GetPointFeedUseCase implements IGetPointFeedUseCase {
     command: IGetPointFeedCommand,
     minDelta: number,
   ): Promise<IPointFeedResponseDto> {
-    const [rows, latest, pollSeconds, displayMs] = await Promise.all([
+    // Đọc mốc TRƯỚC, rồi chỉ lấy dòng tới mốc đó: dòng commit sau khi đọc mốc sẽ được lượt hỏi
+    // kế tiếp nhặt — không bị `latestId` nhảy qua (review M1).
+    const latest = await this.feed.latestId(command.userId);
+    const [rows, pollSeconds, displayMs] = await Promise.all([
       this.feed.list({
         afterId: command.afterId,
+        upToId: latest,
         limit: command.limit,
         userId: command.userId,
         minDelta,
         excludedRuleCodes: PointFeedExcludedRuleCodes,
         mergedRuleCodes: PointFeedMergedRuleCodes,
       }),
-      this.feed.latestId(command.userId),
       this.admin.getConfigValue(PointFeedPollSecondsConfigKey),
       this.admin.getConfigValue(PointFeedDisplayIntervalMsConfigKey),
     ]);

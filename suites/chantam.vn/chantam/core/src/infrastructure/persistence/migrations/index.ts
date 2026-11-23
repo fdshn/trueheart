@@ -161,3 +161,4 @@ export * from './1804100000000-CharityBeneficiaryPlanAndSchedule';
 export * from './1804200000000-CharitySupervisorRole';
 export * from './1804300000000-CharityPointBonusAndFeed';
 export * from './1804400000000-CharityChangeRequests';
+export * from './1804500000000-PointLedgerBonusPercent';

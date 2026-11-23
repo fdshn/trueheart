@@ -364,9 +364,15 @@ export interface ICharityProjectRepository {
    */
   listOverdueSummaries(
     limit: number,
+    /** Ngày (ISO đầu ngày giờ VN) — bỏ chiến dịch đã được nhắc trong ngày này. */
+    dayKey: string,
   ): Promise<{ campaignId: string; ownerId: string }[]>;
   /** Chiến dịch tới mốc nhưng bị cổng giữ lại — job nhắc chủ dự án mỗi ngày một lần/lý do. */
-  listBlockedStageCampaigns(limit: number): Promise<
+  listBlockedStageCampaigns(
+    limit: number,
+    /** Ngày (ISO đầu ngày giờ VN) — bỏ chiến dịch đã được nhắc trong ngày này. */
+    dayKey: string,
+  ): Promise<
     {
       campaignId: string;
       ownerId: string;

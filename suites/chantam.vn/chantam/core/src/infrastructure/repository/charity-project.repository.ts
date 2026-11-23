@@ -850,6 +850,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
 
   public async listOverdueSummaries(
     limit: number,
+    dayKey: string,
   ): Promise<{ campaignId: string; ownerId: string }[]> {
     const rows = await this.manager.query<
       { global_id: string; created_by: string }[]
@@ -864,9 +865,13 @@ export class CharityProjectRepository implements ICharityProjectRepository {
          AND NOT EXISTS (SELECT 1 FROM campaign_summaries summary
                           WHERE summary.campaign_id = campaign.global_id
                             AND summary.published_at IS NOT NULL)
+         AND NOT EXISTS (SELECT 1 FROM notifications reminder
+                          WHERE reminder.idempotency_key =
+                            'CHARITY_ORGANIZER_REMINDER:' || campaign.global_id::text
+                            || ':SUMMARY_OVERDUE:' || $2::text)
        ORDER BY campaign.id
        LIMIT $1`,
-      [limit],
+      [limit, dayKey],
     );
     return rows.map((row) => ({
       campaignId: row.global_id,
@@ -874,7 +879,10 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     }));
   }
 
-  public async listBlockedStageCampaigns(limit: number): Promise<
+  public async listBlockedStageCampaigns(
+    limit: number,
+    dayKey: string,
+  ): Promise<
     {
       campaignId: string;
       ownerId: string;
@@ -888,7 +896,8 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         reason: CharityOrganizerReminderReason;
       }[]
     >(
-      `SELECT campaign.global_id, campaign.created_by,
+      `SELECT blocked.global_id, blocked.created_by, blocked.reason FROM (
+       SELECT campaign.id, campaign.global_id, campaign.created_by,
               CASE
                 WHEN campaign.operation_stage = 'EXECUTION' THEN 'REHEARSAL_NOT_READY'
                 WHEN NOT ${CampaignDistributionEvidenceOkSql('campaign')}
@@ -910,9 +919,16 @@ export class CharityProjectRepository implements ICharityProjectRepository {
               AND COALESCE(phase.ends_at, campaign.end_time) <= now()
               AND NOT ${CampaignDistributionSettledSql('campaign')})
          )
-       ORDER BY campaign.id
+       ) blocked
+       -- Đã nhắc hôm nay (cùng khoá chống trùng của thông báo) thì nhường chỗ cho chiến dịch
+       -- sau — không thì các hàng id nhỏ chiếm LIMIT mãi (review M5).
+       WHERE NOT EXISTS (SELECT 1 FROM notifications reminder
+                          WHERE reminder.idempotency_key =
+                            'CHARITY_ORGANIZER_REMINDER:' || blocked.global_id::text
+                            || ':' || blocked.reason || ':' || $2::text)
+       ORDER BY blocked.id
        LIMIT $1`,
-      [limit],
+      [limit, dayKey],
     );
     return rows.map((row) => ({
       campaignId: row.global_id,

@@ -149,6 +149,10 @@ export interface IPointLedgerRepository {
       actor: string;
       source: string;
       reason: string;
+      /** Khoản cộng có tăng `lifetime` không; mặc định có (như mọi điều chỉnh trước đây). */
+      affectsLifetime?: boolean;
+      /** Chỉ bút toán thưởng hệ số chiến dịch: hệ số (%) lúc ghi. */
+      bonusPercent?: number | null;
     },
   ): Promise<IAppendPointEntryResult>;
 

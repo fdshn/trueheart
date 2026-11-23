@@ -118,6 +118,22 @@ describe('GetPointFeedUseCase (CR 22/11/2026)', () => {
       expect(json).not.toContain(leaked);
   });
 
+  it('đọc latestId TRƯỚC rồi chỉ lấy dòng id ≤ latestId — không bỏ sót dòng commit chen giữa (review M1)', async () => {
+    const { useCase, feed } = make();
+    await useCase.handle({
+      viewerId: Viewer,
+      userId: null,
+      afterId: 4,
+      limit: 20,
+    });
+    expect(feed.list).toHaveBeenCalledWith(
+      expect.objectContaining({ upToId: 9 }),
+    );
+    expect(feed.latestId.mock.invocationCallOrder[0]).toBeLessThan(
+      feed.list.mock.invocationCallOrder[0],
+    );
+  });
+
   it('không có thưởng → bonusPercent null', async () => {
     const { useCase } = make({ rows: [row(5, { bonusDelta: 0 })] });
     const result = await useCase.handle({

@@ -817,7 +817,8 @@ async function main(): Promise<void> {
       })),
     });
     const [contributionEntry] = await sql(
-      `SELECT entry.id::int AS id, entry.delta, entry.xmin::text AS tx
+      `SELECT entry.id::int AS id, entry.delta, entry.xmin::text AS tx,
+              entry.lifetime_after
          FROM point_ledger entry
          JOIN campaign_deliveries delivery
            ON delivery.contribution_id::text = entry.reference_id
@@ -825,7 +826,7 @@ async function main(): Promise<void> {
       [bonusDelivery.deliveryId],
     );
     const [contributionBonus] = await sql(
-      `SELECT delta, xmin::text AS tx FROM point_ledger
+      `SELECT delta, xmin::text AS tx, lifetime_after FROM point_ledger
         WHERE rule_code = 'CHARITY_CAMPAIGN_BONUS' AND reference_type = 'POINT_LEDGER'
           AND reference_id = $1`,
       [String(contributionEntry?.id ?? -1)],
@@ -835,6 +836,11 @@ async function main(): Promise<void> {
       contributionEntry?.delta === 10 &&
         contributionBonus?.delta === 5 &&
         contributionBonus.tx === contributionEntry.tx,
+      JSON.stringify({ contributionEntry, contributionBonus }),
+    );
+    check(
+      'rule gốc CHARITY_CONTRIBUTION_COMPLETED không tính lifetime → bút toán thưởng cũng không tăng lifetime (review M2)',
+      contributionBonus?.lifetime_after === contributionEntry?.lifetime_after,
       JSON.stringify({ contributionEntry, contributionBonus }),
     );
 
@@ -940,6 +946,29 @@ async function main(): Promise<void> {
         mine[0].context?.type === 'CHARITY_CAMPAIGN',
       JSON.stringify(mine),
     );
+    // Review M6: đổi hệ số SAU khi ghi → bảng tin vẫn hiện hệ số lúc ghi.
+    await sql(
+      `UPDATE campaigns SET point_bonus_percent = 100 WHERE global_id = $1`,
+      [BonusCamp],
+    );
+    const afterPercentChange = await feedUseCase.handle({
+      viewerId: FeedViewer,
+      userId: FeedU,
+      afterId: null,
+      limit: 50,
+    });
+    await sql(
+      `UPDATE campaigns SET point_bonus_percent = 50 WHERE global_id = $1`,
+      [BonusCamp],
+    );
+    const participationLine = afterPercentChange.entries.find(
+      (entry) => entry.ruleTitle === 'Tham gia dự án từ thiện',
+    );
+    check(
+      'đổi hệ số 50→100 sau khi ghi → bảng tin vẫn bonusPercent 50 (review M6)',
+      participationLine?.bonusPercent === 50,
+      JSON.stringify(participationLine),
+    );
     const generalJson = JSON.stringify(general);
     check(
       'JSON không có lý do XYZ, id tham chiếu, rule_code hay reason',
@@ -1035,6 +1064,7 @@ async function main(): Promise<void> {
           userId: FeedU,
           minDelta: 0,
           excludedRuleCodes: ['ADMIN_ADJUSTMENT'],
+          upToId: null,
           mergedRuleCodes: ['CHARITY_CAMPAIGN_BONUS'],
         }),
       )) as { 'QUERY PLAN': string }[];

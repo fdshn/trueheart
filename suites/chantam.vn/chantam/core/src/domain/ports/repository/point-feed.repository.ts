@@ -30,6 +30,8 @@ export interface IPointFeedRepository {
    */
   list(params: {
     afterId: number | null;
+    /** Chỉ lấy dòng có id ≤ mốc này (mốc đọc trước); `null` = không chặn trên. */
+    upToId: number | null;
     limit: number;
     userId: string | null;
     minDelta: number;

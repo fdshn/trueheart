@@ -2234,7 +2234,7 @@ Sửa thẳng sau duyệt bằng route cũ: `PUT :id/media`, đổi `acceptedCon
 CHARITY_CHANGE_REQUIRES_REVIEW` (`details` nêu trường), **trừ** Admin `campaign.manage` và người có
 quyền đăng không cần duyệt (áp ngay). `pointBonusPercent` luôn phải qua bản sửa với chủ dự án.
 Khi đang có bản sửa chờ, sửa thẳng các trường cần duyệt (kể cả người được sửa thẳng) →
-`409 CHARITY_REVISION_PENDING_EXISTS` — rút bản sửa hoặc đợi Admin quyết trước. Ảnh/clip đề xuất trong
+`409 CHARITY_REVISION_PENDING_EXISTS` — rút bản sửa hoặc đợi Admin quyết trước. Bộ `beneficiaries` trong bản sửa tối đa `charity.max_beneficiaries_per_campaign` đơn vị (`400`). Ảnh/clip đề xuất trong
 bản chờ không bị job dọn media xoá. Duyệt bản sửa bỏ một đơn vị còn tài khoản thụ hưởng đang hiệu lực →
 `400` (đóng tài khoản trước); giờ trao của MỌI đơn vị đề xuất phải nằm trong khung trao.
 
@@ -3482,7 +3482,7 @@ mở lại thì tự hiện lại. `POST /banners/:id/click` dùng cùng bộ l�
   chung mọi trần (ngày, dự án, chu kỳ) của rule gốc — gốc được ghi trước, phần thưởng vướng trần thì
   hoãn và job `charity:points` ghi tiếp. Gốc bị chấm lại thấp hơn → thưởng giảm theo tỉ lệ, ghi ngay.
   Đổi hệ số sau đó không tính lại bút toán đã ghi. `CHARITY_CONTRIBUTION_COMPLETED` (không có trần)
-  cũng có thưởng, ghi thẳng cùng transaction. Hệ số 0 → không có bút toán thưởng.
+  cũng có thưởng, ghi thẳng cùng transaction, theo rule gốc: rule không tính điểm tích luỹ (`affects_lifetime = false`) thì khoản thưởng cũng không. Hệ số 0 → không có bút toán thưởng.
 
 ## 21b. Bảng tin điểm (CR 22/11/2026)
 
@@ -3498,7 +3498,8 @@ mở lại thì tự hiện lại. `POST /banners/:id/click` dùng cùng bộ l�
   `ITEM_REDEMPTION`, `CONTENT_VIOLATION_PENALTY`, `SHIP_UNPAID_PENALTY`, `MAINTENANCE_FAILED`,
   `GROUP_AFFILIATE_REVERSAL`; không bao giờ trả mã rule, lý do, id/kiểu tham chiếu.
 - Thưởng hệ số chiến dịch (`CHARITY_CAMPAIGN_BONUS`) không thành dòng riêng — gộp vào dòng gốc:
-  `delta` = gốc + thưởng, `bonusPercent` = hệ số của chiến dịch (null khi không có thưởng).
+  `delta` = gốc + thưởng, `bonusPercent` = hệ số **lúc ghi** khoản thưởng (null khi không có thưởng) —
+  Admin đổi hệ số sau đó không làm đổi các dòng đã có.
 - Feed chung chỉ hiện dòng có `delta` ≥ `point.feed_min_delta` (10), người `ACTIVE`, chưa khoá, chưa
   xoá, bật `showInPublicPointFeed`. `context` chỉ có khi bút toán gắn với chiến dịch từ thiện đang
   công khai **và** người đó cho hiện tên ở chiến dịch đó (`showNamePublicly` của lượt tham gia/đóng
@@ -3506,7 +3507,9 @@ mở lại thì tự hiện lại. `POST /banners/:id/click` dùng cùng bộ l�
 - **Polling:** lần đầu bỏ `afterId` (các dòng mới nhất); sau đó gửi `afterId = latestId` mỗi
   `pollAfterSeconds` giây (`point.feed_poll_seconds`, 15) và hiện từng dòng cách nhau
   `displayIntervalMs` (`point.feed_display_interval_ms`, 2000). Không có gì mới → `entries: []` kèm
-  `latestId` hiện tại. Feed chung đệm 5 giây; mỗi người tối đa 30 lượt/phút (`429`).
+  `latestId` hiện tại. Mỗi lượt chỉ trả các dòng có `entryId ≤ latestId` (mốc đọc trước), nên dòng ghi
+  chen giữa lúc đọc sẽ có ở lượt sau, không bị bỏ sót. Feed chung đệm 5 giây; mỗi người tối đa 30
+  lượt/phút (`429`).
 - **Cờ hồ sơ:** `GET/PATCH /profile/me` đọc/ghi `showInPublicPointFeed` (mặc định bật).
 
 ## 21. Điều kiện tham gia chiến dịch từ thiện (18/11/2026, PR #54)

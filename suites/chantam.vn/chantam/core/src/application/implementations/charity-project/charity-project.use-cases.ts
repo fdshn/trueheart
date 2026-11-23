@@ -625,10 +625,16 @@ export class AdvanceCharityStagesUseCase implements IAdvanceCharityStagesUseCase
       ownerId: string;
       reason: CharityOrganizerReminderReason;
     }[] = [
-      ...(await this.projects.listBlockedStageCampaigns(command.limit)),
-      ...(await this.projects.listOverdueSummaries(command.limit)).map(
-        (row) => ({ ...row, reason: 'SUMMARY_OVERDUE' as const }),
-      ),
+      ...(await this.projects.listBlockedStageCampaigns(
+        command.limit,
+        vietnamDayStart(now).toISOString(),
+      )),
+      ...(
+        await this.projects.listOverdueSummaries(
+          command.limit,
+          vietnamDayStart(now).toISOString(),
+        )
+      ).map((row) => ({ ...row, reason: 'SUMMARY_OVERDUE' as const })),
     ];
     let reminded = 0;
     const day = vietnamDayStart(now).toISOString();
@@ -2319,6 +2325,14 @@ export class SaveCharityChangeRequestUseCase implements ISaveCharityChangeReques
           `revision.pointBonusPercent phải là một trong: ${CharityPointBonusPercents.join(', ')}`,
         );
     }
+    if (input.beneficiaries !== undefined) {
+      // Cùng trần với PUT :id/parties (review M3).
+      const max = await this.access.maxBeneficiaries();
+      if (input.beneficiaries.length > max)
+        errors.push(
+          `revision.beneficiaries: tối đa ${max} đơn vị nhận (charity.max_beneficiaries_per_campaign)`,
+        );
+    }
     if (input.beneficiaries !== undefined)
       proposed.beneficiaries = input.beneficiaries.map((unit) => ({
         ...(unit.partyId ? { partyId: unit.partyId } : {}),
@@ -2504,6 +2518,8 @@ export class GetAdminCharityChangeRequestUseCase implements IGetAdminCharityChan
  */
 @Injectable()
 export class DecideCharityChangeRequestUseCase implements IDecideCharityChangeRequestUseCase {
+  private readonly logger = new Logger(DecideCharityChangeRequestUseCase.name);
+
   public constructor(
     @Inject(ICharityCampaignRepository)
     private readonly campaigns: ICharityCampaignRepository,
@@ -2639,17 +2655,25 @@ export class DecideCharityChangeRequestUseCase implements IDecideCharityChangeRe
     approved: boolean,
     reason: string | null,
   ): Promise<void> {
-    await this.admin.appendAudit({
-      actorUserId: actorId,
-      action: approved
-        ? 'CHARITY_CHANGE_REQUEST_APPROVE'
-        : 'CHARITY_CHANGE_REQUEST_REJECT',
-      resourceType: 'CAMPAIGN',
-      resourceId: campaign.globalId,
-      before: request.base,
-      after: request.proposed,
-      reason: reason ?? undefined,
-    });
+    // Bản sửa đã được áp/chốt: audit hỏng lúc này không được biến thành lỗi trả về (Admin bấm
+    // lại sẽ nhận 404 vì bản sửa không còn chờ) — ghi log để vận hành bù (review M4).
+    try {
+      await this.admin.appendAudit({
+        actorUserId: actorId,
+        action: approved
+          ? 'CHARITY_CHANGE_REQUEST_APPROVE'
+          : 'CHARITY_CHANGE_REQUEST_REJECT',
+        resourceType: 'CAMPAIGN',
+        resourceId: campaign.globalId,
+        before: request.base,
+        after: request.proposed,
+        reason: reason ?? undefined,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Không ghi được audit bản sửa ${request.requestId}: ${String(error)}`,
+      );
+    }
     await this.notifier?.changeRequestDecided({
       campaignId: campaign.globalId,
       campaignTitle: campaign.title,
