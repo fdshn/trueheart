@@ -1,6 +1,7 @@
 import {
   CharityAnnouncementKind,
   CharityOperationStage,
+  CharityPreEventMilestone,
   CharityRevisionEntity,
   CharityTaskKey,
   CharityTaskStatus,
@@ -104,7 +105,9 @@ export interface ICharityAnnouncement {
 
 export interface ICharityPreEventCandidate {
   campaignId: string;
-  distributionStartsAt: Date;
+  /** Mốc nhắc 48 giờ: bắt đầu tổng duyệt hoặc bắt đầu trao (CR 22/11/2026). */
+  milestone: CharityPreEventMilestone;
+  startsAt: Date;
 }
 
 export interface ICharityEngagementRepository {
@@ -160,7 +163,10 @@ export interface ICharityEngagementRepository {
     dedupeKey: string | null;
     actorId: string | null;
   }): Promise<boolean>;
-  /** Dự án đã duyệt, chưa đình chỉ, còn ≤ `hours` giờ tới bước trao. */
+  /**
+   * Dự án đã duyệt, chưa đình chỉ, còn ≤ `hours` giờ tới mốc bắt đầu tổng duyệt hoặc bắt đầu
+   * trao — mỗi mốc một dòng, chống trùng theo `<mốc>:<epoch ms>`.
+   */
   listPreEventCandidates(params: {
     hours: number;
     limit: number;
@@ -183,11 +189,6 @@ export interface ICharityEngagementRepository {
     campaignId: string;
     excludeUserId: string | null;
     scope?: 'ALL' | 'PRE_EVENT';
-    /**
-     * Đợt trao (§3.18): `PRE_EVENT` chỉ gồm participant của đợt (hoặc chưa phân đợt); `ALL`
-     * gồm participant và người có lượt giao nhận của đợt — đợt chưa gắn ai thì như cả dự án.
-     */
-    roundId?: string | null;
   }): Promise<string[]>;
 
   // ── Bản in ────────────────────────────────────────────────────────────

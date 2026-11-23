@@ -85,6 +85,27 @@ export type CharityParticipationStatus =
   (typeof CharityParticipationStatuses)[number];
 
 /**
+ * Vai trong luồng tham gia (CR 22/11/2026 §6): người tham gia hoặc giám sát viên. Mỗi người
+ * MỘT vai mỗi chiến dịch — đổi vai là huỷ rồi đăng ký lại (chỉ khi chưa check-in).
+ */
+export const CharityParticipationRoles = ['PARTICIPANT', 'SUPERVISOR'] as const;
+
+export type CharityParticipationRole =
+  (typeof CharityParticipationRoles)[number];
+
+/**
+ * Nhóm trong danh sách thành viên công khai (CR 22/11/2026): người đóng góp (hiện vật được
+ * nhận + hỗ trợ dịch vụ được nhận), người tham gia, giám sát viên.
+ */
+export const CharityMemberTypes = [
+  'CONTRIBUTOR',
+  'PARTICIPANT',
+  'SUPERVISOR',
+] as const;
+
+export type CharityMemberType = (typeof CharityMemberTypes)[number];
+
+/**
  * Vòng đời participant (CHARITY-PROJECT-LIFECYCLE §3.11, chốt 05/11): `REGISTERED` là đã đăng
  * ký, CHỜ ban tổ chức duyệt. Tham gia độc lập với đóng góp.
  *
@@ -325,7 +346,8 @@ export function charityCampaignGaps(input: {
   readonly title: string;
   readonly slug: string;
   readonly description: string;
-  readonly badgeName: string;
+  /** Không còn bắt buộc (CR 22/11/2026). */
+  readonly badgeName: string | null;
   readonly startTime: Date;
   readonly endTime: Date;
   readonly targetItemsCount: number;
@@ -340,11 +362,7 @@ export function charityCampaignGaps(input: {
     );
   if (input.description.trim().length < 10)
     gaps.push('description phải có ít nhất 10 ký tự');
-  if (input.badgeName.trim().length === 0)
-    gaps.push(
-      'badgeName không được rỗng — nó là huy hiệu người tham gia nhận được',
-    );
-  if (input.badgeName.length > MaxCharityBadgeNameLength)
+  if ((input.badgeName ?? '').length > MaxCharityBadgeNameLength)
     gaps.push(`badgeName không vượt ${MaxCharityBadgeNameLength} ký tự`);
 
   const start = input.startTime.getTime();

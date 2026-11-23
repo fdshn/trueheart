@@ -9,6 +9,8 @@ import {
   ICharitySummaryContent,
   ICharityUserBrief,
 } from '@/domain/ports/repository';
+import { IPublicUserProfileDto } from '@chantam.vn/chantam.core-lib/dto';
+import { CharityMemberType } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 import { ICharityProjectCommand } from './charity-project.contract';
 
@@ -20,16 +22,19 @@ export interface ICharitySummaryBoard {
   financialReports: ICharityFinancialReport[];
   /** Có nhận tiền → cần ít nhất một báo cáo tài chính trước khi công khai. */
   financialReportRequired: boolean;
-  /**
-   * Số người thực tế so với số tối thiểu (PR #54). Chưa đạt chỉ là CẢNH BÁO — không ai tự
-   * huỷ dự án theo nó, và số thực tế đếm từ bảng tham gia nên không sửa tay được.
-   */
+  /** Số lượt tham gia thực tế (mọi vai) — đếm từ bảng tham gia, không sửa tay được. */
   participation: {
     registeredCount: number;
     checkedInCount: number;
-    minimumParticipants: number;
-    /** So theo số ĐÃ check-in (người thật sự có mặt). `minimumParticipants = 0` thì luôn đạt. */
-    minimumParticipantsMet: boolean;
+  };
+  /**
+   * Giám sát viên đã check-in so với số tối thiểu (CR 22/11/2026 §6). Chưa đạt chỉ là CẢNH
+   * BÁO — không ai tự huỷ dự án theo nó. `minimumSupervisors = 0` thì luôn đạt.
+   */
+  supervisors: {
+    checkedIn: number;
+    minimumSupervisors: number;
+    met: boolean;
   };
 }
 
@@ -165,3 +170,33 @@ export interface IListCharityHomeCardsUseCase extends IUseCase<
 export const IListCharityHomeCardsUseCase = Symbol(
   'IListCharityHomeCardsUseCase',
 );
+
+export interface IListCharityMembersCommand {
+  idOrSlug: string;
+  type: CharityMemberType;
+  /** 1–50. */
+  limit: number;
+  /** base64url của `${joinedAt ISO}|${userId}` — lấy từ `nextCursor` của trang trước. */
+  cursor?: string;
+}
+
+export interface ICharityMember {
+  user: IPublicUserProfileDto;
+  joinedAt: Date;
+  /** Chỉ nhóm `CONTRIBUTOR`. Không có số lượng hay số tiền. */
+  contributionTypes?: ('MATERIAL' | 'SERVICE')[];
+}
+
+export interface IListCharityMembersResult {
+  members: ICharityMember[];
+  /** Người đủ điều kiện nhưng chọn ẩn tên. */
+  anonymousCount: number;
+  nextCursor: string | null;
+}
+
+/** Thành viên công khai của chiến dịch (CR 22/11/2026). */
+export interface IListCharityMembersUseCase extends IUseCase<
+  IListCharityMembersCommand,
+  IListCharityMembersResult
+> {}
+export const IListCharityMembersUseCase = Symbol('IListCharityMembersUseCase');

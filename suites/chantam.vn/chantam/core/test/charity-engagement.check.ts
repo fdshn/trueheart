@@ -202,11 +202,15 @@ async function main(): Promise<void> {
       (await revisionCount(Draft)) === 0,
     );
 
+    // Giữ nguyên loại tiếp nhận đang lưu: từ CR 22/11/2026 đổi nó cũng là một revision
+    // (trường cần duyệt) — phép kiểm này chỉ đo appealPurpose.
+    const liveTypes = (await projects.getProfile(Live))!
+      .acceptedContributionTypes;
     await projects.updateProfile({
       campaignId: Live,
       actorId: Owner,
       profile: {
-        acceptedContributionTypes: ['MATERIAL', 'MONEY', 'SERVICE'],
+        acceptedContributionTypes: [...liveTypes],
         appealPurpose: 'Giúp 300 em',
         appealAudience: null,
         appealCircumstance: null,
@@ -256,10 +260,11 @@ async function main(): Promise<void> {
       [Live],
     );
     check(
-      'thêm bên thụ hưởng: một revision `*` quan trọng, không mang địa chỉ/SĐT',
+      'thêm bên thụ hưởng tập thể: một revision `*` quan trọng, mang địa chỉ, không mang SĐT',
       party?.field === '*' &&
         party.is_important &&
-        !JSON.stringify(party.new_value).includes('Thôn 3') &&
+        // Tập thể (GROUP): địa chỉ CÔNG KHAI (CR 22/11/2026 §3.17d); SĐT luôn riêng tư.
+        JSON.stringify(party.new_value).includes('Thôn 3') &&
         !JSON.stringify(party.new_value).includes('0901'),
       JSON.stringify(party),
     );
@@ -321,7 +326,6 @@ async function main(): Promise<void> {
         title: 'Xăng xe',
         description: null,
         beneficiaryPartyId: null,
-        receivingUnit: null,
         bankAccountId: null,
         targetAmount: 5_000_000,
         deadline: null,
@@ -337,7 +341,6 @@ async function main(): Promise<void> {
         title: 'Xăng xe',
         description: null,
         beneficiaryPartyId: null,
-        receivingUnit: null,
         bankAccountId: null,
         targetAmount: 5_000_000,
         deadline: null,
@@ -628,7 +631,7 @@ async function main(): Promise<void> {
       due.length === 1 && due[0].campaignId === Soon,
       JSON.stringify(due),
     );
-    const key = String(due[0].distributionStartsAt.getTime());
+    const key = `${due[0].milestone}:${due[0].startsAt.getTime()}`;
     const queued = await engagement.enqueueAnnouncement({
       campaignId: Soon,
       kind: 'PRE_EVENT',
@@ -659,6 +662,37 @@ async function main(): Promise<void> {
       'dời giờ trao → nhắc lại cho mốc mới',
       (await engagement.listPreEventCandidates({ hours: 48, limit: 10 }))
         .length === 1,
+    );
+
+    const movedStart = new Date(soonStart.getTime() + 2 * Hour);
+    const rehearsalStart = new Date(soonStart.getTime() - 4 * Hour);
+    await projects.replacePhases({
+      campaignId: Soon,
+      actorId: Owner,
+      phases: [
+        {
+          phase: 'REHEARSAL' as const,
+          startsAt: rehearsalStart,
+          endsAt: new Date(rehearsalStart.getTime() + 2 * Hour),
+          picName: null,
+          picUserId: null,
+          hotline: null,
+          deliveryMethod: null,
+          reportMode: null,
+        },
+        ...phases(movedStart),
+      ],
+    });
+    const milestones = (
+      await engagement.listPreEventCandidates({ hours: 48, limit: 10 })
+    ).filter((candidate) => candidate.campaignId === Soon);
+    check(
+      'mốc tổng duyệt trong ≤ 48 giờ: thêm một ứng viên REHEARSAL riêng, khác DISTRIBUTION',
+      milestones.length === 2 &&
+        milestones[0].milestone === 'REHEARSAL' &&
+        milestones[0].startsAt.getTime() === rehearsalStart.getTime() &&
+        milestones[1].milestone === 'DISTRIBUTION',
+      JSON.stringify(milestones),
     );
 
     // ── 6. Outbox song song ──────────────────────────────────────────────

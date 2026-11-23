@@ -8,6 +8,7 @@ import {
   ICategoryRepository,
   ICharityAppealRepository,
   ICharityCampaignRepository,
+  ICharityChangeRequestRepository,
   ICharityEngagementRepository,
   ICharityEventRepository,
   ICharityOperationsRepository,
@@ -36,6 +37,7 @@ import {
   INotificationRepository,
   INotificationTemplateRepository,
   IOnboardingTaskRepository,
+  IPointFeedRepository,
   IPointLedgerRepository,
   IPostMediaRepository,
   IPostRepository,
@@ -63,6 +65,7 @@ import { BlogRepository } from './blog.repository';
 import { CategoryRepository } from './category.repository';
 import { CharityAppealRepository } from './charity-appeal.repository';
 import { CharityCampaignRepository } from './charity-campaign.repository';
+import { CharityChangeRequestRepository } from './charity-change-request.repository';
 import { CharityEngagementRepository } from './charity-engagement.repository';
 import { CharityEventRepository } from './charity-event.repository';
 import { CharityOperationsRepository } from './charity-operations.repository';
@@ -94,6 +97,7 @@ import { NotificationChannelRepository } from './notification-channel.repository
 import { NotificationTemplateRepository } from './notification-template.repository';
 import { NotificationRepository } from './notification.repository';
 import { OnboardingTaskRepository } from './onboarding-task.repository';
+import { PointFeedRepository } from './point-feed.repository';
 import { PointLedgerRepository } from './point-ledger.repository';
 import { PostMediaRepository } from './post-media.repository';
 import { PostRepository } from './post.repository';
@@ -146,6 +150,10 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     },
     { provide: ICharityEventRepository, useClass: CharityEventRepository },
     { provide: ICharitySummaryRepository, useClass: CharitySummaryRepository },
+    {
+      provide: ICharityChangeRequestRepository,
+      useClass: CharityChangeRequestRepository,
+    },
     {
       provide: ICharityOperationsRepository,
       useClass: CharityOperationsRepository,
@@ -217,6 +225,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     },
     { provide: IOnboardingTaskRepository, useClass: OnboardingTaskRepository },
     { provide: IPointLedgerRepository, useClass: PointLedgerRepository },
+    { provide: IPointFeedRepository, useClass: PointFeedRepository },
     { provide: IReferralRepository, useClass: ReferralRepository },
     { provide: IGroupRepository, useClass: GroupRepository },
     { provide: IReportRepository, useClass: ReportRepository },
@@ -257,6 +266,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     ICharityEngagementRepository,
     ICharityEventRepository,
     ICharitySummaryRepository,
+    ICharityChangeRequestRepository,
     ICharityOperationsRepository,
     ICharityParticipationRepository,
     ICharityPointsRepository,
@@ -281,6 +291,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     INotificationChannelRepository,
     IOnboardingTaskRepository,
     IPointLedgerRepository,
+    IPointFeedRepository,
     IReferralRepository,
     IReportRepository,
     ISystemLogRepository,

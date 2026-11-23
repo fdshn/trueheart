@@ -399,7 +399,9 @@ export enum ErrorCodes {
   CHARITY_SUPPORT_NEED_IN_USE = 0x13_47,
   CHARITY_SUPPORT_OFFER_NOT_FOUND = 0x13_48,
   CHARITY_SUPPORT_OFFER_INVALID_STATE = 0x13_49,
+  /** @deprecated Đã bỏ cơ chế đợt trao (CR 22/11/2026). Giữ số, không dùng lại. */
   CHARITY_ROUND_NOT_FOUND = 0x13_4a,
+  /** @deprecated Đã bỏ cơ chế đợt trao (CR 22/11/2026). Giữ số, không dùng lại. */
   CHARITY_ROUND_INVALID_STATE = 0x13_4b,
   /** Công khai tổng kết (hoàn tất dự án) khi còn việc chưa xong (§3.18). */
   CHARITY_PROJECT_COMPLETION_BLOCKED = 0x13_4c,
@@ -431,6 +433,26 @@ export enum ErrorCodes {
   CHARITY_BENEFICIARY_ACCOUNT_NAME_MISMATCH = 0x13_5a,
   /** Tài khoản thụ hưởng được chọn chưa được xác thực. */
   CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED = 0x13_5b,
+  /** Ngày giờ trao của đơn vị nhận nằm ngoài khung trao dự kiến của chiến dịch. */
+  CHARITY_BENEFICIARY_DISTRIBUTION_TIME_OUT_OF_RANGE = 0x13_5c,
+  /** Số lượng vật phẩm thấp hơn tổng số suất × số lượng mỗi suất. */
+  CHARITY_NEED_BELOW_ESTIMATED_PORTIONS = 0x13_5d,
+  /** Tổng mục tiêu tiền thấp hơn tổng tiền ước tính của các đơn vị nhận. */
+  CHARITY_FUNDING_BELOW_ESTIMATED_AMOUNT = 0x13_5e,
+  /** Tổng duyệt chưa READY nên chưa sang sự kiện trao được. */
+  CHARITY_REHEARSAL_NOT_READY = 0x13_5f,
+  /** Đã hết thời gian tiếp nhận. */
+  CHARITY_INTAKE_CLOSED = 0x13_60,
+  /** Owner/điều phối không được làm giám sát viên chính chiến dịch của mình. */
+  CHARITY_SUPERVISOR_CONFLICT = 0x13_61,
+  /** Ba khung thời gian sai thứ tự. */
+  CHARITY_SCHEDULE_INVALID = 0x13_62,
+  /** Đang có bản sửa chờ duyệt. */
+  CHARITY_REVISION_PENDING_EXISTS = 0x13_63,
+  /** Trường này chỉ sửa được qua bản sửa chờ Admin duyệt. */
+  CHARITY_CHANGE_REQUIRES_REVIEW = 0x13_64,
+  /** Chưa công khai tổng kết nên chưa đóng chiến dịch được. */
+  CHARITY_CAMPAIGN_SUMMARY_NOT_PUBLISHED = 0x13_65,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,

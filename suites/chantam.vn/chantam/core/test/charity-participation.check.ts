@@ -16,6 +16,7 @@
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { JoinCharityCampaignUseCase } from '../src/application/implementations/charity-campaign/charity-campaign.use-cases';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
@@ -84,6 +85,75 @@ async function main(): Promise<void> {
   try {
     const sql = (query: string, params: unknown[] = []) =>
       dataSource.query(query, params);
+
+    // ── 0. Migration 1804200000000: vai giám sát viên, đổi tên cột tối thiểu ──
+    console.log('0. Migration 1804200000000: vai giám sát viên');
+    for (;;) {
+      const [last] = await sql(
+        `SELECT timestamp FROM migrations ORDER BY id DESC LIMIT 1`,
+      );
+      if (Number(last.timestamp) < 1804200000000) break;
+      await dataSource.undoLastMigration();
+    }
+    const LegacyOwner = id('90');
+    const LegacyUser = id('91');
+    const LegacyCampaign = id('92');
+    for (const [userId, username] of [
+      [LegacyOwner, 'cpa_legacy_owner'],
+      [LegacyUser, 'cpa_legacy_user'],
+    ])
+      await sql(
+        `INSERT INTO users (global_id, username, password_hash, rank, status)
+         VALUES ($1, $2, 'x', 'MEMBER', 'ACTIVE')`,
+        [userId, username],
+      );
+    await sql(
+      `INSERT INTO campaigns
+         (global_id, title, slug, description, banner_url, badge_name, start_time, end_time,
+          created_by, minimum_participants, minimum_participant_rank)
+       VALUES ($1, 'Dự án cũ', 'cpa-legacy', 'Mô tả đủ dài cho dự án cũ',
+               'https://cdn.test/a.jpg', 'Ấm', now() + interval '2 days',
+               now() + interval '20 days', $2, 3, 'SILVER')`,
+      [LegacyCampaign, LegacyOwner],
+    );
+    await sql(
+      `INSERT INTO campaign_participations (campaign_id, user_id) VALUES ($1, $2)`,
+      [LegacyCampaign, LegacyUser],
+    );
+    await dataSource.runMigrations();
+    const migrated = await sql(
+      `SELECT minimum_supervisors, minimum_supervisor_rank FROM campaigns WHERE global_id = $1`,
+      [LegacyCampaign],
+    ).catch((error: Error) => error);
+    check(
+      'minimum_supervisors 3 / SILVER → minimum_supervisors 3 / minimum_supervisor_rank SILVER',
+      Array.isArray(migrated) &&
+        migrated[0]?.minimum_supervisors === 3 &&
+        migrated[0]?.minimum_supervisor_rank === 'SILVER',
+      Array.isArray(migrated) ? JSON.stringify(migrated) : migrated.message,
+    );
+    const roles = await sql(
+      `SELECT role FROM campaign_participations WHERE campaign_id = $1`,
+      [LegacyCampaign],
+    ).catch((error: Error) => error);
+    check(
+      'lượt tham gia sẵn có → role PARTICIPANT',
+      Array.isArray(roles) && roles[0]?.role === 'PARTICIPANT',
+      Array.isArray(roles) ? JSON.stringify(roles) : roles.message,
+    );
+    const boss = await sql(
+      `UPDATE campaign_participations SET role = 'BOSS' WHERE campaign_id = $1`,
+      [LegacyCampaign],
+    ).then(
+      () => 'nhận',
+      (error: Error) => error.message,
+    );
+    check(
+      "role = 'BOSS' bị CHECK chặn",
+      boss.includes('check constraint'),
+      boss,
+    );
+
     const ledger = new PointLedgerRepository(dataSource.manager);
     const campaigns = new CharityCampaignRepository(dataSource.manager, ledger);
     const engagement = new CharityEngagementRepository(dataSource.manager);
@@ -343,6 +413,98 @@ async function main(): Promise<void> {
         confirmedRow?.positions.length === 1 &&
         confirmedRow.positions[0].title === 'Bốc xếp',
       JSON.stringify(confirmedRow?.positions),
+    );
+
+    // ── 6. Hết tiếp nhận chặn đăng ký mới (CR 22/11/2026 §3.9) ──────────────
+    console.log('\n6. Sau intakeEndsAt: đăng ký tham gia bị chặn');
+    await sql(
+      `UPDATE campaigns SET intake_ends_at = now() - interval '1 minute' WHERE global_id = $1`,
+      [Live],
+    );
+    const join = new JoinCharityCampaignUseCase(campaigns, {
+      findOneBy: async () => null,
+    } as never);
+    const [{ n: beforeJoin }] = await sql(
+      `SELECT count(*)::int AS n FROM campaign_participations WHERE campaign_id = $1`,
+      [Live],
+    );
+    let joinError: string | null = null;
+    try {
+      await join.handle({ actorUserId: Follower, campaignId: Live });
+    } catch (error) {
+      joinError = (error as Error).constructor.name;
+    }
+    const [{ n: afterJoin }] = await sql(
+      `SELECT count(*)::int AS n FROM campaign_participations WHERE campaign_id = $1`,
+      [Live],
+    );
+    check(
+      'JoinCharityCampaignUseCase thật → CharityIntakeClosedException, không thêm lượt',
+      joinError === 'CharityIntakeClosedException' && afterJoin === beforeJoin,
+      `${joinError}, ${beforeJoin} → ${afterJoin}`,
+    );
+
+    // ── 7. Giám sát viên (CR 22/11/2026 §6) ────────────────────────────────
+    console.log(
+      '\n7. Giám sát viên: đăng ký sau hết tiếp nhận, check-in, tổng kết',
+    );
+    await sql(
+      `UPDATE campaigns SET minimum_supervisors = 2 WHERE global_id = $1`,
+      [Live],
+    );
+    await join.handle({
+      actorUserId: Follower,
+      campaignId: Live,
+      role: 'SUPERVISOR',
+    });
+    const [{ role: supervisorRole }] = await sql(
+      `SELECT role FROM campaign_participations WHERE campaign_id = $1 AND user_id = $2`,
+      [Live, Follower],
+    );
+    check(
+      'JoinCharityCampaignUseCase thật (đã hết tiếp nhận, chưa tới giờ trao) → role SUPERVISOR',
+      supervisorRole === 'SUPERVISOR',
+      supervisorRole,
+    );
+    const supervisorId = await idOf(Follower);
+    await participations.transition({
+      campaignId: Live,
+      participationId: supervisorId,
+      from: ['REGISTERED'],
+      to: 'CONFIRMED',
+      actorId: Owner,
+      reason: null,
+      checkIn: false,
+    });
+    await participations.transition({
+      campaignId: Live,
+      participationId: supervisorId,
+      from: ['CONFIRMED'],
+      to: 'CHECKED_IN',
+      actorId: Owner,
+      reason: null,
+      checkIn: true,
+    });
+    const counts = await summaries.countParticipation(Live);
+    check(
+      'check-in xong: supervisorsCheckedIn = 1 (người tham gia đã check-in không tính)',
+      counts.supervisorsCheckedIn === 1 && counts.checkedIn >= 2,
+      JSON.stringify(counts),
+    );
+    let ownerError: string | null = null;
+    try {
+      await join.handle({
+        actorUserId: Owner,
+        campaignId: Live,
+        role: 'SUPERVISOR',
+      });
+    } catch (error) {
+      ownerError = (error as Error).constructor.name;
+    }
+    check(
+      'chủ dự án đăng ký SUPERVISOR → CharitySupervisorConflictException',
+      ownerError === 'CharitySupervisorConflictException',
+      String(ownerError),
     );
   } finally {
     for (const source of opened.reverse())

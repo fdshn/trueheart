@@ -2,11 +2,22 @@ import {
   CharityBankAccountLimitException,
   CharityBankAccountNotFoundException,
   CharityBeneficiaryAccountNameMismatchException,
+  CharityBeneficiaryAccountNotVerifiedException,
+  CharityBeneficiaryDistributionTimeOutOfRangeException,
   CharityCampaignNotFoundException,
+  CharityChangeRequiresReviewException,
   CharityContributionTypeDisabledException,
+  CharityFundingBelowEstimatedAmountException,
+  CharityIntakeClosedException,
+  CharityNeedBelowEstimatedPortionsException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
+  CharityProjectNotApprovedException,
   CharityProjectNotDraftException,
+  CharityRehearsalNotReadyException,
+  CharityRevisionPendingExistsException,
+  CharityRoundEvidenceRequiredException,
+  CharityScheduleInvalidException,
   CharitySectionEmptyException,
   CharityStageScheduleConflictException,
   CharityStageTransitionInvalidException,
@@ -14,6 +25,7 @@ import {
   CharityVolunteerClosedException,
 } from '@/domain/exceptions';
 import { ICharityCampaign } from '@/domain/ports/repository';
+import { NotificationTypes } from '@chantam.vn/chantam.core-lib/consts';
 import { ValidationFailedException } from '@chantam/service.common-lib/exception';
 import {
   AddCharityBankAccountUseCase,
@@ -21,6 +33,8 @@ import {
   AdvanceCharityStagesUseCase,
   CharityProjectAccess,
   CloseCharityBeneficiaryBankAccountUseCase,
+  DecideCharityChangeRequestUseCase,
+  GetCharityChangeRequestUseCase,
   GetCharityPublicProjectUseCase,
   GetCharityWorkspaceUseCase,
   MoveCharityStageUseCase,
@@ -29,10 +43,14 @@ import {
   ReplaceCharityCustomSectionsUseCase,
   ReplaceCharityPartiesUseCase,
   ReplaceCharityPhasesUseCase,
+  SaveCharityChangeRequestUseCase,
   SaveCharityFundingNeedUseCase,
+  SaveCharityRehearsalUseCase,
+  SaveCharityScheduleUseCase,
   SubmitCharityProjectUseCase,
   UpdateCharityProfileUseCase,
   VerifyCharityBeneficiaryBankAccountUseCase,
+  WithdrawCharityChangeRequestUseCase,
 } from './charity-project.use-cases';
 
 const Owner = '10000000-0000-4000-8000-000000000001';
@@ -71,12 +89,20 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     acceptedContributionTypes: ['MATERIAL', 'MONEY', 'SERVICE'],
     beneficiaryRelation: null,
     allowOverTarget: false,
-    minimumParticipants: 0,
-    minimumParticipantRank: null,
+    minimumSupervisors: 0,
+    minimumSupervisorRank: null,
+    pointBonusPercent: 0,
+    requestedPointBonusPercent: 0,
     submittedAt: new Date(),
     operationStage: 'EXECUTION',
     storedOperationStage: 'EXECUTION',
     distribution: null,
+    summaryPublishedAt: null,
+    intakeStartsAt: new Date(),
+    intakeEndsAt: null,
+    totalEstimatedPortions: 0,
+    totalEstimatedAmount: 0,
+    intakeLocations: [],
     ...overrides,
   };
 }
@@ -88,6 +114,7 @@ function make(
     adminWrite?: boolean;
     adminRead?: boolean;
     capability?: { publishNow: boolean };
+    pendingRevision?: boolean;
   } = {},
 ) {
   const current =
@@ -97,6 +124,18 @@ function make(
     findPublicByIdOrSlug: jest.fn(async () => current),
     isCampaignManager: jest.fn(async () => options.coordinator ?? false),
     findBeneficiary: jest.fn(async () => null),
+    listBeneficiaryPlans: jest.fn(async () => [] as unknown[]),
+    findOrganizerProfile: jest.fn(async (): Promise<unknown> => ({
+      globalId: Owner,
+      username: 'chu-du-an',
+      fullName: 'Chủ Dự Án',
+      avatarUrl: null,
+      rank: 'GOLD',
+      email: 'owner@private.test',
+      phone: '0900000001',
+    })),
+    saveSchedule: jest.fn(async (..._args: unknown[]) => undefined),
+    replaceIntakeLocations: jest.fn(async (..._args: unknown[]) => []),
   };
   const admin = {
     hasPermission: jest.fn(async (_user: string, permission: string) =>
@@ -124,7 +163,29 @@ function make(
       liveBankAccounts: 1,
     })),
     moveStage: jest.fn(async (..._args: unknown[]) => 'MOVED'),
+    getRehearsal: jest.fn(async (): Promise<unknown> => ({
+      campaignId: CampaignId,
+      checklist: [],
+      outcome: 'READY',
+      reason: null,
+      note: null,
+      decidedBy: Owner,
+      decidedAt: new Date(),
+      phase: null,
+    })),
+    saveRehearsal: jest.fn(async (params: Record<string, unknown>) => ({
+      campaignId: CampaignId,
+      ...params,
+    })),
+    distributionSettlement: jest.fn(async (): Promise<unknown> => ({
+      method: null,
+      evidenceUrls: [],
+      trackingCode: null,
+      beneficiaryAccount: null,
+    })),
     listStageCandidates: jest.fn(async () => [] as unknown[]),
+    listBlockedStageCampaigns: jest.fn(async () => [] as unknown[]),
+    listOverdueSummaries: jest.fn(async () => [] as unknown[]),
     listParties: jest.fn(async () => [
       {
         partyId: 'p1',
@@ -233,7 +294,17 @@ function make(
         : { allowed: true },
     ),
   };
-  const access = new CharityProjectAccess(campaigns as never, admin as never);
+  const changeRequests = {
+    findPending: jest.fn(async (): Promise<unknown> =>
+      options.pendingRevision ? { requestId: 'r-pending' } : null,
+    ),
+  };
+  const access = new CharityProjectAccess(
+    campaigns as never,
+    admin as never,
+    entitlements as never,
+    changeRequests as never,
+  );
   const events = {
     ensureEventSteps: jest.fn(async (..._args: unknown[]) => undefined),
     listEventSteps: jest.fn(async () => []),
@@ -334,6 +405,33 @@ describe('SubmitCharityProjectUseCase', () => {
     expect(deps.projects.submitDraft).not.toHaveBeenCalled();
   });
 
+  it('đơn vị nhận thiếu distributionAt → 409 0x13_56 beneficiaries[0].distributionAt, không gửi nháp', async () => {
+    const deps = make({ campaign: draft });
+    deps.campaigns.listBeneficiaryPlans.mockResolvedValue([
+      {
+        name: 'Xã A',
+        beneficiaryKind: 'GROUP',
+        estimatedPortions: 10,
+        estimatedAmount: 0,
+        distributionAt: null,
+        address: 'Thôn 1',
+        lat: null,
+        lng: null,
+      },
+    ]);
+    const error = await build(deps)
+      .handle({ userId: Owner, campaignId: CampaignId })
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(CharitySubmitRequirementsUnmetException);
+    expect((error as Error).message).toContain(
+      'beneficiaries[0].distributionAt',
+    );
+    expect(deps.campaigns.listBeneficiaryPlans).toHaveBeenCalledWith(
+      CampaignId,
+    );
+    expect(deps.projects.submitDraft).not.toHaveBeenCalled();
+  });
+
   it('đủ nhu cầu theo loại tiếp nhận thì gửi nháp', async () => {
     const deps = make({ campaign: draft });
     await build(deps).handle({ userId: Owner, campaignId: CampaignId });
@@ -400,6 +498,146 @@ describe('SubmitCharityProjectUseCase', () => {
         campaignId: CampaignId,
       }),
     ).rejects.toThrow(CharityProjectForbiddenException);
+  });
+});
+
+describe('Tổng duyệt và cổng chuyển giai đoạn', () => {
+  const build = (deps: ReturnType<typeof make>) =>
+    new MoveCharityStageUseCase(
+      deps.access,
+      deps.projects as never,
+      deps.campaigns as never,
+    );
+  const move = (to: 'EVENT' | 'SUMMARY') => ({
+    userId: Owner,
+    campaignId: CampaignId,
+    to,
+    reason: 'Chuyển tay',
+  });
+  const atEvent = () =>
+    make({
+      campaign: campaign({
+        operationStage: 'EVENT',
+        storedOperationStage: 'EVENT',
+      }),
+    });
+
+  it('chuyển tay EXECUTION→EVENT khi tổng duyệt NOT_READY → 409 0x13_5f, moveStage không gọi', async () => {
+    const deps = make();
+    deps.projects.getRehearsal.mockResolvedValue({
+      campaignId: CampaignId,
+      checklist: [],
+      outcome: 'NOT_READY',
+      reason: 'Chưa có xe',
+      note: null,
+      decidedBy: Owner,
+      decidedAt: new Date(),
+      phase: null,
+    });
+    await expect(build(deps).handle(move('EVENT'))).rejects.toBeInstanceOf(
+      CharityRehearsalNotReadyException,
+    );
+    expect(deps.projects.moveStage).not.toHaveBeenCalled();
+  });
+
+  it('chưa có dòng tổng duyệt → 409 0x13_5f', async () => {
+    const deps = make();
+    deps.projects.getRehearsal.mockResolvedValue(null);
+    await expect(build(deps).handle(move('EVENT'))).rejects.toBeInstanceOf(
+      CharityRehearsalNotReadyException,
+    );
+  });
+
+  it('READY → chuyển được', async () => {
+    const deps = make();
+    await build(deps).handle(move('EVENT'));
+    expect(deps.projects.moveStage).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'EVENT' }),
+    );
+  });
+
+  it("EVENT→SUMMARY thiếu bằng chứng SHIPPING → 409 0x13_59 'trackingCode'", async () => {
+    const deps = atEvent();
+    deps.projects.distributionSettlement.mockResolvedValue({
+      method: 'SHIPPING',
+      evidenceUrls: ['https://cdn.test/a.jpg'],
+      trackingCode: null,
+      beneficiaryAccount: null,
+    });
+    const failure = build(deps).handle(move('SUMMARY'));
+    await expect(failure).rejects.toBeInstanceOf(
+      CharityRoundEvidenceRequiredException,
+    );
+    await expect(failure).rejects.toThrow(/trackingCode/);
+    expect(deps.projects.moveStage).not.toHaveBeenCalled();
+  });
+
+  it('BANK_TRANSFER tài khoản chưa xác thực → 409 0x13_5b', async () => {
+    const deps = atEvent();
+    deps.projects.distributionSettlement.mockResolvedValue({
+      method: 'BANK_TRANSFER',
+      evidenceUrls: ['https://cdn.test/a.jpg'],
+      trackingCode: null,
+      beneficiaryAccount: { verified: false, live: true, sameCampaign: true },
+    });
+    await expect(build(deps).handle(move('SUMMARY'))).rejects.toBeInstanceOf(
+      CharityBeneficiaryAccountNotVerifiedException,
+    );
+  });
+
+  it('method null → SUMMARY được', async () => {
+    const deps = atEvent();
+    await build(deps).handle(move('SUMMARY'));
+    expect(deps.projects.moveStage).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'SUMMARY' }),
+    );
+  });
+
+  it('PUT rehearsal NOT_READY không lý do → 400', async () => {
+    const deps = make();
+    await expect(
+      new SaveCharityRehearsalUseCase(
+        deps.access,
+        deps.projects as never,
+      ).handle({
+        userId: Owner,
+        campaignId: CampaignId,
+        rehearsal: {
+          checklist: [],
+          outcome: 'NOT_READY',
+          reason: '  ',
+          note: null,
+        },
+      }),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+    expect(deps.projects.saveRehearsal).not.toHaveBeenCalled();
+  });
+
+  it('checklist 3 mục → lưu đủ 7', async () => {
+    const deps = make();
+    await new SaveCharityRehearsalUseCase(
+      deps.access,
+      deps.projects as never,
+    ).handle({
+      userId: Owner,
+      campaignId: CampaignId,
+      rehearsal: {
+        checklist: [
+          { key: 'RECIPIENTS', status: 'DONE', note: null },
+          { key: 'TRANSPORT', status: 'DONE', note: 'Xe 16 chỗ' },
+          { key: 'STAFF', status: 'NOT_DONE', note: null },
+        ],
+        outcome: 'READY',
+        reason: null,
+        note: null,
+      },
+    });
+    const saved = deps.projects.saveRehearsal.mock.calls[0][0] as {
+      checklist: unknown[];
+      outcome: string;
+    };
+    expect(saved.checklist).toHaveLength(7);
+    expect(saved.outcome).toBe('READY');
   });
 });
 
@@ -513,36 +751,124 @@ describe('MoveCharityStageUseCase', () => {
   });
 });
 
+describe('AdvanceCharityStagesUseCase · cổng và nhắc ban tổ chức', () => {
+  const dispatcher = () => ({
+    handle: jest.fn(async () => ({ created: true, pushedDevices: 0 })),
+  });
+
+  it('job: ứng viên chưa READY không chuyển, gửi nhắc REHEARSAL_NOT_READY một lần/ngày', async () => {
+    const deps = make();
+    deps.projects.listStageCandidates.mockResolvedValue([]);
+    deps.projects.listBlockedStageCampaigns.mockResolvedValue([
+      { campaignId: 'blocked', ownerId: Owner, reason: 'REHEARSAL_NOT_READY' },
+    ]);
+    const sender = dispatcher();
+    const result = await new AdvanceCharityStagesUseCase(
+      deps.projects as never,
+      sender as never,
+    ).handle({ limit: 10, dryRun: false });
+    expect(result).toEqual({ advanced: 0, checked: 0, reminded: 1 });
+    expect(deps.projects.moveStage).not.toHaveBeenCalled();
+    expect(sender.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: Owner,
+        type: NotificationTypes.CHARITY_ORGANIZER_REMINDER,
+        idempotencyKey: expect.stringMatching(
+          /^CHARITY_ORGANIZER_REMINDER:blocked:REHEARSAL_NOT_READY:/,
+        ),
+      }),
+    );
+  });
+
+  it('job nhắc SUMMARY_OVERDUE cho chiến dịch quá endTime chưa công khai tổng kết', async () => {
+    const deps = make();
+    deps.projects.listOverdueSummaries.mockResolvedValue([
+      { campaignId: 'overdue', ownerId: Owner },
+    ]);
+    const sender = dispatcher();
+    const result = await new AdvanceCharityStagesUseCase(
+      deps.projects as never,
+      sender as never,
+    ).handle({ limit: 10, dryRun: false });
+    expect(result.reminded).toBe(1);
+    expect(sender.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: Owner,
+        type: NotificationTypes.CHARITY_ORGANIZER_REMINDER,
+        idempotencyKey: expect.stringMatching(
+          /^CHARITY_ORGANIZER_REMINDER:overdue:SUMMARY_OVERDUE:/,
+        ),
+      }),
+    );
+  });
+
+  it('job không bao giờ EXECUTION→SUMMARY', async () => {
+    const deps = make();
+    deps.projects.listStageCandidates.mockResolvedValue([
+      {
+        campaignId: 'late',
+        stored: 'EXECUTION',
+        endTime: new Date(Date.now() - 48 * Hour),
+        distribution: {
+          startsAt: new Date(Date.now() - 72 * Hour),
+          endsAt: new Date(Date.now() - 60 * Hour),
+        },
+        rehearsalReady: true,
+        distributionSettled: true,
+      },
+    ]);
+    await new AdvanceCharityStagesUseCase(
+      deps.projects as never,
+      dispatcher() as never,
+    ).handle({ limit: 10, dryRun: false });
+    expect(deps.projects.moveStage).toHaveBeenCalledWith(
+      expect.objectContaining({ from: 'EXECUTION', to: 'EVENT' }),
+    );
+    expect(deps.projects.moveStage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'SUMMARY' }),
+    );
+  });
+});
+
 describe('AdvanceCharityStagesUseCase', () => {
   it('chỉ chuyển dự án đã tới mốc; chạy khô không ghi', async () => {
     const deps = make();
     deps.projects.listStageCandidates.mockResolvedValue([
       {
+        // EXECUTION không bao giờ nhảy thẳng SUMMARY (CR 22/11/2026): dự án đã ở EVENT.
         campaignId: 'a',
-        stored: 'EXECUTION',
+        stored: 'EVENT',
         endTime: new Date(Date.now() - Hour),
         distribution: null,
+        rehearsalReady: true,
+        distributionSettled: true,
       },
       {
         campaignId: 'b',
         stored: 'EXECUTION',
         endTime: new Date(Date.now() + Hour),
         distribution: null,
+        rehearsalReady: true,
+        distributionSettled: true,
       },
     ]);
-    const useCase = new AdvanceCharityStagesUseCase(deps.projects as never);
+    const useCase = new AdvanceCharityStagesUseCase(
+      deps.projects as never,
+      { handle: jest.fn() } as never,
+    );
     await expect(useCase.handle({ limit: 10, dryRun: true })).resolves.toEqual({
       advanced: 1,
       checked: 2,
+      reminded: 0,
     });
     expect(deps.projects.moveStage).not.toHaveBeenCalled();
     await expect(useCase.handle({ limit: 10, dryRun: false })).resolves.toEqual(
-      { advanced: 1, checked: 2 },
+      { advanced: 1, checked: 2, reminded: 0 },
     );
     expect(deps.projects.moveStage).toHaveBeenCalledWith(
       expect.objectContaining({
         campaignId: 'a',
-        from: 'EXECUTION',
+        from: 'EVENT',
         to: 'SUMMARY',
         actorId: null,
       }),
@@ -552,7 +878,8 @@ describe('AdvanceCharityStagesUseCase', () => {
 
 describe('UpdateCharityProfileUseCase · loại tiếp nhận', () => {
   it('acceptedContributionTypes undefined giữ nguyên, mảng thì thay chuẩn hoá', async () => {
-    const deps = make();
+    // Người có quyền đăng không cần duyệt: đổi loại tiếp nhận sau duyệt áp ngay (CR 22/11/2026).
+    const deps = make({ capability: { publishNow: true } });
     deps.projects.getProfile.mockResolvedValue({
       appealPurpose: null,
       appealAudience: null,
@@ -861,6 +1188,65 @@ describe('Hồ sơ tab A', () => {
     expect(deps.projects.listBeneficiaryBankAccounts).not.toHaveBeenCalled();
   });
 
+  it('public: organizer đúng năm trường, không có phone/email', async () => {
+    const deps = make();
+    const view = await new GetCharityPublicProjectUseCase(
+      deps.campaigns as never,
+      deps.projects as never,
+      deps.engagement as never,
+      deps.events as never,
+      deps.summaries as never,
+    ).handle({ idOrSlug: 'mua-dong-am', userId: null });
+    expect(view.organizer).toEqual({
+      userId: Owner,
+      username: 'chu-du-an',
+      displayName: 'Chủ Dự Án',
+      avatarUrl: null,
+      rank: 'GOLD',
+    });
+    expect(JSON.stringify(view)).not.toMatch(/owner@private|0900000001/);
+  });
+
+  it('public: hình thức trao đúng 5 khoá công khai, không có privateDetails', async () => {
+    const deps = make();
+    const operations = {
+      getDistribution: jest.fn(async () => ({
+        campaignId: CampaignId,
+        distributionMethod: 'SHIPPING',
+        contributionTypes: ['MATERIAL'],
+        serviceType: null,
+        serviceChannel: null,
+        evidenceUrls: ['https://cdn.test/e.jpg'],
+        privateDetails: {
+          recipientPhone: '0912345678',
+          recipientAddress: 'Số 9 ngõ kín',
+          trackingCode: 'VN999',
+        },
+        updatedAt: new Date(),
+      })),
+    };
+    const view = await new GetCharityPublicProjectUseCase(
+      deps.campaigns as never,
+      deps.projects as never,
+      deps.engagement as never,
+      deps.events as never,
+      deps.summaries as never,
+      operations as never,
+    ).handle({ idOrSlug: 'mua-dong-am', userId: null });
+    expect(Object.keys(view.distribution ?? {}).sort()).toEqual([
+      'contributionTypes',
+      'evidenceUrls',
+      'method',
+      'serviceChannel',
+      'serviceType',
+    ]);
+    expect(view.distribution?.method).toBe('SHIPPING');
+    const json = JSON.stringify(view);
+    expect(json).not.toContain('0912345678');
+    expect(json).not.toContain('Số 9 ngõ kín');
+    expect(json).not.toContain('VN999');
+  });
+
   it('PUT parties bỏ bên thụ hưởng thường còn tài khoản → 400; dòng kêu gọi cá nhân bỏ qua; giữ + đổi tên thì được', async () => {
     const deps = make();
     const groupParty = {
@@ -1012,7 +1398,6 @@ describe('Hồ sơ tab A', () => {
           title: 'Viện phí',
           description: null,
           beneficiaryPartyId: null,
-          receivingUnit: null,
           bankAccountId: null,
           targetAmount: 100_000,
           deadline: null,
@@ -1029,7 +1414,6 @@ describe('Hồ sơ tab A', () => {
       title: 'Viện phí',
       description: null,
       beneficiaryPartyId: null,
-      receivingUnit: null,
       bankAccountId: 'acc-closed',
       targetAmount: 100_000,
       deadline: new Date('2026-12-31T00:00:00Z'),
@@ -1043,7 +1427,6 @@ describe('Hồ sơ tab A', () => {
       title: 'Viện phí',
       description: null,
       beneficiaryPartyId: null,
-      receivingUnit: null,
       bankAccountId: 'acc-closed',
       targetAmount: 100_000,
       deadline: new Date('2026-12-31T00:00:00Z'),
@@ -1250,6 +1633,16 @@ describe('Đăng ký tham gia', () => {
     await expect(build(deps).handle(cmd)).rejects.toThrow(error);
   });
 
+  it('sau intakeEndsAt: đăng ký tuyển công sức → 409 0x13_60', async () => {
+    const deps = make({
+      campaign: campaign({ intakeEndsAt: new Date(Date.now() - 60_000) }),
+    });
+    await expect(build(deps).handle(cmd)).rejects.toThrow(
+      CharityIntakeClosedException,
+    );
+    expect(deps.projects.registerVolunteer).not.toHaveBeenCalled();
+  });
+
   it('dự án chưa duyệt hoặc đình chỉ → 404', async () => {
     await expect(
       build(make({ campaign: campaign({ isActive: false }) })).handle(cmd),
@@ -1416,5 +1809,699 @@ describe('Workspace và bản công khai', () => {
         sectionKey: 'SUMMARY',
       }),
     ).rejects.toThrow(CharitySectionEmptyException);
+  });
+});
+
+describe('PUT parties · đơn vị nhận, sàn suất, sửa sau duyệt (CR 22/11/2026)', () => {
+  const party = (
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> => ({
+    role: 'BENEFICIARY' as const,
+    name: 'Xã A',
+    address: 'Thôn 1',
+    phone: null,
+    email: null,
+    hotline: null,
+    picName: null,
+    picPhone: null,
+    picUserId: null,
+    beneficiaryKind: 'GROUP' as const,
+    evidenceUrls: [],
+    estimatedPortions: 0,
+    estimatedAmount: 0,
+    ...overrides,
+  });
+  const stored = (overrides: Record<string, unknown> = {}) => ({
+    ...party(overrides),
+    isAppealSubject: false,
+    lat: null,
+    lng: null,
+    location: null,
+    distributionAt: null,
+    consentStatus: null,
+    updatedAt: new Date(),
+  });
+  const run = (
+    deps: ReturnType<typeof make>,
+    parties: Record<string, unknown>[],
+  ) =>
+    new ReplaceCharityPartiesUseCase(
+      deps.access,
+      deps.projects as never,
+    ).handle({
+      userId: Owner,
+      campaignId: CampaignId,
+      parties: parties as never,
+    });
+  const shirts = (targetQuantity: number) => [
+    {
+      needItemId: 'n1',
+      itemName: 'Áo ấm',
+      isActive: true,
+      targetQuantity,
+      quantityPerPortion: 1,
+    },
+  ];
+
+  it('PUT parties A lên 250 khi áo 300 → 400 0x13_5d', async () => {
+    const deps = make({
+      campaign: campaign({ approvalStatus: 'PENDING_APPROVAL' }),
+    });
+    deps.projects.listParties.mockResolvedValue([] as never);
+    deps.projects.listItemNeeds.mockResolvedValue(shirts(300) as never);
+    await expect(
+      run(deps, [
+        party({ name: 'A', estimatedPortions: 250 }),
+        party({ name: 'B', estimatedPortions: 100 }),
+      ]),
+    ).rejects.toBeInstanceOf(CharityNeedBelowEstimatedPortionsException);
+    expect(deps.projects.replaceParties).not.toHaveBeenCalled();
+  });
+
+  it('tổng tiền mục tiêu < tổng ước tính → 400 0x13_5e', async () => {
+    const deps = make({
+      campaign: campaign({ approvalStatus: 'PENDING_APPROVAL' }),
+    });
+    deps.projects.listParties.mockResolvedValue([] as never);
+    deps.projects.listItemNeeds.mockResolvedValue([] as never);
+    deps.projects.listFundingNeeds.mockResolvedValue([
+      { fundingNeedId: 'f1', targetAmount: 1_000_000, status: 'OPEN' },
+    ] as never);
+    await expect(
+      run(deps, [party({ estimatedAmount: 2_000_000 })]),
+    ).rejects.toBeInstanceOf(CharityFundingBelowEstimatedAmountException);
+  });
+
+  it('sau duyệt, owner thường đổi estimatedPortions → 409 0x13_64; đổi phone → áp ngay', async () => {
+    const deps = make();
+    deps.projects.listParties.mockResolvedValue([
+      stored({ partyId: 'pa', estimatedPortions: 200 }),
+    ] as never);
+    deps.projects.listItemNeeds.mockResolvedValue([] as never);
+    await expect(
+      run(deps, [party({ partyId: 'pa', estimatedPortions: 250 })]),
+    ).rejects.toBeInstanceOf(CharityChangeRequiresReviewException);
+    expect(deps.projects.replaceParties).not.toHaveBeenCalled();
+    await run(deps, [
+      party({ partyId: 'pa', estimatedPortions: 200, phone: '0912' }),
+    ]);
+    expect(deps.projects.replaceParties).toHaveBeenCalled();
+  });
+
+  it('người được sửa thẳng đổi số suất khi có bản sửa PENDING → 409 0x13_63; đổi SĐT vẫn được (review I2)', async () => {
+    const deps = make({
+      capability: { publishNow: true },
+      pendingRevision: true,
+    });
+    deps.projects.listParties.mockResolvedValue([
+      stored({ partyId: 'pa', estimatedPortions: 200 }),
+    ] as never);
+    deps.projects.listItemNeeds.mockResolvedValue([] as never);
+    await expect(
+      run(deps, [party({ partyId: 'pa', estimatedPortions: 250 })]),
+    ).rejects.toBeInstanceOf(CharityRevisionPendingExistsException);
+    await run(deps, [
+      party({ partyId: 'pa', estimatedPortions: 200, phone: '0912' }),
+    ]);
+    expect(deps.projects.replaceParties).toHaveBeenCalledTimes(1);
+  });
+
+  it('sau duyệt, thêm hoặc bỏ một đơn vị nhận → 409 0x13_64', async () => {
+    const deps = make();
+    deps.projects.listParties.mockResolvedValue([
+      stored({ partyId: 'pa', estimatedPortions: 200 }),
+    ] as never);
+    deps.projects.listItemNeeds.mockResolvedValue([] as never);
+    await expect(
+      run(deps, [
+        party({ partyId: 'pa', estimatedPortions: 200 }),
+        party({ name: 'Xã mới' }),
+      ]),
+    ).rejects.toBeInstanceOf(CharityChangeRequiresReviewException);
+    await expect(run(deps, [])).rejects.toBeInstanceOf(
+      CharityChangeRequiresReviewException,
+    );
+  });
+
+  it('owner có quyền đăng không cần duyệt đổi estimatedPortions → áp ngay', async () => {
+    const deps = make({ capability: { publishNow: true } });
+    deps.projects.listParties.mockResolvedValue([
+      stored({ partyId: 'pa', estimatedPortions: 200 }),
+    ] as never);
+    deps.projects.listItemNeeds.mockResolvedValue([] as never);
+    await run(deps, [party({ partyId: 'pa', estimatedPortions: 250 })]);
+    expect(deps.projects.replaceParties).toHaveBeenCalled();
+  });
+
+  it('public: INDIVIDUAL address null, GROUP có address', async () => {
+    const deps = make();
+    deps.campaigns.listBeneficiaryPlans.mockResolvedValue([
+      {
+        name: 'Bà Tư',
+        beneficiaryKind: 'INDIVIDUAL',
+        estimatedPortions: 1,
+        estimatedAmount: 0,
+        distributionAt: null,
+        address: 'Số 12 ngõ 3, Hẻm Riêng',
+        lat: 21.0123,
+        lng: 105.8,
+      },
+      {
+        name: 'Xã A',
+        beneficiaryKind: 'GROUP',
+        estimatedPortions: 100,
+        estimatedAmount: 0,
+        distributionAt: null,
+        address: 'UBND xã A',
+        lat: 10.1,
+        lng: 106.2,
+      },
+    ]);
+    const view = await new GetCharityPublicProjectUseCase(
+      deps.campaigns as never,
+      deps.projects as never,
+      deps.engagement as never,
+      deps.events as never,
+      deps.summaries as never,
+    ).handle({ idOrSlug: 'mua-dong-am', userId: null });
+    expect(view.beneficiaries.map((row) => row.address)).toEqual([
+      null,
+      'UBND xã A',
+    ]);
+    expect(JSON.stringify(view)).not.toContain('Hẻm Riêng');
+    expect(JSON.stringify(view)).not.toContain('21.0123');
+  });
+});
+
+describe('SaveCharityScheduleUseCase · ba khung (CR 22/11/2026)', () => {
+  const at = (day: number) => new Date(Date.UTC(2027, 0, day));
+  const schedule = {
+    intakeStartsAt: at(1),
+    intakeEndsAt: at(10),
+    distributionStartsAt: at(12),
+    distributionEndsAt: at(13),
+    endTime: at(20),
+  };
+  const beneficiary = (name: string, distributionAt: Date) => ({
+    partyId: name,
+    role: 'BENEFICIARY',
+    name,
+    beneficiaryKind: 'GROUP',
+    isAppealSubject: false,
+    estimatedPortions: 0,
+    estimatedAmount: 0,
+    distributionAt,
+  });
+
+  it('PUT schedule rút khung trao làm đơn vị B ra ngoài → 400 0x13_5c, saveSchedule không gọi', async () => {
+    const deps = make();
+    deps.projects.listParties.mockResolvedValue([
+      beneficiary('A', at(12)),
+      beneficiary('B', new Date(at(13).getTime() + 3_600_000)),
+    ] as never);
+    const error = await new SaveCharityScheduleUseCase(
+      deps.access,
+      deps.campaigns as never,
+      deps.projects as never,
+    )
+      .handle({ userId: Owner, campaignId: CampaignId, schedule })
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(
+      CharityBeneficiaryDistributionTimeOutOfRangeException,
+    );
+    expect(
+      (
+        error as { details: { beneficiaries: { name: string }[] } }
+      ).details.beneficiaries.map((row) => row.name),
+    ).toEqual(['B']);
+    expect(deps.campaigns.saveSchedule).not.toHaveBeenCalled();
+  });
+
+  it('khung ngược thứ tự → 400 0x13_62; hợp lệ → saveSchedule ngay cả sau duyệt', async () => {
+    const deps = make();
+    deps.projects.listParties.mockResolvedValue([] as never);
+    const useCase = new SaveCharityScheduleUseCase(
+      deps.access,
+      deps.campaigns as never,
+      deps.projects as never,
+    );
+    await expect(
+      useCase.handle({
+        userId: Owner,
+        campaignId: CampaignId,
+        schedule: { ...schedule, intakeEndsAt: at(14) },
+      }),
+    ).rejects.toBeInstanceOf(CharityScheduleInvalidException);
+    await useCase.handle({ userId: Owner, campaignId: CampaignId, schedule });
+    expect(deps.campaigns.saveSchedule).toHaveBeenCalledWith(
+      expect.objectContaining({ campaignId: CampaignId, ...schedule }),
+    );
+  });
+
+  it('hạn nộp của một nhu cầu sau intakeEndsAt → 400 0x13_62', async () => {
+    const deps = make();
+    deps.projects.listParties.mockResolvedValue([] as never);
+    deps.projects.listItemNeeds.mockResolvedValue([
+      {
+        needItemId: 'n1',
+        itemName: 'Gạo',
+        isActive: true,
+        intakeDeadline: at(11),
+      },
+    ] as never);
+    await expect(
+      new SaveCharityScheduleUseCase(
+        deps.access,
+        deps.campaigns as never,
+        deps.projects as never,
+      ).handle({ userId: Owner, campaignId: CampaignId, schedule }),
+    ).rejects.toBeInstanceOf(CharityScheduleInvalidException);
+  });
+});
+
+describe('Bản sửa chờ duyệt — chủ dự án (CR 22/11/2026, Task 5.2)', () => {
+  const requests = () => ({
+    findPending: jest.fn(async (): Promise<unknown> => null),
+    upsertPending: jest.fn(async (params: Record<string, unknown>) => ({
+      requestId: 'r1',
+      status: 'PENDING',
+      ...params,
+    })),
+    withdraw: jest.fn(async () => true),
+  });
+  const storage = () => ({
+    confirmCampaignMediaUpload: jest.fn(async (key: string) => ({
+      key,
+      contentType: key.endsWith('.mp4') ? 'video/mp4' : 'image/webp',
+      publicUrl: `https://cdn.test/${key}`,
+    })),
+  });
+  const save = (
+    deps: ReturnType<typeof make>,
+    changeRequests: ReturnType<typeof requests>,
+    revision: Record<string, unknown>,
+  ) =>
+    new SaveCharityChangeRequestUseCase(
+      deps.access,
+      deps.projects as never,
+      changeRequests as never,
+      storage() as never,
+    ).handle({ userId: Owner, campaignId: CampaignId, revision } as never);
+
+  it('PUT revision trước khi duyệt → 409', async () => {
+    const deps = make({
+      campaign: campaign({
+        approvalStatus: 'PENDING_APPROVAL',
+        approvedAt: null,
+        operationStage: 'PLAN',
+        storedOperationStage: 'PLAN',
+      }),
+    });
+    const changeRequests = requests();
+    await expect(
+      save(deps, changeRequests, { title: 'Tiêu đề mới' }),
+    ).rejects.toThrow(CharityProjectNotApprovedException);
+    expect(changeRequests.upsertPending).not.toHaveBeenCalled();
+  });
+
+  it('không đổi gì so với bản đã duyệt → 400', async () => {
+    const deps = make();
+    const changeRequests = requests();
+    await expect(
+      save(deps, changeRequests, { title: campaign().title }),
+    ).rejects.toThrow(ValidationFailedException);
+  });
+
+  it('PUT revision: chỉ giữ khoá được gửi; base = ảnh chụp bản đã duyệt', async () => {
+    const deps = make();
+    const changeRequests = requests();
+    await save(deps, changeRequests, {
+      title: 'Tiêu đề mới',
+      pointBonusPercent: 50,
+    });
+    const sent = changeRequests.upsertPending.mock.calls[0][0] as {
+      proposed: Record<string, unknown>;
+      base: Record<string, unknown>;
+    };
+    expect(sent.proposed).toEqual({
+      title: 'Tiêu đề mới',
+      pointBonusPercent: 50,
+    });
+    expect(sent.base).toMatchObject({
+      title: campaign().title,
+      pointBonusPercent: 0,
+    });
+  });
+
+  it('PUT revision lần hai thay nội dung (repository giữ base)', async () => {
+    const deps = make();
+    const changeRequests = requests();
+    await save(deps, changeRequests, { title: 'Lần 1' });
+    await save(deps, changeRequests, { title: 'Lần 2' });
+    expect(changeRequests.upsertPending).toHaveBeenCalledTimes(2);
+    expect(
+      (changeRequests.upsertPending.mock.calls[1][0] as { proposed: unknown })
+        .proposed,
+    ).toEqual({ title: 'Lần 2' });
+  });
+
+  it('quá charity.max_beneficiaries_per_campaign (mặc định 20) → 400, không lưu (review M3)', async () => {
+    const deps = make();
+    const changeRequests = requests();
+    await expect(
+      save(deps, changeRequests, {
+        beneficiaries: Array.from({ length: 21 }, (_, index) => ({
+          name: `Xã ${index}`,
+          beneficiaryKind: 'GROUP',
+          estimatedPortions: 1,
+          estimatedAmount: 0,
+        })),
+      }),
+    ).rejects.toThrow(ValidationFailedException);
+    expect(changeRequests.upsertPending).not.toHaveBeenCalled();
+  });
+
+  it('hệ số 30 → 400', async () => {
+    const deps = make();
+    await expect(
+      save(deps, requests(), { pointBonusPercent: 30 }),
+    ).rejects.toThrow(ValidationFailedException);
+  });
+
+  it('DELETE revision: không có bản chờ → 404; người không phải chủ → 403', async () => {
+    const deps = make();
+    const changeRequests = requests();
+    changeRequests.withdraw.mockResolvedValueOnce(false);
+    const withdraw = new WithdrawCharityChangeRequestUseCase(
+      deps.access,
+      changeRequests as never,
+    );
+    await expect(
+      withdraw.handle({ userId: Owner, campaignId: CampaignId }),
+    ).rejects.toThrow(CharityCampaignNotFoundException);
+    await expect(
+      withdraw.handle({ userId: Stranger, campaignId: CampaignId }),
+    ).rejects.toThrow();
+  });
+
+  it('GET revision: workspace thấy bản đang chờ', async () => {
+    const deps = make();
+    const changeRequests = requests();
+    changeRequests.findPending.mockResolvedValueOnce({ requestId: 'r9' });
+    const result = await new GetCharityChangeRequestUseCase(
+      deps.access,
+      changeRequests as never,
+    ).handle({ userId: Owner, campaignId: CampaignId });
+    expect(result).toEqual({ request: { requestId: 'r9' } });
+  });
+
+  it('PUT profile acceptedContributionTypes sau duyệt → 409 0x13_64; giữ nguyên giá trị thì được', async () => {
+    const deps = make();
+    deps.projects.getProfile.mockResolvedValue({
+      appealPurpose: null,
+      appealAudience: null,
+      appealCircumstance: null,
+      callToActions: [],
+      acceptedContributionTypes: ['MONEY'] as never,
+      maxBankAccounts: null,
+    });
+    const useCase = new UpdateCharityProfileUseCase(
+      deps.access,
+      deps.projects as never,
+    );
+    await expect(
+      useCase.handle({
+        userId: Owner,
+        campaignId: CampaignId,
+        profile: { acceptedContributionTypes: ['MATERIAL'] },
+      }),
+    ).rejects.toThrow(CharityChangeRequiresReviewException);
+    await useCase.handle({
+      userId: Owner,
+      campaignId: CampaignId,
+      profile: { acceptedContributionTypes: ['MONEY'] },
+    });
+    expect(deps.projects.updateProfile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Bản sửa chờ duyệt — Admin duyệt (CR 22/11/2026, Task 5.3)', () => {
+  const pendingRequest = (proposed: Record<string, unknown>) => ({
+    requestId: 'r1',
+    campaignId: CampaignId,
+    status: 'PENDING',
+    proposed,
+    base: { title: campaign().title },
+    submittedBy: Owner,
+    submittedAt: new Date(),
+    decidedBy: null,
+    decidedAt: null,
+    decisionReason: null,
+  });
+  const build = (proposed: Record<string, unknown>) => {
+    const deps = make({ adminWrite: true });
+    const changeRequests = {
+      findPending: jest.fn(async (): Promise<unknown> =>
+        pendingRequest(proposed),
+      ),
+      decide: jest.fn(async (params: { status: string }) => ({
+        ...pendingRequest(proposed),
+        status: params.status,
+      })),
+      applyApproved: jest.fn(async () => ({
+        ...pendingRequest(proposed),
+        status: 'APPROVED',
+      })),
+    };
+    const appendAudit = jest.fn(async () => undefined);
+    const admin = {
+      hasPermission: jest.fn(async () => true),
+      getConfigValue: jest.fn(async () => null),
+      appendAudit,
+    };
+    const notifier = { changeRequestDecided: jest.fn(async () => undefined) };
+    const useCase = new DecideCharityChangeRequestUseCase(
+      deps.campaigns as never,
+      deps.projects as never,
+      changeRequests as never,
+      admin as never,
+      { confirmCampaignMediaUpload: jest.fn() } as never,
+      notifier as never,
+    );
+    return { deps, changeRequests, appendAudit, notifier, useCase };
+  };
+  const unit = (estimatedPortions: number, partyId?: string) => ({
+    ...(partyId ? { partyId } : {}),
+    name: partyId ? `Đơn vị ${partyId}` : 'Đơn vị mới',
+    beneficiaryKind: 'GROUP',
+    estimatedPortions,
+    estimatedAmount: 0,
+  });
+
+  it('duyệt bản sửa làm tổng suất 300→400 khi áo 300 → 400 0x13_5d, bản sửa vẫn PENDING, không appendAudit', async () => {
+    const { deps, changeRequests, appendAudit, useCase } = build({
+      beneficiaries: [unit(300, 'pa'), unit(100)],
+    });
+    deps.projects.listItemNeeds.mockResolvedValue([
+      {
+        needItemId: 'n1',
+        itemName: 'Áo ấm',
+        isActive: true,
+        targetQuantity: 300,
+        quantityPerPortion: 1,
+      },
+    ] as never);
+    await expect(
+      useCase.handle({
+        actorUserId: Stranger,
+        campaignId: CampaignId,
+        approve: true,
+      }),
+    ).rejects.toThrow(CharityNeedBelowEstimatedPortionsException);
+    expect(changeRequests.applyApproved).not.toHaveBeenCalled();
+    expect(changeRequests.decide).not.toHaveBeenCalled();
+    expect(appendAudit).not.toHaveBeenCalled();
+  });
+
+  it('duyệt hợp lệ → applyApproved, appendAudit APPROVE, notifier gọi owner', async () => {
+    const { changeRequests, appendAudit, notifier, useCase } = build({
+      title: 'Tiêu đề mới',
+      pointBonusPercent: 50,
+    });
+    await useCase.handle({
+      actorUserId: Stranger,
+      campaignId: CampaignId,
+      approve: true,
+    });
+    expect(changeRequests.applyApproved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: Stranger,
+        campaign: expect.objectContaining({
+          title: 'Tiêu đề mới',
+          pointBonusPercent: 50,
+        }),
+      }),
+    );
+    expect(appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'CHARITY_CHANGE_REQUEST_APPROVE' }),
+    );
+    expect(notifier.changeRequestDecided).toHaveBeenCalledWith(
+      expect.objectContaining({ ownerId: Owner, approved: true }),
+    );
+  });
+
+  it('audit lỗi SAU khi đã áp → vẫn trả bản sửa APPROVED (không 500), vẫn báo chủ (review M4)', async () => {
+    const { appendAudit, notifier, useCase } = build({ title: 'Tiêu đề mới' });
+    appendAudit.mockRejectedValueOnce(new Error('mất kết nối audit'));
+    await expect(
+      useCase.handle({
+        actorUserId: Stranger,
+        campaignId: CampaignId,
+        approve: true,
+      }),
+    ).resolves.toMatchObject({ request: { status: 'APPROVED' } });
+    expect(notifier.changeRequestDecided).toHaveBeenCalled();
+  });
+
+  it('từ chối không lý do → 400', async () => {
+    const { changeRequests, useCase } = build({ title: 'X mới' });
+    await expect(
+      useCase.handle({
+        actorUserId: Stranger,
+        campaignId: CampaignId,
+        approve: false,
+        reason: '   ',
+      }),
+    ).rejects.toThrow(ValidationFailedException);
+    expect(changeRequests.decide).not.toHaveBeenCalled();
+  });
+
+  it('từ chối → không áp, audit REJECT, báo owner kèm lý do', async () => {
+    const { changeRequests, appendAudit, notifier, useCase } = build({
+      title: 'X mới',
+    });
+    await useCase.handle({
+      actorUserId: Stranger,
+      campaignId: CampaignId,
+      approve: false,
+      reason: 'Tiêu đề chưa rõ',
+    });
+    expect(changeRequests.applyApproved).not.toHaveBeenCalled();
+    expect(changeRequests.decide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'REJECTED',
+        reason: 'Tiêu đề chưa rõ',
+      }),
+    );
+    expect(appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'CHARITY_CHANGE_REQUEST_REJECT' }),
+    );
+    expect(notifier.changeRequestDecided).toHaveBeenCalledWith(
+      expect.objectContaining({ approved: false, reason: 'Tiêu đề chưa rõ' }),
+    );
+  });
+
+  it('bỏ đơn vị còn tài khoản thụ hưởng đang hiệu lực → 400, không áp, vẫn PENDING (review I3)', async () => {
+    const { deps, changeRequests, useCase } = build({ beneficiaries: [] });
+    deps.projects.listParties.mockResolvedValue([
+      {
+        partyId: 'pa',
+        role: 'BENEFICIARY',
+        name: 'Xã A',
+        isAppealSubject: false,
+        beneficiaryKind: 'GROUP',
+        estimatedPortions: 10,
+        estimatedAmount: 0,
+      },
+    ] as never);
+    deps.projects.listBeneficiaryBankAccounts.mockResolvedValue([
+      { accountId: 'acc', partyId: 'pa', validTo: null },
+    ] as never);
+    await expect(
+      useCase.handle({
+        actorUserId: Stranger,
+        campaignId: CampaignId,
+        approve: true,
+      }),
+    ).rejects.toThrow(ValidationFailedException);
+    expect(changeRequests.applyApproved).not.toHaveBeenCalled();
+  });
+
+  it('dời giờ trao của đơn vị ĐANG CÓ ra ngoài khung trao → 400 0x13_5c (review I4)', async () => {
+    const { deps, changeRequests, useCase } = build({
+      beneficiaries: [
+        {
+          partyId: 'pa',
+          name: 'Xã A',
+          beneficiaryKind: 'GROUP',
+          estimatedPortions: 0,
+          estimatedAmount: 0,
+          distributionAt: '2030-01-01T00:00:00Z',
+        },
+      ],
+    });
+    deps.campaigns.findByGlobalId.mockResolvedValue(
+      campaign({
+        distribution: {
+          startsAt: new Date('2026-12-20T00:00:00Z'),
+          endsAt: new Date('2026-12-21T00:00:00Z'),
+        },
+      }) as never,
+    );
+    await expect(
+      useCase.handle({
+        actorUserId: Stranger,
+        campaignId: CampaignId,
+        approve: true,
+      }),
+    ).rejects.toThrow(CharityBeneficiaryDistributionTimeOutOfRangeException);
+    expect(changeRequests.applyApproved).not.toHaveBeenCalled();
+  });
+
+  it('không có bản chờ → 404', async () => {
+    const { changeRequests, useCase } = build({});
+    changeRequests.findPending.mockResolvedValueOnce(null);
+    await expect(
+      useCase.handle({
+        actorUserId: Stranger,
+        campaignId: CampaignId,
+        approve: true,
+      }),
+    ).rejects.toThrow(CharityCampaignNotFoundException);
+  });
+});
+
+describe('Sửa thẳng trường cần duyệt khi đang có bản sửa chờ (review I2)', () => {
+  it('đổi loại tiếp nhận (người được sửa thẳng) khi có bản PENDING → 409 0x13_63', async () => {
+    const deps = make({
+      capability: { publishNow: true },
+      pendingRevision: true,
+    });
+    deps.projects.getProfile.mockResolvedValue({
+      appealPurpose: null,
+      appealAudience: null,
+      appealCircumstance: null,
+      callToActions: [],
+      acceptedContributionTypes: ['MONEY'] as never,
+      maxBankAccounts: null,
+    });
+    const useCase = new UpdateCharityProfileUseCase(
+      deps.access,
+      deps.projects as never,
+    );
+    await expect(
+      useCase.handle({
+        userId: Owner,
+        campaignId: CampaignId,
+        profile: { acceptedContributionTypes: ['MATERIAL'] },
+      }),
+    ).rejects.toThrow(CharityRevisionPendingExistsException);
+    // Trường không cần duyệt vẫn sửa được.
+    await useCase.handle({
+      userId: Owner,
+      campaignId: CampaignId,
+      profile: { appealPurpose: 'Mục đích mới' },
+    });
+    expect(deps.projects.updateProfile).toHaveBeenCalledTimes(1);
   });
 });

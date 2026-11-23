@@ -194,8 +194,8 @@ một câu hỏi" ở tài liệu đóng góp.
 | Chuyển | Điều kiện |
 | --- | --- |
 | `PLAN → EXECUTION` | Admin duyệt (hoặc public ngay theo capability `PUBLISH_CHARITY_WITHOUT_REVIEW`) |
-| `EXECUTION → EVENT` | Tới `campaign_phases.DISTRIBUTION.starts_at`, hoặc organizer chuyển sớm |
-| `EVENT → SUMMARY` | Qua `DISTRIBUTION.ends_at`, hoặc organizer chuyển |
+| `EXECUTION → EVENT` | Tới `campaign_phases.DISTRIBUTION.starts_at` **và** tổng duyệt `READY` (CR 22/11/2026), hoặc organizer chuyển sớm (vẫn cần `READY`) |
+| `EVENT → SUMMARY` | Qua `DISTRIBUTION.ends_at` **và** bước trao hoàn tất, hoặc organizer chuyển (vẫn cần hoàn tất) |
 | Quay lại | Chỉ organizer/Admin, bắt buộc lý do |
 
 - Chuyển theo thời gian chạy bằng tác vụ ngoài tiến trình mới `npm run charity:advance-stage`
@@ -462,6 +462,10 @@ chuyển tầng/tự đóng khi quá hạn. Quyền Admin: dùng `report.resolve
 - Tương thích: dữ liệu cũ `show_name_publicly = false`.
 
 ### 3.18 Các trường hợp vận hành bổ sung (chốt 05/11)
+
+> **Cập nhật 22/11/2026 (CR `docs/plans/2026-11-22-charity-campaign-supervisor-rehearsal.md` §9):**
+> phần **"nhiều đợt trao"** dưới đây **đã bỏ** — mỗi chiến dịch một lần đi trao, hình thức trao và
+> bằng chứng ở cấp chiến dịch, một timeline, một tổng duyệt.
 
 Các mục dưới đây bổ sung để tránh hở nghiệp vụ, không thay đổi form A/B/C/D của khách:
 

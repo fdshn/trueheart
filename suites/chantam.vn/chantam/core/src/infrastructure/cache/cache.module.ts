@@ -1,6 +1,11 @@
-import { IHomeLayoutCache, IPresenceStore } from '@/domain/ports/cache';
+import {
+  IHomeLayoutCache,
+  IPointFeedCache,
+  IPresenceStore,
+} from '@/domain/ports/cache';
 import { Global, Module } from '@nestjs/common';
 import { HomeLayoutCache } from './home-layout-cache';
+import { PointFeedCache } from './point-feed-cache';
 import { PresenceStore } from './presence-store';
 
 /**
@@ -15,7 +20,8 @@ import { PresenceStore } from './presence-store';
   providers: [
     { provide: IHomeLayoutCache, useClass: HomeLayoutCache },
     { provide: IPresenceStore, useClass: PresenceStore },
+    { provide: IPointFeedCache, useClass: PointFeedCache },
   ],
-  exports: [IHomeLayoutCache, IPresenceStore],
+  exports: [IHomeLayoutCache, IPresenceStore, IPointFeedCache],
 })
 export class CacheModule {}

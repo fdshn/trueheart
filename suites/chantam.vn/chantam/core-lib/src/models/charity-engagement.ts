@@ -74,9 +74,18 @@ export const CharityRevisionPolicies: Readonly<
       'appealAudience',
       'appealCircumstance',
       'callToActions',
+      // Trường cần duyệt (CR 22/11/2026 §3.17): ghi khi Admin duyệt bản sửa.
+      'title',
+      'description',
+      'media',
+      'pointBonusPercent',
+      'acceptedContributionTypes',
     ],
     isPrivate: never,
-    isImportant: never,
+    isImportant: (field) =>
+      ['pointBonusPercent', 'media', 'acceptedContributionTypes'].includes(
+        field,
+      ),
   },
   PARTY: {
     fields: [
@@ -84,6 +93,7 @@ export const CharityRevisionPolicies: Readonly<
       'name',
       'beneficiaryKind',
       'address',
+      'location',
       'hotline',
       'email',
       'phone',
@@ -91,14 +101,27 @@ export const CharityRevisionPolicies: Readonly<
       'picPhone',
       'picUserId',
       'evidenceUrls',
+      'estimatedPortions',
+      'estimatedAmount',
+      'distributionAt',
     ],
-    // Bên thụ hưởng chỉ công khai tên và loại; đơn vị khác công khai địa chỉ/hotline/email.
-    isPrivate: (field, row) =>
-      ['phone', 'picName', 'picPhone', 'picUserId', 'evidenceUrls'].includes(
-        field,
-      ) ||
-      (row.role === 'BENEFICIARY' &&
-        ['address', 'hotline', 'email'].includes(field)),
+    // Không bao giờ công khai: số điện thoại, người phụ trách, ảnh hồ sơ. Địa chỉ/toạ độ: riêng
+    // tư với cá nhân (`INDIVIDUAL`), công khai với tập thể (`GROUP`) — CR 22/11/2026 §3.17d.
+    // Bên thụ hưởng giữ hotline/email riêng tư như trước.
+    isPrivate: (field, row) => {
+      if (
+        ['phone', 'picName', 'picPhone', 'picUserId', 'evidenceUrls'].includes(
+          field,
+        )
+      )
+        return true;
+      if (field === 'address' || field === 'location')
+        return (
+          row.beneficiaryKind === 'INDIVIDUAL' ||
+          (row.role === 'BENEFICIARY' && row.beneficiaryKind !== 'GROUP')
+        );
+      return row.role === 'BENEFICIARY' && ['hotline', 'email'].includes(field);
+    },
     isImportant: (_field, row) => row.role === 'BENEFICIARY',
   },
   TEAM: {
@@ -129,8 +152,9 @@ export const CharityRevisionPolicies: Readonly<
     ],
     isPrivate: (field) => ['picName', 'picPhone', 'picUserId'].includes(field),
     isImportant: (field, row) =>
-      row.phase === 'DISTRIBUTION' &&
-      ['*', 'startsAt', 'endsAt', 'deliveryMethod'].includes(field),
+      (row.phase === 'DISTRIBUTION' &&
+        ['*', 'startsAt', 'endsAt', 'deliveryMethod'].includes(field)) ||
+      (row.phase === 'REHEARSAL' && ['*', 'startsAt'].includes(field)),
   },
   NEED_ITEM: {
     fields: [
@@ -172,7 +196,6 @@ export const CharityRevisionPolicies: Readonly<
       'title',
       'description',
       'beneficiaryPartyId',
-      'receivingUnit',
       'bankAccountId',
       'targetAmount',
       'deadline',
@@ -393,8 +416,6 @@ export const CharityAnnouncementKinds = [
   'PRE_EVENT',
   /** Tổng kết được công khai (đợt 4). */
   'SUMMARY_PUBLISHED',
-  /** Một đợt trao bị hoãn, đổi giờ/địa điểm hoặc huỷ (đợt 5c, §3.18). */
-  'ROUND_CHANGED',
 ] as const;
 export type CharityAnnouncementKind = (typeof CharityAnnouncementKinds)[number];
 
@@ -444,4 +465,21 @@ export function charityShareLink(
     (sectionKey ? `?section=${sectionKey}` : '');
   const base = webPublicBaseUrl.replace(/\/+$/, '');
   return { sharePath, shareUrl: base ? `${base}${sharePath}` : null };
+}
+
+/**
+ * Chiến dịch đã KẾT THÚC chưa (CR 22/11/2026 §3.17c): tổng kết đã công khai, hoặc Admin đã
+ * đóng (inactive và qua `endTime`). Quá `endTime` mà chưa công khai tổng kết thì vẫn đang tổng
+ * kết, không tính là kết thúc.
+ */
+export function isEndedProject(
+  input: {
+    readonly isActive: boolean;
+    readonly endTime: Date;
+    readonly summaryPublishedAt: Date | null;
+  },
+  now: Date,
+): boolean {
+  if (input.summaryPublishedAt !== null) return true;
+  return !input.isActive && input.endTime.getTime() <= now.getTime();
 }

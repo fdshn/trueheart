@@ -33,6 +33,15 @@ const DefaultMinAgeHours = 24;
  * bị xoá sạch — nên thêm bảng mới có lưu key thì PHẢI thêm vào đây.
  */
 const LiveKeySources: readonly { sql: string; label: string }[] = [
+  {
+    // Media đề xuất trong bản sửa đang chờ duyệt (CR 22/11/2026): chưa gắn vào chiến dịch nhưng
+    // sẽ được gắn khi Admin duyệt — xoá là bản sửa không duyệt được nữa.
+    label: 'campaign_change_requests.proposed.media',
+    sql: `SELECT jsonb_array_elements_text(proposed->'media'->'keys') AS value
+          FROM campaign_change_requests
+          WHERE status = 'PENDING'
+            AND jsonb_typeof(proposed->'media'->'keys') = 'array'`,
+  },
   { label: 'post_media', sql: 'SELECT r2_key AS value FROM post_media' },
   {
     label: 'campaign_media',
@@ -46,11 +55,12 @@ const LiveKeySources: readonly { sql: string; label: string }[] = [
     sql: 'SELECT storage_key AS value FROM campaign_post_media',
   },
   {
-    // Ảnh bằng chứng của từng đợt trao.
-    label: 'campaign_distribution_rounds.evidence_urls',
-    sql: `SELECT jsonb_array_elements_text(evidence_urls) AS value
-          FROM campaign_distribution_rounds
-          WHERE jsonb_typeof(evidence_urls) = 'array'`,
+    // Ảnh bằng chứng trao của chiến dịch (công khai). Đã bỏ đợt trao (CR 22/11/2026): thiếu
+    // nguồn này là job xoá sạch bằng chứng trao.
+    label: 'campaigns.distribution_evidence_urls',
+    sql: `SELECT jsonb_array_elements_text(distribution_evidence_urls) AS value
+          FROM campaigns
+          WHERE jsonb_typeof(distribution_evidence_urls) = 'array'`,
   },
   {
     // Bằng chứng của đơn vị liên quan / bên thụ hưởng (đợt 1) là URL tải lên qua luồng media.

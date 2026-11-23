@@ -1,7 +1,7 @@
 import {
+  ICharityCampaignDistribution,
+  ICharityCampaignDistributionInput,
   ICharityPhase,
-  ICharityRound,
-  ICharityRoundInput,
   ICharitySupportNeed,
   ICharitySupportNeedExternal,
   ICharitySupportNeedInput,
@@ -9,11 +9,7 @@ import {
 } from '@/domain/ports/repository';
 import {
   CharityCompletionBlocker,
-  CharityDistributionMethod,
-  CharityRoundReadiness,
-  CharityRoundWarningCode,
   CharitySupportOfferDecision,
-  ICharityRoundChecklistItem,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 import { ICharityProjectCommand } from './charity-project.contract';
@@ -138,95 +134,37 @@ export const IPostponeCharityDistributionUseCase = Symbol(
   'IPostponeCharityDistributionUseCase',
 );
 
-// ── Đợt trao (§3.18) ────────────────────────────────────────────────────────
+// ── Hình thức trao cấp chiến dịch (CR 22/11/2026) ───────────────────────
 
-export interface ICharityRoundView extends ICharityRound {
-  /** Cảnh báo trước 48 giờ — chỉ để thấy, không tự huỷ hay chặn (§3.4). */
-  warnings: CharityRoundWarningCode[];
-}
-
-/** Bản công khai: không có ghi chú sẵn sàng, checklist nội bộ, người xác nhận. */
-export type ICharityRoundPublic = Omit<
-  ICharityRound,
-  | 'readiness'
-  | 'readinessNote'
-  | 'readinessBy'
-  | 'readinessAt'
-  | 'checklist'
-  | 'privateDetails'
-  | 'needsReview'
->;
-
-export interface IListCharityRoundsUseCase extends IUseCase<
-  { idOrSlug: string },
-  ICharityRoundPublic[]
-> {}
-export const IListCharityRoundsUseCase = Symbol('IListCharityRoundsUseCase');
-
-export interface IManageCharityRoundsUseCase extends IUseCase<
+export interface IGetCharityDistributionUseCase extends IUseCase<
   ICharityProjectCommand,
-  ICharityRoundView[]
+  ICharityCampaignDistribution | null
 > {}
-export const IManageCharityRoundsUseCase = Symbol(
-  'IManageCharityRoundsUseCase',
+export const IGetCharityDistributionUseCase = Symbol(
+  'IGetCharityDistributionUseCase',
 );
 
-export interface ISaveCharityRoundCommand extends ICharityProjectCommand {
-  readonly roundId: string | null;
-  /**
-   * `distributionMethod` bỏ trống (undefined) khi PATCH = giữ nguyên mọi trường hình thức trao
-   * đã lưu (client cũ); `null` = đợt kiểu cũ, chỉ hợp lệ khi đợt chưa có hình thức.
-   */
-  readonly round: Omit<ICharityRoundInput, 'distributionMethod'> & {
-    readonly distributionMethod?: CharityDistributionMethod | null;
-  };
-  /** Bắt buộc khi đổi giờ / địa điểm đợt của dự án đã duyệt (báo người bị ảnh hưởng). */
-  readonly reason: string | null;
+export interface ISaveCharityDistributionCommand extends ICharityProjectCommand {
+  readonly distribution: ICharityCampaignDistributionInput;
 }
-export interface ISaveCharityRoundUseCase extends IUseCase<
-  ISaveCharityRoundCommand,
-  ICharityRoundView
+export interface ISaveCharityDistributionUseCase extends IUseCase<
+  ISaveCharityDistributionCommand,
+  ICharityCampaignDistribution
 > {}
-export const ISaveCharityRoundUseCase = Symbol('ISaveCharityRoundUseCase');
-
-export interface ISetCharityRoundStatusCommand extends ICharityProjectCommand {
-  readonly roundId: string;
-  readonly status: 'DONE' | 'CANCELLED';
-  readonly reason: string | null;
-}
-export interface ISetCharityRoundStatusUseCase extends IUseCase<
-  ISetCharityRoundStatusCommand,
-  ICharityRoundView
-> {}
-export const ISetCharityRoundStatusUseCase = Symbol(
-  'ISetCharityRoundStatusUseCase',
+export const ISaveCharityDistributionUseCase = Symbol(
+  'ISaveCharityDistributionUseCase',
 );
 
-export interface ISetCharityRoundReadinessCommand extends ICharityProjectCommand {
-  readonly roundId: string;
-  readonly readiness: Exclude<CharityRoundReadiness, 'PENDING'>;
-  readonly note: string | null;
-  readonly checklist: Partial<ICharityRoundChecklistItem>[];
+export interface ISaveCharityDistributionEvidenceCommand extends ICharityProjectCommand {
+  readonly evidenceUrls: string[];
 }
-export interface ISetCharityRoundReadinessUseCase extends IUseCase<
-  ISetCharityRoundReadinessCommand,
-  ICharityRoundView
+export interface ISaveCharityDistributionEvidenceUseCase extends IUseCase<
+  ISaveCharityDistributionEvidenceCommand,
+  ICharityCampaignDistribution
 > {}
-export const ISetCharityRoundReadinessUseCase = Symbol(
-  'ISetCharityRoundReadinessUseCase',
+export const ISaveCharityDistributionEvidenceUseCase = Symbol(
+  'ISaveCharityDistributionEvidenceUseCase',
 );
-
-export interface IAssignCharityRoundCommand extends ICharityProjectCommand {
-  /** `null` = gỡ khỏi đợt. */
-  readonly roundId: string | null;
-  readonly participationIds: string[];
-  readonly deliveryIds: string[];
-}
-export interface IAssignCharityRoundUseCase extends IUseCase<
-  IAssignCharityRoundCommand,
-  { participations: number; deliveries: number }
-> {}
-export const IAssignCharityRoundUseCase = Symbol('IAssignCharityRoundUseCase');
 
 // ── Hoàn tất dự án (§3.18) ──────────────────────────────────────────────────
 

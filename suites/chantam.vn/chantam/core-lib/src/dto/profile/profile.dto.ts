@@ -32,6 +32,8 @@ export interface IUpdateOwnProfileDto {
   showOnlineStatus?: boolean;
   /** Mặc định hiện nickname trong danh sách người ủng hộ/tham gia dự án từ thiện. Bỏ trống = giữ nguyên. */
   showInPublicSupporterLists?: boolean;
+  /** Hiện mình trên bảng tin điểm công khai (CR 22/11/2026). Bỏ trống = giữ nguyên. */
+  showInPublicPointFeed?: boolean;
   /** Cho người chưa từng trò chuyện mở phòng chat trực tiếp với mình. Bỏ trống = giữ nguyên. */
   allowStrangerMessages?: boolean;
   /** Bỏ trống = giữ nguyên; `null` hoặc chuỗi trắng = xoá. */
@@ -126,6 +128,8 @@ export interface IOwnProfileDto {
   showOnlineStatus?: boolean;
   /** Mặc định hiện tên trong danh sách công khai của dự án từ thiện — chỉ chính chủ thấy. */
   showInPublicSupporterLists?: boolean;
+  /** Hiện trên bảng tin điểm công khai (mặc định bật) — chỉ chính chủ thấy. */
+  showInPublicPointFeed?: boolean;
   /** Cài đặt "Cho phép người lạ nhắn tin" — chỉ chính chủ thấy. */
   allowStrangerMessages?: boolean;
   /** Huy hiệu bảng thành tích còn hạn — gồm cả huy hiệu giành lúc ẩn danh. */

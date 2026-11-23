@@ -59,6 +59,8 @@ import {
   CharityAppealOrganizerSlaDaysConfigKey,
   CharityAppealWindowDaysConfigKey,
   CharityMaxBankAccountsConfigKey,
+  CharityMaxBeneficiariesConfigKey,
+  CharityMaxIntakeLocationsConfigKey,
   CharityPointCapConfigKeys,
   CharityPostAfterEventHoursConfigKey,
   CharityPostDailyImageQuotaConfigKey,
@@ -70,6 +72,9 @@ import {
   InnocentModerationCorpus,
   ModerationTermsConfigKey,
   NotificationRetentionConfigKey,
+  PointFeedDisplayIntervalMsConfigKey,
+  PointFeedMinDeltaConfigKey,
+  PointFeedPollSecondsConfigKey,
   PointRedemptionConfigKey,
   ReferralReviewMinClusterSizeConfigKey,
   ReferralReviewMinDeviceClustersConfigKey,
@@ -143,6 +148,13 @@ const RequiredKeys: readonly string[] = [
   DirectUserDailyLimitConfigKey,
   // Dự án từ thiện — `CharityProjectAccess.maxBankAccounts` đọc.
   CharityMaxBankAccountsConfigKey,
+  // CR 22/11/2026: số đơn vị nhận / điểm tiếp nhận tối đa (tạo chiến dịch, PUT parties, bản sửa).
+  CharityMaxBeneficiariesConfigKey,
+  CharityMaxIntakeLocationsConfigKey,
+  // CR 22/11/2026: bảng tin điểm — `GetPointFeedUseCase` đọc cả ba.
+  PointFeedMinDeltaConfigKey,
+  PointFeedPollSecondsConfigKey,
+  PointFeedDisplayIntervalMsConfigKey,
   CharityPostDailyImageQuotaConfigKey,
   CharityPostDailyVideoQuotaConfigKey,
   ...CharityPointCapConfigKeys,

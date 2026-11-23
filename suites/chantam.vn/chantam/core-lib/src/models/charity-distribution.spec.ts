@@ -1,15 +1,16 @@
 import {
+  charityDistributionEvidenceGaps,
   charityDistributionFieldGaps,
   CharityDistributionMethod,
   charityDistributionMismatch,
-  charityRoundEvidenceGaps,
-  ICharityRoundDistributionInput,
+  charityDistributionSettled,
+  ICharityDistributionInput,
   stripInapplicableDistributionFields,
 } from './charity-distribution';
 
 const completeInputs: Record<
   CharityDistributionMethod,
-  ICharityRoundDistributionInput
+  ICharityDistributionInput
 > = {
   DIRECT_RECIPIENT: {
     distributionMethod: 'DIRECT_RECIPIENT',
@@ -149,10 +150,9 @@ describe('quy tắc hình thức trao theo đợt', () => {
         'privateDetails.estimatedShippingFee',
       ],
     ],
-    [
-      'OTHER_LOCATION',
-      ['locationLabel', 'address', 'privateDetails.coordinatorName'],
-    ],
+    // Cấp chiến dịch (CR 22/11/2026): địa điểm trao là địa chỉ của các đơn vị nhận / điểm
+    // tiếp nhận, nên OTHER_LOCATION chỉ còn bắt buộc người phụ trách.
+    ['OTHER_LOCATION', ['privateDetails.coordinatorName']],
     ['BANK_TRANSFER', ['privateDetails.transferContent']],
     [
       'SERVICE',
@@ -168,8 +168,7 @@ describe('quy tắc hình thức trao theo đợt', () => {
         const [scope, key] = field.split('.');
         if (key)
           input.privateDetails[key as keyof typeof input.privateDetails] = null;
-        else
-          input[scope as keyof ICharityRoundDistributionInput] = null as never;
+        else input[scope as keyof ICharityDistributionInput] = null as never;
         expect(charityDistributionFieldGaps(input)).toEqual([field]);
       }
     },
@@ -196,15 +195,16 @@ describe('quy tắc hình thức trao theo đợt', () => {
     ).toEqual(['privateDetails.coordinatorName']);
   });
 
-  it('OTHER_LOCATION cần địa chỉ nếu chỉ có một toạ độ', () => {
+  it('OTHER_LOCATION không còn bắt buộc nhãn hay địa chỉ điểm trao', () => {
     expect(
       charityDistributionFieldGaps({
         ...completeInputs.OTHER_LOCATION,
+        locationLabel: null,
         address: null,
-        lat: 10.7,
+        lat: null,
         lng: null,
       }),
-    ).toEqual(['address']);
+    ).toEqual([]);
   });
 
   it('từ chối BANK_TRANSFER không nhận MONEY', () => {
@@ -220,7 +220,7 @@ describe('quy tắc hình thức trao theo đợt', () => {
     const legacy = { ...completeInputs.SERVICE, distributionMethod: null };
     expect(charityDistributionFieldGaps(legacy)).toEqual([]);
     expect(
-      charityRoundEvidenceGaps({
+      charityDistributionEvidenceGaps({
         distributionMethod: null,
         evidenceUrls: [],
         trackingCode: null,
@@ -230,7 +230,7 @@ describe('quy tắc hình thức trao theo đợt', () => {
 
   it('SHIPPING có bằng chứng nhưng thiếu mã vận đơn', () => {
     expect(
-      charityRoundEvidenceGaps({
+      charityDistributionEvidenceGaps({
         distributionMethod: 'SHIPPING',
         evidenceUrls: ['https://example.com/evidence.jpg'],
         trackingCode: null,
@@ -240,7 +240,7 @@ describe('quy tắc hình thức trao theo đợt', () => {
 
   it('mọi round mới cần bằng chứng', () => {
     expect(
-      charityRoundEvidenceGaps({
+      charityDistributionEvidenceGaps({
         distributionMethod: 'SERVICE',
         evidenceUrls: [],
         trackingCode: null,
@@ -301,7 +301,7 @@ describe('quy tắc hình thức trao theo đợt', () => {
   });
 
   it('chỉ BANK_TRANSFER giữ tài khoản thụ hưởng gắn với đợt', () => {
-    const linked = (input: ICharityRoundDistributionInput) =>
+    const linked = (input: ICharityDistributionInput) =>
       stripInapplicableDistributionFields({
         ...input,
         privateDetails: {
@@ -311,5 +311,55 @@ describe('quy tắc hình thức trao theo đợt', () => {
       }).privateDetails.beneficiaryBankAccountId;
     expect(linked(completeInputs.BANK_TRANSFER)).toBe('acc-1');
     expect(linked(completeInputs.SERVICE)).toBeNull();
+  });
+});
+
+describe('charityDistributionSettled', () => {
+  const base = {
+    evidenceUrls: ['https://cdn.example.com/a.jpg'],
+    trackingCode: null,
+  };
+
+  it('BANK_TRANSFER có bằng chứng nhưng tài khoản chưa xác thực thì chưa xong', () => {
+    expect(
+      charityDistributionSettled({
+        ...base,
+        distributionMethod: 'BANK_TRANSFER',
+        beneficiaryAccount: { verified: false, live: true, sameCampaign: true },
+      }),
+    ).toEqual(
+      expect.objectContaining({ settled: false, accountVerified: false }),
+    );
+  });
+
+  it('BANK_TRANSFER thiếu tài khoản thì chưa xong', () => {
+    expect(
+      charityDistributionSettled({
+        ...base,
+        distributionMethod: 'BANK_TRANSFER',
+        beneficiaryAccount: null,
+      }).settled,
+    ).toBe(false);
+  });
+
+  it('BANK_TRANSFER đủ bằng chứng và tài khoản hợp lệ thì xong', () => {
+    expect(
+      charityDistributionSettled({
+        ...base,
+        distributionMethod: 'BANK_TRANSFER',
+        beneficiaryAccount: { verified: true, live: true, sameCampaign: true },
+      }),
+    ).toEqual({ settled: true, evidenceGaps: [], accountVerified: true });
+  });
+
+  it('chiến dịch cũ không có hình thức luôn coi là xong', () => {
+    expect(
+      charityDistributionSettled({
+        distributionMethod: null,
+        evidenceUrls: [],
+        trackingCode: null,
+        beneficiaryAccount: null,
+      }).settled,
+    ).toBe(true);
   });
 });

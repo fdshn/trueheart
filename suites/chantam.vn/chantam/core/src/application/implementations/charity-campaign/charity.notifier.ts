@@ -138,6 +138,42 @@ export class CharityNotifier {
     });
   }
 
+  /**
+   * Báo CHỦ DỰ ÁN kết quả duyệt bản sửa (CR 22/11/2026). Dùng loại sẵn có
+   * `CHARITY_PLAN_CHANGED` với `pushData.changeRequest` để app phân biệt; người theo dõi đã
+   * nhận thông báo thay đổi riêng qua lịch sử sửa.
+   */
+  public async changeRequestDecided(params: {
+    campaignId: string;
+    campaignTitle: string;
+    ownerId: string | null;
+    requestId: string;
+    approved: boolean;
+    reason: string | null;
+  }): Promise<void> {
+    if (!params.ownerId) return;
+    await this.send({
+      userId: params.ownerId,
+      type: NotificationTypes.CHARITY_PLAN_CHANGED,
+      title: params.approved
+        ? 'Bản sửa đã được duyệt'
+        : 'Bản sửa chưa được duyệt',
+      body: params.approved
+        ? `Các thay đổi của "${params.campaignTitle}" đã được áp dụng.`
+        : `Bản sửa của "${params.campaignTitle}" bị từ chối${params.reason ? `: ${params.reason}` : '.'}`,
+      referenceType: 'CHARITY_CAMPAIGN',
+      referenceId: params.campaignId,
+      target: {
+        type: NotificationTargetTypes.CHARITY_CAMPAIGN,
+        id: params.campaignId,
+      },
+      pushData: {
+        changeRequest: params.approved ? 'APPROVED' : 'REJECTED',
+      },
+      idempotencyKey: `CHARITY_CHANGE_REQUEST:${params.requestId}`,
+    });
+  }
+
   private async send(
     command: Parameters<IDispatchNotificationUseCase['handle']>[0],
   ): Promise<void> {

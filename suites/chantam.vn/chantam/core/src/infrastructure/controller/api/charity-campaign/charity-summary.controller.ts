@@ -5,6 +5,7 @@ import {
   IGetMyCharityEvaluationUseCase,
   IListCharityEvaluationsUseCase,
   IListCharityHomeCardsUseCase,
+  IListCharityMembersUseCase,
   IPublishCharitySummaryUseCase,
   IRequestCharityPromotionUseCase,
   ISaveCharityFinancialReportUseCase,
@@ -33,7 +34,10 @@ import {
 } from '@chantam/service.auth-lib';
 import { ApiErrorResponses } from '@chantam/service.common-lib/decorators';
 import { ResponseDto } from '@chantam/service.common-lib/dto';
-import { ForbiddenException } from '@chantam/service.common-lib/exception';
+import {
+  ForbiddenException,
+  ValidationFailedException,
+} from '@chantam/service.common-lib/exception';
 import {
   Body,
   Controller,
@@ -54,7 +58,10 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { CharityProjectParamsDto } from '../../dto/charity-campaign/charity-project.dto';
+import {
+  CharityProjectIdOrSlugParamsDto,
+  CharityProjectParamsDto,
+} from '../../dto/charity-campaign/charity-project.dto';
 import {
   CharityEvaluationBoardResponseDto,
   CharityEvaluationBodyDto,
@@ -63,6 +70,8 @@ import {
   CharityFinancialReportResponseDto,
   CharityHomeCardsQueryDto,
   CharityHomeCardsResponseDto,
+  CharityMembersQueryDto,
+  CharityMembersResponseDto,
   CharityMyEvaluationResponseDto,
   CharityProjectContributionParamsDto,
   CharityProjectReportParamsDto,
@@ -112,7 +121,35 @@ export class CharitySummaryController {
     private readonly publicNameUseCase: ISetCharityPublicNameUseCase,
     @Inject(IRequestCharityPromotionUseCase)
     private readonly promotionRequestUseCase: IRequestCharityPromotionUseCase,
+    @Inject(IListCharityMembersUseCase)
+    private readonly membersUseCase: IListCharityMembersUseCase,
   ) {}
+
+  @Get(':idOrSlug/members')
+  @Public()
+  @ApiOperation({
+    summary: 'Thành viên công khai của dự án (CR 22/11/2026)',
+    description:
+      '`type`: `CONTRIBUTOR` (đóng góp hiện vật được nhận — hiện tên theo từng đóng góp; hỗ trợ dịch vụ được nhận — theo cài đặt chung của người dùng), `PARTICIPANT`, `SUPERVISOR` (lượt đã xác nhận/check-in/hoàn thành, hiện tên theo lượt). Gộp theo người, thứ tự `joinedAt ASC, userId ASC`, phân trang bằng `cursor`. Người ẩn tên chỉ được đếm ở `anonymousCount`; tài khoản đã xoá không tính. Không có SĐT, email, số lượng hay số tiền. Dự án chưa công khai/đình chỉ → `404`.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(CharityMembersResponseDto) })
+  @ApiErrorResponses(CharityCampaignNotFoundException, [
+    ValidationFailedException,
+    ['cursor: không hợp lệ'],
+  ])
+  public async members(
+    @Param() params: CharityProjectIdOrSlugParamsDto,
+    @Query() query: CharityMembersQueryDto,
+  ) {
+    return ok(
+      await this.membersUseCase.handle({
+        idOrSlug: params.idOrSlug,
+        type: query.type,
+        limit: query.limit ?? 20,
+        cursor: query.cursor,
+      }),
+    );
+  }
 
   @Get(':id/summary')
   @ApiBearerAuth()

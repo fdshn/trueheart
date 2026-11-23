@@ -1,6 +1,7 @@
 import {
   IPostAuthorDto,
   IPublicAuthorSummaryDto,
+  IPublicUserProfileDto,
 } from '@chantam.vn/chantam.core-lib/dto';
 import { IUserEntity } from '@chantam.vn/chantam.core-lib/entities';
 
@@ -38,5 +39,22 @@ export function toPublicAuthorSummary(
     fullName: displayName(user.fullName),
     avatarUrl: user.avatarUrl,
     rank: user.rank,
+  };
+}
+
+/** Năm trường hồ sơ công khai (CR 22/11/2026) — `displayName` = họ tên, trống thì `username`. */
+export function toPublicUserProfile(
+  user: Pick<
+    IUserEntity,
+    'globalId' | 'username' | 'fullName' | 'avatarUrl' | 'rank'
+  >,
+): IPublicUserProfileDto {
+  const summary = toPublicAuthorSummary(user);
+  return {
+    userId: user.globalId,
+    username: summary.username,
+    displayName: summary.fullName ?? summary.username,
+    avatarUrl: summary.avatarUrl,
+    rank: summary.rank,
   };
 }

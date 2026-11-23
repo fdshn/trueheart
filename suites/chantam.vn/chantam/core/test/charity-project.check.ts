@@ -15,20 +15,34 @@
  *
  *   npm run test:charity-project
  */
+import {
+  charityDistributionSettled,
+  isPubliclyVisibleProject,
+  vietnamDayStart,
+} from '@chantam.vn/chantam.core-lib/models';
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { SubmitCharityContributionUseCase } from '../src/application/implementations/charity-campaign/charity-campaign.use-cases';
 import { GetCharityPublicStatsUseCase } from '../src/application/implementations/charity-project/charity-engagement.use-cases';
 import {
   AddCharityBeneficiaryBankAccountUseCase,
+  AdvanceCharityStagesUseCase,
   CharityProjectAccess,
+  DecideCharityChangeRequestUseCase,
+  GetCharityPublicProjectUseCase,
   ReplaceCharityPartiesUseCase,
+  SaveCharityChangeRequestUseCase,
 } from '../src/application/implementations/charity-project/charity-project.use-cases';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
+import { CharityChangeRequestRepository } from '../src/infrastructure/repository/charity-change-request.repository';
+import { CampaignDistributionSettledSql } from '../src/infrastructure/repository/charity-distribution.sql';
 import { CharityEngagementRepository } from '../src/infrastructure/repository/charity-engagement.repository';
+import { CharityEventRepository } from '../src/infrastructure/repository/charity-event.repository';
 import { CharityProjectRepository } from '../src/infrastructure/repository/charity-project.repository';
+import { CharitySummaryRepository } from '../src/infrastructure/repository/charity-summary.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 
 loadEnvFile({ path: '.env.local' });
@@ -191,6 +205,105 @@ async function main(): Promise<void> {
       readBack?.fullName === 'Bà Ba',
     );
 
+    console.log(
+      '\n0b. Migration 1804100000000: đơn vị nhận, suất, điểm tiếp nhận',
+    );
+    for (;;) {
+      const [last] = await sql(
+        `SELECT name FROM migrations ORDER BY id DESC LIMIT 1`,
+      );
+      await dataSource.undoLastMigration();
+      if (last.name === 'CharityBeneficiaryPlanAndSchedule1804100000000') break;
+    }
+    const IntakePrep = id('30');
+    const IntakeDist = id('31');
+    const IntakeNone = id('32');
+    for (const [campaignId, slug, label] of [
+      [IntakePrep, 'intake-prep', 'Chùa Bửu Long'],
+      [IntakeDist, 'intake-dist', null],
+      [IntakeNone, 'intake-none', null],
+    ] as const)
+      await sql(
+        `INSERT INTO campaigns
+           (global_id, title, slug, description, banner_url, badge_name, start_time, end_time,
+            created_by, location_label, location)
+         VALUES ($1, 'Lịch cũ', $2, 'Mô tả đủ dài cho lịch cũ', 'https://cdn.test/a.jpg', 'Ấm',
+                 '2026-12-01T00:00:00Z', '2026-12-31T00:00:00Z', $3, $4::text,
+                 CASE WHEN $4::text IS NULL THEN NULL
+                      ELSE ST_SetSRID(ST_MakePoint(106.7, 10.8), 4326)::geography END)`,
+        [campaignId, slug, Owner, label],
+      );
+    await sql(
+      `INSERT INTO campaign_phases (campaign_id, phase, starts_at, ends_at) VALUES
+         ($1, 'PREPARATION', '2026-12-02T00:00:00Z', '2026-12-10T00:00:00Z'),
+         ($1, 'DISTRIBUTION', '2026-12-12T00:00:00Z', '2026-12-13T00:00:00Z'),
+         ($2, 'DISTRIBUTION', '2026-12-14T00:00:00Z', '2026-12-15T00:00:00Z')`,
+      [IntakePrep, IntakeDist],
+    );
+    await dataSource.runMigrations();
+    const intakeRows = await sql(
+      `SELECT global_id, intake_ends_at FROM campaigns
+        WHERE global_id = ANY($1::uuid[])`,
+      [[IntakePrep, IntakeDist, IntakeNone]],
+    );
+    const intakeEnd = (campaignId: string) =>
+      new Date(
+        intakeRows.find(
+          (row: { global_id: string }) => row.global_id === campaignId,
+        ).intake_ends_at,
+      ).toISOString();
+    check(
+      'intake_ends_at: PREPARATION.ends_at → DISTRIBUTION.starts_at → end_time',
+      intakeEnd(IntakePrep) === '2026-12-10T00:00:00.000Z' &&
+        intakeEnd(IntakeDist) === '2026-12-14T00:00:00.000Z' &&
+        intakeEnd(IntakeNone) === '2026-12-31T00:00:00.000Z',
+      JSON.stringify(intakeRows),
+    );
+    const intakeLocations = await sql(
+      `SELECT campaign_id, position, label,
+              ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng
+         FROM campaign_intake_locations
+        WHERE campaign_id = ANY($1::uuid[])`,
+      [[IntakePrep, IntakeDist, IntakeNone]],
+    );
+    check(
+      'location_label cũ thành điểm tiếp nhận position 0, cùng toạ độ; dự án không có địa điểm thì không có điểm',
+      intakeLocations.length === 1 &&
+        intakeLocations[0].campaign_id === IntakePrep &&
+        intakeLocations[0].position === 0 &&
+        intakeLocations[0].label === 'Chùa Bửu Long' &&
+        Math.abs(intakeLocations[0].lat - 10.8) < 1e-6 &&
+        Math.abs(intakeLocations[0].lng - 106.7) < 1e-6,
+      JSON.stringify(intakeLocations),
+    );
+    const rejected = async (query: string, params: unknown[]) => {
+      try {
+        await sql(query, params);
+        return false;
+      } catch (error) {
+        return String((error as { code?: string }).code) === '23514';
+      }
+    };
+    check(
+      'quantity_per_portion = 0 bị chặn; estimated_portions = -1 bị chặn',
+      (await rejected(
+        `INSERT INTO campaign_need_items (campaign_id, item_name, unit, target_quantity, quantity_per_portion)
+         VALUES ($1, 'Gạo', 'kg', 10, 0)`,
+        [IntakePrep],
+      )) &&
+        (await rejected(
+          `INSERT INTO campaign_parties (campaign_id, role, name, estimated_portions)
+           VALUES ($1, 'BENEFICIARY', 'Xã A', -1)`,
+          [IntakePrep],
+        )),
+    );
+    const [configs] = await sql(
+      `SELECT count(*)::int AS total FROM system_configs
+        WHERE config_key IN ('charity.max_beneficiaries_per_campaign',
+                             'charity.max_intake_locations')`,
+    );
+    check('hai khoá cấu hình mới đã gieo', configs.total === 2);
+
     console.log('\n1. Nháp và gửi duyệt');
     await insertCampaign(Draft, 'nhap', 'PENDING_APPROVAL', false, 'PLAN');
     const decidedDraft = await campaigns.decideApproval({
@@ -198,6 +311,7 @@ async function main(): Promise<void> {
       approverId: Admin,
       approve: true,
       note: null,
+      pointBonusPercent: 0,
     });
     const pending = await campaigns.listForAdmin({
       limit: 50,
@@ -232,6 +346,7 @@ async function main(): Promise<void> {
       approverId: Admin,
       approve: true,
       note: null,
+      pointBonusPercent: 0,
     });
     const events = await projects.listStageEvents(Draft);
     check(
@@ -297,10 +412,36 @@ async function main(): Promise<void> {
         },
       ],
     });
+    const heldLive = await campaigns.findByGlobalId(Live);
+    const heldCandidates = await projects.listStageCandidates(50);
+    const heldBlocked = await projects.listBlockedStageCampaigns(
+      50,
+      'chua-nhac',
+    );
+    check(
+      'tới giờ trao nhưng tổng duyệt chưa READY: đọc ra vẫn EXECUTION, job không nhặt, vào danh sách nhắc',
+      heldLive?.operationStage === 'EXECUTION' &&
+        !heldCandidates.some((c) => c.campaignId === Live) &&
+        heldBlocked.some(
+          (row) =>
+            row.campaignId === Live &&
+            row.ownerId === Owner &&
+            row.reason === 'REHEARSAL_NOT_READY',
+        ),
+      `${heldLive?.operationStage} ${JSON.stringify(heldBlocked)}`,
+    );
+    await projects.saveRehearsal({
+      campaignId: Live,
+      actorId: Owner,
+      checklist: [],
+      outcome: 'READY',
+      reason: null,
+      note: null,
+    });
     const live = await campaigns.findByGlobalId(Live);
     const candidates = await projects.listStageCandidates(50);
     check(
-      'tới giờ trao: đọc ra EVENT dù cột vẫn EXECUTION; job nhặt dự án này',
+      'tổng duyệt READY + tới giờ trao: đọc ra EVENT dù cột vẫn EXECUTION; job nhặt dự án này',
       live?.operationStage === 'EVENT' &&
         live.storedOperationStage === 'EXECUTION' &&
         candidates.some((c) => c.campaignId === Live) &&
@@ -380,6 +521,30 @@ async function main(): Promise<void> {
         second.some((p) => p.isAppealSubject && p.name === 'Ông Tư') &&
         !second.some((p) => p.name === 'Bản Hoa'),
       JSON.stringify(second.map((p) => p.name)),
+    );
+
+    await sql(
+      `INSERT INTO campaign_parties (campaign_id, role, name, beneficiary_kind,
+                                     estimated_portions, estimated_amount)
+       VALUES ($1, 'BENEFICIARY', 'Xã A', 'GROUP', 200, 3000000),
+              ($1, 'BENEFICIARY', 'Xã B', 'GROUP', 100, 1000000),
+              ($1, 'ORGANIZER', 'UBND', NULL, 999, 999)`,
+      [IntakePrep],
+    );
+    const planned = await campaigns.findByGlobalId(IntakePrep);
+    check(
+      'findByGlobalId: totalEstimatedPortions/Amount = tổng các đơn vị BENEFICIARY; có intakeLocations, intakeEndsAt',
+      planned?.totalEstimatedPortions === 300 &&
+        planned.totalEstimatedAmount === 4000000 &&
+        planned.intakeLocations.length === 1 &&
+        planned.intakeLocations[0].label === 'Chùa Bửu Long' &&
+        planned.intakeEndsAt?.toISOString() === '2026-12-10T00:00:00.000Z' &&
+        planned.intakeStartsAt.getTime() === planned.startTime.getTime(),
+      JSON.stringify({
+        portions: planned?.totalEstimatedPortions,
+        amount: planned?.totalEstimatedAmount,
+        locations: planned?.intakeLocations,
+      }),
     );
 
     console.log('\n4. Tài khoản nhận');
@@ -521,7 +686,6 @@ async function main(): Promise<void> {
         title: 'Tiền xe',
         description: null,
         beneficiaryPartyId: null,
-        receivingUnit: null,
         bankAccountId: null,
         targetAmount: 5_000_000,
         deadline: null,
@@ -865,6 +1029,7 @@ async function main(): Promise<void> {
     const addOwnerAccount = new AddCharityBeneficiaryBankAccountUseCase(
       new CharityProjectAccess(campaigns, {
         hasPermission: async () => false,
+        getConfigValue: async () => null,
       } as never),
       projects,
     );
@@ -901,34 +1066,58 @@ async function main(): Promise<void> {
         ownerAccount.verifiedAt === null,
       String(nullNameCode),
     );
-    const replaceParties = new ReplaceCharityPartiesUseCase(
-      new CharityProjectAccess(campaigns, {
-        hasPermission: async () => false,
-      } as never),
-      projects,
-    );
+    const fakeAdmin = {
+      hasPermission: async () => false,
+      getConfigValue: async () => null,
+    } as never;
     const partiesNow = await projects.listParties(Live);
     const keptOrganizer = partiesNow.find((p) => p.role === 'ORGANIZER')!;
     const appealSubject = partiesNow.find((p) => p.isAppealSubject)!;
+    const groupInput = {
+      role: 'BENEFICIARY' as const,
+      name: 'Nhóm Hoa',
+      address: null,
+      phone: null,
+      email: null,
+      hotline: null,
+      picName: null,
+      picPhone: null,
+      picUserId: null,
+      beneficiaryKind: 'GROUP' as const,
+      evidenceUrls: [],
+    };
+    // Sau duyệt, chủ dự án KHÔNG có quyền đăng không cần duyệt thêm đơn vị nhận → 409.
+    let reviewCode = 0;
+    try {
+      await new ReplaceCharityPartiesUseCase(
+        new CharityProjectAccess(campaigns, fakeAdmin, {
+          getCapability: async () => ({ allowed: false }),
+        } as never),
+        projects,
+      ).handle({
+        userId: Owner,
+        campaignId: Live,
+        parties: [keptOrganizer, groupInput],
+      });
+    } catch (error) {
+      reviewCode = Number((error as { code?: number }).code);
+    }
+    check(
+      'sau duyệt: chủ dự án thường thêm đơn vị nhận → 409 CHARITY_CHANGE_REQUIRES_REVIEW, không ghi',
+      reviewCode === 0x13_64 &&
+        !(await projects.listParties(Live)).some((p) => p.name === 'Nhóm Hoa'),
+      String(reviewCode),
+    );
+    const replaceParties = new ReplaceCharityPartiesUseCase(
+      new CharityProjectAccess(campaigns, fakeAdmin, {
+        getCapability: async () => ({ allowed: true }),
+      } as never),
+      projects,
+    );
     const withGroup = await replaceParties.handle({
       userId: Owner,
       campaignId: Live,
-      parties: [
-        keptOrganizer,
-        {
-          role: 'BENEFICIARY',
-          name: 'Nhóm Hoa',
-          address: null,
-          phone: null,
-          email: null,
-          hotline: null,
-          picName: null,
-          picPhone: null,
-          picUserId: null,
-          beneficiaryKind: 'GROUP',
-          evidenceUrls: [],
-        },
-      ],
+      parties: [keptOrganizer, groupInput],
     });
     const groupParty = withGroup.find((p) => p.name === 'Nhóm Hoa')!;
     const beneficiaryOf = async (partyId: string, accountName: string) => {
@@ -1050,6 +1239,739 @@ async function main(): Promise<void> {
          VALUES ($1, 'REPORTING', now(), now() + interval '1 day', 'SHIP')`,
         [Draft],
       )) === '23514',
+    );
+    // ── Tổng duyệt và điều kiện hoàn tất bước trao (CR 22/11/2026) ──────────
+    console.log('\n9. Tổng duyệt và bước trao cấp chiến dịch');
+    const savedRehearsal = await projects.saveRehearsal({
+      campaignId: Live,
+      actorId: Owner,
+      checklist: [
+        { key: 'RECIPIENTS', status: 'DONE', note: null },
+        { key: 'GOODS_AND_FUNDS', status: 'DONE', note: null },
+        { key: 'TRANSPORT', status: 'DONE', note: 'Xe 16 chỗ' },
+        { key: 'STAFF', status: 'DONE', note: null },
+        { key: 'SUPERVISORS', status: 'DONE', note: null },
+        { key: 'VENUE_AND_TIME', status: 'DONE', note: null },
+        { key: 'LOCAL_CONTACT', status: 'DONE', note: null },
+      ],
+      outcome: 'READY',
+      reason: null,
+      note: null,
+    });
+    check(
+      'ghi tổng duyệt READY ghi decided_at, đọc lại đủ 7 mục',
+      savedRehearsal.outcome === 'READY' &&
+        savedRehearsal.decidedAt instanceof Date &&
+        savedRehearsal.checklist.length === 7,
+      JSON.stringify(savedRehearsal),
+    );
+    const keptRehearsal = await projects.saveRehearsal({
+      campaignId: Live,
+      actorId: Owner,
+      checklist: [],
+      outcome: undefined,
+      reason: null,
+      note: 'Chỉ sửa ghi chú',
+    });
+    check(
+      'bỏ trống outcome giữ kết quả READY đã lưu',
+      keptRehearsal.outcome === 'READY' &&
+        keptRehearsal.note === 'Chỉ sửa ghi chú',
+      JSON.stringify(keptRehearsal),
+    );
+    const [closedAccount] = await sql(
+      `INSERT INTO campaign_beneficiary_bank_accounts
+         (campaign_id, holder_type, bank_name, account_no, account_name,
+          verified_at, verified_by, valid_to, close_reason, closed_by)
+       VALUES ($1, 'OWNER', 'VCB', '99887766', 'Chu du an', now(), $2,
+               now(), 'Đóng thử', $2)
+       RETURNING global_id`,
+      [Live, Owner],
+    );
+    await sql(
+      `UPDATE campaigns SET distribution_method = 'BANK_TRANSFER',
+              distribution_contribution_types = ARRAY['MONEY']::text[],
+              distribution_evidence_urls = '["https://cdn.test/bt.jpg"]'::jsonb
+        WHERE global_id = $1`,
+      [Live],
+    );
+    await sql(
+      `INSERT INTO campaign_distribution_private_details
+         (campaign_id, beneficiary_bank_account_id, transfer_content)
+       VALUES ($1, $2, 'Chuyen tien')
+       ON CONFLICT (campaign_id) DO UPDATE
+         SET beneficiary_bank_account_id = EXCLUDED.beneficiary_bank_account_id`,
+      [Live, closedAccount.global_id],
+    );
+    const settlement = await projects.distributionSettlement(Live);
+    check(
+      'BANK_TRANSFER gắn tài khoản đã đóng (dù đã xác thực) → live = false',
+      settlement.method === 'BANK_TRANSFER' &&
+        settlement.beneficiaryAccount?.live === false &&
+        settlement.beneficiaryAccount.verified === true &&
+        settlement.beneficiaryAccount.sameCampaign === true,
+      JSON.stringify(settlement),
+    );
+    const phasesWithRehearsal = await projects.replacePhases({
+      campaignId: Live,
+      actorId: Owner,
+      phases: [
+        {
+          phase: 'PREPARATION',
+          startsAt: new Date(Date.now() - 20 * Hour),
+          endsAt: new Date(Date.now() - 12 * Hour),
+          picName: null,
+          picUserId: null,
+          hotline: null,
+          deliveryMethod: null,
+          reportMode: null,
+        },
+        {
+          phase: 'REHEARSAL',
+          startsAt: new Date(Date.now() - 11 * Hour),
+          endsAt: new Date(Date.now() - 2 * Hour),
+          picName: 'Anh Tư',
+          picUserId: null,
+          hotline: null,
+          deliveryMethod: null,
+          reportMode: null,
+        },
+        {
+          phase: 'DISTRIBUTION',
+          startsAt: new Date(Date.now() - Hour),
+          endsAt: new Date(Date.now() + 5 * Hour),
+          picName: null,
+          picUserId: null,
+          hotline: null,
+          deliveryMethod: null,
+          reportMode: null,
+        },
+      ],
+    });
+    check(
+      'PUT phases nhận REHEARSAL nằm giữa PREPARATION và DISTRIBUTION, đọc ra đúng thứ tự',
+      JSON.stringify(
+        (phasesWithRehearsal ?? []).map((phase) => phase.phase),
+      ) === JSON.stringify(['PREPARATION', 'REHEARSAL', 'DISTRIBUTION']) &&
+        (await projects.getRehearsal(Live))?.phase?.picName === 'Anh Tư',
+      JSON.stringify(phasesWithRehearsal),
+    );
+
+    // ── Job có cổng: hàng bị giữ không chiếm LIMIT, nhắc ban tổ chức (CR 22/11/2026) ──
+    console.log('\n10. Job chuyển giai đoạn có cổng');
+    const Gated = [id('20'), id('21'), id('22'), id('23')];
+    const LateExecution = id('24');
+    const ShippingEvent = id('25');
+    const insertGated = async (
+      campaignId: string,
+      stage: string,
+      phaseStart: string,
+      phaseEnd: string,
+      endTime: string,
+    ) => {
+      await sql(
+        `INSERT INTO campaigns
+           (global_id, title, slug, description, banner_url, badge_name, start_time, end_time,
+            created_by, approval_status, approved_at, approved_by, campaign_type,
+            operation_stage)
+         VALUES ($1, $4, $5, 'Mô tả đủ dài cho chiến dịch có cổng',
+                 'https://cdn.test/a.jpg', 'Ấm', now() - interval '10 days', ${endTime},
+                 $2, 'APPROVED', now(), $2, 'ORGANIZED_CAMPAIGN', $3)`,
+        [campaignId, Owner, stage, `Cổng ${campaignId}`, `cong-${campaignId}`],
+      );
+      await sql(
+        `INSERT INTO campaign_phases (campaign_id, phase, starts_at, ends_at)
+         VALUES ($1, 'DISTRIBUTION', ${phaseStart}, ${phaseEnd})`,
+        [campaignId],
+      );
+    };
+    for (const campaignId of Gated)
+      await insertGated(
+        campaignId,
+        'EXECUTION',
+        "now() - interval '1 hour'",
+        "now() + interval '5 hours'",
+        "now() + interval '1 day'",
+      );
+    await projects.saveRehearsal({
+      campaignId: Gated[3],
+      actorId: Owner,
+      checklist: [],
+      outcome: 'READY',
+      reason: null,
+      note: null,
+    });
+    const allReady = await projects.listStageCandidates(1000);
+    const limited = await projects.listStageCandidates(allReady.length);
+    check(
+      '3 chiến dịch bị giữ (id nhỏ hơn) không chiếm LIMIT: chiến dịch READY vẫn được nhặt',
+      allReady.some((c) => c.campaignId === Gated[3]) &&
+        !allReady.some((c) => Gated.slice(0, 3).includes(c.campaignId)) &&
+        limited.some((c) => c.campaignId === Gated[3]) &&
+        limited.every((c) => c.rehearsalReady),
+      JSON.stringify(limited.map((c) => c.campaignId)),
+    );
+    const blockedRows = await projects.listBlockedStageCampaigns(
+      1000,
+      vietnamDayStart(new Date()).toISOString(),
+    );
+    check(
+      'danh sách nhắc có đúng 3 chiến dịch chưa READY với lý do REHEARSAL_NOT_READY',
+      Gated.slice(0, 3).every((campaignId) =>
+        blockedRows.some(
+          (row) =>
+            row.campaignId === campaignId &&
+            row.reason === 'REHEARSAL_NOT_READY',
+        ),
+      ) && !blockedRows.some((row) => row.campaignId === Gated[3]),
+      JSON.stringify(blockedRows),
+    );
+    // Review M5: chiến dịch đã được nhắc HÔM NAY không chiếm LIMIT của các lượt job sau trong
+    // ngày — chiến dịch kế tiếp được nhắc thay vì bị bỏ đói.
+    const reminderDay = vietnamDayStart(new Date()).toISOString();
+    await sql(
+      `INSERT INTO notifications (global_id, user_id, type, title, body, idempotency_key)
+       VALUES (gen_random_uuid(), $1, 'CHARITY_ORGANIZER_REMINDER', 'Nhắc', 'Nhắc', $2)`,
+      [
+        Owner,
+        `CHARITY_ORGANIZER_REMINDER:${Gated[0]}:REHEARSAL_NOT_READY:${reminderDay}`,
+      ],
+    );
+    const afterReminded = await projects.listBlockedStageCampaigns(
+      1,
+      reminderDay,
+    );
+    check(
+      'đã nhắc Gated[0] hôm nay → lượt LIMIT 1 kế tiếp nhặt chiến dịch khác (review M5)',
+      afterReminded.length === 1 && afterReminded[0].campaignId !== Gated[0],
+      JSON.stringify(afterReminded),
+    );
+
+    await insertGated(
+      LateExecution,
+      'EXECUTION',
+      "now() - interval '3 days'",
+      "now() - interval '2 days'",
+      "now() - interval '1 day'",
+    );
+    const sent: { idempotencyKey?: string | null; userId: string }[] = [];
+    const job = new AdvanceCharityStagesUseCase(projects, {
+      handle: async (command: {
+        idempotencyKey?: string | null;
+        userId: string;
+      }) => {
+        sent.push(command);
+        return { created: true, pushedDevices: 0 };
+      },
+    } as never);
+    const jobResult = await job.handle({ limit: 1000, dryRun: false });
+    const lateAfter = await campaigns.findByGlobalId(LateExecution);
+    const readyAfter = await campaigns.findByGlobalId(Gated[3]);
+    check(
+      'EXECUTION quá giờ kết thúc mà chưa READY: job giữ nguyên EXECUTION, gửi nhắc REHEARSAL_NOT_READY',
+      lateAfter?.storedOperationStage === 'EXECUTION' &&
+        lateAfter.operationStage === 'EXECUTION' &&
+        sent.some(
+          (command) =>
+            command.userId === Owner &&
+            String(command.idempotencyKey).startsWith(
+              `CHARITY_ORGANIZER_REMINDER:${LateExecution}:REHEARSAL_NOT_READY:`,
+            ),
+        ) &&
+        jobResult.reminded >= 4,
+      `${lateAfter?.storedOperationStage} ${JSON.stringify(jobResult)}`,
+    );
+    check(
+      'chiến dịch READY tới giờ trao: job ghi EXECUTION → EVENT',
+      readyAfter?.storedOperationStage === 'EVENT',
+      String(readyAfter?.storedOperationStage),
+    );
+
+    const overdueRows = await projects.listOverdueSummaries(1000, 'chua-nhac');
+    check(
+      'listOverdueSummaries: chiến dịch mở, quá end_time, chưa công khai tổng kết (job nhắc SUMMARY_OVERDUE)',
+      overdueRows.some(
+        (row) => row.campaignId === LateExecution && row.ownerId === Owner,
+      ) && !overdueRows.some((row) => row.campaignId === Gated[0]),
+      JSON.stringify(overdueRows),
+    );
+    await sql(
+      `INSERT INTO campaign_summaries (campaign_id, summary, published_at)
+       VALUES ($1, 'Xong', now())`,
+      [LateExecution],
+    );
+    check(
+      'công khai tổng kết -> rời danh sách quá hạn',
+      !(await projects.listOverdueSummaries(1000, 'chua-nhac')).some(
+        (row) => row.campaignId === LateExecution,
+      ),
+    );
+
+    await insertGated(
+      ShippingEvent,
+      'EVENT',
+      "now() - interval '3 days'",
+      "now() - interval '2 days'",
+      "now() - interval '1 day'",
+    );
+    await sql(
+      `UPDATE campaigns SET distribution_method = 'SHIPPING',
+              distribution_contribution_types = ARRAY['MATERIAL']::text[],
+              distribution_evidence_urls = '["https://cdn.test/ship.jpg"]'::jsonb
+        WHERE global_id = $1`,
+      [ShippingEvent],
+    );
+    await sql(
+      `INSERT INTO campaign_distribution_private_details (campaign_id, carrier)
+       VALUES ($1, 'GHN')`,
+      [ShippingEvent],
+    );
+    const settledParity = async () => {
+      const stored = await projects.distributionSettlement(ShippingEvent);
+      const ts = charityDistributionSettled({
+        distributionMethod: stored.method,
+        evidenceUrls: stored.evidenceUrls,
+        trackingCode: stored.trackingCode,
+        beneficiaryAccount: stored.beneficiaryAccount,
+      }).settled;
+      const [row] = await sql(
+        `SELECT ${CampaignDistributionSettledSql('campaigns')} AS settled
+           FROM campaigns WHERE global_id = $1`,
+        [ShippingEvent],
+      );
+      return { ts, sql: row.settled === true };
+    };
+    const shippingHeld = await campaigns.findByGlobalId(ShippingEvent);
+    const parityHeld = await settledParity();
+    const shippingBlocked = await projects.listBlockedStageCampaigns(
+      1000,
+      'chua-nhac',
+    );
+    check(
+      'EVENT + SHIPPING chưa có mã vận đơn: đọc ra vẫn EVENT, nhắc DISTRIBUTION_EVIDENCE_MISSING, SQL = TS',
+      shippingHeld?.operationStage === 'EVENT' &&
+        shippingBlocked.some(
+          (row) =>
+            row.campaignId === ShippingEvent &&
+            row.reason === 'DISTRIBUTION_EVIDENCE_MISSING',
+        ) &&
+        parityHeld.ts === false &&
+        parityHeld.sql === false,
+      `${shippingHeld?.operationStage} ${JSON.stringify(parityHeld)}`,
+    );
+    await sql(
+      `UPDATE campaign_distribution_private_details SET tracking_code = 'GHN123'
+        WHERE campaign_id = $1`,
+      [ShippingEvent],
+    );
+    const shippingDone = await campaigns.findByGlobalId(ShippingEvent);
+    const parityDone = await settledParity();
+    check(
+      'thêm mã vận đơn: đọc ra SUMMARY ngay (đường đọc), SQL = TS',
+      shippingDone?.operationStage === 'SUMMARY' &&
+        shippingDone.storedOperationStage === 'EVENT' &&
+        parityDone.ts === true &&
+        parityDone.sql === true,
+      `${shippingDone?.operationStage} ${JSON.stringify(parityDone)}`,
+    );
+
+    // ── 11. Bản sửa chờ duyệt — bảng và repository (CR 22/11/2026, migration 1804400000000) ──
+    console.log('\n11. Bản sửa chờ duyệt: một bản PENDING mỗi chiến dịch');
+    const changeRequests = new CharityChangeRequestRepository(
+      dataSource.manager,
+    );
+    const secondPending = await sql(
+      `INSERT INTO campaign_change_requests (campaign_id, proposed, base, submitted_by)
+       VALUES ($1, '{"title":"A"}', '{"title":"0"}', $2),
+              ($1, '{"title":"B"}', '{"title":"0"}', $2)`,
+      [Live, Owner],
+    ).then(
+      () => 'nhận',
+      (error: Error) => error.message,
+    );
+    check(
+      'hai bản PENDING cùng chiến dịch bằng SQL → UQ_campaign_change_requests_pending chặn',
+      secondPending.includes('UQ_campaign_change_requests_pending'),
+      secondPending,
+    );
+    const firstRequest = await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: { title: 'Tiêu đề đề xuất 1' },
+      base: { title: 'Tiêu đề gốc' },
+    });
+    const secondRequest = await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: { title: 'Tiêu đề đề xuất 2' },
+      base: { title: 'KHÔNG được ghi đè base' },
+    });
+    const [{ n: pendingRows }] = await sql(
+      `SELECT count(*)::int AS n FROM campaign_change_requests
+        WHERE campaign_id = $1 AND status = 'PENDING'`,
+      [Live],
+    );
+    check(
+      'upsertPending hai lần: một hàng, nội dung mới, base giữ từ lần đầu',
+      pendingRows === 1 &&
+        secondRequest.requestId === firstRequest.requestId &&
+        secondRequest.proposed.title === 'Tiêu đề đề xuất 2' &&
+        secondRequest.base.title === 'Tiêu đề gốc',
+      JSON.stringify(secondRequest),
+    );
+    const withdrawn = await changeRequests.withdraw({
+      campaignId: Live,
+      actorId: Owner,
+    });
+    const third = await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: { title: 'Bản mới sau khi rút' },
+      base: { title: 'Tiêu đề gốc' },
+    });
+    const [withdrawnRow] = await sql(
+      `SELECT status, decided_at FROM campaign_change_requests WHERE global_id = $1`,
+      [firstRequest.requestId],
+    );
+    check(
+      'rút → WITHDRAWN có decided_at; upsertPending sau đó tạo hàng mới',
+      withdrawn === true &&
+        withdrawnRow?.status === 'WITHDRAWN' &&
+        withdrawnRow.decided_at !== null &&
+        third.requestId !== firstRequest.requestId &&
+        (await changeRequests.findPending(Live))?.requestId === third.requestId,
+      JSON.stringify(withdrawnRow),
+    );
+    const decided = await changeRequests.decide({
+      requestId: third.requestId,
+      actorId: Admin,
+      status: 'REJECTED',
+      reason: 'Chưa đủ thông tin',
+    });
+    const decidedAgain = await changeRequests.decide({
+      requestId: third.requestId,
+      actorId: Admin,
+      status: 'APPROVED',
+      reason: null,
+    });
+    check(
+      'decide có điều kiện PENDING: lần đầu REJECTED, lần hai null; listByStatus thấy đúng',
+      decided?.status === 'REJECTED' &&
+        decidedAgain === null &&
+        (
+          await changeRequests.listByStatus({
+            status: 'REJECTED',
+            limit: 10,
+            offset: 0,
+          })
+        ).some((row) => row.requestId === third.requestId),
+      JSON.stringify(decided),
+    );
+
+    // ── 12. Bản sửa đang chờ không lộ ra công khai, chiến dịch vẫn chạy (Review Focus 5) ──
+    console.log('\n12. Bản sửa PENDING: công khai vẫn theo bản đã duyệt');
+    const approvedTitle = (await campaigns.findByGlobalId(Live))!.title;
+    const beneficiariesBefore = (await campaigns.listBeneficiaryPlans(Live))
+      .length;
+    const saveRevision = new SaveCharityChangeRequestUseCase(
+      new CharityProjectAccess(campaigns, fakeAdmin, {
+        getCapability: async () => ({ allowed: false }),
+      } as never),
+      projects,
+      changeRequests,
+      {} as never,
+    );
+    await saveRevision.handle({
+      userId: Owner,
+      campaignId: Live,
+      revision: { title: 'TIÊU ĐỀ ĐỀ XUẤT CHƯA DUYỆT' },
+    });
+    // Media và đơn vị nhận mới ghi thẳng vào bản đang chờ (không cần kho lưu trữ ở phép đo này).
+    await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: {
+        title: 'TIÊU ĐỀ ĐỀ XUẤT CHƯA DUYỆT',
+        media: {
+          keys: ['users/x/campaign-media/de-xuat.webp'],
+          coverKey: 'users/x/campaign-media/de-xuat.webp',
+        },
+        beneficiaries: [
+          {
+            name: 'Đơn vị đề xuất mới',
+            beneficiaryKind: 'GROUP',
+            estimatedPortions: 5,
+            estimatedAmount: 0,
+          },
+        ],
+      },
+      base: {},
+    });
+    const pendingNow = await changeRequests.findPending(Live);
+    const liveAfter = (await campaigns.findByGlobalId(Live))!;
+    const publicView = await new GetCharityPublicProjectUseCase(
+      campaigns,
+      projects,
+      new CharityEngagementRepository(dataSource.manager),
+      new CharityEventRepository(dataSource.manager),
+      new CharitySummaryRepository(dataSource.manager),
+    ).handle({ idOrSlug: Live, userId: null });
+    const publicJson = JSON.stringify(publicView);
+    check(
+      'có bản PENDING; dự án công khai vẫn tiêu đề/media/số đơn vị nhận đã duyệt, JSON không có nội dung đề xuất',
+      pendingNow?.proposed.title === 'TIÊU ĐỀ ĐỀ XUẤT CHƯA DUYỆT' &&
+        liveAfter.title === approvedTitle &&
+        publicView.campaign.title === approvedTitle &&
+        publicView.beneficiaries.length === beneficiariesBefore &&
+        !publicJson.includes('ĐỀ XUẤT CHƯA DUYỆT') &&
+        !publicJson.includes('de-xuat.webp') &&
+        !publicJson.includes('Đơn vị đề xuất mới'),
+      `${publicView.campaign.title} / ${publicView.beneficiaries.length}`,
+    );
+    check(
+      'isPubliclyVisibleProject vẫn true khi có bản PENDING',
+      isPubliclyVisibleProject(liveAfter, new Date()),
+    );
+    await sql(
+      `UPDATE campaigns SET accepted_contribution_types = '{MATERIAL}', intake_ends_at = NULL
+        WHERE global_id = $1`,
+      [Live],
+    );
+    const [revisionNeed] = await sql(
+      `INSERT INTO campaign_need_items (campaign_id, item_name, unit, target_quantity)
+       VALUES ($1, 'Gạo cho phép đo bản sửa', 'kg', 1000) RETURNING global_id`,
+      [Live],
+    );
+    const contributed = await new SubmitCharityContributionUseCase(campaigns, {
+      contributionSubmitted: async () => undefined,
+    } as never).handle({
+      campaignId: Live,
+      contributorId: Giver,
+      items: [{ needItemId: revisionNeed.global_id, offeredQuantity: 1 }],
+    });
+    check(
+      'POST :id/contributions vẫn thành công khi có bản PENDING',
+      Boolean(contributed),
+    );
+
+    // ── 13. Admin duyệt bản sửa: áp trong một transaction (CR 22/11/2026, Review Focus 2) ──
+    console.log(
+      '\n13. Admin duyệt bản sửa — lịch sử, riêng tư địa chỉ, thông báo, sàn',
+    );
+    await changeRequests.withdraw({ campaignId: Live, actorId: Owner });
+    const audits: string[] = [];
+    const notified: boolean[] = [];
+    const decideRevision = new DecideCharityChangeRequestUseCase(
+      campaigns,
+      projects,
+      changeRequests,
+      {
+        hasPermission: async () => true,
+        getConfigValue: async () => null,
+        appendAudit: async (entry: { action: string }) => {
+          audits.push(entry.action);
+        },
+      } as never,
+      {} as never,
+      {
+        changeRequestDecided: async (params: { approved: boolean }) => {
+          notified.push(params.approved);
+        },
+      } as never,
+    );
+    const beneficiaryUnits = async () =>
+      (await projects.listParties(Live))
+        .filter(
+          (party) => party.role === 'BENEFICIARY' && !party.isAppealSubject,
+        )
+        .map((party) => ({
+          partyId: party.partyId,
+          name: party.name,
+          beneficiaryKind: party.beneficiaryKind ?? 'GROUP',
+          estimatedPortions: party.estimatedPortions,
+          estimatedAmount: party.estimatedAmount,
+          address: party.address,
+        }));
+    const announcements = async () =>
+      (
+        await sql(
+          `SELECT count(*)::int AS n FROM campaign_announcements
+            WHERE campaign_id = $1 AND kind = 'PLAN_CHANGED'`,
+          [Live],
+        )
+      )[0].n as number;
+    const unitsBefore = await beneficiaryUnits();
+    const announcementsBefore = await announcements();
+    const firstApproval = await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: {
+        title: 'Tiêu đề đã duyệt qua bản sửa',
+        beneficiaries: [
+          ...unitsBefore.map((unit) => ({
+            ...unit,
+            estimatedPortions: unit.estimatedPortions + 1,
+          })),
+          {
+            name: 'Bà Năm',
+            beneficiaryKind: 'INDIVIDUAL' as const,
+            estimatedPortions: 1,
+            estimatedAmount: 0,
+            address: 'Ngõ Bí Mật 9',
+          },
+        ],
+      },
+      base: {},
+    });
+    await decideRevision.handle({
+      actorUserId: Admin,
+      campaignId: Live,
+      approve: true,
+    });
+    const liveApproved = (await campaigns.findByGlobalId(Live))!;
+    const [approvedRow] = await sql(
+      `SELECT status FROM campaign_change_requests WHERE global_id = $1`,
+      [firstApproval.requestId],
+    );
+    const titleRevision = await sql(
+      `SELECT is_public FROM campaign_revisions
+        WHERE campaign_id = $1 AND entity = 'CAMPAIGN' AND field = 'title'`,
+      [Live],
+    );
+    const portionRevisions = await sql(
+      `SELECT count(*)::int AS n FROM campaign_revisions
+        WHERE campaign_id = $1 AND entity = 'PARTY' AND field = 'estimatedPortions'`,
+      [Live],
+    );
+    check(
+      'duyệt qua use case thật: tiêu đề đổi, revision CAMPAIGN.title công khai, PARTY.estimatedPortions có, bản sửa APPROVED, đúng một PLAN_CHANGED, audit APPROVE, báo chủ',
+      liveApproved.title === 'Tiêu đề đã duyệt qua bản sửa' &&
+        titleRevision.length === 1 &&
+        titleRevision[0].is_public === true &&
+        portionRevisions[0].n >= unitsBefore.length &&
+        approvedRow?.status === 'APPROVED' &&
+        (await announcements()) === announcementsBefore + 1 &&
+        audits.includes('CHARITY_CHANGE_REQUEST_APPROVE') &&
+        notified[0] === true,
+      JSON.stringify({
+        title: liveApproved.title,
+        titleRevision,
+        portions: portionRevisions[0].n,
+        status: approvedRow?.status,
+        audits,
+      }),
+    );
+
+    const unitsNow = await beneficiaryUnits();
+    const grandma = unitsNow.find((unit) => unit.name === 'Bà Năm')!;
+    const group = unitsNow.find((unit) => unit.beneficiaryKind === 'GROUP');
+    await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: {
+        beneficiaries: unitsNow.map((unit) =>
+          unit.partyId === grandma.partyId
+            ? { ...unit, address: 'Ngõ Bí Mật 10' }
+            : unit.partyId === group?.partyId
+              ? { ...unit, address: 'Nhà văn hoá thôn mới' }
+              : unit,
+        ),
+      },
+      base: {},
+    });
+    await decideRevision.handle({
+      actorUserId: Admin,
+      campaignId: Live,
+      approve: true,
+    });
+    const addressRevisions = (await sql(
+      `SELECT entity_id::text AS entity_id, is_public FROM campaign_revisions
+        WHERE campaign_id = $1 AND entity = 'PARTY' AND field = 'address'`,
+      [Live],
+    )) as { entity_id: string; is_public: boolean }[];
+    const grandmaAddress = addressRevisions.find(
+      (row) => row.entity_id === grandma.partyId,
+    );
+    const groupAddress = addressRevisions.find(
+      (row) => row.entity_id === group?.partyId,
+    );
+    check(
+      'PARTY.address: cá nhân (INDIVIDUAL) is_public = false, tập thể (GROUP) is_public = true',
+      grandmaAddress?.is_public === false &&
+        (group ? groupAddress?.is_public === true : true),
+      JSON.stringify(addressRevisions),
+    );
+
+    const titleBeforeViolation = (await campaigns.findByGlobalId(Live))!.title;
+    const violating = await changeRequests.upsertPending({
+      campaignId: Live,
+      actorId: Owner,
+      proposed: {
+        title: 'Không được áp vì vượt sàn',
+        beneficiaries: [
+          ...(await beneficiaryUnits()),
+          {
+            name: 'Xã quá nhiều suất',
+            beneficiaryKind: 'GROUP' as const,
+            estimatedPortions: 50_000,
+            estimatedAmount: 0,
+          },
+        ],
+      },
+      base: {},
+    });
+    let violationCode = 0;
+    try {
+      await decideRevision.handle({
+        actorUserId: Admin,
+        campaignId: Live,
+        approve: true,
+      });
+    } catch (error) {
+      violationCode = Number((error as { code?: number }).code);
+    }
+    const [violatingRow] = await sql(
+      `SELECT status FROM campaign_change_requests WHERE global_id = $1`,
+      [violating.requestId],
+    );
+    check(
+      'duyệt vi phạm sàn → 400 0x13_5d, bản sửa vẫn PENDING, tiêu đề không đổi',
+      violationCode === 0x13_5d &&
+        violatingRow?.status === 'PENDING' &&
+        (await campaigns.findByGlobalId(Live))!.title === titleBeforeViolation,
+      `${violationCode} ${violatingRow?.status}`,
+    );
+
+    // ── 14. Đổi lịch sau duyệt ghi lịch sử + thông báo (review I8) ─────────
+    console.log(
+      '\n14. PUT :id/schedule sau duyệt: lịch sử PHASE + PLAN_CHANGED',
+    );
+    const scheduleAnnouncementsBefore = await announcements();
+    const startsAtRevisions = async () =>
+      (
+        await sql(
+          `SELECT count(*)::int AS n FROM campaign_revisions
+            WHERE campaign_id = $1 AND entity = 'PHASE' AND entity_id = 'DISTRIBUTION'
+              AND field = 'startsAt' AND is_public AND is_important`,
+          [Live],
+        )
+      )[0].n as number;
+    const startsAtBefore = await startsAtRevisions();
+    const movedStart = new Date(Date.now() + 40 * 24 * Hour);
+    await campaigns.saveSchedule({
+      campaignId: Live,
+      actorId: Owner,
+      intakeStartsAt: new Date(Date.now() - 5 * 24 * Hour),
+      intakeEndsAt: new Date(Date.now() + 30 * 24 * Hour),
+      distributionStartsAt: movedStart,
+      distributionEndsAt: new Date(movedStart.getTime() + 2 * Hour),
+      endTime: new Date(Date.now() + 60 * 24 * Hour),
+    });
+    check(
+      'dời khung trao sau duyệt → thêm revision PHASE.DISTRIBUTION.startsAt công khai + quan trọng, thêm một PLAN_CHANGED',
+      (await startsAtRevisions()) === startsAtBefore + 1 &&
+        (await announcements()) === scheduleAnnouncementsBefore + 1,
+      `${startsAtBefore} → ${await startsAtRevisions()}`,
     );
   } finally {
     for (const source of opened.reverse())

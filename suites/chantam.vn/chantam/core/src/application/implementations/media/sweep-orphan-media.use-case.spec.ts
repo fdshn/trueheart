@@ -55,16 +55,16 @@ describe('SweepOrphanMediaUseCase', () => {
     expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
   });
 
-  it('KHÔNG xoá ảnh bằng chứng đợt trao', async () => {
+  it('KHÔNG xoá ảnh bằng chứng trao của chiến dịch', async () => {
     const deps = makeDeps({
       rows: {
-        campaign_distribution_rounds: [
-          { value: 'users/u1/round-evidence/a.webp' },
+        distribution_evidence_urls: [
+          { value: 'users/u1/campaign-evidence/a.webp' },
         ],
       },
       objects: [
         {
-          key: 'users/u1/round-evidence/a.webp',
+          key: 'users/u1/campaign-evidence/a.webp',
           lastModified: old,
           size: 10,
         },
@@ -75,6 +75,43 @@ describe('SweepOrphanMediaUseCase', () => {
 
     expect(result.orphans).toBe(0);
     expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
+  });
+
+  it('KHÔNG xoá media đề xuất trong bản sửa đang chờ duyệt (review I1)', async () => {
+    const deps = makeDeps({
+      rows: {
+        campaign_change_requests: [
+          { value: 'users/u1/campaign-media/de-xuat.webp' },
+        ],
+      },
+      objects: [
+        {
+          key: 'users/u1/campaign-media/de-xuat.webp',
+          lastModified: old,
+          size: 10,
+        },
+      ],
+    });
+
+    const result = await makeUseCase(deps).handle({ dryRun: false });
+
+    expect(result.orphans).toBe(0);
+    expect(deps.storage.deleteObjects).not.toHaveBeenCalled();
+    const sql = deps.manager.query.mock.calls
+      .map((call) => String(call[0]))
+      .find((text) => text.includes('campaign_change_requests'));
+    expect(sql).toContain("status = 'PENDING'");
+  });
+
+  it('không còn nguồn key nào đọc bảng đợt trao đã bỏ', async () => {
+    const deps = makeDeps({});
+
+    await makeUseCase(deps).handle({ dryRun: true });
+
+    const queries = deps.manager.query.mock.calls.map(([sql]) => sql as string);
+    expect(
+      queries.some((sql) => sql.includes('campaign_distribution_rounds')),
+    ).toBe(false);
   });
 
   it('KHÔNG xoá media của hoạt động từ thiện', async () => {

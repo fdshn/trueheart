@@ -5,13 +5,63 @@
 
 // ── Điểm ────────────────────────────────────────────────────────────────────
 
-export const CharityPointRuleCodes = [
+/** Rule gốc có award và trần riêng — cũng là các rule được hưởng hệ số thưởng chiến dịch. */
+export const CharityPointBaseRuleCodes = [
   'CHARITY_ITEM_VALUE',
   'CHARITY_POST_VIDEO',
   'CHARITY_POST_IMAGE',
   'CHARITY_PARTICIPATION',
 ] as const;
+export type CharityPointBaseRuleCode =
+  (typeof CharityPointBaseRuleCodes)[number];
+
+/**
+ * Mọi mã của `campaign_point_awards`: bốn rule gốc + `CHARITY_CAMPAIGN_BONUS` (CR 22/11/2026) —
+ * award thưởng đi cặp với award gốc qua `base_award_id`, tính chung trần của rule gốc.
+ */
+export const CharityPointRuleCodes = [
+  ...CharityPointBaseRuleCodes,
+  'CHARITY_CAMPAIGN_BONUS',
+] as const;
 export type CharityPointRuleCode = (typeof CharityPointRuleCodes)[number];
+
+export const CharityCampaignBonusRuleCode = 'CHARITY_CAMPAIGN_BONUS' as const;
+
+/** Hệ số tăng điểm của chiến dịch (%), Admin chốt khi duyệt. */
+export const CharityPointBonusPercents = [0, 20, 50, 100] as const;
+export type CharityPointBonusPercent =
+  (typeof CharityPointBonusPercents)[number];
+
+export function isCharityPointBonusPercent(
+  value: unknown,
+): value is CharityPointBonusPercent {
+  return (CharityPointBonusPercents as readonly unknown[]).includes(value);
+}
+
+/** Điểm thưởng cho phần điểm gốc vừa ghi: `floor(gốc × % / 100)`, không âm. */
+export function bonusPoints(baseApplied: number, percent: number): number {
+  if (baseApplied <= 0 || percent <= 0) return 0;
+  return Math.floor((baseApplied * percent) / 100);
+}
+
+/**
+ * Điểm gốc bị chấm lại (giảm): thưởng đã ghi co theo cùng tỉ lệ. Trả MỤC TIÊU mới của thưởng —
+ * nơi gọi ghi phần chênh (âm) ngay.
+ */
+export function bonusAdjustmentTarget(input: {
+  readonly bonusApplied: number;
+  readonly baseAppliedBefore: number;
+  readonly baseAppliedAfter: number;
+}): number {
+  if (input.baseAppliedBefore <= 0) return 0;
+  return Math.max(
+    0,
+    Math.floor(
+      (input.bonusApplied * Math.max(0, input.baseAppliedAfter)) /
+        input.baseAppliedBefore,
+    ),
+  );
+}
 
 /** 10.000đ giá trị xác nhận = `point_rules.points` điểm (bảng Product: 1 điểm). */
 export const CharityItemValueUnitVnd = 10_000;
@@ -21,14 +71,14 @@ export type CharityPointCapWindow = (typeof CharityPointCapWindows)[number];
 
 /** Khoá cấu hình trần: `charity.points_cap.<rule>.<cửa sổ>` — 0 = không trần. */
 export function charityPointCapConfigKey(
-  rule: CharityPointRuleCode,
+  rule: CharityPointBaseRuleCode,
   window: CharityPointCapWindow,
 ): string {
   return `charity.points_cap.${rule.toLowerCase()}.${window}`;
 }
 
 export const CharityPointCapConfigKeys: readonly string[] =
-  CharityPointRuleCodes.flatMap((rule) =>
+  CharityPointBaseRuleCodes.flatMap((rule) =>
     CharityPointCapWindows.map((window) =>
       charityPointCapConfigKey(rule, window),
     ),

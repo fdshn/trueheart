@@ -379,3 +379,43 @@ export class CharityBeneficiaryAccountNameMismatchException extends ExceptionFro
 export class CharityBeneficiaryAccountNotVerifiedException extends ExceptionFrom(
   CoreErrors.CHARITY_BENEFICIARY_ACCOUNT_NOT_VERIFIED,
 ) {}
+
+export class CharityBeneficiaryDistributionTimeOutOfRangeException extends ExceptionFrom(
+  CoreErrors.CHARITY_BENEFICIARY_DISTRIBUTION_TIME_OUT_OF_RANGE,
+) {}
+
+export class CharityNeedBelowEstimatedPortionsException extends ExceptionFrom(
+  CoreErrors.CHARITY_NEED_BELOW_ESTIMATED_PORTIONS,
+) {}
+
+export class CharityFundingBelowEstimatedAmountException extends ExceptionFrom(
+  CoreErrors.CHARITY_FUNDING_BELOW_ESTIMATED_AMOUNT,
+) {}
+
+export class CharityRehearsalNotReadyException extends ExceptionFrom(
+  CoreErrors.CHARITY_REHEARSAL_NOT_READY,
+) {}
+
+export class CharityIntakeClosedException extends ExceptionFrom(
+  CoreErrors.CHARITY_INTAKE_CLOSED,
+) {}
+
+export class CharitySupervisorConflictException extends ExceptionFrom(
+  CoreErrors.CHARITY_SUPERVISOR_CONFLICT,
+) {}
+
+export class CharityScheduleInvalidException extends ExceptionFrom(
+  CoreErrors.CHARITY_SCHEDULE_INVALID,
+) {}
+
+export class CharityRevisionPendingExistsException extends ExceptionFrom(
+  CoreErrors.CHARITY_REVISION_PENDING_EXISTS,
+) {}
+
+export class CharityChangeRequiresReviewException extends ExceptionFrom(
+  CoreErrors.CHARITY_CHANGE_REQUIRES_REVIEW,
+) {}
+
+export class CharityCampaignSummaryNotPublishedException extends ExceptionFrom(
+  CoreErrors.CHARITY_CAMPAIGN_SUMMARY_NOT_PUBLISHED,
+) {}

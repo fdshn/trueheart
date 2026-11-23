@@ -1,4 +1,7 @@
-import { CharityParticipationStatus } from '@chantam.vn/chantam.core-lib/models';
+import {
+  CharityParticipationRole,
+  CharityParticipationStatus,
+} from '@chantam.vn/chantam.core-lib/models';
 import { ICharityUserBrief } from './charity-event.repository';
 
 /** Vị trí tuyển người mà participant đã nhận (§3.11) — để ban tổ chức thấy họ làm gì. */
@@ -14,6 +17,8 @@ export interface ICharityParticipation {
   campaignId: string;
   user: ICharityUserBrief;
   status: CharityParticipationStatus;
+  /** Vai (CR 22/11/2026): người tham gia hoặc giám sát viên. */
+  role: CharityParticipationRole;
   registeredAt: Date;
   statusChangedAt: Date | null;
   statusChangedBy: string | null;

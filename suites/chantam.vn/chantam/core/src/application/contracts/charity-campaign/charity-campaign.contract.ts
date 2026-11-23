@@ -15,15 +15,19 @@ import {
   IDecideContributionResult,
 } from '@/domain/ports/repository';
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
+import { IPublicUserProfileDto } from '@chantam.vn/chantam.core-lib/dto';
 import {
   CharityApprovalStatus,
+  CharityBeneficiaryKind,
   CharityBeneficiaryRelation,
   CharityCampaignType,
   CharityContributionStatus,
   CharityContributionType,
+  CharityParticipationRole,
   CharityRejectionReason,
   CharityServiceChannel,
   CharitySupportType,
+  ICharityPublicBeneficiary,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 import { IStorageUploadResult } from '@chantam/service.storage-lib';
@@ -65,6 +69,24 @@ export interface ICharityNeedItemInput {
   readonly unit: string;
   readonly targetQuantity: number;
   readonly allowAlternative?: boolean;
+  /** Số lượng mỗi suất (≥ 1, mặc định 1) — sàn = tổng suất × giá trị này (CR 22/11/2026). */
+  readonly quantityPerPortion?: number;
+}
+
+/** Một đơn vị nhận khai lúc tạo chiến dịch (CR 22/11/2026 §3.17d). */
+export interface ICharityBeneficiaryUnitInput {
+  readonly name: string;
+  readonly beneficiaryKind: CharityBeneficiaryKind;
+  readonly address?: string;
+  readonly phone?: string;
+  readonly picName?: string;
+  readonly picPhone?: string;
+  readonly consentStatus?: 'PENDING' | 'CONFIRMED';
+  readonly estimatedPortions: number;
+  readonly estimatedAmount: number;
+  readonly lat?: number;
+  readonly lng?: number;
+  readonly distributionAt?: string;
 }
 
 export interface ICharityCampaignWriteInput {
@@ -78,7 +100,10 @@ export interface ICharityCampaignWriteInput {
   readonly media: readonly string[];
   /** Một key trong `media`, phải là ảnh. Server ghi `banner_url` từ nó. */
   readonly coverKey: string;
-  readonly badgeName: string;
+  /** @deprecated CR 22/11/2026 — huy hiệu không còn bắt buộc; bỏ trống = không có. */
+  readonly badgeName?: string;
+  /** Hệ số tăng điểm chủ dự án đề xuất (0/20/50/100). Admin chốt khi duyệt. */
+  readonly requestedPointBonusPercent?: number;
   readonly targetItemsCount?: number;
   readonly lat?: number;
   readonly lng?: number;
@@ -101,8 +126,9 @@ export interface ICharityCampaignDistributionInput {
     readonly lat?: number;
     readonly lng?: number;
   };
-  readonly scheduledStart: string;
-  readonly scheduledEnd: string;
+  /** Tuỳ chọn (alias một bản phát hành) — có đủ hai mốc mới ghi phase DISTRIBUTION. */
+  readonly scheduledStart?: string;
+  readonly scheduledEnd?: string;
   readonly recipientName?: string;
   readonly recipientPhone?: string;
   readonly recipientAddress?: string;
@@ -144,13 +170,13 @@ export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput 
     | 'beneficiaryPartyId'
     | 'bankAccountId'
     | 'description'
-    | 'receivingUnit'
     | 'deadline'
     | 'sortOrder'
   > & {
     readonly beneficiaryPartyId?: string;
     readonly bankAccountId?: string;
     readonly description?: string;
+    /** @deprecated CR 22/11/2026 — bỏ qua; đơn vị nhận là `campaign_parties`. */
     readonly receivingUnit?: string;
     readonly deadline?: Date;
   })[];
@@ -179,15 +205,42 @@ export interface ICreateCharityCampaignInput extends ICharityCampaignWriteInput 
   /** Cho lượt chấp nhận đề nghị vượt mục tiêu từng dòng (§5). Mặc định `false`. */
   readonly allowOverTarget?: boolean;
   /** Số người tham gia tối thiểu (PR #54), 0–100.000. Bỏ trống = `0` (không đặt). */
-  readonly minimumParticipants?: number;
+  readonly minimumSupervisors?: number;
   /** Hạng tối thiểu để đăng ký tham gia (PR #54). Bỏ trống/`null` = không giới hạn. */
-  readonly minimumParticipantRank?: UserRanks | null;
+  readonly minimumSupervisorRank?: UserRanks | null;
   /**
    * Người thụ hưởng — CHỈ cho `INDIVIDUAL_APPEAL` + `OTHER`. Thiếu, hoặc đồng ý chưa
    * `CONFIRMED`, thì hoạt động vào `PENDING_APPROVAL` kể cả khi người tạo có quyền
    * public ngay (§2).
    */
   readonly beneficiary?: ICharityBeneficiaryCommandInput;
+  /**
+   * Đơn vị nhận của chiến dịch có tổ chức (CR 22/11/2026): tối đa
+   * `charity.max_beneficiaries_per_campaign`. Kêu gọi cá nhân dùng `beneficiary`.
+   */
+  readonly beneficiaries?: readonly ICharityBeneficiaryUnitInput[];
+  /**
+   * Điểm tiếp nhận (CR 22/11/2026 §3.17c), tối đa `charity.max_intake_locations`. Bỏ trống mà có
+   * `lat`/`lng`/`locationLabel` (cũ) thì thành một điểm. Chiến dịch nhận hiện vật gửi duyệt cần
+   * ít nhất một điểm.
+   */
+  readonly intakeLocations?: readonly ICharityIntakeLocationCommandInput[];
+  /** Bắt đầu tiếp nhận — bí danh của `startTime` (giữ một bản phát hành). */
+  readonly intakeStartsAt?: string;
+  readonly intakeEndsAt?: string;
+  /** Khung trao → phase DISTRIBUTION (thay `distribution.scheduledStart/End`). */
+  readonly distributionStartsAt?: string;
+  readonly distributionEndsAt?: string;
+}
+
+export interface ICharityIntakeLocationCommandInput {
+  readonly label: string;
+  readonly address?: string;
+  readonly lat?: number;
+  readonly lng?: number;
+  readonly scheduleNote?: string;
+  readonly contactName?: string;
+  readonly contactPhone?: string;
 }
 
 export interface ICreateCharityCampaignCommand extends ICreateCharityCampaignInput {
@@ -439,6 +492,12 @@ export const IListExternalContributionsUseCase = Symbol(
 export interface ICloseCharityCampaignCommand {
   readonly campaignId: string;
   readonly actorUserId: string;
+  /**
+   * Chỉ Admin: đóng dù chưa công khai tổng kết (CR 22/11/2026). Bắt buộc `reason`, ghi audit
+   * `CHARITY_CAMPAIGN_FORCE_CLOSE`. Chủ dự án gửi `force` không có tác dụng.
+   */
+  readonly force?: boolean;
+  readonly reason?: string;
 }
 
 export interface ICloseCharityCampaignUseCase extends IUseCase<
@@ -580,6 +639,10 @@ export interface IGetPublicCharityCampaignResult {
   readonly campaign: ICharityCampaignView;
   readonly reviews: ICharityReview[];
   readonly reviewTotal: number;
+  /** Đơn vị nhận công khai — cùng hình dạng với `GET /charity-campaigns/:idOrSlug/project`. */
+  readonly beneficiaries: ICharityPublicBeneficiary[];
+  /** Người tổ chức (CR 22/11/2026) — năm trường công khai; `null` khi tài khoản đã xoá. */
+  readonly organizer: IPublicUserProfileDto | null;
 }
 
 export interface IGetPublicCharityCampaignUseCase extends IUseCase<
@@ -618,6 +681,8 @@ export const IListJoinedCharityCampaignsUseCase = Symbol(
 export interface IJoinCharityCampaignCommand {
   readonly actorUserId: string;
   readonly campaignId: string;
+  /** Vai đăng ký (CR 22/11/2026 §6); bỏ trống = `PARTICIPANT`. */
+  readonly role?: CharityParticipationRole;
 }
 
 export interface IJoinCharityCampaignResult {
@@ -685,6 +750,8 @@ export interface IListAdminCharityCampaignsCommand {
   readonly limit: number;
   readonly offset: number;
   readonly approvalStatus?: CharityApprovalStatus;
+  /** Đang mở, đã qua `end_time`, chưa công khai tổng kết. */
+  readonly overdueSummary?: boolean;
 }
 
 export interface IListAdminCharityCampaignsUseCase extends IUseCase<
@@ -729,10 +796,12 @@ export interface IUpdateAdminCharityCampaignCommand {
   readonly lng?: number | null;
   readonly locationLabel?: string | null;
   /** Bỏ trống = giữ nguyên (PR #54). */
-  readonly minimumParticipants?: number;
+  readonly minimumSupervisors?: number;
   /** Bỏ trống = giữ nguyên; `null` = bỏ giới hạn hạng. Không đụng người ĐÃ đăng ký. */
-  readonly minimumParticipantRank?: UserRanks | null;
+  readonly minimumSupervisorRank?: UserRanks | null;
   readonly acceptedContributionTypes?: readonly CharityContributionType[];
+  /** Hệ số tăng điểm hiệu lực (0/20/50/100) — Admin đặt giá trị nào trong bốn mức cũng được. */
+  readonly pointBonusPercent?: number;
   readonly reason: string;
 }
 
@@ -765,6 +834,8 @@ export interface IDecideCharityApprovalCommand {
   readonly campaignId: string;
   readonly approve: boolean;
   readonly note?: string;
+  /** Hệ số hiệu lực khi duyệt; bỏ trống = theo đề xuất. Chỉ được hạ, không được nâng. */
+  readonly pointBonusPercent?: number;
 }
 
 export interface IDecideCharityApprovalUseCase extends IUseCase<

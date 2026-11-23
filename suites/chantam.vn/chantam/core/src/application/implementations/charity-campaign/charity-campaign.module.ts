@@ -229,6 +229,8 @@ import { CharityNotifier } from './charity.notifier';
     },
   ],
   exports: [
+    // Duyệt bản sửa (CharityProjectModule) báo chủ dự án qua notifier này.
+    CharityNotifier,
     ICreateCharityCampaignUseCase,
     IRequestCharityMediaUploadUseCase,
     IReplaceCharityMediaUseCase,

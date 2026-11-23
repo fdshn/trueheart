@@ -13,6 +13,7 @@ import {
 import {
   CharityAnnouncementKind,
   CharityOperationStage,
+  CharityPreEventMilestone,
   CharityRevisionEntity,
   CharityTaskKey,
   CharityTaskKeys,
@@ -441,28 +442,25 @@ export class CharityEngagementRepository implements ICharityEngagementRepository
     hours: number;
     limit: number;
   }): Promise<ICharityPreEventCandidate[]> {
-    // Khoá chống trùng là MỐC TRAO (mili giây) — dời giờ trao thì nhắc lại cho mốc mới.
+    // Khoá chống trùng là MỐC + giờ (mili giây) — dời giờ thì nhắc lại cho mốc mới.
     const rows = await this.manager.query<
-      { global_id: string; starts_at: Date }[]
+      { global_id: string; phase: CharityPreEventMilestone; starts_at: Date }[]
     >(
-      `SELECT campaign.global_id, phase.starts_at
+      `SELECT campaign.global_id, phase.phase, phase.starts_at
        FROM campaigns campaign
        JOIN campaign_phases phase
-         ON phase.campaign_id = campaign.global_id AND phase.phase = 'DISTRIBUTION'
+         ON phase.campaign_id = campaign.global_id
+        AND phase.phase IN ('REHEARSAL', 'DISTRIBUTION')
        WHERE campaign.approval_status = 'APPROVED'
          AND campaign.is_active
          AND campaign.deleted_at IS NULL
          AND phase.starts_at > now()
          AND phase.starts_at <= now() + make_interval(hours => $1::int)
-         -- Dự án chia đợt thì nhắc theo từng đợt (§3.18), không theo bước trao chung.
-         AND NOT EXISTS (SELECT 1 FROM campaign_distribution_rounds round
-                          WHERE round.campaign_id = campaign.global_id
-                            AND round.status <> 'CANCELLED')
          AND NOT EXISTS (
            SELECT 1 FROM campaign_announcements announcement
            WHERE announcement.campaign_id = campaign.global_id
              AND announcement.kind = 'PRE_EVENT'
-             AND announcement.dedupe_key =
+             AND announcement.dedupe_key = phase.phase || ':' ||
                floor(extract(epoch FROM phase.starts_at) * 1000)::bigint::text)
        ORDER BY phase.starts_at
        LIMIT $2`,
@@ -470,7 +468,8 @@ export class CharityEngagementRepository implements ICharityEngagementRepository
     );
     return rows.map((row) => ({
       campaignId: row.global_id,
-      distributionStartsAt: row.starts_at,
+      milestone: row.phase,
+      startsAt: row.starts_at,
     }));
   }
 
@@ -524,28 +523,7 @@ export class CharityEngagementRepository implements ICharityEngagementRepository
     campaignId: string;
     excludeUserId: string | null;
     scope?: 'ALL' | 'PRE_EVENT';
-    roundId?: string | null;
   }): Promise<string[]> {
-    const roundId = params.roundId ?? null;
-    if (roundId && params.scope !== 'PRE_EVENT') {
-      const rows = await this.manager.query<{ user_id: string }[]>(
-        `SELECT DISTINCT audience.user_id
-         FROM (
-           SELECT user_id FROM campaign_participations
-            WHERE campaign_id = $1 AND round_id = $2::uuid
-              AND status IN ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED')
-           UNION
-           SELECT contributor_id FROM campaign_deliveries
-            WHERE campaign_id = $1 AND round_id = $2::uuid AND status <> 'CANCELLED'
-         ) audience
-         JOIN users ON users.global_id = audience.user_id AND users.deleted_at IS NULL
-         WHERE $3::uuid IS NULL OR audience.user_id <> $3::uuid
-         ORDER BY audience.user_id`,
-        [params.campaignId, roundId, params.excludeUserId],
-      );
-      // Đợt chưa gắn ai: báo như thay đổi của cả dự án.
-      if (rows.length > 0) return rows.map((row) => row.user_id);
-    }
     if (params.scope === 'PRE_EVENT') {
       const rows = await this.manager.query<{ user_id: string }[]>(
         `SELECT DISTINCT audience.user_id
@@ -557,11 +535,10 @@ export class CharityEngagementRepository implements ICharityEngagementRepository
            UNION
            SELECT user_id FROM campaign_participations
             WHERE campaign_id = $1 AND status IN ('CONFIRMED', 'CHECKED_IN')
-              AND ($2::uuid IS NULL OR round_id IS NULL OR round_id = $2::uuid)
          ) audience
          JOIN users ON users.global_id = audience.user_id AND users.deleted_at IS NULL
          ORDER BY audience.user_id`,
-        [params.campaignId, roundId],
+        [params.campaignId],
       );
       return rows.map((row) => row.user_id);
     }

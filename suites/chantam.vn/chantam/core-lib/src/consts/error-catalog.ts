@@ -1514,6 +1514,122 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     message: () => 'Tài khoản thụ hưởng chưa được xác thực',
   },
 
+  CHARITY_BENEFICIARY_DISTRIBUTION_TIME_OUT_OF_RANGE: {
+    code: ErrorCodes.CHARITY_BENEFICIARY_DISTRIBUTION_TIME_OUT_OF_RANGE,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (
+      beneficiaries: {
+        index: number;
+        name: string;
+        distributionAt: string | null;
+      }[],
+    ) =>
+      `Ngày giờ trao nằm ngoài khung trao dự kiến: ${beneficiaries.map((b) => b.name).join(', ')}`,
+    details: (
+      beneficiaries: {
+        index: number;
+        name: string;
+        distributionAt: string | null;
+      }[],
+    ) => ({ beneficiaries }),
+    sample: [
+      [{ index: 0, name: 'Trường A', distributionAt: '2026-12-20T01:00:00Z' }],
+    ],
+  },
+
+  CHARITY_NEED_BELOW_ESTIMATED_PORTIONS: {
+    code: ErrorCodes.CHARITY_NEED_BELOW_ESTIMATED_PORTIONS,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (
+      items: {
+        index: number;
+        needItemId: string | null;
+        itemName: string;
+        minimumQuantity: number;
+      }[],
+    ) =>
+      `Số lượng vật phẩm thấp hơn mức tối thiểu theo số suất: ${items
+        .map((item) => `${item.itemName} (tối thiểu ${item.minimumQuantity})`)
+        .join(', ')}`,
+    details: (
+      items: {
+        index: number;
+        needItemId: string | null;
+        itemName: string;
+        minimumQuantity: number;
+      }[],
+    ) => ({ items }),
+    sample: [
+      [{ index: 0, needItemId: null, itemName: 'Áo', minimumQuantity: 300 }],
+    ],
+  },
+
+  CHARITY_FUNDING_BELOW_ESTIMATED_AMOUNT: {
+    code: ErrorCodes.CHARITY_FUNDING_BELOW_ESTIMATED_AMOUNT,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (totalTargetAmount: number, totalEstimatedAmount: number) =>
+      `Tổng mục tiêu tiền ${totalTargetAmount} thấp hơn tổng tiền ước tính ${totalEstimatedAmount} của các đơn vị nhận`,
+    details: (totalTargetAmount: number, totalEstimatedAmount: number) => ({
+      totalTargetAmount,
+      totalEstimatedAmount,
+    }),
+    sample: [20000000, 30000000],
+  },
+
+  CHARITY_REHEARSAL_NOT_READY: {
+    code: ErrorCodes.CHARITY_REHEARSAL_NOT_READY,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Tổng duyệt chưa sẵn sàng (READY) nên chưa sang sự kiện trao được',
+  },
+
+  CHARITY_INTAKE_CLOSED: {
+    code: ErrorCodes.CHARITY_INTAKE_CLOSED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Chiến dịch đã hết thời gian tiếp nhận',
+  },
+
+  CHARITY_SUPERVISOR_CONFLICT: {
+    code: ErrorCodes.CHARITY_SUPERVISOR_CONFLICT,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Chủ dự án hoặc điều phối viên không được làm giám sát viên của chính chiến dịch',
+  },
+
+  CHARITY_SCHEDULE_INVALID: {
+    code: ErrorCodes.CHARITY_SCHEDULE_INVALID,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: (gaps: string) => `Khung thời gian chưa hợp lệ: ${gaps}`,
+    sample: ['intakeEndsAt phải ≤ distributionStartsAt'],
+  },
+
+  CHARITY_REVISION_PENDING_EXISTS: {
+    code: ErrorCodes.CHARITY_REVISION_PENDING_EXISTS,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Chiến dịch đang có bản sửa chờ duyệt — sửa hoặc rút bản đó trước',
+  },
+
+  CHARITY_CHANGE_REQUIRES_REVIEW: {
+    code: ErrorCodes.CHARITY_CHANGE_REQUIRES_REVIEW,
+    httpStatus: HttpStatus.CONFLICT,
+    message: (fields: string) =>
+      `Các trường sau chỉ sửa được qua bản sửa chờ Admin duyệt: ${fields}`,
+    details: (fields: string) => ({
+      fields: fields
+        .split(',')
+        .map((field) => field.trim())
+        .filter((field) => field.length > 0),
+    }),
+    sample: ['pointBonusPercent, beneficiaries'],
+  },
+
+  CHARITY_CAMPAIGN_SUMMARY_NOT_PUBLISHED: {
+    code: ErrorCodes.CHARITY_CAMPAIGN_SUMMARY_NOT_PUBLISHED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Chưa công khai tổng kết nên chưa đóng chiến dịch được',
+  },
+
   CHARITY_EXTERNAL_SOURCE_DUPLICATED: {
     code: ErrorCodes.CHARITY_EXTERNAL_SOURCE_DUPLICATED,
     httpStatus: HttpStatus.CONFLICT,

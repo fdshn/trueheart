@@ -164,6 +164,11 @@ export enum NotificationTypes {
   CHARITY_PLAN_CHANGED = 'CHARITY_PLAN_CHANGED',
   /** Còn ≤ 48 giờ tới lúc trao (§3.4). */
   CHARITY_PRE_EVENT_NOTICE = 'CHARITY_PRE_EVENT_NOTICE',
+  /**
+   * Nhắc ban tổ chức khi chiến dịch bị giữ lại: tổng duyệt chưa READY, thiếu bằng chứng trao,
+   * tài khoản thụ hưởng chưa xác thực, quá hạn mà chưa công khai tổng kết (CR 22/11/2026).
+   */
+  CHARITY_ORGANIZER_REMINDER = 'CHARITY_ORGANIZER_REMINDER',
   /** Tổng kết dự án được công khai (§3.6). */
   CHARITY_SUMMARY_PUBLISHED = 'CHARITY_SUMMARY_PUBLISHED',
   /**
@@ -340,6 +345,7 @@ export const NotificationGroupOf: Record<
   // Kế hoạch đổi là trạng thái của một việc người nhận đang theo (đã góp, đã đăng ký, bấm
   // quan tâm) — cùng nhóm đóng góp. Ba loại còn lại của dự án nằm ở SỰ KIỆN và ĐIỀU KIỆN.
   [NotificationTypes.CHARITY_PLAN_CHANGED]: NotificationGroups.STATUS,
+  [NotificationTypes.CHARITY_ORGANIZER_REMINDER]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_APPEAL_UPDATED]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_PARTICIPATION_UPDATED]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_SUPPORT_OFFER_UPDATED]: NotificationGroups.STATUS,

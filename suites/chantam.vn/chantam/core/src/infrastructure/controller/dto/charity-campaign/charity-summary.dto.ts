@@ -1,6 +1,8 @@
 import {
   CharityEvaluationSources,
   CharityFeaturedCtas,
+  CharityMemberType,
+  CharityMemberTypes,
   CharitySupportTypes,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -23,6 +25,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { PublicUserProfileDto } from './charity-campaign.dto';
 import { CharityUserBriefDto } from './charity-event.dto';
 
 /** Dự án từ thiện — đợt 4a (CHARITY-PROJECT-LIFECYCLE §3.6, §3.14, §3.17). */
@@ -208,15 +211,25 @@ export class CharitySummaryParticipationDto {
     description: 'Đã check-in hoặc hoàn thành — người thật sự có mặt.',
   })
   checkedInCount: number;
+}
 
-  @ApiProperty({ description: 'Số tối thiểu của dự án. `0` = không đặt.' })
-  minimumParticipants: number;
+export class CharitySummarySupervisorsDto {
+  @ApiProperty({
+    description:
+      'Giám sát viên đã check-in hoặc hoàn thành (CR 22/11/2026) — đếm từ bảng tham gia.',
+  })
+  checkedIn: number;
+
+  @ApiProperty({
+    description: 'Số giám sát viên tối thiểu của dự án. `0` = không đặt.',
+  })
+  minimumSupervisors: number;
 
   @ApiProperty({
     description:
-      'Đạt số tối thiểu chưa, so theo `checkedInCount`. Chỉ là cảnh báo — không tự huỷ dự án; số thực tế đếm từ bảng tham gia, không sửa tay được.',
+      'Đạt số tối thiểu chưa, so theo `checkedIn`. Chỉ là cảnh báo — không tự huỷ dự án.',
   })
-  minimumParticipantsMet: boolean;
+  met: boolean;
 }
 
 export class CharitySummaryBoardResponseDto {
@@ -232,6 +245,9 @@ export class CharitySummaryBoardResponseDto {
   financialReportRequired: boolean;
   @ApiProperty({ type: () => CharitySummaryParticipationDto })
   participation: CharitySummaryParticipationDto;
+
+  @ApiProperty({ type: () => CharitySummarySupervisorsDto })
+  supervisors: CharitySummarySupervisorsDto;
 }
 
 export class CharityPublicSupportersDto {
@@ -447,4 +463,55 @@ export class CharityHomeCardsQueryDto {
   @Min(1)
   @Max(20)
   limit?: number;
+}
+
+export class CharityMembersQueryDto {
+  @ApiProperty({ enum: CharityMemberTypes })
+  @IsIn(CharityMemberTypes)
+  type: CharityMemberType;
+
+  @ApiPropertyOptional({
+    description: 'Lấy từ `nextCursor` của trang trước.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  cursor?: string;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 50, default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+}
+
+export class CharityMemberDto {
+  @ApiProperty({ type: () => PublicUserProfileDto })
+  user: PublicUserProfileDto;
+
+  @ApiProperty({
+    description:
+      '`CONTRIBUTOR`: lần đóng góp được nhận đầu tiên; người tham gia/giám sát viên: lúc đăng ký.',
+  })
+  joinedAt: Date;
+
+  @ApiPropertyOptional({
+    enum: ['MATERIAL', 'SERVICE'],
+    isArray: true,
+    description: 'Chỉ nhóm `CONTRIBUTOR`. Không có số lượng hay số tiền.',
+  })
+  contributionTypes?: ('MATERIAL' | 'SERVICE')[];
+}
+
+export class CharityMembersResponseDto {
+  @ApiProperty({ type: () => [CharityMemberDto] })
+  members: CharityMemberDto[];
+
+  @ApiProperty({ description: 'Người đủ điều kiện nhưng chọn ẩn tên.' })
+  anonymousCount: number;
+
+  @ApiProperty({ type: String, nullable: true })
+  nextCursor: string | null;
 }

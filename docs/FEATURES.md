@@ -315,12 +315,32 @@ chức. Người dùng đăng ký hoặc huỷ trước khi sự kiện bắt đ
 > in không còn hiện số tiền hay tài khoản nhận; nhu cầu tiền cũ vẫn đóng sổ được. App **không
 > giữ tiền** — không có chức năng góp tiền trong app, ban tổ chức tự ghi số tiền đã nhận.
 
-> ✅ **21/11 — hình thức trao theo từng đợt (Phase B).** Mỗi đợt trao chọn một hình thức: trao
+> ✅ **21/11 — hình thức trao theo từng đợt (Phase B).** *(Đã thay ở CR 22/11/2026: bỏ nhiều đợt trao, hình thức trao chuyển lên cấp chiến dịch — mỗi chiến dịch một lần đi trao.)* Mỗi đợt trao chọn một hình thức: trao
 > tận tay, gửi hàng, trao tại điểm khác, chuyển khoản, hoặc dịch vụ. Mỗi hình thức đòi đúng thông
 > tin của nó (người nhận, nhà xe, địa điểm, nội dung chuyển khoản…); thông tin người nhận là
 > **riêng tư**, chỉ ban tổ chức thấy. Ghi nhận đợt xong cần ảnh bằng chứng, gửi hàng cần thêm mã
 > vận đơn. Chuyển khoản chỉ dùng được khi hoạt động nhận tiền. Ứng dụng bản cũ sửa đợt mà không
 > biết hình thức trao thì hình thức đã lưu được giữ nguyên.
+
+> ✅ **22/11 — một lần đi trao cho mỗi chiến dịch (CR 22/11/2026).** Bỏ cơ chế nhiều đợt trao vì
+> quá nặng cho ban tổ chức. Hình thức trao, ảnh bằng chứng và thông tin riêng tư (người nhận, mã
+> vận đơn, tài khoản thụ hưởng) nằm ở cấp chiến dịch; chiến dịch có một timeline 10 bước và một
+> bước tổng duyệt trước khi đi trao. Chưa tổng duyệt xong thì chiến dịch không tự sang Sự kiện
+> trao; chưa đủ bằng chứng trao thì không tự sang Tổng kết — ban tổ chức được nhắc mỗi ngày một
+> lần cho tới khi xong. Nhắc 48 giờ trước cả buổi tổng duyệt lẫn lúc đi trao.
+> Chiến dịch chỉ **kết thúc / đóng được** khi bài tổng kết đã công khai; quá hạn mà chưa đăng
+> tổng kết thì vẫn hiện là đang diễn ra, Admin có danh sách theo dõi riêng và ban tổ chức được
+> nhắc mỗi ngày. Admin có thể ép đóng, bắt buộc ghi lý do.
+>
+> **Đơn vị nhận.** Chiến dịch khai các đơn vị nhận với số suất, tiền ước tính, địa chỉ và giờ
+> trao. Số lượng mục tiêu của mỗi món không được thấp hơn tổng suất × số lượng mỗi suất, và mục
+> tiêu tiền không thấp hơn tổng tiền ước tính — hệ thống chỉ rõ món nào cần nâng. Trang công khai
+> hiện các đơn vị nhận nhưng không bao giờ lộ số điện thoại; cá nhân không lộ địa chỉ. Sau khi
+> duyệt, thêm/bỏ đơn vị nhận hay đổi số suất phải chờ Admin duyệt (trừ người được đăng thẳng).
+> Gửi duyệt cần mọi đơn vị nhận có địa chỉ và giờ trao.
+>
+> **Hết tiếp nhận.** Từ mốc hết tiếp nhận, chiến dịch không nhận đóng góp hiện vật, nhận hỗ trợ
+> dịch vụ, đăng ký tham gia hay đăng ký tuyển công sức mới; rút hoặc sửa đóng góp đã gửi vẫn được.
 
 > ✅ **21/11 — ba tổng riêng (Phase D).** Tổng kết tách hẳn ba con số: hiện vật (số lượng theo
 > đơn vị và giá trị quy đổi), tiền (đã xác nhận, nguồn ngoài), dịch vụ (số lượng đã hoàn thành).
@@ -1147,6 +1167,28 @@ chia sẻ trên mobile.
 > ✅ **18/11 — điều kiện tham gia (PR #54).** Chiến dịch có `minimumParticipants` (số người tối
 > thiểu, chỉ để tổng kết cảnh báo) và `minimumParticipantRank` (hạng tối thiểu để đăng ký,
 > đọc hạng hiện tại từ database). Tổng kết trả số đăng ký / đã check-in so với số tối thiểu.
+> *(CR 22/11/2026: hai điều kiện này chuyển sang giám sát viên — xem bên dưới.)*
+>
+> ✅ **23/11 — bản sửa chờ duyệt (CR 22/11/2026).** Sau khi chiến dịch được duyệt, muốn đổi tiêu
+> đề, mô tả, ảnh/clip, đơn vị nhận, loại tiếp nhận hay hệ số điểm thì chủ dự án gửi một bản sửa;
+> chiến dịch vẫn chạy theo bản đã duyệt cho tới khi Admin duyệt bản sửa. Người có quyền đăng không
+> cần duyệt sửa thẳng được (trừ hệ số điểm).
+>
+> ✅ **23/11 — hệ số điểm và bảng tin điểm (CR 22/11/2026).** Chủ chiến dịch đề xuất hệ số tăng
+> điểm 0/20/50/100%, Admin chốt khi duyệt (chỉ được hạ). Mỗi lần người dùng được cộng điểm từ dự án,
+> sổ điểm ghi thêm một khoản thưởng riêng theo hệ số, tính chung trần với điểm gốc. Trang "bảng tin
+> điểm" hiện liên tục ai vừa được cộng điểm vì việc gì (gộp cả thưởng), không bao giờ hiện khoản
+> phạt hay điều chỉnh; mỗi người có thể tắt việc mình xuất hiện trên bảng tin.
+>
+> ✅ **23/11 — giám sát viên (CR 22/11/2026).** Người dùng đăng ký tham gia chiến dịch với vai
+> **người tham gia** hoặc **giám sát viên** — mỗi người một vai. Chủ dự án và điều phối viên không
+> làm giám sát viên. Giám sát viên phải đủ hạng tối thiểu của chiến dịch và còn đăng ký được sau
+> khi hết tiếp nhận, tới lúc bắt đầu trao. Tổng kết so số giám sát viên đã có mặt với số tối
+> thiểu (chỉ cảnh báo).
+>
+> Trang chiến dịch hiện **người tổ chức** (tên hiển thị, ảnh, hạng) và **danh sách thành viên**
+> công khai theo ba nhóm: người đóng góp (hiện vật/dịch vụ, không kèm số lượng hay số tiền), người
+> tham gia, giám sát viên. Ai chọn ẩn tên chỉ được đếm là "ẩn danh"; không bao giờ lộ SĐT, email.
 Duyệt sự kiện do Kim Cương đề xuất; quản lý nội dung quảng cáo, đơn vị Công đức, và dữ liệu
 tham chiếu của Rao vặt.
 

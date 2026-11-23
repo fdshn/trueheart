@@ -1,4 +1,5 @@
 import { IPaginationMetaDto } from '@chantam/service.common-lib/dto';
+import { IPublicUserProfileDto } from '../author/author.dto';
 
 export interface IPointSummaryDto {
   /** Số điểm TIÊU ĐƯỢC. Kẹp ở 0, không bao giờ âm. */
@@ -144,4 +145,39 @@ export interface IReversePointEntryResponseDto {
     rawBalance: number;
     lifetime: number;
   };
+}
+
+/**
+ * Một dòng bảng tin điểm công khai (CR 22/11/2026). Không bao giờ có `reason`, `ruleCode`,
+ * `referenceId` hay `referenceType` — chỉ tiêu đề rule và ngữ cảnh công khai.
+ */
+export interface IPointFeedEntryDto {
+  /** Id bút toán — dùng làm `afterId` cho lượt hỏi kế tiếp. */
+  entryId: number;
+  user: IPublicUserProfileDto;
+  /** Điểm gốc + thưởng hệ số đã gộp. */
+  delta: number;
+  /** Hệ số chiến dịch khi dòng có thưởng; `null` khi không. */
+  bonusPercent: number | null;
+  ruleTitle: string;
+  occurredAt: string;
+  context: {
+    type: 'CHARITY_CAMPAIGN' | 'POST';
+    id: string;
+    title: string;
+  } | null;
+}
+
+export interface IPointFeedResponseDto {
+  /** Cũ → mới. */
+  entries: IPointFeedEntryDto[];
+  /** Id mới nhất đang có — gửi lại làm `afterId`. */
+  latestId: number | null;
+  pollAfterSeconds: number;
+  displayIntervalMs: number;
+}
+
+export interface IUserPointFeedResponseDto extends IPointFeedResponseDto {
+  balance: number;
+  lifetime: number;
 }

@@ -4,6 +4,7 @@ import {
   IAddCharityBankAccountUseCase,
   IAddCharityBeneficiaryBankAccountCommand,
   IAddCharityBeneficiaryBankAccountUseCase,
+  IAdminCharityChangeRequestCommand,
   IAdvanceCharityStagesUseCase,
   ICancelCharityVolunteerUseCase,
   ICharityProjectCommand,
@@ -17,23 +18,38 @@ import {
   ICloseCharityBeneficiaryBankAccountCommand,
   ICloseCharityBeneficiaryBankAccountUseCase,
   IConfirmCharityVolunteerUseCase,
+  IDecideCharityChangeRequestCommand,
+  IDecideCharityChangeRequestUseCase,
+  IGetAdminCharityChangeRequestUseCase,
+  IGetCharityChangeRequestUseCase,
   IGetCharityPublicProjectCommand,
   IGetCharityPublicProjectUseCase,
+  IGetCharityRehearsalUseCase,
   IGetCharityWorkspaceUseCase,
+  IListCharityChangeRequestsCommand,
+  IListCharityChangeRequestsUseCase,
   IMoveCharityStageCommand,
   IMoveCharityStageUseCase,
   IPublishCharitySectionUseCase,
   IRegisterCharityVolunteerUseCase,
   IReplaceCharityCustomSectionsCommand,
   IReplaceCharityCustomSectionsUseCase,
+  IReplaceCharityIntakeLocationsCommand,
+  IReplaceCharityIntakeLocationsUseCase,
   IReplaceCharityPartiesCommand,
   IReplaceCharityPartiesUseCase,
   IReplaceCharityPhasesCommand,
   IReplaceCharityPhasesUseCase,
   IReplaceCharityTeamCommand,
   IReplaceCharityTeamUseCase,
+  ISaveCharityChangeRequestCommand,
+  ISaveCharityChangeRequestUseCase,
   ISaveCharityFundingNeedCommand,
   ISaveCharityFundingNeedUseCase,
+  ISaveCharityRehearsalCommand,
+  ISaveCharityRehearsalUseCase,
+  ISaveCharityScheduleCommand,
+  ISaveCharityScheduleUseCase,
   ISaveCharitySectionUseCase,
   ISaveCharityVolunteerNeedCommand,
   ISaveCharityVolunteerNeedUseCase,
@@ -46,18 +62,29 @@ import {
   IUpdateCharityProfileUseCase,
   IVerifyCharityBeneficiaryBankAccountCommand,
   IVerifyCharityBeneficiaryBankAccountUseCase,
+  IWithdrawCharityChangeRequestUseCase,
 } from '@/application/contracts/charity-project';
+import { IDispatchNotificationUseCase } from '@/application/contracts/notification';
 import { assertContributionTypeAccepted } from '@/domain/charity-contribution-type';
 import {
   CharityBankAccountLimitException,
   CharityBankAccountNotFoundException,
   CharityBeneficiaryAccountNameMismatchException,
+  CharityBeneficiaryAccountNotVerifiedException,
+  CharityBeneficiaryDistributionTimeOutOfRangeException,
   CharityCampaignNotFoundException,
+  CharityChangeRequiresReviewException,
   CharityFundingNeedNotFoundException,
+  CharityIntakeClosedException,
   CharityNeedItemInvalidException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
+  CharityProjectNotApprovedException,
   CharityProjectNotDraftException,
+  CharityRehearsalNotReadyException,
+  CharityRevisionPendingExistsException,
+  CharityRoundEvidenceRequiredException,
+  CharityScheduleInvalidException,
   CharitySectionEmptyException,
   CharityStageScheduleConflictException,
   CharityStageTransitionInvalidException,
@@ -71,38 +98,76 @@ import {
   IAdminConfigRepository,
   ICharityCampaign,
   ICharityCampaignRepository,
+  ICharityChangeRequest,
+  ICharityChangeRequestRepository,
   ICharityCustomSection,
   ICharityEngagementRepository,
   ICharityEventRepository,
+  ICharityOperationsRepository,
+  ICharityParty,
+  ICharityPartyInput,
   ICharityProjectRepository,
   ICharitySummaryRepository,
   IEntitlementRepository,
   IUserRepository,
 } from '@/domain/ports/repository';
 import {
+  NotificationTargetTypes,
+  NotificationTypes,
+} from '@chantam.vn/chantam.core-lib/consts';
+import {
+  beneficiariesOutsideWindow,
+  beneficiarySubmitGaps,
+  charityDistributionSettled,
   CharityEventStepLabels,
   CharityFieldVisibility,
   CharityMaxBankAccountsConfigKey,
+  CharityMaxBeneficiariesConfigKey,
+  CharityMaxIntakeLocationsConfigKey,
   CharityOperationStage,
   CharityOperationStageLabels,
   CharityOperationStages,
+  CharityOrganizerReminderReason,
+  CharityPointBonusPercents,
+  charityScheduleGaps,
   CharitySectionCompletionStatus,
   charitySubmitRequirementGaps,
   CharityTaskLabels,
   defaultTaskSchedule,
   effectiveOperationStage,
   holderNameMatches,
+  ICharityReviewedBeneficiary,
+  ICharityReviewedFields,
+  isCharityPointBonusPercent,
+  isIntakeClosed,
   isPubliclyVisibleProject,
   isSuspendedProject,
   MaxPublicSupporterNames,
   normalizeContributionTypes,
   normalizeMaxBankAccounts,
+  normalizeMaxBeneficiaries,
+  normalizeMaxIntakeLocations,
+  normalizeRehearsalChecklist,
   phaseScheduleGaps,
+  reviewedFieldsChanged,
   stageRank,
+  toPublicBeneficiary,
+  vietnamDayStart,
 } from '@chantam.vn/chantam.core-lib/models';
-import { ValidationFailedException } from '@chantam/service.common-lib/exception';
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { resolveCharityApprovalStatus } from '../charity-campaign/charity-campaign.use-cases';
+import {
+  ForbiddenException,
+  ValidationFailedException,
+} from '@chantam/service.common-lib/exception';
+import { IObjectStorage } from '@chantam/service.storage-lib';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  confirmCharityMedia,
+  publicOrganizer,
+  resolveCharityApprovalStatus,
+} from '../charity-campaign/charity-campaign.use-cases';
+import { CharityNotifier } from '../charity-campaign/charity.notifier';
+import { directChangeAllowed } from './charity-change-review';
+import { assertPortionFloors } from './charity-portion-guard';
 
 const ReadPermission = 'campaign.read';
 const WritePermission = 'campaign.manage';
@@ -134,7 +199,43 @@ export class CharityProjectAccess {
     private readonly campaigns: ICharityCampaignRepository,
     @Inject(IAdminConfigRepository)
     private readonly admin: IAdminConfigRepository,
+    @Optional()
+    @Inject(IEntitlementRepository)
+    private readonly entitlements?: IEntitlementRepository,
+    @Optional()
+    @Inject(ICharityChangeRequestRepository)
+    private readonly changeRequests?: ICharityChangeRequestRepository,
   ) {}
+
+  /**
+   * Đang có bản sửa chờ duyệt thì KHÔNG sửa thẳng trường cần duyệt — kể cả người được sửa
+   * thẳng: duyệt bản sửa sau đó sẽ âm thầm ghi đè sửa đổi này (review I2, ruling Q7).
+   */
+  public async assertNoPendingRevision(campaignId: string): Promise<void> {
+    if (await this.changeRequests?.findPending(campaignId))
+      throw new CharityRevisionPendingExistsException();
+  }
+
+  /** Trường quan trọng sửa được NGAY không, hay phải đi bản sửa chờ duyệt (§3.17b). */
+  public directChangeAllowed(
+    access: IProjectAccess,
+    userId: string,
+  ): Promise<boolean> {
+    return directChangeAllowed(
+      { admin: this.admin, entitlements: this.entitlements },
+      {
+        campaign: access.campaign,
+        actorUserId: userId,
+        asAdmin: access.isAdminWriter,
+      },
+    );
+  }
+
+  public async maxBeneficiaries(): Promise<number> {
+    return normalizeMaxBeneficiaries(
+      await this.admin.getConfigValue(CharityMaxBeneficiariesConfigKey),
+    );
+  }
 
   public async resolve(
     campaignId: string,
@@ -232,10 +333,16 @@ export class SubmitCharityProjectUseCase implements ISubmitCharityProjectUseCase
     if (!isOwner) throw new CharityProjectForbiddenException();
     if (campaign.submittedAt !== null)
       throw new CharityProjectNotDraftException();
-    const gaps = charitySubmitRequirementGaps(
-      campaign.acceptedContributionTypes,
-      await this.projects.intakeCounts(campaign.globalId),
-    );
+    const gaps = [
+      ...charitySubmitRequirementGaps(
+        campaign.acceptedContributionTypes,
+        await this.projects.intakeCounts(campaign.globalId),
+      ),
+      // Mỗi đơn vị nhận cần địa chỉ và giờ trao khi gửi duyệt (CR 22/11/2026 §5.4).
+      ...beneficiarySubmitGaps(
+        await this.campaigns.listBeneficiaryPlans(campaign.globalId),
+      ),
+    ];
     if (gaps.length > 0)
       throw new CharitySubmitRequirementsUnmetException(gaps.join('; '));
 
@@ -284,6 +391,49 @@ export class SubmitCharityProjectUseCase implements ISubmitCharityProjectUseCase
  *   bước trao trước.
  * - Không về PLAN: PLAN là "chưa duyệt".
  */
+/** Tổng duyệt của chiến dịch (CR 22/11/2026 §8) — người vận hành dự án. */
+@Injectable()
+export class GetCharityRehearsalUseCase implements IGetCharityRehearsalUseCase {
+  public constructor(
+    private readonly access: CharityProjectAccess,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
+  ) {}
+
+  public async handle(command: ICharityProjectCommand) {
+    const { campaign } = await this.access.forOperate(command);
+    return this.projects.getRehearsal(campaign.globalId);
+  }
+}
+
+@Injectable()
+export class SaveCharityRehearsalUseCase implements ISaveCharityRehearsalUseCase {
+  public constructor(
+    private readonly access: CharityProjectAccess,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
+  ) {}
+
+  public async handle(command: ISaveCharityRehearsalCommand) {
+    const { campaign } = await this.access.forOperate(command);
+    const input = command.rehearsal;
+    const outcome = input.outcome ?? undefined;
+    const reason = trimmed(input.reason);
+    if (outcome === 'NOT_READY' && !reason)
+      throw new ValidationFailedException([
+        'rehearsal.reason: bắt buộc khi tổng duyệt chưa sẵn sàng',
+      ]);
+    return this.projects.saveRehearsal({
+      campaignId: campaign.globalId,
+      actorId: command.userId,
+      checklist: normalizeRehearsalChecklist(input.checklist),
+      outcome,
+      reason: outcome === 'READY' ? null : reason,
+      note: trimmed(input.note),
+    });
+  }
+}
+
 @Injectable()
 export class MoveCharityStageUseCase implements IMoveCharityStageUseCase {
   public constructor(
@@ -325,12 +475,48 @@ export class MoveCharityStageUseCase implements IMoveCharityStageUseCase {
       throw new CharityStageTransitionInvalidException(
         'chuyển giai đoạn thủ công phải có lý do',
       );
+    // Cổng chặn khi tiến (CR 22/11/2026): sang Sự kiện trao cần tổng duyệt READY; sang Tổng
+    // kết cần bước trao hoàn tất (bằng chứng đúng hình thức, tài khoản thụ hưởng hợp lệ).
+    if (forward && command.to === 'EVENT') {
+      const rehearsal = await this.projects.getRehearsal(campaign.globalId);
+      if (rehearsal?.outcome !== 'READY')
+        throw new CharityRehearsalNotReadyException();
+    }
+    if (forward && command.to === 'SUMMARY') {
+      const stored = await this.projects.distributionSettlement(
+        campaign.globalId,
+      );
+      const settlement = charityDistributionSettled({
+        distributionMethod: stored.method,
+        evidenceUrls: stored.evidenceUrls,
+        trackingCode: stored.trackingCode,
+        beneficiaryAccount: stored.beneficiaryAccount,
+      });
+      if (settlement.evidenceGaps.length > 0)
+        throw new CharityRoundEvidenceRequiredException(
+          settlement.evidenceGaps.join(', '),
+        );
+      if (!settlement.accountVerified)
+        throw new CharityBeneficiaryAccountNotVerifiedException();
+    }
     if (!forward) {
+      // Lùi chỉ hợp lệ khi lịch + cổng không tự đẩy dự án tiến lại ngay.
+      const [rehearsal, stored] = await Promise.all([
+        this.projects.getRehearsal(campaign.globalId),
+        this.projects.distributionSettlement(campaign.globalId),
+      ]);
       const wouldBe = effectiveOperationStage({
         stored: command.to,
         distribution: campaign.distribution,
         endTime: campaign.endTime,
         now: new Date(),
+        rehearsalReady: rehearsal?.outcome === 'READY',
+        distributionSettled: charityDistributionSettled({
+          distributionMethod: stored.method,
+          evidenceUrls: stored.evidenceUrls,
+          trackingCode: stored.trackingCode,
+          beneficiaryAccount: stored.beneficiaryAccount,
+        }).settled,
       });
       if (wouldBe !== command.to)
         throw new CharityStageScheduleConflictException();
@@ -369,7 +555,23 @@ export class MoveCharityStageUseCase implements IMoveCharityStageUseCase {
   }
 }
 
-/** Job ngoài tiến trình `charity:advance-stage` — ghi xuống giai đoạn đã tới mốc. */
+/** Lời nhắc ban tổ chức khi job bị cổng giữ lại (CR 22/11/2026 §3.17g). */
+const OrganizerReminderText: Record<CharityOrganizerReminderReason, string> = {
+  REHEARSAL_NOT_READY:
+    'đã tới giờ trao nhưng tổng duyệt chưa sẵn sàng — hoàn tất tổng duyệt để sang Sự kiện trao.',
+  DISTRIBUTION_EVIDENCE_MISSING:
+    'đã hết giờ trao nhưng còn thiếu bằng chứng trao — bổ sung ảnh (và mã vận đơn nếu gửi hàng) để sang Tổng kết.',
+  BENEFICIARY_ACCOUNT_NOT_VERIFIED:
+    'đã hết giờ trao nhưng tài khoản thụ hưởng chưa được xác thực — liên hệ Admin để xác thực.',
+  SUMMARY_OVERDUE:
+    'đã quá hạn đăng bài tổng kết — đăng tổng kết để đóng chiến dịch.',
+};
+
+/**
+ * Job ngoài tiến trình `charity:advance-stage` — ghi xuống giai đoạn đã tới mốc VÀ qua cổng
+ * (tổng duyệt READY, bước trao hoàn tất). Hàng bị giữ được nhắc chủ dự án mỗi ngày một lần
+ * cho từng lý do. Không bao giờ nhảy EXECUTION→SUMMARY trong một lần chạy.
+ */
 @Injectable()
 export class AdvanceCharityStagesUseCase implements IAdvanceCharityStagesUseCase {
   private readonly logger = new Logger(AdvanceCharityStagesUseCase.name);
@@ -377,21 +579,31 @@ export class AdvanceCharityStagesUseCase implements IAdvanceCharityStagesUseCase
   public constructor(
     @Inject(ICharityProjectRepository)
     private readonly projects: ICharityProjectRepository,
+    @Inject(IDispatchNotificationUseCase)
+    private readonly dispatch: IDispatchNotificationUseCase,
   ) {}
 
   public async handle(command: {
     limit: number;
     dryRun: boolean;
-  }): Promise<{ advanced: number; checked: number }> {
+  }): Promise<{ advanced: number; checked: number; reminded: number }> {
+    const now = new Date();
     const candidates = await this.projects.listStageCandidates(command.limit);
     let advanced = 0;
     for (const candidate of candidates) {
-      const target = effectiveOperationStage({
+      const reached = effectiveOperationStage({
         stored: candidate.stored,
         distribution: candidate.distribution,
         endTime: candidate.endTime,
-        now: new Date(),
+        now,
+        rehearsalReady: candidate.rehearsalReady,
+        distributionSettled: candidate.distributionSettled,
       });
+      // Một bước mỗi lần chạy: EXECUTION chỉ sang EVENT, kể cả khi đã quá giờ kết thúc.
+      const target =
+        candidate.stored === 'EXECUTION' && reached === 'SUMMARY'
+          ? 'EVENT'
+          : reached;
       if (target === candidate.stored) continue;
       if (command.dryRun) {
         advanced += 1;
@@ -407,7 +619,53 @@ export class AdvanceCharityStagesUseCase implements IAdvanceCharityStagesUseCase
       if (outcome === 'MOVED') advanced += 1;
       else this.logger.log(`Bỏ qua ${candidate.campaignId}: giai đoạn vừa đổi`);
     }
-    return { advanced, checked: candidates.length };
+
+    const blocked: {
+      campaignId: string;
+      ownerId: string;
+      reason: CharityOrganizerReminderReason;
+    }[] = [
+      ...(await this.projects.listBlockedStageCampaigns(
+        command.limit,
+        vietnamDayStart(now).toISOString(),
+      )),
+      ...(
+        await this.projects.listOverdueSummaries(
+          command.limit,
+          vietnamDayStart(now).toISOString(),
+        )
+      ).map((row) => ({ ...row, reason: 'SUMMARY_OVERDUE' as const })),
+    ];
+    let reminded = 0;
+    const day = vietnamDayStart(now).toISOString();
+    for (const row of blocked) {
+      if (command.dryRun) {
+        reminded += 1;
+        continue;
+      }
+      try {
+        await this.dispatch.handle({
+          userId: row.ownerId,
+          type: NotificationTypes.CHARITY_ORGANIZER_REMINDER,
+          title: 'Chiến dịch đang chờ bạn',
+          body: `Chiến dịch của bạn ${OrganizerReminderText[row.reason]}`,
+          referenceType: 'CHARITY_CAMPAIGN',
+          referenceId: row.campaignId,
+          target: {
+            type: NotificationTargetTypes.CHARITY_CAMPAIGN,
+            id: row.campaignId,
+          },
+          idempotencyKey: `CHARITY_ORGANIZER_REMINDER:${row.campaignId}:${row.reason}:${day}`,
+          pushData: { reason: row.reason },
+        });
+        reminded += 1;
+      } catch (error) {
+        this.logger.warn(
+          `Không gửi được nhắc ${row.reason} cho ${row.campaignId}: ${(error as Error).message}`,
+        );
+      }
+    }
+    return { advanced, checked: candidates.length, reminded };
   }
 }
 
@@ -420,12 +678,31 @@ export class UpdateCharityProfileUseCase implements IUpdateCharityProfileUseCase
   ) {}
 
   public async handle(command: IUpdateCharityProfileCommand) {
-    const { campaign } = await this.access.forEdit(command);
+    const access = await this.access.forEdit(command);
+    const { campaign } = access;
     const current = await this.projects.getProfile(campaign.globalId);
     if (!current) throw new CharityCampaignNotFoundException();
     // Bỏ trống = giữ nguyên; `null` = xoá.
     const pick = (value: string | null | undefined, previous: string | null) =>
       value === undefined ? previous : trimmed(value);
+    // Loại tiếp nhận là trường cần duyệt sau khi duyệt (CR 22/11/2026 §3.17b).
+    if (
+      command.profile.acceptedContributionTypes !== undefined &&
+      reviewedFieldsChanged(
+        { acceptedContributionTypes: [...current.acceptedContributionTypes] },
+        {
+          acceptedContributionTypes: normalizeContributionTypes(
+            command.profile.acceptedContributionTypes,
+          ),
+        },
+      ).length > 0
+    ) {
+      await this.access.assertNoPendingRevision(campaign.globalId);
+      if (!(await this.access.directChangeAllowed(access, command.userId)))
+        throw new CharityChangeRequiresReviewException(
+          'acceptedContributionTypes',
+        );
+    }
     const next = {
       appealPurpose: pick(command.profile.appealPurpose, current.appealPurpose),
       appealAudience: pick(
@@ -464,8 +741,19 @@ export class ReplaceCharityPartiesUseCase implements IReplaceCharityPartiesUseCa
   ) {}
 
   public async handle(command: IReplaceCharityPartiesCommand) {
-    const { campaign } = await this.access.forEdit(command);
+    const access = await this.access.forEdit(command);
+    const { campaign } = access;
     const errors: string[] = [];
+    const beneficiaryCount = command.parties.filter(
+      (party) => party.role === 'BENEFICIARY',
+    ).length;
+    if (beneficiaryCount > 0) {
+      const max = await this.access.maxBeneficiaries();
+      if (beneficiaryCount > max)
+        errors.push(
+          `parties: tối đa ${max} đơn vị nhận (charity.max_beneficiaries_per_campaign)`,
+        );
+    }
     for (const [index, party] of command.parties.entries()) {
       if ((party.role === 'BENEFICIARY') !== (party.beneficiaryKind !== null))
         errors.push(
@@ -496,6 +784,52 @@ export class ReplaceCharityPartiesUseCase implements IReplaceCharityPartiesUseCa
           `parties: bên thụ hưởng "${party.name}" còn tài khoản thụ hưởng đang hiệu lực — đóng tài khoản trước`,
         );
     if (errors.length > 0) throw new ValidationFailedException(errors);
+
+    // Sau duyệt (CR 22/11/2026 §3.17b): thêm/bỏ đơn vị nhận, đổi số suất hoặc tiền ước tính
+    // phải qua bản sửa chờ duyệt. Trường khác (SĐT, người phụ trách…) áp ngay.
+    const previousById = new Map(
+      previous
+        .filter((party) => !party.isAppealSubject)
+        .map((party) => [party.partyId, party]),
+    );
+    if (charityBeneficiaryPlanChanged(previous, command.parties)) {
+      await this.access.assertNoPendingRevision(campaign.globalId);
+      if (!(await this.access.directChangeAllowed(access, command.userId)))
+        throw new CharityChangeRequiresReviewException('beneficiaries');
+    }
+
+    // Sàn hai chiều: tổng suất/tiền mới vẫn phải nằm dưới mục tiêu nhu cầu hiện có.
+    const plans = command.parties
+      .filter((party) => party.role === 'BENEFICIARY')
+      .map((party) => {
+        const before = party.partyId
+          ? previousById.get(party.partyId)
+          : undefined;
+        return {
+          estimatedPortions:
+            party.estimatedPortions ?? before?.estimatedPortions ?? 0,
+          estimatedAmount:
+            party.estimatedAmount ?? before?.estimatedAmount ?? 0,
+        };
+      });
+    await assertCampaignPortionFloors(this.projects, campaign, { plans });
+    await assertBeneficiariesInsideWindow(
+      this.projects,
+      campaign.globalId,
+      campaign.distribution,
+      command.parties
+        .filter((party) => party.role === 'BENEFICIARY')
+        .map((party) => ({
+          name: party.name.trim(),
+          distributionAt:
+            party.distributionAt !== undefined
+              ? party.distributionAt
+              : ((party.partyId
+                  ? previousById.get(party.partyId)?.distributionAt
+                  : null) ?? null),
+        })),
+    );
+
     return this.projects.replaceParties({
       campaignId: campaign.globalId,
       actorId: command.userId,
@@ -505,6 +839,110 @@ export class ReplaceCharityPartiesUseCase implements IReplaceCharityPartiesUseCa
       })),
     });
   }
+}
+
+/**
+ * Thêm/bỏ một đơn vị nhận, hoặc đổi số suất / tiền ước tính của nó — các thay đổi cần duyệt
+ * sau khi chiến dịch đã duyệt. `undefined` (app cũ không gửi) không tính là đổi.
+ */
+function charityBeneficiaryPlanChanged(
+  previous: readonly ICharityParty[],
+  next: readonly ICharityPartyInput[],
+): boolean {
+  const before = previous.filter(
+    (party) => !party.isAppealSubject && party.role === 'BENEFICIARY',
+  );
+  const after = next.filter((party) => party.role === 'BENEFICIARY');
+  const beforeIds = new Set(before.map((party) => party.partyId));
+  const afterIds = new Set(
+    after.map((party) => party.partyId).filter((id): id is string => !!id),
+  );
+  if (after.some((party) => !party.partyId || !beforeIds.has(party.partyId)))
+    return true;
+  if (before.some((party) => !afterIds.has(party.partyId))) return true;
+  return after.some((party) => {
+    const old = before.find((row) => row.partyId === party.partyId)!;
+    return (
+      (party.estimatedPortions !== undefined &&
+        party.estimatedPortions !== old.estimatedPortions) ||
+      (party.estimatedAmount !== undefined &&
+        party.estimatedAmount !== old.estimatedAmount)
+    );
+  });
+}
+
+/**
+ * Kiểm sàn số suất/tiền của MỘT chiến dịch với dữ liệu đang lưu, thay từng phần bằng giá trị
+ * sắp ghi (`plans` = đơn vị nhận mới, `needOverride` = một nhu cầu sắp sửa, `fundingOverride`
+ * = một nhu cầu tiền sắp lưu).
+ */
+async function assertCampaignPortionFloors(
+  projects: ICharityProjectRepository,
+  campaign: ICharityCampaign,
+  overrides: {
+    plans?: { estimatedPortions: number; estimatedAmount: number }[];
+    needOverride?: {
+      needItemId: string;
+      targetQuantity: number;
+      quantityPerPortion: number;
+    };
+    fundingOverride?: {
+      fundingNeedId: string | null;
+      targetAmount: number;
+      closed: boolean;
+    };
+  },
+): Promise<void> {
+  const [parties, needs, funding] = await Promise.all([
+    overrides.plans
+      ? Promise.resolve(null)
+      : projects.listParties(campaign.globalId),
+    projects.listItemNeeds(campaign.globalId),
+    projects.listFundingNeeds(campaign.globalId),
+  ]);
+  const plans =
+    overrides.plans ??
+    (parties ?? [])
+      .filter((party) => party.role === 'BENEFICIARY')
+      .map((party) => ({
+        estimatedPortions: party.estimatedPortions ?? 0,
+        estimatedAmount: party.estimatedAmount ?? 0,
+      }));
+  const needRows = needs
+    .filter((need) => need.isActive)
+    .map((need, index) => {
+      const override =
+        overrides.needOverride?.needItemId === need.needItemId
+          ? overrides.needOverride
+          : null;
+      return {
+        index,
+        needItemId: need.needItemId,
+        itemName: need.itemName,
+        targetQuantity: override?.targetQuantity ?? need.targetQuantity,
+        quantityPerPortion:
+          override?.quantityPerPortion ?? need.quantityPerPortion ?? 1,
+      };
+    });
+  const fundingRows = funding
+    .filter(
+      (row) =>
+        row.fundingNeedId !== overrides.fundingOverride?.fundingNeedId &&
+        row.status !== 'CLOSED',
+    )
+    .map((row) => row.targetAmount);
+  if (overrides.fundingOverride && !overrides.fundingOverride.closed)
+    fundingRows.push(overrides.fundingOverride.targetAmount);
+  assertPortionFloors({
+    needs: needRows,
+    // Tiền chỉ có nghĩa khi chiến dịch nhận tiền.
+    fundingTargets: campaign.acceptedContributionTypes.includes('MONEY')
+      ? fundingRows
+      : [],
+    beneficiaries: campaign.acceptedContributionTypes.includes('MONEY')
+      ? plans
+      : plans.map((plan) => ({ ...plan, estimatedAmount: 0 })),
+  });
 }
 
 @Injectable()
@@ -718,11 +1156,173 @@ export class ReplaceCharityPhasesUseCase implements IReplaceCharityPhasesUseCase
         errors.push(`phases: reportMode chỉ dùng cho REPORTING`);
     }
     if (errors.length > 0) throw new ValidationFailedException(errors);
+    const distribution = command.phases.find(
+      (phase) => phase.phase === 'DISTRIBUTION',
+    );
+    await assertBeneficiariesInsideWindow(
+      this.projects,
+      campaign.globalId,
+      distribution
+        ? { startsAt: distribution.startsAt, endsAt: distribution.endsAt }
+        : null,
+    );
     return this.projects.replacePhases({
       campaignId: campaign.globalId,
       actorId: command.userId,
       phases: command.phases,
     });
+  }
+}
+
+/**
+ * Đơn vị nhận có giờ trao nằm ngoài khung trao → 400 0x13_5c (CR 22/11/2026 §3.17d).
+ * `parties` bỏ trống = đọc đơn vị nhận đang lưu.
+ */
+async function assertBeneficiariesInsideWindow(
+  projects: ICharityProjectRepository,
+  campaignId: string,
+  window: { startsAt: Date; endsAt: Date } | null,
+  parties?: readonly { name: string; distributionAt: Date | null }[],
+): Promise<void> {
+  if (!window) return;
+  const list =
+    parties ??
+    (await projects.listParties(campaignId))
+      .filter((party) => party.role === 'BENEFICIARY' && !party.isAppealSubject)
+      .map((party) => ({
+        name: party.name,
+        distributionAt: party.distributionAt ?? null,
+      }));
+  const outside = beneficiariesOutsideWindow(list, window);
+  if (outside.length > 0)
+    throw new CharityBeneficiaryDistributionTimeOutOfRangeException(
+      outside.map((row) => ({
+        index: row.index,
+        name: row.name,
+        distributionAt: row.distributionAt.toISOString(),
+      })),
+    );
+}
+
+/** Nhu cầu có hạn nộp sau khi hết tiếp nhận → 400 0x13_62. */
+function assertIntakeDeadlines(
+  needs: readonly {
+    itemName: string;
+    isActive: boolean;
+    intakeDeadline: Date | null;
+  }[],
+  intakeEndsAt: Date | null,
+): void {
+  if (!intakeEndsAt) return;
+  const late = needs.filter(
+    (need) =>
+      need.isActive &&
+      need.intakeDeadline &&
+      need.intakeDeadline.getTime() > intakeEndsAt.getTime(),
+  );
+  if (late.length > 0)
+    throw new CharityScheduleInvalidException(
+      late
+        .map(
+          (need) =>
+            `itemNeeds.intakeDeadline (${need.itemName}): phải ≤ intakeEndsAt`,
+        )
+        .join('; '),
+    );
+}
+
+/** `PUT :id/intake-locations` (CR 22/11/2026 §3.17c). */
+@Injectable()
+export class ReplaceCharityIntakeLocationsUseCase implements IReplaceCharityIntakeLocationsUseCase {
+  public constructor(
+    private readonly access: CharityProjectAccess,
+    @Inject(ICharityCampaignRepository)
+    private readonly campaigns: ICharityCampaignRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(command: IReplaceCharityIntakeLocationsCommand) {
+    const { campaign } = await this.access.forEdit(command);
+    const locations = command.intakeLocations.map((location) => ({
+      label: location.label.trim(),
+      address: trimmed(location.address),
+      lat: location.lat ?? null,
+      lng: location.lng ?? null,
+      scheduleNote: trimmed(location.scheduleNote),
+      contactName: trimmed(location.contactName),
+      contactPhone: trimmed(location.contactPhone),
+    }));
+    const max = normalizeMaxIntakeLocations(
+      await this.admin.getConfigValue(CharityMaxIntakeLocationsConfigKey),
+    );
+    const errors: string[] = [];
+    if (locations.length > max)
+      errors.push(
+        `intakeLocations: tối đa ${max} điểm (charity.max_intake_locations)`,
+      );
+    if (
+      locations.length === 0 &&
+      campaign.acceptedContributionTypes.includes('MATERIAL')
+    )
+      errors.push('intakeLocations: tối thiểu 1');
+    for (const [index, location] of locations.entries()) {
+      if (!location.label)
+        errors.push(`intakeLocations[${index}].label: bắt buộc`);
+      if ((location.lat === null) !== (location.lng === null))
+        errors.push(`intakeLocations[${index}].lng: cần gửi cùng lat`);
+    }
+    if (errors.length > 0) throw new ValidationFailedException(errors);
+    return this.campaigns.replaceIntakeLocations({
+      campaignId: campaign.globalId,
+      actorId: command.userId,
+      locations,
+    });
+  }
+}
+
+/**
+ * `PUT :id/schedule` (CR 22/11/2026 §3.17b) — áp ngay cả sau duyệt. Thứ tự: khung hợp lệ →
+ * đơn vị nhận trong khung trao → hạn nộp của nhu cầu không sau khi hết tiếp nhận.
+ */
+@Injectable()
+export class SaveCharityScheduleUseCase implements ISaveCharityScheduleUseCase {
+  public constructor(
+    private readonly access: CharityProjectAccess,
+    @Inject(ICharityCampaignRepository)
+    private readonly campaigns: ICharityCampaignRepository,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
+  ) {}
+
+  public async handle(command: ISaveCharityScheduleCommand) {
+    const { campaign } = await this.access.forEdit(command);
+    const schedule = command.schedule;
+    const gaps = charityScheduleGaps(schedule);
+    if (schedule.distributionEndsAt <= schedule.distributionStartsAt)
+      gaps.push('schedule.distributionEndsAt: phải sau distributionStartsAt');
+    if (schedule.endTime <= schedule.intakeStartsAt)
+      gaps.push('schedule.endTime: phải sau intakeStartsAt');
+    if (gaps.length > 0)
+      throw new CharityScheduleInvalidException(gaps.join('; '));
+    await assertBeneficiariesInsideWindow(this.projects, campaign.globalId, {
+      startsAt: schedule.distributionStartsAt,
+      endsAt: schedule.distributionEndsAt,
+    });
+    assertIntakeDeadlines(
+      await this.projects.listItemNeeds(campaign.globalId),
+      schedule.intakeEndsAt,
+    );
+    await this.campaigns.saveSchedule({
+      campaignId: campaign.globalId,
+      actorId: command.userId,
+      ...schedule,
+    });
+    return toView(
+      (await this.campaigns.findByGlobalId(
+        campaign.globalId,
+      )) as ICharityCampaign,
+    );
   }
 }
 
@@ -757,12 +1357,41 @@ export class UpdateCharityItemNeedUseCase implements IUpdateCharityItemNeedUseCa
           `itemNeed.surplusExplanation: bắt buộc khi mục tiêu (${command.targetQuantity}) thấp hơn số đã nhận (${received})`,
         ]);
     }
+    // Sàn theo số suất (CR 22/11/2026): mục tiêu không được thấp hơn tổng suất × mỗi suất.
+    if (
+      command.targetQuantity !== undefined ||
+      command.quantityPerPortion !== undefined
+    ) {
+      const current = (
+        await this.projects.listItemNeeds(campaign.globalId)
+      ).find((need) => need.needItemId === command.needItemId);
+      if (!current) throw new CharityNeedItemInvalidException();
+      await assertCampaignPortionFloors(this.projects, campaign, {
+        needOverride: {
+          needItemId: current.needItemId,
+          targetQuantity: command.targetQuantity ?? current.targetQuantity,
+          quantityPerPortion:
+            command.quantityPerPortion ?? current.quantityPerPortion,
+        },
+      });
+    }
+    assertIntakeDeadlines(
+      [
+        {
+          itemName: 'itemNeed',
+          isActive: true,
+          intakeDeadline: command.profile.intakeDeadline,
+        },
+      ],
+      campaign.intakeEndsAt,
+    );
     const updated = await this.projects.updateItemNeedProfile({
       campaignId: campaign.globalId,
       needItemId: command.needItemId,
       actorId: command.userId,
       profile: command.profile,
       targetQuantity: command.targetQuantity,
+      quantityPerPortion: command.quantityPerPortion,
       surplusExplanation,
     });
     if (!updated) throw new CharityNeedItemInvalidException();
@@ -808,8 +1437,16 @@ export class SaveCharityFundingNeedUseCase implements ISaveCharityFundingNeedUse
       ...need,
       title: need.title.trim(),
       description: trimmed(need.description),
-      receivingUnit: trimmed(need.receivingUnit),
     };
+
+    // Sàn tiền (CR 22/11/2026): tổng mục tiêu tiền đang mở ≥ tổng tiền ước tính.
+    await assertCampaignPortionFloors(this.projects, campaign, {
+      fundingOverride: {
+        fundingNeedId: command.fundingNeedId ?? null,
+        targetAmount: normalized.targetAmount,
+        closed: command.status === 'CLOSED',
+      },
+    });
 
     if (!command.fundingNeedId)
       return this.projects.createFundingNeed({
@@ -853,7 +1490,6 @@ export class SaveCharityFundingNeedUseCase implements ISaveCharityFundingNeedUse
       need.title.trim() === current.title &&
       trimmed(need.description) === current.description &&
       need.beneficiaryPartyId === current.beneficiaryPartyId &&
-      trimmed(need.receivingUnit) === current.receivingUnit &&
       need.bankAccountId === current.bankAccountId &&
       need.targetAmount === current.targetAmount &&
       (need.deadline?.getTime() ?? null) ===
@@ -870,7 +1506,6 @@ export class SaveCharityFundingNeedUseCase implements ISaveCharityFundingNeedUse
         title: current.title,
         description: current.description,
         beneficiaryPartyId: current.beneficiaryPartyId,
-        receivingUnit: current.receivingUnit,
         bankAccountId: current.bankAccountId,
         targetAmount: current.targetAmount,
         deadline: current.deadline,
@@ -949,6 +1584,9 @@ export class RegisterCharityVolunteerUseCase implements IRegisterCharityVoluntee
       throw new CharityCampaignNotFoundException();
     if (stageRank(campaign.operationStage) >= stageRank('EVENT'))
       throw new CharityVolunteerClosedException();
+    // Hết tiếp nhận (CR 22/11/2026 §3.9): đăng ký qua tuyển công sức là vai PARTICIPANT.
+    if (isIntakeClosed(campaign, new Date()))
+      throw new CharityIntakeClosedException();
     const outcome = await this.projects.registerVolunteer({
       campaignId: campaign.globalId,
       volunteerNeedId: command.volunteerNeedId,
@@ -1330,6 +1968,7 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
       states,
       customSections,
       contentFlags,
+      rehearsal,
     ] = await Promise.all([
       this.projects.getProfile(id),
       this.projects.listParties(id),
@@ -1345,6 +1984,7 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
       this.projects.listSectionStates(id),
       this.projects.listCustomSections(id),
       sectionContentFlags(this.projects, this.engagement, id),
+      this.projects.getRehearsal(id),
     ]);
     const now = new Date();
     const suspended = isSuspendedProject(campaign, now);
@@ -1377,6 +2017,7 @@ export class GetCharityWorkspaceUseCase implements IGetCharityWorkspaceUseCase {
         (account) =>
           account.partyId === null || !hiddenPartyIds.has(account.partyId),
       ),
+      rehearsal,
       team,
       phases,
       itemNeeds,
@@ -1426,7 +2067,25 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
     private readonly events: ICharityEventRepository,
     @Inject(ICharitySummaryRepository)
     private readonly summaries: ICharitySummaryRepository,
+    @Optional()
+    @Inject(ICharityOperationsRepository)
+    private readonly operations?: ICharityOperationsRepository,
   ) {}
+
+  /** Hình thức trao CÔNG KHAI: đúng 5 trường, không bao giờ có chi tiết riêng tư. */
+  private async publicDistribution(
+    campaignId: string,
+  ): Promise<ICharityPublicProject['distribution']> {
+    const distribution = await this.operations?.getDistribution(campaignId);
+    if (!distribution || distribution.distributionMethod === null) return null;
+    return {
+      method: distribution.distributionMethod,
+      contributionTypes: [...distribution.contributionTypes],
+      serviceType: distribution.serviceType,
+      serviceChannel: distribution.serviceChannel,
+      evidenceUrls: [...distribution.evidenceUrls],
+    };
+  }
 
   public async handle(
     command: IGetCharityPublicProjectCommand,
@@ -1522,6 +2181,11 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
       summary: publishedSummary,
       financialReports,
       totals: publicTotals,
+      distribution: await this.publicDistribution(campaign.globalId),
+      beneficiaries: (await this.campaigns.listBeneficiaryPlans(id)).map(
+        toPublicBeneficiary,
+      ),
+      organizer: await publicOrganizer(this.campaigns, id),
       supporters,
       counters,
       isFollowing,
@@ -1569,5 +2233,454 @@ export class SetCharityLimitsUseCase implements ISetCharityLimitsUseCase {
         command.maxBankAccounts,
       ),
     };
+  }
+}
+
+/** Ảnh chụp các trường cần duyệt của bản ĐANG CHẠY (đã duyệt) — `base` của bản sửa. */
+async function reviewedSnapshot(
+  projects: ICharityProjectRepository,
+  campaign: ICharityCampaign,
+): Promise<ICharityReviewedFields> {
+  const cover = campaign.media.find((item) => item.isCover);
+  return {
+    title: campaign.title,
+    description: campaign.description,
+    // Bản chụp chỉ để Admin so — media đang chạy được nhận diện bằng URL công khai.
+    media: {
+      keys: campaign.media.map((item) => item.url),
+      coverKey: cover?.url ?? campaign.bannerUrl,
+    },
+    beneficiaries: (await projects.listParties(campaign.globalId))
+      .filter((party) => party.role === 'BENEFICIARY' && !party.isAppealSubject)
+      .map((party) => ({
+        partyId: party.partyId,
+        name: party.name,
+        beneficiaryKind: party.beneficiaryKind ?? 'GROUP',
+        estimatedPortions: party.estimatedPortions,
+        estimatedAmount: party.estimatedAmount,
+        address: party.address ?? null,
+        distributionAt: party.distributionAt
+          ? party.distributionAt.toISOString()
+          : null,
+        lat: party.location?.lat ?? null,
+        lng: party.location?.lng ?? null,
+      })),
+    acceptedContributionTypes: [...campaign.acceptedContributionTypes],
+    pointBonusPercent: campaign.pointBonusPercent,
+  };
+}
+
+/** Workspace (chủ, điều phối, Admin đọc) xem bản sửa đang chờ duyệt. */
+@Injectable()
+export class GetCharityChangeRequestUseCase implements IGetCharityChangeRequestUseCase {
+  public constructor(
+    private readonly access: CharityProjectAccess,
+    @Inject(ICharityChangeRequestRepository)
+    private readonly changeRequests: ICharityChangeRequestRepository,
+  ) {}
+
+  public async handle(command: ICharityProjectCommand) {
+    const { campaign } = await this.access.forOperate(command);
+    return {
+      request: await this.changeRequests.findPending(campaign.globalId),
+    };
+  }
+}
+
+/**
+ * Gửi bản sửa chờ duyệt (CR 22/11/2026 §3.17): chỉ chiến dịch ĐÃ DUYỆT; chỉ khoá được gửi và
+ * khác bản đang chạy. Media xác nhận với R2 ngay (key hỏng → 400) nhưng chỉ gắn khi Admin
+ * duyệt. Gửi lại khi đang chờ thì thay nội dung, giữ `base` lần đầu.
+ */
+@Injectable()
+export class SaveCharityChangeRequestUseCase implements ISaveCharityChangeRequestUseCase {
+  public constructor(
+    private readonly access: CharityProjectAccess,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
+    @Inject(ICharityChangeRequestRepository)
+    private readonly changeRequests: ICharityChangeRequestRepository,
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+  ) {}
+
+  public async handle(command: ISaveCharityChangeRequestCommand) {
+    const { campaign } = await this.access.forEdit(command);
+    if (campaign.approvalStatus !== 'APPROVED')
+      throw new CharityProjectNotApprovedException();
+    const input = command.revision ?? {};
+    const proposed: ICharityReviewedFields = {};
+    const errors: string[] = [];
+    if (input.title !== undefined) proposed.title = input.title.trim();
+    if (input.description !== undefined)
+      proposed.description = input.description.trim();
+    if (input.acceptedContributionTypes !== undefined)
+      proposed.acceptedContributionTypes = normalizeContributionTypes(
+        input.acceptedContributionTypes,
+      );
+    if (input.pointBonusPercent !== undefined) {
+      if (isCharityPointBonusPercent(input.pointBonusPercent))
+        proposed.pointBonusPercent = input.pointBonusPercent;
+      else
+        errors.push(
+          `revision.pointBonusPercent phải là một trong: ${CharityPointBonusPercents.join(', ')}`,
+        );
+    }
+    if (input.beneficiaries !== undefined) {
+      // Cùng trần với PUT :id/parties (review M3).
+      const max = await this.access.maxBeneficiaries();
+      if (input.beneficiaries.length > max)
+        errors.push(
+          `revision.beneficiaries: tối đa ${max} đơn vị nhận (charity.max_beneficiaries_per_campaign)`,
+        );
+    }
+    if (input.beneficiaries !== undefined)
+      proposed.beneficiaries = input.beneficiaries.map((unit) => ({
+        ...(unit.partyId ? { partyId: unit.partyId } : {}),
+        name: unit.name.trim(),
+        beneficiaryKind: unit.beneficiaryKind,
+        estimatedPortions: unit.estimatedPortions,
+        estimatedAmount: unit.estimatedAmount,
+        address: unit.address?.trim() || null,
+        distributionAt: unit.distributionAt ?? null,
+        lat: unit.lat ?? null,
+        lng: unit.lng ?? null,
+      }));
+    if (errors.length > 0) throw new ValidationFailedException(errors);
+    if (input.media !== undefined) {
+      // Xác nhận key với R2 lúc gửi — key hỏng trả 400 ngay, không đợi tới lúc Admin duyệt.
+      await confirmCharityMedia(
+        this.storage,
+        command.userId,
+        input.media.keys,
+        input.media.coverKey,
+      );
+      proposed.media = {
+        keys: [...input.media.keys],
+        coverKey: input.media.coverKey,
+      };
+    }
+    const base = await reviewedSnapshot(this.projects, campaign);
+    if (reviewedFieldsChanged(base, proposed).length === 0)
+      throw new ValidationFailedException([
+        'revision: không có thay đổi nào so với bản đã duyệt',
+      ]);
+    return {
+      request: await this.changeRequests.upsertPending({
+        campaignId: campaign.globalId,
+        actorId: command.userId,
+        proposed,
+        base,
+      }),
+    };
+  }
+}
+
+/** Chủ dự án rút bản sửa đang chờ; không có bản chờ → 404. */
+@Injectable()
+export class WithdrawCharityChangeRequestUseCase implements IWithdrawCharityChangeRequestUseCase {
+  public constructor(
+    private readonly access: CharityProjectAccess,
+    @Inject(ICharityChangeRequestRepository)
+    private readonly changeRequests: ICharityChangeRequestRepository,
+  ) {}
+
+  public async handle(command: ICharityProjectCommand) {
+    const { campaign, isOwner } = await this.access.resolve(
+      command.campaignId,
+      command.userId,
+    );
+    if (!isOwner) throw new CharityProjectForbiddenException();
+    if (
+      !(await this.changeRequests.withdraw({
+        campaignId: campaign.globalId,
+        actorId: command.userId,
+      }))
+    )
+      throw new CharityCampaignNotFoundException();
+    return { withdrawn: true as const };
+  }
+}
+
+/** Bộ party THAY THẾ khi áp bản sửa: giữ mọi vai khác, thay đơn vị nhận theo bản sửa. */
+function mergeReviewedBeneficiaries(
+  current: readonly ICharityParty[],
+  proposed: readonly ICharityReviewedBeneficiary[],
+): ICharityPartyInput[] {
+  const byId = new Map(current.map((party) => [party.partyId, party]));
+  const others = current
+    .filter((party) => !party.isAppealSubject && party.role !== 'BENEFICIARY')
+    .map((party): ICharityPartyInput => ({ ...party }));
+  const beneficiaries = proposed.map((unit): ICharityPartyInput => {
+    const previous = unit.partyId ? byId.get(unit.partyId) : undefined;
+    const kept = previous && previous.role === 'BENEFICIARY' ? previous : null;
+    return {
+      partyId: kept?.partyId ?? null,
+      role: 'BENEFICIARY',
+      name: unit.name,
+      beneficiaryKind: unit.beneficiaryKind,
+      estimatedPortions: unit.estimatedPortions,
+      estimatedAmount: unit.estimatedAmount,
+      address:
+        unit.address !== undefined
+          ? (unit.address ?? null)
+          : (kept?.address ?? null),
+      distributionAt:
+        unit.distributionAt !== undefined
+          ? unit.distributionAt
+            ? new Date(unit.distributionAt)
+            : null
+          : (kept?.distributionAt ?? null),
+      lat: unit.lat !== undefined ? (unit.lat ?? null) : (kept?.lat ?? null),
+      lng: unit.lng !== undefined ? (unit.lng ?? null) : (kept?.lng ?? null),
+      phone: kept?.phone ?? null,
+      email: kept?.email ?? null,
+      hotline: kept?.hotline ?? null,
+      picName: kept?.picName ?? null,
+      picPhone: kept?.picPhone ?? null,
+      picUserId: kept?.picUserId ?? null,
+      evidenceUrls: kept?.evidenceUrls ?? [],
+      consentStatus: kept?.consentStatus ?? null,
+    };
+  });
+  return [...others, ...beneficiaries];
+}
+
+const ChangeRequestReadPermission = 'campaign.read';
+const ChangeRequestWritePermission = 'campaign.manage';
+
+/** Hàng đợi bản sửa cho Admin (`campaign.read`). */
+@Injectable()
+export class ListCharityChangeRequestsUseCase implements IListCharityChangeRequestsUseCase {
+  public constructor(
+    @Inject(ICharityChangeRequestRepository)
+    private readonly changeRequests: ICharityChangeRequestRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(command: IListCharityChangeRequestsCommand) {
+    if (
+      !(await this.admin.hasPermission(
+        command.actorUserId,
+        ChangeRequestReadPermission,
+      ))
+    )
+      throw new ForbiddenException();
+    return {
+      requests: await this.changeRequests.listByStatus({
+        status: command.status,
+        limit: Math.min(Math.max(command.limit, 1), 100),
+        offset: Math.max(command.offset, 0),
+      }),
+    };
+  }
+}
+
+/** Admin xem bản sửa đang chờ cạnh giá trị ĐANG CHẠY của chiến dịch. */
+@Injectable()
+export class GetAdminCharityChangeRequestUseCase implements IGetAdminCharityChangeRequestUseCase {
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly campaigns: ICharityCampaignRepository,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
+    @Inject(ICharityChangeRequestRepository)
+    private readonly changeRequests: ICharityChangeRequestRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+  ) {}
+
+  public async handle(command: IAdminCharityChangeRequestCommand) {
+    if (
+      !(await this.admin.hasPermission(
+        command.actorUserId,
+        ChangeRequestReadPermission,
+      ))
+    )
+      throw new ForbiddenException();
+    const campaign = await this.campaigns.findByGlobalId(command.campaignId);
+    if (!campaign) throw new CharityCampaignNotFoundException();
+    const request = await this.changeRequests.findPending(campaign.globalId);
+    if (!request) throw new CharityCampaignNotFoundException();
+    return {
+      request,
+      current: await reviewedSnapshot(this.projects, campaign),
+    };
+  }
+}
+
+/**
+ * Admin duyệt hoặc từ chối bản sửa (CR 22/11/2026).
+ *
+ * Duyệt: kiểm sàn số suất/tiền và khung trao với bộ đơn vị đề xuất TRƯỚC (vi phạm → 400, bản sửa
+ * vẫn chờ), xác nhận media, rồi áp trong một transaction. Từ chối: bắt buộc lý do, không áp gì.
+ * Cả hai ghi audit Admin và báo chủ dự án.
+ */
+@Injectable()
+export class DecideCharityChangeRequestUseCase implements IDecideCharityChangeRequestUseCase {
+  private readonly logger = new Logger(DecideCharityChangeRequestUseCase.name);
+
+  public constructor(
+    @Inject(ICharityCampaignRepository)
+    private readonly campaigns: ICharityCampaignRepository,
+    @Inject(ICharityProjectRepository)
+    private readonly projects: ICharityProjectRepository,
+    @Inject(ICharityChangeRequestRepository)
+    private readonly changeRequests: ICharityChangeRequestRepository,
+    @Inject(IAdminConfigRepository)
+    private readonly admin: IAdminConfigRepository,
+    @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+    // `@Optional()`: cây CLI dựng CharityProjectModule mà không có CharityCampaignModule (nơi
+    // export notifier) — CLI không bao giờ duyệt bản sửa. Ở API notifier luôn có.
+    @Optional() private readonly notifier?: CharityNotifier,
+  ) {}
+
+  public async handle(command: IDecideCharityChangeRequestCommand) {
+    if (
+      !(await this.admin.hasPermission(
+        command.actorUserId,
+        ChangeRequestWritePermission,
+      ))
+    )
+      throw new ForbiddenException();
+    const campaign = await this.campaigns.findByGlobalId(command.campaignId);
+    if (!campaign) throw new CharityCampaignNotFoundException();
+    const request = await this.changeRequests.findPending(campaign.globalId);
+    if (!request) throw new CharityCampaignNotFoundException();
+    const reason = command.reason?.trim() || null;
+
+    if (!command.approve) {
+      if (!reason)
+        throw new ValidationFailedException([
+          'decision.reason: bắt buộc khi từ chối',
+        ]);
+      const decided = await this.changeRequests.decide({
+        requestId: request.requestId,
+        actorId: command.actorUserId,
+        status: 'REJECTED',
+        reason,
+      });
+      if (!decided) throw new CharityCampaignNotFoundException();
+      await this.finish(campaign, decided, command.actorUserId, false, reason);
+      return { request: decided };
+    }
+
+    const proposed = request.proposed;
+    if (proposed.beneficiaries) {
+      // Sàn và khung trao với bộ đơn vị ĐỀ XUẤT — vi phạm thì bản sửa vẫn chờ.
+      await assertCampaignPortionFloors(this.projects, campaign, {
+        plans: proposed.beneficiaries.map((unit) => ({
+          estimatedPortions: unit.estimatedPortions,
+          estimatedAmount: unit.estimatedAmount,
+        })),
+      });
+      // Mọi đơn vị trong bộ đề xuất — kể cả đơn vị đang có bị dời giờ trao (review I4).
+      await assertBeneficiariesInsideWindow(
+        this.projects,
+        campaign.globalId,
+        campaign.distribution,
+        proposed.beneficiaries.map((unit) => ({
+          name: unit.name,
+          distributionAt: unit.distributionAt
+            ? new Date(unit.distributionAt)
+            : null,
+        })),
+      );
+    }
+    if (proposed.beneficiaries) {
+      // Cùng luật với PUT :id/parties: không bỏ đơn vị còn tài khoản thụ hưởng đang hiệu lực —
+      // tài khoản đã xác thực sẽ mồ côi (review I3). Bản sửa vẫn chờ.
+      const kept = new Set(
+        proposed.beneficiaries
+          .map((unit) => unit.partyId)
+          .filter((id): id is string => Boolean(id)),
+      );
+      const [current, accounts] = await Promise.all([
+        this.projects.listParties(campaign.globalId),
+        this.projects.listBeneficiaryBankAccounts(campaign.globalId),
+      ]);
+      const blocked = current.filter(
+        (party) =>
+          party.role === 'BENEFICIARY' &&
+          !party.isAppealSubject &&
+          !kept.has(party.partyId) &&
+          accounts.some(
+            (account) =>
+              account.partyId === party.partyId && account.validTo === null,
+          ),
+      );
+      if (blocked.length > 0)
+        throw new ValidationFailedException(
+          blocked.map(
+            (party) =>
+              `revision.beneficiaries: đơn vị "${party.name}" còn tài khoản thụ hưởng đang hiệu lực — đóng tài khoản trước`,
+          ),
+        );
+    }
+    const media = proposed.media
+      ? await confirmCharityMedia(
+          this.storage,
+          request.submittedBy ?? campaign.createdBy ?? command.actorUserId,
+          proposed.media.keys,
+          proposed.media.coverKey,
+        )
+      : null;
+    const decided = await this.changeRequests.applyApproved({
+      request,
+      actorId: command.actorUserId,
+      reason,
+      campaign: {
+        title: proposed.title,
+        description: proposed.description,
+        pointBonusPercent: proposed.pointBonusPercent,
+        acceptedContributionTypes: proposed.acceptedContributionTypes,
+      },
+      media,
+      parties: proposed.beneficiaries
+        ? mergeReviewedBeneficiaries(
+            await this.projects.listParties(campaign.globalId),
+            proposed.beneficiaries,
+          )
+        : null,
+    });
+    if (!decided) throw new CharityCampaignNotFoundException();
+    await this.finish(campaign, decided, command.actorUserId, true, reason);
+    return { request: decided };
+  }
+
+  private async finish(
+    campaign: ICharityCampaign,
+    request: ICharityChangeRequest,
+    actorId: string,
+    approved: boolean,
+    reason: string | null,
+  ): Promise<void> {
+    // Bản sửa đã được áp/chốt: audit hỏng lúc này không được biến thành lỗi trả về (Admin bấm
+    // lại sẽ nhận 404 vì bản sửa không còn chờ) — ghi log để vận hành bù (review M4).
+    try {
+      await this.admin.appendAudit({
+        actorUserId: actorId,
+        action: approved
+          ? 'CHARITY_CHANGE_REQUEST_APPROVE'
+          : 'CHARITY_CHANGE_REQUEST_REJECT',
+        resourceType: 'CAMPAIGN',
+        resourceId: campaign.globalId,
+        before: request.base,
+        after: request.proposed,
+        reason: reason ?? undefined,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Không ghi được audit bản sửa ${request.requestId}: ${String(error)}`,
+      );
+    }
+    await this.notifier?.changeRequestDecided({
+      campaignId: campaign.globalId,
+      campaignTitle: campaign.title,
+      ownerId: campaign.createdBy,
+      requestId: request.requestId,
+      approved,
+      reason,
+    });
   }
 }

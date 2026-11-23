@@ -16,12 +16,17 @@ import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
 import { CharityPointsService } from '../src/application/implementations/charity-project/charity-points.service';
+import { GetPointFeedUseCase } from '../src/application/implementations/point/get-point-feed.use-case';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
 import { AdminConfigRepository } from '../src/infrastructure/repository/admin-config.repository';
 import { CharityAppealRepository } from '../src/infrastructure/repository/charity-appeal.repository';
 import { CharityCampaignRepository } from '../src/infrastructure/repository/charity-campaign.repository';
 import { CharityPointsRepository } from '../src/infrastructure/repository/charity-points.repository';
+import {
+  PointFeedRepository,
+  pointFeedListSql,
+} from '../src/infrastructure/repository/point-feed.repository';
 import { PointLedgerRepository } from '../src/infrastructure/repository/point-ledger.repository';
 
 loadEnvFile({ path: '.env.local' });
@@ -491,6 +496,588 @@ async function main(): Promise<void> {
       adminView[0]?.organizerOverturnedCount === 1 &&
         adminView[0].appellantRejectedCount === 0,
       JSON.stringify(adminView[0]),
+    );
+
+    // ── 7. Migration 1804300000000: hệ số thưởng, cặp award thưởng ───────
+    console.log('\n7. Ràng buộc hệ số thưởng và award thưởng (CR 22/11/2026)');
+    const rejected = async (query: string, params: unknown[]) =>
+      sql(query, params).then(
+        () => 'nhận',
+        (error: Error) => error.message,
+      );
+    const bonusPercent30 = await rejected(
+      `UPDATE campaigns SET point_bonus_percent = 30 WHERE global_id = $1`,
+      [Live],
+    );
+    check(
+      'point_bonus_percent = 30 bị CHECK chặn',
+      bonusPercent30.includes('check constraint'),
+      bonusPercent30,
+    );
+    const bonusWithoutBase = await rejected(
+      `INSERT INTO campaign_point_awards
+         (campaign_id, user_id, rule_code, reference_type, reference_id, target_points, reason)
+       VALUES ($1, $2, 'CHARITY_CAMPAIGN_BONUS', 'CHARITY_PARTICIPATION', 'x:1', 5, 'thử')`,
+      [Live, Walker],
+    );
+    check(
+      'award thưởng thiếu base_award_id bị chặn',
+      bonusWithoutBase.includes('CHK_campaign_point_awards_bonus_base'),
+      bonusWithoutBase,
+    );
+    const [anyBase] = await sql(
+      `SELECT global_id FROM campaign_point_awards
+        WHERE rule_code <> 'CHARITY_CAMPAIGN_BONUS' ORDER BY id LIMIT 1`,
+    );
+    const baseWithBase = await rejected(
+      `INSERT INTO campaign_point_awards
+         (campaign_id, user_id, rule_code, reference_type, reference_id, target_points, reason,
+          base_award_id)
+       VALUES ($1, $2, 'CHARITY_PARTICIPATION', 'CHARITY_PARTICIPATION', 'x:2', 5, 'thử', $3)`,
+      [Live, Walker, anyBase?.global_id ?? null],
+    );
+    check(
+      'award gốc mang base_award_id bị chặn',
+      baseWithBase.includes('CHK_campaign_point_awards_bonus_base'),
+      baseWithBase,
+    );
+
+    // ── 8. Thưởng hệ số đi cặp với điểm gốc, chung trần (CR 22/11/2026) ────
+    console.log('\n8. Bút toán thưởng hệ số chiến dịch');
+    const BonusCamp = id('20');
+    const ZeroCamp = id('21');
+    const [U1, U2, U3, U6, U7] = ['41', '42', '43', '46', '47'].map(id);
+    for (const [userId, username] of [
+      [U1, 'cpt_u1'],
+      [U2, 'cpt_u2'],
+      [U3, 'cpt_u3'],
+      [U6, 'cpt_u6'],
+      [U7, 'cpt_u7'],
+    ])
+      await sql(
+        `INSERT INTO users (global_id, username, password_hash, rank, status)
+         VALUES ($1, $2, 'x', 'MEMBER', 'ACTIVE')`,
+        [userId, username],
+      );
+    for (const [campaignId, slug, percent] of [
+      [BonusCamp, 'cpt-bonus', 50],
+      [ZeroCamp, 'cpt-zero', 0],
+    ] as const)
+      await sql(
+        `INSERT INTO campaigns
+           (global_id, title, slug, description, banner_url, start_time, end_time,
+            created_by, approval_status, approved_at, approved_by, submitted_at,
+            operation_stage, point_bonus_percent, requested_point_bonus_percent)
+         VALUES ($1, 'Dự án thưởng', $2, 'Mô tả đủ dài cho dự án kiểm',
+                 'https://cdn.test/a.jpg', now() - interval '10 days',
+                 now() + interval '20 days', $3, 'APPROVED', now(), $3, now(), 'SUMMARY',
+                 $4, $4)`,
+        [campaignId, slug, Owner, percent],
+      );
+    const CapKey = 'charity.points_cap.charity_participation.daily';
+    await setRule('CHARITY_PARTICIPATION', true);
+    await setConfig(CapKey, 0);
+    const entriesOf = async (userId: string) =>
+      (await sql(
+        `SELECT id::int AS id, rule_code, delta, reference_type, reference_id,
+                xmin::text AS tx
+           FROM point_ledger WHERE user_id = $1 ORDER BY id`,
+        [userId],
+      )) as {
+        id: number;
+        rule_code: string;
+        delta: number;
+        reference_type: string;
+        reference_id: string;
+        tx: string;
+      }[];
+    const sumOf = (
+      rows: { rule_code: string; delta: number }[],
+      rule: string,
+    ) =>
+      rows
+        .filter((row) => row.rule_code === rule)
+        .reduce((total, row) => total + row.delta, 0);
+    const score = (
+      userId: string,
+      completionScore: number,
+      campaignId = BonusCamp,
+    ) =>
+      service.awardParticipation({
+        campaignId,
+        participantId: userId,
+        completionScore,
+      });
+
+    await score(U1, 15);
+    let rows = await entriesOf(U1);
+    const baseEntry = rows.find(
+      (row) => row.rule_code === 'CHARITY_PARTICIPATION',
+    );
+    const bonusEntry = rows.find(
+      (row) => row.rule_code === 'CHARITY_CAMPAIGN_BONUS',
+    );
+    check(
+      'hệ số 50, điểm gốc 15 → hai bút toán 15 và 7; thưởng trỏ POINT_LEDGER = id bút toán gốc, cùng transaction',
+      baseEntry?.delta === 15 &&
+        bonusEntry?.delta === 7 &&
+        bonusEntry.reference_type === 'POINT_LEDGER' &&
+        bonusEntry.reference_id === String(baseEntry.id) &&
+        bonusEntry.tx === baseEntry.tx,
+      JSON.stringify(rows),
+    );
+
+    await sql(
+      `UPDATE campaigns SET point_bonus_percent = 100 WHERE global_id = $1`,
+      [BonusCamp],
+    );
+    await service.settlePending(100);
+    rows = await entriesOf(U1);
+    check(
+      'đổi hệ số 50→100 sau khi ghi → bút toán cũ không đổi',
+      sumOf(rows, 'CHARITY_CAMPAIGN_BONUS') === 7 && rows.length === 2,
+      JSON.stringify(rows),
+    );
+    await sql(
+      `UPDATE campaigns SET point_bonus_percent = 50 WHERE global_id = $1`,
+      [BonusCamp],
+    );
+
+    await score(U1, 0);
+    rows = await entriesOf(U1);
+    check(
+      'chấm lại về 0 → bút toán gốc −15 và thưởng −7',
+      sumOf(rows, 'CHARITY_PARTICIPATION') === 0 &&
+        sumOf(rows, 'CHARITY_CAMPAIGN_BONUS') === 0 &&
+        rows.some((row) => row.delta === -15) &&
+        rows.some((row) => row.delta === -7),
+      JSON.stringify(rows.map((row) => [row.rule_code, row.delta])),
+    );
+
+    await setConfig(CapKey, 20);
+    await score(U2, 15);
+    rows = await entriesOf(U2);
+    const [u2Bonus] = await sql(
+      `SELECT bonus.target_points, bonus.applied_points
+         FROM campaign_point_awards bonus
+         JOIN campaign_point_awards base ON base.global_id = bonus.base_award_id
+        WHERE base.user_id = $1`,
+      [U2],
+    );
+    check(
+      'trần ngày 20, gốc 15 hệ số 50 → gốc 15, thưởng 5, phần thưởng còn 2 hoãn',
+      sumOf(rows, 'CHARITY_PARTICIPATION') === 15 &&
+        sumOf(rows, 'CHARITY_CAMPAIGN_BONUS') === 5 &&
+        u2Bonus?.target_points === 7 &&
+        u2Bonus?.applied_points === 5,
+      JSON.stringify({ rows, u2Bonus }),
+    );
+
+    await setConfig(CapKey, 10);
+    await score(U3, 15);
+    rows = await entriesOf(U3);
+    check(
+      'trần ngày 10, gốc 15 → gốc 10 hoãn 5, thưởng 0',
+      sumOf(rows, 'CHARITY_PARTICIPATION') === 10 &&
+        sumOf(rows, 'CHARITY_CAMPAIGN_BONUS') === 0,
+      JSON.stringify(rows),
+    );
+    await setConfig(CapKey, 0);
+    await service.settlePending(100);
+    rows = await entriesOf(U3);
+    const u2After = await entriesOf(U2);
+    check(
+      'nâng trần → job ghi gốc 5 rồi thưởng (U3 gốc 15 + thưởng 7; U2 phần thưởng hoãn 2 cũng được ghi)',
+      sumOf(rows, 'CHARITY_PARTICIPATION') === 15 &&
+        sumOf(rows, 'CHARITY_CAMPAIGN_BONUS') === 7 &&
+        sumOf(u2After, 'CHARITY_CAMPAIGN_BONUS') === 7,
+      JSON.stringify({
+        u3: rows.map((row) => [row.rule_code, row.delta]),
+        u2: u2After.map((row) => [row.rule_code, row.delta]),
+      }),
+    );
+    const remainder = u2After.filter(
+      (row) => row.rule_code === 'CHARITY_CAMPAIGN_BONUS',
+    );
+    const u2Base = u2After.find(
+      (row) => row.rule_code === 'CHARITY_PARTICIPATION',
+    );
+    check(
+      'phần thưởng hoãn ghi riêng vẫn trỏ bút toán gốc mới nhất của award gốc',
+      remainder.length === 2 &&
+        remainder.every((row) => row.reference_id === String(u2Base?.id)),
+      JSON.stringify(remainder),
+    );
+
+    await sql(
+      `INSERT INTO campaign_participations
+         (campaign_id, user_id, status, role, checked_in_at, checked_in_by)
+       VALUES ($1, $2, 'CHECKED_IN', 'SUPERVISOR', now(), $3)`,
+      [BonusCamp, U6, Owner],
+    );
+    await score(U6, 40);
+    rows = await entriesOf(U6);
+    check(
+      'giám sát viên được chấm mức hoàn thành → CHARITY_PARTICIPATION + thưởng',
+      sumOf(rows, 'CHARITY_PARTICIPATION') === 40 &&
+        sumOf(rows, 'CHARITY_CAMPAIGN_BONUS') === 20,
+      JSON.stringify(rows),
+    );
+
+    await score(U7, 40, ZeroCamp);
+    const [{ n: zeroBonusAwards }] = await sql(
+      `SELECT count(*)::int AS n FROM campaign_point_awards
+        WHERE user_id = $1 AND rule_code = 'CHARITY_CAMPAIGN_BONUS'`,
+      [U7],
+    );
+    check(
+      'hệ số 0 → không tạo award thưởng',
+      zeroBonusAwards === 0 &&
+        sumOf(await entriesOf(U7), 'CHARITY_PARTICIPATION') === 40,
+      String(zeroBonusAwards),
+    );
+
+    // Review C1: một bài vừa có clip vừa có ảnh → hai award gốc cùng tham chiếu bài; mỗi award có
+    // award thưởng RIÊNG, không đụng khoá duy nhất; job không dừng giữa chừng.
+    const U8 = id('48');
+    await sql(
+      `INSERT INTO users (global_id, username, password_hash, rank, status)
+       VALUES ($1, 'cpt_u8', 'x', 'MEMBER', 'ACTIVE')`,
+      [U8],
+    );
+    await sql(
+      `UPDATE campaigns SET point_bonus_percent = 100 WHERE global_id = $1`,
+      [BonusCamp],
+    );
+    await setRule('CHARITY_POST_VIDEO', true);
+    await setRule('CHARITY_POST_IMAGE', true);
+    const [mixedPost] = await sql(
+      `INSERT INTO campaign_posts (campaign_id, author_id, author_role, stage, body)
+       VALUES ($1, $2, 'PARTICIPANT', 'EVENT', 'Clip và ảnh') RETURNING global_id`,
+      [BonusCamp, U8],
+    );
+    await service.awardPost({
+      postId: mixedPost.global_id,
+      campaignId: BonusCamp,
+      authorId: U8,
+      videoCount: 1,
+      imageCount: 2,
+    });
+    const pendingAfterMixed = await service.settlePending(200);
+    const mixedRows = await entriesOf(U8);
+    const mixedVideo = sumOf(mixedRows, 'CHARITY_POST_VIDEO');
+    const mixedImage = sumOf(mixedRows, 'CHARITY_POST_IMAGE');
+    check(
+      'bài có clip + ảnh ở hệ số 100: cả hai điểm gốc ghi đủ, thưởng = tổng gốc, job không lỗi',
+      mixedVideo > 0 &&
+        mixedImage > 0 &&
+        sumOf(mixedRows, 'CHARITY_CAMPAIGN_BONUS') ===
+          mixedVideo + mixedImage &&
+        typeof pendingAfterMixed.applied === 'number',
+      JSON.stringify(mixedRows.map((row) => [row.rule_code, row.delta])),
+    );
+    await sql(
+      `UPDATE campaigns SET point_bonus_percent = 50 WHERE global_id = $1`,
+      [BonusCamp],
+    );
+
+    // Review I7: chấm lại GIẢM khi phần thưởng còn hoãn → mục tiêu thưởng co theo MỤC TIÊU, không
+    // theo phần đã ghi (không mất phần hoãn).
+    const U9 = id('49');
+    await sql(
+      `INSERT INTO users (global_id, username, password_hash, rank, status)
+       VALUES ($1, 'cpt_u9', 'x', 'MEMBER', 'ACTIVE')`,
+      [U9],
+    );
+    await setConfig(CapKey, 20);
+    await score(U9, 15);
+    await score(U9, 10);
+    const [u9Bonus] = await sql(
+      `SELECT bonus.target_points, bonus.applied_points
+         FROM campaign_point_awards bonus
+         JOIN campaign_point_awards base ON base.global_id = bonus.base_award_id
+        WHERE base.user_id = $1`,
+      [U9],
+    );
+    check(
+      'gốc 15 (thưởng 7: ghi 5, hoãn 2) chấm lại 10 → mục tiêu thưởng floor(7×10/15) = 4, đã ghi 4',
+      u9Bonus?.target_points === 4 && u9Bonus?.applied_points === 4,
+      JSON.stringify(u9Bonus),
+    );
+    await setConfig(CapKey, 0);
+
+    await setRule('CHARITY_CONTRIBUTION_COMPLETED', true);
+    const bonusDelivery = await makeDelivery(BonusCamp, 'T');
+    await campaigns.completeDelivery({
+      deliveryId: bonusDelivery.deliveryId,
+      organizerId: Owner,
+      received: bonusDelivery.needs.map((needItemId) => ({
+        needItemId,
+        receivedQuantity: 1,
+      })),
+    });
+    const [contributionEntry] = await sql(
+      `SELECT entry.id::int AS id, entry.delta, entry.xmin::text AS tx,
+              entry.lifetime_after
+         FROM point_ledger entry
+         JOIN campaign_deliveries delivery
+           ON delivery.contribution_id::text = entry.reference_id
+        WHERE entry.rule_code = 'CHARITY_CONTRIBUTION_COMPLETED' AND delivery.global_id = $1`,
+      [bonusDelivery.deliveryId],
+    );
+    const [contributionBonus] = await sql(
+      `SELECT delta, xmin::text AS tx, lifetime_after FROM point_ledger
+        WHERE rule_code = 'CHARITY_CAMPAIGN_BONUS' AND reference_type = 'POINT_LEDGER'
+          AND reference_id = $1`,
+      [String(contributionEntry?.id ?? -1)],
+    );
+    check(
+      'đóng góp hoàn tất ở chiến dịch hệ số 50 → +10 và thưởng +5 trỏ bút toán gốc, cùng transaction',
+      contributionEntry?.delta === 10 &&
+        contributionBonus?.delta === 5 &&
+        contributionBonus.tx === contributionEntry.tx,
+      JSON.stringify({ contributionEntry, contributionBonus }),
+    );
+    check(
+      'rule gốc CHARITY_CONTRIBUTION_COMPLETED không tính lifetime → bút toán thưởng cũng không tăng lifetime (review M2)',
+      contributionBonus?.lifetime_after === contributionEntry?.lifetime_after,
+      JSON.stringify({ contributionEntry, contributionBonus }),
+    );
+
+    // ── 9. Bảng tin điểm (CR 22/11/2026, Review Focus 3) ───────────────────
+    console.log(
+      '\n9. Bảng tin điểm: gộp thưởng, loại phạt/điều chỉnh, không lộ lý do',
+    );
+    const [FeedU, FeedViewer, FeedSuspended] = ['51', '52', '53'].map(id);
+    for (const [userId, username] of [
+      [FeedU, 'cpt_feed_u'],
+      [FeedViewer, 'cpt_feed_viewer'],
+      [FeedSuspended, 'cpt_feed_suspended'],
+    ])
+      await sql(
+        `INSERT INTO users (global_id, username, password_hash, rank, status, full_name)
+         VALUES ($1, $2, 'x', 'MEMBER', 'ACTIVE', 'Người Thử')`,
+        [userId, username],
+      );
+    // FeedU cho hiện tên ở chiến dịch; FeedHidden tham gia nhưng ẩn tên (review I6).
+    const FeedHidden = id('54');
+    await sql(
+      `INSERT INTO users (global_id, username, password_hash, rank, status)
+       VALUES ($1, 'cpt_feed_hidden', 'x', 'MEMBER', 'ACTIVE')`,
+      [FeedHidden],
+    );
+    for (const [userId, show] of [
+      [FeedU, true],
+      [FeedHidden, false],
+    ] as const)
+      await sql(
+        `INSERT INTO campaign_participations
+           (campaign_id, user_id, status, checked_in_at, checked_in_by, show_name_publicly)
+         VALUES ($1, $2, 'CHECKED_IN', now(), $3, $4)`,
+        [BonusCamp, userId, Owner, show],
+      );
+    await score(FeedU, 60);
+    await score(FeedHidden, 40);
+    const adjust = (
+      userId: string,
+      ruleCode: string,
+      delta: number,
+      reason: string,
+      tag: string,
+    ) =>
+      ledger.appendAdjustment({
+        userId,
+        ruleCode,
+        delta,
+        referenceType: 'ADMIN_ADJUSTMENT',
+        referenceId: `ref-${tag}-bi-mat`,
+        idempotencyKey: `feed-check:${tag}`,
+        actor: Owner,
+        source: 'ADMIN',
+        reason,
+      });
+    await adjust(FeedU, 'ADMIN_ADJUSTMENT', 50, 'Bù lỗi hệ thống XYZ', 'adj');
+    await adjust(
+      FeedU,
+      'CONTENT_VIOLATION_PENALTY',
+      -20,
+      'Đăng nội dung cấm',
+      'pen',
+    );
+    await adjust(FeedU, 'REVERSAL', 20, 'Hoàn phạt vì nhầm', 'rev');
+    await adjust(FeedU, 'CHECK_IN_DAILY', 5, 'Điểm danh', 'chk');
+    await adjust(
+      FeedSuspended,
+      'CHECK_IN_STREAK_MILESTONE',
+      40,
+      'Mốc 7 ngày',
+      'sus',
+    );
+    await sql(
+      `UPDATE users SET suspended_until = now() + interval '3 days' WHERE global_id = $1`,
+      [FeedSuspended],
+    );
+    const noCache = { read: async () => null, write: async () => undefined };
+    const noThrottle = {
+      assertWithinLimit: async () => undefined,
+      registerHit: async () => undefined,
+    };
+    const feedRepository = new PointFeedRepository(dataSource.manager);
+    const feedUseCase = new GetPointFeedUseCase(
+      feedRepository,
+      noCache,
+      noThrottle,
+      adminConfig,
+      ledger,
+    );
+    const general = await feedUseCase.handle({
+      viewerId: FeedViewer,
+      userId: null,
+      afterId: null,
+      limit: 50,
+    });
+    const mine = general.entries.filter((entry) => entry.user.userId === FeedU);
+    check(
+      'feed chung (ngưỡng 10): đúng một dòng của U — delta 90, bonusPercent 50, tiêu đề tham gia',
+      mine.length === 1 &&
+        mine[0].delta === 90 &&
+        mine[0].bonusPercent === 50 &&
+        mine[0].ruleTitle === 'Tham gia dự án từ thiện' &&
+        mine[0].context?.type === 'CHARITY_CAMPAIGN',
+      JSON.stringify(mine),
+    );
+    // Review M6: đổi hệ số SAU khi ghi → bảng tin vẫn hiện hệ số lúc ghi.
+    await sql(
+      `UPDATE campaigns SET point_bonus_percent = 100 WHERE global_id = $1`,
+      [BonusCamp],
+    );
+    const afterPercentChange = await feedUseCase.handle({
+      viewerId: FeedViewer,
+      userId: FeedU,
+      afterId: null,
+      limit: 50,
+    });
+    await sql(
+      `UPDATE campaigns SET point_bonus_percent = 50 WHERE global_id = $1`,
+      [BonusCamp],
+    );
+    const participationLine = afterPercentChange.entries.find(
+      (entry) => entry.ruleTitle === 'Tham gia dự án từ thiện',
+    );
+    check(
+      'đổi hệ số 50→100 sau khi ghi → bảng tin vẫn bonusPercent 50 (review M6)',
+      participationLine?.bonusPercent === 50,
+      JSON.stringify(participationLine),
+    );
+    const generalJson = JSON.stringify(general);
+    check(
+      'JSON không có lý do XYZ, id tham chiếu, rule_code hay reason',
+      !generalJson.includes('XYZ') &&
+        !generalJson.includes('bi-mat') &&
+        !generalJson.includes('rule_code') &&
+        !generalJson.includes('ruleCode') &&
+        !generalJson.includes('reason') &&
+        !generalJson.includes('CHARITY_POINT_AWARD'),
+    );
+    const own = await feedUseCase.handle({
+      viewerId: FeedU,
+      userId: FeedU,
+      afterId: null,
+      limit: 50,
+    });
+    check(
+      'CHECK_IN_DAILY +5 không có ở feed chung nhưng có ở feed của chính U; phạt/điều chỉnh/đảo không có ở đâu',
+      !general.entries.some(
+        (entry) => entry.user.userId === FeedU && entry.delta === 5,
+      ) &&
+        own.entries.some(
+          (entry) => entry.ruleTitle === 'Điểm danh hằng ngày',
+        ) &&
+        !JSON.stringify(own).includes('XYZ') &&
+        own.entries.length === 2,
+      JSON.stringify(
+        own.entries.map((entry) => [entry.ruleTitle, entry.delta]),
+      ),
+    );
+    check(
+      'người bị khoá (suspended_until tương lai) → không có trên feed chung',
+      !general.entries.some((entry) => entry.user.userId === FeedSuspended),
+    );
+    const hiddenEntry = general.entries.find(
+      (entry) => entry.user.userId === FeedHidden,
+    );
+    check(
+      'người tham gia ẩn tên ở chiến dịch: dòng điểm vẫn có nhưng KHÔNG kèm ngữ cảnh chiến dịch (review I6)',
+      hiddenEntry !== undefined && hiddenEntry.context === null,
+      JSON.stringify(hiddenEntry),
+    );
+    await sql(
+      `UPDATE users SET show_in_public_point_feed = false WHERE global_id = $1`,
+      [FeedU],
+    );
+    const hidden = await feedUseCase.handle({
+      viewerId: FeedViewer,
+      userId: null,
+      afterId: null,
+      limit: 50,
+    });
+    let hiddenError: string | null = null;
+    try {
+      await feedUseCase.handle({
+        viewerId: FeedViewer,
+        userId: FeedU,
+        afterId: null,
+        limit: 50,
+      });
+    } catch (error) {
+      hiddenError = (error as Error).constructor.name;
+    }
+    check(
+      'U tắt cờ → vắng khỏi feed chung; người khác xem feed của U → 404',
+      !hidden.entries.some((entry) => entry.user.userId === FeedU) &&
+        hiddenError === 'UserNotFoundException',
+      String(hiddenError),
+    );
+    const afterFirst = await feedUseCase.handle({
+      viewerId: FeedViewer,
+      userId: null,
+      afterId: general.latestId,
+      limit: 50,
+    });
+    check(
+      'afterId = latestId → không có gì mới, entries [] kèm latestId',
+      afterFirst.entries.length === 0 &&
+        afterFirst.latestId === general.latestId,
+      JSON.stringify({ latest: afterFirst.latestId }),
+    );
+    const plan = await dataSource.transaction(async (manager) => {
+      await manager.query('SET LOCAL enable_seqscan = off');
+      const statement = pointFeedListSql({
+        userScoped: true,
+        ascending: false,
+      });
+      return (await manager.query(
+        `EXPLAIN ${statement.sql}`,
+        statement.params({
+          afterId: null,
+          limit: 20,
+          userId: FeedU,
+          minDelta: 0,
+          excludedRuleCodes: ['ADMIN_ADJUSTMENT'],
+          upToId: null,
+          mergedRuleCodes: ['CHARITY_CAMPAIGN_BONUS'],
+        }),
+      )) as { 'QUERY PLAN': string }[];
+    });
+    check(
+      'EXPLAIN truy vấn theo người dùng đi qua IDX_point_ledger_user_id',
+      plan.some((line) =>
+        line['QUERY PLAN'].includes('IDX_point_ledger_user_id'),
+      ),
+      plan
+        .map((line) => line['QUERY PLAN'])
+        .join(' | ')
+        .slice(0, 300),
     );
   } finally {
     for (const source of opened.reverse())

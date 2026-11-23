@@ -1,5 +1,6 @@
 import {
   CharityParticipationDecisions,
+  CharityParticipationRoles,
   CharityParticipationStatuses,
 } from '@chantam.vn/chantam.core-lib/models';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -68,6 +69,12 @@ export class CharityParticipationDto {
       '`REGISTERED` = đã đăng ký, chờ ban tổ chức duyệt. Chỉ `CHECKED_IN`/`COMPLETED` được đăng ảnh/clip sự kiện và được chấm mức hoàn thành.',
   })
   status: string;
+  @ApiProperty({
+    enum: CharityParticipationRoles,
+    description:
+      'Vai (CR 22/11/2026): `PARTICIPANT` người tham gia, `SUPERVISOR` giám sát viên. Mỗi người một vai.',
+  })
+  role: string;
   @ApiProperty() registeredAt: Date;
   @ApiProperty({ type: Date, nullable: true }) statusChangedAt: Date | null;
   @ApiProperty({ type: String, nullable: true, format: 'uuid' })

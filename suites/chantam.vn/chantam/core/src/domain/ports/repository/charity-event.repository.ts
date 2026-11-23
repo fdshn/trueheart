@@ -10,8 +10,6 @@ import {
 
 export interface ICharityEventStep {
   stepId: string;
-  /** Đợt trao (§3.18); `null` = timeline chung của dự án (dự án một đợt). */
-  roundId: string | null;
   stepKey: CharityEventStepKey;
   plannedAt: Date | null;
   actualAt: Date | null;
@@ -67,12 +65,9 @@ export type CharityUploadReservation<T> =
 
 export interface ICharityEventRepository {
   // ── Timeline ──────────────────────────────────────────────────────────
-  /** Tạo đủ 10 bước cho dự án (`roundId` null) hoặc cho một đợt trao. Có rồi thì thôi. */
-  ensureEventSteps(campaignId: string, roundId?: string | null): Promise<void>;
-  listEventSteps(
-    campaignId: string,
-    roundId?: string | null,
-  ): Promise<ICharityEventStep[]>;
+  /** Tạo đủ 10 bước cho chiến dịch. Có rồi thì thôi. */
+  ensureEventSteps(campaignId: string): Promise<void>;
+  listEventSteps(campaignId: string): Promise<ICharityEventStep[]>;
   updateEventStep(params: {
     campaignId: string;
     stepId: string;

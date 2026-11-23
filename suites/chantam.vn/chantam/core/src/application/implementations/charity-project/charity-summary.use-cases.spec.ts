@@ -14,6 +14,7 @@ import {
   GetCharityPromotionUseCase,
   GetCharitySummaryUseCase,
   GetMyCharityEvaluationUseCase,
+  ListCharityMembersUseCase,
   PublishCharitySummaryUseCase,
   SaveCharitySummaryUseCase,
   SetCharityPromotionUseCase,
@@ -53,7 +54,11 @@ function make(stage: 'EVENT' | 'SUMMARY' = 'SUMMARY', adminWrite = false) {
     addEvaluation: jest.fn(async () => ({ completionScore: 80 })),
     latestEvaluation: jest.fn(async (): Promise<unknown> => null),
     setPromotion: jest.fn(async () => ({ featuredOnHome: true })),
-    countParticipation: jest.fn(async () => ({ registered: 12, checkedIn: 7 })),
+    countParticipation: jest.fn(async () => ({
+      registered: 12,
+      checkedIn: 7,
+      supervisorsCheckedIn: 2,
+    })),
     intakeTotals: jest.fn(async () => ({
       material: { lines: [], confirmedValue: 0 },
       money: {
@@ -270,11 +275,11 @@ describe('GetCharityPromotionUseCase', () => {
   });
 });
 
-describe('Tổng kết · số người tham gia so với tối thiểu (PR #54)', () => {
-  const board = (minimumParticipants: number) => {
+describe('Tổng kết · giám sát viên so với tối thiểu (CR 22/11/2026)', () => {
+  const board = (minimumSupervisors: number) => {
     const deps = make();
-    (deps.campaign as { minimumParticipants: number }).minimumParticipants =
-      minimumParticipants;
+    (deps.campaign as { minimumSupervisors: number }).minimumSupervisors =
+      minimumSupervisors;
     return new GetCharitySummaryUseCase(
       deps.access,
       deps.summaries as never,
@@ -296,21 +301,145 @@ describe('Tổng kết · số người tham gia so với tối thiểu (PR #54)
     ]);
   });
 
-  it('trả số đăng ký, số đã check-in và tối thiểu; chưa đạt chỉ là cờ cảnh báo', async () => {
-    expect((await board(10)).participation).toEqual({
+  it('tổng kết supervisors.checkedIn/minimumSupervisors, thiếu chỉ là met=false', async () => {
+    const result = await board(3);
+    expect(result.participation).toEqual({
       registeredCount: 12,
       checkedInCount: 7,
-      minimumParticipants: 10,
-      minimumParticipantsMet: false,
+    });
+    expect(result.supervisors).toEqual({
+      checkedIn: 2,
+      minimumSupervisors: 3,
+      met: false,
     });
   });
 
-  it('đối chiếu theo số ĐÃ check-in, không theo số đăng ký', async () => {
-    expect((await board(7)).participation.minimumParticipantsMet).toBe(true);
-    expect((await board(8)).participation.minimumParticipantsMet).toBe(false);
+  it('đối chiếu theo số giám sát viên ĐÃ check-in', async () => {
+    expect((await board(2)).supervisors.met).toBe(true);
+    expect((await board(3)).supervisors.met).toBe(false);
   });
 
-  it('minimumParticipants = 0 là không đặt — luôn đạt', async () => {
-    expect((await board(0)).participation.minimumParticipantsMet).toBe(true);
+  it('minimumSupervisors = 0 là không đặt — luôn đạt', async () => {
+    expect((await board(0)).supervisors.met).toBe(true);
+  });
+});
+
+describe('ListCharityMembersUseCase (CR 22/11/2026 — members công khai)', () => {
+  const at = (minute: number) =>
+    new Date(Date.UTC(2026, 10, 23, 0, minute)).toISOString();
+  const row = (userId: string, minute: number) => ({
+    user: {
+      globalId: userId,
+      username: `u-${userId.slice(-3)}`,
+      fullName: null,
+      avatarUrl: null,
+      rank: 'MEMBER',
+      email: 'an@private.test',
+    },
+    joinedAt: new Date(at(minute)),
+    contributionTypes: ['MATERIAL', 'SERVICE'],
+  });
+  const build = (visible: string | null = CampaignId) => {
+    const summaries = {
+      listPublicMembers: jest.fn(async (params: { limit: number }) => ({
+        rows: [row('a-001', 1), row('a-002', 2), row('a-003', 3)].slice(
+          0,
+          params.limit,
+        ),
+        anonymousCount: 4,
+      })),
+    };
+    const projects = { findVisibleCampaignId: jest.fn(async () => visible) };
+    return {
+      summaries,
+      projects,
+      useCase: new ListCharityMembersUseCase(
+        summaries as never,
+        projects as never,
+      ),
+    };
+  };
+
+  it('members chưa công khai → 404', async () => {
+    const { useCase, summaries } = build(null);
+    await expect(
+      useCase.handle({ idOrSlug: 'nhap', type: 'CONTRIBUTOR', limit: 20 }),
+    ).rejects.toThrow(CharityCampaignNotFoundException);
+    expect(summaries.listPublicMembers).not.toHaveBeenCalled();
+  });
+
+  it('dòng đi qua toPublicUserProfile (năm trường), giữ contributionTypes, anonymousCount', async () => {
+    const { useCase } = build();
+    const result = await useCase.handle({
+      idOrSlug: CampaignId,
+      type: 'CONTRIBUTOR',
+      limit: 20,
+    });
+    expect(result.members[0]).toEqual({
+      user: {
+        userId: 'a-001',
+        username: 'u-001',
+        displayName: 'u-001',
+        avatarUrl: null,
+        rank: 'MEMBER',
+      },
+      joinedAt: new Date(at(1)),
+      contributionTypes: ['MATERIAL', 'SERVICE'],
+    });
+    expect(result.anonymousCount).toBe(4);
+    expect(result.nextCursor).toBeNull();
+    expect(JSON.stringify(result)).not.toContain('private.test');
+  });
+
+  it('PARTICIPANT không mang contributionTypes', async () => {
+    const { useCase } = build();
+    const result = await useCase.handle({
+      idOrSlug: CampaignId,
+      type: 'PARTICIPANT',
+      limit: 20,
+    });
+    expect(result.members[0]).not.toHaveProperty('contributionTypes');
+  });
+
+  it('cursor trang 2 không lặp dòng: hỏi limit+1, nextCursor = base64url(joinedAt|userId) của dòng cuối trả về', async () => {
+    const { useCase, summaries } = build();
+    const first = await useCase.handle({
+      idOrSlug: CampaignId,
+      type: 'SUPERVISOR',
+      limit: 2,
+    });
+    expect(summaries.listPublicMembers).toHaveBeenLastCalledWith(
+      expect.objectContaining({ limit: 3, cursor: null, type: 'SUPERVISOR' }),
+    );
+    expect(first.members.map((member) => member.user.userId)).toEqual([
+      'a-001',
+      'a-002',
+    ]);
+    expect(first.nextCursor).toBe(
+      Buffer.from(`${at(2)}|a-002`).toString('base64url'),
+    );
+    await useCase.handle({
+      idOrSlug: CampaignId,
+      type: 'SUPERVISOR',
+      limit: 2,
+      cursor: first.nextCursor as string,
+    });
+    expect(summaries.listPublicMembers).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        cursor: { joinedAt: new Date(at(2)), userId: 'a-002' },
+      }),
+    );
+  });
+
+  it('cursor hỏng → 400', async () => {
+    const { useCase } = build();
+    await expect(
+      useCase.handle({
+        idOrSlug: CampaignId,
+        type: 'CONTRIBUTOR',
+        limit: 20,
+        cursor: 'không-phải-cursor',
+      }),
+    ).rejects.toThrow(ValidationFailedException);
   });
 });

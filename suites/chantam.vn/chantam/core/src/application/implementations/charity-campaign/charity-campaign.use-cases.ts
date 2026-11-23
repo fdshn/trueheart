@@ -83,7 +83,7 @@ import {
   IUpdateCharityProgressCommand,
   IUpdateCharityProgressUseCase,
 } from '@/application/contracts/charity-campaign';
-import { prepareCharityRoundDistribution } from '@/application/implementations/charity-project/charity-round-distribution';
+import { prepareCharityCampaignDistribution } from '@/application/implementations/charity-project/charity-campaign-distribution';
 import {
   assertContributionTypeAccepted,
   assertDistributionMethodAcceptedByCampaign,
@@ -92,15 +92,19 @@ import {
   CharityAlreadyRegisteredException,
   CharityApprovalAlreadyDecidedException,
   CharityBeneficiaryConsentRequiredException,
+  CharityBeneficiaryDistributionTimeOutOfRangeException,
   CharityBeneficiaryNotApplicableException,
   CharityCampaignCreateNotAllowedException,
   CharityCampaignHasActivityException,
   CharityCampaignNotFoundException,
+  CharityCampaignSummaryNotPublishedException,
   CharityCancelTooLateException,
+  CharityChangeRequiresReviewException,
   CharityContributionNotEditableException,
   CharityContributionNotFoundException,
   CharityCoordinatorNotAllowedException,
   CharityDeliveryNotFoundException,
+  CharityIntakeClosedException,
   CharityLinesInvalidException,
   CharityMediaInvalidException,
   CharityMediaNotEditableException,
@@ -114,14 +118,18 @@ import {
   CharityReviewDuplicateException,
   CharityReviewNotPermittedException,
   CharityReviewTooEarlyException,
+  CharityRevisionPendingExistsException,
+  CharityScheduleInvalidException,
   CharitySelfContributionException,
   CharitySubmitRequirementsUnmetException,
+  CharitySupervisorConflictException,
 } from '@/domain/exceptions';
 import {
   IAdminConfigRepository,
   ICharityCampaign,
   ICharityCampaignMediaParams,
   ICharityCampaignRepository,
+  ICharityChangeRequestRepository,
   ICharityContribution,
   ICharityDelivery,
   ICharityExternalContribution,
@@ -133,32 +141,45 @@ import {
   IUserRepository,
 } from '@/domain/ports/repository';
 import { hasRankAtLeast } from '@chantam.vn/chantam.core-lib/consts';
+import { IPublicUserProfileDto } from '@chantam.vn/chantam.core-lib/dto';
 import {
+  beneficiariesOutsideWindow,
+  beneficiarySubmitGaps,
+  canCancelCharityParticipation,
+  canEditContribution,
+  canReviewCharityCampaign,
   CharityActiveParticipationStatuses,
   CharityApprovalStatus,
+  charityCampaignGaps,
   CharityCampaignType,
   CharityCancellableParticipationStatuses,
   CharityCapabilityByType,
+  CharityMaxBeneficiariesConfigKey,
+  CharityMaxIntakeLocationsConfigKey,
+  charityMediaShapeGaps,
+  charityMediaTypeGaps,
+  CharityPointBonusPercent,
+  CharityPointBonusPercents,
+  charityReviewRoleOf,
+  charityScheduleGaps,
+  charitySubmitRequirementGaps,
+  charitySupervisorRequirementGaps,
+  deriveAcceptedContributionTypes,
+  isCharityPointBonusPercent,
+  isCharityReviewRating,
+  isIntakeClosed,
   MaxCharityDescriptionLength,
   MaxCharityReviewCommentLength,
   MaxCharityTargetItems,
   MaxCharityTitleLength,
-  PublishCharityWithoutReviewCapability,
-  canCancelCharityParticipation,
-  canEditContribution,
-  canReviewCharityCampaign,
-  charityCampaignGaps,
-  charityMediaShapeGaps,
-  charityMediaTypeGaps,
-  charityParticipationRequirementGaps,
-  charityReviewRoleOf,
-  charitySubmitRequirementGaps,
-  deriveAcceptedContributionTypes,
-  isCharityReviewRating,
   normalizeCharitySlug,
   normalizeContributionTypes,
+  normalizeMaxBeneficiaries,
+  normalizeMaxIntakeLocations,
   overallNeedProgressPercent,
+  PublishCharityWithoutReviewCapability,
   slugifyCharityTitle,
+  toPublicBeneficiary,
 } from '@chantam.vn/chantam.core-lib/models';
 import {
   ForbiddenException,
@@ -169,9 +190,33 @@ import {
   IStorageUploadResult,
 } from '@chantam/service.storage-lib';
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { directChangeAllowed } from '../charity-project/charity-change-review';
 import { CharityPointsService } from '../charity-project/charity-points.service';
+import { assertPortionFloors } from '../charity-project/charity-portion-guard';
+import { toPublicUserProfile } from '../shared/public-author';
 import { withStorageValidation } from '../shared/storage-error';
 import { CharityNotifier } from './charity.notifier';
+
+/** Hệ số tăng điểm phải thuộc {0, 20, 50, 100} — sai thì 400 nêu đúng tên trường. */
+function assertPointBonusPercent(
+  value: number,
+  field: string,
+): CharityPointBonusPercent {
+  if (!isCharityPointBonusPercent(value))
+    throw new ValidationFailedException([
+      `${field} phải là một trong: ${CharityPointBonusPercents.join(', ')}`,
+    ]);
+  return value;
+}
+
+/** Người tổ chức cho bản công khai — chọn tường minh năm trường (CR 22/11/2026). */
+export async function publicOrganizer(
+  repository: Pick<ICharityCampaignRepository, 'findOrganizerProfile'>,
+  campaignId: string,
+): Promise<IPublicUserProfileDto | null> {
+  const organizer = await repository.findOrganizerProfile(campaignId);
+  return organizer ? toPublicUserProfile(organizer) : null;
+}
 
 /**
  * Quyền Admin đọc và quyền Admin ghi.
@@ -214,7 +259,7 @@ async function prepareWrite(
   title: string;
   slug: string;
   description: string;
-  badgeName: string;
+  badgeName: string | null;
   targetItemsCount: number;
   lat: number | null;
   lng: number | null;
@@ -228,7 +273,7 @@ async function prepareWrite(
   const description = (input.description ?? '')
     .trim()
     .slice(0, MaxCharityDescriptionLength);
-  const badgeName = (input.badgeName ?? '').trim();
+  const badgeName = (input.badgeName ?? '').trim() || null;
   const targetItemsCount = input.targetItemsCount ?? 0;
   const startTime = new Date(input.startTime);
   const endTime = new Date(input.endTime);
@@ -282,7 +327,7 @@ async function prepareWrite(
  * kiểm TRƯỚC khi hỏi R2; loại (ảnh hay video) chỉ biết SAU HeadObject — lấy từ content
  * type thật của object chứ không tin lời khai lúc xin URL.
  */
-async function confirmCharityMedia(
+export async function confirmCharityMedia(
   storage: IObjectStorage,
   userId: string,
   keys: readonly string[],
@@ -347,6 +392,104 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
     // khác là lưu dữ liệu riêng tư của một người không liên quan gì tới hoạt động.
     if (command.beneficiary && !forOther)
       throw new CharityBeneficiaryNotApplicableException();
+    // Đơn vị nhận (CR 22/11/2026) chỉ dành cho chiến dịch có tổ chức — kêu gọi cá nhân có
+    // đúng một người thụ hưởng ở `beneficiary`.
+    const beneficiaries = command.beneficiaries ?? [];
+    if (
+      beneficiaries.length > 0 &&
+      command.campaignType !== 'ORGANIZED_CAMPAIGN'
+    )
+      throw new CharityBeneficiaryNotApplicableException();
+    if (beneficiaries.length > 0) {
+      const max = normalizeMaxBeneficiaries(
+        await this.admin.getConfigValue(CharityMaxBeneficiariesConfigKey),
+      );
+      if (beneficiaries.length > max)
+        throw new ValidationFailedException([
+          `beneficiaries: tối đa ${max} đơn vị nhận (charity.max_beneficiaries_per_campaign)`,
+        ]);
+      const unitErrors: string[] = [];
+      for (const [index, unit] of beneficiaries.entries())
+        if ((unit.lat === undefined) !== (unit.lng === undefined))
+          unitErrors.push(`beneficiaries[${index}].lng: cần gửi cùng lat`);
+      if (unitErrors.length > 0)
+        throw new ValidationFailedException(unitErrors);
+    }
+
+    // Điểm tiếp nhận (CR 22/11/2026 §3.17c): bỏ trống mà có địa điểm cũ thì thành một điểm.
+    const intakeLocations = (
+      command.intakeLocations ??
+      (command.locationLabel?.trim() ||
+      (command.lat !== undefined && command.lng !== undefined)
+        ? [
+            {
+              label: command.locationLabel?.trim() || 'Điểm tiếp nhận',
+              lat: command.lat,
+              lng: command.lng,
+            },
+          ]
+        : [])
+    ).map((location) => ({
+      label: location.label.trim(),
+      address:
+        ('address' in location ? location.address : undefined)?.trim() || null,
+      lat: location.lat ?? null,
+      lng: location.lng ?? null,
+      scheduleNote:
+        ('scheduleNote' in location
+          ? location.scheduleNote
+          : undefined
+        )?.trim() || null,
+      contactName:
+        ('contactName' in location
+          ? location.contactName
+          : undefined
+        )?.trim() || null,
+      contactPhone:
+        ('contactPhone' in location
+          ? location.contactPhone
+          : undefined
+        )?.trim() || null,
+    }));
+    if (intakeLocations.length > 0) {
+      const max = normalizeMaxIntakeLocations(
+        await this.admin.getConfigValue(CharityMaxIntakeLocationsConfigKey),
+      );
+      const locationErrors: string[] = [];
+      if (intakeLocations.length > max)
+        locationErrors.push(
+          `intakeLocations: tối đa ${max} điểm (charity.max_intake_locations)`,
+        );
+      for (const [index, location] of intakeLocations.entries()) {
+        if (!location.label)
+          locationErrors.push(`intakeLocations[${index}].label: bắt buộc`);
+        if ((location.lat === null) !== (location.lng === null))
+          locationErrors.push(
+            `intakeLocations[${index}].lng: cần gửi cùng lat`,
+          );
+      }
+      if (locationErrors.length > 0)
+        throw new ValidationFailedException(locationErrors);
+    }
+
+    // Ba khung (CR 22/11/2026 §3.17b): tiếp nhận → trao → kết thúc.
+    const intakeStart = new Date(command.intakeStartsAt ?? command.startTime);
+    const intakeEndsAt = command.intakeEndsAt
+      ? new Date(command.intakeEndsAt)
+      : null;
+    if (
+      (command.distributionStartsAt === undefined) !==
+      (command.distributionEndsAt === undefined)
+    )
+      throw new ValidationFailedException([
+        'distributionEndsAt: cần gửi cùng distributionStartsAt',
+      ]);
+    const topLevelWindow = command.distributionStartsAt
+      ? {
+          startsAt: new Date(command.distributionStartsAt),
+          endsAt: new Date(command.distributionEndsAt!),
+        }
+      : null;
 
     // Kiểm quyền TẠO trước, kể cả khi chỉ lưu nháp: người không được tạo thì cũng không
     // được để lại hồ sơ nháp nào.
@@ -370,12 +513,22 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       command.beneficiary?.consentStatus !== 'CONFIRMED'
     )
       approvalStatus = 'PENDING_APPROVAL';
-    const distributionStartsAt = command.distribution
-      ? new Date(command.distribution.scheduledStart)
+    // Hình thức trao cấp chiến dịch (CR 22/11/2026): khung giờ trao là tuỳ chọn — có đủ
+    // scheduledStart + scheduledEnd mới ghi phase DISTRIBUTION.
+    const distribution = command.distribution ?? null;
+    const distributionStartsAt = distribution?.scheduledStart
+      ? new Date(distribution.scheduledStart)
       : null;
-    const distributionEndsAt = command.distribution
-      ? new Date(command.distribution.scheduledEnd)
+    const distributionEndsAt = distribution?.scheduledEnd
+      ? new Date(distribution.scheduledEnd)
       : null;
+    if (
+      distribution &&
+      (distributionStartsAt === null) !== (distributionEndsAt === null)
+    )
+      throw new ValidationFailedException([
+        'distribution.scheduledEnd: cần gửi cùng scheduledStart',
+      ]);
     if (
       distributionStartsAt &&
       distributionEndsAt &&
@@ -384,42 +537,81 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       throw new ValidationFailedException([
         'distribution.scheduledEnd: phải sau scheduledStart',
       ]);
-    const preparedDistribution = command.distribution
-      ? prepareCharityRoundDistribution({
-          title: 'Đợt trao 1',
-          distributionMethod: command.distribution.method,
-          contributionTypes: command.distribution.contributionTypes,
-          evidenceUrls: [],
-          locationLabel: command.distribution.location?.label ?? null,
-          address: command.distribution.location?.address ?? null,
-          lat: command.distribution.location?.lat ?? null,
-          lng: command.distribution.location?.lng ?? null,
-          needsReview: false,
-          serviceType: command.distribution.serviceType ?? null,
-          serviceChannel: command.distribution.serviceChannel ?? null,
+    const distributionWindow =
+      topLevelWindow ??
+      (distributionStartsAt && distributionEndsAt
+        ? { startsAt: distributionStartsAt, endsAt: distributionEndsAt }
+        : null);
+    if (
+      distributionWindow &&
+      distributionWindow.endsAt <= distributionWindow.startsAt
+    )
+      throw new ValidationFailedException([
+        'distributionEndsAt: phải sau distributionStartsAt',
+      ]);
+    const scheduleGaps = charityScheduleGaps({
+      intakeStartsAt: intakeStart,
+      intakeEndsAt,
+      distributionStartsAt: distributionWindow?.startsAt ?? null,
+      distributionEndsAt: distributionWindow?.endsAt ?? null,
+      endTime: new Date(command.endTime),
+    });
+    if (scheduleGaps.length > 0)
+      throw new CharityScheduleInvalidException(scheduleGaps.join('; '));
+    const outside = beneficiariesOutsideWindow(
+      beneficiaries.map((unit) => ({
+        name: unit.name.trim(),
+        distributionAt: unit.distributionAt
+          ? new Date(unit.distributionAt)
+          : null,
+      })),
+      distributionWindow,
+    );
+    if (outside.length > 0)
+      throw new CharityBeneficiaryDistributionTimeOutOfRangeException(
+        outside.map((row) => ({
+          index: row.index,
+          name: row.name,
+          distributionAt: row.distributionAt.toISOString(),
+        })),
+      );
+    const preparedDistribution = distribution
+      ? prepareCharityCampaignDistribution({
+          distributionMethod: distribution.method,
+          contributionTypes: distribution.contributionTypes,
+          serviceType: distribution.serviceType ?? null,
+          serviceChannel: distribution.serviceChannel ?? null,
           privateDetails: {
             beneficiaryBankAccountId: null,
-            recipientName: command.distribution.recipientName ?? null,
-            recipientPhone: command.distribution.recipientPhone ?? null,
-            recipientAddress: command.distribution.recipientAddress ?? null,
-            coordinatorName: command.distribution.coordinatorName ?? null,
-            coordinatorPhone: command.distribution.coordinatorPhone ?? null,
-            carrier: command.distribution.carrier ?? null,
-            shippingFeePayer: command.distribution.shippingFeePayer ?? null,
-            estimatedShippingFee:
-              command.distribution.estimatedShippingFee ?? null,
-            trackingCode: command.distribution.trackingCode ?? null,
-            transferContent: command.distribution.transferContent ?? null,
+            recipientName: distribution.recipientName ?? null,
+            recipientPhone: distribution.recipientPhone ?? null,
+            recipientAddress: distribution.recipientAddress ?? null,
+            coordinatorName: distribution.coordinatorName ?? null,
+            coordinatorPhone: distribution.coordinatorPhone ?? null,
+            carrier: distribution.carrier ?? null,
+            shippingFeePayer: distribution.shippingFeePayer ?? null,
+            estimatedShippingFee: distribution.estimatedShippingFee ?? null,
+            trackingCode: distribution.trackingCode ?? null,
+            transferContent: distribution.transferContent ?? null,
           },
-          startsAt: distributionStartsAt!,
-          endsAt: distributionEndsAt!,
         })
       : null;
     // Điều kiện tham gia (PR #54) kiểm cùng lượt với nội dung, TRƯỚC lượt gọi R2.
-    const requirementGaps = charityParticipationRequirementGaps(command);
+    const requirementGaps = charitySupervisorRequirementGaps(command);
     if (requirementGaps.length > 0)
       throw new ValidationFailedException(requirementGaps);
-    const prepared = await prepareWrite(this.repository, command);
+    // Hệ số tăng điểm (CR 22/11/2026): chủ dự án chỉ ĐỀ XUẤT; hiệu lực = 0 tới khi Admin duyệt
+    // — kể cả người được đăng không cần duyệt. Admin tạo thì chốt luôn.
+    const requestedPointBonusPercent = assertPointBonusPercent(
+      command.requestedPointBonusPercent ?? 0,
+      'requestedPointBonusPercent',
+    );
+    const prepared = await prepareWrite(
+      this.repository,
+      command.intakeStartsAt
+        ? { ...command, startTime: command.intakeStartsAt }
+        : command,
+    );
     const fundingNeeds = command.fundingNeeds ?? [];
     const supportNeeds = command.otherSupportNeeds ?? [];
     const fieldErrors: string[] = [];
@@ -441,10 +633,36 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
         : normalizeContributionTypes(command.acceptedContributionTypes);
     if (fundingNeeds.length > 0)
       assertContributionTypeAccepted({ acceptedContributionTypes }, 'MONEY');
+    // Sàn theo kế hoạch trao (CR 22/11/2026 §3.17d): nhu cầu hiện vật ≥ tổng suất × mỗi suất,
+    // tổng mục tiêu tiền ≥ tổng tiền ước tính (chỉ khi nhận tiền).
+    const takesMoney = acceptedContributionTypes.includes('MONEY');
+    assertPortionFloors({
+      needs: (command.needs ?? []).map((need, index) => ({
+        index,
+        needItemId: null,
+        itemName: need.itemName.trim(),
+        targetQuantity: need.targetQuantity,
+        quantityPerPortion: need.quantityPerPortion ?? 1,
+      })),
+      fundingTargets: takesMoney
+        ? fundingNeeds.map((need) => need.targetAmount)
+        : [],
+      beneficiaries: beneficiaries.map((unit) => ({
+        estimatedPortions: unit.estimatedPortions,
+        estimatedAmount: takesMoney ? unit.estimatedAmount : 0,
+      })),
+    });
     assertDistributionMethodAcceptedByCampaign(
       { acceptedContributionTypes },
       preparedDistribution?.distributionMethod ?? null,
     );
+    // Chiến dịch nhận hiện vật gửi duyệt cần ít nhất một điểm tiếp nhận (CR 22/11/2026).
+    if (
+      submitted &&
+      acceptedContributionTypes.includes('MATERIAL') &&
+      intakeLocations.length === 0
+    )
+      throw new ValidationFailedException(['intakeLocations: tối thiểu 1']);
     // Giữ tách biệt với kiểm field ở trên: Phase B sẽ thêm kiểm distribution TRƯỚC bước này.
     if (submitted) {
       const gaps = charitySubmitRequirementGaps(acceptedContributionTypes, {
@@ -455,6 +673,17 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
         // miễn riêng điều kiện này (thêm tài khoản sau khi tạo); thành viên gửi duyệt vẫn đủ luật.
         liveBankAccounts: command.asAdmin ? 1 : 0,
       });
+      // Mỗi đơn vị nhận cần địa chỉ và giờ trao khi gửi duyệt (CR 22/11/2026 §5.4).
+      gaps.push(
+        ...beneficiarySubmitGaps(
+          beneficiaries.map((unit) => ({
+            address: unit.address ?? null,
+            distributionAt: unit.distributionAt
+              ? new Date(unit.distributionAt)
+              : null,
+          })),
+        ),
+      );
       if (gaps.length > 0)
         throw new CharitySubmitRequirementsUnmetException(gaps.join('; '));
     }
@@ -471,18 +700,41 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       ...prepared,
       bannerUrl,
       media,
+      requestedPointBonusPercent,
+      pointBonusPercent: command.asAdmin ? requestedPointBonusPercent : 0,
       distribution: preparedDistribution
         ? {
-            round: preparedDistribution,
-            startsAt: preparedDistribution.startsAt,
-            endsAt: preparedDistribution.endsAt,
+            input: preparedDistribution,
+            window:
+              distributionStartsAt && distributionEndsAt
+                ? { startsAt: distributionStartsAt, endsAt: distributionEndsAt }
+                : null,
           }
         : null,
       campaignType: command.campaignType,
       allowOverTarget: command.allowOverTarget ?? false,
       // Chiến dịch không khai gì giữ đúng hành vi cũ: không số tối thiểu, không giới hạn hạng.
-      minimumParticipants: command.minimumParticipants ?? 0,
-      minimumParticipantRank: command.minimumParticipantRank ?? null,
+      minimumSupervisors: command.minimumSupervisors ?? 0,
+      minimumSupervisorRank: command.minimumSupervisorRank ?? null,
+      intakeLocations,
+      intakeEndsAt,
+      distributionWindow,
+      beneficiaries: beneficiaries.map((unit) => ({
+        name: unit.name.trim(),
+        beneficiaryKind: unit.beneficiaryKind,
+        address: unit.address?.trim() || null,
+        phone: unit.phone?.trim() || null,
+        picName: unit.picName?.trim() || null,
+        picPhone: unit.picPhone?.trim() || null,
+        consentStatus: unit.consentStatus ?? null,
+        estimatedPortions: unit.estimatedPortions,
+        estimatedAmount: unit.estimatedAmount,
+        lat: unit.lat ?? null,
+        lng: unit.lng ?? null,
+        distributionAt: unit.distributionAt
+          ? new Date(unit.distributionAt)
+          : null,
+      })),
       beneficiary: command.beneficiary
         ? {
             fullName: command.beneficiary.fullName.trim(),
@@ -507,7 +759,6 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
           title: need.title.trim(),
           description: need.description?.trim() || null,
           beneficiaryPartyId: null,
-          receivingUnit: need.receivingUnit?.trim() || null,
           bankAccountId: null,
           targetAmount: need.targetAmount,
           deadline: need.deadline ?? null,
@@ -538,6 +789,7 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
         unit: need.unit.trim(),
         targetQuantity: need.targetQuantity,
         allowAlternative: need.allowAlternative ?? false,
+        quantityPerPortion: need.quantityPerPortion ?? 1,
         // Thứ tự do SERVER đặt theo thứ tự client gửi, không nhận `sortOrder` từ
         // client: hai dòng cùng `sortOrder` sẽ hiện theo thứ tự ngẫu nhiên của
         // `id`, và người tạo không có cách nào sửa lại.
@@ -643,6 +895,17 @@ export class ReplaceCharityMediaUseCase implements IReplaceCharityMediaUseCase {
     @Inject(ICharityCampaignRepository)
     private readonly repository: ICharityCampaignRepository,
     @Inject(IObjectStorage) private readonly storage: IObjectStorage,
+    // Tuỳ chọn để spec cũ dựng tay không phải đổi; Nest luôn tiêm. Thiếu = không có quyền
+    // sửa thẳng sau duyệt.
+    @Optional()
+    @Inject(IAdminConfigRepository)
+    private readonly admin?: IAdminConfigRepository,
+    @Optional()
+    @Inject(IEntitlementRepository)
+    private readonly entitlements?: IEntitlementRepository,
+    @Optional()
+    @Inject(ICharityChangeRequestRepository)
+    private readonly changeRequests?: ICharityChangeRequestRepository,
   ) {}
 
   public async handle(
@@ -652,7 +915,24 @@ export class ReplaceCharityMediaUseCase implements IReplaceCharityMediaUseCase {
     if (!campaign) throw new CharityCampaignNotFoundException();
     if (campaign.createdBy !== command.actorUserId)
       throw new CharityNotOrganizerException();
-    if (campaign.approvalStatus !== 'PENDING_APPROVAL')
+    // Sau duyệt (CR 22/11/2026 §3.17b): media là trường cần duyệt — đi bản sửa, trừ người có
+    // quyền đăng không cần duyệt (áp ngay). Bị từ chối thì vẫn không sửa được như cũ.
+    const allowApproved =
+      campaign.approvalStatus === 'APPROVED' &&
+      this.admin !== undefined &&
+      (await directChangeAllowed(
+        { admin: this.admin, entitlements: this.entitlements },
+        { campaign, actorUserId: command.actorUserId, asAdmin: false },
+      ));
+    if (campaign.approvalStatus === 'APPROVED' && !allowApproved)
+      throw new CharityChangeRequiresReviewException('media');
+    // Có bản sửa chờ duyệt: sửa thẳng media sẽ bị bản sửa ghi đè khi Admin duyệt (review I2).
+    if (
+      allowApproved &&
+      (await this.changeRequests?.findPending(campaign.globalId))
+    )
+      throw new CharityRevisionPendingExistsException();
+    if (campaign.approvalStatus !== 'PENDING_APPROVAL' && !allowApproved)
       throw new CharityMediaNotEditableException();
 
     const { media, bannerUrl } = await confirmCharityMedia(
@@ -668,6 +948,7 @@ export class ReplaceCharityMediaUseCase implements IReplaceCharityMediaUseCase {
         actorUserId: command.actorUserId,
         media,
         bannerUrl,
+        ...(allowApproved ? { allowApproved: true } : {}),
       }),
       // Cùng giá trị với lượt tạo: người gọi là chính người tạo, và hồ sơ chờ duyệt thì
       // chưa ai đăng ký tham gia được — `null` dành cho đường công khai không biết ai gọi.
@@ -716,6 +997,10 @@ export class GetPublicCharityCampaignUseCase implements IGetPublicCharityCampaig
       campaign: toView(campaign, null),
       reviews: reviews.items,
       reviewTotal: reviews.total,
+      beneficiaries: (
+        await this.repository.listBeneficiaryPlans(campaign.globalId)
+      ).map(toPublicBeneficiary),
+      organizer: await publicOrganizer(this.repository, campaign.globalId),
     };
   }
 }
@@ -838,6 +1123,9 @@ export class SubmitCharityContributionUseCase implements ISubmitCharityContribut
     if (!acceptsContributions(campaign))
       throw new CharityNotAcceptingContributionsException();
     assertContributionTypeAccepted(campaign, 'MATERIAL');
+    // Hết tiếp nhận (CR 22/11/2026 §3.9): chặn đề nghị MỚI; rút/sửa đề nghị cũ vẫn được.
+    if (isIntakeClosed(campaign, new Date()))
+      throw new CharityIntakeClosedException();
     // Người tổ chức không tặng vào chính hoạt động của mình. Chặn ở ĐÂY chứ không đợi
     // lượt quyết: tới đó `CHK_campaign_deliveries_not_self` mới bắt, và người dùng
     // nhận một lỗi 500 cho một đề nghị hệ thống đã nhận từ trước.
@@ -1305,16 +1593,39 @@ export class CloseCharityCampaignUseCase implements ICloseCharityCampaignUseCase
     if (!campaign) throw new CharityCampaignNotFoundException();
 
     const isOrganizer = campaign.createdBy === command.actorUserId;
-    if (
+    const isAdmin =
       !isOrganizer &&
-      !(await this.admin.hasPermission(command.actorUserId, WritePermission))
-    )
-      throw new CharityNotOrganizerException();
+      (await this.admin.hasPermission(command.actorUserId, WritePermission));
+    if (!isOrganizer && !isAdmin) throw new CharityNotOrganizerException();
+
+    // Chỉ đóng khi tổng kết đã công khai (CR 22/11/2026). Admin được ép đóng, có lý do.
+    const forced = isAdmin && command.force === true;
+    const reason = command.reason?.trim() ?? '';
+    if (forced && !reason)
+      throw new ValidationFailedException([
+        'close.reason: bắt buộc khi Admin ép đóng',
+      ]);
+    if (!forced && campaign.summaryPublishedAt === null)
+      throw new CharityCampaignSummaryNotPublishedException();
 
     const result = await this.repository.closeCampaign({
       campaignId: campaign.globalId,
       actorUserId: command.actorUserId,
     });
+    if (forced)
+      await this.admin.appendAudit({
+        actorUserId: command.actorUserId,
+        action: 'CHARITY_CAMPAIGN_FORCE_CLOSE',
+        resourceType: 'CHARITY_CAMPAIGN',
+        resourceId: campaign.globalId,
+        before: {
+          isActive: campaign.isActive,
+          endTime: campaign.endTime,
+          summaryPublishedAt: campaign.summaryPublishedAt,
+        },
+        after: { isActive: false },
+        reason,
+      });
     for (const rejected of result.rejected)
       await this.notifier.contributionDecided({
         campaignTitle: campaign.title,
@@ -1404,13 +1715,23 @@ export class ManageCharityCoordinatorsUseCase implements IManageCharityCoordinat
       if (target === command.actorUserId)
         throw new CharityCoordinatorNotAllowedException();
 
-      if (command.action === 'GRANT')
+      if (command.action === 'GRANT') {
+        // Giám sát viên đang hiệu lực không kiêm điều phối (CR 22/11/2026 §6).
+        const participation = await this.repository.findParticipation({
+          campaignId: campaign.globalId,
+          userId: target,
+        });
+        if (
+          participation?.role === 'SUPERVISOR' &&
+          CharityActiveParticipationStatuses.includes(participation.status)
+        )
+          throw new CharitySupervisorConflictException();
         await this.repository.grantCoordinator({
           campaignId: campaign.globalId,
           userId: target,
           grantedBy: command.actorUserId,
         });
-      else
+      } else
         await this.repository.revokeCoordinator({
           campaignId: campaign.globalId,
           userId: target,
@@ -1566,24 +1887,53 @@ export class JoinCharityCampaignUseCase implements IJoinCharityCampaignUseCase {
     // HUỶ. Chặn ở `start_time` là tự thêm một luật đặc tả không nêu.
     if (!campaign.isActive || campaign.endTime.getTime() <= Date.now())
       throw new CharityParticipationClosedException();
+    const role = command.role ?? 'PARTICIPANT';
+    const now = new Date();
 
-    // Hạng tối thiểu (PR #54): đọc hạng HIỆN TẠI từ database, không tin hạng trong access
-    // token — token sống tới hạn refresh nên người vừa bị hạ hạng vẫn mang hạng cũ. Không tìm
-    // thấy tài khoản thì chặn: không biết hạng là không chứng minh được đủ hạng.
-    const requiredRank = campaign.minimumParticipantRank;
-    // Người ĐÃ có lượt còn hiệu lực không qua cổng hạng: Admin nâng hạng sau khi họ đăng ký
-    // thì họ vẫn hợp lệ, và lượt bấm lại phải nhận "đã đăng ký" (409) chứ không phải "không
-    // đủ điều kiện" (403). Lượt đã huỷ thì đăng ký lại là đăng ký MỚI — vẫn qua cổng.
-    const existingStatus =
-      requiredRank === null
-        ? null
-        : await this.repository.findParticipationStatus({
-            campaignId: campaign.globalId,
-            userId: command.actorUserId,
-          });
+    // Giám sát viên không phải người tổ chức hay điều phối của chính chiến dịch (CR §6).
+    if (
+      role === 'SUPERVISOR' &&
+      (campaign.createdBy === command.actorUserId ||
+        (await this.repository.isCampaignManager(
+          campaign.globalId,
+          command.actorUserId,
+        )))
+    )
+      throw new CharitySupervisorConflictException();
+
+    // Hết tiếp nhận (CR 22/11/2026 §3.9): người tham gia đóng ở `intakeEndsAt`; giám sát viên
+    // còn đăng ký được tới lúc bắt đầu trao (chưa có khung trao thì tới `endTime`, đã chặn ở trên).
+    if (role === 'PARTICIPANT' && isIntakeClosed(campaign, now))
+      throw new CharityIntakeClosedException();
+    if (
+      role === 'SUPERVISOR' &&
+      campaign.distribution &&
+      campaign.distribution.startsAt.getTime() <= now.getTime()
+    )
+      throw new CharityIntakeClosedException();
+
+    const existing =
+      (await this.repository.findParticipation({
+        campaignId: campaign.globalId,
+        userId: command.actorUserId,
+      })) ?? null;
     const alreadyActive =
-      existingStatus !== null &&
-      CharityActiveParticipationStatuses.includes(existingStatus);
+      existing !== null &&
+      CharityActiveParticipationStatuses.includes(existing.status);
+    // Một người một vai: đổi vai = huỷ rồi đăng ký lại, chỉ khi lượt cũ chưa check-in.
+    if (
+      existing !== null &&
+      !alreadyActive &&
+      existing.role !== role &&
+      existing.checkedInAt !== null
+    )
+      throw new CharityParticipationInvalidStateException('CHECKED_IN');
+
+    // Hạng tối thiểu (PR #54) nay chỉ áp cho GIÁM SÁT VIÊN (CR §6): đọc hạng HIỆN TẠI từ
+    // database, không tin hạng trong access token. Không tìm thấy tài khoản thì chặn. Người ĐÃ
+    // có lượt còn hiệu lực không qua cổng — lượt bấm lại phải nhận "đã đăng ký" (409).
+    const requiredRank =
+      role === 'SUPERVISOR' ? campaign.minimumSupervisorRank : null;
     if (requiredRank !== null && !alreadyActive) {
       const user = await this.users.findOneBy({
         globalId: command.actorUserId,
@@ -1595,6 +1945,7 @@ export class JoinCharityCampaignUseCase implements IJoinCharityCampaignUseCase {
     const { created } = await this.repository.register({
       campaignId: campaign.globalId,
       userId: command.actorUserId,
+      role,
     });
     if (!created) throw new CharityAlreadyRegisteredException();
     // Hiện tên trong danh sách người tham gia công khai theo cài đặt chung (§3.17); đổi lại
@@ -1794,6 +2145,7 @@ export class ListAdminCharityCampaignsUseCase implements IListAdminCharityCampai
         limit: command.limit,
         offset: command.offset,
         approvalStatus: command.approvalStatus,
+        overdueSummary: command.overdueSummary,
       }),
       null,
     );
@@ -1858,11 +2210,29 @@ export class DecideCharityApprovalUseCase implements IDecideCharityApprovalUseCa
     )
       throw new CharityBeneficiaryConsentRequiredException();
 
+    // Hệ số hiệu lực (CR 22/11/2026): bỏ trống = theo đề xuất; Admin chỉ được hạ khi duyệt.
+    const pointBonusPercent =
+      command.approve && command.pointBonusPercent !== undefined
+        ? assertPointBonusPercent(
+            command.pointBonusPercent,
+            'pointBonusPercent',
+          )
+        : command.approve
+          ? campaign.requestedPointBonusPercent
+          : campaign.pointBonusPercent;
+    if (
+      command.approve &&
+      pointBonusPercent > campaign.requestedPointBonusPercent
+    )
+      throw new ValidationFailedException([
+        `pointBonusPercent: không được cao hơn mức đề xuất (${campaign.requestedPointBonusPercent})`,
+      ]);
     const decided = await this.repository.decideApproval({
       campaignId: command.campaignId,
       approverId: command.actorUserId,
       approve: command.approve,
       note: command.note?.trim() || null,
+      pointBonusPercent,
     });
     // Hồ sơ tồn tại nhưng `UPDATE` không khớp hàng nào nghĩa là nó không còn
     // `PENDING_APPROVAL` — tức một Admin khác đã xử lý. Người sau phải thấy xung đột, chứ
@@ -1967,6 +2337,10 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
     private readonly repository: ICharityCampaignRepository,
     @Inject(IAdminConfigRepository)
     private readonly admin: IAdminConfigRepository,
+    // Tuỳ chọn để spec cũ dựng tay không phải đổi; Nest luôn tiêm.
+    @Optional()
+    @Inject(ICharityChangeRequestRepository)
+    private readonly changeRequests?: ICharityChangeRequestRepository,
   ) {}
 
   public async handle(
@@ -1977,6 +2351,16 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
 
     const existing = await this.repository.findByGlobalId(command.campaignId);
     if (!existing) throw new CharityCampaignNotFoundException();
+    // Đang có bản sửa chờ duyệt: Admin sửa thẳng trường cần duyệt sẽ ghi đè lẫn nhau với bản
+    // sửa — duyệt/từ chối bản sửa trước (CR 22/11/2026).
+    if (
+      (command.title !== undefined ||
+        command.description !== undefined ||
+        command.acceptedContributionTypes !== undefined ||
+        command.pointBonusPercent !== undefined) &&
+      (await this.changeRequests?.findPending(existing.globalId))
+    )
+      throw new CharityRevisionPendingExistsException();
 
     const latGiven = command.lat !== undefined;
     const lngGiven = command.lng !== undefined;
@@ -2002,7 +2386,7 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
       badgeName:
         command.badgeName === undefined
           ? existing.badgeName
-          : command.badgeName.trim(),
+          : command.badgeName.trim() || null,
       targetItemsCount: command.targetItemsCount ?? existing.targetItemsCount,
       lat: latGiven ? (command.lat ?? null) : existing.lat,
       lng: lngGiven ? (command.lng ?? null) : existing.lng,
@@ -2012,19 +2396,32 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
           : command.locationLabel?.trim() || null,
       // Điều kiện tham gia (PR #54). Nâng hạng tối thiểu KHÔNG đụng người đã đăng ký — nó
       // chỉ được đọc ở lượt đăng ký mới.
-      minimumParticipants:
-        command.minimumParticipants ?? existing.minimumParticipants,
-      minimumParticipantRank:
-        command.minimumParticipantRank === undefined
-          ? existing.minimumParticipantRank
-          : command.minimumParticipantRank,
+      minimumSupervisors:
+        command.minimumSupervisors ?? existing.minimumSupervisors,
+      minimumSupervisorRank:
+        command.minimumSupervisorRank === undefined
+          ? existing.minimumSupervisorRank
+          : command.minimumSupervisorRank,
       acceptedContributionTypes:
         command.acceptedContributionTypes === undefined
           ? existing.acceptedContributionTypes
           : normalizeContributionTypes(command.acceptedContributionTypes),
+      pointBonusPercent:
+        command.pointBonusPercent === undefined
+          ? existing.pointBonusPercent
+          : isCharityPointBonusPercent(command.pointBonusPercent)
+            ? command.pointBonusPercent
+            : existing.pointBonusPercent,
     };
+    if (
+      command.pointBonusPercent !== undefined &&
+      !isCharityPointBonusPercent(command.pointBonusPercent)
+    )
+      gaps.push(
+        `pointBonusPercent phải là một trong: ${CharityPointBonusPercents.join(', ')}`,
+      );
 
-    gaps.push(...charityParticipationRequirementGaps(command));
+    gaps.push(...charitySupervisorRequirementGaps(command));
     gaps.push(
       ...charityCampaignGaps({
         ...next,

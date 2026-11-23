@@ -20,16 +20,7 @@
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
-import {
-  ListCharityRoundsUseCase,
-  ManageCharityRoundsUseCase,
-  SaveCharityRoundUseCase,
-  SetCharityRoundStatusUseCase,
-} from '../src/application/implementations/charity-project/charity-operations.use-cases';
-import {
-  CharityProjectAccess,
-  GetCharityPublicProjectUseCase,
-} from '../src/application/implementations/charity-project/charity-project.use-cases';
+import { GetCharityPublicProjectUseCase } from '../src/application/implementations/charity-project/charity-project.use-cases';
 import { ICharitySupportOffer } from '../src/domain/ports/repository';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
@@ -85,7 +76,7 @@ async function main(): Promise<void> {
   await admin.query(`CREATE DATABASE ${ScratchDatabase}`);
 
   const legacyMigrations = resolveAllEntities(migrations).filter(
-    (migration) => Number(migration.name.slice(-13)) < 1803800000000,
+    (migration) => Number(migration.name.slice(-13)) < 1804000000000,
   );
   const legacyDataSource = new DataSource({
     type: 'postgres',
@@ -98,39 +89,85 @@ async function main(): Promise<void> {
   await legacyDataSource.initialize();
   opened.push(legacyDataSource);
   await legacyDataSource.runMigrations();
+  const legacySql = (query: string, params: unknown[] = []) =>
+    legacyDataSource.query(query, params);
+  const LegacyRounds = id('20');
+  const LegacyOwnTimeline = id('21');
   for (const [campaignId, slug] of [
-    [id('20'), 'legacy-ship'],
-    [id('21'), 'legacy-on-site'],
-    [id('22'), 'legacy-transfer-many'],
-    [id('23'), 'legacy-no-method'],
+    [LegacyRounds, 'legacy-rounds'],
+    [LegacyOwnTimeline, 'legacy-own-timeline'],
   ])
-    await legacyDataSource.query(
+    await legacySql(
       `INSERT INTO campaigns (global_id, title, slug, description, banner_url, badge_name, start_time, end_time)
        VALUES ($1, 'Legacy distribution', $2, 'Mô tả đủ dài cho dự án cũ',
                'https://cdn.test/a.jpg', 'Ấm', now(), now() + interval '20 days')`,
       [campaignId, slug],
     );
-  const legacyRound = async (campaignId: string, title: string) =>
-    legacyDataSource.query(
-      `INSERT INTO campaign_distribution_rounds (campaign_id, title, starts_at, ends_at)
-       VALUES ($1, $2, now(), now() + interval '1 hour')`,
-      [campaignId, title],
+  const legacyRound = async (
+    campaignId: string,
+    title: string,
+    startsIn: string,
+    extra: { status?: string; method?: string; evidence?: string[] } = {},
+  ): Promise<string> => {
+    const [row] = await legacySql(
+      `INSERT INTO campaign_distribution_rounds
+         (campaign_id, title, starts_at, ends_at, status, status_reason,
+          distribution_method, evidence_urls)
+       VALUES ($1, $2, now() + $3::interval, now() + $3::interval + interval '1 hour',
+               $4::text, CASE WHEN $4::text = 'CANCELLED' THEN 'Huỷ thử' END, $5, $6::jsonb)
+       RETURNING global_id`,
+      [
+        campaignId,
+        title,
+        startsIn,
+        extra.status ?? 'PLANNED',
+        extra.method ?? null,
+        JSON.stringify(extra.evidence ?? []),
+      ],
     );
-  await legacyRound(id('20'), 'Ship');
-  await legacyRound(id('21'), 'On site');
-  await legacyRound(id('22'), 'Transfer 1');
-  await legacyRound(id('22'), 'Transfer 2');
-  await legacyRound(id('23'), 'No method');
-  for (const [campaignId, deliveryMethod] of [
-    [id('20'), 'SHIP'],
-    [id('21'), 'ON_SITE'],
-    [id('22'), 'TRANSFER'],
-  ])
-    await legacyDataSource.query(
-      `INSERT INTO campaign_phases (campaign_id, phase, starts_at, ends_at, delivery_method)
-       VALUES ($1, 'DISTRIBUTION', now(), now() + interval '1 hour', $2)`,
-      [campaignId, deliveryMethod],
+    return row.global_id as string;
+  };
+  const legacySteps = async (campaignId: string, roundId: string | null) =>
+    legacySql(
+      `INSERT INTO campaign_event_steps (campaign_id, round_id, step_key, sort_order)
+       SELECT $1, $2, step.key, step.sort_order
+       FROM unnest($3::text[], $4::int[]) AS step(key, sort_order)`,
+      [
+        campaignId,
+        roundId,
+        [
+          'GATHER',
+          'BRIEFING',
+          'TRAVEL',
+          'REST_STOP',
+          'ARRIVE',
+          'MEET_LOCAL_AUTHORITY',
+          'MEET_RECIPIENTS',
+          'DISTRIBUTE',
+          'WRAP_UP',
+          'RETURN',
+        ],
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      ],
     );
+  const roundCancelled = await legacyRound(LegacyRounds, 'R1 huỷ', '10 days', {
+    status: 'CANCELLED',
+  });
+  const roundChosen = await legacyRound(LegacyRounds, 'R2 ship', '5 days', {
+    method: 'SHIPPING',
+    evidence: ['https://cdn.test/e1.jpg', 'https://cdn.test/e2.jpg'],
+  });
+  const roundOlder = await legacyRound(LegacyRounds, 'R3 cũ', '1 day');
+  await legacySql(
+    `INSERT INTO campaign_round_private_details (round_id, campaign_id, tracking_code)
+     VALUES ($1, $2, 'VN123')`,
+    [roundChosen, LegacyRounds],
+  );
+  for (const roundId of [roundCancelled, roundChosen, roundOlder])
+    await legacySteps(LegacyRounds, roundId);
+  await legacySteps(LegacyOwnTimeline, null);
+  const ownRound = await legacyRound(LegacyOwnTimeline, 'Một đợt', '3 days');
+  await legacySteps(LegacyOwnTimeline, ownRound);
   await legacyDataSource.destroy();
 
   const dataSource = new DataSource({
@@ -156,29 +193,92 @@ async function main(): Promise<void> {
     const operations = new CharityOperationsRepository(dataSource.manager);
     const projects = new CharityProjectRepository(dataSource.manager);
 
-    const legacyMethods = await sql(
-      `SELECT campaign_id, distribution_method, needs_review
-       FROM campaign_distribution_rounds
-       WHERE campaign_id = ANY($1::uuid[]) ORDER BY campaign_id, id`,
-      [[id('20'), id('21'), id('22'), id('23')]],
+    // ── 0. Migration 1804000000000: bỏ đợt trao ─────────────────────────────
+    console.log('0. Migration bỏ đợt trao');
+    const [moved] = await sql(
+      `SELECT c.distribution_method, jsonb_array_length(c.distribution_evidence_urls) AS evidence,
+              d.tracking_code,
+              (SELECT count(*)::int FROM campaign_event_steps s WHERE s.campaign_id = c.global_id) AS steps
+         FROM campaigns c
+         LEFT JOIN campaign_distribution_private_details d ON d.campaign_id = c.global_id
+        WHERE c.global_id = $1`,
+      [LegacyRounds],
     );
     check(
-      'migration ánh xạ SHIP một đợt → SHIPPING không cần duyệt; ON_SITE → OTHER_LOCATION cần duyệt',
-      legacyMethods[0]?.distribution_method === 'SHIPPING' &&
-        legacyMethods[0]?.needs_review === false &&
-        legacyMethods[1]?.distribution_method === 'OTHER_LOCATION' &&
-        legacyMethods[1]?.needs_review === true,
-      JSON.stringify(legacyMethods),
+      'giữ đợt mới nhất chưa huỷ: SHIPPING, 2 bằng chứng, mã vận đơn VN123, đúng 10 bước',
+      moved?.distribution_method === 'SHIPPING' &&
+        moved?.evidence === 2 &&
+        moved?.tracking_code === 'VN123' &&
+        moved?.steps === 10,
+      JSON.stringify(moved),
     );
     check(
-      'migration để NULL khi TRANSFER có hai đợt hoặc phase không có method',
-      legacyMethods
-        .slice(2)
-        .every(
-          (row: { distribution_method: string | null }) =>
-            row.distribution_method === null,
+      'timeline UNIQUE (chiến dịch, bước): chèn trùng bị từ chối',
+      await rejects(() =>
+        sql(
+          `INSERT INTO campaign_event_steps (campaign_id, step_key, sort_order)
+           VALUES ($1, 'GATHER', 0)`,
+          [LegacyRounds],
         ),
-      JSON.stringify(legacyMethods.slice(2)),
+      ),
+    );
+    const [ownTimeline] = await sql(
+      `SELECT count(*)::int AS steps FROM campaign_event_steps WHERE campaign_id = $1`,
+      [LegacyOwnTimeline],
+    );
+    check(
+      'chiến dịch đã có timeline riêng giữ đúng 10 bước của mình',
+      ownTimeline?.steps === 10,
+      JSON.stringify(ownTimeline),
+    );
+    const [gone] = await sql(
+      `SELECT to_regclass('public.campaign_distribution_rounds') IS NULL AS rounds_gone,
+              to_regclass('public.campaign_round_private_details') IS NULL AS details_gone,
+              NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                 WHERE table_name = 'campaign_participations' AND column_name = 'round_id'
+              ) AS no_round_id`,
+    );
+    check(
+      'không còn bảng đợt trao và cột round_id',
+      gone?.rounds_gone === true &&
+        gone?.details_gone === true &&
+        gone?.no_round_id === true,
+      JSON.stringify(gone),
+    );
+    check(
+      'campaign_phases nhận REHEARSAL',
+      !(await rejects(() =>
+        sql(
+          `INSERT INTO campaign_phases (campaign_id, phase, starts_at, ends_at)
+           VALUES ($1, 'REHEARSAL', now() + interval '1 day', now() + interval '2 days')`,
+          [LegacyOwnTimeline],
+        ),
+      )),
+    );
+    check(
+      'campaign_rehearsals từ chối NOT_READY không có lý do',
+      await rejects(() =>
+        sql(
+          `INSERT INTO campaign_rehearsals (campaign_id, outcome, reason, decided_at)
+           VALUES ($1, 'NOT_READY', '  ', now())`,
+          [LegacyOwnTimeline],
+        ),
+      ),
+    );
+    check(
+      'distribution_evidence_urls quá 20 ảnh bị từ chối',
+      await rejects(() =>
+        sql(
+          `UPDATE campaigns SET distribution_evidence_urls = $2::jsonb WHERE global_id = $1`,
+          [
+            LegacyOwnTimeline,
+            JSON.stringify(
+              Array.from({ length: 21 }, (_, i) => `https://cdn.test/${i}.jpg`),
+            ),
+          ],
+        ),
+      ),
     );
 
     for (const [userId, username] of [
@@ -352,228 +452,13 @@ async function main(): Promise<void> {
           'DELETED',
     );
 
-    // ── 2. Đợt trao ───────────────────────────────────────────────────────
-    console.log('\n2. Đợt trao');
+    // ── 2. Dữ liệu vận hành chung + timeline + nhắc 48 giờ theo chiến dịch ──
+    console.log('\n2. Timeline và nhắc 48 giờ theo chiến dịch');
     await events.ensureEventSteps(Live);
-    const soon = new Date(Date.now() + 20 * 3_600_000);
-    const roundA = await operations.createRound({
-      campaignId: Live,
-      actorId: Owner,
-      round: {
-        title: 'Đợt 1 — xã A',
-        distributionMethod: 'SHIPPING',
-        contributionTypes: ['MATERIAL'],
-        evidenceUrls: ['https://cdn.test/round-evidence.webp'],
-        locationLabel: 'Xã A',
-        address: null,
-        lat: 10.1234,
-        lng: 106.5678,
-        needsReview: false,
-        serviceType: null,
-        serviceChannel: null,
-        privateDetails: {
-          beneficiaryBankAccountId: null,
-          recipientName: 'Người nhận',
-          recipientPhone: '0901234567',
-          recipientAddress: 'Địa chỉ nhận',
-          coordinatorName: null,
-          coordinatorPhone: null,
-          carrier: 'Nhà xe',
-          shippingFeePayer: 'ORGANIZER',
-          estimatedShippingFee: 10000,
-          trackingCode: null,
-          transferContent: null,
-        },
-        startsAt: soon,
-        endsAt: new Date(soon.getTime() + 6 * 3_600_000),
-      },
-    });
-    const roundB = await operations.createRound({
-      campaignId: Live,
-      actorId: Owner,
-      round: {
-        title: 'Đợt 2 — xã B',
-        distributionMethod: null,
-        contributionTypes: [],
-        evidenceUrls: [],
-        locationLabel: 'Xã B',
-        address: null,
-        lat: null,
-        lng: null,
-        needsReview: false,
-        serviceType: null,
-        serviceChannel: null,
-        privateDetails: {
-          beneficiaryBankAccountId: null,
-          recipientName: null,
-          recipientPhone: null,
-          recipientAddress: null,
-          coordinatorName: null,
-          coordinatorPhone: null,
-          carrier: null,
-          shippingFeePayer: null,
-          estimatedShippingFee: null,
-          trackingCode: null,
-          transferContent: null,
-        },
-        startsAt: new Date(Date.now() + 10 * 24 * 3_600_000),
-        endsAt: new Date(Date.now() + 10 * 24 * 3_600_000 + 3_600_000),
-      },
-    });
-    const directRecipientRound = await operations.createRound({
-      campaignId: Live,
-      actorId: Owner,
-      round: {
-        title: 'Đợt trao tận tay riêng tư',
-        distributionMethod: 'DIRECT_RECIPIENT',
-        contributionTypes: ['MATERIAL'],
-        evidenceUrls: [],
-        locationLabel: null,
-        address: 'Địa chỉ người nhận riêng',
-        lat: 10.5555,
-        lng: 106.6666,
-        needsReview: false,
-        serviceType: null,
-        serviceChannel: null,
-        privateDetails: {
-          beneficiaryBankAccountId: null,
-          recipientName: null,
-          recipientPhone: '0901888999',
-          recipientAddress: 'Địa chỉ người nhận riêng',
-          coordinatorName: 'Điều phối',
-          coordinatorPhone: '0901777888',
-          carrier: null,
-          shippingFeePayer: null,
-          estimatedShippingFee: null,
-          trackingCode: null,
-          transferContent: null,
-        },
-        startsAt: new Date(Date.now() + 11 * 24 * 3_600_000),
-        endsAt: new Date(Date.now() + 11 * 24 * 3_600_000 + 3_600_000),
-      },
-    });
-    const disposableRound = await operations.createRound({
-      campaignId: Live,
-      actorId: Owner,
-      round: {
-        title: 'Đợt xoá kiểm cascade',
-        distributionMethod: null,
-        contributionTypes: [],
-        evidenceUrls: [],
-        locationLabel: null,
-        address: null,
-        lat: null,
-        lng: null,
-        needsReview: false,
-        serviceType: null,
-        serviceChannel: null,
-        privateDetails: {
-          beneficiaryBankAccountId: null,
-          recipientName: null,
-          recipientPhone: null,
-          recipientAddress: null,
-          coordinatorName: null,
-          coordinatorPhone: null,
-          carrier: null,
-          shippingFeePayer: null,
-          estimatedShippingFee: null,
-          trackingCode: null,
-          transferContent: null,
-        },
-        startsAt: roundB.startsAt,
-        endsAt: roundB.endsAt,
-      },
-    });
-    await sql(`DELETE FROM campaign_distribution_rounds WHERE global_id = $1`, [
-      disposableRound.roundId,
-    ]);
+    await events.ensureEventSteps(Live);
     check(
-      'xoá round cascade chi tiết riêng tư',
-      (
-        await sql(
-          `SELECT count(*)::int AS count FROM campaign_round_private_details WHERE round_id = $1`,
-          [disposableRound.roundId],
-        )
-      )[0]?.count === 0,
-    );
-    check(
-      'tạo đợt ghi chi tiết riêng tư',
-      (
-        await sql(
-          `SELECT recipient_phone FROM campaign_round_private_details WHERE round_id = $1`,
-          [roundA.roundId],
-        )
-      )[0]?.recipient_phone === '0901234567',
-    );
-    check(
-      'toạ độ round round-trip đúng thứ tự lat/lng qua repository',
-      (await operations.findRound(Live, roundA.roundId))?.lat === 10.1234 &&
-        (await operations.findRound(Live, roundA.roundId))?.lng === 106.5678,
-    );
-    check(
-      'workspace repository trả recipientPhone trong privateDetails',
-      (await operations.findRound(Live, roundA.roundId))?.privateDetails
-        ?.recipientPhone === '0901234567',
-    );
-    const publicRounds = await new ListCharityRoundsUseCase(
-      { findVisibleCampaignId: async () => Live } as never,
-      operations,
-    ).handle({ idOrSlug: 'live' });
-    const publicDirectRecipient = publicRounds.find(
-      (round) => round.roundId === directRecipientRound.roundId,
-    );
-    check(
-      'ListCharityRounds công khai không lộ phone/address DIRECT_RECIPIENT, lat/lng null',
-      !JSON.stringify(publicDirectRecipient).includes('0901888999') &&
-        !JSON.stringify(publicDirectRecipient).includes(
-          'Địa chỉ người nhận riêng',
-        ) &&
-        publicDirectRecipient?.lat === null &&
-        publicDirectRecipient.lng === null,
-    );
-    const manageRounds = await new ManageCharityRoundsUseCase(
-      { resolve: async () => ({ campaign: { globalId: Live } }) } as never,
-      operations,
-    ).handle({ userId: Owner, campaignId: Live });
-    const managedDirectRecipient = manageRounds.find(
-      (round) => round.roundId === directRecipientRound.roundId,
-    );
-    check(
-      'ManageCharityRounds trả phone và địa chỉ DIRECT_RECIPIENT',
-      managedDirectRecipient?.address === 'Địa chỉ người nhận riêng' &&
-        managedDirectRecipient.privateDetails?.recipientPhone === '0901888999',
-    );
-    await operations.setRoundStatus({
-      campaignId: Live,
-      roundId: directRecipientRound.roundId,
-      actorId: Owner,
-      status: 'DONE',
-      reason: null,
-    });
-    check(
-      'CHECK: evidence_urls vượt 20 phần tử bị chặn',
-      await rejects(() =>
-        sql(
-          `UPDATE campaign_distribution_rounds
-             SET evidence_urls = (SELECT jsonb_agg('https://cdn.test/' || series || '.webp')
-                                    FROM generate_series(1, 21) series)
-           WHERE global_id = $1`,
-          [roundA.roundId],
-        ),
-      ),
-    );
-    check(
-      'mỗi đợt 10 bước riêng, cùng tồn tại với timeline chung',
-      (await events.listEventSteps(Live)).length === 10 &&
-        (await events.listEventSteps(Live, roundA.roundId)).length === 10 &&
-        (await events.listEventSteps(Live, roundB.roundId)).every(
-          (step) => step.roundId === roundB.roundId,
-        ),
-    );
-    await events.ensureEventSteps(Live, roundA.roundId);
-    check(
-      'tạo lại bước của đợt không nhân đôi',
-      (await events.listEventSteps(Live, roundA.roundId)).length === 10,
+      'timeline chiến dịch: đúng 10 bước, tạo lại không nhân đôi',
+      (await events.listEventSteps(Live)).length === 10,
     );
 
     for (const userId of [Walker, Helper]) {
@@ -583,15 +468,6 @@ async function main(): Promise<void> {
         [Live, userId],
       );
     }
-    const [walkerParticipation] = await sql(
-      `SELECT global_id FROM campaign_participations WHERE campaign_id = $1 AND user_id = $2`,
-      [Live, Walker],
-    );
-    await campaigns.register({ campaignId: Other, userId: Walker });
-    const [foreign] = await sql(
-      `SELECT global_id FROM campaign_participations WHERE campaign_id = $1 AND user_id = $2`,
-      [Other, Walker],
-    );
     const [need] = await sql(
       `INSERT INTO campaign_need_items (campaign_id, item_name, unit, target_quantity, accepted_quantity)
        VALUES ($1, 'Áo ấm', 'cái', 10, 5) RETURNING global_id`,
@@ -621,17 +497,6 @@ async function main(): Promise<void> {
        VALUES ($1, $2, $3, 5)`,
       [delivery.global_id, item.global_id, need.global_id],
     );
-    const assigned = await operations.assignToRound({
-      campaignId: Live,
-      roundId: roundA.roundId,
-      participationIds: [walkerParticipation.global_id, foreign.global_id],
-      deliveryIds: [delivery.global_id],
-    });
-    check(
-      'gắn vào đợt chỉ dòng của dự án (bỏ lượt tham gia dự án khác)',
-      assigned.participations === 1 && assigned.deliveries === 1,
-      JSON.stringify(assigned),
-    );
     await sql(
       `UPDATE campaign_delivery_items SET received_quantity = 5, confirmed_value = 750000 WHERE delivery_id = $1`,
       [delivery.global_id],
@@ -640,164 +505,6 @@ async function main(): Promise<void> {
       `UPDATE campaign_deliveries SET status = 'COMPLETED', completed_at = now(), completed_by = $2 WHERE global_id = $1`,
       [delivery.global_id, Owner],
     ).catch(() => undefined);
-    const statsA = (await operations.findRound(Live, roundA.roundId))?.stats;
-    check(
-      'số liệu đợt: 1 participant, 1 giao nhận, giá trị đã xác nhận khi hoàn tất',
-      statsA?.participantCount === 1 && statsA.deliveryCount === 1,
-      JSON.stringify(statsA),
-    );
-
-    const roundAudience = await engagement.listAudience({
-      campaignId: Live,
-      excludeUserId: Owner,
-      roundId: roundA.roundId,
-    });
-    check(
-      'người nhận thay đổi của đợt: participant và người giao nhận của đợt',
-      JSON.stringify(roundAudience) === JSON.stringify([Walker, Giver].sort()),
-      JSON.stringify(roundAudience),
-    );
-    const roundPreEvent = await engagement.listAudience({
-      campaignId: Live,
-      excludeUserId: null,
-      scope: 'PRE_EVENT',
-      roundId: roundB.roundId,
-    });
-    check(
-      'nhắc 48 giờ đợt 2: BTC + participant chưa phân đợt (không gồm người của đợt 1)',
-      roundPreEvent.includes(Owner) &&
-        roundPreEvent.includes(Coordinator) &&
-        roundPreEvent.includes(Helper) &&
-        !roundPreEvent.includes(Walker),
-      JSON.stringify(roundPreEvent),
-    );
-
-    const candidates = await operations.listRoundPreEventCandidates({
-      hours: 48,
-      limit: 10,
-    });
-    check(
-      'đợt trong 48 giờ là ứng viên nhắc; đợt xa thì không',
-      candidates.length === 1 && candidates[0].roundId === roundA.roundId,
-      JSON.stringify(candidates),
-    );
-    await engagement.enqueueAnnouncement({
-      campaignId: Live,
-      kind: 'PRE_EVENT',
-      payload: { roundId: roundA.roundId },
-      dedupeKey: `round:${roundA.roundId}:${roundA.startsAt.getTime()}`,
-      actorId: null,
-    });
-    check(
-      'đã xếp nhắc cho mốc này → không còn là ứng viên',
-      (await operations.listRoundPreEventCandidates({ hours: 48, limit: 10 }))
-        .length === 0,
-    );
-
-    const moved = await operations.updateRound({
-      campaignId: Live,
-      roundId: roundA.roundId,
-      actorId: Owner,
-      round: {
-        title: roundA.title,
-        distributionMethod: roundA.distributionMethod,
-        contributionTypes: roundA.contributionTypes,
-        evidenceUrls: roundA.evidenceUrls,
-        locationLabel: roundA.locationLabel,
-        address: null,
-        lat: roundA.lat,
-        lng: roundA.lng,
-        needsReview: roundA.needsReview,
-        serviceType: roundA.serviceType,
-        serviceChannel: roundA.serviceChannel,
-        privateDetails: roundA.privateDetails ?? {
-          beneficiaryBankAccountId: null,
-          recipientName: null,
-          recipientPhone: null,
-          recipientAddress: null,
-          coordinatorName: null,
-          coordinatorPhone: null,
-          carrier: null,
-          shippingFeePayer: null,
-          estimatedShippingFee: null,
-          trackingCode: null,
-          transferContent: null,
-        },
-        startsAt: new Date(soon.getTime() + 3_600_000),
-        endsAt: new Date(soon.getTime() + 7 * 3_600_000),
-      },
-      reason: 'Đường sạt lở',
-      announce: true,
-    });
-    const [changed] = await sql(
-      `SELECT payload FROM campaign_announcements WHERE campaign_id = $1 AND kind = 'ROUND_CHANGED' ORDER BY id DESC LIMIT 1`,
-      [Live],
-    );
-    check(
-      'dời giờ đợt: xếp ROUND_CHANGED (POSTPONED, kèm lý do); mốc mới lại là ứng viên nhắc',
-      moved !== null &&
-        changed?.payload.change === 'POSTPONED' &&
-        changed.payload.reason === 'Đường sạt lở' &&
-        (await operations.listRoundPreEventCandidates({ hours: 48, limit: 10 }))
-          .length === 1,
-      JSON.stringify(changed?.payload),
-    );
-    check(
-      'database chặn huỷ đợt thiếu lý do và chưa sẵn sàng thiếu ghi chú',
-      (await rejects(() =>
-        sql(
-          `UPDATE campaign_distribution_rounds SET status = 'CANCELLED' WHERE global_id = $1`,
-          [roundB.roundId],
-        ),
-      )) &&
-        (await rejects(() =>
-          sql(
-            `UPDATE campaign_distribution_rounds SET readiness = 'NOT_READY' WHERE global_id = $1`,
-            [roundB.roundId],
-          ),
-        )),
-    );
-    const cancelled = await operations.setRoundStatus({
-      campaignId: Live,
-      roundId: roundB.roundId,
-      actorId: Owner,
-      status: 'CANCELLED',
-      reason: 'Địa phương đã có đoàn khác',
-    });
-    check(
-      'huỷ đợt: CANCELLED + ROUND_CHANGED; huỷ lại → null',
-      cancelled?.status === 'CANCELLED' &&
-        (
-          await sql(
-            `SELECT count(*)::int AS n FROM campaign_announcements WHERE campaign_id = $1 AND kind = 'ROUND_CHANGED'`,
-            [Live],
-          )
-        )[0].n === 2 &&
-        (await operations.setRoundStatus({
-          campaignId: Live,
-          roundId: roundB.roundId,
-          actorId: Owner,
-          status: 'DONE',
-          reason: null,
-        })) === null,
-    );
-    const ready = await operations.setRoundReadiness({
-      campaignId: Live,
-      roundId: roundA.roundId,
-      actorId: Coordinator,
-      readiness: 'NOT_READY',
-      note: 'Chưa chốt xe',
-      checklist: [{ key: 'TRANSPORT', done: false, note: 'Đang chờ nhà xe' }],
-    });
-    check(
-      'ghi sẵn sàng: đủ 6 mục checklist, giữ ghi chú',
-      ready?.readiness === 'NOT_READY' &&
-        ready.checklist.length === 6 &&
-        ready.checklist[0].note === 'Đang chờ nhà xe',
-      JSON.stringify(ready?.checklist[0]),
-    );
-
-    // Dự án chia đợt không nhắc theo bước trao chung.
     for (const campaignId of [Live, Single])
       await sql(
         `INSERT INTO campaign_phases (campaign_id, phase, starts_at, ends_at)
@@ -809,8 +516,10 @@ async function main(): Promise<void> {
       limit: 10,
     });
     check(
-      'nhắc theo bước trao chung: chỉ dự án không chia đợt',
-      phaseCandidates.length === 1 && phaseCandidates[0].campaignId === Single,
+      'nhắc 48 giờ theo bước trao của chiến dịch (không còn ngoại lệ chia đợt)',
+      [Live, Single].every((campaignId) =>
+        phaseCandidates.some((row) => row.campaignId === campaignId),
+      ),
       JSON.stringify(phaseCandidates.map((row) => row.campaignId)),
     );
 
@@ -818,10 +527,10 @@ async function main(): Promise<void> {
     console.log('\n3. Điều kiện hoàn tất dự án');
     const blockers = await operations.completionBlockers(Live);
     check(
-      'dự án đang dở: nhu cầu mở, đề nghị hỗ trợ dở, đợt chưa ghi nhận',
-      ['NEEDS_OPEN', 'SUPPORT_OFFERS_UNSETTLED', 'ROUNDS_UNSETTLED'].every(
-        (code) => blockers.includes(code as never),
-      ),
+      'dự án đang dở: nhu cầu mở, đề nghị hỗ trợ dở; không còn blocker đợt trao',
+      ['NEEDS_OPEN', 'SUPPORT_OFFERS_UNSETTLED'].every((code) =>
+        blockers.includes(code as never),
+      ) && !blockers.includes('ROUNDS_UNSETTLED' as never),
       JSON.stringify(blockers),
     );
     await sql(
@@ -835,13 +544,6 @@ async function main(): Promise<void> {
     await sql(
       `UPDATE campaign_other_support_offers SET status = 'WITHDRAWN' WHERE status IN ('PENDING', 'ACCEPTED')`,
     );
-    await operations.setRoundStatus({
-      campaignId: Live,
-      roundId: roundA.roundId,
-      actorId: Owner,
-      status: 'DONE',
-      reason: null,
-    });
     await sql(
       `UPDATE campaign_deliveries SET status = 'CANCELLED', cancelled_at = now(), cancelled_by = $2, cancel_reason = 'x'
         WHERE campaign_id = $1 AND status = 'ACCEPTED'`,
@@ -1112,253 +814,72 @@ async function main(): Promise<void> {
       String(startedAt),
     );
 
-    // ── 9. Đợt BANK_TRANSFER và tài khoản thụ hưởng ───────────────────────
-    console.log('\n9. Đợt BANK_TRANSFER và tài khoản thụ hưởng');
-    const access = new CharityProjectAccess(campaigns, {
-      hasPermission: async () => false,
-    } as never);
-    const saveRound = new SaveCharityRoundUseCase(access, operations, projects);
-    const roundStatus = new SetCharityRoundStatusUseCase(
-      access,
-      operations,
-      projects,
+    // ── 9. Job dọn ảnh mồ côi giữ bằng chứng trao của chiến dịch ──────────
+    console.log('\n9. Dọn ảnh mồ côi giữ bằng chứng trao');
+    const liveEvidence: { value: string }[] = await sql(
+      `SELECT jsonb_array_elements_text(distribution_evidence_urls) AS value
+         FROM campaigns
+        WHERE jsonb_typeof(distribution_evidence_urls) = 'array'`,
     );
-    const addBeneficiaryAccount = async (
-      campaignId: string,
-      accountNo: string,
-      replacesAccountId: string | null = null,
-    ) => {
-      const outcome = await projects.addBeneficiaryBankAccount({
-        campaignId,
-        actorId: Owner,
-        account: {
-          holderType: 'OWNER',
-          partyId: null,
-          bankName: 'VCB',
-          accountNo,
-          accountName: 'NGUYEN VAN DUC',
-        },
-        replacesAccountId,
-        replaceReason: replacesAccountId ? 'Đổi tài khoản' : null,
-      });
-      if (outcome.status !== 'CREATED') throw new Error(outcome.status);
-      return outcome.account;
-    };
-    const firstPayout = await addBeneficiaryAccount(Other, '5550001111');
-    const foreignPayout = await addBeneficiaryAccount(Live, '5550002222');
-    await projects.verifyBeneficiaryBankAccount({
+    check(
+      'nguồn key campaigns.distribution_evidence_urls trả bằng chứng đã chuyển lên chiến dịch',
+      liveEvidence.some((row) => row.value === 'https://cdn.test/e1.jpg'),
+      JSON.stringify(liveEvidence),
+    );
+    // ── 10. Hình thức trao cấp chiến dịch: công khai không lộ riêng tư ──────
+    console.log('\n10. Hình thức trao cấp chiến dịch');
+    await operations.saveDistribution({
       campaignId: Live,
-      accountId: foreignPayout.accountId,
-      actorId: Coordinator,
-    });
-    const verifiedFirst = await projects.verifyBeneficiaryBankAccount({
-      campaignId: Other,
-      accountId: firstPayout.accountId,
-      actorId: Coordinator,
-    });
-    const payoutStartsAt = new Date(Date.now() + 3 * 24 * 3_600_000);
-    const transferRound = (beneficiaryBankAccountId: string | null) => ({
-      title: 'Đợt chuyển khoản',
-      distributionMethod: 'BANK_TRANSFER' as const,
-      contributionTypes: ['MONEY' as const],
-      evidenceUrls: ['https://cdn.test/uy-nhiem-chi.webp'],
-      locationLabel: null,
-      address: null,
-      lat: null,
-      lng: null,
-      needsReview: false,
-      serviceType: null,
-      serviceChannel: null,
-      privateDetails: {
-        beneficiaryBankAccountId,
-        recipientName: null,
-        recipientPhone: null,
-        recipientAddress: null,
-        coordinatorName: null,
-        coordinatorPhone: null,
-        carrier: null,
-        shippingFeePayer: null,
-        estimatedShippingFee: null,
-        trackingCode: null,
-        transferContent: 'UNG HO DOT CHUYEN KHOAN',
-      },
-      startsAt: payoutStartsAt,
-      endsAt: new Date(payoutStartsAt.getTime() + 3_600_000),
-    });
-    const ownerCommand = { userId: Owner, campaignId: Other };
-    const saveMessage = (run: () => Promise<unknown>) =>
-      run().then(
-        () => '',
-        (error: unknown) => (error as Error).message,
-      );
-    check(
-      'lưu đợt gắn tài khoản của dự án khác → từ chối',
-      (
-        await saveMessage(() =>
-          saveRound.handle({
-            ...ownerCommand,
-            roundId: null,
-            reason: null,
-            round: transferRound(foreignPayout.accountId),
-          }),
-        )
-      ).startsWith('round.beneficiaryBankAccountId:'),
-    );
-    const payoutRound = await saveRound.handle({
-      ...ownerCommand,
-      roundId: null,
-      reason: null,
-      round: transferRound(firstPayout.accountId),
-    });
-    check(
-      'đợt BANK_TRANSFER lưu và đọc lại beneficiaryBankAccountId',
-      verifiedFirst?.verifiedAt !== null &&
-        (await operations.findRound(Other, payoutRound.roundId))?.privateDetails
-          ?.beneficiaryBankAccountId === firstPayout.accountId,
-    );
-    const replacedPayout = await addBeneficiaryAccount(
-      Other,
-      '5550003333',
-      firstPayout.accountId,
-    );
-    const markDone = () =>
-      roundStatus.handle({
-        ...ownerCommand,
-        roundId: payoutRound.roundId,
-        status: 'DONE',
-        reason: null,
-      });
-    const doneFailure = async () =>
-      markDone().then(
-        () => null,
-        (error: unknown) => (error as { code?: number }).code ?? -1,
-      );
-    const closedLinkCode = await doneFailure();
-    check(
-      'đợt còn gắn tài khoản đã bị thay → DONE bị từ chối 0x13_5b',
-      closedLinkCode === 0x13_5b,
-      String(closedLinkCode),
-    );
-    check(
-      'gắn lại tài khoản đã bị thay khi lưu đợt → từ chối',
-      (
-        await saveMessage(() =>
-          saveRound.handle({
-            ...ownerCommand,
-            roundId: payoutRound.roundId,
-            reason: null,
-            round: transferRound(firstPayout.accountId),
-          }),
-        )
-      ).startsWith('round.beneficiaryBankAccountId:'),
-    );
-    await saveRound.handle({
-      ...ownerCommand,
-      roundId: payoutRound.roundId,
-      reason: null,
-      round: transferRound(replacedPayout.accountId),
-    });
-    const unverifiedCode = await doneFailure();
-    check(
-      'tài khoản thay mới chưa xác thực → DONE bị từ chối 0x13_5b, đợt vẫn PLANNED',
-      replacedPayout.verifiedAt === null &&
-        unverifiedCode === 0x13_5b &&
-        (await operations.findRound(Other, payoutRound.roundId))?.status ===
-          'PLANNED',
-      String(unverifiedCode),
-    );
-    await projects.verifyBeneficiaryBankAccount({
-      campaignId: Other,
-      accountId: replacedPayout.accountId,
-      actorId: Coordinator,
-    });
-    check(
-      'xác thực tài khoản mới + đủ bằng chứng → DONE',
-      (await markDone()).status === 'DONE',
-    );
-
-    // ── 10. PATCH kiểu cũ (không gửi distributionMethod) giữ hình thức trao ──
-    console.log('\n10. PATCH kiểu cũ giữ hình thức trao');
-    const shippingStartsAt = new Date(Date.now() + 4 * 24 * 3_600_000);
-    const shippingRound = await saveRound.handle({
-      ...ownerCommand,
-      roundId: null,
-      reason: null,
-      round: {
-        ...transferRound(null),
-        title: 'Đợt gửi hàng',
-        distributionMethod: 'SHIPPING',
+      actorId: Owner,
+      distribution: {
+        distributionMethod: 'DIRECT_RECIPIENT',
         contributionTypes: ['MATERIAL'],
-        evidenceUrls: ['https://cdn.test/van-don.webp'],
+        serviceType: null,
+        serviceChannel: null,
         privateDetails: {
-          ...transferRound(null).privateDetails,
-          recipientName: 'Người nhận kín',
-          recipientPhone: '0907654321',
-          recipientAddress: 'Địa chỉ nhận kín',
-          carrier: 'Nhà xe',
-          shippingFeePayer: 'ORGANIZER',
-          estimatedShippingFee: 25000,
-          trackingCode: 'VD-777',
+          beneficiaryBankAccountId: null,
+          recipientName: 'Bà Năm',
+          recipientPhone: '0966554433',
+          recipientAddress: 'Số 7 hẻm kín, ấp Hai',
+          coordinatorName: 'Anh Tư',
+          coordinatorPhone: '0900000004',
+          carrier: null,
+          shippingFeePayer: null,
+          estimatedShippingFee: null,
+          trackingCode: null,
           transferContent: null,
         },
-        startsAt: shippingStartsAt,
-        endsAt: new Date(shippingStartsAt.getTime() + 3_600_000),
       },
     });
-    const { distributionMethod: _omitted, ...legacyBody } = {
-      ...transferRound(null),
-      title: 'Đợt gửi hàng (đổi tên)',
-      startsAt: shippingStartsAt,
-      endsAt: new Date(shippingStartsAt.getTime() + 3_600_000),
-    };
-    void _omitted;
-    await saveRound.handle({
-      ...ownerCommand,
-      roundId: shippingRound.roundId,
-      reason: null,
-      round: legacyBody,
+    await operations.saveDistributionEvidence({
+      campaignId: Live,
+      actorId: Owner,
+      evidenceUrls: ['https://cdn.test/live-evidence.jpg'],
     });
-    const keptRound = await operations.findRound(Other, shippingRound.roundId);
+    const workspaceDistribution = await operations.getDistribution(Live);
     check(
-      'PATCH chỉ đổi tên, không gửi distributionMethod → giữ hình thức, chi tiết riêng, bằng chứng',
-      keptRound?.title === 'Đợt gửi hàng (đổi tên)' &&
-        keptRound.distributionMethod === 'SHIPPING' &&
-        JSON.stringify(keptRound.contributionTypes) === '["MATERIAL"]' &&
-        JSON.stringify(keptRound.evidenceUrls) ===
-          '["https://cdn.test/van-don.webp"]' &&
-        keptRound.privateDetails?.recipientPhone === '0907654321' &&
-        keptRound.privateDetails.trackingCode === 'VD-777' &&
-        keptRound.privateDetails.estimatedShippingFee === 25000,
-      JSON.stringify(keptRound),
+      'workspace đọc lại đủ chi tiết riêng tư và bằng chứng',
+      workspaceDistribution?.privateDetails.recipientPhone === '0966554433' &&
+        workspaceDistribution.evidenceUrls[0] ===
+          'https://cdn.test/live-evidence.jpg',
+      JSON.stringify(workspaceDistribution),
     );
-    check(
-      'PATCH gửi distributionMethod null cho đợt SHIPPING → từ chối',
-      (
-        await saveMessage(() =>
-          saveRound.handle({
-            ...ownerCommand,
-            roundId: shippingRound.roundId,
-            reason: null,
-            round: { ...legacyBody, distributionMethod: null },
-          }),
-        )
-      ).includes('distributionMethod'),
-    );
-
     const publicProject = await new GetCharityPublicProjectUseCase(
       campaigns,
       projects,
       engagement,
       events,
       new CharitySummaryRepository(dataSource.manager),
-    ).handle({ idOrSlug: 'cop-other', userId: null });
+      operations,
+    ).handle({ idOrSlug: 'cop-live', userId: null });
     const publicJson = JSON.stringify(publicProject);
     check(
-      'bản công khai thật không chứa số tài khoản thụ hưởng hay id gắn với đợt',
-      !publicJson.includes('5550001111') &&
-        !publicJson.includes('5550003333') &&
-        !publicJson.includes(replacedPayout.accountId) &&
-        !('beneficiaryBankAccounts' in publicProject),
+      'bản công khai thật có hình thức + bằng chứng nhưng không có SĐT/địa chỉ người nhận',
+      publicProject.distribution?.method === 'DIRECT_RECIPIENT' &&
+        publicProject.distribution.evidenceUrls.length === 1 &&
+        !publicJson.includes('0966554433') &&
+        !publicJson.includes('Số 7 hẻm kín'),
+      JSON.stringify(publicProject.distribution),
     );
   } finally {
     for (const source of opened.reverse())

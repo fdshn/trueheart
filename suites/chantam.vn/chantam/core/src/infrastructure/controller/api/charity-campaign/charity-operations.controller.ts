@@ -1,33 +1,27 @@
 import {
-  IAssignCharityRoundUseCase,
   ICheckCharityCompletionUseCase,
   IDecideCharitySupportOfferUseCase,
   IDeleteCharitySupportNeedUseCase,
-  IListCharityRoundsUseCase,
+  IGetCharityDistributionUseCase,
   IListCharitySupportNeedsUseCase,
   IListCharitySupportOffersUseCase,
-  IManageCharityRoundsUseCase,
   IManageCharitySupportNeedsUseCase,
   IOfferCharitySupportUseCase,
   IPostponeCharityDistributionUseCase,
-  ISaveCharityRoundUseCase,
+  ISaveCharityDistributionEvidenceUseCase,
+  ISaveCharityDistributionUseCase,
   ISaveCharitySupportNeedUseCase,
-  ISetCharityRoundReadinessUseCase,
-  ISetCharityRoundStatusUseCase,
   IWithdrawCharitySupportOfferUseCase,
 } from '@/application/contracts/charity-project';
 import {
-  CharityBeneficiaryAccountNotVerifiedException,
   CharityCampaignNotFoundException,
   CharityContributionTypeDisabledException,
   CharityDistributionFieldRequiredException,
   CharityDistributionMethodMismatchException,
+  CharityIntakeClosedException,
   CharityProjectForbiddenException,
   CharityProjectInactiveException,
   CharityProjectNotApprovedException,
-  CharityRoundEvidenceRequiredException,
-  CharityRoundInvalidStateException,
-  CharityRoundNotFoundException,
   CharityStageTransitionInvalidException,
   CharitySupportNeedClosedException,
   CharitySupportNeedInUseException,
@@ -65,16 +59,10 @@ import {
 } from '@nestjs/swagger';
 import {
   CharityCompletionResponseDto,
+  CharityDistributionBodyDto,
+  CharityDistributionEvidenceBodyDto,
+  CharityDistributionResponseDto,
   CharityPostponeBodyDto,
-  CharityPublicRoundsResponseDto,
-  CharityRoundAssignmentsBodyDto,
-  CharityRoundAssignmentsResponseDto,
-  CharityRoundBodyDto,
-  CharityRoundParamsDto,
-  CharityRoundReadinessBodyDto,
-  CharityRoundResponseDto,
-  CharityRoundsResponseDto,
-  CharityRoundStatusBodyDto,
   CharitySupportNeedBodyDto,
   CharitySupportNeedParamsDto,
   CharitySupportNeedResponseDto,
@@ -126,18 +114,12 @@ export class CharityOperationsController {
     private readonly offerWithdrawUseCase: IWithdrawCharitySupportOfferUseCase,
     @Inject(IPostponeCharityDistributionUseCase)
     private readonly postponeUseCase: IPostponeCharityDistributionUseCase,
-    @Inject(IListCharityRoundsUseCase)
-    private readonly roundsPublicUseCase: IListCharityRoundsUseCase,
-    @Inject(IManageCharityRoundsUseCase)
-    private readonly roundsManageUseCase: IManageCharityRoundsUseCase,
-    @Inject(ISaveCharityRoundUseCase)
-    private readonly roundSaveUseCase: ISaveCharityRoundUseCase,
-    @Inject(ISetCharityRoundStatusUseCase)
-    private readonly roundStatusUseCase: ISetCharityRoundStatusUseCase,
-    @Inject(ISetCharityRoundReadinessUseCase)
-    private readonly roundReadinessUseCase: ISetCharityRoundReadinessUseCase,
-    @Inject(IAssignCharityRoundUseCase)
-    private readonly assignUseCase: IAssignCharityRoundUseCase,
+    @Inject(IGetCharityDistributionUseCase)
+    private readonly distributionGetUseCase: IGetCharityDistributionUseCase,
+    @Inject(ISaveCharityDistributionUseCase)
+    private readonly distributionSaveUseCase: ISaveCharityDistributionUseCase,
+    @Inject(ISaveCharityDistributionEvidenceUseCase)
+    private readonly distributionEvidenceUseCase: ISaveCharityDistributionEvidenceUseCase,
     @Inject(ICheckCharityCompletionUseCase)
     private readonly completionUseCase: ICheckCharityCompletionUseCase,
   ) {}
@@ -286,6 +268,7 @@ export class CharityOperationsController {
     CharityContributionTypeDisabledException,
     CharitySupportNeedNotFoundException,
     CharitySupportNeedClosedException,
+    CharityIntakeClosedException,
   )
   public async offer(
     @CurrentUser() principal: IAuthPrincipal,
@@ -392,7 +375,7 @@ export class CharityOperationsController {
   @ApiOperation({
     summary: 'Hoãn bước trao',
     description:
-      'Người tạo, coordinator, Admin; trước khi bước trao bắt đầu. Bắt buộc lý do. Ghi lịch sử sửa (chữ đỏ) kèm lý do, báo người đã ủng hộ/tham gia; nhắc 48 giờ tự xếp lại cho mốc mới. Dự án chia đợt thì hoãn từng đợt qua `PATCH :id/rounds/:roundId`.',
+      'Người tạo, coordinator, Admin; trước khi bước trao bắt đầu. Bắt buộc lý do. Ghi lịch sử sửa (chữ đỏ) kèm lý do, báo người đã ủng hộ/tham gia; nhắc 48 giờ tự xếp lại cho mốc mới.',
   })
   @ApiCreatedResponse({ type: ResponseDto.forApi(CharityPhasesResponseDto) })
   @ApiErrorResponses(
@@ -421,203 +404,106 @@ export class CharityOperationsController {
     });
   }
 
-  // ── Đợt trao ──────────────────────────────────────────────────────────
+  // ── Hình thức trao cấp chiến dịch ─────────────────────────────────────
 
-  @Get(':idOrSlug/rounds')
-  @Public()
-  @ApiOperation({
-    summary: 'Các đợt trao (công khai)',
-    description:
-      'Giờ, địa điểm, trạng thái, số người tham gia / giao nhận / giá trị đã xác nhận của từng đợt. Không có checklist, ghi chú sẵn sàng.',
-  })
-  @ApiOkResponse({ type: ResponseDto.forApi(CharityPublicRoundsResponseDto) })
-  @ApiErrorResponses(CharityCampaignNotFoundException)
-  public async publicRounds(@Param() params: CharityProjectIdOrSlugParamsDto) {
-    return ok({
-      rounds: await this.roundsPublicUseCase.handle({
-        idOrSlug: params.idOrSlug,
-      }),
-    });
-  }
-
-  @Get(':id/rounds/manage')
+  @Get(':id/distribution')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Các đợt trao (ban tổ chức)',
+    summary: 'Hình thức trao của chiến dịch (workspace)',
     description:
-      'Kèm checklist, sẵn sàng và `warnings` (còn ≤ 48 giờ mà chưa xác nhận / checklist chưa xong / báo chưa sẵn sàng) — chỉ cảnh báo, không chặn.',
+      'Người tạo, coordinator, Admin `campaign.read`. Trả đủ chi tiết riêng tư (người nhận, mã vận đơn, tài khoản thụ hưởng). Bản công khai nằm trong `GET :idOrSlug/public` (chỉ 5 trường).',
   })
-  @ApiOkResponse({ type: ResponseDto.forApi(CharityRoundsResponseDto) })
-  @ApiErrorResponses(...ApiTokenErrors, CharityCampaignNotFoundException)
-  public async manageRounds(
+  @ApiOkResponse({ type: ResponseDto.forApi(CharityDistributionResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, ...ProjectErrors)
+  public async distribution(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: CharityProjectParamsDto,
   ) {
     return ok({
-      rounds: await this.roundsManageUseCase.handle({
+      distribution: await this.distributionGetUseCase.handle({
         userId: principal.userId,
         campaignId: params.id,
       }),
     });
   }
 
-  @Post(':id/rounds')
+  @Put(':id/distribution')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Thêm đợt trao',
+    summary: 'Lưu hình thức trao của chiến dịch',
     description:
-      'Người tạo, coordinator, Admin. Mỗi đợt có timeline 10 bước riêng (`GET :idOrSlug/event-steps?roundId=`).',
+      'Người tạo, coordinator, Admin `campaign.manage`. Mỗi chiến dịch MỘT hình thức trao (đã bỏ đợt trao, CR 22/11/2026). Thiếu trường theo hình thức → `400 CHARITY_DISTRIBUTION_FIELD_REQUIRED`; `BANK_TRANSFER` khi chiến dịch không nhận `MONEY` → `400 CHARITY_DISTRIBUTION_METHOD_MISMATCH`; `beneficiaryBankAccountId` phải là tài khoản thụ hưởng đang hiệu lực của chiến dịch.',
   })
-  @ApiCreatedResponse({ type: ResponseDto.forApi(CharityRoundResponseDto) })
+  @ApiOkResponse({ type: ResponseDto.forApi(CharityDistributionResponseDto) })
   @ApiErrorResponses(
     ...ApiTokenErrors,
     ...ProjectErrors,
-    CharityDistributionFieldRequiredException,
-    CharityDistributionMethodMismatchException,
-    [ValidationFailedException, ['round.endsAt: phải sau startsAt']],
-  )
-  public async createRound(
-    @CurrentUser() principal: IAuthPrincipal,
-    @Param() params: CharityProjectParamsDto,
-    @Body() body: CharityRoundBodyDto,
-  ) {
-    return ok({
-      round: await this.saveRound(principal.userId, params.id, null, body),
-    });
-  }
-
-  @Patch(':id/rounds/:roundId')
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Sửa / hoãn đợt trao',
-    description:
-      'Đổi giờ hoặc địa điểm của đợt khi dự án đã duyệt: bắt buộc `reason`, người của đợt (participant, người có giao nhận gắn đợt — đợt chưa gắn ai thì cả dự án) nhận thông báo; nhắc 48 giờ xếp lại cho mốc mới.',
-  })
-  @ApiOkResponse({ type: ResponseDto.forApi(CharityRoundResponseDto) })
-  @ApiErrorResponses(
-    ...ApiTokenErrors,
-    ...ProjectErrors,
-    CharityRoundNotFoundException,
-    CharityRoundInvalidStateException,
     CharityDistributionFieldRequiredException,
     CharityDistributionMethodMismatchException,
     [
       ValidationFailedException,
-      ['round.reason: bắt buộc khi đổi giờ / địa điểm đợt trao đã công khai'],
+      [
+        'distribution.beneficiaryBankAccountId: phải là tài khoản thụ hưởng đang hiệu lực của chiến dịch này',
+      ],
     ],
   )
-  public async updateRound(
-    @CurrentUser() principal: IAuthPrincipal,
-    @Param() params: CharityRoundParamsDto,
-    @Body() body: CharityRoundBodyDto,
-  ) {
-    return ok({
-      round: await this.saveRound(
-        principal.userId,
-        params.id,
-        params.roundId,
-        body,
-      ),
-    });
-  }
-
-  @Post(':id/rounds/:roundId/status')
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Ghi nhận xong / huỷ đợt trao',
-    description:
-      '`DONE` hoặc `CANCELLED` (bắt buộc lý do, báo người của đợt). Gắn kết participant/giao nhận giữ nguyên để ban tổ chức chuyển sang đợt khác. `DONE` của đợt BANK_TRANSFER cần `privateDetails.beneficiaryBankAccountId` trỏ tới tài khoản thụ hưởng còn hiệu lực của dự án và đã được Admin xác thực.',
-  })
-  @ApiCreatedResponse({ type: ResponseDto.forApi(CharityRoundResponseDto) })
-  @ApiErrorResponses(
-    ...ApiTokenErrors,
-    ...ProjectErrors,
-    CharityRoundNotFoundException,
-    CharityRoundInvalidStateException,
-    CharityRoundEvidenceRequiredException,
-    CharityBeneficiaryAccountNotVerifiedException,
-  )
-  public async roundStatus(
-    @CurrentUser() principal: IAuthPrincipal,
-    @Param() params: CharityRoundParamsDto,
-    @Body() body: CharityRoundStatusBodyDto,
-  ) {
-    return ok({
-      round: await this.roundStatusUseCase.handle({
-        userId: principal.userId,
-        campaignId: params.id,
-        roundId: params.roundId,
-        status: body.status.status,
-        reason: body.status.reason ?? null,
-      }),
-    });
-  }
-
-  @Put(':id/rounds/:roundId/readiness')
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Checklist trước 48 giờ và xác nhận sẵn sàng của đợt',
-    description:
-      '`READY` hoặc `NOT_READY` (bắt buộc ghi chú). Chưa sẵn sàng chỉ tạo cảnh báo — không tự huỷ hay chặn sự kiện.',
-  })
-  @ApiOkResponse({ type: ResponseDto.forApi(CharityRoundResponseDto) })
-  @ApiErrorResponses(
-    ...ApiTokenErrors,
-    ...ProjectErrors,
-    CharityRoundNotFoundException,
-    CharityRoundInvalidStateException,
-  )
-  public async roundReadiness(
-    @CurrentUser() principal: IAuthPrincipal,
-    @Param() params: CharityRoundParamsDto,
-    @Body() body: CharityRoundReadinessBodyDto,
-  ) {
-    return ok({
-      round: await this.roundReadinessUseCase.handle({
-        userId: principal.userId,
-        campaignId: params.id,
-        roundId: params.roundId,
-        readiness: body.readiness.status,
-        note: body.readiness.note ?? null,
-        checklist: (body.readiness.checklist ?? []).map((item) => ({
-          key: item.key,
-          done: item.done,
-          note: item.note ?? null,
-        })),
-      }),
-    });
-  }
-
-  @Put(':id/round-assignments')
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Gắn participant / lượt giao nhận vào đợt trao',
-    description:
-      '`roundId: null` gỡ khỏi đợt. Chỉ dòng của chính dự án; trả số dòng đã gắn. Không gắn vào đợt đã huỷ.',
-  })
-  @ApiOkResponse({
-    type: ResponseDto.forApi(CharityRoundAssignmentsResponseDto),
-  })
-  @ApiErrorResponses(
-    ...ApiTokenErrors,
-    ...ProjectErrors,
-    CharityRoundNotFoundException,
-    CharityRoundInvalidStateException,
-  )
-  public async assign(
+  public async saveDistribution(
     @CurrentUser() principal: IAuthPrincipal,
     @Param() params: CharityProjectParamsDto,
-    @Body() body: CharityRoundAssignmentsBodyDto,
+    @Body() body: CharityDistributionBodyDto,
   ) {
-    return ok(
-      await this.assignUseCase.handle({
+    const input = body.distribution;
+    return ok({
+      distribution: await this.distributionSaveUseCase.handle({
         userId: principal.userId,
         campaignId: params.id,
-        roundId: body.assignments.roundId ?? null,
-        participationIds: body.assignments.participationIds ?? [],
-        deliveryIds: body.assignments.deliveryIds ?? [],
+        distribution: {
+          distributionMethod: input.distributionMethod ?? null,
+          contributionTypes: input.contributionTypes ?? [],
+          serviceType: input.serviceType ?? null,
+          serviceChannel: input.serviceChannel ?? null,
+          privateDetails: {
+            beneficiaryBankAccountId: input.beneficiaryBankAccountId ?? null,
+            recipientName: input.recipientName ?? null,
+            recipientPhone: input.recipientPhone ?? null,
+            recipientAddress: input.recipientAddress ?? null,
+            coordinatorName: input.coordinatorName ?? null,
+            coordinatorPhone: input.coordinatorPhone ?? null,
+            carrier: input.carrier ?? null,
+            shippingFeePayer: input.shippingFeePayer ?? null,
+            estimatedShippingFee: input.estimatedShippingFee ?? null,
+            trackingCode: input.trackingCode ?? null,
+            transferContent: input.transferContent ?? null,
+          },
+        },
       }),
-    );
+    });
+  }
+
+  @Put(':id/distribution/evidence')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Ảnh bằng chứng trao của chiến dịch',
+    description:
+      'Người tạo, coordinator, Admin. Thay cả danh sách; https, không trùng, tối đa 20. Ảnh bằng chứng là CÔNG KHAI.',
+  })
+  @ApiOkResponse({ type: ResponseDto.forApi(CharityDistributionResponseDto) })
+  @ApiErrorResponses(...ApiTokenErrors, ...ProjectErrors, [
+    ValidationFailedException,
+    ['evidence.urls: https://, không trùng, tối đa 20'],
+  ])
+  public async saveDistributionEvidence(
+    @CurrentUser() principal: IAuthPrincipal,
+    @Param() params: CharityProjectParamsDto,
+    @Body() body: CharityDistributionEvidenceBodyDto,
+  ) {
+    return ok({
+      distribution: await this.distributionEvidenceUseCase.handle({
+        userId: principal.userId,
+        campaignId: params.id,
+        evidenceUrls: body.evidence.urls,
+      }),
+    });
   }
 
   // ── Hoàn tất dự án ────────────────────────────────────────────────────
@@ -677,49 +563,6 @@ export class CharityOperationsController {
           }
         : undefined,
       status: input.status,
-    });
-  }
-
-  private saveRound(
-    userId: string,
-    campaignId: string,
-    roundId: string | null,
-    body: CharityRoundBodyDto,
-  ) {
-    const input = body.round;
-    return this.roundSaveUseCase.handle({
-      userId,
-      campaignId,
-      roundId,
-      round: {
-        title: input.title,
-        distributionMethod: input.distributionMethod,
-        contributionTypes: input.contributionTypes ?? [],
-        evidenceUrls: input.evidenceUrls ?? [],
-        locationLabel: input.locationLabel ?? null,
-        address: input.address ?? null,
-        lat: input.lat ?? null,
-        lng: input.lng ?? null,
-        needsReview: false,
-        serviceType: input.serviceType ?? null,
-        serviceChannel: input.serviceChannel ?? null,
-        privateDetails: {
-          beneficiaryBankAccountId: input.beneficiaryBankAccountId ?? null,
-          recipientName: input.recipientName ?? null,
-          recipientPhone: input.recipientPhone ?? null,
-          recipientAddress: input.recipientAddress ?? null,
-          coordinatorName: input.coordinatorName ?? null,
-          coordinatorPhone: input.coordinatorPhone ?? null,
-          carrier: input.carrier ?? null,
-          shippingFeePayer: input.shippingFeePayer ?? null,
-          estimatedShippingFee: input.estimatedShippingFee ?? null,
-          trackingCode: input.trackingCode ?? null,
-          transferContent: input.transferContent ?? null,
-        },
-        startsAt: input.startsAt,
-        endsAt: input.endsAt,
-      },
-      reason: input.reason ?? null,
     });
   }
 }

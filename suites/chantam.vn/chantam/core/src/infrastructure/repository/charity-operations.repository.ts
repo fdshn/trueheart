@@ -1,10 +1,9 @@
 import {
+  ICharityCampaignDistribution,
+  ICharityCampaignDistributionInput,
   ICharityContributionParties,
   ICharityDispute,
   ICharityOperationsRepository,
-  ICharityRound,
-  ICharityRoundInput,
-  ICharityRoundPreEventCandidate,
   ICharitySupportNeed,
   ICharitySupportNeedExternal,
   ICharitySupportNeedInput,
@@ -15,20 +14,13 @@ import {
   CharityDisputeParty,
   CharityDisputeReason,
   CharityDisputeStatus,
-  CharityRoundReadiness,
-  CharityRoundStatus,
   CharitySupportOfferStatus,
   CharitySupportType,
-  ICharityRoundChecklistItem,
-  normalizeRoundChecklist,
 } from '@chantam.vn/chantam.core-lib/models';
 import { Injectable } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
-import {
-  insertDistributionRound,
-  RoundConfirmedValueSql,
-} from './charity-round.sql';
+import { writeCampaignDistribution } from './charity-distribution.sql';
 import { isUniqueViolationOn } from './unique-violation';
 import { updateReturning } from './update-returning';
 
@@ -199,21 +191,13 @@ const toOffer = (row: IOfferRow): ICharitySupportOffer => ({
   createdAt: row.created_at,
 });
 
-interface IRoundRow {
+interface IDistributionRow {
   global_id: string;
-  campaign_id: string;
-  title: string;
-  distribution_method: ICharityRound['distributionMethod'];
-  contribution_types: ICharityRound['contributionTypes'];
-  evidence_urls: string[];
-  location_label: string | null;
-  address: string | null;
-  lat: string | number | null;
-  lng: string | number | null;
-  needs_review: boolean;
-  service_type: ICharityRound['serviceType'];
-  service_channel: ICharityRound['serviceChannel'];
-  private_round_id: string | null;
+  distribution_method: ICharityCampaignDistribution['distributionMethod'];
+  distribution_contribution_types: ICharityCampaignDistribution['contributionTypes'];
+  distribution_evidence_urls: string[] | null;
+  distribution_service_type: ICharityCampaignDistribution['serviceType'];
+  distribution_service_channel: ICharityCampaignDistribution['serviceChannel'];
   beneficiary_bank_account_id: string | null;
   recipient_name: string | null;
   recipient_phone: string | null;
@@ -221,110 +205,37 @@ interface IRoundRow {
   coordinator_name: string | null;
   coordinator_phone: string | null;
   carrier: string | null;
-  shipping_fee_payer: 'ORGANIZER' | 'RECIPIENT' | null;
+  shipping_fee_payer: ICharityCampaignDistribution['privateDetails']['shippingFeePayer'];
   estimated_shipping_fee: number | null;
   tracking_code: string | null;
   transfer_content: string | null;
-  private_updated_by: string | null;
-  private_updated_at: Date | null;
-  starts_at: Date;
-  ends_at: Date;
-  status: CharityRoundStatus;
-  status_reason: string | null;
-  readiness: CharityRoundReadiness;
-  readiness_note: string | null;
-  readiness_by: string | null;
-  readiness_at: Date | null;
-  checklist: Partial<ICharityRoundChecklistItem>[];
-  updated_at: Date;
-  participant_count: string | number;
-  attended_count: string | number;
-  delivery_count: string | number;
-  completed_delivery_count: string | number;
-  confirmed_value: string | number;
+  updated_at: Date | null;
 }
 
-const RoundSelect = `
-  SELECT round.global_id, round.campaign_id, round.title, round.distribution_method,
-         round.contribution_types, round.evidence_urls, round.location_label, round.address,
-         ST_Y(round.location::geometry) AS lat, ST_X(round.location::geometry) AS lng,
-         round.needs_review, round.service_type, round.service_channel,
-         private.round_id AS private_round_id, private.beneficiary_bank_account_id,
-         private.recipient_name, private.recipient_phone,
-         private.recipient_address, private.coordinator_name, private.coordinator_phone,
-         private.carrier, private.shipping_fee_payer, private.estimated_shipping_fee,
-         private.tracking_code, private.transfer_content, private.updated_by AS private_updated_by,
-         private.updated_at AS private_updated_at,
-         round.starts_at, round.ends_at, round.status, round.status_reason, round.readiness,
-         round.readiness_note, round.readiness_by, round.readiness_at, round.checklist,
-         round.updated_at,
-         (SELECT count(*) FROM campaign_participations participation
-           WHERE participation.round_id = round.global_id
-             AND participation.status IN
-               ('REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CHECKED_IN', 'COMPLETED'))
-           AS participant_count,
-         (SELECT count(*) FROM campaign_participations participation
-           WHERE participation.round_id = round.global_id
-             AND participation.status IN ('CHECKED_IN', 'COMPLETED')) AS attended_count,
-         (SELECT count(*) FROM campaign_deliveries delivery
-           WHERE delivery.round_id = round.global_id AND delivery.status <> 'CANCELLED')
-           AS delivery_count,
-         (SELECT count(*) FROM campaign_deliveries delivery
-           WHERE delivery.round_id = round.global_id AND delivery.status = 'COMPLETED')
-           AS completed_delivery_count,
-         ${RoundConfirmedValueSql} AS confirmed_value
-  FROM campaign_distribution_rounds round
-  LEFT JOIN campaign_round_private_details private ON private.round_id = round.global_id`;
-
-const toRound = (row: IRoundRow): ICharityRound => ({
-  roundId: row.global_id,
-  campaignId: row.campaign_id,
-  title: row.title,
+const toDistribution = (
+  row: IDistributionRow,
+): ICharityCampaignDistribution => ({
+  campaignId: row.global_id,
   distributionMethod: row.distribution_method,
-  contributionTypes: row.contribution_types ?? [],
-  evidenceUrls: row.evidence_urls ?? [],
-  locationLabel: row.location_label,
-  address: row.address,
-  lat: row.lat === null ? null : Number(row.lat),
-  lng: row.lng === null ? null : Number(row.lng),
-  needsReview: row.needs_review,
-  serviceType: row.service_type,
-  serviceChannel: row.service_channel,
-  privateDetails:
-    row.private_round_id === null
-      ? null
-      : {
-          roundId: row.private_round_id,
-          campaignId: row.campaign_id,
-          beneficiaryBankAccountId: row.beneficiary_bank_account_id,
-          recipientName: row.recipient_name,
-          recipientPhone: row.recipient_phone,
-          recipientAddress: row.recipient_address,
-          coordinatorName: row.coordinator_name,
-          coordinatorPhone: row.coordinator_phone,
-          carrier: row.carrier,
-          shippingFeePayer: row.shipping_fee_payer,
-          estimatedShippingFee: row.estimated_shipping_fee,
-          trackingCode: row.tracking_code,
-          transferContent: row.transfer_content,
-          updatedBy: row.private_updated_by,
-          updatedAt: row.private_updated_at as Date,
-        },
-  startsAt: row.starts_at,
-  endsAt: row.ends_at,
-  status: row.status,
-  statusReason: row.status_reason,
-  readiness: row.readiness,
-  readinessNote: row.readiness_note,
-  readinessBy: row.readiness_by,
-  readinessAt: row.readiness_at,
-  checklist: normalizeRoundChecklist(row.checklist),
-  stats: {
-    participantCount: Number(row.participant_count),
-    attendedCount: Number(row.attended_count),
-    deliveryCount: Number(row.delivery_count),
-    completedDeliveryCount: Number(row.completed_delivery_count),
-    confirmedValue: Number(row.confirmed_value),
+  contributionTypes: row.distribution_contribution_types ?? [],
+  serviceType: row.distribution_service_type,
+  serviceChannel: row.distribution_service_channel,
+  evidenceUrls: row.distribution_evidence_urls ?? [],
+  privateDetails: {
+    beneficiaryBankAccountId: row.beneficiary_bank_account_id,
+    recipientName: row.recipient_name,
+    recipientPhone: row.recipient_phone,
+    recipientAddress: row.recipient_address,
+    coordinatorName: row.coordinator_name,
+    coordinatorPhone: row.coordinator_phone,
+    carrier: row.carrier,
+    shippingFeePayer: row.shipping_fee_payer,
+    estimatedShippingFee:
+      row.estimated_shipping_fee === null
+        ? null
+        : Number(row.estimated_shipping_fee),
+    trackingCode: row.tracking_code,
+    transferContent: row.transfer_content,
   },
   updatedAt: row.updated_at,
 });
@@ -548,320 +459,55 @@ export class CharityOperationsRepository implements ICharityOperationsRepository
     return this.findOffer(params.campaignId, params.offerId);
   }
 
-  // ── Đợt trao ──────────────────────────────────────────────────────────
+  // ── Hình thức trao cấp chiến dịch ─────────────────────────────────────
 
-  public async listRounds(campaignId: string): Promise<ICharityRound[]> {
-    const rows = await this.manager.query<IRoundRow[]>(
-      `${RoundSelect} WHERE round.campaign_id = $1 ORDER BY round.starts_at, round.id`,
-      [campaignId],
-    );
-    return rows.map(toRound);
-  }
-
-  public async findRound(
+  public async getDistribution(
     campaignId: string,
-    roundId: string,
-  ): Promise<ICharityRound | null> {
-    const [row] = await this.manager.query<IRoundRow[]>(
-      `${RoundSelect} WHERE round.campaign_id = $1 AND round.global_id = $2`,
-      [campaignId, roundId],
-    );
-    return row ? toRound(row) : null;
-  }
-
-  public async createRound(params: {
-    campaignId: string;
-    actorId: string;
-    round: ICharityRoundInput;
-  }): Promise<ICharityRound> {
-    const roundId = await this.manager.transaction((manager) =>
-      insertDistributionRound(manager, params),
-    );
-    return (await this.findRound(params.campaignId, roundId)) as ICharityRound;
-  }
-
-  public async updateRound(params: {
-    campaignId: string;
-    roundId: string;
-    actorId: string;
-    round: ICharityRoundInput;
-    reason: string | null;
-    announce: boolean;
-    keepDistribution?: boolean;
-  }): Promise<ICharityRound | null> {
-    const updated = await this.manager.transaction(async (manager) => {
-      const [before] = await manager.query<
-        { starts_at: Date; title: string }[]
-      >(
-        `SELECT starts_at, title FROM campaign_distribution_rounds
-          WHERE campaign_id = $1 AND global_id = $2 AND status = 'PLANNED' FOR UPDATE`,
-        [params.campaignId, params.roundId],
-      );
-      if (!before) return false;
-      if (params.keepDistribution)
-        // Client cũ không gửi hình thức trao: chỉ ghi trường kiểu cũ, giữ nguyên phần còn lại.
-        await manager.query(
-          `UPDATE campaign_distribution_rounds
-              SET title = $3, location_label = $4, address = $5, starts_at = $6, ends_at = $7,
-                  status_reason = COALESCE($8, status_reason), updated_by = $9, updated_at = now()
-            WHERE campaign_id = $1 AND global_id = $2`,
-          [
-            params.campaignId,
-            params.roundId,
-            params.round.title,
-            params.round.locationLabel,
-            params.round.address,
-            params.round.startsAt,
-            params.round.endsAt,
-            params.reason,
-            params.actorId,
-          ],
-        );
-      else await this.replaceRoundDistribution(manager, params);
-      if (params.announce)
-        await this.enqueueRoundChanged(manager, {
-          campaignId: params.campaignId,
-          roundId: params.roundId,
-          title: params.round.title,
-          change:
-            params.round.startsAt.getTime() > before.starts_at.getTime()
-              ? 'POSTPONED'
-              : 'UPDATED',
-          startsAt: params.round.startsAt,
-          reason: params.reason,
-          actorId: params.actorId,
-        });
-      return true;
-    });
-    return updated ? this.findRound(params.campaignId, params.roundId) : null;
-  }
-
-  /** Ghi đè toàn bộ hình thức trao + chi tiết riêng của đợt (client gửi `distributionMethod`). */
-  private async replaceRoundDistribution(
-    manager: EntityManager,
-    params: {
-      campaignId: string;
-      roundId: string;
-      actorId: string;
-      round: ICharityRoundInput;
-      reason: string | null;
-    },
-  ): Promise<void> {
-    await manager.query(
-      `UPDATE campaign_distribution_rounds
-          SET title = $3, distribution_method = $4, contribution_types = $5::text[],
-              evidence_urls = $6::jsonb, location_label = $7, address = $8,
-              location = CASE WHEN $9::double precision IS NOT NULL AND $10::double precision IS NOT NULL
-                THEN ST_SetSRID(ST_MakePoint($10, $9), 4326)::geography END,
-              needs_review = false, service_type = $11, service_channel = $12,
-              starts_at = $13, ends_at = $14, status_reason = COALESCE($15, status_reason),
-              updated_by = $16, updated_at = now()
-        WHERE campaign_id = $1 AND global_id = $2`,
-      [
-        params.campaignId,
-        params.roundId,
-        params.round.title,
-        params.round.distributionMethod,
-        [...params.round.contributionTypes],
-        JSON.stringify(params.round.evidenceUrls),
-        params.round.locationLabel,
-        params.round.address,
-        params.round.lat,
-        params.round.lng,
-        params.round.serviceType,
-        params.round.serviceChannel,
-        params.round.startsAt,
-        params.round.endsAt,
-        params.reason,
-        params.actorId,
-      ],
-    );
-    await manager.query(
-      `INSERT INTO campaign_round_private_details
-         (round_id, campaign_id, beneficiary_bank_account_id, recipient_name, recipient_phone,
-          recipient_address, coordinator_name, coordinator_phone, carrier, shipping_fee_payer,
-          estimated_shipping_fee, tracking_code, transfer_content, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-       ON CONFLICT (round_id) DO UPDATE
-         SET beneficiary_bank_account_id = EXCLUDED.beneficiary_bank_account_id,
-             recipient_name = EXCLUDED.recipient_name,
-             recipient_phone = EXCLUDED.recipient_phone,
-             recipient_address = EXCLUDED.recipient_address,
-             coordinator_name = EXCLUDED.coordinator_name,
-             coordinator_phone = EXCLUDED.coordinator_phone,
-             carrier = EXCLUDED.carrier,
-             shipping_fee_payer = EXCLUDED.shipping_fee_payer,
-             estimated_shipping_fee = EXCLUDED.estimated_shipping_fee,
-             tracking_code = EXCLUDED.tracking_code,
-             transfer_content = EXCLUDED.transfer_content,
-             updated_by = EXCLUDED.updated_by, updated_at = now()`,
-      [
-        params.roundId,
-        params.campaignId,
-        params.round.privateDetails.beneficiaryBankAccountId,
-        params.round.privateDetails.recipientName,
-        params.round.privateDetails.recipientPhone,
-        params.round.privateDetails.recipientAddress,
-        params.round.privateDetails.coordinatorName,
-        params.round.privateDetails.coordinatorPhone,
-        params.round.privateDetails.carrier,
-        params.round.privateDetails.shippingFeePayer,
-        params.round.privateDetails.estimatedShippingFee,
-        params.round.privateDetails.trackingCode,
-        params.round.privateDetails.transferContent,
-        params.actorId,
-      ],
-    );
-  }
-
-  public async setRoundStatus(params: {
-    campaignId: string;
-    roundId: string;
-    actorId: string;
-    status: 'DONE' | 'CANCELLED';
-    reason: string | null;
-  }): Promise<ICharityRound | null> {
-    const updated = await this.manager.transaction(async (manager) => {
-      const rows = await updateReturning<{ title: string; starts_at: Date }>(
-        manager,
-        `UPDATE campaign_distribution_rounds
-            SET status = $3::varchar, status_reason = $4, updated_by = $5, updated_at = now()
-          WHERE campaign_id = $1 AND global_id = $2 AND status = 'PLANNED'
-          RETURNING title, starts_at`,
-        [
-          params.campaignId,
-          params.roundId,
-          params.status,
-          params.reason,
-          params.actorId,
-        ],
-      );
-      if (rows.length === 0) return false;
-      if (params.status === 'CANCELLED')
-        await this.enqueueRoundChanged(manager, {
-          campaignId: params.campaignId,
-          roundId: params.roundId,
-          title: rows[0].title,
-          change: 'CANCELLED',
-          startsAt: rows[0].starts_at,
-          reason: params.reason,
-          actorId: params.actorId,
-        });
-      return true;
-    });
-    return updated ? this.findRound(params.campaignId, params.roundId) : null;
-  }
-
-  public async setRoundReadiness(params: {
-    campaignId: string;
-    roundId: string;
-    actorId: string;
-    readiness: CharityRoundReadiness;
-    note: string | null;
-    checklist: ICharityRoundChecklistItem[];
-  }): Promise<ICharityRound | null> {
-    const rows = await updateReturning<{ global_id: string }>(
-      this.manager,
-      `UPDATE campaign_distribution_rounds
-          SET readiness = $3::varchar, readiness_note = $4, checklist = $5::jsonb,
-              readiness_by = $6, readiness_at = now(), updated_at = now()
-        WHERE campaign_id = $1 AND global_id = $2 AND status = 'PLANNED'
-        RETURNING global_id`,
-      [
-        params.campaignId,
-        params.roundId,
-        params.readiness,
-        params.note,
-        JSON.stringify(params.checklist),
-        params.actorId,
-      ],
-    );
-    if (rows.length === 0) return null;
-    return this.findRound(params.campaignId, params.roundId);
-  }
-
-  public async assignToRound(params: {
-    campaignId: string;
-    roundId: string | null;
-    participationIds: string[];
-    deliveryIds: string[];
-  }): Promise<{ participations: number; deliveries: number }> {
-    const participations =
-      params.participationIds.length === 0
-        ? []
-        : await updateReturning<{ global_id: string }>(
-            this.manager,
-            `UPDATE campaign_participations SET round_id = $2::uuid
-              WHERE campaign_id = $1 AND global_id = ANY($3::uuid[])
-              RETURNING global_id`,
-            [params.campaignId, params.roundId, params.participationIds],
-          );
-    const deliveries =
-      params.deliveryIds.length === 0
-        ? []
-        : await updateReturning<{ global_id: string }>(
-            this.manager,
-            `UPDATE campaign_deliveries SET round_id = $2::uuid
-              WHERE campaign_id = $1 AND global_id = ANY($3::uuid[])
-              RETURNING global_id`,
-            [params.campaignId, params.roundId, params.deliveryIds],
-          );
-    return {
-      participations: participations.length,
-      deliveries: deliveries.length,
-    };
-  }
-
-  public async listRoundPreEventCandidates(params: {
-    hours: number;
-    limit: number;
-  }): Promise<ICharityRoundPreEventCandidate[]> {
-    // Khoá chống trùng là (đợt, mốc trao) — dời giờ thì nhắc lại cho mốc mới.
-    const rows = await this.manager.query<
-      {
-        campaign_id: string;
-        global_id: string;
-        title: string;
-        starts_at: Date;
-      }[]
-    >(
-      `SELECT round.campaign_id, round.global_id, round.title, round.starts_at
-       FROM campaign_distribution_rounds round
-       JOIN campaigns campaign ON campaign.global_id = round.campaign_id
-       WHERE round.status = 'PLANNED'
-         AND campaign.approval_status = 'APPROVED'
-         AND campaign.is_active
-         AND campaign.deleted_at IS NULL
-         AND round.starts_at > now()
-         AND round.starts_at <= now() + make_interval(hours => $1::int)
-         AND NOT EXISTS (
-           SELECT 1 FROM campaign_announcements announcement
-           WHERE announcement.campaign_id = round.campaign_id
-             AND announcement.kind = 'PRE_EVENT'
-             AND announcement.dedupe_key = 'round:' || round.global_id::text || ':' ||
-               floor(extract(epoch FROM round.starts_at) * 1000)::bigint::text)
-       ORDER BY round.starts_at
-       LIMIT $2`,
-      [params.hours, params.limit],
-    );
-    return rows.map((row) => ({
-      campaignId: row.campaign_id,
-      roundId: row.global_id,
-      title: row.title,
-      startsAt: row.starts_at,
-    }));
-  }
-
-  public async hasRounds(campaignId: string): Promise<boolean> {
-    const [row] = await this.manager.query<{ ok: boolean }[]>(
-      `SELECT EXISTS (SELECT 1 FROM campaign_distribution_rounds
-                      WHERE campaign_id = $1 AND status <> 'CANCELLED') AS ok`,
+  ): Promise<ICharityCampaignDistribution | null> {
+    const [row] = await this.manager.query<IDistributionRow[]>(
+      `SELECT campaign.global_id, campaign.distribution_method,
+              campaign.distribution_contribution_types, campaign.distribution_evidence_urls,
+              campaign.distribution_service_type, campaign.distribution_service_channel,
+              detail.beneficiary_bank_account_id, detail.recipient_name, detail.recipient_phone,
+              detail.recipient_address, detail.coordinator_name, detail.coordinator_phone,
+              detail.carrier, detail.shipping_fee_payer, detail.estimated_shipping_fee,
+              detail.tracking_code, detail.transfer_content, detail.updated_at
+         FROM campaigns campaign
+         LEFT JOIN campaign_distribution_private_details detail
+           ON detail.campaign_id = campaign.global_id
+        WHERE campaign.global_id = $1 AND campaign.deleted_at IS NULL`,
       [campaignId],
     );
-    return row?.ok === true;
+    return row ? toDistribution(row) : null;
   }
 
-  // ── Tranh chấp đóng góp ───────────────────────────────────────────────
+  public async saveDistribution(params: {
+    campaignId: string;
+    actorId: string;
+    distribution: ICharityCampaignDistributionInput;
+  }): Promise<ICharityCampaignDistribution> {
+    await this.manager.transaction((manager) =>
+      writeCampaignDistribution(manager, params),
+    );
+    return (await this.getDistribution(
+      params.campaignId,
+    )) as ICharityCampaignDistribution;
+  }
+
+  public async saveDistributionEvidence(params: {
+    campaignId: string;
+    actorId: string;
+    evidenceUrls: string[];
+  }): Promise<ICharityCampaignDistribution> {
+    await this.manager.query(
+      `UPDATE campaigns SET distribution_evidence_urls = $2::jsonb, updated_at = now()
+        WHERE global_id = $1`,
+      [params.campaignId, JSON.stringify(params.evidenceUrls)],
+    );
+    return (await this.getDistribution(
+      params.campaignId,
+    )) as ICharityCampaignDistribution;
+  }
 
   public async findContributionParties(
     contributionId: string,
@@ -1011,44 +657,11 @@ export class CharityOperationsRepository implements ICharityOperationsRepository
          EXISTS (SELECT 1 FROM campaign_other_support_offers offer
                    JOIN campaign_other_support_needs need ON need.global_id = offer.need_id
                   WHERE need.campaign_id = $1 AND offer.status IN ('PENDING', 'ACCEPTED'))
-           AS "SUPPORT_OFFERS_UNSETTLED",
-         EXISTS (SELECT 1 FROM campaign_distribution_rounds
-                  WHERE campaign_id = $1 AND status = 'PLANNED') AS "ROUNDS_UNSETTLED"`,
+           AS "SUPPORT_OFFERS_UNSETTLED"`,
       [campaignId],
     );
     return (Object.keys(row ?? {}) as CharityCompletionBlocker[]).filter(
       (key) => row[key] === true,
-    );
-  }
-
-  /** Xếp thông báo `ROUND_CHANGED` (outbox `charity:notify`) cho người của đợt. */
-  private async enqueueRoundChanged(
-    manager: EntityManager,
-    params: {
-      campaignId: string;
-      roundId: string;
-      title: string;
-      change: 'POSTPONED' | 'UPDATED' | 'CANCELLED';
-      startsAt: Date;
-      reason: string | null;
-      actorId: string;
-    },
-  ): Promise<void> {
-    await manager.query(
-      `INSERT INTO campaign_announcements (campaign_id, kind, payload, actor_id)
-       SELECT $1, 'ROUND_CHANGED', $2::jsonb, $3
-       FROM campaigns WHERE global_id = $1 AND approval_status = 'APPROVED'`,
-      [
-        params.campaignId,
-        JSON.stringify({
-          roundId: params.roundId,
-          roundTitle: params.title,
-          change: params.change,
-          startsAt: params.startsAt.toISOString(),
-          reason: params.reason,
-        }),
-        params.actorId,
-      ],
     );
   }
 }

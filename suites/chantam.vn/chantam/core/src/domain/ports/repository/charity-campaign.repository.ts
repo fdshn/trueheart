@@ -1,18 +1,22 @@
 import { UserRanks } from '@chantam.vn/chantam.core-lib/consts';
 import {
   CharityApprovalStatus,
+  CharityBeneficiaryKind,
   CharityBeneficiaryRelation,
   CharityCampaignType,
   CharityContributionStatus,
   CharityContributionType,
   CharityMediaType,
   CharityOperationStage,
+  CharityParticipationRole,
   CharityParticipationStatus,
+  CharityPointBonusPercent,
   CharityRejectionReason,
   CharityReviewRole,
+  ICharityBeneficiaryPartyLike,
 } from '@chantam.vn/chantam.core-lib/models';
 import {
-  ICharityRoundInput,
+  ICharityCampaignDistributionInput,
   ICharitySupportNeedInput,
 } from './charity-operations.repository';
 import { ICharityFundingNeedInput } from './charity-project.repository';
@@ -45,7 +49,8 @@ export interface ICharityCampaign {
   readonly slug: string;
   readonly description: string;
   readonly bannerUrl: string;
-  readonly badgeName: string;
+  /** Huy hiệu — không còn bắt buộc (CR 22/11/2026); `null` khi không đặt. */
+  readonly badgeName: string | null;
   readonly targetItemsCount: number;
   /**
    * Số phần quà người tổ chức KHAI đã trao.
@@ -90,12 +95,16 @@ export interface ICharityCampaign {
    * Số người tham gia tối thiểu (PR #54). `0` = không đặt. Tổng kết đối chiếu với số đã
    * check-in — chỉ cảnh báo, không tự huỷ.
    */
-  readonly minimumParticipants: number;
+  readonly minimumSupervisors: number;
   /**
    * Hạng tối thiểu để ĐĂNG KÝ tham gia (PR #54). `null` = không giới hạn. So với hạng hiện
    * tại trong database, không theo token.
    */
-  readonly minimumParticipantRank: UserRanks | null;
+  readonly minimumSupervisorRank: UserRanks | null;
+  /** Hệ số tăng điểm HIỆU LỰC (%), Admin chốt khi duyệt hoặc sửa (CR 22/11/2026). */
+  readonly pointBonusPercent: CharityPointBonusPercent;
+  /** Hệ số chủ dự án đề xuất (%). */
+  readonly requestedPointBonusPercent: CharityPointBonusPercent;
   /**
    * `null` = NHÁP (docs/plan/CHARITY-PROJECT-LIFECYCLE.md §3.1): chỉ người tạo thấy, Admin
    * không thấy trong hàng đợi duyệt.
@@ -110,6 +119,44 @@ export interface ICharityCampaign {
     readonly startsAt: Date;
     readonly endsAt: Date;
   } | null;
+  /**
+   * Lúc công khai bài tổng kết (`campaign_summaries.published_at`), `null` = chưa công khai.
+   * Chiến dịch chỉ đóng được — và chỉ tính là KẾT THÚC — khi đã công khai (CR 22/11/2026).
+   */
+  readonly summaryPublishedAt: Date | null;
+  /** Khung tiếp nhận (CR 22/11/2026 §3.17b): bắt đầu = `startTime`. */
+  readonly intakeStartsAt: Date;
+  /** Hết tiếp nhận; `null` = chưa lập (nháp). */
+  readonly intakeEndsAt: Date | null;
+  /** Tổng số suất / tiền ước tính của các đơn vị nhận (`campaign_parties` role BENEFICIARY). */
+  readonly totalEstimatedPortions: number;
+  readonly totalEstimatedAmount: number;
+  /** Điểm tiếp nhận, theo `position`. */
+  readonly intakeLocations: ICharityIntakeLocation[];
+}
+
+/** Điểm tiếp nhận khi ghi — `position` do server đặt theo thứ tự gửi. */
+export interface ICharityIntakeLocationInput {
+  readonly label: string;
+  readonly address: string | null;
+  readonly lat: number | null;
+  readonly lng: number | null;
+  readonly scheduleNote: string | null;
+  readonly contactName: string | null;
+  readonly contactPhone: string | null;
+}
+
+/** Một điểm tiếp nhận hàng/quà của chiến dịch (CR 22/11/2026 §3.17c). */
+export interface ICharityIntakeLocation {
+  readonly locationId: string;
+  readonly position: number;
+  readonly label: string;
+  readonly address: string | null;
+  readonly lat: number | null;
+  readonly lng: number | null;
+  readonly scheduleNote: string | null;
+  readonly contactName: string | null;
+  readonly contactPhone: string | null;
 }
 
 /**
@@ -155,6 +202,23 @@ export interface ICreateCharityNeedItemParams {
   readonly targetQuantity: number;
   readonly allowAlternative: boolean;
   readonly sortOrder: number;
+  readonly quantityPerPortion: number;
+}
+
+/** Đơn vị nhận ghi cùng transaction với lượt tạo (role BENEFICIARY, `sort_order = index`). */
+export interface ICreateCharityBeneficiaryParams {
+  readonly name: string;
+  readonly beneficiaryKind: CharityBeneficiaryKind;
+  readonly address: string | null;
+  readonly phone: string | null;
+  readonly picName: string | null;
+  readonly picPhone: string | null;
+  readonly consentStatus: 'PENDING' | 'CONFIRMED' | null;
+  readonly estimatedPortions: number;
+  readonly estimatedAmount: number;
+  readonly lat: number | null;
+  readonly lng: number | null;
+  readonly distributionAt: Date | null;
 }
 
 export interface ICharityReview {
@@ -173,7 +237,7 @@ export interface ICreateCharityCampaignParams {
   readonly slug: string;
   readonly description: string;
   readonly bannerUrl: string;
-  readonly badgeName: string;
+  readonly badgeName: string | null;
   readonly targetItemsCount: number;
   readonly lat: number | null;
   readonly lng: number | null;
@@ -181,6 +245,8 @@ export interface ICreateCharityCampaignParams {
   readonly startTime: Date;
   readonly endTime: Date;
   readonly createdBy: string;
+  readonly requestedPointBonusPercent: CharityPointBonusPercent;
+  readonly pointBonusPercent: CharityPointBonusPercent;
   /** Admin tạo thì `APPROVED` ngay; thành viên tạo thì `PENDING_APPROVAL` (BR-CHARITY-01). */
   readonly approvalStatus: CharityApprovalStatus;
   /** Người duyệt — chính người tạo khi Admin tạo trực tiếp, `null` khi còn chờ duyệt. */
@@ -189,12 +255,23 @@ export interface ICreateCharityCampaignParams {
   readonly beneficiaryRelation: CharityBeneficiaryRelation | null;
   readonly acceptedContributionTypes: readonly CharityContributionType[];
   readonly allowOverTarget: boolean;
-  readonly minimumParticipants: number;
-  readonly minimumParticipantRank: UserRanks | null;
+  readonly minimumSupervisors: number;
+  readonly minimumSupervisorRank: UserRanks | null;
   /** `false` = lưu NHÁP: `submitted_at` NULL, `approvalStatus` phải là PENDING_APPROVAL. */
   readonly submitted: boolean;
   /** Người thụ hưởng, ghi cùng transaction. Chỉ có ở kêu gọi cho NGƯỜI KHÁC. */
   readonly beneficiary: ICharityBeneficiaryInput | null;
+  /** Đơn vị nhận (CR 22/11/2026); `[]` khi không khai. */
+  readonly beneficiaries: readonly ICreateCharityBeneficiaryParams[];
+  /** Điểm tiếp nhận (CR 22/11/2026); `[]` khi không khai. */
+  readonly intakeLocations: readonly ICharityIntakeLocationInput[];
+  /** Hết tiếp nhận; `null` = chưa lập. */
+  readonly intakeEndsAt: Date | null;
+  /** Khung trao → phase DISTRIBUTION; `null` = chưa lập. */
+  readonly distributionWindow: {
+    readonly startsAt: Date;
+    readonly endsAt: Date;
+  } | null;
   /**
    * Bảng nhu cầu, ghi TRONG CÙNG transaction với hoạt động (F65b §3).
    *
@@ -210,10 +287,13 @@ export interface ICreateCharityCampaignParams {
   readonly supportNeeds: readonly ICharitySupportNeedInput[];
   /** Ghi TRONG CÙNG transaction với hoạt động — hồ sơ vào hàng chờ duyệt luôn đủ ảnh. */
   readonly media: readonly ICharityCampaignMediaParams[];
+  /**
+   * Hình thức trao cấp chiến dịch + chi tiết riêng tư (CR 22/11/2026). `window` có thì ghi phase
+   * `DISTRIBUTION` cùng transaction.
+   */
   readonly distribution: {
-    readonly round: ICharityRoundInput;
-    readonly startsAt: Date;
-    readonly endsAt: Date;
+    readonly input: ICharityCampaignDistributionInput;
+    readonly window: { readonly startsAt: Date; readonly endsAt: Date } | null;
   } | null;
 }
 
@@ -446,6 +526,8 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     actorUserId: string;
     media: readonly ICharityCampaignMediaParams[];
     bannerUrl: string;
+    /** Hồ sơ ĐÃ DUYỆT cũng thay được (người được sửa thẳng, hoặc áp bản sửa đã duyệt). */
+    allowApproved?: boolean;
   }): Promise<ICharityCampaign>;
 
   slugTaken(slug: string): Promise<boolean>;
@@ -480,6 +562,8 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     readonly limit: number;
     readonly offset: number;
     readonly approvalStatus?: CharityApprovalStatus;
+    /** Đang mở, đã qua `end_time`, chưa công khai tổng kết. */
+    readonly overdueSummary?: boolean;
   }): Promise<ICharityCampaignPage>;
 
   /**
@@ -514,6 +598,8 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     readonly approverId: string;
     readonly approve: boolean;
     readonly note: string | null;
+    /** Hệ số hiệu lực khi duyệt; bỏ qua khi từ chối. */
+    readonly pointBonusPercent: CharityPointBonusPercent;
   }): Promise<ICharityCampaign | null>;
 
   /**
@@ -524,14 +610,15 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     readonly campaignId: string;
     readonly title: string;
     readonly description: string;
-    readonly badgeName: string;
+    readonly badgeName: string | null;
     readonly targetItemsCount: number;
     readonly lat: number | null;
     readonly lng: number | null;
     readonly locationLabel: string | null;
-    readonly minimumParticipants: number;
-    readonly minimumParticipantRank: UserRanks | null;
+    readonly minimumSupervisors: number;
+    readonly minimumSupervisorRank: UserRanks | null;
     readonly acceptedContributionTypes: readonly CharityContributionType[];
+    readonly pointBonusPercent: CharityPointBonusPercent;
   }): Promise<ICharityCampaign | null>;
 
   /** Cập nhật con số LỜI KHAI. Xem `currentItemsCount`. */
@@ -556,6 +643,8 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
   register(params: {
     readonly campaignId: string;
     readonly userId: string;
+    /** Vai đăng ký (CR 22/11/2026); bỏ trống = `PARTICIPANT`. Hồi hàng đã huỷ cũng ghi lại vai. */
+    readonly role?: CharityParticipationRole;
   }): Promise<{ readonly created: boolean }>;
 
   /** `false` khi người đó không có hàng `REGISTERED` nào để huỷ. */
@@ -568,6 +657,16 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     readonly campaignId: string;
     readonly userId: string;
   }): Promise<CharityParticipationStatus | null>;
+
+  /** Lượt tham gia (kể cả đã huỷ) của một người: trạng thái, vai, mốc check-in. */
+  findParticipation(params: {
+    readonly campaignId: string;
+    readonly userId: string;
+  }): Promise<{
+    readonly status: CharityParticipationStatus;
+    readonly role: CharityParticipationRole;
+    readonly checkedInAt: Date | null;
+  } | null>;
 
   /** Những người đang `REGISTERED` — dùng để xác định vai khi viết đánh giá. */
   listRegisteredUserIds(campaignId: string): Promise<string[]>;
@@ -763,6 +862,44 @@ export interface ICharityNeedsRepositoryPart {
   isCampaignManager(campaignId: string, userId: string): Promise<boolean>;
 
   findBeneficiary(campaignId: string): Promise<ICharityBeneficiary | null>;
+  /**
+   * Đơn vị nhận (role BENEFICIARY, không gồm người thụ hưởng của kêu gọi cá nhân) theo
+   * `distribution_at ASC NULLS LAST, sort_order` — dữ liệu THÔ, nơi gọi phải qua
+   * `toPublicBeneficiary` trước khi trả ra ngoài.
+   */
+  listBeneficiaryPlans(
+    campaignId: string,
+  ): Promise<ICharityBeneficiaryPartyLike[]>;
+  /**
+   * Người tổ chức (`created_by`) cho bản công khai (CR 22/11/2026) — chỉ các trường hồ sơ
+   * công khai; `null` khi tài khoản đã xoá. Nơi gọi dựng qua `toPublicUserProfile`.
+   */
+  findOrganizerProfile(campaignId: string): Promise<{
+    readonly globalId: string;
+    readonly username: string;
+    readonly fullName: string | null;
+    readonly avatarUrl: string | null;
+    readonly rank: UserRanks;
+  } | null>;
+  /**
+   * Thay cả bộ điểm tiếp nhận; trong cùng transaction đồng bộ `campaigns.location` /
+   * `location_label` theo điểm ĐẦU TIÊN có toạ độ (tìm quanh đây vẫn chạy).
+   */
+  replaceIntakeLocations(params: {
+    campaignId: string;
+    actorId: string;
+    locations: readonly ICharityIntakeLocationInput[];
+  }): Promise<ICharityIntakeLocation[]>;
+  /** Ghi ba khung (bắt đầu/hết tiếp nhận, khung trao, kết thúc) trong một transaction. */
+  saveSchedule(params: {
+    campaignId: string;
+    actorId: string;
+    intakeStartsAt: Date;
+    intakeEndsAt: Date;
+    distributionStartsAt: Date;
+    distributionEndsAt: Date;
+    endTime: Date;
+  }): Promise<void>;
 
   /**
    * Ghi người thụ hưởng. Chuyển đồng ý về `PENDING` khi hoạt động đang public thì ẨN

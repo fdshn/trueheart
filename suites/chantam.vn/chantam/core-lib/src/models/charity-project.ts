@@ -52,10 +52,11 @@ export const CharityTeamRoles = [
 ] as const;
 export type CharityTeamRole = (typeof CharityTeamRoles)[number];
 
-/** Thứ tự là thứ tự thời gian bắt buộc của 4 bước. */
+/** Thứ tự là thứ tự thời gian bắt buộc của 5 bước (thêm tổng duyệt, CR 22/11/2026 §8). */
 export const CharityPhaseKeys = [
   'PLANNING',
   'PREPARATION',
+  'REHEARSAL',
   'DISTRIBUTION',
   'REPORTING',
 ] as const;
@@ -136,6 +137,34 @@ export function normalizeMaxBankAccounts(value: unknown): number {
     : DefaultCharityMaxBankAccounts;
 }
 
+/** Khoá cấu hình: số đơn vị nhận tối đa mỗi chiến dịch (CR 22/11/2026 §3.17d). */
+export const CharityMaxBeneficiariesConfigKey =
+  'charity.max_beneficiaries_per_campaign';
+export const DefaultCharityMaxBeneficiaries = 20;
+
+export function normalizeMaxBeneficiaries(value: unknown): number {
+  return typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 100
+    ? value
+    : DefaultCharityMaxBeneficiaries;
+}
+
+/** Khoá cấu hình: số điểm tiếp nhận tối đa mỗi chiến dịch (CR 22/11/2026 §3.17c). */
+export const CharityMaxIntakeLocationsConfigKey =
+  'charity.max_intake_locations';
+export const DefaultCharityMaxIntakeLocations = 10;
+
+export function normalizeMaxIntakeLocations(value: unknown): number {
+  return typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 50
+    ? value
+    : DefaultCharityMaxIntakeLocations;
+}
+
 const StageRank: Readonly<Record<CharityOperationStage, number>> = {
   PLAN: 0,
   EXECUTION: 1,
@@ -148,36 +177,56 @@ export function stageRank(stage: CharityOperationStage): number {
 }
 
 /**
- * Giai đoạn HIỆU LỰC lúc `now` — cột lưu cộng với những mốc thời gian đã qua.
+ * Giai đoạn HIỆU LỰC lúc `now` — cột lưu cộng với những mốc thời gian đã qua, có cổng chặn.
  *
  * Job `charity:advance-stage` ghi kết quả này xuống, nhưng lượt đọc không chờ job: job trễ
  * một giờ thì app vẫn nhảy đúng tab (§3.2 — "mobile không tự suy giai đoạn từ ngày").
  *
  * - Chỉ tiến từ EXECUTION/EVENT. PLAN chỉ rời đi khi được duyệt; SUMMARY là cuối.
- * - EXECUTION → EVENT khi tới `DISTRIBUTION.startsAt`.
- * - → SUMMARY khi qua `DISTRIBUTION.endsAt`; chưa lập bước trao thì dùng `endTime` của dự án.
+ * - EXECUTION → EVENT khi tới `DISTRIBUTION.startsAt` VÀ tổng duyệt READY.
+ * - EVENT → SUMMARY khi qua `DISTRIBUTION.endsAt` (chưa lập bước trao thì `endTime`) VÀ bước
+ *   trao đã hoàn tất (đủ bằng chứng, tài khoản thụ hưởng hợp lệ).
+ * - EXECUTION không bao giờ nhảy thẳng SUMMARY (CR 22/11/2026 §3.17g).
  */
 export function effectiveOperationStage(input: {
   stored: CharityOperationStage;
   distribution: { startsAt: Date; endsAt: Date } | null;
   endTime: Date;
   now: Date;
+  rehearsalReady: boolean;
+  distributionSettled: boolean;
 }): CharityOperationStage {
   const { stored, distribution, endTime, now } = input;
   if (stored !== 'EXECUTION' && stored !== 'EVENT') return stored;
-  const summaryAt = distribution?.endsAt ?? endTime;
-  if (summaryAt.getTime() <= now.getTime()) return 'SUMMARY';
+
+  let stage: CharityOperationStage = stored;
+  // Chưa lập khung trao: mốc bắt đầu trao mặc định là `endTime` — chiến dịch không kẹt mãi ở
+  // EXECUTION (vẫn phải qua cổng tổng duyệt READY).
+  const distributionAt = distribution?.startsAt ?? endTime;
   if (
-    stored === 'EXECUTION' &&
-    distribution &&
-    distribution.startsAt.getTime() <= now.getTime()
+    stage === 'EXECUTION' &&
+    distributionAt.getTime() <= now.getTime() &&
+    input.rehearsalReady
+  ) {
+    stage = 'EVENT';
+    // Không có khung trao: dừng ở EVENT trong lượt này — ban tổ chức còn cần bước trao để ghi
+    // bằng chứng; lượt sau mới xét sang SUMMARY.
+    if (!distribution) return stage;
+  }
+
+  const summaryAt = distribution?.endsAt ?? endTime;
+  if (
+    stage === 'EVENT' &&
+    summaryAt.getTime() <= now.getTime() &&
+    input.distributionSettled
   )
-    return 'EVENT';
-  return stored;
+    stage = 'SUMMARY';
+
+  return stage;
 }
 
 /**
- * Bốn bước tiến độ phải theo đúng thứ tự và không chồng thời gian (§3.1). Trả danh sách lỗi,
+ * Các bước tiến độ phải theo đúng thứ tự và không chồng thời gian (§3.1). Trả danh sách lỗi,
  * rỗng là hợp lệ. Thiếu bước nào thì bỏ qua bước đó — lập dần từng bước là bình thường.
  */
 export function phaseScheduleGaps(

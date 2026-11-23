@@ -142,6 +142,9 @@ export const NotificationTargetsByType: Readonly<
   [NotificationTypes.CHARITY_PLAN_CHANGED]: [
     NotificationTargetTypes.CHARITY_CAMPAIGN,
   ],
+  [NotificationTypes.CHARITY_ORGANIZER_REMINDER]: [
+    NotificationTargetTypes.CHARITY_CAMPAIGN,
+  ],
   [NotificationTypes.CHARITY_PRE_EVENT_NOTICE]: [
     NotificationTargetTypes.CHARITY_CAMPAIGN,
   ],

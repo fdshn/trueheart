@@ -3,6 +3,7 @@ import {
   ICharityBankAccount,
   ICharityBankAccountInput,
   ICharityChangedField,
+  ICharityChangeRequest,
   ICharityCustomSection,
   ICharityCustomSectionInput,
   ICharityEngagementCounters,
@@ -10,6 +11,8 @@ import {
   ICharityFinancialReport,
   ICharityFundingNeed,
   ICharityFundingNeedInput,
+  ICharityIntakeLocation,
+  ICharityIntakeLocationInput,
   ICharityIntakeTotals,
   ICharityItemNeed,
   ICharityNeedItemProfileInput,
@@ -18,6 +21,7 @@ import {
   ICharityPhase,
   ICharityProjectProfile,
   ICharityPublicSupporters,
+  ICharityRehearsal,
   ICharityStageEvent,
   ICharitySummary,
   ICharityTask,
@@ -27,15 +31,24 @@ import {
   ICharityVolunteerNeedInput,
   ICharityVolunteerRegistration,
 } from '@/domain/ports/repository';
+import { IPublicUserProfileDto } from '@chantam.vn/chantam.core-lib/dto';
 import {
   CharityCallToAction,
+  CharityChangeRequestStatus,
   CharityContributionType,
+  CharityDistributionMethod,
   CharityOpenClosedStatus,
   CharityOperationStage,
+  CharityRehearsalOutcome,
   CharitySectionCompletionStatus,
+  CharityServiceChannel,
+  CharitySupportType,
   CharityVolunteerNeedStatus,
   ICharityBeneficiaryBankAccount,
   ICharityBeneficiaryBankAccountInput,
+  ICharityPublicBeneficiary,
+  ICharityRehearsalChecklistItem,
+  ICharityReviewedFields,
 } from '@chantam.vn/chantam.core-lib/models';
 import { IUseCase } from '@chantam/service.common-lib';
 
@@ -75,6 +88,8 @@ export interface ICharityWorkspace {
   parties: ICharityParty[];
   bankAccounts: ICharityBankAccount[];
   beneficiaryBankAccounts: ICharityBeneficiaryBankAccount[];
+  /** Tổng duyệt (CR 22/11/2026 §8); `null` khi chưa ghi. */
+  rehearsal: ICharityRehearsal | null;
   team: ICharityTeamMember[];
   phases: ICharityPhase[];
   itemNeeds: ICharityItemNeed[];
@@ -132,6 +147,24 @@ export interface ICharityPublicProject {
   financialReports: ICharityFinancialReport[];
   /** Ba tổng riêng — `null` tới khi tổng kết công khai; tiền `null` khi dự án không nhận tiền. */
   totals: ICharityIntakeTotals | null;
+  /**
+   * Hình thức trao CÔNG KHAI (CR 22/11/2026): đúng 5 trường; chi tiết riêng tư chỉ ở
+   * `GET :id/distribution`. `null` khi chưa chọn hình thức.
+   */
+  /**
+   * Đơn vị nhận CÔNG KHAI (CR 22/11/2026 §3.17d) — qua `toPublicBeneficiary`: không bao giờ có
+   * SĐT/người phụ trách; cá nhân không có địa chỉ/toạ độ. Theo giờ trao, chưa hẹn để cuối.
+   */
+  beneficiaries: ICharityPublicBeneficiary[];
+  /** Người tổ chức (CR 22/11/2026) — năm trường công khai; `null` khi tài khoản đã xoá. */
+  organizer: IPublicUserProfileDto | null;
+  distribution: {
+    method: CharityDistributionMethod;
+    contributionTypes: CharityContributionType[];
+    serviceType: CharitySupportType | null;
+    serviceChannel: CharityServiceChannel | null;
+    evidenceUrls: string[];
+  } | null;
   /** Nickname người cho phép hiện + con số tổng (§3.17). */
   supporters: ICharityPublicSupporters;
   counters: ICharityEngagementCounters;
@@ -163,6 +196,33 @@ export interface IMoveCharityStageUseCase extends IUseCase<
   ICharityCampaignView
 > {}
 export const IMoveCharityStageUseCase = Symbol('IMoveCharityStageUseCase');
+
+// ── Tổng duyệt (CR 22/11/2026 §8) ───────────────────────────────────────────
+
+export interface IGetCharityRehearsalUseCase extends IUseCase<
+  ICharityProjectCommand,
+  ICharityRehearsal | null
+> {}
+export const IGetCharityRehearsalUseCase = Symbol(
+  'IGetCharityRehearsalUseCase',
+);
+
+export interface ISaveCharityRehearsalCommand extends ICharityProjectCommand {
+  readonly rehearsal: {
+    readonly checklist: readonly Partial<ICharityRehearsalChecklistItem>[];
+    /** Bỏ trống = giữ kết quả đã lưu. */
+    readonly outcome?: CharityRehearsalOutcome | null;
+    readonly reason?: string | null;
+    readonly note?: string | null;
+  };
+}
+export interface ISaveCharityRehearsalUseCase extends IUseCase<
+  ISaveCharityRehearsalCommand,
+  ICharityRehearsal
+> {}
+export const ISaveCharityRehearsalUseCase = Symbol(
+  'ISaveCharityRehearsalUseCase',
+);
 
 export interface IUpdateCharityProfileCommand extends ICharityProjectCommand {
   readonly profile: {
@@ -262,6 +322,36 @@ export interface IReplaceCharityTeamUseCase extends IUseCase<
 > {}
 export const IReplaceCharityTeamUseCase = Symbol('IReplaceCharityTeamUseCase');
 
+/** `PUT :id/intake-locations` — thay cả bộ điểm tiếp nhận (CR 22/11/2026 §3.17c). */
+export interface IReplaceCharityIntakeLocationsCommand extends ICharityProjectCommand {
+  readonly intakeLocations: readonly ICharityIntakeLocationInput[];
+}
+export interface IReplaceCharityIntakeLocationsUseCase extends IUseCase<
+  IReplaceCharityIntakeLocationsCommand,
+  ICharityIntakeLocation[]
+> {}
+export const IReplaceCharityIntakeLocationsUseCase = Symbol(
+  'IReplaceCharityIntakeLocationsUseCase',
+);
+
+/** `PUT :id/schedule` — ba khung, áp ngay cả sau duyệt (CR 22/11/2026 §3.17b). */
+export interface ISaveCharityScheduleCommand extends ICharityProjectCommand {
+  readonly schedule: {
+    readonly intakeStartsAt: Date;
+    readonly intakeEndsAt: Date;
+    readonly distributionStartsAt: Date;
+    readonly distributionEndsAt: Date;
+    readonly endTime: Date;
+  };
+}
+export interface ISaveCharityScheduleUseCase extends IUseCase<
+  ISaveCharityScheduleCommand,
+  ICharityCampaignView
+> {}
+export const ISaveCharityScheduleUseCase = Symbol(
+  'ISaveCharityScheduleUseCase',
+);
+
 export interface IReplaceCharityPhasesCommand extends ICharityProjectCommand {
   readonly phases: ICharityPhase[];
 }
@@ -278,6 +368,8 @@ export interface IUpdateCharityItemNeedCommand extends ICharityProjectCommand {
   readonly profile: ICharityNeedItemProfileInput;
   /** Mục tiêu mới; thấp hơn số đã nhận thì phải có `surplusExplanation` (§3.18). */
   readonly targetQuantity?: number;
+  /** Số lượng mỗi suất (≥ 1); `undefined` giữ nguyên. Sàn = tổng suất × giá trị này. */
+  readonly quantityPerPortion?: number;
   /** `undefined` giữ nguyên, `null` xoá. */
   readonly surplusExplanation?: string | null;
 }
@@ -405,8 +497,91 @@ export const ISetCharityLimitsUseCase = Symbol('ISetCharityLimitsUseCase');
 
 export interface IAdvanceCharityStagesUseCase extends IUseCase<
   { limit: number; dryRun: boolean },
-  { advanced: number; checked: number }
+  { advanced: number; checked: number; reminded: number }
 > {}
 export const IAdvanceCharityStagesUseCase = Symbol(
   'IAdvanceCharityStagesUseCase',
+);
+
+// ── Bản sửa chờ duyệt (CR 22/11/2026, đợt 5) ────────────────────────────────
+
+export interface ISaveCharityChangeRequestCommand extends ICharityProjectCommand {
+  /** Chỉ các khoá cần đổi. */
+  readonly revision: ICharityReviewedFields;
+}
+
+export interface ICharityChangeRequestResult {
+  request: ICharityChangeRequest | null;
+}
+
+/** Workspace xem bản sửa đang chờ duyệt. */
+export interface IGetCharityChangeRequestUseCase extends IUseCase<
+  ICharityProjectCommand,
+  ICharityChangeRequestResult
+> {}
+export const IGetCharityChangeRequestUseCase = Symbol(
+  'IGetCharityChangeRequestUseCase',
+);
+
+/** Gửi (hoặc thay) bản sửa chờ duyệt — chiến dịch vẫn chạy theo bản đã duyệt. */
+export interface ISaveCharityChangeRequestUseCase extends IUseCase<
+  ISaveCharityChangeRequestCommand,
+  ICharityChangeRequestResult
+> {}
+export const ISaveCharityChangeRequestUseCase = Symbol(
+  'ISaveCharityChangeRequestUseCase',
+);
+
+/** Chủ dự án rút bản sửa đang chờ. */
+export interface IWithdrawCharityChangeRequestUseCase extends IUseCase<
+  ICharityProjectCommand,
+  { withdrawn: true }
+> {}
+export const IWithdrawCharityChangeRequestUseCase = Symbol(
+  'IWithdrawCharityChangeRequestUseCase',
+);
+
+export interface IListCharityChangeRequestsCommand {
+  readonly actorUserId: string;
+  readonly status: CharityChangeRequestStatus | null;
+  readonly limit: number;
+  readonly offset: number;
+}
+
+/** Hàng đợi bản sửa cho Admin. */
+export interface IListCharityChangeRequestsUseCase extends IUseCase<
+  IListCharityChangeRequestsCommand,
+  { requests: ICharityChangeRequest[] }
+> {}
+export const IListCharityChangeRequestsUseCase = Symbol(
+  'IListCharityChangeRequestsUseCase',
+);
+
+export interface IAdminCharityChangeRequestCommand {
+  readonly actorUserId: string;
+  readonly campaignId: string;
+}
+
+/** Admin xem bản sửa đang chờ cạnh giá trị đang chạy. */
+export interface IGetAdminCharityChangeRequestUseCase extends IUseCase<
+  IAdminCharityChangeRequestCommand,
+  { request: ICharityChangeRequest; current: ICharityReviewedFields }
+> {}
+export const IGetAdminCharityChangeRequestUseCase = Symbol(
+  'IGetAdminCharityChangeRequestUseCase',
+);
+
+export interface IDecideCharityChangeRequestCommand extends IAdminCharityChangeRequestCommand {
+  readonly approve: boolean;
+  /** Bắt buộc khi từ chối. */
+  readonly reason?: string;
+}
+
+/** Admin duyệt (áp trong một transaction) hoặc từ chối bản sửa. */
+export interface IDecideCharityChangeRequestUseCase extends IUseCase<
+  IDecideCharityChangeRequestCommand,
+  { request: ICharityChangeRequest }
+> {}
+export const IDecideCharityChangeRequestUseCase = Symbol(
+  'IDecideCharityChangeRequestUseCase',
 );

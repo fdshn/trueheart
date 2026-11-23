@@ -15,8 +15,10 @@
 import { resolveAllEntities } from '@chantam/service.persistency-lib';
 import { config as loadEnvFile } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { ListCharityMembersUseCase } from '../src/application/implementations/charity-project/charity-summary.use-cases';
 import * as entities from '../src/infrastructure/entity';
 import * as migrations from '../src/infrastructure/persistence/migrations';
+import { CharityProjectRepository } from '../src/infrastructure/repository/charity-project.repository';
 import { CharitySummaryRepository } from '../src/infrastructure/repository/charity-summary.repository';
 
 loadEnvFile({ path: '.env.local' });
@@ -300,6 +302,33 @@ async function main(): Promise<void> {
        VALUES ($1, $2, 2, 2, 'COMPLETED')`,
       [supportNeed.global_id, Walker],
     );
+    // Giá trị hiện vật tính theo cả chiến dịch (không còn đợt trao): lượt hoàn tất có giá trị
+    // điều chỉnh được cộng, lượt đã huỷ thì bỏ.
+    for (const [status, adjusted] of [
+      ['COMPLETED', 50000],
+      ['CANCELLED', 999999],
+    ] as const) {
+      const [extra] = await sql(
+        `INSERT INTO campaign_contributions
+           (campaign_id, contributor_id, status, decided_at, decided_by)
+         VALUES ($1, $2, 'ACCEPTED', now(), $3) RETURNING global_id`,
+        [Live, Shy, Owner],
+      );
+      await sql(
+        `INSERT INTO campaign_deliveries
+           (campaign_id, contribution_id, contributor_id, organizer_id, status,
+            completed_at, completed_by, cancelled_at, cancelled_by, cancel_reason,
+            confirmed_value_adjusted)
+         VALUES ($1, $2, $3, $4, $5::text,
+                 CASE WHEN $5::text = 'COMPLETED' THEN now() END,
+                 CASE WHEN $5::text = 'COMPLETED' THEN $4::uuid END,
+                 CASE WHEN $5::text = 'CANCELLED' THEN now() END,
+                 CASE WHEN $5::text = 'CANCELLED' THEN $4::uuid END,
+                 CASE WHEN $5::text = 'CANCELLED' THEN 'Huỷ thử' END,
+                 $6)`,
+        [Live, extra.global_id, Shy, Owner, status, adjusted],
+      );
+    }
     const totals = await summaries.intakeTotals(Live);
     check(
       'hiện vật nhóm theo đơn vị và giá trị chỉ tính giao nhận hoàn tất trong app',
@@ -310,7 +339,7 @@ async function main(): Promise<void> {
         totals.material.lines.some(
           (line) => line.unit === 'kg' && line.receivedQuantity === 3,
         ) &&
-        totals.material.confirmedValue === 200000,
+        totals.material.confirmedValue === 250000,
       JSON.stringify(totals.material),
     );
     check(
@@ -521,6 +550,151 @@ async function main(): Promise<void> {
           [Live],
         ),
       ),
+    );
+
+    // ── M. Thành viên công khai (CR 22/11/2026) ───────────────────────────
+    console.log(
+      '\nM. GET :idOrSlug/members — người ẩn tên, phân trang, không lộ SĐT',
+    );
+    const Members = id('20');
+    const member = (tail: string) => id(`3${tail}`);
+    const [GiverA, GiverB, GiverHidden, Offerer, PartA, PartB, Sup, Rej] = [
+      member('1'),
+      member('2'),
+      member('3'),
+      member('4'),
+      member('5'),
+      member('6'),
+      member('7'),
+      member('8'),
+    ];
+    for (const [userId, username] of [
+      [GiverA, 'cs_giver_a'],
+      [GiverB, 'cs_giver_b'],
+      [GiverHidden, 'cs_giver_hidden'],
+      [Offerer, 'cs_offerer'],
+      [PartA, 'cs_part_a'],
+      [PartB, 'cs_part_b'],
+      [Sup, 'cs_sup'],
+      [Rej, 'cs_rej'],
+    ])
+      await sql(
+        `INSERT INTO users (global_id, username, password_hash, rank, status, phone)
+         VALUES ($1, $2, 'x', 'MEMBER', 'ACTIVE', $3)`,
+        [userId, username, `0911${userId.slice(-6)}`],
+      );
+    await sql(
+      `INSERT INTO campaigns
+         (global_id, title, slug, description, banner_url, badge_name, start_time, end_time,
+          created_by, approval_status, approved_at, approved_by, submitted_at, operation_stage)
+       VALUES ($1, 'Thành viên', 'cs-members', 'Mô tả đủ dài cho dự án kiểm',
+               'https://cdn.test/a.jpg', 'Ấm', now() - interval '1 day',
+               now() + interval '20 days', $2, 'APPROVED', now(), $2, now(), 'EXECUTION')`,
+      [Members, Owner],
+    );
+    for (const [giver, show] of [
+      [GiverA, true],
+      [GiverB, true],
+      [GiverHidden, false],
+    ] as const)
+      await sql(
+        `INSERT INTO campaign_contributions
+           (campaign_id, contributor_id, status, decided_at, decided_by, show_name_publicly)
+         VALUES ($1, $2, 'ACCEPTED', now(), $3, $4)`,
+        [Members, giver, Owner, show],
+      );
+    const [memberNeed] = await sql(
+      `INSERT INTO campaign_other_support_needs (campaign_id, support_type, title, unit, target_quantity)
+       VALUES ($1, 'LABOR', 'Bốc xếp', 'buổi', 5) RETURNING global_id`,
+      [Members],
+    );
+    // GiverA vừa tặng hiện vật vừa nhận hỗ trợ dịch vụ; Offerer chỉ nhận hỗ trợ, cờ người dùng tắt.
+    for (const userId of [GiverA, Offerer])
+      await sql(
+        `INSERT INTO campaign_other_support_offers (need_id, user_id, quantity, status)
+         VALUES ($1, $2, 1, 'ACCEPTED')`,
+        [memberNeed.global_id, userId],
+      );
+    for (const [userId, role, status] of [
+      [PartA, 'PARTICIPANT', 'CONFIRMED'],
+      [PartB, 'PARTICIPANT', 'CHECKED_IN'],
+      [Sup, 'SUPERVISOR', 'CONFIRMED'],
+      [Rej, 'PARTICIPANT', 'REJECTED'],
+    ] as const)
+      await sql(
+        `INSERT INTO campaign_participations
+           (campaign_id, user_id, status, role, show_name_publicly, checked_in_at, checked_in_by)
+         VALUES ($1, $2, $3::text, $4, true,
+                 CASE WHEN $3::text = 'CHECKED_IN' THEN now() END,
+                 CASE WHEN $3::text = 'CHECKED_IN' THEN $5::uuid END)`,
+        [Members, userId, status, role, Owner],
+      );
+    const membersUseCase = new ListCharityMembersUseCase(
+      summaries,
+      new CharityProjectRepository(dataSource.manager),
+    );
+    const contributors = await membersUseCase.handle({
+      idOrSlug: 'cs-members',
+      type: 'CONTRIBUTOR',
+      limit: 20,
+    });
+    const giverA = contributors.members.find(
+      (row) => row.user.userId === GiverA,
+    );
+    check(
+      'CONTRIBUTOR: 2 người hiện tên, anonymousCount 2 (ẩn tên + cờ người dùng tắt); gộp hai loại',
+      contributors.members.length === 2 &&
+        contributors.anonymousCount === 2 &&
+        JSON.stringify(giverA?.contributionTypes) ===
+          JSON.stringify(['MATERIAL', 'SERVICE']),
+      JSON.stringify({
+        members: contributors.members.map((row) => row.user.username),
+        anonymous: contributors.anonymousCount,
+        types: giverA?.contributionTypes,
+      }),
+    );
+    const supervisors = await membersUseCase.handle({
+      idOrSlug: Members,
+      type: 'SUPERVISOR',
+      limit: 20,
+    });
+    check(
+      'SUPERVISOR: đúng 1 người',
+      supervisors.members.length === 1 &&
+        supervisors.members[0].user.userId === Sup,
+      JSON.stringify(supervisors.members.map((row) => row.user.username)),
+    );
+    const pageOne = await membersUseCase.handle({
+      idOrSlug: Members,
+      type: 'PARTICIPANT',
+      limit: 1,
+    });
+    const pageTwo = await membersUseCase.handle({
+      idOrSlug: Members,
+      type: 'PARTICIPANT',
+      limit: 1,
+      cursor: pageOne.nextCursor ?? undefined,
+    });
+    const paged = [...pageOne.members, ...pageTwo.members].map(
+      (row) => row.user.userId,
+    );
+    check(
+      'PARTICIPANT limit 1: hai trang ra hai người khác nhau, trang cuối không còn cursor; người bị từ chối không có',
+      paged.length === 2 &&
+        new Set(paged).size === 2 &&
+        !paged.includes(Rej) &&
+        pageTwo.nextCursor === null,
+      JSON.stringify({ paged, next: pageTwo.nextCursor }),
+    );
+    const everything = JSON.stringify([
+      contributors,
+      supervisors,
+      pageOne,
+      pageTwo,
+    ]);
+    check(
+      'JSON không có phone hay SĐT',
+      !everything.includes('phone') && !everything.includes('0911'),
     );
   } finally {
     for (const source of opened.reverse())
