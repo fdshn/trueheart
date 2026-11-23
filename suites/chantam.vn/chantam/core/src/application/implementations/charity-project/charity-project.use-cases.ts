@@ -2514,7 +2514,9 @@ export class DecideCharityChangeRequestUseCase implements IDecideCharityChangeRe
     @Inject(IAdminConfigRepository)
     private readonly admin: IAdminConfigRepository,
     @Inject(IObjectStorage) private readonly storage: IObjectStorage,
-    private readonly notifier: CharityNotifier,
+    // `@Optional()`: cây CLI dựng CharityProjectModule mà không có CharityCampaignModule (nơi
+    // export notifier) — CLI không bao giờ duyệt bản sửa. Ở API notifier luôn có.
+    @Optional() private readonly notifier?: CharityNotifier,
   ) {}
 
   public async handle(command: IDecideCharityChangeRequestCommand) {
@@ -2648,7 +2650,7 @@ export class DecideCharityChangeRequestUseCase implements IDecideCharityChangeRe
       after: request.proposed,
       reason: reason ?? undefined,
     });
-    await this.notifier.changeRequestDecided({
+    await this.notifier?.changeRequestDecided({
       campaignId: campaign.globalId,
       campaignTitle: campaign.title,
       ownerId: campaign.createdBy,

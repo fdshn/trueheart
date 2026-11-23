@@ -3,8 +3,8 @@
 > **File sinh tự động** bởi `npm run docs:routes` từ metadata của controller đã biên dịch.
 > Đừng sửa tay — sửa controller rồi chạy lại lệnh. CI chạy `docs:routes:check`.
 
-Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **441** route:
-58 công khai, 142 cần quyền Admin, 241 cần access token.
+Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **450** route:
+59 công khai, 145 cần quyền Admin, 246 cần access token.
 
 Mức truy cập: `Công khai` = không cần token; `Bearer` = cần access token (một số route còn
 kiểm chủ sở hữu hoặc quyền RBAC trong use case — xem `docs/API.md`); `perm:<mã>` = quyền Admin
@@ -114,6 +114,9 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `PATCH` | `/admin/charity-campaigns/:id/progress` | perm:campaign.manage | Admin cập nhật số phần quà đã trao |
 | `GET` | `/admin/charity-campaigns/:id/promotion` | perm:campaign.read | Trạng thái card Home của một dự án |
 | `PATCH` | `/admin/charity-campaigns/:id/promotion` | perm:campaign.manage | Bật / tắt card Home của một dự án |
+| `GET` | `/admin/charity-campaigns/:id/revision` | perm:campaign.read | Bản sửa đang chờ của một chiến dịch |
+| `PATCH` | `/admin/charity-campaigns/:id/revision` | perm:campaign.manage | Duyệt hoặc từ chối bản sửa |
+| `GET` | `/admin/charity-campaigns/revisions` | perm:campaign.read | Hàng đợi bản sửa chờ duyệt |
 
 ## `/admin/chat`
 
@@ -497,6 +500,9 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `GET` | `/charity-campaigns/:id/rehearsal` | Bearer | Tổng duyệt trước sự kiện trao |
 | `PUT` | `/charity-campaigns/:id/rehearsal` | Bearer | Ghi tổng duyệt |
 | `POST` | `/charity-campaigns/:id/reviews` | Bearer | Đánh giá sau hoạt động |
+| `GET` | `/charity-campaigns/:id/revision` | Bearer | Bản sửa đang chờ duyệt (workspace) |
+| `PUT` | `/charity-campaigns/:id/revision` | Bearer | Gửi bản sửa chờ duyệt |
+| `DELETE` | `/charity-campaigns/:id/revision` | Bearer | Rút bản sửa đang chờ |
 | `PUT` | `/charity-campaigns/:id/schedule` | Bearer | Ghi ba khung thời gian |
 | `PUT` | `/charity-campaigns/:id/sections/:sectionKey` | Bearer | Lưu một mục (A/B/C/D) |
 | `POST` | `/charity-campaigns/:id/sections/:sectionKey/publish` | Bearer | Công khai một mục |
@@ -522,6 +528,7 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `GET` | `/charity-campaigns/:idOrSlug/event-steps` | Công khai | Timeline sự kiện trao (SỐNG) |
 | `POST` | `/charity-campaigns/:idOrSlug/follow` | Bearer | Quan tâm dự án |
 | `DELETE` | `/charity-campaigns/:idOrSlug/follow` | Bearer | Bỏ quan tâm dự án |
+| `GET` | `/charity-campaigns/:idOrSlug/members` | Công khai | Thành viên công khai của dự án (CR 22/11/2026) |
 | `GET` | `/charity-campaigns/:idOrSlug/other-support-needs` | Công khai | Hạng mục hỗ trợ mở (công khai) |
 | `GET` | `/charity-campaigns/:idOrSlug/posts` | Công khai | Bài ảnh/clip của dự án |
 | `GET` | `/charity-campaigns/:idOrSlug/public` | Công khai | Bản công khai của dự án |
@@ -718,6 +725,7 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 
 | Method | Đường dẫn | Truy cập | Tóm tắt |
 | --- | --- | --- | --- |
+| `GET` | `/points/feed` | Bearer | Bảng tin điểm chung |
 | `GET` | `/points/me` | Bearer | Số dư điểm của chính chủ |
 | `GET` | `/points/me/ledger` | Bearer | Lịch sử điểm của chính chủ |
 
@@ -825,3 +833,9 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `PATCH` | `/transactions/:transactionId/reviews/mine` | Bearer | Sửa đánh giá của chính mình (CHỐT-10 mục 4) |
 | `GET` | `/transactions/:transactionId/selection-reason` | Bearer | Vì sao hệ thống chọn người nhận này |
 | `GET` | `/transactions/me` | Bearer | Các lượt tặng/nhận của chính mình |
+
+## `/users`
+
+| Method | Đường dẫn | Truy cập | Tóm tắt |
+| --- | --- | --- | --- |
+| `GET` | `/users/:userId/points/feed` | Bearer | Bảng tin điểm của một người |
