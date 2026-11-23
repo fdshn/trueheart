@@ -23,6 +23,8 @@ export interface ICharityPointAward {
   appliedPoints: number;
   reason: string;
   updatedAt: Date;
+  /** Chỉ award thưởng `CHARITY_CAMPAIGN_BONUS`: award gốc đi cặp (CR 22/11/2026). */
+  baseAwardId: string | null;
 }
 
 /** Trần của một rule — `null` = không trần. */
@@ -74,8 +76,11 @@ export interface ICharityPointsRepository {
     awardId: string;
     caps: ICharityPointCaps;
     dayStart: Date;
-  }): Promise<ICharitySettleResult>;
-  /** Award còn chênh (đang hoãn hoặc chưa ghi). */
+  }): Promise<ICharitySettleResult & { bonusApplied: number }>;
+  /**
+   * Award GỐC còn chênh (đang hoãn hoặc chưa ghi), kể cả khi chỉ award thưởng đi cặp của nó còn
+   * chênh. Award thưởng không bao giờ trả riêng.
+   */
   listUnsettled(limit: number): Promise<ICharityPointAward[]>;
   deliveryValue(deliveryId: string): Promise<ICharityDeliveryValue | null>;
   /**

@@ -1169,6 +1169,12 @@ chia sẻ trên mobile.
 > đọc hạng hiện tại từ database). Tổng kết trả số đăng ký / đã check-in so với số tối thiểu.
 > *(CR 22/11/2026: hai điều kiện này chuyển sang giám sát viên — xem bên dưới.)*
 >
+> ✅ **23/11 — hệ số điểm và bảng tin điểm (CR 22/11/2026).** Chủ chiến dịch đề xuất hệ số tăng
+> điểm 0/20/50/100%, Admin chốt khi duyệt (chỉ được hạ). Mỗi lần người dùng được cộng điểm từ dự án,
+> sổ điểm ghi thêm một khoản thưởng riêng theo hệ số, tính chung trần với điểm gốc. Trang "bảng tin
+> điểm" hiện liên tục ai vừa được cộng điểm vì việc gì (gộp cả thưởng), không bao giờ hiện khoản
+> phạt hay điều chỉnh; mỗi người có thể tắt việc mình xuất hiện trên bảng tin.
+>
 > ✅ **23/11 — giám sát viên (CR 22/11/2026).** Người dùng đăng ký tham gia chiến dịch với vai
 > **người tham gia** hoặc **giám sát viên** — mỗi người một vai. Chủ dự án và điều phối viên không
 > làm giám sát viên. Giám sát viên phải đủ hạng tối thiểu của chiến dịch và còn đăng ký được sau

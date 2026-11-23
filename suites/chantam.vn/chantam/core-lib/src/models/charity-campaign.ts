@@ -346,7 +346,8 @@ export function charityCampaignGaps(input: {
   readonly title: string;
   readonly slug: string;
   readonly description: string;
-  readonly badgeName: string;
+  /** Không còn bắt buộc (CR 22/11/2026). */
+  readonly badgeName: string | null;
   readonly startTime: Date;
   readonly endTime: Date;
   readonly targetItemsCount: number;
@@ -361,11 +362,7 @@ export function charityCampaignGaps(input: {
     );
   if (input.description.trim().length < 10)
     gaps.push('description phải có ít nhất 10 ký tự');
-  if (input.badgeName.trim().length === 0)
-    gaps.push(
-      'badgeName không được rỗng — nó là huy hiệu người tham gia nhận được',
-    );
-  if (input.badgeName.length > MaxCharityBadgeNameLength)
+  if ((input.badgeName ?? '').length > MaxCharityBadgeNameLength)
     gaps.push(`badgeName không vượt ${MaxCharityBadgeNameLength} ký tự`);
 
   const start = input.startTime.getTime();

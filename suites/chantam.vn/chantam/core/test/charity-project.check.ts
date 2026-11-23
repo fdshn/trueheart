@@ -300,6 +300,7 @@ async function main(): Promise<void> {
       approverId: Admin,
       approve: true,
       note: null,
+      pointBonusPercent: 0,
     });
     const pending = await campaigns.listForAdmin({
       limit: 50,
@@ -334,6 +335,7 @@ async function main(): Promise<void> {
       approverId: Admin,
       approve: true,
       note: null,
+      pointBonusPercent: 0,
     });
     const events = await projects.listStageEvents(Draft);
     check(

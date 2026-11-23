@@ -1,7 +1,13 @@
 import {
+  CharityPointBaseRuleCodes,
+  CharityPointBonusPercents,
   CharityPointCapConfigKeys,
+  CharityPointRuleCodes,
   allowedUnderCaps,
+  bonusAdjustmentTarget,
+  bonusPoints,
   charityPointCapConfigKey,
+  isCharityPointBonusPercent,
   isValidAppealValue,
   itemValuePoints,
   normalizeNonNegativeInt,
@@ -66,5 +72,53 @@ describe('isValidAppealValue', () => {
     expect(isValidAppealValue('EVALUATION', 101)).toBe(false);
     expect(isValidAppealValue('ITEM_VALUE', 1_500_000)).toBe(true);
     expect(isValidAppealValue('ITEM_VALUE', -1)).toBe(false);
+  });
+});
+
+describe('hệ số thưởng chiến dịch (CR 22/11/2026)', () => {
+  it('bốn mức 0/20/50/100; 30 không hợp lệ', () => {
+    expect([...CharityPointBonusPercents]).toEqual([0, 20, 50, 100]);
+    expect(isCharityPointBonusPercent(50)).toBe(true);
+    expect(isCharityPointBonusPercent(30)).toBe(false);
+    expect(isCharityPointBonusPercent('50')).toBe(false);
+  });
+
+  it('bonusPoints(15, 50) = 7 (làm tròn xuống); không dương → 0', () => {
+    expect(bonusPoints(15, 50)).toBe(7);
+    expect(bonusPoints(15, 0)).toBe(0);
+    expect(bonusPoints(0, 100)).toBe(0);
+    expect(bonusPoints(-15, 50)).toBe(0);
+  });
+
+  it('bonusAdjustmentTarget giữ tỉ lệ theo điểm gốc sau chấm lại', () => {
+    expect(
+      bonusAdjustmentTarget({
+        bonusApplied: 7,
+        baseAppliedBefore: 15,
+        baseAppliedAfter: 0,
+      }),
+    ).toBe(0);
+    expect(
+      bonusAdjustmentTarget({
+        bonusApplied: 7,
+        baseAppliedBefore: 15,
+        baseAppliedAfter: 10,
+      }),
+    ).toBe(4);
+    expect(
+      bonusAdjustmentTarget({
+        bonusApplied: 7,
+        baseAppliedBefore: 0,
+        baseAppliedAfter: 10,
+      }),
+    ).toBe(0);
+  });
+
+  it('mã thưởng không có khoá trần riêng — vẫn 12 khoá từ 4 rule gốc', () => {
+    expect(CharityPointRuleCodes).toEqual([
+      ...CharityPointBaseRuleCodes,
+      'CHARITY_CAMPAIGN_BONUS',
+    ]);
+    expect(CharityPointCapConfigKeys).toHaveLength(12);
   });
 });

@@ -3418,6 +3418,51 @@ Mỗi banner thêm `sourceType`, `sourceId`, `displayType`, `startsAt`, `endsAt`
 đang mở (`is_active`) và chưa xoá — **đóng, đình chỉ hay xoá hoạt động là banner rời app ngay**,
 mở lại thì tự hiện lại. `POST /banners/:id/click` dùng cùng bộ lọc.
 
+## 21a. Hệ số tăng điểm chiến dịch (CR 22/11/2026, migration `1804300000000`)
+
+- `POST /charity-campaigns` nhận `requestedPointBonusPercent` ∈ {0, 20, 50, 100} (mặc định 0, sai →
+  `400`). Chủ dự án chỉ **đề xuất**: hiệu lực `pointBonusPercent = 0` tới khi Admin duyệt — kể cả
+  người có quyền đăng không cần duyệt. `POST /admin/charity-campaigns` chốt luôn
+  `pointBonusPercent = requestedPointBonusPercent`.
+- `PATCH /admin/charity-campaigns/:id/approval` nhận `pointBonusPercent?`: bỏ trống = theo đề xuất;
+  chỉ được **hạ** (cao hơn đề xuất → `400`). Từ chối thì không đổi hệ số.
+- `PATCH /admin/charity-campaigns/:id` nhận `pointBonusPercent?` — Admin đặt mức nào trong bốn mức
+  cũng được; chỉ áp cho điểm ghi từ đó về sau.
+- Mọi view chiến dịch trả `pointBonusPercent` và `requestedPointBonusPercent`.
+- `badgeName` thôi bắt buộc (deprecated): bỏ trống khi tạo = không có huy hiệu; view trả `null`.
+- **Bút toán thưởng riêng.** Mỗi lần điểm gốc của dự án (`CHARITY_ITEM_VALUE`, `CHARITY_POST_VIDEO`,
+  `CHARITY_POST_IMAGE`, `CHARITY_PARTICIPATION`) được ghi dương, sổ điểm ghi thêm một bút toán
+  `CHARITY_CAMPAIGN_BONUS` = `floor(gốc × hệ số / 100)` theo hệ số **lúc ghi**, ngay sau bút toán gốc trong
+  cùng transaction, `referenceType = 'POINT_LEDGER'`, `referenceId` = id bút toán gốc. Thưởng tính
+  chung mọi trần (ngày, dự án, chu kỳ) của rule gốc — gốc được ghi trước, phần thưởng vướng trần thì
+  hoãn và job `charity:points` ghi tiếp. Gốc bị chấm lại thấp hơn → thưởng giảm theo tỉ lệ, ghi ngay.
+  Đổi hệ số sau đó không tính lại bút toán đã ghi. `CHARITY_CONTRIBUTION_COMPLETED` (không có trần)
+  cũng có thưởng, ghi thẳng cùng transaction. Hệ số 0 → không có bút toán thưởng.
+
+## 21b. Bảng tin điểm (CR 22/11/2026)
+
+| Method | Đường dẫn | Ai | Mô tả |
+| --- | --- | --- | --- |
+| `GET` | `/points/feed?afterId=&limit=` | Bearer | Bảng tin chung. `limit` 1–50 (mặc định 20). |
+| `GET` | `/users/:userId/points/feed?afterId=&limit=` | Bearer | Bảng tin của một người — không áp ngưỡng, kèm `balance`/`lifetime`. Người đó tắt cờ, bị khoá hay đã xoá → `404 USER_NOT_FOUND` với người khác; chính chủ luôn xem được. |
+
+- Response `{ entries[], latestId, pollAfterSeconds, displayIntervalMs }`; mỗi dòng
+  `{ entryId, user: { userId, username, displayName, avatarUrl, rank }, delta, bonusPercent, ruleTitle,
+  occurredAt, context: { type: 'CHARITY_CAMPAIGN', id, title } | null }`. `entries` xếp cũ → mới.
+- **Chỉ** bút toán dương của rule thưởng. Không bao giờ có: `ADMIN_ADJUSTMENT`, `REVERSAL`,
+  `ITEM_REDEMPTION`, `CONTENT_VIOLATION_PENALTY`, `SHIP_UNPAID_PENALTY`, `MAINTENANCE_FAILED`,
+  `GROUP_AFFILIATE_REVERSAL`; không bao giờ trả mã rule, lý do, id/kiểu tham chiếu.
+- Thưởng hệ số chiến dịch (`CHARITY_CAMPAIGN_BONUS`) không thành dòng riêng — gộp vào dòng gốc:
+  `delta` = gốc + thưởng, `bonusPercent` = hệ số của chiến dịch (null khi không có thưởng).
+- Feed chung chỉ hiện dòng có `delta` ≥ `point.feed_min_delta` (10), người `ACTIVE`, chưa khoá, chưa
+  xoá, bật `showInPublicPointFeed`. `context` chỉ có khi bút toán gắn với chiến dịch từ thiện đang
+  công khai.
+- **Polling:** lần đầu bỏ `afterId` (các dòng mới nhất); sau đó gửi `afterId = latestId` mỗi
+  `pollAfterSeconds` giây (`point.feed_poll_seconds`, 15) và hiện từng dòng cách nhau
+  `displayIntervalMs` (`point.feed_display_interval_ms`, 2000). Không có gì mới → `entries: []` kèm
+  `latestId` hiện tại. Feed chung đệm 5 giây; mỗi người tối đa 30 lượt/phút (`429`).
+- **Cờ hồ sơ:** `GET/PATCH /profile/me` đọc/ghi `showInPublicPointFeed` (mặc định bật).
+
 ## 21. Điều kiện tham gia chiến dịch từ thiện (18/11/2026, PR #54)
 
 Chiến dịch có thêm hai điều kiện, trả ra ở **mọi** view chiến dịch (tạo, chi tiết công khai,

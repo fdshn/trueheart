@@ -1623,6 +1623,7 @@ async function main(): Promise<void> {
       minimumSupervisors: 0,
       minimumSupervisorRank: null,
       acceptedContributionTypes: ['MATERIAL'],
+      pointBonusPercent: 0,
     });
     check(
       'ghi đủ trường, toạ độ đi qua PostGIS đúng thứ tự lat/lng',
@@ -1650,6 +1651,7 @@ async function main(): Promise<void> {
       minimumSupervisors: 0,
       minimumSupervisorRank: null,
       acceptedContributionTypes: ['MATERIAL'],
+      pointBonusPercent: 0,
     });
     check(
       'null là xoá vị trí',

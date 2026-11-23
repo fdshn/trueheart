@@ -74,6 +74,9 @@ export const SupportedSystemConfigKeys = [
   // CR 22/11/2026: số đơn vị nhận / điểm tiếp nhận tối đa mỗi chiến dịch.
   'charity.max_beneficiaries_per_campaign',
   'charity.max_intake_locations',
+  'point.feed_min_delta',
+  'point.feed_poll_seconds',
+  'point.feed_display_interval_ms',
   // Đề xuất chiến dịch lên trang chủ (15/11): số đề xuất "đang mở" tối đa mỗi hoạt động.
   'banner.campaign_promotion.max_open_per_campaign',
   'charity.post_daily_video_quota',
@@ -144,6 +147,9 @@ export const SystemConfigValueRanges: Readonly<
   // Khớp `normalizeMaxBeneficiaries` / `normalizeMaxIntakeLocations`.
   'charity.max_beneficiaries_per_campaign': { min: 1, max: 100 },
   'charity.max_intake_locations': { min: 1, max: 50 },
+  'point.feed_min_delta': { min: 0, max: 1_000_000 },
+  'point.feed_poll_seconds': { min: 5, max: 3600 },
+  'point.feed_display_interval_ms': { min: 200, max: 60_000 },
   // Khớp `normalizeCampaignPromotionMaxOpen` — ngoài 1..20 nó lặng lẽ về 3.
   'banner.campaign_promotion.max_open_per_campaign': { min: 1, max: 20 },
   // 0 = tắt đăng loại media đó; khớp `normalizeCharityPostQuota`.

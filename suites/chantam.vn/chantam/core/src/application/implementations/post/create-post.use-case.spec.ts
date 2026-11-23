@@ -53,6 +53,7 @@ function makeUser(overrides: Partial<IUserEntity> = {}): IUserEntity {
     leaderboardAnonymous: false,
     showOnlineStatus: false,
     showInPublicSupporterLists: false,
+    showInPublicPointFeed: true,
     allowStrangerMessages: true,
     slogan: null,
     todayThought: null,

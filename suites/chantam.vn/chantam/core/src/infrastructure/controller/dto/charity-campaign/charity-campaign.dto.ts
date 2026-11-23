@@ -14,6 +14,7 @@ import {
   CharityMediaTypes,
   CharityParticipationRole,
   CharityParticipationRoles,
+  CharityPointBonusPercents,
   CharityRejectionReasons,
   CharityReviewRatingMax,
   CharityReviewRatingMin,
@@ -311,14 +312,27 @@ export class WriteCharityCampaignDto {
   @Length(1, 500)
   coverKey: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'Tấm lòng Vu Lan',
     maxLength: MaxCharityBadgeNameLength,
-    description: 'Huy hiệu người tham gia nhận được (§6.2.13 `badge_name`).',
+    deprecated: true,
+    description:
+      'Huy hiệu người tham gia nhận được (§6.2.13 `badge_name`). Không còn bắt buộc (CR 22/11/2026); bỏ trống = không có huy hiệu.',
   })
+  @IsOptional()
   @IsString()
-  @Length(1, MaxCharityBadgeNameLength)
-  badgeName: string;
+  @MaxLength(MaxCharityBadgeNameLength)
+  badgeName?: string;
+
+  @ApiPropertyOptional({
+    enum: CharityPointBonusPercents,
+    default: 0,
+    description:
+      'Hệ số tăng điểm chủ dự án ĐỀ XUẤT (%). Hiệu lực là 0 tới khi Admin duyệt và chốt; Admin tạo thì chốt luôn.',
+  })
+  @IsOptional()
+  @IsIn(CharityPointBonusPercents)
+  requestedPointBonusPercent?: number;
 
   @ApiPropertyOptional({
     example: 500,
@@ -816,6 +830,15 @@ export class DecideCharityApprovalDto {
   @IsString()
   @Length(1, 1_000)
   note?: string;
+
+  @ApiPropertyOptional({
+    enum: CharityPointBonusPercents,
+    description:
+      'Hệ số tăng điểm hiệu lực khi DUYỆT; bỏ trống = theo đề xuất. Chỉ được hạ — cao hơn đề xuất → `400`.',
+  })
+  @IsOptional()
+  @IsIn(CharityPointBonusPercents)
+  pointBonusPercent?: number;
 }
 
 export class DecideCharityApprovalBodyDto {
@@ -963,6 +986,15 @@ export class UpdateAdminCharityCampaignDto {
   minimumSupervisorRank?: UserRanks | null;
 
   @ApiPropertyOptional({
+    enum: CharityPointBonusPercents,
+    description:
+      'Hệ số tăng điểm HIỆU LỰC (%) — Admin đặt mức nào trong bốn mức cũng được. Chỉ áp cho điểm ghi từ đây về sau.',
+  })
+  @IsOptional()
+  @IsIn(CharityPointBonusPercents)
+  pointBonusPercent?: number;
+
+  @ApiPropertyOptional({
     enum: CharityContributionTypes,
     isArray: true,
     maxItems: CharityContributionTypes.length,
@@ -1001,7 +1033,20 @@ export class CharityCampaignResponseDto {
     description: 'URL ảnh bìa — do server ghi từ media được chọn làm bìa.',
   })
   bannerUrl: string;
-  @ApiProperty() badgeName: string;
+  @ApiProperty({ type: String, nullable: true, deprecated: true })
+  badgeName: string | null;
+
+  @ApiProperty({
+    enum: CharityPointBonusPercents,
+    description: 'Hệ số tăng điểm HIỆU LỰC (%) — Admin chốt (CR 22/11/2026).',
+  })
+  pointBonusPercent: number;
+
+  @ApiProperty({
+    enum: CharityPointBonusPercents,
+    description: 'Hệ số chủ dự án đề xuất (%).',
+  })
+  requestedPointBonusPercent: number;
 
   @ApiProperty({ description: '`0` nghĩa là không đặt mục tiêu số lượng.' })
   targetItemsCount: number;

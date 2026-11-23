@@ -148,6 +148,14 @@ export class UpdateOwnProfileDto implements IUpdateOwnProfileDto {
 
   @ApiPropertyOptional({
     description:
+      'Hiện mình trên bảng tin điểm công khai (`GET /points/feed`). Mặc định bật. Tắt thì người khác xem `GET /users/:userId/points/feed` nhận 404.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  showInPublicPointFeed?: boolean;
+
+  @ApiPropertyOptional({
+    description:
       'Cho phép người lạ nhắn tin: người CHƯA từng có phòng chat nào với mình mở được phòng chat trực tiếp mới. Mặc định bật. Tắt không ảnh hưởng phòng đã có.',
   })
   @IsOptional()
@@ -356,6 +364,12 @@ export class OwnProfileDto implements IOwnProfileDto {
       'Cài đặt mặc định hiện tên trong danh sách công khai của dự án từ thiện — chỉ chính chủ thấy.',
   })
   showInPublicSupporterLists?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Cài đặt hiện trên bảng tin điểm công khai — chỉ chính chủ thấy.',
+  })
+  showInPublicPointFeed?: boolean;
 
   @ApiPropertyOptional({
     description:

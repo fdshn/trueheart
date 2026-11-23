@@ -51,15 +51,18 @@ import {
   CharityApprovalStatus,
   CharityBeneficiaryKind,
   CharityBeneficiaryRelation,
+  CharityCampaignBonusRuleCode,
   CharityCampaignType,
   CharityContributionStatus,
   CharityContributionType,
   CharityOperationStage,
   CharityParticipationRole,
   CharityParticipationStatus,
+  CharityPointBonusPercent,
   CharityRejectionReason,
   CharityReviewRole,
   ICharityBeneficiaryPartyLike,
+  bonusPoints,
   charityProgressPercent,
   contributionDecisionProblem,
   contributionStatusFrom,
@@ -84,7 +87,7 @@ interface IRow {
   slug: string;
   description: string;
   banner_url: string;
-  badge_name: string;
+  badge_name: string | null;
   target_items_count: string | number;
   current_items_count: string | number;
   lat: string | number | null;
@@ -108,6 +111,8 @@ interface IRow {
   allow_over_target: boolean;
   minimum_supervisors: number;
   minimum_supervisor_rank: string | null;
+  point_bonus_percent: number;
+  requested_point_bonus_percent: number;
   submitted_at: Date | null;
   operation_stage: string;
   distribution_starts_at: Date | null;
@@ -372,6 +377,7 @@ const Columns = `campaigns.global_id, campaigns.title, campaigns.slug, campaigns
        campaigns.campaign_type, campaigns.accepted_contribution_types, campaigns.beneficiary_relation,
        campaigns.allow_over_target,
        campaigns.minimum_supervisors, campaigns.minimum_supervisor_rank,
+       campaigns.point_bonus_percent, campaigns.requested_point_bonus_percent,
        campaigns.submitted_at, campaigns.operation_stage,
        (SELECT phase.starts_at FROM campaign_phases phase
          WHERE phase.campaign_id = campaigns.global_id
@@ -468,6 +474,12 @@ function toCampaign(row: IRow): ICharityCampaign {
     allowOverTarget: row.allow_over_target,
     minimumSupervisors: Number(row.minimum_supervisors),
     minimumSupervisorRank: row.minimum_supervisor_rank as UserRanks | null,
+    pointBonusPercent: Number(
+      row.point_bonus_percent ?? 0,
+    ) as CharityPointBonusPercent,
+    requestedPointBonusPercent: Number(
+      row.requested_point_bonus_percent ?? 0,
+    ) as CharityPointBonusPercent,
     // `count(*)` về đây là CHUỖI. Trả thẳng ra API thì client nhận `"3"` và mọi phép
     // so sánh số ở đó đều sai một cách im lặng.
     participantCount: Number(row.participant_count),
@@ -745,14 +757,15 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
             created_by, approval_status, approved_by, approved_at,
             campaign_type, beneficiary_relation, allow_over_target,
             submitted_at, operation_stage,
-            minimum_supervisors, minimum_supervisor_rank, accepted_contribution_types)
+            minimum_supervisors, minimum_supervisor_rank, accepted_contribution_types,
+            requested_point_bonus_percent, point_bonus_percent)
          VALUES ($1, $2, $3, $4, $5, $6, ${LocationExpression}, $8, $7, $11,
                  $12, $13, $14,
                  CASE WHEN $15 = 'PENDING_APPROVAL' THEN NULL ELSE now() END,
                  $16, $17, $18,
                  CASE WHEN $19 THEN now() END,
                  CASE WHEN $15 = 'APPROVED' THEN 'EXECUTION' ELSE 'PLAN' END,
-                 $20, $21, $22::text[])
+                 $20, $21, $22::text[], $23, $24)
          RETURNING *
        )
        SELECT ${Columns} FROM inserted AS campaigns`,
@@ -785,6 +798,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         params.minimumSupervisors,
         params.minimumSupervisorRank,
         params.acceptedContributionTypes,
+        params.requestedPointBonusPercent,
+        params.pointBonusPercent,
       ],
     );
     // Công khai ngay lúc tạo (Admin, hoặc capability public-ngay) là một lần chuyển
@@ -1700,15 +1715,42 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
       const totalReceived = [...received.values()].reduce((a, b) => a + b, 0);
       if (totalReceived > 0) {
         try {
-          await this.ledger.appendByRuleWithinTransaction(manager, {
-            userId: delivery.contributor_id,
-            ruleCode: CharityContributionCompletedRuleCode,
-            referenceType: 'CHARITY_CONTRIBUTION',
-            referenceId: delivery.contribution_id,
-            idempotencyKey: `${CharityContributionCompletedRuleCode}:${delivery.contribution_id}`,
-            actor: 'SYSTEM',
-            source: 'CHARITY_DELIVERY',
-          });
+          const base = await this.ledger.appendByRuleWithinTransaction(
+            manager,
+            {
+              userId: delivery.contributor_id,
+              ruleCode: CharityContributionCompletedRuleCode,
+              referenceType: 'CHARITY_CONTRIBUTION',
+              referenceId: delivery.contribution_id,
+              idempotencyKey: `${CharityContributionCompletedRuleCode}:${delivery.contribution_id}`,
+              actor: 'SYSTEM',
+              source: 'CHARITY_DELIVERY',
+            },
+          );
+          // Thưởng hệ số chiến dịch (CR 22/11/2026): ghi thẳng ngay sau bút toán gốc, cùng
+          // transaction — rule này không có award/trần nên thưởng cũng không.
+          if (base.applied && base.delta > 0) {
+            const [campaign] = await manager.query<{ percent: number }[]>(
+              `SELECT point_bonus_percent AS percent FROM campaigns WHERE global_id = $1`,
+              [delivery.campaign_id],
+            );
+            const bonus = bonusPoints(
+              base.delta,
+              Number(campaign?.percent ?? 0),
+            );
+            if (bonus > 0)
+              await this.ledger.appendAdjustmentWithinTransaction(manager, {
+                userId: delivery.contributor_id,
+                ruleCode: CharityCampaignBonusRuleCode,
+                delta: bonus,
+                referenceType: 'POINT_LEDGER',
+                referenceId: String(base.entryId),
+                idempotencyKey: `${CharityCampaignBonusRuleCode}:CONTRIBUTION:${delivery.contribution_id}`,
+                actor: 'SYSTEM',
+                source: 'CHARITY_DELIVERY',
+                reason: 'Thưởng hệ số chiến dịch: đóng góp từ thiện hoàn tất',
+              });
+          }
         } catch (error) {
           // Rule đang TẮT chờ Bên A chốt mức — đó là trường hợp BÌNH THƯỜNG lúc này,
           // không phải lỗi. Việc món đồ đã tới tay là sự thật; thưởng bao nhiêu là
@@ -2759,6 +2801,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     approverId: string;
     approve: boolean;
     note: string | null;
+    pointBonusPercent: CharityPointBonusPercent;
   }): Promise<ICharityCampaign | null> {
     // `AND approval_status = 'PENDING_APPROVAL'` nằm trong WHERE của chính câu UPDATE, chứ
     // không phải một lượt đọc trước đó: hai Admin bấm cùng lúc thì người sau phải thấy
@@ -2772,6 +2815,8 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
             SET approval_status = CASE WHEN $3 THEN 'APPROVED' ELSE 'REJECTED' END,
                 operation_stage = CASE WHEN $3 THEN 'EXECUTION' ELSE 'PLAN' END,
                 approval_note = $4,
+                point_bonus_percent = CASE WHEN $3 THEN $5::smallint
+                                           ELSE point_bonus_percent END,
                 approved_by = $2,
                 approved_at = now(),
                 updated_at = now()
@@ -2786,7 +2831,13 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
          FROM updated WHERE $3
        )
        SELECT ${Columns} FROM updated AS campaigns`,
-      [params.campaignId, params.approverId, params.approve, params.note],
+      [
+        params.campaignId,
+        params.approverId,
+        params.approve,
+        params.note,
+        params.pointBonusPercent,
+      ],
     );
     return rows.length > 0 ? toCampaign(rows[0]) : null;
   }
@@ -2795,7 +2846,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     campaignId: string;
     title: string;
     description: string;
-    badgeName: string;
+    badgeName: string | null;
     targetItemsCount: number;
     lat: number | null;
     lng: number | null;
@@ -2803,6 +2854,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
     minimumSupervisors: number;
     minimumSupervisorRank: UserRanks | null;
     acceptedContributionTypes: readonly CharityContributionType[];
+    pointBonusPercent: CharityPointBonusPercent;
   }): Promise<ICharityCampaign | null> {
     const rows = await updateReturning<IRow>(
       this.manager,
@@ -2818,6 +2870,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
                 minimum_supervisors = $9,
                 minimum_supervisor_rank = $10,
                 accepted_contribution_types = $11::text[],
+                point_bonus_percent = $12,
                 updated_at = now()
           WHERE global_id = $1 AND deleted_at IS NULL
           RETURNING *
@@ -2835,6 +2888,7 @@ export class CharityCampaignRepository implements ICharityCampaignRepository {
         params.minimumSupervisors,
         params.minimumSupervisorRank,
         params.acceptedContributionTypes,
+        params.pointBonusPercent,
       ],
     );
     return rows.length > 0 ? toCampaign(rows[0]) : null;

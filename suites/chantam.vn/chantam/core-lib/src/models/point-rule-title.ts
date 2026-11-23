@@ -26,6 +26,7 @@ export const PointRuleTitles: Readonly<Record<string, string>> = {
   CHARITY_POST_VIDEO: 'Clip hoạt động dự án từ thiện',
   CHARITY_POST_IMAGE: 'Ảnh hoạt động dự án từ thiện',
   CHARITY_PARTICIPATION: 'Tham gia dự án từ thiện',
+  CHARITY_CAMPAIGN_BONUS: 'Thưởng hệ số chiến dịch từ thiện',
   CHECK_IN_DAILY: 'Điểm danh hằng ngày',
   CHECK_IN_STREAK_MILESTONE: 'Thưởng mốc điểm danh liên tiếp',
   GROUP_AFFILIATE: 'Thưởng hoạt động nhóm',

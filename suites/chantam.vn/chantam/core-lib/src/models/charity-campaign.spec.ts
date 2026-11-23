@@ -101,10 +101,15 @@ describe('charityCampaignGaps', () => {
     );
   });
 
-  it('badgeName rỗng hoặc chỉ dấu cách bị bắt', () => {
-    expect(charityCampaignGaps(validInput({ badgeName: '   ' }))).toContain(
-      'badgeName không được rỗng — nó là huy hiệu người tham gia nhận được',
-    );
+  it('badgeName không còn bắt buộc (CR 22/11/2026): null hay chỉ dấu cách đều hợp lệ', () => {
+    expect(charityCampaignGaps(validInput({ badgeName: null }))).toEqual([]);
+    expect(charityCampaignGaps(validInput({ badgeName: '   ' }))).toEqual([]);
+  });
+
+  it('badgeName quá dài vẫn bị bắt', () => {
+    expect(
+      charityCampaignGaps(validInput({ badgeName: 'x'.repeat(51) })),
+    ).toContain('badgeName không vượt 50 ký tự');
   });
 
   it('targetItemsCount âm, lẻ, hoặc vượt trần đều bị bắt', () => {

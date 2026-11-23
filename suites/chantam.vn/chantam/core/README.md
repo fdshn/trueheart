@@ -34,7 +34,7 @@ Các nhóm chính, mỗi nhóm một thư mục trong `infrastructure/controller
 | Xin nhận & lượt trao | `POST /posts/:postId/requests`, `POST /posts/:postId/requests/:requestId/accept`, `GET /transactions/me`, xác nhận/huỷ lượt trao |
 | Tương tác | `PUT\|DELETE /posts/:subjectId/reactions/me` (thay endpoint like cũ), bình luận, chia sẻ |
 | Chat & presence | `/chat/rooms/...`, `/chat/direct-post/rooms`, `/chat/direct-user/rooms`, `/presence/*`, `/me/blocks` |
-| Điểm, hạng, giới thiệu | `/points/me`, `/ranks/me`, `/check-ins/*` (F83), `/leaderboards/*`, `/referrals/me`, `/attribution/*` |
+| Điểm, hạng, giới thiệu | `/points/me`, `/points/feed` + `/users/:userId/points/feed` (bảng tin điểm, polling), `/ranks/me`, `/check-ins/*` (F83), `/leaderboards/*`, `/referrals/me`, `/attribution/*` |
 | Admin | `/admin/*` — mỗi route khai quyền RBAC |
 | Tương thích cũ | `/gift-posts` — map vào `posts`, chỉ `OFFER` |
 

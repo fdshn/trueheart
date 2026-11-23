@@ -21,6 +21,7 @@ export function toOwnProfileDto(user: IUserEntity): IOwnProfileDto {
     leaderboardAnonymous: user.leaderboardAnonymous,
     showOnlineStatus: user.showOnlineStatus,
     showInPublicSupporterLists: user.showInPublicSupporterLists,
+    showInPublicPointFeed: user.showInPublicPointFeed,
     allowStrangerMessages: user.allowStrangerMessages,
     slogan: user.slogan,
     todayThought: user.todayThought,

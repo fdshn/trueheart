@@ -114,6 +114,8 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     allowOverTarget: false,
     minimumSupervisors: 0,
     minimumSupervisorRank: null,
+    pointBonusPercent: 0,
+    requestedPointBonusPercent: 0,
     submittedAt: new Date(),
     operationStage: 'EXECUTION' as const,
     storedOperationStage: 'EXECUTION' as const,
@@ -3746,5 +3748,149 @@ describe('GetPublicCharityCampaignUseCase · organizer (CR 22/11/2026)', () => {
       { idOrSlug: CampaignId },
     );
     expect(result.organizer).toBeNull();
+  });
+});
+
+describe('Hệ số tăng điểm chiến dịch (CR 22/11/2026)', () => {
+  const create = (
+    overrides: Record<string, unknown>,
+    options: { asAdmin?: boolean; publishNow?: boolean } = {},
+  ) => {
+    const repository = makeRepository();
+    repository.create.mockResolvedValue(campaign());
+    const promise = new CreateCharityCampaignUseCase(
+      repository,
+      makeEntitlements(true, options.publishNow ?? false),
+      makeAdmin(options.asAdmin ?? false),
+      makeStorage(),
+    ).handle({
+      ...writeInput({ submit: false, ...overrides }),
+      actorUserId: ActorId,
+      asAdmin: options.asAdmin ?? false,
+    } as never);
+    const sent = () =>
+      repository.create.mock.calls[0][0] as unknown as {
+        requestedPointBonusPercent: number;
+        pointBonusPercent: number;
+        badgeName: string | null;
+      };
+    return { repository, promise, sent };
+  };
+
+  it('owner đề xuất 50 → requested 50, hiệu lực 0', async () => {
+    const { promise, sent } = create({ requestedPointBonusPercent: 50 });
+    await promise;
+    expect(sent()).toMatchObject({
+      requestedPointBonusPercent: 50,
+      pointBonusPercent: 0,
+    });
+  });
+
+  it('owner có quyền đăng không cần duyệt đề xuất 50 → hiệu lực vẫn 0', async () => {
+    const { promise, sent } = create(
+      { requestedPointBonusPercent: 50 },
+      { publishNow: true },
+    );
+    await promise;
+    expect(sent().pointBonusPercent).toBe(0);
+  });
+
+  it('Admin tạo 100 → hiệu lực 100', async () => {
+    const { promise, sent } = create(
+      { requestedPointBonusPercent: 100 },
+      { asAdmin: true },
+    );
+    await promise;
+    expect(sent()).toMatchObject({
+      requestedPointBonusPercent: 100,
+      pointBonusPercent: 100,
+    });
+  });
+
+  it('pointBonusPercent 30 → 400 validate', async () => {
+    const { promise, repository } = create({ requestedPointBonusPercent: 30 });
+    await expect(promise).rejects.toThrow(ValidationFailedException);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('tạo không gửi badgeName → được, ghi null', async () => {
+    const { promise, sent } = create({ badgeName: undefined });
+    await promise;
+    expect(sent().badgeName).toBeNull();
+  });
+
+  const decide = (requested: number, pointBonusPercent?: number) => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(
+      campaign({
+        approvalStatus: 'PENDING_APPROVAL',
+        requestedPointBonusPercent: requested,
+        pointBonusPercent: 0,
+      } as never),
+    );
+    repository.decideApproval.mockResolvedValue(campaign());
+    const promise = new DecideCharityApprovalUseCase(
+      repository,
+      makeAdmin(true),
+    ).handle({
+      campaignId: CampaignId,
+      actorUserId: ActorId,
+      approve: true,
+      ...(pointBonusPercent === undefined ? {} : { pointBonusPercent }),
+    } as never);
+    return { repository, promise };
+  };
+
+  it('Admin duyệt không gửi pointBonusPercent → hiệu lực = requested', async () => {
+    const { repository, promise } = decide(50);
+    await promise;
+    expect(repository.decideApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ pointBonusPercent: 50 }),
+    );
+  });
+
+  it('Admin duyệt hạ 20 → 20', async () => {
+    const { repository, promise } = decide(50, 20);
+    await promise;
+    expect(repository.decideApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ pointBonusPercent: 20 }),
+    );
+  });
+
+  it('Admin duyệt 100 khi requested 50 → 400', async () => {
+    const { repository, promise } = decide(50, 100);
+    await expect(promise).rejects.toThrow(ValidationFailedException);
+    expect(repository.decideApproval).not.toHaveBeenCalled();
+  });
+
+  it('Admin PATCH pointBonusPercent 100 → ghi 100; 30 → 400', async () => {
+    const repository = makeRepository();
+    repository.findByGlobalId.mockResolvedValue(campaign());
+    const updateContent = jest.fn(async (params: Record<string, unknown>) =>
+      campaign(params as never),
+    );
+    (repository as unknown as { updateContent: jest.Mock }).updateContent =
+      updateContent;
+    const useCase = new UpdateAdminCharityCampaignUseCase(repository, {
+      ...makeAdmin(true),
+      appendAudit: jest.fn(),
+    } as unknown as ReturnType<typeof makeAdmin>);
+    await useCase.handle({
+      campaignId: CampaignId,
+      actorUserId: ActorId,
+      reason: 'Chốt hệ số',
+      pointBonusPercent: 100,
+    } as never);
+    expect(updateContent).toHaveBeenCalledWith(
+      expect.objectContaining({ pointBonusPercent: 100 }),
+    );
+    await expect(
+      useCase.handle({
+        campaignId: CampaignId,
+        actorUserId: ActorId,
+        reason: 'Chốt hệ số',
+        pointBonusPercent: 30,
+      } as never),
+    ).rejects.toThrow(ValidationFailedException);
   });
 });

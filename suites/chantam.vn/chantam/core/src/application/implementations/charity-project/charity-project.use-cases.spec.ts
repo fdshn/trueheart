@@ -85,6 +85,8 @@ function campaign(overrides: Partial<ICharityCampaign> = {}): ICharityCampaign {
     allowOverTarget: false,
     minimumSupervisors: 0,
     minimumSupervisorRank: null,
+    pointBonusPercent: 0,
+    requestedPointBonusPercent: 0,
     submittedAt: new Date(),
     operationStage: 'EXECUTION',
     storedOperationStage: 'EXECUTION',

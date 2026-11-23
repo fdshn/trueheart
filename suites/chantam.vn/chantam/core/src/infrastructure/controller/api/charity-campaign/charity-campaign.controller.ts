@@ -1043,6 +1043,7 @@ export class AdminCharityCampaignController {
       campaignId: param.id,
       approve: body.approval.approve,
       note: body.approval.note,
+      pointBonusPercent: body.approval.pointBonusPercent,
     });
 
     return ResponseDto.create().succeed().attach({ campaign }).build();

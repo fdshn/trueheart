@@ -42,6 +42,7 @@ export * from './notification-template';
 export * from './onboarding-task';
 export * from './phone-number';
 export * from './point-economy';
+export * from './point-feed';
 export * from './point-log';
 export * from './point-rule-title';
 export * from './post';

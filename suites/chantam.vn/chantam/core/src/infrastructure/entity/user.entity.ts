@@ -91,6 +91,14 @@ export class UserEntity
   showInPublicSupporterLists: boolean;
 
   @Column({
+    name: 'show_in_public_point_feed',
+    type: 'boolean',
+    nullable: false,
+    default: true,
+  })
+  showInPublicPointFeed: boolean;
+
+  @Column({
     name: 'allow_stranger_messages',
     type: 'boolean',
     nullable: false,

@@ -36,6 +36,7 @@ import {
   INotificationRepository,
   INotificationTemplateRepository,
   IOnboardingTaskRepository,
+  IPointFeedRepository,
   IPointLedgerRepository,
   IPostMediaRepository,
   IPostRepository,
@@ -94,6 +95,7 @@ import { NotificationChannelRepository } from './notification-channel.repository
 import { NotificationTemplateRepository } from './notification-template.repository';
 import { NotificationRepository } from './notification.repository';
 import { OnboardingTaskRepository } from './onboarding-task.repository';
+import { PointFeedRepository } from './point-feed.repository';
 import { PointLedgerRepository } from './point-ledger.repository';
 import { PostMediaRepository } from './post-media.repository';
 import { PostRepository } from './post.repository';
@@ -217,6 +219,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     },
     { provide: IOnboardingTaskRepository, useClass: OnboardingTaskRepository },
     { provide: IPointLedgerRepository, useClass: PointLedgerRepository },
+    { provide: IPointFeedRepository, useClass: PointFeedRepository },
     { provide: IReferralRepository, useClass: ReferralRepository },
     { provide: IGroupRepository, useClass: GroupRepository },
     { provide: IReportRepository, useClass: ReportRepository },
@@ -281,6 +284,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     INotificationChannelRepository,
     IOnboardingTaskRepository,
     IPointLedgerRepository,
+    IPointFeedRepository,
     IReferralRepository,
     IReportRepository,
     ISystemLogRepository,

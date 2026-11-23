@@ -4,6 +4,8 @@ import {
   ICharityPointsRepository,
 } from '@/domain/ports/repository';
 import {
+  CharityPointBaseRuleCode,
+  CharityPointBaseRuleCodes,
   CharityPointCapWindows,
   CharityPointRuleCode,
   charityPointCapConfigKey,
@@ -14,6 +16,12 @@ import {
   vietnamDayStart,
 } from '@chantam.vn/chantam.core-lib/models';
 import { Inject, Injectable, Logger } from '@nestjs/common';
+
+function isCharityPointBaseRule(
+  rule: CharityPointRuleCode,
+): rule is CharityPointBaseRuleCode {
+  return (CharityPointBaseRuleCodes as readonly string[]).includes(rule);
+}
 
 /**
  * Điểm dự án từ thiện theo giá trị, kèm trần (CHARITY-PROJECT-LIFECYCLE §3.9).
@@ -107,6 +115,8 @@ export class CharityPointsService {
         referenceId: postId,
       });
       for (const award of awards) {
+        // Award thưởng đi theo award gốc của nó — settle gốc là settle luôn thưởng.
+        if (!isCharityPointBaseRule(award.ruleCode)) continue;
         if (award.targetPoints === 0) continue;
         await this.points.upsertAward({
           campaignId: award.campaignId,
@@ -172,6 +182,7 @@ export class CharityPointsService {
     let deferred = 0;
     const pending = await this.points.listUnsettled(limit);
     for (const award of pending) {
+      if (!isCharityPointBaseRule(award.ruleCode)) continue;
       const result = await this.settle(award.awardId, award.ruleCode);
       applied += result.applied;
       deferred += result.deferred;
@@ -185,7 +196,9 @@ export class CharityPointsService {
     };
   }
 
-  public async caps(rule: CharityPointRuleCode): Promise<ICharityPointCaps> {
+  public async caps(
+    rule: CharityPointBaseRuleCode,
+  ): Promise<ICharityPointCaps> {
     const values = await Promise.all(
       CharityPointCapWindows.map((window) =>
         this.admin.getConfigValue(charityPointCapConfigKey(rule, window)),
@@ -198,7 +211,7 @@ export class CharityPointsService {
     return { daily, project, cycle };
   }
 
-  private async settle(awardId: string, rule: CharityPointRuleCode) {
+  private async settle(awardId: string, rule: CharityPointBaseRuleCode) {
     return this.points.settle({
       awardId,
       caps: await this.caps(rule),

@@ -7,6 +7,9 @@ describe('pointRuleTitle', () => {
     );
     expect(pointRuleTitle('GIFT_COMPLETED_GIVER')).toBe('Tặng quà thành công');
     expect(pointRuleTitle('REVERSAL')).toBe('Hoàn điểm');
+    expect(pointRuleTitle('CHARITY_CAMPAIGN_BONUS')).toBe(
+      'Thưởng hệ số chiến dịch từ thiện',
+    );
   });
 
   it('mã lạ trả NGUYÊN mã: thấy một chuỗi lạ còn hơn một tiêu đề sai', () => {

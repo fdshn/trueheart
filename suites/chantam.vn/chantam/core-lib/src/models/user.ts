@@ -51,6 +51,8 @@ export interface IUser {
    * (CHARITY-PROJECT-LIFECYCLE §3.17, phương án C). Từng lần góp/đăng ký vẫn chọn lại được.
    */
   showInPublicSupporterLists: boolean;
+  /** Hiện trên bảng tin điểm công khai (CR 22/11/2026). Mặc định bật. */
+  showInPublicPointFeed: boolean;
   /**
    * "Cho phép người lạ nhắn tin" (chat trực tiếp 30/10). Mặc định bật. Tắt thì chỉ người đã
    * từng có phòng chat với mình (bất kỳ loại nào) mới mở được phòng `DIRECT_USER` mới; phòng

@@ -127,6 +127,8 @@ export class UpdateOwnProfileUseCase implements IUpdateOwnProfileUseCase {
     if (profileUpdate.showInPublicSupporterLists !== undefined)
       update.showInPublicSupporterLists =
         profileUpdate.showInPublicSupporterLists;
+    if (profileUpdate.showInPublicPointFeed !== undefined)
+      update.showInPublicPointFeed = profileUpdate.showInPublicPointFeed;
     if (profileUpdate.allowStrangerMessages !== undefined)
       update.allowStrangerMessages = profileUpdate.allowStrangerMessages;
 

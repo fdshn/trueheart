@@ -100,7 +100,10 @@ export interface ICharityCampaignWriteInput {
   readonly media: readonly string[];
   /** Một key trong `media`, phải là ảnh. Server ghi `banner_url` từ nó. */
   readonly coverKey: string;
-  readonly badgeName: string;
+  /** @deprecated CR 22/11/2026 — huy hiệu không còn bắt buộc; bỏ trống = không có. */
+  readonly badgeName?: string;
+  /** Hệ số tăng điểm chủ dự án đề xuất (0/20/50/100). Admin chốt khi duyệt. */
+  readonly requestedPointBonusPercent?: number;
   readonly targetItemsCount?: number;
   readonly lat?: number;
   readonly lng?: number;
@@ -797,6 +800,8 @@ export interface IUpdateAdminCharityCampaignCommand {
   /** Bỏ trống = giữ nguyên; `null` = bỏ giới hạn hạng. Không đụng người ĐÃ đăng ký. */
   readonly minimumSupervisorRank?: UserRanks | null;
   readonly acceptedContributionTypes?: readonly CharityContributionType[];
+  /** Hệ số tăng điểm hiệu lực (0/20/50/100) — Admin đặt giá trị nào trong bốn mức cũng được. */
+  readonly pointBonusPercent?: number;
   readonly reason: string;
 }
 
@@ -829,6 +834,8 @@ export interface IDecideCharityApprovalCommand {
   readonly campaignId: string;
   readonly approve: boolean;
   readonly note?: string;
+  /** Hệ số hiệu lực khi duyệt; bỏ trống = theo đề xuất. Chỉ được hạ, không được nâng. */
+  readonly pointBonusPercent?: number;
 }
 
 export interface IDecideCharityApprovalUseCase extends IUseCase<

@@ -140,38 +140,41 @@ import {
 import { hasRankAtLeast } from '@chantam.vn/chantam.core-lib/consts';
 import { IPublicUserProfileDto } from '@chantam.vn/chantam.core-lib/dto';
 import {
-  CharityActiveParticipationStatuses,
-  CharityApprovalStatus,
-  CharityCampaignType,
-  CharityCancellableParticipationStatuses,
-  CharityCapabilityByType,
-  CharityMaxBeneficiariesConfigKey,
-  CharityMaxIntakeLocationsConfigKey,
-  MaxCharityDescriptionLength,
-  MaxCharityReviewCommentLength,
-  MaxCharityTargetItems,
-  MaxCharityTitleLength,
-  PublishCharityWithoutReviewCapability,
   beneficiariesOutsideWindow,
   beneficiarySubmitGaps,
   canCancelCharityParticipation,
   canEditContribution,
   canReviewCharityCampaign,
+  CharityActiveParticipationStatuses,
+  CharityApprovalStatus,
   charityCampaignGaps,
+  CharityCampaignType,
+  CharityCancellableParticipationStatuses,
+  CharityCapabilityByType,
+  CharityMaxBeneficiariesConfigKey,
+  CharityMaxIntakeLocationsConfigKey,
   charityMediaShapeGaps,
   charityMediaTypeGaps,
+  CharityPointBonusPercent,
+  CharityPointBonusPercents,
   charityReviewRoleOf,
   charityScheduleGaps,
   charitySubmitRequirementGaps,
   charitySupervisorRequirementGaps,
   deriveAcceptedContributionTypes,
+  isCharityPointBonusPercent,
   isCharityReviewRating,
   isIntakeClosed,
+  MaxCharityDescriptionLength,
+  MaxCharityReviewCommentLength,
+  MaxCharityTargetItems,
+  MaxCharityTitleLength,
   normalizeCharitySlug,
   normalizeContributionTypes,
   normalizeMaxBeneficiaries,
   normalizeMaxIntakeLocations,
   overallNeedProgressPercent,
+  PublishCharityWithoutReviewCapability,
   slugifyCharityTitle,
   toPublicBeneficiary,
 } from '@chantam.vn/chantam.core-lib/models';
@@ -189,6 +192,18 @@ import { assertPortionFloors } from '../charity-project/charity-portion-guard';
 import { toPublicUserProfile } from '../shared/public-author';
 import { withStorageValidation } from '../shared/storage-error';
 import { CharityNotifier } from './charity.notifier';
+
+/** Hệ số tăng điểm phải thuộc {0, 20, 50, 100} — sai thì 400 nêu đúng tên trường. */
+function assertPointBonusPercent(
+  value: number,
+  field: string,
+): CharityPointBonusPercent {
+  if (!isCharityPointBonusPercent(value))
+    throw new ValidationFailedException([
+      `${field} phải là một trong: ${CharityPointBonusPercents.join(', ')}`,
+    ]);
+  return value;
+}
 
 /** Người tổ chức cho bản công khai — chọn tường minh năm trường (CR 22/11/2026). */
 export async function publicOrganizer(
@@ -240,7 +255,7 @@ async function prepareWrite(
   title: string;
   slug: string;
   description: string;
-  badgeName: string;
+  badgeName: string | null;
   targetItemsCount: number;
   lat: number | null;
   lng: number | null;
@@ -254,7 +269,7 @@ async function prepareWrite(
   const description = (input.description ?? '')
     .trim()
     .slice(0, MaxCharityDescriptionLength);
-  const badgeName = (input.badgeName ?? '').trim();
+  const badgeName = (input.badgeName ?? '').trim() || null;
   const targetItemsCount = input.targetItemsCount ?? 0;
   const startTime = new Date(input.startTime);
   const endTime = new Date(input.endTime);
@@ -581,6 +596,12 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
     const requirementGaps = charitySupervisorRequirementGaps(command);
     if (requirementGaps.length > 0)
       throw new ValidationFailedException(requirementGaps);
+    // Hệ số tăng điểm (CR 22/11/2026): chủ dự án chỉ ĐỀ XUẤT; hiệu lực = 0 tới khi Admin duyệt
+    // — kể cả người được đăng không cần duyệt. Admin tạo thì chốt luôn.
+    const requestedPointBonusPercent = assertPointBonusPercent(
+      command.requestedPointBonusPercent ?? 0,
+      'requestedPointBonusPercent',
+    );
     const prepared = await prepareWrite(
       this.repository,
       command.intakeStartsAt
@@ -675,6 +696,8 @@ export class CreateCharityCampaignUseCase implements ICreateCharityCampaignUseCa
       ...prepared,
       bannerUrl,
       media,
+      requestedPointBonusPercent,
+      pointBonusPercent: command.asAdmin ? requestedPointBonusPercent : 0,
       distribution: preparedDistribution
         ? {
             input: preparedDistribution,
@@ -2154,11 +2177,29 @@ export class DecideCharityApprovalUseCase implements IDecideCharityApprovalUseCa
     )
       throw new CharityBeneficiaryConsentRequiredException();
 
+    // Hệ số hiệu lực (CR 22/11/2026): bỏ trống = theo đề xuất; Admin chỉ được hạ khi duyệt.
+    const pointBonusPercent =
+      command.approve && command.pointBonusPercent !== undefined
+        ? assertPointBonusPercent(
+            command.pointBonusPercent,
+            'pointBonusPercent',
+          )
+        : command.approve
+          ? campaign.requestedPointBonusPercent
+          : campaign.pointBonusPercent;
+    if (
+      command.approve &&
+      pointBonusPercent > campaign.requestedPointBonusPercent
+    )
+      throw new ValidationFailedException([
+        `pointBonusPercent: không được cao hơn mức đề xuất (${campaign.requestedPointBonusPercent})`,
+      ]);
     const decided = await this.repository.decideApproval({
       campaignId: command.campaignId,
       approverId: command.actorUserId,
       approve: command.approve,
       note: command.note?.trim() || null,
+      pointBonusPercent,
     });
     // Hồ sơ tồn tại nhưng `UPDATE` không khớp hàng nào nghĩa là nó không còn
     // `PENDING_APPROVAL` — tức một Admin khác đã xử lý. Người sau phải thấy xung đột, chứ
@@ -2298,7 +2339,7 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
       badgeName:
         command.badgeName === undefined
           ? existing.badgeName
-          : command.badgeName.trim(),
+          : command.badgeName.trim() || null,
       targetItemsCount: command.targetItemsCount ?? existing.targetItemsCount,
       lat: latGiven ? (command.lat ?? null) : existing.lat,
       lng: lngGiven ? (command.lng ?? null) : existing.lng,
@@ -2318,7 +2359,20 @@ export class UpdateAdminCharityCampaignUseCase implements IUpdateAdminCharityCam
         command.acceptedContributionTypes === undefined
           ? existing.acceptedContributionTypes
           : normalizeContributionTypes(command.acceptedContributionTypes),
+      pointBonusPercent:
+        command.pointBonusPercent === undefined
+          ? existing.pointBonusPercent
+          : isCharityPointBonusPercent(command.pointBonusPercent)
+            ? command.pointBonusPercent
+            : existing.pointBonusPercent,
     };
+    if (
+      command.pointBonusPercent !== undefined &&
+      !isCharityPointBonusPercent(command.pointBonusPercent)
+    )
+      gaps.push(
+        `pointBonusPercent phải là một trong: ${CharityPointBonusPercents.join(', ')}`,
+      );
 
     gaps.push(...charitySupervisorRequirementGaps(command));
     gaps.push(

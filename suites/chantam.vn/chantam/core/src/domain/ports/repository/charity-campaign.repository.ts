@@ -10,6 +10,7 @@ import {
   CharityOperationStage,
   CharityParticipationRole,
   CharityParticipationStatus,
+  CharityPointBonusPercent,
   CharityRejectionReason,
   CharityReviewRole,
   ICharityBeneficiaryPartyLike,
@@ -48,7 +49,8 @@ export interface ICharityCampaign {
   readonly slug: string;
   readonly description: string;
   readonly bannerUrl: string;
-  readonly badgeName: string;
+  /** Huy hiệu — không còn bắt buộc (CR 22/11/2026); `null` khi không đặt. */
+  readonly badgeName: string | null;
   readonly targetItemsCount: number;
   /**
    * Số phần quà người tổ chức KHAI đã trao.
@@ -99,6 +101,10 @@ export interface ICharityCampaign {
    * tại trong database, không theo token.
    */
   readonly minimumSupervisorRank: UserRanks | null;
+  /** Hệ số tăng điểm HIỆU LỰC (%), Admin chốt khi duyệt hoặc sửa (CR 22/11/2026). */
+  readonly pointBonusPercent: CharityPointBonusPercent;
+  /** Hệ số chủ dự án đề xuất (%). */
+  readonly requestedPointBonusPercent: CharityPointBonusPercent;
   /**
    * `null` = NHÁP (docs/plan/CHARITY-PROJECT-LIFECYCLE.md §3.1): chỉ người tạo thấy, Admin
    * không thấy trong hàng đợi duyệt.
@@ -231,7 +237,7 @@ export interface ICreateCharityCampaignParams {
   readonly slug: string;
   readonly description: string;
   readonly bannerUrl: string;
-  readonly badgeName: string;
+  readonly badgeName: string | null;
   readonly targetItemsCount: number;
   readonly lat: number | null;
   readonly lng: number | null;
@@ -239,6 +245,8 @@ export interface ICreateCharityCampaignParams {
   readonly startTime: Date;
   readonly endTime: Date;
   readonly createdBy: string;
+  readonly requestedPointBonusPercent: CharityPointBonusPercent;
+  readonly pointBonusPercent: CharityPointBonusPercent;
   /** Admin tạo thì `APPROVED` ngay; thành viên tạo thì `PENDING_APPROVAL` (BR-CHARITY-01). */
   readonly approvalStatus: CharityApprovalStatus;
   /** Người duyệt — chính người tạo khi Admin tạo trực tiếp, `null` khi còn chờ duyệt. */
@@ -588,6 +596,8 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     readonly approverId: string;
     readonly approve: boolean;
     readonly note: string | null;
+    /** Hệ số hiệu lực khi duyệt; bỏ qua khi từ chối. */
+    readonly pointBonusPercent: CharityPointBonusPercent;
   }): Promise<ICharityCampaign | null>;
 
   /**
@@ -598,7 +608,7 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     readonly campaignId: string;
     readonly title: string;
     readonly description: string;
-    readonly badgeName: string;
+    readonly badgeName: string | null;
     readonly targetItemsCount: number;
     readonly lat: number | null;
     readonly lng: number | null;
@@ -606,6 +616,7 @@ export interface ICharityCampaignRepository extends ICharityNeedsRepositoryPart 
     readonly minimumSupervisors: number;
     readonly minimumSupervisorRank: UserRanks | null;
     readonly acceptedContributionTypes: readonly CharityContributionType[];
+    readonly pointBonusPercent: CharityPointBonusPercent;
   }): Promise<ICharityCampaign | null>;
 
   /** Cập nhật con số LỜI KHAI. Xem `currentItemsCount`. */
