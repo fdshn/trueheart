@@ -103,6 +103,7 @@ import {
   ICharityCustomSection,
   ICharityEngagementRepository,
   ICharityEventRepository,
+  ICharityMoneyPledgeRepository,
   ICharityOperationsRepository,
   ICharityParty,
   ICharityPartyInput,
@@ -967,6 +968,7 @@ export class AddCharityBankAccountUseCase implements IAddCharityBankAccountUseCa
       account: {
         label: trimmed(command.account.label),
         bankName: command.account.bankName.trim(),
+        bankBin: command.account.bankBin,
         accountNo: command.account.accountNo.trim(),
         accountName: command.account.accountName.trim(),
       },
@@ -2070,6 +2072,9 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
     @Optional()
     @Inject(ICharityOperationsRepository)
     private readonly operations?: ICharityOperationsRepository,
+    @Optional()
+    @Inject(ICharityMoneyPledgeRepository)
+    private readonly pledges?: ICharityMoneyPledgeRepository,
   ) {}
 
   /** Hình thức trao CÔNG KHAI: đúng 5 trường, không bao giờ có chi tiết riêng tư. */
@@ -2144,6 +2149,10 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
         : Promise.resolve(null),
     ]);
     const beforeEvent = stageRank(campaign.operationStage) < stageRank('EVENT');
+    const acceptsMoney = campaign.acceptedContributionTypes.includes('MONEY');
+    // Lời khai ủng hộ tiền (CR 25/11/2026): dòng số RIÊNG, không cộng vào số thực nhận.
+    const pledgeTotals =
+      acceptsMoney && this.pledges ? await this.pledges.totals(id) : null;
     return {
       campaign: { ...campaign, isJoined: null },
       appealPurpose: profile?.appealPurpose ?? null,
@@ -2168,9 +2177,24 @@ export class GetCharityPublicProjectUseCase implements IGetCharityPublicProjectU
         .filter((need) => need.isActive)
         // Người nhận hàng là thông tin điều phối, không công khai.
         .map((need) => ({ ...need, receiverName: null, receiverPhone: null })),
-      fundingNeeds: campaign.acceptedContributionTypes.includes('MONEY')
-        ? fundingNeeds
+      fundingNeeds: acceptsMoney
+        ? fundingNeeds.map((need) => {
+            const pledged = pledgeTotals?.byFundingNeed.find(
+              (row) => row.fundingNeedId === need.fundingNeedId,
+            );
+            return {
+              ...need,
+              pledgedAmount: pledged?.pledgedAmount ?? 0,
+              pledgeCount: pledged?.pledgeCount ?? 0,
+            };
+          })
         : [],
+      moneyPledges: acceptsMoney
+        ? {
+            pledgedAmount: pledgeTotals?.pledgedAmount ?? 0,
+            pledgeCount: pledgeTotals?.pledgeCount ?? 0,
+          }
+        : null,
       volunteerNeeds,
       myVolunteerRegistrations: mine,
       changedFields,

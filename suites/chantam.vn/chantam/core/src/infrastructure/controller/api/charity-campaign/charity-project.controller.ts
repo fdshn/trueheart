@@ -640,6 +640,7 @@ export class CharityProjectController {
         account: {
           label: input.label ?? null,
           bankName: input.bankName,
+          bankBin: input.bankBin ?? null,
           accountNo: input.accountNo,
           accountName: input.accountName,
         },

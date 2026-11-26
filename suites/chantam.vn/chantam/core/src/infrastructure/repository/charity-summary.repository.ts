@@ -231,6 +231,7 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
           external_amount: string | number;
           reported_income: string | number;
           confirmed_value: string | number;
+          pledged_amount: string | number;
         }[]
       >(
         `SELECT
@@ -240,6 +241,10 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
               FROM campaign_funding_needs need WHERE need.campaign_id = $1) AS external_amount,
            (SELECT COALESCE(SUM(report.total_income), 0)
               FROM campaign_financial_reports report WHERE report.campaign_id = $1) AS reported_income,
+           (SELECT COALESCE(SUM(pledge.pledged_amount), 0)
+              FROM campaign_money_pledges pledge
+             WHERE pledge.campaign_id = $1 AND pledge.status = 'COMPLETED'
+               AND pledge.hidden_at IS NULL) AS pledged_amount,
            COALESCE(SUM(${confirmedDeliveryValueSql('delivery')}), 0) AS confirmed_value
          FROM campaign_deliveries delivery
          WHERE delivery.campaign_id = $1 AND delivery.status = 'COMPLETED'`,
@@ -284,6 +289,7 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
         externalAmount,
         totalAmount: confirmedAmount + externalAmount,
         reportedIncome: Number(values?.reported_income ?? 0),
+        pledgedAmount: Number(values?.pledged_amount ?? 0),
       },
       service: {
         lines: service.map((row) => ({
@@ -692,9 +698,15 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
     // Ai đủ điều kiện, mốc tham gia và có cho hiện tên — gộp theo người.
     const eligible =
       params.type === 'CONTRIBUTOR'
-        ? `SELECT source.user_id, MIN(source.created_at) AS joined_at,
+        ? // Lời khai tiền ẨN DANH không góp mốc lẫn loại: danh sách ủng hộ tiền công khai từng
+          // dòng "Ẩn danh" kèm số tiền và mốc khai, nên lộ `MONEY`/`joinedAt` của nó ở đây là
+          // ghép được ra người + số tiền. Hiện vật/dịch vụ giữ lối gộp cũ.
+          `SELECT source.user_id,
+                  MIN(source.created_at)
+                    FILTER (WHERE source.visible OR source.kind <> 'MONEY') AS joined_at,
                   bool_or(source.visible) AS visible,
-                  array_agg(DISTINCT source.kind ORDER BY source.kind) AS kinds
+                  array_agg(DISTINCT source.kind ORDER BY source.kind)
+                    FILTER (WHERE source.visible OR source.kind <> 'MONEY') AS kinds
              FROM (
                SELECT contribution.contributor_id AS user_id, contribution.created_at,
                       contribution.show_name_publicly AS visible, 'MATERIAL' AS kind
@@ -709,6 +721,14 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
                  JOIN users offerer ON offerer.global_id = offer.user_id
                 WHERE need.campaign_id = $1
                   AND offer.status IN ('ACCEPTED', 'COMPLETED')
+               UNION ALL
+               -- Ủng hộ tiền: lời khai đã báo chuyển và không bị chủ dự án ẩn (CR 25/11/2026).
+               SELECT pledge.user_id, pledge.declared_at, pledge.show_name_publicly AS visible,
+                      'MONEY' AS kind
+                 FROM campaign_money_pledges pledge
+                WHERE pledge.campaign_id = $1
+                  AND pledge.status = 'COMPLETED'
+                  AND pledge.hidden_at IS NULL
              ) source
             GROUP BY source.user_id`
         : `SELECT participation.user_id, participation.registered_at AS joined_at,
@@ -775,7 +795,7 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
         ...(params.type === 'CONTRIBUTOR'
           ? {
               contributionTypes: (row.kinds ?? []) as (
-                'MATERIAL' | 'SERVICE'
+                'MATERIAL' | 'MONEY' | 'SERVICE'
               )[],
             }
           : {}),

@@ -187,6 +187,8 @@ export class PublishCharitySummaryUseCase implements IPublishCharitySummaryUseCa
     @Optional()
     @Inject(ICharityOperationsRepository)
     private readonly operations?: ICharityOperationsRepository,
+    @Optional()
+    private readonly points?: CharityPointsService,
   ) {}
 
   public async handle(
@@ -220,6 +222,9 @@ export class PublishCharitySummaryUseCase implements IPublishCharitySummaryUseCa
     });
     if (!published) throw new CharitySummaryEmptyException();
     this.realtime.signal(campaign.globalId, ['SUMMARY'], 'public');
+    // Công bố tổng kết = dự án kết thúc: chốt điểm ủng hộ tiền (CR 25/11/2026). Nuốt lỗi; phần
+    // thiếu job `charity:points` vá.
+    await this.points?.awardMoneyPledges(campaign.globalId);
     return published;
   }
 }

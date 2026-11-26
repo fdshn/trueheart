@@ -191,6 +191,10 @@ export enum NotificationTypes {
    * hoặc ban tổ chức). Đợt 5c.
    */
   CHARITY_CONTRIBUTION_DISPUTE_UPDATED = 'CHARITY_CONTRIBUTION_DISPUTE_UPDATED',
+  /** Chủ dự án ẩn lời khai ủng hộ tiền của người nhận (kèm lý do nếu có). CR 25/11/2026. */
+  CHARITY_MONEY_PLEDGE_HIDDEN = 'CHARITY_MONEY_PLEDGE_HIDDEN',
+  /** Chủ dự án bỏ ẩn lời khai ủng hộ tiền của người nhận. */
+  CHARITY_MONEY_PLEDGE_UNHIDDEN = 'CHARITY_MONEY_PLEDGE_UNHIDDEN',
   /**
    * Nhắc nhiệm vụ duy trì hạng, trước khi chu kỳ hết (SRS BR-PROF-RANK-03).
    *
@@ -351,6 +355,7 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.CHARITY_SUPPORT_OFFER_UPDATED]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_CONTRIBUTION_DISPUTE_UPDATED]:
     NotificationGroups.STATUS,
+  [NotificationTypes.CHARITY_MONEY_PLEDGE_UNHIDDEN]: NotificationGroups.STATUS,
 
   // ── Tích điểm: điểm vào sổ ───────────────────────────────────────────────
   // Giới thiệu hợp lệ xếp vào TÍCH ĐIỂM chứ không THƯỞNG: nội dung thông báo là
@@ -366,6 +371,8 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.RANK_DEMOTED]: NotificationGroups.WARNING,
   [NotificationTypes.REPORT_REVIEWED]: NotificationGroups.WARNING,
   [NotificationTypes.CONTENT_MODERATED]: NotificationGroups.WARNING,
+  // Ban tổ chức ẩn lời khai ủng hộ tiền — cùng bản chất "nội dung của bạn bị gỡ khỏi công khai".
+  [NotificationTypes.CHARITY_MONEY_PLEDGE_HIDDEN]: NotificationGroups.WARNING,
 
   // ── Điều kiện: có việc phải làm trước một cái hạn ────────────────────────
   [NotificationTypes.RANK_MAINTENANCE_REMINDER]: NotificationGroups.CONDITION,

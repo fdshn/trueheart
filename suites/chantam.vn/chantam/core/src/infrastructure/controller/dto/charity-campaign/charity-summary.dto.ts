@@ -181,6 +181,11 @@ export class CharityIntakeMoneyTotalsDto {
   @ApiProperty({ description: 'VNĐ; confirmedAmount + externalAmount' })
   totalAmount: number;
   @ApiProperty({ description: 'VNĐ; tổng thu báo cáo' }) reportedIncome: number;
+  @ApiProperty({
+    description:
+      'VNĐ; tổng lời khai ủng hộ tiền đã báo chuyển (không bị ẩn). LỜI KHAI, hệ thống không xác minh — không cộng vào totalAmount',
+  })
+  pledgedAmount: number;
 }
 export class CharityIntakeServiceLineDto {
   @ApiProperty({ enum: CharitySupportTypes }) supportType: string;
@@ -498,11 +503,12 @@ export class CharityMemberDto {
   joinedAt: Date;
 
   @ApiPropertyOptional({
-    enum: ['MATERIAL', 'SERVICE'],
+    enum: ['MATERIAL', 'MONEY', 'SERVICE'],
     isArray: true,
-    description: 'Chỉ nhóm `CONTRIBUTOR`. Không có số lượng hay số tiền.',
+    description:
+      'Chỉ nhóm `CONTRIBUTOR`. `MONEY` = có lời khai ủng hộ tiền đã báo chuyển (không bị ẩn). Không có số lượng hay số tiền.',
   })
-  contributionTypes?: ('MATERIAL' | 'SERVICE')[];
+  contributionTypes?: ('MATERIAL' | 'MONEY' | 'SERVICE')[];
 }
 
 export class CharityMembersResponseDto {

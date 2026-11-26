@@ -184,7 +184,7 @@ export interface ICharityMember {
   user: IPublicUserProfileDto;
   joinedAt: Date;
   /** Chỉ nhóm `CONTRIBUTOR`. Không có số lượng hay số tiền. */
-  contributionTypes?: ('MATERIAL' | 'SERVICE')[];
+  contributionTypes?: ('MATERIAL' | 'MONEY' | 'SERVICE')[];
 }
 
 export interface IListCharityMembersResult {

@@ -93,6 +93,8 @@ export interface ICharityIntakeTotals {
     externalAmount: number;
     totalAmount: number;
     reportedIncome: number;
+    /** Tổng lời khai ủng hộ tiền `COMPLETED` chưa ẩn — LỜI KHAI, không cộng vào `totalAmount`. */
+    pledgedAmount: number;
   } | null;
   service: {
     lines: {
@@ -230,9 +232,6 @@ export interface ICharityPublicMemberRow {
     rank: UserRanks;
   };
   joinedAt: Date;
-  /** Chỉ nhóm `CONTRIBUTOR`: hiện vật và/hoặc dịch vụ — không có số lượng hay số tiền. */
-  contributionTypes?: Extract<
-    CharityContributionType,
-    'MATERIAL' | 'SERVICE'
-  >[];
+  /** Chỉ nhóm `CONTRIBUTOR`: hiện vật, tiền (lời khai), dịch vụ — không có số lượng hay số tiền. */
+  contributionTypes?: CharityContributionType[];
 }

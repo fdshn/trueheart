@@ -61,6 +61,9 @@ const ExpectedPublicRoutes = [
   'GET /charity-campaigns/:idOrSlug/public-stats',
   // CR 22/11/2026: thành viên công khai — chỉ người cho hiện tên, không SĐT/số lượng/số tiền.
   'GET /charity-campaigns/:idOrSlug/members',
+  // CR 25/11/2026: người đăng ký ủng hộ tiền — không ghi chú/nội dung chuyển khoản, ẩn tên thì
+  // không có hồ sơ, lời khai bị chủ dự án ẩn không hiện.
+  'GET /charity-campaigns/:idOrSlug/money-pledges',
   'GET /charity-campaigns/:id/reactions',
   'GET /charity-campaigns/:id/comments',
   // Đợt 3: timeline sống, bài ảnh/clip và tương tác từng bài — cùng quy tắc đọc.

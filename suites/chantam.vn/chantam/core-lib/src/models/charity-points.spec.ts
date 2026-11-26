@@ -51,8 +51,8 @@ describe('allowedUnderCaps', () => {
 });
 
 describe('cấu hình', () => {
-  it('12 khoá trần, tên ổn định', () => {
-    expect(CharityPointCapConfigKeys).toHaveLength(12);
+  it('15 khoá trần, tên ổn định', () => {
+    expect(CharityPointCapConfigKeys).toHaveLength(15);
     expect(charityPointCapConfigKey('CHARITY_ITEM_VALUE', 'daily')).toBe(
       'charity.points_cap.charity_item_value.daily',
     );
@@ -114,11 +114,11 @@ describe('hệ số thưởng chiến dịch (CR 22/11/2026)', () => {
     ).toBe(0);
   });
 
-  it('mã thưởng không có khoá trần riêng — vẫn 12 khoá từ 4 rule gốc', () => {
+  it('mã thưởng không có khoá trần riêng — vẫn 15 khoá từ 5 rule gốc', () => {
     expect(CharityPointRuleCodes).toEqual([
       ...CharityPointBaseRuleCodes,
       'CHARITY_CAMPAIGN_BONUS',
     ]);
-    expect(CharityPointCapConfigKeys).toHaveLength(12);
+    expect(CharityPointCapConfigKeys).toHaveLength(15);
   });
 });

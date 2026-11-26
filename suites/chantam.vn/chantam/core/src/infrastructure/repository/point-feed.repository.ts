@@ -71,6 +71,10 @@ export function pointFeedListSql(options: {
                           JOIN campaign_contributions contribution
                             ON contribution.global_id = delivery.contribution_id
                          WHERE delivery.global_id::text = award.reference_id), false)
+                     WHEN 'CHARITY_MONEY_PLEDGE' THEN COALESCE(
+                       (SELECT pledge.show_name_publicly AND pledge.hidden_at IS NULL
+                          FROM campaign_money_pledges pledge
+                         WHERE pledge.global_id::text = award.reference_id), false)
                      ELSE false
                    END AS name_public
               FROM campaign_point_awards award
