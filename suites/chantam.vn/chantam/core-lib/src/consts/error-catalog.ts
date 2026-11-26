@@ -1629,6 +1629,42 @@ export const CoreErrors = defineErrorCatalog(ErrorOrigin, {
     httpStatus: HttpStatus.CONFLICT,
     message: () => 'Chưa công khai tổng kết nên chưa đóng chiến dịch được',
   },
+  CHARITY_MONEY_PLEDGE_NOT_FOUND: {
+    code: ErrorCodes.CHARITY_MONEY_PLEDGE_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: () => 'Không tìm thấy lời khai ủng hộ tiền',
+  },
+  CHARITY_MONEY_PLEDGE_ALREADY_COMPLETED: {
+    code: ErrorCodes.CHARITY_MONEY_PLEDGE_ALREADY_COMPLETED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Lời khai này đã báo đã chuyển',
+  },
+  CHARITY_RECEIVING_ACCOUNT_REQUIRED: {
+    code: ErrorCodes.CHARITY_RECEIVING_ACCOUNT_REQUIRED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Chiến dịch chưa có tài khoản nhận đang hiệu lực',
+  },
+  CHARITY_MONEY_PLEDGE_SELF: {
+    code: ErrorCodes.CHARITY_MONEY_PLEDGE_SELF,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () =>
+      'Chủ dự án và điều phối viên không tự khai ủng hộ chiến dịch của mình',
+  },
+  CHARITY_MONEY_PLEDGE_ALREADY_HIDDEN: {
+    code: ErrorCodes.CHARITY_MONEY_PLEDGE_ALREADY_HIDDEN,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Lời khai này đang bị ẩn',
+  },
+  CHARITY_MONEY_PLEDGE_NOT_HIDDEN: {
+    code: ErrorCodes.CHARITY_MONEY_PLEDGE_NOT_HIDDEN,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Lời khai này chưa bị ẩn',
+  },
+  CHARITY_MONEY_PLEDGE_LOCKED: {
+    code: ErrorCodes.CHARITY_MONEY_PLEDGE_LOCKED,
+    httpStatus: HttpStatus.CONFLICT,
+    message: () => 'Dự án đã kết thúc nên lời khai đã chốt',
+  },
 
   CHARITY_EXTERNAL_SOURCE_DUPLICATED: {
     code: ErrorCodes.CHARITY_EXTERNAL_SOURCE_DUPLICATED,

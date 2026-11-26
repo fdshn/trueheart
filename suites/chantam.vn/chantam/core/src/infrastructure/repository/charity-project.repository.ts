@@ -133,6 +133,7 @@ interface IBankRow {
   global_id: string;
   label: string | null;
   bank_name: string;
+  bank_bin: string | null;
   account_no: string;
   account_name: string;
   valid_from: Date;
@@ -144,6 +145,7 @@ const toBank = (row: IBankRow): ICharityBankAccount => ({
   accountId: row.global_id,
   label: row.label,
   bankName: row.bank_name,
+  bankBin: row.bank_bin,
   accountNo: row.account_no,
   accountName: row.account_name,
   validFrom: row.valid_from,
@@ -1045,8 +1047,8 @@ export class CharityProjectRepository implements ICharityProjectRepository {
     campaignId: string,
   ): Promise<ICharityBankAccount[]> {
     const rows = await this.manager.query<IBankRow[]>(
-      `SELECT global_id, label, bank_name, account_no, account_name, valid_from, valid_to,
-              close_reason
+      `SELECT global_id, label, bank_name, bank_bin, account_no, account_name, valid_from,
+              valid_to, close_reason
        FROM campaign_bank_accounts WHERE campaign_id = $1
        ORDER BY (valid_to IS NULL) DESC, valid_from DESC, id DESC`,
       [campaignId],
@@ -1100,10 +1102,10 @@ export class CharityProjectRepository implements ICharityProjectRepository {
         return { status: 'LIMIT_REACHED', limit: params.limit };
       const [row] = await manager.query<IBankRow[]>(
         `INSERT INTO campaign_bank_accounts
-           (campaign_id, label, bank_name, account_no, account_name, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING global_id, label, bank_name, account_no, account_name, valid_from,
-                   valid_to, close_reason`,
+           (campaign_id, label, bank_name, account_no, account_name, created_by, bank_bin)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING global_id, label, bank_name, bank_bin, account_no, account_name,
+                   valid_from, valid_to, close_reason`,
         [
           params.campaignId,
           params.account.label,
@@ -1111,6 +1113,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
           params.account.accountNo,
           params.account.accountName,
           params.actorId,
+          params.account.bankBin,
         ],
       );
       return { status: 'CREATED', account: toBank(row) };

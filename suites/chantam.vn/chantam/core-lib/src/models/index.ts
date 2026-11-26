@@ -11,6 +11,7 @@ export * from './charity-distribution';
 export * from './charity-engagement';
 export * from './charity-event';
 export * from './charity-intake';
+export * from './charity-money-pledge';
 export * from './charity-operations';
 export * from './charity-participation-requirements';
 export * from './charity-points';

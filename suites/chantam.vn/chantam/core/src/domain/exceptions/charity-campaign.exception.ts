@@ -419,3 +419,33 @@ export class CharityChangeRequiresReviewException extends ExceptionFrom(
 export class CharityCampaignSummaryNotPublishedException extends ExceptionFrom(
   CoreErrors.CHARITY_CAMPAIGN_SUMMARY_NOT_PUBLISHED,
 ) {}
+
+// ── Đăng ký ủng hộ tiền (CR 25/11/2026) ─────────────────────────────────
+
+export class CharityMoneyPledgeNotFoundException extends ExceptionFrom(
+  CoreErrors.CHARITY_MONEY_PLEDGE_NOT_FOUND,
+) {}
+
+export class CharityMoneyPledgeAlreadyCompletedException extends ExceptionFrom(
+  CoreErrors.CHARITY_MONEY_PLEDGE_ALREADY_COMPLETED,
+) {}
+
+export class CharityReceivingAccountRequiredException extends ExceptionFrom(
+  CoreErrors.CHARITY_RECEIVING_ACCOUNT_REQUIRED,
+) {}
+
+export class CharityMoneyPledgeSelfException extends ExceptionFrom(
+  CoreErrors.CHARITY_MONEY_PLEDGE_SELF,
+) {}
+
+export class CharityMoneyPledgeAlreadyHiddenException extends ExceptionFrom(
+  CoreErrors.CHARITY_MONEY_PLEDGE_ALREADY_HIDDEN,
+) {}
+
+export class CharityMoneyPledgeNotHiddenException extends ExceptionFrom(
+  CoreErrors.CHARITY_MONEY_PLEDGE_NOT_HIDDEN,
+) {}
+
+export class CharityMoneyPledgeLockedException extends ExceptionFrom(
+  CoreErrors.CHARITY_MONEY_PLEDGE_LOCKED,
+) {}

@@ -333,6 +333,14 @@ export class CharityPartyViewDto {
 export class CharityBankAccountDto {
   @ApiPropertyOptional({ maxLength: 200 }) @Text(200) label?: string;
   @ApiProperty({ maxLength: 200 }) @IsString() @Length(1, 200) bankName: string;
+  @ApiPropertyOptional({
+    example: '970436',
+    description:
+      'BIN ngân hàng (Napas, 6 số). Có thì người ủng hộ tiền nhận mã VietQR; không có thì chỉ có số tài khoản',
+  })
+  @IsOptional()
+  @Matches(/^[0-9]{6}$/)
+  bankBin?: string;
   @ApiProperty({ example: '0123456789' })
   @IsString()
   @Matches(/^[0-9A-Za-z-]{4,40}$/)
@@ -374,6 +382,8 @@ export class CharityBankAccountViewDto {
   @ApiProperty({ format: 'uuid' }) accountId: string;
   @ApiProperty({ type: String, nullable: true }) label: string | null;
   @ApiProperty() bankName: string;
+  @ApiProperty({ type: String, nullable: true, example: '970436' })
+  bankBin: string | null;
   @ApiProperty() accountNo: string;
   @ApiProperty() accountName: string;
   @ApiProperty({ type: String, format: 'date-time' }) validFrom: Date;
@@ -779,6 +789,26 @@ export class CharityFundingNeedViewDto {
   @ApiProperty() sortOrder: number;
 }
 
+/** Bản công khai: thêm tổng lời khai ủng hộ tiền vào khoản này (CR 25/11/2026). */
+export class CharityPublicFundingNeedDto extends CharityFundingNeedViewDto {
+  @ApiProperty({
+    description:
+      'VNĐ; tổng lời khai `COMPLETED` chưa ẩn vào khoản này — LỜI KHAI, không phải số thực nhận',
+  })
+  pledgedAmount: number;
+  @ApiProperty({ description: 'Số lời khai `COMPLETED` chưa ẩn' })
+  pledgeCount: number;
+}
+
+export class CharityMoneyPledgeTotalsDto {
+  @ApiProperty({
+    description:
+      'VNĐ; tổng lời khai ủng hộ tiền `COMPLETED` chưa ẩn, gồm cả ủng hộ chung (không chọn khoản)',
+  })
+  pledgedAmount: number;
+  @ApiProperty() pledgeCount: number;
+}
+
 // ── Nhân lực ─────────────────────────────────────────────────────────────
 
 export class CharityVolunteerNeedDto {
@@ -1059,8 +1089,15 @@ export class CharityPublicProjectDto {
   bankAccounts: CharityBankAccountViewDto[];
   @ApiProperty({ type: () => [CharityItemNeedViewDto] })
   itemNeeds: CharityItemNeedViewDto[];
-  @ApiProperty({ type: () => [CharityFundingNeedViewDto] })
-  fundingNeeds: CharityFundingNeedViewDto[];
+  @ApiProperty({ type: () => [CharityPublicFundingNeedDto] })
+  fundingNeeds: CharityPublicFundingNeedDto[];
+  @ApiProperty({
+    type: () => CharityMoneyPledgeTotalsDto,
+    nullable: true,
+    description:
+      'Tổng lời khai ủng hộ tiền (số RIÊNG, không cộng vào số thực nhận). `null` khi không nhận tiền',
+  })
+  moneyPledges: CharityMoneyPledgeTotalsDto | null;
   @ApiProperty({ type: () => [CharityVolunteerNeedViewDto] })
   volunteerNeeds: CharityVolunteerNeedViewDto[];
   @ApiProperty({

@@ -9,6 +9,7 @@ export * from './charity-campaign.repository';
 export * from './charity-change-request.repository';
 export * from './charity-engagement.repository';
 export * from './charity-event.repository';
+export * from './charity-money-pledge.repository';
 export * from './charity-operations.repository';
 export * from './charity-participation.repository';
 export * from './charity-points.repository';

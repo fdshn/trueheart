@@ -283,6 +283,13 @@ Nghiệp vụ Chân Tâm
 | `0x1363` | `4963` | 409 Conflict | `CHARITY_REVISION_PENDING_EXISTS` | Chiến dịch đang có bản sửa chờ duyệt — sửa hoặc rút bản đó trước |
 | `0x1364` | `4964` | 409 Conflict | `CHARITY_CHANGE_REQUIRES_REVIEW` | Các trường sau chỉ sửa được qua bản sửa chờ Admin duyệt: pointBonusPercent, beneficiaries |
 | `0x1365` | `4965` | 409 Conflict | `CHARITY_CAMPAIGN_SUMMARY_NOT_PUBLISHED` | Chưa công khai tổng kết nên chưa đóng chiến dịch được |
+| `0x1366` | `4966` | 404 Not Found | `CHARITY_MONEY_PLEDGE_NOT_FOUND` | Không tìm thấy lời khai ủng hộ tiền |
+| `0x1367` | `4967` | 409 Conflict | `CHARITY_MONEY_PLEDGE_ALREADY_COMPLETED` | Lời khai này đã báo đã chuyển |
+| `0x1368` | `4968` | 409 Conflict | `CHARITY_RECEIVING_ACCOUNT_REQUIRED` | Chiến dịch chưa có tài khoản nhận đang hiệu lực |
+| `0x1369` | `4969` | 409 Conflict | `CHARITY_MONEY_PLEDGE_SELF` | Chủ dự án và điều phối viên không tự khai ủng hộ chiến dịch của mình |
+| `0x136a` | `4970` | 409 Conflict | `CHARITY_MONEY_PLEDGE_ALREADY_HIDDEN` | Lời khai này đang bị ẩn |
+| `0x136b` | `4971` | 409 Conflict | `CHARITY_MONEY_PLEDGE_NOT_HIDDEN` | Lời khai này chưa bị ẩn |
+| `0x136c` | `4972` | 409 Conflict | `CHARITY_MONEY_PLEDGE_LOCKED` | Dự án đã kết thúc nên lời khai đã chốt |
 | `0x1401` | `5121` | 404 Not Found | `SPONSOR_BANNER_NOT_FOUND` | Không tìm thấy banner |
 | `0x1402` | `5122` | 409 Conflict | `SPONSOR_BANNER_APPROVAL_ALREADY_DECIDED` | Banner này đã được xử lý |
 | `0x1403` | `5123` | 409 Conflict | `SPONSOR_BANNER_NOT_SERVING` | Banner này không còn được hiển thị |
@@ -318,5 +325,5 @@ Nghiệp vụ Chân Tâm
 
 ---
 
-Tổng cộng **276 mã lỗi** trên 3 tầng.
+Tổng cộng **283 mã lỗi** trên 3 tầng.
 Một số mã đã khai trước cho milestone sau nên chưa endpoint nào trả về.

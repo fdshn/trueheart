@@ -61,6 +61,7 @@ import {
   CharityMaxBankAccountsConfigKey,
   CharityMaxBeneficiariesConfigKey,
   CharityMaxIntakeLocationsConfigKey,
+  CharityMoneyPledgePointsPercentConfigKey,
   CharityPointCapConfigKeys,
   CharityPostAfterEventHoursConfigKey,
   CharityPostDailyImageQuotaConfigKey,
@@ -158,6 +159,8 @@ const RequiredKeys: readonly string[] = [
   CharityPostDailyImageQuotaConfigKey,
   CharityPostDailyVideoQuotaConfigKey,
   ...CharityPointCapConfigKeys,
+  // CR 25/11/2026: `CharityPointsService.awardMoneyPledges` đọc khi dự án kết thúc.
+  CharityMoneyPledgePointsPercentConfigKey,
   CharityAppealWindowDaysConfigKey,
   CharityPostAfterEventHoursConfigKey,
   CharityPostMaxVideoSecondsConfigKey,

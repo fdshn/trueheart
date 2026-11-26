@@ -9,6 +9,7 @@ import {
   ICloseCharityBankAccountUseCase,
   ICloseCharityBeneficiaryBankAccountUseCase,
   ICloseCharityDisputeUseCase,
+  ICompleteCharityMoneyPledgeUseCase,
   IConfirmCharityVolunteerUseCase,
   ICreateCharityExportUseCase,
   ICreateCharityPostUseCase,
@@ -17,6 +18,7 @@ import {
   IDecideCharityChangeRequestUseCase,
   IDecideCharityParticipationUseCase,
   IDecideCharitySupportOfferUseCase,
+  IDeclareCharityMoneyPledgeUseCase,
   IDeleteCharityPostUseCase,
   IDeleteCharitySupportNeedUseCase,
   IEvaluateCharityParticipantUseCase,
@@ -45,6 +47,7 @@ import {
   IListCharityExportsUseCase,
   IListCharityHomeCardsUseCase,
   IListCharityMembersUseCase,
+  IListCharityMoneyPledgesUseCase,
   IListCharityParticipationsUseCase,
   IListCharityPostsUseCase,
   IListCharityRevisionsUseCase,
@@ -52,6 +55,8 @@ import {
   IListCharitySupportOffersUseCase,
   IListCharityTasksUseCase,
   IListMyCharityAppealsUseCase,
+  IListMyCharityMoneyPledgesUseCase,
+  IManageCharityMoneyPledgesUseCase,
   IManageCharitySupportNeedsUseCase,
   IMoveCharityStageUseCase,
   IOfferCharitySupportUseCase,
@@ -82,6 +87,7 @@ import {
   ISaveCharitySupportNeedUseCase,
   ISaveCharityVolunteerNeedUseCase,
   ISetCharityLimitsUseCase,
+  ISetCharityMoneyPledgeHiddenUseCase,
   ISetCharityPromotionUseCase,
   ISetCharityPublicNameUseCase,
   ISubmitCharityAppealUseCase,
@@ -137,6 +143,15 @@ import {
   RequestCharityPostUploadUseCase,
   UpdateCharityEventStepUseCase,
 } from './charity-event.use-cases';
+import {
+  CharityMoneyPledgeNotifier,
+  CompleteCharityMoneyPledgeUseCase,
+  DeclareCharityMoneyPledgeUseCase,
+  ListCharityMoneyPledgesUseCase,
+  ListMyCharityMoneyPledgesUseCase,
+  ManageCharityMoneyPledgesUseCase,
+  SetCharityMoneyPledgeHiddenUseCase,
+} from './charity-money-pledge.use-cases';
 import {
   CharitySupportOfferNotifier,
   CheckCharityCompletionUseCase,
@@ -328,6 +343,13 @@ const bindings = [
   [IOpenCharityDisputeUseCase, OpenCharityDisputeUseCase],
   [IListCharityDisputesUseCase, ListCharityDisputesUseCase],
   [ICloseCharityDisputeUseCase, CloseCharityDisputeUseCase],
+  // CR 25/11/2026: đăng ký ủng hộ tiền.
+  [IDeclareCharityMoneyPledgeUseCase, DeclareCharityMoneyPledgeUseCase],
+  [ICompleteCharityMoneyPledgeUseCase, CompleteCharityMoneyPledgeUseCase],
+  [IListMyCharityMoneyPledgesUseCase, ListMyCharityMoneyPledgesUseCase],
+  [IListCharityMoneyPledgesUseCase, ListCharityMoneyPledgesUseCase],
+  [IManageCharityMoneyPledgesUseCase, ManageCharityMoneyPledgesUseCase],
+  [ISetCharityMoneyPledgeHiddenUseCase, SetCharityMoneyPledgeHiddenUseCase],
 ] as const;
 
 /** `@Global()` như mọi feature module của tầng application — thiếu là DI hỏng lúc boot. */
@@ -342,6 +364,7 @@ const bindings = [
     CharityParticipationNotifier,
     CharitySupportOfferNotifier,
     CharityDisputeNotifier,
+    CharityMoneyPledgeNotifier,
     ...bindings.map(([provide, useClass]) => ({ provide, useClass })),
   ],
   exports: [CharityPointsService, ...bindings.map(([provide]) => provide)],

@@ -35,6 +35,7 @@ Các nhóm chính, mỗi nhóm một thư mục trong `infrastructure/controller
 | Tương tác | `PUT\|DELETE /posts/:subjectId/reactions/me` (thay endpoint like cũ), bình luận, chia sẻ |
 | Chat & presence | `/chat/rooms/...`, `/chat/direct-post/rooms`, `/chat/direct-user/rooms`, `/presence/*`, `/me/blocks` |
 | Điểm, hạng, giới thiệu | `/points/me`, `/points/feed` + `/users/:userId/points/feed` (bảng tin điểm, polling), `/ranks/me`, `/check-ins/*` (F83), `/leaderboards/*`, `/referrals/me`, `/attribution/*` |
+| Dự án từ thiện — ủng hộ tiền | `POST /charity-campaigns/:id/money-pledges` (lời khai, trả thông tin chuyển khoản + VietQR), `PATCH /charity-money-pledges/:pledgeId/complete\|hide\|unhide`, `GET /charity-money-pledges/me`, danh sách công khai `GET /charity-campaigns/:idOrSlug/money-pledges` — tổng lời khai tách khỏi số thực nhận (API.md §18.9) |
 | Admin | `/admin/*` — mỗi route khai quyền RBAC |
 | Tương thích cũ | `/gift-posts` — map vào `posts`, chỉ `OFFER` |
 

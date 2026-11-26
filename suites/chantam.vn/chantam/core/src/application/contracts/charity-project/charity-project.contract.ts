@@ -134,7 +134,16 @@ export interface ICharityPublicProject {
   }[];
   bankAccounts: ICharityBankAccount[];
   itemNeeds: ICharityItemNeed[];
-  fundingNeeds: ICharityFundingNeed[];
+  /** `pledgedAmount`/`pledgeCount`: lời khai ủng hộ tiền `COMPLETED` chưa ẩn vào khoản này. */
+  fundingNeeds: (ICharityFundingNeed & {
+    pledgedAmount: number;
+    pledgeCount: number;
+  })[];
+  /**
+   * Tổng lời khai ủng hộ tiền `COMPLETED` chưa ẩn (cả lời khai ủng hộ chung) — KHÔNG phải số
+   * thực nhận. `null` khi dự án không nhận tiền.
+   */
+  moneyPledges: { pledgedAmount: number; pledgeCount: number } | null;
   volunteerNeeds: ICharityVolunteerNeed[];
   myVolunteerRegistrations: ICharityVolunteerRegistration[] | null;
   /** Field CÔNG KHAI đã sửa kể từ lúc duyệt — app tô đỏ (§3.3). */

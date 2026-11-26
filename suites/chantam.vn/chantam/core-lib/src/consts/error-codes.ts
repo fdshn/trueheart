@@ -453,6 +453,20 @@ export enum ErrorCodes {
   CHARITY_CHANGE_REQUIRES_REVIEW = 0x13_64,
   /** Chưa công khai tổng kết nên chưa đóng chiến dịch được. */
   CHARITY_CAMPAIGN_SUMMARY_NOT_PUBLISHED = 0x13_65,
+  /** Không có lời khai ủng hộ tiền, hoặc không phải của người gọi. */
+  CHARITY_MONEY_PLEDGE_NOT_FOUND = 0x13_66,
+  /** Lời khai ủng hộ tiền đã báo đã chuyển. */
+  CHARITY_MONEY_PLEDGE_ALREADY_COMPLETED = 0x13_67,
+  /** Chiến dịch chưa có tài khoản nhận đang hiệu lực. */
+  CHARITY_RECEIVING_ACCOUNT_REQUIRED = 0x13_68,
+  /** Chủ dự án hoặc điều phối viên tự khai ủng hộ chiến dịch của mình. */
+  CHARITY_MONEY_PLEDGE_SELF = 0x13_69,
+  /** Ẩn lời khai đang ẩn. */
+  CHARITY_MONEY_PLEDGE_ALREADY_HIDDEN = 0x13_6a,
+  /** Bỏ ẩn lời khai chưa ẩn. */
+  CHARITY_MONEY_PLEDGE_NOT_HIDDEN = 0x13_6b,
+  /** Dự án đã kết thúc (công bố tổng kết) nên lời khai đã chốt. */
+  CHARITY_MONEY_PLEDGE_LOCKED = 0x13_6c,
 
   // 0x14 - Banner Tai Tro / Quang Cao (F65)
   SPONSOR_BANNER_NOT_FOUND = 0x14_01,
