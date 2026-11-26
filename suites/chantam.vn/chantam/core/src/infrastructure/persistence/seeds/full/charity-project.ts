@@ -30,6 +30,76 @@ export async function seedCharityProject(ctx: ISeedContext): Promise<void> {
   await seedBeneficiaryPlan(ctx, campaignId);
   await seedDispute(ctx);
   await seedChangeRequest(ctx, campaignId);
+  await seedMoneyPledges(ctx, campaignId);
+}
+
+/**
+ * CR 25/11/2026: lời khai ủng hộ tiền — một đã báo chuyển (vào khoản tiền), một mới dự định,
+ * một bị chủ dự án ẩn kèm lý do. Rào schema (migration 1804600000000). Idempotent.
+ */
+async function seedMoneyPledges(
+  ctx: ISeedContext,
+  campaignId: string,
+): Promise<void> {
+  const [schema] = await ctx.q<{ ready: boolean }>(
+    `SELECT to_regclass('public.campaign_money_pledges') IS NOT NULL AS ready`,
+  );
+  if (!schema?.ready) return;
+  const [seeded] = await ctx.q(
+    `SELECT 1 FROM campaign_money_pledges WHERE campaign_id = $1 LIMIT 1`,
+    [campaignId],
+  );
+  if (seeded) return;
+  const [account] = await ctx.q<{ global_id: string }>(
+    `SELECT global_id FROM campaign_bank_accounts
+      WHERE campaign_id = $1 AND valid_to IS NULL ORDER BY id LIMIT 1`,
+    [campaignId],
+  );
+  if (!account) return;
+  const [need] = await ctx.q<{ global_id: string }>(
+    `SELECT global_id FROM campaign_funding_needs WHERE campaign_id = $1 ORDER BY id LIMIT 1`,
+    [campaignId],
+  );
+  for (const [userId, amount, status, code, hiddenReason, fundingNeedId] of [
+    [
+      Personas.giver,
+      500_000,
+      'COMPLETED',
+      'CT SEED2A',
+      null,
+      need?.global_id ?? null,
+    ],
+    [Personas.giver2, 200_000, 'INTENDED', 'CT SEED2B', null, null],
+    [
+      Personas.receiver,
+      900_000_000,
+      'COMPLETED',
+      'CT SEED2C',
+      'Số tiền không khớp sao kê',
+      null,
+    ],
+  ] as const)
+    await ctx.q(
+      `INSERT INTO campaign_money_pledges
+         (campaign_id, funding_need_id, user_id, pledged_amount, status, show_name_publicly,
+          note, bank_account_id, transfer_content, completed_at, hidden_at, hidden_by,
+          hidden_reason)
+       VALUES ($1, $2, $3, $4, $5::varchar, true, 'Ủng hộ chi phí vận chuyển', $6, $7,
+               CASE WHEN $5::varchar = 'COMPLETED' THEN now() END,
+               CASE WHEN $8::varchar IS NOT NULL THEN now() END,
+               CASE WHEN $8::varchar IS NOT NULL THEN $9::uuid END, $8::varchar)`,
+      [
+        campaignId,
+        fundingNeedId,
+        userId,
+        amount,
+        status,
+        account.global_id,
+        code,
+        hiddenReason,
+        Personas.organizer,
+      ],
+    );
 }
 
 /**

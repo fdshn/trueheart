@@ -2984,7 +2984,8 @@ dòng này trong workspace.
 **Tiền ≠ hiện vật.** Hai dòng số liệu tách hẳn, không đường nào đổi được cái này thành cái kia:
 
 - **Không có API nào để người ủng hộ góp tiền.** App không giữ tiền; người ủng hộ chuyển khoản
-  thẳng vào tài khoản nhận của dự án, ngoài app.
+  thẳng vào tài khoản nhận của dự án, ngoài app. Người ủng hộ chỉ **khai** (lời khai ủng hộ tiền,
+  §18.9) — tổng lời khai là số riêng, không bao giờ cộng vào tiền đã nhận.
 - Tiền đã nhận **chỉ** do ban tổ chức ghi, qua
   `PATCH /charity-campaigns/:id/funding-needs/:fundingNeedId` (`confirmedAmount` / `externalAmount`).
 - `POST /charity-deliveries/:id/complete` và `received[].confirmedValue` là **giá trị quy đổi
@@ -3386,6 +3387,111 @@ bên kia `CHARITY_CONTRIBUTION_DISPUTE_UPDATED`. Đọc đóng góp có thêm `d
 khi dự án sang Tổng kết (tính từ nhật ký giai đoạn; Admin chỉnh `charity.post_after_event_hours`
 0–720, 0 = tắt). `GET :id/posts/quota` trả `afterEventWindowEndsAt` (`null` khi chưa sang Tổng
 kết). Ban tổ chức, coordinator đăng mọi giai đoạn như cũ.
+
+### 18.9 Đăng ký ủng hộ tiền (CR 25/11/2026, migration `1804600000000`)
+
+Cơ chế **lời khai** giống Công đức: người ủng hộ khai số tiền định chuyển (`INTENDED`), chuyển
+khoản ngoài app vào tài khoản nhận của chiến dịch, rồi tự báo đã chuyển (`COMPLETED`). Cả hai đều
+là **lời khai — hệ thống không xác minh**. App vẫn không giữ tiền.
+
+Hai dòng số liệu tách nhau, **không bao giờ cộng lẫn** (xem "Tiền ≠ hiện vật" §18.1):
+
+| | Số tiền đăng ký ủng hộ | Số tiền thực nhận |
+|---|---|---|
+| Ai ghi | Người ủng hộ tự khai | Ban tổ chức nhập tay |
+| Ở đâu | `pledgedAmount` (dưới đây) | `confirmedAmount` + `externalAmount` của nhu cầu tiền |
+| Đổi bằng | API dưới đây | `PATCH :id/funding-needs/:fundingNeedId` (giữ nguyên) |
+
+**Người ủng hộ**
+
+| Method | Đường dẫn | Mô tả |
+|---|---|---|
+| `POST` | `/charity-campaigns/:id/money-pledges` | Body `{ "pledge": { "fundingNeedId"?, "pledgedAmount", "note"?, "showNamePublicly"? } }`. Trả `201 { pledge, transfer }` |
+| `PATCH` | `/charity-money-pledges/:pledgeId/complete` | Báo đã chuyển. Đã báo → `409 CHARITY_MONEY_PLEDGE_ALREADY_COMPLETED`; không phải của tôi → `404` |
+| `GET` | `/charity-money-pledges/me?campaignId=&cursor=&limit=` | Lời khai của tôi, mới nhất trước. Mỗi dòng có `transfer` (mở lại màn chuyển khoản) và `hiddenAt`/`hiddenReason` nếu bị ẩn |
+
+- `pledgedAmount`: VNĐ nguyên, 1.000 → 10.000.000.000. `note` ≤ 500, chỉ ban tổ chức thấy.
+- `showNamePublicly` bỏ trống = theo cài đặt "hiện tên trong danh sách ủng hộ" của tài khoản.
+- `transfer`: `{ accountClosed, bankName, bankBin, accountNo, accountName, amount, transferContent, vietQrUrl }`.
+  `transferContent` là `CT <mã 6 ký tự>` do backend sinh, duy nhất toàn hệ thống — người ủng hộ
+  ghi đúng nội dung này để ban tổ chức dò sao kê. `vietQrUrl` dựng sẵn (số tiền + nội dung), `null`
+  khi tài khoản nhận chưa khai BIN.
+- `accountClosed = true` (chỉ gặp ở `/me`): ban tổ chức đã đóng tài khoản nhận lúc khai. Khi đó
+  `vietQrUrl = null`; app **không** mời chuyển vào tài khoản cũ — người ủng hộ khai lại để nhận
+  tài khoản mới.
+- Tài khoản nhận: tài khoản của khoản tiền đã chọn nếu còn hiệu lực, không thì tài khoản đang
+  hiệu lực mới nhất. Lời khai lưu tài khoản này (biết tiền chuyển vào đâu khi tài khoản bị thay).
+- **BIN ngân hàng:** `POST :id/bank-accounts` nhận thêm `bankAccount.bankBin` (tuỳ chọn, 6 số
+  Napas); tài khoản trả `bankBin`. Tài khoản cũ chưa có BIN thì vẫn khai được, chỉ không có QR.
+- Điều kiện khai (lỗi theo thứ tự kiểm):
+  - dự án đã duyệt, đang công khai — không thì `404 CHARITY_CAMPAIGN_NOT_FOUND`;
+  - còn hoạt động, chưa sang Tổng kết, chưa công bố tổng kết — không thì
+    `409 CHARITY_NOT_ACCEPTING_CONTRIBUTIONS`;
+  - nhận `MONEY` — không thì `409 CHARITY_CONTRIBUTION_TYPE_DISABLED`;
+  - trước `intakeEndsAt` — không thì `409 CHARITY_INTAKE_CLOSED`;
+  - không phải chủ dự án/điều phối viên — không thì `409 CHARITY_MONEY_PLEDGE_SELF`;
+  - `fundingNeedId` (nếu gửi) là nhu cầu tiền của dự án (`404 CHARITY_FUNDING_NEED_NOT_FOUND`)
+    và đang `OPEN` (`400`);
+  - có tài khoản nhận đang hiệu lực — không thì `409 CHARITY_RECEIVING_ACCOUNT_REQUIRED`;
+  - tối đa **10 lời khai / giờ / người** — quá thì `429`.
+- Báo đã chuyển được cả sau `intakeEndsAt` (tiền có thể đến muộn), nhưng **không** sau khi dự án
+  kết thúc (`409 CHARITY_MONEY_PLEDGE_LOCKED`).
+- Khai xong, mobile tự gọi `POST :id/participation` như khi đóng góp hiện vật.
+
+**Công khai** (không cần đăng nhập)
+
+- `GET /charity-campaigns/:idOrSlug/money-pledges?fundingNeedId=&status=&cursor=&limit=` — danh
+  sách người đăng ký ủng hộ, mới nhất trước, phân trang bằng `nextCursor`. Mỗi dòng: `pledgeId`,
+  `fundingNeedId`, `user` (`null` = "Ẩn danh"), `pledgedAmount`, `status`, `declaredAt`,
+  `completedAt`. Không có `note`, `transferContent`. Lời khai bị ẩn không hiện.
+- `GET :idOrSlug/public`:
+  - `fundingNeeds[i].pledgedAmount` / `pledgeCount` — lời khai `COMPLETED` chưa ẩn vào khoản đó;
+  - `moneyPledges: { pledgedAmount, pledgeCount }` — tổng mọi lời khai `COMPLETED` chưa ẩn (cả
+    ủng hộ chung), có ngay từ lúc gây quỹ; `null` khi dự án không nhận tiền;
+  - `totals.money.pledgedAmount` (khi tổng kết đã công khai). `totalAmount` vẫn chỉ là
+    `confirmedAmount + externalAmount`.
+- `GET :idOrSlug/members?type=CONTRIBUTOR`: người có lời khai `COMPLETED` chưa ẩn được tính là
+  người đóng góp, `contributionTypes` có `MONEY`; ẩn tên thì vào `anonymousCount`. Không trả số tiền.
+  `contributionTypes` và `joinedAt` chỉ tính từ những đóng góp/lời khai **cho hiện tên** — người
+  hiện tên ở hiện vật nhưng khai tiền ẩn danh sẽ không có `MONEY`, để không ghép được với dòng
+  "Ẩn danh" của danh sách ủng hộ tiền.
+
+**Ban tổ chức**
+
+| Method | Đường dẫn | Mô tả |
+|---|---|---|
+| `GET` | `/charity-campaigns/:id/money-pledges/manage` | Như bản công khai, thêm `user` (luôn có), `showNamePublicly`, `note`, `transferContent`, `bankAccount` lúc khai, `hiddenAt`, `hiddenReason`; gồm cả lời khai bị ẩn. Người tạo, điều phối viên, Admin `campaign.read` |
+| `PATCH` | `/charity-money-pledges/:pledgeId/hide` | Body tuỳ chọn `{ "hide": { "reason"? } }` (≤ 500). Đã ẩn → `409 CHARITY_MONEY_PLEDGE_ALREADY_HIDDEN` |
+| `PATCH` | `/charity-money-pledges/:pledgeId/unhide` | Chưa ẩn → `409 CHARITY_MONEY_PLEDGE_NOT_HIDDEN` |
+
+- Ẩn/bỏ ẩn: chủ dự án, điều phối viên (Admin `campaign.manage` cũng được); người có vai đọc mà
+  không vận hành → `403`, người lạ → `404`. Chỉ trước khi dự án kết thúc (`409 …_LOCKED`).
+- Ban tổ chức **không** đổi `INTENDED`/`COMPLETED`.
+- Lời khai bị ẩn: không công khai, không tính `pledgedAmount`/`pledgeCount`, không tính người
+  đóng góp, **không cộng điểm**. Người khai vẫn thấy nó ở `/me`.
+- Thông báo cho người khai (mở chiến dịch khi bấm): `CHARITY_MONEY_PLEDGE_HIDDEN` (tên chiến dịch,
+  số tiền, lý do nếu có) và `CHARITY_MONEY_PLEDGE_UNHIDDEN`.
+
+**Kết thúc dự án = công bố tổng kết** (`POST :id/summary/publish`, §18.4). Từ lúc đó lời khai
+chốt: không khai mới, không báo đã chuyển, không ẩn/bỏ ẩn.
+
+**Điểm**
+
+- Rule `CHARITY_MONEY_PLEDGE`, ship **TẮT** như các rule dự án khác — Admin bật bằng cách
+  publish version mới qua `POST /admin/points/rules`. `points` của rule này không dùng.
+- Điểm gốc mỗi lời khai =
+  `floor(pledgedAmount / 10.000 × điểm rule CHARITY_ITEM_VALUE × charity.money_pledge.points_percent / 100)`.
+  Mặc định 50%: 500.000đ → 25 điểm (vật phẩm cùng giá trị → 50).
+- Chỉ cộng **khi dự án kết thúc**, cho lời khai `COMPLETED` chưa ẩn — mỗi lời khai một award
+  (`referenceType = CHARITY_MONEY_PLEDGE`). `INTENDED`, bị ẩn, dự án huỷ/đình chỉ không đi tới kết
+  thúc: không cộng. Tỷ lệ và điểm vật phẩm lấy **tại lúc kết thúc**; đổi sau đó không tính lại.
+- Thưởng điểm chiến dịch (`pointBonusPercent`, §21a) có áp. Trần
+  `charity.points_cap.charity_money_pledge.{daily,project,cycle}`; vượt trần thì hoãn, job
+  `charity:points` ghi tiếp và vá dự án đã kết thúc còn thiếu award.
+- Job vá xét dự án công bố tổng kết trong **30 ngày** gần nhất (như vá giao nhận). Nên nếu Admin
+  bật rule muộn, lần chạy job kế tiếp sẽ cộng cho lời khai của các dự án kết thúc trong 30 ngày
+  đó, theo tỷ lệ tại lúc job chạy.
+- Bảng tin điểm (§21b) kèm chiến dịch khi lời khai cho hiện tên.
 
 ## 19. Thư viện media CMS (ảnh và âm thanh)
 

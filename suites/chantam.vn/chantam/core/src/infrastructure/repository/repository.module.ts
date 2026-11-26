@@ -11,6 +11,7 @@ import {
   ICharityChangeRequestRepository,
   ICharityEngagementRepository,
   ICharityEventRepository,
+  ICharityMoneyPledgeRepository,
   ICharityOperationsRepository,
   ICharityParticipationRepository,
   ICharityPointsRepository,
@@ -68,6 +69,7 @@ import { CharityCampaignRepository } from './charity-campaign.repository';
 import { CharityChangeRequestRepository } from './charity-change-request.repository';
 import { CharityEngagementRepository } from './charity-engagement.repository';
 import { CharityEventRepository } from './charity-event.repository';
+import { CharityMoneyPledgeRepository } from './charity-money-pledge.repository';
 import { CharityOperationsRepository } from './charity-operations.repository';
 import { CharityParticipationRepository } from './charity-participation.repository';
 import { CharityPointsRepository } from './charity-points.repository';
@@ -163,6 +165,10 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
       useClass: CharityParticipationRepository,
     },
     { provide: ICharityPointsRepository, useClass: CharityPointsRepository },
+    {
+      provide: ICharityMoneyPledgeRepository,
+      useClass: CharityMoneyPledgeRepository,
+    },
     { provide: ICharityAppealRepository, useClass: CharityAppealRepository },
     {
       provide: ISponsorBannerRepository,
@@ -265,6 +271,7 @@ import { VerifiedPhoneRepository } from './verified-phone.repository';
     ICharityProjectRepository,
     ICharityEngagementRepository,
     ICharityEventRepository,
+    ICharityMoneyPledgeRepository,
     ICharitySummaryRepository,
     ICharityChangeRequestRepository,
     ICharityOperationsRepository,

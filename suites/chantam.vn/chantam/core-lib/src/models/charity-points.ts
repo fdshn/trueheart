@@ -11,6 +11,8 @@ export const CharityPointBaseRuleCodes = [
   'CHARITY_POST_VIDEO',
   'CHARITY_POST_IMAGE',
   'CHARITY_PARTICIPATION',
+  // Ủng hộ tiền (CR 25/11/2026): cộng một lần khi dự án kết thúc — xem charity-money-pledge.ts.
+  'CHARITY_MONEY_PLEDGE',
 ] as const;
 export type CharityPointBaseRuleCode =
   (typeof CharityPointBaseRuleCodes)[number];

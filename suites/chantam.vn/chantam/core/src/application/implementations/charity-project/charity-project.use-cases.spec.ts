@@ -1346,6 +1346,7 @@ describe('Hồ sơ tab A', () => {
         account: {
           label: null,
           bankName: 'VCB',
+          bankBin: null,
           accountNo: '0123',
           accountName: 'CLB',
         },
@@ -1369,6 +1370,7 @@ describe('Hồ sơ tab A', () => {
         account: {
           label: null,
           bankName: 'VCB',
+          bankBin: null,
           accountNo: '0123',
           accountName: 'CLB',
         },

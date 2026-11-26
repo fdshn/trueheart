@@ -25,6 +25,7 @@ có implementation**.
 | `.../entities` | Interface entity + token DI (`IPostEntity`, `IPostMediaEntity`, `IGiftPostEntity`, `IChatRoomEntity`, `IUserEntity`…) |
 | `.../values` | Value object `GiftPostId`, `UserId` |
 | `.../dto` — author | `IPostAuthorDto`, `IPublicAuthorSummaryDto`, và `IPublicUserProfileDto` (`userId`, `username`, `displayName`, `avatarUrl`, `rank` — người tổ chức và thành viên công khai của chiến dịch, CR 22/11/2026). |
+| `.../models` — charity money pledges | `CharityMoneyPledgeStatuses`/`CharityMoneyPledgeStatus`, `Min/MaxCharityMoneyPledgeAmount`, `charityMoneyPledgeTransferContent` + bảng chữ mã chuyển khoản, `CharityMoneyPledgePointsPercentConfigKey`, `moneyPledgePoints` (điểm lời khai = % điểm vật phẩm cùng giá trị); rule `CHARITY_MONEY_PLEDGE` nằm trong `CharityPointBaseRuleCodes` (CR 25/11/2026). |
 | `.../models` — charity members | `CharityParticipationRoles`/`CharityParticipationRole` (`PARTICIPANT`·`SUPERVISOR`), `CharityMemberTypes`/`CharityMemberType`, `isIntakeClosed`; điều kiện tham gia đổi tên `MaxCharityMinimumSupervisors`, `charitySupervisorRequirementGaps`, `charityMinimumSupervisorsMet`. |
 | `.../dto` | Interface DTO theo từng resource, mỗi resource một thư mục trong `src/dto/` (post, gift-request, transaction, chat, check-in, leaderboard, presence, user-block, attribution…) |
 

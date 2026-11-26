@@ -15,6 +15,10 @@ import { CharityDisputeController } from './charity-dispute.controller';
 import { CharityEngagementController } from './charity-engagement.controller';
 import { CharityEventController } from './charity-event.controller';
 import { CharityExternalContributionController } from './charity-external-contribution.controller';
+import {
+  CharityCampaignMoneyPledgeController,
+  CharityMoneyPledgeController,
+} from './charity-money-pledge.controller';
 import { CharityOperationsController } from './charity-operations.controller';
 import { CharityParticipationController } from './charity-participation.controller';
 import {
@@ -48,6 +52,8 @@ import {
     CharityParticipationController,
     CharityOperationsController,
     CharityDisputeController,
+    CharityCampaignMoneyPledgeController,
+    CharityMoneyPledgeController,
   ],
 })
 export class CharityCampaignControllerModule {}

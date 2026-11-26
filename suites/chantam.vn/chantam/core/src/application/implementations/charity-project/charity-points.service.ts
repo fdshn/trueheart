@@ -1,21 +1,26 @@
 import {
   IAdminConfigRepository,
+  ICharityMoneyPledgeRepository,
   ICharityPointCaps,
   ICharityPointsRepository,
 } from '@/domain/ports/repository';
 import {
+  CharityMoneyPledgePointsPercentConfigKey,
   CharityPointBaseRuleCode,
   CharityPointBaseRuleCodes,
+  charityPointCapConfigKey,
   CharityPointCapWindows,
   CharityPointRuleCode,
-  charityPointCapConfigKey,
+  DefaultCharityMoneyPledgePointsPercent,
   itemValuePoints,
+  MaxCharityMoneyPledgePointsPercent,
+  moneyPledgePoints,
   normalizeNonNegativeInt,
   participationPoints,
   postMediaPoints,
   vietnamDayStart,
 } from '@chantam.vn/chantam.core-lib/models';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 function isCharityPointBaseRule(
   rule: CharityPointRuleCode,
@@ -43,7 +48,58 @@ export class CharityPointsService {
     private readonly points: ICharityPointsRepository,
     @Inject(IAdminConfigRepository)
     private readonly admin: IAdminConfigRepository,
+    @Optional()
+    @Inject(ICharityMoneyPledgeRepository)
+    private readonly pledges?: ICharityMoneyPledgeRepository,
   ) {}
+
+  /**
+   * Dự án vừa kết thúc (công bố tổng kết): mỗi lời khai ủng hộ tiền `COMPLETED` chưa bị ẩn được
+   * một award (CR 25/11/2026). Tỷ lệ % và điểm vật phẩm lấy TẠI LÚC NÀY; lời khai đã có award thì
+   * không tính lại — gọi lại (job vá, công bố lại bản sửa) là an toàn.
+   */
+  public async awardMoneyPledges(campaignId: string): Promise<void> {
+    const pledges = this.pledges;
+    if (!pledges) return;
+    await this.safely(`ủng hộ tiền ${campaignId}`, async () => {
+      const rule = await this.points.findRule('CHARITY_MONEY_PLEDGE');
+      if (!rule?.isEnabled) return;
+      const [itemRule, percentValue, awardable] = await Promise.all([
+        this.points.findRule('CHARITY_ITEM_VALUE'),
+        this.admin.getConfigValue(CharityMoneyPledgePointsPercentConfigKey),
+        pledges.listAwardable(campaignId),
+      ]);
+      const percent = normalizeNonNegativeInt(
+        percentValue,
+        DefaultCharityMoneyPledgePointsPercent,
+        MaxCharityMoneyPledgePointsPercent,
+      );
+      for (const pledge of awardable)
+        // Một lời khai hỏng không được chặn những lời khai sau nó.
+        await this.safely(`lời khai ${pledge.pledgeId}`, async () => {
+          const existing = await this.points.findAwards({
+            ruleCode: 'CHARITY_MONEY_PLEDGE',
+            referenceType: 'CHARITY_MONEY_PLEDGE',
+            referenceId: pledge.pledgeId,
+          });
+          if (existing.length > 0) return;
+          const award = await this.points.upsertAward({
+            campaignId,
+            userId: pledge.userId,
+            ruleCode: 'CHARITY_MONEY_PLEDGE',
+            referenceType: 'CHARITY_MONEY_PLEDGE',
+            referenceId: pledge.pledgeId,
+            targetPoints: moneyPledgePoints({
+              pledgedAmount: pledge.pledgedAmount,
+              itemValueRulePoints: itemRule?.points ?? 0,
+              percent,
+            }),
+            reason: `Ủng hộ ${pledge.pledgedAmount.toLocaleString('vi-VN')}đ cho dự án từ thiện`,
+          });
+          await this.settle(award.awardId, 'CHARITY_MONEY_PLEDGE');
+        });
+    });
+  }
 
   /** Lượt giao nhận hoàn tất (hoặc giá trị vừa được điều chỉnh qua khiếu nại). */
   public async awardItemValue(deliveryId: string): Promise<void> {
@@ -177,6 +233,16 @@ export class CharityPointsService {
       ? await this.points.listDeliveriesWithoutAward(30, limit)
       : [];
     for (const deliveryId of missing) await this.awardItemValue(deliveryId);
+    // Dự án đã kết thúc mà lời khai ủng hộ tiền còn thiếu award (lượt ghi ngay sau công bố hỏng).
+    const pledgeRule = this.pledges
+      ? await this.points.findRule('CHARITY_MONEY_PLEDGE')
+      : null;
+    const pledgeCampaigns =
+      this.pledges && pledgeRule?.isEnabled
+        ? await this.pledges.listCampaignsWithUnawardedPledges(30, limit)
+        : [];
+    for (const campaignId of pledgeCampaigns)
+      await this.awardMoneyPledges(campaignId);
     const zeroed = await this.points.zeroAwardsForRemovedPosts(limit);
     let applied = 0;
     let deferred = 0;
@@ -192,7 +258,7 @@ export class CharityPointsService {
       });
     }
     return {
-      backfilled: missing.length,
+      backfilled: missing.length + pledgeCampaigns.length,
       zeroed,
       settled: pending.length,
       applied,

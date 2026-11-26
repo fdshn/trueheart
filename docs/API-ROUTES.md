@@ -3,8 +3,8 @@
 > **File sinh tự động** bởi `npm run docs:routes` từ metadata của controller đã biên dịch.
 > Đừng sửa tay — sửa controller rồi chạy lại lệnh. CI chạy `docs:routes:check`.
 
-Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **450** route:
-59 công khai, 145 cần quyền Admin, 246 cần access token.
+Tiền tố chung: `/api/v1` (riêng `/health` nằm ngoài tiền tố). Tổng **457** route:
+60 công khai, 145 cần quyền Admin, 252 cần access token.
 
 Mức truy cập: `Công khai` = không cần token; `Bearer` = cần access token (một số route còn
 kiểm chủ sở hữu hoặc quyền RBAC trong use case — xem `docs/API.md`); `perm:<mã>` = quyền Admin
@@ -464,6 +464,8 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `GET` | `/charity-campaigns/:id/internal-stats` | Bearer | Thống kê nội bộ |
 | `PATCH` | `/charity-campaigns/:id/item-needs/:needItemId` | Bearer | Đơn giá, tình trạng, nguồn cung, tiếp nhận của một dòng hiện vật |
 | `PUT` | `/charity-campaigns/:id/media` | Bearer | Thay cả bộ ảnh/video của hồ sơ đang chờ duyệt |
+| `POST` | `/charity-campaigns/:id/money-pledges` | Bearer | Khai đăng ký ủng hộ tiền |
+| `GET` | `/charity-campaigns/:id/money-pledges/manage` | Bearer | Danh sách người đăng ký ủng hộ tiền (ban tổ chức) |
 | `POST` | `/charity-campaigns/:id/other-support-needs` | Bearer | Thêm hạng mục hỗ trợ mở |
 | `PATCH` | `/charity-campaigns/:id/other-support-needs/:supportNeedId` | Bearer | Sửa hạng mục hỗ trợ mở, ghi nguồn ngoài app, đóng/mở |
 | `DELETE` | `/charity-campaigns/:id/other-support-needs/:supportNeedId` | Bearer | Xoá hạng mục hỗ trợ mở |
@@ -529,6 +531,7 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | `POST` | `/charity-campaigns/:idOrSlug/follow` | Bearer | Quan tâm dự án |
 | `DELETE` | `/charity-campaigns/:idOrSlug/follow` | Bearer | Bỏ quan tâm dự án |
 | `GET` | `/charity-campaigns/:idOrSlug/members` | Công khai | Thành viên công khai của dự án (CR 22/11/2026) |
+| `GET` | `/charity-campaigns/:idOrSlug/money-pledges` | Công khai | Danh sách người đăng ký ủng hộ tiền (công khai) |
 | `GET` | `/charity-campaigns/:idOrSlug/other-support-needs` | Công khai | Hạng mục hỗ trợ mở (công khai) |
 | `GET` | `/charity-campaigns/:idOrSlug/posts` | Công khai | Bài ảnh/clip của dự án |
 | `GET` | `/charity-campaigns/:idOrSlug/public` | Công khai | Bản công khai của dự án |
@@ -569,6 +572,15 @@ kiểm bởi guard. Chi tiết request/response ở Swagger (`/docs`) và `docs/
 | Method | Đường dẫn | Truy cập | Tóm tắt |
 | --- | --- | --- | --- |
 | `PATCH` | `/charity-external-contributions/:id` | Bearer | Huỷ hoặc điều chỉnh một bản ghi ngoài app — luôn kèm lý do |
+
+## `/charity-money-pledges`
+
+| Method | Đường dẫn | Truy cập | Tóm tắt |
+| --- | --- | --- | --- |
+| `PATCH` | `/charity-money-pledges/:pledgeId/complete` | Bearer | Báo đã chuyển |
+| `PATCH` | `/charity-money-pledges/:pledgeId/hide` | Bearer | Ẩn lời khai vô lý (ban tổ chức) |
+| `PATCH` | `/charity-money-pledges/:pledgeId/unhide` | Bearer | Bỏ ẩn lời khai (ban tổ chức) |
+| `GET` | `/charity-money-pledges/me` | Bearer | Lời khai ủng hộ tiền của tôi |
 
 ## `/chat`
 

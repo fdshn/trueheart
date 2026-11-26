@@ -93,6 +93,11 @@ export const SupportedSystemConfigKeys = [
   'charity.points_cap.charity_participation.daily',
   'charity.points_cap.charity_participation.project',
   'charity.points_cap.charity_participation.cycle',
+  // Ủng hộ tiền (CR 25/11/2026): trần + tỷ lệ % so với điểm vật phẩm.
+  'charity.points_cap.charity_money_pledge.daily',
+  'charity.points_cap.charity_money_pledge.project',
+  'charity.points_cap.charity_money_pledge.cycle',
+  'charity.money_pledge.points_percent',
   'charity.post_max_video_seconds',
   'charity.post_after_event_hours',
   'charity.appeal_window_days',
@@ -171,6 +176,14 @@ export const SystemConfigValueRanges: Readonly<
     max: 1_000_000,
   },
   'charity.points_cap.charity_participation.cycle': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_money_pledge.daily': { min: 0, max: 1_000_000 },
+  'charity.points_cap.charity_money_pledge.project': {
+    min: 0,
+    max: 1_000_000,
+  },
+  'charity.points_cap.charity_money_pledge.cycle': { min: 0, max: 1_000_000 },
+  // % điểm vật phẩm cùng giá trị; 0 = ủng hộ tiền không có điểm (vẫn bật rule được).
+  'charity.money_pledge.points_percent': { min: 0, max: 100 },
   'charity.post_max_video_seconds': { min: 10, max: 600 },
   'charity.post_after_event_hours': { min: 0, max: 720 },
   'charity.appeal_window_days': { min: 1, max: 90 },
