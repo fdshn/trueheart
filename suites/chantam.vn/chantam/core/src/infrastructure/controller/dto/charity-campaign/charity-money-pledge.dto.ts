@@ -159,6 +159,11 @@ export class HideCharityMoneyPledgeBodyDto {
 // ── Response ────────────────────────────────────────────────────────────
 
 export class CharityMoneyPledgeTransferDto {
+  @ApiProperty({
+    description:
+      'Tài khoản nhận lúc khai đã đóng: `vietQrUrl = null`, app không mời chuyển vào tài khoản này (khai lại để nhận tài khoản mới)',
+  })
+  accountClosed: boolean;
   @ApiProperty() bankName: string;
   @ApiProperty({ type: String, nullable: true, example: '970436' })
   bankBin: string | null;

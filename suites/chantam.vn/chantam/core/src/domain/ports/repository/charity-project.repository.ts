@@ -100,12 +100,13 @@ export interface ICharityBankAccountInput {
   label: string | null;
   bankName: string;
   /** BIN Napas 6 số — có thì app dựng được VietQR cho người ủng hộ. Tài khoản cũ không có. */
-  bankBin: string | null;
+  bankBin?: string | null;
   accountNo: string;
   accountName: string;
 }
 
 export interface ICharityBankAccount extends ICharityBankAccountInput {
+  bankBin: string | null;
   accountId: string;
   validFrom: Date;
   validTo: Date | null;

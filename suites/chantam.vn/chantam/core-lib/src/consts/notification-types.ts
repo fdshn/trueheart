@@ -355,7 +355,6 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.CHARITY_SUPPORT_OFFER_UPDATED]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_CONTRIBUTION_DISPUTE_UPDATED]:
     NotificationGroups.STATUS,
-  [NotificationTypes.CHARITY_MONEY_PLEDGE_HIDDEN]: NotificationGroups.STATUS,
   [NotificationTypes.CHARITY_MONEY_PLEDGE_UNHIDDEN]: NotificationGroups.STATUS,
 
   // ── Tích điểm: điểm vào sổ ───────────────────────────────────────────────
@@ -372,6 +371,8 @@ export const NotificationGroupOf: Record<
   [NotificationTypes.RANK_DEMOTED]: NotificationGroups.WARNING,
   [NotificationTypes.REPORT_REVIEWED]: NotificationGroups.WARNING,
   [NotificationTypes.CONTENT_MODERATED]: NotificationGroups.WARNING,
+  // Ban tổ chức ẩn lời khai ủng hộ tiền — cùng bản chất "nội dung của bạn bị gỡ khỏi công khai".
+  [NotificationTypes.CHARITY_MONEY_PLEDGE_HIDDEN]: NotificationGroups.WARNING,
 
   // ── Điều kiện: có việc phải làm trước một cái hạn ────────────────────────
   [NotificationTypes.RANK_MAINTENANCE_REMINDER]: NotificationGroups.CONDITION,

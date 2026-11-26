@@ -9,6 +9,11 @@ import { IUseCase } from '@chantam/service.common-lib';
 
 /** Thông tin chuyển khoản để app dựng màn chuyển khoản như Công đức. */
 export interface ICharityMoneyPledgeTransfer {
+  /**
+   * Tài khoản nhận lúc khai đã bị đóng (thay tài khoản khác). Khi đó `vietQrUrl = null` và app
+   * KHÔNG được mời chuyển vào tài khoản này — khai lại để nhận tài khoản mới.
+   */
+  accountClosed: boolean;
   bankName: string;
   bankBin: string | null;
   accountNo: string;

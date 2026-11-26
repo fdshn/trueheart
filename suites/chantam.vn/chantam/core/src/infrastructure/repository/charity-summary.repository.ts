@@ -698,9 +698,15 @@ export class CharitySummaryRepository implements ICharitySummaryRepository {
     // Ai đủ điều kiện, mốc tham gia và có cho hiện tên — gộp theo người.
     const eligible =
       params.type === 'CONTRIBUTOR'
-        ? `SELECT source.user_id, MIN(source.created_at) AS joined_at,
+        ? // Lời khai tiền ẨN DANH không góp mốc lẫn loại: danh sách ủng hộ tiền công khai từng
+          // dòng "Ẩn danh" kèm số tiền và mốc khai, nên lộ `MONEY`/`joinedAt` của nó ở đây là
+          // ghép được ra người + số tiền. Hiện vật/dịch vụ giữ lối gộp cũ.
+          `SELECT source.user_id,
+                  MIN(source.created_at)
+                    FILTER (WHERE source.visible OR source.kind <> 'MONEY') AS joined_at,
                   bool_or(source.visible) AS visible,
-                  array_agg(DISTINCT source.kind ORDER BY source.kind) AS kinds
+                  array_agg(DISTINCT source.kind ORDER BY source.kind)
+                    FILTER (WHERE source.visible OR source.kind <> 'MONEY') AS kinds
              FROM (
                SELECT contribution.contributor_id AS user_id, contribution.created_at,
                       contribution.show_name_publicly AS visible, 'MATERIAL' AS kind

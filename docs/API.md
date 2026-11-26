@@ -3412,10 +3412,13 @@ Hai dòng số liệu tách nhau, **không bao giờ cộng lẫn** (xem "Tiền
 
 - `pledgedAmount`: VNĐ nguyên, 1.000 → 10.000.000.000. `note` ≤ 500, chỉ ban tổ chức thấy.
 - `showNamePublicly` bỏ trống = theo cài đặt "hiện tên trong danh sách ủng hộ" của tài khoản.
-- `transfer`: `{ bankName, bankBin, accountNo, accountName, amount, transferContent, vietQrUrl }`.
+- `transfer`: `{ accountClosed, bankName, bankBin, accountNo, accountName, amount, transferContent, vietQrUrl }`.
   `transferContent` là `CT <mã 6 ký tự>` do backend sinh, duy nhất toàn hệ thống — người ủng hộ
   ghi đúng nội dung này để ban tổ chức dò sao kê. `vietQrUrl` dựng sẵn (số tiền + nội dung), `null`
   khi tài khoản nhận chưa khai BIN.
+- `accountClosed = true` (chỉ gặp ở `/me`): ban tổ chức đã đóng tài khoản nhận lúc khai. Khi đó
+  `vietQrUrl = null`; app **không** mời chuyển vào tài khoản cũ — người ủng hộ khai lại để nhận
+  tài khoản mới.
 - Tài khoản nhận: tài khoản của khoản tiền đã chọn nếu còn hiệu lực, không thì tài khoản đang
   hiệu lực mới nhất. Lời khai lưu tài khoản này (biết tiền chuyển vào đâu khi tài khoản bị thay).
 - **BIN ngân hàng:** `POST :id/bank-accounts` nhận thêm `bankAccount.bankBin` (tuỳ chọn, 6 số
@@ -3449,6 +3452,9 @@ Hai dòng số liệu tách nhau, **không bao giờ cộng lẫn** (xem "Tiền
     `confirmedAmount + externalAmount`.
 - `GET :idOrSlug/members?type=CONTRIBUTOR`: người có lời khai `COMPLETED` chưa ẩn được tính là
   người đóng góp, `contributionTypes` có `MONEY`; ẩn tên thì vào `anonymousCount`. Không trả số tiền.
+  `contributionTypes` và `joinedAt` chỉ tính từ những đóng góp/lời khai **cho hiện tên** — người
+  hiện tên ở hiện vật nhưng khai tiền ẩn danh sẽ không có `MONEY`, để không ghép được với dòng
+  "Ẩn danh" của danh sách ủng hộ tiền.
 
 **Ban tổ chức**
 
@@ -3482,6 +3488,9 @@ chốt: không khai mới, không báo đã chuyển, không ẩn/bỏ ẩn.
 - Thưởng điểm chiến dịch (`pointBonusPercent`, §21a) có áp. Trần
   `charity.points_cap.charity_money_pledge.{daily,project,cycle}`; vượt trần thì hoãn, job
   `charity:points` ghi tiếp và vá dự án đã kết thúc còn thiếu award.
+- Job vá xét dự án công bố tổng kết trong **30 ngày** gần nhất (như vá giao nhận). Nên nếu Admin
+  bật rule muộn, lần chạy job kế tiếp sẽ cộng cho lời khai của các dự án kết thúc trong 30 ngày
+  đó, theo tỷ lệ tại lúc job chạy.
 - Bảng tin điểm (§21b) kèm chiến dịch khi lời khai cho hiện tên.
 
 ## 19. Thư viện media CMS (ảnh và âm thanh)

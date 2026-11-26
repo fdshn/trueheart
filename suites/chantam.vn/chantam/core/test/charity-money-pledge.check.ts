@@ -18,6 +18,7 @@ import { DataSource } from 'typeorm';
 import {
   CompleteCharityMoneyPledgeUseCase,
   DeclareCharityMoneyPledgeUseCase,
+  ListMyCharityMoneyPledgesUseCase,
 } from '../src/application/implementations/charity-project/charity-money-pledge.use-cases';
 import { CharityPointsService } from '../src/application/implementations/charity-project/charity-points.service';
 import { GetPointFeedUseCase } from '../src/application/implementations/point/get-point-feed.use-case';
@@ -445,6 +446,35 @@ async function main(): Promise<void> {
       }),
     );
 
+    // Review: Shy ẩn tên ở lời khai nhưng có một đóng góp hiện vật CHO hiện tên (sau lời khai).
+    // Danh sách thành viên không được để lộ MONEY hay mốc của lời khai ẩn danh — ghép với danh
+    // sách ủng hộ tiền là ra người + số tiền.
+    const [contribution] = (await sql(
+      `INSERT INTO campaign_contributions
+         (campaign_id, contributor_id, status, decided_at, decided_by, show_name_publicly)
+       VALUES ($1, $2, 'ACCEPTED', now(), $3, true)
+       RETURNING date_trunc('milliseconds', created_at) AS created_at`,
+      [Live, Shy, Owner],
+    )) as { created_at: Date }[];
+    const mixed = await summaries.listPublicMembers({
+      campaignId: Live,
+      type: 'CONTRIBUTOR',
+      cursor: null,
+      limit: 10,
+    });
+    const shyMember = mixed.rows.find((member) => member.user.globalId === Shy);
+    check(
+      'người hiện tên ở hiện vật nhưng ẩn tên ở lời khai: chỉ MATERIAL, joinedAt = mốc hiện vật',
+      shyMember !== undefined &&
+        JSON.stringify(shyMember.contributionTypes) === '["MATERIAL"]' &&
+        shyMember.joinedAt.getTime() === contribution.created_at.getTime() &&
+        shyMember.joinedAt.getTime() !== shy.pledge.declaredAt.getTime(),
+      JSON.stringify(shyMember),
+    );
+    await sql(`DELETE FROM campaign_contributions WHERE contributor_id = $1`, [
+      Shy,
+    ]);
+
     // ── 5. Kết thúc dự án → điểm ─────────────────────────────────────────
     console.log('5. Điểm khi dự án kết thúc');
     await sql(
@@ -548,6 +578,24 @@ async function main(): Promise<void> {
         donorEntry.ruleTitle === 'Ủng hộ tiền cho dự án từ thiện' &&
         (shyEntry === undefined || shyEntry.context === null),
       JSON.stringify({ donorEntry, shyEntry }),
+    );
+
+    // ── 7. Tài khoản nhận bị đóng ────────────────────────────────────────
+    console.log('7. Tài khoản nhận bị đóng');
+    await projects.closeBankAccount({
+      campaignId: Live,
+      accountId,
+      actorId: Owner,
+      reason: 'Đổi tài khoản',
+    });
+    const afterClose = await new ListMyCharityMoneyPledgesUseCase(
+      pledges,
+    ).handle({ userId: Donor, campaignId: Live, cursor: null, limit: 10 });
+    check(
+      '/me: tài khoản lúc khai đã đóng → accountClosed, không dựng QR',
+      afterClose.pledges[0]?.transfer?.accountClosed === true &&
+        afterClose.pledges[0]?.transfer?.vietQrUrl === null,
+      JSON.stringify(afterClose.pledges[0]?.transfer),
     );
   } finally {
     for (const source of opened.reverse())

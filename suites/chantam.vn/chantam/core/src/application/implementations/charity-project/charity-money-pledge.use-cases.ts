@@ -100,26 +100,31 @@ function transferCode(length: number): string {
 function toTransfer(
   account: Pick<
     ICharityMoneyPledgeAccount,
-    'bankName' | 'bankBin' | 'accountNo' | 'accountName'
+    'bankName' | 'bankBin' | 'accountNo' | 'accountName' | 'validTo'
   >,
   pledge: Pick<ICharityMoneyPledge, 'pledgedAmount' | 'transferContent'>,
 ): ICharityMoneyPledgeTransfer {
+  // Tài khoản đã đóng (bị thay): không dựng QR — quét mã cũ là chuyển nhầm vào tài khoản
+  // chiến dịch không còn dùng.
+  const accountClosed = account.validTo !== null;
   return {
+    accountClosed,
     bankName: account.bankName,
     bankBin: account.bankBin,
     accountNo: account.accountNo,
     accountName: account.accountName,
     amount: pledge.pledgedAmount,
     transferContent: pledge.transferContent,
-    vietQrUrl: account.bankBin
-      ? buildVietQrUrl({
-          bankBin: account.bankBin,
-          accountNumber: account.accountNo,
-          accountName: account.accountName,
-          amount: pledge.pledgedAmount,
-          note: pledge.transferContent,
-        })
-      : null,
+    vietQrUrl:
+      account.bankBin && !accountClosed
+        ? buildVietQrUrl({
+            bankBin: account.bankBin,
+            accountNumber: account.accountNo,
+            accountName: account.accountName,
+            amount: pledge.pledgedAmount,
+            note: pledge.transferContent,
+          })
+        : null,
   };
 }
 
@@ -476,13 +481,12 @@ export class CharityMoneyPledgeNotifier {
     const amount = `${pledge.pledgedAmount.toLocaleString('vi-VN')}đ`;
     const reason =
       hidden && pledge.hiddenReason ? ` Lý do: ${pledge.hiddenReason}` : '';
-    const type = hidden
-      ? NotificationTypes.CHARITY_MONEY_PLEDGE_HIDDEN
-      : NotificationTypes.CHARITY_MONEY_PLEDGE_UNHIDDEN;
     try {
       await this.dispatch.handle({
         userId: pledge.userId,
-        type,
+        type: hidden
+          ? NotificationTypes.CHARITY_MONEY_PLEDGE_HIDDEN
+          : NotificationTypes.CHARITY_MONEY_PLEDGE_UNHIDDEN,
         title: hidden
           ? 'Lời khai ủng hộ tiền bị ẩn'
           : 'Lời khai ủng hộ tiền được hiện lại',
@@ -496,7 +500,7 @@ export class CharityMoneyPledgeNotifier {
           id: pledge.campaignId,
         },
         // Ẩn → bỏ ẩn → ẩn lại là ba sự kiện thật: khoá theo mốc của từng lần.
-        idempotencyKey: `${type}:${pledge.pledgeId}:${at.getTime()}`,
+        idempotencyKey: `${hidden ? 'CHARITY_MONEY_PLEDGE_HIDDEN' : 'CHARITY_MONEY_PLEDGE_UNHIDDEN'}:${pledge.pledgeId}:${at.getTime()}`,
       });
     } catch (error) {
       this.logger.warn(

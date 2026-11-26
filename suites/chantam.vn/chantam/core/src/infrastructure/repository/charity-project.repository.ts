@@ -1113,7 +1113,7 @@ export class CharityProjectRepository implements ICharityProjectRepository {
           params.account.accountNo,
           params.account.accountName,
           params.actorId,
-          params.account.bankBin,
+          params.account.bankBin ?? null,
         ],
       );
       return { status: 'CREATED', account: toBank(row) };
